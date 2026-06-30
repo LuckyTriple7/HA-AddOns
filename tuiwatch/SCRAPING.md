@@ -21,13 +21,26 @@ der Browser-Scraper ist nur noch **Fallback**. Code: `fetch_price_api()` in
 | **Preiskalender** | `https://d18axsujemfwj.cloudfront.net/data?giatas=…&duration=…&adults=…&startSearchRange=…&endSearchRange=…&airports=…&roomTypeOpCodes=…&boardCodes=…&tourOperators=…&startDate=…&endDate=…` | `offers[]` je `arrivalDate` → `calculatedPricePerPerson`; min pro Tag = „ab"-Preis. **Achtung:** dieser Endpoint nutzt **andere** Parameternamen als der Offer-Endpoint: Verpflegung = `boardCodes` (nicht `boardTypes`), Veranstalter = `tourOperators` (nicht `operators`), Personen = `adults`, giataId = `giatas`. `startDate/endDate` = sichtbarer Rasterbereich (wir nehmen Suchzeitraum ±7 Tage). |
 | **Hotelsuche (Region)** | **POST** `https://api.cloud.tui.com/hotel-offer-cards/v2/search/TUICOM` (JSON-Body, stabiler Host) | Body: `{"parameters":{searchScope,startDate,endDate,duration:[N],rooms:[{numberOfAdults,childAges,roomCodes,boardCodes}],airports:[],tourOperators:[],giataRegions:[…],sortingOrder:"qualifier2DESC",resultsPerPage,resultsFrom,resultsTotal,transferIncluded:false,identifier:"HLP"}}`. Antwort: `resultsTotal` + `items[]` mit `hotel{giataId,name,category(=Sterne),location{country,region,city,lat,lng},holidayCheckRecommendationRate,holidayCheckNumberOfCurrentReviews,brand,images[]}`, `price{perPerson{amount,originalAmount},advantage(=Rabatt %, negativ)}`, `boardType`/`boardCodes`(Kurzcodes wie `AI`), `roomOpCode`, `numberOfNights`, `startDate`. **Region zuerst wählen:** `giataRegions` stammt aus `regionGiataIds` der Such-/Region-URL **oder** — für die Suche aus einem bestehenden Angebot — aus der **Breadcrumb-API** über die Hotel-`giataId`: der **letzte `level==1`-Eintrag** ist die Region/Insel (`region_giata_from_breadcrumb()`; Gran Canaria=128, Kap Verde=88). Such-API akzeptiert **Land-, Region- und Insel-Ebene**, **nicht** reine Stadt-Ebene (HTTP 400). Treffer verlinken auf die normalen `…/angebote/<Hotel>/<giataId>/offer/`-URLs → direkt trackbar (`offer_url_for`). Code: `_run_search()`/`fetch_search()`/`fetch_search_params()` in [scraper.py](scraper.py). |
 | **Reiseziel-Picker** | `GET https://api.cloud.tui.com/search-destination/v2/de/package/TUICOM/giata/regions` (Top-Level) bzw. `…/giata/subregions/<giataId>` (Drilldown) | `{items: {<giataId>: {label, level}}}` (+ `parentName` bei Subregionen). Drilldown Land→Region→Insel; alle Ebenen außer Stadt sind als `giataRegions` suchbar. Code: `fetch_destinations()`. |
+| **Reiseziel-Index (globale Suche)** | dieselben Endpunkte, aber **rekursiv** über den ganzen Baum (~1000+ Aufrufe) | Flacher Index `[{giata, label, path}]` mit Breadcrumb-Pfad. Wegen der Last nur **gecacht** verwenden: Aufbau beim Start im Hintergrund, persistiert in der DB (`meta.dest_index`), Neuaufbau alle 14 Tage bzw. manuell (`POST /api/destinations/reindex`). Code: `build_destination_index()`. |
 | **Abflughäfen** | `GET https://api.cloud.tui.com/search-departure-airport/v2/departureAirports/TUICOM/de-DE` | Liste `[{key(=IATA, z. B. STR), name, geolocation, preselected}]`. Code: `fetch_airports()`. |
+| **Fluggesellschaften** | *kein offener Endpunkt* — **kuratierte Liste** `TUI_AIRLINES` in [scraper.py](scraper.py) (IATA-Codes wie `EW`,`DE`,`X3`). Code: `fetch_airlines()`. | Optionaler Filter. Codes gehen als `airlines` in den Such-POST (Liste) und in die Offer-/Such-URL (mehrere mit **`;`** getrennt, z. B. `airlines=X3;VY`); die Offer-/Preis-API filtert die Flüge entsprechend. |
 
 - Die **giataId** steht im Pfad der Seiten-URL: `…/angebote/<Hotel>/<giataId>/…`.
 - `build_offer_api_url()` mappt die Seiten-Parameter → API-Parameter (u. a.
   `duration`→`durations`, `departureAirports`→`airports`); der **eingegebene
   Reisezeitraum** (`startDate`/`endDate`/`duration`) wird dabei übernommen.
 - `cheapest: true` markiert die günstigste Karte direkt — kein Heuristik-Raten.
+- **Zimmerauswahl:** ohne `roomTypeOpCodes` liefert der Offer-Endpoint alle Zimmer; wir
+  gruppieren die `offers[]` nach `rooms[0].code` (z. B. `DZM1`/`DZM3`) und nehmen je
+  Zimmer den günstigsten `calculatedPricePerPerson` (Name = `rooms[0].description`). Ein
+  fixes Zimmer wird über `roomTypeOpCodes=<code>` in der Angebots-URL verfolgt
+  (`fetch_rooms()`/`with_room_code()`/`room_code_from_url()`). Langtext/Fotos hat die API
+  nicht — dafür verlinkt das UI das Zimmer auf tui.com.
+- **Hotelbild:** Nur die **Such-API** liefert `hotel.images[0].url` (pics.tui.com). Offer-/
+  Content-API haben kein Bild. `fetch_hotel_image()` bestimmt daher die Region über den
+  Breadcrumb, sucht in ihr und nimmt das Bild des Treffers mit passender giataId
+  (einmalig je Angebot, danach in `offers.image_url` gecacht). Serverseitiger Bildabruf
+  gibt 403 (Hotlink-Schutz) → Bild nur als `<img>` im Browser, nie serverseitig laden.
 - **Dauer-Bereiche** (`duration=7-`, `9-12`): der **Kalender** braucht eine *einzelne*
   Dauer → wir nehmen die untere Zahl (`_single_duration()`). Der **Offer**-Abruf bekommt
   den Bereich unverändert (`durations`), damit der günstigste über alle Dauern stimmt.

@@ -22,7 +22,9 @@ from urllib.parse import (parse_qs, parse_qsl, unquote, urlencode, urlparse,
                           urlunparse)
 
 import requests
-from playwright.sync_api import sync_playwright
+# playwright wird nur für den Browser-Fallback gebraucht und erst dort (lazy) importiert
+# (siehe _fetch_price_browser). So lässt sich scraper.py auch ohne installiertes
+# playwright importieren — z. B. für die Parsing-Tests.
 
 # Eigener Logger; hängt über den Root-Handler in der UI-Konsole (siehe app.py).
 log = logging.getLogger("tuiwatch.scraper")
@@ -126,9 +128,44 @@ def without_room_code(url: str) -> str:
     return _replace_query(url, drop_keys=('roomTypeOpCodes',))
 
 
+def with_room_code(url: str, code: str) -> str:
+    """Gibt die URL mit fixem Zimmer (`roomTypeOpCodes=code`) zurück; leerer Code →
+    entfernt die Festlegung (= wieder automatisch das günstigste Zimmer)."""
+    code = (code or '').strip()
+    if not code:
+        return without_room_code(url)
+    return _replace_query(url, set_params={'roomTypeOpCodes': code})
+
+
+def room_code_from_url(url: str) -> str:
+    """Liest den aktuell fixierten Zimmercode (`roomTypeOpCodes`) aus der URL (oder '')."""
+    try:
+        for k, v in parse_qsl(urlparse(url).query, keep_blank_values=True):
+            if k == 'roomTypeOpCodes' and v.strip():
+                return v.strip()
+    except (TypeError, ValueError):
+        pass
+    return ''
+
+
 def with_duration(url: str, n: int) -> str:
-    """Gibt die URL mit `duration=n` (Nächte) zurück."""
-    return _replace_query(url, set_params={'duration': n})
+    """Gibt die URL mit `duration=n` (Nächte) zurück. Falls die URL ein festes
+    Reisefenster (`startDate`/`endDate`) hat, das schmaler als die gewünschte Dauer ist
+    (z. B. ein aus dem Kalender getrackter Einzeltermin: Fenster = exakt 7 Nächte), wird
+    `endDate` auf `startDate + n` geweitet — sonst liefert die API für längere Dauern
+    kein Angebot. Breitere Fenster bleiben unverändert."""
+    params: dict = {'duration': n}
+    q = {k: v for k, v in parse_qsl(urlparse(url).query, keep_blank_values=True)}
+    sd, ed = q.get('startDate', ''), q.get('endDate', '')
+    try:
+        d0 = date.fromisoformat(sd)
+        need = (d0 + timedelta(days=int(n))).isoformat()
+        cur = date.fromisoformat(ed) if ed else None
+        if cur is None or cur < date.fromisoformat(need):
+            params['endDate'] = need
+    except (TypeError, ValueError):
+        pass
+    return _replace_query(url, set_params=params)
 
 
 def is_single_room(text: str) -> bool:
@@ -216,6 +253,7 @@ def _empty_result() -> dict:
             "cancellation": "", "stars": None, "rating": None, "rating_count": None,
             "recommendation": None, "location": "", "city": "", "region": "",
             "country": "", "pdf_url": "", "travellers_count": None,
+            "booking_code": "", "room_booking_code": "",
             "source": "", "note": "", "detail": ""}
 
 
@@ -404,6 +442,53 @@ def fetch_calendar(url: str, *, verbose: bool = False) -> dict | None:
     return res
 
 
+def fetch_rooms(url: str, *, verbose: bool = False) -> dict | None:
+    """Liest die wählbaren Zimmer(-kategorien) für ein Angebot aus der Offer-API. Ohne
+    `roomTypeOpCodes`-Filter liefert die API alle Zimmer; wir gruppieren nach Zimmercode
+    und nehmen je Zimmer den günstigsten Preis p. P. Rückgabe:
+    {ok, currency, rooms:[{code, name, board, price, url}]} (nach Preis sortiert) oder
+    {ok:False, note} bzw. None bei technischem Fehler."""
+    try:
+        api = build_offer_api_url(without_room_code(url))
+        if verbose:
+            log.info("Zimmer-API GET %s", api)
+        resp = requests.get(api, headers=_API_HEADERS, timeout=25)
+        if resp.status_code != 200:
+            if resp.status_code in (400, 404, 422):
+                return {"ok": False, "rooms": [], "note": "Keine Zimmer im gewählten Zeitraum"}
+            return None
+        data = resp.json()
+    except Exception as e:
+        if verbose:
+            log.warning(f"Zimmer-Fehler: {type(e).__name__}: {e}")
+        return None
+
+    rooms: dict[str, dict] = {}
+    for o in data.get("offers") or []:
+        rm = (o.get("rooms") or [{}])[0]
+        code = (rm.get("code") or "").strip()
+        price = o.get("calculatedPricePerPerson")
+        if not code or price is None:
+            continue
+        cur = rooms.get(code)
+        if cur is None or price < cur["price"]:
+            rooms[code] = {
+                "code": code,
+                "name": rm.get("description", "") or code,
+                "board": rm.get("boardDescription", ""),
+                "price": float(price),
+                "url": with_room_code(url, code),
+            }
+    out = sorted(rooms.values(), key=lambda r: r["price"])
+    for r in out:
+        r["price"] = int(round(r["price"]))
+    if verbose:
+        log.info("Zimmer: %d Kategorien (%s)", len(out),
+                 ", ".join(f"{r['code']}={r['price']}" for r in out) or "keine")
+    return {"ok": bool(out), "currency": data.get("currency", "EUR"), "rooms": out,
+            "note": "" if out else "Keine Zimmer gefunden"}
+
+
 # ── Hotelsuche (Region → Trefferliste) ──────────────────────────────────────────
 
 def _slugify(name: str) -> str:
@@ -439,9 +524,10 @@ def region_giata_from_breadcrumb(giata: str) -> int | None:
 
 def _search_params_from_url(url: str, *, region: int | None = None,
                             operator_tui: bool = True, boards: list | None = None,
-                            direct: bool = False) -> dict:
+                            airlines: list | None = None, direct: bool = False) -> dict:
     """Kanonische Suchparameter aus einer TUI-Such-/Angebots-URL (für URL- und
-    Angebots-Modus). `region` überschreibt `regionGiataIds`."""
+    Angebots-Modus). `region` überschreibt `regionGiataIds`, `airlines` (Liste von
+    IATA-Codes) überschreibt den Airline-Filter der URL."""
     q = {k: v[0] for k, v in parse_qs(urlparse(url).query, keep_blank_values=True).items()}
     if region:
         regions = [int(region)]
@@ -455,12 +541,14 @@ def _search_params_from_url(url: str, *, region: int | None = None,
     ops = (["TUID"] if operator_tui
            else _split_multi(q.get("operators", q.get("tourOperators", ""))))
     board_codes = [b for b in (boards or []) if b] or _split_multi(q.get("boardTypes", ""))
+    airline_codes = [a for a in (airlines or []) if a] or _split_multi(q.get("airlines", ""))
     return {
         "searchScope": q.get("searchScope", "PACKAGE"),
         "startDate": q.get("startDate", ""), "endDate": q.get("endDate", ""),
         "duration": int(dur) if dur.isdigit() else None,
         "travellers": adults, "airports": _split_multi(q.get("departureAirports", "")),
-        "operators": ops, "boards": board_codes, "regions": regions,
+        "operators": ops, "boards": board_codes, "airlines": airline_codes,
+        "regions": regions,
         "direct": direct or (q.get("maxStopOvers", "") == "0"),
     }
 
@@ -473,7 +561,7 @@ def _build_search_payload(p: dict) -> dict:
         "duration": [p["duration"]] if p.get("duration") else [],
         "rooms": [{"numberOfAdults": p.get("travellers") or 2, "childAges": [],
                    "roomCodes": [], "boardCodes": p.get("boards") or []}],
-        "airports": p.get("airports") or [], "airlines": [],
+        "airports": p.get("airports") or [], "airlines": p.get("airlines") or [],
         "tourOperators": p.get("operators") or [], "logicalExpression": "",
         "transferIncluded": False, "sortingOrder": "qualifier2DESC",
         "secondarySortingOrder": "", "identifier": "HLP",
@@ -506,6 +594,9 @@ def offer_url_for(item: dict, params: dict) -> str:
         q["regionGiataIds"] = ",".join(str(r) for r in regions)
     if boards:
         q["boardTypes"] = boards[0]
+    if params.get("airlines"):
+        # Offer-/Such-API trennt Airlines mit ';' (nicht ',') — siehe build_offer_api_url
+        q["airlines"] = ";".join(params["airlines"])
     if params.get("direct"):
         q["maxStopOvers"] = "0"
     query = urlencode({k: v for k, v in q.items() if v != ""})
@@ -560,18 +651,18 @@ def _run_search(params: dict, *, verbose: bool = False) -> dict | None:
 
 
 def fetch_search(url: str, *, operator_tui: bool = True, boards: list | None = None,
-                 region: int | None = None, direct: bool = False,
-                 verbose: bool = False) -> dict | None:
+                 region: int | None = None, airlines: list | None = None,
+                 direct: bool = False, verbose: bool = False) -> dict | None:
     """Hotelsuche aus einer TUI-Such-/Angebots-URL (`region` überschreibt die Region)."""
     params = _search_params_from_url(url, region=region, operator_tui=operator_tui,
-                                     boards=boards, direct=direct)
+                                     boards=boards, airlines=airlines, direct=direct)
     return _run_search(params, verbose=verbose)
 
 
 def fetch_search_params(*, region: int, start: str, end: str, duration, travellers,
                         airports: list | None = None, operator_tui: bool = True,
-                        boards: list | None = None, direct: bool = False,
-                        verbose: bool = False) -> dict | None:
+                        boards: list | None = None, airlines: list | None = None,
+                        direct: bool = False, verbose: bool = False) -> dict | None:
     """Hotelsuche direkt aus Maskenfeldern (ohne URL) — für die eigene Suchmaske."""
     try:
         dur = int(duration)
@@ -587,9 +678,44 @@ def fetch_search_params(*, region: int, start: str, end: str, duration, travelle
         "airports": [a for a in (airports or []) if a],
         "operators": ["TUID"] if operator_tui else [],
         "boards": [b for b in (boards or []) if b],
+        "airlines": [a for a in (airlines or []) if a],
         "regions": [int(region)] if region else [], "direct": bool(direct),
     }
     return _run_search(params, verbose=verbose)
+
+
+def _valid_img_url(u: str) -> bool:
+    """Nur https-Bilder von TUI zulassen (kein Speichern/Anzeigen fremder URLs)."""
+    try:
+        p = urlparse(u or "")
+    except (ValueError, TypeError):
+        return False
+    return p.scheme == "https" and p.hostname is not None and (
+        p.hostname == "tui.com" or p.hostname.endswith(".tui.com"))
+
+
+def fetch_hotel_image(url: str, *, verbose: bool = False) -> str:
+    """Ermittelt das Hotelbild zu einer Angebots-URL. Quelle ist ausschließlich die
+    Such-API (`hotel.images`): Region über den Breadcrumb bestimmen, in dieser Region
+    suchen (mit den Parametern der Angebots-URL) und den Treffer mit passender giataId
+    nehmen. Gibt eine validierte pics.tui.com-URL zurück oder '' (kein Fehler)."""
+    giata = _giata_from_url(url)
+    if not giata:
+        return ""
+    region = region_giata_from_breadcrumb(giata)
+    if not region:
+        return ""
+    params = _search_params_from_url(url, region=region)
+    res = _run_search(params, verbose=verbose)
+    if not (res and res.get("ok")):
+        return ""
+    for r in res.get("results") or []:
+        if str(r.get("giata")) == str(giata):
+            img = r.get("image") or ""
+            return img if _valid_img_url(img) else ""
+    if verbose:
+        log.info("Hotelbild: giataId %s nicht in Regionssuche gefunden", giata)
+    return ""
 
 
 def fetch_destinations(parent=None) -> dict | None:
@@ -613,6 +739,77 @@ def fetch_destinations(parent=None) -> dict | None:
             "items": items}
 
 
+def build_destination_index(max_depth=5) -> list:
+    """Crawlt den kompletten Reiseziel-Baum und liefert eine flache Liste
+    [{giata, label, path}] für die globale Suche über alle Ebenen. `path` ist der
+    Breadcrumb der übergeordneten Regionen (z. B. "Spanien › Kanarische Inseln").
+
+    Achtung: macht ~1000+ API-Aufrufe (ein Aufruf je Knoten). Nur im Hintergrund
+    bzw. gecacht verwenden — nicht pro Suchanfrage."""
+    out: list = []
+    seen: set = set()
+
+    def crawl(parent, trail, depth):
+        if depth > max_depth:
+            return
+        d = fetch_destinations(parent)
+        if not d:
+            return
+        for it in d.get("items", []):
+            g = it.get("giata")
+            label = it.get("label", "")
+            if g is None or g in seen:
+                continue
+            seen.add(g)
+            out.append({"giata": g, "label": label, "path": " › ".join(trail)})
+            crawl(g, trail + [label], depth + 1)
+
+    crawl(None, [], 0)
+    out.sort(key=lambda x: (x.get("label") or "").lower())
+    return out
+
+
+# Kuratierte Liste gängiger TUI-Fluggesellschaften (IATA-Codes). TUI bietet keinen
+# offenen Endpunkt für die Filterliste; die Codes entsprechen denen, die die Such- und
+# Offer-API im Parameter `airlines` erwarten (mehrere mit ';' getrennt, siehe
+# build_offer_api_url/offer_url_for). Bei Bedarf hier ergänzen.
+TUI_AIRLINES = [
+    {"code": "A3", "name": "Aegean Airlines"},
+    {"code": "SM", "name": "Air Cairo"},
+    {"code": "AF", "name": "Air France"},
+    {"code": "OS", "name": "Austrian Airlines"},
+    {"code": "BA", "name": "British Airways"},
+    {"code": "DE", "name": "Condor"},
+    {"code": "XC", "name": "Corendon Airlines"},
+    {"code": "4Y", "name": "Discover Airlines"},
+    {"code": "U2", "name": "EasyJet"},
+    {"code": "WK", "name": "Edelweiss"},
+    {"code": "EK", "name": "Emirates"},
+    {"code": "E4", "name": "Enter Air"},
+    {"code": "EY", "name": "Etihad Airways"},
+    {"code": "EW", "name": "Eurowings"},
+    {"code": "KL", "name": "KLM"},
+    {"code": "LH", "name": "Lufthansa"},
+    {"code": "T3", "name": "Marabu"},
+    {"code": "PC", "name": "Pegasus Airlines"},
+    {"code": "FR", "name": "Ryanair"},
+    {"code": "LX", "name": "SWISS"},
+    {"code": "XQ", "name": "SunExpress"},
+    {"code": "TP", "name": "TAP Air Portugal"},
+    {"code": "TK", "name": "Turkish Airlines"},
+    {"code": "X3", "name": "TUI fly"},
+    {"code": "TB", "name": "TUI fly Belgium"},
+    {"code": "VY", "name": "Vueling"},
+    {"code": "W6", "name": "Wizz Air"},
+]
+
+
+def fetch_airlines() -> list:
+    """Fluggesellschaften für den (optionalen) Such-Filter: [{code,name}], nach Name
+    sortiert. Kuratierte Liste (TUI hat keinen offenen Endpunkt dafür)."""
+    return sorted((dict(a) for a in TUI_AIRLINES), key=lambda a: a["name"].lower())
+
+
 def fetch_airports() -> list:
     """Abflughäfen aus der TUI-API: [{code,name,preselected}]."""
     try:
@@ -630,6 +827,99 @@ def fetch_airports() -> list:
     return out
 
 
+# Bekanntes Referenz-Hotel für den API-Selbsttest (Riu Funana, Kapverden) + Region
+# Gran Canaria. Nur lesende Abfragen; dient ausschließlich der Erreichbarkeitsprüfung.
+_HC_GIATA = "259516"
+_HC_REGION = 128
+
+
+def api_healthcheck(*, verbose: bool = False) -> dict:
+    """Prüft alle genutzten TUI-Endpunkte mit je einer leichten Lese-Abfrage und meldet,
+    ob sie noch erwartungsgemäß antworten. Rückgabe:
+    {ok: bool, ts: int, checks: [{name, ok, detail}]}. `ok` ist True, wenn alle
+    *kritischen* Endpunkte (Preis, Suche, Reiseziele) funktionieren."""
+    today = date.today()
+    sd = (today + timedelta(days=30)).isoformat()
+    ed = (today + timedelta(days=37)).isoformat()
+    checks: list[dict] = []
+
+    def add(name, ok, detail, critical=False):
+        checks.append({"name": name, "ok": bool(ok), "detail": detail,
+                       "critical": critical})
+
+    # 1) Preis/Angebot (OFFER_API) — kritisch (Kern des Trackings)
+    try:
+        q = {"giataId": _HC_GIATA, "locale": "de_DE", "tenant": "TUICOM",
+             "startDate": sd, "endDate": ed, "durations": "7",
+             "searchScope": "PACKAGE", "travellers": "2"}
+        r = requests.get(f"{OFFER_API}?{urlencode(q)}", headers=_API_HEADERS, timeout=20)
+        ok = r.status_code == 200 and isinstance(r.json(), (dict, list))
+        add("Preis/Angebot-API", ok, f"HTTP {r.status_code}", critical=True)
+    except Exception as e:
+        add("Preis/Angebot-API", False, type(e).__name__, critical=True)
+
+    # 2) Hotelsuche (SEARCH_API) — kritisch
+    try:
+        res = fetch_search_params(region=_HC_REGION, start=sd, end=ed, duration=7,
+                                  travellers=2, verbose=verbose)
+        ok = bool(res and res.get("ok"))
+        detail = f"{res.get('total', 0)} Treffer" if ok else "kein Ergebnis"
+        add("Hotelsuche-API", ok, detail, critical=True)
+    except Exception as e:
+        add("Hotelsuche-API", False, type(e).__name__, critical=True)
+
+    # 3) Reiseziele (DEST_API) — kritisch für die Suchmaske
+    try:
+        d = fetch_destinations()
+        n = len((d or {}).get("items") or [])
+        add("Reiseziele-API", n > 0, f"{n} Regionen", critical=True)
+    except Exception as e:
+        add("Reiseziele-API", False, type(e).__name__, critical=True)
+
+    # 4) Abflughäfen (AIRPORTS_API)
+    try:
+        a = fetch_airports()
+        add("Abflughäfen-API", len(a) > 0, f"{len(a)} Flughäfen")
+    except Exception as e:
+        add("Abflughäfen-API", False, type(e).__name__)
+
+    # 5) Preiskalender (CALENDAR_API)
+    try:
+        q = {"giatas": _HC_GIATA, "adults": "2", "duration": "7",
+             "searchscope": "PACKAGE", "tenant": "tui.com",
+             "startDate": sd, "endDate": (today + timedelta(days=300)).isoformat(),
+             "startSearchRange": sd,
+             "endSearchRange": (today + timedelta(days=300)).isoformat()}
+        r = requests.get(f"{CALENDAR_API}?{urlencode(q)}", headers=_API_HEADERS, timeout=20)
+        ok = r.status_code == 200 and isinstance(r.json(), dict)
+        add("Preiskalender-API", ok, f"HTTP {r.status_code}")
+    except Exception as e:
+        add("Preiskalender-API", False, type(e).__name__)
+
+    # 6) Bewertung/Sterne (CONTENT_API)
+    try:
+        r = requests.get(f"{CONTENT_API}?giataId={_HC_GIATA}&locale=de_DE",
+                         headers=_API_HEADERS, timeout=20)
+        ok = r.status_code == 200 and isinstance(r.json(), dict)
+        add("Bewertungs-API", ok, f"HTTP {r.status_code}")
+    except Exception as e:
+        add("Bewertungs-API", False, type(e).__name__)
+
+    # 7) Ort/Region (BREADCRUMB_API)
+    try:
+        r = requests.get(f"{BREADCRUMB_API}{_HC_GIATA}", headers=_API_HEADERS, timeout=20)
+        ok = r.status_code == 200 and isinstance(r.json(), list)
+        add("Breadcrumb-API", ok, f"HTTP {r.status_code}")
+    except Exception as e:
+        add("Breadcrumb-API", False, type(e).__name__)
+
+    all_critical_ok = all(c["ok"] for c in checks if c["critical"])
+    if verbose:
+        log.info("API-Selbsttest: %s", ", ".join(
+            f"{c['name']}={'OK' if c['ok'] else 'FEHLER'}" for c in checks))
+    return {"ok": all_critical_ok, "ts": int(time.time()), "checks": checks}
+
+
 def _de_date(iso: str) -> str:
     m = re.match(r"(\d{4})-(\d{2})-(\d{2})", iso or "")
     return f"{m.group(3)}.{m.group(2)}.{m.group(1)}" if m else ""
@@ -644,14 +934,19 @@ def _fmt_flight(leg: dict) -> str:
     if not leg:
         return ""
     dt = _de_datetime(leg.get("departureDateTime", ""))
-    airline = (leg.get("airline") or {}).get("value", "")
+    al = leg.get("airline") or {}
+    airline = al.get("value", "")
+    num = str(leg.get("number", "") or "").strip()
+    code = al.get("code", "")
+    # Airline + Flugnummer, z. B. "TUIfly X3 7102"
+    airline_part = " ".join(x for x in (airline, f"{code} {num}".strip() if num else "") if x)
     dep = (leg.get("departureAirport") or {}).get("code", "")
     arr = (leg.get("arrivalAirport") or {}).get("code", "")
     route = f"{dep}→{arr}" if dep and arr else ""
     so = leg.get("stopOver")
     stops = "Direktflug" if so in (0, None) else (
         "1 Zwischenstopp" if so == 1 else f"{so} Zwischenstopps")
-    return " · ".join(x for x in (dt, route, airline, stops) if x)
+    return " · ".join(x for x in (dt, route, airline_part, stops) if x)
 
 
 def _fetch_rating(giata: str, verbose: bool = False) -> dict:
@@ -778,6 +1073,8 @@ def fetch_price_api(url: str, *, verbose: bool = False) -> dict | None:
     room_code = room0.get("code", "")
     r["room"] = f"{room_desc} ({room_code})" if room_code else room_desc
     r["board"] = room0.get("boardDescription", "")
+    r["booking_code"] = (data.get("hotel") or {}).get("product", "")  # z. B. LPA21031
+    r["room_booking_code"] = room0.get("bookingCode", "")             # z. B. DZM1A
 
     nights = offer.get("lengthOfStay")
     r["nights"] = f"{nights} Nächte" if nights else ""
@@ -883,6 +1180,7 @@ def _fetch_price_browser(url: str, *, timeout_ms: int = 60000,
                          check_availability: bool = True,
                          verbose: bool = False) -> dict:
     """Fallback: liest den Preis aus der gerenderten Seite (Headless-Chromium)."""
+    from playwright.sync_api import sync_playwright  # lazy: nur für den Fallback nötig
     r = _empty_result()
     r["source"] = "browser"
     chromium_path = os.environ.get("CHROMIUM_PATH") or None

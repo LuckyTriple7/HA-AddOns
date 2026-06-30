@@ -1,0 +1,1804 @@
+{
+ "offers": [
+  {
+   "arrivalDate": "2026-06-30",
+   "checkInDate": "2026-06-30",
+   "checkOutDate": "2026-07-07",
+   "lengthOfStay": 7,
+   "tourOperator": "LTUR",
+   "bookingTourOperator": "TUR1",
+   "brand": "TUR1",
+   "travelType": "TUR1",
+   "cancellationType": "REFUNDABLE",
+   "totalPrice": 2068,
+   "discount": 60,
+   "calculatedPricePerPerson": 1034,
+   "calculatedOriginalPricePerPerson": 1064,
+   "personPrices": [
+    {
+     "id": 1,
+     "price": 1034
+    },
+    {
+     "id": 2,
+     "price": 1034
+    }
+   ],
+   "rooms": [
+    {
+     "code": "DZX1",
+     "roomCodes": [
+      "ST04-DO"
+     ],
+     "bookingCode": "DZX1A",
+     "board": "A",
+     "boardCode": "GT06-AI",
+     "boardDescription": "Alles Inklusive",
+     "description": "Double Standard",
+     "travellers": [
+      {
+       "id": 1
+      },
+      {
+       "id": 2
+      }
+     ],
+     "priceByUnit": false,
+     "transferIncluded": true,
+     "extras": [
+      {
+       "type": "GT07-LTC2C",
+       "included": true
+      },
+      {
+       "type": "GT07-TOY",
+       "included": true
+      },
+      {
+       "type": "GT07-TUI3",
+       "included": true
+      },
+      {
+       "type": "TR",
+       "included": true
+      }
+     ]
+    }
+   ],
+   "departure": {
+    "airline": {
+     "value": "TUIfly",
+     "code": "X3"
+    },
+    "departureAirport": {
+     "value": "Hannover",
+     "code": "HAJ"
+    },
+    "departureDateTime": "2026-06-30T11:15:00.000+02:00",
+    "arrivalAirport": {
+     "value": "Sal",
+     "code": "SID"
+    },
+    "arrivalDateTime": "2026-06-30T16:30:00.000-01:00",
+    "stopOver": 1,
+    "class": "economy",
+    "number": "6150",
+    "flightKey": "SUNNY_00653-;-34c4b2b17aa8f0a5b7ecc0218fe08d75-;-HAJSID-00653-_X3",
+    "totalPrice": 346,
+    "personPrices": [
+     {
+      "id": 1,
+      "price": 173
+     },
+     {
+      "id": 2,
+      "price": 173
+     }
+    ],
+    "segments": [
+     {
+      "airline": {
+       "value": "TUIfly",
+       "code": "X3"
+      },
+      "departureAirport": {
+       "value": "Hannover",
+       "code": "HAJ"
+      },
+      "departureDateTime": "2026-06-30T11:15:00.000+02:00",
+      "arrivalAirport": {
+       "value": "Boa Vista",
+       "code": "BVC"
+      },
+      "arrivalDateTime": "2026-06-30T15:10:00.000-01:00",
+      "flightDuration": 415,
+      "bookingClass": "Y",
+      "number": "6150"
+     },
+     {
+      "airline": {
+       "value": "TUIfly",
+       "code": "X3"
+      },
+      "departureAirport": {
+       "value": "Boa Vista",
+       "code": "BVC"
+      },
+      "departureDateTime": "2026-06-30T16:00:00.000-01:00",
+      "arrivalAirport": {
+       "value": "Sal",
+       "code": "SID"
+      },
+      "arrivalDateTime": "2026-06-30T16:30:00.000-01:00",
+      "flightDuration": 30,
+      "bookingClass": "Y",
+      "number": "6150"
+     }
+    ]
+   },
+   "return": {
+    "airline": {
+     "value": "TUIfly",
+     "code": "X3"
+    },
+    "departureAirport": {
+     "value": "Sal",
+     "code": "SID"
+    },
+    "departureDateTime": "2026-07-07T17:30:00.000-01:00",
+    "arrivalAirport": {
+     "value": "Hannover",
+     "code": "HAJ"
+    },
+    "arrivalDateTime": "2026-07-08T02:45:00.000+02:00",
+    "stopOver": 0,
+    "class": "economy",
+    "number": "6150",
+    "flightKey": "SUNNY_00653-;-3972317c50c7293dbb588f73a5ebcd10-;-SIDHAJ-00653-_X3",
+    "totalPrice": 244,
+    "personPrices": [
+     {
+      "id": 1,
+      "price": 122
+     },
+     {
+      "id": 2,
+      "price": 122
+     }
+    ],
+    "segments": [
+     {
+      "airline": {
+       "value": "TUIfly",
+       "code": "X3"
+      },
+      "departureAirport": {
+       "value": "Sal",
+       "code": "SID"
+      },
+      "departureDateTime": "2026-07-07T17:30:00.000-01:00",
+      "arrivalAirport": {
+       "value": "Hannover",
+       "code": "HAJ"
+      },
+      "arrivalDateTime": "2026-07-08T02:45:00.000+02:00",
+      "flightDuration": 375,
+      "bookingClass": "Y",
+      "number": "6150"
+     }
+    ]
+   },
+   "campaignData": {
+    "active": true,
+    "campaignPeriod": {
+     "startDate": "2026-05-07T00:00:01Z",
+     "endDate": "2026-07-15T22:59:59Z"
+    },
+    "priority": 5,
+    "alternativeCampaignSources": [],
+    "alias": "CA07",
+    "globalType": "GT07-TOY",
+    "layout": {
+     "alternativeCampaignIcon": "https://www.tui.com/fileadmin/tuicom/campaigns/icons/welcome-back-icon-pt3.svg",
+     "iconFontClassName": "reduced",
+     "background": "#D40E14",
+     "text": "#FFFFFF"
+    },
+    "offersSpecification": {
+     "startDate": "2026-05-07T00:00:01Z",
+     "endDate": "2026-11-08T22:59:59Z",
+     "minimumDuration": 1,
+     "minimumPrice": 10,
+     "travellers": {
+      "adults": {},
+      "children": {}
+     }
+    },
+    "defaultSearchParams": [
+     {
+      "searchType": "PACKAGE",
+      "duration": 1,
+      "travellers": [
+       {
+        "adults": 1,
+        "children": []
+       }
+      ],
+      "startDate": "2026-05-07",
+      "endDate": "2026-11-08"
+     },
+     {
+      "searchType": "HOTEL",
+      "duration": 1,
+      "travellers": [
+       {
+        "adults": 1,
+        "children": []
+       }
+      ],
+      "startDate": "2026-05-07",
+      "endDate": "2026-11-08"
+     }
+    ],
+    "languages": [
+     {
+      "shortName": "de",
+      "translations": {
+       "name": "Last Minute GAS AO + PA (CA07, GT07-TOY) ab 07.05.",
+       "label": "LAST MINUTE SALE",
+       "toolTip": "• Flex Tarif buchbar\n• Reisen ab sofort bis 08.11.26",
+       "bagVariant": "https://tui.com/fileadmin/tuicom/campaigns/icons/bis-zu-50-prozent-rabatt-DE.svg",
+       "dropdown": {
+        "active": false
+       },
+       "banderole": {
+        "active": true,
+        "label": "LAST MINUTE SALE",
+        "toolTip": "• Flex Tarif buchbar\n• Reisen ab sofort bis 08.11.26"
+       },
+       "bookingPriceLabel": {
+        "active": true,
+        "label": "LAST MINUTE SALE"
+       },
+       "childrenPriceLabel": {
+        "active": false
+       },
+       "coupon": {
+        "active": false,
+        "label": "TUI FRIDAY SALE Angebot"
+       },
+       "infoBox": {
+        "active": true,
+        "title": "LAST MINUTE SALE",
+        "introText": "<strong>Bis zu 50 % Rabatt sichern</strong>",
+        "conditionLinkText": "Aktionsbedingungen",
+        "conditionText": "• für Reisen ab sofort bis 08.11.26<br />• z. B. Griechenland, Mallorca, Türkei, Kanaren uvm.<br />• Flex Tarif buchbar<br /><a href=\"/last-minute/?contentid=ib_lastminute_20260507_LM26\" target=\"_blank\">MEHR ERFAHREN</a>"
+       },
+       "banner": [
+        {
+         "searchType": "PACKAGE",
+         "pages": []
+        },
+        {
+         "searchType": "HOTEL",
+         "pages": []
+        },
+        {
+         "searchType": "SEO",
+         "pages": [
+          {
+           "pageName": "SEO",
+           "bannerTypes": [
+            {
+             "visibleFor": "",
+             "visibleIf": null,
+             "shouldResetInLink": null,
+             "configuration": {
+              "text": "• Flex Tarif zubuchbar<br />• Reisen ab sofort bis 08.11.26<br />• z. B. Mallorca, Kreta, Türkei<br /><br />",
+              "title": "LAST MINUTE SALE",
+              "buttonText": "Jetzt entdecken",
+              "infoText": "",
+              "background": "https://www.tui.com/fileadmin/tuicom/campaigns/icons/tui-last-minute-sale-k-tool.jpg",
+              "variant": "gradient",
+              "clickTarget": "blank"
+             },
+             "targetPageName": "/last-minute/?contentid=banner_lastminute_20260507_LM26",
+             "position": "below-compact-search"
+            }
+           ]
+          }
+         ]
+        }
+       ],
+       "tagSpecific": null
+      }
+     }
+    ],
+    "showMap": false
+   },
+   "cheapest": true
+  },
+  {
+   "arrivalDate": "2026-12-08",
+   "checkInDate": "2026-12-08",
+   "checkOutDate": "2026-12-15",
+   "lengthOfStay": 7,
+   "tourOperator": "LTUR",
+   "bookingTourOperator": "TUR1",
+   "brand": "TUR1",
+   "travelType": "TUR1",
+   "cancellationType": "REFUNDABLE",
+   "totalPrice": 2142,
+   "discount": 207.94,
+   "calculatedPricePerPerson": 1071,
+   "calculatedOriginalPricePerPerson": 1174.97,
+   "personPrices": [
+    {
+     "id": 1,
+     "price": 1071
+    },
+    {
+     "id": 2,
+     "price": 1071
+    }
+   ],
+   "rooms": [
+    {
+     "code": "DZX1",
+     "roomCodes": [
+      "ST04-DO"
+     ],
+     "bookingCode": "DZX1A",
+     "board": "A",
+     "boardCode": "GT06-AI",
+     "boardDescription": "Alles Inklusive",
+     "description": "Double Standard",
+     "travellers": [
+      {
+       "id": 1
+      },
+      {
+       "id": 2
+      }
+     ],
+     "priceByUnit": false,
+     "transferIncluded": true,
+     "extras": [
+      {
+       "type": "GT07-LTC2C",
+       "included": true
+      },
+      {
+       "type": "GT07-TUI3",
+       "included": true
+      },
+      {
+       "type": "TR",
+       "included": true
+      }
+     ]
+    }
+   ],
+   "departure": {
+    "airline": {
+     "value": "easyJet",
+     "code": "U2"
+    },
+    "departureAirport": {
+     "value": "Amsterdam",
+     "code": "AMS"
+    },
+    "departureDateTime": "2026-12-08T08:00:00.000+01:00",
+    "arrivalAirport": {
+     "value": "Sal",
+     "code": "SID"
+    },
+    "arrivalDateTime": "2026-12-08T12:20:00.000-01:00",
+    "stopOver": 0,
+    "class": "economy",
+    "number": "7985",
+    "flightKey": "SUNNY_00988-;-52af8a9560da68d784d667e79b5f7957-;-AMSSID-00988-_U2",
+    "totalPrice": 390,
+    "personPrices": [
+     {
+      "id": 1,
+      "price": 195
+     },
+     {
+      "id": 2,
+      "price": 195
+     }
+    ],
+    "segments": [
+     {
+      "airline": {
+       "value": "easyJet",
+       "code": "U2"
+      },
+      "departureAirport": {
+       "value": "Amsterdam",
+       "code": "AMS"
+      },
+      "departureDateTime": "2026-12-08T08:00:00.000+01:00",
+      "arrivalAirport": {
+       "value": "Sal",
+       "code": "SID"
+      },
+      "arrivalDateTime": "2026-12-08T12:20:00.000-01:00",
+      "flightDuration": 380,
+      "bookingClass": "Y",
+      "number": "7985"
+     }
+    ]
+   },
+   "return": {
+    "airline": {
+     "value": "easyJet",
+     "code": "U2"
+    },
+    "departureAirport": {
+     "value": "Sal",
+     "code": "SID"
+    },
+    "departureDateTime": "2026-12-15T13:15:00.000-01:00",
+    "arrivalAirport": {
+     "value": "Amsterdam",
+     "code": "AMS"
+    },
+    "arrivalDateTime": "2026-12-15T21:40:00.000+01:00",
+    "stopOver": 0,
+    "class": "economy",
+    "number": "7986",
+    "flightKey": "SUNNY_00988-;-f438ce9affa34aba627fa7b9a0626a39-;-SIDAMS-00988-_U2",
+    "totalPrice": 394,
+    "personPrices": [
+     {
+      "id": 1,
+      "price": 197
+     },
+     {
+      "id": 2,
+      "price": 197
+     }
+    ],
+    "segments": [
+     {
+      "airline": {
+       "value": "easyJet",
+       "code": "U2"
+      },
+      "departureAirport": {
+       "value": "Sal",
+       "code": "SID"
+      },
+      "departureDateTime": "2026-12-15T13:15:00.000-01:00",
+      "arrivalAirport": {
+       "value": "Amsterdam",
+       "code": "AMS"
+      },
+      "arrivalDateTime": "2026-12-15T21:40:00.000+01:00",
+      "flightDuration": 385,
+      "bookingClass": "Y",
+      "number": "7986"
+     }
+    ]
+   },
+   "cheapest": false
+  },
+  {
+   "arrivalDate": "2026-07-03",
+   "checkInDate": "2026-07-03",
+   "checkOutDate": "2026-07-10",
+   "lengthOfStay": 7,
+   "tourOperator": "LTUR",
+   "bookingTourOperator": "TUR1",
+   "brand": "TUR1",
+   "travelType": "TUR1",
+   "cancellationType": "REFUNDABLE",
+   "totalPrice": 2166,
+   "discount": 46,
+   "calculatedPricePerPerson": 1083,
+   "calculatedOriginalPricePerPerson": 1106,
+   "personPrices": [
+    {
+     "id": 1,
+     "price": 1083
+    },
+    {
+     "id": 2,
+     "price": 1083
+    }
+   ],
+   "rooms": [
+    {
+     "code": "DZX1",
+     "roomCodes": [
+      "ST04-DO"
+     ],
+     "bookingCode": "DZX1A",
+     "board": "A",
+     "boardCode": "GT06-AI",
+     "boardDescription": "Alles Inklusive",
+     "description": "Double Standard",
+     "travellers": [
+      {
+       "id": 1
+      },
+      {
+       "id": 2
+      }
+     ],
+     "priceByUnit": false,
+     "transferIncluded": true,
+     "extras": [
+      {
+       "type": "GT07-LTC2C",
+       "included": true
+      },
+      {
+       "type": "GT07-TOY",
+       "included": true
+      },
+      {
+       "type": "GT07-TUI3",
+       "included": true
+      },
+      {
+       "type": "TR",
+       "included": true
+      }
+     ]
+    }
+   ],
+   "departure": {
+    "airline": {
+     "value": "TUIfly",
+     "code": "X3"
+    },
+    "departureAirport": {
+     "value": "München",
+     "code": "MUC"
+    },
+    "departureDateTime": "2026-07-03T08:00:00.000+02:00",
+    "arrivalAirport": {
+     "value": "Sal",
+     "code": "SID"
+    },
+    "arrivalDateTime": "2026-07-03T13:05:00.000-01:00",
+    "stopOver": 1,
+    "class": "economy",
+    "number": "7104",
+    "flightKey": "SUNNY_00653-;-f186b8287f2b62d638713d23676237b1-;-MUCSID-00653-_X3",
+    "totalPrice": 346,
+    "personPrices": [
+     {
+      "id": 1,
+      "price": 173
+     },
+     {
+      "id": 2,
+      "price": 173
+     }
+    ],
+    "segments": [
+     {
+      "airline": {
+       "value": "TUIfly",
+       "code": "X3"
+      },
+      "departureAirport": {
+       "value": "München",
+       "code": "MUC"
+      },
+      "departureDateTime": "2026-07-03T08:00:00.000+02:00",
+      "arrivalAirport": {
+       "value": "Boa Vista",
+       "code": "BVC"
+      },
+      "arrivalDateTime": "2026-07-03T11:45:00.000-01:00",
+      "flightDuration": 405,
+      "bookingClass": "Y",
+      "number": "7104"
+     },
+     {
+      "airline": {
+       "value": "TUIfly",
+       "code": "X3"
+      },
+      "departureAirport": {
+       "value": "Boa Vista",
+       "code": "BVC"
+      },
+      "departureDateTime": "2026-07-03T12:35:00.000-01:00",
+      "arrivalAirport": {
+       "value": "Sal",
+       "code": "SID"
+      },
+      "arrivalDateTime": "2026-07-03T13:05:00.000-01:00",
+      "flightDuration": 30,
+      "bookingClass": "Y",
+      "number": "7104"
+     }
+    ]
+   },
+   "return": {
+    "airline": {
+     "value": "TUIfly",
+     "code": "X3"
+    },
+    "departureAirport": {
+     "value": "Sal",
+     "code": "SID"
+    },
+    "departureDateTime": "2026-07-10T14:05:00.000-01:00",
+    "arrivalAirport": {
+     "value": "München",
+     "code": "MUC"
+    },
+    "arrivalDateTime": "2026-07-10T23:10:00.000+02:00",
+    "stopOver": 0,
+    "class": "economy",
+    "number": "7104",
+    "flightKey": "SUNNY_00653-;-7f2d8c42984f62b98ca6e5263a366648-;-SIDMUC-00653-_X3",
+    "totalPrice": 316,
+    "personPrices": [
+     {
+      "id": 1,
+      "price": 158
+     },
+     {
+      "id": 2,
+      "price": 158
+     }
+    ],
+    "segments": [
+     {
+      "airline": {
+       "value": "TUIfly",
+       "code": "X3"
+      },
+      "departureAirport": {
+       "value": "Sal",
+       "code": "SID"
+      },
+      "departureDateTime": "2026-07-10T14:05:00.000-01:00",
+      "arrivalAirport": {
+       "value": "München",
+       "code": "MUC"
+      },
+      "arrivalDateTime": "2026-07-10T23:10:00.000+02:00",
+      "flightDuration": 365,
+      "bookingClass": "Y",
+      "number": "7104"
+     }
+    ]
+   },
+   "campaignData": {
+    "active": true,
+    "campaignPeriod": {
+     "startDate": "2026-05-07T00:00:01Z",
+     "endDate": "2026-07-15T22:59:59Z"
+    },
+    "priority": 5,
+    "alternativeCampaignSources": [],
+    "alias": "CA07",
+    "globalType": "GT07-TOY",
+    "layout": {
+     "alternativeCampaignIcon": "https://www.tui.com/fileadmin/tuicom/campaigns/icons/welcome-back-icon-pt3.svg",
+     "iconFontClassName": "reduced",
+     "background": "#D40E14",
+     "text": "#FFFFFF"
+    },
+    "offersSpecification": {
+     "startDate": "2026-05-07T00:00:01Z",
+     "endDate": "2026-11-08T22:59:59Z",
+     "minimumDuration": 1,
+     "minimumPrice": 10,
+     "travellers": {
+      "adults": {},
+      "children": {}
+     }
+    },
+    "defaultSearchParams": [
+     {
+      "searchType": "PACKAGE",
+      "duration": 1,
+      "travellers": [
+       {
+        "adults": 1,
+        "children": []
+       }
+      ],
+      "startDate": "2026-05-07",
+      "endDate": "2026-11-08"
+     },
+     {
+      "searchType": "HOTEL",
+      "duration": 1,
+      "travellers": [
+       {
+        "adults": 1,
+        "children": []
+       }
+      ],
+      "startDate": "2026-05-07",
+      "endDate": "2026-11-08"
+     }
+    ],
+    "languages": [
+     {
+      "shortName": "de",
+      "translations": {
+       "name": "Last Minute GAS AO + PA (CA07, GT07-TOY) ab 07.05.",
+       "label": "LAST MINUTE SALE",
+       "toolTip": "• Flex Tarif buchbar\n• Reisen ab sofort bis 08.11.26",
+       "bagVariant": "https://tui.com/fileadmin/tuicom/campaigns/icons/bis-zu-50-prozent-rabatt-DE.svg",
+       "dropdown": {
+        "active": false
+       },
+       "banderole": {
+        "active": true,
+        "label": "LAST MINUTE SALE",
+        "toolTip": "• Flex Tarif buchbar\n• Reisen ab sofort bis 08.11.26"
+       },
+       "bookingPriceLabel": {
+        "active": true,
+        "label": "LAST MINUTE SALE"
+       },
+       "childrenPriceLabel": {
+        "active": false
+       },
+       "coupon": {
+        "active": false,
+        "label": "TUI FRIDAY SALE Angebot"
+       },
+       "infoBox": {
+        "active": true,
+        "title": "LAST MINUTE SALE",
+        "introText": "<strong>Bis zu 50 % Rabatt sichern</strong>",
+        "conditionLinkText": "Aktionsbedingungen",
+        "conditionText": "• für Reisen ab sofort bis 08.11.26<br />• z. B. Griechenland, Mallorca, Türkei, Kanaren uvm.<br />• Flex Tarif buchbar<br /><a href=\"/last-minute/?contentid=ib_lastminute_20260507_LM26\" target=\"_blank\">MEHR ERFAHREN</a>"
+       },
+       "banner": [
+        {
+         "searchType": "PACKAGE",
+         "pages": []
+        },
+        {
+         "searchType": "HOTEL",
+         "pages": []
+        },
+        {
+         "searchType": "SEO",
+         "pages": [
+          {
+           "pageName": "SEO",
+           "bannerTypes": [
+            {
+             "visibleFor": "",
+             "visibleIf": null,
+             "shouldResetInLink": null,
+             "configuration": {
+              "text": "• Flex Tarif zubuchbar<br />• Reisen ab sofort bis 08.11.26<br />• z. B. Mallorca, Kreta, Türkei<br /><br />",
+              "title": "LAST MINUTE SALE",
+              "buttonText": "Jetzt entdecken",
+              "infoText": "",
+              "background": "https://www.tui.com/fileadmin/tuicom/campaigns/icons/tui-last-minute-sale-k-tool.jpg",
+              "variant": "gradient",
+              "clickTarget": "blank"
+             },
+             "targetPageName": "/last-minute/?contentid=banner_lastminute_20260507_LM26",
+             "position": "below-compact-search"
+            }
+           ]
+          }
+         ]
+        }
+       ],
+       "tagSpecific": null
+      }
+     }
+    ],
+    "showMap": false
+   },
+   "cheapest": false
+  },
+  {
+   "arrivalDate": "2026-12-13",
+   "checkInDate": "2026-12-13",
+   "checkOutDate": "2026-12-20",
+   "lengthOfStay": 7,
+   "tourOperator": "LTUR",
+   "bookingTourOperator": "TUR1",
+   "brand": "TUR1",
+   "travelType": "TUR1",
+   "cancellationType": "REFUNDABLE",
+   "totalPrice": 2166,
+   "discount": 211.42,
+   "calculatedPricePerPerson": 1083,
+   "calculatedOriginalPricePerPerson": 1188.71,
+   "personPrices": [
+    {
+     "id": 1,
+     "price": 1083
+    },
+    {
+     "id": 2,
+     "price": 1083
+    }
+   ],
+   "rooms": [
+    {
+     "code": "DZX1",
+     "roomCodes": [
+      "ST04-DO"
+     ],
+     "bookingCode": "DZX1A",
+     "board": "A",
+     "boardCode": "GT06-AI",
+     "boardDescription": "Alles Inklusive",
+     "description": "Double Standard",
+     "travellers": [
+      {
+       "id": 1
+      },
+      {
+       "id": 2
+      }
+     ],
+     "priceByUnit": false,
+     "transferIncluded": true,
+     "extras": [
+      {
+       "type": "GT07-LTC2C",
+       "included": true
+      },
+      {
+       "type": "GT07-TUI3",
+       "included": true
+      },
+      {
+       "type": "TR",
+       "included": true
+      }
+     ]
+    }
+   ],
+   "departure": {
+    "airline": {
+     "value": "Transavia France",
+     "code": "TO"
+    },
+    "departureAirport": {
+     "value": "Paris Orly",
+     "code": "ORY"
+    },
+    "departureDateTime": "2026-12-13T06:35:00.000+01:00",
+    "arrivalAirport": {
+     "value": "Sal",
+     "code": "SID"
+    },
+    "arrivalDateTime": "2026-12-13T10:50:00.000-01:00",
+    "stopOver": 0,
+    "class": "economy",
+    "number": "3232",
+    "flightKey": "SUNNY_00988-;-c86d574b9c6295e59e1e417e12afc78b-;-ORYSID-00988-_TO",
+    "totalPrice": 424,
+    "personPrices": [
+     {
+      "id": 1,
+      "price": 212
+     },
+     {
+      "id": 2,
+      "price": 212
+     }
+    ],
+    "segments": [
+     {
+      "airline": {
+       "value": "Transavia France",
+       "code": "TO"
+      },
+      "departureAirport": {
+       "value": "Paris Orly",
+       "code": "ORY"
+      },
+      "departureDateTime": "2026-12-13T06:35:00.000+01:00",
+      "arrivalAirport": {
+       "value": "Sal",
+       "code": "SID"
+      },
+      "arrivalDateTime": "2026-12-13T10:50:00.000-01:00",
+      "flightDuration": 375,
+      "bookingClass": "Y",
+      "number": "3232"
+     }
+    ]
+   },
+   "return": {
+    "airline": {
+     "value": "Transavia France",
+     "code": "TO"
+    },
+    "departureAirport": {
+     "value": "Sal",
+     "code": "SID"
+    },
+    "departureDateTime": "2026-12-20T11:40:00.000-01:00",
+    "arrivalAirport": {
+     "value": "Paris Orly",
+     "code": "ORY"
+    },
+    "arrivalDateTime": "2026-12-20T19:30:00.000+01:00",
+    "stopOver": 0,
+    "class": "economy",
+    "number": "3233",
+    "flightKey": "SUNNY_00988-;-03d899e11d1f0d58f47b04db032391b6-;-SIDORY-00988-_TO",
+    "totalPrice": 408,
+    "personPrices": [
+     {
+      "id": 1,
+      "price": 204
+     },
+     {
+      "id": 2,
+      "price": 204
+     }
+    ],
+    "segments": [
+     {
+      "airline": {
+       "value": "Transavia France",
+       "code": "TO"
+      },
+      "departureAirport": {
+       "value": "Sal",
+       "code": "SID"
+      },
+      "departureDateTime": "2026-12-20T11:40:00.000-01:00",
+      "arrivalAirport": {
+       "value": "Paris Orly",
+       "code": "ORY"
+      },
+      "arrivalDateTime": "2026-12-20T19:30:00.000+01:00",
+      "flightDuration": 350,
+      "bookingClass": "Y",
+      "number": "3233"
+     }
+    ]
+   },
+   "cheapest": false
+  },
+  {
+   "arrivalDate": "2026-12-10",
+   "checkInDate": "2026-12-10",
+   "checkOutDate": "2026-12-17",
+   "lengthOfStay": 7,
+   "tourOperator": "LTUR",
+   "bookingTourOperator": "TUR1",
+   "brand": "TUR1",
+   "travelType": "TUR1",
+   "cancellationType": "REFUNDABLE",
+   "totalPrice": 2166,
+   "discount": 205.42,
+   "calculatedPricePerPerson": 1083,
+   "calculatedOriginalPricePerPerson": 1185.71,
+   "personPrices": [
+    {
+     "id": 1,
+     "price": 1083
+    },
+    {
+     "id": 2,
+     "price": 1083
+    }
+   ],
+   "rooms": [
+    {
+     "code": "DZX1",
+     "roomCodes": [
+      "ST04-DO"
+     ],
+     "bookingCode": "DZX1A",
+     "board": "A",
+     "boardCode": "GT06-AI",
+     "boardDescription": "Alles Inklusive",
+     "description": "Double Standard",
+     "travellers": [
+      {
+       "id": 1
+      },
+      {
+       "id": 2
+      }
+     ],
+     "priceByUnit": false,
+     "transferIncluded": true,
+     "extras": [
+      {
+       "type": "GT07-LTC2C",
+       "included": true
+      },
+      {
+       "type": "GT07-TUI3",
+       "included": true
+      },
+      {
+       "type": "TR",
+       "included": true
+      }
+     ]
+    }
+   ],
+   "departure": {
+    "airline": {
+     "value": "easyJet",
+     "code": "U2"
+    },
+    "departureAirport": {
+     "value": "Amsterdam",
+     "code": "AMS"
+    },
+    "departureDateTime": "2026-12-10T08:00:00.000+01:00",
+    "arrivalAirport": {
+     "value": "Sal",
+     "code": "SID"
+    },
+    "arrivalDateTime": "2026-12-10T12:20:00.000-01:00",
+    "stopOver": 0,
+    "class": "economy",
+    "number": "7985",
+    "flightKey": "SUNNY_00988-;-e230e0d05c5306f47e5fbeac1e83373b-;-AMSSID-00988-_U2",
+    "totalPrice": 404,
+    "personPrices": [
+     {
+      "id": 1,
+      "price": 202
+     },
+     {
+      "id": 2,
+      "price": 202
+     }
+    ],
+    "segments": [
+     {
+      "airline": {
+       "value": "easyJet",
+       "code": "U2"
+      },
+      "departureAirport": {
+       "value": "Amsterdam",
+       "code": "AMS"
+      },
+      "departureDateTime": "2026-12-10T08:00:00.000+01:00",
+      "arrivalAirport": {
+       "value": "Sal",
+       "code": "SID"
+      },
+      "arrivalDateTime": "2026-12-10T12:20:00.000-01:00",
+      "flightDuration": 380,
+      "bookingClass": "Y",
+      "number": "7985"
+     }
+    ]
+   },
+   "return": {
+    "airline": {
+     "value": "easyJet",
+     "code": "U2"
+    },
+    "departureAirport": {
+     "value": "Sal",
+     "code": "SID"
+    },
+    "departureDateTime": "2026-12-17T13:15:00.000-01:00",
+    "arrivalAirport": {
+     "value": "Amsterdam",
+     "code": "AMS"
+    },
+    "arrivalDateTime": "2026-12-17T21:40:00.000+01:00",
+    "stopOver": 0,
+    "class": "economy",
+    "number": "7986",
+    "flightKey": "SUNNY_00988-;-ee54ac91a32f3d925c3aa3e5a608ed1d-;-SIDAMS-00988-_U2",
+    "totalPrice": 422,
+    "personPrices": [
+     {
+      "id": 1,
+      "price": 211
+     },
+     {
+      "id": 2,
+      "price": 211
+     }
+    ],
+    "segments": [
+     {
+      "airline": {
+       "value": "easyJet",
+       "code": "U2"
+      },
+      "departureAirport": {
+       "value": "Sal",
+       "code": "SID"
+      },
+      "departureDateTime": "2026-12-17T13:15:00.000-01:00",
+      "arrivalAirport": {
+       "value": "Amsterdam",
+       "code": "AMS"
+      },
+      "arrivalDateTime": "2026-12-17T21:40:00.000+01:00",
+      "flightDuration": 385,
+      "bookingClass": "Y",
+      "number": "7986"
+     }
+    ]
+   },
+   "cheapest": false
+  },
+  {
+   "arrivalDate": "2026-12-15",
+   "checkInDate": "2026-12-15",
+   "checkOutDate": "2026-12-22",
+   "lengthOfStay": 7,
+   "tourOperator": "LTUR",
+   "bookingTourOperator": "TUR1",
+   "brand": "TUR1",
+   "travelType": "TUR1",
+   "cancellationType": "REFUNDABLE",
+   "totalPrice": 2172,
+   "discount": 223.42,
+   "calculatedPricePerPerson": 1086,
+   "calculatedOriginalPricePerPerson": 1197.71,
+   "personPrices": [
+    {
+     "id": 1,
+     "price": 1086
+    },
+    {
+     "id": 2,
+     "price": 1086
+    }
+   ],
+   "rooms": [
+    {
+     "code": "DZX1",
+     "roomCodes": [
+      "ST04-DO"
+     ],
+     "bookingCode": "DZX1A",
+     "board": "A",
+     "boardCode": "GT06-AI",
+     "boardDescription": "Alles Inklusive",
+     "description": "Double Standard",
+     "travellers": [
+      {
+       "id": 1
+      },
+      {
+       "id": 2
+      }
+     ],
+     "priceByUnit": false,
+     "transferIncluded": true,
+     "extras": [
+      {
+       "type": "GT07-LTC2C",
+       "included": true
+      },
+      {
+       "type": "GT07-TUI3",
+       "included": true
+      },
+      {
+       "type": "TR",
+       "included": true
+      }
+     ]
+    }
+   ],
+   "departure": {
+    "airline": {
+     "value": "easyJet",
+     "code": "U2"
+    },
+    "departureAirport": {
+     "value": "Amsterdam",
+     "code": "AMS"
+    },
+    "departureDateTime": "2026-12-15T08:00:00.000+01:00",
+    "arrivalAirport": {
+     "value": "Sal",
+     "code": "SID"
+    },
+    "arrivalDateTime": "2026-12-15T12:20:00.000-01:00",
+    "stopOver": 0,
+    "class": "economy",
+    "number": "7985",
+    "flightKey": "SUNNY_00988-;-23252eb3d80c319ee4ffeda302129148-;-AMSSID-00988-_U2",
+    "totalPrice": 394,
+    "personPrices": [
+     {
+      "id": 1,
+      "price": 197
+     },
+     {
+      "id": 2,
+      "price": 197
+     }
+    ],
+    "segments": [
+     {
+      "airline": {
+       "value": "easyJet",
+       "code": "U2"
+      },
+      "departureAirport": {
+       "value": "Amsterdam",
+       "code": "AMS"
+      },
+      "departureDateTime": "2026-12-15T08:00:00.000+01:00",
+      "arrivalAirport": {
+       "value": "Sal",
+       "code": "SID"
+      },
+      "arrivalDateTime": "2026-12-15T12:20:00.000-01:00",
+      "flightDuration": 380,
+      "bookingClass": "Y",
+      "number": "7985"
+     }
+    ]
+   },
+   "return": {
+    "airline": {
+     "value": "easyJet",
+     "code": "U2"
+    },
+    "departureAirport": {
+     "value": "Sal",
+     "code": "SID"
+    },
+    "departureDateTime": "2026-12-22T13:15:00.000-01:00",
+    "arrivalAirport": {
+     "value": "Amsterdam",
+     "code": "AMS"
+    },
+    "arrivalDateTime": "2026-12-22T21:40:00.000+01:00",
+    "stopOver": 0,
+    "class": "economy",
+    "number": "7986",
+    "flightKey": "SUNNY_00988-;-75416776fd4756dd3f7a229ba6e23a0c-;-SIDAMS-00988-_U2",
+    "totalPrice": 456,
+    "personPrices": [
+     {
+      "id": 1,
+      "price": 228
+     },
+     {
+      "id": 2,
+      "price": 228
+     }
+    ],
+    "segments": [
+     {
+      "airline": {
+       "value": "easyJet",
+       "code": "U2"
+      },
+      "departureAirport": {
+       "value": "Sal",
+       "code": "SID"
+      },
+      "departureDateTime": "2026-12-22T13:15:00.000-01:00",
+      "arrivalAirport": {
+       "value": "Amsterdam",
+       "code": "AMS"
+      },
+      "arrivalDateTime": "2026-12-22T21:40:00.000+01:00",
+      "flightDuration": 385,
+      "bookingClass": "Y",
+      "number": "7986"
+     }
+    ]
+   },
+   "cheapest": false
+  },
+  {
+   "arrivalDate": "2026-07-24",
+   "checkInDate": "2026-07-24",
+   "checkOutDate": "2026-07-31",
+   "lengthOfStay": 7,
+   "tourOperator": "LTUR",
+   "bookingTourOperator": "TUR1",
+   "brand": "TUR1",
+   "travelType": "TUR1",
+   "cancellationType": "REFUNDABLE",
+   "totalPrice": 2174,
+   "discount": 203.4,
+   "calculatedPricePerPerson": 1087,
+   "calculatedOriginalPricePerPerson": 1188.7,
+   "personPrices": [
+    {
+     "id": 1,
+     "price": 1087
+    },
+    {
+     "id": 2,
+     "price": 1087
+    }
+   ],
+   "rooms": [
+    {
+     "code": "DZX1",
+     "roomCodes": [
+      "ST04-DO"
+     ],
+     "bookingCode": "DZX1A",
+     "board": "A",
+     "boardCode": "GT06-AI",
+     "boardDescription": "Alles Inklusive",
+     "description": "Double Standard",
+     "travellers": [
+      {
+       "id": 1
+      },
+      {
+       "id": 2
+      }
+     ],
+     "priceByUnit": false,
+     "transferIncluded": true,
+     "extras": [
+      {
+       "type": "GT07-LTC2C",
+       "included": true
+      },
+      {
+       "type": "GT07-TOY",
+       "included": true
+      },
+      {
+       "type": "GT07-TUI3",
+       "included": true
+      },
+      {
+       "type": "TR",
+       "included": true
+      }
+     ]
+    }
+   ],
+   "departure": {
+    "airline": {
+     "value": "TUIfly",
+     "code": "X3"
+    },
+    "departureAirport": {
+     "value": "München",
+     "code": "MUC"
+    },
+    "departureDateTime": "2026-07-24T08:00:00.000+02:00",
+    "arrivalAirport": {
+     "value": "Sal",
+     "code": "SID"
+    },
+    "arrivalDateTime": "2026-07-24T13:05:00.000-01:00",
+    "stopOver": 1,
+    "class": "economy",
+    "number": "7104",
+    "flightKey": "SUNNY_00653-;-0f84e7bbd9d88ed7d299dd971e899d2f-;-MUCSID-00653-_X3",
+    "totalPrice": 292,
+    "personPrices": [
+     {
+      "id": 1,
+      "price": 146
+     },
+     {
+      "id": 2,
+      "price": 146
+     }
+    ],
+    "segments": [
+     {
+      "airline": {
+       "value": "TUIfly",
+       "code": "X3"
+      },
+      "departureAirport": {
+       "value": "München",
+       "code": "MUC"
+      },
+      "departureDateTime": "2026-07-24T08:00:00.000+02:00",
+      "arrivalAirport": {
+       "value": "Boa Vista",
+       "code": "BVC"
+      },
+      "arrivalDateTime": "2026-07-24T11:45:00.000-01:00",
+      "flightDuration": 405,
+      "bookingClass": "Y",
+      "number": "7104"
+     },
+     {
+      "airline": {
+       "value": "TUIfly",
+       "code": "X3"
+      },
+      "departureAirport": {
+       "value": "Boa Vista",
+       "code": "BVC"
+      },
+      "departureDateTime": "2026-07-24T12:35:00.000-01:00",
+      "arrivalAirport": {
+       "value": "Sal",
+       "code": "SID"
+      },
+      "arrivalDateTime": "2026-07-24T13:05:00.000-01:00",
+      "flightDuration": 30,
+      "bookingClass": "Y",
+      "number": "7104"
+     }
+    ]
+   },
+   "return": {
+    "airline": {
+     "value": "TUIfly",
+     "code": "X3"
+    },
+    "departureAirport": {
+     "value": "Sal",
+     "code": "SID"
+    },
+    "departureDateTime": "2026-07-31T14:05:00.000-01:00",
+    "arrivalAirport": {
+     "value": "München",
+     "code": "MUC"
+    },
+    "arrivalDateTime": "2026-07-31T23:10:00.000+02:00",
+    "stopOver": 0,
+    "class": "economy",
+    "number": "7104",
+    "flightKey": "SUNNY_00653-;-d8300fd40962990dbd5d6e7c6de9b002-;-SIDMUC-00653-_X3",
+    "totalPrice": 276,
+    "personPrices": [
+     {
+      "id": 1,
+      "price": 138
+     },
+     {
+      "id": 2,
+      "price": 138
+     }
+    ],
+    "segments": [
+     {
+      "airline": {
+       "value": "TUIfly",
+       "code": "X3"
+      },
+      "departureAirport": {
+       "value": "Sal",
+       "code": "SID"
+      },
+      "departureDateTime": "2026-07-31T14:05:00.000-01:00",
+      "arrivalAirport": {
+       "value": "München",
+       "code": "MUC"
+      },
+      "arrivalDateTime": "2026-07-31T23:10:00.000+02:00",
+      "flightDuration": 365,
+      "bookingClass": "Y",
+      "number": "7104"
+     }
+    ]
+   },
+   "campaignData": {
+    "active": true,
+    "campaignPeriod": {
+     "startDate": "2026-05-07T00:00:01Z",
+     "endDate": "2026-07-15T22:59:59Z"
+    },
+    "priority": 5,
+    "alternativeCampaignSources": [],
+    "alias": "CA07",
+    "globalType": "GT07-TOY",
+    "layout": {
+     "alternativeCampaignIcon": "https://www.tui.com/fileadmin/tuicom/campaigns/icons/welcome-back-icon-pt3.svg",
+     "iconFontClassName": "reduced",
+     "background": "#D40E14",
+     "text": "#FFFFFF"
+    },
+    "offersSpecification": {
+     "startDate": "2026-05-07T00:00:01Z",
+     "endDate": "2026-11-08T22:59:59Z",
+     "minimumDuration": 1,
+     "minimumPrice": 10,
+     "travellers": {
+      "adults": {},
+      "children": {}
+     }
+    },
+    "defaultSearchParams": [
+     {
+      "searchType": "PACKAGE",
+      "duration": 1,
+      "travellers": [
+       {
+        "adults": 1,
+        "children": []
+       }
+      ],
+      "startDate": "2026-05-07",
+      "endDate": "2026-11-08"
+     },
+     {
+      "searchType": "HOTEL",
+      "duration": 1,
+      "travellers": [
+       {
+        "adults": 1,
+        "children": []
+       }
+      ],
+      "startDate": "2026-05-07",
+      "endDate": "2026-11-08"
+     }
+    ],
+    "languages": [
+     {
+      "shortName": "de",
+      "translations": {
+       "name": "Last Minute GAS AO + PA (CA07, GT07-TOY) ab 07.05.",
+       "label": "LAST MINUTE SALE",
+       "toolTip": "• Flex Tarif buchbar\n• Reisen ab sofort bis 08.11.26",
+       "bagVariant": "https://tui.com/fileadmin/tuicom/campaigns/icons/bis-zu-50-prozent-rabatt-DE.svg",
+       "dropdown": {
+        "active": false
+       },
+       "banderole": {
+        "active": true,
+        "label": "LAST MINUTE SALE",
+        "toolTip": "• Flex Tarif buchbar\n• Reisen ab sofort bis 08.11.26"
+       },
+       "bookingPriceLabel": {
+        "active": true,
+        "label": "LAST MINUTE SALE"
+       },
+       "childrenPriceLabel": {
+        "active": false
+       },
+       "coupon": {
+        "active": false,
+        "label": "TUI FRIDAY SALE Angebot"
+       },
+       "infoBox": {
+        "active": true,
+        "title": "LAST MINUTE SALE",
+        "introText": "<strong>Bis zu 50 % Rabatt sichern</strong>",
+        "conditionLinkText": "Aktionsbedingungen",
+        "conditionText": "• für Reisen ab sofort bis 08.11.26<br />• z. B. Griechenland, Mallorca, Türkei, Kanaren uvm.<br />• Flex Tarif buchbar<br /><a href=\"/last-minute/?contentid=ib_lastminute_20260507_LM26\" target=\"_blank\">MEHR ERFAHREN</a>"
+       },
+       "banner": [
+        {
+         "searchType": "PACKAGE",
+         "pages": []
+        },
+        {
+         "searchType": "HOTEL",
+         "pages": []
+        },
+        {
+         "searchType": "SEO",
+         "pages": [
+          {
+           "pageName": "SEO",
+           "bannerTypes": [
+            {
+             "visibleFor": "",
+             "visibleIf": null,
+             "shouldResetInLink": null,
+             "configuration": {
+              "text": "• Flex Tarif zubuchbar<br />• Reisen ab sofort bis 08.11.26<br />• z. B. Mallorca, Kreta, Türkei<br /><br />",
+              "title": "LAST MINUTE SALE",
+              "buttonText": "Jetzt entdecken",
+              "infoText": "",
+              "background": "https://www.tui.com/fileadmin/tuicom/campaigns/icons/tui-last-minute-sale-k-tool.jpg",
+              "variant": "gradient",
+              "clickTarget": "blank"
+             },
+             "targetPageName": "/last-minute/?contentid=banner_lastminute_20260507_LM26",
+             "position": "below-compact-search"
+            }
+           ]
+          }
+         ]
+        }
+       ],
+       "tagSpecific": null
+      }
+     }
+    ],
+    "showMap": false
+   },
+   "cheapest": false
+  },
+  {
+   "arrivalDate": "2026-12-01",
+   "checkInDate": "2026-12-01",
+   "checkOutDate": "2026-12-08",
+   "lengthOfStay": 7,
+   "tourOperator": "LTUR",
+   "bookingTourOperator": "TUR1",
+   "brand": "TUR1",
+   "travelType": "TUR1",
+   "cancellationType": "REFUNDABLE",
+   "totalPrice": 2196,
+   "discount": 245.09,
+   "calculatedPricePerPerson": 1098,
+   "calculatedOriginalPricePerPerson": 1220.545,
+   "personPrices": [
+    {
+     "id": 1,
+     "price": 1098
+    },
+    {
+     "id": 2,
+     "price": 1098
+    }
+   ],
+   "rooms": [
+    {
+     "code": "DZX1",
+     "roomCodes": [
+      "ST04-DO"
+     ],
+     "bookingCode": "DZX1A",
+     "board": "A",
+     "boardCode": "GT06-AI",
+     "boardDescription": "Alles Inklusive",
+     "description": "Double Standard",
+     "travellers": [
+      {
+       "id": 1
+      },
+      {
+       "id": 2
+      }
+     ],
+     "priceByUnit": false,
+     "transferIncluded": true,
+     "extras": [
+      {
+       "type": "GT07-LTC2C",
+       "included": true
+      },
+      {
+       "type": "GT07-TUI3",
+       "included": true
+      },
+      {
+       "type": "TR",
+       "included": true
+      }
+     ]
+    }
+   ],
+   "departure": {
+    "airline": {
+     "value": "Transavia Airlines",
+     "code": "HV"
+    },
+    "departureAirport": {
+     "value": "Amsterdam",
+     "code": "AMS"
+    },
+    "departureDateTime": "2026-12-01T07:10:00.000+01:00",
+    "arrivalAirport": {
+     "value": "Sal",
+     "code": "SID"
+    },
+    "arrivalDateTime": "2026-12-01T11:50:00.000-01:00",
+    "stopOver": 0,
+    "class": "economy",
+    "number": "5781",
+    "flightKey": "SUNNY_00988-;-0dc934d3ab4dfc4ac0b94d00776b6bfa-;-AMSSID-00988-_HV",
+    "totalPrice": 362,
+    "personPrices": [
+     {
+      "id": 1,
+      "price": 181
+     },
+     {
+      "id": 2,
+      "price": 181
+     }
+    ],
+    "segments": [
+     {
+      "airline": {
+       "value": "Transavia Airlines",
+       "code": "HV"
+      },
+      "departureAirport": {
+       "value": "Amsterdam",
+       "code": "AMS"
+      },
+      "departureDateTime": "2026-12-01T07:10:00.000+01:00",
+      "arrivalAirport": {
+       "value": "Sal",
+       "code": "SID"
+      },
+      "arrivalDateTime": "2026-12-01T11:50:00.000-01:00",
+      "flightDuration": 400,
+      "bookingClass": "Y",
+      "number": "5781"
+     }
+    ]
+   },
+   "return": {
+    "airline": {
+     "value": "easyJet",
+     "code": "U2"
+    },
+    "departureAirport": {
+     "value": "Sal",
+     "code": "SID"
+    },
+    "departureDateTime": "2026-12-08T13:15:00.000-01:00",
+    "arrivalAirport": {
+     "value": "Amsterdam",
+     "code": "AMS"
+    },
+    "arrivalDateTime": "2026-12-08T21:40:00.000+01:00",
+    "stopOver": 0,
+    "class": "economy",
+    "number": "7986",
+    "flightKey": "SUNNY_00988-;-ab8daeb276b658471a2176c1e6bd5524-;-SIDAMS-00988-_U2",
+    "totalPrice": 394,
+    "personPrices": [
+     {
+      "id": 1,
+      "price": 197
+     },
+     {
+      "id": 2,
+      "price": 197
+     }
+    ],
+    "segments": [
+     {
+      "airline": {
+       "value": "easyJet",
+       "code": "U2"
+      },
+      "departureAirport": {
+       "value": "Sal",
+       "code": "SID"
+      },
+      "departureDateTime": "2026-12-08T13:15:00.000-01:00",
+      "arrivalAirport": {
+       "value": "Amsterdam",
+       "code": "AMS"
+      },
+      "arrivalDateTime": "2026-12-08T21:40:00.000+01:00",
+      "flightDuration": 385,
+      "bookingClass": "Y",
+      "number": "7986"
+     }
+    ]
+   },
+   "cheapest": false
+  }
+ ],
+ "currency": "EUR",
+ "travellers": [
+  {
+   "id": 1,
+   "age": 28
+  },
+  {
+   "id": 2,
+   "age": 28
+  }
+ ]
+}

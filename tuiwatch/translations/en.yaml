@@ -29,6 +29,21 @@ configuration:
   notify_errors:
     name: Sold-out / error alert
     description: "Notify when an offer returns no result several times in a row (sold out or outdated URL). Default on."
+  notify_api_errors:
+    name: API outage alert
+    description: "Notify when the API self-test finds a critical TUI endpoint failing (TUI may have changed the API), and send an all-clear once everything works again. Default on."
+  notify_booked_drop:
+    name: Cheaper-than-booked alert
+    description: "Notify when the price drops below the booked price you entered after booking (rebooking might be worth it). Default on."
+  booked_drop_min_diff:
+    name: Min. saving below booked price (€)
+    description: "Minimum saving per person before the cheaper-than-booked alert fires. Default 50 €."
+  digest_enabled:
+    name: Send weekly digest
+    description: "Send a weekly summary (biggest drops, new lows, offers below target price) via Telegram and/or e-mail. Requires Telegram or SMTP. Default off."
+  digest_weekday:
+    name: Digest weekday
+    description: "Day of the week the weekly digest is sent: 1 = Monday … 7 = Sunday. Default 1 (Monday)."
   telegram_bot_token:
     name: Telegram bot token
     description: "Token of a Telegram bot (format 123456789:ABC-...) to receive notifications via Telegram. Leave empty to disable Telegram. Create a bot via @BotFather."

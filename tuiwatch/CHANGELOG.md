@@ -1,5 +1,290 @@
 # Changelog
 
+## [0.25.4] - 2026-06-30
+
+### Changed
+- **Reisen-Statistik & Liste jetzt pro Person:** Der **€/Nacht**-Wert je Reise (Liste) sowie
+  der **Ø €/Nacht** in der Gesamt- und Jahresstatistik werden **pro Person** ausgewiesen
+  (Personen-Nächte = Nächte × Reisende). So sind Solo- und Gruppenreisen vergleichbar
+  (z. B. Gruppenbuchung mit 7 Reisenden: 282,50 €/Nacht p. P. statt 1.977,50 € für die
+  ganze Buchung). Labels mit „p. P." gekennzeichnet.
+
+## [0.25.3] - 2026-06-30
+
+### Fixed
+- **PDF-Import:** Reisezeitraum (und damit **€/Nacht** sowie **€/Person/Nacht**) wurde nicht
+  berechnet, wenn der Paket-Block die Status-Spalte direkt anhängt
+  (`… – Paket (Unterkunft) bestätigt`). Betraf u. a. Buchungen mit mehreren Reisenden. Der
+  Zeitraum/Hotel wird jetzt unabhängig vom Zusatztext erkannt; die Pro-Person-Berechnung
+  (Division durch die Anzahl der Reisenden, 1–7) greift wieder.
+
+## [0.25.2] - 2026-06-30
+
+### Fixed
+- **PDF-Import:** Der **Rückflug** wurde bei manchen Bestätigungen nicht erkannt, wenn die
+  Status-Spalte („enthalten") als eigene Zeile zwischen Datums- und Zeitzeile steht. Der
+  Flug-Parser überspringt solche Zwischenzeilen jetzt.
+
+## [0.25.1] - 2026-06-30
+
+### Added
+- **Reisen-Datenbank:** Pro Buchung jetzt der **Reisepreis pro Nacht** (reiner
+  Hotel-/Flug-/Transfer-Preis **nach Rabatt, ohne Extras**) — in der Liste je Reise und in
+  der Detailansicht zusätzlich **€/Person/Nacht** (entspricht der „€/Nacht"-Spalte der
+  Reisen-Übersicht).
+- **Statistik pro Reisejahr** (Reisen, Nächte, Ausgaben, Ø €/Nacht) zusätzlich zur
+  Gesamtstatistik.
+
+## [0.25.0] - 2026-06-30
+
+### Added
+- **Reisen-Datenbank (PDF-Import):** Neuer Bereich **„🧳 Meine Reisen"** für **gebuchte**
+  Reisen. Eine TUI-Reisebestätigung als **PDF** hochladen (oder per Drag & Drop) — die
+  Eckdaten (Buchungsnummer, Reisende, Hotel, Zeitraum, Flüge, Extras, Rabatte, Zahlungen,
+  Preise) werden ausgelesen. Die **PDF bleibt dauerhaft gespeichert** (unter `/data/trips`)
+  und ist je Reise wieder **abrufbar** (öffnen/herunterladen). Reisen lassen sich jederzeit
+  **löschen** (inkl. der gespeicherten PDF).
+- **Übersichts-Statistik:** Anzahl Reisen, Summe Nächte, Gesamtausgaben und Ø €/Nacht.
+- Re-Import derselben Buchungsnummer **aktualisiert** den bestehenden Eintrag (kein Duplikat).
+- Der PDF-Parser liegt als eigenes Modul `tripparser.py` vor (für spätere Layout-Anpassungen)
+  und ist tolerant gegenüber den bekannten TUI-Layout-Varianten sowie 1–7 Reisenden.
+
+## [0.24.2] - 2026-06-30
+
+### Changed
+- **Bereits getrackte Hotels** lassen sich in der Suche jetzt **erneut tracken**: Der
+  Button ist nicht mehr deaktiviert, sondern fügt das Hotel mit den **aktuellen
+  Suchparametern** (z. B. anderer Zeitraum) als weiteres Angebot hinzu. Das „✓ getrackt"
+  am Namen bleibt als Hinweis bestehen; nur exakt identische Angebote (gleiche URL) werden
+  weiterhin abgelehnt.
+
+## [0.24.1] - 2026-06-30
+
+### Added
+- **„💾 Änderungen speichern"** bei den gespeicherten Suchen: Eine geladene Suche lässt sich
+  nach Anpassungen direkt überschreiben, ohne den Namen erneut eingeben zu müssen. Der
+  Button ist nur aktiv, wenn eine gespeicherte Suche ausgewählt ist; „★ Speichern" legt
+  weiterhin eine neue Suche (mit Namensabfrage) an.
+
+## [0.24.0] - 2026-06-30
+
+### Added
+- **Globale Reiseziel-Suche:** Das Suchfeld im Reiseziel-Picker durchsucht jetzt **alle
+  Ebenen** des TUI-Reiseziel-Baums. Tippt man z. B. „Kanarische Inseln", erscheint das Ziel
+  direkt — ohne erst Spanien öffnen zu müssen. Die Treffer zeigen ihren Pfad
+  (z. B. „— Spanien › Kanarische Inseln"). Grundlage ist ein flacher Index des kompletten
+  Baums, der beim Start (und danach alle 14 Tage) im Hintergrund aufgebaut und in der
+  Datenbank zwischengespeichert wird; manuell neu aufbaubar über `POST /api/destinations/reindex`.
+- **Gespeicherte Suchen in der Datenbank:** Favoriten-Suchen liegen nicht mehr nur im
+  Browser-Cache, sondern in der Add-on-Datenbank — damit sind sie **geräteübergreifend**
+  verfügbar (gleiche Liste auf Handy, Tablet, PC).
+
+## [0.23.1] - 2026-06-29
+
+### Fixed
+- **HolidayCheck-Link** trifft jetzt das richtige Hotel: Statt der HolidayCheck-Suchseite
+  (die den Begriff nicht zuverlässig auswertete) öffnet der Link eine Google-Suche
+  `site:holidaycheck.de <Hotel> <Region>` — der erste Treffer ist die passende
+  HolidayCheck-Hotelseite.
+
+## [0.23.0] - 2026-06-29
+
+### Added
+- **HolidayCheck-Link:** Die Bewertungszeile (Karte und E-Mail) ist jetzt anklickbar und
+  öffnet die HolidayCheck-Hotelsuche zum Hotel (Name + Region). Einen exakten Deep-Link
+  liefert TUI nicht — daher die Namenssuche, die zuverlässig beim Hotel landet.
+
+## [0.22.1] - 2026-06-29
+
+### Changed
+- **Verlauf-Marker:** größere Trefferzone für den Mouseover — der Tooltip rastet auf den
+  nächstgelegenen Marker ein und erscheint sofort beim Annähern (statt nur exakt auf dem
+  Fähnchen).
+
+## [0.22.0] - 2026-06-29
+
+### Added
+- **Änderungs-Marker im Verlauf-Diagramm:** Wichtige Eingriffe werden als Fähnchen auf
+  der Zeitachse markiert — **Zimmerwechsel**, **gebuchter Preis**, **Wunschpreis** und
+  **Zurücksetzen**; **Mouseover** zeigt Datum + Beschreibung.
+- **Hotelsuche:** Nach **Tracken** eines Treffers öffnet sich direkt die **Zimmerauswahl**
+  des neuen Angebots — so lässt sich gleich die gewünschte Kategorie festlegen.
+
+## [0.21.0] - 2026-06-29
+
+### Added
+- **Buchungscodes & Flugnummern** je Angebot: **TUI-Buchungscode** (z. B. `LPA21031`),
+  **Zimmer-Buchungscode** (z. B. `DZX1A`) und **GIATA-Hotel-ID** werden in der Karte und
+  in der E-Mail angezeigt; die **Flugnummern** (z. B. `X3 2168`) stehen in den Hin-/Rück-
+  Flugzeilen. Auch als Sensor-Attribute `booking_code`/`room_booking_code`.
+
+## [0.20.4] - 2026-06-29
+
+### Changed
+- **Verlauf-Diagramm** zoomt jetzt auf den echten Preisverlauf (mit etwas Polster) —
+  kleine Änderungen (z. B. −6 €) sind klar erkennbar. Die gestrichelte
+  Vergleichspreis-Linie wurde entfernt (streckte die Achse); der Vergleichspreis steht
+  weiter in der Tabellenspalte „Vergleich". Wunsch- und Buchungspreis-Linie bleiben.
+- **Kartenliste:** der kleine Inline-Verlaufs-Chart (Spark) wurde entfernt — übersichtlicher
+  und platzsparender; der volle Verlauf bleibt über den Button **Verlauf**.
+- **Suche:** Reihenfolge der Verpflegungs-Filter zu **AI, VP, HP, Frühstück, Ohne**.
+
+## [0.20.3] - 2026-06-29
+
+### Added
+- **Sammelaktion „E-Mail":** Die markierten Angebote lassen sich jetzt direkt als E-Mail
+  versenden (Empfänger wird abgefragt, Vorbelegung wie beim normalen Versand). Es werden
+  nur die ausgewählten (aktiven) Angebote gesendet.
+
+## [0.20.2] - 2026-06-29
+
+### Fixed
+- **Suche markierte archivierte Angebote als „getrackt"**: Ein archiviertes Hotel
+  erschien in der Regionssuche weiter als „✓ getrackt" und ließ sich nicht erneut
+  aufnehmen. Jetzt zählt nur noch **aktiv** Getracktes (Archiv ausgenommen).
+
+### Added
+- **Suchfeld in der Region-Trefferliste**: filtert die angezeigten Treffer sofort nach
+  Hotelname, Ort/Land und Verpflegung (Anzahl „X von N").
+
+## [0.20.1] - 2026-06-29
+
+### Fixed
+- **Verpflegungsfilter in der Suche** wirkte nicht: HP/VP/Frühstück nutzten ungültige
+  Codes (`HP`/`VP`/`F`) und wurden ignoriert — dadurch erschienen z. B. bei „Frühstück"
+  auch „Ohne Verpflegung"-Treffer. Jetzt korrekte API-Codes (`HB`/`FB`/`BB`); `AI`
+  unverändert. Die Filter schließen die jeweilige **„Plus"-Variante** automatisch ein
+  (AI = inkl. „AI Plus/laut Programm", HP = inkl. Halbpension Plus, VP = inkl.
+  Vollpension Plus).
+
+### Added
+- Verpflegungsfilter **„Ohne"** (ohne Verpflegung) ergänzt.
+
+## [0.20.0] - 2026-06-29
+
+### Added
+- **Zimmerauswahl pro Angebot:** Neuer Button **„Zimmer"** zeigt die wählbaren
+  Zimmerkategorien (Name + Verpflegung + Preis pro Person + Aufpreis zum günstigsten).
+  Standard bleibt das **günstigste** Zimmer; per **„tracken"** lässt sich eine bestimmte
+  Kategorie fixieren (dann wird deren Preis verfolgt), **„Details ↗"** öffnet das Zimmer
+  mit Fotos/Beschreibung auf tui.com, **„Günstigstes automatisch"** hebt die Festlegung
+  auf. Technisch über `roomTypeOpCodes` in der Angebots-URL (Quelle: Offer-API, gruppiert
+  nach Zimmercode).
+
+## [0.19.2] - 2026-06-29
+
+### Fixed
+- **Poll-Fehler `name 'date' is not defined`** behoben: `date` war in app.py nicht
+  importiert, wodurch der Wochenüberblick (bei aktivem `digest_enabled`) bei jeder
+  automatischen Prüfung abbrach.
+
+## [0.19.1] - 2026-06-28
+
+### Changed
+- **Karten-Layout** mit Hotelbild aufgeräumt: das Bild sitzt jetzt **unter dem Preis**
+  (rechte Spalte) statt links, und **Wunschpreis + gebuchter Preis** stehen
+  **nebeneinander** (umbrechend auf schmalen Bildschirmen).
+
+## [0.19.0] - 2026-06-28
+
+### Added
+- **Gebuchter Preis:** Pro Angebot lässt sich der **tatsächlich gezahlte Preis**
+  hinterlegen (Feld „📌 Gebuchter Preis"). Das Tracking läuft weiter; angezeigt wird
+  „seit Buchung ±X €" und im Preis-Diagramm eine eigene Linie. **„Günstiger als
+  gebucht"-Alarm** (HA/Telegram) meldet, wenn der Preis später deutlich darunter fällt
+  (Optionen `notify_booked_drop`, `booked_drop_min_diff`); nur bei neuen Tiefstwerten,
+  neustart-fest. Auch als Sensor-Attribute `booked_price`/`booked_diff`.
+- **Hotelbild bei getrackten Angeboten:** Beim Tracken aus der Suche wird das Bild
+  übernommen; bei per URL hinzugefügten Angeboten wird es beim ersten Check einmalig über
+  eine Regionssuche ermittelt (Quelle: TUI-Such-API). Anzeige als Thumbnail in der Karte;
+  Sensor-Attribut `image`.
+
+## [0.18.1] - 2026-06-28
+
+### Fixed
+- **Fluggesellschaften-Dropdown**: Checkboxen waren verrutscht (die globale Eingabefeld-
+  Regel hat sie auf volle Breite gezogen) und das Panel saß versetzt — beides korrigiert
+  (Checkboxen feste Größe, Panel linksbündig unter dem Feld).
+
+### Added
+- **Suche im Reiseziel-Picker**: Textfeld zum Filtern der aktuell angezeigten Liste
+  (z. B. Land eintippen, dann hineinblättern).
+
+## [0.18.0] - 2026-06-28
+
+### Added
+- **Hotelsuche: optionaler Fluggesellschaften-Filter** — Dropdown mit Mehrfachauswahl
+  (leer = alle). Die Auswahl geht in die Suche und in das getrackte Angebot (dann wird
+  der Preis nur mit diesen Airlines verfolgt). Kuratierte Airline-Liste über
+  `GET /api/airlines`.
+
+### Changed
+- **Such-Defaults**: Sterne ≥ **3** und Weiterempfehlung ≥ **80 %** sind in der Maske
+  vorbelegt (jederzeit änderbar).
+
+## [0.17.0] - 2026-06-28
+
+### Added
+- **Regressionstests fürs Parsing** (`tuiwatch/tests/`, pytest): prüfen offline gegen
+  echte, reduzierte TUI-API-Antworten, dass die Auswertung (Preis, Rabatt, Nächte,
+  Verpflegung, Reisende, Flug, Rückreisedatum, Bewertung, Region, Suche, Kalender,
+  Reiseziele, Abflughäfen) und die URL-/Helfer-Logik korrekt bleiben. CI-Workflow
+  `test-tuiwatch.yml` führt sie bei Änderungen an `tuiwatch/*.py` aus.
+
+### Changed
+- `scraper.py` importiert **playwright nur noch lazy** (erst im Browser-Fallback) — das
+  Modul ist damit ohne playwright importierbar (Voraussetzung für die Tests; erster
+  Schritt zur Verschlankung des Images).
+
+## [0.16.1] - 2026-06-28
+
+### Fixed
+- **Übersetzungen** für die neuen Optionen `notify_api_errors`, `digest_enabled` und
+  `digest_weekday` (DE + EN) ergänzt — im HA-Konfig-UI wurden zuvor die rohen
+  Schlüsselnamen angezeigt.
+
+## [0.16.0] - 2026-06-28
+
+### Added
+- **API-Ausfall-Alarm**: Fällt im Selbsttest ein *kritischer* TUI-Endpunkt aus (z. B.
+  weil TUI die API geändert hat), meldet TUIWatch das über HA/Telegram und gibt
+  Entwarnung, sobald wieder alles läuft. Zustand übersteht Neustarts. Abschaltbar über
+  `notify_api_errors`.
+- **Selbsttest läuft automatisch ~1×/Tag** und jeweils **vor den Preisprüfungen**, damit
+  die Footer-Ampel aktuell bleibt und ein API-Problem erkannt wird, bevor die Abfragen
+  daran scheitern.
+- **Wochenüberblick (Digest)**: optionale wöchentliche Zusammenfassung per Telegram/E-Mail
+  (größte Rückgänge, neue Tiefstwerte, Angebote unter Wunschpreis). Aktivierung über
+  `digest_enabled` + `digest_weekday` (1 = Mo … 7 = So); Sofortversand über den Button
+  **„📊 Wochenüberblick"**.
+- **Trend-Hinweis** je Angebot (↘ fällt / ↗ steigt / → stabil) aus dem bisherigen
+  Preisverlauf — als kleines Badge neben der Preisänderung.
+- **Sammelaktionen**: Angebote per Checkbox auswählen und gemeinsam **prüfen,
+  archivieren oder löschen** (Aktionsleiste erscheint bei Auswahl).
+
+## [0.15.0] - 2026-06-28
+
+### Added
+- **API-Selbsttest**: prüft beim Start des Add-ons und manuell, ob alle genutzten
+  TUI-Endpunkte (Preis/Angebot, Hotelsuche, Reiseziele, Abflughäfen, Preiskalender,
+  Bewertung, Breadcrumb) noch erwartungsgemäß antworten. Ergebnis im **Footer** als
+  Ampel (grün/gelb/rot); Klick öffnet die Detailliste mit „Erneut prüfen".
+- **Trackerliste nach Reisebeginn sortierbar** (neue Sortieroption; Angebote ohne
+  festes Datum ans Ende).
+
+### Changed
+- **Günstigerer-Termin-Alarm** kommt nur noch bei einem **wirklich neuen Tiefstwert**
+  (anderer Abreisetag oder nochmals tieferer Preis) und übersteht Add-on-Neustarts
+  (persistenter Dedup) — keine Wiederholungen mehr bei jeder Prüfung. Abschaltbar über
+  `notify_cheaper_date`.
+- **Suche: Datumspicker** — „bis" springt automatisch auf „von" und kann nicht mehr
+  vor dem Abreisedatum liegen.
+
+### Fixed
+- **Nächte-Vergleich für aus dem Kalender getrackte Termine**: das feste Reisefenster
+  (genau N Nächte) wird beim Vergleich passend geweitet (`endDate = startDate + Dauer`),
+  sodass längere Dauern nicht mehr fälschlich als „nicht abrufbar" erscheinen.
+
 ## [0.14.1] - 2026-06-28
 
 ### Fixed

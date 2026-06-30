@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.6.21] - 2026-06-29
+- Neu: **Emoji-Picker mit Kategorien wie auf dem Handy** — über 1000 Emojis in 8 Kategorie-Tabs (Smileys & Personen, Tiere & Natur, Essen & Trinken, Aktivitäten, Reisen & Orte, Objekte, Symbole, Flaggen), ein **Suchfeld** (deutsch/englisch, z.B. „herz" oder „laugh") und eine **„Zuletzt verwendet"**-Leiste, die die eigenen Emojis merkt (im Browser gespeichert). Ersetzt die bisherige flache Liste mit ~170 Emojis
+
 ## [1.6.20] - 2026-06-26
 - Performance: Große Chats öffnen jetzt sofort — der Server sendet initial nur die **neuesten 60** Nachrichten statt der kompletten Liste; ältere werden beim **Hochscrollen** aus dem Cache nachgeladen und vorne angefügt (Scrollposition bleibt erhalten)
 - Suche: Die Nachrichtensuche durchsucht jetzt den **gesamten gecachten Verlauf** serverseitig (neuer Endpoint `/api/search`), nicht mehr nur die geladenen Bubbles. Klick bzw. ▲▼ springt zum Treffer; liegt er außerhalb des Fensters, wird automatisch ein Verlauf-Fenster um ihn geladen und hervorgehoben. Schließen der Suche kehrt zum Live-Modus zurück

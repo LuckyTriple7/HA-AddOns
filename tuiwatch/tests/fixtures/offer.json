@@ -1,0 +1,531 @@
+{
+ "currency": "EUR",
+ "lang": "de",
+ "results": 45,
+ "showingResultsFrom": 0,
+ "resultsPerPage": 45,
+ "hotel": {
+  "giata": 259516,
+  "regionGiata": 88,
+  "product": "SID10006",
+  "name": "Hotel Riu Funana"
+ },
+ "offers": [
+  {
+   "arrivalDate": "2026-08-12",
+   "checkInDate": "2026-08-12",
+   "checkOutDate": "2026-08-19",
+   "lengthOfStay": 7,
+   "tourOperator": "LTUR",
+   "bookingTourOperator": "TUR1",
+   "brand": "TUR1",
+   "travelType": "TUR1",
+   "programType": "0617",
+   "supplier": {
+    "provider": "comres",
+    "supplier": "",
+    "subSupplier": ""
+   },
+   "cancellationType": "REFUNDABLE",
+   "totalPrice": 2904,
+   "discount": 205.69,
+   "calculatedPricePerPerson": 1452,
+   "calculatedOriginalPricePerPerson": 1554.845,
+   "personPrices": [
+    {
+     "id": 1,
+     "price": 1452
+    },
+    {
+     "id": 2,
+     "price": 1452
+    }
+   ],
+   "rooms": [
+    {
+     "code": "DZX1",
+     "roomCodes": [
+      "ST04-DO"
+     ],
+     "bookingCode": "DZX1A",
+     "board": "A",
+     "boardCode": "GT06-AI",
+     "boardDescription": "Alles Inklusive",
+     "description": "Double Standard",
+     "travellers": [
+      {
+       "id": 1
+      },
+      {
+       "id": 2
+      }
+     ],
+     "priceByUnit": false,
+     "transferIncluded": true,
+     "extras": [
+      {
+       "type": "GT07-LTC2C",
+       "included": true
+      },
+      {
+       "type": "GT07-TOY",
+       "included": true
+      },
+      {
+       "type": "GT07-TUI3",
+       "included": true
+      },
+      {
+       "type": "TR",
+       "included": true
+      }
+     ]
+    }
+   ],
+   "departure": {
+    "airline": {
+     "value": "TUIfly",
+     "code": "X3"
+    },
+    "departureAirport": {
+     "value": "Düsseldorf",
+     "code": "DUS"
+    },
+    "departureDateTime": "2026-08-12T06:20:00.000+02:00",
+    "arrivalAirport": {
+     "value": "Sal",
+     "code": "SID"
+    },
+    "arrivalDateTime": "2026-08-12T11:25:00.000-01:00",
+    "stopOver": 1,
+    "class": "economy",
+    "number": "7102",
+    "provider": "SUNNY_00653",
+    "flightKey": "SUNNY_00653-;-a892581f369299fa35a1152b572c8cbb-;-DUSSID-00653-_X3",
+    "totalPrice": 592,
+    "personPrices": [
+     {
+      "id": 1,
+      "price": 296
+     },
+     {
+      "id": 2,
+      "price": 296
+     }
+    ],
+    "segments": [
+     {
+      "airline": {
+       "value": "TUIfly",
+       "code": "X3"
+      },
+      "departureAirport": {
+       "value": "Düsseldorf",
+       "code": "DUS"
+      },
+      "departureDateTime": "2026-08-12T06:20:00.000+02:00",
+      "arrivalAirport": {
+       "value": "Boa Vista",
+       "code": "BVC"
+      },
+      "arrivalDateTime": "2026-08-12T10:05:00.000-01:00",
+      "flightDuration": 405,
+      "bookingClass": "Y",
+      "number": "7102"
+     },
+     {
+      "airline": {
+       "value": "TUIfly",
+       "code": "X3"
+      },
+      "departureAirport": {
+       "value": "Boa Vista",
+       "code": "BVC"
+      },
+      "departureDateTime": "2026-08-12T10:55:00.000-01:00",
+      "arrivalAirport": {
+       "value": "Sal",
+       "code": "SID"
+      },
+      "arrivalDateTime": "2026-08-12T11:25:00.000-01:00",
+      "flightDuration": 30,
+      "bookingClass": "Y",
+      "number": "7102"
+     }
+    ]
+   },
+   "return": {
+    "airline": {
+     "value": "TUIfly",
+     "code": "X3"
+    },
+    "departureAirport": {
+     "value": "Sal",
+     "code": "SID"
+    },
+    "departureDateTime": "2026-08-19T12:25:00.000-01:00",
+    "arrivalAirport": {
+     "value": "Düsseldorf",
+     "code": "DUS"
+    },
+    "arrivalDateTime": "2026-08-19T21:25:00.000+02:00",
+    "stopOver": 0,
+    "class": "economy",
+    "number": "7102",
+    "provider": "SUNNY_00653",
+    "flightKey": "SUNNY_00653-;-5788867250902bc13fae39b540e068c0-;-SIDDUS-00653-_X3",
+    "totalPrice": 656,
+    "personPrices": [
+     {
+      "id": 1,
+      "price": 328
+     },
+     {
+      "id": 2,
+      "price": 328
+     }
+    ],
+    "segments": [
+     {
+      "airline": {
+       "value": "TUIfly",
+       "code": "X3"
+      },
+      "departureAirport": {
+       "value": "Sal",
+       "code": "SID"
+      },
+      "departureDateTime": "2026-08-19T12:25:00.000-01:00",
+      "arrivalAirport": {
+       "value": "Düsseldorf",
+       "code": "DUS"
+      },
+      "arrivalDateTime": "2026-08-19T21:25:00.000+02:00",
+      "flightDuration": 360,
+      "bookingClass": "Y",
+      "number": "7102"
+     }
+    ]
+   },
+   "tempId": "f2e0aca2-e785-4b2b-b7ca-dbc34815b0dd",
+   "cheapest": true,
+   "travellers": [
+    {
+     "id": 1,
+     "age": 28
+    },
+    {
+     "id": 2,
+     "age": 28
+    }
+   ],
+   "currency": "EUR",
+   "hotel": {
+    "giata": 259516,
+    "regionGiata": 88,
+    "product": "SID10006",
+    "name": "Hotel Riu Funana"
+   }
+  },
+  {
+   "arrivalDate": "2026-08-12",
+   "checkInDate": "2026-08-12",
+   "checkOutDate": "2026-08-19",
+   "lengthOfStay": 7,
+   "tourOperator": "LTUR",
+   "bookingTourOperator": "TUR1",
+   "brand": "TUR1",
+   "travelType": "TUR1",
+   "programType": "0617",
+   "supplier": {
+    "provider": "comres",
+    "supplier": "",
+    "subSupplier": ""
+   },
+   "cancellationType": "REFUNDABLE",
+   "totalPrice": 2904,
+   "discount": 205.69,
+   "calculatedPricePerPerson": 1452,
+   "calculatedOriginalPricePerPerson": 1554.845,
+   "personPrices": [
+    {
+     "id": 1,
+     "price": 1452
+    },
+    {
+     "id": 2,
+     "price": 1452
+    }
+   ],
+   "rooms": [
+    {
+     "code": "DZX1",
+     "roomCodes": [
+      "ST04-DO"
+     ],
+     "bookingCode": "DZX1A",
+     "board": "A",
+     "boardCode": "GT06-AI",
+     "boardDescription": "Alles Inklusive",
+     "description": "Double Standard",
+     "travellers": [
+      {
+       "id": 1
+      },
+      {
+       "id": 2
+      }
+     ],
+     "priceByUnit": false,
+     "transferIncluded": true,
+     "extras": [
+      {
+       "type": "GT07-LTC2C",
+       "included": true
+      },
+      {
+       "type": "GT07-TOY",
+       "included": true
+      },
+      {
+       "type": "GT07-TUI3",
+       "included": true
+      },
+      {
+       "type": "TR",
+       "included": true
+      }
+     ]
+    }
+   ],
+   "departure": {
+    "airline": {
+     "value": "TUIfly",
+     "code": "X3"
+    },
+    "departureAirport": {
+     "value": "Düsseldorf",
+     "code": "DUS"
+    },
+    "departureDateTime": "2026-08-12T06:20:00.000+02:00",
+    "arrivalAirport": {
+     "value": "Sal",
+     "code": "SID"
+    },
+    "arrivalDateTime": "2026-08-12T11:25:00.000-01:00",
+    "stopOver": 1,
+    "class": "economy",
+    "number": "7102",
+    "provider": "SUNNY_00653",
+    "flightKey": "SUNNY_00653-;-a892581f369299fa35a1152b572c8cbb-;-DUSSID-00653-_X3",
+    "totalPrice": 592,
+    "personPrices": [
+     {
+      "id": 1,
+      "price": 296
+     },
+     {
+      "id": 2,
+      "price": 296
+     }
+    ],
+    "segments": [
+     {
+      "airline": {
+       "value": "TUIfly",
+       "code": "X3"
+      },
+      "departureAirport": {
+       "value": "Düsseldorf",
+       "code": "DUS"
+      },
+      "departureDateTime": "2026-08-12T06:20:00.000+02:00",
+      "arrivalAirport": {
+       "value": "Boa Vista",
+       "code": "BVC"
+      },
+      "arrivalDateTime": "2026-08-12T10:05:00.000-01:00",
+      "flightDuration": 405,
+      "bookingClass": "Y",
+      "number": "7102"
+     },
+     {
+      "airline": {
+       "value": "TUIfly",
+       "code": "X3"
+      },
+      "departureAirport": {
+       "value": "Boa Vista",
+       "code": "BVC"
+      },
+      "departureDateTime": "2026-08-12T10:55:00.000-01:00",
+      "arrivalAirport": {
+       "value": "Sal",
+       "code": "SID"
+      },
+      "arrivalDateTime": "2026-08-12T11:25:00.000-01:00",
+      "flightDuration": 30,
+      "bookingClass": "Y",
+      "number": "7102"
+     }
+    ]
+   },
+   "return": {
+    "airline": {
+     "value": "TUIfly",
+     "code": "X3"
+    },
+    "departureAirport": {
+     "value": "Sal",
+     "code": "SID"
+    },
+    "departureDateTime": "2026-08-19T12:25:00.000-01:00",
+    "arrivalAirport": {
+     "value": "Düsseldorf",
+     "code": "DUS"
+    },
+    "arrivalDateTime": "2026-08-19T21:25:00.000+02:00",
+    "stopOver": 0,
+    "class": "economy",
+    "number": "7102",
+    "provider": "SUNNY_00653",
+    "flightKey": "SUNNY_00653-;-5788867250902bc13fae39b540e068c0-;-SIDDUS-00653-_X3",
+    "totalPrice": 656,
+    "personPrices": [
+     {
+      "id": 1,
+      "price": 328
+     },
+     {
+      "id": 2,
+      "price": 328
+     }
+    ],
+    "segments": [
+     {
+      "airline": {
+       "value": "TUIfly",
+       "code": "X3"
+      },
+      "departureAirport": {
+       "value": "Sal",
+       "code": "SID"
+      },
+      "departureDateTime": "2026-08-19T12:25:00.000-01:00",
+      "arrivalAirport": {
+       "value": "Düsseldorf",
+       "code": "DUS"
+      },
+      "arrivalDateTime": "2026-08-19T21:25:00.000+02:00",
+      "flightDuration": 360,
+      "bookingClass": "Y",
+      "number": "7102"
+     }
+    ]
+   },
+   "tempId": "4433e443-1da5-4a8b-9025-76839481c671",
+   "cheapest": true,
+   "travellers": [
+    {
+     "id": 1,
+     "age": 28
+    },
+    {
+     "id": 2,
+     "age": 28
+    }
+   ],
+   "currency": "EUR",
+   "hotel": {
+    "giata": 259516,
+    "regionGiata": 88,
+    "product": "SID10006",
+    "name": "Hotel Riu Funana"
+   }
+  }
+ ],
+ "travellers": [
+  {
+   "id": 1,
+   "age": 28
+  },
+  {
+   "id": 2,
+   "age": 28
+  }
+ ],
+ "recommendations": [
+  {
+   "name": "averageRatingCatering",
+   "value": "0.0"
+  },
+  {
+   "name": "averageRatingHotel",
+   "value": "0.0"
+  },
+  {
+   "name": "averageRatingLocation",
+   "value": "0.0"
+  },
+  {
+   "name": "averageRatingRoom",
+   "value": "0.0"
+  },
+  {
+   "name": "averageRatingService",
+   "value": "0.0"
+  },
+  {
+   "name": "averageRatingSport",
+   "value": "0.0"
+  },
+  {
+   "name": "averageRatingTotal",
+   "value": "5.0"
+  },
+  {
+   "name": "overallAverageRating",
+   "value": "5.0"
+  },
+  {
+   "name": "ratingCount",
+   "value": "2147"
+  },
+  {
+   "name": "recommendationsBeachHoliday",
+   "value": "0.0"
+  },
+  {
+   "name": "recommendationsBusinessTrip",
+   "value": "0.0"
+  },
+  {
+   "name": "recommendationsCityBreak",
+   "value": "0.0"
+  },
+  {
+   "name": "recommendationsCouples",
+   "value": "0.0"
+  },
+  {
+   "name": "recommendationsFamily",
+   "value": "0.0"
+  },
+  {
+   "name": "recommendationsFriends",
+   "value": "0.0"
+  },
+  {
+   "name": "recommendationsSingle",
+   "value": "0.0"
+  },
+  {
+   "name": "recommendationsTotal",
+   "value": "85.0"
+  },
+  {
+   "name": "recommendationsWellness",
+   "value": "0.0"
+  }
+ ]
+}

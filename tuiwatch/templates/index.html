@@ -35,6 +35,9 @@
     .add-row input:focus { outline:none; border-color:var(--accent); }
     .hint { font-size:.74rem; color:var(--muted); margin-top:8px; }
     .toolbar { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px; }
+    .bulk-bar { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:12px; padding:8px 12px; background:var(--surf); border:1px solid var(--accent); border-radius:8px; }
+    .bulk-bar #bulk-count { font-weight:600; font-size:.88rem; }
+    .bulk-check { width:16px; height:16px; vertical-align:middle; cursor:pointer; accent-color:var(--accent); }
     .overview { background:var(--surf); border:1px solid var(--border); border-radius:8px; padding:9px 12px; margin-bottom:14px; font-size:.84rem; color:var(--muted); }
     .overview b { color:var(--text); }
     .search-row { margin-bottom:14px; display:flex; gap:8px; flex-wrap:wrap; }
@@ -66,16 +69,38 @@
     .meta { display:flex; flex-wrap:wrap; gap:6px 12px; align-items:center; margin:7px 0 2px; font-size:.76rem; color:var(--muted); }
     .meta .stars { color:var(--amber); letter-spacing:1px; }
     .meta .rating { color:var(--text); }
+    a.rating { text-decoration:none; }
+    a.rating:hover { text-decoration:underline; }
     .meta .canc { color:var(--green); font-weight:700; background:rgba(46,160,67,.12); padding:1px 7px; border-radius:10px; }
     .avail { display:inline-block; font-size:.74rem; font-weight:700; padding:2px 7px; border-radius:10px; margin-top:6px; }
     .avail.yes { color:var(--green); background:rgba(46,160,67,.14); }
     .avail.no { color:var(--red); background:rgba(248,81,73,.13); }
     .stats { font-size:.74rem; color:var(--muted); margin-top:8px; }
     .stats .best { color:var(--green); font-weight:700; }
+    .codes { font-size:.76rem; color:var(--muted); margin:6px 0 2px; user-select:text; }
+    .codes b { color:var(--text); }
     .target-row { display:flex; align-items:center; gap:6px; margin-top:10px; font-size:.78rem; color:var(--muted); flex-wrap:wrap; }
     .target-row input { width:120px; background:var(--bg); border:1px solid var(--border); color:var(--text); padding:5px 8px; border-radius:5px; font-size:.78rem; }
     .target-row input:focus { outline:none; border-color:var(--accent); }
     .target-set { color:var(--accent); font-weight:600; }
+    .booked-set { color:#a371f7; font-weight:600; }
+    .booked-since { display:inline-block; font-size:.78rem; font-weight:600; padding:2px 7px; border-radius:10px; margin-top:6px; }
+    .booked-since.down { color:var(--green); background:rgba(46,160,67,.14); }
+    .booked-since.up { color:var(--muted); background:var(--surf2); }
+    .booked-since.flat { color:var(--muted); background:var(--surf2); }
+    .offer-img { display:block; width:170px; height:112px; object-fit:cover; border-radius:8px; margin-top:10px; margin-left:auto; background:var(--bg); }
+    @media(max-width:560px){ .offer-img { width:130px; height:88px; } }
+    .price-rows { display:flex; gap:10px 22px; flex-wrap:wrap; }
+    .room-row { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 12px; border:1px solid var(--border); border-radius:8px; margin-bottom:8px; flex-wrap:wrap; }
+    .room-row.active { border-color:var(--accent); background:var(--surf2); }
+    .room-row.auto { background:var(--bg); }
+    .room-info { min-width:0; flex:1 1 220px; }
+    .room-name { font-weight:600; font-size:.92rem; }
+    .room-code { color:var(--muted); font-weight:400; font-size:.78rem; }
+    .room-badge { color:var(--accent); font-weight:600; font-size:.72rem; border:1px solid var(--accent); border-radius:8px; padding:1px 6px; margin-left:4px; }
+    .room-actions { display:flex; align-items:center; gap:10px; }
+    .room-price { font-weight:700; white-space:nowrap; }
+    .room-price .pp { font-weight:400; font-size:.72rem; color:var(--muted); }
     .price-box { text-align:right; flex-shrink:0; }
     .price-now { font-size:1.5rem; font-weight:800; line-height:1; white-space:nowrap; }
     .price-pp { font-size:.66rem; color:var(--muted); margin-top:2px; text-transform:uppercase; letter-spacing:.04em; }
@@ -88,10 +113,13 @@
     .delta.down { color:var(--green); background:rgba(46,160,67,.14); }
     .delta.flat { color:var(--muted); background:var(--surf2); }
     .delta.none { color:var(--amber); background:rgba(210,153,34,.13); }
+    .trend { display:inline-block; font-size:.72rem; font-weight:600; padding:2px 6px; border-radius:10px; margin-top:6px; }
+    .trend.up { color:var(--red); background:rgba(248,81,73,.10); }
+    .trend.down { color:var(--green); background:rgba(46,160,67,.11); }
+    .trend.flat { color:var(--muted); background:var(--surf2); }
     .offer-foot { display:flex; align-items:center; gap:6px; margin-top:12px; flex-wrap:wrap; }
     .offer-foot .when { font-size:.74rem; color:var(--muted); flex:1; }
     .offer-foot .btn { padding:5px 9px; font-size:.76rem; font-weight:500; }
-    .spark { width:100%; height:70px; margin-top:10px; display:block; }
     .err-note { color:var(--amber); font-size:.78rem; margin-top:6px; }
     .empty { text-align:center; color:var(--muted); padding:50px 16px; }
     .badge-checking { font-size:.72rem; color:var(--accent); }
@@ -102,6 +130,8 @@
     .modal h2 { font-size:1.05rem; margin-bottom:4px; }
     .modal .sub { font-size:.8rem; color:var(--muted); margin-bottom:14px; }
     #hist-canvas { width:100%; height:300px; display:block; }
+    .chart-tip { position:absolute; transform:translateX(-50%); top:6px; pointer-events:none; z-index:5; background:var(--surf2); border:1px solid var(--border); color:var(--text); border-radius:6px; padding:5px 8px; font-size:.74rem; max-width:240px; box-shadow:0 4px 12px rgba(0,0,0,.3); }
+    .chart-tip .tt-date { color:var(--muted); font-size:.68rem; }
     table.hist { width:100%; border-collapse:collapse; margin-top:14px; font-size:.8rem; }
     table.hist th, table.hist td { text-align:left; padding:6px 8px; border-bottom:1px solid var(--border); }
     table.hist th { color:var(--muted); font-weight:600; }
@@ -139,6 +169,8 @@
     .sr-disc { color:var(--green); font-size:.72rem; font-weight:600; margin-left:4px; }
     .sr-acts { display:flex; gap:6px; margin-top:6px; justify-content:flex-end; }
     .srch-head { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:6px 0 4px; font-size:.82rem; color:var(--muted); }
+    .srch-listfilter { background:var(--bg); border:1px solid var(--border); color:var(--text); padding:6px 10px; border-radius:6px; font-size:.82rem; min-width:180px; }
+    .srch-listfilter:focus { outline:none; border-color:var(--accent); }
     .srch-from { background:var(--bg); border:1px solid var(--border); border-radius:6px; padding:8px 10px; margin-bottom:10px; font-size:.83rem; }
     .srch-from b { color:var(--text); }
     .srch-fav { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:10px; font-size:.82rem; color:var(--muted); }
@@ -154,9 +186,21 @@
     [data-theme="light"] input[type=date]::-webkit-calendar-picker-indicator { filter:none; }
     .srch-dest { cursor:pointer; text-align:left; }
     .srch-dest.set { border-color:var(--accent); color:var(--text); font-weight:600; }
+    .srch-field .opt { color:var(--muted); font-weight:400; }
+    .airline-dd { position:relative; }
+    .airline-dd > summary { list-style:none; cursor:pointer; background:var(--bg); border:1px solid var(--border); color:var(--text); padding:8px 10px; border-radius:6px; font-size:.85rem; min-width:180px; }
+    .airline-dd > summary::-webkit-details-marker { display:none; }
+    .airline-dd[open] > summary { border-color:var(--accent); }
+    .airline-dd summary.set { border-color:var(--accent); font-weight:600; }
+    .airline-list { position:absolute; left:0; z-index:30; margin-top:4px; background:var(--surf); border:1px solid var(--border); border-radius:8px; padding:6px; max-height:240px; overflow:auto; min-width:220px; box-shadow:0 6px 18px rgba(0,0,0,.25); }
+    .airline-list label { display:flex; align-items:center; gap:8px; padding:5px 6px; font-size:.84rem; cursor:pointer; color:var(--text); white-space:nowrap; text-align:left; }
+    .airline-list label:hover { background:var(--surf2); border-radius:5px; }
+    /* die globale .srch-field input-Regel (width:100%, padding) darf die Checkboxen nicht treffen */
+    .airline-list input[type=checkbox] { width:16px; height:16px; flex:0 0 auto; padding:0; margin:0; border-radius:3px; accent-color:var(--accent); }
     .srch-adv { margin-bottom:10px; }
     .srch-adv summary { cursor:pointer; font-size:.8rem; color:var(--muted); }
     .dest-panel { border:1px solid var(--border); border-radius:8px; padding:8px; margin-bottom:12px; max-height:340px; overflow:auto; background:var(--bg); }
+    .dest-search { width:100%; box-sizing:border-box; background:var(--surf); border:1px solid var(--border); color:var(--text); padding:7px 10px; border-radius:6px; font-size:.85rem; margin:6px 0 8px; }
     .dest-head { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:6px; font-size:.84rem; }
     .dest-head b { color:var(--text); }
     .dest-row { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:7px 8px; border-bottom:1px solid var(--border); cursor:pointer; font-size:.86rem; }
@@ -189,6 +233,20 @@
     @media(max-width:560px){ .cal-cell{ min-height:44px; padding:3px; } .cal-cell .cal-p{ font-size:.7rem; } }
     .modal-close { float:right; }
     footer { text-align:center; margin:24px 0 8px; font-size:.72rem; color:var(--muted); }
+    .hc-foot { cursor:pointer; }
+    #hc-dot { font-weight:600; }
+    #hc-dot::before { content:'●'; margin-right:3px; }
+    #hc-dot.ok { color:#22c55e; }
+    #hc-dot.warn { color:#f59e0b; }
+    #hc-dot.bad { color:#ef4444; }
+    #hc-dot.wait { color:var(--muted); }
+    .hc-row { display:flex; justify-content:space-between; gap:10px; padding:7px 2px; border-bottom:1px solid var(--border); font-size:.88rem; }
+    .hc-row:last-child { border-bottom:none; }
+    .hc-row .hc-name::before { content:'●'; margin-right:7px; }
+    .hc-row.ok .hc-name::before { color:#22c55e; }
+    .hc-row.bad .hc-name::before { color:#ef4444; }
+    .hc-row .hc-detail { color:var(--muted); }
+    .hc-row.bad .hc-detail { color:#ef4444; }
     .toast { position:fixed; bottom:18px; left:50%; transform:translateX(-50%); background:var(--surf); border:1px solid var(--border); color:var(--text); padding:10px 16px; border-radius:8px; font-size:.84rem; opacity:0; transition:opacity .2s; z-index:60; }
     .toast.show { opacity:1; }
     /* Konsole */
@@ -201,6 +259,34 @@
     #tw-console-body{ flex:1; overflow-y:auto; padding:6px 10px; line-height:1.6; color:#c9d1d9; }
     #tw-console-body::-webkit-scrollbar{ width:5px; } #tw-console-body::-webkit-scrollbar-thumb{ background:#30363d; border-radius:3px; }
     .twc-info{color:#8b949e;} .twc-warn{color:#d29922;} .twc-error{color:#f85149;} .twc-debug{color:#6e7681;}
+    /* Reisen-Datenbank */
+    .trips-stats { display:flex; flex-wrap:wrap; gap:10px; margin:6px 0 14px; }
+    .trips-stats .tstat { flex:1 1 120px; background:var(--surf); border:1px solid var(--border); border-radius:8px; padding:8px 12px; }
+    .trips-stats .tstat .v { font-size:1.1rem; font-weight:700; color:var(--text); }
+    .trips-stats .tstat .l { font-size:.74rem; color:var(--muted); }
+    .trips-import { display:flex; align-items:center; gap:12px; flex-wrap:wrap; border:1px dashed var(--border); border-radius:8px; padding:12px; margin-bottom:14px; background:var(--bg); transition:border-color .15s,background .15s; }
+    .trips-import.drag { border-color:var(--accent); background:rgba(59,130,246,.08); }
+    .trips-imp-hint { font-size:.8rem; color:var(--muted); }
+    .trips-imp-status { font-size:.8rem; color:var(--accent); margin-left:auto; }
+    table.tyears { width:100%; border-collapse:collapse; font-size:.8rem; margin:0 0 14px; }
+    table.tyears th, table.tyears td { text-align:left; padding:5px 8px; border-bottom:1px solid var(--border); }
+    table.tyears th { color:var(--muted); font-weight:600; }
+    table.tyears td:not(:first-child), table.tyears th:not(:first-child) { text-align:right; }
+    .trip-row { display:flex; align-items:center; gap:12px; padding:10px 12px; border:1px solid var(--border); border-radius:8px; margin-bottom:8px; background:var(--surf); }
+    .trip-row .ti { flex:1; min-width:0; }
+    .trip-row .ti .t { font-weight:600; color:var(--text); }
+    .trip-row .ti .m { font-size:.8rem; color:var(--muted); }
+    .trip-row .tp { font-weight:700; white-space:nowrap; }
+    .trip-row .ta { display:flex; gap:6px; flex-wrap:wrap; }
+    .trips-empty { color:var(--muted); font-size:.86rem; padding:10px 2px; }
+    .trip-detail { border:1px solid var(--border); border-radius:8px; padding:14px; margin-top:12px; background:var(--bg); }
+    .trip-detail h3 { margin:0 0 4px; font-size:1.05rem; }
+    .trip-detail .dgrid { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:6px 16px; margin:10px 0; font-size:.84rem; }
+    .trip-detail .dgrid .k { color:var(--muted); }
+    .trip-detail table.tdt { width:100%; border-collapse:collapse; font-size:.8rem; margin:6px 0 12px; }
+    .trip-detail table.tdt th, .trip-detail table.tdt td { text-align:left; padding:5px 8px; border-bottom:1px solid var(--border); }
+    .trip-detail table.tdt th { color:var(--muted); font-weight:600; }
+    .trip-detail .dsec { font-weight:600; margin:10px 0 4px; }
     @media(max-width:767px){ #tw-console{ display:none!important; } }
   </style>
 </head>
@@ -230,7 +316,9 @@
 
     <div class="toolbar">
       <button class="btn" onclick="openSearch()" title="Hotels einer Region suchen (TUI-Such-URL einfügen)">🔍 Hotels suchen</button>
+      <button class="btn sec" onclick="openTrips()" title="Gebuchte Reisen verwalten (TUI-PDF importieren)">🧳 Meine Reisen</button>
       <button class="btn sec" onclick="sendEmail()" title="Alle Angebote als E-Mail senden">✉ Als E-Mail senden</button>
+      <button class="btn sec" onclick="sendDigest()" title="Wochenüberblick jetzt senden (Telegram/E-Mail)">📊 Wochenüberblick</button>
       <button class="btn sec" onclick="backupOffers()" title="Getrackte Angebote sichern">⬇ Backup</button>
       <button class="btn sec" onclick="document.getElementById('restore-file').click()" title="Angebote aus Backup importieren">⬆ Wiederherstellen</button>
       <input type="file" id="restore-file" accept="application/json,.json" style="display:none" onchange="restoreOffers(this)">
@@ -241,6 +329,7 @@
       <input type="text" id="search" placeholder="Suchen… (Hotel, Ziel, Reise-Details)" autocomplete="off">
       <select id="sort" title="Sortierung">
         <option value="added">Reihenfolge: Hinzugefügt</option>
+        <option value="start">Reisebeginn</option>
         <option value="price">Preis aufsteigend</option>
         <option value="delta">Größte Preisänderung</option>
         <option value="rating">Beste Bewertung</option>
@@ -250,8 +339,17 @@
         <input type="checkbox" id="show-archived"> Archiv <span id="arch-count"></span>
       </label>
     </div>
+    <div id="bulk-bar" class="bulk-bar" style="display:none">
+      <span id="bulk-count"></span>
+      <button class="btn sec" onclick="bulkCheck()">Prüfen</button>
+      <button class="btn sec" onclick="bulkEmail()" title="Markierte als E-Mail senden">✉ E-Mail</button>
+      <button class="btn sec" onclick="bulkArchive()">Archivieren</button>
+      <button class="btn danger" onclick="bulkDelete()">Löschen</button>
+      <button class="btn sec" onclick="bulkClear()" style="margin-left:auto">Auswahl aufheben</button>
+    </div>
     <div id="offers"></div>
-    <footer>TUIWatch &mdash; verfolgt TUI-Reisepreise · Prüfintervall: <span id="iv"></span></footer>
+    <footer>TUIWatch &mdash; verfolgt TUI-Reisepreise · Prüfintervall: <span id="iv"></span>
+      · <span id="hc-foot" class="hc-foot" title="API-Status — klicken für Details &amp; neuen Test" onclick="openHealth()">API: <span id="hc-dot">…</span></span></footer>
   </div>
 
   <!-- Verlauf-Modal -->
@@ -263,7 +361,10 @@
       <h2 id="modal-title">Preisverlauf</h2>
       <div class="sub" id="modal-sub"></div>
       <div style="margin-bottom:10px"><button class="btn sec" onclick="exportCsv()">⬇ CSV-Export</button></div>
-      <canvas id="hist-canvas"></canvas>
+      <div id="hist-wrap" style="position:relative">
+        <canvas id="hist-canvas"></canvas>
+        <div id="hist-tip" class="chart-tip" style="display:none"></div>
+      </div>
       <div id="hist-table"></div>
     </div>
   </div>
@@ -289,10 +390,11 @@
       <div class="sub">Reiseziel wählen, Eckdaten setzen, suchen — oder bei einem Angebot auf <b>„Region"</b> klicken bzw. unten eine TUI-URL einfügen.</div>
 
       <div class="srch-fav" id="srch-favbar">
-        <span>★ Favorit</span>
+        <span>★ Gespeicherte Suche</span>
         <select id="srch-favsel" onchange="loadFav()"><option value="">– gespeicherte Suche wählen –</option></select>
-        <button class="btn sec" onclick="saveFav()" title="Aktuelle Eingaben als Favorit speichern">★ Speichern</button>
-        <button class="btn sec" onclick="delFav()" title="Gewählten Favoriten löschen">Löschen</button>
+        <button class="btn sec" onclick="saveFav()" title="Aktuelle Eingaben als neue Suche speichern (Name abfragen)">★ Speichern</button>
+        <button class="btn sec" id="srch-favupd" onclick="updateFav()" disabled title="Die gewählte gespeicherte Suche mit den aktuellen Eingaben überschreiben">💾 Änderungen speichern</button>
+        <button class="btn sec" onclick="delFav()" title="Gewählte Suche löschen">Löschen</button>
       </div>
 
       <div id="srch-from" class="srch-from" style="display:none"></div>
@@ -307,7 +409,7 @@
           <select id="srch-airport"></select>
         </div>
         <div class="srch-field srch-sm">
-          <label>von</label><input type="date" id="srch-vom" onclick="this.showPicker&&this.showPicker()">
+          <label>von</label><input type="date" id="srch-vom" onchange="syncBisMin()" onclick="this.showPicker&&this.showPicker()">
         </div>
         <div class="srch-field srch-sm">
           <label>bis</label><input type="date" id="srch-bis" onclick="this.showPicker&&this.showPicker()">
@@ -318,19 +420,27 @@
         <div class="srch-field srch-xs">
           <label>Reisende</label><input type="number" id="srch-trav" min="1" max="9" value="2">
         </div>
+        <div class="srch-field">
+          <label>Fluggesellschaften <span class="opt">(optional)</span></label>
+          <details class="airline-dd" id="srch-airline-dd">
+            <summary id="srch-airline-sum">alle</summary>
+            <div class="airline-list" id="srch-airline-list"></div>
+          </details>
+        </div>
       </div>
 
       <div class="srch-filters">
         <label class="srch-chk" title="Nur Pauschalreisen des Veranstalters TUI Deutschland (TUID). Aus = alle Veranstalter."><input type="checkbox" id="srch-tui" checked> TUI</label>
         <label class="srch-chk" title="Nur Angebote mit Direktflug (ohne Zwischenstopp)"><input type="checkbox" id="srch-direct"> Nur Direktflug</label>
         <span class="srch-boards">Verpflegung:
-          <label><input type="checkbox" class="srch-board" value="AI"> AI</label>
-          <label><input type="checkbox" class="srch-board" value="HP"> HP</label>
-          <label><input type="checkbox" class="srch-board" value="VP"> VP</label>
-          <label><input type="checkbox" class="srch-board" value="F"> Frühstück</label>
+          <label title="Alles Inklusive (inkl. „AI Plus“/laut Programm)"><input type="checkbox" class="srch-board" value="AI"> AI</label>
+          <label title="Vollpension (inkl. Vollpension Plus)"><input type="checkbox" class="srch-board" value="FB"> VP</label>
+          <label title="Halbpension (inkl. Halbpension Plus)"><input type="checkbox" class="srch-board" value="HB"> HP</label>
+          <label title="Frühstück"><input type="checkbox" class="srch-board" value="BB"> Frühstück</label>
+          <label title="Ohne Verpflegung"><input type="checkbox" class="srch-board" value="AO"> Ohne</label>
         </span>
-        <label class="srch-num">Sterne ≥ <input type="number" id="srch-stars" min="0" max="5" step="1" placeholder="0" style="width:54px"></label>
-        <label class="srch-num">Weiterempf. ≥ <input type="number" id="srch-rec" min="0" max="100" step="5" placeholder="0" style="width:60px">%</label>
+        <label class="srch-num">Sterne ≥ <input type="number" id="srch-stars" min="0" max="5" step="1" value="3" placeholder="0" style="width:54px"></label>
+        <label class="srch-num">Weiterempf. ≥ <input type="number" id="srch-rec" min="0" max="100" step="5" value="80" placeholder="0" style="width:60px">%</label>
         <button class="btn" onclick="runSearch()" style="margin-left:auto">Suchen</button>
       </div>
 
@@ -378,6 +488,56 @@
       <div id="cal-body"></div>
     </div>
   </div>
+  <!-- Zimmerauswahl -->
+  <div class="modal-bg" id="room-bg">
+    <div class="modal">
+      <button class="icon-btn modal-close" onclick="closeRooms()">
+        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+      </button>
+      <h2>Zimmerauswahl</h2>
+      <div class="sub" id="room-sub"></div>
+      <div id="room-body"></div>
+    </div>
+  </div>
+  <!-- API-Status -->
+  <div class="modal-bg" id="hc-bg">
+    <div class="modal">
+      <button class="icon-btn modal-close" onclick="$('#hc-bg').classList.remove('show')">
+        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+      </button>
+      <h2>API-Status</h2>
+      <div class="sub" id="hc-sub"></div>
+      <div id="hc-body"></div>
+      <div style="margin-top:14px; text-align:right">
+        <button class="btn" onclick="runHealth()">Erneut prüfen</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Reisen-Datenbank-Modal -->
+  <div class="modal-bg" id="trips-bg">
+    <div class="modal" style="max-width:960px">
+      <button class="icon-btn modal-close" onclick="closeTrips()">
+        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+      </button>
+      <h2>Meine Reisen</h2>
+      <div class="sub">Gebuchte TUI-Reisen als Bestätigungs-PDF importieren — Eckdaten werden ausgelesen, die PDF bleibt dauerhaft gespeichert und abrufbar.</div>
+
+      <div id="trips-stats" class="trips-stats"></div>
+      <div id="trips-years"></div>
+
+      <div class="trips-import" id="trips-drop">
+        <input type="file" id="trip-file" accept="application/pdf,.pdf" style="display:none" onchange="importTrip(this)">
+        <button class="btn" onclick="$('#trip-file').click()">📄 PDF importieren</button>
+        <span class="trips-imp-hint">TUI-Reisebestätigung (.pdf) hierher ziehen oder auswählen</span>
+        <span id="trip-imp-status" class="trips-imp-status"></span>
+      </div>
+
+      <div id="trips-list"></div>
+      <div id="trip-detail" class="trip-detail" style="display:none"></div>
+    </div>
+  </div>
+
   <div class="toast" id="toast"></div>
 
   <!-- Konsole (Doppelklick auf Logo) -->
@@ -440,6 +600,7 @@
     let showArchived = localStorage.getItem('tw-show-archived')==='1';
     let sortMode = localStorage.getItem('tw-sort') || 'added';
 
+    function startDateOf(o){ const s=urlParam(o.url,'startDate'); return /^\d{4}-\d{2}-\d{2}/.test(s)?s:''; }
     function sortOffers(list){
       const arr = list.slice();
       const num = (v, d) => (v==null ? d : v);
@@ -447,6 +608,7 @@
       else if(sortMode==='delta') arr.sort((a,b)=>Math.abs(num(b.delta,0))-Math.abs(num(a.delta,0)));
       else if(sortMode==='rating') arr.sort((a,b)=>num(b.rating,-1)-num(a.rating,-1));
       else if(sortMode==='name') arr.sort((a,b)=>((a.label||a.hotel||'').localeCompare(b.label||b.hotel||'','de')));
+      else if(sortMode==='start') arr.sort((a,b)=>{ const x=startDateOf(a)||'9999', y=startDateOf(b)||'9999'; return x<y?-1:x>y?1:a.id-b.id; });  // Reisebeginn, ohne Datum ans Ende
       else arr.sort((a,b)=>a.id-b.id);  // 'added'
       return arr;
     }
@@ -475,6 +637,13 @@
       if(o.delta<0) return '<span class="delta down">▼ '+eur(o.delta)+'</span>';
       return '<span class="delta flat">unverändert</span>';
     }
+    // Tendenz aus dem bisherigen Verlauf (kein Orakel, nur ein Hinweis)
+    function trendBadge(o){
+      const t=o.trend; if(!t || !t.dir) return '';
+      if(t.dir==='down') return '<span class="trend down" title="Tendenz aus dem bisherigen Verlauf">↘ fällt</span>';
+      if(t.dir==='up')   return '<span class="trend up" title="Tendenz aus dem bisherigen Verlauf">↗ steigt</span>';
+      return '<span class="trend flat" title="Tendenz aus dem bisherigen Verlauf">→ stabil</span>';
+    }
 
     function renderAll(offers){
       renderOverview(offers);
@@ -500,8 +669,53 @@
         html += `<div class="arch-head">📦 Archiv (${arch.length}) — abgelaufene oder manuell archivierte Reisen (keine Live-Abfragen)</div>` + arch.map(offerCard).join('');
       }
       box.innerHTML = html;
-      active.forEach(o => drawSpark(o.id));
-      if(showArchived) arch.forEach(o => drawSpark(o.id));
+      pruneSelection();
+    }
+
+    // ── Sammelaktionen ────────────────────────────────────────────────────────
+    let selected = new Set();
+    function bulkToggle(id, on){ if(on) selected.add(id); else selected.delete(id); renderBulkBar(); }
+    function pruneSelection(){
+      const ids = new Set((curOffers||[]).map(o=>o.id));
+      selected.forEach(id=>{ if(!ids.has(id)) selected.delete(id); });
+      renderBulkBar();
+    }
+    function renderBulkBar(){
+      const bar=$('#bulk-bar'); if(!bar) return;
+      if(!selected.size){ bar.style.display='none'; return; }
+      bar.style.display='flex';
+      $('#bulk-count').textContent = selected.size+' ausgewählt';
+    }
+    function bulkClear(){ selected.clear(); document.querySelectorAll('.bulk-check').forEach(c=>c.checked=false); renderBulkBar(); }
+    async function bulkRun(fn, msg){
+      const ids=[...selected]; if(!ids.length) return;
+      toast(msg);
+      for(const id of ids){ try{ await fn(id); }catch(e){} }
+      selected.clear(); lastSig=null; loadOffers();
+    }
+    function bulkCheck(){ bulkRun(id=>fetch(api('/api/check/'+id),{method:'POST'}), ids_msg('werden geprüft…')); }
+    function bulkArchive(){
+      if(!confirm(selected.size+' Angebot(e) ins Archiv legen?')) return;
+      bulkRun(id=>fetch(api('/api/offers/'+id),{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({archived:true})}), ids_msg('werden archiviert…'));
+    }
+    function bulkDelete(){
+      if(!confirm(selected.size+' Angebot(e) inklusive Verlauf unwiderruflich löschen?')) return;
+      bulkRun(id=>fetch(api('/api/offers/'+id),{method:'DELETE'}), ids_msg('werden gelöscht…'));
+    }
+    function ids_msg(t){ return selected.size+' Angebot(e) '+t; }
+    async function bulkEmail(){
+      const ids=[...selected]; if(!ids.length) return;
+      let cfg; try { cfg = await fetch(api('/api/email')).then(r=>r.json()); } catch(e){ cfg = {configured:false}; }
+      if(!cfg.configured){ toast('SMTP ist nicht konfiguriert (Add-on-Optionen)'); return; }
+      const def = localStorage.getItem('tw-mailto') || cfg.default_to || '';
+      const to = prompt(ids.length+' markierte Angebote senden an:', def);
+      if(to===null) return;
+      if(!to.trim()){ toast('Kein Empfänger angegeben'); return; }
+      localStorage.setItem('tw-mailto', to.trim());
+      toast('E-Mail wird gesendet…');
+      const r = await fetch(api('/api/email'), {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({to:to.trim(), ids})});
+      if(r.ok){ const d=await r.json(); toast('E-Mail an '+d.to+' gesendet ('+d.count+' Angebote)'); }
+      else { const d=await r.json().catch(()=>({})); toast(d.error==='no_offers'?'Keine (aktiven) Angebote in der Auswahl':d.error==='send_failed'?'Versand fehlgeschlagen – Einstellungen prüfen':d.error==='no_recipient'?'Kein Empfänger':'E-Mail-Fehler'); }
     }
 
     function offerCard(o){
@@ -532,10 +746,18 @@
           let rt = 'HolidayCheck '+o.rating.toLocaleString('de-DE',{minimumFractionDigits:1,maximumFractionDigits:1})+'/6';
           if(o.rating_count) rt += ' · '+o.rating_count.toLocaleString('de-DE')+' Bew.';
           if(o.recommendation!=null) rt += ' · '+o.recommendation+'% 👍';
-          metaParts.push('<span class="rating">'+esc(rt)+'</span>');
+          const hcq = ('site:holidaycheck.de '+(o.hotel||o.label||'')+' '+(o.region||o.country||'')).trim();
+          const hc = 'https://www.google.com/search?q='+encodeURIComponent(hcq);
+          metaParts.push('<a class="rating" href="'+esc(hc)+'" target="_blank" rel="noopener" title="HolidayCheck-Bewertungen suchen (über Google)">'+esc(rt)+' ↗</a>');
         }
         if(o.cancellation) metaParts.push('<span class="canc">✓ '+esc(o.cancellation)+'</span>');
         const metaLine = metaParts.length?`<div class="meta">${metaParts.join('')}</div>`:'';
+        // Buchungscodes (zum Buchen/Anrufen bei TUI)
+        const codeParts = [];
+        if(o.booking_code) codeParts.push('Buchungscode <b>'+esc(o.booking_code)+'</b>');
+        if(o.room_booking_code) codeParts.push('Zimmer '+esc(o.room_booking_code));
+        if(o.giata) codeParts.push('GIATA '+esc(o.giata));
+        const codesLine = codeParts.length?`<div class="codes">🧾 ${codeParts.join(' · ')}</div>`:'';
         let statsLine = '';
         if(o.min_price!=null && o.samples>1){
           const best = (o.price!=null && o.price<=o.min_price);
@@ -546,14 +768,27 @@
         const targetRow = `<div class="target-row">${tgtLabel}
             <input type="number" id="tgt-${o.id}" placeholder="z. B. 1800" value="${tgt}" onkeydown="if(event.key==='Enter')setTarget(${o.id})">
             <button class="btn sec" onclick="setTarget(${o.id})">setzen</button></div>`;
+        const bk = o.booked_price!=null ? Math.round(o.booked_price) : '';
+        const bkLabel = o.booked_price!=null ? `<span class="booked-set">📌 Gebucht für ${eur(o.booked_price)}</span>` : '📌 Gebuchter Preis:';
+        const bookedRow = `<div class="target-row booked-row">${bkLabel}
+            <input type="number" id="book-${o.id}" placeholder="z. B. 1750" value="${bk}" onkeydown="if(event.key==='Enter')setBooked(${o.id})">
+            <button class="btn sec" onclick="setBooked(${o.id})">setzen</button></div>`;
+        let bookedSince = '';
+        if(o.booked_price!=null && o.price!=null){
+          const d = Math.round(o.price - o.booked_price);
+          if(d<0) bookedSince = `<span class="booked-since down" title="seit deiner Buchung">📌 ${eur(d)} seit Buchung</span>`;
+          else if(d>0) bookedSince = `<span class="booked-since up" title="seit deiner Buchung">📌 +${eur(d)} seit Buchung</span>`;
+          else bookedSince = `<span class="booked-since flat" title="seit deiner Buchung">📌 wie gebucht</span>`;
+        }
         return `<div class="offer${o.paused?' paused':''}${o.archived?' archived':''}" data-id="${o.id}">
           <div class="offer-top">
             <div class="offer-main">
-              <div class="offer-label">${esc(title)} <button class="rename-btn" onclick="renameOffer(${o.id})" title="Umbenennen">✎</button></div>
+              <div class="offer-label"><input type="checkbox" class="bulk-check" ${selected.has(o.id)?'checked':''} onclick="bulkToggle(${o.id}, this.checked)" title="Für Sammelaktion auswählen"> ${esc(title)} <button class="rename-btn" onclick="renameOffer(${o.id})" title="Umbenennen">✎</button></div>
               ${o.location?`<a class="offer-loc" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(((o.hotel||o.label||'')+' '+o.location).trim())}" target="_blank" rel="noopener" title="In Google Maps öffnen">📍 ${esc(o.location)} ↗</a>`:''}
               ${sub?`<div class="offer-details">${esc(sub)}</div>`:''}
               ${metaLine}
               ${flights}
+              ${codesLine}
               <a class="offer-url" href="${esc(o.url)}" target="_blank" rel="noopener">Angebot auf tui.com öffnen ↗</a>
               ${o.pdf_url?`<a class="offer-url pdf" href="${esc(o.pdf_url)}" target="_blank" rel="noopener">📄 Hotelbeschreibung (PDF)</a>`:''}
               ${o.ok===false?`<div class="err-note">⚠ ${esc(o.note||'Preis konnte nicht gelesen werden')}</div>`:''}
@@ -563,13 +798,14 @@
               <div class="price-pp">pro Person</div>
               ${priceSub?`<div class="price-sub">${priceSub}</div>`:''}
               ${(o.travellers_count>1 && o.total_price!=null)?`<div class="price-total">Gesamt ${eur(o.total_price)} · ${o.travellers_count} Reisende</div>`:''}
-              <div>${deltaBadge(o)}</div>
+              <div>${deltaBadge(o)} ${o.archived?'':trendBadge(o)}</div>
+              ${bookedSince?`<div>${bookedSince}</div>`:''}
               ${availBadge}
+              ${o.image_url?`<img class="offer-img" src="${esc(o.image_url)}" loading="lazy" alt="" onerror="this.remove()">`:''}
             </div>
           </div>
           ${statsLine}
-          ${o.archived?'':targetRow}
-          <canvas class="spark" id="spark-${o.id}"></canvas>
+          ${o.archived?'':`<div class="price-rows">${targetRow}${bookedRow}</div>`}
           <div class="offer-foot">
             ${o.archived
               ? `<span class="when"><span class="archived-badge">📦 archiviert</span>${o.return_date?(' · Reise bis '+fmtD(o.return_date)):''}${o.price!=null?(' · letzter Preis '+eur(o.price)):''}</span>
@@ -580,6 +816,7 @@
                  <button class="btn sec" onclick="checkOne(${o.id})">Prüfen</button>
                  <button class="btn sec" onclick="openHistory(${o.id})">Verlauf</button>
                  <button class="btn sec" onclick="openCalendar(${o.id})" title="Preis je Abreisetag (Preiskalender)">Kalender</button>
+                 <button class="btn sec" onclick="openRooms(${o.id})" title="Zimmerkategorie wählen (Standard = günstigstes)">Zimmer</button>
                  ${o.comparable?`<button class="btn sec" onclick="openCompare(${o.id})" title="Preis pro Person für andere Reisendenzahl vergleichen">Vergleich</button>`:''}
                  <button class="btn sec" onclick="openNights(${o.id})" title="Preise für kürzere/längere Reisedauern vergleichen">Nächte</button>
                  <button class="btn sec" onclick="openSearchFromOffer(${o.id})" title="Weitere Hotels dieser Region suchen (Filter aus dem Angebot)">Region</button>
@@ -593,17 +830,6 @@
 
     function esc(s){ return (s||'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 
-    async function drawSpark(id){
-      const cv = document.getElementById('spark-'+id);
-      if(!cv) return;
-      try {
-        const o = (curOffers||[]).find(x=>x.id===id) || {};
-        const r = await fetch(api('/api/history/'+id));
-        const pts = (await r.json()).history.filter(h=>h.ok && h.price!=null);
-        drawChart(cv, pts, false, {target: o.target_price});
-      } catch(e){}
-    }
-
     function drawChart(cv, pts, full, opts){
       opts = opts || {};
       const dpr = window.devicePixelRatio||1;
@@ -616,25 +842,21 @@
       if(pts.length===0){ ctx.fillStyle=muted; ctx.font='12px sans-serif'; ctx.fillText('Noch keine Messpunkte',8,h/2); return; }
       const padL = full?52:6, padR=6, padT=full?14:8, padB=full?22:8;
       const xs = pts.map(p=>p.ts), ys = pts.map(p=>p.price);
-      // Wertebereich inkl. Wunschpreis und (im Verlauf) Vergleichspreisen
+      // Wertebereich auf den echten Preisverlauf zoomen (+ Wunsch-/Buchungspreis als
+      // Referenz). Der Vergleichspreis fließt NICHT ein, damit kleine Änderungen sichtbar
+      // bleiben — er steht weiterhin in der Verlaufstabelle.
       const extra = [];
       if(opts.target) extra.push(opts.target);
-      if(opts.showOld) pts.forEach(p=>{ if(p.old_price) extra.push(p.old_price); });
+      if(opts.booked) extra.push(opts.booked);
       let minY=Math.min(...ys, ...extra), maxY=Math.max(...ys, ...extra);
       if(minY===maxY){ minY-=50; maxY+=50; }
+      else { const pad=(maxY-minY)*0.12; minY-=pad; maxY+=pad; }
       const minX=Math.min(...xs), maxX=Math.max(...xs);
       const X = t => padL + (maxX===minX?0.5:(t-minX)/(maxX-minX))*(w-padL-padR);
       const Y = v => padT + (1-(v-minY)/(maxY-minY))*(h-padT-padB);
       if(full){
         ctx.strokeStyle=border; ctx.fillStyle=muted; ctx.font='11px sans-serif'; ctx.lineWidth=1;
         for(let i=0;i<=3;i++){ const v=minY+(maxY-minY)*i/3; const y=Y(v); ctx.beginPath(); ctx.moveTo(padL,y); ctx.lineTo(w-padR,y); ctx.stroke(); ctx.fillText(Math.round(v).toLocaleString('de-DE')+' €',4,y-2); }
-      }
-      // Vergleichspreis (durchgestrichener „alter" Preis) als feine gestrichelte Linie
-      if(opts.showOld){
-        ctx.save(); ctx.strokeStyle=muted; ctx.globalAlpha=.55; ctx.setLineDash([4,3]); ctx.lineWidth=1;
-        ctx.beginPath(); let started=false;
-        pts.forEach(p=>{ if(p.old_price){ const x=X(p.ts),y=Y(p.old_price); started?ctx.lineTo(x,y):ctx.moveTo(x,y); started=true; } });
-        ctx.stroke(); ctx.restore();
       }
       // Preis-Linie
       ctx.strokeStyle=accent; ctx.lineWidth=2; ctx.beginPath();
@@ -649,6 +871,26 @@
         ctx.save(); ctx.strokeStyle=amber; ctx.setLineDash([5,4]); ctx.lineWidth=1.2;
         ctx.beginPath(); ctx.moveTo(padL,ty); ctx.lineTo(w-padR,ty); ctx.stroke(); ctx.restore();
         if(full){ ctx.fillStyle=amber; ctx.font='10px sans-serif'; ctx.fillText('🎯 '+Math.round(opts.target).toLocaleString('de-DE')+' €', padL+3, ty-3); }
+      }
+      // Gebuchter-Preis-Linie (gezahlter Preis seit Buchung)
+      if(opts.booked){
+        const by=Y(opts.booked); const violet='#a371f7';
+        ctx.save(); ctx.strokeStyle=violet; ctx.setLineDash([2,3]); ctx.lineWidth=1.4;
+        ctx.beginPath(); ctx.moveTo(padL,by); ctx.lineTo(w-padR,by); ctx.stroke(); ctx.restore();
+        if(full){ ctx.fillStyle=violet; ctx.font='10px sans-serif'; ctx.fillText('📌 '+Math.round(opts.booked).toLocaleString('de-DE')+' €', padL+3, by+11); }
+      }
+      // Änderungs-Marker (Events): senkrechte Linie + Fähnchen; Trefferflächen für Tooltip
+      cv._events = [];
+      if(full && opts.events && opts.events.length){
+        const evcol = '#f778ba';
+        opts.events.forEach(ev=>{
+          let x = X(ev.ts); x = Math.max(padL, Math.min(w-padR, x));
+          ctx.save(); ctx.strokeStyle=evcol; ctx.globalAlpha=.75; ctx.setLineDash([3,3]); ctx.lineWidth=1;
+          ctx.beginPath(); ctx.moveTo(x,padT); ctx.lineTo(x,h-padB); ctx.stroke(); ctx.restore();
+          ctx.fillStyle=evcol; ctx.beginPath(); ctx.moveTo(x,padT); ctx.lineTo(x+7,padT); ctx.lineTo(x,padT+7); ctx.closePath(); ctx.fill();
+          const date = new Date(ev.ts*1000).toLocaleString('de-DE');
+          cv._events.push({x, html:'<div class="tt-date">'+esc(date)+'</div>'+esc(ev.text||'')});
+        });
       }
       // Punkte; Preisrückgänge grün markiert
       pts.forEach((p,i)=>{
@@ -666,9 +908,10 @@
       $('#modal-sub').textContent = [o.label&&o.hotel?o.hotel:'', o.details||''].filter(Boolean).join(' — ');
       $('#modal-bg').classList.add('show');
       const r = await fetch(api('/api/history/'+id));
-      const hist = (await r.json()).history;
+      const hd = await r.json();
+      const hist = hd.history;
       const pts = hist.filter(h=>h.ok && h.price!=null);
-      drawChart($('#hist-canvas'), pts, true, {target: o.target_price, showOld: true});
+      drawChart($('#hist-canvas'), pts, true, {target: o.target_price, booked: o.booked_price, events: hd.events||[]});
       const rows = hist.slice().reverse().map(h=>{
         const d = new Date(h.ts*1000).toLocaleString('de-DE');
         if(!h.ok) return `<tr><td>${d}</td><td colspan="2" style="color:var(--amber)">⚠ ${esc(h.note||'fehlgeschlagen')}</td></tr>`;
@@ -678,6 +921,18 @@
     }
     function closeModal(){ $('#modal-bg').classList.remove('show'); }
     $('#modal-bg').addEventListener('click', e=>{ if(e.target.id==='modal-bg') closeModal(); });
+    // Tooltip für Änderungs-Marker im Verlauf-Diagramm
+    (function(){
+      const cv=$('#hist-canvas'), tip=$('#hist-tip'); if(!cv||!tip) return;
+      cv.addEventListener('mousemove', e=>{
+        const rect=cv.getBoundingClientRect(); const mx=e.clientX-rect.left;
+        const evs=cv._events||[]; let hit=null, best=18;   // nächsten Marker in Reichweite
+        for(const m of evs){ const dx=Math.abs(mx-m.x); if(dx<best){ best=dx; hit=m; } }
+        if(hit){ tip.innerHTML=hit.html; tip.style.left=hit.x+'px'; tip.style.display='block'; }
+        else tip.style.display='none';
+      });
+      cv.addEventListener('mouseleave', ()=>{ tip.style.display='none'; });
+    })();
 
     // ── Pro-Person-Vergleich (gespeichert) ────────────────────────────────────
     let cmpTimer = null, cmpId = null;
@@ -839,9 +1094,9 @@
     }
 
     // ── Hotelsuche (Maske / URL / aus Angebot) ────────────────────────────────
-    let srchResults = [], srchOfferId = null, srchDest = null, srchTotal = 0;
+    let srchResults = [], srchOfferId = null, srchDest = null, srchTotal = 0, srchFilter = '';
     let srchSort = localStorage.getItem('tw-srch-sort') || 'price';
-    let airportsLoaded = false, destNode = null, destData = null, destStack = [];
+    let airportsLoaded = false, airlinesLoaded = false, destNode = null, destData = null, destStack = [];
     function urlParam(u, key){ try{ return new URL(u).searchParams.get(key)||''; }catch(e){ return ''; } }
     function isoPlus(days){ const d=new Date(); d.setUTCDate(d.getUTCDate()+days); return d.toISOString().slice(0,10); }
     function jsArg(s){ return esc(String(s==null?'':s).replace(/\\/g,'\\\\').replace(/'/g,"\\'")); }
@@ -857,6 +1112,26 @@
         airportsLoaded = true;
       } catch(e){}
     }
+    async function ensureAirlines(){
+      if(airlinesLoaded) return;
+      try {
+        const d = await fetch(api('/api/airlines')).then(r=>r.json());
+        $('#srch-airline-list').innerHTML = (d.airlines||[]).map(a=>
+          `<label><input type="checkbox" class="srch-airline" value="${esc(a.code)}" onchange="updateAirlineSummary()"> ${esc(a.name)}</label>`).join('');
+        airlinesLoaded = true;
+      } catch(e){}
+    }
+    function selectedAirlines(){ return [...document.querySelectorAll('.srch-airline:checked')].map(c=>c.value); }
+    function setAirlines(codes){
+      const set = new Set(codes||[]);
+      document.querySelectorAll('.srch-airline').forEach(c=>{ c.checked = set.has(c.value); });
+      updateAirlineSummary();
+    }
+    function updateAirlineSummary(){
+      const sel = selectedAirlines(); const sum = $('#srch-airline-sum');
+      sum.textContent = sel.length ? (sel.length+' gewählt') : 'alle';
+      sum.classList.toggle('set', sel.length>0);
+    }
     function setSearchMode(mode){     // 'mask' | 'offer'
       const off = (mode==='offer');
       $('#srch-favbar').style.display = off?'none':'';
@@ -865,11 +1140,19 @@
       $('#srch-from').style.display   = off?'block':'none';
       $('#dest-panel').style.display  = 'none';
     }
+    // "bis" muss nach "von" liegen: min setzen und bei Bedarf nachziehen.
+    function syncBisMin(){
+      const v=$('#srch-vom').value, b=$('#srch-bis');
+      if(!v){ b.removeAttribute('min'); return; }
+      b.min = v;
+      if(b.value && b.value < v) b.value = v;
+    }
     function openSearch(){            // Maske (Toolbar)
       srchOfferId = null;
-      setSearchMode('mask'); ensureAirports(); renderFavs();
+      setSearchMode('mask'); ensureAirports(); ensureAirlines(); renderFavs();
       if(!$('#srch-vom').value) $('#srch-vom').value = isoPlus(21);
       if(!$('#srch-bis').value) $('#srch-bis').value = isoPlus(51);
+      syncBisMin();
       $('#srch-bg').classList.add('show');
     }
     function openSearchFromOffer(id){ // Region-Modus (aus Angebot)
@@ -881,16 +1164,146 @@
       $('#srch-url').value='';
       const ops = urlParam(o.url,'operators');
       $('#srch-tui').checked = (!ops || /TUID/i.test(ops));
-      const bt = (urlParam(o.url,'boardTypes')||'').split(/[;,]/).map(s=>s.trim().toUpperCase());
+      // Board-Codes des Angebots auf die Basis-Variante normalisieren (Plus → Basis),
+      // damit die passende Checkbox vorbelegt wird (AP=AI Plus, FP=VP Plus, HP=HB Plus).
+      const baseBoard = {AP:'AI', FP:'FB', HP:'HB'};
+      const bt = (urlParam(o.url,'boardTypes')||'').split(/[;,]/)
+        .map(s=>{ const c=s.trim().toUpperCase(); return baseBoard[c]||c; });
       document.querySelectorAll('.srch-board').forEach(c=>{ c.checked = bt.includes(c.value.toUpperCase()); });
       $('#srch-direct').checked = (urlParam(o.url,'maxStopOvers')==='0');
-      $('#srch-stars').value=''; $('#srch-rec').value='';
+      $('#srch-stars').value='3'; $('#srch-rec').value='80';
+      const al = (urlParam(o.url,'airlines')||'').split(/[;,]/).map(s=>s.trim()).filter(Boolean);
+      ensureAirlines().then(()=>setAirlines(al));
       $('#srch-body').innerHTML='';
       $('#srch-bg').classList.add('show');
       runSearch();
     }
     function closeSearch(){ $('#srch-bg').classList.remove('show'); }
     $('#srch-bg').addEventListener('click', e=>{ if(e.target.id==='srch-bg') closeSearch(); });
+
+    // ── Reisen-Datenbank (PDF-Import gebuchter Reisen) ──────────────────────────
+    let tripsData = [];
+    function eur(v){ return (v==null||v==='')?'–':Number(v).toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2})+' €'; }
+    function deDate(iso){ if(!iso) return ''; const p=iso.split('-'); return p.length===3?(p[2]+'.'+p[1]+'.'+p[0]):iso; }
+    function openTrips(){ $('#trip-detail').style.display='none'; $('#trips-bg').classList.add('show'); loadTrips(); }
+    function closeTrips(){ $('#trips-bg').classList.remove('show'); }
+    $('#trips-bg').addEventListener('click', e=>{ if(e.target.id==='trips-bg') closeTrips(); });
+
+    async function loadTrips(){
+      let d={trips:[],stats:{},by_year:[]};
+      try { d = await fetch(api('/api/trips')).then(r=>r.json()); } catch(e){}
+      tripsData = d.trips||[];
+      const s = d.stats||{};
+      $('#trips-stats').innerHTML = [
+        ['Reisen', s.count||0],
+        ['Nächte', s.nights_sum||0],
+        ['Gesamtausgaben', eur(s.total_sum)],
+        ['Ø €/Nacht p.P.', eur(s.avg_per_night)],
+      ].map(([l,v])=>`<div class="tstat"><div class="v">${esc(String(v))}</div><div class="l">${l}</div></div>`).join('');
+      const years = d.by_year||[];
+      $('#trips-years').innerHTML = years.length?(
+        '<table class="tdt tyears"><tr><th>Jahr</th><th>Reisen</th><th>Nächte</th><th>Ausgaben</th><th>Ø €/Nacht p.P.</th></tr>'+
+        years.map(y=>`<tr><td>${esc(y.year)}</td><td>${y.count}</td><td>${y.nights_sum}</td><td>${eur(y.total_sum)}</td><td>${eur(y.avg_per_night)}</td></tr>`).join('')+
+        '</table>'):'';
+      renderTrips();
+    }
+    function renderTrips(){
+      const el = $('#trips-list');
+      if(!tripsData.length){ el.innerHTML = '<div class="trips-empty">Noch keine Reisen importiert. Lade oben eine TUI-Reisebestätigung als PDF hoch.</div>'; return; }
+      el.innerHTML = tripsData.map(t=>{
+        const zeit = (t.start_date||t.end_date)?`${deDate(t.start_date)} – ${deDate(t.end_date)}`:'';
+        const meta = [t.hotel, t.destination, zeit,
+          (t.nights?`${t.nights} Nächte`:''),
+          (t.travellers?`${t.travellers} Reisende`:''),
+          (t.net_per_night?`${eur(t.net_per_night)}/Nacht p.P.`:'')].filter(Boolean).join(' · ');
+        const pdf = t.has_pdf?`<a class="btn sec" href="${api('/api/trips/'+t.id+'/pdf')}" target="_blank" rel="noopener">PDF</a>`:'';
+        return `<div class="trip-row">
+          <div class="ti"><div class="t">${esc(t.title||('Reise #'+t.id))}</div><div class="m">${esc(meta)}</div></div>
+          <div class="tp">${eur(t.total_price)}</div>
+          <div class="ta">
+            <button class="btn sec" onclick="showTripDetail(${t.id})">Details</button>
+            ${pdf}
+            <button class="btn danger" onclick="delTrip(${t.id})">Löschen</button>
+          </div></div>`;
+      }).join('');
+    }
+
+    async function importTrip(input){
+      const f = input.files && input.files[0];
+      if(!f) return;
+      $('#trip-imp-status').textContent = 'Importiere…';
+      const fd = new FormData(); fd.append('pdf', f);
+      let resp, d;
+      try { resp = await fetch(api('/api/trips/import'), {method:'POST', body:fd}); d = await resp.json().catch(()=>({})); }
+      catch(e){ $('#trip-imp-status').textContent=''; toast('Import fehlgeschlagen'); input.value=''; return; }
+      input.value='';
+      if(resp.status===413){ $('#trip-imp-status').textContent=''; toast('PDF zu groß (max. 16 MB)'); return; }
+      if(resp.status===422){ $('#trip-imp-status').textContent=''; toast('PDF konnte nicht gelesen werden – ist es eine TUI-Reisebestätigung?'); return; }
+      if(!resp.ok){ $('#trip-imp-status').textContent=''; toast('Import fehlgeschlagen'); return; }
+      $('#trip-imp-status').textContent = '✓ importiert';
+      setTimeout(()=>{ $('#trip-imp-status').textContent=''; }, 2500);
+      toast('Reise importiert');
+      await loadTrips();
+      if(d && d.id) showTripDetail(d.id);
+    }
+
+    async function showTripDetail(id){
+      let t;
+      try { const r = await fetch(api('/api/trips/'+id)); if(!r.ok){ toast('Reise nicht gefunden'); return; } t = await r.json(); }
+      catch(e){ toast('Fehler beim Laden'); return; }
+      const d = t.data||{};
+      const row = (k,v)=> v?`<div><span class="k">${k}:</span> ${esc(String(v))}</div>`:'';
+      const grid = [
+        row('Buchungsnr.', d.buchungsnummer),
+        row('Gebucht am', d.buchungsdatum),
+        row('Reiseziel', d.reiseziel),
+        row('Hotel', (d.hotel||{}).name + ((d.hotel||{}).code?` (${d.hotel.code})`:'')),
+        row('Zeitraum', (d.reisezeitraum||{}).von?`${d.reisezeitraum.von} – ${d.reisezeitraum.bis} (${d.naechte||'?'} Nächte)`:''),
+        row('Zimmer', d.zimmertyp),
+        row('Verpflegung', d.verpflegung),
+        row('Gesamtpreis', d.gesamtpreis?d.gesamtpreis+' €':''),
+        row('Paketpreis (brutto)', d.paketpreis?d.paketpreis+' €':''),
+        row('Reisepreis (o. Extras, n. Rabatt)', d.paketpreis_netto?d.paketpreis_netto+' €':''),
+        row('€/Nacht (Reisepreis)', d.preis_pro_nacht_paket?d.preis_pro_nacht_paket+' €':''),
+        row('€/Person/Nacht (Reisepreis)', d.preis_pro_person_nacht_paket?d.preis_pro_person_nacht_paket+' €':''),
+        row('€/Nacht (gesamt)', d.preis_pro_nacht?d.preis_pro_nacht+' €':''),
+        row('Zahlungsart', d.zahlungsart),
+        row('Anzahlung', (d.anzahlung||{}).betrag?`${d.anzahlung.betrag} € · fällig ${d.anzahlung.faelligkeit||'?'}`:''),
+        row('Restzahlung', (d.restzahlung||{}).betrag?`${d.restzahlung.betrag} € · fällig ${d.restzahlung.faelligkeit||'?'}`:''),
+      ].join('');
+      const reisende = (d.reisende||[]).length?`<div class="dsec">Reisende</div><table class="tdt"><tr><th>Name</th><th>Geburtsdatum</th><th>Preis</th></tr>${
+        d.reisende.map(p=>`<tr><td>${esc(p.name)}</td><td>${esc(p.geburtsdatum||'')}</td><td>${esc(p.preis||'')} €</td></tr>`).join('')}</table>`:'';
+      const fluege = (d.fluege||[]).length?`<div class="dsec">Flüge</div><table class="tdt"><tr><th>Typ</th><th>Datum</th><th>Strecke</th><th>Zeit</th><th>Airline</th></tr>${
+        d.fluege.map(f=>`<tr><td>${esc(f.typ||'')}</td><td>${esc(f.datum||'')}</td><td>${esc((f.von||'')+' → '+(f.nach||''))}</td><td>${esc((f.abflug_zeit||'')+(f.ankunft_zeit?('–'+f.ankunft_zeit):''))}</td><td>${esc(f.flugnummer||'')}</td></tr>`).join('')}</table>`:'';
+      const extras = (d.extras||[]).length?`<div class="dsec">Extras</div><table class="tdt"><tr><th>Typ</th><th>Details</th><th>Preis</th></tr>${
+        d.extras.map(e=>{ const det=[e.plaetze,e.gewicht,e.strecke,(e.anzahl?('x'+e.anzahl):'')].filter(Boolean).join(' '); const pr=(e.preis==='inkl.')?'inkl.':((e.preis!=null)?e.preis+' €':''); return `<tr><td>${esc(e.typ||'')}</td><td>${esc(det)}</td><td>${esc(pr)}</td></tr>`; }).join('')}</table>`:'';
+      const rabatte = (d.rabatte||[]).length?`<div class="dsec">Rabatte</div><table class="tdt"><tr><th>Code</th><th>Betrag</th></tr>${
+        d.rabatte.map(r=>`<tr><td>${esc(r.code||'')}</td><td>${esc(r.betrag||'')}</td></tr>`).join('')}</table>`:'';
+      const wuensche = (d.sonderwuensche||[]).length?`<div class="dsec">Sonderwünsche</div><div style="font-size:.84rem">${d.sonderwuensche.map(w=>esc(w)).join('<br>')}</div>`:'';
+      const pdf = t.has_pdf?`<a class="btn" href="${api('/api/trips/'+id+'/pdf')}" target="_blank" rel="noopener">📄 PDF öffnen</a>`:'';
+      const box = $('#trip-detail');
+      box.innerHTML = `<h3>${esc(t.title||('Reise #'+id))}</h3>
+        <div style="margin-bottom:6px">${pdf} <button class="btn sec" onclick="$('#trip-detail').style.display='none'">schließen</button></div>
+        <div class="dgrid">${grid}</div>${reisende}${fluege}${extras}${rabatte}${wuensche}`;
+      box.style.display='block';
+      box.scrollIntoView({behavior:'smooth', block:'nearest'});
+    }
+
+    async function delTrip(id){
+      if(!confirm('Diese Reise inkl. gespeicherter PDF wirklich löschen?')) return;
+      let ok=false;
+      try { const r = await fetch(api('/api/trips/'+id), {method:'DELETE'}); ok = r.ok; } catch(e){}
+      if(ok){ $('#trip-detail').style.display='none'; toast('Reise gelöscht'); loadTrips(); }
+      else toast('Löschen fehlgeschlagen');
+    }
+
+    // Drag & Drop für PDF-Import
+    (function(){
+      const dz = $('#trips-drop'); if(!dz) return;
+      ['dragenter','dragover'].forEach(ev=>dz.addEventListener(ev, e=>{ e.preventDefault(); dz.classList.add('drag'); }));
+      ['dragleave','drop'].forEach(ev=>dz.addEventListener(ev, e=>{ e.preventDefault(); dz.classList.remove('drag'); }));
+      dz.addEventListener('drop', e=>{ const f=e.dataTransfer&&e.dataTransfer.files; if(f&&f.length){ const inp=$('#trip-file'); inp.files=f; importTrip(inp); } });
+    })();
 
     // — Reiseziel-Picker (Drilldown) —
     async function loadDest(parent){
@@ -905,18 +1318,51 @@
       if(!destData){ p.innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Reiseziele nicht abrufbar.</div>'; return; }
       renderDest();
     }
+    function renderDestRows(){
+      const q = ($('#dest-search')?$('#dest-search').value:'').trim().toLowerCase();
+      const items = (destData.items||[]).filter(it => !q || (it.label||'').toLowerCase().includes(q));
+      const rows = items.map(it=>
+        `<div class="dest-row" onclick="destDrill(${it.giata}, '${jsArg(it.label)}')">
+           <span>${esc(it.label)}</span>
+           <span><button class="btn sec" onclick="event.stopPropagation();selectDest(${it.giata}, '${jsArg(it.label)}')">wählen</button> <span class="chev">›</span></span>
+         </div>`).join('');
+      const box = $('#dest-rows'); if(box) box.innerHTML = rows ||
+        `<div class="cmp-load">${q?'Kein Treffer für „'+esc(q)+'".':'Keine Unterregionen.'}</div>`;
+    }
+    // Globale Suche über ALLE Ebenen (z. B. „Kanarische Inseln" ohne erst Spanien
+    // zu öffnen). Nutzt den gecachten Reiseziel-Index im Backend.
+    let destSearchTimer = null, destSearchToken = 0;
+    function destSearch(){
+      const q = ($('#dest-search')?$('#dest-search').value:'').trim();
+      clearTimeout(destSearchTimer);
+      if(q.length < 2){ renderDestRows(); return; }  // kurze Eingabe → aktuelle Ebene
+      destSearchTimer = setTimeout(async ()=>{
+        const token = ++destSearchToken;
+        const box = $('#dest-rows'); if(box) box.innerHTML = '<div class="cmp-load">Suche…</div>';
+        let d=null;
+        try { d = await fetch(api('/api/destinations/search?q='+encodeURIComponent(q))).then(r=>r.json()); } catch(e){}
+        if(token !== destSearchToken || !box) return;  // veraltete Antwort verwerfen
+        if(!d){ box.innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Suche fehlgeschlagen.</div>'; return; }
+        if(!d.ready && d.building){ box.innerHTML = '<div class="cmp-load">Reiseziel-Index wird aufgebaut – einen Moment…</div>'; return; }
+        const items = d.items||[];
+        box.innerHTML = items.map(it=>
+          `<div class="dest-row" onclick="selectDest(${it.giata}, '${jsArg(it.label)}')">
+             <span>${esc(it.label)}${it.path?(' <span class="chev" style="font-weight:400;font-size:.82em">— '+esc(it.path)+'</span>'):''}</span>
+             <span><button class="btn sec" onclick="event.stopPropagation();selectDest(${it.giata}, '${jsArg(it.label)}')">wählen</button></span>
+           </div>`).join('') || `<div class="cmp-load">Kein Treffer für „${esc(q)}".</div>`;
+      }, 250);
+    }
     function renderDest(){
       const p = $('#dest-panel');
       const back = destStack.length?'<button class="btn sec" onclick="destBack()">‹ zurück</button>':'';
       const title = destNode?('<b>'+esc(destNode.label)+'</b>'):'<b>Reiseziel wählen</b>';
       const whole = destNode?(`<button class="btn" onclick="selectDest(${destNode.giata}, '${jsArg(destNode.label)}')">✓ Ganze Region wählen</button>`):'';
-      const rows = (destData.items||[]).map(it=>
-        `<div class="dest-row" onclick="destDrill(${it.giata}, '${jsArg(it.label)}')">
-           <span>${esc(it.label)}</span>
-           <span><button class="btn sec" onclick="event.stopPropagation();selectDest(${it.giata}, '${jsArg(it.label)}')">wählen</button> <span class="chev">›</span></span>
-         </div>`).join('');
       p.innerHTML = `<div class="dest-head">${back}${title}${whole}
-          <span style="flex:1"></span><button class="btn sec" onclick="$('#dest-panel').style.display='none'">schließen</button></div>${rows||'<div class="cmp-load">Keine Unterregionen.</div>'}`;
+          <span style="flex:1"></span><button class="btn sec" onclick="$('#dest-panel').style.display='none'">schließen</button></div>
+        <input type="text" id="dest-search" class="dest-search" placeholder="Reiseziel suchen (alle Ebenen, z. B. Kanarische Inseln)…" autocomplete="off" oninput="destSearch()">
+        <div id="dest-rows"></div>`;
+      renderDestRows();
+      const si = $('#dest-search'); if(si) si.focus();
     }
     async function destDrill(giata, label){
       const sub = await loadDest(giata);
@@ -931,13 +1377,18 @@
       $('#dest-panel').style.display='none';
     }
 
-    // — Favoriten (localStorage) —
-    function getFavs(){ try { return JSON.parse(localStorage.getItem('tw-search-favs')||'[]'); } catch(e){ return []; } }
-    function setFavs(f){ localStorage.setItem('tw-search-favs', JSON.stringify(f)); }
-    function renderFavs(){
-      const favs = getFavs();
+    // — Gespeicherte Suchen (in der DB, geräteübergreifend) —
+    let srchFavs = [];
+    async function renderFavs(){
+      try { const d = await fetch(api('/api/searches')).then(r=>r.json()); srchFavs = d.searches||[]; }
+      catch(e){ srchFavs = []; }
       $('#srch-favsel').innerHTML = '<option value="">– gespeicherte Suche wählen –</option>'
-        + favs.map((f,i)=>`<option value="${i}">${esc(f.name)}</option>`).join('');
+        + srchFavs.map(f=>`<option value="${f.id}">${esc(f.name)}</option>`).join('');
+      favBtnState();
+    }
+    // „Änderungen speichern" nur aktiv, wenn eine gespeicherte Suche gewählt ist.
+    function favBtnState(){
+      const b = $('#srch-favupd'); if(b) b.disabled = !$('#srch-favsel').value;
     }
     function curFav(){
       return { dest: srchDest, airport: $('#srch-airport').value,
@@ -945,38 +1396,64 @@
         dur: $('#srch-dur').value, trav: $('#srch-trav').value,
         tui: $('#srch-tui').checked, direct: $('#srch-direct').checked,
         boards: [...document.querySelectorAll('.srch-board:checked')].map(c=>c.value),
+        airlines: selectedAirlines(),
         stars: $('#srch-stars').value, rec: $('#srch-rec').value };
     }
-    function saveFav(){
+    async function saveFav(){
       if(!srchDest){ toast('Bitte zuerst ein Reiseziel wählen'); return; }
-      const name = prompt('Name für den Favoriten:', srchDest.label||'Suche');
+      const name = prompt('Name für die gespeicherte Suche:', srchDest.label||'Suche');
       if(name===null) return;
-      const favs = getFavs(); const f = curFav(); f.name = name.trim()||srchDest.label;
-      const ix = favs.findIndex(x=>x.name===f.name);
-      if(ix>=0) favs[ix]=f; else favs.push(f);
-      setFavs(favs); renderFavs(); toast('Favorit gespeichert');
+      let ok=false, newId=null;
+      try {
+        const r = await fetch(api('/api/searches'), {method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({name: name.trim()||srchDest.label, payload: curFav()})});
+        ok = r.ok; if(ok){ newId = (await r.json()).id; }
+      } catch(e){}
+      if(ok){ await renderFavs(); if(newId!=null) $('#srch-favsel').value=newId; favBtnState(); toast('Suche gespeichert'); }
+      else { toast('Speichern fehlgeschlagen'); }
+    }
+    // Gewählte gespeicherte Suche überschreiben — ohne Namensabfrage (Upsert per Name).
+    async function updateFav(){
+      const id = $('#srch-favsel').value;
+      if(id===''){ toast('Keine gespeicherte Suche gewählt'); return; }
+      if(!srchDest){ toast('Bitte zuerst ein Reiseziel wählen'); return; }
+      const fav = srchFavs.find(x=>String(x.id)===String(id)); if(!fav) return;
+      let ok=false;
+      try {
+        const r = await fetch(api('/api/searches'), {method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({name: fav.name, payload: curFav()})});
+        ok = r.ok;
+      } catch(e){}
+      if(ok){ await renderFavs(); $('#srch-favsel').value=id; favBtnState(); toast('Änderungen gespeichert'); }
+      else { toast('Speichern fehlgeschlagen'); }
     }
     function loadFav(){
-      const i = $('#srch-favsel').value; if(i==='') return;
-      const f = getFavs()[+i]; if(!f) return;
+      favBtnState();
+      const id = $('#srch-favsel').value; if(id==='') return;
+      const fav = srchFavs.find(x=>String(x.id)===String(id)); if(!fav) return;
+      const f = fav.payload||{};
       if(f.dest){ srchDest=f.dest; const b=$('#srch-dest'); b.textContent=f.dest.label; b.classList.add('set'); }
       if(f.airport){ ensureAirports().then(()=>{ $('#srch-airport').value=f.airport; }); }
-      $('#srch-vom').value=f.vom||''; $('#srch-bis').value=f.bis||'';
+      $('#srch-vom').value=f.vom||''; $('#srch-bis').value=f.bis||''; syncBisMin();
       $('#srch-dur').value=f.dur||7; $('#srch-trav').value=f.trav||2;
       $('#srch-tui').checked=f.tui!==false;
       $('#srch-direct').checked=!!f.direct;
       document.querySelectorAll('.srch-board').forEach(c=>{ c.checked=(f.boards||[]).includes(c.value); });
+      ensureAirlines().then(()=>setAirlines(f.airlines||[]));
       $('#srch-stars').value=f.stars||''; $('#srch-rec').value=f.rec||'';
     }
-    function delFav(){
-      const i = $('#srch-favsel').value; if(i===''){ toast('Bitte einen Favoriten wählen'); return; }
-      const favs=getFavs(); favs.splice(+i,1); setFavs(favs); renderFavs(); toast('Favorit gelöscht');
+    async function delFav(){
+      const id = $('#srch-favsel').value; if(id===''){ toast('Bitte eine gespeicherte Suche wählen'); return; }
+      let ok=false;
+      try { const r = await fetch(api('/api/searches/'+id), {method:'DELETE'}); ok = r.ok; } catch(e){}
+      if(ok){ await renderFavs(); toast('Gespeicherte Suche gelöscht'); } else { toast('Löschen fehlgeschlagen'); }
     }
 
     async function runSearch(){
       const url = $('#srch-url').value.trim();
       const boards = [...document.querySelectorAll('.srch-board:checked')].map(c=>c.value);
       const body = { operator_tui: $('#srch-tui').checked, direct: $('#srch-direct').checked, boards,
+        airlines: selectedAirlines(),
         min_stars: parseFloat($('#srch-stars').value)||0,
         min_recommend: parseFloat($('#srch-rec').value)||0 };
       if(srchOfferId!=null){ body.offer_id = srchOfferId; }
@@ -999,7 +1476,7 @@
       if(r.status===404){ $('#srch-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Angebot nicht gefunden.</div>'; return; }
       if(r.status===400){ $('#srch-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Keine gültige Eingabe.</div>'; return; }
       if(!r.ok){ $('#srch-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Suche fehlgeschlagen.</div>'; return; }
-      srchResults = d.results||[]; srchTotal = d.total||srchResults.length;
+      srchResults = d.results||[]; srchTotal = d.total||srchResults.length; srchFilter = '';
       sortSearchResults(); renderSearch();
     }
 
@@ -1011,55 +1488,73 @@
       else if(srchSort==='stars') a.sort((x,y)=>num(y.stars,-1)-num(x.stars,-1));
       else if(srchSort==='pernight') a.sort((x,y)=>(num(x.price,1e9)/(x.nights||1))-(num(y.price,1e9)/(y.nights||1)));
     }
-    function changeSrchSort(v){ srchSort=v; localStorage.setItem('tw-srch-sort',v); sortSearchResults(); renderSearch(); }
+    function changeSrchSort(v){ srchSort=v; localStorage.setItem('tw-srch-sort',v); sortSearchResults(); renderSearchRows(); }
+    function filterSearch(v){ srchFilter=v; renderSearchRows(); }
 
+    function srItem(r,i){
+      const stars = r.stars?('<span class="stars">'+'★'.repeat(r.stars)+'</span> '):'';
+      const rec = r.recommendation!=null?(' · '+r.recommendation+'% 👍'+(r.reviews?(' ('+r.reviews.toLocaleString('de-DE')+')'):'')):'';
+      const old = (r.old_price&&r.old_price>r.price)?('<span class="sr-old">'+eur(r.old_price)+'</span>'+(r.discount?'<span class="sr-disc">-'+r.discount+'%</span>':'')):'';
+      const img = r.image?('<img class="sr-img" src="'+esc(r.image)+'" loading="lazy" alt="">'):'<div class="sr-img"></div>';
+      return `<div class="sr-item">
+        ${img}
+        <div class="sr-main">
+          <div class="sr-name">${stars}${esc(r.name)}${r.tracked?'<span class="tracked">✓ getrackt</span>':''}</div>
+          <div class="sr-meta">📍 ${esc(r.location)}${r.country?(' · '+esc(r.country)):''}${rec}</div>
+          <div class="sr-meta">${esc(r.board)} · ${r.nights} Nächte · ab ${fmtD(r.date)}</div>
+        </div>
+        <div class="sr-pricecol">
+          <div class="sr-price">${eur(r.price)}</div>
+          <div class="sr-meta">p. P.${old?(' · '+old):''}</div>
+          <div class="sr-acts">
+            <a class="btn sec" href="${esc(r.offer_url)}" target="_blank" rel="noopener">Öffnen</a>
+            <button class="btn" id="srt-${i}" onclick="trackResult(${i})" title="${r.tracked?'Bereits getrackt – mit den aktuellen Suchparametern (z. B. anderer Zeitraum) erneut hinzufügen':'Hotel ins Tracking übernehmen'}">${r.tracked?'+ Tracken':'Tracken'}</button>
+          </div>
+        </div>
+      </div>`;
+    }
+    function renderSearchRows(){
+      const box=$('#srch-rows'); if(!box) return;
+      const q=(srchFilter||'').trim().toLowerCase();
+      const shown=[];
+      srchResults.forEach((r,i)=>{ if(!q || ((r.name||'')+' '+(r.location||'')+' '+(r.country||'')+' '+(r.board||'')).toLowerCase().includes(q)) shown.push([r,i]); });
+      const cnt=$('#srch-count'); if(cnt) cnt.textContent = q ? (shown.length+' von '+srchResults.length) : String(srchResults.length);
+      box.innerHTML = shown.length ? shown.map(([r,i])=>srItem(r,i)).join('')
+        : '<div class="cmp-load">Kein Treffer für „'+esc(srchFilter.trim())+'".</div>';
+    }
     function renderSearch(){
       if(!srchResults.length){ $('#srch-body').innerHTML = '<div class="cmp-load">Keine Treffer für die gewählten Filter.</div>'; return; }
-      const rows = srchResults.map((r,i)=>{
-        const stars = r.stars?('<span class="stars">'+'★'.repeat(r.stars)+'</span> '):'';
-        const rec = r.recommendation!=null?(' · '+r.recommendation+'% 👍'+(r.reviews?(' ('+r.reviews.toLocaleString('de-DE')+')'):'')):'';
-        const old = (r.old_price&&r.old_price>r.price)?('<span class="sr-old">'+eur(r.old_price)+'</span>'+(r.discount?'<span class="sr-disc">-'+r.discount+'%</span>':'')):'';
-        const img = r.image?('<img class="sr-img" src="'+esc(r.image)+'" loading="lazy" alt="">'):'<div class="sr-img"></div>';
-        return `<div class="sr-item">
-          ${img}
-          <div class="sr-main">
-            <div class="sr-name">${stars}${esc(r.name)}${r.tracked?'<span class="tracked">✓ getrackt</span>':''}</div>
-            <div class="sr-meta">📍 ${esc(r.location)}${r.country?(' · '+esc(r.country)):''}${rec}</div>
-            <div class="sr-meta">${esc(r.board)} · ${r.nights} Nächte · ab ${fmtD(r.date)}</div>
-          </div>
-          <div class="sr-pricecol">
-            <div class="sr-price">${eur(r.price)}</div>
-            <div class="sr-meta">p. P.${old?(' · '+old):''}</div>
-            <div class="sr-acts">
-              <a class="btn sec" href="${esc(r.offer_url)}" target="_blank" rel="noopener">Öffnen</a>
-              <button class="btn" id="srt-${i}" onclick="trackResult(${i})" ${r.tracked?'disabled':''}>${r.tracked?'getrackt':'Tracken'}</button>
-            </div>
-          </div>
-        </div>`;
-      }).join('');
       const sortSel = `<select onchange="changeSrchSort(this.value)" title="Sortierung">
           <option value="price"${srchSort==='price'?' selected':''}>Preis aufsteigend</option>
           <option value="pernight"${srchSort==='pernight'?' selected':''}>Preis/Nacht</option>
           <option value="rec"${srchSort==='rec'?' selected':''}>Weiterempfehlung</option>
           <option value="stars"${srchSort==='stars'?' selected':''}>Sterne</option>
         </select>`;
-      const head = `<div class="srch-head"><b>${srchResults.length}</b> Treffer${(srchTotal>srchResults.length)?(' (von '+srchTotal+' in der Region)'):''}
+      const head = `<div class="srch-head"><span><b id="srch-count">${srchResults.length}</b> Treffer${(srchTotal>srchResults.length)?(' (von '+srchTotal+' in der Region)'):''}</span>
+         <input type="text" id="srch-filter" class="srch-listfilter" placeholder="In Treffern suchen…" autocomplete="off" oninput="filterSearch(this.value)" value="${esc(srchFilter)}">
          <span style="flex:1"></span>Sortieren: ${sortSel}
-         <button class="btn sec" onclick="trackAll()">Alle tracken</button></div>`;
-      $('#srch-body').innerHTML = head + rows;
+         <button class="btn sec" onclick="trackAll()">Alle tracken</button></div>
+        <div id="srch-rows"></div>`;
+      $('#srch-body').innerHTML = head;
+      renderSearchRows();
     }
 
     async function trackResult(i){
       const r = srchResults[i]; if(!r) return;
       const btn = document.getElementById('srt-'+i);
+      // Hotel kann mehrfach getrackt werden (andere Zeiträume/Parameter) → Button bleibt
+      // nutzbar. Das Backend lehnt nur exakt identische Angebote ab (409).
+      const restore = ()=>{ if(btn){ btn.disabled=false; btn.textContent = r.tracked?'+ Tracken':'Tracken'; } };
       if(btn){ btn.disabled=true; btn.textContent='…'; }
       let resp;
-      try { resp = await fetch(api('/api/offers'), {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({url:r.offer_url, label:r.name})}); }
-      catch(e){ toast('Fehler beim Hinzufügen'); if(btn){btn.disabled=false; btn.textContent='Tracken';} return; }
-      if(resp.status===409){ toast('Wird bereits verfolgt'); }
-      else if(!resp.ok){ toast('Fehler beim Hinzufügen'); if(btn){btn.disabled=false; btn.textContent='Tracken';} return; }
-      else { toast('Getrackt – wird geprüft…'); }
-      r.tracked=true; if(btn){ btn.textContent='getrackt'; }
+      try { resp = await fetch(api('/api/offers'), {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({url:r.offer_url, label:r.name, image:r.image})}); }
+      catch(e){ toast('Fehler beim Hinzufügen'); restore(); return; }
+      if(resp.status===409){ toast('Dieses Angebot wird mit genau diesen Parametern bereits verfolgt'); restore(); return; }
+      if(!resp.ok){ toast('Fehler beim Hinzufügen'); restore(); return; }
+      toast('Getrackt – wird geprüft…');
+      // Direkt die Zimmerauswahl für das neue Angebot anbieten
+      try { const d=await resp.json(); if(d && d.id) openRooms(d.id); } catch(e){}
+      r.tracked=true; restore();
       loadOffers();
     }
     async function trackAll(){
@@ -1067,7 +1562,7 @@
       if(!todo.length){ toast('Alle bereits getrackt'); return; }
       if(!confirm(todo.length+' Hotels ins Tracking übernehmen?')) return;
       for(const r of todo){
-        try { await fetch(api('/api/offers'), {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({url:r.offer_url, label:r.name})}); r.tracked=true; } catch(e){}
+        try { await fetch(api('/api/offers'), {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({url:r.offer_url, label:r.name, image:r.image})}); r.tracked=true; } catch(e){}
       }
       toast(todo.length+' Hotels getrackt'); renderSearch(); loadOffers();
     }
@@ -1099,6 +1594,60 @@
     function closeCalendar(){ clearInterval(calTimer); calTimer=null; calId=null; $('#cal-bg').classList.remove('show'); }
     $('#cal-bg').addEventListener('click', e=>{ if(e.target.id==='cal-bg') closeCalendar(); });
     function calGo(m){ if(!m) return; calMonth=m; drawCalMonth(); }
+
+    // — Zimmerauswahl —
+    let roomId = null;
+    async function openRooms(id){
+      roomId = id;
+      const o = (curOffers||[]).find(x=>x.id===id) || {};
+      $('#room-sub').textContent = o.label || o.hotel || ('TUI-Angebot #'+id);
+      $('#room-body').innerHTML = progBar('Zimmer werden geladen…');
+      $('#room-bg').classList.add('show');
+      let d;
+      try { d = await fetch(api('/api/rooms/'+id)).then(r=>r.json()); }
+      catch(e){ $('#room-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Zimmer konnten nicht geladen werden.</div>'; return; }
+      renderRooms(d);
+    }
+    function renderRooms(d){
+      if(!d || !d.ok || !(d.rooms&&d.rooms.length)){
+        $('#room-body').innerHTML = '<div class="cmp-load">'+esc((d&&d.note)||'Keine Zimmer gefunden.')+'</div>'; return;
+      }
+      const cheapest = d.rooms[0].price, cur = d.current||'', auto = !cur;
+      let html = `<div class="room-row auto ${auto?'active':''}">
+          <div class="room-info"><div class="room-name">Günstigstes automatisch${auto?' <span class="room-badge">getrackt</span>':''}</div>
+            <div class="hint">immer das jeweils günstigste Zimmer verfolgen</div></div>
+          <div class="room-actions"><button class="btn ${auto?'sec':''}" ${auto?'disabled':''} onclick="pickRoom('', '')">${auto?'aktiv':'wählen'}</button></div>
+        </div>`;
+      html += d.rooms.map(r=>{
+        const diff = r.price-cheapest, active = (r.code===cur);
+        return `<div class="room-row ${active?'active':''}">
+          <div class="room-info">
+            <div class="room-name">${esc(r.name)} <span class="room-code">${esc(r.code)}</span>${active?' <span class="room-badge">getrackt</span>':''}</div>
+            <div class="hint">${esc(r.board||'')}${diff>0?(' · +'+eur(diff)+' ggü. günstigstem'):' · günstigstes'}</div>
+          </div>
+          <div class="room-actions">
+            <div class="room-price">${eur(r.price)} <span class="pp">p.P.</span></div>
+            <a class="btn sec" href="${esc(r.url)}" target="_blank" rel="noopener" title="Details & Fotos auf tui.com">Details ↗</a>
+            <button class="btn ${active?'sec':''}" ${active?'disabled':''} onclick="pickRoom('${esc(r.code)}', '${jsArg(r.name)}')">${active?'aktiv':'tracken'}</button>
+          </div>
+        </div>`;
+      }).join('');
+      html += '<div class="hint" style="margin-top:10px">Wechselst du das Zimmer, verfolgt TUIWatch ab sofort dessen Preis; der bisherige Verlauf bleibt erhalten.</div>';
+      $('#room-body').innerHTML = html;
+    }
+    async function pickRoom(code, label){
+      if(roomId==null) return;
+      $('#room-body').innerHTML = progBar('Wird übernommen…');
+      try {
+        const r = await fetch(api('/api/rooms/'+roomId), {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({code, label:label||''})});
+        if(r.status===409){ toast('Dieses Zimmer wird bereits als eigenes Angebot verfolgt'); openRooms(roomId); return; }
+        if(!r.ok){ toast('Fehler bei der Zimmerauswahl'); openRooms(roomId); return; }
+      } catch(e){ toast('Fehler bei der Zimmerauswahl'); return; }
+      toast(code?'Zimmer gewählt – wird geprüft…':'Günstigstes Zimmer – wird geprüft…');
+      closeRooms(); lastSig=null; loadOffers();
+    }
+    function closeRooms(){ roomId=null; $('#room-bg').classList.remove('show'); }
+    $('#room-bg').addEventListener('click', e=>{ if(e.target.id==='room-bg') closeRooms(); });
 
     async function calPoll(){
       if(calId==null) return;
@@ -1234,6 +1783,14 @@
       toast(val ? ('Wunschpreis gesetzt: '+eur(val)) : 'Wunschpreis entfernt');
       loadOffers();
     }
+    async function setBooked(id){
+      const el = document.getElementById('book-'+id);
+      const val = el && el.value.trim() ? parseFloat(el.value) : null;
+      await fetch(api('/api/offers/'+id), {method:'PATCH', headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({booked_price: val})});
+      toast(val ? ('Gebuchter Preis gesetzt: '+eur(val)) : 'Gebuchter Preis entfernt');
+      lastSig=null; loadOffers();
+    }
     async function renameOffer(id){
       const o = (curOffers||[]).find(x=>x.id===id) || {};
       const v = prompt('Eigener Name für dieses Angebot (leer = Hotelname verwenden):', o.label || '');
@@ -1285,6 +1842,15 @@
       if(r.ok){ const d=await r.json(); toast('E-Mail an '+d.to+' gesendet ('+d.count+' Angebote)'); }
       else { const d=await r.json().catch(()=>({})); toast(d.error==='no_offers'?'Keine Angebote vorhanden':d.error==='send_failed'?'Versand fehlgeschlagen – Einstellungen prüfen':d.error==='no_recipient'?'Kein Empfänger':'E-Mail-Fehler'); }
     }
+    async function sendDigest(){
+      toast('Wochenüberblick wird gesendet…');
+      try{
+        const r = await fetch(api('/api/digest'), {method:'POST'});
+        const d = await r.json().catch(()=>({}));
+        if(d.sent) toast('Wochenüberblick gesendet');
+        else toast(d.note || 'Nichts zu senden');
+      }catch(e){ toast('Versand fehlgeschlagen'); }
+    }
     async function backupOffers(){
       try {
         const r = await fetch(api('/api/backup')); const blob = await r.blob();
@@ -1323,6 +1889,55 @@
       el.innerHTML = html; el.style.display='block';
     }
 
+    // ── API-Selbsttest ──────────────────────────────────────────────────────
+    let healthData = null;
+    function setHealthDot(d){
+      const dot = $('#hc-dot'); if(!dot) return;
+      if(!d || !d.checks || !d.checks.length){
+        if(d && d.running){ dot.className='wait'; dot.textContent='prüft…'; }
+        else { dot.className='wait'; dot.textContent='–'; }
+        return;
+      }
+      const bad = d.checks.filter(c=>!c.ok);
+      if(!bad.length){ dot.className='ok'; dot.textContent='OK'; }
+      else if(d.ok){ dot.className='warn'; dot.textContent=bad.length+' Hinweis'+(bad.length>1?'e':''); }
+      else { dot.className='bad'; dot.textContent=bad.length+' Fehler'; }
+    }
+    function renderHealthBody(d){
+      const sub=$('#hc-sub'), body=$('#hc-body');
+      if(d && d.running && (!d.checks||!d.checks.length)){
+        sub.textContent='Prüfung läuft…'; body.innerHTML=progBar('Endpunkte werden geprüft…',0,0); return;
+      }
+      if(!d || !d.checks || !d.checks.length){
+        sub.textContent=''; body.innerHTML='<div class="empty">Noch kein Testergebnis. Auf „Erneut prüfen" klicken.</div>'; return;
+      }
+      sub.innerHTML = (d.ok?'Alle kritischen Endpunkte funktionieren.':'Es gibt Probleme bei kritischen Endpunkten.')
+        + (d.ts?(' · zuletzt: '+new Date(d.ts*1000).toLocaleString('de-DE')):'');
+      body.innerHTML = d.checks.map(c=>
+        '<div class="hc-row '+(c.ok?'ok':'bad')+'"><span class="hc-name">'+esc(c.name)
+        +(c.critical?' <span class="hc-detail">(kritisch)</span>':'')
+        +'</span><span class="hc-detail">'+esc(c.ok?c.detail:('Fehler: '+c.detail))+'</span></div>').join('');
+    }
+    async function loadHealth(){
+      try{ const r=await fetch(api('/api/healthcheck')); if(!r.ok) return;
+        healthData=await r.json(); setHealthDot(healthData);
+        if($('#hc-bg').classList.contains('show')) renderHealthBody(healthData);
+      }catch(e){}
+    }
+    function openHealth(){
+      $('#hc-bg').classList.add('show');
+      renderHealthBody(healthData);
+      if(!healthData || !healthData.checks || !healthData.checks.length) runHealth();
+    }
+    async function runHealth(){
+      $('#hc-dot').className='wait'; $('#hc-dot').textContent='prüft…';
+      renderHealthBody({running:true});
+      try{ const r=await fetch(api('/api/healthcheck'),{method:'POST'});
+        healthData=await r.json();
+      }catch(e){ healthData={ok:false,checks:[],note:'Anfrage fehlgeschlagen'}; }
+      setHealthDot(healthData); renderHealthBody(healthData);
+    }
+
     $('#add-btn').addEventListener('click', addOffer);
     $('#new-url').addEventListener('keydown', e=>{ if(e.key==='Enter') addOffer(); });
     $('#new-label').addEventListener('keydown', e=>{ if(e.key==='Enter') addOffer(); });
@@ -1337,6 +1952,8 @@
 
     loadOffers();
     setInterval(loadOffers, 5000);
+    loadHealth();
+    setInterval(loadHealth, 60000);
   </script>
 </body>
 </html>

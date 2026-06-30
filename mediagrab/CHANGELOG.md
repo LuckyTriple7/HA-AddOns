@@ -1,5 +1,99 @@
 # Changelog — MediaGrab
 
+## [1.1.3.1] - 2026-06-29
+
+Bumps [mutagen](https://github.com/quodlibet/mutagen) from 1.47.0 to 1.48.1.
+<details>
+<summary>Release notes</summary>
+<p><em>Sourced from <a href="https://github.com/quodlibet/mutagen/releases">mutagen's releases</a>.</em></p>
+<blockquote>
+<h2>release-1.48.1</h2>
+<p><a href="https://mutagen.readthedocs.io/en/latest/changelog.html#release-1-48-1">https://mutagen.readthedocs.io/en/latest/changelog.html#release-1-48-1</a></p>
+<h2>release-1.48.0</h2>
+<p><a href="https://mutagen.readthedocs.io/en/latest/changelog.html#release-1-48-0">https://mutagen.readthedocs.io/en/latest/changelog.html#release-1-48-0</a></p>
+</blockquote>
+</details>
+<details>
+<summary>Changelog</summary>
+<p><em>Sourced from <a href="https://github.com/quodlibet/mutagen/blob/main/NEWS">mutagen's changelog</a>.</em></p>
+<blockquote>
+<h2>1.48.1 - 2026-06-25</h2>
+<ul>
+<li>Revert: <code>ID3: Fix saving ID3v2 comment fields from COMM:desc:lang tags</code>
+to fix duplicated COMM frames in some cases. :pr:<code>713</code></li>
+</ul>
+<p>.. _release-1.48.0:</p>
+<h2>1.48.0 - 2026-06-22</h2>
+<ul>
+<li>Drop Support for Python 3.7, 3.8 and 3.9 :pr:<code>611</code> :pr:<code>657</code> :pr:<code>689</code></li>
+<li>ID3: Add <code>salt</code> attribute to APIC frames to allow multiple APIC frames with
+identical descriptions :pr:<code>675</code></li>
+<li>ID3: Preserve order of APIC frames relative to each other when saving :bug:<code>436</code> :pr:<code>676</code></li>
+<li>ID3: Fix reading/writing v1.0 and v1.1 comment/track fields :bug:<code>668</code> :pr:<code>686</code></li>
+<li>ID3: Fix saving ID3v2 comment fields from <code>COMM:desc:lang</code> tags :bug:<code>660</code> :pr:<code>709</code></li>
+<li>ID3: Consider size of extended header when reading ID3 data :bug:<code>630</code> :pr:<code>631</code></li>
+<li>EasyID3: Fix handling of <code>albumartistsort</code> as <code>TSO2</code> with <code>TXXX:ALBUMARTISTSORT</code>
+fallback for reading :pr:<code>649</code></li>
+<li>MP3: do not fail on non-ASCII lame header version flags :pr:<code>664</code></li>
+<li>OggOpus: Provide a bitrate property :bug:<code>475</code> :pr:<code>704</code></li>
+<li>MP4: Fall back to parsing length from <code>mvhd</code> if there is no <code>trak</code> info :pr:<code>682</code></li>
+<li>MP4: Fix chapter timestamp parsing :bug:<code>639</code> :pr:<code>640</code></li>
+<li>OGG: Fix saving files with trailing null bytes :bug:<code>591</code> :pr:<code>674</code></li>
+<li>mid3v2: Fix <code>--list-frames-v2.2</code> option :bug:<code>669</code> :pr:<code>683</code></li>
+<li>Set <code>__cause__</code> on <code>MutagenError</code> to preserve exception chain :bug:<code>703</code> :pr:<code>710</code></li>
+<li>Explicitly define exports with <code>__all__</code> in <code>mutagen/__init__.py</code> :bug:<code>647</code> :pr:<code>696</code></li>
+<li>docs: Fix code example for :class:<code>flac.Picture</code> :pr:<code>673</code></li>
+<li>docs: Initial :doc:<code>dev/index</code> with implementation notes for ID3 :pr:<code>633</code></li>
+<li>Switch from poetry to uv for development :pr:<code>687</code></li>
+<li>Changed the default branch from master to main</li>
+</ul>
+<p>.. _release-1.47.0:</p>
+</blockquote>
+</details>
+<details>
+<summary>Commits</summary>
+<ul>
+<li><a href="https://github.com/quodlibet/mutagen/commit/452190d42ab2092577c77342d49157f8768d796f"><code>452190d</code></a> release</li>
+<li><a href="https://github.com/quodlibet/mutagen/commit/4a43d97579eabfac1a72f29449fcdaff4ac34704"><code>4a43d97</code></a> Revert &quot;id3v1: save comment when COMM frame is stored under its HashKey&quot; (<a href="https://redirect.github.com/quodlibet/mutagen/issues/713">#713</a>)</li>
+<li><a href="https://github.com/quodlibet/mutagen/commit/485f5328dc513594dc4d314f11a11fa2513b54be"><code>485f532</code></a> release</li>
+<li><a href="https://github.com/quodlibet/mutagen/commit/4d2a92f3aa794199f5fbf219ee8be8e6d81ae727"><code>4d2a92f</code></a> wavpack: use WavPackHeaderError in tests, avoid re-export import</li>
+<li><a href="https://github.com/quodlibet/mutagen/commit/bdef87ce3654fd351d12131e8e766f648fbd9f1f"><code>bdef87c</code></a> mypy: enable no_implicit_reexport</li>
+<li><a href="https://github.com/quodlibet/mutagen/commit/2e6090b18381b4caa493bdd7d8222a026d84cff5"><code>2e6090b</code></a> mypy: fix typing errors in the test suite</li>
+<li><a href="https://github.com/quodlibet/mutagen/commit/91d9f9e7a3fa47096965ca90b24615a8abf2b6c1"><code>91d9f9e</code></a> Updated NEWS</li>
+<li><a href="https://github.com/quodlibet/mutagen/commit/50576ebfcc186890865690eae6ff34f4cb783a65"><code>50576eb</code></a> Merge pull request <a href="https://redirect.github.com/quodlibet/mutagen/issues/649">#649</a> from antlarr/fix-TSO2</li>
+<li><a href="https://github.com/quodlibet/mutagen/commit/5838d71f0e3ec83b8ba762f198b2946c141cc09b"><code>5838d71</code></a> Added missing PR link to NEWS</li>
+<li><a href="https://github.com/quodlibet/mutagen/commit/c4ec7c2b19e278a21b03658d8b1636d80e77c0a1"><code>c4ec7c2</code></a> Update NEWS with changes pending for next release</li>
+<li>Additional commits viewable in <a href="https://github.com/quodlibet/mutagen/compare/release-1.47.0...release-1.48.1">compare view</a></li>
+</ul>
+</details>
+<br />
+
+
+[![Dependabot compatibility score](https://dependabot-badges.githubapp.com/badges/compatibility_score?dependency-name=mutagen&package-manager=pip&previous-version=1.47.0&new-version=1.48.1)](https://docs.github.com/en/github/managing-security-vulnerabilities/about-dependabot-security-updates#about-compatibility-scores)
+
+Dependabot will resolve any conflicts with this PR as long as you don't alter it yourself. You can also trigger a rebase manually by commenting `@dependabot rebase`.
+
+[//]: # (dependabot-automerge-start)
+[//]: # (dependabot-automerge-end)
+
+---
+
+<details>
+<summary>Dependabot commands and options</summary>
+<br />
+
+You can trigger Dependabot actions by commenting on this PR:
+- `@dependabot rebase` will rebase this PR
+- `@dependabot recreate` will recreate this PR, overwriting any edits that have been made to it
+- `@dependabot show <dependency name> ignore conditions` will show all of the ignore conditions of the specified dependency
+- `@dependabot ignore this major version` will close this PR and stop Dependabot creating any more for this major version (unless you reopen the PR or upgrade to it yourself)
+- `@dependabot ignore this minor version` will close this PR and stop Dependabot creating any more for this minor version (unless you reopen the PR or upgrade to it yourself)
+- `@dependabot ignore this dependency` will close this PR and stop Dependabot creating any more for this dependency (unless you reopen the PR or upgrade to it yourself)
+
+
+</details>
+
+
 ## [1.1.3] — 2026-06-27
 
 ### Behoben

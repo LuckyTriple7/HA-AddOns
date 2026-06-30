@@ -1,0 +1,60 @@
+{
+ "items": {
+  "92": {
+   "label": "Kuba",
+   "level": 0,
+   "ibeRegionIds": [
+    1023
+   ]
+  },
+  "181": {
+   "label": "Deutschland",
+   "level": 0,
+   "ibeRegionIds": [
+    1006
+   ]
+  },
+  "571": {
+   "label": "USA",
+   "level": 0,
+   "ibeRegionIds": [
+    1041
+   ]
+  },
+  "572": {
+   "label": "Österreich",
+   "level": 0,
+   "ibeRegionIds": [
+    1029
+   ]
+  },
+  "580": {
+   "label": "Italien",
+   "level": 0,
+   "ibeRegionIds": [
+    1016
+   ]
+  },
+  "592": {
+   "label": "Kanada",
+   "level": 0,
+   "ibeRegionIds": [
+    1017
+   ]
+  },
+  "634": {
+   "label": "Frankreich",
+   "level": 0,
+   "ibeRegionIds": [
+    1011
+   ]
+  },
+  "651": {
+   "label": "Ägypten",
+   "level": 0,
+   "ibeRegionIds": [
+    1001
+   ]
+  }
+ }
+}

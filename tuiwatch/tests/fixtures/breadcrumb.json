@@ -1,0 +1,24 @@
+[
+ {
+  "name": "Afrika",
+  "giataId": 100000,
+  "ibeId": 1000,
+  "level": 0
+ },
+ {
+  "name": "Kap Verde: Boavista, Sal, weitere Inseln",
+  "giataId": 88,
+  "ibeId": 1163,
+  "level": 1
+ },
+ {
+  "name": "Santa Maria",
+  "giataId": 416,
+  "level": 2
+ },
+ {
+  "name": "Hotel Riu Funana",
+  "giataId": 259516,
+  "level": 3
+ }
+]

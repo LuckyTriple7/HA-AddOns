@@ -17,21 +17,26 @@ import sqlite3
 import threading
 import time
 from collections import defaultdict, deque
-from datetime import datetime
+from datetime import date, datetime
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-from urllib.parse import urlparse
+from pathlib import Path
+from urllib.parse import quote, urlparse
 
 import requests as http
 from flask import (Flask, jsonify, make_response, redirect, render_template,
                    request, send_file, url_for)
 from werkzeug.middleware.proxy_fix import ProxyFix
 
-from scraper import (_giata_from_url, duration_from_url, fetch_airports,
-                     fetch_calendar, fetch_destinations, fetch_price, fetch_search,
-                     fetch_search_params, hotel_from_url, is_single_room,
-                     region_giata_from_breadcrumb, travellers_from_url,
-                     with_duration, with_travellers, without_room_code)
+from scraper import (_giata_from_url, _valid_img_url, api_healthcheck,
+                     build_destination_index,
+                     duration_from_url, fetch_airlines, fetch_airports,
+                     fetch_calendar, fetch_destinations, fetch_hotel_image,
+                     fetch_price, fetch_rooms, fetch_search, fetch_search_params,
+                     hotel_from_url, is_single_room, region_giata_from_breadcrumb,
+                     room_code_from_url, travellers_from_url, with_duration,
+                     with_room_code, with_travellers, without_room_code)
+from tripparser import _parse_eur, parse_tui_pdf
 
 logging.basicConfig(format='[%(levelname)s] [%(asctime)s] %(message)s',
                     level=logging.INFO, datefmt='%Y-%m-%d %H:%M:%S', force=True)
@@ -63,12 +68,15 @@ _DATA = os.environ.get('TUIWATCH_DATA', '/data')
 CONFIG_PATH = _DATA + '/options.json'
 SESSIONS_PATH = _DATA + '/sessions.json'
 DB_PATH = _DATA + '/tuiwatch.db'
+TRIPS_DIR = _DATA + '/trips'   # dauerhaft gespeicherte Reise-PDFs
 
 POLL_INTERVAL_DEFAULT = 21600  # 6h — Reisepreise ändern sich langsam
 MIN_POLL_INTERVAL = 600        # nie öfter als alle 10 min (Bot-Schutz/Fairness)
+MAX_PDF_BYTES = 16 * 1024 * 1024  # 16 MB Upload-Limit für Reise-PDFs
 
 app = Flask(__name__, template_folder=_BASE + '/templates',
             static_folder=_BASE + '/static')
+app.config['MAX_CONTENT_LENGTH'] = MAX_PDF_BYTES
 
 
 class _IngressMiddleware:
@@ -104,6 +112,9 @@ _nights_lock = threading.Lock()
 _cheaper_notified: dict[int, str] = {}  # Dedup für Günstigerer-Termin-Alarm
 _fail_notified: set[int] = set()        # offer_ids mit aktivem Ausverkauft-/Fehler-Alarm
 ERROR_ALARM_STREAK = 3                   # ab so vielen Fehlversuchen in Folge melden
+_health_state: dict = {}                 # letzter API-Selbsttest {ok, ts, checks, running}
+_health_lock = threading.Lock()
+_api_down_notified = False                # ob aktuell ein API-Ausfall gemeldet ist
 
 # einfache Login-Drossel
 _failed_attempts: dict[str, list[float]] = defaultdict(list)
@@ -264,14 +275,82 @@ def init_db() -> None:
             rows     TEXT NOT NULL DEFAULT '[]',
             FOREIGN KEY (offer_id) REFERENCES offers(id) ON DELETE CASCADE
         )''')
+        # Merkt den zuletzt gemeldeten Günstigerer-Termin (Datum+Preis), damit der
+        # Alarm Neustarts übersteht und nur bei einem WIRKLICH neuen Tiefstwert kommt.
+        con.execute('''CREATE TABLE IF NOT EXISTS cheaper_state (
+            offer_id INTEGER PRIMARY KEY,
+            cdate    TEXT,
+            cprice   REAL,
+            ts       INTEGER NOT NULL,
+            FOREIGN KEY (offer_id) REFERENCES offers(id) ON DELETE CASCADE
+        )''')
+        # Merkt den zuletzt gemeldeten Tiefstwert unter dem gebuchten Preis (Dedup für
+        # den „günstiger als gebucht"-Alarm, neustart-fest).
+        con.execute('''CREATE TABLE IF NOT EXISTS booked_state (
+            offer_id INTEGER PRIMARY KEY,
+            price    REAL,
+            ts       INTEGER NOT NULL,
+            FOREIGN KEY (offer_id) REFERENCES offers(id) ON DELETE CASCADE
+        )''')
+        # Ereignisse je Angebot (für Marker im Verlauf-Diagramm): Zimmerwechsel,
+        # gebuchter Preis, Wunschpreis, Zurücksetzen …
+        con.execute('''CREATE TABLE IF NOT EXISTS offer_events (
+            id       INTEGER PRIMARY KEY AUTOINCREMENT,
+            offer_id INTEGER NOT NULL,
+            ts       INTEGER NOT NULL,
+            type     TEXT NOT NULL,
+            text     TEXT NOT NULL DEFAULT '',
+            FOREIGN KEY (offer_id) REFERENCES offers(id) ON DELETE CASCADE
+        )''')
+        # Kleiner Schlüssel-Wert-Speicher (z. B. letzter Digest-Versand, ISO-Woche).
+        con.execute('''CREATE TABLE IF NOT EXISTS meta (
+            key   TEXT PRIMARY KEY,
+            value TEXT
+        )''')
+        # Gespeicherte Suchen (Favoriten) — in der DB statt im Browser, damit sie
+        # geräteübergreifend verfügbar sind. payload = JSON der Sucheingaben.
+        con.execute('''CREATE TABLE IF NOT EXISTS saved_searches (
+            id      INTEGER PRIMARY KEY AUTOINCREMENT,
+            name    TEXT NOT NULL,
+            payload TEXT NOT NULL DEFAULT '{}',
+            ts      INTEGER NOT NULL
+        )''')
+        # Reisen-Datenbank: gebuchte Reisen (PDF-Import). data = komplettes Parse-JSON,
+        # pdf_name = Dateiname im TRIPS_DIR (dauerhaft gespeichert).
+        con.execute('''CREATE TABLE IF NOT EXISTS trips (
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            booking_code  TEXT UNIQUE,
+            booking_date  TEXT,
+            title         TEXT,
+            destination   TEXT,
+            hotel         TEXT,
+            hotel_code    TEXT,
+            start_date    TEXT,
+            end_date      TEXT,
+            nights        INTEGER,
+            travellers    INTEGER,
+            total_price   REAL,
+            package_price REAL,
+            net_per_night REAL,
+            meal          TEXT,
+            data          TEXT NOT NULL DEFAULT '{}',
+            pdf_name      TEXT,
+            orig_name     TEXT,
+            created       INTEGER NOT NULL
+        )''')
+        # Migration: net_per_night in bestehenden trips-Tabellen nachrüsten
+        tcols = {r['name'] for r in con.execute('PRAGMA table_info(trips)').fetchall()}
+        if 'net_per_night' not in tcols:
+            con.execute("ALTER TABLE trips ADD COLUMN net_per_night REAL")
         # Migration: fehlende Spalten in bestehenden DBs nachrüsten
         ocols = {r['name'] for r in con.execute('PRAGMA table_info(offers)').fetchall()}
         for col in ('hotel', 'details', 'room', 'dep_airport', 'flight_out',
                     'flight_ret', 'cancellation', 'location', 'city', 'region',
-                    'country', 'pdf_url', 'return_date'):
+                    'country', 'pdf_url', 'return_date', 'image_url',
+                    'booking_code', 'room_booking_code'):
             if col not in ocols:
                 con.execute(f"ALTER TABLE offers ADD COLUMN {col} TEXT DEFAULT ''")
-        for col in ('target_price', 'stars', 'rating', 'total_price'):
+        for col in ('target_price', 'booked_price', 'stars', 'rating', 'total_price'):
             if col not in ocols:
                 con.execute(f"ALTER TABLE offers ADD COLUMN {col} REAL")
         for col in ('rating_count', 'recommendation', 'travellers_count',
@@ -286,6 +365,7 @@ def init_db() -> None:
             name = hotel_from_url(r['url'])
             if name:
                 con.execute('UPDATE offers SET hotel=? WHERE id=?', (name, r['id']))
+    Path(TRIPS_DIR).mkdir(parents=True, exist_ok=True)
     log.info("Datenbank bereit: %s", DB_PATH)
 
 
@@ -294,6 +374,28 @@ def _last_two_prices(con, offer_id: int) -> list:
         'SELECT price FROM price_history WHERE offer_id=? AND ok=1 AND price IS NOT NULL '
         'ORDER BY ts DESC LIMIT 2', (offer_id,)).fetchall()
     return [r['price'] for r in rows]
+
+
+def _trend_for(con, offer_id: int) -> dict | None:
+    """Grobe Tendenz aus dem Preisverlauf: vergleicht den Mittelwert der älteren mit der
+    jüngeren Hälfte der letzten Messpunkte. Rückgabe {dir:'up'|'down'|'flat', pct} oder
+    None bei zu wenigen Daten (kein Hellsehen, nur ein Hinweis aus der eigenen History)."""
+    rows = con.execute(
+        'SELECT price FROM price_history WHERE offer_id=? AND ok=1 AND price IS NOT NULL '
+        'ORDER BY ts DESC LIMIT 12', (offer_id,)).fetchall()
+    prices = [r['price'] for r in rows][::-1]  # ältester → neuester
+    if len(prices) < 4:
+        return None
+    half = len(prices) // 2
+    old = prices[:half]
+    new = prices[half:]
+    a = sum(old) / len(old)
+    b = sum(new) / len(new)
+    if not a:
+        return None
+    pct = (b - a) / a * 100
+    direction = 'down' if pct <= -2 else ('up' if pct >= 2 else 'flat')
+    return {'dir': direction, 'pct': round(pct, 1)}
 
 
 # ── Home-Assistant-Sensoren ────────────────────────────────────────────────────
@@ -380,6 +482,16 @@ def push_ha_sensors() -> None:
                     attrs['available'] = bool(last['available'])
                 if o['target_price']:
                     attrs['target_price'] = int(round(o['target_price']))
+                if o['booked_price']:
+                    attrs['booked_price'] = int(round(o['booked_price']))
+                    if ok and last['price'] is not None:
+                        attrs['booked_diff'] = int(round(last['price'] - o['booked_price']))
+                if o['image_url']:
+                    attrs['image'] = o['image_url']
+                if o['booking_code']:
+                    attrs['booking_code'] = o['booking_code']
+                if o['room_booking_code']:
+                    attrs['room_booking_code'] = o['room_booking_code']
                 if ok:
                     attrs['unit_of_measurement'] = '€'
                     if last['old_price']:
@@ -520,10 +632,14 @@ def _email_html_offers(offers: list[dict]) -> str:
         if o.get('old_price') and o.get('price') and o['old_price'] > o['price']:
             sub.append(f'<span style="text-decoration:line-through;color:#888">{_eur(o["old_price"])}</span>'
                        + (f' −{o["discount"]}%' if o.get('discount') else ''))
-        rating = ''
+        rating_html = ''
         if o.get('rating') is not None:
             rating = (f'HolidayCheck {str(o["rating"]).replace(".", ",")}/6'
                       + (f' · {o["recommendation"]}%' if o.get('recommendation') is not None else ''))
+            hc_q = quote(f"site:holidaycheck.de {o.get('hotel') or o.get('label') or ''} "
+                         f"{o.get('region') or o.get('country') or ''}".strip())
+            rating_html = (f'<a href="https://www.google.com/search?q={hc_q}" '
+                           f'style="color:#777;text-decoration:none">{esc(rating)} ↗</a>')
         total = ''
         if o.get('travellers_count') and o['travellers_count'] > 1 and o.get('total_price'):
             total = f'<div style="font-size:13px;color:#444">Gesamt {_eur(o["total_price"])} · {o["travellers_count"]} Reisende</div>'
@@ -533,6 +649,14 @@ def _email_html_offers(offers: list[dict]) -> str:
         elif o.get('available') is False:
             avail = '<span style="color:#cf222e;font-weight:600">✗ nicht verfügbar</span>'
         canc = f' · {esc(o["cancellation"])}' if o.get('cancellation') else ''
+        codeparts = []
+        if o.get('booking_code'):
+            codeparts.append(f'Buchungscode <b>{esc(o["booking_code"])}</b>')
+        if o.get('room_booking_code'):
+            codeparts.append(f'Zimmer {esc(o["room_booking_code"])}')
+        if o.get('giata'):
+            codeparts.append(f'GIATA {esc(o["giata"])}')
+        codes = ' · '.join(codeparts)
         title = esc(o.get('label') or o.get('hotel') or f"Angebot #{o['id']}")
         links = (f'<a href="{esc(o["url"])}" style="color:#0b65d8;text-decoration:none;font-weight:600">'
                  f'Auf tui.com ansehen ↗</a>')
@@ -548,7 +672,7 @@ def _email_html_offers(offers: list[dict]) -> str:
             f'<span style="color:#d29922">{stars}</span></div>'
             + (f'<div style="font-size:13px;color:#0b65d8">📍 {esc(o["location"])}</div>' if o.get('location') else '')
             + (f'<div style="font-size:13px;color:#555;margin-top:3px">{esc(o["details"])}</div>' if o.get('details') else '')
-            + (f'<div style="font-size:12px;color:#777;margin-top:3px">{esc(rating)}</div>' if rating else '')
+            + (f'<div style="font-size:12px;color:#777;margin-top:3px">{rating_html}</div>' if rating_html else '')
             + '<div style="margin-top:10px">'
             f'<span style="font-size:24px;font-weight:800;color:#10243e">{price}</span>'
             ' <span style="font-size:12px;color:#777">pro Person</span> '
@@ -556,6 +680,7 @@ def _email_html_offers(offers: list[dict]) -> str:
             + (f'<div style="font-size:13px;color:#777">{"".join(sub)}</div>' if sub else '')
             + total
             + (f'<div style="font-size:13px;margin-top:6px">{avail}{canc}</div>' if (avail or canc) else '')
+            + (f'<div style="font-size:12px;color:#777;margin-top:6px">🧾 {codes}</div>' if codes else '')
             + f'<div style="margin-top:10px;font-size:14px">{links}</div>'
             '</td></tr></table></td></tr>'
         )
@@ -650,10 +775,19 @@ def _check_cheaper_date(offer: dict, current_price: float) -> None:
     diff = current_price - cp
     if cd == cal.get('tracked_date') or diff < min_diff:
         return
-    sig = f"{cd}:{cp}"
-    if _cheaper_notified.get(offer['id']) == sig:
-        return  # für genau diesen Termin/Preis schon gemeldet
-    _cheaper_notified[offer['id']] = sig
+    # Persistenter Dedup: nur melden, wenn es ein WIRKLICH neuer Tiefstwert ist —
+    # also ein anderer Abreisetag ODER (gleicher Tag) ein nochmals tieferer Preis.
+    # Reine Schwankungen nach oben und Wiederholungen über Neustarts lösen nichts aus.
+    oid = offer['id']
+    with db() as con:
+        prev = con.execute('SELECT cdate, cprice FROM cheaper_state WHERE offer_id=?',
+                           (oid,)).fetchone()
+    if prev and prev['cdate'] == cd and prev['cprice'] is not None and cp >= prev['cprice']:
+        return  # selber Termin, kein neuer Tiefstpreis
+    with db() as con:
+        con.execute('INSERT OR REPLACE INTO cheaper_state (offer_id, cdate, cprice, ts) '
+                    'VALUES (?,?,?,?)', (oid, cd, cp, int(time.time())))
+    _cheaper_notified[oid] = f"{cd}:{cp}"
     name = offer.get('label') or offer.get('hotel') or f"Angebot #{offer['id']}"
     d_de = '.'.join(reversed(cd.split('-')))  # YYYY-MM-DD → DD.MM.YYYY
     log.info("💡 Günstigerer Termin (#%d %s): %s am %s (%s günstiger) → Benachrichtigung",
@@ -664,6 +798,41 @@ def _check_cheaper_date(offer: dict, current_price: float) -> None:
                f"cheaper_{offer['id']}")
     _notify_telegram(f"💡 <b>Günstigerer Termin</b>\n{name}\nAm {d_de}: <b>{_eur(cp)}</b> "
                      f"({_eur(diff)} günstiger als {_eur(current_price)})\n{offer.get('url','')}")
+
+
+def _check_booked_drop(offer: dict, current_price: float) -> None:
+    """Meldet, wenn der aktuelle Preis deutlich UNTER den gebuchten Preis gefallen ist
+    (Umbuchen könnte sich lohnen). Persistenter Dedup über `booked_state`: erst wieder bei
+    einem neuen Tiefstwert. Gated durch `notify_booked_drop`."""
+    cfg = load_config()
+    if not cfg.get('notify_booked_drop', True):
+        return
+    booked = offer.get('booked_price')
+    if not booked:
+        return
+    min_diff = max(1, int(cfg.get('booked_drop_min_diff', 50) or 0))
+    diff = booked - current_price          # >0 = günstiger als gebucht
+    if diff < min_diff:
+        return
+    oid = offer['id']
+    with db() as con:
+        prev = con.execute('SELECT price FROM booked_state WHERE offer_id=?',
+                           (oid,)).fetchone()
+    if prev and prev['price'] is not None and current_price >= prev['price']:
+        return  # kein neuer Tiefstwert seit der letzten Meldung
+    with db() as con:
+        con.execute('INSERT OR REPLACE INTO booked_state (offer_id, price, ts) '
+                    'VALUES (?,?,?)', (oid, current_price, int(time.time())))
+    name = offer.get('label') or offer.get('hotel') or f"Angebot #{oid}"
+    log.info("💰 Günstiger als gebucht (#%d %s): %s statt %s (%s gespart) → Benachrichtigung",
+             oid, name, _eur(current_price), _eur(booked), _eur(diff))
+    _notify_ha(f"💰 Günstiger als gebucht: {name}",
+               f"{name}\nJetzt {_eur(current_price)} — {_eur(diff)} günstiger als dein "
+               f"gebuchter Preis ({_eur(booked)}). Umbuchen könnte sich lohnen.\n"
+               f"{offer.get('url','')}", f"booked_{oid}")
+    _notify_telegram(f"💰 <b>Günstiger als gebucht: {name}</b>\nJetzt <b>{_eur(current_price)}</b> "
+                     f"({_eur(diff)} unter deinem gebuchten Preis {_eur(booked)})\n"
+                     f"{offer.get('url','')}")
 
 
 def _check_error_alarm(offer: dict) -> None:
@@ -704,6 +873,54 @@ def _clear_error_alarm(offer: dict) -> None:
     _notify_ha(f"✅ Wieder verfügbar: {name}",
                f"{name} liefert wieder einen Preis.\n{offer.get('url','')}", f"error_{oid}")
     _notify_telegram(f"✅ <b>Wieder verfügbar: {name}</b>")
+
+
+def _meta_get(key: str, default=None):
+    with db() as con:
+        row = con.execute('SELECT value FROM meta WHERE key=?', (key,)).fetchone()
+    return row['value'] if row else default
+
+
+def _meta_set(key: str, value: str) -> None:
+    with db() as con:
+        con.execute('INSERT OR REPLACE INTO meta (key, value) VALUES (?,?)', (key, str(value)))
+
+
+def _log_event(offer_id: int, type_: str, text: str) -> None:
+    """Speichert ein Ereignis (für Marker im Verlauf-Diagramm)."""
+    try:
+        with db() as con:
+            con.execute('INSERT INTO offer_events (offer_id, ts, type, text) VALUES (?,?,?,?)',
+                        (offer_id, int(time.time()), type_, text))
+    except Exception as e:
+        log.warning("Event #%d (%s) nicht gespeichert: %s", offer_id, type_, e)
+
+
+def _check_api_alarm(res: dict) -> None:
+    """Meldet, wenn ein KRITISCHER TUI-Endpunkt im Selbsttest ausfällt (TUI hat evtl. die
+    API geändert) — und gibt Entwarnung, sobald wieder alles läuft. Zustand persistent."""
+    global _api_down_notified
+    if not load_config().get('notify_api_errors', True):
+        return
+    bad = [c['name'] for c in res.get('checks', []) if c.get('critical') and not c['ok']]
+    was_down = _meta_get('api_down') == '1'
+    if bad and not was_down:
+        _api_down_notified = True
+        _meta_set('api_down', '1')
+        names = ', '.join(bad)
+        log.warning("⚠ API-Alarm: kritische Endpunkte gestört: %s → Benachrichtigung", names)
+        _notify_ha("⚠ TUIWatch: TUI-API gestört",
+                   f"Kritische TUI-Endpunkte antworten nicht: {names}.\nPreisprüfungen "
+                   f"schlagen vermutlich fehl — evtl. hat TUI die API geändert.", "api")
+        _notify_telegram(f"⚠ <b>TUI-API gestört</b>\nKritische Endpunkte: {names}\n"
+                         f"Preisprüfungen schlagen vermutlich fehl.")
+    elif not bad and was_down:
+        _api_down_notified = False
+        _meta_set('api_down', '0')
+        log.info("✅ API-Entwarnung: alle Endpunkte wieder OK → Benachrichtigung")
+        _notify_ha("✅ TUIWatch: TUI-API wieder OK",
+                   "Alle kritischen TUI-Endpunkte antworten wieder.", "api")
+        _notify_telegram("✅ <b>TUI-API wieder OK</b>")
 
 
 # ── Scraping-Worker ────────────────────────────────────────────────────────────
@@ -756,7 +973,8 @@ def check_offer(offer_id: int) -> None:
                         'flight_ret', 'location', 'city', 'region', 'country',
                         'pdf_url', 'cancellation', 'stars', 'rating',
                         'rating_count', 'recommendation', 'total_price',
-                        'travellers_count', 'return_date'):
+                        'travellers_count', 'return_date',
+                        'booking_code', 'room_booking_code'):
                 if res.get(col) is not None and res.get(col) != '':
                     con.execute(f'UPDATE offers SET {col}=? WHERE id=?', (res[col], offer_id))
 
@@ -775,6 +993,20 @@ def check_offer(offer_id: int) -> None:
             _clear_error_alarm(offer)
             if load_config().get('notify_cheaper_date', True) and res.get('price'):
                 _check_cheaper_date(offer, res['price'])
+            if res.get('price') and offer.get('booked_price'):
+                _check_booked_drop(offer, res['price'])
+            # Hotelbild einmalig nachladen (nur wenn noch keins vorhanden)
+            if not offer.get('image_url'):
+                try:
+                    with _scrape_lock:
+                        img = fetch_hotel_image(url, verbose=_verbose())
+                    if img:
+                        with db() as con:
+                            con.execute('UPDATE offers SET image_url=? WHERE id=?',
+                                        (img, offer_id))
+                        log.info("Angebot #%d: Hotelbild gespeichert", offer_id)
+                except Exception as e:
+                    log.warning("Hotelbild #%d nicht abrufbar: %s", offer_id, e)
         elif (res.get('note') or '').startswith('Kein Angebot'):
             # kein Crash, sondern ausgebucht/kein Treffer im Zeitraum → gelb
             log.warning("Angebot #%d (%s): kein Angebot im Zeitraum", offer_id, name)
@@ -1032,6 +1264,8 @@ def _poll_worker() -> None:
         next_in = interval
         try:
             now = int(time.time())
+            _maybe_periodic_health()  # API-Selbsttest 1×/Tag — VOR den Preisprüfungen
+            _maybe_send_digest()      # wöchentliche Zusammenfassung (falls aktiviert)
             _auto_archive_expired()
             with db() as con:
                 offers = [r['id'] for r in con.execute(
@@ -1055,6 +1289,176 @@ def _poll_worker() -> None:
             log.error("Poll-Fehler: %s", e)
             next_in = interval
         time.sleep(max(30, min(next_in, interval)))
+
+
+def _maybe_periodic_health() -> None:
+    """Führt den API-Selbsttest höchstens 1×/Tag aus (am Anfang eines Poll-Zyklus,
+    also noch vor den Preisprüfungen). So ist die Footer-Ampel stets aktuell und ein
+    API-Ausfall wird gemeldet, bevor die Preisabfragen daran scheitern."""
+    with _health_lock:
+        last = _health_state.get('ts', 0)
+        running = _health_state.get('running')
+    if running:
+        return
+    if time.time() - (last or 0) >= 86400:
+        _run_healthcheck()
+
+
+def _run_healthcheck() -> dict:
+    """Führt den API-Selbsttest aus und legt das Ergebnis in _health_state ab."""
+    with _health_lock:
+        if _health_state.get('running'):
+            return dict(_health_state)
+        _health_state['running'] = True
+    try:
+        res = api_healthcheck(verbose=_verbose())
+    except Exception as e:
+        log.error("API-Selbsttest fehlgeschlagen: %s", e)
+        res = {'ok': False, 'ts': int(time.time()), 'checks': [],
+               'note': 'Selbsttest fehlgeschlagen'}
+    with _health_lock:
+        _health_state.clear()
+        _health_state.update(res)
+    bad = [c['name'] for c in res.get('checks', []) if not c['ok']]
+    if bad:
+        log.warning("API-Selbsttest: Probleme bei %s", ', '.join(bad))
+    else:
+        log.info("API-Selbsttest: alle Endpunkte OK")
+    try:
+        _check_api_alarm(res)
+    except Exception as e:
+        log.error("API-Alarm-Prüfung fehlgeschlagen: %s", e)
+    return res
+
+
+def _week_change(con, offer_id: int, current: float, days: int = 7):
+    """Preisänderung des Angebots über die letzten `days` Tage (current − ältester Preis
+    im Fenster). None, wenn im Fenster kein Vergleichswert vorliegt."""
+    if current is None:
+        return None
+    since = int(time.time()) - days * 86400
+    row = con.execute(
+        'SELECT price FROM price_history WHERE offer_id=? AND ok=1 AND price IS NOT NULL '
+        'AND ts>=? ORDER BY ts ASC LIMIT 1', (offer_id, since)).fetchone()
+    if not row or row['price'] is None:
+        return None
+    return current - row['price']
+
+
+def _build_digest() -> dict | None:
+    """Baut die wöchentliche Zusammenfassung (größte Rückgänge, neue Tiefstwerte, unter
+    Wunschpreis). Rückgabe {subject, html, text} oder None, wenn es nichts zu melden gibt."""
+    offers = [o for o in _collect_offers() if not o['archived'] and o.get('price') is not None]
+    if not offers:
+        return None
+    with db() as con:
+        for o in offers:
+            o['_wk'] = _week_change(con, o['id'], o['price'])
+    drops = sorted([o for o in offers if o['_wk'] is not None and o['_wk'] < 0],
+                   key=lambda o: o['_wk'])
+    rises = sorted([o for o in offers if o['_wk'] is not None and o['_wk'] > 0],
+                   key=lambda o: -o['_wk'])
+    lows = [o for o in offers if o.get('min_price') is not None
+            and o.get('samples', 0) > 2 and o['price'] <= o['min_price']]
+    under = [o for o in offers if o.get('target_price') and o['price'] <= o['target_price']]
+
+    def nm(o):
+        return o.get('label') or o.get('hotel') or f"Angebot #{o['id']}"
+
+    # ── Text (Telegram) ──
+    tl = [f"📊 <b>TUIWatch — Wochenüberblick</b> ({datetime.now():%d.%m.%Y})",
+          f"{len(offers)} aktive Reise(n) beobachtet."]
+    if under:
+        tl.append("\n🎯 <b>Unter Wunschpreis:</b>")
+        tl += [f"• {nm(o)}: <b>{_eur(o['price'])}</b> (Ziel {_eur(o['target_price'])})" for o in under[:8]]
+    if lows:
+        tl.append("\n📉 <b>Neuer Tiefstwert:</b>")
+        tl += [f"• {nm(o)}: <b>{_eur(o['price'])}</b>" for o in lows[:8]]
+    if drops:
+        tl.append("\n▼ <b>Größte Rückgänge (7 Tage):</b>")
+        tl += [f"• {nm(o)}: {_eur(o['price'])} ({_eur(o['_wk'])})" for o in drops[:8]]
+    if rises:
+        tl.append("\n▲ <b>Gestiegen (7 Tage):</b>")
+        tl += [f"• {nm(o)}: {_eur(o['price'])} (+{_eur(abs(o['_wk']))})" for o in rises[:5]]
+    text = "\n".join(tl)
+
+    # ── HTML (E-Mail) ──
+    def esc(s):
+        return (str(s or '')).replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+
+    def section(title, items, fmt):
+        if not items:
+            return ''
+        rows = ''.join(f'<li style="margin:4px 0">{fmt(o)}</li>' for o in items)
+        return (f'<h3 style="margin:18px 0 6px;color:#10243e;font-size:15px">{title}</h3>'
+                f'<ul style="margin:0;padding-left:18px;color:#333;font-size:14px">{rows}</ul>')
+
+    def link(o):
+        return f'<a href="{esc(o["url"])}" style="color:#0b65d8;text-decoration:none">{esc(nm(o))}</a>'
+
+    html = (
+        '<div style="font-family:system-ui,Arial,sans-serif;max-width:640px;margin:0 auto">'
+        f'<h2 style="color:#10243e">📊 TUIWatch — Wochenüberblick</h2>'
+        f'<p style="color:#555;font-size:13px">{datetime.now():%d.%m.%Y} · {len(offers)} aktive Reise(n) beobachtet.</p>'
+        + section('🎯 Unter Wunschpreis', under,
+                  lambda o: f'{link(o)}: <b>{_eur(o["price"])}</b> <span style="color:#777">(Ziel {_eur(o["target_price"])})</span>')
+        + section('📉 Neuer Tiefstwert', lows,
+                  lambda o: f'{link(o)}: <b>{_eur(o["price"])}</b>')
+        + section('▼ Größte Rückgänge (7 Tage)', drops[:8],
+                  lambda o: f'{link(o)}: {_eur(o["price"])} <span style="color:#1a7f37;font-weight:600">({_eur(o["_wk"])})</span>')
+        + section('▲ Gestiegen (7 Tage)', rises[:5],
+                  lambda o: f'{link(o)}: {_eur(o["price"])} <span style="color:#cf222e">(+{_eur(abs(o["_wk"]))})</span>')
+        + '</div>'
+    )
+    return {'subject': f'TUIWatch — Wochenüberblick {datetime.now():%d.%m.%Y}',
+            'html': html, 'text': text}
+
+
+def send_digest_now() -> bool:
+    """Baut und verschickt den Digest sofort über alle konfigurierten Kanäle
+    (Telegram + E-Mail). True, wenn mindestens ein Kanal bedient wurde."""
+    digest = _build_digest()
+    if not digest:
+        log.info("Digest: nichts zu berichten")
+        return False
+    sent = False
+    cfg = load_config()
+    if (cfg.get('telegram_bot_token') or '').strip() and (cfg.get('telegram_chat_id') or '').strip():
+        _notify_telegram(digest['text'])
+        sent = True
+    to = (cfg.get('smtp_to') or '').strip()
+    if smtp_configured() and to:
+        try:
+            send_email(digest['subject'], digest['html'], to)
+            sent = True
+        except Exception as e:
+            log.error("Digest-E-Mail fehlgeschlagen: %s", e)
+    if sent:
+        log.info("Digest verschickt")
+    else:
+        log.info("Digest: kein Kanal konfiguriert (Telegram/SMTP)")
+    return sent
+
+
+def _maybe_send_digest() -> None:
+    """Verschickt den Wochen-Digest am eingestellten Wochentag, höchstens 1×/ISO-Woche.
+    War das Add-on am Stichtag aus, wird später in der Woche nachgeholt."""
+    cfg = load_config()
+    if not cfg.get('digest_enabled'):
+        return
+    today = date.today()
+    target = min(7, max(1, int(cfg.get('digest_weekday', 1) or 1)))
+    if today.isoweekday() < target:
+        return
+    y, w, _ = today.isocalendar()
+    wk = f"{y}-W{w:02d}"
+    if _meta_get('last_digest') == wk:
+        return
+    if send_digest_now():
+        _meta_set('last_digest', wk)
+    else:
+        # Kein Kanal konfiguriert → nicht jede Runde neu versuchen
+        _meta_set('last_digest', wk)
 
 
 def _spawn(fn, *args) -> None:
@@ -1223,6 +1627,7 @@ def _collect_offers() -> list[dict]:
                 'SELECT MIN(price) mn, MAX(price) mx, AVG(price) av, COUNT(*) c '
                 'FROM price_history WHERE offer_id=? AND ok=1 AND price IS NOT NULL',
                 (o['id'],)).fetchone()
+            trend = _trend_for(con, o['id'])
             checking = o['id'] in _checking
             avail = None
             if last and last['available'] is not None:
@@ -1234,7 +1639,10 @@ def _collect_offers() -> list[dict]:
                 'flight_out': o['flight_out'], 'flight_ret': o['flight_ret'],
                 'location': o['location'], 'city': o['city'],
                 'region': o['region'], 'country': o['country'],
-                'pdf_url': o['pdf_url'],
+                'pdf_url': o['pdf_url'], 'image_url': o['image_url'] or '',
+                'booking_code': o['booking_code'] or '',
+                'room_booking_code': o['room_booking_code'] or '',
+                'giata': _giata_from_url(o['url']),
                 'total_price': o['total_price'],
                 'travellers_count': o['travellers_count'],
                 'paused': bool(o['paused']),
@@ -1244,6 +1652,7 @@ def _collect_offers() -> list[dict]:
                 'rating': o['rating'], 'rating_count': o['rating_count'],
                 'recommendation': o['recommendation'],
                 'target_price': o['target_price'],
+                'booked_price': o['booked_price'],
                 'price': last['price'] if last else None,
                 'old_price': last['old_price'] if last else None,
                 'discount': last['discount'] if last else None,
@@ -1255,6 +1664,7 @@ def _collect_offers() -> list[dict]:
                 'min_price': stats['mn'], 'max_price': stats['mx'],
                 'avg_price': round(stats['av']) if stats['av'] is not None else None,
                 'samples': stats['c'],
+                'trend': trend,
                 'checking': checking,
                 'comparable': not is_single_room(f"{o['room']} {o['details']}"),
             })
@@ -1286,11 +1696,15 @@ def api_add_offer():
     label = (data.get('label') or '').strip()
     if not _valid_tui_url(url):
         return jsonify({'error': 'invalid_url'}), 400
+    img = (data.get('image') or '').strip()      # optional: Bild aus der Suche
+    if not _valid_img_url(img):
+        img = ''
     try:
         with db() as con:
             cur = con.execute(
-                'INSERT INTO offers (url, label, hotel, details, created) VALUES (?,?,?,?,?)',
-                (url, label, hotel_from_url(url), '', int(time.time())))
+                'INSERT INTO offers (url, label, hotel, details, image_url, created) '
+                'VALUES (?,?,?,?,?,?)',
+                (url, label, hotel_from_url(url), '', img, int(time.time())))
             offer_id = cur.lastrowid
     except sqlite3.IntegrityError:
         return jsonify({'error': 'duplicate'}), 409
@@ -1309,6 +1723,9 @@ def api_delete_offer(offer_id: int):
         con.execute('DELETE FROM compare_cache WHERE offer_id=?', (offer_id,))
         con.execute('DELETE FROM calendar_cache WHERE offer_id=?', (offer_id,))
         con.execute('DELETE FROM nights_cache WHERE offer_id=?', (offer_id,))
+        con.execute('DELETE FROM cheaper_state WHERE offer_id=?', (offer_id,))
+        con.execute('DELETE FROM booked_state WHERE offer_id=?', (offer_id,))
+        con.execute('DELETE FROM offer_events WHERE offer_id=?', (offer_id,))
         con.execute('DELETE FROM offers WHERE id=?', (offer_id,))
     _cheaper_notified.pop(offer_id, None)
     _fail_notified.discard(offer_id)
@@ -1322,6 +1739,7 @@ def api_update_offer(offer_id: int):
     if (err := _require_api()):
         return err
     data = request.get_json(silent=True) or {}
+    events = []  # (type, text) → nach dem db-Block protokollieren (Marker im Verlauf)
     with db() as con:
         if 'label' in data:
             lbl = (data.get('label') or '').strip()
@@ -1336,6 +1754,21 @@ def api_update_offer(offer_id: int):
             con.execute('UPDATE offers SET target_price=? WHERE id=?', (tp, offer_id))
             log.info("Wunschpreis #%d %s", offer_id,
                      f"gesetzt: {tp:.0f} €" if tp else "entfernt")
+            if tp:
+                events.append(('target', f"Wunschpreis {_eur(tp)}"))
+        if 'booked_price' in data:
+            bp = data.get('booked_price')
+            try:
+                bp = float(bp) if bp not in (None, '', 0) else None
+            except (TypeError, ValueError):
+                bp = None
+            con.execute('UPDATE offers SET booked_price=? WHERE id=?', (bp, offer_id))
+            if bp is None:  # Buchung zurückgenommen → Alarm-Dedup zurücksetzen
+                con.execute('DELETE FROM booked_state WHERE offer_id=?', (offer_id,))
+            log.info("Gebuchter Preis #%d %s", offer_id,
+                     f"gesetzt: {bp:.0f} €" if bp else "entfernt")
+            if bp:
+                events.append(('booked', f"Gebucht für {_eur(bp)}"))
         if 'paused' in data:
             con.execute('UPDATE offers SET paused=? WHERE id=?',
                         (1 if data.get('paused') else 0, offer_id))
@@ -1346,6 +1779,8 @@ def api_update_offer(offer_id: int):
             con.execute('UPDATE offers SET archived=? WHERE id=?', (arch, offer_id))
             log.info("Angebot #%d %s", offer_id,
                      "archiviert" if arch else "reaktiviert")
+    for t, txt in events:
+        _log_event(offer_id, t, txt)
     if 'archived' in data:
         push_ha_sensors()  # Übersicht/Summary-Sensor neu berechnen
     return jsonify({'id': offer_id, 'ok': True})
@@ -1359,7 +1794,11 @@ def api_history(offer_id: int):
         rows = con.execute(
             'SELECT ts, price, old_price, discount, ok, note FROM price_history '
             'WHERE offer_id=? ORDER BY ts', (offer_id,)).fetchall()
-    return jsonify({'history': [dict(r) for r in rows]})
+        events = con.execute(
+            'SELECT ts, type, text FROM offer_events WHERE offer_id=? ORDER BY ts',
+            (offer_id,)).fetchall()
+    return jsonify({'history': [dict(r) for r in rows],
+                    'events': [dict(e) for e in events]})
 
 
 @app.route('/api/history/<int:offer_id>/csv', methods=['GET'])
@@ -1411,6 +1850,10 @@ def api_reset_offer(offer_id: int):
         con.execute('DELETE FROM compare_cache WHERE offer_id=?', (offer_id,))
         con.execute('DELETE FROM calendar_cache WHERE offer_id=?', (offer_id,))
         con.execute('DELETE FROM nights_cache WHERE offer_id=?', (offer_id,))
+        con.execute('DELETE FROM cheaper_state WHERE offer_id=?', (offer_id,))
+        con.execute('DELETE FROM booked_state WHERE offer_id=?', (offer_id,))
+        con.execute('DELETE FROM offer_events WHERE offer_id=?', (offer_id,))
+    _log_event(offer_id, 'reset', 'Tracking zurückgesetzt')
     with _compare_lock:
         _compare_state.pop(offer_id, None)
     with _calendar_lock:
@@ -1446,6 +1889,11 @@ def api_email():
     if not to:
         return jsonify({'error': 'no_recipient'}), 400
     offers = [o for o in _collect_offers() if not o.get('archived')]
+    # Optional: nur eine Auswahl versenden (Sammelaktion über die Checkboxen)
+    ids = data.get('ids')
+    if isinstance(ids, list) and ids:
+        want = {int(i) for i in ids if str(i).isdigit()}
+        offers = [o for o in offers if o['id'] in want]
     if not offers:
         return jsonify({'error': 'no_offers'}), 400
     html = _email_html_offers(offers)
@@ -1464,11 +1912,14 @@ def api_backup():
     if (err := _require_api()):
         return err
     with db() as con:
-        rows = con.execute('SELECT url, label, target_price, paused, archived '
-                           'FROM offers ORDER BY id').fetchall()
+        rows = con.execute('SELECT url, label, target_price, booked_price, image_url, '
+                           'paused, archived FROM offers ORDER BY id').fetchall()
     data = {'tuiwatch_backup': 1, 'created': datetime.now().isoformat(),
             'offers': [{'url': r['url'], 'label': r['label'],
-                        'target_price': r['target_price'], 'paused': bool(r['paused']),
+                        'target_price': r['target_price'],
+                        'booked_price': r['booked_price'],
+                        'image_url': r['image_url'] or '',
+                        'paused': bool(r['paused']),
                         'archived': bool(r['archived'])}
                        for r in rows]}
     resp = make_response(json.dumps(data, ensure_ascii=False, indent=2))
@@ -1493,17 +1944,23 @@ def api_restore():
             if not _valid_tui_url(url):
                 skipped += 1
                 continue
-            tp = it.get('target_price')
-            try:
-                tp = float(tp) if tp not in (None, '', 0) else None
-            except (TypeError, ValueError):
-                tp = None
+            def _price(v):
+                try:
+                    return float(v) if v not in (None, '', 0) else None
+                except (TypeError, ValueError):
+                    return None
+            tp = _price(it.get('target_price'))
+            bp = _price(it.get('booked_price'))
+            img = (it.get('image_url') or '').strip()
+            if not _valid_img_url(img):
+                img = ''
             try:
                 cur = con.execute(
                     'INSERT INTO offers (url, label, hotel, details, target_price, '
-                    'paused, archived, created) VALUES (?,?,?,?,?,?,?,?)',
+                    'booked_price, image_url, paused, archived, created) '
+                    'VALUES (?,?,?,?,?,?,?,?,?,?)',
                     (url, (it.get('label') or '').strip(), hotel_from_url(url), '',
-                     tp, 1 if it.get('paused') else 0,
+                     tp, bp, img, 1 if it.get('paused') else 0,
                      1 if it.get('archived') else 0, int(time.time())))
                 if not it.get('archived'):
                     new_ids.append(cur.lastrowid)  # archivierte nicht sofort prüfen
@@ -1586,6 +2043,7 @@ def api_search():
     operator_tui = bool(data.get('operator_tui', True))
     direct = bool(data.get('direct'))
     boards = [str(b).strip() for b in (data.get('boards') or []) if str(b).strip()]
+    airlines = [str(a).strip() for a in (data.get('airlines') or []) if str(a).strip()]
 
     def _num(key):
         try:
@@ -1611,7 +2069,7 @@ def api_search():
                                 'note': 'Region zum Angebot nicht ermittelbar'}), 400
         src = f"Angebot #{offer_id} ({o['label'] or o['hotel'] or ''})"
         res = fetch_search(url, operator_tui=operator_tui, boards=boards, region=region,
-                           direct=direct, verbose=_verbose())
+                           airlines=airlines, direct=direct, verbose=_verbose())
     elif search_region:
         try:
             region = int(search_region)
@@ -1628,7 +2086,7 @@ def api_search():
                                   duration=data.get('duration'),
                                   travellers=data.get('travellers'), airports=airports,
                                   operator_tui=operator_tui, boards=boards,
-                                  direct=direct, verbose=_verbose())
+                                  airlines=airlines, direct=direct, verbose=_verbose())
     else:
         url = (data.get('url') or '').strip()
         if not _valid_tui_url(url):
@@ -1636,15 +2094,16 @@ def api_search():
         log.info("Suche: %s (TUI=%s, Verpflegung=%s)", url, operator_tui,
                  ','.join(boards) or '-')
         res = fetch_search(url, operator_tui=operator_tui, boards=boards,
-                           direct=direct, verbose=_verbose())
+                           airlines=airlines, direct=direct, verbose=_verbose())
     if res is None:
         return jsonify({'error': 'search_failed'}), 502
     if not res.get('ok'):
         return jsonify({'error': 'no_region', 'note': res.get('note', '')}), 400
-    # bereits getrackte Hotels (per giataId) markieren
+    # bereits (aktiv) getrackte Hotels (per giataId) markieren — Archiv zählt nicht
     with db() as con:
         tracked = {g for g in (_giata_from_url(r['url'])
-                   for r in con.execute('SELECT url FROM offers').fetchall()) if g}
+                   for r in con.execute(
+                       'SELECT url FROM offers WHERE COALESCE(archived,0)=0').fetchall()) if g}
     out = []
     for r in res['results']:
         if min_stars and (r.get('stars') or 0) < min_stars:
@@ -1661,6 +2120,69 @@ def api_search():
 _dest_cache: dict = {}     # parent → {parentName, items}
 _airports_cache: list = []  # einmalig geladen
 
+# ── Reiseziel-Index (globale Suche über alle Ebenen) ───────────────────────────
+# Der Picker lädt je Ebene nach (Land → Region → Insel …). Für eine Suche, die auch
+# tief verschachtelte Ziele wie "Kanarische Inseln" (unter Spanien) findet, halten
+# wir einen flachen Index des kompletten Baums vor. Der Aufbau ist teuer (~1000+
+# API-Aufrufe), daher persistiert in der DB und nur beim Start bzw. manuell erneuert
+# — Regionen ändern sich selten.
+_DEST_INDEX_TTL = 14 * 86400  # 14 Tage
+_dest_index: list = []
+_dest_index_ts: int = 0
+_dest_index_lock = threading.Lock()
+_dest_index_building = False
+
+
+def _load_dest_index() -> None:
+    """Persistierten Reiseziel-Index aus der DB in den Speicher laden."""
+    global _dest_index, _dest_index_ts
+    raw = _meta_get('dest_index')
+    if raw:
+        try:
+            _dest_index = json.loads(raw)
+            _dest_index_ts = int(_meta_get('dest_index_ts') or 0)
+        except Exception:
+            _dest_index = []
+
+
+def _build_dest_index() -> None:
+    """Kompletten Reiseziel-Baum crawlen (teuer!) und persistieren. Läuft im
+    Hintergrund; parallele Aufrufe werden zusammengefasst."""
+    global _dest_index, _dest_index_ts, _dest_index_building
+    with _dest_index_lock:
+        if _dest_index_building:
+            return
+        _dest_index_building = True
+    try:
+        log.info("Reiseziel-Index wird aufgebaut …")
+        items = build_destination_index()
+        if items:
+            _dest_index = items
+            _dest_index_ts = int(time.time())
+            _meta_set('dest_index', json.dumps(items, ensure_ascii=False))
+            _meta_set('dest_index_ts', _dest_index_ts)
+            log.info("Reiseziel-Index bereit: %d Einträge", len(items))
+        else:
+            log.warning("Reiseziel-Index leer geblieben (API nicht erreichbar?)")
+    finally:
+        _dest_index_building = False
+
+
+def _ensure_dest_index() -> None:
+    """Beim Start: Index aus DB laden; wenn leer oder veraltet, neu aufbauen."""
+    _load_dest_index()
+    if not _dest_index or (int(time.time()) - _dest_index_ts) > _DEST_INDEX_TTL:
+        _build_dest_index()
+
+
+def _search_dest_index(q: str, limit: int = 60) -> list:
+    """Treffer im Index (Teilstring im Namen), Präfix-Treffer zuerst."""
+    ql = q.lower()
+    out = [it for it in _dest_index if ql in (it.get('label') or '').lower()]
+    out.sort(key=lambda it: (not (it.get('label') or '').lower().startswith(ql),
+                             (it.get('label') or '').lower()))
+    return out[:limit]
+
 
 @app.route('/api/destinations', methods=['GET'])
 def api_destinations():
@@ -1676,6 +2198,313 @@ def api_destinations():
     return jsonify(_dest_cache[parent])
 
 
+@app.route('/api/destinations/search', methods=['GET'])
+def api_destinations_search():
+    """Globale Reiseziel-Suche über alle Ebenen (nutzt den gecachten Index)."""
+    if (err := _require_api()):
+        return err
+    q = (request.args.get('q') or '').strip()
+    if not _dest_index and not _dest_index_building:
+        _spawn(_build_dest_index)  # erster Aufbau on-demand
+    if len(q) < 2:
+        return jsonify({'items': [], 'building': _dest_index_building,
+                        'ready': bool(_dest_index)})
+    return jsonify({'items': _search_dest_index(q),
+                    'building': _dest_index_building, 'ready': bool(_dest_index),
+                    'ts': _dest_index_ts})
+
+
+@app.route('/api/destinations/reindex', methods=['POST'])
+def api_destinations_reindex():
+    """Reiseziel-Index manuell neu aufbauen (Hintergrund)."""
+    if (err := _require_api()):
+        return err
+    _spawn(_build_dest_index)
+    return jsonify({'ok': True, 'building': True})
+
+
+@app.route('/api/searches', methods=['GET', 'POST'])
+def api_searches():
+    """Gespeicherte Suchen (Favoriten) — in der DB, geräteübergreifend.
+    GET → Liste; POST {name, payload} → anlegen/aktualisieren (per Name)."""
+    if (err := _require_api()):
+        return err
+    if request.method == 'GET':
+        with db() as con:
+            rows = con.execute(
+                'SELECT id, name, payload FROM saved_searches ORDER BY name COLLATE NOCASE'
+            ).fetchall()
+        out = []
+        for r in rows:
+            try:
+                payload = json.loads(r['payload'])
+            except Exception:
+                payload = {}
+            out.append({'id': r['id'], 'name': r['name'], 'payload': payload})
+        return jsonify({'searches': out})
+    data = request.get_json(silent=True) or {}
+    name = (data.get('name') or '').strip()
+    if not name:
+        return jsonify({'error': 'name_required'}), 400
+    payload = json.dumps(data.get('payload') or {}, ensure_ascii=False)
+    ts = int(time.time())
+    with db() as con:
+        row = con.execute('SELECT id FROM saved_searches WHERE name=?', (name,)).fetchone()
+        if row:
+            con.execute('UPDATE saved_searches SET payload=?, ts=? WHERE id=?',
+                        (payload, ts, row['id']))
+            sid = row['id']
+        else:
+            cur = con.execute(
+                'INSERT INTO saved_searches (name, payload, ts) VALUES (?,?,?)',
+                (name, payload, ts))
+            sid = cur.lastrowid
+    return jsonify({'ok': True, 'id': sid})
+
+
+@app.route('/api/searches/<int:sid>', methods=['DELETE'])
+def api_searches_delete(sid):
+    """Gespeicherte Suche löschen."""
+    if (err := _require_api()):
+        return err
+    with db() as con:
+        con.execute('DELETE FROM saved_searches WHERE id=?', (sid,))
+    return jsonify({'ok': True})
+
+
+# ── Reisen-Datenbank (gebuchte Reisen via PDF-Import) ───────────────────────────
+
+def _parse_eur_num(s):
+    """'1.736,00' -> 1736.0 ; None bei leer/0 (für saubere Statistik-Summen)."""
+    v = _parse_eur(s)
+    return v if v else None
+
+
+def _iso_date(de: str):
+    """'14.01.2027' -> '2027-01-14' (sortierbar); None bei Fehler."""
+    if not de:
+        return None
+    try:
+        return datetime.strptime(de.strip(), '%d.%m.%Y').strftime('%Y-%m-%d')
+    except (ValueError, AttributeError):
+        return None
+
+
+def _trip_pdf_path(pdf_name: str):
+    """Sicheren Pfad zur Reise-PDF im TRIPS_DIR liefern (Path-Traversal-Schutz).
+    Gibt None zurück, wenn der Name aus dem TRIPS_DIR ausbrechen würde."""
+    if not pdf_name:
+        return None
+    base = Path(TRIPS_DIR).resolve()
+    p = (base / Path(pdf_name).name).resolve()
+    try:
+        p.relative_to(base)
+    except ValueError:
+        return None
+    return p
+
+
+def _trip_title(data: dict) -> str:
+    """'Gran Canaria 2026' o. Ä. aus Reiseziel/Hotel + Reisejahr."""
+    ziel = (data.get('reiseziel') or data.get('hotel', {}).get('name') or 'Reise').strip()
+    von = (data.get('reisezeitraum') or {}).get('von') or ''
+    jahr = von[-4:] if len(von) >= 4 else ''
+    return f"{ziel} {jahr}".strip()
+
+
+@app.route('/api/trips', methods=['GET'])
+def api_trips():
+    """Liste gebuchter Reisen + aggregierte Statistik."""
+    if (err := _require_api()):
+        return err
+    with db() as con:
+        rows = con.execute(
+            'SELECT id, booking_code, booking_date, title, destination, hotel, '
+            'hotel_code, start_date, end_date, nights, travellers, total_price, '
+            'package_price, net_per_night, meal, pdf_name, orig_name FROM trips '
+            'ORDER BY start_date DESC, id DESC').fetchall()
+    trips = [dict(r) for r in rows]
+    for t in trips:
+        t['has_pdf'] = bool(t.get('pdf_name'))
+    nights_sum = sum((t['nights'] or 0) for t in trips)
+    total_sum = sum((t['total_price'] or 0.0) for t in trips)
+    package_sum = sum((t['package_price'] or 0.0) for t in trips)
+    # Personen-Nächte (Nächte × Reisende) → Ø-Preis pro Person und Nacht, damit Solo- und
+    # Gruppenreisen vergleichbar sind.
+    pers_nights = sum((t['nights'] or 0) * (t['travellers'] or 1) for t in trips)
+    stats = {
+        'count': len(trips),
+        'nights_sum': nights_sum,
+        'total_sum': round(total_sum, 2),
+        'package_sum': round(package_sum, 2),
+        'avg_per_night': round(total_sum / pers_nights, 2) if pers_nights else 0.0,
+    }
+    # Aufschlüsselung pro Reisejahr (nach Reisebeginn)
+    years: dict = {}
+    for t in trips:
+        y = (t['start_date'] or '')[:4]
+        if not y:
+            continue
+        a = years.setdefault(y, {'year': y, 'count': 0, 'nights_sum': 0,
+                                 'total_sum': 0.0, '_pn': 0})
+        a['count'] += 1
+        a['nights_sum'] += t['nights'] or 0
+        a['total_sum'] += t['total_price'] or 0.0
+        a['_pn'] += (t['nights'] or 0) * (t['travellers'] or 1)
+    by_year = []
+    for y in sorted(years, reverse=True):
+        a = years[y]
+        pn = a.pop('_pn')
+        a['total_sum'] = round(a['total_sum'], 2)
+        a['avg_per_night'] = round(a['total_sum'] / pn, 2) if pn else 0.0
+        by_year.append(a)
+    return jsonify({'trips': trips, 'stats': stats, 'by_year': by_year})
+
+
+@app.route('/api/trips/<int:tid>', methods=['GET'])
+def api_trip_detail(tid):
+    """Vollständige Detaildaten einer Reise (geparstes JSON)."""
+    if (err := _require_api()):
+        return err
+    with db() as con:
+        row = con.execute('SELECT * FROM trips WHERE id=?', (tid,)).fetchone()
+    if not row:
+        return jsonify({'error': 'not_found'}), 404
+    trip = dict(row)
+    try:
+        trip['data'] = json.loads(trip.get('data') or '{}')
+    except Exception:
+        trip['data'] = {}
+    trip['has_pdf'] = bool(trip.get('pdf_name'))
+    return jsonify(trip)
+
+
+@app.route('/api/trips/import', methods=['POST'])
+def api_trip_import():
+    """TUI-Reisebestätigungs-PDF hochladen, parsen, dauerhaft speichern (Upsert
+    per Buchungsnummer)."""
+    if (err := _require_api()):
+        return err
+    file = request.files.get('pdf')
+    if file is None or not file.filename:
+        return jsonify({'error': 'no_file'}), 400
+    if Path(file.filename).suffix.lower() != '.pdf':
+        return jsonify({'error': 'not_pdf'}), 400
+
+    raw = file.read()
+    if not raw:
+        return jsonify({'error': 'empty'}), 400
+    if len(raw) > MAX_PDF_BYTES:
+        return jsonify({'error': 'too_large'}), 413
+
+    try:
+        data = parse_tui_pdf(io.BytesIO(raw))
+    except Exception as exc:
+        log.warning("PDF-Import fehlgeschlagen: %s", exc)
+        return jsonify({'error': 'parse_failed'}), 422
+
+    booking = (data.get('buchungsnummer') or '').strip()
+    ts = int(time.time())
+    pdf_name = f"{booking or ('trip_' + str(ts))}.pdf"
+    target = _trip_pdf_path(pdf_name)
+    if target is None:
+        return jsonify({'error': 'bad_name'}), 400
+
+    Path(TRIPS_DIR).mkdir(parents=True, exist_ok=True)
+    try:
+        target.write_bytes(raw)
+    except OSError as exc:
+        log.warning("PDF speichern fehlgeschlagen: %s", exc)
+        return jsonify({'error': 'store_failed'}), 500
+
+    orig = Path(file.filename).name
+    row = {
+        'booking_code': booking or None,
+        'booking_date': data.get('buchungsdatum'),
+        'title': _trip_title(data),
+        'destination': data.get('reiseziel'),
+        'hotel': (data.get('hotel') or {}).get('name'),
+        'hotel_code': (data.get('hotel') or {}).get('code'),
+        'start_date': _iso_date((data.get('reisezeitraum') or {}).get('von')),
+        'end_date': _iso_date((data.get('reisezeitraum') or {}).get('bis')),
+        'nights': data.get('naechte'),
+        'travellers': len(data.get('reisende') or []) or None,
+        'total_price': _parse_eur_num(data.get('gesamtpreis')),
+        'package_price': _parse_eur_num(data.get('paketpreis')),
+        'net_per_night': _parse_eur_num(data.get('preis_pro_person_nacht_paket')),
+        'meal': data.get('verpflegung'),
+        'data': json.dumps(data, ensure_ascii=False),
+        'pdf_name': pdf_name,
+        'orig_name': orig,
+        'created': ts,
+    }
+    cols = list(row.keys())
+    with db() as con:
+        existing = None
+        if booking:
+            existing = con.execute(
+                'SELECT id, pdf_name FROM trips WHERE booking_code=?', (booking,)).fetchone()
+        if existing:
+            # ggf. alte PDF mit abweichendem Namen entfernen
+            old = existing['pdf_name']
+            if old and old != pdf_name:
+                op = _trip_pdf_path(old)
+                if op and op.exists():
+                    try:
+                        op.unlink()
+                    except OSError:
+                        pass
+            setclause = ', '.join(f'{c}=?' for c in cols)
+            con.execute(f'UPDATE trips SET {setclause} WHERE id=?',
+                        [row[c] for c in cols] + [existing['id']])
+            tid = existing['id']
+        else:
+            placeholders = ', '.join('?' for _ in cols)
+            cur = con.execute(
+                f'INSERT INTO trips ({", ".join(cols)}) VALUES ({placeholders})',
+                [row[c] for c in cols])
+            tid = cur.lastrowid
+    log.info("Reise importiert: %s (#%s)", row['title'], booking or tid)
+    return jsonify({'ok': True, 'id': tid, 'data': data})
+
+
+@app.route('/api/trips/<int:tid>/pdf', methods=['GET'])
+def api_trip_pdf(tid):
+    """Gespeicherte Reise-PDF ausliefern (öffnen/herunterladen)."""
+    if (err := _require_api()):
+        return err
+    with db() as con:
+        row = con.execute('SELECT pdf_name, orig_name FROM trips WHERE id=?',
+                          (tid,)).fetchone()
+    if not row or not row['pdf_name']:
+        return jsonify({'error': 'not_found'}), 404
+    p = _trip_pdf_path(row['pdf_name'])
+    if p is None or not p.exists():
+        return jsonify({'error': 'not_found'}), 404
+    return send_file(str(p), mimetype='application/pdf',
+                     download_name=row['orig_name'] or 'reise.pdf')
+
+
+@app.route('/api/trips/<int:tid>', methods=['DELETE'])
+def api_trip_delete(tid):
+    """Reise löschen — inkl. der dauerhaft gespeicherten PDF."""
+    if (err := _require_api()):
+        return err
+    with db() as con:
+        row = con.execute('SELECT pdf_name FROM trips WHERE id=?', (tid,)).fetchone()
+        if not row:
+            return jsonify({'error': 'not_found'}), 404
+        con.execute('DELETE FROM trips WHERE id=?', (tid,))
+    if row['pdf_name']:
+        p = _trip_pdf_path(row['pdf_name'])
+        if p and p.exists():
+            try:
+                p.unlink()
+            except OSError as exc:
+                log.warning("PDF löschen fehlgeschlagen: %s", exc)
+    return jsonify({'ok': True})
+
+
 @app.route('/api/airports', methods=['GET'])
 def api_airports():
     """Abflughäfen (TUI-Liste, einmalig gecacht)."""
@@ -1685,6 +2514,14 @@ def api_airports():
     if not _airports_cache:
         _airports_cache = fetch_airports()
     return jsonify({'airports': _airports_cache})
+
+
+@app.route('/api/airlines', methods=['GET'])
+def api_airlines():
+    """Fluggesellschaften für den optionalen Such-Filter (kuratierte Liste)."""
+    if (err := _require_api()):
+        return err
+    return jsonify({'airlines': fetch_airlines()})
 
 
 @app.route('/api/calendar/<int:offer_id>', methods=['POST'])
@@ -1712,6 +2549,77 @@ def api_calendar_get(offer_id: int):
     return jsonify(_calendar_payload(offer_id))
 
 
+@app.route('/api/rooms/<int:offer_id>', methods=['GET'])
+def api_rooms_get(offer_id: int):
+    """Wählbare Zimmerkategorien (mit Preis p. P.) für ein Angebot — live abgefragt."""
+    if (err := _require_api()):
+        return err
+    with db() as con:
+        o = con.execute('SELECT url FROM offers WHERE id=?', (offer_id,)).fetchone()
+    if not o:
+        return jsonify({'error': 'not_found'}), 404
+    with _scrape_lock:
+        res = fetch_rooms(o['url'], verbose=_verbose())
+    if res is None:
+        return jsonify({'ok': False, 'note': 'Zimmer konnten nicht geladen werden'}), 502
+    res['current'] = room_code_from_url(o['url'])
+    return jsonify(res)
+
+
+@app.route('/api/rooms/<int:offer_id>', methods=['POST'])
+def api_rooms_set(offer_id: int):
+    """Fixiert ein Zimmer (`code`) für das Angebot — danach wird der Preis dieses Zimmers
+    verfolgt. Leerer Code = wieder automatisch das günstigste Zimmer."""
+    if (err := _require_api()):
+        return err
+    data = request.get_json(silent=True) or {}
+    code = (data.get('code') or '').strip()
+    label = (data.get('label') or '').strip()
+    with db() as con:
+        o = con.execute('SELECT url FROM offers WHERE id=?', (offer_id,)).fetchone()
+        if not o:
+            return jsonify({'error': 'not_found'}), 404
+        new_url = with_room_code(o['url'], code)
+        try:
+            con.execute('UPDATE offers SET url=? WHERE id=?', (new_url, offer_id))
+        except sqlite3.IntegrityError:
+            return jsonify({'error': 'duplicate',
+                            'note': 'Dieses Zimmer wird bereits als eigenes Angebot verfolgt'}), 409
+    log.info("Angebot #%d: Zimmer %s gewählt", offer_id, code or '(günstigstes)')
+    if code:
+        _log_event(offer_id, 'room',
+                   f"Zimmer: {label} ({code})" if label else f"Zimmer: {code}")
+    else:
+        _log_event(offer_id, 'room', "Zimmer: günstigstes (automatisch)")
+    _spawn(check_offer, offer_id)
+    return jsonify({'ok': True, 'started': True})
+
+
+@app.route('/api/healthcheck', methods=['GET', 'POST'])
+def api_healthcheck_route():
+    """GET: letztes Selbsttest-Ergebnis (oder noch leer). POST: neuen Selbsttest
+    starten und auf das Ergebnis warten."""
+    if (err := _require_api()):
+        return err
+    if request.method == 'POST':
+        return jsonify(_run_healthcheck())
+    with _health_lock:
+        st = dict(_health_state)
+    return jsonify(st)
+
+
+@app.route('/api/digest', methods=['POST'])
+def api_digest():
+    """Verschickt den Wochenüberblick sofort (Test/Sofortversand)."""
+    if (err := _require_api()):
+        return err
+    sent = send_digest_now()
+    if sent:
+        return jsonify({'sent': True})
+    return jsonify({'sent': False, 'note': 'Nichts zu berichten oder kein Kanal '
+                    '(Telegram/SMTP) konfiguriert.'})
+
+
 @app.route('/api/console')
 def api_console():
     if (err := _require_api()):
@@ -1726,6 +2634,8 @@ def main() -> None:
     load_sessions()
     _spawn(push_ha_sensors)  # vorhandene Preise sofort als Sensoren melden
     _spawn(_notify_startup)  # kurze Telegram-Statusmeldung (falls konfiguriert)
+    _spawn(_run_healthcheck)  # API-Erreichbarkeit beim Start prüfen
+    _spawn(_ensure_dest_index)  # Reiseziel-Index (globale Suche) laden/aufbauen
     threading.Thread(target=_poll_worker, daemon=True).start()
     port = int(os.environ.get('TUIWATCH_PORT', '17794'))
     log.info("TUIWatch startet auf Port %d", port)

@@ -1,0 +1,992 @@
+{
+ "resultsTotal": 255,
+ "items": [
+  {
+   "travellers": {
+    "adults": [
+     {
+      "age": 28,
+      "refId": 1
+     },
+     {
+      "age": 28,
+      "refId": 2
+     }
+    ],
+    "children": []
+   },
+   "boardType": "Alles Inklusive",
+   "boardCodes": [
+    "AI"
+   ],
+   "boardOpCode": "A",
+   "roomType": "Double Standard",
+   "roomCodes": [
+    "DR"
+   ],
+   "roomOpCode": "DZX2",
+   "hotel": {
+    "name": "Riu Papayas",
+    "category": "4",
+    "images": [
+     {
+      "title": "Außenansicht",
+      "url": "https://pics.tui.com/pics/pics1600x1200/tui/1/1688e44a-d2f2-419b-b432-cdb56a1a18b4.jpg"
+     },
+     {
+      "title": "Kinder-Splash-Pool mit Rutschen",
+      "url": "https://pics.tui.com/pics/pics1600x1200/tui/2/2d40abda-7b53-4e7b-9808-5c45871aa153.jpg"
+     },
+     {
+      "title": "Hauptrestaurant",
+      "url": "https://pics.tui.com/pics/pics1600x1200/tui/8/84b2e805-4f32-4fd2-b202-aaedfabf64c2.jpg"
+     },
+     {
+      "title": "Olé",
+      "url": "https://pics.tui.com/pics/pics1600x1200/tui/d/d51ca79d-be33-4b80-8c05-1f2e2a77f9e2.jpg"
+     },
+     {
+      "title": "Plazabar",
+      "url": "https://pics.tui.com/pics/pics1600x1200/tui/d/df93fb92-d3f3-4c48-b8a0-76f1a15e553b.jpg"
+     },
+     {
+      "title": "ZHÚ",
+      "url": "https://pics.tui.com/pics/pics1600x1200/tui/d/dfa123e3-dcdd-475a-8198-76f707ce9458.jpg"
+     },
+     {
+      "title": "Dunas Lounge Bar",
+      "url": "https://pics.tui.com/pics/pics1600x1200/tui/7/746efccc-1b8b-4570-8c1d-361a630c79b3.jpg"
+     },
+     {
+      "title": "Wohnbeispiel Double Room with Garden View",
+      "url": "https://pics.tui.com/pics/pics1600x1200/tui/8/83d7e0b8-41f7-4cf3-afdc-3ce2b54e5084.jpg"
+     },
+     {
+      "title": "Wohnbeispiel Family Room (2 Bedrooms) with Garden View",
+      "url": "https://pics.tui.com/pics/pics1600x1200/tui/b/bcab1a9e-1216-41ef-b087-d2e0ae8bded1.jpg"
+     },
+     {
+      "title": "Wohnbeispiel Double Standard",
+      "url": "https://pics.tui.com/pics/pics1600x1200/tui/3/397caf29-9e47-43cd-a285-cff60ef09824.jpg"
+     },
+     {
+      "title": "Wohnbeispiel Family Room (2 Bedrooms)",
+      "url": "https://pics.tui.com/pics/pics1600x1200/tui/7/747d4a5b-5024-456f-82b7-98a5d988116f.jpg"
+     },
+     {
+      "title": "Wohnbeispiel Double Room with Garden View",
+      "url": "https://pics.tui.com/pics/pics1600x1200/tui/d/dcb2a6d7-16cf-4ab2-8282-4d550e143220.jpg"
+     },
+     {
+      "title": "Wohnbeispiel Family Room (2 Bedrooms)",
+      "url": "https://pics.tui.com/pics/pics1600x1200/tui/f/fe6552d8-2a96-4874-ba5d-28e0807c803a.jpg"
+     },
+     {
+      "title": "Wohnbeispiel Family Room (2 Bedrooms) with Garden View",
+      "url": "https://pics.tui.com/pics/pics1600x1200/tui/c/c3cb0cce-3148-4f12-b135-4859b12364e5.jpg"
+     },
+     {
+      "title": "Wohnbeispiel Family Room (2 Bedrooms)",
+      "url": "https://pics.tui.com/pics/pics1600x1200/tui/c/c108ead6-71e3-466b-9a15-e2d0c22a693d.jpg"
+     },
+     {
+      "title": "Wohnbeispiel Family Room (2 Bedrooms) with Garden View",
+      "url": "https://pics.tui.com/pics/pics1600x1200/tui/7/7a6d58df-69d3-4fb0-8a73-5c99a3cd9511.jpg"
+     },
+     {
+      "title": "Wohnbeispiel Double Room with Garden View",
+      "url": "https://pics.tui.com/pics/pics1600x1200/tui/2/232a4def-f64e-4861-9708-012fdd0c5498.jpg"
+     },
+     {
+      "title": "Wohnbeispiel Double Standard",
+      "url": "https://pics.tui.com/pics/pics1600x1200/tui/9/90f1bed0-143d-4c12-baa6-ed555de5ebb0.jpg"
+     },
+     {
+      "title": "Wohnbeispiel Family Room (2 Bedrooms)",
+      "url": "https://pics.tui.com/pics/pics1600x1200/tui/3/3608b4ee-3db8-4691-838d-f93fcac675f1.jpg"
+     },
+     {
+      "title": "Wohnbeispiel Double Standard Accessible",
+      "url": "https://pics.tui.com/pics/pics1600x1200/tui/e/e58039d6-ad96-4a36-a56b-94b49ee7dc0a.jpg"
+     },
+     {
+      "title": "Ausstattung",
+      "url": "https://pics.tui.com/pics/pics1600x1200/tui/8/867efcdb-966d-42b4-aa5e-39432fe61d35.jpg"
+     },
+     {
+      "title": "Animation",
+      "url": "https://pics.tui.com/pics/pics1600x1200/tui/d/d8646226-f445-4543-a7b4-2bcc6f633400.jpg"
+     },
+     {
+      "title": "Animation",
+      "url": "https://pics.tui.com/pics/pics1600x1200/tui/c/cc941430-1386-4ec2-bcbd-fa7496a603e8.jpg"
+     },
+     {
+      "title": "Animation",
+      "url": "https://pics.tui.com/pics/pics1600x1200/tui/6/6ed91f7b-d27f-4d1d-afa9-76da7d5413b5.jpg"
+     },
+     {
+      "title": "Sport",
+      "url": "https://pics.tui.com/pics/pics1600x1200/tui/c/c0978bc4-0b6c-4f7e-9c22-4e39ff50f769.jpg"
+     },
+     {
+      "title": "Sport",
+      "url": "https://pics.tui.com/pics/pics1600x1200/tui/0/07920c71-0766-4fad-bd14-4ae80eff8b92.jpg"
+     },
+     {
+      "title": "Familie",
+      "url": "https://pics.tui.com/pics/pics1600x1200/tui/b/bdf8d07e-a0ff-48be-a7e1-f91c56da57ca.jpg"
+     },
+     {
+      "title": "Familie",
+      "url": "https://pics.tui.com/pics/pics1600x1200/tui/b/b2bf0bed-0493-4202-beb7-f26b08f20b22.jpg"
+     }
+    ],
+    "location": {
+     "country": "Spanien",
+     "region": "Gran Canaria",
+     "city": "Playa del Ingles",
+     "latitude": 27.7642,
+     "longitude": -15.5724,
+     "countryCode": "ES",
+     "country3LC": "ESP"
+    },
+    "holidayCheckRecommendationRate": 97,
+    "holidayCheckNumberOfCurrentReviews": 2724,
+    "brand": "RIU",
+    "giataId": 2781,
+    "globalTypes": [
+     {
+      "code": "GT03/TUI-GDEST"
+     },
+     {
+      "code": "GT03-STAR/ST03-STAR4"
+     },
+     {
+      "code": "GT12-RIUU"
+     },
+     {
+      "code": "GT03-CENT"
+     },
+     {
+      "code": "GT03-DIBE"
+     },
+     {
+      "code": "GT03-DICI"
+     },
+     {
+      "code": "GT03-DIAI"
+     },
+     {
+      "code": "GT03/TUI-G0879"
+     },
+     {
+      "code": "GT03/ST03-STAR4/TUI-G0545"
+     },
+     {
+      "code": "GT03-RECE"
+     },
+     {
+      "code": "GT03-RECE/ST03-GERM"
+     },
+     {
+      "code": "GT03-RECE/ST03-ENGL"
+     },
+     {
+      "code": "GT03-RECE/ST03-SPAN"
+     },
+     {
+      "code": "GT03-LIFT"
+     },
+     {
+      "code": "GT03-GARD"
+     },
+     {
+      "code": "GT03-SUTE"
+     },
+     {
+      "code": "GT03-INTE/ST03-WLAN"
+     },
+     {
+      "code": "GT03-INTE/ST03-WLAN/TUI-A0601"
+     },
+     {
+      "code": "GT03-INTE/ST03-WLAN/AT03-FRCH/TUI-A0601"
+     },
+     {
+      "code": "GT03-LASE"
+     },
+     {
+      "code": "GT03-LASE/AT03-EXCO"
+     },
+     {
+      "code": "GT03-CRCA/ST03-VISA"
+     },
+     {
+      "code": "GT03-CRCA/ST03-MACA"
+     },
+     {
+      "code": "GT03-CRCA/ST03-AMEX"
+     },
+     {
+      "code": "GT03-CHPL"
+     },
+     {
+      "code": "GT03-PENO"
+     },
+     {
+      "code": "GT03/TUI-G0896"
+     },
+     {
+      "code": "GT03-REST/ST03-LATE"
+     },
+     {
+      "code": "GT03/TUI-G0790"
+     },
+     {
+      "code": "GT03-BUFF"
+     },
+     {
+      "code": "GT03/TUI-G0791"
+     },
+     {
+      "code": "GT03/TUI-G0794"
+     },
+     {
+      "code": "GT03/AT03-FRCH/TUI-G0794"
+     },
+     {
+      "code": "GT03-REST/ST03-AFCO"
+     },
+     {
+      "code": "GT03-REST/ST03-AFCO/AT03-FRCH"
+     },
+     {
+      "code": "GT03/TUI-G0796"
+     },
+     {
+      "code": "GT03/AT03-FRCH/TUI-G0796"
+     },
+     {
+      "code": "GT03/TUI-G0798"
+     },
+     {
+      "code": "GT03/AT03-FRCH/TUI-G0798"
+     },
+     {
+      "code": "GT03/TUI-G0887"
+     },
+     {
+      "code": "GT03/AT03-FRCH/TUI-G0887"
+     },
+     {
+      "code": "GT03/TUI-G0805"
+     },
+     {
+      "code": "GT03/TUI-G0806"
+     },
+     {
+      "code": "GT03-REST/TUI-S0553"
+     },
+     {
+      "code": "GT03-REST/TUI-S0677"
+     },
+     {
+      "code": "GT03-REST/TUI-S0681"
+     },
+     {
+      "code": "GT03-SPFO/ST03-VECU"
+     },
+     {
+      "code": "GT03-REST/TUI-S0698"
+     },
+     {
+      "code": "GT03-REST"
+     },
+     {
+      "code": "GT03-REST/TUI-S0672"
+     },
+     {
+      "code": "GT03-REST/TUI-S0701"
+     },
+     {
+      "code": "GT03-REST/TUI-S0685"
+     },
+     {
+      "code": "GT03-REST/ST03-ACAR"
+     },
+     {
+      "code": "GT03-REST/TUI-S0691"
+     },
+     {
+      "code": "GT03-BARR/TUI-S0503"
+     },
+     {
+      "code": "GT03-BARR/ST03-POBA"
+     },
+     {
+      "code": "GT03-POOL"
+     },
+     {
+      "code": "GT03-POOL/AT03-HEAT"
+     },
+     {
+      "code": "GT03-LOUN"
+     },
+     {
+      "code": "GT03-LOUN/AT03-FRCH"
+     },
+     {
+      "code": "GT03-PARA"
+     },
+     {
+      "code": "GT03-PARA/AT03-FRCH"
+     },
+     {
+      "code": "GT03-CHPO"
+     },
+     {
+      "code": "GT03-POOL/ST03-OUTD"
+     },
+     {
+      "code": "GT03-BEAC"
+     },
+     {
+      "code": "GT03-BATO"
+     },
+     {
+      "code": "GT03-BATO/AT03-FRCH"
+     },
+     {
+      "code": "GT03-ENAC"
+     },
+     {
+      "code": "GT03-ENAC/ST03-ENAD"
+     },
+     {
+      "code": "GT03-ENAC/ST03-CHEN"
+     },
+     {
+      "code": "GT03-ENAC/ST03-SPEN"
+     },
+     {
+      "code": "GT03-SHOW"
+     },
+     {
+      "code": "GT03-LIBA"
+     },
+     {
+      "code": "GT03/TUI-G0743"
+     },
+     {
+      "code": "GT03/AT03-EXCO/TUI-G0743"
+     },
+     {
+      "code": "GT03-KICL"
+     },
+     {
+      "code": "GT03-FITN/ST03-FIRO"
+     },
+     {
+      "code": "GT03-FITN/ST03-FIRO/AT03-FRCH"
+     },
+     {
+      "code": "GT03-FITN/ST03-FIRO/AT03-AF16Y"
+     },
+     {
+      "code": "GT03-AQFI"
+     },
+     {
+      "code": "GT03-AQFI/AT03-FRCH"
+     },
+     {
+      "code": "GT03-BESP/ST03-BEVO"
+     },
+     {
+      "code": "GT03-BESP/ST03-BEVO/AT03-FRCH"
+     },
+     {
+      "code": "GT03-NUPO/ST03-N2"
+     },
+     {
+      "code": "GT03-NURE/ST03-N4"
+     },
+     {
+      "code": "GT03-NUBA/ST03-N2"
+     },
+     {
+      "code": "GT03-BEAC/ST03-N1"
+     },
+     {
+      "code": "GT03-DIBE/ST03-D2KM"
+     },
+     {
+      "code": "GT03-DIAI/ST03-D50KM"
+     },
+     {
+      "code": "GT03-DICI/ST03-D500M"
+     },
+     {
+      "code": "GT03/ST03-D100M/TUI-G0879"
+     },
+     {
+      "code": "GT03-NUBU/ST03-N1"
+     },
+     {
+      "code": "GT03-NUFL/ST03-N7"
+     },
+     {
+      "code": "GT03-NURO/ST03-401500"
+     },
+     {
+      "code": "GT03-BEAC/ST03-SAND"
+     },
+     {
+      "code": "GT03-BEAC/ST03-GESL"
+     },
+     {
+      "code": "GT03-BEAC/TUI-S0738"
+     },
+     {
+      "code": "GT03/TUI-G0979"
+     },
+     {
+      "code": "GT03/TUI-G0984"
+     },
+     {
+      "code": "GT03/TUI-G0988"
+     },
+     {
+      "code": "GT03/TUI-G1070"
+     },
+     {
+      "code": "GT03-SING"
+     },
+     {
+      "code": "GT03-SECI"
+     },
+     {
+      "code": "GT03-WHUS"
+     },
+     {
+      "code": "GT03-COUP"
+     },
+     {
+      "code": "GT03-SICH"
+     },
+     {
+      "code": "GT03/TUI-G1067"
+     },
+     {
+      "code": "GT12/TUI-G1042"
+     },
+     {
+      "code": "GT02-HO/ST02-HO"
+     },
+     {
+      "code": "GT03-CHST/ST03-CHEL"
+     }
+    ],
+    "distances": {
+     "beach": 2000,
+     "ski": 0
+    }
+   },
+   "startDate": "2026-08-12T06:00:00.000+02:00",
+   "endDate": "2026-08-19T07:10:00.000+01:00",
+   "numberOfNights": 7,
+   "productCode": "LPA31006",
+   "price": {
+    "advantage": -3,
+    "currency": "EUR",
+    "perPerson": {
+     "amount": 2088,
+     "originalAmount": 2158
+    },
+    "total": {
+     "amount": 4176,
+     "originalAmount": 4316
+    }
+   }
+  },
+  {
+   "travellers": {
+    "adults": [
+     {
+      "age": 28,
+      "refId": 1
+     },
+     {
+      "age": 28,
+      "refId": 2
+     }
+    ],
+    "children": []
+   },
+   "boardType": "Alles Inklusive",
+   "boardCodes": [
+    "AI"
+   ],
+   "boardOpCode": "A",
+   "roomType": "Grande Double Room",
+   "roomCodes": [
+    "DR"
+   ],
+   "roomOpCode": "DZX3",
+   "hotel": {
+    "name": "Riu Palace Palmeras",
+    "category": "5",
+    "images": [
+     {
+      "title": "Außenansicht",
+      "url": "https://pics.tui.com/pics/pics1600x1200/tui/e/e7979e16-fe28-4f2a-b5fd-33fb47006f2c.jpg"
+     },
+     {
+      "title": "Pool",
+      "url": "https://pics.tui.com/pics/pics1600x1200/tui/0/013154f2-1579-4741-a39c-0c19a1c149d9.jpg"
+     },
+     {
+      "title": "Pool",
+      "url": "https://pics.tui.com/pics/pics1600x1200/tui/0/09ebe9b8-ec9b-4bfc-9e87-9f9b9026e0e4.jpg"
+     },
+     {
+      "title": "Kinderpool",
+      "url": "https://pics.tui.com/pics/pics1600x1200/tui/4/4b11d926-854e-4d6f-8f21-0dec18dcc2ed.jpg"
+     },
+     {
+      "title": "Hauptrestaurant",
+      "url": "https://pics.tui.com/pics/pics1600x1200/tui/c/c9b5570f-eb01-4104-a662-334b066cd32a.jpg"
+     },
+     {
+      "title": "Lobbybar",
+      "url": "https://pics.tui.com/pics/pics1600x1200/tui/a/ab19f25d-97d7-4bf9-ac56-76c4c954d302.jpg"
+     },
+     {
+      "title": "Poolside Bar",
+      "url": "https://pics.tui.com/pics/pics1600x1200/tui/8/846a5c48-e683-4f4e-a6a1-21eb7d683483.jpg"
+     },
+     {
+      "title": "Hauptrestaurant",
+      "url": "https://pics.tui.com/pics/pics1600x1200/tui/6/6da494ee-a2ac-4b77-b1c9-a0d5938d8165.jpg"
+     },
+     {
+      "title": "Restaurant Krystal Fusion",
+      "url": "https://pics.tui.com/pics/pics1600x1200/tui/7/7c775c7f-7c86-4e6f-a1a5-cc3499dbe02a.jpg"
+     },
+     {
+      "title": "Pepe´s Food",
+      "url": "https://pics.tui.com/pics/pics1600x1200/tui/b/bae5cda8-906e-46cc-9afa-08972e8a94b7.jpg"
+     },
+     {
+      "title": "Salonbar",
+      "url": "https://pics.tui.com/pics/pics1600x1200/tui/8/8715fc6f-d332-45ba-962b-a0be877f8f7a.jpg"
+     },
+     {
+      "title": "Lobbybar",
+      "url": "https://pics.tui.com/pics/pics1600x1200/tui/f/f3b9b9cb-cf5a-4fef-8949-46b3f470e6cb.jpg"
+     },
+     {
+      "title": "Wohnbeispiel Double Standard",
+      "url": "https://pics.tui.com/pics/pics1600x1200/tui/5/504aa66f-0cef-4ad8-9abc-b0e4beb38cd3.jpg"
+     },
+     {
+      "title": "Wohnbeispiel Double Room with Sea View",
+      "url": "https://pics.tui.com/pics/pics1600x1200/tui/8/8607e333-3b0b-48fc-a328-e61417860985.jpg"
+     },
+     {
+      "title": "Wohnbeispiel Double Room with Garden View",
+      "url": "https://pics.tui.com/pics/pics1600x1200/tui/d/debad1cf-530d-4e0f-9717-107b4a739fe2.jpg"
+     },
+     {
+      "title": "Wohnbeispiel Grande Double Room",
+      "url": "https://pics.tui.com/pics/pics1600x1200/tui/3/3b10a969-3596-4eb0-ab40-0fd4be7dac89.jpg"
+     },
+     {
+      "title": "Wohnbeispiel Double Standard",
+      "url": "https://pics.tui.com/pics/pics1600x1200/tui/1/16178731-4f79-4ef2-9f45-b38323389071.jpg"
+     },
+     {
+      "title": "Wohnbeispiel Double Room with Garden View",
+      "url": "https://pics.tui.com/pics/pics1600x1200/tui/6/685087d9-ba88-47e7-8fc2-e614d41724f9.jpg"
+     },
+     {
+      "title": "Wohnbeispiel Double Room with Sea View",
+      "url": "https://pics.tui.com/pics/pics1600x1200/tui/c/c0d96fcc-3722-4777-9ac8-baf4aae6f962.jpg"
+     },
+     {
+      "title": "Wohnbeispiel Double Room with Sea View",
+      "url": "https://pics.tui.com/pics/pics1600x1200/tui/b/b50f9c50-bcbe-4389-966e-72f7c92ffeb8.jpg"
+     },
+     {
+      "title": "Wohnbeispiel Grande Double Room",
+      "url": "https://pics.tui.com/pics/pics1600x1200/tui/9/97498cad-5019-4532-a840-ca8d8d0c6d54.jpg"
+     },
+     {
+      "title": "Wohnbeispiel Double Standard",
+      "url": "https://pics.tui.com/pics/pics1600x1200/tui/8/8ae9dae8-7954-4c1d-a297-3e3285f0b604.jpg"
+     },
+     {
+      "title": "Wohnbeispiel Double Room with Sea View",
+      "url": "https://pics.tui.com/pics/pics1600x1200/tui/3/34006b84-9c60-46b8-8ad3-3a1ce7ce181e.jpg"
+     },
+     {
+      "title": "Wohnbeispiel Double Room with Garden View",
+      "url": "https://pics.tui.com/pics/pics1600x1200/tui/9/9232d820-0d54-41dc-8636-247ce153a3d4.jpg"
+     },
+     {
+      "title": "Wohnbeispiel Grande Double Room",
+      "url": "https://pics.tui.com/pics/pics1600x1200/tui/8/8c1e0387-ef18-4795-a4fb-d0c5e2b6c4a3.jpg"
+     },
+     {
+      "title": "Wohnbeispiel Double Standard Accessible",
+      "url": "https://pics.tui.com/pics/pics1600x1200/tui/f/f1956f46-a5e7-42f3-b51c-f693c3322c72.jpg"
+     },
+     {
+      "title": "Ausstattung",
+      "url": "https://pics.tui.com/pics/pics1600x1200/tui/1/1df2da33-40da-4fea-a330-ea67eee7b892.jpg"
+     },
+     {
+      "title": "Sport",
+      "url": "https://pics.tui.com/pics/pics1600x1200/tui/a/a70c4f8b-b112-4494-93a7-34df1493192d.jpg"
+     },
+     {
+      "title": "Familie",
+      "url": "https://pics.tui.com/pics/pics1600x1200/tui/8/8703d94a-a3df-45fe-a819-ea281089767a.jpg"
+     }
+    ],
+    "location": {
+     "country": "Spanien",
+     "region": "Gran Canaria",
+     "city": "Playa del Ingles",
+     "latitude": 27.7561,
+     "longitude": -15.5715,
+     "countryCode": "ES",
+     "country3LC": "ESP"
+    },
+    "holidayCheckRecommendationRate": 99,
+    "holidayCheckNumberOfCurrentReviews": 3294,
+    "brand": "RIU",
+    "giataId": 432529,
+    "globalTypes": [
+     {
+      "code": "GT03/TUI-GDEST"
+     },
+     {
+      "code": "GT03-STAR/ST03-STAR5"
+     },
+     {
+      "code": "GT12-RIUU"
+     },
+     {
+      "code": "GT03-QUIE"
+     },
+     {
+      "code": "GT03-CENT"
+     },
+     {
+      "code": "GT03-DIBE"
+     },
+     {
+      "code": "GT03/TUI-G0514"
+     },
+     {
+      "code": "GT03-DICI"
+     },
+     {
+      "code": "GT03-DIAI"
+     },
+     {
+      "code": "GT03/TUI-G0879"
+     },
+     {
+      "code": "GT03/ST03-STAR4/TUI-G0545"
+     },
+     {
+      "code": "GT03-RECE"
+     },
+     {
+      "code": "GT03-RECE/ST03-GERM"
+     },
+     {
+      "code": "GT03-RECE/ST03-ENGL"
+     },
+     {
+      "code": "GT03-RECE/ST03-SPAN"
+     },
+     {
+      "code": "GT03-LIFT"
+     },
+     {
+      "code": "GT03-GARD"
+     },
+     {
+      "code": "GT03-SUTE"
+     },
+     {
+      "code": "GT03-INTE/ST03-WLAN"
+     },
+     {
+      "code": "GT03-INTE/ST03-WLAN/TUI-A0601"
+     },
+     {
+      "code": "GT03-INTE/ST03-WLAN/AT03-FRCH/TUI-A0601"
+     },
+     {
+      "code": "GT03-CRCA/ST03-VISA"
+     },
+     {
+      "code": "GT03-CRCA/ST03-MACA"
+     },
+     {
+      "code": "GT03-CRCA/ST03-AMEX"
+     },
+     {
+      "code": "GT03-CRCA/ST03-DINE"
+     },
+     {
+      "code": "GT03-CHPL"
+     },
+     {
+      "code": "GT03-CHIL"
+     },
+     {
+      "code": "GT03-PENO"
+     },
+     {
+      "code": "GT03-CAPA"
+     },
+     {
+      "code": "GT03-CAPA/TUI-A0608"
+     },
+     {
+      "code": "GT03-CAPA/AT03-EXCO/TUI-A0608"
+     },
+     {
+      "code": "GT03/TUI-G0896"
+     },
+     {
+      "code": "GT03-REST/ST03-LATE"
+     },
+     {
+      "code": "GT03/TUI-G0790"
+     },
+     {
+      "code": "GT03-BUFF"
+     },
+     {
+      "code": "GT03/TUI-G0791"
+     },
+     {
+      "code": "GT03/TUI-G0794"
+     },
+     {
+      "code": "GT03/TUI-G0796"
+     },
+     {
+      "code": "GT03/TUI-G0798"
+     },
+     {
+      "code": "GT03/TUI-G0797"
+     },
+     {
+      "code": "GT03/TUI-G0887"
+     },
+     {
+      "code": "GT03/TUI-G0805"
+     },
+     {
+      "code": "GT03/TUI-G0806"
+     },
+     {
+      "code": "GT03-REST/TUI-S0553"
+     },
+     {
+      "code": "GT03-REST/TUI-S0677"
+     },
+     {
+      "code": "GT03-SPFO/ST03-VECU"
+     },
+     {
+      "code": "GT03-REST/TUI-S0698"
+     },
+     {
+      "code": "GT03-REST/ST03-TERR"
+     },
+     {
+      "code": "GT03-REST/TUI-S0703"
+     },
+     {
+      "code": "GT03-REST/TUI-S0554"
+     },
+     {
+      "code": "GT03-REST/ST03-ACAR"
+     },
+     {
+      "code": "GT03-BARR/ST03-POBA"
+     },
+     {
+      "code": "GT03-BARR/TUI-S0504"
+     },
+     {
+      "code": "GT03-BARR/ST03-LOBA"
+     },
+     {
+      "code": "GT03-BARR/TUI-S0506"
+     },
+     {
+      "code": "GT03-POOL"
+     },
+     {
+      "code": "GT03-POOL/AT03-HEAT"
+     },
+     {
+      "code": "GT03-DECH"
+     },
+     {
+      "code": "GT03-DECH/AT03-FRCH"
+     },
+     {
+      "code": "GT03-PARA"
+     },
+     {
+      "code": "GT03-PARA/AT03-FRCH"
+     },
+     {
+      "code": "GT03-CHPO"
+     },
+     {
+      "code": "GT03-BEAC"
+     },
+     {
+      "code": "GT03-BATO"
+     },
+     {
+      "code": "GT03-BATO/AT03-FRCH"
+     },
+     {
+      "code": "GT03-SHOW"
+     },
+     {
+      "code": "GT03-LIBA"
+     },
+     {
+      "code": "GT03-FITN/ST03-FIRO"
+     },
+     {
+      "code": "GT03-FITN/ST03-FIRO/AT03-FRCH"
+     },
+     {
+      "code": "GT03-FITN/ST03-FIRO/AT03-AF16Y"
+     },
+     {
+      "code": "GT03-NUPO/ST03-N3"
+     },
+     {
+      "code": "GT03-NURE/ST03-N2"
+     },
+     {
+      "code": "GT03-NUBA/ST03-N4"
+     },
+     {
+      "code": "GT03-BEAC/ST03-N1"
+     },
+     {
+      "code": "GT03-DIAI/ST03-D50KM"
+     },
+     {
+      "code": "GT03-DIBE/ST03-D500M"
+     },
+     {
+      "code": "GT03/ST03-D500M/TUI-G0514"
+     },
+     {
+      "code": "GT03-DICI/ST03-D300M"
+     },
+     {
+      "code": "GT03/ST03-D200M/TUI-G0879"
+     },
+     {
+      "code": "GT03-NUBU/ST03-N1"
+     },
+     {
+      "code": "GT03-NUFL/ST03-N7"
+     },
+     {
+      "code": "GT03-NURO/ST03-201300"
+     },
+     {
+      "code": "GT03/ST03-N1/TUI-G0578"
+     },
+     {
+      "code": "GT03/ST03-N1/TUI-G0579"
+     },
+     {
+      "code": "GT03-BEAC/ST03-SAND"
+     },
+     {
+      "code": "GT03-BEAC/TUI-S0733"
+     },
+     {
+      "code": "GT03-BEAC/ST03-PUBL"
+     },
+     {
+      "code": "GT03/TUI-G0984"
+     },
+     {
+      "code": "GT03/TUI-G0988"
+     },
+     {
+      "code": "GT03/TUI-G1070"
+     },
+     {
+      "code": "GT03-SING"
+     },
+     {
+      "code": "GT03-SECI"
+     },
+     {
+      "code": "GT03-WHUS"
+     },
+     {
+      "code": "GT03-COUP"
+     },
+     {
+      "code": "GT03-SICH"
+     },
+     {
+      "code": "GT03-LUTO"
+     },
+     {
+      "code": "GT03/TUI-G1067"
+     },
+     {
+      "code": "GT02-HO/ST02-HO"
+     },
+     {
+      "code": "GT03-CHST/ST03-CHEL"
+     }
+    ],
+    "distances": {
+     "beach": 500,
+     "ski": 0
+    }
+   },
+   "startDate": "2026-08-12T06:00:00.000+02:00",
+   "endDate": "2026-08-19T07:10:00.000+01:00",
+   "numberOfNights": 7,
+   "productCode": "LPA31012",
+   "price": {
+    "advantage": -4,
+    "currency": "EUR",
+    "perPerson": {
+     "amount": 2339,
+     "originalAmount": 2445
+    },
+    "total": {
+     "amount": 4678,
+     "originalAmount": 4890
+    }
+   }
+  }
+ ]
+}

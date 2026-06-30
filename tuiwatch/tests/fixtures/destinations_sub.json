@@ -1,0 +1,26 @@
+{
+ "items": {
+  "851": {
+   "label": "Kanarische Inseln",
+   "level": 1,
+   "ibeRegionIds": [
+    1018
+   ]
+  },
+  "100002": {
+   "label": "Balearen",
+   "level": 1,
+   "ibeRegionIds": [
+    1003
+   ]
+  },
+  "100016": {
+   "label": "Spanien (Festland)",
+   "level": 1,
+   "ibeRegionIds": [
+    1036
+   ]
+  }
+ },
+ "parentName": "Spanien"
+}
