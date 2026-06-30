@@ -2380,6 +2380,15 @@ def api_trip_detail(tid):
     return jsonify(trip)
 
 
+# Erlaubte Spalten der trips-Tabelle (feste Whitelist, exakte Insert-/Update-Reihenfolge).
+# Bewusst als Konstante, damit CodeQL sieht: die SQL-Struktur stammt aus Code, nicht aus Daten.
+_TRIP_COLUMNS = (
+    'booking_code', 'booking_date', 'title', 'destination', 'hotel', 'hotel_code',
+    'start_date', 'end_date', 'nights', 'travellers', 'total_price', 'package_price',
+    'net_per_night', 'meal', 'data', 'pdf_name', 'orig_name', 'created',
+)
+
+
 @app.route('/api/trips/import', methods=['POST'])
 def api_trip_import():
     """TUI-Reisebestätigungs-PDF hochladen, parsen, dauerhaft speichern (Upsert
@@ -2439,7 +2448,11 @@ def api_trip_import():
         'orig_name': orig,
         'created': ts,
     }
-    cols = list(row.keys())
+    # Feste Whitelist der Spalten (konstant im Code, NICHT aus row.keys() abgeleitet),
+    # damit die SQL-Struktur nicht von request-nahen Daten abhängt. Reihenfolge fix.
+    cols = _TRIP_COLUMNS
+    assert set(row) == set(cols), "row weicht von der erlaubten Spaltenliste ab"
+    values = [row[c] for c in cols]
     with db() as con:
         existing = None
         if booking:
@@ -2457,13 +2470,13 @@ def api_trip_import():
                         pass
             setclause = ', '.join(f'{c}=?' for c in cols)
             con.execute(f'UPDATE trips SET {setclause} WHERE id=?',
-                        [row[c] for c in cols] + [existing['id']])
+                        values + [existing['id']])
             tid = existing['id']
         else:
             placeholders = ', '.join('?' for _ in cols)
             cur = con.execute(
                 f'INSERT INTO trips ({", ".join(cols)}) VALUES ({placeholders})',
-                [row[c] for c in cols])
+                values)
             tid = cur.lastrowid
     warnings = check_fields(data)
     if warnings:
