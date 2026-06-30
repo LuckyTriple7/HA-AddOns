@@ -19,6 +19,23 @@ Normalisierung von `fetch_price_api`, `fetch_search`, `fetch_calendar`,
 `fetch_destinations`, `fetch_airports`, `region_giata_from_breadcrumb`. CI:
 `.github/workflows/test-tuiwatch.yml`. Lauf: `pytest tests/` im Ordner `tuiwatch/`.
 
+## 10. PDF-Import: Debug-/Vorschau-Modus
+Optionaler Diagnose-Modus, um bei einer künftigen TUI-Layout-Änderung selbst (ohne
+Code-Runde) zu sehen, *warum* ein Feld nicht erkannt wurde. Ergänzt die bereits
+umgesetzten Bausteine: Import-Hinweise (`check_fields`, v0.25.7) + Golden-Korpus
+(`tests/fixtures/trips/`, v0.25.8) + Vorreinigung (`_clean_text`, v0.25.8).
+
+- Endpoint/Schalter (admin/api-gated), der zu einem hochgeladenen oder gespeicherten
+  PDF den **bereinigten Volltext** (`_clean_text`-Ausgabe) + das geparste JSON +
+  `warnings` zurückgibt — so sieht man Roh-Text vs. Treffer nebeneinander.
+- UI: kleiner „🔍 Debug"-Toggle in der Import-/Detailansicht (nur Admin), der den
+  bereinigten Text und je Feld „erkannt/leer" anzeigt.
+- Hinweis: Roh-/Detailtext kann PII enthalten (eigene Buchung) → nur für den
+  eingeloggten Besitzer/Admin sichtbar, nicht ins Log.
+- Wenn ein neues Layout bricht: bereinigten Text aus dem Debug-Modus kopieren,
+  anonymisieren, als neuen Fall unter `tests/fixtures/trips/` ablegen → Test zeigt
+  exakt das kippende Feld.
+
 ## 9. Image-Größe / Playwright-Last reduzieren
 Der Playwright-/Chromium-Fallback macht das Add-on-Image groß. Da die JSON-APIs laut
 Selbsttest stabil laufen, prüfen, ob Chromium nur noch bei Bedarf gebraucht wird.

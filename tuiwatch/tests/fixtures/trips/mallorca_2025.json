@@ -1,0 +1,26 @@
+{
+  "buchungsnummer": "90000002",
+  "reisezeitraum": {
+    "von": "25.07.2025",
+    "bis": "27.07.2025"
+  },
+  "naechte": 2,
+  "reiseziel": "Bucht von Alcudia",
+  "hotel": {
+    "name": "Grupotel Amapola",
+    "code": "PMI83043"
+  },
+  "verpflegung": "All Inclusive",
+  "gesamtpreis": "3.955,00",
+  "reisende_count": 7,
+  "fluege_typen": [
+    "Hinflug",
+    "Rückflug"
+  ],
+  "fluege_strecken": [
+    "Stuttgart (STR) > Palma de Mallorca (PMI)",
+    "Palma de Mallorca (PMI) > Stuttgart (STR)"
+  ],
+  "preis_pro_person_nacht_paket": "282,50",
+  "warnings": []
+}

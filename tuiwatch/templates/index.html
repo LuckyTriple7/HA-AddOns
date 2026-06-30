@@ -62,6 +62,8 @@
     .offer-details { font-size:.8rem; color:var(--muted); line-height:1.45; }
     .offer-url { display:inline-block; font-size:.72rem; color:var(--accent); text-decoration:none; word-break:break-all; margin-right:14px; }
     .offer-url.pdf { word-break:normal; }
+    .trip-warn { margin:4px 0 10px; padding:8px 10px; border-radius:6px; font-size:.82rem;
+      color:#d29922; background:rgba(210,153,34,.12); border:1px solid rgba(210,153,34,.4); }
     .flights { margin:8px 0 2px; display:flex; flex-direction:column; gap:3px; }
     .flight { font-size:.78rem; color:var(--text); display:flex; align-items:center; gap:6px; }
     .flight svg { width:13px; height:13px; fill:var(--muted); flex-shrink:0; }
@@ -334,6 +336,7 @@
         <option value="delta">Größte Preisänderung</option>
         <option value="rating">Beste Bewertung</option>
         <option value="name">Name A–Z</option>
+        <option value="location">Ort A–Z</option>
       </select>
       <label class="arch-toggle" title="Archivierte (abgelaufene/nicht mehr verfügbare) Angebote einblenden">
         <input type="checkbox" id="show-archived"> Archiv <span id="arch-count"></span>
@@ -608,6 +611,7 @@
       else if(sortMode==='delta') arr.sort((a,b)=>Math.abs(num(b.delta,0))-Math.abs(num(a.delta,0)));
       else if(sortMode==='rating') arr.sort((a,b)=>num(b.rating,-1)-num(a.rating,-1));
       else if(sortMode==='name') arr.sort((a,b)=>((a.label||a.hotel||'').localeCompare(b.label||b.hotel||'','de')));
+      else if(sortMode==='location') arr.sort((a,b)=>{ const x=(a.location||'').trim(), y=(b.location||'').trim(); if(!x&&!y) return a.id-b.id; if(!x) return 1; if(!y) return -1; return x.localeCompare(y,'de')||a.id-b.id; });  // Ort A–Z, ohne Ort ans Ende
       else if(sortMode==='start') arr.sort((a,b)=>{ const x=startDateOf(a)||'9999', y=startDateOf(b)||'9999'; return x<y?-1:x>y?1:a.id-b.id; });  // Reisebeginn, ohne Datum ans Ende
       else arr.sort((a,b)=>a.id-b.id);  // 'added'
       return arr;
@@ -1240,9 +1244,15 @@
       if(resp.status===413){ $('#trip-imp-status').textContent=''; toast('PDF zu groß (max. 16 MB)'); return; }
       if(resp.status===422){ $('#trip-imp-status').textContent=''; toast('PDF konnte nicht gelesen werden – ist es eine TUI-Reisebestätigung?'); return; }
       if(!resp.ok){ $('#trip-imp-status').textContent=''; toast('Import fehlgeschlagen'); return; }
-      $('#trip-imp-status').textContent = '✓ importiert';
-      setTimeout(()=>{ $('#trip-imp-status').textContent=''; }, 2500);
-      toast('Reise importiert');
+      const warns = (d && d.warnings) || [];
+      if(warns.length){
+        $('#trip-imp-status').textContent = '⚠ importiert – mit Hinweisen';
+        toast('Hinweis: nicht erkannt – '+warns.join(', '));
+      } else {
+        $('#trip-imp-status').textContent = '✓ importiert';
+        toast('Reise importiert');
+      }
+      setTimeout(()=>{ $('#trip-imp-status').textContent=''; }, 4000);
       await loadTrips();
       if(d && d.id) showTripDetail(d.id);
     }
@@ -1281,10 +1291,12 @@
         d.rabatte.map(r=>`<tr><td>${esc(r.code||'')}</td><td>${esc(r.betrag||'')}</td></tr>`).join('')}</table>`:'';
       const wuensche = (d.sonderwuensche||[]).length?`<div class="dsec">Sonderwünsche</div><div style="font-size:.84rem">${d.sonderwuensche.map(w=>esc(w)).join('<br>')}</div>`:'';
       const pdf = t.has_pdf?`<a class="btn" href="${api('/api/trips/'+id+'/pdf')}" target="_blank" rel="noopener">📄 PDF öffnen</a>`:'';
+      const warns = t.warnings||[];
+      const warnBox = warns.length?`<div class="trip-warn">⚠ Diese Felder wurden nicht (vollständig) aus dem PDF erkannt: <b>${warns.map(w=>esc(w)).join(', ')}</b>. Bitte in der PDF prüfen.</div>`:'';
       const box = $('#trip-detail');
       box.innerHTML = `<h3>${esc(t.title||('Reise #'+id))}</h3>
         <div style="margin-bottom:6px">${pdf} <button class="btn sec" onclick="$('#trip-detail').style.display='none'">schließen</button></div>
-        <div class="dgrid">${grid}</div>${reisende}${fluege}${extras}${rabatte}${wuensche}`;
+        ${warnBox}<div class="dgrid">${grid}</div>${reisende}${fluege}${extras}${rabatte}${wuensche}`;
       box.style.display='block';
       box.scrollIntoView({behavior:'smooth', block:'nearest'});
     }

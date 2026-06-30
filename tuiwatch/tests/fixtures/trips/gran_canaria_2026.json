@@ -1,0 +1,26 @@
+{
+  "buchungsnummer": "90000004",
+  "reisezeitraum": {
+    "von": "01.05.2026",
+    "bis": "11.05.2026"
+  },
+  "naechte": 10,
+  "reiseziel": "Playa del Ingles",
+  "hotel": {
+    "name": "Riu Papayas",
+    "code": "LPA31006"
+  },
+  "verpflegung": "All Inclusive",
+  "gesamtpreis": "2.851,00",
+  "reisende_count": 2,
+  "fluege_typen": [
+    "Hinflug",
+    "Rückflug"
+  ],
+  "fluege_strecken": [
+    "Stuttgart (STR) > Gran Canaria (LPA)",
+    "Gran Canaria (LPA) > Stuttgart (STR)"
+  ],
+  "preis_pro_person_nacht_paket": "138,60",
+  "warnings": []
+}

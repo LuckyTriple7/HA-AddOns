@@ -925,9 +925,27 @@ def _de_date(iso: str) -> str:
     return f"{m.group(3)}.{m.group(2)}.{m.group(1)}" if m else ""
 
 
+_DE_WEEKDAYS = ("Mo", "Di", "Mi", "Do", "Fr", "Sa", "So")
+
+
+def _de_weekday(iso: str) -> str:
+    m = re.match(r"(\d{4})-(\d{2})-(\d{2})", iso or "")
+    if not m:
+        return ""
+    try:
+        d = datetime(int(m.group(1)), int(m.group(2)), int(m.group(3)))
+    except ValueError:
+        return ""
+    return _DE_WEEKDAYS[d.weekday()]
+
+
 def _de_datetime(iso: str) -> str:
     m = re.match(r"(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})", iso or "")
-    return f"{m.group(3)}.{m.group(2)}.{m.group(1)}, {m.group(4)}:{m.group(5)}" if m else ""
+    if not m:
+        return ""
+    wd = _de_weekday(iso)
+    date = f"{m.group(3)}.{m.group(2)}.{m.group(1)}"
+    return f"{wd + ' ' if wd else ''}{date}, {m.group(4)}:{m.group(5)}"
 
 
 def _fmt_flight(leg: dict) -> str:

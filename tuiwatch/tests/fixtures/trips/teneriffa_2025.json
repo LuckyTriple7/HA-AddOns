@@ -1,0 +1,26 @@
+{
+  "buchungsnummer": "90000003",
+  "reisezeitraum": {
+    "von": "18.09.2025",
+    "bis": "27.09.2025"
+  },
+  "naechte": 9,
+  "reiseziel": "Puerto Santiago",
+  "hotel": {
+    "name": "LANDMAR Playa La Arena",
+    "code": "TFS36040"
+  },
+  "verpflegung": "All Inclusive",
+  "gesamtpreis": "1.949,00",
+  "reisende_count": 1,
+  "fluege_typen": [
+    "Hinflug",
+    "Rückflug"
+  ],
+  "fluege_strecken": [
+    "Stuttgart (STR) > Teneriffa Süd (TFS)",
+    "Teneriffa Süd (TFS) > Stuttgart (STR)"
+  ],
+  "preis_pro_person_nacht_paket": "208,89",
+  "warnings": []
+}

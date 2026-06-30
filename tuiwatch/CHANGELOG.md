@@ -1,5 +1,52 @@
 # Changelog
 
+## [0.25.8] - 2026-06-30
+
+### Changed
+- **PDF-Parser deutlich robuster gegen Layout-Änderungen.** Neue zentrale
+  Vorreinigung (`_clean_text`) entfernt vor dem Parsen einmalig die wiederkehrenden
+  Seiten-„Möbel" (Kopf-/Fußzeilen, Rechts-Boilerplate, `Seite X/Y`, wiederholte
+  Tabellenköpfe), alleinstehende Fußnoten-Hochzahlen sowie die Punktelinien der
+  „auf einen Blick"-Übersicht. Dadurch laufen die Feld-Regexes auf sauberem,
+  lückenlosem Text — der häufigste Bruchgrund (eingeschobene Zeilen durch
+  Seitenumbruch, z. B. nicht erkannte Rückflüge) entfällt. Künftige Eigenheiten
+  werden an **einer** Stelle gepflegt statt in jeder Regex einzeln.
+
+### Added
+- **Golden-Test-Korpus** (`tests/fixtures/trips/`): vier echte, PII-bereinigte
+  Buchungsbestätigungen (3 Layout-Generationen, 1–7 Reisende) mit erwartetem
+  Parse-Ergebnis. Bricht TUI künftig das Format, zeigt der Test exakt, welches
+  Feld kippt — gezielter Fix statt Raten.
+
+## [0.25.7] - 2026-06-30
+
+### Fixed
+- **PDF-Import: Rückflug über Seitenumbruch.** Lag zwischen Zeit- und Streckenzeile
+  eines Fluges ein kompletter Seitenumbruch (Footer + Folgeseiten-Kopf, z. B. bei
+  Mallorca-Bestätigungen), wurde der Rückflug nicht erkannt. Der Parser überspringt
+  jetzt Zwischenzeilen bis zur Streckenzeile. Zudem werden hochgestellte
+  Fußnoten-Ziffern (z. B. „… (PMI) 3") aus Strecke/Flughafen entfernt.
+
+### Added
+- **Import-Hinweis bei unvollständiger Erkennung.** Werden beim PDF-Import wichtige
+  Felder nicht (vollständig) erkannt (z. B. Hotel, Reisezeitraum, Gesamtpreis, Hin-/
+  Rückflug), erscheint ein Hinweis-Toast und ein gelber Hinweisbalken in der
+  Reise-Detailansicht mit der Liste der betroffenen Felder.
+
+## [0.25.6] - 2026-06-30
+
+### Added
+- **Sortierung „Ort A–Z":** Neue Option im Sortier-Menü der Angebotsliste, die nach
+  dem Reiseziel/Ort sortiert (z. B. „Kolymbia, Rhodos"). Angebote ohne Ort wandern ans
+  Ende. Die Suche durchsucht den Ort bereits.
+
+## [0.25.5] - 2026-06-30
+
+### Changed
+- **Flüge mit Wochentag:** In der Angebotsliste zeigen Hin- und Rückflug jetzt den
+  Wochentag vor dem Datum, z. B. „Hin: **Mo** 03.05.2027, 13:30" / „Rück: **Fr**
+  14.05.2027, 18:10". Erleichtert die Planung auf einen Blick.
+
 ## [0.25.4] - 2026-06-30
 
 ### Changed

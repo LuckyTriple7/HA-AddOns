@@ -1,0 +1,26 @@
+{
+  "buchungsnummer": "90000001",
+  "reisezeitraum": {
+    "von": "03.05.2024",
+    "bis": "13.05.2024"
+  },
+  "naechte": 10,
+  "reiseziel": "Puerto Rico",
+  "hotel": {
+    "name": "Gloria Palace Amadores Thalasso & Hotel",
+    "code": "LPA51005"
+  },
+  "verpflegung": "All Inclusive",
+  "gesamtpreis": "1.608,00",
+  "reisende_count": 1,
+  "fluege_typen": [
+    "Hinflug",
+    "Rückflug"
+  ],
+  "fluege_strecken": [
+    "Stuttgart (STR) > Gran Canaria (LPA)",
+    "Gran Canaria (LPA) > Stuttgart (STR)"
+  ],
+  "preis_pro_person_nacht_paket": "160,80",
+  "warnings": []
+}
