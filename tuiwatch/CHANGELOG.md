@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.25.6] - 2026-06-30
+
+### Added
+- **Sortierung „Ort A–Z":** Neue Option im Sortier-Menü der Angebotsliste, die nach
+  dem Reiseziel/Ort sortiert (z. B. „Kolymbia, Rhodos"). Angebote ohne Ort wandern ans
+  Ende. Die Suche durchsucht den Ort bereits.
+
 ## [0.25.5] - 2026-06-30
 
 ### Changed
