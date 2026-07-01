@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.0.46] - 2026-07-01
+
+### Added
+- Neues Modell `claude-sonnet-5` zur Auswahl hinzugefügt und als Standard gesetzt
+
+
 ## [1.0.45] - 2026-07-01
 
 ### Changed

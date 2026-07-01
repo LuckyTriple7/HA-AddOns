@@ -60,9 +60,9 @@ configuration:
   model:
     name: Claude-Modell
     description: >-
-      Das zu verwendende Claude-Modell. claude-sonnet-4-6 bietet die beste Balance
-      aus Geschwindigkeit und Leistung. claude-fable-5 ist das leistungsstärkste
-      Modell, claude-opus-4-8 sehr stark für komplexe Aufgaben.
+      Das zu verwendende Claude-Modell. claude-sonnet-5 ist das neueste Modell und
+      bietet die beste Balance aus Geschwindigkeit und Leistung. claude-fable-5 ist
+      sehr leistungsstark, claude-opus-4-8 sehr stark für komplexe Aufgaben.
       claude-haiku-4-5-20251001 ist das schnellste. Mit aktiviertem
       Auto-Update stehen neue Modelle ohne Add-on-Update zur Verfügung.
   export_memory:
