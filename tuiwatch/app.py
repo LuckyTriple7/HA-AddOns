@@ -1342,6 +1342,10 @@ def _run_coupons() -> None:
             _coupon_state.update({'error': res.get('error') or 'Abruf fehlgeschlagen', 'ts': ts})
         return
     coupons = res.get('coupons') or []
+    try:                                            # veralteten Debug-Screenshot entfernen
+        os.remove(_DATA + '/coupon_debug.png')
+    except OSError:
+        pass
     _meta_set('coupons_last', json.dumps({'ts': ts, 'coupons': coupons}, ensure_ascii=False))
     new = _store_coupons(coupons, ts)
     if new and load_config().get('notify_coupons', True):
@@ -1387,6 +1391,7 @@ def _coupons_payload() -> dict:
         'error': st.get('error'),
         'ts': last.get('ts') or (int(_meta_get('coupons_checked', 0) or 0) or None),
         'coupons': last.get('coupons') or [],
+        'debug': os.path.exists(_DATA + '/coupon_debug.png'),
     }
 
 
@@ -1395,6 +1400,19 @@ def api_coupons_get():
     if (err := _require_api()):
         return err
     return jsonify(_coupons_payload())
+
+
+@app.route('/api/coupons/debug', methods=['GET'])
+def api_coupons_debug():
+    """Debug-Screenshot des letzten fehlgeschlagenen Coupon-Logins (falls vorhanden)."""
+    if (err := _require_api()):
+        return err
+    p = _DATA + '/coupon_debug.png'
+    if not os.path.exists(p):
+        return jsonify({'error': 'not_found'}), 404
+    resp = make_response(send_file(p, mimetype='image/png'))
+    resp.headers['Cache-Control'] = 'no-store'
+    return resp
 
 
 @app.route('/api/coupons', methods=['POST'])

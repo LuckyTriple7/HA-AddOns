@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.25.19] - 2026-07-01
+
+### Added
+- **Coupons: Debug-Screenshot direkt im UI.** Schlägt der Coupon-Login fehl, zeigt das
+  Coupon-Fenster einen Button **„🖼 Debug-Screenshot ansehen"** (Endpoint
+  `/api/coupons/debug`) — kein Zugriff auf den privaten `/data`-Ordner des Add-ons nötig.
+  Bei erfolgreichem Abruf wird der alte Screenshot automatisch entfernt.
+
 ## [0.25.18] - 2026-07-01
 
 ### Added

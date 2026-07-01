@@ -1302,7 +1302,8 @@
       }
       when.textContent = d.ts ? ('Abgefragt: '+new Date(d.ts*1000).toLocaleString('de-DE')) : '';
       if(d.error){
-        $('#coupon-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ '+esc(d.error)+'</div>';
+        const dbg = d.debug ? `<div style="margin-top:8px"><a class="btn sec" href="${api('/api/coupons/debug')}" target="_blank" rel="noopener">🖼 Debug-Screenshot ansehen</a></div>` : '';
+        $('#coupon-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ '+esc(d.error)+'</div>'+dbg;
         return;
       }
       const cs = d.coupons||[];
