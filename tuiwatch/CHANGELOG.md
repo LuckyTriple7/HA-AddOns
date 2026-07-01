@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.25.15] - 2026-07-01
+
+### Security
+- **CodeQL (HIGH) im neuen Backup/Restore behoben.**
+  - *SQL aus Nutzerquellen:* Beim Wiederherstellen wurde die Spaltenliste des
+    `INSERT INTO offers` aus den Schlüsseln der Backup-Datei gebildet. Die Spalten kommen
+    jetzt aus einer festen Code-Whitelist (`_OFFER_RESTORE_COLS`); Werte bleiben
+    parametrisiert. Funktional identisch.
+  - *Pfad aus Nutzerdaten (2×):* `_trip_pdf_path` validiert den Dateinamen nun zusätzlich
+    gegen einen strikt begrenzten Zeichensatz (`[A-Za-z0-9._-]`, nur Basename), bevor ein
+    Pfad gebaut wird — schließt Path-Traversal über `pdf_name` aus Backup/Import sicher aus.
+
 ## [0.25.14] - 2026-07-01
 
 ### Changed

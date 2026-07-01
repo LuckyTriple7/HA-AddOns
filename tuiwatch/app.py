@@ -1910,6 +1910,15 @@ def api_email():
 
 _HISTORY_COLS = ('ts', 'price', 'old_price', 'discount', 'available', 'ok', 'note')
 _EVENT_COLS = ('ts', 'type', 'text')
+# Feste Whitelist der beim Restore einspielbaren Angebots-Spalten (Spaltennamen kommen
+# damit NIE aus den Backup-Daten → keine per String gebaute Query aus Nutzerquellen).
+_OFFER_RESTORE_COLS = (
+    'url', 'label', 'hotel', 'details', 'room', 'dep_airport', 'flight_out', 'flight_ret',
+    'location', 'city', 'region', 'country', 'pdf_url', 'cancellation', 'stars', 'rating',
+    'rating_count', 'recommendation', 'total_price', 'travellers_count', 'paused',
+    'archived', 'return_date', 'target_price', 'booked_price', 'image_url', 'booking_code',
+    'room_booking_code', 'created',
+)
 
 
 def _table_columns(con, table: str) -> list:
@@ -1973,23 +1982,24 @@ def _restore_offer(con, it: dict, ocols: set, existing_urls: set) -> str:
     url = (it.get('url') or '').strip()
     if not _valid_tui_url(url) or url in existing_urls:
         return 'skipped'
-    # nur bekannte Spalten übernehmen, sicherheitskritische Felder bereinigen
-    row = {k: v for k, v in it.items()
-           if k not in ('id', 'history', 'events') and k in ocols}
+    # Werte NUR aus der festen Spalten-Whitelist übernehmen (Spaltennamen sind Code-
+    # Konstanten, nie aus den Daten), sicherheitskritische Felder bereinigen.
+    row = {c: it.get(c) for c in _OFFER_RESTORE_COLS if c in ocols}
     row['url'] = url
     row['label'] = (it.get('label') or '').strip()
     row['hotel'] = (it.get('hotel') or hotel_from_url(url) or '')
-    if 'target_price' in ocols:
+    if 'target_price' in row:
         row['target_price'] = _price(it.get('target_price'))
-    if 'booked_price' in ocols:
+    if 'booked_price' in row:
         row['booked_price'] = _price(it.get('booked_price'))
-    if 'image_url' in ocols:
+    if 'image_url' in row:
         img = (it.get('image_url') or '').strip()
         row['image_url'] = img if _valid_img_url(img) else ''
     row['paused'] = 1 if it.get('paused') else 0
     row['archived'] = 1 if it.get('archived') else 0
     row['created'] = int(it.get('created') or time.time())
-    cols = list(row.keys())
+    # Spaltenliste ausschließlich aus der Konstante (feste Reihenfolge, keine Nutzerdaten)
+    cols = [c for c in _OFFER_RESTORE_COLS if c in row]
     try:
         cur = con.execute(
             f"INSERT INTO offers ({', '.join(cols)}) VALUES ({', '.join('?' for _ in cols)})",
@@ -2445,11 +2455,16 @@ def _iso_date(de: str):
 
 def _trip_pdf_path(pdf_name: str):
     """Sicheren Pfad zur Reise-PDF im TRIPS_DIR liefern (Path-Traversal-Schutz).
-    Gibt None zurück, wenn der Name aus dem TRIPS_DIR ausbrechen würde."""
+    Gibt None zurück, wenn der Name unzulässig ist oder aus dem TRIPS_DIR ausbräche."""
     if not pdf_name:
         return None
+    # Nur der Basename und ausschließlich ein strikt begrenzter Zeichensatz — verhindert
+    # jegliche Verzeichnis-Anteile/Traversal, bevor ein Pfad gebaut wird.
+    name = Path(pdf_name).name
+    if not re.fullmatch(r'[A-Za-z0-9._-]{1,120}', name):
+        return None
     base = Path(TRIPS_DIR).resolve()
-    p = (base / Path(pdf_name).name).resolve()
+    p = (base / name).resolve()
     try:
         p.relative_to(base)
     except ValueError:
