@@ -222,7 +222,13 @@ Bei aktiver Option `ha_sensors` legt TUIWatch je Angebot einen Sensor
 ## Bedienung
 
 - **Als E-Mail senden** — verschickt alle Angebote als HTML-Mail (Empfänger wird vorher abgefragt; benötigt SMTP-Optionen).
-- **Backup / Wiederherstellen** — getrackte Angebote als JSON sichern bzw. importieren.
+- **Backup / Wiederherstellen** — **komplettes** Backup als **ZIP**: alle getrackten
+  Angebote **inkl. Preisverlauf** und Diagramm-Markern, **„Meine Reisen" inkl. der
+  Original-PDFs** sowie die **gespeicherten Suchen**. Die Wiederherstellung liest die ZIP
+  (das alte reine JSON wird weiterhin akzeptiert) und arbeitet **nicht-destruktiv**:
+  Fehlendes wird ergänzt, Bestehendes bleibt erhalten (Abgleich per URL, Buchungsnummer
+  bzw. Name) — nichts wird gelöscht oder doppelt angelegt. (Reine Caches wie
+  Vergleich/Kalender werden nicht gesichert, sie entstehen automatisch neu.)
 - **Gebuchter Preis** — pro Angebot den **tatsächlich gezahlten Preis** hinterlegen
   (Feld „📌 Gebuchter Preis"). Das Tracking läuft weiter; angezeigt wird „seit Buchung
   ±X €" und im Diagramm eine eigene Linie. Fällt der Preis deutlich darunter, kommt

@@ -326,9 +326,9 @@
       <button class="btn sec" onclick="openTrips()" title="Gebuchte Reisen verwalten (TUI-PDF importieren)">🧳 Meine Reisen</button>
       <button class="btn sec" onclick="sendEmail()" title="Alle Angebote als E-Mail senden">✉ Als E-Mail senden</button>
       <button class="btn sec" onclick="sendDigest()" title="Wochenüberblick jetzt senden (Telegram/E-Mail)">📊 Wochenüberblick</button>
-      <button class="btn sec" onclick="backupOffers()" title="Getrackte Angebote sichern">⬇ Backup</button>
-      <button class="btn sec" onclick="document.getElementById('restore-file').click()" title="Angebote aus Backup importieren">⬆ Wiederherstellen</button>
-      <input type="file" id="restore-file" accept="application/json,.json" style="display:none" onchange="restoreOffers(this)">
+      <button class="btn sec" onclick="backupOffers()" title="Komplettes Backup (Angebote mit Preisverlauf, Meine Reisen inkl. PDF, gespeicherte Suchen) als ZIP">⬇ Backup</button>
+      <button class="btn sec" onclick="document.getElementById('restore-file').click()" title="Backup wiederherstellen (ZIP oder altes JSON) – ergänzt Fehlendes, überschreibt nichts">⬆ Wiederherstellen</button>
+      <input type="file" id="restore-file" accept=".zip,application/zip,.json,application/json" style="display:none" onchange="restoreOffers(this)">
     </div>
     <div id="overview" class="overview" style="display:none"></div>
 
@@ -1931,16 +1931,23 @@
       try {
         const r = await fetch(api('/api/backup')); const blob = await r.blob();
         const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-        a.download = 'tuiwatch-backup.json'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(a.href);
+        a.download = 'tuiwatch-backup.zip'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(a.href);
         toast('Backup heruntergeladen');
       } catch(e){ toast('Backup fehlgeschlagen'); }
     }
     async function restoreOffers(input){
       const f = input.files && input.files[0]; input.value=''; if(!f) return;
-      let data; try { data = JSON.parse(await f.text()); } catch(e){ toast('Ungültige Backup-Datei'); return; }
-      const r = await fetch(api('/api/restore'), {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)});
-      if(r.ok){ const d=await r.json(); toast('Wiederhergestellt: '+d.added+' neu, '+d.skipped+' übersprungen'); loadOffers(); }
-      else toast('Wiederherstellung fehlgeschlagen');
+      const fd = new FormData(); fd.append('file', f);
+      let r; try { r = await fetch(api('/api/restore'), {method:'POST', body:fd}); }
+      catch(e){ toast('Wiederherstellung fehlgeschlagen'); return; }
+      if(r.ok){
+        const d=await r.json();
+        const parts = [d.added+' Angebote'];
+        if(d.trips) parts.push(d.trips+' Reisen');
+        if(d.searches) parts.push(d.searches+' Suchen');
+        toast('Wiederhergestellt: '+parts.join(', ')+(d.skipped?(' ('+d.skipped+' übersprungen)'):''));
+        loadOffers();
+      } else toast('Wiederherstellung fehlgeschlagen');
     }
 
     function renderOverview(offers){

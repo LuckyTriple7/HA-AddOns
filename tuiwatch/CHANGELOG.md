@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.25.14] - 2026-07-01
+
+### Changed
+- **Backup & Restore jetzt vollständig.** Das Backup war unvollständig (nur nackte
+  Angebots-Eckdaten). Es umfasst nun als **ZIP**: alle Angebote **inkl. Preisverlauf**
+  und Diagramm-Marker, **„Meine Reisen" inkl. der Original-PDFs** sowie die
+  **gespeicherten Suchen**. Die Wiederherstellung akzeptiert die ZIP (altes JSON weiterhin
+  möglich) und arbeitet **nicht-destruktiv** (Upsert per URL/Buchungsnummer/Name –
+  nichts wird gelöscht oder doppelt angelegt). Reine Caches (Vergleich/Kalender) werden
+  bewusst nicht gesichert (regenerieren automatisch).
+
 ## [0.25.13] - 2026-07-01
 
 ### Fixed
