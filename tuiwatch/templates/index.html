@@ -229,6 +229,8 @@
     .cal-cell.out { opacity:.4; }
     .cal-cell.cheapest { border-color:var(--green); background:rgba(46,160,67,.16); }
     .cal-cell.cheapest .cal-p { color:var(--green); }
+    .cal-pig { width:14px; height:14px; fill:var(--green); vertical-align:-3px; margin-left:2px; }
+    .cal-legend .cal-pig { margin:0 4px 0 0; }
     .cal-cell.tracked { outline:2px solid var(--accent); outline-offset:-2px; }
     a.cal-cell.clk { text-decoration:none; color:inherit; cursor:pointer; transition:transform .08s; }
     a.cal-cell.clk:hover { border-color:var(--accent); transform:translateY(-1px); }
@@ -1790,6 +1792,8 @@
       const offer = (curOffers||[]).find(x=>x.id===calId) || {};
       const base = offer.url || '';
       const nights = (job.duration) || 0;
+      // Sparschwein-Icon (MDI piggy-bank) für den günstigsten Termin
+      const PIG = '<svg class="cal-pig" viewBox="0 0 24 24" aria-hidden="true"><path d="M19,5A2,2 0 0,1 21,7V11A2,2 0 0,1 19,13H18.4C18.16,13.71 17.81,14.39 17.37,15L18,18H16L15.5,16.5H10.5L10,18H8L8.63,15C7.35,13.28 7.35,10.72 8.63,9C9.36,8 10.5,7.32 11.79,7.09C11.5,6.83 11.14,6.65 10.76,6.56C10.5,6.5 10.24,6.5 10,6.5V4.5C10.94,4.5 11.86,4.79 12.63,5.32C13.09,5.11 13.6,5 14.13,5H19M17,9A1,1 0 0,0 16,10A1,1 0 0,0 17,11A1,1 0 0,0 18,10A1,1 0 0,0 17,9M2,10V12H6V10H2Z"/></svg>';
       let cells = '';
       for(let i=0;i<startWd;i++) cells += '<div class="cal-cell empty"></div>';
       for(let d=1; d<=dim; d++){
@@ -1805,7 +1809,7 @@
           const ratio = pmax>pmin ? (price-pmin)/(pmax-pmin) : 0;
           style = ` style="background:hsla(${Math.round(120*(1-ratio))},65%,45%,.22)"`;
         }
-        const inner = `<span class="cal-d">${d}</span>`
+        const inner = `<span class="cal-d">${d}${iso===job.cheapest_date?PIG:''}</span>`
           + (price!=null ? `<span class="cal-p">${eur(price)}</span>` : '<span class="cal-p na">–</span>');
         if(price!=null && base){
           cls.push('clk');
@@ -1829,7 +1833,7 @@
         <div class="cal-grid head">${['Mo','Di','Mi','Do','Fr','Sa','So'].map(w=>`<div class="cal-wd">${w}</div>`).join('')}</div>
         <div class="cal-grid">${cells}</div>
         <div class="cal-legend">
-          <span><i class="lg-cheap"></i>günstigster Termin</span>
+          <span><i class="lg-cheap"></i>${PIG}günstigster Termin</span>
           <span><i class="lg-track"></i>günstigster in deinem Zeitraum</span>
           <span><i class="lg-out"></i>außerhalb deines Zeitraums</span>
           <span>🟩→🟥 günstig→teuer · Klick: auf tui.com öffnen · Rechtsklick: als neues Angebot tracken</span>

@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.25.17] - 2026-07-01
+
+### Added
+- **Preiskalender: Sparschwein-Icon am günstigsten Termin.** Der günstigste Termin
+  insgesamt wird zusätzlich zur grünen Markierung mit einem kleinen Sparschwein-Icon
+  (SVG) gekennzeichnet — auch in der Legende.
+
 ## [0.25.16] - 2026-07-01
 
 ### Added
