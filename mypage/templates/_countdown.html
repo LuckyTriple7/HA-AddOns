@@ -1,5 +1,5 @@
 {% if cd and cd.target %}
-<section class="countdown" id="countdown" data-target="{{ cd.target }}">
+<section class="countdown" id="countdown" data-target="{{ cd.target }}" data-size="{{ cd.size or 'm' }}">
   <h2 class="section-title cd-h">{{ loc(cd, 'title') or t.countdown_heading }}</h2>
   {% if cd.image %}<img class="cd-image" src="{{ cd.image }}" alt="" loading="lazy">{% endif %}
   {% if loc(cd, 'subtitle') %}<p class="cd-subtitle">{{ loc(cd, 'subtitle') }}</p>{% endif %}
@@ -23,14 +23,16 @@
   {% endif %}
 </section>
 <style>
-  .countdown { text-align: center; }
+  .countdown { text-align: center; --cd-scale: 1; }
+  .countdown[data-size=s] { --cd-scale: 0.7; }
+  .countdown[data-size=l] { --cd-scale: 1.3; }
   .countdown .cd-h { text-align: center; }
-  .cd-image { max-width: 240px; height: auto; margin: 4px auto 10px; display: block; }
+  .cd-image { max-width: calc(240px * var(--cd-scale)); height: auto; margin: 4px auto 10px; display: block; }
   .cd-subtitle { color: var(--muted); margin: 0 auto 20px; max-width: 560px; }
-  .cd-grid { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
-  .cd-tile { background: var(--surf); border: 1px solid var(--border); border-radius: 14px; padding: 16px 10px; min-width: 88px; }
-  .cd-num { display: block; font-size: clamp(2rem, 7vw, 3rem); font-weight: 700; line-height: 1; color: var(--accent); font-variant-numeric: tabular-nums; }
-  .cd-label { display: block; margin-top: 9px; font-size: 0.72rem; letter-spacing: .09em; text-transform: uppercase; color: var(--muted); }
+  .cd-grid { display: flex; gap: calc(14px * var(--cd-scale)); justify-content: center; flex-wrap: wrap; }
+  .cd-tile { background: var(--surf); border: 1px solid var(--border); border-radius: 14px; padding: calc(16px * var(--cd-scale)) calc(10px * var(--cd-scale)); min-width: calc(88px * var(--cd-scale)); }
+  .cd-num { display: block; font-size: calc(clamp(2rem, 7vw, 3rem) * var(--cd-scale)); font-weight: 700; line-height: 1; color: var(--accent); font-variant-numeric: tabular-nums; }
+  .cd-label { display: block; margin-top: 9px; font-size: calc(0.72rem * var(--cd-scale)); letter-spacing: .09em; text-transform: uppercase; color: var(--muted); }
   .cd-expired { font-size: 1.5rem; font-weight: 700; color: var(--accent); margin: 8px 0; }
   .cd-notify { margin-top: 24px; }
   .cd-notify-btn { background: var(--accent); color: #fff; border: none; padding: 11px 26px; border-radius: 8px; font: inherit; font-weight: 600; cursor: pointer; }

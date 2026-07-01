@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.66
+
+- ⏱️ **Countdown-Größe einstellbar** — Im Countdown-Abschnitt lässt sich jetzt über ein Auswahlfeld **Klein / Mittel / Groß** wählen. Der gesamte Block (Ziffern, Kacheln, Abstände, Labels und optionales Bild) wird dabei proportional skaliert. „Mittel" bleibt der bisherige Standard, sodass bestehende Seiten unverändert aussehen.
+
 ## 0.7.65
 
 - ✍️ **Neues Freitext-Modul** — Ein frei gestaltbarer Startseiten-Abschnitt: Über den eingebauten **Markdown-Editor** lassen sich beliebig **Text und Bilder** einfügen (Formatierung, Listen, Tabellen, Links, Bild-Upload per Klick). Die **Überschrift ist optional** (DE/EN) — bleibt sie leer, wird keine Titelzeile angezeigt und der Inhalt gestaltet sich komplett selbst. Der Block lässt sich wie jede andere Sektion **per Drag & Drop anordnen, aus-/einblenden** und auf „nur Mitglieder" stellen.
