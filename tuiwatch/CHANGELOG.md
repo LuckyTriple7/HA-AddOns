@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.25.13] - 2026-07-01
+
+### Fixed
+- **Preiskalender deckt die volle Spanne ab.** Der Kalender reicht jetzt vom aktuellen
+  Monat bis deutlich über den Reisezeitraum hinaus (im Beispiel Juli 2026 bis Oktober
+  2027) und öffnet im Reisemonat. Die TUI-Kalender-API liefert pro Aufruf nur ein
+  begrenztes Fenster (~12 Monate ab Startdatum); wie die TUI-Seite selbst werden nun
+  mehrere Abrufe ab fortlaufendem Startdatum zusammengeführt, statt in einem einzelnen
+  Aufruf vorne oder hinten abzuschneiden.
+
 ## [0.25.12] - 2026-07-01
 
 ### Changed
