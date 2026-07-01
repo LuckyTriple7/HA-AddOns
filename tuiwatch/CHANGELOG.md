@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.26.0] - 2026-07-01
+
+Version Bump, Revert Coupon Feature
+
+
 ## [0.25.17] - 2026-07-01
 
 ### Added
