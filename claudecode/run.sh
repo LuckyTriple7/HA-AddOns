@@ -101,7 +101,7 @@ ENABLE_PLAYWRIGHT=$(jq -r '.enable_playwright_mcp // false' /data/options.json)
 PLAYWRIGHT_HOST=$(jq -r --arg d '' '.playwright_cdp_host // $d' /data/options.json)
 AUTO_UPDATE=$(jq -r 'if .auto_update_claude == false then "false" else "true" end' /data/options.json)
 NOTIFY_ON_UPDATE=$(jq -r 'if .notify_on_update == false then "false" else "true" end' /data/options.json)
-MODEL=$(jq -r --arg d claude-sonnet-4-6 '.model // $d' /data/options.json)
+MODEL=$(jq -r --arg d claude-sonnet-5 '.model // $d' /data/options.json)
 EXPORT_MEMORY=$(jq -r '.export_memory // false' /data/options.json)
 EXPORT_MEMORY_INTERVAL=$(jq -r '.export_memory_interval // 60' /data/options.json)
 

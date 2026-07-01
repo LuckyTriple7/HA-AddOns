@@ -359,6 +359,12 @@
           <input type="text" id="cd-image" placeholder="https://… {{ t.or_upload }}">
           <button class="btn secondary small" onclick="pickUpload(u => { el('cd-image').value = u; })">{{ t.upload }}</button>
         </div>
+        <label>{{ t.countdown_size }}</label>
+        <select id="cd-size">
+          <option value="s">{{ t.countdown_size_s }}</option>
+          <option value="m">{{ t.countdown_size_m }}</option>
+          <option value="l">{{ t.countdown_size_l }}</option>
+        </select>
         <label class="checkbox" style="margin-top:10px"><input type="checkbox" id="cd-notify"> {{ t.countdown_notify_label }}</label>
         <p class="hint">{{ t.countdown_notify_hint }}</p>
       </div>
@@ -2418,6 +2424,7 @@
       el('cd-expired_de').value = CD.expired_de || '';
       el('cd-expired_en').value = CD.expired_en || '';
       el('cd-image').value = CD.image || '';
+      el('cd-size').value = CD.size || 'm';
       el('cd-notify').checked = !!CD.notify;
       const FT = s.freetext || {};
       el('ft-title_de').value = FT.title_de || '';
@@ -2890,6 +2897,7 @@
         expired_de:  el('cd-expired_de').value,
         expired_en:  el('cd-expired_en').value,
         image:       el('cd-image').value,
+        size:        el('cd-size').value,
         notify:      el('cd-notify').checked,
       };
       const freetext = {

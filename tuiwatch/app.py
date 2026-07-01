@@ -16,6 +16,7 @@ import smtplib
 import sqlite3
 import threading
 import time
+import zipfile
 from collections import defaultdict, deque
 from datetime import date, datetime
 from email.mime.multipart import MIMEMultipart
@@ -1907,70 +1908,222 @@ def api_email():
     return jsonify({'sent': True, 'to': to, 'count': len(offers)})
 
 
+_HISTORY_COLS = ('ts', 'price', 'old_price', 'discount', 'available', 'ok', 'note')
+_EVENT_COLS = ('ts', 'type', 'text')
+
+
+def _table_columns(con, table: str) -> list:
+    return [r['name'] for r in con.execute(f'PRAGMA table_info({table})').fetchall()]
+
+
 @app.route('/api/backup', methods=['GET'])
 def api_backup():
+    """Vollständiges Backup als ZIP: data.json (Angebote inkl. Preisverlauf & Marker,
+    gebuchte Reisen, gespeicherte Suchen) + die Reise-PDFs unter trips/."""
     if (err := _require_api()):
         return err
     with db() as con:
-        rows = con.execute('SELECT url, label, target_price, booked_price, image_url, '
-                           'paused, archived FROM offers ORDER BY id').fetchall()
-    data = {'tuiwatch_backup': 1, 'created': datetime.now().isoformat(),
-            'offers': [{'url': r['url'], 'label': r['label'],
-                        'target_price': r['target_price'],
-                        'booked_price': r['booked_price'],
-                        'image_url': r['image_url'] or '',
-                        'paused': bool(r['paused']),
-                        'archived': bool(r['archived'])}
-                       for r in rows]}
-    resp = make_response(json.dumps(data, ensure_ascii=False, indent=2))
-    resp.headers['Content-Type'] = 'application/json; charset=utf-8'
+        ocols = [c for c in _table_columns(con, 'offers') if c != 'id']
+        offers = []
+        for r in con.execute('SELECT * FROM offers ORDER BY id').fetchall():
+            o = {c: r[c] for c in ocols}
+            oid = r['id']
+            o['history'] = [{c: h[c] for c in _HISTORY_COLS} for h in con.execute(
+                'SELECT ts, price, old_price, discount, available, ok, note '
+                'FROM price_history WHERE offer_id=? ORDER BY ts', (oid,)).fetchall()]
+            o['events'] = [{c: e[c] for c in _EVENT_COLS} for e in con.execute(
+                'SELECT ts, type, text FROM offer_events WHERE offer_id=? ORDER BY ts',
+                (oid,)).fetchall()]
+            offers.append(o)
+        trips = [{c: t[c] for c in _TRIP_COLUMNS} for t in con.execute(
+            f"SELECT {', '.join(_TRIP_COLUMNS)} FROM trips ORDER BY id").fetchall()]
+        searches = [{c: s[c] for c in ('name', 'payload', 'ts')} for s in con.execute(
+            'SELECT name, payload, ts FROM saved_searches ORDER BY id').fetchall()]
+    data = {'tuiwatch_backup': 2, 'created': datetime.now().isoformat(),
+            'offers': offers, 'trips': trips, 'saved_searches': searches}
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as z:
+        z.writestr('data.json', json.dumps(data, ensure_ascii=False, indent=2))
+        seen = set()
+        for t in trips:
+            name = (t.get('pdf_name') or '').strip()
+            if not name or name in seen:
+                continue
+            seen.add(name)
+            p = _trip_pdf_path(name)
+            if p and p.exists():
+                z.write(str(p), f'trips/{Path(name).name}')
+    buf.seek(0)
+    resp = make_response(buf.read())
+    resp.headers['Content-Type'] = 'application/zip'
     resp.headers['Content-Disposition'] = (
-        f'attachment; filename="tuiwatch-backup-{datetime.now().strftime("%Y%m%d")}.json"')
+        f'attachment; filename="tuiwatch-backup-{datetime.now().strftime("%Y%m%d")}.zip"')
     return resp
+
+
+def _restore_offer(con, it: dict, ocols: set, existing_urls: set) -> str:
+    """Ein Angebot aus dem Backup einspielen (nicht-destruktiv, Upsert per URL).
+    Rückgabe: 'added' | 'skipped'; bei 'added' werden Verlauf & Marker mitgeschrieben."""
+    def _price(v):
+        try:
+            return float(v) if v not in (None, '', 0) else None
+        except (TypeError, ValueError):
+            return None
+    url = (it.get('url') or '').strip()
+    if not _valid_tui_url(url) or url in existing_urls:
+        return 'skipped'
+    # nur bekannte Spalten übernehmen, sicherheitskritische Felder bereinigen
+    row = {k: v for k, v in it.items()
+           if k not in ('id', 'history', 'events') and k in ocols}
+    row['url'] = url
+    row['label'] = (it.get('label') or '').strip()
+    row['hotel'] = (it.get('hotel') or hotel_from_url(url) or '')
+    if 'target_price' in ocols:
+        row['target_price'] = _price(it.get('target_price'))
+    if 'booked_price' in ocols:
+        row['booked_price'] = _price(it.get('booked_price'))
+    if 'image_url' in ocols:
+        img = (it.get('image_url') or '').strip()
+        row['image_url'] = img if _valid_img_url(img) else ''
+    row['paused'] = 1 if it.get('paused') else 0
+    row['archived'] = 1 if it.get('archived') else 0
+    row['created'] = int(it.get('created') or time.time())
+    cols = list(row.keys())
+    try:
+        cur = con.execute(
+            f"INSERT INTO offers ({', '.join(cols)}) VALUES ({', '.join('?' for _ in cols)})",
+            [row[c] for c in cols])
+    except sqlite3.IntegrityError:
+        return 'skipped'
+    oid = cur.lastrowid
+    existing_urls.add(url)
+    for h in (it.get('history') or []):
+        if not isinstance(h, dict):
+            continue
+        con.execute(
+            'INSERT INTO price_history (offer_id, ts, price, old_price, discount, '
+            'available, ok, note) VALUES (?,?,?,?,?,?,?,?)',
+            (oid, int(h.get('ts') or 0), h.get('price'), h.get('old_price'),
+             h.get('discount'), h.get('available'),
+             1 if h.get('ok') else 0, (h.get('note') or '')))
+    for e in (it.get('events') or []):
+        if not isinstance(e, dict) or not e.get('type'):
+            continue
+        con.execute('INSERT INTO offer_events (offer_id, ts, type, text) VALUES (?,?,?,?)',
+                    (oid, int(e.get('ts') or 0), str(e.get('type')), (e.get('text') or '')))
+    return oid
 
 
 @app.route('/api/restore', methods=['POST'])
 def api_restore():
+    """Wiederherstellung aus einem Backup — akzeptiert die ZIP (vollständig) oder das
+    alte JSON (nur Angebote). Nicht-destruktiv: bestehende Angebote/Reisen/Suchen bleiben,
+    fehlende werden ergänzt (Upsert per URL / Buchungsnummer / Name)."""
     if (err := _require_api()):
         return err
-    data = request.get_json(silent=True) or {}
-    items = data.get('offers') if isinstance(data, dict) else data
-    if not isinstance(items, list):
+    up = request.files.get('file')
+    raw = up.read() if up is not None else None
+    pdfs: dict[str, bytes] = {}
+    data = None
+    if raw:
+        if raw[:2] == b'PK':                       # ZIP-Archiv
+            try:
+                zf = zipfile.ZipFile(io.BytesIO(raw))
+                data = json.loads(zf.read('data.json').decode('utf-8'))
+            except (zipfile.BadZipFile, KeyError, ValueError, UnicodeDecodeError):
+                return jsonify({'error': 'invalid'}), 400
+            for info in zf.infolist():
+                if info.is_dir() or not info.filename.startswith('trips/'):
+                    continue
+                base = Path(info.filename).name
+                if base.lower().endswith('.pdf') and 0 < info.file_size <= MAX_PDF_BYTES:
+                    pdfs[base] = zf.read(info)
+        else:                                       # hochgeladene JSON-Datei
+            try:
+                data = json.loads(raw.decode('utf-8'))
+            except (ValueError, UnicodeDecodeError):
+                return jsonify({'error': 'invalid'}), 400
+    else:
+        data = request.get_json(silent=True)
+
+    if isinstance(data, list):                      # ganz altes Format = reine Angebotsliste
+        data = {'offers': data}
+    if not isinstance(data, dict) or not isinstance(data.get('offers', []), list):
         return jsonify({'error': 'invalid'}), 400
+
+    offers = data.get('offers') or []
+    trips = data.get('trips') or []
+    searches = data.get('saved_searches') or []
     added, skipped, new_ids = 0, 0, []
+    trips_n, searches_n = 0, 0
     with db() as con:
-        for it in items:
-            url = (it.get('url') or '').strip() if isinstance(it, dict) else ''
-            if not _valid_tui_url(url):
+        ocols = set(_table_columns(con, 'offers'))
+        existing_urls = {r['url'] for r in con.execute('SELECT url FROM offers').fetchall()}
+        for it in offers:
+            if not isinstance(it, dict):
                 skipped += 1
                 continue
-            def _price(v):
-                try:
-                    return float(v) if v not in (None, '', 0) else None
-                except (TypeError, ValueError):
-                    return None
-            tp = _price(it.get('target_price'))
-            bp = _price(it.get('booked_price'))
-            img = (it.get('image_url') or '').strip()
-            if not _valid_img_url(img):
-                img = ''
-            try:
-                cur = con.execute(
-                    'INSERT INTO offers (url, label, hotel, details, target_price, '
-                    'booked_price, image_url, paused, archived, created) '
-                    'VALUES (?,?,?,?,?,?,?,?,?,?)',
-                    (url, (it.get('label') or '').strip(), hotel_from_url(url), '',
-                     tp, bp, img, 1 if it.get('paused') else 0,
-                     1 if it.get('archived') else 0, int(time.time())))
-                if not it.get('archived'):
-                    new_ids.append(cur.lastrowid)  # archivierte nicht sofort prüfen
+            res = _restore_offer(con, it, ocols, existing_urls)
+            if res == 'skipped':
+                skipped += 1
+            else:
                 added += 1
-            except sqlite3.IntegrityError:
-                skipped += 1  # URL schon vorhanden
+                if not it.get('archived'):
+                    new_ids.append(res)             # archivierte nicht sofort prüfen
+        if isinstance(trips, list) and trips:
+            Path(TRIPS_DIR).mkdir(parents=True, exist_ok=True)
+            for t in trips:
+                if not isinstance(t, dict):
+                    continue
+                pdf_name = (t.get('pdf_name') or '').strip()
+                if pdf_name and pdf_name in pdfs:
+                    p = _trip_pdf_path(pdf_name)
+                    if p:
+                        p.write_bytes(pdfs[pdf_name])
+                vals = [int(t.get(c) or time.time()) if c == 'created' else t.get(c)
+                        for c in _TRIP_COLUMNS]
+                booking = (t.get('booking_code') or '').strip()
+                ex = (con.execute('SELECT id FROM trips WHERE booking_code=?', (booking,)).fetchone()
+                      if booking else None)
+                if ex:
+                    con.execute('UPDATE trips SET '
+                                + ', '.join(f'{c}=?' for c in _TRIP_COLUMNS)
+                                + ' WHERE id=?', vals + [ex['id']])
+                    trips_n += 1
+                    continue
+                try:
+                    con.execute(
+                        f"INSERT INTO trips ({', '.join(_TRIP_COLUMNS)}) "
+                        f"VALUES ({', '.join('?' for _ in _TRIP_COLUMNS)})", vals)
+                    trips_n += 1
+                except sqlite3.IntegrityError:
+                    pass
+        if isinstance(searches, list):
+            for s in searches:
+                if not isinstance(s, dict):
+                    continue
+                name = (s.get('name') or '').strip()
+                if not name:
+                    continue
+                payload = s.get('payload')
+                if not isinstance(payload, str):
+                    payload = json.dumps(payload or {}, ensure_ascii=False)
+                ts = int(s.get('ts') or time.time())
+                ex = con.execute('SELECT id FROM saved_searches WHERE name=?', (name,)).fetchone()
+                if ex:
+                    con.execute('UPDATE saved_searches SET payload=?, ts=? WHERE id=?',
+                                (payload, ts, ex['id']))
+                else:
+                    con.execute('INSERT INTO saved_searches (name, payload, ts) VALUES (?,?,?)',
+                                (name, payload, ts))
+                    searches_n += 1
     for oid in new_ids:
         _spawn(check_offer, oid)
-    log.info("Wiederherstellung: %d hinzugefügt, %d übersprungen", added, skipped)
-    return jsonify({'added': added, 'skipped': skipped})
+    log.info("Wiederherstellung: %d Angebote (+%d übersprungen), %d Reisen, %d Suchen",
+             added, skipped, trips_n, searches_n)
+    return jsonify({'added': added, 'skipped': skipped,
+                    'trips': trips_n, 'searches': searches_n})
 
 
 @app.route('/api/compare/<int:offer_id>', methods=['POST'])

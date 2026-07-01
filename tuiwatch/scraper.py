@@ -343,29 +343,14 @@ def _single_duration(d: str) -> str:
     return m.group(0) if m else (d or '')
 
 
-def build_calendar_api_url(url: str) -> str:
-    """Baut die Preiskalender-API-URL aus der Angebots-Seiten-URL. Übernimmt die
-    Filter (Verpflegung, Veranstalter, Zimmercode, Abflughafen) und fragt die **volle
-    buchbare Spanne** ab (heute bis ~14 Monate, mind. bis zum gewählten Zeitraum),
-    damit man durch alle verfügbaren Monate blättern kann. Die Hervorhebung des
-    gewählten Zeitraums macht fetch_calendar selbst."""
+def build_calendar_api_url(url: str, *, start: str, end: str) -> str:
+    """Baut die Preiskalender-API-URL aus der Angebots-Seiten-URL für ein konkretes
+    Suchfenster [start, end]. Übernimmt die Filter (Verpflegung, Veranstalter, Zimmercode,
+    Abflughafen). Die Kalender-API liefert nur ein begrenztes Fenster (~12 Monate) ab
+    `startSearchRange`; fetch_calendar ruft diese URL daher mehrfach mit fortlaufendem
+    Startdatum auf (Paginierung) und fügt die Ergebnisse zusammen."""
     p = urlparse(url)
     q = {k: v[0] for k, v in parse_qs(p.query, keep_blank_values=True).items()}
-
-    def plus(d, days):
-        return (d + timedelta(days=days)).isoformat()
-
-    def parse(d, fallback):
-        try:
-            return date.fromisoformat(d)
-        except Exception:
-            return fallback
-
-    today = date.today()
-    we = parse(q.get('endDate', ''), today)
-    sd = today.isoformat()
-    ed = max(plus(today, 420), plus(we, 14))   # volle Inventarspanne, mind. bis Zeitraum +14 T
-
     params = {
         'searchscope': q.get('searchScope', 'PACKAGE'),
         # Der Kalender erwartet eine EINZELNE Dauer; aus Bereichen wie "7-"/"9-12"
@@ -373,7 +358,7 @@ def build_calendar_api_url(url: str) -> str:
         'duration': _single_duration(q.get('duration', '')),
         'adults': q.get('travellers', '1'),
         'giatas': _giata_from_url(url),
-        'startSearchRange': sd, 'endSearchRange': ed,
+        'startSearchRange': start, 'endSearchRange': end,
         'tenant': 'tui.com',
         'airports': q.get('departureAirports', ''),
         'roomTypeOpCodes': q.get('roomTypeOpCodes', ''),
@@ -381,38 +366,73 @@ def build_calendar_api_url(url: str) -> str:
         # Offer-Endpoint — Verpflegung = boardCodes, Veranstalter = tourOperators.
         'boardCodes': _map_board_types(q.get('boardTypes', '')),
         'tourOperators': q.get('operators', q.get('tourOperators', '')),
-        'startDate': sd, 'endDate': ed,
+        'startDate': start, 'endDate': end,
     }
     return f"{CALENDAR_API}?{urlencode(params)}"
 
 
 def fetch_calendar(url: str, *, verbose: bool = False) -> dict | None:
     """Liest den Preiskalender (günstigster Preis p. P. je Abreisetag) direkt aus der
-    JSON-API. Rückgabe-dict oder None bei technischem Fehler."""
-    try:
-        cal_url = build_calendar_api_url(url)
-        if verbose:
-            log.info("Kalender-API GET %s", cal_url)
-        resp = requests.get(cal_url, headers=_API_HEADERS, timeout=25)
-        if resp.status_code != 200:
-            if verbose:
-                log.warning(f"Kalender HTTP {resp.status_code}")
-            return None
-        data = resp.json()
-    except Exception as e:
-        if verbose:
-            log.warning(f"Kalender-Fehler: {type(e).__name__}: {e}")
-        return None
-
-    days: dict[str, float] = {}
-    for o in data.get('offers') or []:
-        ad = o.get('arrivalDate')
-        pp = o.get('calculatedPricePerPerson')
-        if ad and pp is not None:
-            days[ad] = min(days.get(ad, float('inf')), pp)
-
+    JSON-API. Deckt die volle Spanne vom aktuellen Monat bis über den Reisezeitraum
+    hinaus ab: Da die API pro Aufruf nur ~12 Monate ab `startSearchRange` liefert, wird
+    ab heute mehrfach paginiert (jeweils weiter ab dem zuletzt gelieferten Datum) und die
+    Tage werden zusammengeführt. Rückgabe-dict oder None bei technischem Fehler."""
     q = {k: v[0] for k, v in parse_qs(urlparse(url).query, keep_blank_values=True).items()}
     ws, we = q.get('startDate', ''), q.get('endDate', '')
+
+    def _parse(d):
+        try:
+            return date.fromisoformat(d)
+        except Exception:
+            return None
+
+    today = date.today()
+    trip_end = _parse(we) or _parse(ws) or today
+    # Zielhorizont: großzügig über den Reisezeitraum hinaus (bzw. mind. ~18 Monate).
+    target = max(trip_end + timedelta(days=180), today + timedelta(days=540))
+    target_iso = target.isoformat()
+
+    days: dict[str, float] = {}
+    currency = 'EUR'
+    cursor = today                 # zurück bis zum aktuellen Monat
+    prev_max: str | None = None
+    any_ok = False
+    for _ in range(6):             # Sicherheits-Cap gegen Endlosschleifen
+        cal_url = build_calendar_api_url(url, start=cursor.isoformat(), end=target_iso)
+        if verbose:
+            log.info("Kalender-API GET %s", cal_url)
+        try:
+            resp = requests.get(cal_url, headers=_API_HEADERS, timeout=25)
+            if resp.status_code != 200:
+                if verbose:
+                    log.warning(f"Kalender HTTP {resp.status_code}")
+                break
+            data = resp.json()
+        except Exception as e:
+            if verbose:
+                log.warning(f"Kalender-Fehler: {type(e).__name__}: {e}")
+            break
+        any_ok = True
+        currency = data.get('currency', currency)
+        batch_max: str | None = None
+        for o in data.get('offers') or []:
+            ad = o.get('arrivalDate')
+            pp = o.get('calculatedPricePerPerson')
+            if ad and pp is not None:
+                days[ad] = min(days.get(ad, float('inf')), pp)
+                if batch_max is None or ad > batch_max:
+                    batch_max = ad
+        if batch_max is None:                      # nichts (mehr) im Fenster
+            break
+        if prev_max is not None and batch_max <= prev_max:
+            break                                  # kein Fortschritt → Inventarende
+        prev_max = batch_max
+        if batch_max >= target_iso:                # Zielhorizont erreicht
+            break
+        cursor = (_parse(batch_max[:10]) or today) + timedelta(days=1)
+
+    if not any_ok:
+        return None
     # Nächte (für die Rückreise-Berechnung beim Klick: endDate = Anreise + Nächte).
     # Aus Dauer-Bereichen wie "7-"/"9-12" die untere Zahl, wie es auch tui.com nutzt.
     try:
@@ -421,7 +441,7 @@ def fetch_calendar(url: str, *, verbose: bool = False) -> dict | None:
         nights = None
     res = {
         'ok': bool(days),
-        'currency': data.get('currency', 'EUR'),
+        'currency': currency,
         'window_start': ws, 'window_end': we,
         'duration': nights,
         'days': [{'date': d, 'price': int(round(days[d]))} for d in sorted(days)],
@@ -580,7 +600,11 @@ def offer_url_for(item: dict, params: dict) -> str:
     giata = str(h.get("giataId", ""))
     slug = _slugify(h.get("name", "") or "hotel")
     boards = item.get("boardCodes") or []
-    dur = params.get("duration") or item.get("numberOfNights")
+    # Für die trackbare Angebots-URL die konkrete Nächtezahl des Treffers nehmen;
+    # bei „exact" gibt es keine feste Dauer → aus dem Treffer (numberOfNights).
+    dur = params.get("duration")
+    if not dur or dur == "exact":
+        dur = item.get("numberOfNights")
     q = {
         "startDate": params.get("startDate", ""), "endDate": params.get("endDate", ""),
         "duration": str(dur or ""), "travellers": str(params.get("travellers") or 1),
@@ -664,10 +688,15 @@ def fetch_search_params(*, region: int, start: str, end: str, duration, travelle
                         boards: list | None = None, airlines: list | None = None,
                         direct: bool = False, verbose: bool = False) -> dict | None:
     """Hotelsuche direkt aus Maskenfeldern (ohne URL) — für die eigene Suchmaske."""
-    try:
-        dur = int(duration)
-    except (TypeError, ValueError):
-        dur = None
+    # „exact" ist ein nativer TUI-Wert (duration=exact): Reisedauer = genau der
+    # gewählte Zeitraum. Als String unverändert durchreichen, sonst Nächte als int.
+    if isinstance(duration, str) and duration.strip().lower() == "exact":
+        dur = "exact"
+    else:
+        try:
+            dur = int(duration)
+        except (TypeError, ValueError):
+            dur = None
     try:
         adults = int(travellers)
     except (TypeError, ValueError):

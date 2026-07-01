@@ -1,5 +1,60 @@
 # Changelog
 
+## [0.25.14] - 2026-07-01
+
+### Changed
+- **Backup & Restore jetzt vollständig.** Das Backup war unvollständig (nur nackte
+  Angebots-Eckdaten). Es umfasst nun als **ZIP**: alle Angebote **inkl. Preisverlauf**
+  und Diagramm-Marker, **„Meine Reisen" inkl. der Original-PDFs** sowie die
+  **gespeicherten Suchen**. Die Wiederherstellung akzeptiert die ZIP (altes JSON weiterhin
+  möglich) und arbeitet **nicht-destruktiv** (Upsert per URL/Buchungsnummer/Name –
+  nichts wird gelöscht oder doppelt angelegt). Reine Caches (Vergleich/Kalender) werden
+  bewusst nicht gesichert (regenerieren automatisch).
+
+## [0.25.13] - 2026-07-01
+
+### Fixed
+- **Preiskalender deckt die volle Spanne ab.** Der Kalender reicht jetzt vom aktuellen
+  Monat bis deutlich über den Reisezeitraum hinaus (im Beispiel Juli 2026 bis Oktober
+  2027) und öffnet im Reisemonat. Die TUI-Kalender-API liefert pro Aufruf nur ein
+  begrenztes Fenster (~12 Monate ab Startdatum); wie die TUI-Seite selbst werden nun
+  mehrere Abrufe ab fortlaufendem Startdatum zusammengeführt, statt in einem einzelnen
+  Aufruf vorne oder hinten abzuschneiden.
+
+## [0.25.12] - 2026-07-01
+
+### Changed
+- **Hotelsuche: „Exakt"-Checkbox aufgeräumt.** Das Nächte-Feld ist etwas breiter und
+  die „Exakt"-Checkbox sitzt jetzt sauber rechts neben dem Label „Nächte" (statt
+  darüber umzubrechen).
+
+## [0.25.11] - 2026-07-01
+
+### Fixed
+- **Preiskalender öffnet im Reisemonat & deckt den gewählten Zeitraum ab.** Bei weit
+  entfernten Reisen (z. B. Reisebeginn September 2027) startete der Kalender bei einem
+  nahen Monat (Dezember 2026) und ließ sich nur bis Juni 2027 blättern – der eigentliche
+  Reisemonat war unerreichbar. Ursache: Der Suchbereich der Kalender-API war fix auf
+  „heute" verankert, die API liefert aber nur ein begrenztes Fenster ab dem Startdatum.
+  Der Suchbereich wird jetzt am gewählten Reisezeitraum verankert (Vorlauf/Nachlauf um
+  `startDate`/`endDate`), und der Kalender öffnet direkt im Reisemonat.
+
+## [0.25.10] - 2026-07-01
+
+### Added
+- **Hotelsuche: „Exakt"-Checkbox.** Sucht Reisen mit einer Dauer, die exakt dem
+  gewählten Zeitraum entspricht (TUI-nativ `duration=exact`; z. B. 01.07.–05.07. →
+  4 Nächte). Bei aktivem Häkchen ist das Nächte-Feld gesperrt (die Dauer bestimmt
+  TUI) und zeigt zur Info die Tagesdifferenz.
+- **Hotelsuche: „Reset"-Button.** Setzt die Suchmaske auf die Standardwerte zurück
+  (inkl. Reiseziel, Abflughafen, Datum, Nächte, Reisende und Filter).
+
+### Changed
+- **Hotelsuche: Plausibilitäts-Hinweis für die Nächte.** Passen die gewählten Nächte
+  nicht in den Reisezeitraum (z. B. 01.07.–03.07. mit 5 Nächten), erscheint ein
+  Live-Hinweis und beim Suchen zusätzlich ein Toast. Die Suche wird trotzdem
+  ausgeführt.
+
 ## [0.25.9] - 2026-06-30
 
 ### Security

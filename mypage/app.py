@@ -3560,8 +3560,12 @@ def api_sections():
         # erwartet datetime-local-Format YYYY-MM-DDTHH:MM
         if not re.match(r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$', target):
             target = ''
+        size = _clean_str(cd.get('size'), 1)
+        if size not in ('s', 'm', 'l'):
+            size = 'm'
         sec['countdown'] = {
             'target':      target,
+            'size':        size,
             'title_de':    _clean_str(cd.get('title_de'), 120),
             'title_en':    _clean_str(cd.get('title_en'), 120),
             'subtitle_de': _clean_str(cd.get('subtitle_de'), 300),
