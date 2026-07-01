@@ -119,6 +119,14 @@ def fetch_coupons(user: str, password: str, *, verbose: bool = False,
                                       viewport={"width": 1366, "height": 1600})
             page = ctx.new_page()
             page.on("response", on_response)
+
+            def _save_debug():
+                if debug_png:
+                    try:
+                        page.screenshot(path=debug_png, full_page=True)
+                    except Exception:
+                        pass
+
             try:
                 page.goto(LOGIN_URL, wait_until="domcontentloaded", timeout=60000)
                 time.sleep(2)
@@ -135,14 +143,28 @@ def fetch_coupons(user: str, password: str, *, verbose: bool = False,
                     state="visible", timeout=45000)
                 email.click()
                 email.fill(user)
-                _click_text(page, ["Weiter", "Continue"])
-                time.sleep(2)
-                # Schritt 2: Passwort → „Anmelden" (ebenfalls nur das aktive Feld)
-                pw = page.wait_for_selector("input[type=password]:not([disabled])",
-                                            state="visible", timeout=45000)
+                if not _click_text(page, ["Weiter", "Continue"]):
+                    try:                               # Fallback, falls kein Button gefunden
+                        email.press("Enter")
+                    except Exception:
+                        pass
+                # Schritt 2: auf das Passwort-Feld warten (aktiv). Kommt es nicht, ist der
+                # Übergang gescheitert → Screenshot + aussagekräftiger Fehler.
+                try:
+                    pw = page.wait_for_selector("input[type=password]:not([disabled])",
+                                                state="visible", timeout=30000)
+                except Exception:
+                    _save_debug()
+                    return {"ok": False, "error": "Nach der E-Mail kam kein Passwort-Feld "
+                            "(evtl. Bot-Schutz, Consent-Banner oder unbekanntes Konto). "
+                            "Siehe Debug-Screenshot."}
                 pw.click()
                 pw.fill(password)
-                _click_text(page, ["Anmelden", "Einloggen", "Login"])
+                if not _click_text(page, ["Anmelden", "Einloggen", "Login"]):
+                    try:
+                        pw.press("Enter")
+                    except Exception:
+                        pass
                 try:
                     page.wait_for_load_state("networkidle", timeout=30000)
                 except Exception:
@@ -150,25 +172,27 @@ def fetch_coupons(user: str, password: str, *, verbose: bool = False,
                 time.sleep(2)
                 # Coupon-Seite laden → löst getAccountCoupons aus
                 page.goto(COUPONS_URL, wait_until="domcontentloaded", timeout=60000)
-                for _ in range(40):                    # bis zu ~20 s auf die API-Antwort warten
+                for _ in range(50):                    # bis zu ~25 s auf die API-Antwort warten
                     if "data" in captured:
                         break
                     time.sleep(0.5)
                 if "data" not in captured:
-                    if debug_png:
-                        try:
-                            page.screenshot(path=debug_png, full_page=True)
-                        except Exception:
-                            pass
+                    _save_debug()
                     if page.query_selector("input[type=password]"):
                         return {"ok": False, "error": "Login nicht möglich — Passwort-Feld "
-                                "noch aktiv (falsche Daten oder Bot-Schutz/Captcha)."}
+                                "noch aktiv (falsche Daten oder Bot-Schutz/Captcha). "
+                                "Siehe Debug-Screenshot."}
                     return {"ok": False, "error": "Coupon-Daten nicht empfangen "
-                            "(Session/Seite unerwartet)."}
+                            "(Session/Seite unerwartet). Siehe Debug-Screenshot."}
                 coupons = parse_coupons(captured["data"])
                 if verbose:
                     log.info("Coupon-Abruf: %d Coupons empfangen", len(coupons))
                 return {"ok": True, "coupons": coupons}
+            except Exception as e:
+                _save_debug()
+                if verbose:
+                    log.warning("Coupon-Abruf-Fehler: %s: %s", type(e).__name__, e)
+                return {"ok": False, "error": f"{type(e).__name__}: {e} (Debug-Screenshot verfügbar)"}
             finally:
                 try:
                     browser.close()
@@ -176,5 +200,5 @@ def fetch_coupons(user: str, password: str, *, verbose: bool = False,
                     pass
     except Exception as e:
         if verbose:
-            log.warning("Coupon-Abruf-Fehler: %s: %s", type(e).__name__, e)
+            log.warning("Coupon-Abruf-Fehler (Browser): %s: %s", type(e).__name__, e)
         return {"ok": False, "error": f"{type(e).__name__}: {e}"}

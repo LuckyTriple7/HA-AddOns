@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.25.21] - 2026-07-01
+
+### Fixed
+- **Coupon-Login: Debug-Screenshot bei _jedem_ Fehler + robusterer E-Mail→Passwort-Schritt.**
+  Bisher wurde bei einem Timeout kein Screenshot gespeichert (kein „ansehen"-Button).
+  Jetzt wird bei jeder Fehlerursache ein Screenshot abgelegt. Zusätzlich Enter als
+  Fallback nach der E-Mail-Eingabe und ein klarer Fehler, wenn nach der E-Mail kein
+  Passwort-Feld erscheint.
+
 ## [0.25.20] - 2026-07-01
 
 ### Fixed
