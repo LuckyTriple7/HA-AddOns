@@ -1,6 +1,6 @@
 name: TUIWatch
 description: Reisepreis-Tracker — verfolgt TUI-Angebotspreise und zeigt den Verlauf
-version: "0.25.23"
+version: "0.25.17"
 slug: tuiwatch
 url: https://github.com/LuckyTriple7/HA-AddOns
 image: "ghcr.io/luckytriple7/tuiwatch"
@@ -56,10 +56,6 @@ options:
   smtp_from: ""
   smtp_to: ""
   smtp_tls: true
-  tui_user: ""
-  tui_pass: ""
-  notify_coupons: true
-  coupon_interval: 43200
   verbose_log: false
 
 schema:
@@ -87,8 +83,4 @@ schema:
   smtp_from: str?
   smtp_to: str?
   smtp_tls: bool?
-  tui_user: str?
-  tui_pass: password?
-  notify_coupons: bool?
-  coupon_interval: int?
   verbose_log: bool?

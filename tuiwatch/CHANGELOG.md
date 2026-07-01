@@ -1,58 +1,5 @@
 # Changelog
 
-## [0.25.23] - 2026-07-01
-
-### Fixed
-- **Coupon-Login: konsistenter Linux-User-Agent.** Bisher wurde ein Windows-UA benutzt,
-  obwohl das Add-on unter Linux läuft — dieser Widerspruch (UA ↔ Client Hints/Plattform)
-  ist selbst ein Bot-Signal. Jetzt ein zur Umgebung passender Linux-Chrome-UA.
-
-## [0.25.22] - 2026-07-01
-
-### Fixed
-- **Coupon-Login gegen Bot-Schutz gehärtet.** Cookie-Dialog wird jetzt zuverlässig
-  **vor** der Eingabe weggeklickt (er erscheint verzögert), einfache Headless-Erkennung
-  wird getarnt (`navigator.webdriver` u. a., `AutomationControlled` aus), und bei einem
-  Captcha-Fehler wird die Seite **neu geladen und erneut versucht** (bis 3×). Bei
-  endgültiger Blockade kommt eine klare Meldung „vom Bot-Schutz blockiert".
-
-## [0.25.21] - 2026-07-01
-
-### Fixed
-- **Coupon-Login: Debug-Screenshot bei _jedem_ Fehler + robusterer E-Mail→Passwort-Schritt.**
-  Bisher wurde bei einem Timeout kein Screenshot gespeichert (kein „ansehen"-Button).
-  Jetzt wird bei jeder Fehlerursache ein Screenshot abgelegt. Zusätzlich Enter als
-  Fallback nach der E-Mail-Eingabe und ein klarer Fehler, wenn nach der E-Mail kein
-  Passwort-Feld erscheint.
-
-## [0.25.20] - 2026-07-01
-
-### Fixed
-- **Coupon-Login: E-Mail-/Passwort-Feld sicher treffen.** Das TUI-Login-Feld ist
-  `type=text`, kommt doppelt vor und ist anfangs `disabled` — der Login blieb daher am
-  deaktivierten Platzhalter hängen (Timeout). Jetzt wird gezielt das **aktive** Feld
-  (`:not([disabled])`) angesteuert und auf das Aktivwerden von Feldern/Buttons gewartet.
-
-## [0.25.19] - 2026-07-01
-
-### Added
-- **Coupons: Debug-Screenshot direkt im UI.** Schlägt der Coupon-Login fehl, zeigt das
-  Coupon-Fenster einen Button **„🖼 Debug-Screenshot ansehen"** (Endpoint
-  `/api/coupons/debug`) — kein Zugriff auf den privaten `/data`-Ordner des Add-ons nötig.
-  Bei erfolgreichem Abruf wird der alte Screenshot automatisch entfernt.
-
-## [0.25.18] - 2026-07-01
-
-### Added
-- **MyTUI-Coupon-Überwachung (🎟 Coupons).** TUIWatch kann sich (mit hinterlegten
-  Zugangsdaten, am besten ein **TUI-Zweitkonto**) in MyTUI einloggen, die aktuellen
-  Coupons lesen und bei **neuen** Coupons benachrichtigen (Telegram/HA). Anzeige der
-  aktuellen Coupons mit Gültigkeit im neuen Coupon-Fenster; „Jetzt prüfen" für einen
-  Sofort-Abruf. Der Login ist durch einen Bot-Schutz gesichert und läuft daher über einen
-  Headless-Browser — ob er durchläuft, hängt von der Umgebung ab. Neue Optionen
-  `tui_user`, `tui_pass` (wie SMTP-Passwort behandelt), `notify_coupons`,
-  `coupon_interval` (Standard 12 h). Ohne Zugangsdaten bleibt die Funktion inaktiv.
-
 ## [0.25.17] - 2026-07-01
 
 ### Added
