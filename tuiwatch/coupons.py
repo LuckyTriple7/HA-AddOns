@@ -21,10 +21,16 @@ COUPON_API_MARK = "getAccountCoupons"
 USER_AGENT = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
              "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36")
 CONSENT_SELECTORS = [
-    "#cmm-accept-all", "#onetrust-accept-btn-handler",
-    "button:has-text('Alle akzeptieren')", "button:has-text('Akzeptieren')",
-    "button:has-text('Zustimmen')",
+    "button:has-text('Zustimmen')", "button:has-text('Alle akzeptieren')",
+    "button:has-text('Akzeptieren')", "#cmm-accept-all",
+    "#onetrust-accept-btn-handler",
 ]
+# Tarnung gegen simple Headless-Erkennung (navigator.webdriver etc.)
+_STEALTH_JS = (
+    "Object.defineProperty(navigator,'webdriver',{get:()=>undefined});"
+    "Object.defineProperty(navigator,'languages',{get:()=>['de-DE','de']});"
+    "Object.defineProperty(navigator,'plugins',{get:()=>[1,2,3]});"
+)
 
 
 def parse_coupons(data) -> list:
@@ -54,18 +60,24 @@ def parse_coupons(data) -> list:
     return out
 
 
-def _consent(page, verbose):
-    for sel in CONSENT_SELECTORS:
-        try:
-            el = page.query_selector(sel)
-            if el and el.is_visible():
-                el.click()
-                if verbose:
-                    log.info("Coupon-Login: Consent geklickt (%s)", sel)
-                time.sleep(1)
-                return
-        except Exception:
-            pass
+def _accept_consent(page, verbose, timeout=15):
+    """Cookie-/Consent-Dialog wegklicken — pollt bis zu `timeout` s, da der Dialog
+    verzögert erscheint."""
+    end = time.time() + timeout
+    while time.time() < end:
+        for sel in CONSENT_SELECTORS:
+            try:
+                el = page.query_selector(sel)
+                if el and el.is_visible():
+                    el.click(timeout=4000)
+                    if verbose:
+                        log.info("Coupon-Login: Consent akzeptiert (%s)", sel)
+                    time.sleep(1)
+                    return True
+            except Exception:
+                pass
+        time.sleep(0.5)
+    return False
 
 
 def _click_text(page, texts):
@@ -113,10 +125,16 @@ def fetch_coupons(user: str, password: str, *, verbose: bool = False,
 
     try:
         with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True, executable_path=chromium_path,
-                                        args=["--no-sandbox", "--disable-dev-shm-usage"])
+            browser = p.chromium.launch(
+                headless=True, executable_path=chromium_path,
+                args=["--no-sandbox", "--disable-dev-shm-usage",
+                      "--disable-blink-features=AutomationControlled"])
             ctx = browser.new_context(locale="de-DE", user_agent=USER_AGENT,
                                       viewport={"width": 1366, "height": 1600})
+            try:
+                ctx.add_init_script(_STEALTH_JS)
+            except Exception:
+                pass
             page = ctx.new_page()
             page.on("response", on_response)
 
@@ -127,15 +145,9 @@ def fetch_coupons(user: str, password: str, *, verbose: bool = False,
                     except Exception:
                         pass
 
-            try:
-                page.goto(LOGIN_URL, wait_until="domcontentloaded", timeout=60000)
-                time.sleep(2)
-                _consent(page, verbose)
-                # Schritt 1: E-Mail eingeben → „Weiter".
-                # Achtung: das Feld ist `type=text`, kommt doppelt vor und ist anfangs
-                # `disabled` (wird erst nach der Hydration aktiv) → nur das AKTIVE,
-                # sichtbare Feld nehmen (`:not([disabled])`), damit wir nicht auf einem
-                # Platzhalter hängen bleiben.
+            def _email_step():
+                # Feld ist `type=text`, kommt doppelt vor und ist anfangs `disabled`
+                # (erst nach Hydration aktiv) → nur das AKTIVE, sichtbare Feld nehmen.
                 email = page.wait_for_selector(
                     "input#email:not([disabled]), input[name='email']:not([disabled]), "
                     "input[type='email']:not([disabled]), "
@@ -144,19 +156,53 @@ def fetch_coupons(user: str, password: str, *, verbose: bool = False,
                 email.click()
                 email.fill(user)
                 if not _click_text(page, ["Weiter", "Continue"]):
-                    try:                               # Fallback, falls kein Button gefunden
+                    try:
                         email.press("Enter")
                     except Exception:
                         pass
-                # Schritt 2: auf das Passwort-Feld warten (aktiv). Kommt es nicht, ist der
-                # Übergang gescheitert → Screenshot + aussagekräftiger Fehler.
-                try:
-                    pw = page.wait_for_selector("input[type=password]:not([disabled])",
-                                                state="visible", timeout=30000)
-                except Exception:
+
+            try:
+                page.goto(LOGIN_URL, wait_until="domcontentloaded", timeout=60000)
+                time.sleep(2)
+                _accept_consent(page, verbose)         # Cookie-Dialog VOR der Eingabe weg
+                # Schritt 1 + 2: E-Mail → Passwort. Der Bot-Schutz (Captcha) kann beim
+                # ersten „Weiter" fehlschlagen („…Captcha schiefgelaufen, Seite neu laden…").
+                # → bis zu 2× neu laden und erneut versuchen.
+                pw = None
+                for attempt in range(3):
+                    _email_step()
+                    try:
+                        pw = page.wait_for_selector("input[type=password]:not([disabled])",
+                                                    state="visible", timeout=20000)
+                        break
+                    except Exception:
+                        pass
+                    body = ""
+                    try:
+                        body = (page.inner_text("body") or "").lower()
+                    except Exception:
+                        pass
+                    if "captcha" in body and attempt < 2:
+                        if verbose:
+                            log.info("Coupon-Login: Captcha-Fehler → Seite neu laden (Versuch %d)", attempt + 2)
+                        page.reload(wait_until="domcontentloaded", timeout=60000)
+                        time.sleep(2)
+                        _accept_consent(page, verbose)
+                        continue
+                    break
+                if pw is None:
                     _save_debug()
+                    body = ""
+                    try:
+                        body = (page.inner_text("body") or "").lower()
+                    except Exception:
+                        pass
+                    if "captcha" in body:
+                        return {"ok": False, "error": "Login vom TUI-Bot-Schutz (Captcha) "
+                                "blockiert — automatischer Login ist hier leider nicht möglich. "
+                                "Siehe Debug-Screenshot."}
                     return {"ok": False, "error": "Nach der E-Mail kam kein Passwort-Feld "
-                            "(evtl. Bot-Schutz, Consent-Banner oder unbekanntes Konto). "
+                            "(evtl. Consent-Banner oder unbekanntes Konto). "
                             "Siehe Debug-Screenshot."}
                 pw.click()
                 pw.fill(password)

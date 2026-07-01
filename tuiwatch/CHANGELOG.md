@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.25.22] - 2026-07-01
+
+### Fixed
+- **Coupon-Login gegen Bot-Schutz gehärtet.** Cookie-Dialog wird jetzt zuverlässig
+  **vor** der Eingabe weggeklickt (er erscheint verzögert), einfache Headless-Erkennung
+  wird getarnt (`navigator.webdriver` u. a., `AutomationControlled` aus), und bei einem
+  Captcha-Fehler wird die Seite **neu geladen und erneut versucht** (bis 3×). Bei
+  endgültiger Blockade kommt eine klare Meldung „vom Bot-Schutz blockiert".
+
 ## [0.25.21] - 2026-07-01
 
 ### Fixed
