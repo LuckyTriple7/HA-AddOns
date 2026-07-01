@@ -580,7 +580,11 @@ def offer_url_for(item: dict, params: dict) -> str:
     giata = str(h.get("giataId", ""))
     slug = _slugify(h.get("name", "") or "hotel")
     boards = item.get("boardCodes") or []
-    dur = params.get("duration") or item.get("numberOfNights")
+    # Für die trackbare Angebots-URL die konkrete Nächtezahl des Treffers nehmen;
+    # bei „exact" gibt es keine feste Dauer → aus dem Treffer (numberOfNights).
+    dur = params.get("duration")
+    if not dur or dur == "exact":
+        dur = item.get("numberOfNights")
     q = {
         "startDate": params.get("startDate", ""), "endDate": params.get("endDate", ""),
         "duration": str(dur or ""), "travellers": str(params.get("travellers") or 1),
@@ -664,10 +668,15 @@ def fetch_search_params(*, region: int, start: str, end: str, duration, travelle
                         boards: list | None = None, airlines: list | None = None,
                         direct: bool = False, verbose: bool = False) -> dict | None:
     """Hotelsuche direkt aus Maskenfeldern (ohne URL) — für die eigene Suchmaske."""
-    try:
-        dur = int(duration)
-    except (TypeError, ValueError):
-        dur = None
+    # „exact" ist ein nativer TUI-Wert (duration=exact): Reisedauer = genau der
+    # gewählte Zeitraum. Als String unverändert durchreichen, sonst Nächte als int.
+    if isinstance(duration, str) and duration.strip().lower() == "exact":
+        dur = "exact"
+    else:
+        try:
+            dur = int(duration)
+        except (TypeError, ValueError):
+            dur = None
     try:
         adults = int(travellers)
     except (TypeError, ValueError):

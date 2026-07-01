@@ -158,6 +158,9 @@
     .srch-boards label { margin-left:8px; }
     .srch-filters input[type=checkbox] { accent-color:var(--accent); cursor:pointer; }
     .srch-filters input[type=number] { background:var(--bg); border:1px solid var(--border); color:var(--text); padding:5px 7px; border-radius:6px; }
+    .exact-chk { display:inline-flex; align-items:center; gap:3px; margin-left:8px; font-size:.72rem; font-weight:normal; color:var(--muted); cursor:pointer; }
+    .exact-chk input[type=checkbox] { accent-color:var(--accent); cursor:pointer; }
+    .srch-warn { color:var(--amber); font-size:.82rem; margin:-4px 0 12px; }
     .sr-item { display:flex; gap:12px; padding:10px 2px; border-bottom:1px solid var(--border); align-items:center; }
     .sr-img { width:86px; height:62px; object-fit:cover; border-radius:6px; flex:0 0 auto; background:var(--bg); }
     .sr-main { flex:1; min-width:0; }
@@ -415,10 +418,13 @@
           <label>von</label><input type="date" id="srch-vom" onchange="syncBisMin()" onclick="this.showPicker&&this.showPicker()">
         </div>
         <div class="srch-field srch-sm">
-          <label>bis</label><input type="date" id="srch-bis" onclick="this.showPicker&&this.showPicker()">
+          <label>bis</label><input type="date" id="srch-bis" onchange="syncBisMin()" onclick="this.showPicker&&this.showPicker()">
         </div>
         <div class="srch-field srch-xs">
-          <label>Nächte</label><input type="number" id="srch-dur" min="1" max="30" value="7">
+          <label>Nächte
+            <label class="exact-chk" title="Nächte automatisch auf die genaue Reisedauer (Tage zwischen von und bis) setzen"><input type="checkbox" id="srch-exact" onchange="applyExact()"> Exakt</label>
+          </label>
+          <input type="number" id="srch-dur" min="1" max="30" value="7" oninput="updateNightsHint()">
         </div>
         <div class="srch-field srch-xs">
           <label>Reisende</label><input type="number" id="srch-trav" min="1" max="9" value="2">
@@ -444,8 +450,10 @@
         </span>
         <label class="srch-num">Sterne ≥ <input type="number" id="srch-stars" min="0" max="5" step="1" value="3" placeholder="0" style="width:54px"></label>
         <label class="srch-num">Weiterempf. ≥ <input type="number" id="srch-rec" min="0" max="100" step="5" value="80" placeholder="0" style="width:60px">%</label>
-        <button class="btn" onclick="runSearch()" style="margin-left:auto">Suchen</button>
+        <button class="btn sec" onclick="resetSearch()" style="margin-left:auto" title="Eingaben auf Standard zurücksetzen">Reset</button>
+        <button class="btn" onclick="runSearch()">Suchen</button>
       </div>
+      <div id="srch-nights-warn" class="srch-warn" style="display:none"></div>
 
       <details class="srch-adv" id="srch-adv"><summary>Alternativ: TUI-Such-URL einfügen</summary>
         <div class="add-row" style="margin-top:8px">
@@ -1103,6 +1111,34 @@
     let airportsLoaded = false, airlinesLoaded = false, destNode = null, destData = null, destStack = [];
     function urlParam(u, key){ try{ return new URL(u).searchParams.get(key)||''; }catch(e){ return ''; } }
     function isoPlus(days){ const d=new Date(); d.setUTCDate(d.getUTCDate()+days); return d.toISOString().slice(0,10); }
+    // Nächte = Tage zwischen von und bis (null, wenn ungültig)
+    function nightsBetween(vom, bis){
+      if(!vom || !bis || bis < vom) return null;
+      return Math.round((Date.parse(bis) - Date.parse(vom)) / 86400000);
+    }
+    // Bei „Exakt": TUI liefert genau die Reisedauer (duration=exact). Das Nächte-Feld
+    // wird dann von TUI bestimmt → gesperrt und zur Info auf die Tagesdifferenz gesetzt.
+    function applyExact(){
+      const on = $('#srch-exact').checked, dur = $('#srch-dur');
+      dur.disabled = on;
+      if(on){
+        const n = nightsBetween($('#srch-vom').value, $('#srch-bis').value);
+        if(n!=null) dur.value = Math.max(1, n);
+      }
+      updateNightsHint();
+    }
+    // Live-Hinweis, wenn die Nächte nicht in den Zeitraum passen (evtl. keine Treffer).
+    // Bei „Exakt" nicht nötig – die Dauer entspricht dann immer dem Zeitraum.
+    function updateNightsHint(){
+      const el = $('#srch-nights-warn');
+      if($('#srch-exact').checked){ el.style.display='none'; return; }
+      const win = nightsBetween($('#srch-vom').value, $('#srch-bis').value);
+      const dur = parseInt($('#srch-dur').value)||0;
+      if(win!=null && dur>win){
+        el.textContent = `⚠ ${dur} Nächte passen nicht in den Zeitraum (${win} Tage) – evtl. keine Treffer.`;
+        el.style.display='';
+      } else { el.style.display='none'; }
+    }
     function jsArg(s){ return esc(String(s==null?'':s).replace(/\\/g,'\\\\').replace(/'/g,"\\'")); }
 
     async function ensureAirports(){
@@ -1147,9 +1183,10 @@
     // "bis" muss nach "von" liegen: min setzen und bei Bedarf nachziehen.
     function syncBisMin(){
       const v=$('#srch-vom').value, b=$('#srch-bis');
-      if(!v){ b.removeAttribute('min'); return; }
+      if(!v){ b.removeAttribute('min'); applyExact(); return; }
       b.min = v;
       if(b.value && b.value < v) b.value = v;
+      applyExact();
     }
     function openSearch(){            // Maske (Toolbar)
       srchOfferId = null;
@@ -1157,6 +1194,7 @@
       if(!$('#srch-vom').value) $('#srch-vom').value = isoPlus(21);
       if(!$('#srch-bis').value) $('#srch-bis').value = isoPlus(51);
       syncBisMin();
+      updateNightsHint();
       $('#srch-bg').classList.add('show');
     }
     function openSearchFromOffer(id){ // Region-Modus (aus Angebot)
@@ -1184,6 +1222,19 @@
     }
     function closeSearch(){ $('#srch-bg').classList.remove('show'); }
     $('#srch-bg').addEventListener('click', e=>{ if(e.target.id==='srch-bg') closeSearch(); });
+    // Suchmaske auf die Standardwerte zurücksetzen (inkl. Reiseziel).
+    function resetSearch(){
+      srchDest = null;
+      const b=$('#srch-dest'); b.textContent='Reiseziel wählen…'; b.classList.remove('set');
+      const air=$('#srch-airport'); if(air.options.length) air.selectedIndex=0;
+      $('#srch-vom').value=isoPlus(21); $('#srch-bis').value=isoPlus(51); syncBisMin();
+      $('#srch-dur').value=7; $('#srch-trav').value=2; $('#srch-exact').checked=false; applyExact();
+      $('#srch-tui').checked=true; $('#srch-direct').checked=false;
+      document.querySelectorAll('.srch-board').forEach(c=>{ c.checked=false; });
+      $('#srch-stars').value=3; $('#srch-rec').value=80; $('#srch-url').value='';
+      setAirlines([]);
+      $('#srch-favsel').value=''; favBtnState();
+    }
 
     // ── Reisen-Datenbank (PDF-Import gebuchter Reisen) ──────────────────────────
     let tripsData = [];
@@ -1405,7 +1456,7 @@
     function curFav(){
       return { dest: srchDest, airport: $('#srch-airport').value,
         vom: $('#srch-vom').value, bis: $('#srch-bis').value,
-        dur: $('#srch-dur').value, trav: $('#srch-trav').value,
+        dur: $('#srch-dur').value, exact: $('#srch-exact').checked, trav: $('#srch-trav').value,
         tui: $('#srch-tui').checked, direct: $('#srch-direct').checked,
         boards: [...document.querySelectorAll('.srch-board:checked')].map(c=>c.value),
         airlines: selectedAirlines(),
@@ -1447,7 +1498,8 @@
       if(f.dest){ srchDest=f.dest; const b=$('#srch-dest'); b.textContent=f.dest.label; b.classList.add('set'); }
       if(f.airport){ ensureAirports().then(()=>{ $('#srch-airport').value=f.airport; }); }
       $('#srch-vom').value=f.vom||''; $('#srch-bis').value=f.bis||''; syncBisMin();
-      $('#srch-dur').value=f.dur||7; $('#srch-trav').value=f.trav||2;
+      $('#srch-dur').value=f.dur||7; $('#srch-exact').checked=!!f.exact; applyExact();
+      $('#srch-trav').value=f.trav||2;
       $('#srch-tui').checked=f.tui!==false;
       $('#srch-direct').checked=!!f.direct;
       document.querySelectorAll('.srch-board').forEach(c=>{ c.checked=(f.boards||[]).includes(c.value); });
@@ -1475,9 +1527,12 @@
         const vom=$('#srch-vom').value, bis=$('#srch-bis').value;
         if(!vom||!bis){ toast('Bitte Zeitraum (von/bis) wählen'); return; }
         if(bis<vom){ toast('„bis" muss nach „von" liegen'); return; }
+        const exact=$('#srch-exact').checked;
+        const win=nightsBetween(vom,bis), dur=parseInt($('#srch-dur').value)||7;
+        if(!exact && win!=null && dur>win){ toast(`Hinweis: ${dur} Nächte passen nicht in den Zeitraum (${win} Tage) – evtl. keine Treffer.`); }
         localStorage.setItem('tw-airport', $('#srch-airport').value);
         Object.assign(body, { region: srchDest.giata, start: vom, end: bis,
-          duration: parseInt($('#srch-dur').value)||7, travellers: parseInt($('#srch-trav').value)||2,
+          duration: exact ? 'exact' : dur, travellers: parseInt($('#srch-trav').value)||2,
           airport: $('#srch-airport').value });
       }
       $('#srch-body').innerHTML = progBar('Suche läuft…');
