@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.25.20] - 2026-07-01
+
+### Fixed
+- **Coupon-Login: E-Mail-/Passwort-Feld sicher treffen.** Das TUI-Login-Feld ist
+  `type=text`, kommt doppelt vor und ist anfangs `disabled` — der Login blieb daher am
+  deaktivierten Platzhalter hängen (Timeout). Jetzt wird gezielt das **aktive** Feld
+  (`:not([disabled])`) angesteuert und auf das Aktivwerden von Feldern/Buttons gewartet.
+
 ## [0.25.19] - 2026-07-01
 
 ### Added

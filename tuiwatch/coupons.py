@@ -69,22 +69,24 @@ def _consent(page, verbose):
 
 
 def _click_text(page, texts):
-    for t in texts:
+    # Button kann kurz `disabled` sein → ein paar Anläufe, nur aktive/sichtbare klicken.
+    for _ in range(20):
+        for t in texts:
+            try:
+                btn = page.query_selector(f"button:has-text('{t}')")
+                if btn and btn.is_visible() and btn.is_enabled():
+                    btn.click(timeout=5000)
+                    return True
+            except Exception:
+                pass
         try:
-            btn = page.query_selector(f"button:has-text('{t}')")
-            if btn and btn.is_visible():
-                btn.click()
+            btn = page.query_selector("button[type=submit]")
+            if btn and btn.is_visible() and btn.is_enabled():
+                btn.click(timeout=5000)
                 return True
         except Exception:
             pass
-    # Fallback: sichtbaren Submit-Button klicken
-    try:
-        btn = page.query_selector("button[type=submit]")
-        if btn and btn.is_visible():
-            btn.click()
-            return True
-    except Exception:
-        pass
+        time.sleep(0.5)
     return False
 
 
@@ -121,15 +123,24 @@ def fetch_coupons(user: str, password: str, *, verbose: bool = False,
                 page.goto(LOGIN_URL, wait_until="domcontentloaded", timeout=60000)
                 time.sleep(2)
                 _consent(page, verbose)
-                # Schritt 1: E-Mail eingeben → „Weiter"
+                # Schritt 1: E-Mail eingeben → „Weiter".
+                # Achtung: das Feld ist `type=text`, kommt doppelt vor und ist anfangs
+                # `disabled` (wird erst nach der Hydration aktiv) → nur das AKTIVE,
+                # sichtbare Feld nehmen (`:not([disabled])`), damit wir nicht auf einem
+                # Platzhalter hängen bleiben.
                 email = page.wait_for_selector(
-                    "input[type=email], input[name*='mail' i], input[autocomplete='username']",
-                    timeout=30000)
+                    "input#email:not([disabled]), input[name='email']:not([disabled]), "
+                    "input[type='email']:not([disabled]), "
+                    "input[autocomplete='username']:not([disabled])",
+                    state="visible", timeout=45000)
+                email.click()
                 email.fill(user)
                 _click_text(page, ["Weiter", "Continue"])
                 time.sleep(2)
-                # Schritt 2: Passwort → „Anmelden"
-                pw = page.wait_for_selector("input[type=password]", timeout=30000)
+                # Schritt 2: Passwort → „Anmelden" (ebenfalls nur das aktive Feld)
+                pw = page.wait_for_selector("input[type=password]:not([disabled])",
+                                            state="visible", timeout=45000)
+                pw.click()
                 pw.fill(password)
                 _click_text(page, ["Anmelden", "Einloggen", "Login"])
                 try:
