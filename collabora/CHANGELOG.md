@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.0.6] - 2026-07-01
+- Collabora Base-Image aktualisiert (neuer collabora/code Digest)
+
 ## [1.0.5] - 2026-06-08
 - Collabora Base-Image aktualisiert (neuer collabora/code Digest)
 
