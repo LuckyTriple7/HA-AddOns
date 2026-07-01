@@ -18,7 +18,9 @@ log = logging.getLogger("tuiwatch")
 LOGIN_URL = "https://my.tui.com/n/"
 COUPONS_URL = "https://my.tui.com/n/my-benefits/coupons"
 COUPON_API_MARK = "getAccountCoupons"
-USER_AGENT = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+# Linux-UA, konsistent zur tatsächlichen Container-Umgebung (ein Windows-UA auf einem
+# Linux-Headless-Browser ist selbst ein Bot-Signal, weil er den Client Hints widerspricht).
+USER_AGENT = ("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
              "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36")
 CONSENT_SELECTORS = [
     "button:has-text('Zustimmen')", "button:has-text('Alle akzeptieren')",

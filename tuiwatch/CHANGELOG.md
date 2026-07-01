@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.25.23] - 2026-07-01
+
+### Fixed
+- **Coupon-Login: konsistenter Linux-User-Agent.** Bisher wurde ein Windows-UA benutzt,
+  obwohl das Add-on unter Linux läuft — dieser Widerspruch (UA ↔ Client Hints/Plattform)
+  ist selbst ein Bot-Signal. Jetzt ein zur Umgebung passender Linux-Chrome-UA.
+
 ## [0.25.22] - 2026-07-01
 
 ### Fixed
