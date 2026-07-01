@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.25.12] - 2026-07-01
+
+### Changed
+- **Hotelsuche: „Exakt"-Checkbox aufgeräumt.** Das Nächte-Feld ist etwas breiter und
+  die „Exakt"-Checkbox sitzt jetzt sauber rechts neben dem Label „Nächte" (statt
+  darüber umzubrechen).
+
 ## [0.25.11] - 2026-07-01
 
 ### Fixed

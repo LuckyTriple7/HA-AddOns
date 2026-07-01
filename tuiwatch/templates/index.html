@@ -158,8 +158,9 @@
     .srch-boards label { margin-left:8px; }
     .srch-filters input[type=checkbox] { accent-color:var(--accent); cursor:pointer; }
     .srch-filters input[type=number] { background:var(--bg); border:1px solid var(--border); color:var(--text); padding:5px 7px; border-radius:6px; }
-    .exact-chk { display:inline-flex; align-items:center; gap:3px; margin-left:8px; font-size:.72rem; font-weight:normal; color:var(--muted); cursor:pointer; }
+    .exact-chk { display:inline-flex; align-items:center; gap:3px; font-size:.72rem; font-weight:normal; color:var(--muted); cursor:pointer; white-space:nowrap; }
     .exact-chk input[type=checkbox] { accent-color:var(--accent); cursor:pointer; }
+    .srch-lbl-row { display:flex; align-items:center; justify-content:space-between; gap:6px; }
     .srch-warn { color:var(--amber); font-size:.82rem; margin:-4px 0 12px; }
     .sr-item { display:flex; gap:12px; padding:10px 2px; border-bottom:1px solid var(--border); align-items:center; }
     .sr-img { width:86px; height:62px; object-fit:cover; border-radius:6px; flex:0 0 auto; background:var(--bg); }
@@ -185,6 +186,7 @@
     .srch-field.srch-grow { flex:1 1 200px; }
     .srch-field.srch-sm { flex:0 0 140px; }
     .srch-field.srch-xs { flex:0 0 90px; }
+    .srch-field.srch-nights { flex:0 0 150px; }
     .srch-field label { font-size:.72rem; color:var(--muted); }
     .srch-field input, .srch-field select, .srch-dest { background:var(--bg); border:1px solid var(--border); color:var(--text); padding:8px 10px; border-radius:6px; font-size:.85rem; width:100%; }
     input[type=date]::-webkit-calendar-picker-indicator { filter:invert(0.85); opacity:.9; cursor:pointer; }
@@ -420,10 +422,11 @@
         <div class="srch-field srch-sm">
           <label>bis</label><input type="date" id="srch-bis" onchange="syncBisMin()" onclick="this.showPicker&&this.showPicker()">
         </div>
-        <div class="srch-field srch-xs">
-          <label>Nächte
+        <div class="srch-field srch-nights">
+          <div class="srch-lbl-row">
+            <label for="srch-dur">Nächte</label>
             <label class="exact-chk" title="Nächte automatisch auf die genaue Reisedauer (Tage zwischen von und bis) setzen"><input type="checkbox" id="srch-exact" onchange="applyExact()"> Exakt</label>
-          </label>
+          </div>
           <input type="number" id="srch-dur" min="1" max="30" value="7" oninput="updateNightsHint()">
         </div>
         <div class="srch-field srch-xs">
