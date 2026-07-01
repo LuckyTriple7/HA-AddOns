@@ -5,11 +5,12 @@ ob er **gestiegen oder gefallen** ist — inklusive Preisverlauf-Diagramm.
 
 ## Wie es funktioniert
 
-TUI bietet keine öffentliche Preis-API, und der Preis wird auf der Webseite erst
-per JavaScript geladen. TUIWatch rendert die Angebotsseite daher mit einem
-echten (Headless-)Browser und liest die **günstigste konkrete Angebotskarte** aus —
-den buchbaren „Günstigster Preis" inkl. **Flugdetails** (Hin-/Rückflug), Zimmer und
+TUIWatch liest den Preis **direkt aus den offenen TUI-JSON-APIs** (schnell und
+robust). Es ermittelt die **günstigste konkrete Angebotskarte** — den buchbaren
+„Günstigster Preis" inkl. **Flugdetails** (Hin-/Rückflug), Zimmer und
 **Verfügbarkeit**, passend zu deiner Suche (Datum, Personen, Zimmer, Abflughafen).
+Fällt eine API aus, schaltet TUIWatch automatisch auf das langsamere Auslesen per
+**Headless-Browser** um (Fallback). Details: [SCRAPING.md](SCRAPING.md).
 
 ## Benutzung
 
@@ -33,10 +34,16 @@ den buchbaren „Günstigster Preis" inkl. **Flugdetails** (Hin-/Rückflug), Zim
 | `poll_interval` | Prüfintervall in Sekunden (Standard 21600 = 6 h, min. 600) |
 | `verbose_log` | Ausführlichere Logs |
 
+Es gibt weitere Optionen für **Benachrichtigungen** (Preisänderung, günstigerer
+Termin, „günstiger als gebucht", API-Ausfall, Wochenüberblick), **Home-Assistant-
+Sensoren** (`ha_sensors`) sowie **Telegram** und **SMTP/E-Mail** — Details in
+[DOCS.md](DOCS.md).
+
 ## Hinweise
 
-- Scraping kann brechen, wenn TUI das Seitenlayout ändert — dann zur
-  Neukalibrierung [SCRAPING.md](SCRAPING.md) folgen.
+- Ändert TUI seine APIs, erkennt der **API-Selbsttest** das (Ampel im Footer) und
+  TUIWatch weicht auf den Browser-Fallback aus. Bricht auch dieser (Layout-Änderung),
+  hilft die Neukalibrierung in [SCRAPING.md](SCRAPING.md).
 - Bitte ein faires Prüfintervall lassen (nicht im Minutentakt).
 - Tipp: Doppelklick auf das **TUIWatch**-Logo öffnet eine Konsole mit den
   Hintergrund-Logs.

@@ -44,6 +44,14 @@ verbose_log: false       # ausführliche Logs
   Hintergrund aufgebaut und in der Datenbank zwischengespeichert wird.)
 - **Abflughafen** (TUI-Liste, zuletzt genutzter wird gemerkt), **Zeitraum von–bis** +
   **Nächte**, **Reisende**.
+- **Exakt** (neben „Nächte"): sucht Reisen mit einer Dauer, die **genau dem gewählten
+  Zeitraum** entspricht (TUI-nativ `duration=exact`; z. B. 01.07.–05.07. → 4 Nächte).
+  Bei aktivem Häkchen bestimmt TUI die Dauer, das Nächte-Feld ist gesperrt und zeigt zur
+  Info die Tagesdifferenz.
+- **Nächte-Hinweis**: passt die eingegebene Nächtezahl nicht in den Zeitraum
+  (z. B. 01.07.–03.07. mit 5 Nächten), erscheint ein Hinweis (die Suche läuft trotzdem).
+- **Reset** setzt die komplette Suchmaske (inkl. Reiseziel, Abflughafen, Datum, Nächte,
+  Reisende und Filter) wieder auf die Standardwerte zurück.
 - **Fluggesellschaften** (optional): Dropdown mit Mehrfachauswahl — leer = alle. Die
   Auswahl fließt in die Suche **und** in das getrackte Angebot (Preis nur mit diesen
   Airlines).
@@ -184,16 +192,19 @@ wird **gespeichert** (Zeitstempel + **„Neu abfragen"**).
 ## Preiskalender
 
 Der Button **Kalender** je Angebot zeigt ein Monats-Raster mit dem günstigsten Preis
-pro Abreisetag (ab/Person) — wie der Preiskalender auf tui.com. Hervorgehoben werden
-der **günstigste Termin insgesamt** (grün) und der **günstigste Termin in deinem
-gewählten Zeitraum**; Tage außerhalb deines Zeitraums sind gedimmt. Die Tage sind als
-**Heatmap** eingefärbt (grün = günstig, rot = teuer); ein **Klick auf einen Tag öffnet
-genau diesen Termin auf tui.com**, ein **Rechtsklick speichert den Termin als neues,
-eigenständiges Angebot** (mit fixiertem Datum) und prüft ihn sofort. Es wird die
-**volle buchbare Spanne** angezeigt (heute bis ~12–14 Monate, je nach Verfügbarkeit);
-mit den Pfeilen blätterst du durch die Monate. Das Ergebnis wird **gespeichert** (Zeitstempel + „Neu
-abfragen") und respektiert alle Filter deiner Angebots-URL (Verpflegung, Veranstalter,
-Zimmer, Abflughafen).
+pro Abreisetag (ab/Person) — wie der Preiskalender auf tui.com. Er **öffnet direkt im
+Reisemonat** deines Angebots. Hervorgehoben werden der **günstigste Termin insgesamt**
+(grün) und der **günstigste Termin in deinem gewählten Zeitraum**; Tage außerhalb deines
+Zeitraums sind gedimmt. Die Tage sind als **Heatmap** eingefärbt (grün = günstig, rot =
+teuer); ein **Klick auf einen Tag öffnet genau diesen Termin auf tui.com**, ein
+**Rechtsklick speichert den Termin als neues, eigenständiges Angebot** (mit fixiertem
+Datum) und prüft ihn sofort. Der Kalender deckt die **volle Spanne vom aktuellen Monat
+bis über den Reisezeitraum hinaus** ab: mit den Pfeilen blätterst du zurück bis zum
+aktuellen Monat und vor bis zum Ende des buchbaren Inventars. (Die TUI-Kalender-API
+liefert pro Abruf nur ein begrenztes Fenster; TUIWatch fügt daher wie die TUI-Seite
+mehrere Abrufe zu einer durchgehenden Zeitleiste zusammen.) Das Ergebnis wird
+**gespeichert** (Zeitstempel + „Neu abfragen") und respektiert alle Filter deiner
+Angebots-URL (Verpflegung, Veranstalter, Zimmer, Abflughafen).
 
 ## Home-Assistant-Sensoren
 
@@ -260,9 +271,10 @@ Neustarts erhalten.
 
 ## Technik / Wartung
 
-Der Preis wird mit Headless-Chromium (Playwright) ausgelesen. Wenn TUI das Layout
-ändert und Abrufe mit „nicht gefunden" fehlschlagen, hilft die Anleitung in
-[SCRAPING.md](SCRAPING.md), die Selektoren neu zu bestimmen.
+Der Preis wird primär direkt aus den offenen TUI-JSON-APIs gelesen; nur bei Störungen
+schaltet TUIWatch automatisch auf das Auslesen per Headless-Chromium (Playwright) um.
+Wenn TUI die APIs bzw. das Seitenlayout ändert und Abrufe fehlschlagen, hilft die
+Anleitung in [SCRAPING.md](SCRAPING.md), die Endpunkte/Selektoren neu zu bestimmen.
 
 **Regressionstests:** Unter `tests/` liegen Offline-Tests (pytest), die gegen echte,
 reduzierte TUI-API-Antworten prüfen, dass die Auswertung der Antworten korrekt bleibt —

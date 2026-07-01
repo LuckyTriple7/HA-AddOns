@@ -44,6 +44,12 @@ der Browser-Scraper ist nur noch **Fallback**. Code: `fetch_price_api()` in
 - **Dauer-Bereiche** (`duration=7-`, `9-12`): der **Kalender** braucht eine *einzelne*
   Dauer → wir nehmen die untere Zahl (`_single_duration()`). Der **Offer**-Abruf bekommt
   den Bereich unverändert (`durations`), damit der günstigste über alle Dauern stimmt.
+- **Kalender-Fenster / Paginierung:** Die Kalender-API liefert pro Aufruf nur ein
+  begrenztes Fenster (~12 Monate ab `startSearchRange`) und ignoriert ein weit gesetztes
+  Ende. `fetch_calendar()` ruft `build_calendar_api_url(url, start=…, end=…)` daher wie
+  die TUI-Seite **mehrfach** auf — ab heute jeweils weiter ab dem zuletzt gelieferten
+  `arrivalDate`+1 bis über das Reiseende hinaus — und führt die Tage zusammen (volle
+  Spanne aktueller Monat … Inventarende).
 - **Verbose-Log:** bei `verbose_log` werden alle API-URLs + Ergebnisse über den Logger
   ausgegeben (erscheinen in der UI-Konsole) — Scraper nutzt `logging`, kein `print`.
 - **Wichtig: alle Filter der Original-URL durchreichen** (`boardTypes`, `operators`→
