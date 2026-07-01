@@ -37,6 +37,7 @@ from scraper import (_giata_from_url, _valid_img_url, api_healthcheck,
                      hotel_from_url, is_single_room, region_giata_from_breadcrumb,
                      room_code_from_url, travellers_from_url, with_duration,
                      with_room_code, with_travellers, without_room_code)
+from coupons import fetch_coupons
 from tripparser import _parse_eur, check_fields, parse_tui_pdf
 
 logging.basicConfig(format='[%(levelname)s] [%(asctime)s] %(message)s',
@@ -110,6 +111,8 @@ _calendar_state: dict[int, dict] = {}  # offer_id → transienter Status {runnin
 _calendar_lock = threading.Lock()
 _nights_state: dict[int, dict] = {}    # offer_id → transienter Status {running|error}
 _nights_lock = threading.Lock()
+_coupon_state: dict = {}               # transienter Status des Coupon-Abrufs {running|error|ts}
+_coupon_lock = threading.Lock()
 _cheaper_notified: dict[int, str] = {}  # Dedup für Günstigerer-Termin-Alarm
 _fail_notified: set[int] = set()        # offer_ids mit aktivem Ausverkauft-/Fehler-Alarm
 ERROR_ALARM_STREAK = 3                   # ab so vielen Fehlversuchen in Folge melden
@@ -307,6 +310,15 @@ def init_db() -> None:
         con.execute('''CREATE TABLE IF NOT EXISTS meta (
             key   TEXT PRIMARY KEY,
             value TEXT
+        )''')
+        # Gesehene MyTUI-Coupons (Dedup für den „neuer Coupon"-Alarm, neustart-fest).
+        con.execute('''CREATE TABLE IF NOT EXISTS coupon_state (
+            coupon_id  TEXT PRIMARY KEY,
+            title      TEXT,
+            saving     REAL,
+            end_date   TEXT,
+            first_seen INTEGER NOT NULL,
+            last_seen  INTEGER NOT NULL
         )''')
         # Gespeicherte Suchen (Favoriten) — in der DB statt im Browser, damit sie
         # geräteübergreifend verfügbar sind. payload = JSON der Sucheingaben.
@@ -1253,6 +1265,151 @@ def _calendar_payload(offer_id: int) -> dict:
     return out
 
 
+# ── MyTUI-Coupons ───────────────────────────────────────────────────────────────
+
+def _coupon_configured() -> bool:
+    cfg = load_config()
+    return bool((cfg.get('tui_user') or '').strip() and (cfg.get('tui_pass') or '').strip())
+
+
+def _fmt_iso_de(iso: str) -> str:
+    """'2026-07-31T21:59:59.000Z' → '31.07.2026' (leer bei ungültig)."""
+    m = re.match(r'(\d{4})-(\d{2})-(\d{2})', iso or '')
+    return f"{m.group(3)}.{m.group(2)}.{m.group(1)}" if m else ''
+
+
+def _store_coupons(coupons: list, ts: int) -> list:
+    """Coupons in coupon_state ablegen (Dedup per coupon_id) und die **neuen**
+    zurückgeben. Ohne Browser testbar."""
+    new = []
+    with db() as con:
+        for c in coupons:
+            cid = str(c.get('id') or '')
+            if not cid:
+                continue
+            row = con.execute('SELECT coupon_id FROM coupon_state WHERE coupon_id=?',
+                              (cid,)).fetchone()
+            if row is None:
+                con.execute('INSERT INTO coupon_state (coupon_id, title, saving, end_date, '
+                            'first_seen, last_seen) VALUES (?,?,?,?,?,?)',
+                            (cid, c.get('title') or '', c.get('saving'),
+                             c.get('end') or '', ts, ts))
+                new.append(c)
+            else:
+                con.execute('UPDATE coupon_state SET title=?, saving=?, end_date=?, '
+                            'last_seen=? WHERE coupon_id=?',
+                            (c.get('title') or '', c.get('saving'),
+                             c.get('end') or '', ts, cid))
+    return new
+
+
+def _notify_coupons(new: list) -> None:
+    lines = []
+    for c in new:
+        end = _fmt_iso_de(c.get('end') or '')
+        lines.append('• ' + (c.get('title') or 'Coupon') + (f' (bis {end})' if end else ''))
+    body = '\n'.join(lines)
+    head = f"{len(new)} neue TUI-Coupons" if len(new) != 1 else "Neuer TUI-Coupon"
+    _notify_ha(f"🎟 {head}", body + "\n\nCode in deinem MyTUI-Login abrufbar.", "coupons")
+    _notify_telegram(f"🎟 <b>{head}</b>\n{body}")
+
+
+def _run_coupons() -> None:
+    """Coupons abrufen, speichern, neue melden. Läuft im Hintergrund-Thread."""
+    if not _coupon_configured():
+        with _coupon_lock:
+            _coupon_state.clear()
+            _coupon_state['error'] = 'Keine Zugangsdaten gesetzt (tui_user/tui_pass).'
+        return
+    with _coupon_lock:
+        if _coupon_state.get('running'):
+            return
+        _coupon_state.clear()
+        _coupon_state['running'] = True
+    cfg = load_config()
+    try:
+        res = fetch_coupons((cfg.get('tui_user') or '').strip(),
+                            (cfg.get('tui_pass') or '').strip(),
+                            verbose=_verbose(), debug_png=_DATA + '/coupon_debug.png')
+    except Exception as e:
+        res = {'ok': False, 'error': f'{type(e).__name__}: {e}'}
+    ts = int(time.time())
+    _meta_set('coupons_checked', str(ts))
+    if not res.get('ok'):
+        log.warning("Coupon-Abruf fehlgeschlagen: %s", res.get('error'))
+        with _coupon_lock:
+            _coupon_state.clear()
+            _coupon_state.update({'error': res.get('error') or 'Abruf fehlgeschlagen', 'ts': ts})
+        return
+    coupons = res.get('coupons') or []
+    _meta_set('coupons_last', json.dumps({'ts': ts, 'coupons': coupons}, ensure_ascii=False))
+    new = _store_coupons(coupons, ts)
+    if new and load_config().get('notify_coupons', True):
+        try:
+            _notify_coupons(new)
+        except Exception as e:
+            log.error("Coupon-Benachrichtigung fehlgeschlagen: %s", e)
+    log.info("Coupon-Abruf: %d Coupons, %d neu", len(coupons), len(new))
+    with _coupon_lock:
+        _coupon_state.clear()
+        _coupon_state['ts'] = ts
+
+
+def _maybe_check_coupons() -> None:
+    """Coupons höchstens alle `coupon_interval` Sekunden prüfen (Standard 12 h)."""
+    if not _coupon_configured():
+        return
+    with _coupon_lock:
+        if _coupon_state.get('running'):
+            return
+    try:
+        interval = int(load_config().get('coupon_interval', 43200) or 43200)
+    except (TypeError, ValueError):
+        interval = 43200
+    try:
+        last = int(_meta_get('coupons_checked', 0) or 0)
+    except (TypeError, ValueError):
+        last = 0
+    if time.time() - last >= max(3600, interval):
+        _run_coupons()
+
+
+def _coupons_payload() -> dict:
+    with _coupon_lock:
+        st = dict(_coupon_state)
+    try:
+        last = json.loads(_meta_get('coupons_last', '') or '{}')
+    except Exception:
+        last = {}
+    return {
+        'configured': _coupon_configured(),
+        'running': bool(st.get('running')),
+        'error': st.get('error'),
+        'ts': last.get('ts') or (int(_meta_get('coupons_checked', 0) or 0) or None),
+        'coupons': last.get('coupons') or [],
+    }
+
+
+@app.route('/api/coupons', methods=['GET'])
+def api_coupons_get():
+    if (err := _require_api()):
+        return err
+    return jsonify(_coupons_payload())
+
+
+@app.route('/api/coupons', methods=['POST'])
+def api_coupons_check():
+    if (err := _require_api()):
+        return err
+    if not _coupon_configured():
+        return jsonify({'error': 'not_configured'}), 400
+    with _coupon_lock:
+        if _coupon_state.get('running'):
+            return jsonify({'started': True, 'already': True})
+    _spawn(_run_coupons)
+    return jsonify({'started': True})
+
+
 def _poll_worker() -> None:
     """Prüft Angebote fälligkeitsbasiert: ein Angebot wird erst wieder abgefragt,
     wenn seit seinem letzten Check (auch über Neustarts hinweg) das Intervall
@@ -1267,6 +1424,7 @@ def _poll_worker() -> None:
             now = int(time.time())
             _maybe_periodic_health()  # API-Selbsttest 1×/Tag — VOR den Preisprüfungen
             _maybe_send_digest()      # wöchentliche Zusammenfassung (falls aktiviert)
+            _maybe_check_coupons()    # MyTUI-Coupons (falls Zugangsdaten gesetzt)
             _auto_archive_expired()
             with db() as con:
                 offers = [r['id'] for r in con.execute(

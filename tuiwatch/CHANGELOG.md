@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.25.18] - 2026-07-01
+
+### Added
+- **MyTUI-Coupon-Überwachung (🎟 Coupons).** TUIWatch kann sich (mit hinterlegten
+  Zugangsdaten, am besten ein **TUI-Zweitkonto**) in MyTUI einloggen, die aktuellen
+  Coupons lesen und bei **neuen** Coupons benachrichtigen (Telegram/HA). Anzeige der
+  aktuellen Coupons mit Gültigkeit im neuen Coupon-Fenster; „Jetzt prüfen" für einen
+  Sofort-Abruf. Der Login ist durch einen Bot-Schutz gesichert und läuft daher über einen
+  Headless-Browser — ob er durchläuft, hängt von der Umgebung ab. Neue Optionen
+  `tui_user`, `tui_pass` (wie SMTP-Passwort behandelt), `notify_coupons`,
+  `coupon_interval` (Standard 12 h). Ohne Zugangsdaten bleibt die Funktion inaktiv.
+
 ## [0.25.17] - 2026-07-01
 
 ### Added

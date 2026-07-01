@@ -209,6 +209,26 @@ mehrere Abrufe zu einer durchgehenden Zeitleiste zusammen.) Das Ergebnis wird
 **gespeichert** (Zeitstempel + „Neu abfragen") und respektiert alle Filter deiner
 Angebots-URL (Verpflegung, Veranstalter, Zimmer, Abflughafen).
 
+## MyTUI-Coupons
+
+Über **🎟 Coupons** kann TUIWatch die aktuellen Coupons aus deinem **MyTUI-Bereich**
+überwachen und dich bei **neuen** Coupons benachrichtigen (Telegram/HA/E-Mail).
+
+- **Zugang:** In den Add-on-Optionen `tui_user` (E-Mail) und `tui_pass` (Passwort)
+  hinterlegen. **Empfehlung:** ein **separates TUI-Zweitkonto** ohne Buchungen/Zahlungsdaten
+  — die allgemeinen Coupons (Wert) sind für jedes Konto gleich, nur der Code unterscheidet
+  sich. So liegt kein sensibles Konto im Add-on. Das Passwort wird wie das SMTP-Passwort
+  behandelt (serverseitig, nie im UI angezeigt, nicht geloggt).
+- **Ablauf:** Der TUI-Login ist durch einen Bot-Schutz (Captcha) gesichert; TUIWatch
+  meldet sich daher in einem **Headless-Browser** an und liest danach die Coupon-Liste.
+  Ob der Bot-Schutz durchlässt, hängt von deiner Umgebung ab — klappt es bei dir, läuft es
+  automatisch (Prüfintervall `coupon_interval`, Standard 12 h). Manuell über **„Jetzt
+  prüfen"** im Coupon-Fenster.
+- **Anzeige:** aktuelle Coupons mit Titel und Gültigkeit. Den **Code** selbst löst du in
+  deinem **eigenen MyTUI-Login** ein (TUIWatch dient nur als Melder).
+- **Optionen:** `notify_coupons` (Alarm an/aus), `coupon_interval` (Prüfintervall in
+  Sekunden). Ohne `tui_user`/`tui_pass` bleibt die Funktion inaktiv.
+
 ## Home-Assistant-Sensoren
 
 Bei aktiver Option `ha_sensors` legt TUIWatch je Angebot einen Sensor
