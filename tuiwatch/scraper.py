@@ -345,15 +345,14 @@ def _single_duration(d: str) -> str:
 
 def build_calendar_api_url(url: str) -> str:
     """Baut die Preiskalender-API-URL aus der Angebots-Seiten-URL. Übernimmt die
-    Filter (Verpflegung, Veranstalter, Zimmercode, Abflughafen) und fragt die **volle
-    buchbare Spanne** ab (heute bis ~14 Monate, mind. bis zum gewählten Zeitraum),
-    damit man durch alle verfügbaren Monate blättern kann. Die Hervorhebung des
+    Filter (Verpflegung, Veranstalter, Zimmercode, Abflughafen) und fragt ein **Fenster
+    um den gewählten Reisezeitraum** ab (etwas Vorlauf vor `startDate` bis Nachlauf nach
+    `endDate`). Grund: Die Kalender-API liefert nur ein begrenztes Fenster ab
+    `startSearchRange` (~12 Monate) und ignoriert ein weit gesetztes Ende — ein fixes
+    „heute" würde weit entfernte Reisezeiträume abschneiden. Die Hervorhebung des
     gewählten Zeitraums macht fetch_calendar selbst."""
     p = urlparse(url)
     q = {k: v[0] for k, v in parse_qs(p.query, keep_blank_values=True).items()}
-
-    def plus(d, days):
-        return (d + timedelta(days=days)).isoformat()
 
     def parse(d, fallback):
         try:
@@ -362,9 +361,13 @@ def build_calendar_api_url(url: str) -> str:
             return fallback
 
     today = date.today()
-    we = parse(q.get('endDate', ''), today)
-    sd = today.isoformat()
-    ed = max(plus(today, 420), plus(we, 14))   # volle Inventarspanne, mind. bis Zeitraum +14 T
+    ws_off = parse(q.get('startDate', ''), None)   # gewählter Reisebeginn
+    we_off = parse(q.get('endDate', ''), None)
+    start_ref = ws_off or today
+    sd_d = max(today, start_ref - timedelta(days=60))   # ~2 Monate Vorlauf, nie vor heute
+    end_ref = we_off or ws_off or today
+    ed_d = max(end_ref + timedelta(days=60), sd_d + timedelta(days=90))  # Nachlauf + Mindestspanne
+    sd, ed = sd_d.isoformat(), ed_d.isoformat()
 
     params = {
         'searchscope': q.get('searchScope', 'PACKAGE'),

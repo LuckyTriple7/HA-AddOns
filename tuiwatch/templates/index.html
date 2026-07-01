@@ -1760,7 +1760,13 @@
         $('#cal-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ '+esc(msg)+'</div>' + calFooter(job);
         return;
       }
-      if(!calMonth){ const ref = job.tracked_date || job.cheapest_date || job.days[0].date; calMonth = ref.slice(0,7); }
+      if(!calMonth){
+        // Standard: der Monat des Reisebeginns (window_start) — sofern dafür Daten da sind;
+        // sonst günstigster-im-Zeitraum / günstigster / erster Tag.
+        const wm = (job.window_start||'').slice(0,7);
+        const has = job.days.some(d=>d.date.slice(0,7)===wm);
+        calMonth = (wm && has) ? wm : (job.tracked_date || job.cheapest_date || job.days[0].date).slice(0,7);
+      }
       drawCalMonth();
     }
 

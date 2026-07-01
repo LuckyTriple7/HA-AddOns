@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.25.11] - 2026-07-01
+
+### Fixed
+- **Preiskalender öffnet im Reisemonat & deckt den gewählten Zeitraum ab.** Bei weit
+  entfernten Reisen (z. B. Reisebeginn September 2027) startete der Kalender bei einem
+  nahen Monat (Dezember 2026) und ließ sich nur bis Juni 2027 blättern – der eigentliche
+  Reisemonat war unerreichbar. Ursache: Der Suchbereich der Kalender-API war fix auf
+  „heute" verankert, die API liefert aber nur ein begrenztes Fenster ab dem Startdatum.
+  Der Suchbereich wird jetzt am gewählten Reisezeitraum verankert (Vorlauf/Nachlauf um
+  `startDate`/`endDate`), und der Kalender öffnet direkt im Reisemonat.
+
 ## [0.25.10] - 2026-07-01
 
 ### Added
