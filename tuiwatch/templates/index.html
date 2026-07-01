@@ -269,6 +269,7 @@
     /* Reisen-Datenbank */
     .trips-stats { display:flex; flex-wrap:wrap; gap:10px; margin:6px 0 14px; }
     .trips-stats .tstat { flex:1 1 120px; background:var(--surf); border:1px solid var(--border); border-radius:8px; padding:8px 12px; }
+    .trips-stats .tstat.sm { flex:0 1 88px; }   /* kompakte Kacheln (Reisen/Nächte) */
     .trips-stats .tstat .v { font-size:1.1rem; font-weight:700; color:var(--text); }
     .trips-stats .tstat .l { font-size:.74rem; color:var(--muted); }
     .trips-import { display:flex; align-items:center; gap:12px; flex-wrap:wrap; border:1px dashed var(--border); border-radius:8px; padding:12px; margin-bottom:14px; background:var(--bg); transition:border-color .15s,background .15s; }
@@ -1253,15 +1254,16 @@
       tripsData = d.trips||[];
       const s = d.stats||{};
       $('#trips-stats').innerHTML = [
-        ['Reisen', s.count||0],
-        ['Nächte', s.nights_sum||0],
+        ['Reisen', s.count||0, true],
+        ['Nächte', s.nights_sum||0, true],
         ['Gesamtausgaben', eur(s.total_sum)],
+        ['Eigene Kosten', eur(s.own_sum)],
         ['Ø €/Nacht p.P.', eur(s.avg_per_night)],
-      ].map(([l,v])=>`<div class="tstat"><div class="v">${esc(String(v))}</div><div class="l">${l}</div></div>`).join('');
+      ].map(([l,v,sm])=>`<div class="tstat${sm?' sm':''}"><div class="v">${esc(String(v))}</div><div class="l">${l}</div></div>`).join('');
       const years = d.by_year||[];
       $('#trips-years').innerHTML = years.length?(
-        '<table class="tdt tyears"><tr><th>Jahr</th><th>Reisen</th><th>Nächte</th><th>Ausgaben</th><th>Ø €/Nacht p.P.</th></tr>'+
-        years.map(y=>`<tr><td>${esc(y.year)}</td><td>${y.count}</td><td>${y.nights_sum}</td><td>${eur(y.total_sum)}</td><td>${eur(y.avg_per_night)}</td></tr>`).join('')+
+        '<table class="tdt tyears"><tr><th>Jahr</th><th>Reisen</th><th>Nächte</th><th>Ausgaben</th><th>Eigene Kosten</th><th>Ø €/Nacht p.P.</th></tr>'+
+        years.map(y=>`<tr><td>${esc(y.year)}</td><td>${y.count}</td><td>${y.nights_sum}</td><td>${eur(y.total_sum)}</td><td>${eur(y.own_sum)}</td><td>${eur(y.avg_per_night)}</td></tr>`).join('')+
         '</table>'):'';
       renderTrips();
     }

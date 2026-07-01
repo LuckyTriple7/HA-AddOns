@@ -120,8 +120,10 @@ Preis-Tracking, als dauerhaftes Archiv (Vergangenheit und Zukunft).
   **Reisepreis pro Nacht** (Hotel/Flug/Transfer **nach Rabatt, ohne Extras**). Klick auf
   **„Details"** zeigt die komplette Aufschlüsselung inkl. Flügen, Extras, Zahlungen sowie
   **€/Nacht** und **€/Person/Nacht** (Reisepreis und gesamt).
-- **Statistik:** Anzahl Reisen, Summe Nächte, Gesamtausgaben und **Ø €/Nacht pro Person** —
-  gesamt **und pro Reisejahr** aufgeschlüsselt. Der €/Nacht-Wert ist durchweg **pro Person**
+- **Statistik:** Anzahl Reisen, Summe Nächte, **Gesamtausgaben** (Summe aller Reisepreise
+  inkl. Extras), **Eigene Kosten** (je Reise Gesamtpreis geteilt durch die Anzahl
+  Reisende, aufsummiert = dein persönlicher Anteil) und **Ø €/Nacht pro Person** — gesamt
+  **und pro Reisejahr** aufgeschlüsselt. Der €/Nacht-Wert ist durchweg **pro Person**
   (Personen-Nächte = Nächte × Reisende), damit Solo- und Gruppenreisen vergleichbar sind.
 - **Aktualisieren/Löschen:** Ein erneuter Import derselben Buchungsnummer **überschreibt**
   den vorhandenen Eintrag (kein Duplikat). **„Löschen"** entfernt die Reise inkl. der

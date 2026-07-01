@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.25.16] - 2026-07-01
+
+### Added
+- **„Meine Reisen": Kennzahl „Eigene Kosten".** Neben den Gesamtausgaben (Summe aller
+  Reisepreise) zeigt eine neue Kachel den **eigenen Anteil** = je Reise Gesamtpreis
+  geteilt durch die Anzahl Reisende, aufsummiert. Auch als Spalte in der Jahrestabelle.
+  Die Kacheln „Reisen"/„Nächte" sind dafür kompakter.
+
 ## [0.25.15] - 2026-07-01
 
 ### Security
