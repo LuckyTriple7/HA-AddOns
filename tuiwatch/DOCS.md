@@ -64,6 +64,17 @@ verbose_log: false       # ausführliche Logs
   Eine geladene Suche kannst du nach Anpassungen mit **„💾 Änderungen speichern"** ohne
   erneute Namenseingabe überschreiben. Sie liegen in der Add-on-Datenbank und sind damit
   **geräteübergreifend** verfügbar (gleiche Liste auf Handy, Tablet, PC).
+- **🔔 Suchabo (Sammel-Alarm):** Jede gespeicherte Suche lässt sich **beobachten** — ist
+  eine Suche im Dropdown gewählt, erscheint die Abo-Zeile: **„Beobachten"** anhaken,
+  **Schwellenpreis** (pro Person) setzen, **Übernehmen**. TUIWatch führt die Suche dann
+  regelmäßig aus (im Takt von `poll_interval`, mindestens stündlich) und **meldet per
+  Telegram/HA**, wenn ein Hotel **neu unter die Schwelle** fällt oder ein bereits
+  gemeldetes **noch günstiger** wird (kein Spam: je Hotel wird der tiefste gemeldete
+  Preis gemerkt; steigt es über die Schwelle und fällt später wieder darunter, kommt
+  erneut eine Meldung). **„Jetzt prüfen"** führt das Abo sofort aus; die aktuellen
+  Treffer unter der Schwelle lassen sich jederzeit über den Link in der Abo-Zeile als
+  normale Trefferliste **anzeigen** (inkl. „Tracken"). Aktive Abos sind im Dropdown mit
+  🔔 markiert.
 
 **2. Aus einem Angebot:** Bei jedem aktiven Angebot der Button **Region** sucht **weitere
 Hotels derselben Region** für dieselben Reisedaten/Dauer/Reisende/Abflughafen; Veranstalter

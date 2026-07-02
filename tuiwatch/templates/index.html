@@ -182,6 +182,9 @@
     .srch-from { background:var(--bg); border:1px solid var(--border); border-radius:6px; padding:8px 10px; margin-bottom:10px; font-size:.83rem; }
     .srch-from b { color:var(--text); }
     .srch-fav { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:10px; font-size:.82rem; color:var(--muted); }
+    .srch-watch { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin:-4px 0 10px; padding:8px 10px; font-size:.82rem; color:var(--muted); border:1px dashed var(--border); border-radius:8px; }
+    .srch-watch input[type=number] { width:90px; background:var(--surf); border:1px solid var(--border); color:var(--text); padding:6px 8px; border-radius:6px; font-size:.82rem; }
+    .srch-watch.active { border-color:var(--green); }
     .srch-fav select { background:var(--surf); border:1px solid var(--border); color:var(--text); padding:7px 9px; border-radius:6px; font-size:.82rem; min-width:200px; }
     .srch-mask { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:10px; align-items:flex-end; }
     .srch-field { display:flex; flex-direction:column; gap:4px; }
@@ -425,6 +428,15 @@
         <button class="btn sec" onclick="saveFav()" title="Aktuelle Eingaben als neue Suche speichern (Name abfragen)">★ Speichern</button>
         <button class="btn sec" id="srch-favupd" onclick="updateFav()" disabled title="Die gewählte gespeicherte Suche mit den aktuellen Eingaben überschreiben">💾 Änderungen speichern</button>
         <button class="btn sec" onclick="delFav()" title="Gewählte Suche löschen">Löschen</button>
+      </div>
+
+      <div class="srch-watch" id="srch-watchrow" style="display:none">
+        <label class="srch-chk" title="Diese gespeicherte Suche regelmäßig ausführen und melden, wenn ein Hotel unter den Schwellenpreis fällt oder neu darunter auftaucht (Telegram/HA)"><input type="checkbox" id="watch-on"> 🔔 Beobachten</label>
+        <span>melden bei Preis p. P. unter</span>
+        <input type="number" id="watch-max" min="1" placeholder="z. B. 800" onkeydown="if(event.key==='Enter')watchSave()"> €
+        <button class="btn sec" onclick="watchSave()">Übernehmen</button>
+        <button class="btn sec" onclick="watchCheckNow()" title="Suchabo sofort ausführen (statt auf den nächsten automatischen Lauf zu warten)">Jetzt prüfen</button>
+        <span class="hint" id="watch-info" style="margin:0"></span>
       </div>
 
       <div id="srch-from" class="srch-from" style="display:none"></div>
@@ -1583,12 +1595,65 @@
       try { const d = await fetch(api('/api/searches')).then(r=>r.json()); srchFavs = d.searches||[]; }
       catch(e){ srchFavs = []; }
       $('#srch-favsel').innerHTML = '<option value="">– gespeicherte Suche wählen –</option>'
-        + srchFavs.map(f=>`<option value="${f.id}">${esc(f.name)}</option>`).join('');
+        + srchFavs.map(f=>`<option value="${f.id}">${f.watch?'🔔 ':''}${esc(f.name)}</option>`).join('');
       favBtnState();
     }
-    // „Änderungen speichern" nur aktiv, wenn eine gespeicherte Suche gewählt ist.
+    // „Änderungen speichern" nur aktiv, wenn eine gespeicherte Suche gewählt ist;
+    // zusätzlich die Suchabo-Zeile (Beobachten + Schwellenpreis) befüllen/verstecken.
     function favBtnState(){
-      const b = $('#srch-favupd'); if(b) b.disabled = !$('#srch-favsel').value;
+      const id = $('#srch-favsel').value;
+      const b = $('#srch-favupd'); if(b) b.disabled = !id;
+      const row = $('#srch-watchrow'); if(!row) return;
+      const fav = srchFavs.find(x=>String(x.id)===String(id));
+      if(!fav){ row.style.display='none'; return; }
+      row.style.display='flex';
+      row.classList.toggle('active', !!fav.watch);
+      $('#watch-on').checked = !!fav.watch;
+      $('#watch-max').value = fav.max_price!=null?Math.round(fav.max_price):'';
+      const hits = fav.hits||[];
+      let info = '';
+      if(fav.watch){
+        info = hits.length
+          ? `<a href="#" onclick="showWatchHits(${fav.id});return false">${hits.length} Hotel(s) ≤ ${eur(fav.max_price)} — anzeigen</a>`
+          : 'aktuell kein Hotel unter der Schwelle';
+        if(fav.last_checked) info += ' · geprüft '+ago(fav.last_checked);
+      }
+      $('#watch-info').innerHTML = info;
+    }
+    async function watchSave(){
+      const id = $('#srch-favsel').value;
+      if(!id){ toast('Bitte eine gespeicherte Suche wählen'); return; }
+      const on = $('#watch-on').checked;
+      const mx = parseFloat($('#watch-max').value)||0;
+      if(on && !(mx>0)){ toast('Bitte einen Schwellenpreis angeben'); return; }
+      let ok=false;
+      try {
+        const r = await fetch(api('/api/searches/'+id), {method:'PATCH', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({watch:on, max_price:mx||null})});
+        ok = r.ok;
+      } catch(e){}
+      if(!ok){ toast('Speichern fehlgeschlagen'); return; }
+      toast(on?'Suchabo aktiv — erster Lauf startet':'Suchabo deaktiviert');
+      await renderFavs(); $('#srch-favsel').value=id; favBtnState();
+      if(on) watchCheckNow(true);
+    }
+    async function watchCheckNow(quiet){
+      const id = $('#srch-favsel').value; if(!id) return;
+      if(quiet!==true) toast('Suchabo wird geprüft…');
+      let r, d;
+      try { r = await fetch(api('/api/searches/'+id+'/check'), {method:'POST'}); d = await r.json().catch(()=>({})); }
+      catch(e){ toast('Prüfen fehlgeschlagen'); return; }
+      if(r.status===400){ toast('Suchabo zuerst aktivieren (Beobachten + Schwellenpreis)'); return; }
+      if(!r.ok){ toast('Prüfen fehlgeschlagen — Suche nicht ausführbar'); return; }
+      toast((d.hits||[]).length+' Hotel(s) unter der Schwelle'+(d.new?(' ('+d.new+' neu gemeldet)'):''));
+      await renderFavs(); $('#srch-favsel').value=id; favBtnState();
+      if((d.hits||[]).length) showWatchHits(parseInt(id));
+    }
+    // Treffer eines Suchabos in der normalen Ergebnisliste anzeigen
+    function showWatchHits(favId){
+      const fav = srchFavs.find(x=>x.id===favId); if(!fav) return;
+      srchResults = fav.hits||[]; srchTotal = srchResults.length; srchFilter='';
+      sortSearchResults(); renderSearch();
     }
     function curFav(){
       return { dest: srchDest, airport: $('#srch-airport').value,

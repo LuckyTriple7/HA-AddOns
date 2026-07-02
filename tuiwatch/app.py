@@ -329,8 +329,27 @@ def init_db() -> None:
             id      INTEGER PRIMARY KEY AUTOINCREMENT,
             name    TEXT NOT NULL,
             payload TEXT NOT NULL DEFAULT '{}',
-            ts      INTEGER NOT NULL
+            ts      INTEGER NOT NULL,
+            watch        INTEGER DEFAULT 0,
+            max_price    REAL,
+            last_checked INTEGER,
+            seen         TEXT DEFAULT '{}',
+            hits         TEXT DEFAULT '[]'
         )''')
+        # Migration: Suchabo-Spalten in bestehenden DBs nachrüsten (watch = „diese Suche
+        # beobachten", max_price = Schwellenpreis, seen = gemeldete Hotels {giata: preis},
+        # hits = letzte Treffer unter der Schwelle fürs UI)
+        scols = {r['name'] for r in con.execute('PRAGMA table_info(saved_searches)').fetchall()}
+        if 'watch' not in scols:
+            con.execute("ALTER TABLE saved_searches ADD COLUMN watch INTEGER DEFAULT 0")
+        if 'max_price' not in scols:
+            con.execute("ALTER TABLE saved_searches ADD COLUMN max_price REAL")
+        if 'last_checked' not in scols:
+            con.execute("ALTER TABLE saved_searches ADD COLUMN last_checked INTEGER")
+        if 'seen' not in scols:
+            con.execute("ALTER TABLE saved_searches ADD COLUMN seen TEXT DEFAULT '{}'")
+        if 'hits' not in scols:
+            con.execute("ALTER TABLE saved_searches ADD COLUMN hits TEXT DEFAULT '[]'")
         # Reisen-Datenbank: gebuchte Reisen (PDF-Import). data = komplettes Parse-JSON,
         # pdf_name = Dateiname im TRIPS_DIR (dauerhaft gespeichert).
         con.execute('''CREATE TABLE IF NOT EXISTS trips (
@@ -1428,6 +1447,7 @@ def _poll_worker() -> None:
             _maybe_send_digest()      # wöchentliche Zusammenfassung (falls aktiviert)
             _maybe_check_aktionscodes()   # öffentliche TUI-Aktionscodes
             _maybe_auto_backup()      # wöchentliches Backup nach /addon_config
+            _maybe_check_watches()    # Suchabos (gespeicherte Suchen mit Schwellenpreis)
             _auto_archive_expired()
             with db() as con:
                 offers = [r['id'] for r in con.execute(
@@ -2641,6 +2661,133 @@ def api_destinations_reindex():
     return jsonify({'ok': True, 'building': True})
 
 
+# ── Suchabo: gespeicherte Suche beobachten (Sammel-Alarm) ───────────────────────
+
+def _search_from_fav_payload(p: dict) -> dict | None:
+    """Führt die Suche eines gespeicherten Favoriten aus (gleiche Payload-Form wie das
+    UI sie speichert) und wendet die Nachfilter Sterne/Weiterempfehlung an."""
+    dest = p.get('dest') or {}
+    try:
+        region = int(dest.get('giata'))
+    except (TypeError, ValueError):
+        return None
+    duration = 'exact' if p.get('exact') else (p.get('dur') or 7)
+    res = fetch_search_params(
+        region=region, start=(p.get('vom') or '').strip(), end=(p.get('bis') or '').strip(),
+        duration=duration, travellers=p.get('trav') or 2,
+        airports=[a for a in [(p.get('airport') or '').strip()] if a],
+        operator_tui=p.get('tui') is not False,
+        boards=[str(b) for b in (p.get('boards') or []) if str(b).strip()],
+        airlines=[str(a) for a in (p.get('airlines') or []) if str(a).strip()],
+        direct=bool(p.get('direct')), verbose=_verbose())
+    if not res or not res.get('ok'):
+        return res
+
+    def _num(v):
+        try:
+            return float(v or 0)
+        except (TypeError, ValueError):
+            return 0
+    min_stars, min_rec = _num(p.get('stars')), _num(p.get('rec'))
+    out = [r for r in res['results']
+           if (not min_stars or (r.get('stars') or 0) >= min_stars)
+           and (not min_rec or (r.get('recommendation') or 0) >= min_rec)]
+    return {'ok': True, 'results': out}
+
+
+def _esc_html(s) -> str:
+    return str(s or '').replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+
+
+def _notify_search_watch(name: str, new: list, limit: float) -> None:
+    """Meldet neue/tiefere Suchabo-Treffer per HA + Telegram."""
+    head = (f"{len(new)} Hotels" if len(new) != 1 else "1 Hotel") + f" unter {_eur(limit)}"
+    plain = [f"• {r.get('name')}: {_eur(r.get('price'))}"
+             + (f" — {r['location']}" if r.get('location') else '') for r in new[:8]]
+    tg = [f'• <a href="{_esc_html(r.get("offer_url"))}">{_esc_html(r.get("name"))}</a>: '
+          f'<b>{_eur(r.get("price"))}</b>'
+          + (f" — {_esc_html(r['location'])}" if r.get('location') else '') for r in new[:8]]
+    more = f"… und {len(new) - 8} weitere" if len(new) > 8 else ''
+    _notify_ha(f"🔎 Suchabo „{name}“: {head}",
+               "\n".join(plain + ([more] if more else [])), f"watch_{_slug(name)}")
+    _notify_telegram(f"🔎 <b>Suchabo „{_esc_html(name)}“</b>\n{head}\n"
+                     + "\n".join(tg + ([more] if more else [])))
+
+
+def _check_search_watch(sid: int) -> dict | None:
+    """Führt EIN Suchabo aus: Suche laufen lassen, Treffer ≤ Schwellenpreis ermitteln
+    und neue bzw. weiter gefallene Hotels melden. `seen` merkt je Hotel (giata) den
+    tiefsten gemeldeten Preis — steigt ein Hotel über die Schwelle, wird es vergessen
+    und beim nächsten Unterschreiten erneut gemeldet. Rückgabe {hits, new} oder None."""
+    with db() as con:
+        row = con.execute('SELECT * FROM saved_searches WHERE id=?', (sid,)).fetchone()
+    if not row or not row['watch'] or not row['max_price']:
+        return None
+    try:
+        payload = json.loads(row['payload'])
+    except Exception:
+        payload = {}
+    res = _search_from_fav_payload(payload)
+    ts = int(time.time())
+    if not res or not res.get('ok'):
+        with db() as con:
+            con.execute('UPDATE saved_searches SET last_checked=? WHERE id=?', (ts, sid))
+        log.warning("Suchabo „%s“: Suche fehlgeschlagen (%s)", row['name'],
+                    (res or {}).get('note') or 'API-Fehler')
+        return None
+    limit = float(row['max_price'])
+    hits = [r for r in res['results'] if r.get('price') is not None and r['price'] <= limit]
+    try:
+        seen = json.loads(row['seen'] or '{}')
+    except Exception:
+        seen = {}
+    new, now_seen = [], {}
+    for r in hits:
+        g = str(r.get('giata') or '')
+        if not g:
+            continue
+        prev = seen.get(g)
+        if prev is None or r['price'] < prev:
+            new.append(r)
+        now_seen[g] = min(prev, r['price']) if prev is not None else r['price']
+    hits_slim = [{k: r.get(k) for k in ('giata', 'name', 'price', 'location', 'stars',
+                                        'recommendation', 'board', 'nights', 'date',
+                                        'offer_url', 'image')} for r in hits]
+    with db() as con:
+        con.execute('UPDATE saved_searches SET seen=?, hits=?, last_checked=? WHERE id=?',
+                    (json.dumps(now_seen), json.dumps(hits_slim, ensure_ascii=False), ts, sid))
+    if new:
+        try:
+            _notify_search_watch(row['name'], new, limit)
+        except Exception as e:
+            log.error("Suchabo-Benachrichtigung fehlgeschlagen: %s", e)
+    log.info("Suchabo „%s“: %d Treffer ≤ %s, davon %d neu", row['name'],
+             len(hits), _eur(limit), len(new))
+    return {'hits': hits_slim, 'new': len(new)}
+
+
+def _maybe_check_watches() -> None:
+    """Prüft fällige Suchabos (höchstens 1×/poll_interval je Abo, mindestens 1 h Abstand
+    — Fairness gegenüber der Such-API)."""
+    try:
+        interval = int(load_config().get('poll_interval', POLL_INTERVAL_DEFAULT)
+                       or POLL_INTERVAL_DEFAULT)
+    except (TypeError, ValueError):
+        interval = POLL_INTERVAL_DEFAULT
+    interval = max(3600, interval)
+    now = int(time.time())
+    with db() as con:
+        due = [r['id'] for r in con.execute(
+            'SELECT id FROM saved_searches WHERE COALESCE(watch,0)=1 '
+            'AND COALESCE(max_price,0)>0 AND COALESCE(last_checked,0)<=? ORDER BY id',
+            (now - interval,)).fetchall()]
+    for sid in due:
+        try:
+            _check_search_watch(sid)
+        except Exception as e:
+            log.error("Suchabo #%d fehlgeschlagen: %s", sid, e)
+
+
 @app.route('/api/searches', methods=['GET', 'POST'])
 def api_searches():
     """Gespeicherte Suchen (Favoriten) — in der DB, geräteübergreifend.
@@ -2650,15 +2797,21 @@ def api_searches():
     if request.method == 'GET':
         with db() as con:
             rows = con.execute(
-                'SELECT id, name, payload FROM saved_searches ORDER BY name COLLATE NOCASE'
-            ).fetchall()
+                'SELECT id, name, payload, watch, max_price, last_checked, hits '
+                'FROM saved_searches ORDER BY name COLLATE NOCASE').fetchall()
         out = []
         for r in rows:
             try:
                 payload = json.loads(r['payload'])
             except Exception:
                 payload = {}
-            out.append({'id': r['id'], 'name': r['name'], 'payload': payload})
+            try:
+                hits = json.loads(r['hits'] or '[]')
+            except Exception:
+                hits = []
+            out.append({'id': r['id'], 'name': r['name'], 'payload': payload,
+                        'watch': bool(r['watch']), 'max_price': r['max_price'],
+                        'last_checked': r['last_checked'], 'hits': hits})
         return jsonify({'searches': out})
     data = request.get_json(silent=True) or {}
     name = (data.get('name') or '').strip()
@@ -2688,6 +2841,54 @@ def api_searches_delete(sid):
     with db() as con:
         con.execute('DELETE FROM saved_searches WHERE id=?', (sid,))
     return jsonify({'ok': True})
+
+
+@app.route('/api/searches/<int:sid>', methods=['PATCH'])
+def api_searches_patch(sid):
+    """Suchabo-Einstellungen einer gespeicherten Suche: {watch, max_price}."""
+    if (err := _require_api()):
+        return err
+    data = request.get_json(silent=True) or {}
+    with db() as con:
+        row = con.execute('SELECT id, name, watch FROM saved_searches WHERE id=?',
+                          (sid,)).fetchone()
+        if not row:
+            return jsonify({'error': 'not_found'}), 404
+        if 'max_price' in data:
+            mp = data.get('max_price')
+            try:
+                mp = float(mp) if mp not in (None, '', 0) else None
+            except (TypeError, ValueError):
+                mp = None
+            con.execute('UPDATE saved_searches SET max_price=? WHERE id=?', (mp, sid))
+        if 'watch' in data:
+            on = 1 if data.get('watch') else 0
+            con.execute('UPDATE saved_searches SET watch=? WHERE id=?', (on, sid))
+            if on and not row['watch']:
+                # frisch aktiviert → Meldegedächtnis zurücksetzen, damit der nächste
+                # Lauf den aktuellen Stand unter der Schwelle einmal komplett meldet
+                con.execute("UPDATE saved_searches SET seen='{}', hits='[]', "
+                            "last_checked=0 WHERE id=?", (sid,))
+            log.info("Suchabo „%s“ %s", row['name'], "aktiviert" if on else "deaktiviert")
+    return jsonify({'ok': True})
+
+
+@app.route('/api/searches/<int:sid>/check', methods=['POST'])
+def api_searches_check(sid):
+    """Suchabo sofort prüfen (synchron) — liefert die aktuellen Treffer zurück."""
+    if (err := _require_api()):
+        return err
+    with db() as con:
+        row = con.execute('SELECT watch, max_price FROM saved_searches WHERE id=?',
+                          (sid,)).fetchone()
+    if not row:
+        return jsonify({'error': 'not_found'}), 404
+    if not row['watch'] or not row['max_price']:
+        return jsonify({'error': 'not_watching'}), 400
+    res = _check_search_watch(sid)
+    if res is None:
+        return jsonify({'error': 'search_failed'}), 502
+    return jsonify({'ok': True, 'hits': res['hits'], 'new': res['new']})
 
 
 # ── Reisen-Datenbank (gebuchte Reisen via PDF-Import) ───────────────────────────

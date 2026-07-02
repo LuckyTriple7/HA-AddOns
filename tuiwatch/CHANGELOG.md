@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.27.0] - 2026-07-02
+
+### Added
+- **🔔 Suchabo / Sammel-Alarm** (Backlog #7). Jede **gespeicherte Suche** lässt sich
+  jetzt **beobachten**: Schwellenpreis (pro Person) setzen und TUIWatch führt die Suche
+  regelmäßig aus (im `poll_interval`-Takt, mindestens stündlich). Gemeldet wird per
+  **Telegram/HA**, wenn ein Hotel **neu unter die Schwelle** fällt oder ein gemeldetes
+  **weiter fällt** — je Hotel wird der tiefste gemeldete Preis gemerkt (kein Spam);
+  steigt es über die Schwelle und fällt später erneut, wird wieder gemeldet.
+  Im UI: Abo-Zeile unter den gespeicherten Suchen (Beobachten, Schwelle, „Jetzt
+  prüfen"), aktive Abos mit 🔔 im Dropdown, aktuelle Treffer als normale
+  Trefferliste anzeigbar (inkl. „Tracken"). Neue Endpunkte:
+  `PATCH /api/searches/<id>` und `POST /api/searches/<id>/check`.
+
 ## [0.26.8] - 2026-07-02
 
 ### Added
