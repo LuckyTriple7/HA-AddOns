@@ -209,25 +209,22 @@ mehrere Abrufe zu einer durchgehenden Zeitleiste zusammen.) Das Ergebnis wird
 **gespeichert** (Zeitstempel + „Neu abfragen") und respektiert alle Filter deiner
 Angebots-URL (Verpflegung, Veranstalter, Zimmer, Abflughafen).
 
-## MyTUI-Coupons
+## TUI-Aktionscodes
 
-Über **🎟 Coupons** kann TUIWatch die aktuellen Coupons aus deinem **MyTUI-Bereich**
-überwachen und dich bei **neuen** Coupons benachrichtigen (Telegram/HA/E-Mail).
+Über **🎟 Aktionscodes** überwacht TUIWatch die **öffentlichen** Aktionscodes von
+tui.com (`/aktionscode/`) — **ohne Login** — und benachrichtigt dich bei **neuen** Codes
+(Telegram/HA). Es gibt nicht immer welche; sind keine da, kommt auch keine Meldung.
 
-- **Zugang:** In den Add-on-Optionen `tui_user` (E-Mail) und `tui_pass` (Passwort)
-  hinterlegen. **Empfehlung:** ein **separates TUI-Zweitkonto** ohne Buchungen/Zahlungsdaten
-  — die allgemeinen Coupons (Wert) sind für jedes Konto gleich, nur der Code unterscheidet
-  sich. So liegt kein sensibles Konto im Add-on. Das Passwort wird wie das SMTP-Passwort
-  behandelt (serverseitig, nie im UI angezeigt, nicht geloggt).
-- **Ablauf:** Der TUI-Login ist durch einen Bot-Schutz (Captcha) gesichert; TUIWatch
-  meldet sich daher in einem **Headless-Browser** an und liest danach die Coupon-Liste.
-  Ob der Bot-Schutz durchlässt, hängt von deiner Umgebung ab — klappt es bei dir, läuft es
-  automatisch (Prüfintervall `coupon_interval`, Standard 12 h). Manuell über **„Jetzt
-  prüfen"** im Coupon-Fenster.
-- **Anzeige:** aktuelle Coupons mit Titel und Gültigkeit. Den **Code** selbst löst du in
-  deinem **eigenen MyTUI-Login** ein (TUIWatch dient nur als Melder).
-- **Optionen:** `notify_coupons` (Alarm an/aus), `coupon_interval` (Prüfintervall in
-  Sekunden). Ohne `tui_user`/`tui_pass` bleibt die Funktion inaktiv.
+- **Anzeige:** aktuell aktive Codes mit **Wert** (z. B. 150/250/300 €), dazu **buchbar
+  bis** und **Reisezeitraum**. Erfasst werden die myTUI-Codes (`ACMYTUI…`) und die
+  Codes **ohne Konto** (`SAVE…`).
+- **Ablauf:** rein serverseitig per Abruf der Aktionscode-Seite (kein Browser, kein Login,
+  kein Captcha). Prüfintervall `aktionscode_interval` (Standard 6 h); manuell über **„Jetzt
+  prüfen"** im Aktionscode-Fenster.
+- **Alarm:** nur bei **neu erschienenen** Codes (Dedup nach Wert, damit der tägliche
+  Datumswechsel im Code kein Spam auslöst; eine später wiederkehrende Aktion meldet erneut).
+- **Optionen:** `notify_aktionscodes` (Alarm an/aus), `aktionscode_min` (nur ab diesem
+  Wert melden, Standard 0 = alle), `aktionscode_interval` (Prüfintervall in Sekunden).
 
 ## Home-Assistant-Sensoren
 

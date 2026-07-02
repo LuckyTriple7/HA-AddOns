@@ -37,7 +37,7 @@ from scraper import (_giata_from_url, _valid_img_url, api_healthcheck,
                      hotel_from_url, is_single_room, region_giata_from_breadcrumb,
                      room_code_from_url, travellers_from_url, with_duration,
                      with_room_code, with_travellers, without_room_code)
-from coupons import fetch_coupons
+from aktionscodes import fetch_aktionscodes
 from tripparser import _parse_eur, check_fields, parse_tui_pdf
 
 logging.basicConfig(format='[%(levelname)s] [%(asctime)s] %(message)s',
@@ -111,8 +111,8 @@ _calendar_state: dict[int, dict] = {}  # offer_id → transienter Status {runnin
 _calendar_lock = threading.Lock()
 _nights_state: dict[int, dict] = {}    # offer_id → transienter Status {running|error}
 _nights_lock = threading.Lock()
-_coupon_state: dict = {}               # transienter Status des Coupon-Abrufs {running|error|ts}
-_coupon_lock = threading.Lock()
+_aktion_state: dict = {}               # transienter Status des Aktionscode-Abrufs {running|error|ts}
+_aktion_lock = threading.Lock()
 _cheaper_notified: dict[int, str] = {}  # Dedup für Günstigerer-Termin-Alarm
 _fail_notified: set[int] = set()        # offer_ids mit aktivem Ausverkauft-/Fehler-Alarm
 ERROR_ALARM_STREAK = 3                   # ab so vielen Fehlversuchen in Folge melden
@@ -311,12 +311,14 @@ def init_db() -> None:
             key   TEXT PRIMARY KEY,
             value TEXT
         )''')
-        # Gesehene MyTUI-Coupons (Dedup für den „neuer Coupon"-Alarm, neustart-fest).
-        con.execute('''CREATE TABLE IF NOT EXISTS coupon_state (
-            coupon_id  TEXT PRIMARY KEY,
-            title      TEXT,
-            saving     REAL,
-            end_date   TEXT,
+        # Gesehene TUI-Aktionscodes (Dedup für den „neuer Aktionscode"-Alarm, neustart-fest).
+        # ckey = Art|Wert (z. B. "myTUI|300"); active=0, wenn die Aktion aktuell weg ist.
+        con.execute('''CREATE TABLE IF NOT EXISTS aktionscode_state (
+            ckey       TEXT PRIMARY KEY,
+            code       TEXT,
+            value      INTEGER,
+            kind       TEXT,
+            active     INTEGER NOT NULL DEFAULT 1,
             first_seen INTEGER NOT NULL,
             last_seen  INTEGER NOT NULL
         )''')
@@ -1265,166 +1267,141 @@ def _calendar_payload(offer_id: int) -> dict:
     return out
 
 
-# ── MyTUI-Coupons ───────────────────────────────────────────────────────────────
+# ── TUI-Aktionscodes (öffentlich, ohne Login) ───────────────────────────────────
 
-def _coupon_configured() -> bool:
-    cfg = load_config()
-    return bool((cfg.get('tui_user') or '').strip() and (cfg.get('tui_pass') or '').strip())
-
-
-def _fmt_iso_de(iso: str) -> str:
-    """'2026-07-31T21:59:59.000Z' → '31.07.2026' (leer bei ungültig)."""
-    m = re.match(r'(\d{4})-(\d{2})-(\d{2})', iso or '')
-    return f"{m.group(3)}.{m.group(2)}.{m.group(1)}" if m else ''
-
-
-def _store_coupons(coupons: list, ts: int) -> list:
-    """Coupons in coupon_state ablegen (Dedup per coupon_id) und die **neuen**
-    zurückgeben. Ohne Browser testbar."""
-    new = []
+def _store_aktionscodes(codes: list, ts: int) -> list:
+    """Codes (nach Wert+Art) in aktionscode_state ablegen und die **neu erschienenen**
+    zurückgeben. „Neu" = vorher nicht aktiv — deckt den täglichen Datumswechsel im Code ab
+    und meldet erneut, wenn eine beendete Aktion später wiederkommt. Ohne Netz testbar."""
+    keys_now, new = set(), []
     with db() as con:
-        for c in coupons:
-            cid = str(c.get('id') or '')
-            if not cid:
-                continue
-            row = con.execute('SELECT coupon_id FROM coupon_state WHERE coupon_id=?',
-                              (cid,)).fetchone()
+        for c in codes:
+            key = f"{c.get('kind', '')}|{c.get('value')}"
+            keys_now.add(key)
+            row = con.execute('SELECT active FROM aktionscode_state WHERE ckey=?',
+                              (key,)).fetchone()
             if row is None:
-                con.execute('INSERT INTO coupon_state (coupon_id, title, saving, end_date, '
-                            'first_seen, last_seen) VALUES (?,?,?,?,?,?)',
-                            (cid, c.get('title') or '', c.get('saving'),
-                             c.get('end') or '', ts, ts))
+                con.execute('INSERT INTO aktionscode_state (ckey, code, value, kind, active, '
+                            'first_seen, last_seen) VALUES (?,?,?,?,1,?,?)',
+                            (key, c.get('code') or '', c.get('value'), c.get('kind') or '', ts, ts))
+                new.append(c)
+            elif not row['active']:
+                con.execute('UPDATE aktionscode_state SET code=?, active=1, last_seen=? '
+                            'WHERE ckey=?', (c.get('code') or '', ts, key))
                 new.append(c)
             else:
-                con.execute('UPDATE coupon_state SET title=?, saving=?, end_date=?, '
-                            'last_seen=? WHERE coupon_id=?',
-                            (c.get('title') or '', c.get('saving'),
-                             c.get('end') or '', ts, cid))
+                con.execute('UPDATE aktionscode_state SET code=?, last_seen=? WHERE ckey=?',
+                            (c.get('code') or '', ts, key))
+        # nicht mehr vorhandene Aktionen inaktiv setzen → später erneut meldbar
+        for r in con.execute('SELECT ckey FROM aktionscode_state WHERE active=1').fetchall():
+            if r['ckey'] not in keys_now:
+                con.execute('UPDATE aktionscode_state SET active=0 WHERE ckey=?', (r['ckey'],))
     return new
 
 
-def _notify_coupons(new: list) -> None:
-    lines = []
-    for c in new:
-        end = _fmt_iso_de(c.get('end') or '')
-        lines.append('• ' + (c.get('title') or 'Coupon') + (f' (bis {end})' if end else ''))
-    body = '\n'.join(lines)
-    head = f"{len(new)} neue TUI-Coupons" if len(new) != 1 else "Neuer TUI-Coupon"
-    _notify_ha(f"🎟 {head}", body + "\n\nCode in deinem MyTUI-Login abrufbar.", "coupons")
+def _notify_aktionscodes(new: list, info: dict) -> None:
+    lines = [f"• {c.get('value')} € — Code {c.get('code')}"
+             + (f" ({c['kind']})" if c.get('kind') else '') for c in new]
+    extra = []
+    if info.get('booking_until'):
+        extra.append(f"buchbar bis {info['booking_until']}")
+    if info.get('travel_period'):
+        extra.append(f"Reisezeitraum {info['travel_period']}")
+    body = "\n".join(lines) + ("\n" + " · ".join(extra) if extra else "")
+    head = f"{len(new)} neue TUI-Aktionscodes" if len(new) != 1 else "Neuer TUI-Aktionscode"
+    _notify_ha(f"🎟 {head}", body, "aktionscodes")
     _notify_telegram(f"🎟 <b>{head}</b>\n{body}")
 
 
-def _run_coupons() -> None:
-    """Coupons abrufen, speichern, neue melden. Läuft im Hintergrund-Thread."""
-    if not _coupon_configured():
-        with _coupon_lock:
-            _coupon_state.clear()
-            _coupon_state['error'] = 'Keine Zugangsdaten gesetzt (tui_user/tui_pass).'
-        return
-    with _coupon_lock:
-        if _coupon_state.get('running'):
+def _run_aktionscodes() -> None:
+    """Aktionscodes abrufen, speichern, neue melden. Läuft im Hintergrund-Thread."""
+    with _aktion_lock:
+        if _aktion_state.get('running'):
             return
-        _coupon_state.clear()
-        _coupon_state['running'] = True
-    cfg = load_config()
+        _aktion_state.clear()
+        _aktion_state['running'] = True
     try:
-        res = fetch_coupons((cfg.get('tui_user') or '').strip(),
-                            (cfg.get('tui_pass') or '').strip(),
-                            verbose=_verbose(), debug_png=_DATA + '/coupon_debug.png')
+        res = fetch_aktionscodes(verbose=_verbose())
     except Exception as e:
         res = {'ok': False, 'error': f'{type(e).__name__}: {e}'}
     ts = int(time.time())
-    _meta_set('coupons_checked', str(ts))
+    _meta_set('aktion_checked', str(ts))
     if not res.get('ok'):
-        log.warning("Coupon-Abruf fehlgeschlagen: %s", res.get('error'))
-        with _coupon_lock:
-            _coupon_state.clear()
-            _coupon_state.update({'error': res.get('error') or 'Abruf fehlgeschlagen', 'ts': ts})
+        log.warning("Aktionscode-Abruf fehlgeschlagen: %s", res.get('error'))
+        with _aktion_lock:
+            _aktion_state.clear()
+            _aktion_state.update({'error': res.get('error') or 'Abruf fehlgeschlagen', 'ts': ts})
         return
-    coupons = res.get('coupons') or []
-    try:                                            # veralteten Debug-Screenshot entfernen
-        os.remove(_DATA + '/coupon_debug.png')
-    except OSError:
-        pass
-    _meta_set('coupons_last', json.dumps({'ts': ts, 'coupons': coupons}, ensure_ascii=False))
-    new = _store_coupons(coupons, ts)
-    if new and load_config().get('notify_coupons', True):
+    cfg = load_config()
+    try:
+        min_val = int(cfg.get('aktionscode_min', 0) or 0)
+    except (TypeError, ValueError):
+        min_val = 0
+    codes = [c for c in (res.get('codes') or []) if (c.get('value') or 0) >= min_val]
+    info = {'booking_until': res.get('booking_until', ''),
+            'travel_period': res.get('travel_period', '')}
+    _meta_set('aktion_last', json.dumps({'ts': ts, 'codes': codes, **info}, ensure_ascii=False))
+    new = _store_aktionscodes(codes, ts)
+    if new and cfg.get('notify_aktionscodes', True):
         try:
-            _notify_coupons(new)
+            _notify_aktionscodes(new, info)
         except Exception as e:
-            log.error("Coupon-Benachrichtigung fehlgeschlagen: %s", e)
-    log.info("Coupon-Abruf: %d Coupons, %d neu", len(coupons), len(new))
-    with _coupon_lock:
-        _coupon_state.clear()
-        _coupon_state['ts'] = ts
+            log.error("Aktionscode-Benachrichtigung fehlgeschlagen: %s", e)
+    log.info("Aktionscode-Abruf: %d Codes, %d neu", len(codes), len(new))
+    with _aktion_lock:
+        _aktion_state.clear()
+        _aktion_state['ts'] = ts
 
 
-def _maybe_check_coupons() -> None:
-    """Coupons höchstens alle `coupon_interval` Sekunden prüfen (Standard 12 h)."""
-    if not _coupon_configured():
-        return
-    with _coupon_lock:
-        if _coupon_state.get('running'):
+def _maybe_check_aktionscodes() -> None:
+    """Aktionscodes höchstens alle `aktionscode_interval` Sekunden prüfen (Standard 6 h)."""
+    with _aktion_lock:
+        if _aktion_state.get('running'):
             return
     try:
-        interval = int(load_config().get('coupon_interval', 43200) or 43200)
+        interval = int(load_config().get('aktionscode_interval', 21600) or 21600)
     except (TypeError, ValueError):
-        interval = 43200
+        interval = 21600
     try:
-        last = int(_meta_get('coupons_checked', 0) or 0)
+        last = int(_meta_get('aktion_checked', 0) or 0)
     except (TypeError, ValueError):
         last = 0
-    if time.time() - last >= max(3600, interval):
-        _run_coupons()
+    if time.time() - last >= max(1800, interval):
+        _run_aktionscodes()
 
 
-def _coupons_payload() -> dict:
-    with _coupon_lock:
-        st = dict(_coupon_state)
+def _aktionscodes_payload() -> dict:
+    with _aktion_lock:
+        st = dict(_aktion_state)
     try:
-        last = json.loads(_meta_get('coupons_last', '') or '{}')
+        last = json.loads(_meta_get('aktion_last', '') or '{}')
     except Exception:
         last = {}
     return {
-        'configured': _coupon_configured(),
         'running': bool(st.get('running')),
         'error': st.get('error'),
-        'ts': last.get('ts') or (int(_meta_get('coupons_checked', 0) or 0) or None),
-        'coupons': last.get('coupons') or [],
-        'debug': os.path.exists(_DATA + '/coupon_debug.png'),
+        'ts': last.get('ts') or (int(_meta_get('aktion_checked', 0) or 0) or None),
+        'codes': last.get('codes') or [],
+        'booking_until': last.get('booking_until', ''),
+        'travel_period': last.get('travel_period', ''),
     }
 
 
-@app.route('/api/coupons', methods=['GET'])
-def api_coupons_get():
+@app.route('/api/aktionscodes', methods=['GET'])
+def api_aktionscodes_get():
     if (err := _require_api()):
         return err
-    return jsonify(_coupons_payload())
+    return jsonify(_aktionscodes_payload())
 
 
-@app.route('/api/coupons/debug', methods=['GET'])
-def api_coupons_debug():
-    """Debug-Screenshot des letzten fehlgeschlagenen Coupon-Logins (falls vorhanden)."""
+@app.route('/api/aktionscodes', methods=['POST'])
+def api_aktionscodes_check():
     if (err := _require_api()):
         return err
-    p = _DATA + '/coupon_debug.png'
-    if not os.path.exists(p):
-        return jsonify({'error': 'not_found'}), 404
-    resp = make_response(send_file(p, mimetype='image/png'))
-    resp.headers['Cache-Control'] = 'no-store'
-    return resp
-
-
-@app.route('/api/coupons', methods=['POST'])
-def api_coupons_check():
-    if (err := _require_api()):
-        return err
-    if not _coupon_configured():
-        return jsonify({'error': 'not_configured'}), 400
-    with _coupon_lock:
-        if _coupon_state.get('running'):
+    with _aktion_lock:
+        if _aktion_state.get('running'):
             return jsonify({'started': True, 'already': True})
-    _spawn(_run_coupons)
+    _spawn(_run_aktionscodes)
     return jsonify({'started': True})
 
 
@@ -1442,7 +1419,7 @@ def _poll_worker() -> None:
             now = int(time.time())
             _maybe_periodic_health()  # API-Selbsttest 1×/Tag — VOR den Preisprüfungen
             _maybe_send_digest()      # wöchentliche Zusammenfassung (falls aktiviert)
-            _maybe_check_coupons()    # MyTUI-Coupons (falls Zugangsdaten gesetzt)
+            _maybe_check_aktionscodes()   # öffentliche TUI-Aktionscodes
             _auto_archive_expired()
             with db() as con:
                 offers = [r['id'] for r in con.execute(
