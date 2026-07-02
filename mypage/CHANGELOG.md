@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.0
+
+- 🗳️ **Neue Startseiten-Sektion: Umfrage** — Eine Frage mit 2–5 Antwortoptionen (DE/EN), gepflegt im Inhalte-Tab. Mitglieder stimmen mit ihrem Konto ab, Gäste anonym per Cookie — jeder hat genau eine Stimme und kann sie jederzeit ändern. Nach der Abstimmung erscheint ein **Balkendiagramm** mit Prozentwerten, Stimmenzahl und der eigenen Auswahl (✓), ohne Neuladen der Seite. Die Sektion lässt sich wie üblich per Drag & Drop anordnen, ausblenden oder auf „nur Mitglieder" stellen; im Admin gibt es einen Button **„Ergebnisse zurücksetzen"**. Die Stimmen liegen getrennt von den Inhalten in `polls.json`.
+- 🏆 **Bestenliste für die Spiele** — Neue Seite im Mitgliederbereich: **Gesamtwertung** (Siege, Partien, Quote über alle 9 Spiele) plus aufklappbare **Rangliste je Spiel** (Top 10), mit Medaillen für die ersten drei und hervorgehobener eigener Zeile. Gezählt werden alle bereits aufgezeichneten Partien — die Liste ist also ab der ersten Sekunde gefüllt.
+- 🏅 **Erfolge im Mitgliederbereich** — Zwölf Abzeichen, live aus vorhandenen Daten berechnet (keine extra Speicherung): Erste Partie, 25/100 Partien, Erster Sieg, 10/50 Siege, Allrounder (jedes Spiel gespielt), Blog-Kommentare, erste Nachricht, erste Datei, ein Jahr Mitgliedschaft. Noch offene Abzeichen werden ausgegraut mit Fortschritt (z. B. „7 / 25") angezeigt.
+- 🦊 **Mau Mau: Spieler-Kartenflug in Firefox sichtbar** — Wie zuvor bei 66 und 20 ab (v0.7.31) startete die Flug-Animation der eigenen Karte in Firefox nicht (Karte sprang ohne Übergang auf den Ablagestapel). Vor dem Start wird jetzt ein Reflow erzwungen; die KI-Flüge waren nicht betroffen.
+
 ## 0.7.66
 
 - ⏱️ **Countdown-Größe einstellbar** — Im Countdown-Abschnitt lässt sich jetzt über ein Auswahlfeld **Klein / Mittel / Groß** wählen. Der gesamte Block (Ziffern, Kacheln, Abstände, Labels und optionales Bild) wird dabei proportional skaliert. „Mittel" bleibt der bisherige Standard, sodass bestehende Seiten unverändert aussehen.

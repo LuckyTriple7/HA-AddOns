@@ -98,6 +98,17 @@
     .profile-acc { margin-top: 18px; }
     .acc-body { padding: 4px 22px 22px; }
     .acc-body hr:first-child { display: none; }
+    .ach-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 0 18px 18px; }
+    .ach { display: flex; align-items: center; gap: 12px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; }
+    .ach.off { opacity: .45; }
+    .ach.off .ach-ico { filter: grayscale(1); }
+    .ach-ico { font-size: 1.6rem; flex-shrink: 0; line-height: 1; }
+    .ach-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+    .ach-name { font-weight: 600; font-size: 0.9rem; }
+    .ach-desc { font-size: 0.74rem; color: var(--muted); }
+    .ach-prog { font-size: 0.72rem; color: var(--muted); }
+    .ach-check { margin-left: auto; color: var(--green-h); font-weight: 700; }
+    @media (max-width: 560px) { .ach-grid { grid-template-columns: 1fr; } }
   </style>
 </head>
 <body>
@@ -369,6 +380,25 @@
       </div>
     </details>
 
+    {% if achievements %}
+    <details class="game-cat" data-cat="ach" style="margin-top:18px">
+      <summary>🏅 {{ t.ach_title }} <span class="cat-count">{{ ach_earned }}/{{ achievements|length }}</span></summary>
+      <div class="ach-grid">
+        {% for a in achievements %}
+        <div class="ach{% if not a.earned %} off{% endif %}">
+          <span class="ach-ico">{{ a.icon }}</span>
+          <span class="ach-body">
+            <span class="ach-name">{{ t['ach_' ~ a.id ~ '_name'] }}</span>
+            <span class="ach-desc">{{ t['ach_' ~ a.id ~ '_desc'] }}</span>
+            {% if not a.earned %}<span class="ach-prog">{{ a.cur }} / {{ a.target }}</span>{% endif %}
+          </span>
+          {% if a.earned %}<span class="ach-check">✓</span>{% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </details>
+    {% endif %}
+
     {% if games_on %}
     <div class="games-wrap">
       <details class="game-cat" data-cat="cards" open>
@@ -422,6 +452,11 @@
           </button>
         </div>
       </details>
+      <div class="card" style="margin-top:14px">
+        <h1>🏆 {{ t.lb_title }}</h1>
+        <p style="color:var(--muted);font-size:0.88rem;margin-bottom:4px">{{ t.lb_intro }}</p>
+        <a class="btn" href="/bereich/bestenliste">{{ t.lb_open }}</a>
+      </div>
     </div>
     {% endif %}
     {% endif %}

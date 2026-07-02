@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}" data-theme="{{ 'light' if site.design.mode == 'light' else 'dark' }}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ t.lb_title }} – {{ site.design.site_title or site.profile.name or 'MyPage' }}</title>
+  <meta name="robots" content="noindex">
+  {% if site.design.favicon %}<link rel="icon" href="{{ site.design.favicon }}">
+  {% elif site.profile.avatar %}<link rel="icon" href="{{ site.profile.avatar }}">{% endif %}
+  <meta name="theme-color" content="#0d1117">
+  <style>
+    :root {
+      --bg:#0d1117; --surf:#161b22; --surf2:#1c2230; --border:#30363d;
+      --text:#c9d1d9; --muted:#8b949e; --accent:{{ site.design.accent }}; --font: {{ font_family|safe }};
+    }
+    [data-theme="light"] {
+      --bg:#f6f8fa; --surf:#ffffff; --surf2:#f0f2f5; --border:#d0d7de;
+      --text:#1f2328; --muted:#636c76;
+    }
+    {{ font_faces|safe }}
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: var(--font, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif);
+      background: var(--bg); color: var(--text); line-height: 1.6; min-height: 100vh;
+    }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .wrap { max-width: 760px; margin: 0 auto; padding: 0 20px; }
+    header { border-bottom: 1px solid var(--border); }
+    .header-inner { display: flex; align-items: center; justify-content: space-between; padding: 12px 0; }
+    .brand { font-weight: 700; color: var(--text); }
+    .brand:hover { text-decoration: none; }
+    main { padding: 36px 0 60px; }
+    .card { background: var(--surf); border: 1px solid var(--border); border-radius: 10px; padding: 26px; }
+    h1 { font-size: 1.3rem; margin-bottom: 6px; }
+    .sub { color: var(--muted); font-size: 0.86rem; margin-bottom: 18px; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+    th { text-align: left; color: var(--muted); font-weight: 500; padding: 8px 10px; border-bottom: 1px solid var(--border); font-size: 0.76rem; }
+    td { padding: 8px 10px; border-bottom: 1px solid var(--border); }
+    tr:last-child td { border-bottom: none; }
+    th.num, td.num { text-align: right; white-space: nowrap; }
+    td.rank { white-space: nowrap; width: 52px; }
+    tr.me td { background: color-mix(in srgb, var(--accent) 10%, transparent); font-weight: 600; }
+    .you { color: var(--accent); font-size: 0.78rem; font-weight: 600; }
+    .empty { color: var(--muted); text-align: center; padding: 28px 0; font-size: 0.88rem; }
+    .game-cat { background: var(--surf); border: 1px solid var(--border); border-radius: 10px; margin-top: 14px; overflow: hidden; }
+    .game-cat > summary { padding: 14px 22px; font-size: 1rem; font-weight: 700; cursor: pointer; list-style: none; display: flex; align-items: center; gap: 10px; user-select: none; }
+    .game-cat > summary::-webkit-details-marker { display: none; }
+    .game-cat > summary::after { content: '▾'; margin-left: auto; color: var(--muted); transition: transform .15s; }
+    .game-cat[open] > summary::after { transform: rotate(180deg); }
+    .game-cat > summary:hover { background: var(--surf2); }
+    .cat-count { background: var(--surf2); color: var(--muted); font-size: 0.72rem; font-weight: 600; border-radius: 10px; padding: 1px 9px; }
+    .cat-body { padding: 0 22px 18px; }
+    footer { border-top: 1px solid var(--border); padding: 20px 0; text-align: center; font-size: 0.78rem; color: var(--muted); }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap header-inner">
+      <a class="brand" href="/bereich">&larr; {{ t.member_area }}</a>
+    </div>
+  </header>
+  <main class="wrap">
+    <div class="card">
+      <h1>🏆 {{ t.lb_title }}</h1>
+      <p class="sub">{{ t.lb_intro }}</p>
+      {% if not lb.total %}
+      <p class="empty">{{ t.lb_empty }}</p>
+      {% else %}
+      <table>
+        <thead><tr><th>{{ t.lb_rank }}</th><th>{{ t.lb_member }}</th><th class="num">{{ t.lb_wins }}</th><th class="num">{{ t.lb_games }}</th><th class="num">{{ t.lb_rate }}</th></tr></thead>
+        <tbody>
+          {% for r in lb.total %}
+          <tr{% if r.uid == member.id %} class="me"{% endif %}>
+            <td class="rank">{% if loop.index == 1 %}🥇{% elif loop.index == 2 %}🥈{% elif loop.index == 3 %}🥉{% else %}{{ loop.index }}.{% endif %}</td>
+            <td>{{ r.name }}{% if r.uid == member.id %} <span class="you">{{ t.lb_you }}</span>{% endif %}</td>
+            <td class="num">{{ r.wins }}</td>
+            <td class="num">{{ r.games }}</td>
+            <td class="num">{{ (r.wins * 100 / r.games)|round|int }} %</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% endif %}
+    </div>
+
+    {% for g in lb_games %}
+    <details class="game-cat"{% if loop.first %} open{% endif %}>
+      <summary>{{ game_icons[g] }} {{ game_names[g] }} <span class="cat-count">{{ lb.per_game[g]|length }}</span></summary>
+      <div class="cat-body">
+        <table>
+          <thead><tr><th>{{ t.lb_rank }}</th><th>{{ t.lb_member }}</th><th class="num">{{ t.lb_wins }}</th><th class="num">{{ t.lb_games }}</th><th class="num">{{ t.lb_rate }}</th></tr></thead>
+          <tbody>
+            {% for r in lb.per_game[g][:10] %}
+            <tr{% if r.uid == member.id %} class="me"{% endif %}>
+              <td class="rank">{% if loop.index == 1 %}🥇{% elif loop.index == 2 %}🥈{% elif loop.index == 3 %}🥉{% else %}{{ loop.index }}.{% endif %}</td>
+              <td>{{ r.name }}{% if r.uid == member.id %} <span class="you">{{ t.lb_you }}</span>{% endif %}</td>
+              <td class="num">{{ r.wins }}</td>
+              <td class="num">{{ r.games }}</td>
+              <td class="num">{{ (r.wins * 100 / r.games)|round|int }} %</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </details>
+    {% endfor %}
+  </main>
+  <footer>
+    <div class="wrap">&copy; {{ year }} {{ site.profile.name or 'MyPage' }}</div>
+  </footer>
+  <script>
+    (function(){
+      const saved = localStorage.getItem('mp-public-theme');
+      if (saved) document.documentElement.setAttribute('data-theme', saved);
+      else if ({{ site.design.mode|tojson }} === 'auto')
+        document.documentElement.setAttribute('data-theme',
+          window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+    })();
+  </script>
+</body>
+</html>
