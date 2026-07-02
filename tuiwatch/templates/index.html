@@ -232,7 +232,7 @@
     .cal-pig { width:16px; height:16px; color:var(--green); vertical-align:-3px; margin:0 4px 0 0; }  /* Legende: inline (grün via currentColor) */
     .cal-cell { position:relative; }
     .cal-cell .cal-d, .cal-cell .cal-p { position:relative; z-index:1; }   /* Text über dem Sparschwein */
-    .cal-cell .cal-pig { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); width:30px; height:30px; margin:0; opacity:.9; z-index:0; pointer-events:none; }
+    .cal-cell .cal-pig { position:absolute; left:50%; top:38%; transform:translate(-50%,-50%); width:28px; height:28px; margin:0; opacity:.7; z-index:0; pointer-events:none; }  /* leicht oberhalb der Mitte, damit der Preis unten frei bleibt */
     .btn.aktion-active { animation: aktionPulse 1.6s ease-in-out infinite; border-color:var(--green); }
     @keyframes aktionPulse { 0%,100% { box-shadow:0 0 0 0 rgba(46,160,67,.55); } 50% { box-shadow:0 0 0 7px rgba(46,160,67,0); } }
     .cal-cell.tracked { outline:2px solid var(--accent); outline-offset:-2px; }

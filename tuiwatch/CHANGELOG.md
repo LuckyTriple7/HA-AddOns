@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.26.5] - 2026-07-02
+
+### Fixed
+- **Preiskalender: Sparschwein höher gesetzt** (leicht oberhalb der Zellmitte, etwas
+  kleiner/transparenter) — es verdeckte den Preis am unteren Zellrand.
+
 ## [0.26.4] - 2026-07-02
 
 ### Changed
