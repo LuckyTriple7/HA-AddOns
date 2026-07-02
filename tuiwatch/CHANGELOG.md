@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.26.4] - 2026-07-02
+
+### Changed
+- **User-Agent aktualisiert** (Chrome 124 → 139) für die TUI-API-Abrufe — reine
+  Auffrischung; die offenen JSON-APIs brauchen keine Tarnung/Rotation.
+
 ## [0.26.3] - 2026-07-02
 
 ### Changed
