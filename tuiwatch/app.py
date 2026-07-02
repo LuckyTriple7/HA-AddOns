@@ -517,6 +517,12 @@ def push_ha_sensors() -> None:
                         attrs['min_price'] = int(round(stats['mn']))
                         attrs['max_price'] = int(round(stats['mx']))
                         attrs['avg_price'] = int(round(stats['av']))
+                        s30 = con.execute(
+                            'SELECT AVG(price) av, COUNT(*) c FROM price_history '
+                            'WHERE offer_id=? AND ok=1 AND price IS NOT NULL AND ts>=?',
+                            (oid, int(time.time()) - 30 * 86400)).fetchone()
+                        if s30['c'] >= 2 and s30['av']:
+                            attrs['avg_price_30d'] = int(round(s30['av']))
                 if last and last['ts']:
                     attrs['last_checked'] = datetime.fromtimestamp(last['ts']).isoformat()
                 http.post(f'{HA_BASE}/states/{eid}', headers=headers, timeout=10,
@@ -1809,6 +1815,16 @@ def _collect_offers() -> list[dict]:
                 'SELECT MIN(price) mn, MAX(price) mx, AVG(price) av, COUNT(*) c '
                 'FROM price_history WHERE offer_id=? AND ok=1 AND price IS NOT NULL',
                 (o['id'],)).fetchone()
+            # 30-Tage-Schnitt: ordnet den aktuellen Preis ein („8 % unter Ø 30 T")
+            s30 = con.execute(
+                'SELECT AVG(price) av, COUNT(*) c FROM price_history '
+                'WHERE offer_id=? AND ok=1 AND price IS NOT NULL AND ts>=?',
+                (o['id'], int(time.time()) - 30 * 86400)).fetchone()
+            avg30 = round(s30['av']) if s30['c'] >= 2 and s30['av'] else None
+            cur_price = last['price'] if last else None
+            vs_avg30 = None
+            if avg30 and cur_price is not None and s30['av']:
+                vs_avg30 = round((cur_price - s30['av']) / s30['av'] * 100, 1)
             trend = _trend_for(con, o['id'])
             checking = o['id'] in _checking
             avail = None
@@ -1846,6 +1862,7 @@ def _collect_offers() -> list[dict]:
                 'min_price': stats['mn'], 'max_price': stats['mx'],
                 'avg_price': round(stats['av']) if stats['av'] is not None else None,
                 'samples': stats['c'],
+                'avg30_price': avg30, 'vs_avg30': vs_avg30,
                 'trend': trend,
                 'checking': checking,
                 'comparable': not is_single_room(f"{o['room']} {o['details']}"),

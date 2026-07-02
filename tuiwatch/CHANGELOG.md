@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.26.6] - 2026-07-02
+
+### Added
+- **Preis-Einordnung zum 30-Tage-Schnitt.** Die Statistik-Zeile jeder Karte zeigt jetzt
+  zusätzlich, wie der aktuelle Preis zum Durchschnitt der letzten 30 Tage steht
+  (z. B. „8 % unter Ø 30 T", grün/rot, ab ±1 %) — hilft bei der Frage „jetzt buchen
+  oder warten?". Auch als HA-Sensor-Attribut `avg_price_30d`.
+- **Trend-Badge mit Prozentwert.** „↘ fällt / ↗ steigt" zeigt jetzt die Stärke der
+  Tendenz (z. B. „↘ fällt −3,1 %").
+
 ## [0.26.5] - 2026-07-02
 
 ### Fixed

@@ -79,6 +79,8 @@
     .avail.no { color:var(--red); background:rgba(248,81,73,.13); }
     .stats { font-size:.74rem; color:var(--muted); margin-top:8px; }
     .stats .best { color:var(--green); font-weight:700; }
+    .stats .vs30.down { color:var(--green); font-weight:600; }
+    .stats .vs30.up { color:var(--red); font-weight:600; }
     .codes { font-size:.76rem; color:var(--muted); margin:6px 0 2px; user-select:text; }
     .codes b { color:var(--text); }
     .target-row { display:flex; align-items:center; gap:6px; margin-top:10px; font-size:.78rem; color:var(--muted); flex-wrap:wrap; }
@@ -685,8 +687,9 @@
     // Tendenz aus dem bisherigen Verlauf (kein Orakel, nur ein Hinweis)
     function trendBadge(o){
       const t=o.trend; if(!t || !t.dir) return '';
-      if(t.dir==='down') return '<span class="trend down" title="Tendenz aus dem bisherigen Verlauf">↘ fällt</span>';
-      if(t.dir==='up')   return '<span class="trend up" title="Tendenz aus dem bisherigen Verlauf">↗ steigt</span>';
+      const pct = (t.pct!=null && Math.abs(t.pct)>=0.5) ? (' '+(t.pct>0?'+':'−')+Math.abs(t.pct).toLocaleString('de-DE',{maximumFractionDigits:1})+' %') : '';
+      if(t.dir==='down') return '<span class="trend down" title="Tendenz aus dem bisherigen Verlauf">↘ fällt'+pct+'</span>';
+      if(t.dir==='up')   return '<span class="trend up" title="Tendenz aus dem bisherigen Verlauf">↗ steigt'+pct+'</span>';
       return '<span class="trend flat" title="Tendenz aus dem bisherigen Verlauf">→ stabil</span>';
     }
 
@@ -806,7 +809,13 @@
         let statsLine = '';
         if(o.min_price!=null && o.samples>1){
           const best = (o.price!=null && o.price<=o.min_price);
-          statsLine = `<div class="stats">Tief ${eur(o.min_price)} · Hoch ${eur(o.max_price)} · Ø ${eur(o.avg_price)}${best?' · <span class="best">✓ Bestpreis</span>':''}</div>`;
+          // Einordnung zum 30-Tage-Schnitt (erst ab ±1 % — sonst nur Rauschen)
+          let vs30 = '';
+          if(o.vs_avg30!=null && Math.abs(o.vs_avg30)>=1){
+            const under = o.vs_avg30<0;
+            vs30 = ` · <span class="vs30 ${under?'down':'up'}" title="Aktueller Preis im Vergleich zum Durchschnitt der letzten 30 Tage (${eur(o.avg30_price)})">${Math.abs(o.vs_avg30).toLocaleString('de-DE')} % ${under?'unter':'über'} Ø 30 T</span>`;
+          }
+          statsLine = `<div class="stats">Tief ${eur(o.min_price)} · Hoch ${eur(o.max_price)} · Ø ${eur(o.avg_price)}${vs30}${best?' · <span class="best">✓ Bestpreis</span>':''}</div>`;
         }
         const tgt = o.target_price!=null ? Math.round(o.target_price) : '';
         const tgtLabel = o.target_price!=null ? `<span class="target-set">🎯 Wunschpreis ${eur(o.target_price)}</span>` : '🎯 Wunschpreis:';
