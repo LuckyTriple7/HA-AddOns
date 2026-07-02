@@ -30,6 +30,9 @@ Alles, was damit auskommt, braucht **keine neuen Karten-Assets**. 36-Karten-Spie
 - **66 (Sechsundsechzig)**
 - **20 AB (Zwanzig ab)**
 - **Schwimmen (31)**
+- **Mau-Mau**
+- **Präsident**
+- Würfel: **Kniffel**, **Chicago** · Quiz: **Jeopardy vs. KI**, **Glücksrad**
 
 ## Kandidaten nach Aufwand
 
@@ -247,6 +250,8 @@ Robustheit**.
 Ideen abseits der Spiele. Bereits umgesetzt (v0.7.63): **Lesezeit & ähnliche
 Beiträge**, **Speicher-Balken mit Warnfarben**, **wöchentlicher Statistik-
 Rückblick**, **DSGVO-Self-Service** (Datenexport + Konto-Selbstlöschung).
+Umgesetzt in v0.8.0: **Umfrage-Sektion**, **Spiele-Bestenliste**,
+**Erfolge/Abzeichen**.
 
 ## 🟢 Schnelle Gewinne
 
@@ -269,11 +274,8 @@ Rückblick**, **DSGVO-Self-Service** (Datenexport + Konto-Selbstlöschung).
 
 ## 🟠 Strategisch (kein User-Feature, zahlt sich aber aus)
 
-- **`app.py` refaktorieren** — Die Datei ist inzwischen **~8.300 Zeilen**. Eine
-  Aufteilung in Flask-Blueprints (`public`, `admin`, `member`, `games`) würde
-  Wartbarkeit und Testbarkeit deutlich verbessern und CodeQL-/Autofix-Risiken
-  entschärfen (siehe [[feedback_codeql_autofix_danger]]). Zahlt sich bei jedem
-  weiteren Spiel/Feature aus.
+- **`app.py` refaktorieren** — siehe detaillierten Backlog-Eintrag
+  „app.py → Flask-Blueprints" ganz unten.
 - **Test-Abdeckung erhöhen** — Aktuell nur `test_game66.py`. Ein paar Tests für
   die sicherheits­kritischen Auth-/Redirect-Pfade (siehe
   [[feedback_security_patterns]]) fangen Regressionen früh — passt zu „nicht
@@ -283,3 +285,81 @@ Rückblick**, **DSGVO-Self-Service** (Datenexport + Konto-Selbstlöschung).
 
 - **RSS/Atom-Feed**, **OpenGraph-/Twitter-Cards**, **Datei-Vorschau im
   Mitglieder­bereich** — sind im Code schon vorhanden, daher keine neuen Ideen.
+
+---
+
+# Backlog: `app.py` → Flask-Blueprints (Refactoring)
+
+*Stand der Analyse: 2026-07-02, app.py = 8.342 Zeilen, ~212 Routen.*
+
+## Warum
+
+1. **Jede Änderung berührt dieselbe Riesendatei** — jeder Diff, jeder
+   Merge-Konflikt zwischen dev und main landet in app.py. Genau das
+   Autofix-Risiko aus [[feedback_codeql_autofix_danger]]: ein automatischer
+   Fix auf einer 8.000-Zeilen-Datei kann still eine alte Version drüberbügeln.
+   Kleine Dateien begrenzen den Schaden auf einen Bereich.
+2. **Suchkosten** — jede Session muss erst die richtige von vielen fast
+   identischen Stellen finden (9 Spiele mit gleichem Routen-Muster).
+3. **Nicht testbar** — Routen hängen an Import-Seiteneffekten; nach der
+   Aufteilung kann ein Test gezielt ein Blueprint auf eine Test-App registrieren.
+
+## Ist-Zustand (Routen-Verteilung)
+
+| Bereich | Routen | Anmerkung |
+|---|---|---|
+| Spiele-APIs (`/api/<spiel>/…`) | ~84 | 9 Spiele + Slot; Muster fast identisch (state/claim/heartbeat/release/action) |
+| Mitgliederbereich (`/bereich/…`) | ~29 | Login, Dateien, DMs, Profil, DSGVO |
+| Admin (`admin_app`, eigener Port 17761) | ~66 | Site-Config, Newsletter, 2FA, Kommentare |
+| Öffentlich (Blog, Suche, Feeds, Formulare, …) | ~33 | |
+
+Wichtig: Die **Spiel-Engines sind schon getrennt** (`game_<slug>.py`) — nur
+deren HTTP-Schicht liegt in app.py. Es gibt bereits **zwei** Flask-Apps
+(`public_app` und `admin_app`) in einer Datei.
+
+## Zielstruktur
+
+```
+mypage/
+  app.py            ← nur noch: App-Setup, Config/Storage-Pfade, HA-Sensoren,
+                       Blueprint-Registrierungen (~1.000 Z.)
+  routes_public.py  ← Startseite, Blog, Suche, Feeds, Formulare
+  routes_member.py  ← /bereich/* (Login, Dateien, DMs, Profil, DSGVO)
+  routes_admin.py   ← alle admin_app-Routen
+  routes_games.py   ← Spiele-Routen (oder je Spiel eine Datei, passend zum
+                       game_<slug>.py-Muster)
+  helpers.py        ← load_site/save_site, _safe_next, _clean_str,
+                       current_member/_require_member, loc/i18n, …
+```
+
+Extra-Gewinn bei den Spielen: Die 9 Routen-Blöcke sind fast identisch → beim
+Umzug eine **generische Blueprint-Factory** bauen („registriere Spiel X mit
+Engine Y"). Neues Spiel braucht dann kaum noch Routen-Code; verkürzt die
+Checkliste [[project_mypage_new_game_checklist]].
+
+## Vorgehen (schrittweise, jede Stufe einzeln releasebar)
+
+1. **Vorher: Smoke-Tests** — ein Test, der alle Routen mit erwartetem
+   Status-Code anpingt (Flask test_client, ohne echten Server). Objektives
+   „nichts abgefallen" nach jedem Schritt.
+2. **Stufe 1: Spiele-Routen** raus (größter Block, klarste Grenze).
+3. **Stufe 2: Admin-Routen** (eigene App, wenig Verflechtung mit public).
+4. **Stufe 3: Mitgliederbereich**, dann Rest-Public.
+5. Geteilte Helfer erst bei Bedarf nach `helpers.py` ziehen (nicht auf Vorrat).
+
+## Stolperfallen
+
+- **Zirkuläre Imports** — Helfer zuerst herauslösen, Blueprints importieren
+  nur helpers, nie app.
+- **Globale Zustände** — Modul-Level-Threads (HA-Push), In-Memory-Session-Dicts
+  (`_game_sessions`, `user_sessions`) müssen in ein gemeinsames Modul.
+- **Dockerfile:** jede neue Datei einzeln per `COPY` eintragen
+  ([[project_mypage_dockerfile_copy]] — vergessen brach v0.7.33).
+- Vorher Zombie-Dev-Server killen, sonst testet man alten Code
+  ([[feedback_zombie_dev_servers]]).
+
+## Wann
+
+Am besten **vor** dem Multiplayer-Piloten (der bringt Lobby-/Raum-Routen mit,
+die sonst wieder in app.py landen). Kein User-Feature — als eigene
+Version ohne Funktionsänderung releasen.
