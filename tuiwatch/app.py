@@ -1426,6 +1426,7 @@ def _poll_worker() -> None:
             _maybe_periodic_health()  # API-Selbsttest 1×/Tag — VOR den Preisprüfungen
             _maybe_send_digest()      # wöchentliche Zusammenfassung (falls aktiviert)
             _maybe_check_aktionscodes()   # öffentliche TUI-Aktionscodes
+            _maybe_auto_backup()      # wöchentliches Backup nach /addon_config
             _auto_archive_expired()
             with db() as con:
                 offers = [r['id'] for r in con.execute(
@@ -2123,12 +2124,10 @@ def _table_columns(con, table: str) -> list:
     return [r['name'] for r in con.execute(f'PRAGMA table_info({table})').fetchall()]
 
 
-@app.route('/api/backup', methods=['GET'])
-def api_backup():
-    """Vollständiges Backup als ZIP: data.json (Angebote inkl. Preisverlauf & Marker,
-    gebuchte Reisen, gespeicherte Suchen) + die Reise-PDFs unter trips/."""
-    if (err := _require_api()):
-        return err
+def _build_backup_zip() -> bytes:
+    """Baut das vollständige Backup-ZIP: data.json (Angebote inkl. Preisverlauf & Marker,
+    gebuchte Reisen, gespeicherte Suchen) + die Reise-PDFs unter trips/.
+    Genutzt vom Download-Endpoint und vom automatischen Backup."""
     with db() as con:
         ocols = [c for c in _table_columns(con, 'offers') if c != 'id']
         offers = []
@@ -2161,12 +2160,69 @@ def api_backup():
             p = _trip_pdf_path(name)
             if p and p.exists():
                 z.write(str(p), f'trips/{Path(name).name}')
-    buf.seek(0)
-    resp = make_response(buf.read())
+    return buf.getvalue()
+
+
+@app.route('/api/backup', methods=['GET'])
+def api_backup():
+    """Vollständiges Backup als ZIP herunterladen."""
+    if (err := _require_api()):
+        return err
+    resp = make_response(_build_backup_zip())
     resp.headers['Content-Type'] = 'application/zip'
     resp.headers['Content-Disposition'] = (
         f'attachment; filename="tuiwatch-backup-{datetime.now().strftime("%Y%m%d")}.zip"')
     return resp
+
+
+# ── Automatisches Backup (nach /config = addon_config) ─────────────────────────
+
+BACKUP_DIR = os.environ.get('TUIWATCH_BACKUP_DIR', '/config/backups')
+AUTO_BACKUP_INTERVAL = 7 * 86400   # wöchentlich
+_AUTO_BACKUP_RE = re.compile(r'^tuiwatch-backup-\d{8}-\d{6}\.zip$')
+
+
+def _run_auto_backup(keep: int) -> None:
+    """Schreibt ein Backup-ZIP nach BACKUP_DIR und behält nur die letzten `keep`.
+    So überlebt die Historie (Angebote, Reisen, Suchen) auch eine Neuinstallation
+    des Add-ons — /addon_config wird dabei nicht gelöscht."""
+    base = Path(BACKUP_DIR)
+    base.mkdir(parents=True, exist_ok=True)
+    target = base / f"tuiwatch-backup-{datetime.now():%Y%m%d-%H%M%S}.zip"
+    target.write_bytes(_build_backup_zip())
+    keep = max(1, keep)
+    # Rotation: nur eigene, exakt passende Backup-Dateien anfassen
+    old = sorted(p for p in base.glob('tuiwatch-backup-*.zip')
+                 if _AUTO_BACKUP_RE.match(p.name))
+    for p in old[:-keep]:
+        try:
+            p.unlink()
+        except OSError as e:
+            log.warning("Altes Auto-Backup %s nicht löschbar: %s", p.name, e)
+    log.info("Auto-Backup geschrieben: %s (%d behalten)", target.name, min(len(old), keep))
+
+
+def _maybe_auto_backup() -> None:
+    """Legt höchstens 1×/Woche ein Backup unter /addon_config/backups ab (falls aktiviert).
+    War das Add-on am Stichtag aus, wird beim nächsten Poll nachgeholt."""
+    cfg = load_config()
+    if not cfg.get('auto_backup', True):
+        return
+    try:
+        last = int(_meta_get('last_auto_backup', 0) or 0)
+    except (TypeError, ValueError):
+        last = 0
+    if time.time() - last < AUTO_BACKUP_INTERVAL:
+        return
+    try:
+        keep = int(cfg.get('auto_backup_keep', 5) or 5)
+    except (TypeError, ValueError):
+        keep = 5
+    try:
+        _run_auto_backup(keep)
+        _meta_set('last_auto_backup', str(int(time.time())))
+    except Exception as e:
+        log.error("Auto-Backup fehlgeschlagen: %s", e)
 
 
 def _restore_offer(con, it: dict, ocols: set, existing_urls: set) -> str:

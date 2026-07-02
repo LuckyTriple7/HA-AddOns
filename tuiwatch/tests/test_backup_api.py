@@ -145,3 +145,46 @@ def test_restore_legacy_json(app_mod):
     assert r.status_code == 200 and r.get_json()["added"] == 1
     with m.db() as con:
         assert con.execute("SELECT label FROM offers WHERE url=?", (_URL,)).fetchone()["label"] == "Alt"
+
+
+def test_auto_backup_rotation(app_mod, tmp_path, monkeypatch):
+    """Auto-Backup schreibt ein gültiges ZIP nach BACKUP_DIR und rotiert alte Dateien."""
+    m = app_mod
+    bdir = tmp_path / "cfg_backups"
+    monkeypatch.setattr(m, "BACKUP_DIR", str(bdir))
+    with m.db() as con:
+        con.execute(
+            "INSERT INTO offers (url,label,hotel,details,paused,archived,created) "
+            "VALUES (?,?,?,?,?,?,?)", (_URL, "Mein Hotel", "Test Hotel", "", 0, 0, 1))
+    # 6 vorhandene Alt-Backups + 1 Fremddatei (darf die Rotation nicht anfassen)
+    bdir.mkdir(parents=True)
+    for i in range(6):
+        (bdir / f"tuiwatch-backup-2026010{i+1}-000000.zip").write_bytes(b"alt")
+    (bdir / "eigenes-backup.zip").write_bytes(b"fremd")
+
+    m._run_auto_backup(keep=5)
+
+    own = sorted(p.name for p in bdir.glob("tuiwatch-backup-*.zip"))
+    assert len(own) == 5                      # 6 alte + 1 neues → auf 5 rotiert
+    assert (bdir / "eigenes-backup.zip").exists()
+    newest = max(bdir.glob("tuiwatch-backup-*.zip"), key=lambda p: p.name)
+    zf = zipfile.ZipFile(io.BytesIO(newest.read_bytes()))
+    data = json.loads(zf.read("data.json"))
+    assert len(data["offers"]) == 1 and data["offers"][0]["url"] == _URL
+
+
+def test_maybe_auto_backup_respects_interval(app_mod, tmp_path, monkeypatch):
+    """_maybe_auto_backup: läuft höchstens 1×/Intervall und lässt sich abschalten."""
+    m = app_mod
+    bdir = tmp_path / "cfg_backups2"
+    monkeypatch.setattr(m, "BACKUP_DIR", str(bdir))
+    monkeypatch.setattr(m, "load_config", lambda: {"auto_backup": True, "auto_backup_keep": 5})
+    m._maybe_auto_backup()
+    assert len(list(bdir.glob("tuiwatch-backup-*.zip"))) == 1
+    m._maybe_auto_backup()                    # Intervall nicht verstrichen → kein zweites
+    assert len(list(bdir.glob("tuiwatch-backup-*.zip"))) == 1
+    monkeypatch.setattr(m, "load_config", lambda: {"auto_backup": False})
+    with m.db() as con:
+        con.execute("DELETE FROM meta WHERE key='last_auto_backup'")
+    m._maybe_auto_backup()                    # deaktiviert → nichts Neues
+    assert len(list(bdir.glob("tuiwatch-backup-*.zip"))) == 1

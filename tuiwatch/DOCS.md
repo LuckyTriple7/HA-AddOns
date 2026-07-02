@@ -295,6 +295,14 @@ oder TUI eine API geändert hat.
 Alles wird unter `/data/tuiwatch.db` (SQLite) gespeichert und bleibt über
 Neustarts erhalten.
 
+**Automatisches Backup:** Ist `auto_backup` aktiv (Standard), legt TUIWatch einmal
+pro Woche ein vollständiges Backup-ZIP (Angebote inkl. Preisverlauf und Marker,
+Reisen inkl. PDF, gespeicherte Suchen) unter `/addon_config/backups/` ab — im
+Dateisystem von Home Assistant unter `addon_configs/<slug>_tuiwatch/backups/`.
+Es werden die letzten `auto_backup_keep` (Standard 5) Dateien behalten. Anders als
+`/data` bleibt dieser Ordner auch bei einer **Neuinstallation** des Add-ons bestehen;
+Wiederherstellen wie gehabt über „⬆ Wiederherstellen" im Web-UI.
+
 ## Technik / Wartung
 
 Der Preis wird primär direkt aus den offenen TUI-JSON-APIs gelesen; nur bei Störungen

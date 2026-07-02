@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.26.7] - 2026-07-02
+
+### Added
+- **Automatisches Backup.** TUIWatch legt jetzt einmal pro Woche ein vollständiges
+  Backup-ZIP (Angebote inkl. Preisverlauf & Marker, Reisen inkl. PDF, gespeicherte
+  Suchen) unter `/addon_config/backups/` ab — dieser Ordner übersteht auch eine
+  Neuinstallation des Add-ons. Rotation über `auto_backup_keep` (Standard 5),
+  abschaltbar über `auto_backup`. Wiederherstellen wie gehabt im Web-UI.
+- Fehlende Options-Übersetzungen (DE/EN) für die Aktionscode-Einstellungen ergänzt.
+
 ## [0.26.6] - 2026-07-02
 
 ### Added
