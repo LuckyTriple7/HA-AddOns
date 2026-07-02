@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.26.3] - 2026-07-02
+
+### Changed
+- **Preiskalender: schöneres Sparschwein-Icon** (detailliertes Piggy-Bank statt des
+  einfachen Symbols), grün eingefärbt, mittig hinter dem Text.
+
 ## [0.26.2] - 2026-07-02
 
 ### Added
