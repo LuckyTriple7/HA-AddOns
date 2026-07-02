@@ -309,6 +309,12 @@
     .trip-detail table.tdt th, .trip-detail table.tdt td { text-align:left; padding:5px 8px; border-bottom:1px solid var(--border); }
     .trip-detail table.tdt th { color:var(--muted); font-weight:600; }
     .trip-detail .dsec { font-weight:600; margin:10px 0 4px; }
+    .dbg-fields { display:flex; flex-wrap:wrap; gap:6px; margin:8px 0; }
+    .dbg-f { font-size:.76rem; padding:2px 8px; border-radius:10px; border:1px solid var(--border); }
+    .dbg-f.ok { color:var(--green); background:rgba(46,160,67,.10); }
+    .dbg-f.miss { color:var(--amber); background:rgba(210,153,34,.12); font-weight:600; }
+    .dbg-pre { max-height:320px; overflow:auto; font-size:.72rem; line-height:1.35; background:var(--surf2); border:1px solid var(--border); border-radius:6px; padding:8px 10px; white-space:pre-wrap; word-break:break-word; }
+    .dbg-sec { margin-top:8px; } .dbg-sec summary { cursor:pointer; font-size:.82rem; color:var(--muted); }
     @media(max-width:767px){ #tw-console{ display:none!important; } }
   </style>
 </head>
@@ -1392,7 +1398,7 @@
       catch(e){ $('#trip-imp-status').textContent=''; toast('Import fehlgeschlagen'); input.value=''; return; }
       input.value='';
       if(resp.status===413){ $('#trip-imp-status').textContent=''; toast('PDF zu groß (max. 16 MB)'); return; }
-      if(resp.status===422){ $('#trip-imp-status').textContent=''; toast('PDF konnte nicht gelesen werden – ist es eine TUI-Reisebestätigung?'); return; }
+      if(resp.status===422){ $('#trip-imp-status').textContent=''; toast('PDF konnte nicht gelesen werden – Debug-Ansicht wird geöffnet'); debugUpload(f); return; }
       if(!resp.ok){ $('#trip-imp-status').textContent=''; toast('Import fehlgeschlagen'); return; }
       const warns = (d && d.warnings) || [];
       if(warns.length){
@@ -1441,14 +1447,46 @@
         d.rabatte.map(r=>`<tr><td>${esc(r.code||'')}</td><td>${esc(r.betrag||'')}</td></tr>`).join('')}</table>`:'';
       const wuensche = (d.sonderwuensche||[]).length?`<div class="dsec">Sonderwünsche</div><div style="font-size:.84rem">${d.sonderwuensche.map(w=>esc(w)).join('<br>')}</div>`:'';
       const pdf = t.has_pdf?`<a class="btn" href="${api('/api/trips/'+id+'/pdf')}" target="_blank" rel="noopener">📄 PDF öffnen</a>`:'';
+      const dbg = t.has_pdf?`<button class="btn sec" onclick="showTripDebug(${id}, '${jsArg(t.title||('Reise #'+id))}')" title="Bereinigten PDF-Text und je Feld erkannt/leer anzeigen — hilfreich, wenn TUI das PDF-Layout ändert">🔍 Debug</button>`:'';
       const warns = t.warnings||[];
       const warnBox = warns.length?`<div class="trip-warn">⚠ Diese Felder wurden nicht (vollständig) aus dem PDF erkannt: <b>${warns.map(w=>esc(w)).join(', ')}</b>. Bitte in der PDF prüfen.</div>`:'';
       const box = $('#trip-detail');
       box.innerHTML = `<h3>${esc(t.title||('Reise #'+id))}</h3>
-        <div style="margin-bottom:6px">${pdf} <button class="btn sec" onclick="$('#trip-detail').style.display='none'">schließen</button></div>
+        <div style="margin-bottom:6px">${pdf} ${dbg} <button class="btn sec" onclick="$('#trip-detail').style.display='none'">schließen</button></div>
         ${warnBox}<div class="dgrid">${grid}</div>${reisende}${fluege}${extras}${rabatte}${wuensche}`;
       box.style.display='block';
       box.scrollIntoView({behavior:'smooth', block:'nearest'});
+    }
+
+    // — PDF-Debug: bereinigter Text + erkannt/leer je Feld (nur für den Angemeldeten,
+    //   Inhalte können persönliche Daten enthalten und werden nirgends geloggt) —
+    function renderTripDebug(d, title){
+      if(!d || !d.ok){ toast(d&&d.error==='text_failed'?'Debug: Text konnte nicht aus der PDF extrahiert werden':'Debug fehlgeschlagen'); return; }
+      const fields = (d.fields||[]).map(f=>`<span class="dbg-f ${f.ok?'ok':'miss'}">${f.ok?'✓':'⚠'} ${esc(f.label)}</span>`).join('');
+      const err = d.parse_error?`<div class="trip-warn">⚠ Parser abgebrochen: ${esc(d.parse_error)}</div>`:'';
+      const json = d.data?`<details class="dbg-sec"><summary>Geparstes JSON anzeigen</summary><pre class="dbg-pre">${esc(JSON.stringify(d.data,null,2))}</pre></details>`:'';
+      const box = $('#trip-detail');
+      box.innerHTML = `<h3>🔍 Debug — ${esc(title)}</h3>
+        <div style="margin-bottom:6px"><button class="btn sec" onclick="$('#trip-detail').style.display='none'">schließen</button></div>
+        ${err}
+        <div class="dbg-fields">${fields}</div>
+        <div class="dsec">Bereinigter PDF-Text (Basis der Feld-Erkennung)</div>
+        <div class="hint" style="margin:0 0 6px">Wenn TUI das Layout geändert hat: diesen Text kopieren, persönliche Daten anonymisieren und als neuer Testfall unter <code>tests/fixtures/trips/</code> ablegen — der Test zeigt dann exakt das kippende Feld.</div>
+        <pre class="dbg-pre">${esc(d.cleaned_text||'')}</pre>
+        ${json}`;
+      box.style.display='block';
+      box.scrollIntoView({behavior:'smooth', block:'nearest'});
+    }
+    async function showTripDebug(id, title){
+      let d=null;
+      try { const r = await fetch(api('/api/trips/'+id+'/debug')); if(r.ok) d = await r.json(); } catch(e){}
+      renderTripDebug(d, title||('Reise #'+id));
+    }
+    async function debugUpload(f){
+      const fd = new FormData(); fd.append('pdf', f);
+      let d=null;
+      try { const r = await fetch(api('/api/trips/debug'), {method:'POST', body:fd}); if(r.ok) d = await r.json(); } catch(e){}
+      renderTripDebug(d, f.name||'Upload');
     }
 
     async function delTrip(id){

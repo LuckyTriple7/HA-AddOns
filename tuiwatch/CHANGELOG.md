@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.26.8] - 2026-07-02
+
+### Added
+- **PDF-Import: 🔍 Debug-Modus** (Backlog #10). In der Reise-Detailansicht zeigt „Debug"
+  den **bereinigten PDF-Text**, je Feld **erkannt/leer** (Chips) und das geparste JSON —
+  so lässt sich bei einer künftigen TUI-Layout-Änderung ohne Code-Runde sehen, *warum*
+  ein Feld nicht erkannt wurde. Schlägt ein Import komplett fehl (422), öffnet sich die
+  Debug-Ansicht automatisch für die hochgeladene PDF (ohne sie zu speichern).
+  Inhalte können PII enthalten → nur für den angemeldeten Nutzer, nichts geht ins Log.
+
 ## [0.26.7] - 2026-07-02
 
 ### Added

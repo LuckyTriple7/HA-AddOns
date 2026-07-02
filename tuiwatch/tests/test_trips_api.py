@@ -103,3 +103,26 @@ def test_reject_non_pdf(client):
                     data={"pdf": (io.BytesIO(b"x"), "foto.jpg")},
                     content_type="multipart/form-data")
     assert r.status_code == 400
+
+
+def test_trip_debug(client, monkeypatch):
+    """Debug-Modus: bereinigter Text (Boilerplate raus), Feld-Status, Upload-Variante."""
+    import importlib
+    import io
+    m = importlib.import_module("app")
+    monkeypatch.setattr(m, "extract_pdf_text",
+                        lambda f: "Buchungsbestätigung/Rechnung\nZeile 1\nZeile 2")
+    tid = _import_pdf(client).get_json()["id"]
+
+    d = client.get(f"/api/trips/{tid}/debug", headers=ING).get_json()
+    assert d["ok"]
+    assert "Zeile 1" in d["cleaned_text"]
+    assert "Buchungsbestätigung" not in d["cleaned_text"]     # Boilerplate entfernt
+    fields = {f["label"]: f["ok"] for f in d["fields"]}
+    assert fields["Buchungsnummer"] is False                  # aus Dummy-Text nicht erkennbar
+
+    # Upload-Variante (ohne Speichern) + Auth-Pflicht
+    up = {"data": {"pdf": (io.BytesIO(b"%PDF fake"), "x.pdf")},
+          "content_type": "multipart/form-data"}
+    assert client.post("/api/trips/debug", headers=ING, **up).get_json()["ok"]
+    assert client.get(f"/api/trips/{tid}/debug").status_code == 401

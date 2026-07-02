@@ -38,7 +38,8 @@ from scraper import (_giata_from_url, _valid_img_url, api_healthcheck,
                      room_code_from_url, travellers_from_url, with_duration,
                      with_room_code, with_travellers, without_room_code)
 from aktionscodes import fetch_aktionscodes
-from tripparser import _parse_eur, check_fields, parse_tui_pdf
+from tripparser import (_clean_text, _parse_eur, check_fields, extract_pdf_text,
+                        parse_tui_pdf, parse_tui_text)
 
 logging.basicConfig(format='[%(levelname)s] [%(asctime)s] %(message)s',
                     level=logging.INFO, datefmt='%Y-%m-%d %H:%M:%S', force=True)
@@ -2805,6 +2806,66 @@ def api_trip_detail(tid):
     trip['has_pdf'] = bool(trip.get('pdf_name'))
     trip['warnings'] = check_fields(trip['data'])
     return jsonify(trip)
+
+
+# Alle Feld-Labels, die check_fields() melden kann — für die „erkannt/leer"-Übersicht
+# im Debug-Modus (feste Reihenfolge wie im PDF).
+_TRIP_FIELD_LABELS = ('Buchungsnummer', 'Buchungsdatum', 'Reiseziel', 'Hotel',
+                      'Reisezeitraum', 'Nächte', 'Verpflegung', 'Gesamtpreis',
+                      'Reisende', 'Flüge', 'Hinflug', 'Rückflug')
+
+
+def _trip_debug_payload(raw: bytes) -> dict:
+    """Debug-Sicht auf eine Reise-PDF: bereinigter Volltext (Basis der Feld-Regexes),
+    geparstes JSON, Warnungen und je Feld erkannt/leer. Inhalte können PII enthalten —
+    sie gehen nur an den (authentifizierten) Aufrufer, nichts davon ins Log."""
+    try:
+        full = extract_pdf_text(io.BytesIO(raw))
+    except Exception:
+        return {'ok': False, 'error': 'text_failed'}
+    cleaned = _clean_text(full)
+    data, parse_error = None, None
+    try:
+        data = parse_tui_text(full)
+    except Exception as exc:
+        parse_error = type(exc).__name__
+    warnings = check_fields(data) if data else list(_TRIP_FIELD_LABELS)
+    fields = [{'label': lbl, 'ok': lbl not in warnings} for lbl in _TRIP_FIELD_LABELS]
+    return {'ok': True, 'cleaned_text': cleaned, 'data': data,
+            'parse_error': parse_error, 'warnings': warnings, 'fields': fields}
+
+
+@app.route('/api/trips/<int:tid>/debug', methods=['GET'])
+def api_trip_debug(tid):
+    """Debug-Modus zu einer gespeicherten Reise-PDF (bereinigter Text + Parse-Ergebnis).
+    Hilft, bei einer TUI-Layout-Änderung zu sehen, WARUM ein Feld nicht erkannt wurde."""
+    if (err := _require_api()):
+        return err
+    with db() as con:
+        row = con.execute('SELECT pdf_name FROM trips WHERE id=?', (tid,)).fetchone()
+    if not row or not row['pdf_name']:
+        return jsonify({'error': 'not_found'}), 404
+    p = _trip_pdf_path(row['pdf_name'])
+    if p is None or not p.exists():
+        return jsonify({'error': 'not_found'}), 404
+    return jsonify(_trip_debug_payload(p.read_bytes()))
+
+
+@app.route('/api/trips/debug', methods=['POST'])
+def api_trip_debug_upload():
+    """Debug-Modus für eine hochgeladene PDF, OHNE sie zu speichern — z. B. wenn der
+    Import mit „nicht lesbar" fehlschlägt."""
+    if (err := _require_api()):
+        return err
+    file = request.files.get('pdf')
+    if file is None or not file.filename:
+        return jsonify({'error': 'no_file'}), 400
+    raw = file.read()
+    if not raw:
+        return jsonify({'error': 'empty'}), 400
+    if len(raw) > MAX_PDF_BYTES:
+        return jsonify({'error': 'too_large'}), 413
+    return jsonify(_trip_debug_payload(raw))
 
 
 # Erlaubte Spalten der trips-Tabelle (feste Whitelist, exakte Insert-/Update-Reihenfolge).

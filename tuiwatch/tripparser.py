@@ -410,10 +410,14 @@ def check_fields(data: dict) -> list:
     return warn
 
 
-def parse_tui_pdf(fileobj) -> dict:
-    """Öffnet eine TUI-PDF (Dateipfad oder Datei-/Stream-Objekt) und parst sie."""
+def extract_pdf_text(fileobj) -> str:
+    """Extrahiert den rohen Volltext einer PDF (fürs Parsen und die Debug-Ansicht)."""
     import pdfplumber  # lokal importiert, damit die reine Textlogik ohne pdfplumber testbar bleibt
 
     with pdfplumber.open(fileobj) as pdf:
-        full_text = "\n".join(page.extract_text() or "" for page in pdf.pages)
-    return parse_tui_text(full_text)
+        return "\n".join(page.extract_text() or "" for page in pdf.pages)
+
+
+def parse_tui_pdf(fileobj) -> dict:
+    """Öffnet eine TUI-PDF (Dateipfad oder Datei-/Stream-Objekt) und parst sie."""
+    return parse_tui_text(extract_pdf_text(fileobj))

@@ -128,6 +128,12 @@ Preis-Tracking, als dauerhaftes Archiv (Vergangenheit und Zukunft).
 - **Aktualisieren/Löschen:** Ein erneuter Import derselben Buchungsnummer **überschreibt**
   den vorhandenen Eintrag (kein Duplikat). **„Löschen"** entfernt die Reise inkl. der
   gespeicherten PDF.
+- **🔍 Debug-Modus:** In der Detailansicht zeigt **„Debug"** den **bereinigten PDF-Text**
+  (die Basis der Feld-Erkennung), je Feld **erkannt/leer** und das geparste JSON — so
+  sieht man bei einer TUI-Layout-Änderung sofort, *warum* ein Feld leer blieb. Schlägt
+  ein Import komplett fehl, öffnet sich die Debug-Ansicht automatisch (ohne die PDF zu
+  speichern). Tipp: den bereinigten Text anonymisiert als Testfall unter
+  `tests/fixtures/trips/` ablegen.
 
 > Datenschutz: Die PDFs und ausgelesenen Daten bleiben **lokal** im Add-on (Ordner
 > `/data/trips` bzw. die Add-on-Datenbank) — es werden keine Daten nach außen gesendet.
