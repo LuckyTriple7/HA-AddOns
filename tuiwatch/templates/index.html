@@ -229,6 +229,8 @@
     .cal-cell.out { opacity:.4; }
     .cal-cell.cheapest { border-color:var(--green); background:rgba(46,160,67,.16); }
     .cal-cell.cheapest .cal-p { color:var(--green); }
+    .cal-pig { width:14px; height:14px; fill:var(--green); vertical-align:-3px; margin-left:2px; }
+    .cal-legend .cal-pig { margin:0 4px 0 0; }
     .cal-cell.tracked { outline:2px solid var(--accent); outline-offset:-2px; }
     a.cal-cell.clk { text-decoration:none; color:inherit; cursor:pointer; transition:transform .08s; }
     a.cal-cell.clk:hover { border-color:var(--accent); transform:translateY(-1px); }
@@ -269,6 +271,11 @@
     /* Reisen-Datenbank */
     .trips-stats { display:flex; flex-wrap:wrap; gap:10px; margin:6px 0 14px; }
     .trips-stats .tstat { flex:1 1 120px; background:var(--surf); border:1px solid var(--border); border-radius:8px; padding:8px 12px; }
+    .trips-stats .tstat.sm { flex:0 1 88px; }   /* kompakte Kacheln (Reisen/Nächte) */
+    .coupon-list { display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:10px; }
+    .coupon-card { background:var(--surf); border:1px solid var(--border); border-left:3px solid var(--green); border-radius:8px; padding:10px 12px; }
+    .coupon-title { font-weight:700; color:var(--text); }
+    .coupon-meta { font-size:.76rem; color:var(--muted); margin-top:4px; }
     .trips-stats .tstat .v { font-size:1.1rem; font-weight:700; color:var(--text); }
     .trips-stats .tstat .l { font-size:.74rem; color:var(--muted); }
     .trips-import { display:flex; align-items:center; gap:12px; flex-wrap:wrap; border:1px dashed var(--border); border-radius:8px; padding:12px; margin-bottom:14px; background:var(--bg); transition:border-color .15s,background .15s; }
@@ -324,6 +331,7 @@
     <div class="toolbar">
       <button class="btn" onclick="openSearch()" title="Hotels einer Region suchen (TUI-Such-URL einfügen)">🔍 Hotels suchen</button>
       <button class="btn sec" onclick="openTrips()" title="Gebuchte Reisen verwalten (TUI-PDF importieren)">🧳 Meine Reisen</button>
+      <button class="btn sec" onclick="openCoupons()" title="Aktuelle MyTUI-Coupons anzeigen und bei neuen benachrichtigt werden">🎟 Coupons</button>
       <button class="btn sec" onclick="sendEmail()" title="Alle Angebote als E-Mail senden">✉ Als E-Mail senden</button>
       <button class="btn sec" onclick="sendDigest()" title="Wochenüberblick jetzt senden (Telegram/E-Mail)">📊 Wochenüberblick</button>
       <button class="btn sec" onclick="backupOffers()" title="Komplettes Backup (Angebote mit Preisverlauf, Meine Reisen inkl. PDF, gespeicherte Suchen) als ZIP">⬇ Backup</button>
@@ -524,6 +532,22 @@
       <div id="hc-body"></div>
       <div style="margin-top:14px; text-align:right">
         <button class="btn" onclick="runHealth()">Erneut prüfen</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Coupons-Modal -->
+  <div class="modal-bg" id="coupon-bg">
+    <div class="modal" style="max-width:820px">
+      <button class="icon-btn modal-close" onclick="closeCoupons()">
+        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+      </button>
+      <h2>MyTUI-Coupons</h2>
+      <div class="sub">Aktuelle Coupons aus deinem MyTUI-Bereich. Bei neuen Coupons wirst du benachrichtigt. Den Code löst du in deinem eigenen MyTUI-Login ein.</div>
+      <div id="coupon-body"></div>
+      <div class="cmp-foot" style="margin-top:12px">
+        <span class="hint" id="coupon-when" style="flex:1;min-width:180px"></span>
+        <button class="btn" onclick="refreshCoupons()">Jetzt prüfen</button>
       </div>
     </div>
   </div>
@@ -1247,21 +1271,68 @@
     function closeTrips(){ $('#trips-bg').classList.remove('show'); }
     $('#trips-bg').addEventListener('click', e=>{ if(e.target.id==='trips-bg') closeTrips(); });
 
+    // ── MyTUI-Coupons ─────────────────────────────────────────────────────────
+    let couponTimer = null;
+    function openCoupons(){
+      clearInterval(couponTimer); couponTimer=null;
+      $('#coupon-bg').classList.add('show');
+      $('#coupon-body').innerHTML = '<div class="cmp-load">Lade…</div>';
+      couponPoll(true);
+    }
+    function closeCoupons(){ clearInterval(couponTimer); couponTimer=null; $('#coupon-bg').classList.remove('show'); }
+    $('#coupon-bg').addEventListener('click', e=>{ if(e.target.id==='coupon-bg') closeCoupons(); });
+    async function refreshCoupons(){
+      $('#coupon-body').innerHTML = progBar('Coupons werden geprüft (Login läuft)…');
+      try { const r = await fetch(api('/api/coupons'), {method:'POST'});
+        if(r.status===400){ renderCoupons({configured:false}); return; }
+      } catch(e){}
+      clearInterval(couponTimer); couponTimer = setInterval(()=>couponPoll(false), 2500);
+    }
+    async function couponPoll(first){
+      let d; try { d = await fetch(api('/api/coupons')).then(r=>r.json()); } catch(e){ return; }
+      if(d.running){ if(first) $('#coupon-body').innerHTML = progBar('Coupons werden geprüft (Login läuft)…'); return; }
+      clearInterval(couponTimer); couponTimer=null;
+      renderCoupons(d);
+    }
+    function renderCoupons(d){
+      const when = $('#coupon-when');
+      if(!d.configured){
+        $('#coupon-body').innerHTML = '<div class="cmp-load">Noch keine Zugangsdaten hinterlegt. Trage in den Add-on-Optionen <b>tui_user</b> und <b>tui_pass</b> ein (am besten ein separates TUI-Zweitkonto), dann hier „Jetzt prüfen".</div>';
+        when.textContent=''; return;
+      }
+      when.textContent = d.ts ? ('Abgefragt: '+new Date(d.ts*1000).toLocaleString('de-DE')) : '';
+      if(d.error){
+        const dbg = d.debug ? `<div style="margin-top:8px"><a class="btn sec" href="${api('/api/coupons/debug')}" target="_blank" rel="noopener">🖼 Debug-Screenshot ansehen</a></div>` : '';
+        $('#coupon-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ '+esc(d.error)+'</div>'+dbg;
+        return;
+      }
+      const cs = d.coupons||[];
+      if(!cs.length){ $('#coupon-body').innerHTML = '<div class="cmp-load">Aktuell keine Coupons gefunden.</div>'; return; }
+      $('#coupon-body').innerHTML = '<div class="coupon-list">' + cs.map(c=>{
+        const end = c.end ? fmtD((c.end||'').slice(0,10)) : '';
+        return `<div class="coupon-card">
+          <div class="coupon-title">${esc(c.title||'Coupon')}</div>
+          ${end?`<div class="coupon-meta">gültig bis ${esc(end)}</div>`:''}
+        </div>`;
+      }).join('') + '</div>';
+    }
+
     async function loadTrips(){
       let d={trips:[],stats:{},by_year:[]};
       try { d = await fetch(api('/api/trips')).then(r=>r.json()); } catch(e){}
       tripsData = d.trips||[];
       const s = d.stats||{};
       $('#trips-stats').innerHTML = [
-        ['Reisen', s.count||0],
-        ['Nächte', s.nights_sum||0],
+        ['Reisen', s.count||0, true],
+        ['Nächte', s.nights_sum||0, true],
         ['Gesamtausgaben', eur(s.total_sum)],
+        ['Eigene Kosten', eur(s.own_sum)],
         ['Ø €/Nacht p.P.', eur(s.avg_per_night)],
-      ].map(([l,v])=>`<div class="tstat"><div class="v">${esc(String(v))}</div><div class="l">${l}</div></div>`).join('');
+      ].map(([l,v,sm])=>`<div class="tstat${sm?' sm':''}"><div class="v">${esc(String(v))}</div><div class="l">${l}</div></div>`).join('');
       const years = d.by_year||[];
       $('#trips-years').innerHTML = years.length?(
-        '<table class="tdt tyears"><tr><th>Jahr</th><th>Reisen</th><th>Nächte</th><th>Ausgaben</th><th>Ø €/Nacht p.P.</th></tr>'+
-        years.map(y=>`<tr><td>${esc(y.year)}</td><td>${y.count}</td><td>${y.nights_sum}</td><td>${eur(y.total_sum)}</td><td>${eur(y.avg_per_night)}</td></tr>`).join('')+
+        '<table class="tdt tyears"><tr><th>Jahr</th><th>Reisen</th><th>Nächte</th><th>Ausgaben</th><th>Eigene Kosten</th><th>Ø €/Nacht p.P.</th></tr>'+
+        years.map(y=>`<tr><td>${esc(y.year)}</td><td>${y.count}</td><td>${y.nights_sum}</td><td>${eur(y.total_sum)}</td><td>${eur(y.own_sum)}</td><td>${eur(y.avg_per_night)}</td></tr>`).join('')+
         '</table>'):'';
       renderTrips();
     }
@@ -1788,6 +1859,8 @@
       const offer = (curOffers||[]).find(x=>x.id===calId) || {};
       const base = offer.url || '';
       const nights = (job.duration) || 0;
+      // Sparschwein-Icon (MDI piggy-bank) für den günstigsten Termin
+      const PIG = '<svg class="cal-pig" viewBox="0 0 24 24" aria-hidden="true"><path d="M19,5A2,2 0 0,1 21,7V11A2,2 0 0,1 19,13H18.4C18.16,13.71 17.81,14.39 17.37,15L18,18H16L15.5,16.5H10.5L10,18H8L8.63,15C7.35,13.28 7.35,10.72 8.63,9C9.36,8 10.5,7.32 11.79,7.09C11.5,6.83 11.14,6.65 10.76,6.56C10.5,6.5 10.24,6.5 10,6.5V4.5C10.94,4.5 11.86,4.79 12.63,5.32C13.09,5.11 13.6,5 14.13,5H19M17,9A1,1 0 0,0 16,10A1,1 0 0,0 17,11A1,1 0 0,0 18,10A1,1 0 0,0 17,9M2,10V12H6V10H2Z"/></svg>';
       let cells = '';
       for(let i=0;i<startWd;i++) cells += '<div class="cal-cell empty"></div>';
       for(let d=1; d<=dim; d++){
@@ -1803,7 +1876,7 @@
           const ratio = pmax>pmin ? (price-pmin)/(pmax-pmin) : 0;
           style = ` style="background:hsla(${Math.round(120*(1-ratio))},65%,45%,.22)"`;
         }
-        const inner = `<span class="cal-d">${d}</span>`
+        const inner = `<span class="cal-d">${d}${iso===job.cheapest_date?PIG:''}</span>`
           + (price!=null ? `<span class="cal-p">${eur(price)}</span>` : '<span class="cal-p na">–</span>');
         if(price!=null && base){
           cls.push('clk');
@@ -1827,7 +1900,7 @@
         <div class="cal-grid head">${['Mo','Di','Mi','Do','Fr','Sa','So'].map(w=>`<div class="cal-wd">${w}</div>`).join('')}</div>
         <div class="cal-grid">${cells}</div>
         <div class="cal-legend">
-          <span><i class="lg-cheap"></i>günstigster Termin</span>
+          <span><i class="lg-cheap"></i>${PIG}günstigster Termin</span>
           <span><i class="lg-track"></i>günstigster in deinem Zeitraum</span>
           <span><i class="lg-out"></i>außerhalb deines Zeitraums</span>
           <span>🟩→🟥 günstig→teuer · Klick: auf tui.com öffnen · Rechtsklick: als neues Angebot tracken</span>

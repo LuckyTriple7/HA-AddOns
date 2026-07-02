@@ -37,6 +37,7 @@ from scraper import (_giata_from_url, _valid_img_url, api_healthcheck,
                      hotel_from_url, is_single_room, region_giata_from_breadcrumb,
                      room_code_from_url, travellers_from_url, with_duration,
                      with_room_code, with_travellers, without_room_code)
+from coupons import fetch_coupons
 from tripparser import _parse_eur, check_fields, parse_tui_pdf
 
 logging.basicConfig(format='[%(levelname)s] [%(asctime)s] %(message)s',
@@ -110,6 +111,8 @@ _calendar_state: dict[int, dict] = {}  # offer_id → transienter Status {runnin
 _calendar_lock = threading.Lock()
 _nights_state: dict[int, dict] = {}    # offer_id → transienter Status {running|error}
 _nights_lock = threading.Lock()
+_coupon_state: dict = {}               # transienter Status des Coupon-Abrufs {running|error|ts}
+_coupon_lock = threading.Lock()
 _cheaper_notified: dict[int, str] = {}  # Dedup für Günstigerer-Termin-Alarm
 _fail_notified: set[int] = set()        # offer_ids mit aktivem Ausverkauft-/Fehler-Alarm
 ERROR_ALARM_STREAK = 3                   # ab so vielen Fehlversuchen in Folge melden
@@ -307,6 +310,15 @@ def init_db() -> None:
         con.execute('''CREATE TABLE IF NOT EXISTS meta (
             key   TEXT PRIMARY KEY,
             value TEXT
+        )''')
+        # Gesehene MyTUI-Coupons (Dedup für den „neuer Coupon"-Alarm, neustart-fest).
+        con.execute('''CREATE TABLE IF NOT EXISTS coupon_state (
+            coupon_id  TEXT PRIMARY KEY,
+            title      TEXT,
+            saving     REAL,
+            end_date   TEXT,
+            first_seen INTEGER NOT NULL,
+            last_seen  INTEGER NOT NULL
         )''')
         # Gespeicherte Suchen (Favoriten) — in der DB statt im Browser, damit sie
         # geräteübergreifend verfügbar sind. payload = JSON der Sucheingaben.
@@ -1253,6 +1265,169 @@ def _calendar_payload(offer_id: int) -> dict:
     return out
 
 
+# ── MyTUI-Coupons ───────────────────────────────────────────────────────────────
+
+def _coupon_configured() -> bool:
+    cfg = load_config()
+    return bool((cfg.get('tui_user') or '').strip() and (cfg.get('tui_pass') or '').strip())
+
+
+def _fmt_iso_de(iso: str) -> str:
+    """'2026-07-31T21:59:59.000Z' → '31.07.2026' (leer bei ungültig)."""
+    m = re.match(r'(\d{4})-(\d{2})-(\d{2})', iso or '')
+    return f"{m.group(3)}.{m.group(2)}.{m.group(1)}" if m else ''
+
+
+def _store_coupons(coupons: list, ts: int) -> list:
+    """Coupons in coupon_state ablegen (Dedup per coupon_id) und die **neuen**
+    zurückgeben. Ohne Browser testbar."""
+    new = []
+    with db() as con:
+        for c in coupons:
+            cid = str(c.get('id') or '')
+            if not cid:
+                continue
+            row = con.execute('SELECT coupon_id FROM coupon_state WHERE coupon_id=?',
+                              (cid,)).fetchone()
+            if row is None:
+                con.execute('INSERT INTO coupon_state (coupon_id, title, saving, end_date, '
+                            'first_seen, last_seen) VALUES (?,?,?,?,?,?)',
+                            (cid, c.get('title') or '', c.get('saving'),
+                             c.get('end') or '', ts, ts))
+                new.append(c)
+            else:
+                con.execute('UPDATE coupon_state SET title=?, saving=?, end_date=?, '
+                            'last_seen=? WHERE coupon_id=?',
+                            (c.get('title') or '', c.get('saving'),
+                             c.get('end') or '', ts, cid))
+    return new
+
+
+def _notify_coupons(new: list) -> None:
+    lines = []
+    for c in new:
+        end = _fmt_iso_de(c.get('end') or '')
+        lines.append('• ' + (c.get('title') or 'Coupon') + (f' (bis {end})' if end else ''))
+    body = '\n'.join(lines)
+    head = f"{len(new)} neue TUI-Coupons" if len(new) != 1 else "Neuer TUI-Coupon"
+    _notify_ha(f"🎟 {head}", body + "\n\nCode in deinem MyTUI-Login abrufbar.", "coupons")
+    _notify_telegram(f"🎟 <b>{head}</b>\n{body}")
+
+
+def _run_coupons() -> None:
+    """Coupons abrufen, speichern, neue melden. Läuft im Hintergrund-Thread."""
+    if not _coupon_configured():
+        with _coupon_lock:
+            _coupon_state.clear()
+            _coupon_state['error'] = 'Keine Zugangsdaten gesetzt (tui_user/tui_pass).'
+        return
+    with _coupon_lock:
+        if _coupon_state.get('running'):
+            return
+        _coupon_state.clear()
+        _coupon_state['running'] = True
+    cfg = load_config()
+    try:
+        res = fetch_coupons((cfg.get('tui_user') or '').strip(),
+                            (cfg.get('tui_pass') or '').strip(),
+                            verbose=_verbose(), debug_png=_DATA + '/coupon_debug.png')
+    except Exception as e:
+        res = {'ok': False, 'error': f'{type(e).__name__}: {e}'}
+    ts = int(time.time())
+    _meta_set('coupons_checked', str(ts))
+    if not res.get('ok'):
+        log.warning("Coupon-Abruf fehlgeschlagen: %s", res.get('error'))
+        with _coupon_lock:
+            _coupon_state.clear()
+            _coupon_state.update({'error': res.get('error') or 'Abruf fehlgeschlagen', 'ts': ts})
+        return
+    coupons = res.get('coupons') or []
+    try:                                            # veralteten Debug-Screenshot entfernen
+        os.remove(_DATA + '/coupon_debug.png')
+    except OSError:
+        pass
+    _meta_set('coupons_last', json.dumps({'ts': ts, 'coupons': coupons}, ensure_ascii=False))
+    new = _store_coupons(coupons, ts)
+    if new and load_config().get('notify_coupons', True):
+        try:
+            _notify_coupons(new)
+        except Exception as e:
+            log.error("Coupon-Benachrichtigung fehlgeschlagen: %s", e)
+    log.info("Coupon-Abruf: %d Coupons, %d neu", len(coupons), len(new))
+    with _coupon_lock:
+        _coupon_state.clear()
+        _coupon_state['ts'] = ts
+
+
+def _maybe_check_coupons() -> None:
+    """Coupons höchstens alle `coupon_interval` Sekunden prüfen (Standard 12 h)."""
+    if not _coupon_configured():
+        return
+    with _coupon_lock:
+        if _coupon_state.get('running'):
+            return
+    try:
+        interval = int(load_config().get('coupon_interval', 43200) or 43200)
+    except (TypeError, ValueError):
+        interval = 43200
+    try:
+        last = int(_meta_get('coupons_checked', 0) or 0)
+    except (TypeError, ValueError):
+        last = 0
+    if time.time() - last >= max(3600, interval):
+        _run_coupons()
+
+
+def _coupons_payload() -> dict:
+    with _coupon_lock:
+        st = dict(_coupon_state)
+    try:
+        last = json.loads(_meta_get('coupons_last', '') or '{}')
+    except Exception:
+        last = {}
+    return {
+        'configured': _coupon_configured(),
+        'running': bool(st.get('running')),
+        'error': st.get('error'),
+        'ts': last.get('ts') or (int(_meta_get('coupons_checked', 0) or 0) or None),
+        'coupons': last.get('coupons') or [],
+        'debug': os.path.exists(_DATA + '/coupon_debug.png'),
+    }
+
+
+@app.route('/api/coupons', methods=['GET'])
+def api_coupons_get():
+    if (err := _require_api()):
+        return err
+    return jsonify(_coupons_payload())
+
+
+@app.route('/api/coupons/debug', methods=['GET'])
+def api_coupons_debug():
+    """Debug-Screenshot des letzten fehlgeschlagenen Coupon-Logins (falls vorhanden)."""
+    if (err := _require_api()):
+        return err
+    p = _DATA + '/coupon_debug.png'
+    if not os.path.exists(p):
+        return jsonify({'error': 'not_found'}), 404
+    resp = make_response(send_file(p, mimetype='image/png'))
+    resp.headers['Cache-Control'] = 'no-store'
+    return resp
+
+
+@app.route('/api/coupons', methods=['POST'])
+def api_coupons_check():
+    if (err := _require_api()):
+        return err
+    if not _coupon_configured():
+        return jsonify({'error': 'not_configured'}), 400
+    with _coupon_lock:
+        if _coupon_state.get('running'):
+            return jsonify({'started': True, 'already': True})
+    _spawn(_run_coupons)
+    return jsonify({'started': True})
+
+
 def _poll_worker() -> None:
     """Prüft Angebote fälligkeitsbasiert: ein Angebot wird erst wieder abgefragt,
     wenn seit seinem letzten Check (auch über Neustarts hinweg) das Intervall
@@ -1267,6 +1442,7 @@ def _poll_worker() -> None:
             now = int(time.time())
             _maybe_periodic_health()  # API-Selbsttest 1×/Tag — VOR den Preisprüfungen
             _maybe_send_digest()      # wöchentliche Zusammenfassung (falls aktiviert)
+            _maybe_check_coupons()    # MyTUI-Coupons (falls Zugangsdaten gesetzt)
             _auto_archive_expired()
             with db() as con:
                 offers = [r['id'] for r in con.execute(
@@ -1910,6 +2086,15 @@ def api_email():
 
 _HISTORY_COLS = ('ts', 'price', 'old_price', 'discount', 'available', 'ok', 'note')
 _EVENT_COLS = ('ts', 'type', 'text')
+# Feste Whitelist der beim Restore einspielbaren Angebots-Spalten (Spaltennamen kommen
+# damit NIE aus den Backup-Daten → keine per String gebaute Query aus Nutzerquellen).
+_OFFER_RESTORE_COLS = (
+    'url', 'label', 'hotel', 'details', 'room', 'dep_airport', 'flight_out', 'flight_ret',
+    'location', 'city', 'region', 'country', 'pdf_url', 'cancellation', 'stars', 'rating',
+    'rating_count', 'recommendation', 'total_price', 'travellers_count', 'paused',
+    'archived', 'return_date', 'target_price', 'booked_price', 'image_url', 'booking_code',
+    'room_booking_code', 'created',
+)
 
 
 def _table_columns(con, table: str) -> list:
@@ -1973,23 +2158,24 @@ def _restore_offer(con, it: dict, ocols: set, existing_urls: set) -> str:
     url = (it.get('url') or '').strip()
     if not _valid_tui_url(url) or url in existing_urls:
         return 'skipped'
-    # nur bekannte Spalten übernehmen, sicherheitskritische Felder bereinigen
-    row = {k: v for k, v in it.items()
-           if k not in ('id', 'history', 'events') and k in ocols}
+    # Werte NUR aus der festen Spalten-Whitelist übernehmen (Spaltennamen sind Code-
+    # Konstanten, nie aus den Daten), sicherheitskritische Felder bereinigen.
+    row = {c: it.get(c) for c in _OFFER_RESTORE_COLS if c in ocols}
     row['url'] = url
     row['label'] = (it.get('label') or '').strip()
     row['hotel'] = (it.get('hotel') or hotel_from_url(url) or '')
-    if 'target_price' in ocols:
+    if 'target_price' in row:
         row['target_price'] = _price(it.get('target_price'))
-    if 'booked_price' in ocols:
+    if 'booked_price' in row:
         row['booked_price'] = _price(it.get('booked_price'))
-    if 'image_url' in ocols:
+    if 'image_url' in row:
         img = (it.get('image_url') or '').strip()
         row['image_url'] = img if _valid_img_url(img) else ''
     row['paused'] = 1 if it.get('paused') else 0
     row['archived'] = 1 if it.get('archived') else 0
     row['created'] = int(it.get('created') or time.time())
-    cols = list(row.keys())
+    # Spaltenliste ausschließlich aus der Konstante (feste Reihenfolge, keine Nutzerdaten)
+    cols = [c for c in _OFFER_RESTORE_COLS if c in row]
     try:
         cur = con.execute(
             f"INSERT INTO offers ({', '.join(cols)}) VALUES ({', '.join('?' for _ in cols)})",
@@ -2445,11 +2631,16 @@ def _iso_date(de: str):
 
 def _trip_pdf_path(pdf_name: str):
     """Sicheren Pfad zur Reise-PDF im TRIPS_DIR liefern (Path-Traversal-Schutz).
-    Gibt None zurück, wenn der Name aus dem TRIPS_DIR ausbrechen würde."""
+    Gibt None zurück, wenn der Name unzulässig ist oder aus dem TRIPS_DIR ausbräche."""
     if not pdf_name:
         return None
+    # Nur der Basename und ausschließlich ein strikt begrenzter Zeichensatz — verhindert
+    # jegliche Verzeichnis-Anteile/Traversal, bevor ein Pfad gebaut wird.
+    name = Path(pdf_name).name
+    if not re.fullmatch(r'[A-Za-z0-9._-]{1,120}', name):
+        return None
     base = Path(TRIPS_DIR).resolve()
-    p = (base / Path(pdf_name).name).resolve()
+    p = (base / name).resolve()
     try:
         p.relative_to(base)
     except ValueError:
@@ -2482,6 +2673,8 @@ def api_trips():
     nights_sum = sum((t['nights'] or 0) for t in trips)
     total_sum = sum((t['total_price'] or 0.0) for t in trips)
     package_sum = sum((t['package_price'] or 0.0) for t in trips)
+    # Eigener Anteil je Reise = Gesamtpreis / Anzahl Reisende, aufsummiert.
+    own_sum = sum((t['total_price'] or 0.0) / (t['travellers'] or 1) for t in trips)
     # Personen-Nächte (Nächte × Reisende) → Ø-Preis pro Person und Nacht, damit Solo- und
     # Gruppenreisen vergleichbar sind.
     pers_nights = sum((t['nights'] or 0) * (t['travellers'] or 1) for t in trips)
@@ -2489,6 +2682,7 @@ def api_trips():
         'count': len(trips),
         'nights_sum': nights_sum,
         'total_sum': round(total_sum, 2),
+        'own_sum': round(own_sum, 2),
         'package_sum': round(package_sum, 2),
         'avg_per_night': round(total_sum / pers_nights, 2) if pers_nights else 0.0,
     }
@@ -2499,16 +2693,18 @@ def api_trips():
         if not y:
             continue
         a = years.setdefault(y, {'year': y, 'count': 0, 'nights_sum': 0,
-                                 'total_sum': 0.0, '_pn': 0})
+                                 'total_sum': 0.0, 'own_sum': 0.0, '_pn': 0})
         a['count'] += 1
         a['nights_sum'] += t['nights'] or 0
         a['total_sum'] += t['total_price'] or 0.0
+        a['own_sum'] += (t['total_price'] or 0.0) / (t['travellers'] or 1)
         a['_pn'] += (t['nights'] or 0) * (t['travellers'] or 1)
     by_year = []
     for y in sorted(years, reverse=True):
         a = years[y]
         pn = a.pop('_pn')
         a['total_sum'] = round(a['total_sum'], 2)
+        a['own_sum'] = round(a['own_sum'], 2)
         a['avg_per_night'] = round(a['total_sum'] / pn, 2) if pn else 0.0
         by_year.append(a)
     return jsonify({'trips': trips, 'stats': stats, 'by_year': by_year})

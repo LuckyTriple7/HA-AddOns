@@ -71,10 +71,12 @@ def test_import_list_detail_pdf_delete(client):
     assert lst["stats"]["count"] == 1
     assert lst["stats"]["nights_sum"] == 7
     assert lst["stats"]["total_sum"] == 1000.0
+    assert lst["stats"]["own_sum"] == 1000.0        # 1 Reisender → eigener Anteil = Gesamtpreis
     assert lst["trips"][0]["hotel"] == "Test Hotel"
     # Jahres-Aufschlüsselung (Reisebeginn 2026)
     assert lst["by_year"] == [{"year": "2026", "count": 1, "nights_sum": 7,
-                               "total_sum": 1000.0, "avg_per_night": round(1000.0 / 7, 2)}]
+                               "total_sum": 1000.0, "own_sum": 1000.0,
+                               "avg_per_night": round(1000.0 / 7, 2)}]
 
     detail = client.get(f"/api/trips/{tid}", headers=ING).get_json()
     assert detail["data"]["reiseziel"] == "Teststrand"

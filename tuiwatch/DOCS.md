@@ -120,8 +120,10 @@ Preis-Tracking, als dauerhaftes Archiv (Vergangenheit und Zukunft).
   **Reisepreis pro Nacht** (Hotel/Flug/Transfer **nach Rabatt, ohne Extras**). Klick auf
   **„Details"** zeigt die komplette Aufschlüsselung inkl. Flügen, Extras, Zahlungen sowie
   **€/Nacht** und **€/Person/Nacht** (Reisepreis und gesamt).
-- **Statistik:** Anzahl Reisen, Summe Nächte, Gesamtausgaben und **Ø €/Nacht pro Person** —
-  gesamt **und pro Reisejahr** aufgeschlüsselt. Der €/Nacht-Wert ist durchweg **pro Person**
+- **Statistik:** Anzahl Reisen, Summe Nächte, **Gesamtausgaben** (Summe aller Reisepreise
+  inkl. Extras), **Eigene Kosten** (je Reise Gesamtpreis geteilt durch die Anzahl
+  Reisende, aufsummiert = dein persönlicher Anteil) und **Ø €/Nacht pro Person** — gesamt
+  **und pro Reisejahr** aufgeschlüsselt. Der €/Nacht-Wert ist durchweg **pro Person**
   (Personen-Nächte = Nächte × Reisende), damit Solo- und Gruppenreisen vergleichbar sind.
 - **Aktualisieren/Löschen:** Ein erneuter Import derselben Buchungsnummer **überschreibt**
   den vorhandenen Eintrag (kein Duplikat). **„Löschen"** entfernt die Reise inkl. der
@@ -194,7 +196,8 @@ wird **gespeichert** (Zeitstempel + **„Neu abfragen"**).
 Der Button **Kalender** je Angebot zeigt ein Monats-Raster mit dem günstigsten Preis
 pro Abreisetag (ab/Person) — wie der Preiskalender auf tui.com. Er **öffnet direkt im
 Reisemonat** deines Angebots. Hervorgehoben werden der **günstigste Termin insgesamt**
-(grün) und der **günstigste Termin in deinem gewählten Zeitraum**; Tage außerhalb deines
+(grün, mit **🐷 Sparschwein-Icon**) und der **günstigste Termin in deinem gewählten
+Zeitraum**; Tage außerhalb deines
 Zeitraums sind gedimmt. Die Tage sind als **Heatmap** eingefärbt (grün = günstig, rot =
 teuer); ein **Klick auf einen Tag öffnet genau diesen Termin auf tui.com**, ein
 **Rechtsklick speichert den Termin als neues, eigenständiges Angebot** (mit fixiertem
@@ -205,6 +208,26 @@ liefert pro Abruf nur ein begrenztes Fenster; TUIWatch fügt daher wie die TUI-S
 mehrere Abrufe zu einer durchgehenden Zeitleiste zusammen.) Das Ergebnis wird
 **gespeichert** (Zeitstempel + „Neu abfragen") und respektiert alle Filter deiner
 Angebots-URL (Verpflegung, Veranstalter, Zimmer, Abflughafen).
+
+## MyTUI-Coupons
+
+Über **🎟 Coupons** kann TUIWatch die aktuellen Coupons aus deinem **MyTUI-Bereich**
+überwachen und dich bei **neuen** Coupons benachrichtigen (Telegram/HA/E-Mail).
+
+- **Zugang:** In den Add-on-Optionen `tui_user` (E-Mail) und `tui_pass` (Passwort)
+  hinterlegen. **Empfehlung:** ein **separates TUI-Zweitkonto** ohne Buchungen/Zahlungsdaten
+  — die allgemeinen Coupons (Wert) sind für jedes Konto gleich, nur der Code unterscheidet
+  sich. So liegt kein sensibles Konto im Add-on. Das Passwort wird wie das SMTP-Passwort
+  behandelt (serverseitig, nie im UI angezeigt, nicht geloggt).
+- **Ablauf:** Der TUI-Login ist durch einen Bot-Schutz (Captcha) gesichert; TUIWatch
+  meldet sich daher in einem **Headless-Browser** an und liest danach die Coupon-Liste.
+  Ob der Bot-Schutz durchlässt, hängt von deiner Umgebung ab — klappt es bei dir, läuft es
+  automatisch (Prüfintervall `coupon_interval`, Standard 12 h). Manuell über **„Jetzt
+  prüfen"** im Coupon-Fenster.
+- **Anzeige:** aktuelle Coupons mit Titel und Gültigkeit. Den **Code** selbst löst du in
+  deinem **eigenen MyTUI-Login** ein (TUIWatch dient nur als Melder).
+- **Optionen:** `notify_coupons` (Alarm an/aus), `coupon_interval` (Prüfintervall in
+  Sekunden). Ohne `tui_user`/`tui_pass` bleibt die Funktion inaktiv.
 
 ## Home-Assistant-Sensoren
 
