@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.27.1] - 2026-07-02
+
+### Changed
+- **Toolbar passt in eine Reihe.** Buttons „🔍 Hotels suchen" → **„Suche"** und
+  „⬆ Wiederherstellen" → **„Restore"** umbenannt; dadurch passen alle Toolbar-Buttons
+  auch auf schmaleren Fenstern in eine Zeile.
+
 ## [0.27.0] - 2026-07-02
 
 ### Added
