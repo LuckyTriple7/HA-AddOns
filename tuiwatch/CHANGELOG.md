@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.26.2] - 2026-07-02
+
+### Added
+- **Wochenüberblick listet Aktionscodes.** Die wöchentliche Zusammenfassung (Telegram &
+  E-Mail) enthält jetzt die aktuellen öffentlichen TUI-Aktionscodes (Wert, Code, buchbar
+  bis, Reisezeitraum).
+- **Aktionscode-Button leuchtet/pulsiert**, wenn aktuell Codes verfügbar sind.
+
+### Changed
+- **Preiskalender: Sparschwein größer & mittig** (hinter dem Text, verdeckt Tag/Preis
+  nicht). Zusätzlich lässt sich der Kalender jetzt **mit den Pfeiltasten ← / →** durch die
+  Monate blättern (nicht nur per Maus).
+
 ## [0.26.1] - 2026-07-02
 
 ### Added

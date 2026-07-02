@@ -229,8 +229,12 @@
     .cal-cell.out { opacity:.4; }
     .cal-cell.cheapest { border-color:var(--green); background:rgba(46,160,67,.16); }
     .cal-cell.cheapest .cal-p { color:var(--green); }
-    .cal-pig { width:14px; height:14px; fill:var(--green); vertical-align:-3px; margin-left:2px; }
-    .cal-legend .cal-pig { margin:0 4px 0 0; }
+    .cal-pig { width:14px; height:14px; fill:var(--green); vertical-align:-3px; margin:0 4px 0 0; }  /* Legende: inline */
+    .cal-cell { position:relative; }
+    .cal-cell .cal-d, .cal-cell .cal-p { position:relative; z-index:1; }   /* Text über dem Sparschwein */
+    .cal-cell .cal-pig { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); width:24px; height:24px; margin:0; opacity:.85; z-index:0; pointer-events:none; }
+    .btn.aktion-active { animation: aktionPulse 1.6s ease-in-out infinite; border-color:var(--green); }
+    @keyframes aktionPulse { 0%,100% { box-shadow:0 0 0 0 rgba(46,160,67,.55); } 50% { box-shadow:0 0 0 7px rgba(46,160,67,0); } }
     .cal-cell.tracked { outline:2px solid var(--accent); outline-offset:-2px; }
     a.cal-cell.clk { text-decoration:none; color:inherit; cursor:pointer; transition:transform .08s; }
     a.cal-cell.clk:hover { border-color:var(--accent); transform:translateY(-1px); }
@@ -333,7 +337,7 @@
     <div class="toolbar">
       <button class="btn" onclick="openSearch()" title="Hotels einer Region suchen (TUI-Such-URL einfügen)">🔍 Hotels suchen</button>
       <button class="btn sec" onclick="openTrips()" title="Gebuchte Reisen verwalten (TUI-PDF importieren)">🧳 Meine Reisen</button>
-      <button class="btn sec" onclick="openAktion()" title="Aktuelle öffentliche TUI-Aktionscodes anzeigen und bei neuen benachrichtigt werden">🎟 Aktionscodes</button>
+      <button class="btn sec" id="aktion-btn" onclick="openAktion()" title="Aktuelle öffentliche TUI-Aktionscodes anzeigen und bei neuen benachrichtigt werden">🎟 Aktionscodes</button>
       <button class="btn sec" onclick="sendEmail()" title="Alle Angebote als E-Mail senden">✉ Als E-Mail senden</button>
       <button class="btn sec" onclick="sendDigest()" title="Wochenüberblick jetzt senden (Telegram/E-Mail)">📊 Wochenüberblick</button>
       <button class="btn sec" onclick="backupOffers()" title="Komplettes Backup (Angebote mit Preisverlauf, Meine Reisen inkl. PDF, gespeicherte Suchen) als ZIP">⬇ Backup</button>
@@ -1299,6 +1303,7 @@
       when.textContent = d.ts ? ('Abgefragt: '+new Date(d.ts*1000).toLocaleString('de-DE')) : '';
       if(d.error){ $('#aktion-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ '+esc(d.error)+'</div>'; return; }
       const cs = d.codes||[];
+      setAktionGlow(cs.length>0);
       if(!cs.length){ $('#aktion-body').innerHTML = '<div class="cmp-load">Aktuell keine Aktionscodes gefunden.</div>'; return; }
       const ctx = [];
       if(d.booking_until) ctx.push('buchbar bis <b>'+esc(d.booking_until)+'</b>');
@@ -1311,6 +1316,22 @@
           ${c.kind?`<div class="aktion-kind">${esc(c.kind)}</div>`:''}
         </div>`).join('') + '</div>';
     }
+    function setAktionGlow(on){ const b=document.getElementById('aktion-btn'); if(b) b.classList.toggle('aktion-active', !!on); }
+    // Button leuchten lassen, wenn aktuell Aktionscodes verfügbar sind (ohne Modal zu öffnen)
+    async function updateAktionBtn(){
+      try { const d = await fetch(api('/api/aktionscodes')).then(r=>r.json()); setAktionGlow((d.codes||[]).length>0); }
+      catch(e){}
+    }
+    // Preiskalender: mit Pfeiltasten ← / → durch die Monate blättern (nicht nur per Maus)
+    document.addEventListener('keydown', e=>{
+      if(!$('#cal-bg').classList.contains('show')) return;
+      if(e.key!=='ArrowLeft' && e.key!=='ArrowRight') return;
+      if(!calData || !calData.days) return;
+      const months=[...new Set(calData.days.map(d=>d.date.slice(0,7)))].sort();
+      const idx=months.indexOf(calMonth);
+      const t = e.key==='ArrowLeft' ? (idx>0?months[idx-1]:'') : (idx<months.length-1?months[idx+1]:'');
+      if(t){ calGo(t); e.preventDefault(); }
+    });
 
     async function loadTrips(){
       let d={trips:[],stats:{},by_year:[]};
@@ -1871,7 +1892,8 @@
           const ratio = pmax>pmin ? (price-pmin)/(pmax-pmin) : 0;
           style = ` style="background:hsla(${Math.round(120*(1-ratio))},65%,45%,.22)"`;
         }
-        const inner = `<span class="cal-d">${d}${iso===job.cheapest_date?PIG:''}</span>`
+        const inner = `<span class="cal-d">${d}</span>`
+          + (iso===job.cheapest_date?PIG:'')   // Sparschwein als direktes Zellenkind → mittig
           + (price!=null ? `<span class="cal-p">${eur(price)}</span>` : '<span class="cal-p na">–</span>');
         if(price!=null && base){
           cls.push('clk');
@@ -2104,6 +2126,8 @@
     loadOffers();
     setInterval(loadOffers, 5000);
     loadHealth();
+    updateAktionBtn();
+    setInterval(updateAktionBtn, 600000);   // Button-Leuchten alle 10 min aktualisieren
     setInterval(loadHealth, 60000);
   </script>
 </body>

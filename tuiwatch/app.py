@@ -1516,6 +1516,12 @@ def _build_digest() -> dict | None:
             and o.get('samples', 0) > 2 and o['price'] <= o['min_price']]
     under = [o for o in offers if o.get('target_price') and o['price'] <= o['target_price']]
 
+    try:                                             # aktuelle öffentliche Aktionscodes
+        _aktion = json.loads(_meta_get('aktion_last', '') or '{}')
+    except Exception:
+        _aktion = {}
+    akc = _aktion.get('codes') or []
+
     def nm(o):
         return o.get('label') or o.get('hotel') or f"Angebot #{o['id']}"
 
@@ -1534,6 +1540,14 @@ def _build_digest() -> dict | None:
     if rises:
         tl.append("\n▲ <b>Gestiegen (7 Tage):</b>")
         tl += [f"• {nm(o)}: {_eur(o['price'])} (+{_eur(abs(o['_wk']))})" for o in rises[:5]]
+    if akc:
+        tl.append("\n🎟 <b>TUI-Aktionscodes:</b>")
+        tl += [f"• {c.get('value')} € — {c.get('code')}"
+               + (f" ({c['kind']})" if c.get('kind') else '') for c in akc]
+        _ctx = ([f"buchbar bis {_aktion['booking_until']}"] if _aktion.get('booking_until') else []) \
+            + ([f"Reisezeitraum {_aktion['travel_period']}"] if _aktion.get('travel_period') else [])
+        if _ctx:
+            tl.append(" · ".join(_ctx))
     text = "\n".join(tl)
 
     # ── HTML (E-Mail) ──
@@ -1550,6 +1564,19 @@ def _build_digest() -> dict | None:
     def link(o):
         return f'<a href="{esc(o["url"])}" style="color:#0b65d8;text-decoration:none">{esc(nm(o))}</a>'
 
+    akc_html = ''
+    if akc:
+        _ctxh = ' · '.join(
+            ([f'buchbar bis {esc(_aktion["booking_until"])}'] if _aktion.get('booking_until') else [])
+            + ([f'Reisezeitraum {esc(_aktion["travel_period"])}'] if _aktion.get('travel_period') else []))
+        _rows = ''.join(
+            f'<li style="margin:4px 0"><b>{esc(c.get("value"))} €</b> — {esc(c.get("code"))}'
+            + (f' <span style="color:#777">({esc(c["kind"])})</span>' if c.get('kind') else '') + '</li>'
+            for c in akc)
+        akc_html = ('<h3 style="margin:18px 0 6px;color:#10243e;font-size:15px">🎟 TUI-Aktionscodes</h3>'
+                    + (f'<p style="margin:0 0 6px;color:#777;font-size:13px">{_ctxh}</p>' if _ctxh else '')
+                    + f'<ul style="margin:0;padding-left:18px;color:#333;font-size:14px">{_rows}</ul>')
+
     html = (
         '<div style="font-family:system-ui,Arial,sans-serif;max-width:640px;margin:0 auto">'
         f'<h2 style="color:#10243e">📊 TUIWatch — Wochenüberblick</h2>'
@@ -1562,6 +1589,7 @@ def _build_digest() -> dict | None:
                   lambda o: f'{link(o)}: {_eur(o["price"])} <span style="color:#1a7f37;font-weight:600">({_eur(o["_wk"])})</span>')
         + section('▲ Gestiegen (7 Tage)', rises[:5],
                   lambda o: f'{link(o)}: {_eur(o["price"])} <span style="color:#cf222e">(+{_eur(abs(o["_wk"]))})</span>')
+        + akc_html
         + '</div>'
     )
     return {'subject': f'TUIWatch — Wochenüberblick {datetime.now():%d.%m.%Y}',
