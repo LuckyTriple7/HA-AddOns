@@ -1,5 +1,243 @@
 # Changelog
 
+## [0.36.1] - 2026-07-03
+
+### Fixed
+- Dockerfile kopierte `nextcloud.py` nicht ins Image → `ModuleNotFoundError` beim
+  Start. Ergänzt.
+- DE/EN-Übersetzungen für die drei neuen `nc_*`-Add-on-Optionen ergänzt (in
+  `translations/de.yaml`/`en.yaml` vergessen).
+
+## [0.36.0] - 2026-07-03
+
+### Added
+- **Nextcloud-Adressbuch beim E-Mail-Versand.** Der Empfänger-Dialog („Als E-Mail
+  senden" / Sammelaktion „E-Mail") bietet jetzt optional ein Autocomplete aus einem
+  Nextcloud-Adressbuch (CardDAV) — neue Optionen `nc_addressbook_url` (volle
+  Adressbuch-URL aus der Nextcloud-Kontakte-App), `nc_user`, `nc_app_password`.
+  Ersetzt den bisherigen reinen `prompt()`-Dialog durch ein Eingabefeld mit
+  Autocomplete; Freitext-Adressen bleiben weiterhin möglich, ohne Konfiguration
+  ändert sich nichts.
+
+## [0.35.0] - 2026-07-03
+
+### Added
+- **Lage-Badges in der Hotelsuche.** Treffer zeigen jetzt Pillen für zutreffende
+  Lage-Attribute (Direkt am Strand, Strand < 500m, Sandstrand, Ruhig, Außerhalb) —
+  live aus dem hotelseitigen `globalTypes`-Katalog des Suchresponse abgeleitet und
+  gegen echte Filterergebnisse verifiziert. „Meerseite" fehlt bewusst: der Code taucht
+  im Suchresponse nirgends auf, nur serverseitig fürs Filtern nutzbar.
+
+## [0.34.0] - 2026-07-03
+
+### Added
+- **Aktionscode-Hinweis in der Hotelsuche.** Die TUI-Such-API liefert je Hotel im
+  `globalTypes`-Katalog den Code `GT03-COUP`, sobald tui.com für dieses Hotel gerade
+  einen Aktionscode/Coupon anzeigt (live gegen mehrere Regionen verifiziert — exakter
+  Codevergleich, kein Fuzzy-Match). Suchergebnisse mit diesem Flag zeigen jetzt „%
+  Aktionscode möglich" unter den Angebotsdetails.
+
+## [0.33.2] - 2026-07-03
+
+### Changed
+- Tag-Filter unter der Suchleiste erlaubt jetzt Mehrfachauswahl (ODER-Verknüpfung:
+  zeigt Angebote mit mindestens einem der ausgewählten Tags) statt nur einem Tag
+
+## [0.33.1] - 2026-07-03
+
+### Changed
+- Anhänge-Pille („＋ PDF") in der Reise-Detailansicht steht jetzt direkt unter der
+  Buttonzeile (PDF öffnen/Debug/schließen), nicht mehr ganz unten nach allen
+  Reisedetails — vorher leicht zu übersehen
+
+## [0.33.0] - 2026-07-03
+
+### Added
+- **Weitere PDFs bei „Meine Reisen".** In der Detailansicht lässt sich jetzt zusätzlich
+  zur Reisebestätigung ein weiteres PDF hinterlegen (z. B. der Reiseplan) — reine
+  Ablage, ohne Auswertung/Parsing. Anhänge erscheinen als Pille (📎 Dateiname, öffnen/
+  entfernen per Klick) unter den Reisedetails. Werden beim Löschen der Reise mit
+  entfernt und im Backup/Restore mitgesichert.
+
+## [0.32.1] - 2026-07-03
+
+### Changed
+- Tags auf der Angebotskarte: stehen jetzt in der Titelzeile neben dem Hotelnamen
+  (mit Abstand) statt in einer eigenen Zeile darunter — spart Platz
+
+## [0.32.0] - 2026-07-03
+
+### Added
+- **Tags für Angebote.** Frei vergebbare Schlagworte je Angebot (z. B. „Strand",
+  „Familie") — hinzufügen über die ＋-Pille auf der Karte, entfernen per Klick auf den
+  Tag. Unter der Suchleiste erscheint eine Pill-Zeile mit allen aktuell verwendeten
+  Tags; Klick filtert die Liste live (wie die Textsuche, kein Neuladen), erneuter Klick
+  hebt den Filter wieder auf. Tags werden im Backup/Restore mitgesichert.
+
+## [0.31.0] - 2026-07-03
+
+### Added
+- Offline-Banner (wie SysWatch): erkennt Verbindungsabbruch über `online`/`offline`-Events,
+  `navigator.onLine`-Check beim Start und fehlgeschlagene `/api/offers`-Abrufe (3 Fehlversuche
+  in Folge) — abdunkelndes Overlay mit „Neu laden"-Button, verschwindet automatisch sobald
+  wieder Daten ankommen
+
+## [0.30.1] - 2026-07-03
+
+### Changed
+- Verbose-Log der Such-API (`Such-API POST ...`) zeigt jetzt alle relevanten Suchparameter
+  (Zeitraum, Dauer, Reisende, Verpflegung, Lage, Flughäfen, Airlines, Operator, Direktflug)
+  statt nur der Regionen-ID — erleichtert Diagnose bei Suchproblemen
+
+## [0.30.0] - 2026-07-03
+
+### Added
+- **Lage-Filter in der Hotelsuche.** Neue Checkbox-Zeile unter „Verpflegung": Direkt
+  am Strand, Sandstrand, Strand < 500m, Meerseite, Ruhig, Außerhalb — Mehrfachauswahl,
+  schränkt die Trefferliste weiter ein (funktioniert in allen Suchmodi: Regionen-Suche,
+  Suche aus Angebot, eingefügte TUI-URL). Wird auch in gespeicherten Suchen/Suchabos
+  mitgespeichert. Intern übersetzt TUIWatch die IDs in den `logicalExpression`-Code,
+  den die TUI-Such-API erwartet (per Live-Test ermittelt und verifiziert — anders als
+  bei der Verpflegung reicht die einfache ID hier nicht aus).
+
+## [0.29.0] - 2026-07-03
+
+### Added
+- **HA-Binärsensor für Aktionscodes.** Neuer `binary_sensor.tuiwatch_aktionscodes`:
+  **an**, solange aktuell öffentliche TUI-Aktionscodes verfügbar sind, sonst **aus**.
+  Die einzelnen Codes (Wert, Code, Art) stehen als Attribut `coupons` zur Verfügung —
+  damit lassen sich Automationen in Home Assistant bauen, ohne die TUIWatch-UI zu
+  öffnen. Nutzt dieselbe `ha_sensors`-Option wie die bestehenden Preis-Sensoren.
+
+## [0.28.1] - 2026-07-03
+
+### Fixed
+- **„Exakt"-Checkbox in der Hotelsuche (endgültig behoben).** Der Fix aus 0.27.2
+  reichte `duration=exact` als String statt als `["exact"]`-Array durch — ein Live-
+  Test gegen die echte TUI-Such-API zeigte aber, dass **beide** Varianten
+  stillschweigend ignoriert werden und die API auf 7 Nächte zurückfällt. Die
+  Such-API kennt „exact" gar nicht (anders als die Angebots-Detailseite). Berechnet
+  jetzt stattdessen die Nächtezahl selbst aus dem gewählten Zeitraum (von/bis) und
+  sendet sie als normale Zahl — verifiziert per Live-Abfrage: 13.08.–16.08. liefert
+  jetzt korrekt 3-Nächte-Treffer statt 7. Betraf auch die eingefügte TUI-Such-URL
+  (`duration=exact` wurde dort zuvor sogar komplett verworfen).
+
+## [0.28.0] - 2026-07-03
+
+### Added
+- **Reise-Countdown im Header.** Ist unter „Meine Reisen" eine bevorstehende Reise
+  gespeichert, zeigt der Header mittig einen Countdown bis zum Abflug (z. B.
+  „Sal / Amilcar Cabral · noch 12 Tage 4 Std"). Die Abflugzeit stammt aus dem
+  geparsten Hinflug der importierten PDF; ist kein Hinflug erkannt, wird 00:00 des
+  Reisebeginns angenommen. Klick auf den Countdown öffnet „Meine Reisen". Ohne
+  bevorstehende Reise bleibt das Widget ausgeblendet.
+
+## [0.27.2] - 2026-07-03
+
+### Fixed
+- **„Exakt"-Checkbox in der Hotelsuche.** Bei aktivierter Checkbox wurde die
+  Reisedauer entgegen der Auswahl trotzdem als 7 Nächte gesucht, statt der
+  tatsächlichen Nächte zwischen von/bis (z. B. 3 Nächte bei 13.08.–16.08.). Ursache:
+  der native TUI-Wert `duration=exact` wurde beim Aufbau des Such-API-Requests
+  fälschlich in ein Array (`["exact"]`) verpackt statt als reiner String
+  durchgereicht — die TUI-API ignorierte den Wert dadurch und fiel auf ihren
+  Standard zurück.
+
+## [0.27.1] - 2026-07-02
+
+### Changed
+- **Toolbar passt in eine Reihe.** Buttons „🔍 Hotels suchen" → **„Suche"** und
+  „⬆ Wiederherstellen" → **„Restore"** umbenannt; dadurch passen alle Toolbar-Buttons
+  auch auf schmaleren Fenstern in eine Zeile.
+
+## [0.27.0] - 2026-07-02
+
+### Added
+- **🔔 Suchabo / Sammel-Alarm** (Backlog #7). Jede **gespeicherte Suche** lässt sich
+  jetzt **beobachten**: Schwellenpreis (pro Person) setzen und TUIWatch führt die Suche
+  regelmäßig aus (im `poll_interval`-Takt, mindestens stündlich). Gemeldet wird per
+  **Telegram/HA**, wenn ein Hotel **neu unter die Schwelle** fällt oder ein gemeldetes
+  **weiter fällt** — je Hotel wird der tiefste gemeldete Preis gemerkt (kein Spam);
+  steigt es über die Schwelle und fällt später erneut, wird wieder gemeldet.
+  Im UI: Abo-Zeile unter den gespeicherten Suchen (Beobachten, Schwelle, „Jetzt
+  prüfen"), aktive Abos mit 🔔 im Dropdown, aktuelle Treffer als normale
+  Trefferliste anzeigbar (inkl. „Tracken"). Neue Endpunkte:
+  `PATCH /api/searches/<id>` und `POST /api/searches/<id>/check`.
+
+## [0.26.8] - 2026-07-02
+
+### Added
+- **PDF-Import: 🔍 Debug-Modus** (Backlog #10). In der Reise-Detailansicht zeigt „Debug"
+  den **bereinigten PDF-Text**, je Feld **erkannt/leer** (Chips) und das geparste JSON —
+  so lässt sich bei einer künftigen TUI-Layout-Änderung ohne Code-Runde sehen, *warum*
+  ein Feld nicht erkannt wurde. Schlägt ein Import komplett fehl (422), öffnet sich die
+  Debug-Ansicht automatisch für die hochgeladene PDF (ohne sie zu speichern).
+  Inhalte können PII enthalten → nur für den angemeldeten Nutzer, nichts geht ins Log.
+
+## [0.26.7] - 2026-07-02
+
+### Added
+- **Automatisches Backup.** TUIWatch legt jetzt einmal pro Woche ein vollständiges
+  Backup-ZIP (Angebote inkl. Preisverlauf & Marker, Reisen inkl. PDF, gespeicherte
+  Suchen) unter `/addon_config/backups/` ab — dieser Ordner übersteht auch eine
+  Neuinstallation des Add-ons. Rotation über `auto_backup_keep` (Standard 5),
+  abschaltbar über `auto_backup`. Wiederherstellen wie gehabt im Web-UI.
+- Fehlende Options-Übersetzungen (DE/EN) für die Aktionscode-Einstellungen ergänzt.
+
+## [0.26.6] - 2026-07-02
+
+### Added
+- **Preis-Einordnung zum 30-Tage-Schnitt.** Die Statistik-Zeile jeder Karte zeigt jetzt
+  zusätzlich, wie der aktuelle Preis zum Durchschnitt der letzten 30 Tage steht
+  (z. B. „8 % unter Ø 30 T", grün/rot, ab ±1 %) — hilft bei der Frage „jetzt buchen
+  oder warten?". Auch als HA-Sensor-Attribut `avg_price_30d`.
+- **Trend-Badge mit Prozentwert.** „↘ fällt / ↗ steigt" zeigt jetzt die Stärke der
+  Tendenz (z. B. „↘ fällt −3,1 %").
+
+## [0.26.5] - 2026-07-02
+
+### Fixed
+- **Preiskalender: Sparschwein höher gesetzt** (leicht oberhalb der Zellmitte, etwas
+  kleiner/transparenter) — es verdeckte den Preis am unteren Zellrand.
+
+## [0.26.4] - 2026-07-02
+
+### Changed
+- **User-Agent aktualisiert** (Chrome 124 → 139) für die TUI-API-Abrufe — reine
+  Auffrischung; die offenen JSON-APIs brauchen keine Tarnung/Rotation.
+
+## [0.26.3] - 2026-07-02
+
+### Changed
+- **Preiskalender: schöneres Sparschwein-Icon** (detailliertes Piggy-Bank statt des
+  einfachen Symbols), grün eingefärbt, mittig hinter dem Text.
+
+## [0.26.2] - 2026-07-02
+
+### Added
+- **Wochenüberblick listet Aktionscodes.** Die wöchentliche Zusammenfassung (Telegram &
+  E-Mail) enthält jetzt die aktuellen öffentlichen TUI-Aktionscodes (Wert, Code, buchbar
+  bis, Reisezeitraum).
+- **Aktionscode-Button leuchtet/pulsiert**, wenn aktuell Codes verfügbar sind.
+
+### Changed
+- **Preiskalender: Sparschwein größer & mittig** (hinter dem Text, verdeckt Tag/Preis
+  nicht). Zusätzlich lässt sich der Kalender jetzt **mit den Pfeiltasten ← / →** durch die
+  Monate blättern (nicht nur per Maus).
+
+## [0.26.1] - 2026-07-02
+
+### Added
+- **TUI-Aktionscode-Überwachung (🎟 Aktionscodes).** TUIWatch liest die **öffentlichen**
+  Aktionscodes von tui.com (`/aktionscode/`) — **ohne Login, ohne Browser, ohne Captcha** —
+  und meldet **neue** Codes (Telegram/HA). Angezeigt werden Wert (z. B. 150/250/300 €),
+  „buchbar bis" und Reisezeitraum; erfasst werden myTUI-Codes (`ACMYTUI…`) und Codes ohne
+  Konto (`SAVE…`). Dedup nach Wert (kein Spam durch tägliche Datumswechsel im Code),
+  Wiederkehr wird erneut gemeldet. Optionen: `notify_aktionscodes`, `aktionscode_min`
+  (nur ab Wert melden), `aktionscode_interval` (Standard 6 h). „Jetzt prüfen" im UI.
+- Ersetzt den in 0.26.0 verworfenen MyTUI-Coupon-Login-Ansatz (Bot-Schutz/Captcha nicht
+  zuverlässig automatisierbar); der zugehörige Code wurde vollständig entfernt.
+
 ## [0.26.0] - 2026-07-01
 
 Version Bump, Revert Coupon Feature

@@ -30,7 +30,7 @@ import requests
 log = logging.getLogger("tuiwatch.scraper")
 
 USER_AGENT = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-              "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
+              "(KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36")
 
 CONSENT_SELECTORS = [
     "#cmm-accept-all",
@@ -303,6 +303,59 @@ def _map_board_types(val: str) -> str:
     return ','.join(out)
 
 
+# „Lage"-Filter (URL-Parameter `locationAttributes=<id>`, mit `;` kombinierbar): anders
+# als bei der Verpflegung kennt die Such-API (SEARCH_API) keine einfache ID — tui.com
+# übersetzt sie selbst client-seitig in einen kryptischen `logicalExpression`-Code,
+# bevor die Anfrage rausgeht (per Live-Test gegen die echte API ermittelt und
+# verifiziert: ein einfaches `"locationAttributes": [9]`-Feld wird stillschweigend
+# ignoriert). Mehrere Attribute werden mit ` + ` (AND, per Live-Test bestätigt: schränkt
+# die Trefferzahl weiter ein) zu einem gemeinsamen Ausdruck verbunden.
+_LOCATION_ATTRS: dict[int, str] = {
+    9: "GT03-DIBE#ST03-DIRE",                                          # Direkt am Strand
+    10: "( GT03-DIBE#ST03-D500M | GT03-DIBE#ST03-D100M | "
+        "GT03-DIBE#ST03-D200M | GT03-DIBE#ST03-D300M | "
+        "GT03-DIBE#ST03-D400M | GT03-DIBE#ST03-D50M )",                # Strand < 500m
+    11: "GT03-BEAC#ST03-SAND",                                         # Sandstrand
+    12: "GT03-OUTS",                                                   # Außerhalb des Ortes
+    14: "GT03-QUIE",                                                   # Ruhig
+    37: "GT13-SESI",                                                   # Meerseite
+}
+
+
+def _location_expression(ids: list) -> str:
+    """Baut aus den Lage-Filter-IDs den `logicalExpression`-String für die Such-API.
+    Unbekannte IDs werden ignoriert (kein Fehler)."""
+    parts = [_LOCATION_ATTRS[i] for i in ids if i in _LOCATION_ATTRS]
+    return " + ".join(parts)
+
+
+# Live gegen die echte Suche verifiziert (locationAttributes=<id> filtern, dann prüfen,
+# welcher Code bei ALLEN gefilterten Treffern im hotelseitigen globalTypes-Katalog
+# steckt): 5 von 6 Lage-Attributen sind darüber pro Hotel ablesbar — anders als die
+# `_LOCATION_ATTRS`-Ausdrücke (die den Filter-Query bauen), stehen hier direkt die
+# globalTypes-Codes drin, die ein Treffer trägt. "Meerseite" (id 37) fehlt bewusst:
+# der Filter funktioniert (GT13-SESI schränkt ein), aber kein GT13-Code taucht je im
+# globalTypes zurückgegebener Hotels auf (0/50 in zwei unabhängigen Stichproben) —
+# nicht aus dem Suchresponse anzeigbar, nur serverseitig filterbar.
+_LOCATION_BADGES: dict[int, tuple[str, frozenset]] = {
+    9: ("Direkt am Strand", frozenset({"GT03-DIBE/ST03-DIRE"})),
+    10: ("Strand < 500m", frozenset({
+        "GT03-DIBE/ST03-D500M", "GT03-DIBE/ST03-D100M", "GT03-DIBE/ST03-D200M",
+        "GT03-DIBE/ST03-D300M", "GT03-DIBE/ST03-D400M", "GT03-DIBE/ST03-D50M"})),
+    11: ("Sandstrand", frozenset({"GT03-BEAC/ST03-SAND"})),
+    12: ("Außerhalb", frozenset({"GT03-OUTS"})),
+    14: ("Ruhig", frozenset({"GT03-QUIE"})),
+}
+
+
+def _location_labels(hotel_codes) -> list:
+    """Welche Lage-Badges (siehe `_LOCATION_BADGES`) für ein Hotel zutreffen,
+    anhand seiner globalTypes-Codes aus dem Suchtreffer."""
+    codes = set(hotel_codes or [])
+    return [label for label, candidates in _LOCATION_BADGES.values()
+            if codes & candidates]
+
+
 def build_offer_api_url(url: str, travellers: int | None = None) -> str:
     """Baut die Offer-JSON-API-URL aus den Parametern der Angebots-Seiten-URL.
     Wichtig: **alle** Filter der Original-URL (Verpflegung, Veranstalter, Zimmer-/
@@ -544,7 +597,8 @@ def region_giata_from_breadcrumb(giata: str) -> int | None:
 
 def _search_params_from_url(url: str, *, region: int | None = None,
                             operator_tui: bool = True, boards: list | None = None,
-                            airlines: list | None = None, direct: bool = False) -> dict:
+                            airlines: list | None = None, location: list | None = None,
+                            direct: bool = False) -> dict:
     """Kanonische Suchparameter aus einer TUI-Such-/Angebots-URL (für URL- und
     Angebots-Modus). `region` überschreibt `regionGiataIds`, `airlines` (Liste von
     IATA-Codes) überschreibt den Airline-Filter der URL."""
@@ -562,12 +616,16 @@ def _search_params_from_url(url: str, *, region: int | None = None,
            else _split_multi(q.get("operators", q.get("tourOperators", ""))))
     board_codes = [b for b in (boards or []) if b] or _split_multi(q.get("boardTypes", ""))
     airline_codes = [a for a in (airlines or []) if a] or _split_multi(q.get("airlines", ""))
+    loc_ids = [int(x) for x in (location or []) if str(x).isdigit()] or \
+        [int(x) for x in _split_multi(q.get("locationAttributes", "")) if x.isdigit()]
     return {
         "searchScope": q.get("searchScope", "PACKAGE"),
         "startDate": q.get("startDate", ""), "endDate": q.get("endDate", ""),
-        "duration": int(dur) if dur.isdigit() else None,
+        "duration": ("exact" if dur.strip().lower() == "exact"
+                     else (int(dur) if dur.isdigit() else None)),
         "travellers": adults, "airports": _split_multi(q.get("departureAirports", "")),
         "operators": ops, "boards": board_codes, "airlines": airline_codes,
+        "location": loc_ids,
         "regions": regions,
         "direct": direct or (q.get("maxStopOvers", "") == "0"),
     }
@@ -575,14 +633,25 @@ def _search_params_from_url(url: str, *, region: int | None = None,
 
 def _build_search_payload(p: dict) -> dict:
     """POST-Body aus kanonischen Suchparametern."""
+    dur = p.get("duration")
+    if dur == "exact":
+        # Die Such-API kennt keinen "exact"-Wert (anders als die Angebots-URL) — sie
+        # ignoriert ihn stillschweigend und fällt auf 7 Nächte zurück. Für "genau der
+        # gewählte Zeitraum" daher die Nächte aus dem Datumsfenster selbst berechnen.
+        try:
+            dur = (date.fromisoformat(p.get("endDate", ""))
+                   - date.fromisoformat(p.get("startDate", ""))).days
+        except (TypeError, ValueError):
+            dur = None
     params = {
         "searchScope": p.get("searchScope") or "PACKAGE",
         "startDate": p.get("startDate", ""), "endDate": p.get("endDate", ""),
-        "duration": [p["duration"]] if p.get("duration") else [],
+        "duration": [dur] if dur else [],
         "rooms": [{"numberOfAdults": p.get("travellers") or 2, "childAges": [],
                    "roomCodes": [], "boardCodes": p.get("boards") or []}],
         "airports": p.get("airports") or [], "airlines": p.get("airlines") or [],
-        "tourOperators": p.get("operators") or [], "logicalExpression": "",
+        "tourOperators": p.get("operators") or [],
+        "logicalExpression": _location_expression(p.get("location") or []),
         "transferIncluded": False, "sortingOrder": "qualifier2DESC",
         "secondarySortingOrder": "", "identifier": "HLP",
         "giataRegions": p.get("regions") or [],
@@ -618,6 +687,8 @@ def offer_url_for(item: dict, params: dict) -> str:
         q["regionGiataIds"] = ",".join(str(r) for r in regions)
     if boards:
         q["boardTypes"] = boards[0]
+    if params.get("location"):
+        q["locationAttributes"] = ";".join(str(i) for i in params["location"])
     if params.get("airlines"):
         # Offer-/Such-API trennt Airlines mit ';' (nicht ',') — siehe build_offer_api_url
         q["airlines"] = ";".join(params["airlines"])
@@ -635,7 +706,13 @@ def _run_search(params: dict, *, verbose: bool = False) -> dict | None:
     payload = _build_search_payload(params)
     try:
         if verbose:
-            log.info("Such-API POST %s regionen=%s", SEARCH_API, params["regions"])
+            log.info(
+                "Such-API POST %s regionen=%s zeitraum=%s-%s dauer=%s trav=%s "
+                "boards=%s lage=%s airports=%s airlines=%s operators=%s direct=%s",
+                SEARCH_API, params["regions"], params.get("startDate"),
+                params.get("endDate"), params.get("duration"), params.get("travellers"),
+                params.get("boards"), params.get("location"), params.get("airports"),
+                params.get("airlines"), params.get("operators"), params.get("direct"))
         resp = requests.post(SEARCH_API, json=payload, headers=_SEARCH_HEADERS, timeout=30)
         if resp.status_code != 200:
             if verbose:
@@ -657,6 +734,11 @@ def _run_search(params: dict, *, verbose: bool = False) -> dict | None:
         except (ValueError, IndexError):
             stars = None
         loc_parts = [x for x in (loc.get("city"), loc.get("region")) if x]
+        global_codes = [g.get("code") for g in (h.get("globalTypes") or [])]
+        # GT03-COUP im hotelseitigen globalTypes-Katalog markiert Teilnahme an aktuellen
+        # TUI-Aktionscodes/Coupons (live gegen tui.com verifiziert: korreliert exakt mit
+        # dem "myTUI Aktionscode"-Badge auf der echten Suchseite).
+        coupon = "GT03-COUP" in global_codes
         results.append({
             "giata": h.get("giataId"), "name": h.get("name", ""), "stars": stars,
             "recommendation": h.get("holidayCheckRecommendationRate"),
@@ -666,7 +748,9 @@ def _run_search(params: dict, *, verbose: bool = False) -> dict | None:
             "discount": abs(adv) if adv else None,
             "board": it.get("boardType", ""), "nights": it.get("numberOfNights"),
             "date": (it.get("startDate") or "")[:10],
+            "locations": _location_labels(global_codes),
             "image": (h.get("images") or [{}])[0].get("url", ""),
+            "coupon": coupon,
             "offer_url": offer_url_for(it, params),
         })
     if verbose:
@@ -676,16 +760,19 @@ def _run_search(params: dict, *, verbose: bool = False) -> dict | None:
 
 def fetch_search(url: str, *, operator_tui: bool = True, boards: list | None = None,
                  region: int | None = None, airlines: list | None = None,
+                 location: list | None = None,
                  direct: bool = False, verbose: bool = False) -> dict | None:
     """Hotelsuche aus einer TUI-Such-/Angebots-URL (`region` überschreibt die Region)."""
     params = _search_params_from_url(url, region=region, operator_tui=operator_tui,
-                                     boards=boards, airlines=airlines, direct=direct)
+                                     boards=boards, airlines=airlines, location=location,
+                                     direct=direct)
     return _run_search(params, verbose=verbose)
 
 
 def fetch_search_params(*, region: int, start: str, end: str, duration, travellers,
                         airports: list | None = None, operator_tui: bool = True,
                         boards: list | None = None, airlines: list | None = None,
+                        location: list | None = None,
                         direct: bool = False, verbose: bool = False) -> dict | None:
     """Hotelsuche direkt aus Maskenfeldern (ohne URL) — für die eigene Suchmaske."""
     # „exact" ist ein nativer TUI-Wert (duration=exact): Reisedauer = genau der
@@ -708,6 +795,7 @@ def fetch_search_params(*, region: int, start: str, end: str, duration, travelle
         "operators": ["TUID"] if operator_tui else [],
         "boards": [b for b in (boards or []) if b],
         "airlines": [a for a in (airlines or []) if a],
+        "location": [int(i) for i in (location or []) if str(i).isdigit()],
         "regions": [int(region)] if region else [], "direct": bool(direct),
     }
     return _run_search(params, verbose=verbose)

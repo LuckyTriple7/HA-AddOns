@@ -103,3 +103,127 @@ def test_reject_non_pdf(client):
                     data={"pdf": (io.BytesIO(b"x"), "foto.jpg")},
                     content_type="multipart/form-data")
     assert r.status_code == 400
+
+
+def test_trip_debug(client, monkeypatch):
+    """Debug-Modus: bereinigter Text (Boilerplate raus), Feld-Status, Upload-Variante."""
+    import importlib
+    import io
+    m = importlib.import_module("app")
+    monkeypatch.setattr(m, "extract_pdf_text",
+                        lambda f: "Buchungsbestätigung/Rechnung\nZeile 1\nZeile 2")
+    tid = _import_pdf(client).get_json()["id"]
+
+    d = client.get(f"/api/trips/{tid}/debug", headers=ING).get_json()
+    assert d["ok"]
+    assert "Zeile 1" in d["cleaned_text"]
+    assert "Buchungsbestätigung" not in d["cleaned_text"]     # Boilerplate entfernt
+    fields = {f["label"]: f["ok"] for f in d["fields"]}
+    assert fields["Buchungsnummer"] is False                  # aus Dummy-Text nicht erkennbar
+
+    # Upload-Variante (ohne Speichern) + Auth-Pflicht
+    up = {"data": {"pdf": (io.BytesIO(b"%PDF fake"), "x.pdf")},
+          "content_type": "multipart/form-data"}
+    assert client.post("/api/trips/debug", headers=ING, **up).get_json()["ok"]
+    assert client.get(f"/api/trips/{tid}/debug").status_code == 401
+
+
+def test_next_trip_uses_hinflug_time(client, monkeypatch):
+    """/api/trips/next: Abflugzeit kommt aus dem erkannten Hinflug (data.fluege)."""
+    import importlib
+    m = importlib.import_module("app")
+    fake = {
+        "buchungsnummer": "1", "buchungsdatum": "01.02.2026",
+        "reisende": [{"name": "A", "geburtsdatum": "", "preis": "1"}],
+        "reisezeitraum": {"von": "14.01.2099", "bis": "21.01.2099"},
+        "naechte": 7, "reiseziel": "Sal", "hotel": {"name": "Hotel Sal", "code": "X"},
+        "verpflegung": "AI", "gesamtpreis": "1", "paketpreis": "1",
+        "fluege": [{"typ": "Hinflug", "datum": "14.01.2099", "abflug_zeit": "06:15",
+                    "ankunft_zeit": "12:10", "dauer": "", "von": "STR", "nach": "SID",
+                    "flugnummer": "X3 123"}],
+        "extras": [], "rabatte": [], "sonderwuensche": [],
+        "anzahlung": {"betrag": None, "faelligkeit": None},
+        "restzahlung": {"betrag": None, "faelligkeit": None},
+        "zimmertyp": None, "zahlungsart": None,
+    }
+    monkeypatch.setattr(m, "parse_tui_pdf", lambda f: fake)
+    assert _import_pdf(client).status_code == 200
+
+    d = client.get("/api/trips/next", headers=ING).get_json()["trip"]
+    assert d["destination"] == "Sal"
+    assert d["departure"] == "2099-01-14T06:15:00"
+    assert d["has_time"] is True
+
+
+def test_next_trip_falls_back_to_midnight_without_flight(client, monkeypatch):
+    """Ohne erkannten Hinflug wird 00:00 des Reisebeginns als Abflug angenommen."""
+    import importlib
+    m = importlib.import_module("app")
+    fake = {
+        "buchungsnummer": "2", "buchungsdatum": "01.02.2026",
+        "reisende": [{"name": "A", "geburtsdatum": "", "preis": "1"}],
+        "reisezeitraum": {"von": "01.03.2099", "bis": "08.03.2099"},
+        "naechte": 7, "reiseziel": "Mallorca", "hotel": {"name": "Hotel M", "code": "Y"},
+        "verpflegung": "AI", "gesamtpreis": "1", "paketpreis": "1",
+        "fluege": [], "extras": [], "rabatte": [], "sonderwuensche": [],
+        "anzahlung": {"betrag": None, "faelligkeit": None},
+        "restzahlung": {"betrag": None, "faelligkeit": None},
+        "zimmertyp": None, "zahlungsart": None,
+    }
+    monkeypatch.setattr(m, "parse_tui_pdf", lambda f: fake)
+    assert _import_pdf(client).status_code == 200
+
+    d = client.get("/api/trips/next", headers=ING).get_json()["trip"]
+    assert d["departure"] == "2099-03-01T00:00:00"
+    assert d["has_time"] is False
+
+
+def test_next_trip_none_without_upcoming_trips(client):
+    assert client.get("/api/trips/next", headers=ING).get_json()["trip"] is None
+
+
+def _upload_attachment(client, tid, name="reiseplan.pdf", content=b"%PDF-1.4 fake"):
+    import io
+    return client.post(f"/api/trips/{tid}/attachments", headers=ING,
+                       data={"pdf": (io.BytesIO(content), name)},
+                       content_type="multipart/form-data")
+
+
+def test_trip_starts_without_attachments(client):
+    tid = _import_pdf(client).get_json()["id"]
+    assert client.get(f"/api/trips/{tid}", headers=ING).get_json()["attachments"] == []
+
+
+def test_attachment_upload_get_delete(client):
+    tid = _import_pdf(client).get_json()["id"]
+
+    r = _upload_attachment(client, tid, "Reiseplan.pdf")
+    assert r.status_code == 200
+    aid = r.get_json()["id"]
+
+    detail = client.get(f"/api/trips/{tid}", headers=ING).get_json()
+    assert len(detail["attachments"]) == 1
+    assert detail["attachments"][0]["orig_name"] == "Reiseplan.pdf"
+
+    got = client.get(f"/api/trips/{tid}/attachments/{aid}", headers=ING)
+    assert got.status_code == 200
+    assert got.mimetype == "application/pdf"
+
+    dele = client.delete(f"/api/trips/{tid}/attachments/{aid}", headers=ING)
+    assert dele.status_code == 200
+    assert client.get(f"/api/trips/{tid}", headers=ING).get_json()["attachments"] == []
+    assert client.get(f"/api/trips/{tid}/attachments/{aid}", headers=ING).status_code == 404
+
+
+def test_attachment_reject_non_pdf(client):
+    tid = _import_pdf(client).get_json()["id"]
+    r = _upload_attachment(client, tid, "foto.jpg")
+    assert r.status_code == 400
+
+
+def test_attachment_deleted_with_trip(client):
+    tid = _import_pdf(client).get_json()["id"]
+    _upload_attachment(client, tid)
+    assert client.delete(f"/api/trips/{tid}", headers=ING).status_code == 200
+    # Reise weg → auch der Anhang nicht mehr abrufbar (Kaskade)
+    assert client.get(f"/api/trips/{tid}", headers=ING).status_code == 404

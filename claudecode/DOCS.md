@@ -32,6 +32,7 @@ claude --continue   # letzte Unterhaltung fortsetzen
 | `enable_playwright_mcp` | `false` | Playwright Browser-MCP aktivieren (benötigt Playwright Browser Add-on) |
 | `export_memory` | `false` | Claude-Speicher in `/config/memory/` exportieren |
 | `export_memory_interval` | `60` | Export-Intervall in Minuten |
+| `enable_caveman_skill` | `false` | Optionalen "Caveman"-Skill (knappe Antworten) installieren |
 
 ## Modellauswahl
 
@@ -112,6 +113,7 @@ claude --continue   # continue last conversation
 | `enable_playwright_mcp` | `false` | Enable Playwright browser MCP (requires Playwright Browser add-on) |
 | `export_memory` | `false` | Export Claude memory to `/config/memory/` |
 | `export_memory_interval` | `60` | Export interval in minutes |
+| `enable_caveman_skill` | `false` | Install the optional "Caveman" skill (terse responses) |
 
 ## Model Selection
 

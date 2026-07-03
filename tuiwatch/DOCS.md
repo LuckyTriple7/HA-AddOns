@@ -57,13 +57,25 @@ verbose_log: false       # ausführliche Logs
   Airlines).
 - Filter: **TUI** (nur Veranstalter TUI Deutschland; aus = alle), **Nur Direktflug**,
   **Verpflegung** (AI/HP/VP/Frühstück/Ohne — Mehrfachauswahl, jeweils inkl. „Plus"-Variante
-  bzw. „laut Programm"), **Sterne ≥** (Standard 3), **Weiterempfehlung ≥ %**
-  (Standard 80) → **Suchen**.
+  bzw. „laut Programm"), **Lage** (Direkt am Strand, Sandstrand, Strand < 500m, Meerseite,
+  Ruhig, Außerhalb — Mehrfachauswahl, schränkt weiter ein), **Sterne ≥** (Standard 3),
+  **Weiterempfehlung ≥ %** (Standard 80) → **Suchen**.
 - **Gespeicherte Suchen:** die kompletten Eingaben unter einem Namen speichern
   („★ Speichern") und später aus dem Dropdown wieder laden — für wiederkehrende Suchen.
   Eine geladene Suche kannst du nach Anpassungen mit **„💾 Änderungen speichern"** ohne
   erneute Namenseingabe überschreiben. Sie liegen in der Add-on-Datenbank und sind damit
   **geräteübergreifend** verfügbar (gleiche Liste auf Handy, Tablet, PC).
+- **🔔 Suchabo (Sammel-Alarm):** Jede gespeicherte Suche lässt sich **beobachten** — ist
+  eine Suche im Dropdown gewählt, erscheint die Abo-Zeile: **„Beobachten"** anhaken,
+  **Schwellenpreis** (pro Person) setzen, **Übernehmen**. TUIWatch führt die Suche dann
+  regelmäßig aus (im Takt von `poll_interval`, mindestens stündlich) und **meldet per
+  Telegram/HA**, wenn ein Hotel **neu unter die Schwelle** fällt oder ein bereits
+  gemeldetes **noch günstiger** wird (kein Spam: je Hotel wird der tiefste gemeldete
+  Preis gemerkt; steigt es über die Schwelle und fällt später wieder darunter, kommt
+  erneut eine Meldung). **„Jetzt prüfen"** führt das Abo sofort aus; die aktuellen
+  Treffer unter der Schwelle lassen sich jederzeit über den Link in der Abo-Zeile als
+  normale Trefferliste **anzeigen** (inkl. „Tracken"). Aktive Abos sind im Dropdown mit
+  🔔 markiert.
 
 **2. Aus einem Angebot:** Bei jedem aktiven Angebot der Button **Region** sucht **weitere
 Hotels derselben Region** für dieselben Reisedaten/Dauer/Reisende/Abflughafen; Veranstalter
@@ -71,6 +83,13 @@ und Verpflegung werden aus dem Angebot vorbelegt.
 
 **3. TUI-URL einfügen:** Unter „Alternativ: TUI-Such-URL einfügen" eine Ergebnis-URL von
 tui.com (mit `regionGiataIds=…`) einfügen.
+
+Zeigt TUI für ein Hotel gerade einen **Aktionscode/Coupon** an, erscheint „% Aktionscode
+möglich" unter den Angebotsdetails (kein fester Wert — der hängt vom Reisepreis ab,
+siehe tui.com für den genauen Betrag). Zutreffende **Lage-Attribute** (Direkt am
+Strand, Strand < 500m, Sandstrand, Ruhig, Außerhalb) erscheinen ebenfalls als Pillen
+je Treffer — „Meerseite" lässt sich nicht anzeigen, nur beim Filtern verwenden (siehe
+Lage-Filter oben).
 
 Die Trefferliste zeigt Hotelname, Sterne, Ort, **HolidayCheck-Weiterempfehlung**,
 Verpflegung, Nächte und **Preis pro Person**; **sortierbar** nach Preis, Preis/Nacht,
@@ -127,7 +146,17 @@ Preis-Tracking, als dauerhaftes Archiv (Vergangenheit und Zukunft).
   (Personen-Nächte = Nächte × Reisende), damit Solo- und Gruppenreisen vergleichbar sind.
 - **Aktualisieren/Löschen:** Ein erneuter Import derselben Buchungsnummer **überschreibt**
   den vorhandenen Eintrag (kein Duplikat). **„Löschen"** entfernt die Reise inkl. der
-  gespeicherten PDF.
+  gespeicherten PDF und aller weiteren Anhänge.
+- **Weitere Anhänge:** In der Detailansicht lässt sich über **„＋ PDF"** ein zusätzliches
+  PDF hinterlegen (z. B. der Reiseplan) — **reine Ablage**, es findet keine Auswertung
+  statt. Anhänge erscheinen als Pille (📎 Dateiname), Klick öffnet/lädt herunter, das
+  **×** entfernt den Anhang wieder. Werden im Backup/Restore mitgesichert.
+- **🔍 Debug-Modus:** In der Detailansicht zeigt **„Debug"** den **bereinigten PDF-Text**
+  (die Basis der Feld-Erkennung), je Feld **erkannt/leer** und das geparste JSON — so
+  sieht man bei einer TUI-Layout-Änderung sofort, *warum* ein Feld leer blieb. Schlägt
+  ein Import komplett fehl, öffnet sich die Debug-Ansicht automatisch (ohne die PDF zu
+  speichern). Tipp: den bereinigten Text anonymisiert als Testfall unter
+  `tests/fixtures/trips/` ablegen.
 
 > Datenschutz: Die PDFs und ausgelesenen Daten bleiben **lokal** im Add-on (Ordner
 > `/data/trips` bzw. die Add-on-Datenbank) — es werden keine Daten nach außen gesendet.
@@ -209,25 +238,22 @@ mehrere Abrufe zu einer durchgehenden Zeitleiste zusammen.) Das Ergebnis wird
 **gespeichert** (Zeitstempel + „Neu abfragen") und respektiert alle Filter deiner
 Angebots-URL (Verpflegung, Veranstalter, Zimmer, Abflughafen).
 
-## MyTUI-Coupons
+## TUI-Aktionscodes
 
-Über **🎟 Coupons** kann TUIWatch die aktuellen Coupons aus deinem **MyTUI-Bereich**
-überwachen und dich bei **neuen** Coupons benachrichtigen (Telegram/HA/E-Mail).
+Über **🎟 Aktionscodes** überwacht TUIWatch die **öffentlichen** Aktionscodes von
+tui.com (`/aktionscode/`) — **ohne Login** — und benachrichtigt dich bei **neuen** Codes
+(Telegram/HA). Es gibt nicht immer welche; sind keine da, kommt auch keine Meldung.
 
-- **Zugang:** In den Add-on-Optionen `tui_user` (E-Mail) und `tui_pass` (Passwort)
-  hinterlegen. **Empfehlung:** ein **separates TUI-Zweitkonto** ohne Buchungen/Zahlungsdaten
-  — die allgemeinen Coupons (Wert) sind für jedes Konto gleich, nur der Code unterscheidet
-  sich. So liegt kein sensibles Konto im Add-on. Das Passwort wird wie das SMTP-Passwort
-  behandelt (serverseitig, nie im UI angezeigt, nicht geloggt).
-- **Ablauf:** Der TUI-Login ist durch einen Bot-Schutz (Captcha) gesichert; TUIWatch
-  meldet sich daher in einem **Headless-Browser** an und liest danach die Coupon-Liste.
-  Ob der Bot-Schutz durchlässt, hängt von deiner Umgebung ab — klappt es bei dir, läuft es
-  automatisch (Prüfintervall `coupon_interval`, Standard 12 h). Manuell über **„Jetzt
-  prüfen"** im Coupon-Fenster.
-- **Anzeige:** aktuelle Coupons mit Titel und Gültigkeit. Den **Code** selbst löst du in
-  deinem **eigenen MyTUI-Login** ein (TUIWatch dient nur als Melder).
-- **Optionen:** `notify_coupons` (Alarm an/aus), `coupon_interval` (Prüfintervall in
-  Sekunden). Ohne `tui_user`/`tui_pass` bleibt die Funktion inaktiv.
+- **Anzeige:** aktuell aktive Codes mit **Wert** (z. B. 150/250/300 €), dazu **buchbar
+  bis** und **Reisezeitraum**. Erfasst werden die myTUI-Codes (`ACMYTUI…`) und die
+  Codes **ohne Konto** (`SAVE…`).
+- **Ablauf:** rein serverseitig per Abruf der Aktionscode-Seite (kein Browser, kein Login,
+  kein Captcha). Prüfintervall `aktionscode_interval` (Standard 6 h); manuell über **„Jetzt
+  prüfen"** im Aktionscode-Fenster.
+- **Alarm:** nur bei **neu erschienenen** Codes (Dedup nach Wert, damit der tägliche
+  Datumswechsel im Code kein Spam auslöst; eine später wiederkehrende Aktion meldet erneut).
+- **Optionen:** `notify_aktionscodes` (Alarm an/aus), `aktionscode_min` (nur ab diesem
+  Wert melden, Standard 0 = alle), `aktionscode_interval` (Prüfintervall in Sekunden).
 
 ## Home-Assistant-Sensoren
 
@@ -242,9 +268,25 @@ Bei aktiver Option `ha_sensors` legt TUIWatch je Angebot einen Sensor
   `target_price`, `booked_price`, `booked_diff` (Preis − gebucht), `image`,
   `booking_code`, `room_booking_code`, `hotel_pdf`, `last_checked`, `url`
 
+Zusätzlich `binary_sensor.tuiwatch_aktionscodes`: **an**, solange aktuell
+öffentliche TUI-Aktionscodes verfügbar sind (siehe oben), sonst **aus**. Attribute:
+`count`, `coupons` (Liste je `code`/`value`/`kind`), `booking_until`, `travel_period`.
+
 ## Bedienung
 
-- **Als E-Mail senden** — verschickt alle Angebote als HTML-Mail (Empfänger wird vorher abgefragt; benötigt SMTP-Optionen).
+- **Tags** — frei vergebbare Schlagworte je Angebot (＋-Pille auf der Karte); Klick auf
+  einen Tag entfernt ihn wieder. Unter der Suchleiste zeigt eine Pill-Zeile alle
+  aktuell verwendeten Tags — Klick filtert die Liste sofort (wie die Suche, live, kein
+  Neuladen); erneuter Klick hebt den Filter auf. Wird im Backup/Restore mitgesichert.
+- **Offline-Banner** — bei Verbindungsabbruch (WLAN weg, Server nicht erreichbar) erscheint
+  ein abdunkelndes Overlay mit „Neu laden"-Button; verschwindet automatisch, sobald die
+  Verbindung wieder da ist.
+- **Als E-Mail senden** — verschickt alle (oder markierte) Angebote als HTML-Mail;
+  benötigt SMTP-Optionen. Der Empfänger-Dialog bietet optional ein **Nextcloud-
+  Adressbuch** (CardDAV) als Autocomplete an — dazu `nc_addressbook_url` (die volle
+  Adressbuch-URL, wie sie Nextcloud in der Kontakte-App zum Kopieren anbietet),
+  `nc_user` und `nc_app_password` in den Add-on-Optionen eintragen. Freitext bleibt
+  ohne Adressbuch weiterhin möglich; ohne Konfiguration ändert sich nichts.
 - **Backup / Wiederherstellen** — **komplettes** Backup als **ZIP**: alle getrackten
   Angebote **inkl. Preisverlauf** und Diagramm-Markern, **„Meine Reisen" inkl. der
   Original-PDFs** sowie die **gespeicherten Suchen**. Die Wiederherstellung liest die ZIP
@@ -297,6 +339,14 @@ oder TUI eine API geändert hat.
 
 Alles wird unter `/data/tuiwatch.db` (SQLite) gespeichert und bleibt über
 Neustarts erhalten.
+
+**Automatisches Backup:** Ist `auto_backup` aktiv (Standard), legt TUIWatch einmal
+pro Woche ein vollständiges Backup-ZIP (Angebote inkl. Preisverlauf und Marker,
+Reisen inkl. PDF, gespeicherte Suchen) unter `/addon_config/backups/` ab — im
+Dateisystem von Home Assistant unter `addon_configs/<slug>_tuiwatch/backups/`.
+Es werden die letzten `auto_backup_keep` (Standard 5) Dateien behalten. Anders als
+`/data` bleibt dieser Ordner auch bei einer **Neuinstallation** des Add-ons bestehen;
+Wiederherstellen wie gehabt über „⬆ Wiederherstellen" im Web-UI.
 
 ## Technik / Wartung
 

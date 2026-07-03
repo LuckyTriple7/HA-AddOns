@@ -82,6 +82,7 @@ USESSIONS_PATH = _DATA + '/user_sessions.json'
 DM_PATH       = _DATA + '/dm.json'          # Mitglieder-Direktnachrichten (Text verschlüsselt)
 DMKEY_PATH    = _DATA + '/dm.key'           # Fernet-Schlüssel für die DM-Verschlüsselung
 TWOFA_PATH    = _DATA + '/admin_2fa.json'   # TOTP-Secret + Backup-Codes (Admin-2FA)
+POLLS_PATH    = _DATA + '/polls.json'       # Umfrage-Stimmen (getrennt von site.json)
 UPLOADS_DIR   = Path(_DATA) / 'uploads'
 # Benutzerdateien: optional auf SMB-Share (run.sh setzt MYPAGE_USERFILES nach Mount)
 USERFILES_BASE = Path(os.environ.get('MYPAGE_USERFILES', _DATA + '/users'))
@@ -160,6 +161,7 @@ _2fa_lock   = threading.Lock()
 _subs_lock = threading.Lock()
 _slot_lock  = threading.Lock()
 _game_lock  = threading.Lock()
+_polls_lock = threading.Lock()
 
 # Mitglieder-Sessions (getrennt vom Admin)
 user_sessions: dict[str, list] = {}  # token → [user_id, expires]
@@ -313,12 +315,13 @@ DEFAULT_SITE = {
         'tips': [],
         'countdown': {},
         'freetext': {},
+        'poll': {},
     },
     'albums': [],
     'album_protect': False,
     'watermark_text': '',
     'section_order': [
-        'news', 'countdown', 'tips', 'freetext', 'blog', 'services', 'projects', 'skills', 'testimonials',
+        'news', 'countdown', 'tips', 'freetext', 'poll', 'blog', 'services', 'projects', 'skills', 'testimonials',
         'photos', 'team', 'timeline', 'events', 'links', 'faq', 'location',
     ],
     'hidden_sections': [],
@@ -626,6 +629,54 @@ def save_comments(data: dict) -> None:
 
 def _post_thread(data: dict, pid: str) -> dict:
     return data.setdefault(pid, {'comments': [], 'reactions': {}})
+
+
+# ── Umfrage (Startseiten-Sektion) ─────────────────────────────────────────────
+# Definition (Frage + Optionen) liegt in site.json; die Stimmen getrennt in
+# polls.json: {'id': <umfrage-id>, 'votes': {'u:<uid>'|'c:<cookie>': opt_idx}}
+POLL_VOTES_MAX = 20000  # Schutz vor Cookie-Spam anonymer Besucher
+
+
+def load_poll_votes() -> dict:
+    with _polls_lock:
+        try:
+            with open(POLLS_PATH, encoding='utf-8') as f:
+                d = json.load(f)
+                return d if isinstance(d, dict) else {}
+        except FileNotFoundError:
+            return {}
+        except Exception as e:
+            log.warning("polls.json konnte nicht geladen werden: %s", e)
+            return {}
+
+
+def save_poll_votes(data: dict) -> None:
+    with _polls_lock:
+        try:
+            with open(POLLS_PATH, 'w', encoding='utf-8') as f:
+                json.dump(data, f, ensure_ascii=False)
+        except Exception as e:
+            log.warning("polls.json konnte nicht gespeichert werden: %s", e)
+
+
+def _active_poll(site: dict) -> dict | None:
+    """Umfrage nur, wenn Frage und mindestens 2 Optionen gepflegt sind."""
+    poll = (site.get('sections') or {}).get('poll') or {}
+    opts = poll.get('options') or []
+    if poll.get('id') and (poll.get('question_de') or poll.get('question_en')) and len(opts) >= 2:
+        return poll
+    return None
+
+
+def _poll_counts(poll: dict, votes: dict) -> list:
+    """Stimmen je Option zählen; Stimmen gehören nur zur aktuellen Umfrage-ID."""
+    counts = [0] * len(poll.get('options') or [])
+    if votes.get('id') != poll.get('id'):
+        return counts
+    for v in (votes.get('votes') or {}).values():
+        if isinstance(v, int) and 0 <= v < len(counts):
+            counts[v] += 1
+    return counts
 
 
 def _reaction_counts(reactions: dict) -> dict:
@@ -3539,6 +3590,27 @@ def api_sections():
             'content_de': _clean_str(ft.get('content_de'), 20000),
             'content_en': _clean_str(ft.get('content_en'), 20000),
         }
+    if isinstance(raw.get('poll'), dict):
+        pl = raw['poll']
+        opts = []
+        if isinstance(pl.get('options'), list):
+            for o in pl['options'][:5]:
+                if not isinstance(o, dict):
+                    continue
+                de = _clean_str(o.get('label_de'), 120)
+                en = _clean_str(o.get('label_en'), 120)
+                if de or en:
+                    opts.append({'label_de': de, 'label_en': en})
+        q_de = _clean_str(pl.get('question_de'), 300)
+        q_en = _clean_str(pl.get('question_en'), 300)
+        if q_de or q_en:
+            pid = _clean_str(pl.get('id'), 32)
+            if not re.fullmatch(r'[a-f0-9]{12}', pid or ''):
+                pid = uuid.uuid4().hex[:12]
+            sec['poll'] = {'id': pid, 'question_de': q_de, 'question_en': q_en,
+                           'options': opts}
+        else:
+            sec['poll'] = {}
     if isinstance(raw.get('section_order'), list):
         order = [k for k in raw['section_order'] if isinstance(k, str) and k in SECTION_KEYS]
         site['section_order'] = order + [k for k in SECTION_KEYS if k not in order]
@@ -3577,6 +3649,17 @@ def api_sections():
         } if target else {}
     save_site(site)
     log_audit('settings_sections')
+    return jsonify({'ok': True})
+
+
+@admin_app.route('/api/poll/reset', methods=['POST'])
+def api_poll_reset():
+    """Alle abgegebenen Stimmen der aktuellen Umfrage löschen."""
+    err = _api_auth()
+    if err:
+        return err
+    save_poll_votes({})
+    log_audit('poll_reset')
     return jsonify({'ok': True})
 
 
@@ -5378,6 +5461,118 @@ def _ng_names(t: dict, prefix: str) -> dict:
             'a2': t.get(f'{prefix}_ai2', 'KI 2')}
 
 
+# ── Bestenliste (alle Spiele, alle Mitglieder) ─────────────────────────────────
+
+LB_GAMES = ('66', '20ab', 'schwimmen', 'maumau', 'praesident',
+            'jeopardy', 'gluecksrad', 'kniffel', 'chicago')
+_LB_GAME_META = {  # Übersetzungs-Schlüssel der Spieltitel + Kachel-Icon
+    '66': ('g66_title', '🃏'), '20ab': ('g20_title', '🎴'), 'schwimmen': ('gs_title', '🏊'),
+    'maumau': ('gmm_title', '🐱'), 'praesident': ('gp_title', '👑'), 'jeopardy': ('gj_title', '🎯'),
+    'gluecksrad': ('ggr_title', '🎡'), 'kniffel': ('gk_title', '🎲'), 'chicago': ('gc_title', '🌆'),
+}
+
+
+def _game_history_any(game: str, uid: str) -> list:
+    return load_game66_history(uid) if game == '66' else _ng_history(game, uid)
+
+
+def _hist_entry_won(game: str, entry: dict) -> bool:
+    """Hat der Mensch diese Partie gewonnen? (Glücksrad: Sieger-Index 0 = Mensch)"""
+    w = entry.get('winner')
+    return w == 0 if game == 'gluecksrad' else w == 'p'
+
+
+def _leaderboard(users: list) -> dict:
+    """Gesamt- und Pro-Spiel-Rangliste aus den Spielverläufen aller Mitglieder.
+    Nur Mitglieder mit mindestens einer aufgezeichneten Partie erscheinen."""
+    total_rows = []
+    per_game = {g: [] for g in LB_GAMES}
+    for u in users:
+        uid = u.get('id') or ''
+        if not _UID_RE.match(uid):
+            continue
+        name = _member_display_name(u)
+        t_games = t_wins = played = 0
+        for g in LB_GAMES:
+            hist = _game_history_any(g, uid)
+            if not hist:
+                continue
+            wins = sum(1 for e in hist if isinstance(e, dict) and _hist_entry_won(g, e))
+            played += 1
+            t_games += len(hist)
+            t_wins += wins
+            per_game[g].append({'uid': uid, 'name': name, 'wins': wins, 'games': len(hist)})
+        if t_games:
+            total_rows.append({'uid': uid, 'name': name, 'wins': t_wins,
+                               'games': t_games, 'played': played})
+    def _rank(r):
+        return (-r['wins'], -r['games'], r['name'].lower())
+    total_rows.sort(key=_rank)
+    for g in LB_GAMES:
+        per_game[g].sort(key=_rank)
+    return {'total': total_rows, 'per_game': per_game}
+
+
+@public_app.route('/bereich/bestenliste')
+def leaderboard_page():
+    site = load_site()
+    if site['design'].get('maintenance'):
+        return _maintenance_page(site, detect_language(request))
+    member = _require_member()
+    lang = detect_language(request)
+    t = load_translations(lang)
+    lb = _leaderboard(load_users())
+    game_names = {g: t.get(k, g) for g, (k, _) in _LB_GAME_META.items()}
+    game_icons = {g: i for g, (_, i) in _LB_GAME_META.items()}
+    font_family, font_faces = font_css(site['design'])
+    return render_template('leaderboard.html', t=t, lang=lang, site=site, member=member,
+                           lb=lb, lb_games=[g for g in LB_GAMES if lb['per_game'][g]],
+                           game_names=game_names, game_icons=game_icons,
+                           font_family=font_family, font_faces=font_faces,
+                           year=datetime.now(timezone.utc).year)
+
+
+# ── Erfolge/Abzeichen (live aus vorhandenen Daten berechnet, keine Speicherung) ─
+
+def _member_achievements(member: dict, file_count: int) -> list:
+    """Abzeichen-Liste fürs Mitglied: (id, icon, verdient, Fortschritt).
+    Namen/Beschreibungen kommen aus den Locales (ach_<id>_name/_desc)."""
+    uid = member['id']
+    total_games = total_wins = played = 0
+    for g in LB_GAMES:
+        hist = _game_history_any(g, uid)
+        if not hist:
+            continue
+        played += 1
+        total_games += len(hist)
+        total_wins += sum(1 for e in hist if isinstance(e, dict) and _hist_entry_won(g, e))
+    comments_cnt = sum(1 for th in load_comments().values()
+                       for c in (th.get('comments') or []) if c.get('uid') == uid)
+    dm_sent = sum(1 for m in load_dm() if m.get('frm') == uid)
+    years = 0
+    try:
+        years = (date.today() - date.fromisoformat(member.get('created') or '')).days // 365
+    except ValueError:
+        pass
+    defs = [
+        ('first_game',    '🎮', total_games, 1),
+        ('games_25',      '🕹️', total_games, 25),
+        ('games_100',     '🏟️', total_games, 100),
+        ('first_win',     '🏆', total_wins, 1),
+        ('wins_10',       '🥇', total_wins, 10),
+        ('wins_50',       '👑', total_wins, 50),
+        ('allrounder',    '🎲', played, len(LB_GAMES)),
+        ('first_comment', '💬', comments_cnt, 1),
+        ('comments_10',   '📣', comments_cnt, 10),
+        ('first_dm',      '✉️', dm_sent, 1),
+        ('first_file',    '📁', file_count, 1),
+        ('year_1',        '🎂', years, 1),
+    ]
+    return [{'id': aid, 'icon': icon, 'earned': cur >= target,
+             'cur': min(cur, target), 'target': target}
+            for aid, icon, cur, target in defs]
+
+
 # ── 20 AB ──────────────────────────────────────────────────────────────────────
 
 def _clean_20ab_move(raw: dict) -> dict:
@@ -7065,12 +7260,35 @@ def public_index():
     countdown_title = loc(cd, 'title')
     ft = sections.get('freetext') or {}
     freetext_title = loc(ft, 'title')
+
+    # Umfrage: Ergebnis-Sicht des Besuchers (eigene Stimme über Mitglied/Cookie)
+    poll = _active_poll(site) if not static_export else None
+    poll_view = None
+    if poll:
+        votes = load_poll_votes()
+        vkey = None
+        pm = current_member(request)
+        if pm is not None:
+            vkey = 'u:' + pm['id']
+        else:
+            cid = request.cookies.get('pollvid') or ''
+            if re.fullmatch(r'[a-f0-9]{32}', cid):
+                vkey = 'c:' + cid
+        voted = (votes.get('votes') or {}).get(vkey) if votes.get('id') == poll['id'] else None
+        if not isinstance(voted, int) or not 0 <= voted < len(poll['options']):
+            voted = None
+        counts = _poll_counts(poll, votes)
+        poll_view = {'question': loc(poll, 'question'),
+                     'options': [loc(o, 'label') for o in poll['options']],
+                     'counts': counts, 'total': sum(counts), 'voted': voted}
+
     # Eigenschaften je Abschnitt: (Anker, Übersetzungs-Schlüssel, ob Inhalt vorhanden)
     section_defs = {
         'news':         ('news',         'news_heading',         bool(sections.get('news'))),
         'countdown':    ('countdown',    'countdown_heading',    bool(cd.get('target'))),
         'tips':         ('tips',         'tips_heading_week' if tips_weekly else 'tips_heading', bool(tips)),
         'freetext':     ('freetext',     'freetext_heading',     bool(loc(ft, 'content'))),
+        'poll':         ('umfrage',      'poll_heading',         bool(poll_view)),
         'blog':         ('blog',         'blog_heading',         bool(latest_posts)),
         'services':     ('services',     'services_heading',     bool(sections.get('services'))),
         'projects':     ('projects',     'projects',             bool(projects)),
@@ -7135,6 +7353,7 @@ def public_index():
                            section_order=section_order,
                            timeline_title=timeline_title,
                            tip_of_day=tip_of_day, tips_weekly=tips_weekly,
+                           poll_view=poll_view,
                            static_export=static_export,
                            contact_enabled=contact_enabled,
                            total_visitors=total_uniques(stats),
@@ -7321,6 +7540,50 @@ def _visible_post(site: dict, pid: str) -> dict | None:
     return post if post is not None and post_visible(post) else None
 
 
+@public_app.route('/api/poll/vote', methods=['POST'])
+def api_poll_vote():
+    """Stimme zur Startseiten-Umfrage abgeben (Mitglied per Konto, Gast per Cookie).
+    Erneutes Abstimmen ändert die eigene Stimme."""
+    site = load_site()
+    if site['design'].get('maintenance'):
+        return jsonify({'error': 'disabled'}), 403
+    poll = _active_poll(site)
+    if poll is None or 'poll' in (site.get('hidden_sections') or []):
+        return jsonify({'error': 'no_poll'}), 404
+    member = current_member(request)
+    if 'poll' in (site.get('members_sections') or []) and member is None:
+        return jsonify({'error': 'auth'}), 403
+    try:
+        idx = int((request.get_json(silent=True) or {}).get('option'))
+    except (TypeError, ValueError):
+        return jsonify({'error': 'invalid'}), 400
+    if not 0 <= idx < len(poll['options']):
+        return jsonify({'error': 'invalid'}), 400
+    new_cookie = None
+    if member is not None:
+        vkey = 'u:' + member['id']
+    else:
+        cid = request.cookies.get('pollvid') or ''
+        if not re.fullmatch(r'[a-f0-9]{32}', cid):
+            cid = secrets.token_hex(16)
+            new_cookie = cid
+        vkey = 'c:' + cid
+    votes = load_poll_votes()
+    if votes.get('id') != poll['id']:
+        votes = {'id': poll['id'], 'votes': {}}
+    vmap = votes.setdefault('votes', {})
+    if vkey not in vmap and len(vmap) >= POLL_VOTES_MAX:
+        return jsonify({'error': 'full'}), 429
+    vmap[vkey] = idx
+    save_poll_votes(votes)
+    counts = _poll_counts(poll, votes)
+    resp = jsonify({'ok': True, 'counts': counts, 'total': sum(counts), 'voted': idx})
+    if new_cookie:
+        resp.set_cookie('pollvid', new_cookie, max_age=365 * 86400,
+                        httponly=True, samesite='Lax')
+    return resp
+
+
 @public_app.route('/blog/<pid>/comment', methods=['POST'])
 def blog_comment(pid: str):
     site = load_site()
@@ -7497,7 +7760,10 @@ def _member_page(member: dict | None, msg: str = ''):
             storage_down = True
             files = []
     login_msg_html = render_md(member.get('login_message', '')) if member else ''
+    achievements = _member_achievements(member, len(files)) if member else []
     return render_template('member.html', t=t, lang=lang, site=site, member=member,
+                           achievements=achievements,
+                           ach_earned=sum(1 for a in achievements if a['earned']),
                            files=files, used=used, quota=quota, msg=msg,
                            storage_down=storage_down, login_msg_html=login_msg_html,
                            can_reset=reset_enabled() if member is None else False,

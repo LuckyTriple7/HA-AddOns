@@ -362,6 +362,21 @@
     .tip-icon { font-size: 1.6rem; line-height: 1.2; flex: 0 0 auto; }
     .tip-text { font-size: 0.96rem; }
     .tip-text p:last-child { margin-bottom: 0; }
+    /* Umfrage */
+    .poll-box { background: var(--surf); border: 1px solid var(--border); border-radius: 12px; padding: 20px 22px; }
+    .poll-q { font-weight: 600; font-size: 1rem; margin: 0 0 14px; }
+    .poll-options { display: flex; flex-direction: column; gap: 8px; }
+    .poll-opt { text-align: left; background: var(--bg); border: 1px solid var(--border); color: var(--text); border-radius: 8px; padding: 10px 14px; font: inherit; font-size: 0.92rem; cursor: pointer; transition: border-color .15s; }
+    .poll-opt:hover { border-color: var(--accent); }
+    .poll-row { margin-bottom: 12px; }
+    .poll-row-top { display: flex; justify-content: space-between; gap: 10px; font-size: 0.9rem; margin-bottom: 4px; }
+    .poll-pct { color: var(--muted); white-space: nowrap; font-size: 0.82rem; }
+    .poll-bar { background: var(--surf2); border-radius: 6px; height: 10px; overflow: hidden; }
+    .poll-fill { height: 100%; background: var(--accent); border-radius: 6px; transition: width .4s; }
+    .poll-row.own .poll-label { font-weight: 600; }
+    .poll-own-mark { display: none; color: var(--accent); }
+    .poll-row.own .poll-own-mark { display: inline; }
+    .poll-total { margin: 6px 0 0; font-size: 0.8rem; color: var(--muted); }
     /* Easter Eggs */
     .egg-piece { position: fixed; top: -32px; pointer-events: none; z-index: 90; will-change: transform; }
     @keyframes egg-fall { to { transform: translateY(106vh) rotate(560deg); } }
@@ -617,6 +632,30 @@
     {% if loc(ft, 'content') %}
     {% if loc(ft, 'title') %}<h2 class="section-title" id="freetext">{{ loc(ft, 'title') }}</h2>{% endif %}
     <div class="freetext page-content">{{ render_md(loc(ft, 'content'))|safe }}</div>
+    {% endif %}
+
+    {% elif _sec == 'poll' %}
+    {% if poll_view %}
+    <h2 class="section-title" id="umfrage">{{ t.poll_heading }}</h2>
+    <div class="poll-box" id="poll-box">
+      <p class="poll-q">{{ poll_view.question }}</p>
+      <div class="poll-options" id="poll-options"{% if poll_view.voted is not none %} hidden{% endif %}>
+        {% for o in poll_view.options %}
+        <button class="poll-opt" type="button" data-idx="{{ loop.index0 }}">{{ o }}</button>
+        {% endfor %}
+      </div>
+      <div class="poll-results" id="poll-results"{% if poll_view.voted is none %} hidden{% endif %}>
+        {% for o in poll_view.options %}
+        {% set n = poll_view.counts[loop.index0] %}
+        {% set pct = (n * 100 / poll_view.total)|round|int if poll_view.total else 0 %}
+        <div class="poll-row{% if poll_view.voted == loop.index0 %} own{% endif %}" data-idx="{{ loop.index0 }}">
+          <div class="poll-row-top"><span class="poll-label">{{ o }}<span class="poll-own-mark"> ✓</span></span><span class="poll-pct">{{ pct }} % ({{ n }})</span></div>
+          <div class="poll-bar"><div class="poll-fill" style="width:{{ pct }}%"></div></div>
+        </div>
+        {% endfor %}
+        <p class="poll-total"><span id="poll-total-n">{{ poll_view.total }}</span> {{ t.poll_votes }} · <a href="#" id="poll-change">{{ t.poll_change }}</a></p>
+      </div>
+    </div>
     {% endif %}
 
     {% elif _sec == 'blog' %}
@@ -1834,6 +1873,46 @@
   </script>
   {% endif %}
 
+  <script>
+    // Umfrage: Stimme abgeben / ändern, Balken ohne Neuladen aktualisieren
+    (function () {
+      var box = document.getElementById('poll-box');
+      if (!box) return;
+      var opts = document.getElementById('poll-options');
+      var res = document.getElementById('poll-results');
+      function apply(d) {
+        [].slice.call(res.querySelectorAll('.poll-row')).forEach(function (row) {
+          var i = +row.dataset.idx;
+          var n = d.counts[i] || 0;
+          var pct = d.total ? Math.round(n * 100 / d.total) : 0;
+          row.classList.toggle('own', i === d.voted);
+          row.querySelector('.poll-pct').textContent = pct + ' % (' + n + ')';
+          row.querySelector('.poll-fill').style.width = pct + '%';
+        });
+        document.getElementById('poll-total-n').textContent = d.total;
+        opts.hidden = true;
+        res.hidden = false;
+      }
+      [].slice.call(box.querySelectorAll('.poll-opt')).forEach(function (b) {
+        b.addEventListener('click', function () {
+          b.disabled = true;
+          fetch('api/poll/vote', { method: 'POST', credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ option: +b.dataset.idx }) })
+            .then(function (r) { return r.json(); })
+            .then(function (d) { if (d && d.ok) apply(d); })
+            .catch(function () {})
+            .then(function () { b.disabled = false; });
+        });
+      });
+      var chg = document.getElementById('poll-change');
+      if (chg) chg.addEventListener('click', function (e) {
+        e.preventDefault();
+        res.hidden = true;
+        opts.hidden = false;
+      });
+    })();
+  </script>
   <script>
     // Einblend-Effekte: Sektionen (und optional Karten gestaffelt) einblenden, sobald sie sichtbar werden.
     (function () {

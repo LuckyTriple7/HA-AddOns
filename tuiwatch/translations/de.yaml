@@ -44,6 +44,21 @@ configuration:
   digest_weekday:
     name: Wochentag für den Überblick
     description: "An welchem Wochentag der Wochenüberblick verschickt wird: 1 = Montag … 7 = Sonntag. Standard 1 (Montag)."
+  notify_aktionscodes:
+    name: Aktionscode-Alarm
+    description: "Benachrichtigen, wenn neue öffentliche TUI-Aktionscodes erscheinen. Standard an."
+  aktionscode_min:
+    name: Mindestwert für Aktionscode-Alarm (€)
+    description: "Nur Aktionscodes ab diesem Wert melden (0 = alle). Standard 0."
+  aktionscode_interval:
+    name: Aktionscode-Prüfintervall (Sekunden)
+    description: "Wie oft die öffentlichen Aktionscodes geprüft werden. Standard 21600 (6 Stunden), Minimum 1800."
+  auto_backup:
+    name: Automatisches Backup
+    description: "Wöchentlich ein vollständiges Backup (Angebote inkl. Verlauf, Reisen inkl. PDF, gespeicherte Suchen) als ZIP unter /addon_config/backups ablegen — übersteht eine Neuinstallation des Add-ons. Standard an."
+  auto_backup_keep:
+    name: Auto-Backups behalten (Anzahl)
+    description: "Wie viele automatische Backups aufbewahrt werden; ältere werden gelöscht. Standard 5."
   telegram_bot_token:
     name: Telegram Bot Token
     description: "Token eines Telegram-Bots (Format 123456789:ABC-...), um Benachrichtigungen per Telegram zu erhalten. Leer lassen, um Telegram zu deaktivieren. Bot erstellen via @BotFather."
@@ -71,6 +86,15 @@ configuration:
   smtp_tls:
     name: STARTTLS verwenden
     description: "An = STARTTLS (Port 587). Aus = SSL/TLS direkt (Port 465)."
+  nc_addressbook_url:
+    name: Nextcloud-Adressbuch-URL
+    description: "Volle CardDAV-URL des Adressbuchs, wie sie Nextcloud in der Kontakte-App zum Kopieren anbietet (z. B. https://cloud.example.com/remote.php/dav/addressbooks/users/nutzer/contacts/). Leer lassen = kein Adressbuch, E-Mail-Empfänger bleibt Freitext."
+  nc_user:
+    name: Nextcloud-Benutzername
+    description: "Nextcloud-Benutzername für den Zugriff auf das Adressbuch."
+  nc_app_password:
+    name: Nextcloud-App-Passwort
+    description: "App-Passwort (nicht das normale Login-Passwort!) — erstellbar unter Nextcloud-Einstellungen → Sicherheit → Geräte & Sitzungen → Neues App-Passwort."
   verbose_log:
     name: Ausführliches Logging
     description: Gibt mehr Details pro Prüfung im Log aus. Standard aus — nur Fehler und wichtige Ereignisse werden geloggt.

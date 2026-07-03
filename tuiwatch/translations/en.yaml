@@ -44,6 +44,21 @@ configuration:
   digest_weekday:
     name: Digest weekday
     description: "Day of the week the weekly digest is sent: 1 = Monday … 7 = Sunday. Default 1 (Monday)."
+  notify_aktionscodes:
+    name: Promo code alert
+    description: "Notify when new public TUI promo codes appear. Default on."
+  aktionscode_min:
+    name: Minimum promo code value (€)
+    description: "Only report promo codes from this value upwards (0 = all). Default 0."
+  aktionscode_interval:
+    name: Promo code check interval (seconds)
+    description: "How often the public promo codes are checked. Default 21600 (6 hours), minimum 1800."
+  auto_backup:
+    name: Automatic backup
+    description: "Store a full backup (offers incl. history, trips incl. PDF, saved searches) as a ZIP under /addon_config/backups once a week — survives reinstalling the add-on. Default on."
+  auto_backup_keep:
+    name: Auto backups to keep (count)
+    description: "How many automatic backups are kept; older ones are deleted. Default 5."
   telegram_bot_token:
     name: Telegram bot token
     description: "Token of a Telegram bot (format 123456789:ABC-...) to receive notifications via Telegram. Leave empty to disable Telegram. Create a bot via @BotFather."
@@ -71,6 +86,15 @@ configuration:
   smtp_tls:
     name: Use STARTTLS
     description: "On = STARTTLS (port 587). Off = direct SSL/TLS (port 465)."
+  nc_addressbook_url:
+    name: Nextcloud address book URL
+    description: "Full CardDAV URL of the address book, as offered for copying in Nextcloud's Contacts app (e.g. https://cloud.example.com/remote.php/dav/addressbooks/users/user/contacts/). Leave empty = no address book, e-mail recipient stays free text."
+  nc_user:
+    name: Nextcloud username
+    description: "Nextcloud username for accessing the address book."
+  nc_app_password:
+    name: Nextcloud app password
+    description: "App password (not the regular login password!) — create one under Nextcloud settings → Security → Devices & sessions → Create new app password."
   verbose_log:
     name: Verbose logging
     description: Logs more detail per check. Default off — only errors and important events are logged.

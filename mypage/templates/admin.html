@@ -419,6 +419,21 @@
           <button type="button" class="btn secondary small" onclick="ftInsertImage('ft-content_en')">🖼️ {{ t.freetext_upload }}</button>
         </div>
       </div>
+      <div class="panel acc" data-key="poll">
+        <div class="acc-head" onclick="toggleAcc(event, this)"><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.poll_section }}</div>
+        <p class="hint">{{ t.poll_hint }}</p>
+        <input type="hidden" id="pl-id">
+        <div class="row">
+          <div><label>{{ t.poll_question_label }} (DE)</label><input type="text" id="pl-question_de" maxlength="300"></div>
+          <div><label>{{ t.poll_question_label }} (EN)</label><input type="text" id="pl-question_en" maxlength="300"></div>
+        </div>
+        <label>{{ t.poll_options_label }}</label>
+        <div id="poll-opts-list"></div>
+        <button class="btn secondary small" onclick="addPollOptRow()">+ {{ t.add_entry }}</button>
+        {% if lang != 'en' %}<button class="btn secondary small" onclick="translateRows(this, 'poll-opts-list', 'po-label_de', 'po-label_en')">🌐 {{ t.tr_btn }}</button>{% endif %}
+        <button class="btn danger small" onclick="resetPollVotes()">{{ t.poll_reset_btn }}</button>
+        <p class="hint">{{ t.poll_reset_hint }}</p>
+      </div>
       <div class="panel acc" data-key="blog">
         <div class="acc-head" onclick="toggleAcc(event, this)"><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.blog_heading }} <span class="acc-ext">↗</span></div>
         <p class="hint">{{ t.section_edit_elsewhere }}</p>
@@ -2431,6 +2446,12 @@
       el('ft-title_en').value = FT.title_en || '';
       el('ft-content_de').value = FT.content_de || '';
       el('ft-content_en').value = FT.content_en || '';
+      const PL = s.poll || {};
+      el('pl-id').value = PL.id || '';
+      el('pl-question_de').value = PL.question_de || '';
+      el('pl-question_en').value = PL.question_en || '';
+      el('poll-opts-list').innerHTML = '';
+      (PL.options || []).forEach(addPollOptRow);
       renderAlbums();
       el('a-protect').value = SITE.album_protect ? '1' : '0';
       el('a-watermark').value = SITE.watermark_text || '';
@@ -2814,6 +2835,30 @@
       attachMd(div.querySelector('.tip-text_de')); attachMd(div.querySelector('.tip-text_en'));
       updateTipHints();
     }
+    function addPollOptRow(o) {
+      o = o || {};
+      const list = el('poll-opts-list');
+      if (list.children.length >= 5) return;
+      const div = document.createElement('div');
+      div.className = 'entry-row';
+      div.innerHTML = `<div class="entry-grid" style="grid-template-columns:1fr 1fr auto">
+        <div><input type="text" class="po-label_de" maxlength="120" placeholder="${T.field_title} (DE)"></div>
+        <div><input type="text" class="po-label_en" maxlength="120" placeholder="${T.field_title} (EN)"></div>
+        <span style="display:flex;gap:4px">
+          <button class="btn secondary small" title="${T.move_up}" onclick="moveEntryRow(this,-1)">↑</button>
+          <button class="btn secondary small" title="${T.move_down}" onclick="moveEntryRow(this,1)">↓</button>
+          <button class="btn danger small" onclick="this.closest('.entry-row').remove()">✕</button>
+        </span>
+      </div>`;
+      div.querySelector('.po-label_de').value = o.label_de || '';
+      div.querySelector('.po-label_en').value = o.label_en || '';
+      list.appendChild(div);
+    }
+    async function resetPollVotes() {
+      if (!confirm(T.poll_reset_confirm)) return;
+      const r = await apiJson('api/poll/reset', 'POST', {});
+      toast(r.ok ? T.poll_reset_done : T.error_save, !r.ok);
+    }
     async function saveSections() {
       const skills = el('c-skills').value.split(',').map(s => s.trim()).filter(Boolean);
       const news = [...el('news-list').children].map(row => ({
@@ -2906,8 +2951,17 @@
         content_de: el('ft-content_de').value,
         content_en: el('ft-content_en').value,
       };
+      const poll = {
+        id:          el('pl-id').value,
+        question_de: el('pl-question_de').value,
+        question_en: el('pl-question_en').value,
+        options: [...el('poll-opts-list').children].map(row => ({
+          label_de: row.querySelector('.po-label_de').value,
+          label_en: row.querySelector('.po-label_en').value,
+        })).filter(o => o.label_de || o.label_en),
+      };
       const r = await apiJson('api/sections', 'POST',
-        { skills, news, timeline, links, faq, tips, services, testimonials, team, events, location, countdown, freetext,
+        { skills, news, timeline, links, faq, tips, services, testimonials, team, events, location, countdown, freetext, poll,
           timeline_title_de: el('tl-title_de').value, timeline_title_en: el('tl-title_en').value,
           tips_rotation: el('tips-rotation').value, tips_random: el('tips-random').value === '1' });
       toast(r.ok ? T.saved : T.error_save, !r.ok);

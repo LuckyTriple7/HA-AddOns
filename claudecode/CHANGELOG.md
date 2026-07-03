@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.1.0] - 2026-07-03
+
+### Added
+- Optionaler "Caveman"-Skill für Claude Code (`enable_caveman_skill`, Standard: deaktiviert) — knappe, technisch präzise Antworten ohne Füllwörter. Wird bei aktivierter Option bei jedem Start nach `/root/.claude/skills/caveman` synchronisiert.
+
+
 ## [1.0.47] - 2026-07-02
 
 ### Changed
