@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.30.1] - 2026-07-03
+
+### Changed
+- Verbose-Log der Such-API (`Such-API POST ...`) zeigt jetzt alle relevanten Suchparameter
+  (Zeitraum, Dauer, Reisende, Verpflegung, Lage, Flughäfen, Airlines, Operator, Direktflug)
+  statt nur der Regionen-ID — erleichtert Diagnose bei Suchproblemen
+
 ## [0.30.0] - 2026-07-03
 
 ### Added

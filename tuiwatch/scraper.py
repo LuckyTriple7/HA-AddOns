@@ -679,7 +679,13 @@ def _run_search(params: dict, *, verbose: bool = False) -> dict | None:
     payload = _build_search_payload(params)
     try:
         if verbose:
-            log.info("Such-API POST %s regionen=%s", SEARCH_API, params["regions"])
+            log.info(
+                "Such-API POST %s regionen=%s zeitraum=%s-%s dauer=%s trav=%s "
+                "boards=%s lage=%s airports=%s airlines=%s operators=%s direct=%s",
+                SEARCH_API, params["regions"], params.get("startDate"),
+                params.get("endDate"), params.get("duration"), params.get("travellers"),
+                params.get("boards"), params.get("location"), params.get("airports"),
+                params.get("airlines"), params.get("operators"), params.get("direct"))
         resp = requests.post(SEARCH_API, json=payload, headers=_SEARCH_HEADERS, timeout=30)
         if resp.status_code != 200:
             if verbose:
