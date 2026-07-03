@@ -592,6 +592,23 @@
       <div id="room-body"></div>
     </div>
   </div>
+  <!-- E-Mail-Empfänger -->
+  <div class="modal-bg" id="email-bg">
+    <div class="modal">
+      <button class="icon-btn modal-close" onclick="closeEmailModal()">
+        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+      </button>
+      <h2>Als E-Mail senden</h2>
+      <div class="sub">Adresse eingeben oder aus dem Nextcloud-Adressbuch wählen.</div>
+      <input type="email" id="email-to" list="nc-contacts" placeholder="E-Mail-Adresse"
+             style="width:100%;margin-top:10px" onkeydown="if(event.key==='Enter')submitEmail()">
+      <datalist id="nc-contacts"></datalist>
+      <div style="margin-top:14px;display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn sec" onclick="closeEmailModal()">Abbrechen</button>
+        <button class="btn" onclick="submitEmail()">Senden</button>
+      </div>
+    </div>
+  </div>
   <!-- API-Status -->
   <div class="modal-bg" id="hc-bg">
     <div class="modal">
@@ -848,17 +865,7 @@
     function ids_msg(t){ return selected.size+' Angebot(e) '+t; }
     async function bulkEmail(){
       const ids=[...selected]; if(!ids.length) return;
-      let cfg; try { cfg = await fetch(api('/api/email')).then(r=>r.json()); } catch(e){ cfg = {configured:false}; }
-      if(!cfg.configured){ toast('SMTP ist nicht konfiguriert (Add-on-Optionen)'); return; }
-      const def = localStorage.getItem('tw-mailto') || cfg.default_to || '';
-      const to = prompt(ids.length+' markierte Angebote senden an:', def);
-      if(to===null) return;
-      if(!to.trim()){ toast('Kein Empfänger angegeben'); return; }
-      localStorage.setItem('tw-mailto', to.trim());
-      toast('E-Mail wird gesendet…');
-      const r = await fetch(api('/api/email'), {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({to:to.trim(), ids})});
-      if(r.ok){ const d=await r.json(); toast('E-Mail an '+d.to+' gesendet ('+d.count+' Angebote)'); }
-      else { const d=await r.json().catch(()=>({})); toast(d.error==='no_offers'?'Keine (aktiven) Angebote in der Auswahl':d.error==='send_failed'?'Versand fehlgeschlagen – Einstellungen prüfen':d.error==='no_recipient'?'Kein Empfänger':'E-Mail-Fehler'); }
+      await openEmailModal(ids);
     }
 
     function offerCard(o){
@@ -2226,17 +2233,34 @@
     async function checkAll(){ await fetch(api('/api/check-now'), {method:'POST'}); toast('Alle Angebote werden geprüft…'); loadOffers(); }
 
     async function sendEmail(){
+      await openEmailModal(null);
+    }
+    let emailIds = null;   // null = alle aktiven Angebote, Array = Sammelaktion
+    async function openEmailModal(ids){
       let cfg; try { cfg = await fetch(api('/api/email')).then(r=>r.json()); } catch(e){ cfg = {configured:false}; }
       if(!cfg.configured){ toast('SMTP ist nicht konfiguriert (Add-on-Optionen)'); return; }
-      const def = localStorage.getItem('tw-mailto') || cfg.default_to || '';
-      const to = prompt('E-Mail-Empfänger:', def);
-      if(to===null) return;
+      emailIds = ids;
+      $('#email-to').value = localStorage.getItem('tw-mailto') || cfg.default_to || '';
+      try {
+        const c = await fetch(api('/api/contacts')).then(r=>r.json());
+        $('#nc-contacts').innerHTML = (c.contacts||[])
+          .map(k=>`<option value="${esc(k.email)}">${esc(k.name)}</option>`).join('');
+      } catch(e){ $('#nc-contacts').innerHTML = ''; }
+      $('#email-bg').classList.add('show');
+    }
+    function closeEmailModal(){ $('#email-bg').classList.remove('show'); }
+    $('#email-bg').addEventListener('click', e=>{ if(e.target.id==='email-bg') closeEmailModal(); });
+    async function submitEmail(){
+      const to = $('#email-to').value;
       if(!to.trim()){ toast('Kein Empfänger angegeben'); return; }
       localStorage.setItem('tw-mailto', to.trim());
+      closeEmailModal();
       toast('E-Mail wird gesendet…');
-      const r = await fetch(api('/api/email'), {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({to:to.trim()})});
+      const body = {to: to.trim()};
+      if(emailIds) body.ids = emailIds;
+      const r = await fetch(api('/api/email'), {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
       if(r.ok){ const d=await r.json(); toast('E-Mail an '+d.to+' gesendet ('+d.count+' Angebote)'); }
-      else { const d=await r.json().catch(()=>({})); toast(d.error==='no_offers'?'Keine Angebote vorhanden':d.error==='send_failed'?'Versand fehlgeschlagen – Einstellungen prüfen':d.error==='no_recipient'?'Kein Empfänger':'E-Mail-Fehler'); }
+      else { const d=await r.json().catch(()=>({})); toast(d.error==='no_offers'?'Keine (aktiven) Angebote vorhanden':d.error==='send_failed'?'Versand fehlgeschlagen – Einstellungen prüfen':d.error==='no_recipient'?'Kein Empfänger':'E-Mail-Fehler'); }
     }
     async function sendDigest(){
       toast('Wochenüberblick wird gesendet…');

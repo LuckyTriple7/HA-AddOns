@@ -281,7 +281,12 @@ Zusätzlich `binary_sensor.tuiwatch_aktionscodes`: **an**, solange aktuell
 - **Offline-Banner** — bei Verbindungsabbruch (WLAN weg, Server nicht erreichbar) erscheint
   ein abdunkelndes Overlay mit „Neu laden"-Button; verschwindet automatisch, sobald die
   Verbindung wieder da ist.
-- **Als E-Mail senden** — verschickt alle Angebote als HTML-Mail (Empfänger wird vorher abgefragt; benötigt SMTP-Optionen).
+- **Als E-Mail senden** — verschickt alle (oder markierte) Angebote als HTML-Mail;
+  benötigt SMTP-Optionen. Der Empfänger-Dialog bietet optional ein **Nextcloud-
+  Adressbuch** (CardDAV) als Autocomplete an — dazu `nc_addressbook_url` (die volle
+  Adressbuch-URL, wie sie Nextcloud in der Kontakte-App zum Kopieren anbietet),
+  `nc_user` und `nc_app_password` in den Add-on-Optionen eintragen. Freitext bleibt
+  ohne Adressbuch weiterhin möglich; ohne Konfiguration ändert sich nichts.
 - **Backup / Wiederherstellen** — **komplettes** Backup als **ZIP**: alle getrackten
   Angebote **inkl. Preisverlauf** und Diagramm-Markern, **„Meine Reisen" inkl. der
   Original-PDFs** sowie die **gespeicherten Suchen**. Die Wiederherstellung liest die ZIP

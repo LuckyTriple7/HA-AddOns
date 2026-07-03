@@ -38,6 +38,7 @@ from scraper import (_giata_from_url, _valid_img_url, api_healthcheck,
                      room_code_from_url, travellers_from_url, with_duration,
                      with_room_code, with_travellers, without_room_code)
 from aktionscodes import fetch_aktionscodes
+from nextcloud import fetch_contacts
 from tripparser import (_clean_text, _parse_eur, check_fields, extract_pdf_text,
                         parse_tui_pdf, parse_tui_text)
 
@@ -627,6 +628,12 @@ def _eur(v) -> str:
 
 def smtp_configured() -> bool:
     return bool((load_config().get('smtp_host') or '').strip())
+
+
+def nc_configured() -> bool:
+    cfg = load_config()
+    return bool((cfg.get('nc_addressbook_url') or '').strip()
+                and (cfg.get('nc_user') or '').strip())
 
 
 def send_email(subject: str, html_body: str, to: str) -> None:
@@ -2663,6 +2670,7 @@ def api_search():
 
 _dest_cache: dict = {}     # parent → {parentName, items}
 _airports_cache: list = []  # einmalig geladen
+_contacts_cache: list = []  # Nextcloud-Adressbuch, gecacht bis ?refresh=1
 
 # ── Reiseziel-Index (globale Suche über alle Ebenen) ───────────────────────────
 # Der Picker lädt je Ebene nach (Land → Region → Insel …). Für eine Suche, die auch
@@ -3459,6 +3467,22 @@ def api_airports():
     if not _airports_cache:
         _airports_cache = fetch_airports()
     return jsonify({'airports': _airports_cache})
+
+
+@app.route('/api/contacts', methods=['GET'])
+def api_contacts():
+    """Nextcloud-Adressbuch (CardDAV), einmalig gecacht — ?refresh=1 erzwingt Neuladen."""
+    if (err := _require_api()):
+        return err
+    if not nc_configured():
+        return jsonify({'configured': False, 'contacts': []})
+    global _contacts_cache
+    if not _contacts_cache or request.args.get('refresh') == '1':
+        cfg = load_config()
+        _contacts_cache = fetch_contacts(
+            cfg.get('nc_addressbook_url', ''), cfg.get('nc_user', ''),
+            cfg.get('nc_app_password', ''), verbose=_verbose())
+    return jsonify({'configured': True, 'contacts': _contacts_cache})
 
 
 @app.route('/api/airlines', methods=['GET'])

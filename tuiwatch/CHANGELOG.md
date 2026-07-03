@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.36.0] - 2026-07-03
+
+### Added
+- **Nextcloud-Adressbuch beim E-Mail-Versand.** Der Empfänger-Dialog („Als E-Mail
+  senden" / Sammelaktion „E-Mail") bietet jetzt optional ein Autocomplete aus einem
+  Nextcloud-Adressbuch (CardDAV) — neue Optionen `nc_addressbook_url` (volle
+  Adressbuch-URL aus der Nextcloud-Kontakte-App), `nc_user`, `nc_app_password`.
+  Ersetzt den bisherigen reinen `prompt()`-Dialog durch ein Eingabefeld mit
+  Autocomplete; Freitext-Adressen bleiben weiterhin möglich, ohne Konfiguration
+  ändert sich nichts.
+
 ## [0.35.0] - 2026-07-03
 
 ### Added
