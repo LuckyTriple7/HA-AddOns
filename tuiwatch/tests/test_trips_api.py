@@ -126,3 +126,57 @@ def test_trip_debug(client, monkeypatch):
           "content_type": "multipart/form-data"}
     assert client.post("/api/trips/debug", headers=ING, **up).get_json()["ok"]
     assert client.get(f"/api/trips/{tid}/debug").status_code == 401
+
+
+def test_next_trip_uses_hinflug_time(client, monkeypatch):
+    """/api/trips/next: Abflugzeit kommt aus dem erkannten Hinflug (data.fluege)."""
+    import importlib
+    m = importlib.import_module("app")
+    fake = {
+        "buchungsnummer": "1", "buchungsdatum": "01.02.2026",
+        "reisende": [{"name": "A", "geburtsdatum": "", "preis": "1"}],
+        "reisezeitraum": {"von": "14.01.2099", "bis": "21.01.2099"},
+        "naechte": 7, "reiseziel": "Sal", "hotel": {"name": "Hotel Sal", "code": "X"},
+        "verpflegung": "AI", "gesamtpreis": "1", "paketpreis": "1",
+        "fluege": [{"typ": "Hinflug", "datum": "14.01.2099", "abflug_zeit": "06:15",
+                    "ankunft_zeit": "12:10", "dauer": "", "von": "STR", "nach": "SID",
+                    "flugnummer": "X3 123"}],
+        "extras": [], "rabatte": [], "sonderwuensche": [],
+        "anzahlung": {"betrag": None, "faelligkeit": None},
+        "restzahlung": {"betrag": None, "faelligkeit": None},
+        "zimmertyp": None, "zahlungsart": None,
+    }
+    monkeypatch.setattr(m, "parse_tui_pdf", lambda f: fake)
+    assert _import_pdf(client).status_code == 200
+
+    d = client.get("/api/trips/next", headers=ING).get_json()["trip"]
+    assert d["destination"] == "Sal"
+    assert d["departure"] == "2099-01-14T06:15:00"
+    assert d["has_time"] is True
+
+
+def test_next_trip_falls_back_to_midnight_without_flight(client, monkeypatch):
+    """Ohne erkannten Hinflug wird 00:00 des Reisebeginns als Abflug angenommen."""
+    import importlib
+    m = importlib.import_module("app")
+    fake = {
+        "buchungsnummer": "2", "buchungsdatum": "01.02.2026",
+        "reisende": [{"name": "A", "geburtsdatum": "", "preis": "1"}],
+        "reisezeitraum": {"von": "01.03.2099", "bis": "08.03.2099"},
+        "naechte": 7, "reiseziel": "Mallorca", "hotel": {"name": "Hotel M", "code": "Y"},
+        "verpflegung": "AI", "gesamtpreis": "1", "paketpreis": "1",
+        "fluege": [], "extras": [], "rabatte": [], "sonderwuensche": [],
+        "anzahlung": {"betrag": None, "faelligkeit": None},
+        "restzahlung": {"betrag": None, "faelligkeit": None},
+        "zimmertyp": None, "zahlungsart": None,
+    }
+    monkeypatch.setattr(m, "parse_tui_pdf", lambda f: fake)
+    assert _import_pdf(client).status_code == 200
+
+    d = client.get("/api/trips/next", headers=ING).get_json()["trip"]
+    assert d["departure"] == "2099-03-01T00:00:00"
+    assert d["has_time"] is False
+
+
+def test_next_trip_none_without_upcoming_trips(client):
+    assert client.get("/api/trips/next", headers=ING).get_json()["trip"] is None

@@ -17,10 +17,16 @@
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; background:var(--bg); color:var(--text); min-height:100vh; transition:background .2s,color .2s; }
     .wrap { max-width: 1000px; margin: 0 auto; padding: 16px; }
-    header { display:flex; align-items:center; gap:10px; margin-bottom:18px; }
+    header { display:grid; grid-template-columns:1fr auto 1fr; align-items:center; gap:10px; margin-bottom:18px; }
     .logo { display:flex; align-items:center; gap:8px; font-size:1.3rem; font-weight:700; color:var(--accent); }
     .logo svg { width:26px; height:26px; fill:var(--accent); }
-    .spacer { flex:1; }
+    .header-actions { display:flex; align-items:center; gap:8px; flex-wrap:wrap; justify-self:end; }
+    .trip-countdown { justify-self:center; display:none; align-items:center; gap:7px; font-size:.8rem;
+      color:var(--muted); background:var(--surf); border:1px solid var(--border); border-radius:20px;
+      padding:6px 14px; cursor:pointer; white-space:nowrap; }
+    .trip-countdown:hover { border-color:var(--accent); color:var(--text); }
+    .trip-countdown b { color:var(--text); font-weight:700; }
+    @media(max-width:700px){ .trip-countdown span.tc-dest{ display:none; } }
     .btn { background:var(--blue); border:1px solid var(--blue-h); color:#fff; padding:8px 14px; border-radius:6px; font-size:.85rem; font-weight:600; cursor:pointer; transition:background .15s; }
     .btn:hover { background:var(--blue-h); }
     .btn.sec { background:transparent; border:1px solid var(--border); color:var(--text); }
@@ -328,12 +334,16 @@
         <svg viewBox="0 0 24 24"><path d="M21 16v-2l-8-5V3.5A1.5 1.5 0 0 0 11.5 2 1.5 1.5 0 0 0 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/></svg>
         TUIWatch
       </div>
-      <div class="spacer"></div>
-      <button class="btn sec" id="check-all">Alle prüfen</button>
-      <button class="icon-btn" onclick="toggleTheme()" title="Design wechseln">
-        <svg class="icon-moon" viewBox="0 0 24 24"><path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c0-.46-.04-.92-.1-1.36-.98 1.37-2.58 2.26-4.4 2.26-2.98 0-5.4-2.42-5.4-5.4 0-1.81.89-3.42 2.26-4.4-.44-.06-.9-.1-1.36-.1z"/></svg>
-        <svg class="icon-sun"  viewBox="0 0 24 24"><path d="M12 7c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zM2 13h2v-2H2v2zm18 0h2v-2h-2v2zM11 2v2h2V2h-2zm0 18v2h2v-2h-2zM5.99 4.58 4.58 5.99l1.41 1.41 1.41-1.41L5.99 4.58zm12.03 12.03-1.41 1.41 1.41 1.41 1.41-1.41-1.41-1.41zm1.41-12.44-1.41-1.41-1.41 1.41 1.41 1.41 1.41-1.41zM5.99 19.42l1.41 1.41 1.41-1.41-1.41-1.41-1.41 1.41z"/></svg>
-      </button>
+      <div class="trip-countdown" id="trip-countdown" onclick="openTrips()" title="Nächste Reise – zu „Meine Reisen“">
+        ✈ <span class="tc-dest" id="tc-dest"></span> <b id="tc-time"></b>
+      </div>
+      <div class="header-actions">
+        <button class="btn sec" id="check-all">Alle prüfen</button>
+        <button class="icon-btn" onclick="toggleTheme()" title="Design wechseln">
+          <svg class="icon-moon" viewBox="0 0 24 24"><path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c0-.46-.04-.92-.1-1.36-.98 1.37-2.58 2.26-4.4 2.26-2.98 0-5.4-2.42-5.4-5.4 0-1.81.89-3.42 2.26-4.4-.44-.06-.9-.1-1.36-.1z"/></svg>
+          <svg class="icon-sun"  viewBox="0 0 24 24"><path d="M12 7c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zM2 13h2v-2H2v2zm18 0h2v-2h-2v2zM11 2v2h2V2h-2zm0 18v2h2v-2h-2zM5.99 4.58 4.58 5.99l1.41 1.41 1.41-1.41L5.99 4.58zm12.03 12.03-1.41 1.41 1.41 1.41 1.41-1.41-1.41-1.41zm1.41-12.44-1.41-1.41-1.41 1.41 1.41 1.41 1.41-1.41zM5.99 19.42l1.41 1.41 1.41-1.41-1.41-1.41-1.41 1.41z"/></svg>
+        </button>
+      </div>
     </header>
 
     <div class="add-card">
@@ -2241,6 +2251,32 @@
     updateAktionBtn();
     setInterval(updateAktionBtn, 600000);   // Button-Leuchten alle 10 min aktualisieren
     setInterval(loadHealth, 60000);
+
+    // ── Countdown zur nächsten Reise (Header) ─────────────────────────────────
+    let nextTrip = null;
+    async function loadNextTrip(){
+      try { const d = await fetch(api('/api/trips/next')).then(r=>r.json()); nextTrip = d.trip||null; }
+      catch(e){ nextTrip = null; }
+      renderTripCountdown();
+    }
+    function renderTripCountdown(){
+      const box = $('#trip-countdown');
+      if(!nextTrip){ box.style.display='none'; return; }
+      box.style.display='inline-flex';
+      $('#tc-dest').textContent = nextTrip.destination || 'Nächste Reise';
+      const diff = new Date(nextTrip.departure).getTime() - Date.now();
+      if(diff <= 0){ $('#tc-time').textContent = 'Gute Reise!'; return; }
+      const mins = Math.floor(diff/60000);
+      const d = Math.floor(mins/1440), h = Math.floor((mins%1440)/60), m = mins%60;
+      const parts = [];
+      if(d) parts.push(d+' Tag'+(d===1?'':'e'));
+      if(d || h) parts.push(h+' Std');
+      if(!d) parts.push(m+' Min');
+      $('#tc-time').textContent = 'noch '+parts.join(' ');
+    }
+    loadNextTrip();
+    setInterval(renderTripCountdown, 30000);
+    setInterval(loadNextTrip, 300000);
   </script>
 </body>
 </html>

@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.28.0] - 2026-07-03
+
+### Added
+- **Reise-Countdown im Header.** Ist unter „Meine Reisen" eine bevorstehende Reise
+  gespeichert, zeigt der Header mittig einen Countdown bis zum Abflug (z. B.
+  „Sal / Amilcar Cabral · noch 12 Tage 4 Std"). Die Abflugzeit stammt aus dem
+  geparsten Hinflug der importierten PDF; ist kein Hinflug erkannt, wird 00:00 des
+  Reisebeginns angenommen. Klick auf den Countdown öffnet „Meine Reisen". Ohne
+  bevorstehende Reise bleibt das Widget ausgeblendet.
+
 ## [0.27.2] - 2026-07-03
 
 ### Fixed

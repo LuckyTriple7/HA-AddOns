@@ -2936,6 +2936,41 @@ def _trip_title(data: dict) -> str:
     return f"{ziel} {jahr}".strip()
 
 
+def _next_trip() -> dict | None:
+    """Nächste bevorstehende Reise (Abflug in der Zukunft) fürs Header-Countdown.
+    Abflugzeit kommt aus dem geparsten Hinflug (data.fluege); ohne erkannten
+    Hinflug wird 00:00 des Reisebeginns angenommen."""
+    today = date.today().isoformat()
+    with db() as con:
+        rows = con.execute(
+            'SELECT id, destination, hotel, start_date, data FROM trips '
+            'WHERE start_date >= ? ORDER BY start_date ASC LIMIT 5', (today,)).fetchall()
+    now = datetime.now()
+    for r in rows:
+        try:
+            data = json.loads(r['data'] or '{}')
+        except (json.JSONDecodeError, TypeError):
+            data = {}
+        dep_time = next((f.get('abflug_zeit') for f in data.get('fluege') or []
+                          if f.get('typ') == 'Hinflug'), None)
+        try:
+            dep_dt = datetime.fromisoformat(f"{r['start_date']}T{dep_time or '00:00'}:00")
+        except ValueError:
+            continue
+        if dep_dt >= now:
+            return {'destination': r['destination'] or r['hotel'] or '',
+                    'departure': dep_dt.isoformat(), 'has_time': dep_time is not None}
+    return None
+
+
+@app.route('/api/trips/next', methods=['GET'])
+def api_trips_next():
+    """Nächste bevorstehende Reise fürs Header-Countdown (ohne PII wie Reisende/Preise)."""
+    if (err := _require_api()):
+        return err
+    return jsonify({'trip': _next_trip()})
+
+
 @app.route('/api/trips', methods=['GET'])
 def api_trips():
     """Liste gebuchter Reisen + aggregierte Statistik."""
