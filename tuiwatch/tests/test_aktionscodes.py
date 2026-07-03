@@ -91,6 +91,34 @@ def test_min_filter(app_mod, monkeypatch):
     assert [c["value"] for c in m._aktionscodes_payload()["codes"]] == [300]   # 125 gefiltert
 
 
+def test_ha_binary_sensor(app_mod, monkeypatch):
+    """Bei aktivem ha_sensors + SUPERVISOR_TOKEN wird ein Binär-Sensor gemeldet:
+    'on' mit Codes in den Attributen, 'off' + leere Liste sobald keine mehr da sind."""
+    m = app_mod
+    monkeypatch.setattr(m, "SUPERVISOR_TOKEN", "testtoken")
+    calls = []
+    monkeypatch.setattr(m.http, "post",
+                        lambda url, **kw: calls.append((url, kw.get("json"))))
+    codes = {"v": [{"code": "ACMYTUI30020260702", "value": 300, "kind": "myTUI"}]}
+    _mock(m, monkeypatch, codes, cfg={"notify_aktionscodes": True, "ha_sensors": True})
+
+    m._run_aktionscodes()
+    url, payload = next(c for c in calls if "aktionscodes" in c[0])
+    assert url.endswith("/states/binary_sensor.tuiwatch_aktionscodes")
+    assert payload["state"] == "on"
+    assert payload["attributes"]["count"] == 1
+    assert payload["attributes"]["coupons"] == [
+        {"code": "ACMYTUI30020260702", "value": 300, "kind": "myTUI"}]
+    assert payload["attributes"]["booking_until"] == "07.07.2026"
+
+    calls.clear()
+    codes["v"] = []
+    m._run_aktionscodes()
+    url, payload = next(c for c in calls if "aktionscodes" in c[0])
+    assert payload["state"] == "off"
+    assert payload["attributes"]["coupons"] == []
+
+
 def test_endpoint(app_mod, monkeypatch):
     m = app_mod
     codes = {"v": [{"code": "ACMYTUI30020260702", "value": 300, "kind": "myTUI"}]}

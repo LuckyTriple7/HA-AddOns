@@ -256,6 +256,10 @@ Bei aktiver Option `ha_sensors` legt TUIWatch je Angebot einen Sensor
   `target_price`, `booked_price`, `booked_diff` (Preis − gebucht), `image`,
   `booking_code`, `room_booking_code`, `hotel_pdf`, `last_checked`, `url`
 
+Zusätzlich `binary_sensor.tuiwatch_aktionscodes`: **an**, solange aktuell
+öffentliche TUI-Aktionscodes verfügbar sind (siehe oben), sonst **aus**. Attribute:
+`count`, `coupons` (Liste je `code`/`value`/`kind`), `booking_until`, `travel_period`.
+
 ## Bedienung
 
 - **Als E-Mail senden** — verschickt alle Angebote als HTML-Mail (Empfänger wird vorher abgefragt; benötigt SMTP-Optionen).

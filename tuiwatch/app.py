@@ -1325,6 +1325,30 @@ def _store_aktionscodes(codes: list, ts: int) -> list:
     return new
 
 
+def _push_aktionscodes_sensor(codes: list, info: dict) -> None:
+    """Meldet HA einen Binär-Sensor: 'on', solange aktuell TUI-Aktionscodes verfügbar
+    sind (Codes als Liste in den Attributen), sonst 'off'."""
+    if not _ha_enabled():
+        return
+    attrs = {
+        'friendly_name': 'TUIWatch Aktionscodes', 'icon': 'mdi:ticket-percent',
+        'device_class': 'occupancy',
+        'count': len(codes),
+        'coupons': [{'code': c.get('code') or '', 'value': c.get('value'),
+                     'kind': c.get('kind') or ''} for c in codes],
+    }
+    if info.get('booking_until'):
+        attrs['booking_until'] = info['booking_until']
+    if info.get('travel_period'):
+        attrs['travel_period'] = info['travel_period']
+    try:
+        http.post(f'{HA_BASE}/states/binary_sensor.tuiwatch_aktionscodes',
+                  headers={'Authorization': f'Bearer {SUPERVISOR_TOKEN}'}, timeout=10,
+                  json={'state': 'on' if codes else 'off', 'attributes': attrs})
+    except Exception as e:
+        log.warning("HA-Aktionscode-Sensor aktualisieren fehlgeschlagen: %s", e)
+
+
 def _notify_aktionscodes(new: list, info: dict) -> None:
     lines = [f"• {c.get('value')} € — Code {c.get('code')}"
              + (f" ({c['kind']})" if c.get('kind') else '') for c in new]
@@ -1367,6 +1391,7 @@ def _run_aktionscodes() -> None:
     info = {'booking_until': res.get('booking_until', ''),
             'travel_period': res.get('travel_period', '')}
     _meta_set('aktion_last', json.dumps({'ts': ts, 'codes': codes, **info}, ensure_ascii=False))
+    _push_aktionscodes_sensor(codes, info)
     new = _store_aktionscodes(codes, ts)
     if new and cfg.get('notify_aktionscodes', True):
         try:

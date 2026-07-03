@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.29.0] - 2026-07-03
+
+### Added
+- **HA-Binärsensor für Aktionscodes.** Neuer `binary_sensor.tuiwatch_aktionscodes`:
+  **an**, solange aktuell öffentliche TUI-Aktionscodes verfügbar sind, sonst **aus**.
+  Die einzelnen Codes (Wert, Code, Art) stehen als Attribut `coupons` zur Verfügung —
+  damit lassen sich Automationen in Home Assistant bauen, ohne die TUIWatch-UI zu
+  öffnen. Nutzt dieselbe `ha_sensors`-Option wie die bestehenden Preis-Sensoren.
+
 ## [0.28.1] - 2026-07-03
 
 ### Fixed
