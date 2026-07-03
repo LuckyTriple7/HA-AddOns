@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.37.0] - 2026-07-03
+
+### Added
+- **Packliste pro Reise.** Neuer Abschnitt in der Reisen-Detailansicht: beim
+  ersten Öffnen wird eine Vorlage (7 Kategorien, an ein mitgebrachtes
+  Strandurlaub-Packlisten-PDF angelehnt) automatisch eingespielt — Items lassen
+  sich danach frei abhaken, umbenennen, umkategorisieren, löschen und ergänzen
+  (begrenzt auf 70 Einträge, damit der Ausdruck auf eine A4-Seite passt). Ein
+  „🖨️ Drucken"-Button öffnet eine druckoptimierte Ansicht mit TUIWatch-Kopfbereich
+  und Reisedaten (Ziel/Hotel/Zeitraum), „↺ Zurücksetzen" spielt die Vorlage neu ein.
+  Auch in Backup/Restore (ZIP) mitgesichert.
+
 ## [0.36.2] - 2026-07-03
 
 ### Fixed

@@ -330,6 +330,40 @@
     .trip-detail table.tdt th, .trip-detail table.tdt td { text-align:left; padding:5px 8px; border-bottom:1px solid var(--border); }
     .trip-detail table.tdt th { color:var(--muted); font-weight:600; }
     .trip-detail .dsec { font-weight:600; margin:10px 0 4px; }
+    .pack-head { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:14px 0 4px; }
+    .pack-toggle { cursor:pointer; color:var(--muted); user-select:none; flex:0 0 auto; }
+    .pack-toggle:hover { color:var(--accent); }
+    .pack-head .cnt { font-size:.78rem; color:var(--muted); }
+    .pack-reset { font-size:.78rem; color:var(--muted); cursor:pointer; text-decoration:underline; background:none; border:none; }
+    .pack-reset:hover { color:var(--red); }
+    .pack-wrap { display:flex; gap:22px; align-items:flex-start; margin:6px 0 4px; }
+    .pack-col { flex:1; min-width:0; }
+    .pack-cat { margin-bottom:12px; }
+    .pack-cat .dsec { margin:0 0 4px; }
+    .pack-item { display:flex; align-items:center; gap:6px; font-size:.82rem; padding:2px 0; }
+    .pack-item input[type=checkbox] { accent-color:var(--accent); cursor:pointer; flex:0 0 auto; }
+    .pack-item .lbl { flex:1; cursor:text; outline:none; word-break:break-word; }
+    .pack-item .lbl.done { color:var(--muted); text-decoration:line-through; }
+    .pack-item .del { cursor:pointer; color:var(--muted); flex:0 0 auto; }
+    .pack-item .del:hover { color:var(--red); }
+    .pack-add { display:flex; gap:4px; margin-top:2px; }
+    .pack-add input { flex:1; font-size:.8rem; padding:3px 6px; border:1px solid var(--border); border-radius:5px; background:var(--surf); color:var(--text); }
+    .pack-add.full { opacity:.5; pointer-events:none; }
+    #pack-print-area { display:none; }
+    @media print {
+      body { background:#fff !important; }
+      body > *:not(#pack-print-area) { display:none !important; }
+      #pack-print-area { display:block !important; background:#fff; color:#111; }
+      #pack-print-area .pp-head { background:var(--accent); color:#fff; padding:14px 18px; border-radius:6px; margin-bottom:14px; }
+      #pack-print-area .pp-head h1 { margin:0 0 4px; font-size:1.4rem; }
+      #pack-print-area .pp-meta { font-size:.85rem; opacity:.92; }
+      #pack-print-area .pp-flights { font-size:.8rem; opacity:.92; margin-top:4px; }
+      #pack-print-area .pp-wrap { display:flex; gap:26px; align-items:flex-start; }
+      #pack-print-area .pp-col { flex:1; min-width:0; }
+      #pack-print-area .pp-cat { break-inside:avoid; margin-bottom:10px; }
+      #pack-print-area .pp-cat h4 { background:var(--accent); color:#fff; padding:3px 8px; border-radius:3px; font-size:.85rem; margin:0 0 4px; }
+      #pack-print-area .pp-item { font-size:.8rem; padding:1px 0; }
+    }
     .dbg-fields { display:flex; flex-wrap:wrap; gap:6px; margin:8px 0; }
     .dbg-f { font-size:.76rem; padding:2px 8px; border-radius:10px; border:1px solid var(--border); }
     .dbg-f.ok { color:var(--green); background:rgba(46,160,67,.10); }
@@ -665,6 +699,7 @@
   </div>
 
   <div class="toast" id="toast"></div>
+  <div id="pack-print-area"></div>
 
   <!-- Konsole (Doppelklick auf Logo) -->
   <div id="tw-console">
@@ -1556,11 +1591,13 @@
       ).join('');
       const attRow = `<div class="tag-row" style="margin:8px 0 2px">${atts}<span class="tag-pill add" onclick="$('#trip-att-input-${id}').click()" title="Weiteres PDF hinterlegen (nur Ablage, keine Auswertung)">＋ PDF</span>
         <input type="file" id="trip-att-input-${id}" accept="application/pdf" style="display:none" onchange="uploadTripAttachment(${id}, this.files[0])"></div>`;
+      const packHtml = renderPackingSection(id, t, t.packing||[]);
       const box = $('#trip-detail');
       box.innerHTML = `<h3>${esc(t.title||('Reise #'+id))}</h3>
         <div style="margin-bottom:6px">${pdf} ${dbg} <button class="btn sec" onclick="$('#trip-detail').style.display='none'">schließen</button></div>
         ${attRow}
-        ${warnBox}<div class="dgrid">${grid}</div>${reisende}${fluege}${extras}${rabatte}${wuensche}`;
+        ${warnBox}<div class="dgrid">${grid}</div>${reisende}${fluege}${extras}${rabatte}${wuensche}
+        ${packHtml}`;
       box.style.display='block';
       box.scrollIntoView({behavior:'smooth', block:'nearest'});
     }
@@ -1574,6 +1611,155 @@
     async function deleteTripAttachment(id, aid){
       await fetch(api('/api/trips/'+id+'/attachments/'+aid), {method:'DELETE'});
       toast('Anhang entfernt'); showTripDetail(id);
+    }
+
+    // — Packliste: pro Reise, Vorlage beim ersten Öffnen automatisch geseedet,
+    //   danach in der UI frei editier-/ergänz-/löschbar. Begrenzt auf
+    //   MAX_PACKING_ITEMS, damit der Ausdruck auf einer A4-Seite bleibt. —
+    const MAX_PACKING_ITEMS = 70;
+    let _lastPack = null;
+    const _packOpenState = {};
+
+    function _groupPacking(items){
+      const order = [], map = new Map();
+      (items||[]).forEach(it=>{
+        if(!map.has(it.category)){ map.set(it.category, []); order.push(it.category); }
+        map.get(it.category).push(it);
+      });
+      return order.map(cat=>({cat, items:map.get(cat)}));
+    }
+
+    function _packMeta(t){
+      const d = t.data||{};
+      const zeitraum = (d.reisezeitraum||{}).von
+        ? `${d.reisezeitraum.von} – ${d.reisezeitraum.bis} (${d.naechte||'?'} Nächte)` : '';
+      return [d.reiseziel, (d.hotel||{}).name, zeitraum].filter(Boolean).join(' · ');
+    }
+
+    function _packFlights(t){
+      const d = t.data||{};
+      return (d.fluege||[]).map(f=>{
+        const zeit = (f.abflug_zeit||'') + (f.ankunft_zeit?('–'+f.ankunft_zeit):'');
+        const strecke = [f.von, f.nach].filter(Boolean).join(' → ');
+        return [f.typ, f.datum, strecke, zeit, f.flugnummer].filter(Boolean).join(' · ');
+      });
+    }
+
+    // Verteilt Kategorien auf 2 Spalten nach tatsächlicher Füllung (Item-Anzahl je
+    // Kategorie als Näherung für die Höhe) statt CSS-columns, die per Balance-Heuristik
+    // manchmal ungleich befüllen — neue Kategorie landet so immer in der leereren Spalte.
+    function _splitColumns(groups){
+      const cols = [[], []], weight = [0, 0];
+      groups.forEach(g=>{
+        const idx = weight[0] <= weight[1] ? 0 : 1;
+        cols[idx].push(g);
+        weight[idx] += g.items.length + 1;
+      });
+      return cols;
+    }
+
+    function renderPackingSection(id, t, items){
+      const groups = _groupPacking(items);
+      const full = items.length >= MAX_PACKING_ITEMS;
+      const open = _packOpenState[id] === true;
+      const buildCat = g=>{
+        const catId = 'pc'+id+'-'+g.cat.replace(/[^A-Za-z0-9]/g,'');
+        return `<div class="pack-cat">
+          <div class="dsec">${esc(g.cat)}</div>
+          ${g.items.map(it=>`<div class="pack-item">
+            <input type="checkbox" ${it.checked?'checked':''} onchange="togglePackItem(${id},${it.id},this.checked)">
+            <span class="lbl${it.checked?' done':''}" contenteditable="true" spellcheck="false"
+              onblur="renamePackItem(${id},${it.id},this.textContent)"
+              onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}">${esc(it.label)}</span>
+            <span class="del" onclick="deletePackItem(${id},${it.id})" title="Entfernen">×</span>
+          </div>`).join('')}
+          <div class="pack-add">
+            <input type="text" id="${catId}" placeholder="+ eigenes Item" ${full?'disabled':''}
+              onkeydown="if(event.key==='Enter'){addPackItem(${id}, '${jsArg(g.cat)}', this);}">
+          </div>
+        </div>`;
+      };
+      const catsHtml = _splitColumns(groups)
+        .map(col=>`<div class="pack-col">${col.map(buildCat).join('')}</div>`).join('');
+      const newCatRow = `<div class="pack-add" style="margin-top:6px">
+          <input type="text" id="pack-newcat-${id}" placeholder="Neue Kategorie" style="flex:1" ${full?'disabled':''}>
+          <input type="text" id="pack-newlabel-${id}" placeholder="Item" style="flex:2" ${full?'disabled':''}>
+          <button class="btn sec" ${full?'disabled':''} onclick="addPackItemNewCat(${id})">＋</button>
+        </div>`;
+      _lastPack = {title: t.title||('Reise #'+id), meta: _packMeta(t), flights: _packFlights(t), items};
+      return `<div class="pack-head">
+          <span class="pack-toggle" id="pack-toggle-${id}" onclick="togglePackOpen(${id})" title="Ein-/ausklappen">${open?'▾':'▸'}</span>
+          <div class="dsec" style="margin:0">🎒 Packliste</div>
+          <span class="cnt">${items.length}/${MAX_PACKING_ITEMS}</span>
+          <button class="btn sec" onclick="printPacking()">🖨️ Drucken</button>
+          <span class="pack-reset" onclick="resetPacking(${id})">↺ Zurücksetzen</span>
+        </div>
+        <div class="pack-body" id="pack-body-${id}" style="${open?'':'display:none'}">
+          <div class="pack-wrap">${catsHtml}</div>
+          ${newCatRow}
+        </div>`;
+    }
+
+    function togglePackOpen(id){
+      const open = !(_packOpenState[id] === true);
+      _packOpenState[id] = open;
+      const el = $('#pack-body-'+id), btn = $('#pack-toggle-'+id);
+      if(el) el.style.display = open ? '' : 'none';
+      if(btn) btn.textContent = open ? '▾' : '▸';
+    }
+
+    function togglePackItem(tid, iid, checked){
+      fetch(api('/api/trips/'+tid+'/packing/'+iid), {method:'PATCH',
+        headers:{'Content-Type':'application/json'}, body:JSON.stringify({checked})})
+        .then(()=>showTripDetail(tid));
+    }
+    function renamePackItem(tid, iid, text){
+      const label = (text||'').trim();
+      if(!label){ showTripDetail(tid); return; }
+      fetch(api('/api/trips/'+tid+'/packing/'+iid), {method:'PATCH',
+        headers:{'Content-Type':'application/json'}, body:JSON.stringify({label})})
+        .then(()=>showTripDetail(tid));
+    }
+    async function _postPackItem(tid, category, label){
+      const r = await fetch(api('/api/trips/'+tid+'/packing'), {method:'POST',
+        headers:{'Content-Type':'application/json'}, body:JSON.stringify({category, label})});
+      if(r.status===409){ toast('Packliste voll (max. '+MAX_PACKING_ITEMS+' Einträge, damit sie auf eine Seite passt)'); return; }
+      showTripDetail(tid);
+    }
+    function addPackItem(tid, category, inputEl){
+      const label = (inputEl.value||'').trim();
+      if(!label) return;
+      _postPackItem(tid, category, label);
+    }
+    function addPackItemNewCat(tid){
+      const category = ($('#pack-newcat-'+tid).value||'').trim();
+      const label = ($('#pack-newlabel-'+tid).value||'').trim();
+      if(!category || !label) return;
+      _postPackItem(tid, category, label);
+    }
+    function deletePackItem(tid, iid){
+      fetch(api('/api/trips/'+tid+'/packing/'+iid), {method:'DELETE'}).then(()=>showTripDetail(tid));
+    }
+    function resetPacking(tid){
+      if(!confirm('Packliste auf Vorlage zurücksetzen? Eigene Einträge und Haken gehen verloren.')) return;
+      fetch(api('/api/trips/'+tid+'/packing/reset'), {method:'POST'})
+        .then(()=>{ toast('Packliste zurückgesetzt'); showTripDetail(tid); });
+    }
+    function printPacking(){
+      if(!_lastPack) return;
+      const groups = _groupPacking(_lastPack.items);
+      const buildCat = g=>`<div class="pp-cat"><h4>${esc(g.cat)}</h4>${
+        g.items.map(it=>`<div class="pp-item">${it.checked?'☑':'☐'} ${esc(it.label)}</div>`).join('')
+      }</div>`;
+      const catsHtml = _splitColumns(groups)
+        .map(col=>`<div class="pp-col">${col.map(buildCat).join('')}</div>`).join('');
+      const flightsHtml = (_lastPack.flights||[]).length
+        ? `<div class="pp-flights">${_lastPack.flights.map(f=>`<div>✈ ${esc(f)}</div>`).join('')}</div>` : '';
+      $('#pack-print-area').innerHTML = `<div class="pp-head"><h1>TUIWatch — Packliste</h1>
+          <div class="pp-meta">${esc(_lastPack.title)}${_lastPack.meta?' · '+esc(_lastPack.meta):''}</div>
+          ${flightsHtml}</div>
+        <div class="pp-wrap">${catsHtml}</div>`;
+      window.print();
     }
 
     // — PDF-Debug: bereinigter Text + erkannt/leer je Feld (nur für den Angemeldeten,

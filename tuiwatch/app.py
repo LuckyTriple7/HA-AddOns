@@ -40,6 +40,7 @@ from scraper import (_giata_from_url, _valid_img_url, api_healthcheck,
                      with_room_code, with_travellers, without_room_code)
 from aktionscodes import fetch_aktionscodes
 from nextcloud import fetch_contacts
+from packliste import default_packing_rows
 from tripparser import (_clean_text, _parse_eur, check_fields, extract_pdf_text,
                         parse_tui_pdf, parse_tui_text)
 
@@ -383,10 +384,24 @@ def init_db() -> None:
             orig_name   TEXT NOT NULL,
             created     INTEGER NOT NULL
         )''')
+        # Packliste je Reise — Vorlage aus packliste.py wird beim ersten Öffnen einmalig
+        # eingespielt (trips.packing_seeded), danach frei editierbar/löschbar/ergänzbar.
+        # Reihenfolge ergibt sich aus der (monoton steigenden) id — keine separate
+        # sort_order-Spalte nötig, seedet/hängt neue Items in Einfügereihenfolge an.
+        con.execute('''CREATE TABLE IF NOT EXISTS trip_packing_items (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            trip_id     INTEGER NOT NULL,
+            category    TEXT NOT NULL,
+            label       TEXT NOT NULL,
+            checked     INTEGER NOT NULL DEFAULT 0,
+            created     INTEGER NOT NULL
+        )''')
         # Migration: net_per_night in bestehenden trips-Tabellen nachrüsten
         tcols = {r['name'] for r in con.execute('PRAGMA table_info(trips)').fetchall()}
         if 'net_per_night' not in tcols:
             con.execute("ALTER TABLE trips ADD COLUMN net_per_night REAL")
+        if 'packing_seeded' not in tcols:
+            con.execute("ALTER TABLE trips ADD COLUMN packing_seeded INTEGER DEFAULT 0")
         # Migration: fehlende Spalten in bestehenden DBs nachrüsten
         ocols = {r['name'] for r in con.execute('PRAGMA table_info(offers)').fetchall()}
         for col in ('hotel', 'details', 'room', 'dep_airport', 'flight_out',
@@ -2231,9 +2246,18 @@ def _build_backup_zip() -> bytes:
                 'FROM trip_attachments JOIN trips ON trips.id = trip_attachments.trip_id '
                 'WHERE trips.booking_code IS NOT NULL ORDER BY trip_attachments.id').fetchall():
             attachments.append(dict(a))
-    data = {'tuiwatch_backup': 2, 'created': datetime.now().isoformat(),
+        # Packliste je Reise nur über booking_code referenzierbar sichern (wie Anhänge) —
+        # Reisen ohne Buchungsnummer werden ausgelassen.
+        packing_items = []
+        for pi in con.execute(
+                'SELECT trip_packing_items.category, trip_packing_items.label, '
+                'trip_packing_items.checked, trips.booking_code '
+                'FROM trip_packing_items JOIN trips ON trips.id = trip_packing_items.trip_id '
+                'WHERE trips.booking_code IS NOT NULL ORDER BY trip_packing_items.id').fetchall():
+            packing_items.append(dict(pi))
+    data = {'tuiwatch_backup': 3, 'created': datetime.now().isoformat(),
             'offers': offers, 'trips': trips, 'saved_searches': searches,
-            'trip_attachments': attachments}
+            'trip_attachments': attachments, 'trip_packing_items': packing_items}
 
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as z:
@@ -2422,8 +2446,9 @@ def api_restore():
     trips = data.get('trips') or []
     searches = data.get('saved_searches') or []
     trip_attachments = data.get('trip_attachments') or []
+    packing_items = data.get('trip_packing_items') or []
     added, skipped, new_ids = 0, 0, []
-    trips_n, searches_n, attachments_n = 0, 0, 0
+    trips_n, searches_n, attachments_n, packing_n = 0, 0, 0, 0
     with db() as con:
         ocols = set(_table_columns(con, 'offers'))
         existing_urls = {r['url'] for r in con.execute('SELECT url FROM offers').fetchall()}
@@ -2494,6 +2519,30 @@ def api_restore():
                     'VALUES (?,?,?,?)',
                     (trip_row['id'], filename, orig_name, int(a.get('created') or time.time())))
                 attachments_n += 1
+        if isinstance(packing_items, list) and packing_items:
+            for pi in packing_items:
+                if not isinstance(pi, dict):
+                    continue
+                booking = (pi.get('booking_code') or '').strip()
+                category = (pi.get('category') or '').strip()
+                label = (pi.get('label') or '').strip()
+                if not booking or not category or not label:
+                    continue
+                trip_row = con.execute(
+                    'SELECT id FROM trips WHERE booking_code=?', (booking,)).fetchone()
+                if not trip_row:
+                    continue
+                exists = con.execute(
+                    'SELECT id FROM trip_packing_items WHERE trip_id=? AND category=? AND label=?',
+                    (trip_row['id'], category, label)).fetchone()
+                if exists:
+                    continue
+                con.execute(
+                    'INSERT INTO trip_packing_items (trip_id, category, label, checked, created) '
+                    'VALUES (?,?,?,?,?)',
+                    (trip_row['id'], category, label, 1 if pi.get('checked') else 0, int(time.time())))
+                con.execute('UPDATE trips SET packing_seeded=1 WHERE id=?', (trip_row['id'],))
+                packing_n += 1
         if isinstance(searches, list):
             for s in searches:
                 if not isinstance(s, dict):
@@ -2516,9 +2565,10 @@ def api_restore():
     for oid in new_ids:
         _spawn(check_offer, oid)
     log.info("Wiederherstellung: %d Angebote (+%d übersprungen), %d Reisen, %d Suchen, "
-             "%d Reise-Anhänge", added, skipped, trips_n, searches_n, attachments_n)
-    return jsonify({'added': added, 'skipped': skipped,
-                    'trips': trips_n, 'searches': searches_n, 'attachments': attachments_n})
+             "%d Reise-Anhänge, %d Packliste-Items",
+             added, skipped, trips_n, searches_n, attachments_n, packing_n)
+    return jsonify({'added': added, 'skipped': skipped, 'trips': trips_n, 'searches': searches_n,
+                    'attachments': attachments_n, 'packing_items': packing_n})
 
 
 @app.route('/api/compare/<int:offer_id>', methods=['POST'])
@@ -3154,7 +3204,17 @@ def api_trip_detail(tid):
         atts = con.execute(
             'SELECT id, orig_name, created FROM trip_attachments WHERE trip_id=? ORDER BY id',
             (tid,)).fetchall()
+        if not row['packing_seeded']:
+            con.executemany(
+                'INSERT INTO trip_packing_items '
+                '(trip_id, category, label, checked, created) VALUES (?,?,?,?,?)',
+                [(tid,) + r for r in default_packing_rows(int(time.time()))])
+            con.execute('UPDATE trips SET packing_seeded=1 WHERE id=?', (tid,))
+        packing = con.execute(
+            'SELECT id, category, label, checked FROM trip_packing_items '
+            'WHERE trip_id=? ORDER BY id', (tid,)).fetchall()
     trip['attachments'] = [dict(a) for a in atts]
+    trip['packing'] = [dict(p) for p in packing]
     return jsonify(trip)
 
 
@@ -3422,6 +3482,101 @@ def api_trip_attachment_delete(tid, aid):
     return jsonify({'ok': True})
 
 
+# Obergrenze für Packliste-Items je Reise — die Vorlage hat 66 Einträge und füllt eine
+# gedruckte A4-Seite zweispaltig bereits gut; 70 lässt ein paar eigene Ergänzungen zu,
+# ohne dass das Druckblatt umbricht.
+MAX_PACKING_ITEMS = 70
+
+
+def _packing_item_owned(con, tid, iid):
+    return con.execute(
+        'SELECT id FROM trip_packing_items WHERE id=? AND trip_id=?', (iid, tid)).fetchone()
+
+
+@app.route('/api/trips/<int:tid>/packing', methods=['POST'])
+def api_trip_packing_add(tid):
+    """Eigenes Item zur Packliste hinzufügen."""
+    if (err := _require_api()):
+        return err
+    body = request.get_json(silent=True) or {}
+    category = (body.get('category') or '').strip()
+    label = (body.get('label') or '').strip()
+    if not category or not label or len(category) > 60 or len(label) > 200:
+        return jsonify({'error': 'invalid'}), 400
+    with db() as con:
+        if not con.execute('SELECT id FROM trips WHERE id=?', (tid,)).fetchone():
+            return jsonify({'error': 'not_found'}), 404
+        count = con.execute(
+            'SELECT COUNT(*) c FROM trip_packing_items WHERE trip_id=?', (tid,)).fetchone()['c']
+        if count >= MAX_PACKING_ITEMS:
+            return jsonify({'error': 'limit_reached'}), 409
+        cur = con.execute(
+            'INSERT INTO trip_packing_items (trip_id, category, label, checked, created) '
+            'VALUES (?,?,?,0,?)', (tid, category, label, int(time.time())))
+    return jsonify({'ok': True, 'id': cur.lastrowid})
+
+
+@app.route('/api/trips/<int:tid>/packing/<int:iid>', methods=['PATCH'])
+def api_trip_packing_update(tid, iid):
+    """Item abhaken/umbenennen/umkategorisieren — nur mitgeschickte Felder ändern."""
+    if (err := _require_api()):
+        return err
+    body = request.get_json(silent=True) or {}
+    fields, params = [], []
+    if 'checked' in body:
+        fields.append('checked=?')
+        params.append(1 if body.get('checked') else 0)
+    if 'label' in body:
+        label = (body.get('label') or '').strip()
+        if not label or len(label) > 200:
+            return jsonify({'error': 'invalid'}), 400
+        fields.append('label=?')
+        params.append(label)
+    if 'category' in body:
+        category = (body.get('category') or '').strip()
+        if not category or len(category) > 60:
+            return jsonify({'error': 'invalid'}), 400
+        fields.append('category=?')
+        params.append(category)
+    if not fields:
+        return jsonify({'error': 'invalid'}), 400
+    with db() as con:
+        if not _packing_item_owned(con, tid, iid):
+            return jsonify({'error': 'not_found'}), 404
+        con.execute(f'UPDATE trip_packing_items SET {", ".join(fields)} WHERE id=?',
+                    params + [iid])
+    return jsonify({'ok': True})
+
+
+@app.route('/api/trips/<int:tid>/packing/<int:iid>', methods=['DELETE'])
+def api_trip_packing_delete(tid, iid):
+    """Packliste-Item entfernen."""
+    if (err := _require_api()):
+        return err
+    with db() as con:
+        if not _packing_item_owned(con, tid, iid):
+            return jsonify({'error': 'not_found'}), 404
+        con.execute('DELETE FROM trip_packing_items WHERE id=?', (iid,))
+    return jsonify({'ok': True})
+
+
+@app.route('/api/trips/<int:tid>/packing/reset', methods=['POST'])
+def api_trip_packing_reset(tid):
+    """Packliste auf die Vorlage zurücksetzen — eigene Einträge/Haken gehen verloren."""
+    if (err := _require_api()):
+        return err
+    with db() as con:
+        if not con.execute('SELECT id FROM trips WHERE id=?', (tid,)).fetchone():
+            return jsonify({'error': 'not_found'}), 404
+        con.execute('DELETE FROM trip_packing_items WHERE trip_id=?', (tid,))
+        con.executemany(
+            'INSERT INTO trip_packing_items '
+            '(trip_id, category, label, checked, created) VALUES (?,?,?,?,?)',
+            [(tid,) + r for r in default_packing_rows(int(time.time()))])
+        con.execute('UPDATE trips SET packing_seeded=1 WHERE id=?', (tid,))
+    return jsonify({'ok': True})
+
+
 @app.route('/api/trips/<int:tid>', methods=['DELETE'])
 def api_trip_delete(tid):
     """Reise löschen — inkl. der dauerhaft gespeicherten PDF und aller Anhänge."""
@@ -3434,6 +3589,7 @@ def api_trip_delete(tid):
         atts = con.execute(
             'SELECT filename FROM trip_attachments WHERE trip_id=?', (tid,)).fetchall()
         con.execute('DELETE FROM trip_attachments WHERE trip_id=?', (tid,))
+        con.execute('DELETE FROM trip_packing_items WHERE trip_id=?', (tid,))
         con.execute('DELETE FROM trips WHERE id=?', (tid,))
     for a in atts:
         p = _trip_pdf_path(a['filename'])
