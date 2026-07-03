@@ -1662,6 +1662,7 @@
       const groups = _groupPacking(items);
       const full = items.length >= MAX_PACKING_ITEMS;
       const open = _packOpenState[id] === true;
+      const doneCount = items.filter(it=>it.checked).length;
       const buildCat = g=>{
         const catId = 'pc'+id+'-'+g.cat.replace(/[^A-Za-z0-9]/g,'');
         return `<div class="pack-cat">
@@ -1690,7 +1691,7 @@
       return `<div class="pack-head">
           <span class="pack-toggle" id="pack-toggle-${id}" onclick="togglePackOpen(${id})" title="Ein-/ausklappen">${open?'▾':'▸'}</span>
           <div class="dsec" style="margin:0">🎒 Packliste</div>
-          <span class="cnt">${items.length}/${MAX_PACKING_ITEMS}</span>
+          <span class="cnt">${items.length}/${MAX_PACKING_ITEMS} · ${doneCount} erledigt · ${items.length-doneCount} offen</span>
           <button class="btn sec" onclick="printPacking()">🖨️ Drucken</button>
           <span class="pack-reset" onclick="resetPacking(${id})">↺ Zurücksetzen</span>
         </div>

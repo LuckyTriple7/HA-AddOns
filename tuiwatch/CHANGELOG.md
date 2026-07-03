@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.37.2] - 2026-07-03
+
+### Added
+- Packliste-Kopfzeile zeigt jetzt zusätzlich erledigt/offen an
+  (`66/70 · 24 erledigt · 42 offen`), nicht nur die Gesamtzahl.
+
 ## [0.37.1] - 2026-07-03
 
 ### Added
