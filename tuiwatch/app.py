@@ -1599,6 +1599,7 @@ def _build_digest() -> dict | None:
     lows = [o for o in offers if o.get('min_price') is not None
             and o.get('samples', 0) > 2 and o['price'] <= o['min_price']]
     under = [o for o in offers if o.get('target_price') and o['price'] <= o['target_price']]
+    trips = _upcoming_trips()
 
     try:                                             # aktuelle öffentliche Aktionscodes
         _aktion = json.loads(_meta_get('aktion_last', '') or '{}')
@@ -1612,6 +1613,11 @@ def _build_digest() -> dict | None:
     # ── Text (Telegram) ──
     tl = [f"📊 <b>TUIWatch — Wochenüberblick</b> ({datetime.now():%d.%m.%Y})",
           f"{len(offers)} aktive Reise(n) beobachtet."]
+    if trips:
+        tl.append("\n🧳 <b>Bevorstehende Reisen:</b>")
+        for t in trips:
+            rng = f"{t['start_date']} – {t['end_date']}" if t.get('end_date') else t['start_date']
+            tl.append(f"• {t['destination']}: {rng} (in {t['days_until']} Tagen)")
     if under:
         tl.append("\n🎯 <b>Unter Wunschpreis:</b>")
         tl += [f"• {nm(o)}: <b>{_eur(o['price'])}</b> (Ziel {_eur(o['target_price'])})" for o in under[:8]]
@@ -1665,6 +1671,10 @@ def _build_digest() -> dict | None:
         '<div style="font-family:system-ui,Arial,sans-serif;max-width:640px;margin:0 auto">'
         f'<h2 style="color:#10243e">📊 TUIWatch — Wochenüberblick</h2>'
         f'<p style="color:#555;font-size:13px">{datetime.now():%d.%m.%Y} · {len(offers)} aktive Reise(n) beobachtet.</p>'
+        + section('🧳 Bevorstehende Reisen', trips,
+                  lambda t: f'<b>{esc(t["destination"])}</b> — {esc(t["start_date"])}'
+                            + (f' – {esc(t["end_date"])}' if t.get('end_date') else '')
+                            + f' <span style="color:#777">(in {t["days_until"]} Tagen)</span>')
         + section('🎯 Unter Wunschpreis', under,
                   lambda o: f'{link(o)}: <b>{_eur(o["price"])}</b> <span style="color:#777">(Ziel {_eur(o["target_price"])})</span>')
         + section('📉 Neuer Tiefstwert', lows,
@@ -3095,10 +3105,24 @@ def _trip_title(data: dict) -> str:
     return f"{ziel} {jahr}".strip()
 
 
+def _trip_departure(row) -> tuple[datetime | None, bool]:
+    """Abflug-Datetime einer Reise: Hinflug-Zeit aus data.fluege, sonst 00:00 des
+    Reisebeginns. Rückgabe (datetime|None, has_time)."""
+    try:
+        data = json.loads(row['data'] or '{}')
+    except (json.JSONDecodeError, TypeError):
+        data = {}
+    dep_time = next((f.get('abflug_zeit') for f in data.get('fluege') or []
+                      if f.get('typ') == 'Hinflug'), None)
+    try:
+        return (datetime.fromisoformat(f"{row['start_date']}T{dep_time or '00:00'}:00"),
+                dep_time is not None)
+    except ValueError:
+        return None, False
+
+
 def _next_trip() -> dict | None:
-    """Nächste bevorstehende Reise (Abflug in der Zukunft) fürs Header-Countdown.
-    Abflugzeit kommt aus dem geparsten Hinflug (data.fluege); ohne erkannten
-    Hinflug wird 00:00 des Reisebeginns angenommen."""
+    """Nächste bevorstehende Reise (Abflug in der Zukunft) fürs Header-Countdown."""
     today = date.today().isoformat()
     with db() as con:
         rows = con.execute(
@@ -3106,20 +3130,35 @@ def _next_trip() -> dict | None:
             'WHERE start_date >= ? ORDER BY start_date ASC LIMIT 5', (today,)).fetchall()
     now = datetime.now()
     for r in rows:
-        try:
-            data = json.loads(r['data'] or '{}')
-        except (json.JSONDecodeError, TypeError):
-            data = {}
-        dep_time = next((f.get('abflug_zeit') for f in data.get('fluege') or []
-                          if f.get('typ') == 'Hinflug'), None)
-        try:
-            dep_dt = datetime.fromisoformat(f"{r['start_date']}T{dep_time or '00:00'}:00")
-        except ValueError:
-            continue
-        if dep_dt >= now:
+        dep_dt, has_time = _trip_departure(r)
+        if dep_dt and dep_dt >= now:
             return {'destination': r['destination'] or r['hotel'] or '',
-                    'departure': dep_dt.isoformat(), 'has_time': dep_time is not None}
+                    'departure': dep_dt.isoformat(), 'has_time': has_time}
     return None
+
+
+def _upcoming_trips(limit: int = 10) -> list[dict]:
+    """Alle bevorstehenden Reisen (Abflug in der Zukunft), sortiert nach Startdatum —
+    für den Wochen-Digest (Header zeigt nur die nächste, hier alle künftigen)."""
+    today = date.today().isoformat()
+    with db() as con:
+        rows = con.execute(
+            'SELECT destination, hotel, start_date, end_date, nights, data FROM trips '
+            'WHERE start_date >= ? ORDER BY start_date ASC LIMIT ?', (today, limit)).fetchall()
+    now = datetime.now()
+    out = []
+    for r in rows:
+        dep_dt, has_time = _trip_departure(r)
+        if not dep_dt or dep_dt < now:
+            continue
+        out.append({
+            'destination': r['destination'] or r['hotel'] or '',
+            'hotel': r['hotel'] or '', 'start_date': r['start_date'],
+            'end_date': r['end_date'], 'nights': r['nights'],
+            'departure': dep_dt.isoformat(), 'has_time': has_time,
+            'days_until': (dep_dt.date() - date.today()).days,
+        })
+    return out
 
 
 @app.route('/api/trips/next', methods=['GET'])

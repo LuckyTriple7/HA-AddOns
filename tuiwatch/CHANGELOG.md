@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.37.1] - 2026-07-03
+
+### Added
+- **Bevorstehende Reisen im Wochen-Digest.** Die E-Mail/Telegram-Zusammenfassung
+  zeigt jetzt einen Abschnitt „🧳 Bevorstehende Reisen" mit allen künftigen
+  (noch nicht abgeflogenen) gebuchten Reisen inkl. Zeitraum und Countdown in
+  Tagen — bisher zeigte nur der Seiten-Header die jeweils nächste Reise an.
+
 ## [0.37.0] - 2026-07-03
 
 ### Added
