@@ -148,6 +148,30 @@ def test_build_search_payload_airlines():
     assert payload["parameters"]["airlines"] == ["X3", "VY"]
 
 
+def test_search_params_from_url_exact_duration():
+    # duration=exact aus einer eingefügten URL muss erhalten bleiben (nicht None
+    # werden) — die Such-API kennt "exact" selbst nicht, siehe
+    # test_build_search_payload_exact_computes_nights.
+    url = ("https://www.tui.com/x/1/offer/?startDate=2026-08-13&endDate=2026-08-16"
+           "&duration=exact&regionGiataIds=128")
+    assert scraper._search_params_from_url(url)["duration"] == "exact"
+
+
+def test_build_search_payload_exact_computes_nights():
+    # Die Such-API ignoriert "duration": "exact" (fällt sonst auf 7 Nächte zurück) —
+    # daher aus dem Datumsfenster selbst die Nächtezahl berechnen und als Zahl senden.
+    payload = scraper._build_search_payload({
+        "regions": [128], "duration": "exact", "travellers": 2,
+        "startDate": "2026-08-13", "endDate": "2026-08-16"})
+    assert payload["parameters"]["duration"] == [3]
+
+
+def test_build_search_payload_exact_without_dates():
+    payload = scraper._build_search_payload(
+        {"regions": [128], "duration": "exact", "travellers": 2})
+    assert payload["parameters"]["duration"] == []
+
+
 def test_room_code_helpers():
     base = "https://www.tui.com/x/123/offer/?startDate=2027-05-01&duration=7"
     u = scraper.with_room_code(base, "DZM3")

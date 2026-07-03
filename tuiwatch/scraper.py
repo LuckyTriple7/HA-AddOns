@@ -565,7 +565,8 @@ def _search_params_from_url(url: str, *, region: int | None = None,
     return {
         "searchScope": q.get("searchScope", "PACKAGE"),
         "startDate": q.get("startDate", ""), "endDate": q.get("endDate", ""),
-        "duration": int(dur) if dur.isdigit() else None,
+        "duration": ("exact" if dur.strip().lower() == "exact"
+                     else (int(dur) if dur.isdigit() else None)),
         "travellers": adults, "airports": _split_multi(q.get("departureAirports", "")),
         "operators": ops, "boards": board_codes, "airlines": airline_codes,
         "regions": regions,
@@ -575,11 +576,20 @@ def _search_params_from_url(url: str, *, region: int | None = None,
 
 def _build_search_payload(p: dict) -> dict:
     """POST-Body aus kanonischen Suchparametern."""
+    dur = p.get("duration")
+    if dur == "exact":
+        # Die Such-API kennt keinen "exact"-Wert (anders als die Angebots-URL) — sie
+        # ignoriert ihn stillschweigend und fällt auf 7 Nächte zurück. Für "genau der
+        # gewählte Zeitraum" daher die Nächte aus dem Datumsfenster selbst berechnen.
+        try:
+            dur = (date.fromisoformat(p.get("endDate", ""))
+                   - date.fromisoformat(p.get("startDate", ""))).days
+        except (TypeError, ValueError):
+            dur = None
     params = {
         "searchScope": p.get("searchScope") or "PACKAGE",
         "startDate": p.get("startDate", ""), "endDate": p.get("endDate", ""),
-        "duration": ("exact" if p.get("duration") == "exact"
-                     else ([p["duration"]] if p.get("duration") else [])),
+        "duration": [dur] if dur else [],
         "rooms": [{"numberOfAdults": p.get("travellers") or 2, "childAges": [],
                    "roomCodes": [], "boardCodes": p.get("boards") or []}],
         "airports": p.get("airports") or [], "airlines": p.get("airlines") or [],

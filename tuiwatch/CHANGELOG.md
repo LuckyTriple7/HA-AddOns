@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.28.1] - 2026-07-03
+
+### Fixed
+- **„Exakt"-Checkbox in der Hotelsuche (endgültig behoben).** Der Fix aus 0.27.2
+  reichte `duration=exact` als String statt als `["exact"]`-Array durch — ein Live-
+  Test gegen die echte TUI-Such-API zeigte aber, dass **beide** Varianten
+  stillschweigend ignoriert werden und die API auf 7 Nächte zurückfällt. Die
+  Such-API kennt „exact" gar nicht (anders als die Angebots-Detailseite). Berechnet
+  jetzt stattdessen die Nächtezahl selbst aus dem gewählten Zeitraum (von/bis) und
+  sendet sie als normale Zahl — verifiziert per Live-Abfrage: 13.08.–16.08. liefert
+  jetzt korrekt 3-Nächte-Treffer statt 7. Betraf auch die eingefügte TUI-Such-URL
+  (`duration=exact` wurde dort zuvor sogar komplett verworfen).
+
 ## [0.28.0] - 2026-07-03
 
 ### Added
