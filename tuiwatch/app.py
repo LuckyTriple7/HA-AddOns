@@ -28,6 +28,7 @@ import requests as http
 from flask import (Flask, jsonify, make_response, redirect, render_template,
                    request, send_file, url_for)
 from werkzeug.middleware.proxy_fix import ProxyFix
+from werkzeug.utils import safe_join
 
 from scraper import (_giata_from_url, _valid_img_url, api_healthcheck,
                      build_destination_index,
@@ -3029,18 +3030,11 @@ def _trip_pdf_path(pdf_name: str):
     Gibt None zurück, wenn der Name unzulässig ist oder aus dem TRIPS_DIR ausbräche."""
     if not pdf_name:
         return None
-    # Nur der Basename und ausschließlich ein strikt begrenzter Zeichensatz — verhindert
-    # jegliche Verzeichnis-Anteile/Traversal, bevor ein Pfad gebaut wird.
     name = Path(pdf_name).name
     if not re.fullmatch(r'[A-Za-z0-9._-]{1,120}', name):
         return None
-    base = Path(TRIPS_DIR).resolve()
-    p = (base / name).resolve()
-    try:
-        p.relative_to(base)
-    except ValueError:
-        return None
-    return p
+    joined = safe_join(str(TRIPS_DIR), name)
+    return Path(joined) if joined is not None else None
 
 
 def _trip_title(data: dict) -> str:
