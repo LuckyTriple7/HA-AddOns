@@ -930,6 +930,8 @@ async function fetchAndUpdate() {
     document.getElementById('main-table').style.display  = '';
   } catch (e) {
     console.error('Fetch error:', e);
+    _offlineFails++;
+    if (_offlineFails >= 3) showOfflineBanner();
   }
 }
 
