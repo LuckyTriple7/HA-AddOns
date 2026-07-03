@@ -344,6 +344,21 @@ def test_fetch_search_params(monkeypatch, fx, fake_resp):
     assert first["price"] == 2088
     assert "/offer/?" in first["offer_url"]
     assert "regionGiataIds=128" in first["offer_url"]
+    assert first["coupon"] is True   # Fixture-Hotel führt GT03-COUP in globalTypes
+
+
+def test_fetch_search_params_coupon_false_without_flag(monkeypatch, fake_resp):
+    # Hotel ohne GT03-COUP im globalTypes-Katalog → coupon:false
+    payload = {"resultsTotal": 1, "items": [{
+        "hotel": {"giataId": 1, "name": "Ohne Coupon", "category": "3",
+                  "location": {}, "globalTypes": [{"code": "GT03-BEAC"}]},
+        "price": {"perPerson": {"amount": 500}},
+        "boardType": "", "numberOfNights": 7, "startDate": "2026-08-12T00:00:00",
+    }]}
+    monkeypatch.setattr(scraper.requests, "post", lambda *a, **k: fake_resp(payload))
+    res = scraper.fetch_search_params(region=128, start="2026-08-12", end="2026-08-19",
+                                      duration=7, travellers=2, airports=["STR"])
+    assert res["results"][0]["coupon"] is False
 
 
 def test_fetch_search_no_region():

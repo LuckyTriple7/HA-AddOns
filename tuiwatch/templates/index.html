@@ -190,6 +190,7 @@
     .sr-price { font-weight:700; font-size:.95rem; }
     .sr-old { color:var(--muted); text-decoration:line-through; font-size:.72rem; }
     .sr-disc { color:var(--green); font-size:.72rem; font-weight:600; margin-left:4px; }
+    .sr-coupon { font-size:.74rem; font-weight:600; color:var(--red); margin-top:2px; }
     .sr-acts { display:flex; gap:6px; margin-top:6px; justify-content:flex-end; }
     .srch-head { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:6px 0 4px; font-size:.82rem; color:var(--muted); }
     .srch-listfilter { background:var(--bg); border:1px solid var(--border); color:var(--text); padding:6px 10px; border-radius:6px; font-size:.82rem; min-width:180px; }
@@ -1870,6 +1871,7 @@
           <div class="sr-name">${stars}${esc(r.name)}${r.tracked?'<span class="tracked">✓ getrackt</span>':''}</div>
           <div class="sr-meta">📍 ${esc(r.location)}${r.country?(' · '+esc(r.country)):''}${rec}</div>
           <div class="sr-meta">${esc(r.board)} · ${r.nights} Nächte · ab ${fmtD(r.date)}</div>
+          ${r.coupon?'<div class="sr-coupon" title="TUI zeigt für dieses Hotel aktuell einen Aktionscode/Coupon an (Wert je nach Reisepreis, siehe tui.com)">% Aktionscode möglich</div>':''}
         </div>
         <div class="sr-pricecol">
           <div class="sr-price">${eur(r.price)}</div>

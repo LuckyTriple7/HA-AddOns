@@ -707,6 +707,10 @@ def _run_search(params: dict, *, verbose: bool = False) -> dict | None:
         except (ValueError, IndexError):
             stars = None
         loc_parts = [x for x in (loc.get("city"), loc.get("region")) if x]
+        # GT03-COUP im hotelseitigen globalTypes-Katalog markiert Teilnahme an aktuellen
+        # TUI-Aktionscodes/Coupons (live gegen tui.com verifiziert: korreliert exakt mit
+        # dem "myTUI Aktionscode"-Badge auf der echten Suchseite).
+        coupon = any(g.get("code") == "GT03-COUP" for g in (h.get("globalTypes") or []))
         results.append({
             "giata": h.get("giataId"), "name": h.get("name", ""), "stars": stars,
             "recommendation": h.get("holidayCheckRecommendationRate"),
@@ -717,6 +721,7 @@ def _run_search(params: dict, *, verbose: bool = False) -> dict | None:
             "board": it.get("boardType", ""), "nights": it.get("numberOfNights"),
             "date": (it.get("startDate") or "")[:10],
             "image": (h.get("images") or [{}])[0].get("url", ""),
+            "coupon": coupon,
             "offer_url": offer_url_for(it, params),
         })
     if verbose:

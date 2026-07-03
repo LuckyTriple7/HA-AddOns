@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.34.0] - 2026-07-03
+
+### Added
+- **Aktionscode-Hinweis in der Hotelsuche.** Die TUI-Such-API liefert je Hotel im
+  `globalTypes`-Katalog den Code `GT03-COUP`, sobald tui.com für dieses Hotel gerade
+  einen Aktionscode/Coupon anzeigt (live gegen mehrere Regionen verifiziert — exakter
+  Codevergleich, kein Fuzzy-Match). Suchergebnisse mit diesem Flag zeigen jetzt „%
+  Aktionscode möglich" unter den Angebotsdetails.
+
 ## [0.33.2] - 2026-07-03
 
 ### Changed

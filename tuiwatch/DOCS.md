@@ -84,6 +84,10 @@ und Verpflegung werden aus dem Angebot vorbelegt.
 **3. TUI-URL einfügen:** Unter „Alternativ: TUI-Such-URL einfügen" eine Ergebnis-URL von
 tui.com (mit `regionGiataIds=…`) einfügen.
 
+Zeigt TUI für ein Hotel gerade einen **Aktionscode/Coupon** an, erscheint „% Aktionscode
+möglich" unter den Angebotsdetails (kein fester Wert — der hängt vom Reisepreis ab,
+siehe tui.com für den genauen Betrag).
+
 Die Trefferliste zeigt Hotelname, Sterne, Ort, **HolidayCheck-Weiterempfehlung**,
 Verpflegung, Nächte und **Preis pro Person**; **sortierbar** nach Preis, Preis/Nacht,
 Weiterempfehlung oder Sternen und über ein **Suchfeld** nach Name/Ort/Verpflegung
