@@ -86,6 +86,15 @@ configuration:
   smtp_tls:
     name: STARTTLS verwenden
     description: "An = STARTTLS (Port 587). Aus = SSL/TLS direkt (Port 465)."
+  nc_addressbook_url:
+    name: Nextcloud-Adressbuch-URL
+    description: "Volle CardDAV-URL des Adressbuchs, wie sie Nextcloud in der Kontakte-App zum Kopieren anbietet (z. B. https://cloud.example.com/remote.php/dav/addressbooks/users/nutzer/contacts/). Leer lassen = kein Adressbuch, E-Mail-Empfänger bleibt Freitext."
+  nc_user:
+    name: Nextcloud-Benutzername
+    description: "Nextcloud-Benutzername für den Zugriff auf das Adressbuch."
+  nc_app_password:
+    name: Nextcloud-App-Passwort
+    description: "App-Passwort (nicht das normale Login-Passwort!) — erstellbar unter Nextcloud-Einstellungen → Sicherheit → Geräte & Sitzungen → Neues App-Passwort."
   verbose_log:
     name: Ausführliches Logging
     description: Gibt mehr Details pro Prüfung im Log aus. Standard aus — nur Fehler und wichtige Ereignisse werden geloggt.

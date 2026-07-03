@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.36.1] - 2026-07-03
+
+### Fixed
+- Dockerfile kopierte `nextcloud.py` nicht ins Image → `ModuleNotFoundError` beim
+  Start. Ergänzt.
+- DE/EN-Übersetzungen für die drei neuen `nc_*`-Add-on-Optionen ergänzt (in
+  `translations/de.yaml`/`en.yaml` vergessen).
+
 ## [0.36.0] - 2026-07-03
 
 ### Added
