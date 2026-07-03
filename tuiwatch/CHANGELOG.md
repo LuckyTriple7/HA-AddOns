@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.36.2] - 2026-07-03
+
+### Fixed
+- CodeQL Path-Injection-Alerts (#179, #181, #182, #183) bei Reise-PDF-Pfaden
+  behoben: `_trip_pdf_path` nutzt jetzt `werkzeug.safe_join` statt manueller
+  `resolve()`/`relative_to()`-Prüfung — CodeQL erkennt `safe_join` als
+  Sanitizer, die manuelle Variante nicht.
+
 ## [0.36.1] - 2026-07-03
 
 ### Fixed
