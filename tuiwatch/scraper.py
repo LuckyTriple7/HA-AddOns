@@ -578,7 +578,8 @@ def _build_search_payload(p: dict) -> dict:
     params = {
         "searchScope": p.get("searchScope") or "PACKAGE",
         "startDate": p.get("startDate", ""), "endDate": p.get("endDate", ""),
-        "duration": [p["duration"]] if p.get("duration") else [],
+        "duration": ("exact" if p.get("duration") == "exact"
+                     else ([p["duration"]] if p.get("duration") else [])),
         "rooms": [{"numberOfAdults": p.get("travellers") or 2, "childAges": [],
                    "roomCodes": [], "boardCodes": p.get("boards") or []}],
         "airports": p.get("airports") or [], "airlines": p.get("airlines") or [],

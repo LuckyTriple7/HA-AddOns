@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.27.2] - 2026-07-03
+
+### Fixed
+- **„Exakt"-Checkbox in der Hotelsuche.** Bei aktivierter Checkbox wurde die
+  Reisedauer entgegen der Auswahl trotzdem als 7 Nächte gesucht, statt der
+  tatsächlichen Nächte zwischen von/bis (z. B. 3 Nächte bei 13.08.–16.08.). Ursache:
+  der native TUI-Wert `duration=exact` wurde beim Aufbau des Such-API-Requests
+  fälschlich in ein Array (`["exact"]`) verpackt statt als reiner String
+  durchgereicht — die TUI-API ignorierte den Wert dadurch und fiel auf ihren
+  Standard zurück.
+
 ## [0.27.1] - 2026-07-02
 
 ### Changed
