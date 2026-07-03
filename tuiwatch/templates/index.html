@@ -327,9 +327,23 @@
     .dbg-pre { max-height:320px; overflow:auto; font-size:.72rem; line-height:1.35; background:var(--surf2); border:1px solid var(--border); border-radius:6px; padding:8px 10px; white-space:pre-wrap; word-break:break-word; }
     .dbg-sec { margin-top:8px; } .dbg-sec summary { cursor:pointer; font-size:.82rem; color:var(--muted); }
     @media(max-width:767px){ #tw-console{ display:none!important; } }
+    /* ── Offline Banner ── */
+    #offline-banner { display:none; position:fixed; inset:0; z-index:9000; background:rgba(0,0,0,0.72); backdrop-filter:blur(4px); -webkit-backdrop-filter:blur(4px); flex-direction:column; align-items:center; justify-content:center; gap:14px; }
+    .ob-icon { font-size:44px; animation:ob-pulse 1.8s ease-in-out infinite; }
+    .ob-title { font-size:16px; font-weight:600; color:var(--text); }
+    .ob-sub { font-size:13px; color:var(--muted); }
+    .ob-reload { background:var(--surf); border:1px solid var(--border); color:var(--text); border-radius:8px; padding:8px 22px; font-size:13px; cursor:pointer; margin-top:4px; }
+    .ob-reload:hover { border-color:var(--accent); }
+    @keyframes ob-pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
   </style>
 </head>
 <body>
+  <div id="offline-banner">
+    <div class="ob-icon">📡</div>
+    <div class="ob-title">Verbindung unterbrochen</div>
+    <div class="ob-sub">Stelle Verbindung wieder her…</div>
+    <button class="ob-reload" onclick="window.location.reload()">Neu laden</button>
+  </div>
   <div class="wrap">
     <header>
       <div class="logo" ondblclick="consoleToggle()" style="cursor:default;user-select:none;" title="Doppelklick: Konsole">
@@ -703,6 +717,7 @@
         const r = await fetch(api('/api/offers'));
         if(!r.ok) return;
         const d = await r.json();
+        _offlineFails = 0; hideOfflineBanner();
         curOffers = d.offers;
         // Nur neu rendern, wenn sich wirklich etwas geändert hat — verhindert das
         // periodische Neuzeichnen (Flackern) der Preisdiagramme alle 5 s.
@@ -712,8 +727,17 @@
         if(editing || sig === lastSig) return;
         lastSig = sig;
         renderAll(d.offers);
-      } catch(e){}
+      } catch(e){ _offlineFails++; if(_offlineFails>=3) showOfflineBanner(); }
     }
+
+    // ── Verbindungsabbruch-Erkennung ───────────────────────────────────────────
+    let _offlineFails = 0;
+    function showOfflineBanner(){ $('#offline-banner').style.display = 'flex'; }
+    function hideOfflineBanner(){ $('#offline-banner').style.display = 'none'; }
+    window.addEventListener('online',  () => { _offlineFails = 0; loadOffers(); });
+    window.addEventListener('offline', () => showOfflineBanner());
+    document.addEventListener('visibilitychange', () => { if(!document.hidden) loadOffers(); });
+    if(!navigator.onLine) showOfflineBanner();
 
     function deltaBadge(o){
       if(o.ok===false) return '<span class="delta none">⚠ Abruf fehlgeschlagen</span>';

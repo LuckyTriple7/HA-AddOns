@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.31.0] - 2026-07-03
+
+### Added
+- Offline-Banner (wie SysWatch): erkennt Verbindungsabbruch über `online`/`offline`-Events,
+  `navigator.onLine`-Check beim Start und fehlgeschlagene `/api/offers`-Abrufe (3 Fehlversuche
+  in Folge) — abdunkelndes Overlay mit „Neu laden"-Button, verschwindet automatisch sobald
+  wieder Daten ankommen
+
 ## [0.30.1] - 2026-07-03
 
 ### Changed

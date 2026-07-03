@@ -263,6 +263,9 @@ Zusätzlich `binary_sensor.tuiwatch_aktionscodes`: **an**, solange aktuell
 
 ## Bedienung
 
+- **Offline-Banner** — bei Verbindungsabbruch (WLAN weg, Server nicht erreichbar) erscheint
+  ein abdunkelndes Overlay mit „Neu laden"-Button; verschwindet automatisch, sobald die
+  Verbindung wieder da ist.
 - **Als E-Mail senden** — verschickt alle Angebote als HTML-Mail (Empfänger wird vorher abgefragt; benötigt SMTP-Optionen).
 - **Backup / Wiederherstellen** — **komplettes** Backup als **ZIP**: alle getrackten
   Angebote **inkl. Preisverlauf** und Diagramm-Markern, **„Meine Reisen" inkl. der
