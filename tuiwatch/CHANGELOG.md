@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.33.0] - 2026-07-03
+
+### Added
+- **Weitere PDFs bei „Meine Reisen".** In der Detailansicht lässt sich jetzt zusätzlich
+  zur Reisebestätigung ein weiteres PDF hinterlegen (z. B. der Reiseplan) — reine
+  Ablage, ohne Auswertung/Parsing. Anhänge erscheinen als Pille (📎 Dateiname, öffnen/
+  entfernen per Klick) unter den Reisedetails. Werden beim Löschen der Reise mit
+  entfernt und im Backup/Restore mitgesichert.
+
 ## [0.32.1] - 2026-07-03
 
 ### Changed

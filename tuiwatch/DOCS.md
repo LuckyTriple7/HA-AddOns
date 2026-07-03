@@ -139,7 +139,11 @@ Preis-Tracking, als dauerhaftes Archiv (Vergangenheit und Zukunft).
   (Personen-Nächte = Nächte × Reisende), damit Solo- und Gruppenreisen vergleichbar sind.
 - **Aktualisieren/Löschen:** Ein erneuter Import derselben Buchungsnummer **überschreibt**
   den vorhandenen Eintrag (kein Duplikat). **„Löschen"** entfernt die Reise inkl. der
-  gespeicherten PDF.
+  gespeicherten PDF und aller weiteren Anhänge.
+- **Weitere Anhänge:** In der Detailansicht lässt sich über **„＋ PDF"** ein zusätzliches
+  PDF hinterlegen (z. B. der Reiseplan) — **reine Ablage**, es findet keine Auswertung
+  statt. Anhänge erscheinen als Pille (📎 Dateiname), Klick öffnet/lädt herunter, das
+  **×** entfernt den Anhang wieder. Werden im Backup/Restore mitgesichert.
 - **🔍 Debug-Modus:** In der Detailansicht zeigt **„Debug"** den **bereinigten PDF-Text**
   (die Basis der Feld-Erkennung), je Feld **erkannt/leer** und das geparste JSON — so
   sieht man bei einer TUI-Layout-Änderung sofort, *warum* ein Feld leer blieb. Schlägt

@@ -1538,12 +1538,28 @@
       const dbg = t.has_pdf?`<button class="btn sec" onclick="showTripDebug(${id}, '${jsArg(t.title||('Reise #'+id))}')" title="Bereinigten PDF-Text und je Feld erkannt/leer anzeigen — hilfreich, wenn TUI das PDF-Layout ändert">🔍 Debug</button>`:'';
       const warns = t.warnings||[];
       const warnBox = warns.length?`<div class="trip-warn">⚠ Diese Felder wurden nicht (vollständig) aus dem PDF erkannt: <b>${warns.map(w=>esc(w)).join(', ')}</b>. Bitte in der PDF prüfen.</div>`:'';
+      const atts = (t.attachments||[]).map(a =>
+        `<span class="tag-pill">📎 <a href="${api('/api/trips/'+id+'/attachments/'+a.id)}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none">${esc(a.orig_name)}</a> <span onclick="deleteTripAttachment(${id},${a.id})" title="Anhang entfernen" style="cursor:pointer">×</span></span>`
+      ).join('');
+      const attRow = `<div class="tag-row" style="margin-top:10px">${atts}<span class="tag-pill add" onclick="$('#trip-att-input-${id}').click()" title="Weiteres PDF hinterlegen (nur Ablage, keine Auswertung)">＋ PDF</span>
+        <input type="file" id="trip-att-input-${id}" accept="application/pdf" style="display:none" onchange="uploadTripAttachment(${id}, this.files[0])"></div>`;
       const box = $('#trip-detail');
       box.innerHTML = `<h3>${esc(t.title||('Reise #'+id))}</h3>
         <div style="margin-bottom:6px">${pdf} ${dbg} <button class="btn sec" onclick="$('#trip-detail').style.display='none'">schließen</button></div>
-        ${warnBox}<div class="dgrid">${grid}</div>${reisende}${fluege}${extras}${rabatte}${wuensche}`;
+        ${warnBox}<div class="dgrid">${grid}</div>${reisende}${fluege}${extras}${rabatte}${wuensche}${attRow}`;
       box.style.display='block';
       box.scrollIntoView({behavior:'smooth', block:'nearest'});
+    }
+    async function uploadTripAttachment(id, file){
+      if(!file) return;
+      const fd = new FormData(); fd.append('pdf', file);
+      let d; try { const r = await fetch(api('/api/trips/'+id+'/attachments'), {method:'POST', body:fd}); d = await r.json().catch(()=>({})); }
+      catch(e){ toast('Upload fehlgeschlagen'); return; }
+      if(d && d.ok){ toast('PDF hinterlegt'); showTripDetail(id); } else { toast('Upload fehlgeschlagen'); }
+    }
+    async function deleteTripAttachment(id, aid){
+      await fetch(api('/api/trips/'+id+'/attachments/'+aid), {method:'DELETE'});
+      toast('Anhang entfernt'); showTripDetail(id);
     }
 
     // — PDF-Debug: bereinigter Text + erkannt/leer je Feld (nur für den Angemeldeten,

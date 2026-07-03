@@ -81,24 +81,32 @@ def test_backup_restore_roundtrip(app_mod):
                     (oid, 1500, "booked", "gebucht"))
         con.execute("INSERT INTO saved_searches (name,payload,ts) VALUES (?,?,?)",
                     ("Kanaren", json.dumps({"a": 1}), 123))
-    assert _import_pdf(c).status_code == 200
+    tid = _import_pdf(c).get_json()["id"]
+    att = c.post(f"/api/trips/{tid}/attachments", headers=ING,
+                data={"pdf": (io.BytesIO(b"%PDF-1.4 reiseplan"), "Reiseplan.pdf")},
+                content_type="multipart/form-data")
+    assert att.status_code == 200
 
-    # Backup ziehen → ZIP mit data.json + PDF
+    # Backup ziehen → ZIP mit data.json + PDF + Anhang
     b = c.get("/api/backup", headers=ING)
     assert b.status_code == 200 and b.mimetype == "application/zip"
     zf = zipfile.ZipFile(io.BytesIO(b.data))
     names = zf.namelist()
     assert "data.json" in names
     assert any(n.startswith("trips/") and n.endswith(".pdf") for n in names)
+    assert any(n.startswith("attachments/") and n.endswith(".pdf") for n in names)
     data = json.loads(zf.read("data.json"))
     assert len(data["offers"]) == 1
     assert len(data["offers"][0]["history"]) == 2
     assert data["offers"][0]["events"][0]["type"] == "booked"
     assert len(data["trips"]) == 1 and len(data["saved_searches"]) == 1
+    assert len(data["trip_attachments"]) == 1
+    assert data["trip_attachments"][0]["orig_name"] == "Reiseplan.pdf"
 
     # DB + PDFs leeren → frischer Zustand
     with m.db() as con:
-        for tbl in ("offers", "price_history", "offer_events", "trips", "saved_searches"):
+        for tbl in ("offers", "price_history", "offer_events", "trips",
+                    "trip_attachments", "saved_searches"):
             con.execute(f"DELETE FROM {tbl}")
     shutil.rmtree(m.TRIPS_DIR, ignore_errors=True)
 
@@ -109,6 +117,7 @@ def test_backup_restore_roundtrip(app_mod):
     assert rr.status_code == 200
     jd = rr.get_json()
     assert jd["added"] == 1 and jd["trips"] == 1 and jd["searches"] == 1
+    assert jd["attachments"] == 1
 
     with m.db() as con:
         offs = con.execute("SELECT id,url,label,booked_price FROM offers").fetchall()
@@ -126,15 +135,22 @@ def test_backup_restore_roundtrip(app_mod):
     assert lst["stats"]["count"] == 1
     tid = lst["trips"][0]["id"]
     assert c.get(f"/api/trips/{tid}/pdf", headers=ING).status_code == 200
+    detail = c.get(f"/api/trips/{tid}", headers=ING).get_json()
+    assert len(detail["attachments"]) == 1
+    assert detail["attachments"][0]["orig_name"] == "Reiseplan.pdf"
+    aid = detail["attachments"][0]["id"]
+    assert c.get(f"/api/trips/{tid}/attachments/{aid}", headers=ING).status_code == 200
 
     # Zweiter Restore → nichts doppelt (nicht-destruktiv)
     rr2 = c.post("/api/restore", headers=ING,
                  data={"file": (io.BytesIO(b.data), "b.zip")},
                  content_type="multipart/form-data")
     assert rr2.get_json()["skipped"] == 1
+    assert rr2.get_json()["attachments"] == 0
     with m.db() as con:
         assert con.execute("SELECT COUNT(*) c FROM offers").fetchone()["c"] == 1
         assert con.execute("SELECT COUNT(*) c FROM trips").fetchone()["c"] == 1
+        assert con.execute("SELECT COUNT(*) c FROM trip_attachments").fetchone()["c"] == 1
 
 
 def test_restore_legacy_json(app_mod):

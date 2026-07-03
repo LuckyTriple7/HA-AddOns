@@ -180,3 +180,50 @@ def test_next_trip_falls_back_to_midnight_without_flight(client, monkeypatch):
 
 def test_next_trip_none_without_upcoming_trips(client):
     assert client.get("/api/trips/next", headers=ING).get_json()["trip"] is None
+
+
+def _upload_attachment(client, tid, name="reiseplan.pdf", content=b"%PDF-1.4 fake"):
+    import io
+    return client.post(f"/api/trips/{tid}/attachments", headers=ING,
+                       data={"pdf": (io.BytesIO(content), name)},
+                       content_type="multipart/form-data")
+
+
+def test_trip_starts_without_attachments(client):
+    tid = _import_pdf(client).get_json()["id"]
+    assert client.get(f"/api/trips/{tid}", headers=ING).get_json()["attachments"] == []
+
+
+def test_attachment_upload_get_delete(client):
+    tid = _import_pdf(client).get_json()["id"]
+
+    r = _upload_attachment(client, tid, "Reiseplan.pdf")
+    assert r.status_code == 200
+    aid = r.get_json()["id"]
+
+    detail = client.get(f"/api/trips/{tid}", headers=ING).get_json()
+    assert len(detail["attachments"]) == 1
+    assert detail["attachments"][0]["orig_name"] == "Reiseplan.pdf"
+
+    got = client.get(f"/api/trips/{tid}/attachments/{aid}", headers=ING)
+    assert got.status_code == 200
+    assert got.mimetype == "application/pdf"
+
+    dele = client.delete(f"/api/trips/{tid}/attachments/{aid}", headers=ING)
+    assert dele.status_code == 200
+    assert client.get(f"/api/trips/{tid}", headers=ING).get_json()["attachments"] == []
+    assert client.get(f"/api/trips/{tid}/attachments/{aid}", headers=ING).status_code == 404
+
+
+def test_attachment_reject_non_pdf(client):
+    tid = _import_pdf(client).get_json()["id"]
+    r = _upload_attachment(client, tid, "foto.jpg")
+    assert r.status_code == 400
+
+
+def test_attachment_deleted_with_trip(client):
+    tid = _import_pdf(client).get_json()["id"]
+    _upload_attachment(client, tid)
+    assert client.delete(f"/api/trips/{tid}", headers=ING).status_code == 200
+    # Reise weg → auch der Anhang nicht mehr abrufbar (Kaskade)
+    assert client.get(f"/api/trips/{tid}", headers=ING).status_code == 404

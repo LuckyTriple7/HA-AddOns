@@ -373,6 +373,14 @@ def init_db() -> None:
             orig_name     TEXT,
             created       INTEGER NOT NULL
         )''')
+        # Zusätzliche PDFs zu einer Reise (z. B. Reiseplan) — reine Ablage, kein Parsing.
+        con.execute('''CREATE TABLE IF NOT EXISTS trip_attachments (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            trip_id     INTEGER NOT NULL,
+            filename    TEXT NOT NULL,
+            orig_name   TEXT NOT NULL,
+            created     INTEGER NOT NULL
+        )''')
         # Migration: net_per_night in bestehenden trips-Tabellen nachrüsten
         tcols = {r['name'] for r in con.execute('PRAGMA table_info(trips)').fetchall()}
         if 'net_per_night' not in tcols:
@@ -2206,8 +2214,18 @@ def _build_backup_zip() -> bytes:
             f"SELECT {', '.join(_TRIP_COLUMNS)} FROM trips ORDER BY id").fetchall()]
         searches = [{c: s[c] for c in ('name', 'payload', 'ts')} for s in con.execute(
             'SELECT name, payload, ts FROM saved_searches ORDER BY id').fetchall()]
+        # Zusatz-PDFs je Reise nur über booking_code referenzierbar sichern (Trip-IDs
+        # ändern sich beim Restore) — Reisen ohne Buchungsnummer werden ausgelassen.
+        attachments = []
+        for a in con.execute(
+                'SELECT trip_attachments.filename, trip_attachments.orig_name, '
+                'trip_attachments.created, trips.booking_code '
+                'FROM trip_attachments JOIN trips ON trips.id = trip_attachments.trip_id '
+                'WHERE trips.booking_code IS NOT NULL ORDER BY trip_attachments.id').fetchall():
+            attachments.append(dict(a))
     data = {'tuiwatch_backup': 2, 'created': datetime.now().isoformat(),
-            'offers': offers, 'trips': trips, 'saved_searches': searches}
+            'offers': offers, 'trips': trips, 'saved_searches': searches,
+            'trip_attachments': attachments}
 
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as z:
@@ -2221,6 +2239,15 @@ def _build_backup_zip() -> bytes:
             p = _trip_pdf_path(name)
             if p and p.exists():
                 z.write(str(p), f'trips/{Path(name).name}')
+        seen_att = set()
+        for a in attachments:
+            name = (a.get('filename') or '').strip()
+            if not name or name in seen_att:
+                continue
+            seen_att.add(name)
+            p = _trip_pdf_path(name)
+            if p and p.exists():
+                z.write(str(p), f'attachments/{Path(name).name}')
     return buf.getvalue()
 
 
@@ -2350,6 +2377,7 @@ def api_restore():
     up = request.files.get('file')
     raw = up.read() if up is not None else None
     pdfs: dict[str, bytes] = {}
+    att_pdfs: dict[str, bytes] = {}
     data = None
     if raw:
         if raw[:2] == b'PK':                       # ZIP-Archiv
@@ -2359,11 +2387,16 @@ def api_restore():
             except (zipfile.BadZipFile, KeyError, ValueError, UnicodeDecodeError):
                 return jsonify({'error': 'invalid'}), 400
             for info in zf.infolist():
-                if info.is_dir() or not info.filename.startswith('trips/'):
+                if info.is_dir():
                     continue
-                base = Path(info.filename).name
-                if base.lower().endswith('.pdf') and 0 < info.file_size <= MAX_PDF_BYTES:
-                    pdfs[base] = zf.read(info)
+                if info.filename.startswith('trips/'):
+                    base = Path(info.filename).name
+                    if base.lower().endswith('.pdf') and 0 < info.file_size <= MAX_PDF_BYTES:
+                        pdfs[base] = zf.read(info)
+                elif info.filename.startswith('attachments/'):
+                    base = Path(info.filename).name
+                    if base.lower().endswith('.pdf') and 0 < info.file_size <= MAX_PDF_BYTES:
+                        att_pdfs[base] = zf.read(info)
         else:                                       # hochgeladene JSON-Datei
             try:
                 data = json.loads(raw.decode('utf-8'))
@@ -2380,8 +2413,9 @@ def api_restore():
     offers = data.get('offers') or []
     trips = data.get('trips') or []
     searches = data.get('saved_searches') or []
+    trip_attachments = data.get('trip_attachments') or []
     added, skipped, new_ids = 0, 0, []
-    trips_n, searches_n = 0, 0
+    trips_n, searches_n, attachments_n = 0, 0, 0
     with db() as con:
         ocols = set(_table_columns(con, 'offers'))
         existing_urls = {r['url'] for r in con.execute('SELECT url FROM offers').fetchall()}
@@ -2424,6 +2458,34 @@ def api_restore():
                     trips_n += 1
                 except sqlite3.IntegrityError:
                     pass
+        if isinstance(trip_attachments, list) and trip_attachments:
+            Path(TRIPS_DIR).mkdir(parents=True, exist_ok=True)
+            for a in trip_attachments:
+                if not isinstance(a, dict):
+                    continue
+                booking = (a.get('booking_code') or '').strip()
+                filename = (a.get('filename') or '').strip()
+                orig_name = (a.get('orig_name') or '').strip()
+                if not booking or not filename or not orig_name:
+                    continue
+                trip_row = con.execute(
+                    'SELECT id FROM trips WHERE booking_code=?', (booking,)).fetchone()
+                if not trip_row:
+                    continue
+                exists = con.execute(
+                    'SELECT id FROM trip_attachments WHERE trip_id=? AND filename=?',
+                    (trip_row['id'], filename)).fetchone()
+                if exists:
+                    continue
+                if filename in att_pdfs:
+                    p = _trip_pdf_path(filename)
+                    if p:
+                        p.write_bytes(att_pdfs[filename])
+                con.execute(
+                    'INSERT INTO trip_attachments (trip_id, filename, orig_name, created) '
+                    'VALUES (?,?,?,?)',
+                    (trip_row['id'], filename, orig_name, int(a.get('created') or time.time())))
+                attachments_n += 1
         if isinstance(searches, list):
             for s in searches:
                 if not isinstance(s, dict):
@@ -2445,10 +2507,10 @@ def api_restore():
                     searches_n += 1
     for oid in new_ids:
         _spawn(check_offer, oid)
-    log.info("Wiederherstellung: %d Angebote (+%d übersprungen), %d Reisen, %d Suchen",
-             added, skipped, trips_n, searches_n)
+    log.info("Wiederherstellung: %d Angebote (+%d übersprungen), %d Reisen, %d Suchen, "
+             "%d Reise-Anhänge", added, skipped, trips_n, searches_n, attachments_n)
     return jsonify({'added': added, 'skipped': skipped,
-                    'trips': trips_n, 'searches': searches_n})
+                    'trips': trips_n, 'searches': searches_n, 'attachments': attachments_n})
 
 
 @app.route('/api/compare/<int:offer_id>', methods=['POST'])
@@ -3086,6 +3148,11 @@ def api_trip_detail(tid):
         trip['data'] = {}
     trip['has_pdf'] = bool(trip.get('pdf_name'))
     trip['warnings'] = check_fields(trip['data'])
+    with db() as con:
+        atts = con.execute(
+            'SELECT id, orig_name, created FROM trip_attachments WHERE trip_id=? ORDER BY id',
+            (tid,)).fetchall()
+    trip['attachments'] = [dict(a) for a in atts]
     return jsonify(trip)
 
 
@@ -3272,16 +3339,107 @@ def api_trip_pdf(tid):
                      download_name=row['orig_name'] or 'reise.pdf')
 
 
+@app.route('/api/trips/<int:tid>/attachments', methods=['POST'])
+def api_trip_attachment_upload(tid):
+    """Weiteres PDF zu einer Reise hochladen (z. B. Reiseplan) — reine Ablage,
+    kein Parsing/Auswertung."""
+    if (err := _require_api()):
+        return err
+    with db() as con:
+        if not con.execute('SELECT id FROM trips WHERE id=?', (tid,)).fetchone():
+            return jsonify({'error': 'not_found'}), 404
+    file = request.files.get('pdf')
+    if file is None or not file.filename:
+        return jsonify({'error': 'no_file'}), 400
+    if Path(file.filename).suffix.lower() != '.pdf':
+        return jsonify({'error': 'not_pdf'}), 400
+    raw = file.read()
+    if not raw:
+        return jsonify({'error': 'empty'}), 400
+    if len(raw) > MAX_PDF_BYTES:
+        return jsonify({'error': 'too_large'}), 413
+
+    filename = f"att_{tid}_{secrets.token_hex(8)}.pdf"
+    target = _trip_pdf_path(filename)
+    if target is None:
+        return jsonify({'error': 'bad_name'}), 400
+    Path(TRIPS_DIR).mkdir(parents=True, exist_ok=True)
+    try:
+        target.write_bytes(raw)
+    except OSError as exc:
+        log.warning("Anhang speichern fehlgeschlagen: %s", exc)
+        return jsonify({'error': 'store_failed'}), 500
+
+    orig = Path(file.filename).name
+    ts = int(time.time())
+    with db() as con:
+        cur = con.execute(
+            'INSERT INTO trip_attachments (trip_id, filename, orig_name, created) '
+            'VALUES (?,?,?,?)', (tid, filename, orig, ts))
+        aid = cur.lastrowid
+    log.info("Anhang zu Reise #%d gespeichert: %s", tid, orig)
+    return jsonify({'ok': True, 'id': aid, 'orig_name': orig, 'created': ts})
+
+
+@app.route('/api/trips/<int:tid>/attachments/<int:aid>', methods=['GET'])
+def api_trip_attachment_get(tid, aid):
+    """Gespeichertes Zusatz-PDF ausliefern (öffnen/herunterladen)."""
+    if (err := _require_api()):
+        return err
+    with db() as con:
+        row = con.execute(
+            'SELECT filename, orig_name FROM trip_attachments WHERE id=? AND trip_id=?',
+            (aid, tid)).fetchone()
+    if not row:
+        return jsonify({'error': 'not_found'}), 404
+    p = _trip_pdf_path(row['filename'])
+    if p is None or not p.exists():
+        return jsonify({'error': 'not_found'}), 404
+    return send_file(str(p), mimetype='application/pdf',
+                     download_name=row['orig_name'] or 'anhang.pdf')
+
+
+@app.route('/api/trips/<int:tid>/attachments/<int:aid>', methods=['DELETE'])
+def api_trip_attachment_delete(tid, aid):
+    """Zusatz-PDF wieder entfernen."""
+    if (err := _require_api()):
+        return err
+    with db() as con:
+        row = con.execute(
+            'SELECT filename FROM trip_attachments WHERE id=? AND trip_id=?',
+            (aid, tid)).fetchone()
+        if not row:
+            return jsonify({'error': 'not_found'}), 404
+        con.execute('DELETE FROM trip_attachments WHERE id=?', (aid,))
+    p = _trip_pdf_path(row['filename'])
+    if p and p.exists():
+        try:
+            p.unlink()
+        except OSError as exc:
+            log.warning("Anhang löschen fehlgeschlagen: %s", exc)
+    return jsonify({'ok': True})
+
+
 @app.route('/api/trips/<int:tid>', methods=['DELETE'])
 def api_trip_delete(tid):
-    """Reise löschen — inkl. der dauerhaft gespeicherten PDF."""
+    """Reise löschen — inkl. der dauerhaft gespeicherten PDF und aller Anhänge."""
     if (err := _require_api()):
         return err
     with db() as con:
         row = con.execute('SELECT pdf_name FROM trips WHERE id=?', (tid,)).fetchone()
         if not row:
             return jsonify({'error': 'not_found'}), 404
+        atts = con.execute(
+            'SELECT filename FROM trip_attachments WHERE trip_id=?', (tid,)).fetchall()
+        con.execute('DELETE FROM trip_attachments WHERE trip_id=?', (tid,))
         con.execute('DELETE FROM trips WHERE id=?', (tid,))
+    for a in atts:
+        p = _trip_pdf_path(a['filename'])
+        if p and p.exists():
+            try:
+                p.unlink()
+            except OSError as exc:
+                log.warning("Anhang löschen fehlgeschlagen: %s", exc)
     if row['pdf_name']:
         p = _trip_pdf_path(row['pdf_name'])
         if p and p.exists():
