@@ -2507,6 +2507,7 @@ def api_search():
     direct = bool(data.get('direct'))
     boards = [str(b).strip() for b in (data.get('boards') or []) if str(b).strip()]
     airlines = [str(a).strip() for a in (data.get('airlines') or []) if str(a).strip()]
+    location = [int(i) for i in (data.get('location') or []) if str(i).strip().isdigit()]
 
     def _num(key):
         try:
@@ -2532,7 +2533,8 @@ def api_search():
                                 'note': 'Region zum Angebot nicht ermittelbar'}), 400
         src = f"Angebot #{offer_id} ({o['label'] or o['hotel'] or ''})"
         res = fetch_search(url, operator_tui=operator_tui, boards=boards, region=region,
-                           airlines=airlines, direct=direct, verbose=_verbose())
+                           airlines=airlines, location=location, direct=direct,
+                           verbose=_verbose())
     elif search_region:
         try:
             region = int(search_region)
@@ -2549,7 +2551,8 @@ def api_search():
                                   duration=data.get('duration'),
                                   travellers=data.get('travellers'), airports=airports,
                                   operator_tui=operator_tui, boards=boards,
-                                  airlines=airlines, direct=direct, verbose=_verbose())
+                                  airlines=airlines, location=location, direct=direct,
+                                  verbose=_verbose())
     else:
         url = (data.get('url') or '').strip()
         if not _valid_tui_url(url):
@@ -2557,7 +2560,8 @@ def api_search():
         log.info("Suche: %s (TUI=%s, Verpflegung=%s)", url, operator_tui,
                  ','.join(boards) or '-')
         res = fetch_search(url, operator_tui=operator_tui, boards=boards,
-                           airlines=airlines, direct=direct, verbose=_verbose())
+                           airlines=airlines, location=location, direct=direct,
+                           verbose=_verbose())
     if res is None:
         return jsonify({'error': 'search_failed'}), 502
     if not res.get('ok'):
@@ -2704,6 +2708,7 @@ def _search_from_fav_payload(p: dict) -> dict | None:
         operator_tui=p.get('tui') is not False,
         boards=[str(b) for b in (p.get('boards') or []) if str(b).strip()],
         airlines=[str(a) for a in (p.get('airlines') or []) if str(a).strip()],
+        location=[int(i) for i in (p.get('location') or []) if str(i).strip().isdigit()],
         direct=bool(p.get('direct')), verbose=_verbose())
     if not res or not res.get('ok'):
         return res

@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.30.0] - 2026-07-03
+
+### Added
+- **Lage-Filter in der Hotelsuche.** Neue Checkbox-Zeile unter „Verpflegung": Direkt
+  am Strand, Sandstrand, Strand < 500m, Meerseite, Ruhig, Außerhalb — Mehrfachauswahl,
+  schränkt die Trefferliste weiter ein (funktioniert in allen Suchmodi: Regionen-Suche,
+  Suche aus Angebot, eingefügte TUI-URL). Wird auch in gespeicherten Suchen/Suchabos
+  mitgespeichert. Intern übersetzt TUIWatch die IDs in den `logicalExpression`-Code,
+  den die TUI-Such-API erwartet (per Live-Test ermittelt und verifiziert — anders als
+  bei der Verpflegung reicht die einfache ID hier nicht aus).
+
 ## [0.29.0] - 2026-07-03
 
 ### Added

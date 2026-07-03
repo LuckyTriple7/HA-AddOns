@@ -14,7 +14,7 @@ ING = {"X-Ingress-Path": "/test"}
 _PAYLOAD = {"dest": {"giata": 123, "label": "Kanaren"}, "airport": "DUS",
             "vom": "2027-03-01", "bis": "2027-03-15", "dur": 7, "exact": False,
             "trav": 2, "tui": True, "direct": False, "boards": ["AI"],
-            "airlines": [], "stars": 4, "rec": 0}
+            "location": [9], "airlines": [], "stars": 4, "rec": 0}
 
 
 def _result(giata, name, price, stars=5):
@@ -78,6 +78,7 @@ def test_watch_threshold_filter_and_dedup(m, monkeypatch):
     # Suchparameter aus der Fav-Payload übernommen
     assert calls["region"] == 123 and calls["airports"] == ["DUS"]
     assert calls["boards"] == ["AI"] and calls["travellers"] == 2
+    assert calls["location"] == [9]
 
     # Zweiter Lauf, unveränderte Preise → keine neue Meldung
     assert c.post(f"/api/searches/{sid}/check", headers=ING).get_json()["new"] == 0

@@ -107,7 +107,8 @@ def test_offer_url_for():
             "numberOfNights": 7, "boardCodes": ["AI"]}
     params = {"startDate": "2027-05-01", "endDate": "2027-05-08", "duration": 7,
               "travellers": 2, "airports": ["STR"], "operators": ["TUID"],
-              "regions": [128], "airlines": ["X3", "VY"], "direct": True}
+              "regions": [128], "airlines": ["X3", "VY"], "direct": True,
+              "location": [9, 11]}
     url = scraper.offer_url_for(item, params)
     assert "/angebote/test-hotel/123/offer/" in url
     assert "regionGiataIds=128" in url
@@ -118,6 +119,40 @@ def test_offer_url_for():
     assert "maxStopOvers=0" in url         # direct=True
     # Airlines mit ';' getrennt (Offer-/Such-API-Format), URL-kodiert als %3B
     assert "airlines=X3%3BVY" in url
+    # Lage-IDs ebenfalls mit ';' getrennt, wie im echten TUI-URL-Format
+    assert "locationAttributes=9%3B11" in url
+
+
+def test_search_params_from_url_location():
+    # locationAttributes aus einer eingefügten URL lesen (';'-getrennt)
+    url = ("https://www.tui.com/x/259516/offer/?regionGiataIds=128&duration=7"
+           "&locationAttributes=9%3B11")
+    p = scraper._search_params_from_url(url)
+    assert p["location"] == [9, 11]
+    # Override-Kwarg schlägt die URL
+    p2 = scraper._search_params_from_url(url, location=[37])
+    assert p2["location"] == [37]
+    # keine locationAttributes in der URL -> leere Liste
+    u2 = "https://www.tui.com/x/1/offer/?duration=7"
+    assert scraper._search_params_from_url(u2)["location"] == []
+
+
+def test_location_expression_and_payload():
+    # Bekannte Codes je ID (per Live-Test gegen die echte TUI-Such-API verifiziert:
+    # Baseline 33 Treffer -> id=9: 10, id=11: 21, Kombination 9+11: 10 Treffer).
+    assert scraper._location_expression([9]) == "GT03-DIBE#ST03-DIRE"
+    assert scraper._location_expression([9, 11]) == (
+        "GT03-DIBE#ST03-DIRE + GT03-BEAC#ST03-SAND")
+    assert scraper._location_expression([]) == ""
+    assert scraper._location_expression([999]) == ""   # unbekannte ID -> ignoriert
+
+    payload = scraper._build_search_payload(
+        {"regions": [128], "duration": 7, "travellers": 2, "location": [9, 11]})
+    assert payload["parameters"]["logicalExpression"] == (
+        "GT03-DIBE#ST03-DIRE + GT03-BEAC#ST03-SAND")
+    # ohne Lage-Filter bleibt logicalExpression leer (Standardverhalten unverändert)
+    empty = scraper._build_search_payload({"regions": [128], "duration": 7})
+    assert empty["parameters"]["logicalExpression"] == ""
 
 
 def test_fetch_airlines():

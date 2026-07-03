@@ -57,8 +57,9 @@ verbose_log: false       # ausführliche Logs
   Airlines).
 - Filter: **TUI** (nur Veranstalter TUI Deutschland; aus = alle), **Nur Direktflug**,
   **Verpflegung** (AI/HP/VP/Frühstück/Ohne — Mehrfachauswahl, jeweils inkl. „Plus"-Variante
-  bzw. „laut Programm"), **Sterne ≥** (Standard 3), **Weiterempfehlung ≥ %**
-  (Standard 80) → **Suchen**.
+  bzw. „laut Programm"), **Lage** (Direkt am Strand, Sandstrand, Strand < 500m, Meerseite,
+  Ruhig, Außerhalb — Mehrfachauswahl, schränkt weiter ein), **Sterne ≥** (Standard 3),
+  **Weiterempfehlung ≥ %** (Standard 80) → **Suchen**.
 - **Gespeicherte Suchen:** die kompletten Eingaben unter einem Namen speichern
   („★ Speichern") und später aus dem Dropdown wieder laden — für wiederkehrende Suchen.
   Eine geladene Suche kannst du nach Anpassungen mit **„💾 Änderungen speichern"** ohne
