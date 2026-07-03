@@ -1553,6 +1553,7 @@
       let t;
       try { const r = await fetch(api('/api/trips/'+id)); if(!r.ok){ toast('Reise nicht gefunden'); return; } t = await r.json(); }
       catch(e){ toast('Fehler beim Laden'); return; }
+      _lastTripDetail = t;
       const d = t.data||{};
       const row = (k,v)=> v?`<div><span class="k">${k}:</span> ${esc(String(v))}</div>`:'';
       const grid = [
@@ -1594,7 +1595,7 @@
       const packHtml = renderPackingSection(id, t, t.packing||[]);
       const box = $('#trip-detail');
       box.innerHTML = `<h3>${esc(t.title||('Reise #'+id))}</h3>
-        <div style="margin-bottom:6px">${pdf} ${dbg} <button class="btn sec" onclick="$('#trip-detail').style.display='none'">schließen</button></div>
+        <div style="margin-bottom:6px">${pdf} ${dbg} <button class="btn sec" onclick="shareTripBanner(${id})" title="Reise als Bild teilen">📤 Teilen</button> <button class="btn sec" onclick="$('#trip-detail').style.display='none'">schließen</button></div>
         ${attRow}
         ${warnBox}<div class="dgrid">${grid}</div>${reisende}${fluege}${extras}${rabatte}${wuensche}
         ${packHtml}`;
@@ -1611,6 +1612,96 @@
     async function deleteTripAttachment(id, aid){
       await fetch(api('/api/trips/'+id+'/attachments/'+aid), {method:'DELETE'});
       toast('Anhang entfernt'); showTripDetail(id);
+    }
+
+    // — Teilen: Reise-Banner als Bild (Countdown + Ziel/Hotel über ein Foto-Banner
+    //   gelegt), per Web Share API teilen oder als Download-Fallback. —
+    let _lastTripDetail = null;
+
+    function _tripDaysInfo(t){
+      if(!t.start_date) return null;
+      const dep = (t.data && t.data.fluege || []).find(f=>f.typ==='Hinflug');
+      const depDt = new Date(`${t.start_date}T${(dep && dep.abflug_zeit) || '00:00'}:00`);
+      const diff = depDt.getTime() - Date.now();
+      if(diff <= 0) return 'Gute Reise!';
+      const mins = Math.floor(diff/60000);
+      const d = Math.floor(mins/1440), h = Math.floor((mins%1440)/60), m = mins%60;
+      const parts = [];
+      if(d) parts.push(d+' Tag'+(d===1?'':'e'));
+      if(d || h) parts.push(h+' Std');
+      if(!d) parts.push(m+' Min');
+      return parts.join(' ');
+    }
+
+    function _fitFont(ctx, text, weight, maxPx, maxWidth){
+      const family = 'system-ui, Arial, sans-serif';
+      let px = maxPx;
+      ctx.font = `${weight} ${px}px ${family}`;
+      while(px > 20 && ctx.measureText(text).width > maxWidth){
+        px -= 4;
+        ctx.font = `${weight} ${px}px ${family}`;
+      }
+      return px;
+    }
+
+    async function shareTripBanner(id){
+      const t = _lastTripDetail;
+      if(!t) return;
+      const img = new Image();
+      const loaded = new Promise((res,rej)=>{ img.onload=res; img.onerror=rej; });
+      img.src = api('/static/share-banner.jpg');
+      try { await loaded; } catch(e){ toast('Banner konnte nicht geladen werden'); return; }
+
+      const cv = document.createElement('canvas');
+      cv.width = img.naturalWidth; cv.height = img.naturalHeight;
+      const ctx = cv.getContext('2d');
+      ctx.drawImage(img, 0, 0);
+
+      const counter = _tripDaysInfo(t);
+      const dest = t.destination || (t.data||{}).reiseziel || '';
+      const hotelName = ((t.data||{}).hotel||{}).name || t.hotel || '';
+      const cx = cv.width * 0.68;
+      const maxTextWidth = cv.width * 0.58;
+      let y = cv.height * 0.34;
+
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#fff';
+      ctx.shadowColor = 'rgba(0,0,0,.45)';
+      ctx.shadowBlur = 18;
+      ctx.shadowOffsetY = 4;
+
+      if(counter){
+        _fitFont(ctx, counter, 900, 128, maxTextWidth);
+        ctx.fillText(counter, cx, y);
+        y += 110;
+      }
+      if(dest){
+        ctx.fillStyle = '#fff';
+        _fitFont(ctx, dest, 700, 72, maxTextWidth);
+        ctx.fillText(dest, cx, y);
+        y += 68;
+      }
+      if(hotelName){
+        ctx.fillStyle = 'rgba(255,255,255,.92)';
+        _fitFont(ctx, hotelName, 500, 44, maxTextWidth);
+        ctx.fillText(hotelName, cx, y);
+      }
+
+      const blob = await new Promise(res=>cv.toBlob(res, 'image/jpeg', 0.92));
+      if(!blob){ toast('Bild konnte nicht erstellt werden'); return; }
+      const file = new File([blob], 'reise-teilen.jpg', {type:'image/jpeg'});
+
+      if(navigator.canShare && navigator.canShare({files:[file]})){
+        try {
+          await navigator.share({files:[file], title:'TUIWatch',
+            text:[dest, hotelName].filter(Boolean).join(' · ')});
+          return;
+        } catch(e){ if(e.name==='AbortError') return; }
+      }
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob); a.download = 'reise-teilen.jpg';
+      document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(a.href);
+      toast('Bild heruntergeladen (Teilen wird hier nicht unterstützt)');
     }
 
     // — Packliste: pro Reise, Vorlage beim ersten Öffnen automatisch geseedet,

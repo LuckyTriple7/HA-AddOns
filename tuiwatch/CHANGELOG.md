@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.37.3] - 2026-07-03
+
+### Added
+- **Reise teilen.** Neuer „📤 Teilen"-Button in der Reisen-Detailansicht: legt
+  Countdown („X Tage Y Std" bzw. „Gute Reise!" bei bereits abgeflogenen Reisen),
+  Reiseziel und Hotel über ein Strand-Banner und teilt das Bild per Web Share
+  API (Fallback: Download), wenn der Browser Datei-Teilen nicht unterstützt.
+  Schriftgröße schrumpft automatisch bei langen Zielen/Hotelnamen.
+
 ## [0.37.2] - 2026-07-03
 
 ### Added

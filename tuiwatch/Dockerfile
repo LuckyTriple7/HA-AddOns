@@ -29,6 +29,7 @@ RUN pip3 install --no-cache-dir --break-system-packages -r requirements.txt
 COPY app.py scraper.py tripparser.py aktionscodes.py nextcloud.py packliste.py ./
 COPY icon-192.png icon-512.png ./
 COPY templates/ templates/
+COPY static/ static/
 COPY run.sh /run.sh
 RUN chmod +x /run.sh
 
