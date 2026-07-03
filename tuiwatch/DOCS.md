@@ -263,6 +263,10 @@ Zusätzlich `binary_sensor.tuiwatch_aktionscodes`: **an**, solange aktuell
 
 ## Bedienung
 
+- **Tags** — frei vergebbare Schlagworte je Angebot (＋-Pille auf der Karte); Klick auf
+  einen Tag entfernt ihn wieder. Unter der Suchleiste zeigt eine Pill-Zeile alle
+  aktuell verwendeten Tags — Klick filtert die Liste sofort (wie die Suche, live, kein
+  Neuladen); erneuter Klick hebt den Filter auf. Wird im Backup/Restore mitgesichert.
 - **Offline-Banner** — bei Verbindungsabbruch (WLAN weg, Server nicht erreichbar) erscheint
   ein abdunkelndes Overlay mit „Neu laden"-Button; verschwindet automatisch, sobald die
   Verbindung wieder da ist.

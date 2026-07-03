@@ -127,6 +127,12 @@
     .trend.up { color:var(--red); background:rgba(248,81,73,.10); }
     .trend.down { color:var(--green); background:rgba(46,160,67,.11); }
     .trend.flat { color:var(--muted); background:var(--surf2); }
+    .tag-row { display:flex; gap:6px; flex-wrap:wrap; margin:8px 0; }
+    .tag-pill { display:inline-flex; align-items:center; gap:4px; font-size:.74rem; padding:3px 9px; border-radius:12px; background:var(--surf); border:1px solid var(--border); color:var(--text); cursor:pointer; user-select:none; }
+    .tag-pill:hover { border-color:var(--accent); color:var(--accent); }
+    .tag-pill.active { background:var(--accent); border-color:var(--accent); color:#fff; }
+    .tag-pill.add { color:var(--muted); border-style:dashed; }
+    .card-tags .tag-pill:hover { border-color:var(--red); color:var(--red); }
     .offer-foot { display:flex; align-items:center; gap:6px; margin-top:12px; flex-wrap:wrap; }
     .offer-foot .when { font-size:.74rem; color:var(--muted); flex:1; }
     .offer-foot .btn { padding:5px 9px; font-size:.76rem; font-weight:500; }
@@ -398,6 +404,7 @@
         <input type="checkbox" id="show-archived"> Archiv <span id="arch-count"></span>
       </label>
     </div>
+    <div class="tag-row" id="tag-pills" style="display:none"></div>
     <div id="bulk-bar" class="bulk-bar" style="display:none">
       <span id="bulk-count"></span>
       <button class="btn sec" onclick="bulkCheck()">Prüfen</button>
@@ -694,7 +701,7 @@
     let toastTimer;
     function toast(msg){ const el=$('#toast'); el.textContent=msg; el.classList.add('show'); clearTimeout(toastTimer); toastTimer=setTimeout(()=>el.classList.remove('show'),2500); }
 
-    let curOffers = null, lastSig = null, searchTerm = '';
+    let curOffers = null, lastSig = null, searchTerm = '', activeTag = null;
     let showArchived = localStorage.getItem('tw-show-archived')==='1';
     let sortMode = localStorage.getItem('tw-sort') || 'added';
 
@@ -755,8 +762,21 @@
       return '<span class="trend flat" title="Tendenz aus dem bisherigen Verlauf">→ stabil</span>';
     }
 
+    function renderTagPills(offers){
+      const el = $('#tag-pills');
+      const all = new Set();
+      (offers||[]).forEach(o => (o.tags||[]).forEach(t => all.add(t)));
+      if(!all.size){ el.style.display = 'none'; el.innerHTML = ''; return; }
+      el.style.display = 'flex';
+      el.innerHTML = Array.from(all).sort((a,b)=>a.localeCompare(b,'de')).map(t =>
+        `<span class="tag-pill${t===activeTag?' active':''}" onclick="toggleTagFilter('${esc(t)}')">${esc(t)}</span>`
+      ).join('');
+    }
+    function toggleTagFilter(tag){ activeTag = (activeTag===tag) ? null : tag; renderAll(curOffers||[]); }
+
     function renderAll(offers){
       renderOverview(offers);
+      renderTagPills(offers);
       // Nicht neu rendern, während der Nutzer einen Wunschpreis eingibt
       const ae = document.activeElement;
       if(ae && ae.id && ae.id.indexOf('tgt-')===0) return;
@@ -768,9 +788,15 @@
       const list = q ? offers.filter(o =>
         ((o.label||'')+' '+(o.hotel||'')+' '+(o.location||'')+' '+(o.details||'')+' '+(o.dep_airport||'')+' '+(o.room||'')).toLowerCase().includes(q)
       ) : offers;
-      if(!list.length){ box.innerHTML = '<div class="empty">Keine Treffer für „'+esc(searchTerm.trim())+'".</div>'; return; }
-      const active = sortOffers(list.filter(o=>!o.archived));
-      const arch = sortOffers(list.filter(o=>o.archived));
+      const list2 = activeTag ? list.filter(o => (o.tags||[]).includes(activeTag)) : list;
+      if(!list2.length){
+        const parts = [];
+        if(q) parts.push('„'+esc(searchTerm.trim())+'"');
+        if(activeTag) parts.push('Tag „'+esc(activeTag)+'"');
+        box.innerHTML = '<div class="empty">Keine Treffer für '+parts.join(' + ')+'.</div>'; return;
+      }
+      const active = sortOffers(list2.filter(o=>!o.archived));
+      const arch = sortOffers(list2.filter(o=>o.archived));
       let html = active.map(offerCard).join('');
       if(!active.length && arch.length && !showArchived){
         html = `<div class="empty">Keine aktiven Angebote — ${arch.length} im Archiv. „Archiv" oben einblenden.</div>`;
@@ -900,6 +926,9 @@
           <div class="offer-top">
             <div class="offer-main">
               <div class="offer-label"><input type="checkbox" class="bulk-check" ${selected.has(o.id)?'checked':''} onclick="bulkToggle(${o.id}, this.checked)" title="Für Sammelaktion auswählen"> ${esc(title)} <button class="rename-btn" onclick="renameOffer(${o.id})" title="Umbenennen">✎</button></div>
+              <div class="tag-row card-tags">${(o.tags||[]).map(t =>
+                `<span class="tag-pill" onclick="removeTag(${o.id}, '${esc(t)}')" title="Entfernen">${esc(t)} ×</span>`
+              ).join('')}<span class="tag-pill add" onclick="addTag(${o.id})" title="Tag hinzufügen">＋</span></div>
               ${o.location?`<a class="offer-loc" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(((o.hotel||o.label||'')+' '+o.location).trim())}" target="_blank" rel="noopener" title="In Google Maps öffnen">📍 ${esc(o.location)} ↗</a>`:''}
               ${sub?`<div class="offer-details">${esc(sub)}</div>`:''}
               ${metaLine}
@@ -2125,6 +2154,20 @@
       if(v===null) return;
       await fetch(api('/api/offers/'+id), {method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({label: v.trim()})});
       toast('Name gespeichert'); loadOffers();
+    }
+    async function addTag(id){
+      const o = (curOffers||[]).find(x=>x.id===id) || {};
+      const v = (prompt('Tag hinzufügen (z. B. Strand, Familie):') || '').trim();
+      if(!v) return;
+      const tags = Array.from(new Set([...(o.tags||[]), v]));
+      await fetch(api('/api/offers/'+id), {method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({tags})});
+      toast('Tag hinzugefügt'); loadOffers();
+    }
+    async function removeTag(id, tag){
+      const o = (curOffers||[]).find(x=>x.id===id) || {};
+      const tags = (o.tags||[]).filter(t=>t!==tag);
+      await fetch(api('/api/offers/'+id), {method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({tags})});
+      toast('Tag entfernt'); loadOffers();
     }
     async function togglePause(id, paused){
       await fetch(api('/api/offers/'+id), {method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({paused: !paused})});

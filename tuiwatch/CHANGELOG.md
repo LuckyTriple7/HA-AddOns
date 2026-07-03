@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.32.0] - 2026-07-03
+
+### Added
+- **Tags für Angebote.** Frei vergebbare Schlagworte je Angebot (z. B. „Strand",
+  „Familie") — hinzufügen über die ＋-Pille auf der Karte, entfernen per Klick auf den
+  Tag. Unter der Suchleiste erscheint eine Pill-Zeile mit allen aktuell verwendeten
+  Tags; Klick filtert die Liste live (wie die Textsuche, kein Neuladen), erneuter Klick
+  hebt den Filter wieder auf. Tags werden im Backup/Restore mitgesichert.
+
 ## [0.31.0] - 2026-07-03
 
 ### Added

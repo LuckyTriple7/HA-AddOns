@@ -382,7 +382,7 @@ def init_db() -> None:
         for col in ('hotel', 'details', 'room', 'dep_airport', 'flight_out',
                     'flight_ret', 'cancellation', 'location', 'city', 'region',
                     'country', 'pdf_url', 'return_date', 'image_url',
-                    'booking_code', 'room_booking_code'):
+                    'booking_code', 'room_booking_code', 'tags'):
             if col not in ocols:
                 con.execute(f"ALTER TABLE offers ADD COLUMN {col} TEXT DEFAULT ''")
         for col in ('target_price', 'booked_price', 'stars', 'rating', 'total_price'):
@@ -1893,6 +1893,7 @@ def _collect_offers() -> list[dict]:
                 'paused': bool(o['paused']),
                 'archived': bool(o['archived']),
                 'return_date': o['return_date'] or '',
+                'tags': (json.loads(o['tags']) if o['tags'] else []),
                 'cancellation': o['cancellation'], 'stars': o['stars'],
                 'rating': o['rating'], 'rating_count': o['rating_count'],
                 'recommendation': o['recommendation'],
@@ -2025,6 +2026,20 @@ def api_update_offer(offer_id: int):
             con.execute('UPDATE offers SET archived=? WHERE id=?', (arch, offer_id))
             log.info("Angebot #%d %s", offer_id,
                      "archiviert" if arch else "reaktiviert")
+        if 'tags' in data:
+            raw = data.get('tags') or []
+            if not isinstance(raw, list):
+                raw = []
+            seen = set()
+            tags = []
+            for t in raw:
+                t = str(t).strip()
+                if t and t not in seen:
+                    seen.add(t)
+                    tags.append(t)
+            con.execute('UPDATE offers SET tags=? WHERE id=?',
+                        (json.dumps(tags, ensure_ascii=False), offer_id))
+            log.info("Angebot #%d Tags gesetzt: %s", offer_id, ', '.join(tags) or '(keine)')
     for t, txt in events:
         _log_event(offer_id, t, txt)
     if 'archived' in data:
@@ -2162,7 +2177,7 @@ _OFFER_RESTORE_COLS = (
     'location', 'city', 'region', 'country', 'pdf_url', 'cancellation', 'stars', 'rating',
     'rating_count', 'recommendation', 'total_price', 'travellers_count', 'paused',
     'archived', 'return_date', 'target_price', 'booked_price', 'image_url', 'booking_code',
-    'room_booking_code', 'created',
+    'room_booking_code', 'tags', 'created',
 )
 
 
