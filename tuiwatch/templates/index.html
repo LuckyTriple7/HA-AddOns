@@ -1541,12 +1541,13 @@
       const atts = (t.attachments||[]).map(a =>
         `<span class="tag-pill">📎 <a href="${api('/api/trips/'+id+'/attachments/'+a.id)}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none">${esc(a.orig_name)}</a> <span onclick="deleteTripAttachment(${id},${a.id})" title="Anhang entfernen" style="cursor:pointer">×</span></span>`
       ).join('');
-      const attRow = `<div class="tag-row" style="margin-top:10px">${atts}<span class="tag-pill add" onclick="$('#trip-att-input-${id}').click()" title="Weiteres PDF hinterlegen (nur Ablage, keine Auswertung)">＋ PDF</span>
+      const attRow = `<div class="tag-row" style="margin:8px 0 2px">${atts}<span class="tag-pill add" onclick="$('#trip-att-input-${id}').click()" title="Weiteres PDF hinterlegen (nur Ablage, keine Auswertung)">＋ PDF</span>
         <input type="file" id="trip-att-input-${id}" accept="application/pdf" style="display:none" onchange="uploadTripAttachment(${id}, this.files[0])"></div>`;
       const box = $('#trip-detail');
       box.innerHTML = `<h3>${esc(t.title||('Reise #'+id))}</h3>
         <div style="margin-bottom:6px">${pdf} ${dbg} <button class="btn sec" onclick="$('#trip-detail').style.display='none'">schließen</button></div>
-        ${warnBox}<div class="dgrid">${grid}</div>${reisende}${fluege}${extras}${rabatte}${wuensche}${attRow}`;
+        ${attRow}
+        ${warnBox}<div class="dgrid">${grid}</div>${reisende}${fluege}${extras}${rabatte}${wuensche}`;
       box.style.display='block';
       box.scrollIntoView({behavior:'smooth', block:'nearest'});
     }

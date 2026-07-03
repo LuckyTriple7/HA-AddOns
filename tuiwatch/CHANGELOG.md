@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.33.1] - 2026-07-03
+
+### Changed
+- Anhänge-Pille („＋ PDF") in der Reise-Detailansicht steht jetzt direkt unter der
+  Buttonzeile (PDF öffnen/Debug/schließen), nicht mehr ganz unten nach allen
+  Reisedetails — vorher leicht zu übersehen
+
 ## [0.33.0] - 2026-07-03
 
 ### Added
