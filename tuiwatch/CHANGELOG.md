@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.33.2] - 2026-07-03
+
+### Changed
+- Tag-Filter unter der Suchleiste erlaubt jetzt Mehrfachauswahl (ODER-Verknüpfung:
+  zeigt Angebote mit mindestens einem der ausgewählten Tags) statt nur einem Tag
+
 ## [0.33.1] - 2026-07-03
 
 ### Changed

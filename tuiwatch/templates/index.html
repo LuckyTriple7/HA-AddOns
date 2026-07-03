@@ -702,7 +702,7 @@
     let toastTimer;
     function toast(msg){ const el=$('#toast'); el.textContent=msg; el.classList.add('show'); clearTimeout(toastTimer); toastTimer=setTimeout(()=>el.classList.remove('show'),2500); }
 
-    let curOffers = null, lastSig = null, searchTerm = '', activeTag = null;
+    let curOffers = null, lastSig = null, searchTerm = '', activeTags = new Set();
     let showArchived = localStorage.getItem('tw-show-archived')==='1';
     let sortMode = localStorage.getItem('tw-sort') || 'added';
 
@@ -770,10 +770,13 @@
       if(!all.size){ el.style.display = 'none'; el.innerHTML = ''; return; }
       el.style.display = 'flex';
       el.innerHTML = Array.from(all).sort((a,b)=>a.localeCompare(b,'de')).map(t =>
-        `<span class="tag-pill${t===activeTag?' active':''}" onclick="toggleTagFilter('${esc(t)}')">${esc(t)}</span>`
+        `<span class="tag-pill${activeTags.has(t)?' active':''}" onclick="toggleTagFilter('${esc(t)}')">${esc(t)}</span>`
       ).join('');
     }
-    function toggleTagFilter(tag){ activeTag = (activeTag===tag) ? null : tag; renderAll(curOffers||[]); }
+    function toggleTagFilter(tag){
+      if(activeTags.has(tag)) activeTags.delete(tag); else activeTags.add(tag);
+      renderAll(curOffers||[]);
+    }
 
     function renderAll(offers){
       renderOverview(offers);
@@ -789,11 +792,11 @@
       const list = q ? offers.filter(o =>
         ((o.label||'')+' '+(o.hotel||'')+' '+(o.location||'')+' '+(o.details||'')+' '+(o.dep_airport||'')+' '+(o.room||'')).toLowerCase().includes(q)
       ) : offers;
-      const list2 = activeTag ? list.filter(o => (o.tags||[]).includes(activeTag)) : list;
+      const list2 = activeTags.size ? list.filter(o => (o.tags||[]).some(t=>activeTags.has(t))) : list;
       if(!list2.length){
         const parts = [];
         if(q) parts.push('„'+esc(searchTerm.trim())+'"');
-        if(activeTag) parts.push('Tag „'+esc(activeTag)+'"');
+        if(activeTags.size) parts.push('Tag „'+Array.from(activeTags).map(esc).join('/')+'"');
         box.innerHTML = '<div class="empty">Keine Treffer für '+parts.join(' + ')+'.</div>'; return;
       }
       const active = sortOffers(list2.filter(o=>!o.archived));
