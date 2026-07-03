@@ -2890,6 +2890,10 @@ app.get('/', (req, res) => {
           }
         }
 
+        // Bubble schon im DOM (z.B. durch parallelen Poll nach sendMsg()
+        // gleichzeitig mit dem 2s-Intervall) — keine doppelte Bubble erzeugen
+        if (msgList.querySelector('.bubble-wrap[data-msgid="' + m.id + '"]')) return;
+
         const date = fmtDate(m.timestamp);
         if (date !== lastDate) {
           lastDate = date;

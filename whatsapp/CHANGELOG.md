@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.7.28] - 2026-07-03
+- Fix: Eigene Nachrichten erschienen gelegentlich **doppelt im Chat** (Anzeige-Bug, nicht doppelt versendet) — `sendMsg()` löst nach dem Senden sofort `pollMessages()` aus, das mit dem parallel laufenden 2s-Intervall kollidieren konnte; beide riefen `renderMessages()` mit derselben Nachricht auf, bevor der Zeitstempel-Cursor aktualisiert war. Chat wechseln entfernte die Dopplung, weil dabei neu vom Server geladen wurde. `renderMessages()` prüft jetzt vor jeder neuen Bubble, ob die Nachrichten-ID schon im DOM steht
+
 ## [1.7.27] - 2026-06-29
 - Fix: Die **Kategorie-Tabs** im neuen Emoji-Picker erschienen als unschöne **grüne Kreise** — die generische Senden-Button-Regel (`#send-bar button`, grün/rund) überschrieb die Tab-Buttons. Die Tabs sind jetzt korrekt unter `#emoji-tabs` gestylt (transparent, dezenter aktiver/Hover-Hintergrund wie bei Telegram)
 
