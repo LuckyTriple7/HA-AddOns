@@ -1,10 +1,5 @@
 # Changelog — HA SysWatch
 
-## [1.2.12] - 2026-07-03
-
-### Fixed
-- Offline-Banner: Fehler im normalen Refresh-Zyklus (`/api/stats`) zählten bisher nicht zu den Fehlversuchen und lösten kein Banner aus — nur der Long-Poll-Pfad hat gezählt. Jetzt zählt jeder fehlgeschlagene Fetch, egal aus welchem Pfad, gegen die 3er-Schwelle
-
 ## [1.2.11] - 2026-06-09
 
 ### Added
