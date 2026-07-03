@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.32.1] - 2026-07-03
+
+### Changed
+- Tags auf der Angebotskarte: stehen jetzt in der Titelzeile neben dem Hotelnamen
+  (mit Abstand) statt in einer eigenen Zeile darunter — spart Platz
+
 ## [0.32.0] - 2026-07-03
 
 ### Added
