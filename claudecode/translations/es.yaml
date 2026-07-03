@@ -58,6 +58,13 @@
       claude-opus-4-8 muy capaz para tareas complejas. claude-haiku-4-5-20251001 es el más rápido.
       La actualización automática de Claude Code (arriba) garantiza que
       los nuevos modelos estén disponibles sin necesidad de actualizar el add-on.
+  enable_caveman_skill:
+    name: Activar habilidad Caveman
+    description: >-
+      Instala la habilidad opcional "Caveman" para Claude Code (respuestas
+      concisas y técnicamente precisas sin relleno). Se puede activar o
+      desactivar en cualquier momento; se resincroniza en cada inicio.
+      Predeterminado: desactivado.
 
 network:
   7681/tcp: Terminal Web (ttyd)

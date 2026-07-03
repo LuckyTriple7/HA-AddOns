@@ -104,6 +104,7 @@ NOTIFY_ON_UPDATE=$(jq -r 'if .notify_on_update == false then "false" else "true"
 MODEL=$(jq -r --arg d claude-sonnet-5 '.model // $d' /data/options.json)
 EXPORT_MEMORY=$(jq -r '.export_memory // false' /data/options.json)
 EXPORT_MEMORY_INTERVAL=$(jq -r '.export_memory_interval // 60' /data/options.json)
+ENABLE_CAVEMAN=$(jq -r '.enable_caveman_skill // false' /data/options.json)
 
 # Log configuration
 echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Configuration:"
@@ -119,6 +120,18 @@ echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] auto_update_claude     : $AUTO_UPDAT
 echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] notify_on_update       : $NOTIFY_ON_UPDATE"
 echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] export_memory          : $EXPORT_MEMORY"
 echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] export_memory_interval : ${EXPORT_MEMORY_INTERVAL} min"
+echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] enable_caveman_skill   : $ENABLE_CAVEMAN"
+
+# Caveman skill: opt-in, copy/remove on every start so toggling the option takes effect immediately
+CAVEMAN_DEST="$PERSIST_DIR/skills/caveman"
+if [ "$ENABLE_CAVEMAN" = "true" ]; then
+    mkdir -p "$PERSIST_DIR/skills"
+    rm -rf "$CAVEMAN_DEST"
+    cp -a /opt/default-skills/caveman "$CAVEMAN_DEST"
+    echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Caveman skill installed → /root/.claude/skills/caveman"
+else
+    rm -rf "$CAVEMAN_DEST"
+fi
 
 # Auto-detect Playwright Browser hostname if not explicitly set
 if [ -z "$PLAYWRIGHT_HOST" ] && [ "$ENABLE_PLAYWRIGHT" = "true" ]; then

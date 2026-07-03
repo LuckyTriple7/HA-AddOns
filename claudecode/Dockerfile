@@ -160,6 +160,9 @@ RUN echo 'stty cols 220 rows 50 2>/dev/null || true' >> /root/.bashrc
 # Ensure .bashrc is sourced for login shells too
 RUN echo 'source ~/.bashrc' > /root/.profile
 
+# Bundle optional Caveman skill (opt-in via enable_caveman_skill option, copied by run.sh at startup)
+COPY skills/caveman /opt/default-skills/caveman
+
 # Copy startup script to a path AppArmor allows execution from
 COPY run.sh /usr/local/bin/start-addon.sh
 RUN chmod +x /usr/local/bin/start-addon.sh
