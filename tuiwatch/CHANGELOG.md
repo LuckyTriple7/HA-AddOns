@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.35.0] - 2026-07-03
+
+### Added
+- **Lage-Badges in der Hotelsuche.** Treffer zeigen jetzt Pillen für zutreffende
+  Lage-Attribute (Direkt am Strand, Strand < 500m, Sandstrand, Ruhig, Außerhalb) —
+  live aus dem hotelseitigen `globalTypes`-Katalog des Suchresponse abgeleitet und
+  gegen echte Filterergebnisse verifiziert. „Meerseite" fehlt bewusst: der Code taucht
+  im Suchresponse nirgends auf, nur serverseitig fürs Filtern nutzbar.
+
 ## [0.34.0] - 2026-07-03
 
 ### Added

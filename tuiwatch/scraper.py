@@ -329,6 +329,33 @@ def _location_expression(ids: list) -> str:
     return " + ".join(parts)
 
 
+# Live gegen die echte Suche verifiziert (locationAttributes=<id> filtern, dann prüfen,
+# welcher Code bei ALLEN gefilterten Treffern im hotelseitigen globalTypes-Katalog
+# steckt): 5 von 6 Lage-Attributen sind darüber pro Hotel ablesbar — anders als die
+# `_LOCATION_ATTRS`-Ausdrücke (die den Filter-Query bauen), stehen hier direkt die
+# globalTypes-Codes drin, die ein Treffer trägt. "Meerseite" (id 37) fehlt bewusst:
+# der Filter funktioniert (GT13-SESI schränkt ein), aber kein GT13-Code taucht je im
+# globalTypes zurückgegebener Hotels auf (0/50 in zwei unabhängigen Stichproben) —
+# nicht aus dem Suchresponse anzeigbar, nur serverseitig filterbar.
+_LOCATION_BADGES: dict[int, tuple[str, frozenset]] = {
+    9: ("Direkt am Strand", frozenset({"GT03-DIBE/ST03-DIRE"})),
+    10: ("Strand < 500m", frozenset({
+        "GT03-DIBE/ST03-D500M", "GT03-DIBE/ST03-D100M", "GT03-DIBE/ST03-D200M",
+        "GT03-DIBE/ST03-D300M", "GT03-DIBE/ST03-D400M", "GT03-DIBE/ST03-D50M"})),
+    11: ("Sandstrand", frozenset({"GT03-BEAC/ST03-SAND"})),
+    12: ("Außerhalb", frozenset({"GT03-OUTS"})),
+    14: ("Ruhig", frozenset({"GT03-QUIE"})),
+}
+
+
+def _location_labels(hotel_codes) -> list:
+    """Welche Lage-Badges (siehe `_LOCATION_BADGES`) für ein Hotel zutreffen,
+    anhand seiner globalTypes-Codes aus dem Suchtreffer."""
+    codes = set(hotel_codes or [])
+    return [label for label, candidates in _LOCATION_BADGES.values()
+            if codes & candidates]
+
+
 def build_offer_api_url(url: str, travellers: int | None = None) -> str:
     """Baut die Offer-JSON-API-URL aus den Parametern der Angebots-Seiten-URL.
     Wichtig: **alle** Filter der Original-URL (Verpflegung, Veranstalter, Zimmer-/
@@ -707,10 +734,11 @@ def _run_search(params: dict, *, verbose: bool = False) -> dict | None:
         except (ValueError, IndexError):
             stars = None
         loc_parts = [x for x in (loc.get("city"), loc.get("region")) if x]
+        global_codes = [g.get("code") for g in (h.get("globalTypes") or [])]
         # GT03-COUP im hotelseitigen globalTypes-Katalog markiert Teilnahme an aktuellen
         # TUI-Aktionscodes/Coupons (live gegen tui.com verifiziert: korreliert exakt mit
         # dem "myTUI Aktionscode"-Badge auf der echten Suchseite).
-        coupon = any(g.get("code") == "GT03-COUP" for g in (h.get("globalTypes") or []))
+        coupon = "GT03-COUP" in global_codes
         results.append({
             "giata": h.get("giataId"), "name": h.get("name", ""), "stars": stars,
             "recommendation": h.get("holidayCheckRecommendationRate"),
@@ -720,6 +748,7 @@ def _run_search(params: dict, *, verbose: bool = False) -> dict | None:
             "discount": abs(adv) if adv else None,
             "board": it.get("boardType", ""), "nights": it.get("numberOfNights"),
             "date": (it.get("startDate") or "")[:10],
+            "locations": _location_labels(global_codes),
             "image": (h.get("images") or [{}])[0].get("url", ""),
             "coupon": coupon,
             "offer_url": offer_url_for(it, params),

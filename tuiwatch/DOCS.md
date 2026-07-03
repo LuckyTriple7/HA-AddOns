@@ -86,7 +86,10 @@ tui.com (mit `regionGiataIds=…`) einfügen.
 
 Zeigt TUI für ein Hotel gerade einen **Aktionscode/Coupon** an, erscheint „% Aktionscode
 möglich" unter den Angebotsdetails (kein fester Wert — der hängt vom Reisepreis ab,
-siehe tui.com für den genauen Betrag).
+siehe tui.com für den genauen Betrag). Zutreffende **Lage-Attribute** (Direkt am
+Strand, Strand < 500m, Sandstrand, Ruhig, Außerhalb) erscheinen ebenfalls als Pillen
+je Treffer — „Meerseite" lässt sich nicht anzeigen, nur beim Filtern verwenden (siehe
+Lage-Filter oben).
 
 Die Trefferliste zeigt Hotelname, Sterne, Ort, **HolidayCheck-Weiterempfehlung**,
 Verpflegung, Nächte und **Preis pro Person**; **sortierbar** nach Preis, Preis/Nacht,
