@@ -1602,9 +1602,13 @@ app.get('/api/status/:chatId', async (req, res) => {
   }
 });
 
+const STATUS_EXPIRY_MS = 24 * 60 * 60 * 1000;
 app.get('/api/status-archive/:chatId', (req, res) => {
   const entries = statusArchiveByChatId.get(req.params.chatId) || [];
-  const msgs = [...entries].sort((a, b) => b.timestamp - a.timestamp);
+  // Nur wirklich abgelaufene Status zeigen — sonst doppelt mit der Live-Sektion
+  const msgs = entries
+    .filter(m => Date.now() - m.timestamp >= STATUS_EXPIRY_MS)
+    .sort((a, b) => b.timestamp - a.timestamp);
   res.json({ msgs });
 });
 
@@ -1762,6 +1766,24 @@ app.get('/', (req, res) => {
     .status-label { font-size: 12px; font-weight: 600; opacity: 0.6; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
     .status-archive-clear { background: none; border: none; color: inherit; opacity: 0.7; font-size: 11px; cursor: pointer; padding: 2px 4px; }
     .status-archive-clear:hover { opacity: 1; }
+    .archive-open-btn { width: 100%; border: none; border-radius: 8px; padding: 10px; font-size: 13px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; }
+    html.dark .archive-open-btn { background: #2a3942; color: #e9edef; }
+    html.light .archive-open-btn { background: #f0f2f5; color: #111; }
+    .archive-open-btn:hover { opacity: 0.85; }
+    #archive-modal { display: none; position: fixed; inset: 0; z-index: 500; background: rgba(0,0,0,0.7); align-items: center; justify-content: center; }
+    #archive-modal.open { display: flex; }
+    .archive-modal-box { border-radius: 14px; padding: 18px; width: 92%; max-width: 640px; max-height: 82vh; display: flex; flex-direction: column; box-shadow: 0 8px 32px rgba(0,0,0,0.5); }
+    html.dark .archive-modal-box { background: #202c33; }
+    html.light .archive-modal-box { background: #fff; }
+    .archive-modal-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; flex-shrink: 0; }
+    .archive-modal-header h3 { font-size: 16px; font-weight: 600; }
+    html.dark .archive-modal-header h3 { color: #e9edef; }
+    html.light .archive-modal-header h3 { color: #111; }
+    .archive-modal-close { background: none; border: none; font-size: 20px; line-height: 1; cursor: pointer; opacity: 0.6; color: inherit; }
+    .archive-modal-close:hover { opacity: 1; }
+    #archive-modal-body { flex: 1; overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+    #archive-modal-body .status-item { height: 100%; }
+    #archive-modal-body .status-item img, #archive-modal-body .status-item video { max-height: 220px; }
     .status-item { border-radius: 8px; padding: 6px; display: flex; flex-direction: column; gap: 4px; }
     html.dark .status-item { background: rgba(255,255,255,0.05); }
     html.light .status-item { background: rgba(0,0,0,0.05); }
@@ -2229,8 +2251,21 @@ app.get('/', (req, res) => {
       <div class="contact-modal-number" id="contact-modal-number"></div>
       <div class="contact-modal-about" id="contact-modal-about"></div>
       <div class="contact-modal-status" id="contact-modal-status"></div>
-      <div class="contact-modal-status" id="contact-modal-archive"></div>
+      <div style="width:100%" id="contact-modal-archive"></div>
       <button class="contact-modal-close" onclick="closeContactModal()" data-i18n="btnClose">Schließen</button>
+    </div>
+  </div>
+
+  <div id="archive-modal" onclick="if(event.target===this)closeArchiveModal()">
+    <div class="archive-modal-box">
+      <div class="archive-modal-header">
+        <h3 id="archive-modal-title" data-i18n="statusArchive">Archiv</h3>
+        <div style="display:flex;align-items:center;gap:14px">
+          <button class="status-archive-clear" id="archive-modal-clear">🗑 <span data-i18n="archiveClear">Archiv leeren</span></button>
+          <button class="archive-modal-close" onclick="closeArchiveModal()">✕</button>
+        </div>
+      </div>
+      <div id="archive-modal-body"></div>
     </div>
   </div>
 
@@ -2338,6 +2373,7 @@ app.get('/', (req, res) => {
         offlineTitle:'Verbindung unterbrochen', offlineSub:'Stelle Verbindung wieder her…', offlineReload:'Neu laden',
         btnClose:'Schließen', statusUpdates:'Status',
         statusArchive:'Archiv', archiveClear:'Archiv leeren', archiveClearConfirm:'Archiv für diesen Kontakt wirklich löschen?',
+        archiveOpen:(n)=>n+' abgelaufene Statusmeldung'+(n===1?'':'en')+' ansehen',
       },
       en: {
         spinnerConnecting:'Connecting to WhatsApp…', btnReset:'Reset Session',
@@ -2379,6 +2415,7 @@ app.get('/', (req, res) => {
         offlineTitle:'Connection lost', offlineSub:'Reconnecting…', offlineReload:'Reload',
         btnClose:'Close', statusUpdates:'Status',
         statusArchive:'Archive', archiveClear:'Clear archive', archiveClearConfirm:'Really delete the archive for this contact?',
+        archiveOpen:(n)=>'View '+n+' expired status update'+(n===1?'':'s'),
       },
     };
     const _browserLang = (navigator.language || '').toLowerCase().startsWith('de') ? 'de' : 'en';
@@ -3366,7 +3403,7 @@ app.get('/', (req, res) => {
       picEl.innerHTML = '…'; picEl.style.background = '#2a3942';
       nameEl.textContent = '…'; pushnameEl.textContent = ''; numberEl.textContent = ''; aboutEl.textContent = '';
       statusEl.innerHTML = ''; statusEl.classList.remove('has-items');
-      archiveEl.innerHTML = ''; archiveEl.classList.remove('has-items');
+      archiveEl.innerHTML = '';
       modal.classList.add('open');
       fetch('api/status/' + encodeURIComponent(chatId)).then(r => r.json()).then(sd => {
         if (!sd.msgs || !sd.msgs.length) return;
@@ -3379,15 +3416,9 @@ app.get('/', (req, res) => {
       }).catch(() => {});
       fetch('api/status-archive/' + encodeURIComponent(chatId)).then(r => r.json()).then(sd => {
         if (!sd.msgs || !sd.msgs.length) return;
-        archiveEl.innerHTML = '<div class="status-label">' + esc(t('statusArchive')) +
-          ' <button class="status-archive-clear">🗑 ' + esc(t('archiveClear')) + '</button></div>' +
-          sd.msgs.map(renderArchiveItem).join('');
-        archiveEl.classList.add('has-items');
-        const clearBtn = archiveEl.querySelector('.status-archive-clear');
-        if (clearBtn) clearBtn.addEventListener('click', () => clearStatusArchive(chatId));
-        archiveEl.querySelectorAll('img.status-img').forEach(img => {
-          img.addEventListener('click', () => openLightbox(img.src));
-        });
+        archiveEl.innerHTML = '<button class="archive-open-btn">🗄 ' + esc(tf('archiveOpen', sd.msgs.length)) + '</button>';
+        const openBtn = archiveEl.querySelector('.archive-open-btn');
+        if (openBtn) openBtn.addEventListener('click', () => openArchiveModal(chatId, nameEl.textContent || fallbackName || chatId));
       }).catch(() => {});
       try {
         const data = await fetch('api/contact/' + encodeURIComponent(chatId)).then(r => r.json());
@@ -3457,15 +3488,32 @@ app.get('/', (req, res) => {
       }
       return '<div class="status-item">' + inner + '<div class="status-time">' + esc(time) + '</div></div>';
     }
-    async function clearStatusArchive(chatId) {
-      if (!confirm(t('archiveClearConfirm'))) return;
+    let _archiveChatId = null;
+    async function openArchiveModal(chatId, contactName) {
+      _archiveChatId = chatId;
+      document.getElementById('archive-modal-title').textContent = t('statusArchive') + ' — ' + contactName;
+      const body = document.getElementById('archive-modal-body');
+      body.innerHTML = '';
+      document.getElementById('archive-modal').classList.add('open');
       try {
-        await fetch('api/status-archive/' + encodeURIComponent(chatId) + '/clear', { method: 'POST' });
-        const archiveEl = document.getElementById('contact-modal-archive');
-        archiveEl.innerHTML = '';
-        archiveEl.classList.remove('has-items');
+        const sd = await fetch('api/status-archive/' + encodeURIComponent(chatId)).then(r => r.json());
+        body.innerHTML = (sd.msgs || []).map(renderArchiveItem).join('');
+        body.querySelectorAll('img.status-img').forEach(img => {
+          img.addEventListener('click', () => openLightbox(img.src));
+        });
       } catch(e) {}
     }
+    function closeArchiveModal() {
+      document.getElementById('archive-modal').classList.remove('open');
+      _archiveChatId = null;
+    }
+    document.getElementById('archive-modal-clear').addEventListener('click', async () => {
+      if (!_archiveChatId || !confirm(t('archiveClearConfirm'))) return;
+      try { await fetch('api/status-archive/' + encodeURIComponent(_archiveChatId) + '/clear', { method: 'POST' }); } catch(e) {}
+      closeArchiveModal();
+      const archiveEl = document.getElementById('contact-modal-archive');
+      if (archiveEl) archiveEl.innerHTML = '';
+    });
     function closeContactModal() {
       document.getElementById('contact-modal').classList.remove('open');
     }

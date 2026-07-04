@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.7.35] - 2026-07-04
+- Fix: **Archiv zeigte auch Status <24h**, die noch gar nicht abgelaufen waren und in der Live-Sektion parallel auftauchten. `GET /api/status-archive/:chatId` filtert jetzt Einträge raus, die jünger als 24h sind
+- Neu: **Archiv öffnet in eigenem, größerem Fenster** statt im winzigen Profil-Popup — dort steht jetzt nur noch ein Button „🗄 N abgelaufene Statusmeldung(en) ansehen", der ein separates Modal mit Grid-Layout (mehrspaltig, bis zu 640px breit, 82vh hoch) öffnet, „Archiv leeren" liegt jetzt im Kopf dieses Fensters
+- Entfernt: `check-frontend-syntax.js` wurde wieder aus dem Repo genommen (CodeQL meldete Findings auf dem Dev-Tool-Skript) — Prüfung läuft ab jetzt nur noch lokal/manuell, nicht mehr als committetes Skript
+
 ## [1.7.34] - 2026-07-04
 - Fix: **UI blieb erneut bei „Verbinde mit WhatsApp…" hängen**, gleiche Ursache wie 1.7.33 an anderer Stelle — der „Archiv leeren"-Button baute sein `onclick`-Attribut per String-Verkettung mit escapten Anführungszeichen (`\'`), die vom äußeren Template-String in `server.js` verschluckt wurden und im Browser zu `Uncaught SyntaxError: Unexpected string` führten. Behoben durch Verzicht auf inline-`onclick` mit eingebetteten Werten — der Button bekommt seinen Klick-Handler jetzt per `addEventListener` (gleiches Muster wie die Lightbox-Klicks direkt daneben), keine Anführungszeichen-Verschachtelung mehr nötig
 - Neu: Test-Skript, das den kompletten eingebetteten Frontend-`<script>`-Block aus `server.js` extrahiert und mit `node --check` prüft (`node --check` allein sieht nur `server.js` als Ganzes, nicht den Inhalt des Template-Strings) — wird ab jetzt vor jedem Push geprüft, der den Web-UI-Code ändert
