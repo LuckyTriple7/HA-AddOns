@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.7.36] - 2026-07-04
+- Neu: **Status-Archiv als ZIP exportieren** — im Archiv-Fenster gibt's jetzt „⬇ Als ZIP exportieren" (`GET /api/status-archive/:chatId/export`, neue Abhängigkeit `archiver`). Enthält alle Fotos/Videos als echte Dateien (chronologisch nummeriert und mit Zeitstempel benannt) plus eine `archiv.html`, die alle Einträge inkl. Text und Medien-Vorschau als kleine Galerie zeigt (relative Pfade in die mitgepackten Dateien, kein Base64-Aufblähen)
+
 ## [1.7.35] - 2026-07-04
 - Fix: **Archiv zeigte auch Status <24h**, die noch gar nicht abgelaufen waren und in der Live-Sektion parallel auftauchten. `GET /api/status-archive/:chatId` filtert jetzt Einträge raus, die jünger als 24h sind
 - Neu: **Archiv öffnet in eigenem, größerem Fenster** statt im winzigen Profil-Popup — dort steht jetzt nur noch ein Button „🗄 N abgelaufene Statusmeldung(en) ansehen", der ein separates Modal mit Grid-Layout (mehrspaltig, bis zu 640px breit, 82vh hoch) öffnet, „Archiv leeren" liegt jetzt im Kopf dieses Fensters

@@ -41,6 +41,7 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 64 
 const path = require('path');
 const express = require('express');
 const qrcode = require('qrcode');
+const archiver = require('archiver');
 const https = require('https');
 const http = require('http');
 const { URL } = require('url');
@@ -1612,6 +1613,54 @@ app.get('/api/status-archive/:chatId', (req, res) => {
   res.json({ msgs });
 });
 
+app.get('/api/status-archive/:chatId/export', (req, res) => {
+  const chatId = req.params.chatId;
+  const isEn = (req.query.lang || 'de') === 'en';
+  const loc = isEn ? 'en-GB' : 'de-DE';
+  const contact = chatMap.get(chatId);
+  const contactName = contact ? (contact.name || chatId) : chatId;
+  const entries = [...(statusArchiveByChatId.get(chatId) || [])].sort((a, b) => a.timestamp - b.timestamp);
+  const escH = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  const exportDate = new Date().toLocaleString(loc, { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
+  const exportedLabel = isEn ? 'Exported on' : 'Exportiert am';
+  const countLabel = isEn ? 'status update(s)' : 'Statusmeldung(en)';
+  const safeContactName = contactName.replace(/[^a-zA-Z0-9_-]/g,'_').slice(0,40);
+  const fname = `status_archiv_${safeContactName}_${new Date().toISOString().slice(0,10)}.zip`;
+
+  res.setHeader('Content-Type', 'application/zip');
+  res.setHeader('Content-Disposition', `attachment; filename="${fname}"`);
+  const archive = archiver('zip', { zlib: { level: 6 } });
+  archive.on('error', (e) => { console.error('[ERROR] status-archive export:', e.message); res.end(); });
+  archive.pipe(res);
+
+  const itemsHtml = entries.map((m, i) => {
+    const d = new Date(m.timestamp);
+    const time = d.toLocaleString(loc, { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
+    let content = '';
+    if (m.mediaFile) {
+      const fp = path.resolve(MEDIA_DIR, m.mediaFile);
+      if (fp.startsWith(path.resolve(MEDIA_DIR) + path.sep) && fs.existsSync(fp)) {
+        const ext = m.mediaFile.split('.').pop().toLowerCase();
+        const num = String(i + 1).padStart(3, '0');
+        const ts = d.toISOString().slice(0,16).replace(/[-:T]/g,'');
+        const outName = `${num}_${ts}.${ext}`;
+        archive.file(fp, { name: outName });
+        content = m.type === 'photo'
+          ? `<img src="${outName}" style="max-width:280px;max-height:360px;border-radius:8px;display:block;">`
+          : `<video controls style="max-width:280px;max-height:360px;border-radius:8px;display:block;" src="${outName}"></video>`;
+      } else {
+        content = `<span style="opacity:0.6">${m.type === 'video' ? '📹' : '📷'} ${isEn ? '(file no longer available)' : '(Datei nicht mehr vorhanden)'}</span>`;
+      }
+    }
+    if (m.body) content += `<div style="margin-top:6px">${escH(m.body).replace(/\n/g,'<br>')}</div>`;
+    if (!content) content = `<span style="opacity:0.5">${isEn ? '(empty)' : '(leer)'}</span>`;
+    return `<div class="item"><div class="time">${escH(time)}</div>${content}</div>`;
+  }).join('\n');
+  const html = `<!DOCTYPE html><html lang="${isEn?'en':'de'}"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${isEn?'Status archive':'Status-Archiv'}: ${escH(contactName)}</title><style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#111b21;color:#e9edef;min-height:100vh;padding:20px}h1{text-align:center;font-size:18px;padding:12px 0 4px}.export-info{text-align:center;font-size:12px;color:#8696a0;margin-bottom:20px}.items{max-width:700px;margin:0 auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px}.item{background:rgba(255,255,255,0.05);border-radius:10px;padding:10px;font-size:14px;word-break:break-word}.time{font-size:11px;color:#8696a0;margin-bottom:6px}</style></head><body><h1>${escH(contactName)}</h1><p class="export-info">${exportedLabel} ${exportDate} &bull; ${entries.length} ${countLabel}</p><div class="items">${itemsHtml}</div></body></html>`;
+  archive.append(html, { name: 'archiv.html' });
+  archive.finalize();
+});
+
 app.post('/api/status-archive/:chatId/clear', (req, res) => {
   const chatId = req.params.chatId;
   const entries = statusArchiveByChatId.get(chatId) || [];
@@ -2261,6 +2310,7 @@ app.get('/', (req, res) => {
       <div class="archive-modal-header">
         <h3 id="archive-modal-title" data-i18n="statusArchive">Archiv</h3>
         <div style="display:flex;align-items:center;gap:14px">
+          <button class="status-archive-clear" id="archive-modal-export">⬇ <span data-i18n="archiveExport">Als ZIP exportieren</span></button>
           <button class="status-archive-clear" id="archive-modal-clear">🗑 <span data-i18n="archiveClear">Archiv leeren</span></button>
           <button class="archive-modal-close" onclick="closeArchiveModal()">✕</button>
         </div>
@@ -2373,7 +2423,7 @@ app.get('/', (req, res) => {
         offlineTitle:'Verbindung unterbrochen', offlineSub:'Stelle Verbindung wieder her…', offlineReload:'Neu laden',
         btnClose:'Schließen', statusUpdates:'Status',
         statusArchive:'Archiv', archiveClear:'Archiv leeren', archiveClearConfirm:'Archiv für diesen Kontakt wirklich löschen?',
-        archiveOpen:(n)=>n+' abgelaufene Statusmeldung'+(n===1?'':'en')+' ansehen',
+        archiveOpen:(n)=>n+' abgelaufene Statusmeldung'+(n===1?'':'en')+' ansehen', archiveExport:'Als ZIP exportieren',
       },
       en: {
         spinnerConnecting:'Connecting to WhatsApp…', btnReset:'Reset Session',
@@ -2415,7 +2465,7 @@ app.get('/', (req, res) => {
         offlineTitle:'Connection lost', offlineSub:'Reconnecting…', offlineReload:'Reload',
         btnClose:'Close', statusUpdates:'Status',
         statusArchive:'Archive', archiveClear:'Clear archive', archiveClearConfirm:'Really delete the archive for this contact?',
-        archiveOpen:(n)=>'View '+n+' expired status update'+(n===1?'':'s'),
+        archiveOpen:(n)=>'View '+n+' expired status update'+(n===1?'':'s'), archiveExport:'Export as ZIP',
       },
     };
     const _browserLang = (navigator.language || '').toLowerCase().startsWith('de') ? 'de' : 'en';
@@ -3507,6 +3557,10 @@ app.get('/', (req, res) => {
       document.getElementById('archive-modal').classList.remove('open');
       _archiveChatId = null;
     }
+    document.getElementById('archive-modal-export').addEventListener('click', () => {
+      if (!_archiveChatId) return;
+      window.location.href = 'api/status-archive/' + encodeURIComponent(_archiveChatId) + '/export?lang=' + lang;
+    });
     document.getElementById('archive-modal-clear').addEventListener('click', async () => {
       if (!_archiveChatId || !confirm(t('archiveClearConfirm'))) return;
       try { await fetch('api/status-archive/' + encodeURIComponent(_archiveChatId) + '/clear', { method: 'POST' }); } catch(e) {}
