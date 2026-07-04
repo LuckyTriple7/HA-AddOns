@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.39.5] - 2026-07-04
+
+### Changed
+- **Toolbar entschlackt.** Backup/Restore sind keine Buttons mehr in der
+  Toolbar, sondern schlanke Textlinks im Footer (wie „API-Status").
+- **Header-Layout korrigiert.** Kopfzeile brach bei mehreren KI-Buttons
+  in zwei Zeilen um, weil Logo- und Aktionen-Spalte gleich breit erzwungen
+  waren; Spalten sind jetzt inhaltsbreit, Reisen-Countdown zentriert sich
+  im verbleibenden Raum statt starr auf der gesamten Kopfzeilen-Mitte.
+
 ## [0.39.4] - 2026-07-04
 
 ### Added
