@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.38.5] - 2026-07-04
+
+### Added
+- KI-Fazit/-Vergleich berücksichtigt jetzt Klima zur Reisezeit: historische
+  Wassertemperatur, Wetter/Sonnenstunden und Windverhältnisse für Ort und
+  Reisemonat (Klimatabellen statt Tagesvorhersage — für weit in der Zukunft
+  liegende Termine ist keine echte Vorhersage möglich, nur der langjährige
+  Durchschnitt). Reisezeitraum (Startdatum) wird dafür aus der Suche mit
+  übergeben.
+
 ## [0.38.4] - 2026-07-04
 
 ### Added

@@ -2765,6 +2765,11 @@ _AI_SECTIONS = (
     "- Restaurants & Bars (Auswahl, Buffet vs. à la carte, Qualität)\n"
     "- Pool, Wellness & Sport\n"
     "- Ausstattung & Familientauglichkeit\n"
+    "- Klima zur Reisezeit: historische Klimawerte für Ort und Reisemonat — "
+    "durchschnittliche Wassertemperatur, Lufttemperatur, Sonnenstunden/Regentage "
+    "und Windverhältnisse, recherchiert über Klimatabellen (z. B. Seetemperatur- "
+    "und Klima-Seiten für den Ort/Monat). Keine Tagesvorhersage, sondern der "
+    "langjährige Durchschnitt für diese Jahreszeit\n"
 )
 
 
@@ -2784,6 +2789,8 @@ def _hotel_fact_lines(h: dict, *, label: str = "Hotel") -> list[str]:
     if h.get('price'):
         lines.append(f"Reisepreis: {h['price']} € p.P."
                       + (f", {h['nights']} Nächte" if h.get('nights') else ""))
+    if h.get('date'):
+        lines.append(f"Reisezeitraum: ab {h['date']}")
     if h.get('details'):
         lines.append(f"Details: {h['details']}")
     return lines
@@ -2907,7 +2914,9 @@ def api_ai_hotel_summary():
     prompt = (
         "Erstelle eine ausführliche, ehrliche Einschätzung zu folgendem Hotel. "
         "Nutze die Websuche gezielt nach aktuellen Reisebewertungen (z. B. "
-        "HolidayCheck, Tripadvisor, Google) und Hotel-Infoseiten.\n\n"
+        "HolidayCheck, Tripadvisor, Google), Hotel-Infoseiten sowie "
+        "Klimatabellen/historischen Wetter- und Wassertemperaturdaten für Ort "
+        "und Reisemonat.\n\n"
         + "\n".join(_hotel_fact_lines(data)) + "\n\n"
         "Gliedere die Antwort in diese Abschnitte, gerne ausführlich:\n"
         + _AI_SECTIONS
@@ -2954,7 +2963,9 @@ def api_ai_hotel_compare():
     prompt = (
         "Vergleiche ausführlich folgende Hotels für eine Reiseentscheidung. Nutze "
         "die Websuche gezielt nach aktuellen Reisebewertungen (HolidayCheck, "
-        "Tripadvisor, Google) und Hotel-Infoseiten zu jedem einzelnen Hotel.\n\n"
+        "Tripadvisor, Google), Hotel-Infoseiten sowie Klimatabellen/historischen "
+        "Wetter- und Wassertemperaturdaten zu jedem einzelnen Hotel/Ort und "
+        "Reisemonat.\n\n"
         + "\n\n".join(blocks) + "\n\n"
         "Vergleiche entlang dieser Punkte, gerne ausführlich:\n"
         + _AI_SECTIONS
