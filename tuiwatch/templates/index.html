@@ -415,6 +415,7 @@
       <div class="header-actions">
         <button class="btn sec" id="check-all">Alle prüfen</button>
         <button class="btn sec ai-feature" onclick="openAiHistory()" title="Bisherige KI-Fazits/-Vergleiche einsehen">🤖 KI-Verlauf</button>
+        <button class="btn sec ai-feature" onclick="openAiAsk()" title="Frage zu deinem Portfolio stellen">❓ Frage</button>
         <button class="icon-btn" onclick="toggleTheme()" title="Design wechseln">
           <svg class="icon-moon" viewBox="0 0 24 24"><path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c0-.46-.04-.92-.1-1.36-.98 1.37-2.58 2.26-4.4 2.26-2.98 0-5.4-2.42-5.4-5.4 0-1.81.89-3.42 2.26-4.4-.44-.06-.9-.1-1.36-.1z"/></svg>
           <svg class="icon-sun"  viewBox="0 0 24 24"><path d="M12 7c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zM2 13h2v-2H2v2zm18 0h2v-2h-2v2zM11 2v2h2V2h-2zm0 18v2h2v-2h-2zM5.99 4.58 4.58 5.99l1.41 1.41 1.41-1.41L5.99 4.58zm12.03 12.03-1.41 1.41 1.41 1.41 1.41-1.41-1.41-1.41zm1.41-12.44-1.41-1.41-1.41 1.41 1.41 1.41 1.41-1.41zM5.99 19.42l1.41 1.41 1.41-1.41-1.41-1.41-1.41 1.41z"/></svg>
@@ -670,6 +671,21 @@
       <h2>🤖 KI-Verlauf</h2>
       <div class="sub">Bisherige KI-Fazits &amp; -Vergleiche — bleiben dauerhaft gespeichert, unabhängig vom 24h-Cache.</div>
       <div id="aihist-body"></div>
+    </div>
+  </div>
+  <!-- Frag dein Portfolio -->
+  <div class="modal-bg" id="aiask-bg">
+    <div class="modal">
+      <button class="icon-btn modal-close" onclick="closeAiAsk()">
+        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+      </button>
+      <h2>❓ Frag dein Portfolio</h2>
+      <div class="sub">Frage zu deinen aktuell getrackten Angeboten — Claude antwortet anhand von Preis, Bewertung, Trend, Wunschpreis &amp; Tags.</div>
+      <textarea id="aiask-q" rows="3" style="width:100%;margin-top:10px;resize:vertical;background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:8px;font:inherit" placeholder="z. B. Welches Hotel ist gerade das beste Schnäppchen?"></textarea>
+      <div style="margin-top:14px;display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn sec" onclick="closeAiAsk()">Abbrechen</button>
+        <button class="btn" onclick="submitAiAsk()">Fragen</button>
+      </div>
     </div>
   </div>
   <!-- E-Mail-Empfänger -->
@@ -2472,11 +2488,14 @@
     }
     function closeAiHistory(){ $('#aihist-bg').classList.remove('show'); }
     $('#aihist-bg').addEventListener('click', e=>{ if(e.target.id==='aihist-bg') closeAiHistory(); });
+    function aiKindLabel(kind){
+      return kind==='compare' ? '🤖 Vergleich' : kind==='ask' ? '❓ Frage' : '🤖 Fazit';
+    }
     function renderAiHistory(items){
       if(!items.length){ $('#aihist-body').innerHTML = '<div class="cmp-load">Noch keine KI-Analysen gespeichert.</div>'; return; }
       $('#aihist-body').innerHTML = items.map(it => `<div class="aihist-item">
           <div class="aihist-main" onclick="openAiHistoryItem(${it.id})">
-            <div class="aihist-title">${it.kind==='compare'?'🤖 Vergleich':'🤖 Fazit'} · ${esc(it.title)}</div>
+            <div class="aihist-title">${aiKindLabel(it.kind)} · ${esc(it.title)}</div>
             <div class="hint">${esc(new Date(it.ts*1000).toLocaleString('de-DE'))} · ${esc(it.model)}</div>
           </div>
           <button class="icon-btn" onclick="deleteAiHistoryItem(${it.id}, event)" title="Eintrag löschen">🗑</button>
@@ -2493,7 +2512,7 @@
       try { d = await fetch(api('/api/ai/history/'+id)).then(r=>r.json()); }
       catch(e){ $('#ai-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Eintrag konnte nicht geladen werden.</div>'; return; }
       if(d.error){ $('#ai-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Eintrag nicht gefunden (evtl. gelöscht).</div>'; return; }
-      $('#ai-title').textContent = (d.kind==='compare'?'🤖 KI-Vergleich':'🤖 KI-Fazit') + ' (Verlauf)';
+      $('#ai-title').textContent = aiKindLabel(d.kind) + ' (Verlauf)';
       $('#ai-sub').textContent = d.title + ' · ' + new Date(d.ts*1000).toLocaleString('de-DE');
       renderAiResult('#ai-body', {summary: d.summary, usage: d.usage, id: d.id});
     }
@@ -2502,6 +2521,32 @@
       if(!confirm('Diesen KI-Verlaufseintrag löschen?')) return;
       try { await fetch(api('/api/ai/history/'+id), {method:'DELETE'}); } catch(e){}
       openAiHistory();
+    }
+
+    // ── Frag dein Portfolio ────────────────────────────────────────────────────
+    function openAiAsk(){ $('#aiask-q').value=''; $('#aiask-bg').classList.add('show'); }
+    function closeAiAsk(){ $('#aiask-bg').classList.remove('show'); }
+    $('#aiask-bg').addEventListener('click', e=>{ if(e.target.id==='aiask-bg') closeAiAsk(); });
+    async function submitAiAsk(){
+      const q = $('#aiask-q').value.trim();
+      if(!q){ toast('Bitte eine Frage eingeben'); return; }
+      closeAiAsk();
+      $('#ai-title').textContent = '❓ Frag dein Portfolio';
+      $('#ai-sub').textContent = q;
+      $('#ai-foot').style.display = 'none';
+      $('#ai-bg').classList.add('show');
+      $('#ai-body').innerHTML = progBar('KI durchsucht dein Portfolio…');
+      let resp, d;
+      try {
+        resp = await fetch(api('/api/ai/ask'), {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({question:q})});
+        d = await resp.json();
+      } catch(e){ $('#ai-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Frage fehlgeschlagen.</div>'; return; }
+      if(!resp.ok){
+        const msg = d.error==='no_offers' ? 'Keine aktiven Angebote vorhanden.' : aiErrorMsg(d.error);
+        $('#ai-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ '+esc(msg)+'</div>';
+        return;
+      }
+      renderAiResult('#ai-body', d);
     }
 
     // ── Preiskalender (Monats-Grid, gespeichert) ──────────────────────────────

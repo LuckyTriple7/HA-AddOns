@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.39.2] - 2026-07-04
+
+### Added
+- **Frag dein Portfolio.** Neuer „❓ Frage"-Button oben: Freitext-Frage zu
+  allen aktiven getrackten Angeboten (z. B. „Welches Hotel ist gerade das
+  beste Schnäppchen?") — Claude antwortet anhand von Preis, Ort, Sterne/
+  Weiterempfehlung, Trend, Wunschpreis und Tags. Landet wie Fazit/Vergleich
+  im KI-Verlauf und ist per E-Mail versendbar.
+
 ## [0.39.1] - 2026-07-04
 
 ### Added

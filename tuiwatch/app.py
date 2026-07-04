@@ -3147,6 +3147,65 @@ def api_ai_hotel_summary():
     return jsonify({'summary': text, 'usage': usage, 'totals': totals, 'id': aid, 'cached': False})
 
 
+@app.route('/api/ai/ask', methods=['POST'])
+def api_ai_ask():
+    """Freitext-Frage über das aktuelle Portfolio (alle nicht-archivierten
+    Angebote): Preis, Ort, Sterne/Weiterempfehlung, Trend, Wunschpreis, Tags."""
+    if (err := _require_api()):
+        return err
+    api_key, model = _ai_config()
+    if not api_key:
+        return jsonify({'error': 'no_api_key',
+                        'note': 'Kein Anthropic API-Key in den Add-on-Einstellungen hinterlegt'}), 400
+    data = request.get_json(silent=True) or {}
+    question = (data.get('question') or '').strip()
+    if not question:
+        return jsonify({'error': 'invalid'}), 400
+    offers = [o for o in _collect_offers() if not o.get('archived')]
+    if not offers:
+        return jsonify({'error': 'no_offers'}), 400
+
+    def nm(o):
+        return o.get('label') or o.get('hotel') or f"Angebot #{o['id']}"
+
+    lines = []
+    for o in offers:
+        parts = [nm(o)]
+        if o.get('location'):
+            parts.append(o['location'])
+        if o.get('stars'):
+            parts.append(f"{o['stars']}★")
+        if o.get('recommendation') is not None:
+            parts.append(f"{o['recommendation']}% Weiterempfehlung")
+        if o.get('price') is not None:
+            parts.append(f"{_eur(o['price'])} p.P.")
+        if o.get('delta'):
+            parts.append(f"Δ letzte Prüfung {_eur(o['delta'])}")
+        if o.get('target_price'):
+            parts.append(f"Wunschpreis {_eur(o['target_price'])}")
+        if o.get('return_date'):
+            parts.append(f"Rückreise {o['return_date']}")
+        if o.get('tags'):
+            parts.append("Tags: " + ", ".join(o['tags']))
+        lines.append("- " + " · ".join(str(p) for p in parts))
+
+    prompt = (
+        "Hier ist mein aktuelles Portfolio getrackter Reisen/Hotels bei TUIWatch:\n\n"
+        + "\n".join(lines) + "\n\n"
+        f"Frage dazu: {question}\n\n"
+        "Antworte auf Deutsch, konkret und ausschließlich basierend auf den obigen "
+        "Daten. Nenne die betroffenen Hotels beim Namen. Wenn die Daten die Frage "
+        "nicht beantworten können, sag das offen statt zu spekulieren."
+    )
+    text, usage, err = _ai_call(api_key, model, prompt, max_tokens=1500, log_ctx="Portfolio-Frage")
+    if err:
+        return err
+    usage['estimated_usd'] = _ai_call_cost(model, usage)
+    totals = _record_ai_usage(model, usage)
+    aid = _save_ai_analysis('ask', question, model, text, usage)
+    return jsonify({'summary': text, 'usage': usage, 'totals': totals, 'id': aid, 'cached': False})
+
+
 @app.route('/api/ai/hotel-compare', methods=['POST'])
 def api_ai_hotel_compare():
     """Vergleicht 2–5 Hotels aus den Suchergebnissen in einem KI-Aufruf: gleiche
