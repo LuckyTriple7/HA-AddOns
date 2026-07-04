@@ -2378,7 +2378,7 @@ app.get('/', (req, res) => {
         statsMsg:'messages', statsSince:'since',
         offlineTitle:'Connection lost', offlineSub:'Reconnecting…', offlineReload:'Reload',
         btnClose:'Close', statusUpdates:'Status',
-        statusArchive:'Archive', archiveClear:'Clear archive', archiveClearConfirm:'Really delete this contact\'s archive?',
+        statusArchive:'Archive', archiveClear:'Clear archive', archiveClearConfirm:'Really delete the archive for this contact?',
       },
     };
     const _browserLang = (navigator.language || '').toLowerCase().startsWith('de') ? 'de' : 'en';

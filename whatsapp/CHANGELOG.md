@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.7.33] - 2026-07-04
+- Fix: **UI blieb dauerhaft bei „Verbinde mit WhatsApp…" hängen** — der englische Text für `archiveClearConfirm` enthielt ein escaptes Apostroph (`contact\'s`). Da der komplette Web-UI-Code in `server.js` selbst in einem JS-Template-String steckt, frisst dessen äußeres Escaping das `\'` weg, bevor es den Browser erreicht — im Browser blieb ein unescaptes `'` mitten im String übrig, was den kompletten eingebetteten `<script>`-Block zum Absturz brachte (`Uncaught SyntaxError: Unexpected identifier 's'`), noch bevor der Status-Poll überhaupt laufen konnte. Text umformuliert, keine Apostrophe mehr in eingebetteten UI-Strings
+
 ## [1.7.32] - 2026-07-04
 - Fix: `captureStatuses()` (Status-Archiv-Hintergrund-Job) loggte bisher nichts sichtbar — Erfolg gar nicht, Fehler nur im Debug-Modus. Jetzt `[INFO]`-Zeile im normalen Log, wenn neue Statusmeldungen archiviert wurden, und `[WARN]` bei Fehlern (z.B. `getBroadcasts()` schlägt fehl)
 
