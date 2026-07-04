@@ -21,6 +21,8 @@ notify_booked_drop: true # Alarm, wenn Preis unter den gebuchten Preis fällt
 booked_drop_min_diff: 50 # Mindest-Ersparnis dafür (€)
 digest_enabled: false    # wöchentlicher Überblick (Telegram/E-Mail)
 digest_weekday: 1        # Versandtag (1 = Mo … 7 = So)
+anthropic_api_key: ""    # Anthropic API-Key, aktiviert das KI-Fazit (leer = aus)
+anthropic_model: claude-opus-4-8  # oder claude-sonnet-5 / claude-haiku-4-5 / claude-fable-5
 verbose_log: false       # ausführliche Logs
 ```
 
@@ -122,6 +124,38 @@ Wunschpreis, Zurücksetzen) — mit **Mouseover** erscheint Datum + Beschreibung
 
 > Getrackt wird der konkrete, buchbare Preis der günstigsten Angebotskarte — nicht
 > der unverbindliche „ab"-Lockpreis.
+
+## KI-Fazit, -Vergleich & -Verlauf
+
+Mit hinterlegtem `anthropic_api_key` erscheinen zusätzliche **🤖**-Buttons in der
+Hotelsuche und der Angebotsübersicht (ohne Key sind sie komplett ausgeblendet).
+Genutztes Modell: `anthropic_model` (Standard `claude-opus-4-8`; auch
+`claude-sonnet-5`, `claude-haiku-4-5`, `claude-fable-5` wählbar — schneller/
+günstiger bzw. teurer, siehe unten).
+
+- **🤖 KI-Fazit** (je Suchtreffer) — Claude durchsucht live das Web (HolidayCheck,
+  Tripadvisor, Google, Klimatabellen) und liefert eine ausführliche Einschätzung zu
+  **Lage & Strand, Zimmer, Restaurants & Bars, Pool/Wellness, Ausstattung,
+  Klima zur Reisezeit** (historische Wassertemperatur/Wetter/Wind für Ort und
+  Reisemonat — keine Tagesvorhersage, sondern der langjährige Durchschnitt) sowie
+  ein **Preis-Leistung-Fazit**.
+- **🤖 Vergleichen** — Checkbox je Suchtreffer (max. 5), schwebende Leiste ruft
+  Claude **einmal** für alle ausgewählten Hotels auf: Vergleichstabelle +
+  Empfehlung, welches Hotel für wen (Familie, Paar, Party, Ruhe …) am besten passt.
+  Genau dieselbe Funktion gibt es auch in der **Angebotsübersicht** über die
+  bestehende Mehrfachauswahl (Sammelaktionsleiste → „🤖 Vergleichen").
+- **Token- & Kosten-Anzeige** — jede Antwort zeigt Input-/Output-Tokens und die
+  geschätzte Kostenschätzung in USD (Anthropic-Listenpreis) für genau diesen
+  Aufruf, plus eine laufende Gesamtsumme seit Add-on-Start. **Kein echtes
+  Guthaben** — das zeigt nur die Anthropic-Console; hierfür wäre ein separater
+  Admin-API-Key nötig.
+- **📄 PDF exportieren** — öffnet eine druckoptimierte Ansicht in neuem Tab, aus
+  der sich der Browser-Druckdialog direkt als PDF speichern lässt.
+- **🤖 KI-Verlauf** (Button oben neben „Alle prüfen") — alle bisherigen Fazits/
+  Vergleiche bleiben **dauerhaft** gespeichert (unabhängig vom 24h-Cache, bis zu
+  300 Einträge), anklickbar zum erneuten Anzeigen, einzeln löschbar.
+- Ergebnisse werden **24 Stunden** je Hotel/Vergleichs-Kombination
+  zwischengespeichert — erneutes Öffnen kostet keinen neuen API-Aufruf.
 
 ## Meine Reisen (gebuchte Reisen / PDF-Import)
 
@@ -306,6 +340,8 @@ Zusätzlich `binary_sensor.tuiwatch_aktionscodes`: **an**, solange aktuell
 - **Umbenennen** (✎ neben dem Namen) — eigenen Namen vergeben; leer = Hotelname.
 - **Prüfen** — ein Angebot sofort neu abfragen.
 - **Alle prüfen** — alle Angebote abfragen.
+- **🤖 KI-Verlauf** (nur mit hinterlegtem `anthropic_api_key`) — bisherige
+  KI-Fazits/-Vergleiche einsehen, siehe [KI-Fazit, -Vergleich & -Verlauf](#ki-fazit--vergleich--verlauf).
 - **Verlauf** — Diagramm + Tabelle der gesamten Preishistorie, inkl. **CSV-Export**.
 - **Nächte** — Preise für kürzere/längere Reisedauern (Basis ±N) live vergleichen.
 - **Zimmer** — die wählbaren **Zimmerkategorien** des Hotels mit Preis pro Person und
@@ -338,7 +374,10 @@ oder TUI eine API geändert hat.
 ## Daten
 
 Alles wird unter `/data/tuiwatch.db` (SQLite) gespeichert und bleibt über
-Neustarts erhalten.
+Neustarts erhalten — Größe der Datei steht im **Footer** (aktualisiert alle
+5 Minuten). Enthält u. a. auch den dauerhaften **KI-Verlauf** (Tabelle
+`ai_analyses`); der 24h-Cache für Wiederholungsaufrufe liegt dagegen nur im
+Arbeitsspeicher und geht bei einem Neustart verloren.
 
 **Automatisches Backup:** Ist `auto_backup` aktiv (Standard), legt TUIWatch einmal
 pro Woche ein vollständiges Backup-ZIP (Angebote inkl. Preisverlauf und Marker,

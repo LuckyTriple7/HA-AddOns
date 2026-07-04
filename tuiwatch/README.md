@@ -32,12 +32,21 @@ Fällt eine API aus, schaltet TUIWatch automatisch auf das langsamere Auslesen p
 | `username` / `password` | Login beim Direktzugriff (über Ingress nicht nötig) |
 | `session_hours` | Gültigkeit der Anmeldung in Stunden |
 | `poll_interval` | Prüfintervall in Sekunden (Standard 21600 = 6 h, min. 600) |
+| `anthropic_api_key` | Anthropic API-Key — aktiviert das KI-Fazit (leer = aus) |
+| `anthropic_model` | Claude-Modell fürs KI-Fazit (Opus/Sonnet/Haiku/Fable) |
 | `verbose_log` | Ausführlichere Logs |
 
 Es gibt weitere Optionen für **Benachrichtigungen** (Preisänderung, günstigerer
 Termin, „günstiger als gebucht", API-Ausfall, Wochenüberblick), **Home-Assistant-
 Sensoren** (`ha_sensors`) sowie **Telegram** und **SMTP/E-Mail** — Details in
 [DOCS.md](DOCS.md).
+
+## KI-Fazit (optional)
+
+Mit hinterlegtem `anthropic_api_key` bewertet Claude einzelne Suchtreffer
+ausführlich (Lage, Zimmer, Restaurants, Pool, Klima zur Reisezeit) oder
+vergleicht bis zu 5 Hotels nebeneinander — inkl. Token-/Kosten-Anzeige, PDF-
+Export und dauerhaftem Verlauf. Details: [DOCS.md](DOCS.md#ki-fazit--vergleich--verlauf).
 
 ## Hinweise
 

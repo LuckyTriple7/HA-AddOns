@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.38.9] - 2026-07-04
+
+### Changed
+- README/DOCS auf aktuellen Stand gebracht: KI-Fazit, -Vergleich, -Verlauf,
+  Token-/Kosten-Anzeige, DB-Größe im Footer dokumentiert.
+
 ## [0.38.8] - 2026-07-04
 
 ### Added
