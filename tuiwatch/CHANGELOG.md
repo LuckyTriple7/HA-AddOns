@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.39.14] - 2026-07-04
+
+### Added
+- **Eigene KI-Prompts.** Neuer „⚙ KI-Prompts"-Link im Footer: Standard-
+  Instruktionstext für Reiseberater und Hotelvergleich einsehen und per
+  Checkbox „Eigenen Prompt verwenden" durch eigenen Text ersetzen.
+  Sicherheitskritische Klauseln (Länder-Ausschluss, Reisewarnungs-Check,
+  TUI-Verfügbarkeit, Reise-DNA-Kontext) bleiben beim Reiseberater immer
+  fix und sind nicht überschreibbar. Hotelvergleich-Cache berücksichtigt
+  jetzt den aktiven Prompt (kein veraltetes Ergebnis nach Prompt-Änderung
+  mehr aus dem 24h-Cache).
+- KI-Verlauf zeigt beim Reiseberater jetzt auch den gewählten Monat.
+
+### Changed
+- Klima-Recherche im Reiseberater berücksichtigt jetzt auch Windverhältnisse
+  und recherchiert möglichst auf Insel-/Teilregion-Ebene statt nur fürs
+  ganze Land (z. B. Kapverden: Sal vs. Boa Vista unterscheiden sich stark
+  beim Wind).
+
 ## [0.39.13] - 2026-07-04
 
 ### Added

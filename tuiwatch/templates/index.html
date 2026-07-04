@@ -130,6 +130,7 @@
     .tag-row { display:flex; gap:6px; flex-wrap:wrap; margin:8px 0; }
     .reiseb-text { display:block; box-sizing:border-box; width:100%; resize:vertical; background:var(--bg); border:1px solid var(--border); color:var(--text); border-radius:6px; padding:8px; font:inherit; }
     .reiseb-text::placeholder { color:var(--muted); }
+    .promptcfg-text { display:block; box-sizing:border-box; width:100%; resize:vertical; background:var(--bg); border:1px solid var(--border); color:var(--text); border-radius:6px; padding:8px; font:inherit; font-size:.82rem; }
     .tag-pill { display:inline-flex; align-items:center; gap:4px; font-size:.74rem; padding:3px 9px; border-radius:12px; background:var(--surf); border:1px solid var(--border); color:var(--text); cursor:pointer; user-select:none; }
     .tag-pill:hover { border-color:var(--accent); color:var(--accent); }
     .tag-pill.active { background:var(--accent); border-color:var(--accent); color:#fff; }
@@ -476,7 +477,8 @@
       · DB: <span id="db-size">…</span>
       · <span id="hc-foot" class="hc-foot" title="API-Status — klicken für Details &amp; neuen Test" onclick="openHealth()">API: <span id="hc-dot">…</span></span>
       · <span class="hc-foot" onclick="backupOffers()" title="Komplettes Backup (Angebote mit Preisverlauf, Meine Reisen inkl. PDF, gespeicherte Suchen) als ZIP">⬇ Backup</span>
-      · <span class="hc-foot" onclick="document.getElementById('restore-file').click()" title="Backup wiederherstellen (ZIP oder altes JSON) – ergänzt Fehlendes, überschreibt nichts">⬆ Restore</span></footer>
+      · <span class="hc-foot" onclick="document.getElementById('restore-file').click()" title="Backup wiederherstellen (ZIP oder altes JSON) – ergänzt Fehlendes, überschreibt nichts">⬆ Restore</span>
+      · <span class="hc-foot ai-feature" onclick="openPromptCfg()" title="Eigene KI-Prompt-Vorlagen für Reiseberater &amp; Hotelvergleich bearbeiten">⚙ KI-Prompts</span></footer>
   </div>
 
   <!-- Verlauf-Modal -->
@@ -734,6 +736,33 @@
       <div id="hc-body"></div>
       <div style="margin-top:14px; text-align:right">
         <button class="btn" onclick="runHealth()">Erneut prüfen</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- KI-Prompt-Einstellungen -->
+  <div class="modal-bg" id="promptcfg-bg">
+    <div class="modal" style="max-width:720px">
+      <button class="icon-btn modal-close" onclick="closePromptCfg()">
+        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+      </button>
+      <h2>⚙ KI-Prompts</h2>
+      <div class="sub">Standard ist bereits ausgefüllt. Checkbox aktivieren, um ihn zu überschreiben. Die Websuche bleibt technisch immer aktiv, auch wenn der Hinweis dazu aus dem Text entfernt wird — die KI sucht dann ggf. weniger gezielt.</div>
+
+      <h3 style="margin:14px 0 6px">🧭 Reiseberater</h3>
+      <label style="display:flex;align-items:center;gap:6px;font-size:.85rem"><input type="checkbox" id="promptcfg-advisor-enabled"> Eigenen Prompt verwenden</label>
+      <textarea id="promptcfg-advisor-text" class="promptcfg-text" rows="10" maxlength="4000" oninput="promptcfgCount('advisor')" style="margin-top:6px"></textarea>
+      <div class="hint" id="promptcfg-advisor-count" style="text-align:right"></div>
+      <button class="btn sec" onclick="promptcfgReset('advisor')" style="margin-top:4px">Zurücksetzen auf Standard</button>
+
+      <h3 style="margin:20px 0 6px">🏨 Hotelvergleich</h3>
+      <label style="display:flex;align-items:center;gap:6px;font-size:.85rem"><input type="checkbox" id="promptcfg-compare-enabled"> Eigenen Prompt verwenden</label>
+      <textarea id="promptcfg-compare-text" class="promptcfg-text" rows="10" maxlength="4000" oninput="promptcfgCount('compare')" style="margin-top:6px"></textarea>
+      <div class="hint" id="promptcfg-compare-count" style="text-align:right"></div>
+      <button class="btn sec" onclick="promptcfgReset('compare')" style="margin-top:4px">Zurücksetzen auf Standard</button>
+
+      <div style="margin-top:16px;text-align:right">
+        <button class="btn" onclick="savePromptCfg()">Speichern</button>
       </div>
     </div>
   </div>
@@ -2511,6 +2540,44 @@
     }
     function closeAiHistory(){ $('#aihist-bg').classList.remove('show'); }
     $('#aihist-bg').addEventListener('click', e=>{ if(e.target.id==='aihist-bg') closeAiHistory(); });
+
+    // ── KI-Prompt-Einstellungen (eigene Prompt-Vorlagen für Reiseberater/Vergleich) ──
+    let promptCfgData = null;
+    async function openPromptCfg(){
+      $('#promptcfg-bg').classList.add('show');
+      try {
+        const resp = await fetch(api('/api/ai/prompt-settings'));
+        promptCfgData = await resp.json();
+      } catch(e){ toast('Laden fehlgeschlagen'); closePromptCfg(); return; }
+      for (const f of ['advisor','compare']){
+        const d = promptCfgData[f];
+        $(`#promptcfg-${f}-enabled`).checked = d.enabled;
+        $(`#promptcfg-${f}-text`).value = (d.enabled && d.text) ? d.text : d.default;
+        promptcfgCount(f);
+      }
+    }
+    function closePromptCfg(){ $('#promptcfg-bg').classList.remove('show'); }
+    $('#promptcfg-bg').addEventListener('click', e=>{ if(e.target.id==='promptcfg-bg') closePromptCfg(); });
+    function promptcfgReset(f){
+      $(`#promptcfg-${f}-text`).value = promptCfgData[f].default;
+      promptcfgCount(f);
+    }
+    function promptcfgCount(f){
+      $(`#promptcfg-${f}-count`).textContent = $(`#promptcfg-${f}-text`).value.length + ' / 4000 Zeichen';
+    }
+    async function savePromptCfg(){
+      const body = {};
+      for (const f of ['advisor','compare']){
+        body[f] = { enabled: $(`#promptcfg-${f}-enabled`).checked, text: $(`#promptcfg-${f}-text`).value };
+      }
+      try {
+        const resp = await fetch(api('/api/ai/prompt-settings'), {method:'POST',
+          headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
+        if(!resp.ok) throw new Error();
+        toast('Gespeichert');
+        closePromptCfg();
+      } catch(e){ toast('Speichern fehlgeschlagen'); }
+    }
     function aiKindLabel(kind){
       return kind==='compare' ? '🤖 Vergleich' : kind==='ask' ? '❓ Frage'
         : kind==='advisor' ? '🧭 Reiseberater' : '🤖 Fazit';

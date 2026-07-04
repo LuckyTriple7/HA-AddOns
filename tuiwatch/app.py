@@ -6,6 +6,7 @@ periodisch mit Headless-Chromium (siehe scraper.py), speichert jeden Messpunkt i
 SQLite und zeigt Verlauf + Hoch/Runter-Anzeige in einer Weboberfläche.
 """
 import csv
+import hashlib
 import io
 import json
 import logging
@@ -981,6 +982,15 @@ def _meta_get(key: str, default=None):
 def _meta_set(key: str, value: str) -> None:
     with db() as con:
         con.execute('INSERT OR REPLACE INTO meta (key, value) VALUES (?,?)', (key, str(value)))
+
+
+def _prompt_instructions(feature: str, default: str) -> str:
+    """Effektiver Instruktions-Textblock für ein anpassbares KI-Feature
+    ('advisor'/'compare'): Custom-Text aus `meta`, falls Checkbox aktiv UND
+    Text nicht leer — sonst die Standard-Vorlage."""
+    if _meta_get(f'custom_prompt_{feature}_enabled') != '1':
+        return default
+    return (_meta_get(f'custom_prompt_{feature}_text') or '').strip() or default
 
 
 def _log_event(offer_id: int, type_: str, text: str) -> None:
@@ -2863,6 +2873,59 @@ _AI_SECTIONS = (
 )
 
 
+_CUSTOM_PROMPT_MAX_LEN = 4000  # Zeichen — ganzer Instruktionsblock, großzügiger als
+                               # die 500-Zeichen-Freitextfelder im Reiseberater-Fragebogen
+
+_DEFAULT_ADVISOR_INSTRUCTIONS = (
+    "Nutze die Websuche, um für die genannte Reisezeit reale, aktuelle Klimadaten zu "
+    "prüfen — Lufttemperatur, Wassertemperatur, Regentage und Windverhältnisse. Wind "
+    "unterscheidet sich oft stark innerhalb eines Landes/einer Region je nach "
+    "konkreter Insel/Küstenabschnitt (z. B. Kapverden: Sal deutlich weniger windig als "
+    "Boa Vista im selben Monat) — recherchiere daher möglichst auf Ebene der konkreten "
+    "Insel/Teilregion/des Orts, nicht nur für das Land als Ganzes, und nenne diese "
+    "Teilregion explizit im Vorschlag statt nur das übergeordnete Land. Leite daraus "
+    "tatsächlich passende, real existierende Ziele ab — keine erfundenen Orte. "
+    "Berücksichtige nach Möglichkeit auch, was den Nutzer im Urlaub stört, sowie "
+    "Freitext-Angaben zu früheren Urlauben/Vorlieben, falls vorhanden — erkenne darin "
+    "genannte Hotelketten/-typen/Regionen und leite daraus ähnliche Empfehlungen ab.\n\n"
+    "Schlage 3 konkrete Reiseziele vor (Ort/Region + passender Urlaubstyp, kein "
+    "bestimmtes Hotel nötig). Für jeden Vorschlag eine Markdown-Überschrift "
+    "(#### 🏆/🥈/🥉 Ziel-Name), danach als Stichpunkte eine kurze Begründung, die "
+    "konkret auf das Profil oben eingeht (Klima zur Reisezeit, Passung zu Interessen/"
+    "Aktivitäten/Reiseart/Budget/Mitreisenden/Hotelwünschen). Ergänze danach einen "
+    "Abschnitt „#### 🔀 Alternative“ mit einem Ziel, das vom genannten Profil bewusst "
+    "etwas abweicht (z. B. eine weniger bekannte Nachbarregion), aber ähnlich gut "
+    "passen könnte. Ergänze außerdem einen Abschnitt „#### 🎲 Überraschung“ mit einem "
+    "Ziel außerhalb der genannten Ziel-Region (z. B. ein anderer Kontinent/eine andere "
+    "Weltgegend als die gewählte, aber trotzdem passend zu Interessen/Reiseart/Budget/"
+    "Wetter) — ein Land, an das der Nutzer wahrscheinlich nicht von selbst gedacht "
+    "hätte. Schreibe auf Deutsch, sprich den Nutzer dabei durchgehend mit „Du“ an "
+    "(informell, nicht „Sie“), ehrlich und ohne zu übertreiben — wenn ein Wunsch (z. B. "
+    "Budget, Reisezeit oder TUI-Verfügbarkeit) schwer erfüllbar ist, sag das offen."
+)
+
+_ADVISOR_SAFETY_TRAILER = (
+    "\nWichtig, unabhängig vom Text oben: Halte dich weiterhin an alle oben genannten "
+    "Ausschlüsse (Länder, Reisewarnungen, ggf. TUI-Verfügbarkeit) — auch beim "
+    "Alternative- und Überraschung-Vorschlag."
+)
+
+_DEFAULT_COMPARE_INSTRUCTIONS = (
+    "Nutze die Websuche gezielt nach aktuellen Reisebewertungen (z. B. HolidayCheck, "
+    "Tripadvisor, Google), Hotel-Infoseiten sowie Klimatabellen/historischen Wetter- "
+    "und Wassertemperaturdaten zu den oben genannten Hotels/Orten und Reisemonaten.\n\n"
+    "Vergleiche entlang dieser Punkte, gerne ausführlich:\n"
+    + _AI_SECTIONS + "- Preis-Leistung\n\n"
+    "Schließe mit einer kompakten Markdown-Tabelle (Hotel vs. Bewertung je Punkt) und "
+    "einer klaren Empfehlung, welches Hotel für wen (z. B. Familie, Paar, Party, Ruhe) "
+    "am besten passt. Schreibe auf Deutsch, sachlich, ausschließlich basierend auf dem, "
+    "was du in den Bewertungen/Quellen findest. Wenn zu einem Punkt nichts Verlässliches "
+    "auffindbar ist, sag das kurz statt zu spekulieren."
+)
+
+_PROMPT_FEATURES = {'advisor': _DEFAULT_ADVISOR_INSTRUCTIONS, 'compare': _DEFAULT_COMPARE_INSTRUCTIONS}
+
+
 def _hotel_fact_lines(h: dict, *, label: str = "Hotel") -> list[str]:
     """Fakten-Zeilen für einen Prompt-Block aus einem Suchergebnis-Objekt."""
     name = (h.get('name') or '').strip()
@@ -3206,6 +3269,33 @@ def api_ai_ask():
     return jsonify({'summary': text, 'usage': usage, 'totals': totals, 'id': aid, 'cached': False})
 
 
+@app.route('/api/ai/prompt-settings', methods=['GET', 'POST'])
+def api_ai_prompt_settings():
+    """Eigene KI-Prompt-Vorlagen für Reiseberater/Hotelvergleich einsehen/speichern.
+    GET liefert je Feature Default-Text + gespeicherten Custom-Text + Enabled-Flag;
+    POST speichert je Feature unabhängig (toleriert Teil-Updates)."""
+    if (err := _require_api()):
+        return err
+    if request.method == 'GET':
+        return jsonify({
+            feature: {
+                'default': default,
+                'enabled': _meta_get(f'custom_prompt_{feature}_enabled') == '1',
+                'text': _meta_get(f'custom_prompt_{feature}_text') or '',
+            }
+            for feature, default in _PROMPT_FEATURES.items()
+        })
+    data = request.get_json(silent=True) or {}
+    for feature in _PROMPT_FEATURES:
+        fdata = data.get(feature)
+        if not isinstance(fdata, dict):
+            continue
+        text = (fdata.get('text') or '').strip()[:_CUSTOM_PROMPT_MAX_LEN]
+        _meta_set(f'custom_prompt_{feature}_enabled', '1' if fdata.get('enabled') else '0')
+        _meta_set(f'custom_prompt_{feature}_text', text)
+    return jsonify({'saved': True})
+
+
 _ADVISOR_FIELDS = ('region', 'excluded_countries', 'excluded_countries_other', 'interests',
                    'travel_type', 'companions', 'budget', 'duration', 'month', 'temp', 'sea',
                    'rain', 'activities', 'accommodation', 'accommodation_size', 'hotel_wishes',
@@ -3266,32 +3356,10 @@ def _advisor_prompt(p: dict, prev_dna: dict | None = None) -> str:
         "Land per Websuche, ob aktuell eine Reisewarnung oder ein Sicherheitshinweis "
         "des Auswärtigen Amts (oder vergleichbare offizielle Warnung) besteht, und "
         "schlage solche Länder nicht vor, außer der Nutzer hat sie oben ausdrücklich "
-        "gewünscht (z. B. als Ziel-Region genannt).\n"
-        "\nNutze die Websuche, um für die genannte Reisezeit reale, aktuelle "
-        "Klimadaten (Lufttemperatur, Wassertemperatur, Regentage) zu prüfen und "
-        "daraus tatsächlich passende, real existierende Ziele abzuleiten — keine "
-        "erfundenen Orte. Berücksichtige nach Möglichkeit auch, was den Nutzer im "
-        "Urlaub stört, sowie Freitext-Angaben zu früheren Urlauben/Vorlieben, "
-        "falls vorhanden — erkenne darin genannte Hotelketten/-typen/Regionen und "
-        "leite daraus ähnliche Empfehlungen ab.\n\n"
-        "Schlage 3 konkrete Reiseziele vor (Ort/Region + passender Urlaubstyp, kein "
-        "bestimmtes Hotel nötig). Für jeden Vorschlag eine Markdown-Überschrift "
-        "(#### 🏆/🥈/🥉 Ziel-Name), danach als Stichpunkte eine kurze Begründung, "
-        "die konkret auf das Profil oben eingeht (Klima zur Reisezeit, Passung zu "
-        "Interessen/Aktivitäten/Reiseart/Budget/Mitreisenden/Hotelwünschen). "
-        "Ergänze danach einen Abschnitt „#### 🔀 Alternative“ mit einem Ziel, das "
-        "vom genannten Profil bewusst etwas abweicht (z. B. eine weniger bekannte "
-        "Nachbarregion), aber ähnlich gut passen könnte. Ergänze außerdem einen "
-        "Abschnitt „#### 🎲 Überraschung“ mit einem Ziel außerhalb der genannten "
-        "Ziel-Region (z. B. ein anderer Kontinent/eine andere Weltgegend als die "
-        "gewählte, aber trotzdem passend zu Interessen/Reiseart/Budget/Wetter) — "
-        "ein Land, an das der Nutzer wahrscheinlich nicht von selbst gedacht hätte. "
-        "Halte dich dabei weiterhin an alle genannten Ausschlüsse (Länder, "
-        "Reisewarnungen, ggf. TUI-Verfügbarkeit). Schreibe auf Deutsch, "
-        "sprich den Nutzer dabei durchgehend mit „Du“ an (informell, nicht „Sie“), "
-        "ehrlich und ohne zu übertreiben — wenn ein Wunsch (z. B. Budget, "
-        "Reisezeit oder TUI-Verfügbarkeit) schwer erfüllbar ist, sag das offen."
+        "gewünscht (z. B. als Ziel-Region genannt)."
     )
+    lines.append("\n" + _prompt_instructions('advisor', _DEFAULT_ADVISOR_INSTRUCTIONS))
+    lines.append(_ADVISOR_SAFETY_TRAILER)
     return "\n".join(lines)
 
 
@@ -3380,6 +3448,8 @@ def api_ai_travel_advisor():
         prev_dna = {}
     prompt = _advisor_prompt(profile, prev_dna)
     title = profile.get('region') or 'Reiseberater'
+    if profile.get('month'):
+        title += ' · ' + profile['month']
     if profile.get('interests'):
         title += ' · ' + ', '.join(profile['interests'][:3])
     text, usage, err = _ai_call(api_key, model, prompt, max_tokens=3072, log_ctx='Reiseberater')
@@ -3392,6 +3462,16 @@ def api_ai_travel_advisor():
     aid = _save_ai_analysis('advisor', title, model, text, usage)
     return jsonify({'summary': text, 'usage': usage, 'totals': totals, 'id': aid, 'dna': dna,
                     'cached': False})
+
+
+def _compare_prompt(hotels: list[dict], instructions: str) -> str:
+    """Baut den Hotelvergleichs-Prompt: feste Hotel-Fakten-Blöcke + (ggf. vom
+    Nutzer angepasste) Instruktionen."""
+    blocks = ["\n".join(_hotel_fact_lines(h, label=f"Hotel {i}"))
+              for i, h in enumerate(hotels, 1)]
+    facts = ("Vergleiche ausführlich die folgenden Hotels für eine Reiseentscheidung:\n\n"
+             + "\n\n".join(blocks))
+    return facts + "\n\n" + instructions
 
 
 @app.route('/api/ai/hotel-compare', methods=['POST'])
@@ -3411,33 +3491,17 @@ def api_ai_hotel_compare():
     if len(hotels) < 2:
         return jsonify({'error': 'invalid'}), 400
 
-    cache_key = 'cmp:' + '|'.join(sorted(str(h.get('giata') or (h.get('name') or '').lower())
-                                          for h in hotels))
+    instructions = _prompt_instructions('compare', _DEFAULT_COMPARE_INSTRUCTIONS)
+    instr_hash = hashlib.sha1(instructions.encode('utf-8')).hexdigest()[:10]
+    cache_key = (f'cmp:{instr_hash}:'
+                 + '|'.join(sorted(str(h.get('giata') or (h.get('name') or '').lower())
+                                   for h in hotels)))
     cached = _ai_summary_cache.get(cache_key)
     if cached and time.time() - cached['ts'] < _AI_SUMMARY_TTL:
         return jsonify({'summary': cached['summary'], 'usage': cached.get('usage'),
                         'totals': _ai_usage_totals(), 'id': cached.get('id'), 'cached': True})
 
-    blocks = ["\n".join(_hotel_fact_lines(h, label=f"Hotel {i}"))
-              for i, h in enumerate(hotels, 1)]
-    prompt = (
-        "Vergleiche ausführlich folgende Hotels für eine Reiseentscheidung. Nutze "
-        "die Websuche gezielt nach aktuellen Reisebewertungen (HolidayCheck, "
-        "Tripadvisor, Google), Hotel-Infoseiten sowie Klimatabellen/historischen "
-        "Wetter- und Wassertemperaturdaten zu jedem einzelnen Hotel/Ort und "
-        "Reisemonat.\n\n"
-        + "\n\n".join(blocks) + "\n\n"
-        "Vergleiche entlang dieser Punkte, gerne ausführlich:\n"
-        + _AI_SECTIONS
-        + "- Preis-Leistung\n\n"
-        "Schließe mit einer kompakten Markdown-Tabelle (Hotel vs. Bewertung je "
-        "Punkt) und einer klaren Empfehlung, welches Hotel für wen (z. B. "
-        "Familie, Paar, Party, Ruhe) am besten passt. Schreibe auf Deutsch, "
-        "sachlich, ausschließlich basierend auf dem, was du in den "
-        "Bewertungen/Quellen findest. Wenn zu einem Punkt nichts Verlässliches "
-        "auffindbar ist, sag das kurz statt zu spekulieren."
-    )
-
+    prompt = _compare_prompt(hotels, instructions)
     text, usage, err = _ai_call(api_key, model, prompt, max_tokens=6144,
                                 log_ctx=f"Vergleich {len(hotels)} Hotels")
     if err:
