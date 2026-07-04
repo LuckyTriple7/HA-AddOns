@@ -2575,6 +2575,11 @@
     const ADV_STEPS = [
       {title:'Wohin soll die Reise ungefähr gehen?', key:'region', multi:false,
        options:['Deutschland','Europa','Makaronesien (Kanaren, Madeira, Azoren, Kapverden)','Weltweit','Egal']},
+      {title:'Welche Länder kommen für dich nicht in Frage?', key:'excluded_countries', multi:true,
+       options:['Türkei','Ägypten','Tunesien','Marokko','Kenia','Thailand','Sri Lanka',
+                'Dominikanische Republik','Mexiko','Malediven']},
+      {title:'Weitere Länder ausschließen? (optional)', key:'excluded_countries_other', type:'text',
+       placeholder:'z. B. weitere Länder, kommagetrennt'},
       {title:'Was ist dir im Urlaub wichtig?', key:'interests', multi:true,
        options:['🌴 Strand','⛰️ Berge','🏛️ Kultur','🍹 Entspannung','🎉 Nachtleben','🚶 Wandern',
                 '🚴 Radfahren','🍽️ Essen','🛍️ Shopping','👨‍👩‍👧 Familie','❤️ Romantik']},

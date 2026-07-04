@@ -3206,14 +3206,17 @@ def api_ai_ask():
     return jsonify({'summary': text, 'usage': usage, 'totals': totals, 'id': aid, 'cached': False})
 
 
-_ADVISOR_FIELDS = ('region', 'interests', 'travel_type', 'companions', 'budget',
-                   'duration', 'month', 'temp', 'sea', 'rain', 'activities',
-                   'accommodation', 'accommodation_size', 'hotel_wishes',
+_ADVISOR_FIELDS = ('region', 'excluded_countries', 'excluded_countries_other', 'interests',
+                   'travel_type', 'companions', 'budget', 'duration', 'month', 'temp', 'sea',
+                   'rain', 'activities', 'accommodation', 'accommodation_size', 'hotel_wishes',
                    'flight_time', 'airports', 'dislikes', 'perfect_holiday', 'past_trips')
-_ADVISOR_LIST_FIELDS = {'interests', 'activities', 'hotel_wishes', 'airports', 'dislikes'}
-_ADVISOR_TEXT_FIELDS = {'perfect_holiday', 'past_trips'}
+_ADVISOR_LIST_FIELDS = {'interests', 'activities', 'hotel_wishes', 'airports', 'dislikes',
+                        'excluded_countries'}
+_ADVISOR_TEXT_FIELDS = {'perfect_holiday', 'past_trips', 'excluded_countries_other'}
 _ADVISOR_LABELS = {
-    'region': 'Ziel-Region', 'interests': 'Wichtig im Urlaub', 'travel_type': 'Reiseart',
+    'region': 'Ziel-Region', 'excluded_countries': 'Kommt nicht in Frage',
+    'excluded_countries_other': 'Weitere ausgeschlossene Länder',
+    'interests': 'Wichtig im Urlaub', 'travel_type': 'Reiseart',
     'companions': 'Reist mit', 'budget': 'Budget pro Person', 'duration': 'Reisedauer',
     'month': 'Reisezeit', 'temp': 'Gewünschte Temperatur', 'sea': 'Meer/Wasser',
     'rain': 'Niederschlag', 'activities': 'Gewünschte Aktivitäten',
@@ -3245,7 +3248,18 @@ def _advisor_prompt(p: dict) -> str:
             "TUI-Katalogseiten für das Zielland). Kein Ziel vorschlagen, das TUI "
             "nachweislich nicht anbietet."
         )
+    if p.get('excluded_countries') or p.get('excluded_countries_other'):
+        lines.append(
+            "\nWichtig: Schlage unter keinen Umständen Ziele in den oben unter "
+            "„Kommt nicht in Frage“/„Weitere ausgeschlossene Länder“ genannten "
+            "Ländern/Regionen vor — auch nicht als Alternative."
+        )
     lines.append(
+        "\nUnabhängig von den Angaben oben: Prüfe für jedes in Betracht gezogene "
+        "Land per Websuche, ob aktuell eine Reisewarnung oder ein Sicherheitshinweis "
+        "des Auswärtigen Amts (oder vergleichbare offizielle Warnung) besteht, und "
+        "schlage solche Länder nicht vor, außer der Nutzer hat sie oben ausdrücklich "
+        "gewünscht (z. B. als Ziel-Region genannt).\n"
         "\nNutze die Websuche, um für die genannte Reisezeit reale, aktuelle "
         "Klimadaten (Lufttemperatur, Wassertemperatur, Regentage) zu prüfen und "
         "daraus tatsächlich passende, real existierende Ziele abzuleiten — keine "

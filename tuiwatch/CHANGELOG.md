@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.39.7] - 2026-07-04
+
+### Added
+- **Länder ausschließen im Reiseberater.** Neuer Schritt: Klick-Liste
+  gängiger Ausschluss-Kandidaten (Türkei, Ägypten, Tunesien, Marokko,
+  Kenia, Thailand, Sri Lanka, Dominikanische Republik, Mexiko, Malediven)
+  plus Freitext für weitere Länder. Unabhängig davon prüft die KI für
+  jedes in Betracht gezogene Land per Websuche aktuelle Reisewarnungen/
+  Sicherheitshinweise des Auswärtigen Amts und schlägt betroffene Länder
+  standardmäßig nicht vor, außer sie wurden ausdrücklich als Zielregion
+  gewünscht.
+
 ## [0.39.6] - 2026-07-04
 
 ### Added
