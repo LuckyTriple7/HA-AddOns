@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.7.37] - 2026-07-04
+- Fix: **ZIP-Export lieferte 500** (`TypeError: archiver is not a function`) — `archiver@8.0.0` (npm `latest`) hat die klassische Aufruf-API (`archiver('zip', opts)`) entfernt und exportiert jetzt stattdessen Klassen (`Archiver`, `ZipArchive`, …). Abhängigkeit auf `^7.0.1` gepinnt, wo die im Code verwendete API noch funktioniert. Diesmal lokal tatsächlich ausgeführt (nicht nur `node --check`) — echter Testlauf mit `archiver@7.0.1` erzeugt eine valide ZIP ohne Fehler
+
 ## [1.7.36] - 2026-07-04
 - Neu: **Status-Archiv als ZIP exportieren** — im Archiv-Fenster gibt's jetzt „⬇ Als ZIP exportieren" (`GET /api/status-archive/:chatId/export`, neue Abhängigkeit `archiver`). Enthält alle Fotos/Videos als echte Dateien (chronologisch nummeriert und mit Zeitstempel benannt) plus eine `archiv.html`, die alle Einträge inkl. Text und Medien-Vorschau als kleine Galerie zeigt (relative Pfade in die mitgepackten Dateien, kein Base64-Aufblähen)
 
