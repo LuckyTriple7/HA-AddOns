@@ -157,6 +157,51 @@ günstiger bzw. teurer, siehe unten).
 - Ergebnisse werden **24 Stunden** je Hotel/Vergleichs-Kombination
   zwischengespeichert — erneutes Öffnen kostet keinen neuen API-Aufruf.
 
+## 🧭 Reiseberater
+
+Geführter Klick-Fragebogen (kein Freitext-Chat) über den **„🧭 Reiseberater"**-
+Button in der Toolbar: rund 20 Schritte zu Zielregion, ausgeschlossenen
+Ländern, Interessen, Reiseart, Mitreisenden, Budget, Reisedauer, Reisezeit,
+Wetterwünschen (Temperatur/Meer/Regen), Aktivitäten, Unterkunft,
+Hotelwünschen, Flug, was im Urlaub nervt sowie zwei Freitext-Feldern
+(perfekter Urlaub, frühere Urlaubserfahrungen). Am Ende ruft Claude einmal die
+passenden Ziele ab.
+
+- **Ergebnis:** 3 konkrete Zielvorschläge (🏆/🥈/🥉) mit Begründung, plus ein
+  „🔀 Alternative"-Vorschlag (bewusst leicht abweichend) und ein
+  „🎲 Überraschung"-Vorschlag (Ziel außerhalb der gewählten Zielregion, an das
+  man normalerweise nicht denkt).
+- **Sicherheit eingebaut, nicht abschaltbar:** ausgeschlossene Länder werden
+  nie vorgeschlagen; Claude prüft für jedes Land per Websuche aktuelle
+  Reisewarnungen des Auswärtigen Amts; bei „Pauschalreise (TUI)" werden nur
+  Ziele vorgeschlagen, die TUI nachweislich im Programm hat.
+- **Klima/Wind ortsgenau:** Recherche möglichst auf Insel-/Teilregionsebene
+  statt nur fürs Land (Wind kann z. B. auf den Kapverden zwischen Sal und
+  Boa Vista stark variieren) — gilt auch für KI-Fazit und Hotelvergleich.
+- **Reise-DNA:** Nach jeder Anfrage berechnet TUIWatch zusätzlich ein
+  Präferenzprofil (🌴 Strand, 🏛️ Kultur, 🎉 Nachtleben, ⛰️ Aktiv,
+  🍹 Entspannung, 🍽️ Kulinarik, 👨‍👩‍👧 Familie, 💰 Preisbewusst) — rein
+  deterministisch aus den Fragebogen-Antworten, **kein zusätzlicher
+  KI-Aufruf/keine Zusatzkosten**. Landet als Tabelle im Ergebnis, wird über
+  mehrere Anfragen als gleitender Mittelwert gespeichert und der KI beim
+  nächsten Mal als Zusatzkontext mitgegeben.
+- Landet wie Fazit/Vergleich im **KI-Verlauf** (inkl. gewähltem Monat im
+  Titel) und ist per E-Mail versendbar.
+
+## Eigene KI-Prompts
+
+Über **⚙ KI-Prompts** im Footer lässt sich der Standard-Instruktionstext für
+**Reiseberater**, **Hotelvergleich** und **KI-Fazit** einsehen und über die
+Checkbox „Eigenen Prompt verwenden" durch einen eigenen Text ersetzen (max.
+4000 Zeichen, „Zurücksetzen auf Standard" jederzeit möglich).
+
+- Beim Reiseberater bleiben sicherheitskritische Klauseln (Länder-Ausschluss,
+  Reisewarnungs-Check, TUI-Verfügbarkeit, Reise-DNA-Kontext) immer fix
+  erhalten — nur der Recherche-/Format-/Ton-Teil des Prompts ist editierbar.
+- Ergebnisse werden je nach aktivem Prompt-Text separat zwischengespeichert —
+  ein geänderter Prompt liefert sofort ein neues Ergebnis statt eines
+  veralteten 24h-Cache-Treffers.
+
 ## Meine Reisen (gebuchte Reisen / PDF-Import)
 
 Über **🧳 Meine Reisen** verwaltest du deine **gebuchten** TUI-Reisen — getrennt vom

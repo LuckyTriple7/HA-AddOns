@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.39.19] - 2026-07-04
+
+### Docs
+- README/DOCS auf aktuellen Stand: neuer Abschnitt „🧭 Reiseberater"
+  (Fragebogen, Alternative/Überraschung, Sicherheitsklauseln, Wind/Klima-
+  Recherche, Reise-DNA) und „Eigene KI-Prompts" (⚙-Menü im Footer für
+  Reiseberater/Hotelvergleich/KI-Fazit) dokumentiert.
+
 ## [0.39.18] - 2026-07-04
 
 ### Changed
