@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.39.23] - 2026-07-04
+
+### Changed
+- **Reiseberater-Fragebogen verfeinert:** Meer-Schritt jetzt mit konkreten
+  Temperaturstufen (28°C+, 24–27°C, 20–24°C, egal, kein Meer nötig) statt
+  vagem „badewarm wichtig". Unterkunftsart um „Ferienwohnung"/„Airbnb"
+  ergänzt. Hotelgröße um „mittelgroß" zwischen Boutique und riesiger
+  Clubanlage ergänzt.
+- Footer zeigt jetzt die Add-on-Version („TUIWatch v0.39.23 — …").
+
 ## [0.39.22] - 2026-07-04
 
 ### Added

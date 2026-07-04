@@ -70,7 +70,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.39.22"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.39.23"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -2000,7 +2000,8 @@ def index():
     return make_response(render_template(
         'index.html', script_root=request.script_root,
         poll_interval=int(cfg.get('poll_interval', POLL_INTERVAL_DEFAULT)),
-        ai_enabled=bool((cfg.get('anthropic_api_key') or '').strip())))
+        ai_enabled=bool((cfg.get('anthropic_api_key') or '').strip()),
+        app_version=APP_VERSION))
 
 
 # ── Routen: API ────────────────────────────────────────────────────────────────
@@ -3502,7 +3503,7 @@ def _advisor_dna_scores(p: dict) -> dict:
     checks = {
         '🌴 Strand': [has('interests', '🌴 Strand'),
                      has('hotel_wishes', 'direkte Strandlage', 'Sandstrand', 'Hausriff'),
-                     has('sea', 'badewarm wichtig')],
+                     has('sea', '28°C+ (tropisch warm)', '24–27°C (angenehm warm)')],
         '🏛️ Kultur': [has('interests', '🏛️ Kultur'), has('activities', 'Museen', 'Fotografieren')],
         '🎉 Nachtleben': [has('interests', '🎉 Nachtleben')],
         '⛰️ Aktiv': [has('interests', '🚶 Wandern', '🚴 Radfahren'),

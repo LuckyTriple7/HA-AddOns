@@ -473,7 +473,7 @@
       <button class="btn sec" onclick="bulkClear()" style="margin-left:auto">Auswahl aufheben</button>
     </div>
     <div id="offers"></div>
-    <footer>TUIWatch &mdash; verfolgt TUI-Reisepreise · Prüfintervall: <span id="iv"></span>
+    <footer>TUIWatch v{{ app_version }} &mdash; verfolgt TUI-Reisepreise · Prüfintervall: <span id="iv"></span>
       · DB: <span id="db-size">…</span>
       · <span id="hc-foot" class="hc-foot" title="API-Status — klicken für Details &amp; neuen Test" onclick="openHealth()">API: <span id="hc-dot">…</span></span>
       · <span class="hc-foot" onclick="backupOffers()" title="Komplettes Backup (Angebote mit Preisverlauf, Meine Reisen inkl. PDF, gespeicherte Suchen) als ZIP">⬇ Backup</span>
@@ -2679,16 +2679,16 @@
       {title:'Wie warm soll es sein?', key:'temp', multi:false,
        options:['unter 20°C','20–25°C','25–30°C','möglichst heiß']},
       {title:'Meer?', key:'sea', multi:false,
-       options:['badewarm wichtig','egal','kein Meer nötig']},
+       options:['28°C+ (tropisch warm)','24–27°C (angenehm warm)','20–24°C ist ok','egal','kein Meer nötig']},
       {title:'Regen?', key:'rain', multi:false,
        options:['möglichst trocken','egal']},
       {title:'Welche Aktivitäten interessieren dich?', key:'activities', multi:true,
        options:['Tauchen','Schnorcheln','Wandern','Skifahren','Golf','Mountainbike','Surfen',
                 'Safari','Fotografieren','Museen','Freizeitparks','Wein','Kulinarik']},
       {title:'Welche Unterkunftsart?', key:'accommodation', multi:false,
-       options:['Hotel','Apartment','Villa','Camping','Hostel']},
+       options:['Hotel','Apartment','Ferienwohnung','Airbnb','Villa','Camping','Hostel']},
       {title:'Wie groß darf das Hotel sein?', key:'accommodation_size', multi:false,
-       options:['klein','Boutique','egal','riesige Clubanlage']},
+       options:['klein','Boutique','mittelgroß','riesige Clubanlage','egal']},
       {title:'Was ist dir beim Hotel besonders wichtig?', key:'hotel_wishes', multi:true,
        options:['Erwachsenenhotel','Familienhotel','Kinderpool','Rutschen','Animation','Ruhe',
                 'All Inclusive','Frühstück','Halbpension','Swim-Up','Privatpool','Spa',
