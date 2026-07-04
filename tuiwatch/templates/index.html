@@ -761,6 +761,12 @@
       <div class="hint" id="promptcfg-compare-count" style="text-align:right"></div>
       <button class="btn sec" onclick="promptcfgReset('compare')" style="margin-top:4px">Zurücksetzen auf Standard</button>
 
+      <h3 style="margin:20px 0 6px">🤖 KI-Fazit</h3>
+      <label style="display:flex;align-items:center;gap:6px;font-size:.85rem"><input type="checkbox" id="promptcfg-summary-enabled"> Eigenen Prompt verwenden</label>
+      <textarea id="promptcfg-summary-text" class="promptcfg-text" rows="10" maxlength="4000" oninput="promptcfgCount('summary')" style="margin-top:6px"></textarea>
+      <div class="hint" id="promptcfg-summary-count" style="text-align:right"></div>
+      <button class="btn sec" onclick="promptcfgReset('summary')" style="margin-top:4px">Zurücksetzen auf Standard</button>
+
       <div style="margin-top:16px;text-align:right">
         <button class="btn" onclick="savePromptCfg()">Speichern</button>
       </div>
@@ -2549,7 +2555,7 @@
         const resp = await fetch(api('/api/ai/prompt-settings'));
         promptCfgData = await resp.json();
       } catch(e){ toast('Laden fehlgeschlagen'); closePromptCfg(); return; }
-      for (const f of ['advisor','compare']){
+      for (const f of ['advisor','compare','summary']){
         const d = promptCfgData[f];
         $(`#promptcfg-${f}-enabled`).checked = d.enabled;
         $(`#promptcfg-${f}-text`).value = (d.enabled && d.text) ? d.text : d.default;
@@ -2567,7 +2573,7 @@
     }
     async function savePromptCfg(){
       const body = {};
-      for (const f of ['advisor','compare']){
+      for (const f of ['advisor','compare','summary']){
         body[f] = { enabled: $(`#promptcfg-${f}-enabled`).checked, text: $(`#promptcfg-${f}-text`).value };
       }
       try {

@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.39.15] - 2026-07-04
+
+### Added
+- **KI-Fazit jetzt auch editierbar.** Dritter Abschnitt im „⚙ KI-Prompts"-
+  Menü im Footer, gleiches Muster wie Reiseberater/Hotelvergleich
+  (Checkbox „Eigenen Prompt verwenden", vorausgefüllter Standard, Cache
+  berücksichtigt den aktiven Prompt).
+
+### Changed
+- Wind-Recherche jetzt auch beim Hotelvergleich und KI-Fazit: möglichst
+  ortsgenau je Hotel/Küstenabschnitt statt nur fürs Land als Ganzes
+  (gemeinsame Kriterienliste `_AI_SECTIONS`, wirkt auf beide Features).
+
 ## [0.39.14] - 2026-07-04
 
 ### Added

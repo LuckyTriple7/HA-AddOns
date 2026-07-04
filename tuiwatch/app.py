@@ -2867,9 +2867,11 @@ _AI_SECTIONS = (
     "- Ausstattung & Familientauglichkeit\n"
     "- Klima zur Reisezeit: historische Klimawerte für Ort und Reisemonat — "
     "durchschnittliche Wassertemperatur, Lufttemperatur, Sonnenstunden/Regentage "
-    "und Windverhältnisse, recherchiert über Klimatabellen (z. B. Seetemperatur- "
-    "und Klima-Seiten für den Ort/Monat). Keine Tagesvorhersage, sondern der "
-    "langjährige Durchschnitt für diese Jahreszeit\n"
+    "und Windverhältnisse, möglichst ortsgenau für das jeweilige Hotel/den "
+    "Küstenabschnitt statt nur fürs Land als Ganzes recherchiert über "
+    "Klimatabellen (z. B. Seetemperatur- und Klima-Seiten für den Ort/Monat). "
+    "Keine Tagesvorhersage, sondern der langjährige Durchschnitt für diese "
+    "Jahreszeit\n"
 )
 
 
@@ -2913,7 +2915,10 @@ _ADVISOR_SAFETY_TRAILER = (
 _DEFAULT_COMPARE_INSTRUCTIONS = (
     "Nutze die Websuche gezielt nach aktuellen Reisebewertungen (z. B. HolidayCheck, "
     "Tripadvisor, Google), Hotel-Infoseiten sowie Klimatabellen/historischen Wetter- "
-    "und Wassertemperaturdaten zu den oben genannten Hotels/Orten und Reisemonaten.\n\n"
+    "und Wassertemperaturdaten inkl. Windverhältnisse zu den oben genannten Hotels/"
+    "Orten und Reisemonaten. Wind unterscheidet sich oft stark innerhalb eines "
+    "Landes/einer Region je nach konkreter Insel/Küstenabschnitt — recherchiere "
+    "möglichst ortsgenau je Hotel statt nur fürs Land als Ganzes.\n\n"
     "Vergleiche entlang dieser Punkte, gerne ausführlich:\n"
     + _AI_SECTIONS + "- Preis-Leistung\n\n"
     "Schließe mit einer kompakten Markdown-Tabelle (Hotel vs. Bewertung je Punkt) und "
@@ -2923,7 +2928,19 @@ _DEFAULT_COMPARE_INSTRUCTIONS = (
     "auffindbar ist, sag das kurz statt zu spekulieren."
 )
 
-_PROMPT_FEATURES = {'advisor': _DEFAULT_ADVISOR_INSTRUCTIONS, 'compare': _DEFAULT_COMPARE_INSTRUCTIONS}
+_DEFAULT_SUMMARY_INSTRUCTIONS = (
+    "Nutze die Websuche gezielt nach aktuellen Reisebewertungen (z. B. HolidayCheck, "
+    "Tripadvisor, Google), Hotel-Infoseiten sowie Klimatabellen/historischen Wetter- "
+    "und Wassertemperaturdaten für Ort und Reisemonat.\n\n"
+    "Gliedere die Antwort in diese Abschnitte, gerne ausführlich:\n"
+    + _AI_SECTIONS + "- Fazit: Preis-Leistung und für wen das Hotel geeignet ist\n\n"
+    "Schreibe auf Deutsch, sachlich, ausschließlich basierend auf dem, was du in den "
+    "Bewertungen/Quellen findest. Wenn zu einem Punkt nichts Verlässliches auffindbar "
+    "ist, sag das kurz statt zu spekulieren."
+)
+
+_PROMPT_FEATURES = {'advisor': _DEFAULT_ADVISOR_INSTRUCTIONS, 'compare': _DEFAULT_COMPARE_INSTRUCTIONS,
+                    'summary': _DEFAULT_SUMMARY_INSTRUCTIONS}
 
 
 def _hotel_fact_lines(h: dict, *, label: str = "Hotel") -> list[str]:
@@ -3162,6 +3179,14 @@ def api_ai_auto_tags():
     return jsonify({'results': results})
 
 
+def _hotel_summary_prompt(hotel: dict, instructions: str) -> str:
+    """Baut den KI-Fazit-Prompt: feste Hotel-Fakten + (ggf. vom Nutzer angepasste)
+    Instruktionen."""
+    facts = ("Erstelle eine ausführliche, ehrliche Einschätzung zu folgendem Hotel:\n\n"
+             + "\n".join(_hotel_fact_lines(hotel)))
+    return facts + "\n\n" + instructions
+
+
 @app.route('/api/ai/hotel-summary', methods=['POST'])
 def api_ai_hotel_summary():
     """Ausführliche KI-Einschätzung zu einem Hotel aus den Suchergebnissen (Lage,
@@ -3178,28 +3203,16 @@ def api_ai_hotel_summary():
     name = (data.get('name') or '').strip()
     if not name:
         return jsonify({'error': 'invalid'}), 400
+    instructions = _prompt_instructions('summary', _DEFAULT_SUMMARY_INSTRUCTIONS)
+    instr_hash = hashlib.sha1(instructions.encode('utf-8')).hexdigest()[:10]
     giata = data.get('giata')
-    cache_key = str(giata) if giata else name.lower()
+    cache_key = f'{instr_hash}:' + (str(giata) if giata else name.lower())
     cached = _ai_summary_cache.get(cache_key)
     if cached and time.time() - cached['ts'] < _AI_SUMMARY_TTL:
         return jsonify({'summary': cached['summary'], 'usage': cached.get('usage'),
                         'totals': _ai_usage_totals(), 'id': cached.get('id'), 'cached': True})
 
-    prompt = (
-        "Erstelle eine ausführliche, ehrliche Einschätzung zu folgendem Hotel. "
-        "Nutze die Websuche gezielt nach aktuellen Reisebewertungen (z. B. "
-        "HolidayCheck, Tripadvisor, Google), Hotel-Infoseiten sowie "
-        "Klimatabellen/historischen Wetter- und Wassertemperaturdaten für Ort "
-        "und Reisemonat.\n\n"
-        + "\n".join(_hotel_fact_lines(data)) + "\n\n"
-        "Gliedere die Antwort in diese Abschnitte, gerne ausführlich:\n"
-        + _AI_SECTIONS
-        + "- Fazit: Preis-Leistung und für wen das Hotel geeignet ist\n\n"
-        "Schreibe auf Deutsch, sachlich, ausschließlich basierend auf dem, was du "
-        "in den Bewertungen/Quellen findest. Wenn zu einem Punkt nichts "
-        "Verlässliches auffindbar ist, sag das kurz statt zu spekulieren."
-    )
-
+    prompt = _hotel_summary_prompt(data, instructions)
     text, usage, err = _ai_call(api_key, model, prompt, max_tokens=4096, log_ctx=name)
     if err:
         return err

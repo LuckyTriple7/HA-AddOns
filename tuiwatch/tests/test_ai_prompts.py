@@ -78,12 +78,27 @@ def test_compare_prompt_contains_facts_and_instructions(app_mod):
     assert "Preis-Leistung" in prompt
 
 
+def test_summary_prompt_contains_facts_and_instructions(app_mod):
+    hotel = {"name": "Hotel C", "location": "Antalya"}
+    instructions = app_mod._prompt_instructions("summary", app_mod._DEFAULT_SUMMARY_INSTRUCTIONS)
+    prompt = app_mod._hotel_summary_prompt(hotel, instructions)
+    assert "Hotel C" in prompt
+    assert "Fazit" in prompt
+
+
+def test_prompt_settings_includes_summary_feature(app_mod):
+    c = app_mod.app.test_client()
+    data = c.get("/api/ai/prompt-settings", headers=ING).get_json()
+    assert set(data.keys()) == {"advisor", "compare", "summary"}
+    assert "Fazit" in data["summary"]["default"]
+
+
 def test_prompt_settings_get_default(app_mod):
     c = app_mod.app.test_client()
     r = c.get("/api/ai/prompt-settings", headers=ING)
     assert r.status_code == 200
     data = r.get_json()
-    assert set(data.keys()) == {"advisor", "compare"}
+    assert set(data.keys()) == {"advisor", "compare", "summary"}
     assert data["advisor"]["enabled"] is False
     assert data["advisor"]["text"] == ""
     assert "Windverhältnisse" in data["advisor"]["default"]
