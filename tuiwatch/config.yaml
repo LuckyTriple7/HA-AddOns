@@ -1,6 +1,6 @@
 name: TUIWatch
 description: Reisepreis-Tracker — verfolgt TUI-Angebotspreise und zeigt den Verlauf
-version: "0.37.5"
+version: "0.38.0"
 slug: tuiwatch
 url: https://github.com/LuckyTriple7/HA-AddOns
 image: "ghcr.io/luckytriple7/tuiwatch"
@@ -64,6 +64,8 @@ options:
   nc_addressbook_url: ""
   nc_user: ""
   nc_app_password: ""
+  anthropic_api_key: ""
+  anthropic_model: "claude-opus-4-8"
   verbose_log: false
 
 schema:
@@ -99,4 +101,6 @@ schema:
   nc_addressbook_url: str?
   nc_user: str?
   nc_app_password: str?
+  anthropic_api_key: password?
+  anthropic_model: list(claude-opus-4-8|claude-sonnet-5|claude-haiku-4-5|claude-fable-5)?
   verbose_log: bool?

@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.38.0] - 2026-07-04
+
+### Added
+- **KI-Hotel-Fazit in der Suche.** Neuer „🤖 KI-Fazit"-Button je Suchergebnis:
+  Claude (mit Web-Suche) durchsucht aktuelle Bewertungen (HolidayCheck,
+  Tripadvisor, Google) und liefert eine ausführliche Einschätzung zu Lage &
+  Strand, Zimmern, Restaurants & Bars, Pool/Wellness, Ausstattung und
+  Preis-Leistung. Ergebnis wird pro Hotel zwischengespeichert (24 Std.), damit
+  erneutes Öffnen keine neue Anfrage auslöst.
+- Neue Add-on-Optionen `anthropic_api_key` (Passwortfeld) und `anthropic_model`
+  (Auswahl Opus/Sonnet/Haiku/Fable) — ohne hinterlegten Key bleibt die Funktion
+  inaktiv und zeigt einen entsprechenden Hinweis.
+
 ## [0.37.5] - 2026-07-04
 
 ### Fixed

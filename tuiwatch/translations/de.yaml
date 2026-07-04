@@ -95,6 +95,12 @@ configuration:
   nc_app_password:
     name: Nextcloud-App-Passwort
     description: "App-Passwort (nicht das normale Login-Passwort!) — erstellbar unter Nextcloud-Einstellungen → Sicherheit → Geräte & Sitzungen → Neues App-Passwort."
+  anthropic_api_key:
+    name: Anthropic API-Key
+    description: "API-Key für Claude (console.anthropic.com), aktiviert das 'KI-Fazit' in der Hotelsuche (Lage, Zimmer, Restaurants, Pool, Ausstattung). Leer lassen = Funktion aus."
+  anthropic_model:
+    name: Claude-Modell fürs KI-Fazit
+    description: "Welches Claude-Modell für die Hotel-Zusammenfassung genutzt wird. Opus = Standard, sehr gründlich. Sonnet = schneller/günstiger bei kaum schlechterer Qualität. Haiku = am günstigsten, kürzer. Fable = leistungsfähigstes Modell, teuerster Aufruf."
   verbose_log:
     name: Ausführliches Logging
     description: Gibt mehr Details pro Prüfung im Log aus. Standard aus — nur Fehler und wichtige Ereignisse werden geloggt.

@@ -95,6 +95,12 @@ configuration:
   nc_app_password:
     name: Nextcloud app password
     description: "App password (not the regular login password!) — create one under Nextcloud settings → Security → Devices & sessions → Create new app password."
+  anthropic_api_key:
+    name: Anthropic API key
+    description: "API key for Claude (console.anthropic.com), enables the 'AI summary' in the hotel search (location, rooms, restaurants, pool, amenities). Leave empty = feature off."
+  anthropic_model:
+    name: Claude model for the AI summary
+    description: "Which Claude model is used for the hotel summary. Opus = default, very thorough. Sonnet = faster/cheaper at nearly the same quality. Haiku = cheapest, shorter. Fable = most capable model, priciest call."
   verbose_log:
     name: Verbose logging
     description: Logs more detail per check. Default off — only errors and important events are logged.

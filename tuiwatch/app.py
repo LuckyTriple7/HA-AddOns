@@ -24,6 +24,7 @@ from email.mime.text import MIMEText
 from pathlib import Path
 from urllib.parse import quote, urlparse
 
+import anthropic
 import requests as http
 from flask import (Flask, jsonify, make_response, redirect, render_template,
                    request, send_file, url_for)
@@ -122,6 +123,9 @@ _fail_notified: set[int] = set()        # offer_ids mit aktivem Ausverkauft-/Feh
 ERROR_ALARM_STREAK = 3                   # ab so vielen Fehlversuchen in Folge melden
 _health_state: dict = {}                 # letzter API-Selbsttest {ok, ts, checks, running}
 _health_lock = threading.Lock()
+_ai_summary_cache: dict = {}              # giata/Name → {summary, ts} — spart wiederholte API-Calls
+_AI_SUMMARY_TTL = 24 * 3600
+_AI_MODELS = ('claude-opus-4-8', 'claude-sonnet-5', 'claude-haiku-4-5', 'claude-fable-5')
 _api_down_notified = False                # ob aktuell ein API-Ausfall gemeldet ist
 
 # einfache Login-Drossel
@@ -2753,6 +2757,93 @@ def api_search():
     log.info("Suche: %d Treffer, %d nach Filter", len(res['results']), len(out))
     return jsonify({'results': out, 'total': res.get('total', len(out)),
                     'matched': len(out)})
+
+
+@app.route('/api/ai/hotel-summary', methods=['POST'])
+def api_ai_hotel_summary():
+    """Ausführliche KI-Einschätzung zu einem Hotel aus den Suchergebnissen (Lage,
+    Zimmer, Gastronomie, Pool, Ausstattung, Fazit) — Claude durchsucht dafür live
+    das Web nach Bewertungen. Gecacht je Hotel (giataId), um wiederholte teure
+    Abrufe beim erneuten Öffnen zu vermeiden."""
+    if (err := _require_api()):
+        return err
+    cfg = load_config()
+    api_key = (cfg.get('anthropic_api_key') or '').strip()
+    model = cfg.get('anthropic_model') or 'claude-opus-4-8'
+    if model not in _AI_MODELS:
+        model = 'claude-opus-4-8'
+    if not api_key:
+        return jsonify({'error': 'no_api_key',
+                        'note': 'Kein Anthropic API-Key in den Add-on-Einstellungen hinterlegt'}), 400
+    data = request.get_json(silent=True) or {}
+    name = (data.get('name') or '').strip()
+    if not name:
+        return jsonify({'error': 'invalid'}), 400
+    giata = data.get('giata')
+    cache_key = str(giata) if giata else name.lower()
+    cached = _ai_summary_cache.get(cache_key)
+    if cached and time.time() - cached['ts'] < _AI_SUMMARY_TTL:
+        return jsonify({'summary': cached['summary'], 'cached': True})
+
+    location = (data.get('location') or '').strip()
+    country = (data.get('country') or '').strip()
+    stars = data.get('stars')
+    recommendation = data.get('recommendation')
+    reviews = data.get('reviews')
+    board = (data.get('board') or '').strip()
+    price = data.get('price')
+    nights = data.get('nights')
+
+    facts = [f"Hotel: {name}", f"Ort: {location}" + (f", {country}" if country else "")]
+    if stars:
+        facts.append(f"Sterne: {stars}")
+    if recommendation is not None:
+        facts.append(f"HolidayCheck-Weiterempfehlung: {recommendation}%"
+                      + (f" ({reviews} Bewertungen)" if reviews else ""))
+    if board:
+        facts.append(f"Verpflegung im Angebot: {board}")
+    if price:
+        facts.append(f"Reisepreis: {price} € p.P." + (f", {nights} Nächte" if nights else ""))
+
+    prompt = (
+        "Erstelle eine ausführliche, ehrliche Einschätzung zu folgendem Hotel. "
+        "Nutze die Websuche gezielt nach aktuellen Reisebewertungen (z. B. "
+        "HolidayCheck, Tripadvisor, Google) und Hotel-Infoseiten.\n\n"
+        + "\n".join(facts) + "\n\n"
+        "Gliedere die Antwort in diese Abschnitte, gerne ausführlich:\n"
+        "- Lage & Strand (Entfernung zu Strand/Zentrum, Umgebung)\n"
+        "- Zimmer (Größe, Zustand, Unterschiede zwischen Kategorien)\n"
+        "- Restaurants & Bars (Auswahl, Buffet vs. à la carte, Qualität)\n"
+        "- Pool, Wellness & Sport\n"
+        "- Ausstattung & Familientauglichkeit\n"
+        "- Fazit: Preis-Leistung und für wen das Hotel geeignet ist\n\n"
+        "Schreibe auf Deutsch, sachlich, ausschließlich basierend auf dem, was du "
+        "in den Bewertungen/Quellen findest. Wenn zu einem Punkt nichts "
+        "Verlässliches auffindbar ist, sag das kurz statt zu spekulieren."
+    )
+
+    try:
+        client = anthropic.Anthropic(api_key=api_key)
+        resp = client.messages.create(
+            model=model,
+            max_tokens=4096,
+            tools=[{"type": "web_search_20260209", "name": "web_search"}],
+            messages=[{"role": "user", "content": prompt}],
+        )
+    except anthropic.APIStatusError as e:
+        log.warning("KI-Zusammenfassung fehlgeschlagen (%s): %s", name, e)
+        return jsonify({'error': 'ai_failed'}), 502
+    except anthropic.APIConnectionError as e:
+        log.warning("KI-Zusammenfassung: Verbindungsfehler (%s): %s", name, e)
+        return jsonify({'error': 'ai_failed'}), 502
+
+    if resp.stop_reason == 'refusal':
+        return jsonify({'error': 'ai_refused'}), 502
+    text = "\n\n".join(b.text for b in resp.content if b.type == 'text').strip()
+    if not text:
+        return jsonify({'error': 'ai_empty'}), 502
+    _ai_summary_cache[cache_key] = {'summary': text, 'ts': time.time()}
+    return jsonify({'summary': text, 'cached': False})
 
 
 _dest_cache: dict = {}     # parent → {parentName, items}
