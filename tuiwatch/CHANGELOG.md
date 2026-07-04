@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.37.4] - 2026-07-04
+
+### Fixed
+- Teilen-Banner zeigt „Schön war's!" statt „Gute Reise!", wenn die Reise
+  bereits beendet ist (Enddatum in der Vergangenheit).
+- Coupon-Sensor (`binary_sensor.tuiwatch_aktionscodes`) wird beim Start sofort
+  aus dem letzten gespeicherten Abruf gemeldet, statt erst nach dem nächsten
+  Live-Abruf (bisher nach HA-Neustart bis zum manuellen „Suchen"-Klick weg).
+
+### Added
+- Angebots-E-Mail (manueller Versand) listet jetzt auch Hin-/Rückflugzeiten,
+  falls vorhanden.
+
 ## [0.37.3] - 2026-07-03
 
 ### Added

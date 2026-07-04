@@ -1623,7 +1623,10 @@
       const dep = (t.data && t.data.fluege || []).find(f=>f.typ==='Hinflug');
       const depDt = new Date(`${t.start_date}T${(dep && dep.abflug_zeit) || '00:00'}:00`);
       const diff = depDt.getTime() - Date.now();
-      if(diff <= 0) return 'Gute Reise!';
+      if(diff <= 0){
+        if(t.end_date && new Date(`${t.end_date}T23:59:59`).getTime() < Date.now()) return 'Schön war\'s!';
+        return 'Gute Reise!';
+      }
       const mins = Math.floor(diff/60000);
       const d = Math.floor(mins/1440), h = Math.floor((mins%1440)/60), m = mins%60;
       const parts = [];

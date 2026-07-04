@@ -712,6 +712,15 @@ def _email_html_offers(offers: list[dict]) -> str:
                          f"{o.get('region') or o.get('country') or ''}".strip())
             rating_html = (f'<a href="https://www.google.com/search?q={hc_q}" '
                            f'style="color:#777;text-decoration:none">{esc(rating)} ↗</a>')
+        flights = ''
+        if o.get('flight_out') or o.get('flight_ret'):
+            fl = []
+            if o.get('flight_out'):
+                fl.append(f'<div>✈ <b>Hin:</b> {esc(o["flight_out"])}</div>')
+            if o.get('flight_ret'):
+                fl.append(f'<div>✈ <b>Rück:</b> {esc(o["flight_ret"])}</div>')
+            flights = (f'<div style="font-size:13px;color:#444;margin-top:6px">'
+                       f'{"".join(fl)}</div>')
         total = ''
         if o.get('travellers_count') and o['travellers_count'] > 1 and o.get('total_price'):
             total = f'<div style="font-size:13px;color:#444">Gesamt {_eur(o["total_price"])} · {o["travellers_count"]} Reisende</div>'
@@ -745,6 +754,7 @@ def _email_html_offers(offers: list[dict]) -> str:
             + (f'<div style="font-size:13px;color:#0b65d8">📍 {esc(o["location"])}</div>' if o.get('location') else '')
             + (f'<div style="font-size:13px;color:#555;margin-top:3px">{esc(o["details"])}</div>' if o.get('details') else '')
             + (f'<div style="font-size:12px;color:#777;margin-top:3px">{rating_html}</div>' if rating_html else '')
+            + flights
             + '<div style="margin-top:10px">'
             f'<span style="font-size:24px;font-weight:800;color:#10243e">{price}</span>'
             ' <span style="font-size:12px;color:#777">pro Person</span> '
@@ -1433,6 +1443,21 @@ def _run_aktionscodes() -> None:
     with _aktion_lock:
         _aktion_state.clear()
         _aktion_state['ts'] = ts
+
+
+def _push_aktionscodes_sensor_from_cache() -> None:
+    """Beim Start Sensor sofort aus dem letzten gespeicherten Abruf setzen, statt auf den
+    nächsten (bis zu `aktionscode_interval` entfernten) Live-Abruf zu warten — sonst fehlt
+    der Sensor nach einem HA-Neustart, bis der Nutzer manuell auf 'Suchen' klickt."""
+    try:
+        last = json.loads(_meta_get('aktion_last', '') or '{}')
+    except Exception:
+        return
+    if not last:
+        return
+    info = {'booking_until': last.get('booking_until', ''),
+            'travel_period': last.get('travel_period', '')}
+    _push_aktionscodes_sensor(last.get('codes') or [], info)
 
 
 def _maybe_check_aktionscodes() -> None:
@@ -3791,6 +3816,7 @@ def main() -> None:
     init_db()
     load_sessions()
     _spawn(push_ha_sensors)  # vorhandene Preise sofort als Sensoren melden
+    _spawn(_push_aktionscodes_sensor_from_cache)  # Coupon-Sensor sofort aus Cache melden
     _spawn(_notify_startup)  # kurze Telegram-Statusmeldung (falls konfiguriert)
     _spawn(_run_healthcheck)  # API-Erreichbarkeit beim Start prüfen
     _spawn(_ensure_dest_index)  # Reiseziel-Index (globale Suche) laden/aufbauen
