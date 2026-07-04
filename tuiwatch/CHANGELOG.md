@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.39.11] - 2026-07-04
+
+### Fixed
+- **Ursache gefunden: AdGuard blockte das Freitextfeld.** IDs/Klasse
+  `adv-*` wurden von AdGuards generischen Werbeblock-Filtern erkannt
+  (Präfix „adv" = advertisement) und das Feld unsichtbar gemacht — bei
+  jedem anderen Werbeblocker/Browser reproduzierbar. Alle betroffenen
+  IDs/Klasse auf `reiseb-*` umbenannt. Kastengröße wieder auf normales Maß
+  (wie „Frag dein Portfolio") zurückgesetzt.
+
 ## [0.39.10] - 2026-07-04
 
 ### Fixed
