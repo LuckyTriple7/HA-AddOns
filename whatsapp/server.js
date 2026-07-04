@@ -1485,6 +1485,17 @@ app.get('/api/contact/:chatId', async (req, res) => {
   }
 });
 
+app.get('/api/statuses-available', async (req, res) => {
+  if (status !== 'connected') return res.status(503).json({ error: 'Not connected' });
+  try {
+    const broadcasts = await client.getBroadcasts();
+    const ids = broadcasts.filter(b => b.msgs && b.msgs.length).map(b => b.id._serialized);
+    res.json({ ids });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.get('/api/status/:chatId', async (req, res) => {
   const chatId = req.params.chatId;
   if (status !== 'connected') return res.status(503).json({ error: 'Not connected' });
@@ -1628,6 +1639,11 @@ app.get('/', (req, res) => {
       position: relative; overflow: hidden;
     }
     .avatar img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; border-radius: 50%; display: block; }
+    .avatar.has-status { box-shadow: 0 0 0 2px #25D366; animation: statusPulse 2s ease-in-out infinite; }
+    @keyframes statusPulse {
+      0%, 100% { box-shadow: 0 0 0 2px #25D366; }
+      50% { box-shadow: 0 0 0 2px #25D366, 0 0 0 5px rgba(37,211,102,0.4); }
+    }
     #contact-modal { display: none; position: fixed; inset: 0; z-index: 450; background: rgba(0,0,0,0.65); align-items: center; justify-content: center; }
     #contact-modal.open { display: flex; }
     .contact-modal-box { border-radius: 16px; padding: 28px 24px 20px; max-width: 320px; width: 90%; display: flex; flex-direction: column; align-items: center; gap: 10px; box-shadow: 0 8px 32px rgba(0,0,0,0.5); }
@@ -2437,6 +2453,15 @@ app.get('/', (req, res) => {
     let lastMsgTime = {};
     let allChats = [];
     let lastSeenTime = {};
+    let _statusChatIds = new Set();
+    async function pollStatuses() {
+      if (document.hidden || currentStatus !== 'connected') return;
+      try {
+        const sd = await fetch('api/statuses-available').then(r => r.json());
+        _statusChatIds = new Set(sd.ids || []);
+        renderChatList(allChats);
+      } catch(e) {}
+    }
     let atBottom = true;
 
     const msgList = document.getElementById('messages');
@@ -2733,7 +2758,7 @@ app.get('/', (req, res) => {
           av.className = 'avatar group-avatar';
           av.textContent = '👥';
         } else {
-          av.className = 'avatar';
+          av.className = 'avatar' + (_statusChatIds.has(chat.id) ? ' has-status' : '');
           av.setAttribute('data-avid', chat.id);
           av.style.background = avatarColor(chat.name);
           av.textContent = avatarInitials(chat.name);
@@ -3649,7 +3674,7 @@ app.get('/', (req, res) => {
             const d = await fetch('api/qr').then(r => r.json()).catch(() => null);
             if (d?.qr) document.getElementById('qr-img').innerHTML = '<img src="' + d.qr + '">';
           }
-          if (connected) await pollChats();
+          if (connected) { await pollChats(); pollStatuses(); }
         }
       } catch(e) {
         _offlineFails++;
@@ -3665,6 +3690,7 @@ app.get('/', (req, res) => {
     setInterval(() => { if (!document.hidden) refresh(); }, 5000);
     setInterval(pollMessages, 2000);
     setInterval(pollChats, 10000);
+    setInterval(pollStatuses, 30000);
     setInterval(pollReactions, 5000);
 
     // Mentions-Dropdown schließen, wenn außerhalb geklickt wird

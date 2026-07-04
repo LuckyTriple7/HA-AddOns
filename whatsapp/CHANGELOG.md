@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.7.30] - 2026-07-04
+- Neu: **Status-Ring in der Kontaktliste** — Kontakte mit aktiven Statusmeldungen bekommen einen pulsierenden grünen Ring ums Profilbild. Neuer Endpoint `GET /api/statuses-available` (`client.getBroadcasts()`) wird alle 30s abgefragt, direkt nach Verbindungsaufbau einmal sofort
+
 ## [1.7.29] - 2026-07-04
 - Neu: **Statusmeldungen von Kontakten ansehen** — im Profil-Popup (Klick auf Profilbild im Chat) werden jetzt die aktuellen WhatsApp-Status-Updates des Kontakts angezeigt (Text, Foto, Video mit Zeitpunkt). Nutzt `client.getBroadcastById()` aus whatsapp-web.js über neuen Endpoint `GET /api/status/:chatId`. Medien respektieren den bestehenden „Medien AN/AUS"-Schalter. Rein lesend — kein eigenes Senden von Status, keine sonstigen Änderungen am Popup
 
