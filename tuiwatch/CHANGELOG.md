@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.39.10] - 2026-07-04
+
+### Fixed
+- **Freitextfelder im Reiseberater: zweiter Anlauf.** Kasten war weiterhin
+  in einem frischen Edge-Profil ohne jede Vorgeschichte unsichtbar — reiner
+  Cache-/Service-Worker-Fall damit ausgeschlossen. Textarea nutzt jetzt eine
+  echte CSS-Klasse (`.adv-text`, im `<style>`-Block) statt Inline-`style`-
+  Attribut, deutlich größer (min. 160px, 3px blauer Rahmen) und mit fest
+  codierten Farben statt CSS-Variablen — maximal robust gegenüber allem,
+  was Inline-Styles oder Variablen-Auflösung stören könnte.
+
 ## [0.39.9] - 2026-07-04
 
 ### Fixed

@@ -128,6 +128,8 @@
     .trend.down { color:var(--green); background:rgba(46,160,67,.11); }
     .trend.flat { color:var(--muted); background:var(--surf2); }
     .tag-row { display:flex; gap:6px; flex-wrap:wrap; margin:8px 0; }
+    .adv-text { display:block; box-sizing:border-box; width:100%; min-height:160px; resize:vertical; background:#1c2230; border:3px solid #3b82f6; color:#eef2f8; border-radius:8px; padding:14px; font:inherit; font-size:1rem; line-height:1.4; }
+    .adv-text::placeholder { color:#8b949e; }
     .tag-pill { display:inline-flex; align-items:center; gap:4px; font-size:.74rem; padding:3px 9px; border-radius:12px; background:var(--surf); border:1px solid var(--border); color:var(--text); cursor:pointer; user-select:none; }
     .tag-pill:hover { border-color:var(--accent); color:var(--accent); }
     .tag-pill.active { background:var(--accent); border-color:var(--accent); color:#fff; }
@@ -2641,10 +2643,7 @@
       if(s.type === 'text'){
         const val = advState[s.key] || '';
         $('#adv-body').innerHTML = '<h3 style="margin:4px 0 12px">'+esc(s.title)+'</h3>'
-          + `<textarea id="adv-text" rows="4" style="display:block;box-sizing:border-box;width:100%;`
-          + `min-height:90px;resize:vertical;background:var(--surf2,#1c2230);`
-          + `border:2px solid var(--accent,#3b82f6);color:var(--text,#c9d1d9);border-radius:6px;`
-          + `padding:10px;font:inherit;font-size:.9rem" `
+          + `<textarea id="adv-text" class="adv-text" rows="7" `
           + `placeholder="${esc(s.placeholder||'Optional')}">${esc(val)}</textarea>`;
       } else {
         const sel = advState[s.key] != null ? advState[s.key] : (s.multi ? [] : null);
