@@ -3206,6 +3206,82 @@ def api_ai_ask():
     return jsonify({'summary': text, 'usage': usage, 'totals': totals, 'id': aid, 'cached': False})
 
 
+_ADVISOR_FIELDS = ('region', 'interests', 'travel_type', 'companions', 'budget',
+                   'duration', 'month', 'temp', 'sea', 'rain')
+_ADVISOR_LABELS = {
+    'region': 'Ziel-Region', 'interests': 'Wichtig im Urlaub', 'travel_type': 'Reiseart',
+    'companions': 'Reist mit', 'budget': 'Budget pro Person', 'duration': 'Reisedauer',
+    'month': 'Reisezeit', 'temp': 'Gewünschte Temperatur', 'sea': 'Meer/Wasser',
+    'rain': 'Niederschlag',
+}
+
+
+def _advisor_prompt(p: dict) -> str:
+    """Baut den Reiseberater-Prompt aus dem Profil (Region/Interessen/Reiseart/
+    Budget/Reisezeit/Wetter) — freie KI-Empfehlung, nicht auf eigene Angebote
+    beschränkt, mit Websuche für reale/aktuelle Klimadaten."""
+    lines = ["Ein Nutzer sucht per Reiseberater-Fragebogen sein nächstes Urlaubsziel. "
+             "Sein Profil:\n"]
+    for key in _ADVISOR_FIELDS:
+        val = p.get(key)
+        if isinstance(val, list):
+            val = ", ".join(str(v).strip() for v in val if str(v).strip())
+        if val:
+            lines.append(f"- {_ADVISOR_LABELS[key]}: {val}")
+    lines.append(
+        "\nNutze die Websuche, um für die genannte Reisezeit reale, aktuelle "
+        "Klimadaten (Lufttemperatur, Wassertemperatur, Regentage) zu prüfen und "
+        "daraus tatsächlich passende, real existierende Ziele abzuleiten — keine "
+        "erfundenen Orte.\n\n"
+        "Schlage 3 konkrete Reiseziele vor (Ort/Region + passender Urlaubstyp, kein "
+        "bestimmtes Hotel nötig). Für jeden Vorschlag eine Markdown-Überschrift "
+        "(#### 🏆/🥈/🥉 Ziel-Name), danach als Stichpunkte eine kurze Begründung, "
+        "die konkret auf das Profil oben eingeht (Klima zur Reisezeit, Passung zu "
+        "Interessen/Reiseart/Budget/Mitreisenden). Schreibe auf Deutsch, ehrlich "
+        "und ohne zu übertreiben — wenn ein Wunsch (z. B. Budget oder Reisezeit) "
+        "schwer erfüllbar ist, sag das offen."
+    )
+    return "\n".join(lines)
+
+
+@app.route('/api/ai/travel-advisor', methods=['POST'])
+def api_ai_travel_advisor():
+    """KI-Reiseberater: aus einem kurzen Profil (Region, Interessen, Reiseart,
+    Budget, Reisezeit, Wetterwünsche) schlägt Claude 3 passende Ziele vor — freie
+    Empfehlung aus KI-Wissen + Websuche, unabhängig vom eigenen Angebots-Portfolio."""
+    if (err := _require_api()):
+        return err
+    api_key, model = _ai_config()
+    if not api_key:
+        return jsonify({'error': 'no_api_key',
+                        'note': 'Kein Anthropic API-Key in den Add-on-Einstellungen hinterlegt'}), 400
+    data = request.get_json(silent=True) or {}
+    if not isinstance(data, dict):
+        return jsonify({'error': 'invalid'}), 400
+    profile = {}
+    for key in _ADVISOR_FIELDS:
+        val = data.get(key)
+        if key == 'interests':
+            if isinstance(val, list):
+                profile[key] = [str(v).strip()[:40] for v in val if str(v).strip()][:12]
+        elif isinstance(val, str) and val.strip():
+            profile[key] = val.strip()[:60]
+    if not any(profile.values()):
+        return jsonify({'error': 'invalid'}), 400
+
+    prompt = _advisor_prompt(profile)
+    title = profile.get('region') or 'Reiseberater'
+    if profile.get('interests'):
+        title += ' · ' + ', '.join(profile['interests'][:3])
+    text, usage, err = _ai_call(api_key, model, prompt, max_tokens=2048, log_ctx='Reiseberater')
+    if err:
+        return err
+    usage['estimated_usd'] = _ai_call_cost(model, usage)
+    totals = _record_ai_usage(model, usage)
+    aid = _save_ai_analysis('advisor', title, model, text, usage)
+    return jsonify({'summary': text, 'usage': usage, 'totals': totals, 'id': aid, 'cached': False})
+
+
 @app.route('/api/ai/hotel-compare', methods=['POST'])
 def api_ai_hotel_compare():
     """Vergleicht 2–5 Hotels aus den Suchergebnissen in einem KI-Aufruf: gleiche

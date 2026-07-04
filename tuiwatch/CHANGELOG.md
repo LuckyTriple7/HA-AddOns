@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.39.4] - 2026-07-04
+
+### Added
+- **KI-Reiseberater.** Neuer „🧭 Reiseberater"-Button in der Toolbar: geführter
+  Fragebogen (Zielregion, Interessen, Reiseart, Mitreisende, Budget, Dauer,
+  Reisezeit, Wetterwünsche) mit Klick-Auswahl statt Freitext. Claude schlägt
+  danach 3 passende, real existierende Reiseziele vor — freie Empfehlung aus
+  KI-Wissen plus Websuche für aktuelle Klimadaten, unabhängig vom eigenen
+  Angebots-Portfolio. Landet wie Fazit/Vergleich/Frage im KI-Verlauf und ist
+  per E-Mail versendbar.
+
 ## [0.39.3] - 2026-07-04
 
 ### Added

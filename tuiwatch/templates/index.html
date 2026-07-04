@@ -435,6 +435,7 @@
     <div class="toolbar">
       <button class="btn" onclick="openSearch()" title="Hotels einer Region suchen (TUI-Such-URL einfügen)">🔍 Suche</button>
       <button class="btn sec" onclick="openTrips()" title="Gebuchte Reisen verwalten (TUI-PDF importieren)">🧳 Meine Reisen</button>
+      <button class="btn sec ai-feature" onclick="openAdvisor()" title="KI-Reiseberater: passende Ziele nach Vorlieben finden">🧭 Reiseberater</button>
       <button class="btn sec" id="aktion-btn" onclick="openAktion()" title="Aktuelle öffentliche TUI-Aktionscodes anzeigen und bei neuen benachrichtigt werden">🎟 Aktionscodes</button>
       <button class="btn sec" onclick="sendEmail()" title="Alle Angebote als E-Mail senden">✉ Als E-Mail senden</button>
       <button class="btn sec" onclick="sendDigest()" title="Wochenüberblick jetzt senden (Telegram/E-Mail)">📊 Wochenüberblick</button>
@@ -685,6 +686,21 @@
       <div style="margin-top:14px;display:flex;gap:8px;justify-content:flex-end">
         <button class="btn sec" onclick="closeAiAsk()">Abbrechen</button>
         <button class="btn" onclick="submitAiAsk()">Fragen</button>
+      </div>
+    </div>
+  </div>
+  <!-- KI-Reiseberater -->
+  <div class="modal-bg" id="advisor-bg">
+    <div class="modal" style="max-width:640px">
+      <button class="icon-btn modal-close" onclick="closeAdvisor()">
+        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+      </button>
+      <h2>🧭 Reiseberater</h2>
+      <div class="sub" id="adv-sub"></div>
+      <div id="adv-body"></div>
+      <div style="margin-top:16px;display:flex;gap:8px;justify-content:space-between">
+        <button class="btn sec" id="adv-back" onclick="advBack()">Zurück</button>
+        <button class="btn" id="adv-next" onclick="advNext()">Weiter</button>
       </div>
     </div>
   </div>
@@ -2494,7 +2510,8 @@
     function closeAiHistory(){ $('#aihist-bg').classList.remove('show'); }
     $('#aihist-bg').addEventListener('click', e=>{ if(e.target.id==='aihist-bg') closeAiHistory(); });
     function aiKindLabel(kind){
-      return kind==='compare' ? '🤖 Vergleich' : kind==='ask' ? '❓ Frage' : '🤖 Fazit';
+      return kind==='compare' ? '🤖 Vergleich' : kind==='ask' ? '❓ Frage'
+        : kind==='advisor' ? '🧭 Reiseberater' : '🤖 Fazit';
     }
     function renderAiHistory(items){
       if(!items.length){ $('#aihist-body').innerHTML = '<div class="cmp-load">Noch keine KI-Analysen gespeichert.</div>'; return; }
@@ -2548,6 +2565,93 @@
       } catch(e){ $('#ai-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Frage fehlgeschlagen.</div>'; return; }
       if(!resp.ok){
         const msg = d.error==='no_offers' ? 'Keine aktiven Angebote vorhanden.' : aiErrorMsg(d.error);
+        $('#ai-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ '+esc(msg)+'</div>';
+        return;
+      }
+      renderAiResult('#ai-body', d);
+    }
+
+    // ── KI-Reiseberater (geführter Fragebogen → 3 Zielvorschläge) ─────────────
+    const ADV_STEPS = [
+      {title:'Wohin soll die Reise ungefähr gehen?', key:'region', multi:false,
+       options:['Deutschland','Europa','Weltweit','Egal']},
+      {title:'Was ist dir im Urlaub wichtig?', key:'interests', multi:true,
+       options:['🌴 Strand','⛰️ Berge','🏛️ Kultur','🍹 Entspannung','🎉 Nachtleben','🚶 Wandern',
+                '🚴 Radfahren','🍽️ Essen','🛍️ Shopping','👨‍👩‍👧 Familie','❤️ Romantik']},
+      {title:'Welche Reiseart?', key:'travel_type', multi:false,
+       options:['Badeurlaub','Rundreise','Städtereise','Kreuzfahrt','Wellness','Aktivurlaub',
+                'Abenteuer','Luxus','Camping','All Inclusive','Ferienwohnung']},
+      {title:'Mit wem reist du?', key:'companions', multi:false,
+       options:['Alleine','Partner','Familie','Freunde','Senioren','Mit Hund']},
+      {title:'Budget pro Person?', key:'budget', multi:false,
+       options:['bis 500 €','500–1000 €','1000–2000 €','egal']},
+      {title:'Reisedauer?', key:'duration', multi:false,
+       options:['Wochenende','5 Tage','1 Woche','2 Wochen','3+ Wochen']},
+      {title:'Wann soll es losgehen?', key:'month', multi:false,
+       options:['Januar','Februar','März','April','Mai','Juni','Juli','August','September',
+                'Oktober','November','Dezember','Egal']},
+      {title:'Wie warm soll es sein?', key:'temp', multi:false,
+       options:['unter 20°C','20–25°C','25–30°C','möglichst heiß']},
+      {title:'Meer?', key:'sea', multi:false,
+       options:['badewarm wichtig','egal','kein Meer nötig']},
+      {title:'Regen?', key:'rain', multi:false,
+       options:['möglichst trocken','egal']},
+    ];
+    let advIdx = 0, advState = {};
+    function openAdvisor(){
+      advIdx = 0; advState = {};
+      $('#advisor-bg').classList.add('show');
+      advRender();
+    }
+    function closeAdvisor(){ $('#advisor-bg').classList.remove('show'); }
+    $('#advisor-bg').addEventListener('click', e=>{ if(e.target.id==='advisor-bg') closeAdvisor(); });
+    function advRender(){
+      const s = ADV_STEPS[advIdx];
+      const sel = advState[s.key] != null ? advState[s.key] : (s.multi ? [] : null);
+      $('#adv-sub').textContent = 'Schritt '+(advIdx+1)+' von '+ADV_STEPS.length
+        + (s.multi ? ' · Mehrfachauswahl möglich' : '');
+      $('#adv-body').innerHTML = '<h3 style="margin:4px 0 12px">'+esc(s.title)+'</h3>'
+        + '<div class="tag-row">' + s.options.map((o, oi) => {
+            const active = s.multi ? sel.includes(o) : sel === o;
+            return `<span class="tag-pill${active?' active':''}" onclick="advPick(${oi})">${esc(o)}</span>`;
+          }).join('') + '</div>';
+      $('#adv-back').style.visibility = advIdx === 0 ? 'hidden' : 'visible';
+      $('#adv-next').textContent = advIdx === ADV_STEPS.length - 1 ? '🔮 Empfehlung holen' : 'Weiter';
+    }
+    function advPick(oi){
+      const s = ADV_STEPS[advIdx], o = s.options[oi];
+      if(s.multi){
+        const arr = advState[s.key] || (advState[s.key] = []);
+        const i = arr.indexOf(o);
+        if(i >= 0) arr.splice(i, 1); else arr.push(o);
+        advRender();
+      } else {
+        advState[s.key] = o;
+        advRender();
+        setTimeout(advNext, 150);
+      }
+    }
+    function advBack(){ if(advIdx > 0){ advIdx--; advRender(); } }
+    function advNext(){
+      if(advIdx < ADV_STEPS.length - 1){ advIdx++; advRender(); }
+      else submitAdvisor();
+    }
+    async function submitAdvisor(){
+      closeAdvisor();
+      $('#ai-title').textContent = '🧭 Reiseberater';
+      $('#ai-sub').textContent = [advState.region, (advState.interests||[]).join(', ')]
+        .filter(Boolean).join(' · ');
+      $('#ai-foot').style.display = 'none';
+      $('#ai-bg').classList.add('show');
+      $('#ai-body').innerHTML = progBar('KI sucht passende Ziele…');
+      let resp, d;
+      try {
+        resp = await fetch(api('/api/ai/travel-advisor'), {method:'POST',
+          headers:{'Content-Type':'application/json'}, body: JSON.stringify(advState)});
+        d = await resp.json();
+      } catch(e){ $('#ai-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Anfrage fehlgeschlagen.</div>'; return; }
+      if(!resp.ok){
+        const msg = d.error==='invalid' ? 'Bitte mindestens eine Angabe auswählen.' : aiErrorMsg(d.error);
         $('#ai-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ '+esc(msg)+'</div>';
         return;
       }
