@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.39.24] - 2026-07-04
+
+### Changed
+- Footer-Tagline „— verfolgt TUI-Reisepreise" entfernt, steht jetzt nur
+  noch „TUIWatch vX.X.X · Prüfintervall: …".
+
 ## [0.39.23] - 2026-07-04
 
 ### Changed
