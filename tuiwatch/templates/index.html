@@ -478,7 +478,8 @@
       · <span id="hc-foot" class="hc-foot" title="API-Status — klicken für Details &amp; neuen Test" onclick="openHealth()">API: <span id="hc-dot">…</span></span>
       · <span class="hc-foot" onclick="backupOffers()" title="Komplettes Backup (Angebote mit Preisverlauf, Meine Reisen inkl. PDF, gespeicherte Suchen) als ZIP">⬇ Backup</span>
       · <span class="hc-foot" onclick="document.getElementById('restore-file').click()" title="Backup wiederherstellen (ZIP oder altes JSON) – ergänzt Fehlendes, überschreibt nichts">⬆ Restore</span>
-      · <span class="hc-foot ai-feature" onclick="openPromptCfg()" title="Eigene KI-Prompt-Vorlagen für Reiseberater &amp; Hotelvergleich bearbeiten">⚙ KI-Prompts</span></footer>
+      · <span class="hc-foot ai-feature" onclick="openPromptCfg()" title="Eigene KI-Prompt-Vorlagen für Reiseberater &amp; Hotelvergleich bearbeiten">⚙ KI-Prompts</span>
+      · <span class="hc-foot ai-feature" id="ai-usage-foot" onclick="openAiHistory()" title="Geschätzte KI-Kosten (Anthropic-Listenpreis) — kein echtes Guthaben, dauerhaft in der DB gespeichert">…</span></footer>
   </div>
 
   <!-- Verlauf-Modal -->
@@ -2431,9 +2432,14 @@
           + parts.join(' · ') + (cached?' · Ergebnis aus Zwischenspeicher (bis zu 24 Std. alt)':'') + '</div>';
       }
       if(totals && totals.calls){
-        html += '<div class="hint" style="margin-top:4px">Σ seit Add-on-Start: '+totals.calls+' Aufrufe · '
-          + (totals.input_tokens+totals.output_tokens).toLocaleString('de-DE')+' Tokens · geschätzt $'
-          + totals.estimated_usd.toFixed(2)+' (Anthropic-Listenpreis, kein echtes Guthaben)</div>';
+        const usd = v => '$'+(v||0).toFixed(2);
+        html += '<div class="hint" style="margin-top:4px">Σ gesamt (dauerhaft gespeichert): '+totals.calls+' Aufrufe · '
+          + (totals.input_tokens+totals.output_tokens).toLocaleString('de-DE')+' Tokens · geschätzt '
+          + usd(totals.estimated_usd)+' (Anthropic-Listenpreis, kein echtes Guthaben)</div>';
+        if(totals.today || totals.month){
+          html += '<div class="hint" style="margin-top:2px">Davon heute '+usd(totals.today&&totals.today.estimated_usd)
+            +' · diesen Monat '+usd(totals.month&&totals.month.estimated_usd)+'</div>';
+        }
       }
       return html;
     }
@@ -3140,6 +3146,8 @@
         const parts = [d.added+' Angebote'];
         if(d.trips) parts.push(d.trips+' Reisen');
         if(d.searches) parts.push(d.searches+' Suchen');
+        if(d.ai_history) parts.push(d.ai_history+' KI-Verlauf');
+        if(d.settings) parts.push(d.settings+' KI-Einstellungen');
         toast('Wiederhergestellt: '+parts.join(', ')+(d.skipped?(' ('+d.skipped+' übersprungen)'):''));
         loadOffers();
       } else toast('Wiederherstellung fehlgeschlagen');
@@ -3272,6 +3280,20 @@
     }
     loadDbSize();
     setInterval(loadDbSize, 300000);
+
+    async function loadAiUsageFooter(){
+      if(!G.ai) return;
+      try {
+        const d = await fetch(api('/api/ai/usage')).then(r=>r.json());
+        const usd = v => '$'+(v||0).toFixed(2);
+        $('#ai-usage-foot').textContent =
+          '🔢 KI heute ' + usd(d.today && d.today.estimated_usd) +
+          ' · Monat ' + usd(d.month && d.month.estimated_usd) +
+          ' · gesamt ' + usd(d.estimated_usd);
+      } catch(e){}
+    }
+    loadAiUsageFooter();
+    setInterval(loadAiUsageFooter, 300000);
   </script>
 </body>
 </html>

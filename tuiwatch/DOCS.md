@@ -377,11 +377,15 @@ Zusätzlich `binary_sensor.tuiwatch_aktionscodes`: **an**, solange aktuell
   ohne Adressbuch weiterhin möglich; ohne Konfiguration ändert sich nichts.
 - **Backup / Wiederherstellen** — **komplettes** Backup als **ZIP**: alle getrackten
   Angebote **inkl. Preisverlauf** und Diagramm-Markern, **„Meine Reisen" inkl. der
-  Original-PDFs** sowie die **gespeicherten Suchen**. Die Wiederherstellung liest die ZIP
-  (das alte reine JSON wird weiterhin akzeptiert) und arbeitet **nicht-destruktiv**:
-  Fehlendes wird ergänzt, Bestehendes bleibt erhalten (Abgleich per URL, Buchungsnummer
-  bzw. Name) — nichts wird gelöscht oder doppelt angelegt. (Reine Caches wie
-  Vergleich/Kalender werden nicht gesichert, sie entstehen automatisch neu.)
+  Original-PDFs**, die **gespeicherten Suchen**, der **dauerhafte KI-Verlauf** (Fazits/
+  Vergleiche/Reiseberater-Ergebnisse) sowie die **KI-Einstellungen** (Reise-DNA,
+  kumulierte Kosten-Zähler heute/Monat/gesamt, eigene KI-Prompt-Vorlagen). Die
+  Wiederherstellung liest die ZIP (das alte reine JSON wird weiterhin akzeptiert) und
+  arbeitet **nicht-destruktiv**: Fehlendes wird ergänzt, Bestehendes bleibt erhalten
+  (Abgleich per URL, Buchungsnummer bzw. Name; KI-Einstellungen/Kosten-Zähler werden nur
+  gesetzt, wenn lokal noch nichts hinterlegt ist — laufende Zähler werden nie durch
+  ältere Backup-Werte zurückgesetzt) — nichts wird gelöscht oder doppelt angelegt. (Reine
+  Caches wie Vergleich/Kalender werden nicht gesichert, sie entstehen automatisch neu.)
 - **Gebuchter Preis** — pro Angebot den **tatsächlich gezahlten Preis** hinterlegen
   (Feld „📌 Gebuchter Preis"). Das Tracking läuft weiter; angezeigt wird „seit Buchung
   ±X €" und im Diagramm eine eigene Linie. Fällt der Preis deutlich darunter, kommt

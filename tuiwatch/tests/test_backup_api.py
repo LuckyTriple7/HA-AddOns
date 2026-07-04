@@ -153,6 +153,64 @@ def test_backup_restore_roundtrip(app_mod):
         assert con.execute("SELECT COUNT(*) c FROM trip_attachments").fetchone()["c"] == 1
 
 
+def test_backup_restore_includes_ai_history_and_settings(app_mod):
+    """KI-Verlauf (ai_analyses) und KI-Einstellungen (Reise-DNA, Kosten-Zaehler,
+    eigene Prompts) muessen im Backup landen und beim Restore auf einer leeren
+    DB wiederhergestellt werden."""
+    m = app_mod
+    c = m.app.test_client()
+
+    with m.db() as con:
+        con.execute(
+            "INSERT INTO ai_analyses (kind,title,model,summary,usage,ts) VALUES (?,?,?,?,?,?)",
+            ("advisor", "Europa · Strand", "claude-haiku-4-5", "Testfazit", "{}", 1000))
+    m._meta_set("travel_dna", json.dumps({"scores": {"Strand": 85}, "count": 1}))
+    m._record_ai_usage("claude-haiku-4-5", {"input_tokens": 1000, "output_tokens": 500,
+                                            "cache_creation_input_tokens": 0,
+                                            "cache_read_input_tokens": 0})
+    m._meta_set("custom_prompt_advisor_enabled", "1")
+    m._meta_set("custom_prompt_advisor_text", "Mein eigener Prompt")
+
+    b = c.get("/api/backup", headers=ING)
+    assert b.status_code == 200
+    data = json.loads(zipfile.ZipFile(io.BytesIO(b.data)).read("data.json"))
+    assert len(data["ai_analyses"]) == 1 and data["ai_analyses"][0]["title"] == "Europa · Strand"
+    assert data["meta"]["custom_prompt_advisor_text"] == "Mein eigener Prompt"
+    assert "travel_dna" in data["meta"] and "ai_usage_totals" in data["meta"]
+
+    # Frische DB (kein KI-Verlauf, keine Einstellungen) → Restore muss beides bringen
+    with m.db() as con:
+        con.execute("DELETE FROM ai_analyses")
+        con.execute("DELETE FROM meta")
+
+    rr = c.post("/api/restore", headers=ING,
+                data={"file": (io.BytesIO(b.data), "tuiwatch-backup.zip")},
+                content_type="multipart/form-data")
+    assert rr.status_code == 200
+    jd = rr.get_json()
+    assert jd["ai_history"] == 1
+    assert jd["settings"] == len(data["meta"])
+
+    with m.db() as con:
+        row = con.execute("SELECT title FROM ai_analyses").fetchone()
+        assert row["title"] == "Europa · Strand"
+    assert m._meta_get("custom_prompt_advisor_text") == "Mein eigener Prompt"
+    assert json.loads(m._meta_get("travel_dna"))["scores"]["Strand"] == 85
+
+    # Zweiter Restore auf bereits gefuellte DB: Einstellungen bleiben unangetastet
+    # (nicht-destruktiv) - laufende Zaehler duerfen nie durch einen alten Wert
+    # aus dem Backup zurueckgesetzt werden.
+    m._record_ai_usage("claude-haiku-4-5", {"input_tokens": 1000, "output_tokens": 500,
+                                            "cache_creation_input_tokens": 0,
+                                            "cache_read_input_tokens": 0})
+    totals_before = m._ai_usage_totals()["calls"]
+    rr2 = c.post("/api/restore", headers=ING,
+                 data={"file": (io.BytesIO(b.data), "b.zip")},
+                 content_type="multipart/form-data")
+    assert rr2.get_json()["settings"] == 0
+    assert m._ai_usage_totals()["calls"] == totals_before
+
+
 def test_restore_legacy_json(app_mod):
     """Altes Format (reine Angebotsliste als JSON-Body) wird weiter akzeptiert."""
     m = app_mod

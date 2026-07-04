@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.39.22] - 2026-07-04
+
+### Added
+- **KI-Kosten pro Tag & Monat**, zusätzlich zur Gesamtsumme — neue Anzeige
+  im Footer („🔢 KI heute … · Monat … · gesamt …"), auch im KI-Ergebnis-
+  Fenster ergänzt. Alle drei Zähler liegen dauerhaft in der Datenbank
+  (Label „seit Add-on-Start" war irreführend — die Gesamtsumme hat schon
+  vorher jeden Neustart überlebt).
+- **KI-Verlauf, Reise-DNA, Kosten-Zähler und eigene KI-Prompts sind jetzt
+  Teil von Backup/Restore.** Bisher gingen sie bei einer Wiederherstellung
+  verloren. Restore ist wie gehabt nicht-destruktiv: Einstellungen/Zähler
+  werden nur übernommen, wenn lokal noch nichts hinterlegt ist — laufende
+  Zähler werden nie durch ältere Backup-Werte überschrieben.
+
 ## [0.39.21] - 2026-07-04
 
 ### Fixed

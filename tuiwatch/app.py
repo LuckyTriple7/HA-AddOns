@@ -70,7 +70,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.39.21"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.39.22"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -1896,6 +1896,15 @@ def api_dbsize():
     return jsonify({'bytes': size})
 
 
+@app.route('/api/ai/usage', methods=['GET'])
+def api_ai_usage():
+    """Aufsummierte KI-Kosten (heute/Monat/gesamt) für die Footer-Anzeige — ohne
+    selbst einen KI-Aufruf auszulösen."""
+    if (err := _require_api()):
+        return err
+    return jsonify(_ai_usage_totals())
+
+
 # ── PWA (installierbar) ──────────────────────────────────────────────────────────
 
 @app.route('/manifest.json')
@@ -2359,10 +2368,18 @@ def _table_columns(con, table: str) -> list:
     return [r['name'] for r in con.execute(f'PRAGMA table_info({table})').fetchall()]
 
 
+_BACKUP_META_KEYS = (
+    'travel_dna', 'ai_usage_totals', 'ai_usage_today', 'ai_usage_month',
+    'custom_prompt_advisor_enabled', 'custom_prompt_advisor_text',
+    'custom_prompt_compare_enabled', 'custom_prompt_compare_text',
+    'custom_prompt_summary_enabled', 'custom_prompt_summary_text',
+)
+
+
 def _build_backup_zip() -> bytes:
     """Baut das vollständige Backup-ZIP: data.json (Angebote inkl. Preisverlauf & Marker,
-    gebuchte Reisen, gespeicherte Suchen) + die Reise-PDFs unter trips/.
-    Genutzt vom Download-Endpoint und vom automatischen Backup."""
+    gebuchte Reisen, gespeicherte Suchen, KI-Verlauf & KI-Einstellungen) + die Reise-PDFs
+    unter trips/. Genutzt vom Download-Endpoint und vom automatischen Backup."""
     with db() as con:
         ocols = [c for c in _table_columns(con, 'offers') if c != 'id']
         offers = []
@@ -2398,9 +2415,16 @@ def _build_backup_zip() -> bytes:
                 'FROM trip_packing_items JOIN trips ON trips.id = trip_packing_items.trip_id '
                 'WHERE trips.booking_code IS NOT NULL ORDER BY trip_packing_items.id').fetchall():
             packing_items.append(dict(pi))
+        ai_analyses = [dict(r) for r in con.execute(
+            'SELECT kind, title, model, summary, usage, ts FROM ai_analyses ORDER BY id').fetchall()]
+        meta_rows = con.execute(
+            f"SELECT key, value FROM meta WHERE key IN ({','.join('?' for _ in _BACKUP_META_KEYS)})",
+            _BACKUP_META_KEYS).fetchall()
+        meta = {r['key']: r['value'] for r in meta_rows}
     data = {'tuiwatch_backup': 3, 'created': datetime.now().isoformat(),
             'offers': offers, 'trips': trips, 'saved_searches': searches,
-            'trip_attachments': attachments, 'trip_packing_items': packing_items}
+            'trip_attachments': attachments, 'trip_packing_items': packing_items,
+            'ai_analyses': ai_analyses, 'meta': meta}
 
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as z:
@@ -2590,8 +2614,10 @@ def api_restore():
     searches = data.get('saved_searches') or []
     trip_attachments = data.get('trip_attachments') or []
     packing_items = data.get('trip_packing_items') or []
+    ai_analyses = data.get('ai_analyses') or []
+    meta = data.get('meta') or {}
     added, skipped, new_ids = 0, 0, []
-    trips_n, searches_n, attachments_n, packing_n = 0, 0, 0, 0
+    trips_n, searches_n, attachments_n, packing_n, ai_n, settings_n = 0, 0, 0, 0, 0, 0
     with db() as con:
         ocols = set(_table_columns(con, 'offers'))
         existing_urls = {r['url'] for r in con.execute('SELECT url FROM offers').fetchall()}
@@ -2705,13 +2731,46 @@ def api_restore():
                     con.execute('INSERT INTO saved_searches (name, payload, ts) VALUES (?,?,?)',
                                 (name, payload, ts))
                     searches_n += 1
+        if isinstance(ai_analyses, list) and ai_analyses:
+            for a in ai_analyses:
+                if not isinstance(a, dict):
+                    continue
+                kind = (a.get('kind') or '').strip()
+                title = (a.get('title') or '').strip()
+                ts = a.get('ts')
+                if not kind or not title or ts is None:
+                    continue
+                exists = con.execute(
+                    'SELECT id FROM ai_analyses WHERE kind=? AND title=? AND ts=?',
+                    (kind, title, ts)).fetchone()
+                if exists:
+                    continue
+                con.execute(
+                    'INSERT INTO ai_analyses (kind, title, model, summary, usage, ts) '
+                    'VALUES (?,?,?,?,?,?)',
+                    (kind, title, a.get('model'), a.get('summary'), a.get('usage'), ts))
+                ai_n += 1
+            con.execute('DELETE FROM ai_analyses WHERE id NOT IN '
+                        '(SELECT id FROM ai_analyses ORDER BY id DESC LIMIT ?)', (_AI_HISTORY_MAX,))
+        if isinstance(meta, dict):
+            # Nicht-destruktiv wie der Rest des Restores: nur setzen, wenn lokal noch
+            # nichts hinterlegt ist — laufende Zaehler/Einstellungen werden nie mit
+            # (moeglicherweise aelteren) Backup-Werten ueberschrieben.
+            for k in _BACKUP_META_KEYS:
+                if k not in meta:
+                    continue
+                if con.execute('SELECT 1 FROM meta WHERE key=?', (k,)).fetchone():
+                    continue
+                con.execute('INSERT INTO meta (key, value) VALUES (?,?)', (k, str(meta[k])))
+                settings_n += 1
     for oid in new_ids:
         _spawn(check_offer, oid)
     log.info("Wiederherstellung: %d Angebote (+%d übersprungen), %d Reisen, %d Suchen, "
-             "%d Reise-Anhänge, %d Packliste-Items",
-             added, skipped, trips_n, searches_n, attachments_n, packing_n)
+             "%d Reise-Anhänge, %d Packliste-Items, %d KI-Verlauf, %d KI-Einstellungen",
+             added, skipped, trips_n, searches_n, attachments_n, packing_n, ai_n, settings_n)
     return jsonify({'added': added, 'skipped': skipped, 'trips': trips_n, 'searches': searches_n,
-                    'attachments': attachments_n, 'packing_items': packing_n})
+                    'attachments': attachments_n, 'packing_items': packing_n,
+                    'ai_history': ai_n, 'settings': settings_n})
 
 
 @app.route('/api/compare/<int:offer_id>', methods=['POST'])
@@ -3000,16 +3059,12 @@ def _ai_call_cost(model: str, usage: dict) -> float:
     return round(cost, 4)
 
 
-def _ai_usage_totals() -> dict:
-    """Aufsummierte Token-Nutzung + grob geschätzte Kosten (USD) seit Add-on-Start,
-    je Modell separat verrechnet (unterschiedliche Preise)."""
-    try:
-        totals = json.loads(_meta_get('ai_usage_totals') or '{}')
-    except (TypeError, ValueError):
-        totals = {}
+def _ai_usage_calc(models: dict) -> dict:
+    """Verrechnet ein {model: counters}-Dict zu Aufrufen/Tokens/geschätzten
+    Kosten (USD), je Modell mit eigenem Preis (siehe _AI_PRICING)."""
     cost = 0.0
     calls = input_tokens = output_tokens = 0
-    for model, t in totals.items():
+    for model, t in models.items():
         price = _AI_PRICING.get(model, _AI_PRICING['claude-opus-4-8'])
         cost += t.get('input_tokens', 0) / 1_000_000 * price['input']
         cost += t.get('output_tokens', 0) / 1_000_000 * price['output']
@@ -3022,21 +3077,64 @@ def _ai_usage_totals() -> dict:
             'estimated_usd': round(cost, 4)}
 
 
-def _record_ai_usage(model: str, usage: dict) -> dict:
-    """Nutzung eines frischen KI-Aufrufs zu den Gesamt-Zählern (je Modell) addieren
-    und die aktualisierten Gesamtwerte zurückgeben."""
+def _ai_usage_period_calc(meta_key: str, id_field: str, current_id: str) -> dict:
+    """Liest einen periodischen Zähler-Bucket (Tag/Monat) aus `meta` — bei
+    abgelaufener Periode (anderes Datum/Monat als `current_id`) gilt er als leer,
+    ohne die gespeicherten Daten selbst zu löschen (das passiert erst beim
+    nächsten `_record_ai_usage`-Aufruf für die neue Periode)."""
+    try:
+        stored = json.loads(_meta_get(meta_key) or '{}')
+    except (TypeError, ValueError):
+        stored = {}
+    models = (stored.get('models') or {}) if stored.get(id_field) == current_id else {}
+    return _ai_usage_calc(models)
+
+
+def _ai_usage_totals() -> dict:
+    """Aufsummierte Token-Nutzung + geschätzte Kosten (USD): gesamt (seit je),
+    heute und diesen Monat — je Modell separat verrechnet."""
     try:
         totals = json.loads(_meta_get('ai_usage_totals') or '{}')
     except (TypeError, ValueError):
         totals = {}
-    t = totals.setdefault(model, {'input_tokens': 0, 'output_tokens': 0,
+    result = _ai_usage_calc(totals)
+    result['today'] = _ai_usage_period_calc('ai_usage_today', 'date', time.strftime('%Y-%m-%d'))
+    result['month'] = _ai_usage_period_calc('ai_usage_month', 'month', time.strftime('%Y-%m'))
+    return result
+
+
+def _record_ai_usage_bucket(meta_key: str, id_field: str | None, current_id: str | None,
+                            model: str, usage: dict) -> None:
+    """Addiert einen KI-Aufruf zu einem Zähler-Bucket in `meta`. Für periodische
+    Buckets (id_field gesetzt, z. B. 'date'/'month') wird bei Periodenwechsel auf
+    0 zurückgesetzt statt unbegrenzt zu wachsen; für den Gesamt-Bucket (id_field
+    None) bleibt das bisherige flache {model: counters}-Format erhalten."""
+    try:
+        stored = json.loads(_meta_get(meta_key) or '{}')
+    except (TypeError, ValueError):
+        stored = {}
+    if id_field:
+        if stored.get(id_field) != current_id:
+            stored = {id_field: current_id, 'models': {}}
+        models = stored.setdefault('models', {})
+    else:
+        models = stored
+    t = models.setdefault(model, {'input_tokens': 0, 'output_tokens': 0,
                                    'cache_creation_input_tokens': 0,
                                    'cache_read_input_tokens': 0, 'calls': 0})
     for key in ('input_tokens', 'output_tokens', 'cache_creation_input_tokens',
                 'cache_read_input_tokens'):
         t[key] += usage.get(key, 0)
     t['calls'] += 1
-    _meta_set('ai_usage_totals', json.dumps(totals))
+    _meta_set(meta_key, json.dumps(stored))
+
+
+def _record_ai_usage(model: str, usage: dict) -> dict:
+    """Nutzung eines frischen KI-Aufrufs zu Gesamt-, Tages- und Monats-Zählern
+    addieren und die aktualisierten Gesamtwerte zurückgeben."""
+    _record_ai_usage_bucket('ai_usage_totals', None, None, model, usage)
+    _record_ai_usage_bucket('ai_usage_today', 'date', time.strftime('%Y-%m-%d'), model, usage)
+    _record_ai_usage_bucket('ai_usage_month', 'month', time.strftime('%Y-%m'), model, usage)
     return _ai_usage_totals()
 
 
