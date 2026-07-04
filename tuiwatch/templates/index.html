@@ -655,6 +655,7 @@
       <div id="ai-body"></div>
       <div id="ai-foot" class="cmp-foot" style="display:none">
         <span class="hint" style="flex:1;min-width:180px">Öffnet die Druckansicht — dort „Als PDF speichern" wählen.</span>
+        <button class="btn sec" onclick="openAiEmailModal()">✉ E-Mail senden</button>
         <button class="btn sec" onclick="exportAiPdf()">📄 PDF exportieren</button>
       </div>
     </div>
@@ -2361,9 +2362,11 @@
       }
       return html;
     }
+    let aiCurrentId = null;   // ID in ai_analyses des gerade angezeigten Ergebnisses (fürs E-Mail-Senden)
     function renderAiResult(box, result){
       $(box).innerHTML = aiMdLite(result.summary) + aiUsageLine(result.usage, result.cached, result.totals);
       $('#ai-foot').style.display = 'flex';
+      aiCurrentId = result.id != null ? result.id : null;
     }
     function exportAiPdf(){
       const w = window.open('', '_blank');
@@ -2478,7 +2481,7 @@
       if(d.error){ $('#ai-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Eintrag nicht gefunden (evtl. gelöscht).</div>'; return; }
       $('#ai-title').textContent = (d.kind==='compare'?'🤖 KI-Vergleich':'🤖 KI-Fazit') + ' (Verlauf)';
       $('#ai-sub').textContent = d.title + ' · ' + new Date(d.ts*1000).toLocaleString('de-DE');
-      renderAiResult('#ai-body', {summary: d.summary, usage: d.usage});
+      renderAiResult('#ai-body', {summary: d.summary, usage: d.usage, id: d.id});
     }
     async function deleteAiHistoryItem(id, ev){
       ev.stopPropagation();
@@ -2775,11 +2778,11 @@
     async function sendEmail(){
       await openEmailModal(null);
     }
-    let emailIds = null;   // null = alle aktiven Angebote, Array = Sammelaktion
-    async function openEmailModal(ids){
+    let emailIds = null;    // null = alle aktiven Angebote, Array = Sammelaktion
+    let emailMode = 'offers';  // 'offers' | 'ai' — steuert, wohin submitEmail() sendet
+    async function _openEmailModalCommon(){
       let cfg; try { cfg = await fetch(api('/api/email')).then(r=>r.json()); } catch(e){ cfg = {configured:false}; }
-      if(!cfg.configured){ toast('SMTP ist nicht konfiguriert (Add-on-Optionen)'); return; }
-      emailIds = ids;
+      if(!cfg.configured){ toast('SMTP ist nicht konfiguriert (Add-on-Optionen)'); return false; }
       $('#email-to').value = localStorage.getItem('tw-mailto') || cfg.default_to || '';
       try {
         const c = await fetch(api('/api/contacts')).then(r=>r.json());
@@ -2787,6 +2790,17 @@
           .map(k=>`<option value="${esc(k.email)}">${esc(k.name)}</option>`).join('');
       } catch(e){ $('#nc-contacts').innerHTML = ''; }
       $('#email-bg').classList.add('show');
+      return true;
+    }
+    async function openEmailModal(ids){
+      emailMode = 'offers';
+      emailIds = ids;
+      await _openEmailModalCommon();
+    }
+    async function openAiEmailModal(){
+      if(aiCurrentId == null){ toast('Diese Analyse kann noch nicht per E-Mail versendet werden'); return; }
+      emailMode = 'ai';
+      await _openEmailModalCommon();
     }
     function closeEmailModal(){ $('#email-bg').classList.remove('show'); }
     $('#email-bg').addEventListener('click', e=>{ if(e.target.id==='email-bg') closeEmailModal(); });
@@ -2795,12 +2809,22 @@
       if(!to.trim()){ toast('Kein Empfänger angegeben'); return; }
       localStorage.setItem('tw-mailto', to.trim());
       closeEmailModal();
+      if(emailMode === 'ai') return submitAiEmail(to.trim());
       toast('E-Mail wird gesendet…');
       const body = {to: to.trim()};
       if(emailIds) body.ids = emailIds;
       const r = await fetch(api('/api/email'), {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
       if(r.ok){ const d=await r.json(); toast('E-Mail an '+d.to+' gesendet ('+d.count+' Angebote)'); }
       else { const d=await r.json().catch(()=>({})); toast(d.error==='no_offers'?'Keine (aktiven) Angebote vorhanden':d.error==='send_failed'?'Versand fehlgeschlagen – Einstellungen prüfen':d.error==='no_recipient'?'Kein Empfänger':'E-Mail-Fehler'); }
+    }
+    async function submitAiEmail(to){
+      toast('KI-Analyse wird gesendet…');
+      let r; try {
+        r = await fetch(api('/api/ai/email'), {method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({id: aiCurrentId, to})});
+      } catch(e){ toast('Versand fehlgeschlagen'); return; }
+      if(r.ok){ toast('KI-Analyse an '+to+' gesendet'); }
+      else { const d=await r.json().catch(()=>({})); toast(d.error==='send_failed'?'Versand fehlgeschlagen – Einstellungen prüfen':d.error==='no_recipient'?'Kein Empfänger':d.error==='not_found'?'Analyse nicht gefunden':'Fehler beim Versand'); }
     }
     async function sendDigest(){
       toast('Wochenüberblick wird gesendet…');

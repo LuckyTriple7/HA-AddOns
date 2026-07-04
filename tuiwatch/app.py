@@ -1624,6 +1624,61 @@ def _week_change(con, offer_id: int, current: float, days: int = 7):
     return current - row['price']
 
 
+def _ai_digest_summary(offers, drops, rises, lows, under, trips, akc) -> str | None:
+    """Kurze KI-Zusammenfassung des Wochenüberblicks als Fließtext (2-4 Sätze).
+    Best effort: liefert None bei fehlendem Key oder jedem Fehler — blockiert den
+    Versand nie. Läuft aus dem Poll-Hintergrund-Thread, daher `_ai_request` (kein
+    Flask-App-Context nötig) statt `_ai_call`."""
+    api_key, model = _ai_config()
+    if not api_key:
+        return None
+
+    def nm(o):
+        return o.get('label') or o.get('hotel') or f"Angebot #{o['id']}"
+
+    lines = [f"{len(offers)} aktive Reise(n) beobachtet."]
+    if trips:
+        lines.append("Bevorstehende Reisen: " + "; ".join(
+            f"{t['destination']} in {t['days_until']} Tagen" for t in trips[:5]))
+    if under:
+        lines.append("Unter Wunschpreis: " + "; ".join(
+            f"{nm(o)} {_eur(o['price'])} (Ziel {_eur(o['target_price'])})" for o in under[:8]))
+    if lows:
+        lines.append("Neuer Tiefstwert: " + "; ".join(
+            f"{nm(o)} {_eur(o['price'])}" for o in lows[:8]))
+    if drops:
+        lines.append("Größte Rückgänge (7 Tage): " + "; ".join(
+            f"{nm(o)} {_eur(o['price'])} ({_eur(o['_wk'])})" for o in drops[:8]))
+    if rises:
+        lines.append("Gestiegen (7 Tage): " + "; ".join(
+            f"{nm(o)} {_eur(o['price'])} (+{_eur(abs(o['_wk']))})" for o in rises[:5]))
+    if akc:
+        lines.append("Aktuelle TUI-Aktionscodes: " + "; ".join(
+            f"{c.get('value')} € {c.get('code')}" for c in akc))
+    if len(lines) == 1:
+        return None  # nichts Nennenswertes außer der reinen Zählung
+
+    prompt = (
+        "Fasse folgenden wöchentlichen Reisepreis-Überblick in 2-4 knappen Sätzen "
+        "auf Deutsch zusammen — für jemanden, der die Details gleich darunter noch "
+        "in Listenform sieht. Hebe das Wichtigste hervor (größte Ersparnis, "
+        "dringendste Gelegenheit); keine Wiederholung aller Einzelwerte, kein "
+        "Fließtext-Vorspann wie 'Hier ist eine Zusammenfassung'.\n\n"
+        + "\n".join(lines)
+    )
+    try:
+        text, usage, code = _ai_request(api_key, model, prompt, max_tokens=500,
+                                        log_ctx="Wochenüberblick", use_web_search=False)
+        if code or not text:
+            return None
+        usage['estimated_usd'] = _ai_call_cost(model, usage)
+        _record_ai_usage(model, usage)
+        return text
+    except Exception as e:
+        log.warning("KI-Zusammenfassung für Wochenüberblick fehlgeschlagen: %s", e)
+        return None
+
+
 def _build_digest() -> dict | None:
     """Baut die wöchentliche Zusammenfassung (größte Rückgänge, neue Tiefstwerte, unter
     Wunschpreis). Rückgabe {subject, html, text} oder None, wenn es nichts zu melden gibt."""
@@ -1647,6 +1702,7 @@ def _build_digest() -> dict | None:
     except Exception:
         _aktion = {}
     akc = _aktion.get('codes') or []
+    ai_summary = _ai_digest_summary(offers, drops, rises, lows, under, trips, akc)
 
     def nm(o):
         return o.get('label') or o.get('hotel') or f"Angebot #{o['id']}"
@@ -1654,6 +1710,8 @@ def _build_digest() -> dict | None:
     # ── Text (Telegram) ──
     tl = [f"📊 <b>TUIWatch — Wochenüberblick</b> ({datetime.now():%d.%m.%Y})",
           f"{len(offers)} aktive Reise(n) beobachtet."]
+    if ai_summary:
+        tl.append(f"\n🤖 {ai_summary}")
     if trips:
         tl.append("\n🧳 <b>Bevorstehende Reisen:</b>")
         for t in trips:
@@ -1708,10 +1766,18 @@ def _build_digest() -> dict | None:
                     + (f'<p style="margin:0 0 6px;color:#777;font-size:13px">{_ctxh}</p>' if _ctxh else '')
                     + f'<ul style="margin:0;padding-left:18px;color:#333;font-size:14px">{_rows}</ul>')
 
+    ai_html = ''
+    if ai_summary:
+        _ai_inline = re.sub(r'\*\*(.+?)\*\*', r'<b>\1</b>', esc(ai_summary)).replace('\n', '<br>')
+        ai_html = (f'<div style="background:#f0f4fa;border-radius:8px;padding:12px 14px;'
+                  f'color:#10243e;font-size:14px;margin:0 0 16px;line-height:1.5">'
+                  f'🤖 {_ai_inline}</div>')
+
     html = (
         '<div style="font-family:system-ui,Arial,sans-serif;max-width:640px;margin:0 auto">'
         f'<h2 style="color:#10243e">📊 TUIWatch — Wochenüberblick</h2>'
         f'<p style="color:#555;font-size:13px">{datetime.now():%d.%m.%Y} · {len(offers)} aktive Reise(n) beobachtet.</p>'
+        + ai_html
         + section('🧳 Bevorstehende Reisen', trips,
                   lambda t: f'<b>{esc(t["destination"])}</b> — {esc(t["start_date"])}'
                             + (f' – {esc(t["end_date"])}' if t.get('end_date') else '')
@@ -2883,15 +2949,18 @@ def _record_ai_usage(model: str, usage: dict) -> dict:
 _AI_HISTORY_MAX = 300  # ältere Einträge werden beim Speichern verworfen
 
 
-def _save_ai_analysis(kind: str, title: str, model: str, text: str, usage: dict) -> None:
+def _save_ai_analysis(kind: str, title: str, model: str, text: str, usage: dict) -> int:
     """Fertiges KI-Fazit/-Vergleich dauerhaft ablegen, damit es später über den
-    KI-Verlauf wieder einsehbar ist (unabhängig vom 24h-Cache)."""
+    KI-Verlauf wieder einsehbar (und per E-Mail versendbar) ist — unabhängig vom
+    24h-Cache. Gibt die neue Zeilen-ID zurück."""
     with db() as con:
-        con.execute('INSERT INTO ai_analyses (kind, title, model, summary, usage, ts) '
-                    'VALUES (?,?,?,?,?,?)',
-                    (kind, title[:300], model, text, json.dumps(usage or {}), int(time.time())))
+        cur = con.execute('INSERT INTO ai_analyses (kind, title, model, summary, usage, ts) '
+                          'VALUES (?,?,?,?,?,?)',
+                          (kind, title[:300], model, text, json.dumps(usage or {}), int(time.time())))
+        aid = cur.lastrowid
         con.execute('DELETE FROM ai_analyses WHERE id NOT IN '
                     '(SELECT id FROM ai_analyses ORDER BY id DESC LIMIT ?)', (_AI_HISTORY_MAX,))
+    return aid
 
 
 def _ai_config():
@@ -2905,34 +2974,53 @@ def _ai_config():
     return api_key, model
 
 
-def _ai_call(api_key: str, model: str, prompt: str, *, max_tokens: int, log_ctx: str):
-    """Claude mit Websuche aufrufen. Rückgabe: (text, usage, None) bei Erfolg,
-    (None, None, (jsonify(...), status)) bei Fehler/Refusal/leerer Antwort.
+def _ai_request(api_key: str, model: str, prompt: str, *, max_tokens: int,
+                log_ctx: str, use_web_search: bool = True):
+    """Reiner Claude-Aufruf ohne Flask-Abhängigkeit (kein jsonify) — nutzbar sowohl
+    aus Request-Handlern als auch aus Hintergrund-Threads (z. B. Wochenüberblick),
+    die keinen Flask-App-Context haben. Rückgabe: (text, usage, error_code);
+    error_code ist None bei Erfolg, sonst 'failed' / 'refused' / 'empty'.
     `usage` = {input_tokens, output_tokens, cache_creation_input_tokens,
-    cache_read_input_tokens} — fürs Anzeigen des Token-Verbrauchs im UI."""
+    cache_read_input_tokens}."""
+    kwargs = {}
+    if use_web_search:
+        # allowed_callers=["direct"]: Haiku unterstützt kein programmatic tool
+        # calling — ohne das Flag lehnt die API web_search auf diesem Modell ab.
+        kwargs['tools'] = [{"type": "web_search_20260209", "name": "web_search",
+                            "allowed_callers": ["direct"]}]
     try:
         client = anthropic.Anthropic(api_key=api_key)
         resp = client.messages.create(
-            model=model,
-            max_tokens=max_tokens,
-            # allowed_callers=["direct"]: Haiku unterstützt kein programmatic tool
-            # calling — ohne das Flag lehnt die API web_search auf diesem Modell ab.
-            tools=[{"type": "web_search_20260209", "name": "web_search",
-                    "allowed_callers": ["direct"]}],
-            messages=[{"role": "user", "content": prompt}],
+            model=model, max_tokens=max_tokens,
+            messages=[{"role": "user", "content": prompt}], **kwargs,
         )
     except (anthropic.APIStatusError, anthropic.APIConnectionError) as e:
         log.warning("KI-Anfrage fehlgeschlagen (%s): %s", log_ctx, e)
-        return None, None, (jsonify({'error': 'ai_failed'}), 502)
+        return None, None, 'failed'
     if resp.stop_reason == 'refusal':
-        return None, None, (jsonify({'error': 'ai_refused'}), 502)
+        return None, None, 'refused'
     text = "\n\n".join(b.text for b in resp.content if b.type == 'text').strip()
     if not text:
-        return None, None, (jsonify({'error': 'ai_empty'}), 502)
+        return None, None, 'empty'
     u = resp.usage
     usage = {'input_tokens': u.input_tokens, 'output_tokens': u.output_tokens,
              'cache_creation_input_tokens': getattr(u, 'cache_creation_input_tokens', 0) or 0,
              'cache_read_input_tokens': getattr(u, 'cache_read_input_tokens', 0) or 0}
+    return text, usage, None
+
+
+def _ai_call(api_key: str, model: str, prompt: str, *, max_tokens: int, log_ctx: str):
+    """Flask-Route-Wrapper um `_ai_request`: gleiche Erfolgs-Rückgabe (text, usage,
+    None), Fehler als (None, None, (jsonify(...), status)) — für Endpunkte, die
+    innerhalb eines Request-Handlers laufen."""
+    text, usage, code = _ai_request(api_key, model, prompt, max_tokens=max_tokens,
+                                    log_ctx=log_ctx)
+    if code == 'failed':
+        return None, None, (jsonify({'error': 'ai_failed'}), 502)
+    if code == 'refused':
+        return None, None, (jsonify({'error': 'ai_refused'}), 502)
+    if code == 'empty':
+        return None, None, (jsonify({'error': 'ai_empty'}), 502)
     return text, usage, None
 
 
@@ -2957,7 +3045,7 @@ def api_ai_hotel_summary():
     cached = _ai_summary_cache.get(cache_key)
     if cached and time.time() - cached['ts'] < _AI_SUMMARY_TTL:
         return jsonify({'summary': cached['summary'], 'usage': cached.get('usage'),
-                        'totals': _ai_usage_totals(), 'cached': True})
+                        'totals': _ai_usage_totals(), 'id': cached.get('id'), 'cached': True})
 
     prompt = (
         "Erstelle eine ausführliche, ehrliche Einschätzung zu folgendem Hotel. "
@@ -2978,10 +3066,10 @@ def api_ai_hotel_summary():
     if err:
         return err
     usage['estimated_usd'] = _ai_call_cost(model, usage)
-    _ai_summary_cache[cache_key] = {'summary': text, 'usage': usage, 'ts': time.time()}
     totals = _record_ai_usage(model, usage)
-    _save_ai_analysis('single', name, model, text, usage)
-    return jsonify({'summary': text, 'usage': usage, 'totals': totals, 'cached': False})
+    aid = _save_ai_analysis('single', name, model, text, usage)
+    _ai_summary_cache[cache_key] = {'summary': text, 'usage': usage, 'id': aid, 'ts': time.time()}
+    return jsonify({'summary': text, 'usage': usage, 'totals': totals, 'id': aid, 'cached': False})
 
 
 @app.route('/api/ai/hotel-compare', methods=['POST'])
@@ -3006,7 +3094,7 @@ def api_ai_hotel_compare():
     cached = _ai_summary_cache.get(cache_key)
     if cached and time.time() - cached['ts'] < _AI_SUMMARY_TTL:
         return jsonify({'summary': cached['summary'], 'usage': cached.get('usage'),
-                        'totals': _ai_usage_totals(), 'cached': True})
+                        'totals': _ai_usage_totals(), 'id': cached.get('id'), 'cached': True})
 
     blocks = ["\n".join(_hotel_fact_lines(h, label=f"Hotel {i}"))
               for i, h in enumerate(hotels, 1)]
@@ -3033,11 +3121,115 @@ def api_ai_hotel_compare():
     if err:
         return err
     usage['estimated_usd'] = _ai_call_cost(model, usage)
-    _ai_summary_cache[cache_key] = {'summary': text, 'usage': usage, 'ts': time.time()}
     totals = _record_ai_usage(model, usage)
     title = ' · '.join(h.get('name', '') for h in hotels)
-    _save_ai_analysis('compare', title, model, text, usage)
-    return jsonify({'summary': text, 'usage': usage, 'totals': totals, 'cached': False})
+    aid = _save_ai_analysis('compare', title, model, text, usage)
+    _ai_summary_cache[cache_key] = {'summary': text, 'usage': usage, 'id': aid, 'ts': time.time()}
+    return jsonify({'summary': text, 'usage': usage, 'totals': totals, 'id': aid, 'cached': False})
+
+
+def _ai_md_to_html(text: str) -> str:
+    """Sehr einfacher Markdown→HTML-Renderer fürs E-Mail-Layout (Überschriften,
+    Listen, Tabellen, **fett**) — spiegelt die JS-Variante `aiMdLite` im Frontend."""
+    def esc(s):
+        return _esc_html(s)
+
+    def inline(s):
+        return re.sub(r'\*\*(.+?)\*\*', r'<b>\1</b>', s)
+
+    def row(l):
+        return [inline(c.strip()) for c in l.strip().strip('|').split('|')]
+
+    lines = esc(text).split('\n')
+    html, in_list, i = [], False, 0
+
+    def close_list():
+        nonlocal in_list
+        if in_list:
+            html.append('</ul>')
+            in_list = False
+
+    while i < len(lines):
+        line = lines[i].strip()
+        if not line:
+            close_list()
+            i += 1
+            continue
+        if line.startswith('|') and i + 1 < len(lines) \
+                and re.match(r'^\|?[\s:|-]+\|?$', lines[i + 1].strip()):
+            close_list()
+            header = row(line)
+            body_rows, j = [], i + 2
+            while j < len(lines) and lines[j].strip().startswith('|'):
+                body_rows.append(row(lines[j]))
+                j += 1
+            html.append('<table style="width:100%;border-collapse:collapse;'
+                        'margin:8px 0 16px;font-size:13px"><thead><tr>'
+                        + ''.join(f'<th style="text-align:left;padding:6px 8px;'
+                                 f'border-bottom:1px solid #ddd;color:#777">{c}</th>'
+                                 for c in header)
+                        + '</tr></thead><tbody>'
+                        + ''.join('<tr>' + ''.join(
+                            f'<td style="padding:6px 8px;border-bottom:1px solid #eee">{c}</td>'
+                            for c in r) + '</tr>' for r in body_rows)
+                        + '</tbody></table>')
+            i = j
+            continue
+        h = re.match(r'^#{1,4}\s+(.*)', line)
+        b = re.match(r'^[-*]\s+(.*)', line)
+        if h:
+            close_list()
+            html.append(f'<h3 style="margin:18px 0 6px;color:#10243e;font-size:15px">'
+                        f'{inline(h.group(1))}</h3>')
+        elif b:
+            if not in_list:
+                html.append('<ul style="margin:0;padding-left:18px;color:#333;font-size:14px">')
+                in_list = True
+            html.append(f'<li style="margin:4px 0">{inline(b.group(1))}</li>')
+        else:
+            close_list()
+            html.append(f'<p style="margin:0 0 10px;color:#333;font-size:14px;'
+                        f'line-height:1.45">{inline(line)}</p>')
+        i += 1
+    close_list()
+    return ''.join(html)
+
+
+@app.route('/api/ai/email', methods=['POST'])
+def api_ai_email():
+    """Eine gespeicherte KI-Analyse (Fazit oder Vergleich, per ID aus `ai_analyses`)
+    als HTML-Mail versenden — funktioniert für frische wie für Verlaufs-Ergebnisse,
+    da beide immer eine ID haben. Empfänger optional aus dem Nextcloud-Adressbuch
+    (bestehender `/api/contacts`-Autocomplete im UI)."""
+    if (err := _require_api()):
+        return err
+    if not smtp_configured():
+        return jsonify({'error': 'smtp_not_configured'}), 400
+    data = request.get_json(silent=True) or {}
+    to = (data.get('to') or load_config().get('smtp_to') or '').strip()
+    if not to:
+        return jsonify({'error': 'no_recipient'}), 400
+    aid = data.get('id')
+    with db() as con:
+        row = con.execute('SELECT * FROM ai_analyses WHERE id=?', (aid,)).fetchone() if aid else None
+    if not row:
+        return jsonify({'error': 'not_found'}), 404
+    kind_label = 'KI-Vergleich' if row['kind'] == 'compare' else 'KI-Fazit'
+    subject = f"TUIWatch — {kind_label}: {row['title']}"[:200]
+    html = (
+        '<div style="font-family:system-ui,Arial,sans-serif;max-width:640px;margin:0 auto">'
+        f'<h2 style="color:#10243e">🤖 {kind_label}</h2>'
+        f'<p style="color:#555;font-size:13px">{_esc_html(row["title"])}</p>'
+        + _ai_md_to_html(row['summary'])
+        + '</div>'
+    )
+    try:
+        send_email(subject, html, to)
+    except Exception as e:
+        log.error("KI-Analyse-E-Mail fehlgeschlagen: %s", e)
+        return jsonify({'error': 'send_failed'}), 502
+    log.info("KI-Analyse #%s per E-Mail an %s gesendet", aid, to)
+    return jsonify({'sent': True, 'to': to})
 
 
 @app.route('/api/ai/history', methods=['GET'])

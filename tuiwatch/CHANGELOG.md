@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.39.0] - 2026-07-04
+
+### Added
+- **Wochenüberblick als Fließtext.** Mit hinterlegtem `anthropic_api_key`
+  fasst Claude den wöchentlichen Digest zusätzlich in 2-4 Sätzen zusammen
+  (größte Ersparnis, dringendste Gelegenheit) — steht oben in Telegram-
+  Nachricht und E-Mail, vor der gewohnten Listenform. Best effort: schlägt
+  die Zusammenfassung fehl, wird der Digest trotzdem ganz normal verschickt.
+- **KI-Analyse per E-Mail.** Neuer „✉ E-Mail senden"-Button im KI-Fazit/
+  -Vergleich (auch aus dem KI-Verlauf) — sendet die Analyse als HTML-Mail,
+  inkl. Empfänger-Autocomplete aus dem Nextcloud-Adressbuch (falls
+  eingebunden), genau wie beim bestehenden Angebots-Mailversand.
+
 ## [0.38.9] - 2026-07-04
 
 ### Changed
