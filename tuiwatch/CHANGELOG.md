@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.39.9] - 2026-07-04
+
+### Fixed
+- **Freitext-Felder im Reiseberater kaum sichtbar.** Die beiden Textarea-
+  Schritte (Länder-Ausschluss-Freitext, perfekter Urlaub, frühere Reisen)
+  waren bei manchen Nutzern praktisch unsichtbar. Kasten jetzt mit
+  Mindesthöhe (90px), deutlichem 2px-Akzentrahmen und hellerem Hintergrund
+  plus Fallback-Farbwerten (falls CSS-Variablen aus irgendeinem Grund nicht
+  greifen).
+
+## [0.39.8] - 2026-07-04
+
+### Changed
+- **Reiseart im Reiseberater: Mehrfachauswahl.** „Pauschalreise (TUI)" und
+  „Badeurlaub" (o. ä.) lassen sich jetzt kombinieren statt nur eine Option
+  wählbar zu haben.
+
 ## [0.39.7] - 2026-07-04
 
 ### Added
