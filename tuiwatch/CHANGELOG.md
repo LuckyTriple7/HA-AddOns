@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.39.6] - 2026-07-04
+
+### Added
+- **Reiseberater erweitert.** 9 weitere Fragebogen-Schritte: Aktivitäten
+  (Tauchen, Wandern, Skifahren, Golf, Safari, Kulinarik …), Unterkunftsart
+  & Hotelgröße, ausführliche Hotelwünsche (Erwachsenenhotel, Swim-Up,
+  Privatpool, Hausriff, Homeoffice …), Flugzeit & Abflughafen, was im
+  Urlaub nervt, sowie zwei Freitext-Schritte („perfekter Urlaub" und
+  frühere Urlaubserfahrungen — Claude erkennt darin Hotelketten/-typen
+  und leitet ähnliche Ziele ab). Neue Reiseart „Pauschalreise (TUI)"
+  schränkt die Empfehlung auf Ziele ein, die TUI tatsächlich im Programm
+  hat (per Websuche geprüft). Zielregion „Makaronesien" ergänzt (Kanaren/
+  Madeira/Azoren/Kapverden), da Kapverden geografisch nicht zu Europa
+  zählt. Jede Antwort endet zusätzlich mit einem „🔀 Alternative"-Vorschlag
+  abseits des exakten Profils.
+
 ## [0.39.5] - 2026-07-04
 
 ### Changed

@@ -3207,18 +3207,27 @@ def api_ai_ask():
 
 
 _ADVISOR_FIELDS = ('region', 'interests', 'travel_type', 'companions', 'budget',
-                   'duration', 'month', 'temp', 'sea', 'rain')
+                   'duration', 'month', 'temp', 'sea', 'rain', 'activities',
+                   'accommodation', 'accommodation_size', 'hotel_wishes',
+                   'flight_time', 'airports', 'dislikes', 'perfect_holiday', 'past_trips')
+_ADVISOR_LIST_FIELDS = {'interests', 'activities', 'hotel_wishes', 'airports', 'dislikes'}
+_ADVISOR_TEXT_FIELDS = {'perfect_holiday', 'past_trips'}
 _ADVISOR_LABELS = {
     'region': 'Ziel-Region', 'interests': 'Wichtig im Urlaub', 'travel_type': 'Reiseart',
     'companions': 'Reist mit', 'budget': 'Budget pro Person', 'duration': 'Reisedauer',
     'month': 'Reisezeit', 'temp': 'Gewünschte Temperatur', 'sea': 'Meer/Wasser',
-    'rain': 'Niederschlag',
+    'rain': 'Niederschlag', 'activities': 'Gewünschte Aktivitäten',
+    'accommodation': 'Unterkunftsart', 'accommodation_size': 'Hotelgröße',
+    'hotel_wishes': 'Hotelwünsche', 'flight_time': 'Flugzeit', 'airports': 'Abflughafen',
+    'dislikes': 'Nervt im Urlaub', 'perfect_holiday': 'Perfekter Urlaub laut Nutzer (Freitext)',
+    'past_trips': 'Frühere Urlaubserfahrungen (Freitext)',
 }
 
 
 def _advisor_prompt(p: dict) -> str:
-    """Baut den Reiseberater-Prompt aus dem Profil (Region/Interessen/Reiseart/
-    Budget/Reisezeit/Wetter) — freie KI-Empfehlung, nicht auf eigene Angebote
+    """Baut den Reiseberater-Prompt aus dem kompletten Profil (Region/Interessen/
+    Reiseart/Budget/Reisezeit/Wetter/Aktivitäten/Unterkunft/Hotelwünsche/Flug/
+    Abneigungen/Freitext) — freie KI-Empfehlung, nicht auf eigene Angebote
     beschränkt, mit Websuche für reale/aktuelle Klimadaten."""
     lines = ["Ein Nutzer sucht per Reiseberater-Fragebogen sein nächstes Urlaubsziel. "
              "Sein Profil:\n"]
@@ -3228,18 +3237,32 @@ def _advisor_prompt(p: dict) -> str:
             val = ", ".join(str(v).strip() for v in val if str(v).strip())
         if val:
             lines.append(f"- {_ADVISOR_LABELS[key]}: {val}")
+    if p.get('travel_type') == 'Pauschalreise (TUI)':
+        lines.append(
+            "\nWichtig: Der Nutzer will eine Pauschalreise (Flug + Hotel) über TUI "
+            "buchen. Empfehle ausschließlich Ziele/Regionen, die TUI tatsächlich im "
+            "Programm hat — prüfe das per Websuche (z. B. auf tui.com oder aktuellen "
+            "TUI-Katalogseiten für das Zielland). Kein Ziel vorschlagen, das TUI "
+            "nachweislich nicht anbietet."
+        )
     lines.append(
         "\nNutze die Websuche, um für die genannte Reisezeit reale, aktuelle "
         "Klimadaten (Lufttemperatur, Wassertemperatur, Regentage) zu prüfen und "
         "daraus tatsächlich passende, real existierende Ziele abzuleiten — keine "
-        "erfundenen Orte.\n\n"
+        "erfundenen Orte. Berücksichtige nach Möglichkeit auch, was den Nutzer im "
+        "Urlaub stört, sowie Freitext-Angaben zu früheren Urlauben/Vorlieben, "
+        "falls vorhanden — erkenne darin genannte Hotelketten/-typen/Regionen und "
+        "leite daraus ähnliche Empfehlungen ab.\n\n"
         "Schlage 3 konkrete Reiseziele vor (Ort/Region + passender Urlaubstyp, kein "
         "bestimmtes Hotel nötig). Für jeden Vorschlag eine Markdown-Überschrift "
         "(#### 🏆/🥈/🥉 Ziel-Name), danach als Stichpunkte eine kurze Begründung, "
         "die konkret auf das Profil oben eingeht (Klima zur Reisezeit, Passung zu "
-        "Interessen/Reiseart/Budget/Mitreisenden). Schreibe auf Deutsch, ehrlich "
-        "und ohne zu übertreiben — wenn ein Wunsch (z. B. Budget oder Reisezeit) "
-        "schwer erfüllbar ist, sag das offen."
+        "Interessen/Aktivitäten/Reiseart/Budget/Mitreisenden/Hotelwünschen). "
+        "Ergänze danach einen Abschnitt „#### 🔀 Alternative“ mit einem Ziel, das "
+        "vom genannten Profil bewusst etwas abweicht (z. B. eine weniger bekannte "
+        "Nachbarregion), aber ähnlich gut passen könnte. Schreibe auf Deutsch, "
+        "ehrlich und ohne zu übertreiben — wenn ein Wunsch (z. B. Budget, "
+        "Reisezeit oder TUI-Verfügbarkeit) schwer erfüllbar ist, sag das offen."
     )
     return "\n".join(lines)
 
@@ -3261,9 +3284,12 @@ def api_ai_travel_advisor():
     profile = {}
     for key in _ADVISOR_FIELDS:
         val = data.get(key)
-        if key == 'interests':
+        if key in _ADVISOR_LIST_FIELDS:
             if isinstance(val, list):
-                profile[key] = [str(v).strip()[:40] for v in val if str(v).strip()][:12]
+                profile[key] = [str(v).strip()[:40] for v in val if str(v).strip()][:15]
+        elif key in _ADVISOR_TEXT_FIELDS:
+            if isinstance(val, str) and val.strip():
+                profile[key] = val.strip()[:500]
         elif isinstance(val, str) and val.strip():
             profile[key] = val.strip()[:60]
     if not any(profile.values()):
@@ -3273,7 +3299,7 @@ def api_ai_travel_advisor():
     title = profile.get('region') or 'Reiseberater'
     if profile.get('interests'):
         title += ' · ' + ', '.join(profile['interests'][:3])
-    text, usage, err = _ai_call(api_key, model, prompt, max_tokens=2048, log_ctx='Reiseberater')
+    text, usage, err = _ai_call(api_key, model, prompt, max_tokens=3072, log_ctx='Reiseberater')
     if err:
         return err
     usage['estimated_usd'] = _ai_call_cost(model, usage)

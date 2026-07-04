@@ -2574,13 +2574,13 @@
     // ── KI-Reiseberater (geführter Fragebogen → 3 Zielvorschläge) ─────────────
     const ADV_STEPS = [
       {title:'Wohin soll die Reise ungefähr gehen?', key:'region', multi:false,
-       options:['Deutschland','Europa','Weltweit','Egal']},
+       options:['Deutschland','Europa','Makaronesien (Kanaren, Madeira, Azoren, Kapverden)','Weltweit','Egal']},
       {title:'Was ist dir im Urlaub wichtig?', key:'interests', multi:true,
        options:['🌴 Strand','⛰️ Berge','🏛️ Kultur','🍹 Entspannung','🎉 Nachtleben','🚶 Wandern',
                 '🚴 Radfahren','🍽️ Essen','🛍️ Shopping','👨‍👩‍👧 Familie','❤️ Romantik']},
       {title:'Welche Reiseart?', key:'travel_type', multi:false,
-       options:['Badeurlaub','Rundreise','Städtereise','Kreuzfahrt','Wellness','Aktivurlaub',
-                'Abenteuer','Luxus','Camping','All Inclusive','Ferienwohnung']},
+       options:['Pauschalreise (TUI)','Badeurlaub','Rundreise','Städtereise','Kreuzfahrt','Wellness',
+                'Aktivurlaub','Abenteuer','Luxus','Camping','All Inclusive','Ferienwohnung']},
       {title:'Mit wem reist du?', key:'companions', multi:false,
        options:['Alleine','Partner','Familie','Freunde','Senioren','Mit Hund']},
       {title:'Budget pro Person?', key:'budget', multi:false,
@@ -2596,6 +2596,30 @@
        options:['badewarm wichtig','egal','kein Meer nötig']},
       {title:'Regen?', key:'rain', multi:false,
        options:['möglichst trocken','egal']},
+      {title:'Welche Aktivitäten interessieren dich?', key:'activities', multi:true,
+       options:['Tauchen','Schnorcheln','Wandern','Skifahren','Golf','Mountainbike','Surfen',
+                'Safari','Fotografieren','Museen','Freizeitparks','Wein','Kulinarik']},
+      {title:'Welche Unterkunftsart?', key:'accommodation', multi:false,
+       options:['Hotel','Apartment','Villa','Camping','Hostel']},
+      {title:'Wie groß darf das Hotel sein?', key:'accommodation_size', multi:false,
+       options:['klein','Boutique','egal','riesige Clubanlage']},
+      {title:'Was ist dir beim Hotel besonders wichtig?', key:'hotel_wishes', multi:true,
+       options:['Erwachsenenhotel','Familienhotel','Kinderpool','Rutschen','Animation','Ruhe',
+                'All Inclusive','Frühstück','Halbpension','Swim-Up','Privatpool','Spa',
+                'Fitnessstudio','direkte Strandlage','Sandstrand','flach abfallend','Hausriff',
+                'WLAN','Homeoffice geeignet']},
+      {title:'Flugzeit?', key:'flight_time', multi:false,
+       options:['Direktflug','max. 4 Stunden','max. 6 Stunden','egal']},
+      {title:'Abflughafen?', key:'airports', multi:true,
+       options:['Frankfurt','Stuttgart','München','Hamburg','Düsseldorf','Berlin']},
+      {title:'Was nervt dich im Urlaub?', key:'dislikes', multi:true,
+       options:['überfüllte Strände','Kinder','Animation','Wind','Hitze','lange Transfers',
+                'frühes Aufstehen']},
+      {title:'Was macht für dich einen perfekten Urlaub aus?', key:'perfect_holiday', type:'text',
+       placeholder:'Freitext, optional'},
+      {title:'Welche Hotels/Urlaube haben dir gefallen – welche nicht? Warum?',
+       key:'past_trips', type:'text',
+       placeholder:'z. B. "RIU Papayas war super, viel Auswahl beim Essen, ruhige Lage"'},
     ];
     let advIdx = 0, advState = {};
     function openAdvisor(){
@@ -2607,14 +2631,22 @@
     $('#advisor-bg').addEventListener('click', e=>{ if(e.target.id==='advisor-bg') closeAdvisor(); });
     function advRender(){
       const s = ADV_STEPS[advIdx];
-      const sel = advState[s.key] != null ? advState[s.key] : (s.multi ? [] : null);
       $('#adv-sub').textContent = 'Schritt '+(advIdx+1)+' von '+ADV_STEPS.length
         + (s.multi ? ' · Mehrfachauswahl möglich' : '');
-      $('#adv-body').innerHTML = '<h3 style="margin:4px 0 12px">'+esc(s.title)+'</h3>'
-        + '<div class="tag-row">' + s.options.map((o, oi) => {
-            const active = s.multi ? sel.includes(o) : sel === o;
-            return `<span class="tag-pill${active?' active':''}" onclick="advPick(${oi})">${esc(o)}</span>`;
-          }).join('') + '</div>';
+      if(s.type === 'text'){
+        const val = advState[s.key] || '';
+        $('#adv-body').innerHTML = '<h3 style="margin:4px 0 12px">'+esc(s.title)+'</h3>'
+          + `<textarea id="adv-text" rows="4" style="width:100%;resize:vertical;background:var(--bg);`
+          + `border:1px solid var(--border);color:var(--text);border-radius:6px;padding:8px;font:inherit" `
+          + `placeholder="${esc(s.placeholder||'Optional')}">${esc(val)}</textarea>`;
+      } else {
+        const sel = advState[s.key] != null ? advState[s.key] : (s.multi ? [] : null);
+        $('#adv-body').innerHTML = '<h3 style="margin:4px 0 12px">'+esc(s.title)+'</h3>'
+          + '<div class="tag-row">' + s.options.map((o, oi) => {
+              const active = s.multi ? sel.includes(o) : sel === o;
+              return `<span class="tag-pill${active?' active':''}" onclick="advPick(${oi})">${esc(o)}</span>`;
+            }).join('') + '</div>';
+      }
       $('#adv-back').style.visibility = advIdx === 0 ? 'hidden' : 'visible';
       $('#adv-next').textContent = advIdx === ADV_STEPS.length - 1 ? '🔮 Empfehlung holen' : 'Weiter';
     }
@@ -2631,8 +2663,16 @@
         setTimeout(advNext, 150);
       }
     }
-    function advBack(){ if(advIdx > 0){ advIdx--; advRender(); } }
+    function advCaptureText(){
+      const s = ADV_STEPS[advIdx];
+      if(s.type === 'text'){
+        const v = ($('#adv-text').value || '').trim();
+        if(v) advState[s.key] = v; else delete advState[s.key];
+      }
+    }
+    function advBack(){ advCaptureText(); if(advIdx > 0){ advIdx--; advRender(); } }
     function advNext(){
+      advCaptureText();
       if(advIdx < ADV_STEPS.length - 1){ advIdx++; advRender(); }
       else submitAdvisor();
     }
