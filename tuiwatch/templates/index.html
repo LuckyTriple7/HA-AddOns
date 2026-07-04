@@ -1601,9 +1601,14 @@
       if(resp.status===422){ $('#trip-imp-status').textContent=''; toast('PDF konnte nicht gelesen werden – Debug-Ansicht wird geöffnet'); debugUpload(f); return; }
       if(!resp.ok){ $('#trip-imp-status').textContent=''; toast('Import fehlgeschlagen'); return; }
       const warns = (d && d.warnings) || [];
+      const aiFilled = (d && d.ai_filled) || [];
       if(warns.length){
         $('#trip-imp-status').textContent = '⚠ importiert – mit Hinweisen';
-        toast('Hinweis: nicht erkannt – '+warns.join(', '));
+        toast('Hinweis: nicht erkannt – '+warns.join(', ')
+          + (aiFilled.length ? ' (per KI ergänzt: '+aiFilled.join(', ')+')' : ''));
+      } else if(aiFilled.length){
+        $('#trip-imp-status').textContent = '✓ importiert (KI-Fallback genutzt)';
+        toast('Reise importiert — per KI ergänzt: '+aiFilled.join(', '));
       } else {
         $('#trip-imp-status').textContent = '✓ importiert';
         toast('Reise importiert');

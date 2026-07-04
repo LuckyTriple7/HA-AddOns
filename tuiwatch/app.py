@@ -4001,6 +4001,88 @@ _TRIP_COLUMNS = (
 )
 
 
+_AI_TRIP_FIELD_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "buchungsnummer": {"type": ["string", "null"]},
+        "buchungsdatum": {"type": ["string", "null"]},
+        "reiseziel": {"type": ["string", "null"]},
+        "hotel_name": {"type": ["string", "null"]},
+        "reisezeitraum_von": {"type": ["string", "null"],
+                              "description": "Anreisedatum, Format TT.MM.JJJJ"},
+        "reisezeitraum_bis": {"type": ["string", "null"],
+                              "description": "Abreisedatum, Format TT.MM.JJJJ"},
+        "naechte": {"type": ["integer", "null"]},
+        "verpflegung": {"type": ["string", "null"]},
+        "gesamtpreis": {"type": ["string", "null"],
+                       "description": "Format '1.234,56' (deutsches Zahlenformat, ohne €)"},
+        "reisende_anzahl": {"type": ["integer", "null"]},
+    },
+    "required": ["buchungsnummer", "buchungsdatum", "reiseziel", "hotel_name",
+                "reisezeitraum_von", "reisezeitraum_bis", "naechte", "verpflegung",
+                "gesamtpreis", "reisende_anzahl"],
+    "additionalProperties": False,
+}
+
+
+def _ai_fill_trip_fields(data: dict, warnings: list, cleaned_text: str,
+                         api_key: str, model: str) -> tuple[dict, list]:
+    """Ergänzt NUR die von `check_fields()` als fehlend markierte Top-Level-Felder
+    per KI aus dem PDF-Text — überschreibt nie bereits vom Regex-Parser erkannte
+    Werte (der bleibt die primäre, vertrauenswürdigere Quelle). Fällt TUI-Text ohne
+    Key/Fehler auf die unveränderten Regex-Daten zurück. Rückgabe: (data, filled_labels)."""
+    if not warnings or not api_key:
+        return data, []
+    prompt = (
+        "Extrahiere aus folgendem Text einer TUI-Reisebestätigung NUR diese Felder "
+        "als JSON. Fehlt eine Information wirklich, gib null zurück statt zu raten "
+        "oder zu erfinden.\n\n" + cleaned_text[:6000]
+    )
+    try:
+        text, usage, code = _ai_request(api_key, model, prompt, max_tokens=800,
+                                        log_ctx="PDF-Fallback", use_web_search=False,
+                                        output_schema=_AI_TRIP_FIELD_SCHEMA)
+        if code or not text:
+            return data, []
+        ai = json.loads(text)
+        usage['estimated_usd'] = _ai_call_cost(model, usage)
+        _record_ai_usage(model, usage)
+    except Exception as e:
+        log.warning("PDF-Fallback (KI) fehlgeschlagen: %s", e)
+        return data, []
+
+    filled = []
+    if "Buchungsnummer" in warnings and ai.get('buchungsnummer'):
+        data['buchungsnummer'] = ai['buchungsnummer']
+        filled.append("Buchungsnummer")
+    if "Buchungsdatum" in warnings and ai.get('buchungsdatum'):
+        data['buchungsdatum'] = ai['buchungsdatum']
+        filled.append("Buchungsdatum")
+    if "Reiseziel" in warnings and ai.get('reiseziel'):
+        data['reiseziel'] = ai['reiseziel']
+        filled.append("Reiseziel")
+    if "Hotel" in warnings and ai.get('hotel_name'):
+        data.setdefault('hotel', {})['name'] = ai['hotel_name']
+        filled.append("Hotel")
+    if "Reisezeitraum" in warnings and ai.get('reisezeitraum_von') and ai.get('reisezeitraum_bis'):
+        data['reisezeitraum'] = {'von': ai['reisezeitraum_von'], 'bis': ai['reisezeitraum_bis']}
+        filled.append("Reisezeitraum")
+    if "Nächte" in warnings and ai.get('naechte'):
+        data['naechte'] = ai['naechte']
+        filled.append("Nächte")
+    if "Verpflegung" in warnings and ai.get('verpflegung'):
+        data['verpflegung'] = ai['verpflegung']
+        filled.append("Verpflegung")
+    if "Gesamtpreis" in warnings and ai.get('gesamtpreis'):
+        data['gesamtpreis'] = ai['gesamtpreis']
+        filled.append("Gesamtpreis")
+    if "Reisende" in warnings and ai.get('reisende_anzahl'):
+        # nur die Anzahl zählt für `travellers` beim Import — keine synthetischen Namen
+        data['reisende'] = [{} for _ in range(ai['reisende_anzahl'])]
+        filled.append("Reisende")
+    return data, filled
+
+
 @app.route('/api/trips/import', methods=['POST'])
 def api_trip_import():
     """TUI-Reisebestätigungs-PDF hochladen, parsen, dauerhaft speichern (Upsert
@@ -4024,6 +4106,21 @@ def api_trip_import():
     except Exception as exc:
         log.warning("PDF-Import fehlgeschlagen: %s", exc)
         return jsonify({'error': 'parse_failed'}), 422
+
+    # KI-Fallback: fehlende Felder (Regex-Parser bei TUI-Layout-Änderung o. Ä.
+    # gescheitert) ergänzen, ohne bereits erkannte Werte zu überschreiben. Best
+    # effort — ohne Key oder bei jedem Fehler bleiben die Regex-Daten unverändert.
+    ai_filled = []
+    pre_warnings = check_fields(data)
+    ai_key, ai_model = _ai_config()
+    if pre_warnings and ai_key:
+        try:
+            cleaned = _clean_text(extract_pdf_text(io.BytesIO(raw)))
+            data, ai_filled = _ai_fill_trip_fields(data, pre_warnings, cleaned, ai_key, ai_model)
+        except Exception as e:
+            log.warning("PDF-Fallback (KI) fehlgeschlagen: %s", e)
+        if ai_filled:
+            log.info("Reise-Import: KI-Fallback ergänzte %s", ", ".join(ai_filled))
 
     booking = (data.get('buchungsnummer') or '').strip()
     ts = int(time.time())
@@ -4095,7 +4192,8 @@ def api_trip_import():
         log.warning("Reise-Import #%s: nicht erkannte Felder: %s",
                     booking or tid, ", ".join(warnings))
     log.info("Reise importiert: %s (#%s)", row['title'], booking or tid)
-    return jsonify({'ok': True, 'id': tid, 'data': data, 'warnings': warnings})
+    return jsonify({'ok': True, 'id': tid, 'data': data, 'warnings': warnings,
+                    'ai_filled': ai_filled})
 
 
 @app.route('/api/trips/<int:tid>/pdf', methods=['GET'])

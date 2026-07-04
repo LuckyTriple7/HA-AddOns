@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.39.3] - 2026-07-04
+
+### Added
+- **PDF-Parser-Fallback per KI.** Erkennt der Regex-Parser bei einer TUI-
+  Reisebestätigung Felder nicht (z. B. nach einer TUI-Layout-Änderung),
+  ergänzt Claude sie aus dem PDF-Text — ausschließlich die vom Regex-Parser
+  als fehlend markierten Felder, bereits erkannte Werte bleiben unangetastet.
+  Structured Output, keine Websuche. Ohne hinterlegten API-Key unverändertes
+  Verhalten (reiner Regex-Parser wie bisher).
+
 ## [0.39.2] - 2026-07-04
 
 ### Added
