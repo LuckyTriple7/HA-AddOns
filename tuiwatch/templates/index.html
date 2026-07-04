@@ -466,6 +466,7 @@
       <button class="btn sec" onclick="bulkArchive()">Archivieren</button>
       <button class="btn danger" onclick="bulkDelete()">Löschen</button>
       <button class="btn sec ai-feature" onclick="openAiCompareOffers()" title="Ausgewählte Angebote per KI vergleichen (max. 5)">🤖 Vergleichen</button>
+      <button class="btn sec ai-feature" onclick="autoTagSelected()" title="Passende Tags automatisch per KI vergeben (ergänzt bestehende Tags)">🤖 Auto-Tag</button>
       <button class="btn sec" onclick="bulkClear()" style="margin-left:auto">Auswahl aufheben</button>
     </div>
     <div id="offers"></div>
@@ -2422,6 +2423,19 @@
       if(offers.length > 5){ toast('Nur die ersten 5 ausgewählten Angebote werden verglichen'); offers = offers.slice(0, 5); }
       const names = offers.map(o=>o.label||o.hotel||('Angebot #'+o.id));
       runAiCompare('off:'+offers.map(o=>o.id).sort((a,b)=>a-b).join('|'), offers.map(offerFacts), names);
+    }
+    async function autoTagSelected(){
+      const ids = [...selected]; if(!ids.length) return;
+      toast('KI vergibt Tags für '+ids.length+' Angebot(e)…');
+      let resp, d;
+      try {
+        resp = await fetch(api('/api/ai/auto-tags'), {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ids})});
+        d = await resp.json();
+      } catch(e){ toast('Fehler beim Auto-Tagging'); return; }
+      if(!resp.ok){ toast(d.error==='no_api_key'?'Kein Anthropic API-Key hinterlegt':'Fehler beim Auto-Tagging'); return; }
+      const n = Object.keys(d.results||{}).length;
+      toast(n ? n+' Angebot(e) getaggt' : 'Keine Tags ermittelt');
+      bulkClear(); loadOffers();
     }
     async function runAiCompare(cacheKey, facts, names){
       $('#ai-title').textContent = '🤖 KI-Vergleich';

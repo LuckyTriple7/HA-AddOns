@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.39.1] - 2026-07-04
+
+### Added
+- **Auto-Tag.** Neuer „🤖 Auto-Tag"-Button in der Sammelaktionsleiste der
+  Angebotsübersicht: vergibt automatisch 2-4 passende Schlagworte aus einer
+  festen Liste (Familie, Strand, Party & Nachtleben, Ruhe & Erholung,
+  Wellness & Spa, Sport & Aktiv, Luxus, Budget, Alleinreisende, Kultur &
+  Sightseeing, Adults Only, Golf) — ergänzt bestehende Tags, überschreibt
+  sie nicht. Structured Output, keine Websuche nötig (schnell & günstig).
+
 ## [0.39.0] - 2026-07-04
 
 ### Added

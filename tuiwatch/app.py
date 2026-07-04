@@ -2975,19 +2975,22 @@ def _ai_config():
 
 
 def _ai_request(api_key: str, model: str, prompt: str, *, max_tokens: int,
-                log_ctx: str, use_web_search: bool = True):
+                log_ctx: str, use_web_search: bool = True, output_schema: dict | None = None):
     """Reiner Claude-Aufruf ohne Flask-Abhängigkeit (kein jsonify) — nutzbar sowohl
     aus Request-Handlern als auch aus Hintergrund-Threads (z. B. Wochenüberblick),
     die keinen Flask-App-Context haben. Rückgabe: (text, usage, error_code);
     error_code ist None bei Erfolg, sonst 'failed' / 'refused' / 'empty'.
     `usage` = {input_tokens, output_tokens, cache_creation_input_tokens,
-    cache_read_input_tokens}."""
+    cache_read_input_tokens}. Mit `output_schema` antwortet Claude als validiertes
+    JSON nach diesem Schema (structured outputs) — `text` ist dann der JSON-String."""
     kwargs = {}
     if use_web_search:
         # allowed_callers=["direct"]: Haiku unterstützt kein programmatic tool
         # calling — ohne das Flag lehnt die API web_search auf diesem Modell ab.
         kwargs['tools'] = [{"type": "web_search_20260209", "name": "web_search",
                             "allowed_callers": ["direct"]}]
+    if output_schema is not None:
+        kwargs['output_config'] = {'format': {'type': 'json_schema', 'schema': output_schema}}
     try:
         client = anthropic.Anthropic(api_key=api_key)
         resp = client.messages.create(
@@ -3022,6 +3025,78 @@ def _ai_call(api_key: str, model: str, prompt: str, *, max_tokens: int, log_ctx:
     if code == 'empty':
         return None, None, (jsonify({'error': 'ai_empty'}), 502)
     return text, usage, None
+
+
+_AI_TAG_VOCAB = [
+    "Familie", "Strand", "Party & Nachtleben", "Ruhe & Erholung", "Wellness & Spa",
+    "Sport & Aktiv", "Luxus", "Budget", "Alleinreisende", "Kultur & Sightseeing",
+    "Adults Only", "Golf",
+]
+_AI_TAG_SCHEMA = {
+    "type": "object",
+    "properties": {"tags": {"type": "array", "items": {"type": "string"}, "maxItems": 4}},
+    "required": ["tags"], "additionalProperties": False,
+}
+
+
+def _ai_auto_tags(h: dict, api_key: str, model: str) -> list | None:
+    """2-4 passende Schlagworte aus einer festen Liste für ein Angebot vergeben
+    (structured output, kein Websuche nötig). None bei jedem Fehler."""
+    prompt = (
+        "Vergib 2 bis 4 passende Schlagworte für folgendes Hotel/Reise-Angebot, "
+        "ausschließlich aus dieser Liste (exakten Wortlaut übernehmen):\n"
+        + ", ".join(_AI_TAG_VOCAB) + "\n\n"
+        + "\n".join(_hotel_fact_lines(h)) + "\n\n"
+        "Wähle nur Schlagworte, die durch die Fakten wirklich gestützt sind (z. B. "
+        "'Familie' nur bei Hinweisen auf Kinderclub/Familienhotel, 'Party & "
+        "Nachtleben' nur bei entsprechender Lage/Ausstattung). Lieber weniger, aber "
+        "treffende Tags als geraten."
+    )
+    text, usage, code = _ai_request(api_key, model, prompt, max_tokens=300,
+                                    log_ctx="Auto-Tags", use_web_search=False,
+                                    output_schema=_AI_TAG_SCHEMA)
+    if code or not text:
+        return None
+    try:
+        tags = [t for t in json.loads(text).get('tags', []) if t in _AI_TAG_VOCAB]
+    except (ValueError, AttributeError):
+        return None
+    usage['estimated_usd'] = _ai_call_cost(model, usage)
+    _record_ai_usage(model, usage)
+    return tags
+
+
+@app.route('/api/ai/auto-tags', methods=['POST'])
+def api_ai_auto_tags():
+    """Vergibt automatisch Tags für 1..N ausgewählte Angebote (Sammelaktion) —
+    ergänzt bestehende Tags, überschreibt sie nicht."""
+    if (err := _require_api()):
+        return err
+    api_key, model = _ai_config()
+    if not api_key:
+        return jsonify({'error': 'no_api_key',
+                        'note': 'Kein Anthropic API-Key in den Add-on-Einstellungen hinterlegt'}), 400
+    data = request.get_json(silent=True) or {}
+    ids = data.get('ids')
+    if not isinstance(ids, list) or not ids:
+        return jsonify({'error': 'invalid'}), 400
+    want = {int(i) for i in ids if str(i).isdigit()}
+    offers_by_id = {o['id']: o for o in _collect_offers() if o['id'] in want}
+    results = {}
+    for oid, o in offers_by_id.items():
+        h = {'name': o.get('label') or o.get('hotel'), 'location': o.get('location'),
+             'country': o.get('country'), 'stars': o.get('stars'),
+             'recommendation': o.get('recommendation'), 'reviews': o.get('rating_count'),
+             'price': o.get('price'), 'details': o.get('details')}
+        tags = _ai_auto_tags(h, api_key, model)
+        if tags is None:
+            continue
+        merged = list(dict.fromkeys((o.get('tags') or []) + tags))
+        with db() as con:
+            con.execute('UPDATE offers SET tags=? WHERE id=?',
+                        (json.dumps(merged, ensure_ascii=False), oid))
+        results[oid] = merged
+    return jsonify({'results': results})
 
 
 @app.route('/api/ai/hotel-summary', methods=['POST'])
