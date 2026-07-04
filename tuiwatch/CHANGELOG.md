@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.39.13] - 2026-07-04
+
+### Added
+- **Wildcard-Vorschlag im Reiseberater.** Zusätzlich zu den 3 Empfehlungen
+  und der „Alternative" schlägt Claude jetzt einen Abschnitt „🎲
+  Überraschung" vor — ein Ziel außerhalb der gewählten Zielregion (andere
+  Weltgegend), an das man wahrscheinlich nicht von selbst gedacht hätte,
+  aber weiterhin unter Beachtung aller Ausschlüsse (Länder, Reisewarnungen,
+  TUI-Verfügbarkeit).
+
 ## [0.39.12] - 2026-07-04
 
 ### Added
