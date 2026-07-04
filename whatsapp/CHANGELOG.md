@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.7.32] - 2026-07-04
+- Fix: `captureStatuses()` (Status-Archiv-Hintergrund-Job) loggte bisher nichts sichtbar — Erfolg gar nicht, Fehler nur im Debug-Modus. Jetzt `[INFO]`-Zeile im normalen Log, wenn neue Statusmeldungen archiviert wurden, und `[WARN]` bei Fehlern (z.B. `getBroadcasts()` schlägt fehl)
+
 ## [1.7.31] - 2026-07-04
 - Neu: **Status-Archiv pro Kontakt** — abgelaufene Statusmeldungen (WhatsApp löscht sie nach 24h) bleiben jetzt dauerhaft im Profil-Popup sichtbar (Datum/Uhrzeit inklusive), solange die Add-on-Option **„Gelöschte Nachrichten behalten"** aktiv ist. Ein Hintergrund-Job (`captureStatuses()`, alle 15 Min. + sofort nach Verbindungsaufbau) sammelt neue Status aller Kontakte über `client.getBroadcasts()` ein und speichert sie in `/config/status_archive.json`. Pro Kontakt gibt's einen „🗑 Archiv leeren"-Button. `api/cleanup-media` (verwaiste Mediendateien löschen) berücksichtigt archivierte Medien jetzt ebenfalls, damit sie dabei nicht versehentlich gelöscht werden
   - Bekannte Grenze: ein Status, der innerhalb der 15-Minuten-Lücke gepostet und wieder gelöscht wird, kann verpasst werden

@@ -1033,9 +1033,11 @@ setInterval(async () => {
 // KEEP_DELETED aktiv ist — WhatsApp löscht Status nach 24h, unsere Kopie bleibt.
 async function captureStatuses() {
   if (status !== 'connected' || !KEEP_DELETED) return;
+  dbg('captureStatuses: run start');
   try {
     const broadcasts = await client.getBroadcasts();
-    let dirty = false;
+    let dirty = false, newCount = 0;
+    const chatsHit = new Set();
     for (const b of broadcasts) {
       const chatId = b.id?._serialized;
       if (!chatId || !b.msgs?.length) continue;
@@ -1058,10 +1060,17 @@ async function captureStatuses() {
         });
         archiveSeenIds.add(msgId);
         dirty = true;
+        newCount++;
+        chatsHit.add(chatId);
       }
     }
-    if (dirty) saveStatusArchive();
-  } catch (e) { dbg('captureStatuses:', e.message); }
+    if (dirty) {
+      saveStatusArchive();
+      console.log(`[INFO] captureStatuses: ${newCount} neue Statusmeldung(en) von ${chatsHit.size} Kontakt(en) archiviert`);
+    } else {
+      dbg(`captureStatuses: nichts Neues (${broadcasts.length} live Broadcast(s) geprüft)`);
+    }
+  } catch (e) { console.warn('[WARN] captureStatuses:', e.message); }
 }
 setInterval(captureStatuses, 900000);
 
