@@ -127,6 +127,15 @@ Wunschpreis, Zurücksetzen) — mit **Mouseover** erscheint Datum + Beschreibung
 
 ## KI-Fazit, -Vergleich & -Verlauf
 
+> ⚠️ Die Anthropic-API ist **kostenpflichtig** (eigener API-Key, eigenes
+> Anthropic-Konto). Bei jedem KI-Aufruf (Fazit, Vergleich, Reiseberater,
+> Auto-Tag, Frag dein Portfolio) entstehen reale Kosten nach Anthropics
+> Preisliste. TUIWatch zeigt geschätzte Kosten pro Aufruf sowie eine laufende
+> Gesamtsumme seit Add-on-Start an — das ist eine Schätzung auf Basis der
+> Token-Zahlen, **kein echtes Guthaben** und keine Abbuchung durch TUIWatch
+> selbst; das tatsächliche Guthaben/die Abrechnung zeigt nur die
+> Anthropic-Console.
+
 Mit hinterlegtem `anthropic_api_key` erscheinen zusätzliche **🤖**-Buttons in der
 Hotelsuche und der Angebotsübersicht (ohne Key sind sie komplett ausgeblendet).
 Genutztes Modell: `anthropic_model` (Standard `claude-opus-4-8`; auch

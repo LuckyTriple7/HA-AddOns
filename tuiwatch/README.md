@@ -43,6 +43,12 @@ Sensoren** (`ha_sensors`) sowie **Telegram** und **SMTP/E-Mail** — Details in
 
 ## KI-Fazit (optional)
 
+> ⚠️ Die Anthropic-API ist **kostenpflichtig** (eigener API-Key, eigenes
+> Anthropic-Konto). Bei jedem KI-Aufruf entstehen reale Kosten nach Anthropics
+> Preisliste — TUIWatch zeigt geschätzte Kosten pro Aufruf und eine laufende
+> Gesamtsumme an, bucht aber selbst nichts ab und kennt dein echtes Guthaben
+> nicht.
+
 Mit hinterlegtem `anthropic_api_key` bewertet Claude einzelne Suchtreffer
 ausführlich (Lage, Zimmer, Restaurants, Pool, Klima zur Reisezeit) oder
 vergleicht bis zu 5 Hotels nebeneinander — inkl. Token-/Kosten-Anzeige, PDF-

@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.39.20] - 2026-07-04
+
+### Docs
+- README/DOCS weisen jetzt deutlich darauf hin, dass die Anthropic-API
+  kostenpflichtig ist und bei jedem KI-Aufruf reale Kosten entstehen
+  (eigener API-Key/eigenes Konto, keine Abbuchung durch TUIWatch selbst).
+
 ## [0.39.19] - 2026-07-04
 
 ### Docs
