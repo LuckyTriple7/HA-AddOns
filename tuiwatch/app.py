@@ -3210,8 +3210,8 @@ _ADVISOR_FIELDS = ('region', 'excluded_countries', 'excluded_countries_other', '
                    'travel_type', 'companions', 'budget', 'duration', 'month', 'temp', 'sea',
                    'rain', 'activities', 'accommodation', 'accommodation_size', 'hotel_wishes',
                    'flight_time', 'airports', 'dislikes', 'perfect_holiday', 'past_trips')
-_ADVISOR_LIST_FIELDS = {'interests', 'activities', 'hotel_wishes', 'airports', 'dislikes',
-                        'excluded_countries'}
+_ADVISOR_LIST_FIELDS = {'interests', 'travel_type', 'activities', 'hotel_wishes', 'airports',
+                        'dislikes', 'excluded_countries'}
 _ADVISOR_TEXT_FIELDS = {'perfect_holiday', 'past_trips', 'excluded_countries_other'}
 _ADVISOR_LABELS = {
     'region': 'Ziel-Region', 'excluded_countries': 'Kommt nicht in Frage',
@@ -3227,11 +3227,12 @@ _ADVISOR_LABELS = {
 }
 
 
-def _advisor_prompt(p: dict) -> str:
+def _advisor_prompt(p: dict, prev_dna: dict | None = None) -> str:
     """Baut den Reiseberater-Prompt aus dem kompletten Profil (Region/Interessen/
     Reiseart/Budget/Reisezeit/Wetter/Aktivitäten/Unterkunft/Hotelwünsche/Flug/
     Abneigungen/Freitext) — freie KI-Empfehlung, nicht auf eigene Angebote
-    beschränkt, mit Websuche für reale/aktuelle Klimadaten."""
+    beschränkt, mit Websuche für reale/aktuelle Klimadaten. `prev_dna` (optional)
+    ist das aus früheren Anfragen gespeicherte Reise-DNA-Profil (Zusatzkontext)."""
     lines = ["Ein Nutzer sucht per Reiseberater-Fragebogen sein nächstes Urlaubsziel. "
              "Sein Profil:\n"]
     for key in _ADVISOR_FIELDS:
@@ -3240,7 +3241,7 @@ def _advisor_prompt(p: dict) -> str:
             val = ", ".join(str(v).strip() for v in val if str(v).strip())
         if val:
             lines.append(f"- {_ADVISOR_LABELS[key]}: {val}")
-    if p.get('travel_type') == 'Pauschalreise (TUI)':
+    if 'Pauschalreise (TUI)' in (p.get('travel_type') or []):
         lines.append(
             "\nWichtig: Der Nutzer will eine Pauschalreise (Flug + Hotel) über TUI "
             "buchen. Empfehle ausschließlich Ziele/Regionen, die TUI tatsächlich im "
@@ -3253,6 +3254,12 @@ def _advisor_prompt(p: dict) -> str:
             "\nWichtig: Schlage unter keinen Umständen Ziele in den oben unter "
             "„Kommt nicht in Frage“/„Weitere ausgeschlossene Länder“ genannten "
             "Ländern/Regionen vor — auch nicht als Alternative."
+        )
+    if prev_dna:
+        dna_line = ", ".join(f"{label} {value}%" for label, value in prev_dna.items())
+        lines.append(
+            f"\nZusatzkontext aus früheren Reiseberater-Anfragen dieses Nutzers "
+            f"(Reise-DNA, grobe Tendenz, nicht überbewerten): {dna_line}."
         )
     lines.append(
         "\nUnabhängig von den Angaben oben: Prüfe für jedes in Betracht gezogene "
@@ -3275,10 +3282,62 @@ def _advisor_prompt(p: dict) -> str:
         "Ergänze danach einen Abschnitt „#### 🔀 Alternative“ mit einem Ziel, das "
         "vom genannten Profil bewusst etwas abweicht (z. B. eine weniger bekannte "
         "Nachbarregion), aber ähnlich gut passen könnte. Schreibe auf Deutsch, "
+        "sprich den Nutzer dabei durchgehend mit „Du“ an (informell, nicht „Sie“), "
         "ehrlich und ohne zu übertreiben — wenn ein Wunsch (z. B. Budget, "
         "Reisezeit oder TUI-Verfügbarkeit) schwer erfüllbar ist, sag das offen."
     )
     return "\n".join(lines)
+
+
+def _advisor_dna_scores(p: dict) -> dict:
+    """Deterministisches Reise-DNA-Profil aus den Fragebogen-Antworten (kein
+    zusätzlicher KI-Call) — je Kategorie ein grober 0-100-Score aus passenden
+    Signalen über mehrere Fragen hinweg."""
+    def has(key, *vals):
+        v = p.get(key)
+        if isinstance(v, list):
+            return any(x in v for x in vals)
+        return v in vals
+
+    checks = {
+        '🌴 Strand': [has('interests', '🌴 Strand'),
+                     has('hotel_wishes', 'direkte Strandlage', 'Sandstrand', 'Hausriff'),
+                     has('sea', 'badewarm wichtig')],
+        '🏛️ Kultur': [has('interests', '🏛️ Kultur'), has('activities', 'Museen', 'Fotografieren')],
+        '🎉 Nachtleben': [has('interests', '🎉 Nachtleben')],
+        '⛰️ Aktiv': [has('interests', '🚶 Wandern', '🚴 Radfahren'),
+                    has('activities', 'Wandern', 'Mountainbike', 'Skifahren', 'Surfen', 'Golf')],
+        '🍹 Entspannung': [has('interests', '🍹 Entspannung'), has('hotel_wishes', 'Spa', 'Ruhe')],
+        '🍽️ Kulinarik': [has('interests', '🍽️ Essen'), has('activities', 'Kulinarik', 'Wein')],
+        '👨‍👩‍👧 Familie': [has('interests', '👨‍👩‍👧 Familie'), has('companions', 'Familie'),
+                        has('hotel_wishes', 'Familienhotel', 'Kinderpool', 'Rutschen')],
+        '💰 Preisbewusst': [has('budget', 'bis 500 €'), has('budget', '500–1000 €')],
+    }
+    return {label: min(100, 15 + 35 * sum(1 for s in signals if s))
+            for label, signals in checks.items()}
+
+
+def _advisor_dna_update(new_scores: dict) -> dict:
+    """Verschmilzt neue DNA-Werte mit dem gespeicherten Profil (gleitender
+    Mittelwert) und persistiert sie in `meta`, damit sich das Profil über
+    mehrere Reiseberater-Anfragen hinweg stabilisiert statt bei jedem Aufruf
+    komplett neu zu sein."""
+    try:
+        prev = json.loads(_meta_get('travel_dna') or '{}')
+    except (TypeError, ValueError):
+        prev = {}
+    prev_scores = prev.get('scores') or {}
+    merged = {label: val if label not in prev_scores else round((prev_scores[label] + val) / 2)
+              for label, val in new_scores.items()}
+    _meta_set('travel_dna', json.dumps(
+        {'scores': merged, 'count': (prev.get('count') or 0) + 1, 'updated_ts': int(time.time())},
+        ensure_ascii=False))
+    return merged
+
+
+def _advisor_dna_table(scores: dict) -> str:
+    rows = "\n".join(f"| {label} | {value}% |" for label, value in scores.items())
+    return f"\n\n#### 🧬 Deine Reise-DNA\n| Kategorie | Ausprägung |\n|---|---|\n{rows}\n"
 
 
 @app.route('/api/ai/travel-advisor', methods=['POST'])
@@ -3309,17 +3368,24 @@ def api_ai_travel_advisor():
     if not any(profile.values()):
         return jsonify({'error': 'invalid'}), 400
 
-    prompt = _advisor_prompt(profile)
+    try:
+        prev_dna = (json.loads(_meta_get('travel_dna') or '{}')).get('scores') or {}
+    except (TypeError, ValueError):
+        prev_dna = {}
+    prompt = _advisor_prompt(profile, prev_dna)
     title = profile.get('region') or 'Reiseberater'
     if profile.get('interests'):
         title += ' · ' + ', '.join(profile['interests'][:3])
     text, usage, err = _ai_call(api_key, model, prompt, max_tokens=3072, log_ctx='Reiseberater')
     if err:
         return err
+    dna = _advisor_dna_update(_advisor_dna_scores(profile))
+    text += _advisor_dna_table(dna)
     usage['estimated_usd'] = _ai_call_cost(model, usage)
     totals = _record_ai_usage(model, usage)
     aid = _save_ai_analysis('advisor', title, model, text, usage)
-    return jsonify({'summary': text, 'usage': usage, 'totals': totals, 'id': aid, 'cached': False})
+    return jsonify({'summary': text, 'usage': usage, 'totals': totals, 'id': aid, 'dna': dna,
+                    'cached': False})
 
 
 @app.route('/api/ai/hotel-compare', methods=['POST'])

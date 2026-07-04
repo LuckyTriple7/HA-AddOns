@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.39.12] - 2026-07-04
+
+### Added
+- **Reise-DNA im Reiseberater.** Jede Anfrage berechnet zusätzlich ein
+  Präferenzprofil (Strand, Kultur, Nachtleben, Aktiv, Entspannung,
+  Kulinarik, Familie, Preisbewusst) direkt aus den Fragebogen-Antworten —
+  ohne zusätzlichen KI-Call/Kosten. Wird als Tabelle ans Ergebnis
+  angehängt, über mehrere Anfragen hinweg gespeichert (gleitender
+  Mittelwert) und der KI beim nächsten Mal als Zusatzkontext mitgegeben.
+- Reisedauer: „9–12 Tage" ergänzt. Budget: „2000–3000 €" ergänzt.
+
+### Changed
+- KI antwortet im Reiseberater jetzt per Du statt per Sie.
+
 ## [0.39.11] - 2026-07-04
 
 ### Fixed
