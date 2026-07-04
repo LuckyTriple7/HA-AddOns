@@ -459,6 +459,7 @@
       <button class="btn sec" onclick="bulkEmail()" title="Markierte als E-Mail senden">✉ E-Mail</button>
       <button class="btn sec" onclick="bulkArchive()">Archivieren</button>
       <button class="btn danger" onclick="bulkDelete()">Löschen</button>
+      <button class="btn sec" onclick="openAiCompareOffers()" title="Ausgewählte Angebote per KI vergleichen (max. 5)">🤖 Vergleichen</button>
       <button class="btn sec" onclick="bulkClear()" style="margin-left:auto">Auswahl aufheben</button>
     </div>
     <div id="offers"></div>
@@ -2385,17 +2386,31 @@
     async function openAiCompare(){
       const hotels = srchResults.filter(r=>srCmpSelected.has(r._key));
       if(hotels.length < 2){ toast('Bitte mindestens 2 Hotels auswählen'); return; }
-      const cacheKey = hotels.map(h=>h._key).sort().join('|');
+      runAiCompare('srch:'+hotels.map(h=>h._key).sort().join('|'), hotels.map(hotelFacts), hotels.map(h=>h.name));
+    }
+    function offerFacts(o){
+      return {name:o.label||o.hotel, giata:o.giata, location:o.location, country:o.country,
+        stars:o.stars, recommendation:o.recommendation, reviews:o.rating_count,
+        price:o.price, details:o.details};
+    }
+    async function openAiCompareOffers(){
+      let offers = (curOffers||[]).filter(o=>selected.has(o.id));
+      if(offers.length < 2){ toast('Bitte mindestens 2 Angebote auswählen'); return; }
+      if(offers.length > 5){ toast('Nur die ersten 5 ausgewählten Angebote werden verglichen'); offers = offers.slice(0, 5); }
+      const names = offers.map(o=>o.label||o.hotel||('Angebot #'+o.id));
+      runAiCompare('off:'+offers.map(o=>o.id).sort((a,b)=>a-b).join('|'), offers.map(offerFacts), names);
+    }
+    async function runAiCompare(cacheKey, facts, names){
       $('#ai-title').textContent = '🤖 KI-Vergleich';
-      $('#ai-sub').textContent = hotels.map(h=>h.name).join(' · ');
+      $('#ai-sub').textContent = names.join(' · ');
       $('#ai-foot').style.display = 'none';
       $('#ai-bg').classList.add('show');
       if(_aiCompareCache[cacheKey]){ renderAiResult('#ai-body', _aiCompareCache[cacheKey]); return; }
-      $('#ai-body').innerHTML = progBar('KI vergleicht '+hotels.length+' Hotels und durchsucht das Web…');
+      $('#ai-body').innerHTML = progBar('KI vergleicht '+facts.length+' Hotels und durchsucht das Web…');
       let resp, d;
       try {
         resp = await fetch(api('/api/ai/hotel-compare'), {method:'POST', headers:{'Content-Type':'application/json'},
-          body: JSON.stringify({hotels: hotels.map(hotelFacts)})});
+          body: JSON.stringify({hotels: facts})});
         d = await resp.json();
       } catch(e){ $('#ai-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ KI-Vergleich fehlgeschlagen.</div>'; return; }
       if(!resp.ok){
@@ -2405,7 +2420,7 @@
       _aiCompareCache[cacheKey] = d;
       renderAiResult('#ai-body', d);
     }
-    const _aiCompareCache = {};  // Session-Cache: sortierter Schlüssel-String → {summary, usage}
+    const _aiCompareCache = {};  // Session-Cache: Präfix+sortierter Schlüssel-String → {summary, usage}
     function closeAiSummary(){ $('#ai-bg').classList.remove('show'); }
     $('#ai-bg').addEventListener('click', e=>{ if(e.target.id==='ai-bg') closeAiSummary(); });
 

@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.38.4] - 2026-07-04
+
+### Added
+- **KI-Vergleich auch in der Angebotsübersicht.** Die bestehende
+  Mehrfachauswahl (Checkbox → Sammelaktionsleiste „Prüfen/E-Mail/
+  Archivieren/Löschen") hat jetzt zusätzlich „🤖 Vergleichen" — vergleicht
+  bis zu 5 markierte, bereits getrackte Angebote mit derselben KI-Logik
+  wie in der Suche (nutzt zusätzlich den gespeicherten Reise-Detailtext
+  des Angebots als Kontext).
+
 ## [0.38.3] - 2026-07-04
 
 ### Added

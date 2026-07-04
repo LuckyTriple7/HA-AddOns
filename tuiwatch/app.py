@@ -2784,6 +2784,8 @@ def _hotel_fact_lines(h: dict, *, label: str = "Hotel") -> list[str]:
     if h.get('price'):
         lines.append(f"Reisepreis: {h['price']} € p.P."
                       + (f", {h['nights']} Nächte" if h.get('nights') else ""))
+    if h.get('details'):
+        lines.append(f"Details: {h['details']}")
     return lines
 
 
