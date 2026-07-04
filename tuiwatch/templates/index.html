@@ -2325,15 +2325,23 @@
         stars:r.stars, recommendation:r.recommendation, reviews:r.reviews, board:r.board,
         price:r.price, nights:r.nights};
     }
-    function aiUsageLine(usage, cached){
-      if(!usage) return '';
-      const parts = [(usage.input_tokens||0)+' Input-', (usage.output_tokens||0)+' Output-Tokens'];
-      if(usage.cache_read_input_tokens) parts.push(usage.cache_read_input_tokens+' aus Prompt-Cache');
-      return '<div class="hint" style="margin-top:14px;padding-top:10px;border-top:1px solid var(--border)">🔢 '
-        + parts.join(' · ') + (cached?' · Ergebnis aus Zwischenspeicher (bis zu 24 Std. alt)':'') + '</div>';
+    function aiUsageLine(usage, cached, totals){
+      let html = '';
+      if(usage){
+        const parts = [(usage.input_tokens||0)+' Input-', (usage.output_tokens||0)+' Output-Tokens'];
+        if(usage.cache_read_input_tokens) parts.push(usage.cache_read_input_tokens+' aus Prompt-Cache');
+        html += '<div class="hint" style="margin-top:14px;padding-top:10px;border-top:1px solid var(--border)">🔢 '
+          + parts.join(' · ') + (cached?' · Ergebnis aus Zwischenspeicher (bis zu 24 Std. alt)':'') + '</div>';
+      }
+      if(totals && totals.calls){
+        html += '<div class="hint" style="margin-top:4px">Σ seit Add-on-Start: '+totals.calls+' Aufrufe · '
+          + (totals.input_tokens+totals.output_tokens).toLocaleString('de-DE')+' Tokens · geschätzt $'
+          + totals.estimated_usd.toFixed(2)+' (Anthropic-Listenpreis, kein echtes Guthaben)</div>';
+      }
+      return html;
     }
     function renderAiResult(box, result){
-      $(box).innerHTML = aiMdLite(result.summary) + aiUsageLine(result.usage, result.cached);
+      $(box).innerHTML = aiMdLite(result.summary) + aiUsageLine(result.usage, result.cached, result.totals);
       $('#ai-foot').style.display = 'flex';
     }
     function exportAiPdf(){

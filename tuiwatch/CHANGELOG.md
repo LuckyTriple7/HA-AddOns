@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.38.3] - 2026-07-04
+
+### Added
+- Kumulierte KI-Nutzung seit Add-on-Start: jedes Fazit/Vergleich zeigt jetzt
+  zusätzlich Gesamt-Aufrufe, Gesamt-Tokens und grob geschätzte Kosten in USD
+  (Anthropic-Listenpreis je Modell) — kein echtes Guthaben (das zeigt nur
+  die Anthropic-Console), aber ein Anhaltspunkt ohne zusätzlichen Admin-Key.
+
 ## [0.38.2] - 2026-07-04
 
 ### Added

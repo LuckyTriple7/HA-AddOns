@@ -2787,6 +2787,56 @@ def _hotel_fact_lines(h: dict, *, label: str = "Hotel") -> list[str]:
     return lines
 
 
+_AI_PRICING = {  # USD pro 1 Mio Tokens (Input/Output) — Anthropic-Listenpreise,
+                 # ohne evtl. befristete Einführungsrabatte. Nur zur groben
+                 # Kosten-Schätzung, kein echtes Guthaben (das zeigt nur die Console).
+    'claude-opus-4-8':  {'input': 5.0,  'output': 25.0},
+    'claude-sonnet-5':  {'input': 3.0,  'output': 15.0},
+    'claude-haiku-4-5': {'input': 1.0,  'output': 5.0},
+    'claude-fable-5':   {'input': 10.0, 'output': 50.0},
+}
+
+
+def _ai_usage_totals() -> dict:
+    """Aufsummierte Token-Nutzung + grob geschätzte Kosten (USD) seit Add-on-Start,
+    je Modell separat verrechnet (unterschiedliche Preise)."""
+    try:
+        totals = json.loads(_meta_get('ai_usage_totals') or '{}')
+    except (TypeError, ValueError):
+        totals = {}
+    cost = 0.0
+    calls = input_tokens = output_tokens = 0
+    for model, t in totals.items():
+        price = _AI_PRICING.get(model, _AI_PRICING['claude-opus-4-8'])
+        cost += t.get('input_tokens', 0) / 1_000_000 * price['input']
+        cost += t.get('output_tokens', 0) / 1_000_000 * price['output']
+        cost += t.get('cache_read_input_tokens', 0) / 1_000_000 * price['input'] * 0.1
+        cost += t.get('cache_creation_input_tokens', 0) / 1_000_000 * price['input'] * 1.25
+        calls += t.get('calls', 0)
+        input_tokens += t.get('input_tokens', 0)
+        output_tokens += t.get('output_tokens', 0)
+    return {'calls': calls, 'input_tokens': input_tokens, 'output_tokens': output_tokens,
+            'estimated_usd': round(cost, 4)}
+
+
+def _record_ai_usage(model: str, usage: dict) -> dict:
+    """Nutzung eines frischen KI-Aufrufs zu den Gesamt-Zählern (je Modell) addieren
+    und die aktualisierten Gesamtwerte zurückgeben."""
+    try:
+        totals = json.loads(_meta_get('ai_usage_totals') or '{}')
+    except (TypeError, ValueError):
+        totals = {}
+    t = totals.setdefault(model, {'input_tokens': 0, 'output_tokens': 0,
+                                   'cache_creation_input_tokens': 0,
+                                   'cache_read_input_tokens': 0, 'calls': 0})
+    for key in ('input_tokens', 'output_tokens', 'cache_creation_input_tokens',
+                'cache_read_input_tokens'):
+        t[key] += usage.get(key, 0)
+    t['calls'] += 1
+    _meta_set('ai_usage_totals', json.dumps(totals))
+    return _ai_usage_totals()
+
+
 def _ai_config():
     """(api_key, model) aus den Add-on-Optionen; model fällt auf Opus zurück,
     falls leer oder ungültig."""
@@ -2849,7 +2899,8 @@ def api_ai_hotel_summary():
     cache_key = str(giata) if giata else name.lower()
     cached = _ai_summary_cache.get(cache_key)
     if cached and time.time() - cached['ts'] < _AI_SUMMARY_TTL:
-        return jsonify({'summary': cached['summary'], 'usage': cached.get('usage'), 'cached': True})
+        return jsonify({'summary': cached['summary'], 'usage': cached.get('usage'),
+                        'totals': _ai_usage_totals(), 'cached': True})
 
     prompt = (
         "Erstelle eine ausführliche, ehrliche Einschätzung zu folgendem Hotel. "
@@ -2868,7 +2919,8 @@ def api_ai_hotel_summary():
     if err:
         return err
     _ai_summary_cache[cache_key] = {'summary': text, 'usage': usage, 'ts': time.time()}
-    return jsonify({'summary': text, 'usage': usage, 'cached': False})
+    totals = _record_ai_usage(model, usage)
+    return jsonify({'summary': text, 'usage': usage, 'totals': totals, 'cached': False})
 
 
 @app.route('/api/ai/hotel-compare', methods=['POST'])
@@ -2892,7 +2944,8 @@ def api_ai_hotel_compare():
                                           for h in hotels))
     cached = _ai_summary_cache.get(cache_key)
     if cached and time.time() - cached['ts'] < _AI_SUMMARY_TTL:
-        return jsonify({'summary': cached['summary'], 'usage': cached.get('usage'), 'cached': True})
+        return jsonify({'summary': cached['summary'], 'usage': cached.get('usage'),
+                        'totals': _ai_usage_totals(), 'cached': True})
 
     blocks = ["\n".join(_hotel_fact_lines(h, label=f"Hotel {i}"))
               for i, h in enumerate(hotels, 1)]
@@ -2917,7 +2970,8 @@ def api_ai_hotel_compare():
     if err:
         return err
     _ai_summary_cache[cache_key] = {'summary': text, 'usage': usage, 'ts': time.time()}
-    return jsonify({'summary': text, 'usage': usage, 'cached': False})
+    totals = _record_ai_usage(model, usage)
+    return jsonify({'summary': text, 'usage': usage, 'totals': totals, 'cached': False})
 
 
 _dest_cache: dict = {}     # parent → {parentName, items}
