@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.38.2] - 2026-07-04
+
+### Added
+- KI-Fazit/-Vergleich zeigt jetzt den Token-Verbrauch der Analyse an
+  (Input-/Output-Tokens, ggf. aus Prompt-Cache bediente Tokens; auch bei
+  gecachten Ergebnissen aus dem letzten Aufruf sichtbar).
+- „📄 PDF exportieren" im KI-Fazit/-Vergleich: öffnet eine druckoptimierte
+  Ansicht in neuem Tab, aus der sich der Browser-Druckdialog direkt als PDF
+  speichern lässt (kein Server-seitiges PDF-Rendering nötig).
+
+## [0.38.1] - 2026-07-04
+
+### Added
+- **KI-Hotelvergleich.** Checkbox je Suchergebnis zum Auswählen (max. 5);
+  schwebende Leiste mit „🤖 Vergleichen" ruft Claude einmal für alle
+  gewählten Hotels auf — Antwort inkl. Vergleichstabelle und Empfehlung,
+  welches Hotel für wen (Familie, Paar, Ruhe, …) am besten passt. Gilt für
+  Regionen-Suche und Suche aus einem Angebot gleichermaßen (gleicher Code).
+
+### Fixed
+- KI-Fazit/-Vergleich schlug mit Claude Haiku fehl (`does not support
+  programmatic tool calling`) — `web_search`-Tool braucht dafür explizit
+  `allowed_callers: ["direct"]`.
+
 ## [0.38.0] - 2026-07-04
 
 ### Added

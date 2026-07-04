@@ -2759,6 +2759,76 @@ def api_search():
                     'matched': len(out)})
 
 
+_AI_SECTIONS = (
+    "- Lage & Strand (Entfernung zu Strand/Zentrum, Umgebung)\n"
+    "- Zimmer (Größe, Zustand, Unterschiede zwischen Kategorien)\n"
+    "- Restaurants & Bars (Auswahl, Buffet vs. à la carte, Qualität)\n"
+    "- Pool, Wellness & Sport\n"
+    "- Ausstattung & Familientauglichkeit\n"
+)
+
+
+def _hotel_fact_lines(h: dict, *, label: str = "Hotel") -> list[str]:
+    """Fakten-Zeilen für einen Prompt-Block aus einem Suchergebnis-Objekt."""
+    name = (h.get('name') or '').strip()
+    location = (h.get('location') or '').strip()
+    country = (h.get('country') or '').strip()
+    lines = [f"{label}: {name}", f"Ort: {location}" + (f", {country}" if country else "")]
+    if h.get('stars'):
+        lines.append(f"Sterne: {h['stars']}")
+    if h.get('recommendation') is not None:
+        lines.append(f"HolidayCheck-Weiterempfehlung: {h['recommendation']}%"
+                      + (f" ({h['reviews']} Bewertungen)" if h.get('reviews') else ""))
+    if h.get('board'):
+        lines.append(f"Verpflegung im Angebot: {h['board']}")
+    if h.get('price'):
+        lines.append(f"Reisepreis: {h['price']} € p.P."
+                      + (f", {h['nights']} Nächte" if h.get('nights') else ""))
+    return lines
+
+
+def _ai_config():
+    """(api_key, model) aus den Add-on-Optionen; model fällt auf Opus zurück,
+    falls leer oder ungültig."""
+    cfg = load_config()
+    api_key = (cfg.get('anthropic_api_key') or '').strip()
+    model = cfg.get('anthropic_model') or 'claude-opus-4-8'
+    if model not in _AI_MODELS:
+        model = 'claude-opus-4-8'
+    return api_key, model
+
+
+def _ai_call(api_key: str, model: str, prompt: str, *, max_tokens: int, log_ctx: str):
+    """Claude mit Websuche aufrufen. Rückgabe: (text, usage, None) bei Erfolg,
+    (None, None, (jsonify(...), status)) bei Fehler/Refusal/leerer Antwort.
+    `usage` = {input_tokens, output_tokens, cache_creation_input_tokens,
+    cache_read_input_tokens} — fürs Anzeigen des Token-Verbrauchs im UI."""
+    try:
+        client = anthropic.Anthropic(api_key=api_key)
+        resp = client.messages.create(
+            model=model,
+            max_tokens=max_tokens,
+            # allowed_callers=["direct"]: Haiku unterstützt kein programmatic tool
+            # calling — ohne das Flag lehnt die API web_search auf diesem Modell ab.
+            tools=[{"type": "web_search_20260209", "name": "web_search",
+                    "allowed_callers": ["direct"]}],
+            messages=[{"role": "user", "content": prompt}],
+        )
+    except (anthropic.APIStatusError, anthropic.APIConnectionError) as e:
+        log.warning("KI-Anfrage fehlgeschlagen (%s): %s", log_ctx, e)
+        return None, None, (jsonify({'error': 'ai_failed'}), 502)
+    if resp.stop_reason == 'refusal':
+        return None, None, (jsonify({'error': 'ai_refused'}), 502)
+    text = "\n\n".join(b.text for b in resp.content if b.type == 'text').strip()
+    if not text:
+        return None, None, (jsonify({'error': 'ai_empty'}), 502)
+    u = resp.usage
+    usage = {'input_tokens': u.input_tokens, 'output_tokens': u.output_tokens,
+             'cache_creation_input_tokens': getattr(u, 'cache_creation_input_tokens', 0) or 0,
+             'cache_read_input_tokens': getattr(u, 'cache_read_input_tokens', 0) or 0}
+    return text, usage, None
+
+
 @app.route('/api/ai/hotel-summary', methods=['POST'])
 def api_ai_hotel_summary():
     """Ausführliche KI-Einschätzung zu einem Hotel aus den Suchergebnissen (Lage,
@@ -2767,11 +2837,7 @@ def api_ai_hotel_summary():
     Abrufe beim erneuten Öffnen zu vermeiden."""
     if (err := _require_api()):
         return err
-    cfg = load_config()
-    api_key = (cfg.get('anthropic_api_key') or '').strip()
-    model = cfg.get('anthropic_model') or 'claude-opus-4-8'
-    if model not in _AI_MODELS:
-        model = 'claude-opus-4-8'
+    api_key, model = _ai_config()
     if not api_key:
         return jsonify({'error': 'no_api_key',
                         'note': 'Kein Anthropic API-Key in den Add-on-Einstellungen hinterlegt'}), 400
@@ -2783,67 +2849,75 @@ def api_ai_hotel_summary():
     cache_key = str(giata) if giata else name.lower()
     cached = _ai_summary_cache.get(cache_key)
     if cached and time.time() - cached['ts'] < _AI_SUMMARY_TTL:
-        return jsonify({'summary': cached['summary'], 'cached': True})
-
-    location = (data.get('location') or '').strip()
-    country = (data.get('country') or '').strip()
-    stars = data.get('stars')
-    recommendation = data.get('recommendation')
-    reviews = data.get('reviews')
-    board = (data.get('board') or '').strip()
-    price = data.get('price')
-    nights = data.get('nights')
-
-    facts = [f"Hotel: {name}", f"Ort: {location}" + (f", {country}" if country else "")]
-    if stars:
-        facts.append(f"Sterne: {stars}")
-    if recommendation is not None:
-        facts.append(f"HolidayCheck-Weiterempfehlung: {recommendation}%"
-                      + (f" ({reviews} Bewertungen)" if reviews else ""))
-    if board:
-        facts.append(f"Verpflegung im Angebot: {board}")
-    if price:
-        facts.append(f"Reisepreis: {price} € p.P." + (f", {nights} Nächte" if nights else ""))
+        return jsonify({'summary': cached['summary'], 'usage': cached.get('usage'), 'cached': True})
 
     prompt = (
         "Erstelle eine ausführliche, ehrliche Einschätzung zu folgendem Hotel. "
         "Nutze die Websuche gezielt nach aktuellen Reisebewertungen (z. B. "
         "HolidayCheck, Tripadvisor, Google) und Hotel-Infoseiten.\n\n"
-        + "\n".join(facts) + "\n\n"
+        + "\n".join(_hotel_fact_lines(data)) + "\n\n"
         "Gliedere die Antwort in diese Abschnitte, gerne ausführlich:\n"
-        "- Lage & Strand (Entfernung zu Strand/Zentrum, Umgebung)\n"
-        "- Zimmer (Größe, Zustand, Unterschiede zwischen Kategorien)\n"
-        "- Restaurants & Bars (Auswahl, Buffet vs. à la carte, Qualität)\n"
-        "- Pool, Wellness & Sport\n"
-        "- Ausstattung & Familientauglichkeit\n"
-        "- Fazit: Preis-Leistung und für wen das Hotel geeignet ist\n\n"
+        + _AI_SECTIONS
+        + "- Fazit: Preis-Leistung und für wen das Hotel geeignet ist\n\n"
         "Schreibe auf Deutsch, sachlich, ausschließlich basierend auf dem, was du "
         "in den Bewertungen/Quellen findest. Wenn zu einem Punkt nichts "
         "Verlässliches auffindbar ist, sag das kurz statt zu spekulieren."
     )
 
-    try:
-        client = anthropic.Anthropic(api_key=api_key)
-        resp = client.messages.create(
-            model=model,
-            max_tokens=4096,
-            tools=[{"type": "web_search_20260209", "name": "web_search"}],
-            messages=[{"role": "user", "content": prompt}],
-        )
-    except anthropic.APIStatusError as e:
-        log.warning("KI-Zusammenfassung fehlgeschlagen (%s): %s", name, e)
-        return jsonify({'error': 'ai_failed'}), 502
-    except anthropic.APIConnectionError as e:
-        log.warning("KI-Zusammenfassung: Verbindungsfehler (%s): %s", name, e)
-        return jsonify({'error': 'ai_failed'}), 502
+    text, usage, err = _ai_call(api_key, model, prompt, max_tokens=4096, log_ctx=name)
+    if err:
+        return err
+    _ai_summary_cache[cache_key] = {'summary': text, 'usage': usage, 'ts': time.time()}
+    return jsonify({'summary': text, 'usage': usage, 'cached': False})
 
-    if resp.stop_reason == 'refusal':
-        return jsonify({'error': 'ai_refused'}), 502
-    text = "\n\n".join(b.text for b in resp.content if b.type == 'text').strip()
-    if not text:
-        return jsonify({'error': 'ai_empty'}), 502
-    _ai_summary_cache[cache_key] = {'summary': text, 'ts': time.time()}
-    return jsonify({'summary': text, 'cached': False})
+
+@app.route('/api/ai/hotel-compare', methods=['POST'])
+def api_ai_hotel_compare():
+    """Vergleicht 2–5 Hotels aus den Suchergebnissen in einem KI-Aufruf: gleiche
+    Kriterien wie beim Einzel-Fazit, plus Vergleichstabelle und Empfehlung, welches
+    Hotel für wen (Familie, Paar, Ruhe, …) am besten passt."""
+    if (err := _require_api()):
+        return err
+    api_key, model = _ai_config()
+    if not api_key:
+        return jsonify({'error': 'no_api_key',
+                        'note': 'Kein Anthropic API-Key in den Add-on-Einstellungen hinterlegt'}), 400
+    data = request.get_json(silent=True) or {}
+    hotels = [h for h in (data.get('hotels') or [])
+              if isinstance(h, dict) and (h.get('name') or '').strip()][:5]
+    if len(hotels) < 2:
+        return jsonify({'error': 'invalid'}), 400
+
+    cache_key = 'cmp:' + '|'.join(sorted(str(h.get('giata') or (h.get('name') or '').lower())
+                                          for h in hotels))
+    cached = _ai_summary_cache.get(cache_key)
+    if cached and time.time() - cached['ts'] < _AI_SUMMARY_TTL:
+        return jsonify({'summary': cached['summary'], 'usage': cached.get('usage'), 'cached': True})
+
+    blocks = ["\n".join(_hotel_fact_lines(h, label=f"Hotel {i}"))
+              for i, h in enumerate(hotels, 1)]
+    prompt = (
+        "Vergleiche ausführlich folgende Hotels für eine Reiseentscheidung. Nutze "
+        "die Websuche gezielt nach aktuellen Reisebewertungen (HolidayCheck, "
+        "Tripadvisor, Google) und Hotel-Infoseiten zu jedem einzelnen Hotel.\n\n"
+        + "\n\n".join(blocks) + "\n\n"
+        "Vergleiche entlang dieser Punkte, gerne ausführlich:\n"
+        + _AI_SECTIONS
+        + "- Preis-Leistung\n\n"
+        "Schließe mit einer kompakten Markdown-Tabelle (Hotel vs. Bewertung je "
+        "Punkt) und einer klaren Empfehlung, welches Hotel für wen (z. B. "
+        "Familie, Paar, Party, Ruhe) am besten passt. Schreibe auf Deutsch, "
+        "sachlich, ausschließlich basierend auf dem, was du in den "
+        "Bewertungen/Quellen findest. Wenn zu einem Punkt nichts Verlässliches "
+        "auffindbar ist, sag das kurz statt zu spekulieren."
+    )
+
+    text, usage, err = _ai_call(api_key, model, prompt, max_tokens=6144,
+                                log_ctx=f"Vergleich {len(hotels)} Hotels")
+    if err:
+        return err
+    _ai_summary_cache[cache_key] = {'summary': text, 'usage': usage, 'ts': time.time()}
+    return jsonify({'summary': text, 'usage': usage, 'cached': False})
 
 
 _dest_cache: dict = {}     # parent → {parentName, items}
