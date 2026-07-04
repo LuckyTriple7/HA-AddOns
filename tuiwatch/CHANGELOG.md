@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.38.7] - 2026-07-04
+
+### Added
+- Footer zeigt jetzt die Größe der SQLite-Datenbank an (z. B. „DB: 2.3 MB"),
+  aktualisiert alle 5 Minuten.
+
 ## [0.38.6] - 2026-07-04
 
 ### Added

@@ -470,6 +470,7 @@
     </div>
     <div id="offers"></div>
     <footer>TUIWatch &mdash; verfolgt TUI-Reisepreise · Prüfintervall: <span id="iv"></span>
+      · DB: <span id="db-size">…</span>
       · <span id="hc-foot" class="hc-foot" title="API-Status — klicken für Details &amp; neuen Test" onclick="openHealth()">API: <span id="hc-dot">…</span></span></footer>
   </div>
 
@@ -2947,6 +2948,18 @@
     loadNextTrip();
     setInterval(renderTripCountdown, 30000);
     setInterval(loadNextTrip, 300000);
+
+    function fmtBytes(n){
+      if(n < 1024) return n+' B';
+      if(n < 1024*1024) return (n/1024).toFixed(1)+' KB';
+      return (n/1024/1024).toFixed(1)+' MB';
+    }
+    async function loadDbSize(){
+      try { const d = await fetch(api('/api/dbsize')).then(r=>r.json()); $('#db-size').textContent = fmtBytes(d.bytes||0); }
+      catch(e){}
+    }
+    loadDbSize();
+    setInterval(loadDbSize, 300000);
   </script>
 </body>
 </html>

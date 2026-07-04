@@ -1805,6 +1805,18 @@ def health():
     return 'OK', 200
 
 
+@app.route('/api/dbsize', methods=['GET'])
+def api_dbsize():
+    """Größe der SQLite-Datei für die Footer-Anzeige."""
+    if (err := _require_api()):
+        return err
+    try:
+        size = os.path.getsize(DB_PATH)
+    except OSError:
+        size = 0
+    return jsonify({'bytes': size})
+
+
 # ── PWA (installierbar) ──────────────────────────────────────────────────────────
 
 @app.route('/manifest.json')
