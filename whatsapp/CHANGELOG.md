@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.7.29] - 2026-07-04
+- Neu: **Statusmeldungen von Kontakten ansehen** — im Profil-Popup (Klick auf Profilbild im Chat) werden jetzt die aktuellen WhatsApp-Status-Updates des Kontakts angezeigt (Text, Foto, Video mit Zeitpunkt). Nutzt `client.getBroadcastById()` aus whatsapp-web.js über neuen Endpoint `GET /api/status/:chatId`. Medien respektieren den bestehenden „Medien AN/AUS"-Schalter. Rein lesend — kein eigenes Senden von Status, keine sonstigen Änderungen am Popup
+
 ## [1.7.28] - 2026-07-03
 - Fix: Eigene Nachrichten erschienen gelegentlich **doppelt im Chat** (Anzeige-Bug, nicht doppelt versendet) — `sendMsg()` löst nach dem Senden sofort `pollMessages()` aus, das mit dem parallel laufenden 2s-Intervall kollidieren konnte; beide riefen `renderMessages()` mit derselben Nachricht auf, bevor der Zeitstempel-Cursor aktualisiert war. Chat wechseln entfernte die Dopplung, weil dabei neu vom Server geladen wurde. `renderMessages()` prüft jetzt vor jeder neuen Bubble, ob die Nachrichten-ID schon im DOM steht
 

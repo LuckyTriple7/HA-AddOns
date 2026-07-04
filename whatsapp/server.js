@@ -1485,6 +1485,34 @@ app.get('/api/contact/:chatId', async (req, res) => {
   }
 });
 
+app.get('/api/status/:chatId', async (req, res) => {
+  const chatId = req.params.chatId;
+  if (status !== 'connected') return res.status(503).json({ error: 'Not connected' });
+  try {
+    const broadcast = await client.getBroadcastById(chatId).catch(() => null);
+    const raw = broadcast?.msgs || [];
+    const msgs = [];
+    for (const m of raw) {
+      const isImage = m.type === 'image';
+      const isVideo = m.type === 'video';
+      let mediaFile = null;
+      if (DOWNLOAD_MEDIA && (isImage || isVideo) && m.hasMedia) {
+        mediaFile = await downloadWAMedia(m, m.id._serialized || m.id.id).catch(() => null);
+      }
+      msgs.push({
+        id: m.id._serialized || m.id.id,
+        type: isImage ? 'photo' : isVideo ? 'video' : 'text',
+        body: m.body || '',
+        timestamp: m.timestamp * 1000,
+        mediaFile,
+      });
+    }
+    res.json({ msgs });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ── Web UI ────────────────────────────────────────────────────────────────────
 const _SVG = {
   moon:       '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>',
@@ -1613,6 +1641,15 @@ app.get('/', (req, res) => {
     .contact-modal-pushname { font-size: 13px; color: #8696a0; }
     .contact-modal-number { font-size: 14px; color: #00a884; font-weight: 500; }
     .contact-modal-about { font-size: 13px; color: #8696a0; text-align: center; max-width: 260px; word-break: break-word; }
+    .contact-modal-status { display: none; flex-direction: column; gap: 8px; width: 100%; max-height: 240px; overflow-y: auto; }
+    .contact-modal-status.has-items { display: flex; }
+    .status-label { font-size: 12px; font-weight: 600; opacity: 0.6; }
+    .status-item { border-radius: 8px; padding: 6px; display: flex; flex-direction: column; gap: 4px; }
+    html.dark .status-item { background: rgba(255,255,255,0.05); }
+    html.light .status-item { background: rgba(0,0,0,0.05); }
+    .status-item img, .status-item video { max-width: 100%; max-height: 180px; border-radius: 6px; display: block; cursor: zoom-in; }
+    .status-item .status-text { font-size: 13px; word-break: break-word; }
+    .status-item .status-time { font-size: 11px; color: #8696a0; }
     .contact-modal-close { margin-top: 10px; border: none; border-radius: 8px; padding: 8px 28px; font-size: 14px; cursor: pointer; }
     html.dark .contact-modal-close { background: #2a3942; color: #e9edef; }
     html.light .contact-modal-close { background: #f0f2f5; color: #111; }
@@ -2073,7 +2110,8 @@ app.get('/', (req, res) => {
       <div class="contact-modal-pushname" id="contact-modal-pushname"></div>
       <div class="contact-modal-number" id="contact-modal-number"></div>
       <div class="contact-modal-about" id="contact-modal-about"></div>
-      <button class="contact-modal-close" onclick="closeContactModal()">Schließen</button>
+      <div class="contact-modal-status" id="contact-modal-status"></div>
+      <button class="contact-modal-close" onclick="closeContactModal()" data-i18n="btnClose">Schließen</button>
     </div>
   </div>
 
@@ -2179,6 +2217,7 @@ app.get('/', (req, res) => {
         errSend:(e)=>'Fehler: '+e, errNetwork:'Netzwerkfehler', locale:'de-DE',
         statsMsg:'Nachrichten', statsSince:'seit',
         offlineTitle:'Verbindung unterbrochen', offlineSub:'Stelle Verbindung wieder her…', offlineReload:'Neu laden',
+        btnClose:'Schließen', statusUpdates:'Status',
       },
       en: {
         spinnerConnecting:'Connecting to WhatsApp…', btnReset:'Reset Session',
@@ -2218,6 +2257,7 @@ app.get('/', (req, res) => {
         errSend:(e)=>'Error: '+e, errNetwork:'Network error', locale:'en-US',
         statsMsg:'messages', statsSince:'since',
         offlineTitle:'Connection lost', offlineSub:'Reconnecting…', offlineReload:'Reload',
+        btnClose:'Close', statusUpdates:'Status',
       },
     };
     const _browserLang = (navigator.language || '').toLowerCase().startsWith('de') ? 'de' : 'en';
@@ -3190,10 +3230,21 @@ app.get('/', (req, res) => {
       const pushnameEl = document.getElementById('contact-modal-pushname');
       const numberEl = document.getElementById('contact-modal-number');
       const aboutEl = document.getElementById('contact-modal-about');
+      const statusEl = document.getElementById('contact-modal-status');
       // Reset
       picEl.innerHTML = '…'; picEl.style.background = '#2a3942';
       nameEl.textContent = '…'; pushnameEl.textContent = ''; numberEl.textContent = ''; aboutEl.textContent = '';
+      statusEl.innerHTML = ''; statusEl.classList.remove('has-items');
       modal.classList.add('open');
+      fetch('api/status/' + encodeURIComponent(chatId)).then(r => r.json()).then(sd => {
+        if (!sd.msgs || !sd.msgs.length) return;
+        statusEl.innerHTML = '<div class="status-label">' + esc(t('statusUpdates')) + '</div>' +
+          sd.msgs.map(renderStatusItem).join('');
+        statusEl.classList.add('has-items');
+        statusEl.querySelectorAll('img.status-img').forEach(img => {
+          img.addEventListener('click', () => openLightbox(img.src));
+        });
+      }).catch(() => {});
       try {
         const data = await fetch('api/contact/' + encodeURIComponent(chatId)).then(r => r.json());
         const name = data.name || fallbackName || chatId;
@@ -3233,6 +3284,20 @@ app.get('/', (req, res) => {
         picEl.style.background = avatarColor(fallbackName || chatId);
         picEl.textContent = avatarInitials(fallbackName || chatId);
       }
+    }
+    function renderStatusItem(m) {
+      const time = fmtDate(m.timestamp) + ', ' + fmtTime(m.timestamp);
+      let inner;
+      if (m.type === 'photo' && m.mediaFile) {
+        inner = '<img class="status-img" src="api/media/' + encodeURIComponent(m.mediaFile) + '" loading="lazy">';
+      } else if (m.type === 'video' && m.mediaFile) {
+        inner = '<video controls src="api/media/' + encodeURIComponent(m.mediaFile) + '"></video>';
+      } else if (m.body) {
+        inner = '<div class="status-text">' + formatText(m.body) + '</div>';
+      } else {
+        return '';
+      }
+      return '<div class="status-item">' + inner + '<div class="status-time">' + esc(time) + '</div></div>';
     }
     function closeContactModal() {
       document.getElementById('contact-modal').classList.remove('open');
