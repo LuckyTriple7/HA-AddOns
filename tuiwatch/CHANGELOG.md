@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.37.5] - 2026-07-04
+
+### Fixed
+- Coupon-Sensor wird jetzt alle 2 Minuten erneut aus dem Cache an HA gemeldet
+  (Timer statt nur einmalig beim Add-on-Start) — bleibt so auch nach einem
+  reinen HA-Neustart verfügbar, ohne dass ein manueller "Suchen"-Klick nötig ist.
+
 ## [0.37.4] - 2026-07-04
 
 ### Fixed

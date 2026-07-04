@@ -1446,9 +1446,10 @@ def _run_aktionscodes() -> None:
 
 
 def _push_aktionscodes_sensor_from_cache() -> None:
-    """Beim Start Sensor sofort aus dem letzten gespeicherten Abruf setzen, statt auf den
-    nächsten (bis zu `aktionscode_interval` entfernten) Live-Abruf zu warten — sonst fehlt
-    der Sensor nach einem HA-Neustart, bis der Nutzer manuell auf 'Suchen' klickt."""
+    """Sensor aus dem letzten gespeicherten Abruf erneut an HA melden (kein Netz-Fetch).
+    Ein HA-Neustart (nicht der des Add-ons) wirft den Sensor aus HAs State-Machine —
+    erst ein erneutes Setzen bringt ihn zurück. Läuft daher per Timer alle 2 Minuten,
+    nicht nur einmalig beim Add-on-Start."""
     try:
         last = json.loads(_meta_get('aktion_last', '') or '{}')
     except Exception:
@@ -3812,15 +3813,28 @@ def api_console():
 
 # ── Start ──────────────────────────────────────────────────────────────────────
 
+def _aktionscodes_sensor_worker() -> None:
+    """Meldet den Coupon-Sensor alle 2 Minuten erneut aus dem Cache an HA — ein
+    HA-Neustart wirft den Sensor aus HAs State-Machine, das Add-on selbst läuft
+    dabei aber weiter und merkt davon nichts. Ohne diesen Timer bliebe der Sensor
+    bis zum nächsten Live-Abruf (Stunden) bzw. Add-on-Neustart verschwunden."""
+    while True:
+        try:
+            _push_aktionscodes_sensor_from_cache()
+        except Exception as e:
+            log.warning("Coupon-Sensor-Refresh fehlgeschlagen: %s", e)
+        time.sleep(120)
+
+
 def main() -> None:
     init_db()
     load_sessions()
     _spawn(push_ha_sensors)  # vorhandene Preise sofort als Sensoren melden
-    _spawn(_push_aktionscodes_sensor_from_cache)  # Coupon-Sensor sofort aus Cache melden
     _spawn(_notify_startup)  # kurze Telegram-Statusmeldung (falls konfiguriert)
     _spawn(_run_healthcheck)  # API-Erreichbarkeit beim Start prüfen
     _spawn(_ensure_dest_index)  # Reiseziel-Index (globale Suche) laden/aufbauen
     threading.Thread(target=_poll_worker, daemon=True).start()
+    threading.Thread(target=_aktionscodes_sensor_worker, daemon=True).start()
     port = int(os.environ.get('TUIWATCH_PORT', '17794'))
     log.info("TUIWatch startet auf Port %d", port)
     app.run(host='0.0.0.0', port=port, threaded=True)
