@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.38.6] - 2026-07-04
+
+### Added
+- **KI-Verlauf.** Neuer „🤖 KI-Verlauf"-Button oben neben „Alle prüfen":
+  zeigt alle bisherigen KI-Fazits/-Vergleiche (dauerhaft in der Datenbank
+  gespeichert, unabhängig vom 24h-Cache, bis zu 300 Einträge), anklickbar
+  zum erneuten Anzeigen, einzeln löschbar.
+
+### Changed
+- Alle KI-Buttons (Fazit, Vergleich in Suche & Angebotsübersicht,
+  KI-Verlauf) sind nur noch sichtbar, wenn ein Anthropic API-Key in den
+  Add-on-Einstellungen hinterlegt ist.
+
 ## [0.38.5] - 2026-07-04
 
 ### Added

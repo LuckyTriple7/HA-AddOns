@@ -357,6 +357,17 @@ def init_db() -> None:
             con.execute("ALTER TABLE saved_searches ADD COLUMN seen TEXT DEFAULT '{}'")
         if 'hits' not in scols:
             con.execute("ALTER TABLE saved_searches ADD COLUMN hits TEXT DEFAULT '[]'")
+        # Verlauf der KI-Fazits/-Vergleiche (dauerhaft, unabhängig vom 24h-Cache in
+        # _ai_summary_cache) — damit frühere Analysen später wieder einsehbar sind.
+        con.execute('''CREATE TABLE IF NOT EXISTS ai_analyses (
+            id      INTEGER PRIMARY KEY AUTOINCREMENT,
+            kind    TEXT NOT NULL,
+            title   TEXT NOT NULL,
+            model   TEXT NOT NULL DEFAULT '',
+            summary TEXT NOT NULL,
+            usage   TEXT DEFAULT '{}',
+            ts      INTEGER NOT NULL
+        )''')
         # Reisen-Datenbank: gebuchte Reisen (PDF-Import). data = komplettes Parse-JSON,
         # pdf_name = Dateiname im TRIPS_DIR (dauerhaft gespeichert).
         con.execute('''CREATE TABLE IF NOT EXISTS trips (
@@ -1888,7 +1899,8 @@ def index():
     cfg = load_config()
     return make_response(render_template(
         'index.html', script_root=request.script_root,
-        poll_interval=int(cfg.get('poll_interval', POLL_INTERVAL_DEFAULT))))
+        poll_interval=int(cfg.get('poll_interval', POLL_INTERVAL_DEFAULT)),
+        ai_enabled=bool((cfg.get('anthropic_api_key') or '').strip())))
 
 
 # ── Routen: API ────────────────────────────────────────────────────────────────
@@ -2846,6 +2858,20 @@ def _record_ai_usage(model: str, usage: dict) -> dict:
     return _ai_usage_totals()
 
 
+_AI_HISTORY_MAX = 300  # ältere Einträge werden beim Speichern verworfen
+
+
+def _save_ai_analysis(kind: str, title: str, model: str, text: str, usage: dict) -> None:
+    """Fertiges KI-Fazit/-Vergleich dauerhaft ablegen, damit es später über den
+    KI-Verlauf wieder einsehbar ist (unabhängig vom 24h-Cache)."""
+    with db() as con:
+        con.execute('INSERT INTO ai_analyses (kind, title, model, summary, usage, ts) '
+                    'VALUES (?,?,?,?,?,?)',
+                    (kind, title[:300], model, text, json.dumps(usage or {}), int(time.time())))
+        con.execute('DELETE FROM ai_analyses WHERE id NOT IN '
+                    '(SELECT id FROM ai_analyses ORDER BY id DESC LIMIT ?)', (_AI_HISTORY_MAX,))
+
+
 def _ai_config():
     """(api_key, model) aus den Add-on-Optionen; model fällt auf Opus zurück,
     falls leer oder ungültig."""
@@ -2931,6 +2957,7 @@ def api_ai_hotel_summary():
         return err
     _ai_summary_cache[cache_key] = {'summary': text, 'usage': usage, 'ts': time.time()}
     totals = _record_ai_usage(model, usage)
+    _save_ai_analysis('single', name, model, text, usage)
     return jsonify({'summary': text, 'usage': usage, 'totals': totals, 'cached': False})
 
 
@@ -2984,7 +3011,47 @@ def api_ai_hotel_compare():
         return err
     _ai_summary_cache[cache_key] = {'summary': text, 'usage': usage, 'ts': time.time()}
     totals = _record_ai_usage(model, usage)
+    title = ' · '.join(h.get('name', '') for h in hotels)
+    _save_ai_analysis('compare', title, model, text, usage)
     return jsonify({'summary': text, 'usage': usage, 'totals': totals, 'cached': False})
+
+
+@app.route('/api/ai/history', methods=['GET'])
+def api_ai_history():
+    """Liste bisheriger KI-Fazits/-Vergleiche (neueste zuerst) für den KI-Verlauf."""
+    if (err := _require_api()):
+        return err
+    with db() as con:
+        rows = con.execute(
+            'SELECT id, kind, title, model, ts, substr(summary,1,160) AS preview '
+            'FROM ai_analyses ORDER BY id DESC LIMIT ?', (_AI_HISTORY_MAX,)).fetchall()
+    return jsonify({'items': [dict(r) for r in rows]})
+
+
+@app.route('/api/ai/history/<int:aid>', methods=['GET'])
+def api_ai_history_get(aid: int):
+    """Vollständigen gespeicherten Analyse-Eintrag laden (fürs erneute Anzeigen)."""
+    if (err := _require_api()):
+        return err
+    with db() as con:
+        row = con.execute('SELECT * FROM ai_analyses WHERE id=?', (aid,)).fetchone()
+    if not row:
+        return jsonify({'error': 'not_found'}), 404
+    d = dict(row)
+    try:
+        d['usage'] = json.loads(d.get('usage') or '{}')
+    except (TypeError, ValueError):
+        d['usage'] = {}
+    return jsonify(d)
+
+
+@app.route('/api/ai/history/<int:aid>', methods=['DELETE'])
+def api_ai_history_delete(aid: int):
+    if (err := _require_api()):
+        return err
+    with db() as con:
+        con.execute('DELETE FROM ai_analyses WHERE id=?', (aid,))
+    return jsonify({'ok': True})
 
 
 _dest_cache: dict = {}     # parent → {parentName, items}
