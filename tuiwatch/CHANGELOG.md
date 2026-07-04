@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.38.8] - 2026-07-04
+
+### Added
+- Geschätzte Kosten (≈ $X.XX) jetzt auch pro einzelner Analyse sichtbar,
+  nicht nur als Gesamtsumme — landet damit auch im KI-Verlauf (ältere,
+  vor diesem Update gespeicherte Einträge zeigen sie mangels
+  gespeichertem Wert nicht nachträglich an).
+
 ## [0.38.7] - 2026-07-04
 
 ### Added

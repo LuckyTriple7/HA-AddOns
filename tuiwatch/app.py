@@ -2830,6 +2830,16 @@ _AI_PRICING = {  # USD pro 1 Mio Tokens (Input/Output) — Anthropic-Listenpreis
 }
 
 
+def _ai_call_cost(model: str, usage: dict) -> float:
+    """Geschätzte Kosten (USD) für genau diesen einen Aufruf."""
+    price = _AI_PRICING.get(model, _AI_PRICING['claude-opus-4-8'])
+    cost = usage.get('input_tokens', 0) / 1_000_000 * price['input']
+    cost += usage.get('output_tokens', 0) / 1_000_000 * price['output']
+    cost += usage.get('cache_read_input_tokens', 0) / 1_000_000 * price['input'] * 0.1
+    cost += usage.get('cache_creation_input_tokens', 0) / 1_000_000 * price['input'] * 1.25
+    return round(cost, 4)
+
+
 def _ai_usage_totals() -> dict:
     """Aufsummierte Token-Nutzung + grob geschätzte Kosten (USD) seit Add-on-Start,
     je Modell separat verrechnet (unterschiedliche Preise)."""
@@ -2967,6 +2977,7 @@ def api_ai_hotel_summary():
     text, usage, err = _ai_call(api_key, model, prompt, max_tokens=4096, log_ctx=name)
     if err:
         return err
+    usage['estimated_usd'] = _ai_call_cost(model, usage)
     _ai_summary_cache[cache_key] = {'summary': text, 'usage': usage, 'ts': time.time()}
     totals = _record_ai_usage(model, usage)
     _save_ai_analysis('single', name, model, text, usage)
@@ -3021,6 +3032,7 @@ def api_ai_hotel_compare():
                                 log_ctx=f"Vergleich {len(hotels)} Hotels")
     if err:
         return err
+    usage['estimated_usd'] = _ai_call_cost(model, usage)
     _ai_summary_cache[cache_key] = {'summary': text, 'usage': usage, 'ts': time.time()}
     totals = _record_ai_usage(model, usage)
     title = ' · '.join(h.get('name', '') for h in hotels)
