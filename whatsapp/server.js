@@ -3380,9 +3380,11 @@ app.get('/', (req, res) => {
       fetch('api/status-archive/' + encodeURIComponent(chatId)).then(r => r.json()).then(sd => {
         if (!sd.msgs || !sd.msgs.length) return;
         archiveEl.innerHTML = '<div class="status-label">' + esc(t('statusArchive')) +
-          ' <button class="status-archive-clear" onclick="clearStatusArchive(\'' + chatId.replace(/'/g, "\\'") + '\')">🗑 ' + esc(t('archiveClear')) + '</button></div>' +
+          ' <button class="status-archive-clear">🗑 ' + esc(t('archiveClear')) + '</button></div>' +
           sd.msgs.map(renderArchiveItem).join('');
         archiveEl.classList.add('has-items');
+        const clearBtn = archiveEl.querySelector('.status-archive-clear');
+        if (clearBtn) clearBtn.addEventListener('click', () => clearStatusArchive(chatId));
         archiveEl.querySelectorAll('img.status-img').forEach(img => {
           img.addEventListener('click', () => openLightbox(img.src));
         });

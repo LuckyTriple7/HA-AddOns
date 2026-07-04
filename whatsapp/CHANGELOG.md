@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.7.34] - 2026-07-04
+- Fix: **UI blieb erneut bei „Verbinde mit WhatsApp…" hängen**, gleiche Ursache wie 1.7.33 an anderer Stelle — der „Archiv leeren"-Button baute sein `onclick`-Attribut per String-Verkettung mit escapten Anführungszeichen (`\'`), die vom äußeren Template-String in `server.js` verschluckt wurden und im Browser zu `Uncaught SyntaxError: Unexpected string` führten. Behoben durch Verzicht auf inline-`onclick` mit eingebetteten Werten — der Button bekommt seinen Klick-Handler jetzt per `addEventListener` (gleiches Muster wie die Lightbox-Klicks direkt daneben), keine Anführungszeichen-Verschachtelung mehr nötig
+- Neu: Test-Skript, das den kompletten eingebetteten Frontend-`<script>`-Block aus `server.js` extrahiert und mit `node --check` prüft (`node --check` allein sieht nur `server.js` als Ganzes, nicht den Inhalt des Template-Strings) — wird ab jetzt vor jedem Push geprüft, der den Web-UI-Code ändert
+
 ## [1.7.33] - 2026-07-04
 - Fix: **UI blieb dauerhaft bei „Verbinde mit WhatsApp…" hängen** — der englische Text für `archiveClearConfirm` enthielt ein escaptes Apostroph (`contact\'s`). Da der komplette Web-UI-Code in `server.js` selbst in einem JS-Template-String steckt, frisst dessen äußeres Escaping das `\'` weg, bevor es den Browser erreicht — im Browser blieb ein unescaptes `'` mitten im String übrig, was den kompletten eingebetteten `<script>`-Block zum Absturz brachte (`Uncaught SyntaxError: Unexpected identifier 's'`), noch bevor der Status-Poll überhaupt laufen konnte. Text umformuliert, keine Apostrophe mehr in eingebetteten UI-Strings
 
