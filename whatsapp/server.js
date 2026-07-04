@@ -140,6 +140,9 @@ const seenIds = new Set();
 const CHATS_FILE = '/config/chats.json';
 const MESSAGES_FILE = '/config/messages.json';
 const REACTIONS_FILE = '/config/reactions.json';
+const STATUS_ARCHIVE_FILE = '/config/status_archive.json';
+const statusArchiveByChatId = new Map(); // chatId -> [{id, type, body, mediaFile, timestamp}]
+const archiveSeenIds = new Set();
 const reactionsCache = new Map(); // msgId -> { emoji: [senderJid, ...] }
 
 // Eigene Reaktionen werden unabhängig von JID-Formaten getrackt.
@@ -197,6 +200,19 @@ try {
 } catch (e) { console.error('[ERROR] loadMessages:', e.message); }
 
 try {
+  if (existsSync(STATUS_ARCHIVE_FILE)) {
+    const data = JSON.parse(fs.readFileSync(STATUS_ARCHIVE_FILE, 'utf8'));
+    let total = 0;
+    for (const [chatId, entries] of Object.entries(data)) {
+      statusArchiveByChatId.set(chatId, entries);
+      for (const e of entries) archiveSeenIds.add(e.id);
+      total += entries.length;
+    }
+    console.log(`[INFO] Loaded ${total} archived status updates from disk`);
+  }
+} catch (e) { console.error('[ERROR] loadStatusArchive:', e.message); }
+
+try {
   let best = null;
   for (const [chatId, msgs] of messagesByChatId.entries()) {
     const chat = chatMap.get(chatId);
@@ -239,6 +255,18 @@ function saveMsgs() {
       for (const [chatId, msgs] of messagesByChatId.entries()) msgsObj[chatId] = msgs;
       fs.writeFileSync(MESSAGES_FILE, JSON.stringify(msgsObj));
     } catch (e) { console.error('[ERROR] saveMsgs:', e.message); }
+  }, 3000);
+}
+
+let statusArchiveSaveTimer = null;
+function saveStatusArchive() {
+  if (statusArchiveSaveTimer) clearTimeout(statusArchiveSaveTimer);
+  statusArchiveSaveTimer = setTimeout(() => {
+    try {
+      const obj = {};
+      for (const [chatId, entries] of statusArchiveByChatId.entries()) obj[chatId] = entries;
+      fs.writeFileSync(STATUS_ARCHIVE_FILE, JSON.stringify(obj));
+    } catch (e) { console.error('[ERROR] saveStatusArchive:', e.message); }
   }, 3000);
 }
 
@@ -491,6 +519,8 @@ client.on('ready', async () => {
   } catch (err) {
     console.warn('[WARN] Could not load recent messages:', err.message);
   }
+
+  captureStatuses().catch(e => dbg('captureStatuses (ready):', e.message));
 });
 
 client.on('disconnected', (reason) => {
@@ -999,6 +1029,42 @@ setInterval(async () => {
   }
 }, 600000);
 
+// Sammelt aktuell laufende Statusmeldungen aller Kontakte dauerhaft ein, solange
+// KEEP_DELETED aktiv ist — WhatsApp löscht Status nach 24h, unsere Kopie bleibt.
+async function captureStatuses() {
+  if (status !== 'connected' || !KEEP_DELETED) return;
+  try {
+    const broadcasts = await client.getBroadcasts();
+    let dirty = false;
+    for (const b of broadcasts) {
+      const chatId = b.id?._serialized;
+      if (!chatId || !b.msgs?.length) continue;
+      for (const m of b.msgs) {
+        const msgId = m.id._serialized || m.id.id;
+        if (archiveSeenIds.has(msgId)) continue;
+        const isImage = m.type === 'image';
+        const isVideo = m.type === 'video';
+        let mediaFile = null;
+        if (DOWNLOAD_MEDIA && (isImage || isVideo) && m.hasMedia) {
+          mediaFile = await downloadWAMedia(m, msgId).catch(() => null);
+        }
+        if (!statusArchiveByChatId.has(chatId)) statusArchiveByChatId.set(chatId, []);
+        statusArchiveByChatId.get(chatId).push({
+          id: msgId,
+          type: isImage ? 'photo' : isVideo ? 'video' : 'text',
+          body: m.body || '',
+          timestamp: m.timestamp * 1000,
+          mediaFile,
+        });
+        archiveSeenIds.add(msgId);
+        dirty = true;
+      }
+    }
+    if (dirty) saveStatusArchive();
+  } catch (e) { dbg('captureStatuses:', e.message); }
+}
+setInterval(captureStatuses, 900000);
+
 async function reinitClient() {
   _intentionalDisconnect = true;
   status = 'initializing';
@@ -1115,6 +1181,9 @@ app.post('/api/cleanup-media', (req, res) => {
     for (const msgs of messagesByChatId.values())
       for (const m of msgs)
         if (m.mediaFile) referenced.add(m.mediaFile);
+    for (const entries of statusArchiveByChatId.values())
+      for (const e of entries)
+        if (e.mediaFile) referenced.add(e.mediaFile);
     const files = fs.readdirSync(MEDIA_DIR);
     let count = 0, freed = 0;
     for (const f of files) {
@@ -1524,6 +1593,28 @@ app.get('/api/status/:chatId', async (req, res) => {
   }
 });
 
+app.get('/api/status-archive/:chatId', (req, res) => {
+  const entries = statusArchiveByChatId.get(req.params.chatId) || [];
+  const msgs = [...entries].sort((a, b) => b.timestamp - a.timestamp);
+  res.json({ msgs });
+});
+
+app.post('/api/status-archive/:chatId/clear', (req, res) => {
+  const chatId = req.params.chatId;
+  const entries = statusArchiveByChatId.get(chatId) || [];
+  for (const e of entries) {
+    if (!e.mediaFile) continue;
+    try {
+      const fp = path.resolve(MEDIA_DIR, e.mediaFile);
+      if (fp.startsWith(path.resolve(MEDIA_DIR) + path.sep)) fs.unlinkSync(fp);
+    } catch(e) {}
+    archiveSeenIds.delete(e.id);
+  }
+  statusArchiveByChatId.delete(chatId);
+  saveStatusArchive();
+  res.json({ success: true });
+});
+
 // ── Web UI ────────────────────────────────────────────────────────────────────
 const _SVG = {
   moon:       '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>',
@@ -1659,7 +1750,9 @@ app.get('/', (req, res) => {
     .contact-modal-about { font-size: 13px; color: #8696a0; text-align: center; max-width: 260px; word-break: break-word; }
     .contact-modal-status { display: none; flex-direction: column; gap: 8px; width: 100%; max-height: 240px; overflow-y: auto; }
     .contact-modal-status.has-items { display: flex; }
-    .status-label { font-size: 12px; font-weight: 600; opacity: 0.6; }
+    .status-label { font-size: 12px; font-weight: 600; opacity: 0.6; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .status-archive-clear { background: none; border: none; color: inherit; opacity: 0.7; font-size: 11px; cursor: pointer; padding: 2px 4px; }
+    .status-archive-clear:hover { opacity: 1; }
     .status-item { border-radius: 8px; padding: 6px; display: flex; flex-direction: column; gap: 4px; }
     html.dark .status-item { background: rgba(255,255,255,0.05); }
     html.light .status-item { background: rgba(0,0,0,0.05); }
@@ -2127,6 +2220,7 @@ app.get('/', (req, res) => {
       <div class="contact-modal-number" id="contact-modal-number"></div>
       <div class="contact-modal-about" id="contact-modal-about"></div>
       <div class="contact-modal-status" id="contact-modal-status"></div>
+      <div class="contact-modal-status" id="contact-modal-archive"></div>
       <button class="contact-modal-close" onclick="closeContactModal()" data-i18n="btnClose">Schließen</button>
     </div>
   </div>
@@ -2234,6 +2328,7 @@ app.get('/', (req, res) => {
         statsMsg:'Nachrichten', statsSince:'seit',
         offlineTitle:'Verbindung unterbrochen', offlineSub:'Stelle Verbindung wieder her…', offlineReload:'Neu laden',
         btnClose:'Schließen', statusUpdates:'Status',
+        statusArchive:'Archiv', archiveClear:'Archiv leeren', archiveClearConfirm:'Archiv für diesen Kontakt wirklich löschen?',
       },
       en: {
         spinnerConnecting:'Connecting to WhatsApp…', btnReset:'Reset Session',
@@ -2274,6 +2369,7 @@ app.get('/', (req, res) => {
         statsMsg:'messages', statsSince:'since',
         offlineTitle:'Connection lost', offlineSub:'Reconnecting…', offlineReload:'Reload',
         btnClose:'Close', statusUpdates:'Status',
+        statusArchive:'Archive', archiveClear:'Clear archive', archiveClearConfirm:'Really delete this contact\'s archive?',
       },
     };
     const _browserLang = (navigator.language || '').toLowerCase().startsWith('de') ? 'de' : 'en';
@@ -3256,10 +3352,12 @@ app.get('/', (req, res) => {
       const numberEl = document.getElementById('contact-modal-number');
       const aboutEl = document.getElementById('contact-modal-about');
       const statusEl = document.getElementById('contact-modal-status');
+      const archiveEl = document.getElementById('contact-modal-archive');
       // Reset
       picEl.innerHTML = '…'; picEl.style.background = '#2a3942';
       nameEl.textContent = '…'; pushnameEl.textContent = ''; numberEl.textContent = ''; aboutEl.textContent = '';
       statusEl.innerHTML = ''; statusEl.classList.remove('has-items');
+      archiveEl.innerHTML = ''; archiveEl.classList.remove('has-items');
       modal.classList.add('open');
       fetch('api/status/' + encodeURIComponent(chatId)).then(r => r.json()).then(sd => {
         if (!sd.msgs || !sd.msgs.length) return;
@@ -3267,6 +3365,16 @@ app.get('/', (req, res) => {
           sd.msgs.map(renderStatusItem).join('');
         statusEl.classList.add('has-items');
         statusEl.querySelectorAll('img.status-img').forEach(img => {
+          img.addEventListener('click', () => openLightbox(img.src));
+        });
+      }).catch(() => {});
+      fetch('api/status-archive/' + encodeURIComponent(chatId)).then(r => r.json()).then(sd => {
+        if (!sd.msgs || !sd.msgs.length) return;
+        archiveEl.innerHTML = '<div class="status-label">' + esc(t('statusArchive')) +
+          ' <button class="status-archive-clear" onclick="clearStatusArchive(\'' + chatId.replace(/'/g, "\\'") + '\')">🗑 ' + esc(t('archiveClear')) + '</button></div>' +
+          sd.msgs.map(renderArchiveItem).join('');
+        archiveEl.classList.add('has-items');
+        archiveEl.querySelectorAll('img.status-img').forEach(img => {
           img.addEventListener('click', () => openLightbox(img.src));
         });
       }).catch(() => {});
@@ -3323,6 +3431,29 @@ app.get('/', (req, res) => {
         return '';
       }
       return '<div class="status-item">' + inner + '<div class="status-time">' + esc(time) + '</div></div>';
+    }
+    function renderArchiveItem(m) {
+      const time = fmtDate(m.timestamp) + ', ' + fmtTime(m.timestamp);
+      let inner;
+      if (m.type === 'photo' && m.mediaFile) {
+        inner = '<img class="status-img" src="api/media/' + encodeURIComponent(m.mediaFile) + '" loading="lazy">';
+      } else if (m.type === 'video' && m.mediaFile) {
+        inner = '<video controls src="api/media/' + encodeURIComponent(m.mediaFile) + '"></video>';
+      } else if (m.body) {
+        inner = '<div class="status-text">' + formatText(m.body) + '</div>';
+      } else {
+        return '';
+      }
+      return '<div class="status-item">' + inner + '<div class="status-time">' + esc(time) + '</div></div>';
+    }
+    async function clearStatusArchive(chatId) {
+      if (!confirm(t('archiveClearConfirm'))) return;
+      try {
+        await fetch('api/status-archive/' + encodeURIComponent(chatId) + '/clear', { method: 'POST' });
+        const archiveEl = document.getElementById('contact-modal-archive');
+        archiveEl.innerHTML = '';
+        archiveEl.classList.remove('has-items');
+      } catch(e) {}
     }
     function closeContactModal() {
       document.getElementById('contact-modal').classList.remove('open');

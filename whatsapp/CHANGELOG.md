@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.7.31] - 2026-07-04
+- Neu: **Status-Archiv pro Kontakt** — abgelaufene Statusmeldungen (WhatsApp löscht sie nach 24h) bleiben jetzt dauerhaft im Profil-Popup sichtbar (Datum/Uhrzeit inklusive), solange die Add-on-Option **„Gelöschte Nachrichten behalten"** aktiv ist. Ein Hintergrund-Job (`captureStatuses()`, alle 15 Min. + sofort nach Verbindungsaufbau) sammelt neue Status aller Kontakte über `client.getBroadcasts()` ein und speichert sie in `/config/status_archive.json`. Pro Kontakt gibt's einen „🗑 Archiv leeren"-Button. `api/cleanup-media` (verwaiste Mediendateien löschen) berücksichtigt archivierte Medien jetzt ebenfalls, damit sie dabei nicht versehentlich gelöscht werden
+  - Bekannte Grenze: ein Status, der innerhalb der 15-Minuten-Lücke gepostet und wieder gelöscht wird, kann verpasst werden
+  - Kein Größenlimit auf `status_archive.json` selbst (bewusst, da unbegrenzte Aufbewahrung gewünscht) — nur die Mediendateien unterliegen wie gehabt dem Speicherlimit
+
 ## [1.7.30] - 2026-07-04
 - Neu: **Status-Ring in der Kontaktliste** — Kontakte mit aktiven Statusmeldungen bekommen einen pulsierenden grünen Ring ums Profilbild. Neuer Endpoint `GET /api/statuses-available` (`client.getBroadcasts()`) wird alle 30s abgefragt, direkt nach Verbindungsaufbau einmal sofort
 
