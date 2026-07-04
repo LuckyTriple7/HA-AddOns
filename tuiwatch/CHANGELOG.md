@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.39.18] - 2026-07-04
+
+### Changed
+- **Wind-Vergleich im Hotelvergleich verschärft.** Wind ist jetzt ein
+  eigener Kriterien-Punkt (statt im Klima-Satz versteckt): pro Hotel eine
+  konkrete Zahl (km/h/Beaufort, Reisemonat, ortsgenau), keine allgemeinen
+  Regionsangaben. Landet zusätzlich als eigene Zeile mit direktem
+  Zahlenvergleich in der Abschluss-Tabelle statt nur als Fließtext.
+
 ## [0.39.17] - 2026-07-04
 
 ### Fixed

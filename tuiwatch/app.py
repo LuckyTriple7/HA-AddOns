@@ -70,7 +70,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.39.17"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.39.18"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -2868,12 +2868,16 @@ _AI_SECTIONS = (
     "- Pool, Wellness & Sport\n"
     "- Ausstattung & Familientauglichkeit\n"
     "- Klima zur Reisezeit: historische Klimawerte für Ort und Reisemonat — "
-    "durchschnittliche Wassertemperatur, Lufttemperatur, Sonnenstunden/Regentage "
-    "und Windverhältnisse, möglichst ortsgenau für das jeweilige Hotel/den "
-    "Küstenabschnitt statt nur fürs Land als Ganzes recherchiert über "
-    "Klimatabellen (z. B. Seetemperatur- und Klima-Seiten für den Ort/Monat). "
-    "Keine Tagesvorhersage, sondern der langjährige Durchschnitt für diese "
-    "Jahreszeit\n"
+    "durchschnittliche Wassertemperatur, Lufttemperatur, Sonnenstunden/Regentage, "
+    "möglichst ortsgenau für das jeweilige Hotel/den Küstenabschnitt statt nur "
+    "fürs Land als Ganzes recherchiert über Klimatabellen (z. B. Seetemperatur- "
+    "und Klima-Seiten für den Ort/Monat). Keine Tagesvorhersage, sondern der "
+    "langjährige Durchschnitt für diese Jahreszeit\n"
+    "- Wind: für jedes Hotel einzeln eine konkrete Zahl nennen (km/h oder "
+    "Beaufort, für den Reisemonat, ortsgenau recherchiert) — keine allgemeinen "
+    "Regionsangaben („in der Region weht oft Wind“), sondern explizit pro "
+    "Hotel/Ort. Vergleiche die Werte direkt: welches Hotel ist spürbar "
+    "windiger/ruhiger als die anderen\n"
 )
 
 
@@ -2923,7 +2927,8 @@ _DEFAULT_COMPARE_INSTRUCTIONS = (
     "möglichst ortsgenau je Hotel statt nur fürs Land als Ganzes.\n\n"
     "Vergleiche entlang dieser Punkte, gerne ausführlich:\n"
     + _AI_SECTIONS + "- Preis-Leistung\n\n"
-    "Schließe mit einer kompakten Markdown-Tabelle (Hotel vs. Bewertung je Punkt) und "
+    "Schließe mit einer kompakten Markdown-Tabelle (Hotel vs. Bewertung je Punkt, "
+    "Wind als eigene Zeile mit konkreten km/h-Werten je Hotel) und "
     "einer klaren Empfehlung, welches Hotel für wen (z. B. Familie, Paar, Party, Ruhe) "
     "am besten passt. Schreibe auf Deutsch, sachlich, ausschließlich basierend auf dem, "
     "was du in den Bewertungen/Quellen findest. Wenn zu einem Punkt nichts Verlässliches "
