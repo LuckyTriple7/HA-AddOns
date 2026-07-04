@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.39.21] - 2026-07-04
+
+### Fixed
+- **Du-Anrede fehlte noch bei Hotelvergleich, KI-Fazit, Frag dein Portfolio
+  und Wochenüberblick** — nur der Reiseberater hatte die Anweisung, die
+  anderen KI-Antworten fielen auf Claudes Standard („Sie") zurück. Jetzt
+  überall explizit „Du" vorgegeben.
+- Hotelvergleich/KI-Fazit gaben teils Rechercheerzählung aus („Ich werde
+  jetzt recherchieren…", „Lassen Sie mich noch prüfen…") statt direkt der
+  fertigen Antwort — jetzt explizit im Prompt unterbunden.
+
 ## [0.39.20] - 2026-07-04
 
 ### Docs

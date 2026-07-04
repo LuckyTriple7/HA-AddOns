@@ -70,7 +70,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.39.20"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.39.21"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -1672,10 +1672,11 @@ def _ai_digest_summary(offers, drops, rises, lows, under, trips, akc) -> str | N
 
     prompt = (
         "Fasse folgenden wöchentlichen Reisepreis-Überblick in 2-4 knappen Sätzen "
-        "auf Deutsch zusammen — für jemanden, der die Details gleich darunter noch "
-        "in Listenform sieht. Hebe das Wichtigste hervor (größte Ersparnis, "
-        "dringendste Gelegenheit); keine Wiederholung aller Einzelwerte, kein "
-        "Fließtext-Vorspann wie 'Hier ist eine Zusammenfassung'.\n\n"
+        "auf Deutsch zusammen, sprich den Nutzer dabei mit „Du“ an (informell, nicht "
+        "„Sie“) — für jemanden, der die Details gleich darunter noch in Listenform "
+        "sieht. Hebe das Wichtigste hervor (größte Ersparnis, dringendste "
+        "Gelegenheit); keine Wiederholung aller Einzelwerte, kein Fließtext-Vorspann "
+        "wie 'Hier ist eine Zusammenfassung'.\n\n"
         + "\n".join(lines)
     )
     try:
@@ -2930,9 +2931,12 @@ _DEFAULT_COMPARE_INSTRUCTIONS = (
     "Schließe mit einer kompakten Markdown-Tabelle (Hotel vs. Bewertung je Punkt, "
     "Wind als eigene Zeile mit konkreten km/h-Werten je Hotel) und "
     "einer klaren Empfehlung, welches Hotel für wen (z. B. Familie, Paar, Party, Ruhe) "
-    "am besten passt. Schreibe auf Deutsch, sachlich, ausschließlich basierend auf dem, "
+    "am besten passt. Schreibe auf Deutsch, sprich den Nutzer dabei durchgehend mit "
+    "„Du“ an (informell, nicht „Sie“), sachlich, ausschließlich basierend auf dem, "
     "was du in den Bewertungen/Quellen findest. Wenn zu einem Punkt nichts Verlässliches "
-    "auffindbar ist, sag das kurz statt zu spekulieren."
+    "auffindbar ist, sag das kurz statt zu spekulieren. Gib direkt die fertige Antwort "
+    "aus — keine Zwischenkommentare wie „Ich werde jetzt recherchieren“ oder „Lassen "
+    "Sie mich noch prüfen“."
 )
 
 _DEFAULT_SUMMARY_INSTRUCTIONS = (
@@ -2941,9 +2945,12 @@ _DEFAULT_SUMMARY_INSTRUCTIONS = (
     "und Wassertemperaturdaten für Ort und Reisemonat.\n\n"
     "Gliedere die Antwort in diese Abschnitte, gerne ausführlich:\n"
     + _AI_SECTIONS + "- Fazit: Preis-Leistung und für wen das Hotel geeignet ist\n\n"
-    "Schreibe auf Deutsch, sachlich, ausschließlich basierend auf dem, was du in den "
+    "Schreibe auf Deutsch, sprich den Nutzer dabei durchgehend mit „Du“ an (informell, "
+    "nicht „Sie“), sachlich, ausschließlich basierend auf dem, was du in den "
     "Bewertungen/Quellen findest. Wenn zu einem Punkt nichts Verlässliches auffindbar "
-    "ist, sag das kurz statt zu spekulieren."
+    "ist, sag das kurz statt zu spekulieren. Gib direkt die fertige Antwort aus — keine "
+    "Zwischenkommentare wie „Ich werde jetzt recherchieren“ oder „Lassen Sie mich noch "
+    "prüfen“."
 )
 
 _PROMPT_FEATURES = {'advisor': _DEFAULT_ADVISOR_INSTRUCTIONS, 'compare': _DEFAULT_COMPARE_INSTRUCTIONS,
@@ -3276,9 +3283,10 @@ def api_ai_ask():
         "Hier ist mein aktuelles Portfolio getrackter Reisen/Hotels bei TUIWatch:\n\n"
         + "\n".join(lines) + "\n\n"
         f"Frage dazu: {question}\n\n"
-        "Antworte auf Deutsch, konkret und ausschließlich basierend auf den obigen "
-        "Daten. Nenne die betroffenen Hotels beim Namen. Wenn die Daten die Frage "
-        "nicht beantworten können, sag das offen statt zu spekulieren."
+        "Antworte auf Deutsch, sprich den Nutzer dabei durchgehend mit „Du“ an "
+        "(informell, nicht „Sie“), konkret und ausschließlich basierend auf den "
+        "obigen Daten. Nenne die betroffenen Hotels beim Namen. Wenn die Daten die "
+        "Frage nicht beantworten können, sag das offen statt zu spekulieren."
     )
     text, usage, err = _ai_call(api_key, model, prompt, max_tokens=1500, log_ctx="Portfolio-Frage")
     if err:
