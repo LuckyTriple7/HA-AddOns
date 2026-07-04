@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.39.17] - 2026-07-04
+
+### Fixed
+- **Mausrad in Modals (z. B. KI-Verlauf) scrollte die Hauptseite statt des
+  Modal-Inhalts.** Modals hatten kein `overscroll-behavior: contain` —
+  Scroll-Chaining zur dahinterliegenden Seite behoben, betrifft alle
+  Modals.
+
 ## [0.39.16] - 2026-07-04
 
 ### Added
