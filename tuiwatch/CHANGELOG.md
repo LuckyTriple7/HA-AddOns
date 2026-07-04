@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.39.16] - 2026-07-04
+
+### Added
+- Start-Telegram-Nachricht zeigt jetzt die Add-on-Version.
+
 ## [0.39.15] - 2026-07-04
 
 ### Added

@@ -70,6 +70,8 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
+APP_VERSION = "0.39.16"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
 _DATA = os.environ.get('TUIWATCH_DATA', '/data')
@@ -813,7 +815,7 @@ def _notify_startup() -> None:
     except Exception:
         n = 0
     word = 'Reise' if n == 1 else 'Reisen'
-    _notify_telegram(f"✈️ <b>TUIWatch gestartet</b>\n{n} {word} geladen")
+    _notify_telegram(f"✈️ <b>TUIWatch gestartet</b> (v{APP_VERSION})\n{n} {word} geladen")
 
 
 def _maybe_notify(offer: dict, prev_price: float | None, new_price: float | None,
