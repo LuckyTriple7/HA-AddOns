@@ -112,6 +112,27 @@ def test_advisor_prompt_vacation_still_checks_reisewarnung(app_mod):
     assert "ob aktuell eine Reisewarnung" in prompt
 
 
+def test_region_is_multi_select_list(app_mod):
+    """`region` ist im Wizard jetzt eine Mehrfachauswahl (Liste) -
+    mehrere Regionen gleichzeitig muessen im Prompt ankommen."""
+    profile = {"region": ["Balearen", "Griechische Inseln"]}
+    prompt = app_mod._advisor_prompt(profile)
+    assert "Ziel-Region: Balearen, Griechische Inseln" in prompt
+
+
+def test_region_list_containing_daytrip_triggers_daytrip_mode(app_mod):
+    profile = {"region": [app_mod._DAYTRIP_REGION_VALUE],
+               "home_location": "Köln", "max_distance": "bis 100 km"}
+    prompt = app_mod._advisor_prompt(profile)
+    assert "Tagesausflugsziele" in prompt
+
+
+def test_region_values_helper_normalizes_scalar_and_list(app_mod):
+    assert app_mod._region_values({"region": "Europa"}) == ["Europa"]
+    assert app_mod._region_values({"region": ["Europa", "Italien"]}) == ["Europa", "Italien"]
+    assert app_mod._region_values({}) == []
+
+
 def test_advisor_prompt_daytrip_ignores_dna_context(app_mod):
     profile = {"region": app_mod._DAYTRIP_REGION_VALUE, "home_location": "Köln"}
     prompt = app_mod._advisor_prompt(profile, prev_dna={"🌴 Strand": 50})

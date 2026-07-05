@@ -193,12 +193,14 @@ bleibt dann versteckt, `ai_provider` wird ignoriert).
 ## 🗺️ TripPilot
 
 Geführter Klick-Fragebogen (kein Freitext-Chat) über den **„🗺️ TripPilot"**-
-Button in der Toolbar: rund 20 Schritte zu Zielregion, ausgeschlossenen
-Ländern, Interessen, Reiseart, Mitreisenden, Budget, Reisedauer, Reisezeit,
-Wetterwünschen (Temperatur/Meer/Regen), Aktivitäten, Unterkunft,
-Hotelwünschen, Flug, was im Urlaub nervt sowie zwei Freitext-Feldern
-(perfekter Urlaub, frühere Urlaubserfahrungen). Am Ende ruft Claude einmal die
-passenden Ziele ab.
+Button in der Toolbar: rund 20 Schritte zu Zielregion (Mehrfachauswahl, z. B.
+Balearen + Griechische Inseln gleichzeitig — „Tagesausflug in der Nähe"
+schließt sich dabei mit echten Zielregionen aus), ausgeschlossenen Ländern
+(nur relevant bei „Weltweit"/„Egal"), Interessen, Reiseart, Mitreisenden,
+Budget, Reisedauer, Reisezeit, Wetterwünschen (Temperatur/Meer-oder-See/
+Regen), Aktivitäten, Unterkunft, Hotelwünschen, Flug, was im Urlaub nervt
+sowie zwei Freitext-Feldern (perfekter Urlaub, frühere Urlaubserfahrungen).
+Am Ende ruft Claude einmal die passenden Ziele ab.
 
 - **Ergebnis:** 3 konkrete Zielvorschläge (🏆/🥈/🥉) mit Begründung, plus ein
   „🔀 Alternative"-Vorschlag (bewusst leicht abweichend) und ein

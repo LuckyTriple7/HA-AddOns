@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.41.3] - 2026-07-05
+
+### Added
+- **Zielregion jetzt Mehrfachauswahl:** Balearen, Italien, Frankreich,
+  Griechische Inseln, Adriaküste, Algarve, Zypern ergänzt (Klammer-Texte bei
+  bestehenden Chips entfernt). Mehrere Regionen gleichzeitig wählbar (z. B.
+  Balearen + Griechische Inseln), „Tagesausflug in der Nähe" bleibt dabei
+  exklusiv — schließt automatisch alle anderen Regionen aus und umgekehrt.
+  Neue generische „exklusive Option"-Logik in der Wizard-Engine, direkt auch
+  für „Kein Gewässer nötig" (Meer/See-Frage) genutzt, das bisher fälschlich
+  mit Meer/See kombinierbar war.
+
+### Changed
+- **Länder-Ausschluss nur noch bei „Weltweit"/„Egal" sichtbar** — bei einer
+  konkreten Zielregion (z. B. Balearen) ergibt die Frage keinen Sinn und
+  wird jetzt übersprungen.
+
 ## [0.41.2] - 2026-07-05
 
 ### Fixed

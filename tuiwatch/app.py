@@ -73,7 +73,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.41.2"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.41.3"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -3050,6 +3050,15 @@ _DEFAULT_SUMMARY_INSTRUCTIONS = (
 
 _DAYTRIP_REGION_VALUE = 'Tagesausflug in der Nähe'
 
+
+def _region_values(p: dict) -> list:
+    """`region` ist im Wizard eine Mehrfachauswahl (Liste) — Helper normalisiert
+    auch einen (z. B. in Tests noch verwendeten) einzelnen String zu einer Liste."""
+    v = p.get('region')
+    if isinstance(v, list):
+        return v
+    return [v] if v else []
+
 _DEFAULT_DAYTRIP_INSTRUCTIONS = (
     "Nutze die Websuche für reale, aktuelle Tagesausflugsziele innerhalb der "
     "angegebenen maximalen Entfernung vom Startort — keine erfundenen Orte. "
@@ -3644,7 +3653,8 @@ _ADVISOR_FIELDS = ('region', 'excluded_countries', 'excluded_countries_other', '
                    'arrival_mode', 'home_location', 'max_distance', 'flight_time', 'airports',
                    'dislikes', 'perfect_holiday', 'past_trips')
 _ADVISOR_LIST_FIELDS = {'interests', 'beach_detail', 'berge_detail', 'travel_type', 'activities',
-                        'hotel_wishes', 'airports', 'dislikes', 'excluded_countries', 'water_type'}
+                        'hotel_wishes', 'airports', 'dislikes', 'excluded_countries', 'water_type',
+                        'region'}
 _ADVISOR_TEXT_FIELDS = {'perfect_holiday', 'past_trips', 'excluded_countries_other', 'home_location'}
 _ADVISOR_LABELS = {
     'region': 'Ziel-Region', 'excluded_countries': 'Kommt nicht in Frage',
@@ -3674,7 +3684,7 @@ def _advisor_prompt(p: dict, prev_dna: dict | None = None) -> str:
     Ist `region` == `_DAYTRIP_REGION_VALUE`, wird stattdessen ein Tagesausflug
     ohne Übernachtung geplant (eigener Instruktionstext, keine TUI/Unterkunfts-
     Klauseln, keine Reise-DNA)."""
-    is_daytrip = p.get('region') == _DAYTRIP_REGION_VALUE
+    is_daytrip = _DAYTRIP_REGION_VALUE in _region_values(p)
     lines = ["Ein Nutzer sucht per Reiseberater-Fragebogen sein nächstes Urlaubsziel. "
              "Sein Profil:\n"]
     for key in _ADVISOR_FIELDS:
@@ -3824,7 +3834,7 @@ def api_ai_travel_advisor():
     except (TypeError, ValueError):
         prev_dna = {}
     prompt = _advisor_prompt(profile, prev_dna)
-    title = profile.get('region') or 'TripPilot'
+    title = ', '.join(_region_values(profile)) or 'TripPilot'
     if profile.get('month'):
         title += ' · ' + profile['month']
     if profile.get('interests'):
@@ -3833,7 +3843,7 @@ def api_ai_travel_advisor():
     if err:
         return err
     dna = {}
-    if profile.get('region') != _DAYTRIP_REGION_VALUE:
+    if _DAYTRIP_REGION_VALUE not in _region_values(profile):
         dna = _advisor_dna_update(_advisor_dna_scores(profile))
         text += _advisor_dna_table(dna)
     usage['estimated_usd'] = _ai_call_cost(model, usage)

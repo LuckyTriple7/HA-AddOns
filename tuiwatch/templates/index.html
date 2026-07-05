@@ -2666,19 +2666,23 @@
 
     // ── KI-Reiseberater (geführter Fragebogen → 3 Zielvorschläge) ─────────────
     const DAYTRIP = 'Tagesausflug in der Nähe';
+    const isDaytrip = state => (state.region||[]).includes(DAYTRIP);
     const ADV_STEPS = [
-      {title:'Wohin soll die Reise ungefähr gehen?', key:'region', multi:false,
-       options:['Deutschland','Europa','Makaronesien (Kanaren, Madeira, Azoren, Kapverden)','Weltweit',
-                'Egal',DAYTRIP]},
+      {title:'Wohin soll die Reise ungefähr gehen?', key:'region', multi:true,
+       exclusive:[DAYTRIP],
+       options:['Deutschland','Europa','Makaronesien','Griechische Inseln','Balearen','Italien',
+                'Frankreich','Adriaküste','Algarve','Zypern','Weltweit','Egal',DAYTRIP]},
       {title:'Welche Länder kommen für dich nicht in Frage?', key:'excluded_countries', multi:true,
-       showIf: state => state.region !== DAYTRIP,
+       showIf: state => !(state.region||[]).includes(DAYTRIP) &&
+         ((state.region||[]).includes('Weltweit') || (state.region||[]).includes('Egal')),
        options:['Türkei','Ägypten','Tunesien','Marokko','Kenia','Thailand','Sri Lanka',
                 'Dominikanische Republik','Mexiko','Malediven']},
       {title:'Weitere Länder ausschließen? (optional)', key:'excluded_countries_other', type:'text',
-       showIf: state => state.region !== DAYTRIP,
+       showIf: state => !(state.region||[]).includes(DAYTRIP) &&
+         ((state.region||[]).includes('Weltweit') || (state.region||[]).includes('Egal')),
        placeholder:'z. B. weitere Länder, kommagetrennt'},
       {title:'Was ist dir im Urlaub wichtig?', key:'interests', multi:true,
-       showIf: state => state.region !== DAYTRIP,
+       showIf: state => !isDaytrip(state),
        options:['🌴 Strand','⛰️ Berge','🏛️ Kultur','🍹 Entspannung','🎉 Nachtleben','🚶 Wandern',
                 '🚴 Radfahren','🍽️ Essen','🛍️ Shopping','👨‍👩‍👧 Familie','❤️ Romantik']},
       {title:'Wie soll dein Strand sein?', key:'beach_detail', multi:true,
@@ -2693,28 +2697,29 @@
                 'Aussicht/Panorama','Alm-/Hüttenromantik','Seilbahn/Gondel vorhanden',
                 'Ruhig, wenig Tourismus']},
       {title:'Welche Reiseart?', key:'travel_type', multi:true,
-       showIf: state => state.region !== DAYTRIP,
+       showIf: state => !isDaytrip(state),
        options:['Pauschalreise (TUI)','Badeurlaub','Rundreise','Städtereise','Kreuzfahrt','Wellness',
                 'Aktivurlaub','Abenteuer','Luxus','Camping','All Inclusive','Ferienwohnung']},
       {title:'Mit wem reist du?', key:'companions', multi:false,
-       showIf: state => state.region !== DAYTRIP,
+       showIf: state => !isDaytrip(state),
        options:['Alleine','Partner','Familie','Freunde','Senioren','Mit Hund']},
       {title:'Budget pro Person?', key:'budget', multi:false,
-       showIf: state => state.region !== DAYTRIP,
+       showIf: state => !isDaytrip(state),
        options:['bis 500 €','500–1000 €','1000–2000 €','2000–3000 €','egal']},
       {title:'Reisedauer?', key:'duration', multi:false,
-       showIf: state => state.region !== DAYTRIP,
+       showIf: state => !isDaytrip(state),
        options:['Wochenende','5 Tage','1 Woche','9–12 Tage','2 Wochen','3+ Wochen']},
       {title:'Wie viel Zeit hast du?', key:'duration_daytrip', multi:false,
-       showIf: state => state.region === DAYTRIP,
+       showIf: state => isDaytrip(state),
        options:['Vormittag','Nachmittag','Ganzer Tag','Ganzer Tag inkl. Abend']},
       {title:'Wann soll es losgehen?', key:'month', multi:false,
        options:['Januar','Februar','März','April','Mai','Juni','Juli','August','September',
                 'Oktober','November','Dezember','Egal']},
       {title:'Wie warm soll es sein?', key:'temp', multi:false,
-       showIf: state => state.region !== DAYTRIP,
+       showIf: state => !isDaytrip(state),
        options:['unter 20°C','20–25°C','25–30°C','möglichst heiß','egal']},
       {title:'Meer oder See?', key:'water_type', multi:true,
+       exclusive:['Kein Gewässer nötig'],
        options:['Meer','See','Kein Gewässer nötig']},
       {title:'Wie warm soll das Wasser sein?', key:'sea', multi:false,
        showIf: state => (state.water_type||[]).length > 0 && !state.water_type.includes('Kein Gewässer nötig'),
@@ -2728,43 +2733,43 @@
                 'Zoo/Tierpark','Therme/Wellness-Tag','Sehenswürdigkeit/Schloss','Kletterpark',
                 'Escape Room','Minigolf','Flohmarkt/Markt','Natur']},
       {title:'Welche Unterkunftsart?', key:'accommodation', multi:false,
-       showIf: state => state.region !== DAYTRIP,
+       showIf: state => !isDaytrip(state),
        options:['Hotel','Apartment','Ferienwohnung','Airbnb','Villa','Camping','Hostel','egal']},
       {title:'Wie groß darf das Hotel sein?', key:'accommodation_size', multi:false,
-       showIf: state => state.region !== DAYTRIP && state.accommodation === 'Hotel',
+       showIf: state => !isDaytrip(state) && state.accommodation === 'Hotel',
        options:['klein','Boutique','mittelgroß','riesige Clubanlage','egal']},
       {title:'Was ist dir beim Hotel besonders wichtig?', key:'hotel_wishes', multi:true,
-       showIf: state => state.region !== DAYTRIP,
+       showIf: state => !isDaytrip(state),
        options:['Erwachsenenhotel','Familienhotel','Kinderpool','Rutschen','Animation','Ruhe',
                 'All Inclusive','Frühstück','Halbpension','Swim-Up','Privatpool','Spa',
                 'Fitnessstudio','direkte Strandlage','Sandstrand','flach abfallend','Hausriff',
                 'WLAN','Homeoffice geeignet']},
       {title:'Wie möchtest du anreisen?', key:'arrival_mode', multi:false,
-       showIf: state => state.region !== DAYTRIP,
+       showIf: state => !isDaytrip(state),
        options:['Flugzeug','Auto','Bus','Bahn','Ist mir egal']},
       {title:'Von wo geht\'s los?', key:'home_location', type:'text', required:true,
-       showIf: state => ['Auto','Bus','Bahn'].includes(state.arrival_mode) || state.region === DAYTRIP,
+       showIf: state => ['Auto','Bus','Bahn'].includes(state.arrival_mode) || isDaytrip(state),
        placeholder:'PLZ oder Ort'},
       {title:'Wie weit darf es maximal sein?', key:'max_distance', multi:false,
-       showIf: state => ['Auto','Bus','Bahn'].includes(state.arrival_mode) || state.region === DAYTRIP,
+       showIf: state => ['Auto','Bus','Bahn'].includes(state.arrival_mode) || isDaytrip(state),
        options:['bis 50 km','bis 100 km','bis 200 km','bis 400 km','bis 600 km','egal']},
       {title:'Flugzeit?', key:'flight_time', multi:false,
-       showIf: state => state.region !== DAYTRIP &&
+       showIf: state => !isDaytrip(state) &&
          (!state.arrival_mode || ['Flugzeug','Ist mir egal'].includes(state.arrival_mode)),
        options:['Direktflug','max. 4 Stunden','max. 6 Stunden','egal']},
       {title:'Abflughafen?', key:'airports', multi:true,
-       showIf: state => state.region !== DAYTRIP &&
+       showIf: state => !isDaytrip(state) &&
          (!state.arrival_mode || ['Flugzeug','Ist mir egal'].includes(state.arrival_mode)),
        options:['Frankfurt','Stuttgart','München','Hamburg','Düsseldorf','Berlin']},
       {title:'Was nervt dich im Urlaub?', key:'dislikes', multi:true,
        options:['überfüllte Strände','Kinder','Animation','Wind','Hitze','lange Transfers',
                 'frühes Aufstehen']},
       {title:'Was macht für dich einen perfekten Urlaub aus?', key:'perfect_holiday', type:'text',
-       showIf: state => state.region !== DAYTRIP,
+       showIf: state => !isDaytrip(state),
        placeholder:'Freitext, optional'},
       {title:'Welche Hotels/Urlaube haben dir gefallen – welche nicht? Warum?',
        key:'past_trips', type:'text',
-       showIf: state => state.region !== DAYTRIP,
+       showIf: state => !isDaytrip(state),
        placeholder:'z. B. "RIU Papayas war super, viel Auswahl beim Essen, ruhige Lage"'},
     ];
     let advIdx = 0, advState = {};
@@ -2809,8 +2814,19 @@
       const s = advVisibleSteps()[advIdx], o = s.options[oi];
       if(s.multi){
         const arr = advState[s.key] || (advState[s.key] = []);
-        const i = arr.indexOf(o);
-        if(i >= 0) arr.splice(i, 1); else arr.push(o);
+        const excl = s.exclusive || [];
+        if(excl.includes(o)){
+          // Exklusive Option (z. B. Tagesausflug/Kein Gewässer nötig): schließt
+          // alle anderen Optionen der gleichen Frage aus, toggelt sich selbst
+          const active = arr.includes(o);
+          arr.length = 0;
+          if(!active) arr.push(o);
+        } else {
+          // Normale Option gewählt: vorher gesetzte exklusive Optionen entfernen
+          for(const e of excl){ const ei = arr.indexOf(e); if(ei >= 0) arr.splice(ei, 1); }
+          const i = arr.indexOf(o);
+          if(i >= 0) arr.splice(i, 1); else arr.push(o);
+        }
         advRender();
       } else {
         advState[s.key] = o;
@@ -2835,7 +2851,7 @@
     async function submitAdvisor(){
       closeAdvisor();
       $('#ai-title').textContent = '🗺️ TripPilot';
-      $('#ai-sub').textContent = [advState.region, advState.arrival_mode,
+      $('#ai-sub').textContent = [(advState.region||[]).join(', '), advState.arrival_mode,
         (advState.interests||[]).join(', ')].filter(Boolean).join(' · ');
       $('#ai-foot').style.display = 'none';
       $('#ai-bg').classList.add('show');
