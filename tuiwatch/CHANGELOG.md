@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.41.1] - 2026-07-05
+
+### Added
+- **KI-Anbieter im Footer umschaltbar:** sind beide API-Keys (Anthropic +
+  Gemini) hinterlegt, zeigt der Footer den aktiven Anbieter an — Klick
+  wechselt sofort zum anderen, ohne die Add-on-Konfiguration zu öffnen. Ist
+  nur ein Key gesetzt, läuft alles automatisch über diesen (kein
+  Umschalter nötig, `ai_provider` wird dann ignoriert).
+
+### Fixed
+- **Auto-Tags mit Gemini kaputt:** `additionalProperties` im Tag-Schema
+  wurde von der echten Gemini-API mit 400 „Unknown name
+  additional_properties" abgelehnt (obwohl das lokale SDK es klaglos
+  akzeptierte) — wird jetzt vor jedem Gemini-Aufruf mit
+  Structured-Output rekursiv aus dem Schema entfernt.
+- **`ai_enabled`** berücksichtigte bisher nur `anthropic_api_key` — war nur
+  `gemini_api_key` gesetzt, blieben alle KI-Buttons unsichtbar.
+
 ## [0.41.0] - 2026-07-05
 
 ### Added

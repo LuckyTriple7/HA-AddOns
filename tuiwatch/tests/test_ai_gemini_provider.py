@@ -145,7 +145,20 @@ def test_gemini_output_schema_passed_through(app_mod, monkeypatch):
     assert err is None
     assert text == '{"tags": ["a"]}'
     assert captured[0]["config"].response_mime_type == "application/json"
-    assert captured[0]["config"].response_schema == schema
+    # additionalProperties wird entfernt - Gemini lehnt das Feld live mit
+    # 400 INVALID_ARGUMENT ab ("Unknown name additional_properties")
+    assert "additionalProperties" not in captured[0]["config"].response_schema
+    assert captured[0]["config"].response_schema["required"] == ["tags"]
+
+
+def test_gemini_sanitize_schema_strips_additional_properties_nested(app_mod):
+    schema = {"type": "object", "additionalProperties": False,
+              "properties": {"inner": {"type": "object", "additional_properties": False,
+                                       "properties": {"x": {"type": "string"}}}}}
+    cleaned = app_mod._gemini_sanitize_schema(schema)
+    assert "additionalProperties" not in cleaned
+    assert "additional_properties" not in cleaned["properties"]["inner"]
+    assert cleaned["properties"]["inner"]["properties"]["x"]["type"] == "string"
 
 
 def test_gemini_refusal_detected(app_mod, monkeypatch):
@@ -182,3 +195,67 @@ def test_anthropic_dispatch_unaffected(app_mod, monkeypatch):
     assert text == "ok"
     assert err is None
     assert len(called) == 1
+
+
+ING = {"X-Ingress-Path": "/test"}
+
+
+def test_active_provider_defaults_to_anthropic_when_nothing_configured(app_mod):
+    assert app_mod._ai_active_provider() == "anthropic"
+
+
+def test_active_provider_only_gemini_key_set(app_mod):
+    _write_options(app_mod, gemini_api_key="g-key")
+    assert app_mod._ai_active_provider() == "gemini"
+
+
+def test_active_provider_only_anthropic_key_set(app_mod):
+    _write_options(app_mod, anthropic_api_key="a-key")
+    assert app_mod._ai_active_provider() == "anthropic"
+
+
+def test_active_provider_both_keys_uses_config_default(app_mod):
+    _write_options(app_mod, anthropic_api_key="a-key", gemini_api_key="g-key",
+                   ai_provider="gemini")
+    assert app_mod._ai_active_provider() == "gemini"
+
+
+def test_active_provider_both_keys_uses_meta_override(app_mod):
+    _write_options(app_mod, anthropic_api_key="a-key", gemini_api_key="g-key",
+                   ai_provider="anthropic")
+    app_mod._meta_set("ai_provider_active", "gemini")
+    assert app_mod._ai_active_provider() == "gemini"
+
+
+def test_provider_route_get_reports_both_configured(app_mod):
+    _write_options(app_mod, anthropic_api_key="a-key", gemini_api_key="g-key")
+    c = app_mod.app.test_client()
+    r = c.get("/api/ai/provider", headers=ING)
+    assert r.status_code == 200
+    data = r.get_json()
+    assert data["both_configured"] is True
+    assert data["anthropic_configured"] is True
+    assert data["gemini_configured"] is True
+
+
+def test_provider_route_post_switches_when_both_configured(app_mod):
+    _write_options(app_mod, anthropic_api_key="a-key", gemini_api_key="g-key")
+    c = app_mod.app.test_client()
+    r = c.post("/api/ai/provider", headers=ING, json={"provider": "gemini"})
+    assert r.status_code == 200
+    assert r.get_json()["active"] == "gemini"
+    assert app_mod._ai_active_provider() == "gemini"
+
+
+def test_provider_route_post_rejected_when_only_one_configured(app_mod):
+    _write_options(app_mod, anthropic_api_key="a-key")
+    c = app_mod.app.test_client()
+    r = c.post("/api/ai/provider", headers=ING, json={"provider": "gemini"})
+    assert r.status_code == 400
+
+
+def test_provider_route_post_rejects_invalid_provider(app_mod):
+    _write_options(app_mod, anthropic_api_key="a-key", gemini_api_key="g-key")
+    c = app_mod.app.test_client()
+    r = c.post("/api/ai/provider", headers=ING, json={"provider": "openai"})
+    assert r.status_code == 400

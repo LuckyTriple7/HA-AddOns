@@ -73,7 +73,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.41.0"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.41.1"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -2004,7 +2004,8 @@ def index():
     return make_response(render_template(
         'index.html', script_root=request.script_root,
         poll_interval=int(cfg.get('poll_interval', POLL_INTERVAL_DEFAULT)),
-        ai_enabled=bool((cfg.get('anthropic_api_key') or '').strip()),
+        ai_enabled=bool((cfg.get('anthropic_api_key') or '').strip()
+                        or (cfg.get('gemini_api_key') or '').strip()),
         app_version=APP_VERSION))
 
 
@@ -2378,6 +2379,8 @@ _BACKUP_META_KEYS = (
     'custom_prompt_advisor_enabled', 'custom_prompt_advisor_text',
     'custom_prompt_compare_enabled', 'custom_prompt_compare_text',
     'custom_prompt_summary_enabled', 'custom_prompt_summary_text',
+    'custom_prompt_daytrip_enabled', 'custom_prompt_daytrip_text',
+    'ai_provider_active',
 )
 
 
@@ -3221,13 +3224,37 @@ def _save_ai_analysis(kind: str, title: str, model: str, text: str, usage: dict)
     return aid
 
 
+def _ai_active_provider(cfg: dict | None = None) -> str:
+    """Welcher Provider ('anthropic'/'gemini') gerade aktiv ist. Ist nur ein
+    API-Key hinterlegt, gilt automatisch dieser (verhindert die Falle, dass
+    `gemini_api_key` gesetzt, aber `ai_provider` noch auf 'anthropic' steht,
+    und die KI-Features fälschlich inaktiv bleiben). Sind beide Keys gesetzt,
+    entscheidet der zuletzt per Footer-Umschalter gewählte Provider
+    (`meta` Key `ai_provider_active`), sonst der Add-on-Standard
+    `ai_provider`."""
+    cfg = cfg or load_config()
+    has_anthropic = bool((cfg.get('anthropic_api_key') or '').strip())
+    has_gemini = bool((cfg.get('gemini_api_key') or '').strip())
+    if has_anthropic and has_gemini:
+        active = _meta_get('ai_provider_active')
+        if active not in ('anthropic', 'gemini'):
+            active = cfg.get('ai_provider') or 'anthropic'
+        return active
+    if has_gemini:
+        return 'gemini'
+    if has_anthropic:
+        return 'anthropic'
+    return cfg.get('ai_provider') or 'anthropic'
+
+
 def _ai_config():
-    """(api_key, model) aus den Add-on-Optionen, je nach gewähltem `ai_provider`
-    (Anthropic/Gemini) — model fällt jeweils auf das Flaggschiff-Modell zurück,
-    falls leer oder ungültig. `_ai_request()` erkennt anhand des Modellnamens
-    (siehe `_AI_MODELS`/`_GEMINI_MODELS`), welchen Provider es ansprechen muss."""
+    """(api_key, model) aus den Add-on-Optionen, je nach aktivem Provider
+    (siehe `_ai_active_provider`) — model fällt jeweils auf das
+    Flaggschiff-Modell zurück, falls leer oder ungültig. `_ai_request()`
+    erkennt anhand des Modellnamens (siehe `_AI_MODELS`/`_GEMINI_MODELS`),
+    welchen Provider es ansprechen muss."""
     cfg = load_config()
-    if (cfg.get('ai_provider') or 'anthropic') == 'gemini':
+    if _ai_active_provider(cfg) == 'gemini':
         api_key = (cfg.get('gemini_api_key') or '').strip()
         model = cfg.get('gemini_model') or 'gemini-3.1-pro'
         if model not in _GEMINI_MODELS:
@@ -3309,21 +3336,35 @@ _GEMINI_REFUSAL_REASONS = {
 }
 
 
+def _gemini_sanitize_schema(schema):
+    """Entfernt `additionalProperties`/`additional_properties` rekursiv aus einem
+    JSON-Schema-Dict. Der Python-SDK-Typ `genai.types.Schema` akzeptiert dieses
+    Feld zwar lokal (Pydantic-Alias), die echte Gemini-REST-API lehnt es aber mit
+    400 INVALID_ARGUMENT ab ("Unknown name additional_properties") — in der
+    Praxis per Live-Aufruf bestätigt, nicht nur Doku/SDK-Vermutung."""
+    if isinstance(schema, dict):
+        return {k: _gemini_sanitize_schema(v) for k, v in schema.items()
+                if k not in ('additionalProperties', 'additional_properties')}
+    if isinstance(schema, list):
+        return [_gemini_sanitize_schema(v) for v in schema]
+    return schema
+
+
 def _ai_request_gemini(api_key: str, model: str, prompt: str, *, max_tokens: int,
                        log_ctx: str, use_web_search: bool = True,
                        output_schema: dict | None = None):
     """Gemini-Variante von `_ai_request_anthropic` — gleiche Rückgabe-Signatur
-    (text, usage, error_code), siehe `_ai_request`. `output_schema` wird
-    unverändert als `response_schema` durchgereicht (der Gemini-SDK akzeptiert
-    dieselben camelCase-JSON-Schema-Dicts wie Anthropic, z. B. `additionalProperties`,
-    per Pydantic-Alias). Websuche über Google-Search-Grounding — kennt kein
-    `max_uses`-Äquivalent, `ai_max_web_searches` wirkt daher nur bei Anthropic."""
+    (text, usage, error_code), siehe `_ai_request`. `output_schema` wird vor der
+    Übergabe als `response_schema` von `additionalProperties` bereinigt (siehe
+    `_gemini_sanitize_schema`) — Gemini kennt dieses JSON-Schema-Feld nicht.
+    Websuche über Google-Search-Grounding — kennt kein `max_uses`-Äquivalent,
+    `ai_max_web_searches` wirkt daher nur bei Anthropic."""
     cfg_kwargs = {'max_output_tokens': max_tokens}
     if use_web_search:
         cfg_kwargs['tools'] = [genai_types.Tool(google_search=genai_types.GoogleSearch())]
     if output_schema is not None:
         cfg_kwargs['response_mime_type'] = 'application/json'
-        cfg_kwargs['response_schema'] = output_schema
+        cfg_kwargs['response_schema'] = _gemini_sanitize_schema(output_schema)
     try:
         client = genai.Client(api_key=api_key)
         resp = client.models.generate_content(
@@ -3569,6 +3610,31 @@ def api_ai_prompt_settings():
         _meta_set(f'custom_prompt_{feature}_enabled', '1' if fdata.get('enabled') else '0')
         _meta_set(f'custom_prompt_{feature}_text', text)
     return jsonify({'saved': True})
+
+
+@app.route('/api/ai/provider', methods=['GET', 'POST'])
+def api_ai_provider():
+    """Status/Umschalter für den aktiven KI-Anbieter. GET liefert, welcher
+    Provider gerade aktiv ist und ob überhaupt umgeschaltet werden kann
+    (nur möglich, wenn beide API-Keys hinterlegt sind — sonst bestimmt
+    automatisch der eine vorhandene Key den Provider, siehe
+    `_ai_active_provider`). POST wechselt den aktiven Provider (nur bei
+    beiden Keys erlaubt) und persistiert die Wahl in `meta`."""
+    if (err := _require_api()):
+        return err
+    cfg = load_config()
+    has_anthropic = bool((cfg.get('anthropic_api_key') or '').strip())
+    has_gemini = bool((cfg.get('gemini_api_key') or '').strip())
+    both = has_anthropic and has_gemini
+    if request.method == 'POST':
+        if not both:
+            return jsonify({'error': 'not_both_configured'}), 400
+        provider = (request.get_json(silent=True) or {}).get('provider')
+        if provider not in ('anthropic', 'gemini'):
+            return jsonify({'error': 'invalid_provider'}), 400
+        _meta_set('ai_provider_active', provider)
+    return jsonify({'active': _ai_active_provider(cfg), 'both_configured': both,
+                    'anthropic_configured': has_anthropic, 'gemini_configured': has_gemini})
 
 
 _ADVISOR_FIELDS = ('region', 'excluded_countries', 'excluded_countries_other', 'interests',

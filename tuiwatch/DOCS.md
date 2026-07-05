@@ -160,6 +160,12 @@ und der Angebotsübersicht (ohne Key sind sie komplett ausgeblendet).
   Google-Search-Grounding — **kein** Äquivalent zu `ai_max_web_searches`,
   Gemini entscheidet selbst, wie oft es sucht.
 
+Sind **beide** API-Keys hinterlegt, erscheint im Footer ein Umschalter
+(„🤖 Claude aktiv" / „✨ Gemini aktiv") — ein Klick wechselt sofort den
+Anbieter für alle KI-Features, ohne die Add-on-Konfiguration zu öffnen. Ist
+nur ein Key gesetzt, läuft automatisch alles über diesen (der Umschalter
+bleibt dann versteckt, `ai_provider` wird ignoriert).
+
 - **🤖 KI-Fazit** (je Suchtreffer) — Claude durchsucht live das Web (HolidayCheck,
   Tripadvisor, Google, Klimatabellen) und liefert eine ausführliche Einschätzung zu
   **Lage & Strand, Zimmer, Restaurants & Bars, Pool/Wellness, Ausstattung,

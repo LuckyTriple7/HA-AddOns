@@ -480,6 +480,7 @@
       · <span class="hc-foot" onclick="backupOffers()" title="Komplettes Backup (Angebote mit Preisverlauf, Meine Reisen inkl. PDF, gespeicherte Suchen) als ZIP">⬇ Backup</span>
       · <span class="hc-foot" onclick="document.getElementById('restore-file').click()" title="Backup wiederherstellen (ZIP oder altes JSON) – ergänzt Fehlendes, überschreibt nichts">⬆ Restore</span>
       · <span class="hc-foot ai-feature" onclick="openPromptCfg()" title="Eigene KI-Prompt-Vorlagen für TripPilot &amp; Hotelvergleich bearbeiten">⚙ KI-Prompts</span>
+      <span class="hc-foot ai-feature" id="ai-provider-foot" onclick="toggleAiProvider()" style="display:none" title="Aktiven KI-Anbieter umschalten"></span>
       · <span class="hc-foot ai-feature" id="ai-usage-foot" onclick="openAiHistory()" title="Geschätzte KI-Kosten (Anthropic-Listenpreis) — kein echtes Guthaben, dauerhaft in der DB gespeichert">…</span></footer>
   </div>
 
@@ -3364,6 +3365,30 @@
     }
     loadAiUsageFooter();
     setInterval(loadAiUsageFooter, 300000);
+
+    const AI_PROVIDER_LABEL = { anthropic: '🤖 Claude', gemini: '✨ Gemini' };
+    async function loadAiProviderFooter(){
+      if(!G.ai) return;
+      try {
+        const d = await fetch(api('/api/ai/provider')).then(r=>r.json());
+        const el = $('#ai-provider-foot');
+        if(!d.both_configured){ el.style.display = 'none'; return; }
+        el.style.display = '';
+        el.textContent = '· ' + (AI_PROVIDER_LABEL[d.active] || d.active) + ' aktiv';
+      } catch(e){}
+    }
+    async function toggleAiProvider(){
+      try {
+        const cur = await fetch(api('/api/ai/provider')).then(r=>r.json());
+        if(!cur.both_configured) return;
+        const next = cur.active === 'gemini' ? 'anthropic' : 'gemini';
+        await fetch(api('/api/ai/provider'), {method:'POST',
+          headers:{'Content-Type':'application/json'}, body: JSON.stringify({provider: next})});
+        toast((AI_PROVIDER_LABEL[next] || next) + ' aktiv');
+        loadAiProviderFooter();
+      } catch(e){ toast('Umschalten fehlgeschlagen'); }
+    }
+    loadAiProviderFooter();
   </script>
 </body>
 </html>
