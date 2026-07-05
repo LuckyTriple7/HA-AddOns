@@ -73,7 +73,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.41.3"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.41.4"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -3581,9 +3581,15 @@ def api_ai_ask():
         + "\n".join(lines) + "\n\n"
         f"Frage dazu: {question}\n\n"
         "Antworte auf Deutsch, sprich den Nutzer dabei durchgehend mit „Du“ an "
-        "(informell, nicht „Sie“), konkret und ausschließlich basierend auf den "
-        "obigen Daten. Nenne die betroffenen Hotels beim Namen. Wenn die Daten die "
-        "Frage nicht beantworten können, sag das offen statt zu spekulieren."
+        "(informell, nicht „Sie“), konkret. Für alles, was die obigen Daten "
+        "bereits enthalten (Preis, Ort, Sterne, Trend, Wunschpreis, Tags), nenne "
+        "die betroffenen Hotels beim Namen und stütze dich ausschließlich auf "
+        "diese Daten — erfinde hier nichts dazu. Betrifft die Frage etwas, das "
+        "die Daten nicht abdecken (z. B. Klima/Wetter zur Reisezeit, "
+        "Sehenswürdigkeiten, aktuelle Ereignisse am Ort), nutze die Websuche und "
+        "beantworte es trotzdem, statt nur auf fehlende Daten zu verweisen. Wenn "
+        "auch die Websuche keine verlässliche Antwort liefert, sag das offen "
+        "statt zu spekulieren."
     )
     text, usage, err = _ai_call(api_key, model, prompt, max_tokens=1500, log_ctx="Portfolio-Frage")
     if err:

@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.41.4] - 2026-07-05
+
+### Changed
+- **„❓ Frage" (Frag dein Portfolio) nutzt jetzt auch Websuche:** bisher
+  wurde die KI angewiesen, ausschließlich anhand der Portfolio-Daten zu
+  antworten — Fragen wie „wie ist das Wetter zur Reisezeit?" liefen ins
+  Leere, obwohl Websuche technisch längst aktiv war. Portfolio-Fakten
+  (Preis/Sterne/Trend/Tags) bleiben verbindliche Grundlage, für alles
+  darüber hinaus recherchiert die KI jetzt aktiv statt nur auf fehlende
+  Daten zu verweisen.
+
 ## [0.41.3] - 2026-07-05
 
 ### Added
