@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.40.6] - 2026-07-05
+
+### Fixed
+- **Tagesausflug prüfte sinnlos auf Reisewarnungen** (KI narrierte das sogar
+  im Ergebnis) — Reisewarnungs-Check ist jetzt nur noch Teil des normalen
+  Urlaubsmodus, nicht mehr beim Tagesausflug.
+
 ## [0.40.5] - 2026-07-05
 
 ### Changed

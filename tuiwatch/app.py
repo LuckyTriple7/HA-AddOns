@@ -70,7 +70,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.40.5"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.40.6"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -3564,13 +3564,14 @@ def _advisor_prompt(p: dict, prev_dna: dict | None = None) -> str:
             f"\nZusatzkontext aus früheren Reiseberater-Anfragen dieses Nutzers "
             f"(Reise-DNA, grobe Tendenz, nicht überbewerten): {dna_line}."
         )
-    lines.append(
-        "\nUnabhängig von den Angaben oben: Prüfe für jedes in Betracht gezogene "
-        "Land per Websuche, ob aktuell eine Reisewarnung oder ein Sicherheitshinweis "
-        "des Auswärtigen Amts (oder vergleichbare offizielle Warnung) besteht, und "
-        "schlage solche Länder nicht vor, außer der Nutzer hat sie oben ausdrücklich "
-        "gewünscht (z. B. als Ziel-Region genannt)."
-    )
+    if not is_daytrip:
+        lines.append(
+            "\nUnabhängig von den Angaben oben: Prüfe für jedes in Betracht gezogene "
+            "Land per Websuche, ob aktuell eine Reisewarnung oder ein Sicherheitshinweis "
+            "des Auswärtigen Amts (oder vergleichbare offizielle Warnung) besteht, und "
+            "schlage solche Länder nicht vor, außer der Nutzer hat sie oben ausdrücklich "
+            "gewünscht (z. B. als Ziel-Region genannt)."
+        )
     if is_daytrip:
         lines.append("\n" + _prompt_instructions('daytrip', _DEFAULT_DAYTRIP_INSTRUCTIONS))
     else:

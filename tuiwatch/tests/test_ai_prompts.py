@@ -103,6 +103,13 @@ def test_advisor_prompt_uses_daytrip_instructions(app_mod):
     assert "eigenständig mit einem Fahrzeug/den öffentlichen Verkehrsmitteln an" in prompt
     assert "Unterkunftsvorschläge" not in prompt
     assert "die TUI tatsächlich im Programm hat" not in prompt
+    assert "ob aktuell eine Reisewarnung" not in prompt
+
+
+def test_advisor_prompt_vacation_still_checks_reisewarnung(app_mod):
+    profile = {"region": "Europa"}
+    prompt = app_mod._advisor_prompt(profile)
+    assert "ob aktuell eine Reisewarnung" in prompt
 
 
 def test_advisor_prompt_daytrip_ignores_dna_context(app_mod):
