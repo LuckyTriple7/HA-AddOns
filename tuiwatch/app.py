@@ -73,7 +73,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.41.6"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.41.7"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -139,6 +139,22 @@ _api_down_notified = False                # ob aktuell ein API-Ausfall gemeldet 
 _failed_attempts: dict[str, list[float]] = defaultdict(list)
 _blocked_ips: dict[str, float] = {}
 RATE_LIMIT_MAX, RATE_LIMIT_WINDOW, RATE_LIMIT_BLOCK = 5, 600, 900
+
+# Cooldowns für scraping-lastige Routen (check-now/search/searches-check) — schützt
+# TUIs Server vor wiederholtem Klicken/Skript-Aufrufen, die die eigene IP dort blocken
+# könnten. Kein Fehlversuchs-Zähler wie oben, nur ein simpler Zeitstempel pro Key.
+_route_cooldowns: dict[str, float] = {}
+
+
+def _cooldown_remaining(key: str, seconds: int) -> int:
+    """0 und setzt den Zeitstempel, wenn `key` zuletzt vor mehr als `seconds` ausgelöst
+    wurde — sonst verbleibende Sekunden (>0), ohne den Zeitstempel zu berühren."""
+    now = time.time()
+    remaining = seconds - (now - _route_cooldowns.get(key, 0))
+    if remaining > 0:
+        return int(remaining) + 1
+    _route_cooldowns[key] = now
+    return 0
 
 
 # ── Config & Sessions ──────────────────────────────────────────────────────────
@@ -2321,6 +2337,8 @@ def api_reset_offer(offer_id: int):
 def api_check_now():
     if (err := _require_api()):
         return err
+    if (remaining := _cooldown_remaining('check_now', 60)):
+        return jsonify({'error': 'cooldown', 'retry_after': remaining}), 429
     _spawn(check_all, 'manuell')
     return jsonify({'started': True})
 
@@ -2847,6 +2865,8 @@ def api_search():
     Verpflegung) gehen in die Such-Query, danach Nachfilter nach Sternen/Weiterempfehlung."""
     if (err := _require_api()):
         return err
+    if (remaining := _cooldown_remaining('search:' + get_client_ip(request), 3)):
+        return jsonify({'error': 'cooldown', 'retry_after': remaining}), 429
     data = request.get_json(silent=True) or {}
     operator_tui = bool(data.get('operator_tui', True))
     direct = bool(data.get('direct'))
@@ -4389,6 +4409,8 @@ def api_searches_check(sid):
     """Suchabo sofort prüfen (synchron) — liefert die aktuellen Treffer zurück."""
     if (err := _require_api()):
         return err
+    if (remaining := _cooldown_remaining(f'search_check:{sid}', 30)):
+        return jsonify({'error': 'cooldown', 'retry_after': remaining}), 429
     with db() as con:
         row = con.execute('SELECT watch, max_price FROM saved_searches WHERE id=?',
                           (sid,)).fetchone()

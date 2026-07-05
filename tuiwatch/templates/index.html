@@ -2168,6 +2168,7 @@
       try { r = await fetch(api('/api/searches/'+id+'/check'), {method:'POST'}); d = await r.json().catch(()=>({})); }
       catch(e){ toast('Prüfen fehlgeschlagen'); return; }
       if(r.status===400){ toast('Suchabo zuerst aktivieren (Beobachten + Schwellenpreis)'); return; }
+      if(r.status===429){ toast('Bitte kurz warten ('+(d.retry_after||30)+'s) — gerade erst geprüft'); return; }
       if(!r.ok){ toast('Prüfen fehlgeschlagen — Suche nicht ausführbar'); return; }
       toast((d.hits||[]).length+' Hotel(s) unter der Schwelle'+(d.new?(' ('+d.new+' neu gemeldet)'):''));
       await renderFavs(); $('#srch-favsel').value=id; favBtnState();
@@ -2269,6 +2270,7 @@
       try { r = await fetch(api('/api/search'), {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)}); d = await r.json(); }
       catch(e){ $('#srch-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Suche fehlgeschlagen.</div>'; return; }
       if(r.status===400 && d.error==='no_region'){ $('#srch-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ '+(srchOfferId!=null?'Region zu diesem Angebot nicht ermittelbar.':'Keine Region erkannt.')+'</div>'; return; }
+      if(r.status===429){ $('#srch-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Bitte kurz warten ('+(d.retry_after||3)+'s) und erneut suchen.</div>'; return; }
       if(r.status===404){ $('#srch-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Angebot nicht gefunden.</div>'; return; }
       if(r.status===400){ $('#srch-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Keine gültige Eingabe.</div>'; return; }
       if(!r.ok){ $('#srch-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Suche fehlgeschlagen.</div>'; return; }
@@ -3170,7 +3172,11 @@
       loadOffers();
     }
     async function checkOne(id){ await fetch(api('/api/check/'+id), {method:'POST'}); toast('Prüfung gestartet…'); loadOffers(); }
-    async function checkAll(){ await fetch(api('/api/check-now'), {method:'POST'}); toast('Alle Angebote werden geprüft…'); loadOffers(); }
+    async function checkAll(){
+      const r = await fetch(api('/api/check-now'), {method:'POST'});
+      if(r.status===429){ const d = await r.json().catch(()=>({})); toast('Bitte kurz warten ('+(d.retry_after||60)+'s) — läuft schon eine Prüfung'); return; }
+      toast('Alle Angebote werden geprüft…'); loadOffers();
+    }
 
     async function sendEmail(){
       await openEmailModal(null);

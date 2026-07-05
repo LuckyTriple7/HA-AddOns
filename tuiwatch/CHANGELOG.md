@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.41.7] - 2026-07-05
+
+### Added
+- **Cooldown auf scraping-lastigen Routen:** `/api/check-now` (60s global),
+  `/api/search` (3s pro IP) und `/api/searches/<id>/check` (30s pro Suchabo)
+  lehnen wiederholte Aufrufe innerhalb der Wartezeit jetzt mit 429 ab, statt
+  bei mehrfachem Klicken/Skript-Aufrufen parallel gegen TUI zu scrapen —
+  schützt davor, dass die eigene IP dort geblockt wird.
+
 ## [0.41.6] - 2026-07-05
 
 ### Added
