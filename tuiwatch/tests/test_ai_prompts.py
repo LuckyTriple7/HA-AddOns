@@ -71,9 +71,9 @@ def test_advisor_prompt_uses_default_instructions_when_disabled(app_mod):
 
 def test_advisor_prompt_includes_beach_detail_when_set(app_mod):
     profile = {"region": "Europa", "interests": ["🌴 Strand"],
-               "beach_detail": ["Langer Sandstrand", "Direkt am Hotel"]}
+               "beach_detail": ["Feinsandig", "Direkt am Hotel"]}
     prompt = app_mod._advisor_prompt(profile)
-    assert "Strand-Details: Langer Sandstrand, Direkt am Hotel" in prompt
+    assert "Strand-Details: Feinsandig, Direkt am Hotel" in prompt
 
 
 def test_compare_prompt_contains_facts_and_instructions(app_mod):

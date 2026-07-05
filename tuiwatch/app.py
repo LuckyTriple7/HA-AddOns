@@ -70,7 +70,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.39.28"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.39.29"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -3530,7 +3530,7 @@ def _advisor_dna_scores(p: dict) -> dict:
         '🌴 Strand': [has('interests', '🌴 Strand'),
                      has('hotel_wishes', 'direkte Strandlage', 'Sandstrand', 'Hausriff'),
                      has('sea', '28°C+ (tropisch warm)', '24–27°C (angenehm warm)'),
-                     has('beach_detail', 'Langer Sandstrand', 'Direkt am Hotel')],
+                     has('beach_detail', 'Feinsandig', 'Weitläufig, kilometerlang', 'Direkt am Hotel')],
         '🏛️ Kultur': [has('interests', '🏛️ Kultur'), has('activities', 'Museen', 'Fotografieren')],
         '🎉 Nachtleben': [has('interests', '🎉 Nachtleben')],
         '⛰️ Aktiv': [has('interests', '🚶 Wandern', '🚴 Radfahren'),

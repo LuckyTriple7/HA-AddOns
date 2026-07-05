@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.39.29] - 2026-07-05
+
+### Changed
+- **Strand-Details präzisiert:** „Langer Sandstrand"/„Felsen/gut zum
+  Schnorcheln" durch feinere Optionen ersetzt (Feinsandig, Kies/Felsen,
+  Naturstrand unberührt, Weitläufig kilometerlang, Flach abfallend,
+  Schattenplätze/Palmen, Gut zum Schnorcheln als eigene Option).
+
 ## [0.39.28] - 2026-07-05
 
 ### Added
