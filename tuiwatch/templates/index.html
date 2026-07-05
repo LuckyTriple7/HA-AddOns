@@ -29,6 +29,7 @@
     @media(max-width:700px){ .trip-countdown span.tc-dest{ display:none; } }
     .btn { background:var(--blue); border:1px solid var(--blue-h); color:#fff; padding:8px 14px; border-radius:6px; font-size:.85rem; font-weight:600; cursor:pointer; transition:background .15s; }
     .btn:hover { background:var(--blue-h); }
+    .btn:disabled { opacity:.45; cursor:not-allowed; }
     .btn.sec { background:transparent; border:1px solid var(--border); color:var(--text); }
     .btn.danger { background:transparent; border:1px solid var(--border); color:var(--red); }
     .icon-btn { background:transparent; border:1px solid var(--border); color:var(--muted); border-radius:6px; padding:6px 8px; cursor:pointer; display:inline-flex; }
@@ -2724,7 +2725,7 @@
                 'Escape Room','Minigolf','Flohmarkt/Markt']},
       {title:'Welche Unterkunftsart?', key:'accommodation', multi:false,
        showIf: state => state.region !== DAYTRIP,
-       options:['Hotel','Apartment','Ferienwohnung','Airbnb','Villa','Camping','Hostel']},
+       options:['Hotel','Apartment','Ferienwohnung','Airbnb','Villa','Camping','Hostel','egal']},
       {title:'Wie groß darf das Hotel sein?', key:'accommodation_size', multi:false,
        showIf: state => state.region !== DAYTRIP && state.accommodation === 'Hotel',
        options:['klein','Boutique','mittelgroß','riesige Clubanlage','egal']},
@@ -2737,12 +2738,12 @@
       {title:'Wie möchtest du anreisen?', key:'arrival_mode', multi:false,
        showIf: state => state.region !== DAYTRIP,
        options:['Flugzeug','Auto','Bus','Bahn','Ist mir egal']},
-      {title:'Von wo geht\'s los?', key:'home_location', type:'text',
+      {title:'Von wo geht\'s los?', key:'home_location', type:'text', required:true,
        showIf: state => ['Auto','Bus','Bahn'].includes(state.arrival_mode) || state.region === DAYTRIP,
        placeholder:'PLZ oder Ort'},
       {title:'Wie weit darf es maximal sein?', key:'max_distance', multi:false,
        showIf: state => ['Auto','Bus','Bahn'].includes(state.arrival_mode) || state.region === DAYTRIP,
-       options:['bis 100 km','bis 200 km','bis 400 km','bis 600 km','egal']},
+       options:['bis 50 km','bis 100 km','bis 200 km','bis 400 km','bis 600 km','egal']},
       {title:'Flugzeit?', key:'flight_time', multi:false,
        showIf: state => state.region !== DAYTRIP &&
          (!state.arrival_mode || ['Flugzeug','Ist mir egal'].includes(state.arrival_mode)),
@@ -2779,7 +2780,7 @@
       if(s.type === 'text'){
         const val = advState[s.key] || '';
         $('#reiseb-body').innerHTML = '<h3 style="margin:4px 0 12px">'+esc(s.title)+'</h3>'
-          + `<textarea id="reiseb-text" class="reiseb-text" rows="4" `
+          + `<textarea id="reiseb-text" class="reiseb-text" rows="4" oninput="advUpdateNextState()" `
           + `placeholder="${esc(s.placeholder||'Optional')}">${esc(val)}</textarea>`;
       } else {
         const sel = advState[s.key] != null ? advState[s.key] : (s.multi ? [] : null);
@@ -2791,6 +2792,14 @@
       }
       $('#reiseb-back').style.visibility = advIdx === 0 ? 'hidden' : 'visible';
       $('#reiseb-next').textContent = advIdx === steps.length - 1 ? '🔮 Empfehlung holen' : 'Weiter';
+      advUpdateNextState();
+    }
+    function advUpdateNextState(){
+      const s = advVisibleSteps()[advIdx];
+      const filled = s.type === 'text'
+        ? !!($('#reiseb-text').value || '').trim()
+        : !!advState[s.key];
+      $('#reiseb-next').disabled = !!s.required && !filled;
     }
     function advPick(oi){
       const s = advVisibleSteps()[advIdx], o = s.options[oi];

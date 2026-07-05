@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.40.4] - 2026-07-05
+
+### Added
+- Tagesausflug: Entfernungs-Chip „bis 50 km" ergänzt.
+
+### Changed
+- **„Weiter" ohne Auswahl:** Startort (PLZ/Ort) ist jetzt Pflichtfeld, sobald
+  der Schritt angezeigt wird (Auto/Bus/Bahn/Tagesausflug) — „Weiter" bleibt
+  deaktiviert bis eine Eingabe da ist, sonst würde die KI eine
+  Entfernungsvorgabe ohne Startpunkt bekommen. Unterkunftsart hat jetzt eine
+  „egal"-Option (war als einziges Single-Select ohne Escape-Option).
+
 ## [0.40.3] - 2026-07-05
 
 ### Changed
