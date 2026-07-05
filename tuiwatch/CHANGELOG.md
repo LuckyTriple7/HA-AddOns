@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.41.2] - 2026-07-05
+
+### Fixed
+- **Kosten-Anzeige rundete auf $0.00:** bei kleinen Beträgen (z. B. Gemini
+  Flash mit wenigen Tokens) wurden die Preise korrekt berechnet, aber mit
+  nur 2 Nachkommastellen angezeigt und damit unsichtbar. Zeigt jetzt bei
+  Beträgen unter $0.01 automatisch 4 Nachkommastellen.
+- Veralteten Hinweis „Anthropic-Listenpreis" entfernt (gilt jetzt auch für
+  Gemini-Preise).
+
 ## [0.41.1] - 2026-07-05
 
 ### Added

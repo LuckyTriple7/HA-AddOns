@@ -481,7 +481,7 @@
       · <span class="hc-foot" onclick="document.getElementById('restore-file').click()" title="Backup wiederherstellen (ZIP oder altes JSON) – ergänzt Fehlendes, überschreibt nichts">⬆ Restore</span>
       · <span class="hc-foot ai-feature" onclick="openPromptCfg()" title="Eigene KI-Prompt-Vorlagen für TripPilot &amp; Hotelvergleich bearbeiten">⚙ KI-Prompts</span>
       <span class="hc-foot ai-feature" id="ai-provider-foot" onclick="toggleAiProvider()" style="display:none" title="Aktiven KI-Anbieter umschalten"></span>
-      · <span class="hc-foot ai-feature" id="ai-usage-foot" onclick="openAiHistory()" title="Geschätzte KI-Kosten (Anthropic-Listenpreis) — kein echtes Guthaben, dauerhaft in der DB gespeichert">…</span></footer>
+      · <span class="hc-foot ai-feature" id="ai-usage-foot" onclick="openAiHistory()" title="Geschätzte KI-Kosten — kein echtes Guthaben, dauerhaft in der DB gespeichert">…</span></footer>
   </div>
 
   <!-- Verlauf-Modal -->
@@ -881,6 +881,7 @@
 
     let toastTimer;
     function toast(msg){ const el=$('#toast'); el.textContent=msg; el.classList.add('show'); clearTimeout(toastTimer); toastTimer=setTimeout(()=>el.classList.remove('show'),2500); }
+    function fmtUsd(v){ v = v||0; return '$' + v.toFixed(v > 0 && v < 0.01 ? 4 : 2); }
 
     let curOffers = null, lastSig = null, searchTerm = '', activeTags = new Set();
     let showArchived = localStorage.getItem('tw-show-archived')==='1';
@@ -2439,18 +2440,17 @@
         const parts = [(usage.input_tokens||0)+' Input-', (usage.output_tokens||0)+' Output-Tokens'];
         if(usage.cache_read_input_tokens) parts.push(usage.cache_read_input_tokens+' aus Prompt-Cache');
         if(usage.web_search_requests) parts.push('🔍 '+usage.web_search_requests+' Websuchen');
-        if(usage.estimated_usd != null) parts.push('≈ $'+usage.estimated_usd.toFixed(2));
+        if(usage.estimated_usd != null) parts.push('≈ '+fmtUsd(usage.estimated_usd));
         html += '<div class="hint" style="margin-top:14px;padding-top:10px;border-top:1px solid var(--border)">🔢 '
           + parts.join(' · ') + (cached?' · Ergebnis aus Zwischenspeicher (bis zu 24 Std. alt)':'') + '</div>';
       }
       if(totals && totals.calls){
-        const usd = v => '$'+(v||0).toFixed(2);
         html += '<div class="hint" style="margin-top:4px">Σ gesamt (dauerhaft gespeichert): '+totals.calls+' Aufrufe · '
           + (totals.input_tokens+totals.output_tokens).toLocaleString('de-DE')+' Tokens · geschätzt '
-          + usd(totals.estimated_usd)+' (Anthropic-Listenpreis, kein echtes Guthaben)</div>';
+          + fmtUsd(totals.estimated_usd)+'</div>';
         if(totals.today || totals.month){
-          html += '<div class="hint" style="margin-top:2px">Davon heute '+usd(totals.today&&totals.today.estimated_usd)
-            +' · diesen Monat '+usd(totals.month&&totals.month.estimated_usd)+'</div>';
+          html += '<div class="hint" style="margin-top:2px">Davon heute '+fmtUsd(totals.today&&totals.today.estimated_usd)
+            +' · diesen Monat '+fmtUsd(totals.month&&totals.month.estimated_usd)+'</div>';
         }
       }
       return html;
@@ -3356,11 +3356,10 @@
       if(!G.ai) return;
       try {
         const d = await fetch(api('/api/ai/usage')).then(r=>r.json());
-        const usd = v => '$'+(v||0).toFixed(2);
         $('#ai-usage-foot').textContent =
-          '🔢 KI heute ' + usd(d.today && d.today.estimated_usd) +
-          ' · Monat ' + usd(d.month && d.month.estimated_usd) +
-          ' · gesamt ' + usd(d.estimated_usd);
+          '🔢 KI heute ' + fmtUsd(d.today && d.today.estimated_usd) +
+          ' · Monat ' + fmtUsd(d.month && d.month.estimated_usd) +
+          ' · gesamt ' + fmtUsd(d.estimated_usd);
       } catch(e){}
     }
     loadAiUsageFooter();
