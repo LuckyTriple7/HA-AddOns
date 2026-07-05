@@ -895,6 +895,9 @@
     async function loadOffers(){
       try {
         const r = await fetch(api('/api/offers'));
+        // Session abgelaufen (nur bei direktem Zugriff, nie unter Ingress):
+        // Reload führt serverseitig zur Login-Seite statt stiller Fehler bei jedem Klick.
+        if(r.status===401){ location.reload(); return; }
         if(!r.ok) return;
         const d = await r.json();
         _offlineFails = 0; hideOfflineBanner();

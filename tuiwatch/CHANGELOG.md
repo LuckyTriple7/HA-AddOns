@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.39.25] - 2026-07-05
+
+### Fixed
+- **Abgelaufene Session wird jetzt erkannt:** Lief die Login-Session ab
+  (z. B. über Nacht bei offenem Browser-Tab), blieb die Seite scheinbar
+  normal sichtbar, aber jeder Klick schlug fehl und die Konsole zeigte nur
+  ein schwarzes Fenster. Jetzt wird bei abgelaufener Session automatisch
+  neu geladen und die Login-Seite angezeigt. (Betrifft nur den direkten
+  Zugriff, nicht HA Ingress.)
+
 ## [0.39.24] - 2026-07-04
 
 ### Changed
