@@ -70,7 +70,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.39.24"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.39.26"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -2957,18 +2957,33 @@ _DEFAULT_ADVISOR_INSTRUCTIONS = (
     "Berücksichtige nach Möglichkeit auch, was den Nutzer im Urlaub stört, sowie "
     "Freitext-Angaben zu früheren Urlauben/Vorlieben, falls vorhanden — erkenne darin "
     "genannte Hotelketten/-typen/Regionen und leite daraus ähnliche Empfehlungen ab.\n\n"
-    "Schlage 3 konkrete Reiseziele vor (Ort/Region + passender Urlaubstyp, kein "
-    "bestimmtes Hotel nötig). Für jeden Vorschlag eine Markdown-Überschrift "
-    "(#### 🏆/🥈/🥉 Ziel-Name), danach als Stichpunkte eine kurze Begründung, die "
-    "konkret auf das Profil oben eingeht (Klima zur Reisezeit, Passung zu Interessen/"
-    "Aktivitäten/Reiseart/Budget/Mitreisenden/Hotelwünschen). Ergänze danach einen "
+    "Schlage 3 konkrete Reiseziele vor (Ort/Region + passender Urlaubstyp). Für "
+    "jeden Vorschlag eine Markdown-Überschrift (#### 🏆/🥈/🥉 Ziel-Name), danach als "
+    "Stichpunkte eine kurze Begründung, die konkret auf das Profil oben eingeht "
+    "(Klima zur Reisezeit, Passung zu Interessen/Aktivitäten/Reiseart/Budget/"
+    "Mitreisenden/Hotelwünschen). Nenne danach passend zur gewählten Unterkunftsart "
+    "konkrete Unterkunftsvorschläge in drei Kategorien — Budget, Mittelklasse, "
+    "Gehoben — mit je 2-3 Nennungen pro Kategorie: bei Hotel/Apartment/Villa "
+    "konkrete, real existierende Namen mit kurzer Begründung je Nennung (Passung "
+    "zu Hotelgröße/Hotelwünschen); bei Ferienwohnung/Airbnb/Camping/Hostel keine "
+    "Markennamen, sondern konkrete Wohngegenden/Straßenzüge/Ortsteile je Kategorie "
+    "mit Preis-/Ausstattungsniveau statt allgemeiner Aussagen wie „gibt viele "
+    "Ferienwohnungen“. Schlage dabei nur Unterkünfte vor, die laut Websuche "
+    "(HolidayCheck/Tripadvisor/Google-Bewertungen) überwiegend gut bewertet sind — "
+    "keine Unterkünfte mit auffallend vielen schlechten Bewertungen, auch nicht in "
+    "der Budget-Kategorie. Weise darauf hin, dass Verfügbarkeit/Preis/Buchbarkeit "
+    "der Nutzer selbst live prüfen muss (die Websuche liefert nur einen "
+    "Anhaltspunkt) — bei „Pauschalreise (TUI)“ zusätzlich, dass die genaue "
+    "Hotelverfügbarkeit separat im TUI-Katalog zu prüfen ist. Ergänze danach einen "
     "Abschnitt „#### 🔀 Alternative“ mit einem Ziel, das vom genannten Profil bewusst "
     "etwas abweicht (z. B. eine weniger bekannte Nachbarregion), aber ähnlich gut "
     "passen könnte. Ergänze außerdem einen Abschnitt „#### 🎲 Überraschung“ mit einem "
     "Ziel außerhalb der genannten Ziel-Region (z. B. ein anderer Kontinent/eine andere "
     "Weltgegend als die gewählte, aber trotzdem passend zu Interessen/Reiseart/Budget/"
     "Wetter) — ein Land, an das der Nutzer wahrscheinlich nicht von selbst gedacht "
-    "hätte. Schreibe auf Deutsch, sprich den Nutzer dabei durchgehend mit „Du“ an "
+    "hätte. Bei Alternative und Überraschung reicht eine kurze, optionale Erwähnung "
+    "möglicher Unterkünfte — die drei Kategorien Budget/Mittelklasse/Gehoben sind nur "
+    "bei den 3 Hauptvorschlägen nötig. Schreibe auf Deutsch, sprich den Nutzer dabei durchgehend mit „Du“ an "
     "(informell, nicht „Sie“), ehrlich und ohne zu übertreiben — wenn ein Wunsch (z. B. "
     "Budget, Reisezeit oder TUI-Verfügbarkeit) schwer erfüllbar ist, sag das offen."
 )

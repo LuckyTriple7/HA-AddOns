@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.39.26] - 2026-07-05
+
+### Changed
+- **Reiseberater empfiehlt jetzt konkrete Unterkünfte:** je Hauptvorschlag
+  Budget/Mittelklasse/Gehoben mit je 2-3 Nennungen, passend zur gewählten
+  Unterkunftsart (echte Namen bei Hotel/Apartment/Villa, konkrete
+  Wohngegenden bei Ferienwohnung/Airbnb/Camping/Hostel). Nur überwiegend gut
+  bewertete Unterkünfte laut Websuche; Hinweis, dass Verfügbarkeit/
+  Buchbarkeit (bei TUI auch im Katalog) selbst live zu prüfen ist.
+
 ## [0.39.25] - 2026-07-05
 
 ### Fixed

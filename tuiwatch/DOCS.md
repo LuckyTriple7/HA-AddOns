@@ -180,6 +180,13 @@ passenden Ziele ab.
   „🔀 Alternative"-Vorschlag (bewusst leicht abweichend) und ein
   „🎲 Überraschung"-Vorschlag (Ziel außerhalb der gewählten Zielregion, an das
   man normalerweise nicht denkt).
+- **Konkrete Unterkünfte je Hauptvorschlag:** in drei Kategorien (Budget/
+  Mittelklasse/Gehoben) je 2-3 Nennungen, passend zur gewählten
+  Unterkunftsart — bei Hotel/Apartment/Villa echte Namen, bei Ferienwohnung/
+  Airbnb/Camping/Hostel konkrete Wohngegenden statt Markennamen. Nur
+  überwiegend gut bewertete Unterkünfte (Websuche prüft HolidayCheck/
+  Tripadvisor/Google). Verfügbarkeit/Buchbarkeit (bei TUI: auch im
+  TUI-Katalog) muss der Nutzer selbst live prüfen.
 - **Sicherheit eingebaut, nicht abschaltbar:** ausgeschlossene Länder werden
   nie vorgeschlagen; Claude prüft für jedes Land per Websuche aktuelle
   Reisewarnungen des Auswärtigen Amts; bei „Pauschalreise (TUI)" werden nur
