@@ -2723,7 +2723,7 @@
        showIf: state => state.region !== DAYTRIP,
        options:['Hotel','Apartment','Ferienwohnung','Airbnb','Villa','Camping','Hostel']},
       {title:'Wie groß darf das Hotel sein?', key:'accommodation_size', multi:false,
-       showIf: state => state.region !== DAYTRIP,
+       showIf: state => state.region !== DAYTRIP && state.accommodation === 'Hotel',
        options:['klein','Boutique','mittelgroß','riesige Clubanlage','egal']},
       {title:'Was ist dir beim Hotel besonders wichtig?', key:'hotel_wishes', multi:true,
        showIf: state => state.region !== DAYTRIP,

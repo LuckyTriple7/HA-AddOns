@@ -57,16 +57,29 @@ function check(name, actual, expected) {
   }
 }
 
-// Kein Interesse gesetzt, kein Tagesausflug -> beach_detail/berge_detail/home_location/
-// max_distance/duration_daytrip versteckt (5), Flugzeit/Abflughafen weiterhin sichtbar
+// Kein Interesse gesetzt, kein Tagesausflug, keine Unterkunftsart -> beach_detail/
+// berge_detail/home_location/max_distance/duration_daytrip/accommodation_size
+// versteckt (6), Flugzeit/Abflughafen weiterhin sichtbar
 setState({});
 check('leerer Status: beach_detail versteckt', visibleKeys().includes('beach_detail'), false);
 check('leerer Status: berge_detail versteckt', visibleKeys().includes('berge_detail'), false);
 check('leerer Status: duration_daytrip versteckt', visibleKeys().includes('duration_daytrip'), false);
+check('leerer Status: accommodation_size versteckt (keine Unterkunftsart gewaehlt)',
+  visibleKeys().includes('accommodation_size'), false);
 check('leerer Status: duration sichtbar', visibleKeys().includes('duration'), true);
-check('leerer Status: sichtbare Anzahl = Gesamt - 5 versteckte bedingte Schritte',
-  visibleKeys().length, stepCount() - 5);
+check('leerer Status: sichtbare Anzahl = Gesamt - 6 versteckte bedingte Schritte',
+  visibleKeys().length, stepCount() - 6);
 check('leerer Status: genau 19 bedingte Schritte insgesamt definiert', conditionalCount(), 19);
+
+// Unterkunftsart != Hotel -> Hotelgroesse-Frage bleibt versteckt
+for (const acc of ['Apartment', 'Ferienwohnung', 'Airbnb', 'Villa', 'Camping', 'Hostel']) {
+  setState({ accommodation: acc });
+  check(`Unterkunftsart ${acc}: accommodation_size versteckt`,
+    visibleKeys().includes('accommodation_size'), false);
+}
+setState({ accommodation: 'Hotel' });
+check('Unterkunftsart Hotel: accommodation_size sichtbar',
+  visibleKeys().includes('accommodation_size'), true);
 
 // Nur Strand gewaehlt -> nur beach_detail sichtbar
 setState({ interests: ['🌴 Strand'] });

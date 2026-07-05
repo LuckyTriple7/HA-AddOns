@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.40.1] - 2026-07-05
+
+### Fixed
+- **Hotelgröße-Frage überflüssig bei anderer Unterkunftsart:** „Wie groß
+  darf das Hotel sein?" erscheint jetzt nur noch, wenn bei der
+  Unterkunftsart „Hotel" gewählt wurde.
+
 ## [0.40.0] - 2026-07-05
 
 ### Added
