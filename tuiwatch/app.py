@@ -70,7 +70,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.40.1"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.40.2"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -3482,12 +3482,12 @@ def api_ai_prompt_settings():
 
 _ADVISOR_FIELDS = ('region', 'excluded_countries', 'excluded_countries_other', 'interests',
                    'beach_detail', 'berge_detail', 'travel_type', 'companions', 'budget',
-                   'duration', 'duration_daytrip', 'month', 'temp', 'sea', 'rain', 'activities',
-                   'accommodation', 'accommodation_size', 'hotel_wishes', 'arrival_mode',
-                   'home_location', 'max_distance', 'flight_time', 'airports', 'dislikes',
-                   'perfect_holiday', 'past_trips')
+                   'duration', 'duration_daytrip', 'month', 'temp', 'water_type', 'sea', 'rain',
+                   'activities', 'accommodation', 'accommodation_size', 'hotel_wishes',
+                   'arrival_mode', 'home_location', 'max_distance', 'flight_time', 'airports',
+                   'dislikes', 'perfect_holiday', 'past_trips')
 _ADVISOR_LIST_FIELDS = {'interests', 'beach_detail', 'berge_detail', 'travel_type', 'activities',
-                        'hotel_wishes', 'airports', 'dislikes', 'excluded_countries'}
+                        'hotel_wishes', 'airports', 'dislikes', 'excluded_countries', 'water_type'}
 _ADVISOR_TEXT_FIELDS = {'perfect_holiday', 'past_trips', 'excluded_countries_other', 'home_location'}
 _ADVISOR_LABELS = {
     'region': 'Ziel-Region', 'excluded_countries': 'Kommt nicht in Frage',
@@ -3496,7 +3496,8 @@ _ADVISOR_LABELS = {
     'berge_detail': 'Berge-Details', 'travel_type': 'Reiseart',
     'companions': 'Reist mit', 'budget': 'Budget pro Person', 'duration': 'Reisedauer',
     'duration_daytrip': 'Verfügbare Zeit',
-    'month': 'Reisezeit', 'temp': 'Gewünschte Temperatur', 'sea': 'Meer/Wasser',
+    'month': 'Reisezeit', 'temp': 'Gewünschte Temperatur', 'water_type': 'Gewässer',
+    'sea': 'Wassertemperatur',
     'rain': 'Niederschlag', 'activities': 'Gewünschte Aktivitäten',
     'accommodation': 'Unterkunftsart', 'accommodation_size': 'Hotelgröße',
     'hotel_wishes': 'Hotelwünsche', 'arrival_mode': 'Anreise',

@@ -66,10 +66,20 @@ check('leerer Status: berge_detail versteckt', visibleKeys().includes('berge_det
 check('leerer Status: duration_daytrip versteckt', visibleKeys().includes('duration_daytrip'), false);
 check('leerer Status: accommodation_size versteckt (keine Unterkunftsart gewaehlt)',
   visibleKeys().includes('accommodation_size'), false);
+check('leerer Status: sea versteckt (kein water_type gewaehlt)',
+  visibleKeys().includes('sea'), false);
 check('leerer Status: duration sichtbar', visibleKeys().includes('duration'), true);
-check('leerer Status: sichtbare Anzahl = Gesamt - 6 versteckte bedingte Schritte',
-  visibleKeys().length, stepCount() - 6);
-check('leerer Status: genau 19 bedingte Schritte insgesamt definiert', conditionalCount(), 19);
+check('leerer Status: sichtbare Anzahl = Gesamt - 7 versteckte bedingte Schritte',
+  visibleKeys().length, stepCount() - 7);
+check('leerer Status: genau 20 bedingte Schritte insgesamt definiert', conditionalCount(), 20);
+
+// water_type steuert sea-Sichtbarkeit
+setState({ water_type: ['Kein Gewässer nötig'] });
+check('water_type Kein Gewaesser: sea versteckt', visibleKeys().includes('sea'), false);
+setState({ water_type: ['Meer'] });
+check('water_type Meer: sea sichtbar', visibleKeys().includes('sea'), true);
+setState({ water_type: ['Meer', 'See'] });
+check('water_type Meer+See: sea sichtbar', visibleKeys().includes('sea'), true);
 
 // Unterkunftsart != Hotel -> Hotelgroesse-Frage bleibt versteckt
 for (const acc of ['Apartment', 'Ferienwohnung', 'Airbnb', 'Villa', 'Camping', 'Hostel']) {
@@ -121,7 +131,7 @@ for (const mode of ['Auto', 'Bus', 'Bahn']) {
 
 // Tagesausflug gewaehlt -> Laender/Reiseart/Mitreisende/Budget/Unterkunft/Anreise/
 // Flug/Freitext versteckt, dafuer Startort/Entfernung/Zeit-Frage sichtbar
-setState({ region: DAYTRIP });
+setState({ region: DAYTRIP, water_type: ['Meer'] });
 const hiddenForDaytrip = ['excluded_countries', 'excluded_countries_other', 'travel_type',
   'companions', 'budget', 'duration', 'accommodation', 'accommodation_size', 'hotel_wishes',
   'arrival_mode', 'flight_time', 'airports', 'perfect_holiday', 'past_trips'];
@@ -129,7 +139,7 @@ for (const key of hiddenForDaytrip) {
   check(`Tagesausflug: ${key} versteckt`, visibleKeys().includes(key), false);
 }
 const shownForDaytrip = ['region', 'interests', 'duration_daytrip', 'home_location',
-  'max_distance', 'month', 'temp', 'sea', 'rain', 'activities', 'dislikes'];
+  'max_distance', 'month', 'temp', 'water_type', 'sea', 'rain', 'activities', 'dislikes'];
 for (const key of shownForDaytrip) {
   check(`Tagesausflug: ${key} sichtbar`, visibleKeys().includes(key), true);
 }

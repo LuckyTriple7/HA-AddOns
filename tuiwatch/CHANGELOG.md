@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.40.2] - 2026-07-05
+
+### Changed
+- **„Meer?"-Frage aufgeteilt:** neue Frage „Meer oder See?" (Mehrfachauswahl,
+  auch beides möglich) vor der Wassertemperatur-Frage. „Kein Gewässer nötig"
+  blendet die Temperaturfrage aus.
+
 ## [0.40.1] - 2026-07-05
 
 ### Fixed
