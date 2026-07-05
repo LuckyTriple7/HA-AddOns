@@ -1,0 +1,14 @@
+services:
+  tuiwatch-dev:
+    build: .
+    container_name: tuiwatch-dev
+    ports:
+      - "17794:17794"
+    environment:
+      TUIWATCH_DATA: /data
+      TUIWATCH_BACKUP_DIR: /config/backups
+      # TUIWATCH_PORT: "17794"
+    volumes:
+      - ./dev_data:/data
+      - ./dev_data/config:/config
+    restart: unless-stopped
