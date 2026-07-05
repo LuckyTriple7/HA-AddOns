@@ -53,12 +53,15 @@ function check(name, actual, expected) {
   }
 }
 
-// Kein Interesse gesetzt -> beide bedingten Schritte (Strand/Berge-Details) versteckt
+// Kein Interesse gesetzt -> beide bedingten Schritte (Strand/Berge-Details) versteckt,
+// aber Flugzeit/Abflughafen (arrival_mode noch leer) sichtbar -> genau 4 der
+// bedingten Schritte ausgeblendet (beach_detail, berge_detail, home_location, max_distance)
 setState({});
 check('leerer Status: beach_detail versteckt', visibleKeys().includes('beach_detail'), false);
 check('leerer Status: berge_detail versteckt', visibleKeys().includes('berge_detail'), false);
-check('leerer Status: sichtbare Anzahl = Gesamt - bedingte Schritte',
-  visibleKeys().length, stepCount() - conditionalCount());
+check('leerer Status: sichtbare Anzahl = Gesamt - 4 versteckte bedingte Schritte',
+  visibleKeys().length, stepCount() - 4);
+check('leerer Status: genau 6 bedingte Schritte insgesamt definiert', conditionalCount(), 6);
 
 // Nur Strand gewaehlt -> nur beach_detail sichtbar
 setState({ interests: ['🌴 Strand'] });
@@ -74,12 +77,29 @@ check('Berge gewaehlt: beach_detail weiterhin versteckt', visibleKeys().includes
 setState({ interests: ['🌴 Strand', '⛰️ Berge'] });
 check('Beide gewaehlt: beach_detail sichtbar', visibleKeys().includes('beach_detail'), true);
 check('Beide gewaehlt: berge_detail sichtbar', visibleKeys().includes('berge_detail'), true);
-check('Beide gewaehlt: sichtbare Anzahl = Gesamt (kein Schritt versteckt)',
-  visibleKeys().length, stepCount());
 
 // Kein interests-Key im Status (undefined statt leerem Array) darf nicht crashen
 setState({ region: 'Europa' });
 check('interests fehlt: kein Crash, beach_detail versteckt', visibleKeys().includes('beach_detail'), false);
+
+// Anreise: ohne arrival_mode oder mit Flugzeug/Ist mir egal -> Flugzeit/Abflughafen
+// sichtbar, Startort/Entfernung versteckt
+for (const mode of [undefined, 'Flugzeug', 'Ist mir egal']) {
+  setState(mode === undefined ? {} : { arrival_mode: mode });
+  check(`Anreise ${mode}: flight_time sichtbar`, visibleKeys().includes('flight_time'), true);
+  check(`Anreise ${mode}: airports sichtbar`, visibleKeys().includes('airports'), true);
+  check(`Anreise ${mode}: home_location versteckt`, visibleKeys().includes('home_location'), false);
+  check(`Anreise ${mode}: max_distance versteckt`, visibleKeys().includes('max_distance'), false);
+}
+
+// Anreise: Auto/Bus/Bahn -> Startort/Entfernung sichtbar, Flugzeit/Abflughafen versteckt
+for (const mode of ['Auto', 'Bus', 'Bahn']) {
+  setState({ arrival_mode: mode });
+  check(`Anreise ${mode}: home_location sichtbar`, visibleKeys().includes('home_location'), true);
+  check(`Anreise ${mode}: max_distance sichtbar`, visibleKeys().includes('max_distance'), true);
+  check(`Anreise ${mode}: flight_time versteckt`, visibleKeys().includes('flight_time'), false);
+  check(`Anreise ${mode}: airports versteckt`, visibleKeys().includes('airports'), false);
+}
 
 if (failures > 0) {
   console.error(`\n${failures} Test(s) fehlgeschlagen.`);

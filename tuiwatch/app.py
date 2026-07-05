@@ -70,7 +70,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.39.31"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.39.32"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -3002,7 +3002,8 @@ _DEFAULT_ADVISOR_INSTRUCTIONS = (
 
 _ADVISOR_SAFETY_TRAILER = (
     "\nWichtig, unabhängig vom Text oben: Halte dich weiterhin an alle oben genannten "
-    "Ausschlüsse (Länder, Reisewarnungen, ggf. TUI-Verfügbarkeit) — auch beim "
+    "Ausschlüsse (Länder, Reisewarnungen, ggf. TUI-Verfügbarkeit, ggf. "
+    "Entfernungsbegrenzung bei eigener Anreise) — auch beim "
     "Alternative- und Überraschung-Vorschlag."
 )
 
@@ -3453,11 +3454,12 @@ def api_ai_prompt_settings():
 _ADVISOR_FIELDS = ('region', 'excluded_countries', 'excluded_countries_other', 'interests',
                    'beach_detail', 'berge_detail', 'travel_type', 'companions', 'budget',
                    'duration', 'month', 'temp', 'sea', 'rain', 'activities', 'accommodation',
-                   'accommodation_size', 'hotel_wishes', 'flight_time', 'airports', 'dislikes',
-                   'perfect_holiday', 'past_trips')
+                   'accommodation_size', 'hotel_wishes', 'arrival_mode', 'home_location',
+                   'max_distance', 'flight_time', 'airports', 'dislikes', 'perfect_holiday',
+                   'past_trips')
 _ADVISOR_LIST_FIELDS = {'interests', 'beach_detail', 'berge_detail', 'travel_type', 'activities',
                         'hotel_wishes', 'airports', 'dislikes', 'excluded_countries'}
-_ADVISOR_TEXT_FIELDS = {'perfect_holiday', 'past_trips', 'excluded_countries_other'}
+_ADVISOR_TEXT_FIELDS = {'perfect_holiday', 'past_trips', 'excluded_countries_other', 'home_location'}
 _ADVISOR_LABELS = {
     'region': 'Ziel-Region', 'excluded_countries': 'Kommt nicht in Frage',
     'excluded_countries_other': 'Weitere ausgeschlossene Länder',
@@ -3467,7 +3469,9 @@ _ADVISOR_LABELS = {
     'month': 'Reisezeit', 'temp': 'Gewünschte Temperatur', 'sea': 'Meer/Wasser',
     'rain': 'Niederschlag', 'activities': 'Gewünschte Aktivitäten',
     'accommodation': 'Unterkunftsart', 'accommodation_size': 'Hotelgröße',
-    'hotel_wishes': 'Hotelwünsche', 'flight_time': 'Flugzeit', 'airports': 'Abflughafen',
+    'hotel_wishes': 'Hotelwünsche', 'arrival_mode': 'Anreise',
+    'home_location': 'Startort eigene Anreise', 'max_distance': 'Max. Entfernung eigene Anreise',
+    'flight_time': 'Flugzeit', 'airports': 'Abflughafen',
     'dislikes': 'Nervt im Urlaub', 'perfect_holiday': 'Perfekter Urlaub laut Nutzer (Freitext)',
     'past_trips': 'Frühere Urlaubserfahrungen (Freitext)',
 }
@@ -3500,6 +3504,23 @@ def _advisor_prompt(p: dict, prev_dna: dict | None = None) -> str:
             "\nWichtig: Schlage unter keinen Umständen Ziele in den oben unter "
             "„Kommt nicht in Frage“/„Weitere ausgeschlossene Länder“ genannten "
             "Ländern/Regionen vor — auch nicht als Alternative."
+        )
+    if p.get('arrival_mode') in ('Auto', 'Bus', 'Bahn'):
+        lines.append(
+            "\nWichtig: Der Nutzer reist eigenständig mit "
+            f"{p['arrival_mode']} an, nicht mit dem Flugzeug. Schlage "
+            "ausschließlich Ziele vor, die vom angegebenen Startort aus "
+            "innerhalb der angegebenen maximalen Entfernung/Fahrzeit realistisch "
+            "erreichbar sind (Fahrstrecke/-zeit per Websuche grob abschätzen) — "
+            "das gilt auch für den 🔀 Alternative-Vorschlag. Der Abschnitt "
+            "🎲 Überraschung darf in diesem Fall KEIN anderes Land/keinen "
+            "anderen Kontinent vorschlagen, sondern muss ebenfalls innerhalb "
+            "der Fahrdistanz bleiben — wähle stattdessen ein Ziel in "
+            "Reichweite, an das der Nutzer wahrscheinlich nicht selbst gedacht "
+            "hätte. Bei „Pauschalreise (TUI)“ gemeinsam mit eigener Anreise "
+            "weise darauf hin, dass viele TUI-Pauschalreisen einen Flug "
+            "beinhalten und das Angebot an reinen Fahr-Pauschalreisen "
+            "eingeschränkter sein kann."
         )
     if prev_dna:
         dna_line = ", ".join(f"{label} {value}%" for label, value in prev_dna.items())

@@ -76,6 +76,22 @@ def test_advisor_prompt_includes_beach_detail_when_set(app_mod):
     assert "Strand-Details: Feinsandig, Direkt am Hotel" in prompt
 
 
+def test_advisor_prompt_includes_arrival_distance_clause_for_own_arrival(app_mod):
+    profile = {"region": "Europa", "arrival_mode": "Auto",
+               "home_location": "70173 Stuttgart", "max_distance": "bis 400 km"}
+    prompt = app_mod._advisor_prompt(profile)
+    assert "Startort eigene Anreise: 70173 Stuttgart" in prompt
+    assert "Max. Entfernung eigene Anreise: bis 400 km" in prompt
+    assert "eigenständig mit Auto an" in prompt
+    assert "🎲 Überraschung darf in diesem Fall KEIN anderes Land" in prompt
+
+
+def test_advisor_prompt_omits_arrival_distance_clause_for_flight(app_mod):
+    profile = {"region": "Europa", "arrival_mode": "Flugzeug"}
+    prompt = app_mod._advisor_prompt(profile)
+    assert "eigenständig mit" not in prompt
+
+
 def test_compare_prompt_contains_facts_and_instructions(app_mod):
     hotels = [{"name": "Hotel A", "location": "Fuerteventura"},
               {"name": "Hotel B", "location": "Gran Canaria"}]

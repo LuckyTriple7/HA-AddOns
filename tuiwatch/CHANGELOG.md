@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.39.32] - 2026-07-05
+
+### Added
+- **Eigene Anreise im Reiseberater:** neue Frage „Wie möchtest du anreisen?"
+  (Flugzeug/Auto/Bus/Bahn/Ist mir egal). Bei Auto/Bus/Bahn werden Flugzeit/
+  Abflughafen übersprungen, stattdessen Startort (PLZ/Ort) und maximale
+  Entfernung abgefragt. Die KI schlägt dann nur noch Ziele in Fahrdistanz
+  vor — gilt auch für den Alternative-Vorschlag; der Überraschungs-Vorschlag
+  bleibt dabei ebenfalls in Fahrdistanz statt einen anderen Kontinent
+  vorzuschlagen.
+
 ## [0.39.31] - 2026-07-05
 
 ### Added
