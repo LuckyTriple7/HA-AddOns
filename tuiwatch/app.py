@@ -70,7 +70,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.40.7"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.40.8"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -3262,9 +3262,11 @@ def _ai_request(api_key: str, model: str, prompt: str, *, max_tokens: int,
     if not text:
         return None, None, 'empty'
     u = resp.usage
+    server_tool_use = getattr(u, 'server_tool_use', None)
     usage = {'input_tokens': u.input_tokens, 'output_tokens': u.output_tokens,
              'cache_creation_input_tokens': getattr(u, 'cache_creation_input_tokens', 0) or 0,
-             'cache_read_input_tokens': getattr(u, 'cache_read_input_tokens', 0) or 0}
+             'cache_read_input_tokens': getattr(u, 'cache_read_input_tokens', 0) or 0,
+             'web_search_requests': getattr(server_tool_use, 'web_search_requests', 0) or 0}
     return text, usage, None
 
 

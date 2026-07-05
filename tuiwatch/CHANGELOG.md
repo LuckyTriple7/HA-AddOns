@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.40.8] - 2026-07-05
+
+### Added
+- **Anzahl Websuchen in der Antwort sichtbar:** zeigt jetzt „🔍 N Websuchen"
+  neben Tokens/Kosten unter jedem KI-Ergebnis (Anthropic liefert die Zahl
+  direkt in der Nutzungsstatistik mit).
+
 ## [0.40.7] - 2026-07-05
 
 ### Added

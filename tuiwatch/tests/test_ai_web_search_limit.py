@@ -25,11 +25,17 @@ def app_mod(tmp_path, monkeypatch):
     return m
 
 
+class _FakeServerToolUsage:
+    web_fetch_requests = 0
+    web_search_requests = 7
+
+
 class _FakeUsage:
     input_tokens = 100
     output_tokens = 50
     cache_creation_input_tokens = 0
     cache_read_input_tokens = 0
+    server_tool_use = _FakeServerToolUsage()
 
 
 class _FakeTextBlock:
@@ -73,6 +79,13 @@ def test_web_search_max_uses_defaults_to_12(app_mod, monkeypatch):
     captured = _patch_anthropic(app_mod, monkeypatch)
     app_mod._ai_request("key", "claude-sonnet-5", "Prompt", max_tokens=100, log_ctx="Test")
     assert captured[0]["tools"][0]["max_uses"] == 12
+
+
+def test_web_search_request_count_returned_in_usage(app_mod, monkeypatch):
+    _patch_anthropic(app_mod, monkeypatch)
+    _text, usage, _err = app_mod._ai_request("key", "claude-sonnet-5", "Prompt",
+                                              max_tokens=100, log_ctx="Test")
+    assert usage["web_search_requests"] == 7
 
 
 def test_web_search_max_uses_reads_config(app_mod, monkeypatch):

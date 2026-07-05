@@ -2437,6 +2437,7 @@
       if(usage){
         const parts = [(usage.input_tokens||0)+' Input-', (usage.output_tokens||0)+' Output-Tokens'];
         if(usage.cache_read_input_tokens) parts.push(usage.cache_read_input_tokens+' aus Prompt-Cache');
+        if(usage.web_search_requests) parts.push('🔍 '+usage.web_search_requests+' Websuchen');
         if(usage.estimated_usd != null) parts.push('≈ $'+usage.estimated_usd.toFixed(2));
         html += '<div class="hint" style="margin-top:14px;padding-top:10px;border-top:1px solid var(--border)">🔢 '
           + parts.join(' · ') + (cached?' · Ergebnis aus Zwischenspeicher (bis zu 24 Std. alt)':'') + '</div>';
