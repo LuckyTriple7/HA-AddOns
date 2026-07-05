@@ -70,7 +70,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.39.29"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.39.30"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -3252,7 +3252,7 @@ _AI_TAG_VOCAB = [
 ]
 _AI_TAG_SCHEMA = {
     "type": "object",
-    "properties": {"tags": {"type": "array", "items": {"type": "string"}, "maxItems": 4}},
+    "properties": {"tags": {"type": "array", "items": {"type": "string"}}},
     "required": ["tags"], "additionalProperties": False,
 }
 
@@ -3276,7 +3276,7 @@ def _ai_auto_tags(h: dict, api_key: str, model: str) -> list | None:
     if code or not text:
         return None
     try:
-        tags = [t for t in json.loads(text).get('tags', []) if t in _AI_TAG_VOCAB]
+        tags = [t for t in json.loads(text).get('tags', []) if t in _AI_TAG_VOCAB][:4]
     except (ValueError, AttributeError):
         return None
     usage['estimated_usd'] = _ai_call_cost(model, usage)

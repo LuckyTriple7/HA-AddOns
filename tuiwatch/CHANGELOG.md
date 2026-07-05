@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.39.30] - 2026-07-05
+
+### Fixed
+- **Auto-Tags kaputt:** Anthropic lehnte den Structured-Output-Schema mit
+  `"Error code: 400 ... maxItems is not supported"` ab. `maxItems` aus dem
+  Tags-Schema entfernt, Kappung auf max. 4 Tags jetzt serverseitig nach der
+  Antwort.
+
 ## [0.39.29] - 2026-07-05
 
 ### Changed
