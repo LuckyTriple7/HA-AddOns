@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.39.28] - 2026-07-05
+
+### Added
+- **Reiseberater: Strand-Details:** wählt man bei „Was ist dir im Urlaub
+  wichtig?" 🌴 Strand aus, erscheint jetzt ein Folge-Schritt zur genaueren
+  Strandart (langer Sandstrand, kleine ruhige Bucht, belebt mit Beach-Bars,
+  Felsen/Schnorcheln, direkt am Hotel, Fußweg/Promenade OK) — fließt in
+  Zielwahl, Unterkunftsvorschläge und Reise-DNA mit ein. Der Wizard
+  unterstützt intern jetzt generisch bedingte Folge-Schritte (`showIf`).
+
 ## [0.39.27] - 2026-07-05
 
 ### Fixed

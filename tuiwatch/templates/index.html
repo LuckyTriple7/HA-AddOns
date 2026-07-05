@@ -2667,6 +2667,10 @@
       {title:'Was ist dir im Urlaub wichtig?', key:'interests', multi:true,
        options:['🌴 Strand','⛰️ Berge','🏛️ Kultur','🍹 Entspannung','🎉 Nachtleben','🚶 Wandern',
                 '🚴 Radfahren','🍽️ Essen','🛍️ Shopping','👨‍👩‍👧 Familie','❤️ Romantik']},
+      {title:'Wie soll dein Strand sein?', key:'beach_detail', multi:true,
+       showIf: state => (state.interests||[]).includes('🌴 Strand'),
+       options:['Langer Sandstrand','Kleine, ruhige Bucht','Belebt mit Beach-Bars',
+                'Felsen/gut zum Schnorcheln','Direkt am Hotel','Fußweg/Promenade OK']},
       {title:'Welche Reiseart?', key:'travel_type', multi:true,
        options:['Pauschalreise (TUI)','Badeurlaub','Rundreise','Städtereise','Kreuzfahrt','Wellness',
                 'Aktivurlaub','Abenteuer','Luxus','Camping','All Inclusive','Ferienwohnung']},
@@ -2718,9 +2722,11 @@
     }
     function closeAdvisor(){ $('#reiseb-bg').classList.remove('show'); }
     $('#reiseb-bg').addEventListener('click', e=>{ if(e.target.id==='reiseb-bg') closeAdvisor(); });
+    function advVisibleSteps(){ return ADV_STEPS.filter(s => !s.showIf || s.showIf(advState)); }
     function advRender(){
-      const s = ADV_STEPS[advIdx];
-      $('#reiseb-sub').textContent = 'Schritt '+(advIdx+1)+' von '+ADV_STEPS.length
+      const steps = advVisibleSteps();
+      const s = steps[advIdx];
+      $('#reiseb-sub').textContent = 'Schritt '+(advIdx+1)+' von '+steps.length
         + (s.multi ? ' · Mehrfachauswahl möglich' : '');
       if(s.type === 'text'){
         const val = advState[s.key] || '';
@@ -2736,10 +2742,10 @@
             }).join('') + '</div>';
       }
       $('#reiseb-back').style.visibility = advIdx === 0 ? 'hidden' : 'visible';
-      $('#reiseb-next').textContent = advIdx === ADV_STEPS.length - 1 ? '🔮 Empfehlung holen' : 'Weiter';
+      $('#reiseb-next').textContent = advIdx === steps.length - 1 ? '🔮 Empfehlung holen' : 'Weiter';
     }
     function advPick(oi){
-      const s = ADV_STEPS[advIdx], o = s.options[oi];
+      const s = advVisibleSteps()[advIdx], o = s.options[oi];
       if(s.multi){
         const arr = advState[s.key] || (advState[s.key] = []);
         const i = arr.indexOf(o);
@@ -2752,7 +2758,7 @@
       }
     }
     function advCaptureText(){
-      const s = ADV_STEPS[advIdx];
+      const s = advVisibleSteps()[advIdx];
       if(s.type === 'text'){
         const v = ($('#reiseb-text').value || '').trim();
         if(v) advState[s.key] = v; else delete advState[s.key];
@@ -2761,7 +2767,8 @@
     function advBack(){ advCaptureText(); if(advIdx > 0){ advIdx--; advRender(); } }
     function advNext(){
       advCaptureText();
-      if(advIdx < ADV_STEPS.length - 1){ advIdx++; advRender(); }
+      const steps = advVisibleSteps();
+      if(advIdx < steps.length - 1){ advIdx++; advRender(); }
       else submitAdvisor();
     }
     async function submitAdvisor(){

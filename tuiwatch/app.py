@@ -70,7 +70,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.39.27"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.39.28"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -2968,7 +2968,11 @@ _DEFAULT_ADVISOR_INSTRUCTIONS = (
     "zu Hotelgröße/Hotelwünschen); bei Ferienwohnung/Airbnb/Camping/Hostel keine "
     "Markennamen, sondern konkrete Wohngegenden/Straßenzüge/Ortsteile je Kategorie "
     "mit Preis-/Ausstattungsniveau statt allgemeiner Aussagen wie „gibt viele "
-    "Ferienwohnungen“. Wichtig: alle genannten Unterkünfte müssen tatsächlich in genau "
+    "Ferienwohnungen“. Falls Strand-Details im Profil angegeben sind, berücksichtige "
+    "diese sowohl bei der Zielwahl (z. B. langer Sandstrand vs. kleine ruhige Bucht "
+    "vs. Felsen zum Schnorcheln) als auch bei den Unterkunftsvorschlägen (z. B. "
+    "„direkt am Hotel“ schränkt ein, welche Unterkünfte infrage kommen). Wichtig: "
+    "alle genannten Unterkünfte müssen tatsächlich in genau "
     "diesem Ziel/dieser Teilregion liegen (gleiche Insel/gleicher Ort wie in der "
     "Überschrift) — keine Unterkünfte von einer anderen Insel oder Nachbarregion "
     "einstreuen, auch nicht als Alternative innerhalb der Begründung. Wenn im selben "
@@ -3445,16 +3449,17 @@ def api_ai_prompt_settings():
 
 
 _ADVISOR_FIELDS = ('region', 'excluded_countries', 'excluded_countries_other', 'interests',
-                   'travel_type', 'companions', 'budget', 'duration', 'month', 'temp', 'sea',
-                   'rain', 'activities', 'accommodation', 'accommodation_size', 'hotel_wishes',
-                   'flight_time', 'airports', 'dislikes', 'perfect_holiday', 'past_trips')
-_ADVISOR_LIST_FIELDS = {'interests', 'travel_type', 'activities', 'hotel_wishes', 'airports',
-                        'dislikes', 'excluded_countries'}
+                   'beach_detail', 'travel_type', 'companions', 'budget', 'duration', 'month',
+                   'temp', 'sea', 'rain', 'activities', 'accommodation', 'accommodation_size',
+                   'hotel_wishes', 'flight_time', 'airports', 'dislikes', 'perfect_holiday',
+                   'past_trips')
+_ADVISOR_LIST_FIELDS = {'interests', 'beach_detail', 'travel_type', 'activities', 'hotel_wishes',
+                        'airports', 'dislikes', 'excluded_countries'}
 _ADVISOR_TEXT_FIELDS = {'perfect_holiday', 'past_trips', 'excluded_countries_other'}
 _ADVISOR_LABELS = {
     'region': 'Ziel-Region', 'excluded_countries': 'Kommt nicht in Frage',
     'excluded_countries_other': 'Weitere ausgeschlossene Länder',
-    'interests': 'Wichtig im Urlaub', 'travel_type': 'Reiseart',
+    'interests': 'Wichtig im Urlaub', 'beach_detail': 'Strand-Details', 'travel_type': 'Reiseart',
     'companions': 'Reist mit', 'budget': 'Budget pro Person', 'duration': 'Reisedauer',
     'month': 'Reisezeit', 'temp': 'Gewünschte Temperatur', 'sea': 'Meer/Wasser',
     'rain': 'Niederschlag', 'activities': 'Gewünschte Aktivitäten',
@@ -3524,7 +3529,8 @@ def _advisor_dna_scores(p: dict) -> dict:
     checks = {
         '🌴 Strand': [has('interests', '🌴 Strand'),
                      has('hotel_wishes', 'direkte Strandlage', 'Sandstrand', 'Hausriff'),
-                     has('sea', '28°C+ (tropisch warm)', '24–27°C (angenehm warm)')],
+                     has('sea', '28°C+ (tropisch warm)', '24–27°C (angenehm warm)'),
+                     has('beach_detail', 'Langer Sandstrand', 'Direkt am Hotel')],
         '🏛️ Kultur': [has('interests', '🏛️ Kultur'), has('activities', 'Museen', 'Fotografieren')],
         '🎉 Nachtleben': [has('interests', '🎉 Nachtleben')],
         '⛰️ Aktiv': [has('interests', '🚶 Wandern', '🚴 Radfahren'),
