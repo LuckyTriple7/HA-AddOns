@@ -92,6 +92,25 @@ def test_advisor_prompt_omits_arrival_distance_clause_for_flight(app_mod):
     assert "eigenständig mit" not in prompt
 
 
+def test_advisor_prompt_uses_daytrip_instructions(app_mod):
+    profile = {"region": app_mod._DAYTRIP_REGION_VALUE,
+               "home_location": "70173 Stuttgart", "max_distance": "bis 100 km",
+               "duration_daytrip": "Ganzer Tag"}
+    prompt = app_mod._advisor_prompt(profile)
+    assert "Tagesausflugsziele" in prompt
+    assert "Startort eigene Anreise: 70173 Stuttgart" in prompt
+    assert "Verfügbare Zeit: Ganzer Tag" in prompt
+    assert "eigenständig mit einem Fahrzeug/den öffentlichen Verkehrsmitteln an" in prompt
+    assert "Unterkunftsvorschläge" not in prompt
+    assert "die TUI tatsächlich im Programm hat" not in prompt
+
+
+def test_advisor_prompt_daytrip_ignores_dna_context(app_mod):
+    profile = {"region": app_mod._DAYTRIP_REGION_VALUE, "home_location": "Köln"}
+    prompt = app_mod._advisor_prompt(profile, prev_dna={"🌴 Strand": 50})
+    assert "Reise-DNA" not in prompt
+
+
 def test_compare_prompt_contains_facts_and_instructions(app_mod):
     hotels = [{"name": "Hotel A", "location": "Fuerteventura"},
               {"name": "Hotel B", "location": "Gran Canaria"}]
@@ -112,7 +131,7 @@ def test_summary_prompt_contains_facts_and_instructions(app_mod):
 def test_prompt_settings_includes_summary_feature(app_mod):
     c = app_mod.app.test_client()
     data = c.get("/api/ai/prompt-settings", headers=ING).get_json()
-    assert set(data.keys()) == {"advisor", "compare", "summary"}
+    assert set(data.keys()) == {"advisor", "compare", "summary", "daytrip"}
     assert "Fazit" in data["summary"]["default"]
 
 
@@ -121,7 +140,7 @@ def test_prompt_settings_get_default(app_mod):
     r = c.get("/api/ai/prompt-settings", headers=ING)
     assert r.status_code == 200
     data = r.get_json()
-    assert set(data.keys()) == {"advisor", "compare", "summary"}
+    assert set(data.keys()) == {"advisor", "compare", "summary", "daytrip"}
     assert data["advisor"]["enabled"] is False
     assert data["advisor"]["text"] == ""
     assert "Windverhältnisse" in data["advisor"]["default"]

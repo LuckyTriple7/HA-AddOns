@@ -70,7 +70,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.39.32"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.40.0"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -3041,8 +3041,37 @@ _DEFAULT_SUMMARY_INSTRUCTIONS = (
     "prüfen“."
 )
 
+_DAYTRIP_REGION_VALUE = 'Tagesausflug in der Nähe'
+
+_DEFAULT_DAYTRIP_INSTRUCTIONS = (
+    "Nutze die Websuche für reale, aktuelle Tagesausflugsziele innerhalb der "
+    "angegebenen maximalen Entfernung vom Startort — keine erfundenen Orte. "
+    "Berücksichtige Wetter/Jahreszeit (Temperatur, Regenwahrscheinlichkeit) für "
+    "den genannten Monat, falls angegeben.\n\n"
+    "Schlage 3 konkrete Tagesausflugsziele vor (Ort/Sehenswürdigkeit + passende "
+    "Aktivität), die alle innerhalb der angegebenen maximalen Entfernung vom "
+    "Startort liegen. Für jeden Vorschlag eine Markdown-Überschrift "
+    "(#### 🏆/🥈/🥉 Ziel-Name), danach als Stichpunkte: was man dort konkret "
+    "unternehmen kann (passend zu Interessen/Aktivitäten), ungefähre "
+    "Anfahrtszeit/-strecke vom Startort, grobe Öffnungszeiten/Eintrittspreise "
+    "falls zutreffend (per Websuche, mit Hinweis dass sich das ändern kann), "
+    "sowie einen Einkehr-Tipp (Café/Restaurant vor Ort). Keine "
+    "Übernachtungsempfehlung — es handelt sich um einen Tagesausflug ohne "
+    "Übernachtung. Ergänze danach einen Abschnitt „#### 🔀 Alternative“ mit "
+    "einem Ziel, das leicht abweicht, aber ähnlich gut passen könnte, sowie "
+    "einen Abschnitt „#### 🎲 Überraschung“ mit einem Ziel in ähnlicher "
+    "Entfernung, an das der Nutzer wahrscheinlich nicht selbst gedacht hätte "
+    "(auch dieses muss innerhalb der maximalen Entfernung bleiben). Schreibe "
+    "auf Deutsch, sprich den Nutzer dabei durchgehend mit „Du“ an (informell, "
+    "nicht „Sie“), ehrlich und ohne zu übertreiben — wenn ein Wunsch schwer "
+    "erfüllbar ist, sag das offen. Gib direkt die fertige Antwort aus — keine "
+    "Zwischenkommentare wie „Ich werde jetzt recherchieren“ oder „Lassen Sie "
+    "mich noch prüfen“."
+)
+
 _PROMPT_FEATURES = {'advisor': _DEFAULT_ADVISOR_INSTRUCTIONS, 'compare': _DEFAULT_COMPARE_INSTRUCTIONS,
-                    'summary': _DEFAULT_SUMMARY_INSTRUCTIONS}
+                    'summary': _DEFAULT_SUMMARY_INSTRUCTIONS,
+                    'daytrip': _DEFAULT_DAYTRIP_INSTRUCTIONS}
 
 
 def _hotel_fact_lines(h: dict, *, label: str = "Hotel") -> list[str]:
@@ -3453,10 +3482,10 @@ def api_ai_prompt_settings():
 
 _ADVISOR_FIELDS = ('region', 'excluded_countries', 'excluded_countries_other', 'interests',
                    'beach_detail', 'berge_detail', 'travel_type', 'companions', 'budget',
-                   'duration', 'month', 'temp', 'sea', 'rain', 'activities', 'accommodation',
-                   'accommodation_size', 'hotel_wishes', 'arrival_mode', 'home_location',
-                   'max_distance', 'flight_time', 'airports', 'dislikes', 'perfect_holiday',
-                   'past_trips')
+                   'duration', 'duration_daytrip', 'month', 'temp', 'sea', 'rain', 'activities',
+                   'accommodation', 'accommodation_size', 'hotel_wishes', 'arrival_mode',
+                   'home_location', 'max_distance', 'flight_time', 'airports', 'dislikes',
+                   'perfect_holiday', 'past_trips')
 _ADVISOR_LIST_FIELDS = {'interests', 'beach_detail', 'berge_detail', 'travel_type', 'activities',
                         'hotel_wishes', 'airports', 'dislikes', 'excluded_countries'}
 _ADVISOR_TEXT_FIELDS = {'perfect_holiday', 'past_trips', 'excluded_countries_other', 'home_location'}
@@ -3466,6 +3495,7 @@ _ADVISOR_LABELS = {
     'interests': 'Wichtig im Urlaub', 'beach_detail': 'Strand-Details',
     'berge_detail': 'Berge-Details', 'travel_type': 'Reiseart',
     'companions': 'Reist mit', 'budget': 'Budget pro Person', 'duration': 'Reisedauer',
+    'duration_daytrip': 'Verfügbare Zeit',
     'month': 'Reisezeit', 'temp': 'Gewünschte Temperatur', 'sea': 'Meer/Wasser',
     'rain': 'Niederschlag', 'activities': 'Gewünschte Aktivitäten',
     'accommodation': 'Unterkunftsart', 'accommodation_size': 'Hotelgröße',
@@ -3482,7 +3512,11 @@ def _advisor_prompt(p: dict, prev_dna: dict | None = None) -> str:
     Reiseart/Budget/Reisezeit/Wetter/Aktivitäten/Unterkunft/Hotelwünsche/Flug/
     Abneigungen/Freitext) — freie KI-Empfehlung, nicht auf eigene Angebote
     beschränkt, mit Websuche für reale/aktuelle Klimadaten. `prev_dna` (optional)
-    ist das aus früheren Anfragen gespeicherte Reise-DNA-Profil (Zusatzkontext)."""
+    ist das aus früheren Anfragen gespeicherte Reise-DNA-Profil (Zusatzkontext).
+    Ist `region` == `_DAYTRIP_REGION_VALUE`, wird stattdessen ein Tagesausflug
+    ohne Übernachtung geplant (eigener Instruktionstext, keine TUI/Unterkunfts-
+    Klauseln, keine Reise-DNA)."""
+    is_daytrip = p.get('region') == _DAYTRIP_REGION_VALUE
     lines = ["Ein Nutzer sucht per Reiseberater-Fragebogen sein nächstes Urlaubsziel. "
              "Sein Profil:\n"]
     for key in _ADVISOR_FIELDS:
@@ -3491,7 +3525,7 @@ def _advisor_prompt(p: dict, prev_dna: dict | None = None) -> str:
             val = ", ".join(str(v).strip() for v in val if str(v).strip())
         if val:
             lines.append(f"- {_ADVISOR_LABELS[key]}: {val}")
-    if 'Pauschalreise (TUI)' in (p.get('travel_type') or []):
+    if not is_daytrip and 'Pauschalreise (TUI)' in (p.get('travel_type') or []):
         lines.append(
             "\nWichtig: Der Nutzer will eine Pauschalreise (Flug + Hotel) über TUI "
             "buchen. Empfehle ausschließlich Ziele/Regionen, die TUI tatsächlich im "
@@ -3499,16 +3533,17 @@ def _advisor_prompt(p: dict, prev_dna: dict | None = None) -> str:
             "TUI-Katalogseiten für das Zielland). Kein Ziel vorschlagen, das TUI "
             "nachweislich nicht anbietet."
         )
-    if p.get('excluded_countries') or p.get('excluded_countries_other'):
+    if not is_daytrip and (p.get('excluded_countries') or p.get('excluded_countries_other')):
         lines.append(
             "\nWichtig: Schlage unter keinen Umständen Ziele in den oben unter "
             "„Kommt nicht in Frage“/„Weitere ausgeschlossene Länder“ genannten "
             "Ländern/Regionen vor — auch nicht als Alternative."
         )
-    if p.get('arrival_mode') in ('Auto', 'Bus', 'Bahn'):
+    if p.get('arrival_mode') in ('Auto', 'Bus', 'Bahn') or is_daytrip:
+        transport = p.get('arrival_mode') or 'einem Fahrzeug/den öffentlichen Verkehrsmitteln'
         lines.append(
             "\nWichtig: Der Nutzer reist eigenständig mit "
-            f"{p['arrival_mode']} an, nicht mit dem Flugzeug. Schlage "
+            f"{transport} an, nicht mit dem Flugzeug. Schlage "
             "ausschließlich Ziele vor, die vom angegebenen Startort aus "
             "innerhalb der angegebenen maximalen Entfernung/Fahrzeit realistisch "
             "erreichbar sind (Fahrstrecke/-zeit per Websuche grob abschätzen) — "
@@ -3522,7 +3557,7 @@ def _advisor_prompt(p: dict, prev_dna: dict | None = None) -> str:
             "beinhalten und das Angebot an reinen Fahr-Pauschalreisen "
             "eingeschränkter sein kann."
         )
-    if prev_dna:
+    if prev_dna and not is_daytrip:
         dna_line = ", ".join(f"{label} {value}%" for label, value in prev_dna.items())
         lines.append(
             f"\nZusatzkontext aus früheren Reiseberater-Anfragen dieses Nutzers "
@@ -3535,7 +3570,10 @@ def _advisor_prompt(p: dict, prev_dna: dict | None = None) -> str:
         "schlage solche Länder nicht vor, außer der Nutzer hat sie oben ausdrücklich "
         "gewünscht (z. B. als Ziel-Region genannt)."
     )
-    lines.append("\n" + _prompt_instructions('advisor', _DEFAULT_ADVISOR_INSTRUCTIONS))
+    if is_daytrip:
+        lines.append("\n" + _prompt_instructions('daytrip', _DEFAULT_DAYTRIP_INSTRUCTIONS))
+    else:
+        lines.append("\n" + _prompt_instructions('advisor', _DEFAULT_ADVISOR_INSTRUCTIONS))
     lines.append(_ADVISOR_SAFETY_TRAILER)
     return "\n".join(lines)
 
@@ -3635,8 +3673,10 @@ def api_ai_travel_advisor():
     text, usage, err = _ai_call(api_key, model, prompt, max_tokens=3072, log_ctx='Reiseberater')
     if err:
         return err
-    dna = _advisor_dna_update(_advisor_dna_scores(profile))
-    text += _advisor_dna_table(dna)
+    dna = {}
+    if profile.get('region') != _DAYTRIP_REGION_VALUE:
+        dna = _advisor_dna_update(_advisor_dna_scores(profile))
+        text += _advisor_dna_table(dna)
     usage['estimated_usd'] = _ai_call_cost(model, usage)
     totals = _record_ai_usage(model, usage)
     aid = _save_ai_analysis('advisor', title, model, text, usage)

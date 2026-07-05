@@ -768,6 +768,12 @@
       <div class="hint" id="promptcfg-summary-count" style="text-align:right"></div>
       <button class="btn sec" onclick="promptcfgReset('summary')" style="margin-top:4px">Zurücksetzen auf Standard</button>
 
+      <h3 style="margin:20px 0 6px">🚗 Tagesausflug</h3>
+      <label style="display:flex;align-items:center;gap:6px;font-size:.85rem"><input type="checkbox" id="promptcfg-daytrip-enabled"> Eigenen Prompt verwenden</label>
+      <textarea id="promptcfg-daytrip-text" class="promptcfg-text" rows="10" maxlength="4000" oninput="promptcfgCount('daytrip')" style="margin-top:6px"></textarea>
+      <div class="hint" id="promptcfg-daytrip-count" style="text-align:right"></div>
+      <button class="btn sec" onclick="promptcfgReset('daytrip')" style="margin-top:4px">Zurücksetzen auf Standard</button>
+
       <div style="margin-top:16px;text-align:right">
         <button class="btn" onclick="savePromptCfg()">Speichern</button>
       </div>
@@ -2564,7 +2570,7 @@
         const resp = await fetch(api('/api/ai/prompt-settings'));
         promptCfgData = await resp.json();
       } catch(e){ toast('Laden fehlgeschlagen'); closePromptCfg(); return; }
-      for (const f of ['advisor','compare','summary']){
+      for (const f of ['advisor','compare','summary','daytrip']){
         const d = promptCfgData[f];
         $(`#promptcfg-${f}-enabled`).checked = d.enabled;
         $(`#promptcfg-${f}-text`).value = (d.enabled && d.text) ? d.text : d.default;
@@ -2582,7 +2588,7 @@
     }
     async function savePromptCfg(){
       const body = {};
-      for (const f of ['advisor','compare','summary']){
+      for (const f of ['advisor','compare','summary','daytrip']){
         body[f] = { enabled: $(`#promptcfg-${f}-enabled`).checked, text: $(`#promptcfg-${f}-text`).value };
       }
       try {
@@ -2656,13 +2662,17 @@
     }
 
     // ── KI-Reiseberater (geführter Fragebogen → 3 Zielvorschläge) ─────────────
+    const DAYTRIP = 'Tagesausflug in der Nähe';
     const ADV_STEPS = [
       {title:'Wohin soll die Reise ungefähr gehen?', key:'region', multi:false,
-       options:['Deutschland','Europa','Makaronesien (Kanaren, Madeira, Azoren, Kapverden)','Weltweit','Egal']},
+       options:['Deutschland','Europa','Makaronesien (Kanaren, Madeira, Azoren, Kapverden)','Weltweit',
+                'Egal',DAYTRIP]},
       {title:'Welche Länder kommen für dich nicht in Frage?', key:'excluded_countries', multi:true,
+       showIf: state => state.region !== DAYTRIP,
        options:['Türkei','Ägypten','Tunesien','Marokko','Kenia','Thailand','Sri Lanka',
                 'Dominikanische Republik','Mexiko','Malediven']},
       {title:'Weitere Länder ausschließen? (optional)', key:'excluded_countries_other', type:'text',
+       showIf: state => state.region !== DAYTRIP,
        placeholder:'z. B. weitere Länder, kommagetrennt'},
       {title:'Was ist dir im Urlaub wichtig?', key:'interests', multi:true,
        options:['🌴 Strand','⛰️ Berge','🏛️ Kultur','🍹 Entspannung','🎉 Nachtleben','🚶 Wandern',
@@ -2679,14 +2689,21 @@
                 'Aussicht/Panorama','Alm-/Hüttenromantik','Seilbahn/Gondel vorhanden',
                 'Ruhig, wenig Tourismus']},
       {title:'Welche Reiseart?', key:'travel_type', multi:true,
+       showIf: state => state.region !== DAYTRIP,
        options:['Pauschalreise (TUI)','Badeurlaub','Rundreise','Städtereise','Kreuzfahrt','Wellness',
                 'Aktivurlaub','Abenteuer','Luxus','Camping','All Inclusive','Ferienwohnung']},
       {title:'Mit wem reist du?', key:'companions', multi:false,
+       showIf: state => state.region !== DAYTRIP,
        options:['Alleine','Partner','Familie','Freunde','Senioren','Mit Hund']},
       {title:'Budget pro Person?', key:'budget', multi:false,
+       showIf: state => state.region !== DAYTRIP,
        options:['bis 500 €','500–1000 €','1000–2000 €','2000–3000 €','egal']},
       {title:'Reisedauer?', key:'duration', multi:false,
+       showIf: state => state.region !== DAYTRIP,
        options:['Wochenende','5 Tage','1 Woche','9–12 Tage','2 Wochen','3+ Wochen']},
+      {title:'Wie viel Zeit hast du?', key:'duration_daytrip', multi:false,
+       showIf: state => state.region === DAYTRIP,
+       options:['Vormittag','Nachmittag','Ganzer Tag','Ganzer Tag inkl. Abend']},
       {title:'Wann soll es losgehen?', key:'month', multi:false,
        options:['Januar','Februar','März','April','Mai','Juni','Juli','August','September',
                 'Oktober','November','Dezember','Egal']},
@@ -2699,37 +2716,47 @@
       {title:'Welche Aktivitäten interessieren dich?', key:'activities', multi:true,
        options:['Tauchen','Schnorcheln','Wandern','Skifahren','Golf','Mountainbike','Surfen',
                 'Safari','Fotografieren','Museen','Freizeitparks','Wein','Kulinarik',
-                'Reiten','Segeln','Angeln','Klettern','Yoga','Tennis','Kajak/SUP','Bootsausflüge']},
+                'Reiten','Segeln','Angeln','Klettern','Yoga','Tennis','Kajak/SUP','Bootsausflüge',
+                'Zoo/Tierpark','Therme/Wellness-Tag','Sehenswürdigkeit/Schloss','Kletterpark',
+                'Escape Room','Minigolf','Flohmarkt/Markt']},
       {title:'Welche Unterkunftsart?', key:'accommodation', multi:false,
+       showIf: state => state.region !== DAYTRIP,
        options:['Hotel','Apartment','Ferienwohnung','Airbnb','Villa','Camping','Hostel']},
       {title:'Wie groß darf das Hotel sein?', key:'accommodation_size', multi:false,
+       showIf: state => state.region !== DAYTRIP,
        options:['klein','Boutique','mittelgroß','riesige Clubanlage','egal']},
       {title:'Was ist dir beim Hotel besonders wichtig?', key:'hotel_wishes', multi:true,
+       showIf: state => state.region !== DAYTRIP,
        options:['Erwachsenenhotel','Familienhotel','Kinderpool','Rutschen','Animation','Ruhe',
                 'All Inclusive','Frühstück','Halbpension','Swim-Up','Privatpool','Spa',
                 'Fitnessstudio','direkte Strandlage','Sandstrand','flach abfallend','Hausriff',
                 'WLAN','Homeoffice geeignet']},
       {title:'Wie möchtest du anreisen?', key:'arrival_mode', multi:false,
+       showIf: state => state.region !== DAYTRIP,
        options:['Flugzeug','Auto','Bus','Bahn','Ist mir egal']},
       {title:'Von wo geht\'s los?', key:'home_location', type:'text',
-       showIf: state => ['Auto','Bus','Bahn'].includes(state.arrival_mode),
+       showIf: state => ['Auto','Bus','Bahn'].includes(state.arrival_mode) || state.region === DAYTRIP,
        placeholder:'PLZ oder Ort'},
       {title:'Wie weit darf es maximal sein?', key:'max_distance', multi:false,
-       showIf: state => ['Auto','Bus','Bahn'].includes(state.arrival_mode),
+       showIf: state => ['Auto','Bus','Bahn'].includes(state.arrival_mode) || state.region === DAYTRIP,
        options:['bis 100 km','bis 200 km','bis 400 km','bis 600 km','egal']},
       {title:'Flugzeit?', key:'flight_time', multi:false,
-       showIf: state => !state.arrival_mode || ['Flugzeug','Ist mir egal'].includes(state.arrival_mode),
+       showIf: state => state.region !== DAYTRIP &&
+         (!state.arrival_mode || ['Flugzeug','Ist mir egal'].includes(state.arrival_mode)),
        options:['Direktflug','max. 4 Stunden','max. 6 Stunden','egal']},
       {title:'Abflughafen?', key:'airports', multi:true,
-       showIf: state => !state.arrival_mode || ['Flugzeug','Ist mir egal'].includes(state.arrival_mode),
+       showIf: state => state.region !== DAYTRIP &&
+         (!state.arrival_mode || ['Flugzeug','Ist mir egal'].includes(state.arrival_mode)),
        options:['Frankfurt','Stuttgart','München','Hamburg','Düsseldorf','Berlin']},
       {title:'Was nervt dich im Urlaub?', key:'dislikes', multi:true,
        options:['überfüllte Strände','Kinder','Animation','Wind','Hitze','lange Transfers',
                 'frühes Aufstehen']},
       {title:'Was macht für dich einen perfekten Urlaub aus?', key:'perfect_holiday', type:'text',
+       showIf: state => state.region !== DAYTRIP,
        placeholder:'Freitext, optional'},
       {title:'Welche Hotels/Urlaube haben dir gefallen – welche nicht? Warum?',
        key:'past_trips', type:'text',
+       showIf: state => state.region !== DAYTRIP,
        placeholder:'z. B. "RIU Papayas war super, viel Auswahl beim Essen, ruhige Lage"'},
     ];
     let advIdx = 0, advState = {};
@@ -2792,8 +2819,8 @@
     async function submitAdvisor(){
       closeAdvisor();
       $('#ai-title').textContent = '🧭 Reiseberater';
-      $('#ai-sub').textContent = [advState.region, (advState.interests||[]).join(', ')]
-        .filter(Boolean).join(' · ');
+      $('#ai-sub').textContent = [advState.region, advState.arrival_mode,
+        (advState.interests||[]).join(', ')].filter(Boolean).join(' · ');
       $('#ai-foot').style.display = 'none';
       $('#ai-bg').classList.add('show');
       $('#ai-body').innerHTML = progBar('KI sucht passende Ziele…');

@@ -20,14 +20,18 @@ function extractBlock(startMarker, endMarker) {
   return html.slice(start, end + endMarker.length);
 }
 
+const daytripSrc = extractBlock("const DAYTRIP = '", "';");
 const stepsSrc = extractBlock('const ADV_STEPS = [', '\n    ];');
 const fnSrc = extractBlock('function advVisibleSteps(){', '}');
 
 const sandbox = {};
 vm.createContext(sandbox);
+vm.runInContext(daytripSrc, sandbox);
 vm.runInContext(stepsSrc, sandbox);
 vm.runInContext('var advState = {};', sandbox);
 vm.runInContext(fnSrc, sandbox);
+
+const DAYTRIP = vm.runInContext('DAYTRIP', sandbox);
 
 function setState(state) {
   vm.runInContext('advState = ' + JSON.stringify(state) + ';', sandbox);
@@ -53,15 +57,16 @@ function check(name, actual, expected) {
   }
 }
 
-// Kein Interesse gesetzt -> beide bedingten Schritte (Strand/Berge-Details) versteckt,
-// aber Flugzeit/Abflughafen (arrival_mode noch leer) sichtbar -> genau 4 der
-// bedingten Schritte ausgeblendet (beach_detail, berge_detail, home_location, max_distance)
+// Kein Interesse gesetzt, kein Tagesausflug -> beach_detail/berge_detail/home_location/
+// max_distance/duration_daytrip versteckt (5), Flugzeit/Abflughafen weiterhin sichtbar
 setState({});
 check('leerer Status: beach_detail versteckt', visibleKeys().includes('beach_detail'), false);
 check('leerer Status: berge_detail versteckt', visibleKeys().includes('berge_detail'), false);
-check('leerer Status: sichtbare Anzahl = Gesamt - 4 versteckte bedingte Schritte',
-  visibleKeys().length, stepCount() - 4);
-check('leerer Status: genau 6 bedingte Schritte insgesamt definiert', conditionalCount(), 6);
+check('leerer Status: duration_daytrip versteckt', visibleKeys().includes('duration_daytrip'), false);
+check('leerer Status: duration sichtbar', visibleKeys().includes('duration'), true);
+check('leerer Status: sichtbare Anzahl = Gesamt - 5 versteckte bedingte Schritte',
+  visibleKeys().length, stepCount() - 5);
+check('leerer Status: genau 19 bedingte Schritte insgesamt definiert', conditionalCount(), 19);
 
 // Nur Strand gewaehlt -> nur beach_detail sichtbar
 setState({ interests: ['🌴 Strand'] });
@@ -100,6 +105,29 @@ for (const mode of ['Auto', 'Bus', 'Bahn']) {
   check(`Anreise ${mode}: flight_time versteckt`, visibleKeys().includes('flight_time'), false);
   check(`Anreise ${mode}: airports versteckt`, visibleKeys().includes('airports'), false);
 }
+
+// Tagesausflug gewaehlt -> Laender/Reiseart/Mitreisende/Budget/Unterkunft/Anreise/
+// Flug/Freitext versteckt, dafuer Startort/Entfernung/Zeit-Frage sichtbar
+setState({ region: DAYTRIP });
+const hiddenForDaytrip = ['excluded_countries', 'excluded_countries_other', 'travel_type',
+  'companions', 'budget', 'duration', 'accommodation', 'accommodation_size', 'hotel_wishes',
+  'arrival_mode', 'flight_time', 'airports', 'perfect_holiday', 'past_trips'];
+for (const key of hiddenForDaytrip) {
+  check(`Tagesausflug: ${key} versteckt`, visibleKeys().includes(key), false);
+}
+const shownForDaytrip = ['region', 'interests', 'duration_daytrip', 'home_location',
+  'max_distance', 'month', 'temp', 'sea', 'rain', 'activities', 'dislikes'];
+for (const key of shownForDaytrip) {
+  check(`Tagesausflug: ${key} sichtbar`, visibleKeys().includes(key), true);
+}
+
+// Normaler Urlaubsmodus bleibt von der Tagesausflug-Erweiterung unberuehrt (Regression)
+setState({ region: 'Europa' });
+check('Urlaubsmodus: duration sichtbar', visibleKeys().includes('duration'), true);
+check('Urlaubsmodus: duration_daytrip versteckt', visibleKeys().includes('duration_daytrip'), false);
+check('Urlaubsmodus: home_location versteckt (kein arrival_mode)',
+  visibleKeys().includes('home_location'), false);
+check('Urlaubsmodus: travel_type sichtbar', visibleKeys().includes('travel_type'), true);
 
 if (failures > 0) {
   console.error(`\n${failures} Test(s) fehlgeschlagen.`);

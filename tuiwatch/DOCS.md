@@ -194,6 +194,17 @@ passenden Ziele ab.
 - **Klima/Wind ortsgenau:** Recherche möglichst auf Insel-/Teilregionsebene
   statt nur fürs Land (Wind kann z. B. auf den Kapverden zwischen Sal und
   Boa Vista stark variieren) — gilt auch für KI-Fazit und Hotelvergleich.
+- **Eigene Anreise statt Flug:** bei Auto/Bus/Bahn werden Flugzeit/
+  Abflughafen übersprungen, stattdessen Startort (PLZ/Ort) und maximale
+  Entfernung abgefragt — Claude schlägt dann nur noch Ziele in Fahrdistanz
+  vor (auch beim Alternative- und Überraschungs-Vorschlag).
+- **Tagesausflug-Modus:** bei der ersten Frage „Tagesausflug in der Nähe"
+  wählbar — blendet Länder, Reiseart, Mitreisende, Budget, Unterkunft,
+  Flug/Anreiseart und die Freitext-Felder aus (nicht relevant ohne
+  Übernachtung), fragt stattdessen Startort/max. Entfernung und verfügbare
+  Zeit (Vormittag/Nachmittag/Ganzer Tag/inkl. Abend) ab. Ergebnis: 3
+  Tagesausflugsziele mit Aktivität, Anfahrt, groben Öffnungszeiten/Eintritt
+  und Einkehr-Tipp, keine Übernachtungsempfehlung, keine Reise-DNA-Erfassung.
 - **Reise-DNA:** Nach jeder Anfrage berechnet TUIWatch zusätzlich ein
   Präferenzprofil (🌴 Strand, 🏛️ Kultur, 🎉 Nachtleben, ⛰️ Aktiv,
   🍹 Entspannung, 🍽️ Kulinarik, 👨‍👩‍👧 Familie, 💰 Preisbewusst) — rein
@@ -207,9 +218,10 @@ passenden Ziele ab.
 ## Eigene KI-Prompts
 
 Über **⚙ KI-Prompts** im Footer lässt sich der Standard-Instruktionstext für
-**Reiseberater**, **Hotelvergleich** und **KI-Fazit** einsehen und über die
-Checkbox „Eigenen Prompt verwenden" durch einen eigenen Text ersetzen (max.
-4000 Zeichen, „Zurücksetzen auf Standard" jederzeit möglich).
+**Reiseberater**, **Hotelvergleich**, **KI-Fazit** und **Tagesausflug**
+einsehen und über die Checkbox „Eigenen Prompt verwenden" durch einen
+eigenen Text ersetzen (max. 4000 Zeichen, „Zurücksetzen auf Standard"
+jederzeit möglich).
 
 - Beim Reiseberater bleiben sicherheitskritische Klauseln (Länder-Ausschluss,
   Reisewarnungs-Check, TUI-Verfügbarkeit, Reise-DNA-Kontext) immer fix

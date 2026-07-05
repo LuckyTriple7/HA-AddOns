@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.40.0] - 2026-07-05
+
+### Added
+- **Tagesausflug-Modus im Reiseberater:** bei der ersten Frage „Tagesausflug
+  in der Nähe" wählbar. Blendet Länder-Ausschluss, Reiseart, Mitreisende,
+  Budget, Unterkunft, Flug/Anreiseart und die Freitext-Felder aus, fragt
+  stattdessen Startort/max. Entfernung und verfügbare Zeit (Vormittag/
+  Nachmittag/Ganzer Tag/inkl. Abend) ab. Eigener KI-Instruktionstext (3
+  Tagesausflugsziele mit Aktivität, Anfahrt, groben Öffnungszeiten/Eintritt,
+  Einkehr-Tipp, keine Übernachtungsempfehlung), editierbar über „⚙
+  KI-Prompts" (4. Sektion). Keine Reise-DNA-Erfassung für Tagesausflüge.
+- Aktivitäten-Chips um Zoo/Tierpark, Therme/Wellness-Tag, Sehenswürdigkeit/
+  Schloss, Kletterpark, Escape Room, Minigolf, Flohmarkt/Markt ergänzt.
+
+### Fixed
+- **Übersicht im Reiseberater-Ergebnis:** zeigte die gewählte Anreiseart
+  (Auto/Bus/Bahn/…) nicht an, jetzt ergänzt.
+
 ## [0.39.32] - 2026-07-05
 
 ### Added
