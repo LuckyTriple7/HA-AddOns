@@ -32,12 +32,41 @@ Fällt eine API aus, schaltet TUIWatch automatisch auf das langsamere Auslesen p
 | `username` / `password` | Login beim Direktzugriff (über Ingress nicht nötig) |
 | `session_hours` | Gültigkeit der Anmeldung in Stunden |
 | `poll_interval` | Prüfintervall in Sekunden (Standard 21600 = 6 h, min. 600) |
+| `anthropic_api_key` | Anthropic API-Key — aktiviert das KI-Fazit (leer = aus) |
+| `anthropic_model` | Claude-Modell fürs KI-Fazit (Opus/Sonnet/Haiku/Fable) |
+| `ai_provider` | KI-Anbieter für alle KI-Features: `anthropic` (Standard) oder `gemini` |
+| `gemini_api_key` / `gemini_model` | Nur relevant bei `ai_provider: gemini` |
 | `verbose_log` | Ausführlichere Logs |
 
 Es gibt weitere Optionen für **Benachrichtigungen** (Preisänderung, günstigerer
 Termin, „günstiger als gebucht", API-Ausfall, Wochenüberblick), **Home-Assistant-
 Sensoren** (`ha_sensors`) sowie **Telegram** und **SMTP/E-Mail** — Details in
 [DOCS.md](DOCS.md).
+
+## KI-Fazit (optional)
+
+> ⚠️ Die Anthropic-/Gemini-API ist **kostenpflichtig** (eigener API-Key,
+> eigenes Konto beim jeweiligen Anbieter). Bei jedem KI-Aufruf entstehen
+> reale Kosten nach der Preisliste des gewählten Anbieters — TUIWatch zeigt
+> geschätzte Kosten pro Aufruf und eine laufende Gesamtsumme an, bucht aber
+> selbst nichts ab und kennt dein echtes Guthaben nicht.
+
+Mit hinterlegtem API-Key bewertet Claude (oder wahlweise Gemini, siehe
+`ai_provider`) einzelne Suchtreffer ausführlich (Lage, Zimmer, Restaurants,
+Pool, Klima zur Reisezeit) oder vergleicht bis zu 5 Hotels nebeneinander —
+inkl. Token-/Kosten-Anzeige, PDF-Export und dauerhaftem Verlauf. Details:
+[DOCS.md](DOCS.md#ki-fazit--vergleich--verlauf).
+
+## 🗺️ TripPilot (optional)
+
+Geführter Klick-Fragebogen (Zielregion, Interessen, Budget, Reisezeit,
+Wetter, Hotelwünsche, Flug/eigene Anreise u. v. m., inkl. eigenem
+Tagesausflug-Modus) — Claude schlägt danach 3 passende Reiseziele plus eine
+Alternative und eine Überraschung außerhalb der gewählten Region vor.
+Berechnet nebenbei ein persönliches Präferenzprofil („Reise-DNA"), ganz ohne
+Zusatzkosten. Prompts für TripPilot, Hotelvergleich und KI-Fazit lassen sich
+über **⚙ KI-Prompts** im Footer auch selbst anpassen.
+Details: [DOCS.md](DOCS.md#-trippilot).
 
 ## Hinweise
 

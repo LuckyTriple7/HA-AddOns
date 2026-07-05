@@ -17,7 +17,7 @@
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; background:var(--bg); color:var(--text); min-height:100vh; transition:background .2s,color .2s; }
     .wrap { max-width: 1000px; margin: 0 auto; padding: 16px; }
-    header { display:grid; grid-template-columns:1fr auto 1fr; align-items:center; gap:10px; margin-bottom:18px; }
+    header { display:grid; grid-template-columns:auto 1fr auto; align-items:center; gap:10px; margin-bottom:18px; }
     .logo { display:flex; align-items:center; gap:8px; font-size:1.3rem; font-weight:700; color:var(--accent); }
     .logo svg { width:26px; height:26px; fill:var(--accent); }
     .header-actions { display:flex; align-items:center; gap:8px; flex-wrap:wrap; justify-self:end; }
@@ -29,6 +29,7 @@
     @media(max-width:700px){ .trip-countdown span.tc-dest{ display:none; } }
     .btn { background:var(--blue); border:1px solid var(--blue-h); color:#fff; padding:8px 14px; border-radius:6px; font-size:.85rem; font-weight:600; cursor:pointer; transition:background .15s; }
     .btn:hover { background:var(--blue-h); }
+    .btn:disabled { opacity:.45; cursor:not-allowed; }
     .btn.sec { background:transparent; border:1px solid var(--border); color:var(--text); }
     .btn.danger { background:transparent; border:1px solid var(--border); color:var(--red); }
     .icon-btn { background:transparent; border:1px solid var(--border); color:var(--muted); border-radius:6px; padding:6px 8px; cursor:pointer; display:inline-flex; }
@@ -128,6 +129,9 @@
     .trend.down { color:var(--green); background:rgba(46,160,67,.11); }
     .trend.flat { color:var(--muted); background:var(--surf2); }
     .tag-row { display:flex; gap:6px; flex-wrap:wrap; margin:8px 0; }
+    .reiseb-text { display:block; box-sizing:border-box; width:100%; resize:vertical; background:var(--bg); border:1px solid var(--border); color:var(--text); border-radius:6px; padding:8px; font:inherit; }
+    .reiseb-text::placeholder { color:var(--muted); }
+    .promptcfg-text { display:block; box-sizing:border-box; width:100%; resize:vertical; background:var(--bg); border:1px solid var(--border); color:var(--text); border-radius:6px; padding:8px; font:inherit; font-size:.82rem; }
     .tag-pill { display:inline-flex; align-items:center; gap:4px; font-size:.74rem; padding:3px 9px; border-radius:12px; background:var(--surf); border:1px solid var(--border); color:var(--text); cursor:pointer; user-select:none; }
     .tag-pill:hover { border-color:var(--accent); color:var(--accent); }
     .tag-pill.active { background:var(--accent); border-color:var(--accent); color:#fff; }
@@ -141,9 +145,9 @@
     .empty { text-align:center; color:var(--muted); padding:50px 16px; }
     .badge-checking { font-size:.72rem; color:var(--accent); }
     /* Modal */
-    .modal-bg { position:fixed; inset:0; background:rgba(0,0,0,.6); display:none; align-items:center; justify-content:center; padding:16px; z-index:50; }
+    .modal-bg { position:fixed; inset:0; background:rgba(0,0,0,.6); display:none; align-items:center; justify-content:center; padding:16px; z-index:50; overscroll-behavior:contain; }
     .modal-bg.show { display:flex; }
-    .modal { background:var(--surf); border:1px solid var(--border); border-radius:10px; width:100%; max-width:680px; max-height:88vh; overflow:auto; padding:18px; }
+    .modal { background:var(--surf); border:1px solid var(--border); border-radius:10px; width:100%; max-width:680px; max-height:88vh; overflow:auto; overscroll-behavior:contain; padding:18px; }
     .modal h2 { font-size:1.05rem; margin-bottom:4px; }
     .modal .sub { font-size:.8rem; color:var(--muted); margin-bottom:14px; }
     #hist-canvas { width:100%; height:300px; display:block; }
@@ -153,6 +157,19 @@
     table.hist th, table.hist td { text-align:left; padding:6px 8px; border-bottom:1px solid var(--border); }
     table.hist th { color:var(--muted); font-weight:600; }
     .cmp-load { color:var(--muted); font-size:.86rem; padding:18px 4px; text-align:center; }
+    .ai-h { font-size:.92rem; color:var(--accent); margin:16px 0 6px; }
+    .ai-h:first-child { margin-top:0; }
+    .ai-list { margin:0 0 10px; padding-left:20px; }
+    .ai-list li { margin-bottom:4px; line-height:1.4; }
+    #ai-body p { margin:0 0 10px; line-height:1.45; font-size:.88rem; }
+    table.ai-table { width:100%; border-collapse:collapse; margin:6px 0 14px; font-size:.8rem; }
+    table.ai-table th, table.ai-table td { text-align:left; padding:6px 8px; border-bottom:1px solid var(--border); vertical-align:top; }
+    table.ai-table th { color:var(--muted); font-weight:600; }
+    .aihist-item { display:flex; align-items:center; gap:8px; padding:10px 2px; border-bottom:1px solid var(--border); }
+    .aihist-main { flex:1; min-width:0; cursor:pointer; }
+    .aihist-main:hover .aihist-title { color:var(--accent); }
+    .aihist-title { font-weight:600; font-size:.88rem; }
+    body.ai-disabled .ai-feature { display:none !important; }
     .twprog { height:7px; background:var(--border); border-radius:5px; overflow:hidden; max-width:320px; margin:10px auto 0; }
     .twprog > i { display:block; height:100%; background:var(--accent); border-radius:5px; transition:width .3s ease; }
     .twprog.indet > i { width:40%; animation:twindet 1.1s ease-in-out infinite; }
@@ -194,6 +211,8 @@
     .sr-locs { display:flex; gap:5px; flex-wrap:wrap; margin-top:4px; }
     .sr-locs .tag-pill { font-size:.7rem; padding:1px 7px; cursor:default; }
     .sr-acts { display:flex; gap:6px; margin-top:6px; justify-content:flex-end; }
+    .sr-cmp { flex:0 0 auto; display:flex; align-items:center; align-self:stretch; cursor:pointer; }
+    .sr-cmp input { width:18px; height:18px; accent-color:var(--accent); cursor:pointer; }
     .srch-head { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:6px 0 4px; font-size:.82rem; color:var(--muted); }
     .srch-listfilter { background:var(--bg); border:1px solid var(--border); color:var(--text); padding:6px 10px; border-radius:6px; font-size:.82rem; min-width:180px; }
     .srch-listfilter:focus { outline:none; border-color:var(--accent); }
@@ -330,6 +349,40 @@
     .trip-detail table.tdt th, .trip-detail table.tdt td { text-align:left; padding:5px 8px; border-bottom:1px solid var(--border); }
     .trip-detail table.tdt th { color:var(--muted); font-weight:600; }
     .trip-detail .dsec { font-weight:600; margin:10px 0 4px; }
+    .pack-head { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:14px 0 4px; }
+    .pack-toggle { cursor:pointer; color:var(--muted); user-select:none; flex:0 0 auto; }
+    .pack-toggle:hover { color:var(--accent); }
+    .pack-head .cnt { font-size:.78rem; color:var(--muted); }
+    .pack-reset { font-size:.78rem; color:var(--muted); cursor:pointer; text-decoration:underline; background:none; border:none; }
+    .pack-reset:hover { color:var(--red); }
+    .pack-wrap { display:flex; gap:22px; align-items:flex-start; margin:6px 0 4px; }
+    .pack-col { flex:1; min-width:0; }
+    .pack-cat { margin-bottom:12px; }
+    .pack-cat .dsec { margin:0 0 4px; }
+    .pack-item { display:flex; align-items:center; gap:6px; font-size:.82rem; padding:2px 0; }
+    .pack-item input[type=checkbox] { accent-color:var(--accent); cursor:pointer; flex:0 0 auto; }
+    .pack-item .lbl { flex:1; cursor:text; outline:none; word-break:break-word; }
+    .pack-item .lbl.done { color:var(--muted); text-decoration:line-through; }
+    .pack-item .del { cursor:pointer; color:var(--muted); flex:0 0 auto; }
+    .pack-item .del:hover { color:var(--red); }
+    .pack-add { display:flex; gap:4px; margin-top:2px; }
+    .pack-add input { flex:1; font-size:.8rem; padding:3px 6px; border:1px solid var(--border); border-radius:5px; background:var(--surf); color:var(--text); }
+    .pack-add.full { opacity:.5; pointer-events:none; }
+    #pack-print-area { display:none; }
+    @media print {
+      body { background:#fff !important; }
+      body > *:not(#pack-print-area) { display:none !important; }
+      #pack-print-area { display:block !important; background:#fff; color:#111; }
+      #pack-print-area .pp-head { background:var(--accent); color:#fff; padding:14px 18px; border-radius:6px; margin-bottom:14px; }
+      #pack-print-area .pp-head h1 { margin:0 0 4px; font-size:1.4rem; }
+      #pack-print-area .pp-meta { font-size:.85rem; opacity:.92; }
+      #pack-print-area .pp-flights { font-size:.8rem; opacity:.92; margin-top:4px; }
+      #pack-print-area .pp-wrap { display:flex; gap:26px; align-items:flex-start; }
+      #pack-print-area .pp-col { flex:1; min-width:0; }
+      #pack-print-area .pp-cat { break-inside:avoid; margin-bottom:10px; }
+      #pack-print-area .pp-cat h4 { background:var(--accent); color:#fff; padding:3px 8px; border-radius:3px; font-size:.85rem; margin:0 0 4px; }
+      #pack-print-area .pp-item { font-size:.8rem; padding:1px 0; }
+    }
     .dbg-fields { display:flex; flex-wrap:wrap; gap:6px; margin:8px 0; }
     .dbg-f { font-size:.76rem; padding:2px 8px; border-radius:10px; border:1px solid var(--border); }
     .dbg-f.ok { color:var(--green); background:rgba(46,160,67,.10); }
@@ -365,6 +418,8 @@
       </div>
       <div class="header-actions">
         <button class="btn sec" id="check-all">Alle prüfen</button>
+        <button class="btn sec ai-feature" onclick="openAiHistory()" title="Bisherige KI-Fazits/-Vergleiche einsehen">🤖 KI-Verlauf</button>
+        <button class="btn sec ai-feature" onclick="openAiAsk()" title="Frage zu deinem Portfolio stellen">❓ Frage</button>
         <button class="icon-btn" onclick="toggleTheme()" title="Design wechseln">
           <svg class="icon-moon" viewBox="0 0 24 24"><path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c0-.46-.04-.92-.1-1.36-.98 1.37-2.58 2.26-4.4 2.26-2.98 0-5.4-2.42-5.4-5.4 0-1.81.89-3.42 2.26-4.4-.44-.06-.9-.1-1.36-.1z"/></svg>
           <svg class="icon-sun"  viewBox="0 0 24 24"><path d="M12 7c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zM2 13h2v-2H2v2zm18 0h2v-2h-2v2zM11 2v2h2V2h-2zm0 18v2h2v-2h-2zM5.99 4.58 4.58 5.99l1.41 1.41 1.41-1.41L5.99 4.58zm12.03 12.03-1.41 1.41 1.41 1.41 1.41-1.41-1.41-1.41zm1.41-12.44-1.41-1.41-1.41 1.41 1.41 1.41 1.41-1.41zM5.99 19.42l1.41 1.41 1.41-1.41-1.41-1.41-1.41 1.41z"/></svg>
@@ -384,11 +439,10 @@
     <div class="toolbar">
       <button class="btn" onclick="openSearch()" title="Hotels einer Region suchen (TUI-Such-URL einfügen)">🔍 Suche</button>
       <button class="btn sec" onclick="openTrips()" title="Gebuchte Reisen verwalten (TUI-PDF importieren)">🧳 Meine Reisen</button>
+      <button class="btn sec ai-feature" onclick="openAdvisor()" title="TripPilot: passende Ziele nach Vorlieben finden">🗺️ TripPilot</button>
       <button class="btn sec" id="aktion-btn" onclick="openAktion()" title="Aktuelle öffentliche TUI-Aktionscodes anzeigen und bei neuen benachrichtigt werden">🎟 Aktionscodes</button>
       <button class="btn sec" onclick="sendEmail()" title="Alle Angebote als E-Mail senden">✉ Als E-Mail senden</button>
       <button class="btn sec" onclick="sendDigest()" title="Wochenüberblick jetzt senden (Telegram/E-Mail)">📊 Wochenüberblick</button>
-      <button class="btn sec" onclick="backupOffers()" title="Komplettes Backup (Angebote mit Preisverlauf, Meine Reisen inkl. PDF, gespeicherte Suchen) als ZIP">⬇ Backup</button>
-      <button class="btn sec" onclick="document.getElementById('restore-file').click()" title="Backup wiederherstellen (ZIP oder altes JSON) – ergänzt Fehlendes, überschreibt nichts">⬆ Restore</button>
       <input type="file" id="restore-file" accept=".zip,application/zip,.json,application/json" style="display:none" onchange="restoreOffers(this)">
     </div>
     <div id="overview" class="overview" style="display:none"></div>
@@ -415,11 +469,19 @@
       <button class="btn sec" onclick="bulkEmail()" title="Markierte als E-Mail senden">✉ E-Mail</button>
       <button class="btn sec" onclick="bulkArchive()">Archivieren</button>
       <button class="btn danger" onclick="bulkDelete()">Löschen</button>
+      <button class="btn sec ai-feature" onclick="openAiCompareOffers()" title="Ausgewählte Angebote per KI vergleichen (max. 5)">🤖 Vergleichen</button>
+      <button class="btn sec ai-feature" onclick="autoTagSelected()" title="Passende Tags automatisch per KI vergeben (ergänzt bestehende Tags)">🤖 Auto-Tag</button>
       <button class="btn sec" onclick="bulkClear()" style="margin-left:auto">Auswahl aufheben</button>
     </div>
     <div id="offers"></div>
-    <footer>TUIWatch &mdash; verfolgt TUI-Reisepreise · Prüfintervall: <span id="iv"></span>
-      · <span id="hc-foot" class="hc-foot" title="API-Status — klicken für Details &amp; neuen Test" onclick="openHealth()">API: <span id="hc-dot">…</span></span></footer>
+    <footer>TUIWatch v{{ app_version }} · Prüfintervall: <span id="iv"></span>
+      · DB: <span id="db-size">…</span>
+      · <span id="hc-foot" class="hc-foot" title="API-Status — klicken für Details &amp; neuen Test" onclick="openHealth()">API: <span id="hc-dot">…</span></span>
+      · <span class="hc-foot" onclick="backupOffers()" title="Komplettes Backup (Angebote mit Preisverlauf, Meine Reisen inkl. PDF, gespeicherte Suchen) als ZIP">⬇ Backup</span>
+      · <span class="hc-foot" onclick="document.getElementById('restore-file').click()" title="Backup wiederherstellen (ZIP oder altes JSON) – ergänzt Fehlendes, überschreibt nichts">⬆ Restore</span>
+      · <span class="hc-foot ai-feature" onclick="openPromptCfg()" title="Eigene KI-Prompt-Vorlagen für TripPilot &amp; Hotelvergleich bearbeiten">⚙ KI-Prompts</span>
+      <span class="hc-foot ai-feature" id="ai-provider-foot" onclick="toggleAiProvider()" style="display:none" title="Aktiven KI-Anbieter umschalten"></span>
+      · <span class="hc-foot ai-feature" id="ai-usage-foot" onclick="openAiHistory()" title="Geschätzte KI-Kosten — kein echtes Guthaben, dauerhaft in der DB gespeichert">…</span></footer>
   </div>
 
   <!-- Verlauf-Modal -->
@@ -592,6 +654,63 @@
       <div id="room-body"></div>
     </div>
   </div>
+  <!-- KI-Hotel-Fazit -->
+  <div class="modal-bg" id="ai-bg">
+    <div class="modal">
+      <button class="icon-btn modal-close" onclick="closeAiSummary()">
+        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+      </button>
+      <h2 id="ai-title">🤖 KI-Fazit</h2>
+      <div class="sub" id="ai-sub"></div>
+      <div id="ai-body"></div>
+      <div id="ai-foot" class="cmp-foot" style="display:none">
+        <span class="hint" style="flex:1;min-width:180px">Öffnet die Druckansicht — dort „Als PDF speichern" wählen.</span>
+        <button class="btn sec" onclick="openAiEmailModal()">✉ E-Mail senden</button>
+        <button class="btn sec" onclick="exportAiPdf()">📄 PDF exportieren</button>
+      </div>
+    </div>
+  </div>
+  <!-- KI-Verlauf -->
+  <div class="modal-bg" id="aihist-bg">
+    <div class="modal">
+      <button class="icon-btn modal-close" onclick="closeAiHistory()">
+        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+      </button>
+      <h2>🤖 KI-Verlauf</h2>
+      <div class="sub">Bisherige KI-Fazits &amp; -Vergleiche — bleiben dauerhaft gespeichert, unabhängig vom 24h-Cache.</div>
+      <div id="aihist-body"></div>
+    </div>
+  </div>
+  <!-- Frag dein Portfolio -->
+  <div class="modal-bg" id="aiask-bg">
+    <div class="modal">
+      <button class="icon-btn modal-close" onclick="closeAiAsk()">
+        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+      </button>
+      <h2>❓ Frag dein Portfolio</h2>
+      <div class="sub">Frage zu deinen aktuell getrackten Angeboten — Claude antwortet anhand von Preis, Bewertung, Trend, Wunschpreis &amp; Tags, und nutzt für alles darüber hinaus (z. B. Klima/Wetter zur Reisezeit) zusätzlich die Websuche.</div>
+      <textarea id="aiask-q" rows="3" style="width:100%;margin-top:10px;resize:vertical;background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:8px;font:inherit" placeholder="z. B. Welches Hotel ist gerade das beste Schnäppchen?"></textarea>
+      <div style="margin-top:14px;display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn sec" onclick="closeAiAsk()">Abbrechen</button>
+        <button class="btn" onclick="submitAiAsk()">Fragen</button>
+      </div>
+    </div>
+  </div>
+  <!-- KI-Reiseberater -->
+  <div class="modal-bg" id="reiseb-bg">
+    <div class="modal" style="max-width:640px">
+      <button class="icon-btn modal-close" onclick="closeAdvisor()">
+        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+      </button>
+      <h2>🗺️ TripPilot</h2>
+      <div class="sub" id="reiseb-sub"></div>
+      <div id="reiseb-body"></div>
+      <div style="margin-top:16px;display:flex;gap:8px;justify-content:space-between">
+        <button class="btn sec" id="reiseb-back" onclick="advBack()">Zurück</button>
+        <button class="btn" id="reiseb-next" onclick="advNext()">Weiter</button>
+      </div>
+    </div>
+  </div>
   <!-- E-Mail-Empfänger -->
   <div class="modal-bg" id="email-bg">
     <div class="modal">
@@ -620,6 +739,45 @@
       <div id="hc-body"></div>
       <div style="margin-top:14px; text-align:right">
         <button class="btn" onclick="runHealth()">Erneut prüfen</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- KI-Prompt-Einstellungen -->
+  <div class="modal-bg" id="promptcfg-bg">
+    <div class="modal" style="max-width:720px">
+      <button class="icon-btn modal-close" onclick="closePromptCfg()">
+        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+      </button>
+      <h2>⚙ KI-Prompts</h2>
+      <div class="sub">Standard ist bereits ausgefüllt. Checkbox aktivieren, um ihn zu überschreiben. Die Websuche bleibt technisch immer aktiv, auch wenn der Hinweis dazu aus dem Text entfernt wird — die KI sucht dann ggf. weniger gezielt.</div>
+
+      <h3 style="margin:14px 0 6px">🗺️ TripPilot</h3>
+      <label style="display:flex;align-items:center;gap:6px;font-size:.85rem"><input type="checkbox" id="promptcfg-advisor-enabled"> Eigenen Prompt verwenden</label>
+      <textarea id="promptcfg-advisor-text" class="promptcfg-text" rows="10" maxlength="4000" oninput="promptcfgCount('advisor')" style="margin-top:6px"></textarea>
+      <div class="hint" id="promptcfg-advisor-count" style="text-align:right"></div>
+      <button class="btn sec" onclick="promptcfgReset('advisor')" style="margin-top:4px">Zurücksetzen auf Standard</button>
+
+      <h3 style="margin:20px 0 6px">🏨 Hotelvergleich</h3>
+      <label style="display:flex;align-items:center;gap:6px;font-size:.85rem"><input type="checkbox" id="promptcfg-compare-enabled"> Eigenen Prompt verwenden</label>
+      <textarea id="promptcfg-compare-text" class="promptcfg-text" rows="10" maxlength="4000" oninput="promptcfgCount('compare')" style="margin-top:6px"></textarea>
+      <div class="hint" id="promptcfg-compare-count" style="text-align:right"></div>
+      <button class="btn sec" onclick="promptcfgReset('compare')" style="margin-top:4px">Zurücksetzen auf Standard</button>
+
+      <h3 style="margin:20px 0 6px">🤖 KI-Fazit</h3>
+      <label style="display:flex;align-items:center;gap:6px;font-size:.85rem"><input type="checkbox" id="promptcfg-summary-enabled"> Eigenen Prompt verwenden</label>
+      <textarea id="promptcfg-summary-text" class="promptcfg-text" rows="10" maxlength="4000" oninput="promptcfgCount('summary')" style="margin-top:6px"></textarea>
+      <div class="hint" id="promptcfg-summary-count" style="text-align:right"></div>
+      <button class="btn sec" onclick="promptcfgReset('summary')" style="margin-top:4px">Zurücksetzen auf Standard</button>
+
+      <h3 style="margin:20px 0 6px">🚗 Tagesausflug</h3>
+      <label style="display:flex;align-items:center;gap:6px;font-size:.85rem"><input type="checkbox" id="promptcfg-daytrip-enabled"> Eigenen Prompt verwenden</label>
+      <textarea id="promptcfg-daytrip-text" class="promptcfg-text" rows="10" maxlength="4000" oninput="promptcfgCount('daytrip')" style="margin-top:6px"></textarea>
+      <div class="hint" id="promptcfg-daytrip-count" style="text-align:right"></div>
+      <button class="btn sec" onclick="promptcfgReset('daytrip')" style="margin-top:4px">Zurücksetzen auf Standard</button>
+
+      <div style="margin-top:16px;text-align:right">
+        <button class="btn" onclick="savePromptCfg()">Speichern</button>
       </div>
     </div>
   </div>
@@ -665,6 +823,7 @@
   </div>
 
   <div class="toast" id="toast"></div>
+  <div id="pack-print-area"></div>
 
   <!-- Konsole (Doppelklick auf Logo) -->
   <div id="tw-console">
@@ -707,7 +866,8 @@
   </script>
 
   <script>
-    const G = { base: {{ (script_root or '')|tojson }}, iv: {{ poll_interval|tojson }} };
+    const G = { base: {{ (script_root or '')|tojson }}, iv: {{ poll_interval|tojson }}, ai: {{ ai_enabled|tojson }} };
+    document.body.classList.toggle('ai-disabled', !G.ai);
     window.G = G;  // auch für den Konsolen-Script-Block (Ingress-Pfad) erreichbar
     const api = (p) => (G.base || '') + p;
     const $ = (s) => document.querySelector(s);
@@ -721,6 +881,7 @@
 
     let toastTimer;
     function toast(msg){ const el=$('#toast'); el.textContent=msg; el.classList.add('show'); clearTimeout(toastTimer); toastTimer=setTimeout(()=>el.classList.remove('show'),2500); }
+    function fmtUsd(v){ v = v||0; return '$' + v.toFixed(v > 0 && v < 0.01 ? 4 : 2); }
 
     let curOffers = null, lastSig = null, searchTerm = '', activeTags = new Set();
     let showArchived = localStorage.getItem('tw-show-archived')==='1';
@@ -743,6 +904,9 @@
     async function loadOffers(){
       try {
         const r = await fetch(api('/api/offers'));
+        // Session abgelaufen (nur bei direktem Zugriff, nie unter Ingress):
+        // Reload führt serverseitig zur Login-Seite statt stiller Fehler bei jedem Klick.
+        if(r.status===401){ location.reload(); return; }
         if(!r.ok) return;
         const d = await r.json();
         _offlineFails = 0; hideOfflineBanner();
@@ -1254,6 +1418,7 @@
     // ── Hotelsuche (Maske / URL / aus Angebot) ────────────────────────────────
     let srchResults = [], srchOfferId = null, srchDest = null, srchTotal = 0, srchFilter = '';
     let srchSort = localStorage.getItem('tw-srch-sort') || 'price';
+    let srCmpSelected = new Set();  // Schlüssel (giata/Name) der für den KI-Vergleich ausgewählten Hotels
     let airportsLoaded = false, airlinesLoaded = false, destNode = null, destData = null, destStack = [];
     function urlParam(u, key){ try{ return new URL(u).searchParams.get(key)||''; }catch(e){ return ''; } }
     function isoPlus(days){ const d=new Date(); d.setUTCDate(d.getUTCDate()+days); return d.toISOString().slice(0,10); }
@@ -1502,9 +1667,14 @@
       if(resp.status===422){ $('#trip-imp-status').textContent=''; toast('PDF konnte nicht gelesen werden – Debug-Ansicht wird geöffnet'); debugUpload(f); return; }
       if(!resp.ok){ $('#trip-imp-status').textContent=''; toast('Import fehlgeschlagen'); return; }
       const warns = (d && d.warnings) || [];
+      const aiFilled = (d && d.ai_filled) || [];
       if(warns.length){
         $('#trip-imp-status').textContent = '⚠ importiert – mit Hinweisen';
-        toast('Hinweis: nicht erkannt – '+warns.join(', '));
+        toast('Hinweis: nicht erkannt – '+warns.join(', ')
+          + (aiFilled.length ? ' (per KI ergänzt: '+aiFilled.join(', ')+')' : ''));
+      } else if(aiFilled.length){
+        $('#trip-imp-status').textContent = '✓ importiert (KI-Fallback genutzt)';
+        toast('Reise importiert — per KI ergänzt: '+aiFilled.join(', '));
       } else {
         $('#trip-imp-status').textContent = '✓ importiert';
         toast('Reise importiert');
@@ -1518,6 +1688,7 @@
       let t;
       try { const r = await fetch(api('/api/trips/'+id)); if(!r.ok){ toast('Reise nicht gefunden'); return; } t = await r.json(); }
       catch(e){ toast('Fehler beim Laden'); return; }
+      _lastTripDetail = t;
       const d = t.data||{};
       const row = (k,v)=> v?`<div><span class="k">${k}:</span> ${esc(String(v))}</div>`:'';
       const grid = [
@@ -1556,11 +1727,13 @@
       ).join('');
       const attRow = `<div class="tag-row" style="margin:8px 0 2px">${atts}<span class="tag-pill add" onclick="$('#trip-att-input-${id}').click()" title="Weiteres PDF hinterlegen (nur Ablage, keine Auswertung)">＋ PDF</span>
         <input type="file" id="trip-att-input-${id}" accept="application/pdf" style="display:none" onchange="uploadTripAttachment(${id}, this.files[0])"></div>`;
+      const packHtml = renderPackingSection(id, t, t.packing||[]);
       const box = $('#trip-detail');
       box.innerHTML = `<h3>${esc(t.title||('Reise #'+id))}</h3>
-        <div style="margin-bottom:6px">${pdf} ${dbg} <button class="btn sec" onclick="$('#trip-detail').style.display='none'">schließen</button></div>
+        <div style="margin-bottom:6px">${pdf} ${dbg} <button class="btn sec" onclick="shareTripBanner(${id})" title="Reise als Bild teilen">📤 Teilen</button> <button class="btn sec" onclick="$('#trip-detail').style.display='none'">schließen</button></div>
         ${attRow}
-        ${warnBox}<div class="dgrid">${grid}</div>${reisende}${fluege}${extras}${rabatte}${wuensche}`;
+        ${warnBox}<div class="dgrid">${grid}</div>${reisende}${fluege}${extras}${rabatte}${wuensche}
+        ${packHtml}`;
       box.style.display='block';
       box.scrollIntoView({behavior:'smooth', block:'nearest'});
     }
@@ -1574,6 +1747,249 @@
     async function deleteTripAttachment(id, aid){
       await fetch(api('/api/trips/'+id+'/attachments/'+aid), {method:'DELETE'});
       toast('Anhang entfernt'); showTripDetail(id);
+    }
+
+    // — Teilen: Reise-Banner als Bild (Countdown + Ziel/Hotel über ein Foto-Banner
+    //   gelegt), per Web Share API teilen oder als Download-Fallback. —
+    let _lastTripDetail = null;
+
+    function _tripDaysInfo(t){
+      if(!t.start_date) return null;
+      const dep = (t.data && t.data.fluege || []).find(f=>f.typ==='Hinflug');
+      const depDt = new Date(`${t.start_date}T${(dep && dep.abflug_zeit) || '00:00'}:00`);
+      const diff = depDt.getTime() - Date.now();
+      if(diff <= 0){
+        if(t.end_date && new Date(`${t.end_date}T23:59:59`).getTime() < Date.now()) return 'Schön war\'s!';
+        return 'Gute Reise!';
+      }
+      const mins = Math.floor(diff/60000);
+      const d = Math.floor(mins/1440), h = Math.floor((mins%1440)/60), m = mins%60;
+      const parts = [];
+      if(d) parts.push(d+' Tag'+(d===1?'':'e'));
+      if(d || h) parts.push(h+' Std');
+      if(!d) parts.push(m+' Min');
+      return parts.join(' ');
+    }
+
+    function _fitFont(ctx, text, weight, maxPx, maxWidth){
+      const family = 'system-ui, Arial, sans-serif';
+      let px = maxPx;
+      ctx.font = `${weight} ${px}px ${family}`;
+      while(px > 20 && ctx.measureText(text).width > maxWidth){
+        px -= 4;
+        ctx.font = `${weight} ${px}px ${family}`;
+      }
+      return px;
+    }
+
+    async function shareTripBanner(id){
+      const t = _lastTripDetail;
+      if(!t) return;
+      const img = new Image();
+      const loaded = new Promise((res,rej)=>{ img.onload=res; img.onerror=rej; });
+      img.src = api('/static/share-banner.jpg');
+      try { await loaded; } catch(e){ toast('Banner konnte nicht geladen werden'); return; }
+
+      const cv = document.createElement('canvas');
+      cv.width = img.naturalWidth; cv.height = img.naturalHeight;
+      const ctx = cv.getContext('2d');
+      ctx.drawImage(img, 0, 0);
+
+      const counter = _tripDaysInfo(t);
+      const dest = t.destination || (t.data||{}).reiseziel || '';
+      const hotelName = ((t.data||{}).hotel||{}).name || t.hotel || '';
+      const cx = cv.width * 0.68;
+      const maxTextWidth = cv.width * 0.58;
+      let y = cv.height * 0.34;
+
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#fff';
+      ctx.shadowColor = 'rgba(0,0,0,.45)';
+      ctx.shadowBlur = 18;
+      ctx.shadowOffsetY = 4;
+
+      if(counter){
+        _fitFont(ctx, counter, 900, 128, maxTextWidth);
+        ctx.fillText(counter, cx, y);
+        y += 110;
+      }
+      if(dest){
+        ctx.fillStyle = '#fff';
+        _fitFont(ctx, dest, 700, 72, maxTextWidth);
+        ctx.fillText(dest, cx, y);
+        y += 68;
+      }
+      if(hotelName){
+        ctx.fillStyle = 'rgba(255,255,255,.92)';
+        _fitFont(ctx, hotelName, 500, 44, maxTextWidth);
+        ctx.fillText(hotelName, cx, y);
+      }
+
+      const blob = await new Promise(res=>cv.toBlob(res, 'image/jpeg', 0.92));
+      if(!blob){ toast('Bild konnte nicht erstellt werden'); return; }
+      const file = new File([blob], 'reise-teilen.jpg', {type:'image/jpeg'});
+
+      if(navigator.canShare && navigator.canShare({files:[file]})){
+        try {
+          await navigator.share({files:[file], title:'TUIWatch',
+            text:[dest, hotelName].filter(Boolean).join(' · ')});
+          return;
+        } catch(e){ if(e.name==='AbortError') return; }
+      }
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob); a.download = 'reise-teilen.jpg';
+      document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(a.href);
+      toast('Bild heruntergeladen (Teilen wird hier nicht unterstützt)');
+    }
+
+    // — Packliste: pro Reise, Vorlage beim ersten Öffnen automatisch geseedet,
+    //   danach in der UI frei editier-/ergänz-/löschbar. Begrenzt auf
+    //   MAX_PACKING_ITEMS, damit der Ausdruck auf einer A4-Seite bleibt. —
+    const MAX_PACKING_ITEMS = 70;
+    let _lastPack = null;
+    const _packOpenState = {};
+
+    function _groupPacking(items){
+      const order = [], map = new Map();
+      (items||[]).forEach(it=>{
+        if(!map.has(it.category)){ map.set(it.category, []); order.push(it.category); }
+        map.get(it.category).push(it);
+      });
+      return order.map(cat=>({cat, items:map.get(cat)}));
+    }
+
+    function _packMeta(t){
+      const d = t.data||{};
+      const zeitraum = (d.reisezeitraum||{}).von
+        ? `${d.reisezeitraum.von} – ${d.reisezeitraum.bis} (${d.naechte||'?'} Nächte)` : '';
+      return [d.reiseziel, (d.hotel||{}).name, zeitraum].filter(Boolean).join(' · ');
+    }
+
+    function _packFlights(t){
+      const d = t.data||{};
+      return (d.fluege||[]).map(f=>{
+        const zeit = (f.abflug_zeit||'') + (f.ankunft_zeit?('–'+f.ankunft_zeit):'');
+        const strecke = [f.von, f.nach].filter(Boolean).join(' → ');
+        return [f.typ, f.datum, strecke, zeit, f.flugnummer].filter(Boolean).join(' · ');
+      });
+    }
+
+    // Verteilt Kategorien auf 2 Spalten nach tatsächlicher Füllung (Item-Anzahl je
+    // Kategorie als Näherung für die Höhe) statt CSS-columns, die per Balance-Heuristik
+    // manchmal ungleich befüllen — neue Kategorie landet so immer in der leereren Spalte.
+    function _splitColumns(groups){
+      const cols = [[], []], weight = [0, 0];
+      groups.forEach(g=>{
+        const idx = weight[0] <= weight[1] ? 0 : 1;
+        cols[idx].push(g);
+        weight[idx] += g.items.length + 1;
+      });
+      return cols;
+    }
+
+    function renderPackingSection(id, t, items){
+      const groups = _groupPacking(items);
+      const full = items.length >= MAX_PACKING_ITEMS;
+      const open = _packOpenState[id] === true;
+      const doneCount = items.filter(it=>it.checked).length;
+      const buildCat = g=>{
+        const catId = 'pc'+id+'-'+g.cat.replace(/[^A-Za-z0-9]/g,'');
+        return `<div class="pack-cat">
+          <div class="dsec">${esc(g.cat)}</div>
+          ${g.items.map(it=>`<div class="pack-item">
+            <input type="checkbox" ${it.checked?'checked':''} onchange="togglePackItem(${id},${it.id},this.checked)">
+            <span class="lbl${it.checked?' done':''}" contenteditable="true" spellcheck="false"
+              onblur="renamePackItem(${id},${it.id},this.textContent)"
+              onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}">${esc(it.label)}</span>
+            <span class="del" onclick="deletePackItem(${id},${it.id})" title="Entfernen">×</span>
+          </div>`).join('')}
+          <div class="pack-add">
+            <input type="text" id="${catId}" placeholder="+ eigenes Item" ${full?'disabled':''}
+              onkeydown="if(event.key==='Enter'){addPackItem(${id}, '${jsArg(g.cat)}', this);}">
+          </div>
+        </div>`;
+      };
+      const catsHtml = _splitColumns(groups)
+        .map(col=>`<div class="pack-col">${col.map(buildCat).join('')}</div>`).join('');
+      const newCatRow = `<div class="pack-add" style="margin-top:6px">
+          <input type="text" id="pack-newcat-${id}" placeholder="Neue Kategorie" style="flex:1" ${full?'disabled':''}>
+          <input type="text" id="pack-newlabel-${id}" placeholder="Item" style="flex:2" ${full?'disabled':''}>
+          <button class="btn sec" ${full?'disabled':''} onclick="addPackItemNewCat(${id})">＋</button>
+        </div>`;
+      _lastPack = {title: t.title||('Reise #'+id), meta: _packMeta(t), flights: _packFlights(t), items};
+      return `<div class="pack-head">
+          <span class="pack-toggle" id="pack-toggle-${id}" onclick="togglePackOpen(${id})" title="Ein-/ausklappen">${open?'▾':'▸'}</span>
+          <div class="dsec" style="margin:0">🎒 Packliste</div>
+          <span class="cnt">${items.length}/${MAX_PACKING_ITEMS} · ${doneCount} erledigt · ${items.length-doneCount} offen</span>
+          <button class="btn sec" onclick="printPacking()">🖨️ Drucken</button>
+          <span class="pack-reset" onclick="resetPacking(${id})">↺ Zurücksetzen</span>
+        </div>
+        <div class="pack-body" id="pack-body-${id}" style="${open?'':'display:none'}">
+          <div class="pack-wrap">${catsHtml}</div>
+          ${newCatRow}
+        </div>`;
+    }
+
+    function togglePackOpen(id){
+      const open = !(_packOpenState[id] === true);
+      _packOpenState[id] = open;
+      const el = $('#pack-body-'+id), btn = $('#pack-toggle-'+id);
+      if(el) el.style.display = open ? '' : 'none';
+      if(btn) btn.textContent = open ? '▾' : '▸';
+    }
+
+    function togglePackItem(tid, iid, checked){
+      fetch(api('/api/trips/'+tid+'/packing/'+iid), {method:'PATCH',
+        headers:{'Content-Type':'application/json'}, body:JSON.stringify({checked})})
+        .then(()=>showTripDetail(tid));
+    }
+    function renamePackItem(tid, iid, text){
+      const label = (text||'').trim();
+      if(!label){ showTripDetail(tid); return; }
+      fetch(api('/api/trips/'+tid+'/packing/'+iid), {method:'PATCH',
+        headers:{'Content-Type':'application/json'}, body:JSON.stringify({label})})
+        .then(()=>showTripDetail(tid));
+    }
+    async function _postPackItem(tid, category, label){
+      const r = await fetch(api('/api/trips/'+tid+'/packing'), {method:'POST',
+        headers:{'Content-Type':'application/json'}, body:JSON.stringify({category, label})});
+      if(r.status===409){ toast('Packliste voll (max. '+MAX_PACKING_ITEMS+' Einträge, damit sie auf eine Seite passt)'); return; }
+      showTripDetail(tid);
+    }
+    function addPackItem(tid, category, inputEl){
+      const label = (inputEl.value||'').trim();
+      if(!label) return;
+      _postPackItem(tid, category, label);
+    }
+    function addPackItemNewCat(tid){
+      const category = ($('#pack-newcat-'+tid).value||'').trim();
+      const label = ($('#pack-newlabel-'+tid).value||'').trim();
+      if(!category || !label) return;
+      _postPackItem(tid, category, label);
+    }
+    function deletePackItem(tid, iid){
+      fetch(api('/api/trips/'+tid+'/packing/'+iid), {method:'DELETE'}).then(()=>showTripDetail(tid));
+    }
+    function resetPacking(tid){
+      if(!confirm('Packliste auf Vorlage zurücksetzen? Eigene Einträge und Haken gehen verloren.')) return;
+      fetch(api('/api/trips/'+tid+'/packing/reset'), {method:'POST'})
+        .then(()=>{ toast('Packliste zurückgesetzt'); showTripDetail(tid); });
+    }
+    function printPacking(){
+      if(!_lastPack) return;
+      const groups = _groupPacking(_lastPack.items);
+      const buildCat = g=>`<div class="pp-cat"><h4>${esc(g.cat)}</h4>${
+        g.items.map(it=>`<div class="pp-item">${it.checked?'☑':'☐'} ${esc(it.label)}</div>`).join('')
+      }</div>`;
+      const catsHtml = _splitColumns(groups)
+        .map(col=>`<div class="pp-col">${col.map(buildCat).join('')}</div>`).join('');
+      const flightsHtml = (_lastPack.flights||[]).length
+        ? `<div class="pp-flights">${_lastPack.flights.map(f=>`<div>✈ ${esc(f)}</div>`).join('')}</div>` : '';
+      $('#pack-print-area').innerHTML = `<div class="pp-head"><h1>TUIWatch — Packliste</h1>
+          <div class="pp-meta">${esc(_lastPack.title)}${_lastPack.meta?' · '+esc(_lastPack.meta):''}</div>
+          ${flightsHtml}</div>
+        <div class="pp-wrap">${catsHtml}</div>`;
+      window.print();
     }
 
     // — PDF-Debug: bereinigter Text + erkannt/leer je Feld (nur für den Angemeldeten,
@@ -1855,6 +2271,8 @@
       if(r.status===400){ $('#srch-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Keine gültige Eingabe.</div>'; return; }
       if(!r.ok){ $('#srch-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Suche fehlgeschlagen.</div>'; return; }
       srchResults = d.results||[]; srchTotal = d.total||srchResults.length; srchFilter = '';
+      srchResults.forEach(r=>{ r._key = String(r.giata||r.name); });
+      srCmpSelected = new Set();
       sortSearchResults(); renderSearch();
     }
 
@@ -1875,6 +2293,9 @@
       const old = (r.old_price&&r.old_price>r.price)?('<span class="sr-old">'+eur(r.old_price)+'</span>'+(r.discount?'<span class="sr-disc">-'+r.discount+'%</span>':'')):'';
       const img = r.image?('<img class="sr-img" src="'+esc(r.image)+'" loading="lazy" alt="">'):'<div class="sr-img"></div>';
       return `<div class="sr-item">
+        <label class="sr-cmp ai-feature" title="Für KI-Vergleich auswählen">
+          <input type="checkbox" class="sr-cmp-chk" data-key="${esc(r._key)}" ${srCmpSelected.has(r._key)?'checked':''}>
+        </label>
         ${img}
         <div class="sr-main">
           <div class="sr-name">${stars}${esc(r.name)}${r.tracked?'<span class="tracked">✓ getrackt</span>':''}</div>
@@ -1888,6 +2309,7 @@
           <div class="sr-meta">p. P.${old?(' · '+old):''}</div>
           <div class="sr-acts">
             <a class="btn sec" href="${esc(r.offer_url)}" target="_blank" rel="noopener">Öffnen</a>
+            <button class="btn sec ai-feature" onclick="openAiSummary(${i})" title="Ausführliche KI-Einschätzung: Lage, Zimmer, Restaurants, Pool, Ausstattung">🤖 KI-Fazit</button>
             <button class="btn" id="srt-${i}" onclick="trackResult(${i})" title="${r.tracked?'Bereits getrackt – mit den aktuellen Suchparametern (z. B. anderer Zeitraum) erneut hinzufügen':'Hotel ins Tracking übernehmen'}">${r.tracked?'+ Tracken':'Tracken'}</button>
           </div>
         </div>
@@ -1914,10 +2336,32 @@
          <input type="text" id="srch-filter" class="srch-listfilter" placeholder="In Treffern suchen…" autocomplete="off" oninput="filterSearch(this.value)" value="${esc(srchFilter)}">
          <span style="flex:1"></span>Sortieren: ${sortSel}
          <button class="btn sec" onclick="trackAll()">Alle tracken</button></div>
+        <div id="cmp-bar" class="cmp-foot ai-feature" style="display:none">
+          <span class="hint" style="flex:1;min-width:180px"><b id="cmp-count">0</b> Hotel(s) für KI-Vergleich ausgewählt (max. 5)</span>
+          <button class="btn sec" onclick="clearCmp()">Auswahl leeren</button>
+          <button class="btn" onclick="openAiCompare()">🤖 Vergleichen</button>
+        </div>
         <div id="srch-rows"></div>`;
       $('#srch-body').innerHTML = head;
       renderSearchRows();
+      updateCmpBar();
     }
+    $('#srch-body').addEventListener('change', e=>{
+      const chk = e.target.closest('.sr-cmp-chk'); if(!chk) return;
+      const key = chk.dataset.key;
+      if(chk.checked){
+        if(srCmpSelected.size>=5){ chk.checked=false; toast('Maximal 5 Hotels für den Vergleich'); return; }
+        srCmpSelected.add(key);
+      } else srCmpSelected.delete(key);
+      updateCmpBar();
+    });
+    function updateCmpBar(){
+      const bar = $('#cmp-bar'); if(!bar) return;
+      const n = srCmpSelected.size;
+      bar.style.display = n ? 'flex' : 'none';
+      const c = $('#cmp-count'); if(c) c.textContent = String(n);
+    }
+    function clearCmp(){ srCmpSelected = new Set(); renderSearchRows(); updateCmpBar(); }
 
     async function trackResult(i){
       const r = srchResults[i]; if(!r) return;
@@ -1945,6 +2389,485 @@
         try { await fetch(api('/api/offers'), {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({url:r.offer_url, label:r.name, image:r.image})}); r.tracked=true; } catch(e){}
       }
       toast(todo.length+' Hotels getrackt'); renderSearch(); loadOffers();
+    }
+
+    // ── KI-Hotel-Fazit & -Vergleich (Lage, Zimmer, Restaurants, Pool, Ausstattung) ─
+    function aiInline(s){ return s.replace(/\*\*(.+?)\*\*/g,'<b>$1</b>'); }
+    function aiTableRow(l){ return l.trim().replace(/^\||\|$/g,'').split('|').map(c=>aiInline(c.trim())); }
+    function aiMdLite(text){
+      const lines = esc(text).split('\n');
+      let html = '', inList = false, i = 0;
+      const closeList = () => { if(inList){ html += '</ul>'; inList = false; } };
+      while(i < lines.length){
+        const line = lines[i].trim();
+        if(!line){ closeList(); i++; continue; }
+        // Markdown-Tabelle: Kopfzeile + Trennzeile aus -/:/| erkennen
+        if(line.startsWith('|') && lines[i+1] && /^\|?[\s:|-]+\|?$/.test(lines[i+1].trim())){
+          closeList();
+          const header = aiTableRow(line);
+          let body = '', j = i + 2;
+          for(; j < lines.length && lines[j].trim().startsWith('|'); j++){
+            body += '<tr>' + aiTableRow(lines[j]).map(c=>'<td>'+c+'</td>').join('') + '</tr>';
+          }
+          html += '<table class="ai-table"><thead><tr>' + header.map(c=>'<th>'+c+'</th>').join('')
+            + '</tr></thead><tbody>' + body + '</tbody></table>';
+          i = j; continue;
+        }
+        const h = /^#{1,4}\s+(.*)/.exec(line);
+        const bullet = /^[-*]\s+(.*)/.exec(line);
+        if(h){ closeList(); html += '<h4 class="ai-h">'+aiInline(h[1])+'</h4>'; }
+        else if(bullet){ if(!inList){ html += '<ul class="ai-list">'; inList = true; } html += '<li>'+aiInline(bullet[1])+'</li>'; }
+        else { closeList(); html += '<p>'+aiInline(line)+'</p>'; }
+        i++;
+      }
+      closeList();
+      return html;
+    }
+    function aiErrorMsg(err){
+      return err==='no_api_key' ? 'Kein Anthropic API-Key in den Add-on-Einstellungen hinterlegt.'
+        : err==='ai_refused' ? 'Die KI konnte keine Einschätzung liefern.'
+        : err==='invalid' ? 'Bitte mindestens 2 Hotels für den Vergleich auswählen.'
+        : 'KI-Zusammenfassung fehlgeschlagen.';
+    }
+    function hotelFacts(r){
+      return {name:r.name, giata:r.giata, location:r.location, country:r.country,
+        stars:r.stars, recommendation:r.recommendation, reviews:r.reviews, board:r.board,
+        price:r.price, nights:r.nights, date:r.date};
+    }
+    function aiUsageLine(usage, cached, totals){
+      let html = '';
+      if(usage){
+        const parts = [(usage.input_tokens||0)+' Input-', (usage.output_tokens||0)+' Output-Tokens'];
+        if(usage.cache_read_input_tokens) parts.push(usage.cache_read_input_tokens+' aus Prompt-Cache');
+        if(usage.web_search_requests) parts.push('🔍 '+usage.web_search_requests+' Websuchen');
+        if(usage.estimated_usd != null) parts.push('≈ '+fmtUsd(usage.estimated_usd));
+        html += '<div class="hint" style="margin-top:14px;padding-top:10px;border-top:1px solid var(--border)">🔢 '
+          + parts.join(' · ') + (cached?' · Ergebnis aus Zwischenspeicher (bis zu 24 Std. alt)':'') + '</div>';
+      }
+      if(totals && totals.calls){
+        html += '<div class="hint" style="margin-top:4px">Σ gesamt (dauerhaft gespeichert): '+totals.calls+' Aufrufe · '
+          + (totals.input_tokens+totals.output_tokens).toLocaleString('de-DE')+' Tokens · geschätzt '
+          + fmtUsd(totals.estimated_usd)+'</div>';
+        if(totals.today || totals.month){
+          html += '<div class="hint" style="margin-top:2px">Davon heute '+fmtUsd(totals.today&&totals.today.estimated_usd)
+            +' · diesen Monat '+fmtUsd(totals.month&&totals.month.estimated_usd)+'</div>';
+        }
+      }
+      return html;
+    }
+    let aiCurrentId = null;   // ID in ai_analyses des gerade angezeigten Ergebnisses (fürs E-Mail-Senden)
+    function renderAiResult(box, result){
+      $(box).innerHTML = aiMdLite(result.summary) + aiUsageLine(result.usage, result.cached, result.totals);
+      $('#ai-foot').style.display = 'flex';
+      aiCurrentId = result.id != null ? result.id : null;
+    }
+    function exportAiPdf(){
+      const w = window.open('', '_blank');
+      if(!w){ toast('Pop-up blockiert – bitte für TUIWatch erlauben'); return; }
+      const title = $('#ai-title').textContent, sub = $('#ai-sub').textContent;
+      w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>'+esc(title+' – '+sub)+'</title><style>'
+        + 'body{font-family:system-ui,"Segoe UI",Arial,sans-serif;color:#111;max-width:760px;margin:0 auto;padding:32px;line-height:1.5}'
+        + 'h1{font-size:1.3rem;margin:0 0 4px}.sub{color:#555;font-size:.9rem;margin-bottom:20px}'
+        + '.ai-h{color:#0b65d8;font-size:1rem;margin:18px 0 6px}.ai-list{margin:0 0 12px;padding-left:20px}'
+        + 'table{width:100%;border-collapse:collapse;margin:8px 0 16px;font-size:.85rem}'
+        + 'th,td{text-align:left;padding:6px 8px;border-bottom:1px solid #ddd}'
+        + '.hint{color:#888;font-size:.78rem;margin-top:16px;padding-top:8px;border-top:1px solid #ddd}'
+        + '@media print{body{padding:0}}</style></head><body>'
+        + '<h1>'+esc(title)+'</h1><div class="sub">'+esc(sub)+'</div>'
+        + $('#ai-body').innerHTML + '</body></html>');
+      w.document.close();
+      w.onload = () => { w.focus(); w.print(); };
+    }
+    async function openAiSummary(i){
+      const r = srchResults[i]; if(!r) return;
+      $('#ai-title').textContent = '🤖 KI-Fazit';
+      $('#ai-sub').textContent = r.name || '';
+      $('#ai-foot').style.display = 'none';
+      $('#ai-bg').classList.add('show');
+      if(r._ai){ renderAiResult('#ai-body', r._ai); return; }
+      $('#ai-body').innerHTML = progBar('KI durchsucht das Web nach Bewertungen…');
+      let resp, d;
+      try {
+        resp = await fetch(api('/api/ai/hotel-summary'), {method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify(hotelFacts(r))});
+        d = await resp.json();
+      } catch(e){ $('#ai-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ KI-Zusammenfassung fehlgeschlagen.</div>'; return; }
+      if(!resp.ok){
+        $('#ai-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ '+esc(aiErrorMsg(d.error))+'</div>';
+        return;
+      }
+      r._ai = d;
+      renderAiResult('#ai-body', d);
+    }
+    async function openAiCompare(){
+      const hotels = srchResults.filter(r=>srCmpSelected.has(r._key));
+      if(hotels.length < 2){ toast('Bitte mindestens 2 Hotels auswählen'); return; }
+      runAiCompare('srch:'+hotels.map(h=>h._key).sort().join('|'), hotels.map(hotelFacts), hotels.map(h=>h.name));
+    }
+    function offerFacts(o){
+      return {name:o.label||o.hotel, giata:o.giata, location:o.location, country:o.country,
+        stars:o.stars, recommendation:o.recommendation, reviews:o.rating_count,
+        price:o.price, details:o.details};
+    }
+    async function openAiCompareOffers(){
+      let offers = (curOffers||[]).filter(o=>selected.has(o.id));
+      if(offers.length < 2){ toast('Bitte mindestens 2 Angebote auswählen'); return; }
+      if(offers.length > 5){ toast('Nur die ersten 5 ausgewählten Angebote werden verglichen'); offers = offers.slice(0, 5); }
+      const names = offers.map(o=>o.label||o.hotel||('Angebot #'+o.id));
+      runAiCompare('off:'+offers.map(o=>o.id).sort((a,b)=>a-b).join('|'), offers.map(offerFacts), names);
+    }
+    async function autoTagSelected(){
+      const ids = [...selected]; if(!ids.length) return;
+      toast('KI vergibt Tags für '+ids.length+' Angebot(e)…');
+      let resp, d;
+      try {
+        resp = await fetch(api('/api/ai/auto-tags'), {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ids})});
+        d = await resp.json();
+      } catch(e){ toast('Fehler beim Auto-Tagging'); return; }
+      if(!resp.ok){ toast(d.error==='no_api_key'?'Kein Anthropic API-Key hinterlegt':'Fehler beim Auto-Tagging'); return; }
+      const n = Object.keys(d.results||{}).length;
+      toast(n ? n+' Angebot(e) getaggt' : 'Keine Tags ermittelt');
+      bulkClear(); loadOffers();
+    }
+    async function runAiCompare(cacheKey, facts, names){
+      $('#ai-title').textContent = '🤖 KI-Vergleich';
+      $('#ai-sub').textContent = names.join(' · ');
+      $('#ai-foot').style.display = 'none';
+      $('#ai-bg').classList.add('show');
+      if(_aiCompareCache[cacheKey]){ renderAiResult('#ai-body', _aiCompareCache[cacheKey]); return; }
+      $('#ai-body').innerHTML = progBar('KI vergleicht '+facts.length+' Hotels und durchsucht das Web…');
+      let resp, d;
+      try {
+        resp = await fetch(api('/api/ai/hotel-compare'), {method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({hotels: facts})});
+        d = await resp.json();
+      } catch(e){ $('#ai-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ KI-Vergleich fehlgeschlagen.</div>'; return; }
+      if(!resp.ok){
+        $('#ai-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ '+esc(aiErrorMsg(d.error))+'</div>';
+        return;
+      }
+      _aiCompareCache[cacheKey] = d;
+      renderAiResult('#ai-body', d);
+    }
+    const _aiCompareCache = {};  // Session-Cache: Präfix+sortierter Schlüssel-String → {summary, usage}
+    function closeAiSummary(){ $('#ai-bg').classList.remove('show'); }
+    $('#ai-bg').addEventListener('click', e=>{ if(e.target.id==='ai-bg') closeAiSummary(); });
+
+    // ── KI-Verlauf (dauerhaft gespeicherte Fazits/Vergleiche) ─────────────────
+    async function openAiHistory(){
+      $('#aihist-bg').classList.add('show');
+      $('#aihist-body').innerHTML = progBar('Lädt…');
+      let d;
+      try { d = await fetch(api('/api/ai/history')).then(r=>r.json()); }
+      catch(e){ $('#aihist-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Verlauf konnte nicht geladen werden.</div>'; return; }
+      renderAiHistory(d.items||[]);
+    }
+    function closeAiHistory(){ $('#aihist-bg').classList.remove('show'); }
+    $('#aihist-bg').addEventListener('click', e=>{ if(e.target.id==='aihist-bg') closeAiHistory(); });
+
+    // ── KI-Prompt-Einstellungen (eigene Prompt-Vorlagen für Reiseberater/Vergleich) ──
+    let promptCfgData = null;
+    async function openPromptCfg(){
+      $('#promptcfg-bg').classList.add('show');
+      try {
+        const resp = await fetch(api('/api/ai/prompt-settings'));
+        promptCfgData = await resp.json();
+      } catch(e){ toast('Laden fehlgeschlagen'); closePromptCfg(); return; }
+      for (const f of ['advisor','compare','summary','daytrip']){
+        const d = promptCfgData[f];
+        $(`#promptcfg-${f}-enabled`).checked = d.enabled;
+        $(`#promptcfg-${f}-text`).value = (d.enabled && d.text) ? d.text : d.default;
+        promptcfgCount(f);
+      }
+    }
+    function closePromptCfg(){ $('#promptcfg-bg').classList.remove('show'); }
+    $('#promptcfg-bg').addEventListener('click', e=>{ if(e.target.id==='promptcfg-bg') closePromptCfg(); });
+    function promptcfgReset(f){
+      $(`#promptcfg-${f}-text`).value = promptCfgData[f].default;
+      promptcfgCount(f);
+    }
+    function promptcfgCount(f){
+      $(`#promptcfg-${f}-count`).textContent = $(`#promptcfg-${f}-text`).value.length + ' / 4000 Zeichen';
+    }
+    async function savePromptCfg(){
+      const body = {};
+      for (const f of ['advisor','compare','summary','daytrip']){
+        body[f] = { enabled: $(`#promptcfg-${f}-enabled`).checked, text: $(`#promptcfg-${f}-text`).value };
+      }
+      try {
+        const resp = await fetch(api('/api/ai/prompt-settings'), {method:'POST',
+          headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
+        if(!resp.ok) throw new Error();
+        toast('Gespeichert');
+        closePromptCfg();
+      } catch(e){ toast('Speichern fehlgeschlagen'); }
+    }
+    function aiKindLabel(kind){
+      return kind==='compare' ? '🤖 Vergleich' : kind==='ask' ? '❓ Frage'
+        : kind==='advisor' ? '🗺️ TripPilot' : '🤖 Fazit';
+    }
+    function renderAiHistory(items){
+      if(!items.length){ $('#aihist-body').innerHTML = '<div class="cmp-load">Noch keine KI-Analysen gespeichert.</div>'; return; }
+      $('#aihist-body').innerHTML = items.map(it => `<div class="aihist-item">
+          <div class="aihist-main" onclick="openAiHistoryItem(${it.id})">
+            <div class="aihist-title">${aiKindLabel(it.kind)} · ${esc(it.title)}</div>
+            <div class="hint">${esc(new Date(it.ts*1000).toLocaleString('de-DE'))} · ${esc(it.model)}</div>
+          </div>
+          <button class="icon-btn" onclick="deleteAiHistoryItem(${it.id}, event)" title="Eintrag löschen">🗑</button>
+        </div>`).join('');
+    }
+    async function openAiHistoryItem(id){
+      closeAiHistory();
+      $('#ai-title').textContent = '🤖 KI-Verlauf';
+      $('#ai-sub').textContent = 'Lädt…';
+      $('#ai-foot').style.display = 'none';
+      $('#ai-bg').classList.add('show');
+      $('#ai-body').innerHTML = progBar('Lädt…');
+      let d;
+      try { d = await fetch(api('/api/ai/history/'+id)).then(r=>r.json()); }
+      catch(e){ $('#ai-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Eintrag konnte nicht geladen werden.</div>'; return; }
+      if(d.error){ $('#ai-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Eintrag nicht gefunden (evtl. gelöscht).</div>'; return; }
+      $('#ai-title').textContent = aiKindLabel(d.kind) + ' (Verlauf)';
+      $('#ai-sub').textContent = d.title + ' · ' + new Date(d.ts*1000).toLocaleString('de-DE');
+      renderAiResult('#ai-body', {summary: d.summary, usage: d.usage, id: d.id});
+    }
+    async function deleteAiHistoryItem(id, ev){
+      ev.stopPropagation();
+      if(!confirm('Diesen KI-Verlaufseintrag löschen?')) return;
+      try { await fetch(api('/api/ai/history/'+id), {method:'DELETE'}); } catch(e){}
+      openAiHistory();
+    }
+
+    // ── Frag dein Portfolio ────────────────────────────────────────────────────
+    function openAiAsk(){ $('#aiask-q').value=''; $('#aiask-bg').classList.add('show'); }
+    function closeAiAsk(){ $('#aiask-bg').classList.remove('show'); }
+    $('#aiask-bg').addEventListener('click', e=>{ if(e.target.id==='aiask-bg') closeAiAsk(); });
+    async function submitAiAsk(){
+      const q = $('#aiask-q').value.trim();
+      if(!q){ toast('Bitte eine Frage eingeben'); return; }
+      closeAiAsk();
+      $('#ai-title').textContent = '❓ Frag dein Portfolio';
+      $('#ai-sub').textContent = q;
+      $('#ai-foot').style.display = 'none';
+      $('#ai-bg').classList.add('show');
+      $('#ai-body').innerHTML = progBar('KI durchsucht dein Portfolio…');
+      let resp, d;
+      try {
+        resp = await fetch(api('/api/ai/ask'), {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({question:q})});
+        d = await resp.json();
+      } catch(e){ $('#ai-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Frage fehlgeschlagen.</div>'; return; }
+      if(!resp.ok){
+        const msg = d.error==='no_offers' ? 'Keine aktiven Angebote vorhanden.' : aiErrorMsg(d.error);
+        $('#ai-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ '+esc(msg)+'</div>';
+        return;
+      }
+      renderAiResult('#ai-body', d);
+    }
+
+    // ── KI-Reiseberater (geführter Fragebogen → 3 Zielvorschläge) ─────────────
+    const DAYTRIP = 'Tagesausflug in der Nähe';
+    const isDaytrip = state => (state.region||[]).includes(DAYTRIP);
+    const ADV_STEPS = [
+      {title:'Wohin soll die Reise ungefähr gehen?', key:'region', multi:true,
+       exclusive:[DAYTRIP],
+       options:['Deutschland','Europa','Makaronesien','Griechische Inseln','Balearen','Italien',
+                'Frankreich','Adriaküste','Algarve','Zypern','Weltweit','Egal',DAYTRIP]},
+      {title:'Welche Länder kommen für dich nicht in Frage?', key:'excluded_countries', multi:true,
+       showIf: state => !(state.region||[]).includes(DAYTRIP) &&
+         ((state.region||[]).includes('Weltweit') || (state.region||[]).includes('Egal')),
+       options:['Türkei','Ägypten','Tunesien','Marokko','Kenia','Thailand','Sri Lanka',
+                'Dominikanische Republik','Mexiko','Malediven']},
+      {title:'Weitere Länder ausschließen? (optional)', key:'excluded_countries_other', type:'text',
+       showIf: state => !(state.region||[]).includes(DAYTRIP) &&
+         ((state.region||[]).includes('Weltweit') || (state.region||[]).includes('Egal')),
+       placeholder:'z. B. weitere Länder, kommagetrennt'},
+      {title:'Was ist dir im Urlaub wichtig?', key:'interests', multi:true,
+       showIf: state => !isDaytrip(state),
+       options:['🌴 Strand','⛰️ Berge','🏛️ Kultur','🍹 Entspannung','🎉 Nachtleben','🚶 Wandern',
+                '🚴 Radfahren','🍽️ Essen','🛍️ Shopping','👨‍👩‍👧 Familie','❤️ Romantik']},
+      {title:'Wie soll dein Strand sein?', key:'beach_detail', multi:true,
+       showIf: state => (state.interests||[]).includes('🌴 Strand'),
+       options:['Feinsandig','Kies/Felsen','Naturstrand, unberührt','Weitläufig, kilometerlang',
+                'Kleine, ruhige Bucht','Belebt mit Beach-Bars','Flach abfallend (familienfreundlich)',
+                'Schattenplätze/Palmen','Gut zum Schnorcheln','Direkt am Hotel',
+                'Fußweg/Promenade OK']},
+      {title:'Wie sollen die Berge sein?', key:'berge_detail', multi:true,
+       showIf: state => (state.interests||[]).includes('⛰️ Berge'),
+       options:['Sanfte Wanderwege','Anspruchsvolle Gipfeltouren','Skigebiet (Winter)',
+                'Aussicht/Panorama','Alm-/Hüttenromantik','Seilbahn/Gondel vorhanden',
+                'Ruhig, wenig Tourismus']},
+      {title:'Welche Reiseart?', key:'travel_type', multi:true,
+       showIf: state => !isDaytrip(state),
+       options:['Pauschalreise (TUI)','Badeurlaub','Rundreise','Städtereise','Kreuzfahrt','Wellness',
+                'Aktivurlaub','Abenteuer','Luxus','Camping','All Inclusive','Ferienwohnung']},
+      {title:'Mit wem reist du?', key:'companions', multi:false,
+       showIf: state => !isDaytrip(state),
+       options:['Alleine','Partner','Familie','Freunde','Senioren','Mit Hund']},
+      {title:'Budget pro Person?', key:'budget', multi:false,
+       showIf: state => !isDaytrip(state),
+       options:['bis 500 €','500–1000 €','1000–2000 €','2000–3000 €','egal']},
+      {title:'Reisedauer?', key:'duration', multi:false,
+       showIf: state => !isDaytrip(state),
+       options:['Wochenende','5 Tage','1 Woche','9–12 Tage','2 Wochen','3+ Wochen']},
+      {title:'Wie viel Zeit hast du?', key:'duration_daytrip', multi:false,
+       showIf: state => isDaytrip(state),
+       options:['Vormittag','Nachmittag','Ganzer Tag','Ganzer Tag inkl. Abend']},
+      {title:'Wann soll es losgehen?', key:'month', multi:false,
+       options:['Januar','Februar','März','April','Mai','Juni','Juli','August','September',
+                'Oktober','November','Dezember','Egal']},
+      {title:'Wie warm soll es sein?', key:'temp', multi:false,
+       showIf: state => !isDaytrip(state),
+       options:['unter 20°C','20–25°C','25–30°C','möglichst heiß','egal']},
+      {title:'Meer oder See?', key:'water_type', multi:true,
+       exclusive:['Kein Gewässer nötig'],
+       options:['Meer','See','Kein Gewässer nötig']},
+      {title:'Wie warm soll das Wasser sein?', key:'sea', multi:false,
+       showIf: state => (state.water_type||[]).length > 0 && !state.water_type.includes('Kein Gewässer nötig'),
+       options:['28°C+ (tropisch warm)','24–27°C (angenehm warm)','20–24°C ist ok','egal']},
+      {title:'Regen?', key:'rain', multi:false,
+       options:['möglichst trocken','egal']},
+      {title:'Welche Aktivitäten interessieren dich?', key:'activities', multi:true,
+       options:['Tauchen','Schnorcheln','Wandern','Skifahren','Golf','Mountainbike','Surfen',
+                'Safari','Fotografieren','Museen','Freizeitparks','Wein','Kulinarik',
+                'Reiten','Segeln','Angeln','Klettern','Yoga','Tennis','Kajak/SUP','Bootsausflüge',
+                'Zoo/Tierpark','Therme/Wellness-Tag','Sehenswürdigkeit/Schloss','Kletterpark',
+                'Escape Room','Minigolf','Flohmarkt/Markt','Natur']},
+      {title:'Welche Unterkunftsart?', key:'accommodation', multi:false,
+       showIf: state => !isDaytrip(state),
+       options:['Hotel','Apartment','Ferienwohnung','Airbnb','Villa','Camping','Hostel','egal']},
+      {title:'Wie groß darf das Hotel sein?', key:'accommodation_size', multi:false,
+       showIf: state => !isDaytrip(state) && state.accommodation === 'Hotel',
+       options:['klein','Boutique','mittelgroß','riesige Clubanlage','egal']},
+      {title:'Was ist dir beim Hotel besonders wichtig?', key:'hotel_wishes', multi:true,
+       showIf: state => !isDaytrip(state),
+       options:['Erwachsenenhotel','Familienhotel','Kinderpool','Rutschen','Animation','Ruhe',
+                'All Inclusive','Frühstück','Halbpension','Swim-Up','Privatpool','Spa',
+                'Fitnessstudio','direkte Strandlage','Sandstrand','flach abfallend','Hausriff',
+                'WLAN','Homeoffice geeignet']},
+      {title:'Wie möchtest du anreisen?', key:'arrival_mode', multi:false,
+       showIf: state => !isDaytrip(state),
+       options:['Flugzeug','Auto','Bus','Bahn','Ist mir egal']},
+      {title:'Von wo geht\'s los?', key:'home_location', type:'text', required:true,
+       showIf: state => ['Auto','Bus','Bahn'].includes(state.arrival_mode) || isDaytrip(state),
+       placeholder:'PLZ oder Ort'},
+      {title:'Wie weit darf es maximal sein?', key:'max_distance', multi:false,
+       showIf: state => ['Auto','Bus','Bahn'].includes(state.arrival_mode) || isDaytrip(state),
+       options:['bis 50 km','bis 100 km','bis 200 km','bis 400 km','bis 600 km','egal']},
+      {title:'Flugzeit?', key:'flight_time', multi:false,
+       showIf: state => !isDaytrip(state) &&
+         (!state.arrival_mode || ['Flugzeug','Ist mir egal'].includes(state.arrival_mode)),
+       options:['Direktflug','max. 4 Stunden','max. 6 Stunden','egal']},
+      {title:'Abflughafen?', key:'airports', multi:true,
+       showIf: state => !isDaytrip(state) &&
+         (!state.arrival_mode || ['Flugzeug','Ist mir egal'].includes(state.arrival_mode)),
+       options:['Frankfurt','Stuttgart','München','Hamburg','Düsseldorf','Berlin']},
+      {title:'Was nervt dich im Urlaub?', key:'dislikes', multi:true,
+       options:['überfüllte Strände','Kinder','Animation','Wind','Hitze','lange Transfers',
+                'frühes Aufstehen']},
+      {title:'Was macht für dich einen perfekten Urlaub aus?', key:'perfect_holiday', type:'text',
+       showIf: state => !isDaytrip(state),
+       placeholder:'Freitext, optional'},
+      {title:'Welche Hotels/Urlaube haben dir gefallen – welche nicht? Warum?',
+       key:'past_trips', type:'text',
+       showIf: state => !isDaytrip(state),
+       placeholder:'z. B. "RIU Papayas war super, viel Auswahl beim Essen, ruhige Lage"'},
+    ];
+    let advIdx = 0, advState = {};
+    function openAdvisor(){
+      advIdx = 0; advState = {};
+      $('#reiseb-bg').classList.add('show');
+      advRender();
+    }
+    function closeAdvisor(){ $('#reiseb-bg').classList.remove('show'); }
+    $('#reiseb-bg').addEventListener('click', e=>{ if(e.target.id==='reiseb-bg') closeAdvisor(); });
+    function advVisibleSteps(){ return ADV_STEPS.filter(s => !s.showIf || s.showIf(advState)); }
+    function advRender(){
+      const steps = advVisibleSteps();
+      const s = steps[advIdx];
+      $('#reiseb-sub').textContent = 'Schritt '+(advIdx+1)+' von '+steps.length
+        + (s.multi ? ' · Mehrfachauswahl möglich' : '');
+      if(s.type === 'text'){
+        const val = advState[s.key] || '';
+        $('#reiseb-body').innerHTML = '<h3 style="margin:4px 0 12px">'+esc(s.title)+'</h3>'
+          + `<textarea id="reiseb-text" class="reiseb-text" rows="4" oninput="advUpdateNextState()" `
+          + `placeholder="${esc(s.placeholder||'Optional')}">${esc(val)}</textarea>`;
+      } else {
+        const sel = advState[s.key] != null ? advState[s.key] : (s.multi ? [] : null);
+        $('#reiseb-body').innerHTML = '<h3 style="margin:4px 0 12px">'+esc(s.title)+'</h3>'
+          + '<div class="tag-row">' + s.options.map((o, oi) => {
+              const active = s.multi ? sel.includes(o) : sel === o;
+              return `<span class="tag-pill${active?' active':''}" onclick="advPick(${oi})">${esc(o)}</span>`;
+            }).join('') + '</div>';
+      }
+      $('#reiseb-back').style.visibility = advIdx === 0 ? 'hidden' : 'visible';
+      $('#reiseb-next').textContent = advIdx === steps.length - 1 ? '🔮 Empfehlung holen' : 'Weiter';
+      advUpdateNextState();
+    }
+    function advUpdateNextState(){
+      const s = advVisibleSteps()[advIdx];
+      const filled = s.type === 'text'
+        ? !!($('#reiseb-text').value || '').trim()
+        : !!advState[s.key];
+      $('#reiseb-next').disabled = !!s.required && !filled;
+    }
+    function advPick(oi){
+      const s = advVisibleSteps()[advIdx], o = s.options[oi];
+      if(s.multi){
+        const arr = advState[s.key] || (advState[s.key] = []);
+        const excl = s.exclusive || [];
+        if(excl.includes(o)){
+          // Exklusive Option (z. B. Tagesausflug/Kein Gewässer nötig): schließt
+          // alle anderen Optionen der gleichen Frage aus, toggelt sich selbst
+          const active = arr.includes(o);
+          arr.length = 0;
+          if(!active) arr.push(o);
+        } else {
+          // Normale Option gewählt: vorher gesetzte exklusive Optionen entfernen
+          for(const e of excl){ const ei = arr.indexOf(e); if(ei >= 0) arr.splice(ei, 1); }
+          const i = arr.indexOf(o);
+          if(i >= 0) arr.splice(i, 1); else arr.push(o);
+        }
+        advRender();
+      } else {
+        advState[s.key] = o;
+        advRender();
+        setTimeout(advNext, 150);
+      }
+    }
+    function advCaptureText(){
+      const s = advVisibleSteps()[advIdx];
+      if(s.type === 'text'){
+        const v = ($('#reiseb-text').value || '').trim();
+        if(v) advState[s.key] = v; else delete advState[s.key];
+      }
+    }
+    function advBack(){ advCaptureText(); if(advIdx > 0){ advIdx--; advRender(); } }
+    function advNext(){
+      advCaptureText();
+      const steps = advVisibleSteps();
+      if(advIdx < steps.length - 1){ advIdx++; advRender(); }
+      else submitAdvisor();
+    }
+    async function submitAdvisor(){
+      closeAdvisor();
+      $('#ai-title').textContent = '🗺️ TripPilot';
+      $('#ai-sub').textContent = [(advState.region||[]).join(', '), advState.arrival_mode,
+        (advState.interests||[]).join(', ')].filter(Boolean).join(' · ');
+      $('#ai-foot').style.display = 'none';
+      $('#ai-bg').classList.add('show');
+      $('#ai-body').innerHTML = progBar('KI sucht passende Ziele…');
+      let resp, d;
+      try {
+        resp = await fetch(api('/api/ai/travel-advisor'), {method:'POST',
+          headers:{'Content-Type':'application/json'}, body: JSON.stringify(advState)});
+        d = await resp.json();
+      } catch(e){ $('#ai-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Anfrage fehlgeschlagen.</div>'; return; }
+      if(!resp.ok){
+        const msg = d.error==='invalid' ? 'Bitte mindestens eine Angabe auswählen.' : aiErrorMsg(d.error);
+        $('#ai-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ '+esc(msg)+'</div>';
+        return;
+      }
+      renderAiResult('#ai-body', d);
     }
 
     // ── Preiskalender (Monats-Grid, gespeichert) ──────────────────────────────
@@ -2235,11 +3158,11 @@
     async function sendEmail(){
       await openEmailModal(null);
     }
-    let emailIds = null;   // null = alle aktiven Angebote, Array = Sammelaktion
-    async function openEmailModal(ids){
+    let emailIds = null;    // null = alle aktiven Angebote, Array = Sammelaktion
+    let emailMode = 'offers';  // 'offers' | 'ai' — steuert, wohin submitEmail() sendet
+    async function _openEmailModalCommon(){
       let cfg; try { cfg = await fetch(api('/api/email')).then(r=>r.json()); } catch(e){ cfg = {configured:false}; }
-      if(!cfg.configured){ toast('SMTP ist nicht konfiguriert (Add-on-Optionen)'); return; }
-      emailIds = ids;
+      if(!cfg.configured){ toast('SMTP ist nicht konfiguriert (Add-on-Optionen)'); return false; }
       $('#email-to').value = localStorage.getItem('tw-mailto') || cfg.default_to || '';
       try {
         const c = await fetch(api('/api/contacts')).then(r=>r.json());
@@ -2247,6 +3170,17 @@
           .map(k=>`<option value="${esc(k.email)}">${esc(k.name)}</option>`).join('');
       } catch(e){ $('#nc-contacts').innerHTML = ''; }
       $('#email-bg').classList.add('show');
+      return true;
+    }
+    async function openEmailModal(ids){
+      emailMode = 'offers';
+      emailIds = ids;
+      await _openEmailModalCommon();
+    }
+    async function openAiEmailModal(){
+      if(aiCurrentId == null){ toast('Diese Analyse kann noch nicht per E-Mail versendet werden'); return; }
+      emailMode = 'ai';
+      await _openEmailModalCommon();
     }
     function closeEmailModal(){ $('#email-bg').classList.remove('show'); }
     $('#email-bg').addEventListener('click', e=>{ if(e.target.id==='email-bg') closeEmailModal(); });
@@ -2255,12 +3189,22 @@
       if(!to.trim()){ toast('Kein Empfänger angegeben'); return; }
       localStorage.setItem('tw-mailto', to.trim());
       closeEmailModal();
+      if(emailMode === 'ai') return submitAiEmail(to.trim());
       toast('E-Mail wird gesendet…');
       const body = {to: to.trim()};
       if(emailIds) body.ids = emailIds;
       const r = await fetch(api('/api/email'), {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
       if(r.ok){ const d=await r.json(); toast('E-Mail an '+d.to+' gesendet ('+d.count+' Angebote)'); }
       else { const d=await r.json().catch(()=>({})); toast(d.error==='no_offers'?'Keine (aktiven) Angebote vorhanden':d.error==='send_failed'?'Versand fehlgeschlagen – Einstellungen prüfen':d.error==='no_recipient'?'Kein Empfänger':'E-Mail-Fehler'); }
+    }
+    async function submitAiEmail(to){
+      toast('KI-Analyse wird gesendet…');
+      let r; try {
+        r = await fetch(api('/api/ai/email'), {method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({id: aiCurrentId, to})});
+      } catch(e){ toast('Versand fehlgeschlagen'); return; }
+      if(r.ok){ toast('KI-Analyse an '+to+' gesendet'); }
+      else { const d=await r.json().catch(()=>({})); toast(d.error==='send_failed'?'Versand fehlgeschlagen – Einstellungen prüfen':d.error==='no_recipient'?'Kein Empfänger':d.error==='not_found'?'Analyse nicht gefunden':'Fehler beim Versand'); }
     }
     async function sendDigest(){
       toast('Wochenüberblick wird gesendet…');
@@ -2289,6 +3233,8 @@
         const parts = [d.added+' Angebote'];
         if(d.trips) parts.push(d.trips+' Reisen');
         if(d.searches) parts.push(d.searches+' Suchen');
+        if(d.ai_history) parts.push(d.ai_history+' KI-Verlauf');
+        if(d.settings) parts.push(d.settings+' KI-Einstellungen');
         toast('Wiederhergestellt: '+parts.join(', ')+(d.skipped?(' ('+d.skipped+' übersprungen)'):''));
         loadOffers();
       } else toast('Wiederherstellung fehlgeschlagen');
@@ -2409,6 +3355,55 @@
     loadNextTrip();
     setInterval(renderTripCountdown, 30000);
     setInterval(loadNextTrip, 300000);
+
+    function fmtBytes(n){
+      if(n < 1024) return n+' B';
+      if(n < 1024*1024) return (n/1024).toFixed(1)+' KB';
+      return (n/1024/1024).toFixed(1)+' MB';
+    }
+    async function loadDbSize(){
+      try { const d = await fetch(api('/api/dbsize')).then(r=>r.json()); $('#db-size').textContent = fmtBytes(d.bytes||0); }
+      catch(e){}
+    }
+    loadDbSize();
+    setInterval(loadDbSize, 300000);
+
+    async function loadAiUsageFooter(){
+      if(!G.ai) return;
+      try {
+        const d = await fetch(api('/api/ai/usage')).then(r=>r.json());
+        $('#ai-usage-foot').textContent =
+          '🔢 KI heute ' + fmtUsd(d.today && d.today.estimated_usd) +
+          ' · Monat ' + fmtUsd(d.month && d.month.estimated_usd) +
+          ' · gesamt ' + fmtUsd(d.estimated_usd);
+      } catch(e){}
+    }
+    loadAiUsageFooter();
+    setInterval(loadAiUsageFooter, 300000);
+
+    const AI_PROVIDER_LABEL = { anthropic: '🤖 Claude', gemini: '✨ Gemini' };
+    async function loadAiProviderFooter(){
+      if(!G.ai) return;
+      try {
+        const d = await fetch(api('/api/ai/provider')).then(r=>r.json());
+        const el = $('#ai-provider-foot');
+        if(!d.both_configured){ el.style.display = 'none'; return; }
+        el.style.display = '';
+        el.textContent = '· ' + (AI_PROVIDER_LABEL[d.active] || d.active) + ' aktiv';
+      } catch(e){}
+    }
+    async function toggleAiProvider(){
+      try {
+        const cur = await fetch(api('/api/ai/provider')).then(r=>r.json());
+        if(!cur.both_configured) return;
+        const next = cur.active === 'gemini' ? 'anthropic' : 'gemini';
+        await fetch(api('/api/ai/provider'), {method:'POST',
+          headers:{'Content-Type':'application/json'}, body: JSON.stringify({provider: next})});
+        toast((AI_PROVIDER_LABEL[next] || next) + ' aktiv');
+        loadAiProviderFooter();
+      } catch(e){ toast('Umschalten fehlgeschlagen'); }
+    }
+    loadAiProviderFooter();
   </script>
 </body>
 </html>

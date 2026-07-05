@@ -41,6 +41,7 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 64 
 const path = require('path');
 const express = require('express');
 const qrcode = require('qrcode');
+const archiver = require('archiver');
 const https = require('https');
 const http = require('http');
 const { URL } = require('url');
@@ -140,6 +141,9 @@ const seenIds = new Set();
 const CHATS_FILE = '/config/chats.json';
 const MESSAGES_FILE = '/config/messages.json';
 const REACTIONS_FILE = '/config/reactions.json';
+const STATUS_ARCHIVE_FILE = '/config/status_archive.json';
+const statusArchiveByChatId = new Map(); // chatId -> [{id, type, body, mediaFile, timestamp}]
+const archiveSeenIds = new Set();
 const reactionsCache = new Map(); // msgId -> { emoji: [senderJid, ...] }
 
 // Eigene Reaktionen werden unabhängig von JID-Formaten getrackt.
@@ -197,6 +201,19 @@ try {
 } catch (e) { console.error('[ERROR] loadMessages:', e.message); }
 
 try {
+  if (existsSync(STATUS_ARCHIVE_FILE)) {
+    const data = JSON.parse(fs.readFileSync(STATUS_ARCHIVE_FILE, 'utf8'));
+    let total = 0;
+    for (const [chatId, entries] of Object.entries(data)) {
+      statusArchiveByChatId.set(chatId, entries);
+      for (const e of entries) archiveSeenIds.add(e.id);
+      total += entries.length;
+    }
+    console.log(`[INFO] Loaded ${total} archived status updates from disk`);
+  }
+} catch (e) { console.error('[ERROR] loadStatusArchive:', e.message); }
+
+try {
   let best = null;
   for (const [chatId, msgs] of messagesByChatId.entries()) {
     const chat = chatMap.get(chatId);
@@ -239,6 +256,18 @@ function saveMsgs() {
       for (const [chatId, msgs] of messagesByChatId.entries()) msgsObj[chatId] = msgs;
       fs.writeFileSync(MESSAGES_FILE, JSON.stringify(msgsObj));
     } catch (e) { console.error('[ERROR] saveMsgs:', e.message); }
+  }, 3000);
+}
+
+let statusArchiveSaveTimer = null;
+function saveStatusArchive() {
+  if (statusArchiveSaveTimer) clearTimeout(statusArchiveSaveTimer);
+  statusArchiveSaveTimer = setTimeout(() => {
+    try {
+      const obj = {};
+      for (const [chatId, entries] of statusArchiveByChatId.entries()) obj[chatId] = entries;
+      fs.writeFileSync(STATUS_ARCHIVE_FILE, JSON.stringify(obj));
+    } catch (e) { console.error('[ERROR] saveStatusArchive:', e.message); }
   }, 3000);
 }
 
@@ -491,6 +520,8 @@ client.on('ready', async () => {
   } catch (err) {
     console.warn('[WARN] Could not load recent messages:', err.message);
   }
+
+  captureStatuses().catch(e => dbg('captureStatuses (ready):', e.message));
 });
 
 client.on('disconnected', (reason) => {
@@ -999,6 +1030,51 @@ setInterval(async () => {
   }
 }, 600000);
 
+// Sammelt aktuell laufende Statusmeldungen aller Kontakte dauerhaft ein, solange
+// KEEP_DELETED aktiv ist — WhatsApp löscht Status nach 24h, unsere Kopie bleibt.
+async function captureStatuses() {
+  if (status !== 'connected' || !KEEP_DELETED) return;
+  dbg('captureStatuses: run start');
+  try {
+    const broadcasts = await client.getBroadcasts();
+    let dirty = false, newCount = 0;
+    const chatsHit = new Set();
+    for (const b of broadcasts) {
+      const chatId = b.id?._serialized;
+      if (!chatId || !b.msgs?.length) continue;
+      for (const m of b.msgs) {
+        const msgId = m.id._serialized || m.id.id;
+        if (archiveSeenIds.has(msgId)) continue;
+        const isImage = m.type === 'image';
+        const isVideo = m.type === 'video';
+        let mediaFile = null;
+        if (DOWNLOAD_MEDIA && (isImage || isVideo) && m.hasMedia) {
+          mediaFile = await downloadWAMedia(m, msgId).catch(() => null);
+        }
+        if (!statusArchiveByChatId.has(chatId)) statusArchiveByChatId.set(chatId, []);
+        statusArchiveByChatId.get(chatId).push({
+          id: msgId,
+          type: isImage ? 'photo' : isVideo ? 'video' : 'text',
+          body: m.body || '',
+          timestamp: m.timestamp * 1000,
+          mediaFile,
+        });
+        archiveSeenIds.add(msgId);
+        dirty = true;
+        newCount++;
+        chatsHit.add(chatId);
+      }
+    }
+    if (dirty) {
+      saveStatusArchive();
+      console.log(`[INFO] captureStatuses: ${newCount} neue Statusmeldung(en) von ${chatsHit.size} Kontakt(en) archiviert`);
+    } else {
+      dbg(`captureStatuses: nichts Neues (${broadcasts.length} live Broadcast(s) geprüft)`);
+    }
+  } catch (e) { console.warn('[WARN] captureStatuses:', e.message); }
+}
+setInterval(captureStatuses, 900000);
+
 async function reinitClient() {
   _intentionalDisconnect = true;
   status = 'initializing';
@@ -1115,6 +1191,9 @@ app.post('/api/cleanup-media', (req, res) => {
     for (const msgs of messagesByChatId.values())
       for (const m of msgs)
         if (m.mediaFile) referenced.add(m.mediaFile);
+    for (const entries of statusArchiveByChatId.values())
+      for (const e of entries)
+        if (e.mediaFile) referenced.add(e.mediaFile);
     const files = fs.readdirSync(MEDIA_DIR);
     let count = 0, freed = 0;
     for (const f of files) {
@@ -1485,6 +1564,119 @@ app.get('/api/contact/:chatId', async (req, res) => {
   }
 });
 
+app.get('/api/statuses-available', async (req, res) => {
+  if (status !== 'connected') return res.status(503).json({ error: 'Not connected' });
+  try {
+    const broadcasts = await client.getBroadcasts();
+    const ids = broadcasts.filter(b => b.msgs && b.msgs.length).map(b => b.id._serialized);
+    res.json({ ids });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get('/api/status/:chatId', async (req, res) => {
+  const chatId = req.params.chatId;
+  if (status !== 'connected') return res.status(503).json({ error: 'Not connected' });
+  try {
+    const broadcast = await client.getBroadcastById(chatId).catch(() => null);
+    const raw = broadcast?.msgs || [];
+    const msgs = [];
+    for (const m of raw) {
+      const isImage = m.type === 'image';
+      const isVideo = m.type === 'video';
+      let mediaFile = null;
+      if (DOWNLOAD_MEDIA && (isImage || isVideo) && m.hasMedia) {
+        mediaFile = await downloadWAMedia(m, m.id._serialized || m.id.id).catch(() => null);
+      }
+      msgs.push({
+        id: m.id._serialized || m.id.id,
+        type: isImage ? 'photo' : isVideo ? 'video' : 'text',
+        body: m.body || '',
+        timestamp: m.timestamp * 1000,
+        mediaFile,
+      });
+    }
+    res.json({ msgs });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+const STATUS_EXPIRY_MS = 24 * 60 * 60 * 1000;
+app.get('/api/status-archive/:chatId', (req, res) => {
+  const entries = statusArchiveByChatId.get(req.params.chatId) || [];
+  // Nur wirklich abgelaufene Status zeigen — sonst doppelt mit der Live-Sektion
+  const msgs = entries
+    .filter(m => Date.now() - m.timestamp >= STATUS_EXPIRY_MS)
+    .sort((a, b) => b.timestamp - a.timestamp);
+  res.json({ msgs });
+});
+
+app.get('/api/status-archive/:chatId/export', (req, res) => {
+  const chatId = req.params.chatId;
+  const isEn = (req.query.lang || 'de') === 'en';
+  const loc = isEn ? 'en-GB' : 'de-DE';
+  const contact = chatMap.get(chatId);
+  const contactName = contact ? (contact.name || chatId) : chatId;
+  const entries = [...(statusArchiveByChatId.get(chatId) || [])].sort((a, b) => a.timestamp - b.timestamp);
+  const escH = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  const exportDate = new Date().toLocaleString(loc, { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
+  const exportedLabel = isEn ? 'Exported on' : 'Exportiert am';
+  const countLabel = isEn ? 'status update(s)' : 'Statusmeldung(en)';
+  const safeContactName = contactName.replace(/[^a-zA-Z0-9_-]/g,'_').slice(0,40);
+  const fname = `status_archiv_${safeContactName}_${new Date().toISOString().slice(0,10)}.zip`;
+
+  res.setHeader('Content-Type', 'application/zip');
+  res.setHeader('Content-Disposition', `attachment; filename="${fname}"`);
+  const archive = archiver('zip', { zlib: { level: 6 } });
+  archive.on('error', (e) => { console.error('[ERROR] status-archive export:', e.message); res.end(); });
+  archive.pipe(res);
+
+  const itemsHtml = entries.map((m, i) => {
+    const d = new Date(m.timestamp);
+    const time = d.toLocaleString(loc, { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
+    let content = '';
+    if (m.mediaFile) {
+      const fp = path.resolve(MEDIA_DIR, m.mediaFile);
+      if (fp.startsWith(path.resolve(MEDIA_DIR) + path.sep) && fs.existsSync(fp)) {
+        const ext = m.mediaFile.split('.').pop().toLowerCase();
+        const num = String(i + 1).padStart(3, '0');
+        const ts = d.toISOString().slice(0,16).replace(/[-:T]/g,'');
+        const outName = `${num}_${ts}.${ext}`;
+        archive.file(fp, { name: outName });
+        content = m.type === 'photo'
+          ? `<img src="${outName}" style="max-width:280px;max-height:360px;border-radius:8px;display:block;">`
+          : `<video controls style="max-width:280px;max-height:360px;border-radius:8px;display:block;" src="${outName}"></video>`;
+      } else {
+        content = `<span style="opacity:0.6">${m.type === 'video' ? '📹' : '📷'} ${isEn ? '(file no longer available)' : '(Datei nicht mehr vorhanden)'}</span>`;
+      }
+    }
+    if (m.body) content += `<div style="margin-top:6px">${escH(m.body).replace(/\n/g,'<br>')}</div>`;
+    if (!content) content = `<span style="opacity:0.5">${isEn ? '(empty)' : '(leer)'}</span>`;
+    return `<div class="item"><div class="time">${escH(time)}</div>${content}</div>`;
+  }).join('\n');
+  const html = `<!DOCTYPE html><html lang="${isEn?'en':'de'}"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${isEn?'Status archive':'Status-Archiv'}: ${escH(contactName)}</title><style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#111b21;color:#e9edef;min-height:100vh;padding:20px}h1{text-align:center;font-size:18px;padding:12px 0 4px}.export-info{text-align:center;font-size:12px;color:#8696a0;margin-bottom:20px}.items{max-width:700px;margin:0 auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px}.item{background:rgba(255,255,255,0.05);border-radius:10px;padding:10px;font-size:14px;word-break:break-word}.time{font-size:11px;color:#8696a0;margin-bottom:6px}</style></head><body><h1>${escH(contactName)}</h1><p class="export-info">${exportedLabel} ${exportDate} &bull; ${entries.length} ${countLabel}</p><div class="items">${itemsHtml}</div></body></html>`;
+  archive.append(html, { name: 'archiv.html' });
+  archive.finalize();
+});
+
+app.post('/api/status-archive/:chatId/clear', (req, res) => {
+  const chatId = req.params.chatId;
+  const entries = statusArchiveByChatId.get(chatId) || [];
+  for (const e of entries) {
+    if (!e.mediaFile) continue;
+    try {
+      const fp = path.resolve(MEDIA_DIR, e.mediaFile);
+      if (fp.startsWith(path.resolve(MEDIA_DIR) + path.sep)) fs.unlinkSync(fp);
+    } catch(e) {}
+    archiveSeenIds.delete(e.id);
+  }
+  statusArchiveByChatId.delete(chatId);
+  saveStatusArchive();
+  res.json({ success: true });
+});
+
 // ── Web UI ────────────────────────────────────────────────────────────────────
 const _SVG = {
   moon:       '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>',
@@ -1600,6 +1792,11 @@ app.get('/', (req, res) => {
       position: relative; overflow: hidden;
     }
     .avatar img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; border-radius: 50%; display: block; }
+    .avatar.has-status { box-shadow: 0 0 0 2px #25D366; animation: statusPulse 2s ease-in-out infinite; }
+    @keyframes statusPulse {
+      0%, 100% { box-shadow: 0 0 0 2px #25D366; }
+      50% { box-shadow: 0 0 0 2px #25D366, 0 0 0 5px rgba(37,211,102,0.4); }
+    }
     #contact-modal { display: none; position: fixed; inset: 0; z-index: 450; background: rgba(0,0,0,0.65); align-items: center; justify-content: center; }
     #contact-modal.open { display: flex; }
     .contact-modal-box { border-radius: 16px; padding: 28px 24px 20px; max-width: 320px; width: 90%; display: flex; flex-direction: column; align-items: center; gap: 10px; box-shadow: 0 8px 32px rgba(0,0,0,0.5); }
@@ -1613,6 +1810,35 @@ app.get('/', (req, res) => {
     .contact-modal-pushname { font-size: 13px; color: #8696a0; }
     .contact-modal-number { font-size: 14px; color: #00a884; font-weight: 500; }
     .contact-modal-about { font-size: 13px; color: #8696a0; text-align: center; max-width: 260px; word-break: break-word; }
+    .contact-modal-status { display: none; flex-direction: column; gap: 8px; width: 100%; max-height: 240px; overflow-y: auto; }
+    .contact-modal-status.has-items { display: flex; }
+    .status-label { font-size: 12px; font-weight: 600; opacity: 0.6; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .status-archive-clear { background: none; border: none; color: inherit; opacity: 0.7; font-size: 11px; cursor: pointer; padding: 2px 4px; }
+    .status-archive-clear:hover { opacity: 1; }
+    .archive-open-btn { width: 100%; border: none; border-radius: 8px; padding: 10px; font-size: 13px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; }
+    html.dark .archive-open-btn { background: #2a3942; color: #e9edef; }
+    html.light .archive-open-btn { background: #f0f2f5; color: #111; }
+    .archive-open-btn:hover { opacity: 0.85; }
+    #archive-modal { display: none; position: fixed; inset: 0; z-index: 500; background: rgba(0,0,0,0.7); align-items: center; justify-content: center; }
+    #archive-modal.open { display: flex; }
+    .archive-modal-box { border-radius: 14px; padding: 18px; width: 92%; max-width: 640px; max-height: 82vh; display: flex; flex-direction: column; box-shadow: 0 8px 32px rgba(0,0,0,0.5); }
+    html.dark .archive-modal-box { background: #202c33; }
+    html.light .archive-modal-box { background: #fff; }
+    .archive-modal-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; flex-shrink: 0; }
+    .archive-modal-header h3 { font-size: 16px; font-weight: 600; }
+    html.dark .archive-modal-header h3 { color: #e9edef; }
+    html.light .archive-modal-header h3 { color: #111; }
+    .archive-modal-close { background: none; border: none; font-size: 20px; line-height: 1; cursor: pointer; opacity: 0.6; color: inherit; }
+    .archive-modal-close:hover { opacity: 1; }
+    #archive-modal-body { flex: 1; overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+    #archive-modal-body .status-item { height: 100%; }
+    #archive-modal-body .status-item img, #archive-modal-body .status-item video { max-height: 220px; }
+    .status-item { border-radius: 8px; padding: 6px; display: flex; flex-direction: column; gap: 4px; }
+    html.dark .status-item { background: rgba(255,255,255,0.05); }
+    html.light .status-item { background: rgba(0,0,0,0.05); }
+    .status-item img, .status-item video { max-width: 100%; max-height: 180px; border-radius: 6px; display: block; cursor: zoom-in; }
+    .status-item .status-text { font-size: 13px; word-break: break-word; }
+    .status-item .status-time { font-size: 11px; color: #8696a0; }
     .contact-modal-close { margin-top: 10px; border: none; border-radius: 8px; padding: 8px 28px; font-size: 14px; cursor: pointer; }
     html.dark .contact-modal-close { background: #2a3942; color: #e9edef; }
     html.light .contact-modal-close { background: #f0f2f5; color: #111; }
@@ -2073,7 +2299,23 @@ app.get('/', (req, res) => {
       <div class="contact-modal-pushname" id="contact-modal-pushname"></div>
       <div class="contact-modal-number" id="contact-modal-number"></div>
       <div class="contact-modal-about" id="contact-modal-about"></div>
-      <button class="contact-modal-close" onclick="closeContactModal()">Schließen</button>
+      <div class="contact-modal-status" id="contact-modal-status"></div>
+      <div style="width:100%" id="contact-modal-archive"></div>
+      <button class="contact-modal-close" onclick="closeContactModal()" data-i18n="btnClose">Schließen</button>
+    </div>
+  </div>
+
+  <div id="archive-modal" onclick="if(event.target===this)closeArchiveModal()">
+    <div class="archive-modal-box">
+      <div class="archive-modal-header">
+        <h3 id="archive-modal-title" data-i18n="statusArchive">Archiv</h3>
+        <div style="display:flex;align-items:center;gap:14px">
+          <button class="status-archive-clear" id="archive-modal-export">⬇ <span data-i18n="archiveExport">Als ZIP exportieren</span></button>
+          <button class="status-archive-clear" id="archive-modal-clear">🗑 <span data-i18n="archiveClear">Archiv leeren</span></button>
+          <button class="archive-modal-close" onclick="closeArchiveModal()">✕</button>
+        </div>
+      </div>
+      <div id="archive-modal-body"></div>
     </div>
   </div>
 
@@ -2179,6 +2421,9 @@ app.get('/', (req, res) => {
         errSend:(e)=>'Fehler: '+e, errNetwork:'Netzwerkfehler', locale:'de-DE',
         statsMsg:'Nachrichten', statsSince:'seit',
         offlineTitle:'Verbindung unterbrochen', offlineSub:'Stelle Verbindung wieder her…', offlineReload:'Neu laden',
+        btnClose:'Schließen', statusUpdates:'Status',
+        statusArchive:'Archiv', archiveClear:'Archiv leeren', archiveClearConfirm:'Archiv für diesen Kontakt wirklich löschen?',
+        archiveOpen:(n)=>n+' abgelaufene Statusmeldung'+(n===1?'':'en')+' ansehen', archiveExport:'Als ZIP exportieren',
       },
       en: {
         spinnerConnecting:'Connecting to WhatsApp…', btnReset:'Reset Session',
@@ -2218,6 +2463,9 @@ app.get('/', (req, res) => {
         errSend:(e)=>'Error: '+e, errNetwork:'Network error', locale:'en-US',
         statsMsg:'messages', statsSince:'since',
         offlineTitle:'Connection lost', offlineSub:'Reconnecting…', offlineReload:'Reload',
+        btnClose:'Close', statusUpdates:'Status',
+        statusArchive:'Archive', archiveClear:'Clear archive', archiveClearConfirm:'Really delete the archive for this contact?',
+        archiveOpen:(n)=>'View '+n+' expired status update'+(n===1?'':'s'), archiveExport:'Export as ZIP',
       },
     };
     const _browserLang = (navigator.language || '').toLowerCase().startsWith('de') ? 'de' : 'en';
@@ -2397,6 +2645,15 @@ app.get('/', (req, res) => {
     let lastMsgTime = {};
     let allChats = [];
     let lastSeenTime = {};
+    let _statusChatIds = new Set();
+    async function pollStatuses() {
+      if (document.hidden || currentStatus !== 'connected') return;
+      try {
+        const sd = await fetch('api/statuses-available').then(r => r.json());
+        _statusChatIds = new Set(sd.ids || []);
+        renderChatList(allChats);
+      } catch(e) {}
+    }
     let atBottom = true;
 
     const msgList = document.getElementById('messages');
@@ -2693,7 +2950,7 @@ app.get('/', (req, res) => {
           av.className = 'avatar group-avatar';
           av.textContent = '👥';
         } else {
-          av.className = 'avatar';
+          av.className = 'avatar' + (_statusChatIds.has(chat.id) ? ' has-status' : '');
           av.setAttribute('data-avid', chat.id);
           av.style.background = avatarColor(chat.name);
           av.textContent = avatarInitials(chat.name);
@@ -2889,6 +3146,10 @@ app.get('/', (req, res) => {
             return;
           }
         }
+
+        // Bubble schon im DOM (z.B. durch parallelen Poll nach sendMsg()
+        // gleichzeitig mit dem 2s-Intervall) — keine doppelte Bubble erzeugen
+        if (msgList.querySelector('.bubble-wrap[data-msgid="' + m.id + '"]')) return;
 
         const date = fmtDate(m.timestamp);
         if (date !== lastDate) {
@@ -3186,10 +3447,29 @@ app.get('/', (req, res) => {
       const pushnameEl = document.getElementById('contact-modal-pushname');
       const numberEl = document.getElementById('contact-modal-number');
       const aboutEl = document.getElementById('contact-modal-about');
+      const statusEl = document.getElementById('contact-modal-status');
+      const archiveEl = document.getElementById('contact-modal-archive');
       // Reset
       picEl.innerHTML = '…'; picEl.style.background = '#2a3942';
       nameEl.textContent = '…'; pushnameEl.textContent = ''; numberEl.textContent = ''; aboutEl.textContent = '';
+      statusEl.innerHTML = ''; statusEl.classList.remove('has-items');
+      archiveEl.innerHTML = '';
       modal.classList.add('open');
+      fetch('api/status/' + encodeURIComponent(chatId)).then(r => r.json()).then(sd => {
+        if (!sd.msgs || !sd.msgs.length) return;
+        statusEl.innerHTML = '<div class="status-label">' + esc(t('statusUpdates')) + '</div>' +
+          sd.msgs.map(renderStatusItem).join('');
+        statusEl.classList.add('has-items');
+        statusEl.querySelectorAll('img.status-img').forEach(img => {
+          img.addEventListener('click', () => openLightbox(img.src));
+        });
+      }).catch(() => {});
+      fetch('api/status-archive/' + encodeURIComponent(chatId)).then(r => r.json()).then(sd => {
+        if (!sd.msgs || !sd.msgs.length) return;
+        archiveEl.innerHTML = '<button class="archive-open-btn">🗄 ' + esc(tf('archiveOpen', sd.msgs.length)) + '</button>';
+        const openBtn = archiveEl.querySelector('.archive-open-btn');
+        if (openBtn) openBtn.addEventListener('click', () => openArchiveModal(chatId, nameEl.textContent || fallbackName || chatId));
+      }).catch(() => {});
       try {
         const data = await fetch('api/contact/' + encodeURIComponent(chatId)).then(r => r.json());
         const name = data.name || fallbackName || chatId;
@@ -3230,6 +3510,64 @@ app.get('/', (req, res) => {
         picEl.textContent = avatarInitials(fallbackName || chatId);
       }
     }
+    function renderStatusItem(m) {
+      const time = fmtDate(m.timestamp) + ', ' + fmtTime(m.timestamp);
+      let inner;
+      if (m.type === 'photo' && m.mediaFile) {
+        inner = '<img class="status-img" src="api/media/' + encodeURIComponent(m.mediaFile) + '" loading="lazy">';
+      } else if (m.type === 'video' && m.mediaFile) {
+        inner = '<video controls src="api/media/' + encodeURIComponent(m.mediaFile) + '"></video>';
+      } else if (m.body) {
+        inner = '<div class="status-text">' + formatText(m.body) + '</div>';
+      } else {
+        return '';
+      }
+      return '<div class="status-item">' + inner + '<div class="status-time">' + esc(time) + '</div></div>';
+    }
+    function renderArchiveItem(m) {
+      const time = fmtDate(m.timestamp) + ', ' + fmtTime(m.timestamp);
+      let inner;
+      if (m.type === 'photo' && m.mediaFile) {
+        inner = '<img class="status-img" src="api/media/' + encodeURIComponent(m.mediaFile) + '" loading="lazy">';
+      } else if (m.type === 'video' && m.mediaFile) {
+        inner = '<video controls src="api/media/' + encodeURIComponent(m.mediaFile) + '"></video>';
+      } else if (m.body) {
+        inner = '<div class="status-text">' + formatText(m.body) + '</div>';
+      } else {
+        return '';
+      }
+      return '<div class="status-item">' + inner + '<div class="status-time">' + esc(time) + '</div></div>';
+    }
+    let _archiveChatId = null;
+    async function openArchiveModal(chatId, contactName) {
+      _archiveChatId = chatId;
+      document.getElementById('archive-modal-title').textContent = t('statusArchive') + ' — ' + contactName;
+      const body = document.getElementById('archive-modal-body');
+      body.innerHTML = '';
+      document.getElementById('archive-modal').classList.add('open');
+      try {
+        const sd = await fetch('api/status-archive/' + encodeURIComponent(chatId)).then(r => r.json());
+        body.innerHTML = (sd.msgs || []).map(renderArchiveItem).join('');
+        body.querySelectorAll('img.status-img').forEach(img => {
+          img.addEventListener('click', () => openLightbox(img.src));
+        });
+      } catch(e) {}
+    }
+    function closeArchiveModal() {
+      document.getElementById('archive-modal').classList.remove('open');
+      _archiveChatId = null;
+    }
+    document.getElementById('archive-modal-export').addEventListener('click', () => {
+      if (!_archiveChatId) return;
+      window.location.href = 'api/status-archive/' + encodeURIComponent(_archiveChatId) + '/export?lang=' + lang;
+    });
+    document.getElementById('archive-modal-clear').addEventListener('click', async () => {
+      if (!_archiveChatId || !confirm(t('archiveClearConfirm'))) return;
+      try { await fetch('api/status-archive/' + encodeURIComponent(_archiveChatId) + '/clear', { method: 'POST' }); } catch(e) {}
+      closeArchiveModal();
+      const archiveEl = document.getElementById('contact-modal-archive');
+      if (archiveEl) archiveEl.innerHTML = '';
+    });
     function closeContactModal() {
       document.getElementById('contact-modal').classList.remove('open');
     }
@@ -3580,7 +3918,7 @@ app.get('/', (req, res) => {
             const d = await fetch('api/qr').then(r => r.json()).catch(() => null);
             if (d?.qr) document.getElementById('qr-img').innerHTML = '<img src="' + d.qr + '">';
           }
-          if (connected) await pollChats();
+          if (connected) { await pollChats(); pollStatuses(); }
         }
       } catch(e) {
         _offlineFails++;
@@ -3596,6 +3934,7 @@ app.get('/', (req, res) => {
     setInterval(() => { if (!document.hidden) refresh(); }, 5000);
     setInterval(pollMessages, 2000);
     setInterval(pollChats, 10000);
+    setInterval(pollStatuses, 30000);
     setInterval(pollReactions, 5000);
 
     // Mentions-Dropdown schließen, wenn außerhalb geklickt wird

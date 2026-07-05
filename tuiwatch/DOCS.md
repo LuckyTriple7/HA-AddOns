@@ -21,6 +21,12 @@ notify_booked_drop: true # Alarm, wenn Preis unter den gebuchten Preis fällt
 booked_drop_min_diff: 50 # Mindest-Ersparnis dafür (€)
 digest_enabled: false    # wöchentlicher Überblick (Telegram/E-Mail)
 digest_weekday: 1        # Versandtag (1 = Mo … 7 = So)
+anthropic_api_key: ""    # Anthropic API-Key, aktiviert das KI-Fazit (leer = aus)
+anthropic_model: claude-opus-4-8  # oder claude-sonnet-5 / claude-haiku-4-5 / claude-fable-5
+ai_provider: anthropic   # oder gemini (gilt fuer ALLE KI-Features)
+gemini_api_key: ""       # nur relevant bei ai_provider: gemini
+gemini_model: gemini-3.1-pro  # oder gemini-3.5-flash / gemini-2.5-flash
+ai_max_web_searches: 12  # Limit Websuchen/Aufruf, gilt nur bei Anthropic
 verbose_log: false       # ausführliche Logs
 ```
 
@@ -122,6 +128,133 @@ Wunschpreis, Zurücksetzen) — mit **Mouseover** erscheint Datum + Beschreibung
 
 > Getrackt wird der konkrete, buchbare Preis der günstigsten Angebotskarte — nicht
 > der unverbindliche „ab"-Lockpreis.
+
+## KI-Fazit, -Vergleich & -Verlauf
+
+> ⚠️ Die Anthropic-/Gemini-API ist **kostenpflichtig** (eigener API-Key,
+> eigenes Konto beim jeweiligen Anbieter). Bei jedem KI-Aufruf (Fazit,
+> Vergleich, TripPilot, Auto-Tag, Frag dein Portfolio) entstehen reale
+> Kosten nach der Preisliste des gewählten Anbieters. TUIWatch zeigt
+> geschätzte Kosten pro Aufruf sowie eine laufende Gesamtsumme seit
+> Add-on-Start an — das ist eine Schätzung auf Basis der Token-Zahlen,
+> **kein echtes Guthaben** und keine Abbuchung durch TUIWatch selbst; das
+> tatsächliche Guthaben/die Abrechnung zeigt nur die jeweilige
+> Anbieter-Console.
+
+Mit hinterlegtem API-Key (`anthropic_api_key` bzw. `gemini_api_key`, je
+nach `ai_provider`) erscheinen zusätzliche **🤖**-Buttons in der Hotelsuche
+und der Angebotsübersicht (ohne Key sind sie komplett ausgeblendet).
+
+### KI-Anbieter
+
+`ai_provider` schaltet **global für alle KI-Features** zwischen Anthropic
+(Standard) und Google Gemini um:
+- **Anthropic/Claude:** `anthropic_model` (Standard `claude-opus-4-8`; auch
+  `claude-sonnet-5`, `claude-haiku-4-5`, `claude-fable-5` wählbar —
+  schneller/günstiger bzw. teurer). Websuche über Anthropics
+  `web_search`-Tool, per `ai_max_web_searches` (Standard 12, 1-50)
+  gedeckelt — niedriger spart Input-Tokens/Kosten, höher liefert
+  gründlichere Antworten bei mehreren Zielen/Hotels.
+- **Gemini:** `gemini_model` (Standard `gemini-3.1-pro`; auch
+  `gemini-3.5-flash`, `gemini-2.5-flash` wählbar). Websuche über
+  Google-Search-Grounding — **kein** Äquivalent zu `ai_max_web_searches`,
+  Gemini entscheidet selbst, wie oft es sucht.
+
+Sind **beide** API-Keys hinterlegt, erscheint im Footer ein Umschalter
+(„🤖 Claude aktiv" / „✨ Gemini aktiv") — ein Klick wechselt sofort den
+Anbieter für alle KI-Features, ohne die Add-on-Konfiguration zu öffnen. Ist
+nur ein Key gesetzt, läuft automatisch alles über diesen (der Umschalter
+bleibt dann versteckt, `ai_provider` wird ignoriert).
+
+- **🤖 KI-Fazit** (je Suchtreffer) — Claude durchsucht live das Web (HolidayCheck,
+  Tripadvisor, Google, Klimatabellen) und liefert eine ausführliche Einschätzung zu
+  **Lage & Strand, Zimmer, Restaurants & Bars, Pool/Wellness, Ausstattung,
+  Klima zur Reisezeit** (historische Wassertemperatur/Wetter/Wind für Ort und
+  Reisemonat — keine Tagesvorhersage, sondern der langjährige Durchschnitt) sowie
+  ein **Preis-Leistung-Fazit**.
+- **🤖 Vergleichen** — Checkbox je Suchtreffer (max. 5), schwebende Leiste ruft
+  Claude **einmal** für alle ausgewählten Hotels auf: Vergleichstabelle +
+  Empfehlung, welches Hotel für wen (Familie, Paar, Party, Ruhe …) am besten passt.
+  Genau dieselbe Funktion gibt es auch in der **Angebotsübersicht** über die
+  bestehende Mehrfachauswahl (Sammelaktionsleiste → „🤖 Vergleichen").
+- **Token- & Kosten-Anzeige** — jede Antwort zeigt Input-/Output-Tokens und die
+  geschätzte Kostenschätzung in USD (Anthropic-Listenpreis) für genau diesen
+  Aufruf, plus eine laufende Gesamtsumme seit Add-on-Start. **Kein echtes
+  Guthaben** — das zeigt nur die Anthropic-Console; hierfür wäre ein separater
+  Admin-API-Key nötig.
+- **📄 PDF exportieren** — öffnet eine druckoptimierte Ansicht in neuem Tab, aus
+  der sich der Browser-Druckdialog direkt als PDF speichern lässt.
+- **🤖 KI-Verlauf** (Button oben neben „Alle prüfen") — alle bisherigen Fazits/
+  Vergleiche bleiben **dauerhaft** gespeichert (unabhängig vom 24h-Cache, bis zu
+  300 Einträge), anklickbar zum erneuten Anzeigen, einzeln löschbar.
+- Ergebnisse werden **24 Stunden** je Hotel/Vergleichs-Kombination
+  zwischengespeichert — erneutes Öffnen kostet keinen neuen API-Aufruf.
+
+## 🗺️ TripPilot
+
+Geführter Klick-Fragebogen (kein Freitext-Chat) über den **„🗺️ TripPilot"**-
+Button in der Toolbar: rund 20 Schritte zu Zielregion (Mehrfachauswahl, z. B.
+Balearen + Griechische Inseln gleichzeitig — „Tagesausflug in der Nähe"
+schließt sich dabei mit echten Zielregionen aus), ausgeschlossenen Ländern
+(nur relevant bei „Weltweit"/„Egal"), Interessen, Reiseart, Mitreisenden,
+Budget, Reisedauer, Reisezeit, Wetterwünschen (Temperatur/Meer-oder-See/
+Regen), Aktivitäten, Unterkunft, Hotelwünschen, Flug, was im Urlaub nervt
+sowie zwei Freitext-Feldern (perfekter Urlaub, frühere Urlaubserfahrungen).
+Am Ende ruft Claude einmal die passenden Ziele ab.
+
+- **Ergebnis:** 3 konkrete Zielvorschläge (🏆/🥈/🥉) mit Begründung, plus ein
+  „🔀 Alternative"-Vorschlag (bewusst leicht abweichend) und ein
+  „🎲 Überraschung"-Vorschlag (Ziel außerhalb der gewählten Zielregion, an das
+  man normalerweise nicht denkt).
+- **Konkrete Unterkünfte je Hauptvorschlag:** in drei Kategorien (Budget/
+  Mittelklasse/Gehoben) je 2-3 Nennungen, passend zur gewählten
+  Unterkunftsart — bei Hotel/Apartment/Villa echte Namen, bei Ferienwohnung/
+  Airbnb/Camping/Hostel konkrete Wohngegenden statt Markennamen. Nur
+  überwiegend gut bewertete Unterkünfte (Websuche prüft HolidayCheck/
+  Tripadvisor/Google). Verfügbarkeit/Buchbarkeit (bei TUI: auch im
+  TUI-Katalog) muss der Nutzer selbst live prüfen.
+- **Sicherheit eingebaut, nicht abschaltbar:** ausgeschlossene Länder werden
+  nie vorgeschlagen; Claude prüft für jedes Land per Websuche aktuelle
+  Reisewarnungen des Auswärtigen Amts; bei „Pauschalreise (TUI)" werden nur
+  Ziele vorgeschlagen, die TUI nachweislich im Programm hat.
+- **Klima/Wind ortsgenau:** Recherche möglichst auf Insel-/Teilregionsebene
+  statt nur fürs Land (Wind kann z. B. auf den Kapverden zwischen Sal und
+  Boa Vista stark variieren) — gilt auch für KI-Fazit und Hotelvergleich.
+- **Eigene Anreise statt Flug:** bei Auto/Bus/Bahn werden Flugzeit/
+  Abflughafen übersprungen, stattdessen Startort (PLZ/Ort) und maximale
+  Entfernung abgefragt — Claude schlägt dann nur noch Ziele in Fahrdistanz
+  vor (auch beim Alternative- und Überraschungs-Vorschlag).
+- **Tagesausflug-Modus:** bei der ersten Frage „Tagesausflug in der Nähe"
+  wählbar — blendet Länder, Reiseart, Mitreisende, Budget, Unterkunft,
+  Flug/Anreiseart und die Freitext-Felder aus (nicht relevant ohne
+  Übernachtung), fragt stattdessen Startort/max. Entfernung und verfügbare
+  Zeit (Vormittag/Nachmittag/Ganzer Tag/inkl. Abend) ab. Ergebnis: 3
+  Tagesausflugsziele mit Aktivität, Anfahrt, groben Öffnungszeiten/Eintritt
+  und Einkehr-Tipp, keine Übernachtungsempfehlung, keine Reise-DNA-Erfassung.
+- **Reise-DNA:** Nach jeder Anfrage berechnet TUIWatch zusätzlich ein
+  Präferenzprofil (🌴 Strand, 🏛️ Kultur, 🎉 Nachtleben, ⛰️ Aktiv,
+  🍹 Entspannung, 🍽️ Kulinarik, 👨‍👩‍👧 Familie, 💰 Preisbewusst) — rein
+  deterministisch aus den Fragebogen-Antworten, **kein zusätzlicher
+  KI-Aufruf/keine Zusatzkosten**. Landet als Tabelle im Ergebnis, wird über
+  mehrere Anfragen als gleitender Mittelwert gespeichert und der KI beim
+  nächsten Mal als Zusatzkontext mitgegeben.
+- Landet wie Fazit/Vergleich im **KI-Verlauf** (inkl. gewähltem Monat im
+  Titel) und ist per E-Mail versendbar.
+
+## Eigene KI-Prompts
+
+Über **⚙ KI-Prompts** im Footer lässt sich der Standard-Instruktionstext für
+**TripPilot**, **Hotelvergleich**, **KI-Fazit** und **Tagesausflug**
+einsehen und über die Checkbox „Eigenen Prompt verwenden" durch einen
+eigenen Text ersetzen (max. 4000 Zeichen, „Zurücksetzen auf Standard"
+jederzeit möglich).
+
+- Bei TripPilot bleiben sicherheitskritische Klauseln (Länder-Ausschluss,
+  Reisewarnungs-Check, TUI-Verfügbarkeit, Reise-DNA-Kontext) immer fix
+  erhalten — nur der Recherche-/Format-/Ton-Teil des Prompts ist editierbar.
+- Ergebnisse werden je nach aktivem Prompt-Text separat zwischengespeichert —
+  ein geänderter Prompt liefert sofort ein neues Ergebnis statt eines
+  veralteten 24h-Cache-Treffers.
 
 ## Meine Reisen (gebuchte Reisen / PDF-Import)
 
@@ -289,11 +422,15 @@ Zusätzlich `binary_sensor.tuiwatch_aktionscodes`: **an**, solange aktuell
   ohne Adressbuch weiterhin möglich; ohne Konfiguration ändert sich nichts.
 - **Backup / Wiederherstellen** — **komplettes** Backup als **ZIP**: alle getrackten
   Angebote **inkl. Preisverlauf** und Diagramm-Markern, **„Meine Reisen" inkl. der
-  Original-PDFs** sowie die **gespeicherten Suchen**. Die Wiederherstellung liest die ZIP
-  (das alte reine JSON wird weiterhin akzeptiert) und arbeitet **nicht-destruktiv**:
-  Fehlendes wird ergänzt, Bestehendes bleibt erhalten (Abgleich per URL, Buchungsnummer
-  bzw. Name) — nichts wird gelöscht oder doppelt angelegt. (Reine Caches wie
-  Vergleich/Kalender werden nicht gesichert, sie entstehen automatisch neu.)
+  Original-PDFs**, die **gespeicherten Suchen**, der **dauerhafte KI-Verlauf** (Fazits/
+  Vergleiche/TripPilot-Ergebnisse) sowie die **KI-Einstellungen** (Reise-DNA,
+  kumulierte Kosten-Zähler heute/Monat/gesamt, eigene KI-Prompt-Vorlagen). Die
+  Wiederherstellung liest die ZIP (das alte reine JSON wird weiterhin akzeptiert) und
+  arbeitet **nicht-destruktiv**: Fehlendes wird ergänzt, Bestehendes bleibt erhalten
+  (Abgleich per URL, Buchungsnummer bzw. Name; KI-Einstellungen/Kosten-Zähler werden nur
+  gesetzt, wenn lokal noch nichts hinterlegt ist — laufende Zähler werden nie durch
+  ältere Backup-Werte zurückgesetzt) — nichts wird gelöscht oder doppelt angelegt. (Reine
+  Caches wie Vergleich/Kalender werden nicht gesichert, sie entstehen automatisch neu.)
 - **Gebuchter Preis** — pro Angebot den **tatsächlich gezahlten Preis** hinterlegen
   (Feld „📌 Gebuchter Preis"). Das Tracking läuft weiter; angezeigt wird „seit Buchung
   ±X €" und im Diagramm eine eigene Linie. Fällt der Preis deutlich darunter, kommt
@@ -306,6 +443,8 @@ Zusätzlich `binary_sensor.tuiwatch_aktionscodes`: **an**, solange aktuell
 - **Umbenennen** (✎ neben dem Namen) — eigenen Namen vergeben; leer = Hotelname.
 - **Prüfen** — ein Angebot sofort neu abfragen.
 - **Alle prüfen** — alle Angebote abfragen.
+- **🤖 KI-Verlauf** (nur mit hinterlegtem `anthropic_api_key`) — bisherige
+  KI-Fazits/-Vergleiche einsehen, siehe [KI-Fazit, -Vergleich & -Verlauf](#ki-fazit--vergleich--verlauf).
 - **Verlauf** — Diagramm + Tabelle der gesamten Preishistorie, inkl. **CSV-Export**.
 - **Nächte** — Preise für kürzere/längere Reisedauern (Basis ±N) live vergleichen.
 - **Zimmer** — die wählbaren **Zimmerkategorien** des Hotels mit Preis pro Person und
@@ -338,7 +477,10 @@ oder TUI eine API geändert hat.
 ## Daten
 
 Alles wird unter `/data/tuiwatch.db` (SQLite) gespeichert und bleibt über
-Neustarts erhalten.
+Neustarts erhalten — Größe der Datei steht im **Footer** (aktualisiert alle
+5 Minuten). Enthält u. a. auch den dauerhaften **KI-Verlauf** (Tabelle
+`ai_analyses`); der 24h-Cache für Wiederholungsaufrufe liegt dagegen nur im
+Arbeitsspeicher und geht bei einem Neustart verloren.
 
 **Automatisches Backup:** Ist `auto_backup` aktiv (Standard), legt TUIWatch einmal
 pro Woche ein vollständiges Backup-ZIP (Angebote inkl. Preisverlauf und Marker,

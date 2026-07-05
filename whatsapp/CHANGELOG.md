@@ -1,5 +1,40 @@
 # Changelog
 
+## [1.7.37] - 2026-07-04
+- Fix: **ZIP-Export lieferte 500** (`TypeError: archiver is not a function`) — `archiver@8.0.0` (npm `latest`) hat die klassische Aufruf-API (`archiver('zip', opts)`) entfernt und exportiert jetzt stattdessen Klassen (`Archiver`, `ZipArchive`, …). Abhängigkeit auf `^7.0.1` gepinnt, wo die im Code verwendete API noch funktioniert. Diesmal lokal tatsächlich ausgeführt (nicht nur `node --check`) — echter Testlauf mit `archiver@7.0.1` erzeugt eine valide ZIP ohne Fehler
+
+## [1.7.36] - 2026-07-04
+- Neu: **Status-Archiv als ZIP exportieren** — im Archiv-Fenster gibt's jetzt „⬇ Als ZIP exportieren" (`GET /api/status-archive/:chatId/export`, neue Abhängigkeit `archiver`). Enthält alle Fotos/Videos als echte Dateien (chronologisch nummeriert und mit Zeitstempel benannt) plus eine `archiv.html`, die alle Einträge inkl. Text und Medien-Vorschau als kleine Galerie zeigt (relative Pfade in die mitgepackten Dateien, kein Base64-Aufblähen)
+
+## [1.7.35] - 2026-07-04
+- Fix: **Archiv zeigte auch Status <24h**, die noch gar nicht abgelaufen waren und in der Live-Sektion parallel auftauchten. `GET /api/status-archive/:chatId` filtert jetzt Einträge raus, die jünger als 24h sind
+- Neu: **Archiv öffnet in eigenem, größerem Fenster** statt im winzigen Profil-Popup — dort steht jetzt nur noch ein Button „🗄 N abgelaufene Statusmeldung(en) ansehen", der ein separates Modal mit Grid-Layout (mehrspaltig, bis zu 640px breit, 82vh hoch) öffnet, „Archiv leeren" liegt jetzt im Kopf dieses Fensters
+- Entfernt: `check-frontend-syntax.js` wurde wieder aus dem Repo genommen (CodeQL meldete Findings auf dem Dev-Tool-Skript) — Prüfung läuft ab jetzt nur noch lokal/manuell, nicht mehr als committetes Skript
+
+## [1.7.34] - 2026-07-04
+- Fix: **UI blieb erneut bei „Verbinde mit WhatsApp…" hängen**, gleiche Ursache wie 1.7.33 an anderer Stelle — der „Archiv leeren"-Button baute sein `onclick`-Attribut per String-Verkettung mit escapten Anführungszeichen (`\'`), die vom äußeren Template-String in `server.js` verschluckt wurden und im Browser zu `Uncaught SyntaxError: Unexpected string` führten. Behoben durch Verzicht auf inline-`onclick` mit eingebetteten Werten — der Button bekommt seinen Klick-Handler jetzt per `addEventListener` (gleiches Muster wie die Lightbox-Klicks direkt daneben), keine Anführungszeichen-Verschachtelung mehr nötig
+- Neu: Test-Skript, das den kompletten eingebetteten Frontend-`<script>`-Block aus `server.js` extrahiert und mit `node --check` prüft (`node --check` allein sieht nur `server.js` als Ganzes, nicht den Inhalt des Template-Strings) — wird ab jetzt vor jedem Push geprüft, der den Web-UI-Code ändert
+
+## [1.7.33] - 2026-07-04
+- Fix: **UI blieb dauerhaft bei „Verbinde mit WhatsApp…" hängen** — der englische Text für `archiveClearConfirm` enthielt ein escaptes Apostroph (`contact\'s`). Da der komplette Web-UI-Code in `server.js` selbst in einem JS-Template-String steckt, frisst dessen äußeres Escaping das `\'` weg, bevor es den Browser erreicht — im Browser blieb ein unescaptes `'` mitten im String übrig, was den kompletten eingebetteten `<script>`-Block zum Absturz brachte (`Uncaught SyntaxError: Unexpected identifier 's'`), noch bevor der Status-Poll überhaupt laufen konnte. Text umformuliert, keine Apostrophe mehr in eingebetteten UI-Strings
+
+## [1.7.32] - 2026-07-04
+- Fix: `captureStatuses()` (Status-Archiv-Hintergrund-Job) loggte bisher nichts sichtbar — Erfolg gar nicht, Fehler nur im Debug-Modus. Jetzt `[INFO]`-Zeile im normalen Log, wenn neue Statusmeldungen archiviert wurden, und `[WARN]` bei Fehlern (z.B. `getBroadcasts()` schlägt fehl)
+
+## [1.7.31] - 2026-07-04
+- Neu: **Status-Archiv pro Kontakt** — abgelaufene Statusmeldungen (WhatsApp löscht sie nach 24h) bleiben jetzt dauerhaft im Profil-Popup sichtbar (Datum/Uhrzeit inklusive), solange die Add-on-Option **„Gelöschte Nachrichten behalten"** aktiv ist. Ein Hintergrund-Job (`captureStatuses()`, alle 15 Min. + sofort nach Verbindungsaufbau) sammelt neue Status aller Kontakte über `client.getBroadcasts()` ein und speichert sie in `/config/status_archive.json`. Pro Kontakt gibt's einen „🗑 Archiv leeren"-Button. `api/cleanup-media` (verwaiste Mediendateien löschen) berücksichtigt archivierte Medien jetzt ebenfalls, damit sie dabei nicht versehentlich gelöscht werden
+  - Bekannte Grenze: ein Status, der innerhalb der 15-Minuten-Lücke gepostet und wieder gelöscht wird, kann verpasst werden
+  - Kein Größenlimit auf `status_archive.json` selbst (bewusst, da unbegrenzte Aufbewahrung gewünscht) — nur die Mediendateien unterliegen wie gehabt dem Speicherlimit
+
+## [1.7.30] - 2026-07-04
+- Neu: **Status-Ring in der Kontaktliste** — Kontakte mit aktiven Statusmeldungen bekommen einen pulsierenden grünen Ring ums Profilbild. Neuer Endpoint `GET /api/statuses-available` (`client.getBroadcasts()`) wird alle 30s abgefragt, direkt nach Verbindungsaufbau einmal sofort
+
+## [1.7.29] - 2026-07-04
+- Neu: **Statusmeldungen von Kontakten ansehen** — im Profil-Popup (Klick auf Profilbild im Chat) werden jetzt die aktuellen WhatsApp-Status-Updates des Kontakts angezeigt (Text, Foto, Video mit Zeitpunkt). Nutzt `client.getBroadcastById()` aus whatsapp-web.js über neuen Endpoint `GET /api/status/:chatId`. Medien respektieren den bestehenden „Medien AN/AUS"-Schalter. Rein lesend — kein eigenes Senden von Status, keine sonstigen Änderungen am Popup
+
+## [1.7.28] - 2026-07-03
+- Fix: Eigene Nachrichten erschienen gelegentlich **doppelt im Chat** (Anzeige-Bug, nicht doppelt versendet) — `sendMsg()` löst nach dem Senden sofort `pollMessages()` aus, das mit dem parallel laufenden 2s-Intervall kollidieren konnte; beide riefen `renderMessages()` mit derselben Nachricht auf, bevor der Zeitstempel-Cursor aktualisiert war. Chat wechseln entfernte die Dopplung, weil dabei neu vom Server geladen wurde. `renderMessages()` prüft jetzt vor jeder neuen Bubble, ob die Nachrichten-ID schon im DOM steht
+
 ## [1.7.27] - 2026-06-29
 - Fix: Die **Kategorie-Tabs** im neuen Emoji-Picker erschienen als unschöne **grüne Kreise** — die generische Senden-Button-Regel (`#send-bar button`, grün/rund) überschrieb die Tab-Buttons. Die Tabs sind jetzt korrekt unter `#emoji-tabs` gestylt (transparent, dezenter aktiver/Hover-Hintergrund wie bei Telegram)
 
