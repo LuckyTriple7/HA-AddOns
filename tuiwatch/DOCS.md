@@ -23,6 +23,10 @@ digest_enabled: false    # wöchentlicher Überblick (Telegram/E-Mail)
 digest_weekday: 1        # Versandtag (1 = Mo … 7 = So)
 anthropic_api_key: ""    # Anthropic API-Key, aktiviert das KI-Fazit (leer = aus)
 anthropic_model: claude-opus-4-8  # oder claude-sonnet-5 / claude-haiku-4-5 / claude-fable-5
+ai_provider: anthropic   # oder gemini (gilt fuer ALLE KI-Features)
+gemini_api_key: ""       # nur relevant bei ai_provider: gemini
+gemini_model: gemini-3.1-pro  # oder gemini-3.5-flash / gemini-2.5-flash
+ai_max_web_searches: 12  # Limit Websuchen/Aufruf, gilt nur bei Anthropic
 verbose_log: false       # ausführliche Logs
 ```
 
@@ -127,23 +131,34 @@ Wunschpreis, Zurücksetzen) — mit **Mouseover** erscheint Datum + Beschreibung
 
 ## KI-Fazit, -Vergleich & -Verlauf
 
-> ⚠️ Die Anthropic-API ist **kostenpflichtig** (eigener API-Key, eigenes
-> Anthropic-Konto). Bei jedem KI-Aufruf (Fazit, Vergleich, TripPilot,
-> Auto-Tag, Frag dein Portfolio) entstehen reale Kosten nach Anthropics
-> Preisliste. TUIWatch zeigt geschätzte Kosten pro Aufruf sowie eine laufende
-> Gesamtsumme seit Add-on-Start an — das ist eine Schätzung auf Basis der
-> Token-Zahlen, **kein echtes Guthaben** und keine Abbuchung durch TUIWatch
-> selbst; das tatsächliche Guthaben/die Abrechnung zeigt nur die
-> Anthropic-Console.
+> ⚠️ Die Anthropic-/Gemini-API ist **kostenpflichtig** (eigener API-Key,
+> eigenes Konto beim jeweiligen Anbieter). Bei jedem KI-Aufruf (Fazit,
+> Vergleich, TripPilot, Auto-Tag, Frag dein Portfolio) entstehen reale
+> Kosten nach der Preisliste des gewählten Anbieters. TUIWatch zeigt
+> geschätzte Kosten pro Aufruf sowie eine laufende Gesamtsumme seit
+> Add-on-Start an — das ist eine Schätzung auf Basis der Token-Zahlen,
+> **kein echtes Guthaben** und keine Abbuchung durch TUIWatch selbst; das
+> tatsächliche Guthaben/die Abrechnung zeigt nur die jeweilige
+> Anbieter-Console.
 
-Mit hinterlegtem `anthropic_api_key` erscheinen zusätzliche **🤖**-Buttons in der
-Hotelsuche und der Angebotsübersicht (ohne Key sind sie komplett ausgeblendet).
-Genutztes Modell: `anthropic_model` (Standard `claude-opus-4-8`; auch
-`claude-sonnet-5`, `claude-haiku-4-5`, `claude-fable-5` wählbar — schneller/
-günstiger bzw. teurer, siehe unten). `ai_max_web_searches` (Standard 12,
-1-50) deckelt, wie oft Claude pro KI-Aufruf selbst das Web durchsuchen darf —
-niedriger spart Input-Tokens/Kosten, höher liefert gründlichere Antworten
-bei mehreren Zielen/Hotels.
+Mit hinterlegtem API-Key (`anthropic_api_key` bzw. `gemini_api_key`, je
+nach `ai_provider`) erscheinen zusätzliche **🤖**-Buttons in der Hotelsuche
+und der Angebotsübersicht (ohne Key sind sie komplett ausgeblendet).
+
+### KI-Anbieter
+
+`ai_provider` schaltet **global für alle KI-Features** zwischen Anthropic
+(Standard) und Google Gemini um:
+- **Anthropic/Claude:** `anthropic_model` (Standard `claude-opus-4-8`; auch
+  `claude-sonnet-5`, `claude-haiku-4-5`, `claude-fable-5` wählbar —
+  schneller/günstiger bzw. teurer). Websuche über Anthropics
+  `web_search`-Tool, per `ai_max_web_searches` (Standard 12, 1-50)
+  gedeckelt — niedriger spart Input-Tokens/Kosten, höher liefert
+  gründlichere Antworten bei mehreren Zielen/Hotels.
+- **Gemini:** `gemini_model` (Standard `gemini-3.1-pro`; auch
+  `gemini-3.5-flash`, `gemini-2.5-flash` wählbar). Websuche über
+  Google-Search-Grounding — **kein** Äquivalent zu `ai_max_web_searches`,
+  Gemini entscheidet selbst, wie oft es sucht.
 
 - **🤖 KI-Fazit** (je Suchtreffer) — Claude durchsucht live das Web (HolidayCheck,
   Tripadvisor, Google, Klimatabellen) und liefert eine ausführliche Einschätzung zu

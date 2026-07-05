@@ -1,0 +1,184 @@
+"""Tests für Gemini als zweiten KI-Anbieter: `_ai_config()` liest die
+Gemini-Optionen korrekt, `_ai_request()` dispatcht anhand des Modellnamens
+an `_ai_request_gemini`, und das Usage-Mapping (Tokens, Websuchen-Anzahl aus
+Grounding-Metadata) stimmt. Kein echter API-Key nötig (Fake-Client).
+"""
+import importlib
+import json
+from types import SimpleNamespace
+
+import pytest
+
+pytest.importorskip("flask")
+pytest.importorskip("google.genai")
+
+from google.genai import errors as genai_errors  # noqa: E402
+from google.genai import types as genai_types  # noqa: E402
+
+
+@pytest.fixture
+def app_mod(tmp_path, monkeypatch):
+    monkeypatch.setenv("TUIWATCH_DATA", str(tmp_path))
+    monkeypatch.setenv("TUIWATCH_BASE", str(tmp_path))
+    try:
+        m = importlib.import_module("app")
+    except Exception as exc:
+        pytest.skip(f"app nicht importierbar: {exc}")
+    importlib.reload(m)
+    m.DB_PATH = str(tmp_path / "tuiwatch.db")
+    m.init_db()
+    return m
+
+
+def _write_options(app_mod, **opts):
+    with open(app_mod.CONFIG_PATH, "w", encoding="utf-8") as f:
+        json.dump(opts, f)
+
+
+class _FakeCandidate:
+    def __init__(self, finish_reason=genai_types.FinishReason.STOP, web_search_queries=None):
+        self.finish_reason = finish_reason
+        self.grounding_metadata = SimpleNamespace(web_search_queries=web_search_queries or [])
+
+
+class _FakeResponse:
+    def __init__(self, text="Antwort", finish_reason=genai_types.FinishReason.STOP,
+                web_search_queries=None, prompt_tokens=100, output_tokens=50,
+                cached_tokens=0):
+        self.text = text
+        self.candidates = [_FakeCandidate(finish_reason, web_search_queries)]
+        self.usage_metadata = SimpleNamespace(
+            prompt_token_count=prompt_tokens, candidates_token_count=output_tokens,
+            cached_content_token_count=cached_tokens,
+        )
+
+
+class _FakeModels:
+    def __init__(self, response, captured):
+        self._response = response
+        self._captured = captured
+
+    def generate_content(self, **kwargs):
+        self._captured.append(kwargs)
+        if isinstance(self._response, Exception):
+            raise self._response
+        return self._response
+
+
+class _FakeClient:
+    def __init__(self, response, captured, **_kwargs):
+        self.models = _FakeModels(response, captured)
+
+
+def _patch_genai(app_mod, monkeypatch, response):
+    captured = []
+    monkeypatch.setattr(app_mod.genai, "Client",
+                        lambda **kw: _FakeClient(response, captured, **kw))
+    return captured
+
+
+def test_ai_config_reads_gemini_options(app_mod):
+    _write_options(app_mod, ai_provider="gemini", gemini_api_key="g-key",
+                   gemini_model="gemini-3.5-flash")
+    api_key, model = app_mod._ai_config()
+    assert api_key == "g-key"
+    assert model == "gemini-3.5-flash"
+
+
+def test_ai_config_falls_back_to_flagship_on_invalid_gemini_model(app_mod):
+    _write_options(app_mod, ai_provider="gemini", gemini_api_key="g-key",
+                   gemini_model="not-a-real-model")
+    _api_key, model = app_mod._ai_config()
+    assert model == "gemini-3.1-pro"
+
+
+def test_ai_config_defaults_to_anthropic(app_mod):
+    api_key, model = app_mod._ai_config()
+    assert model == "claude-opus-4-8"
+    assert api_key == ""
+
+
+def test_ai_request_dispatches_gemini_by_model_name(app_mod, monkeypatch):
+    captured = _patch_genai(app_mod, monkeypatch, _FakeResponse())
+    text, usage, err = app_mod._ai_request("g-key", "gemini-3.1-pro", "Prompt",
+                                           max_tokens=200, log_ctx="Test")
+    assert err is None
+    assert text == "Antwort"
+    assert captured[0]["model"] == "gemini-3.1-pro"
+
+
+def test_gemini_usage_mapping(app_mod, monkeypatch):
+    _patch_genai(app_mod, monkeypatch, _FakeResponse(
+        prompt_tokens=1234, output_tokens=567, cached_tokens=89,
+        web_search_queries=["a", "b", "c"]))
+    _text, usage, _err = app_mod._ai_request("g-key", "gemini-3.1-pro", "Prompt",
+                                             max_tokens=200, log_ctx="Test")
+    assert usage["input_tokens"] == 1234
+    assert usage["output_tokens"] == 567
+    assert usage["cache_read_input_tokens"] == 89
+    assert usage["cache_creation_input_tokens"] == 0
+    assert usage["web_search_requests"] == 3
+
+
+def test_gemini_web_search_tool_added_when_enabled(app_mod, monkeypatch):
+    captured = _patch_genai(app_mod, monkeypatch, _FakeResponse())
+    app_mod._ai_request("g-key", "gemini-3.1-pro", "Prompt", max_tokens=200,
+                        log_ctx="Test", use_web_search=True)
+    assert captured[0]["config"].tools is not None
+
+
+def test_gemini_no_tools_when_web_search_disabled(app_mod, monkeypatch):
+    captured = _patch_genai(app_mod, monkeypatch, _FakeResponse())
+    app_mod._ai_request("g-key", "gemini-3.1-pro", "Prompt", max_tokens=200,
+                        log_ctx="Test", use_web_search=False)
+    assert captured[0]["config"].tools is None
+
+
+def test_gemini_output_schema_passed_through(app_mod, monkeypatch):
+    schema = {"type": "object", "properties": {"tags": {"type": "array",
+              "items": {"type": "string"}}}, "required": ["tags"],
+              "additionalProperties": False}
+    captured = _patch_genai(app_mod, monkeypatch, _FakeResponse(text='{"tags": ["a"]}'))
+    text, _usage, err = app_mod._ai_request("g-key", "gemini-2.5-flash", "Prompt",
+                                            max_tokens=200, log_ctx="Test",
+                                            use_web_search=False, output_schema=schema)
+    assert err is None
+    assert text == '{"tags": ["a"]}'
+    assert captured[0]["config"].response_mime_type == "application/json"
+    assert captured[0]["config"].response_schema == schema
+
+
+def test_gemini_refusal_detected(app_mod, monkeypatch):
+    _patch_genai(app_mod, monkeypatch,
+                _FakeResponse(finish_reason=genai_types.FinishReason.SAFETY))
+    _text, _usage, err = app_mod._ai_request("g-key", "gemini-3.1-pro", "Prompt",
+                                             max_tokens=200, log_ctx="Test")
+    assert err == "refused"
+
+
+def test_gemini_empty_text_returns_empty_code(app_mod, monkeypatch):
+    _patch_genai(app_mod, monkeypatch, _FakeResponse(text=""))
+    _text, _usage, err = app_mod._ai_request("g-key", "gemini-3.1-pro", "Prompt",
+                                             max_tokens=200, log_ctx="Test")
+    assert err == "empty"
+
+
+def test_gemini_api_error_returns_failed_code(app_mod, monkeypatch):
+    error = genai_errors.APIError(500, {"message": "boom"})
+    _patch_genai(app_mod, monkeypatch, error)
+    _text, _usage, err = app_mod._ai_request("g-key", "gemini-3.1-pro", "Prompt",
+                                             max_tokens=200, log_ctx="Test")
+    assert err == "failed"
+
+
+def test_anthropic_dispatch_unaffected(app_mod, monkeypatch):
+    """Regressionsschutz: Claude-Modelle landen weiterhin bei _ai_request_anthropic,
+    nicht bei der neuen Gemini-Variante."""
+    called = []
+    monkeypatch.setattr(app_mod, "_ai_request_anthropic",
+                        lambda *a, **kw: (called.append((a, kw)) or ("ok", {}, None)))
+    text, _usage, err = app_mod._ai_request("a-key", "claude-sonnet-5", "Prompt",
+                                            max_tokens=200, log_ctx="Test")
+    assert text == "ok"
+    assert err is None
+    assert len(called) == 1

@@ -27,6 +27,9 @@ from urllib.parse import quote, urlparse
 
 import anthropic
 import requests as http
+from google import genai
+from google.genai import errors as genai_errors
+from google.genai import types as genai_types
 from flask import (Flask, jsonify, make_response, redirect, render_template,
                    request, send_file, url_for)
 from werkzeug.middleware.proxy_fix import ProxyFix
@@ -70,7 +73,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.40.8"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.41.0"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -129,6 +132,7 @@ _health_lock = threading.Lock()
 _ai_summary_cache: dict = {}              # giata/Name → {summary, ts} — spart wiederholte API-Calls
 _AI_SUMMARY_TTL = 24 * 3600
 _AI_MODELS = ('claude-opus-4-8', 'claude-sonnet-5', 'claude-haiku-4-5', 'claude-fable-5')
+_GEMINI_MODELS = ('gemini-3.1-pro', 'gemini-3.5-flash', 'gemini-2.5-flash')
 _api_down_notified = False                # ob aktuell ein API-Ausfall gemeldet ist
 
 # einfache Login-Drossel
@@ -3104,6 +3108,10 @@ _AI_PRICING = {  # USD pro 1 Mio Tokens (Input/Output) — Anthropic-Listenpreis
     'claude-sonnet-5':  {'input': 3.0,  'output': 15.0},
     'claude-haiku-4-5': {'input': 1.0,  'output': 5.0},
     'claude-fable-5':   {'input': 10.0, 'output': 50.0},
+    # Gemini-Listenpreise (Google AI, Stand Juli 2026)
+    'gemini-3.1-pro':   {'input': 2.0,  'output': 12.0},
+    'gemini-3.5-flash': {'input': 1.5,  'output': 9.0},
+    'gemini-2.5-flash': {'input': 0.3,  'output': 2.5},
 }
 
 
@@ -3214,9 +3222,17 @@ def _save_ai_analysis(kind: str, title: str, model: str, text: str, usage: dict)
 
 
 def _ai_config():
-    """(api_key, model) aus den Add-on-Optionen; model fällt auf Opus zurück,
-    falls leer oder ungültig."""
+    """(api_key, model) aus den Add-on-Optionen, je nach gewähltem `ai_provider`
+    (Anthropic/Gemini) — model fällt jeweils auf das Flaggschiff-Modell zurück,
+    falls leer oder ungültig. `_ai_request()` erkennt anhand des Modellnamens
+    (siehe `_AI_MODELS`/`_GEMINI_MODELS`), welchen Provider es ansprechen muss."""
     cfg = load_config()
+    if (cfg.get('ai_provider') or 'anthropic') == 'gemini':
+        api_key = (cfg.get('gemini_api_key') or '').strip()
+        model = cfg.get('gemini_model') or 'gemini-3.1-pro'
+        if model not in _GEMINI_MODELS:
+            model = 'gemini-3.1-pro'
+        return api_key, model
     api_key = (cfg.get('anthropic_api_key') or '').strip()
     model = cfg.get('anthropic_model') or 'claude-opus-4-8'
     if model not in _AI_MODELS:
@@ -3226,13 +3242,28 @@ def _ai_config():
 
 def _ai_request(api_key: str, model: str, prompt: str, *, max_tokens: int,
                 log_ctx: str, use_web_search: bool = True, output_schema: dict | None = None):
+    """Provider-Dispatcher: leitet anhand des Modellnamens (siehe `_AI_MODELS`/
+    `_GEMINI_MODELS`) an `_ai_request_anthropic` oder `_ai_request_gemini` weiter —
+    beide mit identischer Rückgabe-Signatur (text, usage, error_code); error_code
+    ist None bei Erfolg, sonst 'failed' / 'refused' / 'empty'. `usage` = {input_tokens,
+    output_tokens, cache_creation_input_tokens, cache_read_input_tokens,
+    web_search_requests}. Mit `output_schema` antwortet das Modell als validiertes
+    JSON nach diesem Schema (structured outputs) — `text` ist dann der JSON-String."""
+    if model in _GEMINI_MODELS:
+        return _ai_request_gemini(api_key, model, prompt, max_tokens=max_tokens,
+                                  log_ctx=log_ctx, use_web_search=use_web_search,
+                                  output_schema=output_schema)
+    return _ai_request_anthropic(api_key, model, prompt, max_tokens=max_tokens,
+                                 log_ctx=log_ctx, use_web_search=use_web_search,
+                                 output_schema=output_schema)
+
+
+def _ai_request_anthropic(api_key: str, model: str, prompt: str, *, max_tokens: int,
+                          log_ctx: str, use_web_search: bool = True,
+                          output_schema: dict | None = None):
     """Reiner Claude-Aufruf ohne Flask-Abhängigkeit (kein jsonify) — nutzbar sowohl
     aus Request-Handlern als auch aus Hintergrund-Threads (z. B. Wochenüberblick),
-    die keinen Flask-App-Context haben. Rückgabe: (text, usage, error_code);
-    error_code ist None bei Erfolg, sonst 'failed' / 'refused' / 'empty'.
-    `usage` = {input_tokens, output_tokens, cache_creation_input_tokens,
-    cache_read_input_tokens}. Mit `output_schema` antwortet Claude als validiertes
-    JSON nach diesem Schema (structured outputs) — `text` ist dann der JSON-String."""
+    die keinen Flask-App-Context haben. Rückgabe-Signatur siehe `_ai_request`."""
     kwargs = {}
     if use_web_search:
         # allowed_callers=["direct"]: Haiku unterstützt kein programmatic tool
@@ -3267,6 +3298,58 @@ def _ai_request(api_key: str, model: str, prompt: str, *, max_tokens: int,
              'cache_creation_input_tokens': getattr(u, 'cache_creation_input_tokens', 0) or 0,
              'cache_read_input_tokens': getattr(u, 'cache_read_input_tokens', 0) or 0,
              'web_search_requests': getattr(server_tool_use, 'web_search_requests', 0) or 0}
+    return text, usage, None
+
+
+_GEMINI_REFUSAL_REASONS = {
+    genai_types.FinishReason.SAFETY, genai_types.FinishReason.PROHIBITED_CONTENT,
+    genai_types.FinishReason.BLOCKLIST, genai_types.FinishReason.RECITATION,
+    genai_types.FinishReason.SPII, genai_types.FinishReason.IMAGE_SAFETY,
+    genai_types.FinishReason.IMAGE_PROHIBITED_CONTENT,
+}
+
+
+def _ai_request_gemini(api_key: str, model: str, prompt: str, *, max_tokens: int,
+                       log_ctx: str, use_web_search: bool = True,
+                       output_schema: dict | None = None):
+    """Gemini-Variante von `_ai_request_anthropic` — gleiche Rückgabe-Signatur
+    (text, usage, error_code), siehe `_ai_request`. `output_schema` wird
+    unverändert als `response_schema` durchgereicht (der Gemini-SDK akzeptiert
+    dieselben camelCase-JSON-Schema-Dicts wie Anthropic, z. B. `additionalProperties`,
+    per Pydantic-Alias). Websuche über Google-Search-Grounding — kennt kein
+    `max_uses`-Äquivalent, `ai_max_web_searches` wirkt daher nur bei Anthropic."""
+    cfg_kwargs = {'max_output_tokens': max_tokens}
+    if use_web_search:
+        cfg_kwargs['tools'] = [genai_types.Tool(google_search=genai_types.GoogleSearch())]
+    if output_schema is not None:
+        cfg_kwargs['response_mime_type'] = 'application/json'
+        cfg_kwargs['response_schema'] = output_schema
+    try:
+        client = genai.Client(api_key=api_key)
+        resp = client.models.generate_content(
+            model=model, contents=prompt,
+            config=genai_types.GenerateContentConfig(**cfg_kwargs),
+        )
+    except genai_errors.APIError as e:
+        log.warning("KI-Anfrage fehlgeschlagen (%s): %s", log_ctx, e)
+        return None, None, 'failed'
+    candidates = resp.candidates or []
+    if candidates and candidates[0].finish_reason in _GEMINI_REFUSAL_REASONS:
+        return None, None, 'refused'
+    text = (resp.text or '').strip()
+    if not text:
+        return None, None, 'empty'
+    u = resp.usage_metadata
+    web_searches = 0
+    try:
+        web_searches = len(candidates[0].grounding_metadata.web_search_queries or [])
+    except (AttributeError, IndexError, TypeError):
+        pass
+    usage = {'input_tokens': (getattr(u, 'prompt_token_count', 0) or 0),
+             'output_tokens': (getattr(u, 'candidates_token_count', 0) or 0),
+             'cache_creation_input_tokens': 0,
+             'cache_read_input_tokens': (getattr(u, 'cached_content_token_count', 0) or 0),
+             'web_search_requests': web_searches}
     return text, usage, None
 
 

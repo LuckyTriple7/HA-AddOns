@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.41.0] - 2026-07-05
+
+### Added
+- **Google Gemini als zweiter KI-Anbieter:** neue Option `ai_provider`
+  (`anthropic`/`gemini`) schaltet global für alle KI-Features (KI-Fazit,
+  Vergleich, TripPilot/Tagesausflug, Auto-Tags, Portfolio-Frage) um.
+  Eigener API-Key (`gemini_api_key`) und Modellwahl (`gemini_model`:
+  gemini-3.1-pro/3.5-flash/2.5-flash). Websuche über Google-Search-
+  Grounding statt Anthropics `web_search`-Tool — `ai_max_web_searches`
+  gilt weiterhin nur bei Anthropic, Gemini kennt kein Suchlimit.
+
 ## [0.40.8] - 2026-07-05
 
 ### Added
