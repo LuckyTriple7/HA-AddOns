@@ -101,6 +101,9 @@ configuration:
   anthropic_model:
     name: Claude model for the AI summary
     description: "Which Claude model is used for the hotel summary. Opus = default, very thorough. Sonnet = faster/cheaper at nearly the same quality. Haiku = cheapest, shorter. Fable = most capable model, priciest call."
+  ai_max_web_searches:
+    name: Max. web searches per AI call
+    description: "Caps how many times Claude may search the web on its own during a single AI call (summary, comparison, travel advisor/TripPilot, day trip). More searches = more thorough, but more input tokens and higher cost. Default 12 — e.g. 8 for leaner, 20 for very thorough with several destinations/hotels."
   verbose_log:
     name: Verbose logging
     description: Logs more detail per check. Default off — only errors and important events are logged.

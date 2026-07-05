@@ -70,7 +70,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.40.6"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.40.7"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -3237,8 +3237,14 @@ def _ai_request(api_key: str, model: str, prompt: str, *, max_tokens: int,
     if use_web_search:
         # allowed_callers=["direct"]: Haiku unterstützt kein programmatic tool
         # calling — ohne das Flag lehnt die API web_search auf diesem Modell ab.
+        val = load_config().get('ai_max_web_searches')
+        try:
+            max_uses = int(val) if val is not None else 12
+        except (TypeError, ValueError):
+            max_uses = 12
+        max_uses = max(1, min(max_uses, 50))
         kwargs['tools'] = [{"type": "web_search_20260209", "name": "web_search",
-                            "allowed_callers": ["direct"]}]
+                            "allowed_callers": ["direct"], "max_uses": max_uses}]
     if output_schema is not None:
         kwargs['output_config'] = {'format': {'type': 'json_schema', 'schema': output_schema}}
     try:

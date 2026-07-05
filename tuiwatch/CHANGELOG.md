@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.40.7] - 2026-07-05
+
+### Added
+- **Neue Option `ai_max_web_searches`** (Standard 12, 1-50): deckelt, wie oft
+  Claude pro KI-Aufruf selbst das Web durchsuchen darf. War bisher
+  unbegrenzt, was bei umfangreichen Anfragen (z. B. Reiseberater mit 3
+  Zielen + Unterkünften) zu sehr hohen Input-Token-Zahlen/Kosten führen
+  konnte. Niedriger spart Tokens/Kosten, höher liefert gründlichere
+  Antworten.
+
 ## [0.40.6] - 2026-07-05
 
 ### Fixed

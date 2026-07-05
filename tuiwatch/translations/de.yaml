@@ -101,6 +101,9 @@ configuration:
   anthropic_model:
     name: Claude-Modell fürs KI-Fazit
     description: "Welches Claude-Modell für die Hotel-Zusammenfassung genutzt wird. Opus = Standard, sehr gründlich. Sonnet = schneller/günstiger bei kaum schlechterer Qualität. Haiku = am günstigsten, kürzer. Fable = leistungsfähigstes Modell, teuerster Aufruf."
+  ai_max_web_searches:
+    name: Max. Websuchen pro KI-Aufruf
+    description: "Deckelt, wie oft Claude bei einem einzelnen KI-Aufruf (Fazit, Vergleich, Reiseberater/TripPilot, Tagesausflug) selbstständig das Web durchsuchen darf. Mehr Suchen = gründlicher, aber mehr Input-Tokens und höhere Kosten. Standard 12 — z. B. 8 für sparsamer, 20 für sehr gründlich bei mehreren Zielen/Hotels."
   verbose_log:
     name: Ausführliches Logging
     description: Gibt mehr Details pro Prüfung im Log aus. Standard aus — nur Fehler und wichtige Ereignisse werden geloggt.

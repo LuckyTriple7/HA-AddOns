@@ -140,7 +140,10 @@ Mit hinterlegtem `anthropic_api_key` erscheinen zusätzliche **🤖**-Buttons in
 Hotelsuche und der Angebotsübersicht (ohne Key sind sie komplett ausgeblendet).
 Genutztes Modell: `anthropic_model` (Standard `claude-opus-4-8`; auch
 `claude-sonnet-5`, `claude-haiku-4-5`, `claude-fable-5` wählbar — schneller/
-günstiger bzw. teurer, siehe unten).
+günstiger bzw. teurer, siehe unten). `ai_max_web_searches` (Standard 12,
+1-50) deckelt, wie oft Claude pro KI-Aufruf selbst das Web durchsuchen darf —
+niedriger spart Input-Tokens/Kosten, höher liefert gründlichere Antworten
+bei mehreren Zielen/Hotels.
 
 - **🤖 KI-Fazit** (je Suchtreffer) — Claude durchsucht live das Web (HolidayCheck,
   Tripadvisor, Google, Klimatabellen) und liefert eine ausführliche Einschätzung zu
