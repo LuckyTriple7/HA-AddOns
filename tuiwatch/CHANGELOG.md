@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.41.6] - 2026-07-05
+
+### Added
+- **Suchleiste im KI-Verlauf:** filtert die gespeicherten Fazits/Vergleiche
+  live nach Titel, Art (Fazit/Vergleich/Frage/TripPilot) und Modell.
+
 ## [0.41.5] - 2026-07-05
 
 ### Fixed

@@ -678,6 +678,8 @@
       </button>
       <h2>🤖 KI-Verlauf</h2>
       <div class="sub">Bisherige KI-Fazits &amp; -Vergleiche — bleiben dauerhaft gespeichert, unabhängig vom 24h-Cache.</div>
+      <input type="text" id="aihist-search" oninput="filterAiHistory()" placeholder="🔍 Suchen (Titel, Art, Modell)…"
+        style="width:100%;margin-top:10px;background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:8px;font:inherit">
       <div id="aihist-body"></div>
     </div>
   </div>
@@ -2554,13 +2556,24 @@
     $('#ai-bg').addEventListener('click', e=>{ if(e.target.id==='ai-bg') closeAiSummary(); });
 
     // ── KI-Verlauf (dauerhaft gespeicherte Fazits/Vergleiche) ─────────────────
+    let _aiHistItems = [];
     async function openAiHistory(){
       $('#aihist-bg').classList.add('show');
+      $('#aihist-search').value = '';
       $('#aihist-body').innerHTML = progBar('Lädt…');
       let d;
       try { d = await fetch(api('/api/ai/history')).then(r=>r.json()); }
       catch(e){ $('#aihist-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Verlauf konnte nicht geladen werden.</div>'; return; }
-      renderAiHistory(d.items||[]);
+      _aiHistItems = d.items||[];
+      renderAiHistory(_aiHistItems);
+    }
+    function filterAiHistory(){
+      const q = $('#aihist-search').value.trim().toLowerCase();
+      if(!q){ renderAiHistory(_aiHistItems); return; }
+      renderAiHistory(_aiHistItems.filter(it =>
+        (it.title||'').toLowerCase().includes(q) ||
+        aiKindLabel(it.kind).toLowerCase().includes(q) ||
+        (it.model||'').toLowerCase().includes(q)));
     }
     function closeAiHistory(){ $('#aihist-bg').classList.remove('show'); }
     $('#aihist-bg').addEventListener('click', e=>{ if(e.target.id==='aihist-bg') closeAiHistory(); });
@@ -2607,7 +2620,11 @@
         : kind==='advisor' ? '🗺️ TripPilot' : '🤖 Fazit';
     }
     function renderAiHistory(items){
-      if(!items.length){ $('#aihist-body').innerHTML = '<div class="cmp-load">Noch keine KI-Analysen gespeichert.</div>'; return; }
+      if(!items.length){
+        $('#aihist-body').innerHTML = '<div class="cmp-load">'
+          + (_aiHistItems.length ? 'Keine Treffer.' : 'Noch keine KI-Analysen gespeichert.') + '</div>';
+        return;
+      }
       $('#aihist-body').innerHTML = items.map(it => `<div class="aihist-item">
           <div class="aihist-main" onclick="openAiHistoryItem(${it.id})">
             <div class="aihist-title">${aiKindLabel(it.kind)} · ${esc(it.title)}</div>
