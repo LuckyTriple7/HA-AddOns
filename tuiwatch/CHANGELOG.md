@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.40.5] - 2026-07-05
+
+### Changed
+- **Tagesausflug schlanker:** „Was ist dir im Urlaub wichtig?" (deckt sich
+  mit „Welche Aktivitäten interessieren dich?") und „Wie warm soll es
+  sein?" (Zielwahl über allgemeine Temperaturvorliebe ergibt bei einem
+  50-600-km-Radius keinen Sinn) werden jetzt übersprungen. Aktivitäten um
+  Chip „Natur" ergänzt.
+
 ## [0.40.4] - 2026-07-05
 
 ### Added

@@ -71,7 +71,7 @@ check('leerer Status: sea versteckt (kein water_type gewaehlt)',
 check('leerer Status: duration sichtbar', visibleKeys().includes('duration'), true);
 check('leerer Status: sichtbare Anzahl = Gesamt - 7 versteckte bedingte Schritte',
   visibleKeys().length, stepCount() - 7);
-check('leerer Status: genau 20 bedingte Schritte insgesamt definiert', conditionalCount(), 20);
+check('leerer Status: genau 22 bedingte Schritte insgesamt definiert', conditionalCount(), 22);
 
 // water_type steuert sea-Sichtbarkeit
 setState({ water_type: ['Kein Gewässer nötig'] });
@@ -132,14 +132,15 @@ for (const mode of ['Auto', 'Bus', 'Bahn']) {
 // Tagesausflug gewaehlt -> Laender/Reiseart/Mitreisende/Budget/Unterkunft/Anreise/
 // Flug/Freitext versteckt, dafuer Startort/Entfernung/Zeit-Frage sichtbar
 setState({ region: DAYTRIP, water_type: ['Meer'] });
-const hiddenForDaytrip = ['excluded_countries', 'excluded_countries_other', 'travel_type',
-  'companions', 'budget', 'duration', 'accommodation', 'accommodation_size', 'hotel_wishes',
-  'arrival_mode', 'flight_time', 'airports', 'perfect_holiday', 'past_trips'];
+const hiddenForDaytrip = ['excluded_countries', 'excluded_countries_other', 'interests',
+  'travel_type', 'companions', 'budget', 'duration', 'temp', 'accommodation',
+  'accommodation_size', 'hotel_wishes', 'arrival_mode', 'flight_time', 'airports',
+  'perfect_holiday', 'past_trips'];
 for (const key of hiddenForDaytrip) {
   check(`Tagesausflug: ${key} versteckt`, visibleKeys().includes(key), false);
 }
-const shownForDaytrip = ['region', 'interests', 'duration_daytrip', 'home_location',
-  'max_distance', 'month', 'temp', 'water_type', 'sea', 'rain', 'activities', 'dislikes'];
+const shownForDaytrip = ['region', 'duration_daytrip', 'home_location',
+  'max_distance', 'month', 'water_type', 'sea', 'rain', 'activities', 'dislikes'];
 for (const key of shownForDaytrip) {
   check(`Tagesausflug: ${key} sichtbar`, visibleKeys().includes(key), true);
 }
