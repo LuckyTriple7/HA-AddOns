@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.41.5] - 2026-07-05
+
+### Fixed
+- **Gemini: Auto-Tags ohne Fehler aber ohne Tags, Wochenüberblick-Text riss
+  mitten im Satz ab:** Gemini teilt sich das `max_output_tokens`-Budget
+  intern mit „Thinking"-Tokens (bei Anthropic nicht genutzt) — bei knapp
+  bemessenen Werten (Auto-Tags 300, Wochenüberblick 500) verbrauchte das
+  Thinking das komplette Budget, sodass die eigentliche Antwort leer oder
+  abgeschnitten zurückkam, ohne dass ein Fehler auftrat. Betrifft nur
+  Gemini als aktiven Anbieter. Fix: Reserve von 2048 Tokens für Thinking
+  wird jetzt automatisch auf jede Gemini-Anfrage draufgeschlagen.
+
 ## [0.41.4] - 2026-07-05
 
 ### Changed

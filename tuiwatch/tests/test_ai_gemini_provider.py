@@ -161,6 +161,18 @@ def test_gemini_sanitize_schema_strips_additional_properties_nested(app_mod):
     assert cleaned["properties"]["inner"]["properties"]["x"]["type"] == "string"
 
 
+def test_gemini_max_output_tokens_reserves_thinking_budget(app_mod, monkeypatch):
+    """Thinking-Tokens teilen sich bei Gemini das Budget mit max_output_tokens
+    — bei knappen Werten (Auto-Tags: 300, Wochenüberblick: 500) frisst Thinking
+    die eigentliche Antwort leer/abgeschnitten, ohne dass ein Fehler auftritt.
+    Reserve muss draufgeschlagen werden, sonst reproduziert sich der Bug."""
+    captured = _patch_genai(app_mod, monkeypatch, _FakeResponse())
+    app_mod._ai_request("g-key", "gemini-3.1-pro", "Prompt", max_tokens=300,
+                        log_ctx="Test")
+    sent = captured[0]["config"].max_output_tokens
+    assert sent >= 300 + app_mod._GEMINI_THINKING_TOKEN_RESERVE
+
+
 def test_gemini_refusal_detected(app_mod, monkeypatch):
     _patch_genai(app_mod, monkeypatch,
                 _FakeResponse(finish_reason=genai_types.FinishReason.SAFETY))

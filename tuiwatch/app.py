@@ -73,7 +73,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.41.4"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.41.5"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -3359,6 +3359,9 @@ def _gemini_sanitize_schema(schema):
     return schema
 
 
+_GEMINI_THINKING_TOKEN_RESERVE = 2048
+
+
 def _ai_request_gemini(api_key: str, model: str, prompt: str, *, max_tokens: int,
                        log_ctx: str, use_web_search: bool = True,
                        output_schema: dict | None = None):
@@ -3367,8 +3370,18 @@ def _ai_request_gemini(api_key: str, model: str, prompt: str, *, max_tokens: int
     Übergabe als `response_schema` von `additionalProperties` bereinigt (siehe
     `_gemini_sanitize_schema`) — Gemini kennt dieses JSON-Schema-Feld nicht.
     Websuche über Google-Search-Grounding — kennt kein `max_uses`-Äquivalent,
-    `ai_max_web_searches` wirkt daher nur bei Anthropic."""
-    cfg_kwargs = {'max_output_tokens': max_tokens}
+    `ai_max_web_searches` wirkt daher nur bei Anthropic.
+
+    `max_output_tokens` teilt sich bei Gemini das Budget mit den intern
+    generierten „Thinking"-Tokens (anders als bei Anthropic, wo Thinking hier
+    nicht genutzt wird) — bei knappen `max_tokens`-Werten (z. B. 300 für
+    Auto-Tags, 500 für den Wochenüberblick) frisst das Thinking das komplette
+    Budget auf, sodass die eigentliche Antwort leer oder mitten im Satz
+    abgeschnitten zurückkommt, ohne dass ein Fehler auftritt (live beobachtet:
+    Auto-Tags ohne Fehler aber ohne Tags, Wochenüberblick-Text bricht ab).
+    Reserve draufschlagen, damit für die eigentliche Antwort immer genug
+    Budget übrig bleibt."""
+    cfg_kwargs = {'max_output_tokens': max_tokens + _GEMINI_THINKING_TOKEN_RESERVE}
     if use_web_search:
         cfg_kwargs['tools'] = [genai_types.Tool(google_search=genai_types.GoogleSearch())]
     if output_schema is not None:
