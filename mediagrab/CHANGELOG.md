@@ -1,5 +1,11 @@
 # Changelog — MediaGrab
 
+## [1.1.4] — 2026-07-05
+
+### Geändert
+- Rebuild für yt-dlp 2026.07.04
+
+
 ## [1.1.3.1] - 2026-06-29
 
 Bumps [mutagen](https://github.com/quodlibet/mutagen) from 1.47.0 to 1.48.1.
