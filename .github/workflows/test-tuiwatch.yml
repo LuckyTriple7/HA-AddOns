@@ -5,10 +5,12 @@ on:
     branches: [dev, main]
     paths:
       - 'tuiwatch/**.py'
+      - 'tuiwatch/templates/**'
       - 'tuiwatch/tests/**'
   pull_request:
     paths:
       - 'tuiwatch/**.py'
+      - 'tuiwatch/templates/**'
       - 'tuiwatch/tests/**'
   workflow_dispatch:
 
@@ -32,3 +34,7 @@ jobs:
       - name: Run parsing regression tests
         working-directory: tuiwatch
         run: pytest tests/ -q
+
+      - name: Run wizard-engine JS tests
+        working-directory: tuiwatch
+        run: node tests/test_wizard_engine.js

@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.39.31] - 2026-07-05
+
+### Added
+- **Berge-Details:** wie schon bei Strand — wählt man ⛰️ Berge bei den
+  Interessen, fragt der Reiseberater jetzt nach (sanfte Wanderwege,
+  anspruchsvolle Gipfeltouren, Skigebiet, Aussicht/Panorama,
+  Alm-/Hüttenromantik, Seilbahn/Gondel, ruhig/wenig Tourismus).
+- **Aktivitäten-Chips erweitert:** Reiten, Segeln, Angeln, Klettern, Yoga,
+  Tennis, Kajak/SUP, Bootsausflüge.
+- **JS-Engine-Test:** `tuiwatch/tests/test_wizard_engine.js` prüft die
+  `showIf`-Logik der bedingten Wizard-Schritte ohne npm-Dependency, läuft
+  jetzt auch in der CI (`test-tuiwatch.yml`).
+
+### Fixed
+- **Temperatur-Schritt:** Option „egal" fehlte, jetzt ergänzt.
+
 ## [0.39.30] - 2026-07-05
 
 ### Fixed
