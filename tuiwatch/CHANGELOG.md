@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.39.27] - 2026-07-05
+
+### Fixed
+- **Reiseberater: Unterkünfte passten nicht zum Ziel:** die KI nannte z. B.
+  bei „Teneriffa Süd" Hotels auf Fuerteventura/Gran Canaria. Prompt verlangt
+  jetzt explizit, dass alle genannten Unterkünfte in genau dem Ziel/der
+  Teilregion aus der Überschrift liegen müssen.
+
 ## [0.39.26] - 2026-07-05
 
 ### Changed

@@ -70,7 +70,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.39.26"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.39.27"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -2968,7 +2968,13 @@ _DEFAULT_ADVISOR_INSTRUCTIONS = (
     "zu Hotelgröße/Hotelwünschen); bei Ferienwohnung/Airbnb/Camping/Hostel keine "
     "Markennamen, sondern konkrete Wohngegenden/Straßenzüge/Ortsteile je Kategorie "
     "mit Preis-/Ausstattungsniveau statt allgemeiner Aussagen wie „gibt viele "
-    "Ferienwohnungen“. Schlage dabei nur Unterkünfte vor, die laut Websuche "
+    "Ferienwohnungen“. Wichtig: alle genannten Unterkünfte müssen tatsächlich in genau "
+    "diesem Ziel/dieser Teilregion liegen (gleiche Insel/gleicher Ort wie in der "
+    "Überschrift) — keine Unterkünfte von einer anderen Insel oder Nachbarregion "
+    "einstreuen, auch nicht als Alternative innerhalb der Begründung. Wenn im selben "
+    "Vorschlag mehrere Inseln/Orte als gleichwertig erwähnt werden, wähle für die "
+    "Überschrift einen davon eindeutig aus und nenne Unterkünfte nur für dieses eine "
+    "Ziel. Schlage dabei nur Unterkünfte vor, die laut Websuche "
     "(HolidayCheck/Tripadvisor/Google-Bewertungen) überwiegend gut bewertet sind — "
     "keine Unterkünfte mit auffallend vielen schlechten Bewertungen, auch nicht in "
     "der Budget-Kategorie. Weise darauf hin, dass Verfügbarkeit/Preis/Buchbarkeit "
