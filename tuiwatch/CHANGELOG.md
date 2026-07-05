@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.40.3] - 2026-07-05
+
+### Changed
+- **Reiseberater heißt jetzt TripPilot:** neuer Name + Icon (🗺️) in Button,
+  Modal, Ergebnis-Titel, KI-Verlauf, „⚙ KI-Prompts" und Doku. Rein
+  kosmetisch — interne IDs/Funktionsnamen unverändert.
+
 ## [0.40.2] - 2026-07-05
 
 ### Changed

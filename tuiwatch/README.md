@@ -54,15 +54,16 @@ ausführlich (Lage, Zimmer, Restaurants, Pool, Klima zur Reisezeit) oder
 vergleicht bis zu 5 Hotels nebeneinander — inkl. Token-/Kosten-Anzeige, PDF-
 Export und dauerhaftem Verlauf. Details: [DOCS.md](DOCS.md#ki-fazit--vergleich--verlauf).
 
-## 🧭 Reiseberater (optional)
+## 🗺️ TripPilot (optional)
 
 Geführter Klick-Fragebogen (Zielregion, Interessen, Budget, Reisezeit,
-Wetter, Hotelwünsche, Flug u. v. m.) — Claude schlägt danach 3 passende
-Reiseziele plus eine Alternative und eine Überraschung außerhalb der
-gewählten Region vor. Berechnet nebenbei ein persönliches Präferenzprofil
-(„Reise-DNA"), ganz ohne Zusatzkosten. Prompts für Reiseberater,
-Hotelvergleich und KI-Fazit lassen sich über **⚙ KI-Prompts** im Footer
-auch selbst anpassen. Details: [DOCS.md](DOCS.md#-reiseberater).
+Wetter, Hotelwünsche, Flug/eigene Anreise u. v. m., inkl. eigenem
+Tagesausflug-Modus) — Claude schlägt danach 3 passende Reiseziele plus eine
+Alternative und eine Überraschung außerhalb der gewählten Region vor.
+Berechnet nebenbei ein persönliches Präferenzprofil („Reise-DNA"), ganz ohne
+Zusatzkosten. Prompts für TripPilot, Hotelvergleich und KI-Fazit lassen sich
+über **⚙ KI-Prompts** im Footer auch selbst anpassen.
+Details: [DOCS.md](DOCS.md#-trippilot).
 
 ## Hinweise
 

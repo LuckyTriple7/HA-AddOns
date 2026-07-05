@@ -128,7 +128,7 @@ Wunschpreis, Zurücksetzen) — mit **Mouseover** erscheint Datum + Beschreibung
 ## KI-Fazit, -Vergleich & -Verlauf
 
 > ⚠️ Die Anthropic-API ist **kostenpflichtig** (eigener API-Key, eigenes
-> Anthropic-Konto). Bei jedem KI-Aufruf (Fazit, Vergleich, Reiseberater,
+> Anthropic-Konto). Bei jedem KI-Aufruf (Fazit, Vergleich, TripPilot,
 > Auto-Tag, Frag dein Portfolio) entstehen reale Kosten nach Anthropics
 > Preisliste. TUIWatch zeigt geschätzte Kosten pro Aufruf sowie eine laufende
 > Gesamtsumme seit Add-on-Start an — das ist eine Schätzung auf Basis der
@@ -166,9 +166,9 @@ günstiger bzw. teurer, siehe unten).
 - Ergebnisse werden **24 Stunden** je Hotel/Vergleichs-Kombination
   zwischengespeichert — erneutes Öffnen kostet keinen neuen API-Aufruf.
 
-## 🧭 Reiseberater
+## 🗺️ TripPilot
 
-Geführter Klick-Fragebogen (kein Freitext-Chat) über den **„🧭 Reiseberater"**-
+Geführter Klick-Fragebogen (kein Freitext-Chat) über den **„🗺️ TripPilot"**-
 Button in der Toolbar: rund 20 Schritte zu Zielregion, ausgeschlossenen
 Ländern, Interessen, Reiseart, Mitreisenden, Budget, Reisedauer, Reisezeit,
 Wetterwünschen (Temperatur/Meer/Regen), Aktivitäten, Unterkunft,
@@ -218,12 +218,12 @@ passenden Ziele ab.
 ## Eigene KI-Prompts
 
 Über **⚙ KI-Prompts** im Footer lässt sich der Standard-Instruktionstext für
-**Reiseberater**, **Hotelvergleich**, **KI-Fazit** und **Tagesausflug**
+**TripPilot**, **Hotelvergleich**, **KI-Fazit** und **Tagesausflug**
 einsehen und über die Checkbox „Eigenen Prompt verwenden" durch einen
 eigenen Text ersetzen (max. 4000 Zeichen, „Zurücksetzen auf Standard"
 jederzeit möglich).
 
-- Beim Reiseberater bleiben sicherheitskritische Klauseln (Länder-Ausschluss,
+- Bei TripPilot bleiben sicherheitskritische Klauseln (Länder-Ausschluss,
   Reisewarnungs-Check, TUI-Verfügbarkeit, Reise-DNA-Kontext) immer fix
   erhalten — nur der Recherche-/Format-/Ton-Teil des Prompts ist editierbar.
 - Ergebnisse werden je nach aktivem Prompt-Text separat zwischengespeichert —
@@ -397,7 +397,7 @@ Zusätzlich `binary_sensor.tuiwatch_aktionscodes`: **an**, solange aktuell
 - **Backup / Wiederherstellen** — **komplettes** Backup als **ZIP**: alle getrackten
   Angebote **inkl. Preisverlauf** und Diagramm-Markern, **„Meine Reisen" inkl. der
   Original-PDFs**, die **gespeicherten Suchen**, der **dauerhafte KI-Verlauf** (Fazits/
-  Vergleiche/Reiseberater-Ergebnisse) sowie die **KI-Einstellungen** (Reise-DNA,
+  Vergleiche/TripPilot-Ergebnisse) sowie die **KI-Einstellungen** (Reise-DNA,
   kumulierte Kosten-Zähler heute/Monat/gesamt, eigene KI-Prompt-Vorlagen). Die
   Wiederherstellung liest die ZIP (das alte reine JSON wird weiterhin akzeptiert) und
   arbeitet **nicht-destruktiv**: Fehlendes wird ergänzt, Bestehendes bleibt erhalten

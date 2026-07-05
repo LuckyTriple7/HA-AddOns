@@ -70,7 +70,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.40.2"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.40.3"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -3666,12 +3666,12 @@ def api_ai_travel_advisor():
     except (TypeError, ValueError):
         prev_dna = {}
     prompt = _advisor_prompt(profile, prev_dna)
-    title = profile.get('region') or 'Reiseberater'
+    title = profile.get('region') or 'TripPilot'
     if profile.get('month'):
         title += ' · ' + profile['month']
     if profile.get('interests'):
         title += ' · ' + ', '.join(profile['interests'][:3])
-    text, usage, err = _ai_call(api_key, model, prompt, max_tokens=3072, log_ctx='Reiseberater')
+    text, usage, err = _ai_call(api_key, model, prompt, max_tokens=3072, log_ctx='TripPilot')
     if err:
         return err
     dna = {}

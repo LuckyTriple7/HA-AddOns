@@ -438,7 +438,7 @@
     <div class="toolbar">
       <button class="btn" onclick="openSearch()" title="Hotels einer Region suchen (TUI-Such-URL einfügen)">🔍 Suche</button>
       <button class="btn sec" onclick="openTrips()" title="Gebuchte Reisen verwalten (TUI-PDF importieren)">🧳 Meine Reisen</button>
-      <button class="btn sec ai-feature" onclick="openAdvisor()" title="KI-Reiseberater: passende Ziele nach Vorlieben finden">🧭 Reiseberater</button>
+      <button class="btn sec ai-feature" onclick="openAdvisor()" title="TripPilot: passende Ziele nach Vorlieben finden">🗺️ TripPilot</button>
       <button class="btn sec" id="aktion-btn" onclick="openAktion()" title="Aktuelle öffentliche TUI-Aktionscodes anzeigen und bei neuen benachrichtigt werden">🎟 Aktionscodes</button>
       <button class="btn sec" onclick="sendEmail()" title="Alle Angebote als E-Mail senden">✉ Als E-Mail senden</button>
       <button class="btn sec" onclick="sendDigest()" title="Wochenüberblick jetzt senden (Telegram/E-Mail)">📊 Wochenüberblick</button>
@@ -478,7 +478,7 @@
       · <span id="hc-foot" class="hc-foot" title="API-Status — klicken für Details &amp; neuen Test" onclick="openHealth()">API: <span id="hc-dot">…</span></span>
       · <span class="hc-foot" onclick="backupOffers()" title="Komplettes Backup (Angebote mit Preisverlauf, Meine Reisen inkl. PDF, gespeicherte Suchen) als ZIP">⬇ Backup</span>
       · <span class="hc-foot" onclick="document.getElementById('restore-file').click()" title="Backup wiederherstellen (ZIP oder altes JSON) – ergänzt Fehlendes, überschreibt nichts">⬆ Restore</span>
-      · <span class="hc-foot ai-feature" onclick="openPromptCfg()" title="Eigene KI-Prompt-Vorlagen für Reiseberater &amp; Hotelvergleich bearbeiten">⚙ KI-Prompts</span>
+      · <span class="hc-foot ai-feature" onclick="openPromptCfg()" title="Eigene KI-Prompt-Vorlagen für TripPilot &amp; Hotelvergleich bearbeiten">⚙ KI-Prompts</span>
       · <span class="hc-foot ai-feature" id="ai-usage-foot" onclick="openAiHistory()" title="Geschätzte KI-Kosten (Anthropic-Listenpreis) — kein echtes Guthaben, dauerhaft in der DB gespeichert">…</span></footer>
   </div>
 
@@ -700,7 +700,7 @@
       <button class="icon-btn modal-close" onclick="closeAdvisor()">
         <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
       </button>
-      <h2>🧭 Reiseberater</h2>
+      <h2>🗺️ TripPilot</h2>
       <div class="sub" id="reiseb-sub"></div>
       <div id="reiseb-body"></div>
       <div style="margin-top:16px;display:flex;gap:8px;justify-content:space-between">
@@ -750,7 +750,7 @@
       <h2>⚙ KI-Prompts</h2>
       <div class="sub">Standard ist bereits ausgefüllt. Checkbox aktivieren, um ihn zu überschreiben. Die Websuche bleibt technisch immer aktiv, auch wenn der Hinweis dazu aus dem Text entfernt wird — die KI sucht dann ggf. weniger gezielt.</div>
 
-      <h3 style="margin:14px 0 6px">🧭 Reiseberater</h3>
+      <h3 style="margin:14px 0 6px">🗺️ TripPilot</h3>
       <label style="display:flex;align-items:center;gap:6px;font-size:.85rem"><input type="checkbox" id="promptcfg-advisor-enabled"> Eigenen Prompt verwenden</label>
       <textarea id="promptcfg-advisor-text" class="promptcfg-text" rows="10" maxlength="4000" oninput="promptcfgCount('advisor')" style="margin-top:6px"></textarea>
       <div class="hint" id="promptcfg-advisor-count" style="text-align:right"></div>
@@ -2601,7 +2601,7 @@
     }
     function aiKindLabel(kind){
       return kind==='compare' ? '🤖 Vergleich' : kind==='ask' ? '❓ Frage'
-        : kind==='advisor' ? '🧭 Reiseberater' : '🤖 Fazit';
+        : kind==='advisor' ? '🗺️ TripPilot' : '🤖 Fazit';
     }
     function renderAiHistory(items){
       if(!items.length){ $('#aihist-body').innerHTML = '<div class="cmp-load">Noch keine KI-Analysen gespeichert.</div>'; return; }
@@ -2821,7 +2821,7 @@
     }
     async function submitAdvisor(){
       closeAdvisor();
-      $('#ai-title').textContent = '🧭 Reiseberater';
+      $('#ai-title').textContent = '🗺️ TripPilot';
       $('#ai-sub').textContent = [advState.region, advState.arrival_mode,
         (advState.interests||[]).join(', ')].filter(Boolean).join(' · ');
       $('#ai-foot').style.display = 'none';
