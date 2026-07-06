@@ -73,7 +73,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.43.6"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.43.7"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -134,6 +134,7 @@ _AI_SUMMARY_TTL = 24 * 3600
 _booking_score_cache: dict = {}           # offer_id → {result, usage, ts}
 _region_outlook_cache: dict = {}          # region → {result, usage, ts}
 _BOOKING_SCORE_TTL = 6 * 3600             # kürzer als Hotel-Fazit: Preisdaten ändern sich häufiger
+_CALENDAR_FRESH_SECONDS = 7 * 86400       # Preiskalender für den Buchungsscore ab diesem Alter neu abrufen
 _AI_MODELS = ('claude-opus-4-8', 'claude-sonnet-5', 'claude-haiku-4-5', 'claude-fable-5')
 _GEMINI_MODELS = ('gemini-3.1-pro', 'gemini-3.5-flash', 'gemini-2.5-flash')
 _api_down_notified = False                # ob aktuell ein API-Ausfall gemeldet ist
@@ -4125,6 +4126,17 @@ def api_ai_booking_score(offer_id: int):
         facts = _offer_booking_facts(con, offer_id)
     if facts is None:
         return jsonify({'error': 'no_price'}), 400
+    with db() as con:
+        cal_row = con.execute('SELECT ts FROM calendar_cache WHERE offer_id=?', (offer_id,)).fetchone()
+    if not cal_row or time.time() - cal_row['ts'] >= _CALENDAR_FRESH_SECONDS:
+        # Fehlender/veralteter Preiskalender wird für den Buchungsscore vorher
+        # aufgefrischt (synchron, nur für Angebote mit Preis — sonst lohnt sich der
+        # Abruf nicht) — nicht bei jedem Aufruf, nur wenn er fehlt oder älter als
+        # _CALENDAR_FRESH_SECONDS ist. Facts danach neu laden, damit die frische
+        # Saisonalität im Prompt landet.
+        _run_calendar(offer_id)
+        with db() as con:
+            facts = _offer_booking_facts(con, offer_id)
     result, usage, err = _ai_score_request(_booking_score_prompt(facts), model, api_key, facts['hotel'])
     if err:
         return err

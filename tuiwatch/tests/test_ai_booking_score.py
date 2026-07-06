@@ -46,6 +46,7 @@ def _mock_ai_ok(m, monkeypatch, result=None, calls=None):
                                                        "cache_creation_input_tokens": 0,
                                                        "cache_read_input_tokens": 0}, None
     monkeypatch.setattr(m, "_ai_request", fake)
+    monkeypatch.setattr(m, "_run_calendar", lambda *a, **k: None)  # kein Netz
     return calls
 
 
@@ -204,6 +205,63 @@ def test_booking_score_success_caches_and_saves_history(m, monkeypatch):
         row = con.execute("SELECT kind, summary FROM ai_analyses WHERE kind='booking_score'").fetchone()
     assert row is not None
     assert json.loads(row["summary"])["score"] == 72
+
+
+def test_booking_score_refreshes_missing_calendar(m, monkeypatch):
+    """Fehlt der Preiskalender komplett, wird er vor dem Score einmalig aufgefrischt."""
+    _write_options(m, anthropic_api_key="k")
+    oid = _add_offer(m, "https://example.invalid/cal1?duration=7", price=1500)
+    _mock_ai_ok(m, monkeypatch)
+    calendar_calls = []
+    monkeypatch.setattr(m, "_run_calendar", lambda oid_: calendar_calls.append(oid_))
+    c = m.app.test_client()
+    r = c.post(f"/api/ai/booking-score/{oid}", headers=ING)
+    assert r.status_code == 200
+    assert calendar_calls == [oid]
+
+
+def test_booking_score_skips_refresh_when_calendar_fresh(m, monkeypatch):
+    """Ist der Kalender noch frisch (< 7 Tage alt), wird er NICHT erneut abgerufen."""
+    _write_options(m, anthropic_api_key="k")
+    oid = _add_offer(m, "https://example.invalid/cal2?duration=7", price=1500)
+    with m.db() as con:
+        con.execute("INSERT INTO calendar_cache (offer_id, ts, data) VALUES (?,?,?)",
+                    (oid, int(time.time()) - 3600, json.dumps({"ok": True, "days": []})))
+    _mock_ai_ok(m, monkeypatch)
+    calendar_calls = []
+    monkeypatch.setattr(m, "_run_calendar", lambda oid_: calendar_calls.append(oid_))
+    c = m.app.test_client()
+    r = c.post(f"/api/ai/booking-score/{oid}", headers=ING)
+    assert r.status_code == 200
+    assert calendar_calls == []
+
+
+def test_booking_score_refreshes_stale_calendar(m, monkeypatch):
+    """Kalender ist da, aber älter als 7 Tage -> wird trotzdem aufgefrischt."""
+    _write_options(m, anthropic_api_key="k")
+    oid = _add_offer(m, "https://example.invalid/cal3?duration=7", price=1500)
+    with m.db() as con:
+        con.execute("INSERT INTO calendar_cache (offer_id, ts, data) VALUES (?,?,?)",
+                    (oid, int(time.time()) - 8 * 86400, json.dumps({"ok": True, "days": []})))
+    _mock_ai_ok(m, monkeypatch)
+    calendar_calls = []
+    monkeypatch.setattr(m, "_run_calendar", lambda oid_: calendar_calls.append(oid_))
+    c = m.app.test_client()
+    r = c.post(f"/api/ai/booking-score/{oid}", headers=ING)
+    assert r.status_code == 200
+    assert calendar_calls == [oid]
+
+
+def test_booking_score_no_price_skips_calendar_refresh(m, monkeypatch):
+    """Ohne Preis lohnt sich kein Kalender-Abruf -> darf gar nicht erst versucht werden."""
+    _write_options(m, anthropic_api_key="k")
+    oid = _add_offer(m, "https://example.invalid/cal4?duration=7", with_price=False)
+    calendar_calls = []
+    monkeypatch.setattr(m, "_run_calendar", lambda oid_: calendar_calls.append(oid_))
+    c = m.app.test_client()
+    r = c.post(f"/api/ai/booking-score/{oid}", headers=ING)
+    assert r.status_code == 400 and r.get_json()["error"] == "no_price"
+    assert calendar_calls == []
 
 
 def test_region_outlook_requires_region(m):

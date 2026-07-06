@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.43.7] - 2026-07-06
+
+### Added
+- **Buchungsscore frischt Preiskalender bei Bedarf auf:** fehlt für ein Angebot noch
+  ein Preiskalender oder ist er älter als 7 Tage, wird er jetzt einmalig automatisch
+  abgerufen, bevor der Buchungsscore berechnet wird (macht nur diesen einen Aufruf
+  spürbar langsamer). Ist er noch frisch, bleibt er unverändert — kein Abruf bei
+  jedem Klick. Ohne Preis für das Angebot wird gar nicht erst versucht.
+
 ## [0.43.6] - 2026-07-06
 
 ### Fixed

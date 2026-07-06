@@ -472,10 +472,11 @@ Zwei Varianten:
 
 - **Pro Angebot** — Button **🔮 Buchungsscore** in der Angebots-Fußzeile. Nutzt den
   eigenen Preisverlauf des Angebots, dessen Trend, den Markttrend/-index seiner
-  Destination **und** — falls für dieses Hotel/Zimmer bereits ein Preiskalender
-  abgerufen wurde (siehe „Preiskalender" oben) — die daraus abgeleitete Saisonalität
-  (günstigster/teuerster Monat, günstigster Einzeltermin). Löst dafür **keinen**
-  neuen Kalender-Abruf aus, nutzt nur bereits vorhandene Daten.
+  Destination sowie die Saisonalität aus dessen Preiskalender (günstigster/teuerster
+  Monat, günstigster Einzeltermin). Fehlt der Preiskalender noch oder ist älter als
+  7 Tage, wird er **einmalig automatisch aufgefrischt**, bevor der Score berechnet
+  wird (macht diesen einen Aufruf spürbar langsamer) — ist er noch frisch, wird er
+  unverändert weiterverwendet, kein unnötiger erneuter Abruf.
 - **Pro Destination** — Button **🔮** je Zeile im Markttrend-Fenster. Schätzt die
   Destination allgemein ein (kein bestimmtes Hotel), nur aus deren Markttrend/-index;
   setzt mindestens so viele Datenpunkte voraus wie der Markttrend selbst.
