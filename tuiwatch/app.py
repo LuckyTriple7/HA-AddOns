@@ -73,7 +73,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.43.0"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.43.1"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -3707,8 +3707,18 @@ def _ai_request_gemini(api_key: str, model: str, prompt: str, *, max_tokens: int
     abgeschnitten zurückkommt, ohne dass ein Fehler auftritt (live beobachtet:
     Auto-Tags ohne Fehler aber ohne Tags, Wochenüberblick-Text bricht ab).
     Reserve draufschlagen, damit für die eigentliche Antwort immer genug
-    Budget übrig bleibt."""
+    Budget übrig bleibt.
+
+    Gemini lehnt Tool-Use (Websuche) zusammen mit `response_mime_type: application/json`
+    kategorisch ab ("Tool use with a response mime type ... is unsupported", live per
+    400 INVALID_ARGUMENT bestätigt) — anders als Anthropic, das beides kombinieren kann.
+    Bei gleichzeitiger Anfrage hat das Schema Vorrang (Aufrufer verlassen sich auf
+    parsebares JSON), Websuche wird für diesen Aufruf stillschweigend übersprungen."""
     cfg_kwargs = {'max_output_tokens': max_tokens + _GEMINI_THINKING_TOKEN_RESERVE}
+    if use_web_search and output_schema is not None:
+        log.info("Gemini (%s): Websuche + Structured Output nicht kombinierbar — "
+                 "Websuche für diesen Aufruf übersprungen", log_ctx)
+        use_web_search = False
     if use_web_search:
         cfg_kwargs['tools'] = [genai_types.Tool(google_search=genai_types.GoogleSearch())]
     if output_schema is not None:

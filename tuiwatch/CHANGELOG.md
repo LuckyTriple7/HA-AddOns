@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.43.1] - 2026-07-06
+
+### Fixed
+- **Buchungsscore mit Gemini schlug fehl:** Gemini lehnt Websuche kombiniert mit
+  strukturiertem JSON-Output kategorisch ab (400 INVALID_ARGUMENT — "Tool use with a
+  response mime type ... is unsupported"). Bei beidem gleichzeitig gewinnt jetzt das
+  Schema (nötig für den Buchungsscore), die Websuche entfällt für diesen Aufruf still.
+  Betrifft nur Gemini als aktiven KI-Anbieter — Anthropic kombiniert beides.
+
 ## [0.43.0] - 2026-07-06
 
 ### Added

@@ -151,6 +151,23 @@ def test_gemini_output_schema_passed_through(app_mod, monkeypatch):
     assert captured[0]["config"].response_schema["required"] == ["tags"]
 
 
+def test_gemini_web_search_dropped_when_combined_with_output_schema(app_mod, monkeypatch):
+    """Regression: Gemini lehnt Tool-Use zusammen mit response_mime_type=application/json
+    live mit 400 INVALID_ARGUMENT ab ("Tool use with a response mime type ... is
+    unsupported"). Bei beidem gleichzeitig muss das Schema gewinnen (Aufrufer brauchen
+    parsebares JSON) und die Websuche für diesen Aufruf stillschweigend entfallen."""
+    schema = {"type": "object", "properties": {"score": {"type": "integer"}},
+              "required": ["score"], "additionalProperties": False}
+    captured = _patch_genai(app_mod, monkeypatch, _FakeResponse(text='{"score": 50}'))
+    text, _usage, err = app_mod._ai_request("g-key", "gemini-2.5-flash", "Prompt",
+                                            max_tokens=200, log_ctx="Test",
+                                            use_web_search=True, output_schema=schema)
+    assert err is None
+    assert text == '{"score": 50}'
+    assert captured[0]["config"].tools is None            # Websuche entfallen
+    assert captured[0]["config"].response_mime_type == "application/json"  # Schema bleibt
+
+
 def test_gemini_sanitize_schema_strips_additional_properties_nested(app_mod):
     schema = {"type": "object", "additionalProperties": False,
               "properties": {"inner": {"type": "object", "additional_properties": False,
