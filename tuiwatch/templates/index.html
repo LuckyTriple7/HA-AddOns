@@ -145,9 +145,11 @@
     .tag-pill.add { color:var(--muted); border-style:dashed; }
     .card-tags .tag-pill:hover { border-color:var(--red); color:var(--red); }
     .tag-row.inline { display:inline-flex; margin:0 0 0 10px; vertical-align:middle; }
-    .offer-foot { display:flex; align-items:center; gap:6px; margin-top:12px; flex-wrap:wrap; }
-    .offer-foot .when { font-size:.74rem; color:var(--muted); flex:1; }
-    .offer-foot .btn { padding:5px 9px; font-size:.76rem; font-weight:500; }
+    .offer-foot { display:flex; align-items:center; gap:6px; margin-top:12px; flex-wrap:nowrap; min-width:0; }
+    .offer-foot .when { font-size:.74rem; color:var(--muted); flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .offer-foot .btn { flex:0 1 auto; min-width:0; padding:5px 9px; font-size:.76rem; font-weight:500;
+                        overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .offer-foot .icon-btn { flex:0 0 auto; }
     .err-note { color:var(--amber); font-size:.78rem; margin-top:6px; }
     .empty { text-align:center; color:var(--muted); padding:50px 16px; }
     .badge-checking { font-size:.72rem; color:var(--accent); }
@@ -1168,20 +1170,24 @@
               ? `<span class="when"><span class="archived-badge">📦 archiviert</span>${o.return_date?(' · Reise bis '+fmtD(o.return_date)):''}${o.price!=null?(' · letzter Preis '+eur(o.price)):''}</span>
                  <button class="btn sec" onclick="openHistory(${o.id})">Verlauf</button>
                  <button class="btn sec" onclick="unarchiveOffer(${o.id})" title="Wieder aktiv verfolgen">Reaktivieren</button>
-                 <button class="btn danger" onclick="delOffer(${o.id})">Löschen</button>`
+                 <button class="icon-btn" style="color:var(--red)" onclick="delOffer(${o.id})" title="Löschen">
+                   <svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+                 </button>`
               : `<span class="when">${o.paused?'<span class="paused-badge">⏸ pausiert</span>':(o.checking?'<span class="badge-checking">wird geprüft…</span>':('Zuletzt: '+ago(o.last_ts)))}</span>
                  <button class="btn sec" onclick="checkOne(${o.id})">Prüfen</button>
                  <button class="btn sec" onclick="openHistory(${o.id})">Verlauf</button>
                  <button class="btn sec" onclick="openCalendar(${o.id})" title="Preis je Abreisetag (Preiskalender)">Kalender</button>
                  <button class="btn sec" onclick="openRooms(${o.id})" title="Zimmerkategorie wählen (Standard = günstigstes)">Zimmer</button>
                  ${o.comparable?`<button class="btn sec" onclick="openCompare(${o.id})" title="Preis pro Person für andere Reisendenzahl vergleichen">Vergleich</button>`:''}
-                 <button class="btn sec ai-feature" onclick="openBookingScore(${o.id})" title="KI-Buchungsscore: jetzt buchen, beobachten oder warten?">🔮 Buchungsscore</button>
+                 <button class="btn sec ai-feature" onclick="openBookingScore(${o.id})" title="KI-Buchungsscore: jetzt buchen, beobachten oder warten?">Buchungsscore</button>
                  <button class="btn sec" onclick="openNights(${o.id})" title="Preise für kürzere/längere Reisedauern vergleichen">Nächte</button>
                  <button class="btn sec" onclick="openSearchFromOffer(${o.id})" title="Weitere Hotels dieser Region suchen (Filter aus dem Angebot)">Region</button>
                  <button class="btn sec" onclick="togglePause(${o.id}, ${o.paused})" title="Automatische Prüfung aussetzen/fortsetzen">${o.paused?'Fortsetzen':'Pausieren'}</button>
                  <button class="btn sec" onclick="resetOffer(${o.id})" title="Verlauf löschen und neu bei null beginnen">Zurücksetzen</button>
                  <button class="btn sec" onclick="archiveOffer(${o.id})" title="Ins Archiv legen — keine Live-Abfragen mehr">Archivieren</button>
-                 <button class="btn danger" onclick="delOffer(${o.id})">Löschen</button>`}
+                 <button class="icon-btn" style="color:var(--red)" onclick="delOffer(${o.id})" title="Löschen">
+                   <svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+                 </button>`}
           </div>
         </div>`;
     }

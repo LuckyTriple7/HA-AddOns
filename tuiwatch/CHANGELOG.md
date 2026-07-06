@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.43.3] - 2026-07-06
+
+### Fixed
+- **Angebots-Fußzeile umbrach:** gleicher Fix wie bei Werkzeugleiste/Kopfzeile —
+  Buttons füllen die volle Breite und schrumpfen gemeinsam statt umzubrechen.
+- **Löschen-Button:** von Textbutton auf rotes Papierkorb-Icon umgestellt (spart
+  Platz in der ohnehin vollen Fußzeile).
+- **Buchungsscore-Button:** Emoji entfernt.
+
 ## [0.43.2] - 2026-07-06
 
 ### Fixed
