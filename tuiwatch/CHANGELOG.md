@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.42.3] - 2026-07-06
+
+### Fixed
+- **Werkzeugleiste umgebrochen:** der neue Markttrend-Button ließ die Buttons bei
+  schmaleren Fenstern in eine hässliche zweite Zeile mit nur einem Button umbrechen.
+  Toolbar-Buttons sind jetzt kompakter (weniger Padding/Schrift) — passt ab ~1000px
+  Breite wieder in eine Zeile.
+
 ## [0.42.2] - 2026-07-06
 
 ### Added
