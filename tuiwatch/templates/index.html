@@ -118,6 +118,9 @@
     .price-sub { font-size:.74rem; color:var(--muted); margin-top:4px; }
     .price-total { font-size:.76rem; color:var(--text); font-weight:600; margin-top:3px; white-space:nowrap; }
     .old { text-decoration:line-through; color:var(--muted); }
+    .hist-diff { display:inline-block; font-size:.78rem; font-weight:700; margin-left:6px; padding:2px 7px; border-radius:10px; }
+    .hist-diff.up { color:var(--red); background:rgba(248,81,73,.13); }
+    .hist-diff.down { color:var(--green); background:rgba(46,160,67,.14); }
     .disc { color:var(--green); font-weight:600; margin-left:4px; }
     .delta { display:inline-block; font-size:.78rem; font-weight:700; padding:2px 7px; border-radius:10px; margin-top:6px; }
     .delta.up { color:var(--red); background:rgba(248,81,73,.13); }
@@ -1236,11 +1239,18 @@
       const hist = hd.history;
       const pts = hist.filter(h=>h.ok && h.price!=null);
       drawChart($('#hist-canvas'), pts, true, {target: o.target_price, booked: o.booked_price, events: hd.events||[]});
-      const rows = hist.slice().reverse().map(h=>{
+      const rows = hist.map((h,i)=>{
         const d = new Date(h.ts*1000).toLocaleString('de-DE');
         if(!h.ok) return `<tr><td>${d}</td><td colspan="2" style="color:var(--amber)">⚠ ${esc(h.note||'fehlgeschlagen')}</td></tr>`;
-        return `<tr><td>${d}</td><td><b>${eur(h.price)}</b></td><td>${h.old_price?('<span class="old">'+eur(h.old_price)+'</span>'+(h.discount?' -'+h.discount+'%':'')):''}</td></tr>`;
-      }).join('');
+        const prev = hist[i-1];
+        let diff = '';
+        if(prev && prev.ok && prev.price!=null){
+          const delta = h.price - prev.price;
+          if(delta>0) diff = ` <span class="hist-diff up">▲ +${eur(delta)}</span>`;
+          else if(delta<0) diff = ` <span class="hist-diff down">▼ ${eur(delta)}</span>`;
+        }
+        return `<tr><td>${d}</td><td><b>${eur(h.price)}</b>${diff}</td><td>${h.old_price?('<span class="old">'+eur(h.old_price)+'</span>'+(h.discount?' -'+h.discount+'%':'')):''}</td></tr>`;
+      }).reverse().join('');
       $('#hist-table').innerHTML = hist.length?`<table class="hist"><tr><th>Zeitpunkt</th><th>Preis</th><th>Vergleich</th></tr>${rows}</table>`:'';
     }
     function closeModal(){ $('#modal-bg').classList.remove('show'); }

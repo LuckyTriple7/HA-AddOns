@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.41.9] - 2026-07-06
+
+### Added
+- **Preisänderung im Verlaufsdiagramm:** in der Zeitreihen-Tabelle im
+  Verlaufs-Modal zeigt jede Zeile jetzt die Änderung zum vorherigen Preis als
+  Badge (▲ rot bei Anstieg, ▼ grün bei Rückgang) — wie die bestehenden
+  Delta-Badges auf den Angebotskarten.
+
 ## [0.41.8] - 2026-07-06
 
 ### Added
