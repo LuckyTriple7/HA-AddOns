@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.43.4] - 2026-07-06
+
+### Fixed
+- **Angebots-Fußzeile:** „Zuletzt: ..."/Status-Text steht jetzt in einer eigenen Zeile
+  über den Buttons statt sich mit ihnen eine Zeile zu teilen — Buttons waren dadurch
+  bis zur Unlesbarkeit gekürzt. Button-Zeile hat jetzt die volle Breite für sich.
+- **Zurücksetzen:** neben Löschen verschoben, ebenfalls als Icon (Kreispfeil) statt
+  Textbutton.
+
 ## [0.43.3] - 2026-07-06
 
 ### Fixed
