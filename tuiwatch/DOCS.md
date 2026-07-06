@@ -452,7 +452,10 @@ davon, ob ein einzelnes Angebot später gelöscht wird.
 - **Zimmerwechsel:** wählt man für ein Angebot ein anderes Zimmer, kann sich der Preis
   allein dadurch sprunghaft ändern — das ist keine Marktbewegung. Dieser eine
   Preisschritt fließt daher **nicht** in den Markttrend ein; die Zählung setzt direkt
-  danach wieder neu an.
+  danach wieder neu an. Für bereits gesammelte Daten (z. B. ein Zimmerwechsel, der vor
+  dieser Korrektur mitgezählt wurde) hilft **🔄 Neu berechnen** im Markttrend-Fenster:
+  baut `price_moves` komplett neu aus der vorhandenen Preishistorie auf, ohne Daten zu
+  verlieren.
 - **Persistenz:** die Datenpunkte liegen in einer eigenen Tabelle, unabhängig vom
   jeweiligen Angebot — das Löschen eines Angebots hat **keinen** Einfluss auf den
   Markttrend. Beim ersten Start nach diesem Update wird die vorhandene Preishistorie

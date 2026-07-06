@@ -5540,6 +5540,22 @@ def api_market_trend():
     return jsonify({'global': glob, 'by_region': by_region})
 
 
+@app.route('/api/market-trend/recompute', methods=['POST'])
+def api_market_trend_recompute():
+    """Markttrend komplett neu aus `price_history`/`offer_events` aufbauen — z. B.
+    nachdem ein Zimmerwechsel-Preissprung fälschlich mitgezählt wurde (vor einer
+    Korrektur an der Berechnungslogik) oder um eine spätere Fehlerbehebung rückwirkend
+    auf die bereits gesammelten Daten anzuwenden, ohne sie komplett zu verlieren."""
+    if (err := _require_api()):
+        return err
+    with db() as con:
+        con.execute('DELETE FROM price_moves')
+        _backfill_price_moves(con)
+        n = con.execute('SELECT COUNT(*) c FROM price_moves').fetchone()['c']
+    log.info("Markttrend neu berechnet: %d Datenpunkte", n)
+    return jsonify({'recomputed': n})
+
+
 @app.route('/api/digest', methods=['POST'])
 def api_digest():
     """Verschickt den Wochenüberblick sofort (Test/Sofortversand)."""

@@ -818,6 +818,11 @@
         gemittelt aus den Preisänderungen einzelner Angebote (kein Orakel, nur ein Hinweis).
         Bleibt erhalten, auch wenn einzelne Angebote gelöscht werden.</div>
       <div id="trend-body"></div>
+      <div class="cmp-foot" style="margin-top:12px">
+        <span class="hint" style="flex:1;min-width:220px">Preissprung durch Zimmerwechsel dabei?
+          Neu berechnen schließt ihn nachträglich aus.</span>
+        <button class="btn sec" onclick="recomputeMarketTrend()">🔄 Neu berechnen</button>
+      </div>
     </div>
   </div>
 
@@ -1688,6 +1693,15 @@
     async function updateTrendBtn(){
       try { const d = await fetch(api('/api/market-trend')).then(r=>r.json()); setTrendGlow(d.global.trend); }
       catch(e){}
+    }
+    async function recomputeMarketTrend(){
+      $('#trend-body').innerHTML = '<div class="cmp-load">Wird neu berechnet…</div>';
+      try {
+        const d = await fetch(api('/api/market-trend/recompute'), {method:'POST'}).then(r=>r.json());
+        toast(`Markttrend neu berechnet (${d.recomputed} Datenpunkte)`);
+      } catch(e){ toast('Neu berechnen fehlgeschlagen'); }
+      loadMarketTrend();
+      updateTrendBtn();
     }
     // Preiskalender: mit Pfeiltasten ← / → durch die Monate blättern (nicht nur per Maus)
     document.addEventListener('keydown', e=>{

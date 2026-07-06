@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.42.2] - 2026-07-06
+
+### Added
+- **Markttrend neu berechnen:** Button **🔄 Neu berechnen** im Markttrend-Fenster baut
+  `price_moves` komplett aus der vorhandenen Preishistorie neu auf. Behebt z. B. einen
+  Zimmerwechsel-Preissprung, der vor der Zimmerwechsel-Korrektur bereits fälschlich
+  mitgezählt wurde — ohne die gesammelten Daten zu verlieren.
+
 ## [0.42.1] - 2026-07-06
 
 ### Fixed

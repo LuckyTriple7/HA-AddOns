@@ -286,6 +286,40 @@ def test_api_market_trend_response_shape(m):
     assert set(region) == {"region", "trend", "index"}
 
 
+def test_recompute_route_fixes_room_change_contamination(m):
+    """Simuliert genau den gemeldeten Fall: ein Zimmerwechsel-Preissprung wurde vor
+    dieser Korrektur bereits fälschlich in `price_moves` eingerechnet. Der
+    Neu-berechnen-Button muss die kontaminierten Zeilen durch einen korrekten,
+    zimmerwechsel-bereinigten Backfill ersetzen."""
+    oid = _add_offer(m, "https://example.invalid/g?duration=7")
+    with m.db() as con:
+        con.execute("DELETE FROM price_moves")
+        con.execute("INSERT INTO price_history (offer_id, ts, price, ok) VALUES (?,?,?,1)",
+                    (oid, 1_000_000, 1000))
+        con.execute("INSERT INTO offer_events (offer_id, ts, type, text) VALUES (?,?,?,?)",
+                    (oid, 1_000_010, "room", "Zimmer: Suite"))
+        con.execute("INSERT INTO price_history (offer_id, ts, price, ok) VALUES (?,?,?,1)",
+                    (oid, 1_000_020, 1500))
+        con.execute("INSERT INTO price_history (offer_id, ts, price, ok) VALUES (?,?,?,1)",
+                    (oid, 1_000_030, 1450))
+        # kontaminierter Altbestand: der Zimmerwechsel-Sprung wurde (fälschlich, vor der
+        # Korrektur) mitgezaehlt
+        con.execute("INSERT INTO price_moves (ts, region, country, months_out, pct_change) "
+                    "VALUES (1000020, 'Kanaren', 'Spanien', 5, 50.0)")
+        con.execute("INSERT INTO price_moves (ts, region, country, months_out, pct_change) "
+                    "VALUES (1000030, 'Kanaren', 'Spanien', 5, -3.33)")
+
+    c = m.app.test_client()
+    r = c.post("/api/market-trend/recompute", headers=ING)
+    assert r.status_code == 200
+    assert r.get_json()["recomputed"] == 1   # nur der Schritt NACH dem Zimmerwechsel
+
+    with m.db() as con:
+        rows = con.execute("SELECT pct_change FROM price_moves ORDER BY ts").fetchall()
+    assert len(rows) == 1
+    assert rows[0]["pct_change"] == pytest.approx((1450 - 1500) / 1500 * 100)
+
+
 def test_backfill_populates_price_moves_from_history(m):
     oid = _add_offer(m, "https://example.invalid/d?duration=7")
     now = int(time.time())
