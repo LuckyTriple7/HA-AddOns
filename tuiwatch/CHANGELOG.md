@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.42.0] - 2026-07-06
+
+### Added
+- **Globaler Markttrend:** neuer Button **📈 Markttrend** zeigt den marktweiten
+  Preistrend über alle geprüften Angebote der letzten 14 Tage, aufgeschlüsselt nach
+  Reisedestination. Anders als der bisherige Trend je Angebot (aus dessen eigener
+  Historie) basiert dieser auf den Prozent-Änderungen aller Angebote zueinander (macht
+  unterschiedlich teure Hotels vergleichbar) und liegt in einer eigenen Tabelle, die
+  **unabhängig vom Fortbestehen einzelner Angebote** ist — das Löschen eines Angebots
+  hat keinen Einfluss auf den Markttrend. Beim ersten Start nach diesem Update wird die
+  vorhandene Preishistorie einmalig rückwirkend eingerechnet. Zusätzlich neuer
+  HA-Sensor `sensor.tuiwatch_markttrend`.
+
 ## [0.41.10] - 2026-07-06
 
 ### Changed

@@ -280,6 +280,9 @@
     .cal-cell .cal-pig { position:absolute; left:50%; top:38%; transform:translate(-50%,-50%); width:28px; height:28px; margin:0; opacity:.7; z-index:0; pointer-events:none; }  /* leicht oberhalb der Mitte, damit der Preis unten frei bleibt */
     .btn.aktion-active { animation: aktionPulse 1.6s ease-in-out infinite; border-color:var(--green); }
     @keyframes aktionPulse { 0%,100% { box-shadow:0 0 0 0 rgba(46,160,67,.55); } 50% { box-shadow:0 0 0 7px rgba(46,160,67,0); } }
+    .btn.trend-active-up { border-color:var(--red); }
+    .btn.trend-active-down { border-color:var(--green); }
+    .trend-global { margin-bottom:14px; }
     .cal-cell.tracked { outline:2px solid var(--accent); outline-offset:-2px; }
     a.cal-cell.clk { text-decoration:none; color:inherit; cursor:pointer; transition:transform .08s; }
     a.cal-cell.clk:hover { border-color:var(--accent); transform:translateY(-1px); }
@@ -444,6 +447,7 @@
       <button class="btn sec" onclick="openTrips()" title="Gebuchte Reisen verwalten (TUI-PDF importieren)">🧳 Meine Reisen</button>
       <button class="btn sec ai-feature" onclick="openAdvisor()" title="TripPilot: passende Ziele nach Vorlieben finden">🗺️ TripPilot</button>
       <button class="btn sec" id="aktion-btn" onclick="openAktion()" title="Aktuelle öffentliche TUI-Aktionscodes anzeigen und bei neuen benachrichtigt werden">🎟 Aktionscodes</button>
+      <button class="btn sec" id="trend-btn" onclick="openMarketTrend()" title="Marktweiter Preistrend über alle geprüften Angebote, optional nach Destination">📈 Markttrend</button>
       <button class="btn sec" onclick="sendEmail()" title="Alle Angebote als E-Mail senden">✉ Als E-Mail senden</button>
       <button class="btn sec" onclick="sendDigest()" title="Wochenüberblick jetzt senden (Telegram/E-Mail)">📊 Wochenüberblick</button>
       <input type="file" id="restore-file" accept=".zip,application/zip,.json,application/json" style="display:none" onchange="restoreOffers(this)">
@@ -800,6 +804,20 @@
         <span class="hint" id="aktion-when" style="flex:1;min-width:180px"></span>
         <button class="btn" onclick="refreshAktion()">Jetzt prüfen</button>
       </div>
+    </div>
+  </div>
+
+  <!-- Markttrend-Modal -->
+  <div class="modal-bg" id="trend-bg">
+    <div class="modal" style="max-width:640px">
+      <button class="icon-btn modal-close" onclick="closeMarketTrend()">
+        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+      </button>
+      <h2>Markttrend</h2>
+      <div class="sub">Marktweiter Preistrend über alle geprüften Angebote der letzten 14 Tage —
+        gemittelt aus den Preisänderungen einzelner Angebote (kein Orakel, nur ein Hinweis).
+        Bleibt erhalten, auch wenn einzelne Angebote gelöscht werden.</div>
+      <div id="trend-body"></div>
     </div>
   </div>
 
@@ -1618,6 +1636,47 @@
     // Button leuchten lassen, wenn aktuell Aktionscodes verfügbar sind (ohne Modal zu öffnen)
     async function updateAktionBtn(){
       try { const d = await fetch(api('/api/aktionscodes')).then(r=>r.json()); setAktionGlow((d.codes||[]).length>0); }
+      catch(e){}
+    }
+
+    // ── Markttrend (destinationsübergreifend, überlebt Angebots-Löschung) ─────
+    function openMarketTrend(){
+      $('#trend-bg').classList.add('show');
+      $('#trend-body').innerHTML = '<div class="cmp-load">Lade…</div>';
+      loadMarketTrend();
+    }
+    function closeMarketTrend(){ $('#trend-bg').classList.remove('show'); }
+    $('#trend-bg').addEventListener('click', e=>{ if(e.target.id==='trend-bg') closeMarketTrend(); });
+    async function loadMarketTrend(){
+      let d; try { d = await fetch(api('/api/market-trend')).then(r=>r.json()); }
+      catch(e){ $('#trend-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Laden fehlgeschlagen</div>'; return; }
+      renderMarketTrend(d);
+    }
+    function marketTrendBadge(t){
+      if(!t) return '<span class="trend flat" title="Zu wenig Datenpunkte in den letzten 14 Tagen">→ keine Daten</span>';
+      const pct = Math.abs(t.pct)>=0.5 ? (' '+(t.pct>0?'+':'−')+Math.abs(t.pct).toLocaleString('de-DE',{maximumFractionDigits:1})+' %') : '';
+      const days = t.days>=2 ? ` seit ${t.days} Tagen` : '';
+      const title = `Marktweiter Trend über die letzten 14 Tage (${t.n} Datenpunkte)`;
+      if(t.dir==='down') return `<span class="trend down" title="${title}">↘ fällt${pct}${days}</span>`;
+      if(t.dir==='up')   return `<span class="trend up" title="${title}">↗ steigt${pct}${days}</span>`;
+      return `<span class="trend flat" title="${title}">→ stabil${days}</span>`;
+    }
+    function renderMarketTrend(d){
+      setTrendGlow(d.global);
+      const rows = (d.by_region||[]).map(r=>`<tr><td>${esc(r.region)}</td><td>${marketTrendBadge(r)}</td><td>${r.n}</td></tr>`).join('');
+      $('#trend-body').innerHTML =
+        `<div class="trend-global"><b>Gesamt:</b> ${marketTrendBadge(d.global)}</div>` +
+        (rows ? `<table class="hist"><tr><th>Destination</th><th>Trend</th><th>Datenpunkte</th></tr>${rows}</table>`
+              : '<div class="cmp-load">Noch keine Destination mit genug Daten für eine eigene Aufschlüsselung.</div>');
+    }
+    function setTrendGlow(t){
+      const b = document.getElementById('trend-btn'); if(!b) return;
+      b.classList.remove('trend-active-up', 'trend-active-down');
+      if(t && t.dir==='up') b.classList.add('trend-active-up');
+      else if(t && t.dir==='down') b.classList.add('trend-active-down');
+    }
+    async function updateTrendBtn(){
+      try { const d = await fetch(api('/api/market-trend')).then(r=>r.json()); setTrendGlow(d.global); }
       catch(e){}
     }
     // Preiskalender: mit Pfeiltasten ← / → durch die Monate blättern (nicht nur per Maus)
@@ -3366,6 +3425,8 @@
     loadHealth();
     updateAktionBtn();
     setInterval(updateAktionBtn, 600000);   // Button-Leuchten alle 10 min aktualisieren
+    updateTrendBtn();
+    setInterval(updateTrendBtn, 600000);
     setInterval(loadHealth, 60000);
 
     // ── Countdown zur nächsten Reise (Header) ─────────────────────────────────

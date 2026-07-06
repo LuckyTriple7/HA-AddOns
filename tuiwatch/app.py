@@ -19,7 +19,7 @@ import threading
 import time
 import zipfile
 from collections import defaultdict, deque
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from pathlib import Path
@@ -313,6 +313,18 @@ def init_db() -> None:
             FOREIGN KEY (offer_id) REFERENCES offers(id) ON DELETE CASCADE
         )''')
         con.execute('CREATE INDEX IF NOT EXISTS idx_hist_offer ON price_history(offer_id, ts)')
+        # Globaler Markttrend: Preisänderungen je Check, bewusst NICHT an offer_id
+        # gebunden (kein FK) — überlebt daher das Löschen des zugehörigen Angebots.
+        con.execute('''CREATE TABLE IF NOT EXISTS price_moves (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            ts         INTEGER NOT NULL,
+            region     TEXT DEFAULT '',
+            country    TEXT DEFAULT '',
+            months_out INTEGER,
+            pct_change REAL NOT NULL
+        )''')
+        con.execute('CREATE INDEX IF NOT EXISTS idx_moves_ts ON price_moves(ts)')
+        con.execute('CREATE INDEX IF NOT EXISTS idx_moves_region ON price_moves(region, months_out, ts)')
         con.execute('''CREATE TABLE IF NOT EXISTS compare_cache (
             offer_id INTEGER PRIMARY KEY,
             ts       INTEGER NOT NULL,
@@ -487,6 +499,11 @@ def init_db() -> None:
             name = hotel_from_url(r['url'])
             if name:
                 con.execute('UPDATE offers SET hotel=? WHERE id=?', (name, r['id']))
+        # Einmaliger Backfill des Markttrends aus der vorhandenen Preishistorie (sonst
+        # bräuchte der Trend erst wieder Tage/Wochen, um genug neue Datenpunkte zu sammeln)
+        if not con.execute("SELECT 1 FROM meta WHERE key='price_moves_backfilled'").fetchone():
+            _backfill_price_moves(con)
+            con.execute("INSERT OR REPLACE INTO meta (key, value) VALUES ('price_moves_backfilled','1')")
     Path(TRIPS_DIR).mkdir(parents=True, exist_ok=True)
     log.info("Datenbank bereit: %s", DB_PATH)
 
@@ -518,6 +535,102 @@ def _trend_for(con, offer_id: int) -> dict | None:
     pct = (b - a) / a * 100
     direction = 'down' if pct <= -2 else ('up' if pct >= 2 else 'flat')
     return {'dir': direction, 'pct': round(pct, 1)}
+
+
+# ── Globaler Markttrend (destinationsübergreifend, überlebt Angebots-Löschung) ──
+# Anders als `_trend_for` (ein Angebot, absolute Preise) wird hier die prozentuale
+# Änderung JEDES Angebots zu seinem eigenen Vorpreis erfasst und in `price_moves`
+# abgelegt (kein FK zu offers). So sind die Werte über verschiedene Hotels hinweg
+# vergleichbar (ein 900€- und ein 3000€-Hotel verzerren sich nicht gegenseitig) und
+# die Tabelle bleibt bestehen, wenn das erzeugende Angebot gelöscht wird.
+
+MARKET_TREND_MIN_SAMPLES = 6
+MARKET_TREND_DEADBAND = 0.3  # % mittlere Änderung je Check, ab der es nicht mehr "flat" ist
+
+
+def _months_out(return_date: str, nights: int | None, ts: int) -> int | None:
+    """Grobe Schätzung, wie viele Monate vor Abreise ein Check stattfand. Es gibt kein
+    persistiertes Abreisedatum, daher: Abreise ≈ Rückreisedatum − Reisedauer (Dauer aus
+    dem `duration=`-URL-Parameter). None, wenn `return_date`/`nights` fehlen, das Datum
+    nicht parsebar ist, oder die Abreise schon in der Vergangenheit liegt."""
+    if not return_date or not nights:
+        return None
+    try:
+        ret = date.fromisoformat(return_date[:10])
+    except ValueError:
+        return None
+    dep = ret - timedelta(days=nights)
+    days = (dep - datetime.fromtimestamp(ts).date()).days
+    if days < 0:
+        return None
+    return round(days / 30.44)
+
+
+def _backfill_price_moves(con) -> None:
+    """Einmaliger Backfill von `price_moves` aus der vorhandenen `price_history` beim
+    ersten Start nach diesem Feature. Nutzt je Angebot dessen AKTUELLES region/country/
+    return_date + Dauer als Näherung für alle historischen Punkte (pro Check wurden diese
+    Werte bisher nicht mitgeschrieben) — für die meisten Angebote (feste Such-URL) eine
+    brauchbare Annahme."""
+    offers = con.execute('SELECT id, url, region, country, return_date FROM offers').fetchall()
+    for o in offers:
+        nights = duration_from_url(o['url'])
+        rows = con.execute(
+            'SELECT ts, price FROM price_history WHERE offer_id=? AND ok=1 AND price IS NOT NULL '
+            'ORDER BY ts ASC', (o['id'],)).fetchall()
+        prev = None
+        for r in rows:
+            if prev and prev['price']:
+                pct = (r['price'] - prev['price']) / prev['price'] * 100
+                months_out = _months_out(o['return_date'], nights, r['ts'])
+                con.execute(
+                    'INSERT INTO price_moves (ts, region, country, months_out, pct_change) '
+                    'VALUES (?,?,?,?,?)',
+                    (r['ts'], o['region'] or '', o['country'] or '', months_out, pct))
+            prev = r
+
+
+def _market_trend(con, *, region: str | None = None, months_out: int | None = None,
+                   window_days: int = 14) -> dict | None:
+    """Marktweiter Preistrend über alle geprüften Angebote (optional nach Destination/
+    Vorlaufzeit gefiltert), aus den in `price_moves` gesammelten Prozent-Änderungen der
+    letzten `window_days` Tage. None bei zu wenigen Datenpunkten (kein Hellsehen)."""
+    cutoff = int(time.time()) - window_days * 86400
+    q = 'SELECT ts, pct_change FROM price_moves WHERE ts>=?'
+    params: list = [cutoff]
+    if region is not None:
+        q += ' AND region=?'
+        params.append(region)
+    if months_out is not None:
+        q += ' AND months_out=?'
+        params.append(months_out)
+    rows = con.execute(q + ' ORDER BY ts ASC', params).fetchall()
+    if len(rows) < MARKET_TREND_MIN_SAMPLES:
+        return None
+    changes = [r['pct_change'] for r in rows]
+    avg = sum(changes) / len(changes)
+    direction = ('down' if avg <= -MARKET_TREND_DEADBAND
+                 else ('up' if avg >= MARKET_TREND_DEADBAND else 'flat'))
+    cum = 1.0
+    for p in changes:
+        cum *= (1 + p / 100)
+    cum_pct = (cum - 1) * 100
+    # Tages-Streak: aufeinanderfolgende jüngste Tage mit zum Trend passendem Vorzeichen
+    by_day: dict[str, list] = defaultdict(list)
+    for r in rows:
+        day = datetime.fromtimestamp(r['ts']).strftime('%Y-%m-%d')
+        by_day[day].append(r['pct_change'])
+    days_sorted = sorted(by_day)
+    streak = 0
+    for day in reversed(days_sorted):
+        day_avg = sum(by_day[day]) / len(by_day[day])
+        same_sign = ((direction == 'up' and day_avg > 0)
+                     or (direction == 'down' and day_avg < 0)
+                     or (direction == 'flat' and abs(day_avg) < MARKET_TREND_DEADBAND))
+        if not same_sign:
+            break
+        streak += 1
+    return {'dir': direction, 'pct': round(cum_pct, 1), 'days': streak, 'n': len(rows)}
 
 
 # ── Home-Assistant-Sensoren ────────────────────────────────────────────────────
@@ -1130,6 +1243,15 @@ def check_offer(offer_id: int) -> None:
                         'booking_code', 'room_booking_code'):
                 if res.get(col) is not None and res.get(col) != '':
                     con.execute(f'UPDATE offers SET {col}=? WHERE id=?', (res[col], offer_id))
+            if res.get('ok') and res.get('price') is not None and prev_price:
+                pct = (res['price'] - prev_price) / prev_price * 100
+                region = res.get('region') or offer.get('region') or ''
+                country = res.get('country') or offer.get('country') or ''
+                ret_date = res.get('return_date') or offer.get('return_date') or ''
+                months_out = _months_out(ret_date, duration_from_url(url), ts)
+                con.execute(
+                    'INSERT INTO price_moves (ts, region, country, months_out, pct_change) '
+                    'VALUES (?,?,?,?,?)', (ts, region, country, months_out, pct))
 
         if res.get('ok'):
             extra = []
@@ -1669,6 +1791,35 @@ def _push_health_sensor_from_cache() -> None:
     if not res or res.get('running'):
         return
     _push_health_sensor(res)
+
+
+def _push_market_trend_sensor() -> None:
+    """Meldet HA einen Sensor mit dem marktweiten Preistrend (siehe `_market_trend`) —
+    State = kumulierte %-Bewegung der letzten 14 Tage, oder 'unavailable' bei zu
+    wenigen Daten."""
+    if not _ha_enabled():
+        return
+    with db() as con:
+        glob = _market_trend(con)
+        regions = [r['region'] for r in con.execute(
+            "SELECT DISTINCT region FROM price_moves WHERE ts>=? AND region!=''",
+            (int(time.time()) - 14 * 86400,)).fetchall()]
+        by_region = []
+        for r in sorted(regions):
+            t = _market_trend(con, region=r)
+            if t:
+                by_region.append({'region': r, **t})
+    attrs = {'friendly_name': 'TUIWatch Markttrend', 'icon': 'mdi:chart-line',
+             'unit_of_measurement': '%', 'by_region': by_region}
+    if glob:
+        attrs.update(direction=glob['dir'], days=glob['days'], samples=glob['n'])
+    state = glob['pct'] if glob else 'unavailable'
+    try:
+        http.post(f'{HA_BASE}/states/sensor.tuiwatch_markttrend',
+                  headers={'Authorization': f'Bearer {SUPERVISOR_TOKEN}'}, timeout=10,
+                  json={'state': state, 'attributes': attrs})
+    except Exception as e:
+        log.warning("HA-Markttrend-Sensor aktualisieren fehlgeschlagen: %s", e)
 
 
 def _run_healthcheck() -> dict:
@@ -2504,10 +2655,18 @@ def _build_backup_zip() -> bytes:
             f"SELECT key, value FROM meta WHERE key IN ({','.join('?' for _ in _BACKUP_META_KEYS)})",
             _BACKUP_META_KEYS).fetchall()
         meta = {r['key']: r['value'] for r in meta_rows}
+        # Markttrend-Datenpunkte: bewusst NICHT an offer_id gebunden, daher hier separat
+        # (nicht je Angebot) gesichert — überlebt so auch ein Restore ohne die
+        # ursprünglichen Angebote.
+        price_moves = [{'ts': r['ts'], 'region': r['region'], 'country': r['country'],
+                         'months_out': r['months_out'], 'pct_change': r['pct_change']}
+                        for r in con.execute(
+                            'SELECT ts, region, country, months_out, pct_change '
+                            'FROM price_moves ORDER BY ts').fetchall()]
     data = {'tuiwatch_backup': 3, 'created': datetime.now().isoformat(),
             'offers': offers, 'trips': trips, 'saved_searches': searches,
             'trip_attachments': attachments, 'trip_packing_items': packing_items,
-            'ai_analyses': ai_analyses, 'meta': meta}
+            'ai_analyses': ai_analyses, 'meta': meta, 'price_moves': price_moves}
 
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as z:
@@ -2699,8 +2858,9 @@ def api_restore():
     packing_items = data.get('trip_packing_items') or []
     ai_analyses = data.get('ai_analyses') or []
     meta = data.get('meta') or {}
+    price_moves = data.get('price_moves') or []
     added, skipped, new_ids = 0, 0, []
-    trips_n, searches_n, attachments_n, packing_n, ai_n, settings_n = 0, 0, 0, 0, 0, 0
+    trips_n, searches_n, attachments_n, packing_n, ai_n, settings_n, moves_n = 0, 0, 0, 0, 0, 0, 0
     with db() as con:
         ocols = set(_table_columns(con, 'offers'))
         existing_urls = {r['url'] for r in con.execute('SELECT url FROM offers').fetchall()}
@@ -2835,6 +2995,27 @@ def api_restore():
                 ai_n += 1
             con.execute('DELETE FROM ai_analyses WHERE id NOT IN '
                         '(SELECT id FROM ai_analyses ORDER BY id DESC LIMIT ?)', (_AI_HISTORY_MAX,))
+        if isinstance(price_moves, list) and price_moves:
+            # Markttrend-Datenpunkte sind an keine offer_id gebunden (kein natürlicher
+            # Fremdschlüssel für ein Upsert) — Dedup daher über den vollen Wertesatz,
+            # damit ein wiederholtes Einspielen desselben Backups nichts verdoppelt.
+            existing_moves = {
+                (r['ts'], r['region'], r['country'], r['months_out'], r['pct_change'])
+                for r in con.execute(
+                    'SELECT ts, region, country, months_out, pct_change FROM price_moves'
+                ).fetchall()}
+            for pm in price_moves:
+                if not isinstance(pm, dict) or pm.get('pct_change') is None:
+                    continue
+                key = (int(pm.get('ts') or 0), pm.get('region') or '', pm.get('country') or '',
+                       pm.get('months_out'), pm.get('pct_change'))
+                if key in existing_moves:
+                    continue
+                con.execute(
+                    'INSERT INTO price_moves (ts, region, country, months_out, pct_change) '
+                    'VALUES (?,?,?,?,?)', key)
+                existing_moves.add(key)
+                moves_n += 1
         if isinstance(meta, dict):
             # Nicht-destruktiv wie der Rest des Restores: nur setzen, wenn lokal noch
             # nichts hinterlegt ist — laufende Zaehler/Einstellungen werden nie mit
@@ -2849,11 +3030,13 @@ def api_restore():
     for oid in new_ids:
         _spawn(check_offer, oid)
     log.info("Wiederherstellung: %d Angebote (+%d übersprungen), %d Reisen, %d Suchen, "
-             "%d Reise-Anhänge, %d Packliste-Items, %d KI-Verlauf, %d KI-Einstellungen",
-             added, skipped, trips_n, searches_n, attachments_n, packing_n, ai_n, settings_n)
+             "%d Reise-Anhänge, %d Packliste-Items, %d KI-Verlauf, %d KI-Einstellungen, "
+             "%d Markttrend-Datenpunkte",
+             added, skipped, trips_n, searches_n, attachments_n, packing_n, ai_n, settings_n,
+             moves_n)
     return jsonify({'added': added, 'skipped': skipped, 'trips': trips_n, 'searches': searches_n,
                     'attachments': attachments_n, 'packing_items': packing_n,
-                    'ai_history': ai_n, 'settings': settings_n})
+                    'ai_history': ai_n, 'settings': settings_n, 'market_trend': moves_n})
 
 
 @app.route('/api/compare/<int:offer_id>', methods=['POST'])
@@ -5278,6 +5461,25 @@ def api_healthcheck_route():
     return jsonify(st)
 
 
+@app.route('/api/market-trend')
+def api_market_trend():
+    """Marktweiter Preistrend über alle geprüften Angebote der letzten 14 Tage,
+    global und aufgeschlüsselt nach Destination (nur Regionen mit genug Daten)."""
+    if (err := _require_api()):
+        return err
+    with db() as con:
+        glob = _market_trend(con)
+        regions = [r['region'] for r in con.execute(
+            "SELECT DISTINCT region FROM price_moves WHERE ts>=? AND region!=''",
+            (int(time.time()) - 14 * 86400,)).fetchall()]
+        by_region = []
+        for r in sorted(regions):
+            t = _market_trend(con, region=r)
+            if t:
+                by_region.append({'region': r, **t})
+    return jsonify({'global': glob, 'by_region': by_region})
+
+
 @app.route('/api/digest', methods=['POST'])
 def api_digest():
     """Verschickt den Wochenüberblick sofort (Test/Sofortversand)."""
@@ -5336,6 +5538,18 @@ def _cooldown_sensor_worker() -> None:
         time.sleep(5)
 
 
+def _market_trend_sensor_worker() -> None:
+    """Meldet den Markttrend-Sensor alle 10 Minuten neu — die zugrunde liegenden Daten
+    ändern sich langsam (neue Punkte nur je Poll-Intervall pro Angebot), ein kurzes
+    Intervall wie beim Cooldown-Sensor wäre unnötig; überlebt trotzdem HA-Neustarts."""
+    while True:
+        try:
+            _push_market_trend_sensor()
+        except Exception as e:
+            log.warning("Markttrend-Sensor-Refresh fehlgeschlagen: %s", e)
+        time.sleep(600)
+
+
 def main() -> None:
     init_db()
     load_sessions()
@@ -5347,6 +5561,7 @@ def main() -> None:
     threading.Thread(target=_aktionscodes_sensor_worker, daemon=True).start()
     threading.Thread(target=_health_sensor_worker, daemon=True).start()
     threading.Thread(target=_cooldown_sensor_worker, daemon=True).start()
+    threading.Thread(target=_market_trend_sensor_worker, daemon=True).start()
     port = int(os.environ.get('TUIWATCH_PORT', '17794'))
     log.info("TUIWatch startet auf Port %d", port)
     app.run(host='0.0.0.0', port=port, threaded=True)

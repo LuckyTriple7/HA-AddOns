@@ -417,6 +417,37 @@ Alle drei Binär-Sensoren werden per Timer alle paar Sekunden/Minuten aus dem
 zuletzt bekannten Stand erneut an HA gemeldet — sie sind daher direkt nach
 einem HA-Neustart wieder verfügbar, ohne auf den nächsten Live-Check zu warten.
 
+Außerdem `sensor.tuiwatch_markttrend`: **Wert** = kumulierte Preisänderung (%) über
+alle geprüften Angebote der letzten 14 Tage, oder `unavailable` bei zu wenigen
+Datenpunkten. Attribute: `direction` (up/down/flat), `days` (seit wie vielen Tagen die
+Richtung anhält), `samples` (Anzahl Datenpunkte), `by_region` (gleiche Aufschlüsselung
+je Destination, nur für Regionen mit genug Daten). Siehe unten „Markttrend".
+
+## Markttrend
+
+Zusätzlich zum Preistrend je Angebot (auf jeder Karte, aus dessen eigener Historie)
+gibt es einen **marktweiten** Trend über **alle** geprüften Angebote — unabhängig
+davon, ob ein einzelnes Angebot später gelöscht wird.
+
+- **Anzeige:** Button **📈 Markttrend** in der Werkzeugleiste öffnet ein Fenster mit
+  dem Gesamttrend sowie einer Aufschlüsselung je Reisedestination (Region). Der
+  Button färbt sich passend zur Gesamtrichtung ein (rot = steigend, grün = fallend),
+  ohne dass das Fenster geöffnet werden muss.
+- **Berechnung:** bei jedem erfolgreichen Preis-Check wird die prozentuale Änderung
+  zum vorherigen Preis **dieses** Angebots festgehalten (nicht der absolute Preis —
+  das macht unterschiedlich teure Hotels vergleichbar). Der angezeigte Trend ist die
+  kumulierte Bewegung dieser Prozentwerte über die letzten 14 Tage, gemittelt über
+  alle Angebote (bzw. alle Angebote einer Destination). Bei weniger als 6
+  Datenpunkten im Fenster erscheint „keine Daten" (kein Hellsehen bei dünner
+  Datenlage).
+- **Persistenz:** die Datenpunkte liegen in einer eigenen Tabelle, unabhängig vom
+  jeweiligen Angebot — das Löschen eines Angebots hat **keinen** Einfluss auf den
+  Markttrend. Beim ersten Start nach diesem Update wird die vorhandene Preishistorie
+  einmalig rückwirkend eingerechnet.
+- **Näherung:** die „Monate vor Abreise" je Datenpunkt wird aus Rückreisedatum minus
+  angefragter Reisedauer geschätzt (kein exaktes Abreisedatum gespeichert) und fließt
+  aktuell nicht in die UI-Anzeige ein, ist aber intern je Datenpunkt vorhanden.
+
 ## Bedienung
 
 - **Tags** — frei vergebbare Schlagworte je Angebot (＋-Pille auf der Karte); Klick auf
@@ -435,8 +466,10 @@ einem HA-Neustart wieder verfügbar, ohne auf den nächsten Live-Check zu warten
 - **Backup / Wiederherstellen** — **komplettes** Backup als **ZIP**: alle getrackten
   Angebote **inkl. Preisverlauf** und Diagramm-Markern, **„Meine Reisen" inkl. der
   Original-PDFs**, die **gespeicherten Suchen**, der **dauerhafte KI-Verlauf** (Fazits/
-  Vergleiche/TripPilot-Ergebnisse) sowie die **KI-Einstellungen** (Reise-DNA,
-  kumulierte Kosten-Zähler heute/Monat/gesamt, eigene KI-Prompt-Vorlagen). Die
+  Vergleiche/TripPilot-Ergebnisse), die **KI-Einstellungen** (Reise-DNA,
+  kumulierte Kosten-Zähler heute/Monat/gesamt, eigene KI-Prompt-Vorlagen) sowie die
+  **Markttrend-Datenpunkte** (überleben so einen Umzug auf ein anderes Add-on, auch
+  wenn die ursprünglichen Angebote dort nicht mehr existieren). Die
   Wiederherstellung liest die ZIP (das alte reine JSON wird weiterhin akzeptiert) und
   arbeitet **nicht-destruktiv**: Fehlendes wird ergänzt, Bestehendes bleibt erhalten
   (Abgleich per URL, Buchungsnummer bzw. Name; KI-Einstellungen/Kosten-Zähler werden nur
