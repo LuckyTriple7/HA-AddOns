@@ -405,6 +405,18 @@ Zusätzlich `binary_sensor.tuiwatch_aktionscodes`: **an**, solange aktuell
 öffentliche TUI-Aktionscodes verfügbar sind (siehe oben), sonst **aus**. Attribute:
 `count`, `coupons` (Liste je `code`/`value`/`kind`), `booking_until`, `travel_period`.
 
+Sowie `binary_sensor.tuiwatch_api_available`: **an**, solange beim letzten
+API-Selbsttest alle kritischen TUI-Endpunkte erreichbar waren, sonst **aus**.
+Attribute: `failing` (Liste ausgefallener Endpunkte), `checked_at`.
+
+Und `binary_sensor.tuiwatch_cooldown_active`: **an**, solange der globale
+„Jetzt prüfen"-Cooldown (60s nach `/api/check-now`) noch läuft, sonst **aus**.
+Attribut: `retry_after` (verbleibende Sekunden).
+
+Alle drei Binär-Sensoren werden per Timer alle paar Sekunden/Minuten aus dem
+zuletzt bekannten Stand erneut an HA gemeldet — sie sind daher direkt nach
+einem HA-Neustart wieder verfügbar, ohne auf den nächsten Live-Check zu warten.
+
 ## Bedienung
 
 - **Tags** — frei vergebbare Schlagworte je Angebot (＋-Pille auf der Karte); Klick auf

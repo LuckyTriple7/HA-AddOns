@@ -157,6 +157,30 @@ def _cooldown_remaining(key: str, seconds: int) -> int:
     return 0
 
 
+def _cooldown_peek(key: str, seconds: int) -> int:
+    """Wie `_cooldown_remaining`, aber rein lesend — setzt/verändert den Zeitstempel
+    nicht. Für den HA-Sensor, der den Cooldown nur anzeigen, nicht auslösen soll."""
+    remaining = seconds - (time.time() - _route_cooldowns.get(key, 0))
+    return int(remaining) + 1 if remaining > 0 else 0
+
+
+def _push_cooldown_sensor() -> None:
+    """Meldet HA einen Binär-Sensor: 'on', solange der globale 'Jetzt prüfen'-Cooldown
+    (60s, `/api/check-now`) aktiv ist. Läuft per Timer, damit der Sensor auch beim
+    Ablauf des Cooldowns von selbst auf 'off' geht, nicht erst beim nächsten Klick."""
+    if not _ha_enabled():
+        return
+    remaining = _cooldown_peek('check_now', 60)
+    attrs = {'friendly_name': 'TUIWatch Cooldown aktiv', 'icon': 'mdi:timer-sand',
+             'retry_after': remaining}
+    try:
+        http.post(f'{HA_BASE}/states/binary_sensor.tuiwatch_cooldown_active',
+                  headers={'Authorization': f'Bearer {SUPERVISOR_TOKEN}'}, timeout=10,
+                  json={'state': 'on' if remaining else 'off', 'attributes': attrs})
+    except Exception as e:
+        log.warning("HA-Cooldown-Sensor aktualisieren fehlgeschlagen: %s", e)
+
+
 # ── Config & Sessions ──────────────────────────────────────────────────────────
 
 def load_config() -> dict:
@@ -1615,6 +1639,38 @@ def _maybe_periodic_health() -> None:
         _run_healthcheck()
 
 
+def _push_health_sensor(res: dict) -> None:
+    """Meldet HA einen Binär-Sensor: 'on', solange alle kritischen TUI-Endpunkte im
+    letzten Selbsttest erreichbar waren, sonst 'off'."""
+    if not _ha_enabled():
+        return
+    bad = [c['name'] for c in (res.get('checks') or []) if c.get('critical') and not c.get('ok')]
+    attrs = {
+        'friendly_name': 'TUIWatch API verfügbar', 'icon': 'mdi:api',
+        'device_class': 'connectivity',
+        'failing': bad,
+    }
+    if res.get('ts'):
+        attrs['checked_at'] = datetime.fromtimestamp(res['ts']).isoformat()
+    try:
+        http.post(f'{HA_BASE}/states/binary_sensor.tuiwatch_api_available',
+                  headers={'Authorization': f'Bearer {SUPERVISOR_TOKEN}'}, timeout=10,
+                  json={'state': 'off' if bad else 'on', 'attributes': attrs})
+    except Exception as e:
+        log.warning("HA-API-Sensor aktualisieren fehlgeschlagen: %s", e)
+
+
+def _push_health_sensor_from_cache() -> None:
+    """Sensor aus dem letzten Selbsttest erneut an HA melden (kein neuer Netz-Check) —
+    überlebt einen HA-Neustart wie der Coupon-Sensor (siehe
+    `_push_aktionscodes_sensor_from_cache`)."""
+    with _health_lock:
+        res = dict(_health_state)
+    if not res or res.get('running'):
+        return
+    _push_health_sensor(res)
+
+
 def _run_healthcheck() -> dict:
     """Führt den API-Selbsttest aus und legt das Ergebnis in _health_state ab."""
     with _health_lock:
@@ -1639,6 +1695,7 @@ def _run_healthcheck() -> dict:
         _check_api_alarm(res)
     except Exception as e:
         log.error("API-Alarm-Prüfung fehlgeschlagen: %s", e)
+    _push_health_sensor(res)
     return res
 
 
@@ -5255,6 +5312,30 @@ def _aktionscodes_sensor_worker() -> None:
         time.sleep(120)
 
 
+def _health_sensor_worker() -> None:
+    """Wie `_aktionscodes_sensor_worker`, aber für den API-Verfügbar-Sensor: meldet
+    das letzte Selbsttest-Ergebnis alle 2 Minuten erneut, damit er einen HA-Neustart
+    übersteht, obwohl der Selbsttest selbst nur ~1×/Tag läuft."""
+    while True:
+        try:
+            _push_health_sensor_from_cache()
+        except Exception as e:
+            log.warning("API-Sensor-Refresh fehlgeschlagen: %s", e)
+        time.sleep(120)
+
+
+def _cooldown_sensor_worker() -> None:
+    """Meldet den Cooldown-Sensor alle 5 Sekunden an HA — kurzes Intervall, weil der
+    Cooldown selbst nur 60s dauert und sowohl den HA-Neustart überstehen als auch
+    beim Ablauf zeitnah von selbst auf 'off' gehen soll."""
+    while True:
+        try:
+            _push_cooldown_sensor()
+        except Exception as e:
+            log.warning("Cooldown-Sensor-Refresh fehlgeschlagen: %s", e)
+        time.sleep(5)
+
+
 def main() -> None:
     init_db()
     load_sessions()
@@ -5264,6 +5345,8 @@ def main() -> None:
     _spawn(_ensure_dest_index)  # Reiseziel-Index (globale Suche) laden/aufbauen
     threading.Thread(target=_poll_worker, daemon=True).start()
     threading.Thread(target=_aktionscodes_sensor_worker, daemon=True).start()
+    threading.Thread(target=_health_sensor_worker, daemon=True).start()
+    threading.Thread(target=_cooldown_sensor_worker, daemon=True).start()
     port = int(os.environ.get('TUIWATCH_PORT', '17794'))
     log.info("TUIWatch startet auf Port %d", port)
     app.run(host='0.0.0.0', port=port, threaded=True)

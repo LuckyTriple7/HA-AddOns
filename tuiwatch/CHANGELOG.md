@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.41.8] - 2026-07-06
+
+### Added
+- **2 neue Binär-Sensoren:** `binary_sensor.tuiwatch_api_available` (an, solange
+  alle kritischen TUI-Endpunkte beim letzten Selbsttest erreichbar waren) und
+  `binary_sensor.tuiwatch_cooldown_active` (an, solange der globale „Jetzt
+  prüfen"-Cooldown läuft). Wie der Coupon-Sensor werden beide per Timer laufend
+  erneut gemeldet und sind daher direkt nach einem HA-Neustart wieder verfügbar.
+
 ## [0.41.7] - 2026-07-05
 
 ### Added
