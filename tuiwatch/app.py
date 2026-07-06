@@ -73,7 +73,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.42.6"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.43.0"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -131,6 +131,9 @@ _health_state: dict = {}                 # letzter API-Selbsttest {ok, ts, check
 _health_lock = threading.Lock()
 _ai_summary_cache: dict = {}              # giata/Name → {summary, ts} — spart wiederholte API-Calls
 _AI_SUMMARY_TTL = 24 * 3600
+_booking_score_cache: dict = {}           # offer_id → {result, usage, ts}
+_region_outlook_cache: dict = {}          # region → {result, usage, ts}
+_BOOKING_SCORE_TTL = 6 * 3600             # kürzer als Hotel-Fazit: Preisdaten ändern sich häufiger
 _AI_MODELS = ('claude-opus-4-8', 'claude-sonnet-5', 'claude-haiku-4-5', 'claude-fable-5')
 _GEMINI_MODELS = ('gemini-3.1-pro', 'gemini-3.5-flash', 'gemini-2.5-flash')
 _api_down_notified = False                # ob aktuell ein API-Ausfall gemeldet ist
@@ -3827,6 +3830,186 @@ def api_ai_auto_tags():
     return jsonify({'results': results})
 
 
+_BOOKING_SCORE_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "score": {"type": "integer"},
+        "empfehlung": {"type": "string", "enum": ["jetzt_buchen", "beobachten", "warten"]},
+        "vertrauen": {"type": "integer"},
+        "erwartung_7_tage": {"type": "string", "enum": ["steigend", "fallend", "gleich"]},
+        "erwartung_30_tage": {"type": "string", "enum": ["steigend", "fallend", "gleich"]},
+        "begruendung": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "text": {"type": "string"},
+                    "typ": {"type": "string", "enum": ["daten", "annahme"]},
+                },
+                "required": ["text", "typ"], "additionalProperties": False,
+            },
+        },
+    },
+    "required": ["score", "empfehlung", "vertrauen", "erwartung_7_tage",
+                 "erwartung_30_tage", "begruendung"],
+    "additionalProperties": False,
+}
+
+_BOOKING_SCORE_INSTRUCTIONS = (
+    "Score 0-100: 0 = auf keinen Fall jetzt buchen, 100 = sehr guter Buchungszeitpunkt.\n"
+    "Berücksichtige u. a. Preisentwicklung, Änderungsgeschwindigkeit, Abstand zu "
+    "Tiefst-/Höchstpreis, Saison, Tage bis Abflug, Wochentag, deutsche Schulferien "
+    "(grob, aus deinem Wissen), sowie ggf. per Websuche gefundene aktuelle Nachrichten "
+    "oder besondere Ereignisse zum Reiseziel/Veranstalter.\n"
+    "Kennzeichne JEDEN Punkt in der Begründung mit typ='daten' (aus den oben gelieferten "
+    "Zahlen ableitbar — dazu zählt auch die Saisonalität aus dem Preiskalender, falls "
+    "angegeben: das sind echte abgefragte Preise, keine Schätzung) oder typ='annahme' "
+    "(dein allgemeines Wissen, Saison-Erfahrung oder Websuche-Ergebnis, ohne harte "
+    "Zahlen aus diesem Angebot). Senke 'vertrauen', wenn viele Punkte 'annahme' statt "
+    "'daten' sind. Erfinde keine konkreten Preise oder Ereignisse, die du nicht "
+    "wirklich gefunden hast."
+)
+
+
+def _calendar_seasonal_summary(cal: dict) -> dict | None:
+    """Grobe Saisonalität aus einem bereits abgerufenen Preiskalender dieses Hotels/
+    Zimmers (`calendar_cache`, siehe `_run_calendar`) — echte Daten (tatsächlich
+    abgefragte Preise je Abreisetag über ~18 Monate), keine Schätzung. None, wenn
+    noch kein Kalender abgerufen wurde oder zu wenige Tage für eine Monatsaufteilung
+    vorliegen. Löst selbst KEINEN neuen (teuren) Kalender-Abruf aus."""
+    days = cal.get('days') or []
+    if len(days) < 30:
+        return None
+    by_month: dict[str, list] = defaultdict(list)
+    for d in days:
+        by_month[d['date'][:7]].append(d['price'])
+    monthly = {m: round(sum(p) / len(p)) for m, p in by_month.items() if len(p) >= 3}
+    if len(monthly) < 3:
+        return None
+    cheapest_month = min(monthly, key=monthly.get)
+    priciest_month = max(monthly, key=monthly.get)
+    return {
+        'cheapest_month': cheapest_month, 'cheapest_month_avg': monthly[cheapest_month],
+        'priciest_month': priciest_month, 'priciest_month_avg': monthly[priciest_month],
+        'tracked_price': cal.get('tracked_price'), 'tracked_date': cal.get('tracked_date'),
+        'overall_cheapest_price': cal.get('cheapest_price'),
+        'overall_cheapest_date': cal.get('cheapest_date'),
+    }
+
+
+def _offer_booking_facts(con, offer_id: int) -> dict | None:
+    """Fakten für den KI-Buchungsscore eines einzelnen Angebots: aktueller Preis,
+    Preisspanne, eigener Trend (`_trend_for`), Markttrend/-index seiner Destination
+    (`_market_trend`/`_market_index`) sowie — falls bereits abgerufen — die
+    Saisonalität aus dem gespeicherten Preiskalender dieses Hotels/Zimmers
+    (`_calendar_seasonal_summary`). None, wenn das Angebot noch nie erfolgreich
+    geprüft wurde (kein Preis vorhanden)."""
+    o = con.execute('SELECT * FROM offers WHERE id=?', (offer_id,)).fetchone()
+    if not o:
+        return None
+    last = con.execute(
+        'SELECT * FROM price_history WHERE offer_id=? AND ok=1 AND price IS NOT NULL '
+        'ORDER BY ts DESC LIMIT 1', (offer_id,)).fetchone()
+    if not last:
+        return None
+    stats = con.execute(
+        'SELECT MIN(price) mn, MAX(price) mx, COUNT(*) c FROM price_history '
+        'WHERE offer_id=? AND ok=1 AND price IS NOT NULL', (offer_id,)).fetchone()
+    region = o['region'] or ''
+    seasonal = None
+    cal_row = con.execute('SELECT data FROM calendar_cache WHERE offer_id=?', (offer_id,)).fetchone()
+    if cal_row:
+        try:
+            seasonal = _calendar_seasonal_summary(json.loads(cal_row['data']))
+        except (ValueError, TypeError):
+            seasonal = None
+    return {
+        'hotel': o['label'] or o['hotel'] or f"Angebot #{offer_id}",
+        'details': o['details'] or '', 'region': region, 'country': o['country'] or '',
+        'stars': o['stars'], 'rating': o['rating'], 'rating_count': o['rating_count'],
+        'recommendation': o['recommendation'], 'return_date': o['return_date'] or '',
+        'target_price': o['target_price'], 'booked_price': o['booked_price'],
+        'price': last['price'], 'min_price': stats['mn'], 'max_price': stats['mx'],
+        'samples': stats['c'],
+        'own_trend': _trend_for(con, offer_id),
+        'region_trend': _market_trend(con, region=region) if region else None,
+        'region_index': _market_index(con, region=region) if region else None,
+        'seasonal': seasonal,
+    }
+
+
+def _booking_score_prompt(facts: dict) -> str:
+    """Baut den Buchungsscore-Prompt für ein einzelnes Angebot aus dessen eigenen
+    (bereits vorgerechneten) Fakten — keine rohen Preislisten, damit die KI nicht
+    selbst (fehleranfällig) einen Trend aus Rohdaten ableiten muss."""
+    lines = [f"Hotel: {facts['hotel']}"]
+    if facts['details']:
+        lines.append(f"Details: {facts['details']}")
+    if facts['region'] or facts['country']:
+        lines.append(f"Reiseziel: {facts['region']}"
+                      + (f", {facts['country']}" if facts['country'] else ''))
+    if facts['stars']:
+        lines.append(f"Sterne: {facts['stars']}")
+    if facts['rating'] is not None:
+        lines.append(f"Bewertung: {facts['rating']}"
+                      + (f" ({facts['rating_count']} Bewertungen)" if facts['rating_count'] else ''))
+    if facts['recommendation'] is not None:
+        lines.append(f"Weiterempfehlung: {facts['recommendation']}%")
+    lines.append(f"Aktueller Preis: {facts['price']:.0f} €")
+    if facts['min_price'] is not None and facts['max_price'] is not None:
+        lines.append(f"Bisher beobachteter Preisbereich: {facts['min_price']:.0f} – "
+                      f"{facts['max_price']:.0f} € ({facts['samples']} Messpunkte)")
+    if facts['return_date']:
+        lines.append(f"Rückreisedatum: {facts['return_date']}")
+    if facts['target_price']:
+        lines.append(f"Wunschpreis des Nutzers: {facts['target_price']:.0f} €")
+    if facts['booked_price']:
+        lines.append(f"Bereits gebuchter Vergleichspreis: {facts['booked_price']:.0f} €")
+    t = facts['own_trend']
+    if t:
+        lines.append(f"Eigener Preistrend (letzte Messpunkte dieses Angebots): "
+                      f"{t['dir']} ({t['pct']:+.1f} %)")
+    rt = facts['region_trend']
+    if rt:
+        lines.append(f"Markttrend der Destination (14 Tage, alle getrackten Angebote): "
+                      f"{rt['dir']} ({rt['pct']:+.1f} %, {rt['n']} Datenpunkte)")
+    ri = facts['region_index']
+    if ri:
+        lines.append(f"Markt-Index der Destination seit Aufzeichnungsbeginn: "
+                      f"{ri['index']} ({ri['pct']:+.1f} %, {ri['n']} Datenpunkte)")
+    s = facts['seasonal']
+    if s:
+        lines.append(
+            f"Saisonalität aus dem gespeicherten Preiskalender dieses Hotels/Zimmers "
+            f"(echte abgefragte Preise je Abreisetag, ~18 Monate): günstigster Monat "
+            f"{s['cheapest_month']} (Ø {s['cheapest_month_avg']} €), teuerster Monat "
+            f"{s['priciest_month']} (Ø {s['priciest_month_avg']} €)"
+            + (f"; günstigster Einzeltermin im Kalender {s['overall_cheapest_date']} "
+               f"({s['overall_cheapest_price']} €)" if s.get('overall_cheapest_date') else '')
+            + (f"; Preis im aktuell gewählten Reisezeitraum laut Kalender "
+               f"{s['tracked_price']} € (am {s['tracked_date']})" if s.get('tracked_price') else ''))
+    return ("Du bist ein Reisepreis-Analyst. Bewerte den aktuellen Preis dieser "
+            "Pauschalreise und berechne einen Buchungsscore.\n\n" + "\n".join(lines)
+            + "\n\n" + _BOOKING_SCORE_INSTRUCTIONS)
+
+
+def _region_outlook_prompt(region: str, trend: dict | None, index: dict | None) -> str:
+    """Buchungsscore-Prompt für eine ganze Destination (kein bestimmtes Hotel) — nur
+    aus dem regionalen Markttrend/-index, ohne Angebots-Details."""
+    lines = [f"Reiseziel: {region}"]
+    if trend:
+        lines.append(f"Markttrend (14 Tage, alle aktuell getrackten Angebote dieser "
+                      f"Destination): {trend['dir']} ({trend['pct']:+.1f} %, "
+                      f"{trend['n']} Datenpunkte)")
+    if index:
+        lines.append(f"Markt-Index seit Aufzeichnungsbeginn: {index['index']} "
+                      f"({index['pct']:+.1f} %, {index['n']} Datenpunkte)")
+    return ("Du bist ein Reisepreis-Analyst. Schätze allgemein ein, ob jetzt ein guter "
+            "Zeitpunkt ist, eine Pauschalreise in dieses Reiseziel zu buchen — "
+            "unabhängig von einem bestimmten Hotel.\n\n" + "\n".join(lines)
+            + "\n\n" + _BOOKING_SCORE_INSTRUCTIONS)
+
+
 def _hotel_summary_prompt(hotel: dict, instructions: str) -> str:
     """Baut den KI-Fazit-Prompt: feste Hotel-Fakten + (ggf. vom Nutzer angepasste)
     Instruktionen."""
@@ -3869,6 +4052,89 @@ def api_ai_hotel_summary():
     aid = _save_ai_analysis('single', name, model, text, usage)
     _ai_summary_cache[cache_key] = {'summary': text, 'usage': usage, 'id': aid, 'ts': time.time()}
     return jsonify({'summary': text, 'usage': usage, 'totals': totals, 'id': aid, 'cached': False})
+
+
+def _ai_score_request(prompt: str, model: str, api_key: str, log_ctx: str):
+    """Ruft die KI mit dem Buchungsscore-Schema + Websuche auf und parst das Ergebnis.
+    Rückgabe: (result_dict, usage, None) oder (None, None, (jsonify(...), status))."""
+    text, usage, code = _ai_request(api_key, model, prompt, max_tokens=1024,
+                                    log_ctx=log_ctx, use_web_search=True,
+                                    output_schema=_BOOKING_SCORE_SCHEMA)
+    if code == 'failed':
+        return None, None, (jsonify({'error': 'ai_failed'}), 502)
+    if code == 'refused':
+        return None, None, (jsonify({'error': 'ai_refused'}), 502)
+    if code == 'empty' or not text:
+        return None, None, (jsonify({'error': 'ai_empty'}), 502)
+    try:
+        result = json.loads(text)
+    except ValueError:
+        return None, None, (jsonify({'error': 'ai_empty'}), 502)
+    return result, usage, None
+
+
+@app.route('/api/ai/booking-score/<int:offer_id>', methods=['POST'])
+def api_ai_booking_score(offer_id: int):
+    """KI-Buchungsscore für ein einzelnes getracktes Angebot — auf Anfrage (kostet
+    Websuche-Aufrufe), 6h je Angebot gecacht."""
+    if (err := _require_api()):
+        return err
+    api_key, model = _ai_config()
+    if not api_key:
+        return jsonify({'error': 'no_api_key',
+                        'note': 'Kein Anthropic API-Key in den Add-on-Einstellungen hinterlegt'}), 400
+    cached = _booking_score_cache.get(offer_id)
+    if cached and time.time() - cached['ts'] < _BOOKING_SCORE_TTL:
+        return jsonify({'result': cached['result'], 'usage': cached['usage'],
+                        'totals': _ai_usage_totals(), 'id': cached.get('id'), 'cached': True})
+    with db() as con:
+        facts = _offer_booking_facts(con, offer_id)
+    if facts is None:
+        return jsonify({'error': 'no_price'}), 400
+    result, usage, err = _ai_score_request(_booking_score_prompt(facts), model, api_key, facts['hotel'])
+    if err:
+        return err
+    usage['estimated_usd'] = _ai_call_cost(model, usage)
+    totals = _record_ai_usage(model, usage)
+    aid = _save_ai_analysis('booking_score', facts['hotel'], model,
+                            json.dumps(result, ensure_ascii=False), usage)
+    _booking_score_cache[offer_id] = {'result': result, 'usage': usage, 'id': aid, 'ts': time.time()}
+    return jsonify({'result': result, 'usage': usage, 'totals': totals, 'id': aid, 'cached': False})
+
+
+@app.route('/api/ai/region-outlook', methods=['POST'])
+def api_ai_region_outlook():
+    """KI-Einschätzung für eine ganze Destination (kein bestimmtes Hotel) aus deren
+    Markttrend/-index — auf Anfrage, 6h je Region gecacht."""
+    if (err := _require_api()):
+        return err
+    api_key, model = _ai_config()
+    if not api_key:
+        return jsonify({'error': 'no_api_key',
+                        'note': 'Kein Anthropic API-Key in den Add-on-Einstellungen hinterlegt'}), 400
+    data = request.get_json(silent=True) or {}
+    region = (data.get('region') or '').strip()
+    if not region:
+        return jsonify({'error': 'invalid'}), 400
+    cached = _region_outlook_cache.get(region)
+    if cached and time.time() - cached['ts'] < _BOOKING_SCORE_TTL:
+        return jsonify({'result': cached['result'], 'usage': cached['usage'],
+                        'totals': _ai_usage_totals(), 'id': cached.get('id'), 'cached': True})
+    with db() as con:
+        trend = _market_trend(con, region=region)
+        index = _market_index(con, region=region)
+    if trend is None and index is None:
+        return jsonify({'error': 'no_data'}), 400
+    result, usage, err = _ai_score_request(_region_outlook_prompt(region, trend, index),
+                                          model, api_key, region)
+    if err:
+        return err
+    usage['estimated_usd'] = _ai_call_cost(model, usage)
+    totals = _record_ai_usage(model, usage)
+    aid = _save_ai_analysis('region_outlook', region, model,
+                            json.dumps(result, ensure_ascii=False), usage)
+    _region_outlook_cache[region] = {'result': result, 'usage': usage, 'id': aid, 'ts': time.time()}
+    return jsonify({'result': result, 'usage': usage, 'totals': totals, 'id': aid, 'cached': False})
 
 
 @app.route('/api/ai/ask', methods=['POST'])

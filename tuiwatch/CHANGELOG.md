@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.43.0] - 2026-07-06
+
+### Added
+- **KI-Buchungsscore ("Orakel"):** neuer Button **🔮 Buchungsscore** je Angebot sowie
+  **🔮** je Destination im Markttrend-Fenster. Auf Anfrage (kostet KI-Aufrufe inkl.
+  Websuche, keine automatische Ausführung) schätzt die KI Score (0–100), Empfehlung
+  (Jetzt buchen/Beobachten/Warten), Vertrauen sowie Erwartung für 7/30 Tage. Nutzt
+  eigenen Preistrend, Markttrend/-index der Destination sowie — falls bereits
+  abgerufen — die Saisonalität aus dem gespeicherten Preiskalender des Hotels
+  (günstigster/teuerster Monat). Jeder Begründungspunkt ist als **[Daten]** oder
+  **[Annahme]** gekennzeichnet, damit KI-Vermutungen nicht wie belastbare Fakten
+  wirken. Ergebnisse werden 6h gecacht und landen im KI-Verlauf.
+
 ## [0.42.6] - 2026-07-06
 
 ### Fixed

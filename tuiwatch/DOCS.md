@@ -464,6 +464,30 @@ davon, ob ein einzelnes Angebot später gelöscht wird.
   angefragter Reisedauer geschätzt (kein exaktes Abreisedatum gespeichert) und fließt
   aktuell nicht in die UI-Anzeige ein, ist aber intern je Datenpunkt vorhanden.
 
+## KI-Buchungsscore ("Orakel")
+
+Auf Anfrage (Button-Klick, **keine** automatische Ausführung — kostet KI-Aufrufe
+inkl. Websuche) schätzt die KI ein, ob gerade ein guter Zeitpunkt zum Buchen ist.
+Zwei Varianten:
+
+- **Pro Angebot** — Button **🔮 Buchungsscore** in der Angebots-Fußzeile. Nutzt den
+  eigenen Preisverlauf des Angebots, dessen Trend, den Markttrend/-index seiner
+  Destination **und** — falls für dieses Hotel/Zimmer bereits ein Preiskalender
+  abgerufen wurde (siehe „Preiskalender" oben) — die daraus abgeleitete Saisonalität
+  (günstigster/teuerster Monat, günstigster Einzeltermin). Löst dafür **keinen**
+  neuen Kalender-Abruf aus, nutzt nur bereits vorhandene Daten.
+- **Pro Destination** — Button **🔮** je Zeile im Markttrend-Fenster. Schätzt die
+  Destination allgemein ein (kein bestimmtes Hotel), nur aus deren Markttrend/-index;
+  setzt mindestens so viele Datenpunkte voraus wie der Markttrend selbst.
+
+Ergebnis: Score (0–100), Empfehlung (Jetzt buchen/Beobachten/Warten), „Vertrauen"
+(%), Erwartung für 7/30 Tage sowie eine Begründung mit Punkten, die jeweils als
+**[Daten]** (aus den oben genannten echten Zahlen) oder **[Annahme]** (allgemeines
+KI-Wissen zu Saison/Frühbucher-Fristen oder ein Websuche-Fund) gekennzeichnet sind —
+damit nicht der Eindruck einer Präzision entsteht, die die zugrunde liegenden Daten
+nicht hergeben. Ergebnisse werden 6 Stunden gecacht (je Angebot bzw. Destination) und
+landen dauerhaft im **KI-Verlauf**.
+
 ## Bedienung
 
 - **Tags** — frei vergebbare Schlagworte je Angebot (＋-Pille auf der Karte); Klick auf
