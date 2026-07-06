@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.43.8] - 2026-07-06
+
+### Fixed
+- **Buchungsscore gewichtete Kalender-Saisonalität zu stark:** die Anweisung
+  unterschied nicht klar zwischen „welcher Monat ist saisonal günstiger" (Kalender)
+  und „ist JETZT ein guter Zeitpunkt zu buchen" (Preistrend/Markttrend) — bei langer
+  Vorlaufzeit konnte das dazu führen, dass ein saisonal günstiger Reisemonat allein
+  schon für ein "jetzt buchen" sprach, obwohl sich der Preis bis zum Abflug noch
+  deutlich ändern kann. Anweisung ergänzt: bei langer Vorlaufzeit zählt die
+  Saisonalität weniger, Preistrend/Markttrend mehr; zusätzlich die allgemeine
+  Frühbucher-Erfahrung (eher früh buchen, da Preise Richtung Abflug oft steigen).
+
 ## [0.43.7] - 2026-07-06
 
 ### Added

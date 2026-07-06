@@ -73,7 +73,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.43.7"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.43.8"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -3876,6 +3876,17 @@ _BOOKING_SCORE_INSTRUCTIONS = (
     "Tiefst-/Höchstpreis, Saison, Tage bis Abflug, Wochentag, deutsche Schulferien "
     "(grob, aus deinem Wissen), sowie ggf. per Websuche gefundene aktuelle Nachrichten "
     "oder besondere Ereignisse zum Reiseziel/Veranstalter.\n"
+    "Wichtig zur Gewichtung: die Saisonalität aus dem Preiskalender (falls angegeben) "
+    "zeigt nur, welcher Reisemonat für DIESES Hotel relativ zu anderen Monaten "
+    "günstiger/teurer ist — das ist KEINE Vorhersage, wie sich der Preis für genau "
+    "diesen Termin bis zum Abflug noch entwickelt, und rechtfertigt für sich allein "
+    "kein 'jetzt buchen'. Je länger die Vorlaufzeit (Tage bis Abreise), desto weniger "
+    "Gewicht sollte diese saisonale Einordnung bekommen und desto mehr zählen "
+    "Preistrend/Markttrend als Signal für JETZT. Bei langer Vorlaufzeit gilt zusätzlich "
+    "die allgemeine Erfahrung, dass Frühbucher bei Pauschalreisen meist im Vorteil sind "
+    "(Preise tendieren dazu, näher am Abflug bei sinkender Verfügbarkeit zu steigen) — "
+    "das spricht eher FÜR ein frühes Buchen, auch wenn der aktuelle Reisemonat laut "
+    "Kalender nur durchschnittlich und nicht der günstigste ist.\n"
     "Kennzeichne JEDEN Punkt in der Begründung mit typ='daten' (aus den oben gelieferten "
     "Zahlen ableitbar — dazu zählt auch die Saisonalität aus dem Preiskalender, falls "
     "angegeben: das sind echte abgefragte Preise, keine Schätzung) oder typ='annahme' "
