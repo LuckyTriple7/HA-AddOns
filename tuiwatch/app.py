@@ -73,7 +73,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.43.5"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.43.6"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -3937,11 +3937,26 @@ def _offer_booking_facts(con, offer_id: int) -> dict | None:
             seasonal = _calendar_seasonal_summary(json.loads(cal_row['data']))
         except (ValueError, TypeError):
             seasonal = None
+    # Abreisedatum + Tage bis Abreise selbst berechnen (nicht der KI überlassen) —
+    # live beobachtet: ohne explizites "heutiges Datum" im Prompt verschätzte sich
+    # die KI bei der Vorlaufzeit um Jahre (hielt "2027" fälschlich für ~3 Jahre
+    # entfernt statt gut 1 Jahr).
+    nights = duration_from_url(o['url'])
+    departure_date, departure_days = '', None
+    if o['return_date']:
+        try:
+            ret = date.fromisoformat(o['return_date'][:10])
+            dep = ret - timedelta(days=nights) if nights else ret
+            departure_date = dep.isoformat()
+            departure_days = (dep - date.today()).days
+        except ValueError:
+            pass
     return {
         'hotel': o['label'] or o['hotel'] or f"Angebot #{offer_id}",
         'details': o['details'] or '', 'region': region, 'country': o['country'] or '',
         'stars': o['stars'], 'rating': o['rating'], 'rating_count': o['rating_count'],
         'recommendation': o['recommendation'], 'return_date': o['return_date'] or '',
+        'departure_date': departure_date, 'departure_days': departure_days,
         'target_price': o['target_price'], 'booked_price': o['booked_price'],
         'price': last['price'], 'min_price': stats['mn'], 'max_price': stats['mx'],
         'samples': stats['c'],
@@ -3956,7 +3971,7 @@ def _booking_score_prompt(facts: dict) -> str:
     """Baut den Buchungsscore-Prompt für ein einzelnes Angebot aus dessen eigenen
     (bereits vorgerechneten) Fakten — keine rohen Preislisten, damit die KI nicht
     selbst (fehleranfällig) einen Trend aus Rohdaten ableiten muss."""
-    lines = [f"Hotel: {facts['hotel']}"]
+    lines = [f"Heutiges Datum: {date.today().isoformat()}", f"Hotel: {facts['hotel']}"]
     if facts['details']:
         lines.append(f"Details: {facts['details']}")
     if facts['region'] or facts['country']:
@@ -3975,6 +3990,11 @@ def _booking_score_prompt(facts: dict) -> str:
                       f"{facts['max_price']:.0f} € ({facts['samples']} Messpunkte)")
     if facts['return_date']:
         lines.append(f"Rückreisedatum: {facts['return_date']}")
+    if facts.get('departure_date'):
+        dd = facts.get('departure_days')
+        extra = (f" — das sind {dd} Tage bzw. rund {dd / 30.44:.1f} Monate bis Abreise, "
+                 f"ausgehend vom heutigen Datum oben" if dd is not None else '')
+        lines.append(f"Geschätztes Abreisedatum: {facts['departure_date']}{extra}")
     if facts['target_price']:
         lines.append(f"Wunschpreis des Nutzers: {facts['target_price']:.0f} €")
     if facts['booked_price']:
@@ -4010,7 +4030,7 @@ def _booking_score_prompt(facts: dict) -> str:
 def _region_outlook_prompt(region: str, trend: dict | None, index: dict | None) -> str:
     """Buchungsscore-Prompt für eine ganze Destination (kein bestimmtes Hotel) — nur
     aus dem regionalen Markttrend/-index, ohne Angebots-Details."""
-    lines = [f"Reiseziel: {region}"]
+    lines = [f"Heutiges Datum: {date.today().isoformat()}", f"Reiseziel: {region}"]
     if trend:
         lines.append(f"Markttrend (14 Tage, alle aktuell getrackten Angebote dieser "
                       f"Destination): {trend['dir']} ({trend['pct']:+.1f} %, "

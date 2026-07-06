@@ -97,6 +97,34 @@ def test_offer_booking_facts_includes_region_trend(m):
     assert facts["seasonal"] is None   # kein Kalender abgerufen
 
 
+def test_offer_booking_facts_computes_departure_from_today(m):
+    """Regression: die KI verschätzte sich live um Jahre bei der Vorlaufzeit, weil
+    weder das heutige Datum noch eine vorgerechnete Vorlaufzeit im Prompt standen.
+    Muss jetzt selbst (nicht von der KI) berechnet werden: Abreise = Rückreise minus
+    Reisedauer (aus dem `duration=`-URL-Parameter), Tage bis Abreise ab heute."""
+    import datetime
+    oid = _add_offer(m, "https://example.invalid/dep?duration=7",
+                      return_date="2027-03-15")
+    with m.db() as con:
+        facts = m._offer_booking_facts(con, oid)
+    expected_departure = datetime.date(2027, 3, 15) - datetime.timedelta(days=7)
+    expected_days = (expected_departure - datetime.date.today()).days
+    assert facts["departure_date"] == expected_departure.isoformat()
+    assert facts["departure_days"] == expected_days
+
+
+def test_booking_score_prompt_includes_todays_date_and_departure(m):
+    oid = _add_offer(m, "https://example.invalid/dep2?duration=7",
+                      return_date="2027-03-15")
+    with m.db() as con:
+        facts = m._offer_booking_facts(con, oid)
+    p = m._booking_score_prompt(facts)
+    import datetime
+    assert f"Heutiges Datum: {datetime.date.today().isoformat()}" in p
+    assert "Geschätztes Abreisedatum: 2027-03-08" in p
+    assert "Tage bzw. rund" in p
+
+
 def test_offer_booking_facts_includes_seasonal_when_calendar_cached(m):
     oid = _add_offer(m, "https://example.invalid/b?duration=7", price=1200)
     days = []

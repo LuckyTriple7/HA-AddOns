@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.43.6] - 2026-07-06
+
+### Fixed
+- **Buchungsscore verschätzte sich bei der Vorlaufzeit:** der Prompt enthielt nirgends
+  das heutige Datum, die KI musste "heute" selbst raten und hielt eine Reise im
+  Mai 2027 fälschlich für "fast drei Jahre" entfernt statt gut ein Jahr. Heutiges Datum
+  sowie geschätztes Abreisedatum + Tage/Monate bis Abreise werden jetzt selbst berechnet
+  (nicht der KI überlassen) und explizit in den Prompt aufgenommen (pro Angebot und
+  pro Destination).
+
 ## [0.43.5] - 2026-07-06
 
 ### Fixed
