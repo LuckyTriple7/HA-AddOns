@@ -73,7 +73,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.43.1"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.43.2"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -3730,16 +3730,25 @@ def _ai_request_gemini(api_key: str, model: str, prompt: str, *, max_tokens: int
             model=model, contents=prompt,
             config=genai_types.GenerateContentConfig(**cfg_kwargs),
         )
+        candidates = resp.candidates or []
+        if candidates and candidates[0].finish_reason in _GEMINI_REFUSAL_REASONS:
+            return None, None, 'refused'
+        text = (resp.text or '').strip()
+        u = resp.usage_metadata
     except genai_errors.APIError as e:
         log.warning("KI-Anfrage fehlgeschlagen (%s): %s", log_ctx, e)
         return None, None, 'failed'
-    candidates = resp.candidates or []
-    if candidates and candidates[0].finish_reason in _GEMINI_REFUSAL_REASONS:
-        return None, None, 'refused'
-    text = (resp.text or '').strip()
+    except Exception as e:
+        # Absichtlich breit: auch SDK-interne Fehler (z. B. im Automatic-Function-
+        # Calling-Loop bei aktivierter Websuche, oder beim Antwort-Parsing) dürfen
+        # nicht bis zu Flask unabgefangen durchschlagen — sonst kommt beim Aufrufer
+        # eine HTML-Fehlerseite statt JSON an (Frontend meldet dann nur generisch
+        # "fehlgeschlagen", live beobachtet: 200 OK von Google, danach Absturz).
+        log.error("KI-Anfrage (%s) unerwartet fehlgeschlagen: %s: %s",
+                 log_ctx, type(e).__name__, e)
+        return None, None, 'failed'
     if not text:
         return None, None, 'empty'
-    u = resp.usage_metadata
     web_searches = 0
     try:
         web_searches = len(candidates[0].grounding_metadata.web_search_queries or [])

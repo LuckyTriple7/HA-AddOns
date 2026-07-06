@@ -168,6 +168,19 @@ def test_gemini_web_search_dropped_when_combined_with_output_schema(app_mod, mon
     assert captured[0]["config"].response_mime_type == "application/json"  # Schema bleibt
 
 
+def test_gemini_unexpected_exception_returns_failed_not_uncaught(app_mod, monkeypatch):
+    """Regression: live beobachtet — Google antwortete mit 200 OK, aber danach kam beim
+    Frontend nur eine generische Fehlermeldung an (nicht JSON-parsebar). Ursache: nur
+    `genai_errors.APIError` wurde gefangen; ein anderer SDK-interner Fehler (z. B. im
+    Automatic-Function-Calling-Loop bei aktivierter Websuche) schlug bis nach oben
+    durch. Muss jetzt als sauberes ('failed') zurückkommen, nicht crashen."""
+    _patch_genai(app_mod, monkeypatch, RuntimeError("boom, irgendein SDK-interner Fehler"))
+    text, usage, err = app_mod._ai_request("g-key", "gemini-3.1-pro", "Prompt",
+                                           max_tokens=200, log_ctx="Test")
+    assert err == "failed"
+    assert text is None and usage is None
+
+
 def test_gemini_sanitize_schema_strips_additional_properties_nested(app_mod):
     schema = {"type": "object", "additionalProperties": False,
               "properties": {"inner": {"type": "object", "additional_properties": False,

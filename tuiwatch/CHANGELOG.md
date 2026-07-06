@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.43.2] - 2026-07-06
+
+### Fixed
+- **KI-Aufrufe mit Gemini konnten unabgefangen abstürzen:** nur `genai_errors.APIError`
+  wurde gefangen — ein anderer SDK-interner Fehler (z. B. im
+  Automatic-Function-Calling-Loop bei aktivierter Websuche) schlug bis zu Flask durch,
+  das dann eine HTML-Fehlerseite statt JSON lieferte. Frontend zeigte dadurch nur die
+  generische Meldung „KI-Zusammenfassung fehlgeschlagen" (live beobachtet: Google
+  antwortete mit 200 OK, danach Absturz). Fängt jetzt jede Exception ab und liefert
+  sauber `'failed'` zurück.
+
 ## [0.43.1] - 2026-07-06
 
 ### Fixed
