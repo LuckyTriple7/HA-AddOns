@@ -1698,6 +1698,7 @@ const _SVG = {
 
 app.get('/', (req, res) => {
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-store');
   res.send(`<!DOCTYPE html>
 <html lang="de" class="${DARK_MODE ? 'dark' : 'light'}">
 <head>

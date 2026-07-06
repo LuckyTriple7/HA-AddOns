@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.7.38] - 2026-07-06
+- Fix: **UI blieb nach Update gelegentlich hängen** (Senden von Text/Bild ging nicht mehr, nur Hard-Refresh half) — Root-Route `/` lieferte keinen `Cache-Control`-Header, wodurch Browser/Ingress veraltetes Frontend-JS zwischenspeichern konnten. Jetzt `Cache-Control: no-store` gesetzt
+
 ## [1.7.37] - 2026-07-04
 - Fix: **ZIP-Export lieferte 500** (`TypeError: archiver is not a function`) — `archiver@8.0.0` (npm `latest`) hat die klassische Aufruf-API (`archiver('zip', opts)`) entfernt und exportiert jetzt stattdessen Klassen (`Archiver`, `ZipArchive`, …). Abhängigkeit auf `^7.0.1` gepinnt, wo die im Code verwendete API noch funktioniert. Diesmal lokal tatsächlich ausgeführt (nicht nur `node --check`) — echter Testlauf mit `archiver@7.0.1` erzeugt eine valide ZIP ohne Fehler
 
