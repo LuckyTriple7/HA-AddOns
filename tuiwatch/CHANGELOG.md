@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.41.10] - 2026-07-06
+
+### Changed
+- **Verlaufstabelle ohne Preis-Rauschen:** Zeilen ohne Preisänderung zum
+  vorherigen Abruf werden jetzt ausgeblendet — außer dem jüngsten Eintrag
+  (zeigt weiterhin, wann zuletzt geprüft wurde). Fehlgeschlagene Checks
+  bleiben sichtbar.
+
 ## [0.41.9] - 2026-07-06
 
 ### Added

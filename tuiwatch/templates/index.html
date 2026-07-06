@@ -1241,16 +1241,21 @@
       drawChart($('#hist-canvas'), pts, true, {target: o.target_price, booked: o.booked_price, events: hd.events||[]});
       const rows = hist.map((h,i)=>{
         const d = new Date(h.ts*1000).toLocaleString('de-DE');
-        if(!h.ok) return `<tr><td>${d}</td><td colspan="2" style="color:var(--amber)">⚠ ${esc(h.note||'fehlgeschlagen')}</td></tr>`;
+        if(!h.ok) return {keep:true, html:`<tr><td>${d}</td><td colspan="2" style="color:var(--amber)">⚠ ${esc(h.note||'fehlgeschlagen')}</td></tr>`};
         const prev = hist[i-1];
-        let diff = '';
+        let diff = '', unchanged = false;
         if(prev && prev.ok && prev.price!=null){
           const delta = h.price - prev.price;
           if(delta>0) diff = ` <span class="hist-diff up">▲ +${eur(delta)}</span>`;
           else if(delta<0) diff = ` <span class="hist-diff down">▼ ${eur(delta)}</span>`;
+          else unchanged = true;
         }
-        return `<tr><td>${d}</td><td><b>${eur(h.price)}</b>${diff}</td><td>${h.old_price?('<span class="old">'+eur(h.old_price)+'</span>'+(h.discount?' -'+h.discount+'%':'')):''}</td></tr>`;
-      }).reverse().join('');
+        // unveränderte Preise ausblenden (Rauschen) — außer dem jüngsten Eintrag,
+        // der zeigt, wann zuletzt geprüft wurde
+        const keep = !unchanged || i === hist.length - 1;
+        const html = `<tr><td>${d}</td><td><b>${eur(h.price)}</b>${diff}</td><td>${h.old_price?('<span class="old">'+eur(h.old_price)+'</span>'+(h.discount?' -'+h.discount+'%':'')):''}</td></tr>`;
+        return {keep, html};
+      }).filter(r=>r.keep).map(r=>r.html).reverse().join('');
       $('#hist-table').innerHTML = hist.length?`<table class="hist"><tr><th>Zeitpunkt</th><th>Preis</th><th>Vergleich</th></tr>${rows}</table>`:'';
     }
     function closeModal(){ $('#modal-bg').classList.remove('show'); }
