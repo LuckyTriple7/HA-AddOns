@@ -99,6 +99,28 @@ def test_room_change_resets_price_moves_baseline(m, monkeypatch):
     assert rows[0]["pct_change"] == pytest.approx((1450 - 1500) / 1500 * 100)
 
 
+def test_room_change_excluded_even_in_same_second_as_prior_check(m, monkeypatch):
+    """ts ist nur sekundengenau: Tracken -> sofort Zimmerauswahl-Dialog -> Zimmer waehlen
+    kann real (schnelles Klicken/Tests) in derselben Sekunde wie der erste Check landen.
+    Das Room-Event darf dann nicht uebersehen werden (Regression: `>` statt `>=`)."""
+    oid = _add_offer(m, "https://example.invalid/same-sec?duration=7")
+    clock = [2_000_000]
+    monkeypatch.setattr(m.time, "time", lambda: clock[0])
+
+    _mock_price(m, monkeypatch, 1818)
+    m.check_offer(oid)   # Baseline (aus der Suche getrackt), ts=2_000_000
+
+    with m.db() as con:   # Zimmerauswahl-Dialog: Nutzer waehlt sofort, gleiche Sekunde
+        con.execute("INSERT INTO offer_events (offer_id, ts, type, text) VALUES (?,?,?,?)",
+                    (oid, clock[0], "room", "Zimmer: Einzelbelegung Platinum Zimmer"))
+
+    _mock_price(m, monkeypatch, 2394)
+    m.check_offer(oid)   # gleiche Sekunde, anderes Zimmer
+    with m.db() as con:
+        n = con.execute("SELECT COUNT(*) c FROM price_moves").fetchone()["c"]
+    assert n == 0   # Zimmerwechsel-Sprung trotz Timestamp-Gleichstand ausgeklammert
+
+
 def test_backfill_skips_pct_change_across_room_change(m):
     oid = _add_offer(m, "https://example.invalid/f?duration=7")
     with m.db() as con:
@@ -117,6 +139,25 @@ def test_backfill_skips_pct_change_across_room_change(m):
         rows = con.execute("SELECT pct_change FROM price_moves ORDER BY ts").fetchall()
     assert len(rows) == 1   # nur der Schritt NACH dem Zimmerwechsel zaehlt
     assert rows[0]["pct_change"] == pytest.approx((1450 - 1500) / 1500 * 100)
+
+
+def test_backfill_skips_room_change_in_same_second_as_prior_check(m):
+    """Regression: Room-Event exakt in derselben Sekunde wie der vorherige Check
+    (untere Grenze war `<`, muss `<=` sein) durfte nicht uebersehen werden."""
+    oid = _add_offer(m, "https://example.invalid/same-sec-backfill?duration=9")
+    with m.db() as con:
+        con.execute("DELETE FROM price_moves")
+        con.execute("INSERT INTO price_history (offer_id, ts, price, ok) VALUES (?,?,?,1)",
+                    (oid, 3_000_000, 1818))
+        con.execute("INSERT INTO offer_events (offer_id, ts, type, text) VALUES (?,?,?,?)",
+                    (oid, 3_000_000, "room", "Zimmer: Einzelbelegung Platinum Zimmer"))
+        con.execute("INSERT INTO price_history (offer_id, ts, price, ok) VALUES (?,?,?,1)",
+                    (oid, 3_000_000, 2394))
+        con.execute("DELETE FROM meta WHERE key='price_moves_backfilled'")
+    m.init_db()
+    with m.db() as con:
+        n = con.execute("SELECT COUNT(*) c FROM price_moves").fetchone()["c"]
+    assert n == 0
 
 
 def test_delete_offer_keeps_price_moves(m, monkeypatch):

@@ -73,7 +73,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.42.5"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.42.6"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -593,7 +593,9 @@ def _backfill_price_moves(con) -> None:
         for r in rows:
             # Preisschritt über einen Zimmerwechsel hinweg ist kein Marktsignal, sondern
             # nur ein anderer Zimmertyp/-preis -> Zählung an dieser Stelle neu beginnen.
-            room_changed = prev and any(prev['ts'] < rc <= r['ts'] for rc in room_change_ts)
+            # `>=` statt `>` an der unteren Grenze: ts ist nur sekundengenau, ein
+            # schneller Zimmerwechsel kann dieselbe Sekunde wie der vorherige Check haben.
+            room_changed = prev and any(prev['ts'] <= rc <= r['ts'] for rc in room_change_ts)
             if prev and prev['price'] and not room_changed:
                 pct = (r['price'] - prev['price']) / prev['price'] * 100
                 months_out = _months_out(o['return_date'], nights, r['ts'])
@@ -1254,9 +1256,12 @@ def check_offer(offer_id: int) -> None:
                 'ORDER BY ts DESC LIMIT 1', (offer_id,)).fetchone()
             # Zimmerwechsel seit dem letzten Preis-Check? Dann macht dessen Preisschritt
             # keine Marktbewegung, sondern nur einen anderen Zimmertyp/-preis sichtbar —
-            # für den Markttrend (`price_moves`) muss die Zählung neu beginnen.
+            # für den Markttrend (`price_moves`) muss die Zählung neu beginnen. `>=`
+            # statt `>`: ts ist nur sekundengenau, ein schneller Zimmerwechsel direkt
+            # nach dem ersten Check (typisch: Tracken → sofort Zimmerauswahl-Dialog)
+            # landet oft in derselben Sekunde wie der vorherige Preis-Check.
             room_changed = bool(prev_row) and con.execute(
-                "SELECT 1 FROM offer_events WHERE offer_id=? AND type='room' AND ts>? LIMIT 1",
+                "SELECT 1 FROM offer_events WHERE offer_id=? AND type='room' AND ts>=? LIMIT 1",
                 (offer_id, prev_row['ts'])).fetchone()
         if not offer:
             return

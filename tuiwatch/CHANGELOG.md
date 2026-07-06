@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.42.6] - 2026-07-06
+
+### Fixed
+- **Zimmerwechsel-Ausschluss versagte bei schnellem Ablauf:** Timestamps sind nur
+  sekundengenau — wählte man direkt nach dem Tracken (Suche → sofort erscheinender
+  Zimmerauswahl-Dialog) sofort ein Zimmer, landete das Room-Event oft in derselben
+  Sekunde wie der erste Preis-Check. Der Vergleich `>` erkannte das nicht als „danach"
+  und ließ den Zimmerwechsel-Preissprung fälschlich in den Markttrend einfließen. Jetzt
+  `>=`. Bereits kontaminierte Daten lassen sich über **🔄 Neu berechnen** korrigieren.
+
 ## [0.42.5] - 2026-07-06
 
 ### Fixed
