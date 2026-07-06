@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.42.5] - 2026-07-06
+
+### Fixed
+- **Kopfzeile umbricht/überlappt nie mehr:** gleicher Fix wie bei der Werkzeugleiste
+  für die Buttons oben rechts (Alle prüfen/KI-Verlauf/Frage/Design). Zusätzlich
+  behoben: die Grid-Spalte gab bei schmalem Fenster trotz `minmax(0,auto)` keinen
+  Platz ab, weil `justify-self:end` das Element auf seine natürliche Breite setzt statt
+  auf die Spaltenbreite — jetzt stretcht die Spalte, Ausrichtung passiert innen per
+  `justify-content:flex-end`.
+
 ## [0.42.4] - 2026-07-06
 
 ### Fixed
