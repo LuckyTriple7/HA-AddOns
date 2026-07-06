@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.42.4] - 2026-07-06
+
+### Fixed
+- **Werkzeugleiste umbricht nie mehr:** Buttons verteilen sich jetzt per Flexbox
+  (`flex:1 1 auto`) immer auf die volle Zeilenbreite (wie die Zeilen darüber/darunter)
+  und schrumpfen bei schmalerem Fenster gemeinsam (Text wird bei Bedarf mit „…"
+  gekürzt) statt in eine zweite Zeile umzubrechen.
+
 ## [0.42.3] - 2026-07-06
 
 ### Fixed

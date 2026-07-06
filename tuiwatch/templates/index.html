@@ -41,8 +41,9 @@
     .add-row input { flex:1 1 240px; background:var(--bg); border:1px solid var(--border); color:var(--text); padding:9px 12px; border-radius:6px; font-size:.85rem; }
     .add-row input:focus { outline:none; border-color:var(--accent); }
     .hint { font-size:.74rem; color:var(--muted); margin-top:8px; }
-    .toolbar { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:14px; }
-    .toolbar .btn { padding:7px 10px; font-size:.8rem; }
+    .toolbar { display:flex; gap:6px; flex-wrap:nowrap; margin-bottom:14px; }
+    .toolbar .btn { flex:1 1 auto; min-width:0; padding:7px 8px; font-size:.8rem;
+                    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     .bulk-bar { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:12px; padding:8px 12px; background:var(--surf); border:1px solid var(--accent); border-radius:8px; }
     .bulk-bar #bulk-count { font-weight:600; font-size:.88rem; }
     .bulk-check { width:16px; height:16px; vertical-align:middle; cursor:pointer; accent-color:var(--accent); }
