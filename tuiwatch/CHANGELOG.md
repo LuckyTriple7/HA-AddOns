@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.43.5] - 2026-07-06
+
+### Fixed
+- **CodeQL-Alerts #185/#186 (SQL query built from user-controlled sources):**
+  `_market_moves_query()` baute den SQL-Text abhängig von den übergebenen Filtern
+  zusammen (String-Verkettung je nach gesetzten Bedingungen) — auch wenn nur Werte
+  parametrisiert wurden, stuft CodeQL laufzeitabhängig zusammengebaute Query-Strings
+  pauschal als riskant ein. Jetzt ein fester Query-Text mit `(? IS NULL OR spalte=?)`
+  je Filter, keine Verkettung mehr abhängig von Eingaben.
+
 ## [0.43.4] - 2026-07-06
 
 ### Fixed

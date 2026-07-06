@@ -73,7 +73,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.43.4"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.43.5"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -621,21 +621,16 @@ def _compound_pct(values: list) -> float:
 
 def _market_moves_query(region: str | None, months_out: int | None,
                          cutoff: int | None = None) -> tuple[str, list]:
-    q = 'SELECT ts, pct_change FROM price_moves'
-    conds: list = []
-    params: list = []
-    if cutoff is not None:
-        conds.append('ts>=?')
-        params.append(cutoff)
-    if region is not None:
-        conds.append('region=?')
-        params.append(region)
-    if months_out is not None:
-        conds.append('months_out=?')
-        params.append(months_out)
-    if conds:
-        q += ' WHERE ' + ' AND '.join(conds)
-    return q + ' ORDER BY ts ASC', params
+    """Fester Query-Text (keine laufzeitabhängige String-Verkettung — CodeQL stuft
+    dynamisch aus Bedingungen zusammengesetzte SQL-Strings pauschal als riskant ein,
+    selbst wenn nur Werte parametrisiert werden). Jeder Filter ist ein `(? IS NULL OR
+    spalte=?)`-Paar; nicht gesetzte Filter (`None`) sind dadurch automatisch No-ops,
+    ohne die Query je nach Aufrufer unterschiedlich zusammenzubauen."""
+    q = ('SELECT ts, pct_change FROM price_moves '
+         'WHERE (? IS NULL OR ts>=?) AND (? IS NULL OR region=?) '
+         'AND (? IS NULL OR months_out=?) ORDER BY ts ASC')
+    params = [cutoff, cutoff, region, region, months_out, months_out]
+    return q, params
 
 
 def _market_trend(con, *, region: str | None = None, months_out: int | None = None,
