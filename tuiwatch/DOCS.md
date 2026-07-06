@@ -62,9 +62,10 @@ verbose_log: false       # ausführliche Logs
   Auswahl fließt in die Suche **und** in das getrackte Angebot (Preis nur mit diesen
   Airlines).
 - Filter: **TUI** (nur Veranstalter TUI Deutschland; aus = alle), **Nur Direktflug**,
-  **Verpflegung** (AI/HP/VP/Frühstück/Ohne — Mehrfachauswahl, jeweils inkl. „Plus"-Variante
-  bzw. „laut Programm"), **Lage** (Direkt am Strand, Sandstrand, Strand < 500m, Meerseite,
-  Ruhig, Außerhalb — Mehrfachauswahl, schränkt weiter ein), **Sterne ≥** (Standard 3),
+  **Nur Erwachsene** (Adults-Only-Hotels), **Verpflegung** (AI/HP/VP/Frühstück/Ohne —
+  Mehrfachauswahl, jeweils inkl. „Plus"-Variante bzw. „laut Programm"), **Lage**
+  (Direkt am Strand, Sandstrand, Strand < 500m, Meerseite, Ruhig, Außerhalb —
+  Mehrfachauswahl, schränkt weiter ein), **Sterne ≥** (Standard 3),
   **Weiterempfehlung ≥ %** (Standard 80) → **Suchen**.
 - **Gespeicherte Suchen:** die kompletten Eingaben unter einem Namen speichern
   („★ Speichern") und später aus dem Dropdown wieder laden — für wiederkehrende Suchen.

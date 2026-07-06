@@ -73,7 +73,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.43.8"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.43.9"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -3173,6 +3173,7 @@ def api_search():
     data = request.get_json(silent=True) or {}
     operator_tui = bool(data.get('operator_tui', True))
     direct = bool(data.get('direct'))
+    adults_only = bool(data.get('adults_only'))
     boards = [str(b).strip() for b in (data.get('boards') or []) if str(b).strip()]
     airlines = [str(a).strip() for a in (data.get('airlines') or []) if str(a).strip()]
     location = [int(i) for i in (data.get('location') or []) if str(i).strip().isdigit()]
@@ -3202,7 +3203,7 @@ def api_search():
         src = f"Angebot #{offer_id} ({o['label'] or o['hotel'] or ''})"
         res = fetch_search(url, operator_tui=operator_tui, boards=boards, region=region,
                            airlines=airlines, location=location, direct=direct,
-                           verbose=_verbose())
+                           adults_only=adults_only, verbose=_verbose())
     elif search_region:
         try:
             region = int(search_region)
@@ -3220,7 +3221,7 @@ def api_search():
                                   travellers=data.get('travellers'), airports=airports,
                                   operator_tui=operator_tui, boards=boards,
                                   airlines=airlines, location=location, direct=direct,
-                                  verbose=_verbose())
+                                  adults_only=adults_only, verbose=_verbose())
     else:
         url = (data.get('url') or '').strip()
         if not _valid_tui_url(url):
@@ -3229,7 +3230,7 @@ def api_search():
                  ','.join(boards) or '-')
         res = fetch_search(url, operator_tui=operator_tui, boards=boards,
                            airlines=airlines, location=location, direct=direct,
-                           verbose=_verbose())
+                           adults_only=adults_only, verbose=_verbose())
     if res is None:
         return jsonify({'error': 'search_failed'}), 502
     if not res.get('ok'):
@@ -4837,7 +4838,8 @@ def _search_from_fav_payload(p: dict) -> dict | None:
         boards=[str(b) for b in (p.get('boards') or []) if str(b).strip()],
         airlines=[str(a) for a in (p.get('airlines') or []) if str(a).strip()],
         location=[int(i) for i in (p.get('location') or []) if str(i).strip().isdigit()],
-        direct=bool(p.get('direct')), verbose=_verbose())
+        direct=bool(p.get('direct')), adults_only=bool(p.get('adults_only')),
+        verbose=_verbose())
     if not res or not res.get('ok'):
         return res
 

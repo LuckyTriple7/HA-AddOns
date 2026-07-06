@@ -594,6 +594,7 @@
       <div class="srch-filters">
         <label class="srch-chk" title="Nur Pauschalreisen des Veranstalters TUI Deutschland (TUID). Aus = alle Veranstalter."><input type="checkbox" id="srch-tui" checked> TUI</label>
         <label class="srch-chk" title="Nur Angebote mit Direktflug (ohne Zwischenstopp)"><input type="checkbox" id="srch-direct"> Nur Direktflug</label>
+        <label class="srch-chk" title="Nur Erwachsenenhotels (Adults Only)"><input type="checkbox" id="srch-adults"> Nur Erwachsene</label>
         <span class="srch-boards">Verpflegung:
           <label title="Alles Inklusive (inkl. „AI Plus“/laut Programm)"><input type="checkbox" class="srch-board" value="AI"> AI</label>
           <label title="Vollpension (inkl. Vollpension Plus)"><input type="checkbox" class="srch-board" value="FB"> VP</label>
@@ -1589,6 +1590,7 @@
       const la = (urlParam(o.url,'locationAttributes')||'').split(/[;,]/).map(s=>s.trim()).filter(Boolean);
       document.querySelectorAll('.srch-loc').forEach(c=>{ c.checked = la.includes(c.value); });
       $('#srch-direct').checked = (urlParam(o.url,'maxStopOvers')==='0');
+      $('#srch-adults').checked = (urlParam(o.url,'facilityAttributes')||'').split(/[;,]/).includes('13');
       $('#srch-stars').value='3'; $('#srch-rec').value='80';
       const al = (urlParam(o.url,'airlines')||'').split(/[;,]/).map(s=>s.trim()).filter(Boolean);
       ensureAirlines().then(()=>setAirlines(al));
@@ -1605,7 +1607,7 @@
       const air=$('#srch-airport'); if(air.options.length) air.selectedIndex=0;
       $('#srch-vom').value=isoPlus(21); $('#srch-bis').value=isoPlus(51); syncBisMin();
       $('#srch-dur').value=7; $('#srch-trav').value=2; $('#srch-exact').checked=false; applyExact();
-      $('#srch-tui').checked=true; $('#srch-direct').checked=false;
+      $('#srch-tui').checked=true; $('#srch-direct').checked=false; $('#srch-adults').checked=false;
       document.querySelectorAll('.srch-board').forEach(c=>{ c.checked=false; });
       document.querySelectorAll('.srch-loc').forEach(c=>{ c.checked=false; });
       $('#srch-stars').value=3; $('#srch-rec').value=80; $('#srch-url').value='';
@@ -2309,6 +2311,7 @@
         vom: $('#srch-vom').value, bis: $('#srch-bis').value,
         dur: $('#srch-dur').value, exact: $('#srch-exact').checked, trav: $('#srch-trav').value,
         tui: $('#srch-tui').checked, direct: $('#srch-direct').checked,
+        adults_only: $('#srch-adults').checked,
         boards: [...document.querySelectorAll('.srch-board:checked')].map(c=>c.value),
         location: [...document.querySelectorAll('.srch-loc:checked')].map(c=>+c.value),
         airlines: selectedAirlines(),
@@ -2354,6 +2357,7 @@
       $('#srch-trav').value=f.trav||2;
       $('#srch-tui').checked=f.tui!==false;
       $('#srch-direct').checked=!!f.direct;
+      $('#srch-adults').checked=!!f.adults_only;
       document.querySelectorAll('.srch-board').forEach(c=>{ c.checked=(f.boards||[]).includes(c.value); });
       document.querySelectorAll('.srch-loc').forEach(c=>{ c.checked=(f.location||[]).includes(+c.value); });
       ensureAirlines().then(()=>setAirlines(f.airlines||[]));
@@ -2370,7 +2374,8 @@
       const url = $('#srch-url').value.trim();
       const boards = [...document.querySelectorAll('.srch-board:checked')].map(c=>c.value);
       const location = [...document.querySelectorAll('.srch-loc:checked')].map(c=>+c.value);
-      const body = { operator_tui: $('#srch-tui').checked, direct: $('#srch-direct').checked, boards,
+      const body = { operator_tui: $('#srch-tui').checked, direct: $('#srch-direct').checked,
+        adults_only: $('#srch-adults').checked, boards,
         location, airlines: selectedAirlines(),
         min_stars: parseFloat($('#srch-stars').value)||0,
         min_recommend: parseFloat($('#srch-rec').value)||0 };

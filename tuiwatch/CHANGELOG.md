@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.43.9] - 2026-07-06
+
+### Added
+- **Hotelsuche: Filter „Nur Erwachsene"** (Adults-Only-Hotels). TUI übersetzt
+  `facilityAttributes=13` clientseitig in einen `logicalExpression`-Code, bevor die
+  Anfrage an die Such-API geht — genau wie beim „Lage"-Filter kennt die API keine
+  einfache ID. Der Code wurde nicht geraten, sondern per Playwright live abgefangen
+  (echten Netzwerk-Request auf tui.com mitgeschnitten) und gegen die echte Such-API
+  verifiziert (Gran Canaria: 100 → 28 Treffer, durchgehend adults-only-artige Hotels).
+
 ## [0.43.8] - 2026-07-06
 
 ### Fixed
