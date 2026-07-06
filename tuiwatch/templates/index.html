@@ -1661,12 +1661,22 @@
       if(t.dir==='up')   return `<span class="trend up" title="${title}">↗ steigt${pct}${days}</span>`;
       return `<span class="trend flat" title="${title}">→ stabil${days}</span>`;
     }
+    function marketIndexLine(i){
+      if(!i) return '';
+      const since = new Date(i.since*1000).toLocaleDateString('de-DE');
+      const sign = i.pct>0 ? '+' : '';
+      const cls = i.pct>0 ? 'up' : (i.pct<0 ? 'down' : 'flat');
+      return ` <span class="trend ${cls}" title="Index seit Aufzeichnungsbeginn (${i.n} Datenpunkte), unabhängig vom 14-Tage-Fenster">`
+           + `Index ${i.index.toLocaleString('de-DE',{maximumFractionDigits:1})} (${sign}${i.pct.toLocaleString('de-DE',{maximumFractionDigits:1})} % seit ${since})</span>`;
+    }
     function renderMarketTrend(d){
-      setTrendGlow(d.global);
-      const rows = (d.by_region||[]).map(r=>`<tr><td>${esc(r.region)}</td><td>${marketTrendBadge(r)}</td><td>${r.n}</td></tr>`).join('');
+      setTrendGlow(d.global.trend);
+      const rows = (d.by_region||[]).map(r=>
+        `<tr><td>${esc(r.region)}</td><td>${marketTrendBadge(r.trend)}${marketIndexLine(r.index)}</td>`
+        + `<td>${(r.trend||r.index||{}).n||''}</td></tr>`).join('');
       $('#trend-body').innerHTML =
-        `<div class="trend-global"><b>Gesamt:</b> ${marketTrendBadge(d.global)}</div>` +
-        (rows ? `<table class="hist"><tr><th>Destination</th><th>Trend</th><th>Datenpunkte</th></tr>${rows}</table>`
+        `<div class="trend-global"><b>Gesamt:</b> ${marketTrendBadge(d.global.trend)}${marketIndexLine(d.global.index)}</div>` +
+        (rows ? `<table class="hist"><tr><th>Destination</th><th>Trend (14 Tage) / Index (gesamt)</th><th>Datenpunkte</th></tr>${rows}</table>`
               : '<div class="cmp-load">Noch keine Destination mit genug Daten für eine eigene Aufschlüsselung.</div>');
     }
     function setTrendGlow(t){
@@ -1676,7 +1686,7 @@
       else if(t && t.dir==='down') b.classList.add('trend-active-down');
     }
     async function updateTrendBtn(){
-      try { const d = await fetch(api('/api/market-trend')).then(r=>r.json()); setTrendGlow(d.global); }
+      try { const d = await fetch(api('/api/market-trend')).then(r=>r.json()); setTrendGlow(d.global.trend); }
       catch(e){}
     }
     // Preiskalender: mit Pfeiltasten ← / → durch die Monate blättern (nicht nur per Maus)

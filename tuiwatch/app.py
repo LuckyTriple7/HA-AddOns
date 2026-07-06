@@ -545,7 +545,16 @@ def _trend_for(con, offer_id: int) -> dict | None:
 # die Tabelle bleibt bestehen, wenn das erzeugende Angebot gelöscht wird.
 
 MARKET_TREND_MIN_SAMPLES = 6
-MARKET_TREND_DEADBAND = 0.3  # % mittlere Änderung je Check, ab der es nicht mehr "flat" ist
+MARKET_TREND_DEFAULT_THRESHOLD = 1.0  # % kumulierte Bewegung im Fenster, ab der es nicht mehr "flat" ist
+
+
+def _market_trend_threshold() -> float:
+    """Schwelle (%) für den Markttrend, konfigurierbar über `market_trend_threshold`
+    in den Add-on-Einstellungen (sonst Standardwert)."""
+    try:
+        return float(load_config().get('market_trend_threshold', MARKET_TREND_DEFAULT_THRESHOLD))
+    except (TypeError, ValueError):
+        return MARKET_TREND_DEFAULT_THRESHOLD
 
 
 def _months_out(return_date: str, nights: int | None, ts: int) -> int | None:
@@ -578,9 +587,14 @@ def _backfill_price_moves(con) -> None:
         rows = con.execute(
             'SELECT ts, price FROM price_history WHERE offer_id=? AND ok=1 AND price IS NOT NULL '
             'ORDER BY ts ASC', (o['id'],)).fetchall()
+        room_change_ts = {r['ts'] for r in con.execute(
+            "SELECT ts FROM offer_events WHERE offer_id=? AND type='room'", (o['id'],)).fetchall()}
         prev = None
         for r in rows:
-            if prev and prev['price']:
+            # Preisschritt über einen Zimmerwechsel hinweg ist kein Marktsignal, sondern
+            # nur ein anderer Zimmertyp/-preis -> Zählung an dieser Stelle neu beginnen.
+            room_changed = prev and any(prev['ts'] < rc <= r['ts'] for rc in room_change_ts)
+            if prev and prev['price'] and not room_changed:
                 pct = (r['price'] - prev['price']) / prev['price'] * 100
                 months_out = _months_out(o['return_date'], nights, r['ts'])
                 con.execute(
@@ -590,32 +604,51 @@ def _backfill_price_moves(con) -> None:
             prev = r
 
 
+def _compound_pct(values: list) -> float:
+    """Kumulierte %-Bewegung (Zinseszins-Verkettung) statt Mittelwert — sonst verwässern
+    viele 0%-Checks (Preis unverändert seit letztem Poll) einen echten, aber seltenen
+    Anstieg im Schnitt fast auf null."""
+    c = 1.0
+    for p in values:
+        c *= (1 + p / 100)
+    return (c - 1) * 100
+
+
+def _market_moves_query(region: str | None, months_out: int | None,
+                         cutoff: int | None = None) -> tuple[str, list]:
+    q = 'SELECT ts, pct_change FROM price_moves'
+    conds: list = []
+    params: list = []
+    if cutoff is not None:
+        conds.append('ts>=?')
+        params.append(cutoff)
+    if region is not None:
+        conds.append('region=?')
+        params.append(region)
+    if months_out is not None:
+        conds.append('months_out=?')
+        params.append(months_out)
+    if conds:
+        q += ' WHERE ' + ' AND '.join(conds)
+    return q + ' ORDER BY ts ASC', params
+
+
 def _market_trend(con, *, region: str | None = None, months_out: int | None = None,
                    window_days: int = 14) -> dict | None:
     """Marktweiter Preistrend über alle geprüften Angebote (optional nach Destination/
     Vorlaufzeit gefiltert), aus den in `price_moves` gesammelten Prozent-Änderungen der
     letzten `window_days` Tage. None bei zu wenigen Datenpunkten (kein Hellsehen)."""
     cutoff = int(time.time()) - window_days * 86400
-    q = 'SELECT ts, pct_change FROM price_moves WHERE ts>=?'
-    params: list = [cutoff]
-    if region is not None:
-        q += ' AND region=?'
-        params.append(region)
-    if months_out is not None:
-        q += ' AND months_out=?'
-        params.append(months_out)
-    rows = con.execute(q + ' ORDER BY ts ASC', params).fetchall()
+    q, params = _market_moves_query(region, months_out, cutoff)
+    rows = con.execute(q, params).fetchall()
     if len(rows) < MARKET_TREND_MIN_SAMPLES:
         return None
-    changes = [r['pct_change'] for r in rows]
-    avg = sum(changes) / len(changes)
-    direction = ('down' if avg <= -MARKET_TREND_DEADBAND
-                 else ('up' if avg >= MARKET_TREND_DEADBAND else 'flat'))
-    cum = 1.0
-    for p in changes:
-        cum *= (1 + p / 100)
-    cum_pct = (cum - 1) * 100
-    # Tages-Streak: aufeinanderfolgende jüngste Tage mit zum Trend passendem Vorzeichen
+    deadband = _market_trend_threshold()
+    cum_pct = _compound_pct([r['pct_change'] for r in rows])
+    direction = ('down' if cum_pct <= -deadband
+                 else ('up' if cum_pct >= deadband else 'flat'))
+    # Tages-Streak: aufeinanderfolgende jüngste Tage, deren KUMULIERTE Tagesbewegung
+    # noch zur Gesamtrichtung passt (bzw. bei 'flat' nahe Null bleibt)
     by_day: dict[str, list] = defaultdict(list)
     for r in rows:
         day = datetime.fromtimestamp(r['ts']).strftime('%Y-%m-%d')
@@ -623,14 +656,30 @@ def _market_trend(con, *, region: str | None = None, months_out: int | None = No
     days_sorted = sorted(by_day)
     streak = 0
     for day in reversed(days_sorted):
-        day_avg = sum(by_day[day]) / len(by_day[day])
-        same_sign = ((direction == 'up' and day_avg > 0)
-                     or (direction == 'down' and day_avg < 0)
-                     or (direction == 'flat' and abs(day_avg) < MARKET_TREND_DEADBAND))
+        day_pct = _compound_pct(by_day[day])
+        same_sign = ((direction == 'up' and day_pct > 0)
+                     or (direction == 'down' and day_pct < 0)
+                     or (direction == 'flat' and abs(day_pct) < deadband))
         if not same_sign:
             break
         streak += 1
     return {'dir': direction, 'pct': round(cum_pct, 1), 'days': streak, 'n': len(rows)}
+
+
+def _market_index(con, *, region: str | None = None,
+                   months_out: int | None = None) -> dict | None:
+    """Preisindex seit Beginn der Aufzeichnung (Basis 100) — im Unterschied zu
+    `_market_trend` kein rollierendes Zeitfenster, sondern die komplette Historie.
+    Fängt langsame Bewegungen ab, die außerhalb eines 14-Tage-Fensters liegen (z. B.
+    ein Anstieg über mehrere Wochen mit ruhigen Phasen dazwischen). None bei zu
+    wenigen Datenpunkten."""
+    q, params = _market_moves_query(region, months_out)
+    rows = con.execute(q, params).fetchall()
+    if len(rows) < MARKET_TREND_MIN_SAMPLES:
+        return None
+    pct = _compound_pct([r['pct_change'] for r in rows])
+    return {'index': round(100 + pct, 1), 'pct': round(pct, 1),
+            'since': rows[0]['ts'], 'n': len(rows)}
 
 
 # ── Home-Assistant-Sensoren ────────────────────────────────────────────────────
@@ -1200,16 +1249,22 @@ def check_offer(offer_id: int) -> None:
     try:
         with db() as con:
             offer = con.execute('SELECT * FROM offers WHERE id=?', (offer_id,)).fetchone()
-            prev_price = con.execute(
-                'SELECT price FROM price_history WHERE offer_id=? AND ok=1 AND price IS NOT NULL '
+            prev_row = con.execute(
+                'SELECT ts, price FROM price_history WHERE offer_id=? AND ok=1 AND price IS NOT NULL '
                 'ORDER BY ts DESC LIMIT 1', (offer_id,)).fetchone()
+            # Zimmerwechsel seit dem letzten Preis-Check? Dann macht dessen Preisschritt
+            # keine Marktbewegung, sondern nur einen anderen Zimmertyp/-preis sichtbar —
+            # für den Markttrend (`price_moves`) muss die Zählung neu beginnen.
+            room_changed = bool(prev_row) and con.execute(
+                "SELECT 1 FROM offer_events WHERE offer_id=? AND type='room' AND ts>? LIMIT 1",
+                (offer_id, prev_row['ts'])).fetchone()
         if not offer:
             return
         offer = dict(offer)
         if offer.get('archived'):
             log.info("Angebot #%d ist archiviert – keine Live-Abfrage", offer_id)
             return
-        prev_price = prev_price['price'] if prev_price else None
+        prev_price = prev_row['price'] if prev_row else None
         url = offer['url']
         name = offer.get('label') or offer.get('hotel') or hotel_from_url(url) or f"#{offer_id}"
         log.info("Prüfe Angebot #%d: %s …", offer_id, name)
@@ -1243,7 +1298,7 @@ def check_offer(offer_id: int) -> None:
                         'booking_code', 'room_booking_code'):
                 if res.get(col) is not None and res.get(col) != '':
                     con.execute(f'UPDATE offers SET {col}=? WHERE id=?', (res[col], offer_id))
-            if res.get('ok') and res.get('price') is not None and prev_price:
+            if res.get('ok') and res.get('price') is not None and prev_price and not room_changed:
                 pct = (res['price'] - prev_price) / prev_price * 100
                 region = res.get('region') or offer.get('region') or ''
                 country = res.get('country') or offer.get('country') or ''
@@ -1794,26 +1849,30 @@ def _push_health_sensor_from_cache() -> None:
 
 
 def _push_market_trend_sensor() -> None:
-    """Meldet HA einen Sensor mit dem marktweiten Preistrend (siehe `_market_trend`) —
-    State = kumulierte %-Bewegung der letzten 14 Tage, oder 'unavailable' bei zu
-    wenigen Daten."""
+    """Meldet HA einen Sensor mit dem marktweiten Preistrend — State = kumulierte
+    %-Bewegung der letzten 14 Tage (`_market_trend`), oder 'unavailable' bei zu
+    wenigen Daten. Attribute ergänzen den Index seit Aufzeichnungsbeginn
+    (`_market_index`), der auch langsame, über Wochen verteilte Bewegungen zeigt."""
     if not _ha_enabled():
         return
     with db() as con:
-        glob = _market_trend(con)
+        glob_trend = _market_trend(con)
+        glob_index = _market_index(con)
         regions = [r['region'] for r in con.execute(
-            "SELECT DISTINCT region FROM price_moves WHERE ts>=? AND region!=''",
-            (int(time.time()) - 14 * 86400,)).fetchall()]
+            "SELECT DISTINCT region FROM price_moves WHERE region!=''").fetchall()]
         by_region = []
         for r in sorted(regions):
-            t = _market_trend(con, region=r)
-            if t:
-                by_region.append({'region': r, **t})
+            t, i = _market_trend(con, region=r), _market_index(con, region=r)
+            if t or i:
+                by_region.append({'region': r, 'trend': t, 'index': i})
     attrs = {'friendly_name': 'TUIWatch Markttrend', 'icon': 'mdi:chart-line',
              'unit_of_measurement': '%', 'by_region': by_region}
-    if glob:
-        attrs.update(direction=glob['dir'], days=glob['days'], samples=glob['n'])
-    state = glob['pct'] if glob else 'unavailable'
+    if glob_trend:
+        attrs.update(direction=glob_trend['dir'], days=glob_trend['days'], samples=glob_trend['n'])
+    if glob_index:
+        attrs.update(index=glob_index['index'], index_pct=glob_index['pct'],
+                     index_since=datetime.fromtimestamp(glob_index['since']).isoformat())
+    state = glob_trend['pct'] if glob_trend else 'unavailable'
     try:
         http.post(f'{HA_BASE}/states/sensor.tuiwatch_markttrend',
                   headers={'Authorization': f'Bearer {SUPERVISOR_TOKEN}'}, timeout=10,
@@ -5463,20 +5522,21 @@ def api_healthcheck_route():
 
 @app.route('/api/market-trend')
 def api_market_trend():
-    """Marktweiter Preistrend über alle geprüften Angebote der letzten 14 Tage,
-    global und aufgeschlüsselt nach Destination (nur Regionen mit genug Daten)."""
+    """Marktweiter Preistrend über alle geprüften Angebote: ein rollierendes 14-Tage-
+    Fenster (`trend`, reagiert auf aktuelle Bewegung) sowie ein Index seit Beginn der
+    Aufzeichnung (`index`, Basis 100 — fängt auch langsame Bewegungen über mehrere
+    Wochen), jeweils global und aufgeschlüsselt nach Destination."""
     if (err := _require_api()):
         return err
     with db() as con:
-        glob = _market_trend(con)
         regions = [r['region'] for r in con.execute(
-            "SELECT DISTINCT region FROM price_moves WHERE ts>=? AND region!=''",
-            (int(time.time()) - 14 * 86400,)).fetchall()]
+            "SELECT DISTINCT region FROM price_moves WHERE region!=''").fetchall()]
+        glob = {'trend': _market_trend(con), 'index': _market_index(con)}
         by_region = []
         for r in sorted(regions):
-            t = _market_trend(con, region=r)
-            if t:
-                by_region.append({'region': r, **t})
+            t, i = _market_trend(con, region=r), _market_index(con, region=r)
+            if t or i:
+                by_region.append({'region': r, 'trend': t, 'index': i})
     return jsonify({'global': glob, 'by_region': by_region})
 
 

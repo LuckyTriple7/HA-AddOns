@@ -116,3 +116,6 @@ configuration:
   verbose_log:
     name: Verbose logging
     description: Logs more detail per check. Default off — only errors and important events are logged.
+  market_trend_threshold:
+    name: Market trend threshold (%)
+    description: "Cumulative price movement over 14 days above which the market trend counts as rising/falling instead of stable. Default 1.0 — a smaller value reacts to smaller moves."

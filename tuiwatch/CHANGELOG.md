@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.42.1] - 2026-07-06
+
+### Fixed
+- **Markttrend zeigte fälschlich „stabil":** die Richtung wurde aus dem einfachen
+  Mittelwert aller Preis-Checks berechnet — die vielen „unverändert"-Checks zwischen
+  zwei echten Preisschritten (Preise ändern sich seltener als der Poll-Intervall)
+  verwässerten einen echten Anstieg/Rückgang fast auf null. Die Richtung basiert jetzt
+  auf der kumulierten (Zinseszins-verketteten) Bewegung.
+- **Zimmerwechsel verfälschte den Markttrend:** wählt man für ein Angebot ein anderes
+  Zimmer, wurde der dadurch ausgelöste Preissprung bisher als Marktbewegung gezählt.
+  Dieser eine Schritt wird jetzt ausgeklammert (Zählung setzt danach neu an).
+
+### Added
+- **Schwelle konfigurierbar:** neue Option `market_trend_threshold` (%, Standard 1.0)
+  legt fest, ab welcher kumulierten Bewegung der Markttrend als steigend/fallend statt
+  stabil gilt.
+- **Index seit Aufzeichnungsbeginn:** zusätzlich zum rollierenden 14-Tage-Trend zeigt
+  „Markttrend" je Destination einen Index (Basis 100) über die komplette Historie —
+  fängt auch langsame, über Wochen verteilte Bewegungen ab, die aus dem 14-Tage-Fenster
+  herausfallen würden.
+
 ## [0.42.0] - 2026-07-06
 
 ### Added

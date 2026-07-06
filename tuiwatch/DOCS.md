@@ -420,8 +420,9 @@ einem HA-Neustart wieder verfügbar, ohne auf den nächsten Live-Check zu warten
 Außerdem `sensor.tuiwatch_markttrend`: **Wert** = kumulierte Preisänderung (%) über
 alle geprüften Angebote der letzten 14 Tage, oder `unavailable` bei zu wenigen
 Datenpunkten. Attribute: `direction` (up/down/flat), `days` (seit wie vielen Tagen die
-Richtung anhält), `samples` (Anzahl Datenpunkte), `by_region` (gleiche Aufschlüsselung
-je Destination, nur für Regionen mit genug Daten). Siehe unten „Markttrend".
+Richtung anhält), `samples` (Anzahl Datenpunkte), `index`/`index_pct`/`index_since`
+(Index seit Aufzeichnungsbeginn, siehe unten), `by_region` (gleiche Aufschlüsselung je
+Destination, nur für Regionen mit genug Daten). Siehe unten „Markttrend".
 
 ## Markttrend
 
@@ -436,10 +437,22 @@ davon, ob ein einzelnes Angebot später gelöscht wird.
 - **Berechnung:** bei jedem erfolgreichen Preis-Check wird die prozentuale Änderung
   zum vorherigen Preis **dieses** Angebots festgehalten (nicht der absolute Preis —
   das macht unterschiedlich teure Hotels vergleichbar). Der angezeigte Trend ist die
-  kumulierte Bewegung dieser Prozentwerte über die letzten 14 Tage, gemittelt über
-  alle Angebote (bzw. alle Angebote einer Destination). Bei weniger als 6
-  Datenpunkten im Fenster erscheint „keine Daten" (kein Hellsehen bei dünner
-  Datenlage).
+  **kumulierte** Bewegung dieser Prozentwerte über die letzten 14 Tage (Zinseszins-
+  Verkettung, nicht der einfache Mittelwert — sonst würden die vielen „unverändert"-
+  Checks zwischen zwei Preisschritten einen echten, aber seltenen Trend im Schnitt
+  fast auf null verwässern). Ab welcher kumulierten Bewegung „steigend"/„fallend"
+  statt „stabil" angezeigt wird, ist über die Option `market_trend_threshold` (%,
+  Standard 1.0) einstellbar. Bei weniger als 6 Datenpunkten im Fenster erscheint
+  „keine Daten" (kein Hellsehen bei dünner Datenlage).
+- **Index seit Beginn:** zusätzlich zum rollierenden 14-Tage-Trend zeigt „Markttrend"
+  je Destination auch einen **Index (Basis 100) seit Aufzeichnungsbeginn** — ohne
+  Zeitfenster, damit eine langsame Bewegung (z. B. mehrere Preisschritte über Wochen
+  verteilt, dazwischen ruhige Phasen) nicht aus dem 14-Tage-Fenster herausfällt und
+  unsichtbar bleibt.
+- **Zimmerwechsel:** wählt man für ein Angebot ein anderes Zimmer, kann sich der Preis
+  allein dadurch sprunghaft ändern — das ist keine Marktbewegung. Dieser eine
+  Preisschritt fließt daher **nicht** in den Markttrend ein; die Zählung setzt direkt
+  danach wieder neu an.
 - **Persistenz:** die Datenpunkte liegen in einer eigenen Tabelle, unabhängig vom
   jeweiligen Angebot — das Löschen eines Angebots hat **keinen** Einfluss auf den
   Markttrend. Beim ersten Start nach diesem Update wird die vorhandene Preishistorie
