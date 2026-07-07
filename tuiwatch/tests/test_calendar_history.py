@@ -264,3 +264,27 @@ def test_restore_reimports_calendar_history(m):
         rows = con.execute("SELECT price FROM calendar_history WHERE offer_id=? ORDER BY ts",
                            (new_oid,)).fetchall()
     assert [r["price"] for r in rows] == [500, 520]
+
+
+def test_calendar_alert_set_after_move_and_cleared_on_view(m):
+    """Der 'Kalender'-Button soll aufleuchten, sobald sich seit dem letzten Öffnen
+    ein Preis im Kalender geändert hat, und wieder erlöschen, sobald der Kalender
+    angesehen wurde (GET /api/calendar/<id> mit status=done markiert als gesehen)."""
+    oid = _add_offer(m, "https://example.invalid/q?duration=7")
+    with m.db() as con:
+        m._store_calendar_snapshot(con, oid, _cal([("2027-05-01", 500)]))
+    offers = m._collect_offers()
+    assert next(o for o in offers if o["id"] == oid)["calendar_alert"] is False
+
+    with m.db() as con:
+        m._store_calendar_snapshot(con, oid, _cal([("2027-05-01", 540)]))   # Preis geändert
+    offers = m._collect_offers()
+    assert next(o for o in offers if o["id"] == oid)["calendar_alert"] is True
+
+    c = m.app.test_client()
+    r = c.get(f"/api/calendar/{oid}", headers=ING)
+    assert r.status_code == 200
+    assert r.get_json()["status"] == "done"
+
+    offers = m._collect_offers()
+    assert next(o for o in offers if o["id"] == oid)["calendar_alert"] is False   # gesehen -> erloschen

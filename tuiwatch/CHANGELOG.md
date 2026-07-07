@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.43.13] - 2026-07-07
+
+### Added
+- **„Kalender"-Button leuchtet bei Preisänderung**: hat sich seit dem letzten Öffnen
+  des Preiskalenders ein Preis für ein Reisedatum geändert, pulsiert der Button
+  (amber) bis der Kalender wieder geöffnet wurde — dann erlischt es bis zur nächsten
+  echten Bewegung.
+
 ## [0.43.12] - 2026-07-07
 
 ### Added

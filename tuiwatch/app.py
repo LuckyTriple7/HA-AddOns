@@ -73,7 +73,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.43.12"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.43.13"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -510,6 +510,8 @@ def init_db() -> None:
                     'paused', 'archived'):
             if col not in ocols:
                 con.execute(f"ALTER TABLE offers ADD COLUMN {col} INTEGER")
+        if 'calendar_seen_ts' not in ocols:
+            con.execute("ALTER TABLE offers ADD COLUMN calendar_seen_ts INTEGER NOT NULL DEFAULT 0")
         hcols = {r['name'] for r in con.execute('PRAGMA table_info(price_history)').fetchall()}
         if 'available' not in hcols:
             con.execute("ALTER TABLE price_history ADD COLUMN available INTEGER")
@@ -2449,6 +2451,11 @@ def _collect_offers() -> list[dict]:
                 vs_avg30 = round((cur_price - s30['av']) / s30['av'] * 100, 1)
             trend = _trend_for(con, o['id'])
             checking = o['id'] in _checking
+            # Nur echte Bewegungen (>=2 bekannte Preise je Reisedatum) zaehlen als
+            # Aenderung, nicht der allererste Kalender-Abruf (reine Baseline).
+            cal_moves = _calendar_moves(con, o['id'])
+            last_move_ts = max((v['ts'] for v in cal_moves.values()), default=0)
+            calendar_alert = bool(last_move_ts and last_move_ts > (o['calendar_seen_ts'] or 0))
             avail = None
             if last and last['available'] is not None:
                 avail = bool(last['available'])
@@ -2488,6 +2495,7 @@ def _collect_offers() -> list[dict]:
                 'avg30_price': avg30, 'vs_avg30': vs_avg30,
                 'trend': trend,
                 'checking': checking,
+                'calendar_alert': calendar_alert,
                 'comparable': not is_single_room(f"{o['room']} {o['details']}"),
             })
     return out
@@ -5899,7 +5907,14 @@ def api_calendar_start(offer_id: int):
 def api_calendar_get(offer_id: int):
     if (err := _require_api()):
         return err
-    return jsonify(_calendar_payload(offer_id))
+    payload = _calendar_payload(offer_id)
+    if payload.get('status') == 'done':
+        # Angezeigt -> Trend-Blinken auf dem "Kalender"-Button erlischt bis zur
+        # naechsten Preisaenderung (siehe calendar_alert in _collect_offers()).
+        with db() as con:
+            con.execute('UPDATE offers SET calendar_seen_ts=? WHERE id=?',
+                        (int(time.time()), offer_id))
+    return jsonify(payload)
 
 
 @app.route('/api/calendar/<int:offer_id>/day/<travel_date>', methods=['GET'])

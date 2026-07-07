@@ -382,6 +382,9 @@ unveränderten Tagen). Darauf aufbauend:
   Reisedatums über alle bisherigen Abrufe als Mini-Diagramm.
 - **„Größte Bewegungen seit letztem Abruf“** listet die Tage mit den stärksten
   Preissprüngen auf einen Blick auf.
+- Der **„Kalender“-Button** in der Angebotsliste pulsiert (amber), sobald sich seit
+  dem letzten Öffnen ein Preis im Kalender geändert hat — Öffnen markiert als
+  gesehen, das Pulsieren erlischt bis zur nächsten echten Bewegung.
 
 Diese Trend-Historie zählt zu den echten, nicht rekonstruierbaren Nutzdaten (wie der
 Preisverlauf) und wird beim Zurücksetzen/Löschen eines Angebots mitgelöscht sowie im
