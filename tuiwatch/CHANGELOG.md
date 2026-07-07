@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.43.12] - 2026-07-07
+
+### Added
+- TripPilot: „FKK" als Aktivitäts-Option ergänzt
+
 ## [0.43.11] - 2026-07-07
 
 ### Added
