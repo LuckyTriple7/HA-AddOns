@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.43.11] - 2026-07-07
+
+### Added
+- **Preiskalender: Trend über Zeit.** Der Preiskalender wurde bisher bei jedem Abruf
+  komplett überschrieben — es war nicht sichtbar, ob Preise für ein bestimmtes
+  Reisedatum steigen oder fallen. Jetzt wird die Historie delta-codiert mitgeschrieben
+  (`calendar_history`, nur geänderte Tage) und ausgewertet:
+  - **Trend-Ansicht** im Kalender-Grid (Umschalter „📈 Trend“/„💰 Preis“): Zellen zeigen
+    die Preisänderung seit dem letzten Abruf statt/zusätzlich zum absoluten Preis
+    (rot = gestiegen, grün = gefallen).
+  - **Preisverlauf pro Tag**: Klick auf das 📈-Symbol in einer Zelle zeigt ein
+    Mini-Diagramm mit dem Preisverlauf genau dieses Reisedatums über alle Abrufe.
+  - **„Größte Bewegungen seit letztem Abruf“**-Liste im Kalender-Modal.
+  - Die Historie wird beim Löschen/Zurücksetzen eines Angebots mitgelöscht und im
+    Backup/Restore wie der Preisverlauf mitgesichert (`tuiwatch_backup` Version 4).
+
+### Fixed
+- `_check_cheaper_date()` rief bei **jedem** erfolgreichen Preis-Check den kompletten
+  Preiskalender neu ab (bis zu 6 HTTP-Requests), ohne die 7-Tage-Cache-TTL zu beachten,
+  die der Buchungsscore bereits nutzt. Nutzt jetzt dieselbe TTL — die „günstigerer
+  Termin“-Prüfung bleibt bei jedem Check aktiv, nur der teure Abruf wird gedrosselt.
+
 ## [0.43.10] - 2026-07-07
 
 ### Fixed

@@ -73,7 +73,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.43.9"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.43.11"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -342,6 +342,21 @@ def init_db() -> None:
             data     TEXT NOT NULL DEFAULT '{}',
             FOREIGN KEY (offer_id) REFERENCES offers(id) ON DELETE CASCADE
         )''')
+        # Delta-codierte Preishistorie je Reisedatum (nicht je Angebots-Poll wie
+        # price_history): eine Zeile nur wenn sich der Preis für dieses (offer_id,
+        # travel_date) seit dem letzten Snapshot geändert hat, siehe
+        # _store_calendar_snapshot() — sonst würde die Tabelle bei 400-700+ Tagen je
+        # Kalender explodieren.
+        con.execute('''CREATE TABLE IF NOT EXISTS calendar_history (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            offer_id    INTEGER NOT NULL,
+            travel_date TEXT NOT NULL,
+            ts          INTEGER NOT NULL,
+            price       INTEGER NOT NULL,
+            FOREIGN KEY (offer_id) REFERENCES offers(id) ON DELETE CASCADE
+        )''')
+        con.execute('CREATE INDEX IF NOT EXISTS idx_calhist_offer_date '
+                    'ON calendar_history(offer_id, travel_date, ts)')
         con.execute('''CREATE TABLE IF NOT EXISTS nights_cache (
             offer_id INTEGER PRIMARY KEY,
             ts       INTEGER NOT NULL,
@@ -1063,18 +1078,35 @@ def _maybe_notify(offer: dict, prev_price: float | None, new_price: float | None
 
 
 def _check_cheaper_date(offer: dict, current_price: float) -> None:
-    """Holt den Preiskalender (frischt zugleich den Cache auf) und meldet, wenn ein
-    anderer Abreisetag deutlich günstiger ist als der getrackte Preis."""
+    """Meldet, wenn ein anderer Abreisetag deutlich günstiger ist als der getrackte
+    Preis. Nutzt für den Kalender-Abruf dieselbe TTL wie der Buchungsscore-Pfad
+    (_CALENDAR_FRESH_SECONDS, ~7 Tage): ist der Cache noch frisch, wird NICHT neu
+    abgerufen (bis zu 6 teure HTTP-Requests je Check), sondern der vorhandene
+    Snapshot aus calendar_cache für die Benachrichtigungslogik weiterverwendet — die
+    'günstigerer Termin'-Prüfung bleibt dadurch bei JEDEM Preis-Check aktiv, nur der
+    teure Kalender-Abruf selbst wird gedrosselt."""
     cfg = load_config()
-    cal = fetch_calendar(offer['url'], verbose=_verbose())
-    if not cal or not cal.get('ok'):
+    oid = offer['id']
+    with db() as con:
+        cached = con.execute('SELECT ts, data FROM calendar_cache WHERE offer_id=?',
+                             (oid,)).fetchone()
+    cal = None
+    if cached and time.time() - cached['ts'] < _CALENDAR_FRESH_SECONDS:
+        try:
+            cal = json.loads(cached['data'])
+        except (ValueError, TypeError):
+            cal = None
+    if cal is None:
+        cal = fetch_calendar(offer['url'], verbose=_verbose())
+        if not cal or not cal.get('ok'):
+            return
+        try:
+            with db() as con:
+                _store_calendar_snapshot(con, oid, cal)
+        except Exception as e:
+            log.warning("Kalender-Cache #%d nicht aktualisiert: %s", oid, e)
+    if not cal.get('ok'):
         return
-    try:
-        with db() as con:
-            con.execute('INSERT OR REPLACE INTO calendar_cache (offer_id, ts, data) '
-                        'VALUES (?,?,?)', (offer['id'], int(time.time()), json.dumps(cal)))
-    except Exception as e:
-        log.warning("Kalender-Cache #%d nicht aktualisiert: %s", offer['id'], e)
     cd, cp = cal.get('cheapest_date'), cal.get('cheapest_price')
     if not cd or cp is None:
         return
@@ -1085,7 +1117,6 @@ def _check_cheaper_date(offer: dict, current_price: float) -> None:
     # Persistenter Dedup: nur melden, wenn es ein WIRKLICH neuer Tiefstwert ist —
     # also ein anderer Abreisetag ODER (gleicher Tag) ein nochmals tieferer Preis.
     # Reine Schwankungen nach oben und Wiederholungen über Neustarts lösen nichts aus.
-    oid = offer['id']
     with db() as con:
         prev = con.execute('SELECT cdate, cprice FROM cheaper_state WHERE offer_id=?',
                            (oid,)).fetchone()
@@ -1539,6 +1570,34 @@ def _nights_payload(offer_id: int) -> dict:
 
 # ── Preiskalender (on-demand, gespeichert) ──────────────────────────────────────
 
+def _store_calendar_snapshot(con, offer_id: int, cal: dict) -> None:
+    """Speichert einen frisch abgerufenen Preiskalender: überschreibt wie bisher den
+    kompletten Snapshot in `calendar_cache` (unverändert für UI/Buchungsscore) UND
+    schreibt Delta-codierte Zeilen in `calendar_history` — nur für Tage, deren Preis
+    sich seit dem letzten bekannten Wert für dieses (offer_id, travel_date) geändert
+    hat (oder die zum ersten Mal beobachtet werden). Verglichen wird gegen den noch
+    nicht überschriebenen VORHERIGEN calendar_cache-Snapshot, kein Zusatz-Read der
+    (potenziell großen) Trend-Tabelle nötig."""
+    ts = int(time.time())
+    prev_row = con.execute('SELECT data FROM calendar_cache WHERE offer_id=?',
+                           (offer_id,)).fetchone()
+    prev_prices: dict = {}
+    if prev_row:
+        try:
+            prev_prices = {d['date']: d['price']
+                           for d in json.loads(prev_row['data']).get('days', [])}
+        except (ValueError, TypeError, KeyError):
+            prev_prices = {}
+    con.execute('INSERT OR REPLACE INTO calendar_cache (offer_id, ts, data) VALUES (?,?,?)',
+                (offer_id, ts, json.dumps(cal)))
+    changed = [(offer_id, d['date'], ts, d['price']) for d in cal.get('days', [])
+               if prev_prices.get(d['date']) != d['price']]
+    if changed:
+        con.executemany(
+            'INSERT INTO calendar_history (offer_id, travel_date, ts, price) VALUES (?,?,?,?)',
+            changed)
+
+
 def _run_calendar(offer_id: int) -> None:
     """Liest den Preiskalender (Preis je Abreisetag) und speichert ihn in der DB."""
     try:
@@ -1555,8 +1614,7 @@ def _run_calendar(offer_id: int) -> None:
                 _calendar_state[offer_id] = {'status': 'error', 'note': 'Preiskalender nicht abrufbar'}
             return
         with db() as con:
-            con.execute('INSERT OR REPLACE INTO calendar_cache (offer_id, ts, data) VALUES (?,?,?)',
-                        (offer_id, int(time.time()), json.dumps(res)))
+            _store_calendar_snapshot(con, offer_id, res)
         with _calendar_lock:
             _calendar_state.pop(offer_id, None)
         log.info("Preiskalender #%d: %d Tage, günstigster %s (%s €)", offer_id,
@@ -1567,6 +1625,44 @@ def _run_calendar(offer_id: int) -> None:
             _calendar_state[offer_id] = {'status': 'error', 'note': 'Preiskalender fehlgeschlagen'}
 
 
+def _calendar_moves(con, offer_id: int) -> dict[str, dict]:
+    """Letzte bekannte Preisbewegung je Reisedatum aus calendar_history: für jedes
+    Datum werden nur die zwei jüngsten bekannten Preise verglichen (Tage ohne
+    Änderung erzeugen ja keine neue Zeile, siehe _store_calendar_snapshot). Rückgabe:
+    {travel_date: {price, prev_price, delta, ts}} — nur für Daten mit >=2 bekannten
+    Preisen."""
+    rows = con.execute(
+        'SELECT travel_date, ts, price FROM calendar_history WHERE offer_id=? '
+        'ORDER BY travel_date, ts', (offer_id,)).fetchall()
+    by_date: dict[str, list] = defaultdict(list)
+    for r in rows:
+        by_date[r['travel_date']].append((r['ts'], r['price']))
+    moves = {}
+    for d, pts in by_date.items():
+        if len(pts) < 2:
+            continue
+        (_, prev_price), (last_ts, last_price) = pts[-2], pts[-1]
+        moves[d] = {'price': last_price, 'prev_price': prev_price,
+                    'delta': last_price - prev_price, 'ts': last_ts}
+    return moves
+
+
+def _calendar_top_moves(moves: dict, limit: int = 12) -> list[dict]:
+    """Größte Bewegungen (nach Betrag) aus _calendar_moves(), für die 'Größte
+    Bewegungen seit letztem Abruf'-Liste."""
+    return sorted(
+        ({'date': d, **v} for d, v in moves.items()),
+        key=lambda m: abs(m['delta']), reverse=True)[:limit]
+
+
+def _calendar_date_history(con, offer_id: int, travel_date: str) -> list[dict]:
+    """Preisverlauf EINES Reisedatums über alle Snapshots — Datenquelle für den
+    Mini-Zeitreihen-Chart bei Klick auf einen Kalendertag."""
+    return [dict(r) for r in con.execute(
+        'SELECT ts, price FROM calendar_history WHERE offer_id=? AND travel_date=? '
+        'ORDER BY ts', (offer_id, travel_date)).fetchall()]
+
+
 def _calendar_payload(offer_id: int) -> dict:
     with _calendar_lock:
         st = dict(_calendar_state.get(offer_id) or {})
@@ -1575,10 +1671,13 @@ def _calendar_payload(offer_id: int) -> dict:
     with db() as con:
         row = con.execute('SELECT ts, data FROM calendar_cache WHERE offer_id=?',
                           (offer_id,)).fetchone()
+        moves = _calendar_moves(con, offer_id) if row else {}
     if row:
         out = json.loads(row['data'])
         out['status'] = 'done'
         out['ts'] = row['ts']
+        out['moves'] = moves
+        out['top_moves'] = _calendar_top_moves(moves)
     else:
         out = {'status': 'idle'}
     if st.get('status') == 'error':
@@ -2445,6 +2544,7 @@ def api_delete_offer(offer_id: int):
         con.execute('DELETE FROM price_history WHERE offer_id=?', (offer_id,))
         con.execute('DELETE FROM compare_cache WHERE offer_id=?', (offer_id,))
         con.execute('DELETE FROM calendar_cache WHERE offer_id=?', (offer_id,))
+        con.execute('DELETE FROM calendar_history WHERE offer_id=?', (offer_id,))
         con.execute('DELETE FROM nights_cache WHERE offer_id=?', (offer_id,))
         con.execute('DELETE FROM cheaper_state WHERE offer_id=?', (offer_id,))
         con.execute('DELETE FROM booked_state WHERE offer_id=?', (offer_id,))
@@ -2586,6 +2686,7 @@ def api_reset_offer(offer_id: int):
         con.execute('DELETE FROM price_history WHERE offer_id=?', (offer_id,))
         con.execute('DELETE FROM compare_cache WHERE offer_id=?', (offer_id,))
         con.execute('DELETE FROM calendar_cache WHERE offer_id=?', (offer_id,))
+        con.execute('DELETE FROM calendar_history WHERE offer_id=?', (offer_id,))
         con.execute('DELETE FROM nights_cache WHERE offer_id=?', (offer_id,))
         con.execute('DELETE FROM cheaper_state WHERE offer_id=?', (offer_id,))
         con.execute('DELETE FROM booked_state WHERE offer_id=?', (offer_id,))
@@ -2689,6 +2790,10 @@ def _build_backup_zip() -> bytes:
             o['events'] = [{c: e[c] for c in _EVENT_COLS} for e in con.execute(
                 'SELECT ts, type, text FROM offer_events WHERE offer_id=? ORDER BY ts',
                 (oid,)).fetchall()]
+            o['calendar_history'] = [{'travel_date': h['travel_date'], 'ts': h['ts'],
+                                      'price': h['price']} for h in con.execute(
+                'SELECT travel_date, ts, price FROM calendar_history '
+                'WHERE offer_id=? ORDER BY travel_date, ts', (oid,)).fetchall()]
             offers.append(o)
         trips = [{c: t[c] for c in _TRIP_COLUMNS} for t in con.execute(
             f"SELECT {', '.join(_TRIP_COLUMNS)} FROM trips ORDER BY id").fetchall()]
@@ -2726,7 +2831,7 @@ def _build_backup_zip() -> bytes:
                         for r in con.execute(
                             'SELECT ts, region, country, months_out, pct_change '
                             'FROM price_moves ORDER BY ts').fetchall()]
-    data = {'tuiwatch_backup': 3, 'created': datetime.now().isoformat(),
+    data = {'tuiwatch_backup': 4, 'created': datetime.now().isoformat(),
             'offers': offers, 'trips': trips, 'saved_searches': searches,
             'trip_attachments': attachments, 'trip_packing_items': packing_items,
             'ai_analyses': ai_analyses, 'meta': meta, 'price_moves': price_moves}
@@ -2868,6 +2973,12 @@ def _restore_offer(con, it: dict, ocols: set, existing_urls: set) -> str:
             continue
         con.execute('INSERT INTO offer_events (offer_id, ts, type, text) VALUES (?,?,?,?)',
                     (oid, int(e.get('ts') or 0), str(e.get('type')), (e.get('text') or '')))
+    for c in (it.get('calendar_history') or []):
+        if not isinstance(c, dict) or not c.get('travel_date') or c.get('price') is None:
+            continue
+        con.execute(
+            'INSERT INTO calendar_history (offer_id, travel_date, ts, price) VALUES (?,?,?,?)',
+            (oid, str(c['travel_date']), int(c.get('ts') or 0), c['price']))
     return oid
 
 
@@ -5789,6 +5900,21 @@ def api_calendar_get(offer_id: int):
     if (err := _require_api()):
         return err
     return jsonify(_calendar_payload(offer_id))
+
+
+@app.route('/api/calendar/<int:offer_id>/day/<travel_date>', methods=['GET'])
+def api_calendar_day_history(offer_id: int, travel_date: str):
+    """Preisverlauf eines einzelnen Reisedatums über alle Kalender-Snapshots — für
+    den Mini-Chart bei Klick auf einen Kalendertag."""
+    if (err := _require_api()):
+        return err
+    if not re.fullmatch(r'\d{4}-\d{2}-\d{2}', travel_date or ''):
+        return jsonify({'error': 'bad_date'}), 400
+    with db() as con:
+        if not con.execute('SELECT 1 FROM offers WHERE id=?', (offer_id,)).fetchone():
+            return jsonify({'error': 'not_found'}), 404
+        points = _calendar_date_history(con, offer_id, travel_date)
+    return jsonify({'date': travel_date, 'points': points})
 
 
 @app.route('/api/rooms/<int:offer_id>', methods=['GET'])

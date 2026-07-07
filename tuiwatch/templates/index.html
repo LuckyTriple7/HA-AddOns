@@ -302,6 +302,14 @@
     .cal-legend .lg-track { border:2px solid var(--accent); }
     .cal-legend .lg-out { background:var(--surf2); opacity:.4; }
     @media(max-width:560px){ .cal-cell{ min-height:44px; padding:3px; } .cal-cell .cal-p{ font-size:.7rem; } }
+    .cal-info { position:absolute; top:2px; right:3px; font-size:10px; line-height:1; cursor:pointer; z-index:2; opacity:.5; }
+    .cal-info:hover { opacity:1; }
+    .cal-moves { margin-bottom:10px; border:1px solid var(--border); border-radius:8px; padding:8px 10px; background:var(--surf2); }
+    .cal-move-row { display:flex; align-items:center; gap:10px; padding:4px 0; font-size:.8rem; cursor:pointer; }
+    .cal-move-row:hover { color:var(--accent); }
+    .cal-day-chart { display:none; margin:10px 0; border:1px solid var(--border); border-radius:8px; padding:8px 10px; }
+    .cal-day-chart.show { display:block; }
+    .cal-day-hd { display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; font-size:.85rem; }
     .modal-close { float:right; }
     footer { text-align:center; margin:24px 0 8px; font-size:.72rem; color:var(--muted); }
     .hc-foot { cursor:pointer; }
@@ -3088,7 +3096,26 @@
     }
 
     // ── Preiskalender (Monats-Grid, gespeichert) ──────────────────────────────
-    let calTimer = null, calId = null, calData = null, calMonth = null;
+    let calTimer = null, calId = null, calData = null, calMonth = null, calTrendView = false;
+    function toggleCalTrend(){ calTrendView = !calTrendView; drawCalMonth(); }
+    async function openCalDayChart(iso){
+      const box = $('#cal-day-chart');
+      box.classList.add('show');
+      box.innerHTML = `<div class="cmp-load">Lade Preisverlauf für ${fmtD(iso)}…</div>`;
+      let d;
+      try { d = await fetch(api('/api/calendar/'+calId+'/day/'+iso)).then(r=>r.json()); }
+      catch(e){ box.innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Preisverlauf konnte nicht geladen werden.</div>'; return; }
+      const pts = (d.points||[]).map(p=>({ts:p.ts, price:p.price}));
+      box.innerHTML = `<div class="cal-day-hd"><b>Preisverlauf: ${fmtD(iso)}</b>
+          <button class="btn sec" onclick="closeCalDayChart()">✕</button></div>
+        <canvas id="cal-day-canvas" style="width:100%;height:120px;display:block"></canvas>`;
+      if(pts.length<2){
+        $('#cal-day-canvas').outerHTML = '<div class="hint">Noch keine Preisänderung für dieses Datum aufgezeichnet.</div>';
+      } else {
+        drawChart($('#cal-day-canvas'), pts, false, {});
+      }
+    }
+    function closeCalDayChart(){ $('#cal-day-chart').classList.remove('show'); $('#cal-day-chart').innerHTML=''; }
     function calSpinner(){ $('#cal-body').innerHTML = progBar('Preiskalender wird geladen…'); }
     function startCalPolling(){ clearInterval(calTimer); calPoll(); calTimer = setInterval(calPoll, 2000); }
 
@@ -3226,6 +3253,7 @@
     function drawCalMonth(){
       const job = calData; if(!job) return;
       const pm = {}; job.days.forEach(d=>pm[d.date]=d.price);
+      const moves = job.moves || {};
       const months = [...new Set(job.days.map(d=>d.date.slice(0,7)))].sort();
       if(!months.includes(calMonth)) calMonth = months[0];
       const [Y,M] = calMonth.split('-').map(Number);
@@ -3250,14 +3278,23 @@
         if(!inWin) cls.push('out');
         if(iso===job.cheapest_date) cls.push('cheapest');
         if(iso===job.tracked_date) cls.push('tracked');
+        const mv = moves[iso];
         let style = '';
-        if(price!=null){  // Heatmap: günstig=grün → teuer=rot
+        if(calTrendView){
+          if(mv){  // Trend: rot=gestiegen, grün=gefallen
+            const hue = mv.delta>0 ? 4 : 132;
+            style = ` style="background:hsla(${hue},65%,45%,.22)"`;
+          }
+        } else if(price!=null){  // Heatmap: günstig=grün → teuer=rot
           const ratio = pmax>pmin ? (price-pmin)/(pmax-pmin) : 0;
           style = ` style="background:hsla(${Math.round(120*(1-ratio))},65%,45%,.22)"`;
         }
-        const inner = `<span class="cal-d">${d}</span>`
+        const deltaBadge = mv ? `<span class="hist-diff ${mv.delta>0?'up':'down'}" style="margin:0;font-size:.68rem;padding:1px 5px">${mv.delta>0?'▲ +':'▼ '}${eur(mv.delta)}</span>` : '';
+        const infoIcon = price!=null ? `<span class="cal-info" title="Preisverlauf für diesen Tag anzeigen" onclick="event.preventDefault();event.stopPropagation();openCalDayChart('${iso}')">📈</span>` : '';
+        const inner = `<span class="cal-d">${d}</span>${infoIcon}`
           + (iso===job.cheapest_date?PIG:'')   // Sparschwein als direktes Zellenkind → mittig
-          + (price!=null ? `<span class="cal-p">${eur(price)}</span>` : '<span class="cal-p na">–</span>');
+          + (calTrendView && mv ? deltaBadge
+             : price!=null ? `<span class="cal-p">${eur(price)}</span>` : '<span class="cal-p na">–</span>');
         if(price!=null && base){
           cls.push('clk');
           cells += `<a class="${cls.join(' ')}" href="${esc(dayUrl(base,iso,nights))}" target="_blank" rel="noopener" oncontextmenu="return saveCalDay(event,'${iso}')" title="Linksklick: Termin auf tui.com öffnen · Rechtsklick: als neues Angebot tracken"${style}>${inner}</a>`;
@@ -3270,20 +3307,34 @@
       const monthName = first.toLocaleDateString('de-DE',{month:'long',year:'numeric'});
       let sum = job.cheapest_date ? `Günstigster Termin: <b>${fmtD(job.cheapest_date)}</b> ${eur(job.cheapest_price)}` : '';
       if(job.tracked_date && job.tracked_date!==job.cheapest_date) sum += ` · In deinem Zeitraum: <b>${fmtD(job.tracked_date)}</b> ${eur(job.tracked_price)}`;
+      const topMoves = job.top_moves || [];
+      const topMovesHtml = topMoves.length ? `<div class="cal-moves">
+          <div class="hint" style="margin-bottom:4px"><b>Größte Bewegungen seit letztem Abruf</b></div>
+          ${topMoves.map(m=>`<div class="cal-move-row" onclick="calGo('${m.date.slice(0,7)}');openCalDayChart('${m.date}')">
+            <span>${fmtD(m.date)}</span>
+            <span class="hist-diff ${m.delta>0?'up':'down'}">${m.delta>0?'▲ +':'▼ '}${eur(m.delta)}</span>
+            <span class="hint">${eur(m.prev_price)} → ${eur(m.price)}</span>
+          </div>`).join('')}
+        </div>` : '';
       $('#cal-body').innerHTML = `
         <div class="cal-sum">${sum}</div>
+        ${topMovesHtml}
         <div class="cal-nav">
           <button class="btn sec" onclick="calGo('${prev}')" ${prev?'':'disabled'}>‹</button>
           <span class="cal-title">${monthName}</span>
-          <button class="btn sec" onclick="calGo('${next}')" ${next?'':'disabled'}>›</button>
+          <div style="display:flex;gap:6px;align-items:center">
+            <button class="btn sec" onclick="toggleCalTrend()" title="Preis- oder Trend-Ansicht umschalten">${calTrendView?'💰 Preis':'📈 Trend'}</button>
+            <button class="btn sec" onclick="calGo('${next}')" ${next?'':'disabled'}>›</button>
+          </div>
         </div>
         <div class="cal-grid head">${['Mo','Di','Mi','Do','Fr','Sa','So'].map(w=>`<div class="cal-wd">${w}</div>`).join('')}</div>
         <div class="cal-grid">${cells}</div>
+        <div id="cal-day-chart" class="cal-day-chart"></div>
         <div class="cal-legend">
           <span><i class="lg-cheap"></i>${PIG}günstigster Termin</span>
           <span><i class="lg-track"></i>günstigster in deinem Zeitraum</span>
           <span><i class="lg-out"></i>außerhalb deines Zeitraums</span>
-          <span>🟩→🟥 günstig→teuer · Klick: auf tui.com öffnen · Rechtsklick: als neues Angebot tracken</span>
+          <span>🟩→🟥 günstig→teuer · Klick: auf tui.com öffnen · Rechtsklick: als neues Angebot tracken · 📈: Preisverlauf dieses Tages</span>
         </div>${calFooter(job)}`;
     }
 

@@ -372,6 +372,22 @@ mehrere Abrufe zu einer durchgehenden Zeitleiste zusammen.) Das Ergebnis wird
 **gespeichert** (Zeitstempel + „Neu abfragen") und respektiert alle Filter deiner
 Angebots-URL (Verpflegung, Veranstalter, Zimmer, Abflughafen).
 
+**Trend über Zeit:** Jeder Abruf überschreibt zwar weiterhin den angezeigten Snapshot,
+zusätzlich wird aber mitgeschrieben, für welche Reisedaten sich der Preis seit dem
+letzten Abruf geändert hat (delta-codiert, nur echte Änderungen — kein Datenmüll bei
+unveränderten Tagen). Darauf aufbauend:
+- Umschalter **„📈 Trend“ / „💰 Preis“** im Kalender: die Trend-Ansicht färbt Tage nach
+  Preisänderung statt nach absolutem Preis (rot = gestiegen, grün = gefallen).
+- Ein Klick auf das **📈-Symbol** einer Zelle zeigt den Preisverlauf genau dieses
+  Reisedatums über alle bisherigen Abrufe als Mini-Diagramm.
+- **„Größte Bewegungen seit letztem Abruf“** listet die Tage mit den stärksten
+  Preissprüngen auf einen Blick auf.
+
+Diese Trend-Historie zählt zu den echten, nicht rekonstruierbaren Nutzdaten (wie der
+Preisverlauf) und wird beim Zurücksetzen/Löschen eines Angebots mitgelöscht sowie im
+Backup/Restore mitgesichert — anders als der reine Kalender-Snapshot (`calendar_cache`),
+der weiterhin nicht gesichert wird, da er sich jederzeit neu abrufen lässt.
+
 ## TUI-Aktionscodes
 
 Über **🎟 Aktionscodes** überwacht TUIWatch die **öffentlichen** Aktionscodes von
@@ -517,7 +533,9 @@ landen dauerhaft im **KI-Verlauf**.
   (Abgleich per URL, Buchungsnummer bzw. Name; KI-Einstellungen/Kosten-Zähler werden nur
   gesetzt, wenn lokal noch nichts hinterlegt ist — laufende Zähler werden nie durch
   ältere Backup-Werte zurückgesetzt) — nichts wird gelöscht oder doppelt angelegt. (Reine
-  Caches wie Vergleich/Kalender werden nicht gesichert, sie entstehen automatisch neu.)
+  Caches wie Vergleich/Kalender-Snapshot werden nicht gesichert, sie entstehen automatisch
+  neu — die Kalender-**Trend-Historie** je Angebot dagegen schon, siehe Abschnitt
+  „Preiskalender".)
 - **Gebuchter Preis** — pro Angebot den **tatsächlich gezahlten Preis** hinterlegen
   (Feld „📌 Gebuchter Preis"). Das Tracking läuft weiter; angezeigt wird „seit Buchung
   ±X €" und im Diagramm eine eigene Linie. Fällt der Preis deutlich darunter, kommt
@@ -541,7 +559,7 @@ landen dauerhaft im **KI-Verlauf**.
   Zimmer mit Fotos/Beschreibung auf tui.com; **„Günstigstes automatisch"** hebt die
   Festlegung wieder auf.
 - **Pausieren / Fortsetzen** — setzt die automatische Prüfung für ein Angebot aus, ohne es zu löschen.
-- **Zurücksetzen** — löscht den Preisverlauf (und Vergleichs-/Kalender-Cache) und beginnt nach einer frischen Abfrage wieder bei „null". Angebot, Name und Wunschpreis bleiben.
+- **Zurücksetzen** — löscht den Preisverlauf (und Vergleichs-/Kalender-Cache samt Kalender-Trend-Historie) und beginnt nach einer frischen Abfrage wieder bei „null". Angebot, Name und Wunschpreis bleiben.
 - **Archivieren / Reaktivieren** — legt ein Angebot ins Archiv (keine Live-Abfragen mehr) bzw. holt es zurück. Reisen werden **automatisch archiviert**, sobald ihr Rückreisedatum vergangen ist; manuell z. B. wenn ein Angebot ausgebucht/nicht mehr verfügbar ist. Archivierte Angebote sind über den Schalter **„Archiv"** oben einblendbar und werden bei Prüfungen, Übersicht und E-Mail-Versand ausgenommen.
 
 Bei mehreren Reisenden wird zusätzlich zum **Preis pro Person** der **Gesamtpreis**
