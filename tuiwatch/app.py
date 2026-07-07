@@ -73,7 +73,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.43.14"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.43.15"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -133,6 +133,7 @@ _ai_summary_cache: dict = {}              # giata/Name → {summary, ts} — spa
 _AI_SUMMARY_TTL = 24 * 3600
 _booking_score_cache: dict = {}           # offer_id → {result, usage, ts}
 _region_outlook_cache: dict = {}          # region → {result, usage, ts}
+_calendar_outlook_cache: dict = {}        # offer_id → {summary, usage, ts}
 _BOOKING_SCORE_TTL = 6 * 3600             # kürzer als Hotel-Fazit: Preisdaten ändern sich häufiger
 _CALENDAR_FRESH_SECONDS = 7 * 86400       # Preiskalender für den Buchungsscore ab diesem Alter neu abrufen
 _AI_MODELS = ('claude-opus-4-8', 'claude-sonnet-5', 'claude-haiku-4-5', 'claude-fable-5')
@@ -3959,12 +3960,13 @@ def _ai_request_gemini(api_key: str, model: str, prompt: str, *, max_tokens: int
     return text, usage, None
 
 
-def _ai_call(api_key: str, model: str, prompt: str, *, max_tokens: int, log_ctx: str):
+def _ai_call(api_key: str, model: str, prompt: str, *, max_tokens: int, log_ctx: str,
+             use_web_search: bool = True):
     """Flask-Route-Wrapper um `_ai_request`: gleiche Erfolgs-Rückgabe (text, usage,
     None), Fehler als (None, None, (jsonify(...), status)) — für Endpunkte, die
     innerhalb eines Request-Handlers laufen."""
     text, usage, code = _ai_request(api_key, model, prompt, max_tokens=max_tokens,
-                                    log_ctx=log_ctx)
+                                    log_ctx=log_ctx, use_web_search=use_web_search)
     if code == 'failed':
         return None, None, (jsonify({'error': 'ai_failed'}), 502)
     if code == 'refused':
@@ -4180,6 +4182,78 @@ def _offer_booking_facts(con, offer_id: int) -> dict | None:
     }
 
 
+def _calendar_outlook_facts(con, offer_id: int) -> dict | None:
+    """Fakten für die KI-Kalenderanalyse: Monatsdurchschnitte (schwellenfrei, auch bei
+    wenig Daten — anders als `_calendar_seasonal_summary`, das für den Buchungsscore
+    harte Mindestschwellen braucht) + größte Bewegungen aus calendar_history. None
+    ohne abgerufenen Kalender."""
+    o = con.execute('SELECT label, hotel FROM offers WHERE id=?', (offer_id,)).fetchone()
+    if not o:
+        return None
+    cal_row = con.execute('SELECT data FROM calendar_cache WHERE offer_id=?', (offer_id,)).fetchone()
+    if not cal_row:
+        return None
+    try:
+        cal = json.loads(cal_row['data'])
+    except (ValueError, TypeError):
+        return None
+    days = cal.get('days') or []
+    if not days:
+        return None
+    by_month: dict[str, list] = defaultdict(list)
+    for d in days:
+        by_month[d['date'][:7]].append(d['price'])
+    monthly = sorted((m, round(sum(p) / len(p)), len(p)) for m, p in by_month.items())
+    moves = _calendar_top_moves(_calendar_moves(con, offer_id), limit=8)
+    return {
+        'hotel': o['label'] or o['hotel'] or f"Angebot #{offer_id}",
+        'duration': cal.get('duration'),
+        'tracked_date': cal.get('tracked_date'), 'tracked_price': cal.get('tracked_price'),
+        'cheapest_date': cal.get('cheapest_date'), 'cheapest_price': cal.get('cheapest_price'),
+        'monthly': monthly, 'moves': moves,
+    }
+
+
+_CALENDAR_OUTLOOK_INSTRUCTIONS = (
+    "Fasse die Preisentwicklung im Kalender kurz zusammen und gib eine Empfehlung, "
+    "wann eine Buchung günstig bzw. teuer ist. Gliedere die Antwort so:\n"
+    "- Kurzer Absatz (2-3 Sätze) zum allgemeinen Preisniveau, und falls Daten vorhanden "
+    "zu auffälligen Preisänderungen.\n"
+    "- Abschnitt \"Günstige Monate\" als Liste (Monat + ca. Preis).\n"
+    "- Abschnitt \"Teure Monate\" als Liste (Monat + ca. Preis).\n"
+    "- Abschnitt \"Empfehlung\": 1-2 Sätze konkrete Handlungsempfehlung.\n\n"
+    "Nutze ausschließlich die unten gelieferten Daten — keine Websuche, keine erfundenen "
+    "Zahlen. Schreibe auf Deutsch, sprich den Nutzer mit „Du“ an, fasse dich kurz "
+    "(insgesamt max. ~180 Wörter). Gib direkt die fertige Antwort aus, kein Vorspann."
+)
+
+
+def _calendar_outlook_prompt(facts: dict) -> str:
+    lines = [f"Heutiges Datum: {date.today().isoformat()}", f"Hotel: {facts['hotel']}"]
+    if facts.get('duration'):
+        lines.append(f"Reisedauer: {facts['duration']} Nächte")
+    if facts.get('tracked_date'):
+        lines.append(f"Preis im aktuell gewählten Reisezeitraum: {facts['tracked_price']} € "
+                      f"(am {facts['tracked_date']})")
+    if facts.get('cheapest_date'):
+        lines.append(f"Günstigster Einzeltermin im gesamten Kalender: "
+                      f"{facts['cheapest_price']} € (am {facts['cheapest_date']})")
+    lines.append("Monatsdurchschnittspreise im Kalender (Ø-Preis, Anzahl Tage mit Daten):")
+    for m, avg, n in facts['monthly']:
+        lines.append(f"- {_month_name_de(m)}: Ø {avg} € ({n} Tage)")
+    if facts['moves']:
+        lines.append("Größte Preisänderungen seit dem jeweils letzten bekannten Wert "
+                      "für dieses Reisedatum:")
+        for mv in facts['moves']:
+            arrow = "gestiegen" if mv['delta'] > 0 else "gefallen"
+            lines.append(f"- {mv['date']}: {mv['prev_price']} € -> {mv['price']} € "
+                         f"({arrow} um {abs(mv['delta'])} €)")
+    else:
+        lines.append("Bisher wurden noch keine Preisänderungen im Kalender aufgezeichnet.")
+    return ("Du bist ein Reisepreis-Analyst. Analysiere den Preiskalender dieser "
+            "Pauschalreise.\n\n" + "\n".join(lines) + "\n\n" + _CALENDAR_OUTLOOK_INSTRUCTIONS)
+
+
 def _booking_score_prompt(facts: dict) -> str:
     """Baut den Buchungsscore-Prompt für ein einzelnes Angebot aus dessen eigenen
     (bereits vorgerechneten) Fakten — keine rohen Preislisten, damit die KI nicht
@@ -4318,6 +4392,43 @@ def _ai_score_request(prompt: str, model: str, api_key: str, log_ctx: str):
     except ValueError:
         return None, None, (jsonify({'error': 'ai_empty'}), 502)
     return result, usage, None
+
+
+@app.route('/api/ai/calendar-outlook/<int:offer_id>', methods=['POST'])
+def api_ai_calendar_outlook(offer_id: int):
+    """KI-Zusammenfassung des Preiskalenders eines Angebots (günstige/teure Monate,
+    Preisänderungen) — reiner Markdown-Fließtext, keine Websuche (nur lokale
+    Kalenderdaten), daher ohne Sonderfall für Claude/Gemini nutzbar. 6h gecacht."""
+    if (err := _require_api()):
+        return err
+    api_key, model = _ai_config()
+    if not api_key:
+        return jsonify({'error': 'no_api_key',
+                        'note': 'Kein Anthropic API-Key in den Add-on-Einstellungen hinterlegt'}), 400
+    cached = _calendar_outlook_cache.get(offer_id)
+    if cached and time.time() - cached['ts'] < _BOOKING_SCORE_TTL:
+        return jsonify({'summary': cached['summary'], 'usage': cached.get('usage'),
+                        'totals': _ai_usage_totals(), 'id': cached.get('id'), 'cached': True})
+    with db() as con:
+        if not con.execute('SELECT 1 FROM offers WHERE id=?', (offer_id,)).fetchone():
+            return jsonify({'error': 'not_found'}), 404
+        cal_row = con.execute('SELECT ts FROM calendar_cache WHERE offer_id=?', (offer_id,)).fetchone()
+    if not cal_row or time.time() - cal_row['ts'] >= _CALENDAR_FRESH_SECONDS:
+        _run_calendar(offer_id)   # wie im Buchungsscore: fehlenden/alten Kalender einmalig auffrischen
+    with db() as con:
+        facts = _calendar_outlook_facts(con, offer_id)
+    if facts is None:
+        return jsonify({'error': 'no_data'}), 400
+    prompt = _calendar_outlook_prompt(facts)
+    text, usage, err = _ai_call(api_key, model, prompt, max_tokens=700,
+                                log_ctx=facts['hotel'], use_web_search=False)
+    if err:
+        return err
+    usage['estimated_usd'] = _ai_call_cost(model, usage)
+    totals = _record_ai_usage(model, usage)
+    aid = _save_ai_analysis('calendar_outlook', facts['hotel'], model, text, usage)
+    _calendar_outlook_cache[offer_id] = {'summary': text, 'usage': usage, 'id': aid, 'ts': time.time()}
+    return jsonify({'summary': text, 'usage': usage, 'totals': totals, 'id': aid, 'cached': False})
 
 
 @app.route('/api/ai/booking-score/<int:offer_id>', methods=['POST'])

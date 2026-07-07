@@ -396,6 +396,12 @@ unveränderten Tagen). Darauf aufbauend:
   Monat/betroffene Monate, kein genaues Datum, kein Preis). Neu ins Kalenderfenster
   gerutschte Tage ohne Vorwert (z. B. der allererste Abruf) lösen keine
   Benachrichtigung aus, nur echte Preisänderungen für zuvor schon bekannte Reisedaten.
+- **KI-Analyse** (Button „🤖 KI-Analyse" im Kalender, benötigt einen konfigurierten
+  KI-Key): fasst die Monatsdurchschnittspreise und, falls vorhanden, die größten
+  Preisänderungen zusammen und empfiehlt günstige/teure Reisemonate. Reiner
+  Markdown-Text ohne Websuche (nur die bereits abgerufenen Kalenderdaten), läuft
+  dadurch identisch mit Claude und Gemini und verursacht keine zusätzlichen
+  Websuche-Kosten. 6h je Angebot gecacht.
 
 Diese Trend-Historie zählt zu den echten, nicht rekonstruierbaren Nutzdaten (wie der
 Preisverlauf) und wird beim Zurücksetzen/Löschen eines Angebots mitgelöscht sowie im

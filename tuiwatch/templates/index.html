@@ -2668,6 +2668,28 @@
       }
       renderBookingScore('#ai-body', d);
     }
+    async function openCalendarOutlook(){
+      if(calId==null) return;
+      const id = calId;   // vor closeCalendar() sichern, das setzt calId=null
+      const offer = (curOffers||[]).find(x=>x.id===id) || {};
+      closeCalendar();   // gleicher z-index wie #ai-bg, siehe openRegionOutlook()
+      $('#ai-title').textContent = '📅 Kalender-Analyse';
+      $('#ai-sub').textContent = offer.label || offer.hotel || ('Angebot #'+id);
+      $('#ai-foot').style.display = 'none';
+      $('#ai-bg').classList.add('show');
+      $('#ai-body').innerHTML = progBar('KI fasst die Kalenderpreise zusammen…');
+      let resp, d;
+      try {
+        resp = await fetch(api('/api/ai/calendar-outlook/'+id), {method:'POST'});
+        d = await resp.json();
+      } catch(e){ $('#ai-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Kalender-Analyse fehlgeschlagen.</div>'; return; }
+      if(!resp.ok){
+        const msg = d.error==='no_data' ? 'Noch keine Kalenderdaten für dieses Angebot vorhanden.' : aiErrorMsg(d.error);
+        $('#ai-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ '+esc(msg)+'</div>';
+        return;
+      }
+      renderAiResult('#ai-body', d);
+    }
     function exportAiPdf(){
       const w = window.open('', '_blank');
       if(!w){ toast('Pop-up blockiert – bitte für TUIWatch erlauben'); return; }
@@ -2823,7 +2845,8 @@
     function aiKindLabel(kind){
       return kind==='compare' ? '🤖 Vergleich' : kind==='ask' ? '❓ Frage'
         : kind==='advisor' ? '🗺️ TripPilot' : kind==='booking_score' ? '🔮 Buchungsscore'
-        : kind==='region_outlook' ? '🔮 Region-Ausblick' : '🤖 Fazit';
+        : kind==='region_outlook' ? '🔮 Region-Ausblick'
+        : kind==='calendar_outlook' ? '📅 Kalender-Analyse' : '🤖 Fazit';
     }
     function renderAiHistory(items){
       if(!items.length){
@@ -3231,8 +3254,10 @@
     function calFooter(job){
       const when = job.ts ? ('Abgefragt: '+new Date(job.ts*1000).toLocaleString('de-DE')) : '';
       const err = job.error ? '<div class="hint" style="color:var(--amber);margin-top:6px">⚠ Letzte Aktualisierung fehlgeschlagen.</div>' : '';
+      const aiBtn = (job.days && job.days.length)
+        ? '<button class="btn sec ai-feature" onclick="openCalendarOutlook()" title="KI fasst die Kalenderpreise zusammen und empfiehlt günstige/teure Monate">🤖 KI-Analyse</button>' : '';
       return `<div class="cmp-foot"><span class="hint" style="flex:1;min-width:180px">${esc(when)}</span>
-        <button class="btn sec" onclick="refreshCalendar()">Neu abfragen</button></div>${err}`;
+        ${aiBtn}<button class="btn sec" onclick="refreshCalendar()">Neu abfragen</button></div>${err}`;
     }
 
     function renderCalendar(job){

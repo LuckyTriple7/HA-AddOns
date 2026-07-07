@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.43.15] - 2026-07-07
+
+### Added
+- **KI-Analyse im Preiskalender**: neuer Button „🤖 KI-Analyse" im Kalender-Modal —
+  fasst die Kalenderpreise (Monatsdurchschnitte) und, falls vorhanden, aufgetretene
+  Preisänderungen zusammen und empfiehlt günstige/teure Monate. Funktioniert
+  gleichermaßen mit Claude und Gemini (reiner Markdown-Fließtext ohne Websuche, umgeht
+  damit die bekannte Gemini-Einschränkung Structured-Output+Websuche von vornherein).
+  6h gecacht wie die übrigen KI-Buttons.
+
 ## [0.43.14] - 2026-07-07
 
 ### Added
