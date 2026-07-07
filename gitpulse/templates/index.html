@@ -2407,8 +2407,11 @@
   // ── Fetch data ────────────────────────────────────────────────────
   function loadData() {
     fetch(u('/api/data'))
-      .then(r => r.json())
-      .then(data => render(data))
+      .then(r => {
+        if (r.status === 401) { location.href = u('/login'); return null; }
+        return r.json();
+      })
+      .then(data => { if (data) render(data); })
       .catch(err => console.error('API Fehler', err));
   }
 

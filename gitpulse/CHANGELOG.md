@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.3.36] - 2026-07-07
+
+### Fixed
+- Abgelaufene Session wurde nicht erkannt: `loadData()` prüfte den HTTP-Status gar nicht, Dashboard blieb bei 401 eingefroren statt zum Login weiterzuleiten
+
 ## [0.3.35] - 2026-06-13
 
 ### Fixed

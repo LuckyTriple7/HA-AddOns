@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.43.10] - 2026-07-07
+
+### Fixed
+- Abgelaufene Session im sekundären Healthcheck-Poll nicht erkannt: `loadHealth()` ignorierte 401-Antworten still, Status-Punkt blieb eingefroren statt zum Login weiterzuleiten (Hauptpoll `loadOffers()` hatte das bereits)
+
 ## [0.43.9] - 2026-07-06
 
 ### Added

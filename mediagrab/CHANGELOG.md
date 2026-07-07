@@ -1,5 +1,10 @@
 # Changelog — MediaGrab
 
+## [1.1.5] — 2026-07-07
+
+### Fixed
+- Abgelaufene Session wurde nicht erkannt: Job-Poll (`loadJobs()`) ignorierte 401-Antworten still, Dashboard blieb mit eingefrorener Queue offen statt zum Login weiterzuleiten
+
 ## [1.1.4] — 2026-07-05
 
 ### Geändert

@@ -1,6 +1,6 @@
 name: GitPulse
 description: GitHub Control Panel — PRs, Issues, CI-Status und Release-Tracker auf einen Blick
-version: "0.3.35"
+version: "0.3.36"
 slug: gitpulse
 url: https://github.com/LuckyTriple7/HA-AddOns
 image: "ghcr.io/luckytriple7/gitpulse"

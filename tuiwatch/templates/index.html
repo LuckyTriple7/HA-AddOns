@@ -3513,7 +3513,9 @@
         +'</span><span class="hc-detail">'+esc(c.ok?c.detail:('Fehler: '+c.detail))+'</span></div>').join('');
     }
     async function loadHealth(){
-      try{ const r=await fetch(api('/api/healthcheck')); if(!r.ok) return;
+      try{ const r=await fetch(api('/api/healthcheck'));
+        if(r.status===401){ location.reload(); return; }
+        if(!r.ok) return;
         healthData=await r.json(); setHealthDot(healthData);
         if($('#hc-bg').classList.contains('show')) renderHealthBody(healthData);
       }catch(e){}

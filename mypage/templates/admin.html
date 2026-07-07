@@ -3400,6 +3400,7 @@
     let usersPollTimer = null;
     async function refreshPlaying() {
       const r = await api('api/users/playing');
+      if (r.status === 401) { location.href = 'login'; return; }
       if (!r.ok) return;
       const map = (await r.json()).playing || {};
       document.querySelectorAll('#user-list .proj-item').forEach(item => {
