@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.44.0] - 2026-07-07
+
+### Changed
+- README aktualisiert: Preiskalender (Trend-Ansicht, Benachrichtigung, KI-Analyse),
+  Markttrend und KI-Buchungsscore ergänzt (waren seit ihrer Einführung nicht in der
+  README erwähnt).
+
 ## [0.43.15] - 2026-07-07
 
 ### Added
