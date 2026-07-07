@@ -1,5 +1,10 @@
 # Changelog – MessengerPortal
 
+## [1.2.9] - 2026-07-07
+
+### Fixed
+- Abgelaufene Session wurde nicht erkannt: `/status`-Polling ignorierte 401-Antworten stillschweigend, Portal blieb mit eingefrorenen Status-Punkten offen statt zum Login weiterzuleiten. Jetzt Redirect zu `/login` bei 401
+
 ## [1.2.8] - 2026-06-10
 
 ### Added
