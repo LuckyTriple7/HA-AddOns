@@ -711,10 +711,11 @@ def _fetch_security_alerts(repo: str, token: str) -> dict:
             'url':       a.get('html_url', ''),
         }
 
-    def _fmt_cs(a: dict) -> dict:
+    def _fmt_cs(a: dict, branch: str = '') -> dict:
         rule = a.get('rule') or {}
         tool = a.get('tool') or {}
         loc  = ((a.get('most_recent_instance') or {}).get('location') or {})
+        inst_ref = (a.get('most_recent_instance') or {}).get('ref', '')
         return {
             'number':      a.get('number', '?'),
             'severity':    rule.get('security_severity_level') or rule.get('severity', 'unknown'),
@@ -724,6 +725,7 @@ def _fetch_security_alerts(repo: str, token: str) -> dict:
             'path':        loc.get('path', ''),
             'line':        loc.get('start_line', ''),
             'url':         a.get('html_url', ''),
+            'branch':      branch or inst_ref.replace('refs/heads/', ''),
         }
 
     def _fmt_ss(a: dict) -> dict:
@@ -778,19 +780,22 @@ def _fetch_security_alerts(repo: str, token: str) -> dict:
     dep, dep_access = _safe_dep(f'/repos/{repo}/dependabot/alerts')
     # Code Scanning liefert ohne ref-Filter nur Alerts vom Default-Branch (main) —
     # zusätzlich den konfigurierten Dev-Branch abfragen und mergen (dedupe per Alert-Nummer).
-    cs = _safe(f'/repos/{repo}/code-scanning/alerts')
-    dev_b = (load_gitpulse_settings().get('dev_branch') or '').strip()
+    gps   = load_gitpulse_settings()
+    main_b = (gps.get('main_branch') or 'main').strip()
+    dev_b  = (gps.get('dev_branch') or '').strip()
+    cs_main = _safe(f'/repos/{repo}/code-scanning/alerts')
+    cs = [_fmt_cs(a, main_b) for a in cs_main]
     if dev_b:
-        cs_ids = {a.get('number') for a in cs}
+        cs_ids = {a['number'] for a in cs}
         cs_dev = _gh_get_paginated(f'/repos/{repo}/code-scanning/alerts', token, max_pages=10,
                                     params={'state': 'open', 'ref': f'refs/heads/{dev_b}'})
         if isinstance(cs_dev, list):
-            cs.extend(a for a in cs_dev if a.get('number') not in cs_ids)
+            cs.extend(_fmt_cs(a, dev_b) for a in cs_dev if a.get('number') not in cs_ids)
     ss  = _safe(f'/repos/{repo}/secret-scanning/alerts')
     return {
         'dependabot':        [_fmt_dep(a) for a in dep],
         'dependabot_access': dep_access,
-        'code_scanning':     [_fmt_cs(a)  for a in cs],
+        'code_scanning':     cs,
         'secret_scanning':   [_fmt_ss(a)  for a in ss],
     }
 

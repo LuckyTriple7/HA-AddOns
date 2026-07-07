@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.3.38] - 2026-07-07
+
+### Added
+- **Security Alerts**: Branch-Tag pro Code-Scanning-Alert (main/dev), damit sofort erkennbar ist auf welchem Branch der Fund liegt
+
 ## [0.3.37] - 2026-07-07
 
 ### Changed
