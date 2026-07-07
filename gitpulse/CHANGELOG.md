@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.37] - 2026-07-07
+
+### Changed
+- Tab "Add-on Releases" umbenannt zu "Releases"
+
+### Fixed
+- **Security Alerts**: Code-Scanning-Alerts wurden nur für den Default-Branch (main) geliefert; jetzt zusätzlich Abfrage für den konfigurierten Dev-Branch (Merge, dedupliziert per Alert-Nummer)
+
 ## [0.3.36] - 2026-07-07
 
 ### Fixed

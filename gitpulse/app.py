@@ -776,7 +776,16 @@ def _fetch_security_alerts(repo: str, token: str) -> dict:
             return [], True
 
     dep, dep_access = _safe_dep(f'/repos/{repo}/dependabot/alerts')
-    cs  = _safe(f'/repos/{repo}/code-scanning/alerts')
+    # Code Scanning liefert ohne ref-Filter nur Alerts vom Default-Branch (main) —
+    # zusätzlich den konfigurierten Dev-Branch abfragen und mergen (dedupe per Alert-Nummer).
+    cs = _safe(f'/repos/{repo}/code-scanning/alerts')
+    dev_b = (load_gitpulse_settings().get('dev_branch') or '').strip()
+    if dev_b:
+        cs_ids = {a.get('number') for a in cs}
+        cs_dev = _gh_get_paginated(f'/repos/{repo}/code-scanning/alerts', token, max_pages=10,
+                                    params={'state': 'open', 'ref': f'refs/heads/{dev_b}'})
+        if isinstance(cs_dev, list):
+            cs.extend(a for a in cs_dev if a.get('number') not in cs_ids)
     ss  = _safe(f'/repos/{repo}/secret-scanning/alerts')
     return {
         'dependabot':        [_fmt_dep(a) for a in dep],

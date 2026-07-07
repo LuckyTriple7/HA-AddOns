@@ -262,7 +262,7 @@
   "sec_af_branch_ahead":          "dev ist {n} Commits vor main — der Autofix könnte Änderungen überschreiben",
   "sec_af_branch_ahead_confirm":  "Trotzdem fortfahren?",
 
-  "tab_addon_manager": "Add-on Releases",
+  "tab_addon_manager": "Releases",
   "am_repo_label": "Repository",
   "am_branch_label": "Branch",
   "am_load": "Add-ons laden",
