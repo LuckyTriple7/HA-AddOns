@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.4.0] - 2026-07-07
+
+### Fixed
+- **Add-on Manager Revert**: stellte bisher nur config.yaml + CHANGELOG.md wieder her; jetzt kompletter Add-on-Ordner (ein Tree-Replace-Commit) — echtes Rollback statt inkonsistentem Versions-/Code-Stand. Andere Add-on-Ordner bleiben unangetastet.
+
 ## [0.3.38] - 2026-07-07
 
 ### Added

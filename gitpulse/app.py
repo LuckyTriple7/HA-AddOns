@@ -3221,8 +3221,7 @@ def api_addon_manager_revert():
     if '/' in addon_dir or '..' in addon_dir:
         return jsonify({'error': 'invalid_addon_dir'}), 400
     owner, repo = repo_full.split('/', 1)
-    config_path    = f'{addon_dir}/config.yaml'
-    changelog_path = f'{addon_dir}/CHANGELOG.md'
+    config_path = f'{addon_dir}/config.yaml'
     try:
         cf = _gh_get_file_content(owner, repo, config_path, token, target_sha)
         if not cf:
@@ -3237,8 +3236,18 @@ def api_addon_manager_revert():
                            base64.b64decode(cf_cur['content']).decode('utf-8'), re.MULTILINE)
             if mc:
                 current_version = mc.group(1)
-        clf = _gh_get_file_content(owner, repo, changelog_path, token, target_sha)
-        old_changelog = base64.b64decode(clf['content']).decode('utf-8') if clf else ''
+
+        # Kompletten Ordner-Stand zum Ziel-Commit ermitteln (ganzer Add-on-Ordner, nicht nur config+changelog)
+        target_root_r = http.get(f'{GITHUB_API}/repos/{owner}/{repo}/git/trees/{target_sha}',
+                                  headers=_gh_headers(token), timeout=15)
+        if target_root_r.status_code != 200:
+            return jsonify({'error': 'target_tree_failed'}), 502
+        target_entry = next((e for e in target_root_r.json().get('tree', [])
+                              if e.get('path') == addon_dir and e.get('type') == 'tree'), None)
+        if not target_entry:
+            return jsonify({'error': 'addon_dir_not_found_at_target'}), 404
+        target_dir_tree_sha = target_entry['sha']
+
         ref_r = http.get(f'{GITHUB_API}/repos/{owner}/{repo}/git/ref/heads/{branch}',
                          headers=_gh_headers(token), timeout=15)
         if ref_r.status_code != 200:
@@ -3247,12 +3256,13 @@ def api_addon_manager_revert():
         commit_r = http.get(f'{GITHUB_API}/repos/{owner}/{repo}/git/commits/{head_sha}',
                             headers=_gh_headers(token), timeout=15)
         base_tree_sha = commit_r.json()['tree']['sha']
+        # Einzelner Tree-Eintrag vom Typ 'tree' ersetzt den kompletten Unterordner in einem Schritt —
+        # alle anderen Add-on-Ordner und Repo-Dateien bleiben unangetastet.
         tree_r = http.post(
             f'{GITHUB_API}/repos/{owner}/{repo}/git/trees',
             headers=_gh_headers(token),
             json={'base_tree': base_tree_sha, 'tree': [
-                {'path': config_path,    'mode': '100644', 'type': 'blob', 'content': old_config},
-                {'path': changelog_path, 'mode': '100644', 'type': 'blob', 'content': old_changelog},
+                {'path': addon_dir, 'mode': '040000', 'type': 'tree', 'sha': target_dir_tree_sha},
             ]}, timeout=15
         )
         if tree_r.status_code != 201:
