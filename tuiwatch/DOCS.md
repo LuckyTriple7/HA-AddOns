@@ -224,7 +224,10 @@ Am Ende ruft Claude einmal die passenden Ziele ab.
 - **Eigene Anreise statt Flug:** bei Auto/Bus/Bahn werden Flugzeit/
   Abflughafen übersprungen, stattdessen Startort (PLZ/Ort) und maximale
   Entfernung abgefragt — Claude schlägt dann nur noch Ziele in Fahrdistanz
-  vor (auch beim Alternative- und Überraschungs-Vorschlag).
+  vor (auch beim Alternative- und Überraschungs-Vorschlag). Über die Add-on-
+  Option `trippilot_home_location` lässt sich der Startort vorbelegen, damit
+  man ihn nicht bei jedem Durchlauf neu eintippen muss (bleibt im Fragebogen
+  änderbar).
 - **Tagesausflug-Modus:** bei der ersten Frage „Tagesausflug in der Nähe"
   wählbar — blendet Länder, Reiseart, Mitreisende, Budget, Unterkunft,
   Flug/Anreiseart und die Freitext-Felder aus (nicht relevant ohne

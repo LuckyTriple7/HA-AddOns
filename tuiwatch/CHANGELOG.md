@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.44.1] - 2026-07-07
+
+### Changed
+- „Schwelle für Markttrend"-Option war ans Ende der HA-Add-on-Einstellungen sortiert
+  (thematisch falsch platziert) — jetzt direkt neben `poll_interval` einsortiert.
+
+### Added
+- Neue Option `trippilot_home_location` (PLZ/Ort): belegt die TripPilot-Frage „Von wo
+  geht's los?" (Auto/Bus/Bahn-Anreise, Tagesausflug) vor, damit man sie nicht bei jedem
+  Durchlauf neu eintippen muss — im Fragebogen weiterhin änderbar.
+
 ## [0.44.0] - 2026-07-07
 
 ### Changed

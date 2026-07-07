@@ -915,7 +915,8 @@
   </script>
 
   <script>
-    const G = { base: {{ (script_root or '')|tojson }}, iv: {{ poll_interval|tojson }}, ai: {{ ai_enabled|tojson }} };
+    const G = { base: {{ (script_root or '')|tojson }}, iv: {{ poll_interval|tojson }}, ai: {{ ai_enabled|tojson }},
+                homeLoc: {{ trippilot_home_location|tojson }} };
     document.body.classList.toggle('ai-disabled', !G.ai);
     window.G = G;  // auch für den Konsolen-Script-Block (Ingress-Pfad) erreichbar
     const api = (p) => (G.base || '') + p;
@@ -3025,6 +3026,7 @@
     let advIdx = 0, advState = {};
     function openAdvisor(){
       advIdx = 0; advState = {};
+      if(G.homeLoc) advState.home_location = G.homeLoc;
       $('#reiseb-bg').classList.add('show');
       advRender();
     }
