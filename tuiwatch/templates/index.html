@@ -2573,6 +2573,17 @@
         : err==='invalid' ? 'Bitte mindestens 2 Hotels für den Vergleich auswählen.'
         : 'KI-Zusammenfassung fehlgeschlagen.';
     }
+    // 'ai_failed'/'ai_empty'/'ai_refused' und Netzwerkfehler sind meist transient
+    // (z. B. 503 UNAVAILABLE bei hoher Last, egal ob Claude oder Gemini) — dafür
+    // einen Retry-Button anbieten. Validierungsfehler (no_data/invalid/no_api_key/…)
+    // lösen sich durch bloßes Wiederholen nicht, dafür kein Button.
+    function aiRetryable(err){ return err==='ai_failed' || err==='ai_refused' || err==='ai_empty' || err==null; }
+    let _aiRetryFn = null;
+    function aiRetry(){ if(_aiRetryFn) _aiRetryFn(); }
+    function aiErrorBlock(msg, retryable){
+      const btn = retryable ? ' <button class="btn sec" onclick="aiRetry()">🔄 Erneut versuchen</button>' : '';
+      return '<div class="cmp-load" style="color:var(--amber)">⚠ '+esc(msg)+btn+'</div>';
+    }
     function hotelFacts(r){
       return {name:r.name, giata:r.giata, location:r.location, country:r.country,
         stars:r.stars, recommendation:r.recommendation, reviews:r.reviews, board:r.board,
@@ -2635,18 +2646,23 @@
       $('#ai-sub').textContent = o.label || o.hotel || ('Angebot #'+id);
       $('#ai-foot').style.display = 'none';
       $('#ai-bg').classList.add('show');
-      $('#ai-body').innerHTML = progBar('KI berechnet den Buchungsscore…');
-      let resp, d;
-      try {
-        resp = await fetch(api('/api/ai/booking-score/'+id), {method:'POST'});
-        d = await resp.json();
-      } catch(e){ $('#ai-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Buchungsscore fehlgeschlagen.</div>'; return; }
-      if(!resp.ok){
-        const msg = d.error==='no_price' ? 'Noch kein Preis für dieses Angebot vorhanden.' : aiErrorMsg(d.error);
-        $('#ai-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ '+esc(msg)+'</div>';
-        return;
-      }
-      renderBookingScore('#ai-body', d);
+      const attempt = async () => {
+        $('#ai-body').innerHTML = progBar('KI berechnet den Buchungsscore…');
+        let resp, d;
+        try {
+          resp = await fetch(api('/api/ai/booking-score/'+id), {method:'POST'});
+          d = await resp.json();
+        } catch(e){ _aiRetryFn = attempt; $('#ai-body').innerHTML = aiErrorBlock('Buchungsscore fehlgeschlagen.', true); return; }
+        if(!resp.ok){
+          const retryable = aiRetryable(d.error);
+          const msg = d.error==='no_price' ? 'Noch kein Preis für dieses Angebot vorhanden.' : aiErrorMsg(d.error);
+          _aiRetryFn = retryable ? attempt : null;
+          $('#ai-body').innerHTML = aiErrorBlock(msg, retryable);
+          return;
+        }
+        renderBookingScore('#ai-body', d);
+      };
+      attempt();
     }
     async function openRegionOutlook(idx){
       const r = _marketTrendData && _marketTrendData.by_region[idx]; if(!r) return;
@@ -2655,19 +2671,24 @@
       $('#ai-sub').textContent = r.region;
       $('#ai-foot').style.display = 'none';
       $('#ai-bg').classList.add('show');
-      $('#ai-body').innerHTML = progBar('KI schätzt die Destination ein…');
-      let resp, d;
-      try {
-        resp = await fetch(api('/api/ai/region-outlook'), {method:'POST', headers:{'Content-Type':'application/json'},
-          body: JSON.stringify({region: r.region})});
-        d = await resp.json();
-      } catch(e){ $('#ai-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Region-Ausblick fehlgeschlagen.</div>'; return; }
-      if(!resp.ok){
-        const msg = d.error==='no_data' ? 'Noch zu wenig Markttrend-Daten für diese Destination.' : aiErrorMsg(d.error);
-        $('#ai-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ '+esc(msg)+'</div>';
-        return;
-      }
-      renderBookingScore('#ai-body', d);
+      const attempt = async () => {
+        $('#ai-body').innerHTML = progBar('KI schätzt die Destination ein…');
+        let resp, d;
+        try {
+          resp = await fetch(api('/api/ai/region-outlook'), {method:'POST', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({region: r.region})});
+          d = await resp.json();
+        } catch(e){ _aiRetryFn = attempt; $('#ai-body').innerHTML = aiErrorBlock('Region-Ausblick fehlgeschlagen.', true); return; }
+        if(!resp.ok){
+          const retryable = aiRetryable(d.error);
+          const msg = d.error==='no_data' ? 'Noch zu wenig Markttrend-Daten für diese Destination.' : aiErrorMsg(d.error);
+          _aiRetryFn = retryable ? attempt : null;
+          $('#ai-body').innerHTML = aiErrorBlock(msg, retryable);
+          return;
+        }
+        renderBookingScore('#ai-body', d);
+      };
+      attempt();
     }
     async function openCalendarOutlook(){
       if(calId==null) return;
@@ -2678,18 +2699,23 @@
       $('#ai-sub').textContent = offer.label || offer.hotel || ('Angebot #'+id);
       $('#ai-foot').style.display = 'none';
       $('#ai-bg').classList.add('show');
-      $('#ai-body').innerHTML = progBar('KI fasst die Kalenderpreise zusammen…');
-      let resp, d;
-      try {
-        resp = await fetch(api('/api/ai/calendar-outlook/'+id), {method:'POST'});
-        d = await resp.json();
-      } catch(e){ $('#ai-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Kalender-Analyse fehlgeschlagen.</div>'; return; }
-      if(!resp.ok){
-        const msg = d.error==='no_data' ? 'Noch keine Kalenderdaten für dieses Angebot vorhanden.' : aiErrorMsg(d.error);
-        $('#ai-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ '+esc(msg)+'</div>';
-        return;
-      }
-      renderAiResult('#ai-body', d);
+      const attempt = async () => {
+        $('#ai-body').innerHTML = progBar('KI fasst die Kalenderpreise zusammen…');
+        let resp, d;
+        try {
+          resp = await fetch(api('/api/ai/calendar-outlook/'+id), {method:'POST'});
+          d = await resp.json();
+        } catch(e){ _aiRetryFn = attempt; $('#ai-body').innerHTML = aiErrorBlock('Kalender-Analyse fehlgeschlagen.', true); return; }
+        if(!resp.ok){
+          const retryable = aiRetryable(d.error);
+          const msg = d.error==='no_data' ? 'Noch keine Kalenderdaten für dieses Angebot vorhanden.' : aiErrorMsg(d.error);
+          _aiRetryFn = retryable ? attempt : null;
+          $('#ai-body').innerHTML = aiErrorBlock(msg, retryable);
+          return;
+        }
+        renderAiResult('#ai-body', d);
+      };
+      attempt();
     }
     function exportAiPdf(){
       const w = window.open('', '_blank');
@@ -2715,19 +2741,24 @@
       $('#ai-foot').style.display = 'none';
       $('#ai-bg').classList.add('show');
       if(r._ai){ renderAiResult('#ai-body', r._ai); return; }
-      $('#ai-body').innerHTML = progBar('KI durchsucht das Web nach Bewertungen…');
-      let resp, d;
-      try {
-        resp = await fetch(api('/api/ai/hotel-summary'), {method:'POST', headers:{'Content-Type':'application/json'},
-          body: JSON.stringify(hotelFacts(r))});
-        d = await resp.json();
-      } catch(e){ $('#ai-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ KI-Zusammenfassung fehlgeschlagen.</div>'; return; }
-      if(!resp.ok){
-        $('#ai-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ '+esc(aiErrorMsg(d.error))+'</div>';
-        return;
-      }
-      r._ai = d;
-      renderAiResult('#ai-body', d);
+      const attempt = async () => {
+        $('#ai-body').innerHTML = progBar('KI durchsucht das Web nach Bewertungen…');
+        let resp, d;
+        try {
+          resp = await fetch(api('/api/ai/hotel-summary'), {method:'POST', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify(hotelFacts(r))});
+          d = await resp.json();
+        } catch(e){ _aiRetryFn = attempt; $('#ai-body').innerHTML = aiErrorBlock('KI-Zusammenfassung fehlgeschlagen.', true); return; }
+        if(!resp.ok){
+          const retryable = aiRetryable(d.error);
+          _aiRetryFn = retryable ? attempt : null;
+          $('#ai-body').innerHTML = aiErrorBlock(aiErrorMsg(d.error), retryable);
+          return;
+        }
+        r._ai = d;
+        renderAiResult('#ai-body', d);
+      };
+      attempt();
     }
     async function openAiCompare(){
       const hotels = srchResults.filter(r=>srCmpSelected.has(r._key));
@@ -2765,22 +2796,27 @@
       $('#ai-foot').style.display = 'none';
       $('#ai-bg').classList.add('show');
       if(_aiCompareCache[cacheKey]){ renderAiResult('#ai-body', _aiCompareCache[cacheKey]); return; }
-      $('#ai-body').innerHTML = progBar('KI vergleicht '+facts.length+' Hotels und durchsucht das Web…');
-      let resp, d;
-      try {
-        resp = await fetch(api('/api/ai/hotel-compare'), {method:'POST', headers:{'Content-Type':'application/json'},
-          body: JSON.stringify({hotels: facts})});
-        d = await resp.json();
-      } catch(e){ $('#ai-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ KI-Vergleich fehlgeschlagen.</div>'; return; }
-      if(!resp.ok){
-        $('#ai-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ '+esc(aiErrorMsg(d.error))+'</div>';
-        return;
-      }
-      _aiCompareCache[cacheKey] = d;
-      renderAiResult('#ai-body', d);
+      const attempt = async () => {
+        $('#ai-body').innerHTML = progBar('KI vergleicht '+facts.length+' Hotels und durchsucht das Web…');
+        let resp, d;
+        try {
+          resp = await fetch(api('/api/ai/hotel-compare'), {method:'POST', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({hotels: facts})});
+          d = await resp.json();
+        } catch(e){ _aiRetryFn = attempt; $('#ai-body').innerHTML = aiErrorBlock('KI-Vergleich fehlgeschlagen.', true); return; }
+        if(!resp.ok){
+          const retryable = aiRetryable(d.error);
+          _aiRetryFn = retryable ? attempt : null;
+          $('#ai-body').innerHTML = aiErrorBlock(aiErrorMsg(d.error), retryable);
+          return;
+        }
+        _aiCompareCache[cacheKey] = d;
+        renderAiResult('#ai-body', d);
+      };
+      attempt();
     }
     const _aiCompareCache = {};  // Session-Cache: Präfix+sortierter Schlüssel-String → {summary, usage}
-    function closeAiSummary(){ $('#ai-bg').classList.remove('show'); }
+    function closeAiSummary(){ $('#ai-bg').classList.remove('show'); _aiRetryFn = null; }
     $('#ai-bg').addEventListener('click', e=>{ if(e.target.id==='ai-bg') closeAiSummary(); });
 
     // ── KI-Verlauf (dauerhaft gespeicherte Fazits/Vergleiche) ─────────────────
@@ -2901,18 +2937,23 @@
       $('#ai-sub').textContent = q;
       $('#ai-foot').style.display = 'none';
       $('#ai-bg').classList.add('show');
-      $('#ai-body').innerHTML = progBar('KI durchsucht dein Portfolio…');
-      let resp, d;
-      try {
-        resp = await fetch(api('/api/ai/ask'), {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({question:q})});
-        d = await resp.json();
-      } catch(e){ $('#ai-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Frage fehlgeschlagen.</div>'; return; }
-      if(!resp.ok){
-        const msg = d.error==='no_offers' ? 'Keine aktiven Angebote vorhanden.' : aiErrorMsg(d.error);
-        $('#ai-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ '+esc(msg)+'</div>';
-        return;
-      }
-      renderAiResult('#ai-body', d);
+      const attempt = async () => {
+        $('#ai-body').innerHTML = progBar('KI durchsucht dein Portfolio…');
+        let resp, d;
+        try {
+          resp = await fetch(api('/api/ai/ask'), {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({question:q})});
+          d = await resp.json();
+        } catch(e){ _aiRetryFn = attempt; $('#ai-body').innerHTML = aiErrorBlock('Frage fehlgeschlagen.', true); return; }
+        if(!resp.ok){
+          const retryable = aiRetryable(d.error);
+          const msg = d.error==='no_offers' ? 'Keine aktiven Angebote vorhanden.' : aiErrorMsg(d.error);
+          _aiRetryFn = retryable ? attempt : null;
+          $('#ai-body').innerHTML = aiErrorBlock(msg, retryable);
+          return;
+        }
+        renderAiResult('#ai-body', d);
+      };
+      attempt();
     }
 
     // ── KI-Reiseberater (geführter Fragebogen → 3 Zielvorschläge) ─────────────
@@ -3107,19 +3148,24 @@
         (advState.interests||[]).join(', ')].filter(Boolean).join(' · ');
       $('#ai-foot').style.display = 'none';
       $('#ai-bg').classList.add('show');
-      $('#ai-body').innerHTML = progBar('KI sucht passende Ziele…');
-      let resp, d;
-      try {
-        resp = await fetch(api('/api/ai/travel-advisor'), {method:'POST',
-          headers:{'Content-Type':'application/json'}, body: JSON.stringify(advState)});
-        d = await resp.json();
-      } catch(e){ $('#ai-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Anfrage fehlgeschlagen.</div>'; return; }
-      if(!resp.ok){
-        const msg = d.error==='invalid' ? 'Bitte mindestens eine Angabe auswählen.' : aiErrorMsg(d.error);
-        $('#ai-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ '+esc(msg)+'</div>';
-        return;
-      }
-      renderAiResult('#ai-body', d);
+      const attempt = async () => {
+        $('#ai-body').innerHTML = progBar('KI sucht passende Ziele…');
+        let resp, d;
+        try {
+          resp = await fetch(api('/api/ai/travel-advisor'), {method:'POST',
+            headers:{'Content-Type':'application/json'}, body: JSON.stringify(advState)});
+          d = await resp.json();
+        } catch(e){ _aiRetryFn = attempt; $('#ai-body').innerHTML = aiErrorBlock('Anfrage fehlgeschlagen.', true); return; }
+        if(!resp.ok){
+          const retryable = aiRetryable(d.error);
+          const msg = d.error==='invalid' ? 'Bitte mindestens eine Angabe auswählen.' : aiErrorMsg(d.error);
+          _aiRetryFn = retryable ? attempt : null;
+          $('#ai-body').innerHTML = aiErrorBlock(msg, retryable);
+          return;
+        }
+        renderAiResult('#ai-body', d);
+      };
+      attempt();
     }
 
     // ── Preiskalender (Monats-Grid, gespeichert) ──────────────────────────────

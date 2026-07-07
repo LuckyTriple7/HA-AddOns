@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.44.2] - 2026-07-07
+
+### Added
+- Retry-Button bei fehlgeschlagenen KI-Anfragen (Buchungsscore, Region-Ausblick,
+  Kalender-Analyse, KI-Fazit, KI-Vergleich, Portfolio-Frage, TripPilot): transiente
+  Fehler (z. B. 503 UNAVAILABLE bei hoher Last, egal ob Claude oder Gemini) zeigen
+  jetzt „🔄 Erneut versuchen" statt nur eine tote Fehlermeldung. Bei
+  Validierungsfehlern (z. B. „kein API-Key", „keine Daten") erscheint bewusst kein
+  Retry-Button, da Wiederholen ohne Änderung nichts bringt.
+
 ## [0.44.1] - 2026-07-07
 
 ### Changed
