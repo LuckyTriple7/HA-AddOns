@@ -317,11 +317,16 @@ Preis-Tracking, als dauerhaftes Archiv (Vergangenheit und Zukunft).
   deinen **gebuchten Preis** hinterlegt, meldet TUIWatch, wenn der Preis später deutlich
   darunter fällt (Schwelle `booked_drop_min_diff`, Standard 50 €) — Umbuchen könnte sich
   lohnen. Meldet nur bei neuen Tiefstwerten (kein Spam), neustart-fest.
+- **Kalender-Preisänderung** (`notify_calendar_trend`): meldet, wenn sich im Preiskalender
+  eines Angebots ein Preis für ein bereits bekanntes Reisedatum ändert — bewusst grob
+  (Hotelname + betroffener Monat/Monate, kein Datum, kein Preis; siehe Abschnitt
+  „Preiskalender" für Details/Trend-Ansicht). Neu ins Kalenderfenster gerutschte Tage
+  ohne Vorwert lösen keine Meldung aus.
 - **Wochenüberblick / Digest** (`digest_enabled`): optionale wöchentliche Zusammenfassung
-  (größte Rückgänge, neue Tiefstwerte, Angebote unter Wunschpreis) per Telegram und/oder
-  E-Mail. `digest_weekday` legt den Wochentag fest (1 = Montag … 7 = Sonntag); war das
-  Add-on am Stichtag aus, wird der Versand später in der Woche nachgeholt. Sofort testen
-  über den Button **„📊 Wochenüberblick"**.
+  (größte Rückgänge, neue Tiefstwerte, Angebote unter Wunschpreis, Kalenderpreis-Änderungen)
+  per Telegram und/oder E-Mail. `digest_weekday` legt den Wochentag fest (1 = Montag …
+  7 = Sonntag); war das Add-on am Stichtag aus, wird der Versand später in der Woche
+  nachgeholt. Sofort testen über den Button **„📊 Wochenüberblick"**.
 - Kanäle:
   - **Home Assistant**: persistente Benachrichtigung (Option `notify_ha`, Standard an).
   - **Telegram**: `telegram_bot_token` + `telegram_chat_id` setzen (Bot via @BotFather,
@@ -385,6 +390,12 @@ unveränderten Tagen). Darauf aufbauend:
 - Der **„Kalender“-Button** in der Angebotsliste pulsiert (amber), sobald sich seit
   dem letzten Öffnen ein Preis im Kalender geändert hat — Öffnen markiert als
   gesehen, das Pulsieren erlischt bis zur nächsten echten Bewegung.
+- **Benachrichtigung** (`notify_calendar_trend`, Standard an): bei einer echten
+  Preisänderung geht zusätzlich eine Meldung über Home Assistant, Telegram und den
+  wöchentlichen Wochenüberblick raus — bewusst grob (Hotelname + betroffener
+  Monat/betroffene Monate, kein genaues Datum, kein Preis). Neu ins Kalenderfenster
+  gerutschte Tage ohne Vorwert (z. B. der allererste Abruf) lösen keine
+  Benachrichtigung aus, nur echte Preisänderungen für zuvor schon bekannte Reisedaten.
 
 Diese Trend-Historie zählt zu den echten, nicht rekonstruierbaren Nutzdaten (wie der
 Preisverlauf) und wird beim Zurücksetzen/Löschen eines Angebots mitgelöscht sowie im

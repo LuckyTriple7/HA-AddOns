@@ -26,6 +26,9 @@ configuration:
   cheaper_date_min_diff:
     name: Mindest-Ersparnis für Termin-Alarm (€)
     description: "Ab welcher Ersparnis pro Person der Günstigerer-Termin-Alarm auslöst. Standard 50 €."
+  notify_calendar_trend:
+    name: Kalender-Preisänderung
+    description: "Benachrichtigen, wenn sich im Preiskalender eines Angebots ein Preis für ein bereits bekanntes Reisedatum ändert (Hotelname + betroffener Monat, keine Details). Standard an."
   notify_errors:
     name: Ausverkauft-/Fehler-Alarm
     description: "Benachrichtigen, wenn ein Angebot mehrmals hintereinander kein Ergebnis liefert (Kontingent ausgebucht oder URL veraltet). Standard an."

@@ -26,6 +26,9 @@ configuration:
   cheaper_date_min_diff:
     name: Minimum saving for date alert (€)
     description: "Minimum saving per person before the cheaper-date alert triggers. Default 50 €."
+  notify_calendar_trend:
+    name: Calendar price change
+    description: "Notify when a price in an offer's price calendar changes for an already-known travel date (hotel name + affected month, no details). Default on."
   notify_errors:
     name: Sold-out / error alert
     description: "Notify when an offer returns no result several times in a row (sold out or outdated URL). Default on."

@@ -59,6 +59,27 @@ def test_first_calendar_fetch_writes_baseline_no_moves(m):
     assert moves == {}                  # kein zweiter Datenpunkt -> keine Bewegung berechenbar
 
 
+def test_store_calendar_snapshot_returns_empty_on_baseline_and_real_changes_only(m):
+    """Rückgabewert dient der Benachrichtigung: Baseline (kein Vorwert) und neu ins
+    Fenster gerutschte Tage (kein Vorwert für GENAU dieses Datum) zaehlen NICHT als
+    'echte Aenderung' -- nur ein tatsaechlich anderer Preis fuer ein zuvor bekanntes
+    Datum."""
+    oid = _add_offer(m, "https://example.invalid/z?duration=7")
+    with m.db() as con:
+        changed1 = m._store_calendar_snapshot(
+            con, oid, _cal([("2027-05-01", 500), ("2027-05-02", 520)]))
+        assert changed1 == []   # reine Baseline
+
+        changed2 = m._store_calendar_snapshot(
+            con, oid, _cal([("2027-05-01", 500), ("2027-05-02", 560)]))
+        assert changed2 == ["2027-05-02"]   # echte Preisaenderung
+
+        # 05-03 ist neu im Fenster (kein Vorwert) -> keine "Aenderung"
+        changed3 = m._store_calendar_snapshot(
+            con, oid, _cal([("2027-05-01", 500), ("2027-05-02", 560), ("2027-05-03", 400)]))
+        assert changed3 == []
+
+
 def test_unchanged_price_writes_no_new_row(m):
     oid = _add_offer(m, "https://example.invalid/b?duration=7")
     cal = _cal([("2027-05-01", 500), ("2027-05-02", 520)])

@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.43.14] - 2026-07-07
+
+### Added
+- **Benachrichtigung bei Kalender-Preisänderung**: ändert sich im Preiskalender eines
+  Angebots ein Preis für ein bereits bekanntes Reisedatum, kommt jetzt eine
+  Benachrichtigung über Home Assistant, Telegram **und** im wöchentlichen
+  Wochenüberblick — bewusst grob (Hotelname + betroffener Monat/Monate, kein Datum,
+  kein Preis; Details siehe Kalender-Grid). Neuer Schalter `notify_calendar_trend`
+  (Standard an).
+
 ## [0.43.13] - 2026-07-07
 
 ### Added

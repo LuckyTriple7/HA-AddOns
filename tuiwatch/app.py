@@ -73,7 +73,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.43.13"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.43.14"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -1104,7 +1104,8 @@ def _check_cheaper_date(offer: dict, current_price: float) -> None:
             return
         try:
             with db() as con:
-                _store_calendar_snapshot(con, oid, cal)
+                changed = _store_calendar_snapshot(con, oid, cal)
+            _check_calendar_trend_alert(oid, changed)
         except Exception as e:
             log.warning("Kalender-Cache #%d nicht aktualisiert: %s", oid, e)
     if not cal.get('ok'):
@@ -1572,14 +1573,20 @@ def _nights_payload(offer_id: int) -> dict:
 
 # ── Preiskalender (on-demand, gespeichert) ──────────────────────────────────────
 
-def _store_calendar_snapshot(con, offer_id: int, cal: dict) -> None:
+def _store_calendar_snapshot(con, offer_id: int, cal: dict) -> list[str]:
     """Speichert einen frisch abgerufenen Preiskalender: überschreibt wie bisher den
     kompletten Snapshot in `calendar_cache` (unverändert für UI/Buchungsscore) UND
     schreibt Delta-codierte Zeilen in `calendar_history` — nur für Tage, deren Preis
     sich seit dem letzten bekannten Wert für dieses (offer_id, travel_date) geändert
     hat (oder die zum ersten Mal beobachtet werden). Verglichen wird gegen den noch
     nicht überschriebenen VORHERIGEN calendar_cache-Snapshot, kein Zusatz-Read der
-    (potenziell großen) Trend-Tabelle nötig."""
+    (potenziell großen) Trend-Tabelle nötig.
+
+    Rückgabe: Liste der Reisedaten mit einer ECHTEN Preisänderung (Tag war vorher schon
+    mit einem Preis bekannt, jetzt anders) — für Benachrichtigungen. Schließt bewusst
+    Tage aus, die nur neu ins Kalenderfenster gerutscht sind (kein Vorwert vorhanden,
+    z.B. globaler Erstabruf) — dafür gibt es keinen sinnvollen Vergleichswert, also
+    keine "Preisänderung"."""
     ts = int(time.time())
     prev_row = con.execute('SELECT data FROM calendar_cache WHERE offer_id=?',
                            (offer_id,)).fetchone()
@@ -1592,12 +1599,56 @@ def _store_calendar_snapshot(con, offer_id: int, cal: dict) -> None:
             prev_prices = {}
     con.execute('INSERT OR REPLACE INTO calendar_cache (offer_id, ts, data) VALUES (?,?,?)',
                 (offer_id, ts, json.dumps(cal)))
-    changed = [(offer_id, d['date'], ts, d['price']) for d in cal.get('days', [])
+    days = cal.get('days', [])
+    changed = [(offer_id, d['date'], ts, d['price']) for d in days
                if prev_prices.get(d['date']) != d['price']]
     if changed:
         con.executemany(
             'INSERT INTO calendar_history (offer_id, travel_date, ts, price) VALUES (?,?,?,?)',
             changed)
+    return [d['date'] for d in days
+            if d['date'] in prev_prices and prev_prices[d['date']] != d['price']]
+
+
+_MONTH_NAMES_DE = ('Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August',
+                    'September', 'Oktober', 'November', 'Dezember')
+
+
+def _month_name_de(ym: str) -> str:
+    """'2027-05' -> 'Mai 2027'."""
+    y, m = ym.split('-')
+    return f"{_MONTH_NAMES_DE[int(m) - 1]} {y}"
+
+
+def _format_month_list_de(months: list[str]) -> str:
+    names = [_month_name_de(m) for m in months]
+    if len(names) == 1:
+        return names[0]
+    return ", ".join(names[:-1]) + " und " + names[-1]
+
+
+def _check_calendar_trend_alert(offer_id: int, changed_dates: list[str]) -> None:
+    """Meldet Preisänderungen im Kalender für bereits bekannte Reisedaten — bewusst
+    grob (Hotelname + Monat(e), kein Datum/Preis, siehe _store_calendar_snapshot für
+    die Definition von 'echte Änderung'). Gated durch notify_calendar_trend."""
+    if not changed_dates:
+        return
+    if not load_config().get('notify_calendar_trend', True):
+        return
+    with db() as con:
+        offer = con.execute('SELECT label, hotel, url FROM offers WHERE id=?',
+                            (offer_id,)).fetchone()
+    if not offer:
+        return
+    months = sorted({d[:7] for d in changed_dates})
+    month_str = _format_month_list_de(months)
+    name = offer['label'] or offer['hotel'] or f"Angebot #{offer_id}"
+    log.info("📅 Kalenderpreise geändert (#%d %s): %s → Benachrichtigung",
+             offer_id, name, month_str)
+    _notify_ha(f"📅 Kalenderpreise geändert: {name}",
+               f"{name}\nPreisänderungen im Preiskalender für {month_str}.\n{offer['url']}",
+               f"caltrend_{offer_id}")
+    _notify_telegram(f"📅 <b>Kalenderpreise geändert</b>\n{name}\n{month_str}\n{offer['url']}")
 
 
 def _run_calendar(offer_id: int) -> None:
@@ -1616,7 +1667,8 @@ def _run_calendar(offer_id: int) -> None:
                 _calendar_state[offer_id] = {'status': 'error', 'note': 'Preiskalender nicht abrufbar'}
             return
         with db() as con:
-            _store_calendar_snapshot(con, offer_id, res)
+            changed = _store_calendar_snapshot(con, offer_id, res)
+        _check_calendar_trend_alert(offer_id, changed)
         with _calendar_lock:
             _calendar_state.pop(offer_id, None)
         log.info("Preiskalender #%d: %d Tage, günstigster %s (%s €)", offer_id,
@@ -1663,6 +1715,22 @@ def _calendar_date_history(con, offer_id: int, travel_date: str) -> list[dict]:
     return [dict(r) for r in con.execute(
         'SELECT ts, price FROM calendar_history WHERE offer_id=? AND travel_date=? '
         'ORDER BY ts', (offer_id, travel_date)).fetchall()]
+
+
+def _calendar_moves_since(con, offer_id: int, since_ts: int) -> list[str]:
+    """Monate mit echter Preisänderung (nicht Erstsichtung) seit `since_ts` — für den
+    Wochenüberblick. 'Echt' = es existiert eine FRÜHERE calendar_history-Zeile für
+    dasselbe Reisedatum (sonst ist der Tag nur neu ins Kalenderfenster gerutscht).
+    Vergleich über `id` statt `ts`: `ts` ist nur sekundengenau, zwei Snapshots
+    innerhalb derselben Sekunde (schnelles "Neu abfragen") wären mit `ts<ts` sonst
+    nicht als "frühere Zeile" erkennbar — `id` (AUTOINCREMENT) bleibt strikt
+    monoton in Einfügereihenfolge."""
+    rows = con.execute(
+        'SELECT DISTINCT ch.travel_date FROM calendar_history ch WHERE ch.offer_id=? '
+        'AND ch.ts>=? AND EXISTS (SELECT 1 FROM calendar_history p WHERE '
+        'p.offer_id=ch.offer_id AND p.travel_date=ch.travel_date AND p.id<ch.id)',
+        (offer_id, since_ts)).fetchall()
+    return sorted({r['travel_date'][:7] for r in rows})
 
 
 def _calendar_payload(offer_id: int) -> dict:
@@ -2093,6 +2161,13 @@ def _build_digest() -> dict | None:
     with db() as con:
         for o in offers:
             o['_wk'] = _week_change(con, o['id'], o['price'])
+        since = int(time.time()) - 7 * 86400
+        cal_moves = []
+        for o in offers:
+            months = _calendar_moves_since(con, o['id'], since)
+            if months:
+                cal_moves.append({'name': o.get('label') or o.get('hotel') or f"Angebot #{o['id']}",
+                                   'url': o['url'], 'months': _format_month_list_de(months)})
     drops = sorted([o for o in offers if o['_wk'] is not None and o['_wk'] < 0],
                    key=lambda o: o['_wk'])
     rises = sorted([o for o in offers if o['_wk'] is not None and o['_wk'] > 0],
@@ -2134,6 +2209,9 @@ def _build_digest() -> dict | None:
     if rises:
         tl.append("\n▲ <b>Gestiegen (7 Tage):</b>")
         tl += [f"• {nm(o)}: {_eur(o['price'])} (+{_eur(abs(o['_wk']))})" for o in rises[:5]]
+    if cal_moves:
+        tl.append("\n📅 <b>Kalenderpreise geändert:</b>")
+        tl += [f"• {c['name']}: {c['months']}" for c in cal_moves]
     if akc:
         tl.append("\n🎟 <b>TUI-Aktionscodes:</b>")
         tl += [f"• {c.get('value')} € — {c.get('code')}"
@@ -2195,6 +2273,9 @@ def _build_digest() -> dict | None:
                   lambda o: f'{link(o)}: {_eur(o["price"])} <span style="color:#1a7f37;font-weight:600">({_eur(o["_wk"])})</span>')
         + section('▲ Gestiegen (7 Tage)', rises[:5],
                   lambda o: f'{link(o)}: {_eur(o["price"])} <span style="color:#cf222e">(+{_eur(abs(o["_wk"]))})</span>')
+        + section('📅 Kalenderpreise geändert', cal_moves,
+                  lambda c: f'<a href="{esc(c["url"])}" style="color:#0b65d8;text-decoration:none">'
+                            f'{esc(c["name"])}</a>: {esc(c["months"])}')
         + akc_html
         + '</div>'
     )
