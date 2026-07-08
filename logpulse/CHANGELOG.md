@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.3.4] - 2026-07-08
+
+- Fix: Suche fand nichts bei Eingabe eines Addon-Namens (z.B. "Cloudflared") — FTS5 durchsuchte nur den Nachrichtentext, nicht Container-/Add-on-Namen, und `MATCH` lässt sich technisch nicht mit `OR` kombinieren. Umgestellt auf `LIKE` über Nachricht + Container + Add-on-Name + Identifier
+
 ## [0.3.3] - 2026-07-08
 
 - Fix: Uptime Kuma-Format (`... [DOMAIN_EXPIRY] WARN: msg`) wurde als ERROR gewertet — generisches Muster ergänzt, das ein LEVEL-Wort direkt vor einem Doppelpunkt erkennt

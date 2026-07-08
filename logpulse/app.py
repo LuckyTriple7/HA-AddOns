@@ -340,9 +340,13 @@ def _build_filter(args, include_levels: bool = True):
 
     base = "FROM log_entries"
     if q:
-        base = "FROM log_entries JOIN log_fts ON log_fts.rowid = log_entries.id"
-        where.append("log_fts MATCH ?")
-        params.append(q)
+        # Plain LIKE statt FTS5 MATCH: MATCH lässt sich nicht mit OR
+        # kombinieren (SQLite-Limitierung), und die Suche soll auch
+        # Container-/Add-on-Namen treffen, nicht nur den Nachrichtentext.
+        like = f"%{q}%"
+        where.append("(log_entries.message LIKE ? OR log_entries.container LIKE ? "
+                     "OR log_entries.addon_name LIKE ? OR log_entries.identifier LIKE ?)")
+        params.extend([like, like, like, like])
 
     where_sql = (" WHERE " + " AND ".join(where)) if where else ""
     return base, where_sql, params
