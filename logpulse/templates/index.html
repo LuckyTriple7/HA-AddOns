@@ -152,7 +152,7 @@
     <div class="stat-chip" id="stat-warn-chip"><div class="num" id="stat-warn" style="color:var(--yellow)">0</div><div class="lbl">{{ t.stat_warnings }}</div></div>
     <div class="stat-chip" id="stat-err-chip"><div class="num" id="stat-err" style="color:var(--red)">0</div><div class="lbl">{{ t.stat_errors }}</div></div>
     <div class="stat-chip"><div class="num" id="stat-sources">0</div><div class="lbl">{{ t.stat_sources }}</div></div>
-    <div class="stat-chip"><div class="num" id="stat-dbsize" style="font-size:1rem">–</div><div class="lbl">{{ t.stat_dbsize }}</div></div>
+    <div class="stat-chip" style="cursor:pointer" onclick="openClearDbModal()" title="{{ t.tooltip_clear_db }}"><div class="num" id="stat-dbsize" style="font-size:1rem">–</div><div class="lbl">{{ t.stat_dbsize }}</div></div>
   </div>
 
   <div class="tabs">
@@ -254,6 +254,18 @@
       <div class="modal-footer">
         <button class="modal-btn modal-btn-cancel" onclick="closeSaveFilterModal()">{{ t.btn_cancel }}</button>
         <button class="modal-btn modal-btn-confirm" onclick="saveCurrentFilter()">{{ t.btn_save }}</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Modal: Datenbank leeren ───────────────────────────────── -->
+  <div id="clear-db-overlay" class="modal-backdrop">
+    <div class="modal">
+      <h3>{{ t.confirm_clear_db_title }}</h3>
+      <p style="font-size:0.85rem;color:var(--muted)">{{ t.confirm_clear_db_msg }}</p>
+      <div class="modal-footer">
+        <button class="modal-btn modal-btn-cancel" onclick="closeClearDbModal()">{{ t.btn_no }}</button>
+        <button class="modal-btn modal-btn-confirm danger" onclick="confirmClearDb()">{{ t.btn_yes }}</button>
       </div>
     </div>
   </div>
@@ -520,6 +532,20 @@ function setSavedFilters(list){
 }
 function openSaveFilterModal(){ document.getElementById('save-filter-overlay').classList.add('show'); }
 function closeSaveFilterModal(){ document.getElementById('save-filter-overlay').classList.remove('show'); }
+
+function openClearDbModal(){ document.getElementById('clear-db-overlay').classList.add('show'); }
+function closeClearDbModal(){ document.getElementById('clear-db-overlay').classList.remove('show'); }
+async function confirmClearDb(){
+  closeClearDbModal();
+  try {
+    await fetch(u('/api/db/clear'), { method: 'POST' });
+  } catch(e) {}
+  lastSeenId = 0;
+  clearLogView();
+  fetchLogs(true);
+  updateSummary();
+  fetchDbInfo();
+}
 function saveCurrentFilter(){
   const name = document.getElementById('save-filter-name').value.trim();
   if (!name) return;

@@ -533,6 +533,17 @@ def api_sources():
     })
 
 
+@app.route('/api/db/clear', methods=['POST'])
+def api_db_clear():
+    with _db_lock:
+        conn = get_conn()
+        conn.execute("DELETE FROM log_entries")
+        conn.commit()
+        conn.execute("VACUUM")
+    log.info("Log-Datenbank auf Nutzerwunsch geleert")
+    return jsonify({'ok': True})
+
+
 @app.route('/api/dbinfo')
 def api_dbinfo():
     size_bytes = 0

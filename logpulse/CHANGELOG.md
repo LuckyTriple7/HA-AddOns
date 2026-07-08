@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.3.0] - 2026-07-08
+
+- Klick auf DB-Größe-Chip fragt nach ("Datenbank komplett leeren?" Ja/Nein) und löscht bei Bestätigung alle Log-Einträge (`DELETE` + `VACUUM`, sofort wieder Platz auf der Disk)
+
 ## [0.2.3] - 2026-07-08
 
 - Fix: „Einträge"-Chip hing bei 1000 fest — Summary-Bar nutzte `/api/logs?limit=1000` und zählte die zurückgegebene Liste clientseitig. Neuer Endpoint `/api/stats` liefert echte COUNT(*)-Werte (Total + Warnungen/Fehler), ungedeckelt
