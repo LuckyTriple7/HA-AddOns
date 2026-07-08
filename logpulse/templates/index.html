@@ -87,9 +87,11 @@
     .log-ERROR   { color:#f85149; }
     .log-CRITICAL{ color:#a371f7; }
     .log-DEBUG   { color:#8b949e; }
-    .log-line { display:flex; gap:8px; padding:1px 0; }
-    .log-ts   { color:var(--muted); flex-shrink:0; }
-    .log-src  { flex-shrink:0; opacity:.75; }
+    .log-line { display:flex; gap:8px; padding:1px 0; align-items:flex-start; }
+    .log-ts   { color:var(--muted); flex-shrink:0; white-space:nowrap; }
+    .log-src  { flex-shrink:0; opacity:.75; white-space:nowrap; max-width:160px; overflow:hidden; text-overflow:ellipsis; }
+    .log-lvl  { flex-shrink:0; white-space:nowrap; min-width:60px; }
+    .log-msg  { flex:1; min-width:0; }
     .console-wrap { background:#0d1117; border:1px solid var(--border); border-radius:var(--r); height:calc(100vh - 200px); overflow:hidden; display:flex; flex-direction:column; }
     .console-toolbar { display:flex; gap:6px; padding:6px 10px; border-bottom:1px solid var(--border); background:var(--surf); }
     .con-btn { background:none; border:1px solid var(--border); color:var(--muted); padding:2px 8px; border-radius:4px; font-size:0.72rem; cursor:pointer; }
@@ -366,7 +368,7 @@ function renderLogLine(e){
   div.className = 'log-line';
   const ts = new Date(e.ts*1000).toLocaleTimeString();
   const src = e.addon_name || e.container || e.source;
-  div.innerHTML = `<span class="log-ts">${ts}</span><span class="${levelClass(e.level)}" style="min-width:60px">[${e.level}]</span><span class="log-src">${escapeHtml(src||'')}</span><span>${escapeHtml(e.message)}</span>`;
+  div.innerHTML = `<span class="log-ts">${ts}</span><span class="log-lvl ${levelClass(e.level)}">[${e.level}]</span><span class="log-src">${escapeHtml(src||'')}</span><span class="log-msg">${escapeHtml(e.message)}</span>`;
   return div;
 }
 

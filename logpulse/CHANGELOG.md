@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.4.1] - 2026-07-08
+
+- Fix: Level-Badge (`[WARNING]`) brach in schmalen Panels mitten im Wort um (`WARNIN` / `G]`) — `word-break:break-all` vom Log-Container griff auf Zeitstempel/Level/Quelle statt nur auf die Nachricht. Jetzt `white-space:nowrap` auf Zeitstempel-, Level- und Quellen-Spalte, nur die Nachricht selbst darf umbrechen
+
 ## [0.4.0] - 2026-07-08
 
 - Root-Fix statt weiterer Einzel-Regex: journald-PRIORITY bei Docker-Containern ist nur ein Stream-Signal (stdout=6/stderr=3), kein echter Schweregrad — viele Tools (Ring-MQTT, u.a.) loggen normale Infos komplett über stderr. Container-Zeilen ohne erkennbaren Text-Marker (Crowdsec/lws/Uptime-Kuma-Muster etc.) fallen jetzt auf INFO statt auf den rohen stderr-Wert. Echte System-/Host-Journal-Einträge (`source=system`) nutzen PRIORITY weiterhin, da dort verlässlich
