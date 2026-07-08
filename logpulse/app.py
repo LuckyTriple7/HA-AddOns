@@ -343,8 +343,8 @@ def query_logs(args) -> dict:
         params.append(q)
 
     where_sql = (" WHERE " + " AND ".join(where)) if where else ""
-    sql = (f"SELECT id, ts, source, container, addon_name, identifier, level, message "
-           f"{base}{where_sql} ORDER BY id DESC LIMIT ? OFFSET ?")
+    sql = (f"SELECT log_entries.id, ts, source, container, addon_name, identifier, level, log_entries.message "
+           f"{base}{where_sql} ORDER BY log_entries.id DESC LIMIT ? OFFSET ?")
 
     with _db_lock:
         conn = get_conn()
