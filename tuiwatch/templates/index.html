@@ -1195,7 +1195,7 @@
               : `<button class="btn sec" onclick="checkOne(${o.id})">Prüfen</button>
                  <button class="btn sec" onclick="openHistory(${o.id})">Verlauf</button>
                  <button class="btn sec${o.calendar_alert?' cal-alert':''}" onclick="openCalendar(${o.id})" title="${o.calendar_alert?'Preisänderung im Kalender seit letztem Öffnen! · ':''}Preis je Abreisetag (Preiskalender)">Kalender</button>
-                 <button class="btn sec" onclick="openRooms(${o.id})" title="Zimmerkategorie wählen (Standard = günstigstes)">Zimmer</button>
+                 <button class="btn sec" onclick="pendingStartId=null;openRooms(${o.id})" title="Zimmerkategorie wählen (Standard = günstigstes)">Zimmer</button>
                  ${o.comparable?`<button class="btn sec" onclick="openCompare(${o.id})" title="Preis pro Person für andere Reisendenzahl vergleichen">Vergleich</button>`:''}
                  <button class="btn sec ai-feature" onclick="openBookingScore(${o.id})" title="KI-Buchungsscore: jetzt buchen, beobachten oder warten?">Buchungsscore</button>
                  <button class="btn sec" onclick="openNights(${o.id})" title="Preise für kürzere/längere Reisedauern vergleichen">Nächte</button>
@@ -2515,13 +2515,18 @@
       const restore = ()=>{ if(btn){ btn.disabled=false; btn.textContent = r.tracked?'+ Tracken':'Tracken'; } };
       if(btn){ btn.disabled=true; btn.textContent='…'; }
       let resp;
-      try { resp = await fetch(api('/api/offers'), {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({url:r.offer_url, label:r.name, image:r.image})}); }
+      // start:false — Angebot wird angelegt, aber erst nach der Zimmerauswahl
+      // (pickRoom oder Schließen des Dialogs, siehe closeRooms) tatsächlich geprüft.
+      try { resp = await fetch(api('/api/offers'), {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({url:r.offer_url, label:r.name, image:r.image, start:false})}); }
       catch(e){ toast('Fehler beim Hinzufügen'); restore(); return; }
       if(resp.status===409){ toast('Dieses Angebot wird mit genau diesen Parametern bereits verfolgt'); restore(); return; }
       if(!resp.ok){ toast('Fehler beim Hinzufügen'); restore(); return; }
-      toast('Getrackt – wird geprüft…');
-      // Direkt die Zimmerauswahl für das neue Angebot anbieten
-      try { const d=await resp.json(); if(d && d.id) openRooms(d.id); } catch(e){}
+      toast('Angebot angelegt – bitte Zimmer wählen');
+      // Zimmerauswahl anbieten; erst danach beginnt die eigentliche Prüfung.
+      try {
+        const d = await resp.json();
+        if(d && d.id){ pendingStartId = d.id; openRooms(d.id); }
+      } catch(e){}
       r.tracked=true; restore();
       loadOffers();
     }
@@ -3217,6 +3222,9 @@
 
     // — Zimmerauswahl —
     let roomId = null;
+    // Gesetzt von trackResult() für neu angelegte (start:false) Angebote — nur dann
+    // startet closeRooms() beim Schließen ohne Auswahl die erste Prüfung nachträglich.
+    let pendingStartId = null;
     async function openRooms(id){
       roomId = id;
       const o = (curOffers||[]).find(x=>x.id===id) || {};
@@ -3264,9 +3272,21 @@
         if(!r.ok){ toast('Fehler bei der Zimmerauswahl'); openRooms(roomId); return; }
       } catch(e){ toast('Fehler bei der Zimmerauswahl'); return; }
       toast(code?'Zimmer gewählt – wird geprüft…':'Günstigstes Zimmer – wird geprüft…');
+      pendingStartId = null;   // Prüfung läuft bereits über POST /api/rooms/<id> — closeRooms soll nicht nochmal starten
       closeRooms(); lastSig=null; loadOffers();
     }
-    function closeRooms(){ roomId=null; $('#room-bg').classList.remove('show'); }
+    function closeRooms(){
+      // Zimmerauswahl für ein neu angelegtes (start:false) Angebot wurde OHNE
+      // explizite Wahl geschlossen (X/Klick daneben) — Prüfung jetzt mit dem
+      // ursprünglichen Zimmer aus der Suche nachträglich starten.
+      if(pendingStartId!=null && pendingStartId===roomId){
+        const id = pendingStartId;
+        fetch(api('/api/offers/'+id+'/start'), {method:'POST'}).catch(()=>{});
+        toast('Wird geprüft…');
+        loadOffers();
+      }
+      pendingStartId = null; roomId=null; $('#room-bg').classList.remove('show');
+    }
     $('#room-bg').addEventListener('click', e=>{ if(e.target.id==='room-bg') closeRooms(); });
 
     async function calPoll(){

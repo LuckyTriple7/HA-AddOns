@@ -73,7 +73,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.44.5"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.44.6"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -2652,8 +2652,28 @@ def api_add_offer():
         return jsonify({'error': 'duplicate'}), 409
     log.info("Neues Angebot #%d hinzugefügt: %s", offer_id,
              label or hotel_from_url(url) or url)
-    _spawn(check_offer, offer_id)  # sofort einmal prüfen
-    return jsonify({'id': offer_id, 'started': True})
+    # start:false (nur vom Zimmerauswahl-Flow in der Suche genutzt) verzögert die
+    # erste Prüfung bis zur Zimmerwahl/-bestätigung (POST /api/offers/<id>/start
+    # oder POST /api/rooms/<id>) — sonst würde sofort das (u. U. falsche) Zimmer
+    # aus dem Such-Ergebnis getrackt, bevor der Nutzer wählen konnte.
+    start = data.get('start', True)
+    if start:
+        _spawn(check_offer, offer_id)  # sofort einmal prüfen
+    return jsonify({'id': offer_id, 'started': bool(start)})
+
+
+@app.route('/api/offers/<int:offer_id>/start', methods=['POST'])
+def api_start_offer(offer_id: int):
+    """Startet die erste Prüfung eines mit start:false angelegten Angebots (siehe
+    api_add_offer) — z. B. wenn der Nutzer die Zimmerauswahl ohne explizite Wahl
+    schließt (dann mit dem ursprünglichen Zimmer aus der Suche getrackt)."""
+    if (err := _require_api()):
+        return err
+    with db() as con:
+        if not con.execute('SELECT 1 FROM offers WHERE id=?', (offer_id,)).fetchone():
+            return jsonify({'error': 'not_found'}), 404
+    _spawn(check_offer, offer_id)
+    return jsonify({'started': True})
 
 
 @app.route('/api/offers/<int:offer_id>', methods=['DELETE'])

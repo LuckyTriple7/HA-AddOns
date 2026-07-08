@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.44.6] - 2026-07-08
+
+### Changed
+- Tracken eines Hotels aus der Suche startet die erste Preisprüfung nicht mehr
+  sofort, sondern erst NACH der Zimmerauswahl (explizite Wahl oder Schließen des
+  Dialogs = ursprüngliches Zimmer aus der Suche). Bisher wurde sofort mit dem
+  ggf. falschen Zimmer aus dem Suchergebnis getrackt, noch bevor der Nutzer im
+  Zimmerauswahl-Dialog wählen konnte. Betrifft nur den Einzeltrack-Button in der
+  Suche — "Alle tracken" und das Tracken einzelner Kalendertage starten weiterhin
+  sofort (kein Zimmerauswahl-Schritt dort).
+
 ## [0.44.5] - 2026-07-08
 
 ### Added
