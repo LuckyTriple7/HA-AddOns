@@ -64,7 +64,7 @@ def classify_source(entry: dict) -> tuple[str, str | None]:
     return "system", None
 
 
-def derive_level(msg: str, key: str, priority: int) -> str:
+def derive_level(msg: str, source: str, key: str, priority: int) -> str:
     m = BRACKET_LEVEL.match(msg)
     if m:
         lvl = m.group(1)
@@ -93,7 +93,16 @@ def derive_level(msg: str, key: str, priority: int) -> str:
         return lvl
     if key in _last_level_by_key:
         return _last_level_by_key[key]
-    lvl = PRIORITY_TO_LEVEL.get(priority, "INFO")
+    if source == "system":
+        # Echte Host-/systemd-Journal-Einträge: PRIORITY ist ein von der
+        # Anwendung selbst gesetzter Syslog-Schweregrad, verlässliches Signal.
+        lvl = PRIORITY_TO_LEVEL.get(priority, "INFO")
+    else:
+        # Docker setzt PRIORITY nur nach Stream (stdout=6/stderr=3), nicht
+        # nach echtem Schweregrad — viele Tools (z.B. Ring-MQTT) loggen
+        # normale Infos komplett über stderr. Ohne Text-Marker also INFO,
+        # nicht das rohe stderr=ERROR übernehmen.
+        lvl = "INFO"
     _last_level_by_key[key] = lvl
     return lvl
 
@@ -147,7 +156,7 @@ def _reader_loop_once(get_conn, db_lock, resolve_addon_name, notify_new, poll_ti
             msg = ANSI_RE.sub('', raw_msg)
             priority = int(entry.get("PRIORITY", 6))
             key = container or source
-            level = derive_level(msg, key, priority)
+            level = derive_level(msg, source, key, priority)
             addon_name = resolve_addon_name(container) if source == "addon" else None
             ts_field = entry.get("__REALTIME_TIMESTAMP")
             ts = ts_field.timestamp() if ts_field is not None else time.time()

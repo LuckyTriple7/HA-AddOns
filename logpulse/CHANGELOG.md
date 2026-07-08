@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.4.0] - 2026-07-08
+
+- Root-Fix statt weiterer Einzel-Regex: journald-PRIORITY bei Docker-Containern ist nur ein Stream-Signal (stdout=6/stderr=3), kein echter Schweregrad — viele Tools (Ring-MQTT, u.a.) loggen normale Infos komplett über stderr. Container-Zeilen ohne erkennbaren Text-Marker (Crowdsec/lws/Uptime-Kuma-Muster etc.) fallen jetzt auf INFO statt auf den rohen stderr-Wert. Echte System-/Host-Journal-Einträge (`source=system`) nutzen PRIORITY weiterhin, da dort verlässlich
+
 ## [0.3.4] - 2026-07-08
 
 - Fix: Suche fand nichts bei Eingabe eines Addon-Namens (z.B. "Cloudflared") — FTS5 durchsuchte nur den Nachrichtentext, nicht Container-/Add-on-Namen, und `MATCH` lässt sich technisch nicht mit `OR` kombinieren. Umgestellt auf `LIKE` über Nachricht + Container + Add-on-Name + Identifier
