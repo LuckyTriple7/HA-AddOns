@@ -2901,6 +2901,7 @@
             <div class="aihist-title">${aiKindLabel(it.kind)} · ${esc(it.title)}</div>
             <div class="hint">${esc(new Date(it.ts*1000).toLocaleString('de-DE'))} · ${esc(it.model)}</div>
           </div>
+          ${it.has_prompt ? `<button class="icon-btn" onclick="repeatAiHistoryItem(${it.id}, event)" title="Mit Claude oder Gemini wiederholen">🔁</button>` : ''}
           <button class="icon-btn" onclick="deleteAiHistoryItem(${it.id}, event)" title="Eintrag löschen">🗑</button>
         </div>`).join('');
     }
@@ -2928,6 +2929,43 @@
       if(!confirm('Diesen KI-Verlaufseintrag löschen?')) return;
       try { await fetch(api('/api/ai/history/'+id), {method:'DELETE'}); } catch(e){}
       openAiHistory();
+    }
+    async function repeatAiHistoryItem(id, ev){
+      ev.stopPropagation();
+      const it = _aiHistItems.find(x=>x.id===id); if(!it) return;
+      closeAiHistory();
+      $('#ai-title').textContent = '🔁 Wiederholen';
+      $('#ai-sub').textContent = aiKindLabel(it.kind) + ' · ' + it.title;
+      $('#ai-foot').style.display = 'none';
+      $('#ai-bg').classList.add('show');
+      let avail = {};
+      try { avail = await fetch(api('/api/ai/provider')).then(r=>r.json()); } catch(e){}
+      const mkBtn = p => {
+        const ok = avail[p+'_configured'];
+        return `<button class="btn${ok?'':' sec'}" ${ok?'':'disabled'} onclick="runAiHistoryRepeat(${id},'${p}')">${AI_PROVIDER_LABEL[p]}${ok?'':' (kein Key)'}</button>`;
+      };
+      $('#ai-body').innerHTML = `<div class="hint" style="margin-bottom:10px">Mit welcher KI wiederholen?</div>
+        <div style="display:flex;gap:10px">${mkBtn('anthropic')}${mkBtn('gemini')}</div>`;
+    }
+    async function runAiHistoryRepeat(id, provider){
+      const attempt = async () => {
+        $('#ai-body').innerHTML = progBar('Wird wiederholt…');
+        let resp, d;
+        try {
+          resp = await fetch(api('/api/ai/history/'+id+'/repeat'), {method:'POST',
+            headers:{'Content-Type':'application/json'}, body: JSON.stringify({provider})});
+          d = await resp.json();
+        } catch(e){ _aiRetryFn = attempt; $('#ai-body').innerHTML = aiErrorBlock('Wiederholen fehlgeschlagen.', true); return; }
+        if(!resp.ok){
+          const retryable = aiRetryable(d.error);
+          const msg = d.error==='no_prompt' ? (d.note||'Kein Prompt gespeichert.') : aiErrorMsg(d.error);
+          _aiRetryFn = retryable ? attempt : null;
+          $('#ai-body').innerHTML = aiErrorBlock(msg, retryable);
+          return;
+        }
+        if(d.result){ renderBookingScore('#ai-body', d); } else { renderAiResult('#ai-body', d); }
+      };
+      attempt();
     }
 
     // ── Frag dein Portfolio ────────────────────────────────────────────────────

@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.45.0] - 2026-07-08
+
+### Added
+- **KI-Verlauf: Anfrage wiederholen** — neuer 🔁-Button je Verlaufseintrag, fragt mit
+  welcher KI (Claude oder Gemini) erneut angefragt werden soll und speichert das
+  Ergebnis als neuen Verlaufseintrag (Original bleibt erhalten). Dafür wird ab jetzt
+  der exakte Prompt-Text jeder KI-Analyse mitgespeichert (`ai_analyses.prompt`,
+  neue Spalte) — ältere, vor diesem Update gespeicherte Einträge haben keinen Prompt
+  und zeigen daher keinen 🔁-Button.
+
 ## [0.44.6] - 2026-07-08
 
 ### Changed

@@ -187,7 +187,13 @@ bleibt dann versteckt, `ai_provider` wird ignoriert).
   der sich der Browser-Druckdialog direkt als PDF speichern lässt.
 - **🤖 KI-Verlauf** (Button oben neben „Alle prüfen") — alle bisherigen Fazits/
   Vergleiche bleiben **dauerhaft** gespeichert (unabhängig vom 24h-Cache, bis zu
-  300 Einträge), anklickbar zum erneuten Anzeigen, einzeln löschbar.
+  300 Einträge), anklickbar zum erneuten Anzeigen, einzeln löschbar (löscht auch
+  den mitgespeicherten Prompt). **🔁 Wiederholen** schickt den exakt gleichen
+  Prompt-Text erneut an eine wählbare KI (Claude oder Gemini, unabhängig vom
+  gerade aktiven Standard-Provider) und legt das Ergebnis als neuen Eintrag an —
+  praktisch um beide Anbieter für dieselbe Anfrage zu vergleichen. Nur bei
+  Einträgen verfügbar, die nach Einführung dieser Funktion gespeichert wurden
+  (ältere haben keinen gespeicherten Prompt).
 - Ergebnisse werden **24 Stunden** je Hotel/Vergleichs-Kombination
   zwischengespeichert — erneutes Öffnen kostet keinen neuen API-Aufruf.
 

@@ -73,7 +73,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.44.6"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.45.0"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -447,6 +447,9 @@ def init_db() -> None:
             usage   TEXT DEFAULT '{}',
             ts      INTEGER NOT NULL
         )''')
+        acols = {r['name'] for r in con.execute('PRAGMA table_info(ai_analyses)').fetchall()}
+        if 'prompt' not in acols:
+            con.execute("ALTER TABLE ai_analyses ADD COLUMN prompt TEXT NOT NULL DEFAULT ''")
         # Reisen-Datenbank: gebuchte Reisen (PDF-Import). data = komplettes Parse-JSON,
         # pdf_name = Dateiname im TRIPS_DIR (dauerhaft gespeichert).
         con.execute('''CREATE TABLE IF NOT EXISTS trips (
@@ -2958,7 +2961,7 @@ def _build_backup_zip() -> bytes:
                 'WHERE trips.booking_code IS NOT NULL ORDER BY trip_packing_items.id').fetchall():
             packing_items.append(dict(pi))
         ai_analyses = [dict(r) for r in con.execute(
-            'SELECT kind, title, model, summary, usage, ts FROM ai_analyses ORDER BY id').fetchall()]
+            'SELECT kind, title, model, summary, usage, ts, prompt FROM ai_analyses ORDER BY id').fetchall()]
         meta_rows = con.execute(
             f"SELECT key, value FROM meta WHERE key IN ({','.join('?' for _ in _BACKUP_META_KEYS)})",
             _BACKUP_META_KEYS).fetchall()
@@ -2971,7 +2974,7 @@ def _build_backup_zip() -> bytes:
                         for r in con.execute(
                             'SELECT ts, region, country, months_out, pct_change '
                             'FROM price_moves ORDER BY ts').fetchall()]
-    data = {'tuiwatch_backup': 4, 'created': datetime.now().isoformat(),
+    data = {'tuiwatch_backup': 5, 'created': datetime.now().isoformat(),
             'offers': offers, 'trips': trips, 'saved_searches': searches,
             'trip_attachments': attachments, 'trip_packing_items': packing_items,
             'ai_analyses': ai_analyses, 'meta': meta, 'price_moves': price_moves}
@@ -3303,9 +3306,10 @@ def api_restore():
                 if exists:
                     continue
                 con.execute(
-                    'INSERT INTO ai_analyses (kind, title, model, summary, usage, ts) '
-                    'VALUES (?,?,?,?,?,?)',
-                    (kind, title, a.get('model'), a.get('summary'), a.get('usage'), ts))
+                    'INSERT INTO ai_analyses (kind, title, model, summary, usage, ts, prompt) '
+                    'VALUES (?,?,?,?,?,?,?)',
+                    (kind, title, a.get('model'), a.get('summary'), a.get('usage'), ts,
+                     a.get('prompt') or ''))
                 ai_n += 1
             con.execute('DELETE FROM ai_analyses WHERE id NOT IN '
                         '(SELECT id FROM ai_analyses ORDER BY id DESC LIMIT ?)', (_AI_HISTORY_MAX,))
@@ -3794,14 +3798,19 @@ def _record_ai_usage(model: str, usage: dict) -> dict:
 _AI_HISTORY_MAX = 300  # ältere Einträge werden beim Speichern verworfen
 
 
-def _save_ai_analysis(kind: str, title: str, model: str, text: str, usage: dict) -> int:
+def _save_ai_analysis(kind: str, title: str, model: str, text: str, usage: dict,
+                      prompt: str = '') -> int:
     """Fertiges KI-Fazit/-Vergleich dauerhaft ablegen, damit es später über den
     KI-Verlauf wieder einsehbar (und per E-Mail versendbar) ist — unabhängig vom
-    24h-Cache. Gibt die neue Zeilen-ID zurück."""
+    24h-Cache. `prompt` (optional) speichert den exakten Prompt-Text mit, damit der
+    Eintrag später über /api/ai/history/<id>/repeat mit einer (ggf. anderen) KI
+    wiederholt werden kann — leer bei Aufrufern, die (noch) keinen Prompt mitgeben.
+    Gibt die neue Zeilen-ID zurück."""
     with db() as con:
-        cur = con.execute('INSERT INTO ai_analyses (kind, title, model, summary, usage, ts) '
-                          'VALUES (?,?,?,?,?,?)',
-                          (kind, title[:300], model, text, json.dumps(usage or {}), int(time.time())))
+        cur = con.execute('INSERT INTO ai_analyses (kind, title, model, summary, usage, ts, prompt) '
+                          'VALUES (?,?,?,?,?,?,?)',
+                          (kind, title[:300], model, text, json.dumps(usage or {}), int(time.time()),
+                           prompt))
         aid = cur.lastrowid
         con.execute('DELETE FROM ai_analyses WHERE id NOT IN '
                     '(SELECT id FROM ai_analyses ORDER BY id DESC LIMIT ?)', (_AI_HISTORY_MAX,))
@@ -3839,6 +3848,24 @@ def _ai_config():
     welchen Provider es ansprechen muss."""
     cfg = load_config()
     if _ai_active_provider(cfg) == 'gemini':
+        api_key = (cfg.get('gemini_api_key') or '').strip()
+        model = cfg.get('gemini_model') or 'gemini-3.1-pro'
+        if model not in _GEMINI_MODELS:
+            model = 'gemini-3.1-pro'
+        return api_key, model
+    api_key = (cfg.get('anthropic_api_key') or '').strip()
+    model = cfg.get('anthropic_model') or 'claude-opus-4-8'
+    if model not in _AI_MODELS:
+        model = 'claude-opus-4-8'
+    return api_key, model
+
+
+def _ai_config_for(provider: str) -> tuple[str, str]:
+    """Wie _ai_config(), aber mit explizit vorgegebenem Provider statt über
+    _ai_active_provider() ermittelt — für /api/ai/history/<id>/repeat, wo der
+    Nutzer die KI unabhängig vom gerade aktiven Provider wählt."""
+    cfg = load_config()
+    if provider == 'gemini':
         api_key = (cfg.get('gemini_api_key') or '').strip()
         model = cfg.get('gemini_model') or 'gemini-3.1-pro'
         if model not in _GEMINI_MODELS:
@@ -4420,7 +4447,7 @@ def api_ai_hotel_summary():
         return err
     usage['estimated_usd'] = _ai_call_cost(model, usage)
     totals = _record_ai_usage(model, usage)
-    aid = _save_ai_analysis('single', name, model, text, usage)
+    aid = _save_ai_analysis('single', name, model, text, usage, prompt)
     _ai_summary_cache[cache_key] = {'summary': text, 'usage': usage, 'id': aid, 'ts': time.time()}
     return jsonify({'summary': text, 'usage': usage, 'totals': totals, 'id': aid, 'cached': False})
 
@@ -4476,7 +4503,7 @@ def api_ai_calendar_outlook(offer_id: int):
         return err
     usage['estimated_usd'] = _ai_call_cost(model, usage)
     totals = _record_ai_usage(model, usage)
-    aid = _save_ai_analysis('calendar_outlook', facts['hotel'], model, text, usage)
+    aid = _save_ai_analysis('calendar_outlook', facts['hotel'], model, text, usage, prompt)
     _calendar_outlook_cache[offer_id] = {'summary': text, 'usage': usage, 'id': aid, 'ts': time.time()}
     return jsonify({'summary': text, 'usage': usage, 'totals': totals, 'id': aid, 'cached': False})
 
@@ -4510,13 +4537,14 @@ def api_ai_booking_score(offer_id: int):
         _run_calendar(offer_id)
         with db() as con:
             facts = _offer_booking_facts(con, offer_id)
-    result, usage, err = _ai_score_request(_booking_score_prompt(facts), model, api_key, facts['hotel'])
+    prompt = _booking_score_prompt(facts)
+    result, usage, err = _ai_score_request(prompt, model, api_key, facts['hotel'])
     if err:
         return err
     usage['estimated_usd'] = _ai_call_cost(model, usage)
     totals = _record_ai_usage(model, usage)
     aid = _save_ai_analysis('booking_score', facts['hotel'], model,
-                            json.dumps(result, ensure_ascii=False), usage)
+                            json.dumps(result, ensure_ascii=False), usage, prompt)
     _booking_score_cache[offer_id] = {'result': result, 'usage': usage, 'id': aid, 'ts': time.time()}
     return jsonify({'result': result, 'usage': usage, 'totals': totals, 'id': aid, 'cached': False})
 
@@ -4544,14 +4572,14 @@ def api_ai_region_outlook():
         index = _market_index(con, region=region)
     if trend is None and index is None:
         return jsonify({'error': 'no_data'}), 400
-    result, usage, err = _ai_score_request(_region_outlook_prompt(region, trend, index),
-                                          model, api_key, region)
+    prompt = _region_outlook_prompt(region, trend, index)
+    result, usage, err = _ai_score_request(prompt, model, api_key, region)
     if err:
         return err
     usage['estimated_usd'] = _ai_call_cost(model, usage)
     totals = _record_ai_usage(model, usage)
     aid = _save_ai_analysis('region_outlook', region, model,
-                            json.dumps(result, ensure_ascii=False), usage)
+                            json.dumps(result, ensure_ascii=False), usage, prompt)
     _region_outlook_cache[region] = {'result': result, 'usage': usage, 'id': aid, 'ts': time.time()}
     return jsonify({'result': result, 'usage': usage, 'totals': totals, 'id': aid, 'cached': False})
 
@@ -4618,7 +4646,7 @@ def api_ai_ask():
         return err
     usage['estimated_usd'] = _ai_call_cost(model, usage)
     totals = _record_ai_usage(model, usage)
-    aid = _save_ai_analysis('ask', question, model, text, usage)
+    aid = _save_ai_analysis('ask', question, model, text, usage, prompt)
     return jsonify({'summary': text, 'usage': usage, 'totals': totals, 'id': aid, 'cached': False})
 
 
@@ -4876,7 +4904,7 @@ def api_ai_travel_advisor():
         text += _advisor_dna_table(dna)
     usage['estimated_usd'] = _ai_call_cost(model, usage)
     totals = _record_ai_usage(model, usage)
-    aid = _save_ai_analysis('advisor', title, model, text, usage)
+    aid = _save_ai_analysis('advisor', title, model, text, usage, prompt)
     return jsonify({'summary': text, 'usage': usage, 'totals': totals, 'id': aid, 'dna': dna,
                     'cached': False})
 
@@ -4926,7 +4954,7 @@ def api_ai_hotel_compare():
     usage['estimated_usd'] = _ai_call_cost(model, usage)
     totals = _record_ai_usage(model, usage)
     title = ' · '.join(h.get('name', '') for h in hotels)
-    aid = _save_ai_analysis('compare', title, model, text, usage)
+    aid = _save_ai_analysis('compare', title, model, text, usage, prompt)
     _ai_summary_cache[cache_key] = {'summary': text, 'usage': usage, 'id': aid, 'ts': time.time()}
     return jsonify({'summary': text, 'usage': usage, 'totals': totals, 'id': aid, 'cached': False})
 
@@ -5042,7 +5070,8 @@ def api_ai_history():
         return err
     with db() as con:
         rows = con.execute(
-            'SELECT id, kind, title, model, ts, substr(summary,1,160) AS preview '
+            'SELECT id, kind, title, model, ts, substr(summary,1,160) AS preview, '
+            "CASE WHEN prompt!='' THEN 1 ELSE 0 END AS has_prompt "
             'FROM ai_analyses ORDER BY id DESC LIMIT ?', (_AI_HISTORY_MAX,)).fetchall()
     return jsonify({'items': [dict(r) for r in rows]})
 
@@ -5071,6 +5100,64 @@ def api_ai_history_delete(aid: int):
     with db() as con:
         con.execute('DELETE FROM ai_analyses WHERE id=?', (aid,))
     return jsonify({'ok': True})
+
+
+# max_tokens/use_web_search je Markdown-Kind (1:1 aus den jeweiligen Original-Routen
+# übernommen) — für api_ai_history_repeat unten. booking_score/region_outlook sind
+# NICHT hier drin, die laufen strukturiert über _ai_score_request (eigenes, festes
+# max_tokens=1024/use_web_search=True).
+_AI_RETRY_MARKDOWN_CONFIG = {
+    'single': {'max_tokens': 4096, 'use_web_search': True},
+    'calendar_outlook': {'max_tokens': 700, 'use_web_search': False},
+    'ask': {'max_tokens': 1500, 'use_web_search': True},
+    'advisor': {'max_tokens': 3072, 'use_web_search': True},
+    'compare': {'max_tokens': 6144, 'use_web_search': True},
+}
+
+
+@app.route('/api/ai/history/<int:aid>/repeat', methods=['POST'])
+def api_ai_history_repeat(aid: int):
+    """Wiederholt einen gespeicherten KI-Verlaufseintrag mit gewähltem Provider —
+    schickt den eingefrorenen Prompt erneut, speichert das Ergebnis als NEUEN
+    Verlaufseintrag (Original bleibt unverändert erhalten). Bei kind='advisor'
+    (TripPilot) fehlt in der Wiederholung die angehängte Reise-DNA-Tabelle — die wird
+    deterministisch aus dem Fragebogen-Zustand berechnet, der hier nicht gespeichert
+    ist, nur der fertige Prompt-Text."""
+    if (err := _require_api()):
+        return err
+    provider = (request.get_json(silent=True) or {}).get('provider')
+    if provider not in ('anthropic', 'gemini'):
+        return jsonify({'error': 'invalid_provider'}), 400
+    with db() as con:
+        row = con.execute('SELECT kind, title, prompt FROM ai_analyses WHERE id=?',
+                          (aid,)).fetchone()
+    if not row:
+        return jsonify({'error': 'not_found'}), 404
+    if not row['prompt']:
+        return jsonify({'error': 'no_prompt',
+                        'note': 'Dieser Eintrag wurde vor der Wiederholen-Funktion gespeichert.'}), 400
+    api_key, model = _ai_config_for(provider)
+    if not api_key:
+        return jsonify({'error': 'no_api_key'}), 400
+    kind, title, prompt = row['kind'], row['title'], row['prompt']
+    if kind in ('booking_score', 'region_outlook'):
+        result, usage, err = _ai_score_request(prompt, model, api_key, title)
+        if err:
+            return err
+        text = json.dumps(result, ensure_ascii=False)
+    else:
+        rcfg = _AI_RETRY_MARKDOWN_CONFIG.get(kind, {'max_tokens': 2048, 'use_web_search': True})
+        result = None
+        text, usage, err = _ai_call(api_key, model, prompt, max_tokens=rcfg['max_tokens'],
+                                    log_ctx=title, use_web_search=rcfg['use_web_search'])
+        if err:
+            return err
+    usage['estimated_usd'] = _ai_call_cost(model, usage)
+    totals = _record_ai_usage(model, usage)
+    new_id = _save_ai_analysis(kind, title, model, text, usage, prompt)
+    out = {'usage': usage, 'totals': totals, 'id': new_id}
+    out.update({'result': result} if result is not None else {'summary': text})
+    return jsonify(out)
 
 
 _dest_cache: dict = {}     # parent → {parentName, items}
