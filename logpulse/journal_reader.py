@@ -31,6 +31,12 @@ LOGRUS_NORMALIZE = {
     'ERROR': 'ERROR', 'FATAL': 'CRITICAL', 'PANIC': 'CRITICAL',
 }
 
+# libwebsockets-Stil (Collabora, Claude Code, ...):
+# "[2026/07/08 17:00:29:1164] N: __lws_lc_tag: ..." — Ein-Buchstaben-Level
+# nach dem Zeitstempel. N=Notice/I=Info/D=Debug sind KEIN Fehler.
+LWS_LEVEL = re.compile(r'^\[\d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2}:\d+\]\s+([EWNIDP]):')
+LWS_NORMALIZE = {'E': 'ERROR', 'W': 'WARNING', 'N': 'INFO', 'I': 'INFO', 'D': 'DEBUG', 'P': 'DEBUG'}
+
 ANSI_RE = re.compile(r'\x1b\[[0-9;]*m')
 
 # Fallback-Level für Folgezeilen ohne erkennbares Prefix (z.B. Tracebacks)
@@ -63,6 +69,11 @@ def derive_level(msg: str, key: str, priority: int) -> str:
     m = LOGRUS_LEVEL.search(msg)
     if m:
         lvl = LOGRUS_NORMALIZE.get(m.group(1).upper(), 'INFO')
+        _last_level_by_key[key] = lvl
+        return lvl
+    m = LWS_LEVEL.match(msg)
+    if m:
+        lvl = LWS_NORMALIZE.get(m.group(1), 'INFO')
         _last_level_by_key[key] = lvl
         return lvl
     if key in _last_level_by_key:

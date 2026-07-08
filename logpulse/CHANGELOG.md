@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.3.2] - 2026-07-08
+
+- Fix: libwebsockets-Format (Collabora Online, Claude Code — `[2026/07/08 17:00:29:1164] N: ...`) wurde ebenfalls komplett als ERROR gewertet. Neues Muster erkennt den Ein-Buchstaben-Level nach dem Zeitstempel (E/W/N/I/D/P), N(otice)/I(nfo)/D(ebug) zählen jetzt korrekt nicht als Fehler
+
 ## [0.3.1] - 2026-07-08
 
 - Fix: Go-Tools wie Crowdsec (Logrus-Format `level=info ...`) wurden komplett als ERROR gewertet — keins der bisherigen Level-Muster passte, also griff der journald-PRIORITY-Fallback (stderr → ERROR), unabhängig vom echten Level im Text. Neues Muster erkennt `level=debug/info/warn/error/fatal/panic` überall in der Zeile
