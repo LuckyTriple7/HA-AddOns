@@ -62,6 +62,7 @@
     .stat-chip .lbl { font-size:0.68rem; color:var(--muted); margin-top:2px; white-space:nowrap; }
 
     /* ── Filterleiste (Live-Tab) ─────────────────────────────── */
+    .live-filter-sticky { position:sticky; top:0; background:var(--bg); z-index:50; padding-top:2px; }
     .filter-bar { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:12px; }
     .search-wrap { position:relative; flex:1; min-width:200px; }
     .search-wrap svg { position:absolute; left:9px; top:50%; transform:translateY(-50%); width:14px; height:14px; fill:var(--muted); }
@@ -101,6 +102,14 @@
     .item-row:last-child { border-bottom:none; }
     .item-main { flex:1; min-width:0; }
     .item-meta { font-size:0.75rem; color:var(--muted); }
+
+    #offline-banner { display:none; position:fixed; inset:0; z-index:800; background:rgba(0,0,0,0.72); backdrop-filter:blur(4px); -webkit-backdrop-filter:blur(4px); flex-direction:column; align-items:center; justify-content:center; gap:14px; }
+    @keyframes ob-pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
+    .ob-icon { font-size:44px; animation:ob-pulse 1.8s ease-in-out infinite; }
+    .ob-title { font-size:16px; font-weight:600; color:var(--text); }
+    .ob-sub { font-size:13px; color:var(--muted); }
+    .ob-reload { background:var(--surf2); border:1px solid var(--border); color:var(--text); border-radius:8px; padding:8px 22px; font-size:13px; cursor:pointer; margin-top:4px; }
+    .ob-reload:hover { border-color:var(--accent); color:var(--accent); }
 
     .modal-backdrop { display:none; position:fixed; inset:0; background:rgba(0,0,0,.6); z-index:500; align-items:center; justify-content:center; }
     .modal-backdrop.show { display:flex; }
@@ -149,6 +158,13 @@
     </a>
   </header>
 
+  <div id="offline-banner">
+    <div class="ob-icon">📡</div>
+    <div class="ob-title">{{ t.banner_offline_title }}</div>
+    <div class="ob-sub">{{ t.banner_offline_sub }}</div>
+    <button class="ob-reload" onclick="window.location.reload()">{{ t.banner_offline_reload }}</button>
+  </div>
+
   <div id="summary-bar" class="summary-bar">
     <div class="stat-chip"><div class="num" id="stat-total">0</div><div class="lbl">{{ t.stat_total }}</div></div>
     <div class="stat-chip" id="stat-warn-chip"><div class="num" id="stat-warn" style="color:var(--yellow)">0</div><div class="lbl">{{ t.stat_warnings }}</div></div>
@@ -180,6 +196,7 @@
 
     <!-- ── Tab: Live ────────────────────────────────────────── -->
     <div id="tab-live">
+      <div class="live-filter-sticky">
       <div class="filter-bar">
         <div class="search-wrap">
           <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 1 0-.7.7l.27.28v.79l5 5L20.49 19l-5-5zm-6 0A4.5 4.5 0 1 1 14 9.5 4.5 4.5 0 0 1 9.5 14z"/></svg>
@@ -202,6 +219,7 @@
           <span id="container-filter-label"></span>
           <span onclick="clearContainerFilter()" style="margin-left:4px;font-weight:700">✕</span>
         </span>
+      </div>
       </div>
       <div class="console-wrap">
         <div class="console-toolbar">
@@ -290,6 +308,29 @@ if ('serviceWorker' in navigator) {
 }
 
 const T = {{ t | tojson }};
+
+// ── Offline-Banner + Session-Timeout ────────────────────────────────
+let _offlineFails = 0;
+function showOfflineBanner(){ document.getElementById('offline-banner').style.display = 'flex'; }
+function hideOfflineBanner(){ document.getElementById('offline-banner').style.display = 'none'; }
+window.addEventListener('offline', () => showOfflineBanner());
+window.addEventListener('online', () => { _offlineFails = 0; hideOfflineBanner(); });
+if (!navigator.onLine) showOfflineBanner();
+
+async function apiFetch(path, opts){
+  let res;
+  try {
+    res = await fetch(u(path), opts);
+  } catch(e) {
+    _offlineFails++;
+    if (_offlineFails >= 3) showOfflineBanner();
+    throw e;
+  }
+  if (res.status === 401) { location.href = u('/login'); throw new Error('unauthorized'); }
+  _offlineFails = 0;
+  if (navigator.onLine !== false) hideOfflineBanner();
+  return res;
+}
 
 function switchTab(name){
   document.querySelectorAll('.tab').forEach(el=>el.classList.toggle('active', el.dataset.tab===name));
@@ -394,7 +435,7 @@ function trimLines(el){
 
 async function fetchLogs(reset){
   try {
-    const res = await fetch(u('/api/logs?' + buildQuery()));
+    const res = await apiFetch('/api/logs?' + buildQuery());
     if (!res.ok) return;
     const data = await res.json();
     const out = document.getElementById('log-out');
@@ -419,7 +460,7 @@ function buildStatsQuery(){
 let _summaryTimer = null;
 async function updateSummary(){
   try {
-    const res = await fetch(u('/api/stats?' + buildStatsQuery()));
+    const res = await apiFetch('/api/stats?' + buildStatsQuery());
     const data = await res.json();
     document.getElementById('stat-total').textContent = data.total;
     document.getElementById('stat-warn').textContent = data.warning;
@@ -428,7 +469,7 @@ async function updateSummary(){
     document.getElementById('stat-err-chip').classList.toggle('chip-new-err', data.error>0);
   } catch(e) {}
   try {
-    const res2 = await fetch(u('/api/sources'));
+    const res2 = await apiFetch('/api/sources');
     const data2 = await res2.json();
     document.getElementById('stat-sources').textContent = data2.sources.length;
   } catch(e) {}
@@ -436,7 +477,7 @@ async function updateSummary(){
 
 async function fetchDbInfo(){
   try {
-    const res = await fetch(u('/api/dbinfo'));
+    const res = await apiFetch('/api/dbinfo');
     const data = await res.json();
     const label = `${data.size_mb} / ${data.max_mb} MB`;
     document.getElementById('stat-dbsize').textContent = label;
@@ -475,7 +516,7 @@ async function waitLoop(){
   const myGen = _waitGen;
   while (myGen === _waitGen && liveEnabled && pageVisible){
     try {
-      await fetch(u('/api/wait'));
+      await apiFetch('/api/wait');
       if (myGen !== _waitGen || !liveEnabled || !pageVisible) break;
       await fetchLogs(false);
     } catch(e) {
@@ -506,7 +547,7 @@ document.addEventListener('visibilitychange', () => {
 
 // ── Quellen-Tab ──────────────────────────────────────────────────
 async function loadSources(){
-  const res = await fetch(u('/api/sources'));
+  const res = await apiFetch('/api/sources');
   const data = await res.json();
   const el = document.getElementById('sources-list');
   if (!data.sources.length) { el.innerHTML = `<div class="empty">${T.no_data}</div>`; return; }
@@ -540,7 +581,7 @@ function closeClearDbModal(){ document.getElementById('clear-db-overlay').classL
 async function confirmClearDb(){
   closeClearDbModal();
   try {
-    await fetch(u('/api/db/clear'), { method: 'POST' });
+    await apiFetch('/api/db/clear', { method: 'POST' });
   } catch(e) {}
   lastSeenId = 0;
   clearLogView();
@@ -596,7 +637,7 @@ let conSince = 0;
 let conAutoscroll = true;
 async function fetchConsole(){
   try {
-    const res = await fetch(u('/api/console?since=' + conSince));
+    const res = await apiFetch('/api/console?since=' + conSince);
     const data = await res.json();
     const out = document.getElementById('console-out');
     data.entries.forEach(e => {

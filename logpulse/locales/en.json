@@ -43,5 +43,8 @@
   "filter_name_placeholder": "e.g. Only errors from TUIWatch",
   "entries_label": "entries",
   "no_data": "No data yet.",
-  "no_saved_filters": "No saved filters yet."
+  "no_saved_filters": "No saved filters yet.",
+  "banner_offline_title": "Connection lost",
+  "banner_offline_sub": "Reconnecting…",
+  "banner_offline_reload": "Reload"
 }

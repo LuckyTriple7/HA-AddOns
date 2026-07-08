@@ -398,6 +398,11 @@ def _require_login():
     if _is_ingress():
         return None
     if not is_valid_session(request.cookies.get('lp_session')):
+        # API-Routen bekommen 401 statt Redirect — ein fetch() folgt dem
+        # Redirect sonst transparent und liefert die Login-HTML-Seite als
+        # "Erfolg" zurück, res.json() scheitert dann still (siehe syswatch).
+        if request.path.startswith('/api/'):
+            return '', 401
         return redirect(url_for('login'))
     return None
 

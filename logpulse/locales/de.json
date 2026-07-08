@@ -43,5 +43,8 @@
   "filter_name_placeholder": "z.B. Nur Fehler von TUIWatch",
   "entries_label": "Einträge",
   "no_data": "Noch keine Daten vorhanden.",
-  "no_saved_filters": "Noch keine gespeicherten Filter."
+  "no_saved_filters": "Noch keine gespeicherten Filter.",
+  "banner_offline_title": "Verbindung unterbrochen",
+  "banner_offline_sub": "Stelle Verbindung wieder her…",
+  "banner_offline_reload": "Neu laden"
 }

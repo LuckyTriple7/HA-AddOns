@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.5.0] - 2026-07-08
+
+- Offline-Banner ergänzt (wie TUIWatch/SysWatch): nach 3 gescheiterten Polls oder `navigator.onLine=false` erscheint Verbindungs-Overlay mit Reload-Button
+- Session-Timeout gefixt: API-Routen gaben bei abgelaufener Session einen Redirect zurück statt 401 — `fetch()` folgt Redirects transparent, `res.json()` scheiterte dann still auf der Login-HTML-Seite, UI blieb scheinbar eingefroren. API-Routen liefern jetzt 401, Frontend leitet bei 401 aktiv zu `/login` um
+- Filterleiste + Quellen-Tabs im Live-Tab sind jetzt sticky (bleiben beim Scrollen der Log-Liste oben stehen)
+
 ## [0.4.2] - 2026-07-08
 
 - Neue App-Icons (icon.png, icon-192.png, icon-512.png)
