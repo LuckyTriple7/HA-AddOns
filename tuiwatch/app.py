@@ -73,7 +73,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.44.2"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.44.3"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -4686,8 +4686,8 @@ def _advisor_prompt(p: dict, prev_dna: dict | None = None) -> str:
             "„Kommt nicht in Frage“/„Weitere ausgeschlossene Länder“ genannten "
             "Ländern/Regionen vor — auch nicht als Alternative."
         )
-    if p.get('arrival_mode') in ('Auto', 'Bus', 'Bahn') or is_daytrip:
-        transport = p.get('arrival_mode') or 'einem Fahrzeug/den öffentlichen Verkehrsmitteln'
+    if not is_daytrip and p.get('arrival_mode') in ('Auto', 'Bus', 'Bahn'):
+        transport = p.get('arrival_mode')
         lines.append(
             "\nWichtig: Der Nutzer reist eigenständig mit "
             f"{transport} an, nicht mit dem Flugzeug. Schlage "

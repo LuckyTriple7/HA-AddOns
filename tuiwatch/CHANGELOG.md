@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.44.3] - 2026-07-08
+
+### Fixed
+- TripPilot Tagesausflug-Modus lieferte im KI-Prompt einen irrelevanten Hinweis
+  zu „Pauschalreise (TUI)" und Flügen (Copy-Paste-Rest aus dem regulären
+  Reiseberater-Block) — ein Tagesausflug hat weder Flug noch Pauschalreise.
+  Klausel gilt jetzt nur noch für den regulären Reiseberater mit eigener
+  Anreise (Auto/Bus/Bahn).
+
 ## [0.44.2] - 2026-07-07
 
 ### Added
