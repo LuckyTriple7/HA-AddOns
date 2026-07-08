@@ -65,8 +65,8 @@ def hotel_from_url(url: str) -> str:
             seg = parts[parts.index('angebote') + 1]
             name = unquote(seg).replace('-', ' ').strip()
             return name if name and not name.isdigit() else ''
-    except Exception:
-        pass
+    except Exception as e:
+        log.debug("hotel_from_url: URL nicht parsbar (%s): %s", url, e)
     return ''
 
 
@@ -77,8 +77,8 @@ def travellers_from_url(url: str) -> int:
             if k == 'travellers':
                 n = int(v)
                 return n if n > 0 else 1
-    except Exception:
-        pass
+    except Exception as e:
+        log.debug("travellers_from_url: URL nicht parsbar (%s): %s", url, e)
     return 1
 
 

@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.45.1] - 2026-07-08
+
+### Fixed
+- Code-Review-Nachbesserungen (Robustheit, keine funktionalen Nutzer-Änderungen):
+  - 4 Stellen mit ungeschütztem `json.loads()` auf DB-Feldern (Vergleich-/Nächte-/
+    Kalender-Cache, Angebots-Tags) crashen bei kaputten Daten nicht mehr, sondern
+    fallen sauber zurück (neuer Helper `_json_loads_safe`).
+  - `_ai_summary_cache`/`_booking_score_cache` jetzt mit Lock geschützt (bisher
+    einzige In-Memory-Caches ohne Lock) — verhindert, dass zwei gleichzeitige
+    Anfragen fürs gleiche Angebot je einen unnötigen bezahlten KI-Call auslösen.
+  - Bisher stillschweigend verschluckte Fehler (`load_config()`, `hotel_from_url()`,
+    `travellers_from_url()`, Start-Benachrichtigung) werden jetzt geloggt.
+  - `POST /api/rooms/<id>` validiert den Zimmercode jetzt (kurzes alphanumerisches
+    Format statt beliebiger String).
+
 ## [0.45.0] - 2026-07-08
 
 ### Added

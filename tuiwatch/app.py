@@ -73,7 +73,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.45.0"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.45.1"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -132,6 +132,9 @@ _health_lock = threading.Lock()
 _ai_summary_cache: dict = {}              # giata/Name → {summary, ts} — spart wiederholte API-Calls
 _AI_SUMMARY_TTL = 24 * 3600
 _booking_score_cache: dict = {}           # offer_id → {result, usage, ts}
+_ai_cache_lock = threading.Lock()         # schützt _ai_summary_cache/_booking_score_cache — ohne Lock
+                                           # können zwei parallele Requests (threaded=True) fürs gleiche
+                                           # Angebot je einen bezahlten KI-Call auslösen statt Cache-Hit
 _region_outlook_cache: dict = {}          # region → {result, usage, ts}
 _calendar_outlook_cache: dict = {}        # offer_id → {summary, usage, ts}
 _BOOKING_SCORE_TTL = 6 * 3600             # kürzer als Hotel-Fazit: Preisdaten ändern sich häufiger
@@ -192,7 +195,10 @@ def load_config() -> dict:
     try:
         with open(CONFIG_PATH, 'r', encoding='utf-8') as f:
             return json.load(f)
-    except Exception:
+    except FileNotFoundError:
+        return {}   # normal vor dem ersten Schreiben durch den HA-Supervisor
+    except Exception as e:
+        log.warning("options.json nicht lesbar (%s): %s", CONFIG_PATH, e)
         return {}
 
 
@@ -265,6 +271,18 @@ def record_failed_attempt(ip: str) -> None:
 def clear_failed_attempts(ip: str) -> None:
     _failed_attempts.pop(ip, None)
     _blocked_ips.pop(ip, None)
+
+
+def _json_loads_safe(text, default):
+    """json.loads mit Fallback statt Crash — für Felder, die die App selbst per
+    json.dumps geschrieben hat (also normalerweise valide sind), aber theoretisch
+    durch DB-Korruption/manuelle Eingriffe kaputt sein könnten. Loggt eine Warnung,
+    damit sowas nicht stillschweigend untergeht."""
+    try:
+        return json.loads(text)
+    except (ValueError, TypeError) as e:
+        log.warning("Kaputtes JSON in DB-Feld ignoriert: %s", e)
+        return default
 
 
 # ── Datenbank ──────────────────────────────────────────────────────────────────
@@ -1040,7 +1058,8 @@ def _notify_startup() -> None:
     try:
         with db() as con:
             n = con.execute('SELECT COUNT(*) c FROM offers').fetchone()['c']
-    except Exception:
+    except Exception as e:
+        log.warning("Startup-Meldung: Angebotszahl nicht lesbar: %s", e)
         n = 0
     word = 'Reise' if n == 1 else 'Reisen'
     _notify_telegram(f"✈️ <b>TUIWatch gestartet</b> (v{APP_VERSION})\n{n} {word} geladen")
@@ -1466,7 +1485,7 @@ def _compare_payload(offer_id: int) -> dict:
                           (offer_id,)).fetchone()
     if row:
         out = {'status': 'done', 'ts': row['ts'], 'base': row['base'],
-               'rows': json.loads(row['rows'])}
+               'rows': _json_loads_safe(row['rows'], [])}
     else:
         out = {'status': 'idle', 'rows': []}
     if st.get('status') == 'error':
@@ -1567,7 +1586,7 @@ def _nights_payload(offer_id: int) -> dict:
                           (offer_id,)).fetchone()
     if row:
         out = {'status': 'done', 'ts': row['ts'], 'base': row['base'],
-               'span': row['span'], 'rows': json.loads(row['rows'])}
+               'span': row['span'], 'rows': _json_loads_safe(row['rows'], [])}
     else:
         out = {'status': 'idle', 'rows': []}
     if st.get('status') == 'error':
@@ -1776,7 +1795,7 @@ def _calendar_payload(offer_id: int) -> dict:
                           (offer_id,)).fetchone()
         moves = _calendar_moves(con, offer_id) if row else {}
     if row:
-        out = json.loads(row['data'])
+        out = _json_loads_safe(row['data'], {})
         out['status'] = 'done'
         out['ts'] = row['ts']
         out['moves'] = moves
@@ -2590,7 +2609,7 @@ def _collect_offers() -> list[dict]:
                 'paused': bool(o['paused']),
                 'archived': bool(o['archived']),
                 'return_date': o['return_date'] or '',
-                'tags': (json.loads(o['tags']) if o['tags'] else []),
+                'tags': (_json_loads_safe(o['tags'], []) if o['tags'] else []),
                 'cancellation': o['cancellation'], 'stars': o['stars'],
                 'rating': o['rating'], 'rating_count': o['rating_count'],
                 'recommendation': o['recommendation'],
@@ -3806,6 +3825,8 @@ def _save_ai_analysis(kind: str, title: str, model: str, text: str, usage: dict,
     Eintrag später über /api/ai/history/<id>/repeat mit einer (ggf. anderen) KI
     wiederholt werden kann — leer bei Aufrufern, die (noch) keinen Prompt mitgeben.
     Gibt die neue Zeilen-ID zurück."""
+    if len(title) > 300:
+        log.warning("KI-Verlauf-Titel gekürzt (%d → 300 Zeichen): %s…", len(title), title[:60])
     with db() as con:
         cur = con.execute('INSERT INTO ai_analyses (kind, title, model, summary, usage, ts, prompt) '
                           'VALUES (?,?,?,?,?,?,?)',
@@ -4436,7 +4457,8 @@ def api_ai_hotel_summary():
     instr_hash = hashlib.sha1(instructions.encode('utf-8')).hexdigest()[:10]
     giata = data.get('giata')
     cache_key = f'{instr_hash}:' + (str(giata) if giata else name.lower())
-    cached = _ai_summary_cache.get(cache_key)
+    with _ai_cache_lock:
+        cached = _ai_summary_cache.get(cache_key)
     if cached and time.time() - cached['ts'] < _AI_SUMMARY_TTL:
         return jsonify({'summary': cached['summary'], 'usage': cached.get('usage'),
                         'totals': _ai_usage_totals(), 'id': cached.get('id'), 'cached': True})
@@ -4448,7 +4470,8 @@ def api_ai_hotel_summary():
     usage['estimated_usd'] = _ai_call_cost(model, usage)
     totals = _record_ai_usage(model, usage)
     aid = _save_ai_analysis('single', name, model, text, usage, prompt)
-    _ai_summary_cache[cache_key] = {'summary': text, 'usage': usage, 'id': aid, 'ts': time.time()}
+    with _ai_cache_lock:
+        _ai_summary_cache[cache_key] = {'summary': text, 'usage': usage, 'id': aid, 'ts': time.time()}
     return jsonify({'summary': text, 'usage': usage, 'totals': totals, 'id': aid, 'cached': False})
 
 
@@ -4518,7 +4541,8 @@ def api_ai_booking_score(offer_id: int):
     if not api_key:
         return jsonify({'error': 'no_api_key',
                         'note': 'Kein Anthropic API-Key in den Add-on-Einstellungen hinterlegt'}), 400
-    cached = _booking_score_cache.get(offer_id)
+    with _ai_cache_lock:
+        cached = _booking_score_cache.get(offer_id)
     if cached and time.time() - cached['ts'] < _BOOKING_SCORE_TTL:
         return jsonify({'result': cached['result'], 'usage': cached['usage'],
                         'totals': _ai_usage_totals(), 'id': cached.get('id'), 'cached': True})
@@ -4545,7 +4569,8 @@ def api_ai_booking_score(offer_id: int):
     totals = _record_ai_usage(model, usage)
     aid = _save_ai_analysis('booking_score', facts['hotel'], model,
                             json.dumps(result, ensure_ascii=False), usage, prompt)
-    _booking_score_cache[offer_id] = {'result': result, 'usage': usage, 'id': aid, 'ts': time.time()}
+    with _ai_cache_lock:
+        _booking_score_cache[offer_id] = {'result': result, 'usage': usage, 'id': aid, 'ts': time.time()}
     return jsonify({'result': result, 'usage': usage, 'totals': totals, 'id': aid, 'cached': False})
 
 
@@ -4941,7 +4966,8 @@ def api_ai_hotel_compare():
     cache_key = (f'cmp:{instr_hash}:'
                  + '|'.join(sorted(str(h.get('giata') or (h.get('name') or '').lower())
                                    for h in hotels)))
-    cached = _ai_summary_cache.get(cache_key)
+    with _ai_cache_lock:
+        cached = _ai_summary_cache.get(cache_key)
     if cached and time.time() - cached['ts'] < _AI_SUMMARY_TTL:
         return jsonify({'summary': cached['summary'], 'usage': cached.get('usage'),
                         'totals': _ai_usage_totals(), 'id': cached.get('id'), 'cached': True})
@@ -4955,7 +4981,8 @@ def api_ai_hotel_compare():
     totals = _record_ai_usage(model, usage)
     title = ' · '.join(h.get('name', '') for h in hotels)
     aid = _save_ai_analysis('compare', title, model, text, usage, prompt)
-    _ai_summary_cache[cache_key] = {'summary': text, 'usage': usage, 'id': aid, 'ts': time.time()}
+    with _ai_cache_lock:
+        _ai_summary_cache[cache_key] = {'summary': text, 'usage': usage, 'id': aid, 'ts': time.time()}
     return jsonify({'summary': text, 'usage': usage, 'totals': totals, 'id': aid, 'cached': False})
 
 
@@ -6287,6 +6314,10 @@ def api_rooms_set(offer_id: int):
     data = request.get_json(silent=True) or {}
     code = (data.get('code') or '').strip()
     label = (data.get('label') or '').strip()
+    # Zimmercodes von TUI sehen z.B. so aus: DZM1, JSM2, GT06-AI — kurz, alphanumerisch
+    # + Bindestrich. Leer = "automatisch günstigstes" bleibt weiterhin erlaubt.
+    if code and not re.fullmatch(r'[A-Za-z0-9-]{1,40}', code):
+        return jsonify({'error': 'invalid_code'}), 400
     with db() as con:
         o = con.execute('SELECT url FROM offers WHERE id=?', (offer_id,)).fetchone()
         if not o:
