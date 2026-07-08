@@ -22,6 +22,8 @@
   "stat_warnings": "Warnungen",
   "stat_errors": "Fehler",
   "stat_sources": "Quellen",
+  "stat_dbsize": "DB-Größe",
+  "retention_label": "Aufbewahrung:",
   "tab_live": "Live",
   "tab_sources": "Quellen",
   "tab_saved": "Gespeichert",

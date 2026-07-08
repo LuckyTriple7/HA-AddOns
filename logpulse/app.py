@@ -503,6 +503,22 @@ def api_sources():
     })
 
 
+@app.route('/api/dbinfo')
+def api_dbinfo():
+    size_bytes = 0
+    for path in (DB_PATH, DB_PATH + '-wal', DB_PATH + '-shm'):
+        try:
+            size_bytes += os.path.getsize(path)
+        except OSError:
+            pass
+    cfg = load_config()
+    return jsonify({
+        'size_mb': round(size_bytes / (1024 * 1024), 2),
+        'max_mb': int(cfg.get('max_db_size_mb', 300)),
+        'retention_days': int(cfg.get('retention_days', 14)),
+    })
+
+
 @app.route('/api/wait')
 def api_wait():
     """Long-Polling statt SSE — SSE ist über HA-Nginx-Ingress unzuverlässig

@@ -152,6 +152,7 @@
     <div class="stat-chip" id="stat-warn-chip"><div class="num" id="stat-warn" style="color:var(--yellow)">0</div><div class="lbl">{{ t.stat_warnings }}</div></div>
     <div class="stat-chip" id="stat-err-chip"><div class="num" id="stat-err" style="color:var(--red)">0</div><div class="lbl">{{ t.stat_errors }}</div></div>
     <div class="stat-chip"><div class="num" id="stat-sources">0</div><div class="lbl">{{ t.stat_sources }}</div></div>
+    <div class="stat-chip"><div class="num" id="stat-dbsize" style="font-size:1rem">–</div><div class="lbl">{{ t.stat_dbsize }}</div></div>
   </div>
 
   <div class="tabs">
@@ -195,6 +196,10 @@
         <button class="repo-tab" data-source="supervisor" onclick="setSourceFilter('supervisor')">{{ t.source_supervisor }}</button>
         <button class="repo-tab" data-source="addon" onclick="setSourceFilter('addon')">{{ t.source_addon }}</button>
         <button class="repo-tab" data-source="system" onclick="setSourceFilter('system')">{{ t.source_system }}</button>
+        <span id="container-filter-chip" class="ci-filter-btn active" style="display:none;cursor:default">
+          <span id="container-filter-label"></span>
+          <span onclick="clearContainerFilter()" style="margin-left:4px;font-weight:700">✕</span>
+        </span>
       </div>
       <div class="console-wrap">
         <div class="console-toolbar">
@@ -210,7 +215,10 @@
     <!-- ── Tab: Quellen ─────────────────────────────────────── -->
     <div id="tab-sources" style="display:none">
       <div class="card">
-        <div class="card-header">{{ t.tab_sources }}</div>
+        <div class="card-header">
+          {{ t.tab_sources }}
+          <span style="margin-left:auto;font-weight:400;font-size:0.78rem;color:var(--muted)" id="sources-dbsize"></span>
+        </div>
         <div id="sources-list"></div>
       </div>
     </div>
@@ -281,6 +289,8 @@ function switchTab(name){
 // ── Live-Log-State ──────────────────────────────────────────────
 let activeLevels = new Set(['INFO','WARNING','ERROR','CRITICAL']);
 let sourceFilter = '';
+let containerFilter = '';
+let containerFilterLabel = '';
 let searchTerm = '';
 let searchDebounce = null;
 let liveEnabled = true;
@@ -297,8 +307,36 @@ function toggleLevel(lvl){
 
 function setSourceFilter(src){
   sourceFilter = src;
+  containerFilter = '';
+  updateContainerChip();
   document.querySelectorAll('#source-tabs .repo-tab').forEach(el=>el.classList.toggle('active', el.dataset.source===src));
   fetchLogs(true);
+}
+
+function filterByContainer(source, container, label){
+  sourceFilter = source || '';
+  containerFilter = container || '';
+  containerFilterLabel = label || container || source;
+  document.querySelectorAll('#source-tabs .repo-tab').forEach(el=>el.classList.toggle('active', el.dataset.source===sourceFilter));
+  updateContainerChip();
+  switchTab('live');
+  fetchLogs(true);
+}
+
+function clearContainerFilter(){
+  containerFilter = '';
+  updateContainerChip();
+  fetchLogs(true);
+}
+
+function updateContainerChip(){
+  const chip = document.getElementById('container-filter-chip');
+  if (containerFilter) {
+    document.getElementById('container-filter-label').textContent = containerFilterLabel;
+    chip.style.display = 'inline-flex';
+  } else {
+    chip.style.display = 'none';
+  }
 }
 
 function onSearchInput(){
@@ -328,6 +366,7 @@ function buildQuery(extra){
   const p = new URLSearchParams();
   activeLevels.forEach(l => p.append('level', l));
   if (sourceFilter) p.set('source', sourceFilter);
+  if (containerFilter) p.append('container', containerFilter);
   if (searchTerm) p.set('q', searchTerm);
   p.set('limit', 300);
   Object.entries(extra||{}).forEach(([k,v])=>p.set(k,v));
@@ -369,6 +408,18 @@ async function updateSummary(){
   } catch(e) {}
 }
 
+async function fetchDbInfo(){
+  try {
+    const res = await fetch(u('/api/dbinfo'));
+    const data = await res.json();
+    const label = `${data.size_mb} / ${data.max_mb} MB`;
+    document.getElementById('stat-dbsize').textContent = label;
+    const sd = document.getElementById('sources-dbsize');
+    if (sd) sd.textContent = `${T.stat_dbsize}: ${label} · ${T.retention_label} ${data.retention_days}d`;
+  } catch(e) {}
+}
+setInterval(fetchDbInfo, 30000);
+
 function clearLogView(){ document.getElementById('log-out').innerHTML=''; }
 
 function toggleLive(){
@@ -400,14 +451,19 @@ async function loadSources(){
   const data = await res.json();
   const el = document.getElementById('sources-list');
   if (!data.sources.length) { el.innerHTML = `<div class="empty">${T.no_data}</div>`; return; }
-  el.innerHTML = data.sources.map(s => `
-    <div class="item-row">
+  el.innerHTML = data.sources.map((s,i) => `
+    <div class="item-row" style="cursor:pointer" data-idx="${i}">
       <div class="item-main">
         <div>${escapeHtml(s.addon_name || s.container || s.source)}</div>
         <div class="item-meta">${escapeHtml(s.source)}</div>
       </div>
       <div>${s.count}</div>
     </div>`).join('');
+  el.querySelectorAll('.item-row').forEach(row => {
+    const s = data.sources[parseInt(row.dataset.idx, 10)];
+    row.addEventListener('click', () => filterByContainer(s.source, s.container, s.addon_name || s.container));
+  });
+  fetchDbInfo();
 }
 
 // ── Gespeicherte Filter (localStorage) ────────────────────────────
@@ -491,6 +547,7 @@ setInterval(fetchConsole, 4000);
 // ── Init ───────────────────────────────────────────────────────────
 fetchLogs(true);
 fetchConsole();
+fetchDbInfo();
 waitLoop();
 </script>
 </body>
