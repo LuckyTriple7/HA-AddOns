@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.4.2] - 2026-07-08
+
+- Neue App-Icons (icon.png, icon-192.png, icon-512.png)
+
 ## [0.4.1] - 2026-07-08
 
 - Fix: Level-Badge (`[WARNING]`) brach in schmalen Panels mitten im Wort um (`WARNIN` / `G]`) — `word-break:break-all` vom Log-Container griff auf Zeitstempel/Level/Quelle statt nur auf die Nachricht. Jetzt `white-space:nowrap` auf Zeitstempel-, Level- und Quellen-Spalte, nur die Nachricht selbst darf umbrechen
