@@ -35,6 +35,9 @@ configuration:
   notify_calendar_trend:
     name: Calendar price change
     description: "Notify when a price in an offer's price calendar changes for an already-known travel date (hotel name + affected month, no details). Default on."
+  calendar_trend_min_diff:
+    name: Minimum change for calendar price change (€)
+    description: "Minimum price change per travel date before the calendar price change notification triggers. Default 20 € — smaller moves are still visible in the calendar itself (trend view), only the notification is filtered."
   notify_errors:
     name: Sold-out / error alert
     description: "Notify when an offer returns no result several times in a row (sold out or outdated URL). Default on."

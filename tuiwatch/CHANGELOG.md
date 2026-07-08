@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.44.4] - 2026-07-08
+
+### Added
+- Neue Option `calendar_trend_min_diff` (Standard 20 €): Mindest-Preisänderung pro
+  Reisedatum, ab der `notify_calendar_trend` benachrichtigt. Bisher löste jede noch
+  so kleine Änderung (z. B. 10 € bei 2000+ € Reisepreis) sofort HA/Telegram aus —
+  die Kalender-Trend-Ansicht selbst zeigt weiterhin jede Änderung, nur die
+  Benachrichtigung wird jetzt gefiltert. 0 = Schwelle aus (altes Verhalten).
+
 ## [0.44.3] - 2026-07-08
 
 ### Fixed

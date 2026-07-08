@@ -73,7 +73,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.44.3"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.44.4"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -1631,16 +1631,28 @@ def _format_month_list_de(months: list[str]) -> str:
 def _check_calendar_trend_alert(offer_id: int, changed_dates: list[str]) -> None:
     """Meldet Preisänderungen im Kalender für bereits bekannte Reisedaten — bewusst
     grob (Hotelname + Monat(e), kein Datum/Preis, siehe _store_calendar_snapshot für
-    die Definition von 'echte Änderung'). Gated durch notify_calendar_trend."""
+    die Definition von 'echte Änderung'). Gated durch notify_calendar_trend, und
+    gefiltert auf Tage mit einer Bewegung >= calendar_trend_min_diff (€) — winzige
+    Änderungen (z. B. 10 € bei 2000+ € Reisepreis) sollen nicht benachrichtigen.
+    Die Storage-Seite (calendar_history/Trend-Ansicht) bleibt davon unberührt und
+    zeigt weiterhin JEDE Änderung, unabhängig von dieser Schwelle."""
     if not changed_dates:
         return
-    if not load_config().get('notify_calendar_trend', True):
+    cfg = load_config()
+    if not cfg.get('notify_calendar_trend', True):
         return
+    min_diff = max(0, int(cfg.get('calendar_trend_min_diff', 20) or 0))
     with db() as con:
         offer = con.execute('SELECT label, hotel, url FROM offers WHERE id=?',
                             (offer_id,)).fetchone()
+        moves = _calendar_moves(con, offer_id) if min_diff > 0 else {}
     if not offer:
         return
+    if min_diff > 0:
+        changed_dates = [d for d in changed_dates
+                         if abs(moves.get(d, {}).get('delta', 0)) >= min_diff]
+        if not changed_dates:
+            return
     months = sorted({d[:7] for d in changed_dates})
     month_str = _format_month_list_de(months)
     name = offer['label'] or offer['hotel'] or f"Angebot #{offer_id}"

@@ -35,6 +35,9 @@ configuration:
   notify_calendar_trend:
     name: Kalender-Preisänderung
     description: "Benachrichtigen, wenn sich im Preiskalender eines Angebots ein Preis für ein bereits bekanntes Reisedatum ändert (Hotelname + betroffener Monat, keine Details). Standard an."
+  calendar_trend_min_diff:
+    name: Mindest-Änderung für Kalender-Preisänderung (€)
+    description: "Ab welcher Preisänderung pro Reisedatum die Kalender-Preisänderung-Benachrichtigung auslöst. Standard 20 € — kleinere Schwankungen werden nicht gemeldet (im Kalender selbst, Trend-Ansicht, weiterhin sichtbar, nur die Benachrichtigung wird gefiltert)."
   notify_errors:
     name: Ausverkauft-/Fehler-Alarm
     description: "Benachrichtigen, wenn ein Angebot mehrmals hintereinander kein Ergebnis liefert (Kontingent ausgebucht oder URL veraltet). Standard an."

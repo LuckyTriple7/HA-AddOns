@@ -83,7 +83,10 @@ def test_calendar_trend_alert_respects_config_flag(m, monkeypatch):
 def test_calendar_trend_alert_sends_hotel_and_month_only(m, monkeypatch):
     oid = _add_offer(m, "https://example.invalid/c?duration=7", hotel="Strandhotel Sonne")
     sink = _mock_notify(m, monkeypatch)
-    monkeypatch.setattr(m, "load_config", lambda: {"notify_calendar_trend": True})
+    # calendar_trend_min_diff:0 = Schwelle aus — dieser Test prüft nur das Nachrichten-
+    # format, es werden keine echten calendar_history-Zeilen (mit Delta) angelegt.
+    monkeypatch.setattr(m, "load_config", lambda: {"notify_calendar_trend": True,
+                                                     "calendar_trend_min_diff": 0})
     m._check_calendar_trend_alert(oid, ["2027-05-02", "2027-06-10"])
     assert len(sink) == 2
     kinds = {e[0] for e in sink}
@@ -94,6 +97,40 @@ def test_calendar_trend_alert_sends_hotel_and_month_only(m, monkeypatch):
         assert "Mai 2027 und Juni 2027" in text
         assert "2027-05-02" not in text and "2027-06-10" not in text   # kein genaues Datum
         assert "€" not in text                                        # kein Preis
+
+
+def test_calendar_trend_alert_filters_small_moves_below_default_threshold(m, monkeypatch):
+    oid = _add_offer(m, "https://example.invalid/g?duration=7", hotel="Kleinpreis-Hotel")
+    sink = _mock_notify(m, monkeypatch)
+    monkeypatch.setattr(m, "load_config", lambda: {"notify_calendar_trend": True})  # default min_diff 20
+    with m.db() as con:
+        m._store_calendar_snapshot(con, oid, _cal([("2027-05-01", 2100)]))
+        changed = m._store_calendar_snapshot(con, oid, _cal([("2027-05-01", 2110)]))  # nur +10 €
+    m._check_calendar_trend_alert(oid, changed)
+    assert sink == []
+
+
+def test_calendar_trend_alert_min_diff_zero_disables_filter(m, monkeypatch):
+    oid = _add_offer(m, "https://example.invalid/h?duration=7", hotel="Kleinpreis-Hotel-2")
+    sink = _mock_notify(m, monkeypatch)
+    monkeypatch.setattr(m, "load_config", lambda: {"notify_calendar_trend": True,
+                                                     "calendar_trend_min_diff": 0})
+    with m.db() as con:
+        m._store_calendar_snapshot(con, oid, _cal([("2027-05-01", 2100)]))
+        changed = m._store_calendar_snapshot(con, oid, _cal([("2027-05-01", 2110)]))  # nur +10 €
+    m._check_calendar_trend_alert(oid, changed)
+    assert len(sink) == 2
+
+
+def test_calendar_trend_alert_passes_moves_above_threshold(m, monkeypatch):
+    oid = _add_offer(m, "https://example.invalid/i?duration=7", hotel="Großpreis-Hotel")
+    sink = _mock_notify(m, monkeypatch)
+    monkeypatch.setattr(m, "load_config", lambda: {"notify_calendar_trend": True})  # default min_diff 20
+    with m.db() as con:
+        m._store_calendar_snapshot(con, oid, _cal([("2027-05-01", 2100)]))
+        changed = m._store_calendar_snapshot(con, oid, _cal([("2027-05-01", 2150)]))  # +50 €
+    m._check_calendar_trend_alert(oid, changed)
+    assert len(sink) == 2
 
 
 def test_run_calendar_notifies_only_on_real_change(m, monkeypatch):

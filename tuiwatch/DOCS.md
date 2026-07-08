@@ -324,7 +324,9 @@ Preis-Tracking, als dauerhaftes Archiv (Vergangenheit und Zukunft).
   eines Angebots ein Preis für ein bereits bekanntes Reisedatum ändert — bewusst grob
   (Hotelname + betroffener Monat/Monate, kein Datum, kein Preis; siehe Abschnitt
   „Preiskalender" für Details/Trend-Ansicht). Neu ins Kalenderfenster gerutschte Tage
-  ohne Vorwert lösen keine Meldung aus.
+  ohne Vorwert lösen keine Meldung aus. Schwelle `calendar_trend_min_diff` (Standard
+  20 €) filtert Mini-Schwankungen aus der Benachrichtigung — die Trend-Ansicht im
+  Kalender selbst zeigt trotzdem jede noch so kleine Änderung. 0 = Schwelle aus.
 - **Wochenüberblick / Digest** (`digest_enabled`): optionale wöchentliche Zusammenfassung
   (größte Rückgänge, neue Tiefstwerte, Angebote unter Wunschpreis, Kalenderpreis-Änderungen)
   per Telegram und/oder E-Mail. `digest_weekday` legt den Wochentag fest (1 = Montag …
