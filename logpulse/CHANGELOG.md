@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.2.3] - 2026-07-08
+
+- Fix: „Einträge"-Chip hing bei 1000 fest — Summary-Bar nutzte `/api/logs?limit=1000` und zählte die zurückgegebene Liste clientseitig. Neuer Endpoint `/api/stats` liefert echte COUNT(*)-Werte (Total + Warnungen/Fehler), ungedeckelt
+- Fix: DB-Größe-Chip nicht bündig mit den anderen Chips (Text brach bei langen Werten um, Chip wurde höher). `white-space:nowrap` + `justify-content:center` auf `.stat-chip`
+
 ## [0.2.2] - 2026-07-08
 
 - Fix: `/api/logs` warf bei Volltextsuche `sqlite3.OperationalError: ambiguous column name: message` — `log_fts` und `log_entries` haben beide eine `message`-Spalte, jetzt eindeutig mit `log_entries.message`/`log_entries.id` qualifiziert

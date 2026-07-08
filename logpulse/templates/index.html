@@ -53,12 +53,12 @@
     .card-header { padding:10px 14px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:8px; font-weight:600; font-size:0.9rem; }
 
     .summary-bar { display:flex; gap:8px; flex-wrap:nowrap; padding:8px 14px; background:var(--surf); border-bottom:1px solid var(--border); flex-shrink:0; overflow-x:auto; }
-    .stat-chip { background:var(--surf2); border:1px solid var(--border); border-radius:var(--r); padding:6px 14px; display:flex; flex-direction:column; align-items:center; min-width:76px; flex-shrink:0; }
+    .stat-chip { background:var(--surf2); border:1px solid var(--border); border-radius:var(--r); padding:6px 14px; display:flex; flex-direction:column; align-items:center; justify-content:center; min-width:76px; flex-shrink:0; }
     @keyframes chip-pulse-yellow { 0%,100%{box-shadow:0 0 0 0 rgba(210,153,34,0); border-color:var(--border)} 50%{box-shadow:0 0 0 4px rgba(210,153,34,.25); border-color:var(--yellow)} }
     @keyframes chip-pulse-red    { 0%,100%{box-shadow:0 0 0 0 rgba(248,81,73,0);  border-color:var(--border)} 50%{box-shadow:0 0 0 4px rgba(248,81,73,.25);  border-color:var(--red)} }
     .chip-new-warn { animation:chip-pulse-yellow 1.4s ease-in-out infinite; }
     .chip-new-err  { animation:chip-pulse-red    1.4s ease-in-out infinite; }
-    .stat-chip .num { font-size:1.3rem; font-weight:700; line-height:1; }
+    .stat-chip .num { font-size:1.3rem; font-weight:700; line-height:1; white-space:nowrap; }
     .stat-chip .lbl { font-size:0.68rem; color:var(--muted); margin-top:2px; white-space:nowrap; }
 
     /* ── Filterleiste (Live-Tab) ─────────────────────────────── */
@@ -394,18 +394,24 @@ async function fetchLogs(reset){
   } catch(e) { /* Netzwerkfehler ignorieren, naechster Poll versucht erneut */ }
 }
 
+function buildStatsQuery(){
+  const p = new URLSearchParams();
+  if (sourceFilter) p.set('source', sourceFilter);
+  if (containerFilter) p.append('container', containerFilter);
+  if (searchTerm) p.set('q', searchTerm);
+  return p.toString();
+}
+
 let _summaryTimer = null;
 async function updateSummary(){
   try {
-    const res = await fetch(u('/api/logs?' + buildQuery({limit: 1000})));
+    const res = await fetch(u('/api/stats?' + buildStatsQuery()));
     const data = await res.json();
-    document.getElementById('stat-total').textContent = data.entries.length;
-    const warn = data.entries.filter(e=>e.level==='WARNING').length;
-    const err = data.entries.filter(e=>e.level==='ERROR'||e.level==='CRITICAL').length;
-    document.getElementById('stat-warn').textContent = warn;
-    document.getElementById('stat-err').textContent = err;
-    document.getElementById('stat-warn-chip').classList.toggle('chip-new-warn', warn>0);
-    document.getElementById('stat-err-chip').classList.toggle('chip-new-err', err>0);
+    document.getElementById('stat-total').textContent = data.total;
+    document.getElementById('stat-warn').textContent = data.warning;
+    document.getElementById('stat-err').textContent = data.error;
+    document.getElementById('stat-warn-chip').classList.toggle('chip-new-warn', data.warning>0);
+    document.getElementById('stat-err-chip').classList.toggle('chip-new-err', data.error>0);
   } catch(e) {}
   try {
     const res2 = await fetch(u('/api/sources'));

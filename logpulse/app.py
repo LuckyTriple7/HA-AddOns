@@ -307,15 +307,17 @@ def resolve_addon_name(container: str | None) -> str | None:
 
 # ── Log-Query-Helper ─────────────────────────────────────────────────────────
 
-def query_logs(args) -> dict:
+def _build_filter(args, include_levels: bool = True):
+    """Baut WHERE/FROM/Params aus den Query-Args. include_levels=False lässt den
+    Level-Filter weg — genutzt für die Summary-Stats, die die echte Fehler-/
+    Warnungs-Anzahl zeigen sollen, unabhängig davon welche Level-Checkboxen
+    der Nutzer gerade aktiviert hat."""
     source = args.get('source')
     containers = [c for c in args.getlist('container') if c]
-    levels = [l for l in args.getlist('level') if l]
+    levels = [l for l in args.getlist('level') if l] if include_levels else []
     q = (args.get('q') or '').strip()
     since = args.get('since', type=float)
     until = args.get('until', type=float)
-    limit = min(args.get('limit', 200, type=int) or 200, 1000)
-    offset = args.get('offset', 0, type=int) or 0
 
     where = []
     params: list = []
@@ -343,6 +345,14 @@ def query_logs(args) -> dict:
         params.append(q)
 
     where_sql = (" WHERE " + " AND ".join(where)) if where else ""
+    return base, where_sql, params
+
+
+def query_logs(args) -> dict:
+    base, where_sql, params = _build_filter(args)
+    limit = min(args.get('limit', 200, type=int) or 200, 1000)
+    offset = args.get('offset', 0, type=int) or 0
+
     sql = (f"SELECT log_entries.id, ts, source, container, addon_name, identifier, level, log_entries.message "
            f"{base}{where_sql} ORDER BY log_entries.id DESC LIMIT ? OFFSET ?")
 
@@ -357,6 +367,21 @@ def query_logs(args) -> dict:
             for r in rows
         ]
     }
+
+
+def query_stats(args) -> dict:
+    """Echte Gesamt-/Level-Zahlen für die Summary-Bar — nicht durch das
+    limit von /api/logs gedeckelt."""
+    base, where_sql, params = _build_filter(args, include_levels=False)
+    sql = f"SELECT level, COUNT(*) {base}{where_sql} GROUP BY level"
+    with _db_lock:
+        conn = get_conn()
+        rows = conn.execute(sql, params).fetchall()
+    by_level = {r[0]: r[1] for r in rows}
+    total = sum(by_level.values())
+    warning = by_level.get('WARNING', 0)
+    error = by_level.get('ERROR', 0) + by_level.get('CRITICAL', 0)
+    return {'total': total, 'warning': warning, 'error': error}
 
 
 # ── Routes ───────────────────────────────────────────────────────────────────
@@ -484,6 +509,11 @@ def service_worker():
 @app.route('/api/logs')
 def api_logs():
     return jsonify(query_logs(request.args))
+
+
+@app.route('/api/stats')
+def api_stats():
+    return jsonify(query_stats(request.args))
 
 
 @app.route('/api/sources')
