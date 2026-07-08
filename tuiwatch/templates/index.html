@@ -577,7 +577,11 @@
           <select id="srch-airport"></select>
         </div>
         <div class="srch-field srch-sm">
-          <label>von</label><input type="date" id="srch-vom" onchange="syncBisMin()" onclick="this.showPicker&&this.showPicker()">
+          <label>von</label>
+          <div style="display:flex;gap:4px">
+            <input type="date" id="srch-vom" onchange="syncBisMin()" onclick="this.showPicker&&this.showPicker()" style="flex:1">
+            <button type="button" class="btn sec" onclick="srchDateToday()" title="Startdatum auf heute setzen">Heute</button>
+          </div>
         </div>
         <div class="srch-field srch-sm">
           <label>bis</label><input type="date" id="srch-bis" onchange="syncBisMin()" onclick="this.showPicker&&this.showPicker()">
@@ -1497,6 +1501,9 @@
     let airportsLoaded = false, airlinesLoaded = false, destNode = null, destData = null, destStack = [];
     function urlParam(u, key){ try{ return new URL(u).searchParams.get(key)||''; }catch(e){ return ''; } }
     function isoPlus(days){ const d=new Date(); d.setUTCDate(d.getUTCDate()+days); return d.toISOString().slice(0,10); }
+    // Springt das Startdatum auf heute — z.B. wenn ein altes Datum stehengeblieben
+    // ist (TUIs Such-API antwortet auf Zeiträume in der Vergangenheit mit HTTP 500).
+    function srchDateToday(){ $('#srch-vom').value = isoPlus(0); syncBisMin(); }
     // Nächte = Tage zwischen von und bis (null, wenn ungültig)
     function nightsBetween(vom, bis){
       if(!vom || !bis || bis < vom) return null;
@@ -1577,6 +1584,7 @@
     function openSearch(){            // Maske (Toolbar)
       srchOfferId = null;
       setSearchMode('mask'); ensureAirports(); ensureAirlines(); renderFavs();
+      $('#srch-vom').min = isoPlus(0);
       if(!$('#srch-vom').value) $('#srch-vom').value = isoPlus(21);
       if(!$('#srch-bis').value) $('#srch-bis').value = isoPlus(51);
       syncBisMin();
@@ -2396,6 +2404,7 @@
         if(!srchDest){ toast('Bitte ein Reiseziel wählen'); return; }
         const vom=$('#srch-vom').value, bis=$('#srch-bis').value;
         if(!vom||!bis){ toast('Bitte Zeitraum (von/bis) wählen'); return; }
+        if(vom<isoPlus(0)){ toast('Startdatum liegt in der Vergangenheit'); return; }
         if(bis<vom){ toast('„bis" muss nach „von" liegen'); return; }
         const exact=$('#srch-exact').checked;
         const win=nightsBetween(vom,bis), dur=parseInt($('#srch-dur').value)||7;
@@ -2412,6 +2421,7 @@
       if(r.status===400 && d.error==='no_region'){ $('#srch-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ '+(srchOfferId!=null?'Region zu diesem Angebot nicht ermittelbar.':'Keine Region erkannt.')+'</div>'; return; }
       if(r.status===429){ $('#srch-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Bitte kurz warten ('+(d.retry_after||3)+'s) und erneut suchen.</div>'; return; }
       if(r.status===404){ $('#srch-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Angebot nicht gefunden.</div>'; return; }
+      if(r.status===400 && d.note){ $('#srch-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ '+esc(d.note)+'</div>'; return; }
       if(r.status===400){ $('#srch-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Keine gültige Eingabe.</div>'; return; }
       if(!r.ok){ $('#srch-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Suche fehlgeschlagen.</div>'; return; }
       srchResults = d.results||[]; srchTotal = d.total||srchResults.length; srchFilter = '';

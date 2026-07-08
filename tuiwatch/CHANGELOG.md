@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.45.2] - 2026-07-08
+
+### Fixed
+- Hotelsuche mit Startdatum in der Vergangenheit (z. B. stehengebliebenes altes
+  Datum im Suchformular) führte zu TUIs nichtssagendem HTTP 500 statt einer
+  brauchbaren Fehlermeldung — wird jetzt vorher client- und serverseitig
+  abgefangen (klare deutsche Meldung, kein unnötiger API-Call an TUI).
+
+### Added
+- „Heute"-Button neben dem Startdatum in der Suchmaske, springt aufs aktuelle
+  Datum. Datumsfelder erlauben jetzt auch im Browser-Picker kein Datum in der
+  Vergangenheit mehr (`min`-Attribut).
+
 ## [0.45.1] - 2026-07-08
 
 ### Fixed

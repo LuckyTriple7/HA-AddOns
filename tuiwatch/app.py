@@ -73,7 +73,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.45.1"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.45.2"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -3485,6 +3485,28 @@ def api_search():
             return jsonify({'error': 'no_region'}), 400
         airports = [str(a).strip() for a in (data.get('airport') and [data.get('airport')]
                     or data.get('airports') or []) if str(a).strip()]
+        # TUIs Such-API antwortet auf Zeiträume in der Vergangenheit mit einem
+        # nichtssagenden HTTP 500 statt einem sauberen Fehler — hier vorher abfangen
+        # (z. B. stehengebliebenes altes Datum im Suchformular), statt den 500
+        # durchzureichen und einen unnötigen API-Call an TUI zu verschwenden.
+        start_str, end_str = (data.get('start') or '').strip(), (data.get('end') or '').strip()
+        start_date = None
+        if start_str:
+            try:
+                start_date = date.fromisoformat(start_str)
+            except ValueError:
+                return jsonify({'error': 'invalid_dates', 'note': 'Ungültiges Startdatum'}), 400
+            if start_date < date.today():
+                return jsonify({'error': 'past_date',
+                                'note': 'Startdatum liegt in der Vergangenheit'}), 400
+        if end_str:
+            try:
+                end_date = date.fromisoformat(end_str)
+            except ValueError:
+                return jsonify({'error': 'invalid_dates', 'note': 'Ungültiges Enddatum'}), 400
+            if start_date and end_date < start_date:
+                return jsonify({'error': 'invalid_dates',
+                                'note': 'Enddatum liegt vor dem Startdatum'}), 400
         log.info("Suche: Region %s %s–%s/%sN, %s Reisende, ab %s (TUI=%s, Verpfl.=%s)",
                  region, data.get('start'), data.get('end'), data.get('duration'),
                  data.get('travellers'), ','.join(airports) or '-', operator_tui,
