@@ -22,6 +22,15 @@ BRACKET_NORMALIZE = {"WARN": "WARNING", "OK": "INFO"}
 # "2026-07-08 12:00:00.000 WARNING (MainThread) [homeassistant.core] msg"
 HA_STYLE_LEVEL = re.compile(r'^\S+ \S+ (DEBUG|INFO|WARNING|ERROR|CRITICAL)\b')
 
+# Viele Go-Tools (crowdsec, traefik, ...) loggen Logrus/Zerolog-Stil:
+# time="..." level=info msg="..." — Docker markiert das per stdout/stderr
+# als INFO/ERROR-Priority, unabhängig vom echten Level im Text.
+LOGRUS_LEVEL = re.compile(r'\blevel=(debug|info|warn(?:ing)?|error|fatal|panic)\b', re.IGNORECASE)
+LOGRUS_NORMALIZE = {
+    'DEBUG': 'DEBUG', 'INFO': 'INFO', 'WARN': 'WARNING', 'WARNING': 'WARNING',
+    'ERROR': 'ERROR', 'FATAL': 'CRITICAL', 'PANIC': 'CRITICAL',
+}
+
 ANSI_RE = re.compile(r'\x1b\[[0-9;]*m')
 
 # Fallback-Level für Folgezeilen ohne erkennbares Prefix (z.B. Tracebacks)
@@ -49,6 +58,11 @@ def derive_level(msg: str, key: str, priority: int) -> str:
     m = HA_STYLE_LEVEL.match(msg)
     if m:
         lvl = m.group(1)
+        _last_level_by_key[key] = lvl
+        return lvl
+    m = LOGRUS_LEVEL.search(msg)
+    if m:
+        lvl = LOGRUS_NORMALIZE.get(m.group(1).upper(), 'INFO')
         _last_level_by_key[key] = lvl
         return lvl
     if key in _last_level_by_key:

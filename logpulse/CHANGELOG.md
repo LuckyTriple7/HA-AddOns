@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.3.1] - 2026-07-08
+
+- Fix: Go-Tools wie Crowdsec (Logrus-Format `level=info ...`) wurden komplett als ERROR gewertet — keins der bisherigen Level-Muster passte, also griff der journald-PRIORITY-Fallback (stderr → ERROR), unabhängig vom echten Level im Text. Neues Muster erkennt `level=debug/info/warn/error/fatal/panic` überall in der Zeile
+
 ## [0.3.0] - 2026-07-08
 
 - Klick auf DB-Größe-Chip fragt nach ("Datenbank komplett leeren?" Ja/Nein) und löscht bei Bestätigung alle Log-Einträge (`DELETE` + `VACUUM`, sofort wieder Platz auf der Disk)
