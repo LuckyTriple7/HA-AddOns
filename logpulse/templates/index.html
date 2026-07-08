@@ -373,6 +373,11 @@ function buildQuery(extra){
   return p.toString();
 }
 
+const MAX_DOM_LINES = 500;
+function trimLines(el){
+  while (el.children.length > MAX_DOM_LINES) el.removeChild(el.firstChild);
+}
+
 async function fetchLogs(reset){
   try {
     const res = await fetch(u('/api/logs?' + buildQuery()));
@@ -383,12 +388,13 @@ async function fetchLogs(reset){
     const entries = data.entries.slice().reverse();
     entries.forEach(e => { if (e.id > lastSeenId || reset) out.appendChild(renderLogLine(e)); });
     if (entries.length) lastSeenId = Math.max(lastSeenId, ...entries.map(e=>e.id));
+    trimLines(out);
     document.getElementById('log-count').textContent = entries.length + ' ' + T.entries_label;
     if (autoscroll) out.scrollTop = out.scrollHeight;
-    updateSummary();
   } catch(e) { /* Netzwerkfehler ignorieren, naechster Poll versucht erneut */ }
 }
 
+let _summaryTimer = null;
 async function updateSummary(){
   try {
     const res = await fetch(u('/api/logs?' + buildQuery({limit: 1000})));
@@ -418,7 +424,6 @@ async function fetchDbInfo(){
     if (sd) sd.textContent = `${T.stat_dbsize}: ${label} · ${T.retention_label} ${data.retention_days}d`;
   } catch(e) {}
 }
-setInterval(fetchDbInfo, 30000);
 
 function clearLogView(){ document.getElementById('log-out').innerHTML=''; }
 
@@ -426,7 +431,7 @@ function toggleLive(){
   liveEnabled = !liveEnabled;
   document.getElementById('live-toggle-btn').textContent = liveEnabled ? T.btn_pause : T.btn_resume;
   document.getElementById('live-status').textContent = liveEnabled ? T.live_on : T.live_off;
-  if (liveEnabled) waitLoop();
+  if (liveEnabled && pageVisible) waitLoop();
 }
 
 function toggleAutoscroll(){
@@ -434,16 +439,50 @@ function toggleAutoscroll(){
   document.getElementById('scroll-btn').textContent = autoscroll ? T.btn_autoscroll_on : T.btn_autoscroll_off;
 }
 
+function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
+
+// ── Poll-Steuerung ───────────────────────────────────────────────
+// HA hält Ingress-Panels beim Wechseln oft nur "hidden" statt sie zu
+// zerstoeren — ohne Pause laeuft der Long-Poll im Hintergrund weiter und
+// kann bei Netzwerkfehlern (verworfene Verbindung) ohne Verzoegerung in
+// eine Dauerschleife laufen, die den Tab einfriert. Deshalb: bei
+// document.hidden komplett stoppen, bei visible neu starten.
+let pageVisible = !document.hidden;
+let _waitGen = 0;
+let _intervalIds = [];
+
 async function waitLoop(){
-  if (!liveEnabled) return;
-  try {
-    await fetch(u('/api/wait'));
-  } catch(e) {}
-  if (liveEnabled) {
-    await fetchLogs(false);
-    waitLoop();
+  const myGen = _waitGen;
+  while (myGen === _waitGen && liveEnabled && pageVisible){
+    try {
+      await fetch(u('/api/wait'));
+      if (myGen !== _waitGen || !liveEnabled || !pageVisible) break;
+      await fetchLogs(false);
+    } catch(e) {
+      await sleep(3000); // Backoff: nie ohne Verzoegerung erneut versuchen
+    }
   }
 }
+
+function startPolling(){
+  if (_intervalIds.length) return; // schon aktiv
+  fetchConsole(); fetchDbInfo(); updateSummary();
+  _intervalIds.push(setInterval(fetchConsole, 4000));
+  _intervalIds.push(setInterval(fetchDbInfo, 30000));
+  _intervalIds.push(setInterval(updateSummary, 8000));
+  if (liveEnabled) waitLoop();
+}
+
+function stopPolling(){
+  _waitGen++; // laufende waitLoop-Instanz beenden
+  _intervalIds.forEach(clearInterval);
+  _intervalIds = [];
+}
+
+document.addEventListener('visibilitychange', () => {
+  pageVisible = !document.hidden;
+  if (pageVisible) startPolling(); else stopPolling();
+});
 
 // ── Quellen-Tab ──────────────────────────────────────────────────
 async function loadSources(){
@@ -533,6 +572,7 @@ async function fetchConsole(){
       div.textContent = e.msg;
       out.appendChild(div);
     });
+    trimLines(out);
     document.getElementById('con-count').textContent = out.children.length + ' ' + T.entries_label;
     if (conAutoscroll) out.scrollTop = out.scrollHeight;
   } catch(e) {}
@@ -542,13 +582,10 @@ function toggleConScroll(){
   conAutoscroll = !conAutoscroll;
   document.getElementById('con-scroll-btn').textContent = conAutoscroll ? T.btn_autoscroll_on : T.btn_autoscroll_off;
 }
-setInterval(fetchConsole, 4000);
 
 // ── Init ───────────────────────────────────────────────────────────
 fetchLogs(true);
-fetchConsole();
-fetchDbInfo();
-waitLoop();
+if (pageVisible) startPolling();
 </script>
 </body>
 </html>

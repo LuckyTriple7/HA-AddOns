@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.2.1] - 2026-07-08
+
+- Fix: Browser-Tab fror ein, wenn man das HA-Ingress-Panel verließ. HA hält Ingress-Panels beim Wechsel oft nur "hidden" statt sie zu zerstören — Long-Poll (`/api/wait`) lief im Hintergrund ohne Backoff weiter und konnte bei Verbindungsfehlern in eine ungebremste Dauerschleife laufen. Jetzt: alle Polls (Live-Tail, Konsole, DB-Größe, Summary) pausieren bei `document.hidden`, garantierter Backoff (3s) bei Fehlern, DOM-Zeilen in Live/Konsole auf 500 gedeckelt
+
 ## [0.2.0] - 2026-07-08
 
 - Quellen-Tab: Klick auf eine Zeile filtert Live-Tab auf genau diesen Container (Chip mit ✕ zum Zurücksetzen)
