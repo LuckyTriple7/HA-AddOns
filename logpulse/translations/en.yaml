@@ -1,0 +1,22 @@
+configuration:
+  username:
+    name: Username
+    description: Username for the web interface (only relevant when accessing port 17795 directly — behind HA Ingress, HA handles authentication).
+  password:
+    name: Password
+    description: Password for the web interface (only relevant when accessing port 17795 directly).
+  session_hours:
+    name: Session duration (hours)
+    description: How many hours a login session stays valid. Default 24.
+  retention_days:
+    name: Retention (days)
+    description: Log entries older than this many days are deleted automatically. Default 14.
+  max_db_size_mb:
+    name: Max database size (MB)
+    description: Caps the size of the local log database — oldest entries are deleted first if the limit is exceeded. Default 300.
+  poll_timeout_ms:
+    name: Journal poll interval (ms)
+    description: How often to check for new journald entries. Default 5000 (5 seconds).
+  verbose_log:
+    name: Verbose logging
+    description: Emits extra debug info in the Console tab. Default false.

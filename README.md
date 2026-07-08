@@ -41,6 +41,7 @@ https://github.com/LuckyTriple7/HA-AddOns
 | GitPulse | ✅ | ✅ | Alpine |
 | MyPage | ✅ | ✅ | Alpine |
 | TUIWatch | ✅ | ✅ | Debian 12 |
+| LogPulse | ✅ | ✅ | Debian 12 |
 
 ## Apps
 
@@ -285,6 +286,18 @@ Reisepreis-Tracker für TUI-Pauschalreisen — verfolgt den Preis konkreter Ange
 
 → [Dokumentation & Changelog](tuiwatch/README.md)
 
+### [LogPulse](logpulse/)
+
+Zentrale, durchsuchbare Log-Historie aus journald — Home Assistant Core, Supervisor und alle Add-on-Container auf einen Blick.
+
+- Liest `/var/log/journal` direkt (kein `full_access`/`docker_api` nötig), persistiert alle Einträge dauerhaft in SQLite
+- Volltextsuche, Level-Filter (DEBUG/INFO/WARNING/ERROR/CRITICAL), Quellen-Filter (HA Core/Supervisor/Add-ons/System)
+- Erkennt echtes Log-Level auch bei Docker-Containern, die alles als stdout/stderr loggen
+- Gespeicherte Filter-Presets, Konsole-Tab für App-Eigendiagnose
+- Automatische Aufräumung (Aufbewahrungsdauer + Größenlimit), Passwortschutz, PWA, Dark/Light Mode, DE/EN
+
+→ [Dokumentation & Changelog](logpulse/README.md)
+
 ---
 
 # HA-AddOns (English)
@@ -330,6 +343,7 @@ https://github.com/LuckyTriple7/HA-AddOns
 | GitPulse | ✅ | ✅ | Alpine |
 | MyPage | ✅ | ✅ | Alpine |
 | TUIWatch | ✅ | ✅ | Debian 12 |
+| LogPulse | ✅ | ✅ | Debian 12 |
 
 ## Apps
 
@@ -573,3 +587,15 @@ Travel price tracker for TUI package holidays — tracks the price of specific o
 - E-mail dispatch of all offers, backup/restore, CSV export, HA sensors, PWA
 
 → [Documentation & Changelog](tuiwatch/README.md)
+
+### [LogPulse](logpulse/)
+
+Centralized, searchable log history from journald — Home Assistant Core, Supervisor and all add-on containers at a glance.
+
+- Reads `/var/log/journal` directly (no `full_access`/`docker_api` needed), persists all entries permanently in SQLite
+- Full-text search, level filter (DEBUG/INFO/WARNING/ERROR/CRITICAL), source filter (HA Core/Supervisor/Add-ons/System)
+- Detects the real log level even for Docker containers that log everything as stdout/stderr
+- Saved filter presets, console tab for the app's own diagnostics
+- Automatic cleanup (retention period + size cap), password protection, PWA, dark/light mode, DE/EN
+
+→ [Documentation & Changelog](logpulse/README.md)

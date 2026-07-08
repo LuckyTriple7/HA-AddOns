@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>LogPulse</title>
+  <link rel="manifest" href="{{ url_for('manifest') }}" crossorigin="use-credentials">
+  <link rel="icon" type="image/png" sizes="192x192" href="{{ url_for('static', filename='icon-192.png') }}">
+  <link rel="apple-touch-icon" href="{{ url_for('static', filename='icon-192.png') }}">
+  <meta name="theme-color" content="#0d1117">
+  <meta name="app-base" content="{{ script_root }}" id="app-base">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <style>
+    :root {
+      --bg:     #0d1117; --surf:   #161b22; --surf2:  #1c2128;
+      --border: #30363d; --text:   #c9d1d9; --muted:  #8b949e;
+      --accent: #58a6ff; --green:  #3fb950; --yellow: #d29922;
+      --red:    #f85149; --purple: #a371f7; --orange: #f0883e;
+      --r: 6px;
+    }
+    [data-theme="light"] {
+      --bg:#f0f2f5; --surf:#ffffff; --surf2:#f6f8fa; --border:#d0d7de;
+      --text:#1f2328; --muted:#636c76; --accent:#0969da;
+      --green:#1a7f37; --yellow:#9a6700; --red:#cf222e;
+      --purple:#8250df; --orange:#bc4c00;
+    }
+    *,*::before,*::after { box-sizing:border-box; margin:0; padding:0; transition: background-color .2s, border-color .2s, color .2s; }
+    html,body { height:100%; overflow:hidden; }
+    body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; background:var(--bg); color:var(--text); font-size:14px; display:flex; flex-direction:column; }
+
+    header { background:var(--surf); border-bottom:1px solid var(--border); padding:9px 14px; display:flex; align-items:center; gap:8px; flex-shrink:0; z-index:200; }
+    .logo { font-size:1.05rem; font-weight:700; color:var(--accent); white-space:nowrap; display:flex; align-items:center; gap:7px; }
+    .logo svg { flex-shrink:0; }
+    .hdr-spacer { flex:1; }
+    .hdr-btn { background:none; border:1px solid var(--border); color:var(--muted); padding:3px 8px; border-radius:4px; font-size:0.75rem; cursor:pointer; display:inline-flex; align-items:center; gap:4px; }
+    .hdr-btn:hover { border-color:var(--accent); color:var(--accent); }
+    .hdr-btn svg { width:13px; height:13px; fill:currentColor; }
+    .lang-btn { background:none; border:1px solid var(--border); color:var(--muted); padding:2px 7px; border-radius:4px; font-size:0.75rem; cursor:pointer; text-decoration:none; }
+    .lang-btn.active { border-color:var(--accent); color:var(--accent); }
+
+    .tabs { display:flex; gap:0; border-bottom:1px solid var(--border); background:var(--surf); flex-shrink:0; overflow-x:auto; }
+    .tab { padding:9px 16px; font-size:0.85rem; cursor:pointer; color:var(--muted); border-bottom:2px solid transparent; white-space:nowrap; display:flex; align-items:center; gap:5px; }
+    .tab:hover { color:var(--text); }
+    .tab.active { color:var(--accent); border-bottom-color:var(--accent); font-weight:600; }
+    .badge { background:var(--red); color:#fff; border-radius:10px; font-size:0.65rem; padding:1px 6px; font-weight:700; min-width:18px; text-align:center; }
+    .badge-yellow { background:var(--yellow); }
+
+    #main-scroll { flex:1; overflow-y:auto; overflow-x:hidden; -webkit-overflow-scrolling:touch; padding:16px; }
+
+    .card { background:var(--surf); border:1px solid var(--border); border-radius:var(--r); margin-bottom:12px; }
+    .card-header { padding:10px 14px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:8px; font-weight:600; font-size:0.9rem; }
+
+    .summary-bar { display:flex; gap:8px; flex-wrap:nowrap; padding:8px 14px; background:var(--surf); border-bottom:1px solid var(--border); flex-shrink:0; overflow-x:auto; }
+    .stat-chip { background:var(--surf2); border:1px solid var(--border); border-radius:var(--r); padding:6px 14px; display:flex; flex-direction:column; align-items:center; min-width:76px; flex-shrink:0; }
+    @keyframes chip-pulse-yellow { 0%,100%{box-shadow:0 0 0 0 rgba(210,153,34,0); border-color:var(--border)} 50%{box-shadow:0 0 0 4px rgba(210,153,34,.25); border-color:var(--yellow)} }
+    @keyframes chip-pulse-red    { 0%,100%{box-shadow:0 0 0 0 rgba(248,81,73,0);  border-color:var(--border)} 50%{box-shadow:0 0 0 4px rgba(248,81,73,.25);  border-color:var(--red)} }
+    .chip-new-warn { animation:chip-pulse-yellow 1.4s ease-in-out infinite; }
+    .chip-new-err  { animation:chip-pulse-red    1.4s ease-in-out infinite; }
+    .stat-chip .num { font-size:1.3rem; font-weight:700; line-height:1; }
+    .stat-chip .lbl { font-size:0.68rem; color:var(--muted); margin-top:2px; white-space:nowrap; }
+
+    /* ── Filterleiste (Live-Tab) ─────────────────────────────── */
+    .filter-bar { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:12px; }
+    .search-wrap { position:relative; flex:1; min-width:200px; }
+    .search-wrap svg { position:absolute; left:9px; top:50%; transform:translateY(-50%); width:14px; height:14px; fill:var(--muted); }
+    .search-wrap input { width:100%; background:var(--surf2); border:1px solid var(--border); color:var(--text); padding:6px 10px 6px 30px; border-radius:20px; font-size:0.82rem; }
+    .search-wrap input:focus { outline:none; border-color:var(--accent); }
+    .level-dot { width:8px; height:8px; border-radius:50%; display:inline-block; }
+    .level-DEBUG    { background:var(--muted); }
+    .level-INFO     { background:var(--accent); }
+    .level-WARNING  { background:var(--yellow); }
+    .level-ERROR    { background:var(--red); }
+    .level-CRITICAL { background:var(--purple); }
+    .ci-filter-btn { background:none; border:1px solid var(--border); color:var(--muted); padding:3px 10px; border-radius:20px; font-size:0.75rem; cursor:pointer; white-space:nowrap; display:inline-flex; align-items:center; gap:5px; }
+    .ci-filter-btn:hover { border-color:var(--accent); color:var(--accent); }
+    .ci-filter-btn.active { border-color:var(--accent); color:var(--accent); background:rgba(88,166,255,.08); font-weight:600; }
+    .repo-tabs { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:12px; }
+    .repo-tab { background:none; border:1px solid var(--border); color:var(--muted); padding:4px 12px; border-radius:20px; font-size:0.8rem; cursor:pointer; }
+    .repo-tab.active { border-color:var(--accent); color:var(--accent); background:rgba(88,166,255,.08); }
+
+    /* ── Log-Zeilen ───────────────────────────────────────────── */
+    #console-out, #log-out { background:#0d1117; font-family:'Courier New',Courier,monospace; font-size:0.78rem; padding:10px; height:100%; overflow-y:auto; white-space:pre-wrap; word-break:break-all; }
+    .log-INFO    { color:#58a6ff; }
+    .log-WARNING { color:#d29922; }
+    .log-ERROR   { color:#f85149; }
+    .log-CRITICAL{ color:#a371f7; }
+    .log-DEBUG   { color:#8b949e; }
+    .log-line { display:flex; gap:8px; padding:1px 0; }
+    .log-ts   { color:var(--muted); flex-shrink:0; }
+    .log-src  { flex-shrink:0; opacity:.75; }
+    .console-wrap { background:#0d1117; border:1px solid var(--border); border-radius:var(--r); height:calc(100vh - 200px); overflow:hidden; display:flex; flex-direction:column; }
+    .console-toolbar { display:flex; gap:6px; padding:6px 10px; border-bottom:1px solid var(--border); background:var(--surf); }
+    .con-btn { background:none; border:1px solid var(--border); color:var(--muted); padding:2px 8px; border-radius:4px; font-size:0.72rem; cursor:pointer; }
+    .con-btn:hover { border-color:var(--accent); color:var(--accent); }
+
+    .item-row { display:flex; align-items:center; gap:10px; padding:9px 14px; border-bottom:1px solid var(--border); font-size:0.85rem; }
+    .item-row:last-child { border-bottom:none; }
+    .item-main { flex:1; min-width:0; }
+    .item-meta { font-size:0.75rem; color:var(--muted); }
+
+    .modal-backdrop { display:none; position:fixed; inset:0; background:rgba(0,0,0,.6); z-index:500; align-items:center; justify-content:center; }
+    .modal-backdrop.show { display:flex; }
+    .modal { background:var(--surf); border:1px solid var(--border); border-radius:8px; padding:24px; width:100%; max-width:400px; margin:16px; }
+    .modal h3 { font-size:1rem; margin-bottom:16px; }
+    .modal label { display:block; font-size:0.78rem; color:var(--muted); margin-bottom:4px; margin-top:12px; }
+    .modal input { width:100%; background:var(--bg); border:1px solid var(--border); color:var(--text); padding:7px 10px; border-radius:5px; font-size:0.88rem; }
+    .modal input:focus { outline:none; border-color:var(--accent); }
+    .modal-footer { display:flex; gap:8px; justify-content:flex-end; margin-top:20px; }
+    .modal-btn { padding:7px 16px; border-radius:5px; font-size:0.85rem; font-weight:600; cursor:pointer; border:1px solid; }
+    .modal-btn-cancel { background:none; border-color:var(--border); color:var(--muted); }
+    .modal-btn-confirm { background:var(--accent); border-color:var(--accent); color:#fff; }
+    .modal-btn-confirm.danger { background:var(--red); border-color:var(--red); }
+
+    .empty { text-align:center; padding:32px 16px; color:var(--muted); font-size:0.85rem; }
+
+    ::-webkit-scrollbar { width:5px; height:5px; }
+    ::-webkit-scrollbar-track { background:transparent; }
+    ::-webkit-scrollbar-thumb { background:var(--border); border-radius:3px; }
+
+    @media (max-width: 600px) { .lang-btn { display:none; } }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="logo">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 1 0-.7.7l.27.28v.79l5 5L20.49 19l-5-5zm-6 0A4.5 4.5 0 1 1 14 9.5 4.5 4.5 0 0 1 9.5 14z"/></svg>
+      LogPulse
+    </div>
+    <div id="refresh-badge" style="display:flex;align-items:center;gap:5px;font-size:0.72rem;color:var(--muted);padding:3px 8px;border:1px solid var(--border);border-radius:4px;">
+      <div style="width:7px;height:7px;border-radius:50%;background:var(--accent);animation:pulse 1s infinite;"></div>
+      <span id="live-status">{{ t.live_on }}</span>
+    </div>
+    <div class="hdr-spacer"></div>
+    <button class="hdr-btn" onclick="fetchLogs(true)" title="{{ t.btn_refresh }}">
+      <svg viewBox="0 0 24 24"><path d="M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
+    </button>
+    <a href="{{ url_for('set_lang', lang='de') }}" class="lang-btn {% if lang == 'de' %}active{% endif %}">DE</a>
+    <a href="{{ url_for('set_lang', lang='en') }}" class="lang-btn {% if lang == 'en' %}active{% endif %}">EN</a>
+    <button class="hdr-btn" onclick="toggleTheme()">
+      <svg class="icon-moon" viewBox="0 0 24 24" style="display:block"><path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c0-.46-.04-.92-.1-1.36-.98 1.37-2.58 2.26-4.4 2.26-2.98 0-5.4-2.42-5.4-5.4 0-1.81.89-3.42 2.26-4.4-.44-.06-.9-.1-1.36-.1z"/></svg>
+      <svg class="icon-sun" viewBox="0 0 24 24" style="display:none"><path d="M12 7c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zM2 13h2v-2H2v2zm18 0h2v-2h-2v2zM11 2v2h2V2h-2zm0 18v2h2v-2h-2zM5.99 4.58 4.58 5.99l1.41 1.41 1.41-1.41L5.99 4.58zm12.03 12.03-1.41 1.41 1.41 1.41 1.41-1.41-1.41-1.41zm1.41-12.44-1.41-1.41-1.41 1.41 1.41 1.41 1.41-1.41zM5.99 19.42l1.41 1.41 1.41-1.41-1.41-1.41-1.41 1.41z"/></svg>
+    </button>
+    <a href="{{ url_for('logout') }}" class="hdr-btn" title="{{ t.logout }}">
+      <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor"><path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5-5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/></svg>
+    </a>
+  </header>
+
+  <div id="summary-bar" class="summary-bar">
+    <div class="stat-chip"><div class="num" id="stat-total">0</div><div class="lbl">{{ t.stat_total }}</div></div>
+    <div class="stat-chip" id="stat-warn-chip"><div class="num" id="stat-warn" style="color:var(--yellow)">0</div><div class="lbl">{{ t.stat_warnings }}</div></div>
+    <div class="stat-chip" id="stat-err-chip"><div class="num" id="stat-err" style="color:var(--red)">0</div><div class="lbl">{{ t.stat_errors }}</div></div>
+    <div class="stat-chip"><div class="num" id="stat-sources">0</div><div class="lbl">{{ t.stat_sources }}</div></div>
+  </div>
+
+  <div class="tabs">
+    <div class="tab active" data-tab="live" onclick="switchTab('live')">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 14H4V6h16v12zM6 10l1.41-1.41L10 11.17l-1.41 1.41L6 10zm4 4h6v2h-6v-2z"/></svg>
+      {{ t.tab_live }}
+    </div>
+    <div class="tab" data-tab="sources" onclick="switchTab('sources')">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg>
+      {{ t.tab_sources }}
+    </div>
+    <div class="tab" data-tab="saved" onclick="switchTab('saved')">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M17 3H5c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2z"/></svg>
+      {{ t.tab_saved }}
+    </div>
+    <div class="tab" data-tab="console" onclick="switchTab('console')">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
+      {{ t.tab_console }}
+    </div>
+  </div>
+
+  <div id="main-scroll">
+
+    <!-- ── Tab: Live ────────────────────────────────────────── -->
+    <div id="tab-live">
+      <div class="filter-bar">
+        <div class="search-wrap">
+          <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 1 0-.7.7l.27.28v.79l5 5L20.49 19l-5-5zm-6 0A4.5 4.5 0 1 1 14 9.5 4.5 4.5 0 0 1 9.5 14z"/></svg>
+          <input id="search-input" type="search" placeholder="{{ t.search_placeholder }}" oninput="onSearchInput()">
+        </div>
+        <button class="ci-filter-btn" data-level="DEBUG" onclick="toggleLevel('DEBUG')"><span class="level-dot level-DEBUG"></span>DEBUG</button>
+        <button class="ci-filter-btn active" data-level="INFO" onclick="toggleLevel('INFO')"><span class="level-dot level-INFO"></span>INFO</button>
+        <button class="ci-filter-btn active" data-level="WARNING" onclick="toggleLevel('WARNING')"><span class="level-dot level-WARNING"></span>WARN</button>
+        <button class="ci-filter-btn active" data-level="ERROR" onclick="toggleLevel('ERROR')"><span class="level-dot level-ERROR"></span>ERROR</button>
+        <button class="ci-filter-btn active" data-level="CRITICAL" onclick="toggleLevel('CRITICAL')"><span class="level-dot level-CRITICAL"></span>CRIT</button>
+        <button class="hdr-btn" onclick="openSaveFilterModal()">{{ t.btn_save_filter }}</button>
+      </div>
+      <div class="repo-tabs" id="source-tabs">
+        <button class="repo-tab active" data-source="" onclick="setSourceFilter('')">{{ t.source_all }}</button>
+        <button class="repo-tab" data-source="core" onclick="setSourceFilter('core')">{{ t.source_core }}</button>
+        <button class="repo-tab" data-source="supervisor" onclick="setSourceFilter('supervisor')">{{ t.source_supervisor }}</button>
+        <button class="repo-tab" data-source="addon" onclick="setSourceFilter('addon')">{{ t.source_addon }}</button>
+        <button class="repo-tab" data-source="system" onclick="setSourceFilter('system')">{{ t.source_system }}</button>
+      </div>
+      <div class="console-wrap">
+        <div class="console-toolbar">
+          <button class="con-btn" onclick="clearLogView()">{{ t.btn_clear }}</button>
+          <button class="con-btn" id="live-toggle-btn" onclick="toggleLive()">{{ t.btn_pause }}</button>
+          <button class="con-btn" id="scroll-btn" onclick="toggleAutoscroll()">{{ t.btn_autoscroll_on }}</button>
+          <span id="log-count" style="font-size:0.72rem;color:var(--muted);margin-left:auto;align-self:center;"></span>
+        </div>
+        <div id="log-out"></div>
+      </div>
+    </div>
+
+    <!-- ── Tab: Quellen ─────────────────────────────────────── -->
+    <div id="tab-sources" style="display:none">
+      <div class="card">
+        <div class="card-header">{{ t.tab_sources }}</div>
+        <div id="sources-list"></div>
+      </div>
+    </div>
+
+    <!-- ── Tab: Gespeicherte Filter ─────────────────────────── -->
+    <div id="tab-saved" style="display:none">
+      <div class="card">
+        <div class="card-header">{{ t.tab_saved }}</div>
+        <div id="saved-list"></div>
+      </div>
+    </div>
+
+    <!-- ── Tab: Konsole (Eigendiagnose) ─────────────────────── -->
+    <div id="tab-console" style="display:none">
+      <div class="console-wrap">
+        <div class="console-toolbar">
+          <button class="con-btn" onclick="clearConsole()">{{ t.btn_clear }}</button>
+          <button class="con-btn" id="con-scroll-btn" onclick="toggleConScroll()">{{ t.btn_autoscroll_on }}</button>
+          <span id="con-count" style="font-size:0.72rem;color:var(--muted);margin-left:auto;align-self:center;"></span>
+        </div>
+        <div id="console-out"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ── Modal: Filter speichern ──────────────────────────────── -->
+  <div id="save-filter-overlay" class="modal-backdrop">
+    <div class="modal">
+      <h3>{{ t.btn_save_filter }}</h3>
+      <label for="save-filter-name">{{ t.filter_name }}</label>
+      <input id="save-filter-name" type="text" placeholder="{{ t.filter_name_placeholder }}">
+      <div class="modal-footer">
+        <button class="modal-btn modal-btn-cancel" onclick="closeSaveFilterModal()">{{ t.btn_cancel }}</button>
+        <button class="modal-btn modal-btn-confirm" onclick="saveCurrentFilter()">{{ t.btn_save }}</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+(function(){ const t=localStorage.getItem('lp-theme')||'dark'; document.documentElement.setAttribute('data-theme',t); })();
+function toggleTheme(){
+  const c=document.documentElement.getAttribute('data-theme')||'dark';
+  const n=c==='dark'?'light':'dark';
+  document.documentElement.setAttribute('data-theme',n);
+  localStorage.setItem('lp-theme',n);
+}
+
+// ── Ingress base path ──────────────────────────────────────────────
+const BASE = (document.getElementById('app-base')?.content || '').replace(/\/$/, '');
+const u = path => BASE + path;
+
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register(u('/sw.js'), { scope: BASE + '/' });
+}
+
+const T = {{ t | tojson }};
+
+function switchTab(name){
+  document.querySelectorAll('.tab').forEach(el=>el.classList.toggle('active', el.dataset.tab===name));
+  ['live','sources','saved','console'].forEach(n=>{
+    document.getElementById('tab-'+n).style.display = (n===name) ? '' : 'none';
+  });
+  if (name==='sources') loadSources();
+  if (name==='saved') renderSavedFilters();
+}
+
+// ── Live-Log-State ──────────────────────────────────────────────
+let activeLevels = new Set(['INFO','WARNING','ERROR','CRITICAL']);
+let sourceFilter = '';
+let searchTerm = '';
+let searchDebounce = null;
+let liveEnabled = true;
+let autoscroll = true;
+let lastSeenId = 0;
+let waitAbort = null;
+
+function toggleLevel(lvl){
+  const btn = document.querySelector(`.ci-filter-btn[data-level="${lvl}"]`);
+  if (activeLevels.has(lvl)) { activeLevels.delete(lvl); btn.classList.remove('active'); }
+  else { activeLevels.add(lvl); btn.classList.add('active'); }
+  fetchLogs(true);
+}
+
+function setSourceFilter(src){
+  sourceFilter = src;
+  document.querySelectorAll('#source-tabs .repo-tab').forEach(el=>el.classList.toggle('active', el.dataset.source===src));
+  fetchLogs(true);
+}
+
+function onSearchInput(){
+  clearTimeout(searchDebounce);
+  searchDebounce = setTimeout(()=>{
+    searchTerm = document.getElementById('search-input').value.trim();
+    fetchLogs(true);
+  }, 300);
+}
+
+function levelClass(l){ return 'log-' + (l || 'INFO'); }
+
+function renderLogLine(e){
+  const div = document.createElement('div');
+  div.className = 'log-line';
+  const ts = new Date(e.ts*1000).toLocaleTimeString();
+  const src = e.addon_name || e.container || e.source;
+  div.innerHTML = `<span class="log-ts">${ts}</span><span class="${levelClass(e.level)}" style="min-width:60px">[${e.level}]</span><span class="log-src">${escapeHtml(src||'')}</span><span>${escapeHtml(e.message)}</span>`;
+  return div;
+}
+
+function escapeHtml(s){
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function buildQuery(extra){
+  const p = new URLSearchParams();
+  activeLevels.forEach(l => p.append('level', l));
+  if (sourceFilter) p.set('source', sourceFilter);
+  if (searchTerm) p.set('q', searchTerm);
+  p.set('limit', 300);
+  Object.entries(extra||{}).forEach(([k,v])=>p.set(k,v));
+  return p.toString();
+}
+
+async function fetchLogs(reset){
+  try {
+    const res = await fetch(u('/api/logs?' + buildQuery()));
+    if (!res.ok) return;
+    const data = await res.json();
+    const out = document.getElementById('log-out');
+    if (reset) out.innerHTML = '';
+    const entries = data.entries.slice().reverse();
+    entries.forEach(e => { if (e.id > lastSeenId || reset) out.appendChild(renderLogLine(e)); });
+    if (entries.length) lastSeenId = Math.max(lastSeenId, ...entries.map(e=>e.id));
+    document.getElementById('log-count').textContent = entries.length + ' ' + T.entries_label;
+    if (autoscroll) out.scrollTop = out.scrollHeight;
+    updateSummary();
+  } catch(e) { /* Netzwerkfehler ignorieren, naechster Poll versucht erneut */ }
+}
+
+async function updateSummary(){
+  try {
+    const res = await fetch(u('/api/logs?' + buildQuery({limit: 1000})));
+    const data = await res.json();
+    document.getElementById('stat-total').textContent = data.entries.length;
+    const warn = data.entries.filter(e=>e.level==='WARNING').length;
+    const err = data.entries.filter(e=>e.level==='ERROR'||e.level==='CRITICAL').length;
+    document.getElementById('stat-warn').textContent = warn;
+    document.getElementById('stat-err').textContent = err;
+    document.getElementById('stat-warn-chip').classList.toggle('chip-new-warn', warn>0);
+    document.getElementById('stat-err-chip').classList.toggle('chip-new-err', err>0);
+  } catch(e) {}
+  try {
+    const res2 = await fetch(u('/api/sources'));
+    const data2 = await res2.json();
+    document.getElementById('stat-sources').textContent = data2.sources.length;
+  } catch(e) {}
+}
+
+function clearLogView(){ document.getElementById('log-out').innerHTML=''; }
+
+function toggleLive(){
+  liveEnabled = !liveEnabled;
+  document.getElementById('live-toggle-btn').textContent = liveEnabled ? T.btn_pause : T.btn_resume;
+  document.getElementById('live-status').textContent = liveEnabled ? T.live_on : T.live_off;
+  if (liveEnabled) waitLoop();
+}
+
+function toggleAutoscroll(){
+  autoscroll = !autoscroll;
+  document.getElementById('scroll-btn').textContent = autoscroll ? T.btn_autoscroll_on : T.btn_autoscroll_off;
+}
+
+async function waitLoop(){
+  if (!liveEnabled) return;
+  try {
+    await fetch(u('/api/wait'));
+  } catch(e) {}
+  if (liveEnabled) {
+    await fetchLogs(false);
+    waitLoop();
+  }
+}
+
+// ── Quellen-Tab ──────────────────────────────────────────────────
+async function loadSources(){
+  const res = await fetch(u('/api/sources'));
+  const data = await res.json();
+  const el = document.getElementById('sources-list');
+  if (!data.sources.length) { el.innerHTML = `<div class="empty">${T.no_data}</div>`; return; }
+  el.innerHTML = data.sources.map(s => `
+    <div class="item-row">
+      <div class="item-main">
+        <div>${escapeHtml(s.addon_name || s.container || s.source)}</div>
+        <div class="item-meta">${escapeHtml(s.source)}</div>
+      </div>
+      <div>${s.count}</div>
+    </div>`).join('');
+}
+
+// ── Gespeicherte Filter (localStorage) ────────────────────────────
+function getSavedFilters(){
+  try { return JSON.parse(localStorage.getItem('lp-saved-filters')||'[]'); } catch(e) { return []; }
+}
+function setSavedFilters(list){
+  localStorage.setItem('lp-saved-filters', JSON.stringify(list));
+}
+function openSaveFilterModal(){ document.getElementById('save-filter-overlay').classList.add('show'); }
+function closeSaveFilterModal(){ document.getElementById('save-filter-overlay').classList.remove('show'); }
+function saveCurrentFilter(){
+  const name = document.getElementById('save-filter-name').value.trim();
+  if (!name) return;
+  const list = getSavedFilters();
+  list.push({ name, levels: Array.from(activeLevels), source: sourceFilter, q: searchTerm });
+  setSavedFilters(list);
+  document.getElementById('save-filter-name').value = '';
+  closeSaveFilterModal();
+}
+function applySavedFilter(idx){
+  const f = getSavedFilters()[idx];
+  if (!f) return;
+  activeLevels = new Set(f.levels);
+  sourceFilter = f.source || '';
+  searchTerm = f.q || '';
+  document.querySelectorAll('.ci-filter-btn[data-level]').forEach(btn=>{
+    btn.classList.toggle('active', activeLevels.has(btn.dataset.level));
+  });
+  document.querySelectorAll('#source-tabs .repo-tab').forEach(el=>el.classList.toggle('active', el.dataset.source===sourceFilter));
+  document.getElementById('search-input').value = searchTerm;
+  switchTab('live');
+  fetchLogs(true);
+}
+function deleteSavedFilter(idx){
+  const list = getSavedFilters();
+  list.splice(idx,1);
+  setSavedFilters(list);
+  renderSavedFilters();
+}
+function renderSavedFilters(){
+  const list = getSavedFilters();
+  const el = document.getElementById('saved-list');
+  if (!list.length) { el.innerHTML = `<div class="empty">${T.no_saved_filters}</div>`; return; }
+  el.innerHTML = list.map((f,i) => `
+    <div class="item-row">
+      <div class="item-main" style="cursor:pointer" onclick="applySavedFilter(${i})">
+        <div>${escapeHtml(f.name)}</div>
+        <div class="item-meta">${f.levels.join(', ')}${f.source ? ' · '+f.source : ''}${f.q ? ' · "'+escapeHtml(f.q)+'"' : ''}</div>
+      </div>
+      <button class="con-btn" onclick="deleteSavedFilter(${i})">${T.btn_delete}</button>
+    </div>`).join('');
+}
+
+// ── Konsole (App-Eigendiagnose) ───────────────────────────────────
+let conSince = 0;
+let conAutoscroll = true;
+async function fetchConsole(){
+  try {
+    const res = await fetch(u('/api/console?since=' + conSince));
+    const data = await res.json();
+    const out = document.getElementById('console-out');
+    data.entries.forEach(e => {
+      conSince = Math.max(conSince, e.ts);
+      const div = document.createElement('div');
+      div.className = levelClass(e.level);
+      div.textContent = e.msg;
+      out.appendChild(div);
+    });
+    document.getElementById('con-count').textContent = out.children.length + ' ' + T.entries_label;
+    if (conAutoscroll) out.scrollTop = out.scrollHeight;
+  } catch(e) {}
+}
+function clearConsole(){ document.getElementById('console-out').innerHTML=''; }
+function toggleConScroll(){
+  conAutoscroll = !conAutoscroll;
+  document.getElementById('con-scroll-btn').textContent = conAutoscroll ? T.btn_autoscroll_on : T.btn_autoscroll_off;
+}
+setInterval(fetchConsole, 4000);
+
+// ── Init ───────────────────────────────────────────────────────────
+fetchLogs(true);
+fetchConsole();
+waitLoop();
+</script>
+</body>
+</html>
