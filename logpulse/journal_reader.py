@@ -37,6 +37,16 @@ LOGRUS_NORMALIZE = {
 LWS_LEVEL = re.compile(r'^\[\d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2}:\d+\]\s+([EWNIDP]):')
 LWS_NORMALIZE = {'E': 'ERROR', 'W': 'WARNING', 'N': 'INFO', 'I': 'INFO', 'D': 'DEBUG', 'P': 'DEBUG'}
 
+# Generischer Fallback für Logger, die ein LEVEL-Wort direkt vor einem
+# Doppelpunkt schreiben (z.B. Uptime Kuma: "... [DOMAIN_EXPIRY] WARN: msg").
+# Whitespace davor + Doppelpunkt+Leerzeichen danach verlangt, um Fließtext
+# ("... see ERROR: below") nicht zu häufig fehlzuklassifizieren.
+GENERIC_LEVEL_COLON = re.compile(r'(?:^|\s)(DEBUG|INFO|WARN(?:ING)?|ERROR|CRITICAL|FATAL):\s')
+GENERIC_NORMALIZE = {
+    'DEBUG': 'DEBUG', 'INFO': 'INFO', 'WARN': 'WARNING', 'WARNING': 'WARNING',
+    'ERROR': 'ERROR', 'CRITICAL': 'CRITICAL', 'FATAL': 'CRITICAL',
+}
+
 ANSI_RE = re.compile(r'\x1b\[[0-9;]*m')
 
 # Fallback-Level für Folgezeilen ohne erkennbares Prefix (z.B. Tracebacks)
@@ -74,6 +84,11 @@ def derive_level(msg: str, key: str, priority: int) -> str:
     m = LWS_LEVEL.match(msg)
     if m:
         lvl = LWS_NORMALIZE.get(m.group(1), 'INFO')
+        _last_level_by_key[key] = lvl
+        return lvl
+    m = GENERIC_LEVEL_COLON.search(msg)
+    if m:
+        lvl = GENERIC_NORMALIZE.get(m.group(1).upper(), 'INFO')
         _last_level_by_key[key] = lvl
         return lvl
     if key in _last_level_by_key:

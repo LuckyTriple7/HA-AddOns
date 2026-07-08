@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.3.3] - 2026-07-08
+
+- Fix: Uptime Kuma-Format (`... [DOMAIN_EXPIRY] WARN: msg`) wurde als ERROR gewertet — generisches Muster ergänzt, das ein LEVEL-Wort direkt vor einem Doppelpunkt erkennt
+- Fix: DB-Größe nach „Datenbank leeren" sank nicht spürbar — `VACUUM` schreibt im WAL-Modus zunächst nur in die `-wal`-Datei, Hauptdatei blieb unverändert. Expliziter `PRAGMA wal_checkpoint(TRUNCATE)` danach ergänzt (getestet: 10,8 MB → 12 KB)
+
 ## [0.3.2] - 2026-07-08
 
 - Fix: libwebsockets-Format (Collabora Online, Claude Code — `[2026/07/08 17:00:29:1164] N: ...`) wurde ebenfalls komplett als ERROR gewertet. Neues Muster erkennt den Ein-Buchstaben-Level nach dem Zeitstempel (E/W/N/I/D/P), N(otice)/I(nfo)/D(ebug) zählen jetzt korrekt nicht als Fehler

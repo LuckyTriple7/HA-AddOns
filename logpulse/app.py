@@ -540,6 +540,11 @@ def api_db_clear():
         conn.execute("DELETE FROM log_entries")
         conn.commit()
         conn.execute("VACUUM")
+        # VACUUM schreibt im WAL-Modus zunächst nur in die -wal-Datei —
+        # ohne expliziten TRUNCATE-Checkpoint bleibt die Hauptdatei (und die
+        # WAL-Datei) auf der alten Größe, bis SQLite irgendwann von selbst
+        # checkpointet.
+        conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
     log.info("Log-Datenbank auf Nutzerwunsch geleert")
     return jsonify({'ok': True})
 
