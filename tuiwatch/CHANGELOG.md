@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.44.5] - 2026-07-08
+
+### Added
+- Detail-Logging für Kalender-Preisänderungen bei aktiviertem `verbose_log`: loggt
+  intern (nicht in der Benachrichtigung) exakt welche Reisedaten sich wie geändert
+  haben, inkl. Warnung, falls ein als "geändert" gemeldetes Datum keine 2-Punkt-
+  Historie mehr hat — zur Diagnose von Fällen, in denen die Meldung nicht mit dem
+  im Kalender sichtbaren Preisverlauf übereinstimmt.
+
 ## [0.44.4] - 2026-07-08
 
 ### Added

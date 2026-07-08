@@ -73,7 +73,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.44.4"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.44.5"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -1645,7 +1645,7 @@ def _check_calendar_trend_alert(offer_id: int, changed_dates: list[str]) -> None
     with db() as con:
         offer = con.execute('SELECT label, hotel, url FROM offers WHERE id=?',
                             (offer_id,)).fetchone()
-        moves = _calendar_moves(con, offer_id) if min_diff > 0 else {}
+        moves = _calendar_moves(con, offer_id)   # auch fürs Detail-Log unten gebraucht
     if not offer:
         return
     if min_diff > 0:
@@ -1656,8 +1656,25 @@ def _check_calendar_trend_alert(offer_id: int, changed_dates: list[str]) -> None
     months = sorted({d[:7] for d in changed_dates})
     month_str = _format_month_list_de(months)
     name = offer['label'] or offer['hotel'] or f"Angebot #{offer_id}"
-    log.info("📅 Kalenderpreise geändert (#%d %s): %s → Benachrichtigung",
-             offer_id, name, month_str)
+    log.info("📅 Kalenderpreise geändert (#%d %s): %d Tag(e) in %s → Benachrichtigung",
+             offer_id, name, len(changed_dates), month_str)
+    if _verbose():
+        # Nur bei aktiviertem "Ausführliches Logging" — Nachricht/HA-Notify bleiben
+        # bewusst grob (kein Datum/Preis), aber fürs Debuggen (z. B. Diskrepanz
+        # zwischen Meldung und dem, was später im Kalender/calendar_history zu
+        # sehen ist) hilft die genaue Aufschlüsselung ungemein. missing = Daten,
+        # die _store_calendar_snapshot als "geändert" einstufte, aber die JETZT
+        # (gleicher DB-Request) _calendar_moves() nicht mehr als 2-Punkt-Historie
+        # findet — sollte eigentlich nie vorkommen, ist aber genau das Symptom,
+        # falls calendar_history zwischenzeitlich geleert wurde/wird.
+        found = sorted(d for d in changed_dates if d in moves)
+        missing = sorted(d for d in changed_dates if d not in moves)
+        details = "; ".join(
+            f"{d}: {moves[d]['prev_price']}→{moves[d]['price']} €"
+            f" ({'+' if moves[d]['delta']>0 else ''}{moves[d]['delta']} €)" for d in found)
+        log.info("📅 Kalender-Details (#%d %s): %s%s", offer_id, name,
+                 details or "(keine)",
+                 f" | OHNE Historie-Treffer: {', '.join(missing)}" if missing else "")
     _notify_ha(f"📅 Kalenderpreise geändert: {name}",
                f"{name}\nPreisänderungen im Preiskalender für {month_str}.\n{offer['url']}",
                f"caltrend_{offer_id}")
