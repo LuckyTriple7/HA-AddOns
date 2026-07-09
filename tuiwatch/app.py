@@ -2593,6 +2593,7 @@ def _collect_offers() -> list[dict]:
             delta = None
             if len(prices) == 2:
                 delta = prices[0] - prices[1]
+            last_ok_price = prices[0] if prices else None
             stats = con.execute(
                 'SELECT MIN(price) mn, MAX(price) mx, AVG(price) av, COUNT(*) c '
                 'FROM price_history WHERE offer_id=? AND ok=1 AND price IS NOT NULL',
@@ -2641,6 +2642,7 @@ def _collect_offers() -> list[dict]:
                 'target_price': o['target_price'],
                 'booked_price': o['booked_price'],
                 'price': last['price'] if last else None,
+                'last_ok_price': last_ok_price,
                 'old_price': last['old_price'] if last else None,
                 'discount': last['discount'] if last else None,
                 'available': avail,

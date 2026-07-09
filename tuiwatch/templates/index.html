@@ -1106,7 +1106,8 @@
         const hotel = o.hotel || '';
         const title = o.label || hotel || 'TUI-Angebot #'+o.id;
         const hasPrice = o.price!=null;
-        const priceNow = hasPrice ? eur(o.price) : (o.checking?'…':'–');
+        const priceNow = hasPrice ? eur(o.price) : (o.checking?'…'
+          : (o.last_ok_price!=null ? `<span class="old" title="Letzter bekannter Preis — aktueller Abruf fehlgeschlagen">${eur(o.last_ok_price)}</span>` : '–'));
         const stars = o.stars ? `<span class="stars">${'★'.repeat(Math.round(o.stars))}</span>` : '';
         let statsLine = '';
         if(o.min_price!=null && o.samples>1){
@@ -1156,7 +1157,8 @@
         let priceSub = '';
         if(o.old_price && o.old_price>o.price){ priceSub = '<span class="old">'+eur(o.old_price)+'</span>' + (o.discount?'<span class="disc">-'+o.discount+'%</span>':''); }
         const hasPrice = o.price!=null;
-        const priceNow = hasPrice ? eur(o.price) : (o.checking?'…':'–');
+        const priceNow = hasPrice ? eur(o.price) : (o.checking?'…'
+          : (o.last_ok_price!=null ? `<span class="old" title="Letzter bekannter Preis — aktueller Abruf fehlgeschlagen">${eur(o.last_ok_price)}</span>` : '–'));
         const plane = '<svg viewBox="0 0 24 24"><path d="M21 16v-2l-8-5V3.5A1.5 1.5 0 0 0 11.5 2 1.5 1.5 0 0 0 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/></svg>';
         let flights = '';
         if(o.flight_out || o.flight_ret){
