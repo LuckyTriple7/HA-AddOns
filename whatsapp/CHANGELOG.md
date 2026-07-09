@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.7.39] - 2026-07-09
+- Fix: **Add-on beendete sich bei jedem Stop/Update mit Exit-Code 137/143** statt sauber mit 0 — `Dockerfile` basiert auf `node:lts-alpine` ohne eigenes Init-System, `run.sh` macht den Node-Prozess per `exec` zu PID 1. Ohne eigenen Signal-Handler ignoriert der Kernel bei PID 1 unbehandelte Signale wie SIGTERM, der Supervisor musste nach Timeout hart per SIGKILL beenden (137). `init: false` → `init: true` in `config.yaml` sorgt für ein echtes Mini-Init als PID 1, das Signale korrekt durchreicht — zusätzlich neuer `SIGTERM`/`SIGINT`-Handler in `server.js`, der vor dem Exit sauber `client.destroy()` aufruft (nicht `client.logout()`!), damit Puppeteer/Chromium ordentlich geschlossen wird statt mitten im Betrieb gekillt zu werden. Das verhinderte bisher schon mal korrupte Chromium-Profile (`SingletonLock` u. Ä. im Session-Ordner) und im schlimmsten Fall einen erzwungenen erneuten QR-Scan beim nächsten Start
+
 ## [1.7.38] - 2026-07-06
 - Fix: **UI blieb nach Update gelegentlich hängen** (Senden von Text/Bild ging nicht mehr, nur Hard-Refresh half) — Root-Route `/` lieferte keinen `Cache-Control`-Header, wodurch Browser/Ingress veraltetes Frontend-JS zwischenspeichern konnten. Jetzt `Cache-Control: no-store` gesetzt
 
