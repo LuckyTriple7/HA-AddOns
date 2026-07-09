@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.45.3] - 2026-07-09
+
+### Changed
+- HA-Sensoren melden bei fehlendem Preis/zu wenig Daten jetzt `unknown` statt
+  `unavailable` (Angebots-Sensor, Übersicht, Markttrend) — `unavailable` ist in
+  Home-Assistant-Konvention für einen kaputten/nicht erreichbaren Sensor
+  reserviert, hier ist der Sensor ja da, nur (noch) kein Wert bekannt.
+
 ## [0.45.2] - 2026-07-08
 
 ### Fixed

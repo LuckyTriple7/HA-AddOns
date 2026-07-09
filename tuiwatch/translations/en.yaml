@@ -19,7 +19,7 @@ configuration:
     description: "Pre-fills the TripPilot question 'Where are you starting from?' (for car/bus/train arrival or day trips). Leave empty to disable — can always be changed in the questionnaire itself."
   ha_sensors:
     name: Home Assistant sensors
-    description: "Create a sensor (sensor.tuiwatch_<hotelname>) in Home Assistant per tracked offer. State = current price in €, 'unavailable' on error; trip details are in the 'description' attribute. Default on."
+    description: "Create a sensor (sensor.tuiwatch_<hotelname>) in Home Assistant per tracked offer. State = current price in €, 'unknown' on error; trip details are in the 'description' attribute. Default on."
   notify_ha:
     name: HA notifications
     description: "Show a persistent Home Assistant notification on price change or when a target price is reached. Default on."

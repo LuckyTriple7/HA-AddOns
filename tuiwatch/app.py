@@ -73,7 +73,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.45.2"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.45.3"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -755,7 +755,9 @@ def _entity_ids() -> dict[int, str]:
 
 
 def push_ha_sensors() -> None:
-    """Meldet je Angebot einen Sensor an HA: Wert=Preis (€) bzw. 'unavailable',
+    """Meldet je Angebot einen Sensor an HA: Wert=Preis (€) bzw. 'unknown' (kein
+    Preis ermittelbar — 'unavailable' wäre in HA-Konvention für einen kaputten/
+    nicht erreichbaren Sensor reserviert, hier ist der Sensor selbst ja da),
     Attribut 'description' = Reise-Eckdaten. Räumt verwaiste Sensoren auf."""
     if not _ha_enabled():
         return
@@ -772,7 +774,7 @@ def push_ha_sensors() -> None:
                     'FROM price_history WHERE offer_id=? AND ok=1 AND price IS NOT NULL',
                     (oid,)).fetchone()
                 ok = bool(last and last['ok'] and last['price'] is not None)
-                state = int(round(last['price'])) if ok else 'unavailable'
+                state = int(round(last['price'])) if ok else 'unknown'
                 attrs = {
                     'friendly_name': o['label'] or o['hotel'] or f'TUI-Angebot #{oid}',
                     'icon': 'mdi:airplane-clock',
@@ -855,7 +857,7 @@ def push_ha_sensors() -> None:
                 1 for o in ok_offers if o.get('target_price') and o['price'] <= o['target_price'])
             s_state = int(round(cheapest['price']))
         else:
-            s_state = 'unavailable'
+            s_state = 'unknown'
         http.post(f'{HA_BASE}/states/{summary_eid}', headers=headers, timeout=10,
                   json={'state': s_state, 'attributes': s_attrs})
 
@@ -2075,7 +2077,7 @@ def _push_health_sensor_from_cache() -> None:
 
 def _push_market_trend_sensor() -> None:
     """Meldet HA einen Sensor mit dem marktweiten Preistrend — State = kumulierte
-    %-Bewegung der letzten 14 Tage (`_market_trend`), oder 'unavailable' bei zu
+    %-Bewegung der letzten 14 Tage (`_market_trend`), oder 'unknown' bei zu
     wenigen Daten. Attribute ergänzen den Index seit Aufzeichnungsbeginn
     (`_market_index`), der auch langsame, über Wochen verteilte Bewegungen zeigt."""
     if not _ha_enabled():
@@ -2097,7 +2099,7 @@ def _push_market_trend_sensor() -> None:
     if glob_index:
         attrs.update(index=glob_index['index'], index_pct=glob_index['pct'],
                      index_since=datetime.fromtimestamp(glob_index['since']).isoformat())
-    state = glob_trend['pct'] if glob_trend else 'unavailable'
+    state = glob_trend['pct'] if glob_trend else 'unknown'
     try:
         http.post(f'{HA_BASE}/states/sensor.tuiwatch_markttrend',
                   headers={'Authorization': f'Bearer {SUPERVISOR_TOKEN}'}, timeout=10,

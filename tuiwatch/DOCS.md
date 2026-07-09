@@ -440,7 +440,7 @@ tui.com (`/aktionscode/`) — **ohne Login** — und benachrichtigt dich bei **n
 
 Bei aktiver Option `ha_sensors` legt TUIWatch je Angebot einen Sensor
 `sensor.tuiwatch_<hotelname>` an (bei gleichem Hotel `_2`, `_3` …):
-- **Wert** = aktueller Preis in € (bei Fehler `unavailable`)
+- **Wert** = aktueller Preis in € (bei Fehler `unknown`)
 - **Attribute**: `description`, `hotel`, `location`, `region`, `country`, `room`,
   `departure_airport`,
   `flight_outbound`, `flight_return`, `available` (true/false), `cancellation`,
@@ -466,7 +466,7 @@ zuletzt bekannten Stand erneut an HA gemeldet — sie sind daher direkt nach
 einem HA-Neustart wieder verfügbar, ohne auf den nächsten Live-Check zu warten.
 
 Außerdem `sensor.tuiwatch_markttrend`: **Wert** = kumulierte Preisänderung (%) über
-alle geprüften Angebote der letzten 14 Tage, oder `unavailable` bei zu wenigen
+alle geprüften Angebote der letzten 14 Tage, oder `unknown` bei zu wenigen
 Datenpunkten. Attribute: `direction` (up/down/flat), `days` (seit wie vielen Tagen die
 Richtung anhält), `samples` (Anzahl Datenpunkte), `index`/`index_pct`/`index_since`
 (Index seit Aufzeichnungsbeginn, siehe unten), `by_region` (gleiche Aufschlüsselung je

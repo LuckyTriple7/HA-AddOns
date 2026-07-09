@@ -19,7 +19,7 @@ configuration:
     description: "Vorbelegung für die TripPilot-Frage 'Von wo geht's los?' (bei Anreise mit Auto/Bus/Bahn oder Tagesausflug). Leer lassen, wenn nicht gewünscht — im Fragebogen jederzeit änderbar."
   ha_sensors:
     name: Home-Assistant-Sensoren
-    description: "Je verfolgtem Angebot einen Sensor (sensor.tuiwatch_<hotelname>) in Home Assistant anlegen. Wert = aktueller Preis in €, bei Fehler 'unavailable'; Reise-Eckdaten stehen im Attribut 'description'. Standard an."
+    description: "Je verfolgtem Angebot einen Sensor (sensor.tuiwatch_<hotelname>) in Home Assistant anlegen. Wert = aktueller Preis in €, bei Fehler 'unknown'; Reise-Eckdaten stehen im Attribut 'description'. Standard an."
   notify_ha:
     name: HA-Benachrichtigungen
     description: "Bei Preisänderung oder erreichtem Wunschpreis eine persistente Home-Assistant-Benachrichtigung anzeigen. Standard an."
