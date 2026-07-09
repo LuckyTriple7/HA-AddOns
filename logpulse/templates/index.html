@@ -82,7 +82,7 @@
     .repo-tab.active { border-color:var(--accent); color:var(--accent); background:rgba(88,166,255,.08); }
 
     /* ── Log-Zeilen ───────────────────────────────────────────── */
-    #console-out, #log-out { background:#0d1117; font-family:'Courier New',Courier,monospace; font-size:0.78rem; padding:10px; height:100%; overflow-y:auto; white-space:pre-wrap; word-break:break-all; }
+    #console-out, #log-out { background:#0d1117; font-family:'Courier New',Courier,monospace; font-size:0.78rem; padding:10px; height:100%; overflow-y:auto; white-space:pre-wrap; word-break:break-all; overscroll-behavior:contain; border-radius:0 0 var(--r) var(--r); }
     .log-INFO    { color:#58a6ff; }
     .log-WARNING { color:#d29922; }
     .log-ERROR   { color:#f85149; }
@@ -93,8 +93,10 @@
     .log-src  { flex-shrink:0; opacity:.75; white-space:nowrap; max-width:160px; overflow:hidden; text-overflow:ellipsis; }
     .log-lvl  { flex-shrink:0; white-space:nowrap; min-width:60px; }
     .log-msg  { flex:1; min-width:0; }
-    .console-wrap { background:#0d1117; border:1px solid var(--border); border-radius:var(--r); height:calc(100vh - 200px); overflow:hidden; display:flex; flex-direction:column; }
-    .console-toolbar { display:flex; gap:6px; padding:6px 10px; border-bottom:1px solid var(--border); background:var(--surf); }
+    /* overflow:visible statt hidden — sonst greift position:sticky der Toolbar nicht */
+    .console-wrap { background:#0d1117; border:1px solid var(--border); border-radius:var(--r); height:calc(100vh - 200px); overflow:visible; display:flex; flex-direction:column; }
+    /* Toolbar bleibt beim Scrollen sichtbar: sticky unter der Filterleiste (--toolbar-top setzt JS) */
+    .console-toolbar { display:flex; gap:6px; padding:6px 10px; border-bottom:1px solid var(--border); background:var(--surf); position:sticky; top:var(--toolbar-top, 0px); z-index:40; border-radius:var(--r) var(--r) 0 0; }
     .con-btn { background:none; border:1px solid var(--border); color:var(--muted); padding:2px 8px; border-radius:4px; font-size:0.72rem; cursor:pointer; }
     .con-btn:hover { border-color:var(--accent); color:var(--accent); }
 
@@ -590,6 +592,16 @@ document.addEventListener('visibilitychange', () => {
   pageVisible = !document.hidden;
   if (pageVisible) startPolling(); else stopPolling();
 });
+
+// Sticky-Toolbar: sitzt unter der Filterleiste — deren Höhe ist dynamisch (Chips umbrechen)
+(function(){
+  const filterBlock = document.querySelector('#tab-live .live-filter-sticky');
+  const tabLive = document.getElementById('tab-live');
+  if (!filterBlock || !tabLive || !window.ResizeObserver) return;
+  new ResizeObserver(() => {
+    tabLive.style.setProperty('--toolbar-top', filterBlock.offsetHeight + 'px');
+  }).observe(filterBlock);
+})();
 
 // ── Quellen-Tab ──────────────────────────────────────────────────
 async function loadSources(){

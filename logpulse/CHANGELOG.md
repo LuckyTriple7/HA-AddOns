@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.6.2] - 2026-07-09
+
+### Fixed
+- Konsolen-Toolbar (Leeren, Pausieren, Auto-Scroll) verschwand beim Scrollen der
+  Seite — jetzt sticky unter der Filterleiste (Live-Tab) bzw. am oberen Rand
+  (Konsole-Tab). Filterleisten-Höhe wird per ResizeObserver verfolgt, da Chips
+  je nach Fensterbreite umbrechen
+- Scroll-Chaining unterbunden (`overscroll-behavior: contain`): Wer im Log-Fenster
+  am Anfang/Ende weiterscrollt, scrollt nicht mehr versehentlich die ganze Seite
+
 ## [0.6.1] - 2026-07-09
 
 ### Fixed
