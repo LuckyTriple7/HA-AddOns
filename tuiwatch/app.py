@@ -86,7 +86,8 @@ TRIPS_DIR = _DATA + '/trips'   # dauerhaft gespeicherte Reise-PDFs
 
 POLL_INTERVAL_DEFAULT = 21600  # 6h — Reisepreise ändern sich langsam
 MIN_POLL_INTERVAL = 600        # nie öfter als alle 10 min (Bot-Schutz/Fairness)
-HISTORY_ONLY_INTERVAL = 86400  # 1×/Tag — reine Preisverlauf-Angebote (kein Notify-Bedarf)
+HISTORY_ONLY_HOUR = 9   # fixer Tages-Slot für Preisverlauf-Angebote (lokale Zeit)
+HISTORY_ONLY_SPREAD_MIN = 60  # Streuung in Minuten ab HISTORY_ONLY_HOUR (kein Burst um Punkt 9)
 MAX_PDF_BYTES = 16 * 1024 * 1024  # 16 MB Upload-Limit für Reise-PDFs
 
 app = Flask(__name__, template_folder=_BASE + '/templates',
@@ -2039,10 +2040,26 @@ def api_aktionscodes_check():
     return jsonify({'started': True})
 
 
+def _history_only_wait_seconds(oid: int, last_ts: int, now: int) -> int:
+    """Sekunden bis zum nächsten fixen Preisverlauf-Check: täglich um HISTORY_ONLY_HOUR
+    Uhr (lokale Zeit) + ein individueller, stabiler Offset je Angebot (oid % Spread) —
+    verteilt die Checks über HISTORY_ONLY_SPREAD_MIN Minuten statt alle exakt zur
+    selben Sekunde auszulösen. <=0 bedeutet: jetzt fällig."""
+    dt = datetime.fromtimestamp(now)
+    slot = dt.replace(hour=HISTORY_ONLY_HOUR, minute=0, second=0, microsecond=0) \
+        + timedelta(minutes=oid % HISTORY_ONLY_SPREAD_MIN)
+    slot_ts = int(slot.timestamp())
+    if last_ts >= slot_ts:
+        slot_ts += 86400  # heutiger Slot wurde schon geprüft → morgiger Slot
+    return slot_ts - now
+
+
 def _poll_worker() -> None:
     """Prüft Angebote fälligkeitsbasiert: ein Angebot wird erst wieder abgefragt,
     wenn seit seinem letzten Check (auch über Neustarts hinweg) das Intervall
-    verstrichen ist. So löst ein Add-on-Neustart keine sofortige Komplettabfrage aus."""
+    verstrichen ist. So löst ein Add-on-Neustart keine sofortige Komplettabfrage aus.
+    Preisverlauf-Angebote (history_only) folgen stattdessen einem festen, gestreuten
+    Tages-Slot (siehe _history_only_wait_seconds)."""
     log.info("Preis-Poller gestartet")
     time.sleep(5)  # kurzer Vorlauf, damit der Webserver zuerst hochkommt
     while True:
@@ -2065,12 +2082,19 @@ def _poll_worker() -> None:
                     'SELECT offer_id, MAX(ts) m FROM price_history GROUP BY offer_id').fetchall()}
             due = []
             for oid, history_only in offers:
-                eff_interval = max(interval, HISTORY_ONLY_INTERVAL) if history_only else interval
-                age = now - (last_map.get(oid) or 0)
-                if age >= eff_interval:
+                last_ts = last_map.get(oid) or 0
+                if history_only:
+                    wait = _history_only_wait_seconds(oid, last_ts, now)
+                    if wait <= 0:
+                        due.append(oid)
+                    else:
+                        next_in = min(next_in, wait)
+                    continue
+                age = now - last_ts
+                if age >= interval:
                     due.append(oid)
                 else:
-                    next_in = min(next_in, eff_interval - age)
+                    next_in = min(next_in, interval - age)
             if due:
                 log.info("Prüfe %d fällige(s) Angebot(e)", len(due))
                 for oid in due:
