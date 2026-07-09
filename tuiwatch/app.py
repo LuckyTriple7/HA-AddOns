@@ -2667,6 +2667,20 @@ def api_offers():
     return jsonify({'offers': _collect_offers()})
 
 
+def _normalize_tags(raw) -> list[str]:
+    """Trimmt, verwirft Leere und dedupliziert eine Tag-Liste (Reihenfolge bleibt)."""
+    if not isinstance(raw, list):
+        return []
+    seen = set()
+    tags = []
+    for t in raw:
+        t = str(t).strip()
+        if t and t not in seen:
+            seen.add(t)
+            tags.append(t)
+    return tags
+
+
 def _valid_tui_url(url: str) -> bool:
     try:
         p = urlparse(url)
@@ -2689,12 +2703,14 @@ def api_add_offer():
     if not _valid_img_url(img):
         img = ''
     history_only = 1 if data.get('history_only') else 0
+    tags = _normalize_tags(data.get('tags'))
+    tags_json = json.dumps(tags, ensure_ascii=False) if tags else ''
     try:
         with db() as con:
             cur = con.execute(
-                'INSERT INTO offers (url, label, hotel, details, image_url, history_only, created) '
-                'VALUES (?,?,?,?,?,?,?)',
-                (url, label, hotel_from_url(url), '', img, history_only, int(time.time())))
+                'INSERT INTO offers (url, label, hotel, details, image_url, history_only, tags, created) '
+                'VALUES (?,?,?,?,?,?,?,?)',
+                (url, label, hotel_from_url(url), '', img, history_only, tags_json, int(time.time())))
             offer_id = cur.lastrowid
     except sqlite3.IntegrityError:
         return jsonify({'error': 'duplicate'}), 409
@@ -2791,16 +2807,7 @@ def api_update_offer(offer_id: int):
             log.info("Angebot #%d %s", offer_id,
                      "archiviert" if arch else "reaktiviert")
         if 'tags' in data:
-            raw = data.get('tags') or []
-            if not isinstance(raw, list):
-                raw = []
-            seen = set()
-            tags = []
-            for t in raw:
-                t = str(t).strip()
-                if t and t not in seen:
-                    seen.add(t)
-                    tags.append(t)
+            tags = _normalize_tags(data.get('tags'))
             con.execute('UPDATE offers SET tags=? WHERE id=?',
                         (json.dumps(tags, ensure_ascii=False), offer_id))
             log.info("Angebot #%d Tags gesetzt: %s", offer_id, ', '.join(tags) or '(keine)')
