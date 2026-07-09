@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.0.10.2] - 2026-07-09
+
+### Fixed
+- Add-on beendete sich bei jedem Stop/Update mit Exit-Code 137 (SIGKILL statt
+  sauberem Stop): `Dockerfile` basiert auf `python:3.14-alpine` ohne eigenes
+  Init-System, `run.sh` macht den Python-Prozess per `exec` zu PID 1 — ohne
+  eigenen Signal-Handler ignoriert der Kernel bei PID 1 unbehandelte Signale wie
+  SIGTERM (Linux-Sonderfall), der Supervisor musste nach Timeout hart killen.
+  `init: false` → `init: true` in `config.yaml` allein hätte nicht gereicht
+  (Supervisor stellt dann zwar ein Mini-Init als echte PID 1, das Signale korrekt
+  durchreicht, aber Python selbst hatte weiterhin keinen eigenen SIGTERM-Handler
+  → Default-Handler killt den Prozess mit exit 143). Eigener `SIGTERM`-Handler
+  ergänzt (`os._exit(0)` — der Server läuft rein async ohne eigene Threads,
+  DB-Zugriffe committen bereits pro Verbindung, kein Cleanup nötig).
+
 ## [1.0.10.1] - 2026-06-29
 
 chore(deps): bump fastapi from 0.138.0 to 0.138.1 in /cardboard/rootfs/app

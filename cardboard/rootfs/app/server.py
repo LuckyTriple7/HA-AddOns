@@ -6,6 +6,7 @@ import os
 import re
 import secrets
 import shutil
+import signal
 import sqlite3
 import time
 from collections import defaultdict
@@ -1640,9 +1641,23 @@ async def _admin_reset_password(username: str, request: Request):
     return JSONResponse({"success": True})
 
 
+def _handle_sigterm(signum, frame) -> None:
+    """Sauberer Exit bei SIGTERM (HA-Supervisor-Stop/Update) — ohne eigenen Handler
+    würde Python den Default-Handler laufen lassen (exit 143), worüber sich der
+    Supervisor beschwert ("should trap SIGTERM ... exit with code 0"). Der Server
+    läuft rein async (asyncio.gather über 3 uvicorn.Server-Instanzen), es gibt keine
+    eigenen Hintergrund-Threads. DB-Schreibzugriffe committen bereits pro
+    `with sqlite3.connect(...) as conn:`-Block, ein harter os._exit(0) ist daher
+    sicher — kein offener State, der noch geflusht werden müsste."""
+    log.info("SIGTERM empfangen, beende sauber…")
+    os._exit(0)
+
+
 # ── Entry point ───────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
+    signal.signal(signal.SIGTERM, _handle_sigterm)
+
     port         = 17772
     admin_port   = 17773
     ingress_port = 17774
