@@ -14,6 +14,8 @@ PRIORITY_TO_LEVEL = {
     3: "ERROR", 4: "WARNING", 5: "INFO", 6: "INFO", 7: "DEBUG",
 }
 
+LEVEL_ORDER = {"DEBUG": 0, "INFO": 1, "WARNING": 2, "ERROR": 3, "CRITICAL": 4}
+
 # Eigene Addons (cardboard, syswatch, gitpulse, ...) loggen im Format "[LEVEL] ..."
 BRACKET_LEVEL = re.compile(r'^\[(DEBUG|INFO|WARN|WARNING|ERROR|CRITICAL|OK)\]')
 BRACKET_NORMALIZE = {"WARN": "WARNING", "OK": "INFO"}
@@ -112,18 +114,26 @@ def _open_reader():
     return journal.Reader(path=JOURNAL_PATH)
 
 
-def reader_loop(get_conn, db_lock, resolve_addon_name, notify_new, poll_timeout_ms: int = 5000):
+def reader_loop(get_conn, db_lock, resolve_addon_name, notify_new, poll_timeout_ms: int = 5000,
+                 load_config=None, pause_event=None):
     """Läuft endlos im Hintergrund-Thread. Blockiert bei Fehlern kurz und versucht erneut,
-    statt den Thread sterben zu lassen (journald kann z.B. während Rotation kurz hakeln)."""
+    statt den Thread sterben zu lassen (journald kann z.B. während Rotation kurz hakeln).
+    Bei pausiertem pause_event wird journald gar nicht erst geöffnet — spart CPU vollständig,
+    solange niemand die Log-Erfassung braucht."""
     while True:
+        if pause_event is not None and not pause_event.is_set():
+            pause_event.wait(2)
+            continue
         try:
-            _reader_loop_once(get_conn, db_lock, resolve_addon_name, notify_new, poll_timeout_ms)
+            _reader_loop_once(get_conn, db_lock, resolve_addon_name, notify_new, poll_timeout_ms,
+                               load_config, pause_event)
         except Exception:
             log.exception("journal_reader: Ingest-Loop abgebrochen, Neustart in 5s")
             time.sleep(5)
 
 
-def _reader_loop_once(get_conn, db_lock, resolve_addon_name, notify_new, poll_timeout_ms):
+def _reader_loop_once(get_conn, db_lock, resolve_addon_name, notify_new, poll_timeout_ms,
+                       load_config=None, pause_event=None):
     jr = _open_reader()
     jr.this_boot()
 
@@ -146,8 +156,15 @@ def _reader_loop_once(get_conn, db_lock, resolve_addon_name, notify_new, poll_ti
             pass
 
     while True:
+        if pause_event is not None and not pause_event.is_set():
+            return  # zurück zur äußeren Schleife, die auf Resume wartet
         jr.wait(poll_timeout_ms / 1000.0)
         batch = []
+        # min_level pro Batch neu lesen (load_config ist mtime-gecacht, billig) —
+        # Zeilen unterhalb der Schwelle werden verworfen, bevor sie in die DB
+        # geschrieben werden (spart Insert-/Index-Last bei hohem Log-Volumen).
+        min_level = str((load_config() if load_config else {}).get('min_level', 'DEBUG')).upper()
+        min_rank = LEVEL_ORDER.get(min_level, 0)
         for entry in jr:
             source, container = classify_source(entry)
             raw_msg = entry.get("MESSAGE", "")
@@ -157,6 +174,8 @@ def _reader_loop_once(get_conn, db_lock, resolve_addon_name, notify_new, poll_ti
             priority = int(entry.get("PRIORITY", 6))
             key = container or source
             level = derive_level(msg, source, key, priority)
+            if LEVEL_ORDER.get(level, 0) < min_rank:
+                continue
             addon_name = resolve_addon_name(container) if source == "addon" else None
             ts_field = entry.get("__REALTIME_TIMESTAMP")
             ts = ts_field.timestamp() if ts_field is not None else time.time()

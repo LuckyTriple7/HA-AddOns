@@ -17,6 +17,9 @@ configuration:
   poll_timeout_ms:
     name: Journal-Poll-Intervall (ms)
     description: Wie oft auf neue journald-Einträge geprüft wird. Standard 5000 (5 Sekunden).
+  min_level:
+    name: Minimales Log-Level
+    description: Nur Einträge ab diesem Level werden gespeichert (z.B. WARNING = INFO/DEBUG werden verworfen). Reduziert Datenmenge und CPU-Last, aber es fehlt dann der normale Ablauf-Kontext vor Fehlern. Standard DEBUG (alles).
   verbose_log:
     name: Ausführliches Logging
     description: Gibt zusätzliche Debug-Informationen im Konsolen-Tab aus. Standard false.

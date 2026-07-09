@@ -70,6 +70,7 @@ app.wsgi_app = _IngressMiddleware(ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_h
 
 CONFIG_PATH   = '/data/options.json'
 SESSIONS_PATH = '/data/sessions.json'
+INGEST_STATE_PATH = '/data/ingest_state.json'
 LOCALES_PATH  = '/app/locales'
 DB_PATH       = '/config/logpulse.db'
 SUPERVISOR_API = 'http://supervisor'
@@ -90,6 +91,14 @@ _conn: sqlite3.Connection | None = None
 
 _wait_lock = threading.Lock()
 _wait_queues: list[queue.Queue] = []
+
+# Ingest-Pause: gesetzt = läuft, gecleart = pausiert. journal_reader.reader_loop
+# wartet dann nur noch auf dieses Event statt journald zu lesen — spart CPU
+# vollständig, solange niemand die Log-Erfassung braucht.
+_pause_event = threading.Event()
+_pause_event.set()
+
+_res_stats = {'cpu_percent': 0.0, 'mem_mb': 0.0}
 
 _addon_names_cache: dict = {}
 _addon_names_ts: float = 0.0
@@ -131,6 +140,25 @@ def load_sessions() -> None:
         pass
     except Exception as e:
         log.warning("Sessions konnten nicht geladen werden: %s", e)
+
+
+def save_ingest_paused(paused: bool) -> None:
+    try:
+        with open(INGEST_STATE_PATH, 'w') as f:
+            json.dump({'paused': paused}, f)
+    except Exception as e:
+        log.warning("Ingest-Status konnte nicht gespeichert werden: %s", e)
+
+
+def load_ingest_paused() -> bool:
+    try:
+        with open(INGEST_STATE_PATH) as f:
+            return bool(json.load(f).get('paused', False))
+    except FileNotFoundError:
+        return False
+    except Exception as e:
+        log.warning("Ingest-Status konnte nicht geladen werden: %s", e)
+        return False
 
 
 def create_session(hours: int) -> tuple[str, float]:
@@ -605,6 +633,62 @@ def api_console():
     return jsonify({'entries': entries})
 
 
+@app.route('/api/ingest/status')
+def api_ingest_status():
+    return jsonify({'paused': not _pause_event.is_set()})
+
+
+@app.route('/api/ingest/pause', methods=['POST'])
+def api_ingest_pause():
+    _pause_event.clear()
+    save_ingest_paused(True)
+    log.info("Log-Erfassung auf Nutzerwunsch pausiert")
+    return jsonify({'ok': True, 'paused': True})
+
+
+@app.route('/api/ingest/resume', methods=['POST'])
+def api_ingest_resume():
+    _pause_event.set()
+    save_ingest_paused(False)
+    log.info("Log-Erfassung fortgesetzt")
+    return jsonify({'ok': True, 'paused': False})
+
+
+@app.route('/api/sysinfo')
+def api_sysinfo():
+    return jsonify(_res_stats)
+
+
+def _res_sampler_loop(interval: int = 3) -> None:
+    """Eigener CPU-/RAM-Verbrauch via /proc/self — kein docker_api/cgroup-Zugriff
+    nötig, funktioniert unprivilegiert in jedem Container (siehe SysWatch für
+    das host-weite Pendant)."""
+    clk_tck = os.sysconf('SC_CLK_TCK')
+    prev_cpu = None
+    prev_wall = None
+    while True:
+        try:
+            with open('/proc/self/stat') as f:
+                rest = f.read().rpartition(')')[2].split()
+            utime, stime = int(rest[11]), int(rest[12])
+            cpu_seconds = (utime + stime) / clk_tck
+            wall = time.monotonic()
+            if prev_cpu is not None:
+                dt = wall - prev_wall
+                if dt > 0:
+                    _res_stats['cpu_percent'] = round(max(0.0, (cpu_seconds - prev_cpu) / dt * 100), 1)
+            prev_cpu, prev_wall = cpu_seconds, wall
+
+            with open('/proc/self/status') as f:
+                for line in f:
+                    if line.startswith('VmRSS:'):
+                        _res_stats['mem_mb'] = round(int(line.split()[1]) / 1024, 1)
+                        break
+        except Exception:
+            log.exception("Ressourcen-Sampler fehlgeschlagen")
+        time.sleep(interval)
+
+
 def _resolve_addon_name_wrapper(container):
     return resolve_addon_name(container)
 
@@ -615,9 +699,13 @@ def main():
     cfg = load_config()
     poll_timeout_ms = int(cfg.get('poll_timeout_ms', 5000))
 
+    if load_ingest_paused():
+        _pause_event.clear()
+
     threading.Thread(
         target=journal_reader.reader_loop,
         args=(get_conn, _db_lock, _resolve_addon_name_wrapper, notify_new, poll_timeout_ms),
+        kwargs={'load_config': load_config, 'pause_event': _pause_event},
         daemon=True,
     ).start()
 
@@ -626,6 +714,8 @@ def main():
         args=(get_conn, _db_lock, load_config, DB_PATH),
         daemon=True,
     ).start()
+
+    threading.Thread(target=_res_sampler_loop, daemon=True).start()
 
     app.run(host='0.0.0.0', port=17795, debug=False, threaded=True)
 

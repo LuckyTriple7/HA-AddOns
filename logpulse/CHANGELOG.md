@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.6.0] - 2026-07-09
+
+- Neue Option `min_level` (DEBUG/INFO/WARNING/ERROR): nur Einträge ab diesem Level werden noch gespeichert, Rest wird direkt beim Ingest verworfen. Reduziert DB-Wachstum und Last bei hohem Log-Volumen, Standard bleibt DEBUG (unverändertes Verhalten)
+- Neuer Schalter im Header: Log-Erfassung komplett pausieren/fortsetzen. Bei Pause wird journald gar nicht erst geöffnet — kein Lesen, kein Klassifizieren, keine DB-Writes, spart die volle Ingest-Last, solange niemand die Logs braucht. Zustand übersteht Neustarts (`/data/ingest_state.json`)
+- CPU-/RAM-Auslastung von LogPulse selbst jetzt in der Summary-Bar sichtbar (wie bei SysWatch), via `/proc/self` — kein zusätzlicher docker_api-Zugriff nötig
+
 ## [0.5.1] - 2026-07-09
 
 - Fix: hohe, mit der Laufzeit steigende CPU-Last. Ursache: die FTS5-Tabelle `log_fts` samt Insert-/Delete-Trigger aus v0.1.0 lief unbemerkt weiter, obwohl die Suche seit v0.3.4 nur noch `LIKE` nutzt — jede Log-Zeile wurde zusätzlich in FTS5-Segmente geschrieben, deren Merge-Kosten mit der DB-Größe wuchsen. Tabelle + Trigger entfernt, bestehende Datenbanken werden beim Start automatisch migriert (Trigger/Tabelle gedroppt, `VACUUM` + `wal_checkpoint(TRUNCATE)` geben den belegten Platz sofort zurück)

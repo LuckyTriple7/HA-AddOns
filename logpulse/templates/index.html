@@ -147,6 +147,10 @@
     <button class="hdr-btn" onclick="fetchLogs(true)" title="{{ t.btn_refresh }}">
       <svg viewBox="0 0 24 24"><path d="M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
     </button>
+    <button class="hdr-btn" id="ingest-toggle-btn" onclick="toggleIngest()" title="{{ t.tooltip_ingest_pause }}">
+      <svg class="icon-ingest-pause" viewBox="0 0 24 24"><path d="M6 5h4v14H6zm8 0h4v14h-4z"/></svg>
+      <svg class="icon-ingest-play" viewBox="0 0 24 24" style="display:none"><path d="M8 5v14l11-7z"/></svg>
+    </button>
     <a href="{{ url_for('set_lang', lang='de') }}" class="lang-btn {% if lang == 'de' %}active{% endif %}">DE</a>
     <a href="{{ url_for('set_lang', lang='en') }}" class="lang-btn {% if lang == 'en' %}active{% endif %}">EN</a>
     <button class="hdr-btn" onclick="toggleTheme()">
@@ -171,6 +175,8 @@
     <div class="stat-chip" id="stat-err-chip"><div class="num" id="stat-err" style="color:var(--red)">0</div><div class="lbl">{{ t.stat_errors }}</div></div>
     <div class="stat-chip"><div class="num" id="stat-sources">0</div><div class="lbl">{{ t.stat_sources }}</div></div>
     <div class="stat-chip" style="cursor:pointer" onclick="openClearDbModal()" title="{{ t.tooltip_clear_db }}"><div class="num" id="stat-dbsize" style="font-size:1rem">–</div><div class="lbl">{{ t.stat_dbsize }}</div></div>
+    <div class="stat-chip"><div class="num" id="stat-cpu" style="font-size:1rem">–</div><div class="lbl">{{ t.stat_cpu }}</div></div>
+    <div class="stat-chip"><div class="num" id="stat-mem" style="font-size:1rem">–</div><div class="lbl">{{ t.stat_mem }}</div></div>
   </div>
 
   <div class="tabs">
@@ -486,6 +492,44 @@ async function fetchDbInfo(){
   } catch(e) {}
 }
 
+async function fetchSysInfo(){
+  try {
+    const res = await apiFetch('/api/sysinfo');
+    const data = await res.json();
+    document.getElementById('stat-cpu').textContent = `${data.cpu_percent.toFixed(1)}%`;
+    document.getElementById('stat-mem').textContent = `${data.mem_mb.toFixed(0)} MB`;
+  } catch(e) {}
+}
+
+let ingestPaused = false;
+
+function updateIngestBtn(){
+  const btn = document.getElementById('ingest-toggle-btn');
+  btn.querySelector('.icon-ingest-pause').style.display = ingestPaused ? 'none' : 'block';
+  btn.querySelector('.icon-ingest-play').style.display = ingestPaused ? 'block' : 'none';
+  btn.title = ingestPaused ? T.tooltip_ingest_resume : T.tooltip_ingest_pause;
+  btn.style.color = ingestPaused ? 'var(--red)' : '';
+  btn.style.borderColor = ingestPaused ? 'var(--red)' : '';
+}
+
+async function fetchIngestStatus(){
+  try {
+    const res = await apiFetch('/api/ingest/status');
+    const data = await res.json();
+    ingestPaused = data.paused;
+    updateIngestBtn();
+  } catch(e) {}
+}
+
+async function toggleIngest(){
+  try {
+    const res = await apiFetch(ingestPaused ? '/api/ingest/resume' : '/api/ingest/pause', {method: 'POST'});
+    const data = await res.json();
+    ingestPaused = data.paused;
+    updateIngestBtn();
+  } catch(e) {}
+}
+
 function clearLogView(){ document.getElementById('log-out').innerHTML=''; }
 
 function toggleLive(){
@@ -527,10 +571,12 @@ async function waitLoop(){
 
 function startPolling(){
   if (_intervalIds.length) return; // schon aktiv
-  fetchConsole(); fetchDbInfo(); updateSummary();
+  fetchConsole(); fetchDbInfo(); updateSummary(); fetchSysInfo(); fetchIngestStatus();
   _intervalIds.push(setInterval(fetchConsole, 4000));
   _intervalIds.push(setInterval(fetchDbInfo, 30000));
   _intervalIds.push(setInterval(updateSummary, 8000));
+  _intervalIds.push(setInterval(fetchSysInfo, 5000));
+  _intervalIds.push(setInterval(fetchIngestStatus, 15000));
   if (liveEnabled) waitLoop();
 }
 

@@ -1,6 +1,6 @@
 name: LogPulse
 description: Zentrale, durchsuchbare Log-Historie aus journald — HA Core, Supervisor und alle Addon-Container
-version: "0.5.1"
+version: "0.6.0"
 slug: logpulse
 url: https://github.com/LuckyTriple7/HA-AddOns
 image: "ghcr.io/luckytriple7/logpulse"
@@ -43,6 +43,7 @@ options:
   retention_days: 14
   max_db_size_mb: 300
   poll_timeout_ms: 5000
+  min_level: "DEBUG"
   verbose_log: false
 
 schema:
@@ -52,4 +53,5 @@ schema:
   retention_days: int?
   max_db_size_mb: int?
   poll_timeout_ms: int?
+  min_level: list(DEBUG|INFO|WARNING|ERROR)?
   verbose_log: bool?
