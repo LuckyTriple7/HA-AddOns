@@ -1041,18 +1041,22 @@
         if(activeTags.size) parts.push('Tag „'+Array.from(activeTags).map(esc).join('/')+'"');
         box.innerHTML = '<div class="empty">Keine Treffer für '+parts.join(' + ')+'.</div>'; return;
       }
-      const active = sortOffers(list2.filter(o=>!o.archived && !o.history_only));
       const hist = sortOffers(list2.filter(o=>!o.archived && o.history_only));
-      const arch = sortOffers(list2.filter(o=>o.archived));
-      let html = active.map(offerCard).join('');
-      if(!active.length && arch.length && !showArchived){
-        html = `<div class="empty">Keine aktiven Angebote — ${arch.length} im Archiv. „Archiv" oben einblenden.</div>`;
-      }
-      if(showHistOnly && hist.length){
-        html += `<div class="arch-head">📊 Preisverlauf-Tracking (${hist.length}) — nur Statistik, keine Benachrichtigungen</div>` + hist.map(offerCard).join('');
-      }
-      if(showArchived && arch.length){
-        html += `<div class="arch-head">📦 Archiv (${arch.length}) — abgelaufene oder manuell archivierte Reisen (keine Live-Abfragen)</div>` + arch.map(offerCard).join('');
+      let html;
+      if(showHistOnly){
+        // Preisverlauf-Filter ist exklusiv: nur diese Angebote, sonst nichts.
+        html = hist.length ? hist.map(offerCard).join('')
+          : '<div class="empty">Keine Angebote im Preisverlauf-Tracking.</div>';
+      } else {
+        const active = sortOffers(list2.filter(o=>!o.archived && !o.history_only));
+        const arch = sortOffers(list2.filter(o=>o.archived));
+        html = active.map(offerCard).join('');
+        if(!active.length && arch.length && !showArchived){
+          html = `<div class="empty">Keine aktiven Angebote — ${arch.length} im Archiv. „Archiv" oben einblenden.</div>`;
+        }
+        if(showArchived && arch.length){
+          html += `<div class="arch-head">📦 Archiv (${arch.length}) — abgelaufene oder manuell archivierte Reisen (keine Live-Abfragen)</div>` + arch.map(offerCard).join('');
+        }
       }
       box.innerHTML = html;
       pruneSelection();
@@ -1114,6 +1118,7 @@
               <div class="offer-label">${esc(title)} <button class="rename-btn" onclick="renameOffer(${o.id})" title="Umbenennen">✎</button></div>
               ${o.location?`<a class="offer-loc" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(((o.hotel||o.label||'')+' '+o.location).trim())}" target="_blank" rel="noopener" title="In Google Maps öffnen">📍 ${esc(o.location)} ↗</a>`:''}
               ${stars?`<div class="meta">${stars}</div>`:''}
+              <a class="offer-url" href="${esc(o.url)}" target="_blank" rel="noopener">Angebot auf tui.com öffnen ↗</a>
               ${o.ok===false?`<div class="err-note">⚠ ${esc(o.note||'Preis konnte nicht gelesen werden')}</div>`:''}
             </div>
             <div class="price-box">
@@ -2541,7 +2546,7 @@
       const head = `<div class="srch-head"><span><b id="srch-count">${srchResults.length}</b> Treffer${(srchTotal>srchResults.length)?(' (von '+srchTotal+' in der Region)'):''}</span>
          <input type="text" id="srch-filter" class="srch-listfilter" placeholder="In Treffern suchen…" autocomplete="off" oninput="filterSearch(this.value)" value="${esc(srchFilter)}">
          <span style="flex:1"></span>Sortieren: ${sortSel}
-         <button class="btn sec" onclick="track3()" title="Günstigstes, mittleres und teuerstes Hotel aus den Treffern automatisch für den Preisverlauf tracken (keine Benachrichtigungen)">📊 3 tracken (günstig/mittel/teuer)</button>
+         <button class="btn sec" onclick="track3()" title="Günstigstes, mittleres und teuerstes Hotel aus den Treffern automatisch für den Preisverlauf tracken (keine Benachrichtigungen)">📊 3 tracken</button>
          <button class="btn sec" onclick="trackAll()">Alle tracken</button></div>
         <div id="cmp-bar" class="cmp-foot ai-feature" style="display:none">
           <span class="hint" style="flex:1;min-width:180px"><b id="cmp-count">0</b> Hotel(s) für KI-Vergleich ausgewählt (max. 5)</span>
