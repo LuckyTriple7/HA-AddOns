@@ -74,7 +74,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.45.5"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.45.6"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -86,6 +86,7 @@ TRIPS_DIR = _DATA + '/trips'   # dauerhaft gespeicherte Reise-PDFs
 
 POLL_INTERVAL_DEFAULT = 21600  # 6h — Reisepreise ändern sich langsam
 MIN_POLL_INTERVAL = 600        # nie öfter als alle 10 min (Bot-Schutz/Fairness)
+HISTORY_ONLY_INTERVAL = 86400  # 1×/Tag — reine Preisverlauf-Angebote (kein Notify-Bedarf)
 MAX_PDF_BYTES = 16 * 1024 * 1024  # 16 MB Upload-Limit für Reise-PDFs
 
 app = Flask(__name__, template_folder=_BASE + '/templates',
@@ -320,6 +321,7 @@ def init_db() -> None:
             travellers_count INTEGER,
             paused       INTEGER DEFAULT 0,
             archived     INTEGER DEFAULT 0,
+            history_only INTEGER DEFAULT 0,
             return_date  TEXT DEFAULT '',
             target_price REAL,
             created     INTEGER NOT NULL
@@ -530,7 +532,7 @@ def init_db() -> None:
             if col not in ocols:
                 con.execute(f"ALTER TABLE offers ADD COLUMN {col} REAL")
         for col in ('rating_count', 'recommendation', 'travellers_count',
-                    'paused', 'archived'):
+                    'paused', 'archived', 'history_only'):
             if col not in ocols:
                 con.execute(f"ALTER TABLE offers ADD COLUMN {col} INTEGER")
         if 'calendar_seen_ts' not in ocols:
@@ -1105,21 +1107,27 @@ def _maybe_notify(offer: dict, prev_price: float | None, new_price: float | None
                          f"{_eur(prev_price)} → <b>{_eur(new_price)}</b> ({arrow})\n{url}")
 
 
-def _check_cheaper_date(offer: dict, current_price: float) -> None:
+def _check_cheaper_date(offer: dict, current_price: float,
+                        force_refresh: bool = False, notify: bool = True) -> None:
     """Meldet, wenn ein anderer Abreisetag deutlich günstiger ist als der getrackte
     Preis. Nutzt für den Kalender-Abruf dieselbe TTL wie der Buchungsscore-Pfad
     (_CALENDAR_FRESH_SECONDS, ~7 Tage): ist der Cache noch frisch, wird NICHT neu
     abgerufen (bis zu 6 teure HTTP-Requests je Check), sondern der vorhandene
     Snapshot aus calendar_cache für die Benachrichtigungslogik weiterverwendet — die
     'günstigerer Termin'-Prüfung bleibt dadurch bei JEDEM Preis-Check aktiv, nur der
-    teure Kalender-Abruf selbst wird gedrosselt."""
+    teure Kalender-Abruf selbst wird gedrosselt.
+
+    `force_refresh=True` ignoriert die TTL und holt den Kalender immer frisch (für
+    history_only-Angebote, die ohnehin nur 1×/Tag geprüft werden — siehe check_offer).
+    `notify=False` speichert Kalender-Cache/-History weiterhin, überspringt aber den
+    Kalender-Trend-Alarm und den 'günstigerer Termin'-Alarm am Ende dieser Funktion."""
     cfg = load_config()
     oid = offer['id']
     with db() as con:
         cached = con.execute('SELECT ts, data FROM calendar_cache WHERE offer_id=?',
                              (oid,)).fetchone()
     cal = None
-    if cached and time.time() - cached['ts'] < _CALENDAR_FRESH_SECONDS:
+    if not force_refresh and cached and time.time() - cached['ts'] < _CALENDAR_FRESH_SECONDS:
         try:
             cal = json.loads(cached['data'])
         except (ValueError, TypeError):
@@ -1131,9 +1139,12 @@ def _check_cheaper_date(offer: dict, current_price: float) -> None:
         try:
             with db() as con:
                 changed = _store_calendar_snapshot(con, oid, cal)
-            _check_calendar_trend_alert(oid, changed)
+            if notify:
+                _check_calendar_trend_alert(oid, changed)
         except Exception as e:
             log.warning("Kalender-Cache #%d nicht aktualisiert: %s", oid, e)
+    if not notify:
+        return
     if not cal.get('ok'):
         return
     cd, cp = cal.get('cheapest_date'), cal.get('cheapest_price')
@@ -1383,12 +1394,19 @@ def check_offer(offer_id: int) -> None:
             if prev_price is not None and res['price'] != prev_price:
                 log.info("Angebot #%d (%s): Preis %s → %.0f € (%+.0f €)", offer_id, name,
                          f"{prev_price:.0f}", res['price'], res['price'] - prev_price)
-            _maybe_notify(offer, prev_price, res.get('price'), offer.get('target_price'))
-            _clear_error_alarm(offer)
-            if load_config().get('notify_cheaper_date', True) and res.get('price'):
-                _check_cheaper_date(offer, res['price'])
-            if res.get('price') and offer.get('booked_price'):
-                _check_booked_drop(offer, res['price'])
+            if offer.get('history_only'):
+                # Nur Verlauf/Kalender pflegen, keine Benachrichtigungen — siehe
+                # _check_cheaper_date (force_refresh sorgt für tägliche Kalenderdaten,
+                # da history_only-Angebote ohnehin nur 1×/Tag geprüft werden).
+                if res.get('price'):
+                    _check_cheaper_date(offer, res['price'], force_refresh=True, notify=False)
+            else:
+                _maybe_notify(offer, prev_price, res.get('price'), offer.get('target_price'))
+                _clear_error_alarm(offer)
+                if load_config().get('notify_cheaper_date', True) and res.get('price'):
+                    _check_cheaper_date(offer, res['price'])
+                if res.get('price') and offer.get('booked_price'):
+                    _check_booked_drop(offer, res['price'])
             # Hotelbild einmalig nachladen (nur wenn noch keins vorhanden)
             if not offer.get('image_url'):
                 try:
@@ -1404,11 +1422,13 @@ def check_offer(offer_id: int) -> None:
         elif (res.get('note') or '').startswith('Kein Angebot'):
             # kein Crash, sondern ausgebucht/kein Treffer im Zeitraum → gelb
             log.warning("Angebot #%d (%s): kein Angebot im Zeitraum", offer_id, name)
-            _check_error_alarm(offer)
+            if not offer.get('history_only'):
+                _check_error_alarm(offer)
         else:
             # echter Abruf-Fehler → rot (Detail steht ggf. schon oben im Log)
             log.error("Angebot #%d (%s): Abruf fehlgeschlagen – %s", offer_id, name, res.get('note'))
-            _check_error_alarm(offer)
+            if not offer.get('history_only'):
+                _check_error_alarm(offer)
     except Exception as e:
         log.error("check_offer(#%d) Fehler: %s", offer_id, e)
     finally:
@@ -2008,18 +2028,19 @@ def _poll_worker() -> None:
             _maybe_check_watches()    # Suchabos (gespeicherte Suchen mit Schwellenpreis)
             _auto_archive_expired()
             with db() as con:
-                offers = [r['id'] for r in con.execute(
-                    'SELECT id FROM offers WHERE COALESCE(paused,0)=0 '
+                offers = [(r['id'], bool(r['history_only'])) for r in con.execute(
+                    'SELECT id, history_only FROM offers WHERE COALESCE(paused,0)=0 '
                     'AND COALESCE(archived,0)=0 ORDER BY id').fetchall()]
                 last_map = {r['offer_id']: r['m'] for r in con.execute(
                     'SELECT offer_id, MAX(ts) m FROM price_history GROUP BY offer_id').fetchall()}
             due = []
-            for oid in offers:
+            for oid, history_only in offers:
+                eff_interval = max(interval, HISTORY_ONLY_INTERVAL) if history_only else interval
                 age = now - (last_map.get(oid) or 0)
-                if age >= interval:
+                if age >= eff_interval:
                     due.append(oid)
                 else:
-                    next_in = min(next_in, interval - age)
+                    next_in = min(next_in, eff_interval - age)
             if due:
                 log.info("Prüfe %d fällige(s) Angebot(e)", len(due))
                 for oid in due:
@@ -2611,6 +2632,7 @@ def _collect_offers() -> list[dict]:
                 'travellers_count': o['travellers_count'],
                 'paused': bool(o['paused']),
                 'archived': bool(o['archived']),
+                'history_only': bool(o['history_only']),
                 'return_date': o['return_date'] or '',
                 'tags': (_json_loads_safe(o['tags'], []) if o['tags'] else []),
                 'cancellation': o['cancellation'], 'stars': o['stars'],
@@ -2666,12 +2688,13 @@ def api_add_offer():
     img = (data.get('image') or '').strip()      # optional: Bild aus der Suche
     if not _valid_img_url(img):
         img = ''
+    history_only = 1 if data.get('history_only') else 0
     try:
         with db() as con:
             cur = con.execute(
-                'INSERT INTO offers (url, label, hotel, details, image_url, created) '
-                'VALUES (?,?,?,?,?,?)',
-                (url, label, hotel_from_url(url), '', img, int(time.time())))
+                'INSERT INTO offers (url, label, hotel, details, image_url, history_only, created) '
+                'VALUES (?,?,?,?,?,?,?)',
+                (url, label, hotel_from_url(url), '', img, history_only, int(time.time())))
             offer_id = cur.lastrowid
     except sqlite3.IntegrityError:
         return jsonify({'error': 'duplicate'}), 409

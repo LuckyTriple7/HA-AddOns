@@ -488,6 +488,9 @@
       <label class="arch-toggle" title="Archivierte (abgelaufene/nicht mehr verfügbare) Angebote einblenden">
         <input type="checkbox" id="show-archived"> Archiv <span id="arch-count"></span>
       </label>
+      <label class="arch-toggle" title="Nur zum Preisverlauf getrackte Hotels einblenden (aus der Suche per „3 tracken" übernommen, keine Benachrichtigungen)">
+        <input type="checkbox" id="show-histonly"> 📊 Preisverlauf <span id="hist-count"></span>
+      </label>
     </div>
     <div class="tag-row" id="tag-pills" style="display:none"></div>
     <div id="bulk-bar" class="bulk-bar" style="display:none">
@@ -939,6 +942,7 @@
 
     let curOffers = null, lastSig = null, searchTerm = '', activeTags = new Set();
     let showArchived = localStorage.getItem('tw-show-archived')==='1';
+    let showHistOnly = localStorage.getItem('tw-show-histonly')==='1';
     let sortMode = localStorage.getItem('tw-sort') || 'added';
 
     function startDateOf(o){ const s=urlParam(o.url,'startDate'); return /^\d{4}-\d{2}-\d{2}/.test(s)?s:''; }
@@ -1037,11 +1041,15 @@
         if(activeTags.size) parts.push('Tag „'+Array.from(activeTags).map(esc).join('/')+'"');
         box.innerHTML = '<div class="empty">Keine Treffer für '+parts.join(' + ')+'.</div>'; return;
       }
-      const active = sortOffers(list2.filter(o=>!o.archived));
+      const active = sortOffers(list2.filter(o=>!o.archived && !o.history_only));
+      const hist = sortOffers(list2.filter(o=>!o.archived && o.history_only));
       const arch = sortOffers(list2.filter(o=>o.archived));
       let html = active.map(offerCard).join('');
       if(!active.length && arch.length && !showArchived){
         html = `<div class="empty">Keine aktiven Angebote — ${arch.length} im Archiv. „Archiv" oben einblenden.</div>`;
+      }
+      if(showHistOnly && hist.length){
+        html += `<div class="arch-head">📊 Preisverlauf-Tracking (${hist.length}) — nur Statistik, keine Benachrichtigungen</div>` + hist.map(offerCard).join('');
       }
       if(showArchived && arch.length){
         html += `<div class="arch-head">📦 Archiv (${arch.length}) — abgelaufene oder manuell archivierte Reisen (keine Live-Abfragen)</div>` + arch.map(offerCard).join('');
@@ -1086,7 +1094,51 @@
       await openEmailModal(ids);
     }
 
+    // Schlanke Karte für history_only-Angebote (nur Preisverlauf/Preiskalender, keine
+    // Benachrichtigungen/Buchungs-UI) — separat von offerCard(), damit die normale
+    // Karte unverändert bleibt. Archivierte history_only-Angebote laufen weiterhin
+    // über den bestehenden Archiv-Zweig in offerCard().
+    function historyOfferCard(o){
+        const hotel = o.hotel || '';
+        const title = o.label || hotel || 'TUI-Angebot #'+o.id;
+        const hasPrice = o.price!=null;
+        const priceNow = hasPrice ? eur(o.price) : (o.checking?'…':'–');
+        const stars = o.stars ? `<span class="stars">${'★'.repeat(Math.round(o.stars))}</span>` : '';
+        let statsLine = '';
+        if(o.min_price!=null && o.samples>1){
+          statsLine = `<div class="stats">Tief ${eur(o.min_price)} · Hoch ${eur(o.max_price)} · Ø ${eur(o.avg_price)}</div>`;
+        }
+        return `<div class="offer" data-id="${o.id}">
+          <div class="offer-top">
+            <div class="offer-main">
+              <div class="offer-label">${esc(title)} <button class="rename-btn" onclick="renameOffer(${o.id})" title="Umbenennen">✎</button></div>
+              ${o.location?`<a class="offer-loc" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(((o.hotel||o.label||'')+' '+o.location).trim())}" target="_blank" rel="noopener" title="In Google Maps öffnen">📍 ${esc(o.location)} ↗</a>`:''}
+              ${stars?`<div class="meta">${stars}</div>`:''}
+              ${o.ok===false?`<div class="err-note">⚠ ${esc(o.note||'Preis konnte nicht gelesen werden')}</div>`:''}
+            </div>
+            <div class="price-box">
+              <div class="price-now"${o.checking&&hasPrice?' style="opacity:.5"':''}>${priceNow}</div>
+              <div class="price-pp">pro Person</div>
+              <div>${deltaBadge(o)} ${trendBadge(o)}</div>
+              ${o.image_url?`<img class="offer-img" src="${esc(o.image_url)}" loading="lazy" alt="" onerror="this.remove()">`:''}
+            </div>
+          </div>
+          ${statsLine}
+          <div class="offer-foot">
+            <div class="when"><span class="paused-badge" title="Nur Preisverlauf-Tracking, keine Benachrichtigungen">📊 Preisverlauf</span>${o.checking?' · wird geprüft…':(' · Zuletzt: '+ago(o.last_ts))}</div>
+            <div class="offer-actions">
+              <button class="btn sec" onclick="openHistory(${o.id})">Verlauf</button>
+              <button class="btn sec${o.calendar_alert?' cal-alert':''}" onclick="openCalendar(${o.id})" title="Preis je Abreisetag (Preiskalender)">Kalender</button>
+              <button class="icon-btn" style="color:var(--red)" onclick="delOffer(${o.id})" title="Löschen">
+                <svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+              </button>
+            </div>
+          </div>
+        </div>`;
+    }
+
     function offerCard(o){
+        if(o.history_only && !o.archived) return historyOfferCard(o);
         const hotel = o.hotel || '';
         const title = o.label || hotel || 'TUI-Angebot #'+o.id;
         // Untertitel: Hotel (falls eigenes Label gesetzt) + Reise-Eckdaten
@@ -2489,6 +2541,7 @@
       const head = `<div class="srch-head"><span><b id="srch-count">${srchResults.length}</b> Treffer${(srchTotal>srchResults.length)?(' (von '+srchTotal+' in der Region)'):''}</span>
          <input type="text" id="srch-filter" class="srch-listfilter" placeholder="In Treffern suchen…" autocomplete="off" oninput="filterSearch(this.value)" value="${esc(srchFilter)}">
          <span style="flex:1"></span>Sortieren: ${sortSel}
+         <button class="btn sec" onclick="track3()" title="Günstigstes, mittleres und teuerstes Hotel aus den Treffern automatisch für den Preisverlauf tracken (keine Benachrichtigungen)">📊 3 tracken (günstig/mittel/teuer)</button>
          <button class="btn sec" onclick="trackAll()">Alle tracken</button></div>
         <div id="cmp-bar" class="cmp-foot ai-feature" style="display:none">
           <span class="hint" style="flex:1;min-width:180px"><b id="cmp-count">0</b> Hotel(s) für KI-Vergleich ausgewählt (max. 5)</span>
@@ -2548,6 +2601,20 @@
         try { await fetch(api('/api/offers'), {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({url:r.offer_url, label:r.name, image:r.image})}); r.tracked=true; } catch(e){}
       }
       toast(todo.length+' Hotels getrackt'); renderSearch(); loadOffers();
+    }
+    // Für den reinen Preisverlauf/Markttrend: günstigstes, mittleres und teuerstes
+    // Hotel aus den aktuellen Treffern automatisch tracken — als history_only (kein
+    // Zimmerauswahl-Dialog, keine Benachrichtigungen, siehe historyOfferCard()).
+    async function track3(){
+      const pool = srchResults.filter(r=>r.price!=null);
+      if(pool.length<3){ toast('Mindestens 3 Treffer mit Preis nötig'); return; }
+      const byPrice = [...pool].sort((a,b)=>a.price-b.price);
+      const picks = [byPrice[0], byPrice[Math.floor(byPrice.length/2)], byPrice[byPrice.length-1]];
+      if(!confirm('Günstigstes, mittleres und teuerstes Hotel für den Preisverlauf tracken (ohne Benachrichtigungen)?')) return;
+      for(const r of picks){
+        try { await fetch(api('/api/offers'), {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({url:r.offer_url, label:r.name, image:r.image, history_only:true})}); r.tracked=true; } catch(e){}
+      }
+      toast('3 Hotels für den Preisverlauf getrackt'); renderSearch(); loadOffers();
     }
 
     // ── KI-Hotel-Fazit & -Vergleich (Lage, Zimmer, Restaurants, Pool, Ausstattung) ─
@@ -3659,9 +3726,11 @@
       const el = $('#overview'); if(!el) return;
       offers = offers || [];
       const archived = offers.filter(o=>o.archived);
-      const active = offers.filter(o=>!o.archived);
-      // Archiv-Zähler am Umschalter
+      const histOnly = offers.filter(o=>!o.archived && o.history_only);
+      const active = offers.filter(o=>!o.archived && !o.history_only);
+      // Archiv-/Preisverlauf-Zähler an den Umschaltern
       const ac = $('#arch-count'); if(ac) ac.textContent = archived.length ? '('+archived.length+')' : '';
+      const hc = $('#hist-count'); if(hc) hc.textContent = histOnly.length ? '('+histOnly.length+')' : '';
       if(!offers.length){ el.style.display='none'; el.innerHTML=''; return; }
       const ok = active.filter(o=>o.price!=null && o.ok);
       let html = '<b>'+active.length+'</b> Angebote';
@@ -3673,6 +3742,7 @@
       }
       const paused = active.filter(o=>o.paused).length;
       if(paused) html += ' · '+paused+' pausiert';
+      if(histOnly.length) html += ' · '+histOnly.length+' im Preisverlauf-Tracking';
       if(archived.length) html += ' · '+archived.length+' archiviert';
       el.innerHTML = html; el.style.display='block';
     }
@@ -3737,6 +3807,8 @@
     $('#sort').addEventListener('change', e=>{ sortMode = e.target.value; localStorage.setItem('tw-sort', sortMode); renderAll(curOffers||[]); });
     $('#show-archived').checked = showArchived;
     $('#show-archived').addEventListener('change', e=>{ showArchived = e.target.checked; localStorage.setItem('tw-show-archived', showArchived?'1':'0'); renderAll(curOffers||[]); });
+    $('#show-histonly').checked = showHistOnly;
+    $('#show-histonly').addEventListener('change', e=>{ showHistOnly = e.target.checked; localStorage.setItem('tw-show-histonly', showHistOnly?'1':'0'); renderAll(curOffers||[]); });
 
     if('serviceWorker' in navigator){ try{ navigator.serviceWorker.register((G.base||'')+'/sw.js', {scope:(G.base||'')+'/'}); }catch(e){} }
 

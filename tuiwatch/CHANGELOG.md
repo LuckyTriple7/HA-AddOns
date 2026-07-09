@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.45.6] - 2026-07-09
+
+### Added
+- Preisverlauf-Tracking für reine Vergleichs-Hotels: in der Suche „📊 3 tracken"
+  übernimmt günstigstes, mittleres und teuerstes Hotel der Treffer automatisch
+  ins Tracking (`history_only`) — ohne Zimmerauswahl-Dialog, ohne Benachrichtigungen.
+  Diese Angebote werden nur 1×/Tag geprüft (statt im normalen `poll_interval`),
+  inklusive Preiskalender. Auf der Startseite standardmäßig ausgeblendet, per
+  neuem Umschalter „📊 Preisverlauf" einblendbar; eigene, schlanke Karte zeigt
+  nur Preis/Verlauf/Kalender. Preisbewegungen fließen normal in den Markttrend ein.
+
 ## [0.45.5] - 2026-07-09
 
 ### Fixed
