@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.4.1] - 2026-07-09
+
+### Fixed
+- Add-on beendete sich bei jedem Update/Neustart mit Exit-Code 137/143 statt
+  sauberem Stop: `Dockerfile` hat kein eigenes Init-System, App läuft als PID 1
+  im Container — ohne `init: true` ignoriert der Kernel unbehandelte Signale
+  wie SIGTERM für PID 1 (Linux-Sonderfall), Supervisor musste hart killen.
+  `init: false` → `init: true`; der bereits vorhandene SIGTERM-Handler
+  (`app.py`) greift damit jetzt zuverlässig.
+
 ## [0.4.0] - 2026-07-07
 
 ### Fixed
