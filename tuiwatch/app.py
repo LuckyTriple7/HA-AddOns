@@ -1431,7 +1431,12 @@ def check_offer(offer_id: int) -> None:
                 _maybe_notify(offer, prev_price, res.get('price'), offer.get('target_price'))
                 _clear_error_alarm(offer)
                 if load_config().get('notify_cheaper_date', True) and res.get('price'):
-                    _check_cheaper_date(offer, res['price'])
+                    # Preis geändert? Dann Kalender sofort neu abrufen statt bis zu
+                    # 7 Tage auf den nächsten TTL-Ablauf zu warten (siehe
+                    # _check_cheaper_date) — Kalender soll mit dem aktuellen Preis
+                    # Schritt halten, nicht tagealt hinterherhinken.
+                    price_changed = prev_price is not None and res['price'] != prev_price
+                    _check_cheaper_date(offer, res['price'], force_refresh=price_changed)
                 if res.get('price') and offer.get('booked_price'):
                     _check_booked_drop(offer, res['price'])
             # Hotelbild einmalig nachladen (nur wenn noch keins vorhanden)
