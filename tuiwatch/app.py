@@ -1213,11 +1213,9 @@ def _check_booked_drop(offer: dict, current_price: float) -> None:
                      f"{offer.get('url','')}")
 
 
-def _check_error_alarm(offer: dict) -> None:
-    """Meldet, wenn ein Angebot ERROR_ALARM_STREAK-mal in Folge kein Ergebnis lieferte."""
-    if not load_config().get('notify_errors', True):
-        return
-    oid = offer['id']
+def _error_streak(oid: int) -> int:
+    """Anzahl aufeinanderfolgender Fehlschläge (neuester zuerst, bricht beim ersten
+    ok=1 ab) — Basis für Auto-Pause und Fehler-Alarm."""
     with db() as con:
         rows = con.execute('SELECT ok FROM price_history WHERE offer_id=? ORDER BY ts DESC '
                            'LIMIT ?', (oid, ERROR_ALARM_STREAK)).fetchall()
@@ -1227,6 +1225,32 @@ def _check_error_alarm(offer: dict) -> None:
             streak += 1
         else:
             break
+    return streak
+
+
+def _auto_pause_on_error_streak(offer: dict, streak: int) -> None:
+    """Pausiert ein Angebot automatisch nach ERROR_ALARM_STREAK Fehlschlägen in Folge —
+    keine sinnlosen Wiederholversuche auf eine tote URL/dauerhaft ausgebuchtes Hotel.
+    Gilt für alle Angebotstypen (auch history_only), unabhängig von notify_errors."""
+    if streak < ERROR_ALARM_STREAK or offer.get('paused'):
+        return
+    oid = offer['id']
+    with db() as con:
+        con.execute('UPDATE offers SET paused=1 WHERE id=?', (oid,))
+    name = offer.get('label') or offer.get('hotel') or f"Angebot #{oid}"
+    log.warning("⏸ Angebot #%d (%s) automatisch pausiert: %d× kein Ergebnis in Folge",
+                oid, name, streak)
+    _log_event(oid, 'pause', f"Automatisch pausiert nach {streak}× fehlgeschlagenem Abruf")
+
+
+def _check_error_alarm(offer: dict) -> None:
+    """Meldet, wenn ein Angebot ERROR_ALARM_STREAK-mal in Folge kein Ergebnis lieferte,
+    und pausiert es dabei automatisch (siehe _auto_pause_on_error_streak)."""
+    oid = offer['id']
+    streak = _error_streak(oid)
+    _auto_pause_on_error_streak(offer, streak)
+    if not load_config().get('notify_errors', True):
+        return
     if streak < ERROR_ALARM_STREAK or oid in _fail_notified:
         return
     _fail_notified.add(oid)
@@ -1235,9 +1259,11 @@ def _check_error_alarm(offer: dict) -> None:
                 oid, name, streak)
     _notify_ha(f"⚠ Kein Angebot: {name}",
                f"{name}\nSeit {streak} Prüfungen kein Preis/Angebot — evtl. ausgebucht "
-               f"oder die URL ist veraltet.\n{offer.get('url','')}", f"error_{oid}")
+               f"oder die URL ist veraltet. Wurde automatisch pausiert.\n{offer.get('url','')}",
+               f"error_{oid}")
     _notify_telegram(f"⚠ <b>Kein Angebot mehr: {name}</b>\nSeit {streak} Prüfungen kein "
-                     f"Preis — evtl. ausgebucht oder URL veraltet.\n{offer.get('url','')}")
+                     f"Preis — evtl. ausgebucht oder URL veraltet. Wurde automatisch "
+                     f"pausiert.\n{offer.get('url','')}")
 
 
 def _clear_error_alarm(offer: dict) -> None:
@@ -1422,12 +1448,16 @@ def check_offer(offer_id: int) -> None:
         elif (res.get('note') or '').startswith('Kein Angebot'):
             # kein Crash, sondern ausgebucht/kein Treffer im Zeitraum → gelb
             log.warning("Angebot #%d (%s): kein Angebot im Zeitraum", offer_id, name)
-            if not offer.get('history_only'):
+            if offer.get('history_only'):
+                _auto_pause_on_error_streak(offer, _error_streak(offer_id))
+            else:
                 _check_error_alarm(offer)
         else:
             # echter Abruf-Fehler → rot (Detail steht ggf. schon oben im Log)
             log.error("Angebot #%d (%s): Abruf fehlgeschlagen – %s", offer_id, name, res.get('note'))
-            if not offer.get('history_only'):
+            if offer.get('history_only'):
+                _auto_pause_on_error_streak(offer, _error_streak(offer_id))
+            else:
                 _check_error_alarm(offer)
     except Exception as e:
         log.error("check_offer(#%d) Fehler: %s", offer_id, e)
