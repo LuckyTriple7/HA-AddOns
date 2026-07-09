@@ -47,7 +47,8 @@
       ratón, desplazamiento táctil (iPad) y copiar/pegar normal funcionan como
       siempre. "tmux": la rueda del ratón desplaza el historial de tmux
       (sobrevive a recargas del navegador), pero sin desplazamiento táctil y
-      el copiado se hace via tmux. Predeterminado: browser.
+      el copiado se hace via tmux. Si la entrada parece bloqueada, pulsa q
+      (sale del modo copia). Predeterminado: browser.
   auto_update_claude:
     name: Actualización Automática de Claude Code
     description: >-

@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.6] - 2026-07-09
+
+### Changed
+- Doku (DE/EN) und Options-Beschreibungen: Hinweis auf tmux-Copy-Mode-Falle im `tmux`-Scroll-Modus — erstes Scrollen öffnet Copy-Mode, Eingabe wirkt blockiert, `q` verlässt ihn
+
 ## [1.1.5] - 2026-07-09
 
 ### Fixed

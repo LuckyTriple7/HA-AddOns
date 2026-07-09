@@ -47,7 +47,8 @@
       mouse, rolagem por toque (iPad) e copiar/colar normal funcionam como de
       costume. "tmux": a roda do mouse rola pelo histórico do tmux (sobrevive
       a recarregamentos do navegador), mas sem rolagem por toque e a cópia é
-      feita via tmux. Padrão: browser.
+      feita via tmux. Se a entrada parecer bloqueada, pressione q (sai do
+      modo cópia). Padrão: browser.
   auto_update_claude:
     name: Atualização Automática do Claude Code
     description: >-

@@ -72,6 +72,8 @@ Das Terminal verwendet tmux für persistente Sessions. Das Scroll-Verhalten steu
 
 **`tmux`:** Das Mausrad scrollt direkt durch die tmux-Historie (Copy-Mode), die Browser-Reloads überlebt. Dafür kein Touch-Scrollen; Kopieren läuft über die tmux-Selektion.
 
+> ⚠️ **Eingabe scheint tot?** Im `tmux`-Modus öffnet das erste Scrollen (Mausrad/Wisch) den Copy-Mode — Tastatureingaben gehen dann an den Copy-Mode statt an die Shell. Erkennbar am gelben Zähler oben rechts (z. B. `[0/1234]`). Mit **`q`** verlassen, dann funktioniert die Eingabe wieder.
+
 | Aktion | Tastenkombination |
 |--------|-------------------|
 | Text kopieren | `Ctrl+Shift` halten + Maus markieren |
@@ -160,6 +162,8 @@ The terminal uses tmux for persistent sessions. Scroll behavior is controlled by
 **`browser` (default):** Output flows into the native browser scrollback (up to 20000 lines). Mouse wheel, touch scrolling (e.g. iPad) and normal select/copy work like in any terminal. After a browser reload only the visible screen remains — reach older history via tmux copy mode: `Ctrl+b [`, then PageUp/arrow keys, `q` to exit.
 
 **`tmux`:** The mouse wheel scrolls directly through the tmux history (copy mode), which survives browser reloads. Touch scrolling is unavailable; copying goes through the tmux selection.
+
+> ⚠️ **Input seems dead?** In `tmux` mode the first scroll (mouse wheel/swipe) opens copy mode — keystrokes then go to copy mode instead of the shell. You can tell by the yellow counter in the top-right corner (e.g. `[0/1234]`). Press **`q`** to exit, and input works again.
 
 | Action | Key combination |
 |--------|-----------------|
