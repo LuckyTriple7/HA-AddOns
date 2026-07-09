@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.2.18] - 2026-07-09
+
+### Geändert
+- Rebuild für FileBrowser null
+
+
 ## [1.2.17] - 2026-07-04
 
 ### Geändert
