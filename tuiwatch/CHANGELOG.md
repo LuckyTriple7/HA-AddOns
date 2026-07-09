@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.45.4] - 2026-07-09
+
+### Fixed
+- Add-on beendete sich bei jedem Update/Neustart mit Exit-Code 137 (SIGKILL statt
+  sauberem Stop). Ursache: `Dockerfile` basiert auf reinem `debian:bookworm-slim`
+  ohne eigenes Init-System, `run.sh` macht den Flask-Prozess per `exec` zu PID 1 —
+  ohne eigenen Signal-Handler ignoriert der Kernel bei PID 1 unbehandelte Signale
+  wie SIGTERM (Linux-Sonderfall), der Supervisor musste nach Timeout hart killen.
+  `init: false` → `init: true` in `config.yaml`: HA Supervisor stellt jetzt ein
+  Mini-Init als echte PID 1, das Signale korrekt durchreicht.
+
 ## [0.45.3] - 2026-07-09
 
 ### Changed
