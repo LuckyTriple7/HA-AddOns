@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.3] - 2026-07-09
+
+### Changed
+- Startphase auf `startup: system` vorgezogen — LogPulse startet jetzt vor
+  HA Core (wie Datenbank-Add-ons) und erfasst Live-Logs schon während des
+  Core-Starts
+
 ## [0.6.2] - 2026-07-09
 
 ### Fixed
