@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.45.5] - 2026-07-09
+
+### Fixed
+- `init: true` (0.45.4) allein reichte nicht: Supervisor konnte SIGTERM jetzt
+  zwar zustellen, Python hatte aber keinen eigenen Handler → Default-Handler
+  killt den Prozess (exit 143), Supervisor beschwert sich zu Recht ("should
+  trap SIGTERM ... exit with code 0"). Eigener `SIGTERM`-Handler ergänzt
+  (`os._exit(0)` — alle Hintergrund-Threads sind daemon, kein Cleanup nötig).
+  Live verifiziert: sauberer Exit-Code 0.
+
 ## [0.45.4] - 2026-07-09
 
 ### Fixed

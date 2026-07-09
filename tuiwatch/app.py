@@ -13,6 +13,7 @@ import logging
 import os
 import re
 import secrets
+import signal
 import smtplib
 import sqlite3
 import threading
@@ -73,7 +74,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.45.4"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.45.5"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -6481,7 +6482,19 @@ def _market_trend_sensor_worker() -> None:
         time.sleep(600)
 
 
+def _handle_sigterm(signum, frame) -> None:
+    """Sauberer Exit bei SIGTERM (HA-Supervisor-Stop/Update) — ohne eigenen Handler
+    würde Python den Default-Handler laufen lassen (exit 143), worüber sich der
+    Supervisor beschwert ("should trap SIGTERM ... exit with code 0"). Alle
+    Hintergrund-Threads sind daemon=True (siehe main()), ein harter os._exit(0)
+    ist daher sicher — kein offener State, der noch geflusht werden müsste
+    (DB-Schreibzugriffe committen bereits pro `with db() as con:`-Block)."""
+    log.info("SIGTERM empfangen, beende sauber…")
+    os._exit(0)
+
+
 def main() -> None:
+    signal.signal(signal.SIGTERM, _handle_sigterm)
     init_db()
     load_sessions()
     _spawn(push_ha_sensors)  # vorhandene Preise sofort als Sensoren melden
