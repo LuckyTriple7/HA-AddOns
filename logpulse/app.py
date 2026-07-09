@@ -241,22 +241,25 @@ def init_db() -> None:
         conn.execute("CREATE INDEX IF NOT EXISTS idx_log_container ON log_entries(container)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_log_level ON log_entries(level)")
         conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_log_cursor ON log_entries(cursor)")
-        conn.execute("""
-            CREATE VIRTUAL TABLE IF NOT EXISTS log_fts USING fts5(
-                message, content='log_entries', content_rowid='id'
-            )
-        """)
-        conn.execute("""
-            CREATE TRIGGER IF NOT EXISTS log_entries_ai AFTER INSERT ON log_entries BEGIN
-                INSERT INTO log_fts(rowid, message) VALUES (new.id, new.message);
-            END
-        """)
-        conn.execute("""
-            CREATE TRIGGER IF NOT EXISTS log_entries_ad AFTER DELETE ON log_entries BEGIN
-                INSERT INTO log_fts(log_fts, rowid, message) VALUES('delete', old.id, old.message);
-            END
-        """)
         conn.commit()
+
+        # Migration: log_fts (FTS5) + Insert/Delete-Trigger stammen aus v0.1.0,
+        # seit v0.3.4 wird nur noch mit LIKE gesucht. Die Trigger liefen aber
+        # bei jedem Log-Insert/-Delete unbemerkt weiter mit — doppelte
+        # Schreiblast pro Zeile, FTS5-Segment-Merges wurden mit wachsender
+        # DB immer teurer (CPU stieg mit der Laufzeit). Alte Installationen
+        # einmalig bereinigen.
+        has_fts = conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='log_fts'"
+        ).fetchone()
+        if has_fts:
+            conn.execute("DROP TRIGGER IF EXISTS log_entries_ai")
+            conn.execute("DROP TRIGGER IF EXISTS log_entries_ad")
+            conn.execute("DROP TABLE IF EXISTS log_fts")
+            conn.commit()
+            conn.execute("VACUUM")
+            conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+            log.info("Migration: veraltete FTS5-Tabelle log_fts entfernt (Altlast aus v0.1.0)")
 
 
 def notify_new() -> None:

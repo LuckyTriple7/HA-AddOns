@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.5.1] - 2026-07-09
+
+- Fix: hohe, mit der Laufzeit steigende CPU-Last. Ursache: die FTS5-Tabelle `log_fts` samt Insert-/Delete-Trigger aus v0.1.0 lief unbemerkt weiter, obwohl die Suche seit v0.3.4 nur noch `LIKE` nutzt — jede Log-Zeile wurde zusätzlich in FTS5-Segmente geschrieben, deren Merge-Kosten mit der DB-Größe wuchsen. Tabelle + Trigger entfernt, bestehende Datenbanken werden beim Start automatisch migriert (Trigger/Tabelle gedroppt, `VACUUM` + `wal_checkpoint(TRUNCATE)` geben den belegten Platz sofort zurück)
+
 ## [0.5.0] - 2026-07-08
 
 - Offline-Banner ergänzt (wie TUIWatch/SysWatch): nach 3 gescheiterten Polls oder `navigator.onLine=false` erscheint Verbindungs-Overlay mit Reload-Button
