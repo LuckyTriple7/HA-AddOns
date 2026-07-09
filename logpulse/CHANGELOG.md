@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.6.1] - 2026-07-09
+
+### Fixed
+- Add-on beendete sich bei jedem Stop/Update mit Exit-Code 137 (SIGKILL statt
+  sauberem Stop). Ursache: `Dockerfile` basiert auf reinem `debian:bookworm-slim`
+  ohne eigenes Init-System, `run.sh` macht den Flask-Prozess per `exec` zu PID 1 —
+  ohne eigenen Signal-Handler ignoriert der Kernel bei PID 1 unbehandelte Signale
+  wie SIGTERM (Linux-Sonderfall), der Supervisor musste nach Timeout hart killen.
+  `init: false` → `init: true` in `config.yaml` (Supervisor stellt jetzt ein
+  Mini-Init als echte PID 1) plus eigener `SIGTERM`-Handler in `app.py`
+  (`os._exit(0)` — alle Hintergrund-Threads sind daemon, kein Cleanup nötig).
+
 ## [0.6.0] - 2026-07-09
 
 - Neue Option `min_level` (DEBUG/INFO/WARNING/ERROR): nur Einträge ab diesem Level werden noch gespeichert, Rest wird direkt beim Ingest verworfen. Reduziert DB-Wachstum und Last bei hohem Log-Volumen, Standard bleibt DEBUG (unverändertes Verhalten)

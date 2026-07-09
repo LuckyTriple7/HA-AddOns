@@ -4,6 +4,7 @@ import logging
 import os
 import queue
 import secrets
+import signal
 import sqlite3
 import threading
 import time
@@ -693,7 +694,19 @@ def _resolve_addon_name_wrapper(container):
     return resolve_addon_name(container)
 
 
+def _handle_sigterm(signum, frame) -> None:
+    """Sauberer Exit bei SIGTERM (HA-Supervisor-Stop/Update) — ohne eigenen Handler
+    würde Python den Default-Handler laufen lassen (exit 143), worüber sich der
+    Supervisor beschwert ("should trap SIGTERM ... exit with code 0"). Alle
+    Hintergrund-Threads sind daemon=True (siehe main()), ein harter os._exit(0)
+    ist daher sicher — kein offener State, der noch geflusht werden müsste
+    (DB-Schreibzugriffe committen bereits pro Block, siehe get_conn())."""
+    log.info("SIGTERM empfangen, beende sauber…")
+    os._exit(0)
+
+
 def main():
+    signal.signal(signal.SIGTERM, _handle_sigterm)
     load_sessions()
     init_db()
     cfg = load_config()
