@@ -410,14 +410,18 @@ function onSearchInput(){
   }, 300);
 }
 
-function levelClass(l){ return 'log-' + (l || 'INFO'); }
+// Whitelist statt String-Konkatenation: e.level landet direkt (unquotiert) in
+// einem class="..."-Attribut (siehe renderLogLine) — ohne diese Absicherung
+// könnte ein Log-Level mit einem " darin aus dem Attribut ausbrechen.
+const LEVEL_CLASSES = new Set(['DEBUG','INFO','NOTICE','WARN','WARNING','ERROR','CRITICAL']);
+function levelClass(l){ const u=(l||'').toUpperCase(); return 'log-' + (LEVEL_CLASSES.has(u) ? u : 'INFO'); }
 
 function renderLogLine(e){
   const div = document.createElement('div');
   div.className = 'log-line';
   const ts = new Date(e.ts*1000).toLocaleTimeString();
   const src = e.addon_name || e.container || e.source;
-  div.innerHTML = `<span class="log-ts">${ts}</span><span class="log-lvl ${levelClass(e.level)}">[${e.level}]</span><span class="log-src">${escapeHtml(src||'')}</span><span class="log-msg">${escapeHtml(e.message)}</span>`;
+  div.innerHTML = `<span class="log-ts">${ts}</span><span class="log-lvl ${levelClass(e.level)}">[${escapeHtml(e.level)}]</span><span class="log-src">${escapeHtml(src||'')}</span><span class="log-msg">${escapeHtml(e.message)}</span>`;
   return div;
 }
 
@@ -684,7 +688,7 @@ function renderSavedFilters(){
     <div class="item-row">
       <div class="item-main" style="cursor:pointer" onclick="applySavedFilter(${i})">
         <div>${escapeHtml(f.name)}</div>
-        <div class="item-meta">${f.levels.join(', ')}${f.source ? ' · '+f.source : ''}${f.q ? ' · "'+escapeHtml(f.q)+'"' : ''}</div>
+        <div class="item-meta">${escapeHtml(f.levels.join(', '))}${f.source ? ' · '+escapeHtml(f.source) : ''}${f.q ? ' · "'+escapeHtml(f.q)+'"' : ''}</div>
       </div>
       <button class="con-btn" onclick="deleteSavedFilter(${i})">${T.btn_delete}</button>
     </div>`).join('');

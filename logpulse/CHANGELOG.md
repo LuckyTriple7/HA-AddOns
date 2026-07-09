@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.6.4] - 2026-07-09
+
+### Fixed
+- CodeQL-Funde behoben: `/set-lang/<lang>` setzte den Sprach-Cookie mit dem
+  Pfad-Parameter statt einem geprüften Literal (Allowlist war zwar schon da,
+  jetzt auch für statische Analyse eindeutig sichtbar). Im Frontend konnte ein
+  Log-Level mit `"` darin aus dem `class="..."`-Attribut ausbrechen
+  (`levelClass()` jetzt mit fester Whitelist statt freier String-Konkatenation)
+  und `f.source`/`f.levels` bei gespeicherten Filtern landeten ungeescaped im
+  DOM — beide jetzt über `escapeHtml()`.
+
 ## [0.6.3] - 2026-07-09
 
 ### Changed
