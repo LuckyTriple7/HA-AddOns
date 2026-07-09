@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.46.0] - 2026-07-09
+
+### Changed
+- Preisverlauf-Angebote (`history_only`) laufen jetzt in einem festen, gestreuten
+  Tages-Slot (09:00 lokal + individueller Offset je Angebot) statt "24h nach
+  letztem Check" — kein Burst mehr, alle zur gleichen Zeit.
+- Ort des Suchtreffers wird beim Tracken (normal, „Alle tracken", „3 tracken")
+  automatisch als Tag gesetzt.
+- Preisverlauf-Toggle auf der Startseite ist jetzt exklusiv (zeigt nur diese
+  Angebote, statt sie an die normale Liste anzuhängen); Toggle-Leiste bereinigt.
+
+### Added
+- Bei fehlgeschlagenem Preis-Abruf zeigt die Karte jetzt den letzten bekannten
+  Preis durchgestrichen statt nur einen Strich.
+- Angebote werden nach 3 Fehlschlägen in Folge automatisch pausiert (statt nur
+  benachrichtigt) — spart sinnlose Wiederholversuche auf tote URLs/dauerhaft
+  ausgebuchte Hotels. Gilt auch für history_only, dort ohne Benachrichtigung.
+
+### Fixed
+- Tag-Chips fehlten in der schlanken Preisverlauf-Karte (Tag war gesetzt, nur
+  unsichtbar) — TUI-Link fehlte dort ebenfalls und wurde ergänzt.
+
 ## [0.45.6] - 2026-07-09
 
 ### Added
