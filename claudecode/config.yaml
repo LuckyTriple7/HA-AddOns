@@ -1,6 +1,6 @@
 ﻿name: Claude Code
 description: KI-Coding-Assistent Claude Code direkt in Home Assistant – Automationen erstellen, Konfiguration verwalten und Fehler beheben
-version: "1.1.4"
+version: "1.1.5"
 image: "ghcr.io/luckytriple7/claudecode"
 slug: claudecode
 url: https://github.com/LuckyTriple7/HA-AddOns
@@ -37,6 +37,7 @@ options:
   terminal_theme: dark
   working_directory: /homeassistant
   session_persistence: true
+  tmux_scroll_mode: browser
   claude_autostart: false
   auto_update_claude: true
   notify_on_update: true
@@ -52,6 +53,7 @@ schema:
   terminal_theme: list(dark|light)
   working_directory: str
   session_persistence: bool
+  tmux_scroll_mode: list(browser|tmux)
   claude_autostart: bool
   auto_update_claude: bool
   notify_on_update: bool

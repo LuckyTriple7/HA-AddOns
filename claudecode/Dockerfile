@@ -106,9 +106,8 @@ RUN cat > /root/.tmux.conf << 'EOF'
 set -g history-limit 20000
 # Use primary screen (not alternate) so xterm.js owns the scrollback buffer
 set -ga terminal-overrides ',xterm*:smcup@:rmcup@'
-# Mouse off: browser/xterm.js handles scrolling and copy/paste natively
-# This fixes touch scrolling on iPad and standard copy/paste on all devices
-set -g mouse off
+# Mouse/status settings are written by run.sh based on the tmux_scroll_mode option
+source-file -q /root/.tmux-runtime.conf
 EOF
 
 # Configure bash with aliases and prompt

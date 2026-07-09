@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.1.5] - 2026-07-09
+
+### Fixed
+- Web-Terminal-Scrollback: Die tmux-Statuszeile ließ tmux in einer Scroll-Region (DECSTBM) scrollen, wodurch gescrollte Zeilen nie das Browser-Scrollback erreichten — nur wenige Zeilen waren scrollbar (#162)
+
+### Added
+- Neue Option `tmux_scroll_mode` (`browser`|`tmux`, Standard: `browser`): `browser` = natives Browser-Scrollen, Touch (iPad) und normales Kopieren/Einfügen; `tmux` = Mausrad scrollt tmux-Historie, überlebt Browser-Reloads
+
 ## [1.1.4] - 2026-07-09
 
 ### Changed

@@ -26,6 +26,7 @@ claude --continue   # letzte Unterhaltung fortsetzen
 | `terminal_font_size` | `14` | Schriftgröße im Terminal (10–24) |
 | `terminal_theme` | `dark` | Terminal-Theme: `dark` oder `light` |
 | `session_persistence` | `true` | tmux verwenden — Session überlebt Browser-Reload |
+| `tmux_scroll_mode` | `browser` | Scroll-Verhalten mit tmux: `browser` (natives Scrollen/Touch/Copy-Paste) oder `tmux` (Mausrad scrollt tmux-Historie) |
 | `claude_autostart` | `false` | Claude beim Öffnen des Terminals automatisch starten |
 | `auto_update_claude` | `true` | Claude Code beim Start automatisch aktualisieren |
 | `model` | `claude-sonnet-4-6` | Zu verwendendes Claude-Modell |
@@ -63,15 +64,22 @@ claude --continue   # letzte Unterhaltung fortsetzen
 | `/ssl` | SSL-Zertifikate (Nur Lesen) |
 | `/backup` | Backups (Nur Lesen) |
 
-## tmux — Kopieren & Einfügen
+## tmux — Scrollen, Kopieren & Einfügen
 
-Das Terminal verwendet tmux für persistente Sessions. Kopieren/Einfügen funktioniert etwas anders:
+Das Terminal verwendet tmux für persistente Sessions. Das Scroll-Verhalten steuert die Option `tmux_scroll_mode`:
+
+**`browser` (Standard):** Ausgaben landen im nativen Browser-Scrollback (bis 20000 Zeilen). Mausrad, Touch-Scrollen (z. B. iPad) und normales Markieren/Kopieren funktionieren wie in jedem Terminal. Nach einem Browser-Reload ist nur der sichtbare Bildschirm da — ältere Historie über den tmux-Copy-Mode: `Ctrl+b [`, dann PageUp/Pfeiltasten, `q` zum Verlassen.
+
+**`tmux`:** Das Mausrad scrollt direkt durch die tmux-Historie (Copy-Mode), die Browser-Reloads überlebt. Dafür kein Touch-Scrollen; Kopieren läuft über die tmux-Selektion.
 
 | Aktion | Tastenkombination |
 |--------|-------------------|
 | Text kopieren | `Ctrl+Shift` halten + Maus markieren |
 | Einfügen | `Shift+Einfg` oder mittlere Maustaste |
-| Scroll-Modus verlassen | `q` |
+| Copy-Mode (ältere Historie) | `Ctrl+b [` — PageUp/Pfeiltasten |
+| Scroll-/Copy-Mode verlassen | `q` |
+
+Wer gar kein tmux möchte: `session_persistence: false` startet eine reine Bash — natives Scrollen und Kopieren ohne Einschränkungen, aber die Session überlebt keinen Browser-Reload.
 
 ## Update-Benachrichtigungen
 
@@ -107,6 +115,7 @@ claude --continue   # continue last conversation
 | `terminal_font_size` | `14` | Terminal font size (10–24) |
 | `terminal_theme` | `dark` | Terminal theme: `dark` or `light` |
 | `session_persistence` | `true` | Use tmux — session survives browser reload |
+| `tmux_scroll_mode` | `browser` | Scroll behavior with tmux: `browser` (native scrolling/touch/copy-paste) or `tmux` (mouse wheel scrolls tmux history) |
 | `claude_autostart` | `false` | Auto-start Claude when the terminal opens |
 | `auto_update_claude` | `true` | Auto-update Claude Code on startup |
 | `model` | `claude-sonnet-4-6` | Claude model to use |
@@ -144,15 +153,22 @@ claude --continue   # continue last conversation
 | `/ssl` | SSL certificates (read-only) |
 | `/backup` | Backups (read-only) |
 
-## tmux — Copy & Paste
+## tmux — Scrolling, Copy & Paste
 
-The terminal uses tmux for persistent sessions. Copy/paste works slightly differently:
+The terminal uses tmux for persistent sessions. Scroll behavior is controlled by the `tmux_scroll_mode` option:
+
+**`browser` (default):** Output flows into the native browser scrollback (up to 20000 lines). Mouse wheel, touch scrolling (e.g. iPad) and normal select/copy work like in any terminal. After a browser reload only the visible screen remains — reach older history via tmux copy mode: `Ctrl+b [`, then PageUp/arrow keys, `q` to exit.
+
+**`tmux`:** The mouse wheel scrolls directly through the tmux history (copy mode), which survives browser reloads. Touch scrolling is unavailable; copying goes through the tmux selection.
 
 | Action | Key combination |
 |--------|-----------------|
 | Copy text | Hold `Ctrl+Shift` + select with mouse |
 | Paste | `Shift+Insert` or middle-click |
-| Exit scroll mode | `q` |
+| Copy mode (older history) | `Ctrl+b [` — PageUp/arrow keys |
+| Exit scroll/copy mode | `q` |
+
+If you don't want tmux at all: `session_persistence: false` starts plain bash — native scrolling and copying without restrictions, but the session does not survive a browser reload.
 
 ## Update Notifications
 

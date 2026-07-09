@@ -95,6 +95,7 @@ fi
 FONT_SIZE=$(jq -r '.terminal_font_size // 14' /data/options.json)
 THEME=$(jq -r --arg d dark '.terminal_theme // $d' /data/options.json)
 SESSION_PERSIST=$(jq -r 'if .session_persistence == false then "false" else "true" end' /data/options.json)
+TMUX_SCROLL=$(jq -r --arg d browser '.tmux_scroll_mode // $d' /data/options.json)
 CLAUDE_AUTOSTART=$(jq -r '.claude_autostart // false' /data/options.json)
 ENABLE_MCP=$(jq -r 'if .enable_mcp == false then "false" else "true" end' /data/options.json)
 ENABLE_PLAYWRIGHT=$(jq -r '.enable_playwright_mcp // false' /data/options.json)
@@ -115,6 +116,7 @@ echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] playwright_cdp_host    : ${PLAYWRIGH
 echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] terminal_font_size     : $FONT_SIZE"
 echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] terminal_theme         : $THEME"
 echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] session_persistence    : $SESSION_PERSIST"
+echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] tmux_scroll_mode       : $TMUX_SCROLL"
 echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] claude_autostart       : $CLAUDE_AUTOSTART"
 echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] auto_update_claude     : $AUTO_UPDATE"
 echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] notify_on_update       : $NOTIFY_ON_UPDATE"
@@ -253,6 +255,17 @@ if [ "$ENABLE_PLAYWRIGHT" = "true" ]; then
     echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Make sure the Playwright Browser add-on is installed and running"
 else
     echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Playwright MCP disabled"
+fi
+
+# Write tmux runtime config based on scroll mode (sourced by /root/.tmux.conf)
+if [ "$TMUX_SCROLL" = "tmux" ]; then
+    # Mouse on: wheel scrolls tmux copy-mode through the full 20000-line history,
+    # survives browser reloads; native touch scroll and copy/paste are unavailable
+    printf 'set -g mouse on\nset -g status on\n' > /root/.tmux-runtime.conf
+else
+    # Status off: with a status line tmux scrolls inside a DECSTBM region,
+    # which never reaches the xterm.js scrollback buffer (issue #162)
+    printf 'set -g mouse off\nset -g status off\n' > /root/.tmux-runtime.conf
 fi
 
 # Set terminal colors based on theme
