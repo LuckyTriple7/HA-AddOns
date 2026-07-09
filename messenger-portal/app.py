@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import secrets
+import signal
 import socket
 import subprocess
 import time
@@ -456,6 +457,19 @@ def set_lang(lang: str):
     return resp
 
 
+def _handle_sigterm(signum, frame) -> None:
+    """Sauberer Exit bei SIGTERM (HA-Supervisor-Stop/Update) — ohne eigenen Handler
+    würde Python den Default-Handler laufen lassen (exit 143), worüber sich der
+    Supervisor beschwert ("should trap SIGTERM ... exit with code 0"). Diese App
+    startet keine Hintergrund-Threads (Flask läuft single-threaded, das
+    Status-Polling passiert clientseitig per JS gegen /status) und Sessions
+    werden bei jeder Änderung bereits synchron über save_sessions() persistiert
+    — ein harter os._exit(0) ist daher sicher, es gibt keinen offenen State."""
+    log.info("SIGTERM empfangen, beende sauber…")
+    os._exit(0)
+
+
 if __name__ == '__main__':
+    signal.signal(signal.SIGTERM, _handle_sigterm)
     # Flask läuft intern auf 5000; nginx lauscht auf 17770 und proxyt dorthin
     app.run(host='127.0.0.1', port=5000, debug=False)

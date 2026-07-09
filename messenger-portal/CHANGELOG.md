@@ -1,5 +1,10 @@
 # Changelog – MessengerPortal
 
+## [1.2.10] - 2026-07-09
+
+### Fixed
+- Add-on beendete sich bei jedem Stop/Update mit Exit-Code 137 (SIGKILL statt sauberem Stop): `run.sh` macht den Flask-Prozess per `exec` zu PID 1, ohne eigenes Init-System ignoriert der Kernel bei PID 1 unbehandelte Signale wie SIGTERM (Linux-Sonderfall), der Supervisor musste nach Timeout hart killen. `init: false` → `init: true` in `config.yaml` (HA Supervisor stellt jetzt ein Mini-Init als echte PID 1) plus eigener `SIGTERM`-Handler in `app.py` (`os._exit(0)` — keine Hintergrund-Threads, Sessions werden bereits synchron gespeichert, kein Cleanup nötig) sorgen jetzt für einen sauberen Exit-Code 0.
+
 ## [1.2.9] - 2026-07-07
 
 ### Fixed
