@@ -1,5 +1,430 @@
 # Changelog
 
+## [0.45.5] - 2026-07-09
+
+### Fixed
+- `init: true` (0.45.4) allein reichte nicht: Supervisor konnte SIGTERM jetzt
+  zwar zustellen, Python hatte aber keinen eigenen Handler → Default-Handler
+  killt den Prozess (exit 143), Supervisor beschwert sich zu Recht ("should
+  trap SIGTERM ... exit with code 0"). Eigener `SIGTERM`-Handler ergänzt
+  (`os._exit(0)` — alle Hintergrund-Threads sind daemon, kein Cleanup nötig).
+  Live verifiziert: sauberer Exit-Code 0.
+
+## [0.45.4] - 2026-07-09
+
+### Fixed
+- Add-on beendete sich bei jedem Update/Neustart mit Exit-Code 137 (SIGKILL statt
+  sauberem Stop). Ursache: `Dockerfile` basiert auf reinem `debian:bookworm-slim`
+  ohne eigenes Init-System, `run.sh` macht den Flask-Prozess per `exec` zu PID 1 —
+  ohne eigenen Signal-Handler ignoriert der Kernel bei PID 1 unbehandelte Signale
+  wie SIGTERM (Linux-Sonderfall), der Supervisor musste nach Timeout hart killen.
+  `init: false` → `init: true` in `config.yaml`: HA Supervisor stellt jetzt ein
+  Mini-Init als echte PID 1, das Signale korrekt durchreicht.
+
+## [0.45.3] - 2026-07-09
+
+### Changed
+- HA-Sensoren melden bei fehlendem Preis/zu wenig Daten jetzt `unknown` statt
+  `unavailable` (Angebots-Sensor, Übersicht, Markttrend) — `unavailable` ist in
+  Home-Assistant-Konvention für einen kaputten/nicht erreichbaren Sensor
+  reserviert, hier ist der Sensor ja da, nur (noch) kein Wert bekannt.
+
+## [0.45.2] - 2026-07-08
+
+### Fixed
+- Hotelsuche mit Startdatum in der Vergangenheit (z. B. stehengebliebenes altes
+  Datum im Suchformular) führte zu TUIs nichtssagendem HTTP 500 statt einer
+  brauchbaren Fehlermeldung — wird jetzt vorher client- und serverseitig
+  abgefangen (klare deutsche Meldung, kein unnötiger API-Call an TUI).
+
+### Added
+- „Heute"-Button neben dem Startdatum in der Suchmaske, springt aufs aktuelle
+  Datum. Datumsfelder erlauben jetzt auch im Browser-Picker kein Datum in der
+  Vergangenheit mehr (`min`-Attribut).
+
+## [0.45.1] - 2026-07-08
+
+### Fixed
+- Code-Review-Nachbesserungen (Robustheit, keine funktionalen Nutzer-Änderungen):
+  - 4 Stellen mit ungeschütztem `json.loads()` auf DB-Feldern (Vergleich-/Nächte-/
+    Kalender-Cache, Angebots-Tags) crashen bei kaputten Daten nicht mehr, sondern
+    fallen sauber zurück (neuer Helper `_json_loads_safe`).
+  - `_ai_summary_cache`/`_booking_score_cache` jetzt mit Lock geschützt (bisher
+    einzige In-Memory-Caches ohne Lock) — verhindert, dass zwei gleichzeitige
+    Anfragen fürs gleiche Angebot je einen unnötigen bezahlten KI-Call auslösen.
+  - Bisher stillschweigend verschluckte Fehler (`load_config()`, `hotel_from_url()`,
+    `travellers_from_url()`, Start-Benachrichtigung) werden jetzt geloggt.
+  - `POST /api/rooms/<id>` validiert den Zimmercode jetzt (kurzes alphanumerisches
+    Format statt beliebiger String).
+
+## [0.45.0] - 2026-07-08
+
+### Added
+- **KI-Verlauf: Anfrage wiederholen** — neuer 🔁-Button je Verlaufseintrag, fragt mit
+  welcher KI (Claude oder Gemini) erneut angefragt werden soll und speichert das
+  Ergebnis als neuen Verlaufseintrag (Original bleibt erhalten). Dafür wird ab jetzt
+  der exakte Prompt-Text jeder KI-Analyse mitgespeichert (`ai_analyses.prompt`,
+  neue Spalte) — ältere, vor diesem Update gespeicherte Einträge haben keinen Prompt
+  und zeigen daher keinen 🔁-Button.
+
+## [0.44.6] - 2026-07-08
+
+### Changed
+- Tracken eines Hotels aus der Suche startet die erste Preisprüfung nicht mehr
+  sofort, sondern erst NACH der Zimmerauswahl (explizite Wahl oder Schließen des
+  Dialogs = ursprüngliches Zimmer aus der Suche). Bisher wurde sofort mit dem
+  ggf. falschen Zimmer aus dem Suchergebnis getrackt, noch bevor der Nutzer im
+  Zimmerauswahl-Dialog wählen konnte. Betrifft nur den Einzeltrack-Button in der
+  Suche — "Alle tracken" und das Tracken einzelner Kalendertage starten weiterhin
+  sofort (kein Zimmerauswahl-Schritt dort).
+
+## [0.44.5] - 2026-07-08
+
+### Added
+- Detail-Logging für Kalender-Preisänderungen bei aktiviertem `verbose_log`: loggt
+  intern (nicht in der Benachrichtigung) exakt welche Reisedaten sich wie geändert
+  haben, inkl. Warnung, falls ein als "geändert" gemeldetes Datum keine 2-Punkt-
+  Historie mehr hat — zur Diagnose von Fällen, in denen die Meldung nicht mit dem
+  im Kalender sichtbaren Preisverlauf übereinstimmt.
+
+## [0.44.4] - 2026-07-08
+
+### Added
+- Neue Option `calendar_trend_min_diff` (Standard 20 €): Mindest-Preisänderung pro
+  Reisedatum, ab der `notify_calendar_trend` benachrichtigt. Bisher löste jede noch
+  so kleine Änderung (z. B. 10 € bei 2000+ € Reisepreis) sofort HA/Telegram aus —
+  die Kalender-Trend-Ansicht selbst zeigt weiterhin jede Änderung, nur die
+  Benachrichtigung wird jetzt gefiltert. 0 = Schwelle aus (altes Verhalten).
+
+## [0.44.3] - 2026-07-08
+
+### Fixed
+- TripPilot Tagesausflug-Modus lieferte im KI-Prompt einen irrelevanten Hinweis
+  zu „Pauschalreise (TUI)" und Flügen (Copy-Paste-Rest aus dem regulären
+  Reiseberater-Block) — ein Tagesausflug hat weder Flug noch Pauschalreise.
+  Klausel gilt jetzt nur noch für den regulären Reiseberater mit eigener
+  Anreise (Auto/Bus/Bahn).
+
+## [0.44.2] - 2026-07-07
+
+### Added
+- Retry-Button bei fehlgeschlagenen KI-Anfragen (Buchungsscore, Region-Ausblick,
+  Kalender-Analyse, KI-Fazit, KI-Vergleich, Portfolio-Frage, TripPilot): transiente
+  Fehler (z. B. 503 UNAVAILABLE bei hoher Last, egal ob Claude oder Gemini) zeigen
+  jetzt „🔄 Erneut versuchen" statt nur eine tote Fehlermeldung. Bei
+  Validierungsfehlern (z. B. „kein API-Key", „keine Daten") erscheint bewusst kein
+  Retry-Button, da Wiederholen ohne Änderung nichts bringt.
+
+## [0.44.1] - 2026-07-07
+
+### Changed
+- „Schwelle für Markttrend"-Option war ans Ende der HA-Add-on-Einstellungen sortiert
+  (thematisch falsch platziert) — jetzt direkt neben `poll_interval` einsortiert.
+
+### Added
+- Neue Option `trippilot_home_location` (PLZ/Ort): belegt die TripPilot-Frage „Von wo
+  geht's los?" (Auto/Bus/Bahn-Anreise, Tagesausflug) vor, damit man sie nicht bei jedem
+  Durchlauf neu eintippen muss — im Fragebogen weiterhin änderbar.
+
+## [0.44.0] - 2026-07-07
+
+### Changed
+- README aktualisiert: Preiskalender (Trend-Ansicht, Benachrichtigung, KI-Analyse),
+  Markttrend und KI-Buchungsscore ergänzt (waren seit ihrer Einführung nicht in der
+  README erwähnt).
+
+## [0.43.15] - 2026-07-07
+
+### Added
+- **KI-Analyse im Preiskalender**: neuer Button „🤖 KI-Analyse" im Kalender-Modal —
+  fasst die Kalenderpreise (Monatsdurchschnitte) und, falls vorhanden, aufgetretene
+  Preisänderungen zusammen und empfiehlt günstige/teure Monate. Funktioniert
+  gleichermaßen mit Claude und Gemini (reiner Markdown-Fließtext ohne Websuche, umgeht
+  damit die bekannte Gemini-Einschränkung Structured-Output+Websuche von vornherein).
+  6h gecacht wie die übrigen KI-Buttons.
+
+## [0.43.14] - 2026-07-07
+
+### Added
+- **Benachrichtigung bei Kalender-Preisänderung**: ändert sich im Preiskalender eines
+  Angebots ein Preis für ein bereits bekanntes Reisedatum, kommt jetzt eine
+  Benachrichtigung über Home Assistant, Telegram **und** im wöchentlichen
+  Wochenüberblick — bewusst grob (Hotelname + betroffener Monat/Monate, kein Datum,
+  kein Preis; Details siehe Kalender-Grid). Neuer Schalter `notify_calendar_trend`
+  (Standard an).
+
+## [0.43.13] - 2026-07-07
+
+### Added
+- **„Kalender"-Button leuchtet bei Preisänderung**: hat sich seit dem letzten Öffnen
+  des Preiskalenders ein Preis für ein Reisedatum geändert, pulsiert der Button
+  (amber) bis der Kalender wieder geöffnet wurde — dann erlischt es bis zur nächsten
+  echten Bewegung.
+
+## [0.43.12] - 2026-07-07
+
+### Added
+- TripPilot: „FKK" als Aktivitäts-Option ergänzt
+
+## [0.43.11] - 2026-07-07
+
+### Added
+- **Preiskalender: Trend über Zeit.** Der Preiskalender wurde bisher bei jedem Abruf
+  komplett überschrieben — es war nicht sichtbar, ob Preise für ein bestimmtes
+  Reisedatum steigen oder fallen. Jetzt wird die Historie delta-codiert mitgeschrieben
+  (`calendar_history`, nur geänderte Tage) und ausgewertet:
+  - **Trend-Ansicht** im Kalender-Grid (Umschalter „📈 Trend“/„💰 Preis“): Zellen zeigen
+    die Preisänderung seit dem letzten Abruf statt/zusätzlich zum absoluten Preis
+    (rot = gestiegen, grün = gefallen).
+  - **Preisverlauf pro Tag**: Klick auf das 📈-Symbol in einer Zelle zeigt ein
+    Mini-Diagramm mit dem Preisverlauf genau dieses Reisedatums über alle Abrufe.
+  - **„Größte Bewegungen seit letztem Abruf“**-Liste im Kalender-Modal.
+  - Die Historie wird beim Löschen/Zurücksetzen eines Angebots mitgelöscht und im
+    Backup/Restore wie der Preisverlauf mitgesichert (`tuiwatch_backup` Version 4).
+
+### Fixed
+- `_check_cheaper_date()` rief bei **jedem** erfolgreichen Preis-Check den kompletten
+  Preiskalender neu ab (bis zu 6 HTTP-Requests), ohne die 7-Tage-Cache-TTL zu beachten,
+  die der Buchungsscore bereits nutzt. Nutzt jetzt dieselbe TTL — die „günstigerer
+  Termin“-Prüfung bleibt bei jedem Check aktiv, nur der teure Abruf wird gedrosselt.
+
+## [0.43.10] - 2026-07-07
+
+### Fixed
+- Abgelaufene Session im sekundären Healthcheck-Poll nicht erkannt: `loadHealth()` ignorierte 401-Antworten still, Status-Punkt blieb eingefroren statt zum Login weiterzuleiten (Hauptpoll `loadOffers()` hatte das bereits)
+
+## [0.43.9] - 2026-07-06
+
+### Added
+- **Hotelsuche: Filter „Nur Erwachsene"** (Adults-Only-Hotels). TUI übersetzt
+  `facilityAttributes=13` clientseitig in einen `logicalExpression`-Code, bevor die
+  Anfrage an die Such-API geht — genau wie beim „Lage"-Filter kennt die API keine
+  einfache ID. Der Code wurde nicht geraten, sondern per Playwright live abgefangen
+  (echten Netzwerk-Request auf tui.com mitgeschnitten) und gegen die echte Such-API
+  verifiziert (Gran Canaria: 100 → 28 Treffer, durchgehend adults-only-artige Hotels).
+
+## [0.43.8] - 2026-07-06
+
+### Fixed
+- **Buchungsscore gewichtete Kalender-Saisonalität zu stark:** die Anweisung
+  unterschied nicht klar zwischen „welcher Monat ist saisonal günstiger" (Kalender)
+  und „ist JETZT ein guter Zeitpunkt zu buchen" (Preistrend/Markttrend) — bei langer
+  Vorlaufzeit konnte das dazu führen, dass ein saisonal günstiger Reisemonat allein
+  schon für ein "jetzt buchen" sprach, obwohl sich der Preis bis zum Abflug noch
+  deutlich ändern kann. Anweisung ergänzt: bei langer Vorlaufzeit zählt die
+  Saisonalität weniger, Preistrend/Markttrend mehr; zusätzlich die allgemeine
+  Frühbucher-Erfahrung (eher früh buchen, da Preise Richtung Abflug oft steigen).
+
+## [0.43.7] - 2026-07-06
+
+### Added
+- **Buchungsscore frischt Preiskalender bei Bedarf auf:** fehlt für ein Angebot noch
+  ein Preiskalender oder ist er älter als 7 Tage, wird er jetzt einmalig automatisch
+  abgerufen, bevor der Buchungsscore berechnet wird (macht nur diesen einen Aufruf
+  spürbar langsamer). Ist er noch frisch, bleibt er unverändert — kein Abruf bei
+  jedem Klick. Ohne Preis für das Angebot wird gar nicht erst versucht.
+
+## [0.43.6] - 2026-07-06
+
+### Fixed
+- **Buchungsscore verschätzte sich bei der Vorlaufzeit:** der Prompt enthielt nirgends
+  das heutige Datum, die KI musste "heute" selbst raten und hielt eine Reise im
+  Mai 2027 fälschlich für "fast drei Jahre" entfernt statt gut ein Jahr. Heutiges Datum
+  sowie geschätztes Abreisedatum + Tage/Monate bis Abreise werden jetzt selbst berechnet
+  (nicht der KI überlassen) und explizit in den Prompt aufgenommen (pro Angebot und
+  pro Destination).
+
+## [0.43.5] - 2026-07-06
+
+### Fixed
+- **CodeQL-Alerts #185/#186 (SQL query built from user-controlled sources):**
+  `_market_moves_query()` baute den SQL-Text abhängig von den übergebenen Filtern
+  zusammen (String-Verkettung je nach gesetzten Bedingungen) — auch wenn nur Werte
+  parametrisiert wurden, stuft CodeQL laufzeitabhängig zusammengebaute Query-Strings
+  pauschal als riskant ein. Jetzt ein fester Query-Text mit `(? IS NULL OR spalte=?)`
+  je Filter, keine Verkettung mehr abhängig von Eingaben.
+
+## [0.43.4] - 2026-07-06
+
+### Fixed
+- **Angebots-Fußzeile:** „Zuletzt: ..."/Status-Text steht jetzt in einer eigenen Zeile
+  über den Buttons statt sich mit ihnen eine Zeile zu teilen — Buttons waren dadurch
+  bis zur Unlesbarkeit gekürzt. Button-Zeile hat jetzt die volle Breite für sich.
+- **Zurücksetzen:** neben Löschen verschoben, ebenfalls als Icon (Kreispfeil) statt
+  Textbutton.
+
+## [0.43.3] - 2026-07-06
+
+### Fixed
+- **Angebots-Fußzeile umbrach:** gleicher Fix wie bei Werkzeugleiste/Kopfzeile —
+  Buttons füllen die volle Breite und schrumpfen gemeinsam statt umzubrechen.
+- **Löschen-Button:** von Textbutton auf rotes Papierkorb-Icon umgestellt (spart
+  Platz in der ohnehin vollen Fußzeile).
+- **Buchungsscore-Button:** Emoji entfernt.
+
+## [0.43.2] - 2026-07-06
+
+### Fixed
+- **KI-Aufrufe mit Gemini konnten unabgefangen abstürzen:** nur `genai_errors.APIError`
+  wurde gefangen — ein anderer SDK-interner Fehler (z. B. im
+  Automatic-Function-Calling-Loop bei aktivierter Websuche) schlug bis zu Flask durch,
+  das dann eine HTML-Fehlerseite statt JSON lieferte. Frontend zeigte dadurch nur die
+  generische Meldung „KI-Zusammenfassung fehlgeschlagen" (live beobachtet: Google
+  antwortete mit 200 OK, danach Absturz). Fängt jetzt jede Exception ab und liefert
+  sauber `'failed'` zurück.
+
+## [0.43.1] - 2026-07-06
+
+### Fixed
+- **Buchungsscore mit Gemini schlug fehl:** Gemini lehnt Websuche kombiniert mit
+  strukturiertem JSON-Output kategorisch ab (400 INVALID_ARGUMENT — "Tool use with a
+  response mime type ... is unsupported"). Bei beidem gleichzeitig gewinnt jetzt das
+  Schema (nötig für den Buchungsscore), die Websuche entfällt für diesen Aufruf still.
+  Betrifft nur Gemini als aktiven KI-Anbieter — Anthropic kombiniert beides.
+
+## [0.43.0] - 2026-07-06
+
+### Added
+- **KI-Buchungsscore ("Orakel"):** neuer Button **🔮 Buchungsscore** je Angebot sowie
+  **🔮** je Destination im Markttrend-Fenster. Auf Anfrage (kostet KI-Aufrufe inkl.
+  Websuche, keine automatische Ausführung) schätzt die KI Score (0–100), Empfehlung
+  (Jetzt buchen/Beobachten/Warten), Vertrauen sowie Erwartung für 7/30 Tage. Nutzt
+  eigenen Preistrend, Markttrend/-index der Destination sowie — falls bereits
+  abgerufen — die Saisonalität aus dem gespeicherten Preiskalender des Hotels
+  (günstigster/teuerster Monat). Jeder Begründungspunkt ist als **[Daten]** oder
+  **[Annahme]** gekennzeichnet, damit KI-Vermutungen nicht wie belastbare Fakten
+  wirken. Ergebnisse werden 6h gecacht und landen im KI-Verlauf.
+
+## [0.42.6] - 2026-07-06
+
+### Fixed
+- **Zimmerwechsel-Ausschluss versagte bei schnellem Ablauf:** Timestamps sind nur
+  sekundengenau — wählte man direkt nach dem Tracken (Suche → sofort erscheinender
+  Zimmerauswahl-Dialog) sofort ein Zimmer, landete das Room-Event oft in derselben
+  Sekunde wie der erste Preis-Check. Der Vergleich `>` erkannte das nicht als „danach"
+  und ließ den Zimmerwechsel-Preissprung fälschlich in den Markttrend einfließen. Jetzt
+  `>=`. Bereits kontaminierte Daten lassen sich über **🔄 Neu berechnen** korrigieren.
+
+## [0.42.5] - 2026-07-06
+
+### Fixed
+- **Kopfzeile umbricht/überlappt nie mehr:** gleicher Fix wie bei der Werkzeugleiste
+  für die Buttons oben rechts (Alle prüfen/KI-Verlauf/Frage/Design). Zusätzlich
+  behoben: die Grid-Spalte gab bei schmalem Fenster trotz `minmax(0,auto)` keinen
+  Platz ab, weil `justify-self:end` das Element auf seine natürliche Breite setzt statt
+  auf die Spaltenbreite — jetzt stretcht die Spalte, Ausrichtung passiert innen per
+  `justify-content:flex-end`.
+
+## [0.42.4] - 2026-07-06
+
+### Fixed
+- **Werkzeugleiste umbricht nie mehr:** Buttons verteilen sich jetzt per Flexbox
+  (`flex:1 1 auto`) immer auf die volle Zeilenbreite (wie die Zeilen darüber/darunter)
+  und schrumpfen bei schmalerem Fenster gemeinsam (Text wird bei Bedarf mit „…"
+  gekürzt) statt in eine zweite Zeile umzubrechen.
+
+## [0.42.3] - 2026-07-06
+
+### Fixed
+- **Werkzeugleiste umgebrochen:** der neue Markttrend-Button ließ die Buttons bei
+  schmaleren Fenstern in eine hässliche zweite Zeile mit nur einem Button umbrechen.
+  Toolbar-Buttons sind jetzt kompakter (weniger Padding/Schrift) — passt ab ~1000px
+  Breite wieder in eine Zeile.
+
+## [0.42.2] - 2026-07-06
+
+### Added
+- **Markttrend neu berechnen:** Button **🔄 Neu berechnen** im Markttrend-Fenster baut
+  `price_moves` komplett aus der vorhandenen Preishistorie neu auf. Behebt z. B. einen
+  Zimmerwechsel-Preissprung, der vor der Zimmerwechsel-Korrektur bereits fälschlich
+  mitgezählt wurde — ohne die gesammelten Daten zu verlieren.
+
+## [0.42.1] - 2026-07-06
+
+### Fixed
+- **Markttrend zeigte fälschlich „stabil":** die Richtung wurde aus dem einfachen
+  Mittelwert aller Preis-Checks berechnet — die vielen „unverändert"-Checks zwischen
+  zwei echten Preisschritten (Preise ändern sich seltener als der Poll-Intervall)
+  verwässerten einen echten Anstieg/Rückgang fast auf null. Die Richtung basiert jetzt
+  auf der kumulierten (Zinseszins-verketteten) Bewegung.
+- **Zimmerwechsel verfälschte den Markttrend:** wählt man für ein Angebot ein anderes
+  Zimmer, wurde der dadurch ausgelöste Preissprung bisher als Marktbewegung gezählt.
+  Dieser eine Schritt wird jetzt ausgeklammert (Zählung setzt danach neu an).
+
+### Added
+- **Schwelle konfigurierbar:** neue Option `market_trend_threshold` (%, Standard 1.0)
+  legt fest, ab welcher kumulierten Bewegung der Markttrend als steigend/fallend statt
+  stabil gilt.
+- **Index seit Aufzeichnungsbeginn:** zusätzlich zum rollierenden 14-Tage-Trend zeigt
+  „Markttrend" je Destination einen Index (Basis 100) über die komplette Historie —
+  fängt auch langsame, über Wochen verteilte Bewegungen ab, die aus dem 14-Tage-Fenster
+  herausfallen würden.
+
+## [0.42.0] - 2026-07-06
+
+### Added
+- **Globaler Markttrend:** neuer Button **📈 Markttrend** zeigt den marktweiten
+  Preistrend über alle geprüften Angebote der letzten 14 Tage, aufgeschlüsselt nach
+  Reisedestination. Anders als der bisherige Trend je Angebot (aus dessen eigener
+  Historie) basiert dieser auf den Prozent-Änderungen aller Angebote zueinander (macht
+  unterschiedlich teure Hotels vergleichbar) und liegt in einer eigenen Tabelle, die
+  **unabhängig vom Fortbestehen einzelner Angebote** ist — das Löschen eines Angebots
+  hat keinen Einfluss auf den Markttrend. Beim ersten Start nach diesem Update wird die
+  vorhandene Preishistorie einmalig rückwirkend eingerechnet. Zusätzlich neuer
+  HA-Sensor `sensor.tuiwatch_markttrend`.
+
+## [0.41.10] - 2026-07-06
+
+### Changed
+- **Verlaufstabelle ohne Preis-Rauschen:** Zeilen ohne Preisänderung zum
+  vorherigen Abruf werden jetzt ausgeblendet — außer dem jüngsten Eintrag
+  (zeigt weiterhin, wann zuletzt geprüft wurde). Fehlgeschlagene Checks
+  bleiben sichtbar.
+
+## [0.41.9] - 2026-07-06
+
+### Added
+- **Preisänderung im Verlaufsdiagramm:** in der Zeitreihen-Tabelle im
+  Verlaufs-Modal zeigt jede Zeile jetzt die Änderung zum vorherigen Preis als
+  Badge (▲ rot bei Anstieg, ▼ grün bei Rückgang) — wie die bestehenden
+  Delta-Badges auf den Angebotskarten.
+
+## [0.41.8] - 2026-07-06
+
+### Added
+- **2 neue Binär-Sensoren:** `binary_sensor.tuiwatch_api_available` (an, solange
+  alle kritischen TUI-Endpunkte beim letzten Selbsttest erreichbar waren) und
+  `binary_sensor.tuiwatch_cooldown_active` (an, solange der globale „Jetzt
+  prüfen"-Cooldown läuft). Wie der Coupon-Sensor werden beide per Timer laufend
+  erneut gemeldet und sind daher direkt nach einem HA-Neustart wieder verfügbar.
+
+## [0.41.7] - 2026-07-05
+
+### Added
+- **Cooldown auf scraping-lastigen Routen:** `/api/check-now` (60s global),
+  `/api/search` (3s pro IP) und `/api/searches/<id>/check` (30s pro Suchabo)
+  lehnen wiederholte Aufrufe innerhalb der Wartezeit jetzt mit 429 ab, statt
+  bei mehrfachem Klicken/Skript-Aufrufen parallel gegen TUI zu scrapen —
+  schützt davor, dass die eigene IP dort geblockt wird.
+
+## [0.41.6] - 2026-07-05
+
+### Added
+- **Suchleiste im KI-Verlauf:** filtert die gespeicherten Fazits/Vergleiche
+  live nach Titel, Art (Fazit/Vergleich/Frage/TripPilot) und Modell.
+
+## [0.41.5] - 2026-07-05
+
+### Fixed
+- **Gemini: Auto-Tags ohne Fehler aber ohne Tags, Wochenüberblick-Text riss
+  mitten im Satz ab:** Gemini teilt sich das `max_output_tokens`-Budget
+  intern mit „Thinking"-Tokens (bei Anthropic nicht genutzt) — bei knapp
+  bemessenen Werten (Auto-Tags 300, Wochenüberblick 500) verbrauchte das
+  Thinking das komplette Budget, sodass die eigentliche Antwort leer oder
+  abgeschnitten zurückkam, ohne dass ein Fehler auftrat. Betrifft nur
+  Gemini als aktiven Anbieter. Fix: Reserve von 2048 Tokens für Thinking
+  wird jetzt automatisch auf jede Gemini-Anfrage draufgeschlagen.
+
 ## [0.41.4] - 2026-07-05
 
 ### Changed

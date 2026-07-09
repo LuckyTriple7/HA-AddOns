@@ -151,6 +151,36 @@ def test_gemini_output_schema_passed_through(app_mod, monkeypatch):
     assert captured[0]["config"].response_schema["required"] == ["tags"]
 
 
+def test_gemini_web_search_dropped_when_combined_with_output_schema(app_mod, monkeypatch):
+    """Regression: Gemini lehnt Tool-Use zusammen mit response_mime_type=application/json
+    live mit 400 INVALID_ARGUMENT ab ("Tool use with a response mime type ... is
+    unsupported"). Bei beidem gleichzeitig muss das Schema gewinnen (Aufrufer brauchen
+    parsebares JSON) und die Websuche für diesen Aufruf stillschweigend entfallen."""
+    schema = {"type": "object", "properties": {"score": {"type": "integer"}},
+              "required": ["score"], "additionalProperties": False}
+    captured = _patch_genai(app_mod, monkeypatch, _FakeResponse(text='{"score": 50}'))
+    text, _usage, err = app_mod._ai_request("g-key", "gemini-2.5-flash", "Prompt",
+                                            max_tokens=200, log_ctx="Test",
+                                            use_web_search=True, output_schema=schema)
+    assert err is None
+    assert text == '{"score": 50}'
+    assert captured[0]["config"].tools is None            # Websuche entfallen
+    assert captured[0]["config"].response_mime_type == "application/json"  # Schema bleibt
+
+
+def test_gemini_unexpected_exception_returns_failed_not_uncaught(app_mod, monkeypatch):
+    """Regression: live beobachtet — Google antwortete mit 200 OK, aber danach kam beim
+    Frontend nur eine generische Fehlermeldung an (nicht JSON-parsebar). Ursache: nur
+    `genai_errors.APIError` wurde gefangen; ein anderer SDK-interner Fehler (z. B. im
+    Automatic-Function-Calling-Loop bei aktivierter Websuche) schlug bis nach oben
+    durch. Muss jetzt als sauberes ('failed') zurückkommen, nicht crashen."""
+    _patch_genai(app_mod, monkeypatch, RuntimeError("boom, irgendein SDK-interner Fehler"))
+    text, usage, err = app_mod._ai_request("g-key", "gemini-3.1-pro", "Prompt",
+                                           max_tokens=200, log_ctx="Test")
+    assert err == "failed"
+    assert text is None and usage is None
+
+
 def test_gemini_sanitize_schema_strips_additional_properties_nested(app_mod):
     schema = {"type": "object", "additionalProperties": False,
               "properties": {"inner": {"type": "object", "additional_properties": False,
@@ -159,6 +189,18 @@ def test_gemini_sanitize_schema_strips_additional_properties_nested(app_mod):
     assert "additionalProperties" not in cleaned
     assert "additional_properties" not in cleaned["properties"]["inner"]
     assert cleaned["properties"]["inner"]["properties"]["x"]["type"] == "string"
+
+
+def test_gemini_max_output_tokens_reserves_thinking_budget(app_mod, monkeypatch):
+    """Thinking-Tokens teilen sich bei Gemini das Budget mit max_output_tokens
+    — bei knappen Werten (Auto-Tags: 300, Wochenüberblick: 500) frisst Thinking
+    die eigentliche Antwort leer/abgeschnitten, ohne dass ein Fehler auftritt.
+    Reserve muss draufgeschlagen werden, sonst reproduziert sich der Bug."""
+    captured = _patch_genai(app_mod, monkeypatch, _FakeResponse())
+    app_mod._ai_request("g-key", "gemini-3.1-pro", "Prompt", max_tokens=300,
+                        log_ctx="Test")
+    sent = captured[0]["config"].max_output_tokens
+    assert sent >= 300 + app_mod._GEMINI_THINKING_TOKEN_RESERVE
 
 
 def test_gemini_refusal_detected(app_mod, monkeypatch):

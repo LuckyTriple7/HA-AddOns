@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.6.23] - 2026-07-09
+- Fix: Add-on beendete sich bei jedem Stop/Update mit **Exit 137** (Hard-Kill nach Timeout) — der Node-Prozess lief ohne eigenes Init-System als PID 1 im Container, wodurch der Kernel das SIGTERM des Supervisors stillschweigend ignorierte. Jetzt `init: true` in `config.yaml` sowie ein expliziter `SIGTERM`/`SIGINT`-Handler in `server.js`, der ausstehende Speichervorgänge (Chats/Nachrichten) sofort flusht, die Telegram-Verbindung sauber trennt (`client.disconnect()`) und sich danach mit Exit 0 beendet
+
 ## [1.6.22] - 2026-06-29
 - Neu: **Emoji-Picker mit Kategorien wie auf dem Handy** — über 1000 Emojis in 8 Kategorie-Tabs (Smileys & Personen, Tiere & Natur, Essen & Trinken, Aktivitäten, Reisen & Orte, Objekte, Symbole, Flaggen), ein **Suchfeld** (deutsch/englisch, z.B. „herz" oder „laugh") und eine **„Zuletzt verwendet"**-Leiste, die die eigenen Emojis merkt (im Browser gespeichert). Ersetzt die bisherige flache Liste mit ~170 Emojis
 

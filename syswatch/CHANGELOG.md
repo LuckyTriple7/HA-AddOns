@@ -1,5 +1,10 @@
 # Changelog — HA SysWatch
 
+## [1.2.12] - 2026-07-09
+
+### Fixed
+- Add-on beendete sich bei jedem Stop/Update mit Exit-Code 137 (SIGKILL statt sauberem Stop). Ursache: `Dockerfile` basiert auf reinem `python:3.14-alpine` ohne eigenes Init-System, `run.sh` macht den Flask-Prozess per `exec` zu PID 1 — ohne eigenen Signal-Handler ignoriert der Kernel bei PID 1 unbehandelte Signale wie SIGTERM, der Supervisor musste nach Timeout hart killen. `init: false` → `init: true` in `config.yaml` (HA Supervisor stellt jetzt ein Mini-Init als echte PID 1) plus eigener `SIGTERM`-Handler in `app.py` (`os._exit(0)` — alle Hintergrund-Threads sind daemon, DB-Schreibzugriffe committen bereits pro Verbindung, kein Cleanup nötig).
+
 ## [1.2.11] - 2026-06-09
 
 ### Added

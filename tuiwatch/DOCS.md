@@ -62,9 +62,10 @@ verbose_log: false       # ausführliche Logs
   Auswahl fließt in die Suche **und** in das getrackte Angebot (Preis nur mit diesen
   Airlines).
 - Filter: **TUI** (nur Veranstalter TUI Deutschland; aus = alle), **Nur Direktflug**,
-  **Verpflegung** (AI/HP/VP/Frühstück/Ohne — Mehrfachauswahl, jeweils inkl. „Plus"-Variante
-  bzw. „laut Programm"), **Lage** (Direkt am Strand, Sandstrand, Strand < 500m, Meerseite,
-  Ruhig, Außerhalb — Mehrfachauswahl, schränkt weiter ein), **Sterne ≥** (Standard 3),
+  **Nur Erwachsene** (Adults-Only-Hotels), **Verpflegung** (AI/HP/VP/Frühstück/Ohne —
+  Mehrfachauswahl, jeweils inkl. „Plus"-Variante bzw. „laut Programm"), **Lage**
+  (Direkt am Strand, Sandstrand, Strand < 500m, Meerseite, Ruhig, Außerhalb —
+  Mehrfachauswahl, schränkt weiter ein), **Sterne ≥** (Standard 3),
   **Weiterempfehlung ≥ %** (Standard 80) → **Suchen**.
 - **Gespeicherte Suchen:** die kompletten Eingaben unter einem Namen speichern
   („★ Speichern") und später aus dem Dropdown wieder laden — für wiederkehrende Suchen.
@@ -186,7 +187,13 @@ bleibt dann versteckt, `ai_provider` wird ignoriert).
   der sich der Browser-Druckdialog direkt als PDF speichern lässt.
 - **🤖 KI-Verlauf** (Button oben neben „Alle prüfen") — alle bisherigen Fazits/
   Vergleiche bleiben **dauerhaft** gespeichert (unabhängig vom 24h-Cache, bis zu
-  300 Einträge), anklickbar zum erneuten Anzeigen, einzeln löschbar.
+  300 Einträge), anklickbar zum erneuten Anzeigen, einzeln löschbar (löscht auch
+  den mitgespeicherten Prompt). **🔁 Wiederholen** schickt den exakt gleichen
+  Prompt-Text erneut an eine wählbare KI (Claude oder Gemini, unabhängig vom
+  gerade aktiven Standard-Provider) und legt das Ergebnis als neuen Eintrag an —
+  praktisch um beide Anbieter für dieselbe Anfrage zu vergleichen. Nur bei
+  Einträgen verfügbar, die nach Einführung dieser Funktion gespeichert wurden
+  (ältere haben keinen gespeicherten Prompt).
 - Ergebnisse werden **24 Stunden** je Hotel/Vergleichs-Kombination
   zwischengespeichert — erneutes Öffnen kostet keinen neuen API-Aufruf.
 
@@ -223,7 +230,10 @@ Am Ende ruft Claude einmal die passenden Ziele ab.
 - **Eigene Anreise statt Flug:** bei Auto/Bus/Bahn werden Flugzeit/
   Abflughafen übersprungen, stattdessen Startort (PLZ/Ort) und maximale
   Entfernung abgefragt — Claude schlägt dann nur noch Ziele in Fahrdistanz
-  vor (auch beim Alternative- und Überraschungs-Vorschlag).
+  vor (auch beim Alternative- und Überraschungs-Vorschlag). Über die Add-on-
+  Option `trippilot_home_location` lässt sich der Startort vorbelegen, damit
+  man ihn nicht bei jedem Durchlauf neu eintippen muss (bleibt im Fragebogen
+  änderbar).
 - **Tagesausflug-Modus:** bei der ersten Frage „Tagesausflug in der Nähe"
   wählbar — blendet Länder, Reiseart, Mitreisende, Budget, Unterkunft,
   Flug/Anreiseart und die Freitext-Felder aus (nicht relevant ohne
@@ -316,11 +326,18 @@ Preis-Tracking, als dauerhaftes Archiv (Vergangenheit und Zukunft).
   deinen **gebuchten Preis** hinterlegt, meldet TUIWatch, wenn der Preis später deutlich
   darunter fällt (Schwelle `booked_drop_min_diff`, Standard 50 €) — Umbuchen könnte sich
   lohnen. Meldet nur bei neuen Tiefstwerten (kein Spam), neustart-fest.
+- **Kalender-Preisänderung** (`notify_calendar_trend`): meldet, wenn sich im Preiskalender
+  eines Angebots ein Preis für ein bereits bekanntes Reisedatum ändert — bewusst grob
+  (Hotelname + betroffener Monat/Monate, kein Datum, kein Preis; siehe Abschnitt
+  „Preiskalender" für Details/Trend-Ansicht). Neu ins Kalenderfenster gerutschte Tage
+  ohne Vorwert lösen keine Meldung aus. Schwelle `calendar_trend_min_diff` (Standard
+  20 €) filtert Mini-Schwankungen aus der Benachrichtigung — die Trend-Ansicht im
+  Kalender selbst zeigt trotzdem jede noch so kleine Änderung. 0 = Schwelle aus.
 - **Wochenüberblick / Digest** (`digest_enabled`): optionale wöchentliche Zusammenfassung
-  (größte Rückgänge, neue Tiefstwerte, Angebote unter Wunschpreis) per Telegram und/oder
-  E-Mail. `digest_weekday` legt den Wochentag fest (1 = Montag … 7 = Sonntag); war das
-  Add-on am Stichtag aus, wird der Versand später in der Woche nachgeholt. Sofort testen
-  über den Button **„📊 Wochenüberblick"**.
+  (größte Rückgänge, neue Tiefstwerte, Angebote unter Wunschpreis, Kalenderpreis-Änderungen)
+  per Telegram und/oder E-Mail. `digest_weekday` legt den Wochentag fest (1 = Montag …
+  7 = Sonntag); war das Add-on am Stichtag aus, wird der Versand später in der Woche
+  nachgeholt. Sofort testen über den Button **„📊 Wochenüberblick"**.
 - Kanäle:
   - **Home Assistant**: persistente Benachrichtigung (Option `notify_ha`, Standard an).
   - **Telegram**: `telegram_bot_token` + `telegram_chat_id` setzen (Bot via @BotFather,
@@ -371,6 +388,37 @@ mehrere Abrufe zu einer durchgehenden Zeitleiste zusammen.) Das Ergebnis wird
 **gespeichert** (Zeitstempel + „Neu abfragen") und respektiert alle Filter deiner
 Angebots-URL (Verpflegung, Veranstalter, Zimmer, Abflughafen).
 
+**Trend über Zeit:** Jeder Abruf überschreibt zwar weiterhin den angezeigten Snapshot,
+zusätzlich wird aber mitgeschrieben, für welche Reisedaten sich der Preis seit dem
+letzten Abruf geändert hat (delta-codiert, nur echte Änderungen — kein Datenmüll bei
+unveränderten Tagen). Darauf aufbauend:
+- Umschalter **„📈 Trend“ / „💰 Preis“** im Kalender: die Trend-Ansicht färbt Tage nach
+  Preisänderung statt nach absolutem Preis (rot = gestiegen, grün = gefallen).
+- Ein Klick auf das **📈-Symbol** einer Zelle zeigt den Preisverlauf genau dieses
+  Reisedatums über alle bisherigen Abrufe als Mini-Diagramm.
+- **„Größte Bewegungen seit letztem Abruf“** listet die Tage mit den stärksten
+  Preissprüngen auf einen Blick auf.
+- Der **„Kalender“-Button** in der Angebotsliste pulsiert (amber), sobald sich seit
+  dem letzten Öffnen ein Preis im Kalender geändert hat — Öffnen markiert als
+  gesehen, das Pulsieren erlischt bis zur nächsten echten Bewegung.
+- **Benachrichtigung** (`notify_calendar_trend`, Standard an): bei einer echten
+  Preisänderung geht zusätzlich eine Meldung über Home Assistant, Telegram und den
+  wöchentlichen Wochenüberblick raus — bewusst grob (Hotelname + betroffener
+  Monat/betroffene Monate, kein genaues Datum, kein Preis). Neu ins Kalenderfenster
+  gerutschte Tage ohne Vorwert (z. B. der allererste Abruf) lösen keine
+  Benachrichtigung aus, nur echte Preisänderungen für zuvor schon bekannte Reisedaten.
+- **KI-Analyse** (Button „🤖 KI-Analyse" im Kalender, benötigt einen konfigurierten
+  KI-Key): fasst die Monatsdurchschnittspreise und, falls vorhanden, die größten
+  Preisänderungen zusammen und empfiehlt günstige/teure Reisemonate. Reiner
+  Markdown-Text ohne Websuche (nur die bereits abgerufenen Kalenderdaten), läuft
+  dadurch identisch mit Claude und Gemini und verursacht keine zusätzlichen
+  Websuche-Kosten. 6h je Angebot gecacht.
+
+Diese Trend-Historie zählt zu den echten, nicht rekonstruierbaren Nutzdaten (wie der
+Preisverlauf) und wird beim Zurücksetzen/Löschen eines Angebots mitgelöscht sowie im
+Backup/Restore mitgesichert — anders als der reine Kalender-Snapshot (`calendar_cache`),
+der weiterhin nicht gesichert wird, da er sich jederzeit neu abrufen lässt.
+
 ## TUI-Aktionscodes
 
 Über **🎟 Aktionscodes** überwacht TUIWatch die **öffentlichen** Aktionscodes von
@@ -392,7 +440,7 @@ tui.com (`/aktionscode/`) — **ohne Login** — und benachrichtigt dich bei **n
 
 Bei aktiver Option `ha_sensors` legt TUIWatch je Angebot einen Sensor
 `sensor.tuiwatch_<hotelname>` an (bei gleichem Hotel `_2`, `_3` …):
-- **Wert** = aktueller Preis in € (bei Fehler `unavailable`)
+- **Wert** = aktueller Preis in € (bei Fehler `unknown`)
 - **Attribute**: `description`, `hotel`, `location`, `region`, `country`, `room`,
   `departure_airport`,
   `flight_outbound`, `flight_return`, `available` (true/false), `cancellation`,
@@ -404,6 +452,90 @@ Bei aktiver Option `ha_sensors` legt TUIWatch je Angebot einen Sensor
 Zusätzlich `binary_sensor.tuiwatch_aktionscodes`: **an**, solange aktuell
 öffentliche TUI-Aktionscodes verfügbar sind (siehe oben), sonst **aus**. Attribute:
 `count`, `coupons` (Liste je `code`/`value`/`kind`), `booking_until`, `travel_period`.
+
+Sowie `binary_sensor.tuiwatch_api_available`: **an**, solange beim letzten
+API-Selbsttest alle kritischen TUI-Endpunkte erreichbar waren, sonst **aus**.
+Attribute: `failing` (Liste ausgefallener Endpunkte), `checked_at`.
+
+Und `binary_sensor.tuiwatch_cooldown_active`: **an**, solange der globale
+„Jetzt prüfen"-Cooldown (60s nach `/api/check-now`) noch läuft, sonst **aus**.
+Attribut: `retry_after` (verbleibende Sekunden).
+
+Alle drei Binär-Sensoren werden per Timer alle paar Sekunden/Minuten aus dem
+zuletzt bekannten Stand erneut an HA gemeldet — sie sind daher direkt nach
+einem HA-Neustart wieder verfügbar, ohne auf den nächsten Live-Check zu warten.
+
+Außerdem `sensor.tuiwatch_markttrend`: **Wert** = kumulierte Preisänderung (%) über
+alle geprüften Angebote der letzten 14 Tage, oder `unknown` bei zu wenigen
+Datenpunkten. Attribute: `direction` (up/down/flat), `days` (seit wie vielen Tagen die
+Richtung anhält), `samples` (Anzahl Datenpunkte), `index`/`index_pct`/`index_since`
+(Index seit Aufzeichnungsbeginn, siehe unten), `by_region` (gleiche Aufschlüsselung je
+Destination, nur für Regionen mit genug Daten). Siehe unten „Markttrend".
+
+## Markttrend
+
+Zusätzlich zum Preistrend je Angebot (auf jeder Karte, aus dessen eigener Historie)
+gibt es einen **marktweiten** Trend über **alle** geprüften Angebote — unabhängig
+davon, ob ein einzelnes Angebot später gelöscht wird.
+
+- **Anzeige:** Button **📈 Markttrend** in der Werkzeugleiste öffnet ein Fenster mit
+  dem Gesamttrend sowie einer Aufschlüsselung je Reisedestination (Region). Der
+  Button färbt sich passend zur Gesamtrichtung ein (rot = steigend, grün = fallend),
+  ohne dass das Fenster geöffnet werden muss.
+- **Berechnung:** bei jedem erfolgreichen Preis-Check wird die prozentuale Änderung
+  zum vorherigen Preis **dieses** Angebots festgehalten (nicht der absolute Preis —
+  das macht unterschiedlich teure Hotels vergleichbar). Der angezeigte Trend ist die
+  **kumulierte** Bewegung dieser Prozentwerte über die letzten 14 Tage (Zinseszins-
+  Verkettung, nicht der einfache Mittelwert — sonst würden die vielen „unverändert"-
+  Checks zwischen zwei Preisschritten einen echten, aber seltenen Trend im Schnitt
+  fast auf null verwässern). Ab welcher kumulierten Bewegung „steigend"/„fallend"
+  statt „stabil" angezeigt wird, ist über die Option `market_trend_threshold` (%,
+  Standard 1.0) einstellbar. Bei weniger als 6 Datenpunkten im Fenster erscheint
+  „keine Daten" (kein Hellsehen bei dünner Datenlage).
+- **Index seit Beginn:** zusätzlich zum rollierenden 14-Tage-Trend zeigt „Markttrend"
+  je Destination auch einen **Index (Basis 100) seit Aufzeichnungsbeginn** — ohne
+  Zeitfenster, damit eine langsame Bewegung (z. B. mehrere Preisschritte über Wochen
+  verteilt, dazwischen ruhige Phasen) nicht aus dem 14-Tage-Fenster herausfällt und
+  unsichtbar bleibt.
+- **Zimmerwechsel:** wählt man für ein Angebot ein anderes Zimmer, kann sich der Preis
+  allein dadurch sprunghaft ändern — das ist keine Marktbewegung. Dieser eine
+  Preisschritt fließt daher **nicht** in den Markttrend ein; die Zählung setzt direkt
+  danach wieder neu an. Für bereits gesammelte Daten (z. B. ein Zimmerwechsel, der vor
+  dieser Korrektur mitgezählt wurde) hilft **🔄 Neu berechnen** im Markttrend-Fenster:
+  baut `price_moves` komplett neu aus der vorhandenen Preishistorie auf, ohne Daten zu
+  verlieren.
+- **Persistenz:** die Datenpunkte liegen in einer eigenen Tabelle, unabhängig vom
+  jeweiligen Angebot — das Löschen eines Angebots hat **keinen** Einfluss auf den
+  Markttrend. Beim ersten Start nach diesem Update wird die vorhandene Preishistorie
+  einmalig rückwirkend eingerechnet.
+- **Näherung:** die „Monate vor Abreise" je Datenpunkt wird aus Rückreisedatum minus
+  angefragter Reisedauer geschätzt (kein exaktes Abreisedatum gespeichert) und fließt
+  aktuell nicht in die UI-Anzeige ein, ist aber intern je Datenpunkt vorhanden.
+
+## KI-Buchungsscore ("Orakel")
+
+Auf Anfrage (Button-Klick, **keine** automatische Ausführung — kostet KI-Aufrufe
+inkl. Websuche) schätzt die KI ein, ob gerade ein guter Zeitpunkt zum Buchen ist.
+Zwei Varianten:
+
+- **Pro Angebot** — Button **🔮 Buchungsscore** in der Angebots-Fußzeile. Nutzt den
+  eigenen Preisverlauf des Angebots, dessen Trend, den Markttrend/-index seiner
+  Destination sowie die Saisonalität aus dessen Preiskalender (günstigster/teuerster
+  Monat, günstigster Einzeltermin). Fehlt der Preiskalender noch oder ist älter als
+  7 Tage, wird er **einmalig automatisch aufgefrischt**, bevor der Score berechnet
+  wird (macht diesen einen Aufruf spürbar langsamer) — ist er noch frisch, wird er
+  unverändert weiterverwendet, kein unnötiger erneuter Abruf.
+- **Pro Destination** — Button **🔮** je Zeile im Markttrend-Fenster. Schätzt die
+  Destination allgemein ein (kein bestimmtes Hotel), nur aus deren Markttrend/-index;
+  setzt mindestens so viele Datenpunkte voraus wie der Markttrend selbst.
+
+Ergebnis: Score (0–100), Empfehlung (Jetzt buchen/Beobachten/Warten), „Vertrauen"
+(%), Erwartung für 7/30 Tage sowie eine Begründung mit Punkten, die jeweils als
+**[Daten]** (aus den oben genannten echten Zahlen) oder **[Annahme]** (allgemeines
+KI-Wissen zu Saison/Frühbucher-Fristen oder ein Websuche-Fund) gekennzeichnet sind —
+damit nicht der Eindruck einer Präzision entsteht, die die zugrunde liegenden Daten
+nicht hergeben. Ergebnisse werden 6 Stunden gecacht (je Angebot bzw. Destination) und
+landen dauerhaft im **KI-Verlauf**.
 
 ## Bedienung
 
@@ -423,14 +555,18 @@ Zusätzlich `binary_sensor.tuiwatch_aktionscodes`: **an**, solange aktuell
 - **Backup / Wiederherstellen** — **komplettes** Backup als **ZIP**: alle getrackten
   Angebote **inkl. Preisverlauf** und Diagramm-Markern, **„Meine Reisen" inkl. der
   Original-PDFs**, die **gespeicherten Suchen**, der **dauerhafte KI-Verlauf** (Fazits/
-  Vergleiche/TripPilot-Ergebnisse) sowie die **KI-Einstellungen** (Reise-DNA,
-  kumulierte Kosten-Zähler heute/Monat/gesamt, eigene KI-Prompt-Vorlagen). Die
+  Vergleiche/TripPilot-Ergebnisse), die **KI-Einstellungen** (Reise-DNA,
+  kumulierte Kosten-Zähler heute/Monat/gesamt, eigene KI-Prompt-Vorlagen) sowie die
+  **Markttrend-Datenpunkte** (überleben so einen Umzug auf ein anderes Add-on, auch
+  wenn die ursprünglichen Angebote dort nicht mehr existieren). Die
   Wiederherstellung liest die ZIP (das alte reine JSON wird weiterhin akzeptiert) und
   arbeitet **nicht-destruktiv**: Fehlendes wird ergänzt, Bestehendes bleibt erhalten
   (Abgleich per URL, Buchungsnummer bzw. Name; KI-Einstellungen/Kosten-Zähler werden nur
   gesetzt, wenn lokal noch nichts hinterlegt ist — laufende Zähler werden nie durch
   ältere Backup-Werte zurückgesetzt) — nichts wird gelöscht oder doppelt angelegt. (Reine
-  Caches wie Vergleich/Kalender werden nicht gesichert, sie entstehen automatisch neu.)
+  Caches wie Vergleich/Kalender-Snapshot werden nicht gesichert, sie entstehen automatisch
+  neu — die Kalender-**Trend-Historie** je Angebot dagegen schon, siehe Abschnitt
+  „Preiskalender".)
 - **Gebuchter Preis** — pro Angebot den **tatsächlich gezahlten Preis** hinterlegen
   (Feld „📌 Gebuchter Preis"). Das Tracking läuft weiter; angezeigt wird „seit Buchung
   ±X €" und im Diagramm eine eigene Linie. Fällt der Preis deutlich darunter, kommt
@@ -454,7 +590,7 @@ Zusätzlich `binary_sensor.tuiwatch_aktionscodes`: **an**, solange aktuell
   Zimmer mit Fotos/Beschreibung auf tui.com; **„Günstigstes automatisch"** hebt die
   Festlegung wieder auf.
 - **Pausieren / Fortsetzen** — setzt die automatische Prüfung für ein Angebot aus, ohne es zu löschen.
-- **Zurücksetzen** — löscht den Preisverlauf (und Vergleichs-/Kalender-Cache) und beginnt nach einer frischen Abfrage wieder bei „null". Angebot, Name und Wunschpreis bleiben.
+- **Zurücksetzen** — löscht den Preisverlauf (und Vergleichs-/Kalender-Cache samt Kalender-Trend-Historie) und beginnt nach einer frischen Abfrage wieder bei „null". Angebot, Name und Wunschpreis bleiben.
 - **Archivieren / Reaktivieren** — legt ein Angebot ins Archiv (keine Live-Abfragen mehr) bzw. holt es zurück. Reisen werden **automatisch archiviert**, sobald ihr Rückreisedatum vergangen ist; manuell z. B. wenn ein Angebot ausgebucht/nicht mehr verfügbar ist. Archivierte Angebote sind über den Schalter **„Archiv"** oben einblendbar und werden bei Prüfungen, Übersicht und E-Mail-Versand ausgenommen.
 
 Bei mehreren Reisenden wird zusätzlich zum **Preis pro Person** der **Gesamtpreis**

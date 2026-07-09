@@ -65,8 +65,8 @@ def hotel_from_url(url: str) -> str:
             seg = parts[parts.index('angebote') + 1]
             name = unquote(seg).replace('-', ' ').strip()
             return name if name and not name.isdigit() else ''
-    except Exception:
-        pass
+    except Exception as e:
+        log.debug("hotel_from_url: URL nicht parsbar (%s): %s", url, e)
     return ''
 
 
@@ -77,8 +77,8 @@ def travellers_from_url(url: str) -> int:
             if k == 'travellers':
                 n = int(v)
                 return n if n > 0 else 1
-    except Exception:
-        pass
+    except Exception as e:
+        log.debug("travellers_from_url: URL nicht parsbar (%s): %s", url, e)
     return 1
 
 
@@ -326,6 +326,24 @@ def _location_expression(ids: list) -> str:
     """Baut aus den Lage-Filter-IDs den `logicalExpression`-String für die Such-API.
     Unbekannte IDs werden ignoriert (kein Fehler)."""
     parts = [_LOCATION_ATTRS[i] for i in ids if i in _LOCATION_ATTRS]
+    return " + ".join(parts)
+
+
+# „Ausstattung"-Filter (URL-Parameter `facilityAttributes=<id>`) — gleiches Prinzip wie
+# `_LOCATION_ATTRS`: kein einfaches Feld, sondern ein `logicalExpression`-Code. Der Code
+# für „Nur Erwachsene" (id 13) wurde nicht durch Raten ermittelt, sondern per Playwright
+# live abgefangen (echten `hotel-offer-cards`-POST-Request auf tui.com mitgeschnitten,
+# mit `facilityAttributes=13` in der Such-URL) und anschließend gegen die echte Such-API
+# verifiziert (100 → 28 Treffer für Gran Canaria, ausschließlich adults-only-artige Hotels).
+_FACILITY_ATTRS: dict[int, str] = {
+    13: "GT03#TUI-G0978",   # Nur Erwachsene (Adults Only)
+}
+
+
+def _facility_expression(ids: list) -> str:
+    """Baut aus den Ausstattungs-Filter-IDs den `logicalExpression`-String für die
+    Such-API. Unbekannte IDs werden ignoriert (kein Fehler)."""
+    parts = [_FACILITY_ATTRS[i] for i in ids if i in _FACILITY_ATTRS]
     return " + ".join(parts)
 
 
@@ -598,7 +616,7 @@ def region_giata_from_breadcrumb(giata: str) -> int | None:
 def _search_params_from_url(url: str, *, region: int | None = None,
                             operator_tui: bool = True, boards: list | None = None,
                             airlines: list | None = None, location: list | None = None,
-                            direct: bool = False) -> dict:
+                            direct: bool = False, adults_only: bool = False) -> dict:
     """Kanonische Suchparameter aus einer TUI-Such-/Angebots-URL (für URL- und
     Angebots-Modus). `region` überschreibt `regionGiataIds`, `airlines` (Liste von
     IATA-Codes) überschreibt den Airline-Filter der URL."""
@@ -618,6 +636,7 @@ def _search_params_from_url(url: str, *, region: int | None = None,
     airline_codes = [a for a in (airlines or []) if a] or _split_multi(q.get("airlines", ""))
     loc_ids = [int(x) for x in (location or []) if str(x).isdigit()] or \
         [int(x) for x in _split_multi(q.get("locationAttributes", "")) if x.isdigit()]
+    facility_ids = [13] if (adults_only or "13" in _split_multi(q.get("facilityAttributes", ""))) else []
     return {
         "searchScope": q.get("searchScope", "PACKAGE"),
         "startDate": q.get("startDate", ""), "endDate": q.get("endDate", ""),
@@ -626,6 +645,7 @@ def _search_params_from_url(url: str, *, region: int | None = None,
         "travellers": adults, "airports": _split_multi(q.get("departureAirports", "")),
         "operators": ops, "boards": board_codes, "airlines": airline_codes,
         "location": loc_ids,
+        "facility": facility_ids,
         "regions": regions,
         "direct": direct or (q.get("maxStopOvers", "") == "0"),
     }
@@ -651,7 +671,9 @@ def _build_search_payload(p: dict) -> dict:
                    "roomCodes": [], "boardCodes": p.get("boards") or []}],
         "airports": p.get("airports") or [], "airlines": p.get("airlines") or [],
         "tourOperators": p.get("operators") or [],
-        "logicalExpression": _location_expression(p.get("location") or []),
+        "logicalExpression": " + ".join(e for e in (
+            _location_expression(p.get("location") or []),
+            _facility_expression(p.get("facility") or [])) if e),
         "transferIncluded": False, "sortingOrder": "qualifier2DESC",
         "secondarySortingOrder": "", "identifier": "HLP",
         "giataRegions": p.get("regions") or [],
@@ -761,11 +783,12 @@ def _run_search(params: dict, *, verbose: bool = False) -> dict | None:
 def fetch_search(url: str, *, operator_tui: bool = True, boards: list | None = None,
                  region: int | None = None, airlines: list | None = None,
                  location: list | None = None,
-                 direct: bool = False, verbose: bool = False) -> dict | None:
+                 direct: bool = False, adults_only: bool = False,
+                 verbose: bool = False) -> dict | None:
     """Hotelsuche aus einer TUI-Such-/Angebots-URL (`region` überschreibt die Region)."""
     params = _search_params_from_url(url, region=region, operator_tui=operator_tui,
                                      boards=boards, airlines=airlines, location=location,
-                                     direct=direct)
+                                     direct=direct, adults_only=adults_only)
     return _run_search(params, verbose=verbose)
 
 
@@ -773,7 +796,8 @@ def fetch_search_params(*, region: int, start: str, end: str, duration, travelle
                         airports: list | None = None, operator_tui: bool = True,
                         boards: list | None = None, airlines: list | None = None,
                         location: list | None = None,
-                        direct: bool = False, verbose: bool = False) -> dict | None:
+                        direct: bool = False, adults_only: bool = False,
+                        verbose: bool = False) -> dict | None:
     """Hotelsuche direkt aus Maskenfeldern (ohne URL) — für die eigene Suchmaske."""
     # „exact" ist ein nativer TUI-Wert (duration=exact): Reisedauer = genau der
     # gewählte Zeitraum. Als String unverändert durchreichen, sonst Nächte als int.
@@ -796,6 +820,7 @@ def fetch_search_params(*, region: int, start: str, end: str, duration, travelle
         "boards": [b for b in (boards or []) if b],
         "airlines": [a for a in (airlines or []) if a],
         "location": [int(i) for i in (location or []) if str(i).isdigit()],
+        "facility": [13] if adults_only else [],
         "regions": [int(region)] if region else [], "direct": bool(direct),
     }
     return _run_search(params, verbose=verbose)

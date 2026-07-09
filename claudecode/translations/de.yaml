@@ -39,6 +39,15 @@ configuration:
       Tmux-Sitzungserhaltung aktivieren. Bei aktivierter Option überlebt die
       Terminal-Sitzung Browser-Aktualisierungen und Verbindungsabbrüche.
       Empfohlen für länger laufende Aufgaben.
+  tmux_scroll_mode:
+    name: Tmux-Scroll-Modus
+    description: >-
+      Scroll-Verhalten bei aktivierter Sitzungserhaltung. "browser": Zeilen
+      landen im nativen Browser-Scrollback — Mausrad, Touch-Scrollen (iPad)
+      und normales Kopieren/Einfügen funktionieren wie gewohnt. "tmux":
+      Mausrad scrollt durch die tmux-Historie (überlebt Browser-Reloads),
+      dafür kein Touch-Scrollen und Kopieren nur über tmux. Wirkt die Eingabe
+      blockiert: q drücken (verlässt den Copy-Mode). Standard: browser.
   claude_autostart:
     name: Claude automatisch starten
     description: >-

@@ -1,3 +1,14 @@
+## [1.8.28] - 2026-07-07
+
+### Aktualisiert
+
+- Bitwarden: 2026.6.0 → 2026.6.1
+- VS Code: 1.126.0 → 1.127.0
+- GitHub CLI: 2.95.0 → 2.96.0
+- Firefox: 152.0.3 → 152.0.4
+- Thunderbird: 152.0 → 152.0.1
+- Claude Desktop: 2.0.22+claude1.15962.1 → 3.0.1+claude1.18286.0
+
 ## [1.8.27] - 2026-06-29
 
 ### Aktualisiert

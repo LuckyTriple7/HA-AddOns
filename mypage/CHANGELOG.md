@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.2
+
+- Fix: Add-on beendete sich bei jedem Stop/Update mit Exit-Code 137 (SIGKILL statt sauberem Stop) — der Flask-Prozess läuft als PID 1 ohne eigenes Init-System, ohne Signal-Handler ignoriert der Kernel bei PID 1 unbehandelte Signale wie SIGTERM. `init: false` → `init: true` in `config.yaml` sorgt für ein echtes Mini-Init als PID 1, zusätzlich fängt ein neuer `SIGTERM`-Handler (`os._exit(0)`, alle Hintergrund-Threads sind daemon) das Signal sauber ab und beendet den Prozess mit Exit-Code 0.
+
+## 0.8.1
+
+- Fix: Abgelaufene Admin-Session wurde nicht erkannt: `refreshPlaying()` ignorierte 401-Antworten still, „Wer spielt"-Anzeige blieb eingefroren statt zum Login weiterzuleiten
+
 ## 0.8.0
 
 - 🗳️ **Neue Startseiten-Sektion: Umfrage** — Eine Frage mit 2–5 Antwortoptionen (DE/EN), gepflegt im Inhalte-Tab. Mitglieder stimmen mit ihrem Konto ab, Gäste anonym per Cookie — jeder hat genau eine Stimme und kann sie jederzeit ändern. Nach der Abstimmung erscheint ein **Balkendiagramm** mit Prozentwerten, Stimmenzahl und der eigenen Auswahl (✓), ohne Neuladen der Seite. Die Sektion lässt sich wie üblich per Drag & Drop anordnen, ausblenden oder auf „nur Mitglieder" stellen; im Admin gibt es einen Button **„Ergebnisse zurücksetzen"**. Die Stimmen liegen getrennt von den Inhalten in `polls.json`.

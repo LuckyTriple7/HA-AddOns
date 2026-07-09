@@ -39,6 +39,16 @@
       Habilita persistencia de sesión via tmux. Cuando está habilitado, tu sesión
       del terminal sobrevive a actualizaciones del navegador y desconexiones.
       Recomendado para tareas de larga duración.
+  tmux_scroll_mode:
+    name: Modo de Desplazamiento Tmux
+    description: >-
+      Comportamiento de desplazamiento con la persistencia de sesión habilitada.
+      "browser": las líneas van al scrollback nativo del navegador — rueda del
+      ratón, desplazamiento táctil (iPad) y copiar/pegar normal funcionan como
+      siempre. "tmux": la rueda del ratón desplaza el historial de tmux
+      (sobrevive a recargas del navegador), pero sin desplazamiento táctil y
+      el copiado se hace via tmux. Si la entrada parece bloqueada, pulsa q
+      (sale del modo copia). Predeterminado: browser.
   auto_update_claude:
     name: Actualización Automática de Claude Code
     description: >-

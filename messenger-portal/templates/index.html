@@ -543,6 +543,7 @@
         const res = await fetch(STATUS_URL);
         _offlineFails = 0;
         if (navigator.onLine !== false) hideOfflineBanner();
+        if (res.status === 401) { window.location.href = '/login'; return; }
         if (!res.ok) return;
         const data = await res.json();
         const currentLastReceived = {};

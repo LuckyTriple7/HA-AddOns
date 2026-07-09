@@ -3108,6 +3108,35 @@ if (!DOWNLOAD_MEDIA) {
   }
   if (dirty) scheduleSave();
 }
+
+// ── Graceful shutdown ────────────────────────────────────────────────────────
+// Ohne diesen Handler ist der Node-Prozess PID 1 im Container (kein Init-System
+// im Dockerfile) — der Kernel ignoriert SIGTERM dann standardmäßig, wodurch der
+// HA-Supervisor-Stop/Update erst nach Timeout mit SIGKILL (exit 137) endete.
+let shuttingDown = false;
+async function shutdown(signal) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  console.log(`[INFO] ${signal} empfangen, beende...`);
+  // Timeout-Fallback, falls disconnect() hängt (z.B. tote Verbindung) — der
+  // Supervisor soll nicht doch noch auf ein hartes SIGKILL warten müssen.
+  const forceExit = setTimeout(() => {
+    console.error('[ERROR] Shutdown-Timeout, erzwinge Exit');
+    process.exit(0);
+  }, 5000);
+  forceExit.unref();
+  try {
+    if (saveTimer) clearTimeout(saveTimer);
+    fs.writeFileSync(CHATS_FILE, JSON.stringify(Object.fromEntries(chatMap)));
+    fs.writeFileSync(MESSAGES_FILE, JSON.stringify(Object.fromEntries(messagesByChatId)));
+  } catch (e) { console.error('[ERROR] shutdown save:', e.message); }
+  try { await client.disconnect(); } catch (e) { console.error('[ERROR] shutdown client.disconnect:', e.message); }
+  clearTimeout(forceExit);
+  process.exit(0);
+}
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
+
 app.listen(PORT, () => {
   console.log(`[INFO] Telegram UI on port ${PORT}`);
   startClient();

@@ -39,6 +39,16 @@
       Habilita persistência de sessão via tmux. Quando habilitado, sua sessão
       do terminal sobrevive a atualizações do navegador e desconexões.
       Recomendado para tarefas de longa duração.
+  tmux_scroll_mode:
+    name: Modo de Rolagem Tmux
+    description: >-
+      Comportamento de rolagem com a persistência de sessão habilitada.
+      "browser": as linhas vão para o scrollback nativo do navegador — roda do
+      mouse, rolagem por toque (iPad) e copiar/colar normal funcionam como de
+      costume. "tmux": a roda do mouse rola pelo histórico do tmux (sobrevive
+      a recarregamentos do navegador), mas sem rolagem por toque e a cópia é
+      feita via tmux. Se a entrada parecer bloqueada, pressione q (sai do
+      modo cópia). Padrão: browser.
   auto_update_claude:
     name: Atualização Automática do Claude Code
     description: >-

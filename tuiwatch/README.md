@@ -68,6 +68,31 @@ Zusatzkosten. Prompts für TripPilot, Hotelvergleich und KI-Fazit lassen sich
 über **⚙ KI-Prompts** im Footer auch selbst anpassen.
 Details: [DOCS.md](DOCS.md#-trippilot).
 
+## Preiskalender
+
+Der Kalender-Button zeigt den Preis für **jeden Abreisetag** eines Angebots in
+einem Monatsraster (Heatmap günstig→teuer) — inklusive **Trend-Ansicht** (welche
+Tage seit dem letzten Abruf teurer/günstiger geworden sind), Preisverlauf-
+Mini-Diagramm je Tag und einer Liste der größten Bewegungen. Ändert sich ein
+bereits bekannter Preis, pulsiert der Kalender-Button und optional kommt eine
+Benachrichtigung über HA/Telegram/Wochenüberblick. Ein KI-Button fasst die
+Kalenderpreise zusammen und empfiehlt günstige/teure Monate (funktioniert mit
+Claude und Gemini). Details: [DOCS.md](DOCS.md#preiskalender).
+
+## Markttrend
+
+Destinationsübergreifender Preistrend über alle getrackten Angebote hinweg
+(14-Tage-Fenster + Index seit Aufzeichnungsbeginn), pro Region aufgeschlüsselt —
+überlebt auch das Löschen einzelner Angebote. Details:
+[DOCS.md](DOCS.md#markttrend).
+
+## KI-Buchungsscore ("Orakel")
+
+0–100-Score, ob jetzt ein guter Zeitpunkt zum Buchen ist — pro Angebot oder pro
+Destination, aus Preisverlauf, Markttrend und (falls vorhanden) Kalender-
+Saisonalität berechnet, mit klarer Kennzeichnung Daten vs. Annahme. Details:
+[DOCS.md](DOCS.md#ki-buchungsscore-orakel).
+
 ## Hinweise
 
 - Ändert TUI seine APIs, erkennt der **API-Selbsttest** das (Ampel im Footer) und

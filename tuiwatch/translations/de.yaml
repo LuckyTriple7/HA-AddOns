@@ -11,9 +11,15 @@ configuration:
   poll_interval:
     name: Prüfintervall (Sekunden)
     description: "Pause zwischen zwei automatischen Preisprüfungen. Reisepreise ändern sich langsam — Standard 21600 (6 Stunden), Minimum 600 (10 Minuten). Bitte fair wählen, nicht im Minutentakt."
+  market_trend_threshold:
+    name: Schwelle für Markttrend (%)
+    description: "Kumulierte Preisbewegung über 14 Tage, ab der der Markttrend als steigend/fallend statt stabil gilt. Standard 1.0 — kleinerer Wert reagiert empfindlicher auf kleine Bewegungen."
+  trippilot_home_location:
+    name: TripPilot Heimatort (PLZ/Ort)
+    description: "Vorbelegung für die TripPilot-Frage 'Von wo geht's los?' (bei Anreise mit Auto/Bus/Bahn oder Tagesausflug). Leer lassen, wenn nicht gewünscht — im Fragebogen jederzeit änderbar."
   ha_sensors:
     name: Home-Assistant-Sensoren
-    description: "Je verfolgtem Angebot einen Sensor (sensor.tuiwatch_<hotelname>) in Home Assistant anlegen. Wert = aktueller Preis in €, bei Fehler 'unavailable'; Reise-Eckdaten stehen im Attribut 'description'. Standard an."
+    description: "Je verfolgtem Angebot einen Sensor (sensor.tuiwatch_<hotelname>) in Home Assistant anlegen. Wert = aktueller Preis in €, bei Fehler 'unknown'; Reise-Eckdaten stehen im Attribut 'description'. Standard an."
   notify_ha:
     name: HA-Benachrichtigungen
     description: "Bei Preisänderung oder erreichtem Wunschpreis eine persistente Home-Assistant-Benachrichtigung anzeigen. Standard an."
@@ -26,6 +32,12 @@ configuration:
   cheaper_date_min_diff:
     name: Mindest-Ersparnis für Termin-Alarm (€)
     description: "Ab welcher Ersparnis pro Person der Günstigerer-Termin-Alarm auslöst. Standard 50 €."
+  notify_calendar_trend:
+    name: Kalender-Preisänderung
+    description: "Benachrichtigen, wenn sich im Preiskalender eines Angebots ein Preis für ein bereits bekanntes Reisedatum ändert (Hotelname + betroffener Monat, keine Details). Standard an."
+  calendar_trend_min_diff:
+    name: Mindest-Änderung für Kalender-Preisänderung (€)
+    description: "Ab welcher Preisänderung pro Reisedatum die Kalender-Preisänderung-Benachrichtigung auslöst. Standard 20 € — kleinere Schwankungen werden nicht gemeldet (im Kalender selbst, Trend-Ansicht, weiterhin sichtbar, nur die Benachrichtigung wird gefiltert)."
   notify_errors:
     name: Ausverkauft-/Fehler-Alarm
     description: "Benachrichtigen, wenn ein Angebot mehrmals hintereinander kein Ergebnis liefert (Kontingent ausgebucht oder URL veraltet). Standard an."

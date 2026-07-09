@@ -37,6 +37,15 @@
     description: >-
       Enable tmux session persistence. When enabled, your terminal session
       survives browser refreshes and disconnects. Recommended for long-running tasks.
+  tmux_scroll_mode:
+    name: Tmux Scroll Mode
+    description: >-
+      Scroll behavior when session persistence is enabled. "browser": lines
+      flow into the native browser scrollback — mouse wheel, touch scrolling
+      (iPad) and normal copy/paste work as usual. "tmux": the mouse wheel
+      scrolls through the tmux history (survives browser reloads), but touch
+      scrolling is unavailable and copying goes through tmux. If input seems
+      blocked, press q (exits copy mode). Default: browser.
   claude_autostart:
     name: Auto-start Claude
     description: >-

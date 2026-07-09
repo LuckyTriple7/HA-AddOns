@@ -1,0 +1,57 @@
+name: LogPulse
+description: Zentrale, durchsuchbare Log-Historie aus journald — HA Core, Supervisor und alle Addon-Container
+version: "0.6.1"
+slug: logpulse
+url: https://github.com/LuckyTriple7/HA-AddOns
+image: "ghcr.io/luckytriple7/logpulse"
+
+arch:
+  - amd64
+  - aarch64
+
+startup: application
+boot: manual
+init: true
+watchdog: "tcp://[HOST]:[PORT:17795]"
+
+journald: true
+
+hassio_api: true
+hassio_role: manager
+
+panel_icon: mdi:text-search
+panel_title: LogPulse
+
+ingress: true
+ingress_port: 17795
+ingress_stream: true
+webui: http://[HOST]:[PORT:17795]
+
+ports:
+  17795/tcp: 17795
+
+ports_description:
+  17795/tcp: LogPulse Web-UI
+
+map:
+  - addon_config:rw
+
+options:
+  username: "admin"
+  password: "secret"
+  session_hours: 24
+  retention_days: 14
+  max_db_size_mb: 300
+  poll_timeout_ms: 5000
+  min_level: "DEBUG"
+  verbose_log: false
+
+schema:
+  username: str
+  password: str
+  session_hours: int
+  retention_days: int?
+  max_db_size_mb: int?
+  poll_timeout_ms: int?
+  min_level: list(DEBUG|INFO|WARNING|ERROR)?
+  verbose_log: bool?

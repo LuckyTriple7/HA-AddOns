@@ -4,6 +4,7 @@ import logging
 import os
 import queue
 import secrets
+import signal
 import time
 import threading
 from collections import defaultdict, deque
@@ -1674,6 +1675,17 @@ def _log_startup() -> None:
     log.info("=" * 55)
 
 
+def _handle_sigterm(signum, frame) -> None:
+    """Sauberer Exit bei SIGTERM (HA-Supervisor-Stop/Update) — ohne eigenen Handler
+    würde Python den Default-Handler laufen lassen (exit 143), worüber sich der
+    Supervisor beschwert ("should trap SIGTERM ... exit with code 0"). Alle
+    Hintergrund-Threads sind daemon=True, ein harter os._exit(0) ist daher sicher —
+    kein offener State, der noch geflusht werden müsste."""
+    log.info("SIGTERM empfangen, beende sauber…")
+    os._exit(0)
+
+
+signal.signal(signal.SIGTERM, _handle_sigterm)
 load_sessions()
 _log_startup()
 _init_history_db()

@@ -11,9 +11,15 @@ configuration:
   poll_interval:
     name: Check interval (seconds)
     description: "Delay between two automatic price checks. Travel prices change slowly — default 21600 (6 hours), minimum 600 (10 minutes). Please keep it fair, not every minute."
+  market_trend_threshold:
+    name: Market trend threshold (%)
+    description: "Cumulative price movement over 14 days above which the market trend counts as rising/falling instead of stable. Default 1.0 — a smaller value reacts to smaller moves."
+  trippilot_home_location:
+    name: TripPilot home location (ZIP/city)
+    description: "Pre-fills the TripPilot question 'Where are you starting from?' (for car/bus/train arrival or day trips). Leave empty to disable — can always be changed in the questionnaire itself."
   ha_sensors:
     name: Home Assistant sensors
-    description: "Create a sensor (sensor.tuiwatch_<hotelname>) in Home Assistant per tracked offer. State = current price in €, 'unavailable' on error; trip details are in the 'description' attribute. Default on."
+    description: "Create a sensor (sensor.tuiwatch_<hotelname>) in Home Assistant per tracked offer. State = current price in €, 'unknown' on error; trip details are in the 'description' attribute. Default on."
   notify_ha:
     name: HA notifications
     description: "Show a persistent Home Assistant notification on price change or when a target price is reached. Default on."
@@ -26,6 +32,12 @@ configuration:
   cheaper_date_min_diff:
     name: Minimum saving for date alert (€)
     description: "Minimum saving per person before the cheaper-date alert triggers. Default 50 €."
+  notify_calendar_trend:
+    name: Calendar price change
+    description: "Notify when a price in an offer's price calendar changes for an already-known travel date (hotel name + affected month, no details). Default on."
+  calendar_trend_min_diff:
+    name: Minimum change for calendar price change (€)
+    description: "Minimum price change per travel date before the calendar price change notification triggers. Default 20 € — smaller moves are still visible in the calendar itself (trend view), only the notification is filtered."
   notify_errors:
     name: Sold-out / error alert
     description: "Notify when an offer returns no result several times in a row (sold out or outdated URL). Default on."

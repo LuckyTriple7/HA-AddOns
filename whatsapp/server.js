@@ -794,6 +794,36 @@ process.on('unhandledRejection', (reason) => {
   console.error('[ERROR] Unhandled rejection:', msg);
 });
 
+// ── Graceful shutdown ────────────────────────────────────────────────────────
+// HA-Supervisor-Stop/Update sendet SIGTERM. Ohne eigenen Handler ignoriert der
+// Kernel das bei PID 1 (siehe config.yaml init:true) — und selbst mit init:true
+// würde Node ohne Handler sofort beenden, ohne Puppeteer/Chromium sauber zu
+// schließen. Das hinterlässt SingletonLock-Dateien im Chromium-Profil
+// (SESSION_CHROMIUM_DIR) und kann die Session korrumpieren → erneuter QR-Scan
+// beim nächsten Start nötig. client.destroy() (NICHT client.logout()!) schließt
+// Puppeteer/Chromium sauber, ohne die Session zu invalidieren — gleiches Muster
+// wie doReconnect()/reinitClient() weiter unten.
+let _shuttingDown = false;
+async function gracefulShutdown(signal) {
+  if (_shuttingDown) return;
+  _shuttingDown = true;
+  console.log(`[INFO] ${signal} empfangen, beende WhatsApp-Client sauber…`);
+  const forceExit = setTimeout(() => {
+    console.warn('[WARN] client.destroy() hing fest beim Shutdown — erzwinge Exit');
+    process.exit(0);
+  }, 8000);
+  forceExit.unref();
+  try {
+    await client.destroy();
+  } catch (e) {
+    console.warn('[WARN] client.destroy() beim Shutdown fehlgeschlagen:', e.message);
+  }
+  clearTimeout(forceExit);
+  process.exit(0);
+}
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function sendHANotification(chatId, senderName, body) {
@@ -1698,6 +1728,7 @@ const _SVG = {
 
 app.get('/', (req, res) => {
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-store');
   res.send(`<!DOCTYPE html>
 <html lang="de" class="${DARK_MODE ? 'dark' : 'light'}">
 <head>

@@ -1,5 +1,23 @@
 # Changelog — MediaGrab
 
+## [1.1.6] — 2026-07-09
+
+### Fixed
+- Add-on beendete sich bei jedem Stop/Update mit Exit-Code 137 (SIGKILL statt
+  sauberem Stop). Ursache: `Dockerfile` basiert auf reinem `python:3.14-alpine`
+  ohne eigenes Init-System, `run.sh` macht den Flask-Prozess per `exec` zu PID 1 —
+  ohne eigenen Signal-Handler ignoriert der Kernel bei PID 1 unbehandelte Signale
+  wie SIGTERM (Linux-Sonderfall), der Supervisor musste nach Timeout hart killen.
+  `init: false` → `init: true` in `config.yaml` (HA Supervisor stellt ein Mini-Init
+  als echte PID 1) plus eigener `SIGTERM`-Handler ergänzt (`os._exit(0)` — alle
+  Hintergrund-Threads sind daemon, Job-Fortschritt wird laufend per `save_jobs()`
+  weggeschrieben, kein Cleanup nötig).
+
+## [1.1.5] — 2026-07-07
+
+### Fixed
+- Abgelaufene Session wurde nicht erkannt: Job-Poll (`loadJobs()`) ignorierte 401-Antworten still, Dashboard blieb mit eingefrorener Queue offen statt zum Login weiterzuleiten
+
 ## [1.1.4] — 2026-07-05
 
 ### Geändert

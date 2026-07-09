@@ -1,6 +1,6 @@
 name: MediaGrab
 description: yt-dlp Web-GUI — Videos und Audio herunterladen (YouTube, Vimeo, SoundCloud u.v.m.)
-version: "1.1.4"
+version: "1.1.6"
 slug: mediagrab
 url: https://github.com/LuckyTriple7/HA-AddOns
 image: "ghcr.io/luckytriple7/mediagrab"
@@ -11,7 +11,7 @@ arch:
 
 startup: application
 boot: manual
-init: false
+init: true
 
 map:
   - media:rw

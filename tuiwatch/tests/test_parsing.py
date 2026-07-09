@@ -155,6 +155,36 @@ def test_location_expression_and_payload():
     assert empty["parameters"]["logicalExpression"] == ""
 
 
+def test_facility_expression_and_payload():
+    # id 13 = "Nur Erwachsene" — per Playwright live abgefangen (echter Netzwerk-
+    # Request auf tui.com mit facilityAttributes=13) und gegen die echte Such-API
+    # verifiziert (Gran Canaria: 100 -> 28 Treffer, ausschließlich adults-only-artige
+    # Hotels).
+    assert scraper._facility_expression([13]) == "GT03#TUI-G0978"
+    assert scraper._facility_expression([]) == ""
+    assert scraper._facility_expression([999]) == ""   # unbekannte ID -> ignoriert
+
+    payload = scraper._build_search_payload(
+        {"regions": [128], "duration": 7, "travellers": 2, "facility": [13]})
+    assert payload["parameters"]["logicalExpression"] == "GT03#TUI-G0978"
+
+    # Lage- und Ausstattungs-Filter kombiniert (AND, wie bei mehreren Lage-IDs)
+    combo = scraper._build_search_payload(
+        {"regions": [128], "duration": 7, "location": [9], "facility": [13]})
+    assert combo["parameters"]["logicalExpression"] == (
+        "GT03-DIBE#ST03-DIRE + GT03#TUI-G0978")
+
+
+def test_search_params_from_url_adults_only():
+    url = "https://www.tui.com/x/259516/offer/?regionGiataIds=128&duration=7&facilityAttributes=13"
+    assert scraper._search_params_from_url(url)["facility"] == [13]
+    # ohne facilityAttributes in der URL und ohne Kwarg -> leere Liste
+    u2 = "https://www.tui.com/x/1/offer/?duration=7"
+    assert scraper._search_params_from_url(u2)["facility"] == []
+    # Kwarg setzt den Filter auch ohne URL-Parameter
+    assert scraper._search_params_from_url(u2, adults_only=True)["facility"] == [13]
+
+
 def test_fetch_airlines():
     out = scraper.fetch_airlines()
     assert len(out) > 5

@@ -2467,6 +2467,21 @@ async function init() {
   setInterval(() => { if (status === 'linked') { loadContacts(); loadGroups(); } }, 120000);
 }
 
+// Sauberer Exit bei SIGTERM (HA-Supervisor-Stop/Update) — ohne eigenen Handler
+// ignoriert der Kernel bei PID 1 (siehe run.sh: `exec node server.js`) unbehandelte
+// Signale wie SIGTERM, der Supervisor musste nach Timeout hart killen (exit 137)
+// bzw. beschwert sich bei init:true ohne Handler zu Recht ("should trap SIGTERM
+// ... exit with code 0"). Der signal-cli-rest-api-Prozess (/entrypoint.sh) wird
+// von run.sh vor dem `exec` gestartet, nicht von server.js via child_process —
+// server.js hat also kein Handle darauf und muss ihn nicht separat beenden;
+// er wird beim Container-Stop vom Docker-Runtime mitbeendet.
+function _handleShutdown(sig) {
+  console.log(`[INFO] ${sig} empfangen, beende sauber...`);
+  process.exit(0);
+}
+process.on('SIGTERM', () => _handleShutdown('SIGTERM'));
+process.on('SIGINT', () => _handleShutdown('SIGINT'));
+
 app.listen(PORT, () => {
   console.log(`[INFO] Signal UI listening on port ${PORT}`);
   init();

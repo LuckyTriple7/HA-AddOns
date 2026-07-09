@@ -511,6 +511,7 @@
     async function loadJobs() {
       try {
         const r = await fetch('/api/jobs');
+        if (r.status === 401) { location.href = '/login'; return; }
         if (!r.ok) return;
         const jobs = await r.json();
         _offlineFails = 0;

@@ -17,10 +17,12 @@
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; background:var(--bg); color:var(--text); min-height:100vh; transition:background .2s,color .2s; }
     .wrap { max-width: 1000px; margin: 0 auto; padding: 16px; }
-    header { display:grid; grid-template-columns:auto 1fr auto; align-items:center; gap:10px; margin-bottom:18px; }
+    header { display:grid; grid-template-columns:auto minmax(0,1fr) minmax(0,auto); align-items:center; gap:10px; margin-bottom:18px; }
     .logo { display:flex; align-items:center; gap:8px; font-size:1.3rem; font-weight:700; color:var(--accent); }
     .logo svg { width:26px; height:26px; fill:var(--accent); }
-    .header-actions { display:flex; align-items:center; gap:8px; flex-wrap:wrap; justify-self:end; }
+    .header-actions { display:flex; align-items:center; justify-content:flex-end; gap:8px; flex-wrap:nowrap; min-width:0; }
+    .header-actions .btn { flex:0 1 auto; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .header-actions .icon-btn { flex:0 0 auto; }
     .trip-countdown { justify-self:center; display:none; align-items:center; gap:7px; font-size:.8rem;
       color:var(--muted); background:var(--surf); border:1px solid var(--border); border-radius:20px;
       padding:6px 14px; cursor:pointer; white-space:nowrap; }
@@ -41,7 +43,9 @@
     .add-row input { flex:1 1 240px; background:var(--bg); border:1px solid var(--border); color:var(--text); padding:9px 12px; border-radius:6px; font-size:.85rem; }
     .add-row input:focus { outline:none; border-color:var(--accent); }
     .hint { font-size:.74rem; color:var(--muted); margin-top:8px; }
-    .toolbar { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px; }
+    .toolbar { display:flex; gap:6px; flex-wrap:nowrap; margin-bottom:14px; }
+    .toolbar .btn { flex:1 1 auto; min-width:0; padding:7px 8px; font-size:.8rem;
+                    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     .bulk-bar { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:12px; padding:8px 12px; background:var(--surf); border:1px solid var(--accent); border-radius:8px; }
     .bulk-bar #bulk-count { font-weight:600; font-size:.88rem; }
     .bulk-check { width:16px; height:16px; vertical-align:middle; cursor:pointer; accent-color:var(--accent); }
@@ -118,6 +122,9 @@
     .price-sub { font-size:.74rem; color:var(--muted); margin-top:4px; }
     .price-total { font-size:.76rem; color:var(--text); font-weight:600; margin-top:3px; white-space:nowrap; }
     .old { text-decoration:line-through; color:var(--muted); }
+    .hist-diff { display:inline-block; font-size:.78rem; font-weight:700; margin-left:6px; padding:2px 7px; border-radius:10px; }
+    .hist-diff.up { color:var(--red); background:rgba(248,81,73,.13); }
+    .hist-diff.down { color:var(--green); background:rgba(46,160,67,.14); }
     .disc { color:var(--green); font-weight:600; margin-left:4px; }
     .delta { display:inline-block; font-size:.78rem; font-weight:700; padding:2px 7px; border-radius:10px; margin-top:6px; }
     .delta.up { color:var(--red); background:rgba(248,81,73,.13); }
@@ -138,9 +145,12 @@
     .tag-pill.add { color:var(--muted); border-style:dashed; }
     .card-tags .tag-pill:hover { border-color:var(--red); color:var(--red); }
     .tag-row.inline { display:inline-flex; margin:0 0 0 10px; vertical-align:middle; }
-    .offer-foot { display:flex; align-items:center; gap:6px; margin-top:12px; flex-wrap:wrap; }
-    .offer-foot .when { font-size:.74rem; color:var(--muted); flex:1; }
-    .offer-foot .btn { padding:5px 9px; font-size:.76rem; font-weight:500; }
+    .offer-foot { display:flex; flex-direction:column; gap:6px; margin-top:12px; }
+    .offer-foot .when { font-size:.74rem; color:var(--muted); }
+    .offer-actions { display:flex; align-items:center; gap:6px; flex-wrap:nowrap; min-width:0; }
+    .offer-actions .btn { flex:1 1 auto; min-width:0; padding:5px 9px; font-size:.76rem; font-weight:500;
+                        overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .offer-actions .icon-btn { flex:0 0 auto; }
     .err-note { color:var(--amber); font-size:.78rem; margin-top:6px; }
     .empty { text-align:center; color:var(--muted); padding:50px 16px; }
     .badge-checking { font-size:.72rem; color:var(--accent); }
@@ -174,6 +184,9 @@
     .twprog > i { display:block; height:100%; background:var(--accent); border-radius:5px; transition:width .3s ease; }
     .twprog.indet > i { width:40%; animation:twindet 1.1s ease-in-out infinite; }
     @keyframes twindet { 0%{margin-left:-42%} 100%{margin-left:104%} }
+    .score-head { display:flex; align-items:center; gap:14px; }
+    .score-num { font-size:2.4rem; font-weight:700; line-height:1; }
+    .score-empf { font-size:1.05rem; font-weight:700; }
     .cmp-base { color:var(--accent); font-size:.74rem; font-weight:600; }
     .cmp-best td { background:rgba(46,160,67,.10); }
     .cmp-best .best { color:var(--green); font-weight:700; }
@@ -277,6 +290,11 @@
     .cal-cell .cal-pig { position:absolute; left:50%; top:38%; transform:translate(-50%,-50%); width:28px; height:28px; margin:0; opacity:.7; z-index:0; pointer-events:none; }  /* leicht oberhalb der Mitte, damit der Preis unten frei bleibt */
     .btn.aktion-active { animation: aktionPulse 1.6s ease-in-out infinite; border-color:var(--green); }
     @keyframes aktionPulse { 0%,100% { box-shadow:0 0 0 0 rgba(46,160,67,.55); } 50% { box-shadow:0 0 0 7px rgba(46,160,67,0); } }
+    .btn.cal-alert { animation: calAlertPulse 1.6s ease-in-out infinite; border-color:var(--amber); color:var(--amber); }
+    @keyframes calAlertPulse { 0%,100% { box-shadow:0 0 0 0 rgba(210,153,34,.55); } 50% { box-shadow:0 0 0 7px rgba(210,153,34,0); } }
+    .btn.trend-active-up { border-color:var(--red); }
+    .btn.trend-active-down { border-color:var(--green); }
+    .trend-global { margin-bottom:14px; }
     .cal-cell.tracked { outline:2px solid var(--accent); outline-offset:-2px; }
     a.cal-cell.clk { text-decoration:none; color:inherit; cursor:pointer; transition:transform .08s; }
     a.cal-cell.clk:hover { border-color:var(--accent); transform:translateY(-1px); }
@@ -286,6 +304,14 @@
     .cal-legend .lg-track { border:2px solid var(--accent); }
     .cal-legend .lg-out { background:var(--surf2); opacity:.4; }
     @media(max-width:560px){ .cal-cell{ min-height:44px; padding:3px; } .cal-cell .cal-p{ font-size:.7rem; } }
+    .cal-info { position:absolute; top:2px; right:3px; font-size:10px; line-height:1; cursor:pointer; z-index:2; opacity:.5; }
+    .cal-info:hover { opacity:1; }
+    .cal-moves { margin-bottom:10px; border:1px solid var(--border); border-radius:8px; padding:8px 10px; background:var(--surf2); }
+    .cal-move-row { display:flex; align-items:center; gap:10px; padding:4px 0; font-size:.8rem; cursor:pointer; }
+    .cal-move-row:hover { color:var(--accent); }
+    .cal-day-chart { display:none; margin:10px 0; border:1px solid var(--border); border-radius:8px; padding:8px 10px; }
+    .cal-day-chart.show { display:block; }
+    .cal-day-hd { display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; font-size:.85rem; }
     .modal-close { float:right; }
     footer { text-align:center; margin:24px 0 8px; font-size:.72rem; color:var(--muted); }
     .hc-foot { cursor:pointer; }
@@ -441,6 +467,7 @@
       <button class="btn sec" onclick="openTrips()" title="Gebuchte Reisen verwalten (TUI-PDF importieren)">🧳 Meine Reisen</button>
       <button class="btn sec ai-feature" onclick="openAdvisor()" title="TripPilot: passende Ziele nach Vorlieben finden">🗺️ TripPilot</button>
       <button class="btn sec" id="aktion-btn" onclick="openAktion()" title="Aktuelle öffentliche TUI-Aktionscodes anzeigen und bei neuen benachrichtigt werden">🎟 Aktionscodes</button>
+      <button class="btn sec" id="trend-btn" onclick="openMarketTrend()" title="Marktweiter Preistrend über alle geprüften Angebote, optional nach Destination">📈 Markttrend</button>
       <button class="btn sec" onclick="sendEmail()" title="Alle Angebote als E-Mail senden">✉ Als E-Mail senden</button>
       <button class="btn sec" onclick="sendDigest()" title="Wochenüberblick jetzt senden (Telegram/E-Mail)">📊 Wochenüberblick</button>
       <input type="file" id="restore-file" accept=".zip,application/zip,.json,application/json" style="display:none" onchange="restoreOffers(this)">
@@ -550,7 +577,11 @@
           <select id="srch-airport"></select>
         </div>
         <div class="srch-field srch-sm">
-          <label>von</label><input type="date" id="srch-vom" onchange="syncBisMin()" onclick="this.showPicker&&this.showPicker()">
+          <label>von</label>
+          <div style="display:flex;gap:4px">
+            <input type="date" id="srch-vom" onchange="syncBisMin()" onclick="this.showPicker&&this.showPicker()" style="flex:1">
+            <button type="button" class="btn sec" onclick="srchDateToday()" title="Startdatum auf heute setzen">Heute</button>
+          </div>
         </div>
         <div class="srch-field srch-sm">
           <label>bis</label><input type="date" id="srch-bis" onchange="syncBisMin()" onclick="this.showPicker&&this.showPicker()">
@@ -577,6 +608,7 @@
       <div class="srch-filters">
         <label class="srch-chk" title="Nur Pauschalreisen des Veranstalters TUI Deutschland (TUID). Aus = alle Veranstalter."><input type="checkbox" id="srch-tui" checked> TUI</label>
         <label class="srch-chk" title="Nur Angebote mit Direktflug (ohne Zwischenstopp)"><input type="checkbox" id="srch-direct"> Nur Direktflug</label>
+        <label class="srch-chk" title="Nur Erwachsenenhotels (Adults Only)"><input type="checkbox" id="srch-adults"> Nur Erwachsene</label>
         <span class="srch-boards">Verpflegung:
           <label title="Alles Inklusive (inkl. „AI Plus“/laut Programm)"><input type="checkbox" class="srch-board" value="AI"> AI</label>
           <label title="Vollpension (inkl. Vollpension Plus)"><input type="checkbox" class="srch-board" value="FB"> VP</label>
@@ -678,6 +710,8 @@
       </button>
       <h2>🤖 KI-Verlauf</h2>
       <div class="sub">Bisherige KI-Fazits &amp; -Vergleiche — bleiben dauerhaft gespeichert, unabhängig vom 24h-Cache.</div>
+      <input type="text" id="aihist-search" oninput="filterAiHistory()" placeholder="🔍 Suchen (Titel, Art, Modell)…"
+        style="width:100%;margin-top:10px;background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:8px;font:inherit">
       <div id="aihist-body"></div>
     </div>
   </div>
@@ -798,6 +832,25 @@
     </div>
   </div>
 
+  <!-- Markttrend-Modal -->
+  <div class="modal-bg" id="trend-bg">
+    <div class="modal" style="max-width:640px">
+      <button class="icon-btn modal-close" onclick="closeMarketTrend()">
+        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+      </button>
+      <h2>Markttrend</h2>
+      <div class="sub">Marktweiter Preistrend über alle geprüften Angebote der letzten 14 Tage —
+        gemittelt aus den Preisänderungen einzelner Angebote (kein Orakel, nur ein Hinweis).
+        Bleibt erhalten, auch wenn einzelne Angebote gelöscht werden.</div>
+      <div id="trend-body"></div>
+      <div class="cmp-foot" style="margin-top:12px">
+        <span class="hint" style="flex:1;min-width:220px">Preissprung durch Zimmerwechsel dabei?
+          Neu berechnen schließt ihn nachträglich aus.</span>
+        <button class="btn sec" onclick="recomputeMarketTrend()">🔄 Neu berechnen</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Reisen-Datenbank-Modal -->
   <div class="modal-bg" id="trips-bg">
     <div class="modal" style="max-width:960px">
@@ -866,7 +919,8 @@
   </script>
 
   <script>
-    const G = { base: {{ (script_root or '')|tojson }}, iv: {{ poll_interval|tojson }}, ai: {{ ai_enabled|tojson }} };
+    const G = { base: {{ (script_root or '')|tojson }}, iv: {{ poll_interval|tojson }}, ai: {{ ai_enabled|tojson }},
+                homeLoc: {{ trippilot_home_location|tojson }} };
     document.body.classList.toggle('ai-disabled', !G.ai);
     window.G = G;  // auch für den Konsolen-Script-Block (Ingress-Pfad) erreichbar
     const api = (p) => (G.base || '') + p;
@@ -1129,23 +1183,36 @@
           ${statsLine}
           ${o.archived?'':`<div class="price-rows">${targetRow}${bookedRow}</div>`}
           <div class="offer-foot">
+            <div class="when">${o.archived
+              ? `<span class="archived-badge">📦 archiviert</span>${o.return_date?(' · Reise bis '+fmtD(o.return_date)):''}${o.price!=null?(' · letzter Preis '+eur(o.price)):''}`
+              : (o.paused?'<span class="paused-badge">⏸ pausiert</span>':(o.checking?'<span class="badge-checking">wird geprüft…</span>':('Zuletzt: '+ago(o.last_ts))))}</div>
+            <div class="offer-actions">
             ${o.archived
-              ? `<span class="when"><span class="archived-badge">📦 archiviert</span>${o.return_date?(' · Reise bis '+fmtD(o.return_date)):''}${o.price!=null?(' · letzter Preis '+eur(o.price)):''}</span>
-                 <button class="btn sec" onclick="openHistory(${o.id})">Verlauf</button>
+              ? `<button class="btn sec" onclick="openHistory(${o.id})">Verlauf</button>
                  <button class="btn sec" onclick="unarchiveOffer(${o.id})" title="Wieder aktiv verfolgen">Reaktivieren</button>
-                 <button class="btn danger" onclick="delOffer(${o.id})">Löschen</button>`
-              : `<span class="when">${o.paused?'<span class="paused-badge">⏸ pausiert</span>':(o.checking?'<span class="badge-checking">wird geprüft…</span>':('Zuletzt: '+ago(o.last_ts)))}</span>
-                 <button class="btn sec" onclick="checkOne(${o.id})">Prüfen</button>
+                 <button class="icon-btn" onclick="resetOffer(${o.id})" title="Zurücksetzen: Verlauf löschen und neu bei null beginnen">
+                   <svg viewBox="0 0 24 24"><path d="M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
+                 </button>
+                 <button class="icon-btn" style="color:var(--red)" onclick="delOffer(${o.id})" title="Löschen">
+                   <svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+                 </button>`
+              : `<button class="btn sec" onclick="checkOne(${o.id})">Prüfen</button>
                  <button class="btn sec" onclick="openHistory(${o.id})">Verlauf</button>
-                 <button class="btn sec" onclick="openCalendar(${o.id})" title="Preis je Abreisetag (Preiskalender)">Kalender</button>
-                 <button class="btn sec" onclick="openRooms(${o.id})" title="Zimmerkategorie wählen (Standard = günstigstes)">Zimmer</button>
+                 <button class="btn sec${o.calendar_alert?' cal-alert':''}" onclick="openCalendar(${o.id})" title="${o.calendar_alert?'Preisänderung im Kalender seit letztem Öffnen! · ':''}Preis je Abreisetag (Preiskalender)">Kalender</button>
+                 <button class="btn sec" onclick="pendingStartId=null;openRooms(${o.id})" title="Zimmerkategorie wählen (Standard = günstigstes)">Zimmer</button>
                  ${o.comparable?`<button class="btn sec" onclick="openCompare(${o.id})" title="Preis pro Person für andere Reisendenzahl vergleichen">Vergleich</button>`:''}
+                 <button class="btn sec ai-feature" onclick="openBookingScore(${o.id})" title="KI-Buchungsscore: jetzt buchen, beobachten oder warten?">Buchungsscore</button>
                  <button class="btn sec" onclick="openNights(${o.id})" title="Preise für kürzere/längere Reisedauern vergleichen">Nächte</button>
                  <button class="btn sec" onclick="openSearchFromOffer(${o.id})" title="Weitere Hotels dieser Region suchen (Filter aus dem Angebot)">Region</button>
                  <button class="btn sec" onclick="togglePause(${o.id}, ${o.paused})" title="Automatische Prüfung aussetzen/fortsetzen">${o.paused?'Fortsetzen':'Pausieren'}</button>
-                 <button class="btn sec" onclick="resetOffer(${o.id})" title="Verlauf löschen und neu bei null beginnen">Zurücksetzen</button>
                  <button class="btn sec" onclick="archiveOffer(${o.id})" title="Ins Archiv legen — keine Live-Abfragen mehr">Archivieren</button>
-                 <button class="btn danger" onclick="delOffer(${o.id})">Löschen</button>`}
+                 <button class="icon-btn" onclick="resetOffer(${o.id})" title="Zurücksetzen: Verlauf löschen und neu bei null beginnen">
+                   <svg viewBox="0 0 24 24"><path d="M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
+                 </button>
+                 <button class="icon-btn" style="color:var(--red)" onclick="delOffer(${o.id})" title="Löschen">
+                   <svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+                 </button>`}
+            </div>
           </div>
         </div>`;
     }
@@ -1234,11 +1301,23 @@
       const hist = hd.history;
       const pts = hist.filter(h=>h.ok && h.price!=null);
       drawChart($('#hist-canvas'), pts, true, {target: o.target_price, booked: o.booked_price, events: hd.events||[]});
-      const rows = hist.slice().reverse().map(h=>{
+      const rows = hist.map((h,i)=>{
         const d = new Date(h.ts*1000).toLocaleString('de-DE');
-        if(!h.ok) return `<tr><td>${d}</td><td colspan="2" style="color:var(--amber)">⚠ ${esc(h.note||'fehlgeschlagen')}</td></tr>`;
-        return `<tr><td>${d}</td><td><b>${eur(h.price)}</b></td><td>${h.old_price?('<span class="old">'+eur(h.old_price)+'</span>'+(h.discount?' -'+h.discount+'%':'')):''}</td></tr>`;
-      }).join('');
+        if(!h.ok) return {keep:true, html:`<tr><td>${d}</td><td colspan="2" style="color:var(--amber)">⚠ ${esc(h.note||'fehlgeschlagen')}</td></tr>`};
+        const prev = hist[i-1];
+        let diff = '', unchanged = false;
+        if(prev && prev.ok && prev.price!=null){
+          const delta = h.price - prev.price;
+          if(delta>0) diff = ` <span class="hist-diff up">▲ +${eur(delta)}</span>`;
+          else if(delta<0) diff = ` <span class="hist-diff down">▼ ${eur(delta)}</span>`;
+          else unchanged = true;
+        }
+        // unveränderte Preise ausblenden (Rauschen) — außer dem jüngsten Eintrag,
+        // der zeigt, wann zuletzt geprüft wurde
+        const keep = !unchanged || i === hist.length - 1;
+        const html = `<tr><td>${d}</td><td><b>${eur(h.price)}</b>${diff}</td><td>${h.old_price?('<span class="old">'+eur(h.old_price)+'</span>'+(h.discount?' -'+h.discount+'%':'')):''}</td></tr>`;
+        return {keep, html};
+      }).filter(r=>r.keep).map(r=>r.html).reverse().join('');
       $('#hist-table').innerHTML = hist.length?`<table class="hist"><tr><th>Zeitpunkt</th><th>Preis</th><th>Vergleich</th></tr>${rows}</table>`:'';
     }
     function closeModal(){ $('#modal-bg').classList.remove('show'); }
@@ -1422,6 +1501,9 @@
     let airportsLoaded = false, airlinesLoaded = false, destNode = null, destData = null, destStack = [];
     function urlParam(u, key){ try{ return new URL(u).searchParams.get(key)||''; }catch(e){ return ''; } }
     function isoPlus(days){ const d=new Date(); d.setUTCDate(d.getUTCDate()+days); return d.toISOString().slice(0,10); }
+    // Springt das Startdatum auf heute — z.B. wenn ein altes Datum stehengeblieben
+    // ist (TUIs Such-API antwortet auf Zeiträume in der Vergangenheit mit HTTP 500).
+    function srchDateToday(){ $('#srch-vom').value = isoPlus(0); syncBisMin(); }
     // Nächte = Tage zwischen von und bis (null, wenn ungültig)
     function nightsBetween(vom, bis){
       if(!vom || !bis || bis < vom) return null;
@@ -1502,6 +1584,7 @@
     function openSearch(){            // Maske (Toolbar)
       srchOfferId = null;
       setSearchMode('mask'); ensureAirports(); ensureAirlines(); renderFavs();
+      $('#srch-vom').min = isoPlus(0);
       if(!$('#srch-vom').value) $('#srch-vom').value = isoPlus(21);
       if(!$('#srch-bis').value) $('#srch-bis').value = isoPlus(51);
       syncBisMin();
@@ -1526,6 +1609,7 @@
       const la = (urlParam(o.url,'locationAttributes')||'').split(/[;,]/).map(s=>s.trim()).filter(Boolean);
       document.querySelectorAll('.srch-loc').forEach(c=>{ c.checked = la.includes(c.value); });
       $('#srch-direct').checked = (urlParam(o.url,'maxStopOvers')==='0');
+      $('#srch-adults').checked = (urlParam(o.url,'facilityAttributes')||'').split(/[;,]/).includes('13');
       $('#srch-stars').value='3'; $('#srch-rec').value='80';
       const al = (urlParam(o.url,'airlines')||'').split(/[;,]/).map(s=>s.trim()).filter(Boolean);
       ensureAirlines().then(()=>setAirlines(al));
@@ -1542,7 +1626,7 @@
       const air=$('#srch-airport'); if(air.options.length) air.selectedIndex=0;
       $('#srch-vom').value=isoPlus(21); $('#srch-bis').value=isoPlus(51); syncBisMin();
       $('#srch-dur').value=7; $('#srch-trav').value=2; $('#srch-exact').checked=false; applyExact();
-      $('#srch-tui').checked=true; $('#srch-direct').checked=false;
+      $('#srch-tui').checked=true; $('#srch-direct').checked=false; $('#srch-adults').checked=false;
       document.querySelectorAll('.srch-board').forEach(c=>{ c.checked=false; });
       document.querySelectorAll('.srch-loc').forEach(c=>{ c.checked=false; });
       $('#srch-stars').value=3; $('#srch-rec').value=80; $('#srch-url').value='';
@@ -1602,6 +1686,69 @@
     async function updateAktionBtn(){
       try { const d = await fetch(api('/api/aktionscodes')).then(r=>r.json()); setAktionGlow((d.codes||[]).length>0); }
       catch(e){}
+    }
+
+    // ── Markttrend (destinationsübergreifend, überlebt Angebots-Löschung) ─────
+    function openMarketTrend(){
+      $('#trend-bg').classList.add('show');
+      $('#trend-body').innerHTML = '<div class="cmp-load">Lade…</div>';
+      loadMarketTrend();
+    }
+    function closeMarketTrend(){ $('#trend-bg').classList.remove('show'); }
+    $('#trend-bg').addEventListener('click', e=>{ if(e.target.id==='trend-bg') closeMarketTrend(); });
+    async function loadMarketTrend(){
+      let d; try { d = await fetch(api('/api/market-trend')).then(r=>r.json()); }
+      catch(e){ $('#trend-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Laden fehlgeschlagen</div>'; return; }
+      renderMarketTrend(d);
+    }
+    function marketTrendBadge(t){
+      if(!t) return '<span class="trend flat" title="Zu wenig Datenpunkte in den letzten 14 Tagen">→ keine Daten</span>';
+      const pct = Math.abs(t.pct)>=0.5 ? (' '+(t.pct>0?'+':'−')+Math.abs(t.pct).toLocaleString('de-DE',{maximumFractionDigits:1})+' %') : '';
+      const days = t.days>=2 ? ` seit ${t.days} Tagen` : '';
+      const title = `Marktweiter Trend über die letzten 14 Tage (${t.n} Datenpunkte)`;
+      if(t.dir==='down') return `<span class="trend down" title="${title}">↘ fällt${pct}${days}</span>`;
+      if(t.dir==='up')   return `<span class="trend up" title="${title}">↗ steigt${pct}${days}</span>`;
+      return `<span class="trend flat" title="${title}">→ stabil${days}</span>`;
+    }
+    function marketIndexLine(i){
+      if(!i) return '';
+      const since = new Date(i.since*1000).toLocaleDateString('de-DE');
+      const sign = i.pct>0 ? '+' : '';
+      const cls = i.pct>0 ? 'up' : (i.pct<0 ? 'down' : 'flat');
+      return ` <span class="trend ${cls}" title="Index seit Aufzeichnungsbeginn (${i.n} Datenpunkte), unabhängig vom 14-Tage-Fenster">`
+           + `Index ${i.index.toLocaleString('de-DE',{maximumFractionDigits:1})} (${sign}${i.pct.toLocaleString('de-DE',{maximumFractionDigits:1})} % seit ${since})</span>`;
+    }
+    let _marketTrendData = null;
+    function renderMarketTrend(d){
+      _marketTrendData = d;
+      setTrendGlow(d.global.trend);
+      const rows = (d.by_region||[]).map((r,i)=>
+        `<tr><td>${esc(r.region)}</td><td>${marketTrendBadge(r.trend)}${marketIndexLine(r.index)}</td>`
+        + `<td>${(r.trend||r.index||{}).n||''}</td>`
+        + `<td class="ai-feature"><button class="btn sec" onclick="openRegionOutlook(${i})" title="KI-Einschätzung für diese Destination">🔮</button></td></tr>`).join('');
+      $('#trend-body').innerHTML =
+        `<div class="trend-global"><b>Gesamt:</b> ${marketTrendBadge(d.global.trend)}${marketIndexLine(d.global.index)}</div>` +
+        (rows ? `<table class="hist"><tr><th>Destination</th><th>Trend (14 Tage) / Index (gesamt)</th><th>Datenpunkte</th><th class="ai-feature">KI</th></tr>${rows}</table>`
+              : '<div class="cmp-load">Noch keine Destination mit genug Daten für eine eigene Aufschlüsselung.</div>');
+    }
+    function setTrendGlow(t){
+      const b = document.getElementById('trend-btn'); if(!b) return;
+      b.classList.remove('trend-active-up', 'trend-active-down');
+      if(t && t.dir==='up') b.classList.add('trend-active-up');
+      else if(t && t.dir==='down') b.classList.add('trend-active-down');
+    }
+    async function updateTrendBtn(){
+      try { const d = await fetch(api('/api/market-trend')).then(r=>r.json()); setTrendGlow(d.global.trend); }
+      catch(e){}
+    }
+    async function recomputeMarketTrend(){
+      $('#trend-body').innerHTML = '<div class="cmp-load">Wird neu berechnet…</div>';
+      try {
+        const d = await fetch(api('/api/market-trend/recompute'), {method:'POST'}).then(r=>r.json());
+        toast(`Markttrend neu berechnet (${d.recomputed} Datenpunkte)`);
+      } catch(e){ toast('Neu berechnen fehlgeschlagen'); }
+      loadMarketTrend();
+      updateTrendBtn();
     }
     // Preiskalender: mit Pfeiltasten ← / → durch die Monate blättern (nicht nur per Maus)
     document.addEventListener('keydown', e=>{
@@ -2166,6 +2313,7 @@
       try { r = await fetch(api('/api/searches/'+id+'/check'), {method:'POST'}); d = await r.json().catch(()=>({})); }
       catch(e){ toast('Prüfen fehlgeschlagen'); return; }
       if(r.status===400){ toast('Suchabo zuerst aktivieren (Beobachten + Schwellenpreis)'); return; }
+      if(r.status===429){ toast('Bitte kurz warten ('+(d.retry_after||30)+'s) — gerade erst geprüft'); return; }
       if(!r.ok){ toast('Prüfen fehlgeschlagen — Suche nicht ausführbar'); return; }
       toast((d.hits||[]).length+' Hotel(s) unter der Schwelle'+(d.new?(' ('+d.new+' neu gemeldet)'):''));
       await renderFavs(); $('#srch-favsel').value=id; favBtnState();
@@ -2182,6 +2330,7 @@
         vom: $('#srch-vom').value, bis: $('#srch-bis').value,
         dur: $('#srch-dur').value, exact: $('#srch-exact').checked, trav: $('#srch-trav').value,
         tui: $('#srch-tui').checked, direct: $('#srch-direct').checked,
+        adults_only: $('#srch-adults').checked,
         boards: [...document.querySelectorAll('.srch-board:checked')].map(c=>c.value),
         location: [...document.querySelectorAll('.srch-loc:checked')].map(c=>+c.value),
         airlines: selectedAirlines(),
@@ -2227,6 +2376,7 @@
       $('#srch-trav').value=f.trav||2;
       $('#srch-tui').checked=f.tui!==false;
       $('#srch-direct').checked=!!f.direct;
+      $('#srch-adults').checked=!!f.adults_only;
       document.querySelectorAll('.srch-board').forEach(c=>{ c.checked=(f.boards||[]).includes(c.value); });
       document.querySelectorAll('.srch-loc').forEach(c=>{ c.checked=(f.location||[]).includes(+c.value); });
       ensureAirlines().then(()=>setAirlines(f.airlines||[]));
@@ -2243,7 +2393,8 @@
       const url = $('#srch-url').value.trim();
       const boards = [...document.querySelectorAll('.srch-board:checked')].map(c=>c.value);
       const location = [...document.querySelectorAll('.srch-loc:checked')].map(c=>+c.value);
-      const body = { operator_tui: $('#srch-tui').checked, direct: $('#srch-direct').checked, boards,
+      const body = { operator_tui: $('#srch-tui').checked, direct: $('#srch-direct').checked,
+        adults_only: $('#srch-adults').checked, boards,
         location, airlines: selectedAirlines(),
         min_stars: parseFloat($('#srch-stars').value)||0,
         min_recommend: parseFloat($('#srch-rec').value)||0 };
@@ -2253,6 +2404,7 @@
         if(!srchDest){ toast('Bitte ein Reiseziel wählen'); return; }
         const vom=$('#srch-vom').value, bis=$('#srch-bis').value;
         if(!vom||!bis){ toast('Bitte Zeitraum (von/bis) wählen'); return; }
+        if(vom<isoPlus(0)){ toast('Startdatum liegt in der Vergangenheit'); return; }
         if(bis<vom){ toast('„bis" muss nach „von" liegen'); return; }
         const exact=$('#srch-exact').checked;
         const win=nightsBetween(vom,bis), dur=parseInt($('#srch-dur').value)||7;
@@ -2267,7 +2419,9 @@
       try { r = await fetch(api('/api/search'), {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)}); d = await r.json(); }
       catch(e){ $('#srch-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Suche fehlgeschlagen.</div>'; return; }
       if(r.status===400 && d.error==='no_region'){ $('#srch-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ '+(srchOfferId!=null?'Region zu diesem Angebot nicht ermittelbar.':'Keine Region erkannt.')+'</div>'; return; }
+      if(r.status===429){ $('#srch-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Bitte kurz warten ('+(d.retry_after||3)+'s) und erneut suchen.</div>'; return; }
       if(r.status===404){ $('#srch-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Angebot nicht gefunden.</div>'; return; }
+      if(r.status===400 && d.note){ $('#srch-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ '+esc(d.note)+'</div>'; return; }
       if(r.status===400){ $('#srch-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Keine gültige Eingabe.</div>'; return; }
       if(!r.ok){ $('#srch-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Suche fehlgeschlagen.</div>'; return; }
       srchResults = d.results||[]; srchTotal = d.total||srchResults.length; srchFilter = '';
@@ -2371,13 +2525,18 @@
       const restore = ()=>{ if(btn){ btn.disabled=false; btn.textContent = r.tracked?'+ Tracken':'Tracken'; } };
       if(btn){ btn.disabled=true; btn.textContent='…'; }
       let resp;
-      try { resp = await fetch(api('/api/offers'), {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({url:r.offer_url, label:r.name, image:r.image})}); }
+      // start:false — Angebot wird angelegt, aber erst nach der Zimmerauswahl
+      // (pickRoom oder Schließen des Dialogs, siehe closeRooms) tatsächlich geprüft.
+      try { resp = await fetch(api('/api/offers'), {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({url:r.offer_url, label:r.name, image:r.image, start:false})}); }
       catch(e){ toast('Fehler beim Hinzufügen'); restore(); return; }
       if(resp.status===409){ toast('Dieses Angebot wird mit genau diesen Parametern bereits verfolgt'); restore(); return; }
       if(!resp.ok){ toast('Fehler beim Hinzufügen'); restore(); return; }
-      toast('Getrackt – wird geprüft…');
-      // Direkt die Zimmerauswahl für das neue Angebot anbieten
-      try { const d=await resp.json(); if(d && d.id) openRooms(d.id); } catch(e){}
+      toast('Angebot angelegt – bitte Zimmer wählen');
+      // Zimmerauswahl anbieten; erst danach beginnt die eigentliche Prüfung.
+      try {
+        const d = await resp.json();
+        if(d && d.id){ pendingStartId = d.id; openRooms(d.id); }
+      } catch(e){}
       r.tracked=true; restore();
       loadOffers();
     }
@@ -2429,6 +2588,17 @@
         : err==='invalid' ? 'Bitte mindestens 2 Hotels für den Vergleich auswählen.'
         : 'KI-Zusammenfassung fehlgeschlagen.';
     }
+    // 'ai_failed'/'ai_empty'/'ai_refused' und Netzwerkfehler sind meist transient
+    // (z. B. 503 UNAVAILABLE bei hoher Last, egal ob Claude oder Gemini) — dafür
+    // einen Retry-Button anbieten. Validierungsfehler (no_data/invalid/no_api_key/…)
+    // lösen sich durch bloßes Wiederholen nicht, dafür kein Button.
+    function aiRetryable(err){ return err==='ai_failed' || err==='ai_refused' || err==='ai_empty' || err==null; }
+    let _aiRetryFn = null;
+    function aiRetry(){ if(_aiRetryFn) _aiRetryFn(); }
+    function aiErrorBlock(msg, retryable){
+      const btn = retryable ? ' <button class="btn sec" onclick="aiRetry()">🔄 Erneut versuchen</button>' : '';
+      return '<div class="cmp-load" style="color:var(--amber)">⚠ '+esc(msg)+btn+'</div>';
+    }
     function hotelFacts(r){
       return {name:r.name, giata:r.giata, location:r.location, country:r.country,
         stars:r.stars, recommendation:r.recommendation, reviews:r.reviews, board:r.board,
@@ -2461,6 +2631,107 @@
       $('#ai-foot').style.display = 'flex';
       aiCurrentId = result.id != null ? result.id : null;
     }
+    function scoreColor(score){ return score>=70 ? 'var(--green)' : score>=40 ? 'var(--amber)' : 'var(--red)'; }
+    function scoreErwartung(v){ return v==='steigend' ? '↗ steigend' : v==='fallend' ? '↘ fallend' : '→ gleich'; }
+    // Buchungsscore/Region-Ausblick: strukturiertes Ergebnis (kein Markdown-Fazit) —
+    // eigene Darstellung mit Score-Balken + Daten-/Annahme-Kennzeichnung je Begründung.
+    function renderBookingScore(box, payload){
+      const r = payload.result;
+      const empfLabel = {jetzt_buchen:'✅ Jetzt buchen', beobachten:'👀 Beobachten', warten:'⏳ Warten'}[r.empfehlung] || r.empfehlung;
+      const begr = (r.begruendung||[]).map(b=>
+        `<li><span class="hint" style="text-transform:uppercase;font-size:.68rem">[${b.typ==='daten'?'Daten':'Annahme'}]</span> ${esc(b.text)}</li>`).join('');
+      $(box).innerHTML = `
+        <div class="score-head">
+          <div class="score-num" style="color:${scoreColor(r.score)}">${r.score}</div>
+          <div>
+            <div class="score-empf">${empfLabel}</div>
+            <div class="hint">Vertrauen: ${r.vertrauen}%</div>
+          </div>
+        </div>
+        <div class="twprog" style="max-width:none;margin:10px 0"><i style="width:${r.score}%;background:${scoreColor(r.score)}"></i></div>
+        <div class="hint">Erwartung 7 Tage: ${scoreErwartung(r.erwartung_7_tage)} · 30 Tage: ${scoreErwartung(r.erwartung_30_tage)}</div>
+        <ul class="ai-list" style="margin-top:10px">${begr}</ul>
+        ${aiUsageLine(payload.usage, payload.cached, payload.totals)}`;
+      $('#ai-foot').style.display = 'none';
+      aiCurrentId = payload.id != null ? payload.id : null;
+    }
+    async function openBookingScore(id){
+      const o = (curOffers||[]).find(x=>x.id===id) || {};
+      $('#ai-title').textContent = '🔮 Buchungsscore';
+      $('#ai-sub').textContent = o.label || o.hotel || ('Angebot #'+id);
+      $('#ai-foot').style.display = 'none';
+      $('#ai-bg').classList.add('show');
+      const attempt = async () => {
+        $('#ai-body').innerHTML = progBar('KI berechnet den Buchungsscore…');
+        let resp, d;
+        try {
+          resp = await fetch(api('/api/ai/booking-score/'+id), {method:'POST'});
+          d = await resp.json();
+        } catch(e){ _aiRetryFn = attempt; $('#ai-body').innerHTML = aiErrorBlock('Buchungsscore fehlgeschlagen.', true); return; }
+        if(!resp.ok){
+          const retryable = aiRetryable(d.error);
+          const msg = d.error==='no_price' ? 'Noch kein Preis für dieses Angebot vorhanden.' : aiErrorMsg(d.error);
+          _aiRetryFn = retryable ? attempt : null;
+          $('#ai-body').innerHTML = aiErrorBlock(msg, retryable);
+          return;
+        }
+        renderBookingScore('#ai-body', d);
+      };
+      attempt();
+    }
+    async function openRegionOutlook(idx){
+      const r = _marketTrendData && _marketTrendData.by_region[idx]; if(!r) return;
+      closeMarketTrend();   // beide Modals teilen sich z-index — sonst liegt Markttrend obendrauf
+      $('#ai-title').textContent = '🔮 Region-Ausblick';
+      $('#ai-sub').textContent = r.region;
+      $('#ai-foot').style.display = 'none';
+      $('#ai-bg').classList.add('show');
+      const attempt = async () => {
+        $('#ai-body').innerHTML = progBar('KI schätzt die Destination ein…');
+        let resp, d;
+        try {
+          resp = await fetch(api('/api/ai/region-outlook'), {method:'POST', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({region: r.region})});
+          d = await resp.json();
+        } catch(e){ _aiRetryFn = attempt; $('#ai-body').innerHTML = aiErrorBlock('Region-Ausblick fehlgeschlagen.', true); return; }
+        if(!resp.ok){
+          const retryable = aiRetryable(d.error);
+          const msg = d.error==='no_data' ? 'Noch zu wenig Markttrend-Daten für diese Destination.' : aiErrorMsg(d.error);
+          _aiRetryFn = retryable ? attempt : null;
+          $('#ai-body').innerHTML = aiErrorBlock(msg, retryable);
+          return;
+        }
+        renderBookingScore('#ai-body', d);
+      };
+      attempt();
+    }
+    async function openCalendarOutlook(){
+      if(calId==null) return;
+      const id = calId;   // vor closeCalendar() sichern, das setzt calId=null
+      const offer = (curOffers||[]).find(x=>x.id===id) || {};
+      closeCalendar();   // gleicher z-index wie #ai-bg, siehe openRegionOutlook()
+      $('#ai-title').textContent = '📅 Kalender-Analyse';
+      $('#ai-sub').textContent = offer.label || offer.hotel || ('Angebot #'+id);
+      $('#ai-foot').style.display = 'none';
+      $('#ai-bg').classList.add('show');
+      const attempt = async () => {
+        $('#ai-body').innerHTML = progBar('KI fasst die Kalenderpreise zusammen…');
+        let resp, d;
+        try {
+          resp = await fetch(api('/api/ai/calendar-outlook/'+id), {method:'POST'});
+          d = await resp.json();
+        } catch(e){ _aiRetryFn = attempt; $('#ai-body').innerHTML = aiErrorBlock('Kalender-Analyse fehlgeschlagen.', true); return; }
+        if(!resp.ok){
+          const retryable = aiRetryable(d.error);
+          const msg = d.error==='no_data' ? 'Noch keine Kalenderdaten für dieses Angebot vorhanden.' : aiErrorMsg(d.error);
+          _aiRetryFn = retryable ? attempt : null;
+          $('#ai-body').innerHTML = aiErrorBlock(msg, retryable);
+          return;
+        }
+        renderAiResult('#ai-body', d);
+      };
+      attempt();
+    }
     function exportAiPdf(){
       const w = window.open('', '_blank');
       if(!w){ toast('Pop-up blockiert – bitte für TUIWatch erlauben'); return; }
@@ -2485,19 +2756,24 @@
       $('#ai-foot').style.display = 'none';
       $('#ai-bg').classList.add('show');
       if(r._ai){ renderAiResult('#ai-body', r._ai); return; }
-      $('#ai-body').innerHTML = progBar('KI durchsucht das Web nach Bewertungen…');
-      let resp, d;
-      try {
-        resp = await fetch(api('/api/ai/hotel-summary'), {method:'POST', headers:{'Content-Type':'application/json'},
-          body: JSON.stringify(hotelFacts(r))});
-        d = await resp.json();
-      } catch(e){ $('#ai-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ KI-Zusammenfassung fehlgeschlagen.</div>'; return; }
-      if(!resp.ok){
-        $('#ai-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ '+esc(aiErrorMsg(d.error))+'</div>';
-        return;
-      }
-      r._ai = d;
-      renderAiResult('#ai-body', d);
+      const attempt = async () => {
+        $('#ai-body').innerHTML = progBar('KI durchsucht das Web nach Bewertungen…');
+        let resp, d;
+        try {
+          resp = await fetch(api('/api/ai/hotel-summary'), {method:'POST', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify(hotelFacts(r))});
+          d = await resp.json();
+        } catch(e){ _aiRetryFn = attempt; $('#ai-body').innerHTML = aiErrorBlock('KI-Zusammenfassung fehlgeschlagen.', true); return; }
+        if(!resp.ok){
+          const retryable = aiRetryable(d.error);
+          _aiRetryFn = retryable ? attempt : null;
+          $('#ai-body').innerHTML = aiErrorBlock(aiErrorMsg(d.error), retryable);
+          return;
+        }
+        r._ai = d;
+        renderAiResult('#ai-body', d);
+      };
+      attempt();
     }
     async function openAiCompare(){
       const hotels = srchResults.filter(r=>srCmpSelected.has(r._key));
@@ -2535,32 +2811,48 @@
       $('#ai-foot').style.display = 'none';
       $('#ai-bg').classList.add('show');
       if(_aiCompareCache[cacheKey]){ renderAiResult('#ai-body', _aiCompareCache[cacheKey]); return; }
-      $('#ai-body').innerHTML = progBar('KI vergleicht '+facts.length+' Hotels und durchsucht das Web…');
-      let resp, d;
-      try {
-        resp = await fetch(api('/api/ai/hotel-compare'), {method:'POST', headers:{'Content-Type':'application/json'},
-          body: JSON.stringify({hotels: facts})});
-        d = await resp.json();
-      } catch(e){ $('#ai-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ KI-Vergleich fehlgeschlagen.</div>'; return; }
-      if(!resp.ok){
-        $('#ai-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ '+esc(aiErrorMsg(d.error))+'</div>';
-        return;
-      }
-      _aiCompareCache[cacheKey] = d;
-      renderAiResult('#ai-body', d);
+      const attempt = async () => {
+        $('#ai-body').innerHTML = progBar('KI vergleicht '+facts.length+' Hotels und durchsucht das Web…');
+        let resp, d;
+        try {
+          resp = await fetch(api('/api/ai/hotel-compare'), {method:'POST', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({hotels: facts})});
+          d = await resp.json();
+        } catch(e){ _aiRetryFn = attempt; $('#ai-body').innerHTML = aiErrorBlock('KI-Vergleich fehlgeschlagen.', true); return; }
+        if(!resp.ok){
+          const retryable = aiRetryable(d.error);
+          _aiRetryFn = retryable ? attempt : null;
+          $('#ai-body').innerHTML = aiErrorBlock(aiErrorMsg(d.error), retryable);
+          return;
+        }
+        _aiCompareCache[cacheKey] = d;
+        renderAiResult('#ai-body', d);
+      };
+      attempt();
     }
     const _aiCompareCache = {};  // Session-Cache: Präfix+sortierter Schlüssel-String → {summary, usage}
-    function closeAiSummary(){ $('#ai-bg').classList.remove('show'); }
+    function closeAiSummary(){ $('#ai-bg').classList.remove('show'); _aiRetryFn = null; }
     $('#ai-bg').addEventListener('click', e=>{ if(e.target.id==='ai-bg') closeAiSummary(); });
 
     // ── KI-Verlauf (dauerhaft gespeicherte Fazits/Vergleiche) ─────────────────
+    let _aiHistItems = [];
     async function openAiHistory(){
       $('#aihist-bg').classList.add('show');
+      $('#aihist-search').value = '';
       $('#aihist-body').innerHTML = progBar('Lädt…');
       let d;
       try { d = await fetch(api('/api/ai/history')).then(r=>r.json()); }
       catch(e){ $('#aihist-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Verlauf konnte nicht geladen werden.</div>'; return; }
-      renderAiHistory(d.items||[]);
+      _aiHistItems = d.items||[];
+      renderAiHistory(_aiHistItems);
+    }
+    function filterAiHistory(){
+      const q = $('#aihist-search').value.trim().toLowerCase();
+      if(!q){ renderAiHistory(_aiHistItems); return; }
+      renderAiHistory(_aiHistItems.filter(it =>
+        (it.title||'').toLowerCase().includes(q) ||
+        aiKindLabel(it.kind).toLowerCase().includes(q) ||
+        (it.model||'').toLowerCase().includes(q)));
     }
     function closeAiHistory(){ $('#aihist-bg').classList.remove('show'); }
     $('#aihist-bg').addEventListener('click', e=>{ if(e.target.id==='aihist-bg') closeAiHistory(); });
@@ -2604,15 +2896,22 @@
     }
     function aiKindLabel(kind){
       return kind==='compare' ? '🤖 Vergleich' : kind==='ask' ? '❓ Frage'
-        : kind==='advisor' ? '🗺️ TripPilot' : '🤖 Fazit';
+        : kind==='advisor' ? '🗺️ TripPilot' : kind==='booking_score' ? '🔮 Buchungsscore'
+        : kind==='region_outlook' ? '🔮 Region-Ausblick'
+        : kind==='calendar_outlook' ? '📅 Kalender-Analyse' : '🤖 Fazit';
     }
     function renderAiHistory(items){
-      if(!items.length){ $('#aihist-body').innerHTML = '<div class="cmp-load">Noch keine KI-Analysen gespeichert.</div>'; return; }
+      if(!items.length){
+        $('#aihist-body').innerHTML = '<div class="cmp-load">'
+          + (_aiHistItems.length ? 'Keine Treffer.' : 'Noch keine KI-Analysen gespeichert.') + '</div>';
+        return;
+      }
       $('#aihist-body').innerHTML = items.map(it => `<div class="aihist-item">
           <div class="aihist-main" onclick="openAiHistoryItem(${it.id})">
             <div class="aihist-title">${aiKindLabel(it.kind)} · ${esc(it.title)}</div>
             <div class="hint">${esc(new Date(it.ts*1000).toLocaleString('de-DE'))} · ${esc(it.model)}</div>
           </div>
+          ${it.has_prompt ? `<button class="icon-btn" onclick="repeatAiHistoryItem(${it.id}, event)" title="Mit Claude oder Gemini wiederholen">🔁</button>` : ''}
           <button class="icon-btn" onclick="deleteAiHistoryItem(${it.id}, event)" title="Eintrag löschen">🗑</button>
         </div>`).join('');
     }
@@ -2629,6 +2928,10 @@
       if(d.error){ $('#ai-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Eintrag nicht gefunden (evtl. gelöscht).</div>'; return; }
       $('#ai-title').textContent = aiKindLabel(d.kind) + ' (Verlauf)';
       $('#ai-sub').textContent = d.title + ' · ' + new Date(d.ts*1000).toLocaleString('de-DE');
+      if(d.kind==='booking_score' || d.kind==='region_outlook'){
+        let parsed; try { parsed = JSON.parse(d.summary); } catch(e){ parsed = null; }
+        if(parsed){ renderBookingScore('#ai-body', {result: parsed, usage: d.usage, id: d.id}); return; }
+      }
       renderAiResult('#ai-body', {summary: d.summary, usage: d.usage, id: d.id});
     }
     async function deleteAiHistoryItem(id, ev){
@@ -2636,6 +2939,43 @@
       if(!confirm('Diesen KI-Verlaufseintrag löschen?')) return;
       try { await fetch(api('/api/ai/history/'+id), {method:'DELETE'}); } catch(e){}
       openAiHistory();
+    }
+    async function repeatAiHistoryItem(id, ev){
+      ev.stopPropagation();
+      const it = _aiHistItems.find(x=>x.id===id); if(!it) return;
+      closeAiHistory();
+      $('#ai-title').textContent = '🔁 Wiederholen';
+      $('#ai-sub').textContent = aiKindLabel(it.kind) + ' · ' + it.title;
+      $('#ai-foot').style.display = 'none';
+      $('#ai-bg').classList.add('show');
+      let avail = {};
+      try { avail = await fetch(api('/api/ai/provider')).then(r=>r.json()); } catch(e){}
+      const mkBtn = p => {
+        const ok = avail[p+'_configured'];
+        return `<button class="btn${ok?'':' sec'}" ${ok?'':'disabled'} onclick="runAiHistoryRepeat(${id},'${p}')">${AI_PROVIDER_LABEL[p]}${ok?'':' (kein Key)'}</button>`;
+      };
+      $('#ai-body').innerHTML = `<div class="hint" style="margin-bottom:10px">Mit welcher KI wiederholen?</div>
+        <div style="display:flex;gap:10px">${mkBtn('anthropic')}${mkBtn('gemini')}</div>`;
+    }
+    async function runAiHistoryRepeat(id, provider){
+      const attempt = async () => {
+        $('#ai-body').innerHTML = progBar('Wird wiederholt…');
+        let resp, d;
+        try {
+          resp = await fetch(api('/api/ai/history/'+id+'/repeat'), {method:'POST',
+            headers:{'Content-Type':'application/json'}, body: JSON.stringify({provider})});
+          d = await resp.json();
+        } catch(e){ _aiRetryFn = attempt; $('#ai-body').innerHTML = aiErrorBlock('Wiederholen fehlgeschlagen.', true); return; }
+        if(!resp.ok){
+          const retryable = aiRetryable(d.error);
+          const msg = d.error==='no_prompt' ? (d.note||'Kein Prompt gespeichert.') : aiErrorMsg(d.error);
+          _aiRetryFn = retryable ? attempt : null;
+          $('#ai-body').innerHTML = aiErrorBlock(msg, retryable);
+          return;
+        }
+        if(d.result){ renderBookingScore('#ai-body', d); } else { renderAiResult('#ai-body', d); }
+      };
+      attempt();
     }
 
     // ── Frag dein Portfolio ────────────────────────────────────────────────────
@@ -2650,18 +2990,23 @@
       $('#ai-sub').textContent = q;
       $('#ai-foot').style.display = 'none';
       $('#ai-bg').classList.add('show');
-      $('#ai-body').innerHTML = progBar('KI durchsucht dein Portfolio…');
-      let resp, d;
-      try {
-        resp = await fetch(api('/api/ai/ask'), {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({question:q})});
-        d = await resp.json();
-      } catch(e){ $('#ai-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Frage fehlgeschlagen.</div>'; return; }
-      if(!resp.ok){
-        const msg = d.error==='no_offers' ? 'Keine aktiven Angebote vorhanden.' : aiErrorMsg(d.error);
-        $('#ai-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ '+esc(msg)+'</div>';
-        return;
-      }
-      renderAiResult('#ai-body', d);
+      const attempt = async () => {
+        $('#ai-body').innerHTML = progBar('KI durchsucht dein Portfolio…');
+        let resp, d;
+        try {
+          resp = await fetch(api('/api/ai/ask'), {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({question:q})});
+          d = await resp.json();
+        } catch(e){ _aiRetryFn = attempt; $('#ai-body').innerHTML = aiErrorBlock('Frage fehlgeschlagen.', true); return; }
+        if(!resp.ok){
+          const retryable = aiRetryable(d.error);
+          const msg = d.error==='no_offers' ? 'Keine aktiven Angebote vorhanden.' : aiErrorMsg(d.error);
+          _aiRetryFn = retryable ? attempt : null;
+          $('#ai-body').innerHTML = aiErrorBlock(msg, retryable);
+          return;
+        }
+        renderAiResult('#ai-body', d);
+      };
+      attempt();
     }
 
     // ── KI-Reiseberater (geführter Fragebogen → 3 Zielvorschläge) ─────────────
@@ -2731,7 +3076,7 @@
                 'Safari','Fotografieren','Museen','Freizeitparks','Wein','Kulinarik',
                 'Reiten','Segeln','Angeln','Klettern','Yoga','Tennis','Kajak/SUP','Bootsausflüge',
                 'Zoo/Tierpark','Therme/Wellness-Tag','Sehenswürdigkeit/Schloss','Kletterpark',
-                'Escape Room','Minigolf','Flohmarkt/Markt','Natur']},
+                'Escape Room','Minigolf','Flohmarkt/Markt','Natur','FKK']},
       {title:'Welche Unterkunftsart?', key:'accommodation', multi:false,
        showIf: state => !isDaytrip(state),
        options:['Hotel','Apartment','Ferienwohnung','Airbnb','Villa','Camping','Hostel','egal']},
@@ -2775,6 +3120,7 @@
     let advIdx = 0, advState = {};
     function openAdvisor(){
       advIdx = 0; advState = {};
+      if(G.homeLoc) advState.home_location = G.homeLoc;
       $('#reiseb-bg').classList.add('show');
       advRender();
     }
@@ -2855,23 +3201,47 @@
         (advState.interests||[]).join(', ')].filter(Boolean).join(' · ');
       $('#ai-foot').style.display = 'none';
       $('#ai-bg').classList.add('show');
-      $('#ai-body').innerHTML = progBar('KI sucht passende Ziele…');
-      let resp, d;
-      try {
-        resp = await fetch(api('/api/ai/travel-advisor'), {method:'POST',
-          headers:{'Content-Type':'application/json'}, body: JSON.stringify(advState)});
-        d = await resp.json();
-      } catch(e){ $('#ai-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Anfrage fehlgeschlagen.</div>'; return; }
-      if(!resp.ok){
-        const msg = d.error==='invalid' ? 'Bitte mindestens eine Angabe auswählen.' : aiErrorMsg(d.error);
-        $('#ai-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ '+esc(msg)+'</div>';
-        return;
-      }
-      renderAiResult('#ai-body', d);
+      const attempt = async () => {
+        $('#ai-body').innerHTML = progBar('KI sucht passende Ziele…');
+        let resp, d;
+        try {
+          resp = await fetch(api('/api/ai/travel-advisor'), {method:'POST',
+            headers:{'Content-Type':'application/json'}, body: JSON.stringify(advState)});
+          d = await resp.json();
+        } catch(e){ _aiRetryFn = attempt; $('#ai-body').innerHTML = aiErrorBlock('Anfrage fehlgeschlagen.', true); return; }
+        if(!resp.ok){
+          const retryable = aiRetryable(d.error);
+          const msg = d.error==='invalid' ? 'Bitte mindestens eine Angabe auswählen.' : aiErrorMsg(d.error);
+          _aiRetryFn = retryable ? attempt : null;
+          $('#ai-body').innerHTML = aiErrorBlock(msg, retryable);
+          return;
+        }
+        renderAiResult('#ai-body', d);
+      };
+      attempt();
     }
 
     // ── Preiskalender (Monats-Grid, gespeichert) ──────────────────────────────
-    let calTimer = null, calId = null, calData = null, calMonth = null;
+    let calTimer = null, calId = null, calData = null, calMonth = null, calTrendView = false;
+    function toggleCalTrend(){ calTrendView = !calTrendView; drawCalMonth(); }
+    async function openCalDayChart(iso){
+      const box = $('#cal-day-chart');
+      box.classList.add('show');
+      box.innerHTML = `<div class="cmp-load">Lade Preisverlauf für ${fmtD(iso)}…</div>`;
+      let d;
+      try { d = await fetch(api('/api/calendar/'+calId+'/day/'+iso)).then(r=>r.json()); }
+      catch(e){ box.innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Preisverlauf konnte nicht geladen werden.</div>'; return; }
+      const pts = (d.points||[]).map(p=>({ts:p.ts, price:p.price}));
+      box.innerHTML = `<div class="cal-day-hd"><b>Preisverlauf: ${fmtD(iso)}</b>
+          <button class="btn sec" onclick="closeCalDayChart()">✕</button></div>
+        <canvas id="cal-day-canvas" style="width:100%;height:120px;display:block"></canvas>`;
+      if(pts.length<2){
+        $('#cal-day-canvas').outerHTML = '<div class="hint">Noch keine Preisänderung für dieses Datum aufgezeichnet.</div>';
+      } else {
+        drawChart($('#cal-day-canvas'), pts, false, {});
+      }
+    }
+    function closeCalDayChart(){ $('#cal-day-chart').classList.remove('show'); $('#cal-day-chart').innerHTML=''; }
     function calSpinner(){ $('#cal-body').innerHTML = progBar('Preiskalender wird geladen…'); }
     function startCalPolling(){ clearInterval(calTimer); calPoll(); calTimer = setInterval(calPoll, 2000); }
 
@@ -2900,6 +3270,9 @@
 
     // — Zimmerauswahl —
     let roomId = null;
+    // Gesetzt von trackResult() für neu angelegte (start:false) Angebote — nur dann
+    // startet closeRooms() beim Schließen ohne Auswahl die erste Prüfung nachträglich.
+    let pendingStartId = null;
     async function openRooms(id){
       roomId = id;
       const o = (curOffers||[]).find(x=>x.id===id) || {};
@@ -2947,9 +3320,21 @@
         if(!r.ok){ toast('Fehler bei der Zimmerauswahl'); openRooms(roomId); return; }
       } catch(e){ toast('Fehler bei der Zimmerauswahl'); return; }
       toast(code?'Zimmer gewählt – wird geprüft…':'Günstigstes Zimmer – wird geprüft…');
+      pendingStartId = null;   // Prüfung läuft bereits über POST /api/rooms/<id> — closeRooms soll nicht nochmal starten
       closeRooms(); lastSig=null; loadOffers();
     }
-    function closeRooms(){ roomId=null; $('#room-bg').classList.remove('show'); }
+    function closeRooms(){
+      // Zimmerauswahl für ein neu angelegtes (start:false) Angebot wurde OHNE
+      // explizite Wahl geschlossen (X/Klick daneben) — Prüfung jetzt mit dem
+      // ursprünglichen Zimmer aus der Suche nachträglich starten.
+      if(pendingStartId!=null && pendingStartId===roomId){
+        const id = pendingStartId;
+        fetch(api('/api/offers/'+id+'/start'), {method:'POST'}).catch(()=>{});
+        toast('Wird geprüft…');
+        loadOffers();
+      }
+      pendingStartId = null; roomId=null; $('#room-bg').classList.remove('show');
+    }
     $('#room-bg').addEventListener('click', e=>{ if(e.target.id==='room-bg') closeRooms(); });
 
     async function calPoll(){
@@ -2985,8 +3370,10 @@
     function calFooter(job){
       const when = job.ts ? ('Abgefragt: '+new Date(job.ts*1000).toLocaleString('de-DE')) : '';
       const err = job.error ? '<div class="hint" style="color:var(--amber);margin-top:6px">⚠ Letzte Aktualisierung fehlgeschlagen.</div>' : '';
+      const aiBtn = (job.days && job.days.length)
+        ? '<button class="btn sec ai-feature" onclick="openCalendarOutlook()" title="KI fasst die Kalenderpreise zusammen und empfiehlt günstige/teure Monate">🤖 KI-Analyse</button>' : '';
       return `<div class="cmp-foot"><span class="hint" style="flex:1;min-width:180px">${esc(when)}</span>
-        <button class="btn sec" onclick="refreshCalendar()">Neu abfragen</button></div>${err}`;
+        ${aiBtn}<button class="btn sec" onclick="refreshCalendar()">Neu abfragen</button></div>${err}`;
     }
 
     function renderCalendar(job){
@@ -3009,6 +3396,7 @@
     function drawCalMonth(){
       const job = calData; if(!job) return;
       const pm = {}; job.days.forEach(d=>pm[d.date]=d.price);
+      const moves = job.moves || {};
       const months = [...new Set(job.days.map(d=>d.date.slice(0,7)))].sort();
       if(!months.includes(calMonth)) calMonth = months[0];
       const [Y,M] = calMonth.split('-').map(Number);
@@ -3033,14 +3421,23 @@
         if(!inWin) cls.push('out');
         if(iso===job.cheapest_date) cls.push('cheapest');
         if(iso===job.tracked_date) cls.push('tracked');
+        const mv = moves[iso];
         let style = '';
-        if(price!=null){  // Heatmap: günstig=grün → teuer=rot
+        if(calTrendView){
+          if(mv){  // Trend: rot=gestiegen, grün=gefallen
+            const hue = mv.delta>0 ? 4 : 132;
+            style = ` style="background:hsla(${hue},65%,45%,.22)"`;
+          }
+        } else if(price!=null){  // Heatmap: günstig=grün → teuer=rot
           const ratio = pmax>pmin ? (price-pmin)/(pmax-pmin) : 0;
           style = ` style="background:hsla(${Math.round(120*(1-ratio))},65%,45%,.22)"`;
         }
-        const inner = `<span class="cal-d">${d}</span>`
+        const deltaBadge = mv ? `<span class="hist-diff ${mv.delta>0?'up':'down'}" style="margin:0;font-size:.68rem;padding:1px 5px">${mv.delta>0?'▲ +':'▼ '}${eur(mv.delta)}</span>` : '';
+        const infoIcon = price!=null ? `<span class="cal-info" title="Preisverlauf für diesen Tag anzeigen" onclick="event.preventDefault();event.stopPropagation();openCalDayChart('${iso}')">📈</span>` : '';
+        const inner = `<span class="cal-d">${d}</span>${infoIcon}`
           + (iso===job.cheapest_date?PIG:'')   // Sparschwein als direktes Zellenkind → mittig
-          + (price!=null ? `<span class="cal-p">${eur(price)}</span>` : '<span class="cal-p na">–</span>');
+          + (calTrendView && mv ? deltaBadge
+             : price!=null ? `<span class="cal-p">${eur(price)}</span>` : '<span class="cal-p na">–</span>');
         if(price!=null && base){
           cls.push('clk');
           cells += `<a class="${cls.join(' ')}" href="${esc(dayUrl(base,iso,nights))}" target="_blank" rel="noopener" oncontextmenu="return saveCalDay(event,'${iso}')" title="Linksklick: Termin auf tui.com öffnen · Rechtsklick: als neues Angebot tracken"${style}>${inner}</a>`;
@@ -3053,20 +3450,34 @@
       const monthName = first.toLocaleDateString('de-DE',{month:'long',year:'numeric'});
       let sum = job.cheapest_date ? `Günstigster Termin: <b>${fmtD(job.cheapest_date)}</b> ${eur(job.cheapest_price)}` : '';
       if(job.tracked_date && job.tracked_date!==job.cheapest_date) sum += ` · In deinem Zeitraum: <b>${fmtD(job.tracked_date)}</b> ${eur(job.tracked_price)}`;
+      const topMoves = job.top_moves || [];
+      const topMovesHtml = topMoves.length ? `<div class="cal-moves">
+          <div class="hint" style="margin-bottom:4px"><b>Größte Bewegungen seit letztem Abruf</b></div>
+          ${topMoves.map(m=>`<div class="cal-move-row" onclick="calGo('${m.date.slice(0,7)}');openCalDayChart('${m.date}')">
+            <span>${fmtD(m.date)}</span>
+            <span class="hist-diff ${m.delta>0?'up':'down'}">${m.delta>0?'▲ +':'▼ '}${eur(m.delta)}</span>
+            <span class="hint">${eur(m.prev_price)} → ${eur(m.price)}</span>
+          </div>`).join('')}
+        </div>` : '';
       $('#cal-body').innerHTML = `
         <div class="cal-sum">${sum}</div>
+        ${topMovesHtml}
         <div class="cal-nav">
           <button class="btn sec" onclick="calGo('${prev}')" ${prev?'':'disabled'}>‹</button>
           <span class="cal-title">${monthName}</span>
-          <button class="btn sec" onclick="calGo('${next}')" ${next?'':'disabled'}>›</button>
+          <div style="display:flex;gap:6px;align-items:center">
+            <button class="btn sec" onclick="toggleCalTrend()" title="Preis- oder Trend-Ansicht umschalten">${calTrendView?'💰 Preis':'📈 Trend'}</button>
+            <button class="btn sec" onclick="calGo('${next}')" ${next?'':'disabled'}>›</button>
+          </div>
         </div>
         <div class="cal-grid head">${['Mo','Di','Mi','Do','Fr','Sa','So'].map(w=>`<div class="cal-wd">${w}</div>`).join('')}</div>
         <div class="cal-grid">${cells}</div>
+        <div id="cal-day-chart" class="cal-day-chart"></div>
         <div class="cal-legend">
           <span><i class="lg-cheap"></i>${PIG}günstigster Termin</span>
           <span><i class="lg-track"></i>günstigster in deinem Zeitraum</span>
           <span><i class="lg-out"></i>außerhalb deines Zeitraums</span>
-          <span>🟩→🟥 günstig→teuer · Klick: auf tui.com öffnen · Rechtsklick: als neues Angebot tracken</span>
+          <span>🟩→🟥 günstig→teuer · Klick: auf tui.com öffnen · Rechtsklick: als neues Angebot tracken · 📈: Preisverlauf dieses Tages</span>
         </div>${calFooter(job)}`;
     }
 
@@ -3153,7 +3564,11 @@
       loadOffers();
     }
     async function checkOne(id){ await fetch(api('/api/check/'+id), {method:'POST'}); toast('Prüfung gestartet…'); loadOffers(); }
-    async function checkAll(){ await fetch(api('/api/check-now'), {method:'POST'}); toast('Alle Angebote werden geprüft…'); loadOffers(); }
+    async function checkAll(){
+      const r = await fetch(api('/api/check-now'), {method:'POST'});
+      if(r.status===429){ const d = await r.json().catch(()=>({})); toast('Bitte kurz warten ('+(d.retry_after||60)+'s) — läuft schon eine Prüfung'); return; }
+      toast('Alle Angebote werden geprüft…'); loadOffers();
+    }
 
     async function sendEmail(){
       await openEmailModal(null);
@@ -3292,7 +3707,9 @@
         +'</span><span class="hc-detail">'+esc(c.ok?c.detail:('Fehler: '+c.detail))+'</span></div>').join('');
     }
     async function loadHealth(){
-      try{ const r=await fetch(api('/api/healthcheck')); if(!r.ok) return;
+      try{ const r=await fetch(api('/api/healthcheck'));
+        if(r.status===401){ location.reload(); return; }
+        if(!r.ok) return;
         healthData=await r.json(); setHealthDot(healthData);
         if($('#hc-bg').classList.contains('show')) renderHealthBody(healthData);
       }catch(e){}
@@ -3328,6 +3745,8 @@
     loadHealth();
     updateAktionBtn();
     setInterval(updateAktionBtn, 600000);   // Button-Leuchten alle 10 min aktualisieren
+    updateTrendBtn();
+    setInterval(updateTrendBtn, 600000);
     setInterval(loadHealth, 60000);
 
     // ── Countdown zur nächsten Reise (Header) ─────────────────────────────────

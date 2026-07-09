@@ -19,6 +19,7 @@ import os
 import re
 import secrets
 import shutil
+import signal
 import smtplib
 import subprocess
 import tempfile
@@ -8576,7 +8577,19 @@ def _run_public():
     public_app.run(host='0.0.0.0', port=PUBLIC_PORT, debug=False, threaded=True)
 
 
+def _handle_sigterm(signum, frame) -> None:
+    """Sauberer Exit bei SIGTERM (HA-Supervisor-Stop/Update) — ohne eigenen Handler
+    würde Python den Default-Handler laufen lassen (exit 143), worüber sich der
+    Supervisor beschwert ("should trap SIGTERM ... exit with code 0"). Alle
+    Hintergrund-Threads sind daemon=True (siehe unten), ein harter os._exit(0)
+    ist daher sicher — Schreibzugriffe laufen über `with open(...) as f:`-Blöcke,
+    die beim jeweiligen Abschluss bereits geschlossen/geflusht sind."""
+    log.info("SIGTERM empfangen, beende sauber…")
+    os._exit(0)
+
+
 if __name__ == '__main__':
+    signal.signal(signal.SIGTERM, _handle_sigterm)
     load_sessions()
     load_user_sessions()
     cfg = load_config()

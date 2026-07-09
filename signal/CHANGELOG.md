@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.6.22] - 2026-07-09
+
+### Fixed
+- Add-on beendete sich bei jedem Stop/Update mit Exit-Code 137 bzw. 143 statt
+  sauber mit 0. Ursache: `run.sh` macht den Node-Prozess per `exec node
+  server.js` zu PID 1 im Container — ohne eigenen Signal-Handler ignoriert der
+  Kernel bei PID 1 unbehandelte Signale wie SIGTERM (Linux-Sonderfall), der
+  Supervisor musste nach Timeout hart killen. `init: true` gesetzt und eigener
+  `SIGTERM`/`SIGINT`-Handler in `server.js` ergänzt (`process.exit(0)`). Der
+  von `run.sh` separat gestartete `signal-cli-rest-api`-Prozess wird nicht von
+  `server.js` verwaltet (kein `child_process`) und muss daher nicht gesondert
+  beendet werden.
+
 ## [1.6.21] - 2026-06-29
 - Neu: **Emoji-Picker mit Kategorien wie auf dem Handy** — über 1000 Emojis in 8 Kategorie-Tabs (Smileys & Personen, Tiere & Natur, Essen & Trinken, Aktivitäten, Reisen & Orte, Objekte, Symbole, Flaggen), ein **Suchfeld** (deutsch/englisch, z.B. „herz" oder „laugh") und eine **„Zuletzt verwendet"**-Leiste, die die eigenen Emojis merkt (im Browser gespeichert). Ersetzt die bisherige flache Liste mit ~170 Emojis
 

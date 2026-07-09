@@ -1,5 +1,36 @@
 # Changelog
 
+## [1.1.6] - 2026-07-09
+
+### Changed
+- Doku (DE/EN) und Options-Beschreibungen: Hinweis auf tmux-Copy-Mode-Falle im `tmux`-Scroll-Modus — erstes Scrollen öffnet Copy-Mode, Eingabe wirkt blockiert, `q` verlässt ihn
+
+## [1.1.5] - 2026-07-09
+
+### Fixed
+- Web-Terminal-Scrollback: Die tmux-Statuszeile ließ tmux in einer Scroll-Region (DECSTBM) scrollen, wodurch gescrollte Zeilen nie das Browser-Scrollback erreichten — nur wenige Zeilen waren scrollbar (#162)
+
+### Added
+- Neue Option `tmux_scroll_mode` (`browser`|`tmux`, Standard: `browser`): `browser` = natives Browser-Scrollen, Touch (iPad) und normales Kopieren/Einfügen; `tmux` = Mausrad scrollt tmux-Historie, überlebt Browser-Reloads
+
+## [1.1.4] - 2026-07-09
+
+### Changed
+- Rebuild für Claude Code 2.1.205
+
+
+## [1.1.3] - 2026-07-08
+
+### Changed
+- Rebuild für Claude Code 2.1.204
+
+
+## [1.1.2] - 2026-07-07
+
+### Changed
+- Rebuild für Claude Code 2.1.202
+
+
 ## [1.1.1] - 2026-07-04
 
 ### Changed

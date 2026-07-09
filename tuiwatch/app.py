@@ -13,13 +13,14 @@ import logging
 import os
 import re
 import secrets
+import signal
 import smtplib
 import sqlite3
 import threading
 import time
 import zipfile
 from collections import defaultdict, deque
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from pathlib import Path
@@ -73,7 +74,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.41.4"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.45.5"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -131,6 +132,14 @@ _health_state: dict = {}                 # letzter API-Selbsttest {ok, ts, check
 _health_lock = threading.Lock()
 _ai_summary_cache: dict = {}              # giata/Name → {summary, ts} — spart wiederholte API-Calls
 _AI_SUMMARY_TTL = 24 * 3600
+_booking_score_cache: dict = {}           # offer_id → {result, usage, ts}
+_ai_cache_lock = threading.Lock()         # schützt _ai_summary_cache/_booking_score_cache — ohne Lock
+                                           # können zwei parallele Requests (threaded=True) fürs gleiche
+                                           # Angebot je einen bezahlten KI-Call auslösen statt Cache-Hit
+_region_outlook_cache: dict = {}          # region → {result, usage, ts}
+_calendar_outlook_cache: dict = {}        # offer_id → {summary, usage, ts}
+_BOOKING_SCORE_TTL = 6 * 3600             # kürzer als Hotel-Fazit: Preisdaten ändern sich häufiger
+_CALENDAR_FRESH_SECONDS = 7 * 86400       # Preiskalender für den Buchungsscore ab diesem Alter neu abrufen
 _AI_MODELS = ('claude-opus-4-8', 'claude-sonnet-5', 'claude-haiku-4-5', 'claude-fable-5')
 _GEMINI_MODELS = ('gemini-3.1-pro', 'gemini-3.5-flash', 'gemini-2.5-flash')
 _api_down_notified = False                # ob aktuell ein API-Ausfall gemeldet ist
@@ -140,6 +149,46 @@ _failed_attempts: dict[str, list[float]] = defaultdict(list)
 _blocked_ips: dict[str, float] = {}
 RATE_LIMIT_MAX, RATE_LIMIT_WINDOW, RATE_LIMIT_BLOCK = 5, 600, 900
 
+# Cooldowns für scraping-lastige Routen (check-now/search/searches-check) — schützt
+# TUIs Server vor wiederholtem Klicken/Skript-Aufrufen, die die eigene IP dort blocken
+# könnten. Kein Fehlversuchs-Zähler wie oben, nur ein simpler Zeitstempel pro Key.
+_route_cooldowns: dict[str, float] = {}
+
+
+def _cooldown_remaining(key: str, seconds: int) -> int:
+    """0 und setzt den Zeitstempel, wenn `key` zuletzt vor mehr als `seconds` ausgelöst
+    wurde — sonst verbleibende Sekunden (>0), ohne den Zeitstempel zu berühren."""
+    now = time.time()
+    remaining = seconds - (now - _route_cooldowns.get(key, 0))
+    if remaining > 0:
+        return int(remaining) + 1
+    _route_cooldowns[key] = now
+    return 0
+
+
+def _cooldown_peek(key: str, seconds: int) -> int:
+    """Wie `_cooldown_remaining`, aber rein lesend — setzt/verändert den Zeitstempel
+    nicht. Für den HA-Sensor, der den Cooldown nur anzeigen, nicht auslösen soll."""
+    remaining = seconds - (time.time() - _route_cooldowns.get(key, 0))
+    return int(remaining) + 1 if remaining > 0 else 0
+
+
+def _push_cooldown_sensor() -> None:
+    """Meldet HA einen Binär-Sensor: 'on', solange der globale 'Jetzt prüfen'-Cooldown
+    (60s, `/api/check-now`) aktiv ist. Läuft per Timer, damit der Sensor auch beim
+    Ablauf des Cooldowns von selbst auf 'off' geht, nicht erst beim nächsten Klick."""
+    if not _ha_enabled():
+        return
+    remaining = _cooldown_peek('check_now', 60)
+    attrs = {'friendly_name': 'TUIWatch Cooldown aktiv', 'icon': 'mdi:timer-sand',
+             'retry_after': remaining}
+    try:
+        http.post(f'{HA_BASE}/states/binary_sensor.tuiwatch_cooldown_active',
+                  headers={'Authorization': f'Bearer {SUPERVISOR_TOKEN}'}, timeout=10,
+                  json={'state': 'on' if remaining else 'off', 'attributes': attrs})
+    except Exception as e:
+        log.warning("HA-Cooldown-Sensor aktualisieren fehlgeschlagen: %s", e)
+
 
 # ── Config & Sessions ──────────────────────────────────────────────────────────
 
@@ -147,7 +196,10 @@ def load_config() -> dict:
     try:
         with open(CONFIG_PATH, 'r', encoding='utf-8') as f:
             return json.load(f)
-    except Exception:
+    except FileNotFoundError:
+        return {}   # normal vor dem ersten Schreiben durch den HA-Supervisor
+    except Exception as e:
+        log.warning("options.json nicht lesbar (%s): %s", CONFIG_PATH, e)
         return {}
 
 
@@ -222,6 +274,18 @@ def clear_failed_attempts(ip: str) -> None:
     _blocked_ips.pop(ip, None)
 
 
+def _json_loads_safe(text, default):
+    """json.loads mit Fallback statt Crash — für Felder, die die App selbst per
+    json.dumps geschrieben hat (also normalerweise valide sind), aber theoretisch
+    durch DB-Korruption/manuelle Eingriffe kaputt sein könnten. Loggt eine Warnung,
+    damit sowas nicht stillschweigend untergeht."""
+    try:
+        return json.loads(text)
+    except (ValueError, TypeError) as e:
+        log.warning("Kaputtes JSON in DB-Feld ignoriert: %s", e)
+        return default
+
+
 # ── Datenbank ──────────────────────────────────────────────────────────────────
 
 def db() -> sqlite3.Connection:
@@ -273,6 +337,18 @@ def init_db() -> None:
             FOREIGN KEY (offer_id) REFERENCES offers(id) ON DELETE CASCADE
         )''')
         con.execute('CREATE INDEX IF NOT EXISTS idx_hist_offer ON price_history(offer_id, ts)')
+        # Globaler Markttrend: Preisänderungen je Check, bewusst NICHT an offer_id
+        # gebunden (kein FK) — überlebt daher das Löschen des zugehörigen Angebots.
+        con.execute('''CREATE TABLE IF NOT EXISTS price_moves (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            ts         INTEGER NOT NULL,
+            region     TEXT DEFAULT '',
+            country    TEXT DEFAULT '',
+            months_out INTEGER,
+            pct_change REAL NOT NULL
+        )''')
+        con.execute('CREATE INDEX IF NOT EXISTS idx_moves_ts ON price_moves(ts)')
+        con.execute('CREATE INDEX IF NOT EXISTS idx_moves_region ON price_moves(region, months_out, ts)')
         con.execute('''CREATE TABLE IF NOT EXISTS compare_cache (
             offer_id INTEGER PRIMARY KEY,
             ts       INTEGER NOT NULL,
@@ -286,6 +362,21 @@ def init_db() -> None:
             data     TEXT NOT NULL DEFAULT '{}',
             FOREIGN KEY (offer_id) REFERENCES offers(id) ON DELETE CASCADE
         )''')
+        # Delta-codierte Preishistorie je Reisedatum (nicht je Angebots-Poll wie
+        # price_history): eine Zeile nur wenn sich der Preis für dieses (offer_id,
+        # travel_date) seit dem letzten Snapshot geändert hat, siehe
+        # _store_calendar_snapshot() — sonst würde die Tabelle bei 400-700+ Tagen je
+        # Kalender explodieren.
+        con.execute('''CREATE TABLE IF NOT EXISTS calendar_history (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            offer_id    INTEGER NOT NULL,
+            travel_date TEXT NOT NULL,
+            ts          INTEGER NOT NULL,
+            price       INTEGER NOT NULL,
+            FOREIGN KEY (offer_id) REFERENCES offers(id) ON DELETE CASCADE
+        )''')
+        con.execute('CREATE INDEX IF NOT EXISTS idx_calhist_offer_date '
+                    'ON calendar_history(offer_id, travel_date, ts)')
         con.execute('''CREATE TABLE IF NOT EXISTS nights_cache (
             offer_id INTEGER PRIMARY KEY,
             ts       INTEGER NOT NULL,
@@ -375,6 +466,9 @@ def init_db() -> None:
             usage   TEXT DEFAULT '{}',
             ts      INTEGER NOT NULL
         )''')
+        acols = {r['name'] for r in con.execute('PRAGMA table_info(ai_analyses)').fetchall()}
+        if 'prompt' not in acols:
+            con.execute("ALTER TABLE ai_analyses ADD COLUMN prompt TEXT NOT NULL DEFAULT ''")
         # Reisen-Datenbank: gebuchte Reisen (PDF-Import). data = komplettes Parse-JSON,
         # pdf_name = Dateiname im TRIPS_DIR (dauerhaft gespeichert).
         con.execute('''CREATE TABLE IF NOT EXISTS trips (
@@ -439,6 +533,8 @@ def init_db() -> None:
                     'paused', 'archived'):
             if col not in ocols:
                 con.execute(f"ALTER TABLE offers ADD COLUMN {col} INTEGER")
+        if 'calendar_seen_ts' not in ocols:
+            con.execute("ALTER TABLE offers ADD COLUMN calendar_seen_ts INTEGER NOT NULL DEFAULT 0")
         hcols = {r['name'] for r in con.execute('PRAGMA table_info(price_history)').fetchall()}
         if 'available' not in hcols:
             con.execute("ALTER TABLE price_history ADD COLUMN available INTEGER")
@@ -447,6 +543,11 @@ def init_db() -> None:
             name = hotel_from_url(r['url'])
             if name:
                 con.execute('UPDATE offers SET hotel=? WHERE id=?', (name, r['id']))
+        # Einmaliger Backfill des Markttrends aus der vorhandenen Preishistorie (sonst
+        # bräuchte der Trend erst wieder Tage/Wochen, um genug neue Datenpunkte zu sammeln)
+        if not con.execute("SELECT 1 FROM meta WHERE key='price_moves_backfilled'").fetchone():
+            _backfill_price_moves(con)
+            con.execute("INSERT OR REPLACE INTO meta (key, value) VALUES ('price_moves_backfilled','1')")
     Path(TRIPS_DIR).mkdir(parents=True, exist_ok=True)
     log.info("Datenbank bereit: %s", DB_PATH)
 
@@ -478,6 +579,148 @@ def _trend_for(con, offer_id: int) -> dict | None:
     pct = (b - a) / a * 100
     direction = 'down' if pct <= -2 else ('up' if pct >= 2 else 'flat')
     return {'dir': direction, 'pct': round(pct, 1)}
+
+
+# ── Globaler Markttrend (destinationsübergreifend, überlebt Angebots-Löschung) ──
+# Anders als `_trend_for` (ein Angebot, absolute Preise) wird hier die prozentuale
+# Änderung JEDES Angebots zu seinem eigenen Vorpreis erfasst und in `price_moves`
+# abgelegt (kein FK zu offers). So sind die Werte über verschiedene Hotels hinweg
+# vergleichbar (ein 900€- und ein 3000€-Hotel verzerren sich nicht gegenseitig) und
+# die Tabelle bleibt bestehen, wenn das erzeugende Angebot gelöscht wird.
+
+MARKET_TREND_MIN_SAMPLES = 6
+MARKET_TREND_DEFAULT_THRESHOLD = 1.0  # % kumulierte Bewegung im Fenster, ab der es nicht mehr "flat" ist
+
+
+def _market_trend_threshold() -> float:
+    """Schwelle (%) für den Markttrend, konfigurierbar über `market_trend_threshold`
+    in den Add-on-Einstellungen (sonst Standardwert)."""
+    try:
+        return float(load_config().get('market_trend_threshold', MARKET_TREND_DEFAULT_THRESHOLD))
+    except (TypeError, ValueError):
+        return MARKET_TREND_DEFAULT_THRESHOLD
+
+
+def _months_out(return_date: str, nights: int | None, ts: int) -> int | None:
+    """Grobe Schätzung, wie viele Monate vor Abreise ein Check stattfand. Es gibt kein
+    persistiertes Abreisedatum, daher: Abreise ≈ Rückreisedatum − Reisedauer (Dauer aus
+    dem `duration=`-URL-Parameter). None, wenn `return_date`/`nights` fehlen, das Datum
+    nicht parsebar ist, oder die Abreise schon in der Vergangenheit liegt."""
+    if not return_date or not nights:
+        return None
+    try:
+        ret = date.fromisoformat(return_date[:10])
+    except ValueError:
+        return None
+    dep = ret - timedelta(days=nights)
+    days = (dep - datetime.fromtimestamp(ts).date()).days
+    if days < 0:
+        return None
+    return round(days / 30.44)
+
+
+def _backfill_price_moves(con) -> None:
+    """Einmaliger Backfill von `price_moves` aus der vorhandenen `price_history` beim
+    ersten Start nach diesem Feature. Nutzt je Angebot dessen AKTUELLES region/country/
+    return_date + Dauer als Näherung für alle historischen Punkte (pro Check wurden diese
+    Werte bisher nicht mitgeschrieben) — für die meisten Angebote (feste Such-URL) eine
+    brauchbare Annahme."""
+    offers = con.execute('SELECT id, url, region, country, return_date FROM offers').fetchall()
+    for o in offers:
+        nights = duration_from_url(o['url'])
+        rows = con.execute(
+            'SELECT ts, price FROM price_history WHERE offer_id=? AND ok=1 AND price IS NOT NULL '
+            'ORDER BY ts ASC', (o['id'],)).fetchall()
+        room_change_ts = {r['ts'] for r in con.execute(
+            "SELECT ts FROM offer_events WHERE offer_id=? AND type='room'", (o['id'],)).fetchall()}
+        prev = None
+        for r in rows:
+            # Preisschritt über einen Zimmerwechsel hinweg ist kein Marktsignal, sondern
+            # nur ein anderer Zimmertyp/-preis -> Zählung an dieser Stelle neu beginnen.
+            # `>=` statt `>` an der unteren Grenze: ts ist nur sekundengenau, ein
+            # schneller Zimmerwechsel kann dieselbe Sekunde wie der vorherige Check haben.
+            room_changed = prev and any(prev['ts'] <= rc <= r['ts'] for rc in room_change_ts)
+            if prev and prev['price'] and not room_changed:
+                pct = (r['price'] - prev['price']) / prev['price'] * 100
+                months_out = _months_out(o['return_date'], nights, r['ts'])
+                con.execute(
+                    'INSERT INTO price_moves (ts, region, country, months_out, pct_change) '
+                    'VALUES (?,?,?,?,?)',
+                    (r['ts'], o['region'] or '', o['country'] or '', months_out, pct))
+            prev = r
+
+
+def _compound_pct(values: list) -> float:
+    """Kumulierte %-Bewegung (Zinseszins-Verkettung) statt Mittelwert — sonst verwässern
+    viele 0%-Checks (Preis unverändert seit letztem Poll) einen echten, aber seltenen
+    Anstieg im Schnitt fast auf null."""
+    c = 1.0
+    for p in values:
+        c *= (1 + p / 100)
+    return (c - 1) * 100
+
+
+def _market_moves_query(region: str | None, months_out: int | None,
+                         cutoff: int | None = None) -> tuple[str, list]:
+    """Fester Query-Text (keine laufzeitabhängige String-Verkettung — CodeQL stuft
+    dynamisch aus Bedingungen zusammengesetzte SQL-Strings pauschal als riskant ein,
+    selbst wenn nur Werte parametrisiert werden). Jeder Filter ist ein `(? IS NULL OR
+    spalte=?)`-Paar; nicht gesetzte Filter (`None`) sind dadurch automatisch No-ops,
+    ohne die Query je nach Aufrufer unterschiedlich zusammenzubauen."""
+    q = ('SELECT ts, pct_change FROM price_moves '
+         'WHERE (? IS NULL OR ts>=?) AND (? IS NULL OR region=?) '
+         'AND (? IS NULL OR months_out=?) ORDER BY ts ASC')
+    params = [cutoff, cutoff, region, region, months_out, months_out]
+    return q, params
+
+
+def _market_trend(con, *, region: str | None = None, months_out: int | None = None,
+                   window_days: int = 14) -> dict | None:
+    """Marktweiter Preistrend über alle geprüften Angebote (optional nach Destination/
+    Vorlaufzeit gefiltert), aus den in `price_moves` gesammelten Prozent-Änderungen der
+    letzten `window_days` Tage. None bei zu wenigen Datenpunkten (kein Hellsehen)."""
+    cutoff = int(time.time()) - window_days * 86400
+    q, params = _market_moves_query(region, months_out, cutoff)
+    rows = con.execute(q, params).fetchall()
+    if len(rows) < MARKET_TREND_MIN_SAMPLES:
+        return None
+    deadband = _market_trend_threshold()
+    cum_pct = _compound_pct([r['pct_change'] for r in rows])
+    direction = ('down' if cum_pct <= -deadband
+                 else ('up' if cum_pct >= deadband else 'flat'))
+    # Tages-Streak: aufeinanderfolgende jüngste Tage, deren KUMULIERTE Tagesbewegung
+    # noch zur Gesamtrichtung passt (bzw. bei 'flat' nahe Null bleibt)
+    by_day: dict[str, list] = defaultdict(list)
+    for r in rows:
+        day = datetime.fromtimestamp(r['ts']).strftime('%Y-%m-%d')
+        by_day[day].append(r['pct_change'])
+    days_sorted = sorted(by_day)
+    streak = 0
+    for day in reversed(days_sorted):
+        day_pct = _compound_pct(by_day[day])
+        same_sign = ((direction == 'up' and day_pct > 0)
+                     or (direction == 'down' and day_pct < 0)
+                     or (direction == 'flat' and abs(day_pct) < deadband))
+        if not same_sign:
+            break
+        streak += 1
+    return {'dir': direction, 'pct': round(cum_pct, 1), 'days': streak, 'n': len(rows)}
+
+
+def _market_index(con, *, region: str | None = None,
+                   months_out: int | None = None) -> dict | None:
+    """Preisindex seit Beginn der Aufzeichnung (Basis 100) — im Unterschied zu
+    `_market_trend` kein rollierendes Zeitfenster, sondern die komplette Historie.
+    Fängt langsame Bewegungen ab, die außerhalb eines 14-Tage-Fensters liegen (z. B.
+    ein Anstieg über mehrere Wochen mit ruhigen Phasen dazwischen). None bei zu
+    wenigen Datenpunkten."""
+    q, params = _market_moves_query(region, months_out)
+    rows = con.execute(q, params).fetchall()
+    if len(rows) < MARKET_TREND_MIN_SAMPLES:
+        return None
+    pct = _compound_pct([r['pct_change'] for r in rows])
+    return {'index': round(100 + pct, 1), 'pct': round(pct, 1),
+            'since': rows[0]['ts'], 'n': len(rows)}
 
 
 # ── Home-Assistant-Sensoren ────────────────────────────────────────────────────
@@ -513,7 +756,9 @@ def _entity_ids() -> dict[int, str]:
 
 
 def push_ha_sensors() -> None:
-    """Meldet je Angebot einen Sensor an HA: Wert=Preis (€) bzw. 'unavailable',
+    """Meldet je Angebot einen Sensor an HA: Wert=Preis (€) bzw. 'unknown' (kein
+    Preis ermittelbar — 'unavailable' wäre in HA-Konvention für einen kaputten/
+    nicht erreichbaren Sensor reserviert, hier ist der Sensor selbst ja da),
     Attribut 'description' = Reise-Eckdaten. Räumt verwaiste Sensoren auf."""
     if not _ha_enabled():
         return
@@ -530,7 +775,7 @@ def push_ha_sensors() -> None:
                     'FROM price_history WHERE offer_id=? AND ok=1 AND price IS NOT NULL',
                     (oid,)).fetchone()
                 ok = bool(last and last['ok'] and last['price'] is not None)
-                state = int(round(last['price'])) if ok else 'unavailable'
+                state = int(round(last['price'])) if ok else 'unknown'
                 attrs = {
                     'friendly_name': o['label'] or o['hotel'] or f'TUI-Angebot #{oid}',
                     'icon': 'mdi:airplane-clock',
@@ -613,7 +858,7 @@ def push_ha_sensors() -> None:
                 1 for o in ok_offers if o.get('target_price') and o['price'] <= o['target_price'])
             s_state = int(round(cheapest['price']))
         else:
-            s_state = 'unavailable'
+            s_state = 'unknown'
         http.post(f'{HA_BASE}/states/{summary_eid}', headers=headers, timeout=10,
                   json={'state': s_state, 'attributes': s_attrs})
 
@@ -816,7 +1061,8 @@ def _notify_startup() -> None:
     try:
         with db() as con:
             n = con.execute('SELECT COUNT(*) c FROM offers').fetchone()['c']
-    except Exception:
+    except Exception as e:
+        log.warning("Startup-Meldung: Angebotszahl nicht lesbar: %s", e)
         n = 0
     word = 'Reise' if n == 1 else 'Reisen'
     _notify_telegram(f"✈️ <b>TUIWatch gestartet</b> (v{APP_VERSION})\n{n} {word} geladen")
@@ -860,18 +1106,36 @@ def _maybe_notify(offer: dict, prev_price: float | None, new_price: float | None
 
 
 def _check_cheaper_date(offer: dict, current_price: float) -> None:
-    """Holt den Preiskalender (frischt zugleich den Cache auf) und meldet, wenn ein
-    anderer Abreisetag deutlich günstiger ist als der getrackte Preis."""
+    """Meldet, wenn ein anderer Abreisetag deutlich günstiger ist als der getrackte
+    Preis. Nutzt für den Kalender-Abruf dieselbe TTL wie der Buchungsscore-Pfad
+    (_CALENDAR_FRESH_SECONDS, ~7 Tage): ist der Cache noch frisch, wird NICHT neu
+    abgerufen (bis zu 6 teure HTTP-Requests je Check), sondern der vorhandene
+    Snapshot aus calendar_cache für die Benachrichtigungslogik weiterverwendet — die
+    'günstigerer Termin'-Prüfung bleibt dadurch bei JEDEM Preis-Check aktiv, nur der
+    teure Kalender-Abruf selbst wird gedrosselt."""
     cfg = load_config()
-    cal = fetch_calendar(offer['url'], verbose=_verbose())
-    if not cal or not cal.get('ok'):
+    oid = offer['id']
+    with db() as con:
+        cached = con.execute('SELECT ts, data FROM calendar_cache WHERE offer_id=?',
+                             (oid,)).fetchone()
+    cal = None
+    if cached and time.time() - cached['ts'] < _CALENDAR_FRESH_SECONDS:
+        try:
+            cal = json.loads(cached['data'])
+        except (ValueError, TypeError):
+            cal = None
+    if cal is None:
+        cal = fetch_calendar(offer['url'], verbose=_verbose())
+        if not cal or not cal.get('ok'):
+            return
+        try:
+            with db() as con:
+                changed = _store_calendar_snapshot(con, oid, cal)
+            _check_calendar_trend_alert(oid, changed)
+        except Exception as e:
+            log.warning("Kalender-Cache #%d nicht aktualisiert: %s", oid, e)
+    if not cal.get('ok'):
         return
-    try:
-        with db() as con:
-            con.execute('INSERT OR REPLACE INTO calendar_cache (offer_id, ts, data) '
-                        'VALUES (?,?,?)', (offer['id'], int(time.time()), json.dumps(cal)))
-    except Exception as e:
-        log.warning("Kalender-Cache #%d nicht aktualisiert: %s", offer['id'], e)
     cd, cp = cal.get('cheapest_date'), cal.get('cheapest_price')
     if not cd or cp is None:
         return
@@ -882,7 +1146,6 @@ def _check_cheaper_date(offer: dict, current_price: float) -> None:
     # Persistenter Dedup: nur melden, wenn es ein WIRKLICH neuer Tiefstwert ist —
     # also ein anderer Abreisetag ODER (gleicher Tag) ein nochmals tieferer Preis.
     # Reine Schwankungen nach oben und Wiederholungen über Neustarts lösen nichts aus.
-    oid = offer['id']
     with db() as con:
         prev = con.execute('SELECT cdate, cprice FROM cheaper_state WHERE offer_id=?',
                            (oid,)).fetchone()
@@ -1047,16 +1310,25 @@ def check_offer(offer_id: int) -> None:
     try:
         with db() as con:
             offer = con.execute('SELECT * FROM offers WHERE id=?', (offer_id,)).fetchone()
-            prev_price = con.execute(
-                'SELECT price FROM price_history WHERE offer_id=? AND ok=1 AND price IS NOT NULL '
+            prev_row = con.execute(
+                'SELECT ts, price FROM price_history WHERE offer_id=? AND ok=1 AND price IS NOT NULL '
                 'ORDER BY ts DESC LIMIT 1', (offer_id,)).fetchone()
+            # Zimmerwechsel seit dem letzten Preis-Check? Dann macht dessen Preisschritt
+            # keine Marktbewegung, sondern nur einen anderen Zimmertyp/-preis sichtbar —
+            # für den Markttrend (`price_moves`) muss die Zählung neu beginnen. `>=`
+            # statt `>`: ts ist nur sekundengenau, ein schneller Zimmerwechsel direkt
+            # nach dem ersten Check (typisch: Tracken → sofort Zimmerauswahl-Dialog)
+            # landet oft in derselben Sekunde wie der vorherige Preis-Check.
+            room_changed = bool(prev_row) and con.execute(
+                "SELECT 1 FROM offer_events WHERE offer_id=? AND type='room' AND ts>=? LIMIT 1",
+                (offer_id, prev_row['ts'])).fetchone()
         if not offer:
             return
         offer = dict(offer)
         if offer.get('archived'):
             log.info("Angebot #%d ist archiviert – keine Live-Abfrage", offer_id)
             return
-        prev_price = prev_price['price'] if prev_price else None
+        prev_price = prev_row['price'] if prev_row else None
         url = offer['url']
         name = offer.get('label') or offer.get('hotel') or hotel_from_url(url) or f"#{offer_id}"
         log.info("Prüfe Angebot #%d: %s …", offer_id, name)
@@ -1090,6 +1362,15 @@ def check_offer(offer_id: int) -> None:
                         'booking_code', 'room_booking_code'):
                 if res.get(col) is not None and res.get(col) != '':
                     con.execute(f'UPDATE offers SET {col}=? WHERE id=?', (res[col], offer_id))
+            if res.get('ok') and res.get('price') is not None and prev_price and not room_changed:
+                pct = (res['price'] - prev_price) / prev_price * 100
+                region = res.get('region') or offer.get('region') or ''
+                country = res.get('country') or offer.get('country') or ''
+                ret_date = res.get('return_date') or offer.get('return_date') or ''
+                months_out = _months_out(ret_date, duration_from_url(url), ts)
+                con.execute(
+                    'INSERT INTO price_moves (ts, region, country, months_out, pct_change) '
+                    'VALUES (?,?,?,?,?)', (ts, region, country, months_out, pct))
 
         if res.get('ok'):
             extra = []
@@ -1207,7 +1488,7 @@ def _compare_payload(offer_id: int) -> dict:
                           (offer_id,)).fetchone()
     if row:
         out = {'status': 'done', 'ts': row['ts'], 'base': row['base'],
-               'rows': json.loads(row['rows'])}
+               'rows': _json_loads_safe(row['rows'], [])}
     else:
         out = {'status': 'idle', 'rows': []}
     if st.get('status') == 'error':
@@ -1308,7 +1589,7 @@ def _nights_payload(offer_id: int) -> dict:
                           (offer_id,)).fetchone()
     if row:
         out = {'status': 'done', 'ts': row['ts'], 'base': row['base'],
-               'span': row['span'], 'rows': json.loads(row['rows'])}
+               'span': row['span'], 'rows': _json_loads_safe(row['rows'], [])}
     else:
         out = {'status': 'idle', 'rows': []}
     if st.get('status') == 'error':
@@ -1317,6 +1598,113 @@ def _nights_payload(offer_id: int) -> dict:
 
 
 # ── Preiskalender (on-demand, gespeichert) ──────────────────────────────────────
+
+def _store_calendar_snapshot(con, offer_id: int, cal: dict) -> list[str]:
+    """Speichert einen frisch abgerufenen Preiskalender: überschreibt wie bisher den
+    kompletten Snapshot in `calendar_cache` (unverändert für UI/Buchungsscore) UND
+    schreibt Delta-codierte Zeilen in `calendar_history` — nur für Tage, deren Preis
+    sich seit dem letzten bekannten Wert für dieses (offer_id, travel_date) geändert
+    hat (oder die zum ersten Mal beobachtet werden). Verglichen wird gegen den noch
+    nicht überschriebenen VORHERIGEN calendar_cache-Snapshot, kein Zusatz-Read der
+    (potenziell großen) Trend-Tabelle nötig.
+
+    Rückgabe: Liste der Reisedaten mit einer ECHTEN Preisänderung (Tag war vorher schon
+    mit einem Preis bekannt, jetzt anders) — für Benachrichtigungen. Schließt bewusst
+    Tage aus, die nur neu ins Kalenderfenster gerutscht sind (kein Vorwert vorhanden,
+    z.B. globaler Erstabruf) — dafür gibt es keinen sinnvollen Vergleichswert, also
+    keine "Preisänderung"."""
+    ts = int(time.time())
+    prev_row = con.execute('SELECT data FROM calendar_cache WHERE offer_id=?',
+                           (offer_id,)).fetchone()
+    prev_prices: dict = {}
+    if prev_row:
+        try:
+            prev_prices = {d['date']: d['price']
+                           for d in json.loads(prev_row['data']).get('days', [])}
+        except (ValueError, TypeError, KeyError):
+            prev_prices = {}
+    con.execute('INSERT OR REPLACE INTO calendar_cache (offer_id, ts, data) VALUES (?,?,?)',
+                (offer_id, ts, json.dumps(cal)))
+    days = cal.get('days', [])
+    changed = [(offer_id, d['date'], ts, d['price']) for d in days
+               if prev_prices.get(d['date']) != d['price']]
+    if changed:
+        con.executemany(
+            'INSERT INTO calendar_history (offer_id, travel_date, ts, price) VALUES (?,?,?,?)',
+            changed)
+    return [d['date'] for d in days
+            if d['date'] in prev_prices and prev_prices[d['date']] != d['price']]
+
+
+_MONTH_NAMES_DE = ('Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August',
+                    'September', 'Oktober', 'November', 'Dezember')
+
+
+def _month_name_de(ym: str) -> str:
+    """'2027-05' -> 'Mai 2027'."""
+    y, m = ym.split('-')
+    return f"{_MONTH_NAMES_DE[int(m) - 1]} {y}"
+
+
+def _format_month_list_de(months: list[str]) -> str:
+    names = [_month_name_de(m) for m in months]
+    if len(names) == 1:
+        return names[0]
+    return ", ".join(names[:-1]) + " und " + names[-1]
+
+
+def _check_calendar_trend_alert(offer_id: int, changed_dates: list[str]) -> None:
+    """Meldet Preisänderungen im Kalender für bereits bekannte Reisedaten — bewusst
+    grob (Hotelname + Monat(e), kein Datum/Preis, siehe _store_calendar_snapshot für
+    die Definition von 'echte Änderung'). Gated durch notify_calendar_trend, und
+    gefiltert auf Tage mit einer Bewegung >= calendar_trend_min_diff (€) — winzige
+    Änderungen (z. B. 10 € bei 2000+ € Reisepreis) sollen nicht benachrichtigen.
+    Die Storage-Seite (calendar_history/Trend-Ansicht) bleibt davon unberührt und
+    zeigt weiterhin JEDE Änderung, unabhängig von dieser Schwelle."""
+    if not changed_dates:
+        return
+    cfg = load_config()
+    if not cfg.get('notify_calendar_trend', True):
+        return
+    min_diff = max(0, int(cfg.get('calendar_trend_min_diff', 20) or 0))
+    with db() as con:
+        offer = con.execute('SELECT label, hotel, url FROM offers WHERE id=?',
+                            (offer_id,)).fetchone()
+        moves = _calendar_moves(con, offer_id)   # auch fürs Detail-Log unten gebraucht
+    if not offer:
+        return
+    if min_diff > 0:
+        changed_dates = [d for d in changed_dates
+                         if abs(moves.get(d, {}).get('delta', 0)) >= min_diff]
+        if not changed_dates:
+            return
+    months = sorted({d[:7] for d in changed_dates})
+    month_str = _format_month_list_de(months)
+    name = offer['label'] or offer['hotel'] or f"Angebot #{offer_id}"
+    log.info("📅 Kalenderpreise geändert (#%d %s): %d Tag(e) in %s → Benachrichtigung",
+             offer_id, name, len(changed_dates), month_str)
+    if _verbose():
+        # Nur bei aktiviertem "Ausführliches Logging" — Nachricht/HA-Notify bleiben
+        # bewusst grob (kein Datum/Preis), aber fürs Debuggen (z. B. Diskrepanz
+        # zwischen Meldung und dem, was später im Kalender/calendar_history zu
+        # sehen ist) hilft die genaue Aufschlüsselung ungemein. missing = Daten,
+        # die _store_calendar_snapshot als "geändert" einstufte, aber die JETZT
+        # (gleicher DB-Request) _calendar_moves() nicht mehr als 2-Punkt-Historie
+        # findet — sollte eigentlich nie vorkommen, ist aber genau das Symptom,
+        # falls calendar_history zwischenzeitlich geleert wurde/wird.
+        found = sorted(d for d in changed_dates if d in moves)
+        missing = sorted(d for d in changed_dates if d not in moves)
+        details = "; ".join(
+            f"{d}: {moves[d]['prev_price']}→{moves[d]['price']} €"
+            f" ({'+' if moves[d]['delta']>0 else ''}{moves[d]['delta']} €)" for d in found)
+        log.info("📅 Kalender-Details (#%d %s): %s%s", offer_id, name,
+                 details or "(keine)",
+                 f" | OHNE Historie-Treffer: {', '.join(missing)}" if missing else "")
+    _notify_ha(f"📅 Kalenderpreise geändert: {name}",
+               f"{name}\nPreisänderungen im Preiskalender für {month_str}.\n{offer['url']}",
+               f"caltrend_{offer_id}")
+    _notify_telegram(f"📅 <b>Kalenderpreise geändert</b>\n{name}\n{month_str}\n{offer['url']}")
+
 
 def _run_calendar(offer_id: int) -> None:
     """Liest den Preiskalender (Preis je Abreisetag) und speichert ihn in der DB."""
@@ -1334,8 +1722,8 @@ def _run_calendar(offer_id: int) -> None:
                 _calendar_state[offer_id] = {'status': 'error', 'note': 'Preiskalender nicht abrufbar'}
             return
         with db() as con:
-            con.execute('INSERT OR REPLACE INTO calendar_cache (offer_id, ts, data) VALUES (?,?,?)',
-                        (offer_id, int(time.time()), json.dumps(res)))
+            changed = _store_calendar_snapshot(con, offer_id, res)
+        _check_calendar_trend_alert(offer_id, changed)
         with _calendar_lock:
             _calendar_state.pop(offer_id, None)
         log.info("Preiskalender #%d: %d Tage, günstigster %s (%s €)", offer_id,
@@ -1346,6 +1734,60 @@ def _run_calendar(offer_id: int) -> None:
             _calendar_state[offer_id] = {'status': 'error', 'note': 'Preiskalender fehlgeschlagen'}
 
 
+def _calendar_moves(con, offer_id: int) -> dict[str, dict]:
+    """Letzte bekannte Preisbewegung je Reisedatum aus calendar_history: für jedes
+    Datum werden nur die zwei jüngsten bekannten Preise verglichen (Tage ohne
+    Änderung erzeugen ja keine neue Zeile, siehe _store_calendar_snapshot). Rückgabe:
+    {travel_date: {price, prev_price, delta, ts}} — nur für Daten mit >=2 bekannten
+    Preisen."""
+    rows = con.execute(
+        'SELECT travel_date, ts, price FROM calendar_history WHERE offer_id=? '
+        'ORDER BY travel_date, ts', (offer_id,)).fetchall()
+    by_date: dict[str, list] = defaultdict(list)
+    for r in rows:
+        by_date[r['travel_date']].append((r['ts'], r['price']))
+    moves = {}
+    for d, pts in by_date.items():
+        if len(pts) < 2:
+            continue
+        (_, prev_price), (last_ts, last_price) = pts[-2], pts[-1]
+        moves[d] = {'price': last_price, 'prev_price': prev_price,
+                    'delta': last_price - prev_price, 'ts': last_ts}
+    return moves
+
+
+def _calendar_top_moves(moves: dict, limit: int = 12) -> list[dict]:
+    """Größte Bewegungen (nach Betrag) aus _calendar_moves(), für die 'Größte
+    Bewegungen seit letztem Abruf'-Liste."""
+    return sorted(
+        ({'date': d, **v} for d, v in moves.items()),
+        key=lambda m: abs(m['delta']), reverse=True)[:limit]
+
+
+def _calendar_date_history(con, offer_id: int, travel_date: str) -> list[dict]:
+    """Preisverlauf EINES Reisedatums über alle Snapshots — Datenquelle für den
+    Mini-Zeitreihen-Chart bei Klick auf einen Kalendertag."""
+    return [dict(r) for r in con.execute(
+        'SELECT ts, price FROM calendar_history WHERE offer_id=? AND travel_date=? '
+        'ORDER BY ts', (offer_id, travel_date)).fetchall()]
+
+
+def _calendar_moves_since(con, offer_id: int, since_ts: int) -> list[str]:
+    """Monate mit echter Preisänderung (nicht Erstsichtung) seit `since_ts` — für den
+    Wochenüberblick. 'Echt' = es existiert eine FRÜHERE calendar_history-Zeile für
+    dasselbe Reisedatum (sonst ist der Tag nur neu ins Kalenderfenster gerutscht).
+    Vergleich über `id` statt `ts`: `ts` ist nur sekundengenau, zwei Snapshots
+    innerhalb derselben Sekunde (schnelles "Neu abfragen") wären mit `ts<ts` sonst
+    nicht als "frühere Zeile" erkennbar — `id` (AUTOINCREMENT) bleibt strikt
+    monoton in Einfügereihenfolge."""
+    rows = con.execute(
+        'SELECT DISTINCT ch.travel_date FROM calendar_history ch WHERE ch.offer_id=? '
+        'AND ch.ts>=? AND EXISTS (SELECT 1 FROM calendar_history p WHERE '
+        'p.offer_id=ch.offer_id AND p.travel_date=ch.travel_date AND p.id<ch.id)',
+        (offer_id, since_ts)).fetchall()
+    return sorted({r['travel_date'][:7] for r in rows})
+
+
 def _calendar_payload(offer_id: int) -> dict:
     with _calendar_lock:
         st = dict(_calendar_state.get(offer_id) or {})
@@ -1354,10 +1796,13 @@ def _calendar_payload(offer_id: int) -> dict:
     with db() as con:
         row = con.execute('SELECT ts, data FROM calendar_cache WHERE offer_id=?',
                           (offer_id,)).fetchone()
+        moves = _calendar_moves(con, offer_id) if row else {}
     if row:
-        out = json.loads(row['data'])
+        out = _json_loads_safe(row['data'], {})
         out['status'] = 'done'
         out['ts'] = row['ts']
+        out['moves'] = moves
+        out['top_moves'] = _calendar_top_moves(moves)
     else:
         out = {'status': 'idle'}
     if st.get('status') == 'error':
@@ -1599,6 +2044,71 @@ def _maybe_periodic_health() -> None:
         _run_healthcheck()
 
 
+def _push_health_sensor(res: dict) -> None:
+    """Meldet HA einen Binär-Sensor: 'on', solange alle kritischen TUI-Endpunkte im
+    letzten Selbsttest erreichbar waren, sonst 'off'."""
+    if not _ha_enabled():
+        return
+    bad = [c['name'] for c in (res.get('checks') or []) if c.get('critical') and not c.get('ok')]
+    attrs = {
+        'friendly_name': 'TUIWatch API verfügbar', 'icon': 'mdi:api',
+        'device_class': 'connectivity',
+        'failing': bad,
+    }
+    if res.get('ts'):
+        attrs['checked_at'] = datetime.fromtimestamp(res['ts']).isoformat()
+    try:
+        http.post(f'{HA_BASE}/states/binary_sensor.tuiwatch_api_available',
+                  headers={'Authorization': f'Bearer {SUPERVISOR_TOKEN}'}, timeout=10,
+                  json={'state': 'off' if bad else 'on', 'attributes': attrs})
+    except Exception as e:
+        log.warning("HA-API-Sensor aktualisieren fehlgeschlagen: %s", e)
+
+
+def _push_health_sensor_from_cache() -> None:
+    """Sensor aus dem letzten Selbsttest erneut an HA melden (kein neuer Netz-Check) —
+    überlebt einen HA-Neustart wie der Coupon-Sensor (siehe
+    `_push_aktionscodes_sensor_from_cache`)."""
+    with _health_lock:
+        res = dict(_health_state)
+    if not res or res.get('running'):
+        return
+    _push_health_sensor(res)
+
+
+def _push_market_trend_sensor() -> None:
+    """Meldet HA einen Sensor mit dem marktweiten Preistrend — State = kumulierte
+    %-Bewegung der letzten 14 Tage (`_market_trend`), oder 'unknown' bei zu
+    wenigen Daten. Attribute ergänzen den Index seit Aufzeichnungsbeginn
+    (`_market_index`), der auch langsame, über Wochen verteilte Bewegungen zeigt."""
+    if not _ha_enabled():
+        return
+    with db() as con:
+        glob_trend = _market_trend(con)
+        glob_index = _market_index(con)
+        regions = [r['region'] for r in con.execute(
+            "SELECT DISTINCT region FROM price_moves WHERE region!=''").fetchall()]
+        by_region = []
+        for r in sorted(regions):
+            t, i = _market_trend(con, region=r), _market_index(con, region=r)
+            if t or i:
+                by_region.append({'region': r, 'trend': t, 'index': i})
+    attrs = {'friendly_name': 'TUIWatch Markttrend', 'icon': 'mdi:chart-line',
+             'unit_of_measurement': '%', 'by_region': by_region}
+    if glob_trend:
+        attrs.update(direction=glob_trend['dir'], days=glob_trend['days'], samples=glob_trend['n'])
+    if glob_index:
+        attrs.update(index=glob_index['index'], index_pct=glob_index['pct'],
+                     index_since=datetime.fromtimestamp(glob_index['since']).isoformat())
+    state = glob_trend['pct'] if glob_trend else 'unknown'
+    try:
+        http.post(f'{HA_BASE}/states/sensor.tuiwatch_markttrend',
+                  headers={'Authorization': f'Bearer {SUPERVISOR_TOKEN}'}, timeout=10,
+                  json={'state': state, 'attributes': attrs})
+    except Exception as e:
+        log.warning("HA-Markttrend-Sensor aktualisieren fehlgeschlagen: %s", e)
+
+
 def _run_healthcheck() -> dict:
     """Führt den API-Selbsttest aus und legt das Ergebnis in _health_state ab."""
     with _health_lock:
@@ -1623,6 +2133,7 @@ def _run_healthcheck() -> dict:
         _check_api_alarm(res)
     except Exception as e:
         log.error("API-Alarm-Prüfung fehlgeschlagen: %s", e)
+    _push_health_sensor(res)
     return res
 
 
@@ -1705,6 +2216,13 @@ def _build_digest() -> dict | None:
     with db() as con:
         for o in offers:
             o['_wk'] = _week_change(con, o['id'], o['price'])
+        since = int(time.time()) - 7 * 86400
+        cal_moves = []
+        for o in offers:
+            months = _calendar_moves_since(con, o['id'], since)
+            if months:
+                cal_moves.append({'name': o.get('label') or o.get('hotel') or f"Angebot #{o['id']}",
+                                   'url': o['url'], 'months': _format_month_list_de(months)})
     drops = sorted([o for o in offers if o['_wk'] is not None and o['_wk'] < 0],
                    key=lambda o: o['_wk'])
     rises = sorted([o for o in offers if o['_wk'] is not None and o['_wk'] > 0],
@@ -1746,6 +2264,9 @@ def _build_digest() -> dict | None:
     if rises:
         tl.append("\n▲ <b>Gestiegen (7 Tage):</b>")
         tl += [f"• {nm(o)}: {_eur(o['price'])} (+{_eur(abs(o['_wk']))})" for o in rises[:5]]
+    if cal_moves:
+        tl.append("\n📅 <b>Kalenderpreise geändert:</b>")
+        tl += [f"• {c['name']}: {c['months']}" for c in cal_moves]
     if akc:
         tl.append("\n🎟 <b>TUI-Aktionscodes:</b>")
         tl += [f"• {c.get('value')} € — {c.get('code')}"
@@ -1807,6 +2328,9 @@ def _build_digest() -> dict | None:
                   lambda o: f'{link(o)}: {_eur(o["price"])} <span style="color:#1a7f37;font-weight:600">({_eur(o["_wk"])})</span>')
         + section('▲ Gestiegen (7 Tage)', rises[:5],
                   lambda o: f'{link(o)}: {_eur(o["price"])} <span style="color:#cf222e">(+{_eur(abs(o["_wk"]))})</span>')
+        + section('📅 Kalenderpreise geändert', cal_moves,
+                  lambda c: f'<a href="{esc(c["url"])}" style="color:#0b65d8;text-decoration:none">'
+                            f'{esc(c["name"])}</a>: {esc(c["months"])}')
         + akc_html
         + '</div>'
     )
@@ -2006,6 +2530,7 @@ def index():
         poll_interval=int(cfg.get('poll_interval', POLL_INTERVAL_DEFAULT)),
         ai_enabled=bool((cfg.get('anthropic_api_key') or '').strip()
                         or (cfg.get('gemini_api_key') or '').strip()),
+        trippilot_home_location=(cfg.get('trippilot_home_location') or '').strip(),
         app_version=APP_VERSION))
 
 
@@ -2063,6 +2588,11 @@ def _collect_offers() -> list[dict]:
                 vs_avg30 = round((cur_price - s30['av']) / s30['av'] * 100, 1)
             trend = _trend_for(con, o['id'])
             checking = o['id'] in _checking
+            # Nur echte Bewegungen (>=2 bekannte Preise je Reisedatum) zaehlen als
+            # Aenderung, nicht der allererste Kalender-Abruf (reine Baseline).
+            cal_moves = _calendar_moves(con, o['id'])
+            last_move_ts = max((v['ts'] for v in cal_moves.values()), default=0)
+            calendar_alert = bool(last_move_ts and last_move_ts > (o['calendar_seen_ts'] or 0))
             avail = None
             if last and last['available'] is not None:
                 avail = bool(last['available'])
@@ -2082,7 +2612,7 @@ def _collect_offers() -> list[dict]:
                 'paused': bool(o['paused']),
                 'archived': bool(o['archived']),
                 'return_date': o['return_date'] or '',
-                'tags': (json.loads(o['tags']) if o['tags'] else []),
+                'tags': (_json_loads_safe(o['tags'], []) if o['tags'] else []),
                 'cancellation': o['cancellation'], 'stars': o['stars'],
                 'rating': o['rating'], 'rating_count': o['rating_count'],
                 'recommendation': o['recommendation'],
@@ -2102,6 +2632,7 @@ def _collect_offers() -> list[dict]:
                 'avg30_price': avg30, 'vs_avg30': vs_avg30,
                 'trend': trend,
                 'checking': checking,
+                'calendar_alert': calendar_alert,
                 'comparable': not is_single_room(f"{o['room']} {o['details']}"),
             })
     return out
@@ -2146,8 +2677,28 @@ def api_add_offer():
         return jsonify({'error': 'duplicate'}), 409
     log.info("Neues Angebot #%d hinzugefügt: %s", offer_id,
              label or hotel_from_url(url) or url)
-    _spawn(check_offer, offer_id)  # sofort einmal prüfen
-    return jsonify({'id': offer_id, 'started': True})
+    # start:false (nur vom Zimmerauswahl-Flow in der Suche genutzt) verzögert die
+    # erste Prüfung bis zur Zimmerwahl/-bestätigung (POST /api/offers/<id>/start
+    # oder POST /api/rooms/<id>) — sonst würde sofort das (u. U. falsche) Zimmer
+    # aus dem Such-Ergebnis getrackt, bevor der Nutzer wählen konnte.
+    start = data.get('start', True)
+    if start:
+        _spawn(check_offer, offer_id)  # sofort einmal prüfen
+    return jsonify({'id': offer_id, 'started': bool(start)})
+
+
+@app.route('/api/offers/<int:offer_id>/start', methods=['POST'])
+def api_start_offer(offer_id: int):
+    """Startet die erste Prüfung eines mit start:false angelegten Angebots (siehe
+    api_add_offer) — z. B. wenn der Nutzer die Zimmerauswahl ohne explizite Wahl
+    schließt (dann mit dem ursprünglichen Zimmer aus der Suche getrackt)."""
+    if (err := _require_api()):
+        return err
+    with db() as con:
+        if not con.execute('SELECT 1 FROM offers WHERE id=?', (offer_id,)).fetchone():
+            return jsonify({'error': 'not_found'}), 404
+    _spawn(check_offer, offer_id)
+    return jsonify({'started': True})
 
 
 @app.route('/api/offers/<int:offer_id>', methods=['DELETE'])
@@ -2158,6 +2709,7 @@ def api_delete_offer(offer_id: int):
         con.execute('DELETE FROM price_history WHERE offer_id=?', (offer_id,))
         con.execute('DELETE FROM compare_cache WHERE offer_id=?', (offer_id,))
         con.execute('DELETE FROM calendar_cache WHERE offer_id=?', (offer_id,))
+        con.execute('DELETE FROM calendar_history WHERE offer_id=?', (offer_id,))
         con.execute('DELETE FROM nights_cache WHERE offer_id=?', (offer_id,))
         con.execute('DELETE FROM cheaper_state WHERE offer_id=?', (offer_id,))
         con.execute('DELETE FROM booked_state WHERE offer_id=?', (offer_id,))
@@ -2299,6 +2851,7 @@ def api_reset_offer(offer_id: int):
         con.execute('DELETE FROM price_history WHERE offer_id=?', (offer_id,))
         con.execute('DELETE FROM compare_cache WHERE offer_id=?', (offer_id,))
         con.execute('DELETE FROM calendar_cache WHERE offer_id=?', (offer_id,))
+        con.execute('DELETE FROM calendar_history WHERE offer_id=?', (offer_id,))
         con.execute('DELETE FROM nights_cache WHERE offer_id=?', (offer_id,))
         con.execute('DELETE FROM cheaper_state WHERE offer_id=?', (offer_id,))
         con.execute('DELETE FROM booked_state WHERE offer_id=?', (offer_id,))
@@ -2321,6 +2874,8 @@ def api_reset_offer(offer_id: int):
 def api_check_now():
     if (err := _require_api()):
         return err
+    if (remaining := _cooldown_remaining('check_now', 60)):
+        return jsonify({'error': 'cooldown', 'retry_after': remaining}), 429
     _spawn(check_all, 'manuell')
     return jsonify({'started': True})
 
@@ -2400,6 +2955,10 @@ def _build_backup_zip() -> bytes:
             o['events'] = [{c: e[c] for c in _EVENT_COLS} for e in con.execute(
                 'SELECT ts, type, text FROM offer_events WHERE offer_id=? ORDER BY ts',
                 (oid,)).fetchall()]
+            o['calendar_history'] = [{'travel_date': h['travel_date'], 'ts': h['ts'],
+                                      'price': h['price']} for h in con.execute(
+                'SELECT travel_date, ts, price FROM calendar_history '
+                'WHERE offer_id=? ORDER BY travel_date, ts', (oid,)).fetchall()]
             offers.append(o)
         trips = [{c: t[c] for c in _TRIP_COLUMNS} for t in con.execute(
             f"SELECT {', '.join(_TRIP_COLUMNS)} FROM trips ORDER BY id").fetchall()]
@@ -2424,15 +2983,23 @@ def _build_backup_zip() -> bytes:
                 'WHERE trips.booking_code IS NOT NULL ORDER BY trip_packing_items.id').fetchall():
             packing_items.append(dict(pi))
         ai_analyses = [dict(r) for r in con.execute(
-            'SELECT kind, title, model, summary, usage, ts FROM ai_analyses ORDER BY id').fetchall()]
+            'SELECT kind, title, model, summary, usage, ts, prompt FROM ai_analyses ORDER BY id').fetchall()]
         meta_rows = con.execute(
             f"SELECT key, value FROM meta WHERE key IN ({','.join('?' for _ in _BACKUP_META_KEYS)})",
             _BACKUP_META_KEYS).fetchall()
         meta = {r['key']: r['value'] for r in meta_rows}
-    data = {'tuiwatch_backup': 3, 'created': datetime.now().isoformat(),
+        # Markttrend-Datenpunkte: bewusst NICHT an offer_id gebunden, daher hier separat
+        # (nicht je Angebot) gesichert — überlebt so auch ein Restore ohne die
+        # ursprünglichen Angebote.
+        price_moves = [{'ts': r['ts'], 'region': r['region'], 'country': r['country'],
+                         'months_out': r['months_out'], 'pct_change': r['pct_change']}
+                        for r in con.execute(
+                            'SELECT ts, region, country, months_out, pct_change '
+                            'FROM price_moves ORDER BY ts').fetchall()]
+    data = {'tuiwatch_backup': 5, 'created': datetime.now().isoformat(),
             'offers': offers, 'trips': trips, 'saved_searches': searches,
             'trip_attachments': attachments, 'trip_packing_items': packing_items,
-            'ai_analyses': ai_analyses, 'meta': meta}
+            'ai_analyses': ai_analyses, 'meta': meta, 'price_moves': price_moves}
 
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as z:
@@ -2571,6 +3138,12 @@ def _restore_offer(con, it: dict, ocols: set, existing_urls: set) -> str:
             continue
         con.execute('INSERT INTO offer_events (offer_id, ts, type, text) VALUES (?,?,?,?)',
                     (oid, int(e.get('ts') or 0), str(e.get('type')), (e.get('text') or '')))
+    for c in (it.get('calendar_history') or []):
+        if not isinstance(c, dict) or not c.get('travel_date') or c.get('price') is None:
+            continue
+        con.execute(
+            'INSERT INTO calendar_history (offer_id, travel_date, ts, price) VALUES (?,?,?,?)',
+            (oid, str(c['travel_date']), int(c.get('ts') or 0), c['price']))
     return oid
 
 
@@ -2624,8 +3197,9 @@ def api_restore():
     packing_items = data.get('trip_packing_items') or []
     ai_analyses = data.get('ai_analyses') or []
     meta = data.get('meta') or {}
+    price_moves = data.get('price_moves') or []
     added, skipped, new_ids = 0, 0, []
-    trips_n, searches_n, attachments_n, packing_n, ai_n, settings_n = 0, 0, 0, 0, 0, 0
+    trips_n, searches_n, attachments_n, packing_n, ai_n, settings_n, moves_n = 0, 0, 0, 0, 0, 0, 0
     with db() as con:
         ocols = set(_table_columns(con, 'offers'))
         existing_urls = {r['url'] for r in con.execute('SELECT url FROM offers').fetchall()}
@@ -2754,12 +3328,34 @@ def api_restore():
                 if exists:
                     continue
                 con.execute(
-                    'INSERT INTO ai_analyses (kind, title, model, summary, usage, ts) '
-                    'VALUES (?,?,?,?,?,?)',
-                    (kind, title, a.get('model'), a.get('summary'), a.get('usage'), ts))
+                    'INSERT INTO ai_analyses (kind, title, model, summary, usage, ts, prompt) '
+                    'VALUES (?,?,?,?,?,?,?)',
+                    (kind, title, a.get('model'), a.get('summary'), a.get('usage'), ts,
+                     a.get('prompt') or ''))
                 ai_n += 1
             con.execute('DELETE FROM ai_analyses WHERE id NOT IN '
                         '(SELECT id FROM ai_analyses ORDER BY id DESC LIMIT ?)', (_AI_HISTORY_MAX,))
+        if isinstance(price_moves, list) and price_moves:
+            # Markttrend-Datenpunkte sind an keine offer_id gebunden (kein natürlicher
+            # Fremdschlüssel für ein Upsert) — Dedup daher über den vollen Wertesatz,
+            # damit ein wiederholtes Einspielen desselben Backups nichts verdoppelt.
+            existing_moves = {
+                (r['ts'], r['region'], r['country'], r['months_out'], r['pct_change'])
+                for r in con.execute(
+                    'SELECT ts, region, country, months_out, pct_change FROM price_moves'
+                ).fetchall()}
+            for pm in price_moves:
+                if not isinstance(pm, dict) or pm.get('pct_change') is None:
+                    continue
+                key = (int(pm.get('ts') or 0), pm.get('region') or '', pm.get('country') or '',
+                       pm.get('months_out'), pm.get('pct_change'))
+                if key in existing_moves:
+                    continue
+                con.execute(
+                    'INSERT INTO price_moves (ts, region, country, months_out, pct_change) '
+                    'VALUES (?,?,?,?,?)', key)
+                existing_moves.add(key)
+                moves_n += 1
         if isinstance(meta, dict):
             # Nicht-destruktiv wie der Rest des Restores: nur setzen, wenn lokal noch
             # nichts hinterlegt ist — laufende Zaehler/Einstellungen werden nie mit
@@ -2774,11 +3370,13 @@ def api_restore():
     for oid in new_ids:
         _spawn(check_offer, oid)
     log.info("Wiederherstellung: %d Angebote (+%d übersprungen), %d Reisen, %d Suchen, "
-             "%d Reise-Anhänge, %d Packliste-Items, %d KI-Verlauf, %d KI-Einstellungen",
-             added, skipped, trips_n, searches_n, attachments_n, packing_n, ai_n, settings_n)
+             "%d Reise-Anhänge, %d Packliste-Items, %d KI-Verlauf, %d KI-Einstellungen, "
+             "%d Markttrend-Datenpunkte",
+             added, skipped, trips_n, searches_n, attachments_n, packing_n, ai_n, settings_n,
+             moves_n)
     return jsonify({'added': added, 'skipped': skipped, 'trips': trips_n, 'searches': searches_n,
                     'attachments': attachments_n, 'packing_items': packing_n,
-                    'ai_history': ai_n, 'settings': settings_n})
+                    'ai_history': ai_n, 'settings': settings_n, 'market_trend': moves_n})
 
 
 @app.route('/api/compare/<int:offer_id>', methods=['POST'])
@@ -2847,9 +3445,12 @@ def api_search():
     Verpflegung) gehen in die Such-Query, danach Nachfilter nach Sternen/Weiterempfehlung."""
     if (err := _require_api()):
         return err
+    if (remaining := _cooldown_remaining('search:' + get_client_ip(request), 3)):
+        return jsonify({'error': 'cooldown', 'retry_after': remaining}), 429
     data = request.get_json(silent=True) or {}
     operator_tui = bool(data.get('operator_tui', True))
     direct = bool(data.get('direct'))
+    adults_only = bool(data.get('adults_only'))
     boards = [str(b).strip() for b in (data.get('boards') or []) if str(b).strip()]
     airlines = [str(a).strip() for a in (data.get('airlines') or []) if str(a).strip()]
     location = [int(i) for i in (data.get('location') or []) if str(i).strip().isdigit()]
@@ -2879,7 +3480,7 @@ def api_search():
         src = f"Angebot #{offer_id} ({o['label'] or o['hotel'] or ''})"
         res = fetch_search(url, operator_tui=operator_tui, boards=boards, region=region,
                            airlines=airlines, location=location, direct=direct,
-                           verbose=_verbose())
+                           adults_only=adults_only, verbose=_verbose())
     elif search_region:
         try:
             region = int(search_region)
@@ -2887,6 +3488,28 @@ def api_search():
             return jsonify({'error': 'no_region'}), 400
         airports = [str(a).strip() for a in (data.get('airport') and [data.get('airport')]
                     or data.get('airports') or []) if str(a).strip()]
+        # TUIs Such-API antwortet auf Zeiträume in der Vergangenheit mit einem
+        # nichtssagenden HTTP 500 statt einem sauberen Fehler — hier vorher abfangen
+        # (z. B. stehengebliebenes altes Datum im Suchformular), statt den 500
+        # durchzureichen und einen unnötigen API-Call an TUI zu verschwenden.
+        start_str, end_str = (data.get('start') or '').strip(), (data.get('end') or '').strip()
+        start_date = None
+        if start_str:
+            try:
+                start_date = date.fromisoformat(start_str)
+            except ValueError:
+                return jsonify({'error': 'invalid_dates', 'note': 'Ungültiges Startdatum'}), 400
+            if start_date < date.today():
+                return jsonify({'error': 'past_date',
+                                'note': 'Startdatum liegt in der Vergangenheit'}), 400
+        if end_str:
+            try:
+                end_date = date.fromisoformat(end_str)
+            except ValueError:
+                return jsonify({'error': 'invalid_dates', 'note': 'Ungültiges Enddatum'}), 400
+            if start_date and end_date < start_date:
+                return jsonify({'error': 'invalid_dates',
+                                'note': 'Enddatum liegt vor dem Startdatum'}), 400
         log.info("Suche: Region %s %s–%s/%sN, %s Reisende, ab %s (TUI=%s, Verpfl.=%s)",
                  region, data.get('start'), data.get('end'), data.get('duration'),
                  data.get('travellers'), ','.join(airports) or '-', operator_tui,
@@ -2897,7 +3520,7 @@ def api_search():
                                   travellers=data.get('travellers'), airports=airports,
                                   operator_tui=operator_tui, boards=boards,
                                   airlines=airlines, location=location, direct=direct,
-                                  verbose=_verbose())
+                                  adults_only=adults_only, verbose=_verbose())
     else:
         url = (data.get('url') or '').strip()
         if not _valid_tui_url(url):
@@ -2906,7 +3529,7 @@ def api_search():
                  ','.join(boards) or '-')
         res = fetch_search(url, operator_tui=operator_tui, boards=boards,
                            airlines=airlines, location=location, direct=direct,
-                           verbose=_verbose())
+                           adults_only=adults_only, verbose=_verbose())
     if res is None:
         return jsonify({'error': 'search_failed'}), 502
     if not res.get('ok'):
@@ -3219,14 +3842,21 @@ def _record_ai_usage(model: str, usage: dict) -> dict:
 _AI_HISTORY_MAX = 300  # ältere Einträge werden beim Speichern verworfen
 
 
-def _save_ai_analysis(kind: str, title: str, model: str, text: str, usage: dict) -> int:
+def _save_ai_analysis(kind: str, title: str, model: str, text: str, usage: dict,
+                      prompt: str = '') -> int:
     """Fertiges KI-Fazit/-Vergleich dauerhaft ablegen, damit es später über den
     KI-Verlauf wieder einsehbar (und per E-Mail versendbar) ist — unabhängig vom
-    24h-Cache. Gibt die neue Zeilen-ID zurück."""
+    24h-Cache. `prompt` (optional) speichert den exakten Prompt-Text mit, damit der
+    Eintrag später über /api/ai/history/<id>/repeat mit einer (ggf. anderen) KI
+    wiederholt werden kann — leer bei Aufrufern, die (noch) keinen Prompt mitgeben.
+    Gibt die neue Zeilen-ID zurück."""
+    if len(title) > 300:
+        log.warning("KI-Verlauf-Titel gekürzt (%d → 300 Zeichen): %s…", len(title), title[:60])
     with db() as con:
-        cur = con.execute('INSERT INTO ai_analyses (kind, title, model, summary, usage, ts) '
-                          'VALUES (?,?,?,?,?,?)',
-                          (kind, title[:300], model, text, json.dumps(usage or {}), int(time.time())))
+        cur = con.execute('INSERT INTO ai_analyses (kind, title, model, summary, usage, ts, prompt) '
+                          'VALUES (?,?,?,?,?,?,?)',
+                          (kind, title[:300], model, text, json.dumps(usage or {}), int(time.time()),
+                           prompt))
         aid = cur.lastrowid
         con.execute('DELETE FROM ai_analyses WHERE id NOT IN '
                     '(SELECT id FROM ai_analyses ORDER BY id DESC LIMIT ?)', (_AI_HISTORY_MAX,))
@@ -3264,6 +3894,24 @@ def _ai_config():
     welchen Provider es ansprechen muss."""
     cfg = load_config()
     if _ai_active_provider(cfg) == 'gemini':
+        api_key = (cfg.get('gemini_api_key') or '').strip()
+        model = cfg.get('gemini_model') or 'gemini-3.1-pro'
+        if model not in _GEMINI_MODELS:
+            model = 'gemini-3.1-pro'
+        return api_key, model
+    api_key = (cfg.get('anthropic_api_key') or '').strip()
+    model = cfg.get('anthropic_model') or 'claude-opus-4-8'
+    if model not in _AI_MODELS:
+        model = 'claude-opus-4-8'
+    return api_key, model
+
+
+def _ai_config_for(provider: str) -> tuple[str, str]:
+    """Wie _ai_config(), aber mit explizit vorgegebenem Provider statt über
+    _ai_active_provider() ermittelt — für /api/ai/history/<id>/repeat, wo der
+    Nutzer die KI unabhängig vom gerade aktiven Provider wählt."""
+    cfg = load_config()
+    if provider == 'gemini':
         api_key = (cfg.get('gemini_api_key') or '').strip()
         model = cfg.get('gemini_model') or 'gemini-3.1-pro'
         if model not in _GEMINI_MODELS:
@@ -3359,6 +4007,9 @@ def _gemini_sanitize_schema(schema):
     return schema
 
 
+_GEMINI_THINKING_TOKEN_RESERVE = 2048
+
+
 def _ai_request_gemini(api_key: str, model: str, prompt: str, *, max_tokens: int,
                        log_ctx: str, use_web_search: bool = True,
                        output_schema: dict | None = None):
@@ -3367,8 +4018,28 @@ def _ai_request_gemini(api_key: str, model: str, prompt: str, *, max_tokens: int
     Übergabe als `response_schema` von `additionalProperties` bereinigt (siehe
     `_gemini_sanitize_schema`) — Gemini kennt dieses JSON-Schema-Feld nicht.
     Websuche über Google-Search-Grounding — kennt kein `max_uses`-Äquivalent,
-    `ai_max_web_searches` wirkt daher nur bei Anthropic."""
-    cfg_kwargs = {'max_output_tokens': max_tokens}
+    `ai_max_web_searches` wirkt daher nur bei Anthropic.
+
+    `max_output_tokens` teilt sich bei Gemini das Budget mit den intern
+    generierten „Thinking"-Tokens (anders als bei Anthropic, wo Thinking hier
+    nicht genutzt wird) — bei knappen `max_tokens`-Werten (z. B. 300 für
+    Auto-Tags, 500 für den Wochenüberblick) frisst das Thinking das komplette
+    Budget auf, sodass die eigentliche Antwort leer oder mitten im Satz
+    abgeschnitten zurückkommt, ohne dass ein Fehler auftritt (live beobachtet:
+    Auto-Tags ohne Fehler aber ohne Tags, Wochenüberblick-Text bricht ab).
+    Reserve draufschlagen, damit für die eigentliche Antwort immer genug
+    Budget übrig bleibt.
+
+    Gemini lehnt Tool-Use (Websuche) zusammen mit `response_mime_type: application/json`
+    kategorisch ab ("Tool use with a response mime type ... is unsupported", live per
+    400 INVALID_ARGUMENT bestätigt) — anders als Anthropic, das beides kombinieren kann.
+    Bei gleichzeitiger Anfrage hat das Schema Vorrang (Aufrufer verlassen sich auf
+    parsebares JSON), Websuche wird für diesen Aufruf stillschweigend übersprungen."""
+    cfg_kwargs = {'max_output_tokens': max_tokens + _GEMINI_THINKING_TOKEN_RESERVE}
+    if use_web_search and output_schema is not None:
+        log.info("Gemini (%s): Websuche + Structured Output nicht kombinierbar — "
+                 "Websuche für diesen Aufruf übersprungen", log_ctx)
+        use_web_search = False
     if use_web_search:
         cfg_kwargs['tools'] = [genai_types.Tool(google_search=genai_types.GoogleSearch())]
     if output_schema is not None:
@@ -3380,16 +4051,25 @@ def _ai_request_gemini(api_key: str, model: str, prompt: str, *, max_tokens: int
             model=model, contents=prompt,
             config=genai_types.GenerateContentConfig(**cfg_kwargs),
         )
+        candidates = resp.candidates or []
+        if candidates and candidates[0].finish_reason in _GEMINI_REFUSAL_REASONS:
+            return None, None, 'refused'
+        text = (resp.text or '').strip()
+        u = resp.usage_metadata
     except genai_errors.APIError as e:
         log.warning("KI-Anfrage fehlgeschlagen (%s): %s", log_ctx, e)
         return None, None, 'failed'
-    candidates = resp.candidates or []
-    if candidates and candidates[0].finish_reason in _GEMINI_REFUSAL_REASONS:
-        return None, None, 'refused'
-    text = (resp.text or '').strip()
+    except Exception as e:
+        # Absichtlich breit: auch SDK-interne Fehler (z. B. im Automatic-Function-
+        # Calling-Loop bei aktivierter Websuche, oder beim Antwort-Parsing) dürfen
+        # nicht bis zu Flask unabgefangen durchschlagen — sonst kommt beim Aufrufer
+        # eine HTML-Fehlerseite statt JSON an (Frontend meldet dann nur generisch
+        # "fehlgeschlagen", live beobachtet: 200 OK von Google, danach Absturz).
+        log.error("KI-Anfrage (%s) unerwartet fehlgeschlagen: %s: %s",
+                 log_ctx, type(e).__name__, e)
+        return None, None, 'failed'
     if not text:
         return None, None, 'empty'
-    u = resp.usage_metadata
     web_searches = 0
     try:
         web_searches = len(candidates[0].grounding_metadata.web_search_queries or [])
@@ -3403,12 +4083,13 @@ def _ai_request_gemini(api_key: str, model: str, prompt: str, *, max_tokens: int
     return text, usage, None
 
 
-def _ai_call(api_key: str, model: str, prompt: str, *, max_tokens: int, log_ctx: str):
+def _ai_call(api_key: str, model: str, prompt: str, *, max_tokens: int, log_ctx: str,
+             use_web_search: bool = True):
     """Flask-Route-Wrapper um `_ai_request`: gleiche Erfolgs-Rückgabe (text, usage,
     None), Fehler als (None, None, (jsonify(...), status)) — für Endpunkte, die
     innerhalb eines Request-Handlers laufen."""
     text, usage, code = _ai_request(api_key, model, prompt, max_tokens=max_tokens,
-                                    log_ctx=log_ctx)
+                                    log_ctx=log_ctx, use_web_search=use_web_search)
     if code == 'failed':
         return None, None, (jsonify({'error': 'ai_failed'}), 502)
     if code == 'refused':
@@ -3490,6 +4171,289 @@ def api_ai_auto_tags():
     return jsonify({'results': results})
 
 
+_BOOKING_SCORE_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "score": {"type": "integer"},
+        "empfehlung": {"type": "string", "enum": ["jetzt_buchen", "beobachten", "warten"]},
+        "vertrauen": {"type": "integer"},
+        "erwartung_7_tage": {"type": "string", "enum": ["steigend", "fallend", "gleich"]},
+        "erwartung_30_tage": {"type": "string", "enum": ["steigend", "fallend", "gleich"]},
+        "begruendung": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "text": {"type": "string"},
+                    "typ": {"type": "string", "enum": ["daten", "annahme"]},
+                },
+                "required": ["text", "typ"], "additionalProperties": False,
+            },
+        },
+    },
+    "required": ["score", "empfehlung", "vertrauen", "erwartung_7_tage",
+                 "erwartung_30_tage", "begruendung"],
+    "additionalProperties": False,
+}
+
+_BOOKING_SCORE_INSTRUCTIONS = (
+    "Score 0-100: 0 = auf keinen Fall jetzt buchen, 100 = sehr guter Buchungszeitpunkt.\n"
+    "Berücksichtige u. a. Preisentwicklung, Änderungsgeschwindigkeit, Abstand zu "
+    "Tiefst-/Höchstpreis, Saison, Tage bis Abflug, Wochentag, deutsche Schulferien "
+    "(grob, aus deinem Wissen), sowie ggf. per Websuche gefundene aktuelle Nachrichten "
+    "oder besondere Ereignisse zum Reiseziel/Veranstalter.\n"
+    "Wichtig zur Gewichtung: die Saisonalität aus dem Preiskalender (falls angegeben) "
+    "zeigt nur, welcher Reisemonat für DIESES Hotel relativ zu anderen Monaten "
+    "günstiger/teurer ist — das ist KEINE Vorhersage, wie sich der Preis für genau "
+    "diesen Termin bis zum Abflug noch entwickelt, und rechtfertigt für sich allein "
+    "kein 'jetzt buchen'. Je länger die Vorlaufzeit (Tage bis Abreise), desto weniger "
+    "Gewicht sollte diese saisonale Einordnung bekommen und desto mehr zählen "
+    "Preistrend/Markttrend als Signal für JETZT. Bei langer Vorlaufzeit gilt zusätzlich "
+    "die allgemeine Erfahrung, dass Frühbucher bei Pauschalreisen meist im Vorteil sind "
+    "(Preise tendieren dazu, näher am Abflug bei sinkender Verfügbarkeit zu steigen) — "
+    "das spricht eher FÜR ein frühes Buchen, auch wenn der aktuelle Reisemonat laut "
+    "Kalender nur durchschnittlich und nicht der günstigste ist.\n"
+    "Kennzeichne JEDEN Punkt in der Begründung mit typ='daten' (aus den oben gelieferten "
+    "Zahlen ableitbar — dazu zählt auch die Saisonalität aus dem Preiskalender, falls "
+    "angegeben: das sind echte abgefragte Preise, keine Schätzung) oder typ='annahme' "
+    "(dein allgemeines Wissen, Saison-Erfahrung oder Websuche-Ergebnis, ohne harte "
+    "Zahlen aus diesem Angebot). Senke 'vertrauen', wenn viele Punkte 'annahme' statt "
+    "'daten' sind. Erfinde keine konkreten Preise oder Ereignisse, die du nicht "
+    "wirklich gefunden hast."
+)
+
+
+def _calendar_seasonal_summary(cal: dict) -> dict | None:
+    """Grobe Saisonalität aus einem bereits abgerufenen Preiskalender dieses Hotels/
+    Zimmers (`calendar_cache`, siehe `_run_calendar`) — echte Daten (tatsächlich
+    abgefragte Preise je Abreisetag über ~18 Monate), keine Schätzung. None, wenn
+    noch kein Kalender abgerufen wurde oder zu wenige Tage für eine Monatsaufteilung
+    vorliegen. Löst selbst KEINEN neuen (teuren) Kalender-Abruf aus."""
+    days = cal.get('days') or []
+    if len(days) < 30:
+        return None
+    by_month: dict[str, list] = defaultdict(list)
+    for d in days:
+        by_month[d['date'][:7]].append(d['price'])
+    monthly = {m: round(sum(p) / len(p)) for m, p in by_month.items() if len(p) >= 3}
+    if len(monthly) < 3:
+        return None
+    cheapest_month = min(monthly, key=monthly.get)
+    priciest_month = max(monthly, key=monthly.get)
+    return {
+        'cheapest_month': cheapest_month, 'cheapest_month_avg': monthly[cheapest_month],
+        'priciest_month': priciest_month, 'priciest_month_avg': monthly[priciest_month],
+        'tracked_price': cal.get('tracked_price'), 'tracked_date': cal.get('tracked_date'),
+        'overall_cheapest_price': cal.get('cheapest_price'),
+        'overall_cheapest_date': cal.get('cheapest_date'),
+    }
+
+
+def _offer_booking_facts(con, offer_id: int) -> dict | None:
+    """Fakten für den KI-Buchungsscore eines einzelnen Angebots: aktueller Preis,
+    Preisspanne, eigener Trend (`_trend_for`), Markttrend/-index seiner Destination
+    (`_market_trend`/`_market_index`) sowie — falls bereits abgerufen — die
+    Saisonalität aus dem gespeicherten Preiskalender dieses Hotels/Zimmers
+    (`_calendar_seasonal_summary`). None, wenn das Angebot noch nie erfolgreich
+    geprüft wurde (kein Preis vorhanden)."""
+    o = con.execute('SELECT * FROM offers WHERE id=?', (offer_id,)).fetchone()
+    if not o:
+        return None
+    last = con.execute(
+        'SELECT * FROM price_history WHERE offer_id=? AND ok=1 AND price IS NOT NULL '
+        'ORDER BY ts DESC LIMIT 1', (offer_id,)).fetchone()
+    if not last:
+        return None
+    stats = con.execute(
+        'SELECT MIN(price) mn, MAX(price) mx, COUNT(*) c FROM price_history '
+        'WHERE offer_id=? AND ok=1 AND price IS NOT NULL', (offer_id,)).fetchone()
+    region = o['region'] or ''
+    seasonal = None
+    cal_row = con.execute('SELECT data FROM calendar_cache WHERE offer_id=?', (offer_id,)).fetchone()
+    if cal_row:
+        try:
+            seasonal = _calendar_seasonal_summary(json.loads(cal_row['data']))
+        except (ValueError, TypeError):
+            seasonal = None
+    # Abreisedatum + Tage bis Abreise selbst berechnen (nicht der KI überlassen) —
+    # live beobachtet: ohne explizites "heutiges Datum" im Prompt verschätzte sich
+    # die KI bei der Vorlaufzeit um Jahre (hielt "2027" fälschlich für ~3 Jahre
+    # entfernt statt gut 1 Jahr).
+    nights = duration_from_url(o['url'])
+    departure_date, departure_days = '', None
+    if o['return_date']:
+        try:
+            ret = date.fromisoformat(o['return_date'][:10])
+            dep = ret - timedelta(days=nights) if nights else ret
+            departure_date = dep.isoformat()
+            departure_days = (dep - date.today()).days
+        except ValueError:
+            pass
+    return {
+        'hotel': o['label'] or o['hotel'] or f"Angebot #{offer_id}",
+        'details': o['details'] or '', 'region': region, 'country': o['country'] or '',
+        'stars': o['stars'], 'rating': o['rating'], 'rating_count': o['rating_count'],
+        'recommendation': o['recommendation'], 'return_date': o['return_date'] or '',
+        'departure_date': departure_date, 'departure_days': departure_days,
+        'target_price': o['target_price'], 'booked_price': o['booked_price'],
+        'price': last['price'], 'min_price': stats['mn'], 'max_price': stats['mx'],
+        'samples': stats['c'],
+        'own_trend': _trend_for(con, offer_id),
+        'region_trend': _market_trend(con, region=region) if region else None,
+        'region_index': _market_index(con, region=region) if region else None,
+        'seasonal': seasonal,
+    }
+
+
+def _calendar_outlook_facts(con, offer_id: int) -> dict | None:
+    """Fakten für die KI-Kalenderanalyse: Monatsdurchschnitte (schwellenfrei, auch bei
+    wenig Daten — anders als `_calendar_seasonal_summary`, das für den Buchungsscore
+    harte Mindestschwellen braucht) + größte Bewegungen aus calendar_history. None
+    ohne abgerufenen Kalender."""
+    o = con.execute('SELECT label, hotel FROM offers WHERE id=?', (offer_id,)).fetchone()
+    if not o:
+        return None
+    cal_row = con.execute('SELECT data FROM calendar_cache WHERE offer_id=?', (offer_id,)).fetchone()
+    if not cal_row:
+        return None
+    try:
+        cal = json.loads(cal_row['data'])
+    except (ValueError, TypeError):
+        return None
+    days = cal.get('days') or []
+    if not days:
+        return None
+    by_month: dict[str, list] = defaultdict(list)
+    for d in days:
+        by_month[d['date'][:7]].append(d['price'])
+    monthly = sorted((m, round(sum(p) / len(p)), len(p)) for m, p in by_month.items())
+    moves = _calendar_top_moves(_calendar_moves(con, offer_id), limit=8)
+    return {
+        'hotel': o['label'] or o['hotel'] or f"Angebot #{offer_id}",
+        'duration': cal.get('duration'),
+        'tracked_date': cal.get('tracked_date'), 'tracked_price': cal.get('tracked_price'),
+        'cheapest_date': cal.get('cheapest_date'), 'cheapest_price': cal.get('cheapest_price'),
+        'monthly': monthly, 'moves': moves,
+    }
+
+
+_CALENDAR_OUTLOOK_INSTRUCTIONS = (
+    "Fasse die Preisentwicklung im Kalender kurz zusammen und gib eine Empfehlung, "
+    "wann eine Buchung günstig bzw. teuer ist. Gliedere die Antwort so:\n"
+    "- Kurzer Absatz (2-3 Sätze) zum allgemeinen Preisniveau, und falls Daten vorhanden "
+    "zu auffälligen Preisänderungen.\n"
+    "- Abschnitt \"Günstige Monate\" als Liste (Monat + ca. Preis).\n"
+    "- Abschnitt \"Teure Monate\" als Liste (Monat + ca. Preis).\n"
+    "- Abschnitt \"Empfehlung\": 1-2 Sätze konkrete Handlungsempfehlung.\n\n"
+    "Nutze ausschließlich die unten gelieferten Daten — keine Websuche, keine erfundenen "
+    "Zahlen. Schreibe auf Deutsch, sprich den Nutzer mit „Du“ an, fasse dich kurz "
+    "(insgesamt max. ~180 Wörter). Gib direkt die fertige Antwort aus, kein Vorspann."
+)
+
+
+def _calendar_outlook_prompt(facts: dict) -> str:
+    lines = [f"Heutiges Datum: {date.today().isoformat()}", f"Hotel: {facts['hotel']}"]
+    if facts.get('duration'):
+        lines.append(f"Reisedauer: {facts['duration']} Nächte")
+    if facts.get('tracked_date'):
+        lines.append(f"Preis im aktuell gewählten Reisezeitraum: {facts['tracked_price']} € "
+                      f"(am {facts['tracked_date']})")
+    if facts.get('cheapest_date'):
+        lines.append(f"Günstigster Einzeltermin im gesamten Kalender: "
+                      f"{facts['cheapest_price']} € (am {facts['cheapest_date']})")
+    lines.append("Monatsdurchschnittspreise im Kalender (Ø-Preis, Anzahl Tage mit Daten):")
+    for m, avg, n in facts['monthly']:
+        lines.append(f"- {_month_name_de(m)}: Ø {avg} € ({n} Tage)")
+    if facts['moves']:
+        lines.append("Größte Preisänderungen seit dem jeweils letzten bekannten Wert "
+                      "für dieses Reisedatum:")
+        for mv in facts['moves']:
+            arrow = "gestiegen" if mv['delta'] > 0 else "gefallen"
+            lines.append(f"- {mv['date']}: {mv['prev_price']} € -> {mv['price']} € "
+                         f"({arrow} um {abs(mv['delta'])} €)")
+    else:
+        lines.append("Bisher wurden noch keine Preisänderungen im Kalender aufgezeichnet.")
+    return ("Du bist ein Reisepreis-Analyst. Analysiere den Preiskalender dieser "
+            "Pauschalreise.\n\n" + "\n".join(lines) + "\n\n" + _CALENDAR_OUTLOOK_INSTRUCTIONS)
+
+
+def _booking_score_prompt(facts: dict) -> str:
+    """Baut den Buchungsscore-Prompt für ein einzelnes Angebot aus dessen eigenen
+    (bereits vorgerechneten) Fakten — keine rohen Preislisten, damit die KI nicht
+    selbst (fehleranfällig) einen Trend aus Rohdaten ableiten muss."""
+    lines = [f"Heutiges Datum: {date.today().isoformat()}", f"Hotel: {facts['hotel']}"]
+    if facts['details']:
+        lines.append(f"Details: {facts['details']}")
+    if facts['region'] or facts['country']:
+        lines.append(f"Reiseziel: {facts['region']}"
+                      + (f", {facts['country']}" if facts['country'] else ''))
+    if facts['stars']:
+        lines.append(f"Sterne: {facts['stars']}")
+    if facts['rating'] is not None:
+        lines.append(f"Bewertung: {facts['rating']}"
+                      + (f" ({facts['rating_count']} Bewertungen)" if facts['rating_count'] else ''))
+    if facts['recommendation'] is not None:
+        lines.append(f"Weiterempfehlung: {facts['recommendation']}%")
+    lines.append(f"Aktueller Preis: {facts['price']:.0f} €")
+    if facts['min_price'] is not None and facts['max_price'] is not None:
+        lines.append(f"Bisher beobachteter Preisbereich: {facts['min_price']:.0f} – "
+                      f"{facts['max_price']:.0f} € ({facts['samples']} Messpunkte)")
+    if facts['return_date']:
+        lines.append(f"Rückreisedatum: {facts['return_date']}")
+    if facts.get('departure_date'):
+        dd = facts.get('departure_days')
+        extra = (f" — das sind {dd} Tage bzw. rund {dd / 30.44:.1f} Monate bis Abreise, "
+                 f"ausgehend vom heutigen Datum oben" if dd is not None else '')
+        lines.append(f"Geschätztes Abreisedatum: {facts['departure_date']}{extra}")
+    if facts['target_price']:
+        lines.append(f"Wunschpreis des Nutzers: {facts['target_price']:.0f} €")
+    if facts['booked_price']:
+        lines.append(f"Bereits gebuchter Vergleichspreis: {facts['booked_price']:.0f} €")
+    t = facts['own_trend']
+    if t:
+        lines.append(f"Eigener Preistrend (letzte Messpunkte dieses Angebots): "
+                      f"{t['dir']} ({t['pct']:+.1f} %)")
+    rt = facts['region_trend']
+    if rt:
+        lines.append(f"Markttrend der Destination (14 Tage, alle getrackten Angebote): "
+                      f"{rt['dir']} ({rt['pct']:+.1f} %, {rt['n']} Datenpunkte)")
+    ri = facts['region_index']
+    if ri:
+        lines.append(f"Markt-Index der Destination seit Aufzeichnungsbeginn: "
+                      f"{ri['index']} ({ri['pct']:+.1f} %, {ri['n']} Datenpunkte)")
+    s = facts['seasonal']
+    if s:
+        lines.append(
+            f"Saisonalität aus dem gespeicherten Preiskalender dieses Hotels/Zimmers "
+            f"(echte abgefragte Preise je Abreisetag, ~18 Monate): günstigster Monat "
+            f"{s['cheapest_month']} (Ø {s['cheapest_month_avg']} €), teuerster Monat "
+            f"{s['priciest_month']} (Ø {s['priciest_month_avg']} €)"
+            + (f"; günstigster Einzeltermin im Kalender {s['overall_cheapest_date']} "
+               f"({s['overall_cheapest_price']} €)" if s.get('overall_cheapest_date') else '')
+            + (f"; Preis im aktuell gewählten Reisezeitraum laut Kalender "
+               f"{s['tracked_price']} € (am {s['tracked_date']})" if s.get('tracked_price') else ''))
+    return ("Du bist ein Reisepreis-Analyst. Bewerte den aktuellen Preis dieser "
+            "Pauschalreise und berechne einen Buchungsscore.\n\n" + "\n".join(lines)
+            + "\n\n" + _BOOKING_SCORE_INSTRUCTIONS)
+
+
+def _region_outlook_prompt(region: str, trend: dict | None, index: dict | None) -> str:
+    """Buchungsscore-Prompt für eine ganze Destination (kein bestimmtes Hotel) — nur
+    aus dem regionalen Markttrend/-index, ohne Angebots-Details."""
+    lines = [f"Heutiges Datum: {date.today().isoformat()}", f"Reiseziel: {region}"]
+    if trend:
+        lines.append(f"Markttrend (14 Tage, alle aktuell getrackten Angebote dieser "
+                      f"Destination): {trend['dir']} ({trend['pct']:+.1f} %, "
+                      f"{trend['n']} Datenpunkte)")
+    if index:
+        lines.append(f"Markt-Index seit Aufzeichnungsbeginn: {index['index']} "
+                      f"({index['pct']:+.1f} %, {index['n']} Datenpunkte)")
+    return ("Du bist ein Reisepreis-Analyst. Schätze allgemein ein, ob jetzt ein guter "
+            "Zeitpunkt ist, eine Pauschalreise in dieses Reiseziel zu buchen — "
+            "unabhängig von einem bestimmten Hotel.\n\n" + "\n".join(lines)
+            + "\n\n" + _BOOKING_SCORE_INSTRUCTIONS)
+
+
 def _hotel_summary_prompt(hotel: dict, instructions: str) -> str:
     """Baut den KI-Fazit-Prompt: feste Hotel-Fakten + (ggf. vom Nutzer angepasste)
     Instruktionen."""
@@ -3518,7 +4482,8 @@ def api_ai_hotel_summary():
     instr_hash = hashlib.sha1(instructions.encode('utf-8')).hexdigest()[:10]
     giata = data.get('giata')
     cache_key = f'{instr_hash}:' + (str(giata) if giata else name.lower())
-    cached = _ai_summary_cache.get(cache_key)
+    with _ai_cache_lock:
+        cached = _ai_summary_cache.get(cache_key)
     if cached and time.time() - cached['ts'] < _AI_SUMMARY_TTL:
         return jsonify({'summary': cached['summary'], 'usage': cached.get('usage'),
                         'totals': _ai_usage_totals(), 'id': cached.get('id'), 'cached': True})
@@ -3529,9 +4494,144 @@ def api_ai_hotel_summary():
         return err
     usage['estimated_usd'] = _ai_call_cost(model, usage)
     totals = _record_ai_usage(model, usage)
-    aid = _save_ai_analysis('single', name, model, text, usage)
-    _ai_summary_cache[cache_key] = {'summary': text, 'usage': usage, 'id': aid, 'ts': time.time()}
+    aid = _save_ai_analysis('single', name, model, text, usage, prompt)
+    with _ai_cache_lock:
+        _ai_summary_cache[cache_key] = {'summary': text, 'usage': usage, 'id': aid, 'ts': time.time()}
     return jsonify({'summary': text, 'usage': usage, 'totals': totals, 'id': aid, 'cached': False})
+
+
+def _ai_score_request(prompt: str, model: str, api_key: str, log_ctx: str):
+    """Ruft die KI mit dem Buchungsscore-Schema + Websuche auf und parst das Ergebnis.
+    Rückgabe: (result_dict, usage, None) oder (None, None, (jsonify(...), status))."""
+    text, usage, code = _ai_request(api_key, model, prompt, max_tokens=1024,
+                                    log_ctx=log_ctx, use_web_search=True,
+                                    output_schema=_BOOKING_SCORE_SCHEMA)
+    if code == 'failed':
+        return None, None, (jsonify({'error': 'ai_failed'}), 502)
+    if code == 'refused':
+        return None, None, (jsonify({'error': 'ai_refused'}), 502)
+    if code == 'empty' or not text:
+        return None, None, (jsonify({'error': 'ai_empty'}), 502)
+    try:
+        result = json.loads(text)
+    except ValueError:
+        return None, None, (jsonify({'error': 'ai_empty'}), 502)
+    return result, usage, None
+
+
+@app.route('/api/ai/calendar-outlook/<int:offer_id>', methods=['POST'])
+def api_ai_calendar_outlook(offer_id: int):
+    """KI-Zusammenfassung des Preiskalenders eines Angebots (günstige/teure Monate,
+    Preisänderungen) — reiner Markdown-Fließtext, keine Websuche (nur lokale
+    Kalenderdaten), daher ohne Sonderfall für Claude/Gemini nutzbar. 6h gecacht."""
+    if (err := _require_api()):
+        return err
+    api_key, model = _ai_config()
+    if not api_key:
+        return jsonify({'error': 'no_api_key',
+                        'note': 'Kein Anthropic API-Key in den Add-on-Einstellungen hinterlegt'}), 400
+    cached = _calendar_outlook_cache.get(offer_id)
+    if cached and time.time() - cached['ts'] < _BOOKING_SCORE_TTL:
+        return jsonify({'summary': cached['summary'], 'usage': cached.get('usage'),
+                        'totals': _ai_usage_totals(), 'id': cached.get('id'), 'cached': True})
+    with db() as con:
+        if not con.execute('SELECT 1 FROM offers WHERE id=?', (offer_id,)).fetchone():
+            return jsonify({'error': 'not_found'}), 404
+        cal_row = con.execute('SELECT ts FROM calendar_cache WHERE offer_id=?', (offer_id,)).fetchone()
+    if not cal_row or time.time() - cal_row['ts'] >= _CALENDAR_FRESH_SECONDS:
+        _run_calendar(offer_id)   # wie im Buchungsscore: fehlenden/alten Kalender einmalig auffrischen
+    with db() as con:
+        facts = _calendar_outlook_facts(con, offer_id)
+    if facts is None:
+        return jsonify({'error': 'no_data'}), 400
+    prompt = _calendar_outlook_prompt(facts)
+    text, usage, err = _ai_call(api_key, model, prompt, max_tokens=700,
+                                log_ctx=facts['hotel'], use_web_search=False)
+    if err:
+        return err
+    usage['estimated_usd'] = _ai_call_cost(model, usage)
+    totals = _record_ai_usage(model, usage)
+    aid = _save_ai_analysis('calendar_outlook', facts['hotel'], model, text, usage, prompt)
+    _calendar_outlook_cache[offer_id] = {'summary': text, 'usage': usage, 'id': aid, 'ts': time.time()}
+    return jsonify({'summary': text, 'usage': usage, 'totals': totals, 'id': aid, 'cached': False})
+
+
+@app.route('/api/ai/booking-score/<int:offer_id>', methods=['POST'])
+def api_ai_booking_score(offer_id: int):
+    """KI-Buchungsscore für ein einzelnes getracktes Angebot — auf Anfrage (kostet
+    Websuche-Aufrufe), 6h je Angebot gecacht."""
+    if (err := _require_api()):
+        return err
+    api_key, model = _ai_config()
+    if not api_key:
+        return jsonify({'error': 'no_api_key',
+                        'note': 'Kein Anthropic API-Key in den Add-on-Einstellungen hinterlegt'}), 400
+    with _ai_cache_lock:
+        cached = _booking_score_cache.get(offer_id)
+    if cached and time.time() - cached['ts'] < _BOOKING_SCORE_TTL:
+        return jsonify({'result': cached['result'], 'usage': cached['usage'],
+                        'totals': _ai_usage_totals(), 'id': cached.get('id'), 'cached': True})
+    with db() as con:
+        facts = _offer_booking_facts(con, offer_id)
+    if facts is None:
+        return jsonify({'error': 'no_price'}), 400
+    with db() as con:
+        cal_row = con.execute('SELECT ts FROM calendar_cache WHERE offer_id=?', (offer_id,)).fetchone()
+    if not cal_row or time.time() - cal_row['ts'] >= _CALENDAR_FRESH_SECONDS:
+        # Fehlender/veralteter Preiskalender wird für den Buchungsscore vorher
+        # aufgefrischt (synchron, nur für Angebote mit Preis — sonst lohnt sich der
+        # Abruf nicht) — nicht bei jedem Aufruf, nur wenn er fehlt oder älter als
+        # _CALENDAR_FRESH_SECONDS ist. Facts danach neu laden, damit die frische
+        # Saisonalität im Prompt landet.
+        _run_calendar(offer_id)
+        with db() as con:
+            facts = _offer_booking_facts(con, offer_id)
+    prompt = _booking_score_prompt(facts)
+    result, usage, err = _ai_score_request(prompt, model, api_key, facts['hotel'])
+    if err:
+        return err
+    usage['estimated_usd'] = _ai_call_cost(model, usage)
+    totals = _record_ai_usage(model, usage)
+    aid = _save_ai_analysis('booking_score', facts['hotel'], model,
+                            json.dumps(result, ensure_ascii=False), usage, prompt)
+    with _ai_cache_lock:
+        _booking_score_cache[offer_id] = {'result': result, 'usage': usage, 'id': aid, 'ts': time.time()}
+    return jsonify({'result': result, 'usage': usage, 'totals': totals, 'id': aid, 'cached': False})
+
+
+@app.route('/api/ai/region-outlook', methods=['POST'])
+def api_ai_region_outlook():
+    """KI-Einschätzung für eine ganze Destination (kein bestimmtes Hotel) aus deren
+    Markttrend/-index — auf Anfrage, 6h je Region gecacht."""
+    if (err := _require_api()):
+        return err
+    api_key, model = _ai_config()
+    if not api_key:
+        return jsonify({'error': 'no_api_key',
+                        'note': 'Kein Anthropic API-Key in den Add-on-Einstellungen hinterlegt'}), 400
+    data = request.get_json(silent=True) or {}
+    region = (data.get('region') or '').strip()
+    if not region:
+        return jsonify({'error': 'invalid'}), 400
+    cached = _region_outlook_cache.get(region)
+    if cached and time.time() - cached['ts'] < _BOOKING_SCORE_TTL:
+        return jsonify({'result': cached['result'], 'usage': cached['usage'],
+                        'totals': _ai_usage_totals(), 'id': cached.get('id'), 'cached': True})
+    with db() as con:
+        trend = _market_trend(con, region=region)
+        index = _market_index(con, region=region)
+    if trend is None and index is None:
+        return jsonify({'error': 'no_data'}), 400
+    prompt = _region_outlook_prompt(region, trend, index)
+    result, usage, err = _ai_score_request(prompt, model, api_key, region)
+    if err:
+        return err
+    usage['estimated_usd'] = _ai_call_cost(model, usage)
+    totals = _record_ai_usage(model, usage)
+    aid = _save_ai_analysis('region_outlook', region, model,
+                            json.dumps(result, ensure_ascii=False), usage, prompt)
+    _region_outlook_cache[region] = {'result': result, 'usage': usage, 'id': aid, 'ts': time.time()}
+    return jsonify({'result': result, 'usage': usage, 'totals': totals, 'id': aid, 'cached': False})
 
 
 @app.route('/api/ai/ask', methods=['POST'])
@@ -3596,7 +4696,7 @@ def api_ai_ask():
         return err
     usage['estimated_usd'] = _ai_call_cost(model, usage)
     totals = _record_ai_usage(model, usage)
-    aid = _save_ai_analysis('ask', question, model, text, usage)
+    aid = _save_ai_analysis('ask', question, model, text, usage, prompt)
     return jsonify({'summary': text, 'usage': usage, 'totals': totals, 'id': aid, 'cached': False})
 
 
@@ -3713,8 +4813,8 @@ def _advisor_prompt(p: dict, prev_dna: dict | None = None) -> str:
             "„Kommt nicht in Frage“/„Weitere ausgeschlossene Länder“ genannten "
             "Ländern/Regionen vor — auch nicht als Alternative."
         )
-    if p.get('arrival_mode') in ('Auto', 'Bus', 'Bahn') or is_daytrip:
-        transport = p.get('arrival_mode') or 'einem Fahrzeug/den öffentlichen Verkehrsmitteln'
+    if not is_daytrip and p.get('arrival_mode') in ('Auto', 'Bus', 'Bahn'):
+        transport = p.get('arrival_mode')
         lines.append(
             "\nWichtig: Der Nutzer reist eigenständig mit "
             f"{transport} an, nicht mit dem Flugzeug. Schlage "
@@ -3854,7 +4954,7 @@ def api_ai_travel_advisor():
         text += _advisor_dna_table(dna)
     usage['estimated_usd'] = _ai_call_cost(model, usage)
     totals = _record_ai_usage(model, usage)
-    aid = _save_ai_analysis('advisor', title, model, text, usage)
+    aid = _save_ai_analysis('advisor', title, model, text, usage, prompt)
     return jsonify({'summary': text, 'usage': usage, 'totals': totals, 'id': aid, 'dna': dna,
                     'cached': False})
 
@@ -3891,7 +4991,8 @@ def api_ai_hotel_compare():
     cache_key = (f'cmp:{instr_hash}:'
                  + '|'.join(sorted(str(h.get('giata') or (h.get('name') or '').lower())
                                    for h in hotels)))
-    cached = _ai_summary_cache.get(cache_key)
+    with _ai_cache_lock:
+        cached = _ai_summary_cache.get(cache_key)
     if cached and time.time() - cached['ts'] < _AI_SUMMARY_TTL:
         return jsonify({'summary': cached['summary'], 'usage': cached.get('usage'),
                         'totals': _ai_usage_totals(), 'id': cached.get('id'), 'cached': True})
@@ -3904,8 +5005,9 @@ def api_ai_hotel_compare():
     usage['estimated_usd'] = _ai_call_cost(model, usage)
     totals = _record_ai_usage(model, usage)
     title = ' · '.join(h.get('name', '') for h in hotels)
-    aid = _save_ai_analysis('compare', title, model, text, usage)
-    _ai_summary_cache[cache_key] = {'summary': text, 'usage': usage, 'id': aid, 'ts': time.time()}
+    aid = _save_ai_analysis('compare', title, model, text, usage, prompt)
+    with _ai_cache_lock:
+        _ai_summary_cache[cache_key] = {'summary': text, 'usage': usage, 'id': aid, 'ts': time.time()}
     return jsonify({'summary': text, 'usage': usage, 'totals': totals, 'id': aid, 'cached': False})
 
 
@@ -4020,7 +5122,8 @@ def api_ai_history():
         return err
     with db() as con:
         rows = con.execute(
-            'SELECT id, kind, title, model, ts, substr(summary,1,160) AS preview '
+            'SELECT id, kind, title, model, ts, substr(summary,1,160) AS preview, '
+            "CASE WHEN prompt!='' THEN 1 ELSE 0 END AS has_prompt "
             'FROM ai_analyses ORDER BY id DESC LIMIT ?', (_AI_HISTORY_MAX,)).fetchall()
     return jsonify({'items': [dict(r) for r in rows]})
 
@@ -4049,6 +5152,64 @@ def api_ai_history_delete(aid: int):
     with db() as con:
         con.execute('DELETE FROM ai_analyses WHERE id=?', (aid,))
     return jsonify({'ok': True})
+
+
+# max_tokens/use_web_search je Markdown-Kind (1:1 aus den jeweiligen Original-Routen
+# übernommen) — für api_ai_history_repeat unten. booking_score/region_outlook sind
+# NICHT hier drin, die laufen strukturiert über _ai_score_request (eigenes, festes
+# max_tokens=1024/use_web_search=True).
+_AI_RETRY_MARKDOWN_CONFIG = {
+    'single': {'max_tokens': 4096, 'use_web_search': True},
+    'calendar_outlook': {'max_tokens': 700, 'use_web_search': False},
+    'ask': {'max_tokens': 1500, 'use_web_search': True},
+    'advisor': {'max_tokens': 3072, 'use_web_search': True},
+    'compare': {'max_tokens': 6144, 'use_web_search': True},
+}
+
+
+@app.route('/api/ai/history/<int:aid>/repeat', methods=['POST'])
+def api_ai_history_repeat(aid: int):
+    """Wiederholt einen gespeicherten KI-Verlaufseintrag mit gewähltem Provider —
+    schickt den eingefrorenen Prompt erneut, speichert das Ergebnis als NEUEN
+    Verlaufseintrag (Original bleibt unverändert erhalten). Bei kind='advisor'
+    (TripPilot) fehlt in der Wiederholung die angehängte Reise-DNA-Tabelle — die wird
+    deterministisch aus dem Fragebogen-Zustand berechnet, der hier nicht gespeichert
+    ist, nur der fertige Prompt-Text."""
+    if (err := _require_api()):
+        return err
+    provider = (request.get_json(silent=True) or {}).get('provider')
+    if provider not in ('anthropic', 'gemini'):
+        return jsonify({'error': 'invalid_provider'}), 400
+    with db() as con:
+        row = con.execute('SELECT kind, title, prompt FROM ai_analyses WHERE id=?',
+                          (aid,)).fetchone()
+    if not row:
+        return jsonify({'error': 'not_found'}), 404
+    if not row['prompt']:
+        return jsonify({'error': 'no_prompt',
+                        'note': 'Dieser Eintrag wurde vor der Wiederholen-Funktion gespeichert.'}), 400
+    api_key, model = _ai_config_for(provider)
+    if not api_key:
+        return jsonify({'error': 'no_api_key'}), 400
+    kind, title, prompt = row['kind'], row['title'], row['prompt']
+    if kind in ('booking_score', 'region_outlook'):
+        result, usage, err = _ai_score_request(prompt, model, api_key, title)
+        if err:
+            return err
+        text = json.dumps(result, ensure_ascii=False)
+    else:
+        rcfg = _AI_RETRY_MARKDOWN_CONFIG.get(kind, {'max_tokens': 2048, 'use_web_search': True})
+        result = None
+        text, usage, err = _ai_call(api_key, model, prompt, max_tokens=rcfg['max_tokens'],
+                                    log_ctx=title, use_web_search=rcfg['use_web_search'])
+        if err:
+            return err
+    usage['estimated_usd'] = _ai_call_cost(model, usage)
+    totals = _record_ai_usage(model, usage)
+    new_id = _save_ai_analysis(kind, title, model, text, usage, prompt)
+    out = {'usage': usage, 'totals': totals, 'id': new_id}
+    out.update({'result': result} if result is not None else {'summary': text})
+    return jsonify(out)
 
 
 _dest_cache: dict = {}     # parent → {parentName, items}
@@ -4177,7 +5338,8 @@ def _search_from_fav_payload(p: dict) -> dict | None:
         boards=[str(b) for b in (p.get('boards') or []) if str(b).strip()],
         airlines=[str(a) for a in (p.get('airlines') or []) if str(a).strip()],
         location=[int(i) for i in (p.get('location') or []) if str(i).strip().isdigit()],
-        direct=bool(p.get('direct')), verbose=_verbose())
+        direct=bool(p.get('direct')), adults_only=bool(p.get('adults_only')),
+        verbose=_verbose())
     if not res or not res.get('ok'):
         return res
 
@@ -4376,6 +5538,8 @@ def api_searches_check(sid):
     """Suchabo sofort prüfen (synchron) — liefert die aktuellen Treffer zurück."""
     if (err := _require_api()):
         return err
+    if (remaining := _cooldown_remaining(f'search_check:{sid}', 30)):
+        return jsonify({'error': 'cooldown', 'retry_after': remaining}), 429
     with db() as con:
         row = con.execute('SELECT watch, max_price FROM saved_searches WHERE id=?',
                           (sid,)).fetchone()
@@ -5124,7 +6288,29 @@ def api_calendar_start(offer_id: int):
 def api_calendar_get(offer_id: int):
     if (err := _require_api()):
         return err
-    return jsonify(_calendar_payload(offer_id))
+    payload = _calendar_payload(offer_id)
+    if payload.get('status') == 'done':
+        # Angezeigt -> Trend-Blinken auf dem "Kalender"-Button erlischt bis zur
+        # naechsten Preisaenderung (siehe calendar_alert in _collect_offers()).
+        with db() as con:
+            con.execute('UPDATE offers SET calendar_seen_ts=? WHERE id=?',
+                        (int(time.time()), offer_id))
+    return jsonify(payload)
+
+
+@app.route('/api/calendar/<int:offer_id>/day/<travel_date>', methods=['GET'])
+def api_calendar_day_history(offer_id: int, travel_date: str):
+    """Preisverlauf eines einzelnen Reisedatums über alle Kalender-Snapshots — für
+    den Mini-Chart bei Klick auf einen Kalendertag."""
+    if (err := _require_api()):
+        return err
+    if not re.fullmatch(r'\d{4}-\d{2}-\d{2}', travel_date or ''):
+        return jsonify({'error': 'bad_date'}), 400
+    with db() as con:
+        if not con.execute('SELECT 1 FROM offers WHERE id=?', (offer_id,)).fetchone():
+            return jsonify({'error': 'not_found'}), 404
+        points = _calendar_date_history(con, offer_id, travel_date)
+    return jsonify({'date': travel_date, 'points': points})
 
 
 @app.route('/api/rooms/<int:offer_id>', methods=['GET'])
@@ -5153,6 +6339,10 @@ def api_rooms_set(offer_id: int):
     data = request.get_json(silent=True) or {}
     code = (data.get('code') or '').strip()
     label = (data.get('label') or '').strip()
+    # Zimmercodes von TUI sehen z.B. so aus: DZM1, JSM2, GT06-AI — kurz, alphanumerisch
+    # + Bindestrich. Leer = "automatisch günstigstes" bleibt weiterhin erlaubt.
+    if code and not re.fullmatch(r'[A-Za-z0-9-]{1,40}', code):
+        return jsonify({'error': 'invalid_code'}), 400
     with db() as con:
         o = con.execute('SELECT url FROM offers WHERE id=?', (offer_id,)).fetchone()
         if not o:
@@ -5184,6 +6374,42 @@ def api_healthcheck_route():
     with _health_lock:
         st = dict(_health_state)
     return jsonify(st)
+
+
+@app.route('/api/market-trend')
+def api_market_trend():
+    """Marktweiter Preistrend über alle geprüften Angebote: ein rollierendes 14-Tage-
+    Fenster (`trend`, reagiert auf aktuelle Bewegung) sowie ein Index seit Beginn der
+    Aufzeichnung (`index`, Basis 100 — fängt auch langsame Bewegungen über mehrere
+    Wochen), jeweils global und aufgeschlüsselt nach Destination."""
+    if (err := _require_api()):
+        return err
+    with db() as con:
+        regions = [r['region'] for r in con.execute(
+            "SELECT DISTINCT region FROM price_moves WHERE region!=''").fetchall()]
+        glob = {'trend': _market_trend(con), 'index': _market_index(con)}
+        by_region = []
+        for r in sorted(regions):
+            t, i = _market_trend(con, region=r), _market_index(con, region=r)
+            if t or i:
+                by_region.append({'region': r, 'trend': t, 'index': i})
+    return jsonify({'global': glob, 'by_region': by_region})
+
+
+@app.route('/api/market-trend/recompute', methods=['POST'])
+def api_market_trend_recompute():
+    """Markttrend komplett neu aus `price_history`/`offer_events` aufbauen — z. B.
+    nachdem ein Zimmerwechsel-Preissprung fälschlich mitgezählt wurde (vor einer
+    Korrektur an der Berechnungslogik) oder um eine spätere Fehlerbehebung rückwirkend
+    auf die bereits gesammelten Daten anzuwenden, ohne sie komplett zu verlieren."""
+    if (err := _require_api()):
+        return err
+    with db() as con:
+        con.execute('DELETE FROM price_moves')
+        _backfill_price_moves(con)
+        n = con.execute('SELECT COUNT(*) c FROM price_moves').fetchone()['c']
+    log.info("Markttrend neu berechnet: %d Datenpunkte", n)
+    return jsonify({'recomputed': n})
 
 
 @app.route('/api/digest', methods=['POST'])
@@ -5220,7 +6446,55 @@ def _aktionscodes_sensor_worker() -> None:
         time.sleep(120)
 
 
+def _health_sensor_worker() -> None:
+    """Wie `_aktionscodes_sensor_worker`, aber für den API-Verfügbar-Sensor: meldet
+    das letzte Selbsttest-Ergebnis alle 2 Minuten erneut, damit er einen HA-Neustart
+    übersteht, obwohl der Selbsttest selbst nur ~1×/Tag läuft."""
+    while True:
+        try:
+            _push_health_sensor_from_cache()
+        except Exception as e:
+            log.warning("API-Sensor-Refresh fehlgeschlagen: %s", e)
+        time.sleep(120)
+
+
+def _cooldown_sensor_worker() -> None:
+    """Meldet den Cooldown-Sensor alle 5 Sekunden an HA — kurzes Intervall, weil der
+    Cooldown selbst nur 60s dauert und sowohl den HA-Neustart überstehen als auch
+    beim Ablauf zeitnah von selbst auf 'off' gehen soll."""
+    while True:
+        try:
+            _push_cooldown_sensor()
+        except Exception as e:
+            log.warning("Cooldown-Sensor-Refresh fehlgeschlagen: %s", e)
+        time.sleep(5)
+
+
+def _market_trend_sensor_worker() -> None:
+    """Meldet den Markttrend-Sensor alle 10 Minuten neu — die zugrunde liegenden Daten
+    ändern sich langsam (neue Punkte nur je Poll-Intervall pro Angebot), ein kurzes
+    Intervall wie beim Cooldown-Sensor wäre unnötig; überlebt trotzdem HA-Neustarts."""
+    while True:
+        try:
+            _push_market_trend_sensor()
+        except Exception as e:
+            log.warning("Markttrend-Sensor-Refresh fehlgeschlagen: %s", e)
+        time.sleep(600)
+
+
+def _handle_sigterm(signum, frame) -> None:
+    """Sauberer Exit bei SIGTERM (HA-Supervisor-Stop/Update) — ohne eigenen Handler
+    würde Python den Default-Handler laufen lassen (exit 143), worüber sich der
+    Supervisor beschwert ("should trap SIGTERM ... exit with code 0"). Alle
+    Hintergrund-Threads sind daemon=True (siehe main()), ein harter os._exit(0)
+    ist daher sicher — kein offener State, der noch geflusht werden müsste
+    (DB-Schreibzugriffe committen bereits pro `with db() as con:`-Block)."""
+    log.info("SIGTERM empfangen, beende sauber…")
+    os._exit(0)
+
+
 def main() -> None:
+    signal.signal(signal.SIGTERM, _handle_sigterm)
     init_db()
     load_sessions()
     _spawn(push_ha_sensors)  # vorhandene Preise sofort als Sensoren melden
@@ -5229,6 +6503,9 @@ def main() -> None:
     _spawn(_ensure_dest_index)  # Reiseziel-Index (globale Suche) laden/aufbauen
     threading.Thread(target=_poll_worker, daemon=True).start()
     threading.Thread(target=_aktionscodes_sensor_worker, daemon=True).start()
+    threading.Thread(target=_health_sensor_worker, daemon=True).start()
+    threading.Thread(target=_cooldown_sensor_worker, daemon=True).start()
+    threading.Thread(target=_market_trend_sensor_worker, daemon=True).start()
     port = int(os.environ.get('TUIWATCH_PORT', '17794'))
     log.info("TUIWatch startet auf Port %d", port)
     app.run(host='0.0.0.0', port=port, threaded=True)

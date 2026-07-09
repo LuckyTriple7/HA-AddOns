@@ -100,9 +100,9 @@ def test_advisor_prompt_uses_daytrip_instructions(app_mod):
     assert "Tagesausflugsziele" in prompt
     assert "Startort eigene Anreise: 70173 Stuttgart" in prompt
     assert "Verfügbare Zeit: Ganzer Tag" in prompt
-    assert "eigenständig mit einem Fahrzeug/den öffentlichen Verkehrsmitteln an" in prompt
     assert "Unterkunftsvorschläge" not in prompt
     assert "die TUI tatsächlich im Programm hat" not in prompt
+    assert "TUI-Pauschalreisen einen Flug" not in prompt
     assert "ob aktuell eine Reisewarnung" not in prompt
 
 

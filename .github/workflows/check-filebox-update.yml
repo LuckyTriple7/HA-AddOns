@@ -22,8 +22,14 @@ jobs:
 
       - name: Get latest FileBrowser version (GitHub API)
         id: upstream
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          VERSION=$(curl -s "https://api.github.com/repos/filebrowser/filebrowser/releases/latest" | jq -r '.tag_name' | sed 's/^v//')
+          VERSION=$(curl -s -H "Authorization: Bearer ${GH_TOKEN}" "https://api.github.com/repos/filebrowser/filebrowser/releases/latest" | jq -r '.tag_name' | sed 's/^v//')
+          if [ -z "$VERSION" ] || [ "$VERSION" = "null" ]; then
+            echo "Konnte FileBrowser-Version nicht ermitteln — API-Fehler?"
+            exit 1
+          fi
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
           echo "Upstream FileBrowser: ${VERSION}"
 

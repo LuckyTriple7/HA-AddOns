@@ -711,10 +711,11 @@ def _fetch_security_alerts(repo: str, token: str) -> dict:
             'url':       a.get('html_url', ''),
         }
 
-    def _fmt_cs(a: dict) -> dict:
+    def _fmt_cs(a: dict, branch: str = '') -> dict:
         rule = a.get('rule') or {}
         tool = a.get('tool') or {}
         loc  = ((a.get('most_recent_instance') or {}).get('location') or {})
+        inst_ref = (a.get('most_recent_instance') or {}).get('ref', '')
         return {
             'number':      a.get('number', '?'),
             'severity':    rule.get('security_severity_level') or rule.get('severity', 'unknown'),
@@ -724,6 +725,7 @@ def _fetch_security_alerts(repo: str, token: str) -> dict:
             'path':        loc.get('path', ''),
             'line':        loc.get('start_line', ''),
             'url':         a.get('html_url', ''),
+            'branch':      branch or inst_ref.replace('refs/heads/', ''),
         }
 
     def _fmt_ss(a: dict) -> dict:
@@ -776,12 +778,24 @@ def _fetch_security_alerts(repo: str, token: str) -> dict:
             return [], True
 
     dep, dep_access = _safe_dep(f'/repos/{repo}/dependabot/alerts')
-    cs  = _safe(f'/repos/{repo}/code-scanning/alerts')
+    # Code Scanning liefert ohne ref-Filter nur Alerts vom Default-Branch (main) —
+    # zusätzlich den konfigurierten Dev-Branch abfragen und mergen (dedupe per Alert-Nummer).
+    gps   = load_gitpulse_settings()
+    main_b = (gps.get('main_branch') or 'main').strip()
+    dev_b  = (gps.get('dev_branch') or '').strip()
+    cs_main = _safe(f'/repos/{repo}/code-scanning/alerts')
+    cs = [_fmt_cs(a, main_b) for a in cs_main]
+    if dev_b:
+        cs_ids = {a['number'] for a in cs}
+        cs_dev = _gh_get_paginated(f'/repos/{repo}/code-scanning/alerts', token, max_pages=10,
+                                    params={'state': 'open', 'ref': f'refs/heads/{dev_b}'})
+        if isinstance(cs_dev, list):
+            cs.extend(_fmt_cs(a, dev_b) for a in cs_dev if a.get('number') not in cs_ids)
     ss  = _safe(f'/repos/{repo}/secret-scanning/alerts')
     return {
         'dependabot':        [_fmt_dep(a) for a in dep],
         'dependabot_access': dep_access,
-        'code_scanning':     [_fmt_cs(a)  for a in cs],
+        'code_scanning':     cs,
         'secret_scanning':   [_fmt_ss(a)  for a in ss],
     }
 
@@ -3207,8 +3221,7 @@ def api_addon_manager_revert():
     if '/' in addon_dir or '..' in addon_dir:
         return jsonify({'error': 'invalid_addon_dir'}), 400
     owner, repo = repo_full.split('/', 1)
-    config_path    = f'{addon_dir}/config.yaml'
-    changelog_path = f'{addon_dir}/CHANGELOG.md'
+    config_path = f'{addon_dir}/config.yaml'
     try:
         cf = _gh_get_file_content(owner, repo, config_path, token, target_sha)
         if not cf:
@@ -3223,8 +3236,18 @@ def api_addon_manager_revert():
                            base64.b64decode(cf_cur['content']).decode('utf-8'), re.MULTILINE)
             if mc:
                 current_version = mc.group(1)
-        clf = _gh_get_file_content(owner, repo, changelog_path, token, target_sha)
-        old_changelog = base64.b64decode(clf['content']).decode('utf-8') if clf else ''
+
+        # Kompletten Ordner-Stand zum Ziel-Commit ermitteln (ganzer Add-on-Ordner, nicht nur config+changelog)
+        target_root_r = http.get(f'{GITHUB_API}/repos/{owner}/{repo}/git/trees/{target_sha}',
+                                  headers=_gh_headers(token), timeout=15)
+        if target_root_r.status_code != 200:
+            return jsonify({'error': 'target_tree_failed'}), 502
+        target_entry = next((e for e in target_root_r.json().get('tree', [])
+                              if e.get('path') == addon_dir and e.get('type') == 'tree'), None)
+        if not target_entry:
+            return jsonify({'error': 'addon_dir_not_found_at_target'}), 404
+        target_dir_tree_sha = target_entry['sha']
+
         ref_r = http.get(f'{GITHUB_API}/repos/{owner}/{repo}/git/ref/heads/{branch}',
                          headers=_gh_headers(token), timeout=15)
         if ref_r.status_code != 200:
@@ -3233,12 +3256,13 @@ def api_addon_manager_revert():
         commit_r = http.get(f'{GITHUB_API}/repos/{owner}/{repo}/git/commits/{head_sha}',
                             headers=_gh_headers(token), timeout=15)
         base_tree_sha = commit_r.json()['tree']['sha']
+        # Einzelner Tree-Eintrag vom Typ 'tree' ersetzt den kompletten Unterordner in einem Schritt —
+        # alle anderen Add-on-Ordner und Repo-Dateien bleiben unangetastet.
         tree_r = http.post(
             f'{GITHUB_API}/repos/{owner}/{repo}/git/trees',
             headers=_gh_headers(token),
             json={'base_tree': base_tree_sha, 'tree': [
-                {'path': config_path,    'mode': '100644', 'type': 'blob', 'content': old_config},
-                {'path': changelog_path, 'mode': '100644', 'type': 'blob', 'content': old_changelog},
+                {'path': addon_dir, 'mode': '040000', 'type': 'tree', 'sha': target_dir_tree_sha},
             ]}, timeout=15
         )
         if tree_r.status_code != 201:

@@ -1,5 +1,38 @@
 # Changelog
 
+## [0.4.1] - 2026-07-09
+
+### Fixed
+- Add-on beendete sich bei jedem Update/Neustart mit Exit-Code 137/143 statt
+  sauberem Stop: `Dockerfile` hat kein eigenes Init-System, App läuft als PID 1
+  im Container — ohne `init: true` ignoriert der Kernel unbehandelte Signale
+  wie SIGTERM für PID 1 (Linux-Sonderfall), Supervisor musste hart killen.
+  `init: false` → `init: true`; der bereits vorhandene SIGTERM-Handler
+  (`app.py`) greift damit jetzt zuverlässig.
+
+## [0.4.0] - 2026-07-07
+
+### Fixed
+- **Add-on Manager Revert**: stellte bisher nur config.yaml + CHANGELOG.md wieder her; jetzt kompletter Add-on-Ordner (ein Tree-Replace-Commit) — echtes Rollback statt inkonsistentem Versions-/Code-Stand. Andere Add-on-Ordner bleiben unangetastet.
+
+## [0.3.38] - 2026-07-07
+
+### Added
+- **Security Alerts**: Branch-Tag pro Code-Scanning-Alert (main/dev), damit sofort erkennbar ist auf welchem Branch der Fund liegt
+
+## [0.3.37] - 2026-07-07
+
+### Changed
+- Tab "Add-on Releases" umbenannt zu "Releases"
+
+### Fixed
+- **Security Alerts**: Code-Scanning-Alerts wurden nur für den Default-Branch (main) geliefert; jetzt zusätzlich Abfrage für den konfigurierten Dev-Branch (Merge, dedupliziert per Alert-Nummer)
+
+## [0.3.36] - 2026-07-07
+
+### Fixed
+- Abgelaufene Session wurde nicht erkannt: `loadData()` prüfte den HTTP-Status gar nicht, Dashboard blieb bei 401 eingefroren statt zum Login weiterzuleiten
+
 ## [0.3.35] - 2026-06-13
 
 ### Fixed

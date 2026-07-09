@@ -81,18 +81,24 @@ def test_watch_threshold_filter_and_dedup(m, monkeypatch):
     assert calls["location"] == [9]
 
     # Zweiter Lauf, unveränderte Preise → keine neue Meldung
+    # (Cooldown zwischen manuellen Prüfungen desselben Suchabos — im Test wird die
+    # Wartezeit übersprungen, siehe app.py:_cooldown_remaining)
+    m._route_cooldowns.clear()
     assert c.post(f"/api/searches/{sid}/check", headers=ING).get_json()["new"] == 0
     assert len(m._tg) == 1
 
     # Preis fällt weiter → erneut melden
     _fake_search(m, monkeypatch, [_result(1, "Hotel A", 850)])
+    m._route_cooldowns.clear()
     assert c.post(f"/api/searches/{sid}/check", headers=ING).get_json()["new"] == 1
     assert len(m._tg) == 2 and "850" in m._tg[1]
 
     # Über die Schwelle → vergessen; erneutes Unterschreiten → wieder melden
     _fake_search(m, monkeypatch, [_result(1, "Hotel A", 1100)])
+    m._route_cooldowns.clear()
     assert c.post(f"/api/searches/{sid}/check", headers=ING).get_json()["hits"] == []
     _fake_search(m, monkeypatch, [_result(1, "Hotel A", 950)])
+    m._route_cooldowns.clear()
     assert c.post(f"/api/searches/{sid}/check", headers=ING).get_json()["new"] == 1
 
     # GET liefert Abo-Zustand + letzte Treffer
@@ -113,6 +119,7 @@ def test_watch_api_guards(m, monkeypatch):
     # Suche schlägt fehl → 502, last_checked trotzdem gesetzt (kein Hämmern)
     c.patch(f"/api/searches/{sid}", headers=ING, json={"watch": True, "max_price": 500})
     monkeypatch.setattr(m, "fetch_search_params", lambda **kw: None)
+    m._route_cooldowns.clear()
     assert c.post(f"/api/searches/{sid}/check", headers=ING).status_code == 502
     with m.db() as con:
         assert con.execute("SELECT last_checked FROM saved_searches WHERE id=?",

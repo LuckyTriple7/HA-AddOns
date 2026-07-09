@@ -6,6 +6,7 @@ import os
 import re
 import secrets
 import shutil
+import signal
 import subprocess
 import threading
 import time
@@ -1136,7 +1137,23 @@ def service_worker():
     resp.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
     return resp
 
+def _handle_sigterm(signum, frame) -> None:
+    """Sauberer Exit bei SIGTERM (HA-Supervisor-Stop/Update) — ohne eigenen Handler
+    würde Python den Default-Handler laufen lassen (exit 143), worüber sich der
+    Supervisor beschwert ("should trap SIGTERM ... exit with code 0"). Alle
+    Hintergrund-Threads sind daemon=True (Download-Worker, Auto-Clear-Worker,
+    Cleanup-Worker), ein harter os._exit(0) ist daher sicher — ein laufender
+    yt-dlp/ffmpeg-Subprozess wird dabei nicht extra beendet, überlebt den Exit
+    aber ohnehin nicht: sobald der Container gestoppt wird, reißt die
+    PID-Namespace-Teardown auch verwaiste Kindprozesse mit. Job-Fortschritt wird
+    schon während des Downloads laufend per `save_jobs()` weggeschrieben, es gibt
+    also keinen offenen State, der hier noch geflusht werden müsste."""
+    log.info("SIGTERM empfangen, beende sauber...")
+    os._exit(0)
+
+
 if __name__ == '__main__':
+    signal.signal(signal.SIGTERM, _handle_sigterm)
     MEDIA_DIR.mkdir(parents=True, exist_ok=True)
     load_sessions()
     load_jobs()
