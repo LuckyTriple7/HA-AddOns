@@ -9,6 +9,7 @@ HTTP requests (e.g. /json/version health checks) do NOT reset the idle timer.
 import http.client
 import http.server
 import os
+import signal
 import socket
 import subprocess
 import sys
@@ -130,6 +131,21 @@ def stop_chromium():
             _chromium_proc.kill()
         _chromium_proc = None
         log('INFO', 'Chromium stopped.')
+
+
+def _handle_sigterm(signum, frame):
+    """Sauberer Exit bei SIGTERM (HA-Supervisor-Stop/Update) — ohne eigenen Handler
+    würde Python als PID 1 im Container den Default-Handler laufen lassen und das
+    Signal wird vom Kernel ignoriert (kein Exit, harter SIGKILL nach Timeout).
+    Anders als bei reinen DB-Workern muss hier zusätzlich ein evtl. laufender
+    Chromium-Kindprozess sauber beendet werden, sonst bliebe er als Zombie/Leak
+    zurück, wenn der Python-Prozess mit os._exit(0) sofort verschwindet."""
+    log('INFO', 'SIGTERM empfangen, beende sauber...')
+    try:
+        stop_chromium()
+    except Exception as e:
+        log('ERROR', f'Fehler beim Stoppen von Chromium bei SIGTERM: {e}')
+    os._exit(0)
 
 
 def _idle_watcher():
@@ -254,6 +270,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
 
 if __name__ == '__main__':
+    signal.signal(signal.SIGTERM, _handle_sigterm)
     os.makedirs(TMPDIR, exist_ok=True)
     threading.Thread(target=_idle_watcher, daemon=True).start()
     srv = http.server.ThreadingHTTPServer(('0.0.0.0', EXTERNAL_PORT), Handler)

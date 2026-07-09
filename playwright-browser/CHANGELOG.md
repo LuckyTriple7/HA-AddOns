@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.0.15] - 2026-07-09
+
+### Behoben
+- Add-on beendete sich bei Stop/Update immer mit SIGKILL (exit 137) — der Python-Prozess läuft als PID 1 im Container ohne eigenen Init, der Kernel ignoriert SIGTERM daher stillschweigend. `init: true` gesetzt und ein eigener SIGTERM-Handler ergänzt, der einen laufenden Chromium-Kindprozess sauber stoppt und sich danach selbst mit exit 0 beendet
+
 ## [1.0.14] - 2026-06-04
 - fix: Datum in Log-Zeitstempel ergänzt — war nur Uhrzeit, jetzt vollständig
 
