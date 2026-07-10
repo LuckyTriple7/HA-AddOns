@@ -1010,8 +1010,18 @@
 
     function renderTagPills(offers){
       const el = $('#tag-pills');
+      // Nur Tags der aktuell sichtbaren Ansicht: Preisverlauf ist exklusiv, die
+      // normale Ansicht zeigt aktive Angebote (+ Archiv nur wenn eingeblendet).
+      // Sonst stehen hier Pills für Angebote, die gar nicht in der Liste sind —
+      // und Tags der sichtbaren Liste fehlen.
+      const vis = (offers||[]).filter(o => showHistOnly
+        ? (o.history_only && !o.archived)
+        : (o.archived ? showArchived : !o.history_only));
       const all = new Set();
-      (offers||[]).forEach(o => (o.tags||[]).forEach(t => all.add(t)));
+      vis.forEach(o => (o.tags||[]).forEach(t => all.add(t)));
+      // Aktive Filter-Tags, die es in dieser Ansicht nicht gibt, abwählen — ein
+      // unsichtbarer Tag-Filter würde die Liste sonst kommentarlos leeren.
+      activeTags.forEach(t => { if(!all.has(t)) activeTags.delete(t); });
       if(!all.size){ el.style.display = 'none'; el.innerHTML = ''; return; }
       el.style.display = 'flex';
       el.innerHTML = Array.from(all).sort((a,b)=>a.localeCompare(b,'de')).map(t =>

@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.46.3] - 2026-07-10
+
+### Fixed
+- **Tag-Leiste folgt jetzt der aktiven Ansicht.** Die Tag-Pills zeigten immer die
+  Tags ALLER Angebote — mit aktivem Preisverlauf-Filter standen dort Tags von
+  Angeboten, die gar nicht in der Liste waren (und umgekehrt). Jetzt erscheinen
+  nur die Tags der aktuell sichtbaren Ansicht (Preisverlauf exklusiv; normale
+  Ansicht inkl. Archiv nur, wenn eingeblendet). Aktive Tag-Filter, die es in der
+  neuen Ansicht nicht gibt, werden automatisch abgewählt, statt die Liste
+  kommentarlos zu leeren.
+
 ## [0.46.2] - 2026-07-10
 
 ### Changed
