@@ -307,6 +307,9 @@
     .cal-info { position:absolute; top:2px; right:3px; font-size:10px; line-height:1; cursor:pointer; z-index:2; opacity:.5; }
     .cal-info:hover { opacity:1; }
     .cal-moves { margin-bottom:10px; border:1px solid var(--border); border-radius:8px; padding:8px 10px; background:var(--surf2); }
+    .cal-moves summary { cursor:pointer; user-select:none; }
+    .cal-moves summary:hover { color:var(--accent); }
+    .cal-moves[open] summary { margin-bottom:4px; }
     .cal-move-row { display:flex; align-items:center; gap:10px; padding:4px 0; font-size:.8rem; cursor:pointer; }
     .cal-move-row:hover { color:var(--accent); }
     .cal-day-chart { display:none; margin:10px 0; border:1px solid var(--border); border-radius:8px; padding:8px 10px; }
@@ -3299,6 +3302,7 @@
 
     // ── Preiskalender (Monats-Grid, gespeichert) ──────────────────────────────
     let calTimer = null, calId = null, calData = null, calMonth = null, calTrendView = false;
+    let calMovesOpen = false;   // "Größte Bewegungen"-Liste: default eingeklappt, Zustand überlebt Monatswechsel
     function toggleCalTrend(){ calTrendView = !calTrendView; drawCalMonth(); }
     async function openCalDayChart(iso){
       const box = $('#cal-day-chart');
@@ -3322,7 +3326,7 @@
     function startCalPolling(){ clearInterval(calTimer); calPoll(); calTimer = setInterval(calPoll, 2000); }
 
     async function openCalendar(id){
-      calId = id; calMonth = null; calData = null;
+      calId = id; calMonth = null; calData = null; calMovesOpen = false;
       const o = (curOffers||[]).find(x=>x.id===id) || {};
       $('#cal-sub').textContent = o.label || o.hotel || ('TUI-Angebot #'+id);
       $('#cal-body').innerHTML = '<div class="cmp-load">Lade…</div>';
@@ -3527,14 +3531,15 @@
       let sum = job.cheapest_date ? `Günstigster Termin: <b>${fmtD(job.cheapest_date)}</b> ${eur(job.cheapest_price)}` : '';
       if(job.tracked_date && job.tracked_date!==job.cheapest_date) sum += ` · In deinem Zeitraum: <b>${fmtD(job.tracked_date)}</b> ${eur(job.tracked_price)}`;
       const topMoves = job.top_moves || [];
-      const topMovesHtml = topMoves.length ? `<div class="cal-moves">
-          <div class="hint" style="margin-bottom:4px"><b>Größte Bewegungen seit letztem Abruf</b></div>
+      const topMovesHtml = topMoves.length ? `<details class="cal-moves" ${calMovesOpen?'open':''}
+          ontoggle="calMovesOpen=this.open">
+          <summary class="hint"><b>Größte Bewegungen seit letztem Abruf</b> (${topMoves.length})</summary>
           ${topMoves.map(m=>`<div class="cal-move-row" onclick="calGo('${m.date.slice(0,7)}');openCalDayChart('${m.date}')">
             <span>${fmtD(m.date)}</span>
             <span class="hist-diff ${m.delta>0?'up':'down'}">${m.delta>0?'▲ +':'▼ '}${eur(m.delta)}</span>
             <span class="hint">${eur(m.prev_price)} → ${eur(m.price)}</span>
           </div>`).join('')}
-        </div>` : '';
+        </details>` : '';
       $('#cal-body').innerHTML = `
         <div class="cal-sum">${sum}</div>
         ${topMovesHtml}

@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.46.2] - 2026-07-10
+
+### Changed
+- **Preiskalender: „Größte Bewegungen seit letztem Abruf" einklappbar.** Die Liste
+  ist jetzt standardmäßig eingeklappt (Kopfzeile zeigt die Anzahl der Bewegungen)
+  und lässt sich per Klick auf-/zuklappen. Der Zustand bleibt beim Monatswechsel
+  und Ansichts-Umschalten erhalten; beim Öffnen des Kalenders für ein Angebot
+  startet sie wieder eingeklappt.
+
 ## [0.46.1] - 2026-07-10
 
 ### Fixed
