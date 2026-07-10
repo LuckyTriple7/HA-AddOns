@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.46.7] - 2026-07-10
+
+### Fixed
+- **Meine Reisen: Handgepäck aus neuen TUI-PDFs nicht erkannt.** TUI hat die
+  Beschriftung geändert: „Gr. Handgepäck 10kg (55x40x20cm) + Prio Boarding (HBAG)"
+  statt „Großes Handgepäck 10 kg (HBAG)". Der Parser ankert jetzt auf dem über
+  alle Formate stabilen Buchungscode `(HBAG)` — Beschriftung, Gewicht, Maßangabe
+  und Zusatztext davor dürfen beliebig variieren.
+
 ## [0.46.6] - 2026-07-10
 
 ### Fixed

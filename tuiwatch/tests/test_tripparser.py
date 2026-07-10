@@ -85,6 +85,23 @@ def test_gran_canaria_fluege():
     assert rueck["typ"] == "Rückflug"
 
 
+def test_grosses_handgepaeck_neues_format_2026():
+    """TUI hat die Beschriftung geändert (live beobachtet 07/2026): "Gr." statt
+    "Großes", Gewicht ohne Leerzeichen, Maßangabe in Klammern und "+ Prio Boarding"
+    VOR dem Buchungscode. Beide Formate müssen erkannt werden; der Code darf nicht
+    fälschlich die Maßangabe (55x40x20cm) sein."""
+    text = ("Gr. Handgepäck 10kg (55x40x20cm) + Prio Boarding (HBAG) 1 15,00 €\n"
+            "Gr. Handgepäck 10kg (55x40x20cm) + Prio Boarding (HBAG) 1 15,00 €\n"
+            "Gesamtpreis 1.000,00 €\n")
+    d = parse_tui_text(text)
+    hg = [e for e in d["extras"] if e["typ"] == "Handgepäck"]
+    assert len(hg) == 2
+    assert hg[0]["gewicht"] == "10kg"
+    assert hg[0]["code"] == "HBAG"
+    assert hg[0]["teilnehmer"] == 1
+    assert hg[0]["preis"] == "15,00"
+
+
 def test_gran_canaria_extras_und_summen():
     d = parse_tui_text(GC2026)
     typen = [e["typ"] for e in d["extras"]]

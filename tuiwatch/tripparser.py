@@ -284,17 +284,21 @@ def parse_tui_text(full_text: str) -> dict:
             "preis": m.group(3),
         })
 
-    # Großes Handgepäck
+    # Großes Handgepäck — TUI variiert die Beschriftung: "Großes Handgepäck 10 kg
+    # (HBAG) ..." (alt) vs. "Gr. Handgepäck 10kg (55x40x20cm) + Prio Boarding
+    # (HBAG) ..." (neu, live beobachtet 07/2026). Stabiler Anker ist der
+    # Buchungscode (HBAG) — der blieb über alle Formate gleich; der Text davor
+    # (Abkürzung, Gewicht, Maße, "+ Prio Boarding") darf beliebig variieren.
     for m in re.finditer(
-        r"Großes\s+Handgepäck\s+(\d+\s*kg)\s*\((\w+)\)\s+(\d+)\s+([\d.,]+)\s*€",
+        r"Handgepäck\s*(\d+\s*kg)?.*?\(HBAG\)\s+(\d+)\s+([\d.,]+)\s*€",
         full_text,
     ):
         data["extras"].append({
             "typ": "Handgepäck",
-            "gewicht": m.group(1),
-            "code": m.group(2),
-            "teilnehmer": int(m.group(3)),
-            "preis": m.group(4),
+            "gewicht": m.group(1) or "",
+            "code": "HBAG",
+            "teilnehmer": int(m.group(2)),
+            "preis": m.group(3),
         })
 
     # Flex Tarif
