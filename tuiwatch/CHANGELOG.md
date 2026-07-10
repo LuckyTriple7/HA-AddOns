@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.48.4] - 2026-07-10
+
+### Changed
+- **Modularisierung Tranche 2 (Backlog #12):** `ai_client.py` (KI-Provider-Client
+  Anthropic/Gemini, 184 Zeilen) und `price_calendar.py` (Preiskalender:
+  Snapshot/Trend/Bewegungen + /api/calendar-Routen, 279 Zeilen) aus app.py
+  ausgelagert — gleiches A.-Muster wie Tranche 1, keine Verhaltensänderung,
+  308 Tests grün. Dockerfile-COPY jeweils ergänzt (Guard-Test schlug korrekt an).
+
 ## [0.48.3] - 2026-07-10
 
 ### Fixed
