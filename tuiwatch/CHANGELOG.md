@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.46.6] - 2026-07-10
+
+### Fixed
+- **Buchungsscore scheiterte still bei abgeschnittener KI-Antwort.** Live beobachtet
+  (Claude UND Gemini, je 200 OK, UI nur „fehlgeschlagen", nichts im Log): das
+  Output-Budget von 1024 Tokens war mit Websuche zu knapp — Zwischentext des Modells
+  zwischen den Suchaufrufen zählt mit, das Structured-Output-JSON wurde abgeschnitten
+  und scheiterte still beim Parsen. Budget auf 2048 erhöht (Gemini bekommt die
+  Thinking-Reserve weiterhin obendrauf).
+- **Leere/abgeschnittene KI-Antworten sind jetzt diagnostizierbar:** WARNING-Logs für
+  `stop_reason=max_tokens` (Anthropic), leere Antworten (beide Provider inkl.
+  finish_reason) und ungültiges Buchungsscore-JSON (mit Text-Ausschnitt) — bisher
+  waren diese Pfade komplett unsichtbar.
+
 ## [0.46.5] - 2026-07-10
 
 ### Changed

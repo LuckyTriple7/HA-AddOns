@@ -74,7 +74,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.46.5"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.46.6"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -4084,7 +4084,14 @@ def _ai_request_anthropic(api_key: str, model: str, prompt: str, *, max_tokens: 
     if resp.stop_reason == 'refusal':
         return None, None, 'refused'
     text = "\n\n".join(b.text for b in resp.content if b.type == 'text').strip()
+    if resp.stop_reason == 'max_tokens':
+        # Antwort abgeschnitten — bei Structured Output ist das JSON dann meist
+        # unvollständig und der Aufrufer scheitert still beim Parsen. Loggen,
+        # sonst ist der Fehler von außen nicht diagnostizierbar (nur 200 OK im Log).
+        log.warning("KI-Antwort (%s) am Token-Limit abgeschnitten (max_tokens, "
+                    "%d Zeichen erhalten)", log_ctx, len(text))
     if not text:
+        log.warning("KI-Antwort (%s) leer: stop_reason=%s", log_ctx, resp.stop_reason)
         return None, None, 'empty'
     u = resp.usage
     server_tool_use = getattr(u, 'server_tool_use', None)
@@ -4179,6 +4186,8 @@ def _ai_request_gemini(api_key: str, model: str, prompt: str, *, max_tokens: int
                  log_ctx, type(e).__name__, e)
         return None, None, 'failed'
     if not text:
+        fr = candidates[0].finish_reason if candidates else None
+        log.warning("KI-Antwort (%s) leer: finish_reason=%s", log_ctx, fr)
         return None, None, 'empty'
     web_searches = 0
     try:
@@ -4631,7 +4640,11 @@ def api_ai_hotel_summary():
 def _ai_score_request(prompt: str, model: str, api_key: str, log_ctx: str):
     """Ruft die KI mit dem Buchungsscore-Schema + Websuche auf und parst das Ergebnis.
     Rückgabe: (result_dict, usage, None) oder (None, None, (jsonify(...), status))."""
-    text, usage, code = _ai_request(api_key, model, prompt, max_tokens=1024,
+    # 2048 statt 1024: mit Websuche zählt auch der Zwischentext des Modells (zwischen
+    # den Suchaufrufen) zum Output-Budget — bei 1024 wurde das Structured-Output-JSON
+    # live abgeschnitten (stop_reason=max_tokens, beide Provider 200 OK, UI nur
+    # "fehlgeschlagen"). Gemini bekommt zusätzlich die Thinking-Reserve obendrauf.
+    text, usage, code = _ai_request(api_key, model, prompt, max_tokens=2048,
                                     log_ctx=log_ctx, use_web_search=True,
                                     output_schema=_BOOKING_SCORE_SCHEMA)
     if code == 'failed':
@@ -4643,6 +4656,8 @@ def _ai_score_request(prompt: str, model: str, api_key: str, log_ctx: str):
     try:
         result = json.loads(text)
     except ValueError:
+        log.warning("Buchungsscore (%s): KI-Antwort kein gültiges JSON "
+                    "(%d Zeichen): %.200s", log_ctx, len(text), text)
         return None, None, (jsonify({'error': 'ai_empty'}), 502)
     return result, usage, None
 

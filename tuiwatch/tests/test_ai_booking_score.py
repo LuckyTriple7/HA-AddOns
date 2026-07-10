@@ -182,6 +182,24 @@ def test_booking_score_prompt_includes_calendar_moves():
     assert "Abreise 2027-06-14: 1990 € -> 1971 € (gefallen um 19 €)" in p
 
 
+def test_booking_score_invalid_json_returns_ai_empty_and_logs(m, monkeypatch, caplog):
+    """Abgeschnittenes Structured-Output-JSON (z. B. stop_reason=max_tokens) darf
+    nicht still scheitern: 502 ai_empty + WARNING mit Text-Ausschnitt im Log."""
+    import logging
+    oid = _add_offer(m, "https://example.invalid/tj?duration=7", price=1500)
+    _write_options(m, anthropic_api_key="sk-test")
+    monkeypatch.setattr(m, "_run_calendar", lambda *a, **k: None)
+    monkeypatch.setattr(m, "_ai_request", lambda *a, **k: (
+        '{"score": 72, "empfehlung": "beob', {"input_tokens": 1, "output_tokens": 1,
+        "cache_creation_input_tokens": 0, "cache_read_input_tokens": 0}, None))
+    c = m.app.test_client()
+    with caplog.at_level(logging.WARNING):
+        r = c.post(f"/api/ai/booking-score/{oid}", headers=ING)
+    assert r.status_code == 502
+    assert r.get_json()["error"] == "ai_empty"
+    assert any("kein gültiges JSON" in rec.message for rec in caplog.records)
+
+
 # ── Prompt-Inhalt ────────────────────────────────────────────────────────────────
 
 def test_booking_score_prompt_contains_facts():
