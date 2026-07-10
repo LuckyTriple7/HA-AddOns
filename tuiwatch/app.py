@@ -74,7 +74,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.46.4"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.46.5"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -4885,11 +4885,12 @@ _ADVISOR_FIELDS = ('region', 'excluded_countries', 'excluded_countries_other', '
                    'duration', 'duration_daytrip', 'month', 'temp', 'water_type', 'sea', 'rain',
                    'activities', 'accommodation', 'accommodation_size', 'hotel_wishes',
                    'arrival_mode', 'home_location', 'max_distance', 'flight_time', 'airports',
-                   'dislikes', 'perfect_holiday', 'past_trips')
+                   'dislikes', 'perfect_holiday', 'past_trips', 'perfect_daytrip')
 _ADVISOR_LIST_FIELDS = {'interests', 'beach_detail', 'berge_detail', 'travel_type', 'activities',
                         'hotel_wishes', 'airports', 'dislikes', 'excluded_countries', 'water_type',
                         'region'}
-_ADVISOR_TEXT_FIELDS = {'perfect_holiday', 'past_trips', 'excluded_countries_other', 'home_location'}
+_ADVISOR_TEXT_FIELDS = {'perfect_holiday', 'past_trips', 'excluded_countries_other',
+                        'home_location', 'perfect_daytrip'}
 _ADVISOR_LABELS = {
     'region': 'Ziel-Region', 'excluded_countries': 'Kommt nicht in Frage',
     'excluded_countries_other': 'Weitere ausgeschlossene Länder',
@@ -4906,6 +4907,7 @@ _ADVISOR_LABELS = {
     'flight_time': 'Flugzeit', 'airports': 'Abflughafen',
     'dislikes': 'Nervt im Urlaub', 'perfect_holiday': 'Perfekter Urlaub laut Nutzer (Freitext)',
     'past_trips': 'Frühere Urlaubserfahrungen (Freitext)',
+    'perfect_daytrip': 'Perfekter Ausflug laut Nutzer (Freitext)',
 }
 
 

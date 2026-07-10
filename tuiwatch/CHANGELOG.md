@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.46.5] - 2026-07-10
+
+### Changed
+- **TripPilot Tagesausflug: Fragebogen gestrafft.** Die Frage „Was nervt dich im
+  Urlaub?" entfällt im Tagesausflug-Modus (im Urlaubsmodus bleibt sie). Dafür gibt
+  es am Ende ein neues optionales Freitext-Feld „Was macht für dich einen
+  perfekten Ausflug aus?", das mit in den KI-Prompt einfließt.
+
 ## [0.46.4] - 2026-07-10
 
 ### Added

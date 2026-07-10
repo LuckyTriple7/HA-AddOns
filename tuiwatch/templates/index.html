@@ -3196,6 +3196,7 @@
          (!state.arrival_mode || ['Flugzeug','Ist mir egal'].includes(state.arrival_mode)),
        options:['Frankfurt','Stuttgart','München','Hamburg','Düsseldorf','Berlin']},
       {title:'Was nervt dich im Urlaub?', key:'dislikes', multi:true,
+       showIf: state => !isDaytrip(state),
        options:['überfüllte Strände','Kinder','Animation','Wind','Hitze','lange Transfers',
                 'frühes Aufstehen']},
       {title:'Was macht für dich einen perfekten Urlaub aus?', key:'perfect_holiday', type:'text',
@@ -3205,6 +3206,9 @@
        key:'past_trips', type:'text',
        showIf: state => !isDaytrip(state),
        placeholder:'z. B. "RIU Papayas war super, viel Auswahl beim Essen, ruhige Lage"'},
+      {title:'Was macht für dich einen perfekten Ausflug aus?', key:'perfect_daytrip', type:'text',
+       showIf: state => isDaytrip(state),
+       placeholder:'Freitext, optional'},
     ];
     let advIdx = 0, advState = {};
     function openAdvisor(){
