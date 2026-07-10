@@ -205,6 +205,28 @@ def test_manual_extras_override_replaces_and_recomputes(client):
                            (tid,)).fetchone()["package_price"] == 985.0
 
 
+def test_manual_rabatte_override_and_inklusive_flag(client):
+    """Rabatte manuell setzen: Betrag wird negativ normalisiert und standardmäßig
+    zum Brutto-Paketpreis zurückgerechnet. Mit rabatt_inklusive (Rabatt steckt
+    schon im ausgewiesenen Reisepreis) entfällt die Rückrechnung."""
+    tid = _import_pdf(client).get_json()["id"]
+    r = _patch_fields(client, tid, {"rabatte": [{"code": "SAVE150", "betrag": "150,00 €"}]})
+    assert r.status_code == 200
+    d = r.get_json()["data"]
+    assert d["rabatte"] == [{"code": "SAVE150", "betrag": "-150,00"}]
+    assert d["rabatte_summe"] == "-150,00"
+    assert d["paketpreis"] == "1.150,00"        # 1.000 − 0 Extras − (−150) = brutto vor Rabatt
+    assert d["paketpreis_netto"] == "1.000,00"
+
+    r2 = _patch_fields(client, tid, {"rabatt_inklusive": True})
+    d2 = r2.get_json()["data"]
+    assert d2["rabatt_inklusive"] is True
+    assert d2["paketpreis"] == "1.000,00"       # keine Rückrechnung mehr
+    # Flag löschen → wieder Standard-Rechnung
+    d3 = _patch_fields(client, tid, {"rabatt_inklusive": None}).get_json()["data"]
+    assert d3["paketpreis"] == "1.150,00"
+
+
 def test_manual_field_validation(client):
     tid = _import_pdf(client).get_json()["id"]
     assert _patch_fields(client, tid, {"kaputt": "x"}).status_code == 400

@@ -1943,7 +1943,7 @@
         d.fluege.map(f=>`<tr><td>${esc(f.typ||'')}</td><td>${esc(f.datum||'')}</td><td>${esc((f.von||'')+' → '+(f.nach||''))}</td><td>${esc((f.abflug_zeit||'')+(f.ankunft_zeit?('–'+f.ankunft_zeit):''))}</td><td>${esc(f.flugnummer||'')}</td></tr>`).join('')}</table>`:'';
       const extras = (d.extras||[]).length?`<div class="dsec">Extras</div><table class="tdt"><tr><th>Typ</th><th>Details</th><th>Preis</th></tr>${
         d.extras.map(e=>{ const det=[e.plaetze,e.gewicht,e.strecke,e.details,(e.anzahl?('x'+e.anzahl):'')].filter(Boolean).join(' '); const pr=(e.preis==='inkl.')?'inkl.':((e.preis!=null)?e.preis+' €':''); return `<tr><td>${esc(e.typ||'')}</td><td>${esc(det)}</td><td>${esc(pr)}</td></tr>`; }).join('')}</table>`:'';
-      const rabatte = (d.rabatte||[]).length?`<div class="dsec">Rabatte</div><table class="tdt"><tr><th>Code</th><th>Betrag</th></tr>${
+      const rabatte = (d.rabatte||[]).length?`<div class="dsec">Rabatte${d.rabatt_inklusive?' <span class="hint">(bereits im Reisepreis enthalten)</span>':''}</div><table class="tdt"><tr><th>Code</th><th>Betrag</th></tr>${
         d.rabatte.map(r=>`<tr><td>${esc(r.code||'')}</td><td>${esc(r.betrag||'')}</td></tr>`).join('')}</table>`:'';
       const wuensche = (d.sonderwuensche||[]).length?`<div class="dsec">Sonderwünsche</div><div style="font-size:.84rem">${d.sonderwuensche.map(w=>esc(w)).join('<br>')}</div>`:'';
       const pdf = t.has_pdf?`<a class="btn" href="${api('/api/trips/'+id+'/pdf')}" target="_blank" rel="noopener">📄 PDF öffnen</a>`:'';
@@ -2275,6 +2275,15 @@
       </tr>`;
     }
     function dbgExtraAdd(){ $('#dbg-ex-rows').insertAdjacentHTML('beforeend', dbgExtraRow()); }
+    function dbgRabattRow(r){
+      r = r || {};
+      return `<tr>
+        <td><input class="dbg-rb-code" value="${esc(r.code||'')}" placeholder="z. B. SAVE150"></td>
+        <td style="width:110px"><input class="dbg-rb-betrag" value="${esc(r.betrag||'')}" placeholder="-150,00"></td>
+        <td style="width:26px"><span style="cursor:pointer" title="Zeile entfernen" onclick="this.closest('tr').remove()">×</span></td>
+      </tr>`;
+    }
+    function dbgRabattAdd(){ $('#dbg-rb-rows').insertAdjacentHTML('beforeend', dbgRabattRow()); }
     function renderTripDebug(d, title, tid){
       if(!d || !d.ok){ toast(d&&d.error==='text_failed'?'Debug: Text konnte nicht aus der PDF extrahiert werden':'Debug fehlgeschlagen'); return; }
       _dbgTid = tid!=null?tid:null; _dbgTitle = title; _dbgManual = d.manual||{};
@@ -2287,6 +2296,7 @@
         const missing = DBG_FIELDS.filter(f=>f.warn&&warns.includes(f.warn));
         const rest = DBG_FIELDS.filter(f=>!missing.includes(f));
         const extras = (_dbgManual.extras) || (d.data&&d.data.extras) || [];
+        const rabatte = (_dbgManual.rabatte) || (d.data&&d.data.rabatte) || [];
         editor = `<div class="dbg-edit">
           <div class="dsec" style="margin-top:0">✍️ Felder manuell zuordnen</div>
           <div class="hint" style="margin:2px 0 6px">Text im PDF-Auszug unten markieren und per „⇦ Auswahl" übernehmen — oder direkt eintippen. Leeres Feld speichern = Zuordnung löschen (Parser-Wert gilt wieder). Manuelle Werte überleben „Neu einlesen" und erneuten Import.</div>
@@ -2297,6 +2307,13 @@
             <table class="tdt dbg-ex-tbl"><tr><th>Typ</th><th>Details</th><th>Anz.</th><th>Preis €</th><th></th></tr>
               <tbody id="dbg-ex-rows">${extras.map(dbgExtraRow).join('')}</tbody></table>
             <button class="btn sec" onclick="dbgExtraAdd()" style="margin-top:4px">＋ Zeile</button>
+          </details>
+          <details class="dbg-sec" ${_dbgManual.rabatte||_dbgManual.rabatt_inklusive?'open':''}><summary>Rabatte überschreiben${_dbgManual.rabatte||_dbgManual.rabatt_inklusive?' ✍️ (manuell gesetzt)':''}</summary>
+            <label style="display:flex;gap:6px;align-items:center;font-size:.8rem;margin:6px 0"><input type="checkbox" id="dbg-rb-ink" ${_dbgManual.rabatt_inklusive?'checked':''}> Rabatt ist bereits im Reisepreis enthalten <span class="hint" title="Manche TUI-PDFs weisen den Rabatt nur informativ aus — er steckt schon im ausgewiesenen Preis. Dann wird er NICHT zum Brutto-Paketpreis zurückgerechnet.">ⓘ</span></label>
+            <label style="display:flex;gap:6px;align-items:center;font-size:.8rem;margin:6px 0"><input type="checkbox" id="dbg-rb-on" ${_dbgManual.rabatte?'checked':''}> Rabatt-Liste manuell festlegen (ersetzt die erkannten Rabatte komplett)</label>
+            <table class="tdt dbg-ex-tbl"><tr><th>Code</th><th>Betrag €</th><th></th></tr>
+              <tbody id="dbg-rb-rows">${rabatte.map(dbgRabattRow).join('')}</tbody></table>
+            <button class="btn sec" onclick="dbgRabattAdd()" style="margin-top:4px">＋ Zeile</button>
           </details>
           <div style="margin-top:8px"><button class="btn" onclick="dbgSaveFields()">💾 Zuordnung speichern</button></div>
         </div>`;
@@ -2341,6 +2358,18 @@
       } else if(_dbgManual.extras){
         fields.extras = null;   // Häkchen entfernt → Parser-Extras gelten wieder
       }
+      const rbOn = $('#dbg-rb-on') && $('#dbg-rb-on').checked;
+      if(rbOn){
+        fields.rabatte = [...document.querySelectorAll('#dbg-rb-rows tr')].map(tr=>({
+          code: tr.querySelector('.dbg-rb-code').value.trim(),
+          betrag: tr.querySelector('.dbg-rb-betrag').value.trim(),
+        })).filter(r=>r.code);
+      } else if(_dbgManual.rabatte){
+        fields.rabatte = null;   // Häkchen entfernt → Parser-Rabatte gelten wieder
+      }
+      const rbInk = $('#dbg-rb-ink') && $('#dbg-rb-ink').checked;
+      if(rbInk && !_dbgManual.rabatt_inklusive) fields.rabatt_inklusive = true;
+      else if(!rbInk && _dbgManual.rabatt_inklusive) fields.rabatt_inklusive = null;
       if(!Object.keys(fields).length){ toast('Keine Änderungen'); return; }
       let d; try {
         const r = await fetch(api('/api/trips/'+_dbgTid+'/fields'), {method:'PATCH',

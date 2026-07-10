@@ -74,7 +74,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.47.0"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.47.1"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -6040,12 +6040,14 @@ def _ai_fill_trip_fields(data: dict, warnings: list, cleaned_text: str,
 
 
 # Manuell überschreibbare Felder (Debug-Ansicht „Felder manuell zuordnen"):
-# die Schema-Keys des KI-Fallbacks + Zahlungsfelder + komplette Extras-Liste.
+# die Schema-Keys des KI-Fallbacks + Zahlungsfelder + Extras-/Rabatte-Listen +
+# rabatt_inklusive (Rabatt steckt schon im Reisepreis, siehe apply_derived_fields).
 _MANUAL_TRIP_KEYS = frozenset({
     'buchungsnummer', 'buchungsdatum', 'reiseziel', 'hotel_name',
     'reisezeitraum_von', 'reisezeitraum_bis', 'naechte', 'verpflegung',
     'gesamtpreis', 'reisende_anzahl', 'anzahlung_betrag', 'anzahlung_faelligkeit',
-    'restzahlung_betrag', 'restzahlung_faelligkeit', 'extras',
+    'restzahlung_betrag', 'restzahlung_faelligkeit', 'extras', 'rabatte',
+    'rabatt_inklusive',
 })
 
 
@@ -6072,7 +6074,7 @@ def _set_trip_field(data: dict, key: str, value) -> None:
         data['reisende'] = [{} for _ in range(int(value))]
     else:
         # buchungsnummer, buchungsdatum, reiseziel, naechte, verpflegung,
-        # gesamtpreis, extras
+        # gesamtpreis, extras, rabatte, rabatt_inklusive
         data[key] = value
 
 
@@ -6320,12 +6322,36 @@ def _normalize_manual_extras(val):
     return out
 
 
+def _normalize_manual_rabatte(val):
+    """Validiert/normalisiert die manuelle Rabatte-Liste ({code, betrag}). Beträge
+    werden immer als negativer deutscher Betrag gespeichert (Konvention des
+    Parsers), egal ob mit/ohne Minus eingegeben. Rückgabe: Liste oder None."""
+    if not isinstance(val, list) or len(val) > 20:
+        return None
+    out = []
+    for r in val:
+        if not isinstance(r, dict):
+            return None
+        code = str(r.get('code') or '').strip()
+        if not code or len(code) > 60:
+            return None
+        b = str(r.get('betrag') or '').replace('€', '').strip().lstrip('-').strip()
+        if not b or not _EUR_INPUT_RE.fullmatch(b):
+            return None
+        out.append({'code': code, 'betrag': '-' + _fmt_eur(_parse_eur(b))})
+    return out
+
+
 def _normalize_manual_value(key, val):
     """Validiert/normalisiert EINEN manuellen Override-Wert (Preise ins deutsche
     Format, Datums-Keys TT.MM.JJJJ, Zahlen mit Grenzen). Rückgabe: normalisierter
     Wert oder None bei ungültiger Eingabe."""
     if key == 'extras':
         return _normalize_manual_extras(val)
+    if key == 'rabatte':
+        return _normalize_manual_rabatte(val)
+    if key == 'rabatt_inklusive':
+        return True if val in (True, 'true', '1', 1) else None
     if key in ('naechte', 'reisende_anzahl'):
         try:
             n = int(val)
@@ -6371,7 +6397,7 @@ def api_trip_fields(tid):
     for key, val in fields.items():
         if key not in _MANUAL_TRIP_KEYS:
             return jsonify({'error': 'invalid_field', 'field': key}), 400
-        if val in (None, '', []):
+        if val in (None, '', []) or val is False:
             manual.pop(key, None)
             continue
         norm = _normalize_manual_value(key, val)

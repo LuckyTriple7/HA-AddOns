@@ -369,9 +369,12 @@ def apply_derived_fields(data: dict) -> dict:
     # Paketpreis (brutto) = Gesamt − Extras − Rabatte (Rabatte negativ → wieder auf).
     # Netto-Paketpreis = Gesamt − bezahlte Extras: der reine Reisepreis (Hotel/Flug/
     # Transfer) nach Rabatt, ohne Extras (Rabatte stecken bereits im Gesamtpreis).
+    # Ausnahme `rabatt_inklusive` (manuell setzbar): manche TUI-PDFs weisen den
+    # Rabatt nur informativ aus, er steckt bereits im ausgewiesenen Reisepreis —
+    # dann NICHT zurückrechnen, sonst wäre der Brutto-Paketpreis zu hoch.
     if data.get("gesamtpreis"):
         gesamt = _parse_eur(data["gesamtpreis"])
-        paket = gesamt - extras_total - rabatte_total
+        paket = gesamt - extras_total - (0.0 if data.get("rabatt_inklusive") else rabatte_total)
         netto = gesamt - extras_total
         data["paketpreis"] = _fmt_eur(paket)
         data["paketpreis_netto"] = _fmt_eur(netto)

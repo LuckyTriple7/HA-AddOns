@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.47.1] - 2026-07-10
+
+### Added
+- **Manuelle Zuordnung: Rabatte + „Rabatt bereits im Reisepreis enthalten".**
+  Die Rabatt-Liste (Code + Betrag) lässt sich jetzt wie die Extras manuell
+  festlegen (Beträge werden automatisch negativ normalisiert, „150" → „−150,00").
+  Neu dazu ein Schalter für die zwei TUI-PDF-Varianten: standardmäßig wird der
+  Rabatt zum Brutto-Paketpreis zurückgerechnet (Rabatt im Gesamtpreis verrechnet);
+  ist „Rabatt bereits im Reisepreis enthalten" gesetzt, entfällt die Rückrechnung —
+  der Rabatt ist dann nur informativ ausgewiesen. Die Detailansicht kennzeichnet
+  diesen Fall bei den Rabatten.
+
 ## [0.47.0] - 2026-07-10
 
 ### Added
