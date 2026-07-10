@@ -253,6 +253,54 @@ def test_debug_payload_marks_manual_fields(client, monkeypatch):
     assert d["data"]["reiseziel"] == "Neuland"
 
 
+# ── Packlisten-Vorlage (GET/POST /api/packing-template) ────────────────────────
+
+def test_packing_template_default_and_custom_roundtrip(client):
+    import importlib
+    m = importlib.import_module("app")
+    d = client.get("/api/packing-template", headers=ING).get_json()
+    assert d["custom"] is False
+    assert d["template"] == m.PACKING_TEMPLATE
+
+    tpl = {"Kleidung": ["T-Shirts", "Shorts"], "Technik": ["Ladekabel"]}
+    r = client.post("/api/packing-template", headers=ING, json={"template": tpl})
+    assert r.status_code == 200 and r.get_json()["custom"] is True
+    d2 = client.get("/api/packing-template", headers=ING).get_json()
+    assert d2["custom"] is True and d2["template"] == tpl
+
+    # Neue Reise wird aus der ANGEPASSTEN Vorlage befüllt (Seed beim ersten Detail-GET)
+    tid = _import_pdf(client).get_json()["id"]
+    detail = client.get(f"/api/trips/{tid}", headers=ING).get_json()
+    assert [(p["category"], p["label"]) for p in detail["packing"]] == [
+        ("Kleidung", "T-Shirts"), ("Kleidung", "Shorts"), ("Technik", "Ladekabel")]
+
+    # „Zurücksetzen" einer Reise nutzt ebenfalls die angepasste Vorlage
+    client.post(f"/api/trips/{tid}/packing", headers=ING,
+                json={"category": "Kleidung", "label": "Eigenes Item"})
+    client.post(f"/api/trips/{tid}/packing/reset", headers=ING)
+    detail = client.get(f"/api/trips/{tid}", headers=ING).get_json()
+    assert len(detail["packing"]) == 3
+
+    # template:null stellt die Standard-Vorlage wieder her
+    r3 = client.post("/api/packing-template", headers=ING, json={"template": None})
+    assert r3.status_code == 200 and r3.get_json()["custom"] is False
+    assert client.get("/api/packing-template", headers=ING).get_json()["template"] == m.PACKING_TEMPLATE
+
+
+def test_packing_template_validation(client):
+    bad = [
+        {},                                     # leer
+        {"": ["x"]},                            # leere Kategorie
+        {"Kat": []},                            # keine Items
+        {"Kat": ["x" * 81]},                    # Item zu lang
+        {"Kat": ["ok"], "K2": "kein-array"},    # Items kein Array
+        {"Kat": ["x"] * 71},                    # über Gesamt-Limit 70
+    ]
+    for tpl in bad:
+        assert client.post("/api/packing-template", headers=ING,
+                           json={"template": tpl}).status_code == 400, tpl
+
+
 def test_reject_non_pdf(client):
     import io
     r = client.post("/api/trips/import", headers=ING,

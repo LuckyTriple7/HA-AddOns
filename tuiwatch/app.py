@@ -46,7 +46,7 @@ from scraper import (_giata_from_url, _valid_img_url, api_healthcheck,
                      with_room_code, with_travellers, without_room_code)
 from aktionscodes import fetch_aktionscodes
 from nextcloud import fetch_contacts
-from packliste import default_packing_rows
+from packliste import PACKING_TEMPLATE, default_packing_rows
 from tripparser import (_clean_text, _fmt_eur, _parse_eur, apply_derived_fields,
                         check_fields, extract_pdf_text, parse_tui_pdf, parse_tui_text)
 
@@ -74,7 +74,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.47.1"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.47.2"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -5878,7 +5878,7 @@ def api_trip_detail(tid):
             con.executemany(
                 'INSERT INTO trip_packing_items '
                 '(trip_id, category, label, checked, created) VALUES (?,?,?,?,?)',
-                [(tid,) + r for r in default_packing_rows(int(time.time()))])
+                [(tid,) + r for r in default_packing_rows(int(time.time()), _packing_template())])
             con.execute('UPDATE trips SET packing_seeded=1 WHERE id=?', (tid,))
         packing = con.execute(
             'SELECT id, category, label, checked FROM trip_packing_items '
@@ -6622,9 +6622,69 @@ def api_trip_packing_reset(tid):
         con.executemany(
             'INSERT INTO trip_packing_items '
             '(trip_id, category, label, checked, created) VALUES (?,?,?,?,?)',
-            [(tid,) + r for r in default_packing_rows(int(time.time()))])
+            [(tid,) + r for r in default_packing_rows(int(time.time()), _packing_template())])
         con.execute('UPDATE trips SET packing_seeded=1 WHERE id=?', (tid,))
     return jsonify({'ok': True})
+
+
+def _validate_packing_template(t):
+    """Validiert eine Nutzer-Packlisten-Vorlage: {Kategorie: [Items]} mit
+    vernünftigen Grenzen (Gesamt <= 70 Items, damit der Ausdruck auf eine
+    A4-Seite passt — wie das Limit der Reise-Packlisten). Rückgabe: bereinigtes
+    Dict oder None bei ungültiger Eingabe."""
+    if not isinstance(t, dict) or not 1 <= len(t) <= 20:
+        return None
+    out, total = {}, 0
+    for cat, items in t.items():
+        cat = str(cat).strip()
+        if not cat or len(cat) > 40 or not isinstance(items, list) or not items:
+            return None
+        labels = []
+        for label in items:
+            label = str(label).strip()
+            if not label or len(label) > 80:
+                return None
+            labels.append(label)
+        total += len(labels)
+        out[cat] = labels
+    return out if total <= 70 else None
+
+
+def _packing_template() -> dict:
+    """Aktive Packlisten-Vorlage: die vom Nutzer angepasste (meta
+    `packing_template`, JSON) — sonst die eingebaute PACKING_TEMPLATE."""
+    custom = _validate_packing_template(_json_loads_safe(_meta_get('packing_template'), None))
+    return custom or PACKING_TEMPLATE
+
+
+@app.route('/api/packing-template', methods=['GET'])
+def api_packing_template_get():
+    if (err := _require_api()):
+        return err
+    tpl = _packing_template()
+    return jsonify({'template': tpl, 'custom': tpl is not PACKING_TEMPLATE})
+
+
+@app.route('/api/packing-template', methods=['POST'])
+def api_packing_template_set():
+    """Nutzer-Vorlage speichern (gilt für neue Packlisten und „Zurücksetzen";
+    bestehende Reise-Packlisten bleiben unverändert). `template: null` stellt
+    die eingebaute Standard-Vorlage wieder her."""
+    if (err := _require_api()):
+        return err
+    body = request.get_json(silent=True) or {}
+    tpl = body.get('template')
+    if tpl is None:
+        _meta_set('packing_template', '')
+        log.info("Packlisten-Vorlage auf Standard zurückgesetzt")
+        return jsonify({'ok': True, 'template': PACKING_TEMPLATE, 'custom': False})
+    cleaned = _validate_packing_template(tpl)
+    if cleaned is None:
+        return jsonify({'error': 'invalid'}), 400
+    _meta_set('packing_template', json.dumps(cleaned, ensure_ascii=False))
+    n = sum(len(v) for v in cleaned.values())
+    log.info("Packlisten-Vorlage gespeichert: %d Kategorien, %d Items", len(cleaned), n)
+    return jsonify({'ok': True, 'template': cleaned, 'custom': True})
 
 
 @app.route('/api/trips/<int:tid>', methods=['DELETE'])

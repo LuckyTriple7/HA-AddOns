@@ -32,12 +32,13 @@ PACKING_TEMPLATE = {
 }
 
 
-def default_packing_rows(now_ts: int):
+def default_packing_rows(now_ts: int, template: dict | None = None):
     """(category, label, checked=0, created)-Tupel für Bulk-Insert — Einfüge-
     reihenfolge (= spätere id-Reihenfolge) entspricht der Kategorie-/Item-
-    Reihenfolge der Vorlage."""
+    Reihenfolge der Vorlage. `template` (z. B. die vom Nutzer angepasste Vorlage)
+    ersetzt die eingebaute PACKING_TEMPLATE."""
     rows = []
-    for cat, items in PACKING_TEMPLATE.items():
+    for cat, items in (template or PACKING_TEMPLATE).items():
         for label in items:
             rows.append((cat, label, 0, now_ts))
     return rows

@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.47.2] - 2026-07-10
+
+### Added
+- **Packlisten-Vorlage editierbar.** Neuer Button „📝 Vorlage" im Packlisten-Kopf:
+  die Vorlage, aus der neue Packlisten erzeugt werden, lässt sich jetzt selbst
+  anpassen (einfaches Textformat: `# Kategorie` als Überschrift, darunter je Zeile
+  ein Item, max. 70 gesamt). Die angepasste Vorlage gilt für Packlisten neuer
+  Reisen und beim „↺ Zurücksetzen"; bestehende Reise-Packlisten bleiben unverändert.
+  „Standard-Vorlage wiederherstellen" bringt die eingebaute Vorlage zurück
+  (GET/POST `/api/packing-template`).
+
 ## [0.47.1] - 2026-07-10
 
 ### Added

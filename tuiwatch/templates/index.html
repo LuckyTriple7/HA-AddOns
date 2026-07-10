@@ -2159,12 +2159,63 @@
           <div class="dsec" style="margin:0">🎒 Packliste</div>
           <span class="cnt">${items.length}/${MAX_PACKING_ITEMS} · ${doneCount} erledigt · ${items.length-doneCount} offen</span>
           <button class="btn sec" onclick="printPacking()">🖨️ Drucken</button>
+          <button class="btn sec" onclick="openPackTemplate(${id})" title="Die Vorlage bearbeiten, aus der neue Packlisten (und „Zurücksetzen") erzeugt werden">📝 Vorlage</button>
           <span class="pack-reset" onclick="resetPacking(${id})">↺ Zurücksetzen</span>
         </div>
         <div class="pack-body" id="pack-body-${id}" style="${open?'':'display:none'}">
           <div class="pack-wrap">${catsHtml}</div>
           ${newCatRow}
         </div>`;
+    }
+
+    // — Packlisten-Vorlage bearbeiten: einfaches Textformat, eine Kategorie pro
+    //   "# Name"-Zeile, darunter je Zeile ein Item. Gilt für neue Packlisten und
+    //   "Zurücksetzen"; bestehende Reise-Packlisten bleiben unverändert. —
+    async function openPackTemplate(tripId){
+      let d;
+      try { const r = await fetch(api('/api/packing-template')); if(!r.ok) throw 0; d = await r.json(); }
+      catch(e){ toast('Vorlage konnte nicht geladen werden'); return; }
+      const text = Object.entries(d.template||{}).map(([cat,items])=>'# '+cat+'\n'+items.join('\n')).join('\n\n');
+      const box = $('#trip-detail');
+      box.innerHTML = `<h3>📝 Packlisten-Vorlage${d.custom?' <span class="hint">(angepasst)</span>':''}</h3>
+        <div class="hint" style="margin:4px 0 8px">Eine Kategorie beginnt mit <code># Name</code>, darunter je Zeile ein Item (max. 70 gesamt, damit der Ausdruck auf eine A4-Seite passt). Die Vorlage gilt für Packlisten neuer Reisen und beim „↺ Zurücksetzen" — bestehende Listen bleiben unverändert.</div>
+        <textarea id="pack-tpl-text" class="reiseb-text" rows="18" spellcheck="false">${esc(text)}</textarea>
+        <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">
+          <button class="btn" onclick="savePackTemplate(${tripId})">💾 Vorlage speichern</button>
+          <button class="btn sec" onclick="resetPackTemplate(${tripId})">↺ Standard-Vorlage wiederherstellen</button>
+          <button class="btn sec" onclick="showTripDetail(${tripId})">Zurück</button>
+        </div>`;
+      box.style.display='block';
+      box.scrollIntoView({behavior:'smooth', block:'nearest'});
+    }
+    function parsePackTemplate(text){
+      const tpl = {}; let cat = null;
+      for(const raw of (text||'').split('\n')){
+        const line = raw.trim(); if(!line) continue;
+        if(line.startsWith('#')){ cat = line.replace(/^#+\s*/,'').trim(); if(cat && !tpl[cat]) tpl[cat] = []; }
+        else if(cat) tpl[cat].push(line);
+      }
+      for(const c of Object.keys(tpl)) if(!tpl[c].length) delete tpl[c];
+      return tpl;
+    }
+    async function savePackTemplate(tripId){
+      const tpl = parsePackTemplate($('#pack-tpl-text').value);
+      const n = Object.values(tpl).reduce((a,b)=>a+b.length,0);
+      if(!n){ toast('Vorlage ist leer — mindestens eine Kategorie („# Name") mit einem Item'); return; }
+      if(n>MAX_PACKING_ITEMS){ toast('Zu viele Items ('+n+') — max. '+MAX_PACKING_ITEMS+', damit der Ausdruck auf eine Seite passt'); return; }
+      let ok=false;
+      try { const r = await fetch(api('/api/packing-template'), {method:'POST',
+        headers:{'Content-Type':'application/json'}, body:JSON.stringify({template: tpl})}); ok = r.ok; } catch(e){}
+      if(!ok){ toast('Speichern fehlgeschlagen'); return; }
+      toast('Vorlage gespeichert ✓ — gilt für neue Packlisten und „Zurücksetzen"');
+      showTripDetail(tripId);
+    }
+    async function resetPackTemplate(tripId){
+      if(!confirm('Eigene Vorlage verwerfen und die Standard-Vorlage verwenden?')) return;
+      try { await fetch(api('/api/packing-template'), {method:'POST',
+        headers:{'Content-Type':'application/json'}, body:JSON.stringify({template: null})}); } catch(e){}
+      toast('Standard-Vorlage aktiv');
+      openPackTemplate(tripId);
     }
 
     function togglePackOpen(id){
