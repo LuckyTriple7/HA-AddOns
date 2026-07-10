@@ -27,7 +27,7 @@ COPY requirements.txt .
 RUN pip3 install --no-cache-dir --break-system-packages -r requirements.txt
 
 COPY app.py scraper.py tripparser.py aktionscodes.py nextcloud.py packliste.py ./
-COPY trips_routes.py backup_routes.py digest.py ai_client.py ./
+COPY trips_routes.py backup_routes.py digest.py ai_client.py price_calendar.py ./
 COPY icon-192.png icon-512.png ./
 COPY templates/ templates/
 COPY static/ static/
