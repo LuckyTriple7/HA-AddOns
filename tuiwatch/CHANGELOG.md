@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.46.1] - 2026-07-10
+
+### Fixed
+- **Kalender-Preisänderung wurde bei Alt-Kalendern verschluckt.** Stammt der
+  gespeicherte Kalender aus einer Version vor der Trend-Historie (< 0.43.11) — oder
+  wurde die Historie geleert —, fehlte für geänderte Tage der Vorwert in
+  `calendar_history`: `_calendar_moves()` fand kein Delta, der
+  `calendar_trend_min_diff`-Filter sah 0 € und unterdrückte Benachrichtigung und
+  Trend-Badge, obwohl sich der Preis real geändert hatte (z. B. Kalendertag
+  1.999 € → 2.026 € ohne „📅 Kalenderpreise geändert“-Meldung).
+  `_store_calendar_snapshot` trägt den Vorwert jetzt aus dem alten Cache-Snapshot
+  rückdatiert nach (Baseline-Heilung) — Delta, Trend-Ansicht und Alarm
+  funktionieren damit auch für Kalender aus der Zeit vor dem Feature.
+
 ## [0.46.0] - 2026-07-09
 
 ### Changed

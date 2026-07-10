@@ -1670,7 +1670,7 @@ def _store_calendar_snapshot(con, offer_id: int, cal: dict) -> list[str]:
     z.B. globaler Erstabruf) — dafür gibt es keinen sinnvollen Vergleichswert, also
     keine "Preisänderung"."""
     ts = int(time.time())
-    prev_row = con.execute('SELECT data FROM calendar_cache WHERE offer_id=?',
+    prev_row = con.execute('SELECT ts, data FROM calendar_cache WHERE offer_id=?',
                            (offer_id,)).fetchone()
     prev_prices: dict = {}
     if prev_row:
@@ -1682,14 +1682,33 @@ def _store_calendar_snapshot(con, offer_id: int, cal: dict) -> list[str]:
     con.execute('INSERT OR REPLACE INTO calendar_cache (offer_id, ts, data) VALUES (?,?,?)',
                 (offer_id, ts, json.dumps(cal)))
     days = cal.get('days', [])
+    real_changed = [d['date'] for d in days
+                    if d['date'] in prev_prices and prev_prices[d['date']] != d['price']]
+    if real_changed:
+        # Baseline-Heilung: stammt der vorherige Snapshot aus einer Zeit VOR der
+        # calendar_history-Tabelle (Cache < 0.43.11) oder wurde die Historie geleert,
+        # fehlt für einen jetzt geänderten Tag der Vorwert in der Historie — dann
+        # hätte er nur EINE Zeile (den neuen Preis), _calendar_moves() (braucht >=2)
+        # fände kein Delta und der calendar_trend_min_diff-Filter würde die Änderung
+        # verschlucken. Der Vorwert steht aber noch im alten Cache: hier als
+        # rückdatierte Zeile nachtragen, damit Delta/Trend/Alarm funktionieren.
+        have = {r['travel_date'] for r in con.execute(
+            'SELECT DISTINCT travel_date FROM calendar_history WHERE offer_id=?',
+            (offer_id,)).fetchall()}
+        prev_ts = min(prev_row['ts'], ts - 1)
+        baseline = [(offer_id, d, prev_ts, prev_prices[d])
+                    for d in real_changed if d not in have]
+        if baseline:
+            con.executemany(
+                'INSERT INTO calendar_history (offer_id, travel_date, ts, price) VALUES (?,?,?,?)',
+                baseline)
     changed = [(offer_id, d['date'], ts, d['price']) for d in days
                if prev_prices.get(d['date']) != d['price']]
     if changed:
         con.executemany(
             'INSERT INTO calendar_history (offer_id, travel_date, ts, price) VALUES (?,?,?,?)',
             changed)
-    return [d['date'] for d in days
-            if d['date'] in prev_prices and prev_prices[d['date']] != d['price']]
+    return real_changed
 
 
 _MONTH_NAMES_DE = ('Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August',
