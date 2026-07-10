@@ -81,7 +81,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.48.2"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.48.3"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -5438,6 +5438,15 @@ def api_errors():
         return err
     return jsonify({'items': list(reversed(_warn_buffer))})
 
+
+# Läuft app.py als Skript (run.sh: `python3 app.py`), heißt DIESES Modul
+# '__main__' — `import app` in den Blueprint-Modulen würde app.py dann ein
+# ZWEITES Mal ausführen (Doppel-Initialisierung + Zirkular-Crash beim
+# register_blueprint, live in 0.48.2 passiert). Alias registrieren, damit
+# '__main__' und 'app' dasselbe Modul-Objekt sind; unter pytest (Import als
+# 'app') ist der Alias ein No-Op.
+import sys  # noqa: E402
+sys.modules.setdefault('app', sys.modules[__name__])
 
 # Route-Module (Blueprints) — erst hier importieren: sie greifen per
 # `import app as A` auf die oben definierten Primitiven zu.

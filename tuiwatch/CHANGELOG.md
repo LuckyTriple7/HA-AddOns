@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.48.3] - 2026-07-10
+
+### Fixed
+- **0.48.2 startete weiterhin nicht (Zirkular-Import-Crash).** Zweite Folge der
+  Modularisierung: run.sh startet `python3 app.py` — das Modul heißt dann
+  `__main__`, und `import app` in den Blueprint-Modulen führte app.py ein
+  ZWEITES Mal aus → `AttributeError: partially initialized module`. Unter
+  pytest unsichtbar, weil dort app als Modul `app` importiert wird. Fix:
+  `sys.modules['app']`-Alias vor dem Blueprint-Import — `__main__` und `app`
+  sind damit dasselbe Modul-Objekt. Dazu zweiter Guard-Test
+  (`tests/test_script_start.py`): startet app.py als echten Skript-Subprozess
+  wie im Add-on und wartet auf `/health` — fängt jede künftige Start-Regression,
+  die nur im Skript-Modus auftritt.
+
 ## [0.48.2] - 2026-07-10
 
 ### Fixed
