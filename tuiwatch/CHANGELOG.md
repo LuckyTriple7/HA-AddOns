@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.47.0] - 2026-07-10
+
+### Added
+- **Meine Reisen: Felder manuell zuordnen (Debug-Ansicht).** Wenn der PDF-Parser
+  nach einer TUI-Layout-Änderung Felder nicht erkennt, lassen sie sich jetzt selbst
+  setzen: Text im bereinigten PDF-Auszug markieren und per „⇦ Auswahl" übernehmen —
+  oder direkt eintippen. Unterstützt alle Kernfelder (Buchungsnummer/-datum,
+  Reiseziel, Hotel, An-/Abreise, Nächte, Verpflegung, Gesamtpreis, Reisende-Anzahl,
+  Anzahlung/Restzahlung) sowie die komplette Extras-Liste (ersetzt die erkannten
+  Extras). Auch korrekt erkannte Felder sind überschreibbar („Weitere Felder
+  überschreiben").
+  - Manuelle Werte **überleben „Neu einlesen" und erneuten Import** (werden nach
+    jedem Parse wieder angewendet) und schlagen das Parser-Ergebnis; der KI-Fallback
+    füllt nur weiterhin fehlende Felder.
+  - Leeres Feld speichern = Zuordnung löschen, der Parser-Wert gilt wieder.
+  - Abgeleitete Werte (Paketpreis, Preis pro Nacht, Extras-Summe …) und die
+    Statistik werden nach jeder Zuordnung neu berechnet; manuell gesetzte Felder
+    erscheinen als ✍️-Chip in der Debug-Ansicht.
+  - Neu: `PATCH /api/trips/<id>/fields`; Preis-Eingaben werden normalisiert
+    („2000,00" → „2.000,00"), Datumsfelder validiert (TT.MM.JJJJ).
+
 ## [0.46.8] - 2026-07-10
 
 ### Added

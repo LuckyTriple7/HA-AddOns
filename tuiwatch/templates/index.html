@@ -416,6 +416,13 @@
     .dbg-f { font-size:.76rem; padding:2px 8px; border-radius:10px; border:1px solid var(--border); }
     .dbg-f.ok { color:var(--green); background:rgba(46,160,67,.10); }
     .dbg-f.miss { color:var(--amber); background:rgba(210,153,34,.12); font-weight:600; }
+    .dbg-f.manual { color:var(--accent); background:rgba(88,166,255,.12); font-weight:600; }
+    .dbg-edit { border:1px solid var(--border); border-radius:8px; padding:8px 10px; margin:8px 0; background:var(--surf2); }
+    .dbg-row { display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin:4px 0; }
+    .dbg-lbl { flex:0 0 160px; font-size:.8rem; }
+    .dbg-cur { flex:0 0 130px; font-size:.76rem; color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .dbg-in { flex:1; min-width:130px; background:var(--surf); color:var(--text); border:1px solid var(--border); border-radius:6px; padding:4px 8px; font-size:.8rem; }
+    .dbg-ex-tbl input { background:var(--surf); color:var(--text); border:1px solid var(--border); border-radius:6px; padding:3px 6px; font-size:.78rem; width:100%; box-sizing:border-box; }
     .dbg-pre { max-height:320px; overflow:auto; font-size:.72rem; line-height:1.35; background:var(--surf2); border:1px solid var(--border); border-radius:6px; padding:8px 10px; white-space:pre-wrap; word-break:break-word; }
     .dbg-sec { margin-top:8px; } .dbg-sec summary { cursor:pointer; font-size:.82rem; color:var(--muted); }
     @media(max-width:767px){ #tw-console{ display:none!important; } }
@@ -1935,7 +1942,7 @@
       const fluege = (d.fluege||[]).length?`<div class="dsec">Flüge</div><table class="tdt"><tr><th>Typ</th><th>Datum</th><th>Strecke</th><th>Zeit</th><th>Airline</th></tr>${
         d.fluege.map(f=>`<tr><td>${esc(f.typ||'')}</td><td>${esc(f.datum||'')}</td><td>${esc((f.von||'')+' → '+(f.nach||''))}</td><td>${esc((f.abflug_zeit||'')+(f.ankunft_zeit?('–'+f.ankunft_zeit):''))}</td><td>${esc(f.flugnummer||'')}</td></tr>`).join('')}</table>`:'';
       const extras = (d.extras||[]).length?`<div class="dsec">Extras</div><table class="tdt"><tr><th>Typ</th><th>Details</th><th>Preis</th></tr>${
-        d.extras.map(e=>{ const det=[e.plaetze,e.gewicht,e.strecke,(e.anzahl?('x'+e.anzahl):'')].filter(Boolean).join(' '); const pr=(e.preis==='inkl.')?'inkl.':((e.preis!=null)?e.preis+' €':''); return `<tr><td>${esc(e.typ||'')}</td><td>${esc(det)}</td><td>${esc(pr)}</td></tr>`; }).join('')}</table>`:'';
+        d.extras.map(e=>{ const det=[e.plaetze,e.gewicht,e.strecke,e.details,(e.anzahl?('x'+e.anzahl):'')].filter(Boolean).join(' '); const pr=(e.preis==='inkl.')?'inkl.':((e.preis!=null)?e.preis+' €':''); return `<tr><td>${esc(e.typ||'')}</td><td>${esc(det)}</td><td>${esc(pr)}</td></tr>`; }).join('')}</table>`:'';
       const rabatte = (d.rabatte||[]).length?`<div class="dsec">Rabatte</div><table class="tdt"><tr><th>Code</th><th>Betrag</th></tr>${
         d.rabatte.map(r=>`<tr><td>${esc(r.code||'')}</td><td>${esc(r.betrag||'')}</td></tr>`).join('')}</table>`:'';
       const wuensche = (d.sonderwuensche||[]).length?`<div class="dsec">Sonderwünsche</div><div style="font-size:.84rem">${d.sonderwuensche.map(w=>esc(w)).join('<br>')}</div>`:'';
@@ -2224,27 +2231,133 @@
 
     // — PDF-Debug: bereinigter Text + erkannt/leer je Feld (nur für den Angemeldeten,
     //   Inhalte können persönliche Daten enthalten und werden nirgends geloggt) —
-    function renderTripDebug(d, title){
+    // Manuell zuordenbare Felder (Whitelist = _MANUAL_TRIP_KEYS im Backend);
+    // warn = check_fields-Label, über das die Zeile als "fehlend" hervorgehoben wird.
+    const DBG_FIELDS = [
+      {key:'buchungsnummer', label:'Buchungsnummer', warn:'Buchungsnummer', get:d=>d.buchungsnummer},
+      {key:'buchungsdatum', label:'Buchungsdatum', warn:'Buchungsdatum', ph:'TT.MM.JJJJ', get:d=>d.buchungsdatum},
+      {key:'reiseziel', label:'Reiseziel', warn:'Reiseziel', get:d=>d.reiseziel},
+      {key:'hotel_name', label:'Hotel', warn:'Hotel', get:d=>(d.hotel||{}).name},
+      {key:'reisezeitraum_von', label:'Anreise', warn:'Reisezeitraum', ph:'TT.MM.JJJJ', get:d=>(d.reisezeitraum||{}).von},
+      {key:'reisezeitraum_bis', label:'Abreise', warn:'Reisezeitraum', ph:'TT.MM.JJJJ', get:d=>(d.reisezeitraum||{}).bis},
+      {key:'naechte', label:'Nächte', warn:'Nächte', num:true,
+       hint:'Bei vollständiger An-+Abreise wird die Zahl daraus berechnet', get:d=>d.naechte},
+      {key:'verpflegung', label:'Verpflegung', warn:'Verpflegung', get:d=>d.verpflegung},
+      {key:'gesamtpreis', label:'Gesamtpreis €', warn:'Gesamtpreis', ph:'1.234,56', get:d=>d.gesamtpreis},
+      {key:'reisende_anzahl', label:'Reisende (Anzahl)', warn:'Reisende', num:true,
+       hint:'Greift nur, wenn der Parser keine Reisenden erkannt hat', get:d=>(d.reisende||[]).length||''},
+      {key:'anzahlung_betrag', label:'Anzahlung €', ph:'1.234,56', get:d=>(d.anzahlung||{}).betrag},
+      {key:'anzahlung_faelligkeit', label:'Anzahlung fällig', ph:'TT.MM.JJJJ', get:d=>(d.anzahlung||{}).faelligkeit},
+      {key:'restzahlung_betrag', label:'Restzahlung €', ph:'1.234,56', get:d=>(d.restzahlung||{}).betrag},
+      {key:'restzahlung_faelligkeit', label:'Restzahlung fällig', ph:'TT.MM.JJJJ', get:d=>(d.restzahlung||{}).faelligkeit},
+    ];
+    let _dbgTid = null, _dbgTitle = '', _dbgManual = {};
+    function dbgFieldRow(f, d){
+      const cur = f.get(d.data||{});
+      const ov = _dbgManual[f.key];
+      return `<div class="dbg-row">
+        <span class="dbg-lbl">${ov!=null?'✍️ ':''}${esc(f.label)}${f.hint?` <span class="hint" title="${esc(f.hint)}">ⓘ</span>`:''}</span>
+        <span class="dbg-cur" title="Aktueller Wert">${cur!=null&&cur!==''?esc(String(cur)):'–'}</span>
+        <input class="dbg-in" id="dbg-in-${f.key}" ${f.num?'type="number" min="1"':'type="text"'}
+          placeholder="${esc(f.ph||'')}" value="${ov!=null?esc(String(ov)):''}">
+        <button class="btn sec" onmousedown="event.preventDefault()" onclick="dbgTakeSelection('${f.key}')"
+          title="Im PDF-Auszug unten markierten Text in dieses Feld übernehmen">⇦ Auswahl</button>
+      </div>`;
+    }
+    function dbgExtraRow(e){
+      e = e || {};
+      return `<tr>
+        <td><input class="dbg-ex-typ" value="${esc(e.typ||'')}" placeholder="z. B. Handgepäck"></td>
+        <td><input class="dbg-ex-det" value="${esc(e.details||e.plaetze||e.gewicht||e.strecke||'')}" placeholder="Details"></td>
+        <td style="width:60px"><input class="dbg-ex-anz" type="number" min="1" value="${e.anzahl!=null?esc(String(e.anzahl)):''}" placeholder="1"></td>
+        <td style="width:90px"><input class="dbg-ex-preis" value="${esc(e.preis||'')}" placeholder="15,00"></td>
+        <td style="width:26px"><span style="cursor:pointer" title="Zeile entfernen" onclick="this.closest('tr').remove()">×</span></td>
+      </tr>`;
+    }
+    function dbgExtraAdd(){ $('#dbg-ex-rows').insertAdjacentHTML('beforeend', dbgExtraRow()); }
+    function renderTripDebug(d, title, tid){
       if(!d || !d.ok){ toast(d&&d.error==='text_failed'?'Debug: Text konnte nicht aus der PDF extrahiert werden':'Debug fehlgeschlagen'); return; }
-      const fields = (d.fields||[]).map(f=>`<span class="dbg-f ${f.ok?'ok':'miss'}">${f.ok?'✓':'⚠'} ${esc(f.label)}</span>`).join('');
+      _dbgTid = tid!=null?tid:null; _dbgTitle = title; _dbgManual = d.manual||{};
+      const fields = (d.fields||[]).map(f=>`<span class="dbg-f ${f.manual?'manual':(f.ok?'ok':'miss')}">${f.manual?'✍️':(f.ok?'✓':'⚠')} ${esc(f.label)}</span>`).join('');
       const err = d.parse_error?`<div class="trip-warn">⚠ Parser abgebrochen: ${esc(d.parse_error)}</div>`:'';
       const json = d.data?`<details class="dbg-sec"><summary>Geparstes JSON anzeigen</summary><pre class="dbg-pre">${esc(JSON.stringify(d.data,null,2))}</pre></details>`:'';
+      let editor = '';
+      if(tid!=null){
+        const warns = d.warnings||[];
+        const missing = DBG_FIELDS.filter(f=>f.warn&&warns.includes(f.warn));
+        const rest = DBG_FIELDS.filter(f=>!missing.includes(f));
+        const extras = (_dbgManual.extras) || (d.data&&d.data.extras) || [];
+        editor = `<div class="dbg-edit">
+          <div class="dsec" style="margin-top:0">✍️ Felder manuell zuordnen</div>
+          <div class="hint" style="margin:2px 0 6px">Text im PDF-Auszug unten markieren und per „⇦ Auswahl" übernehmen — oder direkt eintippen. Leeres Feld speichern = Zuordnung löschen (Parser-Wert gilt wieder). Manuelle Werte überleben „Neu einlesen" und erneuten Import.</div>
+          ${missing.map(f=>dbgFieldRow(f,d)).join('')}
+          ${missing.length&&rest.length?`<details class="dbg-sec"><summary>Weitere Felder überschreiben (${rest.length})</summary>${rest.map(f=>dbgFieldRow(f,d)).join('')}</details>`:rest.map(f=>dbgFieldRow(f,d)).join('')}
+          <details class="dbg-sec" ${_dbgManual.extras?'open':''}><summary>Extras überschreiben${_dbgManual.extras?' ✍️ (manuell gesetzt)':''}</summary>
+            <label style="display:flex;gap:6px;align-items:center;font-size:.8rem;margin:6px 0"><input type="checkbox" id="dbg-ex-on" ${_dbgManual.extras?'checked':''}> Extras-Liste manuell festlegen (ersetzt die erkannten Extras komplett)</label>
+            <table class="tdt dbg-ex-tbl"><tr><th>Typ</th><th>Details</th><th>Anz.</th><th>Preis €</th><th></th></tr>
+              <tbody id="dbg-ex-rows">${extras.map(dbgExtraRow).join('')}</tbody></table>
+            <button class="btn sec" onclick="dbgExtraAdd()" style="margin-top:4px">＋ Zeile</button>
+          </details>
+          <div style="margin-top:8px"><button class="btn" onclick="dbgSaveFields()">💾 Zuordnung speichern</button></div>
+        </div>`;
+      }
       const box = $('#trip-detail');
       box.innerHTML = `<h3>🔍 Debug — ${esc(title)}</h3>
         <div style="margin-bottom:6px"><button class="btn sec" onclick="$('#trip-detail').style.display='none'">schließen</button></div>
         ${err}
         <div class="dbg-fields">${fields}</div>
+        ${editor}
         <div class="dsec">Bereinigter PDF-Text (Basis der Feld-Erkennung)</div>
         <div class="hint" style="margin:0 0 6px">Wenn TUI das Layout geändert hat: diesen Text kopieren, persönliche Daten anonymisieren und als neuer Testfall unter <code>tests/fixtures/trips/</code> ablegen — der Test zeigt dann exakt das kippende Feld.</div>
-        <pre class="dbg-pre">${esc(d.cleaned_text||'')}</pre>
+        <pre class="dbg-pre" id="dbg-text">${esc(d.cleaned_text||'')}</pre>
         ${json}`;
       box.style.display='block';
       box.scrollIntoView({behavior:'smooth', block:'nearest'});
     }
+    function dbgTakeSelection(key){
+      const s = String(window.getSelection()||'').trim();
+      if(!s){ toast('Erst Text im PDF-Auszug markieren'); return; }
+      const inp = $('#dbg-in-'+key); if(inp){ inp.value = s; }
+    }
+    async function dbgSaveFields(){
+      if(_dbgTid==null) return;
+      const fields = {};
+      for(const f of DBG_FIELDS){
+        const inp = $('#dbg-in-'+f.key); if(!inp) continue;
+        const v = inp.value.trim();
+        const ov = _dbgManual[f.key];
+        if(v && String(ov!=null?ov:'') !== v) fields[f.key] = f.num?parseInt(v,10):v;
+        else if(!v && ov!=null) fields[f.key] = null;   // Zuordnung löschen
+      }
+      const exOn = $('#dbg-ex-on') && $('#dbg-ex-on').checked;
+      if(exOn){
+        const rows = [...document.querySelectorAll('#dbg-ex-rows tr')].map(tr=>({
+          typ: tr.querySelector('.dbg-ex-typ').value.trim(),
+          details: tr.querySelector('.dbg-ex-det').value.trim(),
+          anzahl: tr.querySelector('.dbg-ex-anz').value.trim(),
+          preis: tr.querySelector('.dbg-ex-preis').value.trim(),
+        })).filter(r=>r.typ);
+        fields.extras = rows;
+      } else if(_dbgManual.extras){
+        fields.extras = null;   // Häkchen entfernt → Parser-Extras gelten wieder
+      }
+      if(!Object.keys(fields).length){ toast('Keine Änderungen'); return; }
+      let d; try {
+        const r = await fetch(api('/api/trips/'+_dbgTid+'/fields'), {method:'PATCH',
+          headers:{'Content-Type':'application/json'}, body:JSON.stringify({fields})});
+        d = await r.json().catch(()=>({})); if(!r.ok) throw d;
+      } catch(e){
+        toast(e&&e.error==='invalid_value'?('Ungültiger Wert für „'+(e.field||'?')+'"'):'Speichern fehlgeschlagen');
+        return;
+      }
+      toast(d.warnings&&d.warnings.length?'Gespeichert — weiterhin nicht erkannt: '+d.warnings.join(', '):'Zuordnung gespeichert ✓');
+      await loadTrips();
+      showTripDebug(_dbgTid, _dbgTitle);
+    }
     async function showTripDebug(id, title){
       let d=null;
       try { const r = await fetch(api('/api/trips/'+id+'/debug')); if(r.ok) d = await r.json(); } catch(e){}
-      renderTripDebug(d, title||('Reise #'+id));
+      renderTripDebug(d, title||('Reise #'+id), id);
     }
     async function debugUpload(f){
       const fd = new FormData(); fd.append('pdf', f);

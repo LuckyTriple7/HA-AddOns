@@ -42,7 +42,10 @@ def client(tmp_path, monkeypatch):
         "restzahlung": {"betrag": None, "faelligkeit": None},
         "zimmertyp": None, "zahlungsart": None,
     }
-    monkeypatch.setattr(app_mod, "parse_tui_pdf", lambda f: fake)
+    # deepcopy: der echte Parser liefert pro Aufruf ein frisches Dict — ein geteiltes
+    # Objekt würde Mutationen (Overrides/abgeleitete Felder) zwischen Aufrufen leaken.
+    import copy
+    monkeypatch.setattr(app_mod, "parse_tui_pdf", lambda f: copy.deepcopy(fake))
     c = app_mod.test_client = app_mod.app.test_client()
     return c
 
@@ -132,6 +135,100 @@ def test_trip_rescan_reparses_stored_pdf(client, monkeypatch):
 
     # Rescan auf nicht existierende Reise → 404
     assert client.post("/api/trips/999999/rescan", headers=ING).status_code == 404
+
+
+# ── Manuelle Feld-Zuordnung (PATCH /api/trips/<id>/fields) ──────────────────────
+
+def _patch_fields(client, tid, fields):
+    return client.patch(f"/api/trips/{tid}/fields", headers=ING, json={"fields": fields})
+
+
+def test_manual_field_override_updates_data_sql_and_derived(client):
+    import importlib
+    m = importlib.import_module("app")
+    tid = _import_pdf(client).get_json()["id"]
+    r = _patch_fields(client, tid, {"reiseziel": "Neuland", "gesamtpreis": "2000,00"})
+    assert r.status_code == 200
+    d = r.get_json()
+    assert d["ok"] is True
+    assert d["data"]["reiseziel"] == "Neuland"
+    assert d["data"]["gesamtpreis"] == "2.000,00"     # normalisiert
+    assert d["data"]["paketpreis"] == "2.000,00"       # abgeleitet neu berechnet
+    assert d["manual"] == {"reiseziel": "Neuland", "gesamtpreis": "2.000,00"}
+    detail = client.get(f"/api/trips/{tid}", headers=ING).get_json()
+    assert detail["data"]["reiseziel"] == "Neuland"
+    with m.db() as con:
+        row = con.execute("SELECT destination, total_price FROM trips WHERE id=?",
+                          (tid,)).fetchone()
+    assert row["destination"] == "Neuland"
+    assert row["total_price"] == 2000.0
+
+
+def test_manual_override_survives_rescan_and_reimport(client):
+    tid = _import_pdf(client).get_json()["id"]
+    _patch_fields(client, tid, {"reiseziel": "Neuland"})
+    # Rescan: Parser liefert weiterhin "Teststrand" — Override muss gewinnen
+    rr = client.post(f"/api/trips/{tid}/rescan", headers=ING)
+    assert rr.get_json()["data"]["reiseziel"] == "Neuland"
+    # Re-Import gleicher Buchungsnummer (Upsert) — Override bleibt, kein Duplikat
+    _import_pdf(client)
+    assert client.get("/api/trips", headers=ING).get_json()["stats"]["count"] == 1
+    detail = client.get(f"/api/trips/{tid}", headers=ING).get_json()
+    assert detail["data"]["reiseziel"] == "Neuland"
+
+
+def test_manual_override_delete_restores_parser_value(client):
+    tid = _import_pdf(client).get_json()["id"]
+    _patch_fields(client, tid, {"reiseziel": "Neuland"})
+    r = _patch_fields(client, tid, {"reiseziel": None})
+    assert r.status_code == 200
+    d = r.get_json()
+    assert d["manual"] == {}
+    assert d["data"]["reiseziel"] == "Teststrand"      # Parser-Wert wieder aktiv
+
+
+def test_manual_extras_override_replaces_and_recomputes(client):
+    import importlib
+    m = importlib.import_module("app")
+    tid = _import_pdf(client).get_json()["id"]
+    r = _patch_fields(client, tid, {"extras": [
+        {"typ": "Handgepäck", "details": "10kg", "anzahl": 1, "preis": "15,00 €"},
+        {"typ": "Bustransfer", "preis": "inkl."}]})
+    assert r.status_code == 200
+    d = r.get_json()["data"]
+    assert [e["typ"] for e in d["extras"]] == ["Handgepäck", "Bustransfer"]
+    assert d["extras"][0]["preis"] == "15,00"          # € entfernt/normalisiert
+    assert d["extras_summe"] == "15,00"                # "inkl." zählt nicht
+    assert d["paketpreis"] == "985,00"                 # 1.000 − 15
+    with m.db() as con:
+        assert con.execute("SELECT package_price FROM trips WHERE id=?",
+                           (tid,)).fetchone()["package_price"] == 985.0
+
+
+def test_manual_field_validation(client):
+    tid = _import_pdf(client).get_json()["id"]
+    assert _patch_fields(client, tid, {"kaputt": "x"}).status_code == 400
+    assert _patch_fields(client, tid, {"buchungsdatum": "2026-05-01"}).status_code == 400
+    assert _patch_fields(client, tid, {"gesamtpreis": "viel"}).status_code == 400
+    assert _patch_fields(client, tid, {"naechte": 0}).status_code == 400
+    assert _patch_fields(client, tid, {"extras": [{"preis": "15,00"}]}).status_code == 400  # typ fehlt
+    assert _patch_fields(client, 999999, {"reiseziel": "X"}).status_code == 404
+    assert client.patch(f"/api/trips/{tid}/fields", headers=ING, json={}).status_code == 400
+
+
+def test_debug_payload_marks_manual_fields(client, monkeypatch):
+    import importlib
+    m = importlib.import_module("app")
+    tid = _import_pdf(client).get_json()["id"]
+    _patch_fields(client, tid, {"reiseziel": "Neuland"})
+    monkeypatch.setattr(m, "extract_pdf_text", lambda f: "irrelevanter Text")
+    monkeypatch.setattr(m, "parse_tui_text", lambda t: {"reiseziel": None, "hotel": {}})
+    d = client.get(f"/api/trips/{tid}/debug", headers=ING).get_json()
+    assert d["ok"] is True
+    assert d["manual"] == {"reiseziel": "Neuland"}
+    ziel = next(f for f in d["fields"] if f["label"] == "Reiseziel")
+    assert ziel["manual"] is True and ziel["ok"] is True   # Override deckt Feld ab
+    assert d["data"]["reiseziel"] == "Neuland"
 
 
 def test_reject_non_pdf(client):

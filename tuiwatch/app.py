@@ -47,8 +47,8 @@ from scraper import (_giata_from_url, _valid_img_url, api_healthcheck,
 from aktionscodes import fetch_aktionscodes
 from nextcloud import fetch_contacts
 from packliste import default_packing_rows
-from tripparser import (_clean_text, _parse_eur, check_fields, extract_pdf_text,
-                        parse_tui_pdf, parse_tui_text)
+from tripparser import (_clean_text, _fmt_eur, _parse_eur, apply_derived_fields,
+                        check_fields, extract_pdf_text, parse_tui_pdf, parse_tui_text)
 
 logging.basicConfig(format='[%(levelname)s] [%(asctime)s] %(message)s',
                     level=logging.INFO, datefmt='%Y-%m-%d %H:%M:%S', force=True)
@@ -74,7 +74,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.46.8"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.47.0"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -5894,11 +5894,21 @@ _TRIP_FIELD_LABELS = ('Buchungsnummer', 'Buchungsdatum', 'Reiseziel', 'Hotel',
                       'Reisezeitraum', 'Nächte', 'Verpflegung', 'Gesamtpreis',
                       'Reisende', 'Flüge', 'Hinflug', 'Rückflug')
 
+# Label → Manual-Override-Key(s) für die ✍️-Markierung der Feld-Chips in der
+# Debug-Ansicht (Flüge/Hinflug/Rückflug sind nicht manuell setzbar → kein Eintrag).
+_TRIP_LABEL_MANUAL_KEYS = {
+    'Buchungsnummer': ('buchungsnummer',), 'Buchungsdatum': ('buchungsdatum',),
+    'Reiseziel': ('reiseziel',), 'Hotel': ('hotel_name',),
+    'Reisezeitraum': ('reisezeitraum_von', 'reisezeitraum_bis'),
+    'Nächte': ('naechte',), 'Verpflegung': ('verpflegung',),
+    'Gesamtpreis': ('gesamtpreis',), 'Reisende': ('reisende_anzahl',),
+}
 
-def _trip_debug_payload(raw: bytes) -> dict:
+
+def _trip_debug_payload(raw: bytes, manual: dict | None = None) -> dict:
     """Debug-Sicht auf eine Reise-PDF: bereinigter Volltext (Basis der Feld-Regexes),
-    geparstes JSON, Warnungen und je Feld erkannt/leer. Inhalte können PII enthalten —
-    sie gehen nur an den (authentifizierten) Aufrufer, nichts davon ins Log."""
+    geparstes JSON, Warnungen und je Feld erkannt/leer/manuell. Inhalte können PII
+    enthalten — sie gehen nur an den (authentifizierten) Aufrufer, nichts ins Log."""
     try:
         full = extract_pdf_text(io.BytesIO(raw))
     except Exception:
@@ -5909,10 +5919,16 @@ def _trip_debug_payload(raw: bytes) -> dict:
         data = parse_tui_text(full)
     except Exception as exc:
         parse_error = type(exc).__name__
+    if data is not None and manual:
+        data['_manual'] = dict(manual)
+        _apply_manual_overrides(data)
     warnings = check_fields(data) if data else list(_TRIP_FIELD_LABELS)
-    fields = [{'label': lbl, 'ok': lbl not in warnings} for lbl in _TRIP_FIELD_LABELS]
+    fields = [{'label': lbl, 'ok': lbl not in warnings,
+               'manual': any(k in (manual or {}) for k in _TRIP_LABEL_MANUAL_KEYS.get(lbl, ()))}
+              for lbl in _TRIP_FIELD_LABELS]
     return {'ok': True, 'cleaned_text': cleaned, 'data': data,
-            'parse_error': parse_error, 'warnings': warnings, 'fields': fields}
+            'parse_error': parse_error, 'warnings': warnings, 'fields': fields,
+            'manual': manual or {}}
 
 
 @app.route('/api/trips/<int:tid>/debug', methods=['GET'])
@@ -5922,13 +5938,13 @@ def api_trip_debug(tid):
     if (err := _require_api()):
         return err
     with db() as con:
-        row = con.execute('SELECT pdf_name FROM trips WHERE id=?', (tid,)).fetchone()
+        row = con.execute('SELECT pdf_name, data FROM trips WHERE id=?', (tid,)).fetchone()
     if not row or not row['pdf_name']:
         return jsonify({'error': 'not_found'}), 404
     p = _trip_pdf_path(row['pdf_name'])
     if p is None or not p.exists():
         return jsonify({'error': 'not_found'}), 404
-    return jsonify(_trip_debug_payload(p.read_bytes()))
+    return jsonify(_trip_debug_payload(p.read_bytes(), manual=_trip_manual(row['data'])))
 
 
 @app.route('/api/trips/debug', methods=['POST'])
@@ -6008,48 +6024,97 @@ def _ai_fill_trip_fields(data: dict, warnings: list, cleaned_text: str,
         return data, []
 
     filled = []
-    if "Buchungsnummer" in warnings and ai.get('buchungsnummer'):
-        data['buchungsnummer'] = ai['buchungsnummer']
-        filled.append("Buchungsnummer")
-    if "Buchungsdatum" in warnings and ai.get('buchungsdatum'):
-        data['buchungsdatum'] = ai['buchungsdatum']
-        filled.append("Buchungsdatum")
-    if "Reiseziel" in warnings and ai.get('reiseziel'):
-        data['reiseziel'] = ai['reiseziel']
-        filled.append("Reiseziel")
-    if "Hotel" in warnings and ai.get('hotel_name'):
-        data.setdefault('hotel', {})['name'] = ai['hotel_name']
-        filled.append("Hotel")
+    _AI_FILL_MAP = (("Buchungsnummer", 'buchungsnummer'), ("Buchungsdatum", 'buchungsdatum'),
+                    ("Reiseziel", 'reiseziel'), ("Hotel", 'hotel_name'),
+                    ("Nächte", 'naechte'), ("Verpflegung", 'verpflegung'),
+                    ("Gesamtpreis", 'gesamtpreis'), ("Reisende", 'reisende_anzahl'))
+    for label, key in _AI_FILL_MAP:
+        if label in warnings and ai.get(key):
+            _set_trip_field(data, key, ai[key])
+            filled.append(label)
     if "Reisezeitraum" in warnings and ai.get('reisezeitraum_von') and ai.get('reisezeitraum_bis'):
-        data['reisezeitraum'] = {'von': ai['reisezeitraum_von'], 'bis': ai['reisezeitraum_bis']}
+        _set_trip_field(data, 'reisezeitraum_von', ai['reisezeitraum_von'])
+        _set_trip_field(data, 'reisezeitraum_bis', ai['reisezeitraum_bis'])
         filled.append("Reisezeitraum")
-    if "Nächte" in warnings and ai.get('naechte'):
-        data['naechte'] = ai['naechte']
-        filled.append("Nächte")
-    if "Verpflegung" in warnings and ai.get('verpflegung'):
-        data['verpflegung'] = ai['verpflegung']
-        filled.append("Verpflegung")
-    if "Gesamtpreis" in warnings and ai.get('gesamtpreis'):
-        data['gesamtpreis'] = ai['gesamtpreis']
-        filled.append("Gesamtpreis")
-    if "Reisende" in warnings and ai.get('reisende_anzahl'):
-        # nur die Anzahl zählt für `travellers` beim Import — keine synthetischen Namen
-        data['reisende'] = [{} for _ in range(ai['reisende_anzahl'])]
-        filled.append("Reisende")
     return data, filled
 
 
-def _parse_trip_pdf_bytes(raw: bytes):
-    """Parst Reise-PDF-Bytes inkl. KI-Fallback: fehlende Felder (Regex-Parser bei
-    TUI-Layout-Änderung o. Ä. gescheitert) ergänzen, ohne bereits erkannte Werte zu
-    überschreiben. Best effort — ohne Key oder bei jedem Fehler bleiben die
-    Regex-Daten unverändert. Rückgabe: (data, ai_filled); Parser-Exceptions
-    propagieren zum Aufrufer."""
+# Manuell überschreibbare Felder (Debug-Ansicht „Felder manuell zuordnen"):
+# die Schema-Keys des KI-Fallbacks + Zahlungsfelder + komplette Extras-Liste.
+_MANUAL_TRIP_KEYS = frozenset({
+    'buchungsnummer', 'buchungsdatum', 'reiseziel', 'hotel_name',
+    'reisezeitraum_von', 'reisezeitraum_bis', 'naechte', 'verpflegung',
+    'gesamtpreis', 'reisende_anzahl', 'anzahlung_betrag', 'anzahlung_faelligkeit',
+    'restzahlung_betrag', 'restzahlung_faelligkeit', 'extras',
+})
+
+
+def _set_trip_field(data: dict, key: str, value) -> None:
+    """DIE eine Mapping-Stelle Schema-Key → data-Dict-Struktur — von KI-Fallback
+    (`_ai_fill_trip_fields`) und manuellen Overrides (`_apply_manual_overrides`)
+    gemeinsam genutzt, damit das Mapping nicht auseinanderläuft."""
+    if key == 'hotel_name':
+        data.setdefault('hotel', {})['name'] = value
+    elif key == 'reisezeitraum_von':
+        data.setdefault('reisezeitraum', {})['von'] = value
+    elif key == 'reisezeitraum_bis':
+        data.setdefault('reisezeitraum', {})['bis'] = value
+    elif key == 'anzahlung_betrag':
+        data.setdefault('anzahlung', {})['betrag'] = value
+    elif key == 'anzahlung_faelligkeit':
+        data.setdefault('anzahlung', {})['faelligkeit'] = value
+    elif key == 'restzahlung_betrag':
+        data.setdefault('restzahlung', {})['betrag'] = value
+    elif key == 'restzahlung_faelligkeit':
+        data.setdefault('restzahlung', {})['faelligkeit'] = value
+    elif key == 'reisende_anzahl':
+        # nur die Anzahl zählt für `travellers` beim Import — keine synthetischen Namen
+        data['reisende'] = [{} for _ in range(int(value))]
+    else:
+        # buchungsnummer, buchungsdatum, reiseziel, naechte, verpflegung,
+        # gesamtpreis, extras
+        data[key] = value
+
+
+def _apply_manual_overrides(data: dict) -> dict:
+    """Wendet die in data['_manual'] gespeicherten manuellen Feld-Overrides an und
+    berechnet die abgeleiteten Felder neu. Overrides schlagen Parser-Ergebnis —
+    Ausnahme `reisende_anzahl`: nie echte, vom Parser erkannte Reisende (Namen/
+    Geburtsdaten) durch anonyme Platzhalter ersetzen."""
+    for key, val in (data.get('_manual') or {}).items():
+        if key not in _MANUAL_TRIP_KEYS or val in (None, '', []):
+            continue
+        if key == 'reisende_anzahl' and data.get('reisende'):
+            continue
+        _set_trip_field(data, key, val)
+    return apply_derived_fields(data)
+
+
+def _trip_manual(data_json) -> dict:
+    """Extrahiert das Manual-Override-Dict aus der gespeicherten data-JSON einer
+    Reise (Whitelist-gefiltert; robust gegen kaputtes/leeres JSON)."""
+    try:
+        manual = (json.loads(data_json or '{}') or {}).get('_manual') or {}
+    except (ValueError, TypeError):
+        return {}
+    return {k: v for k, v in manual.items() if k in _MANUAL_TRIP_KEYS}
+
+
+def _parse_trip_pdf_bytes(raw: bytes, manual: dict | None = None, use_ai: bool = True):
+    """Parst Reise-PDF-Bytes: Regex-Parser → manuelle Overrides (falls vorhanden;
+    schlagen Parser-Ergebnis) → KI-Fallback nur für danach noch fehlende Felder
+    (überschreibt nie erkannte/manuelle Werte; best effort — ohne Key oder bei
+    Fehlern bleiben die Daten unverändert). Rückgabe: (data, ai_filled);
+    Parser-Exceptions propagieren zum Aufrufer."""
     data = parse_tui_pdf(io.BytesIO(raw))
+    data.pop('_manual', None)   # frisch geparst kennt keine Overrides — nur `manual` zählt
+    if manual:
+        data['_manual'] = dict(manual)
+        _apply_manual_overrides(data)
     ai_filled = []
     pre_warnings = check_fields(data)
     ai_key, ai_model = _ai_config()
-    if pre_warnings and ai_key:
+    if use_ai and pre_warnings and ai_key:
         try:
             cleaned = _clean_text(extract_pdf_text(io.BytesIO(raw)))
             data, ai_filled = _ai_fill_trip_fields(data, pre_warnings, cleaned, ai_key, ai_model)
@@ -6057,6 +6122,7 @@ def _parse_trip_pdf_bytes(raw: bytes):
             log.warning("PDF-Fallback (KI) fehlgeschlagen: %s", e)
         if ai_filled:
             log.info("Reise-Import: KI-Fallback ergänzte %s", ", ".join(ai_filled))
+            apply_derived_fields(data)   # z. B. Paketpreis nach KI-Gesamtpreis
     return data, ai_filled
 
 
@@ -6123,6 +6189,19 @@ def api_trip_import():
         log.warning("PDF speichern fehlgeschlagen: %s", exc)
         return jsonify({'error': 'store_failed'}), 500
 
+    existing = None
+    if booking:
+        with db() as con:
+            existing = con.execute(
+                'SELECT id, pdf_name, data FROM trips WHERE booking_code=?',
+                (booking,)).fetchone()
+    if existing:
+        # Manuelle Feld-Overrides des bestehenden Datensatzes überleben den
+        # Re-Import (Upsert): erneut anwenden — sie schlagen das Parser-Ergebnis.
+        manual = _trip_manual(existing['data'])
+        if manual:
+            data['_manual'] = manual
+            _apply_manual_overrides(data)
     row = _trip_row(data, pdf_name, Path(file.filename).name, ts)
     # Feste Whitelist der Spalten (konstant im Code, NICHT aus row.keys() abgeleitet),
     # damit die SQL-Struktur nicht von request-nahen Daten abhängt. Reihenfolge fix.
@@ -6130,10 +6209,6 @@ def api_trip_import():
     assert set(row) == set(cols), "row weicht von der erlaubten Spaltenliste ab"
     values = [row[c] for c in cols]
     with db() as con:
-        existing = None
-        if booking:
-            existing = con.execute(
-                'SELECT id, pdf_name FROM trips WHERE booking_code=?', (booking,)).fetchone()
         if existing:
             # ggf. alte PDF mit abweichendem Namen entfernen
             old = existing['pdf_name']
@@ -6172,7 +6247,7 @@ def api_trip_rescan(tid):
     if (err := _require_api()):
         return err
     with db() as con:
-        old = con.execute('SELECT pdf_name, orig_name, created FROM trips WHERE id=?',
+        old = con.execute('SELECT pdf_name, orig_name, created, data FROM trips WHERE id=?',
                           (tid,)).fetchone()
     if not old:
         return jsonify({'error': 'not_found'}), 404
@@ -6181,7 +6256,7 @@ def api_trip_rescan(tid):
         return jsonify({'error': 'no_pdf'}), 404
     try:
         raw = path.read_bytes()
-        data, ai_filled = _parse_trip_pdf_bytes(raw)
+        data, ai_filled = _parse_trip_pdf_bytes(raw, manual=_trip_manual(old['data']))
     except Exception as exc:
         log.warning("PDF-Rescan #%d fehlgeschlagen: %s", tid, exc)
         return jsonify({'error': 'parse_failed'}), 422
@@ -6198,6 +6273,139 @@ def api_trip_rescan(tid):
     log.info("Reise neu eingelesen: %s (#%d)", row['title'], tid)
     return jsonify({'ok': True, 'id': tid, 'data': data, 'warnings': warnings,
                     'ai_filled': ai_filled})
+
+
+_MANUAL_DATE_KEYS = frozenset({'buchungsdatum', 'reisezeitraum_von', 'reisezeitraum_bis',
+                               'anzahlung_faelligkeit', 'restzahlung_faelligkeit'})
+_MANUAL_PRICE_KEYS = frozenset({'gesamtpreis', 'anzahlung_betrag', 'restzahlung_betrag'})
+_EUR_INPUT_RE = re.compile(r'\d{1,7}(?:\.\d{3})*(?:,\d{1,2})?')
+
+
+def _normalize_manual_extras(val):
+    """Validiert/normalisiert die manuelle Extras-Liste ({typ, details?, anzahl?,
+    preis?}). Rückgabe: bereinigte Liste oder None bei ungültiger Eingabe."""
+    if not isinstance(val, list) or len(val) > 30:
+        return None
+    out = []
+    for e in val:
+        if not isinstance(e, dict):
+            return None
+        typ = str(e.get('typ') or '').strip()
+        if not typ or len(typ) > 60:
+            return None
+        item = {'typ': typ}
+        det = str(e.get('details') or '').strip()
+        if len(det) > 120:
+            return None
+        if det:
+            item['details'] = det
+        anz = e.get('anzahl')
+        if anz not in (None, ''):
+            try:
+                anz = int(anz)
+            except (TypeError, ValueError):
+                return None
+            if not 1 <= anz <= 99:
+                return None
+            item['anzahl'] = anz
+        p = str(e.get('preis') or '').strip()
+        if p == 'inkl.':
+            item['preis'] = 'inkl.'
+        elif p:
+            s = p.replace('€', '').strip()
+            if not _EUR_INPUT_RE.fullmatch(s):
+                return None
+            item['preis'] = _fmt_eur(_parse_eur(s))
+        out.append(item)
+    return out
+
+
+def _normalize_manual_value(key, val):
+    """Validiert/normalisiert EINEN manuellen Override-Wert (Preise ins deutsche
+    Format, Datums-Keys TT.MM.JJJJ, Zahlen mit Grenzen). Rückgabe: normalisierter
+    Wert oder None bei ungültiger Eingabe."""
+    if key == 'extras':
+        return _normalize_manual_extras(val)
+    if key in ('naechte', 'reisende_anzahl'):
+        try:
+            n = int(val)
+        except (TypeError, ValueError):
+            return None
+        return n if 1 <= n <= (365 if key == 'naechte' else 20) else None
+    if not isinstance(val, str):
+        return None
+    val = val.strip()
+    if not val or len(val) > 120:
+        return None
+    if key in _MANUAL_DATE_KEYS:
+        return val if re.fullmatch(r'\d{2}\.\d{2}\.\d{4}', val) else None
+    if key in _MANUAL_PRICE_KEYS:
+        s = val.replace('€', '').strip()
+        if not _EUR_INPUT_RE.fullmatch(s):
+            return None
+        return _fmt_eur(_parse_eur(s))
+    return val
+
+
+@app.route('/api/trips/<int:tid>/fields', methods=['PATCH'])
+def api_trip_fields(tid):
+    """Manuelle Feld-Zuordnung aus der Debug-Ansicht: setzt/löscht Overrides
+    (data['_manual']) für Felder, die der Parser nicht (korrekt) erkannt hat —
+    funktioniert aber für ALLE Whitelist-Felder, auch bereits erkannte.
+    null/'' löscht einen Override (Parser-Wert kommt zurück). Overrides überleben
+    Rescan und Re-Import (werden dort nach dem Parsen erneut angewendet). Die
+    gespeicherte PDF wird ohne KI-Fallback neu geparst — beim manuellen Zuordnen
+    ist der Nutzer selbst der Fallback (kein Kosten-/Latenz-Overhead)."""
+    if (err := _require_api()):
+        return err
+    body = request.get_json(silent=True) or {}
+    fields = body.get('fields')
+    if not isinstance(fields, dict) or not fields:
+        return jsonify({'error': 'invalid'}), 400
+    with db() as con:
+        old = con.execute('SELECT data, pdf_name, orig_name, created FROM trips WHERE id=?',
+                          (tid,)).fetchone()
+    if not old:
+        return jsonify({'error': 'not_found'}), 404
+    manual = _trip_manual(old['data'])
+    for key, val in fields.items():
+        if key not in _MANUAL_TRIP_KEYS:
+            return jsonify({'error': 'invalid_field', 'field': key}), 400
+        if val in (None, '', []):
+            manual.pop(key, None)
+            continue
+        norm = _normalize_manual_value(key, val)
+        if norm is None:
+            return jsonify({'error': 'invalid_value', 'field': key}), 400
+        manual[key] = norm
+    path = _trip_pdf_path(old['pdf_name'] or '')
+    data = None
+    if path is not None and path.exists():
+        # sauberer Re-Parse mit den neuen Overrides — nur so liefert auch das
+        # LÖSCHEN eines Overrides wieder den echten Parser-Wert.
+        try:
+            data, _ = _parse_trip_pdf_bytes(path.read_bytes(), manual=manual, use_ai=False)
+        except Exception as exc:
+            log.warning("Feld-Zuordnung #%d: Re-Parse fehlgeschlagen (%s) — "
+                        "Overrides werden auf die gespeicherten Daten angewendet", tid, exc)
+    if data is None:
+        data = _json_loads_safe(old['data'], {})
+        data.pop('_manual', None)
+        if manual:
+            data['_manual'] = manual
+        _apply_manual_overrides(data)
+    row = _trip_row(data, old['pdf_name'], old['orig_name'], old['created'])
+    cols = _TRIP_COLUMNS
+    assert set(row) == set(cols), "row weicht von der erlaubten Spaltenliste ab"
+    with db() as con:
+        setclause = ', '.join(f'{c}=?' for c in cols)
+        con.execute(f'UPDATE trips SET {setclause} WHERE id=?',
+                    [row[c] for c in cols] + [tid])
+    warnings = check_fields(data)
+    log.info("Reise #%d: manuelle Feld-Zuordnung gespeichert (%s)",
+             tid, ", ".join(sorted(fields)))
+    return jsonify({'ok': True, 'id': tid, 'data': data, 'warnings': warnings,
+                    'manual': manual})
 
 
 @app.route('/api/trips/<int:tid>/pdf', methods=['GET'])

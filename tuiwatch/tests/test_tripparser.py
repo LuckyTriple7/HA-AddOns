@@ -4,7 +4,7 @@ Arbeitet mit gecrafteten Volltext-Schnipseln, die die in C:\\Temp\\PDF\\CLAUDE.m
 dokumentierten Muster der 3 Layout-Generationen abbilden — so testbar ohne echte
 PDFs/pdfplumber.
 """
-from tripparser import _parse_eur, check_fields, parse_tui_text
+from tripparser import _parse_eur, apply_derived_fields, check_fields, parse_tui_text
 
 # Gran Canaria 2026 — 2 Reisende, alle Extras, gemischte Codes
 GC2026 = """\
@@ -41,6 +41,35 @@ Anzahlung: 551,75 € | Fälligkeit: 24.07.2025
 Restzahlung: 2.299,25 € | Fälligkeit: 03.04.2026
 Gesamtpreis 2.851,00 €
 """
+
+
+def test_apply_derived_fields_recomputes_and_is_idempotent():
+    """Nach manuellen Feld-Overrides muss die Ableitung erneut anwendbar sein:
+    Nächte aus vollständigem Zeitraum (schlägt gesetztes naechte), Summen und
+    Preis-pro-Nacht-Varianten; robust bei fehlenden Keys (z. B. Test-Fakes)."""
+    data = {
+        "reisezeitraum": {"von": "01.05.2026", "bis": "11.05.2026"},
+        "naechte": 99,   # wird von der Datums-Ableitung überschrieben
+        "gesamtpreis": "1.000,00",
+        "reisende": [{}, {}],
+        "extras": [{"typ": "Handgepäck", "preis": "15,00"},
+                    {"typ": "Bustransfer", "preis": "inkl."}],
+    }
+    d = apply_derived_fields(data)
+    assert d["naechte"] == 10
+    assert d["extras_summe"] == "15,00"          # "inkl." zählt nicht
+    assert d["rabatte_summe"] == "0,00"           # rabatte-Key fehlt -> robust
+    assert d["paketpreis"] == "985,00"
+    assert d["paketpreis_netto"] == "985,00"
+    assert d["preis_pro_nacht"] == "100,00"
+    assert d["preis_pro_person_nacht"] == "50,00"
+    assert apply_derived_fields(dict(d)) == d     # idempotent
+
+    # unvollständiger Zeitraum: gesetztes naechte bleibt erhalten
+    d2 = apply_derived_fields({"reisezeitraum": {"von": "01.05.2026", "bis": None},
+                                "naechte": 7, "gesamtpreis": "700,00"})
+    assert d2["naechte"] == 7
+    assert d2["preis_pro_nacht"] == "100,00"
 
 
 def test_parse_eur_helper():
