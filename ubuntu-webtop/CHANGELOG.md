@@ -1,3 +1,12 @@
+## [1.8.29] - 2026-07-10
+
+### Aktualisiert
+
+- VS Code: 1.127.0 → 1.128.0
+- Firefox: 152.0.4 → 152.0.5
+- rclone: 1.74.3 → 1.74.4
+- Claude Desktop: 3.0.1+claude1.18286.0 → 3.0.1+claude1.18286.2
+
 ## [1.8.28] - 2026-07-07
 
 ### Aktualisiert
