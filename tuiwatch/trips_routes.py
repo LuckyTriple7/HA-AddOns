@@ -193,15 +193,6 @@ def api_trip_debug_upload():
     return jsonify(_trip_debug_payload(raw))
 
 
-# Erlaubte Spalten der trips-Tabelle (feste Whitelist, exakte Insert-/Update-Reihenfolge).
-# Bewusst als Konstante, damit CodeQL sieht: die SQL-Struktur stammt aus Code, nicht aus Daten.
-A._TRIP_COLUMNS = (
-    'booking_code', 'booking_date', 'title', 'destination', 'hotel', 'hotel_code',
-    'start_date', 'end_date', 'nights', 'travellers', 'total_price', 'package_price',
-    'net_per_night', 'meal', 'data', 'pdf_name', 'orig_name', 'created',
-)
-
-
 _AI_TRIP_FIELD_SCHEMA = {
     "type": "object",
     "properties": {

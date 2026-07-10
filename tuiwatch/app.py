@@ -5774,6 +5774,16 @@ def _trip_title(data: dict) -> str:
     return f"{ziel} {jahr}".strip()
 
 
+# Erlaubte Spalten der trips-Tabelle (feste Whitelist, exakte Insert-/Update-Reihenfolge).
+# Bewusst als Konstante, damit CodeQL sieht: die SQL-Struktur stammt aus Code, nicht aus
+# Daten. Bleibt in app.py: Backup/Restore UND trips_routes nutzen sie.
+_TRIP_COLUMNS = (
+    'booking_code', 'booking_date', 'title', 'destination', 'hotel', 'hotel_code',
+    'start_date', 'end_date', 'nights', 'travellers', 'total_price', 'package_price',
+    'net_per_night', 'meal', 'data', 'pdf_name', 'orig_name', 'created',
+)
+
+
 def _trip_departure(row) -> tuple[datetime | None, bool]:
     """Abflug-Datetime einer Reise: Hinflug-Zeit aus data.fluege, sonst 00:00 des
     Reisebeginns. Rückgabe (datetime|None, has_time)."""
