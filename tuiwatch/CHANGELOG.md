@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.48.1] - 2026-07-10
+
+### Changed
+- **Wartbarkeit: app.py modularisiert (Backlog #12, erste Tranche).** Drei
+  zusammenhängende Blöcke (~1.600 Zeilen, ~25 %) in eigene Module verschoben —
+  reine Umstrukturierung, keine Verhaltensänderung, alle 306 Tests unverändert:
+  - `trips_routes.py`: alle Reisen-Routen (Import/Rescan/Feld-Zuordnung/Debug/
+    Anhänge/Packliste/Vorlage) als Flask-Blueprint
+  - `backup_routes.py`: Backup/Restore inkl. automatischem Wochen-Backup
+  - `digest.py`: Wochen-Digest (Aufbau + Versand)
+  - Muster: Module greifen per `import app as A` spät auf geteilte Primitiven
+    zu — kein Import-Zyklus, Test-Monkeypatches bleiben wirksam. Weitere
+    Tranchen (Kalender, KI-Client, JS aus index.html) folgen bei Bedarf.
+
 ## [0.48.0] - 2026-07-10
 
 ### Added
