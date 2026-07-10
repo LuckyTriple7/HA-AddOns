@@ -74,7 +74,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.46.7"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.46.8"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -6039,6 +6039,52 @@ def _ai_fill_trip_fields(data: dict, warnings: list, cleaned_text: str,
     return data, filled
 
 
+def _parse_trip_pdf_bytes(raw: bytes):
+    """Parst Reise-PDF-Bytes inkl. KI-Fallback: fehlende Felder (Regex-Parser bei
+    TUI-Layout-Änderung o. Ä. gescheitert) ergänzen, ohne bereits erkannte Werte zu
+    überschreiben. Best effort — ohne Key oder bei jedem Fehler bleiben die
+    Regex-Daten unverändert. Rückgabe: (data, ai_filled); Parser-Exceptions
+    propagieren zum Aufrufer."""
+    data = parse_tui_pdf(io.BytesIO(raw))
+    ai_filled = []
+    pre_warnings = check_fields(data)
+    ai_key, ai_model = _ai_config()
+    if pre_warnings and ai_key:
+        try:
+            cleaned = _clean_text(extract_pdf_text(io.BytesIO(raw)))
+            data, ai_filled = _ai_fill_trip_fields(data, pre_warnings, cleaned, ai_key, ai_model)
+        except Exception as e:
+            log.warning("PDF-Fallback (KI) fehlgeschlagen: %s", e)
+        if ai_filled:
+            log.info("Reise-Import: KI-Fallback ergänzte %s", ", ".join(ai_filled))
+    return data, ai_filled
+
+
+def _trip_row(data: dict, pdf_name: str, orig_name: str, created: int) -> dict:
+    """Baut die trips-Zeile (Spalten = _TRIP_COLUMNS) aus dem Parse-Ergebnis."""
+    booking = (data.get('buchungsnummer') or '').strip()
+    return {
+        'booking_code': booking or None,
+        'booking_date': data.get('buchungsdatum'),
+        'title': _trip_title(data),
+        'destination': data.get('reiseziel'),
+        'hotel': (data.get('hotel') or {}).get('name'),
+        'hotel_code': (data.get('hotel') or {}).get('code'),
+        'start_date': _iso_date((data.get('reisezeitraum') or {}).get('von')),
+        'end_date': _iso_date((data.get('reisezeitraum') or {}).get('bis')),
+        'nights': data.get('naechte'),
+        'travellers': len(data.get('reisende') or []) or None,
+        'total_price': _parse_eur_num(data.get('gesamtpreis')),
+        'package_price': _parse_eur_num(data.get('paketpreis')),
+        'net_per_night': _parse_eur_num(data.get('preis_pro_person_nacht_paket')),
+        'meal': data.get('verpflegung'),
+        'data': json.dumps(data, ensure_ascii=False),
+        'pdf_name': pdf_name,
+        'orig_name': orig_name,
+        'created': created,
+    }
+
+
 @app.route('/api/trips/import', methods=['POST'])
 def api_trip_import():
     """TUI-Reisebestätigungs-PDF hochladen, parsen, dauerhaft speichern (Upsert
@@ -6058,25 +6104,10 @@ def api_trip_import():
         return jsonify({'error': 'too_large'}), 413
 
     try:
-        data = parse_tui_pdf(io.BytesIO(raw))
+        data, ai_filled = _parse_trip_pdf_bytes(raw)
     except Exception as exc:
         log.warning("PDF-Import fehlgeschlagen: %s", exc)
         return jsonify({'error': 'parse_failed'}), 422
-
-    # KI-Fallback: fehlende Felder (Regex-Parser bei TUI-Layout-Änderung o. Ä.
-    # gescheitert) ergänzen, ohne bereits erkannte Werte zu überschreiben. Best
-    # effort — ohne Key oder bei jedem Fehler bleiben die Regex-Daten unverändert.
-    ai_filled = []
-    pre_warnings = check_fields(data)
-    ai_key, ai_model = _ai_config()
-    if pre_warnings and ai_key:
-        try:
-            cleaned = _clean_text(extract_pdf_text(io.BytesIO(raw)))
-            data, ai_filled = _ai_fill_trip_fields(data, pre_warnings, cleaned, ai_key, ai_model)
-        except Exception as e:
-            log.warning("PDF-Fallback (KI) fehlgeschlagen: %s", e)
-        if ai_filled:
-            log.info("Reise-Import: KI-Fallback ergänzte %s", ", ".join(ai_filled))
 
     booking = (data.get('buchungsnummer') or '').strip()
     ts = int(time.time())
@@ -6092,27 +6123,7 @@ def api_trip_import():
         log.warning("PDF speichern fehlgeschlagen: %s", exc)
         return jsonify({'error': 'store_failed'}), 500
 
-    orig = Path(file.filename).name
-    row = {
-        'booking_code': booking or None,
-        'booking_date': data.get('buchungsdatum'),
-        'title': _trip_title(data),
-        'destination': data.get('reiseziel'),
-        'hotel': (data.get('hotel') or {}).get('name'),
-        'hotel_code': (data.get('hotel') or {}).get('code'),
-        'start_date': _iso_date((data.get('reisezeitraum') or {}).get('von')),
-        'end_date': _iso_date((data.get('reisezeitraum') or {}).get('bis')),
-        'nights': data.get('naechte'),
-        'travellers': len(data.get('reisende') or []) or None,
-        'total_price': _parse_eur_num(data.get('gesamtpreis')),
-        'package_price': _parse_eur_num(data.get('paketpreis')),
-        'net_per_night': _parse_eur_num(data.get('preis_pro_person_nacht_paket')),
-        'meal': data.get('verpflegung'),
-        'data': json.dumps(data, ensure_ascii=False),
-        'pdf_name': pdf_name,
-        'orig_name': orig,
-        'created': ts,
-    }
+    row = _trip_row(data, pdf_name, Path(file.filename).name, ts)
     # Feste Whitelist der Spalten (konstant im Code, NICHT aus row.keys() abgeleitet),
     # damit die SQL-Struktur nicht von request-nahen Daten abhängt. Reihenfolge fix.
     cols = _TRIP_COLUMNS
@@ -6148,6 +6159,43 @@ def api_trip_import():
         log.warning("Reise-Import #%s: nicht erkannte Felder: %s",
                     booking or tid, ", ".join(warnings))
     log.info("Reise importiert: %s (#%s)", row['title'], booking or tid)
+    return jsonify({'ok': True, 'id': tid, 'data': data, 'warnings': warnings,
+                    'ai_filled': ai_filled})
+
+
+@app.route('/api/trips/<int:tid>/rescan', methods=['POST'])
+def api_trip_rescan(tid):
+    """Gespeicherte Reise-PDF neu parsen — z. B. nach einem Parser-Update wegen
+    TUI-Layout-Änderung — ohne Löschen und Neu-Upload. Aktualisiert dieselbe Reise
+    (gleiche id; PDF-Datei, Original-Dateiname und Erstellungsdatum bleiben),
+    Anhänge und Packliste bleiben unberührt."""
+    if (err := _require_api()):
+        return err
+    with db() as con:
+        old = con.execute('SELECT pdf_name, orig_name, created FROM trips WHERE id=?',
+                          (tid,)).fetchone()
+    if not old:
+        return jsonify({'error': 'not_found'}), 404
+    path = _trip_pdf_path(old['pdf_name'] or '')
+    if path is None or not path.exists():
+        return jsonify({'error': 'no_pdf'}), 404
+    try:
+        raw = path.read_bytes()
+        data, ai_filled = _parse_trip_pdf_bytes(raw)
+    except Exception as exc:
+        log.warning("PDF-Rescan #%d fehlgeschlagen: %s", tid, exc)
+        return jsonify({'error': 'parse_failed'}), 422
+    row = _trip_row(data, old['pdf_name'], old['orig_name'], old['created'])
+    cols = _TRIP_COLUMNS
+    assert set(row) == set(cols), "row weicht von der erlaubten Spaltenliste ab"
+    with db() as con:
+        setclause = ', '.join(f'{c}=?' for c in cols)
+        con.execute(f'UPDATE trips SET {setclause} WHERE id=?',
+                    [row[c] for c in cols] + [tid])
+    warnings = check_fields(data)
+    if warnings:
+        log.warning("Reise-Rescan #%d: nicht erkannte Felder: %s", tid, ", ".join(warnings))
+    log.info("Reise neu eingelesen: %s (#%d)", row['title'], tid)
     return jsonify({'ok': True, 'id': tid, 'data': data, 'warnings': warnings,
                     'ai_filled': ai_filled})
 

@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.46.8] - 2026-07-10
+
+### Added
+- **Meine Reisen: „🔁 Neu einlesen"-Button.** Liest das gespeicherte PDF einer Reise
+  neu ein (z. B. nach einem Parser-Update wegen TUI-Layout-Änderung) — ohne Löschen
+  und Neu-Upload. Gleiche Reise, PDF/Erstellungsdatum/Anhänge/Packliste bleiben
+  erhalten; nur die ausgelesenen Daten werden aktualisiert
+  (`POST /api/trips/<id>/rescan`).
+
 ## [0.46.7] - 2026-07-10
 
 ### Fixed

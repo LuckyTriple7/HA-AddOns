@@ -97,6 +97,43 @@ def test_import_list_detail_pdf_delete(client):
     assert client.get(f"/api/trips/{tid}/pdf", headers=ING).status_code == 404
 
 
+def test_trip_rescan_reparses_stored_pdf(client, monkeypatch):
+    """Rescan liest das gespeicherte PDF neu ein (z. B. nach Parser-Update), ohne
+    Löschen/Neu-Upload: gleiche Reise-id, PDF/created bleiben, Daten aktualisiert."""
+    import importlib
+    m = importlib.import_module("app")
+    r = _import_pdf(client)
+    tid = r.get_json()["id"]
+    with m.db() as con:
+        before = dict(con.execute("SELECT created, pdf_name FROM trips WHERE id=?",
+                                  (tid,)).fetchone())
+
+    # Parser-"Update": erkennt jetzt zusätzlich ein Extra und ein anderes Reiseziel
+    fake2 = dict(r.get_json()["data"])
+    fake2["reiseziel"] = "Neustrand"
+    fake2["extras"] = [{"typ": "Handgepäck", "gewicht": "10kg", "code": "HBAG",
+                        "teilnehmer": 1, "preis": "15,00"}]
+    monkeypatch.setattr(m, "parse_tui_pdf", lambda f: fake2)
+
+    rr = client.post(f"/api/trips/{tid}/rescan", headers=ING)
+    assert rr.status_code == 200
+    d = rr.get_json()
+    assert d["ok"] is True and d["id"] == tid
+    assert d["data"]["reiseziel"] == "Neustrand"
+
+    detail = client.get(f"/api/trips/{tid}", headers=ING).get_json()
+    assert detail["data"]["reiseziel"] == "Neustrand"
+    assert detail["data"]["extras"][0]["code"] == "HBAG"
+    with m.db() as con:
+        after = dict(con.execute("SELECT created, pdf_name FROM trips WHERE id=?",
+                                 (tid,)).fetchone())
+    assert after == before   # PDF-Datei + Erstellungsdatum unangetastet
+    assert client.get("/api/trips", headers=ING).get_json()["stats"]["count"] == 1
+
+    # Rescan auf nicht existierende Reise → 404
+    assert client.post("/api/trips/999999/rescan", headers=ING).status_code == 404
+
+
 def test_reject_non_pdf(client):
     import io
     r = client.post("/api/trips/import", headers=ING,

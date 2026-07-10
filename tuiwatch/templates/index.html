@@ -1941,6 +1941,7 @@
       const wuensche = (d.sonderwuensche||[]).length?`<div class="dsec">Sonderwünsche</div><div style="font-size:.84rem">${d.sonderwuensche.map(w=>esc(w)).join('<br>')}</div>`:'';
       const pdf = t.has_pdf?`<a class="btn" href="${api('/api/trips/'+id+'/pdf')}" target="_blank" rel="noopener">📄 PDF öffnen</a>`:'';
       const dbg = t.has_pdf?`<button class="btn sec" onclick="showTripDebug(${id}, '${jsArg(t.title||('Reise #'+id))}')" title="Bereinigten PDF-Text und je Feld erkannt/leer anzeigen — hilfreich, wenn TUI das PDF-Layout ändert">🔍 Debug</button>`:'';
+      const rescan = t.has_pdf?`<button class="btn sec" onclick="rescanTrip(${id})" title="Gespeichertes PDF neu einlesen (z. B. nach Parser-Update) — ohne Löschen und Neu-Upload">🔁 Neu einlesen</button>`:'';
       const warns = t.warnings||[];
       const warnBox = warns.length?`<div class="trip-warn">⚠ Diese Felder wurden nicht (vollständig) aus dem PDF erkannt: <b>${warns.map(w=>esc(w)).join(', ')}</b>. Bitte in der PDF prüfen.</div>`:'';
       const atts = (t.attachments||[]).map(a =>
@@ -1951,12 +1952,20 @@
       const packHtml = renderPackingSection(id, t, t.packing||[]);
       const box = $('#trip-detail');
       box.innerHTML = `<h3>${esc(t.title||('Reise #'+id))}</h3>
-        <div style="margin-bottom:6px">${pdf} ${dbg} <button class="btn sec" onclick="shareTripBanner(${id})" title="Reise als Bild teilen">📤 Teilen</button> <button class="btn sec" onclick="$('#trip-detail').style.display='none'">schließen</button></div>
+        <div style="margin-bottom:6px">${pdf} ${dbg} ${rescan} <button class="btn sec" onclick="shareTripBanner(${id})" title="Reise als Bild teilen">📤 Teilen</button> <button class="btn sec" onclick="$('#trip-detail').style.display='none'">schließen</button></div>
         ${attRow}
         ${warnBox}<div class="dgrid">${grid}</div>${reisende}${fluege}${extras}${rabatte}${wuensche}
         ${packHtml}`;
       box.style.display='block';
       box.scrollIntoView({behavior:'smooth', block:'nearest'});
+    }
+    async function rescanTrip(id){
+      toast('PDF wird neu eingelesen…');
+      let d; try { const r = await fetch(api('/api/trips/'+id+'/rescan'), {method:'POST'}); d = await r.json().catch(()=>({})); if(!r.ok) throw d; }
+      catch(e){ toast(e&&e.error==='parse_failed'?'PDF konnte nicht gelesen werden':e&&e.error==='no_pdf'?'Kein gespeichertes PDF vorhanden':'Neu einlesen fehlgeschlagen'); return; }
+      toast(d.warnings&&d.warnings.length?'Neu eingelesen — nicht erkannt: '+d.warnings.join(', '):'PDF neu eingelesen ✓');
+      await loadTrips();
+      showTripDetail(id);
     }
     async function uploadTripAttachment(id, file){
       if(!file) return;
