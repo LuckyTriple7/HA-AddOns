@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.46.4] - 2026-07-10
+
+### Added
+- **Buchungsscore berücksichtigt jetzt die Kalender-Trend-Historie.** Die größten
+  Preisbewegungen aus dem Preiskalender (`calendar_history`, wie bei der
+  KI-Kalenderanalyse, bis zu 8) gehen jetzt mit in die Buchungsscore-Fakten und
+  den Prompt ein — inkl. Zusammenfassung „X von Y gestiegen". Steigen viele
+  Reisetermine auf breiter Front, wertet die KI Warten als riskant (Signal für
+  „jetzt buchen"); fallen viele, kann Warten sich lohnen. Gewichtung laut
+  Instruktion ähnlich stark wie der eigene Preistrend.
+
 ## [0.46.3] - 2026-07-10
 
 ### Fixed

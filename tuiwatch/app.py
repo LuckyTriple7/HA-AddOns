@@ -74,7 +74,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.46.3"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.46.4"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -4323,6 +4323,10 @@ _BOOKING_SCORE_INSTRUCTIONS = (
     "(Preise tendieren dazu, näher am Abflug bei sinkender Verfügbarkeit zu steigen) — "
     "das spricht eher FÜR ein frühes Buchen, auch wenn der aktuelle Reisemonat laut "
     "Kalender nur durchschnittlich und nicht der günstigste ist.\n"
+    "Die Preisbewegungen im Preiskalender (falls angegeben) sind echte beobachtete "
+    "Änderungen je Abreisetag dieses Hotels/Zimmers: Steigen viele Termine auf breiter "
+    "Front, ist Warten riskant (spricht für JETZT buchen); fallen viele, kann Warten "
+    "sich lohnen. Gewichte dieses Signal ähnlich stark wie den eigenen Preistrend.\n"
     "Kennzeichne JEDEN Punkt in der Begründung mit typ='daten' (aus den oben gelieferten "
     "Zahlen ableitbar — dazu zählt auch die Saisonalität aus dem Preiskalender, falls "
     "angegeben: das sind echte abgefragte Preise, keine Schätzung) oder typ='annahme' "
@@ -4412,6 +4416,10 @@ def _offer_booking_facts(con, offer_id: int) -> dict | None:
         'region_trend': _market_trend(con, region=region) if region else None,
         'region_index': _market_index(con, region=region) if region else None,
         'seasonal': seasonal,
+        # Größte Kalender-Bewegungen (calendar_history) wie bei der KI-Kalenderanalyse:
+        # breite Anstiege über viele Reisetermine = Warten riskant, breite Rückgänge =
+        # Warten kann sich lohnen — direktes Signal für "jetzt buchen oder warten?".
+        'calendar_moves': _calendar_top_moves(_calendar_moves(con, offer_id), limit=8),
     }
 
 
@@ -4542,6 +4550,16 @@ def _booking_score_prompt(facts: dict) -> str:
                f"({s['overall_cheapest_price']} €)" if s.get('overall_cheapest_date') else '')
             + (f"; Preis im aktuell gewählten Reisezeitraum laut Kalender "
                f"{s['tracked_price']} € (am {s['tracked_date']})" if s.get('tracked_price') else ''))
+    mv = facts.get('calendar_moves') or []
+    if mv:
+        ups = sum(1 for m in mv if m['delta'] > 0)
+        lines.append(f"Größte Preisbewegungen im Preiskalender dieses Hotels/Zimmers "
+                      f"(je Abreisetag, seit dem jeweils letzten bekannten Wert; "
+                      f"{ups} von {len(mv)} gestiegen):")
+        for m in mv:
+            arrow = "gestiegen" if m['delta'] > 0 else "gefallen"
+            lines.append(f"- Abreise {m['date']}: {m['prev_price']} € -> {m['price']} € "
+                         f"({arrow} um {abs(m['delta'])} €)")
     return ("Du bist ein Reisepreis-Analyst. Bewerte den aktuellen Preis dieser "
             "Pauschalreise und berechne einen Buchungsscore.\n\n" + "\n".join(lines)
             + "\n\n" + _BOOKING_SCORE_INSTRUCTIONS)
