@@ -57,6 +57,10 @@ logging.getLogger('werkzeug').setLevel(logging.ERROR)
 
 # ── In-App Log-Buffer (für Konsole im UI) ──────────────────────────────────────
 _log_buffer: deque = deque(maxlen=200)
+# Warnungen/Fehler separat (fürs ⚠-Panel im UI): der INFO-lastige Hauptpuffer
+# rotiert sie sonst schnell raus — stille Fehlpfade waren live mehrfach nur mit
+# Log-Wühlen diagnostizierbar.
+_warn_buffer: deque = deque(maxlen=100)
 
 
 class _BufferHandler(logging.Handler):
@@ -65,16 +69,19 @@ class _BufferHandler(logging.Handler):
 
     def emit(self, record):
         try:
-            _log_buffer.append({'ts': int(record.created * 1000),
-                                'level': record.levelname,
-                                'msg': self._fmt.format(record)})
+            entry = {'ts': int(record.created * 1000),
+                     'level': record.levelname,
+                     'msg': self._fmt.format(record)}
+            _log_buffer.append(entry)
+            if record.levelno >= logging.WARNING:
+                _warn_buffer.append(entry)
         except Exception:
             pass
 
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.47.2"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.48.0"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -503,6 +510,17 @@ def init_db() -> None:
             orig_name   TEXT NOT NULL,
             created     INTEGER NOT NULL
         )''')
+        # Verlauf gesendeter Benachrichtigungen (HA/Telegram) — „kam die Meldung an?"
+        # ohne HA-Log; wird auf die letzten 500 Einträge beschnitten.
+        con.execute('''CREATE TABLE IF NOT EXISTS notify_log (
+            id      INTEGER PRIMARY KEY AUTOINCREMENT,
+            ts      INTEGER NOT NULL,
+            channel TEXT NOT NULL,
+            title   TEXT,
+            message TEXT,
+            tag     TEXT,
+            ok      INTEGER NOT NULL DEFAULT 1
+        )''')
         # Packliste je Reise — Vorlage aus packliste.py wird beim ersten Öffnen einmalig
         # eingespielt (trips.packing_seeded), danach frei editierbar/löschbar/ergänzbar.
         # Reihenfolge ergibt sich aus der (monoton steigenden) id — keine separate
@@ -878,15 +896,32 @@ def push_ha_sensors() -> None:
 
 # ── Benachrichtigungen (HA + Telegram) ─────────────────────────────────────────
 
+def _log_notification(channel: str, title: str, message: str, tag: str, ok: bool) -> None:
+    """Protokolliert eine gesendete (oder fehlgeschlagene) Benachrichtigung im
+    Verlauf (notify_log) fürs 🔔-Panel im UI. Behält die letzten 500 Einträge."""
+    try:
+        with db() as con:
+            con.execute('INSERT INTO notify_log (ts, channel, title, message, tag, ok) '
+                        'VALUES (?,?,?,?,?,?)',
+                        (int(time.time()), channel, title, message, tag, 1 if ok else 0))
+            con.execute('DELETE FROM notify_log WHERE id NOT IN '
+                        '(SELECT id FROM notify_log ORDER BY id DESC LIMIT 500)')
+    except Exception as e:
+        log.warning("notify_log nicht beschreibbar: %s", e)
+
+
 def _notify_ha(title: str, message: str, tag: str) -> None:
     if not (SUPERVISOR_TOKEN and load_config().get('notify_ha', True)):
         return
+    ok = True
     try:
         http.post(f'{HA_BASE}/services/persistent_notification/create',
                   headers={'Authorization': f'Bearer {SUPERVISOR_TOKEN}'}, timeout=10,
                   json={'title': title, 'message': message, 'notification_id': f'tuiwatch_{tag}'})
     except Exception as e:
+        ok = False
         log.error("HA-Benachrichtigung fehlgeschlagen: %s", e)
+    _log_notification('ha', title, message, tag, ok)
 
 
 def _notify_telegram(text: str) -> None:
@@ -895,12 +930,15 @@ def _notify_telegram(text: str) -> None:
     chat = (cfg.get('telegram_chat_id') or '').strip()
     if not (token and chat):
         return
+    ok = True
     try:
         http.post(f'https://api.telegram.org/bot{token}/sendMessage', timeout=10,
                   json={'chat_id': chat, 'text': text, 'parse_mode': 'HTML',
                         'disable_web_page_preview': True})
     except Exception as e:
+        ok = False
         log.error("Telegram-Benachrichtigung fehlgeschlagen: %s", e)
+    _log_notification('telegram', '', text, '', ok)
 
 
 def _eur(v) -> str:
@@ -3045,7 +3083,7 @@ _BACKUP_META_KEYS = (
     'custom_prompt_compare_enabled', 'custom_prompt_compare_text',
     'custom_prompt_summary_enabled', 'custom_prompt_summary_text',
     'custom_prompt_daytrip_enabled', 'custom_prompt_daytrip_text',
-    'ai_provider_active',
+    'ai_provider_active', 'packing_template',
 )
 
 
@@ -6434,6 +6472,51 @@ def api_trip_fields(tid):
                     'manual': manual})
 
 
+@app.route('/api/trips/<int:tid>/fields/suggest', methods=['POST'])
+def api_trip_fields_suggest(tid):
+    """KI-Vorschläge für die manuelle Feld-Zuordnung: extrahiert die Standard-Felder
+    aus dem gespeicherten PDF-Text (gleiches Schema wie der Import-Fallback), gibt
+    sie aber NUR als Vorschlag zurück — der Nutzer prüft die Werte im Editor und
+    speichert selbst (kein automatisches Override, anders als der stille
+    KI-Fallback beim Import)."""
+    if (err := _require_api()):
+        return err
+    api_key, model = _ai_config()
+    if not api_key:
+        return jsonify({'error': 'no_api_key'}), 400
+    with db() as con:
+        row = con.execute('SELECT pdf_name FROM trips WHERE id=?', (tid,)).fetchone()
+    if not row or not row['pdf_name']:
+        return jsonify({'error': 'not_found'}), 404
+    p = _trip_pdf_path(row['pdf_name'])
+    if p is None or not p.exists():
+        return jsonify({'error': 'no_pdf'}), 404
+    try:
+        cleaned = _clean_text(extract_pdf_text(io.BytesIO(p.read_bytes())))
+    except Exception:
+        return jsonify({'error': 'text_failed'}), 422
+    prompt = (
+        "Extrahiere aus folgendem Text einer TUI-Reisebestätigung NUR diese Felder "
+        "als JSON. Fehlt eine Information wirklich, gib null zurück statt zu raten "
+        "oder zu erfinden.\n\n" + cleaned[:6000]
+    )
+    text, usage, code = _ai_request(api_key, model, prompt, max_tokens=800,
+                                    log_ctx=f"Feld-Vorschlag #{tid}", use_web_search=False,
+                                    output_schema=_AI_TRIP_FIELD_SCHEMA)
+    if code or not text:
+        return jsonify({'error': 'ai_failed'}), 502
+    try:
+        ai = json.loads(text)
+    except ValueError:
+        return jsonify({'error': 'ai_failed'}), 502
+    usage['estimated_usd'] = _ai_call_cost(model, usage)
+    _record_ai_usage(model, usage)
+    suggestions = {k: v for k, v in ai.items()
+                   if v not in (None, '') and k in _MANUAL_TRIP_KEYS}
+    log.info("Feld-Vorschlag #%d: KI schlägt %d Feld(er) vor", tid, len(suggestions))
+    return jsonify({'ok': True, 'suggestions': suggestions, 'usage': usage})
+
+
 @app.route('/api/trips/<int:tid>/pdf', methods=['GET'])
 def api_trip_pdf(tid):
     """Gespeicherte Reise-PDF ausliefern (öffnen/herunterladen)."""
@@ -6916,6 +6999,27 @@ def api_console():
     if (err := _require_api()):
         return err
     return jsonify({'lines': list(_log_buffer)})
+
+
+@app.route('/api/notifications', methods=['GET'])
+def api_notifications():
+    """Verlauf der gesendeten Benachrichtigungen (HA/Telegram), neueste zuerst."""
+    if (err := _require_api()):
+        return err
+    with db() as con:
+        rows = con.execute(
+            'SELECT ts, channel, title, message, tag, ok FROM notify_log '
+            'ORDER BY id DESC LIMIT 200').fetchall()
+    return jsonify({'items': [dict(r) for r in rows]})
+
+
+@app.route('/api/errors', methods=['GET'])
+def api_errors():
+    """Letzte Warnungen/Fehler aus dem In-Memory-Puffer (seit Add-on-Start),
+    neueste zuerst — Diagnose ohne HA-Log."""
+    if (err := _require_api()):
+        return err
+    return jsonify({'items': list(reversed(_warn_buffer))})
 
 
 # ── Start ──────────────────────────────────────────────────────────────────────

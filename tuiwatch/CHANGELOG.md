@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.48.0] - 2026-07-10
+
+### Added
+- **🔔 Meldungen & Fehler im UI** (Footer-Link): zwei neue Ansichten, die das
+  Wühlen im HA-Log ersetzen.
+  - *Benachrichtigungen*: Verlauf aller gesendeten HA-/Telegram-Meldungen
+    (Zeitpunkt, Kanal, Text, gesendet/fehlgeschlagen) — dauerhaft in der DB,
+    letzte 500 (`notify_log`, `GET /api/notifications`).
+  - *Warnungen/Fehler*: die letzten 100 WARNING/ERROR-Einträge seit Add-on-Start
+    aus einem eigenen Puffer (der INFO-lastige Konsolen-Puffer rotiert sie sonst
+    schnell raus) — `GET /api/errors`.
+- **🤖 KI-Vorschläge in der manuellen Feld-Zuordnung**: neuer Button im
+  Debug-Editor — die KI liest das gespeicherte PDF und füllt Vorschläge in die
+  leeren Eingabefelder (gleiches Schema wie der Import-Fallback). Nichts wird
+  automatisch gespeichert: prüfen, dann „💾 Zuordnung speichern"
+  (`POST /api/trips/<id>/fields/suggest`).
+
+### Fixed
+- **Backup-Lücke: Packlisten-Vorlage.** Die eigene Packlisten-Vorlage (0.47.2)
+  wird jetzt im Backup mitgesichert und beim Restore wiederhergestellt (wie die
+  KI-Prompt-Vorlagen; nicht-destruktiv, überschreibt nichts Vorhandenes).
+
 ## [0.47.2] - 2026-07-10
 
 ### Added
