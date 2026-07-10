@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.48.2] - 2026-07-10
+
+### Fixed
+- **0.48.1 startete nicht (Crash-Loop `ModuleNotFoundError: trips_routes`).**
+  Die Modularisierung legte neue Python-Module an, das Dockerfile kopiert aber
+  eine feste Dateiliste ins Image — die neuen Dateien fehlten. COPY-Zeile
+  ergänzt. Dazu ein Guard-Test (`tests/test_dockerfile.py`): jede von app.py
+  (direkt/transitiv) importierte lokale Python-Datei muss im Dockerfile
+  auftauchen — der Fehler wäre damit VOR dem Push rot gewesen, obwohl alle
+  Funktionstests grün waren.
+
 ## [0.48.1] - 2026-07-10
 
 ### Changed
