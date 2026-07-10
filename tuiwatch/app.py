@@ -74,7 +74,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.45.5"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.46.4"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -86,6 +86,8 @@ TRIPS_DIR = _DATA + '/trips'   # dauerhaft gespeicherte Reise-PDFs
 
 POLL_INTERVAL_DEFAULT = 21600  # 6h — Reisepreise ändern sich langsam
 MIN_POLL_INTERVAL = 600        # nie öfter als alle 10 min (Bot-Schutz/Fairness)
+HISTORY_ONLY_HOUR = 9   # fixer Tages-Slot für Preisverlauf-Angebote (lokale Zeit)
+HISTORY_ONLY_SPREAD_MIN = 60  # Streuung in Minuten ab HISTORY_ONLY_HOUR (kein Burst um Punkt 9)
 MAX_PDF_BYTES = 16 * 1024 * 1024  # 16 MB Upload-Limit für Reise-PDFs
 
 app = Flask(__name__, template_folder=_BASE + '/templates',
@@ -320,6 +322,7 @@ def init_db() -> None:
             travellers_count INTEGER,
             paused       INTEGER DEFAULT 0,
             archived     INTEGER DEFAULT 0,
+            history_only INTEGER DEFAULT 0,
             return_date  TEXT DEFAULT '',
             target_price REAL,
             created     INTEGER NOT NULL
@@ -530,7 +533,7 @@ def init_db() -> None:
             if col not in ocols:
                 con.execute(f"ALTER TABLE offers ADD COLUMN {col} REAL")
         for col in ('rating_count', 'recommendation', 'travellers_count',
-                    'paused', 'archived'):
+                    'paused', 'archived', 'history_only'):
             if col not in ocols:
                 con.execute(f"ALTER TABLE offers ADD COLUMN {col} INTEGER")
         if 'calendar_seen_ts' not in ocols:
@@ -1105,21 +1108,27 @@ def _maybe_notify(offer: dict, prev_price: float | None, new_price: float | None
                          f"{_eur(prev_price)} → <b>{_eur(new_price)}</b> ({arrow})\n{url}")
 
 
-def _check_cheaper_date(offer: dict, current_price: float) -> None:
+def _check_cheaper_date(offer: dict, current_price: float,
+                        force_refresh: bool = False, notify: bool = True) -> None:
     """Meldet, wenn ein anderer Abreisetag deutlich günstiger ist als der getrackte
     Preis. Nutzt für den Kalender-Abruf dieselbe TTL wie der Buchungsscore-Pfad
     (_CALENDAR_FRESH_SECONDS, ~7 Tage): ist der Cache noch frisch, wird NICHT neu
     abgerufen (bis zu 6 teure HTTP-Requests je Check), sondern der vorhandene
     Snapshot aus calendar_cache für die Benachrichtigungslogik weiterverwendet — die
     'günstigerer Termin'-Prüfung bleibt dadurch bei JEDEM Preis-Check aktiv, nur der
-    teure Kalender-Abruf selbst wird gedrosselt."""
+    teure Kalender-Abruf selbst wird gedrosselt.
+
+    `force_refresh=True` ignoriert die TTL und holt den Kalender immer frisch (für
+    history_only-Angebote, die ohnehin nur 1×/Tag geprüft werden — siehe check_offer).
+    `notify=False` speichert Kalender-Cache/-History weiterhin, überspringt aber den
+    Kalender-Trend-Alarm und den 'günstigerer Termin'-Alarm am Ende dieser Funktion."""
     cfg = load_config()
     oid = offer['id']
     with db() as con:
         cached = con.execute('SELECT ts, data FROM calendar_cache WHERE offer_id=?',
                              (oid,)).fetchone()
     cal = None
-    if cached and time.time() - cached['ts'] < _CALENDAR_FRESH_SECONDS:
+    if not force_refresh and cached and time.time() - cached['ts'] < _CALENDAR_FRESH_SECONDS:
         try:
             cal = json.loads(cached['data'])
         except (ValueError, TypeError):
@@ -1131,9 +1140,12 @@ def _check_cheaper_date(offer: dict, current_price: float) -> None:
         try:
             with db() as con:
                 changed = _store_calendar_snapshot(con, oid, cal)
-            _check_calendar_trend_alert(oid, changed)
+            if notify:
+                _check_calendar_trend_alert(oid, changed)
         except Exception as e:
             log.warning("Kalender-Cache #%d nicht aktualisiert: %s", oid, e)
+    if not notify:
+        return
     if not cal.get('ok'):
         return
     cd, cp = cal.get('cheapest_date'), cal.get('cheapest_price')
@@ -1202,11 +1214,9 @@ def _check_booked_drop(offer: dict, current_price: float) -> None:
                      f"{offer.get('url','')}")
 
 
-def _check_error_alarm(offer: dict) -> None:
-    """Meldet, wenn ein Angebot ERROR_ALARM_STREAK-mal in Folge kein Ergebnis lieferte."""
-    if not load_config().get('notify_errors', True):
-        return
-    oid = offer['id']
+def _error_streak(oid: int) -> int:
+    """Anzahl aufeinanderfolgender Fehlschläge (neuester zuerst, bricht beim ersten
+    ok=1 ab) — Basis für Auto-Pause und Fehler-Alarm."""
     with db() as con:
         rows = con.execute('SELECT ok FROM price_history WHERE offer_id=? ORDER BY ts DESC '
                            'LIMIT ?', (oid, ERROR_ALARM_STREAK)).fetchall()
@@ -1216,6 +1226,32 @@ def _check_error_alarm(offer: dict) -> None:
             streak += 1
         else:
             break
+    return streak
+
+
+def _auto_pause_on_error_streak(offer: dict, streak: int) -> None:
+    """Pausiert ein Angebot automatisch nach ERROR_ALARM_STREAK Fehlschlägen in Folge —
+    keine sinnlosen Wiederholversuche auf eine tote URL/dauerhaft ausgebuchtes Hotel.
+    Gilt für alle Angebotstypen (auch history_only), unabhängig von notify_errors."""
+    if streak < ERROR_ALARM_STREAK or offer.get('paused'):
+        return
+    oid = offer['id']
+    with db() as con:
+        con.execute('UPDATE offers SET paused=1 WHERE id=?', (oid,))
+    name = offer.get('label') or offer.get('hotel') or f"Angebot #{oid}"
+    log.warning("⏸ Angebot #%d (%s) automatisch pausiert: %d× kein Ergebnis in Folge",
+                oid, name, streak)
+    _log_event(oid, 'pause', f"Automatisch pausiert nach {streak}× fehlgeschlagenem Abruf")
+
+
+def _check_error_alarm(offer: dict) -> None:
+    """Meldet, wenn ein Angebot ERROR_ALARM_STREAK-mal in Folge kein Ergebnis lieferte,
+    und pausiert es dabei automatisch (siehe _auto_pause_on_error_streak)."""
+    oid = offer['id']
+    streak = _error_streak(oid)
+    _auto_pause_on_error_streak(offer, streak)
+    if not load_config().get('notify_errors', True):
+        return
     if streak < ERROR_ALARM_STREAK or oid in _fail_notified:
         return
     _fail_notified.add(oid)
@@ -1224,9 +1260,11 @@ def _check_error_alarm(offer: dict) -> None:
                 oid, name, streak)
     _notify_ha(f"⚠ Kein Angebot: {name}",
                f"{name}\nSeit {streak} Prüfungen kein Preis/Angebot — evtl. ausgebucht "
-               f"oder die URL ist veraltet.\n{offer.get('url','')}", f"error_{oid}")
+               f"oder die URL ist veraltet. Wurde automatisch pausiert.\n{offer.get('url','')}",
+               f"error_{oid}")
     _notify_telegram(f"⚠ <b>Kein Angebot mehr: {name}</b>\nSeit {streak} Prüfungen kein "
-                     f"Preis — evtl. ausgebucht oder URL veraltet.\n{offer.get('url','')}")
+                     f"Preis — evtl. ausgebucht oder URL veraltet. Wurde automatisch "
+                     f"pausiert.\n{offer.get('url','')}")
 
 
 def _clear_error_alarm(offer: dict) -> None:
@@ -1383,12 +1421,24 @@ def check_offer(offer_id: int) -> None:
             if prev_price is not None and res['price'] != prev_price:
                 log.info("Angebot #%d (%s): Preis %s → %.0f € (%+.0f €)", offer_id, name,
                          f"{prev_price:.0f}", res['price'], res['price'] - prev_price)
-            _maybe_notify(offer, prev_price, res.get('price'), offer.get('target_price'))
-            _clear_error_alarm(offer)
-            if load_config().get('notify_cheaper_date', True) and res.get('price'):
-                _check_cheaper_date(offer, res['price'])
-            if res.get('price') and offer.get('booked_price'):
-                _check_booked_drop(offer, res['price'])
+            if offer.get('history_only'):
+                # Nur Verlauf/Kalender pflegen, keine Benachrichtigungen — siehe
+                # _check_cheaper_date (force_refresh sorgt für tägliche Kalenderdaten,
+                # da history_only-Angebote ohnehin nur 1×/Tag geprüft werden).
+                if res.get('price'):
+                    _check_cheaper_date(offer, res['price'], force_refresh=True, notify=False)
+            else:
+                _maybe_notify(offer, prev_price, res.get('price'), offer.get('target_price'))
+                _clear_error_alarm(offer)
+                if load_config().get('notify_cheaper_date', True) and res.get('price'):
+                    # Preis geändert? Dann Kalender sofort neu abrufen statt bis zu
+                    # 7 Tage auf den nächsten TTL-Ablauf zu warten (siehe
+                    # _check_cheaper_date) — Kalender soll mit dem aktuellen Preis
+                    # Schritt halten, nicht tagealt hinterherhinken.
+                    price_changed = prev_price is not None and res['price'] != prev_price
+                    _check_cheaper_date(offer, res['price'], force_refresh=price_changed)
+                if res.get('price') and offer.get('booked_price'):
+                    _check_booked_drop(offer, res['price'])
             # Hotelbild einmalig nachladen (nur wenn noch keins vorhanden)
             if not offer.get('image_url'):
                 try:
@@ -1404,11 +1454,17 @@ def check_offer(offer_id: int) -> None:
         elif (res.get('note') or '').startswith('Kein Angebot'):
             # kein Crash, sondern ausgebucht/kein Treffer im Zeitraum → gelb
             log.warning("Angebot #%d (%s): kein Angebot im Zeitraum", offer_id, name)
-            _check_error_alarm(offer)
+            if offer.get('history_only'):
+                _auto_pause_on_error_streak(offer, _error_streak(offer_id))
+            else:
+                _check_error_alarm(offer)
         else:
             # echter Abruf-Fehler → rot (Detail steht ggf. schon oben im Log)
             log.error("Angebot #%d (%s): Abruf fehlgeschlagen – %s", offer_id, name, res.get('note'))
-            _check_error_alarm(offer)
+            if offer.get('history_only'):
+                _auto_pause_on_error_streak(offer, _error_streak(offer_id))
+            else:
+                _check_error_alarm(offer)
     except Exception as e:
         log.error("check_offer(#%d) Fehler: %s", offer_id, e)
     finally:
@@ -1614,7 +1670,7 @@ def _store_calendar_snapshot(con, offer_id: int, cal: dict) -> list[str]:
     z.B. globaler Erstabruf) — dafür gibt es keinen sinnvollen Vergleichswert, also
     keine "Preisänderung"."""
     ts = int(time.time())
-    prev_row = con.execute('SELECT data FROM calendar_cache WHERE offer_id=?',
+    prev_row = con.execute('SELECT ts, data FROM calendar_cache WHERE offer_id=?',
                            (offer_id,)).fetchone()
     prev_prices: dict = {}
     if prev_row:
@@ -1626,14 +1682,33 @@ def _store_calendar_snapshot(con, offer_id: int, cal: dict) -> list[str]:
     con.execute('INSERT OR REPLACE INTO calendar_cache (offer_id, ts, data) VALUES (?,?,?)',
                 (offer_id, ts, json.dumps(cal)))
     days = cal.get('days', [])
+    real_changed = [d['date'] for d in days
+                    if d['date'] in prev_prices and prev_prices[d['date']] != d['price']]
+    if real_changed:
+        # Baseline-Heilung: stammt der vorherige Snapshot aus einer Zeit VOR der
+        # calendar_history-Tabelle (Cache < 0.43.11) oder wurde die Historie geleert,
+        # fehlt für einen jetzt geänderten Tag der Vorwert in der Historie — dann
+        # hätte er nur EINE Zeile (den neuen Preis), _calendar_moves() (braucht >=2)
+        # fände kein Delta und der calendar_trend_min_diff-Filter würde die Änderung
+        # verschlucken. Der Vorwert steht aber noch im alten Cache: hier als
+        # rückdatierte Zeile nachtragen, damit Delta/Trend/Alarm funktionieren.
+        have = {r['travel_date'] for r in con.execute(
+            'SELECT DISTINCT travel_date FROM calendar_history WHERE offer_id=?',
+            (offer_id,)).fetchall()}
+        prev_ts = min(prev_row['ts'], ts - 1)
+        baseline = [(offer_id, d, prev_ts, prev_prices[d])
+                    for d in real_changed if d not in have]
+        if baseline:
+            con.executemany(
+                'INSERT INTO calendar_history (offer_id, travel_date, ts, price) VALUES (?,?,?,?)',
+                baseline)
     changed = [(offer_id, d['date'], ts, d['price']) for d in days
                if prev_prices.get(d['date']) != d['price']]
     if changed:
         con.executemany(
             'INSERT INTO calendar_history (offer_id, travel_date, ts, price) VALUES (?,?,?,?)',
             changed)
-    return [d['date'] for d in days
-            if d['date'] in prev_prices and prev_prices[d['date']] != d['price']]
+    return real_changed
 
 
 _MONTH_NAMES_DE = ('Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August',
@@ -1989,10 +2064,26 @@ def api_aktionscodes_check():
     return jsonify({'started': True})
 
 
+def _history_only_wait_seconds(oid: int, last_ts: int, now: int) -> int:
+    """Sekunden bis zum nächsten fixen Preisverlauf-Check: täglich um HISTORY_ONLY_HOUR
+    Uhr (lokale Zeit) + ein individueller, stabiler Offset je Angebot (oid % Spread) —
+    verteilt die Checks über HISTORY_ONLY_SPREAD_MIN Minuten statt alle exakt zur
+    selben Sekunde auszulösen. <=0 bedeutet: jetzt fällig."""
+    dt = datetime.fromtimestamp(now)
+    slot = dt.replace(hour=HISTORY_ONLY_HOUR, minute=0, second=0, microsecond=0) \
+        + timedelta(minutes=oid % HISTORY_ONLY_SPREAD_MIN)
+    slot_ts = int(slot.timestamp())
+    if last_ts >= slot_ts:
+        slot_ts += 86400  # heutiger Slot wurde schon geprüft → morgiger Slot
+    return slot_ts - now
+
+
 def _poll_worker() -> None:
     """Prüft Angebote fälligkeitsbasiert: ein Angebot wird erst wieder abgefragt,
     wenn seit seinem letzten Check (auch über Neustarts hinweg) das Intervall
-    verstrichen ist. So löst ein Add-on-Neustart keine sofortige Komplettabfrage aus."""
+    verstrichen ist. So löst ein Add-on-Neustart keine sofortige Komplettabfrage aus.
+    Preisverlauf-Angebote (history_only) folgen stattdessen einem festen, gestreuten
+    Tages-Slot (siehe _history_only_wait_seconds)."""
     log.info("Preis-Poller gestartet")
     time.sleep(5)  # kurzer Vorlauf, damit der Webserver zuerst hochkommt
     while True:
@@ -2008,14 +2099,22 @@ def _poll_worker() -> None:
             _maybe_check_watches()    # Suchabos (gespeicherte Suchen mit Schwellenpreis)
             _auto_archive_expired()
             with db() as con:
-                offers = [r['id'] for r in con.execute(
-                    'SELECT id FROM offers WHERE COALESCE(paused,0)=0 '
+                offers = [(r['id'], bool(r['history_only'])) for r in con.execute(
+                    'SELECT id, history_only FROM offers WHERE COALESCE(paused,0)=0 '
                     'AND COALESCE(archived,0)=0 ORDER BY id').fetchall()]
                 last_map = {r['offer_id']: r['m'] for r in con.execute(
                     'SELECT offer_id, MAX(ts) m FROM price_history GROUP BY offer_id').fetchall()}
             due = []
-            for oid in offers:
-                age = now - (last_map.get(oid) or 0)
+            for oid, history_only in offers:
+                last_ts = last_map.get(oid) or 0
+                if history_only:
+                    wait = _history_only_wait_seconds(oid, last_ts, now)
+                    if wait <= 0:
+                        due.append(oid)
+                    else:
+                        next_in = min(next_in, wait)
+                    continue
+                age = now - last_ts
                 if age >= interval:
                     due.append(oid)
                 else:
@@ -2572,6 +2671,7 @@ def _collect_offers() -> list[dict]:
             delta = None
             if len(prices) == 2:
                 delta = prices[0] - prices[1]
+            last_ok_price = prices[0] if prices else None
             stats = con.execute(
                 'SELECT MIN(price) mn, MAX(price) mx, AVG(price) av, COUNT(*) c '
                 'FROM price_history WHERE offer_id=? AND ok=1 AND price IS NOT NULL',
@@ -2611,6 +2711,7 @@ def _collect_offers() -> list[dict]:
                 'travellers_count': o['travellers_count'],
                 'paused': bool(o['paused']),
                 'archived': bool(o['archived']),
+                'history_only': bool(o['history_only']),
                 'return_date': o['return_date'] or '',
                 'tags': (_json_loads_safe(o['tags'], []) if o['tags'] else []),
                 'cancellation': o['cancellation'], 'stars': o['stars'],
@@ -2619,6 +2720,7 @@ def _collect_offers() -> list[dict]:
                 'target_price': o['target_price'],
                 'booked_price': o['booked_price'],
                 'price': last['price'] if last else None,
+                'last_ok_price': last_ok_price,
                 'old_price': last['old_price'] if last else None,
                 'discount': last['discount'] if last else None,
                 'available': avail,
@@ -2645,6 +2747,20 @@ def api_offers():
     return jsonify({'offers': _collect_offers()})
 
 
+def _normalize_tags(raw) -> list[str]:
+    """Trimmt, verwirft Leere und dedupliziert eine Tag-Liste (Reihenfolge bleibt)."""
+    if not isinstance(raw, list):
+        return []
+    seen = set()
+    tags = []
+    for t in raw:
+        t = str(t).strip()
+        if t and t not in seen:
+            seen.add(t)
+            tags.append(t)
+    return tags
+
+
 def _valid_tui_url(url: str) -> bool:
     try:
         p = urlparse(url)
@@ -2666,12 +2782,15 @@ def api_add_offer():
     img = (data.get('image') or '').strip()      # optional: Bild aus der Suche
     if not _valid_img_url(img):
         img = ''
+    history_only = 1 if data.get('history_only') else 0
+    tags = _normalize_tags(data.get('tags'))
+    tags_json = json.dumps(tags, ensure_ascii=False) if tags else ''
     try:
         with db() as con:
             cur = con.execute(
-                'INSERT INTO offers (url, label, hotel, details, image_url, created) '
-                'VALUES (?,?,?,?,?,?)',
-                (url, label, hotel_from_url(url), '', img, int(time.time())))
+                'INSERT INTO offers (url, label, hotel, details, image_url, history_only, tags, created) '
+                'VALUES (?,?,?,?,?,?,?,?)',
+                (url, label, hotel_from_url(url), '', img, history_only, tags_json, int(time.time())))
             offer_id = cur.lastrowid
     except sqlite3.IntegrityError:
         return jsonify({'error': 'duplicate'}), 409
@@ -2768,16 +2887,7 @@ def api_update_offer(offer_id: int):
             log.info("Angebot #%d %s", offer_id,
                      "archiviert" if arch else "reaktiviert")
         if 'tags' in data:
-            raw = data.get('tags') or []
-            if not isinstance(raw, list):
-                raw = []
-            seen = set()
-            tags = []
-            for t in raw:
-                t = str(t).strip()
-                if t and t not in seen:
-                    seen.add(t)
-                    tags.append(t)
+            tags = _normalize_tags(data.get('tags'))
             con.execute('UPDATE offers SET tags=? WHERE id=?',
                         (json.dumps(tags, ensure_ascii=False), offer_id))
             log.info("Angebot #%d Tags gesetzt: %s", offer_id, ', '.join(tags) or '(keine)')
@@ -4213,6 +4323,10 @@ _BOOKING_SCORE_INSTRUCTIONS = (
     "(Preise tendieren dazu, näher am Abflug bei sinkender Verfügbarkeit zu steigen) — "
     "das spricht eher FÜR ein frühes Buchen, auch wenn der aktuelle Reisemonat laut "
     "Kalender nur durchschnittlich und nicht der günstigste ist.\n"
+    "Die Preisbewegungen im Preiskalender (falls angegeben) sind echte beobachtete "
+    "Änderungen je Abreisetag dieses Hotels/Zimmers: Steigen viele Termine auf breiter "
+    "Front, ist Warten riskant (spricht für JETZT buchen); fallen viele, kann Warten "
+    "sich lohnen. Gewichte dieses Signal ähnlich stark wie den eigenen Preistrend.\n"
     "Kennzeichne JEDEN Punkt in der Begründung mit typ='daten' (aus den oben gelieferten "
     "Zahlen ableitbar — dazu zählt auch die Saisonalität aus dem Preiskalender, falls "
     "angegeben: das sind echte abgefragte Preise, keine Schätzung) oder typ='annahme' "
@@ -4302,6 +4416,10 @@ def _offer_booking_facts(con, offer_id: int) -> dict | None:
         'region_trend': _market_trend(con, region=region) if region else None,
         'region_index': _market_index(con, region=region) if region else None,
         'seasonal': seasonal,
+        # Größte Kalender-Bewegungen (calendar_history) wie bei der KI-Kalenderanalyse:
+        # breite Anstiege über viele Reisetermine = Warten riskant, breite Rückgänge =
+        # Warten kann sich lohnen — direktes Signal für "jetzt buchen oder warten?".
+        'calendar_moves': _calendar_top_moves(_calendar_moves(con, offer_id), limit=8),
     }
 
 
@@ -4432,6 +4550,16 @@ def _booking_score_prompt(facts: dict) -> str:
                f"({s['overall_cheapest_price']} €)" if s.get('overall_cheapest_date') else '')
             + (f"; Preis im aktuell gewählten Reisezeitraum laut Kalender "
                f"{s['tracked_price']} € (am {s['tracked_date']})" if s.get('tracked_price') else ''))
+    mv = facts.get('calendar_moves') or []
+    if mv:
+        ups = sum(1 for m in mv if m['delta'] > 0)
+        lines.append(f"Größte Preisbewegungen im Preiskalender dieses Hotels/Zimmers "
+                      f"(je Abreisetag, seit dem jeweils letzten bekannten Wert; "
+                      f"{ups} von {len(mv)} gestiegen):")
+        for m in mv:
+            arrow = "gestiegen" if m['delta'] > 0 else "gefallen"
+            lines.append(f"- Abreise {m['date']}: {m['prev_price']} € -> {m['price']} € "
+                         f"({arrow} um {abs(m['delta'])} €)")
     return ("Du bist ein Reisepreis-Analyst. Bewerte den aktuellen Preis dieser "
             "Pauschalreise und berechne einen Buchungsscore.\n\n" + "\n".join(lines)
             + "\n\n" + _BOOKING_SCORE_INSTRUCTIONS)

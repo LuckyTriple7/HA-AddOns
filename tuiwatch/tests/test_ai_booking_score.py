@@ -143,6 +143,45 @@ def test_offer_booking_facts_includes_seasonal_when_calendar_cached(m):
     assert facts["seasonal"]["cheapest_month_avg"] == 900
 
 
+def test_offer_booking_facts_includes_calendar_moves(m):
+    """Kalender-Bewegungen (calendar_history) gehören in die Buchungsscore-Fakten —
+    breite Anstiege/Rückgänge über viele Reisetermine sind ein direktes
+    'jetzt buchen oder warten?'-Signal (wie bei der KI-Kalenderanalyse)."""
+    oid = _add_offer(m, "https://example.invalid/cm?duration=7", price=1200)
+    cal1 = {"ok": True, "days": [{"date": "2027-05-01", "price": 1999},
+                                  {"date": "2027-05-02", "price": 1800}]}
+    cal2 = {"ok": True, "days": [{"date": "2027-05-01", "price": 2026},
+                                  {"date": "2027-05-02", "price": 1800}]}
+    with m.db() as con:
+        m._store_calendar_snapshot(con, oid, cal1)
+        m._store_calendar_snapshot(con, oid, cal2)
+        facts = m._offer_booking_facts(con, oid)
+    assert len(facts["calendar_moves"]) == 1
+    assert facts["calendar_moves"][0]["date"] == "2027-05-01"
+    assert facts["calendar_moves"][0]["delta"] == 27
+
+
+def test_booking_score_prompt_includes_calendar_moves():
+    facts = {"hotel": "Riu Funana", "details": "", "region": "", "country": "",
+             "stars": None, "rating": None, "rating_count": None,
+             "recommendation": None, "return_date": "",
+             "target_price": None, "booked_price": None, "price": 1849,
+             "min_price": None, "max_price": None, "samples": 1,
+             "own_trend": None, "region_trend": None, "region_index": None,
+             "seasonal": None,
+             "calendar_moves": [
+                 {"date": "2027-05-01", "price": 2026, "prev_price": 1999,
+                  "delta": 27, "ts": 0},
+                 {"date": "2027-06-14", "price": 1971, "prev_price": 1990,
+                  "delta": -19, "ts": 0}]}
+    import app as m
+    p = m._booking_score_prompt(facts)
+    assert "Größte Preisbewegungen im Preiskalender" in p
+    assert "1 von 2 gestiegen" in p
+    assert "Abreise 2027-05-01: 1999 € -> 2026 € (gestiegen um 27 €)" in p
+    assert "Abreise 2027-06-14: 1990 € -> 1971 € (gefallen um 19 €)" in p
+
+
 # ── Prompt-Inhalt ────────────────────────────────────────────────────────────────
 
 def test_booking_score_prompt_contains_facts():

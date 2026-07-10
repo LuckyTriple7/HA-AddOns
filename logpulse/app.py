@@ -494,12 +494,17 @@ def logout():
 def set_lang(lang: str):
     if lang not in ('de', 'en'):
         abort(400)
+    # Literal statt der Pfad-Variable in set_cookie verwenden — lang ist zwar
+    # bereits per Allowlist geprüft, aber ein Ternary auf feste Strings macht
+    # für statische Analyse (CodeQL) unzweideutig sichtbar, dass hier kein
+    # ungeprüfter User-Input mehr im Cookie-Wert landet.
+    safe_lang = 'de' if lang == 'de' else 'en'
     ref = (request.referrer or '/').replace('\\', '')
     parsed = urlparse(ref)
     if parsed.scheme or parsed.netloc or not ref.startswith('/'):
         ref = '/'
     resp = make_response(redirect(ref))
-    resp.set_cookie('lang', lang, max_age=365 * 24 * 3600, samesite='Lax')
+    resp.set_cookie('lang', safe_lang, max_age=365 * 24 * 3600, samesite='Lax')
     return resp
 
 

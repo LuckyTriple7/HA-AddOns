@@ -80,6 +80,32 @@ def test_store_calendar_snapshot_returns_empty_on_baseline_and_real_changes_only
         assert changed3 == []
 
 
+def test_store_calendar_snapshot_heals_missing_baseline(m):
+    """calendar_cache aus einer Version VOR calendar_history (< 0.43.11): die Historie
+    ist leer, der alte Preis steht nur im Cache. Ändert sich ein Tag, muss der Vorwert
+    aus dem Cache rückdatiert nachgetragen werden — sonst hätte der Tag nur eine
+    History-Zeile, _calendar_moves() fände kein Delta und der min_diff-Filter würde
+    die Änderung verschlucken (keine Benachrichtigung, kein Trend-Badge)."""
+    oid = _add_offer(m, "https://example.invalid/heal?duration=7")
+    old_ts = int(time.time()) - 86400
+    with m.db() as con:
+        # Cache "von früher" direkt setzen, ohne History (wie vor dem Feature)
+        con.execute("INSERT OR REPLACE INTO calendar_cache (offer_id, ts, data) VALUES (?,?,?)",
+                    (oid, old_ts, json.dumps(_cal([("2027-05-01", 1999), ("2027-05-02", 1800)]))))
+        changed = m._store_calendar_snapshot(
+            con, oid, _cal([("2027-05-01", 2026), ("2027-05-02", 1800)]))
+        moves = m._calendar_moves(con, oid)
+        rows = con.execute(
+            "SELECT travel_date, ts, price FROM calendar_history WHERE offer_id=? "
+            "ORDER BY travel_date, ts", (oid,)).fetchall()
+    assert changed == ["2027-05-01"]
+    # geheilter Tag: Vorwert (rückdatiert auf Cache-ts) + neuer Preis; 05-02 unverändert -> keine Zeile
+    assert [(r["travel_date"], r["price"]) for r in rows] == [
+        ("2027-05-01", 1999), ("2027-05-01", 2026)]
+    assert rows[0]["ts"] == old_ts
+    assert moves["2027-05-01"]["delta"] == 27
+
+
 def test_unchanged_price_writes_no_new_row(m):
     oid = _add_offer(m, "https://example.invalid/b?duration=7")
     cal = _cal([("2027-05-01", 500), ("2027-05-02", 520)])
@@ -169,7 +195,9 @@ def test_check_cheaper_date_refetches_after_ttl_expiry(m, monkeypatch):
         n_hist = con.execute("SELECT COUNT(*) c FROM calendar_history WHERE offer_id=?",
                              (oid,)).fetchone()["c"]
     assert json.loads(row["data"])["cheapest_price"] == 400
-    assert n_hist == 1
+    # 2 Zeilen: Baseline-Heilung traegt den Vorwert (450) aus dem alten Cache nach,
+    # dazu der neue Preis (400) -- so ist das Delta sofort in _calendar_moves sichtbar.
+    assert n_hist == 2
 
 
 def test_check_cheaper_date_first_call_has_no_cache_and_fetches(m, monkeypatch):

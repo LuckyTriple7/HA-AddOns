@@ -1,5 +1,83 @@
 # Changelog
 
+## [0.46.4] - 2026-07-10
+
+### Added
+- **Buchungsscore berücksichtigt jetzt die Kalender-Trend-Historie.** Die größten
+  Preisbewegungen aus dem Preiskalender (`calendar_history`, wie bei der
+  KI-Kalenderanalyse, bis zu 8) gehen jetzt mit in die Buchungsscore-Fakten und
+  den Prompt ein — inkl. Zusammenfassung „X von Y gestiegen". Steigen viele
+  Reisetermine auf breiter Front, wertet die KI Warten als riskant (Signal für
+  „jetzt buchen"); fallen viele, kann Warten sich lohnen. Gewichtung laut
+  Instruktion ähnlich stark wie der eigene Preistrend.
+
+## [0.46.3] - 2026-07-10
+
+### Fixed
+- **Tag-Leiste folgt jetzt der aktiven Ansicht.** Die Tag-Pills zeigten immer die
+  Tags ALLER Angebote — mit aktivem Preisverlauf-Filter standen dort Tags von
+  Angeboten, die gar nicht in der Liste waren (und umgekehrt). Jetzt erscheinen
+  nur die Tags der aktuell sichtbaren Ansicht (Preisverlauf exklusiv; normale
+  Ansicht inkl. Archiv nur, wenn eingeblendet). Aktive Tag-Filter, die es in der
+  neuen Ansicht nicht gibt, werden automatisch abgewählt, statt die Liste
+  kommentarlos zu leeren.
+
+## [0.46.2] - 2026-07-10
+
+### Changed
+- **Preiskalender: „Größte Bewegungen seit letztem Abruf" einklappbar.** Die Liste
+  ist jetzt standardmäßig eingeklappt (Kopfzeile zeigt die Anzahl der Bewegungen)
+  und lässt sich per Klick auf-/zuklappen. Der Zustand bleibt beim Monatswechsel
+  und Ansichts-Umschalten erhalten; beim Öffnen des Kalenders für ein Angebot
+  startet sie wieder eingeklappt.
+
+## [0.46.1] - 2026-07-10
+
+### Fixed
+- **Kalender-Preisänderung wurde bei Alt-Kalendern verschluckt.** Stammt der
+  gespeicherte Kalender aus einer Version vor der Trend-Historie (< 0.43.11) — oder
+  wurde die Historie geleert —, fehlte für geänderte Tage der Vorwert in
+  `calendar_history`: `_calendar_moves()` fand kein Delta, der
+  `calendar_trend_min_diff`-Filter sah 0 € und unterdrückte Benachrichtigung und
+  Trend-Badge, obwohl sich der Preis real geändert hatte (z. B. Kalendertag
+  1.999 € → 2.026 € ohne „📅 Kalenderpreise geändert“-Meldung).
+  `_store_calendar_snapshot` trägt den Vorwert jetzt aus dem alten Cache-Snapshot
+  rückdatiert nach (Baseline-Heilung) — Delta, Trend-Ansicht und Alarm
+  funktionieren damit auch für Kalender aus der Zeit vor dem Feature.
+
+## [0.46.0] - 2026-07-09
+
+### Changed
+- Preisverlauf-Angebote (`history_only`) laufen jetzt in einem festen, gestreuten
+  Tages-Slot (09:00 lokal + individueller Offset je Angebot) statt "24h nach
+  letztem Check" — kein Burst mehr, alle zur gleichen Zeit.
+- Ort des Suchtreffers wird beim Tracken (normal, „Alle tracken", „3 tracken")
+  automatisch als Tag gesetzt.
+- Preisverlauf-Toggle auf der Startseite ist jetzt exklusiv (zeigt nur diese
+  Angebote, statt sie an die normale Liste anzuhängen); Toggle-Leiste bereinigt.
+
+### Added
+- Bei fehlgeschlagenem Preis-Abruf zeigt die Karte jetzt den letzten bekannten
+  Preis durchgestrichen statt nur einen Strich.
+- Angebote werden nach 3 Fehlschlägen in Folge automatisch pausiert (statt nur
+  benachrichtigt) — spart sinnlose Wiederholversuche auf tote URLs/dauerhaft
+  ausgebuchte Hotels. Gilt auch für history_only, dort ohne Benachrichtigung.
+
+### Fixed
+- Tag-Chips fehlten in der schlanken Preisverlauf-Karte (Tag war gesetzt, nur
+  unsichtbar) — TUI-Link fehlte dort ebenfalls und wurde ergänzt.
+
+## [0.45.6] - 2026-07-09
+
+### Added
+- Preisverlauf-Tracking für reine Vergleichs-Hotels: in der Suche „📊 3 tracken"
+  übernimmt günstigstes, mittleres und teuerstes Hotel der Treffer automatisch
+  ins Tracking (`history_only`) — ohne Zimmerauswahl-Dialog, ohne Benachrichtigungen.
+  Diese Angebote werden nur 1×/Tag geprüft (statt im normalen `poll_interval`),
+  inklusive Preiskalender. Auf der Startseite standardmäßig ausgeblendet, per
+  neuem Umschalter „📊 Preisverlauf" einblendbar; eigene, schlanke Karte zeigt
+  nur Preis/Verlauf/Kalender. Preisbewegungen fließen normal in den Markttrend ein.
+
 ## [0.45.5] - 2026-07-09
 
 ### Fixed

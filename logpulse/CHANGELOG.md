@@ -1,5 +1,33 @@
 # Changelog
 
+## [0.6.4] - 2026-07-09
+
+### Fixed
+- CodeQL-Funde behoben: `/set-lang/<lang>` setzte den Sprach-Cookie mit dem
+  Pfad-Parameter statt einem geprüften Literal (Allowlist war zwar schon da,
+  jetzt auch für statische Analyse eindeutig sichtbar). Im Frontend konnte ein
+  Log-Level mit `"` darin aus dem `class="..."`-Attribut ausbrechen
+  (`levelClass()` jetzt mit fester Whitelist statt freier String-Konkatenation)
+  und `f.source`/`f.levels` bei gespeicherten Filtern landeten ungeescaped im
+  DOM — beide jetzt über `escapeHtml()`.
+
+## [0.6.3] - 2026-07-09
+
+### Changed
+- Startphase auf `startup: system` vorgezogen — LogPulse startet jetzt vor
+  HA Core (wie Datenbank-Add-ons) und erfasst Live-Logs schon während des
+  Core-Starts
+
+## [0.6.2] - 2026-07-09
+
+### Fixed
+- Konsolen-Toolbar (Leeren, Pausieren, Auto-Scroll) verschwand beim Scrollen der
+  Seite — jetzt sticky unter der Filterleiste (Live-Tab) bzw. am oberen Rand
+  (Konsole-Tab). Filterleisten-Höhe wird per ResizeObserver verfolgt, da Chips
+  je nach Fensterbreite umbrechen
+- Scroll-Chaining unterbunden (`overscroll-behavior: contain`): Wer im Log-Fenster
+  am Anfang/Ende weiterscrollt, scrollt nicht mehr versehentlich die ganze Seite
+
 ## [0.6.1] - 2026-07-09
 
 ### Fixed

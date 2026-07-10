@@ -164,6 +164,37 @@ def test_calendar_moves_since_excludes_first_sighting(m):
         assert m._calendar_moves_since(con, oid, future_since) == []   # außerhalb des Fensters
 
 
+def test_price_change_triggers_calendar_refresh_and_trend_alert(m, monkeypatch):
+    """End-to-End über check_offer: beim ersten Check eines neuen Angebots wird der
+    Kalender initial abgerufen (über _check_cheaper_date, kein Cache vorhanden).
+    Bewegt sich später der getrackte Preis, wird der Kalender per force_refresh
+    sofort neu abgerufen (TTL-Bypass) — inkl. History/Delta und Kalender-Alarm."""
+    oid = _add_offer(m, "https://example.invalid/r?duration=7", hotel="Refresh-Hotel")
+    sink = _mock_notify(m, monkeypatch)
+    monkeypatch.setattr(m, "fetch_hotel_image", lambda url, **k: "")
+    monkeypatch.setattr(m, "fetch_price", lambda url, **k: {
+        "ok": True, "price": 1999, "region": "Kanaren", "country": "Spanien",
+        "return_date": "2027-05-14"})
+    cal_calls = []
+    cal_holder = {"cal": _cal([("2027-05-03", 1999)])}
+    monkeypatch.setattr(m, "fetch_calendar",
+                        lambda *a, **k: cal_calls.append(1) or cal_holder["cal"])
+
+    m.check_offer(oid)              # erster Check eines neuen Angebots
+    assert cal_calls == [1]         # Kalender wird initial mit abgerufen (kein Cache)
+
+    cal_holder["cal"] = _cal([("2027-05-03", 2026)])
+    monkeypatch.setattr(m, "fetch_price", lambda url, **k: {
+        "ok": True, "price": 2026, "region": "Kanaren", "country": "Spanien",
+        "return_date": "2027-05-14"})
+    m.check_offer(oid)              # Preis 1999 -> 2026: Kalender muss nachziehen
+    assert cal_calls == [1, 1]      # genau EIN Refresh trotz frischer TTL
+    with m.db() as con:
+        moves = m._calendar_moves(con, oid)
+    assert moves["2027-05-03"]["delta"] == 27
+    assert any(e[0] == "ha" and e[3] == f"caltrend_{oid}" for e in sink)   # Kalender-Alarm kam
+
+
 def test_digest_includes_calendar_moves_section(m, monkeypatch):
     oid = _add_offer(m, "https://example.invalid/f?duration=7", hotel="Berghotel Alpin")
     monkeypatch.setattr(m, "fetch_price", lambda url, **k: {
