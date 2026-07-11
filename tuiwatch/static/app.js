@@ -904,10 +904,11 @@
       const rows = (d.by_region||[]).map((r,i)=>
         `<tr><td>${esc(r.region)}</td><td>${marketTrendBadge(r.trend)}${marketIndexLine(r.index)}</td>`
         + `<td>${(r.trend||r.index||{}).n||''}</td>`
-        + `<td class="ai-feature"><button class="btn sec" onclick="openRegionOutlook(${i})" title="KI-Einschätzung für diese Destination">🔮</button></td></tr>`).join('');
+        + `<td class="ai-feature"><button class="btn sec" onclick="openRegionOutlook(${i})" title="KI-Einschätzung für diese Destination">🔮</button></td>`
+        + `<td><button class="btn sec" onclick="resetRegionTrend(${i})" title="Markttrend-Daten dieser Destination löschen und neu beginnen">🗑</button></td></tr>`).join('');
       $('#trend-body').innerHTML =
         `<div class="trend-global"><b>Gesamt:</b> ${marketTrendBadge(d.global.trend)}${marketIndexLine(d.global.index)}</div>` +
-        (rows ? `<table class="hist"><tr><th>Destination</th><th>Trend (14 Tage) / Index (gesamt)</th><th>Datenpunkte</th><th class="ai-feature">KI</th></tr>${rows}</table>`
+        (rows ? `<table class="hist"><tr><th>Destination</th><th>Trend (14 Tage) / Index (gesamt)</th><th>Datenpunkte</th><th class="ai-feature">KI</th><th></th></tr>${rows}</table>`
               : '<div class="cmp-load">Noch keine Destination mit genug Daten für eine eigene Aufschlüsselung.</div>');
     }
     function setTrendGlow(t){
@@ -919,6 +920,19 @@
     async function updateTrendBtn(){
       try { const d = await fetch(api('/api/market-trend')).then(r=>r.json()); setTrendGlow(d.global.trend); }
       catch(e){}
+    }
+    async function resetRegionTrend(i){
+      const r = _marketTrendData && _marketTrendData.by_region[i]; if(!r) return;
+      if(!confirm(`Markttrend-Daten für „${r.region}" löschen und neu beginnen?\n`
+        + `Hinweis: „Neu berechnen" baut alle Regionen aus dem Preisverlauf neu auf `
+        + `und stellt die Punkte damit wieder her.`)) return;
+      try {
+        const d = await fetch(api('/api/market-trend/region'), {method:'DELETE',
+          headers:{'Content-Type':'application/json'}, body:JSON.stringify({region:r.region})}).then(x=>x.json());
+        toast(`${d.deleted} Datenpunkte für „${r.region}" gelöscht`);
+      } catch(e){ toast('Löschen fehlgeschlagen'); }
+      loadMarketTrend();
+      updateTrendBtn();
     }
     async function recomputeMarketTrend(){
       $('#trend-body').innerHTML = '<div class="cmp-load">Wird neu berechnet…</div>';

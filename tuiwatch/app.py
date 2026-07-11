@@ -81,7 +81,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.49.1"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.49.2"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -2441,6 +2441,23 @@ def api_market_trend_recompute():
         n = con.execute('SELECT COUNT(*) c FROM price_moves').fetchone()['c']
     log.info("Markttrend neu berechnet: %d Datenpunkte", n)
     return jsonify({'recomputed': n})
+
+
+@app.route('/api/market-trend/region', methods=['DELETE'])
+def api_market_trend_region_delete():
+    """Markttrend-Daten EINER Destination löschen — Neustart der Aufzeichnung für
+    diese Region (z. B. nach verfälschten Datenpunkten), die übrigen Regionen
+    bleiben unberührt. Hinweis: ein späteres „Neu berechnen" baut ALLE Regionen
+    aus dem Preisverlauf neu auf und stellt die Punkte damit wieder her."""
+    if (err := _require_api()):
+        return err
+    region = ((request.get_json(silent=True) or {}).get('region') or '').strip()
+    if not region:
+        return jsonify({'error': 'invalid'}), 400
+    with db() as con:
+        n = con.execute('DELETE FROM price_moves WHERE region=?', (region,)).rowcount
+    log.info("Markttrend-Daten für Region „%s“ gelöscht: %d Datenpunkte", region, n)
+    return jsonify({'deleted': n, 'region': region})
 
 
 @app.route('/api/digest', methods=['POST'])

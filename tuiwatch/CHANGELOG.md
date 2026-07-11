@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.49.2] - 2026-07-10
+
+### Added
+- **Markttrend: Daten pro Destination löschbar.** Neuer 🗑-Button je Region im
+  Markttrend-Modal (mit Rückfrage): löscht die gesammelten Datenpunkte NUR dieser
+  Destination und beginnt die Aufzeichnung dort neu — andere Regionen bleiben
+  unberührt (`DELETE /api/market-trend/region`). Hinweis: „Neu berechnen" baut
+  alle Regionen aus dem Preisverlauf wieder auf.
+
 ## [0.49.1] - 2026-07-10
 
 ### Added

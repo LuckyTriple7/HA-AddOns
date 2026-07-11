@@ -448,3 +448,23 @@ def test_restore_price_moves_is_not_duplicated_on_repeat(m):
     with m.db() as con:
         n = con.execute("SELECT COUNT(*) c FROM price_moves").fetchone()["c"]
     assert n == 3
+
+
+def test_delete_region_trend_only_hits_that_region(m):
+    """DELETE /api/market-trend/region löscht nur die Datenpunkte EINER Destination
+    — Neustart pro Region, andere Regionen bleiben unberührt."""
+    now = int(time.time())
+    with m.db() as con:
+        for region, pct in (("Kanaren", 1.0), ("Kanaren", -2.0), ("Balearen", 3.0)):
+            con.execute(
+                "INSERT INTO price_moves (ts, region, country, months_out, pct_change) "
+                "VALUES (?,?,?,?,?)", (now, region, "Spanien", 5, pct))
+    c = m.app.test_client()
+    r = c.delete("/api/market-trend/region", headers=ING, json={"region": "Kanaren"})
+    assert r.status_code == 200
+    assert r.get_json() == {"deleted": 2, "region": "Kanaren"}
+    with m.db() as con:
+        rest = [x["region"] for x in con.execute("SELECT region FROM price_moves").fetchall()]
+    assert rest == ["Balearen"]
+    # ohne Region -> 400
+    assert c.delete("/api/market-trend/region", headers=ING, json={}).status_code == 400
