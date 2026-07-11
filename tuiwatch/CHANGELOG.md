@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.51.2] - 2026-07-11
+
+### Fixed
+- **Footer-Buttons nach Backup/Restore manchmal nicht klickbar (Verdacht).**
+  Nach „⬇ Backup" oder „⬆ Restore" blieb z. B. der Provider-Umschalter im Footer
+  gelegentlich unklickbar (Hover-Cursor blieb Pfeil statt Hand) — behoben erst
+  durch Neuladen der Seite. Ursache: bekannte Chromium-Eigenart, bei der ein
+  synthetischer `<a>`-Klick (Download auslösen) inkl. DOM-Insert/Remove das
+  `:hover`-Tracking der Seite durcheinanderbringen kann. `backupOffers()` hängt
+  den Download-Link jetzt nicht mehr in den DOM — behebt den Fall vermutlich für
+  „⬇ Backup". Für „⬆ Restore" (echter nativer Datei-Dialog, zwingend im DOM
+  nötig) gibt es keinen Code-Workaround; falls der Glitch dort weiter auftritt,
+  ist das reines Browser-Verhalten nach dem OS-Dialog, kein TUIWatch-Bug.
+
 ## [0.51.1] - 2026-07-11
 
 ### Fixed

@@ -3214,8 +3214,13 @@
     async function backupOffers(){
       try {
         const r = await fetch(api('/api/backup')); const blob = await r.blob();
+        // Bewusst NICHT an document.body anhängen: das DOM-Insert+Remove um den
+        // synthetischen Klick herum ist ein bekannter Ausloeser dafuer, dass Chrome
+        // danach den :hover-Tracking-Zustand fuer andere Elemente auf der Seite
+        // "verliert" (behebbar nur durch Reload oder echte Mausbewegung) — ein
+        // losgeloestes <a> reicht für .click() mit download-Attribut völlig aus.
         const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-        a.download = 'tuiwatch-backup.zip'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(a.href);
+        a.download = 'tuiwatch-backup.zip'; a.click(); URL.revokeObjectURL(a.href);
         toast('Backup heruntergeladen');
       } catch(e){ toast('Backup fehlgeschlagen'); }
     }
