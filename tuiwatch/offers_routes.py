@@ -598,10 +598,9 @@ def api_airports():
     """Abflughäfen (TUI-Liste, einmalig gecacht)."""
     if (err := A._require_api()):
         return err
-    global _airports_cache
-    if not _airports_cache:
-        _airports_cache = A.fetch_airports()
-    return jsonify({'airports': _airports_cache})
+    if not A._airports_cache:
+        A._airports_cache = A.fetch_airports()
+    return jsonify({'airports': A._airports_cache})
 
 
 @bp.route('/api/contacts', methods=['GET'])

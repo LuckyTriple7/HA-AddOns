@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.51.5] - 2026-07-11
+
+### Fixed
+- **Flughafenauswahl (`/api/airports`) crashte mit
+  `NameError: name '_airports_cache' is not defined`.** Gleicher Bug wie beim
+  Adressbuch-Fix eben, andere Ausprägung: `offers_routes.py` deklarierte
+  `global _airports_cache`, obwohl das Modul-Attribut nie in `offers_routes.py`
+  selbst existiert — es steckt nur in `ai_routes.py`. Fix: auf
+  `A._airports_cache` umgestellt (gleiches Muster wie `_contacts_cache`) und
+  in `app.py` neben den übrigen `ai_routes`-Re-Exports ergänzt.
+
 ## [0.51.4] - 2026-07-11
 
 ### Fixed
