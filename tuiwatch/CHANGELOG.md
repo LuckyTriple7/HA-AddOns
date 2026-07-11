@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.48.5] - 2026-07-10
+
+### Changed
+- **Modularisierung Tranche 2 abgeschlossen (Backlog #12):** `watch.py` (Suchabo:
+  Prüf-Logik + /api/searches-Routen, 232 Zeilen) ausgelagert — app.py damit bei
+  ~4.900 Zeilen (Start: ~7.400). Keine Verhaltensänderung, 308 Tests grün.
+
 ## [0.48.4] - 2026-07-10
 
 ### Changed

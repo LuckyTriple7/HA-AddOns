@@ -19,7 +19,11 @@ kleiner und Reviews gezielter werden. Rein intern.
   `backup_routes.py` (Backup/Restore, 469 Z.), `digest.py` (Wochen-Digest, 190 Z.) —
   app.py von ~7.400 auf ~5.500 Zeilen. Muster: `import app as A` + später
   Attribut-Zugriff (monkeypatch-sicher, zyklenfrei), Re-Exports für Poller/Tests.
-- Offen: Kalender-Block, KI-Client (`_ai_request_*`), Suchabo/`watch`,
+- _Zweite Tranche erledigt (v0.48.4/0.48.5):_ `ai_client.py` (KI-Provider-Client),
+  `price_calendar.py` (Preiskalender + Routen), `watch.py` (Suchabo) —
+  app.py bei ~4.900 Zeilen. Guards: `tests/test_dockerfile.py` (COPY-Liste),
+  `tests/test_script_start.py` (Skript-Start wie run.sh).
+- Offen: Offers-/Scraper-Routen, KI-Analyse-Routen (Buchungsscore/Vergleich),
   JS aus `templates/index.html` (~4.000 Zeilen) in eigene Datei.
 - Keine Verhaltensänderung; Tests müssen unverändert grün bleiben.
 
