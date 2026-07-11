@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.50.0] - 2026-07-11
+
+### Added
+- **Ladetexte nennen den aktiven KI-Anbieter beim Namen.** „KI durchsucht das
+  Web…" hieß bisher immer nur „KI", egal ob Claude, Gemini oder Perplexity
+  gerade lief. Alle Lade-/Fortschrittstexte (Buchungsscore, KI-Fazit,
+  Vergleich, TripPilot, Kalenderanalyse, Frag dein Portfolio, PDF-Vorschläge,
+  Auto-Tags, Verlauf-Wiederholen) zeigen jetzt den echten Namen.
+
 ## [0.49.5] - 2026-07-11
 
 ### Added

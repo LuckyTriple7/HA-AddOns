@@ -1499,7 +1499,7 @@
     }
     async function dbgAiSuggest(){
       if(_dbgTid==null) return;
-      toast('KI liest das PDF…');
+      toast(aiProviderName()+' liest das PDF…');
       let d;
       try {
         const r = await fetch(api('/api/trips/'+_dbgTid+'/fields/suggest'), {method:'POST'});
@@ -2112,7 +2112,7 @@
       $('#ai-foot').style.display = 'none';
       $('#ai-bg').classList.add('show');
       const attempt = async () => {
-        $('#ai-body').innerHTML = progBar('KI berechnet den Buchungsscore…');
+        $('#ai-body').innerHTML = progBar(aiProviderName()+' berechnet den Buchungsscore…');
         let resp, d;
         try {
           resp = await fetch(api('/api/ai/booking-score/'+id), {method:'POST'});
@@ -2137,7 +2137,7 @@
       $('#ai-foot').style.display = 'none';
       $('#ai-bg').classList.add('show');
       const attempt = async () => {
-        $('#ai-body').innerHTML = progBar('KI schätzt die Destination ein…');
+        $('#ai-body').innerHTML = progBar(aiProviderName()+' schätzt die Destination ein…');
         let resp, d;
         try {
           resp = await fetch(api('/api/ai/region-outlook'), {method:'POST', headers:{'Content-Type':'application/json'},
@@ -2165,7 +2165,7 @@
       $('#ai-foot').style.display = 'none';
       $('#ai-bg').classList.add('show');
       const attempt = async () => {
-        $('#ai-body').innerHTML = progBar('KI fasst die Kalenderpreise zusammen…');
+        $('#ai-body').innerHTML = progBar(aiProviderName()+' fasst die Kalenderpreise zusammen…');
         let resp, d;
         try {
           resp = await fetch(api('/api/ai/calendar-outlook/'+id), {method:'POST'});
@@ -2208,7 +2208,7 @@
       $('#ai-bg').classList.add('show');
       if(r._ai){ renderAiResult('#ai-body', r._ai); return; }
       const attempt = async () => {
-        $('#ai-body').innerHTML = progBar('KI durchsucht das Web nach Bewertungen…');
+        $('#ai-body').innerHTML = progBar(aiProviderName()+' durchsucht das Web nach Bewertungen…');
         let resp, d;
         try {
           resp = await fetch(api('/api/ai/hotel-summary'), {method:'POST', headers:{'Content-Type':'application/json'},
@@ -2245,7 +2245,7 @@
     }
     async function autoTagSelected(){
       const ids = [...selected]; if(!ids.length) return;
-      toast('KI vergibt Tags für '+ids.length+' Angebot(e)…');
+      toast(aiProviderName()+' vergibt Tags für '+ids.length+' Angebot(e)…');
       let resp, d;
       try {
         resp = await fetch(api('/api/ai/auto-tags'), {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ids})});
@@ -2263,7 +2263,7 @@
       $('#ai-bg').classList.add('show');
       if(_aiCompareCache[cacheKey]){ renderAiResult('#ai-body', _aiCompareCache[cacheKey]); return; }
       const attempt = async () => {
-        $('#ai-body').innerHTML = progBar('KI vergleicht '+facts.length+' Hotels und durchsucht das Web…');
+        $('#ai-body').innerHTML = progBar(aiProviderName()+' vergleicht '+facts.length+' Hotels und durchsucht das Web…');
         let resp, d;
         try {
           resp = await fetch(api('/api/ai/hotel-compare'), {method:'POST', headers:{'Content-Type':'application/json'},
@@ -2459,7 +2459,7 @@
     }
     async function runAiHistoryRepeat(id, provider){
       const attempt = async () => {
-        $('#ai-body').innerHTML = progBar('Wird wiederholt…');
+        $('#ai-body').innerHTML = progBar('Wird mit '+(AI_PROVIDER_NAME[provider]||provider)+' wiederholt…');
         let resp, d;
         try {
           resp = await fetch(api('/api/ai/history/'+id+'/repeat'), {method:'POST',
@@ -2491,7 +2491,7 @@
       $('#ai-foot').style.display = 'none';
       $('#ai-bg').classList.add('show');
       const attempt = async () => {
-        $('#ai-body').innerHTML = progBar('KI durchsucht dein Portfolio…');
+        $('#ai-body').innerHTML = progBar(aiProviderName()+' durchsucht dein Portfolio…');
         let resp, d;
         try {
           resp = await fetch(api('/api/ai/ask'), {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({question:q})});
@@ -2706,7 +2706,7 @@
       $('#ai-foot').style.display = 'none';
       $('#ai-bg').classList.add('show');
       const attempt = async () => {
-        $('#ai-body').innerHTML = progBar('KI sucht passende Ziele…');
+        $('#ai-body').innerHTML = progBar(aiProviderName()+' sucht passende Ziele…');
         let resp, d;
         try {
           resp = await fetch(api('/api/ai/travel-advisor'), {method:'POST',
@@ -3341,10 +3341,15 @@
     setInterval(loadAiUsageFooter, 300000);
 
     const AI_PROVIDER_LABEL = { anthropic: '🤖 Claude', gemini: '✨ Gemini', perplexity: '🔎 Perplexity' };
+    const AI_PROVIDER_NAME = Object.fromEntries(
+      Object.entries(AI_PROVIDER_LABEL).map(([k,v]) => [k, v.replace(/^\S+\s/, '')]));
+    let _aiActiveProvider = null;  // zuletzt bekannter aktiver Provider, für "<Name> durchsucht…" in Ladetexten
+    function aiProviderName(){ return AI_PROVIDER_NAME[_aiActiveProvider] || 'KI'; }
     async function loadAiProviderFooter(){
       if(!G.ai) return;
       try {
         const d = await fetch(api('/api/ai/provider')).then(r=>r.json());
+        _aiActiveProvider = d.active;
         const el = $('#ai-provider-foot');
         if(!d.both_configured){ el.style.display = 'none'; return; }
         el.style.display = '';
@@ -3360,6 +3365,7 @@
         const next = list[(list.indexOf(cur.active) + 1) % list.length];
         await fetch(api('/api/ai/provider'), {method:'POST',
           headers:{'Content-Type':'application/json'}, body: JSON.stringify({provider: next})});
+        _aiActiveProvider = next;
         toast((AI_PROVIDER_LABEL[next] || next) + ' aktiv');
         loadAiProviderFooter();
       } catch(e){ toast('Umschalten fehlgeschlagen'); }
