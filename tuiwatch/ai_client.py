@@ -51,13 +51,17 @@ def _ai_request_perplexity(api_key: str, model: str, prompt: str, *, max_tokens:
     (text, usage, error_code), siehe `A._ai_request`. Sonar-Modelle durchsuchen das
     Web bei JEDER Anfrage automatisch (kein separates Tool wie bei Claude/Gemini) —
     `use_web_search=False` hat hier keine Wirkung, es gibt keinen Schalter dafür.
-    `search_context_size` bleibt auf dem API-Default ('low'), um die zusätzliche
-    Request-Gebühr (gestaffelt nach Kontextgröße, siehe Perplexity-Preisliste) klein
-    zu halten."""
+    `search_context_size` wird explizit auf 'low' gepinnt (statt dem API-Default zu
+    überlassen) — hält die zusätzliche, gestaffelte Request-Gebühr auf der
+    günstigsten Stufe UND macht sie überhaupt erst planbar: `ai_routes.py::
+    _AI_PERPLEXITY_REQUEST_FEE` rechnet genau diese Stufe in die Kostenanzeige mit
+    ein, ohne dieses Pinning wäre die Gebühr unvorhersehbar (API könnte 'medium'
+    o. Ä. als Default nutzen) und die Schätzung stimmt nicht mehr."""
     payload = {
         "model": model,
         "messages": [{"role": "user", "content": prompt}],
         "max_tokens": max_tokens,
+        "web_search_options": {"search_context_size": "low"},
     }
     if output_schema is not None:
         payload["response_format"] = {"type": "json_schema",

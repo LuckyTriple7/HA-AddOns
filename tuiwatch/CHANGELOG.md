@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.49.4] - 2026-07-11
+
+### Fixed
+- **Perplexity-Kostenschätzung berücksichtigt jetzt die Request-Gebühr.** Anfragen
+  pinnen `search_context_size: "low"` (statt dem API-Default zu überlassen) —
+  macht die zusätzliche, gestaffelte Request-Gebühr planbar UND die Kostenanzeige
+  rechnet sie jetzt mit ein (bisher nur reine Tokenkosten, Gebühr fehlte
+  komplett). Schätzung liegt damit nah an den echten Kosten statt sie
+  systematisch zu unterschätzen.
+
 ## [0.49.3] - 2026-07-11
 
 ### Added

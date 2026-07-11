@@ -212,15 +212,26 @@ _AI_PRICING = {  # USD pro 1 Mio Tokens (Input/Output) — Anthropic-Listenpreis
     'gemini-3.1-pro':   {'input': 2.0,  'output': 12.0},
     'gemini-3.5-flash': {'input': 1.5,  'output': 9.0},
     'gemini-2.5-flash': {'input': 0.3,  'output': 2.5},
-    # Perplexity-Listenpreise (docs.perplexity.ai, Stand Juli 2026) — ohne die
-    # zusätzliche, gestaffelte Request-Gebühr pro 1000 Anfragen (Websuche ist bei
-    # Sonar-Modellen fest eingebaut, nicht separat abschaltbar) — reine
-    # Token-Schätzung wie bei den anderen Providern, tatsächliche Kosten liegen
-    # etwas höher.
+    # Perplexity-Listenpreise (docs.perplexity.ai, Stand Juli 2026). Die
+    # zusätzliche Request-Gebühr (siehe _AI_PERPLEXITY_REQUEST_FEE) ist HIER
+    # bewusst nicht mit drin — sie wird separat pro Aufruf addiert, weil sie
+    # nicht pro Token, sondern pauschal je Anfrage anfällt.
     'sonar':                {'input': 1.0, 'output': 1.0},
     'sonar-pro':             {'input': 3.0, 'output': 15.0},
     'sonar-reasoning-pro':   {'input': 2.0, 'output': 8.0},
     'sonar-deep-research':   {'input': 2.0, 'output': 8.0},
+}
+
+# USD pro 1000 Anfragen, gestaffelt nach `search_context_size` (siehe
+# ai_client.py::_ai_request_perplexity) — wir fragen dort immer 'low' an (die
+# günstigste Stufe), daher hier ebenfalls nur die 'low'-Preise. Sonar Deep
+# Research hat keine Kontext-Stufen, sondern eine feste Gebühr je 1000
+# Suchanfragen; wird hier gleich behandelt. In USD pro Aufruf (bereits /1000).
+_AI_PERPLEXITY_REQUEST_FEE = {
+    'sonar':                0.005,
+    'sonar-pro':             0.006,
+    'sonar-reasoning-pro':   0.006,
+    'sonar-deep-research':   0.005,
 }
 
 
@@ -231,21 +242,26 @@ def _ai_call_cost(model: str, usage: dict) -> float:
     cost += usage.get('output_tokens', 0) / 1_000_000 * price['output']
     cost += usage.get('cache_read_input_tokens', 0) / 1_000_000 * price['input'] * 0.1
     cost += usage.get('cache_creation_input_tokens', 0) / 1_000_000 * price['input'] * 1.25
+    cost += _AI_PERPLEXITY_REQUEST_FEE.get(model, 0.0)
     return round(cost, 4)
 
 
 def _ai_usage_calc(models: dict) -> dict:
     """Verrechnet ein {model: counters}-Dict zu Aufrufen/Tokens/geschätzten
-    Kosten (USD), je Modell mit eigenem Preis (siehe _AI_PRICING)."""
+    Kosten (USD), je Modell mit eigenem Preis (siehe _AI_PRICING) plus — bei
+    Perplexity — der pauschalen Request-Gebühr je Aufruf (siehe
+    _AI_PERPLEXITY_REQUEST_FEE)."""
     cost = 0.0
     calls = input_tokens = output_tokens = 0
     for model, t in models.items():
         price = _AI_PRICING.get(model, _AI_PRICING['claude-opus-4-8'])
+        n_calls = t.get('calls', 0)
         cost += t.get('input_tokens', 0) / 1_000_000 * price['input']
         cost += t.get('output_tokens', 0) / 1_000_000 * price['output']
         cost += t.get('cache_read_input_tokens', 0) / 1_000_000 * price['input'] * 0.1
         cost += t.get('cache_creation_input_tokens', 0) / 1_000_000 * price['input'] * 1.25
-        calls += t.get('calls', 0)
+        cost += n_calls * _AI_PERPLEXITY_REQUEST_FEE.get(model, 0.0)
+        calls += n_calls
         input_tokens += t.get('input_tokens', 0)
         output_tokens += t.get('output_tokens', 0)
     return {'calls': calls, 'input_tokens': input_tokens, 'output_tokens': output_tokens,

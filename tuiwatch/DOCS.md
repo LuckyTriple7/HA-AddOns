@@ -142,9 +142,10 @@ Wunschpreis, Zurücksetzen) — mit **Mouseover** erscheint Datum + Beschreibung
 > Add-on-Start an — das ist eine Schätzung auf Basis der Token-Zahlen,
 > **kein echtes Guthaben** und keine Abbuchung durch TUIWatch selbst; das
 > tatsächliche Guthaben/die Abrechnung zeigt nur die jeweilige
-> Anbieter-Console. Bei Perplexity kommt zusätzlich eine gestaffelte
-> Request-Gebühr pro Anfrage oben drauf, die in der Kostenschätzung
-> **nicht** enthalten ist (nur die Tokenkosten).
+> Anbieter-Console. Perplexity berechnet zusätzlich eine Request-Gebühr pro
+> Anfrage, gestaffelt nach Such-Kontextgröße — TUIWatch fragt dafür immer die
+> günstigste Stufe (`low`) an und rechnet genau diese feste Gebühr mit in die
+> Kostenschätzung ein.
 
 Mit hinterlegtem API-Key (`anthropic_api_key`, `gemini_api_key` oder
 `perplexity_api_key`, je nach `ai_provider`) erscheinen zusätzliche
@@ -169,7 +170,7 @@ sie komplett ausgeblendet).
   `sonar-reasoning-pro`, `sonar-deep-research` wählbar). Sonar-Modelle
   durchsuchen bei **jeder** Anfrage automatisch das Web — kein Schalter,
   kein Äquivalent zu `ai_max_web_searches`, dafür pro Aufruf teurer
-  (Token- **und** Request-Kosten, siehe Warnhinweis oben).
+  (Token- **und** feste Request-Kosten, siehe Warnhinweis oben).
 
 Sind **mindestens 2 der 3** API-Keys hinterlegt, erscheint im Footer ein
 Umschalter („🤖 Claude aktiv" / „✨ Gemini aktiv" / „🔎 Perplexity aktiv") —

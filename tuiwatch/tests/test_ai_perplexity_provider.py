@@ -100,6 +100,14 @@ def test_ai_request_dispatches_perplexity_by_model_name(app_mod, monkeypatch):
     assert captured[0]["headers"]["Authorization"] == "Bearer p-key"
 
 
+def test_perplexity_pins_low_search_context_size(app_mod, monkeypatch):
+    """Muss explizit gesetzt werden — sonst weicht die tatsächlich abgerechnete
+    Request-Gebühr vom in _AI_PERPLEXITY_REQUEST_FEE hinterlegten Wert ab."""
+    captured = _patch_requests(monkeypatch, _FakeResponse(payload=_chat_payload()))
+    app_mod._ai_request("p-key", "sonar-pro", "Prompt", max_tokens=200, log_ctx="Test")
+    assert captured[0]["json"]["web_search_options"] == {"search_context_size": "low"}
+
+
 def test_perplexity_usage_mapping(app_mod, monkeypatch):
     _patch_requests(monkeypatch, _FakeResponse(payload=_chat_payload(
         prompt_tokens=1573, completion_tokens=239, num_search_queries=3)))
@@ -230,6 +238,35 @@ def test_provider_route_post_rejects_configured_provider_missing_key(app_mod):
     c = app_mod.app.test_client()
     r = c.post("/api/ai/provider", headers=ING, json={"provider": "perplexity"})
     assert r.status_code == 400
+
+
+# ── Kostenschätzung inkl. Request-Gebühr ────────────────────────────────────
+
+def test_ai_call_cost_includes_perplexity_request_fee(app_mod):
+    usage = {"input_tokens": 0, "output_tokens": 0, "cache_creation_input_tokens": 0,
+             "cache_read_input_tokens": 0}
+    assert app_mod._ai_call_cost("sonar-pro", usage) == pytest.approx(0.006)
+
+
+def test_ai_call_cost_perplexity_adds_fee_on_top_of_tokens(app_mod):
+    usage = {"input_tokens": 1_000_000, "output_tokens": 0,
+             "cache_creation_input_tokens": 0, "cache_read_input_tokens": 0}
+    # sonar: $1/1M input + $0.005 Request-Gebühr
+    assert app_mod._ai_call_cost("sonar", usage) == pytest.approx(1.005)
+
+
+def test_ai_call_cost_no_request_fee_for_claude(app_mod):
+    usage = {"input_tokens": 0, "output_tokens": 0, "cache_creation_input_tokens": 0,
+             "cache_read_input_tokens": 0}
+    assert app_mod._ai_call_cost("claude-opus-4-8", usage) == 0.0
+
+
+def test_ai_usage_calc_multiplies_perplexity_fee_by_calls(app_mod):
+    models = {"sonar-pro": {"input_tokens": 0, "output_tokens": 0,
+                            "cache_creation_input_tokens": 0, "cache_read_input_tokens": 0,
+                            "calls": 3}}
+    result = app_mod._ai_usage_calc(models)
+    assert result["estimated_usd"] == pytest.approx(0.018)  # 3 × 0.006
 
 
 def test_history_repeat_accepts_perplexity_provider(app_mod, monkeypatch):
