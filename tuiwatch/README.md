@@ -55,7 +55,9 @@ Sensoren** (`ha_sensors`) sowie **Telegram** und **SMTP/E-Mail** — Details in
 Mit hinterlegtem API-Key bewertet Claude (oder wahlweise Gemini/Perplexity,
 siehe `ai_provider`) einzelne Suchtreffer ausführlich (Lage, Zimmer, Restaurants,
 Pool, Klima zur Reisezeit) oder vergleicht bis zu 5 Hotels nebeneinander —
-inkl. Token-/Kosten-Anzeige, PDF-Export und dauerhaftem Verlauf. Details:
+inkl. Token-/Kosten-Anzeige, PDF-Export und dauerhaftem Verlauf. Zu jedem
+Ergebnis lässt sich außerdem eine **Folgefrage** stellen (echte Konversation,
+auch nachträglich aus dem Verlauf). Details:
 [DOCS.md](DOCS.md#ki-fazit--vergleich--verlauf).
 
 ## 🗺️ TripPilot (optional)

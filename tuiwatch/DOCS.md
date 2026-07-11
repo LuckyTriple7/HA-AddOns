@@ -170,7 +170,9 @@ sie komplett ausgeblendet).
   `sonar-reasoning-pro`, `sonar-deep-research` wählbar). Sonar-Modelle
   durchsuchen bei **jeder** Anfrage automatisch das Web — kein Schalter,
   kein Äquivalent zu `ai_max_web_searches`, dafür pro Aufruf teurer
-  (Token- **und** feste Request-Kosten, siehe Warnhinweis oben).
+  (Token- **und** feste Request-Kosten, siehe Warnhinweis oben). Zitat-Marker
+  wie `[1][5]` in der Antwort sind anklickbare Links zur jeweiligen Quelle
+  (hochgestellte Zahl) — in Web-UI, PDF-Export und E-Mail.
 
 Sind **mindestens 2 der 3** API-Keys hinterlegt, erscheint im Footer ein
 Umschalter („🤖 Claude aktiv" / „✨ Gemini aktiv" / „🔎 Perplexity aktiv") —
@@ -191,10 +193,11 @@ versteckt, `ai_provider` wird ignoriert).
   Genau dieselbe Funktion gibt es auch in der **Angebotsübersicht** über die
   bestehende Mehrfachauswahl (Sammelaktionsleiste → „🤖 Vergleichen").
 - **Token- & Kosten-Anzeige** — jede Antwort zeigt Input-/Output-Tokens und die
-  geschätzte Kostenschätzung in USD (Anthropic-Listenpreis) für genau diesen
+  geschätzte Kostenschätzung in USD (Listenpreis des jeweiligen Anbieters —
+  Claude/Gemini/Perplexity haben eigene Preistabellen) für genau diesen
   Aufruf, plus eine laufende Gesamtsumme seit Add-on-Start. **Kein echtes
-  Guthaben** — das zeigt nur die Anthropic-Console; hierfür wäre ein separater
-  Admin-API-Key nötig.
+  Guthaben** — das zeigt nur die jeweilige Anbieter-Console; hierfür wäre ein
+  separater Admin-API-Key nötig.
 - **📄 PDF exportieren** — öffnet eine druckoptimierte Ansicht in neuem Tab, aus
   der sich der Browser-Druckdialog direkt als PDF speichern lässt.
 - **🤖 KI-Verlauf** (Button oben neben „Alle prüfen") — alle bisherigen Fazits/
