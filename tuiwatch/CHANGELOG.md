@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.48.8] - 2026-07-10
+
+### Fixed
+- **🔔 Meldungen-Panel: Telegram-Texte lesbar.** Nachrichten zeigten die rohen
+  Bot-HTML-Tags (`<b>…</b>`) und URLs als toten Fließtext. Jetzt: Whitelist-Tags
+  (fett/kursiv/code) werden gerendert, Links sind klickbar und werden gekürzt
+  angezeigt.
+- **Fehlalarm „Kaputtes JSON in DB-Feld ignoriert … NoneType" beseitigt.** Trat
+  bei jedem Packlisten-Zugriff auf, wenn keine eigene Vorlage gesetzt war —
+  `None` (= keine Vorlage, Normalfall) lief fälschlich durch den
+  Korruptions-Warner. Standard-Vorlage war nie beeinträchtigt.
+
 ## [0.48.7] - 2026-07-10
 
 ### Changed

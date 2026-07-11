@@ -918,7 +918,9 @@ def _validate_packing_template(t):
 def _packing_template() -> dict:
     """Aktive Packlisten-Vorlage: die vom Nutzer angepasste (meta
     `packing_template`, JSON) — sonst die eingebaute A.PACKING_TEMPLATE."""
-    custom = _validate_packing_template(A._json_loads_safe(A._meta_get('packing_template'), None))
+    raw = A._meta_get('packing_template')
+    # leer/None = keine eigene Vorlage gesetzt — normal, KEIN "kaputtes JSON"
+    custom = _validate_packing_template(A._json_loads_safe(raw, None)) if raw else None
     return custom or A.PACKING_TEMPLATE
 
 

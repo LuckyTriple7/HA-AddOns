@@ -2248,6 +2248,16 @@
     // ── KI-Verlauf (dauerhaft gespeicherte Fazits/Vergleiche) ─────────────────
     let _aiHistItems = [];
     // ── Meldungen & Fehler (Footer „🔔 Meldungen") ─────────────────────────────
+    // Telegram-Nachrichten enthalten die HTML-Tags des Bots (<b>/<i>/<code>) und
+    // rohe URLs — fürs Panel: alles escapen, dann NUR die Whitelist-Tags wieder
+    // aktivieren und URLs als gekürzte, klickbare Links rendern.
+    function syslogFmt(text){
+      let h = esc(text||'');
+      h = h.replace(/&lt;(\/?)(b|i|u|s|code)&gt;/g, '<$1$2>');
+      h = h.replace(/(https?:\/\/[^\s<]+)/g, u =>
+        `<a href="${u}" target="_blank" rel="noopener" style="color:var(--accent)">${u.length>64?u.slice(0,61)+'…':u}</a>`);
+      return h;
+    }
     async function openSyslog(tab){
       $('#syslog-bg').classList.add('show');
       $('#syslog-tab-notify').classList.toggle('sec', tab!=='notify');
@@ -2279,7 +2289,7 @@
           return `<div style="padding:6px 0;border-bottom:1px solid var(--border);font-size:.8rem">
             <b>${ch}</b>${it.ok?'':' <span style="color:var(--red);font-weight:600">✗ fehlgeschlagen</span>'}
             <span class="hint"> · ${esc(t)}</span>
-            <div style="white-space:pre-wrap;word-break:break-word">${esc(text)}</div></div>`;
+            <div style="white-space:pre-wrap;word-break:break-word">${syslogFmt(text)}</div></div>`;
         }).join('') : '<div class="empty">Noch keine Benachrichtigungen gesendet.</div>';
       }
     }
