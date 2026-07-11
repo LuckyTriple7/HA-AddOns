@@ -2043,6 +2043,23 @@
       aiCurrentId = result.id != null ? result.id : null;
     }
     function scoreColor(score){ return score>=70 ? 'var(--green)' : score>=40 ? 'var(--amber)' : 'var(--red)'; }
+    // Score-Verlauf (ai_analyses, per offer_id verknüpft): Delta zur Vor-Messung +
+    // Mini-Sparkline. Ab 2 Messungen sichtbar; Tooltip listet alle Punkte.
+    function scoreHistoryHtml(hist){
+      if(!hist || hist.length < 2) return '';
+      const prev = hist[hist.length-2], cur = hist[hist.length-1];
+      const d = cur.score - prev.score;
+      const dCol = d>0 ? 'var(--green)' : d<0 ? 'var(--red)' : 'var(--muted)';
+      const pts = hist.map((h,i)=>`${(i/(hist.length-1))*100},${28-(h.score/100)*26}`).join(' ');
+      const tip = hist.map(h=>`${new Date(h.ts*1000).toLocaleDateString('de-DE')}: ${h.score}`).join('\n');
+      return `<div class="hint" style="margin-top:8px;display:flex;align-items:center;gap:8px" title="${esc(tip)}">
+          <span>Verlauf: ${prev.score} → <b style="color:${scoreColor(cur.score)}">${cur.score}</b>
+          <b style="color:${dCol}">(${d>0?'+':''}${d})</b> · ${hist.length} Messungen</span>
+          <svg width="120" height="30" viewBox="0 0 100 30" preserveAspectRatio="none" style="flex-shrink:0">
+            <polyline points="${pts}" fill="none" stroke="${scoreColor(cur.score)}" stroke-width="2"
+              vector-effect="non-scaling-stroke"/></svg>
+        </div>`;
+    }
     function scoreErwartung(v){ return v==='steigend' ? '↗ steigend' : v==='fallend' ? '↘ fallend' : '→ gleich'; }
     // Buchungsscore/Region-Ausblick: strukturiertes Ergebnis (kein Markdown-Fazit) —
     // eigene Darstellung mit Score-Balken + Daten-/Annahme-Kennzeichnung je Begründung.
@@ -2061,6 +2078,7 @@
         </div>
         <div class="twprog" style="max-width:none;margin:10px 0"><i style="width:${r.score}%;background:${scoreColor(r.score)}"></i></div>
         <div class="hint">Erwartung 7 Tage: ${scoreErwartung(r.erwartung_7_tage)} · 30 Tage: ${scoreErwartung(r.erwartung_30_tage)}</div>
+        ${scoreHistoryHtml(payload.history)}
         <ul class="ai-list" style="margin-top:10px">${begr}</ul>
         ${aiUsageLine(payload.usage, payload.cached, payload.totals)}`;
       $('#ai-foot').style.display = 'none';

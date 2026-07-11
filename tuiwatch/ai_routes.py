@@ -308,24 +308,44 @@ _AI_HISTORY_MAX = 300  # ältere Einträge werden beim Speichern verworfen
 
 
 def _save_ai_analysis(kind: str, title: str, model: str, text: str, usage: dict,
-                      prompt: str = '') -> int:
+                      prompt: str = '', offer_id: int | None = None) -> int:
     """Fertiges KI-Fazit/-Vergleich dauerhaft ablegen, damit es später über den
     KI-Verlauf wieder einsehbar (und per E-Mail versendbar) ist — unabhängig vom
     24h-Cache. `prompt` (optional) speichert den exakten Prompt-Text mit, damit der
     Eintrag später über /api/ai/history/<id>/repeat mit einer (ggf. anderen) KI
     wiederholt werden kann — leer bei Aufrufern, die (noch) keinen Prompt mitgeben.
-    Gibt die neue Zeilen-ID zurück."""
+    `offer_id` (optional) verknüpft den Eintrag mit einem Angebot — Basis für den
+    Buchungsscore-Verlauf. Gibt die neue Zeilen-ID zurück."""
     if len(title) > 300:
         A.log.warning("KI-Verlauf-Titel gekürzt (%d → 300 Zeichen): %s…", len(title), title[:60])
     with A.db() as con:
-        cur = con.execute('INSERT INTO ai_analyses (kind, title, model, summary, usage, ts, prompt) '
-                          'VALUES (?,?,?,?,?,?,?)',
+        cur = con.execute('INSERT INTO ai_analyses (kind, title, model, summary, usage, ts, '
+                          'prompt, offer_id) VALUES (?,?,?,?,?,?,?,?)',
                           (kind, title[:300], model, text, json.dumps(usage or {}), int(time.time()),
-                           prompt))
+                           prompt, offer_id))
         aid = cur.lastrowid
         con.execute('DELETE FROM ai_analyses WHERE id NOT IN '
                     '(SELECT id FROM ai_analyses ORDER BY id DESC LIMIT ?)', (_AI_HISTORY_MAX,))
     return aid
+
+
+def _booking_score_history(offer_id: int, limit: int = 20) -> list[dict]:
+    """Score-Verlauf eines Angebots aus ai_analyses (kind=booking_score, per
+    offer_id verknüpft — Einträge vor 0.49.0 haben keine Verknüpfung). Älteste
+    zuerst, für Delta-Anzeige und Mini-Chart im Score-Modal."""
+    with A.db() as con:
+        rows = con.execute(
+            'SELECT ts, summary FROM ai_analyses WHERE kind=? AND offer_id=? '
+            # id als Tiebreaker: zwei Scores in derselben Sekunde blieben sonst
+            # in instabiler Reihenfolge (ts ist nur sekundengenau)
+            'ORDER BY ts DESC, id DESC LIMIT ?', ('booking_score', offer_id, limit)).fetchall()
+    out = []
+    for r in rows:
+        res = A._json_loads_safe(r['summary'], {}) if r['summary'] else {}
+        if isinstance(res, dict) and isinstance(res.get('score'), int):
+            out.append({'ts': r['ts'], 'score': res['score'],
+                        'empfehlung': res.get('empfehlung')})
+    return list(reversed(out))
 
 
 def _ai_active_provider(cfg: dict | None = None) -> str:
@@ -884,7 +904,8 @@ def api_ai_booking_score(offer_id: int):
         cached = A._booking_score_cache.get(offer_id)
     if cached and time.time() - cached['ts'] < A._BOOKING_SCORE_TTL:
         return jsonify({'result': cached['result'], 'usage': cached['usage'],
-                        'totals': _ai_usage_totals(), 'id': cached.get('id'), 'cached': True})
+                        'totals': _ai_usage_totals(), 'id': cached.get('id'), 'cached': True,
+                        'history': _booking_score_history(offer_id)})
     with A.db() as con:
         facts = _offer_booking_facts(con, offer_id)
     if facts is None:
@@ -907,10 +928,12 @@ def api_ai_booking_score(offer_id: int):
     usage['estimated_usd'] = _ai_call_cost(model, usage)
     totals = _record_ai_usage(model, usage)
     aid = _save_ai_analysis('booking_score', facts['hotel'], model,
-                            json.dumps(result, ensure_ascii=False), usage, prompt)
+                            json.dumps(result, ensure_ascii=False), usage, prompt,
+                            offer_id=offer_id)
     with A._ai_cache_lock:
         A._booking_score_cache[offer_id] = {'result': result, 'usage': usage, 'id': aid, 'ts': time.time()}
-    return jsonify({'result': result, 'usage': usage, 'totals': totals, 'id': aid, 'cached': False})
+    return jsonify({'result': result, 'usage': usage, 'totals': totals, 'id': aid, 'cached': False,
+                    'history': _booking_score_history(offer_id)})
 
 
 @bp.route('/api/ai/region-outlook', methods=['POST'])

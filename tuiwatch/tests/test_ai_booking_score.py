@@ -182,6 +182,30 @@ def test_booking_score_prompt_includes_calendar_moves():
     assert "Abreise 2027-06-14: 1990 € -> 1971 € (gefallen um 19 €)" in p
 
 
+def test_booking_score_history_grows_and_reports_delta(m, monkeypatch):
+    """Score-Verlauf: jeder frische Score landet per offer_id in ai_analyses;
+    die Route liefert `history` (älteste zuerst) — Basis für Delta + Sparkline."""
+    oid = _add_offer(m, "https://example.invalid/hist?duration=7", price=1500)
+    _write_options(m, anthropic_api_key="sk-test")
+    c = m.app.test_client()
+
+    _mock_ai_ok(m, monkeypatch, result=dict(_SCORE_RESULT, score=72))
+    r1 = c.post(f"/api/ai/booking-score/{oid}", headers=ING).get_json()
+    assert [h["score"] for h in r1["history"]] == [72]
+
+    with m._ai_cache_lock:
+        m._booking_score_cache.pop(oid, None)   # 24h-Cache umgehen -> zweite Messung
+    _mock_ai_ok(m, monkeypatch, result=dict(_SCORE_RESULT, score=65))
+    r2 = c.post(f"/api/ai/booking-score/{oid}", headers=ING).get_json()
+    assert [h["score"] for h in r2["history"]] == [72, 65]
+    assert r2["history"][-1]["empfehlung"] == "beobachten"
+
+    # Cache-Antwort enthält den Verlauf ebenfalls
+    r3 = c.post(f"/api/ai/booking-score/{oid}", headers=ING).get_json()
+    assert r3["cached"] is True
+    assert [h["score"] for h in r3["history"]] == [72, 65]
+
+
 def test_booking_score_invalid_json_returns_ai_empty_and_logs(m, monkeypatch, caplog):
     """Abgeschnittenes Structured-Output-JSON (z. B. stop_reason=max_tokens) darf
     nicht still scheitern: 502 ai_empty + WARNING mit Text-Ausschnitt im Log."""

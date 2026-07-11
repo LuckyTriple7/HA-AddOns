@@ -81,7 +81,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.48.8"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.49.0"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -479,6 +479,9 @@ def init_db() -> None:
         acols = {r['name'] for r in con.execute('PRAGMA table_info(ai_analyses)').fetchall()}
         if 'prompt' not in acols:
             con.execute("ALTER TABLE ai_analyses ADD COLUMN prompt TEXT NOT NULL DEFAULT ''")
+        if 'offer_id' not in acols:
+            # verknüpft Buchungsscores mit dem Angebot → Score-Verlauf je Angebot
+            con.execute("ALTER TABLE ai_analyses ADD COLUMN offer_id INTEGER")
         # Reisen-Datenbank: gebuchte Reisen (PDF-Import). data = komplettes Parse-JSON,
         # pdf_name = Dateiname im TRIPS_DIR (dauerhaft gespeichert).
         con.execute('''CREATE TABLE IF NOT EXISTS trips (
@@ -1903,6 +1906,7 @@ def _poll_worker() -> None:
             _maybe_check_aktionscodes()   # öffentliche TUI-Aktionscodes
             _maybe_auto_backup()      # wöchentliches Backup nach /addon_config
             _maybe_check_watches()    # Suchabos (gespeicherte Suchen mit Schwellenpreis)
+            _maybe_refresh_calendars()  # Preiskalender 1×/Tag je Angebot auffrischen
             _auto_archive_expired()
             with db() as con:
                 offers = [(r['id'], bool(r['history_only'])) for r in con.execute(
@@ -1934,6 +1938,28 @@ def _poll_worker() -> None:
             log.error("Poll-Fehler: %s", e)
             next_in = interval
         time.sleep(max(30, min(next_in, interval)))
+
+
+def _maybe_refresh_calendars() -> None:
+    """Hält Preiskalender aktuell: 1×/Tag je aktivem Angebot. Da beim Tracken der
+    Kalender ohnehin sofort mitabgerufen wird (Erstabruf in _check_cheaper_date),
+    betrifft das praktisch alle Angebote — der calendar_cache-Join ist nur Guard
+    für Sonderfälle (z. B. notify_cheaper_date deaktiviert). Macht
+    calendar_history dichter → Trend-Ansicht und das Kalender-Bewegungs-Signal
+    im Buchungsscore werden aussagekräftiger; ergänzt den Sofort-Refresh bei
+    Preisänderung. Max. 10 je Poll-Zyklus (je ~3 HTTP-Requests), älteste zuerst.
+    Abschaltbar über calendar_daily_refresh."""
+    if not load_config().get('calendar_daily_refresh', True):
+        return
+    cutoff = int(time.time()) - 86400
+    with db() as con:
+        rows = con.execute(
+            'SELECT c.offer_id FROM calendar_cache c JOIN offers o ON o.id = c.offer_id '
+            'WHERE COALESCE(o.paused,0)=0 AND COALESCE(o.archived,0)=0 AND c.ts<=? '
+            'ORDER BY c.ts LIMIT 10', (cutoff,)).fetchall()
+    for r in rows:
+        log.info("Täglicher Kalender-Refresh: Angebot #%d", r['offer_id'])
+        _run_calendar(r['offer_id'])
 
 
 def _maybe_periodic_health() -> None:

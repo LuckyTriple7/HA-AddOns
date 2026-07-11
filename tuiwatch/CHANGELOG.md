@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.49.0] - 2026-07-10
+
+### Added
+- **Preiskalender wird täglich automatisch aufgefrischt.** Der Poller holt 1×/Tag
+  je aktivem Angebot den Kalender neu (max. 10 je Zyklus, älteste zuerst, je ~3
+  API-Calls) — `calendar_history` wird dichter, Trend-Ansicht und das
+  Kalender-Bewegungs-Signal im Buchungsscore (0.46.4) werden aussagekräftiger.
+  Ergänzt den Sofort-Refresh bei Preisänderung; abschaltbar über die neue Option
+  `calendar_daily_refresh`.
+- **Buchungsscore-Verlauf.** Jeder frisch berechnete Score wird mit dem Angebot
+  verknüpft gespeichert (neue Spalte `offer_id` in `ai_analyses`); das
+  Score-Modal zeigt ab der zweiten Messung „Verlauf: 72 → 65 (−7)" plus
+  Mini-Sparkline (Tooltip mit allen Messungen). Ältere Einträge (vor 0.49.0)
+  haben keine Verknüpfung und tauchen im Verlauf nicht auf.
+
 ## [0.48.8] - 2026-07-10
 
 ### Fixed

@@ -1,6 +1,6 @@
 name: TUIWatch
 description: Reisepreis-Tracker — verfolgt TUI-Angebotspreise und zeigt den Verlauf
-version: "0.48.8"
+version: "0.49.0"
 slug: tuiwatch
 url: https://github.com/LuckyTriple7/HA-AddOns
 image: "ghcr.io/luckytriple7/tuiwatch"
@@ -45,6 +45,7 @@ options:
   cheaper_date_min_diff: 50
   notify_calendar_trend: true
   calendar_trend_min_diff: 20
+  calendar_daily_refresh: true
   notify_errors: true
   notify_api_errors: true
   notify_booked_drop: true
@@ -90,6 +91,7 @@ schema:
   cheaper_date_min_diff: int?
   notify_calendar_trend: bool?
   calendar_trend_min_diff: int?
+  calendar_daily_refresh: bool?
   notify_errors: bool?
   notify_api_errors: bool?
   notify_booked_drop: bool?
