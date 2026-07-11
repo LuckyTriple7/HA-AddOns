@@ -2067,8 +2067,30 @@
         + 'onkeydown="if(event.key===\'Enter\'){ event.preventDefault(); submitAiFollowup(); }">'
         + '<button class="btn sec" onclick="submitAiFollowup()" title="Folgefrage senden">➤</button></div>';
     }
+    // Baut die sichtbare Konversation aus der gespeicherten `conversation`-Liste
+    // ([{role,content}, ...], siehe ai_routes.py::_ai_followup_messages) für ein
+    // erneutes Öffnen aus dem KI-Verlauf. conv[0] ist der ursprüngliche, technische
+    // Prompt (Hotel-Fakten + Instruktionen) — wird NICHT angezeigt, das war nie eine
+    // echte Nutzerfrage. conv[1] ist die ursprüngliche Antwort, ab conv[2] wechseln
+    // sich echte Folgefragen ('Du: …') und ihre Antworten ab.
+    function aiThreadHtmlFromConversation(conv){
+      let html = '';
+      for(let i = 1; i < conv.length; i++){
+        const turn = conv[i];
+        html += turn.role === 'user'
+          ? '<div class="hint" style="margin-top:16px"><b>Du:</b> '+esc(turn.content)+'</div>'
+          : aiMdLite(turn.content);
+      }
+      return html;
+    }
     function renderAiResult(box, result){
-      $(box).innerHTML = '<div id="ai-thread">'+aiMdLite(result.summary)+'</div>'
+      let conv = null;
+      if(result.conversation){
+        try { conv = JSON.parse(result.conversation); } catch(e){ conv = null; }
+      }
+      const threadHtml = Array.isArray(conv) && conv.length > 2
+        ? aiThreadHtmlFromConversation(conv) : aiMdLite(result.summary);
+      $(box).innerHTML = '<div id="ai-thread">'+threadHtml+'</div>'
         + '<div id="ai-followup-status"></div>'
         + '<div id="ai-usage-line-wrap">'+aiUsageLine(result.usage, result.cached, result.totals)+'</div>'
         + aiFollowupBoxHtml();
@@ -2485,7 +2507,7 @@
         let parsed; try { parsed = JSON.parse(d.summary); } catch(e){ parsed = null; }
         if(parsed){ renderBookingScore('#ai-body', {result: parsed, usage: d.usage, id: d.id}); return; }
       }
-      renderAiResult('#ai-body', {summary: d.summary, usage: d.usage, id: d.id});
+      renderAiResult('#ai-body', {summary: d.summary, usage: d.usage, id: d.id, conversation: d.conversation});
     }
     async function deleteAiHistoryItem(id, ev){
       ev.stopPropagation();

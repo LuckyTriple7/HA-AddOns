@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.51.1] - 2026-07-11
+
+### Fixed
+- **Ursprüngliche Antwort ging beim erneuten Öffnen aus dem KI-Verlauf verloren.**
+  Nach einer Folgefrage zeigte das Wiederöffnen eines Verlaufseintrags nur noch
+  die letzte Antwort (`summary`-Spalte), die komplette gespeicherte Konversation
+  (`conversation`-Spalte) wurde ignoriert. `renderAiResult` rekonstruiert die
+  sichtbare Konversation jetzt aus `conversation`, falls vorhanden — Original-
+  fazit und alle Folgefragen/-antworten bleiben beim Wiederöffnen sichtbar.
+
 ## [0.51.0] - 2026-07-11
 
 ### Added
