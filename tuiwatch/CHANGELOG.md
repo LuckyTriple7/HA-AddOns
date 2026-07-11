@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.51.4] - 2026-07-11
+
+### Fixed
+- **Nextcloud-Adressbuch (`/api/contacts`) crashte mit
+  `AttributeError: module '__main__' has no attribute '_contacts_cache'`.**
+  `_contacts_cache` ist in `ai_routes.py` definiert, wurde aber — anders als
+  alle anderen `ai_routes`-Symbole — nie nach `app.py` re-exportiert.
+  `offers_routes.py` greift per `import app as A` auf `A._contacts_cache` zu,
+  fand das Attribut also nie. Fix: `_contacts_cache = ai_routes._contacts_cache`
+  neben den übrigen Re-Exports in `app.py` ergänzt.
+
 ## [0.51.3] - 2026-07-11
 
 ### Fixed
