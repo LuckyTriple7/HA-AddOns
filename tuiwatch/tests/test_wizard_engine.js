@@ -1,15 +1,15 @@
 // Reiner Node-Test ohne Dependency (kein npm/jest im Projekt) fuer die
 // bedingte Folge-Schritt-Logik (`showIf`/`advVisibleSteps`) des
 // Reiseberater-Wizards. Extrahiert `ADV_STEPS` + `advVisibleSteps` per
-// vm-Modul direkt aus templates/index.html (gleiche Extraktions-Idee wie
-// der bestehende Python-Syntax-Check fuer den <script>-Block), damit der
+// vm-Modul direkt aus static/app.js (dorthin ausgelagert, Backlog #12) —
+// so bleibt der Test immer synchron zur ausgelieferten Datei.
 // Test nie von der HTML-Datei abweicht.
 'use strict';
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
 
-const htmlPath = path.join(__dirname, '..', 'templates', 'index.html');
+const htmlPath = path.join(__dirname, '..', 'static', 'app.js');
 const html = fs.readFileSync(htmlPath, 'utf8');
 
 function extractBlock(startMarker, endMarker) {

@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.48.7] - 2026-07-10
+
+### Changed
+- **Modularisierung abgeschlossen (Backlog #12):** Frontend-JS (~3.280 Zeilen)
+  aus `templates/index.html` nach `static/app.js` ausgelagert — im Template
+  bleibt nur der kleine Jinja-Block (Ingress-Base, Intervall, KI-Flag,
+  Heimatort) + `<script src=…?v=APP_VERSION>` (Cache-Busting pro Version;
+  Service worker ist network-first, keine Stale-Gefahr). index.html damit
+  von ~4.200 auf ~930 Zeilen. Wizard-Test liest ADV_STEPS jetzt aus app.js.
+  Live verifiziert (Seite lädt, app.js 200, Ingress-Base im Inline-Block).
+
 ## [0.48.6] - 2026-07-10
 
 ### Changed

@@ -25,8 +25,8 @@ kleiner und Reviews gezielter werden. Rein intern.
   `tests/test_script_start.py` (Skript-Start wie run.sh).
 - _Dritte Tranche erledigt (v0.48.6):_ `ai_routes.py` (KI-Analyse, 1.514 Z.),
   `offers_routes.py` (Angebote/Suche/Vergleiche, 768 Z.) — app.py ~2.800 Zeilen.
-- Offen:
-  JS aus `templates/index.html` (~4.000 Zeilen) in eigene Datei.
+- _Vierte Tranche erledigt (v0.48.7):_ Frontend-JS nach `static/app.js`
+  (~3.280 Z.), index.html ~930 Zeilen — **#12 damit abgeschlossen.**
 - Keine Verhaltensänderung; Tests müssen unverändert grün bleiben.
 
 ## 9. Image-Größe / Playwright-Last reduzieren
