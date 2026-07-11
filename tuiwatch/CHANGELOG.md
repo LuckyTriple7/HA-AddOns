@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.51.3] - 2026-07-11
+
+### Fixed
+- **Footer-Buttons nach langen Toast-Meldungen unklickbar — echte Ursache
+  gefunden.** Der 0.51.2-Fix (Backup-Download nicht mehr an den DOM hängen)
+  war eine Fehlspur. Tatsächliche Ursache: `.toast` hatte kein
+  `pointer-events:none`. `opacity:0` macht das Element nur unsichtbar, blockt
+  aber weiterhin Klicks — und die Box behält die Breite des zuletzt gesetzten
+  Texts (`textContent` wird nach dem Ausblenden nie zurückgesetzt). Nach
+  Backup/Restore (lange Meldungen wie „Wiederhergestellt: 9 Angebote, 12
+  Reisen…") deckte das unsichtbare, zentrierte `position:fixed`-Div einen
+  breiten Streifen am unteren Bildschirmrand ab und schluckte dort Klicks
+  (u. a. „Perplexity aktiv"/„⚙ KI-Prompts" im Footer) — bis zum nächsten
+  Neuladen, wodurch `textContent` wieder leer wurde und die Box schrumpfte.
+  `.toast` hat jetzt durchgängig `pointer-events:none`.
+
 ## [0.51.2] - 2026-07-11
 
 ### Fixed
