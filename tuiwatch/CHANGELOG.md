@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.49.3] - 2026-07-11
+
+### Added
+- **Perplexity als dritter KI-Anbieter.** Sonar-Modelle (`sonar`, `sonar-pro`,
+  `sonar-reasoning-pro`, `sonar-deep-research`) stehen jetzt gleichberechtigt neben
+  Claude und Gemini zur Verfügung — neue Optionen `perplexity_api_key`/
+  `perplexity_model`. Der Provider-Umschalter (Footer + „🔁 Wiederholen" im
+  KI-Verlauf) unterstützt jetzt bis zu 3 konfigurierte Anbieter statt nur 2
+  (`/api/ai/provider` liefert neu `configured_providers`, `both_configured`
+  bedeutet jetzt „mind. 2 von 3 konfiguriert"). Perplexity durchsucht bei jeder
+  Anfrage automatisch das Web (kein Websuche-Schalter, `ai_max_web_searches`
+  greift hier nicht) und ist pro Aufruf teurer als Claude/Gemini — Preis-Schätzung
+  in der KI-Kostenanzeige berücksichtigt nur die Tokenkosten, nicht die
+  zusätzliche Perplexity-Request-Gebühr.
+
 ## [0.49.2] - 2026-07-10
 
 ### Added

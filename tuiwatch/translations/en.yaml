@@ -115,16 +115,22 @@ configuration:
     description: "Which Claude model is used for the hotel summary. Opus = default, very thorough. Sonnet = faster/cheaper at nearly the same quality. Haiku = cheapest, shorter. Fable = most capable model, priciest call."
   ai_provider:
     name: AI provider
-    description: "Which AI provider is used for ALL AI features (AI summary, comparison, TripPilot/day trip, auto-tags, portfolio question). anthropic = Claude (default), gemini = Google Gemini (e.g. for Google Search grounding). Needs the matching API key below."
+    description: "Which AI provider is used for ALL AI features (AI summary, comparison, TripPilot/day trip, auto-tags, portfolio question). anthropic = Claude (default), gemini = Google Gemini (e.g. for Google Search grounding), perplexity = Perplexity Sonar (search-focused, pricier). Needs the matching API key below. If several keys are set, you can switch live in the web UI footer."
   gemini_api_key:
     name: Gemini API key
     description: "API key for Google Gemini (aistudio.google.com), only relevant when 'AI provider' = gemini. Leave empty = feature off."
   gemini_model:
     name: Gemini model
     description: "Which Gemini model is used when 'AI provider' = gemini. 3.1 Pro = flagship, very thorough. 3.5 Flash = balanced, faster/cheaper. 2.5 Flash = cheapest."
+  perplexity_api_key:
+    name: Perplexity API key
+    description: "API key for Perplexity (perplexity.ai/settings/api), only relevant when 'AI provider' = perplexity. Sonar models search the web automatically on EVERY request (no web-search toggle needed) — pricier per call than Claude/Gemini, plus an extra request fee on top of token cost. Leave empty = feature off."
+  perplexity_model:
+    name: Perplexity model
+    description: "Which Perplexity model is used when 'AI provider' = perplexity. sonar = cheapest base model. sonar-pro = default, more thorough on complex questions. sonar-reasoning-pro = intermediate reasoning steps for harder trade-offs. sonar-deep-research = most thorough, priciest research."
   ai_max_web_searches:
     name: Max. web searches per AI call
-    description: "Caps how many times Claude may search the web on its own during a single AI call (summary, comparison, travel advisor/TripPilot, day trip). More searches = more thorough, but more input tokens and higher cost. Default 12 — e.g. 8 for leaner, 20 for very thorough with several destinations/hotels. Only applies to Anthropic/Claude — Gemini has no limit on the number of web searches."
+    description: "Caps how many times Claude may search the web on its own during a single AI call (summary, comparison, travel advisor/TripPilot, day trip). More searches = more thorough, but more input tokens and higher cost. Default 12 — e.g. 8 for leaner, 20 for very thorough with several destinations/hotels. Only applies to Anthropic/Claude — Gemini/Perplexity have no limit on the number of web searches."
   verbose_log:
     name: Verbose logging
     description: Logs more detail per check. Default off — only errors and important events are logged.

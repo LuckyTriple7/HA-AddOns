@@ -212,6 +212,15 @@ _AI_PRICING = {  # USD pro 1 Mio Tokens (Input/Output) — Anthropic-Listenpreis
     'gemini-3.1-pro':   {'input': 2.0,  'output': 12.0},
     'gemini-3.5-flash': {'input': 1.5,  'output': 9.0},
     'gemini-2.5-flash': {'input': 0.3,  'output': 2.5},
+    # Perplexity-Listenpreise (docs.perplexity.ai, Stand Juli 2026) — ohne die
+    # zusätzliche, gestaffelte Request-Gebühr pro 1000 Anfragen (Websuche ist bei
+    # Sonar-Modellen fest eingebaut, nicht separat abschaltbar) — reine
+    # Token-Schätzung wie bei den anderen Providern, tatsächliche Kosten liegen
+    # etwas höher.
+    'sonar':                {'input': 1.0, 'output': 1.0},
+    'sonar-pro':             {'input': 3.0, 'output': 15.0},
+    'sonar-reasoning-pro':   {'input': 2.0, 'output': 8.0},
+    'sonar-deep-research':   {'input': 2.0, 'output': 8.0},
 }
 
 
@@ -348,52 +357,48 @@ def _booking_score_history(offer_id: int, limit: int = 20) -> list[dict]:
     return list(reversed(out))
 
 
+_AI_PROVIDERS = ('anthropic', 'gemini', 'perplexity')  # feste Reihenfolge — bestimmt
+                                                        # u. a. den Fallback, wenn der
+                                                        # gewählte Provider ungültig/
+                                                        # nicht konfiguriert ist
+_AI_PROVIDER_KEY_FIELDS = {'anthropic': 'anthropic_api_key', 'gemini': 'gemini_api_key',
+                          'perplexity': 'perplexity_api_key'}
+
+
+def _configured_ai_providers(cfg: dict) -> list[str]:
+    """Provider mit hinterlegtem API-Key, in fester Anzeige-/Fallback-Reihenfolge."""
+    return [p for p in _AI_PROVIDERS if (cfg.get(_AI_PROVIDER_KEY_FIELDS[p]) or '').strip()]
+
+
 def _ai_active_provider(cfg: dict | None = None) -> str:
-    """Welcher Provider ('anthropic'/'gemini') gerade aktiv ist. Ist nur ein
-    API-Key hinterlegt, gilt automatisch dieser (verhindert die Falle, dass
-    `gemini_api_key` gesetzt, aber `ai_provider` noch auf 'anthropic' steht,
-    und die KI-Features fälschlich inaktiv bleiben). Sind beide Keys gesetzt,
-    entscheidet der zuletzt per Footer-Umschalter gewählte Provider
-    (`meta` Key `ai_provider_active`), sonst der Add-on-Standard
-    `ai_provider`."""
+    """Welcher Provider ('anthropic'/'gemini'/'perplexity') gerade aktiv ist. Ist
+    nur ein API-Key hinterlegt, gilt automatisch dieser (verhindert die Falle,
+    dass z. B. `gemini_api_key` gesetzt, aber `ai_provider` noch auf 'anthropic'
+    steht, und die KI-Features fälschlich inaktiv bleiben). Sind mehrere Keys
+    gesetzt, entscheidet der zuletzt per Footer-Umschalter gewählte Provider
+    (`meta` Key `ai_provider_active`), sonst der Add-on-Standard `ai_provider`
+    — beide nur gültig, wenn sie auch tatsächlich konfiguriert sind, sonst
+    Fallback auf den ersten konfigurierten Provider in `_AI_PROVIDERS`-Reihenfolge."""
     cfg = cfg or A.load_config()
-    has_anthropic = bool((cfg.get('anthropic_api_key') or '').strip())
-    has_gemini = bool((cfg.get('gemini_api_key') or '').strip())
-    if has_anthropic and has_gemini:
+    configured = _configured_ai_providers(cfg)
+    if len(configured) > 1:
         active = A._meta_get('ai_provider_active')
-        if active not in ('anthropic', 'gemini'):
-            active = cfg.get('ai_provider') or 'anthropic'
+        if active not in configured:
+            active = cfg.get('ai_provider')
+            if active not in configured:
+                active = configured[0]
         return active
-    if has_gemini:
-        return 'gemini'
-    if has_anthropic:
-        return 'anthropic'
+    if configured:
+        return configured[0]
     return cfg.get('ai_provider') or 'anthropic'
 
 
-def _ai_config():
-    """(api_key, model) aus den Add-on-Optionen, je nach aktivem Provider
-    (siehe `_ai_active_provider`) — model fällt jeweils auf das
-    Flaggschiff-Modell zurück, falls leer oder ungültig. `A._ai_request()`
-    erkennt anhand des Modellnamens (siehe `A._AI_MODELS`/`A._GEMINI_MODELS`),
-    welchen Provider es ansprechen muss."""
-    cfg = A.load_config()
-    if _ai_active_provider(cfg) == 'gemini':
-        api_key = (cfg.get('gemini_api_key') or '').strip()
-        model = cfg.get('gemini_model') or 'gemini-3.1-pro'
-        if model not in A._GEMINI_MODELS:
-            model = 'gemini-3.1-pro'
-        return api_key, model
-    api_key = (cfg.get('anthropic_api_key') or '').strip()
-    model = cfg.get('anthropic_model') or 'claude-opus-4-8'
-    if model not in A._AI_MODELS:
-        model = 'claude-opus-4-8'
-    return api_key, model
-
-
 def _ai_config_for(provider: str) -> tuple[str, str]:
-    """Wie _ai_config(), aber mit explizit vorgegebenem Provider statt über
-    _ai_active_provider() ermittelt — für /api/ai/history/<id>/repeat, wo der
+    """(api_key, model) aus den Add-on-Optionen für einen bestimmten Provider —
+    model fällt jeweils auf das Flaggschiff-Modell zurück, falls leer oder
+    ungültig. `A._ai_request()` erkennt anhand des Modellnamens (siehe
+    `A._AI_MODELS`/`A._GEMINI_MODELS`/`A._PERPLEXITY_MODELS`), welchen Provider
+    es ansprechen muss. Auch für /api/ai/history/<id>/repeat nutzbar, wo der
     Nutzer die KI unabhängig vom gerade aktiven Provider wählt."""
     cfg = A.load_config()
     if provider == 'gemini':
@@ -402,11 +407,23 @@ def _ai_config_for(provider: str) -> tuple[str, str]:
         if model not in A._GEMINI_MODELS:
             model = 'gemini-3.1-pro'
         return api_key, model
+    if provider == 'perplexity':
+        api_key = (cfg.get('perplexity_api_key') or '').strip()
+        model = cfg.get('perplexity_model') or 'sonar-pro'
+        if model not in A._PERPLEXITY_MODELS:
+            model = 'sonar-pro'
+        return api_key, model
     api_key = (cfg.get('anthropic_api_key') or '').strip()
     model = cfg.get('anthropic_model') or 'claude-opus-4-8'
     if model not in A._AI_MODELS:
         model = 'claude-opus-4-8'
     return api_key, model
+
+
+def _ai_config():
+    """(api_key, model) für den gerade aktiven Provider (siehe
+    `_ai_active_provider`) — Kurzform von `_ai_config_for`."""
+    return _ai_config_for(_ai_active_provider())
 
 
 _AI_TAG_VOCAB = [
@@ -1067,26 +1084,31 @@ def api_ai_prompt_settings():
 @bp.route('/api/ai/provider', methods=['GET', 'POST'])
 def api_ai_provider():
     """Status/Umschalter für den aktiven KI-Anbieter. GET liefert, welcher
-    Provider gerade aktiv ist und ob überhaupt umgeschaltet werden kann
-    (nur möglich, wenn beide API-Keys hinterlegt sind — sonst bestimmt
+    Provider gerade aktiv ist und ob überhaupt umgeschaltet werden kann (nur
+    möglich, wenn mindestens 2 der 3 API-Keys hinterlegt sind — sonst bestimmt
     automatisch der eine vorhandene Key den Provider, siehe
-    `_ai_active_provider`). POST wechselt den aktiven Provider (nur bei
-    beiden Keys erlaubt) und persistiert die Wahl in `meta`."""
+    `_ai_active_provider`). POST wechselt den aktiven Provider (nur erlaubt,
+    wenn der Ziel-Provider auch konfiguriert ist) und persistiert die Wahl in
+    `meta`. `both_configured` bleibt aus Kompatibilitätsgründen erhalten
+    (bedeutet jetzt „mind. 2 von 3 konfiguriert"); `configured_providers` ist
+    die neue, vollständige Liste fürs Frontend."""
     if (err := A._require_api()):
         return err
     cfg = A.load_config()
-    has_anthropic = bool((cfg.get('anthropic_api_key') or '').strip())
-    has_gemini = bool((cfg.get('gemini_api_key') or '').strip())
-    both = has_anthropic and has_gemini
+    configured = _configured_ai_providers(cfg)
+    multi = len(configured) > 1
     if request.method == 'POST':
-        if not both:
-            return jsonify({'error': 'not_both_configured'}), 400
         provider = (request.get_json(silent=True) or {}).get('provider')
-        if provider not in ('anthropic', 'gemini'):
+        if provider not in _AI_PROVIDERS:
             return jsonify({'error': 'invalid_provider'}), 400
+        if not multi or provider not in configured:
+            return jsonify({'error': 'not_both_configured'}), 400
         A._meta_set('ai_provider_active', provider)
-    return jsonify({'active': _ai_active_provider(cfg), 'both_configured': both,
-                    'anthropic_configured': has_anthropic, 'gemini_configured': has_gemini})
+    return jsonify({'active': _ai_active_provider(cfg), 'both_configured': multi,
+                    'configured_providers': configured,
+                    'anthropic_configured': 'anthropic' in configured,
+                    'gemini_configured': 'gemini' in configured,
+                    'perplexity_configured': 'perplexity' in configured})
 
 
 _ADVISOR_FIELDS = ('region', 'excluded_countries', 'excluded_countries_other', 'interests',
@@ -1517,7 +1539,7 @@ def api_ai_history_repeat(aid: int):
     if (err := A._require_api()):
         return err
     provider = (request.get_json(silent=True) or {}).get('provider')
-    if provider not in ('anthropic', 'gemini'):
+    if provider not in _AI_PROVIDERS:
         return jsonify({'error': 'invalid_provider'}), 400
     with A.db() as con:
         row = con.execute('SELECT kind, title, prompt FROM ai_analyses WHERE id=?',

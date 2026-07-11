@@ -81,7 +81,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.49.2"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.49.3"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -151,6 +151,7 @@ _BOOKING_SCORE_TTL = 6 * 3600             # kürzer als Hotel-Fazit: Preisdaten 
 _CALENDAR_FRESH_SECONDS = 7 * 86400       # Preiskalender für den Buchungsscore ab diesem Alter neu abrufen
 _AI_MODELS = ('claude-opus-4-8', 'claude-sonnet-5', 'claude-haiku-4-5', 'claude-fable-5')
 _GEMINI_MODELS = ('gemini-3.1-pro', 'gemini-3.5-flash', 'gemini-2.5-flash')
+_PERPLEXITY_MODELS = ('sonar', 'sonar-pro', 'sonar-reasoning-pro', 'sonar-deep-research')
 _api_down_notified = False                # ob aktuell ein API-Ausfall gemeldet ist
 
 # einfache Login-Drossel
@@ -2516,6 +2517,7 @@ _GEMINI_REFUSAL_REASONS = ai_client._GEMINI_REFUSAL_REASONS
 _gemini_sanitize_schema = ai_client._gemini_sanitize_schema
 _GEMINI_THINKING_TOKEN_RESERVE = ai_client._GEMINI_THINKING_TOKEN_RESERVE
 _ai_request_gemini = ai_client._ai_request_gemini
+_ai_request_perplexity = ai_client._ai_request_perplexity
 _ai_call = ai_client._ai_call
 
 import price_calendar  # noqa: E402

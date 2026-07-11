@@ -47,6 +47,8 @@ if [ ! -f dev_data/options.json ]; then
   "ai_provider": "anthropic",
   "gemini_api_key": "",
   "gemini_model": "gemini-3.1-pro",
+  "perplexity_api_key": "",
+  "perplexity_model": "sonar-pro",
   "ai_max_web_searches": 12,
   "verbose_log": false
 }

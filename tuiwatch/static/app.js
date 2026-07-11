@@ -2403,7 +2403,7 @@
             <div class="aihist-title">${aiKindLabel(it.kind)} · ${esc(it.title)}</div>
             <div class="hint">${esc(new Date(it.ts*1000).toLocaleString('de-DE'))} · ${esc(it.model)}</div>
           </div>
-          ${it.has_prompt ? `<button class="icon-btn" onclick="repeatAiHistoryItem(${it.id}, event)" title="Mit Claude oder Gemini wiederholen">🔁</button>` : ''}
+          ${it.has_prompt ? `<button class="icon-btn" onclick="repeatAiHistoryItem(${it.id}, event)" title="Mit anderer KI wiederholen">🔁</button>` : ''}
           <button class="icon-btn" onclick="deleteAiHistoryItem(${it.id}, event)" title="Eintrag löschen">🗑</button>
         </div>`).join('');
     }
@@ -2447,7 +2447,7 @@
         return `<button class="btn${ok?'':' sec'}" ${ok?'':'disabled'} onclick="runAiHistoryRepeat(${id},'${p}')">${AI_PROVIDER_LABEL[p]}${ok?'':' (kein Key)'}</button>`;
       };
       $('#ai-body').innerHTML = `<div class="hint" style="margin-bottom:10px">Mit welcher KI wiederholen?</div>
-        <div style="display:flex;gap:10px">${mkBtn('anthropic')}${mkBtn('gemini')}</div>`;
+        <div style="display:flex;gap:10px;flex-wrap:wrap">${Object.keys(AI_PROVIDER_LABEL).map(mkBtn).join('')}</div>`;
     }
     async function runAiHistoryRepeat(id, provider){
       const attempt = async () => {
@@ -3332,7 +3332,7 @@
     loadAiUsageFooter();
     setInterval(loadAiUsageFooter, 300000);
 
-    const AI_PROVIDER_LABEL = { anthropic: '🤖 Claude', gemini: '✨ Gemini' };
+    const AI_PROVIDER_LABEL = { anthropic: '🤖 Claude', gemini: '✨ Gemini', perplexity: '🔎 Perplexity' };
     async function loadAiProviderFooter(){
       if(!G.ai) return;
       try {
@@ -3346,8 +3346,10 @@
     async function toggleAiProvider(){
       try {
         const cur = await fetch(api('/api/ai/provider')).then(r=>r.json());
-        if(!cur.both_configured) return;
-        const next = cur.active === 'gemini' ? 'anthropic' : 'gemini';
+        const list = cur.configured_providers || [];
+        if(!cur.both_configured || list.length < 2) return;
+        // Zyklisch zum nächsten konfigurierten Provider (feste Reihenfolge aus der API)
+        const next = list[(list.indexOf(cur.active) + 1) % list.length];
         await fetch(api('/api/ai/provider'), {method:'POST',
           headers:{'Content-Type':'application/json'}, body: JSON.stringify({provider: next})});
         toast((AI_PROVIDER_LABEL[next] || next) + ' aktiv');

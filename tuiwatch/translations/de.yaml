@@ -115,16 +115,22 @@ configuration:
     description: "Welches Claude-Modell für die Hotel-Zusammenfassung genutzt wird. Opus = Standard, sehr gründlich. Sonnet = schneller/günstiger bei kaum schlechterer Qualität. Haiku = am günstigsten, kürzer. Fable = leistungsfähigstes Modell, teuerster Aufruf."
   ai_provider:
     name: KI-Anbieter
-    description: "Welcher KI-Anbieter für ALLE KI-Features genutzt wird (KI-Fazit, Vergleich, TripPilot/Tagesausflug, Auto-Tags, Portfolio-Frage). anthropic = Claude (Standard), gemini = Google Gemini (z. B. für Google-Search-Grounding). Braucht den jeweils passenden API-Key unten."
+    description: "Welcher KI-Anbieter für ALLE KI-Features genutzt wird (KI-Fazit, Vergleich, TripPilot/Tagesausflug, Auto-Tags, Portfolio-Frage). anthropic = Claude (Standard), gemini = Google Gemini (z. B. für Google-Search-Grounding), perplexity = Perplexity Sonar (auf Websuche spezialisiert, teurer). Braucht den jeweils passenden API-Key unten. Sind mehrere Keys hinterlegt, lässt sich im Footer der Web-Oberfläche live umschalten."
   gemini_api_key:
     name: Gemini API-Key
     description: "API-Key für Google Gemini (aistudio.google.com), nur relevant wenn 'KI-Anbieter' = gemini. Leer lassen = Funktion aus."
   gemini_model:
     name: Gemini-Modell
     description: "Welches Gemini-Modell genutzt wird, wenn 'KI-Anbieter' = gemini. 3.1 Pro = Flaggschiff, sehr gründlich. 3.5 Flash = ausgewogen, schneller/günstiger. 2.5 Flash = am günstigsten."
+  perplexity_api_key:
+    name: Perplexity API-Key
+    description: "API-Key für Perplexity (perplexity.ai/settings/api), nur relevant wenn 'KI-Anbieter' = perplexity. Sonar-Modelle durchsuchen bei JEDER Anfrage automatisch das Web (kein Websuche-Schalter nötig) — dafür pro Anfrage teurer als Claude/Gemini, inkl. zusätzlicher Request-Gebühr oben auf die Tokenkosten. Leer lassen = Funktion aus."
+  perplexity_model:
+    name: Perplexity-Modell
+    description: "Welches Perplexity-Modell genutzt wird, wenn 'KI-Anbieter' = perplexity. sonar = günstigstes Basismodell. sonar-pro = Standard, gründlicher bei komplexeren Fragen. sonar-reasoning-pro = mit Zwischenschritten für schwierigere Abwägungen. sonar-deep-research = ausführlichste, teuerste Recherche."
   ai_max_web_searches:
     name: Max. Websuchen pro KI-Aufruf
-    description: "Deckelt, wie oft Claude bei einem einzelnen KI-Aufruf (Fazit, Vergleich, Reiseberater/TripPilot, Tagesausflug) selbstständig das Web durchsuchen darf. Mehr Suchen = gründlicher, aber mehr Input-Tokens und höhere Kosten. Standard 12 — z. B. 8 für sparsamer, 20 für sehr gründlich bei mehreren Zielen/Hotels. Gilt nur bei Anthropic/Claude — Gemini kennt kein Limit für die Anzahl Websuchen."
+    description: "Deckelt, wie oft Claude bei einem einzelnen KI-Aufruf (Fazit, Vergleich, Reiseberater/TripPilot, Tagesausflug) selbstständig das Web durchsuchen darf. Mehr Suchen = gründlicher, aber mehr Input-Tokens und höhere Kosten. Standard 12 — z. B. 8 für sparsamer, 20 für sehr gründlich bei mehreren Zielen/Hotels. Gilt nur bei Anthropic/Claude — Gemini/Perplexity kennen kein Limit für die Anzahl Websuchen."
   verbose_log:
     name: Ausführliches Logging
     description: Gibt mehr Details pro Prüfung im Log aus. Standard aus — nur Fehler und wichtige Ereignisse werden geloggt.

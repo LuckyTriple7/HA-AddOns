@@ -1,37 +1,100 @@
-"""KI-Provider-Client (Anthropic + Gemini): Dispatcher, Requests, Structured
-Output, Websuche — ausgelagert aus app.py (Backlog #12, 2. Tranche).
+"""KI-Provider-Client (Anthropic + Gemini + Perplexity): Dispatcher, Requests,
+Structured Output, Websuche — ausgelagert aus app.py (Backlog #12, 2. Tranche).
 Geteilte Primitiven über `import app as A` (spät gebunden, monkeypatch-
 sicher); anthropic/genai sind dieselben Modul-Objekte wie in app.py —
-Test-Patches auf app_mod.genai.Client wirken daher auch hier.
+Test-Patches auf app_mod.genai.Client wirken daher auch hier. Perplexity hat
+kein offizielles Python-SDK — reiner REST-Aufruf über `requests` (bereits
+Add-on-Abhängigkeit), OpenAI-kompatibles Chat-Completions-Schema.
 """
 import logging
 
 from flask import jsonify
 
 import anthropic
+import requests
 from google import genai
 from google.genai import errors as genai_errors
 from google.genai import types as genai_types
 
 import app as A
 
+_PERPLEXITY_API_URL = "https://api.perplexity.ai/chat/completions"
+
 
 def _ai_request(api_key: str, model: str, prompt: str, *, max_tokens: int,
                 log_ctx: str, use_web_search: bool = True, output_schema: dict | None = None):
     """Provider-Dispatcher: leitet anhand des Modellnamens (siehe `_AI_MODELS`/
-    `A._GEMINI_MODELS`) an `_ai_request_anthropic` oder `_ai_request_gemini` weiter —
-    beide mit identischer Rückgabe-Signatur (text, usage, error_code); error_code
-    ist None bei Erfolg, sonst 'failed' / 'refused' / 'empty'. `usage` = {input_tokens,
-    output_tokens, cache_creation_input_tokens, cache_read_input_tokens,
-    web_search_requests}. Mit `output_schema` antwortet das Modell als validiertes
-    JSON nach diesem Schema (structured outputs) — `text` ist dann der JSON-String."""
+    `A._GEMINI_MODELS`/`A._PERPLEXITY_MODELS`) an die passende `_ai_request_*`-
+    Funktion weiter — alle drei mit identischer Rückgabe-Signatur (text, usage,
+    error_code); error_code ist None bei Erfolg, sonst 'failed' / 'refused' /
+    'empty'. `usage` = {input_tokens, output_tokens, cache_creation_input_tokens,
+    cache_read_input_tokens, web_search_requests}. Mit `output_schema` antwortet
+    das Modell als validiertes JSON nach diesem Schema (structured outputs) —
+    `text` ist dann der JSON-String."""
     if model in A._GEMINI_MODELS:
         return A._ai_request_gemini(api_key, model, prompt, max_tokens=max_tokens,
                                   log_ctx=log_ctx, use_web_search=use_web_search,
                                   output_schema=output_schema)
+    if model in A._PERPLEXITY_MODELS:
+        return A._ai_request_perplexity(api_key, model, prompt, max_tokens=max_tokens,
+                                      log_ctx=log_ctx, use_web_search=use_web_search,
+                                      output_schema=output_schema)
     return A._ai_request_anthropic(api_key, model, prompt, max_tokens=max_tokens,
                                  log_ctx=log_ctx, use_web_search=use_web_search,
                                  output_schema=output_schema)
+
+
+def _ai_request_perplexity(api_key: str, model: str, prompt: str, *, max_tokens: int,
+                           log_ctx: str, use_web_search: bool = True,
+                           output_schema: dict | None = None):
+    """Perplexity-Variante von `_ai_request_anthropic` — gleiche Rückgabe-Signatur
+    (text, usage, error_code), siehe `A._ai_request`. Sonar-Modelle durchsuchen das
+    Web bei JEDER Anfrage automatisch (kein separates Tool wie bei Claude/Gemini) —
+    `use_web_search=False` hat hier keine Wirkung, es gibt keinen Schalter dafür.
+    `search_context_size` bleibt auf dem API-Default ('low'), um die zusätzliche
+    Request-Gebühr (gestaffelt nach Kontextgröße, siehe Perplexity-Preisliste) klein
+    zu halten."""
+    payload = {
+        "model": model,
+        "messages": [{"role": "user", "content": prompt}],
+        "max_tokens": max_tokens,
+    }
+    if output_schema is not None:
+        payload["response_format"] = {"type": "json_schema",
+                                      "json_schema": {"schema": output_schema}}
+    try:
+        resp = requests.post(
+            _PERPLEXITY_API_URL,
+            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+            json=payload, timeout=90,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+    except requests.RequestException as e:
+        A.log.warning("KI-Anfrage fehlgeschlagen (%s): %s", log_ctx, e)
+        return None, None, 'failed'
+    except ValueError as e:
+        A.log.error("KI-Antwort (%s) kein gültiges JSON: %s", log_ctx, e)
+        return None, None, 'failed'
+    try:
+        choice = data["choices"][0]
+        text = (choice["message"]["content"] or "").strip()
+        finish_reason = choice.get("finish_reason")
+        u = data.get("usage") or {}
+    except (KeyError, IndexError, TypeError) as e:
+        A.log.error("KI-Antwort (%s) unerwartete Struktur: %s: %s", log_ctx, type(e).__name__, e)
+        return None, None, 'failed'
+    if finish_reason == 'length':
+        A.log.warning("KI-Antwort (%s) am Token-Limit abgeschnitten (max_tokens, "
+                    "%d Zeichen erhalten)", log_ctx, len(text))
+    if not text:
+        A.log.warning("KI-Antwort (%s) leer: finish_reason=%s", log_ctx, finish_reason)
+        return None, None, 'empty'
+    usage = {'input_tokens': u.get('prompt_tokens', 0) or 0,
+             'output_tokens': u.get('completion_tokens', 0) or 0,
+             'cache_creation_input_tokens': 0, 'cache_read_input_tokens': 0,
+             'web_search_requests': u.get('num_search_queries', 0) or 0}
+    return text, usage, None
 
 
 def _ai_request_anthropic(api_key: str, model: str, prompt: str, *, max_tokens: int,

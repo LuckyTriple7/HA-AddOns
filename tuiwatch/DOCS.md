@@ -23,9 +23,11 @@ digest_enabled: false    # wöchentlicher Überblick (Telegram/E-Mail)
 digest_weekday: 1        # Versandtag (1 = Mo … 7 = So)
 anthropic_api_key: ""    # Anthropic API-Key, aktiviert das KI-Fazit (leer = aus)
 anthropic_model: claude-opus-4-8  # oder claude-sonnet-5 / claude-haiku-4-5 / claude-fable-5
-ai_provider: anthropic   # oder gemini (gilt fuer ALLE KI-Features)
+ai_provider: anthropic   # oder gemini / perplexity (gilt fuer ALLE KI-Features)
 gemini_api_key: ""       # nur relevant bei ai_provider: gemini
 gemini_model: gemini-3.1-pro  # oder gemini-3.5-flash / gemini-2.5-flash
+perplexity_api_key: ""   # nur relevant bei ai_provider: perplexity
+perplexity_model: sonar-pro  # oder sonar / sonar-reasoning-pro / sonar-deep-research
 ai_max_web_searches: 12  # Limit Websuchen/Aufruf, gilt nur bei Anthropic
 verbose_log: false       # ausführliche Logs
 ```
@@ -132,24 +134,27 @@ Wunschpreis, Zurücksetzen) — mit **Mouseover** erscheint Datum + Beschreibung
 
 ## KI-Fazit, -Vergleich & -Verlauf
 
-> ⚠️ Die Anthropic-/Gemini-API ist **kostenpflichtig** (eigener API-Key,
-> eigenes Konto beim jeweiligen Anbieter). Bei jedem KI-Aufruf (Fazit,
-> Vergleich, TripPilot, Auto-Tag, Frag dein Portfolio) entstehen reale
-> Kosten nach der Preisliste des gewählten Anbieters. TUIWatch zeigt
+> ⚠️ Die Anthropic-/Gemini-/Perplexity-API ist **kostenpflichtig** (eigener
+> API-Key, eigenes Konto beim jeweiligen Anbieter). Bei jedem KI-Aufruf
+> (Fazit, Vergleich, TripPilot, Auto-Tag, Frag dein Portfolio) entstehen
+> reale Kosten nach der Preisliste des gewählten Anbieters. TUIWatch zeigt
 > geschätzte Kosten pro Aufruf sowie eine laufende Gesamtsumme seit
 > Add-on-Start an — das ist eine Schätzung auf Basis der Token-Zahlen,
 > **kein echtes Guthaben** und keine Abbuchung durch TUIWatch selbst; das
 > tatsächliche Guthaben/die Abrechnung zeigt nur die jeweilige
-> Anbieter-Console.
+> Anbieter-Console. Bei Perplexity kommt zusätzlich eine gestaffelte
+> Request-Gebühr pro Anfrage oben drauf, die in der Kostenschätzung
+> **nicht** enthalten ist (nur die Tokenkosten).
 
-Mit hinterlegtem API-Key (`anthropic_api_key` bzw. `gemini_api_key`, je
-nach `ai_provider`) erscheinen zusätzliche **🤖**-Buttons in der Hotelsuche
-und der Angebotsübersicht (ohne Key sind sie komplett ausgeblendet).
+Mit hinterlegtem API-Key (`anthropic_api_key`, `gemini_api_key` oder
+`perplexity_api_key`, je nach `ai_provider`) erscheinen zusätzliche
+**🤖**-Buttons in der Hotelsuche und der Angebotsübersicht (ohne Key sind
+sie komplett ausgeblendet).
 
 ### KI-Anbieter
 
 `ai_provider` schaltet **global für alle KI-Features** zwischen Anthropic
-(Standard) und Google Gemini um:
+(Standard), Google Gemini und Perplexity um:
 - **Anthropic/Claude:** `anthropic_model` (Standard `claude-opus-4-8`; auch
   `claude-sonnet-5`, `claude-haiku-4-5`, `claude-fable-5` wählbar —
   schneller/günstiger bzw. teurer). Websuche über Anthropics
@@ -160,12 +165,18 @@ und der Angebotsübersicht (ohne Key sind sie komplett ausgeblendet).
   `gemini-3.5-flash`, `gemini-2.5-flash` wählbar). Websuche über
   Google-Search-Grounding — **kein** Äquivalent zu `ai_max_web_searches`,
   Gemini entscheidet selbst, wie oft es sucht.
+- **Perplexity:** `perplexity_model` (Standard `sonar-pro`; auch `sonar`,
+  `sonar-reasoning-pro`, `sonar-deep-research` wählbar). Sonar-Modelle
+  durchsuchen bei **jeder** Anfrage automatisch das Web — kein Schalter,
+  kein Äquivalent zu `ai_max_web_searches`, dafür pro Aufruf teurer
+  (Token- **und** Request-Kosten, siehe Warnhinweis oben).
 
-Sind **beide** API-Keys hinterlegt, erscheint im Footer ein Umschalter
-(„🤖 Claude aktiv" / „✨ Gemini aktiv") — ein Klick wechselt sofort den
-Anbieter für alle KI-Features, ohne die Add-on-Konfiguration zu öffnen. Ist
-nur ein Key gesetzt, läuft automatisch alles über diesen (der Umschalter
-bleibt dann versteckt, `ai_provider` wird ignoriert).
+Sind **mindestens 2 der 3** API-Keys hinterlegt, erscheint im Footer ein
+Umschalter („🤖 Claude aktiv" / „✨ Gemini aktiv" / „🔎 Perplexity aktiv") —
+ein Klick wechselt zyklisch zum jeweils nächsten konfigurierten Anbieter für
+alle KI-Features, ohne die Add-on-Konfiguration zu öffnen. Ist nur ein Key
+gesetzt, läuft automatisch alles über diesen (der Umschalter bleibt dann
+versteckt, `ai_provider` wird ignoriert).
 
 - **🤖 KI-Fazit** (je Suchtreffer) — Claude durchsucht live das Web (HolidayCheck,
   Tripadvisor, Google, Klimatabellen) und liefert eine ausführliche Einschätzung zu
@@ -189,9 +200,10 @@ bleibt dann versteckt, `ai_provider` wird ignoriert).
   Vergleiche bleiben **dauerhaft** gespeichert (unabhängig vom 24h-Cache, bis zu
   300 Einträge), anklickbar zum erneuten Anzeigen, einzeln löschbar (löscht auch
   den mitgespeicherten Prompt). **🔁 Wiederholen** schickt den exakt gleichen
-  Prompt-Text erneut an eine wählbare KI (Claude oder Gemini, unabhängig vom
-  gerade aktiven Standard-Provider) und legt das Ergebnis als neuen Eintrag an —
-  praktisch um beide Anbieter für dieselbe Anfrage zu vergleichen. Nur bei
+  Prompt-Text erneut an eine wählbare KI (Claude, Gemini oder Perplexity —
+  unabhängig vom gerade aktiven Standard-Provider) und legt das Ergebnis als
+  neuen Eintrag an — praktisch um mehrere Anbieter für dieselbe Anfrage zu
+  vergleichen. Nur bei
   Einträgen verfügbar, die nach Einführung dieser Funktion gespeichert wurden
   (ältere haben keinen gespeicherten Prompt).
 - Ergebnisse werden **24 Stunden** je Hotel/Vergleichs-Kombination
@@ -411,8 +423,10 @@ unveränderten Tagen). Darauf aufbauend:
   KI-Key): fasst die Monatsdurchschnittspreise und, falls vorhanden, die größten
   Preisänderungen zusammen und empfiehlt günstige/teure Reisemonate. Reiner
   Markdown-Text ohne Websuche (nur die bereits abgerufenen Kalenderdaten), läuft
-  dadurch identisch mit Claude und Gemini und verursacht keine zusätzlichen
-  Websuche-Kosten. 6h je Angebot gecacht.
+  dadurch identisch mit Claude und Gemini und verursacht bei diesen beiden keine
+  zusätzlichen Websuche-Kosten. Bei Perplexity gilt das nicht: Sonar-Modelle
+  durchsuchen das Web bei **jeder** Anfrage (kein Abschalten möglich), auch hier
+  fällt daher die Perplexity-Request-Gebühr an. 6h je Angebot gecacht.
 
 Diese Trend-Historie zählt zu den echten, nicht rekonstruierbaren Nutzdaten (wie der
 Preisverlauf) und wird beim Zurücksetzen/Löschen eines Angebots mitgelöscht sowie im
