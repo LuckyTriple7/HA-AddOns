@@ -7,6 +7,7 @@ kein offizielles Python-SDK — reiner REST-Aufruf über `requests` (bereits
 Add-on-Abhängigkeit), OpenAI-kompatibles Chat-Completions-Schema.
 """
 import logging
+import re
 
 from flask import jsonify
 
@@ -19,6 +20,29 @@ from google.genai import types as genai_types
 import app as A
 
 _PERPLEXITY_API_URL = "https://api.perplexity.ai/chat/completions"
+_PERPLEXITY_CITATION_RE = re.compile(r'\[(\d+)\](?!\()')
+
+
+def _perplexity_linkify_citations(text: str, data: dict) -> str:
+    """Ersetzt Perplexitys nackte Zitat-Marker `[1]`/`[5]` im Fließtext durch
+    Markdown-Links `[1](url)` auf die zugehörige Quelle aus `search_results`
+    (bevorzugt) bzw. `citations` — macht sie im Frontend (aiMdLite/aiInline)
+    anklickbar statt als toter Text stehen zu bleiben. Nummerierung ist
+    1-basiert wie im Original; Zahlen ohne passende Quelle (außerhalb der
+    Liste) bleiben unverändert. `(?!\\()` verhindert Doppel-Verlinkung, falls
+    im Text ausnahmsweise schon `[n](url)` steht."""
+    search_results = data.get('search_results') or []
+    urls = [r.get('url') for r in search_results if isinstance(r, dict) and r.get('url')]
+    if not urls:
+        urls = [u for u in (data.get('citations') or []) if u]
+    if not urls:
+        return text
+
+    def _sub(m):
+        n = int(m.group(1))
+        return f'[{n}]({urls[n - 1]})' if 1 <= n <= len(urls) else m.group(0)
+
+    return _PERPLEXITY_CITATION_RE.sub(_sub, text)
 
 
 def _ai_request(api_key: str, model: str, prompt: str, *, max_tokens: int,
@@ -94,6 +118,10 @@ def _ai_request_perplexity(api_key: str, model: str, prompt: str, *, max_tokens:
     if not text:
         A.log.warning("KI-Antwort (%s) leer: finish_reason=%s", log_ctx, finish_reason)
         return None, None, 'empty'
+    if output_schema is None:
+        # Nur bei Freitext verlinken — bei Structured Output ist `text` ein
+        # JSON-String, den ein Aufrufer parst; Markdown-Syntax würde ihn zerstören.
+        text = _perplexity_linkify_citations(text, data)
     usage = {'input_tokens': u.get('prompt_tokens', 0) or 0,
              'output_tokens': u.get('completion_tokens', 0) or 0,
              'cache_creation_input_tokens': 0, 'cache_read_input_tokens': 0,

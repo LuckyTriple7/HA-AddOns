@@ -1976,7 +1976,14 @@
     }
 
     // ── KI-Hotel-Fazit & -Vergleich (Lage, Zimmer, Restaurants, Pool, Ausstattung) ─
-    function aiInline(s){ return s.replace(/\*\*(.+?)\*\*/g,'<b>$1</b>'); }
+    // [n](url) -> anklickbare Zitat-Nummer (Perplexity-Quellenangaben, siehe
+    // ai_client.py::_perplexity_linkify_citations); läuft vor **bold**, damit ein
+    // Fettdruck rund um eine Zitat-Klammer die Link-Erkennung nicht stört.
+    function aiInline(s){
+      s = s.replace(/\[(\d+)\]\((https?:\/\/[^\s")]+)\)/g,
+        '<a href="$2" target="_blank" rel="noopener" class="ai-cite">[$1]</a>');
+      return s.replace(/\*\*(.+?)\*\*/g,'<b>$1</b>');
+    }
     function aiTableRow(l){ return l.trim().replace(/^\||\|$/g,'').split('|').map(c=>aiInline(c.trim())); }
     function aiMdLite(text){
       const lines = esc(text).split('\n');
@@ -2183,6 +2190,7 @@
         + 'body{font-family:system-ui,"Segoe UI",Arial,sans-serif;color:#111;max-width:760px;margin:0 auto;padding:32px;line-height:1.5}'
         + 'h1{font-size:1.3rem;margin:0 0 4px}.sub{color:#555;font-size:.9rem;margin-bottom:20px}'
         + '.ai-h{color:#0b65d8;font-size:1rem;margin:18px 0 6px}.ai-list{margin:0 0 12px;padding-left:20px}'
+        + '.ai-cite{color:#0b65d8;text-decoration:none;font-size:.78em;vertical-align:super}'
         + 'table{width:100%;border-collapse:collapse;margin:8px 0 16px;font-size:.85rem}'
         + 'th,td{text-align:left;padding:6px 8px;border-bottom:1px solid #ddd}'
         + '.hint{color:#888;font-size:.78rem;margin-top:16px;padding-top:8px;border-top:1px solid #ddd}'

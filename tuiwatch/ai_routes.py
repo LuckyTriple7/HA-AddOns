@@ -1395,6 +1395,11 @@ def _ai_md_to_html(text: str) -> str:
         return A._esc_html(s)
 
     def inline(s):
+        # [n](url) -> anklickbare Zitat-Nummer (Perplexity), vor **bold** wie im
+        # JS-Pendant aiInline — sonst stört Fettdruck rund um eine Zitat-Klammer
+        # die Link-Erkennung.
+        s = re.sub(r'\[(\d+)\]\((https?://[^\s")]+)\)',
+                   r'<a href="\2" style="color:#0b65d8;text-decoration:none">[\1]</a>', s)
         return re.sub(r'\*\*(.+?)\*\*', r'<b>\1</b>', s)
 
     def row(l):

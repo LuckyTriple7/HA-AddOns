@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.49.5] - 2026-07-11
+
+### Added
+- **Perplexity-Quellenangaben anklickbar.** Zitat-Marker wie `[1][5]` in
+  Perplexity-Antworten waren bisher toter Text. Werden jetzt serverseitig gegen
+  die zugehörigen URLs aus `search_results`/`citations` zu Markdown-Links
+  aufgelöst (`[1](https://…)`) und im Frontend (Web-UI + PDF-Export + E-Mail)
+  als klickbare, hochgestellte Zahl gerendert (`.ai-cite`). Betrifft nur
+  Perplexity — Claude/Gemini liefern Quellen bereits anders.
+
 ## [0.49.4] - 2026-07-11
 
 ### Fixed

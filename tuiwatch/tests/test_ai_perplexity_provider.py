@@ -49,12 +49,18 @@ class _FakeResponse:
 
 
 def _chat_payload(text="Antwort", finish_reason="stop", prompt_tokens=100,
-                  completion_tokens=50, num_search_queries=0):
-    return {
+                  completion_tokens=50, num_search_queries=0, citations=None,
+                  search_results=None):
+    payload = {
         "choices": [{"message": {"content": text}, "finish_reason": finish_reason}],
         "usage": {"prompt_tokens": prompt_tokens, "completion_tokens": completion_tokens,
                   "num_search_queries": num_search_queries},
     }
+    if citations is not None:
+        payload["citations"] = citations
+    if search_results is not None:
+        payload["search_results"] = search_results
+    return payload
 
 
 def _patch_requests(monkeypatch, response, captured=None):
@@ -238,6 +244,63 @@ def test_provider_route_post_rejects_configured_provider_missing_key(app_mod):
     c = app_mod.app.test_client()
     r = c.post("/api/ai/provider", headers=ING, json={"provider": "perplexity"})
     assert r.status_code == 400
+
+
+# ── Zitat-Verlinkung ([n] -> [n](url)) ──────────────────────────────────────
+
+def test_perplexity_linkifies_citations_from_search_results(app_mod, monkeypatch):
+    _patch_requests(monkeypatch, _FakeResponse(payload=_chat_payload(
+        text="Traumhafter Strand.[1][3]",
+        search_results=[{"url": "https://a.example/1"}, {"url": "https://b.example/2"},
+                        {"url": "https://c.example/3"}])))
+    text, _usage, err = app_mod._ai_request("p-key", "sonar-pro", "Prompt",
+                                            max_tokens=200, log_ctx="Test")
+    assert err is None
+    assert text == "Traumhafter Strand.[1](https://a.example/1)[3](https://c.example/3)"
+
+
+def test_perplexity_linkifies_citations_from_bare_citations_list(app_mod, monkeypatch):
+    """Fallback, falls die Antwort kein `search_results` liefert (ältere/leichtere
+    Sonar-Antworten haben nur die schlichte `citations`-URL-Liste)."""
+    _patch_requests(monkeypatch, _FakeResponse(payload=_chat_payload(
+        text="Klares Wasser.[2]", citations=["https://x.example", "https://y.example"])))
+    text, _usage, _err = app_mod._ai_request("p-key", "sonar", "Prompt",
+                                             max_tokens=200, log_ctx="Test")
+    assert text == "Klares Wasser.[2](https://y.example)"
+
+
+def test_perplexity_leaves_unmatched_citation_number_unchanged(app_mod, monkeypatch):
+    _patch_requests(monkeypatch, _FakeResponse(payload=_chat_payload(
+        text="Siehe [9].", citations=["https://x.example"])))
+    text, _usage, _err = app_mod._ai_request("p-key", "sonar", "Prompt",
+                                             max_tokens=200, log_ctx="Test")
+    assert text == "Siehe [9]."
+
+
+def test_perplexity_no_citations_text_unchanged(app_mod, monkeypatch):
+    _patch_requests(monkeypatch, _FakeResponse(payload=_chat_payload(text="Kein Zitat hier.")))
+    text, _usage, _err = app_mod._ai_request("p-key", "sonar", "Prompt",
+                                             max_tokens=200, log_ctx="Test")
+    assert text == "Kein Zitat hier."
+
+
+def test_perplexity_skips_linkify_for_structured_output(app_mod, monkeypatch):
+    """Bei Structured Output ist `text` ein JSON-String für einen Parser —
+    Markdown-Link-Syntax darf hier nicht eingefügt werden, auch wenn das Modell
+    (untypisch) Zitat-Marker im JSON-Text unterbringt."""
+    schema = {"type": "object", "properties": {"score": {"type": "integer"}},
+              "required": ["score"], "additionalProperties": False}
+    _patch_requests(monkeypatch, _FakeResponse(payload=_chat_payload(
+        text='{"score": 1}', citations=["https://x.example"])))
+    text, _usage, _err = app_mod._ai_request("p-key", "sonar", "Prompt", max_tokens=200,
+                                             log_ctx="Test", output_schema=schema)
+    assert text == '{"score": 1}'
+
+
+def test_ai_md_to_html_renders_citation_link(app_mod):
+    html = app_mod._ai_md_to_html("Traumhaft.[1](https://a.example/page?x=1&y=2)")
+    assert '<a href="https://a.example/page?x=1&amp;y=2"' in html
+    assert '>[1]</a>' in html
 
 
 # ── Kostenschätzung inkl. Request-Gebühr ────────────────────────────────────
