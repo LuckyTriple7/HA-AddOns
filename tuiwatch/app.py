@@ -2563,6 +2563,7 @@ import ai_routes  # noqa: E402
 app.register_blueprint(ai_routes.bp)
 _contacts_cache = ai_routes._contacts_cache
 _airports_cache = ai_routes._airports_cache
+_dest_cache = ai_routes._dest_cache
 _AI_SECTIONS = ai_routes._AI_SECTIONS
 _CUSTOM_PROMPT_MAX_LEN = ai_routes._CUSTOM_PROMPT_MAX_LEN
 _DEFAULT_ADVISOR_INSTRUCTIONS = ai_routes._DEFAULT_ADVISOR_INSTRUCTIONS

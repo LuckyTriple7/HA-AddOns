@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.51.6] - 2026-07-11
+
+### Fixed
+- **Reiseziel-Drilldown (`/api/destinations`) crashte mit
+  `AttributeError: module '__main__' has no attribute '_dest_cache'`.**
+  Dritter Fund derselben Bugklasse (siehe 0.51.4/0.51.5): `_dest_cache` lag
+  nur in `ai_routes.py`, fehlte im Re-Export nach `app.py`. Ergänzt. Alle
+  `A.`-Zugriffe in `offers_routes.py` einmal komplett gegen `app.py` geprüft
+  — keine weiteren Lücken gefunden.
+
 ## [0.51.5] - 2026-07-11
 
 ### Fixed
