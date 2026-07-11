@@ -3220,6 +3220,35 @@
     $('#new-label').addEventListener('keydown', e=>{ if(e.key==='Enter') addOffer(); });
     $('#check-all').addEventListener('click', checkAll);
     $('#search').addEventListener('input', e=>{ searchTerm = e.target.value; renderAll(curOffers||[]); });
+
+    // ── ✕ zum Leeren in Suchfeldern ────────────────────────────────────────────
+    // Generisch statt pro Feld: jedes Text-/Suchfeld mit „Such…"/🔍 im Placeholder
+    // bekommt beim ersten Fokus ein ✕ (deckt auch dynamisch gerenderte Felder ab,
+    // z. B. Reiseziel-Picker). Klick leert + feuert 'input', damit Filter/Listen
+    // sofort mitziehen.
+    function attachClearX(inp){
+      if(!inp || inp.dataset.clearx) return;
+      inp.dataset.clearx = '1';
+      const wrap = document.createElement('span');
+      wrap.className = 'clearx-wrap';
+      inp.parentNode.insertBefore(wrap, inp);
+      wrap.appendChild(inp);
+      const x = document.createElement('span');
+      x.className = 'clearx'; x.textContent = '✕'; x.title = 'Feld leeren';
+      x.addEventListener('mousedown', e=>e.preventDefault());   // Fokus im Feld halten
+      x.addEventListener('click', ()=>{ inp.value=''; inp.dispatchEvent(new Event('input', {bubbles:true})); inp.focus(); });
+      wrap.appendChild(x);
+      const upd = ()=>{ x.style.display = inp.value ? '' : 'none'; };
+      inp.addEventListener('input', upd);
+      upd();
+    }
+    document.addEventListener('focusin', e=>{
+      const el = e.target;
+      if(el.tagName==='INPUT' && (el.type==='text'||el.type==='search')
+         && /such|🔍/i.test(el.placeholder||'')) attachClearX(el);
+    });
+    attachClearX($('#search'));   // Hauptsuche sofort sichtbar, nicht erst beim Fokus
+
     $('#sort').value = sortMode;
     $('#sort').addEventListener('change', e=>{ sortMode = e.target.value; localStorage.setItem('tw-sort', sortMode); renderAll(curOffers||[]); });
     $('#show-archived').checked = showArchived;

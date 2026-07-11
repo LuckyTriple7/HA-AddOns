@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.49.1] - 2026-07-10
+
+### Added
+- **✕ zum Leeren in allen Suchfeldern.** Hauptsuche, KI-Verlauf-Suche,
+  Reiseziel-Picker & Co. zeigen bei Eingabe ein ✕ am Feldende — Klick leert das
+  Feld und aktualisiert die Liste sofort. Greift generisch für jedes (auch
+  künftige) Suchfeld mit „Suchen…"-Placeholder.
+
 ## [0.49.0] - 2026-07-10
 
 ### Added

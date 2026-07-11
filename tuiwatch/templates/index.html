@@ -54,6 +54,12 @@
     .search-row { margin-bottom:14px; display:flex; gap:8px; flex-wrap:wrap; }
     .search-row input { flex:1 1 240px; background:var(--surf); border:1px solid var(--border); color:var(--text); padding:9px 12px; border-radius:6px; font-size:.85rem; }
     .search-row input:focus { outline:none; border-color:var(--accent); }
+    /* ✕ zum Leeren in Suchfeldern (JS-Enhancer attachClearX) */
+    .clearx-wrap { position:relative; display:inline-flex; flex:1 1 240px; width:100%; max-width:100%; min-width:0; }
+    .clearx-wrap > input { width:100%; flex:1; padding-right:30px; box-sizing:border-box; }
+    .clearx { position:absolute; right:9px; top:50%; transform:translateY(-50%); cursor:pointer;
+              color:var(--muted); font-size:.85rem; line-height:1; padding:3px; user-select:none; }
+    .clearx:hover { color:var(--text); }
     .search-row select { background:var(--surf); border:1px solid var(--border); color:var(--text); padding:9px 10px; border-radius:6px; font-size:.85rem; cursor:pointer; }
     .rename-btn { background:none; border:none; color:var(--muted); cursor:pointer; font-size:.85rem; padding:0 4px; line-height:1; }
     .rename-btn:hover { color:var(--accent); }
