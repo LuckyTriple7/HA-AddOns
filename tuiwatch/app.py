@@ -81,7 +81,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.50.0"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.51.0"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -483,6 +483,11 @@ def init_db() -> None:
         if 'offer_id' not in acols:
             # verknüpft Buchungsscores mit dem Angebot → Score-Verlauf je Angebot
             con.execute("ALTER TABLE ai_analyses ADD COLUMN offer_id INTEGER")
+        if 'conversation' not in acols:
+            # komplette Turn-Historie (JSON-Array [{role, content}, ...]) für
+            # Folgefragen (siehe ai_routes.py::api_ai_history_followup) — leer bei
+            # Einträgen ohne Folgefrage, wird dann aus prompt+summary rekonstruiert
+            con.execute("ALTER TABLE ai_analyses ADD COLUMN conversation TEXT NOT NULL DEFAULT ''")
         # Reisen-Datenbank: gebuchte Reisen (PDF-Import). data = komplettes Parse-JSON,
         # pdf_name = Dateiname im TRIPS_DIR (dauerhaft gespeichert).
         con.execute('''CREATE TABLE IF NOT EXISTS trips (
@@ -2512,13 +2517,18 @@ sys.modules.setdefault('app', sys.modules[__name__])
 
 import ai_client  # noqa: E402
 _ai_request = ai_client._ai_request
+_ai_request_messages = ai_client._ai_request_messages
 _ai_request_anthropic = ai_client._ai_request_anthropic
+_ai_request_anthropic_messages = ai_client._ai_request_anthropic_messages
 _GEMINI_REFUSAL_REASONS = ai_client._GEMINI_REFUSAL_REASONS
 _gemini_sanitize_schema = ai_client._gemini_sanitize_schema
 _GEMINI_THINKING_TOKEN_RESERVE = ai_client._GEMINI_THINKING_TOKEN_RESERVE
 _ai_request_gemini = ai_client._ai_request_gemini
+_ai_request_gemini_messages = ai_client._ai_request_gemini_messages
 _ai_request_perplexity = ai_client._ai_request_perplexity
+_ai_request_perplexity_messages = ai_client._ai_request_perplexity_messages
 _ai_call = ai_client._ai_call
+_ai_call_messages = ai_client._ai_call_messages
 
 import price_calendar  # noqa: E402
 app.register_blueprint(price_calendar.bp)

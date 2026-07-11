@@ -386,6 +386,18 @@ def _configured_ai_providers(cfg: dict) -> list[str]:
     return [p for p in _AI_PROVIDERS if (cfg.get(_AI_PROVIDER_KEY_FIELDS[p]) or '').strip()]
 
 
+def _provider_for_model(model: str) -> str:
+    """Umkehrung von `_ai_config_for`: welcher Provider bedient dieses Modell —
+    für Folgefragen (`/api/ai/history/<id>/followup`), die mit demselben Modell
+    weiterlaufen müssen, das die ursprüngliche Antwort gegeben hat (nicht
+    zwangsläufig der gerade aktive Standard-Provider)."""
+    if model in A._GEMINI_MODELS:
+        return 'gemini'
+    if model in A._PERPLEXITY_MODELS:
+        return 'perplexity'
+    return 'anthropic'
+
+
 def _ai_active_provider(cfg: dict | None = None) -> str:
     """Welcher Provider ('anthropic'/'gemini'/'perplexity') gerade aktiv ist. Ist
     nur ein API-Key hinterlegt, gilt automatisch dieser (verhindert die Falle,
@@ -1592,6 +1604,77 @@ def api_ai_history_repeat(aid: int):
     out = {'usage': usage, 'totals': totals, 'id': new_id}
     out.update({'result': result} if result is not None else {'summary': text})
     return jsonify(out)
+
+
+_AI_FOLLOWUP_MAX_LEN = 2000  # Zeichen — Freitext-Folgefrage, großzügiger als übliche Formfelder
+_AI_FOLLOWUP_UNSUPPORTED_KINDS = ('booking_score', 'region_outlook')  # strukturiertes JSON,
+                                                                       # keine Konversation
+
+
+def _ai_followup_messages(row) -> list[dict]:
+    """Turn-Historie für eine Folgefrage: bereits gespeicherte Konversation
+    (`conversation`-Spalte, JSON-Array) fortsetzen — bei Einträgen ohne bisherige
+    Folgefrage wird sie einmalig aus dem eingefrorenen `prompt`+`summary` der
+    Erstantwort rekonstruiert (die beiden existieren für jeden Eintrag mit
+    `has_prompt`, die Konversation selbst erst ab der ersten Folgefrage)."""
+    try:
+        conv = json.loads(row['conversation'] or '[]')
+    except (TypeError, ValueError):
+        conv = []
+    if not isinstance(conv, list) or not conv:
+        conv = [{"role": "user", "content": row['prompt']},
+                {"role": "assistant", "content": row['summary']}]
+    return conv
+
+
+@bp.route('/api/ai/history/<int:aid>/followup', methods=['POST'])
+def api_ai_history_followup(aid: int):
+    """Stellt eine Folgefrage zu einem bestehenden KI-Verlaufseintrag — echte
+    Konversation (bisheriger Prompt + Antwort(en) + neue Frage), anders als
+    „🔁 Wiederholen“, das nur denselben alten Prompt erneut verschickt.
+    Ergänzt den bestehenden Eintrag um die neue Runde (statt einen neuen Eintrag
+    anzulegen, damit der KI-Verlauf nicht mit einem Eintrag pro Folgefrage
+    zumüllt) und antwortet mit demselben Modell/Provider, das die ursprüngliche
+    Antwort gegeben hat (nicht zwangsläufig der aktuell aktive Standard-
+    Provider) — funktioniert bei allen 3 Anbietern (Claude/Gemini/Perplexity
+    unterstützen alle Mehrfach-Turn-Konversationen, siehe
+    `ai_client.py::_ai_request_messages`). Nicht bei strukturierten Ergebnissen
+    (Buchungsscore/Region-Ausblick — reines JSON statt Fließtext, siehe
+    `_AI_FOLLOWUP_UNSUPPORTED_KINDS`)."""
+    if (err := A._require_api()):
+        return err
+    question = ((request.get_json(silent=True) or {}).get('question') or '').strip()
+    if not question or len(question) > _AI_FOLLOWUP_MAX_LEN:
+        return jsonify({'error': 'invalid'}), 400
+    with A.db() as con:
+        row = con.execute('SELECT kind, title, model, prompt, summary, conversation '
+                          'FROM ai_analyses WHERE id=?', (aid,)).fetchone()
+    if not row:
+        return jsonify({'error': 'not_found'}), 404
+    if row['kind'] in _AI_FOLLOWUP_UNSUPPORTED_KINDS:
+        return jsonify({'error': 'unsupported_kind'}), 400
+    if not row['prompt'] or not row['summary']:
+        return jsonify({'error': 'no_prompt',
+                        'note': 'Dieser Eintrag hat keine gespeicherte Konversation.'}), 400
+    model = row['model']
+    api_key, _default_model = _ai_config_for(_provider_for_model(model))
+    if not api_key:
+        return jsonify({'error': 'no_api_key'}), 400
+    messages = _ai_followup_messages(row)
+    messages.append({"role": "user", "content": question})
+    rcfg = _AI_RETRY_MARKDOWN_CONFIG.get(row['kind'], {'max_tokens': 2048, 'use_web_search': True})
+    text, usage, err = A._ai_call_messages(api_key, model, messages, max_tokens=rcfg['max_tokens'],
+                                         log_ctx=row['title'], use_web_search=rcfg['use_web_search'])
+    if err:
+        return err
+    messages.append({"role": "assistant", "content": text})
+    usage['estimated_usd'] = _ai_call_cost(model, usage)
+    totals = _record_ai_usage(model, usage)
+    with A.db() as con:
+        con.execute('UPDATE ai_analyses SET summary=?, usage=?, conversation=?, ts=? WHERE id=?',
+                    (text, json.dumps(usage), json.dumps(messages, ensure_ascii=False),
+                     int(time.time()), aid))
+    return jsonify({'summary': text, 'usage': usage, 'totals': totals, 'id': aid})
 
 
 _dest_cache: dict = {}     # parent → {parentName, items}

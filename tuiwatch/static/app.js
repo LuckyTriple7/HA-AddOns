@@ -2058,10 +2058,56 @@
       return html;
     }
     let aiCurrentId = null;   // ID in ai_analyses des gerade angezeigten Ergebnisses (fürs E-Mail-Senden)
+    // Folgefrage-Eingabe unter jedem Freitext-KI-Ergebnis: eigener Container (statt
+    // alles bei jeder Runde neu zu rendern) — #ai-thread sammelt die Konversation
+    // sichtbar an, #ai-usage-line-wrap/#ai-followup-status werden gezielt ersetzt.
+    function aiFollowupBoxHtml(){
+      return '<div style="margin-top:14px;padding-top:10px;border-top:1px solid var(--border);display:flex;gap:8px">'
+        + '<input id="ai-followup-q" type="text" placeholder="Folgefrage stellen…" style="flex:1;min-width:0" '
+        + 'onkeydown="if(event.key===\'Enter\'){ event.preventDefault(); submitAiFollowup(); }">'
+        + '<button class="btn sec" onclick="submitAiFollowup()" title="Folgefrage senden">➤</button></div>';
+    }
     function renderAiResult(box, result){
-      $(box).innerHTML = aiMdLite(result.summary) + aiUsageLine(result.usage, result.cached, result.totals);
+      $(box).innerHTML = '<div id="ai-thread">'+aiMdLite(result.summary)+'</div>'
+        + '<div id="ai-followup-status"></div>'
+        + '<div id="ai-usage-line-wrap">'+aiUsageLine(result.usage, result.cached, result.totals)+'</div>'
+        + aiFollowupBoxHtml();
       $('#ai-foot').style.display = 'flex';
       aiCurrentId = result.id != null ? result.id : null;
+    }
+    async function submitAiFollowup(){
+      const input = $('#ai-followup-q');
+      const q = (input && input.value || '').trim();
+      if(!q){ toast('Bitte eine Frage eingeben'); return; }
+      if(aiCurrentId == null){ toast('Folgefrage hier nicht möglich'); return; }
+      const thread = $('#ai-thread'), status = $('#ai-followup-status');
+      if(!thread || !status) return;
+      input.disabled = true;
+      thread.innerHTML += '<div class="hint" style="margin-top:16px"><b>Du:</b> '+esc(q)+'</div>';
+      status.innerHTML = progBar(aiProviderName()+' antwortet…');
+      let resp, d;
+      try {
+        resp = await fetch(api('/api/ai/history/'+aiCurrentId+'/followup'), {method:'POST',
+          headers:{'Content-Type':'application/json'}, body: JSON.stringify({question: q})});
+        d = await resp.json();
+      } catch(e){
+        status.innerHTML = aiErrorBlock('Folgefrage fehlgeschlagen.', false);
+        input.disabled = false;
+        return;
+      }
+      if(!resp.ok){
+        status.innerHTML = aiErrorBlock(d.error==='unsupported_kind' ? 'Für dieses Ergebnis sind keine Folgefragen möglich.'
+          : d.error==='no_prompt' ? (d.note||'Keine Konversation gespeichert.') : aiErrorMsg(d.error), false);
+        input.disabled = false;
+        return;
+      }
+      thread.innerHTML += aiMdLite(d.summary);
+      status.innerHTML = '';
+      const usageWrap = $('#ai-usage-line-wrap');
+      if(usageWrap) usageWrap.innerHTML = aiUsageLine(d.usage, false, d.totals);
+      input.value = '';
+      input.disabled = false;
+      input.focus();
     }
     function scoreColor(score){ return score>=70 ? 'var(--green)' : score>=40 ? 'var(--amber)' : 'var(--red)'; }
     // Score-Verlauf (ai_analyses, per offer_id verknüpft): Delta zur Vor-Messung +
@@ -2186,6 +2232,13 @@
       const w = window.open('', '_blank');
       if(!w){ toast('Pop-up blockiert – bitte für TUIWatch erlauben'); return; }
       const title = $('#ai-title').textContent, sub = $('#ai-sub').textContent;
+      // #ai-thread + Usage-Zeile statt des rohen #ai-body — sonst landet die
+      // Folgefrage-Eingabezeile (<input>/Button) mit im PDF. Booking-Score-Ansicht
+      // hat kein #ai-thread (renderBookingScore rendert direkt in #ai-body ohne
+      // Folgefrage-UI) — dort weiterhin der komplette Inhalt.
+      const thread = $('#ai-thread'), usageWrap = $('#ai-usage-line-wrap');
+      const bodyHtml = thread ? thread.innerHTML + (usageWrap ? usageWrap.innerHTML : '')
+                              : $('#ai-body').innerHTML;
       w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>'+esc(title+' – '+sub)+'</title><style>'
         + 'body{font-family:system-ui,"Segoe UI",Arial,sans-serif;color:#111;max-width:760px;margin:0 auto;padding:32px;line-height:1.5}'
         + 'h1{font-size:1.3rem;margin:0 0 4px}.sub{color:#555;font-size:.9rem;margin-bottom:20px}'
@@ -2196,7 +2249,7 @@
         + '.hint{color:#888;font-size:.78rem;margin-top:16px;padding-top:8px;border-top:1px solid #ddd}'
         + '@media print{body{padding:0}}</style></head><body>'
         + '<h1>'+esc(title)+'</h1><div class="sub">'+esc(sub)+'</div>'
-        + $('#ai-body').innerHTML + '</body></html>');
+        + bodyHtml + '</body></html>');
       w.document.close();
       w.onload = () => { w.focus(); w.print(); };
     }

@@ -76,7 +76,8 @@ def _build_backup_zip() -> bytes:
                 'WHERE trips.booking_code IS NOT NULL ORDER BY trip_packing_items.id').fetchall():
             packing_items.append(dict(pi))
         ai_analyses = [dict(r) for r in con.execute(
-            'SELECT kind, title, model, summary, usage, ts, prompt FROM ai_analyses ORDER BY id').fetchall()]
+            'SELECT kind, title, model, summary, usage, ts, prompt, conversation '
+            'FROM ai_analyses ORDER BY id').fetchall()]
         meta_rows = con.execute(
             f"SELECT key, value FROM meta WHERE key IN ({','.join('?' for _ in _BACKUP_META_KEYS)})",
             _BACKUP_META_KEYS).fetchall()
@@ -417,10 +418,10 @@ def api_restore():
                 if exists:
                     continue
                 con.execute(
-                    'INSERT INTO ai_analyses (kind, title, model, summary, usage, ts, prompt) '
-                    'VALUES (?,?,?,?,?,?,?)',
+                    'INSERT INTO ai_analyses (kind, title, model, summary, usage, ts, prompt, '
+                    'conversation) VALUES (?,?,?,?,?,?,?,?)',
                     (kind, title, a.get('model'), a.get('summary'), a.get('usage'), ts,
-                     a.get('prompt') or ''))
+                     a.get('prompt') or '', a.get('conversation') or ''))
                 ai_n += 1
             con.execute('DELETE FROM ai_analyses WHERE id NOT IN '
                         '(SELECT id FROM ai_analyses ORDER BY id DESC LIMIT ?)', (A._AI_HISTORY_MAX,))

@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.51.0] - 2026-07-11
+
+### Added
+- **Folgefragen zu KI-Ergebnissen.** Unter jedem Freitext-Ergebnis (KI-Fazit,
+  Vergleich, TripPilot, Kalenderanalyse, Frag dein Portfolio) — auch nachträglich
+  beim erneuten Öffnen aus dem KI-Verlauf — lässt sich jetzt eine Folgefrage
+  stellen: echte Mehrfach-Turn-Konversation (bisheriger Prompt + Antwort + neue
+  Frage), nicht nur derselbe Prompt erneut wie bei „🔁 Wiederholen". Läuft mit
+  demselben Modell/Provider weiter, das die Erstantwort gegeben hat, und
+  funktioniert bei allen 3 Anbietern (Claude/Gemini/Perplexity unterstützen alle
+  Konversationen). Neuer Endpoint `POST /api/ai/history/<id>/followup`, neue
+  DB-Spalte `ai_analyses.conversation` (Backup/Restore-fähig). Nicht verfügbar
+  bei Buchungsscore/Region-Ausblick (strukturiertes JSON).
+
 ## [0.50.0] - 2026-07-11
 
 ### Added

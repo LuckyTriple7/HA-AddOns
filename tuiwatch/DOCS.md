@@ -207,6 +207,15 @@ versteckt, `ai_provider` wird ignoriert).
   vergleichen. Nur bei
   Einträgen verfügbar, die nach Einführung dieser Funktion gespeichert wurden
   (ältere haben keinen gespeicherten Prompt).
+- **Folgefrage stellen** — unter jedem Freitext-Ergebnis (KI-Fazit, Vergleich,
+  TripPilot, Kalenderanalyse, Frag dein Portfolio) sowie beim erneuten Öffnen
+  aus dem KI-Verlauf: echte Konversation (bisheriger Prompt + Antwort(en) +
+  neue Frage), anders als „🔁 Wiederholen“, das nur denselben alten Prompt
+  erneut verschickt. Antwortet mit demselben Modell/Provider, das die
+  ursprüngliche Antwort gegeben hat (unabhängig vom aktuell aktiven Standard-
+  Provider) — funktioniert bei allen 3 Anbietern. Ergänzt den bestehenden
+  Verlaufseintrag statt einen neuen anzulegen. Nicht verfügbar bei
+  Buchungsscore/Region-Ausblick (strukturiertes JSON statt Fließtext).
 - Ergebnisse werden **24 Stunden** je Hotel/Vergleichs-Kombination
   zwischengespeichert — erneutes Öffnen kostet keinen neuen API-Aufruf.
 

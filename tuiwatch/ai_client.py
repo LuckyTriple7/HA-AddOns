@@ -54,7 +54,10 @@ def _ai_request(api_key: str, model: str, prompt: str, *, max_tokens: int,
     'empty'. `usage` = {input_tokens, output_tokens, cache_creation_input_tokens,
     cache_read_input_tokens, web_search_requests}. Mit `output_schema` antwortet
     das Modell als validiertes JSON nach diesem Schema (structured outputs) —
-    `text` ist dann der JSON-String."""
+    `text` ist dann der JSON-String. Dispatcht bewusst direkt zu den Einzel-
+    Prompt-Funktionen (nicht über `_ai_request_messages`) — Tests/Aufrufer
+    patchen teils gezielt `_ai_request_anthropic`/`_ai_request_gemini`/
+    `_ai_request_perplexity`, das muss auf diesem Pfad weiterhin greifen."""
     if model in A._GEMINI_MODELS:
         return A._ai_request_gemini(api_key, model, prompt, max_tokens=max_tokens,
                                   log_ctx=log_ctx, use_web_search=use_web_search,
@@ -68,22 +71,58 @@ def _ai_request(api_key: str, model: str, prompt: str, *, max_tokens: int,
                                  output_schema=output_schema)
 
 
+def _ai_request_messages(api_key: str, model: str, messages: list[dict], *, max_tokens: int,
+                         log_ctx: str, use_web_search: bool = True,
+                         output_schema: dict | None = None):
+    """Wie `_ai_request`, aber mit vollständiger Konversation (`messages` =
+    `[{"role": "user"|"assistant", "content": str}, ...]`) statt nur einem
+    einzelnen Prompt — für Folgefragen zu einem bestehenden KI-Verlaufseintrag
+    (siehe `ai_routes.py::api_ai_history_followup`). Alle drei Provider
+    unterstützen Mehrfach-Turn-Konversationen; Rollen-Namen sind provider-
+    übergreifend einheitlich 'user'/'assistant' (Gemini erwartet intern 'model'
+    statt 'assistant' — die Umbenennung passiert in `_ai_request_gemini_messages`,
+    nicht hier, damit Aufrufer sich nicht um Provider-Eigenheiten kümmern müssen)."""
+    if model in A._GEMINI_MODELS:
+        return A._ai_request_gemini_messages(api_key, model, messages, max_tokens=max_tokens,
+                                           log_ctx=log_ctx, use_web_search=use_web_search,
+                                           output_schema=output_schema)
+    if model in A._PERPLEXITY_MODELS:
+        return A._ai_request_perplexity_messages(api_key, model, messages, max_tokens=max_tokens,
+                                               log_ctx=log_ctx, use_web_search=use_web_search,
+                                               output_schema=output_schema)
+    return A._ai_request_anthropic_messages(api_key, model, messages, max_tokens=max_tokens,
+                                          log_ctx=log_ctx, use_web_search=use_web_search,
+                                          output_schema=output_schema)
+
+
 def _ai_request_perplexity(api_key: str, model: str, prompt: str, *, max_tokens: int,
                            log_ctx: str, use_web_search: bool = True,
                            output_schema: dict | None = None):
-    """Perplexity-Variante von `_ai_request_anthropic` — gleiche Rückgabe-Signatur
-    (text, usage, error_code), siehe `A._ai_request`. Sonar-Modelle durchsuchen das
-    Web bei JEDER Anfrage automatisch (kein separates Tool wie bei Claude/Gemini) —
-    `use_web_search=False` hat hier keine Wirkung, es gibt keinen Schalter dafür.
-    `search_context_size` wird explizit auf 'low' gepinnt (statt dem API-Default zu
-    überlassen) — hält die zusätzliche, gestaffelte Request-Gebühr auf der
-    günstigsten Stufe UND macht sie überhaupt erst planbar: `ai_routes.py::
-    _AI_PERPLEXITY_REQUEST_FEE` rechnet genau diese Stufe in die Kostenanzeige mit
-    ein, ohne dieses Pinning wäre die Gebühr unvorhersehbar (API könnte 'medium'
-    o. Ä. als Default nutzen) und die Schätzung stimmt nicht mehr."""
+    """Einzel-Prompt-Kurzform von `_ai_request_perplexity_messages` — siehe dort."""
+    return _ai_request_perplexity_messages(api_key, model, [{"role": "user", "content": prompt}],
+                                          max_tokens=max_tokens, log_ctx=log_ctx,
+                                          use_web_search=use_web_search, output_schema=output_schema)
+
+
+def _ai_request_perplexity_messages(api_key: str, model: str, messages: list[dict], *,
+                                    max_tokens: int, log_ctx: str, use_web_search: bool = True,
+                                    output_schema: dict | None = None):
+    """Perplexity-Variante von `_ai_request_anthropic_messages` — gleiche Rückgabe-
+    Signatur (text, usage, error_code), siehe `A._ai_request_messages`. Perplexitys
+    `messages`-Format entspricht bereits 1:1 unserem provider-übergreifenden
+    Rollen-Schema ('user'/'assistant') — keine Umwandlung nötig, anders als bei
+    Gemini. Sonar-Modelle durchsuchen das Web bei JEDER Anfrage automatisch (kein
+    separates Tool wie bei Claude/Gemini) — `use_web_search=False` hat hier keine
+    Wirkung, es gibt keinen Schalter dafür. `search_context_size` wird explizit auf
+    'low' gepinnt (statt dem API-Default zu überlassen) — hält die zusätzliche,
+    gestaffelte Request-Gebühr auf der günstigsten Stufe UND macht sie überhaupt
+    erst planbar: `ai_routes.py::_AI_PERPLEXITY_REQUEST_FEE` rechnet genau diese
+    Stufe in die Kostenanzeige mit ein, ohne dieses Pinning wäre die Gebühr
+    unvorhersehbar (API könnte 'medium' o. Ä. als Default nutzen) und die
+    Schätzung stimmt nicht mehr."""
     payload = {
         "model": model,
-        "messages": [{"role": "user", "content": prompt}],
+        "messages": messages,
         "max_tokens": max_tokens,
         "web_search_options": {"search_context_size": "low"},
     }
@@ -132,9 +171,20 @@ def _ai_request_perplexity(api_key: str, model: str, prompt: str, *, max_tokens:
 def _ai_request_anthropic(api_key: str, model: str, prompt: str, *, max_tokens: int,
                           log_ctx: str, use_web_search: bool = True,
                           output_schema: dict | None = None):
+    """Einzel-Prompt-Kurzform von `_ai_request_anthropic_messages` — siehe dort."""
+    return _ai_request_anthropic_messages(api_key, model, [{"role": "user", "content": prompt}],
+                                         max_tokens=max_tokens, log_ctx=log_ctx,
+                                         use_web_search=use_web_search, output_schema=output_schema)
+
+
+def _ai_request_anthropic_messages(api_key: str, model: str, messages: list[dict], *,
+                                   max_tokens: int, log_ctx: str, use_web_search: bool = True,
+                                   output_schema: dict | None = None):
     """Reiner Claude-Aufruf ohne Flask-Abhängigkeit (kein jsonify) — nutzbar sowohl
     aus Request-Handlern als auch aus Hintergrund-Threads (z. B. Wochenüberblick),
-    die keinen Flask-App-Context haben. Rückgabe-Signatur siehe `A._ai_request`."""
+    die keinen Flask-App-Context haben. Rückgabe-Signatur siehe `A._ai_request_messages`.
+    Claudes `messages`-Format entspricht bereits 1:1 unserem provider-übergreifenden
+    Rollen-Schema ('user'/'assistant') — keine Umwandlung nötig."""
     kwargs = {}
     if use_web_search:
         # allowed_callers=["direct"]: Haiku unterstützt kein programmatic tool
@@ -152,8 +202,7 @@ def _ai_request_anthropic(api_key: str, model: str, prompt: str, *, max_tokens: 
     try:
         client = anthropic.Anthropic(api_key=api_key)
         resp = client.messages.create(
-            model=model, max_tokens=max_tokens,
-            messages=[{"role": "user", "content": prompt}], **kwargs,
+            model=model, max_tokens=max_tokens, messages=messages, **kwargs,
         )
     except (anthropic.APIStatusError, anthropic.APIConnectionError) as e:
         A.log.warning("KI-Anfrage fehlgeschlagen (%s): %s", log_ctx, e)
@@ -207,9 +256,21 @@ _GEMINI_THINKING_TOKEN_RESERVE = 2048
 def _ai_request_gemini(api_key: str, model: str, prompt: str, *, max_tokens: int,
                        log_ctx: str, use_web_search: bool = True,
                        output_schema: dict | None = None):
-    """Gemini-Variante von `_ai_request_anthropic` — gleiche Rückgabe-Signatur
-    (text, usage, error_code), siehe `A._ai_request`. `output_schema` wird vor der
-    Übergabe als `response_schema` von `additionalProperties` bereinigt (siehe
+    """Einzel-Prompt-Kurzform von `_ai_request_gemini_messages` — siehe dort."""
+    return _ai_request_gemini_messages(api_key, model, [{"role": "user", "content": prompt}],
+                                      max_tokens=max_tokens, log_ctx=log_ctx,
+                                      use_web_search=use_web_search, output_schema=output_schema)
+
+
+def _ai_request_gemini_messages(api_key: str, model: str, messages: list[dict], *,
+                                max_tokens: int, log_ctx: str, use_web_search: bool = True,
+                                output_schema: dict | None = None):
+    """Gemini-Variante von `_ai_request_anthropic_messages` — gleiche Rückgabe-
+    Signatur (text, usage, error_code), siehe `A._ai_request_messages`. Gemini
+    erwartet für den Assistenten-Turn intern die Rolle 'model' statt unserem
+    provider-übergreifenden 'assistant' — die Umbenennung passiert hier, Aufrufer
+    bleiben provider-agnostisch. `output_schema` wird vor der Übergabe als
+    `response_schema` von `additionalProperties` bereinigt (siehe
     `_gemini_sanitize_schema`) — Gemini kennt dieses JSON-Schema-Feld nicht.
     Websuche über Google-Search-Grounding — kennt kein `max_uses`-Äquivalent,
     `ai_max_web_searches` wirkt daher nur bei Anthropic.
@@ -239,10 +300,13 @@ def _ai_request_gemini(api_key: str, model: str, prompt: str, *, max_tokens: int
     if output_schema is not None:
         cfg_kwargs['response_mime_type'] = 'application/json'
         cfg_kwargs['response_schema'] = _gemini_sanitize_schema(output_schema)
+    contents = [genai_types.Content(role=('model' if m['role'] == 'assistant' else 'user'),
+                                    parts=[genai_types.Part(text=m['content'])])
+               for m in messages]
     try:
         client = genai.Client(api_key=api_key)
         resp = client.models.generate_content(
-            model=model, contents=prompt,
+            model=model, contents=contents,
             config=genai_types.GenerateContentConfig(**cfg_kwargs),
         )
         candidates = resp.candidates or []
@@ -283,9 +347,26 @@ def _ai_call(api_key: str, model: str, prompt: str, *, max_tokens: int, log_ctx:
              use_web_search: bool = True):
     """Flask-Route-Wrapper um `A._ai_request`: gleiche Erfolgs-Rückgabe (text, usage,
     None), Fehler als (None, None, (jsonify(...), status)) — für Endpunkte, die
-    innerhalb eines Request-Handlers laufen."""
+    innerhalb eines Request-Handlers laufen. Ruft bewusst direkt `A._ai_request`
+    auf (nicht über `_ai_call_messages`) — Tests/Aufrufer patchen teils gezielt
+    `_ai_request`, das muss auf diesem Pfad weiterhin greifen."""
     text, usage, code = A._ai_request(api_key, model, prompt, max_tokens=max_tokens,
                                     log_ctx=log_ctx, use_web_search=use_web_search)
+    if code == 'failed':
+        return None, None, (jsonify({'error': 'ai_failed'}), 502)
+    if code == 'refused':
+        return None, None, (jsonify({'error': 'ai_refused'}), 502)
+    if code == 'empty':
+        return None, None, (jsonify({'error': 'ai_empty'}), 502)
+    return text, usage, None
+
+
+def _ai_call_messages(api_key: str, model: str, messages: list[dict], *, max_tokens: int,
+                      log_ctx: str, use_web_search: bool = True):
+    """Wie `_ai_call`, aber mit vollständiger Konversation statt nur einem Prompt
+    — für `/api/ai/history/<id>/followup`."""
+    text, usage, code = A._ai_request_messages(api_key, model, messages, max_tokens=max_tokens,
+                                             log_ctx=log_ctx, use_web_search=use_web_search)
     if code == 'failed':
         return None, None, (jsonify({'error': 'ai_failed'}), 502)
     if code == 'refused':
