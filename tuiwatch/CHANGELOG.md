@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.48.6] - 2026-07-10
+
+### Changed
+- **Modularisierung Tranche 3 (Backlog #12):** `ai_routes.py` (KI-Analyse:
+  Prompts, Usage/Kosten, KI-Verlauf, alle /api/ai-Routen — 1.514 Zeilen) und
+  `offers_routes.py` (Angebots-CRUD, Verlauf, Vergleiche, Hotelsuche,
+  Reiseziele, Zimmer — 768 Zeilen) ausgelagert. app.py damit bei ~2.800 Zeilen
+  (Start: ~7.400, −62 %). Keine Verhaltensänderung, 308 Tests grün.
+
 ## [0.48.5] - 2026-07-10
 
 ### Changed

@@ -23,7 +23,9 @@ kleiner und Reviews gezielter werden. Rein intern.
   `price_calendar.py` (Preiskalender + Routen), `watch.py` (Suchabo) —
   app.py bei ~4.900 Zeilen. Guards: `tests/test_dockerfile.py` (COPY-Liste),
   `tests/test_script_start.py` (Skript-Start wie run.sh).
-- Offen: Offers-/Scraper-Routen, KI-Analyse-Routen (Buchungsscore/Vergleich),
+- _Dritte Tranche erledigt (v0.48.6):_ `ai_routes.py` (KI-Analyse, 1.514 Z.),
+  `offers_routes.py` (Angebote/Suche/Vergleiche, 768 Z.) — app.py ~2.800 Zeilen.
+- Offen:
   JS aus `templates/index.html` (~4.000 Zeilen) in eigene Datei.
 - Keine Verhaltensänderung; Tests müssen unverändert grün bleiben.
 
