@@ -275,6 +275,7 @@
         let priceSub = '';
         if(o.old_price && o.old_price>o.price){ priceSub = '<span class="old">'+eur(o.old_price)+'</span>' + (o.discount?'<span class="disc">-'+o.discount+'%</span>':''); }
         const hasPrice = o.price!=null;
+        const perNight = (o.nights && hasPrice) ? (o.price/o.nights) : null;
         const priceNow = hasPrice ? eur(o.price) : (o.checking?'…'
           : (o.last_ok_price!=null ? `<span class="old" title="Letzter bekannter Preis — aktueller Abruf fehlgeschlagen">${eur(o.last_ok_price)}</span>` : '–'));
         const plane = '<svg viewBox="0 0 24 24"><path d="M21 16v-2l-8-5V3.5A1.5 1.5 0 0 0 11.5 2 1.5 1.5 0 0 0 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/></svg>';
@@ -352,6 +353,7 @@
               <div class="price-now"${o.checking&&hasPrice?' style="opacity:.5"':''}>${priceNow}</div>
               <div class="price-pp">pro Person</div>
               ${priceSub?`<div class="price-sub">${priceSub}</div>`:''}
+              ${perNight!=null?`<div class="price-sub">${eur(perNight)}/Nacht</div>`:''}
               ${(o.travellers_count>1 && o.total_price!=null)?`<div class="price-total">Gesamt ${eur(o.total_price)} · ${o.travellers_count} Reisende</div>`:''}
               <div>${deltaBadge(o)} ${o.archived?'':trendBadge(o)}</div>
               ${bookedSince?`<div>${bookedSince}</div>`:''}

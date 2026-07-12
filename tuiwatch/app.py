@@ -2316,6 +2316,17 @@ def _auto_archive_expired() -> int:
     return len(rows)
 
 
+_OFFER_NIGHTS_RE = re.compile(r'^(\d+)\s*Nächte')
+
+
+def _offer_nights(details: str) -> int | None:
+    """Nächte-Anzahl aus dem 'details'-Text ('10 Nächte ab 18.09.2025 · ...') —
+    kein eigenes DB-Feld, der Scraper schreibt sie nur als führenden Textteil.
+    None, wenn nicht erkennbar (z. B. bei history_only-Altdaten)."""
+    m = _OFFER_NIGHTS_RE.match((details or '').strip())
+    return int(m.group(1)) if m else None
+
+
 def _collect_offers() -> list[dict]:
     """Baut die Angebotsliste (mit letztem Preis, Delta, Statistik) — genutzt von
     der API, dem E-Mail-Versand und dem Übersichts-Sensor."""
@@ -2359,6 +2370,7 @@ def _collect_offers() -> list[dict]:
             out.append({
                 'id': o['id'], 'url': o['url'], 'label': o['label'],
                 'hotel': o['hotel'], 'details': o['details'], 'room': o['room'],
+                'nights': _offer_nights(o['details']),
                 'dep_airport': o['dep_airport'],
                 'flight_out': o['flight_out'], 'flight_ret': o['flight_ret'],
                 'location': o['location'], 'city': o['city'],

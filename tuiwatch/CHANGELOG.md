@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.52.2] - 2026-07-12
+
+### Added
+- **Preis pro Nacht auf der Angebotskarte** — unter dem Streichpreis, sofern die
+  Nächte-Anzahl aus dem Angebotstext erkennbar ist (führt kein eigenes DB-Feld
+  ein, nutzt den vom Scraper bereits geschriebenen `details`-Text).
+
 ## [0.52.1] - 2026-07-12
 
 ### Fixed
