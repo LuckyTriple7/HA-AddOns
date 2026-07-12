@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.52.0] - 2026-07-12
+
+### Added
+- **Zusammenfassung zukünftiger Reisen** in „Meine Reisen": listet alle
+  bevorstehenden Reisen mit Datum + Wochentag, Reisezeitraum und vollen
+  Flugdaten (Hin-/Rückflug: Strecke, Zeiten, Flugnummer). Zum Teilen (Web
+  Share API, Zwischenablage-Fallback) und per E-Mail-Versand (neue Endpunkte
+  `GET /api/trips/summary`, `POST /api/trips/summary/email`).
+
 ## [0.51.6] - 2026-07-11
 
 ### Fixed

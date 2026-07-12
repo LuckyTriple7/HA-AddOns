@@ -994,6 +994,54 @@
       }).join('');
     }
 
+    // — Zusammenfassung zukünftiger Reisen: Datum+Wochentag, Zeitraum, Flugdaten —
+    //   zum Teilen (Web Share API) oder per E-Mail versenden. —
+    let _lastTripsSummary = null;
+    async function openTripsSummary(){
+      let d; try { d = await fetch(api('/api/trips/summary')).then(r=>r.json()); } catch(e){ toast('Laden fehlgeschlagen'); return; }
+      _lastTripsSummary = d;
+      renderTripsSummary(d.trips||[]);
+      $('#trips-summary-bg').classList.add('show');
+    }
+    function closeTripsSummary(){ $('#trips-summary-bg').classList.remove('show'); }
+    $('#trips-summary-bg').addEventListener('click', e=>{ if(e.target.id==='trips-summary-bg') closeTripsSummary(); });
+    function renderTripsSummary(trips){
+      const el = $('#trips-summary-body');
+      if(!trips.length){ el.innerHTML = '<div class="trips-empty">Keine bevorstehenden Reisen.</div>'; return; }
+      el.innerHTML = trips.map(t=>{
+        const von = t.start_weekday ? `${t.start_weekday}, ${t.start_date_de}` : t.start_date_de;
+        const bis = t.end_weekday ? `${t.end_weekday}, ${t.end_date_de}` : t.end_date_de;
+        const zeit = t.start_date ? `${von} – ${bis}${t.nights?' ('+t.nights+' Nächte)':''}` : '';
+        const flights = (t.flights||[]).map(f=>
+          `<div style="font-size:.84rem;color:#667">✈ <b>${esc(f.typ)}</b>: ${esc(f.datum)}${f.wochentag?' ('+esc(f.wochentag)+')':''} · ${esc(f.von)} → ${esc(f.nach)} · ${esc(f.abflug_zeit)}–${esc(f.ankunft_zeit)} Uhr${f.flugnummer?' · '+esc(f.flugnummer):''}</div>`
+        ).join('');
+        return `<div class="trip-row" style="display:block;margin-bottom:10px">
+          <div class="ti"><div class="t">🧳 ${esc(t.title)}</div><div class="m">${esc(zeit)}</div></div>
+          ${flights}
+        </div>`;
+      }).join('');
+    }
+    async function shareTripsSummary(){
+      const text = (_lastTripsSummary && _lastTripsSummary.text) || '';
+      if(!text){ toast('Nichts zu teilen'); return; }
+      if(navigator.share){
+        try { await navigator.share({title:'Meine Reisen', text}); return; }
+        catch(e){ if(e.name==='AbortError') return; }
+      }
+      try { await navigator.clipboard.writeText(text); toast('In Zwischenablage kopiert (Teilen wird hier nicht unterstützt)'); }
+      catch(e){ toast('Teilen/Kopieren fehlgeschlagen'); }
+    }
+    async function emailTripsSummary(){
+      emailMode = 'trips';
+      await _openEmailModalCommon();
+    }
+    async function submitTripSummaryEmail(to){
+      toast('Zusammenfassung wird gesendet…');
+      const r = await fetch(api('/api/trips/summary/email'), {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({to})});
+      if(r.ok){ const d=await r.json(); toast('E-Mail an '+d.to+' gesendet ('+d.count+' Reisen)'); }
+      else { const d=await r.json().catch(()=>({})); toast(d.error==='no_trips'?'Keine bevorstehenden Reisen':d.error==='send_failed'?'Versand fehlgeschlagen – Einstellungen prüfen':d.error==='no_recipient'?'Kein Empfänger':'E-Mail-Fehler'); }
+    }
+
     async function importTrip(input){
       const f = input.files && input.files[0];
       if(!f) return;
@@ -3186,6 +3234,7 @@
       localStorage.setItem('tw-mailto', to.trim());
       closeEmailModal();
       if(emailMode === 'ai') return submitAiEmail(to.trim());
+      if(emailMode === 'trips') return submitTripSummaryEmail(to.trim());
       toast('E-Mail wird gesendet…');
       const body = {to: to.trim()};
       if(emailIds) body.ids = emailIds;

@@ -12,6 +12,7 @@ import json
 import re
 import secrets
 import time
+from datetime import date, datetime
 from pathlib import Path
 
 from flask import Blueprint, jsonify, request, send_file
@@ -983,4 +984,174 @@ def api_trip_delete(tid):
             except OSError as exc:
                 A.log.warning("PDF löschen fehlgeschlagen: %s", exc)
     return jsonify({'ok': True})
+
+
+# ── Zusammenfassung zukünftiger Reisen (Teilen / E-Mail) ────────────────────────
+
+_DE_WEEKDAYS_FULL = ('Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag')
+
+
+def _de_weekday_full(iso: str | None) -> str:
+    """'2026-09-18' -> 'Freitag'; '' bei leerem/ungültigem ISO-Datum."""
+    if not iso:
+        return ''
+    try:
+        return _DE_WEEKDAYS_FULL[date.fromisoformat(iso).weekday()]
+    except ValueError:
+        return ''
+
+
+def _iso_to_de(iso: str | None) -> str:
+    """'2026-09-18' -> '18.09.2026'; Eingabe unverändert zurück bei Fehler/leer."""
+    if not iso:
+        return ''
+    try:
+        return date.fromisoformat(iso).strftime('%d.%m.%Y')
+    except ValueError:
+        return iso
+
+
+def _upcoming_trips_summary() -> list[dict]:
+    """Alle zukünftigen Reisen (Abflug in der Zukunft) mit vollen Flugdaten für die
+    Zusammenfassung „Meine Reisen" (Teilen/E-Mail-Versand) — sortiert nach
+    Reisebeginn. Nutzt denselben Abflug-Cutoff wie A._next_trip()/_upcoming_trips()
+    (Header-Countdown/Wochen-Digest), damit ein am selben Tag bereits abgeflogener
+    Trip nicht mehr als „bevorstehend" zählt."""
+    today = date.today().isoformat()
+    with A.db() as con:
+        rows = con.execute(
+            'SELECT id, title, destination, hotel, start_date, end_date, nights, '
+            'travellers, data FROM trips WHERE start_date >= ? ORDER BY start_date ASC',
+            (today,)).fetchall()
+    now = datetime.now()
+    out = []
+    for r in rows:
+        dep_dt, _ = A._trip_departure(r)
+        if not dep_dt or dep_dt < now:
+            continue
+        data = A._json_loads_safe(r['data'], {})
+        flights = [{
+            'typ': f.get('typ') or '',
+            'datum': f.get('datum') or '',
+            'wochentag': _de_weekday_full(A._iso_date(f.get('datum'))),
+            'abflug_zeit': f.get('abflug_zeit') or '',
+            'ankunft_zeit': f.get('ankunft_zeit') or '',
+            'von': f.get('von') or '',
+            'nach': f.get('nach') or '',
+            'flugnummer': f.get('flugnummer') or '',
+        } for f in (data.get('fluege') or [])]
+        out.append({
+            'id': r['id'],
+            'title': r['title'] or r['destination'] or r['hotel'] or f"Reise #{r['id']}",
+            'destination': r['destination'] or r['hotel'] or '',
+            'start_date': r['start_date'], 'end_date': r['end_date'],
+            'start_weekday': _de_weekday_full(r['start_date']),
+            'end_weekday': _de_weekday_full(r['end_date']),
+            'start_date_de': _iso_to_de(r['start_date']),
+            'end_date_de': _iso_to_de(r['end_date']),
+            'nights': r['nights'], 'travellers': r['travellers'],
+            'flights': flights,
+        })
+    return out
+
+
+def _trip_summary_text(trips: list[dict]) -> str:
+    """Reine Textfassung der Zusammenfassung — fürs Web-Share-API-Teilen (Chat-Apps
+    zeigen dabei keinen Screenshot vom DOM) und als Basis der E-Mail."""
+    if not trips:
+        return 'Keine bevorstehenden Reisen.'
+    lines = ['✈️ Meine bevorstehenden Reisen', '']
+    for t in trips:
+        lines.append(f"🧳 {t['title']}")
+        if t['start_date']:
+            von = f"{t['start_weekday']}, {t['start_date_de']}" if t['start_weekday'] else t['start_date_de']
+            bis = f"{t['end_weekday']}, {t['end_date_de']}" if t['end_weekday'] else t['end_date_de']
+            n = f" ({t['nights']} Nächte)" if t['nights'] else ''
+            lines.append(f"   {von} – {bis}{n}")
+        for f in t['flights']:
+            wt = f" ({f['wochentag']})" if f['wochentag'] else ''
+            lines.append(f"   {f['typ']}: {f['datum']}{wt} · {f['von']} → {f['nach']} · "
+                        f"{f['abflug_zeit']}–{f['ankunft_zeit']} Uhr · {f['flugnummer']}")
+        lines.append('')
+    return '\n'.join(lines).rstrip()
+
+
+def _trip_summary_html(trips: list[dict]) -> str:
+    """HTML-Mail zur Zusammenfassung, Aufbau/Stil an A._email_html_offers angelehnt."""
+    def esc(s):
+        return (str(s or '')).replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+
+    cards = []
+    for t in trips:
+        zeit = ''
+        if t['start_date']:
+            von = f"{t['start_weekday']}, {t['start_date_de']}" if t['start_weekday'] else t['start_date_de']
+            bis = f"{t['end_weekday']}, {t['end_date_de']}" if t['end_weekday'] else t['end_date_de']
+            n = f" · {t['nights']} Nächte" if t['nights'] else ''
+            zeit = (f'<div style="font-size:14px;color:#444;margin-top:2px">'
+                    f'{esc(von)} – {esc(bis)}{esc(n)}</div>')
+        flight_parts = []
+        for f in t['flights']:
+            wt = f' ({esc(f["wochentag"])})' if f['wochentag'] else ''
+            fn = f' · {esc(f["flugnummer"])}' if f['flugnummer'] else ''
+            flight_parts.append(
+                f'<div style="font-size:13px;color:#444;margin-top:4px">✈ <b>{esc(f["typ"])}</b>: '
+                f'{esc(f["datum"])}{wt} · {esc(f["von"])} → {esc(f["nach"])} · '
+                f'{esc(f["abflug_zeit"])}–{esc(f["ankunft_zeit"])} Uhr{fn}</div>')
+        cards.append(
+            '<tr><td style="padding:0 0 14px">'
+            '<table width="100%" cellpadding="0" cellspacing="0" style="background:#fff;'
+            'border:1px solid #e2e6ea;border-radius:10px;border-collapse:separate">'
+            '<tr><td style="padding:14px 16px">'
+            f'<div style="font-size:17px;font-weight:700;color:#10243e">🧳 {esc(t["title"])}</div>'
+            + (f'<div style="font-size:13px;color:#0b65d8">📍 {esc(t["destination"])}</div>'
+               if t['destination'] else '')
+            + zeit + ''.join(flight_parts) +
+            '</td></tr></table></td></tr>')
+    now_str = datetime.now().strftime('%d.%m.%Y %H:%M')
+    return (
+        '<div style="background:#eef2f8;padding:20px 0;font-family:-apple-system,Segoe UI,Roboto,sans-serif">'
+        '<table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center">'
+        '<table width="640" cellpadding="0" cellspacing="0" style="max-width:640px;width:100%">'
+        '<tr><td style="padding:0 16px 16px">'
+        '<div style="font-size:22px;font-weight:800;color:#0b65d8">✈ TUIWatch</div>'
+        f'<div style="font-size:13px;color:#666">Meine bevorstehenden Reisen · Stand {now_str}</div>'
+        '</td></tr>'
+        + ''.join(cards) +
+        '</table></td></tr></table></div>')
+
+
+@bp.route('/api/trips/summary', methods=['GET'])
+def api_trips_summary():
+    """Zusammenfassung aller zukünftigen Reisen (Datum+Wochentag, Zeitraum,
+    Flugdaten) — Grundlage für Teilen (Web-Share-API) und E-Mail-Versand."""
+    if (err := A._require_api()):
+        return err
+    trips = _upcoming_trips_summary()
+    return jsonify({'trips': trips, 'text': _trip_summary_text(trips)})
+
+
+@bp.route('/api/trips/summary/email', methods=['POST'])
+def api_trips_summary_email():
+    """Verschickt die Zusammenfassung der zukünftigen Reisen per E-Mail."""
+    if (err := A._require_api()):
+        return err
+    if not A.smtp_configured():
+        return jsonify({'error': 'smtp_not_configured'}), 400
+    body = request.get_json(silent=True) or {}
+    to = (body.get('to') or A.load_config().get('smtp_to') or '').strip()
+    if not to:
+        return jsonify({'error': 'no_recipient'}), 400
+    trips = _upcoming_trips_summary()
+    if not trips:
+        return jsonify({'error': 'no_trips'}), 400
+    html = _trip_summary_html(trips)
+    subject = f"TUIWatch – {len(trips)} bevorstehende Reise{'n' if len(trips) != 1 else ''}"
+    try:
+        A.send_email(subject, html, to)
+    except Exception as e:
+        A.log.error("Reisen-Zusammenfassung E-Mail fehlgeschlagen: %s", e)
+        return jsonify({'error': 'send_failed'}), 502
+    A.log.info("Reisen-Zusammenfassung an %s gesendet (%d Reisen)", to, len(trips))
+    return jsonify({'ok': True, 'to': to, 'count': len(trips)})
 
