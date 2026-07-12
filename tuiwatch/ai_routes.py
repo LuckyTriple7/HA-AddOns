@@ -568,6 +568,24 @@ _BOOKING_SCORE_INSTRUCTIONS = (
     "(Preise tendieren dazu, näher am Abflug bei sinkender Verfügbarkeit zu steigen) — "
     "das spricht eher FÜR ein frühes Buchen, auch wenn der aktuelle Reisemonat laut "
     "Kalender nur durchschnittlich und nicht der günstigste ist.\n"
+    "Der Vorjahresvergleich (falls angegeben) ist ein stärkeres Signal als die reine "
+    "Saisonalität: er zeigt echte Kalenderpreise für denselben Reisemonat ein Jahr "
+    "früher, der bei langer Vorlaufzeit oft schon näher am eigenen Abflug liegt. "
+    "Interpretiere ihn aber vorsichtig, nicht als reines Nachfragesignal: Pauschalreisen "
+    "werden ohnehin Jahr für Jahr etwas teurer (allgemeine Preissteigerung, grob "
+    "einstelliger Prozentbereich p. a. aus deinem Wissen) — ziehe diesen Sockel gedanklich "
+    "ab, bevor du den Rest als Nachfrage-/Knappheitssignal wertest. Zusätzlich liegt der "
+    "Vorjahresmonat näher am Abflug als der Zielmonat, was laut obiger Frühbucher-Logik "
+    "für sich allein schon einen Aufschlag erklären kann — die beiden Effekte lassen sich "
+    "aus den Zahlen allein nicht sauber trennen, werte den Vergleich daher als groben "
+    "Hinweis, nicht als exakten Prozentwert. Ist die Abweichung deutlich größer als plausible "
+    "Inflation + Vorlaufzeit-Effekt erklären würden, prüfe per Websuche, ob politische, "
+    "wirtschaftliche oder sonstige aktuelle Ereignisse (z. B. Währung, Treibstoffkosten, "
+    "Sicherheitslage, Kapazitätsänderungen von Airline/Veranstalter) am Reiseziel eine "
+    "Erklärung liefern, und nenne sie in der Begründung (typ='annahme', falls per Websuche "
+    "gefunden). Nach dieser Einordnung: bleibt ein klarer Aufschlag, spricht das für frühes "
+    "Buchen; liegt der Zielmonat auf/unter dem Vorjahreswert, eher für Beobachten/Warten. "
+    "Gewichte das Gesamtsignal ähnlich stark wie den eigenen Preistrend.\n"
     "Die Preisbewegungen im Preiskalender (falls angegeben) sind echte beobachtete "
     "Änderungen je Abreisetag dieses Hotels/Zimmers: Steigen viele Termine auf breiter "
     "Front, ist Warten riskant (spricht für JETZT buchen); fallen viele, kann Warten "
@@ -599,13 +617,31 @@ def _calendar_seasonal_summary(cal: dict) -> dict | None:
         return None
     cheapest_month = min(monthly, key=monthly.get)
     priciest_month = max(monthly, key=monthly.get)
-    return {
+    result = {
         'cheapest_month': cheapest_month, 'cheapest_month_avg': monthly[cheapest_month],
         'priciest_month': priciest_month, 'priciest_month_avg': monthly[priciest_month],
         'tracked_price': cal.get('tracked_price'), 'tracked_date': cal.get('tracked_date'),
         'overall_cheapest_price': cal.get('cheapest_price'),
         'overall_cheapest_date': cal.get('cheapest_date'),
     }
+    # Vorjahresvergleich: der Kalender deckt heute bis weit über den Zieltermin hinaus
+    # ab (siehe fetch_calendar) — bei >12 Monaten Vorlauf liegt der Zielmonat des
+    # Vorjahres (z. B. Sept. 2026 für einen Zieltermin Sept. 2027) oft schon mit im
+    # Fenster und ist DEUTLICH näher am eigenen Abflug als der Zieltermin selbst.
+    # Das ist ein echtes Signal, wie sich diese Saison preislich entwickelt, statt nur
+    # OB der Zielmonat an sich (über alle Jahre gemittelt) günstig/teuer ist.
+    tracked_ym = (cal.get('tracked_date') or '')[:7]
+    if tracked_ym and tracked_ym in monthly:
+        result['target_month'] = tracked_ym
+        result['target_month_avg'] = monthly[tracked_ym]
+        try:
+            prior_ym = f"{int(tracked_ym[:4]) - 1:04d}-{tracked_ym[5:7]}"
+        except ValueError:
+            prior_ym = None
+        if prior_ym and prior_ym in monthly:
+            result['prior_year_month'] = prior_ym
+            result['prior_year_month_avg'] = monthly[prior_ym]
+    return result
 
 
 def _offer_booking_facts(con, offer_id: int) -> dict | None:
@@ -795,6 +831,17 @@ def _booking_score_prompt(facts: dict) -> str:
                f"({s['overall_cheapest_price']} €)" if s.get('overall_cheapest_date') else '')
             + (f"; Preis im aktuell gewählten Reisezeitraum laut Kalender "
                f"{s['tracked_price']} € (am {s['tracked_date']})" if s.get('tracked_price') else ''))
+        if s.get('prior_year_month_avg'):
+            yoy_pct = ((s['target_month_avg'] - s['prior_year_month_avg'])
+                       / s['prior_year_month_avg'] * 100)
+            lines.append(
+                f"Vorjahresvergleich (echte Kalenderdaten, gleicher Reisemonat ein Jahr "
+                f"früher — der liegt bei so langer Vorlaufzeit oft schon näher am eigenen "
+                f"Abflug und zeigt, wie sich diese Saison preislich entwickelt): "
+                f"{A._month_name_de(s['prior_year_month'])} lag im Schnitt bei "
+                f"{s['prior_year_month_avg']} €, {A._month_name_de(s['target_month'])} "
+                f"(Zielmonat) aktuell im Schnitt bei {s['target_month_avg']} € "
+                f"({yoy_pct:+.1f} %).")
     mv = facts.get('calendar_moves') or []
     if mv:
         ups = sum(1 for m in mv if m['delta'] > 0)

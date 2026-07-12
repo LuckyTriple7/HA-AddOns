@@ -143,6 +143,35 @@ def test_offer_booking_facts_includes_seasonal_when_calendar_cached(m):
     assert facts["seasonal"]["cheapest_month_avg"] == 900
 
 
+def test_offer_booking_facts_includes_prior_year_month_comparison(m):
+    """Regression: bei langer Vorlaufzeit (z. B. Zieltermin Sept. 2027) deckt der
+    Kalender ab heute bis weit über den Zieltermin hinaus ab (fetch_calendar) — der
+    gleiche Reisemonat ein Jahr früher (Sept. 2026) liegt dann oft schon mit im
+    Fenster und damit näher am eigenen Abflug. Dieser Vorjahresvergleich wurde bisher
+    für den Buchungsscore nicht ausgewertet."""
+    oid = _add_offer(m, "https://example.invalid/yoy?duration=7", price=1900)
+    days = []
+    for month, price in (("2026-09", 1500), ("2027-01", 1000), ("2027-05", 900),
+                          ("2027-09", 1900)):
+        for d in range(1, 21):
+            days.append({"date": f"{month}-{d:02d}", "price": price})
+    cal = {"ok": True, "days": days, "cheapest_date": "2027-05-05", "cheapest_price": 900,
+           "tracked_date": "2027-09-10", "tracked_price": 1900}
+    with m.db() as con:
+        con.execute("INSERT INTO calendar_cache (offer_id, ts, data) VALUES (?,?,?)",
+                    (oid, int(time.time()), json.dumps(cal)))
+        facts = m._offer_booking_facts(con, oid)
+    s = facts["seasonal"]
+    assert s["target_month"] == "2027-09"
+    assert s["target_month_avg"] == 1900
+    assert s["prior_year_month"] == "2026-09"
+    assert s["prior_year_month_avg"] == 1500
+    prompt = m._booking_score_prompt(facts)
+    assert "Vorjahresvergleich" in prompt
+    assert "September 2026" in prompt
+    assert "1500" in prompt or "1.500" in prompt
+
+
 def test_offer_booking_facts_includes_calendar_moves(m):
     """Kalender-Bewegungen (calendar_history) gehören in die Buchungsscore-Fakten —
     breite Anstiege/Rückgänge über viele Reisetermine sind ein direktes

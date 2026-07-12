@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.52.3] - 2026-07-12
+
+### Added
+- **Vorjahresvergleich im Buchungsscore.** Bei langer Vorlaufzeit (z. B. Zieltermin
+  September 2027) deckt der abgerufene Preiskalender bereits heute bis weit über
+  den Zieltermin hinaus ab — der gleiche Reisemonat ein Jahr früher (September
+  2026) liegt dann oft schon mit im Fenster und damit deutlich näher am eigenen
+  Abflug. Dieser Vergleich floss bisher nicht in den Score ein; die KI bekommt ihn
+  jetzt als eigenes Signal (ähnlich stark gewichtet wie der eigene Preistrend). Die
+  Anweisung warnt die KI ausdrücklich davor, die volle Abweichung als reines
+  Nachfragesignal zu werten: allgemeine jährliche Preissteigerung und der
+  Frühbucher-Effekt (Vorjahresmonat liegt näher am Abflug) erklären einen Teil davon
+  bereits selbst. Bei ungewöhnlich großer Abweichung soll sie per Websuche nach
+  politischen/wirtschaftlichen Ereignissen am Reiseziel suchen, die das erklären
+  könnten.
+
+### Fixed
+- `APP_VERSION`-Konstante war seit mehreren Releases nicht mehr mit
+  `config.yaml`/version synchron (0.51.3 vs. zuletzt 0.52.2) — Testsuite deckte
+  es erst jetzt auf (`test_version_consistency`). Nachgezogen.
+
 ## [0.52.2] - 2026-07-12
 
 ### Added
