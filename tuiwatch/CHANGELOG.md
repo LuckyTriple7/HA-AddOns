@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.52.1] - 2026-07-12
+
+### Fixed
+- **Reisen-Zusammenfassung: E-Mail-Fenster lag hinter dem Zusammenfassungs-Modal.**
+  Alle `.modal-bg` teilen sich denselben `z-index`, Stapelreihenfolge kam bisher
+  nur aus der DOM-Position — `email-bg` steht vor `trips-summary-bg` im Markup
+  und landete deshalb dahinter. Jetzt bekommt das E-Mail-Fenster beim Öffnen
+  einen höheren `z-index`.
+- Der Link „Zusammenfassung zukünftiger Reisen" stand inline im Fließtext und
+  konnte mitten im Icon umbrechen — jetzt eigene Zeile.
+- Kartentitel zeigte den DB-„title" (Ort + Reisejahr, z. B. „Kolymbia 2026") —
+  jetzt nur der Ortsname, das Datum steht ohnehin direkt daneben.
+
+### Added
+- Hotelname in der Reisen-Zusammenfassung (Text, E-Mail und Modal-Ansicht).
+
 ## [0.52.0] - 2026-07-12
 
 ### Added

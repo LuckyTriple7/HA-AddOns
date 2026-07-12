@@ -1015,8 +1015,9 @@
         const flights = (t.flights||[]).map(f=>
           `<div style="font-size:.84rem;color:#667">✈ <b>${esc(f.typ)}</b>: ${esc(f.datum)}${f.wochentag?' ('+esc(f.wochentag)+')':''} · ${esc(f.von)} → ${esc(f.nach)} · ${esc(f.abflug_zeit)}–${esc(f.ankunft_zeit)} Uhr${f.flugnummer?' · '+esc(f.flugnummer):''}</div>`
         ).join('');
+        const hotel = (t.hotel && t.hotel !== t.title) ? `<div class="m">🏨 ${esc(t.hotel)}</div>` : '';
         return `<div class="trip-row" style="display:block;margin-bottom:10px">
-          <div class="ti"><div class="t">🧳 ${esc(t.title)}</div><div class="m">${esc(zeit)}</div></div>
+          <div class="ti"><div class="t">🧳 ${esc(t.title)}</div>${hotel}<div class="m">${esc(zeit)}</div></div>
           ${flights}
         </div>`;
       }).join('');
@@ -3213,6 +3214,9 @@
         $('#nc-contacts').innerHTML = (c.contacts||[])
           .map(k=>`<option value="${esc(k.email)}">${esc(k.name)}</option>`).join('');
       } catch(e){ $('#nc-contacts').innerHTML = ''; }
+      // über anderen Modals (z.B. Reisen-Zusammenfassung) geöffnet -> gleicher
+      // z-index wie alle .modal-bg, DOM-Reihenfolge würde sonst dahinter landen
+      $('#email-bg').style.zIndex = 60;
       $('#email-bg').classList.add('show');
       return true;
     }
@@ -3226,7 +3230,7 @@
       emailMode = 'ai';
       await _openEmailModalCommon();
     }
-    function closeEmailModal(){ $('#email-bg').classList.remove('show'); }
+    function closeEmailModal(){ $('#email-bg').classList.remove('show'); $('#email-bg').style.zIndex = ''; }
     $('#email-bg').addEventListener('click', e=>{ if(e.target.id==='email-bg') closeEmailModal(); });
     async function submitEmail(){
       const to = $('#email-to').value;

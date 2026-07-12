@@ -1042,8 +1042,12 @@ def _upcoming_trips_summary() -> list[dict]:
         } for f in (data.get('fluege') or [])]
         out.append({
             'id': r['id'],
-            'title': r['title'] or r['destination'] or r['hotel'] or f"Reise #{r['id']}",
+            # Nur der Ortsname reicht hier (anders als der DB-„title", der zur
+            # Unterscheidung in der Reisenliste noch das Jahr anhängt — in der
+            # Zusammenfassung steht das Datum ohnehin direkt daneben).
+            'title': r['destination'] or r['hotel'] or r['title'] or f"Reise #{r['id']}",
             'destination': r['destination'] or r['hotel'] or '',
+            'hotel': r['hotel'] or '',
             'start_date': r['start_date'], 'end_date': r['end_date'],
             'start_weekday': _de_weekday_full(r['start_date']),
             'end_weekday': _de_weekday_full(r['end_date']),
@@ -1063,6 +1067,8 @@ def _trip_summary_text(trips: list[dict]) -> str:
     lines = ['✈️ Meine bevorstehenden Reisen', '']
     for t in trips:
         lines.append(f"🧳 {t['title']}")
+        if t['hotel'] and t['hotel'] != t['title']:
+            lines.append(f"   🏨 {t['hotel']}")
         if t['start_date']:
             von = f"{t['start_weekday']}, {t['start_date_de']}" if t['start_weekday'] else t['start_date_de']
             bis = f"{t['end_weekday']}, {t['end_date_de']}" if t['end_weekday'] else t['end_date_de']
@@ -1083,6 +1089,8 @@ def _trip_summary_html(trips: list[dict]) -> str:
 
     cards = []
     for t in trips:
+        hotel = (f'<div style="font-size:13px;color:#0b65d8">🏨 {esc(t["hotel"])}</div>'
+                 if t['hotel'] and t['hotel'] != t['title'] else '')
         zeit = ''
         if t['start_date']:
             von = f"{t['start_weekday']}, {t['start_date_de']}" if t['start_weekday'] else t['start_date_de']
@@ -1104,9 +1112,7 @@ def _trip_summary_html(trips: list[dict]) -> str:
             'border:1px solid #e2e6ea;border-radius:10px;border-collapse:separate">'
             '<tr><td style="padding:14px 16px">'
             f'<div style="font-size:17px;font-weight:700;color:#10243e">🧳 {esc(t["title"])}</div>'
-            + (f'<div style="font-size:13px;color:#0b65d8">📍 {esc(t["destination"])}</div>'
-               if t['destination'] else '')
-            + zeit + ''.join(flight_parts) +
+            + hotel + zeit + ''.join(flight_parts) +
             '</td></tr></table></td></tr>')
     now_str = datetime.now().strftime('%d.%m.%Y %H:%M')
     return (
