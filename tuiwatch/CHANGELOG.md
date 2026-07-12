@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.52.5] - 2026-07-12
+
+### Fixed
+- **Vorjahresvergleich im Buchungsscore (0.52.3) wurde von der KI live falsch
+  interpretiert** — sie erwartete eine taggenaue Übereinstimmung mit dem Vorjahr
+  und senkte 'vertrauen', weil die (bewusst nur monatsbezogene) Vergleichsbasis
+  keine Daten für exakt denselben Kalendertag lieferte. Anweisung klargestellt:
+  der Vergleich ist Ø-Preis auf Monatsebene, keine taggenaue Übereinstimmung
+  erwartet/nötig, zählt weiterhin voll als typ='daten'.
+
 ## [0.52.4] - 2026-07-12
 
 ### Added
