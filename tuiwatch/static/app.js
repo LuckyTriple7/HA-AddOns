@@ -1891,6 +1891,26 @@
       sortSearchResults(); renderSearch();
     }
 
+    // Preis-Leistungs-Score: 60% Weiterempfehlung (HolidayCheck) + 40% Preis/Nacht,
+    // beide auf min/max der AKTUELLEN Trefferliste normiert (0-1) — nur so
+    // vergleichbar, ein absoluter Preis sagt ohne Kontext (Region/Saison/Sterne)
+    // nichts über "günstig" aus. Weiterempfehlung ohne ausreichend Bewertungen
+    // (<15) wird zur Basislinie (70%) gedämpft, sonst verzerrt 1 Fünf-Sterne-Review
+    // den Score. Fixe Gewichtung (kein User-Regler) — bewusst einfach gehalten.
+    function _valueScores(list){
+      const withPn = list.filter(r=>r.nights && r.price!=null);
+      if(!withPn.length) return;
+      const pns = withPn.map(r=>r.price/r.nights);
+      const pnMin = Math.min(...pns), pnMax = Math.max(...pns);
+      list.forEach(r=>{
+        if(!r.nights || r.price==null){ r._value = null; return; }
+        const pn = r.price/r.nights;
+        const priceNorm = pnMax>pnMin ? (pn-pnMin)/(pnMax-pnMin) : 0;
+        let rec = r.recommendation!=null ? r.recommendation : 70;
+        if(r.recommendation!=null && (r.reviews||0) < 15) rec = rec*0.5 + 70*0.5;
+        r._value = 0.6*(rec/100) + 0.4*(1-priceNorm);
+      });
+    }
     function sortSearchResults(){
       const num=(v,d)=>v==null?d:v;
       const a=srchResults;
@@ -1898,6 +1918,7 @@
       else if(srchSort==='rec') a.sort((x,y)=>num(y.recommendation,-1)-num(x.recommendation,-1));
       else if(srchSort==='stars') a.sort((x,y)=>num(y.stars,-1)-num(x.stars,-1));
       else if(srchSort==='pernight') a.sort((x,y)=>(num(x.price,1e9)/(x.nights||1))-(num(y.price,1e9)/(y.nights||1)));
+      else if(srchSort==='value'){ _valueScores(a); a.sort((x,y)=>num(y._value,-1)-num(x._value,-1)); }
     }
     function changeSrchSort(v){ srchSort=v; localStorage.setItem('tw-srch-sort',v); sortSearchResults(); renderSearchRows(); }
     function filterSearch(v){ srchFilter=v; renderSearchRows(); }
@@ -1906,6 +1927,7 @@
       const stars = r.stars?('<span class="stars">'+'★'.repeat(r.stars)+'</span> '):'';
       const rec = r.recommendation!=null?(' · '+r.recommendation+'% 👍'+(r.reviews?(' ('+r.reviews.toLocaleString('de-DE')+')'):'')):'';
       const old = (r.old_price&&r.old_price>r.price)?('<span class="sr-old">'+eur(r.old_price)+'</span>'+(r.discount?'<span class="sr-disc">-'+r.discount+'%</span>':'')):'';
+      const perNight = (r.nights && r.price!=null) ? eur(r.price/r.nights)+'/Nacht' : '';
       const img = r.image?('<img class="sr-img" src="'+esc(r.image)+'" loading="lazy" alt="">'):'<div class="sr-img"></div>';
       return `<div class="sr-item">
         <label class="sr-cmp ai-feature" title="Für KI-Vergleich auswählen">
@@ -1922,6 +1944,7 @@
         <div class="sr-pricecol">
           <div class="sr-price">${eur(r.price)}</div>
           <div class="sr-meta">p. P.${old?(' · '+old):''}</div>
+          ${perNight?`<div class="sr-meta">${perNight}</div>`:''}
           <div class="sr-acts">
             <a class="btn sec" href="${esc(r.offer_url)}" target="_blank" rel="noopener">Öffnen</a>
             <button class="btn sec ai-feature" onclick="openAiSummary(${i})" title="Ausführliche KI-Einschätzung: Lage, Zimmer, Restaurants, Pool, Ausstattung">🤖 KI-Fazit</button>
@@ -1946,6 +1969,7 @@
           <option value="pernight"${srchSort==='pernight'?' selected':''}>Preis/Nacht</option>
           <option value="rec"${srchSort==='rec'?' selected':''}>Weiterempfehlung</option>
           <option value="stars"${srchSort==='stars'?' selected':''}>Sterne</option>
+          <option value="value"${srchSort==='value'?' selected':''} title="60% Weiterempfehlung + 40% Preis/Nacht">Preis-Leistung</option>
         </select>`;
       const head = `<div class="srch-head"><span><b id="srch-count">${srchResults.length}</b> Treffer${(srchTotal>srchResults.length)?(' (von '+srchTotal+' in der Region)'):''}</span>
          <input type="text" id="srch-filter" class="srch-listfilter" placeholder="In Treffern suchen…" autocomplete="off" oninput="filterSearch(this.value)" value="${esc(srchFilter)}">

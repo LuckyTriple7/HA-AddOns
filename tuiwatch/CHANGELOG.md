@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.52.4] - 2026-07-12
+
+### Added
+- **Preis-Leistungs-Score in der Hotelsuche** — neue Sortieroption „Preis-Leistung":
+  60 % Weiterempfehlung (HolidayCheck) + 40 % Preis/Nacht, beide auf min/max der
+  aktuellen Trefferliste normiert. Weiterempfehlung mit weniger als 15 Bewertungen
+  wird zur Basislinie (70 %) gedämpft, sonst verzerrt ein einzelnes 5-Sterne-Review
+  den Score. Feste Gewichtung, kein Regler.
+- Preis pro Nacht in der Hotelsuche sichtbar (unter dem Streichpreis, wie bereits
+  bei den Angebotskarten in 0.52.2).
+
 ## [0.52.3] - 2026-07-12
 
 ### Added
