@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.6.23] - 2026-07-12
+
+### Fixed
+- Zustellungs-/Lese-Häkchen (✓/✓✓) fehlten bei Nachrichten, die vom Handy
+  (nicht vom Add-on) verschickt wurden. Ursache: Sync-Nachrichten vom eigenen
+  Gerät bekamen beim Speichern keine `ack`- und `signalTimestamp`-Felder, daher
+  konnten spätere Zustell-/Lesebestätigungen (`receiptMessage`) nicht per
+  `signalTimestamp` zugeordnet werden. Beide Felder werden jetzt auch für
+  eigene Sync-Nachrichten gesetzt.
+
 ## [1.6.22] - 2026-07-09
 
 ### Fixed

@@ -326,6 +326,7 @@ function processEnvelope(envelope) {
   const videoAtt = isVideo ? dm.attachments.find(a => (a.contentType || '').startsWith('video/')) : null;
   const videoSize = videoAtt ? (videoAtt.size || 0) : undefined;
   const msg = { id: msgId, from: msgFrom, body: dm.message || '', timestamp: dm.timestamp, fromMe: isOwn, type: msgType, attIds, videoSize, quotedMsg };
+  if (isOwn) { msg.ack = 0; msg.signalTimestamp = dm.timestamp; }
 
   if (DOWNLOAD_MEDIA && hasAttachments) {
     for (const att of dm.attachments) {
