@@ -1,5 +1,10 @@
 # Changelog — HA SysWatch
 
+## [1.2.12.1] - 2026-07-13
+
+chore(deps): bump docker from 7.1.0 to 7.2.0 in /syswatch
+
+
 ## [1.2.12] - 2026-07-09
 
 ### Fixed
