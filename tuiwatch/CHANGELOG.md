@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.52.8] - 2026-07-13
+
+### Fixed
+- **TripPilot: KI-Name im Ladetext fehlte manchmal** ("KI sucht passende
+  Ziele…" statt z. B. "Claude sucht…"). Ursache: Race Condition beim
+  Seitenaufruf, bei der der aktive Provider noch nicht geladen war. Wird
+  jetzt vor dem Absenden sichergestellt.
+
+### Added
+- **TripPilot: Temperaturoption "20–30°C" ergänzt**, als breitere Wahl
+  zwischen den bestehenden Stufen 20–25°C und 25–30°C.
+
 ## [0.52.7] - 2026-07-13
 
 ### Added

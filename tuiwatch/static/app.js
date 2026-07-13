@@ -2788,7 +2788,7 @@
                 'Oktober','November','Dezember','Egal']},
       {title:'Wie warm soll es sein?', key:'temp', multi:false,
        showIf: state => !isDaytrip(state),
-       options:['unter 20°C','20–25°C','25–30°C','möglichst heiß','egal']},
+       options:['unter 20°C','20–25°C','25–30°C','20–30°C','möglichst heiß','egal']},
       {title:'Meer oder See?', key:'water_type', multi:true,
        exclusive:['Kein Gewässer nötig'],
        options:['Meer','See','Kein Gewässer nötig']},
@@ -2932,6 +2932,7 @@
       $('#ai-foot').style.display = 'none';
       $('#ai-bg').classList.add('show');
       const attempt = async () => {
+        await ensureAiProviderLoaded();
         $('#ai-body').innerHTML = progBar(aiProviderName()+' sucht passende Ziele…');
         let resp, d;
         try {
@@ -3580,7 +3581,15 @@
     const AI_PROVIDER_NAME = Object.fromEntries(
       Object.entries(AI_PROVIDER_LABEL).map(([k,v]) => [k, v.replace(/^\S+\s/, '')]));
     let _aiActiveProvider = null;  // zuletzt bekannter aktiver Provider, für "<Name> durchsucht…" in Ladetexten
+    let _aiProviderLoadPromise = null;
     function aiProviderName(){ return AI_PROVIDER_NAME[_aiActiveProvider] || 'KI'; }
+    // Stellt sicher, dass _aiActiveProvider gesetzt ist, bevor ein Ladetext gebaut wird
+    // (verhindert Race Condition beim Seitenaufruf, bei der aiProviderName() noch 'KI' liefert)
+    function ensureAiProviderLoaded(){
+      if(_aiActiveProvider) return Promise.resolve();
+      if(!_aiProviderLoadPromise) _aiProviderLoadPromise = loadAiProviderFooter();
+      return _aiProviderLoadPromise;
+    }
     async function loadAiProviderFooter(){
       if(!G.ai) return;
       try {
