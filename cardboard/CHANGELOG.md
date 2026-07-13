@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.0.10.3] - 2026-07-13
+
+chore(deps): bump uvicorn from 0.49.0 to 0.51.0 in /cardboard/rootfs/app
+
+
 ## [1.0.10.2] - 2026-07-09
 
 ### Fixed
