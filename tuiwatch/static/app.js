@@ -2106,6 +2106,69 @@
       const btn = retryable ? ' <button class="btn sec" onclick="aiRetry()">🔄 Erneut versuchen</button>' : '';
       return '<div class="cmp-load" style="color:var(--amber)">⚠ '+esc(msg)+btn+'</div>';
     }
+    // ── KI-Prompt-Vorschau (Option „KI-Prompt vor dem Senden anzeigen") ────────
+    // Ist die Add-on-Option aktiv, antwortet der Server statt mit dem Ergebnis
+    // mit {prompt_preview} (siehe ai_routes._prompt_preview_response). Zeigt den
+    // Prompt editierbar im #ai-body-Bereich; bestätigter/editierter Text geht als
+    // _prompt_override zurück, _prompt_confirmed=true überspringt die Vorschau
+    // beim zweiten Aufruf. Ist die Option aus, liefert der Server sofort das
+    // Ergebnis und diese Funktion greift nie ein.
+    // Generischer Kern: `onPreview(promptText)` rendert die Vorschau-UI (Ort ist
+    // Aufrufer-spezifisch — großes Modal vs. kleine Folgefrage-Box) und liefert
+    // den editierten Text oder null bei Abbruch. `onConfirmed()` rendert den
+    // Lade-Zustand für den zweiten (echten) Aufruf.
+    async function aiFetchPreviewCore(url, opts, onPreview, onConfirmed){
+      opts = opts || {};
+      let resp = await fetch(url, opts);
+      let d = await resp.json();
+      if(resp.ok && d && d.prompt_preview){
+        const edited = await onPreview(d.prompt_preview);
+        if(edited === null) return {cancelled:true};
+        let body = {};
+        if(opts.body){ try { body = JSON.parse(opts.body); } catch(e){} }
+        body._prompt_confirmed = true;
+        body._prompt_override = edited;
+        if(onConfirmed) onConfirmed();
+        resp = await fetch(url, Object.assign({}, opts, {
+          method: 'POST', body: JSON.stringify(body),
+          headers: Object.assign({'Content-Type':'application/json'}, opts.headers||{}),
+        }));
+        d = await resp.json();
+      }
+      return {resp, d};
+    }
+    function promptPreviewBoxHtml(promptText){
+      return `<textarea id="ai-pp-ta" style="width:100%;min-height:200px;font-family:monospace;font-size:.78rem;box-sizing:border-box;resize:vertical">${esc(promptText)}</textarea>
+        <div style="display:flex;gap:8px;margin-top:8px;justify-content:flex-end">
+          <button class="btn sec" id="ai-pp-cancel">Abbrechen</button>
+          <button class="btn" id="ai-pp-send">🚀 Senden</button>
+        </div>`;
+    }
+    function showPromptPreview(promptText){
+      return new Promise(resolve=>{
+        $('#ai-body').innerHTML = '<div class="hint" style="margin-bottom:8px">📝 Prompt vor dem Senden prüfen/bearbeiten:</div>'
+          + promptPreviewBoxHtml(promptText);
+        $('#ai-foot').style.display = 'none';
+        $('#ai-pp-cancel').onclick = () => { closeAiSummary(); resolve(null); };
+        $('#ai-pp-send').onclick = () => resolve($('#ai-pp-ta').value);
+      });
+    }
+    async function aiFetchPreviewable(url, opts, loadingLabel){
+      return aiFetchPreviewCore(url, opts, showPromptPreview,
+        () => { $('#ai-body').innerHTML = progBar(loadingLabel || 'KI arbeitet…'); });
+    }
+    // Folgefrage-Variante: rendert die Vorschau in #ai-followup-status statt den
+    // ganzen #ai-body zu ersetzen — die bisherige Konversation (#ai-thread) bleibt
+    // dabei sichtbar stehen.
+    function showFollowupPromptPreview(promptText){
+      return new Promise(resolve=>{
+        const status = $('#ai-followup-status');
+        status.innerHTML = '<div class="hint" style="margin:8px 0 6px">📝 Folgefrage vor dem Senden prüfen/bearbeiten:</div>'
+          + promptPreviewBoxHtml(promptText);
+        $('#ai-pp-cancel').onclick = () => resolve(null);
+        $('#ai-pp-send').onclick = () => resolve($('#ai-pp-ta').value);
+      });
+    }
     function hotelFacts(r){
       return {name:r.name, giata:r.giata, location:r.location, country:r.country,
         stars:r.stars, recommendation:r.recommendation, reviews:r.reviews, board:r.board,
@@ -2180,13 +2243,19 @@
       const thread = $('#ai-thread'), status = $('#ai-followup-status');
       if(!thread || !status) return;
       input.disabled = true;
-      thread.innerHTML += '<div class="hint" style="margin-top:16px"><b>Du:</b> '+esc(q)+'</div>';
+      const bubble = document.createElement('div');
+      bubble.className = 'hint';
+      bubble.style.marginTop = '16px';
+      bubble.innerHTML = '<b>Du:</b> '+esc(q);
+      thread.appendChild(bubble);
       status.innerHTML = progBar(aiProviderName()+' antwortet…');
       let resp, d;
       try {
-        resp = await fetch(api('/api/ai/history/'+aiCurrentId+'/followup'), {method:'POST',
-          headers:{'Content-Type':'application/json'}, body: JSON.stringify({question: q})});
-        d = await resp.json();
+        const r = await aiFetchPreviewCore(api('/api/ai/history/'+aiCurrentId+'/followup'), {method:'POST',
+          headers:{'Content-Type':'application/json'}, body: JSON.stringify({question: q})},
+          showFollowupPromptPreview, () => { status.innerHTML = progBar(aiProviderName()+' antwortet…'); });
+        if(r.cancelled){ bubble.remove(); status.innerHTML = ''; input.disabled = false; input.value = q; return; }
+        resp = r.resp; d = r.d;
       } catch(e){
         status.innerHTML = aiErrorBlock('Folgefrage fehlgeschlagen.', false);
         input.disabled = false;
@@ -2258,8 +2327,9 @@
         $('#ai-body').innerHTML = progBar(aiProviderName()+' berechnet den Buchungsscore…');
         let resp, d;
         try {
-          resp = await fetch(api('/api/ai/booking-score/'+id), {method:'POST'});
-          d = await resp.json();
+          const r = await aiFetchPreviewable(api('/api/ai/booking-score/'+id), {method:'POST'}, 'KI berechnet den Buchungsscore…');
+          if(r.cancelled) return;
+          resp = r.resp; d = r.d;
         } catch(e){ _aiRetryFn = attempt; $('#ai-body').innerHTML = aiErrorBlock('Buchungsscore fehlgeschlagen.', true); return; }
         if(!resp.ok){
           const retryable = aiRetryable(d.error);
@@ -2283,9 +2353,10 @@
         $('#ai-body').innerHTML = progBar(aiProviderName()+' schätzt die Destination ein…');
         let resp, d;
         try {
-          resp = await fetch(api('/api/ai/region-outlook'), {method:'POST', headers:{'Content-Type':'application/json'},
-            body: JSON.stringify({region: r.region})});
-          d = await resp.json();
+          const rp = await aiFetchPreviewable(api('/api/ai/region-outlook'), {method:'POST', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({region: r.region})}, 'KI schätzt die Destination ein…');
+          if(rp.cancelled) return;
+          resp = rp.resp; d = rp.d;
         } catch(e){ _aiRetryFn = attempt; $('#ai-body').innerHTML = aiErrorBlock('Region-Ausblick fehlgeschlagen.', true); return; }
         if(!resp.ok){
           const retryable = aiRetryable(d.error);
@@ -2311,8 +2382,9 @@
         $('#ai-body').innerHTML = progBar(aiProviderName()+' fasst die Kalenderpreise zusammen…');
         let resp, d;
         try {
-          resp = await fetch(api('/api/ai/calendar-outlook/'+id), {method:'POST'});
-          d = await resp.json();
+          const r = await aiFetchPreviewable(api('/api/ai/calendar-outlook/'+id), {method:'POST'}, 'KI fasst die Kalenderpreise zusammen…');
+          if(r.cancelled) return;
+          resp = r.resp; d = r.d;
         } catch(e){ _aiRetryFn = attempt; $('#ai-body').innerHTML = aiErrorBlock('Kalender-Analyse fehlgeschlagen.', true); return; }
         if(!resp.ok){
           const retryable = aiRetryable(d.error);
@@ -2361,9 +2433,10 @@
         $('#ai-body').innerHTML = progBar(aiProviderName()+' durchsucht das Web nach Bewertungen…');
         let resp, d;
         try {
-          resp = await fetch(api('/api/ai/hotel-summary'), {method:'POST', headers:{'Content-Type':'application/json'},
-            body: JSON.stringify(hotelFacts(r))});
-          d = await resp.json();
+          const rp = await aiFetchPreviewable(api('/api/ai/hotel-summary'), {method:'POST', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify(hotelFacts(r))}, 'KI durchsucht das Web nach Bewertungen…');
+          if(rp.cancelled) return;
+          resp = rp.resp; d = rp.d;
         } catch(e){ _aiRetryFn = attempt; $('#ai-body').innerHTML = aiErrorBlock('KI-Zusammenfassung fehlgeschlagen.', true); return; }
         if(!resp.ok){
           const retryable = aiRetryable(d.error);
@@ -2416,9 +2489,10 @@
         $('#ai-body').innerHTML = progBar(aiProviderName()+' vergleicht '+facts.length+' Hotels und durchsucht das Web…');
         let resp, d;
         try {
-          resp = await fetch(api('/api/ai/hotel-compare'), {method:'POST', headers:{'Content-Type':'application/json'},
-            body: JSON.stringify({hotels: facts})});
-          d = await resp.json();
+          const r = await aiFetchPreviewable(api('/api/ai/hotel-compare'), {method:'POST', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({hotels: facts})}, 'KI vergleicht '+facts.length+' Hotels und durchsucht das Web…');
+          if(r.cancelled) return;
+          resp = r.resp; d = r.d;
         } catch(e){ _aiRetryFn = attempt; $('#ai-body').innerHTML = aiErrorBlock('KI-Vergleich fehlgeschlagen.', true); return; }
         if(!resp.ok){
           const retryable = aiRetryable(d.error);
@@ -2612,9 +2686,10 @@
         $('#ai-body').innerHTML = progBar('Wird mit '+(AI_PROVIDER_NAME[provider]||provider)+' wiederholt…');
         let resp, d;
         try {
-          resp = await fetch(api('/api/ai/history/'+id+'/repeat'), {method:'POST',
-            headers:{'Content-Type':'application/json'}, body: JSON.stringify({provider})});
-          d = await resp.json();
+          const r = await aiFetchPreviewable(api('/api/ai/history/'+id+'/repeat'), {method:'POST',
+            headers:{'Content-Type':'application/json'}, body: JSON.stringify({provider})}, 'Wird wiederholt…');
+          if(r.cancelled) return;
+          resp = r.resp; d = r.d;
         } catch(e){ _aiRetryFn = attempt; $('#ai-body').innerHTML = aiErrorBlock('Wiederholen fehlgeschlagen.', true); return; }
         if(!resp.ok){
           const retryable = aiRetryable(d.error);
@@ -2644,8 +2719,9 @@
         $('#ai-body').innerHTML = progBar(aiProviderName()+' durchsucht dein Portfolio…');
         let resp, d;
         try {
-          resp = await fetch(api('/api/ai/ask'), {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({question:q})});
-          d = await resp.json();
+          const r = await aiFetchPreviewable(api('/api/ai/ask'), {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({question:q})}, 'KI durchsucht dein Portfolio…');
+          if(r.cancelled) return;
+          resp = r.resp; d = r.d;
         } catch(e){ _aiRetryFn = attempt; $('#ai-body').innerHTML = aiErrorBlock('Frage fehlgeschlagen.', true); return; }
         if(!resp.ok){
           const retryable = aiRetryable(d.error);
@@ -2859,9 +2935,10 @@
         $('#ai-body').innerHTML = progBar(aiProviderName()+' sucht passende Ziele…');
         let resp, d;
         try {
-          resp = await fetch(api('/api/ai/travel-advisor'), {method:'POST',
-            headers:{'Content-Type':'application/json'}, body: JSON.stringify(advState)});
-          d = await resp.json();
+          const r = await aiFetchPreviewable(api('/api/ai/travel-advisor'), {method:'POST',
+            headers:{'Content-Type':'application/json'}, body: JSON.stringify(advState)}, 'KI sucht passende Ziele…');
+          if(r.cancelled) return;
+          resp = r.resp; d = r.d;
         } catch(e){ _aiRetryFn = attempt; $('#ai-body').innerHTML = aiErrorBlock('Anfrage fehlgeschlagen.', true); return; }
         if(!resp.ok){
           const retryable = aiRetryable(d.error);

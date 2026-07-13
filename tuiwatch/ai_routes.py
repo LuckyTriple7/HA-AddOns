@@ -40,6 +40,34 @@ _AI_SECTIONS = (
 _CUSTOM_PROMPT_MAX_LEN = 4000  # Zeichen — ganzer Instruktionsblock, großzügiger als
                                # die 500-Zeichen-Freitextfelder im Reiseberater-Fragebogen
 
+_PROMPT_OVERRIDE_MAX_LEN = 20000  # Zeichen — kompletter Prompt (Fakten+Instruktionen),
+                                  # großzügiger als _CUSTOM_PROMPT_MAX_LEN (nur Instruktionen)
+
+
+def _prompt_preview_response(data: dict, prompt: str):
+    """Zwischenstopp für die Add-on-Option `ai_prompt_preview`: ist sie aktiv und
+    hat der Request den Prompt noch nicht bestätigt (`_prompt_confirmed`), wird
+    statt eines echten KI-Aufrufs der fertige Prompt zur Anzeige/Bearbeitung im
+    Frontend zurückgegeben — der Client schickt denselben Request danach mit
+    `_prompt_confirmed: true` und optional `_prompt_override` (editierter Text)
+    erneut. Rückgabe: Response-Objekt (dann sofort `return`en) oder None (normal
+    weitermachen)."""
+    if not A.load_config().get('ai_prompt_preview'):
+        return None
+    if data.get('_prompt_confirmed'):
+        return None
+    return jsonify({'prompt_preview': prompt})
+
+
+def _resolve_prompt(data: dict, prompt: str) -> str:
+    """Finalen Prompt bestimmen: vom Nutzer editierter Text aus der Vorschau
+    (`_prompt_override`), falls vorhanden und nicht leer, sonst der serverseitig
+    gebaute Prompt unverändert."""
+    override = data.get('_prompt_override')
+    if isinstance(override, str) and override.strip():
+        return override.strip()[:_PROMPT_OVERRIDE_MAX_LEN]
+    return prompt
+
 _DEFAULT_ADVISOR_INSTRUCTIONS = (
     "Nutze die Websuche, um für die genannte Reisezeit reale, aktuelle Klimadaten zu "
     "prüfen — Lufttemperatur, Wassertemperatur, Regentage und Windverhältnisse. Wind "
@@ -914,6 +942,9 @@ def api_ai_hotel_summary():
                         'totals': _ai_usage_totals(), 'id': cached.get('id'), 'cached': True})
 
     prompt = _hotel_summary_prompt(data, instructions)
+    if (preview := _prompt_preview_response(data, prompt)):
+        return preview
+    prompt = _resolve_prompt(data, prompt)
     text, usage, err = A._ai_call(api_key, model, prompt, max_tokens=4096, log_ctx=name)
     if err:
         return err
@@ -961,6 +992,7 @@ def api_ai_calendar_outlook(offer_id: int):
     if not api_key:
         return jsonify({'error': 'no_api_key',
                         'note': 'Kein Anthropic API-Key in den Add-on-Einstellungen hinterlegt'}), 400
+    data = request.get_json(silent=True) or {}
     cached = A._calendar_outlook_cache.get(offer_id)
     if cached and time.time() - cached['ts'] < A._BOOKING_SCORE_TTL:
         return jsonify({'summary': cached['summary'], 'usage': cached.get('usage'),
@@ -976,6 +1008,9 @@ def api_ai_calendar_outlook(offer_id: int):
     if facts is None:
         return jsonify({'error': 'no_data'}), 400
     prompt = _calendar_outlook_prompt(facts)
+    if (preview := _prompt_preview_response(data, prompt)):
+        return preview
+    prompt = _resolve_prompt(data, prompt)
     text, usage, err = A._ai_call(api_key, model, prompt, max_tokens=700,
                                 log_ctx=facts['hotel'], use_web_search=False)
     if err:
@@ -997,6 +1032,7 @@ def api_ai_booking_score(offer_id: int):
     if not api_key:
         return jsonify({'error': 'no_api_key',
                         'note': 'Kein Anthropic API-Key in den Add-on-Einstellungen hinterlegt'}), 400
+    data = request.get_json(silent=True) or {}
     with A._ai_cache_lock:
         cached = A._booking_score_cache.get(offer_id)
     if cached and time.time() - cached['ts'] < A._BOOKING_SCORE_TTL:
@@ -1019,6 +1055,9 @@ def api_ai_booking_score(offer_id: int):
         with A.db() as con:
             facts = _offer_booking_facts(con, offer_id)
     prompt = _booking_score_prompt(facts)
+    if (preview := _prompt_preview_response(data, prompt)):
+        return preview
+    prompt = _resolve_prompt(data, prompt)
     result, usage, err = _ai_score_request(prompt, model, api_key, facts['hotel'])
     if err:
         return err
@@ -1057,6 +1096,9 @@ def api_ai_region_outlook():
     if trend is None and index is None:
         return jsonify({'error': 'no_data'}), 400
     prompt = _region_outlook_prompt(region, trend, index)
+    if (preview := _prompt_preview_response(data, prompt)):
+        return preview
+    prompt = _resolve_prompt(data, prompt)
     result, usage, err = _ai_score_request(prompt, model, api_key, region)
     if err:
         return err
@@ -1125,6 +1167,9 @@ def api_ai_ask():
         "auch die Websuche keine verlässliche Antwort liefert, sag das offen "
         "statt zu spekulieren."
     )
+    if (preview := _prompt_preview_response(data, prompt)):
+        return preview
+    prompt = _resolve_prompt(data, prompt)
     text, usage, err = A._ai_call(api_key, model, prompt, max_tokens=1500, log_ctx="Portfolio-Frage")
     if err:
         return err
@@ -1381,6 +1426,9 @@ def api_ai_travel_advisor():
     except (TypeError, ValueError):
         prev_dna = {}
     prompt = _advisor_prompt(profile, prev_dna)
+    if (preview := _prompt_preview_response(data, prompt)):
+        return preview
+    prompt = _resolve_prompt(data, prompt)
     title = ', '.join(_region_values(profile)) or 'TripPilot'
     if profile.get('month'):
         title += ' · ' + profile['month']
@@ -1439,6 +1487,9 @@ def api_ai_hotel_compare():
                         'totals': _ai_usage_totals(), 'id': cached.get('id'), 'cached': True})
 
     prompt = _compare_prompt(hotels, instructions)
+    if (preview := _prompt_preview_response(data, prompt)):
+        return preview
+    prompt = _resolve_prompt(data, prompt)
     text, usage, err = A._ai_call(api_key, model, prompt, max_tokens=6144,
                                 log_ctx=f"Vergleich {len(hotels)} Hotels")
     if err:
@@ -1623,7 +1674,8 @@ def api_ai_history_repeat(aid: int):
     ist, nur der fertige Prompt-Text."""
     if (err := A._require_api()):
         return err
-    provider = (request.get_json(silent=True) or {}).get('provider')
+    data = request.get_json(silent=True) or {}
+    provider = data.get('provider')
     if provider not in _AI_PROVIDERS:
         return jsonify({'error': 'invalid_provider'}), 400
     with A.db() as con:
@@ -1638,6 +1690,9 @@ def api_ai_history_repeat(aid: int):
     if not api_key:
         return jsonify({'error': 'no_api_key'}), 400
     kind, title, prompt = row['kind'], row['title'], row['prompt']
+    if (preview := _prompt_preview_response(data, prompt)):
+        return preview
+    prompt = _resolve_prompt(data, prompt)
     if kind in ('booking_score', 'region_outlook'):
         result, usage, err = _ai_score_request(prompt, model, api_key, title)
         if err:
@@ -1695,7 +1750,8 @@ def api_ai_history_followup(aid: int):
     `_AI_FOLLOWUP_UNSUPPORTED_KINDS`)."""
     if (err := A._require_api()):
         return err
-    question = ((request.get_json(silent=True) or {}).get('question') or '').strip()
+    data = request.get_json(silent=True) or {}
+    question = (data.get('question') or '').strip()
     if not question or len(question) > _AI_FOLLOWUP_MAX_LEN:
         return jsonify({'error': 'invalid'}), 400
     with A.db() as con:
@@ -1712,6 +1768,9 @@ def api_ai_history_followup(aid: int):
     api_key, _default_model = _ai_config_for(_provider_for_model(model))
     if not api_key:
         return jsonify({'error': 'no_api_key'}), 400
+    if (preview := _prompt_preview_response(data, question)):
+        return preview
+    question = _resolve_prompt(data, question)
     messages = _ai_followup_messages(row)
     messages.append({"role": "user", "content": question})
     rcfg = _AI_RETRY_MARKDOWN_CONFIG.get(row['kind'], {'max_tokens': 2048, 'use_web_search': True})

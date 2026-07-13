@@ -131,6 +131,9 @@ configuration:
   ai_max_web_searches:
     name: Max. Websuchen pro KI-Aufruf
     description: "Deckelt, wie oft Claude bei einem einzelnen KI-Aufruf (Fazit, Vergleich, Reiseberater/TripPilot, Tagesausflug) selbstständig das Web durchsuchen darf. Mehr Suchen = gründlicher, aber mehr Input-Tokens und höhere Kosten. Standard 12 — z. B. 8 für sparsamer, 20 für sehr gründlich bei mehreren Zielen/Hotels. Gilt nur bei Anthropic/Claude — Gemini/Perplexity kennen kein Limit für die Anzahl Websuchen."
+  ai_prompt_preview:
+    name: KI-Prompt vor dem Senden anzeigen
+    description: "Zeigt bei interaktiven KI-Anfragen (KI-Fazit, Vergleich, Buchungsscore, Kalender-Analyse, Region-Ausblick, Portfolio-Frage, TripPilot/Tagesausflug, Verlauf-Wiederholen, Folgefrage) den fertigen Prompt vorher in einem editierbaren Fenster an — erst nach Bestätigung/ggf. Anpassung wird er wirklich an die KI geschickt. Automatische Hintergrund-Läufe (Wochenüberblick, Aktionscode-Check, Auto-Tags) sind davon nicht betroffen. Standard aus."
   verbose_log:
     name: Ausführliches Logging
     description: Gibt mehr Details pro Prüfung im Log aus. Standard aus — nur Fehler und wichtige Ereignisse werden geloggt.

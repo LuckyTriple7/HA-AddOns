@@ -131,6 +131,9 @@ configuration:
   ai_max_web_searches:
     name: Max. web searches per AI call
     description: "Caps how many times Claude may search the web on its own during a single AI call (summary, comparison, travel advisor/TripPilot, day trip). More searches = more thorough, but more input tokens and higher cost. Default 12 — e.g. 8 for leaner, 20 for very thorough with several destinations/hotels. Only applies to Anthropic/Claude — Gemini/Perplexity have no limit on the number of web searches."
+  ai_prompt_preview:
+    name: Show AI prompt before sending
+    description: "For interactive AI requests (AI summary, comparison, booking score, calendar analysis, region outlook, portfolio question, TripPilot/day trip, history repeat, follow-up question), shows the finished prompt in an editable window first — it's only actually sent to the AI after you confirm/optionally edit it. Automatic background runs (weekly digest, promo code check, auto-tagging) are not affected. Default off."
   verbose_log:
     name: Verbose logging
     description: Logs more detail per check. Default off — only errors and important events are logged.

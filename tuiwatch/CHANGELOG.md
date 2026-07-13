@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.52.6] - 2026-07-13
+
+### Added
+- **KI-Prompt vor dem Senden anzeigen.** Neue Option `ai_prompt_preview`
+  (Standard aus): ist sie aktiv, zeigt jede interaktive KI-Anfrage (KI-Fazit,
+  Vergleich, Buchungsscore, Kalender-Analyse, Region-Ausblick, Portfolio-Frage,
+  TripPilot/Tagesausflug, Verlauf-Wiederholen, Folgefrage) den fertigen Prompt zuerst in
+  einem editierbaren Fenster — erst nach Bestätigung (ggf. mit Anpassungen)
+  geht die Anfrage wirklich an die KI raus. Automatische Hintergrund-Läufe
+  (Wochenüberblick, Aktionscode-Check, Auto-Tags) sind davon nicht betroffen.
+
 ## [0.52.5] - 2026-07-12
 
 ### Fixed
