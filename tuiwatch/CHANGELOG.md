@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.52.7] - 2026-07-13
+
+### Added
+- **TripPilot: "Starker Wellengang" als Option** bei "Was nervt dich im
+  Urlaub?" ergänzt.
+
 ## [0.52.6] - 2026-07-13
 
 ### Added

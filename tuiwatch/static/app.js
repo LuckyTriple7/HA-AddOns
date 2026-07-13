@@ -2835,7 +2835,7 @@
       {title:'Was nervt dich im Urlaub?', key:'dislikes', multi:true,
        showIf: state => !isDaytrip(state),
        options:['überfüllte Strände','Kinder','Animation','Wind','Hitze','lange Transfers',
-                'frühes Aufstehen']},
+                'frühes Aufstehen','Starker Wellengang']},
       {title:'Was macht für dich einen perfekten Urlaub aus?', key:'perfect_holiday', type:'text',
        showIf: state => !isDaytrip(state),
        placeholder:'Freitext, optional'},
