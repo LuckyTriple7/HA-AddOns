@@ -1,6 +1,6 @@
 name: TUIWatch
 description: Reisepreis-Tracker — verfolgt TUI-Angebotspreise und zeigt den Verlauf
-version: "0.46.4"
+version: "0.53.5"
 slug: tuiwatch
 url: https://github.com/LuckyTriple7/HA-AddOns
 image: "ghcr.io/luckytriple7/tuiwatch"
@@ -45,6 +45,7 @@ options:
   cheaper_date_min_diff: 50
   notify_calendar_trend: true
   calendar_trend_min_diff: 20
+  calendar_daily_refresh: true
   notify_errors: true
   notify_api_errors: true
   notify_booked_drop: true
@@ -73,7 +74,10 @@ options:
   ai_provider: "anthropic"
   gemini_api_key: ""
   gemini_model: "gemini-3.1-pro"
+  perplexity_api_key: ""
+  perplexity_model: "sonar-pro"
   ai_max_web_searches: 12
+  ai_prompt_preview: false
   verbose_log: false
 
 schema:
@@ -90,6 +94,7 @@ schema:
   cheaper_date_min_diff: int?
   notify_calendar_trend: bool?
   calendar_trend_min_diff: int?
+  calendar_daily_refresh: bool?
   notify_errors: bool?
   notify_api_errors: bool?
   notify_booked_drop: bool?
@@ -115,8 +120,11 @@ schema:
   nc_app_password: str?
   anthropic_api_key: password?
   anthropic_model: list(claude-opus-4-8|claude-sonnet-5|claude-haiku-4-5|claude-fable-5)?
-  ai_provider: list(anthropic|gemini)?
+  ai_provider: list(anthropic|gemini|perplexity)?
   gemini_api_key: password?
   gemini_model: list(gemini-3.1-pro|gemini-3.5-flash|gemini-2.5-flash)?
+  perplexity_api_key: password?
+  perplexity_model: list(sonar|sonar-pro|sonar-reasoning-pro|sonar-deep-research)?
   ai_max_web_searches: int?
+  ai_prompt_preview: bool?
   verbose_log: bool?

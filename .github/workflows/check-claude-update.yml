@@ -22,7 +22,13 @@ jobs:
 
       - name: Get latest Claude Code npm version
         id: claude
-        run: echo "version=$(npm show @anthropic-ai/claude-code version)" >> $GITHUB_OUTPUT
+        run: |
+          VERSION=$(npm show @anthropic-ai/claude-code version)
+          if [ -z "$VERSION" ]; then
+            echo "::error::Konnte Claude Code Version nicht ermitteln (npm show leer)."
+            exit 1
+          fi
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
 
       - name: Get currently tracked version
         id: tracked

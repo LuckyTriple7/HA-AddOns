@@ -143,6 +143,35 @@ def test_offer_booking_facts_includes_seasonal_when_calendar_cached(m):
     assert facts["seasonal"]["cheapest_month_avg"] == 900
 
 
+def test_offer_booking_facts_includes_prior_year_month_comparison(m):
+    """Regression: bei langer Vorlaufzeit (z. B. Zieltermin Sept. 2027) deckt der
+    Kalender ab heute bis weit über den Zieltermin hinaus ab (fetch_calendar) — der
+    gleiche Reisemonat ein Jahr früher (Sept. 2026) liegt dann oft schon mit im
+    Fenster und damit näher am eigenen Abflug. Dieser Vorjahresvergleich wurde bisher
+    für den Buchungsscore nicht ausgewertet."""
+    oid = _add_offer(m, "https://example.invalid/yoy?duration=7", price=1900)
+    days = []
+    for month, price in (("2026-09", 1500), ("2027-01", 1000), ("2027-05", 900),
+                          ("2027-09", 1900)):
+        for d in range(1, 21):
+            days.append({"date": f"{month}-{d:02d}", "price": price})
+    cal = {"ok": True, "days": days, "cheapest_date": "2027-05-05", "cheapest_price": 900,
+           "tracked_date": "2027-09-10", "tracked_price": 1900}
+    with m.db() as con:
+        con.execute("INSERT INTO calendar_cache (offer_id, ts, data) VALUES (?,?,?)",
+                    (oid, int(time.time()), json.dumps(cal)))
+        facts = m._offer_booking_facts(con, oid)
+    s = facts["seasonal"]
+    assert s["target_month"] == "2027-09"
+    assert s["target_month_avg"] == 1900
+    assert s["prior_year_month"] == "2026-09"
+    assert s["prior_year_month_avg"] == 1500
+    prompt = m._booking_score_prompt(facts)
+    assert "Vorjahresvergleich" in prompt
+    assert "September 2026" in prompt
+    assert "1500" in prompt or "1.500" in prompt
+
+
 def test_offer_booking_facts_includes_calendar_moves(m):
     """Kalender-Bewegungen (calendar_history) gehören in die Buchungsscore-Fakten —
     breite Anstiege/Rückgänge über viele Reisetermine sind ein direktes
@@ -180,6 +209,48 @@ def test_booking_score_prompt_includes_calendar_moves():
     assert "1 von 2 gestiegen" in p
     assert "Abreise 2027-05-01: 1999 € -> 2026 € (gestiegen um 27 €)" in p
     assert "Abreise 2027-06-14: 1990 € -> 1971 € (gefallen um 19 €)" in p
+
+
+def test_booking_score_history_grows_and_reports_delta(m, monkeypatch):
+    """Score-Verlauf: jeder frische Score landet per offer_id in ai_analyses;
+    die Route liefert `history` (älteste zuerst) — Basis für Delta + Sparkline."""
+    oid = _add_offer(m, "https://example.invalid/hist?duration=7", price=1500)
+    _write_options(m, anthropic_api_key="sk-test")
+    c = m.app.test_client()
+
+    _mock_ai_ok(m, monkeypatch, result=dict(_SCORE_RESULT, score=72))
+    r1 = c.post(f"/api/ai/booking-score/{oid}", headers=ING).get_json()
+    assert [h["score"] for h in r1["history"]] == [72]
+
+    with m._ai_cache_lock:
+        m._booking_score_cache.pop(oid, None)   # 24h-Cache umgehen -> zweite Messung
+    _mock_ai_ok(m, monkeypatch, result=dict(_SCORE_RESULT, score=65))
+    r2 = c.post(f"/api/ai/booking-score/{oid}", headers=ING).get_json()
+    assert [h["score"] for h in r2["history"]] == [72, 65]
+    assert r2["history"][-1]["empfehlung"] == "beobachten"
+
+    # Cache-Antwort enthält den Verlauf ebenfalls
+    r3 = c.post(f"/api/ai/booking-score/{oid}", headers=ING).get_json()
+    assert r3["cached"] is True
+    assert [h["score"] for h in r3["history"]] == [72, 65]
+
+
+def test_booking_score_invalid_json_returns_ai_empty_and_logs(m, monkeypatch, caplog):
+    """Abgeschnittenes Structured-Output-JSON (z. B. stop_reason=max_tokens) darf
+    nicht still scheitern: 502 ai_empty + WARNING mit Text-Ausschnitt im Log."""
+    import logging
+    oid = _add_offer(m, "https://example.invalid/tj?duration=7", price=1500)
+    _write_options(m, anthropic_api_key="sk-test")
+    monkeypatch.setattr(m, "_run_calendar", lambda *a, **k: None)
+    monkeypatch.setattr(m, "_ai_request", lambda *a, **k: (
+        '{"score": 72, "empfehlung": "beob', {"input_tokens": 1, "output_tokens": 1,
+        "cache_creation_input_tokens": 0, "cache_read_input_tokens": 0}, None))
+    c = m.app.test_client()
+    with caplog.at_level(logging.WARNING):
+        r = c.post(f"/api/ai/booking-score/{oid}", headers=ING)
+    assert r.status_code == 502
+    assert r.get_json()["error"] == "ai_empty"
+    assert any("kein gültiges JSON" in rec.message for rec in caplog.records)
 
 
 # ── Prompt-Inhalt ────────────────────────────────────────────────────────────────

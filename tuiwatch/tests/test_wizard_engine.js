@@ -1,15 +1,15 @@
 // Reiner Node-Test ohne Dependency (kein npm/jest im Projekt) fuer die
 // bedingte Folge-Schritt-Logik (`showIf`/`advVisibleSteps`) des
 // Reiseberater-Wizards. Extrahiert `ADV_STEPS` + `advVisibleSteps` per
-// vm-Modul direkt aus templates/index.html (gleiche Extraktions-Idee wie
-// der bestehende Python-Syntax-Check fuer den <script>-Block), damit der
+// vm-Modul direkt aus static/app.js (dorthin ausgelagert, Backlog #12) —
+// so bleibt der Test immer synchron zur ausgelieferten Datei.
 // Test nie von der HTML-Datei abweicht.
 'use strict';
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
 
-const htmlPath = path.join(__dirname, '..', 'templates', 'index.html');
+const htmlPath = path.join(__dirname, '..', 'static', 'app.js');
 const html = fs.readFileSync(htmlPath, 'utf8');
 
 function extractBlock(startMarker, endMarker) {
@@ -61,7 +61,8 @@ function check(name, actual, expected) {
 
 // Kein Interesse gesetzt, kein Tagesausflug, keine Unterkunftsart, keine Region ->
 // beach_detail/berge_detail/home_location/max_distance/duration_daytrip/
-// accommodation_size/sea/excluded_countries/excluded_countries_other versteckt (9)
+// accommodation_size/sea/excluded_countries/excluded_countries_other/
+// perfect_daytrip versteckt (10)
 setState({});
 check('leerer Status: beach_detail versteckt', visibleKeys().includes('beach_detail'), false);
 check('leerer Status: berge_detail versteckt', visibleKeys().includes('berge_detail'), false);
@@ -73,9 +74,9 @@ check('leerer Status: sea versteckt (kein water_type gewaehlt)',
 check('leerer Status: excluded_countries versteckt (keine Region gewaehlt)',
   visibleKeys().includes('excluded_countries'), false);
 check('leerer Status: duration sichtbar', visibleKeys().includes('duration'), true);
-check('leerer Status: sichtbare Anzahl = Gesamt - 9 versteckte bedingte Schritte',
-  visibleKeys().length, stepCount() - 9);
-check('leerer Status: genau 22 bedingte Schritte insgesamt definiert', conditionalCount(), 22);
+check('leerer Status: sichtbare Anzahl = Gesamt - 10 versteckte bedingte Schritte',
+  visibleKeys().length, stepCount() - 10);
+check('leerer Status: genau 24 bedingte Schritte insgesamt definiert', conditionalCount(), 24);
 
 // excluded_countries nur sinnvoll bei Weltweit/Egal
 setState({ region: ['Europa'] });
@@ -161,12 +162,12 @@ setState({ region: [DAYTRIP], water_type: ['Meer'] });
 const hiddenForDaytrip = ['excluded_countries', 'excluded_countries_other', 'interests',
   'travel_type', 'companions', 'budget', 'duration', 'temp', 'accommodation',
   'accommodation_size', 'hotel_wishes', 'arrival_mode', 'flight_time', 'airports',
-  'perfect_holiday', 'past_trips'];
+  'dislikes', 'perfect_holiday', 'past_trips'];
 for (const key of hiddenForDaytrip) {
   check(`Tagesausflug: ${key} versteckt`, visibleKeys().includes(key), false);
 }
 const shownForDaytrip = ['region', 'duration_daytrip', 'home_location',
-  'max_distance', 'month', 'water_type', 'sea', 'rain', 'activities', 'dislikes'];
+  'max_distance', 'month', 'water_type', 'sea', 'rain', 'activities', 'perfect_daytrip'];
 for (const key of shownForDaytrip) {
   check(`Tagesausflug: ${key} sichtbar`, visibleKeys().includes(key), true);
 }
@@ -175,6 +176,8 @@ for (const key of shownForDaytrip) {
 setState({ region: ['Europa'] });
 check('Urlaubsmodus: duration sichtbar', visibleKeys().includes('duration'), true);
 check('Urlaubsmodus: duration_daytrip versteckt', visibleKeys().includes('duration_daytrip'), false);
+check('Urlaubsmodus: dislikes sichtbar', visibleKeys().includes('dislikes'), true);
+check('Urlaubsmodus: perfect_daytrip versteckt', visibleKeys().includes('perfect_daytrip'), false);
 check('Urlaubsmodus: home_location versteckt (kein arrival_mode)',
   visibleKeys().includes('home_location'), false);
 check('Urlaubsmodus: travel_type sichtbar', visibleKeys().includes('travel_type'), true);

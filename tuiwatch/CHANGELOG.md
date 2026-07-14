@@ -1,5 +1,534 @@
 # Changelog
 
+## [0.53.5] - 2026-07-14
+
+### Changed
+- **GIATA-Fotogalerie: Hinweistext entfernt.** Untertitel im Modal
+  ("Bilder von der öffentlichen GIATA-Hotelseite …") gestrichen.
+
+## [0.53.4] - 2026-07-14
+
+### Fixed
+- **GIATA-Fotogalerie: nur 7 statt aller Bilder.** Die GIATA-Hotelseite
+  listet Kataloge, nicht Fotos, und ist ab ~30 Katalogen paginiert
+  (`&site=2..N`) — bisher wurde nur Seite 1 gelesen. Jetzt werden bis zu
+  8 Seiten durchlaufen; ein Hotel mit 180 Katalogeinträgen zeigte dadurch
+  vorher nur 7, jetzt 23 echte Fotos.
+
+## [0.53.3] - 2026-07-14
+
+### Fixed
+- **Ungewollter Logout trotz aktiver Nutzung.** Die Login-Session lief bisher
+  exakt `session_hours` (Standard 24h) nach dem Login ab, unabhängig von der
+  Nutzung — bei durchgehend offenem Tab kam irgendwann unerwartet der
+  Login-Screen (z. B. beim Reload). Jetzt sliding: jede Anfrage verlängert
+  Session + Cookie neu; nur wirklich inaktive Sessions (>24h ohne Zugriff)
+  laufen noch ab. (Betrifft nur den direkten Zugriff, nicht HA Ingress.)
+
+## [0.53.2] - 2026-07-14
+
+### Fixed
+- **GIATA-Fotogalerie: fehlgeschlagener Abruf ohne Log-Eintrag.** Netzwerk-
+  Fehler und leere Ergebnisse beim Laden der GIATA-Seite wurden bisher still
+  verschluckt. Jetzt landet eine Warnung im ⚠-Panel/Log.
+
+## [0.53.1] - 2026-07-14
+
+### Fixed
+- **GIATA-Fotogalerie: doppelte Bilder.** Dedupe lief bisher über `cid`+`iid`,
+  aber dasselbe Foto taucht unter mehreren Katalogen (`cid`) mit gleicher
+  Bild-ID (`iid`) erneut auf. Jetzt wird nur noch nach `iid` dedupliziert.
+
+## [0.53.0] - 2026-07-14
+
+### Fixed
+- **CodeQL: Polynomial-Regex bei GIATA-Bildparsing** (`scraper.py`) —
+  `cid`/`iid` werden jetzt per `urllib.parse.parse_qs` statt Regex mit `.*?`
+  aus der Bild-URL gelesen (kein ReDoS-Risiko auf externen Response-Daten).
+
+## [0.52.12] - 2026-07-14
+
+### Added
+- **🖼 Fotos-Galerie (GIATA).** Neuer Link neben dem GIATA-Code öffnet eine
+  Galerie mit Hotelfotos von der öffentlichen GIATA-Hotelseite — Bilder werden
+  direkt eingebettet (i.giatamedia.com), nicht heruntergeladen oder gespeichert.
+
+## [0.52.11] - 2026-07-14
+
+### Added
+- **GIATA-Code als Link.** "GIATA <code>" bei Angeboten (Anzeige + E-Mail)
+  verlinkt jetzt auf die GIATA-Hoteldetailseite (hg15.giatamedia.com).
+
+## [0.52.10] - 2026-07-14
+
+### Added
+- **TripPilot: Regionen Kanaren, Mittelmeer, Karibik, Südostasien und
+  Indischer Ozean** bei "Wohin soll die Reise ungefähr gehen?" ergänzt.
+
+## [0.52.9] - 2026-07-14
+
+### Added
+- **Logout-Button im Header.** Neben dem Design-Umschalter (nur sichtbar,
+  wenn nicht über HA Ingress aufgerufen, da Ingress selbst authentifiziert).
+
+## [0.52.8] - 2026-07-13
+
+### Fixed
+- **TripPilot: KI-Name im Ladetext fehlte manchmal** ("KI sucht passende
+  Ziele…" statt z. B. "Claude sucht…"). Ursache: Race Condition beim
+  Seitenaufruf, bei der der aktive Provider noch nicht geladen war. Wird
+  jetzt vor dem Absenden sichergestellt.
+
+### Added
+- **TripPilot: Temperaturoption "20–30°C" ergänzt**, als breitere Wahl
+  zwischen den bestehenden Stufen 20–25°C und 25–30°C.
+
+## [0.52.7] - 2026-07-13
+
+### Added
+- **TripPilot: "Starker Wellengang" als Option** bei "Was nervt dich im
+  Urlaub?" ergänzt.
+
+## [0.52.6] - 2026-07-13
+
+### Added
+- **KI-Prompt vor dem Senden anzeigen.** Neue Option `ai_prompt_preview`
+  (Standard aus): ist sie aktiv, zeigt jede interaktive KI-Anfrage (KI-Fazit,
+  Vergleich, Buchungsscore, Kalender-Analyse, Region-Ausblick, Portfolio-Frage,
+  TripPilot/Tagesausflug, Verlauf-Wiederholen, Folgefrage) den fertigen Prompt zuerst in
+  einem editierbaren Fenster — erst nach Bestätigung (ggf. mit Anpassungen)
+  geht die Anfrage wirklich an die KI raus. Automatische Hintergrund-Läufe
+  (Wochenüberblick, Aktionscode-Check, Auto-Tags) sind davon nicht betroffen.
+
+## [0.52.5] - 2026-07-12
+
+### Fixed
+- **Vorjahresvergleich im Buchungsscore (0.52.3) wurde von der KI live falsch
+  interpretiert** — sie erwartete eine taggenaue Übereinstimmung mit dem Vorjahr
+  und senkte 'vertrauen', weil die (bewusst nur monatsbezogene) Vergleichsbasis
+  keine Daten für exakt denselben Kalendertag lieferte. Anweisung klargestellt:
+  der Vergleich ist Ø-Preis auf Monatsebene, keine taggenaue Übereinstimmung
+  erwartet/nötig, zählt weiterhin voll als typ='daten'.
+
+## [0.52.4] - 2026-07-12
+
+### Added
+- **Preis-Leistungs-Score in der Hotelsuche** — neue Sortieroption „Preis-Leistung":
+  60 % Weiterempfehlung (HolidayCheck) + 40 % Preis/Nacht, beide auf min/max der
+  aktuellen Trefferliste normiert. Weiterempfehlung mit weniger als 15 Bewertungen
+  wird zur Basislinie (70 %) gedämpft, sonst verzerrt ein einzelnes 5-Sterne-Review
+  den Score. Feste Gewichtung, kein Regler.
+- Preis pro Nacht in der Hotelsuche sichtbar (unter dem Streichpreis, wie bereits
+  bei den Angebotskarten in 0.52.2).
+
+## [0.52.3] - 2026-07-12
+
+### Added
+- **Vorjahresvergleich im Buchungsscore.** Bei langer Vorlaufzeit (z. B. Zieltermin
+  September 2027) deckt der abgerufene Preiskalender bereits heute bis weit über
+  den Zieltermin hinaus ab — der gleiche Reisemonat ein Jahr früher (September
+  2026) liegt dann oft schon mit im Fenster und damit deutlich näher am eigenen
+  Abflug. Dieser Vergleich floss bisher nicht in den Score ein; die KI bekommt ihn
+  jetzt als eigenes Signal (ähnlich stark gewichtet wie der eigene Preistrend). Die
+  Anweisung warnt die KI ausdrücklich davor, die volle Abweichung als reines
+  Nachfragesignal zu werten: allgemeine jährliche Preissteigerung und der
+  Frühbucher-Effekt (Vorjahresmonat liegt näher am Abflug) erklären einen Teil davon
+  bereits selbst. Bei ungewöhnlich großer Abweichung soll sie per Websuche nach
+  politischen/wirtschaftlichen Ereignissen am Reiseziel suchen, die das erklären
+  könnten.
+
+### Fixed
+- `APP_VERSION`-Konstante war seit mehreren Releases nicht mehr mit
+  `config.yaml`/version synchron (0.51.3 vs. zuletzt 0.52.2) — Testsuite deckte
+  es erst jetzt auf (`test_version_consistency`). Nachgezogen.
+
+## [0.52.2] - 2026-07-12
+
+### Added
+- **Preis pro Nacht auf der Angebotskarte** — unter dem Streichpreis, sofern die
+  Nächte-Anzahl aus dem Angebotstext erkennbar ist (führt kein eigenes DB-Feld
+  ein, nutzt den vom Scraper bereits geschriebenen `details`-Text).
+
+## [0.52.1] - 2026-07-12
+
+### Fixed
+- **Reisen-Zusammenfassung: E-Mail-Fenster lag hinter dem Zusammenfassungs-Modal.**
+  Alle `.modal-bg` teilen sich denselben `z-index`, Stapelreihenfolge kam bisher
+  nur aus der DOM-Position — `email-bg` steht vor `trips-summary-bg` im Markup
+  und landete deshalb dahinter. Jetzt bekommt das E-Mail-Fenster beim Öffnen
+  einen höheren `z-index`.
+- Der Link „Zusammenfassung zukünftiger Reisen" stand inline im Fließtext und
+  konnte mitten im Icon umbrechen — jetzt eigene Zeile.
+- Kartentitel zeigte den DB-„title" (Ort + Reisejahr, z. B. „Kolymbia 2026") —
+  jetzt nur der Ortsname, das Datum steht ohnehin direkt daneben.
+
+### Added
+- Hotelname in der Reisen-Zusammenfassung (Text, E-Mail und Modal-Ansicht).
+
+## [0.52.0] - 2026-07-12
+
+### Added
+- **Zusammenfassung zukünftiger Reisen** in „Meine Reisen": listet alle
+  bevorstehenden Reisen mit Datum + Wochentag, Reisezeitraum und vollen
+  Flugdaten (Hin-/Rückflug: Strecke, Zeiten, Flugnummer). Zum Teilen (Web
+  Share API, Zwischenablage-Fallback) und per E-Mail-Versand (neue Endpunkte
+  `GET /api/trips/summary`, `POST /api/trips/summary/email`).
+
+## [0.51.6] - 2026-07-11
+
+### Fixed
+- **Reiseziel-Drilldown (`/api/destinations`) crashte mit
+  `AttributeError: module '__main__' has no attribute '_dest_cache'`.**
+  Dritter Fund derselben Bugklasse (siehe 0.51.4/0.51.5): `_dest_cache` lag
+  nur in `ai_routes.py`, fehlte im Re-Export nach `app.py`. Ergänzt. Alle
+  `A.`-Zugriffe in `offers_routes.py` einmal komplett gegen `app.py` geprüft
+  — keine weiteren Lücken gefunden.
+
+## [0.51.5] - 2026-07-11
+
+### Fixed
+- **Flughafenauswahl (`/api/airports`) crashte mit
+  `NameError: name '_airports_cache' is not defined`.** Gleicher Bug wie beim
+  Adressbuch-Fix eben, andere Ausprägung: `offers_routes.py` deklarierte
+  `global _airports_cache`, obwohl das Modul-Attribut nie in `offers_routes.py`
+  selbst existiert — es steckt nur in `ai_routes.py`. Fix: auf
+  `A._airports_cache` umgestellt (gleiches Muster wie `_contacts_cache`) und
+  in `app.py` neben den übrigen `ai_routes`-Re-Exports ergänzt.
+
+## [0.51.4] - 2026-07-11
+
+### Fixed
+- **Nextcloud-Adressbuch (`/api/contacts`) crashte mit
+  `AttributeError: module '__main__' has no attribute '_contacts_cache'`.**
+  `_contacts_cache` ist in `ai_routes.py` definiert, wurde aber — anders als
+  alle anderen `ai_routes`-Symbole — nie nach `app.py` re-exportiert.
+  `offers_routes.py` greift per `import app as A` auf `A._contacts_cache` zu,
+  fand das Attribut also nie. Fix: `_contacts_cache = ai_routes._contacts_cache`
+  neben den übrigen Re-Exports in `app.py` ergänzt.
+
+## [0.51.3] - 2026-07-11
+
+### Fixed
+- **Footer-Buttons nach langen Toast-Meldungen unklickbar — echte Ursache
+  gefunden.** Der 0.51.2-Fix (Backup-Download nicht mehr an den DOM hängen)
+  war eine Fehlspur. Tatsächliche Ursache: `.toast` hatte kein
+  `pointer-events:none`. `opacity:0` macht das Element nur unsichtbar, blockt
+  aber weiterhin Klicks — und die Box behält die Breite des zuletzt gesetzten
+  Texts (`textContent` wird nach dem Ausblenden nie zurückgesetzt). Nach
+  Backup/Restore (lange Meldungen wie „Wiederhergestellt: 9 Angebote, 12
+  Reisen…") deckte das unsichtbare, zentrierte `position:fixed`-Div einen
+  breiten Streifen am unteren Bildschirmrand ab und schluckte dort Klicks
+  (u. a. „Perplexity aktiv"/„⚙ KI-Prompts" im Footer) — bis zum nächsten
+  Neuladen, wodurch `textContent` wieder leer wurde und die Box schrumpfte.
+  `.toast` hat jetzt durchgängig `pointer-events:none`.
+
+## [0.51.2] - 2026-07-11
+
+### Fixed
+- **Footer-Buttons nach Backup/Restore manchmal nicht klickbar (Verdacht).**
+  Nach „⬇ Backup" oder „⬆ Restore" blieb z. B. der Provider-Umschalter im Footer
+  gelegentlich unklickbar (Hover-Cursor blieb Pfeil statt Hand) — behoben erst
+  durch Neuladen der Seite. Ursache: bekannte Chromium-Eigenart, bei der ein
+  synthetischer `<a>`-Klick (Download auslösen) inkl. DOM-Insert/Remove das
+  `:hover`-Tracking der Seite durcheinanderbringen kann. `backupOffers()` hängt
+  den Download-Link jetzt nicht mehr in den DOM — behebt den Fall vermutlich für
+  „⬇ Backup". Für „⬆ Restore" (echter nativer Datei-Dialog, zwingend im DOM
+  nötig) gibt es keinen Code-Workaround; falls der Glitch dort weiter auftritt,
+  ist das reines Browser-Verhalten nach dem OS-Dialog, kein TUIWatch-Bug.
+
+## [0.51.1] - 2026-07-11
+
+### Fixed
+- **Ursprüngliche Antwort ging beim erneuten Öffnen aus dem KI-Verlauf verloren.**
+  Nach einer Folgefrage zeigte das Wiederöffnen eines Verlaufseintrags nur noch
+  die letzte Antwort (`summary`-Spalte), die komplette gespeicherte Konversation
+  (`conversation`-Spalte) wurde ignoriert. `renderAiResult` rekonstruiert die
+  sichtbare Konversation jetzt aus `conversation`, falls vorhanden — Original-
+  fazit und alle Folgefragen/-antworten bleiben beim Wiederöffnen sichtbar.
+
+## [0.51.0] - 2026-07-11
+
+### Added
+- **Folgefragen zu KI-Ergebnissen.** Unter jedem Freitext-Ergebnis (KI-Fazit,
+  Vergleich, TripPilot, Kalenderanalyse, Frag dein Portfolio) — auch nachträglich
+  beim erneuten Öffnen aus dem KI-Verlauf — lässt sich jetzt eine Folgefrage
+  stellen: echte Mehrfach-Turn-Konversation (bisheriger Prompt + Antwort + neue
+  Frage), nicht nur derselbe Prompt erneut wie bei „🔁 Wiederholen". Läuft mit
+  demselben Modell/Provider weiter, das die Erstantwort gegeben hat, und
+  funktioniert bei allen 3 Anbietern (Claude/Gemini/Perplexity unterstützen alle
+  Konversationen). Neuer Endpoint `POST /api/ai/history/<id>/followup`, neue
+  DB-Spalte `ai_analyses.conversation` (Backup/Restore-fähig). Nicht verfügbar
+  bei Buchungsscore/Region-Ausblick (strukturiertes JSON).
+
+## [0.50.0] - 2026-07-11
+
+### Added
+- **Ladetexte nennen den aktiven KI-Anbieter beim Namen.** „KI durchsucht das
+  Web…" hieß bisher immer nur „KI", egal ob Claude, Gemini oder Perplexity
+  gerade lief. Alle Lade-/Fortschrittstexte (Buchungsscore, KI-Fazit,
+  Vergleich, TripPilot, Kalenderanalyse, Frag dein Portfolio, PDF-Vorschläge,
+  Auto-Tags, Verlauf-Wiederholen) zeigen jetzt den echten Namen.
+
+## [0.49.5] - 2026-07-11
+
+### Added
+- **Perplexity-Quellenangaben anklickbar.** Zitat-Marker wie `[1][5]` in
+  Perplexity-Antworten waren bisher toter Text. Werden jetzt serverseitig gegen
+  die zugehörigen URLs aus `search_results`/`citations` zu Markdown-Links
+  aufgelöst (`[1](https://…)`) und im Frontend (Web-UI + PDF-Export + E-Mail)
+  als klickbare, hochgestellte Zahl gerendert (`.ai-cite`). Betrifft nur
+  Perplexity — Claude/Gemini liefern Quellen bereits anders.
+
+## [0.49.4] - 2026-07-11
+
+### Fixed
+- **Perplexity-Kostenschätzung berücksichtigt jetzt die Request-Gebühr.** Anfragen
+  pinnen `search_context_size: "low"` (statt dem API-Default zu überlassen) —
+  macht die zusätzliche, gestaffelte Request-Gebühr planbar UND die Kostenanzeige
+  rechnet sie jetzt mit ein (bisher nur reine Tokenkosten, Gebühr fehlte
+  komplett). Schätzung liegt damit nah an den echten Kosten statt sie
+  systematisch zu unterschätzen.
+
+## [0.49.3] - 2026-07-11
+
+### Added
+- **Perplexity als dritter KI-Anbieter.** Sonar-Modelle (`sonar`, `sonar-pro`,
+  `sonar-reasoning-pro`, `sonar-deep-research`) stehen jetzt gleichberechtigt neben
+  Claude und Gemini zur Verfügung — neue Optionen `perplexity_api_key`/
+  `perplexity_model`. Der Provider-Umschalter (Footer + „🔁 Wiederholen" im
+  KI-Verlauf) unterstützt jetzt bis zu 3 konfigurierte Anbieter statt nur 2
+  (`/api/ai/provider` liefert neu `configured_providers`, `both_configured`
+  bedeutet jetzt „mind. 2 von 3 konfiguriert"). Perplexity durchsucht bei jeder
+  Anfrage automatisch das Web (kein Websuche-Schalter, `ai_max_web_searches`
+  greift hier nicht) und ist pro Aufruf teurer als Claude/Gemini — Preis-Schätzung
+  in der KI-Kostenanzeige berücksichtigt nur die Tokenkosten, nicht die
+  zusätzliche Perplexity-Request-Gebühr.
+
+## [0.49.2] - 2026-07-10
+
+### Added
+- **Markttrend: Daten pro Destination löschbar.** Neuer 🗑-Button je Region im
+  Markttrend-Modal (mit Rückfrage): löscht die gesammelten Datenpunkte NUR dieser
+  Destination und beginnt die Aufzeichnung dort neu — andere Regionen bleiben
+  unberührt (`DELETE /api/market-trend/region`). Hinweis: „Neu berechnen" baut
+  alle Regionen aus dem Preisverlauf wieder auf.
+
+## [0.49.1] - 2026-07-10
+
+### Added
+- **✕ zum Leeren in allen Suchfeldern.** Hauptsuche, KI-Verlauf-Suche,
+  Reiseziel-Picker & Co. zeigen bei Eingabe ein ✕ am Feldende — Klick leert das
+  Feld und aktualisiert die Liste sofort. Greift generisch für jedes (auch
+  künftige) Suchfeld mit „Suchen…"-Placeholder.
+
+## [0.49.0] - 2026-07-10
+
+### Added
+- **Preiskalender wird täglich automatisch aufgefrischt.** Der Poller holt 1×/Tag
+  je aktivem Angebot den Kalender neu (max. 10 je Zyklus, älteste zuerst, je ~3
+  API-Calls) — `calendar_history` wird dichter, Trend-Ansicht und das
+  Kalender-Bewegungs-Signal im Buchungsscore (0.46.4) werden aussagekräftiger.
+  Ergänzt den Sofort-Refresh bei Preisänderung; abschaltbar über die neue Option
+  `calendar_daily_refresh`.
+- **Buchungsscore-Verlauf.** Jeder frisch berechnete Score wird mit dem Angebot
+  verknüpft gespeichert (neue Spalte `offer_id` in `ai_analyses`); das
+  Score-Modal zeigt ab der zweiten Messung „Verlauf: 72 → 65 (−7)" plus
+  Mini-Sparkline (Tooltip mit allen Messungen). Ältere Einträge (vor 0.49.0)
+  haben keine Verknüpfung und tauchen im Verlauf nicht auf.
+
+## [0.48.8] - 2026-07-10
+
+### Fixed
+- **🔔 Meldungen-Panel: Telegram-Texte lesbar.** Nachrichten zeigten die rohen
+  Bot-HTML-Tags (`<b>…</b>`) und URLs als toten Fließtext. Jetzt: Whitelist-Tags
+  (fett/kursiv/code) werden gerendert, Links sind klickbar und werden gekürzt
+  angezeigt.
+- **Fehlalarm „Kaputtes JSON in DB-Feld ignoriert … NoneType" beseitigt.** Trat
+  bei jedem Packlisten-Zugriff auf, wenn keine eigene Vorlage gesetzt war —
+  `None` (= keine Vorlage, Normalfall) lief fälschlich durch den
+  Korruptions-Warner. Standard-Vorlage war nie beeinträchtigt.
+
+## [0.48.7] - 2026-07-10
+
+### Changed
+- **Modularisierung abgeschlossen (Backlog #12):** Frontend-JS (~3.280 Zeilen)
+  aus `templates/index.html` nach `static/app.js` ausgelagert — im Template
+  bleibt nur der kleine Jinja-Block (Ingress-Base, Intervall, KI-Flag,
+  Heimatort) + `<script src=…?v=APP_VERSION>` (Cache-Busting pro Version;
+  Service worker ist network-first, keine Stale-Gefahr). index.html damit
+  von ~4.200 auf ~930 Zeilen. Wizard-Test liest ADV_STEPS jetzt aus app.js.
+  Live verifiziert (Seite lädt, app.js 200, Ingress-Base im Inline-Block).
+
+## [0.48.6] - 2026-07-10
+
+### Changed
+- **Modularisierung Tranche 3 (Backlog #12):** `ai_routes.py` (KI-Analyse:
+  Prompts, Usage/Kosten, KI-Verlauf, alle /api/ai-Routen — 1.514 Zeilen) und
+  `offers_routes.py` (Angebots-CRUD, Verlauf, Vergleiche, Hotelsuche,
+  Reiseziele, Zimmer — 768 Zeilen) ausgelagert. app.py damit bei ~2.800 Zeilen
+  (Start: ~7.400, −62 %). Keine Verhaltensänderung, 308 Tests grün.
+
+## [0.48.5] - 2026-07-10
+
+### Changed
+- **Modularisierung Tranche 2 abgeschlossen (Backlog #12):** `watch.py` (Suchabo:
+  Prüf-Logik + /api/searches-Routen, 232 Zeilen) ausgelagert — app.py damit bei
+  ~4.900 Zeilen (Start: ~7.400). Keine Verhaltensänderung, 308 Tests grün.
+
+## [0.48.4] - 2026-07-10
+
+### Changed
+- **Modularisierung Tranche 2 (Backlog #12):** `ai_client.py` (KI-Provider-Client
+  Anthropic/Gemini, 184 Zeilen) und `price_calendar.py` (Preiskalender:
+  Snapshot/Trend/Bewegungen + /api/calendar-Routen, 279 Zeilen) aus app.py
+  ausgelagert — gleiches A.-Muster wie Tranche 1, keine Verhaltensänderung,
+  308 Tests grün. Dockerfile-COPY jeweils ergänzt (Guard-Test schlug korrekt an).
+
+## [0.48.3] - 2026-07-10
+
+### Fixed
+- **0.48.2 startete weiterhin nicht (Zirkular-Import-Crash).** Zweite Folge der
+  Modularisierung: run.sh startet `python3 app.py` — das Modul heißt dann
+  `__main__`, und `import app` in den Blueprint-Modulen führte app.py ein
+  ZWEITES Mal aus → `AttributeError: partially initialized module`. Unter
+  pytest unsichtbar, weil dort app als Modul `app` importiert wird. Fix:
+  `sys.modules['app']`-Alias vor dem Blueprint-Import — `__main__` und `app`
+  sind damit dasselbe Modul-Objekt. Dazu zweiter Guard-Test
+  (`tests/test_script_start.py`): startet app.py als echten Skript-Subprozess
+  wie im Add-on und wartet auf `/health` — fängt jede künftige Start-Regression,
+  die nur im Skript-Modus auftritt.
+
+## [0.48.2] - 2026-07-10
+
+### Fixed
+- **0.48.1 startete nicht (Crash-Loop `ModuleNotFoundError: trips_routes`).**
+  Die Modularisierung legte neue Python-Module an, das Dockerfile kopiert aber
+  eine feste Dateiliste ins Image — die neuen Dateien fehlten. COPY-Zeile
+  ergänzt. Dazu ein Guard-Test (`tests/test_dockerfile.py`): jede von app.py
+  (direkt/transitiv) importierte lokale Python-Datei muss im Dockerfile
+  auftauchen — der Fehler wäre damit VOR dem Push rot gewesen, obwohl alle
+  Funktionstests grün waren.
+
+## [0.48.1] - 2026-07-10
+
+### Changed
+- **Wartbarkeit: app.py modularisiert (Backlog #12, erste Tranche).** Drei
+  zusammenhängende Blöcke (~1.600 Zeilen, ~25 %) in eigene Module verschoben —
+  reine Umstrukturierung, keine Verhaltensänderung, alle 306 Tests unverändert:
+  - `trips_routes.py`: alle Reisen-Routen (Import/Rescan/Feld-Zuordnung/Debug/
+    Anhänge/Packliste/Vorlage) als Flask-Blueprint
+  - `backup_routes.py`: Backup/Restore inkl. automatischem Wochen-Backup
+  - `digest.py`: Wochen-Digest (Aufbau + Versand)
+  - Muster: Module greifen per `import app as A` spät auf geteilte Primitiven
+    zu — kein Import-Zyklus, Test-Monkeypatches bleiben wirksam. Weitere
+    Tranchen (Kalender, KI-Client, JS aus index.html) folgen bei Bedarf.
+
+## [0.48.0] - 2026-07-10
+
+### Added
+- **🔔 Meldungen & Fehler im UI** (Footer-Link): zwei neue Ansichten, die das
+  Wühlen im HA-Log ersetzen.
+  - *Benachrichtigungen*: Verlauf aller gesendeten HA-/Telegram-Meldungen
+    (Zeitpunkt, Kanal, Text, gesendet/fehlgeschlagen) — dauerhaft in der DB,
+    letzte 500 (`notify_log`, `GET /api/notifications`).
+  - *Warnungen/Fehler*: die letzten 100 WARNING/ERROR-Einträge seit Add-on-Start
+    aus einem eigenen Puffer (der INFO-lastige Konsolen-Puffer rotiert sie sonst
+    schnell raus) — `GET /api/errors`.
+- **🤖 KI-Vorschläge in der manuellen Feld-Zuordnung**: neuer Button im
+  Debug-Editor — die KI liest das gespeicherte PDF und füllt Vorschläge in die
+  leeren Eingabefelder (gleiches Schema wie der Import-Fallback). Nichts wird
+  automatisch gespeichert: prüfen, dann „💾 Zuordnung speichern"
+  (`POST /api/trips/<id>/fields/suggest`).
+
+### Fixed
+- **Backup-Lücke: Packlisten-Vorlage.** Die eigene Packlisten-Vorlage (0.47.2)
+  wird jetzt im Backup mitgesichert und beim Restore wiederhergestellt (wie die
+  KI-Prompt-Vorlagen; nicht-destruktiv, überschreibt nichts Vorhandenes).
+
+## [0.47.2] - 2026-07-10
+
+### Added
+- **Packlisten-Vorlage editierbar.** Neuer Button „📝 Vorlage" im Packlisten-Kopf:
+  die Vorlage, aus der neue Packlisten erzeugt werden, lässt sich jetzt selbst
+  anpassen (einfaches Textformat: `# Kategorie` als Überschrift, darunter je Zeile
+  ein Item, max. 70 gesamt). Die angepasste Vorlage gilt für Packlisten neuer
+  Reisen und beim „↺ Zurücksetzen"; bestehende Reise-Packlisten bleiben unverändert.
+  „Standard-Vorlage wiederherstellen" bringt die eingebaute Vorlage zurück
+  (GET/POST `/api/packing-template`).
+
+## [0.47.1] - 2026-07-10
+
+### Added
+- **Manuelle Zuordnung: Rabatte + „Rabatt bereits im Reisepreis enthalten".**
+  Die Rabatt-Liste (Code + Betrag) lässt sich jetzt wie die Extras manuell
+  festlegen (Beträge werden automatisch negativ normalisiert, „150" → „−150,00").
+  Neu dazu ein Schalter für die zwei TUI-PDF-Varianten: standardmäßig wird der
+  Rabatt zum Brutto-Paketpreis zurückgerechnet (Rabatt im Gesamtpreis verrechnet);
+  ist „Rabatt bereits im Reisepreis enthalten" gesetzt, entfällt die Rückrechnung —
+  der Rabatt ist dann nur informativ ausgewiesen. Die Detailansicht kennzeichnet
+  diesen Fall bei den Rabatten.
+
+## [0.47.0] - 2026-07-10
+
+### Added
+- **Meine Reisen: Felder manuell zuordnen (Debug-Ansicht).** Wenn der PDF-Parser
+  nach einer TUI-Layout-Änderung Felder nicht erkennt, lassen sie sich jetzt selbst
+  setzen: Text im bereinigten PDF-Auszug markieren und per „⇦ Auswahl" übernehmen —
+  oder direkt eintippen. Unterstützt alle Kernfelder (Buchungsnummer/-datum,
+  Reiseziel, Hotel, An-/Abreise, Nächte, Verpflegung, Gesamtpreis, Reisende-Anzahl,
+  Anzahlung/Restzahlung) sowie die komplette Extras-Liste (ersetzt die erkannten
+  Extras). Auch korrekt erkannte Felder sind überschreibbar („Weitere Felder
+  überschreiben").
+  - Manuelle Werte **überleben „Neu einlesen" und erneuten Import** (werden nach
+    jedem Parse wieder angewendet) und schlagen das Parser-Ergebnis; der KI-Fallback
+    füllt nur weiterhin fehlende Felder.
+  - Leeres Feld speichern = Zuordnung löschen, der Parser-Wert gilt wieder.
+  - Abgeleitete Werte (Paketpreis, Preis pro Nacht, Extras-Summe …) und die
+    Statistik werden nach jeder Zuordnung neu berechnet; manuell gesetzte Felder
+    erscheinen als ✍️-Chip in der Debug-Ansicht.
+  - Neu: `PATCH /api/trips/<id>/fields`; Preis-Eingaben werden normalisiert
+    („2000,00" → „2.000,00"), Datumsfelder validiert (TT.MM.JJJJ).
+
+## [0.46.8] - 2026-07-10
+
+### Added
+- **Meine Reisen: „🔁 Neu einlesen"-Button.** Liest das gespeicherte PDF einer Reise
+  neu ein (z. B. nach einem Parser-Update wegen TUI-Layout-Änderung) — ohne Löschen
+  und Neu-Upload. Gleiche Reise, PDF/Erstellungsdatum/Anhänge/Packliste bleiben
+  erhalten; nur die ausgelesenen Daten werden aktualisiert
+  (`POST /api/trips/<id>/rescan`).
+
+## [0.46.7] - 2026-07-10
+
+### Fixed
+- **Meine Reisen: Handgepäck aus neuen TUI-PDFs nicht erkannt.** TUI hat die
+  Beschriftung geändert: „Gr. Handgepäck 10kg (55x40x20cm) + Prio Boarding (HBAG)"
+  statt „Großes Handgepäck 10 kg (HBAG)". Der Parser ankert jetzt auf dem über
+  alle Formate stabilen Buchungscode `(HBAG)` — Beschriftung, Gewicht, Maßangabe
+  und Zusatztext davor dürfen beliebig variieren.
+
+## [0.46.6] - 2026-07-10
+
+### Fixed
+- **Buchungsscore scheiterte still bei abgeschnittener KI-Antwort.** Live beobachtet
+  (Claude UND Gemini, je 200 OK, UI nur „fehlgeschlagen", nichts im Log): das
+  Output-Budget von 1024 Tokens war mit Websuche zu knapp — Zwischentext des Modells
+  zwischen den Suchaufrufen zählt mit, das Structured-Output-JSON wurde abgeschnitten
+  und scheiterte still beim Parsen. Budget auf 2048 erhöht (Gemini bekommt die
+  Thinking-Reserve weiterhin obendrauf).
+- **Leere/abgeschnittene KI-Antworten sind jetzt diagnostizierbar:** WARNING-Logs für
+  `stop_reason=max_tokens` (Anthropic), leere Antworten (beide Provider inkl.
+  finish_reason) und ungültiges Buchungsscore-JSON (mit Text-Ausschnitt) — bisher
+  waren diese Pfade komplett unsichtbar.
+
+## [0.46.5] - 2026-07-10
+
+### Changed
+- **TripPilot Tagesausflug: Fragebogen gestrafft.** Die Frage „Was nervt dich im
+  Urlaub?" entfällt im Tagesausflug-Modus (im Urlaubsmodus bleibt sie). Dafür gibt
+  es am Ende ein neues optionales Freitext-Feld „Was macht für dich einen
+  perfekten Ausflug aus?", das mit in den KI-Prompt einfließt.
+
 ## [0.46.4] - 2026-07-10
 
 ### Added

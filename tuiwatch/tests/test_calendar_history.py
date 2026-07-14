@@ -215,6 +215,32 @@ def test_check_cheaper_date_first_call_has_no_cache_and_fetches(m, monkeypatch):
                            (oid,)).fetchone() is not None
 
 
+def test_maybe_refresh_calendars_daily(m, monkeypatch):
+    """Täglicher Kalender-Auto-Refresh: nur aktive Angebote mit Kalender älter
+    24h, älteste zuerst; pausierte/frische bleiben unangetastet; abschaltbar."""
+    old = _add_offer(m, "https://example.invalid/da?duration=7")
+    fresh = _add_offer(m, "https://example.invalid/db?duration=7")
+    paused = _add_offer(m, "https://example.invalid/dc?duration=7")
+    now = int(time.time())
+    with m.db() as con:
+        con.execute("INSERT INTO calendar_cache (offer_id, ts, data) VALUES (?,?,?)",
+                    (old, now - 90000, "{}"))       # >24h alt
+        con.execute("INSERT INTO calendar_cache (offer_id, ts, data) VALUES (?,?,?)",
+                    (fresh, now - 3600, "{}"))      # frisch
+        con.execute("INSERT INTO calendar_cache (offer_id, ts, data) VALUES (?,?,?)",
+                    (paused, now - 90000, "{}"))
+        con.execute("UPDATE offers SET paused=1 WHERE id=?", (paused,))
+    runs = []
+    monkeypatch.setattr(m, "_run_calendar", lambda oid: runs.append(oid))
+    m._maybe_refresh_calendars()
+    assert runs == [old]
+
+    runs.clear()
+    monkeypatch.setattr(m, "load_config", lambda: {"calendar_daily_refresh": False})
+    m._maybe_refresh_calendars()
+    assert runs == []
+
+
 def test_delete_offer_removes_calendar_history(m):
     oid = _add_offer(m, "https://example.invalid/i?duration=7")
     with m.db() as con:

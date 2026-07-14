@@ -24,6 +24,10 @@ jobs:
         id: upstream
         run: |
           VERSION=$(curl -s "https://product-details.mozilla.org/1.0/firefox_versions.json" | jq -r '.FIREFOX_ESR')
+          if [ -z "$VERSION" ] || [ "$VERSION" = "null" ]; then
+            echo "::error::Konnte Firefox ESR Version nicht ermitteln — API-Fehler?"
+            exit 1
+          fi
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
           echo "Upstream Firefox ESR: ${VERSION}"
 

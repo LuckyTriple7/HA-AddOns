@@ -593,6 +593,57 @@ def _split_multi(val: str) -> list:
     return [x.strip() for x in re.split(r"[;,]", val or "") if x.strip()]
 
 
+_GIATA_IMG_RE = re.compile(r'https?://i\.giatamedia\.com/s\.php\?[^"\'\s>]+')
+_GIATA_PAGE_RE = re.compile(r'[?&]site=(\d+)')
+_GIATA_UID = "782"  # TUIs GIATA-Kundennummer, aus TUI-Angebotslinks bekannt
+
+
+def fetch_giata_image_urls(giata: str, limit: int = 24, max_pages: int = 8) -> list[dict]:
+    """Bilder-URLs von der öffentlichen GIATA-Hotelseite (com=sc). Liefert nur
+    die Original-URLs (i.giatamedia.com) zum direkten Einbetten — kein Download,
+    keine eigene Speicherung der Bilddaten. Die Seite listet Kataloge, nicht
+    Fotos — bei vielen Katalogen (>~30) ist das Ergebnis paginiert (`&site=N`);
+    ohne die Folgeseiten fehlen dann echte, zusätzliche Hotelfotos."""
+    if not giata:
+        return []
+    base = (f"https://hg15.giatamedia.com/index2.php?uid={_GIATA_UID}&com=sc"
+            f"&gid={giata}&frame=0&from=ks&catlang%5B%5D=de")
+    seen = set()
+    out = []
+    total_pages = 1
+    page = 1
+    fetch_failed = False
+    while page <= total_pages and page <= max_pages and len(out) < limit:
+        page_url = base if page == 1 else f"{base}&site={page}"
+        try:
+            resp = requests.get(page_url, headers={"User-Agent": USER_AGENT}, timeout=15)
+            resp.raise_for_status()
+        except requests.RequestException as e:
+            log.warning("GIATA-Bilder giataId %s (Seite %d) nicht abrufbar: %s", giata, page, e)
+            fetch_failed = True
+            break
+        if page == 1:
+            page_nums = [int(n) for n in _GIATA_PAGE_RE.findall(resp.text)]
+            if page_nums:
+                total_pages = max(page_nums)
+        for src in _GIATA_IMG_RE.findall(resp.text):
+            src = src.replace('&amp;', '&')
+            q = parse_qs(urlparse(src).query)
+            iid = q.get('iid', [None])[0]
+            key = iid or src
+            if key in seen:
+                continue
+            seen.add(key)
+            out.append({'thumb': re.sub(r'size=\d+', 'size=150', src),
+                        'full': re.sub(r'size=\d+', 'size=600', src)})
+            if len(out) >= limit:
+                break
+        page += 1
+    if not out and not fetch_failed:
+        log.warning("GIATA-Bilder giataId %s: Seite(n) geladen, aber keine Bilder gefunden", giata)
+    return out
+
+
 def region_giata_from_breadcrumb(giata: str) -> int | None:
     """Ermittelt die Region-/Insel-giataId zu einem Hotel über die Breadcrumb-API:
     der **letzte `level==1`-Eintrag** ist die konkrete Region (z. B. Gran Canaria=128,

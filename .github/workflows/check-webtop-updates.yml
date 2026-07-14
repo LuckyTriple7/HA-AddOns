@@ -21,24 +21,52 @@ jobs:
 
       - name: Aktuelle Versionen ermitteln
         id: latest
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          BW=$(curl -s "https://api.github.com/repos/bitwarden/clients/releases" \
+          AUTH_HEADER="Authorization: Bearer ${GH_TOKEN}"
+
+          check_version() {
+            NAME="$1"; VALUE="$2"
+            if [ -z "$VALUE" ] || [ "$VALUE" = "null" ]; then
+              echo "::error::Konnte Version für ${NAME} nicht ermitteln — API-Fehler oder Rate-Limit?"
+              exit 1
+            fi
+          }
+
+          BW=$(curl -s -H "$AUTH_HEADER" "https://api.github.com/repos/bitwarden/clients/releases" \
             | jq -r '[.[] | select(.tag_name | startswith("desktop-v")) | select(.prerelease==false)][0].tag_name' \
             | sed 's/desktop-v//')
-          IPSCAN=$(curl -s "https://api.github.com/repos/angryip/ipscan/releases/latest" \
+          check_version "Bitwarden" "$BW"
+
+          IPSCAN=$(curl -s -H "$AUTH_HEADER" "https://api.github.com/repos/angryip/ipscan/releases/latest" \
             | jq -r '.tag_name' | sed 's/^v//')
-          VSCODE=$(curl -s "https://api.github.com/repos/microsoft/vscode/releases/latest" \
+          check_version "Angry IP Scanner" "$IPSCAN"
+
+          VSCODE=$(curl -s -H "$AUTH_HEADER" "https://api.github.com/repos/microsoft/vscode/releases/latest" \
             | jq -r '.tag_name')
-          GHCLI=$(curl -s "https://api.github.com/repos/cli/cli/releases/latest" \
+          check_version "VS Code" "$VSCODE"
+
+          GHCLI=$(curl -s -H "$AUTH_HEADER" "https://api.github.com/repos/cli/cli/releases/latest" \
             | jq -r '.tag_name' | sed 's/^v//')
+          check_version "GitHub CLI" "$GHCLI"
+
           FIREFOX=$(curl -s "https://product-details.mozilla.org/1.0/firefox_versions.json" \
             | jq -r '.LATEST_FIREFOX_VERSION')
+          check_version "Firefox" "$FIREFOX"
+
           THUNDERBIRD=$(curl -s "https://product-details.mozilla.org/1.0/thunderbird_versions.json" \
             | jq -r '.LATEST_THUNDERBIRD_VERSION')
-          RCLONE=$(curl -s "https://api.github.com/repos/rclone/rclone/releases/latest" \
+          check_version "Thunderbird" "$THUNDERBIRD"
+
+          RCLONE=$(curl -s -H "$AUTH_HEADER" "https://api.github.com/repos/rclone/rclone/releases/latest" \
             | jq -r '.tag_name' | sed 's/^v//')
-          CLAUDE_DESKTOP=$(curl -s "https://api.github.com/repos/aaddrick/claude-desktop-debian/releases/latest" \
+          check_version "rclone" "$RCLONE"
+
+          CLAUDE_DESKTOP=$(curl -s -H "$AUTH_HEADER" "https://api.github.com/repos/aaddrick/claude-desktop-debian/releases/latest" \
             | jq -r '.tag_name' | sed 's/^v//')
+          check_version "Claude Desktop" "$CLAUDE_DESKTOP"
+
           echo "bitwarden=${BW}"              >> $GITHUB_OUTPUT
           echo "ipscan=${IPSCAN}"             >> $GITHUB_OUTPUT
           echo "vscode=${VSCODE}"             >> $GITHUB_OUTPUT

@@ -284,17 +284,21 @@ def parse_tui_text(full_text: str) -> dict:
             "preis": m.group(3),
         })
 
-    # Großes Handgepäck
+    # Großes Handgepäck — TUI variiert die Beschriftung: "Großes Handgepäck 10 kg
+    # (HBAG) ..." (alt) vs. "Gr. Handgepäck 10kg (55x40x20cm) + Prio Boarding
+    # (HBAG) ..." (neu, live beobachtet 07/2026). Stabiler Anker ist der
+    # Buchungscode (HBAG) — der blieb über alle Formate gleich; der Text davor
+    # (Abkürzung, Gewicht, Maße, "+ Prio Boarding") darf beliebig variieren.
     for m in re.finditer(
-        r"Großes\s+Handgepäck\s+(\d+\s*kg)\s*\((\w+)\)\s+(\d+)\s+([\d.,]+)\s*€",
+        r"Handgepäck\s*(\d+\s*kg)?.*?\(HBAG\)\s+(\d+)\s+([\d.,]+)\s*€",
         full_text,
     ):
         data["extras"].append({
             "typ": "Handgepäck",
-            "gewicht": m.group(1),
-            "code": m.group(2),
-            "teilnehmer": int(m.group(3)),
-            "preis": m.group(4),
+            "gewicht": m.group(1) or "",
+            "code": "HBAG",
+            "teilnehmer": int(m.group(2)),
+            "preis": m.group(3),
         })
 
     # Flex Tarif
@@ -328,20 +332,29 @@ def parse_tui_text(full_text: str) -> dict:
     for m in re.finditer(r"Kundenwunsch:\s*(.+?)(?:\s*=\w+=)", full_text):
         data["sonderwuensche"].append(m.group(1).strip())
 
-    # ── Berechnete Felder ──────────────────────────────────────────────────────
+    return apply_derived_fields(data)
 
+
+def apply_derived_fields(data: dict) -> dict:
+    """Berechnet die abgeleiteten Felder (Nächte, Extras-/Rabatte-Summe, Paketpreis,
+    Preis-pro-Nacht-Varianten) aus den Grunddaten — idempotent und robust gegen
+    fehlende Keys, damit sie auch NACH manuellen Feld-Overrides erneut anwendbar
+    ist (nicht nur am Ende von parse_tui_text). Ein vollständiger Reisezeitraum
+    überschreibt dabei bewusst ein (auch manuell) gesetztes `naechte` — die Daten
+    sind autoritativer als die Zahl."""
     # Nächte
-    if data["reisezeitraum"]["von"] and data["reisezeitraum"]["bis"]:
+    z = data.get("reisezeitraum") or {}
+    if z.get("von") and z.get("bis"):
         try:
-            d1 = datetime.strptime(data["reisezeitraum"]["von"], "%d.%m.%Y")
-            d2 = datetime.strptime(data["reisezeitraum"]["bis"], "%d.%m.%Y")
+            d1 = datetime.strptime(z["von"], "%d.%m.%Y")
+            d2 = datetime.strptime(z["bis"], "%d.%m.%Y")
             data["naechte"] = (d2 - d1).days
         except ValueError:
             data["naechte"] = None
 
     # Extras-Summe (nur kostenpflichtige; "inkl." zählt nicht)
     extras_total = 0.0
-    for e in data["extras"]:
+    for e in data.get("extras") or []:
         p = e.get("preis")
         if p and p != "inkl.":
             extras_total += _parse_eur(p)
@@ -349,22 +362,25 @@ def parse_tui_text(full_text: str) -> dict:
 
     # Rabatte-Summe (negativ)
     rabatte_total = 0.0
-    for r in data["rabatte"]:
+    for r in data.get("rabatte") or []:
         rabatte_total += _parse_eur(r.get("betrag"))
     data["rabatte_summe"] = _fmt_eur(rabatte_total)
 
     # Paketpreis (brutto) = Gesamt − Extras − Rabatte (Rabatte negativ → wieder auf).
     # Netto-Paketpreis = Gesamt − bezahlte Extras: der reine Reisepreis (Hotel/Flug/
     # Transfer) nach Rabatt, ohne Extras (Rabatte stecken bereits im Gesamtpreis).
-    if data["gesamtpreis"]:
+    # Ausnahme `rabatt_inklusive` (manuell setzbar): manche TUI-PDFs weisen den
+    # Rabatt nur informativ aus, er steckt bereits im ausgewiesenen Reisepreis —
+    # dann NICHT zurückrechnen, sonst wäre der Brutto-Paketpreis zu hoch.
+    if data.get("gesamtpreis"):
         gesamt = _parse_eur(data["gesamtpreis"])
-        paket = gesamt - extras_total - rabatte_total
+        paket = gesamt - extras_total - (0.0 if data.get("rabatt_inklusive") else rabatte_total)
         netto = gesamt - extras_total
         data["paketpreis"] = _fmt_eur(paket)
         data["paketpreis_netto"] = _fmt_eur(netto)
 
-        if data["naechte"] and data["naechte"] > 0:
-            anz = max(len(data["reisende"]), 1)
+        if data.get("naechte") and data["naechte"] > 0:
+            anz = max(len(data.get("reisende") or []), 1)
             data["preis_pro_nacht"] = _fmt_eur(gesamt / data["naechte"])
             data["preis_pro_person_nacht"] = _fmt_eur(gesamt / data["naechte"] / anz)
             data["preis_pro_nacht_paket"] = _fmt_eur(netto / data["naechte"])

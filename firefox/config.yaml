@@ -1,6 +1,6 @@
 name: Firefox DE
 description: Firefox-Browser direkt in Home Assistant — persistentes Profil, deutsche Sprache, optionale RAM-Begrenzung
-version: "1.0.3.1"
+version: "1.0.3.2"
 slug: firefox
 url: https://github.com/LuckyTriple7/HA-AddOns
 

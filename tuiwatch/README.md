@@ -34,8 +34,9 @@ Fällt eine API aus, schaltet TUIWatch automatisch auf das langsamere Auslesen p
 | `poll_interval` | Prüfintervall in Sekunden (Standard 21600 = 6 h, min. 600) |
 | `anthropic_api_key` | Anthropic API-Key — aktiviert das KI-Fazit (leer = aus) |
 | `anthropic_model` | Claude-Modell fürs KI-Fazit (Opus/Sonnet/Haiku/Fable) |
-| `ai_provider` | KI-Anbieter für alle KI-Features: `anthropic` (Standard) oder `gemini` |
+| `ai_provider` | KI-Anbieter für alle KI-Features: `anthropic` (Standard), `gemini` oder `perplexity` |
 | `gemini_api_key` / `gemini_model` | Nur relevant bei `ai_provider: gemini` |
+| `perplexity_api_key` / `perplexity_model` | Nur relevant bei `ai_provider: perplexity` |
 | `verbose_log` | Ausführlichere Logs |
 
 Es gibt weitere Optionen für **Benachrichtigungen** (Preisänderung, günstigerer
@@ -45,16 +46,18 @@ Sensoren** (`ha_sensors`) sowie **Telegram** und **SMTP/E-Mail** — Details in
 
 ## KI-Fazit (optional)
 
-> ⚠️ Die Anthropic-/Gemini-API ist **kostenpflichtig** (eigener API-Key,
-> eigenes Konto beim jeweiligen Anbieter). Bei jedem KI-Aufruf entstehen
-> reale Kosten nach der Preisliste des gewählten Anbieters — TUIWatch zeigt
-> geschätzte Kosten pro Aufruf und eine laufende Gesamtsumme an, bucht aber
-> selbst nichts ab und kennt dein echtes Guthaben nicht.
+> ⚠️ Die Anthropic-/Gemini-/Perplexity-API ist **kostenpflichtig** (eigener
+> API-Key, eigenes Konto beim jeweiligen Anbieter). Bei jedem KI-Aufruf
+> entstehen reale Kosten nach der Preisliste des gewählten Anbieters —
+> TUIWatch zeigt geschätzte Kosten pro Aufruf und eine laufende Gesamtsumme
+> an, bucht aber selbst nichts ab und kennt dein echtes Guthaben nicht.
 
-Mit hinterlegtem API-Key bewertet Claude (oder wahlweise Gemini, siehe
-`ai_provider`) einzelne Suchtreffer ausführlich (Lage, Zimmer, Restaurants,
+Mit hinterlegtem API-Key bewertet Claude (oder wahlweise Gemini/Perplexity,
+siehe `ai_provider`) einzelne Suchtreffer ausführlich (Lage, Zimmer, Restaurants,
 Pool, Klima zur Reisezeit) oder vergleicht bis zu 5 Hotels nebeneinander —
-inkl. Token-/Kosten-Anzeige, PDF-Export und dauerhaftem Verlauf. Details:
+inkl. Token-/Kosten-Anzeige, PDF-Export und dauerhaftem Verlauf. Zu jedem
+Ergebnis lässt sich außerdem eine **Folgefrage** stellen (echte Konversation,
+auch nachträglich aus dem Verlauf). Details:
 [DOCS.md](DOCS.md#ki-fazit--vergleich--verlauf).
 
 ## 🗺️ TripPilot (optional)
@@ -77,7 +80,7 @@ Mini-Diagramm je Tag und einer Liste der größten Bewegungen. Ändert sich ein
 bereits bekannter Preis, pulsiert der Kalender-Button und optional kommt eine
 Benachrichtigung über HA/Telegram/Wochenüberblick. Ein KI-Button fasst die
 Kalenderpreise zusammen und empfiehlt günstige/teure Monate (funktioniert mit
-Claude und Gemini). Details: [DOCS.md](DOCS.md#preiskalender).
+jedem konfigurierten KI-Anbieter). Details: [DOCS.md](DOCS.md#preiskalender).
 
 ## Markttrend
 

@@ -106,6 +106,14 @@ def test_advisor_prompt_uses_daytrip_instructions(app_mod):
     assert "ob aktuell eine Reisewarnung" not in prompt
 
 
+def test_advisor_prompt_daytrip_includes_perfect_daytrip_freetext(app_mod):
+    """Neues Freitext-Feld des Tagesausflug-Wizards muss im Prompt ankommen."""
+    profile = {"region": app_mod._DAYTRIP_REGION_VALUE, "home_location": "Köln",
+               "perfect_daytrip": "Viel Natur, wenig Trubel, gutes Café am Ziel"}
+    prompt = app_mod._advisor_prompt(profile)
+    assert "Perfekter Ausflug laut Nutzer (Freitext): Viel Natur, wenig Trubel, gutes Café am Ziel" in prompt
+
+
 def test_advisor_prompt_vacation_still_checks_reisewarnung(app_mod):
     profile = {"region": "Europa"}
     prompt = app_mod._advisor_prompt(profile)
