@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.53.0] - 2026-07-14
+
+### Fixed
+- **CodeQL: Polynomial-Regex bei GIATA-Bildparsing** (`scraper.py`) —
+  `cid`/`iid` werden jetzt per `urllib.parse.parse_qs` statt Regex mit `.*?`
+  aus der Bild-URL gelesen (kein ReDoS-Risiko auf externen Response-Daten).
+
 ## [0.52.12] - 2026-07-14
 
 ### Added
