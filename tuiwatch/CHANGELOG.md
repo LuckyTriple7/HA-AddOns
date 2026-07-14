@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.53.4] - 2026-07-14
+
+### Fixed
+- **GIATA-Fotogalerie: nur 7 statt aller Bilder.** Die GIATA-Hotelseite
+  listet Kataloge, nicht Fotos, und ist ab ~30 Katalogen paginiert
+  (`&site=2..N`) — bisher wurde nur Seite 1 gelesen. Jetzt werden bis zu
+  8 Seiten durchlaufen; ein Hotel mit 180 Katalogeinträgen zeigte dadurch
+  vorher nur 7, jetzt 23 echte Fotos.
+
 ## [0.53.3] - 2026-07-14
 
 ### Fixed
