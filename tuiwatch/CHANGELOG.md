@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.53.1] - 2026-07-14
+
+### Fixed
+- **GIATA-Fotogalerie: doppelte Bilder.** Dedupe lief bisher über `cid`+`iid`,
+  aber dasselbe Foto taucht unter mehreren Katalogen (`cid`) mit gleicher
+  Bild-ID (`iid`) erneut auf. Jetzt wird nur noch nach `iid` dedupliziert.
+
 ## [0.53.0] - 2026-07-14
 
 ### Fixed

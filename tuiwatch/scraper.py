@@ -615,8 +615,8 @@ def fetch_giata_image_urls(giata: str, limit: int = 24) -> list[dict]:
     for src in _GIATA_IMG_RE.findall(resp.text):
         src = src.replace('&amp;', '&')
         q = parse_qs(urlparse(src).query)
-        cid, iid = q.get('cid', [None])[0], q.get('iid', [None])[0]
-        key = (cid, iid) if cid and iid else src
+        iid = q.get('iid', [None])[0]
+        key = iid or src
         if key in seen:
             continue
         seen.add(key)
