@@ -82,7 +82,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.53.2"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.53.3"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -254,6 +254,20 @@ def is_valid_session(token: str | None) -> bool:
         del sessions[token]
         return False
     return True
+
+
+def touch_session(token: str, hours: int) -> None:
+    """Verlängert eine aktive Session bei Nutzung (sliding expiry) — sonst läuft
+    sie exakt session_hours nach dem Login ab, auch bei durchgehender Nutzung
+    (Ursache für unerwartete Logouts trotz aktivem Tab). Schreibt die
+    Sessions-Datei nur, wenn seit der letzten Verlängerung schon >1h vergangen
+    ist (spart Disk-I/O bei jedem Request)."""
+    if token not in sessions:
+        return
+    new_exp = time.time() + hours * 3600
+    if new_exp - sessions[token] > 3600:
+        sessions[token] = new_exp
+        save_sessions()
 
 
 def get_client_ip(req) -> str:
@@ -2166,6 +2180,20 @@ def _auth_ok(req) -> bool:
 
 def _require_api():
     return None if _auth_ok(request) else (jsonify({'error': 'unauthorized'}), 401)
+
+
+@app.after_request
+def _slide_session(resp):
+    """Sliding-Session: aktive Nutzung verlängert Ablauf & Cookie, statt exakt
+    session_hours nach dem Login abzulaufen (siehe touch_session)."""
+    if not _is_ingress():
+        token = request.cookies.get('session')
+        if token and is_valid_session(token):
+            hours = int(load_config().get('session_hours', 24))
+            touch_session(token, hours)
+            resp.set_cookie('session', token, httponly=True, samesite='Lax',
+                            max_age=hours * 3600)
+    return resp
 
 
 # ── Routen: Seiten ─────────────────────────────────────────────────────────────

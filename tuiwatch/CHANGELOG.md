@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.53.3] - 2026-07-14
+
+### Fixed
+- **Ungewollter Logout trotz aktiver Nutzung.** Die Login-Session lief bisher
+  exakt `session_hours` (Standard 24h) nach dem Login ab, unabhängig von der
+  Nutzung — bei durchgehend offenem Tab kam irgendwann unerwartet der
+  Login-Screen (z. B. beim Reload). Jetzt sliding: jede Anfrage verlängert
+  Session + Cookie neu; nur wirklich inaktive Sessions (>24h ohne Zugriff)
+  laufen noch ab. (Betrifft nur den direkten Zugriff, nicht HA Ingress.)
+
 ## [0.53.2] - 2026-07-14
 
 ### Fixed
