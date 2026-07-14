@@ -608,7 +608,8 @@ def fetch_giata_image_urls(giata: str, limit: int = 24) -> list[dict]:
     try:
         resp = requests.get(url, headers={"User-Agent": USER_AGENT}, timeout=15)
         resp.raise_for_status()
-    except requests.RequestException:
+    except requests.RequestException as e:
+        log.warning("GIATA-Bilder giataId %s nicht abrufbar: %s", giata, e)
         return []
     seen = set()
     out = []
@@ -624,6 +625,9 @@ def fetch_giata_image_urls(giata: str, limit: int = 24) -> list[dict]:
                     'full': re.sub(r'size=\d+', 'size=600', src)})
         if len(out) >= limit:
             break
+    if not out:
+        log.warning("GIATA-Bilder giataId %s: Seite geladen, aber keine Bilder gefunden "
+                    "(Status %d)", giata, resp.status_code)
     return out
 
 

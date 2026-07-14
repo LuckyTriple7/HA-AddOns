@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.53.2] - 2026-07-14
+
+### Fixed
+- **GIATA-Fotogalerie: fehlgeschlagener Abruf ohne Log-Eintrag.** Netzwerk-
+  Fehler und leere Ergebnisse beim Laden der GIATA-Seite wurden bisher still
+  verschluckt. Jetzt landet eine Warnung im ⚠-Panel/Log.
+
 ## [0.53.1] - 2026-07-14
 
 ### Fixed
