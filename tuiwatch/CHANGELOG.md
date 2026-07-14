@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.53.5] - 2026-07-14
+
+### Changed
+- **GIATA-Fotogalerie: Hinweistext entfernt.** Untertitel im Modal
+  ("Bilder von der öffentlichen GIATA-Hotelseite …") gestrichen.
+
 ## [0.53.4] - 2026-07-14
 
 ### Fixed
