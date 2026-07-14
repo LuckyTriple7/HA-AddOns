@@ -81,7 +81,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.52.10"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.52.11"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -1053,7 +1053,10 @@ def _email_html_offers(offers: list[dict]) -> str:
         if o.get('room_booking_code'):
             codeparts.append(f'Zimmer {esc(o["room_booking_code"])}')
         if o.get('giata'):
-            codeparts.append(f'GIATA {esc(o["giata"])}')
+            giata_url = ('https://hg15.giatamedia.com/index2.php?uid=782&com=sc&gid='
+                         f'{esc(o["giata"])}&frame=0&from=ks&catlang[]=de')
+            codeparts.append(f'<a href="{giata_url}" style="color:#0b65d8;text-decoration:none">'
+                              f'GIATA {esc(o["giata"])} ↗</a>')
         codes = ' · '.join(codeparts)
         title = esc(o.get('label') or o.get('hotel') or f"Angebot #{o['id']}")
         links = (f'<a href="{esc(o["url"])}" style="color:#0b65d8;text-decoration:none;font-weight:600">'

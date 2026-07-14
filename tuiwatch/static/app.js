@@ -305,7 +305,10 @@
         const codeParts = [];
         if(o.booking_code) codeParts.push('Buchungscode <b>'+esc(o.booking_code)+'</b>');
         if(o.room_booking_code) codeParts.push('Zimmer '+esc(o.room_booking_code));
-        if(o.giata) codeParts.push('GIATA '+esc(o.giata));
+        if(o.giata){
+          const giataUrl = 'https://hg15.giatamedia.com/index2.php?uid=782&com=sc&gid='+encodeURIComponent(o.giata)+'&frame=0&from=ks&catlang[]=de';
+          codeParts.push('<a href="'+esc(giataUrl)+'" target="_blank" rel="noopener" title="GIATA-Hoteldetails öffnen">GIATA '+esc(o.giata)+' ↗</a>');
+        }
         const codesLine = codeParts.length?`<div class="codes">🧾 ${codeParts.join(' · ')}</div>`:'';
         let statsLine = '';
         if(o.min_price!=null && o.samples>1){

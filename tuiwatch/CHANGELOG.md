@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.52.11] - 2026-07-14
+
+### Added
+- **GIATA-Code als Link.** "GIATA <code>" bei Angeboten (Anzeige + E-Mail)
+  verlinkt jetzt auf die GIATA-Hoteldetailseite (hg15.giatamedia.com).
+
 ## [0.52.10] - 2026-07-14
 
 ### Added
