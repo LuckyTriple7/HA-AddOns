@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.52.12] - 2026-07-14
+
+### Added
+- **🖼 Fotos-Galerie (GIATA).** Neuer Link neben dem GIATA-Code öffnet eine
+  Galerie mit Hotelfotos von der öffentlichen GIATA-Hotelseite — Bilder werden
+  direkt eingebettet (i.giatamedia.com), nicht heruntergeladen oder gespeichert.
+
 ## [0.52.11] - 2026-07-14
 
 ### Added

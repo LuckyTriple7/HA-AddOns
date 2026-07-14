@@ -307,7 +307,8 @@
         if(o.room_booking_code) codeParts.push('Zimmer '+esc(o.room_booking_code));
         if(o.giata){
           const giataUrl = 'https://hg15.giatamedia.com/index2.php?uid=782&com=sc&gid='+encodeURIComponent(o.giata)+'&frame=0&from=ks&catlang[]=de';
-          codeParts.push('<a href="'+esc(giataUrl)+'" target="_blank" rel="noopener" title="GIATA-Hoteldetails öffnen">GIATA '+esc(o.giata)+' ↗</a>');
+          codeParts.push('<a href="'+esc(giataUrl)+'" target="_blank" rel="noopener" title="GIATA-Hoteldetails öffnen">GIATA '+esc(o.giata)+' ↗</a>'
+            +' <a href="#" onclick="event.preventDefault();openGiataGallery(\''+esc(o.giata)+'\')" title="Hotelfotos (GIATA) anzeigen">🖼 Fotos</a>');
         }
         const codesLine = codeParts.length?`<div class="codes">🧾 ${codeParts.join(' · ')}</div>`:'';
         let statsLine = '';
@@ -2562,6 +2563,28 @@
       }
     }
     function closeSyslog(){ $('#syslog-bg').classList.remove('show'); }
+
+    async function openGiataGallery(giata){
+      $('#giata-gallery-bg').classList.add('show');
+      const body = $('#giata-gallery-body');
+      body.innerHTML = progBar('Lädt…');
+      let d;
+      try {
+        const r = await fetch(api('/api/giata_images/'+encodeURIComponent(giata)));
+        if(!r.ok) throw 0; d = await r.json();
+      } catch(e){ body.innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Konnte nicht geladen werden.</div>'; return; }
+      const images = d.images||[];
+      body.innerHTML = images.length ? (
+        '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-top:10px">'
+        + images.map(im=>(
+            '<a href="'+esc(im.full)+'" target="_blank" rel="noopener">'
+            +'<img src="'+esc(im.thumb)+'" loading="lazy" style="width:100%;height:110px;object-fit:cover;border-radius:6px;border:1px solid var(--border)">'
+            +'</a>'
+          )).join('')
+        + '</div>'
+      ) : '<div class="empty">Keine Fotos gefunden.</div>';
+    }
+    function closeGiataGallery(){ $('#giata-gallery-bg').classList.remove('show'); }
     $('#syslog-bg').addEventListener('click', e=>{ if(e.target.id==='syslog-bg') closeSyslog(); });
 
     async function openAiHistory(){

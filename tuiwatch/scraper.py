@@ -593,6 +593,39 @@ def _split_multi(val: str) -> list:
     return [x.strip() for x in re.split(r"[;,]", val or "") if x.strip()]
 
 
+_GIATA_IMG_RE = re.compile(r'https?://i\.giatamedia\.com/s\.php\?[^"\'\s>]+')
+_GIATA_UID = "782"  # TUIs GIATA-Kundennummer, aus TUI-Angebotslinks bekannt
+
+
+def fetch_giata_image_urls(giata: str, limit: int = 24) -> list[dict]:
+    """Bilder-URLs von der öffentlichen GIATA-Hotelseite (com=sc). Liefert nur
+    die Original-URLs (i.giatamedia.com) zum direkten Einbetten — kein Download,
+    keine eigene Speicherung der Bilddaten."""
+    if not giata:
+        return []
+    url = (f"https://hg15.giatamedia.com/index2.php?uid={_GIATA_UID}&com=sc"
+           f"&gid={giata}&frame=0&from=ks&catlang%5B%5D=de")
+    try:
+        resp = requests.get(url, headers={"User-Agent": USER_AGENT}, timeout=15)
+        resp.raise_for_status()
+    except requests.RequestException:
+        return []
+    seen = set()
+    out = []
+    for src in _GIATA_IMG_RE.findall(resp.text):
+        src = src.replace('&amp;', '&')
+        m = re.search(r'[?&]cid=(\d+).*?[?&]iid=(\d+)', src)
+        key = (m.group(1), m.group(2)) if m else src
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append({'thumb': re.sub(r'size=\d+', 'size=150', src),
+                    'full': re.sub(r'size=\d+', 'size=600', src)})
+        if len(out) >= limit:
+            break
+    return out
+
+
 def region_giata_from_breadcrumb(giata: str) -> int | None:
     """Ermittelt die Region-/Insel-giataId zu einem Hotel über die Breadcrumb-API:
     der **letzte `level==1`-Eintrag** ist die konkrete Region (z. B. Gran Canaria=128,

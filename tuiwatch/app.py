@@ -39,7 +39,8 @@ from werkzeug.utils import safe_join
 from scraper import (_giata_from_url, _valid_img_url, api_healthcheck,
                      build_destination_index,
                      duration_from_url, fetch_airlines, fetch_airports,
-                     fetch_calendar, fetch_destinations, fetch_hotel_image,
+                     fetch_calendar, fetch_destinations, fetch_giata_image_urls,
+                     fetch_hotel_image,
                      fetch_price, fetch_rooms, fetch_search, fetch_search_params,
                      hotel_from_url, is_single_room, region_giata_from_breadcrumb,
                      room_code_from_url, travellers_from_url, with_duration,
@@ -81,7 +82,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.52.11"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.52.12"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -2184,6 +2185,24 @@ def api_dbsize():
     except OSError:
         size = 0
     return jsonify({'bytes': size})
+
+
+_giata_images_cache: dict = {}  # giata → {'ts': float, 'images': [...]}
+_GIATA_IMAGES_TTL = 3600
+
+
+@app.route('/api/giata_images/<giata>', methods=['GET'])
+def api_giata_images(giata):
+    """Bilder-URLs von der öffentlichen GIATA-Hotelseite für die Foto-Galerie —
+    nur Links (i.giatamedia.com), Bilder werden nicht heruntergeladen/gespeichert."""
+    if (err := _require_api()):
+        return err
+    cached = _giata_images_cache.get(giata)
+    if cached and time.time() - cached['ts'] < _GIATA_IMAGES_TTL:
+        return jsonify({'images': cached['images']})
+    images = fetch_giata_image_urls(giata)
+    _giata_images_cache[giata] = {'ts': time.time(), 'images': images}
+    return jsonify({'images': images})
 
 
 @app.route('/api/ai/usage', methods=['GET'])
