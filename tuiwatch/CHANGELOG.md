@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.52.9] - 2026-07-14
+
+### Added
+- **Logout-Button im Header.** Neben dem Design-Umschalter (nur sichtbar,
+  wenn nicht über HA Ingress aufgerufen, da Ingress selbst authentifiziert).
+
 ## [0.52.8] - 2026-07-13
 
 ### Fixed

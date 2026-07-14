@@ -81,7 +81,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.52.6"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.52.9"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -2290,6 +2290,7 @@ def index():
         ai_enabled=bool((cfg.get('anthropic_api_key') or '').strip()
                         or (cfg.get('gemini_api_key') or '').strip()),
         trippilot_home_location=(cfg.get('trippilot_home_location') or '').strip(),
+        is_ingress=_is_ingress(),
         app_version=APP_VERSION))
 
 

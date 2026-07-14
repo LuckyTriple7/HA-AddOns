@@ -39,6 +39,7 @@
 
     (function(){ const t=localStorage.getItem('tw-theme')||'dark'; document.documentElement.setAttribute('data-theme',t); })();
     function toggleTheme(){ const c=document.documentElement.getAttribute('data-theme')||'dark'; const n=c==='dark'?'light':'dark'; document.documentElement.setAttribute('data-theme',n); localStorage.setItem('tw-theme',n); setTimeout(()=>{ if(curOffers) renderAll(curOffers); },50); }
+    function logout(){ window.location.href = api('/logout'); }
 
     function eur(v){ if(v==null) return '–'; return v.toLocaleString('de-DE',{maximumFractionDigits:0}) + ' €'; }
     function ago(ts){ if(!ts) return 'noch nie geprüft'; const s=Math.floor(Date.now()/1000)-ts; if(s<60) return 'gerade eben'; if(s<3600) return 'vor '+Math.floor(s/60)+' Min'; if(s<86400) return 'vor '+Math.floor(s/3600)+' Std'; return 'vor '+Math.floor(s/86400)+' Tg'; }
