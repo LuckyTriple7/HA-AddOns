@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.52.10] - 2026-07-14
+
+### Added
+- **TripPilot: Regionen Kanaren, Mittelmeer, Karibik, Südostasien und
+  Indischer Ozean** bei "Wohin soll die Reise ungefähr gehen?" ergänzt.
+
 ## [0.52.9] - 2026-07-14
 
 ### Added

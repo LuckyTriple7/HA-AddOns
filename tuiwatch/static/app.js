@@ -2743,7 +2743,8 @@
       {title:'Wohin soll die Reise ungefähr gehen?', key:'region', multi:true,
        exclusive:[DAYTRIP],
        options:['Deutschland','Europa','Makaronesien','Griechische Inseln','Balearen','Italien',
-                'Frankreich','Adriaküste','Algarve','Zypern','Weltweit','Egal',DAYTRIP]},
+                'Frankreich','Adriaküste','Algarve','Zypern','Kanaren','Mittelmeer','Karibik',
+                'Südostasien','Indischer Ozean','Weltweit','Egal',DAYTRIP]},
       {title:'Welche Länder kommen für dich nicht in Frage?', key:'excluded_countries', multi:true,
        showIf: state => !(state.region||[]).includes(DAYTRIP) &&
          ((state.region||[]).includes('Weltweit') || (state.region||[]).includes('Egal')),
