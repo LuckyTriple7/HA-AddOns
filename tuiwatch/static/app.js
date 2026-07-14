@@ -2577,7 +2577,7 @@
       body.innerHTML = images.length ? (
         '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-top:10px">'
         + images.map(im=>(
-            '<a href="'+esc(im.full)+'" target="_blank" rel="noopener">'
+            '<a href="#" onclick="event.preventDefault();openGiataLightbox(\''+esc(im.full)+'\')">'
             +'<img src="'+esc(im.thumb)+'" loading="lazy" style="width:100%;height:110px;object-fit:cover;border-radius:6px;border:1px solid var(--border)">'
             +'</a>'
           )).join('')
@@ -2585,6 +2585,14 @@
       ) : '<div class="empty">Keine Fotos gefunden.</div>';
     }
     function closeGiataGallery(){ $('#giata-gallery-bg').classList.remove('show'); }
+    function openGiataLightbox(full){
+      $('#giata-lightbox-img').src = full;
+      $('#giata-lightbox-bg').classList.add('show');
+    }
+    function closeGiataLightbox(){
+      $('#giata-lightbox-bg').classList.remove('show');
+      $('#giata-lightbox-img').src = '';
+    }
     $('#syslog-bg').addEventListener('click', e=>{ if(e.target.id==='syslog-bg') closeSyslog(); });
 
     async function openAiHistory(){

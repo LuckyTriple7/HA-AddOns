@@ -635,7 +635,7 @@ def fetch_giata_image_urls(giata: str, limit: int = 24, max_pages: int = 8) -> l
                 continue
             seen.add(key)
             out.append({'thumb': re.sub(r'size=\d+', 'size=150', src),
-                        'full': re.sub(r'size=\d+', 'size=600', src)})
+                        'full': re.sub(r'size=\d+', 'size=800', src)})
             if len(out) >= limit:
                 break
         page += 1

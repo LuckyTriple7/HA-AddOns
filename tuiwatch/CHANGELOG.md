@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.53.6] - 2026-07-14
+
+### Added
+- **GIATA-Fotogalerie: Lightbox statt neuer Tab.** Klick auf ein Thumbnail
+  zeigt das Foto jetzt in Originalgröße direkt im Modal (size=800 statt
+  600), statt einen neuen Browser-Tab zu öffnen.
+
 ## [0.53.5] - 2026-07-14
 
 ### Changed
