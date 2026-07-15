@@ -1,0 +1,77 @@
+{
+  "_comment": "Reduzierte, echte Check24-Antworten (Servatur Waikiki, hotelId=3611, areaId=551, Gran Canaria, 2027-04-22..2027-05-03) fuer check24_client-Tests. cryptString gekuerzt (Original >1500 Zeichen, verschluesselt, fuer Tests irrelevant).",
+
+  "job_create_response": {
+    "status": "Pending",
+    "tourOperatorList": {},
+    "pollUrl": "https://urlaub.check24.de/offersearch/29/poll",
+    "needsPolling": true,
+    "meta": {
+      "withRoomContent": true,
+      "travellerCount": 1,
+      "hotelCategory": 4,
+      "hotelName": "Servatur Waikiki",
+      "regionName": "Gran Canaria",
+      "hotelCategoryType": "star"
+    }
+  },
+
+  "poll_response_running": {
+    "data": {
+      "status": "updated",
+      "events": [
+        {"type": "filter_information", "status": "finished", "total": 5, "finished": 5},
+        {"type": "offer_list", "status": "updated", "total": 8, "finished": 4},
+        {"type": "price_calendar", "status": "updated", "total": 2, "finished": 1}
+      ]
+    },
+    "status": {"http": {"message": "OK", "code": 200}},
+    "success": true
+  },
+
+  "poll_response_finished": {
+    "data": {
+      "status": "updated",
+      "events": [
+        {"type": "filter_information", "status": "finished", "total": 5, "finished": 5},
+        {"type": "offer_list", "status": "finished", "total": 8, "finished": 8},
+        {"type": "price_calendar", "status": "finished", "total": 2, "finished": 2},
+        {"type": "vacancy", "status": "running", "total": 1, "finished": 0}
+      ]
+    },
+    "status": {"http": {"message": "OK", "code": 200}},
+    "success": true
+  },
+
+  "dynamic_offer_items_response": {
+    "status": "Pending",
+    "items": {
+      "1405863043799753169": {
+        "id": "1405863043799753169",
+        "hotelId": 3611,
+        "tourOperatorCode": "ITSX",
+        "supplierCode": "tt",
+        "cryptString": "0I4FXUtSFizeQ4eQtpXLDN6akE9CvwP733wSdZoVh9KUkI/mbDM=-R09DUlkwMVVryg8Bcm+yLN1tN1w1ZS9dXSzJU_TRUNCATED_FOR_FIXTURE_ENCRYPTED_PAYLOAD_NOT_USABLE_VIA_PLAIN_HTTP"
+      }
+    }
+  },
+
+  "rendered_offer_card_text_example": [
+    "12 Tage | 11 Nächte Stuttgart (STR) ↔ Las Palmas (LPA)",
+    "Do, 22.04.2027 | 1 Stopp   10:50 Stuttgart -> 16:50 Las Palmas",
+    "Mo, 03.05.2027 | 1 Stopp   10:25 Las Palmas -> 18:35 Stuttgart",
+    "1x Doppelzimmer Standard",
+    "DB1 - Double Room Classic",
+    "Frühstück",
+    "Hotel-Transfer",
+    "Balkon/Terrasse",
+    "nur Handgepäck",
+    "Stornierung kostenpflichtig",
+    "1.529,00 €",
+    "zur Buchung"
+  ],
+
+  "touroperator_filter_labels_seen": [
+    "Alltours Dynamisch", "AurumTours", "DERTOUR Dynamisch", "FERIEN Touristik", "ITS Dynamisch"
+  ]
+}

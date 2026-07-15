@@ -387,6 +387,7 @@
                  <button class="btn sec${o.calendar_alert?' cal-alert':''}" onclick="openCalendar(${o.id})" title="${o.calendar_alert?'Preisänderung im Kalender seit letztem Öffnen! · ':''}Preis je Abreisetag (Preiskalender)">Kalender</button>
                  <button class="btn sec" onclick="pendingStartId=null;openRooms(${o.id})" title="Zimmerkategorie wählen (Standard = günstigstes)">Zimmer</button>
                  ${o.comparable?`<button class="btn sec" onclick="openCompare(${o.id})" title="Preis pro Person für andere Reisendenzahl vergleichen">Vergleich</button>`:''}
+                 ${o.check24_linked?`<button class="btn sec check24-feature" onclick="openCheck24(${o.id})" title="Vergleichspreis über Check24 (andere Reiseveranstalter)">Check24-Vergleich</button>`:`<button class="btn sec check24-feature" onclick="linkCheck24(${o.id})" title="Check24-Hotel einmalig verknüpfen">Check24 verknüpfen</button>`}
                  <button class="btn sec ai-feature" onclick="openBookingScore(${o.id})" title="KI-Buchungsscore: jetzt buchen, beobachten oder warten?">Buchungsscore</button>
                  <button class="btn sec" onclick="openNights(${o.id})" title="Preise für kürzere/längere Reisedauern vergleichen">Nächte</button>
                  <button class="btn sec" onclick="openSearchFromOffer(${o.id})" title="Weitere Hotels dieser Region suchen (Filter aus dem Angebot)">Region</button>
@@ -678,6 +679,101 @@
       $('#nig-body').innerHTML =
         `<table class="hist"><tr><th>Dauer</th><th>Preis p.&nbsp;P.</th><th>€/Nacht</th><th>Gesamt</th><th>Diff. p.&nbsp;P.</th></tr>${rows}</table>`
         + nigFooter(job);
+    }
+
+    // ── Check24-Vergleich (andere Reiseveranstalter, gespeichert) ─────────────
+    let c24Timer = null, c24Id = null;
+    const C24_NOTES = {
+      not_available_exact_dates: 'Für diese genauen Reisedaten aktuell kein Check24-Angebot (Hotel evtl. ausgebucht).',
+      no_offer_link_found: 'Kein Angebotslink auf Check24 gefunden (Layout geändert oder Hotel nicht gelistet).',
+      no_offers_parsed: 'Angebote gefunden, aber keine auslesbaren Preise (Layout geändert).',
+      Check24_nicht_erreichbar: 'Check24 nicht erreichbar.',
+    };
+    function c24Spinner(){ $('#c24-body').innerHTML = progBar('Check24 wird abgefragt… kann bis zu einer Minute dauern.'); }
+    function startC24Polling(){ clearInterval(c24Timer); c24Poll(); c24Timer = setInterval(c24Poll, 2000); }
+
+    function linkCheck24(id){
+      const v = (prompt('Check24-Hotel-Link einfügen (URL von urlaub.check24.de/suche/hotel…, muss hotelId und areaId enthalten):', '') || '').trim();
+      if(!v) return;
+      fetch(api('/api/offers/'+id), {method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({check24_link: v})})
+        .then(r=>{
+          if(!r.ok){ toast('Ungültiger Check24-Link'); return; }
+          toast('Check24-Hotel verknüpft'); loadOffers();
+        }).catch(()=>toast('Ungültiger Check24-Link'));
+    }
+    function unlinkCheck24(id){
+      fetch(api('/api/offers/'+id), {method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({check24_link: ''})})
+        .then(()=>{ toast('Check24-Verknüpfung entfernt'); loadOffers(); });
+    }
+
+    async function openCheck24(id){
+      c24Id = id;
+      const o = (curOffers||[]).find(x=>x.id===id) || {};
+      $('#c24-sub').textContent = o.label || o.hotel || ('TUI-Angebot #'+id);
+      $('#c24-body').innerHTML = '<div class="cmp-load">Lade…</div>';
+      $('#c24-bg').classList.add('show');
+      clearInterval(c24Timer); c24Timer=null;
+      let job;
+      try { job = await fetch(api('/api/check24/'+id)).then(r=>r.json()); } catch(e){ job={status:'idle',rows:[]}; }
+      if(job.status==='running'){ c24Spinner(); startC24Polling(); }
+      else if(job.status==='done'){ renderCheck24(job); }
+      else { refreshCheck24(); }
+    }
+    async function refreshCheck24(){
+      if(c24Id==null) return;
+      c24Spinner();
+      let r;
+      try { r = await fetch(api('/api/check24/'+c24Id), {method:'POST'}); } catch(e){ r=null; }
+      if(r && r.status===409){ $('#c24-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Dieses Angebot ist noch nicht mit Check24 verknüpft.</div>'; return; }
+      if(r && r.status===404){ $('#c24-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Check24-Vergleich ist deaktiviert.</div>'; return; }
+      if(r && r.status===429){ $('#c24-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Bitte kurz warten, bevor erneut abgefragt wird.</div>'; return; }
+      startC24Polling();
+    }
+    function closeCheck24(){ clearInterval(c24Timer); c24Timer=null; c24Id=null; $('#c24-bg').classList.remove('show'); }
+    $('#c24-bg').addEventListener('click', e=>{ if(e.target.id==='c24-bg') closeCheck24(); });
+
+    async function c24Poll(){
+      if(c24Id==null) return;
+      let job;
+      try { job = await fetch(api('/api/check24/'+c24Id)).then(r=>r.json()); } catch(e){ return; }
+      if(job.status==='running') return;   // weiter warten
+      clearInterval(c24Timer); c24Timer=null;
+      renderCheck24(job);
+    }
+
+    function c24Footer(job){
+      const when = job.ts ? ('Abgefragt: '+new Date(job.ts*1000).toLocaleString('de-DE')+' — gespeichert.') : 'Live abgefragt.';
+      const err = job.error ? '<div class="hint" style="color:var(--amber);margin-top:6px">⚠ Letzte Aktualisierung fehlgeschlagen — angezeigt wird das vorherige Ergebnis.</div>' : '';
+      return `<div class="cmp-foot">
+          <span class="hint" style="flex:1;min-width:180px">${esc(when)} Vergleich mit ähnlicher Zimmerkategorie/Verpflegung — nicht immer exakt identisch.</span>
+          <button class="btn sec" onclick="refreshCheck24()">Neu abfragen</button>
+        </div>${err}`;
+    }
+
+    function renderCheck24(job){
+      if(!(job.rows && job.rows.length)){
+        const msg = job.error || C24_NOTES[job.note] || job.note || 'Kein Check24-Angebot gefunden.';
+        $('#c24-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ '+esc(msg)+'</div>' + c24Footer(job);
+        return;
+      }
+      const cheapest = Math.min(...job.rows.map(r=>r.price));
+      const tuiPrice = job.tui_price;
+      const rows = job.rows.map(r=>{
+        const best = r.price<=cheapest;
+        let diff = '';
+        if(tuiPrice!=null){
+          const d = r.price - tuiPrice;
+          diff = d===0 ? '±0' : (d<0 ? '<span class="cmp-down">▼ '+eur(Math.abs(d))+' günstiger</span>' : '<span class="cmp-up">▲ +'+eur(d)+' teurer</span>');
+        }
+        return `<tr${best?' class="cmp-best"':''}>
+          <td>${esc(r.room||'—')}${r.board?' · '+esc(r.board):''}</td>
+          <td><b>${eur(r.price)}</b>${best?' <span class="best">✓</span>':''}</td>
+          <td>${diff}</td></tr>`;
+      }).join('');
+      const tuiRow = tuiPrice!=null ? `<div class="hint" style="margin-bottom:6px">TUI-Preis zum Vergleich: <b>${eur(tuiPrice)}</b></div>` : '';
+      $('#c24-body').innerHTML = tuiRow +
+        `<table class="hist"><tr><th>Zimmer / Verpflegung (Check24)</th><th>Preis p.&nbsp;P.</th><th>Diff. zu TUI</th></tr>${rows}</table>`
+        + c24Footer(job);
     }
 
     // ── Hotelsuche (Maske / URL / aus Angebot) ────────────────────────────────

@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.54.0] - 2026-07-15
+
+### Added
+- **Check24-Preisvergleich (Beta, `enable_check24_compare`)**: ein Angebot kann
+  einmalig mit einem Check24-Hotel verknüpft werden (Link von
+  urlaub.check24.de/suche/hotel…), danach zeigt "Check24-Vergleich" den
+  günstigsten passenden Preis anderer Reiseveranstalter (gleiche Reisedaten,
+  ähnliche Zimmerkategorie/Verpflegung) neben dem TUI-Preis — nach demselben
+  Muster wie Pro-Person-Vergleich (Hintergrund-Abruf, gespeichertes Ergebnis,
+  "Neu abfragen"). Standardmäßig deaktiviert (Check24 hat kein offenes API,
+  Abruf läuft über Headless-Chromium und ist entsprechend langsamer/fragiler
+  als der TUI-Abruf — siehe SCRAPING_CHECK24.md). Verpflegung (`board`) wird
+  dafür jetzt auch strukturiert je Angebot gespeichert, nicht nur als Text in
+  den Details.
+
 ## [0.53.6] - 2026-07-14
 
 ### Added

@@ -18,6 +18,7 @@ from urllib.parse import urlparse
 from flask import Blueprint, jsonify, make_response, request
 
 import app as A
+import check24_client
 
 bp = Blueprint('offers_routes', __name__)
 
@@ -112,6 +113,7 @@ def api_delete_offer(offer_id: int):
         con.execute('DELETE FROM calendar_cache WHERE offer_id=?', (offer_id,))
         con.execute('DELETE FROM calendar_history WHERE offer_id=?', (offer_id,))
         con.execute('DELETE FROM nights_cache WHERE offer_id=?', (offer_id,))
+        con.execute('DELETE FROM check24_cache WHERE offer_id=?', (offer_id,))
         con.execute('DELETE FROM cheaper_state WHERE offer_id=?', (offer_id,))
         con.execute('DELETE FROM booked_state WHERE offer_id=?', (offer_id,))
         con.execute('DELETE FROM offer_events WHERE offer_id=?', (offer_id,))
@@ -173,6 +175,25 @@ def api_update_offer(offer_id: int):
             con.execute('UPDATE offers SET tags=? WHERE id=?',
                         (json.dumps(tags, ensure_ascii=False), offer_id))
             A.log.info("Angebot #%d Tags gesetzt: %s", offer_id, ', '.join(tags) or '(keine)')
+        if 'check24_link' in data:
+            link = (data.get('check24_link') or '').strip()
+            if not link:
+                con.execute("UPDATE offers SET check24_hotel_id='', check24_area_id='', "
+                            "check24_link='' WHERE id=?", (offer_id,))
+                con.execute('DELETE FROM check24_cache WHERE offer_id=?', (offer_id,))
+                A.log.info("Check24-Verknüpfung #%d entfernt", offer_id)
+            else:
+                parsed = check24_client.parse_hotel_link(link)
+                if not parsed:
+                    return jsonify({'error': 'invalid_check24_url'}), 400
+                con.execute('UPDATE offers SET check24_hotel_id=?, check24_area_id=?, '
+                            'check24_link=? WHERE id=?',
+                            (parsed['hotel_id'], parsed['area_id'], link, offer_id))
+                con.execute('DELETE FROM check24_cache WHERE offer_id=?', (offer_id,))
+                A.log.info("Check24-Hotel #%d verknüpft: hotelId=%s areaId=%s",
+                         offer_id, parsed['hotel_id'], parsed['area_id'])
+            with A._check24_lock:
+                A._check24_state.pop(offer_id, None)
     for t, txt in events:
         A._log_event(offer_id, t, txt)
     if 'archived' in data:
@@ -245,6 +266,7 @@ def api_reset_offer(offer_id: int):
         con.execute('DELETE FROM calendar_cache WHERE offer_id=?', (offer_id,))
         con.execute('DELETE FROM calendar_history WHERE offer_id=?', (offer_id,))
         con.execute('DELETE FROM nights_cache WHERE offer_id=?', (offer_id,))
+        con.execute('DELETE FROM check24_cache WHERE offer_id=?', (offer_id,))
         con.execute('DELETE FROM cheaper_state WHERE offer_id=?', (offer_id,))
         con.execute('DELETE FROM booked_state WHERE offer_id=?', (offer_id,))
         con.execute('DELETE FROM offer_events WHERE offer_id=?', (offer_id,))
@@ -255,6 +277,8 @@ def api_reset_offer(offer_id: int):
         A._calendar_state.pop(offer_id, None)
     with A._nights_lock:
         A._nights_state.pop(offer_id, None)
+    with A._check24_lock:
+        A._check24_state.pop(offer_id, None)
     A._cheaper_notified.pop(offer_id, None)
     A._fail_notified.discard(offer_id)
     A.log.info("Angebot #%d zurückgesetzt (Verlauf + Caches gelöscht)", offer_id)
@@ -309,11 +333,11 @@ _EVENT_COLS = ('ts', 'type', 'text')
 # Feste Whitelist der beim Restore einspielbaren Angebots-Spalten (Spaltennamen kommen
 # damit NIE aus den Backup-Daten → keine per String gebaute Query aus Nutzerquellen).
 _OFFER_RESTORE_COLS = (
-    'url', 'label', 'hotel', 'details', 'room', 'dep_airport', 'flight_out', 'flight_ret',
+    'url', 'label', 'hotel', 'details', 'room', 'board', 'dep_airport', 'flight_out', 'flight_ret',
     'location', 'city', 'region', 'country', 'pdf_url', 'cancellation', 'stars', 'rating',
     'rating_count', 'recommendation', 'total_price', 'travellers_count', 'paused',
     'archived', 'return_date', 'target_price', 'booked_price', 'image_url', 'booking_code',
-    'room_booking_code', 'tags', 'created',
+    'room_booking_code', 'tags', 'check24_hotel_id', 'check24_area_id', 'check24_link', 'created',
 )
 
 

@@ -134,6 +134,9 @@ configuration:
   ai_prompt_preview:
     name: Show AI prompt before sending
     description: "For interactive AI requests (AI summary, comparison, booking score, calendar analysis, region outlook, portfolio question, TripPilot/day trip, history repeat, follow-up question), shows the finished prompt in an editable window first — it's only actually sent to the AI after you confirm/optionally edit it. Automatic background runs (weekly digest, promo code check, auto-tagging) are not affected. Default off."
+  enable_check24_compare:
+    name: Check24 price comparison (beta)
+    description: "Allows comparing an offer against a manually linked Check24 hotel (other tour operators, same travel dates). Uses headless Chromium against Check24 (no open API), so it's more fragile than the TUI fetch and adds a second external ToS risk. Default off — deliberately opt-in."
   verbose_log:
     name: Verbose logging
     description: Logs more detail per check. Default off — only errors and important events are logged.
