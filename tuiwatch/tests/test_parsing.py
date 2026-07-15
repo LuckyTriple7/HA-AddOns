@@ -66,6 +66,16 @@ def test_map_board_types():
     assert scraper._map_board_types("") == ""
 
 
+def test_map_board_types_bb_aliases_to_br():
+    # Angebots-/Kalender-API nutzt fuer Fruehstueck intern BR statt BB (Seiten-URL,
+    # Such-API und Hotelsuche verwenden BB) -- per Live-Test an mehreren Hotels
+    # verifiziert, GT06-BB liefert sonst durchweg 0 Treffer. Siehe CHANGELOG.
+    assert scraper._map_board_types("BB") == "GT06-BR"
+    assert scraper._map_board_types("bb") == "GT06-BR"
+    assert scraper._map_board_types("GT06-BB") == "GT06-BR"
+    assert scraper._map_board_types("BB,HB") == "GT06-BR,GT06-HB"
+
+
 def test_slugify():
     assert scraper._slugify("Riu Funana") == "riu-funana"
     # deutsche Umlaute/ß werden transliteriert, Sonderzeichen zu '-' verdichtet

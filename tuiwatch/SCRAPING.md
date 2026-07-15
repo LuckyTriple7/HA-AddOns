@@ -56,7 +56,12 @@ der Browser-Scraper ist nur noch **Fallback**. Code: `fetch_price_api()` in
   `tourOperators`, `roomTypes`, `viewTypes`, `roomTypeOpCodes`, Preisgrenzen). Fehlt
   ein Filter, liefert die API u. U. ein anderes/billigeres Angebot (z. B. Halbpension
   statt AI). Die Verpflegungs-Kurzcodes werden dabei ins API-Schema übersetzt:
-  `AI` → `GT06-AI` (`_map_board_types()`).
+  `AI`/`HB`/`FB`/`AO` → unverändert `GT06-<code>`, **außer `BB` (Frühstück) → `GT06-BR`**
+  — die Angebots-/Kalender-API nutzt intern `BR` statt `BB`, an 3 Hotels live
+  verifiziert (`_map_board_types()`, `_BOARD_CODE_ALIASES`). Ohne diese Übersetzung
+  liefert die API 0 Treffer und das Angebot erscheint fälschlich als "nicht
+  verfügbar" (betraf Preis-, Kalender- und Zimmer-Abruf gleichermaßen, da alle
+  über `build_offer_api_url()`/`build_calendar_api_url()` laufen).
 
 **Risiko / Wartung:** Die CloudFront-Hostnamen (`d2z3tkv1undzra…`, `d1pagbczmuq2ek…`)
 sind opak und könnten rotieren. Passiert das, liefert die API einen Fehler →

@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.55.1] - 2026-07-15
+
+### Fixed
+- **Angebote mit Verpflegungsfilter "Frühstück" (`boardTypes=BB`) fälschlich als
+  "nicht verfügbar" gemeldet** — betraf Preis-Abruf, Preiskalender ("0 Tage") und
+  Zimmerauswahl ("keine Zimmer gefunden") gleichermaßen, obwohl das Angebot auf
+  tui.com verfügbar war. Ursache: die Angebots-/Kalender-API nutzt intern `BR`
+  statt `BB` als Code für Frühstück (`GT06-BB` lieferte an 3 unabhängig
+  getesteten Hotels durchweg 0 Treffer, `GT06-BR` die echten Angebote) —
+  `AI`/`HB`/`FB`/`AO` sind davon nicht betroffen und bleiben unverändert.
+
 ## [0.55.0] - 2026-07-15
 
 ### Added

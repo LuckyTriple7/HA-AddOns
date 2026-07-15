@@ -292,14 +292,27 @@ def _giata_from_url(url: str) -> str:
     return ''
 
 
+# Die Angebots-/Kalender-API (CloudFront) nutzt für "Frühstück" intern ``BR``, während
+# Seiten-URL, Such-API und die eigene Hotelsuche (siehe index.html) ``BB`` verwenden —
+# per Live-Test an 3 unabhängigen Hotels verifiziert (giata 6649/6672/20514/674842):
+# GT06-BB liefert dort durchweg 0 Treffer, GT06-BR die echten Frühstücks-Angebote.
+# AI/HB/FB/AO passen unverändert (kein Eintrag hier nötig).
+_BOARD_CODE_ALIASES = {'BB': 'BR'}
+
+
 def _map_board_types(val: str) -> str:
     """Übersetzt die Verpflegungs-Kurzcodes der Seiten-URL (z. B. ``AI``) in die
-    globalen Codes der API (``GT06-AI``). Mehrfachwerte (``,``/``;``) bleiben erhalten."""
+    globalen Codes der Angebots-/Kalender-API (``GT06-AI``). Mehrfachwerte (``,``/``;``)
+    bleiben erhalten. ``BB`` (Frühstück) wird dabei auf ``BR`` übersetzt, siehe
+    _BOARD_CODE_ALIASES."""
     out = []
     for t in re.split(r'[;,]', val or ''):
-        t = t.strip()
-        if t:
-            out.append(t if t.startswith('GT06-') else 'GT06-' + t)
+        t = t.strip().upper()
+        if not t:
+            continue
+        bare = t[5:] if t.startswith('GT06-') else t
+        bare = _BOARD_CODE_ALIASES.get(bare, bare)
+        out.append('GT06-' + bare)
     return ','.join(out)
 
 
