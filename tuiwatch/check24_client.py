@@ -101,12 +101,12 @@ def search_hotel(query: str, *, verbose: bool = False) -> list[dict] | None:
     kein Server-Roundtrip nötig — daher schnell) und liefert Kandidaten
     [{'hotel_id','name','location'}], sortiert wie von Check24 vorgeschlagen.
     None bei technischem Fehler, leere Liste bei keinem Treffer."""
-    from playwright.sync_api import sync_playwright
-    import os
-
     query = (query or '').strip()
     if not query:
         return []
+    from playwright.sync_api import sync_playwright
+    import os
+
     chromium_path = os.environ.get("CHROMIUM_PATH") or None
     try:
         with sync_playwright() as p:
@@ -123,8 +123,24 @@ def search_hotel(query: str, *, verbose: bool = False) -> list[dict] | None:
                 except Exception:
                     pass
                 page.click("#c24-travel-destination-element", timeout=10000)
-                page.fill("#c24-travel-destination-element", query)
-                page.wait_for_timeout(1500)
+                # page.fill() setzt den Wert direkt (nur 'input'/'change'-Event) —
+                # das jQuery-UI-Autocomplete-Widget hört aber offenbar auf echte
+                # Tastatur-Events, um seine (debounced) Suche auszulösen. Lokal
+                # funktionierte fill() zuverlässig, im Add-on-Container (System-
+                # Chromium statt Playwrights eigenem Build) kam beobachtbar 0
+                # Treffer zurück — .type() simuliert echte Tastendrücke und ist
+                # robuster gegen genau diese Art Chromium-/Widget-Abhängigkeit.
+                page.type("#c24-travel-destination-element", query, delay=40)
+                # Autocomplete ist rein clientseitig (kein Server-Roundtrip), aber
+                # das Rendering der Vorschlagsliste kann je nach Chromium-Build
+                # unterschiedlich schnell sein (System-Chromium im Add-on-Container
+                # vs. Playwright-eigenes Chromium lokal) — auf das tatsächliche
+                # Erscheinen warten statt eine feste Wartezeit zu raten.
+                try:
+                    page.wait_for_selector("li.c24-travel-hotelfilter-item, "
+                                           "li.c24-travel-cityfilter-item", timeout=6000)
+                except Exception:
+                    pass  # ggf. wirklich 0 Treffer — unten regulär als leere Liste behandelt
                 items = page.eval_on_selector_all(
                     "li.c24-travel-hotelfilter-item a",
                     "els => els.map(e => ({id: e.getAttribute('data-item-id'), "
@@ -159,7 +175,14 @@ def search_hotel(query: str, *, verbose: bool = False) -> list[dict] | None:
         out = out[:1]
     for o in out:
         del o['_score']
-    if verbose:
+    if not out:
+        # Immer loggen (nicht nur bei verbose_log): 0 Treffer ist entweder ein
+        # echtes "kein Hotel bei Check24" oder ein Rendering-Problem (z. B. anderes
+        # Chromium-Verhalten im Container) — ohne Log-Zeile war das bisher nicht
+        # unterscheidbar.
+        log.warning("Check24-Hotelsuche %r: 0 Treffer (roh %d Autocomplete-Items)",
+                    query, len(items))
+    elif verbose:
         log.info("Check24-Hotelsuche %r: %d Treffer", query, len(out))
     return out
 

@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.54.2] - 2026-07-15
+
+### Fixed
+- **CI-Bruch in v0.54.1**: `check24_client.search_hotel()` importierte `playwright`
+  vor dem Leer-Anfrage-Check statt danach — brach den reinen Parsing-Test in CI
+  (dort ist playwright absichtlich nicht installiert) und war strukturell falsch
+  gegenüber dem lazy-import-Muster aus `scraper.py`.
+- **Check24-Hotelsuche fand im Add-on-Container nie einen Treffer** (0 Treffer,
+  ohne Fehler im Log) — im lokalen Test mit Playwrights eigenem Chromium
+  funktionierte dieselbe Suche zuverlässig. Ursache: `page.fill()` setzt den
+  Feldwert nur per `input`/`change`-Event; das jQuery-UI-Autocomplete-Widget auf
+  Check24 hört dafür offenbar auf echte Tastatur-Events — mit dem System-
+  Chromium im Container (`CHROMIUM_PATH`) blieb das folgenlos. Jetzt `page.type()`
+  (simuliert echte Tastendrücke) statt `page.fill()`. Zusätzlich: 0-Treffer wird
+  jetzt immer geloggt (nicht nur bei `verbose_log`), inkl. Anzahl roher
+  Autocomplete-Elemente — damit ein erneutes Auftreten diagnostizierbar bleibt.
+
 ## [0.54.1] - 2026-07-15
 
 ### Changed
