@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.54.3] - 2026-07-15
+
+### Fixed
+- **Check24-Vergleich zeigte absurd niedrige Preise** (z. B. "3,34 €" statt des
+  echten Zimmerpreises). Ursache: jede Angebotskarte enthält neben dem echten
+  Preis auch eine Smily-Punkte-Zeile im selben Format ("2,54 € als Smily Punkte
+  sammeln") — die Preis-Regex nahm den *letzten* Treffer im Kartentext, das war
+  die Punktezahl, nicht der Preis. Regex schließt Smily-Punkte-Treffer jetzt
+  gezielt aus.
+
 ## [0.54.2] - 2026-07-15
 
 ### Fixed

@@ -36,7 +36,11 @@ CONSENT_REMOVE_JS = (
 
 _SOLD_OUT_MARK = "schon weg"
 _OFFER_BLOCK_RE = re.compile(r"\d+\s*Tage\s*\|\s*\d+\s*Nächte\s")
-_PRICE_RE = re.compile(r"([\d.]+,\d{2})\s*€")
+# Jede Karte enthält neben dem echten Preis auch eine Smily-Punkte-Zeile
+# ("2,54 € als Smily Punkte sammeln") im selben Preisformat — negative Lookahead
+# schließt die aus, sonst wird faelschlich der (viel kleinere) Punktewert als Preis
+# gelesen (siehe Bugreport: "3,34 €" statt echtem Preis).
+_PRICE_RE = re.compile(r"([\d.]+,\d{2})\s*€(?!\s*als Smily)")
 _ROOM_RE = re.compile(r"^1x\s+(.+)$", re.MULTILINE)
 
 

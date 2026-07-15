@@ -38,10 +38,12 @@ _CARD_TEXT = (
     "12 Tage | 11 Nächte Stuttgart (STR) ↔ Las Palmas (LPA)\n"
     "Do, 22.04.2027 | 1 Stopp\n10:50\nStuttgart\n7:00 Std.\n16:50\nLas Palmas\n"
     "1x Doppelzimmer Standard\nDB1 - Double Room Classic\nFrühstück\nHotel-Transfer\n"
-    "Balkon/Terrasse\nnur Handgepäck\nStornierung kostenpflichtig\n1.529,00 €\nzur Buchung\n"
+    "Balkon/Terrasse\nnur Handgepäck\n50 € Cashback verfügbar aktivieren\n"
+    "Stornierung kostenpflichtig\n1.529,00 €\nzur Buchung\n"
+    " 2,54 € als Smily Punkte sammeln\n"
     "12 Tage | 11 Nächte Stuttgart (STR) ↔ Las Palmas (LPA)\n"
     "1x Doppelzimmer Superior\nDoppelzimmer Superior\nAll Inclusive\nohne Hotel-Transfer\n"
-    "1.607,00 €\nzur Buchung\n"
+    "1.607,00 €\nzur Buchung\n 2,67 € als Smily Punkte sammeln\n"
 )
 
 
