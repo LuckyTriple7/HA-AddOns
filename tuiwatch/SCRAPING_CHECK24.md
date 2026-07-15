@@ -33,7 +33,7 @@ für Verpflegung/Zimmer/Aussicht/Flug/Abflugzeit existiert wirklich (UI-Labels
 bestätigt, Query-Param-Namen nicht extrahiert — nicht nötig für unseren Ansatz,
 da wir client-seitig nach Board/Room filtern statt über Query-Params).
 
-### Ebene 2 — Hotel-Ergebnisliste (JS-SPA, `xsearchd`-Poll)
+### Ebene 2 — Hotel-Ergebnisliste (JS-SPA, `xsearchd`-Poll) — **umgangen, s. u.**
 
 ```
 GET https://urlaub.check24.de/suche/hotel?airport=STR&transportType=flight
@@ -60,20 +60,13 @@ alternativen Terminen (nur Ab-Preis, kein Angebots-Link) — **das ist
 Datenverfügbarkeit, kein Protokollfehler** (in mehreren Testläufen beobachtet,
 je nach gewähltem Datum).
 
-Klick auf „zu den Angeboten" öffnet (per `target=_blank`/Popup)
-
-```
-https://urlaub.check24.de/suche/angebot?...&hotelId=<id>&hotelListId=<uuid>
-```
-
-`hotelListId` wird clientseitig auf Ebene 2 erzeugt/zugewiesen — **noch nicht
-verifiziert, ob diese UUID reproduzierbar/auslassbar ist**, wenn Ebene 3 direkt
-(ohne Durchklicken von Ebene 2) aufgerufen wird. Aus dem vom Nutzer gelieferten
-Beispiel-Link ist ersichtlich, dass eine gültige `hotelListId` jedenfalls jedes
-Mal neu im Frontend generiert wird (Session-/Lauf-spezifisch) — für Phase 2 einplanen,
-dass ein `fetch_offers()`-Aufruf ggf. zuerst Ebene 2 laden muss, um eine gültige
-`hotelListId` abzugreifen, bevor Ebene 3 aufgerufen wird (nicht direkt eine
-`hotelListId` erraten/fest verdrahten).
+**Wichtiger Nachtrag:** `areaId`/`dhs` sind gar nicht nötig. Ein `curl` auf
+Ebene 2 **ohne** `areaId` (nur `hotelId=11829`) liefert `HTTP 200` und wird vom
+Server automatisch auf `.../suche/angebot?...&hotelId=11829&...` weitergeleitet
+— also direkt auf Ebene 3, die eigentliche Vergleichsseite. `check24_client.py`
+ruft daher nur noch `hotelId` auf (`_build_offer_url()`), Ebene 2 wird in der
+Implementierung gar nicht mehr separat geladen, der „zu den Angeboten"-
+Popup-Klick (inkl. `hotelListId`) entfällt komplett.
 
 ### Ebene 3 — Hotel-Angebotsseite (der eigentliche Vergleich)
 
@@ -140,7 +133,7 @@ anzeigen"). Ein Verpflegungs-Filter existiert ebenfalls direkt auf dieser Ebene
 („Ohne Verpflegung" / „Mind. Frühstück" / „Mind. Halbpension" / „Mind.
 Vollpension" / „mind. All Inclusive").
 
-**Offener Punkt für Phase 2:** der Operator-**Name** pro einzelner Angebotskarte
+**Offener Punkt:** der Operator-**Name** pro einzelner Angebotskarte
 wurde im reinen `inner_text()`-Dump nicht gefunden (vermutlich als Logo-Bild mit
 `alt`-Text oder `data-`-Attribut gerendert, nicht als sichtbarer Text). Muss beim
 Implementieren mit gezielten Selektoren (`img[alt]`, `[data-tour-operator]` o. ä.)
@@ -148,21 +141,41 @@ nachgeprüft werden — der `tourOperatorCode` aus dem JSON-Job (z. B. `ITSX`) i
 zumindest programmatisch verfügbar und könnte über das Poll-Ergebnis mit der
 jeweiligen Karte korreliert werden, falls die Kartenreihenfolge stabil ist.
 
-## Zusammenfassung für `check24_client.fetch_offers()` (Phase 2)
+## Hotel-Suche ohne manuellen Link (Autocomplete)
 
-1. Playwright-Kontext öffnen, Cookie-Consent-Layer entfernen
-   (`document.querySelectorAll('.c24-cookie-consent-wrapper').forEach(e=>e.remove())`
-   reicht — kein Klick auf einen Button nötig).
-2. Ebene 2 (`/suche/hotel?...&hotelId=&areaId=&dhs=&departureDate=&returnDate=&airport=&roomAllocation=...`)
-   laden, auf `xsearchd`-Poll `finished` warten (oder feste Wartezeit ~8-10s),
-   prüfen ob „Leider schon weg" erscheint (→ `{'ok': True, 'rows': [], 'note': 'not_available_exact_dates'}`,
-   kein technischer Fehler) oder ob ein „zu den Angeboten"-Link für das Zielhotel da ist.
-3. Dem Link zu Ebene 3 folgen (`/suche/angebot?...&hotelListId=<vom Klick übernommen>`),
-   auf `offer_list`-Poll-Event `finished` warten (oder feste Wartezeit ~10-15s
-   nach domcontentloaded, Timeout 45-60s gesamt).
-4. Angebotskarten aus dem DOM lesen (Zimmertyp, Verpflegung, Preis — Selektoren
-   beim Implementieren aus der echten Seite ableiten, nicht nur aus `inner_text()`,
-   damit Operator-Zuordnung pro Karte möglich ist).
+Das Zielsuchfeld auf `https://www.check24.de/pauschalreisen/` (`#c24-travel-
+destination-element`) liefert beim Tippen eines Hotelnamens **clientseitig**
+(kein Server-Roundtrip beobachtet) eine Vorschlagsliste, in der Hotel-Treffer als
+`<li class="c24-travel-hotelfilter-item"><a data-item-id="11829" ...>` erscheinen
+— `data-item-id` **ist die `hotelId`**. Bestätigt am Beispiel: Tippen von „Gloria
+Palace Amadores" → Vorschlag „Gloria Palace Amadores Thalasso & Hotel" mit
+`data-item-id="11829"` (identisch mit dem bekannten Beispiel-hotelId). `check24_
+client.search_hotel()` nutzt genau das, damit Nutzer:innen **keinen** Check24-Link
+von Hand kopieren müssen — der TUI-Hotelname aus dem Angebot wird automatisch
+eingetippt (per `page.fill()`), keine Nutzereingabe nötig.
+
+Die Autocomplete matched wortweise (nicht nur Gesamtname) — ein langer TUI-
+Hotelname liefert oft 15-20 kaum verwandte Treffer (z. B. alle Hotels mit
+„Palace" im Namen). `search_hotel()` sortiert daher per `difflib.SequenceMatcher`
+nach Ähnlichkeit zur Anfrage und reduziert auf den Top-Treffer, wenn dieser
+eindeutig ist (Score ≥0.92, Abstand zum Zweitplatzierten ≥0.08) — sonst bleibt
+die volle Liste zum Anklicken.
+
+## Zusammenfassung für `check24_client.fetch_offers()`
+
+1. Playwright-Kontext öffnen.
+2. Direkt Ebene 3 laden: `/suche/hotel?hotelId=<id>&departureDate=&returnDate=
+   &airport=&roomAllocation=&transportType=flight&days=exact&...` (kein
+   `areaId`/`dhs` nötig, s. o. — Server leitet automatisch weiter). Fixe
+   Wartezeit ~12s nach `domcontentloaded` (Poll-Requests wurden in Testläufen
+   nicht zuverlässig beobachtet, siehe „Bekannte Instabilitäten"), danach
+   Cookie-Consent-Layer entfernen
+   (`document.querySelectorAll('.c24-cookie-consent-wrapper').forEach(e=>e.remove())`).
+3. Sichtbaren Seitentext prüfen: „schon weg" **und** keine Angebotskarte im
+   Text → `{'ok': True, 'rows': [], 'note': 'not_available_exact_dates'}`
+   (Datenverfügbarkeit, kein Fehler).
+4. Angebotskarten aus dem Seitentext per Regex extrahieren (Zimmertyp,
+   Verpflegung, Preis) — `_parse_offer_blocks()`, siehe Quellcode.
 5. Nach `board_hint`/`room_hint` (Substring, case-insensitive) filtern, günstigste
    passende Zeile(n) zurückgeben.
 

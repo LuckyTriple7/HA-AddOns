@@ -10,26 +10,26 @@ import check24_client as c24
 def test_parse_hotel_link_valid():
     url = ("https://urlaub.check24.de/suche/hotel?airport=STR&transportType=flight"
            "&roomAllocation=A&departureDate=2027-04-28&returnDate=2027-05-09&days=exact"
-           "&pageArea=package&areaId=551&dhs=11829&ds=h&sorting=categoryDistribution"
+           "&pageArea=package&dhs=11829&ds=h&sorting=categoryDistribution"
            "&offerSort=offerRanking&areaSort=topregion&extendedSearch=1&noRedirect=1"
            "&hotelId=11829")
-    assert c24.parse_hotel_link(url) == {'hotel_id': '11829', 'area_id': '551'}
+    assert c24.parse_hotel_link(url) == {'hotel_id': '11829'}
 
 
-def test_parse_hotel_link_missing_params():
+def test_parse_hotel_link_missing_hotel_id():
     assert c24.parse_hotel_link("https://urlaub.check24.de/suche/hotel?areaId=551") is None
-    assert c24.parse_hotel_link("https://urlaub.check24.de/suche/hotel?hotelId=11829") is None
 
 
 def test_parse_hotel_link_garbage():
     assert c24.parse_hotel_link("") is None
     assert c24.parse_hotel_link("not a url") is None
-    assert c24.parse_hotel_link("https://example.com/?hotelId=abc&areaId=551") is None
+    assert c24.parse_hotel_link("https://example.com/?hotelId=abc") is None
 
 
-def test_build_hotel_list_url_contains_all_params():
-    url = c24._build_hotel_list_url('11829', '551', '2027-04-28', '2027-05-09', 'STR', 'A')
-    assert 'hotelId=11829' in url and 'areaId=551' in url and 'dhs=11829' in url
+def test_build_offer_url_contains_params():
+    url = c24._build_offer_url('11829', '2027-04-28', '2027-05-09', 'STR', 'A')
+    assert 'hotelId=11829' in url
+    assert 'areaId=' not in url
     assert 'departureDate=2027-04-28' in url and 'returnDate=2027-05-09' in url
     assert 'airport=STR' in url
 
@@ -60,3 +60,9 @@ def test_parse_offer_blocks_extracts_rows():
 
 def test_parse_offer_blocks_no_match_returns_empty():
     assert c24._parse_offer_blocks("Keine Angebote hier, nur Fließtext ohne Preise.") == []
+
+
+def test_search_hotel_empty_query_short_circuits_without_playwright():
+    # Leere Anfrage darf nicht mal versuchen, Playwright zu importieren/starten.
+    assert c24.search_hotel("") == []
+    assert c24.search_hotel("   ") == []

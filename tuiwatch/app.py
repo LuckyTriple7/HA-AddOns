@@ -83,7 +83,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.54.0"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.54.1"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -1746,7 +1746,7 @@ def _run_check24_compare(offer_id: int) -> None:
     try:
         with db() as con:
             o = con.execute(
-                'SELECT url, check24_hotel_id, check24_area_id, room, board FROM offers'
+                'SELECT url, check24_hotel_id, room, board FROM offers'
                 ' WHERE id=?', (offer_id,)).fetchone()
             last = con.execute(
                 'SELECT price FROM price_history WHERE offer_id=? ORDER BY ts DESC LIMIT 1',
@@ -1770,7 +1770,7 @@ def _run_check24_compare(offer_id: int) -> None:
         for attempt in range(2):
             with _check24_scrape_lock:
                 res = check24_client.fetch_offers(
-                    o['check24_hotel_id'], o['check24_area_id'], departure_date, return_date,
+                    o['check24_hotel_id'], departure_date, return_date,
                     airport, room_hint=o['room'] or '', board_hint=o['board'] or '',
                     verbose=_verbose())
             if res is not None:

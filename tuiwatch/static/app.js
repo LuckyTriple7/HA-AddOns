@@ -692,17 +692,43 @@
     function c24Spinner(){ $('#c24-body').innerHTML = progBar('Check24 wird abgefragt… kann bis zu einer Minute dauern.'); }
     function startC24Polling(){ clearInterval(c24Timer); c24Poll(); c24Timer = setInterval(c24Poll, 2000); }
 
-    function linkCheck24(id){
-      const v = (prompt('Check24-Hotel-Link einfügen (URL von urlaub.check24.de/suche/hotel…, muss hotelId und areaId enthalten):', '') || '').trim();
-      if(!v) return;
-      fetch(api('/api/offers/'+id), {method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({check24_link: v})})
-        .then(r=>{
-          if(!r.ok){ toast('Ungültiger Check24-Link'); return; }
-          toast('Check24-Hotel verknüpft'); loadOffers();
-        }).catch(()=>toast('Ungültiger Check24-Link'));
+    // Sucht automatisch mit dem TUI-Hotelnamen (kein Eintippen nötig) und zeigt
+    // Treffer zum Anklicken; bei genau einem eindeutigen Treffer wird direkt
+    // verknüpft und sofort der Preisvergleich gestartet.
+    async function linkCheck24(id){
+      c24Id = id;
+      const o = (curOffers||[]).find(x=>x.id===id) || {};
+      const name = o.hotel || o.label || '';
+      $('#c24-sub').textContent = name || ('TUI-Angebot #'+id);
+      $('#c24-body').innerHTML = progBar('Check24 wird nach „'+name+'" durchsucht…');
+      $('#c24-bg').classList.add('show');
+      let data;
+      try { data = await fetch(api('/api/check24/search?q='+encodeURIComponent(name))).then(r=>r.json()); }
+      catch(e){ data = {error:'search_failed'}; }
+      if(data.error){
+        $('#c24-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Check24-Suche fehlgeschlagen. Bitte später erneut versuchen.</div>';
+        return;
+      }
+      const cands = data.candidates || [];
+      if(cands.length === 1){ pickCheck24Hotel(id, cands[0].hotel_id, cands[0].name); return; }
+      if(cands.length === 0){
+        $('#c24-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Kein passendes Hotel bei Check24 gefunden.</div>';
+        return;
+      }
+      const rows = cands.map(c=>
+        `<tr style="cursor:pointer" onclick="pickCheck24Hotel(${id}, '${jsArg(c.hotel_id)}', '${jsArg(c.name)}')">
+          <td><b>${esc(c.name)}</b></td><td>${esc(c.location)}</td></tr>`).join('');
+      $('#c24-body').innerHTML = `<div class="hint" style="margin-bottom:6px">Mehrere Treffer — richtiges Hotel anklicken:</div>
+        <table class="hist"><tr><th>Hotel</th><th>Ort</th></tr>${rows}</table>`;
+    }
+    function pickCheck24Hotel(id, hotelId, name){
+      $('#c24-body').innerHTML = progBar('Verknüpfe „'+name+'"…');
+      fetch(api('/api/offers/'+id), {method:'PATCH', headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({check24_hotel_id: hotelId, check24_hotel_name: name})})
+        .then(()=>{ loadOffers(); openCheck24(id); });
     }
     function unlinkCheck24(id){
-      fetch(api('/api/offers/'+id), {method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({check24_link: ''})})
+      fetch(api('/api/offers/'+id), {method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({check24_hotel_id: ''})})
         .then(()=>{ toast('Check24-Verknüpfung entfernt'); loadOffers(); });
     }
 

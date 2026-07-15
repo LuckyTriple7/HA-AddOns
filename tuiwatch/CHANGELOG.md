@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.54.1] - 2026-07-15
+
+### Changed
+- **Check24-Hotel automatisch statt Link einfügen.** Der "Check24 verknüpfen"-
+  Button verlangte bisher, einen kompletten Check24-Hotel-Link von Hand zu
+  suchen und einzufügen — zu umständlich für einen Preisvergleich. Jetzt
+  durchsucht TUIWatch Check24 automatisch mit dem bereits bekannten
+  TUI-Hotelnamen (Check24s eigenes Zielsuchfeld, kein Tippen nötig); bei
+  eindeutigem Treffer wird sofort verknüpft und der Vergleich gestartet, bei
+  mehreren ähnlichen Hotels erscheint eine kurze Klick-Liste. Der manuelle
+  Link bleibt als Fallback (`PATCH .../check24_link`), falls die Suche ein
+  Hotel nicht findet. Nebenbei vereinfacht: `areaId` war gar nicht nötig
+  (`hotelId` allein reicht, Check24 leitet automatisch weiter) — der bisherige
+  Zwischenschritt über die Hotel-Ergebnisliste (inkl. Popup-Klick) entfällt.
+
 ## [0.54.0] - 2026-07-15
 
 ### Added

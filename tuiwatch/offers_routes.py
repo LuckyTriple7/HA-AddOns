@@ -175,23 +175,43 @@ def api_update_offer(offer_id: int):
             con.execute('UPDATE offers SET tags=? WHERE id=?',
                         (json.dumps(tags, ensure_ascii=False), offer_id))
             A.log.info("Angebot #%d Tags gesetzt: %s", offer_id, ', '.join(tags) or '(keine)')
-        if 'check24_link' in data:
+        if 'check24_hotel_id' in data:
+            # Normalfall: Klick auf einen Treffer aus der automatischen Hotelsuche
+            # (siehe GET /api/check24/search) — hotel_id kommt direkt vom Frontend,
+            # kein Link-Parsing nötig.
+            hid = str(data.get('check24_hotel_id') or '').strip()
+            if not hid:
+                con.execute("UPDATE offers SET check24_hotel_id='', check24_link='' WHERE id=?",
+                            (offer_id,))
+                con.execute('DELETE FROM check24_cache WHERE offer_id=?', (offer_id,))
+                A.log.info("Check24-Verknüpfung #%d entfernt", offer_id)
+            elif not hid.isdigit():
+                return jsonify({'error': 'invalid_check24_hotel_id'}), 400
+            else:
+                name = (data.get('check24_hotel_name') or '').strip()
+                con.execute('UPDATE offers SET check24_hotel_id=?, check24_link=? WHERE id=?',
+                            (hid, f'https://urlaub.check24.de/suche/hotel?hotelId={hid}', offer_id))
+                con.execute('DELETE FROM check24_cache WHERE offer_id=?', (offer_id,))
+                A.log.info("Check24-Hotel #%d verknüpft: hotelId=%s (%s)", offer_id, hid, name)
+            with A._check24_lock:
+                A._check24_state.pop(offer_id, None)
+        elif 'check24_link' in data:
+            # Fallback für Power-User: Check24-Link direkt einfügen (falls die
+            # automatische Suche das Hotel nicht findet).
             link = (data.get('check24_link') or '').strip()
             if not link:
-                con.execute("UPDATE offers SET check24_hotel_id='', check24_area_id='', "
-                            "check24_link='' WHERE id=?", (offer_id,))
+                con.execute("UPDATE offers SET check24_hotel_id='', check24_link='' WHERE id=?",
+                            (offer_id,))
                 con.execute('DELETE FROM check24_cache WHERE offer_id=?', (offer_id,))
                 A.log.info("Check24-Verknüpfung #%d entfernt", offer_id)
             else:
                 parsed = check24_client.parse_hotel_link(link)
                 if not parsed:
                     return jsonify({'error': 'invalid_check24_url'}), 400
-                con.execute('UPDATE offers SET check24_hotel_id=?, check24_area_id=?, '
-                            'check24_link=? WHERE id=?',
-                            (parsed['hotel_id'], parsed['area_id'], link, offer_id))
+                con.execute('UPDATE offers SET check24_hotel_id=?, check24_link=? WHERE id=?',
+                            (parsed['hotel_id'], link, offer_id))
                 con.execute('DELETE FROM check24_cache WHERE offer_id=?', (offer_id,))
-                A.log.info("Check24-Hotel #%d verknüpft: hotelId=%s areaId=%s",
-                         offer_id, parsed['hotel_id'], parsed['area_id'])
+                A.log.info("Check24-Hotel #%d verknüpft: hotelId=%s", offer_id, parsed['hotel_id'])
             with A._check24_lock:
                 A._check24_state.pop(offer_id, None)
     for t, txt in events:

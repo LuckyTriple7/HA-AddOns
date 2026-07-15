@@ -86,3 +86,32 @@ def test_patch_link_clears_stale_check24_cache(app_mod):
     with app_mod.db() as con:
         row = con.execute("SELECT 1 FROM check24_cache WHERE offer_id=?", (oid,)).fetchone()
     assert row is None
+
+
+# ── check24_hotel_id: Hauptpfad (Klick auf Treffer der automatischen Hotelsuche) ──
+
+def test_patch_check24_hotel_id_links(app_mod):
+    c = app_mod.app.test_client()
+    oid = _add_offer(c)
+    r = c.patch(f"/api/offers/{oid}", headers=ING,
+                json={"check24_hotel_id": "11829", "check24_hotel_name": "Gloria Palace Amadores"})
+    assert r.status_code == 200
+    assert _offer(c, oid)["check24_linked"] is True
+
+
+def test_patch_check24_hotel_id_invalid_rejected(app_mod):
+    c = app_mod.app.test_client()
+    oid = _add_offer(c)
+    r = c.patch(f"/api/offers/{oid}", headers=ING, json={"check24_hotel_id": "abc"})
+    assert r.status_code == 400
+    assert r.get_json()["error"] == "invalid_check24_hotel_id"
+    assert _offer(c, oid)["check24_linked"] is False
+
+
+def test_patch_check24_hotel_id_empty_unlinks(app_mod):
+    c = app_mod.app.test_client()
+    oid = _add_offer(c)
+    c.patch(f"/api/offers/{oid}", headers=ING, json={"check24_hotel_id": "11829"})
+    assert _offer(c, oid)["check24_linked"] is True
+    c.patch(f"/api/offers/{oid}", headers=ING, json={"check24_hotel_id": ""})
+    assert _offer(c, oid)["check24_linked"] is False
