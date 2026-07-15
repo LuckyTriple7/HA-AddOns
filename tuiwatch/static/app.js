@@ -770,8 +770,10 @@
     function c24Footer(job){
       const when = job.ts ? ('Abgefragt: '+new Date(job.ts*1000).toLocaleString('de-DE')+' — gespeichert.') : 'Live abgefragt.';
       const err = job.error ? '<div class="hint" style="color:var(--amber);margin-top:6px">⚠ Letzte Aktualisierung fehlgeschlagen — angezeigt wird das vorherige Ergebnis.</div>' : '';
+      const link = job.offer_url ? `<a class="btn sec" href="${esc(job.offer_url)}" target="_blank" rel="noopener">Auf Check24 ansehen ↗</a>` : '';
       return `<div class="cmp-foot">
           <span class="hint" style="flex:1;min-width:180px">${esc(when)} Vergleich mit ähnlicher Zimmerkategorie/Verpflegung — nicht immer exakt identisch.</span>
+          ${link}
           <button class="btn sec" onclick="refreshCheck24()">Neu abfragen</button>
         </div>${err}`;
     }
@@ -792,13 +794,14 @@
           diff = d===0 ? '±0' : (d<0 ? '<span class="cmp-down">▼ '+eur(Math.abs(d))+' günstiger</span>' : '<span class="cmp-up">▲ +'+eur(d)+' teurer</span>');
         }
         return `<tr${best?' class="cmp-best"':''}>
+          <td>${esc(r.operator||'—')}</td>
           <td>${esc(r.room||'—')}${r.board?' · '+esc(r.board):''}</td>
           <td><b>${eur(r.price)}</b>${best?' <span class="best">✓</span>':''}</td>
           <td>${diff}</td></tr>`;
       }).join('');
       const tuiRow = tuiPrice!=null ? `<div class="hint" style="margin-bottom:6px">TUI-Preis zum Vergleich: <b>${eur(tuiPrice)}</b></div>` : '';
       $('#c24-body').innerHTML = tuiRow +
-        `<table class="hist"><tr><th>Zimmer / Verpflegung (Check24)</th><th>Preis p.&nbsp;P.</th><th>Diff. zu TUI</th></tr>${rows}</table>`
+        `<table class="hist"><tr><th>Anbieter</th><th>Zimmer / Verpflegung</th><th>Preis p.&nbsp;P.</th><th>Diff. zu TUI</th></tr>${rows}</table>`
         + c24Footer(job);
     }
 

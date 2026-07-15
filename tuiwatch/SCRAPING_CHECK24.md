@@ -133,13 +133,31 @@ anzeigen"). Ein Verpflegungs-Filter existiert ebenfalls direkt auf dieser Ebene
 („Ohne Verpflegung" / „Mind. Frühstück" / „Mind. Halbpension" / „Mind.
 Vollpension" / „mind. All Inclusive").
 
-**Offener Punkt:** der Operator-**Name** pro einzelner Angebotskarte
-wurde im reinen `inner_text()`-Dump nicht gefunden (vermutlich als Logo-Bild mit
-`alt`-Text oder `data-`-Attribut gerendert, nicht als sichtbarer Text). Muss beim
-Implementieren mit gezielten Selektoren (`img[alt]`, `[data-tour-operator]` o. ä.)
-nachgeprüft werden — der `tourOperatorCode` aus dem JSON-Job (z. B. `ITSX`) ist
-zumindest programmatisch verfügbar und könnte über das Poll-Ergebnis mit der
-jeweiligen Karte korreliert werden, falls die Kartenreihenfolge stabil ist.
+**Gelöst:** der Operator-Name steht als Klartext im `alt`-Attribut eines
+`img.operator-img` innerhalb jeder Angebotskarte (z. B. `alt="ITS Dynamisch"`,
+`"DERTOUR Dynamisch"`, `"alltours dynamisch"`, `"LMX Touristik"`) — direkt
+lesbar, keine Code→Name-Übersetzung nötig. Die einzelne Angebotskarte ist als
+`li.price-offer.js-offer-box` im DOM abgrenzbar (per Ancestor-Chain vom „zur
+Buchung"-Button verifiziert), enthält aber selbst >100 KB `innerText`
+(versteckte Alternativ-Termine etc.) — zu unzuverlässig für direktes Preis-
+Parsing pro Karte. `check24_client.fetch_offers()` liest daher **zwei
+getrennte, leichtgewichtige Signale**, die sich per Reihenfolge korrelieren
+lassen: (1) Preis/Zimmer/Verpflegung weiterhin aus dem kompletten Seitentext
+via `_parse_offer_blocks()` (bewährt), (2) je Karte nur `querySelector(
+'img.operator-img').alt` (ein kurzer String, kein Massentext) via
+`eval_on_selector_all('li.price-offer.js-offer-box', ...)`. Beide Listen sind
+in Seitenreihenfolge, werden vor jeglichem Filtern/Sortieren per Index gezippt.
+**Bekannte Schwäche:** die Roh-Kartenzahl (`li.price-offer.js-offer-box`, z. B.
+27) und die aus dem Fließtext geparste Zeilenzahl (z. B. 25) stimmen nicht
+immer exakt überein (vermutlich einzelne Alternativ-Termin-Karten ohne
+eigenen Preis-Textblock) — bei Abweichung bekommen die überzähligen Zeilen
+keinen Anbieternamen (leerer String), keine Fehlzuordnung, aber ggf. Lücken.
+
+**Zusätzlich:** `fetch_offers()` gibt jetzt `offer_url` zurück (die
+Angebotsseiten-URL selbst, `_build_offer_url()`) — kein Deep-Link auf die
+exakte Zimmer-/Anbieter-Zeile (der „zur Buchung"-Button hat leeres `href`,
+JS-Navigation ohne statischen Link), aber ein direkter Klick-Link zur
+Check24-Seite für dieses Hotel/diese Reisedaten.
 
 ## Hotel-Suche ohne manuellen Link (Autocomplete)
 

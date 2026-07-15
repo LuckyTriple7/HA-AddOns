@@ -83,7 +83,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.54.3"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.55.0"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -427,8 +427,12 @@ def init_db() -> None:
             query     TEXT NOT NULL DEFAULT '{}',
             tui_price REAL,
             rows      TEXT NOT NULL DEFAULT '[]',
+            offer_url TEXT NOT NULL DEFAULT '',
             FOREIGN KEY (offer_id) REFERENCES offers(id) ON DELETE CASCADE
         )''')
+        c24cols = {r['name'] for r in con.execute('PRAGMA table_info(check24_cache)').fetchall()}
+        if 'offer_url' not in c24cols:
+            con.execute("ALTER TABLE check24_cache ADD COLUMN offer_url TEXT NOT NULL DEFAULT ''")
         # Merkt den zuletzt gemeldeten Günstigerer-Termin (Datum+Preis), damit der
         # Alarm Neustarts übersteht und nur bei einem WIRKLICH neuen Tiefstwert kommt.
         con.execute('''CREATE TABLE IF NOT EXISTS cheaper_state (
@@ -1781,10 +1785,10 @@ def _run_check24_compare(offer_id: int) -> None:
                 _check24_state[offer_id] = {'status': 'error', 'note': 'Check24 nicht erreichbar'}
             return
         with db() as con:
-            con.execute('INSERT OR REPLACE INTO check24_cache (offer_id, ts, query, tui_price, rows) '
-                        'VALUES (?,?,?,?,?)',
+            con.execute('INSERT OR REPLACE INTO check24_cache (offer_id, ts, query, tui_price, rows, offer_url) '
+                        'VALUES (?,?,?,?,?,?)',
                         (offer_id, int(time.time()), json.dumps(query, ensure_ascii=False),
-                         tui_price, json.dumps(res.get('rows', []))))
+                         tui_price, json.dumps(res.get('rows', [])), res.get('offer_url', '')))
         with _check24_lock:
             _check24_state.pop(offer_id, None)
         log.info("Check24-Vergleich #%d fertig: %d Angebot(e), Hinweis=%s",
@@ -1802,11 +1806,12 @@ def _check24_payload(offer_id: int) -> dict:
     if st.get('status') == 'running':
         return {'status': 'running', 'rows': []}
     with db() as con:
-        row = con.execute('SELECT ts, query, tui_price, rows FROM check24_cache WHERE offer_id=?',
+        row = con.execute('SELECT ts, query, tui_price, rows, offer_url FROM check24_cache WHERE offer_id=?',
                           (offer_id,)).fetchone()
     if row:
         out = {'status': 'done', 'ts': row['ts'], 'query': _json_loads_safe(row['query'], {}),
-               'tui_price': row['tui_price'], 'rows': _json_loads_safe(row['rows'], [])}
+               'tui_price': row['tui_price'], 'rows': _json_loads_safe(row['rows'], []),
+               'offer_url': row['offer_url'] or ''}
     else:
         out = {'status': 'idle', 'rows': []}
     if st.get('status') == 'error':

@@ -194,11 +194,10 @@ def search_hotel(query: str, *, verbose: bool = False) -> list[dict] | None:
 def fetch_offers(hotel_id: str, departure_date: str, return_date: str,
                  airport: str, *, room_allocation: str = 'A', room_hint: str = '',
                  board_hint: str = '', verbose: bool = False) -> dict | None:
-    """Liefert {'ok': bool, 'rows': [...], 'note': str} oder None bei technischem
-    Fehler (Aufrufer wiederholt dann, Konvention wie scraper.fetch_price_api()).
-    Jede Zeile: {'room','board','price','transfer','ok'} — Anbietername ist auf der
-    Ebene der Angebotskarten nicht als Klartext verfügbar (siehe SCRAPING_CHECK24.md,
-    „Offener Punkt“), daher aktuell nicht Teil der Zeile."""
+    """Liefert {'ok': bool, 'rows': [...], 'note': str, 'offer_url': str} oder
+    None bei technischem Fehler (Aufrufer wiederholt dann, Konvention wie
+    scraper.fetch_price_api()). Jede Zeile:
+    {'operator','room','board','price','transfer','ok'}."""
     from playwright.sync_api import sync_playwright
     import os
 
@@ -224,7 +223,22 @@ def fetch_offers(hotel_id: str, departure_date: str, return_date: str,
                 if _SOLD_OUT_MARK in offer_text and not _OFFER_BLOCK_RE.search(offer_text):
                     if verbose:
                         log.info("Check24: Hotel %s an gewünschten Terminen nicht verfügbar", hotel_id)
-                    return {'ok': True, 'rows': [], 'note': 'not_available_exact_dates'}
+                    return {'ok': True, 'rows': [], 'note': 'not_available_exact_dates',
+                            'offer_url': url}
+                # Anbietername steht nicht im Fließtext (nur als Logo-Bild), daher
+                # separat je Angebotskarte (li.price-offer.js-offer-box) das erste
+                # img.operator-img auslesen — deutlich leichtgewichtiger als der
+                # komplette Kartentext (der auch versteckte Alternativ-Termine
+                # enthält und pro Karte >100 KB groß werden kann). Reihenfolge
+                # entspricht der im Fließtext, daher per Position mit den aus
+                # _parse_offer_blocks() gewonnenen Zeilen korrelierbar.
+                try:
+                    operators = page.eval_on_selector_all(
+                        "li.price-offer.js-offer-box",
+                        "els => els.map(e => { const im = e.querySelector('img.operator-img'); "
+                        "return im ? im.alt : ''; })")
+                except Exception:
+                    operators = []
             finally:
                 browser.close()
     except Exception as e:
@@ -232,6 +246,11 @@ def fetch_offers(hotel_id: str, departure_date: str, return_date: str,
         return None
 
     rows = _parse_offer_blocks(offer_text)
+    # Anbieter per Position zuordnen, SOLANGE die Reihenfolge noch der
+    # Roh-Extraktion entspricht — vor jeglichem Filtern/Sortieren.
+    for i, row in enumerate(rows):
+        row['operator'] = operators[i] if i < len(operators) else ''
+
     if board_hint:
         bh = board_hint.strip().lower()
         filtered = [r for r in rows if bh in (r['board'] or '').lower()]
@@ -242,5 +261,5 @@ def fetch_offers(hotel_id: str, departure_date: str, return_date: str,
         rows = filtered or rows
     rows.sort(key=lambda r: r['price'])
     if not rows:
-        return {'ok': True, 'rows': [], 'note': 'no_offers_parsed'}
-    return {'ok': True, 'rows': rows, 'note': ''}
+        return {'ok': True, 'rows': [], 'note': 'no_offers_parsed', 'offer_url': url}
+    return {'ok': True, 'rows': rows, 'note': '', 'offer_url': url}

@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.55.0] - 2026-07-15
+
+### Added
+- **Check24-Vergleich zeigt jetzt den Reiseveranstalter** je Zeile (z. B. "ITS
+  Dynamisch", "DERTOUR Dynamisch", "alltours dynamisch") statt nur Zimmer/
+  Verpflegung/Preis — Anbietername steht im `alt`-Text des Anbieter-Logos je
+  Angebotskarte.
+- **Link "Auf Check24 ansehen"** im Ergebnis — führt direkt zur Check24-
+  Angebotsseite für das verknüpfte Hotel/die Reisedaten (kein Deep-Link auf
+  die exakte Zeile möglich, "zur Buchung" ist reine JS-Navigation ohne
+  statischen Link).
+
 ## [0.54.3] - 2026-07-15
 
 ### Fixed
