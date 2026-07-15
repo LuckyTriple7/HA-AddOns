@@ -1,3 +1,11 @@
+## [1.8.32] - 2026-07-15
+
+### Aktualisiert
+
+- VS Code: 1.128.0 → 1.128.1
+- Firefox: 152.0.5 → 152.0.6
+- Claude Desktop: 3.2.1+claude1.19367.0 → 3.2.1+claude1.20186.1
+
 ## [1.8.31] - 2026-07-13
 
 ### Aktualisiert
