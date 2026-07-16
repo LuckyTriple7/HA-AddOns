@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.57.1] - 2026-07-16
+
+### Fixed
+- **Check24-Vergleich lief in echte Timeouts, obwohl das Hotel gültige Angebote
+  hatte** — Job/Poll-Budget war 20 Versuche (~30s), Bugreport zeigte aber echte
+  Wartezeiten von 38s/42s im Produktivbetrieb (lokal nachgestellt: derselbe
+  Job löst sich zuverlässig auf, nur variabel langsamer als beim Live-Test
+  angenommen). Budget auf 40 Versuche (~60s) erhöht. Spinner-Text in der UI
+  war zudem noch ein Playwright-Ära-Leftover ("kann bis zu einer Minute
+  dauern" — stimmte zufällig ungefähr, aber aus dem falschen Grund),
+  jetzt realistisch beschriftet.
+
 ## [0.57.0] - 2026-07-16
 
 ### Added

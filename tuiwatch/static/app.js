@@ -689,7 +689,7 @@
       no_offers_for_board: 'Kein Check24-Angebot mit passender Verpflegung an diesen Terminen.',
       Check24_nicht_erreichbar: 'Check24 nicht erreichbar.',
     };
-    function c24Spinner(){ $('#c24-body').innerHTML = progBar('Check24 wird abgefragt… kann bis zu einer Minute dauern.'); }
+    function c24Spinner(){ $('#c24-body').innerHTML = progBar('Check24 wird abgefragt… meist unter 15s, in Einzelfällen bis zu 60s.'); }
     function startC24Polling(){ clearInterval(c24Timer); c24Poll(); c24Timer = setInterval(c24Poll, 2000); }
 
     // Sucht automatisch mit dem TUI-Hotelnamen (kein Eintippen nötig) und zeigt
