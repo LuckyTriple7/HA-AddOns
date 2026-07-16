@@ -260,6 +260,16 @@ def test_build_search_payload_sorts_by_price_ascending():
     assert payload["parameters"]["sortingOrder"] == "priceAsc"
 
 
+def test_build_search_payload_results_total_cap_is_high_enough():
+    # resultsTotal ist ein Anfrage-Cap, keine reine Info-Zahl -- die Such-API
+    # deckelt ihre eigene Antwort-"resultsTotal" (echte Trefferzahl) darauf
+    # (live verifiziert: Cap 300 bei 703 echten Treffern -> Antwort "300"). Bei
+    # zu niedrigem Cap zeigt die UI ("von N Treffer") eine falsche, zu kleine
+    # Gesamtzahl fuer grosse Regionen.
+    payload = scraper._build_search_payload({"regions": [128], "duration": 7})
+    assert payload["parameters"]["resultsTotal"] >= 1000
+
+
 def test_room_code_helpers():
     base = "https://www.tui.com/x/123/offer/?startDate=2027-05-01&duration=7"
     u = scraper.with_room_code(base, "DZM3")

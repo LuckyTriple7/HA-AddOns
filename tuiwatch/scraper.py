@@ -749,7 +749,12 @@ def _build_search_payload(p: dict) -> dict:
         "transferIncluded": False, "sortingOrder": "priceAsc",
         "secondarySortingOrder": "", "identifier": "HLP",
         "giataRegions": p.get("regions") or [],
-        "resultsTotal": 300, "resultsFrom": 0, "resultsPerPage": 50,
+        # resultsTotal ist hier ein Anfrage-Cap, keine reine Info-Zahl -- die API
+        # deckelt ihre eigene Antwort-"resultsTotal" (echte Trefferzahl) auf diesen
+        # Wert (live verifiziert: Cap 300 bei 703 echten Treffern -> Antwort "300"
+        # statt "703"). 1000 statt 300, damit die "von N Treffer"-Anzeige in der UI
+        # bei großen Regionen nicht falsch zu niedrig ist.
+        "resultsTotal": 1000, "resultsFrom": 0, "resultsPerPage": 50,
     }
     if p.get("direct"):           # nur Direktflug → max. 0 Zwischenstopps
         params["stopOver"] = 0

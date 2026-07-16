@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.55.8] - 2026-07-16
+
+### Fixed
+- **"N Treffer in der Region"-Anzeige war bei großen Regionen zu niedrig** —
+  `resultsTotal` in der Such-API-Anfrage ist kein reiner Info-Wert, sondern ein
+  Cap: die Antwort deckelt ihre eigene (echte) Trefferzahl auf diesen Wert
+  (live verifiziert: 300 angefragt bei 703 echten Treffern → Antwort "300").
+  Cap von 300 auf 1000 angehoben.
+
 ## [0.55.7] - 2026-07-16
 
 ### Fixed
