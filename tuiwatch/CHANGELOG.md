@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.55.5] - 2026-07-16
+
+### Changed
+- **Check24-Vergleich läuft nicht mehr über Playwright, sondern über ein
+  offenes JSON-API** — Annahme aus v0.54.0 war falsch: das `cryptString`-Feld
+  in `/suche/json/dynamic/offer` ist nur ein Buchungs-/Verfügbarkeits-Token,
+  nicht die verschlüsselte Preis-Nutzlast. Preis, Zimmer, Verpflegung,
+  Veranstalter stehen im selben JSON bereits im Klartext. `check24_client.py`
+  nutzt jetzt reines `requests` (Job/Poll-POST) statt Headless-Chromium —
+  schneller (~8-15s statt fixer 12s-Wartezeit + Browser-Start), robuster
+  (kein Container-/Chromium-Build-abhängiges Verhalten mehr, siehe die
+  `page.fill()`-vs-`page.type()`-Fixes in v0.54.2), kein Anti-Bot-Risiko durch
+  Headless-Browser-Fingerprinting mehr. Auch die Hotelsuche
+  (`search_hotel()`) läuft jetzt über ein offenes JSON-API
+  (`/autocompleter-destination`) statt simuliertem Autocomplete-Tippen.
+  Rückgabeformat/Verhalten unverändert, keine Auswirkung auf App/Routen.
+  Details: SCRAPING_CHECK24.md.
+
 ## [0.55.4] - 2026-07-16
 
 ### Fixed

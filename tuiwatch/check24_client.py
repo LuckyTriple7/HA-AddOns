@@ -1,54 +1,41 @@
 #!/usr/bin/env python3
 """Check24-Preisvergleich (andere Reiseveranstalter) für ein gepinntes Hotel.
 
-Anders als tui.com hat Check24 kein offenes JSON-API: die Angebotsseite ist eine
-JS-SPA mit asynchronem Job/Poll-Protokoll (`/suche/json/dynamic/offer` +
-`/offersearch/<job>/poll`), deren Antworten die eigentlichen Preis-/Zimmerdaten nur
-verschlüsselt (`cryptString`) enthalten — das Entschlüsseln findet clientseitig in
-Check24s eigenem JS statt. Wir lassen daher einen echten Headless-Chromium (über
-Playwright) die Seite rendern und lesen die fertig entschlüsselten Angebotskarten
-aus dem sichtbaren Seitentext, statt das Protokoll selbst nachzubauen.
-
-`hotelId` allein reicht für die Angebotsseite — `GET .../suche/hotel?...&hotelId=X`
-(ohne areaId) leitet direkt auf `.../suche/angebot?...&hotelId=X` weiter, das ist
-schon die eigentliche Vergleichsseite. Das Hotel-Suchfeld auf check24.de liefert
-`hotelId` clientseitig (kein Server-Roundtrip) über ein Autocomplete — genutzt in
-search_hotel(), damit Nutzer:innen keinen Check24-Link mehr von Hand kopieren müssen.
-
-Details/Beispiele zur Seitenstruktur: siehe SCRAPING_CHECK24.md.
+Frueher (bis v0.55.4) wurde angenommen, Check24 habe kein offenes JSON-API und
+die Angebotsseite muesse per Playwright gerendert werden, weil die Antwort von
+`/suche/json/dynamic/offer` ein verschluesseltes `cryptString`-Feld enthaelt.
+Live-Analyse (Netzwerk-Mitschnitt eines echten Seitenaufrufs) hat das widerlegt:
+`cryptString` ist nur ein Buchungs-/Verfuegbarkeits-Token (`data-vacancy`, wird
+beim eigentlichen Buchen an `/suche/json/dynamic/store-vacancy` zurueckgeschickt)
+-- Preis, Zimmer, Verpflegung, Veranstalter stehen im selben JSON bereits im
+Klartext (`price.effectivePrice.amount`, `accommodationData.mealType`, ...).
+Der Endpoint ist ein simpler Job/Poll-POST, per `requests` reproduzierbar, kein
+Browser noetig. Ebenso ist die Hotelsuche (`search_hotel`) ein normales
+JSON-GET (`/autocompleter-destination`), kein clientseitiges Autocomplete ohne
+Server-Roundtrip wie zuvor angenommen. Details/Beispiele: SCRAPING_CHECK24.md.
 """
 import logging
-import re
+import time
+import uuid
 from difflib import SequenceMatcher
 from urllib.parse import parse_qs, urlencode, urlparse
 
-# playwright wird nur für den eigentlichen Abruf gebraucht und erst dort (lazy)
-# importiert, damit dieses Modul auch ohne installiertes playwright importierbar
-# bleibt (z. B. für die parse_hotel_link()-Tests) — Konvention aus scraper.py.
+import requests
 
-from scraper import USER_AGENT, BOARD_TYPES  # keine eigene UA-/Verpflegungsliste duplizieren
+from scraper import USER_AGENT  # keine eigene UA-Konstante duplizieren
 
 log = logging.getLogger("tuiwatch.check24")
 
-CONSENT_REMOVE_JS = (
-    "document.querySelectorAll('.c24-cookie-consent-wrapper').forEach(e=>e.remove())"
-)
-
-_SOLD_OUT_MARK = "schon weg"
-_OFFER_BLOCK_RE = re.compile(r"\d+\s*Tage\s*\|\s*\d+\s*Nächte\s")
-# Jede Karte enthält neben dem echten Preis auch eine Smily-Punkte-Zeile
-# ("2,54 € als Smily Punkte sammeln") im selben Preisformat — negative Lookahead
-# schließt die aus, sonst wird faelschlich der (viel kleinere) Punktewert als Preis
-# gelesen (siehe Bugreport: "3,34 €" statt echtem Preis).
-_PRICE_RE = re.compile(r"([\d.]+,\d{2})\s*€(?!\s*als Smily)")
-_ROOM_RE = re.compile(r"^1x\s+(.+)$", re.MULTILINE)
+_AUTOCOMPLETE_URL = "https://urlaub.check24.de/autocompleter-destination"
+_OFFER_API_URL = "https://urlaub.check24.de/suche/json/dynamic/offer"
+_HEADERS = {"User-Agent": USER_AGENT, "Accept-Language": "de-DE,de;q=0.9"}
 
 
 def parse_hotel_link(url: str) -> dict | None:
     """hotelId aus einem Check24-Link (z. B. https://urlaub.check24.de/suche/
     angebot?...&hotelId=11829 oder .../suche/hotel?...&hotelId=11829). Nur
-    hotelId ist Pflicht (areaId wird nicht mehr gebraucht, s. Modul-Docstring) —
-    Fail-Soft wie scraper._giata_from_url."""
+    hotelId ist Pflicht (areaId wird nicht gebraucht) — Fail-Soft wie
+    scraper._giata_from_url."""
     try:
         q = parse_qs(urlparse((url or '').strip()).query)
     except Exception:
@@ -59,14 +46,14 @@ def parse_hotel_link(url: str) -> dict | None:
     return {'hotel_id': hotel_id}
 
 
-# Check24s Verpflegungs-Filter ("Mind. Frühstück"/"Mind. Halbpension"/...) ist ein
-# reiner Client-Tab (li.js-catering-tab), der beim Klick den Query-Param
-# `cateringList=<data-min-value>` setzt und die Seite neu lädt — live per
-# Playwright ermittelt (Klick auf den Tab beobachtet, siehe SCRAPING_CHECK24.md).
-# `data-min-value` ist bereits eine "diese Stufe oder besser"-Liste, genau das
-# richtige Verhalten, um zu verhindern, dass z. B. ein Halbpension-Angebot als
-# "billigere Alternative" zu einem All-Inclusive-TUI-Angebot durchrutscht (Bugreport:
-# TUI-Angebot AI, Check24 zeigte ungefiltert auch deutlich günstigere HP-Angebote).
+# Check24s Verpflegungs-Filter ("Mind. Frühstück"/"Mind. Halbpension"/...) auf der
+# Angebotsseite ist ein Query-Param, kein reiner Anzeige-Tab: ein Klick auf den Tab
+# haengt `cateringList=<data-min-value>` an die URL (live per Netzwerk-Mitschnitt
+# ermittelt, siehe SCRAPING_CHECK24.md). `data-min-value` ist "diese Stufe oder
+# besser" — genau das richtige Verhalten, um zu verhindern, dass z. B. ein
+# Halbpension-Angebot als "billigere Alternative" zu einem All-Inclusive-TUI-
+# Angebot durchrutscht (Bugreport: TUI-Angebot AI, Check24 zeigte ungefiltert
+# auch deutlich günstigere HP-Angebote).
 _CATERING_LIST = {
     'none': 'none',
     'breakfast': 'breakfast,halfboard,halfboardPlus,fullboard,fullboardPlus,allinclusive,allinclusivePlus',
@@ -79,6 +66,15 @@ _BOARD_TO_CATERING_KEY = {
     'alles inklusive': 'allinclusive', 'all inclusive': 'allinclusive',
     'vollpension': 'fullboard', 'halbpension': 'halfboard',
     'frühstück': 'breakfast', 'übernachtung': 'none', 'ohne verpflegung': 'none',
+}
+# Umgekehrte Richtung: Check24s eigene mealType-Werte aus der Angebots-JSON
+# (PascalCase, z. B. "AllInclusive") auf deutsche Texte, damit board_hint
+# (aus offers.board, TUI-Text) per Substring dagegen matchen kann.
+_MEAL_TYPE_TO_BOARD = {
+    'AllInclusive': 'All Inclusive', 'AllInclusivePlus': 'All Inclusive Plus',
+    'FullBoard': 'Vollpension', 'FullBoardPlus': 'Vollpension Plus',
+    'HalfBoard': 'Halbpension', 'HalfBoardPlus': 'Halbpension Plus',
+    'Breakfast': 'Frühstück', 'RoomOnly': 'Ohne Verpflegung', 'None': 'Ohne Verpflegung',
 }
 
 
@@ -104,105 +100,43 @@ def _build_offer_url(hotel_id: str, departure_date: str, return_date: str,
     return 'https://urlaub.check24.de/suche/hotel?' + urlencode(params)
 
 
-def _parse_offer_blocks(text: str) -> list[dict]:
-    """Zerlegt den sichtbaren Seitentext der Angebotsseite in einzelne
-    Angebotskarten (jede beginnt mit einer Zeile wie „12 Tage | 11 Nächte …“) und
-    extrahiert Zimmer/Verpflegung/Preis per Regex — analog zu scraper._parse_card(),
-    da Check24 keine stabilen, dokumentierten CSS-Klassen für Angebotskarten bietet."""
-    starts = [m.start() for m in _OFFER_BLOCK_RE.finditer(text)]
-    blocks = [text[a:b] for a, b in zip(starts, starts[1:] + [len(text)])]
-    rows = []
-    for block in blocks:
-        prices = _PRICE_RE.findall(block)
-        if not prices:
-            continue
-        price = float(prices[-1].replace('.', '').replace(',', '.'))
-        room_m = _ROOM_RE.search(block)
-        room = room_m.group(1).strip() if room_m else ''
-        board = ''
-        for b in BOARD_TYPES:
-            if b in block:
-                board = b
-                break
-        rows.append({
-            'room': room, 'board': board, 'price': price,
-            'transfer': 'ohne Hotel-Transfer' not in block and 'Hotel-Transfer' in block,
-            'ok': True,
-        })
-    return rows
-
-
 def search_hotel(query: str, *, verbose: bool = False) -> list[dict] | None:
-    """Sucht Hotels über das Check24-Zielsuchfeld (client-seitiges Autocomplete,
-    kein Server-Roundtrip nötig — daher schnell) und liefert Kandidaten
+    """Sucht Hotels über Check24s Zielsuchfeld-API und liefert Kandidaten
     [{'hotel_id','name','location'}], sortiert wie von Check24 vorgeschlagen.
     None bei technischem Fehler, leere Liste bei keinem Treffer."""
     query = (query or '').strip()
     if not query:
         return []
-    from playwright.sync_api import sync_playwright
-    import os
-
-    chromium_path = os.environ.get("CHROMIUM_PATH") or None
     try:
-        with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True, executable_path=chromium_path,
-                                        args=["--no-sandbox", "--disable-dev-shm-usage"])
-            ctx = browser.new_context(locale="de-DE", user_agent=USER_AGENT,
-                                      viewport={"width": 1280, "height": 900})
-            page = ctx.new_page()
-            try:
-                page.goto("https://www.check24.de/pauschalreisen/",
-                         wait_until="networkidle", timeout=45000)
-                try:
-                    page.evaluate(CONSENT_REMOVE_JS)
-                except Exception:
-                    pass
-                page.click("#c24-travel-destination-element", timeout=10000)
-                # page.fill() setzt den Wert direkt (nur 'input'/'change'-Event) —
-                # das jQuery-UI-Autocomplete-Widget hört aber offenbar auf echte
-                # Tastatur-Events, um seine (debounced) Suche auszulösen. Lokal
-                # funktionierte fill() zuverlässig, im Add-on-Container (System-
-                # Chromium statt Playwrights eigenem Build) kam beobachtbar 0
-                # Treffer zurück — .type() simuliert echte Tastendrücke und ist
-                # robuster gegen genau diese Art Chromium-/Widget-Abhängigkeit.
-                page.type("#c24-travel-destination-element", query, delay=40)
-                # Autocomplete ist rein clientseitig (kein Server-Roundtrip), aber
-                # das Rendering der Vorschlagsliste kann je nach Chromium-Build
-                # unterschiedlich schnell sein (System-Chromium im Add-on-Container
-                # vs. Playwright-eigenes Chromium lokal) — auf das tatsächliche
-                # Erscheinen warten statt eine feste Wartezeit zu raten.
-                try:
-                    page.wait_for_selector("li.c24-travel-hotelfilter-item, "
-                                           "li.c24-travel-cityfilter-item", timeout=6000)
-                except Exception:
-                    pass  # ggf. wirklich 0 Treffer — unten regulär als leere Liste behandelt
-                items = page.eval_on_selector_all(
-                    "li.c24-travel-hotelfilter-item a",
-                    "els => els.map(e => ({id: e.getAttribute('data-item-id'), "
-                    "text: e.innerText}))")
-            finally:
-                browser.close()
+        resp = requests.get(_AUTOCOMPLETE_URL,
+                            params={'v': '2_0_0', 'term': query, 'agent': 'urlaub'},
+                            headers={**_HEADERS, 'Accept': 'application/json'}, timeout=15)
+        if resp.status_code != 200:
+            log.warning("Check24-Hotelsuche HTTP %s (query=%r)", resp.status_code, query)
+            return None
+        data = resp.json()
     except Exception as e:
         log.warning("Check24-Hotelsuche fehlgeschlagen (query=%r): %s", query, e)
         return None
 
     out = []
-    for it in items:
-        hotel_id = it.get('id') or ''
-        if not hotel_id.isdigit():
+    for grp in data.get('data') or []:
+        if grp.get('group') != 'hotel':
             continue
-        lines = [ln.strip() for ln in (it.get('text') or '').split('\n') if ln.strip()]
-        name = lines[0] if lines else ''
-        location = lines[1] if len(lines) > 1 else ''
-        out.append({'hotel_id': hotel_id, 'name': name, 'location': location})
+        for item in grp.get('data') or []:
+            hotel_id = item.get('id')
+            if not hotel_id:
+                continue
+            location = ', '.join(x for x in (item.get('regionName'), item.get('countryName')) if x)
+            out.append({'hotel_id': str(hotel_id), 'name': item.get('label') or '', 'location': location})
 
-    # Check24s Autocomplete matched wortweise (z. B. "Palace" allein), nicht nur
-    # den Gesamtnamen — bei einer langen, spezifischen TUI-Hotelbezeichnung kommen
-    # daher oft 15-20 kaum verwandte Treffer zurück. Nach Ähnlichkeit zur Anfrage
-    # sortieren; ist der beste Treffer eindeutig (nahezu exakter Name, klarer
-    # Abstand zum zweitbesten), nur diesen zurückgeben — dann kann das Frontend
-    # ohne Rückfrage direkt verknüpfen (kein Klick durch eine Trefferliste nötig).
+    # Die Suche matched auch Teilstrings/Umgebung (Ort, Region) mit, nicht nur
+    # den Hotelnamen selbst — bei einer langen, spezifischen TUI-Hotelbezeichnung
+    # kommen daher oft mehrere kaum verwandte Treffer zurück. Nach Ähnlichkeit zur
+    # Anfrage sortieren; ist der beste Treffer eindeutig (nahezu exakter Name,
+    # klarer Abstand zum zweitbesten), nur diesen zurückgeben — dann kann das
+    # Frontend ohne Rückfrage direkt verknüpfen (kein Klick durch eine
+    # Trefferliste nötig).
     qn = query.strip().lower()
     for o in out:
         o['_score'] = SequenceMatcher(None, qn, o['name'].strip().lower()).ratio()
@@ -212,12 +146,7 @@ def search_hotel(query: str, *, verbose: bool = False) -> list[dict] | None:
     for o in out:
         del o['_score']
     if not out:
-        # Immer loggen (nicht nur bei verbose_log): 0 Treffer ist entweder ein
-        # echtes "kein Hotel bei Check24" oder ein Rendering-Problem (z. B. anderes
-        # Chromium-Verhalten im Container) — ohne Log-Zeile war das bisher nicht
-        # unterscheidbar.
-        log.warning("Check24-Hotelsuche %r: 0 Treffer (roh %d Autocomplete-Items)",
-                    query, len(items))
+        log.warning("Check24-Hotelsuche %r: 0 Treffer", query)
     elif verbose:
         log.info("Check24-Hotelsuche %r: %d Treffer", query, len(out))
     return out
@@ -230,69 +159,75 @@ def fetch_offers(hotel_id: str, departure_date: str, return_date: str,
     None bei technischem Fehler (Aufrufer wiederholt dann, Konvention wie
     scraper.fetch_price_api()). Jede Zeile:
     {'operator','room','board','price','transfer','ok'}."""
-    from playwright.sync_api import sync_playwright
-    import os
-
     catering_list = _catering_list_for_board(board_hint)
-    url = _build_offer_url(hotel_id, departure_date, return_date, airport, room_allocation,
-                           catering_list)
-    chromium_path = os.environ.get("CHROMIUM_PATH") or None
+    search_url = _build_offer_url(hotel_id, departure_date, return_date, airport,
+                                  room_allocation, catering_list)
+    form = {
+        'transactionId': str(uuid.uuid4()), 'clientId': str(uuid.uuid4()),
+        'previousSearchUrl': '', 'disableCache': '1', 'forceFailedVacancies': '0',
+        'forceEstaHint': '0', 'forceErrorVacancies': '0', 'forceFlightTimeChange': '0',
+        'forceCancellationNotAvailable': '0', 'searchUrl': search_url,
+        'withTravelExperts': '1', 'isWithServiceInformation': '0', 'isWithPriceAlarm': '1',
+    }
+    headers = {**_HEADERS, 'Referer': search_url, 'X-Requested-With': 'XMLHttpRequest',
+              'Content-Type': 'application/x-www-form-urlencoded'}
+    data = None
     try:
-        with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True, executable_path=chromium_path,
-                                        args=["--no-sandbox", "--disable-dev-shm-usage"])
-            ctx = browser.new_context(locale="de-DE", user_agent=USER_AGENT,
-                                      viewport={"width": 1280, "height": 1400})
-            page = ctx.new_page()
-            try:
-                # hotelId ohne areaId leitet direkt auf die Angebotsseite (.../suche/
-                # angebot?...) weiter — kein separater Klick auf "zu den Angeboten" nötig.
-                page.goto(url, wait_until="domcontentloaded", timeout=45000)
-                page.wait_for_timeout(12000)
-                try:
-                    page.evaluate(CONSENT_REMOVE_JS)
-                except Exception:
-                    pass
-                offer_text = page.inner_text("body")
-                if _SOLD_OUT_MARK in offer_text and not _OFFER_BLOCK_RE.search(offer_text):
-                    if verbose:
-                        log.info("Check24: Hotel %s an gewünschten Terminen nicht verfügbar", hotel_id)
-                    return {'ok': True, 'rows': [], 'note': 'not_available_exact_dates',
-                            'offer_url': url}
-                # Anbietername steht nicht im Fließtext (nur als Logo-Bild), daher
-                # separat je Angebotskarte (li.price-offer.js-offer-box) das erste
-                # img.operator-img auslesen — deutlich leichtgewichtiger als der
-                # komplette Kartentext (der auch versteckte Alternativ-Termine
-                # enthält und pro Karte >100 KB groß werden kann). Reihenfolge
-                # entspricht der im Fließtext, daher per Position mit den aus
-                # _parse_offer_blocks() gewonnenen Zeilen korrelierbar.
-                try:
-                    operators = page.eval_on_selector_all(
-                        "li.price-offer.js-offer-box",
-                        "els => els.map(e => { const im = e.querySelector('img.operator-img'); "
-                        "return im ? im.alt : ''; })")
-                except Exception:
-                    operators = []
-            finally:
-                browser.close()
+        with requests.Session() as sess:
+            # Job/Poll-Protokoll: derselbe POST erzeugt beim ersten Aufruf den
+            # Suchjob (status "Pending") und liefert bei Wiederholung dessen
+            # Fortschritt, bis "Success" (Angebote fertig, live beobachtet
+            # ~8-15s) oder "Error" (z. B. Hotel/Termine ungültig). Kein
+            # separater Poll-Endpoint nötig — live per Netzwerk-Mitschnitt
+            # verifiziert, siehe SCRAPING_CHECK24.md.
+            for _ in range(20):
+                resp = sess.post(_OFFER_API_URL, data=form, headers=headers, timeout=20)
+                if resp.status_code != 200:
+                    log.warning("Check24-Abruf HTTP %s (hotelId=%s)", resp.status_code, hotel_id)
+                    return None
+                data = resp.json()
+                if data.get('status') in ('Success', 'Error'):
+                    break
+                time.sleep(1.5)
+            else:
+                log.warning("Check24-Abruf Timeout (hotelId=%s)", hotel_id)
+                return None
     except Exception as e:
         log.warning("Check24-Abruf fehlgeschlagen (hotelId=%s): %s", hotel_id, e)
         return None
 
-    rows = _parse_offer_blocks(offer_text)
-    # Anbieter per Position zuordnen, SOLANGE die Reihenfolge noch der
-    # Roh-Extraktion entspricht — vor jeglichem Filtern/Sortieren.
-    for i, row in enumerate(rows):
-        row['operator'] = operators[i] if i < len(operators) else ''
+    if data.get('status') == 'Error':
+        # Kein technischer Fehler i. d. R. — ungültiges Hotel/Terminkombi ohne
+        # Angebot (Datenverfügbarkeit, kein Protokollfehler).
+        if verbose:
+            log.info("Check24: Hotel %s an gewünschten Terminen nicht verfügbar", hotel_id)
+        return {'ok': True, 'rows': [], 'note': 'not_available_exact_dates', 'offer_url': search_url}
+
+    rows = []
+    for item in (data.get('items') or {}).values():
+        price = (((item.get('price') or {}).get('effectivePrice') or {}).get('amount'))
+        if price is None:
+            continue
+        acc = item.get('accommodationData') or {}
+        room_desc = acc.get('roomDescription') or {}
+        room = room_desc.get('description') or room_desc.get('name') or ''
+        meal_type = acc.get('mealType') or ''
+        board = _MEAL_TYPE_TO_BOARD.get(meal_type, meal_type)
+        rows.append({
+            'operator': item.get('tourOperatorAlias') or item.get('tourOperatorCode') or '',
+            'room': room, 'board': board, 'price': float(price),
+            'transfer': bool(acc.get('transfer')),
+            'ok': True,
+        })
 
     rows_before_board = rows
     if board_hint:
         # Bewusst KEIN Fallback auf ungefiltert bei 0 Treffern (anders als bei
         # room_hint unten): genau das führte zum Bugreport "Check24 zeigt
         # deutlich günstigere Angebote, Verpflegung stimmt nicht" — cateringList
-        # in der URL filtert bereits serverseitig auf "board_hint oder besser",
-        # dieser Textfilter ist nur noch Validierung/Aufräumen (Plus-Varianten
-        # o.ä.), kein Ersatz dafür.
+        # in der Anfrage filtert bereits serverseitig auf "board_hint oder
+        # besser", dieser Textfilter ist nur noch Validierung/Aufräumen
+        # (Plus-Varianten o. ä.), kein Ersatz dafür.
         bh = board_hint.strip().lower()
         rows = [r for r in rows if bh in (r['board'] or '').lower()]
     if room_hint:
@@ -302,5 +237,5 @@ def fetch_offers(hotel_id: str, departure_date: str, return_date: str,
     rows.sort(key=lambda r: r['price'])
     if not rows:
         note = 'no_offers_for_board' if (board_hint and rows_before_board) else 'no_offers_parsed'
-        return {'ok': True, 'rows': [], 'note': note, 'offer_url': url}
-    return {'ok': True, 'rows': rows, 'note': '', 'offer_url': url}
+        return {'ok': True, 'rows': [], 'note': note, 'offer_url': search_url}
+    return {'ok': True, 'rows': rows, 'note': '', 'offer_url': search_url}

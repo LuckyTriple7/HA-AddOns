@@ -1,9 +1,9 @@
-"""Tests für die reinen (Playwright-freien) Funktionen aus check24_client.py:
-Link-Parsing, URL-Aufbau und das Zerlegen des gerenderten Angebots-Seitentexts in
-einzelne Karten. Der eigentliche Playwright-Abruf (fetch_offers) wird hier bewusst
-NICHT gegen einen echten Browser getestet — analog zu scraper.py, wo ebenfalls nur
-die reinen Parsing-Funktionen unit-getestet werden, nicht `_fetch_price_browser()`.
-"""
+"""Tests für check24_client.py. Der eigentliche Netzwerk-Layer (`requests`) wird
+gemockt (kein echter Check24-Zugriff im Testlauf) — anders als bis v0.55.4 ist das
+jetzt möglich, weil fetch_offers()/search_hotel() reine JSON-HTTP-Aufrufe sind
+(kein Playwright/Browser mehr nötig, siehe check24_client.py-Moduldocstring)."""
+import requests
+
 import check24_client as c24
 
 
@@ -42,8 +42,8 @@ def test_build_offer_url_with_catering_list():
 
 
 def test_catering_list_for_board_maps_tui_texts():
-    # Live per Playwright an Check24s eigenem Verpflegungs-Filter-Tab ermittelt
-    # (li.js-catering-tab, data-min-value) -- siehe SCRAPING_CHECK24.md.
+    # Live per Netzwerk-Mitschnitt an Check24s eigenem Verpflegungs-Filter-Tab
+    # ermittelt (cateringList-Query-Param) -- siehe SCRAPING_CHECK24.md.
     assert c24._catering_list_for_board('All Inclusive') == 'allinclusive,allinclusivePlus'
     assert c24._catering_list_for_board('Alles Inklusive') == 'allinclusive,allinclusivePlus'
     assert c24._catering_list_for_board('Vollpension') == (
@@ -60,37 +60,130 @@ def test_catering_list_for_board_unknown_returns_empty():
     assert c24._catering_list_for_board('irgendwas Unbekanntes') == ''
 
 
-_CARD_TEXT = (
-    "12 Tage | 11 Nächte Stuttgart (STR) ↔ Las Palmas (LPA)\n"
-    "Do, 22.04.2027 | 1 Stopp\n10:50\nStuttgart\n7:00 Std.\n16:50\nLas Palmas\n"
-    "1x Doppelzimmer Standard\nDB1 - Double Room Classic\nFrühstück\nHotel-Transfer\n"
-    "Balkon/Terrasse\nnur Handgepäck\n50 € Cashback verfügbar aktivieren\n"
-    "Stornierung kostenpflichtig\n1.529,00 €\nzur Buchung\n"
-    " 2,54 € als Smily Punkte sammeln\n"
-    "12 Tage | 11 Nächte Stuttgart (STR) ↔ Las Palmas (LPA)\n"
-    "1x Doppelzimmer Superior\nDoppelzimmer Superior\nAll Inclusive\nohne Hotel-Transfer\n"
-    "1.607,00 €\nzur Buchung\n 2,67 € als Smily Punkte sammeln\n"
-)
-
-
-def test_parse_offer_blocks_extracts_rows():
-    rows = c24._parse_offer_blocks(_CARD_TEXT)
-    assert len(rows) == 2
-    assert rows[0]['room'] == 'Doppelzimmer Standard'
-    assert rows[0]['board'] == 'Frühstück'
-    assert rows[0]['price'] == 1529.0
-    assert rows[0]['transfer'] is True
-    assert rows[1]['room'] == 'Doppelzimmer Superior'
-    assert rows[1]['board'] == 'All Inclusive'
-    assert rows[1]['price'] == 1607.0
-    assert rows[1]['transfer'] is False
-
-
-def test_parse_offer_blocks_no_match_returns_empty():
-    assert c24._parse_offer_blocks("Keine Angebote hier, nur Fließtext ohne Preise.") == []
-
-
-def test_search_hotel_empty_query_short_circuits_without_playwright():
-    # Leere Anfrage darf nicht mal versuchen, Playwright zu importieren/starten.
+def test_search_hotel_empty_query_short_circuits(monkeypatch):
+    # Darf nicht mal versuchen, requests.get aufzurufen.
+    monkeypatch.setattr(requests, "get", lambda *a, **k: (_ for _ in ()).throw(
+        AssertionError("requests.get haette bei leerer Anfrage nicht aufgerufen werden duerfen")))
     assert c24.search_hotel("") == []
     assert c24.search_hotel("   ") == []
+
+
+_AUTOCOMPLETE_RESPONSE = {
+    "data": [
+        {"group": "destination", "label": "Reiseziele", "data": [
+            {"label": "Gloria", "id": 69041, "type": "city"},
+        ]},
+        {"group": "hotel", "label": "Hotels", "data": [
+            {"label": "Gloria Palace Amadores Thalasso & Hotel", "id": 11829,
+             "regionName": "Gran Canaria", "countryName": "Spanien", "type": "hotel"},
+            {"label": "Gloria Palace", "id": 1057953,
+             "regionName": "Antalya", "countryName": "Türkei", "type": "hotel"},
+        ]},
+    ]
+}
+
+
+def test_search_hotel_parses_and_reduces_unambiguous_match(monkeypatch, fake_resp):
+    monkeypatch.setattr(requests, "get", lambda *a, **k: fake_resp(_AUTOCOMPLETE_RESPONSE))
+    out = c24.search_hotel("Gloria Palace Amadores Thalasso & Hotel")
+    assert out == [{'hotel_id': '11829', 'name': 'Gloria Palace Amadores Thalasso & Hotel',
+                    'location': 'Gran Canaria, Spanien'}]
+
+
+def test_search_hotel_ambiguous_returns_all_candidates(monkeypatch, fake_resp):
+    monkeypatch.setattr(requests, "get", lambda *a, **k: fake_resp(_AUTOCOMPLETE_RESPONSE))
+    out = c24.search_hotel("Gloria")  # zu kurz/unspezifisch fuer eine eindeutige Reduktion
+    assert {o['hotel_id'] for o in out} == {'11829', '1057953'}
+
+
+def test_search_hotel_http_error_returns_none(monkeypatch, fake_resp):
+    monkeypatch.setattr(requests, "get", lambda *a, **k: fake_resp({}, status=500))
+    assert c24.search_hotel("irgendwas") is None
+
+
+def _fake_offer_item(*, operator_alias="ITS Dynamisch", operator_code="ITSX",
+                     room="Doppelzimmer Superior", meal_type="AllInclusive",
+                     price=1259.0, transfer=True):
+    return {
+        "tourOperatorCode": operator_code, "tourOperatorAlias": operator_alias,
+        "accommodationData": {
+            "mealType": meal_type,
+            "roomDescription": {"name": "Doppelzimmer", "description": room},
+            "transfer": "Transfer" if transfer else None,
+        },
+        "price": {"effectivePrice": {"amount": price}},
+    }
+
+
+class _FakeSessionResp:
+    def __init__(self, data, status=200):
+        self._data = data
+        self.status_code = status
+
+    def json(self):
+        return self._data
+
+
+def _mock_offer_post(monkeypatch, responses):
+    """responses: Liste von dicts, nacheinander als POST-Antworten zurückgegeben
+    (simuliert den Pending->Success-Poll-Zyklus)."""
+    it = iter(responses)
+
+    def fake_post(self, *a, **k):
+        return _FakeSessionResp(next(it))
+    monkeypatch.setattr(requests.Session, "post", fake_post)
+    monkeypatch.setattr("time.sleep", lambda *a, **k: None)
+
+
+def test_fetch_offers_parses_success_response(monkeypatch):
+    items = {
+        "1": _fake_offer_item(operator_alias="ITS Dynamisch", room="Doppelzimmer Superior",
+                              meal_type="AllInclusive", price=1259.0),
+        "2": _fake_offer_item(operator_alias="alltours dynamisch", room="Doppelzimmer Standard",
+                              meal_type="HalfBoard", price=999.0),
+    }
+    _mock_offer_post(monkeypatch, [{"status": "Pending", "items": {}},
+                                    {"status": "Success", "items": items}])
+    res = c24.fetch_offers('240', '2026-12-06', '2026-12-13', 'STR')
+    assert res['ok'] is True
+    assert res['note'] == ''
+    assert len(res['rows']) == 2
+    # nach Preis sortiert
+    assert res['rows'][0]['price'] == 999.0
+    assert res['rows'][0]['operator'] == 'alltours dynamisch'
+    assert res['rows'][0]['board'] == 'Halbpension'
+    assert res['rows'][1]['board'] == 'All Inclusive'
+    assert res['rows'][1]['transfer'] is True
+
+
+def test_fetch_offers_board_hint_filters_strictly_no_fallback(monkeypatch):
+    # Nur Halbpension-Angebote vorhanden, board_hint verlangt All Inclusive ->
+    # KEIN Fallback auf ungefiltert (das war der Bugreport-Fehler bis v0.55.4).
+    items = {"1": _fake_offer_item(meal_type="HalfBoard", price=999.0)}
+    _mock_offer_post(monkeypatch, [{"status": "Success", "items": items}])
+    res = c24.fetch_offers('240', '2026-12-06', '2026-12-13', 'STR', board_hint='All Inclusive')
+    assert res['rows'] == []
+    assert res['note'] == 'no_offers_for_board'
+
+
+def test_fetch_offers_error_status_is_not_available_not_error(monkeypatch):
+    _mock_offer_post(monkeypatch, [{"status": "Error"}])
+    res = c24.fetch_offers('999999', '2026-12-06', '2026-12-13', 'STR')
+    assert res['ok'] is True
+    assert res['rows'] == []
+    assert res['note'] == 'not_available_exact_dates'
+    assert 'hotelId=999999' in res['offer_url']
+
+
+def test_fetch_offers_technical_error_returns_none(monkeypatch):
+    def raising_post(self, *a, **k):
+        raise requests.exceptions.ConnectionError("boom")
+    monkeypatch.setattr(requests.Session, "post", raising_post)
+    assert c24.fetch_offers('240', '2026-12-06', '2026-12-13', 'STR') is None
+
+
+def test_fetch_offers_no_items_at_all(monkeypatch):
+    _mock_offer_post(monkeypatch, [{"status": "Success", "items": {}}])
+    res = c24.fetch_offers('240', '2026-12-06', '2026-12-13', 'STR')
+    assert res['rows'] == []
+    assert res['note'] == 'no_offers_parsed'
