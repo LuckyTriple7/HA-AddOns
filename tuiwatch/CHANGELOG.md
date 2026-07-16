@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.57.0] - 2026-07-16
+
+### Added
+- **Hotelsuchen-Trefferliste per E-Mail versenden** — neuer "✉ Email"-Button in
+  der Suche, sendet eine HTML-Mail mit anklickbaren tui.com-Links. Ist eine
+  Auswahl markiert (Checkbox, geteilt mit dem KI-Vergleich), wird nur diese
+  versendet, sonst die komplette aktuelle Trefferliste. Neues Modul
+  `email_search.py` (statt weiterem Wachstum von app.py) baut die Mail aus den
+  bereits geladenen Suchergebnissen, neue Route `POST /api/search/email`. Die
+  Auswahl-Checkbox in der Trefferliste ist dafür nicht mehr an das
+  KI-Feature-Flag gekoppelt (vorher nur bei aktivierter KI sichtbar).
+
 ## [0.56.1] - 2026-07-16
 
 ### Added

@@ -2098,7 +2098,7 @@
       const perNight = (r.nights && r.price!=null) ? eur(r.price/r.nights)+'/Nacht' : '';
       const img = r.image?('<img class="sr-img" src="'+esc(r.image)+'" loading="lazy" alt="">'):'<div class="sr-img"></div>';
       return `<div class="sr-item">
-        <label class="sr-cmp ai-feature" title="Für KI-Vergleich auswählen">
+        <label class="sr-cmp" title="Für Auswahl markieren (KI-Vergleich, E-Mail-Versand)">
           <input type="checkbox" class="sr-cmp-chk" data-key="${esc(r._key)}" ${srCmpSelected.has(r._key)?'checked':''}>
         </label>
         ${img}
@@ -2143,7 +2143,8 @@
          <input type="text" id="srch-filter" class="srch-listfilter" placeholder="In Treffern suchen…" autocomplete="off" oninput="filterSearch(this.value)" value="${esc(srchFilter)}">
          <span style="flex:1"></span>Sortieren: ${sortSel}
          <button class="btn sec" onclick="track3()" title="Günstigstes, mittleres und teuerstes Hotel aus den Treffern automatisch für den Preisverlauf tracken (keine Benachrichtigungen)">📊 3 tracken</button>
-         <button class="btn sec" onclick="trackAll()">Alle tracken</button></div>
+         <button class="btn sec" onclick="trackAll()">Alle tracken</button>
+         <button class="btn sec" onclick="openSearchEmailModal()" title="Trefferliste per E-Mail versenden — nur markierte Auswahl, sonst die komplette Liste">✉ Email</button></div>
         <div id="cmp-bar" class="cmp-foot ai-feature" style="display:none">
           <span class="hint" style="flex:1;min-width:180px"><b id="cmp-count">0</b> Hotel(s) für KI-Vergleich ausgewählt (max. 5)</span>
           <button class="btn sec" onclick="clearCmp()">Auswahl leeren</button>
@@ -3536,6 +3537,11 @@
       emailMode = 'ai';
       await _openEmailModalCommon();
     }
+    async function openSearchEmailModal(){
+      if(!srchResults.length){ toast('Keine Treffer zum Versenden'); return; }
+      emailMode = 'search';
+      await _openEmailModalCommon();
+    }
     function closeEmailModal(){ $('#email-bg').classList.remove('show'); $('#email-bg').style.zIndex = ''; }
     $('#email-bg').addEventListener('click', e=>{ if(e.target.id==='email-bg') closeEmailModal(); });
     async function submitEmail(){
@@ -3545,6 +3551,7 @@
       closeEmailModal();
       if(emailMode === 'ai') return submitAiEmail(to.trim());
       if(emailMode === 'trips') return submitTripSummaryEmail(to.trim());
+      if(emailMode === 'search') return submitSearchEmail(to.trim());
       toast('E-Mail wird gesendet…');
       const body = {to: to.trim()};
       if(emailIds) body.ids = emailIds;
@@ -3560,6 +3567,19 @@
       } catch(e){ toast('Versand fehlgeschlagen'); return; }
       if(r.ok){ toast('KI-Analyse an '+to+' gesendet'); }
       else { const d=await r.json().catch(()=>({})); toast(d.error==='send_failed'?'Versand fehlgeschlagen – Einstellungen prüfen':d.error==='no_recipient'?'Kein Empfänger':d.error==='not_found'?'Analyse nicht gefunden':'Fehler beim Versand'); }
+    }
+    // Markierte Auswahl (sr-cmp-chk, geteilt mit KI-Vergleich) versenden, sonst die
+    // komplette aktuelle Trefferliste.
+    async function submitSearchEmail(to){
+      const rows = srCmpSelected.size ? srchResults.filter(r=>srCmpSelected.has(r._key)) : srchResults;
+      if(!rows.length){ toast('Keine Treffer zum Versenden'); return; }
+      toast('E-Mail wird gesendet…');
+      let r; try {
+        r = await fetch(api('/api/search/email'), {method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({to, results: rows, dest: srchDest ? srchDest.label : ''})});
+      } catch(e){ toast('Versand fehlgeschlagen'); return; }
+      if(r.ok){ const d=await r.json(); toast('E-Mail an '+d.to+' gesendet ('+d.count+' Treffer)'); }
+      else { const d=await r.json().catch(()=>({})); toast(d.error==='send_failed'?'Versand fehlgeschlagen – Einstellungen prüfen':d.error==='no_recipient'?'Kein Empfänger':d.error==='no_results'?'Keine Treffer':'Fehler beim Versand'); }
     }
     async function sendDigest(){
       toast('Wochenüberblick wird gesendet…');

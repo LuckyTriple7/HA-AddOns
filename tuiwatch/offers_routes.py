@@ -19,6 +19,7 @@ from flask import Blueprint, jsonify, make_response, request
 
 import app as A
 import check24_client
+import email_search
 
 bp = Blueprint('offers_routes', __name__)
 
@@ -346,6 +347,35 @@ def api_email():
         return jsonify({'error': 'send_failed'}), 502
     A.log.info("Angebots-E-Mail an %s gesendet (%d Angebote)", to, len(offers))
     return jsonify({'sent': True, 'to': to, 'count': len(offers)})
+
+
+@bp.route('/api/search/email', methods=['POST'])
+def api_search_email():
+    """Versendet eine Hotelsuchen-Trefferliste per E-Mail — die Zeilen kommen vom
+    Frontend (bereits geladene `/api/search`-Ergebnisse, ggf. per Checkbox auf
+    eine Auswahl reduziert), nicht aus der DB (Suchtreffer werden nicht
+    persistiert)."""
+    if (err := A._require_api()):
+        return err
+    if not A.smtp_configured():
+        return jsonify({'error': 'smtp_not_configured'}), 400
+    data = request.get_json(silent=True) or {}
+    to = (data.get('to') or A.load_config().get('smtp_to') or '').strip()
+    if not to:
+        return jsonify({'error': 'no_recipient'}), 400
+    rows = data.get('results')
+    if not isinstance(rows, list) or not rows:
+        return jsonify({'error': 'no_results'}), 400
+    rows = rows[:100]  # Schutz gegen versehentlich riesige Mails
+    html = email_search.html_for_rows(rows, dest=(data.get('dest') or '').strip())
+    subject = f"TUIWatch – {len(rows)} Hotel-Treffer ({datetime.now().strftime('%d.%m.%Y')})"
+    try:
+        A.send_email(subject, html, to)
+    except Exception as e:
+        A.log.error("Such-Treffer-E-Mail-Versand fehlgeschlagen: %s", e)
+        return jsonify({'error': 'send_failed'}), 502
+    A.log.info("Such-Treffer-E-Mail an %s gesendet (%d Treffer)", to, len(rows))
+    return jsonify({'sent': True, 'to': to, 'count': len(rows)})
 
 
 _HISTORY_COLS = ('ts', 'price', 'old_price', 'discount', 'available', 'ok', 'note')
