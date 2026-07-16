@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.55.7] - 2026-07-16
+
+### Fixed
+- **Hotelsuche zeigte deutlich teurere Hotels als tui.com selbst** — Beispiel:
+  Mallorca-Suche zeigte "ab 908 €", tui.com für dieselben Parameter "ab 572 €".
+  Ursache: die Such-API wurde mit `sortingOrder: "qualifier2DESC"` (Best-Match-
+  Score, nicht Preis) abgefragt und nur die ersten 50 von z. B. 256 Treffern
+  geholt (`resultsPerPage`) — die günstigsten Hotels waren dadurch oft gar nicht
+  im abgeholten Batch, das clientseitige "Preis aufsteigend"-Sortieren in der
+  UI konnte sie folglich nicht finden (sie waren nie in den Daten). Auf
+  `sortingOrder: "priceAsc"` umgestellt (live gegen tui.com selbst per
+  `sortHotelsField=price&sortHotelsAsc=1` verifiziert — liefert exakt dieselben
+  günstigen Hotels).
+
 ## [0.55.6] - 2026-07-16
 
 ### Fixed

@@ -247,6 +247,19 @@ def test_build_search_payload_exact_without_dates():
     assert payload["parameters"]["duration"] == []
 
 
+def test_build_search_payload_sorts_by_price_ascending():
+    # Bugreport: TUIWatchs Hotelsuche zeigte deutlich teurere Hotels als tui.com
+    # selbst fuer dieselben Parameter -- Ursache war "qualifier2DESC" (Best-
+    # Match-Score) statt Preis als serverseitige Sortierung. Bei mehr Treffern
+    # als resultsPerPage (z.B. 256 in einer Region, nur 50 abgeholt) fehlten die
+    # guenstigsten Hotels dadurch komplett im abgeholten Batch -- clientseitiges
+    # "Preis aufsteigend"-Sortieren (app.js) kann nur sortieren, was da ist.
+    # "priceAsc" per Netzwerk-Mitschnitt von tui.com selbst verifiziert (liefert
+    # dieselben guenstigen Hotels wie sortHotelsField=price&sortHotelsAsc=1).
+    payload = scraper._build_search_payload({"regions": [128], "duration": 7})
+    assert payload["parameters"]["sortingOrder"] == "priceAsc"
+
+
 def test_room_code_helpers():
     base = "https://www.tui.com/x/123/offer/?startDate=2027-05-01&duration=7"
     u = scraper.with_room_code(base, "DZM3")

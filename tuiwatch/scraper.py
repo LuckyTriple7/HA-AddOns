@@ -738,7 +738,15 @@ def _build_search_payload(p: dict) -> dict:
         "logicalExpression": " + ".join(e for e in (
             _location_expression(p.get("location") or []),
             _facility_expression(p.get("facility") or [])) if e),
-        "transferIncluded": False, "sortingOrder": "qualifier2DESC",
+        # "qualifier2DESC" (Best-Match/Qualitaets-Score) sortierte serverseitig nach
+        # etwas anderem als Preis -- bei mehr Treffern als resultsPerPage (z.B. 256
+        # in einer Region, nur 50 abgeholt) fehlten dadurch die guenstigsten Hotels
+        # komplett im abgeholten Batch, das clientseitige "Preis aufsteigend"-Sortieren
+        # (app.js sortSearchResults) konnte sie nicht mehr finden -- sie waren nie in
+        # den Daten. tui.com selbst nutzt fuer "sortHotelsField=price&sortHotelsAsc=1"
+        # "priceAsc" (live per Netzwerk-Mitschnitt verifiziert), liefert exakt die
+        # fehlenden guenstigen Hotels.
+        "transferIncluded": False, "sortingOrder": "priceAsc",
         "secondarySortingOrder": "", "identifier": "HLP",
         "giataRegions": p.get("regions") or [],
         "resultsTotal": 300, "resultsFrom": 0, "resultsPerPage": 50,
