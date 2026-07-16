@@ -83,7 +83,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.55.1"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.55.2"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -1750,8 +1750,8 @@ def _run_check24_compare(offer_id: int) -> None:
     try:
         with db() as con:
             o = con.execute(
-                'SELECT url, check24_hotel_id, room, board FROM offers'
-                ' WHERE id=?', (offer_id,)).fetchone()
+                'SELECT url, check24_hotel_id, room, board, details, dep_airport, return_date'
+                ' FROM offers WHERE id=?', (offer_id,)).fetchone()
             last = con.execute(
                 'SELECT price FROM price_history WHERE offer_id=? ORDER BY ts DESC LIMIT 1',
                 (offer_id,)).fetchone()
@@ -1765,9 +1765,16 @@ def _run_check24_compare(offer_id: int) -> None:
                 _check24_state[offer_id] = {'status': 'error', 'note': 'Kein Check24-Hotel verknüpft'}
             return
         q = {k: v[0] for k, v in parse_qs(urlparse(o['url']).query).items()}
-        departure_date = q.get('startDate', '')
-        return_date = q.get('endDate', '')
-        airport = (q.get('departureAirports', '') or '').split(',')[0]
+        # URL-Parameter startDate/endDate/departureAirports sind das (ggf. flexible)
+        # Such-Zeitfenster, NICHT das tatsächlich gebuchte Datum -- bei einer
+        # mehrmonatigen Flex-Suche kommen so absurde Check24-Anfragen raus (z.B.
+        # 20.07.-17.10. statt der echten 7 Nächte ab 06.12.). Die echten Werte
+        # stehen in details ("... Nächte ab DD.MM.YYYY") und return_date/dep_airport.
+        m = re.search(r'ab (\d{2})\.(\d{2})\.(\d{4})', o['details'] or '')
+        departure_date = f'{m.group(3)}-{m.group(2)}-{m.group(1)}' if m else q.get('startDate', '')
+        return_date = o['return_date'] or q.get('endDate', '')
+        am = re.search(r'\(([A-Z]{3})\)', o['dep_airport'] or '')
+        airport = am.group(1) if am else (q.get('departureAirports', '') or '').split(',')[0]
         query = {'departure_date': departure_date, 'return_date': return_date,
                  'airport': airport, 'room_hint': o['room'] or '', 'board_hint': o['board'] or ''}
         res = None

@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.55.2] - 2026-07-16
+
+### Fixed
+- **Check24-Vergleich fragte falsche Reisedaten ab** — nutzte `startDate`/`endDate`
+  aus der TUI-URL, das ist aber das (ggf. mehrmonatige) Such-Zeitfenster der
+  Flex-Suche, nicht das tatsächlich gebuchte Datum. Beispiel: echtes Angebot
+  7 Nächte ab 06.12.2026, Check24-Abfrage lief aber mit 20.07.2026–17.10.2027.
+  Jetzt werden Abreisedatum aus `details` ("... Nächte ab DD.MM.YYYY") und
+  Rückreisedatum/Abflughafen aus den bereits gespeicherten, echten Angebotsfeldern
+  (`return_date`, `dep_airport`) genutzt.
+
+### Changed
+- **Check24-Vergleich per Klick auf den Preis statt eigenem Button** — der
+  "Check24 verknüpfen"/"Check24-Vergleich"-Button in der Aktionsleiste entfällt;
+  ein Klick auf den Preis (nur bei aktivem Feature) startet direkt die Verknüpfung
+  bzw. den Vergleich.
+
 ## [0.55.1] - 2026-07-15
 
 ### Fixed
