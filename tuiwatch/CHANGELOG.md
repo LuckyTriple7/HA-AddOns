@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.55.3] - 2026-07-16
+
+### Fixed
+- Gestrichelte Unterlinie am Preis (Check24-Klickhinweis) kollidierte optisch mit
+  der Durchstreichung bei reduzierten Preisen — entfernt, nur noch Cursor/Hover.
+
 ## [0.55.2] - 2026-07-16
 
 ### Fixed
