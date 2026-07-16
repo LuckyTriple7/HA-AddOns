@@ -807,6 +807,7 @@
 
     // ── Hotelsuche (Maske / URL / aus Angebot) ────────────────────────────────
     let srchResults = [], srchOfferId = null, srchDest = null, srchTotal = 0, srchFilter = '';
+    let srchLastBody = null;
     let srchSort = localStorage.getItem('tw-srch-sort') || 'price';
     let srCmpSelected = new Set();  // Schlüssel (giata/Name) der für den KI-Vergleich ausgewählten Hotels
     let airportsLoaded = false, airlinesLoaded = false, destNode = null, destData = null, destStack = [];
@@ -2005,6 +2006,7 @@
           duration: exact ? 'exact' : dur, travellers: parseInt($('#srch-trav').value)||2,
           airport: $('#srch-airport').value });
       }
+      srchLastBody = body;
       $('#srch-body').innerHTML = progBar('Suche läuft…');
       let r, d;
       try { r = await fetch(api('/api/search'), {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)}); d = await r.json(); }
@@ -2018,6 +2020,30 @@
       srchResults = d.results||[]; srchTotal = d.total||srchResults.length; srchFilter = '';
       srchResults.forEach(r=>{ r._key = String(r.giata||r.name); });
       srCmpSelected = new Set();
+      sortSearchResults(); renderSearch();
+    }
+
+    // "Mehr laden": die Such-API liefert pro Aufruf nur resultsPerPage (50) Treffer,
+    // nicht alle auf einmal — derselbe Such-Body wird mit offset=bereits geladene
+    // Treffer erneut abgeschickt (resultsFrom serverseitig, siehe scraper.py).
+    let srchLoadingMore = false;
+    async function loadMoreSearch(){
+      if(srchLoadingMore || !srchLastBody || srchResults.length>=srchTotal) return;
+      srchLoadingMore = true;
+      renderSearch();
+      const body = Object.assign({}, srchLastBody, {offset: srchResults.length});
+      let r, d;
+      try { r = await fetch(api('/api/search'), {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)}); d = await r.json(); }
+      catch(e){ srchLoadingMore = false; toast('Nachladen fehlgeschlagen.'); renderSearch(); return; }
+      if(!r.ok){ srchLoadingMore = false; toast(d.note || 'Nachladen fehlgeschlagen.'); renderSearch(); return; }
+      const fresh = d.results || [];
+      fresh.forEach(x=>{ x._key = String(x.giata||x.name); });
+      // Gegen bereits geladene _key dedupen — TUIs Reihenfolge kann sich zwischen
+      // zwei Aufrufen bei Preis-Gleichstand minimal verschieben.
+      const known = new Set(srchResults.map(x=>x._key));
+      srchResults = srchResults.concat(fresh.filter(x=>!known.has(x._key)));
+      srchTotal = d.total || srchTotal;
+      srchLoadingMore = false;
       sortSearchResults(); renderSearch();
     }
 
@@ -2111,7 +2137,10 @@
           <button class="btn sec" onclick="clearCmp()">Auswahl leeren</button>
           <button class="btn" onclick="openAiCompare()">🤖 Vergleichen</button>
         </div>
-        <div id="srch-rows"></div>`;
+        <div id="srch-rows"></div>
+        ${(srchResults.length<srchTotal)?`<div class="srch-more">
+          <button class="btn sec" onclick="loadMoreSearch()" ${srchLoadingMore?'disabled':''}>${srchLoadingMore?'Lädt…':('Mehr laden ('+(srchTotal-srchResults.length)+' weitere)')}</button>
+        </div>`:''}`;
       $('#srch-body').innerHTML = head;
       renderSearchRows();
       updateCmpBar();

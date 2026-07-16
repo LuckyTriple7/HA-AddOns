@@ -715,8 +715,10 @@ def _search_params_from_url(url: str, *, region: int | None = None,
     }
 
 
-def _build_search_payload(p: dict) -> dict:
-    """POST-Body aus kanonischen Suchparametern."""
+def _build_search_payload(p: dict, *, offset: int = 0) -> dict:
+    """POST-Body aus kanonischen Suchparametern. `offset` = resultsFrom für
+    "mehr laden" (Pagination) — die Such-API liefert pro Aufruf nur
+    resultsPerPage Treffer, nicht alle auf einmal (live verifiziert)."""
     dur = p.get("duration")
     if dur == "exact":
         # Die Such-API kennt keinen "exact"-Wert (anders als die Angebots-URL) — sie
@@ -754,7 +756,7 @@ def _build_search_payload(p: dict) -> dict:
         # Wert (live verifiziert: Cap 300 bei 703 echten Treffern -> Antwort "300"
         # statt "703"). 1000 statt 300, damit die "von N Treffer"-Anzeige in der UI
         # bei großen Regionen nicht falsch zu niedrig ist.
-        "resultsTotal": 1000, "resultsFrom": 0, "resultsPerPage": 50,
+        "resultsTotal": 1000, "resultsFrom": offset, "resultsPerPage": 50,
     }
     if p.get("direct"):           # nur Direktflug → max. 0 Zwischenstopps
         params["stopOver"] = 0
@@ -797,21 +799,23 @@ def offer_url_for(item: dict, params: dict) -> str:
     return f"https://www.tui.com/pauschalreisen/suchen/angebote/{slug}/{giata}/offer/?{query}"
 
 
-def _run_search(params: dict, *, verbose: bool = False) -> dict | None:
+def _run_search(params: dict, *, offset: int = 0, verbose: bool = False) -> dict | None:
     """Führt die Hotelsuche für kanonische Parameter aus → normalisierte Treffer.
-    {ok,total,results[]}; None bei technischem Fehler; {ok:False,note} ohne Region."""
+    {ok,total,results[]}; None bei technischem Fehler; {ok:False,note} ohne Region.
+    `offset` (resultsFrom) für "mehr laden" — liefert die nächste Seite ab
+    diesem Treffer-Index, nicht die ersten resultsPerPage erneut."""
     if not params.get("regions"):
         return {"ok": False, "total": 0, "results": [], "note": "Keine Region gewählt"}
-    payload = _build_search_payload(params)
+    payload = _build_search_payload(params, offset=offset)
     try:
         if verbose:
             log.info(
                 "Such-API POST %s regionen=%s zeitraum=%s-%s dauer=%s trav=%s "
-                "boards=%s lage=%s airports=%s airlines=%s operators=%s direct=%s",
+                "boards=%s lage=%s airports=%s airlines=%s operators=%s direct=%s offset=%s",
                 SEARCH_API, params["regions"], params.get("startDate"),
                 params.get("endDate"), params.get("duration"), params.get("travellers"),
                 params.get("boards"), params.get("location"), params.get("airports"),
-                params.get("airlines"), params.get("operators"), params.get("direct"))
+                params.get("airlines"), params.get("operators"), params.get("direct"), offset)
         resp = requests.post(SEARCH_API, json=payload, headers=_SEARCH_HEADERS, timeout=30)
         if resp.status_code != 200:
             if verbose:
@@ -861,12 +865,12 @@ def fetch_search(url: str, *, operator_tui: bool = True, boards: list | None = N
                  region: int | None = None, airlines: list | None = None,
                  location: list | None = None,
                  direct: bool = False, adults_only: bool = False,
-                 verbose: bool = False) -> dict | None:
+                 offset: int = 0, verbose: bool = False) -> dict | None:
     """Hotelsuche aus einer TUI-Such-/Angebots-URL (`region` überschreibt die Region)."""
     params = _search_params_from_url(url, region=region, operator_tui=operator_tui,
                                      boards=boards, airlines=airlines, location=location,
                                      direct=direct, adults_only=adults_only)
-    return _run_search(params, verbose=verbose)
+    return _run_search(params, offset=offset, verbose=verbose)
 
 
 def fetch_search_params(*, region: int, start: str, end: str, duration, travellers,
@@ -874,7 +878,7 @@ def fetch_search_params(*, region: int, start: str, end: str, duration, travelle
                         boards: list | None = None, airlines: list | None = None,
                         location: list | None = None,
                         direct: bool = False, adults_only: bool = False,
-                        verbose: bool = False) -> dict | None:
+                        offset: int = 0, verbose: bool = False) -> dict | None:
     """Hotelsuche direkt aus Maskenfeldern (ohne URL) — für die eigene Suchmaske."""
     # „exact" ist ein nativer TUI-Wert (duration=exact): Reisedauer = genau der
     # gewählte Zeitraum. Als String unverändert durchreichen, sonst Nächte als int.
@@ -900,7 +904,7 @@ def fetch_search_params(*, region: int, start: str, end: str, duration, travelle
         "facility": [13] if adults_only else [],
         "regions": [int(region)] if region else [], "direct": bool(direct),
     }
-    return _run_search(params, verbose=verbose)
+    return _run_search(params, offset=offset, verbose=verbose)
 
 
 def _valid_img_url(u: str) -> bool:

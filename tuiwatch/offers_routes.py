@@ -430,6 +430,10 @@ def api_search():
     if (remaining := A._cooldown_remaining('search:' + A.get_client_ip(request), 3)):
         return jsonify({'error': 'cooldown', 'retry_after': remaining}), 429
     data = request.get_json(silent=True) or {}
+    try:
+        offset = max(0, int(data.get('offset') or 0))
+    except (TypeError, ValueError):
+        offset = 0
     operator_tui = bool(data.get('operator_tui', True))
     direct = bool(data.get('direct'))
     adults_only = bool(data.get('adults_only'))
@@ -462,7 +466,7 @@ def api_search():
         src = f"Angebot #{offer_id} ({o['label'] or o['hotel'] or ''})"
         res = A.fetch_search(url, operator_tui=operator_tui, boards=boards, region=region,
                            airlines=airlines, location=location, direct=direct,
-                           adults_only=adults_only, verbose=A._verbose())
+                           adults_only=adults_only, offset=offset, verbose=A._verbose())
     elif search_region:
         try:
             region = int(search_region)
@@ -502,7 +506,7 @@ def api_search():
                                   travellers=data.get('travellers'), airports=airports,
                                   operator_tui=operator_tui, boards=boards,
                                   airlines=airlines, location=location, direct=direct,
-                                  adults_only=adults_only, verbose=A._verbose())
+                                  adults_only=adults_only, offset=offset, verbose=A._verbose())
     else:
         url = (data.get('url') or '').strip()
         if not _valid_tui_url(url):
@@ -511,7 +515,7 @@ def api_search():
                  ','.join(boards) or '-')
         res = A.fetch_search(url, operator_tui=operator_tui, boards=boards,
                            airlines=airlines, location=location, direct=direct,
-                           adults_only=adults_only, verbose=A._verbose())
+                           adults_only=adults_only, offset=offset, verbose=A._verbose())
     if res is None:
         return jsonify({'error': 'search_failed'}), 502
     if not res.get('ok'):

@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.56.0] - 2026-07-16
+
+### Added
+- **"Mehr laden" in der Hotelsuche** — die Such-API liefert pro Aufruf nur
+  50 Treffer (`resultsPerPage`), auch bei viel mehr echten Treffern in der
+  Region (z. B. 210). Neuer Button unter der Trefferliste lädt die nächste
+  Seite nach (`resultsFrom`/`offset`) und hängt sie an, statt dass die
+  restlichen Treffer schlicht nie abgerufen werden.
+
 ## [0.55.8] - 2026-07-16
 
 ### Fixed

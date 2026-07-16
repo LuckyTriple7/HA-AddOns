@@ -260,6 +260,16 @@ def test_build_search_payload_sorts_by_price_ascending():
     assert payload["parameters"]["sortingOrder"] == "priceAsc"
 
 
+def test_build_search_payload_offset_sets_results_from():
+    # "Mehr laden" (Pagination) -- die Such-API liefert pro Aufruf nur
+    # resultsPerPage Treffer, offset=bereits geladene Treffer holt die naechste
+    # Seite statt dieselben 50 erneut.
+    payload = scraper._build_search_payload({"regions": [128], "duration": 7})
+    assert payload["parameters"]["resultsFrom"] == 0
+    payload2 = scraper._build_search_payload({"regions": [128], "duration": 7}, offset=50)
+    assert payload2["parameters"]["resultsFrom"] == 50
+
+
 def test_build_search_payload_results_total_cap_is_high_enough():
     # resultsTotal ist ein Anfrage-Cap, keine reine Info-Zahl -- die Such-API
     # deckelt ihre eigene Antwort-"resultsTotal" (echte Trefferzahl) darauf
