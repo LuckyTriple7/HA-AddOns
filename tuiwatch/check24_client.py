@@ -176,22 +176,22 @@ def fetch_offers(hotel_id: str, departure_date: str, return_date: str,
         with requests.Session() as sess:
             # Job/Poll-Protokoll: derselbe POST erzeugt beim ersten Aufruf den
             # Suchjob (status "Pending") und liefert bei Wiederholung dessen
-            # Fortschritt, bis "Success" (Angebote fertig, live meist ~8-15s,
-            # aber im Produktivbetrieb auch schon 40s+ beobachtet — vermutlich
-            # mehr zu berechnende Operator/Board-Kombinationen ohne
-            # cateringList-Filter, siehe _catering_list_for_board()) oder
-            # "Error" (z. B. Hotel/Termine ungültig). 40 statt vorher 20
-            # Versuche (~60s statt 30s Budget), da 30s in der Praxis zu knapp
-            # war (Bugreport: zweimal Timeout trotz gültigem Hotel). Kein
-            # separater Poll-Endpoint nötig — live per Netzwerk-Mitschnitt
-            # verifiziert, siehe SCRAPING_CHECK24.md.
+            # Fortschritt, bis "Success" (Angebote fertig, live meist ~8-15s) oder
+            # ein Terminal-Status ohne Treffer -- live beobachtet: "Error" (z. B.
+            # ungültige hotelId) UND "Empty" (gültiges Hotel, aber 0 Angebote für
+            # exakt diese Termine — antwortet sofort, <1s). "Empty" fehlte bis
+            # v0.57.1 in dieser Liste: der Loop pollte dann bis zum Timeout weiter,
+            # obwohl Check24 "kein Angebot" längst beim ersten Call mitgeteilt
+            # hatte (Bugreport: 40 Versuche liefen sinnlos komplett durch, obwohl
+            # gar kein Angebot existierte). Kein separater Poll-Endpoint nötig —
+            # live per Netzwerk-Mitschnitt verifiziert, siehe SCRAPING_CHECK24.md.
             for _ in range(40):
                 resp = sess.post(_OFFER_API_URL, data=form, headers=headers, timeout=20)
                 if resp.status_code != 200:
                     log.warning("Check24-Abruf HTTP %s (hotelId=%s)", resp.status_code, hotel_id)
                     return None
                 data = resp.json()
-                if data.get('status') in ('Success', 'Error'):
+                if data.get('status') in ('Success', 'Error', 'Empty'):
                     break
                 time.sleep(1.5)
             else:
@@ -201,11 +201,12 @@ def fetch_offers(hotel_id: str, departure_date: str, return_date: str,
         log.warning("Check24-Abruf fehlgeschlagen (hotelId=%s): %s", hotel_id, e)
         return None
 
-    if data.get('status') == 'Error':
-        # Kein technischer Fehler i. d. R. — ungültiges Hotel/Terminkombi ohne
-        # Angebot (Datenverfügbarkeit, kein Protokollfehler).
+    if data.get('status') in ('Error', 'Empty'):
+        # Kein technischer Fehler i. d. R. — Hotel/Termine ohne Angebot
+        # (Datenverfügbarkeit, kein Protokollfehler).
         if verbose:
-            log.info("Check24: Hotel %s an gewünschten Terminen nicht verfügbar", hotel_id)
+            log.info("Check24: Hotel %s an gewünschten Terminen nicht verfügbar (status=%s)",
+                     hotel_id, data.get('status'))
         return {'ok': True, 'rows': [], 'note': 'not_available_exact_dates', 'offer_url': search_url}
 
     # Für den Board-Filter unten wird der rohe Check24-mealType parallel zur Zeile

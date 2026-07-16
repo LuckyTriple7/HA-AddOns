@@ -62,8 +62,16 @@ Poll-Call nötig): derselbe POST liefert beim ersten Aufruf `{"status":
 "Pending", "items": {...teilweise gefüllt...}}`, bei Wiederholung (alle ~1.5s)
 wachsende `items` bis `{"status": "Success", "items": {...alle 25(!) Angebote
 mit vollem Preis/Board/Room...}}`. Live beobachtet: 4-7 Polls, ~8-15s
-Gesamtdauer. Ungültige `hotelId`/Terminkombi ohne Angebot → `{"status":
-"Error"}` (kein technischer Fehler, sondern Datenverfügbarkeit).
+Gesamtdauer. **Drei** Terminal-Status ohne weiteres Polling, nicht nur zwei:
+- `"Error"` — z. B. ungültige `hotelId`.
+- `"Empty"` — **gültiges** Hotel, aber 0 Angebote für exakt diese Termine,
+  antwortet sofort (<1s), live verifiziert (Gloria Palace Amadores, 11829,
+  03.–14.05.2027, echt ausgebuchtes Beispiel). Bis v0.57.1 fehlte dieser
+  Status in der Terminal-Liste (nur `Success`/`Error` erkannt) — der Poll-Loop
+  lief dann bis zum Timeout (~60s) durch, obwohl Check24 "kein Angebot" schon
+  beim allerersten Call mitgeteilt hatte (Bugreport: "dauert bis zu 60s und
+  dann kommt nicht mal ein Fehler").
+Beide (`Error`/`Empty`) sind kein technischer Fehler, sondern Datenverfügbarkeit.
 
 Ein `items`-Eintrag (gekürzt, echtes Beispiel hotelId=240, AI, Dez. 2026):
 

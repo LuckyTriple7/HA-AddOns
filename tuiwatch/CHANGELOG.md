@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.57.2] - 2026-07-16
+
+### Fixed
+- **Echte Root-Cause des Check24-Timeouts gefunden** — v0.57.1 (60s-Budget) war
+  eine Fehldiagnose. Tatsächlich antwortet Check24 bei einem gültigen Hotel
+  ohne Angebot für die exakten Termine sofort (<1s) mit `status: "Empty"` —
+  ein dritter Terminal-Status neben `Success`/`Error`, den der Poll-Loop nicht
+  kannte und deshalb bis zum Timeout weiterlief, obwohl "kein Angebot" längst
+  feststand. Live verifiziert (Gloria Palace Amadores, 03.–14.05.2027, ein
+  Termin ohne Check24-Angebot): jetzt 1,1s statt 73s.
+
 ## [0.57.1] - 2026-07-16
 
 ### Fixed

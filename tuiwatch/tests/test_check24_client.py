@@ -199,6 +199,25 @@ def test_fetch_offers_error_status_is_not_available_not_error(monkeypatch):
     assert 'hotelId=999999' in res['offer_url']
 
 
+def test_fetch_offers_empty_status_resolves_immediately_as_not_available(monkeypatch):
+    # Bugreport: gueltiges Hotel, aber 0 Angebote fuer exakt diese Termine --
+    # Check24 antwortet sofort mit status="Empty" (weder "Success" noch "Error"),
+    # live per Netzwerk-Mitschnitt gegen einen echten Fall verifiziert (Gloria
+    # Palace Amadores, 11829, 03.-14.05.2027). Fehlte die Terminal-Status-Liste
+    # "Empty", pollte der Loop bis zum Timeout (~60s) statt sofort zu erkennen,
+    # dass es schlicht kein Angebot gibt.
+    responses = [{"status": "Empty"}]
+    _mock_offer_post(monkeypatch, responses)
+    t_start = []
+    monkeypatch.setattr("time.sleep", lambda *a, **k: t_start.append(1))
+    res = c24.fetch_offers('11829', '2027-05-03', '2027-05-14', 'STR')
+    assert res['ok'] is True
+    assert res['rows'] == []
+    assert res['note'] == 'not_available_exact_dates'
+    assert 'hotelId=11829' in res['offer_url']
+    assert not t_start  # sofort erkannt, kein einziger Poll-Sleep noetig
+
+
 def test_fetch_offers_technical_error_returns_none(monkeypatch):
     def raising_post(self, *a, **k):
         raise requests.exceptions.ConnectionError("boom")
