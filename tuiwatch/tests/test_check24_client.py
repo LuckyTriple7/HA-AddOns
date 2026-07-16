@@ -32,6 +32,32 @@ def test_build_offer_url_contains_params():
     assert 'areaId=' not in url
     assert 'departureDate=2027-04-28' in url and 'returnDate=2027-05-09' in url
     assert 'airport=STR' in url
+    assert 'cateringList=' not in url  # ohne board_hint kein Verpflegungsfilter
+
+
+def test_build_offer_url_with_catering_list():
+    url = c24._build_offer_url('11829', '2027-04-28', '2027-05-09', 'STR', 'A',
+                               'allinclusive,allinclusivePlus')
+    assert 'cateringList=allinclusive%2CallinclusivePlus' in url
+
+
+def test_catering_list_for_board_maps_tui_texts():
+    # Live per Playwright an Check24s eigenem Verpflegungs-Filter-Tab ermittelt
+    # (li.js-catering-tab, data-min-value) -- siehe SCRAPING_CHECK24.md.
+    assert c24._catering_list_for_board('All Inclusive') == 'allinclusive,allinclusivePlus'
+    assert c24._catering_list_for_board('Alles Inklusive') == 'allinclusive,allinclusivePlus'
+    assert c24._catering_list_for_board('Vollpension') == (
+        'fullboard,fullboardPlus,allinclusive,allinclusivePlus')
+    assert c24._catering_list_for_board('Halbpension') == (
+        'halfboard,halfboardPlus,fullboard,fullboardPlus,allinclusive,allinclusivePlus')
+    assert c24._catering_list_for_board('Frühstück') == (
+        'breakfast,halfboard,halfboardPlus,fullboard,fullboardPlus,allinclusive,allinclusivePlus')
+    assert c24._catering_list_for_board('Ohne Verpflegung') == 'none'
+
+
+def test_catering_list_for_board_unknown_returns_empty():
+    assert c24._catering_list_for_board('') == ''
+    assert c24._catering_list_for_board('irgendwas Unbekanntes') == ''
 
 
 _CARD_TEXT = (

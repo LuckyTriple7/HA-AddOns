@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.55.4] - 2026-07-16
+
+### Fixed
+- **Check24-Vergleich ignorierte die Verpflegung** — bei TUI-Angebot "All
+  Inclusive" wurden ungefiltert auch deutlich günstigere Halbpension-Angebote
+  gezeigt (Preisvergleich dadurch irreführend). Check24 hat auf der
+  Angebotsseite selbst einen Verpflegungs-Filter (Tabs "Mind. Frühstück" /
+  "Mind. Halbpension" / "Mind. Vollpension" / "All Inclusive"), der über den
+  Query-Param `cateringList=<stufe-oder-besser>` steuerbar ist — live per
+  Playwright ermittelt (Klick auf den Tab beobachtet, siehe
+  SCRAPING_CHECK24.md). `check24_client.fetch_offers()` setzt diesen Param
+  jetzt passend zur TUI-Verpflegung direkt beim Laden, der bisherige weiche
+  Textfilter fällt bei fehlendem Treffer nicht mehr auf "ungefiltert zeigen"
+  zurück (das war die Ursache der falschen Daten).
+
 ## [0.55.3] - 2026-07-16
 
 ### Fixed

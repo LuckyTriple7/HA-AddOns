@@ -686,6 +686,7 @@
       not_available_exact_dates: 'Für diese genauen Reisedaten aktuell kein Check24-Angebot (Hotel evtl. ausgebucht).',
       no_offer_link_found: 'Kein Angebotslink auf Check24 gefunden (Layout geändert oder Hotel nicht gelistet).',
       no_offers_parsed: 'Angebote gefunden, aber keine auslesbaren Preise (Layout geändert).',
+      no_offers_for_board: 'Kein Check24-Angebot mit passender Verpflegung an diesen Terminen.',
       Check24_nicht_erreichbar: 'Check24 nicht erreichbar.',
     };
     function c24Spinner(){ $('#c24-body').innerHTML = progBar('Check24 wird abgefragt… kann bis zu einer Minute dauern.'); }

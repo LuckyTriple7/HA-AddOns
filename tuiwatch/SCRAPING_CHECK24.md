@@ -133,6 +133,30 @@ anzeigen"). Ein Verpflegungs-Filter existiert ebenfalls direkt auf dieser Ebene
 („Ohne Verpflegung" / „Mind. Frühstück" / „Mind. Halbpension" / „Mind.
 Vollpension" / „mind. All Inclusive").
 
+**Verpflegungs-Filter ist ein Query-Param, nicht nur Client-Anzeige.** Per
+Playwright-Klick auf den Tab beobachtet (`li.js-catering-tab`, hotelId=240,
+06.–13.12.2026): jeder Tab trägt `data-value` (eigene Stufe) und `data-min-value`
+(„diese Stufe oder besser", kommagetrennt), ein Klick hängt
+`cateringList=<data-min-value>` an die URL und lädt neu:
+
+| Tab-Text            | `data-value`   | `data-min-value` (`cateringList`)                                          |
+|----------------------|----------------|------------------------------------------------------------------------------|
+| Alle Angebote        | `all`          | `all`                                                                         |
+| Ohne Verpflegung     | `none`         | `none`                                                                        |
+| Mind. Frühstück      | `breakfast`    | `breakfast,halfboard,halfboardPlus,fullboard,fullboardPlus,allinclusive,allinclusivePlus` |
+| Mind. Halbpension    | `halfboard`    | `halfboard,halfboardPlus,fullboard,fullboardPlus,allinclusive,allinclusivePlus` |
+| Mind. Vollpension    | `fullboard`    | `fullboard,fullboardPlus,allinclusive,allinclusivePlus`                      |
+| All Inclusive        | `allinclusive` | `allinclusive,allinclusivePlus`                                              |
+
+Wichtig: **jede Stufe ist "diese oder besser"**, kein exaktes Match — Check24
+bietet keinen "genau diese Stufe"-Filter an. `check24_client._build_offer_url()`
+setzt `cateringList` direkt beim ersten Laden mit (kein zweiter Klick/Reload
+nötig), gemappt vom TUI-Verpflegungstext über `_catering_list_for_board()`.
+Grund für diesen Fix: ohne serverseitigen Filter zeigte die Seite ungefiltert
+auch deutlich günstigere Angebote mit niedrigerer Verpflegungsstufe (Bugreport:
+TUI-Angebot All Inclusive, Check24 zeigte auch Halbpension-Angebote als
+vermeintlich günstigere Alternative).
+
 **Gelöst:** der Operator-Name steht als Klartext im `alt`-Attribut eines
 `img.operator-img` innerhalb jeder Angebotskarte (z. B. `alt="ITS Dynamisch"`,
 `"DERTOUR Dynamisch"`, `"alltours dynamisch"`, `"LMX Touristik"`) — direkt

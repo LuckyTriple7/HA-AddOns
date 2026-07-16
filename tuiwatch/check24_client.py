@@ -59,8 +59,38 @@ def parse_hotel_link(url: str) -> dict | None:
     return {'hotel_id': hotel_id}
 
 
+# Check24s Verpflegungs-Filter ("Mind. Frühstück"/"Mind. Halbpension"/...) ist ein
+# reiner Client-Tab (li.js-catering-tab), der beim Klick den Query-Param
+# `cateringList=<data-min-value>` setzt und die Seite neu lädt — live per
+# Playwright ermittelt (Klick auf den Tab beobachtet, siehe SCRAPING_CHECK24.md).
+# `data-min-value` ist bereits eine "diese Stufe oder besser"-Liste, genau das
+# richtige Verhalten, um zu verhindern, dass z. B. ein Halbpension-Angebot als
+# "billigere Alternative" zu einem All-Inclusive-TUI-Angebot durchrutscht (Bugreport:
+# TUI-Angebot AI, Check24 zeigte ungefiltert auch deutlich günstigere HP-Angebote).
+_CATERING_LIST = {
+    'none': 'none',
+    'breakfast': 'breakfast,halfboard,halfboardPlus,fullboard,fullboardPlus,allinclusive,allinclusivePlus',
+    'halfboard': 'halfboard,halfboardPlus,fullboard,fullboardPlus,allinclusive,allinclusivePlus',
+    'fullboard': 'fullboard,fullboardPlus,allinclusive,allinclusivePlus',
+    'allinclusive': 'allinclusive,allinclusivePlus',
+}
+# TUI-Verpflegungstexte (scraper.BOARD_TYPES) auf die Check24-Tab-Keys oben gemappt.
+_BOARD_TO_CATERING_KEY = {
+    'alles inklusive': 'allinclusive', 'all inclusive': 'allinclusive',
+    'vollpension': 'fullboard', 'halbpension': 'halfboard',
+    'frühstück': 'breakfast', 'übernachtung': 'none', 'ohne verpflegung': 'none',
+}
+
+
+def _catering_list_for_board(board_hint: str) -> str:
+    """cateringList-Query-Wert für einen TUI-Verpflegungstext, oder '' wenn
+    unbekannt/leer (dann wird ungefiltert nach Verpflegung gesucht)."""
+    key = _BOARD_TO_CATERING_KEY.get((board_hint or '').strip().lower(), '')
+    return _CATERING_LIST.get(key, '')
+
+
 def _build_offer_url(hotel_id: str, departure_date: str, return_date: str,
-                     airport: str, room_allocation: str) -> str:
+                     airport: str, room_allocation: str, catering_list: str = '') -> str:
     params = {
         'airport': airport or '', 'transportType': 'flight',
         'roomAllocation': room_allocation or 'A',
@@ -69,6 +99,8 @@ def _build_offer_url(hotel_id: str, departure_date: str, return_date: str,
         'offerSort': 'offerRanking', 'areaSort': 'topregion', 'extendedSearch': '1',
         'noRedirect': '1', 'hotelId': hotel_id,
     }
+    if catering_list:
+        params['cateringList'] = catering_list
     return 'https://urlaub.check24.de/suche/hotel?' + urlencode(params)
 
 
@@ -201,7 +233,9 @@ def fetch_offers(hotel_id: str, departure_date: str, return_date: str,
     from playwright.sync_api import sync_playwright
     import os
 
-    url = _build_offer_url(hotel_id, departure_date, return_date, airport, room_allocation)
+    catering_list = _catering_list_for_board(board_hint)
+    url = _build_offer_url(hotel_id, departure_date, return_date, airport, room_allocation,
+                           catering_list)
     chromium_path = os.environ.get("CHROMIUM_PATH") or None
     try:
         with sync_playwright() as p:
@@ -251,15 +285,22 @@ def fetch_offers(hotel_id: str, departure_date: str, return_date: str,
     for i, row in enumerate(rows):
         row['operator'] = operators[i] if i < len(operators) else ''
 
+    rows_before_board = rows
     if board_hint:
+        # Bewusst KEIN Fallback auf ungefiltert bei 0 Treffern (anders als bei
+        # room_hint unten): genau das führte zum Bugreport "Check24 zeigt
+        # deutlich günstigere Angebote, Verpflegung stimmt nicht" — cateringList
+        # in der URL filtert bereits serverseitig auf "board_hint oder besser",
+        # dieser Textfilter ist nur noch Validierung/Aufräumen (Plus-Varianten
+        # o.ä.), kein Ersatz dafür.
         bh = board_hint.strip().lower()
-        filtered = [r for r in rows if bh in (r['board'] or '').lower()]
-        rows = filtered or rows  # kein Treffer beim Filtern → lieber ungefiltert zeigen als leer
+        rows = [r for r in rows if bh in (r['board'] or '').lower()]
     if room_hint:
         rh = room_hint.strip().lower()
         filtered = [r for r in rows if rh in (r['room'] or '').lower()]
         rows = filtered or rows
     rows.sort(key=lambda r: r['price'])
     if not rows:
-        return {'ok': True, 'rows': [], 'note': 'no_offers_parsed', 'offer_url': url}
+        note = 'no_offers_for_board' if (board_hint and rows_before_board) else 'no_offers_parsed'
+        return {'ok': True, 'rows': [], 'note': note, 'offer_url': url}
     return {'ok': True, 'rows': rows, 'note': '', 'offer_url': url}
