@@ -1,3 +1,10 @@
+## [1.8.33] - 2026-07-16
+
+### Aktualisiert
+
+- VS Code: 1.128.1 → 1.129.0
+- Claude Desktop: 3.2.1+claude1.20186.1 → 3.2.1+claude1.21459.0
+
 ## [1.8.32] - 2026-07-15
 
 ### Aktualisiert
