@@ -166,6 +166,30 @@ def test_fetch_offers_board_hint_filters_strictly_no_fallback(monkeypatch):
     assert res['note'] == 'no_offers_for_board'
 
 
+def test_fetch_offers_board_hint_matches_across_de_en_wording(monkeypatch):
+    # Bugreport: TUI liefert "Alles Inklusive" (deutsch) als board, Check24s
+    # mealType "AllInclusive" wird intern zu "All Inclusive" (englisch)
+    # uebersetzt -- ein Substring-Textvergleich der beiden matcht nie, obwohl
+    # cateringList serverseitig laengst richtig gefiltert hatte. Der Filter
+    # muss stattdessen ueber die Check24-Tier-Codes vergleichen.
+    items = {"1": _fake_offer_item(meal_type="AllInclusive", price=1231.0)}
+    _mock_offer_post(monkeypatch, [{"status": "Success", "items": items}])
+    res = c24.fetch_offers('240', '2026-12-06', '2026-12-13', 'STR', board_hint='Alles Inklusive')
+    assert res['note'] == ''
+    assert len(res['rows']) == 1
+    assert res['rows'][0]['board'] == 'All Inclusive'
+
+
+def test_fetch_offers_board_hint_includes_higher_tier(monkeypatch):
+    # cateringList ist "diese Stufe oder besser" (Check24-eigene Semantik) --
+    # bei board_hint="Vollpension" muss ein All-Inclusive-Angebot mit
+    # durchrutschen, nicht nur exakte Vollpension-Treffer.
+    items = {"1": _fake_offer_item(meal_type="AllInclusive", price=1231.0)}
+    _mock_offer_post(monkeypatch, [{"status": "Success", "items": items}])
+    res = c24.fetch_offers('240', '2026-12-06', '2026-12-13', 'STR', board_hint='Vollpension')
+    assert len(res['rows']) == 1
+
+
 def test_fetch_offers_error_status_is_not_available_not_error(monkeypatch):
     _mock_offer_post(monkeypatch, [{"status": "Error"}])
     res = c24.fetch_offers('999999', '2026-12-06', '2026-12-13', 'STR')

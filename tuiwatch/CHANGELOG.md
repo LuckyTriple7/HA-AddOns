@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.55.6] - 2026-07-16
+
+### Fixed
+- **Check24-Vergleich meldete "nicht verfügbar" trotz echter Angebote** — der
+  serverseitige `cateringList`-Filter (v0.55.4) funktionierte korrekt, aber der
+  zusätzliche Client-Filter verglich Textstrings: TUI liefert Verpflegung auf
+  Deutsch ("Alles Inklusive"), Check24s `mealType` wurde intern zu "All
+  Inclusive" (Englisch) übersetzt — der Substring-Vergleich der beiden matchte
+  nie, das Angebot fiel fälschlich unter `no_offers_for_board`. Filter
+  vergleicht jetzt stattdessen über dieselben Check24-Tier-Codes wie die
+  `cateringList`-Anfrage (sprachunabhängig, funktioniert für alle
+  Verpflegungsstufen einheitlich).
+- Check24-Cooldown von 120s auf 30s reduziert — war ein Playwright-Ära-Wert
+  (Browser-Start + Anti-Bot-Vorsicht), seit v0.55.5 (reines `requests`,
+  ~8-15s Laufzeit) nicht mehr nötig.
+
 ## [0.55.5] - 2026-07-16
 
 ### Changed

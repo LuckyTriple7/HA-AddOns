@@ -203,7 +203,13 @@ def fetch_offers(hotel_id: str, departure_date: str, return_date: str,
             log.info("Check24: Hotel %s an gewünschten Terminen nicht verfügbar", hotel_id)
         return {'ok': True, 'rows': [], 'note': 'not_available_exact_dates', 'offer_url': search_url}
 
-    rows = []
+    # Für den Board-Filter unten wird der rohe Check24-mealType parallel zur Zeile
+    # mitgeführt (nicht im Rückgabe-dict) -- ein Textvergleich auf dem übersetzten
+    # 'board'-Anzeigetext war ein Bugreport: TUI liefert "Alles Inklusive"
+    # (deutsch), unser _MEAL_TYPE_TO_BOARD übersetzt AllInclusive aber zu "All
+    # Inclusive" (englisch) -- "alles inklusive" in "all inclusive" matcht nie,
+    # obwohl cateringList serverseitig längst korrekt gefiltert hatte.
+    built = []
     for item in (data.get('items') or {}).values():
         price = (((item.get('price') or {}).get('effectivePrice') or {}).get('amount'))
         if price is None:
@@ -213,23 +219,32 @@ def fetch_offers(hotel_id: str, departure_date: str, return_date: str,
         room = room_desc.get('description') or room_desc.get('name') or ''
         meal_type = acc.get('mealType') or ''
         board = _MEAL_TYPE_TO_BOARD.get(meal_type, meal_type)
-        rows.append({
+        row = {
             'operator': item.get('tourOperatorAlias') or item.get('tourOperatorCode') or '',
             'room': room, 'board': board, 'price': float(price),
             'transfer': bool(acc.get('transfer')),
             'ok': True,
-        })
+        }
+        built.append((row, meal_type))
 
+    rows = [r for r, _ in built]
     rows_before_board = rows
     if board_hint:
         # Bewusst KEIN Fallback auf ungefiltert bei 0 Treffern (anders als bei
-        # room_hint unten): genau das führte zum Bugreport "Check24 zeigt
-        # deutlich günstigere Angebote, Verpflegung stimmt nicht" — cateringList
-        # in der Anfrage filtert bereits serverseitig auf "board_hint oder
-        # besser", dieser Textfilter ist nur noch Validierung/Aufräumen
-        # (Plus-Varianten o. ä.), kein Ersatz dafür.
-        bh = board_hint.strip().lower()
-        rows = [r for r in rows if bh in (r['board'] or '').lower()]
+        # room_hint unten): genau das führte zum ersten Bugreport ("Check24
+        # zeigt deutlich günstigere Angebote, Verpflegung stimmt nicht").
+        allowed_tiers = {t.lower() for t in catering_list.split(',')} if catering_list else set()
+        if allowed_tiers:
+            # Gegen dieselben Tier-Codes vergleichen, die schon in der
+            # cateringList-Anfrage steckten (case-insensitive) -- robust
+            # gegen DE/EN-Wortlaut-Unterschiede zwischen TUI- und
+            # Check24-Anzeigetexten.
+            rows = [r for r, mt in built if mt.lower() in allowed_tiers]
+        else:
+            # board_hint ohne bekannte Tier-Zuordnung (siehe
+            # _BOARD_TO_CATERING_KEY) -- schwächerer Textfilter als Notlösung.
+            bh = board_hint.strip().lower()
+            rows = [r for r in rows if bh in (r['board'] or '').lower()]
     if room_hint:
         rh = room_hint.strip().lower()
         filtered = [r for r in rows if rh in (r['room'] or '').lower()]

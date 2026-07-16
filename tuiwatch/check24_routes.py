@@ -41,7 +41,7 @@ def api_check24_start(offer_id: int):
         return jsonify({'error': 'not_found'}), 404
     if not o['check24_hotel_id']:
         return jsonify({'error': 'not_linked'}), 409
-    if (remaining := A._cooldown_remaining(f'check24:{offer_id}', 120)):
+    if (remaining := A._cooldown_remaining(f'check24:{offer_id}', 30)):
         return jsonify({'error': 'cooldown', 'retry_after': remaining}), 429
     with A._check24_lock:
         if A._check24_state.get(offer_id, {}).get('status') == 'running':
