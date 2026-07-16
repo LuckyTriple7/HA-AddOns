@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.56.1] - 2026-07-16
+
+### Added
+- **"Egal"-Checkbox für Sterne/Weiterempfehlung in der Hotelsuche** — sperrt
+  beide Felder und lässt den Filter komplett weg, statt sie manuell auf 0
+  setzen zu müssen. Zustand wird in gespeicherten Suchen mitgesichert.
+
 ## [0.56.0] - 2026-07-16
 
 ### Added
