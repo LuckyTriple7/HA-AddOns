@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.57.4] - 2026-07-17
+
+### Added
+- Hotelsuche: Feld „Max. Preis p.P." neben Fluggesellschaften — filtert
+  Treffer über dem Preis (p.P.) raus. Wird wie Sterne/Weiterempfehlung
+  clientseitig nachgefiltert, in gespeicherten Suchen mitgespeichert.
+
 ## [0.57.3] - 2026-07-17
 
 ### Fixed

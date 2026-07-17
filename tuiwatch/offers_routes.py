@@ -454,7 +454,7 @@ def api_search():
     """Hotelsuche — entweder über eine eingefügte TUI-Such-/Region-URL oder über ein
     bestehendes Angebot (`offer_id`): dann werden Region (URL bzw. Breadcrumb) und die
     Reiseparameter aus dem Angebot übernommen. Add-on-Filter (Veranstalter TUI,
-    Verpflegung) gehen in die Such-Query, danach Nachfilter nach Sternen/Weiterempfehlung."""
+    Verpflegung) gehen in die Such-Query, danach Nachfilter nach Sternen/Weiterempfehlung/Preis."""
     if (err := A._require_api()):
         return err
     if (remaining := A._cooldown_remaining('search:' + A.get_client_ip(request), 3)):
@@ -477,6 +477,7 @@ def api_search():
         except (TypeError, ValueError):
             return 0
     min_stars, min_recommend = _num('min_stars'), _num('min_recommend')
+    max_price = _num('max_price')
 
     region = None
     offer_id = data.get('offer_id')
@@ -560,6 +561,8 @@ def api_search():
         if min_stars and (r.get('stars') or 0) < min_stars:
             continue
         if min_recommend and (r.get('recommendation') or 0) < min_recommend:
+            continue
+        if max_price and (r.get('price') is None or r.get('price') > max_price):
             continue
         r['tracked'] = str(r.get('giata')) in tracked
         out.append(r)

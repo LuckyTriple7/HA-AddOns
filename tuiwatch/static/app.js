@@ -923,6 +923,7 @@
       $('#srch-direct').checked = (urlParam(o.url,'maxStopOvers')==='0');
       $('#srch-adults').checked = (urlParam(o.url,'facilityAttributes')||'').split(/[;,]/).includes('13');
       $('#srch-stars').value='3'; $('#srch-rec').value='80';
+      $('#srch-maxprice').value='';
       $('#srch-qual-off').checked=false; toggleQualFilter();
       const al = (urlParam(o.url,'airlines')||'').split(/[;,]/).map(s=>s.trim()).filter(Boolean);
       ensureAirlines().then(()=>setAirlines(al));
@@ -951,6 +952,7 @@
       document.querySelectorAll('.srch-board').forEach(c=>{ c.checked=false; });
       document.querySelectorAll('.srch-loc').forEach(c=>{ c.checked=false; });
       $('#srch-stars').value=3; $('#srch-rec').value=80; $('#srch-url').value='';
+      $('#srch-maxprice').value='';
       $('#srch-qual-off').checked=false; toggleQualFilter();
       setAirlines([]);
       $('#srch-favsel').value=''; favBtnState();
@@ -1937,6 +1939,7 @@
         location: [...document.querySelectorAll('.srch-loc:checked')].map(c=>+c.value),
         airlines: selectedAirlines(),
         stars: $('#srch-stars').value, rec: $('#srch-rec').value,
+        max_price: $('#srch-maxprice').value,
         qual_off: $('#srch-qual-off').checked };
     }
     async function saveFav(){
@@ -1984,6 +1987,7 @@
       document.querySelectorAll('.srch-loc').forEach(c=>{ c.checked=(f.location||[]).includes(+c.value); });
       ensureAirlines().then(()=>setAirlines(f.airlines||[]));
       $('#srch-stars').value=f.stars||''; $('#srch-rec').value=f.rec||'';
+      $('#srch-maxprice').value=f.max_price||'';
       $('#srch-qual-off').checked=!!f.qual_off; toggleQualFilter();
     }
     async function delFav(){
@@ -2001,7 +2005,8 @@
         adults_only: $('#srch-adults').checked, boards,
         location, airlines: selectedAirlines(),
         min_stars: $('#srch-qual-off').checked ? 0 : (parseFloat($('#srch-stars').value)||0),
-        min_recommend: $('#srch-qual-off').checked ? 0 : (parseFloat($('#srch-rec').value)||0) };
+        min_recommend: $('#srch-qual-off').checked ? 0 : (parseFloat($('#srch-rec').value)||0),
+        max_price: parseFloat($('#srch-maxprice').value)||0 };
       if(srchOfferId!=null){ body.offer_id = srchOfferId; }
       else if(url){ body.url = url; }
       else {
