@@ -43,8 +43,9 @@ from scraper import (_giata_from_url, _valid_img_url, api_healthcheck,
                      fetch_hotel_image,
                      fetch_price, fetch_rooms, fetch_search, fetch_search_params,
                      hotel_from_url, is_single_room, region_giata_from_breadcrumb,
-                     room_code_from_url, travellers_from_url, with_duration,
-                     with_room_code, with_travellers, without_room_code)
+                     room_code_from_url, transfer_included_from_url, travellers_from_url,
+                     with_duration, with_room_code, with_transfer_included, with_travellers,
+                     without_room_code)
 import check24_client
 from aktionscodes import fetch_aktionscodes
 from nextcloud import fetch_contacts
@@ -83,7 +84,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.57.2"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.57.5"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')

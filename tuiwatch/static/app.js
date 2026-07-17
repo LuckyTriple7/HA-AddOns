@@ -922,6 +922,7 @@
       document.querySelectorAll('.srch-loc').forEach(c=>{ c.checked = la.includes(c.value); });
       $('#srch-direct').checked = (urlParam(o.url,'maxStopOvers')==='0');
       $('#srch-adults').checked = (urlParam(o.url,'facilityAttributes')||'').split(/[;,]/).includes('13');
+      $('#srch-transfer').checked = (urlParam(o.url,'transferIncluded')!=='false');
       $('#srch-stars').value='3'; $('#srch-rec').value='80';
       $('#srch-maxprice').value='';
       $('#srch-qual-off').checked=false; toggleQualFilter();
@@ -949,6 +950,7 @@
       $('#srch-vom').value=isoPlus(21); $('#srch-bis').value=isoPlus(51); syncBisMin();
       $('#srch-dur').value=7; $('#srch-trav').value=2; $('#srch-exact').checked=false; applyExact();
       $('#srch-tui').checked=true; $('#srch-direct').checked=false; $('#srch-adults').checked=false;
+      $('#srch-transfer').checked=true;
       document.querySelectorAll('.srch-board').forEach(c=>{ c.checked=false; });
       document.querySelectorAll('.srch-loc').forEach(c=>{ c.checked=false; });
       $('#srch-stars').value=3; $('#srch-rec').value=80; $('#srch-url').value='';
@@ -1935,6 +1937,7 @@
         dur: $('#srch-dur').value, exact: $('#srch-exact').checked, trav: $('#srch-trav').value,
         tui: $('#srch-tui').checked, direct: $('#srch-direct').checked,
         adults_only: $('#srch-adults').checked,
+        transfer_included: $('#srch-transfer').checked,
         boards: [...document.querySelectorAll('.srch-board:checked')].map(c=>c.value),
         location: [...document.querySelectorAll('.srch-loc:checked')].map(c=>+c.value),
         airlines: selectedAirlines(),
@@ -1983,6 +1986,7 @@
       $('#srch-tui').checked=f.tui!==false;
       $('#srch-direct').checked=!!f.direct;
       $('#srch-adults').checked=!!f.adults_only;
+      $('#srch-transfer').checked=f.transfer_included!==false;
       document.querySelectorAll('.srch-board').forEach(c=>{ c.checked=(f.boards||[]).includes(c.value); });
       document.querySelectorAll('.srch-loc').forEach(c=>{ c.checked=(f.location||[]).includes(+c.value); });
       ensureAirlines().then(()=>setAirlines(f.airlines||[]));
@@ -2002,7 +2006,7 @@
       const boards = [...document.querySelectorAll('.srch-board:checked')].map(c=>c.value);
       const location = [...document.querySelectorAll('.srch-loc:checked')].map(c=>+c.value);
       const body = { operator_tui: $('#srch-tui').checked, direct: $('#srch-direct').checked,
-        adults_only: $('#srch-adults').checked, boards,
+        adults_only: $('#srch-adults').checked, transfer_included: $('#srch-transfer').checked, boards,
         location, airlines: selectedAirlines(),
         min_stars: $('#srch-qual-off').checked ? 0 : (parseFloat($('#srch-stars').value)||0),
         min_recommend: $('#srch-qual-off').checked ? 0 : (parseFloat($('#srch-rec').value)||0),
@@ -3223,7 +3227,24 @@
       let d;
       try { d = await fetch(api('/api/rooms/'+id)).then(r=>r.json()); }
       catch(e){ $('#room-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Zimmer konnten nicht geladen werden.</div>'; return; }
+      $('#room-transfer').checked = d.transfer_included!==false;
       renderRooms(d);
+    }
+    async function toggleTransferIncluded(){
+      if(roomId==null) return;
+      const included = $('#room-transfer').checked;
+      $('#room-body').innerHTML = progBar('Wird übernommen…');
+      let ok=false;
+      try {
+        const r = await fetch(api('/api/offers/'+roomId), {method:'PATCH', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({transfer_included: included})});
+        ok = r.ok;
+        if(!ok){ const d=await r.json().catch(()=>({})); toast(d.note || 'Speichern fehlgeschlagen'); }
+      } catch(e){ toast('Speichern fehlgeschlagen'); }
+      if(!ok){ $('#room-transfer').checked = !included; openRooms(roomId); return; }
+      toast('Übernommen — Preis wird geprüft…');
+      lastSig=null;
+      openRooms(roomId);
     }
     function renderRooms(d){
       if(!d || !d.ok || !(d.rooms&&d.rooms.length)){

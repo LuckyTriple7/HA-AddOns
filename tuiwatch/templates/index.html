@@ -642,6 +642,7 @@
 
       <div class="srch-filters">
         <label class="srch-chk" title="Nur Pauschalreisen des Veranstalters TUI Deutschland (TUID). Aus = alle Veranstalter."><input type="checkbox" id="srch-tui" checked> TUI</label>
+        <label class="srch-chk" title="Nur Hotels mit buchbarem Transfer-Paket zeigen (manche Hotels/Regionen bieten nur Selbstanreise — sonst wären deren Preise nicht direkt vergleichbar). Aus = alle Hotels, mit und ohne Transfer."><input type="checkbox" id="srch-transfer" checked> Transfer</label>
         <label class="srch-chk" title="Nur Angebote mit Direktflug (ohne Zwischenstopp)"><input type="checkbox" id="srch-direct"> Nur Direktflug</label>
         <label class="srch-chk" title="Nur Erwachsenenhotels (Adults Only)"><input type="checkbox" id="srch-adults"> Nur Erwachsene</label>
         <span class="srch-boards">Verpflegung:
@@ -731,6 +732,9 @@
       </button>
       <h2>Zimmerauswahl</h2>
       <div class="sub" id="room-sub"></div>
+      <label class="srch-chk" id="room-transfer-row" style="margin-bottom:10px" title="Aus, wenn dieses Hotel gar kein Transfer-Paket anbietet (sonst 0 Zimmer/Treffer trotz buchbarer Angebote auf tui.com) — wirkt auch auf die reguläre Preisprüfung.">
+        <input type="checkbox" id="room-transfer" onchange="toggleTransferIncluded()"> Transfer inklusive
+      </label>
       <div id="room-body"></div>
     </div>
   </div>

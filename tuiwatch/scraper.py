@@ -148,6 +148,33 @@ def room_code_from_url(url: str) -> str:
     return ''
 
 
+def transfer_included_from_url(url: str) -> bool:
+    """Liest `transferIncluded` aus der URL (Default True, siehe build_offer_api_url)."""
+    try:
+        for k, v in parse_qsl(urlparse(url).query, keep_blank_values=True):
+            if k == 'transferIncluded':
+                return v.strip().lower() != 'false'
+    except (TypeError, ValueError):
+        pass
+    return True
+
+
+def with_transfer_included(url: str, included: bool) -> str:
+    """Gibt die URL mit fest gesetztem `transferIncluded` zurück. Manche Hotels
+    (z. B. Selbstanreise/Mietwagen-Regionen) bieten gar kein Transfer-Paket —
+    dort liefert die Offer-API bei transferIncluded=true 0 Treffer, obwohl auf
+    tui.com ganz normal buchbare (Nicht-Transfer-)Angebote existieren."""
+    return _replace_query(url, set_params={'transferIncluded': 'true' if included else 'false'})
+
+
+def _url_has_transfer_param(url: str) -> bool:
+    try:
+        return any(k == 'transferIncluded'
+                   for k, _ in parse_qsl(urlparse(url).query, keep_blank_values=True))
+    except (TypeError, ValueError):
+        return False
+
+
 def with_duration(url: str, n: int) -> str:
     """Gibt die URL mit `duration=n` (Nächte) zurück. Falls die URL ein festes
     Reisefenster (`startDate`/`endDate`) hat, das schmaler als die gewünschte Dauer ist
@@ -567,6 +594,21 @@ def fetch_rooms(url: str, *, verbose: bool = False) -> dict | None:
             log.warning(f"Zimmer-Fehler: {type(e).__name__}: {e}")
         return None
 
+    if not data.get("offers") and not _url_has_transfer_param(url):
+        # Fallback wie in fetch_price_api: Hotels ohne Transfer-Paket liefern bei
+        # transferIncluded=true (Default) 0 Zimmer, obwohl auf tui.com welche buchbar sind.
+        try:
+            api2 = build_offer_api_url(with_transfer_included(without_room_code(url), False))
+            resp2 = requests.get(api2, headers=_API_HEADERS, timeout=25)
+            data2 = resp2.json() if resp2.status_code == 200 else {}
+            if data2.get("offers"):
+                data = data2
+                if verbose:
+                    log.info("Zimmer-API: Fallback ohne Transfer-Paket → %d Angebot(e)",
+                             len(data["offers"]))
+        except Exception:
+            pass
+
     rooms: dict[str, dict] = {}
     for o in data.get("offers") or []:
         rm = (o.get("rooms") or [{}])[0]
@@ -680,7 +722,8 @@ def region_giata_from_breadcrumb(giata: str) -> int | None:
 def _search_params_from_url(url: str, *, region: int | None = None,
                             operator_tui: bool = True, boards: list | None = None,
                             airlines: list | None = None, location: list | None = None,
-                            direct: bool = False, adults_only: bool = False) -> dict:
+                            direct: bool = False, adults_only: bool = False,
+                            transfer_included: bool = False) -> dict:
     """Kanonische Suchparameter aus einer TUI-Such-/Angebots-URL (für URL- und
     Angebots-Modus). `region` überschreibt `regionGiataIds`, `airlines` (Liste von
     IATA-Codes) überschreibt den Airline-Filter der URL."""
@@ -712,6 +755,7 @@ def _search_params_from_url(url: str, *, region: int | None = None,
         "facility": facility_ids,
         "regions": regions,
         "direct": direct or (q.get("maxStopOvers", "") == "0"),
+        "transfer_included": transfer_included or (q.get("transferIncluded", "") == "true"),
     }
 
 
@@ -748,7 +792,12 @@ def _build_search_payload(p: dict, *, offset: int = 0) -> dict:
         # den Daten. tui.com selbst nutzt fuer "sortHotelsField=price&sortHotelsAsc=1"
         # "priceAsc" (live per Netzwerk-Mitschnitt verifiziert), liefert exakt die
         # fehlenden guenstigen Hotels.
-        "transferIncluded": False, "sortingOrder": "priceAsc",
+        # Default False = alle Hotels (mit/ohne Transfer-Paket), wie bisher. True (per
+        # "Transfer inklusive"-Filter in der Suchmaske) grenzt die Such-API selbst
+        # server-seitig auf Hotels MIT Transfer-Paket ein (live verifiziert: giataId
+        # ohne Transfer-Paket verschwindet komplett aus den Treffern) -- kein Fallback
+        # hier, das ist ein bewusster harter Filter.
+        "transferIncluded": bool(p.get("transfer_included")), "sortingOrder": "priceAsc",
         "secondarySortingOrder": "", "identifier": "HLP",
         "giataRegions": p.get("regions") or [],
         # resultsTotal ist hier ein Anfrage-Cap, keine reine Info-Zahl -- die API
@@ -795,6 +844,11 @@ def offer_url_for(item: dict, params: dict) -> str:
         q["airlines"] = ";".join(params["airlines"])
     if params.get("direct"):
         q["maxStopOvers"] = "0"
+    if params.get("transfer_included"):
+        # Filter war beim Suchen aktiv (nur Hotels MIT Transfer-Paket) — beim Tracken
+        # fest in die URL übernehmen, sonst würde die spätere Preisprüfung mangels
+        # explizitem Parameter fälschlich den 0-Treffer-Fallback (ohne Transfer) ziehen.
+        q["transferIncluded"] = "true"
     query = urlencode({k: v for k, v in q.items() if v != ""})
     return f"https://www.tui.com/pauschalreisen/suchen/angebote/{slug}/{giata}/offer/?{query}"
 
@@ -865,11 +919,13 @@ def fetch_search(url: str, *, operator_tui: bool = True, boards: list | None = N
                  region: int | None = None, airlines: list | None = None,
                  location: list | None = None,
                  direct: bool = False, adults_only: bool = False,
+                 transfer_included: bool = False,
                  offset: int = 0, verbose: bool = False) -> dict | None:
     """Hotelsuche aus einer TUI-Such-/Angebots-URL (`region` überschreibt die Region)."""
     params = _search_params_from_url(url, region=region, operator_tui=operator_tui,
                                      boards=boards, airlines=airlines, location=location,
-                                     direct=direct, adults_only=adults_only)
+                                     direct=direct, adults_only=adults_only,
+                                     transfer_included=transfer_included)
     return _run_search(params, offset=offset, verbose=verbose)
 
 
@@ -878,6 +934,7 @@ def fetch_search_params(*, region: int, start: str, end: str, duration, travelle
                         boards: list | None = None, airlines: list | None = None,
                         location: list | None = None,
                         direct: bool = False, adults_only: bool = False,
+                        transfer_included: bool = False,
                         offset: int = 0, verbose: bool = False) -> dict | None:
     """Hotelsuche direkt aus Maskenfeldern (ohne URL) — für die eigene Suchmaske."""
     # „exact" ist ein nativer TUI-Wert (duration=exact): Reisedauer = genau der
@@ -903,6 +960,7 @@ def fetch_search_params(*, region: int, start: str, end: str, duration, travelle
         "location": [int(i) for i in (location or []) if str(i).isdigit()],
         "facility": [13] if adults_only else [],
         "regions": [int(region)] if region else [], "direct": bool(direct),
+        "transfer_included": bool(transfer_included),
     }
     return _run_search(params, offset=offset, verbose=verbose)
 
@@ -1282,11 +1340,31 @@ def fetch_price_api(url: str, *, verbose: bool = False) -> dict | None:
             log.warning(f"API-Fehler: {type(e).__name__}: {e}")
         return None
 
+    offers = data.get("offers") or []
+    if not offers and not _url_has_transfer_param(url):
+        # Manche Hotels (Selbstanreise-Regionen) bieten kein Transfer-Paket -- der
+        # Default transferIncluded=true liefert dort 0 Treffer, obwohl auf tui.com
+        # buchbare Angebote existieren (live verifiziert: mit Transfer-Paket liefern
+        # true/false identische Treffer+Preise, ohne Transfer-Paket liefert nur false
+        # Treffer). Fallback nur, wenn der Nutzer die URL nicht bereits per Checkbox
+        # explizit festgelegt hat.
+        try:
+            resp2 = requests.get(build_offer_api_url(with_transfer_included(url, False)),
+                                  headers=_API_HEADERS, timeout=25)
+            data2 = resp2.json() if resp2.status_code == 200 else {}
+            if data2.get("offers"):
+                data = data2
+                offers = data.get("offers") or []
+                if verbose:
+                    log.info("Offer-API: Fallback ohne Transfer-Paket → %d Angebot(e)",
+                             len(offers))
+        except Exception:
+            pass
+
     r = _empty_result()
     r["source"] = "api"
     r["hotel"] = (data.get("hotel") or {}).get("name", "") or hotel_from_url(url)
     r["currency"] = data.get("currency", "EUR")
-    offers = data.get("offers") or []
     if verbose:
         log.info("Offer-API: %d Angebot(e) zurück", len(offers))
     if not offers:

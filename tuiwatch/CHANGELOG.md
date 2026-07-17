@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.57.5] - 2026-07-17
+
+### Fixed
+- **Zimmerauswahl/Preisprüfung 0 Treffer bei Hotels ohne Transfer-Paket** — die
+  Offer-API nutzte seit v0.9.0 `transferIncluded=true` als Default (passend zur
+  Buchung auf tui.com), liefert bei Hotels ohne buchbares Transfer-Paket
+  (Selbstanreise-Regionen) dafür 0 Treffer, obwohl auf tui.com ganz normal
+  buchbare Angebote existieren. Live verifiziert: Hotels MIT Transfer-Paket
+  liefern bei `true`/`false` identische Treffer+Preise, nur bei Hotels OHNE
+  Transfer-Paket macht es den Unterschied (0 vs. alle). Preisprüfung und
+  Zimmerauswahl fallen jetzt automatisch auf `false` zurück, wenn `true` 0
+  Treffer liefert — aber nur, solange der Nutzer nichts explizit festgelegt hat.
+
+### Added
+- Neuer Schalter „Transfer inklusive" in der Zimmerauswahl eines Angebots —
+  fixiert `transferIncluded` fest auf der Angebots-URL (wirkt automatisch auch
+  auf die reguläre Preisprüfung), kein automatischer Fallback mehr, sobald
+  explizit gesetzt.
+- Neuer Filter „Transfer" in der Hotelsuche (links neben „Nur Direktflug",
+  Standard an) — echter serverseitiger Filter der Such-API (live verifiziert:
+  Hotels ohne Transfer-Paket verschwinden komplett aus der Trefferliste),
+  kein Fallback. Verhindert, dass nicht direkt vergleichbare Selbstanreise-
+  Angebote die Trefferliste verfälschen.
+
 ## [0.57.4] - 2026-07-17
 
 ### Added

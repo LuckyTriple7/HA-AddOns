@@ -171,6 +171,24 @@ def api_update_offer(offer_id: int):
             con.execute('UPDATE offers SET archived=? WHERE id=?', (arch, offer_id))
             A.log.info("Angebot #%d %s", offer_id,
                      "archiviert" if arch else "reaktiviert")
+        if 'transfer_included' in data:
+            # Manche Hotels (Selbstanreise-Regionen) bieten kein Transfer-Paket — dort
+            # liefert die Offer-API bei transferIncluded=true 0 Treffer/Zimmer, obwohl
+            # auf tui.com buchbare Angebote existieren. Steht als URL-Parameter fest,
+            # wirkt daher automatisch auch auf die reguläre Preisprüfung (nicht nur die
+            # Zimmerauswahl).
+            ti = bool(data.get('transfer_included'))
+            row = con.execute('SELECT url FROM offers WHERE id=?', (offer_id,)).fetchone()
+            if not row:
+                return jsonify({'error': 'not_found'}), 404
+            new_url = A.with_transfer_included(row['url'], ti)
+            try:
+                con.execute('UPDATE offers SET url=? WHERE id=?', (new_url, offer_id))
+            except sqlite3.IntegrityError:
+                return jsonify({'error': 'duplicate',
+                                'note': 'Dieses Angebot (mit/ohne Transfer) wird bereits verfolgt'}), 409
+            A.log.info("Angebot #%d: Transfer %s", offer_id, 'inklusive' if ti else 'ohne')
+            events.append(('transfer', f"Transfer {'inklusive' if ti else 'ohne'}"))
         if 'tags' in data:
             tags = _normalize_tags(data.get('tags'))
             con.execute('UPDATE offers SET tags=? WHERE id=?',
@@ -219,6 +237,8 @@ def api_update_offer(offer_id: int):
         A._log_event(offer_id, t, txt)
     if 'archived' in data:
         A.push_ha_sensors()  # Übersicht/Summary-Sensor neu berechnen
+    if 'transfer_included' in data:
+        A._spawn(A.check_offer, offer_id)
     return jsonify({'id': offer_id, 'ok': True})
 
 
@@ -467,6 +487,7 @@ def api_search():
     operator_tui = bool(data.get('operator_tui', True))
     direct = bool(data.get('direct'))
     adults_only = bool(data.get('adults_only'))
+    transfer_included = bool(data.get('transfer_included'))
     boards = [str(b).strip() for b in (data.get('boards') or []) if str(b).strip()]
     airlines = [str(a).strip() for a in (data.get('airlines') or []) if str(a).strip()]
     location = [int(i) for i in (data.get('location') or []) if str(i).strip().isdigit()]
@@ -497,7 +518,8 @@ def api_search():
         src = f"Angebot #{offer_id} ({o['label'] or o['hotel'] or ''})"
         res = A.fetch_search(url, operator_tui=operator_tui, boards=boards, region=region,
                            airlines=airlines, location=location, direct=direct,
-                           adults_only=adults_only, offset=offset, verbose=A._verbose())
+                           adults_only=adults_only, transfer_included=transfer_included,
+                           offset=offset, verbose=A._verbose())
     elif search_region:
         try:
             region = int(search_region)
@@ -537,7 +559,8 @@ def api_search():
                                   travellers=data.get('travellers'), airports=airports,
                                   operator_tui=operator_tui, boards=boards,
                                   airlines=airlines, location=location, direct=direct,
-                                  adults_only=adults_only, offset=offset, verbose=A._verbose())
+                                  adults_only=adults_only, transfer_included=transfer_included,
+                                  offset=offset, verbose=A._verbose())
     else:
         url = (data.get('url') or '').strip()
         if not _valid_tui_url(url):
@@ -546,7 +569,8 @@ def api_search():
                  ','.join(boards) or '-')
         res = A.fetch_search(url, operator_tui=operator_tui, boards=boards,
                            airlines=airlines, location=location, direct=direct,
-                           adults_only=adults_only, offset=offset, verbose=A._verbose())
+                           adults_only=adults_only, transfer_included=transfer_included,
+                           offset=offset, verbose=A._verbose())
     if res is None:
         return jsonify({'error': 'search_failed'}), 502
     if not res.get('ok'):
@@ -723,6 +747,7 @@ def api_rooms_get(offer_id: int):
     if res is None:
         return jsonify({'ok': False, 'note': 'Zimmer konnten nicht geladen werden'}), 502
     res['current'] = A.room_code_from_url(o['url'])
+    res['transfer_included'] = A.transfer_included_from_url(o['url'])
     return jsonify(res)
 
 
