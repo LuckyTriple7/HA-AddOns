@@ -38,6 +38,9 @@ configuration:
   calendar_trend_min_diff:
     name: Mindest-Änderung für Kalender-Preisänderung (€)
     description: "Ab welcher Preisänderung pro Reisedatum die Kalender-Preisänderung-Benachrichtigung auslöst. Standard 20 € — kleinere Schwankungen werden nicht gemeldet (im Kalender selbst, Trend-Ansicht, weiterhin sichtbar, nur die Benachrichtigung wird gefiltert)."
+  calendar_daily_refresh:
+    name: Täglicher Kalender-Refresh
+    description: "Hält den Preiskalender aktiver Angebote 1×/Tag aktuell (macht Trend-Ansicht und Buchungsscore-Signal aussagekräftiger). Standard an."
   notify_errors:
     name: Ausverkauft-/Fehler-Alarm
     description: "Benachrichtigen, wenn ein Angebot mehrmals hintereinander kein Ergebnis liefert (Kontingent ausgebucht oder URL veraltet). Standard an."

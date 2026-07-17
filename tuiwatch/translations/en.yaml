@@ -38,6 +38,9 @@ configuration:
   calendar_trend_min_diff:
     name: Minimum change for calendar price change (€)
     description: "Minimum price change per travel date before the calendar price change notification triggers. Default 20 € — smaller moves are still visible in the calendar itself (trend view), only the notification is filtered."
+  calendar_daily_refresh:
+    name: Daily calendar refresh
+    description: "Keeps active offers' price calendars fresh 1x/day (sharpens the trend view and booking-score calendar signal). Default on."
   notify_errors:
     name: Sold-out / error alert
     description: "Notify when an offer returns no result several times in a row (sold out or outdated URL). Default on."

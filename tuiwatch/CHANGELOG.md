@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.57.3] - 2026-07-17
+
+### Fixed
+- Übersetzung für `calendar_daily_refresh` gefehlt — Einstellung erschien im
+  UI als roher Konfigurationsschlüssel statt als Text. Ergänzt in
+  `translations/de.yaml` und `translations/en.yaml`.
+
 ## [0.57.2] - 2026-07-16
 
 ### Fixed
