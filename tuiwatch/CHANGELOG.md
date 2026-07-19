@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.57.6] - 2026-07-19
+
+### Fixed
+- **sensor.tuiwatch_markttrend wurde in HA immer wieder „nicht verfügbar"** —
+  Sensor überlebt (wie alle per States-API gesetzten Sensoren) einen
+  HA-Core-Neustart nicht von selbst und verschwindet aus der State Machine,
+  bis er neu gepostet wird. Refresh-Intervall von 10 auf 2 Minuten verkürzt
+  (wie beim API-Verfügbar- und Coupon-Sensor) — verkleinert das Zeitfenster
+  nach einem HA-Neustart deutlich. Bei zu wenigen Datenpunkten war der Status
+  schon immer „unknown" (nie „unavailable").
+
 ## [0.57.5] - 2026-07-17
 
 ### Fixed

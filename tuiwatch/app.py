@@ -84,7 +84,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.57.5"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.57.6"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -3017,15 +3017,19 @@ def _cooldown_sensor_worker() -> None:
 
 
 def _market_trend_sensor_worker() -> None:
-    """Meldet den Markttrend-Sensor alle 10 Minuten neu — die zugrunde liegenden Daten
-    ändern sich langsam (neue Punkte nur je Poll-Intervall pro Angebot), ein kurzes
-    Intervall wie beim Cooldown-Sensor wäre unnötig; überlebt trotzdem HA-Neustarts."""
+    """Meldet den Markttrend-Sensor alle 2 Minuten neu — die zugrunde liegenden Daten
+    ändern sich zwar langsam (neue Punkte nur je Poll-Intervall pro Angebot), aber
+    states-API-Sensoren wie dieser überleben einen HA-Core-Neustart NICHT von selbst
+    (verschwinden aus der State Machine, bis neu gepostet wird). Wie bei
+    `_health_sensor_worker`/`_aktionscodes_sensor_worker` hält das kurze Intervall
+    das Zeitfenster klein, in dem der Sensor nach einem HA-Neustart 'nicht verfügbar'
+    statt seines letzten Werts zeigt."""
     while True:
         try:
             _push_market_trend_sensor()
         except Exception as e:
             log.warning("Markttrend-Sensor-Refresh fehlgeschlagen: %s", e)
-        time.sleep(600)
+        time.sleep(120)
 
 
 def _handle_sigterm(signum, frame) -> None:
