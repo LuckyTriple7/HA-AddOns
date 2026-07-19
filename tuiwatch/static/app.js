@@ -355,7 +355,7 @@
               ${o.ok===false?`<div class="err-note">⚠ ${esc(o.note||'Preis konnte nicht gelesen werden')}</div>`:''}
             </div>
             <div class="price-box">
-              <div class="price-now"${o.checking&&hasPrice?' style="opacity:.5"':''}>${priceNow}</div>
+              <div class="price-now${(!o.archived&&G.check24)?' check24-feature check24-trigger':''}"${o.checking&&hasPrice?' style="opacity:.5"':''}${(!o.archived&&G.check24)?` onclick="${o.check24_linked?`openCheck24(${o.id})`:`linkCheck24(${o.id})`}" title="Preisvergleich über Check24 (andere Reiseveranstalter)"`:''}>${priceNow}</div>
               <div class="price-pp">pro Person</div>
               ${priceSub?`<div class="price-sub">${priceSub}</div>`:''}
               ${perNight!=null?`<div class="price-sub">${eur(perNight)}/Nacht</div>`:''}
@@ -680,8 +680,134 @@
         + nigFooter(job);
     }
 
+    // ── Check24-Vergleich (andere Reiseveranstalter, gespeichert) ─────────────
+    let c24Timer = null, c24Id = null;
+    const C24_NOTES = {
+      not_available_exact_dates: 'Für diese genauen Reisedaten aktuell kein Check24-Angebot (Hotel evtl. ausgebucht).',
+      no_offer_link_found: 'Kein Angebotslink auf Check24 gefunden (Layout geändert oder Hotel nicht gelistet).',
+      no_offers_parsed: 'Angebote gefunden, aber keine auslesbaren Preise (Layout geändert).',
+      no_offers_for_board: 'Kein Check24-Angebot mit passender Verpflegung an diesen Terminen.',
+      Check24_nicht_erreichbar: 'Check24 nicht erreichbar.',
+    };
+    function c24Spinner(){ $('#c24-body').innerHTML = progBar('Check24 wird abgefragt… dauert meist unter 15 Sekunden.'); }
+    function startC24Polling(){ clearInterval(c24Timer); c24Poll(); c24Timer = setInterval(c24Poll, 2000); }
+
+    // Sucht automatisch mit dem TUI-Hotelnamen (kein Eintippen nötig) und zeigt
+    // Treffer zum Anklicken; bei genau einem eindeutigen Treffer wird direkt
+    // verknüpft und sofort der Preisvergleich gestartet.
+    async function linkCheck24(id){
+      c24Id = id;
+      const o = (curOffers||[]).find(x=>x.id===id) || {};
+      const name = o.hotel || o.label || '';
+      $('#c24-sub').textContent = name || ('TUI-Angebot #'+id);
+      $('#c24-body').innerHTML = progBar('Check24 wird nach „'+name+'" durchsucht…');
+      $('#c24-bg').classList.add('show');
+      let data;
+      try { data = await fetch(api('/api/check24/search?q='+encodeURIComponent(name))).then(r=>r.json()); }
+      catch(e){ data = {error:'search_failed'}; }
+      if(data.error){
+        $('#c24-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Check24-Suche fehlgeschlagen. Bitte später erneut versuchen.</div>';
+        return;
+      }
+      const cands = data.candidates || [];
+      if(cands.length === 1){ pickCheck24Hotel(id, cands[0].hotel_id, cands[0].name); return; }
+      if(cands.length === 0){
+        $('#c24-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Kein passendes Hotel bei Check24 gefunden.</div>';
+        return;
+      }
+      const rows = cands.map(c=>
+        `<tr style="cursor:pointer" onclick="pickCheck24Hotel(${id}, '${jsArg(c.hotel_id)}', '${jsArg(c.name)}')">
+          <td><b>${esc(c.name)}</b></td><td>${esc(c.location)}</td></tr>`).join('');
+      $('#c24-body').innerHTML = `<div class="hint" style="margin-bottom:6px">Mehrere Treffer — richtiges Hotel anklicken:</div>
+        <table class="hist"><tr><th>Hotel</th><th>Ort</th></tr>${rows}</table>`;
+    }
+    function pickCheck24Hotel(id, hotelId, name){
+      $('#c24-body').innerHTML = progBar('Verknüpfe „'+name+'"…');
+      fetch(api('/api/offers/'+id), {method:'PATCH', headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({check24_hotel_id: hotelId, check24_hotel_name: name})})
+        .then(()=>{ loadOffers(); openCheck24(id); });
+    }
+    function unlinkCheck24(id){
+      fetch(api('/api/offers/'+id), {method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({check24_hotel_id: ''})})
+        .then(()=>{ toast('Check24-Verknüpfung entfernt'); loadOffers(); });
+    }
+
+    async function openCheck24(id){
+      c24Id = id;
+      const o = (curOffers||[]).find(x=>x.id===id) || {};
+      $('#c24-sub').textContent = o.label || o.hotel || ('TUI-Angebot #'+id);
+      $('#c24-body').innerHTML = '<div class="cmp-load">Lade…</div>';
+      $('#c24-bg').classList.add('show');
+      clearInterval(c24Timer); c24Timer=null;
+      let job;
+      try { job = await fetch(api('/api/check24/'+id)).then(r=>r.json()); } catch(e){ job={status:'idle',rows:[]}; }
+      if(job.status==='running'){ c24Spinner(); startC24Polling(); }
+      else if(job.status==='done'){ renderCheck24(job); }
+      else { refreshCheck24(); }
+    }
+    async function refreshCheck24(){
+      if(c24Id==null) return;
+      c24Spinner();
+      let r;
+      try { r = await fetch(api('/api/check24/'+c24Id), {method:'POST'}); } catch(e){ r=null; }
+      if(r && r.status===409){ $('#c24-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Dieses Angebot ist noch nicht mit Check24 verknüpft.</div>'; return; }
+      if(r && r.status===404){ $('#c24-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Check24-Vergleich ist deaktiviert.</div>'; return; }
+      if(r && r.status===429){ $('#c24-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Bitte kurz warten, bevor erneut abgefragt wird.</div>'; return; }
+      startC24Polling();
+    }
+    function closeCheck24(){ clearInterval(c24Timer); c24Timer=null; c24Id=null; $('#c24-bg').classList.remove('show'); }
+    $('#c24-bg').addEventListener('click', e=>{ if(e.target.id==='c24-bg') closeCheck24(); });
+
+    async function c24Poll(){
+      if(c24Id==null) return;
+      let job;
+      try { job = await fetch(api('/api/check24/'+c24Id)).then(r=>r.json()); } catch(e){ return; }
+      if(job.status==='running') return;   // weiter warten
+      clearInterval(c24Timer); c24Timer=null;
+      renderCheck24(job);
+    }
+
+    function c24Footer(job){
+      const when = job.ts ? ('Abgefragt: '+new Date(job.ts*1000).toLocaleString('de-DE')+' — gespeichert.') : 'Live abgefragt.';
+      const err = job.error ? '<div class="hint" style="color:var(--amber);margin-top:6px">⚠ Letzte Aktualisierung fehlgeschlagen — angezeigt wird das vorherige Ergebnis.</div>' : '';
+      const link = job.offer_url ? `<a class="btn sec" href="${esc(job.offer_url)}" target="_blank" rel="noopener">Auf Check24 ansehen ↗</a>` : '';
+      return `<div class="cmp-foot">
+          <span class="hint" style="flex:1;min-width:180px">${esc(when)} Vergleich mit ähnlicher Zimmerkategorie/Verpflegung — nicht immer exakt identisch.</span>
+          ${link}
+          <button class="btn sec" onclick="refreshCheck24()">Neu abfragen</button>
+        </div>${err}`;
+    }
+
+    function renderCheck24(job){
+      if(!(job.rows && job.rows.length)){
+        const msg = job.error || C24_NOTES[job.note] || job.note || 'Kein Check24-Angebot gefunden.';
+        $('#c24-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ '+esc(msg)+'</div>' + c24Footer(job);
+        return;
+      }
+      const cheapest = Math.min(...job.rows.map(r=>r.price));
+      const tuiPrice = job.tui_price;
+      const rows = job.rows.map(r=>{
+        const best = r.price<=cheapest;
+        let diff = '';
+        if(tuiPrice!=null){
+          const d = r.price - tuiPrice;
+          diff = d===0 ? '±0' : (d<0 ? '<span class="cmp-down">▼ '+eur(Math.abs(d))+' günstiger</span>' : '<span class="cmp-up">▲ +'+eur(d)+' teurer</span>');
+        }
+        return `<tr${best?' class="cmp-best"':''}>
+          <td>${esc(r.operator||'—')}</td>
+          <td>${esc(r.room||'—')}${r.board?' · '+esc(r.board):''}</td>
+          <td><b>${eur(r.price)}</b>${best?' <span class="best">✓</span>':''}</td>
+          <td>${diff}</td></tr>`;
+      }).join('');
+      const tuiRow = tuiPrice!=null ? `<div class="hint" style="margin-bottom:6px">TUI-Preis zum Vergleich: <b>${eur(tuiPrice)}</b></div>` : '';
+      $('#c24-body').innerHTML = tuiRow +
+        `<table class="hist"><tr><th>Anbieter</th><th>Zimmer / Verpflegung</th><th>Preis p.&nbsp;P.</th><th>Diff. zu TUI</th></tr>${rows}</table>`
+        + c24Footer(job);
+    }
+
     // ── Hotelsuche (Maske / URL / aus Angebot) ────────────────────────────────
     let srchResults = [], srchOfferId = null, srchDest = null, srchTotal = 0, srchFilter = '';
+    let srchLastBody = null;
     let srchSort = localStorage.getItem('tw-srch-sort') || 'price';
     let srCmpSelected = new Set();  // Schlüssel (giata/Name) der für den KI-Vergleich ausgewählten Hotels
     let airportsLoaded = false, airlinesLoaded = false, destNode = null, destData = null, destStack = [];
@@ -796,12 +922,23 @@
       document.querySelectorAll('.srch-loc').forEach(c=>{ c.checked = la.includes(c.value); });
       $('#srch-direct').checked = (urlParam(o.url,'maxStopOvers')==='0');
       $('#srch-adults').checked = (urlParam(o.url,'facilityAttributes')||'').split(/[;,]/).includes('13');
+      $('#srch-transfer').checked = (urlParam(o.url,'transferIncluded')!=='false');
       $('#srch-stars').value='3'; $('#srch-rec').value='80';
+      $('#srch-maxprice').value='';
+      $('#srch-qual-off').checked=false; toggleQualFilter();
       const al = (urlParam(o.url,'airlines')||'').split(/[;,]/).map(s=>s.trim()).filter(Boolean);
       ensureAirlines().then(()=>setAirlines(al));
       $('#srch-body').innerHTML='';
       $('#srch-bg').classList.add('show');
       runSearch();
+    }
+    // "Egal": Sterne/Weiterempfehlung komplett aus der Suche weglassen statt sie
+    // auf 0 zu setzen (0 filtert zwar auch nicht, aber die Felder blieben dabei
+    // trotzdem bedienbar/verwirrend) — Felder werden zur Klarheit gesperrt.
+    function toggleQualFilter(){
+      const off = $('#srch-qual-off').checked;
+      $('#srch-stars').disabled = off;
+      $('#srch-rec').disabled = off;
     }
     function closeSearch(){ $('#srch-bg').classList.remove('show'); }
     $('#srch-bg').addEventListener('click', e=>{ if(e.target.id==='srch-bg') closeSearch(); });
@@ -813,9 +950,12 @@
       $('#srch-vom').value=isoPlus(21); $('#srch-bis').value=isoPlus(51); syncBisMin();
       $('#srch-dur').value=7; $('#srch-trav').value=2; $('#srch-exact').checked=false; applyExact();
       $('#srch-tui').checked=true; $('#srch-direct').checked=false; $('#srch-adults').checked=false;
+      $('#srch-transfer').checked=true;
       document.querySelectorAll('.srch-board').forEach(c=>{ c.checked=false; });
       document.querySelectorAll('.srch-loc').forEach(c=>{ c.checked=false; });
       $('#srch-stars').value=3; $('#srch-rec').value=80; $('#srch-url').value='';
+      $('#srch-maxprice').value='';
+      $('#srch-qual-off').checked=false; toggleQualFilter();
       setAirlines([]);
       $('#srch-favsel').value=''; favBtnState();
     }
@@ -1797,10 +1937,13 @@
         dur: $('#srch-dur').value, exact: $('#srch-exact').checked, trav: $('#srch-trav').value,
         tui: $('#srch-tui').checked, direct: $('#srch-direct').checked,
         adults_only: $('#srch-adults').checked,
+        transfer_included: $('#srch-transfer').checked,
         boards: [...document.querySelectorAll('.srch-board:checked')].map(c=>c.value),
         location: [...document.querySelectorAll('.srch-loc:checked')].map(c=>+c.value),
         airlines: selectedAirlines(),
-        stars: $('#srch-stars').value, rec: $('#srch-rec').value };
+        stars: $('#srch-stars').value, rec: $('#srch-rec').value,
+        max_price: $('#srch-maxprice').value,
+        qual_off: $('#srch-qual-off').checked };
     }
     async function saveFav(){
       if(!srchDest){ toast('Bitte zuerst ein Reiseziel wählen'); return; }
@@ -1843,10 +1986,13 @@
       $('#srch-tui').checked=f.tui!==false;
       $('#srch-direct').checked=!!f.direct;
       $('#srch-adults').checked=!!f.adults_only;
+      $('#srch-transfer').checked=f.transfer_included!==false;
       document.querySelectorAll('.srch-board').forEach(c=>{ c.checked=(f.boards||[]).includes(c.value); });
       document.querySelectorAll('.srch-loc').forEach(c=>{ c.checked=(f.location||[]).includes(+c.value); });
       ensureAirlines().then(()=>setAirlines(f.airlines||[]));
       $('#srch-stars').value=f.stars||''; $('#srch-rec').value=f.rec||'';
+      $('#srch-maxprice').value=f.max_price||'';
+      $('#srch-qual-off').checked=!!f.qual_off; toggleQualFilter();
     }
     async function delFav(){
       const id = $('#srch-favsel').value; if(id===''){ toast('Bitte eine gespeicherte Suche wählen'); return; }
@@ -1860,10 +2006,11 @@
       const boards = [...document.querySelectorAll('.srch-board:checked')].map(c=>c.value);
       const location = [...document.querySelectorAll('.srch-loc:checked')].map(c=>+c.value);
       const body = { operator_tui: $('#srch-tui').checked, direct: $('#srch-direct').checked,
-        adults_only: $('#srch-adults').checked, boards,
+        adults_only: $('#srch-adults').checked, transfer_included: $('#srch-transfer').checked, boards,
         location, airlines: selectedAirlines(),
-        min_stars: parseFloat($('#srch-stars').value)||0,
-        min_recommend: parseFloat($('#srch-rec').value)||0 };
+        min_stars: $('#srch-qual-off').checked ? 0 : (parseFloat($('#srch-stars').value)||0),
+        min_recommend: $('#srch-qual-off').checked ? 0 : (parseFloat($('#srch-rec').value)||0),
+        max_price: parseFloat($('#srch-maxprice').value)||0 };
       if(srchOfferId!=null){ body.offer_id = srchOfferId; }
       else if(url){ body.url = url; }
       else {
@@ -1880,6 +2027,7 @@
           duration: exact ? 'exact' : dur, travellers: parseInt($('#srch-trav').value)||2,
           airport: $('#srch-airport').value });
       }
+      srchLastBody = body;
       $('#srch-body').innerHTML = progBar('Suche läuft…');
       let r, d;
       try { r = await fetch(api('/api/search'), {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)}); d = await r.json(); }
@@ -1893,6 +2041,30 @@
       srchResults = d.results||[]; srchTotal = d.total||srchResults.length; srchFilter = '';
       srchResults.forEach(r=>{ r._key = String(r.giata||r.name); });
       srCmpSelected = new Set();
+      sortSearchResults(); renderSearch();
+    }
+
+    // "Mehr laden": die Such-API liefert pro Aufruf nur resultsPerPage (50) Treffer,
+    // nicht alle auf einmal — derselbe Such-Body wird mit offset=bereits geladene
+    // Treffer erneut abgeschickt (resultsFrom serverseitig, siehe scraper.py).
+    let srchLoadingMore = false;
+    async function loadMoreSearch(){
+      if(srchLoadingMore || !srchLastBody || srchResults.length>=srchTotal) return;
+      srchLoadingMore = true;
+      renderSearch();
+      const body = Object.assign({}, srchLastBody, {offset: srchResults.length});
+      let r, d;
+      try { r = await fetch(api('/api/search'), {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)}); d = await r.json(); }
+      catch(e){ srchLoadingMore = false; toast('Nachladen fehlgeschlagen.'); renderSearch(); return; }
+      if(!r.ok){ srchLoadingMore = false; toast(d.note || 'Nachladen fehlgeschlagen.'); renderSearch(); return; }
+      const fresh = d.results || [];
+      fresh.forEach(x=>{ x._key = String(x.giata||x.name); });
+      // Gegen bereits geladene _key dedupen — TUIs Reihenfolge kann sich zwischen
+      // zwei Aufrufen bei Preis-Gleichstand minimal verschieben.
+      const known = new Set(srchResults.map(x=>x._key));
+      srchResults = srchResults.concat(fresh.filter(x=>!known.has(x._key)));
+      srchTotal = d.total || srchTotal;
+      srchLoadingMore = false;
       sortSearchResults(); renderSearch();
     }
 
@@ -1935,7 +2107,7 @@
       const perNight = (r.nights && r.price!=null) ? eur(r.price/r.nights)+'/Nacht' : '';
       const img = r.image?('<img class="sr-img" src="'+esc(r.image)+'" loading="lazy" alt="">'):'<div class="sr-img"></div>';
       return `<div class="sr-item">
-        <label class="sr-cmp ai-feature" title="Für KI-Vergleich auswählen">
+        <label class="sr-cmp" title="Für Auswahl markieren (KI-Vergleich, E-Mail-Versand)">
           <input type="checkbox" class="sr-cmp-chk" data-key="${esc(r._key)}" ${srCmpSelected.has(r._key)?'checked':''}>
         </label>
         ${img}
@@ -1980,13 +2152,17 @@
          <input type="text" id="srch-filter" class="srch-listfilter" placeholder="In Treffern suchen…" autocomplete="off" oninput="filterSearch(this.value)" value="${esc(srchFilter)}">
          <span style="flex:1"></span>Sortieren: ${sortSel}
          <button class="btn sec" onclick="track3()" title="Günstigstes, mittleres und teuerstes Hotel aus den Treffern automatisch für den Preisverlauf tracken (keine Benachrichtigungen)">📊 3 tracken</button>
-         <button class="btn sec" onclick="trackAll()">Alle tracken</button></div>
+         <button class="btn sec" onclick="trackAll()">Alle tracken</button>
+         <button class="btn sec" onclick="openSearchEmailModal()" title="Trefferliste per E-Mail versenden — nur markierte Auswahl, sonst die komplette Liste">✉ Email</button></div>
         <div id="cmp-bar" class="cmp-foot ai-feature" style="display:none">
           <span class="hint" style="flex:1;min-width:180px"><b id="cmp-count">0</b> Hotel(s) für KI-Vergleich ausgewählt (max. 5)</span>
           <button class="btn sec" onclick="clearCmp()">Auswahl leeren</button>
           <button class="btn" onclick="openAiCompare()">🤖 Vergleichen</button>
         </div>
-        <div id="srch-rows"></div>`;
+        <div id="srch-rows"></div>
+        ${(srchResults.length<srchTotal)?`<div class="srch-more">
+          <button class="btn sec" onclick="loadMoreSearch()" ${srchLoadingMore?'disabled':''}>${srchLoadingMore?'Lädt…':('Mehr laden ('+(srchTotal-srchResults.length)+' weitere)')}</button>
+        </div>`:''}`;
       $('#srch-body').innerHTML = head;
       renderSearchRows();
       updateCmpBar();
@@ -2577,7 +2753,7 @@
       body.innerHTML = images.length ? (
         '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-top:10px">'
         + images.map(im=>(
-            '<a href="'+esc(im.full)+'" target="_blank" rel="noopener">'
+            '<a href="#" onclick="event.preventDefault();openGiataLightbox(\''+esc(im.full)+'\')">'
             +'<img src="'+esc(im.thumb)+'" loading="lazy" style="width:100%;height:110px;object-fit:cover;border-radius:6px;border:1px solid var(--border)">'
             +'</a>'
           )).join('')
@@ -2585,6 +2761,14 @@
       ) : '<div class="empty">Keine Fotos gefunden.</div>';
     }
     function closeGiataGallery(){ $('#giata-gallery-bg').classList.remove('show'); }
+    function openGiataLightbox(full){
+      $('#giata-lightbox-img').src = full;
+      $('#giata-lightbox-bg').classList.add('show');
+    }
+    function closeGiataLightbox(){
+      $('#giata-lightbox-bg').classList.remove('show');
+      $('#giata-lightbox-img').src = '';
+    }
     $('#syslog-bg').addEventListener('click', e=>{ if(e.target.id==='syslog-bg') closeSyslog(); });
 
     async function openAiHistory(){
@@ -3043,7 +3227,24 @@
       let d;
       try { d = await fetch(api('/api/rooms/'+id)).then(r=>r.json()); }
       catch(e){ $('#room-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Zimmer konnten nicht geladen werden.</div>'; return; }
+      $('#room-transfer').checked = d.transfer_included!==false;
       renderRooms(d);
+    }
+    async function toggleTransferIncluded(){
+      if(roomId==null) return;
+      const included = $('#room-transfer').checked;
+      $('#room-body').innerHTML = progBar('Wird übernommen…');
+      let ok=false;
+      try {
+        const r = await fetch(api('/api/offers/'+roomId), {method:'PATCH', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({transfer_included: included})});
+        ok = r.ok;
+        if(!ok){ const d=await r.json().catch(()=>({})); toast(d.note || 'Speichern fehlgeschlagen'); }
+      } catch(e){ toast('Speichern fehlgeschlagen'); }
+      if(!ok){ $('#room-transfer').checked = !included; openRooms(roomId); return; }
+      toast('Übernommen — Preis wird geprüft…');
+      lastSig=null;
+      openRooms(roomId);
     }
     function renderRooms(d){
       if(!d || !d.ok || !(d.rooms&&d.rooms.length)){
@@ -3362,6 +3563,11 @@
       emailMode = 'ai';
       await _openEmailModalCommon();
     }
+    async function openSearchEmailModal(){
+      if(!srchResults.length){ toast('Keine Treffer zum Versenden'); return; }
+      emailMode = 'search';
+      await _openEmailModalCommon();
+    }
     function closeEmailModal(){ $('#email-bg').classList.remove('show'); $('#email-bg').style.zIndex = ''; }
     $('#email-bg').addEventListener('click', e=>{ if(e.target.id==='email-bg') closeEmailModal(); });
     async function submitEmail(){
@@ -3371,6 +3577,7 @@
       closeEmailModal();
       if(emailMode === 'ai') return submitAiEmail(to.trim());
       if(emailMode === 'trips') return submitTripSummaryEmail(to.trim());
+      if(emailMode === 'search') return submitSearchEmail(to.trim());
       toast('E-Mail wird gesendet…');
       const body = {to: to.trim()};
       if(emailIds) body.ids = emailIds;
@@ -3386,6 +3593,19 @@
       } catch(e){ toast('Versand fehlgeschlagen'); return; }
       if(r.ok){ toast('KI-Analyse an '+to+' gesendet'); }
       else { const d=await r.json().catch(()=>({})); toast(d.error==='send_failed'?'Versand fehlgeschlagen – Einstellungen prüfen':d.error==='no_recipient'?'Kein Empfänger':d.error==='not_found'?'Analyse nicht gefunden':'Fehler beim Versand'); }
+    }
+    // Markierte Auswahl (sr-cmp-chk, geteilt mit KI-Vergleich) versenden, sonst die
+    // komplette aktuelle Trefferliste.
+    async function submitSearchEmail(to){
+      const rows = srCmpSelected.size ? srchResults.filter(r=>srCmpSelected.has(r._key)) : srchResults;
+      if(!rows.length){ toast('Keine Treffer zum Versenden'); return; }
+      toast('E-Mail wird gesendet…');
+      let r; try {
+        r = await fetch(api('/api/search/email'), {method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({to, results: rows, dest: srchDest ? srchDest.label : ''})});
+      } catch(e){ toast('Versand fehlgeschlagen'); return; }
+      if(r.ok){ const d=await r.json(); toast('E-Mail an '+d.to+' gesendet ('+d.count+' Treffer)'); }
+      else { const d=await r.json().catch(()=>({})); toast(d.error==='send_failed'?'Versand fehlgeschlagen – Einstellungen prüfen':d.error==='no_recipient'?'Kein Empfänger':d.error==='no_results'?'Keine Treffer':'Fehler beim Versand'); }
     }
     async function sendDigest(){
       toast('Wochenüberblick wird gesendet…');

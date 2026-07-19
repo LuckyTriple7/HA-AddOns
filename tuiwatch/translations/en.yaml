@@ -38,6 +38,9 @@ configuration:
   calendar_trend_min_diff:
     name: Minimum change for calendar price change (€)
     description: "Minimum price change per travel date before the calendar price change notification triggers. Default 20 € — smaller moves are still visible in the calendar itself (trend view), only the notification is filtered."
+  calendar_daily_refresh:
+    name: Daily calendar refresh
+    description: "Keeps active offers' price calendars fresh 1x/day (sharpens the trend view and booking-score calendar signal). Default on."
   notify_errors:
     name: Sold-out / error alert
     description: "Notify when an offer returns no result several times in a row (sold out or outdated URL). Default on."
@@ -134,6 +137,9 @@ configuration:
   ai_prompt_preview:
     name: Show AI prompt before sending
     description: "For interactive AI requests (AI summary, comparison, booking score, calendar analysis, region outlook, portfolio question, TripPilot/day trip, history repeat, follow-up question), shows the finished prompt in an editable window first — it's only actually sent to the AI after you confirm/optionally edit it. Automatic background runs (weekly digest, promo code check, auto-tagging) are not affected. Default off."
+  enable_check24_compare:
+    name: Check24 price comparison (beta)
+    description: "Allows comparing an offer against a manually linked Check24 hotel (other tour operators, same travel dates). Uses headless Chromium against Check24 (no open API), so it's more fragile than the TUI fetch and adds a second external ToS risk. Default off — deliberately opt-in."
   verbose_log:
     name: Verbose logging
     description: Logs more detail per check. Default off — only errors and important events are logged.

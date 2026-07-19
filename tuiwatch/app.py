@@ -24,7 +24,7 @@ from datetime import date, datetime, timedelta
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from pathlib import Path
-from urllib.parse import quote, urlparse
+from urllib.parse import parse_qs, quote, urlparse
 
 import anthropic
 import requests as http
@@ -43,8 +43,10 @@ from scraper import (_giata_from_url, _valid_img_url, api_healthcheck,
                      fetch_hotel_image,
                      fetch_price, fetch_rooms, fetch_search, fetch_search_params,
                      hotel_from_url, is_single_room, region_giata_from_breadcrumb,
-                     room_code_from_url, travellers_from_url, with_duration,
-                     with_room_code, with_travellers, without_room_code)
+                     room_code_from_url, transfer_included_from_url, travellers_from_url,
+                     with_duration, with_room_code, with_transfer_included, with_travellers,
+                     without_room_code)
+import check24_client
 from aktionscodes import fetch_aktionscodes
 from nextcloud import fetch_contacts
 from packliste import PACKING_TEMPLATE, default_packing_rows
@@ -82,7 +84,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.53.5"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.57.7"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -133,6 +135,9 @@ _calendar_state: dict[int, dict] = {}  # offer_id → transienter Status {runnin
 _calendar_lock = threading.Lock()
 _nights_state: dict[int, dict] = {}    # offer_id → transienter Status {running|error}
 _nights_lock = threading.Lock()
+_check24_state: dict[int, dict] = {}   # offer_id → transienter Status {running|error}
+_check24_lock = threading.Lock()       # schützt _check24_state
+_check24_scrape_lock = threading.Lock()  # serialisiert Check24-Abrufe (eigenes Chromium je Aufruf)
 _aktion_state: dict = {}               # transienter Status des Aktionscode-Abrufs {running|error|ts}
 _aktion_lock = threading.Lock()
 _cheaper_notified: dict[int, str] = {}  # Dedup für Günstigerer-Termin-Alarm
@@ -348,6 +353,10 @@ def init_db() -> None:
             history_only INTEGER DEFAULT 0,
             return_date  TEXT DEFAULT '',
             target_price REAL,
+            board            TEXT DEFAULT '',
+            check24_hotel_id TEXT DEFAULT '',
+            check24_area_id  TEXT DEFAULT '',
+            check24_link     TEXT DEFAULT '',
             created     INTEGER NOT NULL
         )''')
         con.execute('''CREATE TABLE IF NOT EXISTS price_history (
@@ -411,6 +420,20 @@ def init_db() -> None:
             rows     TEXT NOT NULL DEFAULT '[]',
             FOREIGN KEY (offer_id) REFERENCES offers(id) ON DELETE CASCADE
         )''')
+        # Gecachtes Ergebnis des Check24-Preisvergleichs (siehe check24_client.py) —
+        # ein Eintrag je Angebot, analog zu compare_cache/nights_cache.
+        con.execute('''CREATE TABLE IF NOT EXISTS check24_cache (
+            offer_id  INTEGER PRIMARY KEY,
+            ts        INTEGER NOT NULL,
+            query     TEXT NOT NULL DEFAULT '{}',
+            tui_price REAL,
+            rows      TEXT NOT NULL DEFAULT '[]',
+            offer_url TEXT NOT NULL DEFAULT '',
+            FOREIGN KEY (offer_id) REFERENCES offers(id) ON DELETE CASCADE
+        )''')
+        c24cols = {r['name'] for r in con.execute('PRAGMA table_info(check24_cache)').fetchall()}
+        if 'offer_url' not in c24cols:
+            con.execute("ALTER TABLE check24_cache ADD COLUMN offer_url TEXT NOT NULL DEFAULT ''")
         # Merkt den zuletzt gemeldeten Günstigerer-Termin (Datum+Preis), damit der
         # Alarm Neustarts übersteht und nur bei einem WIRKLICH neuen Tiefstwert kommt.
         con.execute('''CREATE TABLE IF NOT EXISTS cheaper_state (
@@ -568,7 +591,8 @@ def init_db() -> None:
         for col in ('hotel', 'details', 'room', 'dep_airport', 'flight_out',
                     'flight_ret', 'cancellation', 'location', 'city', 'region',
                     'country', 'pdf_url', 'return_date', 'image_url',
-                    'booking_code', 'room_booking_code', 'tags'):
+                    'booking_code', 'room_booking_code', 'tags', 'board',
+                    'check24_hotel_id', 'check24_area_id', 'check24_link'):
             if col not in ocols:
                 con.execute(f"ALTER TABLE offers ADD COLUMN {col} TEXT DEFAULT ''")
         for col in ('target_price', 'booked_price', 'stars', 'rating', 'total_price'):
@@ -1457,7 +1481,7 @@ def check_offer(offer_id: int) -> None:
                 (offer_id, ts, res.get('price'), res.get('old_price'), res.get('discount'),
                  (1 if avail else 0) if avail is not None else None,
                  1 if res.get('ok') else 0, res.get('note', '')))
-            for col in ('hotel', 'details', 'room', 'dep_airport', 'flight_out',
+            for col in ('hotel', 'details', 'room', 'board', 'dep_airport', 'flight_out',
                         'flight_ret', 'location', 'city', 'region', 'country',
                         'pdf_url', 'cancellation', 'stars', 'rating',
                         'rating_count', 'recommendation', 'total_price',
@@ -1715,6 +1739,91 @@ def _nights_payload(offer_id: int) -> dict:
         out = {'status': 'idle', 'rows': []}
     if st.get('status') == 'error':
         out['error'] = st.get('note', 'Nächte-Vergleich fehlgeschlagen')
+    return out
+
+
+# ── Check24-Vergleich (on-demand, gespeichert) ──────────────────────────────────
+
+def _run_check24_compare(offer_id: int) -> None:
+    """Ruft den gepinnten Check24-Hotel-Link live ab (Playwright, siehe
+    check24_client.py) und speichert das Ergebnis in check24_cache (DB). Läuft im
+    Hintergrund-Thread, analog zu _run_compare()/_run_nights()."""
+    try:
+        with db() as con:
+            o = con.execute(
+                'SELECT url, check24_hotel_id, room, board, details, dep_airport, return_date'
+                ' FROM offers WHERE id=?', (offer_id,)).fetchone()
+            last = con.execute(
+                'SELECT price FROM price_history WHERE offer_id=? ORDER BY ts DESC LIMIT 1',
+                (offer_id,)).fetchone()
+        tui_price = last['price'] if last else None
+        if not o:
+            with _check24_lock:
+                _check24_state[offer_id] = {'status': 'error', 'note': 'Angebot nicht gefunden'}
+            return
+        if not o['check24_hotel_id']:
+            with _check24_lock:
+                _check24_state[offer_id] = {'status': 'error', 'note': 'Kein Check24-Hotel verknüpft'}
+            return
+        q = {k: v[0] for k, v in parse_qs(urlparse(o['url']).query).items()}
+        # URL-Parameter startDate/endDate/departureAirports sind das (ggf. flexible)
+        # Such-Zeitfenster, NICHT das tatsächlich gebuchte Datum -- bei einer
+        # mehrmonatigen Flex-Suche kommen so absurde Check24-Anfragen raus (z.B.
+        # 20.07.-17.10. statt der echten 7 Nächte ab 06.12.). Die echten Werte
+        # stehen in details ("... Nächte ab DD.MM.YYYY") und return_date/dep_airport.
+        m = re.search(r'ab (\d{2})\.(\d{2})\.(\d{4})', o['details'] or '')
+        departure_date = f'{m.group(3)}-{m.group(2)}-{m.group(1)}' if m else q.get('startDate', '')
+        return_date = o['return_date'] or q.get('endDate', '')
+        am = re.search(r'\(([A-Z]{3})\)', o['dep_airport'] or '')
+        airport = am.group(1) if am else (q.get('departureAirports', '') or '').split(',')[0]
+        query = {'departure_date': departure_date, 'return_date': return_date,
+                 'airport': airport, 'room_hint': o['room'] or '', 'board_hint': o['board'] or ''}
+        res = None
+        for attempt in range(2):
+            with _check24_scrape_lock:
+                res = check24_client.fetch_offers(
+                    o['check24_hotel_id'], departure_date, return_date,
+                    airport, room_hint=o['room'] or '', board_hint=o['board'] or '',
+                    verbose=_verbose())
+            if res is not None:
+                break
+            time.sleep(3)
+        if res is None:
+            with _check24_lock:
+                _check24_state[offer_id] = {'status': 'error', 'note': 'Check24 nicht erreichbar'}
+            return
+        with db() as con:
+            con.execute('INSERT OR REPLACE INTO check24_cache (offer_id, ts, query, tui_price, rows, offer_url) '
+                        'VALUES (?,?,?,?,?,?)',
+                        (offer_id, int(time.time()), json.dumps(query, ensure_ascii=False),
+                         tui_price, json.dumps(res.get('rows', [])), res.get('offer_url', '')))
+        with _check24_lock:
+            _check24_state.pop(offer_id, None)
+        log.info("Check24-Vergleich #%d fertig: %d Angebot(e), Hinweis=%s",
+                 offer_id, len(res.get('rows', [])), res.get('note') or '-')
+    except Exception as e:
+        log.error("Check24-Vergleich #%d Fehler: %s", offer_id, e)
+        with _check24_lock:
+            _check24_state[offer_id] = {'status': 'error', 'note': 'Check24-Vergleich fehlgeschlagen'}
+
+
+def _check24_payload(offer_id: int) -> dict:
+    """Aktueller Zustand: laufend / Fehler / gespeichertes Ergebnis / leer."""
+    with _check24_lock:
+        st = dict(_check24_state.get(offer_id) or {})
+    if st.get('status') == 'running':
+        return {'status': 'running', 'rows': []}
+    with db() as con:
+        row = con.execute('SELECT ts, query, tui_price, rows, offer_url FROM check24_cache WHERE offer_id=?',
+                          (offer_id,)).fetchone()
+    if row:
+        out = {'status': 'done', 'ts': row['ts'], 'query': _json_loads_safe(row['query'], {}),
+               'tui_price': row['tui_price'], 'rows': _json_loads_safe(row['rows'], []),
+               'offer_url': row['offer_url'] or ''}
+    else:
+        out = {'status': 'idle', 'rows': []}
+    if st.get('status') == 'error':
+        out['error'] = st.get('note', 'Check24-Vergleich fehlgeschlagen')
     return out
 
 
@@ -2034,28 +2143,40 @@ def _push_health_sensor_from_cache() -> None:
 def _push_market_trend_sensor() -> None:
     """Meldet HA einen Sensor mit dem marktweiten Preistrend — State = kumulierte
     %-Bewegung der letzten 14 Tage (`_market_trend`), oder 'unknown' bei zu
-    wenigen Daten. Attribute ergänzen den Index seit Aufzeichnungsbeginn
-    (`_market_index`), der auch langsame, über Wochen verteilte Bewegungen zeigt."""
+    wenigen Daten (NIE 'unavailable' — das wäre HA-Konvention für einen kaputten
+    Sensor, hier ist der Sensor selbst ja da). Attribute ergänzen den Index seit
+    Aufzeichnungsbeginn (`_market_index`), der auch langsame, über Wochen verteilte
+    Bewegungen zeigt.
+    Berechnung und POST sind bewusst GETRENNT abgesichert: bricht die Berechnung bei
+    einer ungewöhnlichen Datenkonstellation (z. B. einzelne Region mit Sonderfällen)
+    mit einer Exception ab, soll das NICHT den ganzen Refresh-Zyklus killen und die
+    Entity dadurch bei HA verwaisen lassen — lieber mit 'unknown' posten und den
+    Fehler loggen, als stillschweigend gar nicht zu posten."""
     if not _ha_enabled():
         return
-    with db() as con:
-        glob_trend = _market_trend(con)
-        glob_index = _market_index(con)
-        regions = [r['region'] for r in con.execute(
-            "SELECT DISTINCT region FROM price_moves WHERE region!=''").fetchall()]
-        by_region = []
-        for r in sorted(regions):
-            t, i = _market_trend(con, region=r), _market_index(con, region=r)
-            if t or i:
-                by_region.append({'region': r, 'trend': t, 'index': i})
-    attrs = {'friendly_name': 'TUIWatch Markttrend', 'icon': 'mdi:chart-line',
-             'unit_of_measurement': '%', 'by_region': by_region}
-    if glob_trend:
-        attrs.update(direction=glob_trend['dir'], days=glob_trend['days'], samples=glob_trend['n'])
-    if glob_index:
-        attrs.update(index=glob_index['index'], index_pct=glob_index['pct'],
-                     index_since=datetime.fromtimestamp(glob_index['since']).isoformat())
-    state = glob_trend['pct'] if glob_trend else 'unknown'
+    state, attrs = 'unknown', {'friendly_name': 'TUIWatch Markttrend', 'icon': 'mdi:chart-line',
+                                'unit_of_measurement': '%'}
+    try:
+        with db() as con:
+            glob_trend = _market_trend(con)
+            glob_index = _market_index(con)
+            regions = [r['region'] for r in con.execute(
+                "SELECT DISTINCT region FROM price_moves WHERE region!=''").fetchall()]
+            by_region = []
+            for r in sorted(regions):
+                t, i = _market_trend(con, region=r), _market_index(con, region=r)
+                if t or i:
+                    by_region.append({'region': r, 'trend': t, 'index': i})
+        attrs['by_region'] = by_region
+        if glob_trend:
+            attrs.update(direction=glob_trend['dir'], days=glob_trend['days'], samples=glob_trend['n'])
+        if glob_index:
+            attrs.update(index=glob_index['index'], index_pct=glob_index['pct'],
+                         index_since=datetime.fromtimestamp(glob_index['since']).isoformat())
+        state = glob_trend['pct'] if glob_trend else 'unknown'
+    except Exception as e:
+        log.warning("Markttrend-Berechnung fehlgeschlagen (poste trotzdem 'unknown'): %s: %s",
+                     type(e).__name__, e)
     try:
         http.post(f'{HA_BASE}/states/sensor.tuiwatch_markttrend',
                   headers={'Authorization': f'Bearer {SUPERVISOR_TOKEN}'}, timeout=10,
@@ -2341,6 +2462,7 @@ def index():
                         or (cfg.get('gemini_api_key') or '').strip()),
         trippilot_home_location=(cfg.get('trippilot_home_location') or '').strip(),
         is_ingress=_is_ingress(),
+        check24_enabled=bool(cfg.get('enable_check24_compare', False)),
         app_version=APP_VERSION))
 
 
@@ -2459,6 +2581,8 @@ def _collect_offers() -> list[dict]:
                 'checking': checking,
                 'calendar_alert': calendar_alert,
                 'comparable': not is_single_room(f"{o['room']} {o['details']}"),
+                'board': o['board'] or '',
+                'check24_linked': bool(o['check24_hotel_id']),
             })
     return out
 
@@ -2851,8 +2975,10 @@ api_rooms_set = offers_routes.api_rooms_set
 # `import app as A` auf die oben definierten Primitiven zu.
 import trips_routes  # noqa: E402
 import backup_routes  # noqa: E402
+import check24_routes  # noqa: E402
 app.register_blueprint(trips_routes.bp)
 app.register_blueprint(backup_routes.bp)
+app.register_blueprint(check24_routes.bp)
 
 # Rückwärtskompatible Re-Exports: der Poller (oben) und die Tests sprechen die
 # Auto-Backup-Funktionen weiter über den app-Namespace an (monkeypatch-Ziel).
@@ -2903,15 +3029,19 @@ def _cooldown_sensor_worker() -> None:
 
 
 def _market_trend_sensor_worker() -> None:
-    """Meldet den Markttrend-Sensor alle 10 Minuten neu — die zugrunde liegenden Daten
-    ändern sich langsam (neue Punkte nur je Poll-Intervall pro Angebot), ein kurzes
-    Intervall wie beim Cooldown-Sensor wäre unnötig; überlebt trotzdem HA-Neustarts."""
+    """Meldet den Markttrend-Sensor alle 2 Minuten neu — die zugrunde liegenden Daten
+    ändern sich zwar langsam (neue Punkte nur je Poll-Intervall pro Angebot), aber
+    states-API-Sensoren wie dieser überleben einen HA-Core-Neustart NICHT von selbst
+    (verschwinden aus der State Machine, bis neu gepostet wird). Wie bei
+    `_health_sensor_worker`/`_aktionscodes_sensor_worker` hält das kurze Intervall
+    das Zeitfenster klein, in dem der Sensor nach einem HA-Neustart 'nicht verfügbar'
+    statt seines letzten Werts zeigt."""
     while True:
         try:
             _push_market_trend_sensor()
         except Exception as e:
             log.warning("Markttrend-Sensor-Refresh fehlgeschlagen: %s", e)
-        time.sleep(600)
+        time.sleep(120)
 
 
 def _handle_sigterm(signum, frame) -> None:

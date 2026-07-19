@@ -1,5 +1,300 @@
 # Changelog
 
+## [0.57.7] - 2026-07-19
+
+### Fixed
+- **sensor.tuiwatch_markttrend weiterhin unavailable trotz kurzem Refresh** —
+  echte Ursache: die Trend-/Index-Berechnung (DB-Queries, Datums-Parsing,
+  Divisionen je Region) lief bislang außerhalb jeder Absicherung. Crashte sie
+  bei einer ungewöhnlichen Datenkonstellation (z. B. eine einzelne Region),
+  flog die Exception unkontrolliert aus der Funktion — **kein POST fand statt**,
+  lautlos (nur ein Log-Eintrag im äußeren Worker, leicht zu übersehen). Andere
+  Sensoren (Cooldown/API/Coupon) sind trivial und davon nicht betroffen, daher
+  nur dieser eine Sensor auffällig. Jetzt strikt getrennt: Berechnung fehlschlägt
+  → Fallback auf 'unknown' + Warnung im Log, POST läuft in jedem Fall.
+
+## [0.57.6] - 2026-07-19
+
+### Fixed
+- **sensor.tuiwatch_markttrend wurde in HA immer wieder „nicht verfügbar"** —
+  Sensor überlebt (wie alle per States-API gesetzten Sensoren) einen
+  HA-Core-Neustart nicht von selbst und verschwindet aus der State Machine,
+  bis er neu gepostet wird. Refresh-Intervall von 10 auf 2 Minuten verkürzt
+  (wie beim API-Verfügbar- und Coupon-Sensor) — verkleinert das Zeitfenster
+  nach einem HA-Neustart deutlich. Bei zu wenigen Datenpunkten war der Status
+  schon immer „unknown" (nie „unavailable").
+
+## [0.57.5] - 2026-07-17
+
+### Fixed
+- **Zimmerauswahl/Preisprüfung 0 Treffer bei Hotels ohne Transfer-Paket** — die
+  Offer-API nutzte seit v0.9.0 `transferIncluded=true` als Default (passend zur
+  Buchung auf tui.com), liefert bei Hotels ohne buchbares Transfer-Paket
+  (Selbstanreise-Regionen) dafür 0 Treffer, obwohl auf tui.com ganz normal
+  buchbare Angebote existieren. Live verifiziert: Hotels MIT Transfer-Paket
+  liefern bei `true`/`false` identische Treffer+Preise, nur bei Hotels OHNE
+  Transfer-Paket macht es den Unterschied (0 vs. alle). Preisprüfung und
+  Zimmerauswahl fallen jetzt automatisch auf `false` zurück, wenn `true` 0
+  Treffer liefert — aber nur, solange der Nutzer nichts explizit festgelegt hat.
+
+### Added
+- Neuer Schalter „Transfer inklusive" in der Zimmerauswahl eines Angebots —
+  fixiert `transferIncluded` fest auf der Angebots-URL (wirkt automatisch auch
+  auf die reguläre Preisprüfung), kein automatischer Fallback mehr, sobald
+  explizit gesetzt.
+- Neuer Filter „Transfer" in der Hotelsuche (links neben „Nur Direktflug",
+  Standard an) — echter serverseitiger Filter der Such-API (live verifiziert:
+  Hotels ohne Transfer-Paket verschwinden komplett aus der Trefferliste),
+  kein Fallback. Verhindert, dass nicht direkt vergleichbare Selbstanreise-
+  Angebote die Trefferliste verfälschen.
+
+## [0.57.4] - 2026-07-17
+
+### Added
+- Hotelsuche: Feld „Max. Preis p.P." neben Fluggesellschaften — filtert
+  Treffer über dem Preis (p.P.) raus. Wird wie Sterne/Weiterempfehlung
+  clientseitig nachgefiltert, in gespeicherten Suchen mitgespeichert.
+
+## [0.57.3] - 2026-07-17
+
+### Fixed
+- Übersetzung für `calendar_daily_refresh` gefehlt — Einstellung erschien im
+  UI als roher Konfigurationsschlüssel statt als Text. Ergänzt in
+  `translations/de.yaml` und `translations/en.yaml`.
+
+## [0.57.2] - 2026-07-16
+
+### Fixed
+- **Echte Root-Cause des Check24-Timeouts gefunden** — v0.57.1 (60s-Budget) war
+  eine Fehldiagnose. Tatsächlich antwortet Check24 bei einem gültigen Hotel
+  ohne Angebot für die exakten Termine sofort (<1s) mit `status: "Empty"` —
+  ein dritter Terminal-Status neben `Success`/`Error`, den der Poll-Loop nicht
+  kannte und deshalb bis zum Timeout weiterlief, obwohl "kein Angebot" längst
+  feststand. Live verifiziert (Gloria Palace Amadores, 03.–14.05.2027, ein
+  Termin ohne Check24-Angebot): jetzt 1,1s statt 73s.
+
+## [0.57.1] - 2026-07-16
+
+### Fixed
+- **Check24-Vergleich lief in echte Timeouts, obwohl das Hotel gültige Angebote
+  hatte** — Job/Poll-Budget war 20 Versuche (~30s), Bugreport zeigte aber echte
+  Wartezeiten von 38s/42s im Produktivbetrieb (lokal nachgestellt: derselbe
+  Job löst sich zuverlässig auf, nur variabel langsamer als beim Live-Test
+  angenommen). Budget auf 40 Versuche (~60s) erhöht. Spinner-Text in der UI
+  war zudem noch ein Playwright-Ära-Leftover ("kann bis zu einer Minute
+  dauern" — stimmte zufällig ungefähr, aber aus dem falschen Grund),
+  jetzt realistisch beschriftet.
+
+## [0.57.0] - 2026-07-16
+
+### Added
+- **Hotelsuchen-Trefferliste per E-Mail versenden** — neuer "✉ Email"-Button in
+  der Suche, sendet eine HTML-Mail mit anklickbaren tui.com-Links. Ist eine
+  Auswahl markiert (Checkbox, geteilt mit dem KI-Vergleich), wird nur diese
+  versendet, sonst die komplette aktuelle Trefferliste. Neues Modul
+  `email_search.py` (statt weiterem Wachstum von app.py) baut die Mail aus den
+  bereits geladenen Suchergebnissen, neue Route `POST /api/search/email`. Die
+  Auswahl-Checkbox in der Trefferliste ist dafür nicht mehr an das
+  KI-Feature-Flag gekoppelt (vorher nur bei aktivierter KI sichtbar).
+
+## [0.56.1] - 2026-07-16
+
+### Added
+- **"Egal"-Checkbox für Sterne/Weiterempfehlung in der Hotelsuche** — sperrt
+  beide Felder und lässt den Filter komplett weg, statt sie manuell auf 0
+  setzen zu müssen. Zustand wird in gespeicherten Suchen mitgesichert.
+
+## [0.56.0] - 2026-07-16
+
+### Added
+- **"Mehr laden" in der Hotelsuche** — die Such-API liefert pro Aufruf nur
+  50 Treffer (`resultsPerPage`), auch bei viel mehr echten Treffern in der
+  Region (z. B. 210). Neuer Button unter der Trefferliste lädt die nächste
+  Seite nach (`resultsFrom`/`offset`) und hängt sie an, statt dass die
+  restlichen Treffer schlicht nie abgerufen werden.
+
+## [0.55.8] - 2026-07-16
+
+### Fixed
+- **"N Treffer in der Region"-Anzeige war bei großen Regionen zu niedrig** —
+  `resultsTotal` in der Such-API-Anfrage ist kein reiner Info-Wert, sondern ein
+  Cap: die Antwort deckelt ihre eigene (echte) Trefferzahl auf diesen Wert
+  (live verifiziert: 300 angefragt bei 703 echten Treffern → Antwort "300").
+  Cap von 300 auf 1000 angehoben.
+
+## [0.55.7] - 2026-07-16
+
+### Fixed
+- **Hotelsuche zeigte deutlich teurere Hotels als tui.com selbst** — Beispiel:
+  Mallorca-Suche zeigte "ab 908 €", tui.com für dieselben Parameter "ab 572 €".
+  Ursache: die Such-API wurde mit `sortingOrder: "qualifier2DESC"` (Best-Match-
+  Score, nicht Preis) abgefragt und nur die ersten 50 von z. B. 256 Treffern
+  geholt (`resultsPerPage`) — die günstigsten Hotels waren dadurch oft gar nicht
+  im abgeholten Batch, das clientseitige "Preis aufsteigend"-Sortieren in der
+  UI konnte sie folglich nicht finden (sie waren nie in den Daten). Auf
+  `sortingOrder: "priceAsc"` umgestellt (live gegen tui.com selbst per
+  `sortHotelsField=price&sortHotelsAsc=1` verifiziert — liefert exakt dieselben
+  günstigen Hotels).
+
+## [0.55.6] - 2026-07-16
+
+### Fixed
+- **Check24-Vergleich meldete "nicht verfügbar" trotz echter Angebote** — der
+  serverseitige `cateringList`-Filter (v0.55.4) funktionierte korrekt, aber der
+  zusätzliche Client-Filter verglich Textstrings: TUI liefert Verpflegung auf
+  Deutsch ("Alles Inklusive"), Check24s `mealType` wurde intern zu "All
+  Inclusive" (Englisch) übersetzt — der Substring-Vergleich der beiden matchte
+  nie, das Angebot fiel fälschlich unter `no_offers_for_board`. Filter
+  vergleicht jetzt stattdessen über dieselben Check24-Tier-Codes wie die
+  `cateringList`-Anfrage (sprachunabhängig, funktioniert für alle
+  Verpflegungsstufen einheitlich).
+- Check24-Cooldown von 120s auf 30s reduziert — war ein Playwright-Ära-Wert
+  (Browser-Start + Anti-Bot-Vorsicht), seit v0.55.5 (reines `requests`,
+  ~8-15s Laufzeit) nicht mehr nötig.
+
+## [0.55.5] - 2026-07-16
+
+### Changed
+- **Check24-Vergleich läuft nicht mehr über Playwright, sondern über ein
+  offenes JSON-API** — Annahme aus v0.54.0 war falsch: das `cryptString`-Feld
+  in `/suche/json/dynamic/offer` ist nur ein Buchungs-/Verfügbarkeits-Token,
+  nicht die verschlüsselte Preis-Nutzlast. Preis, Zimmer, Verpflegung,
+  Veranstalter stehen im selben JSON bereits im Klartext. `check24_client.py`
+  nutzt jetzt reines `requests` (Job/Poll-POST) statt Headless-Chromium —
+  schneller (~8-15s statt fixer 12s-Wartezeit + Browser-Start), robuster
+  (kein Container-/Chromium-Build-abhängiges Verhalten mehr, siehe die
+  `page.fill()`-vs-`page.type()`-Fixes in v0.54.2), kein Anti-Bot-Risiko durch
+  Headless-Browser-Fingerprinting mehr. Auch die Hotelsuche
+  (`search_hotel()`) läuft jetzt über ein offenes JSON-API
+  (`/autocompleter-destination`) statt simuliertem Autocomplete-Tippen.
+  Rückgabeformat/Verhalten unverändert, keine Auswirkung auf App/Routen.
+  Details: SCRAPING_CHECK24.md.
+
+## [0.55.4] - 2026-07-16
+
+### Fixed
+- **Check24-Vergleich ignorierte die Verpflegung** — bei TUI-Angebot "All
+  Inclusive" wurden ungefiltert auch deutlich günstigere Halbpension-Angebote
+  gezeigt (Preisvergleich dadurch irreführend). Check24 hat auf der
+  Angebotsseite selbst einen Verpflegungs-Filter (Tabs "Mind. Frühstück" /
+  "Mind. Halbpension" / "Mind. Vollpension" / "All Inclusive"), der über den
+  Query-Param `cateringList=<stufe-oder-besser>` steuerbar ist — live per
+  Playwright ermittelt (Klick auf den Tab beobachtet, siehe
+  SCRAPING_CHECK24.md). `check24_client.fetch_offers()` setzt diesen Param
+  jetzt passend zur TUI-Verpflegung direkt beim Laden, der bisherige weiche
+  Textfilter fällt bei fehlendem Treffer nicht mehr auf "ungefiltert zeigen"
+  zurück (das war die Ursache der falschen Daten).
+
+## [0.55.3] - 2026-07-16
+
+### Fixed
+- Gestrichelte Unterlinie am Preis (Check24-Klickhinweis) kollidierte optisch mit
+  der Durchstreichung bei reduzierten Preisen — entfernt, nur noch Cursor/Hover.
+
+## [0.55.2] - 2026-07-16
+
+### Fixed
+- **Check24-Vergleich fragte falsche Reisedaten ab** — nutzte `startDate`/`endDate`
+  aus der TUI-URL, das ist aber das (ggf. mehrmonatige) Such-Zeitfenster der
+  Flex-Suche, nicht das tatsächlich gebuchte Datum. Beispiel: echtes Angebot
+  7 Nächte ab 06.12.2026, Check24-Abfrage lief aber mit 20.07.2026–17.10.2027.
+  Jetzt werden Abreisedatum aus `details` ("... Nächte ab DD.MM.YYYY") und
+  Rückreisedatum/Abflughafen aus den bereits gespeicherten, echten Angebotsfeldern
+  (`return_date`, `dep_airport`) genutzt.
+
+### Changed
+- **Check24-Vergleich per Klick auf den Preis statt eigenem Button** — der
+  "Check24 verknüpfen"/"Check24-Vergleich"-Button in der Aktionsleiste entfällt;
+  ein Klick auf den Preis (nur bei aktivem Feature) startet direkt die Verknüpfung
+  bzw. den Vergleich.
+
+## [0.55.1] - 2026-07-15
+
+### Fixed
+- **Angebote mit Verpflegungsfilter "Frühstück" (`boardTypes=BB`) fälschlich als
+  "nicht verfügbar" gemeldet** — betraf Preis-Abruf, Preiskalender ("0 Tage") und
+  Zimmerauswahl ("keine Zimmer gefunden") gleichermaßen, obwohl das Angebot auf
+  tui.com verfügbar war. Ursache: die Angebots-/Kalender-API nutzt intern `BR`
+  statt `BB` als Code für Frühstück (`GT06-BB` lieferte an 3 unabhängig
+  getesteten Hotels durchweg 0 Treffer, `GT06-BR` die echten Angebote) —
+  `AI`/`HB`/`FB`/`AO` sind davon nicht betroffen und bleiben unverändert.
+
+## [0.55.0] - 2026-07-15
+
+### Added
+- **Check24-Vergleich zeigt jetzt den Reiseveranstalter** je Zeile (z. B. "ITS
+  Dynamisch", "DERTOUR Dynamisch", "alltours dynamisch") statt nur Zimmer/
+  Verpflegung/Preis — Anbietername steht im `alt`-Text des Anbieter-Logos je
+  Angebotskarte.
+- **Link "Auf Check24 ansehen"** im Ergebnis — führt direkt zur Check24-
+  Angebotsseite für das verknüpfte Hotel/die Reisedaten (kein Deep-Link auf
+  die exakte Zeile möglich, "zur Buchung" ist reine JS-Navigation ohne
+  statischen Link).
+
+## [0.54.3] - 2026-07-15
+
+### Fixed
+- **Check24-Vergleich zeigte absurd niedrige Preise** (z. B. "3,34 €" statt des
+  echten Zimmerpreises). Ursache: jede Angebotskarte enthält neben dem echten
+  Preis auch eine Smily-Punkte-Zeile im selben Format ("2,54 € als Smily Punkte
+  sammeln") — die Preis-Regex nahm den *letzten* Treffer im Kartentext, das war
+  die Punktezahl, nicht der Preis. Regex schließt Smily-Punkte-Treffer jetzt
+  gezielt aus.
+
+## [0.54.2] - 2026-07-15
+
+### Fixed
+- **CI-Bruch in v0.54.1**: `check24_client.search_hotel()` importierte `playwright`
+  vor dem Leer-Anfrage-Check statt danach — brach den reinen Parsing-Test in CI
+  (dort ist playwright absichtlich nicht installiert) und war strukturell falsch
+  gegenüber dem lazy-import-Muster aus `scraper.py`.
+- **Check24-Hotelsuche fand im Add-on-Container nie einen Treffer** (0 Treffer,
+  ohne Fehler im Log) — im lokalen Test mit Playwrights eigenem Chromium
+  funktionierte dieselbe Suche zuverlässig. Ursache: `page.fill()` setzt den
+  Feldwert nur per `input`/`change`-Event; das jQuery-UI-Autocomplete-Widget auf
+  Check24 hört dafür offenbar auf echte Tastatur-Events — mit dem System-
+  Chromium im Container (`CHROMIUM_PATH`) blieb das folgenlos. Jetzt `page.type()`
+  (simuliert echte Tastendrücke) statt `page.fill()`. Zusätzlich: 0-Treffer wird
+  jetzt immer geloggt (nicht nur bei `verbose_log`), inkl. Anzahl roher
+  Autocomplete-Elemente — damit ein erneutes Auftreten diagnostizierbar bleibt.
+
+## [0.54.1] - 2026-07-15
+
+### Changed
+- **Check24-Hotel automatisch statt Link einfügen.** Der "Check24 verknüpfen"-
+  Button verlangte bisher, einen kompletten Check24-Hotel-Link von Hand zu
+  suchen und einzufügen — zu umständlich für einen Preisvergleich. Jetzt
+  durchsucht TUIWatch Check24 automatisch mit dem bereits bekannten
+  TUI-Hotelnamen (Check24s eigenes Zielsuchfeld, kein Tippen nötig); bei
+  eindeutigem Treffer wird sofort verknüpft und der Vergleich gestartet, bei
+  mehreren ähnlichen Hotels erscheint eine kurze Klick-Liste. Der manuelle
+  Link bleibt als Fallback (`PATCH .../check24_link`), falls die Suche ein
+  Hotel nicht findet. Nebenbei vereinfacht: `areaId` war gar nicht nötig
+  (`hotelId` allein reicht, Check24 leitet automatisch weiter) — der bisherige
+  Zwischenschritt über die Hotel-Ergebnisliste (inkl. Popup-Klick) entfällt.
+
+## [0.54.0] - 2026-07-15
+
+### Added
+- **Check24-Preisvergleich (Beta, `enable_check24_compare`)**: ein Angebot kann
+  einmalig mit einem Check24-Hotel verknüpft werden (Link von
+  urlaub.check24.de/suche/hotel…), danach zeigt "Check24-Vergleich" den
+  günstigsten passenden Preis anderer Reiseveranstalter (gleiche Reisedaten,
+  ähnliche Zimmerkategorie/Verpflegung) neben dem TUI-Preis — nach demselben
+  Muster wie Pro-Person-Vergleich (Hintergrund-Abruf, gespeichertes Ergebnis,
+  "Neu abfragen"). Standardmäßig deaktiviert (Check24 hat kein offenes API,
+  Abruf läuft über Headless-Chromium und ist entsprechend langsamer/fragiler
+  als der TUI-Abruf — siehe SCRAPING_CHECK24.md). Verpflegung (`board`) wird
+  dafür jetzt auch strukturiert je Angebot gespeichert, nicht nur als Text in
+  den Details.
+
+## [0.53.6] - 2026-07-14
+
+### Added
+- **GIATA-Fotogalerie: Lightbox statt neuer Tab.** Klick auf ein Thumbnail
+  zeigt das Foto jetzt in Originalgröße direkt im Modal (size=800 statt
+  600), statt einen neuen Browser-Tab zu öffnen.
+
 ## [0.53.5] - 2026-07-14
 
 ### Changed

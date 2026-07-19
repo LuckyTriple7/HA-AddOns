@@ -124,6 +124,8 @@
     .room-price .pp { font-weight:400; font-size:.72rem; color:var(--muted); }
     .price-box { text-align:right; flex-shrink:0; }
     .price-now { font-size:1.5rem; font-weight:800; line-height:1; white-space:nowrap; }
+    .price-now.check24-trigger { cursor:pointer; }
+    .price-now.check24-trigger:hover { opacity:.7; }
     .price-pp { font-size:.66rem; color:var(--muted); margin-top:2px; text-transform:uppercase; letter-spacing:.04em; }
     .price-sub { font-size:.74rem; color:var(--muted); margin-top:4px; }
     .price-total { font-size:.76rem; color:var(--text); font-weight:600; margin-top:3px; white-space:nowrap; }
@@ -188,6 +190,7 @@
     .aihist-main:hover .aihist-title { color:var(--accent); }
     .aihist-title { font-weight:600; font-size:.88rem; }
     body.ai-disabled .ai-feature { display:none !important; }
+    body.check24-disabled .check24-feature { display:none !important; }
     .twprog { height:7px; background:var(--border); border-radius:5px; overflow:hidden; max-width:320px; margin:10px auto 0; }
     .twprog > i { display:block; height:100%; background:var(--accent); border-radius:5px; transition:width .3s ease; }
     .twprog.indet > i { width:40%; animation:twindet 1.1s ease-in-out infinite; }
@@ -237,6 +240,7 @@
     .srch-head { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:6px 0 4px; font-size:.82rem; color:var(--muted); }
     .srch-listfilter { background:var(--bg); border:1px solid var(--border); color:var(--text); padding:6px 10px; border-radius:6px; font-size:.82rem; min-width:180px; }
     .srch-listfilter:focus { outline:none; border-color:var(--accent); }
+    .srch-more { display:flex; justify-content:center; padding:14px 0 4px; }
     .srch-from { background:var(--bg); border:1px solid var(--border); border-radius:6px; padding:8px 10px; margin-bottom:10px; font-size:.83rem; }
     .srch-from b { color:var(--text); }
     .srch-fav { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:10px; font-size:.82rem; color:var(--muted); }
@@ -630,10 +634,15 @@
             <div class="airline-list" id="srch-airline-list"></div>
           </details>
         </div>
+        <div class="srch-field srch-sm">
+          <label>Max. Preis p.P. <span class="opt">(optional)</span></label>
+          <input type="number" id="srch-maxprice" min="1" placeholder="z. B. 1500">
+        </div>
       </div>
 
       <div class="srch-filters">
         <label class="srch-chk" title="Nur Pauschalreisen des Veranstalters TUI Deutschland (TUID). Aus = alle Veranstalter."><input type="checkbox" id="srch-tui" checked> TUI</label>
+        <label class="srch-chk" title="Nur Hotels mit buchbarem Transfer-Paket zeigen (manche Hotels/Regionen bieten nur Selbstanreise — sonst wären deren Preise nicht direkt vergleichbar). Aus = alle Hotels, mit und ohne Transfer."><input type="checkbox" id="srch-transfer" checked> Transfer</label>
         <label class="srch-chk" title="Nur Angebote mit Direktflug (ohne Zwischenstopp)"><input type="checkbox" id="srch-direct"> Nur Direktflug</label>
         <label class="srch-chk" title="Nur Erwachsenenhotels (Adults Only)"><input type="checkbox" id="srch-adults"> Nur Erwachsene</label>
         <span class="srch-boards">Verpflegung:
@@ -653,6 +662,7 @@
         </span>
         <label class="srch-num">Sterne ≥ <input type="number" id="srch-stars" min="0" max="5" step="1" value="3" placeholder="0" style="width:54px"></label>
         <label class="srch-num">Weiterempf. ≥ <input type="number" id="srch-rec" min="0" max="100" step="5" value="80" placeholder="0" style="width:60px">%</label>
+        <label class="srch-chk" title="Sterne- und Weiterempfehlungs-Filter ignorieren"><input type="checkbox" id="srch-qual-off" onchange="toggleQualFilter()"> Egal</label>
         <button class="btn sec" onclick="resetSearch()" style="margin-left:auto" title="Eingaben auf Standard zurücksetzen">Reset</button>
         <button class="btn" onclick="runSearch()">Suchen</button>
       </div>
@@ -691,6 +701,18 @@
     </div>
   </div>
 
+  <!-- Check24-Vergleich-Modal -->
+  <div class="modal-bg" id="c24-bg">
+    <div class="modal">
+      <button class="icon-btn modal-close" onclick="closeCheck24()">
+        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+      </button>
+      <h2>Check24-Vergleich</h2>
+      <div class="sub" id="c24-sub"></div>
+      <div id="c24-body"></div>
+    </div>
+  </div>
+
   <!-- Preiskalender-Modal -->
   <div class="modal-bg" id="cal-bg">
     <div class="modal">
@@ -710,6 +732,9 @@
       </button>
       <h2>Zimmerauswahl</h2>
       <div class="sub" id="room-sub"></div>
+      <label class="srch-chk" id="room-transfer-row" style="margin-bottom:10px" title="Aus, wenn dieses Hotel gar kein Transfer-Paket anbietet (sonst 0 Zimmer/Treffer trotz buchbarer Angebote auf tui.com) — wirkt auch auf die reguläre Preisprüfung.">
+        <input type="checkbox" id="room-transfer" onchange="toggleTransferIncluded()"> Transfer inklusive
+      </label>
       <div id="room-body"></div>
     </div>
   </div>
@@ -754,6 +779,11 @@
       <h2>🖼 Hotelfotos (GIATA)</h2>
       <div id="giata-gallery-body"></div>
     </div>
+  </div>
+
+  <div class="modal-bg" id="giata-lightbox-bg" onclick="closeGiataLightbox()">
+    <img id="giata-lightbox-img" src="" alt=""
+         style="max-width:100%;max-height:100%;border-radius:8px;object-fit:contain">
   </div>
 
   <div class="modal-bg" id="aihist-bg">
@@ -959,8 +989,9 @@
 
   <script>
     const G = { base: {{ (script_root or '')|tojson }}, iv: {{ poll_interval|tojson }}, ai: {{ ai_enabled|tojson }},
-                homeLoc: {{ trippilot_home_location|tojson }} };
+                homeLoc: {{ trippilot_home_location|tojson }}, check24: {{ check24_enabled|tojson }} };
     document.body.classList.toggle('ai-disabled', !G.ai);
+    document.body.classList.toggle('check24-disabled', !G.check24);
     window.G = G;  // auch für den Konsolen-Script-Block (Ingress-Pfad) erreichbar
   </script>
   <script src="{{ (script_root or '') }}/static/app.js?v={{ app_version }}"></script>

@@ -66,6 +66,16 @@ def test_map_board_types():
     assert scraper._map_board_types("") == ""
 
 
+def test_map_board_types_bb_aliases_to_br():
+    # Angebots-/Kalender-API nutzt fuer Fruehstueck intern BR statt BB (Seiten-URL,
+    # Such-API und Hotelsuche verwenden BB) -- per Live-Test an mehreren Hotels
+    # verifiziert, GT06-BB liefert sonst durchweg 0 Treffer. Siehe CHANGELOG.
+    assert scraper._map_board_types("BB") == "GT06-BR"
+    assert scraper._map_board_types("bb") == "GT06-BR"
+    assert scraper._map_board_types("GT06-BB") == "GT06-BR"
+    assert scraper._map_board_types("BB,HB") == "GT06-BR,GT06-HB"
+
+
 def test_slugify():
     assert scraper._slugify("Riu Funana") == "riu-funana"
     # deutsche Umlaute/ß werden transliteriert, Sonderzeichen zu '-' verdichtet
@@ -235,6 +245,39 @@ def test_build_search_payload_exact_without_dates():
     payload = scraper._build_search_payload(
         {"regions": [128], "duration": "exact", "travellers": 2})
     assert payload["parameters"]["duration"] == []
+
+
+def test_build_search_payload_sorts_by_price_ascending():
+    # Bugreport: TUIWatchs Hotelsuche zeigte deutlich teurere Hotels als tui.com
+    # selbst fuer dieselben Parameter -- Ursache war "qualifier2DESC" (Best-
+    # Match-Score) statt Preis als serverseitige Sortierung. Bei mehr Treffern
+    # als resultsPerPage (z.B. 256 in einer Region, nur 50 abgeholt) fehlten die
+    # guenstigsten Hotels dadurch komplett im abgeholten Batch -- clientseitiges
+    # "Preis aufsteigend"-Sortieren (app.js) kann nur sortieren, was da ist.
+    # "priceAsc" per Netzwerk-Mitschnitt von tui.com selbst verifiziert (liefert
+    # dieselben guenstigen Hotels wie sortHotelsField=price&sortHotelsAsc=1).
+    payload = scraper._build_search_payload({"regions": [128], "duration": 7})
+    assert payload["parameters"]["sortingOrder"] == "priceAsc"
+
+
+def test_build_search_payload_offset_sets_results_from():
+    # "Mehr laden" (Pagination) -- die Such-API liefert pro Aufruf nur
+    # resultsPerPage Treffer, offset=bereits geladene Treffer holt die naechste
+    # Seite statt dieselben 50 erneut.
+    payload = scraper._build_search_payload({"regions": [128], "duration": 7})
+    assert payload["parameters"]["resultsFrom"] == 0
+    payload2 = scraper._build_search_payload({"regions": [128], "duration": 7}, offset=50)
+    assert payload2["parameters"]["resultsFrom"] == 50
+
+
+def test_build_search_payload_results_total_cap_is_high_enough():
+    # resultsTotal ist ein Anfrage-Cap, keine reine Info-Zahl -- die Such-API
+    # deckelt ihre eigene Antwort-"resultsTotal" (echte Trefferzahl) darauf
+    # (live verifiziert: Cap 300 bei 703 echten Treffern -> Antwort "300"). Bei
+    # zu niedrigem Cap zeigt die UI ("von N Treffer") eine falsche, zu kleine
+    # Gesamtzahl fuer grosse Regionen.
+    payload = scraper._build_search_payload({"regions": [128], "duration": 7})
+    assert payload["parameters"]["resultsTotal"] >= 1000
 
 
 def test_room_code_helpers():

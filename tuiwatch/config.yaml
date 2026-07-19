@@ -1,6 +1,6 @@
 name: TUIWatch
 description: Reisepreis-Tracker — verfolgt TUI-Angebotspreise und zeigt den Verlauf
-version: "0.53.5"
+version: "0.57.7"
 slug: tuiwatch
 url: https://github.com/LuckyTriple7/HA-AddOns
 image: "ghcr.io/luckytriple7/tuiwatch"
@@ -78,6 +78,7 @@ options:
   perplexity_model: "sonar-pro"
   ai_max_web_searches: 12
   ai_prompt_preview: false
+  enable_check24_compare: false
   verbose_log: false
 
 schema:
@@ -127,4 +128,5 @@ schema:
   perplexity_model: list(sonar|sonar-pro|sonar-reasoning-pro|sonar-deep-research)?
   ai_max_web_searches: int?
   ai_prompt_preview: bool?
+  enable_check24_compare: bool?
   verbose_log: bool?

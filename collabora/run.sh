@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 set -e
 
 # Read HA options
@@ -21,45 +21,47 @@ fi
 echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] domain='${DOMAIN}'"
 
 # coolwsd.xml nach /config persistieren
+# Seit collabora/code 26.04.2.2 (Nix-Image) ist /etc/coolwsd/ selbst nicht mehr
+# beschreibbar (root-owned, User läuft als nonroot/1001) — ein Symlink-Austausch
+# wie früher geht daher nicht mehr. Die Datei coolwsd.xml selbst gehört aber 1001,
+# ist also direkt überschreibbar (Inhalt kopieren statt verlinken).
 COOL_CONFIG="/etc/coolwsd/coolwsd.xml"
 CONFIG_DEST="/config/coolwsd.xml"
-if [ ! -f "${CONFIG_DEST}" ]; then
+if [ -f "${CONFIG_DEST}" ]; then
+    echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Restoring coolwsd.xml from /config..."
+    cp "${CONFIG_DEST}" "${COOL_CONFIG}" \
+        || echo "[WARN] [$(date '+%Y-%m-%d %H:%M:%S')] coolwsd.xml restore fehlgeschlagen"
+else
     echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Copying coolwsd.xml to /config..."
-    cp "${COOL_CONFIG}" "${CONFIG_DEST}"
+    cp "${COOL_CONFIG}" "${CONFIG_DEST}" \
+        || echo "[WARN] [$(date '+%Y-%m-%d %H:%M:%S')] coolwsd.xml seed fehlgeschlagen"
 fi
-ln -sf "${CONFIG_DEST}" "${COOL_CONFIG}"
 
 # systemplate DNS-Dateien kopieren → eliminiert WRN-Spam ("systemplate is read-only")
+# systemplate ist im Nix-Image root-owned -> schlägt i.d.R. lautlos fehl, kein Problem
 cp /etc/hosts /opt/cool/systemplate/etc/hosts 2>/dev/null || true
 cp /etc/resolv.conf /opt/cool/systemplate/etc/resolv.conf 2>/dev/null || true
 
 # WOPI proof key generieren falls nicht vorhanden
+# coolconfig gibt es im Nix-Image nicht mehr -> per openssl (im Image vorhanden) selbst
+# erzeugen. /etc/coolwsd/ ist meist nicht beschreibbar (neue Datei anlegen scheitert dann) —
+# WOPI-Signierung bleibt in dem Fall deaktiviert (nur ein WRN im Log, kein Fehlschlag).
 if [ ! -f /etc/coolwsd/proof_key ]; then
     echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Generating WOPI proof key..."
-    coolconfig generate-proof-key 2>/dev/null || echo "[WARN] [$(date '+%Y-%m-%d %H:%M:%S')] proof key generation failed"
+    openssl genrsa -out /etc/coolwsd/proof_key 2048 2>/dev/null \
+        && echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] proof key generated" \
+        || echo "[WARN] [$(date '+%Y-%m-%d %H:%M:%S')] proof key generation failed (read-only /etc/coolwsd?)"
 fi
 
 # Zeitzone setzen und in systemplate kopieren
+# /etc/ ist im Nix-Image root-owned -> /etc/timezone kann nicht neu angelegt werden,
+# TZ-Env-Var reicht für coolwsd selbst; systemplate-Kopie bleibt best effort.
 echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Timezone: ${TZ}"
-echo "$TZ" > /etc/timezone
 export TZ
-cp /etc/timezone /opt/cool/systemplate/etc/timezone 2>/dev/null || true
+echo "$TZ" > /opt/cool/systemplate/etc/timezone 2>/dev/null || true
 
-# Bind-Mount im Container nicht möglich → mount_jail_tree dauerhaft deaktivieren
-sed -i 's|<mount_jail_tree\([^>]*\)>true</mount_jail_tree>|<mount_jail_tree\1>false</mount_jail_tree>|' "${CONFIG_DEST}" \
-    && echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] mount_jail_tree=false" \
-    || echo "[WARN] [$(date '+%Y-%m-%d %H:%M:%S')] mount_jail_tree konnte nicht gesetzt werden"
-
-# Admin-Passwort via coolconfig setzen — hasht das Passwort korrekt (Klartext funktioniert nicht)
-# Username-Prompt konsumiert erste Zeile → leere Zeile voranstellen damit Default (arg) genommen wird
-if [ -n "$ADMIN_PASSWORD" ]; then
-    echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Setting admin credentials via coolconfig..."
-    printf '\n%s\n%s\n' "$ADMIN_PASSWORD" "$ADMIN_PASSWORD" | coolconfig set-admin-password "$ADMIN_USER" \
-        && echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] coolconfig: credentials set OK" \
-        || echo "[WARN] [$(date '+%Y-%m-%d %H:%M:%S')] coolconfig failed"
-fi
-
-# Env-Vars für domain (offizielle Docker-Methode)
+# Admin-Zugangsdaten + Domain: offizieller Docker-Mechanismus über Env-Vars + --use-env-vars
+# (coolconfig set-admin-password gibt es im Nix-Image nicht mehr, ist aber auch nicht nötig)
 export domain="$DOMAIN"
 export username="$ADMIN_USER"
 export password="$ADMIN_PASSWORD"
@@ -88,6 +90,17 @@ _term() {
 }
 trap _term SIGTERM SIGINT
 
-su -p -s /bin/sh cool -c "exec /start-collabora-online.sh" &
+# Kein "cool"-User/su mehr nötig — Container läuft im Nix-Image bereits als nonroot (1001).
+# Flags entsprechen dem Original-Entrypoint des Base-Images, ergänzt um
+# mount_jail_tree=false (Bind-Mount im Container nicht möglich).
+/usr/bin/coolwsd \
+    --use-env-vars \
+    --o:sys_template_path=/opt/cool/systemplate \
+    --o:child_root_path=/opt/cool/child-roots \
+    --o:file_server_root_path=/usr/share/coolwsd \
+    --o:cache_files.path=/opt/cool/cache \
+    --o:logging.color=false \
+    --o:stop_on_config_change=true \
+    --o:mount_jail_tree=false &
 COOLWSD_PID=$!
 wait $COOLWSD_PID

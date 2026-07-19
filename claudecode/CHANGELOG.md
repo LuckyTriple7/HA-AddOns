@@ -1,5 +1,30 @@
 # Changelog
 
+## [1.1.13] - 2026-07-19
+
+### Fixed
+- Ungültige `Glob(...)`/`Grep(...)` Permission-Regeln entfernt (Warnung "not matched by file permission checks"); `Read(...)` deckt alle Datei-Lese-Tools bereits ab
+- Bestehende Installationen: alte fehlerhafte Regeln werden beim Start aus persistierter settings.json bereinigt
+
+
+## [1.1.12] - 2026-07-19
+
+### Changed
+- Rebuild für Claude Code 2.1.215
+
+
+## [1.1.11] - 2026-07-16
+
+### Changed
+- Rebuild für Claude Code 2.1.211
+
+
+## [1.1.10] - 2026-07-15
+
+### Changed
+- Rebuild für Claude Code 2.1.210
+
+
 ## [1.1.9] - 2026-07-14
 
 ### Changed

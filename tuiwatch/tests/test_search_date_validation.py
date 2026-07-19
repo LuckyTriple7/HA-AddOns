@@ -80,3 +80,36 @@ def test_accepts_missing_dates(m, monkeypatch):
     r = c.post("/api/search", headers=ING, json={"region": 735})
     assert r.status_code == 200
     assert len(calls) == 1
+
+
+def test_offset_passed_through_for_load_more(m, monkeypatch):
+    """"Mehr laden" schickt offset=bereits geladene Treffer mit -- muss bis zu
+    fetch_search_params() durchgereicht werden (resultsFrom serverseitig)."""
+    calls = _search_calls(m, monkeypatch)
+    c = m.app.test_client()
+    r = c.post("/api/search", headers=ING,
+              json={"region": 735, "start": "2027-08-01", "end": "2027-08-08",
+                    "duration": 7, "offset": 50})
+    assert r.status_code == 200
+    assert calls[0]["offset"] == 50
+
+
+def test_offset_missing_defaults_to_zero(m, monkeypatch):
+    calls = _search_calls(m, monkeypatch)
+    c = m.app.test_client()
+    c.post("/api/search", headers=ING, json={"region": 735})
+    assert calls[0]["offset"] == 0
+
+
+def test_offset_negative_clamped_to_zero(m, monkeypatch):
+    calls = _search_calls(m, monkeypatch)
+    c = m.app.test_client()
+    c.post("/api/search", headers=ING, json={"region": 735, "offset": -5})
+    assert calls[0]["offset"] == 0
+
+
+def test_offset_non_numeric_defaults_to_zero(m, monkeypatch):
+    calls = _search_calls(m, monkeypatch)
+    c = m.app.test_client()
+    c.post("/api/search", headers=ING, json={"region": 735, "offset": "abc"})
+    assert calls[0]["offset"] == 0

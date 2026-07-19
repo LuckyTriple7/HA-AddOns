@@ -18,6 +18,8 @@ from urllib.parse import urlparse
 from flask import Blueprint, jsonify, make_response, request
 
 import app as A
+import check24_client
+import email_search
 
 bp = Blueprint('offers_routes', __name__)
 
@@ -112,6 +114,7 @@ def api_delete_offer(offer_id: int):
         con.execute('DELETE FROM calendar_cache WHERE offer_id=?', (offer_id,))
         con.execute('DELETE FROM calendar_history WHERE offer_id=?', (offer_id,))
         con.execute('DELETE FROM nights_cache WHERE offer_id=?', (offer_id,))
+        con.execute('DELETE FROM check24_cache WHERE offer_id=?', (offer_id,))
         con.execute('DELETE FROM cheaper_state WHERE offer_id=?', (offer_id,))
         con.execute('DELETE FROM booked_state WHERE offer_id=?', (offer_id,))
         con.execute('DELETE FROM offer_events WHERE offer_id=?', (offer_id,))
@@ -168,15 +171,74 @@ def api_update_offer(offer_id: int):
             con.execute('UPDATE offers SET archived=? WHERE id=?', (arch, offer_id))
             A.log.info("Angebot #%d %s", offer_id,
                      "archiviert" if arch else "reaktiviert")
+        if 'transfer_included' in data:
+            # Manche Hotels (Selbstanreise-Regionen) bieten kein Transfer-Paket — dort
+            # liefert die Offer-API bei transferIncluded=true 0 Treffer/Zimmer, obwohl
+            # auf tui.com buchbare Angebote existieren. Steht als URL-Parameter fest,
+            # wirkt daher automatisch auch auf die reguläre Preisprüfung (nicht nur die
+            # Zimmerauswahl).
+            ti = bool(data.get('transfer_included'))
+            row = con.execute('SELECT url FROM offers WHERE id=?', (offer_id,)).fetchone()
+            if not row:
+                return jsonify({'error': 'not_found'}), 404
+            new_url = A.with_transfer_included(row['url'], ti)
+            try:
+                con.execute('UPDATE offers SET url=? WHERE id=?', (new_url, offer_id))
+            except sqlite3.IntegrityError:
+                return jsonify({'error': 'duplicate',
+                                'note': 'Dieses Angebot (mit/ohne Transfer) wird bereits verfolgt'}), 409
+            A.log.info("Angebot #%d: Transfer %s", offer_id, 'inklusive' if ti else 'ohne')
+            events.append(('transfer', f"Transfer {'inklusive' if ti else 'ohne'}"))
         if 'tags' in data:
             tags = _normalize_tags(data.get('tags'))
             con.execute('UPDATE offers SET tags=? WHERE id=?',
                         (json.dumps(tags, ensure_ascii=False), offer_id))
             A.log.info("Angebot #%d Tags gesetzt: %s", offer_id, ', '.join(tags) or '(keine)')
+        if 'check24_hotel_id' in data:
+            # Normalfall: Klick auf einen Treffer aus der automatischen Hotelsuche
+            # (siehe GET /api/check24/search) — hotel_id kommt direkt vom Frontend,
+            # kein Link-Parsing nötig.
+            hid = str(data.get('check24_hotel_id') or '').strip()
+            if not hid:
+                con.execute("UPDATE offers SET check24_hotel_id='', check24_link='' WHERE id=?",
+                            (offer_id,))
+                con.execute('DELETE FROM check24_cache WHERE offer_id=?', (offer_id,))
+                A.log.info("Check24-Verknüpfung #%d entfernt", offer_id)
+            elif not hid.isdigit():
+                return jsonify({'error': 'invalid_check24_hotel_id'}), 400
+            else:
+                name = (data.get('check24_hotel_name') or '').strip()
+                con.execute('UPDATE offers SET check24_hotel_id=?, check24_link=? WHERE id=?',
+                            (hid, f'https://urlaub.check24.de/suche/hotel?hotelId={hid}', offer_id))
+                con.execute('DELETE FROM check24_cache WHERE offer_id=?', (offer_id,))
+                A.log.info("Check24-Hotel #%d verknüpft: hotelId=%s (%s)", offer_id, hid, name)
+            with A._check24_lock:
+                A._check24_state.pop(offer_id, None)
+        elif 'check24_link' in data:
+            # Fallback für Power-User: Check24-Link direkt einfügen (falls die
+            # automatische Suche das Hotel nicht findet).
+            link = (data.get('check24_link') or '').strip()
+            if not link:
+                con.execute("UPDATE offers SET check24_hotel_id='', check24_link='' WHERE id=?",
+                            (offer_id,))
+                con.execute('DELETE FROM check24_cache WHERE offer_id=?', (offer_id,))
+                A.log.info("Check24-Verknüpfung #%d entfernt", offer_id)
+            else:
+                parsed = check24_client.parse_hotel_link(link)
+                if not parsed:
+                    return jsonify({'error': 'invalid_check24_url'}), 400
+                con.execute('UPDATE offers SET check24_hotel_id=?, check24_link=? WHERE id=?',
+                            (parsed['hotel_id'], link, offer_id))
+                con.execute('DELETE FROM check24_cache WHERE offer_id=?', (offer_id,))
+                A.log.info("Check24-Hotel #%d verknüpft: hotelId=%s", offer_id, parsed['hotel_id'])
+            with A._check24_lock:
+                A._check24_state.pop(offer_id, None)
     for t, txt in events:
         A._log_event(offer_id, t, txt)
     if 'archived' in data:
         A.push_ha_sensors()  # Übersicht/Summary-Sensor neu berechnen
+    if 'transfer_included' in data:
+        A._spawn(A.check_offer, offer_id)
     return jsonify({'id': offer_id, 'ok': True})
 
 
@@ -245,6 +307,7 @@ def api_reset_offer(offer_id: int):
         con.execute('DELETE FROM calendar_cache WHERE offer_id=?', (offer_id,))
         con.execute('DELETE FROM calendar_history WHERE offer_id=?', (offer_id,))
         con.execute('DELETE FROM nights_cache WHERE offer_id=?', (offer_id,))
+        con.execute('DELETE FROM check24_cache WHERE offer_id=?', (offer_id,))
         con.execute('DELETE FROM cheaper_state WHERE offer_id=?', (offer_id,))
         con.execute('DELETE FROM booked_state WHERE offer_id=?', (offer_id,))
         con.execute('DELETE FROM offer_events WHERE offer_id=?', (offer_id,))
@@ -255,6 +318,8 @@ def api_reset_offer(offer_id: int):
         A._calendar_state.pop(offer_id, None)
     with A._nights_lock:
         A._nights_state.pop(offer_id, None)
+    with A._check24_lock:
+        A._check24_state.pop(offer_id, None)
     A._cheaper_notified.pop(offer_id, None)
     A._fail_notified.discard(offer_id)
     A.log.info("Angebot #%d zurückgesetzt (Verlauf + Caches gelöscht)", offer_id)
@@ -304,16 +369,45 @@ def api_email():
     return jsonify({'sent': True, 'to': to, 'count': len(offers)})
 
 
+@bp.route('/api/search/email', methods=['POST'])
+def api_search_email():
+    """Versendet eine Hotelsuchen-Trefferliste per E-Mail — die Zeilen kommen vom
+    Frontend (bereits geladene `/api/search`-Ergebnisse, ggf. per Checkbox auf
+    eine Auswahl reduziert), nicht aus der DB (Suchtreffer werden nicht
+    persistiert)."""
+    if (err := A._require_api()):
+        return err
+    if not A.smtp_configured():
+        return jsonify({'error': 'smtp_not_configured'}), 400
+    data = request.get_json(silent=True) or {}
+    to = (data.get('to') or A.load_config().get('smtp_to') or '').strip()
+    if not to:
+        return jsonify({'error': 'no_recipient'}), 400
+    rows = data.get('results')
+    if not isinstance(rows, list) or not rows:
+        return jsonify({'error': 'no_results'}), 400
+    rows = rows[:100]  # Schutz gegen versehentlich riesige Mails
+    html = email_search.html_for_rows(rows, dest=(data.get('dest') or '').strip())
+    subject = f"TUIWatch – {len(rows)} Hotel-Treffer ({datetime.now().strftime('%d.%m.%Y')})"
+    try:
+        A.send_email(subject, html, to)
+    except Exception as e:
+        A.log.error("Such-Treffer-E-Mail-Versand fehlgeschlagen: %s", e)
+        return jsonify({'error': 'send_failed'}), 502
+    A.log.info("Such-Treffer-E-Mail an %s gesendet (%d Treffer)", to, len(rows))
+    return jsonify({'sent': True, 'to': to, 'count': len(rows)})
+
+
 _HISTORY_COLS = ('ts', 'price', 'old_price', 'discount', 'available', 'ok', 'note')
 _EVENT_COLS = ('ts', 'type', 'text')
 # Feste Whitelist der beim Restore einspielbaren Angebots-Spalten (Spaltennamen kommen
 # damit NIE aus den Backup-Daten → keine per String gebaute Query aus Nutzerquellen).
 _OFFER_RESTORE_COLS = (
-    'url', 'label', 'hotel', 'details', 'room', 'dep_airport', 'flight_out', 'flight_ret',
+    'url', 'label', 'hotel', 'details', 'room', 'board', 'dep_airport', 'flight_out', 'flight_ret',
     'location', 'city', 'region', 'country', 'pdf_url', 'cancellation', 'stars', 'rating',
     'rating_count', 'recommendation', 'total_price', 'travellers_count', 'paused',
     'archived', 'return_date', 'target_price', 'booked_price', 'image_url', 'booking_code',
-    'room_booking_code', 'tags', 'created',
+    'room_booking_code', 'tags', 'check24_hotel_id', 'check24_area_id', 'check24_link', 'created',
 )
 
 
@@ -380,15 +474,20 @@ def api_search():
     """Hotelsuche — entweder über eine eingefügte TUI-Such-/Region-URL oder über ein
     bestehendes Angebot (`offer_id`): dann werden Region (URL bzw. Breadcrumb) und die
     Reiseparameter aus dem Angebot übernommen. Add-on-Filter (Veranstalter TUI,
-    Verpflegung) gehen in die Such-Query, danach Nachfilter nach Sternen/Weiterempfehlung."""
+    Verpflegung) gehen in die Such-Query, danach Nachfilter nach Sternen/Weiterempfehlung/Preis."""
     if (err := A._require_api()):
         return err
     if (remaining := A._cooldown_remaining('search:' + A.get_client_ip(request), 3)):
         return jsonify({'error': 'cooldown', 'retry_after': remaining}), 429
     data = request.get_json(silent=True) or {}
+    try:
+        offset = max(0, int(data.get('offset') or 0))
+    except (TypeError, ValueError):
+        offset = 0
     operator_tui = bool(data.get('operator_tui', True))
     direct = bool(data.get('direct'))
     adults_only = bool(data.get('adults_only'))
+    transfer_included = bool(data.get('transfer_included'))
     boards = [str(b).strip() for b in (data.get('boards') or []) if str(b).strip()]
     airlines = [str(a).strip() for a in (data.get('airlines') or []) if str(a).strip()]
     location = [int(i) for i in (data.get('location') or []) if str(i).strip().isdigit()]
@@ -399,6 +498,7 @@ def api_search():
         except (TypeError, ValueError):
             return 0
     min_stars, min_recommend = _num('min_stars'), _num('min_recommend')
+    max_price = _num('max_price')
 
     region = None
     offer_id = data.get('offer_id')
@@ -418,7 +518,8 @@ def api_search():
         src = f"Angebot #{offer_id} ({o['label'] or o['hotel'] or ''})"
         res = A.fetch_search(url, operator_tui=operator_tui, boards=boards, region=region,
                            airlines=airlines, location=location, direct=direct,
-                           adults_only=adults_only, verbose=A._verbose())
+                           adults_only=adults_only, transfer_included=transfer_included,
+                           offset=offset, verbose=A._verbose())
     elif search_region:
         try:
             region = int(search_region)
@@ -458,7 +559,8 @@ def api_search():
                                   travellers=data.get('travellers'), airports=airports,
                                   operator_tui=operator_tui, boards=boards,
                                   airlines=airlines, location=location, direct=direct,
-                                  adults_only=adults_only, verbose=A._verbose())
+                                  adults_only=adults_only, transfer_included=transfer_included,
+                                  offset=offset, verbose=A._verbose())
     else:
         url = (data.get('url') or '').strip()
         if not _valid_tui_url(url):
@@ -467,7 +569,8 @@ def api_search():
                  ','.join(boards) or '-')
         res = A.fetch_search(url, operator_tui=operator_tui, boards=boards,
                            airlines=airlines, location=location, direct=direct,
-                           adults_only=adults_only, verbose=A._verbose())
+                           adults_only=adults_only, transfer_included=transfer_included,
+                           offset=offset, verbose=A._verbose())
     if res is None:
         return jsonify({'error': 'search_failed'}), 502
     if not res.get('ok'):
@@ -482,6 +585,8 @@ def api_search():
         if min_stars and (r.get('stars') or 0) < min_stars:
             continue
         if min_recommend and (r.get('recommendation') or 0) < min_recommend:
+            continue
+        if max_price and (r.get('price') is None or r.get('price') > max_price):
             continue
         r['tracked'] = str(r.get('giata')) in tracked
         out.append(r)
@@ -642,6 +747,7 @@ def api_rooms_get(offer_id: int):
     if res is None:
         return jsonify({'ok': False, 'note': 'Zimmer konnten nicht geladen werden'}), 502
     res['current'] = A.room_code_from_url(o['url'])
+    res['transfer_included'] = A.transfer_included_from_url(o['url'])
     return jsonify(res)
 
 
