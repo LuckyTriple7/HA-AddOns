@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.8] - 2026-07-19
+- Dockerfile/run.sh komplett auf neues collabora/code-Rootfs umgebaut (26.04.2.2, Nix-basiert ohne Shell/apt/su, fester nonroot-User): Build lief bisher mit "stat /bin/sh: no such file or directory" auf Fehler.
+- Statische Binaries (busybox als /bin/sh + Coreutils, ttyd, jq) werden in einem Builder-Stage geladen und nur noch per COPY eingebracht, keine RUN-Schritte mehr im finalen Image.
+- coolwsd.xml-Persistierung nach /config läuft jetzt per Inhalts-Kopie statt Symlink (/etc/coolwsd/ ist im neuen Image nicht mehr beschreibbar).
+- WOPI-Proof-Key wird per openssl statt coolconfig erzeugt (Tool existiert nicht mehr im Image); schlägt mangels Schreibrecht auf /etc/coolwsd/ meist fehl → nur eine WRN-Zeile, WOPI-Signierung bleibt dann deaktiviert.
+- Admin-Zugangsdaten laufen nur noch über die offiziellen Env-Vars (username/password/--use-env-vars), coolconfig set-admin-password entfällt (gab es ohnehin schon parallel).
+
 ## [1.0.7] - 2026-07-19
 - Collabora Base-Image aktualisiert (neuer collabora/code Digest)
 
