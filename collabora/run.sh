@@ -56,6 +56,15 @@ sed -i 's|<mount_jail_tree\([^>]*\)>true</mount_jail_tree>|<mount_jail_tree\1>fa
     && echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] mount_jail_tree=false" \
     || echo "[WARN] [$(date '+%Y-%m-%d %H:%M:%S')] mount_jail_tree konnte nicht gesetzt werden"
 
+# Container hat kein CAP_SYS_ADMIN -> coolmount (capability-basiertes chroot-Jail-Setup)
+# scheitert mit "Operation not permitted" und die Kit-Prozesse bekommen kein
+# funktionierendes Jail (Dokumente lassen sich dann nicht öffnen: "type detection failed").
+# security.capabilities=false lässt coolwsd stattdessen unprivilegierte mount_namespaces
+# für die Jail-Isolation nutzen.
+sed -i 's|<capabilities\([^>]*\)>true</capabilities>|<capabilities\1>false</capabilities>|' "${CONFIG_DEST}" \
+    && echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] security.capabilities=false" \
+    || echo "[WARN] [$(date '+%Y-%m-%d %H:%M:%S')] security.capabilities konnte nicht gesetzt werden"
+
 # Env-Vars für domain (offizielle Docker-Methode, --use-env-vars)
 export domain="$DOMAIN"
 export username="$ADMIN_USER"
