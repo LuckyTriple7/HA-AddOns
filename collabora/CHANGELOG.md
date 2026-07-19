@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.0.9] - 2026-07-19
+- Fix zu 1.0.8: run.sh lief komplett als uid 1001 (nonroot) -> `jq: Permission denied` auf /data/options.json, dazu `coolmount: Operation not permitted` weil mount_jail_tree-Override (CLI-Flag) nicht griff.
+- Container startet wieder als root (USER root) wie vor 26.04.2.2, run.sh macht das komplette Setup als root (options.json lesen, coolwsd.xml/proof_key/systemplate pflegen), nur der coolwsd-Prozess selbst läuft via `gosu 1001:1001` auf nonroot (LibreOffice-Kit verweigert Start als root; uid 1001 hat im Nix-Image keinen /etc/passwd-Eintrag, daher gosu statt su).
+- mount_jail_tree wieder per sed in coolwsd.xml deaktiviert statt per CLI-Flag (bewährte Methode aus der alten Version, unabhängig davon ob --o:-Override zuverlässig greift).
+- coolwsd.xml-Persistierung wieder per Symlink (root kann den jetzt problemlos anlegen), proof_key wird nach Erzeugung auf uid 1001 gechownt (sonst kann der abgesenkte coolwsd-Prozess ihn nicht lesen).
+
 ## [1.0.8] - 2026-07-19
 - Dockerfile/run.sh komplett auf neues collabora/code-Rootfs umgebaut (26.04.2.2, Nix-basiert ohne Shell/apt/su, fester nonroot-User): Build lief bisher mit "stat /bin/sh: no such file or directory" auf Fehler.
 - Statische Binaries (busybox als /bin/sh + Coreutils, ttyd, jq) werden in einem Builder-Stage geladen und nur noch per COPY eingebracht, keine RUN-Schritte mehr im finalen Image.
