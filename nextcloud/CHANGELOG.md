@@ -1,5 +1,8 @@
 # Changelog — Nextcloud
 
+## 1.0.23
+- Testweise Nextcloud Base-Image auf 34.0.1-ls442 (NC34) — Apps inzwischen aktualisiert, erneuter Kompatibilitätstest nach Rollback in 1.0.15
+
 ## 1.0.22
 - fix: AppArmor-Profil erlaubt jetzt `capability kill` — php-fpm84 konnte Worker-Signale nicht senden (AVC DENIED capname="kill" im System Log)
 
