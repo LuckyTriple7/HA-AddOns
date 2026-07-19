@@ -1,5 +1,6 @@
 # collabora/code >= 26.04.2.2 hat ein Nix-basiertes Rootfs OHNE Shell/apt/su
-# (Entrypoint ruft /usr/bin/coolwsd direkt auf, User ist fix nonroot/1001).
+# (Entrypoint ruft /usr/bin/coolwsd direkt auf, User ist fix nonroot/1001,
+# aber uid 1001 hat KEINEN /etc/passwd-Eintrag im Image).
 # Deshalb hier alle Werkzeuge statisch vorbauen und nur per COPY einbringen —
 # RUN funktioniert im finalen Stage nicht mehr (kein /bin/sh vorhanden).
 FROM debian:bookworm-slim AS tools
@@ -14,7 +15,9 @@ RUN apt-get update \
         -o /out/busybox \
     && curl -fL https://github.com/jqlang/jq/releases/latest/download/jq-linux-amd64 \
         -o /out/jq \
-    && chmod +x /out/ttyd /out/busybox /out/jq
+    && curl -fL https://github.com/tianon/gosu/releases/latest/download/gosu-amd64 \
+        -o /out/gosu \
+    && chmod +x /out/ttyd /out/busybox /out/jq /out/gosu
 
 FROM collabora/code:latest
 
@@ -22,6 +25,12 @@ LABEL org.opencontainers.image.title="Collabora Online for Home Assistant"
 LABEL org.opencontainers.image.description="Collabora Online office server for Nextcloud"
 LABEL org.opencontainers.image.source="https://github.com/LuckyTriple7/HA-AddOns"
 LABEL org.opencontainers.image.licenses="MIT"
+
+# Container läuft wieder als root (wie vor 26.04.2.2) — run.sh braucht Root
+# um /data/options.json zu lesen und coolwsd.xml/proof_key zu pflegen.
+# Der eigentliche coolwsd-Prozess wird über gosu gezielt auf uid 1001 abgesenkt
+# (LibreOffice-Kit-Prozesse verweigern den Start als root).
+USER root
 
 ENV PATH="/usr/local/bin:/usr/bin:/bin"
 
@@ -35,8 +44,12 @@ COPY --from=tools --chmod=755 /out/busybox /bin/sed
 COPY --from=tools --chmod=755 /out/busybox /bin/date
 COPY --from=tools --chmod=755 /out/busybox /bin/kill
 COPY --from=tools --chmod=755 /out/busybox /bin/sleep
+COPY --from=tools --chmod=755 /out/busybox /bin/chown
+COPY --from=tools --chmod=755 /out/busybox /bin/chmod
+COPY --from=tools --chmod=755 /out/busybox /bin/ln
 COPY --from=tools --chmod=755 /out/ttyd /usr/local/bin/ttyd
 COPY --from=tools --chmod=755 /out/jq /usr/local/bin/jq
+COPY --from=tools --chmod=755 /out/gosu /usr/local/bin/gosu
 
 COPY --chmod=755 run.sh /run.sh
 

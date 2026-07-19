@@ -20,55 +20,50 @@ else
 fi
 echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] domain='${DOMAIN}'"
 
-# coolwsd.xml nach /config persistieren
-# Seit collabora/code 26.04.2.2 (Nix-Image) ist /etc/coolwsd/ selbst nicht mehr
-# beschreibbar (root-owned, User läuft als nonroot/1001) — ein Symlink-Austausch
-# wie früher geht daher nicht mehr. Die Datei coolwsd.xml selbst gehört aber 1001,
-# ist also direkt überschreibbar (Inhalt kopieren statt verlinken).
+# coolwsd.xml nach /config persistieren (läuft als root, Symlink wie gehabt möglich)
 COOL_CONFIG="/etc/coolwsd/coolwsd.xml"
 CONFIG_DEST="/config/coolwsd.xml"
-if [ -f "${CONFIG_DEST}" ]; then
-    echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Restoring coolwsd.xml from /config..."
-    cp "${CONFIG_DEST}" "${COOL_CONFIG}" \
-        || echo "[WARN] [$(date '+%Y-%m-%d %H:%M:%S')] coolwsd.xml restore fehlgeschlagen"
-else
+if [ ! -f "${CONFIG_DEST}" ]; then
     echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Copying coolwsd.xml to /config..."
-    cp "${COOL_CONFIG}" "${CONFIG_DEST}" \
-        || echo "[WARN] [$(date '+%Y-%m-%d %H:%M:%S')] coolwsd.xml seed fehlgeschlagen"
+    cp "${COOL_CONFIG}" "${CONFIG_DEST}"
 fi
+ln -sf "${CONFIG_DEST}" "${COOL_CONFIG}"
 
 # systemplate DNS-Dateien kopieren → eliminiert WRN-Spam ("systemplate is read-only")
-# systemplate ist im Nix-Image root-owned -> schlägt i.d.R. lautlos fehl, kein Problem
 cp /etc/hosts /opt/cool/systemplate/etc/hosts 2>/dev/null || true
 cp /etc/resolv.conf /opt/cool/systemplate/etc/resolv.conf 2>/dev/null || true
 
 # WOPI proof key generieren falls nicht vorhanden
 # coolconfig gibt es im Nix-Image nicht mehr -> per openssl (im Image vorhanden) selbst
-# erzeugen. /etc/coolwsd/ ist meist nicht beschreibbar (neue Datei anlegen scheitert dann) —
-# WOPI-Signierung bleibt in dem Fall deaktiviert (nur ein WRN im Log, kein Fehlschlag).
+# erzeugen; muss uid 1001 gehören, da coolwsd via gosu als 1001 läuft.
 if [ ! -f /etc/coolwsd/proof_key ]; then
     echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Generating WOPI proof key..."
     openssl genrsa -out /etc/coolwsd/proof_key 2048 2>/dev/null \
+        && chown 1001:1001 /etc/coolwsd/proof_key \
+        && chmod 600 /etc/coolwsd/proof_key \
         && echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] proof key generated" \
-        || echo "[WARN] [$(date '+%Y-%m-%d %H:%M:%S')] proof key generation failed (read-only /etc/coolwsd?)"
+        || echo "[WARN] [$(date '+%Y-%m-%d %H:%M:%S')] proof key generation failed"
 fi
 
 # Zeitzone setzen und in systemplate kopieren
-# /etc/ ist im Nix-Image root-owned -> /etc/timezone kann nicht neu angelegt werden,
-# TZ-Env-Var reicht für coolwsd selbst; systemplate-Kopie bleibt best effort.
 echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Timezone: ${TZ}"
+echo "$TZ" > /etc/timezone
 export TZ
-echo "$TZ" > /opt/cool/systemplate/etc/timezone 2>/dev/null || true
+cp /etc/timezone /opt/cool/systemplate/etc/timezone 2>/dev/null || true
 
-# Admin-Zugangsdaten + Domain: offizieller Docker-Mechanismus über Env-Vars + --use-env-vars
-# (coolconfig set-admin-password gibt es im Nix-Image nicht mehr, ist aber auch nicht nötig)
+# Bind-Mount im Container nicht möglich → mount_jail_tree dauerhaft deaktivieren
+sed -i 's|<mount_jail_tree\([^>]*\)>true</mount_jail_tree>|<mount_jail_tree\1>false</mount_jail_tree>|' "${CONFIG_DEST}" \
+    && echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] mount_jail_tree=false" \
+    || echo "[WARN] [$(date '+%Y-%m-%d %H:%M:%S')] mount_jail_tree konnte nicht gesetzt werden"
+
+# Env-Vars für domain (offizielle Docker-Methode, --use-env-vars)
 export domain="$DOMAIN"
 export username="$ADMIN_USER"
 export password="$ADMIN_PASSWORD"
 [ -n "$DOMAIN1" ] && export server_name="$DOMAIN1"
 [ -n "$EXTRA_PARAMS" ] && export extra_params="$EXTRA_PARAMS"
 
-# ttyd Web-Terminal im Hintergrund starten (Ingress)
+# ttyd Web-Terminal im Hintergrund starten (Ingress) — läuft wie bisher als root
 /usr/local/bin/ttyd --port 7682 --writable --ping-interval 30 sh &
 TTYD_PID=$!
 sleep 1
@@ -90,17 +85,15 @@ _term() {
 }
 trap _term SIGTERM SIGINT
 
-# Kein "cool"-User/su mehr nötig — Container läuft im Nix-Image bereits als nonroot (1001).
-# Flags entsprechen dem Original-Entrypoint des Base-Images, ergänzt um
-# mount_jail_tree=false (Bind-Mount im Container nicht möglich).
-/usr/bin/coolwsd \
+# coolwsd läuft im Nix-Image nur als uid 1001 (kein passwd-Eintrag dafür -> gosu
+# statt su, gosu kann numerische uid:gid ohne /etc/passwd-Eintrag ansprechen).
+gosu 1001:1001 /usr/bin/coolwsd \
     --use-env-vars \
     --o:sys_template_path=/opt/cool/systemplate \
     --o:child_root_path=/opt/cool/child-roots \
     --o:file_server_root_path=/usr/share/coolwsd \
     --o:cache_files.path=/opt/cool/cache \
     --o:logging.color=false \
-    --o:stop_on_config_change=true \
-    --o:mount_jail_tree=false &
+    --o:stop_on_config_change=true &
 COOLWSD_PID=$!
 wait $COOLWSD_PID
