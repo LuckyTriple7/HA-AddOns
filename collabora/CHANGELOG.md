@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.0.10] - 2026-07-19
+- Fix zu 1.0.9: Dokumente ließen sich nicht öffnen (`type detection failed`, Kit-Prozesse crashen mit `FTL Failed to load the document`), Ursache: `coolmount: Operation not permitted` weil Container kein CAP_SYS_ADMIN hat → capability-basiertes Jail-Setup pro Kit-Prozess scheiterte, Jail blieb unvollständig (fehlende `lo/share/template/common/presnt/`).
+- `security.capabilities=false` per sed in coolwsd.xml gesetzt (zusätzlich zu `mount_jail_tree=false`) — coolwsd nutzt dann unprivilegierte mount_namespaces statt coolmount/chroot für die Jail-Isolation.
+
 ## [1.0.9] - 2026-07-19
 - Fix zu 1.0.8: run.sh lief komplett als uid 1001 (nonroot) -> `jq: Permission denied` auf /data/options.json, dazu `coolmount: Operation not permitted` weil mount_jail_tree-Override (CLI-Flag) nicht griff.
 - Container startet wieder als root (USER root) wie vor 26.04.2.2, run.sh macht das komplette Setup als root (options.json lesen, coolwsd.xml/proof_key/systemplate pflegen), nur der coolwsd-Prozess selbst läuft via `gosu 1001:1001` auf nonroot (LibreOffice-Kit verweigert Start als root; uid 1001 hat im Nix-Image keinen /etc/passwd-Eintrag, daher gosu statt su).
