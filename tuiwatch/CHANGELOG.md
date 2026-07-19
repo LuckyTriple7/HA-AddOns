@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.57.7] - 2026-07-19
+
+### Fixed
+- **sensor.tuiwatch_markttrend weiterhin unavailable trotz kurzem Refresh** —
+  echte Ursache: die Trend-/Index-Berechnung (DB-Queries, Datums-Parsing,
+  Divisionen je Region) lief bislang außerhalb jeder Absicherung. Crashte sie
+  bei einer ungewöhnlichen Datenkonstellation (z. B. eine einzelne Region),
+  flog die Exception unkontrolliert aus der Funktion — **kein POST fand statt**,
+  lautlos (nur ein Log-Eintrag im äußeren Worker, leicht zu übersehen). Andere
+  Sensoren (Cooldown/API/Coupon) sind trivial und davon nicht betroffen, daher
+  nur dieser eine Sensor auffällig. Jetzt strikt getrennt: Berechnung fehlschlägt
+  → Fallback auf 'unknown' + Warnung im Log, POST läuft in jedem Fall.
+
 ## [0.57.6] - 2026-07-19
 
 ### Fixed

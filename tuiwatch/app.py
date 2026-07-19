@@ -84,7 +84,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.57.6"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.57.7"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -2143,28 +2143,40 @@ def _push_health_sensor_from_cache() -> None:
 def _push_market_trend_sensor() -> None:
     """Meldet HA einen Sensor mit dem marktweiten Preistrend — State = kumulierte
     %-Bewegung der letzten 14 Tage (`_market_trend`), oder 'unknown' bei zu
-    wenigen Daten. Attribute ergänzen den Index seit Aufzeichnungsbeginn
-    (`_market_index`), der auch langsame, über Wochen verteilte Bewegungen zeigt."""
+    wenigen Daten (NIE 'unavailable' — das wäre HA-Konvention für einen kaputten
+    Sensor, hier ist der Sensor selbst ja da). Attribute ergänzen den Index seit
+    Aufzeichnungsbeginn (`_market_index`), der auch langsame, über Wochen verteilte
+    Bewegungen zeigt.
+    Berechnung und POST sind bewusst GETRENNT abgesichert: bricht die Berechnung bei
+    einer ungewöhnlichen Datenkonstellation (z. B. einzelne Region mit Sonderfällen)
+    mit einer Exception ab, soll das NICHT den ganzen Refresh-Zyklus killen und die
+    Entity dadurch bei HA verwaisen lassen — lieber mit 'unknown' posten und den
+    Fehler loggen, als stillschweigend gar nicht zu posten."""
     if not _ha_enabled():
         return
-    with db() as con:
-        glob_trend = _market_trend(con)
-        glob_index = _market_index(con)
-        regions = [r['region'] for r in con.execute(
-            "SELECT DISTINCT region FROM price_moves WHERE region!=''").fetchall()]
-        by_region = []
-        for r in sorted(regions):
-            t, i = _market_trend(con, region=r), _market_index(con, region=r)
-            if t or i:
-                by_region.append({'region': r, 'trend': t, 'index': i})
-    attrs = {'friendly_name': 'TUIWatch Markttrend', 'icon': 'mdi:chart-line',
-             'unit_of_measurement': '%', 'by_region': by_region}
-    if glob_trend:
-        attrs.update(direction=glob_trend['dir'], days=glob_trend['days'], samples=glob_trend['n'])
-    if glob_index:
-        attrs.update(index=glob_index['index'], index_pct=glob_index['pct'],
-                     index_since=datetime.fromtimestamp(glob_index['since']).isoformat())
-    state = glob_trend['pct'] if glob_trend else 'unknown'
+    state, attrs = 'unknown', {'friendly_name': 'TUIWatch Markttrend', 'icon': 'mdi:chart-line',
+                                'unit_of_measurement': '%'}
+    try:
+        with db() as con:
+            glob_trend = _market_trend(con)
+            glob_index = _market_index(con)
+            regions = [r['region'] for r in con.execute(
+                "SELECT DISTINCT region FROM price_moves WHERE region!=''").fetchall()]
+            by_region = []
+            for r in sorted(regions):
+                t, i = _market_trend(con, region=r), _market_index(con, region=r)
+                if t or i:
+                    by_region.append({'region': r, 'trend': t, 'index': i})
+        attrs['by_region'] = by_region
+        if glob_trend:
+            attrs.update(direction=glob_trend['dir'], days=glob_trend['days'], samples=glob_trend['n'])
+        if glob_index:
+            attrs.update(index=glob_index['index'], index_pct=glob_index['pct'],
+                         index_since=datetime.fromtimestamp(glob_index['since']).isoformat())
+        state = glob_trend['pct'] if glob_trend else 'unknown'
+    except Exception as e:
+        log.warning("Markttrend-Berechnung fehlgeschlagen (poste trotzdem 'unknown'): %s: %s",
+                     type(e).__name__, e)
     try:
         http.post(f'{HA_BASE}/states/sensor.tuiwatch_markttrend',
                   headers={'Authorization': f'Bearer {SUPERVISOR_TOKEN}'}, timeout=10,
