@@ -223,14 +223,10 @@ if [ "$ENABLE_MCP" = "true" ]; then
       "Read(/homeassistant/**)",
       "Read(/config/**)",
       "Read(/share/**)",
-      "Read(/media/**)",
-      "Glob(/homeassistant/**)",
-      "Glob(/config/**)",
-      "Grep(/homeassistant/**)",
-      "Grep(/config/**)"
+      "Read(/media/**)"
     ]'
     jq --argjson tools "$ALLOWED_TOOLS" \
-        '.permissions.allow = ($tools + (.permissions.allow // []) | unique)' \
+        '.permissions.allow = (($tools + ((.permissions.allow // []) | map(select(test("^(Glob|Grep)\\(") | not)))) | unique)' \
         "$SETTINGS_FILE" > /tmp/settings.tmp && mv /tmp/settings.tmp "$SETTINGS_FILE"
     jq --arg token "$SUPERVISOR_TOKEN" \
         '.mcpServers.homeassistant.env.HASS_TOKEN = $token' \

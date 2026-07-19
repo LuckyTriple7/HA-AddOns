@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.13] - 2026-07-19
+
+### Fixed
+- Ungültige `Glob(...)`/`Grep(...)` Permission-Regeln entfernt (Warnung "not matched by file permission checks"); `Read(...)` deckt alle Datei-Lese-Tools bereits ab
+- Bestehende Installationen: alte fehlerhafte Regeln werden beim Start aus persistierter settings.json bereinigt
+
+
 ## [1.1.12] - 2026-07-19
 
 ### Changed
