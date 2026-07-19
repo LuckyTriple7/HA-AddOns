@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.0.11] - 2026-07-19
+- Revert von 1.0.8-1.0.10: collabora/code 26.04.2.2 (Nix-Rootfs, seit 2026-07-18) schifft
+  /opt/cool/systemplate ohne den LO-Share-Template-Baum (kein lo/share/template/*) und ohne
+  coolconfig/coolwsd-systemplate-setup zum Nachbauen -> egal ob mit oder ohne CAP_SYS_ADMIN
+  bleibt "type detection failed" beim Öffnen jeder Datei, Kit-Prozesse crashen dauerhaft.
+  Das ist ein Packaging-Gap im neuen Upstream-Image, kein Config-Problem auf unserer Seite.
+- Dockerfile/run.sh komplett zurück auf den Stand vor 1.0.8 (Debian-Base, apt/su/coolconfig).
+- FROM jetzt auf den letzten bekannt funktionierenden Digest gepinnt
+  (sha256:fece3a47..., statt :latest) — verhindert, dass ein künftiges automatisches
+  Collabora-Update-PR erneut ungeprüft ein kaputtes Image einspielt. Künftige
+  Collabora-Update-PRs (aus check-collabora-update.yml) vor dem Merge manuell in einem
+  Testcontainer prüfen (Dokument öffnen!), nicht blind mergen wie bei 1.0.7 → 1.0.8.
+
 ## [1.0.10] - 2026-07-19
 - Fix zu 1.0.9: Dokumente ließen sich nicht öffnen (`type detection failed`, Kit-Prozesse crashen mit `FTL Failed to load the document`), Ursache: `coolmount: Operation not permitted` weil Container kein CAP_SYS_ADMIN hat → capability-basiertes Jail-Setup pro Kit-Prozess scheiterte, Jail blieb unvollständig (fehlende `lo/share/template/common/presnt/`).
 - `security.capabilities=false` per sed in coolwsd.xml gesetzt (zusätzlich zu `mount_jail_tree=false`) — coolwsd nutzt dann unprivilegierte mount_namespaces statt coolmount/chroot für die Jail-Isolation.

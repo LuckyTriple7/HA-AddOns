@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 set -e
 
 # Read HA options
@@ -20,7 +20,7 @@ else
 fi
 echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] domain='${DOMAIN}'"
 
-# coolwsd.xml nach /config persistieren (läuft als root, Symlink wie gehabt möglich)
+# coolwsd.xml nach /config persistieren
 COOL_CONFIG="/etc/coolwsd/coolwsd.xml"
 CONFIG_DEST="/config/coolwsd.xml"
 if [ ! -f "${CONFIG_DEST}" ]; then
@@ -34,15 +34,9 @@ cp /etc/hosts /opt/cool/systemplate/etc/hosts 2>/dev/null || true
 cp /etc/resolv.conf /opt/cool/systemplate/etc/resolv.conf 2>/dev/null || true
 
 # WOPI proof key generieren falls nicht vorhanden
-# coolconfig gibt es im Nix-Image nicht mehr -> per openssl (im Image vorhanden) selbst
-# erzeugen; muss uid 1001 gehören, da coolwsd via gosu als 1001 läuft.
 if [ ! -f /etc/coolwsd/proof_key ]; then
     echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Generating WOPI proof key..."
-    openssl genrsa -out /etc/coolwsd/proof_key 2048 2>/dev/null \
-        && chown 1001:1001 /etc/coolwsd/proof_key \
-        && chmod 600 /etc/coolwsd/proof_key \
-        && echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] proof key generated" \
-        || echo "[WARN] [$(date '+%Y-%m-%d %H:%M:%S')] proof key generation failed"
+    coolconfig generate-proof-key 2>/dev/null || echo "[WARN] [$(date '+%Y-%m-%d %H:%M:%S')] proof key generation failed"
 fi
 
 # Zeitzone setzen und in systemplate kopieren
@@ -56,23 +50,23 @@ sed -i 's|<mount_jail_tree\([^>]*\)>true</mount_jail_tree>|<mount_jail_tree\1>fa
     && echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] mount_jail_tree=false" \
     || echo "[WARN] [$(date '+%Y-%m-%d %H:%M:%S')] mount_jail_tree konnte nicht gesetzt werden"
 
-# Container hat kein CAP_SYS_ADMIN -> coolmount (capability-basiertes chroot-Jail-Setup)
-# scheitert mit "Operation not permitted" und die Kit-Prozesse bekommen kein
-# funktionierendes Jail (Dokumente lassen sich dann nicht öffnen: "type detection failed").
-# security.capabilities=false lässt coolwsd stattdessen unprivilegierte mount_namespaces
-# für die Jail-Isolation nutzen.
-sed -i 's|<capabilities\([^>]*\)>true</capabilities>|<capabilities\1>false</capabilities>|' "${CONFIG_DEST}" \
-    && echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] security.capabilities=false" \
-    || echo "[WARN] [$(date '+%Y-%m-%d %H:%M:%S')] security.capabilities konnte nicht gesetzt werden"
+# Admin-Passwort via coolconfig setzen — hasht das Passwort korrekt (Klartext funktioniert nicht)
+# Username-Prompt konsumiert erste Zeile → leere Zeile voranstellen damit Default (arg) genommen wird
+if [ -n "$ADMIN_PASSWORD" ]; then
+    echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Setting admin credentials via coolconfig..."
+    printf '\n%s\n%s\n' "$ADMIN_PASSWORD" "$ADMIN_PASSWORD" | coolconfig set-admin-password "$ADMIN_USER" \
+        && echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] coolconfig: credentials set OK" \
+        || echo "[WARN] [$(date '+%Y-%m-%d %H:%M:%S')] coolconfig failed"
+fi
 
-# Env-Vars für domain (offizielle Docker-Methode, --use-env-vars)
+# Env-Vars für domain (offizielle Docker-Methode)
 export domain="$DOMAIN"
 export username="$ADMIN_USER"
 export password="$ADMIN_PASSWORD"
 [ -n "$DOMAIN1" ] && export server_name="$DOMAIN1"
 [ -n "$EXTRA_PARAMS" ] && export extra_params="$EXTRA_PARAMS"
 
-# ttyd Web-Terminal im Hintergrund starten (Ingress) — läuft wie bisher als root
+# ttyd Web-Terminal im Hintergrund starten (Ingress)
 /usr/local/bin/ttyd --port 7682 --writable --ping-interval 30 sh &
 TTYD_PID=$!
 sleep 1
@@ -94,15 +88,6 @@ _term() {
 }
 trap _term SIGTERM SIGINT
 
-# coolwsd läuft im Nix-Image nur als uid 1001 (kein passwd-Eintrag dafür -> gosu
-# statt su, gosu kann numerische uid:gid ohne /etc/passwd-Eintrag ansprechen).
-gosu 1001:1001 /usr/bin/coolwsd \
-    --use-env-vars \
-    --o:sys_template_path=/opt/cool/systemplate \
-    --o:child_root_path=/opt/cool/child-roots \
-    --o:file_server_root_path=/usr/share/coolwsd \
-    --o:cache_files.path=/opt/cool/cache \
-    --o:logging.color=false \
-    --o:stop_on_config_change=true &
+su -p -s /bin/sh cool -c "exec /start-collabora-online.sh" &
 COOLWSD_PID=$!
 wait $COOLWSD_PID

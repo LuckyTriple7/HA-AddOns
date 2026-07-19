@@ -1,56 +1,30 @@
-# collabora/code >= 26.04.2.2 hat ein Nix-basiertes Rootfs OHNE Shell/apt/su
-# (Entrypoint ruft /usr/bin/coolwsd direkt auf, User ist fix nonroot/1001,
-# aber uid 1001 hat KEINEN /etc/passwd-Eintrag im Image).
-# Deshalb hier alle Werkzeuge statisch vorbauen und nur per COPY einbringen —
-# RUN funktioniert im finalen Stage nicht mehr (kein /bin/sh vorhanden).
-FROM debian:bookworm-slim AS tools
-
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates curl \
-    && rm -rf /var/lib/apt/lists/* \
-    && mkdir -p /out \
-    && curl -fL https://github.com/tsl0922/ttyd/releases/latest/download/ttyd.x86_64 \
-        -o /out/ttyd \
-    && curl -fL https://busybox.net/downloads/binaries/1.35.0-x86_64-linux-musl/busybox \
-        -o /out/busybox \
-    && curl -fL https://github.com/jqlang/jq/releases/latest/download/jq-linux-amd64 \
-        -o /out/jq \
-    && curl -fL https://github.com/tianon/gosu/releases/latest/download/gosu-amd64 \
-        -o /out/gosu \
-    && chmod +x /out/ttyd /out/busybox /out/jq /out/gosu
-
-FROM collabora/code:latest
+# Gepinnt auf letzten bekannt funktionierenden Digest (Debian-basiert, apt/su vorhanden).
+# collabora/code:latest ist seit 26.04.2.2 (2026-07-18) ein Nix-Rootfs ohne Shell/apt/su
+# und schifft /opt/cool/systemplate ohne den LO-Share-Template-Baum (kein
+# coolwsd-systemplate-setup/coolconfig im Image) -> Dokumente lassen sich damit nicht
+# öffnen ("type detection failed"). Nicht wieder auf :latest umstellen, ohne das
+# vorher in einem Testcontainer zu verifizieren.
+FROM collabora/code@sha256:fece3a479b4ca57e7186d0c715155526170e337deef55bbbbbc79ee93b0e72e1
 
 LABEL org.opencontainers.image.title="Collabora Online for Home Assistant"
 LABEL org.opencontainers.image.description="Collabora Online office server for Nextcloud"
 LABEL org.opencontainers.image.source="https://github.com/LuckyTriple7/HA-AddOns"
 LABEL org.opencontainers.image.licenses="MIT"
 
-# Container läuft wieder als root (wie vor 26.04.2.2) — run.sh braucht Root
-# um /data/options.json zu lesen und coolwsd.xml/proof_key zu pflegen.
-# Der eigentliche coolwsd-Prozess wird über gosu gezielt auf uid 1001 abgesenkt
-# (LibreOffice-Kit-Prozesse verweigern den Start als root).
 USER root
 
-ENV PATH="/usr/local/bin:/usr/bin:/bin"
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends jq curl \
+    && rm -rf /var/lib/apt/lists/*
 
-# busybox ist ein Multi-Call-Binary (wählt Applet über argv[0]/Dateiname) —
-# jede benötigte Coreutil braucht deshalb eine eigene Kopie unter ihrem Namen
-# (kein Standalone-Shell-Modus vorausgesetzt, keine Symlinks möglich ohne Shell).
-COPY --from=tools --chmod=755 /out/busybox /bin/sh
-COPY --from=tools --chmod=755 /out/busybox /bin/busybox
-COPY --from=tools --chmod=755 /out/busybox /bin/cp
-COPY --from=tools --chmod=755 /out/busybox /bin/sed
-COPY --from=tools --chmod=755 /out/busybox /bin/date
-COPY --from=tools --chmod=755 /out/busybox /bin/kill
-COPY --from=tools --chmod=755 /out/busybox /bin/sleep
-COPY --from=tools --chmod=755 /out/busybox /bin/chown
-COPY --from=tools --chmod=755 /out/busybox /bin/chmod
-COPY --from=tools --chmod=755 /out/busybox /bin/ln
-COPY --from=tools --chmod=755 /out/ttyd /usr/local/bin/ttyd
-COPY --from=tools --chmod=755 /out/jq /usr/local/bin/jq
-COPY --from=tools --chmod=755 /out/gosu /usr/local/bin/gosu
+# ttyd für Web-Terminal (Ingress)
+RUN curl -L https://github.com/tsl0922/ttyd/releases/latest/download/ttyd.x86_64 \
+    -o /usr/local/bin/ttyd && chmod +x /usr/local/bin/ttyd
 
-COPY --chmod=755 run.sh /run.sh
+# cool user braucht Schreibrecht auf /etc/coolwsd (coolwsd.xml Symlink)
+RUN chown -R cool:cool /etc/coolwsd
 
-ENTRYPOINT ["/bin/sh", "/run.sh"]
+COPY run.sh /run.sh
+RUN chmod +x /run.sh
+
+ENTRYPOINT ["/run.sh"]
