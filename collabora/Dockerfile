@@ -4,7 +4,7 @@
 # coolwsd-systemplate-setup/coolconfig im Image) -> Dokumente lassen sich damit nicht
 # öffnen ("type detection failed"). Nicht wieder auf :latest umstellen, ohne das
 # vorher in einem Testcontainer zu verifizieren.
-FROM collabora/code@sha256:fece3a479b4ca57e7186d0c715155526170e337deef55bbbbbc79ee93b0e72e1
+FROM collabora/code@sha256:f8a308bcd12ad09babcd635662b512776b0749fc04c9a63db568865bd195b4d9
 
 LABEL org.opencontainers.image.title="Collabora Online for Home Assistant"
 LABEL org.opencontainers.image.description="Collabora Online office server for Nextcloud"
