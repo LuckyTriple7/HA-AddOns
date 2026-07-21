@@ -143,6 +143,12 @@ updates:
       interval: "weekly"
       day: "monday"
     open-pull-requests-limit: 3
+    # collabora/code seit 26.04.2.2 (Nix-Rootfs) kaputt für unser Setup (siehe
+    # collabora/CHANGELOG.md v1.0.11) -> bewusst auf altem Digest gepinnt.
+    # Ignore entfernen, sobald ein neuerer Digest manuell in einem Testcontainer
+    # verifiziert wurde (Dokument öffnen!).
+    ignore:
+      - dependency-name: "collabora/code"
 
   - package-ecosystem: "docker"
     directory: "/nextcloud"
