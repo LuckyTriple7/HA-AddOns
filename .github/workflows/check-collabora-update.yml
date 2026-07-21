@@ -1,8 +1,13 @@
 name: Check Collabora Update
 
 on:
-  schedule:
-    - cron: '0 5 * * *'
+  # Schedule bewusst deaktiviert: collabora/code ist seit 26.04.2.2 (Nix-Rootfs,
+  # 2026-07-18) für unser Setup kaputt (siehe collabora/CHANGELOG.md v1.0.11),
+  # Dockerfile ist auf letzten funktionierenden Digest gepinnt. Solange öffnet
+  # dieser Workflow sonst wöchentlich ein PR auf denselben kaputten Digest.
+  # Wieder aktivieren, sobald ein neuerer Digest manuell verifiziert wurde.
+  # schedule:
+  #   - cron: '0 5 * * *'
   workflow_dispatch:
 
 permissions:
