@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.57.10] - 2026-07-22
+
+### Fixed
+- **KI-Ladetext zeigte generisches „KI" statt echtem Anbieternamen (Claude/Gemini)**
+  — beim allerersten KI-Aufruf nach dem Laden der Seite war `_aiActiveProvider`
+  noch nicht vom Server geladen (asynchroner Hintergrund-Fetch), `aiProviderName()`
+  fiel dadurch auf den generischen Fallback zurück. Betraf Buchungsscore,
+  Region-Ausblick, Kalender-Analyse, KI-Fazit, KI-Vergleich und „Frag dein
+  Portfolio" — TripPilot wartete bereits korrekt. Jetzt warten alle sechs
+  Ladetexte per `ensureAiProviderLoaded()` auf den geladenen Anbieternamen,
+  bevor der Ladetext gebaut wird.
+
 ## [0.57.9] - 2026-07-22
 
 ### Fixed

@@ -2505,6 +2505,7 @@
       $('#ai-foot').style.display = 'none';
       $('#ai-bg').classList.add('show');
       const attempt = async () => {
+        await ensureAiProviderLoaded();
         $('#ai-body').innerHTML = progBar(aiProviderName()+' berechnet den Buchungsscore…');
         let resp, d;
         try {
@@ -2531,6 +2532,7 @@
       $('#ai-foot').style.display = 'none';
       $('#ai-bg').classList.add('show');
       const attempt = async () => {
+        await ensureAiProviderLoaded();
         $('#ai-body').innerHTML = progBar(aiProviderName()+' schätzt die Destination ein…');
         let resp, d;
         try {
@@ -2560,6 +2562,7 @@
       $('#ai-foot').style.display = 'none';
       $('#ai-bg').classList.add('show');
       const attempt = async () => {
+        await ensureAiProviderLoaded();
         $('#ai-body').innerHTML = progBar(aiProviderName()+' fasst die Kalenderpreise zusammen…');
         let resp, d;
         try {
@@ -2611,6 +2614,7 @@
       $('#ai-bg').classList.add('show');
       if(r._ai){ renderAiResult('#ai-body', r._ai); return; }
       const attempt = async () => {
+        await ensureAiProviderLoaded();
         $('#ai-body').innerHTML = progBar(aiProviderName()+' durchsucht das Web nach Bewertungen…');
         let resp, d;
         try {
@@ -2667,6 +2671,7 @@
       $('#ai-bg').classList.add('show');
       if(_aiCompareCache[cacheKey]){ renderAiResult('#ai-body', _aiCompareCache[cacheKey]); return; }
       const attempt = async () => {
+        await ensureAiProviderLoaded();
         $('#ai-body').innerHTML = progBar(aiProviderName()+' vergleicht '+facts.length+' Hotels und durchsucht das Web…');
         let resp, d;
         try {
@@ -2927,6 +2932,7 @@
       $('#ai-foot').style.display = 'none';
       $('#ai-bg').classList.add('show');
       const attempt = async () => {
+        await ensureAiProviderLoaded();
         $('#ai-body').innerHTML = progBar(aiProviderName()+' durchsucht dein Portfolio…');
         let resp, d;
         try {
