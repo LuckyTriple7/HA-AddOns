@@ -598,7 +598,10 @@ _BOOKING_SCORE_INSTRUCTIONS = (
     "Kalender nur durchschnittlich und nicht der günstigste ist. Nutze die volle "
     "Monatsliste (falls angegeben) für den direkten Vergleich zweier beliebiger "
     "Reisemonate — verlasse dich NICHT nur auf günstigsten/teuersten Monat, wenn der "
-    "Zielmonat oder Vergleichsmonat keiner der beiden Extreme ist.\n"
+    "Zielmonat oder Vergleichsmonat keiner der beiden Extreme ist. Monate mit wenigen "
+    "Terminen (z. B. nur 1-2, etwa bei wöchentlichem statt täglichem Flugrhythmus) "
+    "sind ein schwächeres Signal als gut belegte Monate — werte sie trotzdem als "
+    "typ='daten', aber vorsichtiger.\n"
     "Der Vorjahresvergleich (falls angegeben) ist ein stärkeres Signal als die reine "
     "Saisonalität: er zeigt echte Kalenderpreise für denselben Reisemonat ein Jahr "
     "früher, der bei langer Vorlaufzeit oft schon näher am eigenen Abflug liegt. Der "
@@ -648,6 +651,11 @@ def _calendar_seasonal_summary(cal: dict) -> dict | None:
     by_month: dict[str, list] = defaultdict(list)
     for d in days:
         by_month[d['date'][:7]].append(d['price'])
+    # Für Angebote mit wöchentlichem statt täglichem Abflugrhythmus (z. B. nur
+    # Sonntagsflüge) hat ein Monat oft nur 2-4 Termine insgesamt — die Schwelle
+    # >= 3 gilt daher nur für Günstigster/Teuerster-Monat (Ausreißer-Schutz bei
+    # der Extremwert-Auswahl), NICHT für die volle Monatsliste unten, sonst
+    # fehlen ganze Monate (inkl. evtl. des Zielmonats) komplett aus dem Prompt.
     monthly = {m: round(sum(p) / len(p)) for m, p in by_month.items() if len(p) >= 3}
     if len(monthly) < 3:
         return None
@@ -659,10 +667,13 @@ def _calendar_seasonal_summary(cal: dict) -> dict | None:
         'tracked_price': cal.get('tracked_price'), 'tracked_date': cal.get('tracked_date'),
         'overall_cheapest_price': cal.get('cheapest_price'),
         'overall_cheapest_date': cal.get('cheapest_date'),
-        # Volle Monatsliste (nicht nur die zwei Extreme) — sonst sieht die KI z. B.
-        # nicht, dass zwei mittlere Monate 200 € auseinanderliegen, wenn keiner von
-        # beiden zufällig der günstigste/teuerste im ganzen Kalender ist.
-        'monthly': sorted((m, avg) for m, avg in monthly.items()),
+        # Volle Monatsliste (alle Monate mit mind. 1 Termin, nicht nur die zwei
+        # Extreme) — sonst sieht die KI z. B. nicht, dass zwei mittlere Monate
+        # 200 € auseinanderliegen, wenn keiner von beiden zufällig der
+        # günstigste/teuerste im ganzen Kalender ist. Tage-Anzahl mitgeben,
+        # damit die KI dünn belegte Monate (wenig Termine) vorsichtiger
+        # gewichtet als gut belegte.
+        'monthly': sorted((m, round(sum(p) / len(p)), len(p)) for m, p in by_month.items()),
     }
     # Vorjahresvergleich: der Kalender deckt heute bis weit über den Zieltermin hinaus
     # ab (siehe fetch_calendar) — bei >12 Monaten Vorlauf liegt der Zielmonat des
@@ -872,11 +883,11 @@ def _booking_score_prompt(facts: dict) -> str:
             + (f"; Preis im aktuell gewählten Reisezeitraum laut Kalender "
                f"{s['tracked_price']} € (am {s['tracked_date']})" if s.get('tracked_price') else ''))
         if s.get('monthly'):
-            lines.append("Monatsdurchschnittspreise im Kalender (Ø-Preis, alle Monate — "
-                          "für direkten Vergleich beliebiger Reisemonate untereinander, "
-                          "nicht nur der beiden Extreme oben):")
-            for m, avg in s['monthly']:
-                lines.append(f"- {A._month_name_de(m)}: Ø {avg} €")
+            lines.append("Monatsdurchschnittspreise im Kalender (Ø-Preis, Anzahl Termine — "
+                          "alle Monate, für direkten Vergleich beliebiger Reisemonate "
+                          "untereinander, nicht nur der beiden Extreme oben):")
+            for m, avg, n in s['monthly']:
+                lines.append(f"- {A._month_name_de(m)}: Ø {avg} € ({n} Termine)")
         if s.get('prior_year_month_avg'):
             yoy_pct = ((s['target_month_avg'] - s['prior_year_month_avg'])
                        / s['prior_year_month_avg'] * 100)

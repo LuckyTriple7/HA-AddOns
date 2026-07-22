@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.57.9] - 2026-07-22
+
+### Fixed
+- **Ganze Monate fehlten in der Buchungsscore-Monatsliste (v0.57.8-Nachbesserung)**
+  — bei Angeboten mit wöchentlichem statt täglichem Flugrhythmus (z. B. nur
+  Sonntagsflüge) hat mancher Monat nur 1-2 Termine. Die Mindestschwelle von 3
+  Terminen (gedacht als Ausreißer-Schutz für Günstigster/Teuerster-Monat) hatte
+  solche Monate komplett aus der neuen vollen Monatsliste getilgt — u. a. fehlte
+  dadurch der Zielmonat selbst. Schwelle gilt jetzt nur noch für die
+  Extremwert-Auswahl; die volle Liste zeigt alle Monate mit mind. 1 Termin plus
+  Terminanzahl, damit die KI dünn belegte Monate vorsichtiger gewichten kann.
+
 ## [0.57.8] - 2026-07-22
 
 ### Fixed
