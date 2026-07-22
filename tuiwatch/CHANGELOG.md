@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.57.8] - 2026-07-22
+
+### Fixed
+- **Buchungsscore wertete Preisunterschiede zwischen Reisemonaten teils falsch aus**
+  — die Saisonalität aus dem Preiskalender enthielt bisher nur den günstigsten
+  und teuersten Monat als Ø-Preis. Lagen Zielmonat und Vergleichsmonat beide
+  dazwischen (z. B. Sept. 2026 vs. Feb. 2027), sah die KI nur die einzelnen
+  Preisbewegungen (`calendar_moves`, reine Deltas) ohne die absoluten
+  Monatsdurchschnitte — sie konnte den echten €-Abstand zwischen den Monaten
+  nicht direkt ablesen. Prompt liefert jetzt zusätzlich die volle
+  Monatsdurchschnittsliste (alle Monate, nicht nur die zwei Extreme).
+
 ## [0.57.7] - 2026-07-19
 
 ### Fixed

@@ -143,6 +143,30 @@ def test_offer_booking_facts_includes_seasonal_when_calendar_cached(m):
     assert facts["seasonal"]["cheapest_month_avg"] == 900
 
 
+def test_offer_booking_facts_seasonal_includes_full_monthly_breakdown(m):
+    """Regression: KI wertete zwei nicht-extreme Monate falsch aus (z. B. Sept. 2026
+    vs. Feb. 2027 200 € auseinander), weil `seasonal` bisher nur die beiden Extreme
+    (günstigster/teuerster Monat) enthielt — Monate dazwischen waren im Prompt gar
+    nicht mit Ø-Preis sichtbar."""
+    oid = _add_offer(m, "https://example.invalid/mb?duration=7", price=1200)
+    days = []
+    for month, price in (("2027-05", 900), ("2027-12", 1600), ("2027-09", 1200)):
+        for d in range(1, 21):
+            days.append({"date": f"{month}-{d:02d}", "price": price})
+    cal = {"ok": True, "days": days, "cheapest_date": "2027-05-05", "cheapest_price": 900,
+           "tracked_date": "2027-09-10", "tracked_price": 1200}
+    with m.db() as con:
+        con.execute("INSERT INTO calendar_cache (offer_id, ts, data) VALUES (?,?,?)",
+                    (oid, int(time.time()), json.dumps(cal)))
+        facts = m._offer_booking_facts(con, oid)
+    assert facts["seasonal"]["monthly"] == [("2027-05", 900), ("2027-09", 1200), ("2027-12", 1600)]
+    prompt = m._booking_score_prompt(facts)
+    assert "Monatsdurchschnittspreise im Kalender" in prompt
+    assert "September 2027: Ø 1200 €" in prompt
+    assert "Mai 2027: Ø 900 €" in prompt
+    assert "Dezember 2027: Ø 1600 €" in prompt
+
+
 def test_offer_booking_facts_includes_prior_year_month_comparison(m):
     """Regression: bei langer Vorlaufzeit (z. B. Zieltermin Sept. 2027) deckt der
     Kalender ab heute bis weit über den Zieltermin hinaus ab (fetch_calendar) — der
