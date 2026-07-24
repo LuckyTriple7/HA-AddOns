@@ -1,5 +1,53 @@
 # Changelog
 
+## [0.58.0] - 2026-07-24
+
+### Fixed
+- **Externer cert_expiry-Sensor (`tuiwatch.gizmonet.cloud`) wurde wiederholt
+  `unavailable`** — Ursache war Flasks eingebauter Dev-Server (`app.run`),
+  der neue Verbindungen spürbar verzögert annahm, während einer der fünf
+  Hintergrund-Worker (Preis-Poller, Aktionscodes, Health, Cooldown,
+  Markttrend) sequenziell externe TUI-APIs abfragte — teils über eine
+  Stunde am Stück. Der externe TLS-Check lief dabei in den Timeout. Webserver
+  läuft jetzt über `waitress` mit eigenem Thread-Pool, unabhängig von der
+  Auslastung der Hintergrund-Worker.
+
+## [0.57.10] - 2026-07-22
+
+### Fixed
+- **KI-Ladetext zeigte generisches „KI" statt echtem Anbieternamen (Claude/Gemini)**
+  — beim allerersten KI-Aufruf nach dem Laden der Seite war `_aiActiveProvider`
+  noch nicht vom Server geladen (asynchroner Hintergrund-Fetch), `aiProviderName()`
+  fiel dadurch auf den generischen Fallback zurück. Betraf Buchungsscore,
+  Region-Ausblick, Kalender-Analyse, KI-Fazit, KI-Vergleich und „Frag dein
+  Portfolio" — TripPilot wartete bereits korrekt. Jetzt warten alle sechs
+  Ladetexte per `ensureAiProviderLoaded()` auf den geladenen Anbieternamen,
+  bevor der Ladetext gebaut wird.
+
+## [0.57.9] - 2026-07-22
+
+### Fixed
+- **Ganze Monate fehlten in der Buchungsscore-Monatsliste (v0.57.8-Nachbesserung)**
+  — bei Angeboten mit wöchentlichem statt täglichem Flugrhythmus (z. B. nur
+  Sonntagsflüge) hat mancher Monat nur 1-2 Termine. Die Mindestschwelle von 3
+  Terminen (gedacht als Ausreißer-Schutz für Günstigster/Teuerster-Monat) hatte
+  solche Monate komplett aus der neuen vollen Monatsliste getilgt — u. a. fehlte
+  dadurch der Zielmonat selbst. Schwelle gilt jetzt nur noch für die
+  Extremwert-Auswahl; die volle Liste zeigt alle Monate mit mind. 1 Termin plus
+  Terminanzahl, damit die KI dünn belegte Monate vorsichtiger gewichten kann.
+
+## [0.57.8] - 2026-07-22
+
+### Fixed
+- **Buchungsscore wertete Preisunterschiede zwischen Reisemonaten teils falsch aus**
+  — die Saisonalität aus dem Preiskalender enthielt bisher nur den günstigsten
+  und teuersten Monat als Ø-Preis. Lagen Zielmonat und Vergleichsmonat beide
+  dazwischen (z. B. Sept. 2026 vs. Feb. 2027), sah die KI nur die einzelnen
+  Preisbewegungen (`calendar_moves`, reine Deltas) ohne die absoluten
+  Monatsdurchschnitte — sie konnte den echten €-Abstand zwischen den Monaten
+  nicht direkt ablesen. Prompt liefert jetzt zusätzlich die volle
+  Monatsdurchschnittsliste (alle Monate, nicht nur die zwei Extreme).
+
 ## [0.57.7] - 2026-07-19
 
 ### Fixed

@@ -143,6 +143,57 @@ def test_offer_booking_facts_includes_seasonal_when_calendar_cached(m):
     assert facts["seasonal"]["cheapest_month_avg"] == 900
 
 
+def test_offer_booking_facts_seasonal_includes_full_monthly_breakdown(m):
+    """Regression: KI wertete zwei nicht-extreme Monate falsch aus (z. B. Sept. 2026
+    vs. Feb. 2027 200 € auseinander), weil `seasonal` bisher nur die beiden Extreme
+    (günstigster/teuerster Monat) enthielt — Monate dazwischen waren im Prompt gar
+    nicht mit Ø-Preis sichtbar."""
+    oid = _add_offer(m, "https://example.invalid/mb?duration=7", price=1200)
+    days = []
+    for month, price in (("2027-05", 900), ("2027-12", 1600), ("2027-09", 1200)):
+        for d in range(1, 21):
+            days.append({"date": f"{month}-{d:02d}", "price": price})
+    cal = {"ok": True, "days": days, "cheapest_date": "2027-05-05", "cheapest_price": 900,
+           "tracked_date": "2027-09-10", "tracked_price": 1200}
+    with m.db() as con:
+        con.execute("INSERT INTO calendar_cache (offer_id, ts, data) VALUES (?,?,?)",
+                    (oid, int(time.time()), json.dumps(cal)))
+        facts = m._offer_booking_facts(con, oid)
+    assert facts["seasonal"]["monthly"] == [("2027-05", 900, 20), ("2027-09", 1200, 20),
+                                             ("2027-12", 1600, 20)]
+    prompt = m._booking_score_prompt(facts)
+    assert "Monatsdurchschnittspreise im Kalender" in prompt
+    assert "September 2027: Ø 1200 € (20 Termine)" in prompt
+    assert "Mai 2027: Ø 900 € (20 Termine)" in prompt
+    assert "Dezember 2027: Ø 1600 € (20 Termine)" in prompt
+
+
+def test_offer_booking_facts_seasonal_monthly_includes_sparse_months(m):
+    """Regression: bei wöchentlichem statt täglichem Flugrhythmus (z. B. nur
+    Sonntagsflüge) hat mancher Monat nur 1-2 Termine — die >= 3-Schwelle für
+    Günstigster/Teuerster-Monat darf solche Monate nicht komplett aus der vollen
+    Monatsliste tilgen, sonst fehlt z. B. der Zielmonat des Nutzers ganz im Prompt."""
+    oid = _add_offer(m, "https://example.invalid/sparse?duration=7", price=1200)
+    days = []
+    for month, price in (("2027-05", 900), ("2027-12", 1600), ("2027-09", 1200)):
+        for d in range(1, 21):
+            days.append({"date": f"{month}-{d:02d}", "price": price})
+    # Nov. 2027: nur 2 Termine (z. B. wöchentlicher Flugrhythmus) -> unter der
+    # >= 3-Schwelle für Extremwerte, muss aber trotzdem in der vollen Liste stehen.
+    days.append({"date": "2027-11-07", "price": 1686})
+    days.append({"date": "2027-11-21", "price": 1686})
+    cal = {"ok": True, "days": days, "cheapest_date": "2027-05-05", "cheapest_price": 900,
+           "tracked_date": "2027-09-10", "tracked_price": 1200}
+    with m.db() as con:
+        con.execute("INSERT INTO calendar_cache (offer_id, ts, data) VALUES (?,?,?)",
+                    (oid, int(time.time()), json.dumps(cal)))
+        facts = m._offer_booking_facts(con, oid)
+    monthly = dict((mo, (avg, n)) for mo, avg, n in facts["seasonal"]["monthly"])
+    assert monthly["2027-11"] == (1686, 2)
+    prompt = m._booking_score_prompt(facts)
+    assert "November 2027: Ø 1686 € (2 Termine)" in prompt
+
+
 def test_offer_booking_facts_includes_prior_year_month_comparison(m):
     """Regression: bei langer Vorlaufzeit (z. B. Zieltermin Sept. 2027) deckt der
     Kalender ab heute bis weit über den Zieltermin hinaus ab (fetch_calendar) — der

@@ -1,5 +1,8 @@
 # Changelog — Nextcloud
 
+## 1.0.24
+- Nextcloud Base-Image aktualisiert auf linuxserver/nextcloud 34.0.2 (34.0.2-ls444)
+
 ## 1.0.23
 - Testweise Nextcloud Base-Image auf 34.0.1-ls442 (NC34) — Apps inzwischen aktualisiert, erneuter Kompatibilitätstest nach Rollback in 1.0.15
 
