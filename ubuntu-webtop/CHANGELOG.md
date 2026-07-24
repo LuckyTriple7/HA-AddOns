@@ -1,3 +1,11 @@
+## [1.8.38] - 2026-07-24
+
+### Aktualisiert
+
+- Bitwarden: 2026.6.1 → 2026.7.0
+- VS Code: 1.129.1 → 1.130.0
+- Claude Desktop: 3.2.1+claude1.22209.3 → 3.2.1+claude1.24012.0
+
 ## [1.8.37] - 2026-07-22
 
 ### Aktualisiert
