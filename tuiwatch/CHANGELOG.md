@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.58.0] - 2026-07-24
+
+### Fixed
+- **Externer cert_expiry-Sensor (`tuiwatch.gizmonet.cloud`) wurde wiederholt
+  `unavailable`** — Ursache war Flasks eingebauter Dev-Server (`app.run`),
+  der neue Verbindungen spürbar verzögert annahm, während einer der fünf
+  Hintergrund-Worker (Preis-Poller, Aktionscodes, Health, Cooldown,
+  Markttrend) sequenziell externe TUI-APIs abfragte — teils über eine
+  Stunde am Stück. Der externe TLS-Check lief dabei in den Timeout. Webserver
+  läuft jetzt über `waitress` mit eigenem Thread-Pool, unabhängig von der
+  Auslastung der Hintergrund-Worker.
+
 ## [0.57.10] - 2026-07-22
 
 ### Fixed

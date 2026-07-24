@@ -33,6 +33,7 @@ from google.genai import errors as genai_errors
 from google.genai import types as genai_types
 from flask import (Flask, jsonify, make_response, redirect, render_template,
                    request, send_file, url_for)
+from waitress import serve
 from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.utils import safe_join
 
@@ -84,7 +85,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.57.7"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.58.0"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -3070,7 +3071,12 @@ def main() -> None:
     threading.Thread(target=_market_trend_sensor_worker, daemon=True).start()
     port = int(os.environ.get('TUIWATCH_PORT', '17794'))
     log.info("TUIWatch startet auf Port %d", port)
-    app.run(host='0.0.0.0', port=port, threaded=True)
+    # Werkzeugs Dev-Server (app.run) verzoegert unter Last durch die Hintergrund-
+    # Worker (Poller, Aktionscodes, Health, ...) neue Verbindungen spuerbar —
+    # der externe cert_expiry-Sensor lief deshalb wiederholt in Timeouts.
+    # waitress bedient eingehende Requests ueber einen eigenen Thread-Pool,
+    # unabhaengig von der Auslastung der Hintergrund-Threads.
+    serve(app, host='0.0.0.0', port=port, threads=8)
 
 
 if __name__ == '__main__':
