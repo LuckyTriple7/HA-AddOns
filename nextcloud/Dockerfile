@@ -1,5 +1,5 @@
 ARG BUILD_FROM
-FROM lscr.io/linuxserver/nextcloud:34.0.1-ls442
+FROM lscr.io/linuxserver/nextcloud:34.0.2-ls444
 
 # cifs-utils für SMB-Mounts, jq für options.json
 RUN apk add --no-cache \
