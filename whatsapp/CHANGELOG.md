@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.7.41] - 2026-07-25
+- Fix: **Nachrichten senden schlug erneut mit 500 fehl** (`sendMessage returned no result`) — WhatsApp hat im Juli-2026-Update die Nachrichten-ID-Property `_serialized` in `$1` umbenannt. `whatsapp-web.js@1.34.7` (aus v1.7.40) kennt das noch nicht: `sendMessage` lieferte serverseitig `undefined` statt eines Message-Objekts, obwohl die Nachricht beim Empfänger tatsächlich ankam (Bug ausschließlich im Rückgabewert der Library, nicht in der eigentlichen Zustellung). Betraf ausnahmslos jeden Chat. Offizieller Fix noch nicht auf npm veröffentlicht (mehrere offene, ungeprüfte Community-PRs im Upstream-Repo, Maintainer-Merge steht seit Wochen aus) — Abhängigkeit übergangsweise auf einen einzelnen geprüften Commit eines Community-Forks gepinnt (`carlosalaniz/whatsapp-web.js#5b6bb00`, minimaler Diff nur in `Injected/Utils.js`, manuell auf unerwünschten Code geprüft), bis der offizielle Fix released ist
+
 ## [1.7.40] - 2026-07-25
 - Fix: **Nachrichten senden schlug mit 500 fehl** (`Cannot set properties of undefined (setting '__logged')`) — WhatsApp rollt `@lid`-IDs aus (versteckte Telefonnummern in Gruppen), die alte `whatsapp-web.js@1.26.0` konnte damit nicht umgehen und lieferte bei `sendMessage`/`.reply()` teils `undefined` statt eines Ergebnisses zurück. Abhängigkeit auf `^1.34.7` angehoben (aktuelle Version mit lid-Unterstützung), zusätzlich Null-Checks nach `sendMessage`/`.reply()` ergänzt, damit bei künftigen Fehlschlägen ein sauberer 500 mit Fehlermeldung statt ein Crash kommt
 
