@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.1.16] - 2026-07-25
+
+### Changed
+- Rebuild für Claude Code 2.1.220
+
+
 ## [1.1.15] - 2026-07-23
 
 ### Changed
