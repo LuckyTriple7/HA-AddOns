@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.2.18] - 2026-07-25
+
+### Geändert
+- Rebuild für FileBrowser 2.63.19
+
+
 ## [1.2.17] - 2026-07-04
 
 ### Geändert
