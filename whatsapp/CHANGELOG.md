@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.7.40] - 2026-07-25
+- Fix: **Nachrichten senden schlug mit 500 fehl** (`Cannot set properties of undefined (setting '__logged')`) — WhatsApp rollt `@lid`-IDs aus (versteckte Telefonnummern in Gruppen), die alte `whatsapp-web.js@1.26.0` konnte damit nicht umgehen und lieferte bei `sendMessage`/`.reply()` teils `undefined` statt eines Ergebnisses zurück. Abhängigkeit auf `^1.34.7` angehoben (aktuelle Version mit lid-Unterstützung), zusätzlich Null-Checks nach `sendMessage`/`.reply()` ergänzt, damit bei künftigen Fehlschlägen ein sauberer 500 mit Fehlermeldung statt ein Crash kommt
+
 ## [1.7.39] - 2026-07-09
 - Fix: **Add-on beendete sich bei jedem Stop/Update mit Exit-Code 137/143** statt sauber mit 0 — `Dockerfile` basiert auf `node:lts-alpine` ohne eigenes Init-System, `run.sh` macht den Node-Prozess per `exec` zu PID 1. Ohne eigenen Signal-Handler ignoriert der Kernel bei PID 1 unbehandelte Signale wie SIGTERM, der Supervisor musste nach Timeout hart per SIGKILL beenden (137). `init: false` → `init: true` in `config.yaml` sorgt für ein echtes Mini-Init als PID 1, das Signale korrekt durchreicht — zusätzlich neuer `SIGTERM`/`SIGINT`-Handler in `server.js`, der vor dem Exit sauber `client.destroy()` aufruft (nicht `client.logout()`!), damit Puppeteer/Chromium ordentlich geschlossen wird statt mitten im Betrieb gekillt zu werden. Das verhinderte bisher schon mal korrupte Chromium-Profile (`SingletonLock` u. Ä. im Session-Ordner) und im schlimmsten Fall einen erzwungenen erneuten QR-Scan beim nächsten Start
 

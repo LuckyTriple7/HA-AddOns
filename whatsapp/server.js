@@ -935,6 +935,7 @@ app.post('/api/send', async (req, res) => {
       opts.mentions = mentions.filter(m => typeof m === 'string' && m.endsWith('@c.us')).slice(0, 100);
     }
     const result = await client.sendMessage(jid, message, opts);
+    if (!result) throw new Error('sendMessage returned no result');
     result.__logged = true;
     const targetChatId = jid;
     if (!chatMap.has(targetChatId)) {
@@ -992,6 +993,7 @@ app.post('/api/send-media', upload.single('file'), async (req, res) => {
     const media = new MessageMedia(mime, data, origName);
     const isImg = mime.startsWith('image/');
     const result = await client.sendMessage(jid, media, caption ? { caption } : {});
+    if (!result) throw new Error('sendMessage returned no result');
     result.__logged = true;
     let mediaFile = null;
     if (isImg) {
@@ -1429,6 +1431,7 @@ app.post('/api/send-location', async (req, res) => {
   try {
     const loc = new Location(parseFloat(lat), parseFloat(lng), locName || '');
     const result = await client.sendMessage(to, loc);
+    if (!result) throw new Error('sendMessage returned no result');
     result.__logged = true;
     const ts = Date.now();
     addMsg(to, { id: result.id._serialized, body: '', type: 'location', locLat: parseFloat(lat), locLng: parseFloat(lng), locName: locName || '', timestamp: ts, fromMe: true });
@@ -1449,6 +1452,7 @@ app.post('/api/reply', async (req, res) => {
       opts.mentions = mentions.filter(m => typeof m === 'string' && m.endsWith('@c.us')).slice(0, 100);
     }
     const result = await qMsg.reply(message, undefined, opts);
+    if (!result) throw new Error('reply returned no result');
     result.__logged = true;
     addMsg(chatId, {
       id: result.id._serialized,
