@@ -41,7 +41,7 @@ claude --continue   # letzte Unterhaltung fortsetzen
 |--------|---------|
 | `claude-sonnet-4-6` | Beste Balance (Standard) |
 | `claude-fable-5` | Leistungsstärkstes Modell, für die schwierigsten Aufgaben |
-| `claude-opus-4-8` | Sehr stark, für komplexe Aufgaben |
+| `claude-opus-5` | Sehr stark, für komplexe Aufgaben |
 | `claude-haiku-4-5-20251001` | Schnellstes Modell, für einfache Anfragen |
 
 ## Tastenkürzel
@@ -132,7 +132,7 @@ claude --continue   # continue last conversation
 |-------|----------|
 | `claude-sonnet-4-6` | Best balance (default) |
 | `claude-fable-5` | Most powerful, for the hardest tasks |
-| `claude-opus-4-8` | Very capable, for complex tasks |
+| `claude-opus-5` | Very capable, for complex tasks |
 | `claude-haiku-4-5-20251001` | Fastest, for simple queries |
 
 ## Keyboard Shortcuts

@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.1.17] - 2026-07-26
+
+### Changed
+- Modellauswahl: `claude-opus-5` ersetzt `claude-opus-4-8`
+
+
 ## [1.1.16] - 2026-07-25
 
 ### Changed
