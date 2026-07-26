@@ -57,7 +57,7 @@ schema:
   claude_autostart: bool
   auto_update_claude: bool
   notify_on_update: bool
-  model: list(claude-sonnet-5|claude-fable-5|claude-opus-5|claude-sonnet-4-6|claude-haiku-4-5-20251001)
+  model: list(claude-sonnet-5|claude-fable-5|claude-opus-5|claude-haiku-4-5-20251001)
   export_memory: bool
   export_memory_interval: int(0,1440)
   enable_caveman_skill: bool
