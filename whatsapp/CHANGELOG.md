@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.7.42] - 2026-07-26
+- Fix: **Eigene Reaktion (❤️👍…) im Web-UI unsichtbar**, kam aber korrekt aufs Handy an — `/api/react` sendete die Reaktion nur an WhatsApp (`msg.react()`) und trug sie in `myReactions` ein, aber nicht in `msg.reactions`/`reactionsCache` (das, was `/api/reactions/:chatId` fürs Web-UI ausliest). Das passierte bisher nur über das `message_reaction`-Echo-Event der Lib — das aktuelle `whatsapp-web.js` emittiert dieses Event für **eigene** Reaktionen offenbar nicht mehr zuverlässig. Reaktions-Logik in gemeinsame Funktion `recordReaction()` ausgelagert, `/api/react` wendet die eigene Reaktion jetzt sofort lokal an, statt aufs Echo zu warten
+
 ## [1.7.41] - 2026-07-25
 - Fix: **Nachrichten senden schlug erneut mit 500 fehl** (`sendMessage returned no result`) — WhatsApp hat im Juli-2026-Update die Nachrichten-ID-Property `_serialized` in `$1` umbenannt. `whatsapp-web.js@1.34.7` (aus v1.7.40) kennt das noch nicht: `sendMessage` lieferte serverseitig `undefined` statt eines Message-Objekts, obwohl die Nachricht beim Empfänger tatsächlich ankam (Bug ausschließlich im Rückgabewert der Library, nicht in der eigentlichen Zustellung). Betraf ausnahmslos jeden Chat. Offizieller Fix noch nicht auf npm veröffentlicht (mehrere offene, ungeprüfte Community-PRs im Upstream-Repo, Maintainer-Merge steht seit Wochen aus) — Abhängigkeit übergangsweise auf einen einzelnen geprüften Commit eines Community-Forks gepinnt (`carlosalaniz/whatsapp-web.js#5b6bb00`, minimaler Diff nur in `Injected/Utils.js`, manuell auf unerwünschten Code geprüft), bis der offizielle Fix released ist
 

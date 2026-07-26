@@ -687,36 +687,35 @@ client.on('message_create', async (msg) => {
   }
 });
 
-client.on('message_reaction', (reaction) => {
-  const msgId = reaction.msgId?._serialized;
-  if (!msgId) return;
-  const senderId = normalizeJid(reaction.senderId?._serialized || String(reaction.senderId || ''));
-  if (!senderId) return;
-  const emoji = reaction.reaction || '';
-  dbg(`message_reaction: msgId=${msgId} sender=${senderId} emoji="${emoji}"`);
-
-  function applyReaction(reactions) {
-    for (const e of Object.keys(reactions)) {
-      reactions[e] = reactions[e].filter(s => s !== senderId);
-      if (!reactions[e].length) delete reactions[e];
-    }
-    if (emoji) {
-      if (!reactions[emoji]) reactions[emoji] = [];
-      if (!reactions[emoji].includes(senderId)) reactions[emoji].push(senderId);
-    }
-  }
-
+function recordReaction(msgId, senderId, emoji) {
+  if (!msgId || !senderId) return;
   for (const msgs of messagesByChatId.values()) {
     const msg = msgs.find(m => m.id === msgId);
     if (msg) {
       if (!msg.reactions) msg.reactions = {};
-      applyReaction(msg.reactions);
-      dbg(`message_reaction: reactions[${msgId}] =`, JSON.stringify(msg.reactions));
+      const reactions = msg.reactions;
+      for (const e of Object.keys(reactions)) {
+        reactions[e] = reactions[e].filter(s => s !== senderId);
+        if (!reactions[e].length) delete reactions[e];
+      }
+      if (emoji) {
+        if (!reactions[emoji]) reactions[emoji] = [];
+        if (!reactions[emoji].includes(senderId)) reactions[emoji].push(senderId);
+      }
+      dbg(`recordReaction: reactions[${msgId}] =`, JSON.stringify(msg.reactions));
       reactionsCache.set(msgId, { ...msg.reactions });
       saveReactions();
       break;
     }
   }
+}
+
+client.on('message_reaction', (reaction) => {
+  const msgId = reaction.msgId?._serialized;
+  const senderId = normalizeJid(reaction.senderId?._serialized || String(reaction.senderId || ''));
+  const emoji = reaction.reaction || '';
+  dbg(`message_reaction: msgId=${msgId} sender=${senderId} emoji="${emoji}"`);
+  recordReaction(msgId, senderId, emoji);
 });
 
 function markDeleted(msgId) {
@@ -1256,6 +1255,10 @@ app.post('/api/react', async (req, res) => {
     dbg(`/api/react: sent reaction="${reaction||''}" for msgId=${msgId}`);
     // Eigene Reaktion explizit tracken — kein JID-Vergleich nötig
     if (reaction) { myReactions.set(msgId, reaction); } else { myReactions.delete(msgId); }
+    // Lokal sofort anwenden statt aufs message_reaction-Echo zu warten
+    // (manche whatsapp-web.js-Versionen emittieren das Event nicht fuer eigene Reaktionen)
+    const myJid = connectedPhone ? normalizeJid(connectedPhone + '@c.us') : null;
+    if (myJid) recordReaction(msgId, myJid, reaction || '');
     saveReactions();
     res.json({ success: true });
   } catch (e) {
