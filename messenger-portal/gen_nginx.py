@@ -94,7 +94,7 @@ def proxy_block(slug: str, name: str, host: str, port: int) -> str:
 
         # Rewrite absolute paths in HTML/JS responses
         sub_filter_once  off;
-        sub_filter_types text/javascript application/javascript application/json;
+        sub_filter_types text/html text/javascript application/javascript application/json;
         sub_filter 'href="/'   'href="{prefix}';
         sub_filter 'src="/'    'src="{prefix}';
         sub_filter 'action="/' 'action="{prefix}';

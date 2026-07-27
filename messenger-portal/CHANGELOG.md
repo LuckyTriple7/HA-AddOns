@@ -1,5 +1,10 @@
 # Changelog – MessengerPortal
 
+## [1.2.12] - 2026-07-27
+
+### Fixed
+- Schwebender „Zurück zum Portal"-Button wurde in proxierten Add-ons nicht mehr angezeigt: `sub_filter_types` in `gen_nginx.py` wurde explizit auf `text/javascript application/javascript application/json` gesetzt, das überschreibt nginx' Default (`text/html`) komplett statt ihn zu erweitern — dadurch griff die `</body>`-Injection des Buttons nie mehr auf echten HTML-Seiten. `text/html` wieder in `sub_filter_types` aufgenommen
+
 ## [1.2.11] - 2026-07-25
 
 ### Fixed
