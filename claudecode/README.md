@@ -111,7 +111,7 @@ claude --continue
 | `session_persistence` | tmux für persistente Sitzungen verwenden | true |
 | `claude_autostart` | Claude beim Öffnen des Terminals automatisch starten | false |
 | `auto_update_claude` | Claude Code beim Start automatisch aktualisieren | true |
-| `model` | Zu verwendendes Claude-Modell | claude-sonnet-4-6 |
+| `model` | Zu verwendendes Claude-Modell | claude-sonnet-5 |
 
 ### Modellauswahl
 
@@ -119,9 +119,9 @@ Es stehen vier Modelle zur Verfügung:
 
 | Modell | Am besten für |
 |--------|--------------|
-| `claude-sonnet-4-6` | Beste Balance aus Geschwindigkeit und Leistung (Standard) |
+| `claude-sonnet-5` | Beste Balance aus Geschwindigkeit und Leistung (Standard) |
 | `claude-fable-5` | Leistungsstärkstes Modell, für die schwierigsten Aufgaben |
-| `claude-opus-4-8` | Sehr stark, für komplexe Aufgaben |
+| `claude-opus-5` | Sehr stark, für komplexe Aufgaben |
 | `claude-haiku-4-5-20251001` | Schnellstes Modell, für einfache Anfragen |
 
 `auto_update_claude` aktivieren, damit neue Modelle automatisch verfügbar werden, sobald Anthropic sie veröffentlicht – ohne Update des Add-ons.
@@ -369,7 +369,7 @@ claude --continue
 | `session_persistence` | Use tmux for persistent sessions | true |
 | `claude_autostart` | Auto-start Claude when terminal opens | false |
 | `auto_update_claude` | Auto-update Claude Code on startup | true |
-| `model` | Claude model to use | claude-sonnet-4-6 |
+| `model` | Claude model to use | claude-sonnet-5 |
 
 ### Model Selection
 
@@ -377,9 +377,9 @@ Four models are available:
 
 | Model | Best for |
 |-------|----------|
-| `claude-sonnet-4-6` | Best balance of speed and capability (default) |
+| `claude-sonnet-5` | Best balance of speed and capability (default) |
 | `claude-fable-5` | Most powerful, for the hardest tasks |
-| `claude-opus-4-8` | Very capable, for complex tasks |
+| `claude-opus-5` | Very capable, for complex tasks |
 | `claude-haiku-4-5-20251001` | Fastest, for simple queries |
 
 Enable `auto_update_claude` to ensure new models become available as Anthropic releases them, without needing an add-on update.

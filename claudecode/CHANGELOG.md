@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.1.17] - 2026-07-26
+
+### Changed
+- Modellauswahl: `claude-opus-5` ersetzt `claude-opus-4-8`, `claude-sonnet-4-6` entfernt (Standard bleibt `claude-sonnet-5`)
+
+
+## [1.1.16] - 2026-07-25
+
+### Changed
+- Rebuild für Claude Code 2.1.220
+
+
 ## [1.1.15] - 2026-07-23
 
 ### Changed

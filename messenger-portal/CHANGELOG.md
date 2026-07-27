@@ -1,5 +1,10 @@
 # Changelog – MessengerPortal
 
+## [1.2.11] - 2026-07-25
+
+### Fixed
+- Medien-Upload (z. B. Bild aus Zwischenablage einfügen) an proxierte Add-ons wie WhatsApp scheiterte mit `502 Bad Gateway`, sobald die Datei über 1 MB lag — `gen_nginx.py` setzte nirgends `client_max_body_size`, damit griff der nginx-Alpine-Default von 1 MB, obwohl das WhatsApp-Add-on selbst (`multer`) 64 MB erlaubt. `client_max_body_size 64m;` jetzt global im generierten Server-Block gesetzt
+
 ## [1.2.10] - 2026-07-09
 
 ### Fixed

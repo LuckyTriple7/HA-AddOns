@@ -29,7 +29,7 @@ claude --continue   # letzte Unterhaltung fortsetzen
 | `tmux_scroll_mode` | `browser` | Scroll-Verhalten mit tmux: `browser` (natives Scrollen/Touch/Copy-Paste) oder `tmux` (Mausrad scrollt tmux-Historie) |
 | `claude_autostart` | `false` | Claude beim Öffnen des Terminals automatisch starten |
 | `auto_update_claude` | `true` | Claude Code beim Start automatisch aktualisieren |
-| `model` | `claude-sonnet-4-6` | Zu verwendendes Claude-Modell |
+| `model` | `claude-sonnet-5` | Zu verwendendes Claude-Modell |
 | `enable_playwright_mcp` | `false` | Playwright Browser-MCP aktivieren (benötigt Playwright Browser Add-on) |
 | `export_memory` | `false` | Claude-Speicher in `/config/memory/` exportieren |
 | `export_memory_interval` | `60` | Export-Intervall in Minuten |
@@ -39,9 +39,9 @@ claude --continue   # letzte Unterhaltung fortsetzen
 
 | Modell | Für was |
 |--------|---------|
-| `claude-sonnet-4-6` | Beste Balance (Standard) |
+| `claude-sonnet-5` | Beste Balance (Standard) |
 | `claude-fable-5` | Leistungsstärkstes Modell, für die schwierigsten Aufgaben |
-| `claude-opus-4-8` | Sehr stark, für komplexe Aufgaben |
+| `claude-opus-5` | Sehr stark, für komplexe Aufgaben |
 | `claude-haiku-4-5-20251001` | Schnellstes Modell, für einfache Anfragen |
 
 ## Tastenkürzel
@@ -120,7 +120,7 @@ claude --continue   # continue last conversation
 | `tmux_scroll_mode` | `browser` | Scroll behavior with tmux: `browser` (native scrolling/touch/copy-paste) or `tmux` (mouse wheel scrolls tmux history) |
 | `claude_autostart` | `false` | Auto-start Claude when the terminal opens |
 | `auto_update_claude` | `true` | Auto-update Claude Code on startup |
-| `model` | `claude-sonnet-4-6` | Claude model to use |
+| `model` | `claude-sonnet-5` | Claude model to use |
 | `enable_playwright_mcp` | `false` | Enable Playwright browser MCP (requires Playwright Browser add-on) |
 | `export_memory` | `false` | Export Claude memory to `/config/memory/` |
 | `export_memory_interval` | `60` | Export interval in minutes |
@@ -130,9 +130,9 @@ claude --continue   # continue last conversation
 
 | Model | Best for |
 |-------|----------|
-| `claude-sonnet-4-6` | Best balance (default) |
+| `claude-sonnet-5` | Best balance (default) |
 | `claude-fable-5` | Most powerful, for the hardest tasks |
-| `claude-opus-4-8` | Very capable, for complex tasks |
+| `claude-opus-5` | Very capable, for complex tasks |
 | `claude-haiku-4-5-20251001` | Fastest, for simple queries |
 
 ## Keyboard Shortcuts

@@ -687,36 +687,35 @@ client.on('message_create', async (msg) => {
   }
 });
 
-client.on('message_reaction', (reaction) => {
-  const msgId = reaction.msgId?._serialized;
-  if (!msgId) return;
-  const senderId = normalizeJid(reaction.senderId?._serialized || String(reaction.senderId || ''));
-  if (!senderId) return;
-  const emoji = reaction.reaction || '';
-  dbg(`message_reaction: msgId=${msgId} sender=${senderId} emoji="${emoji}"`);
-
-  function applyReaction(reactions) {
-    for (const e of Object.keys(reactions)) {
-      reactions[e] = reactions[e].filter(s => s !== senderId);
-      if (!reactions[e].length) delete reactions[e];
-    }
-    if (emoji) {
-      if (!reactions[emoji]) reactions[emoji] = [];
-      if (!reactions[emoji].includes(senderId)) reactions[emoji].push(senderId);
-    }
-  }
-
+function recordReaction(msgId, senderId, emoji) {
+  if (!msgId || !senderId) return;
   for (const msgs of messagesByChatId.values()) {
     const msg = msgs.find(m => m.id === msgId);
     if (msg) {
       if (!msg.reactions) msg.reactions = {};
-      applyReaction(msg.reactions);
-      dbg(`message_reaction: reactions[${msgId}] =`, JSON.stringify(msg.reactions));
+      const reactions = msg.reactions;
+      for (const e of Object.keys(reactions)) {
+        reactions[e] = reactions[e].filter(s => s !== senderId);
+        if (!reactions[e].length) delete reactions[e];
+      }
+      if (emoji) {
+        if (!reactions[emoji]) reactions[emoji] = [];
+        if (!reactions[emoji].includes(senderId)) reactions[emoji].push(senderId);
+      }
+      dbg(`recordReaction: reactions[${msgId}] =`, JSON.stringify(msg.reactions));
       reactionsCache.set(msgId, { ...msg.reactions });
       saveReactions();
       break;
     }
   }
+}
+
+client.on('message_reaction', (reaction) => {
+  const msgId = reaction.msgId?._serialized;
+  const senderId = normalizeJid(reaction.senderId?._serialized || String(reaction.senderId || ''));
+  const emoji = reaction.reaction || '';
+  dbg(`message_reaction: msgId=${msgId} sender=${senderId} emoji="${emoji}"`);
+  recordReaction(msgId, senderId, emoji);
 });
 
 function markDeleted(msgId) {
@@ -935,6 +934,7 @@ app.post('/api/send', async (req, res) => {
       opts.mentions = mentions.filter(m => typeof m === 'string' && m.endsWith('@c.us')).slice(0, 100);
     }
     const result = await client.sendMessage(jid, message, opts);
+    if (!result) throw new Error('sendMessage returned no result');
     result.__logged = true;
     const targetChatId = jid;
     if (!chatMap.has(targetChatId)) {
@@ -992,6 +992,7 @@ app.post('/api/send-media', upload.single('file'), async (req, res) => {
     const media = new MessageMedia(mime, data, origName);
     const isImg = mime.startsWith('image/');
     const result = await client.sendMessage(jid, media, caption ? { caption } : {});
+    if (!result) throw new Error('sendMessage returned no result');
     result.__logged = true;
     let mediaFile = null;
     if (isImg) {
@@ -1254,6 +1255,10 @@ app.post('/api/react', async (req, res) => {
     dbg(`/api/react: sent reaction="${reaction||''}" for msgId=${msgId}`);
     // Eigene Reaktion explizit tracken — kein JID-Vergleich nötig
     if (reaction) { myReactions.set(msgId, reaction); } else { myReactions.delete(msgId); }
+    // Lokal sofort anwenden statt aufs message_reaction-Echo zu warten
+    // (manche whatsapp-web.js-Versionen emittieren das Event nicht fuer eigene Reaktionen)
+    const myJid = connectedPhone ? normalizeJid(connectedPhone + '@c.us') : null;
+    if (myJid) recordReaction(msgId, myJid, reaction || '');
     saveReactions();
     res.json({ success: true });
   } catch (e) {
@@ -1429,6 +1434,7 @@ app.post('/api/send-location', async (req, res) => {
   try {
     const loc = new Location(parseFloat(lat), parseFloat(lng), locName || '');
     const result = await client.sendMessage(to, loc);
+    if (!result) throw new Error('sendMessage returned no result');
     result.__logged = true;
     const ts = Date.now();
     addMsg(to, { id: result.id._serialized, body: '', type: 'location', locLat: parseFloat(lat), locLng: parseFloat(lng), locName: locName || '', timestamp: ts, fromMe: true });
@@ -1449,6 +1455,7 @@ app.post('/api/reply', async (req, res) => {
       opts.mentions = mentions.filter(m => typeof m === 'string' && m.endsWith('@c.us')).slice(0, 100);
     }
     const result = await qMsg.reply(message, undefined, opts);
+    if (!result) throw new Error('reply returned no result');
     result.__logged = true;
     addMsg(chatId, {
       id: result.id._serialized,

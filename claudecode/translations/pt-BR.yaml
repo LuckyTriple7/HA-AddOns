@@ -65,7 +65,7 @@
     description: >-
       O modelo Claude a ser utilizado. claude-sonnet-5 é o modelo mais recente e oferece
       o melhor equilíbrio entre velocidade e capacidade. claude-fable-5 é muito poderoso,
-      claude-opus-4-8 muito capaz para tarefas complexas. claude-haiku-4-5-20251001 é o mais rápido.
+      claude-opus-5 muito capaz para tarefas complexas. claude-haiku-4-5-20251001 é o mais rápido.
       A atualização automática do Claude Code (acima) garante que novos
       modelos fiquem disponíveis sem precisar atualizar o add-on.
   enable_caveman_skill:

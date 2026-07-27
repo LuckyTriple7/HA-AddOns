@@ -155,6 +155,10 @@ map $http_upgrade $connection_upgrade {{
 server {{
     listen 17770;
 
+    # Default (1m) is too small for pasted screenshots/media uploads
+    # forwarded to proxied messenger add-ons (e.g. WhatsApp send-media).
+    client_max_body_size 64m;
+
     # ── Internal session check ────────────────────────────
     location = /auth-check {{
         internal;
