@@ -53,6 +53,9 @@ BACK_BTN = (
     'if(sx===undefined)return;'
     'if(dragged)try{localStorage.setItem("mp-bp",JSON.stringify({r:b.style.right,b:b.style.bottom}));}catch(e){}'
     'else window.location.href="../../";sx=undefined;});'
+    'document.addEventListener("keydown",function(e){'
+    'if(e.altKey&&e.shiftKey&&(e.key==="h"||e.key==="H")){'
+    'e.preventDefault();window.location.href="../../";}});'
     '})();</script></body>'
 )
 

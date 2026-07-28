@@ -1,5 +1,10 @@
 # Changelog – MessengerPortal
 
+## [1.2.13] - 2026-07-28
+
+### Added
+- Tastatur-Shortcut **Alt+Shift+H** springt in allen proxierten Add-ons zurück zum Portal, als Fallback falls der schwebende Button mal nicht sichtbar ist (z. B. wegen Browser-Cache/Service-Worker)
+
 ## [1.2.12] - 2026-07-27
 
 ### Fixed
