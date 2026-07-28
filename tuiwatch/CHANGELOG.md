@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.58.1] - 2026-07-28
+
+### Fixed
+- **cert_expiry-Sensor (`tuiwatch.gizmonet.cloud`) trotz 0.58.0 weiterhin
+  gelegentlich `unavailable`** — `_scrape_lock`/`_check24_scrape_lock`
+  serialisieren jeden `fetch_price`-Aufruf über Hintergrund-Poller UND
+  manuelle UI-Aktionen (Zimmer-/Nächte-Vergleich, Check24) hinweg. Bei
+  mehreren gleichzeitig wartenden Requests konnten alle 8 waitress-Threads
+  im Lock-Wait stecken bleiben, sodass keine Kapazität mehr für neue
+  Verbindungen (inkl. Docker-HEALTHCHECK) übrig blieb. Thread-Pool auf 32
+  angehoben — die Locks bleiben (Chromium-Fallback/Check24-Scrape sollen
+  weiter nur einzeln laufen), aber wartende Requests blockieren jetzt
+  keinen knappen Ressourcen-Engpass mehr.
+
 ## [0.58.0] - 2026-07-24
 
 ### Fixed

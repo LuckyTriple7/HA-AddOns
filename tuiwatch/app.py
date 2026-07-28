@@ -3076,7 +3076,11 @@ def main() -> None:
     # der externe cert_expiry-Sensor lief deshalb wiederholt in Timeouts.
     # waitress bedient eingehende Requests ueber einen eigenen Thread-Pool,
     # unabhaengig von der Auslastung der Hintergrund-Threads.
-    serve(app, host='0.0.0.0', port=port, threads=8)
+    # threads=8 reichte nicht: _scrape_lock/_check24_scrape_lock serialisieren
+    # fetch_price ueber Poller UND manuelle UI-Aktionen (Zimmer-/Naechte-Vergleich)
+    # hinweg, mehrere gleichzeitige Lock-Waits konnten alle Threads belegen und
+    # neue Verbindungen (inkl. Docker-HEALTHCHECK) blockieren.
+    serve(app, host='0.0.0.0', port=port, threads=32)
 
 
 if __name__ == '__main__':
