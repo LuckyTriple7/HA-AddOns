@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.59.1] - 2026-07-29
+
+### Fixed
+- **ESC schloss den Preiskalender nicht** — neuer Escape-Handler im bestehenden
+  Kalender-Tastatur-Listener: schließt zuerst den Tages-Preisverlauf-Chart
+  (falls offen), sonst den ganzen Kalender.
+- **KI-Ladetexte zeigten wieder generisches „KI" statt Anbieternamen** —
+  betraf Buchungsscore, Region-Ausblick, Kalenderpreise-Fazit, Bewertungs-Suche,
+  Hotel-Vergleich, Portfolio-Frage und TripPilot. Der v0.57.10-Fix deckte nur
+  den ERSTEN Ladetext ab; der zweite (nach der Prompt-Vorschau, während der
+  eigentliche API-Call läuft) wurde separat als Parameter an
+  `aiFetchPreviewable()` übergeben und war weiterhin hartcodiert auf „KI …" —
+  jetzt ebenfalls `aiProviderName()`.
+- **Gelöschte Buchungsscore-/Region-Ausblick-/Fazit-Analyse im KI-Verlauf kam
+  bei erneutem Klick zurück** — `DELETE /api/ai/history/<id>` entfernte nur
+  die `ai_analyses`-Zeile, nicht den bis zu 6h gültigen In-Memory-Cache
+  (`_booking_score_cache`/`_region_outlook_cache`/`_ai_summary_cache`), der
+  weiterhin den gelöschten Stand auslieferte. Löscht jetzt zusätzlich jeden
+  Cache-Eintrag, dessen gespeicherte `id` zur gelöschten `aid` passt.
+
 ## [0.59.0] - 2026-07-29
 
 ### Added

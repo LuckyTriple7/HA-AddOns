@@ -1091,9 +1091,16 @@
       loadMarketTrend();
       updateTrendBtn();
     }
-    // Preiskalender: mit Pfeiltasten ← / → durch die Monate blättern (nicht nur per Maus)
+    // Preiskalender: mit Pfeiltasten ← / → durch die Monate blättern (nicht nur per Maus),
+    // ESC schließt (Tages-Chart zuerst, falls offen, sonst den ganzen Kalender).
     document.addEventListener('keydown', e=>{
       if(!$('#cal-bg').classList.contains('show')) return;
+      if(e.key==='Escape'){
+        if($('#cal-day-chart').classList.contains('show')) closeCalDayChart();
+        else closeCalendar();
+        e.preventDefault();
+        return;
+      }
       if(e.key!=='ArrowLeft' && e.key!=='ArrowRight') return;
       if(!calData || !calData.days) return;
       const months=[...new Set(calData.days.map(d=>d.date.slice(0,7)))].sort();
@@ -2510,7 +2517,7 @@
         $('#ai-body').innerHTML = progBar(aiProviderName()+' berechnet den Buchungsscore…');
         let resp, d;
         try {
-          const r = await aiFetchPreviewable(api('/api/ai/booking-score/'+id), {method:'POST'}, 'KI berechnet den Buchungsscore…');
+          const r = await aiFetchPreviewable(api('/api/ai/booking-score/'+id), {method:'POST'}, aiProviderName()+' berechnet den Buchungsscore…');
           if(r.cancelled) return;
           resp = r.resp; d = r.d;
         } catch(e){ _aiRetryFn = attempt; $('#ai-body').innerHTML = aiErrorBlock('Buchungsscore fehlgeschlagen.', true); return; }
@@ -2538,7 +2545,7 @@
         let resp, d;
         try {
           const rp = await aiFetchPreviewable(api('/api/ai/region-outlook'), {method:'POST', headers:{'Content-Type':'application/json'},
-            body: JSON.stringify({region: r.region})}, 'KI schätzt die Destination ein…');
+            body: JSON.stringify({region: r.region})}, aiProviderName()+' schätzt die Destination ein…');
           if(rp.cancelled) return;
           resp = rp.resp; d = rp.d;
         } catch(e){ _aiRetryFn = attempt; $('#ai-body').innerHTML = aiErrorBlock('Region-Ausblick fehlgeschlagen.', true); return; }
@@ -2567,7 +2574,7 @@
         $('#ai-body').innerHTML = progBar(aiProviderName()+' fasst die Kalenderpreise zusammen…');
         let resp, d;
         try {
-          const r = await aiFetchPreviewable(api('/api/ai/calendar-outlook/'+id), {method:'POST'}, 'KI fasst die Kalenderpreise zusammen…');
+          const r = await aiFetchPreviewable(api('/api/ai/calendar-outlook/'+id), {method:'POST'}, aiProviderName()+' fasst die Kalenderpreise zusammen…');
           if(r.cancelled) return;
           resp = r.resp; d = r.d;
         } catch(e){ _aiRetryFn = attempt; $('#ai-body').innerHTML = aiErrorBlock('Kalender-Analyse fehlgeschlagen.', true); return; }
@@ -2620,7 +2627,7 @@
         let resp, d;
         try {
           const rp = await aiFetchPreviewable(api('/api/ai/hotel-summary'), {method:'POST', headers:{'Content-Type':'application/json'},
-            body: JSON.stringify(hotelFacts(r))}, 'KI durchsucht das Web nach Bewertungen…');
+            body: JSON.stringify(hotelFacts(r))}, aiProviderName()+' durchsucht das Web nach Bewertungen…');
           if(rp.cancelled) return;
           resp = rp.resp; d = rp.d;
         } catch(e){ _aiRetryFn = attempt; $('#ai-body').innerHTML = aiErrorBlock('KI-Zusammenfassung fehlgeschlagen.', true); return; }
@@ -2677,7 +2684,7 @@
         let resp, d;
         try {
           const r = await aiFetchPreviewable(api('/api/ai/hotel-compare'), {method:'POST', headers:{'Content-Type':'application/json'},
-            body: JSON.stringify({hotels: facts})}, 'KI vergleicht '+facts.length+' Hotels und durchsucht das Web…');
+            body: JSON.stringify({hotels: facts})}, aiProviderName()+' vergleicht '+facts.length+' Hotels und durchsucht das Web…');
           if(r.cancelled) return;
           resp = r.resp; d = r.d;
         } catch(e){ _aiRetryFn = attempt; $('#ai-body').innerHTML = aiErrorBlock('KI-Vergleich fehlgeschlagen.', true); return; }
@@ -2937,7 +2944,7 @@
         $('#ai-body').innerHTML = progBar(aiProviderName()+' durchsucht dein Portfolio…');
         let resp, d;
         try {
-          const r = await aiFetchPreviewable(api('/api/ai/ask'), {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({question:q})}, 'KI durchsucht dein Portfolio…');
+          const r = await aiFetchPreviewable(api('/api/ai/ask'), {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({question:q})}, aiProviderName()+' durchsucht dein Portfolio…');
           if(r.cancelled) return;
           resp = r.resp; d = r.d;
         } catch(e){ _aiRetryFn = attempt; $('#ai-body').innerHTML = aiErrorBlock('Frage fehlgeschlagen.', true); return; }
@@ -3156,7 +3163,7 @@
         let resp, d;
         try {
           const r = await aiFetchPreviewable(api('/api/ai/travel-advisor'), {method:'POST',
-            headers:{'Content-Type':'application/json'}, body: JSON.stringify(advState)}, 'KI sucht passende Ziele…');
+            headers:{'Content-Type':'application/json'}, body: JSON.stringify(advState)}, aiProviderName()+' sucht passende Ziele…');
           if(r.cancelled) return;
           resp = r.resp; d = r.d;
         } catch(e){ _aiRetryFn = attempt; $('#ai-body').innerHTML = aiErrorBlock('Anfrage fehlgeschlagen.', true); return; }

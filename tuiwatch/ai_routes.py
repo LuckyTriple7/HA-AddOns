@@ -1672,6 +1672,14 @@ def api_ai_history_delete(aid: int):
         return err
     with A.db() as con:
         con.execute('DELETE FROM ai_analyses WHERE id=?', (aid,))
+    # Buchungsscore/Region-Ausblick/Fazit-Zusammenfassungen werden bis zu 6h im
+    # Prozess-Speicher gecacht (unabhängig von ai_analyses) — ohne Invalidierung
+    # hier würde ein erneuter Klick nach dem Löschen aus dem KI-Verlauf denselben,
+    # eigentlich gelöschten Stand aus dem Cache wieder anzeigen.
+    with A._ai_cache_lock:
+        for cache in (A._booking_score_cache, A._region_outlook_cache, A._ai_summary_cache):
+            for key in [k for k, v in cache.items() if v.get('id') == aid]:
+                del cache[key]
     return jsonify({'ok': True})
 
 
