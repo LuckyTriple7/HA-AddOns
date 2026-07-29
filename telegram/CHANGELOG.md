@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.7.0] - 2026-07-29
+- Migration: GramJS (npm-Paket `telegram`) ist EOL — Wechsel auf den aktiv gepflegten Fork **teleproto** (`sanyok12345/teleproto`). Bestehende Sessions bleiben gültig (Legacy-Sessionformat wird automatisch erkannt), keine Neuanmeldung nötig. Nur Paketname/Imports geändert, keine Verhaltensänderung
+
 ## [1.6.23] - 2026-07-09
 - Fix: Add-on beendete sich bei jedem Stop/Update mit **Exit 137** (Hard-Kill nach Timeout) — der Node-Prozess lief ohne eigenes Init-System als PID 1 im Container, wodurch der Kernel das SIGTERM des Supervisors stillschweigend ignorierte. Jetzt `init: true` in `config.yaml` sowie ein expliziter `SIGTERM`/`SIGINT`-Handler in `server.js`, der ausstehende Speichervorgänge (Chats/Nachrichten) sofort flusht, die Telegram-Verbindung sauber trennt (`client.disconnect()`) und sich danach mit Exit 0 beendet
 

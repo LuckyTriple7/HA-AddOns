@@ -31,10 +31,10 @@ function _logSilent(level, msg) {
 })();
 const express = require('express');
 const http = require('http');
-const { TelegramClient, Api } = require('telegram');
-const { StringSession } = require('telegram/sessions');
-const { NewMessage, Raw } = require('telegram/events');
-const { CustomFile } = require('telegram/client/uploads');
+const { TelegramClient, Api } = require('teleproto');
+const { StringSession } = require('teleproto/sessions');
+const { NewMessage, Raw } = require('teleproto/events');
+const { CustomFile } = require('teleproto/client/uploads');
 const fs = require('fs');
 const path = require('path');
 const multer = require('multer');
