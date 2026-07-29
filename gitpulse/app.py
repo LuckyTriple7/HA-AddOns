@@ -569,24 +569,34 @@ def _fetch_repo_data(repo: str, token: str, run_limit: int = 25) -> dict:
             'review_state': 'none',
         })
 
-    closed_issues_raw = _gh_get(f'/repos/{repo}/issues', token,
-                                 {'state': 'closed', 'per_page': 50, 'sort': 'updated', 'direction': 'desc'}) or []
+    # Issues-Endpoint mischt PRs+Issues; PRs werden viel häufiger "updated" als
+    # Issues, daher reicht 1 Seite oft nicht — über mehrere Seiten sammeln,
+    # bis genug echte Issues gefunden sind (Limit als Schutz vor Rate-Limit).
     closed_issues = []
-    for iss in (closed_issues_raw if isinstance(closed_issues_raw, list) else []):
-        if 'pull_request' in iss:
-            continue
-        closed_issues.append({
-            'number':    iss['number'],
-            'title':     iss['title'],
-            'state':     iss['state'],
-            'url':       iss['html_url'],
-            'user':      iss['user']['login'],
-            'avatar':    iss['user']['avatar_url'],
-            'labels':    [l['name'] for l in iss.get('labels', [])],
-            'created':   iss['created_at'],
-            'updated':   iss['updated_at'],
-            'closed_at': iss.get('closed_at'),
-        })
+    for _cpage in range(1, 6):
+        _batch_raw = _gh_get(f'/repos/{repo}/issues', token,
+                              {'state': 'closed', 'per_page': 50, 'page': _cpage,
+                               'sort': 'updated', 'direction': 'desc'}) or []
+        if not isinstance(_batch_raw, list) or not _batch_raw:
+            break
+        for iss in _batch_raw:
+            if 'pull_request' in iss:
+                continue
+            closed_issues.append({
+                'number':    iss['number'],
+                'title':     iss['title'],
+                'state':     iss['state'],
+                'url':       iss['html_url'],
+                'user':      iss['user']['login'],
+                'avatar':    iss['user']['avatar_url'],
+                'labels':    [l['name'] for l in iss.get('labels', [])],
+                'created':   iss['created_at'],
+                'updated':   iss['updated_at'],
+                'closed_at': iss.get('closed_at'),
+            })
+        if len(closed_issues) >= 50:
+            break
+    closed_issues = closed_issues[:50]
 
     all_runs: list = []
     _page = 1

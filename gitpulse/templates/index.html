@@ -1699,6 +1699,7 @@
       const bkey   = repo.repo + '#' + pr.number;
       const bdomId = mkId(bkey);
       const hasBody = (pr.body || '').trim().length > 0;
+      const bodyOpen = _actBodyVisible.has(bkey);
       return `
       <div class="item-row" style="flex-direction:column;align-items:stretch;gap:0">
         <div style="display:flex;align-items:flex-start;gap:10px">
@@ -1711,7 +1712,7 @@
               <span>${relTime(pr.updated)}</span>
               ${!closed ? reviewBadge(pr.review_state) : ''}
               ${pr.comments > 0 ? `<span style="font-size:.72rem;color:var(--muted)">💬 ${pr.comments}</span>` : ''}
-              ${hasBody ? `<button class="act-btn" style="padding:1px 7px;font-size:.7rem" id="bodybtn-${bdomId}" onclick="toggleBody(${safeJsArg(bkey)},this)">${T.pr_body_show}</button>` : ''}
+              ${hasBody ? `<button class="act-btn" style="padding:1px 7px;font-size:.7rem" id="bodybtn-${bdomId}" onclick="toggleBody(${safeJsArg(bkey)},this)">${bodyOpen ? T.pr_body_hide : T.pr_body_show}</button>` : ''}
               ${pr.comments > 0 ? `<button class="act-btn act-btn-dispatch" style="padding:1px 7px;font-size:.7rem" onclick="loadComments(${safeJsArg(repo.repo)},${pr.number},'cmts-${bdomId}')">{{ t.comments_load }}</button>` : ''}
               ${(pr.labels||[]).filter(Boolean).map(l=>`<span class="label-chip" style="color:${labelColor(l)};border-color:${labelColor(l)}40">${escHtml(l)}</span>`).join('')}
             </div>
@@ -1720,7 +1721,7 @@
           ${!closed ? `<button class="act-btn act-btn-cancel" onclick="closePR(this,${safeJsArg(repo.repo)},${pr.number})">✕ ${T.btn_close_pr}</button>` : ''}
           ${!closed && !pr.draft ? `<button class="act-btn act-btn-merge" onclick="openMergeModal(${safeJsArg(repo.repo)},${pr.number},${safeJsArg('#'+pr.number+' '+pr.title)})">⎇ ${T.btn_merge}</button>` : ''}
         </div>
-        ${hasBody ? `<div id="body-${bdomId}" style="display:none;padding:6px 12px 8px;font-size:.78rem;color:var(--text);line-height:1.5;background:var(--surf2);border-top:1px solid var(--border);border-left:3px solid var(--border)">${renderMd((pr.body||'').trim())}</div>` : ''}
+        ${hasBody ? `<div id="body-${bdomId}" style="display:${bodyOpen ? '' : 'none'};padding:6px 12px 8px;font-size:.78rem;color:var(--text);line-height:1.5;background:var(--surf2);border-top:1px solid var(--border);border-left:3px solid var(--border)">${renderMd((pr.body||'').trim())}</div>` : ''}
         <div id="cmts-${bdomId}" style="padding:0 12px"></div>
       </div>`;
     }).join('') + '</div></div>';
@@ -1761,6 +1762,7 @@
       const bkey   = repo.repo + '#' + iss.number;
       const bdomId = mkId(bkey);
       const hasBody = (iss.body || '').trim().length > 0;
+      const bodyOpen = _actBodyVisible.has(bkey);
       return `
       <div class="item-row" style="flex-direction:column;align-items:stretch;gap:0">
         <div style="display:flex;align-items:flex-start;gap:10px">
@@ -1774,7 +1776,7 @@
               <span>@${escHtml(iss.user)}</span>
               <span>${relTime(closed && iss.closed_at ? iss.closed_at : iss.updated)}</span>
               ${iss.comments > 0 ? `<span style="font-size:.72rem;color:var(--muted)">💬 ${iss.comments}</span>` : ''}
-              ${hasBody ? `<button class="act-btn" style="padding:1px 7px;font-size:.7rem" id="bodybtn-${bdomId}" onclick="toggleBody(${safeJsArg(bkey)},this)">${T.pr_body_show}</button>` : ''}
+              ${hasBody ? `<button class="act-btn" style="padding:1px 7px;font-size:.7rem" id="bodybtn-${bdomId}" onclick="toggleBody(${safeJsArg(bkey)},this)">${bodyOpen ? T.pr_body_hide : T.pr_body_show}</button>` : ''}
               ${iss.comments > 0 ? `<button class="act-btn act-btn-dispatch" style="padding:1px 7px;font-size:.7rem" onclick="loadComments(${safeJsArg(repo.repo)},${iss.number},'cmts-${bdomId}')">{{ t.comments_load }}</button>` : ''}
               ${(iss.labels||[]).filter(Boolean).map(l=>`<span class="label-chip" style="color:${labelColor(l)};border-color:${labelColor(l)}40">${escHtml(l)}</span>`).join('')}
             </div>
@@ -1782,7 +1784,7 @@
           ${!closed ? `<button class="act-btn act-btn-dispatch" onclick="openCommentModal(${safeJsArg(repo.repo)},${iss.number},${safeJsArg('#' + iss.number + ' ' + iss.title)})">💬 ${T.btn_comment}</button>` : ''}
           ${!closed ? `<button class="act-btn act-btn-cancel" onclick="closeIssue(this,'${escHtml(repo.repo)}',${iss.number})">✕ ${T.btn_close_issue}</button>` : ''}
         </div>
-        ${hasBody ? `<div id="body-${bdomId}" style="display:none;padding:6px 12px 8px;font-size:.78rem;color:var(--text);line-height:1.5;background:var(--surf2);border-top:1px solid var(--border);border-left:3px solid var(--border)">${renderMd((iss.body||'').trim())}</div>` : ''}
+        ${hasBody ? `<div id="body-${bdomId}" style="display:${bodyOpen ? '' : 'none'};padding:6px 12px 8px;font-size:.78rem;color:var(--text);line-height:1.5;background:var(--surf2);border-top:1px solid var(--border);border-left:3px solid var(--border)">${renderMd((iss.body||'').trim())}</div>` : ''}
         <div id="cmts-${bdomId}" style="padding:0 12px"></div>
       </div>`;
     }).join('') + '</div></div>';
@@ -2055,6 +2057,7 @@
   // ── Render: My Activity ──────────────────────────────────────────
   let _actBodyVisible = new Set();  // "repo#number" — aufgeklappte Bodies in Activity
   let _commentsCache  = {};          // "repo#number" → {total, comments}
+  let _commentsOpenKeys = new Set(); // "repo#number" — aufgeklappte Kommentar-Panels (Re-Render-Restore)
 
   function toggleBody(key, btnEl) {
     const div = document.getElementById('body-' + mkId(key));
@@ -2069,7 +2072,8 @@
     const ckey = repo + '#' + number;
     const el = document.getElementById(containerId);
     if (!el) return;
-    if (el.dataset.open === '1') { el.innerHTML = ''; el.dataset.open = '0'; return; }
+    if (el.dataset.open === '1') { el.innerHTML = ''; el.dataset.open = '0'; _commentsOpenKeys.delete(ckey); return; }
+    _commentsOpenKeys.add(ckey);
     if (_commentsCache[ckey]) { _renderComments(el, _commentsCache[ckey]); return; }
     el.innerHTML = `<div style="font-size:.78rem;color:var(--muted);padding:6px 0">{{ t.comments_loading }}</div>`;
     fetch(u('/api/comments?repo=' + encodeURIComponent(repo) + '&number=' + number))
@@ -2081,7 +2085,22 @@
       .catch(() => {
         el.innerHTML = `<div style="font-size:.78rem;color:var(--red);padding:6px 0">Fehler</div>`;
         el.dataset.open = '0';
+        _commentsOpenKeys.delete(ckey);
       });
+  }
+
+  // Nach Re-Render zuvor geöffnete Kommentar-Panels wiederherstellen (aus Cache, kein neuer Fetch)
+  function _restoreOpenComments() {
+    if (!_commentsOpenKeys.size) return;
+    setTimeout(() => {
+      _commentsOpenKeys.forEach(ckey => {
+        const bdomId = mkId(ckey);
+        const el = document.getElementById('cmts-' + bdomId);
+        if (el && el.dataset.open !== '1' && _commentsCache[ckey]) {
+          _renderComments(el, _commentsCache[ckey]);
+        }
+      });
+    }, 0);
   }
 
   function _renderComments(el, data) {
@@ -2121,6 +2140,7 @@
     const itemRow = (item, type, showClose = true) => {
       const bdomId = mkId(item.repo + '#' + item.number);
       const hasBody = (item.body || '').trim().length > 0;
+      const bodyOpen = _actBodyVisible.has(item.repo + '#' + item.number);
       return `
       <div class="item-row" style="flex-direction:column;align-items:stretch;gap:0">
         <div style="display:flex;align-items:flex-start;gap:10px">
@@ -2138,7 +2158,7 @@
                   : `<span style="color:var(--yellow)">● Issue</span>`}
               <span>${relTime(item.updated)}</span>
               ${item.comments ? `<span style="color:var(--muted)">💬 ${item.comments}</span>` : ''}
-              ${hasBody ? `<button class="act-btn" style="padding:1px 7px;font-size:.7rem;margin-left:4px" id="bodybtn-${bdomId}" onclick="toggleBody(${safeJsArg(item.repo+'#'+item.number)},this)">${T.pr_body_show}</button>` : ''}
+              ${hasBody ? `<button class="act-btn" style="padding:1px 7px;font-size:.7rem;margin-left:4px" id="bodybtn-${bdomId}" onclick="toggleBody(${safeJsArg(item.repo+'#'+item.number)},this)">${bodyOpen ? T.pr_body_hide : T.pr_body_show}</button>` : ''}
               ${item.comments > 0 ? `<button class="act-btn act-btn-dispatch" style="padding:1px 7px;font-size:.7rem" onclick="loadComments(${safeJsArg(item.repo)},${item.number},'cmts-${bdomId}')">💬 {{ t.comments_load }}</button>` : ''}
               ${(item.labels||[]).filter(Boolean).map(l=>`<span class="label-chip" style="color:${labelColor(l)};border-color:${labelColor(l)}40">${escHtml(l)}</span>`).join('')}
             </div>
@@ -2147,7 +2167,7 @@
             ? `<button class="act-btn act-btn-cancel" onclick="closePR(this,${safeJsArg(item.repo)},${item.number})">✕ ${T.btn_close_pr}</button>`
             : `<button class="act-btn act-btn-cancel" onclick="closeIssue(this,${safeJsArg(item.repo)},${item.number})">✕ ${T.btn_close_issue}</button>`) : ''}
         </div>
-        ${hasBody ? `<div id="body-${bdomId}" style="display:none;padding:6px 12px 8px;font-size:.78rem;color:var(--text);line-height:1.5;background:var(--surf2);border-top:1px solid var(--border);border-left:3px solid var(--border)">${renderMd((item.body||'').trim())}</div>` : ''}
+        ${hasBody ? `<div id="body-${bdomId}" style="display:${bodyOpen ? '' : 'none'};padding:6px 12px 8px;font-size:.78rem;color:var(--text);line-height:1.5;background:var(--surf2);border-top:1px solid var(--border);border-left:3px solid var(--border)">${renderMd((item.body||'').trim())}</div>` : ''}
         <div id="cmts-${bdomId}" style="padding:0 12px"></div>
       </div>`;
     };
@@ -2381,6 +2401,7 @@
     renderCI(data);
     renderReleases(data);
     renderSecurity(data);
+    _restoreOpenComments();
     _fireBrowserNotifs(data);
   }
 
