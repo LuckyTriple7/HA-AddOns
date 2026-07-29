@@ -98,6 +98,7 @@
   "fav_saved": "Favorit gespeichert",
   "fav_already": "Bereits als Favorit gespeichert",
   "btn_close_issue": "Schließen",
+  "btn_reopen_issue": "Wieder öffnen",
   "btn_close_pr": "Schließen",
   "btn_comment": "Kommentieren",
 
@@ -215,6 +216,7 @@
   "banner_offline_title": "Verbindung unterbrochen",
   "banner_offline_sub": "Stelle Verbindung wieder her…",
   "banner_offline_reload": "Neu laden",
+  "banner_loading": "Lade Daten von GitHub — erster Abruf kann etwas dauern…",
 
   "just_now": "gerade eben",
   "min_ago": " Min",

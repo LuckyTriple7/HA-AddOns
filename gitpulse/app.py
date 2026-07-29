@@ -2342,6 +2342,38 @@ def api_issue_close():
         return jsonify({'error': 'internal error'}), 500
 
 
+@app.route('/api/issue/reopen', methods=['POST'])
+def api_issue_reopen():
+    redir = _auth_required(request)
+    if redir:
+        return jsonify({'error': 'unauthorized'}), 401
+    body     = request.get_json(silent=True) or {}
+    repo     = body.get('repo', '').strip()
+    issue_nr = body.get('number')
+    if not repo or not issue_nr:
+        return jsonify({'error': 'repo und number erforderlich'}), 400
+    token = load_config().get('github_token', '').strip()
+    if not token:
+        return jsonify({'error': 'Kein Token konfiguriert'}), 400
+    try:
+        r = http.patch(
+            f'{GITHUB_API}/repos/{repo}/issues/{issue_nr}',
+            headers=_gh_headers(token),
+            json={'state': 'open'},
+            timeout=15,
+        )
+        _update_rate_limit(r.headers)
+        if r.status_code == 200:
+            log.info("Issue #%s in %s wieder geöffnet", issue_nr, repo)
+            return jsonify({'status': 'open'})
+        msg = r.json().get('message', f'HTTP {r.status_code}')
+        log.warning("Issue-Reopen fehlgeschlagen: %s", msg)
+        return jsonify({'error': msg}), r.status_code
+    except Exception:
+        log.exception("Issue-Reopen Fehler")
+        return jsonify({'error': 'internal error'}), 500
+
+
 @app.route('/api/issue/comment', methods=['POST'])
 def api_issue_comment():
     redir = _auth_required(request)

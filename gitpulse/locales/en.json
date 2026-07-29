@@ -98,6 +98,7 @@
   "fav_saved": "Favorite saved",
   "fav_already": "Already saved as favorite",
   "btn_close_issue": "Close",
+  "btn_reopen_issue": "Reopen",
   "btn_close_pr": "Close",
   "btn_comment": "Comment",
 
@@ -215,6 +216,7 @@
   "banner_offline_title": "Connection lost",
   "banner_offline_sub": "Reconnecting…",
   "banner_offline_reload": "Reload",
+  "banner_loading": "Loading data from GitHub — first fetch may take a moment…",
 
   "just_now": "just now",
   "min_ago": " min ago",

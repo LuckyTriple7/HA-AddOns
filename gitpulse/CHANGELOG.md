@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.4.3] - 2026-07-29
+
+### Added
+- Lade-Banner beim Start: solange der erste Poll noch läuft (GUI wäre
+  sonst minutenlang leer), zeigt ein Banner oben "Lade Daten von GitHub…".
+  Erkennt Bereitschaft am `last_poll`-Feld der API (`0` = noch kein
+  abgeschlossener Poll).
+- Reopen-Button bei geschlossenen Issues (`/api/issue/reopen`, PATCH
+  `state=open`) — Pendant zum bestehenden Close-Button, fehlte bisher.
+
 ## [0.4.2] - 2026-07-29
 
 ### Fixed
