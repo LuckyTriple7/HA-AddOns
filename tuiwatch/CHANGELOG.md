@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.59.0] - 2026-07-29
+
+### Added
+- **Benachrichtigungen pro Angebot stummschaltbar (🔔/🔕)** — neuer Glocken-Button
+  oben neben dem Preis auf der Angebotskarte schaltet HA-/Telegram-Versand für
+  dieses Angebot aus (Preisänderung, Wunschpreis, Günstigerer Termin, Günstiger
+  als gebucht), ohne die Preisprüfung selbst zu pausieren. Zweite, unabhängige
+  Glocke im Preiskalender-Modal schaltet nur die "Kalenderpreise geändert"-Alarme
+  (`price_calendar.py`) stumm. Die 🔔-Übersicht ("Meldungen & Fehler" im UI) zeigt
+  stummgeschaltete Meldungen weiterhin an — nur der externe Versand entfällt.
+  Neue Spalten `notify_muted`/`notify_calendar_muted` auf `offers` (Migration für
+  Bestands-DBs), PATCH `/api/offers/<id>` akzeptiert beide Felder.
+
 ## [0.58.2] - 2026-07-29
 
 ### Fixed

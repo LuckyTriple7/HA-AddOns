@@ -171,6 +171,16 @@ def api_update_offer(offer_id: int):
             con.execute('UPDATE offers SET archived=? WHERE id=?', (arch, offer_id))
             A.log.info("Angebot #%d %s", offer_id,
                      "archiviert" if arch else "reaktiviert")
+        if 'notify_muted' in data:
+            con.execute('UPDATE offers SET notify_muted=? WHERE id=?',
+                        (1 if data.get('notify_muted') else 0, offer_id))
+            A.log.info("Angebot #%d Benachrichtigungen %s", offer_id,
+                     "stummgeschaltet" if data.get('notify_muted') else "aktiviert")
+        if 'notify_calendar_muted' in data:
+            con.execute('UPDATE offers SET notify_calendar_muted=? WHERE id=?',
+                        (1 if data.get('notify_calendar_muted') else 0, offer_id))
+            A.log.info("Angebot #%d Kalender-Benachrichtigungen %s", offer_id,
+                     "stummgeschaltet" if data.get('notify_calendar_muted') else "aktiviert")
         if 'transfer_included' in data:
             # Manche Hotels (Selbstanreise-Regionen) bieten kein Transfer-Paket — dort
             # liefert die Offer-API bei transferIncluded=true 0 Treffer/Zimmer, obwohl

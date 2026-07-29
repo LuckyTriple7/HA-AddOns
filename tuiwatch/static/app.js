@@ -355,6 +355,7 @@
               ${o.ok===false?`<div class="err-note">⚠ ${esc(o.note||'Preis konnte nicht gelesen werden')}</div>`:''}
             </div>
             <div class="price-box">
+              ${o.archived?'':`<button class="icon-btn notify-bell" onclick="toggleNotifyMuted(${o.id}, ${!!o.notify_muted})" title="${o.notify_muted?'Benachrichtigungen (HA/Telegram) stummgeschaltet – klicken zum Aktivieren':'Benachrichtigungen (HA/Telegram) aktiv – klicken zum Stummschalten'}">${o.notify_muted?'🔕':'🔔'}</button>`}
               <div class="price-now${(!o.archived&&G.check24)?' check24-feature check24-trigger':''}"${o.checking&&hasPrice?' style="opacity:.5"':''}${(!o.archived&&G.check24)?` onclick="${o.check24_linked?`openCheck24(${o.id})`:`linkCheck24(${o.id})`}" title="Preisvergleich über Check24 (andere Reiseveranstalter)"`:''}>${priceNow}</div>
               <div class="price-pp">pro Person</div>
               ${priceSub?`<div class="price-sub">${priceSub}</div>`:''}
@@ -3200,6 +3201,7 @@
       calId = id; calMonth = null; calData = null; calMovesOpen = false;
       const o = (curOffers||[]).find(x=>x.id===id) || {};
       $('#cal-sub').textContent = o.label || o.hotel || ('TUI-Angebot #'+id);
+      updateCalNotifyBell();
       $('#cal-body').innerHTML = '<div class="cmp-load">Lade…</div>';
       $('#cal-bg').classList.add('show');
       clearInterval(calTimer); calTimer=null;
@@ -3507,6 +3509,28 @@
     async function togglePause(id, paused){
       await fetch(api('/api/offers/'+id), {method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({paused: !paused})});
       toast(paused ? 'Tracking fortgesetzt' : 'Tracking pausiert'); loadOffers();
+    }
+    async function toggleNotifyMuted(id, muted){
+      await fetch(api('/api/offers/'+id), {method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({notify_muted: !muted})});
+      toast(muted ? 'Benachrichtigungen aktiviert' : 'Benachrichtigungen stummgeschaltet'); loadOffers();
+    }
+    async function toggleCalendarMuted(){
+      if(calId==null) return;
+      const o = (curOffers||[]).find(x=>x.id===calId) || {};
+      const muted = !o.notify_calendar_muted;
+      await fetch(api('/api/offers/'+calId), {method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({notify_calendar_muted: muted})});
+      toast(muted ? 'Kalender-Benachrichtigungen stummgeschaltet' : 'Kalender-Benachrichtigungen aktiviert');
+      await loadOffers();
+      updateCalNotifyBell();
+    }
+    function updateCalNotifyBell(){
+      const o = (curOffers||[]).find(x=>x.id===calId) || {};
+      const bell = $('#cal-notify-bell');
+      if(!bell) return;
+      bell.textContent = o.notify_calendar_muted ? '🔕' : '🔔';
+      bell.title = o.notify_calendar_muted
+        ? 'Kalender-Benachrichtigungen (HA/Telegram) stummgeschaltet – klicken zum Aktivieren'
+        : 'Kalender-Benachrichtigungen (HA/Telegram) aktiv – klicken zum Stummschalten';
     }
     async function archiveOffer(id){
       await fetch(api('/api/offers/'+id), {method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({archived: true})});

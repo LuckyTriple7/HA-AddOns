@@ -106,7 +106,7 @@ def _check_calendar_trend_alert(offer_id: int, changed_dates: list[str]) -> None
         return
     min_diff = max(0, int(cfg.get('calendar_trend_min_diff', 20) or 0))
     with A.db() as con:
-        offer = con.execute('SELECT label, hotel, url FROM offers WHERE id=?',
+        offer = con.execute('SELECT label, hotel, url, notify_calendar_muted FROM offers WHERE id=?',
                             (offer_id,)).fetchone()
         moves = _calendar_moves(con, offer_id)   # auch fürs Detail-Log unten gebraucht
     if not offer:
@@ -138,10 +138,11 @@ def _check_calendar_trend_alert(offer_id: int, changed_dates: list[str]) -> None
         A.log.info("📅 Kalender-Details (#%d %s): %s%s", offer_id, name,
                  details or "(keine)",
                  f" | OHNE Historie-Treffer: {', '.join(missing)}" if missing else "")
+    muted = bool(offer['notify_calendar_muted'])
     A._notify_ha(f"📅 Kalenderpreise geändert: {name}",
                f"{name}\nPreisänderungen im Preiskalender für {month_str}.\n{offer['url']}",
-               f"caltrend_{offer_id}")
-    A._notify_telegram(f"📅 <b>Kalenderpreise geändert</b>\n{name}\n{month_str}\n{offer['url']}")
+               f"caltrend_{offer_id}", muted=muted)
+    A._notify_telegram(f"📅 <b>Kalenderpreise geändert</b>\n{name}\n{month_str}\n{offer['url']}", muted=muted)
 
 
 def _run_calendar(offer_id: int) -> None:
