@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.7.2] - 2026-07-29
+- Aufräumen: Verbliebene "GramJS"-Log-Labels (Keep-alive, downloadMedia, getMessages, msg-Debug) auf "teleproto" korrigiert — rein kosmetisch, keine Funktionsänderung
+
 ## [1.7.1] - 2026-07-29
 - Fix: Add-on crashte beim Start mit `Cannot find module './node_modules/telegram/package.json'` — die 1.7.0-Migration hatte einen direkten Pfad-Require für die Versionsanzeige übersehen (nicht über das übliche `require('telegram...')`-Muster gefunden). Jetzt auf `teleproto` korrigiert
 
