@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.7.1] - 2026-07-29
+- Fix: Add-on crashte beim Start mit `Cannot find module './node_modules/telegram/package.json'` — die 1.7.0-Migration hatte einen direkten Pfad-Require für die Versionsanzeige übersehen (nicht über das übliche `require('telegram...')`-Muster gefunden). Jetzt auf `teleproto` korrigiert
+
 ## [1.7.0] - 2026-07-29
 - Migration: GramJS (npm-Paket `telegram`) ist EOL — Wechsel auf den aktiv gepflegten Fork **teleproto** (`sanyok12345/teleproto`). Bestehende Sessions bleiben gültig (Legacy-Sessionformat wird automatisch erkannt), keine Neuanmeldung nötig. Nur Paketname/Imports geändert, keine Verhaltensänderung
 

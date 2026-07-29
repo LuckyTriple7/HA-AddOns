@@ -86,8 +86,8 @@ const HA_NOTIFY_SKIP_BOTS = process.env.HA_NOTIFY_SKIP_BOTS === 'true';
 const SUPERVISOR_TOKEN = process.env.SUPERVISOR_TOKEN || '';
 function dbg(...args) { if (DEBUG) console.log('[DEBUG]', ...args); }
 
-const GRAMJS_VERSION = require('./node_modules/telegram/package.json').version;
-console.log(`[INFO] GramJS (telegram) v${GRAMJS_VERSION}`);
+const GRAMJS_VERSION = require('./node_modules/teleproto/package.json').version;
+console.log(`[INFO] teleproto v${GRAMJS_VERSION}`);
 console.log('[INFO] ── Configuration ──────────────────────────────────');
 console.log(`[INFO]   api_id                 = ${API_ID ? 'set' : 'not set'}`);
 console.log(`[INFO]   api_hash               = ${API_HASH ? 'set' : 'not set'}`);
@@ -3017,7 +3017,7 @@ applyLang();
   </style>
   <div id="tg-console">
     <div id="tg-console-header">
-      <span id="tg-console-title">⬛ CONSOLE — Telegram · GramJS</span>
+      <span id="tg-console-title">⬛ CONSOLE — Telegram · teleproto</span>
       <button id="tg-console-close" onclick="tgConsoleToggle()">✕</button>
     </div>
     <div id="tg-console-body"></div>
