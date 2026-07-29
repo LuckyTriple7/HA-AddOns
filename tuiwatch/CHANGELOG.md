@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.59.2] - 2026-07-29
+
+### Fixed
+- **ESC schloss nur den Preiskalender, kein anderes Popup** — generischer
+  Escape-Handler ersetzt die kalenderspezifische Lösung: schließt jetzt das
+  jeweils oberste offene Modal (History, Vergleich, Suche, Nächte, Check24,
+  Kalender inkl. Tages-Chart, Zimmer, KI-Ergebnis/-Verlauf/-Frage, TripPilot,
+  E-Mail, API-Status, Prompt-Konfig, Aktionscodes, Markttrend, Reisen/-
+  Jahresrückblick, GIATA-Galerie/-Lightbox) — verschachtelte Overlays (GIATA-
+  Lightbox über Galerie, Tages-Chart über Kalender) zuerst, damit ein
+  ESC-Druck nur eine Ebene auf einmal schließt.
+
 ## [0.59.1] - 2026-07-29
 
 ### Fixed

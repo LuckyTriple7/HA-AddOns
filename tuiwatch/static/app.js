@@ -1091,22 +1091,50 @@
       loadMarketTrend();
       updateTrendBtn();
     }
-    // Preiskalender: mit Pfeiltasten ← / → durch die Monate blättern (nicht nur per Maus),
-    // ESC schließt (Tages-Chart zuerst, falls offen, sonst den ganzen Kalender).
+    // Preiskalender: mit Pfeiltasten ← / → durch die Monate blättern (nicht nur per Maus).
     document.addEventListener('keydown', e=>{
       if(!$('#cal-bg').classList.contains('show')) return;
-      if(e.key==='Escape'){
-        if($('#cal-day-chart').classList.contains('show')) closeCalDayChart();
-        else closeCalendar();
-        e.preventDefault();
-        return;
-      }
       if(e.key!=='ArrowLeft' && e.key!=='ArrowRight') return;
       if(!calData || !calData.days) return;
       const months=[...new Set(calData.days.map(d=>d.date.slice(0,7)))].sort();
       const idx=months.indexOf(calMonth);
       const t = e.key==='ArrowLeft' ? (idx>0?months[idx-1]:'') : (idx<months.length-1?months[idx+1]:'');
       if(t){ calGo(t); e.preventDefault(); }
+    });
+    // ESC schließt das oberste offene Popup — Reihenfolge wichtig: verschachtelte
+    // Overlays (GIATA-Lightbox über der Galerie, Tages-Chart über dem Kalender)
+    // müssen VOR ihrem jeweiligen Eltern-Modal geprüft werden, sonst schließt ein
+    // ESC-Druck gleich beide auf einmal statt nur die oberste Ebene.
+    const _MODAL_CLOSERS = [
+      ['giata-lightbox-bg', closeGiataLightbox],
+      ['giata-gallery-bg', closeGiataGallery],
+      ['cal-day-chart', closeCalDayChart],
+      ['cal-bg', closeCalendar],
+      ['modal-bg', closeModal],
+      ['cmp-bg', closeCompare],
+      ['srch-bg', closeSearch],
+      ['nig-bg', closeNights],
+      ['c24-bg', closeCheck24],
+      ['room-bg', closeRooms],
+      ['ai-bg', closeAiSummary],
+      ['syslog-bg', closeSyslog],
+      ['aihist-bg', closeAiHistory],
+      ['aiask-bg', closeAiAsk],
+      ['reiseb-bg', closeAdvisor],
+      ['email-bg', closeEmailModal],
+      ['hc-bg', () => $('#hc-bg').classList.remove('show')],
+      ['promptcfg-bg', closePromptCfg],
+      ['aktion-bg', closeAktion],
+      ['trend-bg', closeMarketTrend],
+      ['trips-summary-bg', closeTripsSummary],
+      ['trips-bg', closeTrips],
+    ];
+    document.addEventListener('keydown', e=>{
+      if(e.key!=='Escape') return;
+      for(const [id, fn] of _MODAL_CLOSERS){
+        const el = $('#'+id);
+        if(el && el.classList.contains('show')){ fn(); e.preventDefault(); return; }
+      }
     });
 
     async function loadTrips(){
