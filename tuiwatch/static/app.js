@@ -3189,7 +3189,7 @@
       if(pts.length<2){
         $('#cal-day-canvas').outerHTML = '<div class="hint">Noch keine Preisänderung für dieses Datum aufgezeichnet.</div>';
       } else {
-        drawChart($('#cal-day-canvas'), pts, false, {});
+        drawChart($('#cal-day-canvas'), pts, true, {});
       }
     }
     function closeCalDayChart(){ $('#cal-day-chart').classList.remove('show'); $('#cal-day-chart').innerHTML=''; }

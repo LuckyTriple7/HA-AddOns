@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.58.2] - 2026-07-29
+
+### Fixed
+- **Preisverlauf-Diagramm im Preiskalender (Klick auf 📈 an einem Tag) zeigte
+  keine Preise** — `drawChart()` zeichnet Achsenbeschriftung/Gitterlinien nur
+  im `full`-Modus; der Kalender-Tages-Chart rief mit `full=false` auf (gedacht
+  für kompakte Sparklines), obwohl das Modal mit 120px Höhe genug Platz für
+  echte Beschriftung hat. Jetzt `full=true`, gleicher Zeichenpfad wie beim
+  normalen Preisverlauf-Chart.
+
 ## [0.58.1] - 2026-07-28
 
 ### Fixed
