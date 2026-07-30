@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.7.43] - 2026-07-30
+- Fix: Abhängigkeit von `carlosalaniz/whatsapp-web.js` (Stand vor der `id._serialized`→`id.$1`-Umbenennung durch WhatsApp, siehe 1.7.41) auf `lindionez/whatsapp-web.js#3733802` gewechselt — aktiv gepflegter Fork, der genau diesen Fix ("fix(client): add fallback for WhatsApp id._serialized renamed to id.$1", 2026-07-15) sowie weitere aktuelle Community-Fixes (Duplicate-Ready-Events bei SPA-Re-Injection, Big-File-Streaming-Downloads) schneller übernimmt als der offizielle Upstream
+
 ## [1.7.42] - 2026-07-26
 - Fix: **Eigene Reaktion (❤️👍…) im Web-UI unsichtbar**, kam aber korrekt aufs Handy an — `/api/react` sendete die Reaktion nur an WhatsApp (`msg.react()`) und trug sie in `myReactions` ein, aber nicht in `msg.reactions`/`reactionsCache` (das, was `/api/reactions/:chatId` fürs Web-UI ausliest). Das passierte bisher nur über das `message_reaction`-Echo-Event der Lib — das aktuelle `whatsapp-web.js` emittiert dieses Event für **eigene** Reaktionen offenbar nicht mehr zuverlässig. Reaktions-Logik in gemeinsame Funktion `recordReaction()` ausgelagert, `/api/react` wendet die eigene Reaktion jetzt sofort lokal an, statt aufs Echo zu warten
 
