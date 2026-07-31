@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.3.0] - 2026-07-31
+
+### Added
+- Home-Context-Briefing: CLAUDE.md bekommt beim Start automatisch einen Abschnitt mit `hab overview` — Floors/Areas/Devices/Entities/Automationen etc. der laufenden HA-Installation, statt nur statischem Pfad-Mapping. Best-effort mit 10s-Timeout, falls HA Core noch startet.
+
+
 ## [1.2.1] - 2026-07-31
 
 ### Fixed

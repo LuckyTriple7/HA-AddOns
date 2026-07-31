@@ -74,6 +74,8 @@ hab schema <command> --json   # Vertrag eines Befehls prüfen
 hab <command> --plan --json   # Mutation vorab als Vorschau prüfen
 ```
 
+Beim Start des Add-ons wird zusätzlich ein Home-Context-Snapshot (`hab overview`) in die CLAUDE.md geschrieben — Claude kennt so von Anfang an Anzahl der Areas, Entities, Automationen etc., ohne erst danach fragen zu müssen.
+
 ## tmux — Scrollen, Kopieren & Einfügen
 
 Das Terminal verwendet tmux für persistente Sessions. Das Scroll-Verhalten steuert die Option `tmux_scroll_mode`:
@@ -174,6 +176,8 @@ hab guide                     # discover available commands
 hab schema <command> --json   # inspect a command's contract
 hab <command> --plan --json   # preview a mutation before applying it
 ```
+
+On startup, the add-on also writes a Home Context snapshot (`hab overview`) into CLAUDE.md — so Claude starts each session already knowing the number of areas, entities, automations, etc. instead of having to ask first.
 
 ## tmux — Scrolling, Copy & Paste
 

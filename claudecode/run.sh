@@ -80,6 +80,25 @@ logger:
 **Key insight:** `_LOGGER.debug()` calls are invisible unless the logger level is set to debug. Use `_LOGGER.info()` or `_LOGGER.warning()` for logs that should always appear.
 CLAUDEMD
 
+# Append a Home Context briefing — snapshot of this HA installation so sessions start
+# knowing the setup instead of rediscovering it. Best-effort: HA core may still be
+# starting on a fresh boot, so cap the wait and degrade gracefully.
+HOME_CONTEXT=$(timeout 10 hab overview --text 2>/dev/null || true)
+if [ -z "$HOME_CONTEXT" ]; then
+    HOME_CONTEXT="(unavailable — Home Assistant Core may still be starting. Run 'hab overview' manually once it's up.)"
+fi
+cat >> "$PERSIST_DIR/CLAUDE.md" << EOF
+
+## Home Context
+
+Snapshot of this Home Assistant installation, captured when the add-on last started.
+Counts may be stale if the setup changed since then — rerun \`hab overview\` for current data.
+
+\`\`\`
+$HOME_CONTEXT
+\`\`\`
+EOF
+
 # Persistence symlinks — keep Claude auth and config across container rebuilds
 [ ! -L /root/.claude ] && { rm -rf /root/.claude; ln -s "$PERSIST_DIR" /root/.claude; }
 [ ! -L /root/.config/claude-code ] && { rm -rf /root/.config/claude-code; ln -s "$PERSIST_DIR/config" /root/.config/claude-code; }
