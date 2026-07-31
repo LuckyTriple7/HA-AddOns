@@ -1,6 +1,6 @@
 name: WhatsApp
 description: WhatsApp Web als persistente Session mit REST-API und Webhook für Home Assistant
-version: "1.7.43"
+version: "1.7.44"
 image: "ghcr.io/luckytriple7/whatsapp"
 slug: whatsapp
 url: https://github.com/LuckyTriple7/HA-AddOns
@@ -15,7 +15,7 @@ init: true
 watchdog: "tcp://[HOST]:[PORT:17776]"
 
 map:
-  - addon_config:rw
+  - app_config:rw
 
 ingress: true
 ingress_port: 17776

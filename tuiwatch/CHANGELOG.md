@@ -1,5 +1,8 @@
 # Changelog
 
+## [0.59.3] - 2026-07-31
+- map: `addon_config` → `app_config` (Home-Assistant-Supervisor hat `addon_config` seit 2026.07 als Legacy-Name markiert, neuer Name ist `app_config`).
+
 ## [0.59.2] - 2026-07-29
 
 ### Fixed

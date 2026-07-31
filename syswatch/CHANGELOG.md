@@ -1,5 +1,8 @@
 # Changelog — HA SysWatch
 
+## [1.2.13] - 2026-07-31
+- map: `addon_config` → `app_config` (Home-Assistant-Supervisor hat `addon_config` seit 2026.07 als Legacy-Name markiert, neuer Name ist `app_config`).
+
 ## [1.2.12.1] - 2026-07-13
 
 chore(deps): bump docker from 7.1.0 to 7.2.0 in /syswatch

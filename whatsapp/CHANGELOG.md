@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.7.44] - 2026-07-31
+- map: `addon_config` → `app_config` (Home-Assistant-Supervisor hat `addon_config` seit 2026.07 als Legacy-Name markiert, neuer Name ist `app_config`).
+
 ## [1.7.43] - 2026-07-30
 - Fix: Abhängigkeit von `carlosalaniz/whatsapp-web.js` (Stand vor der `id._serialized`→`id.$1`-Umbenennung durch WhatsApp, siehe 1.7.41) auf `lindionez/whatsapp-web.js#3733802` gewechselt — aktiv gepflegter Fork, der genau diesen Fix ("fix(client): add fallback for WhatsApp id._serialized renamed to id.$1", 2026-07-15) sowie weitere aktuelle Community-Fixes (Duplicate-Ready-Events bei SPA-Re-Injection, Big-File-Streaming-Downloads) schneller übernimmt als der offizielle Upstream
 

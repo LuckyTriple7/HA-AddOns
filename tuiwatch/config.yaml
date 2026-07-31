@@ -1,6 +1,6 @@
 name: TUIWatch
 description: Reisepreis-Tracker — verfolgt TUI-Angebotspreise und zeigt den Verlauf
-version: "0.59.2"
+version: "0.59.3"
 slug: tuiwatch
 url: https://github.com/LuckyTriple7/HA-AddOns
 image: "ghcr.io/luckytriple7/tuiwatch"
@@ -23,7 +23,7 @@ ingress_port: 17794
 ingress_stream: true
 
 map:
-  - addon_config:rw
+  - app_config:rw
 
 ports:
   17794/tcp: 17794

@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.0.12] - 2026-07-31
+- map: `addon_config` → `app_config` (Home-Assistant-Supervisor hat `addon_config` seit 2026.07 als Legacy-Name markiert, neuer Name ist `app_config`).
+
 ## [1.0.11] - 2026-07-19
 - Revert von 1.0.8-1.0.10: collabora/code 26.04.2.2 (Nix-Rootfs, seit 2026-07-18) schifft
   /opt/cool/systemplate ohne den LO-Share-Template-Baum (kein lo/share/template/*) und ohne

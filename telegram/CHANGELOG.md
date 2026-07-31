@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.7.3] - 2026-07-31
+- map: `addon_config` → `app_config` (Home-Assistant-Supervisor hat `addon_config` seit 2026.07 als Legacy-Name markiert, neuer Name ist `app_config`).
+
 ## [1.7.2] - 2026-07-29
 - Aufräumen: Verbliebene "GramJS"-Log-Labels (Keep-alive, downloadMedia, getMessages, msg-Debug) auf "teleproto" korrigiert — rein kosmetisch, keine Funktionsänderung
 
