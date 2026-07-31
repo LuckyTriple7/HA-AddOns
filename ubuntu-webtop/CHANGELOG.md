@@ -1,3 +1,27 @@
+## [1.8.43] - 2026-07-31
+
+### Geändert
+- map: `addon_config` → `app_config` (Home-Assistant-Supervisor hat `addon_config` seit 2026.07 als Legacy-Name markiert, neuer Name ist `app_config`).
+
+## [1.8.42] - 2026-07-31
+
+### Aktualisiert
+
+- GitHub CLI: 2.96.0 → 2.97.0
+
+## [1.8.41] - 2026-07-30
+
+### Aktualisiert
+
+- VS Code: 1.130.0 → 1.131.0
+
+## [1.8.40] - 2026-07-29
+
+### Aktualisiert
+
+- Firefox: 153.0 → 153.0.1
+- Thunderbird: 153.0 → 153.0.1
+
 ## [1.8.39] - 2026-07-26
 
 ### Aktualisiert

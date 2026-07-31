@@ -1,5 +1,33 @@
 # Changelog
 
+## [0.4.4] - 2026-07-31
+- map: `addon_config` → `app_config` (Home-Assistant-Supervisor hat `addon_config` seit 2026.07 als Legacy-Name markiert, neuer Name ist `app_config`).
+
+## [0.4.3] - 2026-07-29
+
+### Added
+- Lade-Banner beim Start: solange der erste Poll noch läuft (GUI wäre
+  sonst minutenlang leer), zeigt ein Banner oben "Lade Daten von GitHub…".
+  Erkennt Bereitschaft am `last_poll`-Feld der API (`0` = noch kein
+  abgeschlossener Poll).
+- Reopen-Button bei geschlossenen Issues (`/api/issue/reopen`, PATCH
+  `state=open`) — Pendant zum bestehenden Close-Button, fehlte bisher.
+
+## [0.4.2] - 2026-07-29
+
+### Fixed
+- Geschlossene Issues zeigten bei aktiven Repos oft "Keine geschlossenen
+  Issues" trotz vorhandener Einträge: `/issues`-Endpoint liefert PRs und
+  Issues gemischt, sortiert nach `updated` — PRs werden weit häufiger
+  aktualisiert als Issues, daher waren die abgefragten Top-50 teils
+  komplett PRs und wurden nach dem PR-Filter zu einer leeren Liste.
+  Jetzt werden bis zu 5 Seiten geholt, bis 50 echte Issues gefunden sind.
+- Aufgeklappte PR-/Issue-Beschreibung und Kommentar-Panels klappten bei
+  jedem Hintergrund-Update (SSE) automatisch wieder zu: `render()` baut
+  PR-/Issue-/Activity-Listen komplett neu, ohne den Aufklapp-Status zu
+  berücksichtigen. Beschreibung-Status wird jetzt aus `_actBodyVisible`
+  gelesen, Kommentar-Panels nach jedem Render aus dem Cache wiederhergestellt.
+
 ## [0.4.1] - 2026-07-09
 
 ### Fixed

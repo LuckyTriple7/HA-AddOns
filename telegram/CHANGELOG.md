@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.7.3] - 2026-07-31
+- map: `addon_config` → `app_config` (Home-Assistant-Supervisor hat `addon_config` seit 2026.07 als Legacy-Name markiert, neuer Name ist `app_config`).
+
+## [1.7.2] - 2026-07-29
+- Aufräumen: Verbliebene "GramJS"-Log-Labels (Keep-alive, downloadMedia, getMessages, msg-Debug) auf "teleproto" korrigiert — rein kosmetisch, keine Funktionsänderung
+
+## [1.7.1] - 2026-07-29
+- Fix: Add-on crashte beim Start mit `Cannot find module './node_modules/telegram/package.json'` — die 1.7.0-Migration hatte einen direkten Pfad-Require für die Versionsanzeige übersehen (nicht über das übliche `require('telegram...')`-Muster gefunden). Jetzt auf `teleproto` korrigiert
+
+## [1.7.0] - 2026-07-29
+- Migration: GramJS (npm-Paket `telegram`) ist EOL — Wechsel auf den aktiv gepflegten Fork **teleproto** (`sanyok12345/teleproto`). Bestehende Sessions bleiben gültig (Legacy-Sessionformat wird automatisch erkannt), keine Neuanmeldung nötig. Nur Paketname/Imports geändert, keine Verhaltensänderung
+
 ## [1.6.23] - 2026-07-09
 - Fix: Add-on beendete sich bei jedem Stop/Update mit **Exit 137** (Hard-Kill nach Timeout) — der Node-Prozess lief ohne eigenes Init-System als PID 1 im Container, wodurch der Kernel das SIGTERM des Supervisors stillschweigend ignorierte. Jetzt `init: true` in `config.yaml` sowie ein expliziter `SIGTERM`/`SIGINT`-Handler in `server.js`, der ausstehende Speichervorgänge (Chats/Nachrichten) sofort flusht, die Telegram-Verbindung sauber trennt (`client.disconnect()`) und sich danach mit Exit 0 beendet
 

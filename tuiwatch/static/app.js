@@ -355,6 +355,7 @@
               ${o.ok===false?`<div class="err-note">⚠ ${esc(o.note||'Preis konnte nicht gelesen werden')}</div>`:''}
             </div>
             <div class="price-box">
+              ${o.archived?'':`<button class="icon-btn notify-bell" onclick="toggleNotifyMuted(${o.id}, ${!!o.notify_muted})" title="${o.notify_muted?'Benachrichtigungen (HA/Telegram) stummgeschaltet – klicken zum Aktivieren':'Benachrichtigungen (HA/Telegram) aktiv – klicken zum Stummschalten'}">${o.notify_muted?'🔕':'🔔'}</button>`}
               <div class="price-now${(!o.archived&&G.check24)?' check24-feature check24-trigger':''}"${o.checking&&hasPrice?' style="opacity:.5"':''}${(!o.archived&&G.check24)?` onclick="${o.check24_linked?`openCheck24(${o.id})`:`linkCheck24(${o.id})`}" title="Preisvergleich über Check24 (andere Reiseveranstalter)"`:''}>${priceNow}</div>
               <div class="price-pp">pro Person</div>
               ${priceSub?`<div class="price-sub">${priceSub}</div>`:''}
@@ -1090,7 +1091,7 @@
       loadMarketTrend();
       updateTrendBtn();
     }
-    // Preiskalender: mit Pfeiltasten ← / → durch die Monate blättern (nicht nur per Maus)
+    // Preiskalender: mit Pfeiltasten ← / → durch die Monate blättern (nicht nur per Maus).
     document.addEventListener('keydown', e=>{
       if(!$('#cal-bg').classList.contains('show')) return;
       if(e.key!=='ArrowLeft' && e.key!=='ArrowRight') return;
@@ -1099,6 +1100,41 @@
       const idx=months.indexOf(calMonth);
       const t = e.key==='ArrowLeft' ? (idx>0?months[idx-1]:'') : (idx<months.length-1?months[idx+1]:'');
       if(t){ calGo(t); e.preventDefault(); }
+    });
+    // ESC schließt das oberste offene Popup — Reihenfolge wichtig: verschachtelte
+    // Overlays (GIATA-Lightbox über der Galerie, Tages-Chart über dem Kalender)
+    // müssen VOR ihrem jeweiligen Eltern-Modal geprüft werden, sonst schließt ein
+    // ESC-Druck gleich beide auf einmal statt nur die oberste Ebene.
+    const _MODAL_CLOSERS = [
+      ['giata-lightbox-bg', closeGiataLightbox],
+      ['giata-gallery-bg', closeGiataGallery],
+      ['cal-day-chart', closeCalDayChart],
+      ['cal-bg', closeCalendar],
+      ['modal-bg', closeModal],
+      ['cmp-bg', closeCompare],
+      ['srch-bg', closeSearch],
+      ['nig-bg', closeNights],
+      ['c24-bg', closeCheck24],
+      ['room-bg', closeRooms],
+      ['ai-bg', closeAiSummary],
+      ['syslog-bg', closeSyslog],
+      ['aihist-bg', closeAiHistory],
+      ['aiask-bg', closeAiAsk],
+      ['reiseb-bg', closeAdvisor],
+      ['email-bg', closeEmailModal],
+      ['hc-bg', () => $('#hc-bg').classList.remove('show')],
+      ['promptcfg-bg', closePromptCfg],
+      ['aktion-bg', closeAktion],
+      ['trend-bg', closeMarketTrend],
+      ['trips-summary-bg', closeTripsSummary],
+      ['trips-bg', closeTrips],
+    ];
+    document.addEventListener('keydown', e=>{
+      if(e.key!=='Escape') return;
+      for(const [id, fn] of _MODAL_CLOSERS){
+        const el = $('#'+id);
+        if(el && el.classList.contains('show')){ fn(); e.preventDefault(); return; }
+      }
     });
 
     async function loadTrips(){
@@ -2509,7 +2545,7 @@
         $('#ai-body').innerHTML = progBar(aiProviderName()+' berechnet den Buchungsscore…');
         let resp, d;
         try {
-          const r = await aiFetchPreviewable(api('/api/ai/booking-score/'+id), {method:'POST'}, 'KI berechnet den Buchungsscore…');
+          const r = await aiFetchPreviewable(api('/api/ai/booking-score/'+id), {method:'POST'}, aiProviderName()+' berechnet den Buchungsscore…');
           if(r.cancelled) return;
           resp = r.resp; d = r.d;
         } catch(e){ _aiRetryFn = attempt; $('#ai-body').innerHTML = aiErrorBlock('Buchungsscore fehlgeschlagen.', true); return; }
@@ -2537,7 +2573,7 @@
         let resp, d;
         try {
           const rp = await aiFetchPreviewable(api('/api/ai/region-outlook'), {method:'POST', headers:{'Content-Type':'application/json'},
-            body: JSON.stringify({region: r.region})}, 'KI schätzt die Destination ein…');
+            body: JSON.stringify({region: r.region})}, aiProviderName()+' schätzt die Destination ein…');
           if(rp.cancelled) return;
           resp = rp.resp; d = rp.d;
         } catch(e){ _aiRetryFn = attempt; $('#ai-body').innerHTML = aiErrorBlock('Region-Ausblick fehlgeschlagen.', true); return; }
@@ -2566,7 +2602,7 @@
         $('#ai-body').innerHTML = progBar(aiProviderName()+' fasst die Kalenderpreise zusammen…');
         let resp, d;
         try {
-          const r = await aiFetchPreviewable(api('/api/ai/calendar-outlook/'+id), {method:'POST'}, 'KI fasst die Kalenderpreise zusammen…');
+          const r = await aiFetchPreviewable(api('/api/ai/calendar-outlook/'+id), {method:'POST'}, aiProviderName()+' fasst die Kalenderpreise zusammen…');
           if(r.cancelled) return;
           resp = r.resp; d = r.d;
         } catch(e){ _aiRetryFn = attempt; $('#ai-body').innerHTML = aiErrorBlock('Kalender-Analyse fehlgeschlagen.', true); return; }
@@ -2619,7 +2655,7 @@
         let resp, d;
         try {
           const rp = await aiFetchPreviewable(api('/api/ai/hotel-summary'), {method:'POST', headers:{'Content-Type':'application/json'},
-            body: JSON.stringify(hotelFacts(r))}, 'KI durchsucht das Web nach Bewertungen…');
+            body: JSON.stringify(hotelFacts(r))}, aiProviderName()+' durchsucht das Web nach Bewertungen…');
           if(rp.cancelled) return;
           resp = rp.resp; d = rp.d;
         } catch(e){ _aiRetryFn = attempt; $('#ai-body').innerHTML = aiErrorBlock('KI-Zusammenfassung fehlgeschlagen.', true); return; }
@@ -2676,7 +2712,7 @@
         let resp, d;
         try {
           const r = await aiFetchPreviewable(api('/api/ai/hotel-compare'), {method:'POST', headers:{'Content-Type':'application/json'},
-            body: JSON.stringify({hotels: facts})}, 'KI vergleicht '+facts.length+' Hotels und durchsucht das Web…');
+            body: JSON.stringify({hotels: facts})}, aiProviderName()+' vergleicht '+facts.length+' Hotels und durchsucht das Web…');
           if(r.cancelled) return;
           resp = r.resp; d = r.d;
         } catch(e){ _aiRetryFn = attempt; $('#ai-body').innerHTML = aiErrorBlock('KI-Vergleich fehlgeschlagen.', true); return; }
@@ -2936,7 +2972,7 @@
         $('#ai-body').innerHTML = progBar(aiProviderName()+' durchsucht dein Portfolio…');
         let resp, d;
         try {
-          const r = await aiFetchPreviewable(api('/api/ai/ask'), {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({question:q})}, 'KI durchsucht dein Portfolio…');
+          const r = await aiFetchPreviewable(api('/api/ai/ask'), {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({question:q})}, aiProviderName()+' durchsucht dein Portfolio…');
           if(r.cancelled) return;
           resp = r.resp; d = r.d;
         } catch(e){ _aiRetryFn = attempt; $('#ai-body').innerHTML = aiErrorBlock('Frage fehlgeschlagen.', true); return; }
@@ -3155,7 +3191,7 @@
         let resp, d;
         try {
           const r = await aiFetchPreviewable(api('/api/ai/travel-advisor'), {method:'POST',
-            headers:{'Content-Type':'application/json'}, body: JSON.stringify(advState)}, 'KI sucht passende Ziele…');
+            headers:{'Content-Type':'application/json'}, body: JSON.stringify(advState)}, aiProviderName()+' sucht passende Ziele…');
           if(r.cancelled) return;
           resp = r.resp; d = r.d;
         } catch(e){ _aiRetryFn = attempt; $('#ai-body').innerHTML = aiErrorBlock('Anfrage fehlgeschlagen.', true); return; }
@@ -3189,7 +3225,7 @@
       if(pts.length<2){
         $('#cal-day-canvas').outerHTML = '<div class="hint">Noch keine Preisänderung für dieses Datum aufgezeichnet.</div>';
       } else {
-        drawChart($('#cal-day-canvas'), pts, false, {});
+        drawChart($('#cal-day-canvas'), pts, true, {});
       }
     }
     function closeCalDayChart(){ $('#cal-day-chart').classList.remove('show'); $('#cal-day-chart').innerHTML=''; }
@@ -3200,6 +3236,7 @@
       calId = id; calMonth = null; calData = null; calMovesOpen = false;
       const o = (curOffers||[]).find(x=>x.id===id) || {};
       $('#cal-sub').textContent = o.label || o.hotel || ('TUI-Angebot #'+id);
+      updateCalNotifyBell();
       $('#cal-body').innerHTML = '<div class="cmp-load">Lade…</div>';
       $('#cal-bg').classList.add('show');
       clearInterval(calTimer); calTimer=null;
@@ -3507,6 +3544,28 @@
     async function togglePause(id, paused){
       await fetch(api('/api/offers/'+id), {method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({paused: !paused})});
       toast(paused ? 'Tracking fortgesetzt' : 'Tracking pausiert'); loadOffers();
+    }
+    async function toggleNotifyMuted(id, muted){
+      await fetch(api('/api/offers/'+id), {method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({notify_muted: !muted})});
+      toast(muted ? 'Benachrichtigungen aktiviert' : 'Benachrichtigungen stummgeschaltet'); loadOffers();
+    }
+    async function toggleCalendarMuted(){
+      if(calId==null) return;
+      const o = (curOffers||[]).find(x=>x.id===calId) || {};
+      const muted = !o.notify_calendar_muted;
+      await fetch(api('/api/offers/'+calId), {method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({notify_calendar_muted: muted})});
+      toast(muted ? 'Kalender-Benachrichtigungen stummgeschaltet' : 'Kalender-Benachrichtigungen aktiviert');
+      await loadOffers();
+      updateCalNotifyBell();
+    }
+    function updateCalNotifyBell(){
+      const o = (curOffers||[]).find(x=>x.id===calId) || {};
+      const bell = $('#cal-notify-bell');
+      if(!bell) return;
+      bell.textContent = o.notify_calendar_muted ? '🔕' : '🔔';
+      bell.title = o.notify_calendar_muted
+        ? 'Kalender-Benachrichtigungen (HA/Telegram) stummgeschaltet – klicken zum Aktivieren'
+        : 'Kalender-Benachrichtigungen (HA/Telegram) aktiv – klicken zum Stummschalten';
     }
     async function archiveOffer(id){
       await fetch(api('/api/offers/'+id), {method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({archived: true})});

@@ -4,7 +4,7 @@
   "description": "WhatsApp Web add-on for Home Assistant",
   "main": "server.js",
   "dependencies": {
-    "whatsapp-web.js": "github:carlosalaniz/whatsapp-web.js#5b6bb00a93d413f04dba17deb598e169fe422468",
+    "whatsapp-web.js": "github:lindionez/whatsapp-web.js#3733802a49221ee01e9e0c68012b733968d152bd",
     "express": "^4.18.2",
     "qrcode": "^1.5.3",
     "multer": "^2.1.1",

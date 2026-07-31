@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.8.3
+- map: `addon_config` → `app_config` (Home-Assistant-Supervisor hat `addon_config` seit 2026.07 als Legacy-Name markiert, neuer Name ist `app_config`).
+
 ## 0.8.2
 
 - Fix: Add-on beendete sich bei jedem Stop/Update mit Exit-Code 137 (SIGKILL statt sauberem Stop) — der Flask-Prozess läuft als PID 1 ohne eigenes Init-System, ohne Signal-Handler ignoriert der Kernel bei PID 1 unbehandelte Signale wie SIGTERM. `init: false` → `init: true` in `config.yaml` sorgt für ein echtes Mini-Init als PID 1, zusätzlich fängt ein neuer `SIGTERM`-Handler (`os._exit(0)`, alle Hintergrund-Threads sind daemon) das Signal sauber ab und beendet den Prozess mit Exit-Code 0.

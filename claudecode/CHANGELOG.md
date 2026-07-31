@@ -1,5 +1,26 @@
 # Changelog
 
+## [1.3.0] - 2026-07-31
+
+### Added
+- Home-Context-Briefing: CLAUDE.md bekommt beim Start automatisch einen Abschnitt mit `hab overview` — Floors/Areas/Devices/Entities/Automationen etc. der laufenden HA-Installation, statt nur statischem Pfad-Mapping. Best-effort mit 10s-Timeout, falls HA Core noch startet.
+
+
+## [1.2.1] - 2026-07-31
+
+### Fixed
+- `hab` war nicht ausführbar (`cannot execute: required file not found`) — das Binary ist glibc-dynamisch gelinkt, das Image basiert aber auf Alpine/musl; `gcompat` (musl→glibc-Kompat-Shim) ergänzt
+
+
+## [1.2.0] - 2026-07-31
+
+### Added
+- `hab` CLI (Home Assistant Builder, github.com/balloob/home-assistant-build-cli) im Image — LLM-orientiertes Tool für Dashboard-CRUD, Area/Floor/Label-Management, Helper-Erstellung und Backup/Restore; authentifiziert automatisch über den Supervisor-Token
+- CLAUDE.md-Kontext erweitert: verweist Claude auf `hab` für Admin-Operationen statt roher REST/WebSocket-Aufrufe
+
+### Changed
+- map: `addon_config` → `app_config` (Home-Assistant-Supervisor hat `addon_config` seit 2026.07 als Legacy-Name markiert, neuer Name ist `app_config`).
+
 ## [1.1.17] - 2026-07-26
 
 ### Changed

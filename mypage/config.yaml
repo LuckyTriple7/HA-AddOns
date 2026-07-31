@@ -1,6 +1,6 @@
 name: MyPage
 description: Homepage-Baukasten — eigene Projekte präsentieren, GitHub-Import, Besucherzähler
-version: "0.8.2"
+version: "0.8.3"
 slug: mypage
 url: https://github.com/LuckyTriple7/HA-AddOns
 image: "ghcr.io/luckytriple7/mypage"
@@ -35,7 +35,7 @@ ports_description:
   17761/tcp: Admin-Panel (Login-geschützt)
 
 map:
-  - addon_config:rw
+  - app_config:rw
 
 options:
   username: "admin"

@@ -1,6 +1,6 @@
 name: Webtop XFCE
 description: Debian XFCE Desktop zugänglich über jeden modernen Webbrowser, mit Firefox, Thunderbird und vielen weiteren Programmen vorinstalliert
-version: "1.8.39"
+version: "1.8.43"
 slug: ubuntu_webtop
 init: false
 
@@ -37,9 +37,9 @@ ports_description:
   3000/tcp: Web Interface HTTP (Host-Port 7776)
   3001/tcp: Web Interface HTTPS (Host-Port 7777)
 
-# Speicher-Mounts — addon_config ist persistent über Updates hinweg
+# Speicher-Mounts — app_config ist persistent über Updates hinweg
 map:
-  - addon_config:rw
+  - app_config:rw
   - share:rw
   - media:rw
   - backup:rw

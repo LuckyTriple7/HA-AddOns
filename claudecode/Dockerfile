@@ -40,6 +40,7 @@ RUN apk add --no-cache \
     p7zip \
     socat \
     docker-cli \
+    gcompat \
     && update-ca-certificates
 
 # Install ttyd static binary (avoids libwebsockets issues)
@@ -94,6 +95,16 @@ RUN case "${TARGETARCH}" in \
     esac && \
     curl -fsSL "https://github.com/home-assistant/cli/releases/latest/download/ha_${HA_ARCH}" -o /usr/local/bin/ha && \
     chmod +x /usr/local/bin/ha
+
+# Install hab (Home Assistant Builder CLI) - LLM-facing REST/WebSocket tool for
+# dashboard/area/helper/backup management (github.com/balloob/home-assistant-build-cli)
+RUN case "${TARGETARCH}" in \
+        amd64) HAB_ARCH="amd64" ;; \
+        arm64) HAB_ARCH="arm64" ;; \
+        *) HAB_ARCH="amd64" ;; \
+    esac && \
+    curl -fsSL "https://github.com/balloob/home-assistant-build-cli/releases/latest/download/hab-linux-${HAB_ARCH}" -o /usr/local/bin/hab && \
+    chmod +x /usr/local/bin/hab
 
 # Create necessary directories (NOT /root/.claude - will be symlinked at runtime)
 RUN mkdir -p \

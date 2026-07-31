@@ -64,6 +64,18 @@ claude --continue   # letzte Unterhaltung fortsetzen
 | `/ssl` | SSL-Zertifikate (Nur Lesen) |
 | `/backup` | Backups (Nur Lesen) |
 
+## Home Assistant Builder CLI (`hab`)
+
+Neben dem `homeassistant` MCP-Server steht auch [`hab`](https://github.com/balloob/home-assistant-build-cli) zur Verfügung — ein CLI-Tool speziell für LLM-Nutzung, gedacht für Admin-Operationen, die über einfache Entity-Abfragen hinausgehen: Dashboard-CRUD, Area-/Floor-/Label-Verwaltung, Helper-Erstellung, Backup/Restore. Authentifizierung läuft automatisch über den Supervisor-Token — keine Einrichtung nötig.
+
+```bash
+hab guide                     # verfügbare Befehle entdecken
+hab schema <command> --json   # Vertrag eines Befehls prüfen
+hab <command> --plan --json   # Mutation vorab als Vorschau prüfen
+```
+
+Beim Start des Add-ons wird zusätzlich ein Home-Context-Snapshot (`hab overview`) in die CLAUDE.md geschrieben — Claude kennt so von Anfang an Anzahl der Areas, Entities, Automationen etc., ohne erst danach fragen zu müssen.
+
 ## tmux — Scrollen, Kopieren & Einfügen
 
 Das Terminal verwendet tmux für persistente Sessions. Das Scroll-Verhalten steuert die Option `tmux_scroll_mode`:
@@ -154,6 +166,18 @@ claude --continue   # continue last conversation
 | `/media` | Media folder (read/write) |
 | `/ssl` | SSL certificates (read-only) |
 | `/backup` | Backups (read-only) |
+
+## Home Assistant Builder CLI (`hab`)
+
+Alongside the `homeassistant` MCP server, [`hab`](https://github.com/balloob/home-assistant-build-cli) is also available — a CLI tool built specifically for LLM use, intended for admin operations beyond simple entity queries: dashboard CRUD, area/floor/label management, helper creation, backup/restore. Authentication happens automatically via the Supervisor token — no setup needed.
+
+```bash
+hab guide                     # discover available commands
+hab schema <command> --json   # inspect a command's contract
+hab <command> --plan --json   # preview a mutation before applying it
+```
+
+On startup, the add-on also writes a Home Context snapshot (`hab overview`) into CLAUDE.md — so Claude starts each session already knowing the number of areas, entities, automations, etc. instead of having to ask first.
 
 ## tmux — Scrolling, Copy & Paste
 

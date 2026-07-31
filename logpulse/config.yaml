@@ -1,6 +1,6 @@
 name: LogPulse
 description: Zentrale, durchsuchbare Log-Historie aus journald — HA Core, Supervisor und alle Addon-Container
-version: "0.6.4"
+version: "0.6.5"
 slug: logpulse
 url: https://github.com/LuckyTriple7/HA-AddOns
 image: "ghcr.io/luckytriple7/logpulse"
@@ -34,7 +34,7 @@ ports_description:
   17795/tcp: LogPulse Web-UI
 
 map:
-  - addon_config:rw
+  - app_config:rw
 
 options:
   username: "admin"

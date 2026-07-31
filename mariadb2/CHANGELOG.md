@@ -1,5 +1,8 @@
 # Changelog — MariaDB 2
 
+## [1.0.2] - 2026-07-31
+- map: `addon_config` → `app_config` (Home-Assistant-Supervisor hat `addon_config` seit 2026.07 als Legacy-Name markiert, neuer Name ist `app_config`).
+
 ## [1.0.1.1] - 2026-06-08
 
 Bump alpine from 3.21 to 3.23

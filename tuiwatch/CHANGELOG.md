@@ -1,5 +1,77 @@
 # Changelog
 
+## [0.59.3] - 2026-07-31
+- map: `addon_config` → `app_config` (Home-Assistant-Supervisor hat `addon_config` seit 2026.07 als Legacy-Name markiert, neuer Name ist `app_config`).
+
+## [0.59.2] - 2026-07-29
+
+### Fixed
+- **ESC schloss nur den Preiskalender, kein anderes Popup** — generischer
+  Escape-Handler ersetzt die kalenderspezifische Lösung: schließt jetzt das
+  jeweils oberste offene Modal (History, Vergleich, Suche, Nächte, Check24,
+  Kalender inkl. Tages-Chart, Zimmer, KI-Ergebnis/-Verlauf/-Frage, TripPilot,
+  E-Mail, API-Status, Prompt-Konfig, Aktionscodes, Markttrend, Reisen/-
+  Jahresrückblick, GIATA-Galerie/-Lightbox) — verschachtelte Overlays (GIATA-
+  Lightbox über Galerie, Tages-Chart über Kalender) zuerst, damit ein
+  ESC-Druck nur eine Ebene auf einmal schließt.
+
+## [0.59.1] - 2026-07-29
+
+### Fixed
+- **ESC schloss den Preiskalender nicht** — neuer Escape-Handler im bestehenden
+  Kalender-Tastatur-Listener: schließt zuerst den Tages-Preisverlauf-Chart
+  (falls offen), sonst den ganzen Kalender.
+- **KI-Ladetexte zeigten wieder generisches „KI" statt Anbieternamen** —
+  betraf Buchungsscore, Region-Ausblick, Kalenderpreise-Fazit, Bewertungs-Suche,
+  Hotel-Vergleich, Portfolio-Frage und TripPilot. Der v0.57.10-Fix deckte nur
+  den ERSTEN Ladetext ab; der zweite (nach der Prompt-Vorschau, während der
+  eigentliche API-Call läuft) wurde separat als Parameter an
+  `aiFetchPreviewable()` übergeben und war weiterhin hartcodiert auf „KI …" —
+  jetzt ebenfalls `aiProviderName()`.
+- **Gelöschte Buchungsscore-/Region-Ausblick-/Fazit-Analyse im KI-Verlauf kam
+  bei erneutem Klick zurück** — `DELETE /api/ai/history/<id>` entfernte nur
+  die `ai_analyses`-Zeile, nicht den bis zu 6h gültigen In-Memory-Cache
+  (`_booking_score_cache`/`_region_outlook_cache`/`_ai_summary_cache`), der
+  weiterhin den gelöschten Stand auslieferte. Löscht jetzt zusätzlich jeden
+  Cache-Eintrag, dessen gespeicherte `id` zur gelöschten `aid` passt.
+
+## [0.59.0] - 2026-07-29
+
+### Added
+- **Benachrichtigungen pro Angebot stummschaltbar (🔔/🔕)** — neuer Glocken-Button
+  oben neben dem Preis auf der Angebotskarte schaltet HA-/Telegram-Versand für
+  dieses Angebot aus (Preisänderung, Wunschpreis, Günstigerer Termin, Günstiger
+  als gebucht), ohne die Preisprüfung selbst zu pausieren. Zweite, unabhängige
+  Glocke im Preiskalender-Modal schaltet nur die "Kalenderpreise geändert"-Alarme
+  (`price_calendar.py`) stumm. Die 🔔-Übersicht ("Meldungen & Fehler" im UI) zeigt
+  stummgeschaltete Meldungen weiterhin an — nur der externe Versand entfällt.
+  Neue Spalten `notify_muted`/`notify_calendar_muted` auf `offers` (Migration für
+  Bestands-DBs), PATCH `/api/offers/<id>` akzeptiert beide Felder.
+
+## [0.58.2] - 2026-07-29
+
+### Fixed
+- **Preisverlauf-Diagramm im Preiskalender (Klick auf 📈 an einem Tag) zeigte
+  keine Preise** — `drawChart()` zeichnet Achsenbeschriftung/Gitterlinien nur
+  im `full`-Modus; der Kalender-Tages-Chart rief mit `full=false` auf (gedacht
+  für kompakte Sparklines), obwohl das Modal mit 120px Höhe genug Platz für
+  echte Beschriftung hat. Jetzt `full=true`, gleicher Zeichenpfad wie beim
+  normalen Preisverlauf-Chart.
+
+## [0.58.1] - 2026-07-28
+
+### Fixed
+- **cert_expiry-Sensor (`tuiwatch.gizmonet.cloud`) trotz 0.58.0 weiterhin
+  gelegentlich `unavailable`** — `_scrape_lock`/`_check24_scrape_lock`
+  serialisieren jeden `fetch_price`-Aufruf über Hintergrund-Poller UND
+  manuelle UI-Aktionen (Zimmer-/Nächte-Vergleich, Check24) hinweg. Bei
+  mehreren gleichzeitig wartenden Requests konnten alle 8 waitress-Threads
+  im Lock-Wait stecken bleiben, sodass keine Kapazität mehr für neue
+  Verbindungen (inkl. Docker-HEALTHCHECK) übrig blieb. Thread-Pool auf 32
+  angehoben — die Locks bleiben (Chromium-Fallback/Check24-Scrape sollen
+  weiter nur einzeln laufen), aber wartende Requests blockieren jetzt
+  keinen knappen Ressourcen-Engpass mehr.
+
 ## [0.58.0] - 2026-07-24
 
 ### Fixed

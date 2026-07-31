@@ -31,10 +31,10 @@ function _logSilent(level, msg) {
 })();
 const express = require('express');
 const http = require('http');
-const { TelegramClient, Api } = require('telegram');
-const { StringSession } = require('telegram/sessions');
-const { NewMessage, Raw } = require('telegram/events');
-const { CustomFile } = require('telegram/client/uploads');
+const { TelegramClient, Api } = require('teleproto');
+const { StringSession } = require('teleproto/sessions');
+const { NewMessage, Raw } = require('teleproto/events');
+const { CustomFile } = require('teleproto/client/uploads');
 const fs = require('fs');
 const path = require('path');
 const multer = require('multer');
@@ -86,8 +86,8 @@ const HA_NOTIFY_SKIP_BOTS = process.env.HA_NOTIFY_SKIP_BOTS === 'true';
 const SUPERVISOR_TOKEN = process.env.SUPERVISOR_TOKEN || '';
 function dbg(...args) { if (DEBUG) console.log('[DEBUG]', ...args); }
 
-const GRAMJS_VERSION = require('./node_modules/telegram/package.json').version;
-console.log(`[INFO] GramJS (telegram) v${GRAMJS_VERSION}`);
+const GRAMJS_VERSION = require('./node_modules/teleproto/package.json').version;
+console.log(`[INFO] teleproto v${GRAMJS_VERSION}`);
 console.log('[INFO] ── Configuration ──────────────────────────────────');
 console.log(`[INFO]   api_id                 = ${API_ID ? 'set' : 'not set'}`);
 console.log(`[INFO]   api_hash               = ${API_HASH ? 'set' : 'not set'}`);
@@ -226,20 +226,20 @@ async function downloadMedia(rawMsg, msgId) {
     const filePath = path.resolve(MEDIA_DIR, `${safeId}.${ext}`);
     if (!filePath.startsWith(path.resolve(MEDIA_DIR) + path.sep)) return null;
     if (!fs.existsSync(filePath)) {
-      _logSilent('DEBUG', `GramJS downloadMedia: start ${safeId}.${ext}`);
+      _logSilent('DEBUG', `teleproto downloadMedia: start ${safeId}.${ext}`);
       enforceMediaLimit();
       const t0 = Date.now();
       const buf = await client.downloadMedia(rawMsg, { workers: 1 });
       if (buf) {
         fs.writeFileSync(filePath, buf);
-        _logSilent('DEBUG', `GramJS downloadMedia: ok ${safeId}.${ext} ${(buf.length/1024).toFixed(1)}KB in ${Date.now()-t0}ms`);
+        _logSilent('DEBUG', `teleproto downloadMedia: ok ${safeId}.${ext} ${(buf.length/1024).toFixed(1)}KB in ${Date.now()-t0}ms`);
       } else {
-        _logSilent('WARN', `GramJS downloadMedia: no data for ${safeId}.${ext}`);
+        _logSilent('WARN', `teleproto downloadMedia: no data for ${safeId}.${ext}`);
       }
     }
     return fs.existsSync(filePath) ? `${safeId}.${ext}` : null;
   } catch (e) {
-    _logSilent('ERROR', `GramJS downloadMedia: failed ${msgId} — ${e.message}`);
+    _logSilent('ERROR', `teleproto downloadMedia: failed ${msgId} — ${e.message}`);
     console.error('[ERROR] downloadMedia:', e.message);
     return null;
   }
@@ -348,7 +348,7 @@ async function processMessage(rawMsg, chatId, chatName, source = 'unknown') {
   if (msgMyReaction) msgObj.myReaction = msgMyReaction;
   msgs.push(msgObj);
   msgs.sort((a, b) => a.timestamp - b.timestamp);
-  _logSilent('DEBUG', `GramJS msg [${source}]: id=${rawMsg.id} from=${chatName} type=${type} fromMe=${fromMe}${body?' "'+body.slice(0,60)+'"':''}`);
+  _logSilent('DEBUG', `teleproto msg [${source}]: id=${rawMsg.id} from=${chatName} type=${type} fromMe=${fromMe}${body?' "'+body.slice(0,60)+'"':''}`);
 
   if (!chatMap.has(chatId)) {
     chatMap.set(chatId, { id: chatId, name: chatName, phone: '', lastMsg: preview, lastTime: ts });
@@ -422,9 +422,9 @@ async function fetchMessages(chatId, limit = FETCH_LIMIT) {
     let entity = peerMap.get(chatId);
     if (!entity) { await loadDialogs(); entity = peerMap.get(chatId); }
     if (!entity) return;
-    _logSilent('DEBUG', `GramJS getMessages: chatId=${chatId} limit=${limit}`);
+    _logSilent('DEBUG', `teleproto getMessages: chatId=${chatId} limit=${limit}`);
     const msgs = await client.getMessages(entity, { limit });
-    _logSilent('DEBUG', `GramJS getMessages: got ${msgs.length} messages for ${chatId}`);
+    _logSilent('DEBUG', `teleproto getMessages: got ${msgs.length} messages for ${chatId}`);
     const chatName = chatMap.get(chatId)?.name || chatId;
     for (const msg of msgs) processMessage(msg, chatId, chatName, 'fetchMessages');
   } catch (e) { console.error('[ERROR] fetchMessages:', e.message); }
@@ -962,7 +962,7 @@ setInterval(async () => {
       client.getMe(),
       new Promise((_, reject) => setTimeout(() => reject(new Error('ping timeout')), 10000)),
     ]);
-    _logSilent('INFO', `GramJS Keep-alive OK — connected chats=${chatMap.size} msgs=${[...messagesByChatId.values()].reduce((s,a)=>s+a.length,0)}`);
+    _logSilent('INFO', `teleproto Keep-alive OK — connected chats=${chatMap.size} msgs=${[...messagesByChatId.values()].reduce((s,a)=>s+a.length,0)}`);
   } catch (e) {
     if (status !== 'connected') return; // zwischenzeitlich geändert
     console.warn('[WARN] Keep-alive fehlgeschlagen (%s) — reconnecting…', e.message);
@@ -3017,7 +3017,7 @@ applyLang();
   </style>
   <div id="tg-console">
     <div id="tg-console-header">
-      <span id="tg-console-title">⬛ CONSOLE — Telegram · GramJS</span>
+      <span id="tg-console-title">⬛ CONSOLE — Telegram · teleproto</span>
       <button id="tg-console-close" onclick="tgConsoleToggle()">✕</button>
     </div>
     <div id="tg-console-body"></div>

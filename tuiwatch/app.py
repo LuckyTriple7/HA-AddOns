@@ -85,7 +85,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.58.0"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.59.2"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -358,6 +358,8 @@ def init_db() -> None:
             check24_hotel_id TEXT DEFAULT '',
             check24_area_id  TEXT DEFAULT '',
             check24_link     TEXT DEFAULT '',
+            notify_muted          INTEGER NOT NULL DEFAULT 0,
+            notify_calendar_muted INTEGER NOT NULL DEFAULT 0,
             created     INTEGER NOT NULL
         )''')
         con.execute('''CREATE TABLE IF NOT EXISTS price_history (
@@ -605,6 +607,10 @@ def init_db() -> None:
                 con.execute(f"ALTER TABLE offers ADD COLUMN {col} INTEGER")
         if 'calendar_seen_ts' not in ocols:
             con.execute("ALTER TABLE offers ADD COLUMN calendar_seen_ts INTEGER NOT NULL DEFAULT 0")
+        if 'notify_muted' not in ocols:
+            con.execute("ALTER TABLE offers ADD COLUMN notify_muted INTEGER NOT NULL DEFAULT 0")
+        if 'notify_calendar_muted' not in ocols:
+            con.execute("ALTER TABLE offers ADD COLUMN notify_calendar_muted INTEGER NOT NULL DEFAULT 0")
         hcols = {r['name'] for r in con.execute('PRAGMA table_info(price_history)').fetchall()}
         if 'available' not in hcols:
             con.execute("ALTER TABLE price_history ADD COLUMN available INTEGER")
@@ -959,7 +965,13 @@ def _log_notification(channel: str, title: str, message: str, tag: str, ok: bool
         log.warning("notify_log nicht beschreibbar: %s", e)
 
 
-def _notify_ha(title: str, message: str, tag: str) -> None:
+def _notify_ha(title: str, message: str, tag: str, muted: bool = False) -> None:
+    """`muted=True` (Angebot/Kalender stummgeschaltet) überspringt den eigentlichen
+    HA-Versand, protokolliert die Meldung aber trotzdem in notify_log — das
+    🔔-Panel im UI soll Preisänderungen unabhängig von der Stummschaltung zeigen."""
+    if muted:
+        _log_notification('ha', title, message, tag, True)
+        return
     if not (SUPERVISOR_TOKEN and load_config().get('notify_ha', True)):
         return
     ok = True
@@ -973,7 +985,11 @@ def _notify_ha(title: str, message: str, tag: str) -> None:
     _log_notification('ha', title, message, tag, ok)
 
 
-def _notify_telegram(text: str) -> None:
+def _notify_telegram(text: str, muted: bool = False) -> None:
+    """Siehe _notify_ha — `muted=True` protokolliert nur, sendet aber nicht."""
+    if muted:
+        _log_notification('telegram', '', text, '', True)
+        return
     cfg = load_config()
     token = (cfg.get('telegram_bot_token') or '').strip()
     chat = (cfg.get('telegram_chat_id') or '').strip()
@@ -1169,6 +1185,7 @@ def _maybe_notify(offer: dict, prev_price: float | None, new_price: float | None
     cfg = load_config()
     name = offer.get('label') or offer.get('hotel') or f"Angebot #{offer['id']}"
     url = offer.get('url', '')
+    muted = bool(offer.get('notify_muted'))
 
     # 1) Wunschpreis erreicht (nur beim Übergang über die Schwelle)
     if target and new_price <= target and (prev_price is None or prev_price > target):
@@ -1176,9 +1193,9 @@ def _maybe_notify(offer: dict, prev_price: float | None, new_price: float | None
         msg = f"{name}\nWunschpreis {_eur(target)} erreicht — jetzt {_eur(new_price)}\n{url}"
         log.info("🎯 Wunschpreis erreicht (#%d %s): %s ≤ %s → Benachrichtigung",
                  offer['id'], name, _eur(new_price), _eur(target))
-        _notify_ha(title, msg, f"target_{offer['id']}")
+        _notify_ha(title, msg, f"target_{offer['id']}", muted=muted)
         _notify_telegram(f"🎯 <b>Wunschpreis erreicht</b>\n{name}\nJetzt <b>{_eur(new_price)}</b> "
-                         f"(Ziel {_eur(target)})\n{url}")
+                         f"(Ziel {_eur(target)})\n{url}", muted=muted)
         return  # nicht zusätzlich die Änderungsmeldung senden
 
     # 2) Preisänderung
@@ -1193,9 +1210,9 @@ def _maybe_notify(offer: dict, prev_price: float | None, new_price: float | None
         msg = f"{name}\n{_eur(prev_price)} → {_eur(new_price)} ({arrow})\n{url}"
         log.info("Benachrichtigung (#%d %s): %s → %s gesendet", offer['id'], name,
                  _eur(prev_price), _eur(new_price))
-        _notify_ha(title, msg, f"change_{offer['id']}")
+        _notify_ha(title, msg, f"change_{offer['id']}", muted=muted)
         _notify_telegram(f"{'📉' if diff<0 else '📈'} <b>{name}</b>\n"
-                         f"{_eur(prev_price)} → <b>{_eur(new_price)}</b> ({arrow})\n{url}")
+                         f"{_eur(prev_price)} → <b>{_eur(new_price)}</b> ({arrow})\n{url}", muted=muted)
 
 
 def _check_cheaper_date(offer: dict, current_price: float,
@@ -1259,14 +1276,15 @@ def _check_cheaper_date(offer: dict, current_price: float,
     _cheaper_notified[oid] = f"{cd}:{cp}"
     name = offer.get('label') or offer.get('hotel') or f"Angebot #{offer['id']}"
     d_de = '.'.join(reversed(cd.split('-')))  # YYYY-MM-DD → DD.MM.YYYY
+    muted = bool(offer.get('notify_muted'))
     log.info("💡 Günstigerer Termin (#%d %s): %s am %s (%s günstiger) → Benachrichtigung",
              offer['id'], name, _eur(cp), d_de, _eur(diff))
     _notify_ha(f"💡 Günstigerer Termin: {name}",
                f"{name}\nAm {d_de} nur {_eur(cp)} — {_eur(diff)} günstiger als dein "
                f"Termin ({_eur(current_price)})\n{offer.get('url','')}",
-               f"cheaper_{offer['id']}")
+               f"cheaper_{offer['id']}", muted=muted)
     _notify_telegram(f"💡 <b>Günstigerer Termin</b>\n{name}\nAm {d_de}: <b>{_eur(cp)}</b> "
-                     f"({_eur(diff)} günstiger als {_eur(current_price)})\n{offer.get('url','')}")
+                     f"({_eur(diff)} günstiger als {_eur(current_price)})\n{offer.get('url','')}", muted=muted)
 
 
 def _check_booked_drop(offer: dict, current_price: float) -> None:
@@ -1293,15 +1311,16 @@ def _check_booked_drop(offer: dict, current_price: float) -> None:
         con.execute('INSERT OR REPLACE INTO booked_state (offer_id, price, ts) '
                     'VALUES (?,?,?)', (oid, current_price, int(time.time())))
     name = offer.get('label') or offer.get('hotel') or f"Angebot #{oid}"
+    muted = bool(offer.get('notify_muted'))
     log.info("💰 Günstiger als gebucht (#%d %s): %s statt %s (%s gespart) → Benachrichtigung",
              oid, name, _eur(current_price), _eur(booked), _eur(diff))
     _notify_ha(f"💰 Günstiger als gebucht: {name}",
                f"{name}\nJetzt {_eur(current_price)} — {_eur(diff)} günstiger als dein "
                f"gebuchter Preis ({_eur(booked)}). Umbuchen könnte sich lohnen.\n"
-               f"{offer.get('url','')}", f"booked_{oid}")
+               f"{offer.get('url','')}", f"booked_{oid}", muted=muted)
     _notify_telegram(f"💰 <b>Günstiger als gebucht: {name}</b>\nJetzt <b>{_eur(current_price)}</b> "
                      f"({_eur(diff)} unter deinem gebuchten Preis {_eur(booked)})\n"
-                     f"{offer.get('url','')}")
+                     f"{offer.get('url','')}", muted=muted)
 
 
 def _error_streak(oid: int) -> int:
@@ -2557,6 +2576,8 @@ def _collect_offers() -> list[dict]:
                 'travellers_count': o['travellers_count'],
                 'paused': bool(o['paused']),
                 'archived': bool(o['archived']),
+                'notify_muted': bool(o['notify_muted']),
+                'notify_calendar_muted': bool(o['notify_calendar_muted']),
                 'history_only': bool(o['history_only']),
                 'return_date': o['return_date'] or '',
                 'tags': (_json_loads_safe(o['tags'], []) if o['tags'] else []),
@@ -3076,7 +3097,11 @@ def main() -> None:
     # der externe cert_expiry-Sensor lief deshalb wiederholt in Timeouts.
     # waitress bedient eingehende Requests ueber einen eigenen Thread-Pool,
     # unabhaengig von der Auslastung der Hintergrund-Threads.
-    serve(app, host='0.0.0.0', port=port, threads=8)
+    # threads=8 reichte nicht: _scrape_lock/_check24_scrape_lock serialisieren
+    # fetch_price ueber Poller UND manuelle UI-Aktionen (Zimmer-/Naechte-Vergleich)
+    # hinweg, mehrere gleichzeitige Lock-Waits konnten alle Threads belegen und
+    # neue Verbindungen (inkl. Docker-HEALTHCHECK) blockieren.
+    serve(app, host='0.0.0.0', port=port, threads=32)
 
 
 if __name__ == '__main__':
