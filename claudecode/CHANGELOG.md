@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.2.1] - 2026-07-31
+
+### Fixed
+- `hab` war nicht ausführbar (`cannot execute: required file not found`) — das Binary ist glibc-dynamisch gelinkt, das Image basiert aber auf Alpine/musl; `gcompat` (musl→glibc-Kompat-Shim) ergänzt
+
+
 ## [1.2.0] - 2026-07-31
 
 ### Added
