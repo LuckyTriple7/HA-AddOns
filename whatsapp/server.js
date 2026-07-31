@@ -2462,6 +2462,7 @@ app.get('/', (req, res) => {
         btnClose:'Schließen', statusUpdates:'Status',
         statusArchive:'Archiv', archiveClear:'Archiv leeren', archiveClearConfirm:'Archiv für diesen Kontakt wirklich löschen?',
         archiveOpen:(n)=>n+' abgelaufene Statusmeldung'+(n===1?'':'en')+' ansehen', archiveExport:'Als ZIP exportieren',
+        archiveMediaGone:'Medien-Download war deaktiviert',
       },
       en: {
         spinnerConnecting:'Connecting to WhatsApp…', btnReset:'Reset Session',
@@ -2504,6 +2505,7 @@ app.get('/', (req, res) => {
         btnClose:'Close', statusUpdates:'Status',
         statusArchive:'Archive', archiveClear:'Clear archive', archiveClearConfirm:'Really delete the archive for this contact?',
         archiveOpen:(n)=>'View '+n+' expired status update'+(n===1?'':'s'), archiveExport:'Export as ZIP',
+        archiveMediaGone:'Media download was disabled',
       },
     };
     const _browserLang = (navigator.language || '').toLowerCase().startsWith('de') ? 'de' : 'en';
@@ -3564,16 +3566,18 @@ app.get('/', (req, res) => {
     }
     function renderArchiveItem(m) {
       const time = fmtDate(m.timestamp) + ', ' + fmtTime(m.timestamp);
-      let inner;
+      let inner = '';
       if (m.type === 'photo' && m.mediaFile) {
         inner = '<img class="status-img" src="api/media/' + encodeURIComponent(m.mediaFile) + '" loading="lazy">';
       } else if (m.type === 'video' && m.mediaFile) {
         inner = '<video controls src="api/media/' + encodeURIComponent(m.mediaFile) + '"></video>';
-      } else if (m.body) {
-        inner = '<div class="status-text">' + formatText(m.body) + '</div>';
-      } else {
-        return '';
+      } else if (m.type === 'photo' || m.type === 'video') {
+        // mediaFile fehlt (z.B. download_media war beim Erfassen aus) — Platzhalter statt
+        // stillem Drop, sonst zeigt der Öffnen-Button mehr Einträge an als das Grid enthält
+        inner = '<div class="status-text" style="opacity:0.5">' + (m.type === 'photo' ? '📷' : '📹') + ' ' + esc(t('archiveMediaGone')) + '</div>';
       }
+      if (m.body) inner += '<div class="status-text">' + formatText(m.body) + '</div>';
+      if (!inner) return '';
       return '<div class="status-item">' + inner + '<div class="status-time">' + esc(time) + '</div></div>';
     }
     let _archiveChatId = null;
