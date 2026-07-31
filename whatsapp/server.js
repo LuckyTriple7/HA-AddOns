@@ -1079,8 +1079,13 @@ async function captureStatuses() {
         const isImage = m.type === 'image';
         const isVideo = m.type === 'video';
         let mediaFile = null;
-        if (DOWNLOAD_MEDIA && (isImage || isVideo) && m.hasMedia) {
-          mediaFile = await downloadWAMedia(m, msgId).catch(() => null);
+        if (DOWNLOAD_MEDIA && (isImage || isVideo)) {
+          if (m.hasMedia) {
+            mediaFile = await downloadWAMedia(m, msgId).catch(() => null);
+            if (!mediaFile) dbg(`captureStatuses: Download fehlgeschlagen für ${msgId} (${m.type})`);
+          } else {
+            dbg(`captureStatuses: ${msgId} (${m.type}) ohne hasMedia — nicht ladbar`);
+          }
         }
         if (!statusArchiveByChatId.has(chatId)) statusArchiveByChatId.set(chatId, []);
         statusArchiveByChatId.get(chatId).push({
@@ -2462,7 +2467,7 @@ app.get('/', (req, res) => {
         btnClose:'Schließen', statusUpdates:'Status',
         statusArchive:'Archiv', archiveClear:'Archiv leeren', archiveClearConfirm:'Archiv für diesen Kontakt wirklich löschen?',
         archiveOpen:(n)=>n+' abgelaufene Statusmeldung'+(n===1?'':'en')+' ansehen', archiveExport:'Als ZIP exportieren',
-        archiveMediaGone:'Medien-Download war deaktiviert',
+        archiveMediaGone:'Medium nicht verfügbar',
       },
       en: {
         spinnerConnecting:'Connecting to WhatsApp…', btnReset:'Reset Session',
@@ -2505,7 +2510,7 @@ app.get('/', (req, res) => {
         btnClose:'Close', statusUpdates:'Status',
         statusArchive:'Archive', archiveClear:'Clear archive', archiveClearConfirm:'Really delete the archive for this contact?',
         archiveOpen:(n)=>'View '+n+' expired status update'+(n===1?'':'s'), archiveExport:'Export as ZIP',
-        archiveMediaGone:'Media download was disabled',
+        archiveMediaGone:'Media unavailable',
       },
     };
     const _browserLang = (navigator.language || '').toLowerCase().startsWith('de') ? 'de' : 'en';
@@ -3572,8 +3577,9 @@ app.get('/', (req, res) => {
       } else if (m.type === 'video' && m.mediaFile) {
         inner = '<video controls src="api/media/' + encodeURIComponent(m.mediaFile) + '"></video>';
       } else if (m.type === 'photo' || m.type === 'video') {
-        // mediaFile fehlt (z.B. download_media war beim Erfassen aus) — Platzhalter statt
-        // stillem Drop, sonst zeigt der Öffnen-Button mehr Einträge an als das Grid enthält
+        // mediaFile fehlt (Download beim Erfassen fehlgeschlagen, z.B. Status schon
+        // abgelaufen oder Netzwerkfehler) — Platzhalter statt stillem Drop, sonst
+        // zeigt der Öffnen-Button mehr Einträge an als das Grid enthält
         inner = '<div class="status-text" style="opacity:0.5">' + (m.type === 'photo' ? '📷' : '📹') + ' ' + esc(t('archiveMediaGone')) + '</div>';
       }
       if (m.body) inner += '<div class="status-text">' + formatText(m.body) + '</div>';
