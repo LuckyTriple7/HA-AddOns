@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.2.0] - 2026-07-31
+
+### Added
+- `hab` CLI (Home Assistant Builder, github.com/balloob/home-assistant-build-cli) im Image — LLM-orientiertes Tool für Dashboard-CRUD, Area/Floor/Label-Management, Helper-Erstellung und Backup/Restore; authentifiziert automatisch über den Supervisor-Token
+- CLAUDE.md-Kontext erweitert: verweist Claude auf `hab` für Admin-Operationen statt roher REST/WebSocket-Aufrufe
+
+### Changed
+- map: `addon_config` → `app_config` (Home-Assistant-Supervisor hat `addon_config` seit 2026.07 als Legacy-Name markiert, neuer Name ist `app_config`).
+
 ## [1.1.17] - 2026-07-26
 
 ### Changed

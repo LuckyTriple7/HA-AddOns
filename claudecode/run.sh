@@ -36,6 +36,16 @@ When users mention `/config/...`, translate to `/homeassistant/...`
 
 Use the `homeassistant` MCP server to query entities and call services.
 
+For dashboard CRUD, area/floor/label management, helper creation, backup/restore, and other
+admin operations, prefer the `hab` CLI (Home Assistant Builder) over raw REST/WebSocket calls.
+It authenticates automatically via the Supervisor token inside this add-on.
+
+```bash
+hab guide                     # discover available commands
+hab schema <command> --json   # inspect a command's contract before using it
+hab <command> --plan --json   # preview a mutation before applying it
+```
+
 ## Reading Home Assistant Logs
 
 **Log levels (from most to least verbose):**
