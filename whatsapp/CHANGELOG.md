@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.7.47] - 2026-07-31
+- Neu: **„🧹 Fehlerhafte aufräumen"-Button im Status-Archiv-Fenster** — neuer Endpoint `POST /api/status-archive/:chatId/cleanup` entfernt dauerhaft nur die Einträge ohne ladbares Medium (kein `mediaFile` oder Datei nicht mehr auf Platte). Hat der Eintrag eine Bildunterschrift, wird er zu einem reinen Text-Eintrag statt gelöscht. Danach stimmen Badge-Zähler und tatsächlich angezeigte Kacheln wieder überein — im Gegensatz zu „Archiv leeren" bleibt der Rest der Historie erhalten
+
 ## [1.7.46] - 2026-07-31
 - Fix: Platzhalter-Text aus 1.7.45 („Medien-Download war deaktiviert") behauptete fälschlich eine Ursache — Option `download_media` war beim Nutzer durchgehend aktiv, Fehlschlag lag am eigentlichen Download (abgelaufener Status, Netzwerkfehler o.ä.), nicht an der Einstellung. Text auf neutral „Medium nicht verfügbar" geändert (analog zur Export-ZIP-Formulierung „Datei nicht mehr vorhanden"), zusätzlich Debug-Log in `captureStatuses()` ergänzt, um künftig die tatsächliche Ursache (kein `hasMedia` vs. Downloadfehler) unterscheiden zu können
 
