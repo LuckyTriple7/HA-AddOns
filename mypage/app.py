@@ -83,6 +83,7 @@ USESSIONS_PATH = _DATA + '/user_sessions.json'
 DM_PATH       = _DATA + '/dm.json'          # Mitglieder-Direktnachrichten (Text verschlüsselt)
 DMKEY_PATH    = _DATA + '/dm.key'           # Fernet-Schlüssel für die DM-Verschlüsselung
 TWOFA_PATH    = _DATA + '/admin_2fa.json'   # TOTP-Secret + Backup-Codes (Admin-2FA)
+AUTHKEY_PATH  = _DATA + '/auth.key'         # Fernet-Schlüssel für das trust2fa-Cookie
 POLLS_PATH    = _DATA + '/polls.json'       # Umfrage-Stimmen (getrennt von site.json)
 UPLOADS_DIR   = Path(_DATA) / 'uploads'
 # Benutzerdateien: optional auf SMB-Share (run.sh setzt MYPAGE_USERFILES nach Mount)
@@ -800,6 +801,36 @@ def _dm_reset_fernet() -> None:
     """Cache verwerfen — nach einem Restore kann dm.key ausgetauscht worden sein."""
     global _dm_fernet
     _dm_fernet = None
+
+
+_auth_fernet = None
+
+
+def _get_auth_fernet():
+    """Lädt (oder erzeugt einmalig) den Schlüssel fürs trust2fa-Cookie. None, wenn cryptography fehlt."""
+    global _auth_fernet
+    if _auth_fernet is not None:
+        return _auth_fernet
+    if not _HAS_CRYPTO:
+        return None
+    try:
+        if os.path.exists(AUTHKEY_PATH):
+            with open(AUTHKEY_PATH, 'rb') as f:
+                key = f.read().strip()
+        else:
+            key = Fernet.generate_key()
+            with open(AUTHKEY_PATH, 'wb') as f:
+                f.write(key)
+            try:
+                os.chmod(AUTHKEY_PATH, 0o600)
+            except OSError:
+                pass
+            log.info("Auth-Cookie-Schlüssel neu erzeugt")
+        _auth_fernet = Fernet(key)
+        return _auth_fernet
+    except Exception as e:
+        log.warning("Auth-Cookie-Schlüssel konnte nicht geladen/erzeugt werden: %s", e)
+        return None
 
 
 def dm_feature_on() -> bool:
@@ -1538,7 +1569,7 @@ def _trusted_prune(entries: list) -> list:
 
 
 def trusted_device_new() -> str:
-    """Neues Geräte-Token erzeugen, gehasht ablegen und im Klartext zurückgeben (für das Cookie)."""
+    """Neues Geräte-Token erzeugen, gehasht ablegen und Fernet-verschlüsselt fürs Cookie zurückgeben."""
     token = secrets.token_hex(32)
     d = load_2fa()
     lst = _trusted_prune(d.get('trusted'))
@@ -1546,11 +1577,23 @@ def trusted_device_new() -> str:
                 'exp': time.time() + TRUSTED_DEVICE_DAYS * 86400})
     d['trusted'] = lst
     save_2fa(d)
-    return token
+    fernet = _get_auth_fernet()
+    if fernet is None:
+        # cryptography-Lib fehlt (Minimal-Standalone) — Cookie bleibt deaktiviert statt Klartext
+        return ''
+    return fernet.encrypt(token.encode('ascii')).decode('ascii')
 
 
-def trusted_device_valid(token: str | None) -> bool:
-    if not token:
+def trusted_device_valid(cookie_value: str | None) -> bool:
+    if not cookie_value:
+        return False
+    fernet = _get_auth_fernet()
+    if fernet is None:
+        return False
+    try:
+        token = fernet.decrypt(cookie_value.encode('ascii'),
+                                ttl=TRUSTED_DEVICE_DAYS * 86400).decode('ascii')
+    except Exception:
         return False
     d = load_2fa()
     lst = _trusted_prune(d.get('trusted'))
@@ -3154,8 +3197,9 @@ def login():
         resp = _grant_session(ip)
         if request.form.get('remember_device'):
             trusted_token = trusted_device_new()
-            resp.set_cookie('trust2fa', trusted_token, httponly=True, samesite='Lax',
-                             max_age=TRUSTED_DEVICE_DAYS * 86400)
+            if trusted_token:
+                resp.set_cookie('trust2fa', trusted_token, httponly=True, samesite='Lax',
+                                 max_age=TRUSTED_DEVICE_DAYS * 86400)
         return resp
 
     if request.method == 'POST':
@@ -3873,7 +3917,7 @@ def api_backup():
     with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as z:
         for name in ('site.json', 'stats.json', 'messages.json', 'users.json',
                      'comments.json', 'audit.json', 'subscribers.json',
-                     'dm.json', 'dm.key', 'admin_2fa.json'):
+                     'dm.json', 'dm.key', 'admin_2fa.json', 'auth.key'):
             p = Path(_DATA) / name
             if p.is_file():
                 z.write(p, name)
@@ -3921,7 +3965,7 @@ def api_restore():
                               'comments.json', 'audit.json', 'subscribers.json', 'dm.json',
                               'admin_2fa.json'):
                     target = safe_under(Path(_DATA), member)
-                elif member == 'dm.key':  # Binär-Schlüssel, kein JSON
+                elif member in ('dm.key', 'auth.key'):  # Binär-Schlüssel, kein JSON
                     target = safe_under(Path(_DATA), member)
                 elif member.startswith('uploads/'):
                     name = secure_filename(Path(member).name)
@@ -3957,6 +4001,8 @@ def api_restore():
     except (zipfile.BadZipFile, json.JSONDecodeError, KeyError):
         return jsonify({'error': 'invalid backup'}), 400
     _dm_reset_fernet()  # evtl. neuen dm.key übernehmen
+    global _auth_fernet
+    _auth_fernet = None  # evtl. neuen auth.key übernehmen
     log_audit('restore', f'{restored} Datei(en)')
     log.info("Backup wiederhergestellt: %d Datei(en)", restored)
     return jsonify({'ok': True, 'restored': restored})
