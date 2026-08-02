@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.59.5] - 2026-07-31
+
+### Added
+- **Claude-Modell auf `claude-opus-5` umgestellt** — Nachfolger von
+  `claude-opus-4-8` (gleicher Preis $5/$25 pro 1 Mio. Token, Drop-in-Upgrade
+  laut Anthropic). Neuer Standard für `anthropic_model`; `claude-opus-4-8`
+  komplett aus der Auswahl entfernt (Preistabellen-Eintrag bleibt für
+  bereits gespeicherte alte KI-Analysen). Bestehende Configs mit
+  `claude-opus-4-8` fallen automatisch auf `claude-opus-5` zurück.
+- **Perplexity-Modelle geprüft** (`sonar`, `sonar-pro`, `sonar-reasoning-pro`,
+  `sonar-deep-research`) — alle vier aktuell, Preise stimmen exakt mit der
+  offiziellen Preistabelle überein, keine Änderung nötig.
+
 ## [0.59.4] - 2026-07-31
 
 ### Added

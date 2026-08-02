@@ -22,7 +22,7 @@ booked_drop_min_diff: 50 # Mindest-Ersparnis dafür (€)
 digest_enabled: false    # wöchentlicher Überblick (Telegram/E-Mail)
 digest_weekday: 1        # Versandtag (1 = Mo … 7 = So)
 anthropic_api_key: ""    # Anthropic API-Key, aktiviert das KI-Fazit (leer = aus)
-anthropic_model: claude-opus-4-8  # oder claude-sonnet-5 / claude-haiku-4-5 / claude-fable-5
+anthropic_model: claude-opus-5  # oder claude-sonnet-5 / claude-haiku-4-5 / claude-fable-5
 ai_provider: anthropic   # oder gemini / perplexity (gilt fuer ALLE KI-Features)
 gemini_api_key: ""       # nur relevant bei ai_provider: gemini
 gemini_model: gemini-3.1-pro  # oder gemini-3.6-flash / gemini-3.5-flash / gemini-2.5-flash
@@ -156,7 +156,7 @@ sie komplett ausgeblendet).
 
 `ai_provider` schaltet **global für alle KI-Features** zwischen Anthropic
 (Standard), Google Gemini und Perplexity um:
-- **Anthropic/Claude:** `anthropic_model` (Standard `claude-opus-4-8`; auch
+- **Anthropic/Claude:** `anthropic_model` (Standard `claude-opus-5`; auch
   `claude-sonnet-5`, `claude-haiku-4-5`, `claude-fable-5` wählbar —
   schneller/günstiger bzw. teurer). Websuche über Anthropics
   `web_search`-Tool, per `ai_max_web_searches` (Standard 12, 1-50)

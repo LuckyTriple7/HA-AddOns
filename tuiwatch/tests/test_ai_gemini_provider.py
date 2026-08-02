@@ -94,7 +94,7 @@ def test_ai_config_falls_back_to_flagship_on_invalid_gemini_model(app_mod):
 
 def test_ai_config_defaults_to_anthropic(app_mod):
     api_key, model = app_mod._ai_config()
-    assert model == "claude-opus-4-8"
+    assert model == "claude-opus-5"
     assert api_key == ""
 
 

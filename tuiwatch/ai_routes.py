@@ -232,6 +232,7 @@ def _hotel_fact_lines(h: dict, *, label: str = "Hotel") -> list[str]:
 _AI_PRICING = {  # USD pro 1 Mio Tokens (Input/Output) — Anthropic-Listenpreise,
                  # ohne evtl. befristete Einführungsrabatte. Nur zur groben
                  # Kosten-Schätzung, kein echtes Guthaben (das zeigt nur die Console).
+    'claude-opus-5':    {'input': 5.0,  'output': 25.0},
     'claude-opus-4-8':  {'input': 5.0,  'output': 25.0},
     'claude-sonnet-5':  {'input': 3.0,  'output': 15.0},
     'claude-haiku-4-5': {'input': 1.0,  'output': 5.0},
@@ -269,7 +270,7 @@ _AI_PERPLEXITY_REQUEST_FEE = {
 
 def _ai_call_cost(model: str, usage: dict) -> float:
     """Geschätzte Kosten (USD) für genau diesen einen Aufruf."""
-    price = _AI_PRICING.get(model, _AI_PRICING['claude-opus-4-8'])
+    price = _AI_PRICING.get(model, _AI_PRICING['claude-opus-5'])
     cost = usage.get('input_tokens', 0) / 1_000_000 * price['input']
     cost += usage.get('output_tokens', 0) / 1_000_000 * price['output']
     cost += usage.get('cache_read_input_tokens', 0) / 1_000_000 * price['input'] * 0.1
@@ -286,7 +287,7 @@ def _ai_usage_calc(models: dict) -> dict:
     cost = 0.0
     calls = input_tokens = output_tokens = 0
     for model, t in models.items():
-        price = _AI_PRICING.get(model, _AI_PRICING['claude-opus-4-8'])
+        price = _AI_PRICING.get(model, _AI_PRICING['claude-opus-5'])
         n_calls = t.get('calls', 0)
         cost += t.get('input_tokens', 0) / 1_000_000 * price['input']
         cost += t.get('output_tokens', 0) / 1_000_000 * price['output']
@@ -474,9 +475,9 @@ def _ai_config_for(provider: str) -> tuple[str, str]:
             model = 'sonar-pro'
         return api_key, model
     api_key = (cfg.get('anthropic_api_key') or '').strip()
-    model = cfg.get('anthropic_model') or 'claude-opus-4-8'
+    model = cfg.get('anthropic_model') or 'claude-opus-5'
     if model not in A._AI_MODELS:
-        model = 'claude-opus-4-8'
+        model = 'claude-opus-5'
     return api_key, model
 
 
