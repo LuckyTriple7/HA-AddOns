@@ -251,22 +251,64 @@ Ideen abseits der Spiele. Bereits umgesetzt (v0.7.63): **Lesezeit & ähnliche
 Beiträge**, **Speicher-Balken mit Warnfarben**, **wöchentlicher Statistik-
 Rückblick**, **DSGVO-Self-Service** (Datenexport + Konto-Selbstlöschung).
 Umgesetzt in v0.8.0: **Umfrage-Sektion**, **Spiele-Bestenliste**,
-**Erfolge/Abzeichen**.
+**Erfolge/Abzeichen**. Umgesetzt in v0.8.8–0.8.10: **atomare Schreibvorgänge +
+Korruptionsschutz**, **automatische Tages-Backups mit Rotation**,
+**Waitress statt Flask-Entwicklungsserver**.
 
 ## 🟢 Schnelle Gewinne
 
 - **Auto-OG-Image pro Blog-Beitrag** — Hat ein Beitrag kein Titelbild, ein
   Share-Vorschaubild aus Titel + Akzentfarbe rendern (Pillow ist schon im Stack).
   Bessere Teilen-Vorschau ohne manuelle Arbeit. *Kleiner, abgegrenzter Umfang.*
+- **Zwei-Faktor auch für Mitglieder** — Der Admin hat seit v0.7.21 TOTP samt
+  Backup-Codes und „Gerät merken" (v0.8.4–0.8.7). Mitglieder haben nur ein
+  Passwort, obwohl in ihrem Bereich private Dateien, verschlüsselte
+  Direktnachrichten und Anhänge liegen. Die komplette Maschinerie ist da
+  (`totp_verify`, QR-Erzeugung, `_gen_backup_codes`, Trusted-Device-Muster) —
+  für Mitglieder wiederverwenden statt neu bauen, freiwillig pro Konto
+  aktivierbar im Profil. *Überwiegend Wiederverwendung.*
+- **vCard-Download & QR-Code der Seitenadresse** — `.vcf` aus den Profildaten
+  erzeugen, dazu ein QR-Code zum Teilen der Adresse. `qrcode` liegt bereits für
+  die 2FA-Einrichtung im Stack, das Profil hat alle Felder. Zwei kleine,
+  abgegrenzte Häppchen mit sichtbarem Nutzen.
 
 ## 🟡 Mittlerer Aufwand
 
-- **Web-Push-Benachrichtigungen** — *Höchster Nutzer-Effekt.* Die PWA-
-  Infrastruktur (Service Worker, Cloudflare, siehe [[project_pwa_cloudflare]])
-  steht bereits; nur E-Mail-Newsletter wird genutzt. Push für „neuer Blog-
-  Beitrag" / „neue DM" wäre ein großer Bindungs-Hebel (VAPID-Keys +
-  `pushManager`). Funktioniert über den Cloudflare-Tunnel; bei HA-Ingress
-  eingeschränkt. **Empfehlung, wenn als Nächstes _ein_ Feature gebaut wird.**
+- **🏠 Home-Assistant-Daten auf der Seite anzeigen** — *Der eigentliche
+  Alleinstellungs-Hebel.* Die HA-Anbindung ist heute eine **Einbahnstraße**:
+  `push_ha_sensors()` / `push_ha_games()` melden Besucher- und Spielzahlen an HA,
+  aber es wird nie etwas zurückgelesen. Dabei sind `homeassistant_api: true`,
+  `SUPERVISOR_TOKEN` und die HTTP-Schicht längst vorhanden.
+  Neue Sektion „Smart Home" mit frei wählbaren Entitäten: Außentemperatur,
+  PV-Ertrag heute, Ladestand des Autos, „zu Hause / unterwegs". Wahlweise
+  öffentlich oder **nur für Mitglieder** — bei diesen Daten ist die
+  Privatsphäre-Umschaltung Pflicht; die Sektions-Mechanik (anordnen, ausblenden,
+  nur-Mitglieder) gibt es schon.
+  Das kann kein WordPress und kein Baukasten. Es ist der Punkt, an dem
+  „Homepage als HA-Add-on" mehr wird als „Homepage, die zufällig in HA läuft".
+  Zu beachten: Polling mit Cache (nicht bei jedem Seitenaufruf abfragen),
+  Entitäts-Whitelist im Admin, sinnvolle Formatierung je Gerätetyp.
+- **💾 Backups aus dem Haus schaffen** — Die automatischen Backups (v0.8.9)
+  liegen unter `addon_configs/<slug>_mypage/autobackup/`, also auf **demselben
+  Datenträger wie die Daten**. Stirbt die SD-Karte/SSD, sind beide weg — der
+  klassische Fehler. Das tägliche ZIP zusätzlich per **WebDAV zur Nextcloud**
+  (läuft als eigenes Add-on) oder auf eine **SMB-Freigabe** schieben; die
+  Mount-Logik für die FritzBox existiert bereits
+  ([[project_fritzbox_smb_noserverino]]). Erst damit wird aus „Backup vorhanden"
+  ein echtes Backup. Rotation ist schon gebaut; neu sind Upload, Zugangsdaten in
+  den Optionen und Fehlerbehandlung mit HA-Benachrichtigung.
+  **Empfehlung: das zuerst — Absicherung vor Schmuck.**
+- **Web-Push-Benachrichtigungen** — *Höchster reiner Nutzer-Effekt.* Die PWA-
+  Infrastruktur (Service Worker, Manifest) steht bereits; genutzt wird bisher nur
+  der E-Mail-Newsletter. Push für „neuer Blog-Beitrag" / „neue DM" wäre ein
+  großer Bindungs-Hebel (VAPID-Keys + `pushManager`).
+  *Achtung:* Frühere Fassung dieses Eintrags behauptete, das laufe „über den
+  Cloudflare-Tunnel" — **MyPage läuft nicht hinter Cloudflare**, der öffentliche
+  Port hängt hinter einem Reverse-Proxy (siehe
+  [[project_mypage_deployment_topology]]). Web-Push braucht lediglich HTTPS auf
+  der öffentlichen Adresse, das liefert der Proxy. Über HA-Ingress bleibt es
+  eingeschränkt. Die Cloudflare-Notiz [[project_pwa_cloudflare]] ist eine reine
+  Technik-Referenz, keine Aussage über dieses Deployment.
 - **Öffentliche Freigabe-Links für Mitglieder-Dateien** — Mitglied teilt eine
   Datei aus seinem Bereich per Einmal-/Ablauf-Link (optional passwortgeschützt)
   mit Externen. Macht aus dem Dateibereich ein „WeTransfer light". Nutzt die
@@ -276,21 +318,31 @@ Umgesetzt in v0.8.0: **Umfrage-Sektion**, **Spiele-Bestenliste**,
 
 - **`app.py` refaktorieren** — siehe detaillierten Backlog-Eintrag
   „app.py → Flask-Blueprints" ganz unten.
-- **Test-Abdeckung erhöhen** — Aktuell nur `test_game66.py`. Ein paar Tests für
-  die sicherheits­kritischen Auth-/Redirect-Pfade (siehe
-  [[feedback_security_patterns]]) fangen Regressionen früh — passt zu „nicht
-  blind iterieren" ([[feedback_no_blind_iteration]]).
+- **Test-Abdeckung erhöhen** — Aktuell nur `test_game66.py` (306 Zeilen) bei rund
+  14.800 Zeilen Python. Ein paar Tests für die sicherheits­kritischen Auth-/
+  Redirect-Pfade (siehe [[feedback_security_patterns]]) fangen Regressionen früh —
+  passt zu „nicht blind iterieren" ([[feedback_no_blind_iteration]]).
+  **Priorität allerdings anders setzen:** zuerst ein **Smoke-Test über alle ~212
+  Routen** (Flask `test_client`, erwarteter Status-Code je Route). Der ist
+  Voraussetzung fürs Blueprint-Refactoring unten *und* fängt genau die Klasse von
+  Fehlern ab, die v0.7.33 gebrochen hat (vergessener `COPY` im Dockerfile,
+  [[project_mypage_dockerfile_copy]]) — die merkt man sonst erst im laufenden
+  Container. Danach die Auth-Pfade vertiefen.
 
 ## Bewusst nicht umgesetzt (existiert bereits)
 
 - **RSS/Atom-Feed**, **OpenGraph-/Twitter-Cards**, **Datei-Vorschau im
   Mitglieder­bereich** — sind im Code schon vorhanden, daher keine neuen Ideen.
+- **Geplante Blog-Veröffentlichung** — existiert bereits: Beiträge kennen neben
+  „Entwurf"/„Veröffentlicht" den Status `scheduled` (Datum in der Zukunft).
 
 ---
 
 # Backlog: `app.py` → Flask-Blueprints (Refactoring)
 
 *Stand der Analyse: 2026-07-02, app.py = 8.342 Zeilen, ~212 Routen.*
+*Nachgemessen 2026-08-02: 8.887 Zeilen, 218 Routen — die Datei wächst weiter,
+das Argument wird also mit jedem Monat stärker, nicht schwächer.*
 
 ## Warum
 
