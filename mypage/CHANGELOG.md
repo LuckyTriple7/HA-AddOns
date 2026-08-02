@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.8.5
+- Fix: trust2fa-Cookie wird jetzt mit Fernet verschlüsselt (Schlüssel `auth.key`) statt Klartext-Token — behebt CodeQL-Alert #192 (clear-text storage of sensitive data).
+
 ## 0.8.4
 - 🔐 **2FA: „Dieses Gerät merken"** — Checkbox beim Code-Schritt (default an) legt ein 30 Tage gültiges Geräte-Cookie an (`trust2fa`); danach fragt der direkte Login (Port 17761) auf diesem Gerät nur noch Benutzername/Passwort ab. Serverseitig liegt nur ein SHA-256-Hash in `admin_2fa.json`, das Cookie selbst ist mit Fernet (AES-128-CBC + HMAC, Schlüssel in `auth.key`) verschlüsselt — CodeQL-Alert #192 (clear-text storage). Deaktivieren oder Neueinrichten von 2FA verwirft alle gemerkten Geräte automatisch.
 
