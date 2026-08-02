@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.8.4
+- 🔐 **2FA: „Dieses Gerät merken"** — Checkbox beim Code-Schritt (default an) legt ein 30 Tage gültiges Geräte-Cookie an (`trust2fa`, gehashtes Zufalls-Token in `admin_2fa.json`); danach fragt der direkte Login (Port 17761) auf diesem Gerät nur noch Benutzername/Passwort ab. Deaktivieren oder Neueinrichten von 2FA verwirft alle gemerkten Geräte automatisch.
+
 ## 0.8.3
 - map: `addon_config` → `app_config` (Home-Assistant-Supervisor hat `addon_config` seit 2026.07 als Legacy-Name markiert, neuer Name ist `app_config`).
 

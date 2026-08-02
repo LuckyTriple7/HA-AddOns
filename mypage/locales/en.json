@@ -11,6 +11,7 @@
   "twofa_login_label": "Verification code",
   "twofa_login_hint": "Code from your authenticator app or a backup code.",
   "twofa_login_btn": "Verify",
+  "twofa_remember_device": "Remember this device for 30 days",
   "twofa_heading": "Two-factor authentication (2FA)",
   "twofa_hint": "Adds a one-time code from an authenticator app to the direct login (port 17761). When accessing via Home Assistant (ingress), 2FA is not required — HA already authenticates you there.",
   "twofa_state_on": "2FA is active.",

@@ -1410,6 +1410,7 @@ BACKUP_CODE_COUNT = 10
 # Kurzlebige Merker zwischen Schritt 1 (Passwort) und Schritt 2 (Code)
 _pending_2fa: dict[str, float] = {}   # token → Ablaufzeit
 PENDING_2FA_TTL = 300
+TRUSTED_DEVICE_DAYS = 30   # "dieses Gerät merken" — überspringt den 2FA-Schritt
 
 
 def load_2fa() -> dict:
@@ -1529,6 +1530,35 @@ def _pending_2fa_valid(token: str | None) -> bool:
         _pending_2fa.pop(token, None)
         return False
     return True
+
+
+def _trusted_prune(entries: list) -> list:
+    now = time.time()
+    return [e for e in (entries or []) if isinstance(e, dict) and e.get('exp', 0) > now]
+
+
+def trusted_device_new() -> str:
+    """Neues Geräte-Token erzeugen, gehasht ablegen und im Klartext zurückgeben (für das Cookie)."""
+    token = secrets.token_hex(32)
+    d = load_2fa()
+    lst = _trusted_prune(d.get('trusted'))
+    lst.append({'hash': hashlib.sha256(token.encode('ascii')).hexdigest(),
+                'exp': time.time() + TRUSTED_DEVICE_DAYS * 86400})
+    d['trusted'] = lst
+    save_2fa(d)
+    return token
+
+
+def trusted_device_valid(token: str | None) -> bool:
+    if not token:
+        return False
+    d = load_2fa()
+    lst = _trusted_prune(d.get('trusted'))
+    if len(lst) != len(d.get('trusted') or []):
+        d['trusted'] = lst
+        save_2fa(d)
+    digest = hashlib.sha256(token.encode('ascii')).hexdigest()
+    return any(secrets.compare_digest(e['hash'], digest) for e in lst)
 
 
 # ── i18n ──────────────────────────────────────────────────────────────────────
@@ -3120,6 +3150,14 @@ def login():
         resp.delete_cookie('pre2fa')
         return resp
 
+    def _grant_session_trusted(ip):
+        resp = _grant_session(ip)
+        if request.form.get('remember_device'):
+            trusted_token = trusted_device_new()
+            resp.set_cookie('trust2fa', trusted_token, httponly=True, samesite='Lax',
+                             max_age=TRUSTED_DEVICE_DAYS * 86400)
+        return resp
+
     if request.method == 'POST':
         ip = get_client_ip(request)
         if is_rate_limited(ip):
@@ -3132,7 +3170,7 @@ def login():
             secret = load_2fa().get('secret', '')
             if totp_verify(secret, code) or backup_code_consume(code):
                 _pending_2fa.pop(request.cookies.get('pre2fa'), None)
-                return _grant_session(ip)
+                return _grant_session_trusted(ip)
             record_failed_attempt(ip)
             log_audit('admin_login_2fa_failed')
             error = t.get('error_2fa_code', 'Ungültiger Code.')
@@ -3143,7 +3181,7 @@ def login():
             pwd   = request.form.get('password', '')
             if (secrets.compare_digest(uname, str(cfg.get('username', 'admin'))) and
                     secrets.compare_digest(pwd, str(cfg.get('password', '')))):
-                if twofa_enabled():
+                if twofa_enabled() and not trusted_device_valid(request.cookies.get('trust2fa')):
                     pre = _pending_2fa_new()
                     resp = make_response(render_template('login.html', t=t, lang=lang,
                                                          error=None, step='code'))
