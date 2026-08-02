@@ -25,7 +25,7 @@ anthropic_api_key: ""    # Anthropic API-Key, aktiviert das KI-Fazit (leer = aus
 anthropic_model: claude-opus-4-8  # oder claude-sonnet-5 / claude-haiku-4-5 / claude-fable-5
 ai_provider: anthropic   # oder gemini / perplexity (gilt fuer ALLE KI-Features)
 gemini_api_key: ""       # nur relevant bei ai_provider: gemini
-gemini_model: gemini-3.1-pro  # oder gemini-3.5-flash / gemini-2.5-flash
+gemini_model: gemini-3.1-pro  # oder gemini-3.6-flash / gemini-3.5-flash / gemini-2.5-flash
 perplexity_api_key: ""   # nur relevant bei ai_provider: perplexity
 perplexity_model: sonar-pro  # oder sonar / sonar-reasoning-pro / sonar-deep-research
 ai_max_web_searches: 12  # Limit Websuchen/Aufruf, gilt nur bei Anthropic
@@ -163,7 +163,9 @@ sie komplett ausgeblendet).
   gedeckelt — niedriger spart Input-Tokens/Kosten, höher liefert
   gründlichere Antworten bei mehreren Zielen/Hotels.
 - **Gemini:** `gemini_model` (Standard `gemini-3.1-pro`; auch
-  `gemini-3.5-flash`, `gemini-2.5-flash` wählbar). Websuche über
+  `gemini-3.6-flash`, `gemini-3.5-flash`, `gemini-2.5-flash` wählbar —
+  Google schaltet `gemini-2.5-flash` am 16.10.2026 ab, Ersatz ist
+  `gemini-3.6-flash`). Websuche über
   Google-Search-Grounding — **kein** Äquivalent zu `ai_max_web_searches`,
   Gemini entscheidet selbst, wie oft es sucht.
 - **Perplexity:** `perplexity_model` (Standard `sonar-pro`; auch `sonar`,

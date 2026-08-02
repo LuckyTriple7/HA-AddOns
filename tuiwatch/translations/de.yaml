@@ -124,7 +124,7 @@ configuration:
     description: "API-Key für Google Gemini (aistudio.google.com), nur relevant wenn 'KI-Anbieter' = gemini. Leer lassen = Funktion aus."
   gemini_model:
     name: Gemini-Modell
-    description: "Welches Gemini-Modell genutzt wird, wenn 'KI-Anbieter' = gemini. 3.1 Pro = Flaggschiff, sehr gründlich. 3.5 Flash = ausgewogen, schneller/günstiger. 2.5 Flash = am günstigsten."
+    description: "Welches Gemini-Modell genutzt wird, wenn 'KI-Anbieter' = gemini. 3.1 Pro = Flaggschiff, sehr gründlich. 3.6 Flash = neuestes Flash-Modell, günstiger als 3.5. 3.5 Flash = ausgewogen. 2.5 Flash = am günstigsten, wird aber am 16.10.2026 von Google abgeschaltet — rechtzeitig umstellen."
   perplexity_api_key:
     name: Perplexity API-Key
     description: "API-Key für Perplexity (perplexity.ai/settings/api), nur relevant wenn 'KI-Anbieter' = perplexity. Sonar-Modelle durchsuchen bei JEDER Anfrage automatisch das Web (kein Websuche-Schalter nötig) — dafür pro Anfrage teurer als Claude/Gemini, inkl. zusätzlicher Request-Gebühr oben auf die Tokenkosten. Leer lassen = Funktion aus."

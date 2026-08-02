@@ -236,8 +236,12 @@ _AI_PRICING = {  # USD pro 1 Mio Tokens (Input/Output) — Anthropic-Listenpreis
     'claude-sonnet-5':  {'input': 3.0,  'output': 15.0},
     'claude-haiku-4-5': {'input': 1.0,  'output': 5.0},
     'claude-fable-5':   {'input': 10.0, 'output': 50.0},
-    # Gemini-Listenpreise (Google AI, Stand Juli 2026)
+    # Gemini-Listenpreise (Google AI, Stand August 2026). gemini-2.5-flash wird laut
+    # ai.google.dev/gemini-api/docs/deprecations am 16.10.2026 abgeschaltet
+    # (Ersatz lt. Google: gemini-3.6-flash) — bis dahin funktioniert es noch,
+    # danach aus _GEMINI_MODELS/config.yaml-Schema entfernen.
     'gemini-3.1-pro':   {'input': 2.0,  'output': 12.0},
+    'gemini-3.6-flash': {'input': 1.5,  'output': 7.5},
     'gemini-3.5-flash': {'input': 1.5,  'output': 9.0},
     'gemini-2.5-flash': {'input': 0.3,  'output': 2.5},
     # Perplexity-Listenpreise (docs.perplexity.ai, Stand Juli 2026). Die

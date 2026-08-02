@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.59.4] - 2026-07-31
+
+### Added
+- **Gemini-Modelle geprüft und aktualisiert** — laut ai.google.dev/gemini-api/docs/deprecations
+  wird `gemini-2.5-flash` am 16.10.2026 von Google abgeschaltet (Ersatz:
+  `gemini-3.6-flash`). Bisher genutzte Modelle (`gemini-3.1-pro`,
+  `gemini-3.5-flash`, `gemini-2.5-flash`) sind bis dahin weiter nutzbar und
+  noch nicht entfernt. Neu wählbar: `gemini-3.6-flash` (günstiger als 3.5
+  Flash, siehe Preis-Update unten). `gemini-2.5-flash` bleibt vorerst
+  bestehen, sollte aber vor Oktober umgestellt werden.
+- Auch die "Gemini 2.5 Pro"/"Gemini 3 Flash"-EOL-Meldung vom 31.07.2026
+  geprüft — betrifft laut Quelle nur GitHub Copilots Modellauswahl, nicht
+  die Gemini-API selbst; für TUIWatch (direkter API-Zugriff) nicht relevant.
+
+### Fixed
+- APP_VERSION-Konstante in app.py war beim 0.59.3-Commit nicht mitgezogen worden — jetzt nachgeholt.
+
 ## [0.59.3] - 2026-07-31
 - map: `addon_config` → `app_config` (Home-Assistant-Supervisor hat `addon_config` seit 2026.07 als Legacy-Name markiert, neuer Name ist `app_config`).
 

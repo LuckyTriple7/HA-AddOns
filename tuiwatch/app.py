@@ -85,7 +85,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.59.2"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.59.4"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -157,7 +157,7 @@ _calendar_outlook_cache: dict = {}        # offer_id → {summary, usage, ts}
 _BOOKING_SCORE_TTL = 6 * 3600             # kürzer als Hotel-Fazit: Preisdaten ändern sich häufiger
 _CALENDAR_FRESH_SECONDS = 7 * 86400       # Preiskalender für den Buchungsscore ab diesem Alter neu abrufen
 _AI_MODELS = ('claude-opus-4-8', 'claude-sonnet-5', 'claude-haiku-4-5', 'claude-fable-5')
-_GEMINI_MODELS = ('gemini-3.1-pro', 'gemini-3.5-flash', 'gemini-2.5-flash')
+_GEMINI_MODELS = ('gemini-3.1-pro', 'gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-2.5-flash')
 _PERPLEXITY_MODELS = ('sonar', 'sonar-pro', 'sonar-reasoning-pro', 'sonar-deep-research')
 _api_down_notified = False                # ob aktuell ein API-Ausfall gemeldet ist
 
