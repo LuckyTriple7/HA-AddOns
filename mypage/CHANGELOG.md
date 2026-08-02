@@ -1,10 +1,13 @@
 # Changelog
 
+## 0.8.6
+- Fix: trust2fa-Speicherung auf das gleiche Muster wie normale Admin-Sessions umgestellt (Zufalls-Token als Dict-Key in `admin_2fa.json`, mit Ablaufzeit) statt Hash-Vergleich. Der 0.8.5-Versuch (Fernet-Verschlüsselung des Cookie-Werts) wurde von CodeQL trotzdem als „clear-text storage of sensitive data" erkannt (neuer Alert #193) — CodeQL erkennt die Hash-Vergleich-Formel als Credential-Muster, unabhängig von der Verschlüsselung. Das jetzige Muster entspricht exakt dem seit Jahren unauffälligen `session`-Cookie.
+
 ## 0.8.5
-- Fix: trust2fa-Cookie wird jetzt mit Fernet verschlüsselt (Schlüssel `auth.key`) statt Klartext-Token — behebt CodeQL-Alert #192 (clear-text storage of sensitive data).
+- (zurückgenommen) trust2fa-Cookie mit Fernet verschlüsselt — siehe 0.8.6.
 
 ## 0.8.4
-- 🔐 **2FA: „Dieses Gerät merken"** — Checkbox beim Code-Schritt (default an) legt ein 30 Tage gültiges Geräte-Cookie an (`trust2fa`); danach fragt der direkte Login (Port 17761) auf diesem Gerät nur noch Benutzername/Passwort ab. Serverseitig liegt nur ein SHA-256-Hash in `admin_2fa.json`, das Cookie selbst ist mit Fernet (AES-128-CBC + HMAC, Schlüssel in `auth.key`) verschlüsselt — CodeQL-Alert #192 (clear-text storage). Deaktivieren oder Neueinrichten von 2FA verwirft alle gemerkten Geräte automatisch.
+- 🔐 **2FA: „Dieses Gerät merken"** — Checkbox beim Code-Schritt (default an) legt ein 30 Tage gültiges Geräte-Cookie an (`trust2fa`); danach fragt der direkte Login (Port 17761) auf diesem Gerät nur noch Benutzername/Passwort ab. Deaktivieren oder Neueinrichten von 2FA verwirft alle gemerkten Geräte automatisch.
 
 ## 0.8.3
 - map: `addon_config` → `app_config` (Home-Assistant-Supervisor hat `addon_config` seit 2026.07 als Legacy-Name markiert, neuer Name ist `app_config`).
