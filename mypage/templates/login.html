@@ -67,6 +67,11 @@
       <input type="text" id="code" name="code" inputmode="numeric" autocomplete="one-time-code"
              pattern="[0-9A-Fa-f -]*" autofocus required placeholder="123456">
       <p style="font-size:0.74rem;color:var(--muted);margin:-8px 0 16px">{{ t.twofa_login_hint }}</p>
+      <label style="display:flex;align-items:center;gap:6px;margin:-8px 0 16px">
+        <input type="checkbox" id="remember_device" name="remember_device" value="1" checked
+               style="width:auto;margin:0">
+        <span style="font-size:0.8rem;color:var(--text)">{{ t.twofa_remember_device }}</span>
+      </label>
       <button type="submit">{{ t.twofa_login_btn }}</button>
     </form>
     {% else %}

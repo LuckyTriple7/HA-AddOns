@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.7.47] - 2026-07-31
+- Neu: **„🧹 Fehlerhafte aufräumen"-Button im Status-Archiv-Fenster** — neuer Endpoint `POST /api/status-archive/:chatId/cleanup` entfernt dauerhaft nur die Einträge ohne ladbares Medium (kein `mediaFile` oder Datei nicht mehr auf Platte). Hat der Eintrag eine Bildunterschrift, wird er zu einem reinen Text-Eintrag statt gelöscht. Danach stimmen Badge-Zähler und tatsächlich angezeigte Kacheln wieder überein — im Gegensatz zu „Archiv leeren" bleibt der Rest der Historie erhalten
+
+## [1.7.46] - 2026-07-31
+- Fix: Platzhalter-Text aus 1.7.45 („Medien-Download war deaktiviert") behauptete fälschlich eine Ursache — Option `download_media` war beim Nutzer durchgehend aktiv, Fehlschlag lag am eigentlichen Download (abgelaufener Status, Netzwerkfehler o.ä.), nicht an der Einstellung. Text auf neutral „Medium nicht verfügbar" geändert (analog zur Export-ZIP-Formulierung „Datei nicht mehr vorhanden"), zusätzlich Debug-Log in `captureStatuses()` ergänzt, um künftig die tatsächliche Ursache (kein `hasMedia` vs. Downloadfehler) unterscheiden zu können
+
+## [1.7.45] - 2026-07-31
+- Security: CodeQL/Dependabot-Alert #37 (`brace-expansion` <=5.0.7, GHSA-mh99-v99m-4gvg, DoS via unbounded expansion length) — transitiv über `archiver` → `glob`/`readdir-glob` → `minimatch@9.0.9`/`5.1.9`, die beide noch die alte `brace-expansion@2.x`-API referenzierten. Direktes Überschreiben von `brace-expansion` auf `^5.0.8` brach `minimatch` (API-Bruch: `brace-expansion@5` hat keinen CJS-Default-Export mehr, nur noch named `expand`). Stattdessen `overrides.minimatch: "^10.2.2"` gesetzt — diese Minimatch-Version deklariert bereits `brace-expansion@^5.0.8` korrekt, dedupliziert alle Pfade auf `minimatch@10.2.6`/`brace-expansion@5.0.9`. `npm audit` danach 0 Findings, minimatch/glob/archiver funktional gegengetestet (Brace-Pattern-Match, Glob, ZIP-Erstellung)
+- Fix: **Status-Archiv zeigte weniger Bilder im Grid als der „N abgelaufene Statusmeldungen"-Button meldete** — Ursache: Foto-/Video-Status ohne `mediaFile` (typisch wenn `download_media` zum Erfassungszeitpunkt aus war) wurden von `renderArchiveItem()` im Web-UI-Grid komplett übersprungen (leerer String), zählten aber weiterhin in `sd.msgs.length` fürs Badge mit. Die Export-ZIP-Route hatte für exakt diesen Fall schon einen Platzhalter-Text — das Web-UI-Grid jetzt ebenso: zeigt „📷/📹 Medien-Download war deaktiviert" statt den Eintrag stillschweigend zu verschlucken
+
 ## [1.7.44] - 2026-07-31
 - map: `addon_config` → `app_config` (Home-Assistant-Supervisor hat `addon_config` seit 2026.07 als Legacy-Name markiert, neuer Name ist `app_config`).
 

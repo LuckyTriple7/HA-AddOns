@@ -1079,8 +1079,13 @@ async function captureStatuses() {
         const isImage = m.type === 'image';
         const isVideo = m.type === 'video';
         let mediaFile = null;
-        if (DOWNLOAD_MEDIA && (isImage || isVideo) && m.hasMedia) {
-          mediaFile = await downloadWAMedia(m, msgId).catch(() => null);
+        if (DOWNLOAD_MEDIA && (isImage || isVideo)) {
+          if (m.hasMedia) {
+            mediaFile = await downloadWAMedia(m, msgId).catch(() => null);
+            if (!mediaFile) dbg(`captureStatuses: Download fehlgeschlagen für ${msgId} (${m.type})`);
+          } else {
+            dbg(`captureStatuses: ${msgId} (${m.type}) ohne hasMedia — nicht ladbar`);
+          }
         }
         if (!statusArchiveByChatId.has(chatId)) statusArchiveByChatId.set(chatId, []);
         statusArchiveByChatId.get(chatId).push({
@@ -1712,6 +1717,27 @@ app.post('/api/status-archive/:chatId/clear', (req, res) => {
   statusArchiveByChatId.delete(chatId);
   saveStatusArchive();
   res.json({ success: true });
+});
+
+// Entfernt nur Einträge mit fehlendem/kaputtem Medium (kein mediaFile oder Datei nicht
+// mehr auf Platte) — Einträge mit Bildunterschrift werden dabei zu reinen Text-Einträgen
+// statt komplett gelöscht zu werden. Im Gegensatz zu /clear bleibt der restliche Verlauf erhalten.
+app.post('/api/status-archive/:chatId/cleanup', (req, res) => {
+  const chatId = req.params.chatId;
+  const entries = statusArchiveByChatId.get(chatId) || [];
+  let removed = 0, converted = 0;
+  const kept = entries.filter(e => {
+    if (e.type !== 'photo' && e.type !== 'video') return true;
+    const fp = e.mediaFile ? path.resolve(MEDIA_DIR, e.mediaFile) : null;
+    const valid = fp && fp.startsWith(path.resolve(MEDIA_DIR) + path.sep) && fs.existsSync(fp);
+    if (valid) return true;
+    if (e.body) { e.type = 'text'; e.mediaFile = null; converted++; return true; }
+    removed++;
+    return false;
+  });
+  statusArchiveByChatId.set(chatId, kept);
+  saveStatusArchive();
+  res.json({ success: true, removed, converted });
 });
 
 // ── Web UI ────────────────────────────────────────────────────────────────────
@@ -2349,6 +2375,7 @@ app.get('/', (req, res) => {
         <h3 id="archive-modal-title" data-i18n="statusArchive">Archiv</h3>
         <div style="display:flex;align-items:center;gap:14px">
           <button class="status-archive-clear" id="archive-modal-export">⬇ <span data-i18n="archiveExport">Als ZIP exportieren</span></button>
+          <button class="status-archive-clear" id="archive-modal-cleanup">🧹 <span data-i18n="archiveCleanup">Fehlerhafte aufräumen</span></button>
           <button class="status-archive-clear" id="archive-modal-clear">🗑 <span data-i18n="archiveClear">Archiv leeren</span></button>
           <button class="archive-modal-close" onclick="closeArchiveModal()">✕</button>
         </div>
@@ -2462,6 +2489,8 @@ app.get('/', (req, res) => {
         btnClose:'Schließen', statusUpdates:'Status',
         statusArchive:'Archiv', archiveClear:'Archiv leeren', archiveClearConfirm:'Archiv für diesen Kontakt wirklich löschen?',
         archiveOpen:(n)=>n+' abgelaufene Statusmeldung'+(n===1?'':'en')+' ansehen', archiveExport:'Als ZIP exportieren',
+        archiveMediaGone:'Medium nicht verfügbar', archiveCleanup:'Fehlerhafte aufräumen',
+        archiveCleanupDone:(r,c)=>r+c===0?'✓ Nichts zu tun':'✓ '+r+' entfernt'+(c?', '+c+' zu Text konvertiert':''),
       },
       en: {
         spinnerConnecting:'Connecting to WhatsApp…', btnReset:'Reset Session',
@@ -2504,6 +2533,8 @@ app.get('/', (req, res) => {
         btnClose:'Close', statusUpdates:'Status',
         statusArchive:'Archive', archiveClear:'Clear archive', archiveClearConfirm:'Really delete the archive for this contact?',
         archiveOpen:(n)=>'View '+n+' expired status update'+(n===1?'':'s'), archiveExport:'Export as ZIP',
+        archiveMediaGone:'Media unavailable', archiveCleanup:'Clean up broken',
+        archiveCleanupDone:(r,c)=>r+c===0?'✓ Nothing to do':'✓ '+r+' removed'+(c?', '+c+' converted to text':''),
       },
     };
     const _browserLang = (navigator.language || '').toLowerCase().startsWith('de') ? 'de' : 'en';
@@ -3502,12 +3533,7 @@ app.get('/', (req, res) => {
           img.addEventListener('click', () => openLightbox(img.src));
         });
       }).catch(() => {});
-      fetch('api/status-archive/' + encodeURIComponent(chatId)).then(r => r.json()).then(sd => {
-        if (!sd.msgs || !sd.msgs.length) return;
-        archiveEl.innerHTML = '<button class="archive-open-btn">🗄 ' + esc(tf('archiveOpen', sd.msgs.length)) + '</button>';
-        const openBtn = archiveEl.querySelector('.archive-open-btn');
-        if (openBtn) openBtn.addEventListener('click', () => openArchiveModal(chatId, nameEl.textContent || fallbackName || chatId));
-      }).catch(() => {});
+      refreshArchiveBadge(chatId, archiveEl, () => nameEl.textContent || fallbackName || chatId);
       try {
         const data = await fetch('api/contact/' + encodeURIComponent(chatId)).then(r => r.json());
         const name = data.name || fallbackName || chatId;
@@ -3564,21 +3590,34 @@ app.get('/', (req, res) => {
     }
     function renderArchiveItem(m) {
       const time = fmtDate(m.timestamp) + ', ' + fmtTime(m.timestamp);
-      let inner;
+      let inner = '';
       if (m.type === 'photo' && m.mediaFile) {
         inner = '<img class="status-img" src="api/media/' + encodeURIComponent(m.mediaFile) + '" loading="lazy">';
       } else if (m.type === 'video' && m.mediaFile) {
         inner = '<video controls src="api/media/' + encodeURIComponent(m.mediaFile) + '"></video>';
-      } else if (m.body) {
-        inner = '<div class="status-text">' + formatText(m.body) + '</div>';
-      } else {
-        return '';
+      } else if (m.type === 'photo' || m.type === 'video') {
+        // mediaFile fehlt (Download beim Erfassen fehlgeschlagen, z.B. Status schon
+        // abgelaufen oder Netzwerkfehler) — Platzhalter statt stillem Drop, sonst
+        // zeigt der Öffnen-Button mehr Einträge an als das Grid enthält
+        inner = '<div class="status-text" style="opacity:0.5">' + (m.type === 'photo' ? '📷' : '📹') + ' ' + esc(t('archiveMediaGone')) + '</div>';
       }
+      if (m.body) inner += '<div class="status-text">' + formatText(m.body) + '</div>';
+      if (!inner) return '';
       return '<div class="status-item">' + inner + '<div class="status-time">' + esc(time) + '</div></div>';
     }
+    function refreshArchiveBadge(chatId, archiveEl, getName) {
+      fetch('api/status-archive/' + encodeURIComponent(chatId)).then(r => r.json()).then(sd => {
+        if (!sd.msgs || !sd.msgs.length) { archiveEl.innerHTML = ''; return; }
+        archiveEl.innerHTML = '<button class="archive-open-btn">🗄 ' + esc(tf('archiveOpen', sd.msgs.length)) + '</button>';
+        const openBtn = archiveEl.querySelector('.archive-open-btn');
+        if (openBtn) openBtn.addEventListener('click', () => openArchiveModal(chatId, getName()));
+      }).catch(() => {});
+    }
     let _archiveChatId = null;
+    let _archiveContactName = null;
     async function openArchiveModal(chatId, contactName) {
       _archiveChatId = chatId;
+      _archiveContactName = contactName;
       document.getElementById('archive-modal-title').textContent = t('statusArchive') + ' — ' + contactName;
       const body = document.getElementById('archive-modal-body');
       body.innerHTML = '';
@@ -3605,6 +3644,21 @@ app.get('/', (req, res) => {
       closeArchiveModal();
       const archiveEl = document.getElementById('contact-modal-archive');
       if (archiveEl) archiveEl.innerHTML = '';
+    });
+    document.getElementById('archive-modal-cleanup').addEventListener('click', async () => {
+      if (!_archiveChatId) return;
+      const label = document.querySelector('#archive-modal-cleanup span');
+      const orig = label.textContent;
+      try {
+        const r = await fetch('api/status-archive/' + encodeURIComponent(_archiveChatId) + '/cleanup', { method: 'POST' }).then(r => r.json());
+        label.textContent = tf('archiveCleanupDone', r.removed || 0, r.converted || 0);
+        await openArchiveModal(_archiveChatId, _archiveContactName);
+        const archiveEl = document.getElementById('contact-modal-archive');
+        if (archiveEl) refreshArchiveBadge(_archiveChatId, archiveEl, () => document.getElementById('contact-modal-name').textContent);
+      } catch(e) {
+        label.textContent = t('spamError');
+      }
+      setTimeout(() => { label.textContent = orig; }, 2500);
     });
     function closeContactModal() {
       document.getElementById('contact-modal').classList.remove('open');

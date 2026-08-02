@@ -43,7 +43,7 @@ if [ ! -f dev_data/options.json ]; then
   "nc_user": "",
   "nc_app_password": "",
   "anthropic_api_key": "",
-  "anthropic_model": "claude-opus-4-8",
+  "anthropic_model": "claude-opus-5",
   "ai_provider": "anthropic",
   "gemini_api_key": "",
   "gemini_model": "gemini-3.1-pro",

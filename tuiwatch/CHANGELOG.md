@@ -1,5 +1,35 @@
 # Changelog
 
+## [0.59.5] - 2026-07-31
+
+### Added
+- **Claude-Modell auf `claude-opus-5` umgestellt** — Nachfolger von
+  `claude-opus-4-8` (gleicher Preis $5/$25 pro 1 Mio. Token, Drop-in-Upgrade
+  laut Anthropic). Neuer Standard für `anthropic_model`; `claude-opus-4-8`
+  komplett aus der Auswahl entfernt (Preistabellen-Eintrag bleibt für
+  bereits gespeicherte alte KI-Analysen). Bestehende Configs mit
+  `claude-opus-4-8` fallen automatisch auf `claude-opus-5` zurück.
+- **Perplexity-Modelle geprüft** (`sonar`, `sonar-pro`, `sonar-reasoning-pro`,
+  `sonar-deep-research`) — alle vier aktuell, Preise stimmen exakt mit der
+  offiziellen Preistabelle überein, keine Änderung nötig.
+
+## [0.59.4] - 2026-07-31
+
+### Added
+- **Gemini-Modelle geprüft und aktualisiert** — laut ai.google.dev/gemini-api/docs/deprecations
+  wird `gemini-2.5-flash` am 16.10.2026 von Google abgeschaltet (Ersatz:
+  `gemini-3.6-flash`). Bisher genutzte Modelle (`gemini-3.1-pro`,
+  `gemini-3.5-flash`, `gemini-2.5-flash`) sind bis dahin weiter nutzbar und
+  noch nicht entfernt. Neu wählbar: `gemini-3.6-flash` (günstiger als 3.5
+  Flash, siehe Preis-Update unten). `gemini-2.5-flash` bleibt vorerst
+  bestehen, sollte aber vor Oktober umgestellt werden.
+- Auch die "Gemini 2.5 Pro"/"Gemini 3 Flash"-EOL-Meldung vom 31.07.2026
+  geprüft — betrifft laut Quelle nur GitHub Copilots Modellauswahl, nicht
+  die Gemini-API selbst; für TUIWatch (direkter API-Zugriff) nicht relevant.
+
+### Fixed
+- APP_VERSION-Konstante in app.py war beim 0.59.3-Commit nicht mitgezogen worden — jetzt nachgeholt.
+
 ## [0.59.3] - 2026-07-31
 - map: `addon_config` → `app_config` (Home-Assistant-Supervisor hat `addon_config` seit 2026.07 als Legacy-Name markiert, neuer Name ist `app_config`).
 

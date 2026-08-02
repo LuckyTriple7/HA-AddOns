@@ -46,8 +46,8 @@ def _cal(days, **extra):
 
 def _mock_notify(m, monkeypatch):
     sink = []
-    monkeypatch.setattr(m, "_notify_ha", lambda title, msg, tag: sink.append(("ha", title, msg, tag)))
-    monkeypatch.setattr(m, "_notify_telegram", lambda text: sink.append(("tg", text)))
+    monkeypatch.setattr(m, "_notify_ha", lambda title, msg, tag, muted=False: sink.append(("ha", title, msg, tag)))
+    monkeypatch.setattr(m, "_notify_telegram", lambda text, muted=False: sink.append(("tg", text)))
     return sink
 
 
