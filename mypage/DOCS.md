@@ -23,6 +23,7 @@
 | `smtp_to` | Empfängeradresse der Benachrichtigungen |
 | `smtp_tls` | `true` für Port 587 (STARTTLS), `false` für Port 465 (SSL) |
 | `user_upload_max_mb` | Maximale Größe pro hochgeladener Datei im Mitglieder-Bereich in MB (1–4096, Standard 200) |
+| `auto_backup_keep` | Anzahl automatischer Tages-Backups, die aufbewahrt werden (0–60, Standard 7). `0` schaltet die automatischen Backups ab |
 | `smb_server` | Optional: Adresse des SMB-/CIFS-Servers für den Mitglieder-Speicher (z. B. FritzBox-NAS). Leer = lokaler Speicher im Add-on-Config-Ordner |
 | `smb_share` | Name der SMB-Freigabe (z. B. `FRITZ.NAS`) |
 | `smb_user` / `smb_password` | Zugangsdaten für die SMB-Freigabe |
@@ -130,6 +131,7 @@ Der Anriss zeigt höchstens die Hälfte des Textes (max. ~280 Zeichen), sodass a
 - **Speicher aufräumen**: Entfernt hochgeladene Bilder, die in keinem Beitrag, keiner Seite, keinem Projekt und keinem Album mehr verwendet werden (z. B. nach dem Löschen einer Seite). Vor dem Löschen werden Anzahl und Größe angezeigt; es werden ausschließlich nicht mehr referenzierte Dateien entfernt (geteilte Bilder bleiben erhalten).
 - **Weiterleitungen (301)**: Leitet alte/geänderte Adressen auf eine neue um — dauerhaft (301) oder temporär (302). Ziel als interner Pfad (`/neue-seite`) oder vollständige URL (`https://…`). Greift **nur für Pfade, die es nicht (mehr) gibt** — bestehende Seiten werden nie überschrieben. Praktisch, wenn du den Slug einer Seite/eines Beitrags geändert hast und alte Links/Lesezeichen weiter funktionieren sollen.
 - **Backup**: Ein Klick lädt ein ZIP mit allen Inhalten, Statistiken, Nachrichten, Blog-Kommentaren, Benutzern, Spielständen und Uploads herunter; über „Backup einspielen" wird es wiederhergestellt.
+- **Automatische Backups**: Einmal täglich legt das Add-on dasselbe ZIP automatisch unter `addon_configs/<slug>_mypage/autobackup/` ab (Dateiname `mypage-auto-JJJJ-MM-TT.zip`). Wie viele Stände aufbewahrt werden, steuert die Option `auto_backup_keep` (Standard 7, `0` schaltet es ab) — ältere werden automatisch gelöscht. Im Tab **System** siehst du die vorhandenen Stände mit Datum und Größe und kannst sie einzeln herunterladen oder löschen; „Jetzt sichern" erzeugt den Stand des Tages sofort neu. Die Sicherungen liegen bewusst **außerhalb** des Backup-Inhalts, damit sie sich nicht gegenseitig aufblähen. Einspielen geht wie gewohnt über „Backup einspielen" mit der heruntergeladenen Datei.
 - **Statischer Export**: Die Seite als fertiges HTML-Paket (deutsch), z. B. für GitHub Pages. Kontaktformular und Sprachumschalter sind im Export deaktiviert.
 
 ## Persönlicher Bereich (Mitglieder)

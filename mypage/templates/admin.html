@@ -1159,6 +1159,12 @@
         <p class="hint">{{ t.restore_hint }}</p>
       </div>
       <div class="panel">
+        <h3>{{ t.autobackup_heading }}</h3>
+        <p class="hint">{{ t.autobackup_hint }}</p>
+        <div id="autobackup-list"></div>
+        <button class="btn secondary" id="autobackup-run" onclick="runAutoBackup()">💾 {{ t.autobackup_run }}</button>
+      </div>
+      <div class="panel">
         <h3>{{ t.cleanup_heading }}</h3>
         <p class="hint">{{ t.cleanup_hint }}</p>
         <button class="btn secondary" id="cleanup-btn" onclick="cleanupUploads()">🧹 {{ t.cleanup_btn }}</button>
@@ -2000,7 +2006,7 @@
         if (btn.dataset.tab === 'messages') { loadMessages(); loadComments(); }
         if (btn.dataset.tab === 'users') { loadUsers(); initStorageBrowser(); startUsersPolling(); }
         if (btn.dataset.tab === 'design') { initPreview(); setTimeout(updatePresetArrows, 50); }
-        if (btn.dataset.tab === 'system') { loadAudit(); loadTwofa(); }
+        if (btn.dataset.tab === 'system') { loadAudit(); loadTwofa(); loadAutoBackups(); }
         if (btn.dataset.tab === 'blog') loadSubscribers();
       });
     });
@@ -3613,6 +3619,54 @@
     }
     function downloadBackup() {
       window.location.href = 'api/backup';
+    }
+    // ── Automatische Backups ──
+    async function loadAutoBackups() {
+      const box = el('autobackup-list');
+      if (!box) return;
+      let d;
+      try {
+        d = await (await api('api/backups')).json();
+      } catch (e) { return; }
+      const runBtn = el('autobackup-run');
+      if (runBtn) runBtn.disabled = !(d.keep > 0);
+      if (!d.keep) {
+        box.innerHTML = `<p class="hint">${T.autobackup_off}</p>`;
+        return;
+      }
+      if (!d.backups.length) {
+        box.innerHTML = `<p class="hint">${T.autobackup_none}</p>`;
+        return;
+      }
+      box.innerHTML = '';
+      d.backups.forEach(b => {
+        const size = b.size >= 1048576 ? (b.size / 1048576).toFixed(1) + ' MB'
+                                       : Math.round(b.size / 1024) + ' KB';
+        const row = document.createElement('div');
+        row.className = 'redirect-row';
+        row.innerHTML =
+          `<span style="flex:1">${b.date} &middot; <span class="hint">${size}</span></span>
+           <button type="button" class="btn secondary small">⬇</button>
+           <button type="button" class="btn danger small">✕</button>`;
+        const [dl, del] = row.querySelectorAll('button');
+        dl.onclick = () => { window.location.href = 'api/backups/' + encodeURIComponent(b.name); };
+        del.onclick = () => deleteAutoBackup(b.name);
+        box.appendChild(row);
+      });
+    }
+    async function runAutoBackup() {
+      const btn = el('autobackup-run');
+      if (btn) btn.disabled = true;
+      const r = await apiJson('api/backups/run', 'POST', {});
+      toast(r.ok ? T.autobackup_done : T.error_save, !r.ok);
+      if (btn) btn.disabled = false;
+      loadAutoBackups();
+    }
+    async function deleteAutoBackup(name) {
+      if (!confirm(T.autobackup_confirm_delete)) return;
+      const r = await apiJson('api/backups/' + encodeURIComponent(name), 'DELETE', {});
+      toast(r.ok ? T.deleted : T.error_save, !r.ok);
+      loadAutoBackups();
     }
     // ── Weiterleitungen (301/302) ──
     function renderRedirects() {

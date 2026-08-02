@@ -110,6 +110,13 @@ MEMBER_AVATARS_DIR.mkdir(parents=True, exist_ok=True)
 # Verschlüsselte Datei-Anhänge der Mitglieder-Nachrichten (lokal, NICHT auf SMB)
 DM_FILES_DIR = Path(_DATA) / 'dm_files'
 DM_FILES_DIR.mkdir(parents=True, exist_ok=True)
+# Automatische tägliche Backups — landen unter addon_configs/<slug>_mypage/autobackup/,
+# also im selben Ordner wie die Daten (map: app_config:rw). Bewusst NICHT Teil des
+# Backup-Inhalts, sonst würde sich jedes Backup mit allen Vorgängern selbst aufblähen.
+BACKUPS_DIR = Path(_DATA) / 'autobackup'
+BACKUPS_DIR.mkdir(parents=True, exist_ok=True)
+AUTO_BACKUP_KEEP_DEFAULT = 7
+_AUTO_BACKUP_RE = re.compile(r'^mypage-auto-\d{4}-\d{2}-\d{2}\.zip$')
 # Erlaubte Spieldateinamen (für Backup/Restore): <spiel>_<uid>.json /
 # <spiel>hist_<uid>.json / gsessions_<uid>.json (Sitzungs-Log)
 _GAME_FILE_RE = re.compile(
@@ -3926,13 +3933,13 @@ def api_newsletter_send():
     return jsonify({'ok': True, 'count': len(confirmed)})
 
 
-@admin_app.route('/api/backup')
-def api_backup():
-    err = _api_auth()
-    if err:
-        return err
-    buf = io.BytesIO()
-    with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as z:
+def write_backup_zip(fp) -> None:
+    """Schreibt ein vollständiges Backup in ein Datei-Objekt (BytesIO oder offene Datei).
+
+    Gemeinsame Basis für den Download-Button und das automatische Backup — damit
+    können beide nicht auseinanderlaufen.
+    """
+    with zipfile.ZipFile(fp, 'w', zipfile.ZIP_DEFLATED) as z:
         for name in ('site.json', 'stats.json', 'messages.json', 'users.json',
                      'comments.json', 'audit.json', 'subscribers.json',
                      'dm.json', 'dm.key', 'admin_2fa.json', 'secret.key'):
@@ -3957,9 +3964,146 @@ def api_backup():
             for f in sorted(DM_FILES_DIR.iterdir()):
                 if f.is_file() and _FID_RE.match(f.name):
                     z.write(f, 'dm_files/' + f.name)
+
+
+def list_auto_backups() -> list:
+    """Vorhandene automatische Backups, neueste zuerst."""
+    try:
+        files = [f for f in BACKUPS_DIR.iterdir()
+                 if f.is_file() and _AUTO_BACKUP_RE.match(f.name)]
+    except OSError:
+        return []
+    out = []
+    for f in sorted(files, key=lambda p: p.name, reverse=True):
+        try:
+            out.append({'name': f.name, 'size': f.stat().st_size,
+                        'date': f.name[12:22]})
+        except OSError:
+            continue
+    return out
+
+
+def _rotate_auto_backups(keep: int) -> None:
+    for old in list_auto_backups()[keep:]:
+        try:
+            (BACKUPS_DIR / old['name']).unlink()
+            log.info("Altes automatisches Backup entfernt: %s", old['name'])
+        except OSError as e:
+            log.warning("Altes Backup '%s' konnte nicht entfernt werden: %s", old['name'], e)
+
+
+def create_auto_backup(keep: int) -> Path | None:
+    """Schreibt das Backup des heutigen Tages (atomar) und rotiert die alten weg."""
+    target = BACKUPS_DIR / f'mypage-auto-{date.today().isoformat()}.zip'
+    tmp = target.with_suffix('.tmp')
+    try:
+        with open(tmp, 'wb') as f:
+            write_backup_zip(f)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, target)   # nie ein halb geschriebenes Backup sichtbar
+    except Exception as e:
+        log.warning("Automatisches Backup fehlgeschlagen: %s", e)
+        try:
+            tmp.unlink(missing_ok=True)
+        except OSError:
+            pass
+        return None
+    log.info("Automatisches Backup erstellt: %s (%.1f MB)",
+             target.name, target.stat().st_size / 1048576)
+    _rotate_auto_backups(keep)
+    return target
+
+
+def auto_backup_loop() -> None:
+    """Sorgt dafür, dass es pro Tag ein Backup gibt.
+
+    Stündlich prüfen statt alle 24 h schlafen: übersteht Neustarts, ohne bei jedem
+    Start ein zusätzliches Backup anzulegen (die Datei des Tages existiert dann schon).
+    """
+    while True:
+        try:
+            keep = int(load_config().get('auto_backup_keep', AUTO_BACKUP_KEEP_DEFAULT) or 0)
+            if keep > 0:
+                if not (BACKUPS_DIR / f'mypage-auto-{date.today().isoformat()}.zip').exists():
+                    create_auto_backup(keep)
+                else:
+                    _rotate_auto_backups(keep)   # geänderte Aufbewahrung sofort anwenden
+        except Exception as e:
+            log.warning("Automatisches Backup: Durchlauf fehlgeschlagen: %s", e)
+        time.sleep(3600)
+
+
+@admin_app.route('/api/backup')
+def api_backup():
+    err = _api_auth()
+    if err:
+        return err
+    buf = io.BytesIO()
+    write_backup_zip(buf)
     buf.seek(0)
     return send_file(buf, mimetype='application/zip', as_attachment=True,
                      download_name=f'mypage-backup-{date.today().isoformat()}.zip')
+
+
+def _auto_backup_path(name: str) -> Path | None:
+    """Pfad zu einem automatischen Backup — nur exakt passende Namen, sonst None."""
+    if not _AUTO_BACKUP_RE.match(name or ''):
+        return None
+    return safe_under(BACKUPS_DIR, name)
+
+
+@admin_app.route('/api/backups')
+def api_backups_list():
+    err = _api_auth()
+    if err:
+        return err
+    keep = int(load_config().get('auto_backup_keep', AUTO_BACKUP_KEEP_DEFAULT) or 0)
+    return jsonify({'backups': list_auto_backups(), 'keep': keep})
+
+
+@admin_app.route('/api/backups/run', methods=['POST'])
+def api_backups_run():
+    err = _api_auth()
+    if err:
+        return err
+    keep = int(load_config().get('auto_backup_keep', AUTO_BACKUP_KEEP_DEFAULT) or 0)
+    if keep <= 0:
+        return jsonify({'error': 'disabled'}), 400
+    target = create_auto_backup(keep)
+    if target is None:
+        return jsonify({'error': 'backup failed'}), 500
+    log_audit('backup_auto_manual', target.name)
+    return jsonify({'ok': True, 'name': target.name})
+
+
+@admin_app.route('/api/backups/<name>')
+def api_backups_download(name: str):
+    err = _api_auth()
+    if err:
+        return err
+    p = _auto_backup_path(name)
+    if p is None or not p.is_file():
+        return jsonify({'error': 'not found'}), 404
+    return send_file(p, mimetype='application/zip', as_attachment=True,
+                     download_name=p.name)
+
+
+@admin_app.route('/api/backups/<name>', methods=['DELETE'])
+def api_backups_delete(name: str):
+    err = _api_auth()
+    if err:
+        return err
+    p = _auto_backup_path(name)
+    if p is None or not p.is_file():
+        return jsonify({'error': 'not found'}), 404
+    try:
+        p.unlink()
+    except OSError:
+        log.warning("Backup '%s' konnte nicht gelöscht werden", p.name)
+        return jsonify({'error': 'delete failed'}), 500
+    log_audit('backup_auto_delete', p.name)
+    return jsonify({'ok': True})
 
 
 @admin_app.route('/api/restore', methods=['POST'])
@@ -8716,6 +8860,7 @@ if __name__ == '__main__':
     threading.Thread(target=_smb_watchdog, daemon=True).start()
     threading.Thread(target=_dm_reminder_worker, daemon=True).start()
     threading.Thread(target=_weekly_review_worker, daemon=True).start()
+    threading.Thread(target=auto_backup_loop, daemon=True).start()
 
     log.info("MyPage bereit — öffentlich: %d, Admin: %d", PUBLIC_PORT, ADMIN_PORT)
     admin_app.run(host='0.0.0.0', port=ADMIN_PORT, debug=False, threaded=True)
