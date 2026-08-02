@@ -44,6 +44,7 @@ except ImportError:
 from flask import (Flask, render_template, request, redirect, url_for,
                    make_response, jsonify, abort, send_from_directory,
                    send_file)
+from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename, safe_join
@@ -83,6 +84,7 @@ USESSIONS_PATH = _DATA + '/user_sessions.json'
 DM_PATH       = _DATA + '/dm.json'          # Mitglieder-Direktnachrichten (Text verschlüsselt)
 DMKEY_PATH    = _DATA + '/dm.key'           # Fernet-Schlüssel für die DM-Verschlüsselung
 TWOFA_PATH    = _DATA + '/admin_2fa.json'   # TOTP-Secret + Backup-Codes (Admin-2FA)
+SECRETKEY_PATH = _DATA + '/secret.key'      # Flask SECRET_KEY (signiert das trust2fa-Cookie)
 POLLS_PATH    = _DATA + '/polls.json'       # Umfrage-Stimmen (getrennt von site.json)
 UPLOADS_DIR   = Path(_DATA) / 'uploads'
 # Benutzerdateien: optional auf SMB-Share (run.sh setzt MYPAGE_USERFILES nach Mount)
@@ -117,8 +119,27 @@ CARDS_DIR = Path(_BASE) / 'static' / 'cards'
 
 # ── Flask-Apps ────────────────────────────────────────────────────────────────
 
+def _load_or_create_secret_key(path: str) -> str:
+    try:
+        if os.path.exists(path):
+            with open(path, encoding='ascii') as f:
+                return f.read().strip()
+        key = secrets.token_hex(32)
+        with open(path, 'w', encoding='ascii') as f:
+            f.write(key)
+        try:
+            os.chmod(path, 0o600)
+        except OSError:
+            pass
+        return key
+    except Exception as e:
+        log.warning("Secret-Key konnte nicht geladen/erzeugt werden: %s", e)
+        return secrets.token_hex(32)   # nur für diesen Prozesslauf gültig
+
+
 public_app = Flask('mypage_public', template_folder=_BASE + '/templates')
 admin_app  = Flask('mypage_admin',  template_folder=_BASE + '/templates')
+admin_app.config['SECRET_KEY'] = _load_or_create_secret_key(SECRETKEY_PATH)
 admin_app.config['MAX_CONTENT_LENGTH'] = 64 * 1024 * 1024   # Backups können größer sein
 # Öffentliche App: großzügig für Mitglieder-Uploads (Limit wird beim Start aus den
 # Optionen gesetzt), Formularfelder (Kontakt) bleiben klein
@@ -1537,8 +1558,13 @@ def _trusted_prune(entries: dict) -> dict:
     return {k: v for k, v in (entries or {}).items() if v > now}
 
 
-def trusted_device_new() -> str:
-    """Neues Geräte-Token erzeugen und serverseitig hinterlegen (gleiches Muster wie create_session())."""
+def _trusted_cookie_serializer() -> URLSafeTimedSerializer:
+    """Signiert/liest den trust2fa-Cookie-Wert — der rohe Token landet nie im Klartext im Cookie."""
+    return URLSafeTimedSerializer(str(admin_app.config.get('SECRET_KEY', '')), salt='trust2fa')
+
+
+def create_trusted_session() -> str:
+    """Neue Geräte-Session anlegen (gleiches Muster wie create_session())."""
     token = secrets.token_hex(32)
     d = load_2fa()
     trusted = _trusted_prune(d.get('trusted'))
@@ -1548,8 +1574,12 @@ def trusted_device_new() -> str:
     return token
 
 
-def trusted_device_valid(token: str | None) -> bool:
-    if not token:
+def is_trusted_session_valid(cookie_value: str | None) -> bool:
+    if not cookie_value:
+        return False
+    try:
+        token = _trusted_cookie_serializer().loads(cookie_value, max_age=TRUSTED_DEVICE_DAYS * 86400)
+    except (BadSignature, SignatureExpired):
         return False
     d = load_2fa()
     trusted = _trusted_prune(d.get('trusted'))
@@ -3151,9 +3181,10 @@ def login():
     def _grant_session_trusted(ip):
         resp = _grant_session(ip)
         if request.form.get('remember_device'):
-            trusted_token = trusted_device_new()
-            if trusted_token:
-                resp.set_cookie('trust2fa', trusted_token, httponly=True, samesite='Lax',
+            token = create_trusted_session()
+            if token:
+                cookie_value = _trusted_cookie_serializer().dumps(token)
+                resp.set_cookie('trust2fa', cookie_value, httponly=True, samesite='Lax',
                                  max_age=TRUSTED_DEVICE_DAYS * 86400)
         return resp
 
@@ -3180,7 +3211,7 @@ def login():
             pwd   = request.form.get('password', '')
             if (secrets.compare_digest(uname, str(cfg.get('username', 'admin'))) and
                     secrets.compare_digest(pwd, str(cfg.get('password', '')))):
-                if twofa_enabled() and not trusted_device_valid(request.cookies.get('trust2fa')):
+                if twofa_enabled() and not is_trusted_session_valid(request.cookies.get('trust2fa')):
                     pre = _pending_2fa_new()
                     resp = make_response(render_template('login.html', t=t, lang=lang,
                                                          error=None, step='code'))
@@ -3872,7 +3903,7 @@ def api_backup():
     with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as z:
         for name in ('site.json', 'stats.json', 'messages.json', 'users.json',
                      'comments.json', 'audit.json', 'subscribers.json',
-                     'dm.json', 'dm.key', 'admin_2fa.json'):
+                     'dm.json', 'dm.key', 'admin_2fa.json', 'secret.key'):
             p = Path(_DATA) / name
             if p.is_file():
                 z.write(p, name)
@@ -3920,7 +3951,7 @@ def api_restore():
                               'comments.json', 'audit.json', 'subscribers.json', 'dm.json',
                               'admin_2fa.json'):
                     target = safe_under(Path(_DATA), member)
-                elif member == 'dm.key':  # Binär-Schlüssel, kein JSON
+                elif member in ('dm.key', 'secret.key'):  # Binär-/Text-Schlüssel, kein JSON
                     target = safe_under(Path(_DATA), member)
                 elif member.startswith('uploads/'):
                     name = secure_filename(Path(member).name)

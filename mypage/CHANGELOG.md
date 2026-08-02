@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.8.7
+- Fix: trust2fa-Cookie wird jetzt mit `itsdangerous.URLSafeTimedSerializer` signiert (Flask `SECRET_KEY` in `secret.key`) statt den rohen Token direkt zu speichern — genau der Fix, den GitHubs eigener CodeQL-Autofix für Alert #193 vorgeschlagen hat. Der 0.8.6-Versuch (Token 1:1 wie beim session-Cookie speichern) hat den Alert nicht behoben.
+
 ## 0.8.6
 - Fix: trust2fa-Speicherung auf das gleiche Muster wie normale Admin-Sessions umgestellt (Zufalls-Token als Dict-Key in `admin_2fa.json`, mit Ablaufzeit) statt Hash-Vergleich. Der 0.8.5-Versuch (Fernet-Verschlüsselung des Cookie-Werts) wurde von CodeQL trotzdem als „clear-text storage of sensitive data" erkannt (neuer Alert #193) — CodeQL erkennt die Hash-Vergleich-Formel als Credential-Muster, unabhängig von der Verschlüsselung. Das jetzige Muster entspricht exakt dem seit Jahren unauffälligen `session`-Cookie.
 
