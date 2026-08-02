@@ -45,6 +45,7 @@ from flask import (Flask, render_template, request, redirect, url_for,
                    make_response, jsonify, abort, send_from_directory,
                    send_file)
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
+from waitress import serve
 from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename, safe_join
@@ -8817,8 +8818,28 @@ def custom_page(slug: str):
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 
+def _serve(app, port: int, threads: int) -> None:
+    """Startet eine App mit Waitress (produktionstauglicher WSGI-Server).
+
+    Der in Flask eingebaute Werkzeug-Server ist ein Entwicklungsserver: er legt pro
+    Anfrage einen neuen Thread an (unbegrenzt) und kennt weder Verbindungslimit noch
+    Timeout für hängende Verbindungen. Waitress arbeitet mit festem Thread-Pool und
+    Warteschlange, puffert Anfragen/Antworten und begrenzt beides.
+    """
+    opts = {}
+    # An MAX_CONTENT_LENGTH koppeln, sonst würde Waitress große Uploads schon abweisen,
+    # bevor Flask sein eigenes (konfigurierbares) Limit prüft. Nur setzen wenn bekannt —
+    # Waitress lehnt None ab (TypeError) und hat sonst einen sinnvollen Standard (1 GB).
+    limit = int(app.config.get('MAX_CONTENT_LENGTH') or 0)
+    if limit > 0:
+        opts['max_request_body_size'] = limit
+    serve(app, host='0.0.0.0', port=port, threads=threads,
+          ident=None,   # keine Server-Version im Response-Header
+          **opts)
+
+
 def _run_public():
-    public_app.run(host='0.0.0.0', port=PUBLIC_PORT, debug=False, threaded=True)
+    _serve(public_app, PUBLIC_PORT, threads=8)
 
 
 def _handle_sigterm(signum, frame) -> None:
@@ -8863,4 +8884,4 @@ if __name__ == '__main__':
     threading.Thread(target=auto_backup_loop, daemon=True).start()
 
     log.info("MyPage bereit — öffentlich: %d, Admin: %d", PUBLIC_PORT, ADMIN_PORT)
-    admin_app.run(host='0.0.0.0', port=ADMIN_PORT, debug=False, threaded=True)
+    _serve(admin_app, ADMIN_PORT, threads=4)

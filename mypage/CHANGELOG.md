@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.10
+- ⚙️ **Produktions-Webserver (Waitress) statt Flask-Entwicklungsserver.** Beide Ports liefen bisher über den in Flask eingebauten Werkzeug-Server, der ausdrücklich nicht für den Produktivbetrieb gedacht ist: er legt **pro Verbindung einen Thread** an — ohne Obergrenze — und kennt weder Verbindungslimit noch Timeout für hängende Verbindungen. Gemessen im Vergleich: bei 300 gleichzeitigen Zugriffen brauchte Werkzeug **301 Threads**, Waitress konstant **21** (fester Thread-Pool mit Warteschlange davor, 8 Threads öffentlich / 4 im Admin). Der Ressourcenverbrauch ist damit gedeckelt statt offen.
+- Tempo und Verhalten bleiben im Alltag gleich (Durchsatz ~40–60 Seiten/s, begrenzt durch Python selbst, nicht durch den Server); unter hoher Last antwortet Waitress etwas zügiger (bei 200 gleichzeitig: 53,5 statt 40,1 Anfragen/s). Keine Anfrage schlug in den Tests fehl.
+- Der `Server`-Header entfällt (`ident=None`) — vorher standen dort Werkzeug- und Python-Version.
+- Das Upload-Limit wird an Waitress durchgereicht, damit große Dateien nicht schon vom Webserver abgewiesen werden, bevor die konfigurierte Grenze (`user_upload_max_mb`) greift.
+
 ## 0.8.9
 - 💾 **Automatische tägliche Backups.** Das Add-on legt einmal pro Tag dasselbe vollständige ZIP wie der Download-Button automatisch unter `addon_configs/<slug>_mypage/autobackup/` ab (`mypage-auto-JJJJ-MM-TT.zip`). Die neue Option **`auto_backup_keep`** steuert, wie viele Stände aufbewahrt werden (Standard 7, `0` = aus); ältere werden automatisch gelöscht. Damit gibt es endlich einen sauberen Vorgängerstand, wenn eine Datei beschädigt wird oder etwas versehentlich gelöscht wurde — bisher existierte nur das manuelle Backup.
 - Neues Panel **„Automatische Backups"** im Tab *System*: vorhandene Stände mit Datum und Größe, einzeln herunterladbar und löschbar, plus Knopf **„Jetzt sichern"**. Vollständig DE/EN lokalisiert, inklusive der Beschreibung der neuen Option in den Add-on-Einstellungen.
