@@ -537,6 +537,49 @@ def _inject_font():
 
 # ── Config, Site-Daten & Sessions ─────────────────────────────────────────────
 
+def _atomic_write_json(path: str, data, *, indent: int | None = None,
+                       ensure_ascii: bool = False, mode: int | None = None) -> None:
+    """Schreibt JSON atomar: erst vollständig in <datei>.tmp, dann os.replace().
+
+    Ein einfaches open(path, 'w') kürzt die Zieldatei sofort auf 0 Byte. Stirbt der
+    Prozess in diesem Moment (z. B. SIGKILL beim Add-on-Stop), bleibt eine leere oder
+    halbe Datei zurück. os.replace() ist auf einem Dateisystem atomar — es existiert
+    immer entweder der alte oder der neue Stand, nie etwas dazwischen.
+    """
+    tmp = f'{path}.tmp'
+    with open(tmp, 'w', encoding='utf-8') as f:
+        json.dump(data, f, indent=indent, ensure_ascii=ensure_ascii)
+        f.flush()
+        os.fsync(f.fileno())   # erst auf die Platte, dann umbenennen
+    if mode is not None:
+        try:
+            os.chmod(tmp, mode)   # Rechte vor dem Umbenennen setzen — kein offenes Fenster
+        except OSError:
+            pass
+    os.replace(tmp, path)
+
+
+def _quarantine_corrupt(path: str, exc: Exception) -> None:
+    """Beschädigte Datei zur Seite legen, statt sie beim nächsten Speichern zu verlieren.
+
+    Ohne das würde nach einem Lesefehler mit Standardwerten weitergearbeitet und der
+    nächste save_*()-Aufruf die (evtl. reparierbaren) Reste überschreiben.
+    """
+    name = os.path.basename(path)
+    try:
+        backup = f'{path}.corrupt-{datetime.now().strftime("%Y%m%d-%H%M%S")}'
+        os.replace(path, backup)
+        log.error("%s ist beschädigt (%s) — gesichert als %s. Es wird mit Standardwerten "
+                  "weitergearbeitet!", name, exc, os.path.basename(backup))
+    except Exception as e:
+        log.error("%s ist beschädigt (%s) und konnte nicht gesichert werden: %s", name, exc, e)
+    notify_ha_async(
+        '⚠️ MyPage: Beschädigte Datendatei',
+        f'{name} konnte nicht gelesen werden und wurde zur Seite gelegt. '
+        f'MyPage arbeitet vorerst mit Standardwerten — bitte ein Backup einspielen.',
+        notification_id=f'mypage_corrupt_{name}')
+
+
 def load_config() -> dict:
     global _config_cache, _config_mtime
     try:
@@ -558,7 +601,9 @@ def load_site() -> dict:
         except FileNotFoundError:
             return json.loads(json.dumps(DEFAULT_SITE))
         except Exception as e:
-            log.warning("site.json konnte nicht geladen werden: %s", e)
+            # Beschädigte site.json nicht still mit Defaults überschreiben — sonst
+            # setzt der nächste save_site() die komplette Seite zurück.
+            _quarantine_corrupt(SITE_PATH, e)
             return json.loads(json.dumps(DEFAULT_SITE))
     # Fehlende Schlüssel mit Defaults auffüllen (für Updates)
     for section, defaults in DEFAULT_SITE.items():
@@ -573,8 +618,7 @@ def load_site() -> dict:
 def save_site(data: dict) -> None:
     with _site_lock:
         try:
-            with open(SITE_PATH, 'w', encoding='utf-8') as f:
-                json.dump(data, f, indent=2, ensure_ascii=False)
+            _atomic_write_json(SITE_PATH, data, indent=2)
         except Exception as e:
             log.warning("site.json konnte nicht gespeichert werden: %s", e)
 
@@ -587,15 +631,14 @@ def load_stats() -> dict:
         except FileNotFoundError:
             return {'total': 0, 'days': {}}
         except Exception as e:
-            log.warning("stats.json konnte nicht geladen werden: %s", e)
+            _quarantine_corrupt(STATS_PATH, e)
             return {'total': 0, 'days': {}}
 
 
 def save_stats(data: dict) -> None:
     with _stats_lock:
         try:
-            with open(STATS_PATH, 'w', encoding='utf-8') as f:
-                json.dump(data, f)
+            _atomic_write_json(STATS_PATH, data)
         except Exception as e:
             log.warning("stats.json konnte nicht gespeichert werden: %s", e)
 
@@ -608,15 +651,14 @@ def load_messages() -> list:
         except FileNotFoundError:
             return []
         except Exception as e:
-            log.warning("messages.json konnte nicht geladen werden: %s", e)
+            _quarantine_corrupt(MESSAGES_PATH, e)
             return []
 
 
 def save_messages(data: list) -> None:
     with _msg_lock:
         try:
-            with open(MESSAGES_PATH, 'w', encoding='utf-8') as f:
-                json.dump(data[-MESSAGES_MAX:], f, indent=2, ensure_ascii=False)
+            _atomic_write_json(MESSAGES_PATH, data[-MESSAGES_MAX:], indent=2)
         except Exception as e:
             log.warning("messages.json konnte nicht gespeichert werden: %s", e)
 
@@ -636,15 +678,14 @@ def load_comments() -> dict:
         except FileNotFoundError:
             return {}
         except Exception as e:
-            log.warning("comments.json konnte nicht geladen werden: %s", e)
+            _quarantine_corrupt(COMMENTS_PATH, e)
             return {}
 
 
 def save_comments(data: dict) -> None:
     with _comments_lock:
         try:
-            with open(COMMENTS_PATH, 'w', encoding='utf-8') as f:
-                json.dump(data, f, indent=2, ensure_ascii=False)
+            _atomic_write_json(COMMENTS_PATH, data, indent=2)
         except Exception as e:
             log.warning("comments.json konnte nicht gespeichert werden: %s", e)
 
@@ -668,15 +709,14 @@ def load_poll_votes() -> dict:
         except FileNotFoundError:
             return {}
         except Exception as e:
-            log.warning("polls.json konnte nicht geladen werden: %s", e)
+            _quarantine_corrupt(POLLS_PATH, e)
             return {}
 
 
 def save_poll_votes(data: dict) -> None:
     with _polls_lock:
         try:
-            with open(POLLS_PATH, 'w', encoding='utf-8') as f:
-                json.dump(data, f, ensure_ascii=False)
+            _atomic_write_json(POLLS_PATH, data)
         except Exception as e:
             log.warning("polls.json konnte nicht gespeichert werden: %s", e)
 
@@ -854,15 +894,14 @@ def load_dm() -> list:
         except FileNotFoundError:
             return []
         except Exception as e:
-            log.warning("dm.json konnte nicht geladen werden: %s", e)
+            _quarantine_corrupt(DM_PATH, e)
             return []
 
 
 def save_dm(data: list) -> None:
     with _dm_lock:
         try:
-            with open(DM_PATH, 'w', encoding='utf-8') as f:
-                json.dump(data, f, indent=2, ensure_ascii=False)
+            _atomic_write_json(DM_PATH, data, indent=2)
         except Exception as e:
             log.warning("dm.json konnte nicht gespeichert werden: %s", e)
 
@@ -1206,15 +1245,14 @@ def load_subscribers() -> list:
         except FileNotFoundError:
             return []
         except Exception as e:
-            log.warning("subscribers.json konnte nicht geladen werden: %s", e)
+            _quarantine_corrupt(SUBSCRIBERS_PATH, e)
             return []
 
 
 def save_subscribers(data: list) -> None:
     with _subs_lock:
         try:
-            with open(SUBSCRIBERS_PATH, 'w', encoding='utf-8') as f:
-                json.dump(data, f, indent=2, ensure_ascii=False)
+            _atomic_write_json(SUBSCRIBERS_PATH, data, indent=2)
         except Exception as e:
             log.warning("subscribers.json konnte nicht gespeichert werden: %s", e)
 
@@ -1343,8 +1381,7 @@ def _email_html(title: str, lines: list[str]) -> str:
 def save_sessions() -> None:
     try:
         now = time.time()
-        with open(SESSIONS_PATH, 'w') as f:
-            json.dump({k: v for k, v in sessions.items() if v > now}, f)
+        _atomic_write_json(SESSIONS_PATH, {k: v for k, v in sessions.items() if v > now})
     except Exception as e:
         log.warning("Sessions konnten nicht gespeichert werden: %s", e)
 
@@ -1443,19 +1480,15 @@ def load_2fa() -> dict:
         except FileNotFoundError:
             return {}
         except Exception as e:
-            log.warning("admin_2fa.json konnte nicht geladen werden: %s", e)
+            # Sicherheitsrelevant: ohne lesbare Datei gilt 2FA als deaktiviert
+            _quarantine_corrupt(TWOFA_PATH, e)
             return {}
 
 
 def save_2fa(data: dict) -> None:
     with _2fa_lock:
         try:
-            with open(TWOFA_PATH, 'w', encoding='utf-8') as f:
-                json.dump(data, f, indent=2)
-            try:
-                os.chmod(TWOFA_PATH, 0o600)
-            except OSError:
-                pass
+            _atomic_write_json(TWOFA_PATH, data, indent=2, mode=0o600)
         except Exception as e:
             log.warning("admin_2fa.json konnte nicht gespeichert werden: %s", e)
 
@@ -1891,15 +1924,14 @@ def load_users() -> list:
         except FileNotFoundError:
             return []
         except Exception as e:
-            log.warning("users.json konnte nicht geladen werden: %s", e)
+            _quarantine_corrupt(USERS_PATH, e)
             return []
 
 
 def save_users(users: list) -> None:
     with _users_lock:
         try:
-            with open(USERS_PATH, 'w', encoding='utf-8') as f:
-                json.dump(users, f, indent=2, ensure_ascii=False)
+            _atomic_write_json(USERS_PATH, users, indent=2)
         except Exception as e:
             log.warning("users.json konnte nicht gespeichert werden: %s", e)
 
@@ -2053,8 +2085,8 @@ def invalidate_user_sessions(uid: str, keep: str | None = None) -> int:
 def save_user_sessions() -> None:
     try:
         now = time.time()
-        with open(USESSIONS_PATH, 'w') as f:
-            json.dump({k: v for k, v in user_sessions.items() if v[1] > now}, f)
+        _atomic_write_json(USESSIONS_PATH,
+                           {k: v for k, v in user_sessions.items() if v[1] > now})
     except Exception as e:
         log.warning("User-Sessions konnten nicht gespeichert werden: %s", e)
 
