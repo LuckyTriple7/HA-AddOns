@@ -19,7 +19,7 @@ configuration:
     description: "Führt 1×/Tag je Region (aus deinen gespeicherten Suchen und getrackten Angeboten) eine Hotelsuche aus und berechnet den Markttrend aus allen gefundenen Hotels statt nur aus deinen Angeboten. Deutlich breitere Basis. Standard an."
   market_basket_lead_days:
     name: Vorlaufzeit für den Warenkorb (Tage)
-    description: "Für welchen Abreisetermin der tägliche Warenkorb sucht — immer „heute + X Tage", damit die Vorlaufzeit konstant bleibt und nicht der Last-Minute-Effekt gemessen wird. Standard 91 (Vielfaches von 7 → gleicher Wochentag, keine Wochenend-Preissprünge)."
+    description: "Für welchen Abreisetermin der tägliche Warenkorb sucht — immer „heute + X Tage“, damit die Vorlaufzeit konstant bleibt und nicht der Last-Minute-Effekt gemessen wird. Standard 91 (Vielfaches von 7 → gleicher Wochentag, keine Wochenend-Preissprünge)."
   market_basket_max_regions:
     name: Maximale Regionen im Warenkorb
     description: "Obergrenze für die täglich abgefragten Regionen (1…50). Reiner Lastschutz: je 50 Hotels einer Region fällt ein API-Aufruf pro Tag an (typisch 1–6). Werden mehr Regionen gefunden als erlaubt, nennt das Add-on-Log die weggelassenen. Standard 20."

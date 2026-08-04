@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.60.4] - 2026-08-04
+
+### Fixed
+- **Add-on-Einstellungen erschienen komplett auf Englisch.** In der neuen
+  Beschreibung zu `market_basket_lead_days` stand in `translations/de.yaml` ein
+  ASCII-Anführungszeichen mitten in einem doppelt-gequoteten Text
+  (`„heute + X Tage"`). Das beendet den YAML-String vorzeitig, die ganze Datei
+  war unparsebar — und Home Assistant fällt in dem Fall **kommentarlos** auf
+  `en.yaml` zurück, ohne Fehlermeldung oder Log-Eintrag. Zeichen korrigiert.
+- **Neuer Test `tests/test_yaml_valid.py`** prüft `config.yaml` und beide
+  Übersetzungsdateien auf gültiges YAML und darauf, dass jede Option in beiden
+  Sprachen Name und Beschreibung hat — damit dieser stille Rückfall nicht
+  wieder unbemerkt passiert.
+
 ## [0.60.3] - 2026-08-04
 
 ### Fixed
