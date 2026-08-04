@@ -90,14 +90,15 @@ def _build_backup_zip() -> bytes:
                         for r in con.execute(
                             'SELECT ts, region, country, months_out, pct_change '
                             'FROM price_moves ORDER BY ts').fetchall()]
-        # Warenkorb-Tagesbewegungen (Regions-Markttrend): nur die verdichteten Werte,
-        # nicht die Roh-Snapshots — die sind groß, werden ohnehin nach 120 Tagen
-        # verworfen und entstehen täglich neu. Der Index seit Aufzeichnungsbeginn
-        # hängt dagegen allein an diesen Zeilen, deshalb gehören sie ins Backup.
+        # Warenkorb-Tagesbewegungen (Markttrend je gespeicherter Suche): nur die
+        # verdichteten Werte, nicht die Roh-Snapshots — die sind groß, werden ohnehin
+        # nach 120 Tagen verworfen und entstehen täglich neu. Der Index seit
+        # Aufzeichnungsbeginn hängt dagegen allein an diesen Zeilen, deshalb gehören
+        # sie ins Backup.
         basket_moves = [dict(r) for r in con.execute(
-            'SELECT ts, day, region, prev_day, gap_days, pct_median, n_matched, n_total '
+            'SELECT ts, day, basket, prev_day, gap_days, pct_median, n_matched, n_total '
             'FROM basket_moves ORDER BY day').fetchall()]
-    data = {'tuiwatch_backup': 6, 'created': datetime.now().isoformat(),
+    data = {'tuiwatch_backup': 7, 'created': datetime.now().isoformat(),
             'offers': offers, 'trips': trips, 'saved_searches': searches,
             'trip_attachments': attachments, 'trip_packing_items': packing_items,
             'ai_analyses': ai_analyses, 'meta': meta, 'price_moves': price_moves,
@@ -296,7 +297,7 @@ def api_restore():
     ai_analyses = data.get('ai_analyses') or []
     meta = data.get('meta') or {}
     price_moves = data.get('price_moves') or []
-    basket_moves = data.get('basket_moves') or []   # erst ab Backup-Version 6
+    basket_moves = data.get('basket_moves') or []   # erst ab Backup-Version 7 nutzbar
     added, skipped, new_ids = 0, 0, []
     trips_n, searches_n, attachments_n, packing_n, ai_n, settings_n, moves_n = 0, 0, 0, 0, 0, 0, 0
     basket_n = 0
@@ -457,24 +458,34 @@ def api_restore():
                 existing_moves.add(key)
                 moves_n += 1
         if isinstance(basket_moves, list) and basket_moves:
-            # (region, day) ist eindeutig — vorhandene Tage bleiben unangetastet
+            # (basket, day) ist eindeutig — vorhandene Tage bleiben unangetastet
             # (nicht-destruktiv wie der übrige Restore), fehlende kommen dazu.
-            existing_days = {(r['region'], r['day']) for r in con.execute(
-                'SELECT region, day FROM basket_moves').fetchall()}
+            # Backup-Version 6 schlüsselte noch nach `region` (Warenkorb je Region,
+            # konstante Vorlaufzeit). Diese Werte haben eine andere Preisbasis und
+            # dürfen nicht mit den heutigen verkettet werden — sie werden ignoriert.
+            existing_days = {(r['basket'], r['day']) for r in con.execute(
+                'SELECT basket, day FROM basket_moves').fetchall()}
+            skipped_v6 = 0
             for bm in basket_moves:
                 if not isinstance(bm, dict) or bm.get('pct_median') is None:
                     continue
-                key = (bm.get('region') or '', bm.get('day') or '')
+                if 'basket' not in bm:
+                    skipped_v6 += 1
+                    continue
+                key = (bm.get('basket') or '', bm.get('day') or '')
                 if not key[1] or key in existing_days:
                     continue
                 con.execute(
-                    'INSERT INTO basket_moves (ts, day, region, prev_day, gap_days, '
+                    'INSERT INTO basket_moves (ts, day, basket, prev_day, gap_days, '
                     'pct_median, n_matched, n_total) VALUES (?,?,?,?,?,?,?,?)',
                     (int(bm.get('ts') or 0), key[1], key[0], bm.get('prev_day') or '',
                      bm.get('gap_days') or 1, bm['pct_median'],
                      int(bm.get('n_matched') or 0), int(bm.get('n_total') or 0)))
                 existing_days.add(key)
                 basket_n += 1
+            if skipped_v6:
+                A.log.info("Wiederherstellung: %d Warenkorb-Tage aus einem älteren "
+                           "Backup übersprungen (andere Preisbasis)", skipped_v6)
         if isinstance(meta, dict):
             # Nicht-destruktiv wie der Rest des Restores: nur setzen, wenn lokal noch
             # nichts hinterlegt ist — laufende Zaehler/Einstellungen werden nie mit

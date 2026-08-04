@@ -21,9 +21,9 @@ notify_booked_drop: true # Alarm, wenn Preis unter den gebuchten Preis fällt
 booked_drop_min_diff: 50 # Mindest-Ersparnis dafür (€)
 digest_enabled: false    # wöchentlicher Überblick (Telegram/E-Mail)
 digest_weekday: 1        # Versandtag (1 = Mo … 7 = So)
-market_basket_enabled: true   # Markttrend aus täglicher Regionssuche (breitere Basis)
-market_basket_lead_days: 91   # Abreise „heute + X Tage" für den Warenkorb (14…365)
-market_basket_max_regions: 20 # Obergrenze für die täglich abgefragten Regionen (1…50)
+market_basket_enabled: true   # Markttrend aus den täglich neu ausgeführten Suchen
+market_basket_lead_days: 91   # Ersatz-Abreise, nur wenn kein echtes Datum vorliegt
+market_basket_max_regions: 20 # Obergrenze für die täglich abgefragten Warenkörbe (1…50)
 anthropic_api_key: ""    # Anthropic API-Key, aktiviert das KI-Fazit (leer = aus)
 anthropic_model: claude-opus-5  # oder claude-sonnet-5 / claude-haiku-4-5 / claude-fable-5
 ai_provider: anthropic   # oder gemini / perplexity (gilt fuer ALLE KI-Features)
@@ -503,7 +503,7 @@ einem HA-Neustart wieder verfügbar, ohne auf den nächsten Live-Check zu warten
 
 Außerdem `sensor.tuiwatch_markttrend`: **Wert** = kumulierte Preisänderung (%) der
 letzten 14 Tage, oder `unknown` bei zu wenigen Datenpunkten. Als Quelle hat der
-**Regions-Warenkorb** Vorrang (breitere Basis), erst ersatzweise der Trend aus den
+**Warenkorb** Vorrang (breitere Basis), erst ersatzweise der Trend aus den
 eigenen Angeboten — welche gerade greift, sagt das Attribut `source`
 (`basket`/`offers`). Attribute: `direction` (up/down/flat), `days` (seit wie vielen
 Tagen die Richtung anhält), `samples` (Datenpunkte bzw. Warenkorb-Tage), `hotels`
@@ -552,22 +552,32 @@ davon, ob ein einzelnes Angebot später gelöscht wird.
   angefragter Reisedauer geschätzt (kein exaktes Abreisedatum gespeichert) und fließt
   aktuell nicht in die UI-Anzeige ein, ist aber intern je Datenpunkt vorhanden.
 
-### Regions-Warenkorb (breitere Basis)
+### Warenkorb aus den gespeicherten Suchen (breitere Basis)
 
 Der oben beschriebene Trend sieht nur die **eigenen** getrackten Angebote — je
-Destination oft nur ein bis zwei Hotels. Zusätzlich läuft daher **1×/Tag je Region
-eine ganz normale Hotelsuche**, deren Treffer als Warenkorb-Snapshot gespeichert
-werden — die Region **vollständig**, nicht nur die ersten Seiten (typisch 30–300
-Hotels je Region). Im Markttrend-Fenster steht dieser Block oben
-(**🧺 Regions-Warenkorb**), der Angebots-Trend darunter.
+Reiseziel oft nur ein bis zwei Hotels. Zusätzlich läuft daher **1×/Tag jede deiner
+gespeicherten Suchen** noch einmal — mit **deinen Reiseterminen**, deiner Dauer und
+deinen Filtern. Alle Treffer landen als Warenkorb-Snapshot in der Datenbank, die Suche
+**vollständig**, nicht nur die ersten Seiten (typisch 30–300 Hotels). Im
+Markttrend-Fenster steht dieser Block oben (**🧺 Warenkorb**), der Angebots-Trend
+darunter.
 
-- **Regionen** werden automatisch abgeleitet: zuerst die Ziele der **gespeicherten
-  Suchen**, danach die Regionen der **getrackten Angebote**. Keine giataId-Pflege
-  nötig. Die Obergrenze steht in `market_basket_max_regions` (Standard 20, erlaubt
-  1…50) und ist reiner Lastschutz — je 50 Hotels einer Region fällt ein API-Aufruf
-  pro Tag an (typisch 1–6). Werden mehr
-  Regionen gefunden als erlaubt, nennt das Add-on-Log die weggelassenen; sie fallen
-  also nicht stillschweigend weg.
+Der Trend heißt damit: „alle Hotels für meinen Mai-Termin auf Teneriffa sind diese
+Woche 3 % gefallen" — die Zahl, die bei der Buchungsentscheidung hilft.
+
+- **Ein Warenkorb je gespeicherter Suche**, nicht je Region. Zwei Suchen für dasselbe
+  Ziel mit verschiedenen Terminen ergeben zwei getrennte Warenkörbe — das sind
+  verschiedene Märkte. Angelegt wird ein Warenkorb, indem du eine Suche speicherst;
+  ein Suchabo (Schwellenpreis) ist dafür **nicht** nötig.
+- **Getrackte Angebote ohne gespeicherte Suche** bekommen ebenfalls einen Warenkorb:
+  Ziel = Region des Hotels, Termin = Abreisedatum des Angebots (Rückreise minus
+  Dauer). Nur wenn dort gar kein Datum steht, greift ersatzweise die konstante
+  Vorlaufzeit `market_basket_lead_days`.
+- **Abgelaufene Reisezeiträume** fallen automatisch raus.
+- Die Obergrenze steht in `market_basket_max_regions` (Standard 20, erlaubt 1…50) und
+  ist reiner Lastschutz — je 50 Hotels ein API-Aufruf pro Tag (typisch 1–6 je Suche).
+  Werden mehr Warenkörbe gefunden als erlaubt, nennt das Add-on-Log die weggelassenen;
+  sie fallen also nicht stillschweigend weg.
 - **Vergleich je Hotel, nicht je Durchschnitt** („Matched Pairs"): jedes Hotel wird
   mit sich selbst vom Vortag verglichen. Hotels, die nur in einem der beiden
   Snapshots stehen (ausgebucht, neu dazugekommen), zählen nicht — ein Vergleich der
@@ -577,28 +587,27 @@ Hotels je Region). Im Markttrend-Fenster steht dieser Block oben
   günstigste Angebot, dessen Zimmerkategorie steht in keinem Feld und kann wechseln —
   solche Ausreißer würden einen Mittelwert verzerren.
 - **Verpflegung/Dauer müssen übereinstimmen**, sonst wird das Hotel-Paar übersprungen
-  (Sprung von HP auf AI ist ein anderer Angebotstyp, kein Marktsignal).
-- **Konstante Vorlaufzeit:** gesucht wird immer für „heute + `market_basket_lead_days`"
-  (Standard **91** Tage = Vielfaches von 7, damit der Wochentag konstant bleibt und
-  keine Wochenend-Preissprünge entstehen). Das Abreisedatum wandert dadurch täglich
-  einen Tag weiter — für alle Hotels gleich. Ein *festes* Datum wäre die Alternative,
-  würde aber die Vorlaufzeit täglich schrumpfen lassen und damit den Last-Minute-Effekt
-  mitmessen statt den Markt.
-- **Verkettung erst auf Tagesebene:** je Region und Tag wird **ein** Median abgelegt,
-  erst diese Tageswerte werden über die Zeit verkettet. Ein Trend braucht mindestens
-  zwei Tage mit je mindestens 10 vergleichbaren Hotels; Lücken über 7 Tage (Add-on
-  war aus) starten die Kette neu.
-- **Bedienung:** **🧺 Warenkorb jetzt füllen** stößt einen Lauf sofort an (läuft im
-  Hintergrund; acht Regionen dauern rund zehn Sekunden), 🗑 je Zeile löscht die
-  Daten einer Region und beginnt neu.
+  (Sprung von HP auf AI ist ein anderer Angebotstyp, kein Marktsignal). Das
+  Abreise**datum** wird bewusst *nicht* verglichen: Sucht die Suche über einen
+  Zeitraum (z. B. den ganzen Mai), ist der günstigste Termin innerhalb des Fensters
+  genau die interessante Zahl — wandert er, ist das die gesuchte Information.
+- **Verkettung erst auf Tagesebene:** je Warenkorb und Tag wird **ein** Median
+  abgelegt, erst diese Tageswerte werden über die Zeit verkettet. Ein Trend braucht
+  mindestens zwei Tage mit je mindestens 10 vergleichbaren Hotels; Lücken über 7 Tage
+  (Add-on war aus) starten die Kette neu.
+- **Bedienung:** **🧺 Warenkorb jetzt füllen** stößt einen Lauf sofort an. Er läuft im
+  Hintergrund, ein **Fortschrittsbalken** zeigt „X von Y Suchen" samt der bisher
+  erfassten Hotelzahl und dem gerade laufenden Warenkorb. 🗑 je Zeile löscht die Daten
+  eines Warenkorbs und beginnt neu — nötig etwa, wenn du die Reisetermine der Suche
+  geändert hast (andere Preisbasis).
 - **Speicher:** Roh-Snapshots werden nach 120 Tagen verworfen, die verdichteten
   Tagesbewegungen bleiben — der Index seit Aufzeichnungsbeginn überlebt das also.
-- **Vollständigkeit:** die Suche sortiert nach Preis aufsteigend, deshalb wird jede
-  Region **komplett** abgeholt (bis zur gemeldeten Gesamttrefferzahl). Ein fester
+- **Vollständigkeit:** die Suche sortiert nach Preis aufsteigend, deshalb wird jedes
+  Ergebnis **komplett** abgeholt (bis zur gemeldeten Gesamttrefferzahl). Ein fester
   Seiten-Deckel würde stets nur die günstigsten N Hotels erfassen — und weil dessen
   Randbelegung täglich wechselt, hätte der Median diese Fluktuation als
-  Preisbewegung missverstanden. Reißleine bei 1000 Hotels je Region (dann steht eine
-  Warnung im Log).
+  Preisbewegung missverstanden. Reißleine bei 1000 Hotels (dann steht eine Warnung
+  im Log).
 - **Abschaltbar** über `market_basket_enabled`.
 
 ## KI-Buchungsscore ("Orakel")

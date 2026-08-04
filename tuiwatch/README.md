@@ -84,11 +84,11 @@ jedem konfigurierten KI-Anbieter). Details: [DOCS.md](DOCS.md#preiskalender).
 
 ## Markttrend
 
-Destinationsübergreifender Preistrend (14-Tage-Fenster + Index seit
-Aufzeichnungsbeginn), pro Region aufgeschlüsselt. Breite Basis: einmal pro Tag läuft
-je Region eine Hotelsuche, verglichen wird jedes Hotel mit sich selbst vom Vortag
-(Median über alle Hotels der Region). Zusätzlich der schmalere Trend aus den eigenen
-getrackten Angeboten — der überlebt auch das Löschen einzelner Angebote. Details:
+Preistrend für **deine** Reisetermine (14-Tage-Fenster + Index seit
+Aufzeichnungsbeginn). Breite Basis: einmal pro Tag läuft jede deiner gespeicherten
+Suchen erneut, verglichen wird jedes Hotel mit sich selbst vom Vortag (Median über
+alle Treffer). Zusätzlich der schmalere Trend aus den eigenen getrackten Angeboten —
+der überlebt auch das Löschen einzelner Angebote. Details:
 [DOCS.md](DOCS.md#markttrend).
 
 ## KI-Buchungsscore ("Orakel")

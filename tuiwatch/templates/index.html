@@ -308,6 +308,9 @@
     .btn.trend-active-up { border-color:var(--red); }
     .btn.trend-active-down { border-color:var(--green); }
     .trend-global { margin-bottom:14px; }
+    /* Fortschritt des Warenkorb-Laufs (mehrere Suchen à mehrere Ergebnisseiten) */
+    .bkt-bar { height:8px; border-radius:4px; background:var(--surf2); border:1px solid var(--border); overflow:hidden; }
+    .bkt-fill { height:100%; background:var(--accent); transition:width .4s ease; }
     .cal-cell.tracked { outline:2px solid var(--accent); outline-offset:-2px; }
     a.cal-cell.clk { text-decoration:none; color:inherit; cursor:pointer; transition:transform .08s; }
     a.cal-cell.clk:hover { border-color:var(--accent); transform:translateY(-1px); }
@@ -924,11 +927,13 @@
       </button>
       <h2>Markttrend</h2>
       <div class="sub">Marktweiter Preistrend der letzten 14 Tage (kein Orakel, nur ein Hinweis).
-        Bevorzugte Quelle ist der <b>Regions-Warenkorb</b>: einmal pro Tag läuft je Region eine
-        Hotelsuche, verglichen wird jedes Hotel mit sich selbst vom Vortag (Median über alle
-        Hotels). Darunter der schmalere Trend aus <b>deinen getrackten Angeboten</b> — er bleibt
-        erhalten, auch wenn einzelne Angebote gelöscht werden.</div>
+        Bevorzugte Quelle ist der <b>Warenkorb</b>: einmal pro Tag läuft jede deiner
+        <b>gespeicherten Suchen</b> erneut — mit deinen Reiseterminen und Filtern. Verglichen wird
+        jedes Hotel mit sich selbst vom Vortag (Median über alle Hotels). Darunter der schmalere
+        Trend aus <b>deinen getrackten Angeboten</b> — er bleibt erhalten, auch wenn einzelne
+        Angebote gelöscht werden.</div>
       <div id="trend-body"></div>
+      <div id="basket-progress" style="display:none;margin-top:10px"></div>
       <div class="cmp-foot" style="margin-top:12px">
         <span class="hint" style="flex:1;min-width:220px">Preissprung durch Zimmerwechsel dabei?
           Neu berechnen schließt ihn nachträglich aus (nur Angebots-Trend).</span>

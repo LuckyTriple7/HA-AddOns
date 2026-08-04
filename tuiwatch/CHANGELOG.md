@@ -1,5 +1,37 @@
 # Changelog
 
+## [0.61.0] - 2026-08-04
+
+### Changed
+- **Warenkorb richtet sich nach den Terminen der gespeicherten Suchen** statt nach
+  einer konstanten Vorlaufzeit. Bisher suchte er stur für „heute + 91 Tage" — der
+  Abreisetag wanderte also täglich weiter. Statistisch sauber, praktisch wertlos:
+  wer seinen Urlaub im **Mai** plant, dem hilft die Preisbewegung eines täglich
+  anderen Termins nicht bei der Frage, ob er jetzt buchen soll.
+  Jetzt läuft **1×/Tag genau die gespeicherte Suche** noch einmal — mit ihren
+  Reiseterminen, ihrer Dauer und ihren Filtern (Sterne, Weiterempfehlung,
+  Verpflegung, Flughafen …). Der Trend sagt damit: „alle Hotels für meinen
+  Mai-Termin auf Teneriffa sind diese Woche 3 % gefallen."
+  - **Ein Warenkorb je Suche**, nicht je Region — zwei Suchen für dasselbe Ziel mit
+    verschiedenen Terminen sind zwei verschiedene Märkte.
+  - **Getrackte Angebote ohne gespeicherte Suche** bekommen ihren Termin aus dem
+    Angebot selbst (Rückreisedatum minus Dauer). `market_basket_lead_days` ist nur
+    noch Rückfallebene, wenn gar kein Datum vorliegt.
+  - **Abgelaufene Reisezeiträume** fallen automatisch raus.
+  - Das Abreise**datum** ist bewusst kein Match-Kriterium mehr: sucht die Suche über
+    einen Zeitraum, ist der günstigste Termin darin genau die interessante Zahl.
+  - Die bisher gesammelten Warenkorb-Daten haben eine andere Preisbasis und werden
+    beim Update **einmalig verworfen** (Trend beginnt neu). Backup-Version 7;
+    Warenkorb-Daten aus Version-6-Backups werden aus demselben Grund ignoriert.
+- **Fortschrittsbalken für „🧺 Warenkorb jetzt füllen"** — zeigt „X von Y Suchen",
+  die bisher erfasste Hotelzahl und den gerade laufenden Warenkorb. Vorher lief der
+  Vorgang minutenlang ohne jede Rückmeldung. Läuft beim Öffnen des Fensters gerade
+  ein (auch automatischer) Lauf, erscheint der Balken ebenfalls. Neuer schlanker
+  Endpunkt `/api/market-basket/progress` fürs Polling.
+- Markttrend-Fenster nennt in der Warenkorb-Tabelle jetzt **Suchname und
+  Reisezeitraum** statt der Region, und zählt darunter die Warenkörbe auf, die noch
+  Daten sammeln.
+
 ## [0.60.4] - 2026-08-04
 
 ### Fixed

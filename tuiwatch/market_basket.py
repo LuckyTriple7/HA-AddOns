@@ -1,10 +1,19 @@
-"""Markttrend aus einem täglichen Regions-Warenkorb.
+"""Markttrend aus einem täglichen Warenkorb je gespeicherter Suche.
 
 Der bisherige Markttrend (`price_moves` in app.py) misst nur die Preisbewegung der
-GETRACKTEN Angebote — je Region oft nur ein, zwei Hotels. Dieses Modul erweitert ihn
-um eine deutlich breitere Basis: einmal pro Tag läuft je Region eine normale
-Hotelsuche, deren sämtliche Treffer als Warenkorb-Snapshot abgelegt werden. Der Trend
-entsteht aus dem Vergleich aufeinanderfolgender Snapshots.
+GETRACKTEN Angebote — je Reiseziel oft nur ein, zwei Hotels. Dieses Modul erweitert
+ihn um eine deutlich breitere Basis: einmal pro Tag läuft **genau die gespeicherte
+Suche** des Nutzers noch einmal, und alle ihre Treffer werden als Warenkorb-Snapshot
+abgelegt. Der Trend entsteht aus dem Vergleich aufeinanderfolgender Snapshots.
+
+**Ein Warenkorb je gespeicherter Suche**, nicht je Region — mit deren echten
+Reiseterminen, Dauer, Verpflegungs-, Sterne- und Flughafenfiltern. Zwei Suchen für
+dasselbe Ziel mit verschiedenen Terminen ergeben zwei getrennte Warenkörbe; das sind
+schlicht verschiedene Märkte. Ein früherer Entwurf suchte stattdessen mit konstanter
+Vorlaufzeit („heute + 91 Tage") — statistisch sauber, praktisch aber wertlos: wer
+seinen Urlaub im Mai plant, dem hilft die Preisbewegung eines täglich weiterwandernden
+Termins nicht bei der Frage, ob er JETZT buchen soll. Die konstante Vorlaufzeit ist
+nur noch Rückfallebene für Warenkörbe ohne eigenes Datum (siehe `_offer_targets`).
 
 Warum es so und nicht anders gerechnet wird:
 
@@ -18,20 +27,16 @@ Warum es so und nicht anders gerechnet wird:
   Solche Ausreißer würden einen Mittelwert verzerren, den Median praktisch nicht.
 * **Board/Nächte müssen übereinstimmen.** Verpflegung und Dauer sind zwar feste
   Suchparameter, das günstigste Hotelangebot kann trotzdem von HP auf AI springen —
-  ein Preissprung ohne Marktsignal. Solche Paare werden übersprungen.
-* **Konstante Vorlaufzeit statt konstantem Abreisedatum.** Gesucht wird immer für
-  „heute + `market_basket_lead_days`" (Standard 91 = Vielfaches von 7, damit der
-  Wochentag konstant bleibt und keine Wochenend-/Wochentag-Preissprünge entstehen).
-  Das Abreisedatum wandert dadurch täglich um einen Tag weiter — für alle Hotels
-  gleichermaßen, und bei 91 Tagen Vorlauf ist der Saisoneffekt eines einzelnen Tages
-  vernachlässigbar. Die Alternative (festes Datum) würde stattdessen die Vorlaufzeit
-  täglich schrumpfen lassen und damit den Last-Minute-Effekt mitmessen.
+  ein Preissprung ohne Marktsignal. Solche Paare werden übersprungen. Das Abreise-
+  **datum** ist dagegen ausdrücklich KEIN Match-Kriterium: bei einer Suche über einen
+  Zeitraum (z. B. ganzer Mai) ist der günstigste Termin innerhalb des Fensters genau
+  die Zahl, um die es geht — wandert er, ist das die gesuchte Information.
 * **Verkettung erst auf Tagesebene.** `A._compound_pct` verkettet ALLE übergebenen
   Werte — die hunderten Hotel-Deltas eines Tages direkt hineinzugeben ergäbe Unsinn.
-  Deshalb wird pro Region und Tag EIN Median abgelegt (`basket_moves`) und erst diese
-  Tageswerte werden über die Zeit verkettet.
+  Deshalb wird pro Warenkorb und Tag EIN Median abgelegt (`basket_moves`) und erst
+  diese Tageswerte werden über die Zeit verkettet.
 
-Abgeholt wird die Region vollständig (siehe `_fetch_basket`) — ein fester Seiten-Deckel
+Abgeholt wird jede Suche vollständig (siehe `_fetch_basket`) — ein fester Seiten-Deckel
 hätte wegen der Preis-aufsteigenden Sortierung stets nur die günstigsten N Hotels
 erfasst, deren Randbelegung täglich wechselt und den Median verfälscht hätte.
 """
@@ -48,8 +53,8 @@ import app as A
 
 bp = Blueprint('market_basket', __name__)
 
-BASKET_LEAD_DAYS_DEFAULT = 91   # Vielfaches von 7 → gleicher Wochentag wie gestern
-BASKET_NIGHTS = 7
+BASKET_LEAD_DAYS_DEFAULT = 91   # nur Rückfallebene, siehe _offer_targets
+BASKET_NIGHTS = 7               # dito: Dauer, wenn kein eigener Wert ermittelbar ist
 BASKET_TRAVELLERS = 2
 BASKET_PAGE_SIZE = 50           # entspricht resultsPerPage der Such-API
 BASKET_MAX_PAGES = 20           # Reißleine (1000 Hotels); normal endet die Schleife an `total`
@@ -61,6 +66,15 @@ BASKET_RETENTION_DAYS = 120     # Snapshots älter als das werden verworfen
 
 _run_lock = threading.Lock()
 _running = False
+# Fortschritt des laufenden Warenkorb-Laufs für die UI. Ein Lauf dauert je nach Anzahl
+# der Suchen und Treffer eine Weile; ohne diesen Zwischenstand sähe der Nutzer nach dem
+# Klick minutenlang nichts. Bewusst ein einfaches dict statt einer Tabelle — der Wert
+# ist rein flüchtig und nach einem Neustart bedeutungslos.
+_progress: dict = {'done': 0, 'total': 0, 'current': '', 'hotels': 0}
+
+
+def _set_progress(**kw) -> None:
+    _progress.update(kw)
 
 
 # ── Schema ─────────────────────────────────────────────────────────────────────
@@ -68,13 +82,27 @@ _running = False
 def init_basket_db(con) -> None:
     """Tabellen anlegen — wird aus `app.init_db` aufgerufen.
     `basket_snapshots` ist die Rohdatenhaltung (wird nach `BASKET_RETENTION_DAYS`
-    beschnitten), `basket_moves` das verdichtete Ergebnis (eine Zeile je Region und
-    Tag, bleibt dauerhaft — winzig und die Grundlage des Index)."""
+    beschnitten), `basket_moves` das verdichtete Ergebnis (eine Zeile je Warenkorb
+    und Tag, bleibt dauerhaft — winzig und die Grundlage des Index).
+
+    `basket` ist der Schlüssel eines Warenkorbs: der Name der gespeicherten Suche
+    bzw. „<Region> (Abreise TT.MM.JJJJ)" bei Warenkörben aus getrackten Angeboten.
+
+    Migration: die erste Fassung (v0.60.x) schlüsselte nach Region und suchte mit
+    konstanter Vorlaufzeit statt mit den echten Reiseterminen. Diese Datenpunkte
+    haben eine andere Preisbasis und dürfen nicht mit den neuen verkettet werden —
+    die alten Tabellen werden daher einmalig verworfen."""
+    cols = {r['name'] for r in con.execute('PRAGMA table_info(basket_snapshots)').fetchall()}
+    if cols and 'basket' not in cols:
+        con.execute('DROP TABLE IF EXISTS basket_snapshots')
+        con.execute('DROP TABLE IF EXISTS basket_moves')
+        A.log.info("Warenkorb: Daten der Regions-Fassung verworfen — der Warenkorb "
+                   "richtet sich jetzt nach den Terminen der gespeicherten Suchen")
     con.execute('''CREATE TABLE IF NOT EXISTS basket_snapshots (
         id           INTEGER PRIMARY KEY AUTOINCREMENT,
         ts           INTEGER NOT NULL,
         day          TEXT NOT NULL,
-        region       TEXT NOT NULL DEFAULT '',
+        basket       TEXT NOT NULL DEFAULT '',
         region_giata INTEGER,
         giata        TEXT NOT NULL,
         price        REAL NOT NULL,
@@ -83,12 +111,12 @@ def init_basket_db(con) -> None:
         dep_date     TEXT DEFAULT ''
     )''')
     con.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_basket_snap '
-                'ON basket_snapshots(region, day, giata)')
+                'ON basket_snapshots(basket, day, giata)')
     con.execute('''CREATE TABLE IF NOT EXISTS basket_moves (
         id         INTEGER PRIMARY KEY AUTOINCREMENT,
         ts         INTEGER NOT NULL,
         day        TEXT NOT NULL,
-        region     TEXT NOT NULL DEFAULT '',
+        basket     TEXT NOT NULL DEFAULT '',
         prev_day   TEXT NOT NULL DEFAULT '',
         gap_days   INTEGER DEFAULT 1,
         pct_median REAL NOT NULL,
@@ -96,7 +124,7 @@ def init_basket_db(con) -> None:
         n_total    INTEGER NOT NULL
     )''')
     con.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_basket_move '
-                'ON basket_moves(region, day)')
+                'ON basket_moves(basket, day)')
 
 
 # ── Konfiguration ──────────────────────────────────────────────────────────────
@@ -106,8 +134,9 @@ def _enabled() -> bool:
 
 
 def _lead_days() -> int:
-    """Vorlaufzeit in Tagen, auf 14…365 begrenzt (darunter dominiert Last-Minute,
-    darüber liefert die Such-API für viele Regionen noch keine Preise)."""
+    """Vorlaufzeit in Tagen für die Rückfallebene, auf 14…365 begrenzt. Greift NUR
+    für Warenkörbe ohne eigenen Reisetermin (siehe `_offer_targets`) — gespeicherte
+    Suchen bringen ihr Datum selbst mit."""
     try:
         v = int(A.load_config().get('market_basket_lead_days', BASKET_LEAD_DAYS_DEFAULT))
     except (TypeError, ValueError):
@@ -116,8 +145,8 @@ def _lead_days() -> int:
 
 
 def _max_regions() -> int:
-    """Obergrenze für die täglich abgefragten Regionen, auf 1…50 begrenzt.
-    Der Deckel ist reiner Lastschutz: eine Region kostet je 50 Hotels einen
+    """Obergrenze für die täglich abgefragten Warenkörbe, auf 1…50 begrenzt.
+    Der Deckel ist reiner Lastschutz: ein Warenkorb kostet je 50 Hotels einen
     API-Aufruf pro Tag (typisch 1–6), der Standard also grob 100 Requests täglich —
     Kleingeld gegenüber dem normalen Poller."""
     try:
@@ -127,46 +156,88 @@ def _max_regions() -> int:
     return max(1, min(50, v))
 
 
-def _basket_regions() -> list:
-    """Regionen für den Warenkorb, ohne dass der Nutzer giataIds pflegen muss:
-    zuerst die Ziele der gespeicherten Suchen (das ist die vom Nutzer selbst
-    kuratierte Liste „was mich interessiert"), danach die Regionen der getrackten
-    Angebote. Dedupliziert über die Region-giataId, gedeckelt auf `_max_regions()`.
-    Wird abgeschnitten, sagt das Log welche Regionen wegfallen — sonst würde eine
-    neu angelegte Suche stillschweigend nie im Warenkorb landen."""
+def _period(p: dict) -> str:
+    """Reisezeitraum eines Payloads als Klartext für UI und Log."""
+    vom, bis = (p.get('vom') or '').strip(), (p.get('bis') or '').strip()
+
+    def _de(s):
+        try:
+            return date.fromisoformat(s[:10]).strftime('%d.%m.%Y')
+        except ValueError:
+            return s
+    if vom and bis and vom != bis:
+        return f"{_de(vom)} – {_de(bis)}"
+    return _de(vom or bis) if (vom or bis) else ''
+
+
+def _expired(p: dict) -> bool:
+    """True, wenn der Reisezeitraum der Suche komplett in der Vergangenheit liegt —
+    dann gibt es nichts mehr zu beobachten und die Suche liefert ohnehin nichts."""
+    end = (p.get('bis') or p.get('vom') or '').strip()
+    if not end:
+        return False
+    try:
+        return date.fromisoformat(end[:10]) < date.today()
+    except ValueError:
+        return False
+
+
+def _basket_targets() -> list:
+    """Die täglich abzufragenden Warenkörbe. Jeder trägt seinen kompletten
+    Such-Payload — also die echten Reisetermine des Nutzers, nicht ein künstlich
+    berechnetes Datum.
+
+    Quelle 1 sind die **gespeicherten Suchen** (Schlüssel = ihr Name; das ist die
+    vom Nutzer selbst kuratierte Liste „was mich interessiert" samt Terminen und
+    Filtern). Quelle 2 sind die Regionen der **getrackten Angebote**, für die kein
+    Suchabo existiert. Abgelaufene Zeiträume fallen raus. Gedeckelt auf
+    `_max_regions()`; wird abgeschnitten, sagt es das Log — sonst würde eine neu
+    angelegte Suche stillschweigend nie im Warenkorb landen."""
     limit = _max_regions()
     out, seen = [], set()
     with A.db() as con:
-        rows = con.execute('SELECT payload FROM saved_searches ORDER BY id').fetchall()
+        rows = con.execute('SELECT name, payload FROM saved_searches ORDER BY id').fetchall()
     for r in rows:
         try:
-            dest = (json.loads(r['payload']) or {}).get('dest') or {}
-            giata = int(dest.get('giata'))
+            payload = json.loads(r['payload']) or {}
+            giata = int((payload.get('dest') or {}).get('giata'))
         except (TypeError, ValueError, json.JSONDecodeError):
             continue
-        if giata in seen:
+        if _expired(payload):
+            A.log.debug("Warenkorb: Suche „%s“ übersprungen (Reisezeitraum vorbei)", r['name'])
             continue
-        seen.add(giata)
-        out.append({'giata': giata, 'label': (dest.get('label') or '').strip() or str(giata)})
-    out += _regions_from_offers(seen)
+        key = (r['name'] or '').strip() or f"Suche {giata}"
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append({'key': key, 'giata': giata, 'payload': payload,
+                    'period': _period(payload), 'source': 'search'})
+    out += _offer_targets(seen)
     if len(out) > limit:
-        A.log.warning("Warenkorb: %d Regionen gefunden, aber nur %d erlaubt — nicht "
+        A.log.warning("Warenkorb: %d Warenkörbe gefunden, aber nur %d erlaubt — nicht "
                       "berücksichtigt: %s (Option market_basket_max_regions erhöhen)",
-                      len(out), limit, ", ".join(r['label'] for r in out[limit:]))
+                      len(out), limit, ", ".join(t['key'] for t in out[limit:]))
     return out[:limit]
 
 
-def _regions_from_offers(seen: set) -> list:
-    """Region-giataIds der getrackten Angebote. Die Zuordnung Hotel→Region geht über
-    die Breadcrumb-API (ein Aufruf je Hotel), das Ergebnis wird deshalb dauerhaft in
-    `meta` gecacht — Hotels wechseln die Region nicht."""
+def _offer_targets(seen: set) -> list:
+    """Warenkörbe aus den getrackten Angeboten — für Reiseziele, zu denen es keine
+    gespeicherte Suche gibt. Der Reisetermin kommt aus dem Angebot selbst (Abreise
+    = Rückreisedatum minus Dauer aus der URL); nur wenn dort nichts steht, greift
+    ersatzweise die konstante Vorlaufzeit `market_basket_lead_days`.
+
+    Ein Warenkorb je Region UND Abreisetermin: zwei Angebote in derselben Region
+    für verschiedene Monate sind verschiedene Märkte. Die Zuordnung Hotel→Region
+    geht über die Breadcrumb-API (ein Aufruf je Hotel) und wird dauerhaft in `meta`
+    gecacht — Hotels wechseln die Region nicht."""
     try:
         cache = json.loads(A._meta_get('basket_region_map') or '{}')
     except (TypeError, json.JSONDecodeError):
         cache = {}
     with A.db() as con:
         offers = con.execute(
-            "SELECT url, region FROM offers WHERE COALESCE(archived,0)=0 ORDER BY id").fetchall()
+            'SELECT url, region, return_date FROM offers '
+            'WHERE COALESCE(archived,0)=0 ORDER BY id').fetchall()
     out, dirty = [], False
     for o in offers:
         hotel_giata = A._giata_from_url(o['url'])
@@ -180,43 +251,55 @@ def _regions_from_offers(seen: set) -> list:
                 continue
             dirty = True
         rg = cache.get(hotel_giata)
-        if not rg or int(rg) in seen:
+        if not rg:
             continue
-        seen.add(int(rg))
-        out.append({'giata': int(rg), 'label': (o['region'] or '').strip() or str(rg)})
+        nights = A.duration_from_url(o['url']) or BASKET_NIGHTS
+        dep = _offer_departure(o['return_date'], nights)
+        if dep < date.today():
+            continue
+        label = (o['region'] or '').strip() or str(rg)
+        key = f"{label} (Abreise {dep.strftime('%d.%m.%Y')})"
+        if key in seen:
+            continue
+        seen.add(key)
+        payload = {'dest': {'giata': int(rg), 'label': label},
+                   'vom': dep.isoformat(), 'bis': (dep + timedelta(days=nights)).isoformat(),
+                   'dur': nights, 'trav': BASKET_TRAVELLERS}
+        out.append({'key': key, 'giata': int(rg), 'payload': payload,
+                    'period': _period(payload), 'source': 'offer'})
     if dirty:
         A._meta_set('basket_region_map', json.dumps(cache))
     return out
 
 
+def _offer_departure(return_date: str, nights: int) -> date:
+    """Abreisedatum eines Angebots: Rückreise minus Dauer. Fehlt das Rückreisedatum
+    oder ist es unlesbar, bleibt nur die konstante Vorlaufzeit als Näherung."""
+    try:
+        return date.fromisoformat((return_date or '')[:10]) - timedelta(days=nights)
+    except ValueError:
+        return date.today() + timedelta(days=_lead_days())
+
+
 # ── Snapshot holen und ablegen ─────────────────────────────────────────────────
 
-def _fetch_basket(region_giata: int) -> list:
-    """Eine Region abfragen: feste Suchparameter (ein einziges Abreisedatum, feste
-    Dauer und Personenzahl), mehrere Seiten. Feste Parameter sind der Grund, warum
-    Verpflegung und Dauer über die Tage stabil bleiben.
+def _fetch_basket(payload: dict) -> list:
+    """Die gespeicherte Suche ausführen — mit ihren echten Reiseterminen, ihrer
+    Dauer und ihren Filtern (`watch._search_from_fav_payload`, dieselbe Funktion,
+    die auch das Suchabo nutzt). Über die Tage bleiben die Parameter identisch,
+    genau deshalb sind die Snapshots vergleichbar.
 
-    `endDate` ist bei der Such-API die späteste **Rückreise**, nicht die späteste
-    Abreise — `start + BASKET_NIGHTS` grenzt die Treffer deshalb auf genau einen
-    Abreisetag ein (live verifiziert: 196 Treffer, alle mit demselben `date`).
-    `start == end` wäre die naheliegende Schreibweise für „ein Tag", quittiert die
-    API aber mit **HTTP 500** — Reisedauer und Zeitfenster widersprechen sich dann.
-
-    Geholt wird die Region **vollständig** (bis `total` erreicht ist), nicht nur die
-    ersten paar Seiten. Grund: die Such-API sortiert nach Preis aufsteigend — ein
-    fester Seiten-Deckel würde also stets die *günstigsten* N Hotels erfassen, und
-    Hotels an dieser Grenze wandern täglich rein und raus. Genau diese wechselnde
-    Randbelegung würde der Median als Preisbewegung missverstehen. `BASKET_MAX_PAGES`
-    ist nur eine Reißleine gegen eine unerwartet riesige Region."""
-    start = date.today() + timedelta(days=_lead_days())
-    dep, ret = start.isoformat(), (start + timedelta(days=BASKET_NIGHTS)).isoformat()
+    Geholt wird die Suche **vollständig** (bis `total` erreicht ist), nicht nur die
+    erste Seite. Grund: die Such-API sortiert nach Preis aufsteigend — ein fester
+    Seiten-Deckel würde stets die *günstigsten* N Hotels erfassen, und Hotels an
+    dieser Grenze wandern täglich rein und raus. Genau diese wechselnde Randbelegung
+    würde der Median als Preisbewegung missverstehen. `BASKET_MAX_PAGES` ist nur eine
+    Reißleine gegen ein unerwartet riesiges Suchergebnis."""
+    import watch  # spät: watch importiert seinerseits app, das hier gerade lädt
     out, seen = [], set()
     total = None
     for page in range(BASKET_MAX_PAGES):
-        res = A.fetch_search_params(
-            region=region_giata, start=dep, end=ret, duration=BASKET_NIGHTS,
-            travellers=BASKET_TRAVELLERS, offset=page * BASKET_PAGE_SIZE,
-            verbose=A._verbose())
+        res = watch._search_from_fav_payload(payload, offset=page * BASKET_PAGE_SIZE)
         if not (res and res.get('ok')):
             break
         if total is None:
@@ -228,37 +311,38 @@ def _fetch_basket(region_giata: int) -> list:
                 continue
             seen.add(g)
             out.append(r)
-        # Abbruch, sobald die Seite nicht mehr voll ist (letzte Seite) oder die
-        # gemeldete Gesamttrefferzahl abgearbeitet ist.
-        if len(rows) < BASKET_PAGE_SIZE:
+        # Abbruch, sobald die gemeldete Gesamttrefferzahl abgearbeitet ist. Die
+        # Seitengröße selbst taugt nicht als alleiniges Abbruchsignal: die Nachfilter
+        # (Sterne/Weiterempfehlung) können eine volle Seite auf wenige Treffer
+        # eindampfen, ohne dass die Suche zu Ende wäre.
+        if total is not None and (page + 1) * BASKET_PAGE_SIZE >= total:
             break
-        if total and (page + 1) * BASKET_PAGE_SIZE >= total:
+        if not rows:
             break
     else:
-        A.log.warning("Warenkorb: Region %s nach %d Seiten abgebrochen (gemeldet: %s "
-                      "Treffer) — Warenkorb ist unvollständig", region_giata,
-                      BASKET_MAX_PAGES, total)
+        A.log.warning("Warenkorb nach %d Seiten abgebrochen (gemeldet: %s Treffer) — "
+                      "Warenkorb ist unvollständig", BASKET_MAX_PAGES, total)
     return out
 
 
-def _store_snapshot(con, region: str, region_giata: int, day: str, ts: int, rows: list) -> None:
+def _store_snapshot(con, basket: str, region_giata: int, day: str, ts: int, rows: list) -> None:
     """Snapshot des Tages ersetzen (ein manueller Zweitlauf am selben Tag soll den
     ersten überschreiben, nicht danebenliegen)."""
-    con.execute('DELETE FROM basket_snapshots WHERE region=? AND day=?', (region, day))
+    con.execute('DELETE FROM basket_snapshots WHERE basket=? AND day=?', (basket, day))
     con.executemany(
-        'INSERT INTO basket_snapshots (ts, day, region, region_giata, giata, price, '
+        'INSERT INTO basket_snapshots (ts, day, basket, region_giata, giata, price, '
         'board, nights, dep_date) VALUES (?,?,?,?,?,?,?,?,?)',
-        [(ts, day, region, region_giata, str(r.get('giata')), float(r['price']),
+        [(ts, day, basket, region_giata, str(r.get('giata')), float(r['price']),
           r.get('board') or '', r.get('nights'), r.get('date') or '') for r in rows])
 
 
-def _compute_move(con, region: str, day: str) -> dict | None:
-    """Tagesbewegung einer Region aus dem Vergleich mit dem letzten vorhandenen
+def _compute_move(con, basket: str, day: str) -> dict | None:
+    """Tagesbewegung eines Warenkorbs aus dem Vergleich mit dem letzten vorhandenen
     Snapshot. Rückgabe None, wenn es keinen Vorgänger gibt, die Lücke zu groß ist
     oder zu wenige Hotels in beiden Snapshots stehen."""
     prev = con.execute(
-        'SELECT DISTINCT day FROM basket_snapshots WHERE region=? AND day<? '
-        'ORDER BY day DESC LIMIT 1', (region, day)).fetchone()
+        'SELECT DISTINCT day FROM basket_snapshots WHERE basket=? AND day<? '
+        'ORDER BY day DESC LIMIT 1', (basket, day)).fetchone()
     if not prev:
         return None
     prev_day = prev['day']
@@ -268,13 +352,13 @@ def _compute_move(con, region: str, day: str) -> dict | None:
         return None
     if gap > BASKET_MAX_GAP_DAYS:
         A.log.info("Warenkorb „%s“: %d Tage Lücke seit %s — Kette beginnt neu",
-                   region, gap, prev_day)
+                   basket, gap, prev_day)
         return None
 
     def _snap(d):
         return {r['giata']: r for r in con.execute(
             'SELECT giata, price, board, nights FROM basket_snapshots '
-            'WHERE region=? AND day=?', (region, d)).fetchall()}
+            'WHERE basket=? AND day=?', (basket, d)).fetchall()}
 
     cur, old = _snap(day), _snap(prev_day)
     pcts = []
@@ -283,19 +367,21 @@ def _compute_move(con, region: str, day: str) -> dict | None:
         if not o or not o['price']:
             continue
         # Zimmerkategorie ist unsichtbar, Verpflegung/Dauer aber nicht — ein Wechsel
-        # dort ist ein anderer Angebotstyp, kein Marktsignal.
+        # dort ist ein anderer Angebotstyp, kein Marktsignal. Das Abreisedatum wird
+        # bewusst NICHT verglichen: wandert der günstigste Termin innerhalb des
+        # gesuchten Zeitraums, ist genau das die gesuchte Information.
         if (o['board'] or '') != (c['board'] or '') or o['nights'] != c['nights']:
             continue
         pcts.append((c['price'] - o['price']) / o['price'] * 100)
     if len(pcts) < BASKET_MIN_MATCHED:
         A.log.info("Warenkorb „%s“: nur %d vergleichbare Hotels (min. %d) — Tag verworfen",
-                   region, len(pcts), BASKET_MIN_MATCHED)
+                   basket, len(pcts), BASKET_MIN_MATCHED)
         return None
     med = statistics.median(pcts)
     con.execute(
-        'INSERT OR REPLACE INTO basket_moves (ts, day, region, prev_day, gap_days, '
+        'INSERT OR REPLACE INTO basket_moves (ts, day, basket, prev_day, gap_days, '
         'pct_median, n_matched, n_total) VALUES (?,?,?,?,?,?,?,?)',
-        (int(time.time()), day, region, prev_day, gap, med, len(pcts), len(cur)))
+        (int(time.time()), day, basket, prev_day, gap, med, len(pcts), len(cur)))
     return {'day': day, 'prev_day': prev_day, 'gap_days': gap,
             'pct_median': round(med, 2), 'n_matched': len(pcts), 'n_total': len(cur)}
 
@@ -307,28 +393,31 @@ def _prune(con) -> None:
     con.execute('DELETE FROM basket_snapshots WHERE day<?', (cutoff,))
 
 
-def run_basket_region(region: str, region_giata: int) -> dict:
-    """Eine Region komplett durchlaufen: suchen, Snapshot ablegen, Tagesbewegung
-    berechnen. Rückgabe für Log/API."""
-    rows = _fetch_basket(region_giata)
+def run_basket(target: dict) -> dict:
+    """Einen Warenkorb komplett durchlaufen: Suche ausführen, Snapshot ablegen,
+    Tagesbewegung berechnen. Rückgabe für Log/API."""
+    key = target['key']
+    rows = _fetch_basket(target['payload'])
     if not rows:
-        A.log.warning("Warenkorb „%s“ (%s): Suche lieferte keine Treffer", region, region_giata)
-        return {'region': region, 'hotels': 0, 'move': None}
+        A.log.warning("Warenkorb „%s“ (%s): Suche lieferte keine Treffer",
+                      key, target.get('period') or '?')
+        return {'basket': key, 'hotels': 0, 'move': None}
     ts = int(time.time())
     day = datetime.fromtimestamp(ts).strftime('%Y-%m-%d')
     with A.db() as con:
-        _store_snapshot(con, region, region_giata, day, ts, rows)
-        move = _compute_move(con, region, day)
+        _store_snapshot(con, key, target.get('giata'), day, ts, rows)
+        move = _compute_move(con, key, day)
         _prune(con)
-    A.log.info("Warenkorb „%s“: %d Hotels erfasst%s", region, len(rows),
+    A.log.info("Warenkorb „%s“ (%s): %d Hotels erfasst%s", key,
+               target.get('period') or '?', len(rows),
                (f", Tagesbewegung {move['pct_median']:+.2f} % aus {move['n_matched']} Hotels"
                 if move else " (noch keine Tagesbewegung)"))
-    return {'region': region, 'hotels': len(rows), 'move': move}
+    return {'basket': key, 'hotels': len(rows), 'move': move}
 
 
 def run_baskets(*, force: bool = False) -> list:
-    """Alle Regionen abarbeiten, je Region höchstens 1×/Tag (`force` umgeht das für
-    den manuellen Anstoß aus der UI). Ein Lauf gleichzeitig — der Poll-Worker und ein
+    """Alle Warenkörbe abarbeiten, jeden höchstens 1×/Tag (`force` umgeht das für den
+    manuellen Anstoß aus der UI). Ein Lauf gleichzeitig — der Poll-Worker und ein
     UI-Klick dürfen sich nicht überlappen."""
     global _running
     with _run_lock:
@@ -337,20 +426,28 @@ def run_baskets(*, force: bool = False) -> list:
         _running = True
     try:
         day = datetime.now().strftime('%Y-%m-%d')
+        targets = _basket_targets()
+        if not force:
+            # Schon erledigte Warenkörbe vorab aussortieren, damit der Fortschritt
+            # die tatsächlich anstehende Arbeit zeigt und nicht bei „3 von 8"
+            # stehenbleibt, weil fünf übersprungen wurden.
+            with A.db() as con:
+                targets = [t for t in targets if not con.execute(
+                    'SELECT 1 FROM basket_snapshots WHERE basket=? AND day=? LIMIT 1',
+                    (t['key'], day)).fetchone()]
+        _set_progress(done=0, total=len(targets), current='', hotels=0)
         out = []
-        for reg in _basket_regions():
-            if not force:
-                with A.db() as con:
-                    done = con.execute(
-                        'SELECT 1 FROM basket_snapshots WHERE region=? AND day=? LIMIT 1',
-                        (reg['label'], day)).fetchone()
-                if done:
-                    continue
+        for target in targets:
+            _set_progress(current=target['key'])
             try:
-                out.append(run_basket_region(reg['label'], reg['giata']))
+                res = run_basket(target)
+                out.append(res)
+                _set_progress(hotels=_progress['hotels'] + res['hotels'])
             except Exception as e:
                 A.log.error("Warenkorb „%s“ fehlgeschlagen: %s: %s",
-                            reg['label'], type(e).__name__, e)
+                            target['key'], type(e).__name__, e)
+            _set_progress(done=_progress['done'] + 1)
+        _set_progress(current='')
         return out
     finally:
         _running = False
@@ -365,20 +462,21 @@ def maybe_run_baskets() -> None:
 
 # ── Auswertung ─────────────────────────────────────────────────────────────────
 
-def _moves_query(region: str | None, cutoff_day: str | None) -> tuple[str, list]:
+def _moves_query(basket: str | None, cutoff_day: str | None) -> tuple[str, list]:
     """Fester Query-Text mit `(? IS NULL OR …)`-Paaren statt laufzeitabhängiger
     String-Verkettung — gleiche Begründung wie bei `A._market_moves_query`: CodeQL
     stuft dynamisch zusammengebautes SQL pauschal als riskant ein."""
-    q = ('SELECT day, region, pct_median, n_matched FROM basket_moves '
-         'WHERE (? IS NULL OR day>=?) AND (? IS NULL OR region=?) ORDER BY day ASC')
-    return q, [cutoff_day, cutoff_day, region, region]
+    q = ('SELECT day, basket, pct_median, n_matched FROM basket_moves '
+         'WHERE (? IS NULL OR day>=?) AND (? IS NULL OR basket=?) ORDER BY day ASC')
+    return q, [cutoff_day, cutoff_day, basket, basket]
 
 
-def _daily_series(con, region: str | None, cutoff_day: str | None) -> list:
-    """Tageswerte als [(tag, prozent, hotelzahl)]. Über alle Regionen hinweg (region
-    None) werden die Regions-Mediane eines Tages nach Hotelzahl gewichtet gemittelt —
-    eine Region mit 200 Hotels soll den Gesamtwert stärker prägen als eine mit 15."""
-    q, params = _moves_query(region, cutoff_day)
+def _daily_series(con, basket: str | None, cutoff_day: str | None) -> list:
+    """Tageswerte als [(tag, prozent, hotelzahl)]. Über alle Warenkörbe hinweg
+    (basket None) werden deren Mediane eines Tages nach Hotelzahl gewichtet
+    gemittelt — ein Warenkorb mit 200 Hotels soll den Gesamtwert stärker prägen als
+    einer mit 15."""
+    q, params = _moves_query(basket, cutoff_day)
     by_day: dict[str, list] = defaultdict(list)
     for r in con.execute(q, params).fetchall():
         by_day[r['day']].append((r['pct_median'], max(1, r['n_matched'])))
@@ -390,12 +488,12 @@ def _daily_series(con, region: str | None, cutoff_day: str | None) -> list:
     return out
 
 
-def basket_trend(con, *, region: str | None = None, window_days: int = 14) -> dict | None:
+def basket_trend(con, *, basket: str | None = None, window_days: int = 14) -> dict | None:
     """Warenkorb-Trend über ein rollierendes Fenster. Gleiche Rückgabeform wie
     `A._market_trend` (dir/pct/days/n), damit UI und Sensor beide Quellen ohne
     Sonderfälle anzeigen können; `hotels` nennt zusätzlich die Breite der Basis."""
     cutoff = (date.today() - timedelta(days=window_days)).isoformat()
-    series = _daily_series(con, region, cutoff)
+    series = _daily_series(con, basket, cutoff)
     if len(series) < BASKET_MIN_DAYS:
         return None
     deadband = A._market_trend_threshold()
@@ -412,10 +510,10 @@ def basket_trend(con, *, region: str | None = None, window_days: int = 14) -> di
             'n': len(series), 'hotels': series[-1][2]}
 
 
-def basket_index(con, *, region: str | None = None) -> dict | None:
+def basket_index(con, *, basket: str | None = None) -> dict | None:
     """Warenkorb-Index seit Aufzeichnungsbeginn (Basis 100), analog `A._market_index` —
     fängt langsame Bewegungen ab, die aus dem 14-Tage-Fenster herausfallen."""
-    series = _daily_series(con, region, None)
+    series = _daily_series(con, basket, None)
     if len(series) < BASKET_MIN_DAYS:
         return None
     pct = A._compound_pct([p for _, p, _ in series])
@@ -428,55 +526,74 @@ def basket_index(con, *, region: str | None = None) -> dict | None:
 
 
 def basket_payload() -> dict:
-    """Kompletter Warenkorb-Stand für API und HA-Sensor."""
+    """Kompletter Warenkorb-Stand für API und HA-Sensor. `by_region` heißt aus
+    Kompatibilitätsgründen weiter so (UI und Sensor-Attribute), enthält aber je einen
+    Warenkorb — also eine gespeicherte Suche samt Reisezeitraum."""
+    targets = _basket_targets()   # nur EINMAL — kann Breadcrumb-Abrufe auslösen
+    periods = {t['key']: t.get('period') or '' for t in targets}
     with A.db() as con:
-        regions = [r['region'] for r in con.execute(
-            "SELECT DISTINCT region FROM basket_moves WHERE region!=''").fetchall()]
+        keys = [r['basket'] for r in con.execute(
+            "SELECT DISTINCT basket FROM basket_moves WHERE basket!=''").fetchall()]
         glob = {'trend': basket_trend(con), 'index': basket_index(con)}
         by_region = []
-        for r in sorted(regions):
-            t, i = basket_trend(con, region=r), basket_index(con, region=r)
+        for k in sorted(keys):
+            t, i = basket_trend(con, basket=k), basket_index(con, basket=k)
             if t or i:
-                by_region.append({'region': r, 'trend': t, 'index': i})
+                by_region.append({'region': k, 'period': periods.get(k, ''),
+                                  'trend': t, 'index': i})
         last = con.execute('SELECT MAX(day) d FROM basket_snapshots').fetchone()
-        pending = [r['region'] for r in con.execute(
-            "SELECT DISTINCT region FROM basket_snapshots WHERE region NOT IN "
-            "(SELECT region FROM basket_moves)").fetchall()]
+        pending = [r['basket'] for r in con.execute(
+            "SELECT DISTINCT basket FROM basket_snapshots WHERE basket NOT IN "
+            "(SELECT basket FROM basket_moves)").fetchall()]
     return {'enabled': _enabled(), 'global': glob, 'by_region': by_region,
             'last_day': (last['d'] if last else None) or '',
-            'lead_days': _lead_days(), 'pending': sorted(pending), 'running': _running}
+            'baskets': [{'key': t['key'], 'period': t.get('period') or '',
+                         'source': t.get('source')} for t in targets],
+            'pending': sorted(pending), 'running': _running,
+            'progress': dict(_progress)}
 
 
 # ── Routen ─────────────────────────────────────────────────────────────────────
 
 @bp.route('/api/market-basket')
 def api_market_basket():
-    """Warenkorb-Markttrend: global und je Region, plus Status (letzter Lauf,
-    Regionen ohne verwertbare Bewegung, Vorlaufzeit)."""
+    """Warenkorb-Markttrend: global und je gespeicherter Suche, plus Status (letzter
+    Lauf, Warenkörbe ohne verwertbare Bewegung)."""
     if (err := A._require_api()):
         return err
     return jsonify(basket_payload())
 
 
+@bp.route('/api/market-basket/progress')
+def api_market_basket_progress():
+    """Schlanker Endpunkt allein für den Fortschrittsbalken — die UI fragt ihn
+    sekündlich ab, während ein Lauf läuft. Bewusst OHNE `basket_payload()`: das
+    ermittelt die Warenkörbe neu und liest die komplette Auswertung, viel zu teuer
+    für eine Abfrage im Sekundentakt."""
+    if (err := A._require_api()):
+        return err
+    return jsonify({'running': _running, 'progress': dict(_progress)})
+
+
 @bp.route('/api/market-basket/run', methods=['POST'])
 def api_market_basket_run():
-    """Warenkorb-Lauf sofort anstoßen. Läuft im Hintergrund (mehrere Regionen ×
+    """Warenkorb-Lauf sofort anstoßen. Läuft im Hintergrund (mehrere Warenkörbe ×
     mehrere Suchseiten dauern länger als ein sinnvolles Request-Timeout) — die UI
     fragt danach `/api/market-basket` erneut ab."""
     if (err := A._require_api()):
         return err
     if _running:
         return jsonify({'started': False, 'note': 'läuft bereits'})
-    regions = _basket_regions()
-    if not regions:
-        return jsonify({'started': False, 'note': 'keine Region ermittelbar'})
+    targets = _basket_targets()
+    if not targets:
+        return jsonify({'started': False, 'note': 'keine gespeicherte Suche mit Ziel'})
     A._spawn(lambda: run_baskets(force=True))
-    return jsonify({'started': True, 'regions': [r['label'] for r in regions]})
+    return jsonify({'started': True, 'regions': [t['key'] for t in targets]})
 
 
 @bp.route('/api/market-basket/region', methods=['DELETE'])
 def api_market_basket_region_delete():
-    """Warenkorb-Daten EINER Region löschen (Snapshots und Bewegungen) — Neustart der
+    """Daten EINES Warenkorbs löschen (Snapshots und Bewegungen) — Neustart der
     Aufzeichnung, z. B. nachdem sich die Suchparameter geändert haben."""
     if (err := A._require_api()):
         return err
@@ -484,8 +601,8 @@ def api_market_basket_region_delete():
     if not region:
         return jsonify({'error': 'invalid'}), 400
     with A.db() as con:
-        snaps = con.execute('DELETE FROM basket_snapshots WHERE region=?', (region,)).rowcount
-        moves = con.execute('DELETE FROM basket_moves WHERE region=?', (region,)).rowcount
+        snaps = con.execute('DELETE FROM basket_snapshots WHERE basket=?', (region,)).rowcount
+        moves = con.execute('DELETE FROM basket_moves WHERE basket=?', (region,)).rowcount
     A.log.info("Warenkorb-Daten für „%s“ gelöscht: %d Snapshots, %d Tagesbewegungen",
                region, snaps, moves)
     return jsonify({'region': region, 'snapshots': snaps, 'moves': moves})

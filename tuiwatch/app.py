@@ -85,7 +85,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.60.4"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.61.0"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -2063,7 +2063,7 @@ def _poll_worker() -> None:
             _maybe_auto_backup()      # wöchentliches Backup nach /addon_config
             _maybe_check_watches()    # Suchabos (gespeicherte Suchen mit Schwellenpreis)
             _maybe_refresh_calendars()  # Preiskalender 1×/Tag je Angebot auffrischen
-            market_basket.maybe_run_baskets()  # Regions-Warenkorb 1×/Tag für den Markttrend
+            market_basket.maybe_run_baskets()  # Warenkorb je gespeicherter Suche, 1×/Tag
             _auto_archive_expired()
             with db() as con:
                 offers = [(r['id'], bool(r['history_only'])) for r in con.execute(
@@ -2170,9 +2170,10 @@ def _push_market_trend_sensor() -> None:
     'unavailable' — das wäre HA-Konvention für einen kaputten Sensor, hier ist der
     Sensor selbst ja da). Attribute ergänzen den Index seit Aufzeichnungsbeginn
     (`_market_index`), der auch langsame, über Wochen verteilte Bewegungen zeigt.
-    Als Quelle hat der Regions-Warenkorb Vorrang (`market_basket`, hunderte Hotels
-    je Region statt nur der eigenen Angebote); erst wenn der noch keine zwei
-    Tagesbewegungen gesammelt hat, greift der angebotsbasierte Trend. Das Attribut
+    Als Quelle hat der Warenkorb Vorrang (`market_basket`: die gespeicherten Suchen,
+    täglich neu ausgeführt — hunderte Hotels für die eigenen Reisetermine statt nur
+    der eigenen Angebote); erst wenn der noch keine zwei Tagesbewegungen gesammelt
+    hat, greift der angebotsbasierte Trend. Das Attribut
     `source` sagt, welche Quelle den State gerade liefert — beide Werte stehen
     zusätzlich unter `offers`/`basket` im Attributbaum.
     Berechnung und POST sind bewusst GETRENNT abgesichert: bricht die Berechnung bei
@@ -3032,7 +3033,7 @@ basket_trend = market_basket.basket_trend
 basket_index = market_basket.basket_index
 basket_payload = market_basket.basket_payload
 run_baskets = market_basket.run_baskets
-run_basket_region = market_basket.run_basket_region
+run_basket = market_basket.run_basket
 maybe_run_baskets = market_basket.maybe_run_baskets
 
 # Rückwärtskompatible Re-Exports: der Poller (oben) und die Tests sprechen die

@@ -15,14 +15,14 @@ configuration:
     name: Market trend threshold (%)
     description: "Cumulative price movement over 14 days above which the market trend counts as rising/falling instead of stable. Default 1.0 — a smaller value reacts to smaller moves."
   market_basket_enabled:
-    name: Market trend from regional basket
-    description: "Runs one hotel search per region (from your saved searches and tracked offers) once a day and derives the market trend from all hotels found instead of just your own offers. Much broader basis. Default on."
+    name: Market trend from basket
+    description: "Re-runs each of your saved searches once a day (with your travel dates and filters) and derives the market trend from all hotels found instead of just your own offers. Much broader basis, and the trend applies to your actual travel dates. Default on."
   market_basket_lead_days:
-    name: Lead time for the basket (days)
-    description: "Which departure date the daily basket searches for — always 'today + X days', so the lead time stays constant and the last-minute effect is not measured. Default 91 (multiple of 7 → same weekday, no weekend price jumps)."
+    name: Fallback lead time for the basket (days)
+    description: "Fallback only: baskets take their travel dates from the saved search or the tracked offer. If no date is available there, 'today + X days' is searched instead. Default 91."
   market_basket_max_regions:
-    name: Maximum regions in the basket
-    description: "Upper limit for the regions queried each day (1…50). Purely a load guard: one API call per 50 hotels in a region per day (typically 1–6). If more regions are found than allowed, the add-on log names the ones left out. Default 20."
+    name: Maximum baskets
+    description: "Upper limit for the baskets queried each day (1…50), i.e. the number of saved searches re-run. Purely a load guard: one API call per 50 hotels per day (typically 1–6 per search). If more are found than allowed, the add-on log names the ones left out. Default 20."
   trippilot_home_location:
     name: TripPilot home location (ZIP/city)
     description: "Pre-fills the TripPilot question 'Where are you starting from?' (for car/bus/train arrival or day trips). Leave empty to disable — can always be changed in the questionnaire itself."

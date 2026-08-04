@@ -6,6 +6,7 @@ Durchschnittsvergleich, Median statt Mittelwert, Board-/Nächte-Wechsel als
 Nicht-Signal, und die Verkettung erst auf Tagesebene.
 """
 import importlib
+import json
 import time
 from datetime import date, timedelta
 
@@ -41,7 +42,7 @@ def _snap(m, region, day, hotels):
     """hotels: [(giata, preis, board, naechte)] — Snapshot direkt in die DB legen."""
     with m.db() as con:
         con.executemany(
-            "INSERT INTO basket_snapshots (ts, day, region, region_giata, giata, price, "
+            "INSERT INTO basket_snapshots (ts, day, basket, region_giata, giata, price, "
             "board, nights, dep_date) VALUES (?,?,?,?,?,?,?,?,?)",
             [(int(time.time()), day, region, 1, str(g), p, b, n, "2027-01-01")
              for g, p, b, n in hotels])
@@ -117,7 +118,7 @@ def _write_moves(m, region, values, *, start=-3):
     with m.db() as con:
         for k, pct in enumerate(values):
             con.execute(
-                "INSERT INTO basket_moves (ts, day, region, prev_day, gap_days, "
+                "INSERT INTO basket_moves (ts, day, basket, prev_day, gap_days, "
                 "pct_median, n_matched, n_total) VALUES (?,?,?,?,?,?,?,?)",
                 (int(time.time()), _day(start + k), region, _day(start + k - 1), 1,
                  pct, 50, 60))
@@ -126,7 +127,7 @@ def _write_moves(m, region, values, *, start=-3):
 def test_trend_chains_daily_values(m, mb):
     _write_moves(m, "Kanaren", [-1.0, -1.0, -1.0])
     with m.db() as con:
-        t = mb.basket_trend(con, region="Kanaren")
+        t = mb.basket_trend(con, basket="Kanaren")
     assert t["dir"] == "down"
     # Verkettung, nicht Summe: 0.99^3 - 1 = -2.97 %
     assert t["pct"] == pytest.approx(-3.0, abs=0.1)
@@ -137,7 +138,7 @@ def test_trend_chains_daily_values(m, mb):
 def test_trend_needs_two_days(m, mb):
     _write_moves(m, "Kanaren", [-5.0])
     with m.db() as con:
-        assert mb.basket_trend(con, region="Kanaren") is None
+        assert mb.basket_trend(con, basket="Kanaren") is None
 
 
 def test_global_weights_regions_by_hotel_count(m, mb):
@@ -147,7 +148,7 @@ def test_global_weights_regions_by_hotel_count(m, mb):
         for region, pct, n in (("Gross", 2.0, 180), ("Klein", -2.0, 20)):
             for k in range(2):
                 con.execute(
-                    "INSERT INTO basket_moves (ts, day, region, prev_day, gap_days, "
+                    "INSERT INTO basket_moves (ts, day, basket, prev_day, gap_days, "
                     "pct_median, n_matched, n_total) VALUES (?,?,?,?,?,?,?,?)",
                     (int(time.time()), _day(-1 + k), region, _day(-2 + k), 1, pct, n, n))
         t = mb.basket_trend(con)
@@ -159,15 +160,24 @@ def test_global_weights_regions_by_hotel_count(m, mb):
 def test_index_covers_full_history(m, mb):
     _write_moves(m, "Kanaren", [1.0] * 5, start=-40)
     with m.db() as con:
-        assert mb.basket_trend(con, region="Kanaren") is None   # außerhalb 14 Tage
-        i = mb.basket_index(con, region="Kanaren")
+        assert mb.basket_trend(con, basket="Kanaren") is None   # außerhalb 14 Tage
+        i = mb.basket_index(con, basket="Kanaren")
     assert i["index"] == pytest.approx(105.1, abs=0.1)
 
 
 # ── Kompletter Lauf ────────────────────────────────────────────────────────────
 
+def _target(key="Mai auf Teneriffa", giata=135, vom="2027-05-01", bis="2027-05-31"):
+    """Warenkorb-Ziel, wie `_basket_targets` es liefert."""
+    return {"key": key, "giata": giata, "source": "search", "period": "Mai 2027",
+            "payload": {"dest": {"giata": giata, "label": "Teneriffa"},
+                        "vom": vom, "bis": bis, "dur": 7}}
+
+
 def _fake_search(m, monkeypatch, per_page, calls=None, total=None):
-    """`fetch_search_params` durch eine seitenweise Antwort ersetzen."""
+    """`fetch_search_params` durch eine seitenweise Antwort ersetzen — der Warenkorb
+    ruft sie über `watch._search_from_fav_payload` auf, also greift der Patch auch
+    für den Payload-Pfad."""
     def _f(*, region, offset=0, **kw):
         if calls is not None:
             calls.append(dict(kw, region=region, offset=offset))
@@ -184,14 +194,14 @@ def _pages(n, size=50, start_giata=1):
     return {k * size: rows[k * size:(k + 1) * size] for k in range((n + size - 1) // size)}
 
 
-def test_fetch_pages_whole_region_beyond_four_pages(m, mb, monkeypatch):
+def test_fetch_pages_whole_result_beyond_four_pages(m, mb, monkeypatch):
     """Die Such-API sortiert nach Preis aufsteigend — ein fester Seiten-Deckel
     erfasste stets nur die günstigsten N Hotels, deren Randbelegung täglich
-    wechselt. Große Regionen (Teneriffa 259, Algarve 287) müssen daher komplett
+    wechselt. Große Ergebnisse (Teneriffa 259, Algarve 287) müssen daher komplett
     abgeholt werden."""
     calls = []
     _fake_search(m, monkeypatch, _pages(259), calls, total=259)
-    rows = mb._fetch_basket(135)
+    rows = mb._fetch_basket(_target()["payload"])
     assert len(rows) == 259
     assert [c["offset"] for c in calls] == [0, 50, 100, 150, 200, 250]
 
@@ -201,84 +211,118 @@ def test_fetch_stops_at_reported_total(m, mb, monkeypatch):
     Anfrage hinterher."""
     calls = []
     _fake_search(m, monkeypatch, _pages(100), calls, total=100)
-    assert len(mb._fetch_basket(128)) == 100
+    assert len(mb._fetch_basket(_target()["payload"])) == 100
     assert [c["offset"] for c in calls] == [0, 50]
 
 
-def test_search_window_spans_one_departure_day(m, mb, monkeypatch):
-    """`endDate` ist bei der Such-API die späteste Rückreise: start + Nächte grenzt
-    auf genau einen Abreisetag ein. `start == end` quittiert die API mit HTTP 500
-    (live verifiziert) — der Test hält den Abstand fest."""
+def test_fetch_uses_the_searches_own_dates(m, mb, monkeypatch):
+    """Der Warenkorb reicht die Termine der gespeicherten Suche unverändert an die
+    Such-API durch — kein aus einer Vorlaufzeit berechnetes Datum."""
     calls = []
-    _fake_search(m, monkeypatch, {0: []}, calls)
-    mb._fetch_basket(128)
-    assert len(calls) == 1
-    start = date.fromisoformat(calls[0]["start"])
-    end = date.fromisoformat(calls[0]["end"])
-    assert start == date.today() + timedelta(days=mb._lead_days())
-    assert (end - start).days == mb.BASKET_NIGHTS
-    assert calls[0]["duration"] == mb.BASKET_NIGHTS
+    _fake_search(m, monkeypatch, {0: []}, calls, total=0)
+    mb._fetch_basket(_target(vom="2027-05-01", bis="2027-05-31")["payload"])
+    assert calls[0]["start"] == "2027-05-01"
+    assert calls[0]["end"] == "2027-05-31"
+    assert calls[0]["region"] == 135
 
 
-def test_run_basket_region_stores_snapshot_and_pages(m, mb, monkeypatch):
+def test_run_basket_stores_snapshot_and_pages(m, mb, monkeypatch):
     page0 = [{"giata": i, "price": 900 + i, "board": "AI", "nights": 7,
               "date": "2027-01-01"} for i in range(1, 51)]
     page1 = [{"giata": 100 + i, "price": 1500 + i, "board": "AI", "nights": 7,
               "date": "2027-01-01"} for i in range(10)]
     _fake_search(m, monkeypatch, {0: page0, 50: page1}, total=60)
-    res = mb.run_basket_region("Kanaren", 128)
-    assert res["hotels"] == 60          # zweite Seite wird geholt, dann Abbruch (<50)
+    res = mb.run_basket(_target())
+    assert res["hotels"] == 60
     assert res["move"] is None          # erster Tag, kein Vorgänger
     with m.db() as con:
         n = con.execute("SELECT COUNT(*) c FROM basket_snapshots").fetchone()["c"]
     assert n == 60
 
 
-def test_run_basket_region_second_day_yields_move(m, mb, monkeypatch):
-    _snap(m, "Kanaren", _day(-1), [(i, 1000.0, "AI", 7) for i in range(1, 13)])
+def test_run_basket_second_day_yields_move(m, mb, monkeypatch):
+    _snap(m, "Mai auf Teneriffa", _day(-1), [(i, 1000.0, "AI", 7) for i in range(1, 13)])
     rows = [{"giata": i, "price": 950.0, "board": "AI", "nights": 7,
-             "date": "2027-01-01"} for i in range(1, 13)]
+             "date": "2027-05-04"} for i in range(1, 13)]
     _fake_search(m, monkeypatch, {0: rows})
-    res = mb.run_basket_region("Kanaren", 128)
+    res = mb.run_basket(_target())
     assert res["move"]["pct_median"] == pytest.approx(-5.0, abs=0.01)
 
 
 def test_rerun_same_day_replaces_snapshot(m, mb, monkeypatch):
     rows = [{"giata": i, "price": 1000.0, "board": "AI", "nights": 7,
-             "date": "2027-01-01"} for i in range(1, 13)]
+             "date": "2027-05-04"} for i in range(1, 13)]
     _fake_search(m, monkeypatch, {0: rows})
-    mb.run_basket_region("Kanaren", 128)
-    mb.run_basket_region("Kanaren", 128)
+    mb.run_basket(_target())
+    mb.run_basket(_target())
     with m.db() as con:
         n = con.execute("SELECT COUNT(*) c FROM basket_snapshots").fetchone()["c"]
     assert n == 12          # nicht 24
 
 
-def test_regions_come_from_saved_searches(m, mb):
+# ── Warenkörbe kommen aus den gespeicherten Suchen, mit deren echten Terminen ───
+
+def _save_search(m, name, giata, label, vom="2027-05-01", bis="2027-05-31", dur=7):
     with m.db() as con:
         con.execute("INSERT INTO saved_searches (name, payload, ts) VALUES (?,?,?)",
-                    ("Kanaren", '{"dest": {"giata": 128, "label": "Gran Canaria"}}',
+                    (name, json.dumps({"dest": {"giata": giata, "label": label},
+                                       "vom": vom, "bis": bis, "dur": dur}),
                      int(time.time())))
-    assert mb._basket_regions() == [{"giata": 128, "label": "Gran Canaria"}]
 
 
-def _save_search(m, name, giata, label):
+def test_target_keeps_real_travel_dates(m, mb):
+    """Kern der Sache: der Warenkorb sucht mit dem Termin der gespeicherten Suche,
+    nicht mit einer konstanten Vorlaufzeit. Wer im Mai Urlaub plant, dem hilft ein
+    täglich weiterwanderndes Datum nicht."""
+    _save_search(m, "Mai auf Teneriffa", 135, "Teneriffa", vom="2027-05-01", bis="2027-05-31")
+    targets = mb._basket_targets()
+    assert len(targets) == 1
+    t = targets[0]
+    assert t["key"] == "Mai auf Teneriffa"
+    assert t["payload"]["vom"] == "2027-05-01" and t["payload"]["bis"] == "2027-05-31"
+    assert t["period"] == "01.05.2027 – 31.05.2027"
+    assert t["source"] == "search"
+
+
+def test_two_searches_same_region_are_two_baskets(m, mb):
+    """Gleiche Region, verschiedene Termine = verschiedene Märkte."""
+    _save_search(m, "Teneriffa Mai", 135, "Teneriffa", vom="2027-05-01", bis="2027-05-31")
+    _save_search(m, "Teneriffa Oktober", 135, "Teneriffa", vom="2027-10-01", bis="2027-10-31")
+    assert [t["key"] for t in mb._basket_targets()] == ["Teneriffa Mai", "Teneriffa Oktober"]
+
+
+def test_expired_search_is_skipped(m, mb):
+    _save_search(m, "Vorbei", 135, "Teneriffa", vom="2020-05-01", bis="2020-05-31")
+    _save_search(m, "Aktuell", 128, "Gran Canaria", vom="2027-05-01", bis="2027-05-31")
+    assert [t["key"] for t in mb._basket_targets()] == ["Aktuell"]
+
+
+def test_offer_target_uses_offer_departure(m, mb, monkeypatch):
+    """Ohne gespeicherte Suche kommt der Termin aus dem Angebot selbst:
+    Abreise = Rückreisedatum minus Dauer."""
+    monkeypatch.setattr(m, "region_giata_from_breadcrumb", lambda g: 135)
     with m.db() as con:
-        con.execute("INSERT INTO saved_searches (name, payload, ts) VALUES (?,?,?)",
-                    (name, '{"dest": {"giata": %d, "label": "%s"}}' % (giata, label),
-                     int(time.time())))
+        con.execute("INSERT INTO offers (url, hotel, region, return_date, created) "
+                    "VALUES (?,?,?,?,?)",
+                    ("https://x.invalid/angebote/Hotel/2781/?duration=7", "H",
+                     "Teneriffa", "2027-05-15", int(time.time())))
+    targets = mb._basket_targets()
+    assert len(targets) == 1
+    assert targets[0]["payload"]["vom"] == "2027-05-08"   # 15.05. minus 7 Nächte
+    assert targets[0]["key"] == "Teneriffa (Abreise 08.05.2027)"
+    assert targets[0]["source"] == "offer"
 
 
 def test_max_regions_is_configurable_and_warns(m, mb, monkeypatch, caplog):
-    """Über dem Deckel abgeschnittene Regionen müssen im Log stehen — sonst landet
+    """Über dem Deckel abgeschnittene Warenkörbe müssen im Log stehen — sonst landet
     eine neu angelegte Suche nie im Warenkorb, ohne dass es jemand merkt."""
     for k in range(5):
         _save_search(m, f"S{k}", 100 + k, f"Region {k}")
     monkeypatch.setattr(m, "load_config", lambda: {"market_basket_max_regions": 3})
     with caplog.at_level("WARNING"):
-        regs = mb._basket_regions()
-    assert [r["label"] for r in regs] == ["Region 0", "Region 1", "Region 2"]
-    assert "Region 3" in caplog.text and "Region 4" in caplog.text
+        targets = mb._basket_targets()
+    assert [t["key"] for t in targets] == ["S0", "S1", "S2"]
+    assert "S3" in caplog.text and "S4" in caplog.text
 
 
 def test_max_regions_default_and_clamp(m, mb, monkeypatch):
@@ -379,7 +423,35 @@ def test_backup_roundtrip_keeps_basket_moves(m, mb, monkeypatch):
                content_type="multipart/form-data").get_json()
     assert r["market_basket"] == 2
     with m.db() as con:
-        assert mb.basket_trend(con, region="Kanaren")["dir"] == "down"
+        assert mb.basket_trend(con, basket="Kanaren")["dir"] == "down"
+
+
+def test_progress_counts_only_pending_baskets(m, mb, monkeypatch):
+    """Der Fortschritt muss die tatsächlich anstehende Arbeit zeigen. Schon heute
+    erledigte Warenkörbe werden vorab aussortiert — sonst bliebe der Balken bei
+    „1 von 3" stehen, weil zwei übersprungen wurden."""
+    for k in range(3):
+        _save_search(m, f"S{k}", 100 + k, f"Region {k}")
+    _snap(m, "S0", _day(0), [(1, 1000.0, "AI", 7)])   # S0 heute schon gelaufen
+    _snap(m, "S1", _day(0), [(1, 1000.0, "AI", 7)])
+    rows = [{"giata": i, "price": 1000.0, "board": "AI", "nights": 7,
+             "date": "2027-05-04"} for i in range(1, 13)]
+    _fake_search(m, monkeypatch, {0: rows})
+    mb.run_baskets()
+    assert mb._progress["total"] == 1          # nur S2 stand noch aus
+    assert mb._progress["done"] == 1
+    assert mb._progress["hotels"] == 12
+    assert mb._progress["current"] == ""       # am Ende zurückgesetzt
+
+
+def test_progress_endpoint_is_cheap(m, mb, monkeypatch):
+    """Die UI pollt diesen Endpunkt sekündlich — er darf die Warenkörbe NICHT neu
+    ermitteln (das kann Breadcrumb-Abrufe auslösen)."""
+    monkeypatch.setattr(mb, "_basket_targets", lambda: pytest.fail(
+        "/progress darf _basket_targets nicht aufrufen"))
+    c = _client(m, monkeypatch)
+    d = c.get("/api/market-basket/progress").get_json()
+    assert d["running"] is False and "progress" in d
 
 
 def test_basket_region_delete(m, mb, monkeypatch):

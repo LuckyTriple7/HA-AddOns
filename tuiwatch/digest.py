@@ -15,26 +15,25 @@ _TREND_WORDS = {'up': ('▲', 'gestiegen'), 'down': ('▼', 'gefallen'), 'flat':
 
 
 def _market_section(con) -> dict | None:
-    """Markttrend für den Wochenüberblick. Quelle ist bevorzugt der Regions-Warenkorb
-    (tägliche Suche über alle Hotels einer Region), erst ersatzweise der schmalere
-    Trend aus den eigenen getrackten Angeboten — dieselbe Rangfolge wie beim
-    HA-Sensor. Fenster 7 Tage statt der 14 aus der UI: der Digest berichtet über die
-    vergangene Woche, ein 14-Tage-Fenster würde die Vorwoche mit hineinziehen."""
+    """Markttrend für den Wochenüberblick. Quelle ist bevorzugt der Warenkorb (die
+    gespeicherten Suchen, täglich neu ausgeführt — alle Hotels für die eigenen
+    Reisetermine), erst ersatzweise der schmalere Trend aus den getrackten Angeboten;
+    dieselbe Rangfolge wie beim HA-Sensor. Fenster 7 Tage statt der 14 aus der UI: der
+    Digest berichtet über die vergangene Woche, ein 14-Tage-Fenster würde die Vorwoche
+    mit hineinziehen."""
     glob = A.basket_trend(con, window_days=7)
-    if glob:
-        src, table = 'basket', 'basket_moves'
-    else:
+    src = 'basket' if glob else 'offers'
+    if not glob:
         glob = A._market_trend(con, window_days=7)
-        src, table = 'offers', 'price_moves'
     if not glob:
         return None
     # Fester Query-Text je Quelle (kein zur Laufzeit zusammengebautes SQL) — die
     # Tabelle steht hier fest, nicht der Filterwert.
-    q = ("SELECT DISTINCT region FROM basket_moves WHERE region!=''" if table == 'basket_moves'
-         else "SELECT DISTINCT region FROM price_moves WHERE region!=''")
+    q = ("SELECT DISTINCT basket AS name FROM basket_moves WHERE basket!=''" if src == 'basket'
+         else "SELECT DISTINCT region AS name FROM price_moves WHERE region!=''")
     regions = []
-    for name in sorted(r['region'] for r in con.execute(q).fetchall()):
-        t = (A.basket_trend(con, region=name, window_days=7) if src == 'basket'
+    for name in sorted(r['name'] for r in con.execute(q).fetchall()):
+        t = (A.basket_trend(con, basket=name, window_days=7) if src == 'basket'
              else A._market_trend(con, region=name, window_days=7))
         if t:
             regions.append((name, t))
@@ -91,7 +90,7 @@ def _build_digest() -> dict | None:
     if ai_summary:
         tl.append(f"\n🤖 {ai_summary}")
     if market:
-        _basis = ("alle Hotels der Region" if market['src'] == 'basket'
+        _basis = ("alle Hotels für deine gespeicherten Suchen" if market['src'] == 'basket'
                   else "deine getrackten Angebote")
         tl.append(f"\n📈 <b>Markttrend (7 Tage):</b> {_market_line(market['global'])}"
                   f"\n<i>Basis: {_basis}</i>")
@@ -155,8 +154,8 @@ def _build_digest() -> dict | None:
 
     market_html = ''
     if market:
-        _basis = ('alle Hotels der Region (täglicher Warenkorb)' if market['src'] == 'basket'
-                  else 'deine getrackten Angebote')
+        _basis = ('alle Hotels für deine gespeicherten Suchen (täglicher Warenkorb)'
+                  if market['src'] == 'basket' else 'deine getrackten Angebote')
         _color = {'up': '#cf222e', 'down': '#1a7f37'}.get(market['global']['dir'], '#555')
         _rows = ''.join(
             f'<li style="margin:4px 0">{esc(name)}: {esc(_market_line(t))}</li>'
