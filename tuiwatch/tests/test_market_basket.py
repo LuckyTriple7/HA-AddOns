@@ -166,11 +166,28 @@ def test_index_covers_full_history(m, mb):
 
 # ── Kompletter Lauf ────────────────────────────────────────────────────────────
 
-def _fake_search(m, monkeypatch, per_page):
+def _fake_search(m, monkeypatch, per_page, calls=None):
     """`fetch_search_params` durch eine seitenweise Antwort ersetzen."""
     def _f(*, region, offset=0, **kw):
+        if calls is not None:
+            calls.append(dict(kw, region=region, offset=offset))
         return {"ok": True, "results": per_page.get(offset, [])}
     monkeypatch.setattr(m, "fetch_search_params", _f)
+
+
+def test_search_window_spans_one_departure_day(m, mb, monkeypatch):
+    """`endDate` ist bei der Such-API die späteste Rückreise: start + Nächte grenzt
+    auf genau einen Abreisetag ein. `start == end` quittiert die API mit HTTP 500
+    (live verifiziert) — der Test hält den Abstand fest."""
+    calls = []
+    _fake_search(m, monkeypatch, {0: []}, calls)
+    mb._fetch_basket(128)
+    assert len(calls) == 1
+    start = date.fromisoformat(calls[0]["start"])
+    end = date.fromisoformat(calls[0]["end"])
+    assert start == date.today() + timedelta(days=mb._lead_days())
+    assert (end - start).days == mb.BASKET_NIGHTS
+    assert calls[0]["duration"] == mb.BASKET_NIGHTS
 
 
 def test_run_basket_region_stores_snapshot_and_pages(m, mb, monkeypatch):

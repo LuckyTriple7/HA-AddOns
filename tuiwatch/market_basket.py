@@ -179,12 +179,19 @@ def _regions_from_offers(seen: set) -> list:
 def _fetch_basket(region_giata: int) -> list:
     """Eine Region abfragen: feste Suchparameter (ein einziges Abreisedatum, feste
     Dauer und Personenzahl), mehrere Seiten. Feste Parameter sind der Grund, warum
-    Verpflegung und Dauer über die Tage stabil bleiben."""
-    dep = (date.today() + timedelta(days=_lead_days())).isoformat()
+    Verpflegung und Dauer über die Tage stabil bleiben.
+
+    `endDate` ist bei der Such-API die späteste **Rückreise**, nicht die späteste
+    Abreise — `start + BASKET_NIGHTS` grenzt die Treffer deshalb auf genau einen
+    Abreisetag ein (live verifiziert: 196 Treffer, alle mit demselben `date`).
+    `start == end` wäre die naheliegende Schreibweise für „ein Tag", quittiert die
+    API aber mit **HTTP 500** — Reisedauer und Zeitfenster widersprechen sich dann."""
+    start = date.today() + timedelta(days=_lead_days())
+    dep, ret = start.isoformat(), (start + timedelta(days=BASKET_NIGHTS)).isoformat()
     out, seen = [], set()
     for page in range(BASKET_PAGES):
         res = A.fetch_search_params(
-            region=region_giata, start=dep, end=dep, duration=BASKET_NIGHTS,
+            region=region_giata, start=dep, end=ret, duration=BASKET_NIGHTS,
             travellers=BASKET_TRAVELLERS, offset=page * BASKET_PAGE_SIZE,
             verbose=A._verbose())
         if not (res and res.get('ok')):

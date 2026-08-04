@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.60.1] - 2026-08-04
+
+### Fixed
+- **Warenkorb-Suche lief in HTTP 500** — jede Region meldete „Suche lieferte
+  keine Treffer". Ursache: der Warenkorb schickte `startDate == endDate`, um
+  einen einzelnen Abreisetag zu treffen. `endDate` ist bei der Such-API aber die
+  späteste **Rückreise**, nicht die späteste Abreise — zusammen mit `duration=7`
+  widersprechen sich Zeitfenster und Reisedauer, die API antwortet mit 500.
+  Jetzt `endDate = startDate + 7`, was die Treffer ebenfalls auf genau einen
+  Abreisetag eingrenzt (live verifiziert: Gran Canaria 196 Hotels, alle mit
+  demselben Abreisedatum und 7 Nächten). Ein Test hält den Abstand fest.
+
 ## [0.60.0] - 2026-08-04
 
 ### Added
