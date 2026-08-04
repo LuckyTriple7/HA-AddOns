@@ -101,6 +101,11 @@
   "btn_reopen_issue": "Wieder öffnen",
   "btn_close_pr": "Schließen",
   "btn_comment": "Kommentieren",
+  "pr_conflict": "Konflikt",
+  "pr_conflict_hint": "Merge-Konflikt: Branch lässt sich nicht automatisch zusammenführen",
+  "btn_dependabot_rebase": "Rebase",
+  "btn_dependabot_rebase_hint": "Kommentar „@dependabot rebase“ posten – Dependabot baut den PR auf dem aktuellen Basis-Branch neu auf",
+  "confirm_dependabot_rebase": "Dependabot-Rebase für {nr} anstoßen?",
 
   "review_approved": "Approved",
   "review_changes": "Changes requested",
@@ -264,7 +269,7 @@
   "sec_af_branch_ahead":          "dev ist {n} Commits vor main — der Autofix könnte Änderungen überschreiben",
   "sec_af_branch_ahead_confirm":  "Trotzdem fortfahren?",
 
-  "tab_addon_manager": "Releases",
+  "tab_addon_manager": "Add-on Versionen",
   "am_repo_label": "Repository",
   "am_branch_label": "Branch",
   "am_load": "Add-ons laden",

@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.4.5] - 2026-08-04
+
+### Added
+- Konflikt-Anzeige bei offenen PRs: `⚠ Konflikt`, wenn der Branch sich
+  nicht automatisch mergen lässt (`mergeable_state == "dirty"`).
+- Rebase-Button bei Dependabot-PRs mit Konflikt — postet den Kommentar
+  `@dependabot rebase`, Dependabot baut den PR auf dem aktuellen
+  Basis-Branch neu auf. Spart den Umweg über die GitHub-Weboberfläche.
+
+### Fixed
+- `mergeable` und `comments` waren bei PRs immer leer bzw. 0: der
+  Listen-Endpoint `/repos/{repo}/pulls` liefert diese Felder nicht, nur
+  der Einzel-PR-Endpoint. Jetzt wird pro PR zusätzlich `/pulls/{nr}`
+  geholt (ETag-gecacht, kostet im Normalfall kein Rate-Limit).
+
+### Changed
+- Add-on-Manager-Tab heißt jetzt "Add-on Versionen" statt "Releases" —
+  es gab zwei gleichnamige Tabs, obwohl der eine Releases beobachteter
+  Repos zeigt und der andere Add-on-Versionen erhöht.
+
 ## [0.4.4] - 2026-07-31
 - map: `addon_config` → `app_config` (Home-Assistant-Supervisor hat `addon_config` seit 2026.07 als Legacy-Name markiert, neuer Name ist `app_config`).
 

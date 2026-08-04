@@ -513,6 +513,9 @@ def _fetch_repo_data(repo: str, token: str, run_limit: int = 25) -> dict:
     pulls = []
     for pr in pulls_raw:
         reviews_raw = _gh_get(f'/repos/{repo}/pulls/{pr["number"]}/reviews', token) or []
+        # mergeable_state liefert nur der Einzel-PR-Endpoint, nicht die Liste.
+        # GitHub berechnet den Wert asynchron → beim ersten Abruf oft "unknown".
+        pr_detail = _gh_get(f'/repos/{repo}/pulls/{pr["number"]}', token) or {}
         pulls.append({
             'number':       pr['number'],
             'title':        pr['title'],
@@ -524,8 +527,8 @@ def _fetch_repo_data(repo: str, token: str, run_limit: int = 25) -> dict:
             'labels':       [l['name'] for l in pr.get('labels', [])],
             'created':      pr['created_at'],
             'updated':      pr['updated_at'],
-            'mergeable':    pr.get('mergeable_state', ''),
-            'comments':     (pr.get('comments') or 0) + (pr.get('review_comments') or 0),
+            'mergeable':    pr_detail.get('mergeable_state') or '',
+            'comments':     (pr_detail.get('comments') or 0) + (pr_detail.get('review_comments') or 0),
             'review_state': _compute_review_state(reviews_raw),
             'body':         (pr.get('body') or '')[:1500],
         })

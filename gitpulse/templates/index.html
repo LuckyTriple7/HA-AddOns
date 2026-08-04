@@ -1130,6 +1130,24 @@
     .catch(e => { _btnRestore(btn); alert(String(e)); });
   }
 
+  function dependabotRebase(btn, repo, number) {
+    if (!confirm(T.confirm_dependabot_rebase.replace('{nr}', '#' + number))) return;
+    _btnWait(btn);
+    fetch(u('/api/issue/comment'), {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({repo, number, body: '@dependabot rebase'}),
+    })
+    .then(r => r.json().then(d => ({ok: r.ok, data: d})))
+    .then(({ok, data}) => {
+      // Dependabot braucht Minuten für den Rebase → Button bleibt gesperrt,
+      // bis der nächste Poll den neuen mergeable_state liefert.
+      if (ok) { if (btn) btn.innerHTML = '✓'; triggerRefresh(5); }
+      else { _btnRestore(btn); alert(data.error || T.error_unknown); }
+    })
+    .catch(e => { _btnRestore(btn); alert(String(e)); });
+  }
+
   // ── Comment Modal ─────────────────────────────────────────────────
   let _commentRepo = null, _commentNr = null;
   function openCommentModal(repo, number, title) {
@@ -1376,6 +1394,11 @@
     btn_reopen_issue:  '{{ t.btn_reopen_issue }}',
     btn_close_pr:      '{{ t.btn_close_pr }}',
     btn_comment:       '{{ t.btn_comment }}',
+    pr_conflict:               '{{ t.pr_conflict }}',
+    pr_conflict_hint:          '{{ t.pr_conflict_hint }}',
+    btn_dependabot_rebase:      '{{ t.btn_dependabot_rebase }}',
+    btn_dependabot_rebase_hint: '{{ t.btn_dependabot_rebase_hint }}',
+    confirm_dependabot_rebase:  '{{ t.confirm_dependabot_rebase }}',
     review_approved:   '{{ t.review_approved }}',
     review_changes:    '{{ t.review_changes }}',
     review_pending:    '{{ t.review_pending }}',
@@ -1728,6 +1751,8 @@
       const bdomId = mkId(bkey);
       const hasBody = (pr.body || '').trim().length > 0;
       const bodyOpen = _actBodyVisible.has(bkey);
+      const conflict = !closed && pr.mergeable === 'dirty';
+      const isDependabot = /^dependabot(\[bot\])?$/i.test(pr.user || '');
       return `
       <div class="item-row" style="flex-direction:column;align-items:stretch;gap:0">
         <div style="display:flex;align-items:flex-start;gap:10px">
@@ -1736,6 +1761,7 @@
             <div class="item-title"><a href="${pr.url}" target="_blank" rel="noopener noreferrer">#${pr.number} ${escHtml(pr.title)}</a></div>
             <div class="item-meta">
               ${stateSpan}
+              ${conflict ? `<span style="color:var(--red)" title="${T.pr_conflict_hint}">⚠ ${T.pr_conflict}</span>` : ''}
               <span>@${escHtml(pr.user)}</span>
               <span>${relTime(pr.updated)}</span>
               ${!closed ? reviewBadge(pr.review_state) : ''}
@@ -1745,6 +1771,7 @@
               ${(pr.labels||[]).filter(Boolean).map(l=>`<span class="label-chip" style="color:${labelColor(l)};border-color:${labelColor(l)}40">${escHtml(l)}</span>`).join('')}
             </div>
           </div>
+          ${conflict && isDependabot ? `<button class="act-btn act-btn-dispatch" title="${T.btn_dependabot_rebase_hint}" onclick="dependabotRebase(this,${safeJsArg(repo.repo)},${pr.number})">🔄 ${T.btn_dependabot_rebase}</button>` : ''}
           ${!closed ? `<button class="act-btn act-btn-dispatch" onclick="openCommentModal(${safeJsArg(repo.repo)},${pr.number},${safeJsArg('#'+pr.number+' '+pr.title)})">💬 ${T.btn_comment}</button>` : ''}
           ${!closed ? `<button class="act-btn act-btn-cancel" onclick="closePR(this,${safeJsArg(repo.repo)},${pr.number})">✕ ${T.btn_close_pr}</button>` : ''}
           ${!closed && !pr.draft ? `<button class="act-btn act-btn-merge" onclick="openMergeModal(${safeJsArg(repo.repo)},${pr.number},${safeJsArg('#'+pr.number+' '+pr.title)})">⎇ ${T.btn_merge}</button>` : ''}
