@@ -1032,7 +1032,12 @@
       if(!t) return '<span class="trend flat" title="Zu wenig Datenpunkte in den letzten 14 Tagen">→ keine Daten</span>';
       const pct = Math.abs(t.pct)>=0.5 ? (' '+(t.pct>0?'+':'−')+Math.abs(t.pct).toLocaleString('de-DE',{maximumFractionDigits:1})+' %') : '';
       const days = t.days>=2 ? ` seit ${t.days} Tagen` : '';
-      const title = `Marktweiter Trend über die letzten 14 Tage (${t.n} Datenpunkte)`;
+      // Warenkorb-Werte tragen zusätzlich `hotels` (Breite der Basis) — beim
+      // Angebots-Trend sind die Datenpunkte einzelne Preisänderungen, beim Warenkorb
+      // ganze Tage, deshalb unterschiedliche Beschriftung.
+      const title = t.hotels
+        ? `Marktweiter Trend über die letzten 14 Tage (${t.n} Warenkorb-Tage, zuletzt ${t.hotels} Hotels verglichen)`
+        : `Marktweiter Trend über die letzten 14 Tage (${t.n} Datenpunkte)`;
       if(t.dir==='down') return `<span class="trend down" title="${title}">↘ fällt${pct}${days}</span>`;
       if(t.dir==='up')   return `<span class="trend up" title="${title}">↗ steigt${pct}${days}</span>`;
       return `<span class="trend flat" title="${title}">→ stabil${days}</span>`;
@@ -1045,16 +1050,39 @@
       return ` <span class="trend ${cls}" title="Index seit Aufzeichnungsbeginn (${i.n} Datenpunkte), unabhängig vom 14-Tage-Fenster">`
            + `Index ${i.index.toLocaleString('de-DE',{maximumFractionDigits:1})} (${sign}${i.pct.toLocaleString('de-DE',{maximumFractionDigits:1})} % seit ${since})</span>`;
     }
+    // Warenkorb-Block: eigener Abschnitt, weil die Zahlen eine andere Basis haben als
+    // der Angebots-Trend (hunderte Hotels je Region statt der eigenen paar Angebote) —
+    // in eine gemeinsame Tabelle gemischt wären sie nicht vergleichbar.
+    function renderBasketBlock(b){
+      if(!b) return '';
+      if(!b.enabled) return '<div class="cmp-load">Regions-Warenkorb ist in den Add-on-Einstellungen abgeschaltet.</div>';
+      const rows = (b.by_region||[]).map(r=>
+        `<tr><td>${esc(r.region)}</td><td>${marketTrendBadge(r.trend)}${marketIndexLine(r.index)}</td>`
+        + `<td>${(r.trend||{}).hotels||''}</td>`
+        + `<td><button class="btn sec" onclick="resetBasketRegion(${esc(JSON.stringify(r.region))})" title="Warenkorb-Daten dieser Destination löschen und neu beginnen">🗑</button></td></tr>`).join('');
+      const foot = b.last_day
+        ? `<div class="hint">Letzter Warenkorb-Lauf: ${esc(b.last_day)} · Abreise ${b.lead_days} Tage im Voraus`
+          + (b.running ? ' · <b>läuft gerade…</b>' : '') + '</div>'
+        : '<div class="hint">Noch kein Warenkorb-Lauf — läuft automatisch 1×/Tag, oder unten sofort anstoßen.</div>';
+      return `<div class="trend-global" style="margin-top:14px"><b>Warenkorb gesamt:</b> `
+        + `${marketTrendBadge(b.global.trend)}${marketIndexLine(b.global.index)}</div>`
+        + (rows ? `<table class="hist"><tr><th>Destination</th><th>Trend (14 Tage) / Index (gesamt)</th><th>Hotels</th><th></th></tr>${rows}</table>`
+                : '<div class="cmp-load">Noch keine Destination mit zwei vergleichbaren Warenkorb-Tagen.</div>')
+        + foot;
+    }
     let _marketTrendData = null;
     function renderMarketTrend(d){
       _marketTrendData = d;
-      setTrendGlow(d.global.trend);
+      const b = d.basket || null;
+      setTrendGlow((b && b.global && b.global.trend) || d.global.trend);
       const rows = (d.by_region||[]).map((r,i)=>
         `<tr><td>${esc(r.region)}</td><td>${marketTrendBadge(r.trend)}${marketIndexLine(r.index)}</td>`
         + `<td>${(r.trend||r.index||{}).n||''}</td>`
         + `<td class="ai-feature"><button class="btn sec" onclick="openRegionOutlook(${i})" title="KI-Einschätzung für diese Destination">🔮</button></td>`
         + `<td><button class="btn sec" onclick="resetRegionTrend(${i})" title="Markttrend-Daten dieser Destination löschen und neu beginnen">🗑</button></td></tr>`).join('');
       $('#trend-body').innerHTML =
+        `<h3 style="margin:0 0 6px">🧺 Regions-Warenkorb (alle Hotels)</h3>` + renderBasketBlock(b) +
+        `<h3 style="margin:18px 0 6px">📌 Deine getrackten Angebote</h3>` +
         `<div class="trend-global"><b>Gesamt:</b> ${marketTrendBadge(d.global.trend)}${marketIndexLine(d.global.index)}</div>` +
         (rows ? `<table class="hist"><tr><th>Destination</th><th>Trend (14 Tage) / Index (gesamt)</th><th>Datenpunkte</th><th class="ai-feature">KI</th><th></th></tr>${rows}</table>`
               : '<div class="cmp-load">Noch keine Destination mit genug Daten für eine eigene Aufschlüsselung.</div>');
@@ -1066,8 +1094,29 @@
       else if(t && t.dir==='down') b.classList.add('trend-active-down');
     }
     async function updateTrendBtn(){
-      try { const d = await fetch(api('/api/market-trend')).then(r=>r.json()); setTrendGlow(d.global.trend); }
-      catch(e){}
+      try {
+        const d = await fetch(api('/api/market-trend')).then(r=>r.json());
+        setTrendGlow((d.basket && d.basket.global && d.basket.global.trend) || d.global.trend);
+      } catch(e){}
+    }
+    async function runMarketBasket(){
+      try {
+        const d = await fetch(api('/api/market-basket/run'), {method:'POST'}).then(r=>r.json());
+        // Der Lauf sucht mehrere Seiten je Region und dauert daher länger als ein
+        // Request-Timeout — er läuft serverseitig im Hintergrund weiter.
+        toast(d.started ? `Warenkorb wird gefüllt (${(d.regions||[]).length} Region(en)) — dauert ein paar Minuten`
+                        : `Warenkorb nicht gestartet: ${d.note||'unbekannt'}`);
+      } catch(e){ toast('Warenkorb-Lauf fehlgeschlagen'); }
+    }
+    async function resetBasketRegion(region){
+      if(!confirm(`Warenkorb-Daten für „${region}" löschen und neu beginnen?`)) return;
+      try {
+        const d = await fetch(api('/api/market-basket/region'), {method:'DELETE',
+          headers:{'Content-Type':'application/json'}, body:JSON.stringify({region})}).then(x=>x.json());
+        toast(`${d.snapshots} Snapshots und ${d.moves} Tagesbewegungen gelöscht`);
+      } catch(e){ toast('Löschen fehlgeschlagen'); }
+      loadMarketTrend();
+      updateTrendBtn();
     }
     async function resetRegionTrend(i){
       const r = _marketTrendData && _marketTrendData.by_region[i]; if(!r) return;

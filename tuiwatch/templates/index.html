@@ -923,13 +923,16 @@
         <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
       </button>
       <h2>Markttrend</h2>
-      <div class="sub">Marktweiter Preistrend über alle geprüften Angebote der letzten 14 Tage —
-        gemittelt aus den Preisänderungen einzelner Angebote (kein Orakel, nur ein Hinweis).
-        Bleibt erhalten, auch wenn einzelne Angebote gelöscht werden.</div>
+      <div class="sub">Marktweiter Preistrend der letzten 14 Tage (kein Orakel, nur ein Hinweis).
+        Bevorzugte Quelle ist der <b>Regions-Warenkorb</b>: einmal pro Tag läuft je Region eine
+        Hotelsuche, verglichen wird jedes Hotel mit sich selbst vom Vortag (Median über alle
+        Hotels). Darunter der schmalere Trend aus <b>deinen getrackten Angeboten</b> — er bleibt
+        erhalten, auch wenn einzelne Angebote gelöscht werden.</div>
       <div id="trend-body"></div>
       <div class="cmp-foot" style="margin-top:12px">
         <span class="hint" style="flex:1;min-width:220px">Preissprung durch Zimmerwechsel dabei?
-          Neu berechnen schließt ihn nachträglich aus.</span>
+          Neu berechnen schließt ihn nachträglich aus (nur Angebots-Trend).</span>
+        <button class="btn sec" onclick="runMarketBasket()">🧺 Warenkorb jetzt füllen</button>
         <button class="btn sec" onclick="recomputeMarketTrend()">🔄 Neu berechnen</button>
       </div>
     </div>

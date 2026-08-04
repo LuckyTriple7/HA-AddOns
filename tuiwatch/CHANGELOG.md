@@ -1,5 +1,49 @@
 # Changelog
 
+## [0.60.0] - 2026-08-04
+
+### Added
+- **Markttrend aus einem Regions-Warenkorb** (`market_basket.py`) — bisher
+  entstand der Markttrend nur aus den Preisänderungen der eigenen getrackten
+  Angebote, je Destination oft nur ein bis zwei Hotels. Neu läuft **1×/Tag je
+  Region eine Hotelsuche** (bis zu 200 Hotels), aus deren Snapshots der Trend
+  berechnet wird. Regionen werden automatisch aus den gespeicherten Suchen und
+  den getrackten Angeboten abgeleitet (max. 8), keine giataId-Pflege nötig.
+  - **Matched Pairs statt Durchschnittsvergleich**: verglichen wird jedes Hotel
+    mit sich selbst vom Vortag; Hotels, die nur in einem der beiden Snapshots
+    stehen (ausgebucht/neu dazugekommen), zählen nicht — sonst würde der Trend
+    die Zusammensetzung des Warenkorbs messen statt die Preise.
+  - **Median statt Mittelwert** über die Hotel-Deltas (die Such-API liefert je
+    Hotel das günstigste Angebot, dessen Zimmerkategorie unsichtbar wechseln
+    kann — der Median steckt solche Ausreißer weg).
+  - **Board-/Nächte-Wechsel** werden übersprungen (anderer Angebotstyp, kein
+    Marktsignal).
+  - **Konstante Vorlaufzeit** statt konstantem Abreisedatum: gesucht wird immer
+    für „heute + `market_basket_lead_days`" (Standard 91 = Vielfaches von 7 →
+    gleicher Wochentag, keine Wochenend-Preissprünge). So misst der Trend den
+    Markt und nicht den Last-Minute-Effekt.
+  - Verkettet wird erst auf **Tagesebene** (ein Median je Region und Tag), nicht
+    über die hunderten Hotel-Deltas eines Tages.
+- **Neue Optionen** `market_basket_enabled` (Standard an) und
+  `market_basket_lead_days` (Standard 91, auf 14…365 begrenzt).
+- **Markttrend-Fenster** zeigt beide Quellen getrennt: „🧺 Regions-Warenkorb
+  (alle Hotels)" mit Hotelzahl je Destination und „📌 Deine getrackten
+  Angebote" wie bisher. Neuer Button **🧺 Warenkorb jetzt füllen** stößt einen
+  Lauf sofort an (läuft im Hintergrund), 🗑 je Zeile setzt eine Region zurück.
+- **HA-Sensor `sensor.tuiwatch_markttrend`** nimmt den Warenkorb als Quelle,
+  sobald der zwei Tagesbewegungen hat, sonst weiter den Angebots-Trend. Neue
+  Attribute: `source` (basket/offers), `hotels` sowie die vollständigen
+  Zweige `offers` und `basket`.
+- **Wochenüberblick** (Telegram + E-Mail) enthält jetzt einen Abschnitt
+  **📈 Markttrend (7 Tage)** — global und je Destination, mit Angabe der Basis
+  (Warenkorb oder eigene Angebote). Fenster 7 statt 14 Tage, passend zum
+  Berichtszeitraum.
+- **Backup/Restore** sichert die Warenkorb-Tagesbewegungen mit
+  (`tuiwatch_backup` Version 6) — der Index seit Aufzeichnungsbeginn hängt allein
+  an diesen Zeilen und würde sonst bei einem Umzug wieder bei 100 anfangen. Die
+  Roh-Snapshots bleiben bewusst außen vor (groß, kurzlebig, entstehen täglich
+  neu). Ältere Backups ohne dieses Feld werden unverändert akzeptiert.
+
 ## [0.59.5] - 2026-07-31
 
 ### Added

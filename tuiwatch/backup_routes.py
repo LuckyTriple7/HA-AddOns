@@ -90,10 +90,18 @@ def _build_backup_zip() -> bytes:
                         for r in con.execute(
                             'SELECT ts, region, country, months_out, pct_change '
                             'FROM price_moves ORDER BY ts').fetchall()]
-    data = {'tuiwatch_backup': 5, 'created': datetime.now().isoformat(),
+        # Warenkorb-Tagesbewegungen (Regions-Markttrend): nur die verdichteten Werte,
+        # nicht die Roh-Snapshots — die sind groß, werden ohnehin nach 120 Tagen
+        # verworfen und entstehen täglich neu. Der Index seit Aufzeichnungsbeginn
+        # hängt dagegen allein an diesen Zeilen, deshalb gehören sie ins Backup.
+        basket_moves = [dict(r) for r in con.execute(
+            'SELECT ts, day, region, prev_day, gap_days, pct_median, n_matched, n_total '
+            'FROM basket_moves ORDER BY day').fetchall()]
+    data = {'tuiwatch_backup': 6, 'created': datetime.now().isoformat(),
             'offers': offers, 'trips': trips, 'saved_searches': searches,
             'trip_attachments': attachments, 'trip_packing_items': packing_items,
-            'ai_analyses': ai_analyses, 'meta': meta, 'price_moves': price_moves}
+            'ai_analyses': ai_analyses, 'meta': meta, 'price_moves': price_moves,
+            'basket_moves': basket_moves}
 
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as z:
@@ -288,8 +296,10 @@ def api_restore():
     ai_analyses = data.get('ai_analyses') or []
     meta = data.get('meta') or {}
     price_moves = data.get('price_moves') or []
+    basket_moves = data.get('basket_moves') or []   # erst ab Backup-Version 6
     added, skipped, new_ids = 0, 0, []
     trips_n, searches_n, attachments_n, packing_n, ai_n, settings_n, moves_n = 0, 0, 0, 0, 0, 0, 0
+    basket_n = 0
     with A.db() as con:
         ocols = set(A._table_columns(con, 'offers'))
         existing_urls = {r['url'] for r in con.execute('SELECT url FROM offers').fetchall()}
@@ -446,6 +456,25 @@ def api_restore():
                     'VALUES (?,?,?,?,?)', key)
                 existing_moves.add(key)
                 moves_n += 1
+        if isinstance(basket_moves, list) and basket_moves:
+            # (region, day) ist eindeutig — vorhandene Tage bleiben unangetastet
+            # (nicht-destruktiv wie der übrige Restore), fehlende kommen dazu.
+            existing_days = {(r['region'], r['day']) for r in con.execute(
+                'SELECT region, day FROM basket_moves').fetchall()}
+            for bm in basket_moves:
+                if not isinstance(bm, dict) or bm.get('pct_median') is None:
+                    continue
+                key = (bm.get('region') or '', bm.get('day') or '')
+                if not key[1] or key in existing_days:
+                    continue
+                con.execute(
+                    'INSERT INTO basket_moves (ts, day, region, prev_day, gap_days, '
+                    'pct_median, n_matched, n_total) VALUES (?,?,?,?,?,?,?,?)',
+                    (int(bm.get('ts') or 0), key[1], key[0], bm.get('prev_day') or '',
+                     bm.get('gap_days') or 1, bm['pct_median'],
+                     int(bm.get('n_matched') or 0), int(bm.get('n_total') or 0)))
+                existing_days.add(key)
+                basket_n += 1
         if isinstance(meta, dict):
             # Nicht-destruktiv wie der Rest des Restores: nur setzen, wenn lokal noch
             # nichts hinterlegt ist — laufende Zaehler/Einstellungen werden nie mit
@@ -461,10 +490,11 @@ def api_restore():
         A._spawn(A.check_offer, oid)
     A.log.info("Wiederherstellung: %d Angebote (+%d übersprungen), %d Reisen, %d Suchen, "
              "%d Reise-Anhänge, %d Packliste-Items, %d KI-Verlauf, %d KI-Einstellungen, "
-             "%d Markttrend-Datenpunkte",
+             "%d Markttrend-Datenpunkte, %d Warenkorb-Tage",
              added, skipped, trips_n, searches_n, attachments_n, packing_n, ai_n, settings_n,
-             moves_n)
+             moves_n, basket_n)
     return jsonify({'added': added, 'skipped': skipped, 'trips': trips_n, 'searches': searches_n,
                     'attachments': attachments_n, 'packing_items': packing_n,
-                    'ai_history': ai_n, 'settings': settings_n, 'market_trend': moves_n})
+                    'ai_history': ai_n, 'settings': settings_n, 'market_trend': moves_n,
+                    'market_basket': basket_n})
 

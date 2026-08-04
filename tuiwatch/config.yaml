@@ -1,6 +1,6 @@
 name: TUIWatch
 description: Reisepreis-Tracker — verfolgt TUI-Angebotspreise und zeigt den Verlauf
-version: "0.59.5"
+version: "0.60.0"
 slug: tuiwatch
 url: https://github.com/LuckyTriple7/HA-AddOns
 image: "ghcr.io/luckytriple7/tuiwatch"
@@ -37,6 +37,8 @@ options:
   session_hours: 24
   poll_interval: 21600
   market_trend_threshold: 1.0
+  market_basket_enabled: true
+  market_basket_lead_days: 91
   trippilot_home_location: ""
   ha_sensors: true
   notify_ha: true
@@ -87,6 +89,8 @@ schema:
   session_hours: int
   poll_interval: int?
   market_trend_threshold: float?
+  market_basket_enabled: bool?
+  market_basket_lead_days: int?
   trippilot_home_location: str?
   ha_sensors: bool?
   notify_ha: bool?
