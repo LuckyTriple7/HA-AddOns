@@ -23,6 +23,7 @@ digest_enabled: false    # wöchentlicher Überblick (Telegram/E-Mail)
 digest_weekday: 1        # Versandtag (1 = Mo … 7 = So)
 market_basket_enabled: true   # Markttrend aus täglicher Regionssuche (breitere Basis)
 market_basket_lead_days: 91   # Abreise „heute + X Tage" für den Warenkorb (14…365)
+market_basket_max_regions: 20 # Obergrenze für die täglich abgefragten Regionen (1…50)
 anthropic_api_key: ""    # Anthropic API-Key, aktiviert das KI-Fazit (leer = aus)
 anthropic_model: claude-opus-5  # oder claude-sonnet-5 / claude-haiku-4-5 / claude-fable-5
 ai_provider: anthropic   # oder gemini / perplexity (gilt fuer ALLE KI-Features)
@@ -560,8 +561,12 @@ werden (bis zu 200 Hotels je Region). Im Markttrend-Fenster steht dieser Block o
 (**🧺 Regions-Warenkorb**), der Angebots-Trend darunter.
 
 - **Regionen** werden automatisch abgeleitet: zuerst die Ziele der **gespeicherten
-  Suchen**, danach die Regionen der **getrackten Angebote**; maximal 8 (jede Region
-  kostet täglich vier API-Aufrufe). Keine giataId-Pflege nötig.
+  Suchen**, danach die Regionen der **getrackten Angebote**. Keine giataId-Pflege
+  nötig. Die Obergrenze steht in `market_basket_max_regions` (Standard 20, erlaubt
+  1…50) und ist reiner Lastschutz — je Region fallen 1–4 API-Aufrufe pro Tag an
+  (Abbruch, sobald eine Ergebnisseite weniger als 50 Treffer liefert). Werden mehr
+  Regionen gefunden als erlaubt, nennt das Add-on-Log die weggelassenen; sie fallen
+  also nicht stillschweigend weg.
 - **Vergleich je Hotel, nicht je Durchschnitt** („Matched Pairs"): jedes Hotel wird
   mit sich selbst vom Vortag verglichen. Hotels, die nur in einem der beiden
   Snapshots stehen (ausgebucht, neu dazugekommen), zählen nicht — ein Vergleich der

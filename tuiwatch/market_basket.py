@@ -53,7 +53,7 @@ BASKET_NIGHTS = 7
 BASKET_TRAVELLERS = 2
 BASKET_PAGE_SIZE = 50           # entspricht resultsPerPage der Such-API
 BASKET_PAGES = 4                # bis zu 200 Hotels je Region und Tag
-BASKET_MAX_REGIONS = 8          # Deckel für die tägliche API-Last
+BASKET_MAX_REGIONS_DEFAULT = 20  # Deckel für die tägliche API-Last (Option, siehe _max_regions)
 BASKET_MIN_MATCHED = 10         # weniger Hotel-Paare → Tag verwerfen (zu dünn)
 BASKET_MIN_DAYS = 2             # weniger Tagesbewegungen → kein Trend
 BASKET_MAX_GAP_DAYS = 7         # größere Lücke (Add-on aus) → Kette neu beginnen
@@ -115,12 +115,27 @@ def _lead_days() -> int:
     return max(14, min(365, v))
 
 
+def _max_regions() -> int:
+    """Obergrenze für die täglich abgefragten Regionen, auf 1…50 begrenzt.
+    Der Deckel ist reiner Lastschutz: eine Region kostet 1–4 API-Aufrufe pro Tag
+    (Abbruch, sobald eine Seite weniger als BASKET_PAGE_SIZE Treffer liefert), der
+    Standard also höchstens rund 80 Requests täglich — Kleingeld gegenüber dem
+    normalen Poller."""
+    try:
+        v = int(A.load_config().get('market_basket_max_regions', BASKET_MAX_REGIONS_DEFAULT))
+    except (TypeError, ValueError):
+        return BASKET_MAX_REGIONS_DEFAULT
+    return max(1, min(50, v))
+
+
 def _basket_regions() -> list:
     """Regionen für den Warenkorb, ohne dass der Nutzer giataIds pflegen muss:
     zuerst die Ziele der gespeicherten Suchen (das ist die vom Nutzer selbst
     kuratierte Liste „was mich interessiert"), danach die Regionen der getrackten
-    Angebote. Dedupliziert über die Region-giataId, gedeckelt auf
-    BASKET_MAX_REGIONS — jede Region kostet täglich BASKET_PAGES API-Aufrufe."""
+    Angebote. Dedupliziert über die Region-giataId, gedeckelt auf `_max_regions()`.
+    Wird abgeschnitten, sagt das Log welche Regionen wegfallen — sonst würde eine
+    neu angelegte Suche stillschweigend nie im Warenkorb landen."""
+    limit = _max_regions()
     out, seen = [], set()
     with A.db() as con:
         rows = con.execute('SELECT payload FROM saved_searches ORDER BY id').fetchall()
@@ -134,11 +149,12 @@ def _basket_regions() -> list:
             continue
         seen.add(giata)
         out.append({'giata': giata, 'label': (dest.get('label') or '').strip() or str(giata)})
-    for reg in _regions_from_offers(seen):
-        if len(out) >= BASKET_MAX_REGIONS:
-            break
-        out.append(reg)
-    return out[:BASKET_MAX_REGIONS]
+    out += _regions_from_offers(seen)
+    if len(out) > limit:
+        A.log.warning("Warenkorb: %d Regionen gefunden, aber nur %d erlaubt — nicht "
+                      "berücksichtigt: %s (Option market_basket_max_regions erhöhen)",
+                      len(out), limit, ", ".join(r['label'] for r in out[limit:]))
+    return out[:limit]
 
 
 def _regions_from_offers(seen: set) -> list:

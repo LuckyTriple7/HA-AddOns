@@ -16,10 +16,13 @@ configuration:
     description: "Kumulierte Preisbewegung über 14 Tage, ab der der Markttrend als steigend/fallend statt stabil gilt. Standard 1.0 — kleinerer Wert reagiert empfindlicher auf kleine Bewegungen."
   market_basket_enabled:
     name: Markttrend aus Regions-Warenkorb
-    description: "Führt 1×/Tag je Region (aus deinen gespeicherten Suchen und getrackten Angeboten, max. 8) eine Hotelsuche aus und berechnet den Markttrend aus allen gefundenen Hotels statt nur aus deinen Angeboten. Deutlich breitere Basis. Standard an."
+    description: "Führt 1×/Tag je Region (aus deinen gespeicherten Suchen und getrackten Angeboten) eine Hotelsuche aus und berechnet den Markttrend aus allen gefundenen Hotels statt nur aus deinen Angeboten. Deutlich breitere Basis. Standard an."
   market_basket_lead_days:
     name: Vorlaufzeit für den Warenkorb (Tage)
     description: "Für welchen Abreisetermin der tägliche Warenkorb sucht — immer „heute + X Tage", damit die Vorlaufzeit konstant bleibt und nicht der Last-Minute-Effekt gemessen wird. Standard 91 (Vielfaches von 7 → gleicher Wochentag, keine Wochenend-Preissprünge)."
+  market_basket_max_regions:
+    name: Maximale Regionen im Warenkorb
+    description: "Obergrenze für die täglich abgefragten Regionen (1…50). Reiner Lastschutz: je Region 1–4 API-Aufrufe pro Tag. Werden mehr Regionen gefunden als erlaubt, nennt das Add-on-Log die weggelassenen. Standard 20."
   trippilot_home_location:
     name: TripPilot Heimatort (PLZ/Ort)
     description: "Vorbelegung für die TripPilot-Frage 'Von wo geht's los?' (bei Anreise mit Auto/Bus/Bahn oder Tagesausflug). Leer lassen, wenn nicht gewünscht — im Fragebogen jederzeit änderbar."

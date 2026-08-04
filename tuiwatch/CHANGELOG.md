@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.60.2] - 2026-08-04
+
+### Changed
+- **Regions-Deckel des Warenkorbs von 8 auf 20 angehoben** und über die neue
+  Option `market_basket_max_regions` (1…50) einstellbar. Die 8 waren defensiv
+  geschätzt, bevor die echte Last bekannt war: je Region fallen 1–4 API-Aufrufe
+  pro Tag an (Abbruch, sobald eine Ergebnisseite weniger als 50 Treffer liefert),
+  bei acht Regionen also rund 30 Requests täglich — Kleingeld gegenüber dem
+  normalen Poller.
+- **Abgeschnittene Regionen stehen jetzt im Log** (mit Namen und dem Hinweis auf
+  die Option). Vorher wäre eine neu angelegte Suche über dem Deckel stillschweigend
+  nie im Warenkorb gelandet.
+
 ## [0.60.1] - 2026-08-04
 
 ### Fixed
@@ -20,7 +33,7 @@
   Angebote, je Destination oft nur ein bis zwei Hotels. Neu läuft **1×/Tag je
   Region eine Hotelsuche** (bis zu 200 Hotels), aus deren Snapshots der Trend
   berechnet wird. Regionen werden automatisch aus den gespeicherten Suchen und
-  den getrackten Angeboten abgeleitet (max. 8), keine giataId-Pflege nötig.
+  den getrackten Angeboten abgeleitet, keine giataId-Pflege nötig.
   - **Matched Pairs statt Durchschnittsvergleich**: verglichen wird jedes Hotel
     mit sich selbst vom Vortag; Hotels, die nur in einem der beiden Snapshots
     stehen (ausgebucht/neu dazugekommen), zählen nicht — sonst würde der Trend

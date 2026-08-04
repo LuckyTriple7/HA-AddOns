@@ -232,6 +232,36 @@ def test_regions_come_from_saved_searches(m, mb):
     assert mb._basket_regions() == [{"giata": 128, "label": "Gran Canaria"}]
 
 
+def _save_search(m, name, giata, label):
+    with m.db() as con:
+        con.execute("INSERT INTO saved_searches (name, payload, ts) VALUES (?,?,?)",
+                    (name, '{"dest": {"giata": %d, "label": "%s"}}' % (giata, label),
+                     int(time.time())))
+
+
+def test_max_regions_is_configurable_and_warns(m, mb, monkeypatch, caplog):
+    """Über dem Deckel abgeschnittene Regionen müssen im Log stehen — sonst landet
+    eine neu angelegte Suche nie im Warenkorb, ohne dass es jemand merkt."""
+    for k in range(5):
+        _save_search(m, f"S{k}", 100 + k, f"Region {k}")
+    monkeypatch.setattr(m, "load_config", lambda: {"market_basket_max_regions": 3})
+    with caplog.at_level("WARNING"):
+        regs = mb._basket_regions()
+    assert [r["label"] for r in regs] == ["Region 0", "Region 1", "Region 2"]
+    assert "Region 3" in caplog.text and "Region 4" in caplog.text
+
+
+def test_max_regions_default_and_clamp(m, mb, monkeypatch):
+    monkeypatch.setattr(m, "load_config", lambda: {})
+    assert mb._max_regions() == mb.BASKET_MAX_REGIONS_DEFAULT
+    monkeypatch.setattr(m, "load_config", lambda: {"market_basket_max_regions": 999})
+    assert mb._max_regions() == 50
+    monkeypatch.setattr(m, "load_config", lambda: {"market_basket_max_regions": 0})
+    assert mb._max_regions() == 1
+    monkeypatch.setattr(m, "load_config", lambda: {"market_basket_max_regions": "viele"})
+    assert mb._max_regions() == mb.BASKET_MAX_REGIONS_DEFAULT
+
+
 def test_disabled_option_skips_run(m, mb, monkeypatch):
     monkeypatch.setattr(m, "load_config", lambda: {"market_basket_enabled": False})
     called = []
