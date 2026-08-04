@@ -3,8 +3,8 @@
 Der bisherige Markttrend (`price_moves` in app.py) misst nur die Preisbewegung der
 GETRACKTEN Angebote — je Region oft nur ein, zwei Hotels. Dieses Modul erweitert ihn
 um eine deutlich breitere Basis: einmal pro Tag läuft je Region eine normale
-Hotelsuche, deren Treffer (bis zu `BASKET_PAGES × 50` Hotels) als Warenkorb-Snapshot
-abgelegt werden. Der Trend entsteht aus dem Vergleich aufeinanderfolgender Snapshots.
+Hotelsuche, deren sämtliche Treffer als Warenkorb-Snapshot abgelegt werden. Der Trend
+entsteht aus dem Vergleich aufeinanderfolgender Snapshots.
 
 Warum es so und nicht anders gerechnet wird:
 
@@ -31,9 +31,9 @@ Warum es so und nicht anders gerechnet wird:
   Deshalb wird pro Region und Tag EIN Median abgelegt (`basket_moves`) und erst diese
   Tageswerte werden über die Zeit verkettet.
 
-Bekannte Restunschärfe: die Suche sortiert nach Preis aufsteigend, abgeholt werden nur
-die ersten `BASKET_PAGES × 50` Hotels. Steigt ein Hotel aus diesem Fenster heraus,
-fehlt es im Matching. Mehrere Seiten verdünnen den Effekt, beseitigen ihn aber nicht.
+Abgeholt wird die Region vollständig (siehe `_fetch_basket`) — ein fester Seiten-Deckel
+hätte wegen der Preis-aufsteigenden Sortierung stets nur die günstigsten N Hotels
+erfasst, deren Randbelegung täglich wechselt und den Median verfälscht hätte.
 """
 import json
 import statistics
@@ -52,7 +52,7 @@ BASKET_LEAD_DAYS_DEFAULT = 91   # Vielfaches von 7 → gleicher Wochentag wie ge
 BASKET_NIGHTS = 7
 BASKET_TRAVELLERS = 2
 BASKET_PAGE_SIZE = 50           # entspricht resultsPerPage der Such-API
-BASKET_PAGES = 4                # bis zu 200 Hotels je Region und Tag
+BASKET_MAX_PAGES = 20           # Reißleine (1000 Hotels); normal endet die Schleife an `total`
 BASKET_MAX_REGIONS_DEFAULT = 20  # Deckel für die tägliche API-Last (Option, siehe _max_regions)
 BASKET_MIN_MATCHED = 10         # weniger Hotel-Paare → Tag verwerfen (zu dünn)
 BASKET_MIN_DAYS = 2             # weniger Tagesbewegungen → kein Trend
@@ -117,10 +117,9 @@ def _lead_days() -> int:
 
 def _max_regions() -> int:
     """Obergrenze für die täglich abgefragten Regionen, auf 1…50 begrenzt.
-    Der Deckel ist reiner Lastschutz: eine Region kostet 1–4 API-Aufrufe pro Tag
-    (Abbruch, sobald eine Seite weniger als BASKET_PAGE_SIZE Treffer liefert), der
-    Standard also höchstens rund 80 Requests täglich — Kleingeld gegenüber dem
-    normalen Poller."""
+    Der Deckel ist reiner Lastschutz: eine Region kostet je 50 Hotels einen
+    API-Aufruf pro Tag (typisch 1–6), der Standard also grob 100 Requests täglich —
+    Kleingeld gegenüber dem normalen Poller."""
     try:
         v = int(A.load_config().get('market_basket_max_regions', BASKET_MAX_REGIONS_DEFAULT))
     except (TypeError, ValueError):
@@ -201,17 +200,27 @@ def _fetch_basket(region_giata: int) -> list:
     Abreise — `start + BASKET_NIGHTS` grenzt die Treffer deshalb auf genau einen
     Abreisetag ein (live verifiziert: 196 Treffer, alle mit demselben `date`).
     `start == end` wäre die naheliegende Schreibweise für „ein Tag", quittiert die
-    API aber mit **HTTP 500** — Reisedauer und Zeitfenster widersprechen sich dann."""
+    API aber mit **HTTP 500** — Reisedauer und Zeitfenster widersprechen sich dann.
+
+    Geholt wird die Region **vollständig** (bis `total` erreicht ist), nicht nur die
+    ersten paar Seiten. Grund: die Such-API sortiert nach Preis aufsteigend — ein
+    fester Seiten-Deckel würde also stets die *günstigsten* N Hotels erfassen, und
+    Hotels an dieser Grenze wandern täglich rein und raus. Genau diese wechselnde
+    Randbelegung würde der Median als Preisbewegung missverstehen. `BASKET_MAX_PAGES`
+    ist nur eine Reißleine gegen eine unerwartet riesige Region."""
     start = date.today() + timedelta(days=_lead_days())
     dep, ret = start.isoformat(), (start + timedelta(days=BASKET_NIGHTS)).isoformat()
     out, seen = [], set()
-    for page in range(BASKET_PAGES):
+    total = None
+    for page in range(BASKET_MAX_PAGES):
         res = A.fetch_search_params(
             region=region_giata, start=dep, end=ret, duration=BASKET_NIGHTS,
             travellers=BASKET_TRAVELLERS, offset=page * BASKET_PAGE_SIZE,
             verbose=A._verbose())
         if not (res and res.get('ok')):
             break
+        if total is None:
+            total = res.get('total')
         rows = res.get('results') or []
         for r in rows:
             g = str(r.get('giata') or '')
@@ -219,8 +228,16 @@ def _fetch_basket(region_giata: int) -> list:
                 continue
             seen.add(g)
             out.append(r)
+        # Abbruch, sobald die Seite nicht mehr voll ist (letzte Seite) oder die
+        # gemeldete Gesamttrefferzahl abgearbeitet ist.
         if len(rows) < BASKET_PAGE_SIZE:
             break
+        if total and (page + 1) * BASKET_PAGE_SIZE >= total:
+            break
+    else:
+        A.log.warning("Warenkorb: Region %s nach %d Seiten abgebrochen (gemeldet: %s "
+                      "Treffer) — Warenkorb ist unvollständig", region_giata,
+                      BASKET_MAX_PAGES, total)
     return out
 
 

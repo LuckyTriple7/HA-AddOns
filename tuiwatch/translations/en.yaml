@@ -22,7 +22,7 @@ configuration:
     description: "Which departure date the daily basket searches for — always 'today + X days', so the lead time stays constant and the last-minute effect is not measured. Default 91 (multiple of 7 → same weekday, no weekend price jumps)."
   market_basket_max_regions:
     name: Maximum regions in the basket
-    description: "Upper limit for the regions queried each day (1…50). Purely a load guard: 1–4 API calls per region per day. If more regions are found than allowed, the add-on log names the ones left out. Default 20."
+    description: "Upper limit for the regions queried each day (1…50). Purely a load guard: one API call per 50 hotels in a region per day (typically 1–6). If more regions are found than allowed, the add-on log names the ones left out. Default 20."
   trippilot_home_location:
     name: TripPilot home location (ZIP/city)
     description: "Pre-fills the TripPilot question 'Where are you starting from?' (for car/bus/train arrival or day trips). Leave empty to disable — can always be changed in the questionnaire itself."

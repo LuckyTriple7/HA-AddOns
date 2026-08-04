@@ -87,7 +87,7 @@ jedem konfigurierten KI-Anbieter). Details: [DOCS.md](DOCS.md#preiskalender).
 Destinationsübergreifender Preistrend (14-Tage-Fenster + Index seit
 Aufzeichnungsbeginn), pro Region aufgeschlüsselt. Breite Basis: einmal pro Tag läuft
 je Region eine Hotelsuche, verglichen wird jedes Hotel mit sich selbst vom Vortag
-(Median über bis zu 200 Hotels). Zusätzlich der schmalere Trend aus den eigenen
+(Median über alle Hotels der Region). Zusätzlich der schmalere Trend aus den eigenen
 getrackten Angeboten — der überlebt auch das Löschen einzelner Angebote. Details:
 [DOCS.md](DOCS.md#markttrend).
 

@@ -166,13 +166,43 @@ def test_index_covers_full_history(m, mb):
 
 # ── Kompletter Lauf ────────────────────────────────────────────────────────────
 
-def _fake_search(m, monkeypatch, per_page, calls=None):
+def _fake_search(m, monkeypatch, per_page, calls=None, total=None):
     """`fetch_search_params` durch eine seitenweise Antwort ersetzen."""
     def _f(*, region, offset=0, **kw):
         if calls is not None:
             calls.append(dict(kw, region=region, offset=offset))
-        return {"ok": True, "results": per_page.get(offset, [])}
+        rows = per_page.get(offset, [])
+        return {"ok": True, "results": rows,
+                "total": total if total is not None else len(rows)}
     monkeypatch.setattr(m, "fetch_search_params", _f)
+
+
+def _pages(n, size=50, start_giata=1):
+    """n Hotels in Seiten à `size` aufteilen, wie die Such-API sie liefert."""
+    rows = [{"giata": start_giata + i, "price": 900.0 + i, "board": "AI", "nights": 7,
+             "date": "2027-01-01"} for i in range(n)]
+    return {k * size: rows[k * size:(k + 1) * size] for k in range((n + size - 1) // size)}
+
+
+def test_fetch_pages_whole_region_beyond_four_pages(m, mb, monkeypatch):
+    """Die Such-API sortiert nach Preis aufsteigend — ein fester Seiten-Deckel
+    erfasste stets nur die günstigsten N Hotels, deren Randbelegung täglich
+    wechselt. Große Regionen (Teneriffa 259, Algarve 287) müssen daher komplett
+    abgeholt werden."""
+    calls = []
+    _fake_search(m, monkeypatch, _pages(259), calls, total=259)
+    rows = mb._fetch_basket(135)
+    assert len(rows) == 259
+    assert [c["offset"] for c in calls] == [0, 50, 100, 150, 200, 250]
+
+
+def test_fetch_stops_at_reported_total(m, mb, monkeypatch):
+    """Volle letzte Seite: ohne die `total`-Prüfung liefe eine überflüssige
+    Anfrage hinterher."""
+    calls = []
+    _fake_search(m, monkeypatch, _pages(100), calls, total=100)
+    assert len(mb._fetch_basket(128)) == 100
+    assert [c["offset"] for c in calls] == [0, 50]
 
 
 def test_search_window_spans_one_departure_day(m, mb, monkeypatch):
@@ -195,7 +225,7 @@ def test_run_basket_region_stores_snapshot_and_pages(m, mb, monkeypatch):
               "date": "2027-01-01"} for i in range(1, 51)]
     page1 = [{"giata": 100 + i, "price": 1500 + i, "board": "AI", "nights": 7,
               "date": "2027-01-01"} for i in range(10)]
-    _fake_search(m, monkeypatch, {0: page0, 50: page1})
+    _fake_search(m, monkeypatch, {0: page0, 50: page1}, total=60)
     res = mb.run_basket_region("Kanaren", 128)
     assert res["hotels"] == 60          # zweite Seite wird geholt, dann Abbruch (<50)
     assert res["move"] is None          # erster Tag, kein Vorgänger

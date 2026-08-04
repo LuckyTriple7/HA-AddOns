@@ -557,14 +557,15 @@ davon, ob ein einzelnes Angebot später gelöscht wird.
 Der oben beschriebene Trend sieht nur die **eigenen** getrackten Angebote — je
 Destination oft nur ein bis zwei Hotels. Zusätzlich läuft daher **1×/Tag je Region
 eine ganz normale Hotelsuche**, deren Treffer als Warenkorb-Snapshot gespeichert
-werden (bis zu 200 Hotels je Region). Im Markttrend-Fenster steht dieser Block oben
+werden — die Region **vollständig**, nicht nur die ersten Seiten (typisch 30–300
+Hotels je Region). Im Markttrend-Fenster steht dieser Block oben
 (**🧺 Regions-Warenkorb**), der Angebots-Trend darunter.
 
 - **Regionen** werden automatisch abgeleitet: zuerst die Ziele der **gespeicherten
   Suchen**, danach die Regionen der **getrackten Angebote**. Keine giataId-Pflege
   nötig. Die Obergrenze steht in `market_basket_max_regions` (Standard 20, erlaubt
-  1…50) und ist reiner Lastschutz — je Region fallen 1–4 API-Aufrufe pro Tag an
-  (Abbruch, sobald eine Ergebnisseite weniger als 50 Treffer liefert). Werden mehr
+  1…50) und ist reiner Lastschutz — je 50 Hotels einer Region fällt ein API-Aufruf
+  pro Tag an (typisch 1–6). Werden mehr
   Regionen gefunden als erlaubt, nennt das Add-on-Log die weggelassenen; sie fallen
   also nicht stillschweigend weg.
 - **Vergleich je Hotel, nicht je Durchschnitt** („Matched Pairs"): jedes Hotel wird
@@ -588,13 +589,16 @@ werden (bis zu 200 Hotels je Region). Im Markttrend-Fenster steht dieser Block o
   zwei Tage mit je mindestens 10 vergleichbaren Hotels; Lücken über 7 Tage (Add-on
   war aus) starten die Kette neu.
 - **Bedienung:** **🧺 Warenkorb jetzt füllen** stößt einen Lauf sofort an (läuft im
-  Hintergrund und dauert je nach Regionszahl einige Minuten), 🗑 je Zeile löscht die
+  Hintergrund; acht Regionen dauern rund zehn Sekunden), 🗑 je Zeile löscht die
   Daten einer Region und beginnt neu.
 - **Speicher:** Roh-Snapshots werden nach 120 Tagen verworfen, die verdichteten
   Tagesbewegungen bleiben — der Index seit Aufzeichnungsbeginn überlebt das also.
-- **Bekannte Unschärfe:** die Suche sortiert nach Preis aufsteigend und holt nur die
-  ersten 200 Hotels. Steigt ein Hotel aus diesem Fenster heraus, fehlt es im
-  Vergleich. Mehrere abgeholte Seiten verdünnen den Effekt, beseitigen ihn nicht.
+- **Vollständigkeit:** die Suche sortiert nach Preis aufsteigend, deshalb wird jede
+  Region **komplett** abgeholt (bis zur gemeldeten Gesamttrefferzahl). Ein fester
+  Seiten-Deckel würde stets nur die günstigsten N Hotels erfassen — und weil dessen
+  Randbelegung täglich wechselt, hätte der Median diese Fluktuation als
+  Preisbewegung missverstanden. Reißleine bei 1000 Hotels je Region (dann steht eine
+  Warnung im Log).
 - **Abschaltbar** über `market_basket_enabled`.
 
 ## KI-Buchungsscore ("Orakel")

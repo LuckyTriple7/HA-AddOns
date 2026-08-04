@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.60.3] - 2026-08-04
+
+### Fixed
+- **Warenkorb holt jede Region jetzt vollständig** statt nur der ersten vier
+  Ergebnisseiten. Der feste Deckel schnitt große Regionen ab (live: Teneriffa 259
+  Hotels → 200 erfasst, Algarve 287 → 200) — und weil die Such-API nach Preis
+  **aufsteigend** sortiert, waren das stets die *günstigsten* 200. Hotels an
+  dieser Grenze wandern täglich rein und raus; der Median hätte diese wechselnde
+  Randbelegung als Preisbewegung gelesen. Paginiert wird nun bis zur gemeldeten
+  Gesamttrefferzahl, mit einer Reißleine bei 1000 Hotels je Region (dann steht
+  eine Warnung im Log). Nachgeprüft: Teneriffa und Algarve kommen jetzt
+  vollständig an, weiterhin ein einziger Abreisetag und 7 Nächte.
+
 ## [0.60.2] - 2026-08-04
 
 ### Changed
