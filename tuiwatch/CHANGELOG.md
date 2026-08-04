@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.61.1] - 2026-08-04
+
+### Fixed
+- **Kleine Warenkörbe blieben dauerhaft ohne Trend.** Ein Tag zählte nur mit
+  mindestens 10 vergleichbaren Hotels — bei stark gefilterten Suchen (nur All
+  Inclusive, Direktflug ab STR, bestimmte Lage) bleiben aber oft nur 11–16 Treffer
+  übrig, und ein einziger Verpflegungswechsel bei zweien ließ den Tag durchfallen.
+  Die Mindestbreite richtet sich jetzt nach der Warenkorbgröße: 60 % des kleineren
+  der beiden Snapshots, höchstens 10, mindestens 5. Große Warenkörbe bleiben streng,
+  schrumpfende (Saisonende) ziehen die Schwelle mit.
+- **Angebots-Warenkörbe je Region und Abreisemonat gebündelt** statt je Einzeltermin.
+  Fünf getrackte Gran-Canaria-Angebote mit Abreise am 3., 7. und 31. Mai sowie 7. und
+  14. Juni ergaben fünf Warenkörbe à ~220 Hotels und je fünf Ergebnisseiten — 25
+  Abrufe täglich für praktisch denselben Markt. Jetzt zwei Warenkörbe („Mai 2027,
+  11 Nächte" / „Juni 2027, 11 Nächte") mit 10 Abrufen. Die Dauer bleibt im Schlüssel,
+  weil eine und zwei Wochen unterschiedliche Preisniveaus haben. Das Suchfenster endet
+  am Monatsletzten **plus Reisedauer**, sonst fielen genau die Abreisen am Monatsende
+  heraus (`endDate` meint bei der Such-API die späteste Rückreise). Live geprüft:
+  Mai-Warenkorb 227 Hotels mit Abreisen vom 01.05. bis 31.05.
+  Die Snapshots der Einzeltermin-Fassung werden einmalig verworfen — zu ihren
+  Schlüsseln gibt es keinen Warenkorb mehr, sie blieben sonst als Karteileichen unter
+  „sammelt noch" stehen.
+
 ## [0.61.0] - 2026-08-04
 
 ### Changed

@@ -94,9 +94,41 @@ def test_move_skips_board_and_nights_changes(m, mb):
 
 
 def test_move_needs_minimum_matched_hotels(m, mb):
-    _snap(m, "Kanaren", _day(-1), [(i, 1000.0, "AI", 7) for i in range(5)])
-    _snap(m, "Kanaren", _day(0), [(i, 1100.0, "AI", 7) for i in range(5)])
-    assert _move(m, mb, "Kanaren", _day(0)) is None
+    _snap(m, "Kanaren", _day(-1), [(i, 1000.0, "AI", 7) for i in range(4)])
+    _snap(m, "Kanaren", _day(0), [(i, 1100.0, "AI", 7) for i in range(4)])
+    assert _move(m, mb, "Kanaren", _day(0)) is None    # unter dem harten Boden von 5
+
+
+def test_min_matched_scales_with_basket_size(m, mb):
+    """Eine feste Schwelle von 10 war für stark gefilterte Suchen zu streng: bei 12
+    Treffern hätte ein Verpflegungswechsel bei zweien den Tag dauerhaft
+    durchfallen lassen. Große Warenkörbe bleiben streng."""
+    assert mb._min_matched(400) == mb.BASKET_MIN_MATCHED      # gedeckelt
+    assert mb._min_matched(20) == mb.BASKET_MIN_MATCHED       # 60 % = 12, gedeckelt
+    assert mb._min_matched(14) == 8                           # 60 %
+    assert mb._min_matched(12) == 7                           # 60 %
+    assert mb._min_matched(4) == mb.BASKET_MIN_MATCHED_FLOOR  # harter Boden
+
+
+def test_small_basket_still_yields_a_move(m, mb):
+    """Warenkorb mit 12 Hotels (enge Filter): zwei fallen durch den Board-Wechsel
+    raus, die restlichen zehn müssen trotzdem einen Tageswert ergeben."""
+    _snap(m, "Lanzarote 2027", _day(-1), [(i, 1000.0, "AI", 7) for i in range(1, 13)])
+    _snap(m, "Lanzarote 2027", _day(0),
+          [(i, 980.0, "AI", 7) for i in range(1, 11)]
+          + [(11, 1500.0, "HP", 7), (12, 1500.0, "AI", 10)])
+    mv = _move(m, mb, "Lanzarote 2027", _day(0))
+    assert mv is not None and mv["n_matched"] == 10
+    assert mv["pct_median"] == pytest.approx(-2.0, abs=0.01)
+
+
+def test_min_matched_follows_the_smaller_snapshot(m, mb):
+    """Schrumpft der Warenkorb (Saisonende), darf die Schwelle nicht am größeren
+    Vortag hängen bleiben."""
+    _snap(m, "Klein", _day(-1), [(i, 1000.0, "AI", 7) for i in range(1, 41)])
+    _snap(m, "Klein", _day(0), [(i, 950.0, "AI", 7) for i in range(1, 9)])
+    mv = _move(m, mb, "Klein", _day(0))
+    assert mv is not None and mv["n_matched"] == 8
 
 
 def test_move_skipped_after_long_gap(m, mb):
@@ -297,20 +329,75 @@ def test_expired_search_is_skipped(m, mb):
     assert [t["key"] for t in mb._basket_targets()] == ["Aktuell"]
 
 
-def test_offer_target_uses_offer_departure(m, mb, monkeypatch):
-    """Ohne gespeicherte Suche kommt der Termin aus dem Angebot selbst:
-    Abreise = Rückreisedatum minus Dauer."""
-    monkeypatch.setattr(m, "region_giata_from_breadcrumb", lambda g: 135)
+def _add_offer(m, giata, region, return_date, nights=7):
     with m.db() as con:
         con.execute("INSERT INTO offers (url, hotel, region, return_date, created) "
                     "VALUES (?,?,?,?,?)",
-                    ("https://x.invalid/angebote/Hotel/2781/?duration=7", "H",
-                     "Teneriffa", "2027-05-15", int(time.time())))
+                    (f"https://x.invalid/angebote/Hotel/{giata}/?duration={nights}", "H",
+                     region, return_date, int(time.time())))
+
+
+def test_offer_target_uses_offer_departure_month(m, mb, monkeypatch):
+    """Ohne gespeicherte Suche kommt der Termin aus dem Angebot selbst (Abreise =
+    Rückreise minus Dauer), gesucht wird der ganze Abreisemonat."""
+    monkeypatch.setattr(m, "region_giata_from_breadcrumb", lambda g: 135)
+    _add_offer(m, 2781, "Teneriffa", "2027-05-15", nights=7)
     targets = mb._basket_targets()
     assert len(targets) == 1
-    assert targets[0]["payload"]["vom"] == "2027-05-08"   # 15.05. minus 7 Nächte
-    assert targets[0]["key"] == "Teneriffa (Abreise 08.05.2027)"
-    assert targets[0]["source"] == "offer"
+    t = targets[0]
+    assert t["key"] == "Teneriffa (Mai 2027, 7 Nächte)"
+    assert t["payload"]["vom"] == "2027-05-01"
+    # Ende = Monatsletzter + Dauer, weil `endDate` die späteste Rückreise meint
+    assert t["payload"]["bis"] == "2027-06-07"
+    assert t["period"] == "Abreise 01.05. – 31.05.2027"
+    assert t["source"] == "offer"
+
+
+def test_offers_in_same_month_share_one_basket(m, mb, monkeypatch):
+    """Fünf Gran-Canaria-Angebote mit Abreise am 3., 7. und 31. Mai sowie 7. und
+    14. Juni ergaben früher fünf Warenkörbe à ~220 Hotels und je fünf Seiten —
+    25 Abrufe täglich für praktisch denselben Markt. Jetzt einer je Monat."""
+    monkeypatch.setattr(m, "region_giata_from_breadcrumb", lambda g: 128)
+    for giata, ret in ((1, "2027-05-14"), (2, "2027-05-18"), (3, "2027-06-11"),
+                       (4, "2027-06-18"), (5, "2027-06-25")):
+        _add_offer(m, giata, "Gran Canaria", ret, nights=11)
+    keys = [t["key"] for t in mb._basket_targets()]
+    assert keys == ["Gran Canaria (Mai 2027, 11 Nächte)",
+                    "Gran Canaria (Juni 2027, 11 Nächte)"]
+
+
+def test_different_durations_stay_separate(m, mb, monkeypatch):
+    """Eine Woche und zwei Wochen haben unterschiedliche Preisniveaus — die dürfen
+    nicht in denselben Warenkorb."""
+    monkeypatch.setattr(m, "region_giata_from_breadcrumb", lambda g: 128)
+    _add_offer(m, 1, "Gran Canaria", "2027-05-14", nights=7)
+    _add_offer(m, 2, "Gran Canaria", "2027-05-18", nights=14)
+    assert len(mb._basket_targets()) == 2
+
+
+def test_old_single_date_offer_keys_are_cleaned_up(m, mb):
+    """Die Einzeltermin-Schlüssel der Vorversion haben kein Ziel mehr — ohne
+    Aufräumen stünden sie bis zum Ablauf der Aufbewahrung als „sammelt noch" in
+    der UI."""
+    _snap(m, "Gran Canaria (Abreise 07.05.2027)", _day(0), [(1, 900.0, "AI", 7)])
+    _snap(m, "Gran Canaria (Mai 2027, 11 Nächte)", _day(0), [(1, 900.0, "AI", 7)])
+    with m.db() as con:
+        con.execute("DELETE FROM meta WHERE key='basket_offer_keys_bundled'")
+        mb.init_basket_db(con)
+        keys = [r["basket"] for r in con.execute(
+            "SELECT DISTINCT basket FROM basket_snapshots").fetchall()]
+    assert keys == ["Gran Canaria (Mai 2027, 11 Nächte)"]
+
+
+def test_current_month_window_does_not_start_in_the_past(m, mb, monkeypatch):
+    """Läuft der Abreisemonat schon, beginnt das Suchfenster heute — ein Zeitraum
+    in der Vergangenheit liefert nichts."""
+    monkeypatch.setattr(m, "region_giata_from_breadcrumb", lambda g: 128)
+    today = date.today()
+    ret = (today + timedelta(days=3)).isoformat()
+    _add_offer(m, 1, "Gran Canaria", ret, nights=1)
+    targets = mb._basket_targets()
+    assert targets[0]["payload"]["vom"] == today.isoformat()
 
 
 def test_max_regions_is_configurable_and_warns(m, mb, monkeypatch, caplog):

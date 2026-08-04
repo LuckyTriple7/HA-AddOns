@@ -59,7 +59,9 @@ BASKET_TRAVELLERS = 2
 BASKET_PAGE_SIZE = 50           # entspricht resultsPerPage der Such-API
 BASKET_MAX_PAGES = 20           # Reißleine (1000 Hotels); normal endet die Schleife an `total`
 BASKET_MAX_REGIONS_DEFAULT = 20  # Deckel für die tägliche API-Last (Option, siehe _max_regions)
-BASKET_MIN_MATCHED = 10         # weniger Hotel-Paare → Tag verwerfen (zu dünn)
+BASKET_MIN_MATCHED = 10         # Obergrenze der Mindestbreite, siehe _min_matched
+BASKET_MIN_MATCHED_FLOOR = 5    # darunter ist ein Median nicht mehr aussagekräftig
+BASKET_MIN_MATCHED_SHARE = 0.6  # Anteil des Warenkorbs, der wiederauftauchen muss
 BASKET_MIN_DAYS = 2             # weniger Tagesbewegungen → kein Trend
 BASKET_MAX_GAP_DAYS = 7         # größere Lücke (Add-on aus) → Kette neu beginnen
 BASKET_RETENTION_DAYS = 120     # Snapshots älter als das werden verworfen
@@ -125,6 +127,21 @@ def init_basket_db(con) -> None:
     )''')
     con.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_basket_move '
                 'ON basket_moves(basket, day)')
+    # Angebots-Warenkörbe hießen kurzzeitig „<Region> (Abreise TT.MM.JJJJ)" — ein
+    # Warenkorb je Einzeltermin. Seit der Monatsbündelung gibt es zu diesen
+    # Schlüsseln keinen Warenkorb mehr; ihre Snapshots blieben sonst als
+    # Karteileichen liegen und stünden bis zum Ablauf der Aufbewahrung in der UI
+    # unter „sammelt noch".
+    if not con.execute(
+            "SELECT 1 FROM meta WHERE key='basket_offer_keys_bundled'").fetchone():
+        n = con.execute(
+            "DELETE FROM basket_snapshots WHERE basket LIKE '% (Abreise %'").rowcount
+        con.execute("DELETE FROM basket_moves WHERE basket LIKE '% (Abreise %'")
+        con.execute("INSERT OR REPLACE INTO meta (key, value) "
+                    "VALUES ('basket_offer_keys_bundled','1')")
+        if n:
+            A.log.info("Warenkorb: %d Snapshots der Einzeltermin-Fassung verworfen "
+                       "(Angebots-Warenkörbe laufen jetzt je Monat)", n)
 
 
 # ── Konfiguration ──────────────────────────────────────────────────────────────
@@ -220,16 +237,39 @@ def _basket_targets() -> list:
     return out[:limit]
 
 
+_MONTHS_DE = ('Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli',
+              'August', 'September', 'Oktober', 'November', 'Dezember')
+
+
+def _month_window(dep: date, nights: int) -> tuple[date, date]:
+    """Suchfenster für den Abreisemonat von `dep`: (früheste Abreise, späteste
+    Rückreise). Ab heute gerechnet — ein bereits laufender Monat beginnt beim
+    Warenkorb heute, nicht rückwirkend.
+
+    Das Ende ist Monatsletzter **plus Reisedauer**, weil `endDate` bei der Such-API
+    die späteste Rückreise meint. Ohne den Aufschlag fielen genau die Abreisen am
+    Monatsende heraus (im Log: Abreise 31.05. mit 11 Nächten endet am 11.06.)."""
+    first = max(dep.replace(day=1), date.today())
+    nxt = (dep.replace(day=28) + timedelta(days=4)).replace(day=1)
+    return first, nxt - timedelta(days=1) + timedelta(days=nights)
+
+
 def _offer_targets(seen: set) -> list:
     """Warenkörbe aus den getrackten Angeboten — für Reiseziele, zu denen es keine
     gespeicherte Suche gibt. Der Reisetermin kommt aus dem Angebot selbst (Abreise
     = Rückreisedatum minus Dauer aus der URL); nur wenn dort nichts steht, greift
     ersatzweise die konstante Vorlaufzeit `market_basket_lead_days`.
 
-    Ein Warenkorb je Region UND Abreisetermin: zwei Angebote in derselben Region
-    für verschiedene Monate sind verschiedene Märkte. Die Zuordnung Hotel→Region
-    geht über die Breadcrumb-API (ein Aufruf je Hotel) und wird dauerhaft in `meta`
-    gecacht — Hotels wechseln die Region nicht."""
+    Gebündelt wird je **Region, Abreisemonat und Dauer**, nicht je Einzeltermin.
+    Fünf getrackte Gran-Canaria-Angebote mit Abreise am 3., 7., 31. Mai sowie 7. und
+    14. Juni ergaben sonst fünf Warenkörbe à ~220 Hotels und fünf Ergebnisseiten —
+    25 Abrufe täglich für praktisch denselben Markt. Als Zeitraum dient der ganze
+    Monat; die Suche liefert je Hotel den günstigsten Termin darin, was für einen
+    Markttrend genau die richtige Zahl ist. Die Dauer bleibt im Schlüssel, weil eine
+    Woche und zwei Wochen unterschiedliche Preisniveaus haben.
+
+    Die Zuordnung Hotel→Region geht über die Breadcrumb-API (ein Aufruf je Hotel)
+    und wird dauerhaft in `meta` gecacht — Hotels wechseln die Region nicht."""
     try:
         cache = json.loads(A._meta_get('basket_region_map') or '{}')
     except (TypeError, json.JSONDecodeError):
@@ -238,7 +278,7 @@ def _offer_targets(seen: set) -> list:
         offers = con.execute(
             'SELECT url, region, return_date FROM offers '
             'WHERE COALESCE(archived,0)=0 ORDER BY id').fetchall()
-    out, dirty = [], False
+    out, dirty, grouped = [], False, set()
     for o in offers:
         hotel_giata = A._giata_from_url(o['url'])
         if not hotel_giata:
@@ -257,16 +297,25 @@ def _offer_targets(seen: set) -> list:
         dep = _offer_departure(o['return_date'], nights)
         if dep < date.today():
             continue
+        group = (int(rg), dep.year, dep.month, nights)
+        if group in grouped:
+            continue
+        grouped.add(group)
         label = (o['region'] or '').strip() or str(rg)
-        key = f"{label} (Abreise {dep.strftime('%d.%m.%Y')})"
+        vom, bis = _month_window(dep, nights)
+        key = f"{label} ({_MONTHS_DE[dep.month - 1]} {dep.year}, {nights} Nächte)"
         if key in seen:
             continue
         seen.add(key)
         payload = {'dest': {'giata': int(rg), 'label': label},
-                   'vom': dep.isoformat(), 'bis': (dep + timedelta(days=nights)).isoformat(),
+                   'vom': vom.isoformat(), 'bis': bis.isoformat(),
                    'dur': nights, 'trav': BASKET_TRAVELLERS}
-        out.append({'key': key, 'giata': int(rg), 'payload': payload,
-                    'period': _period(payload), 'source': 'offer'})
+        # Angezeigt wird der Abreise-Bereich, nicht das Suchfenster — dessen Ende ist
+        # um die Reisedauer verschoben (Rückreise-Rand) und läse sich sonst falsch.
+        last_dep = bis - timedelta(days=nights)
+        out.append({'key': key, 'giata': int(rg), 'payload': payload, 'source': 'offer',
+                    'period': f"Abreise {vom.strftime('%d.%m.')} – "
+                              f"{last_dep.strftime('%d.%m.%Y')}"})
     if dirty:
         A._meta_set('basket_region_map', json.dumps(cache))
     return out
@@ -373,9 +422,13 @@ def _compute_move(con, basket: str, day: str) -> dict | None:
         if (o['board'] or '') != (c['board'] or '') or o['nights'] != c['nights']:
             continue
         pcts.append((c['price'] - o['price']) / o['price'] * 100)
-    if len(pcts) < BASKET_MIN_MATCHED:
-        A.log.info("Warenkorb „%s“: nur %d vergleichbare Hotels (min. %d) — Tag verworfen",
-                   basket, len(pcts), BASKET_MIN_MATCHED)
+    # Mindestbreite an der KLEINEREN der beiden Snapshot-Größen messen: schrumpft der
+    # Warenkorb (Saisonende, Hotels ausgebucht), soll die Schwelle mitschrumpfen und
+    # nicht am größeren Vortag hängen bleiben.
+    need = _min_matched(min(len(cur), len(old)))
+    if len(pcts) < need:
+        A.log.info("Warenkorb „%s“: nur %d von %d vergleichbaren Hotels (min. %d) — "
+                   "Tag verworfen", basket, len(pcts), min(len(cur), len(old)), need)
         return None
     med = statistics.median(pcts)
     con.execute(
@@ -384,6 +437,19 @@ def _compute_move(con, basket: str, day: str) -> dict | None:
         (int(time.time()), day, basket, prev_day, gap, med, len(pcts), len(cur)))
     return {'day': day, 'prev_day': prev_day, 'gap_days': gap,
             'pct_median': round(med, 2), 'n_matched': len(pcts), 'n_total': len(cur)}
+
+
+def _min_matched(basket_size: int) -> int:
+    """Wie viele Hotel-Paare ein Tag mindestens braucht, um gezählt zu werden.
+
+    Eine feste Zahl (10) war für stark gefilterte Suchen zu streng: wer „nur All
+    Inclusive, Direktflug ab STR, Lage 10" sucht, bekommt vielleicht 12 Treffer —
+    ein einziger Verpflegungswechsel bei zweien reicht dann, und der Tag fällt
+    dauerhaft durch. Deshalb relativ zur Warenkorbgröße (60 %), nach oben durch
+    BASKET_MIN_MATCHED gedeckelt (große Warenkörbe bleiben streng) und nach unten
+    durch BASKET_MIN_MATCHED_FLOOR — unter fünf Werten ist ein Median beliebig."""
+    return max(BASKET_MIN_MATCHED_FLOOR,
+               min(BASKET_MIN_MATCHED, int(basket_size * BASKET_MIN_MATCHED_SHARE)))
 
 
 def _prune(con) -> None:

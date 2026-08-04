@@ -572,7 +572,11 @@ Woche 3 % gefallen" — die Zahl, die bei der Buchungsentscheidung hilft.
 - **Getrackte Angebote ohne gespeicherte Suche** bekommen ebenfalls einen Warenkorb:
   Ziel = Region des Hotels, Termin = Abreisedatum des Angebots (Rückreise minus
   Dauer). Nur wenn dort gar kein Datum steht, greift ersatzweise die konstante
-  Vorlaufzeit `market_basket_lead_days`.
+  Vorlaufzeit `market_basket_lead_days`. Gebündelt wird je **Region, Abreisemonat
+  und Dauer** — fünf Gran-Canaria-Angebote mit Abreise am 3., 7. und 31. Mai sowie
+  7. und 14. Juni ergeben zwei Warenkörbe („Mai 2027, 11 Nächte" und „Juni 2027,
+  11 Nächte"), nicht fünf. Gesucht wird der ganze Monat; die Suche liefert je Hotel
+  den günstigsten Termin darin, was für einen Markttrend genau die richtige Zahl ist.
 - **Abgelaufene Reisezeiträume** fallen automatisch raus.
 - Die Obergrenze steht in `market_basket_max_regions` (Standard 20, erlaubt 1…50) und
   ist reiner Lastschutz — je 50 Hotels ein API-Aufruf pro Tag (typisch 1–6 je Suche).
@@ -593,8 +597,13 @@ Woche 3 % gefallen" — die Zahl, die bei der Buchungsentscheidung hilft.
   genau die interessante Zahl — wandert er, ist das die gesuchte Information.
 - **Verkettung erst auf Tagesebene:** je Warenkorb und Tag wird **ein** Median
   abgelegt, erst diese Tageswerte werden über die Zeit verkettet. Ein Trend braucht
-  mindestens zwei Tage mit je mindestens 10 vergleichbaren Hotels; Lücken über 7 Tage
-  (Add-on war aus) starten die Kette neu.
+  mindestens zwei Tage; Lücken über 7 Tage (Add-on war aus) starten die Kette neu.
+- **Mindestbreite je Tag:** wie viele Hotels wiederauftauchen müssen, richtet sich
+  nach der Warenkorbgröße — 60 % des (kleineren) Snapshots, höchstens 10, mindestens
+  5. Eine feste Zahl war für stark gefilterte Suchen zu streng: wer „nur All
+  Inclusive, Direktflug ab STR, Lage 10" sucht, bekommt vielleicht 12 Treffer, und
+  ein einziger Verpflegungswechsel bei zweien hätte den Tag dauerhaft durchfallen
+  lassen. Große Warenkörbe bleiben streng.
 - **Bedienung:** **🧺 Warenkorb jetzt füllen** stößt einen Lauf sofort an. Er läuft im
   Hintergrund, ein **Fortschrittsbalken** zeigt „X von Y Suchen" samt der bisher
   erfassten Hotelzahl und dem gerade laufenden Warenkorb. 🗑 je Zeile löscht die Daten
