@@ -97,6 +97,16 @@
     .avail.warn { color:var(--amber); background:rgba(210,153,34,.14); }
     .sr-new { font-size:.8em; }
     .sr-drop { color:var(--green); font-size:.8em; font-weight:700; white-space:nowrap; }
+    /* Tracking-Statistik */
+    .stats-wk { display:flex; flex-direction:column; gap:4px; margin:8px 0; }
+    .stats-wk-row { display:flex; align-items:center; gap:8px; font-size:.85rem; }
+    .stats-wk-row .wkd { width:24px; color:var(--muted); font-weight:700; }
+    .stats-wk-row .wkbar { flex:0 0 140px; height:10px; background:var(--surf); border:1px solid var(--border); border-radius:5px; overflow:hidden; }
+    .stats-wk-row .wkbar i { display:block; height:100%; background:var(--muted); }
+    .stats-wk-row .wkbar i.down { background:var(--green); }
+    .stats-wk-row .wkbar i.up { background:var(--red); }
+    .stats-wk-row .wkn { color:var(--muted); white-space:nowrap; }
+    #stats-body h3 { margin:16px 0 6px; }
     /* Preis-Aufschlüsselung (Rechtsklick auf den Preis) */
     .split-table { width:100%; border-collapse:collapse; margin:10px 0; }
     .split-table td { padding:6px 4px; border-bottom:1px solid var(--border); }
@@ -625,6 +635,7 @@
       · DB: <span id="db-size">…</span>
       · <span id="hc-foot" class="hc-foot" title="API-Status — klicken für Details &amp; neuen Test" onclick="openHealth()">API: <span id="hc-dot">…</span></span>
       · <span class="hc-foot" onclick="openSyslog('notify')" title="Verlauf gesendeter Benachrichtigungen + letzte Warnungen/Fehler">🔔 Meldungen</span>
+      · <span class="hc-foot" onclick="openStats()" title="Tracking-Statistik: Ersparnis, größte Preisbewegungen, Wochentags-Muster, Tiefstpreis-Rückschau">📊 Statistik</span>
       · <span class="hc-foot" onclick="backupOffers()" title="Komplettes Backup (Angebote mit Preisverlauf, Meine Reisen inkl. PDF, gespeicherte Suchen) als ZIP">⬇ Backup</span>
       · <span class="hc-foot" onclick="document.getElementById('restore-file').click()" title="Backup wiederherstellen (ZIP oder altes JSON) – ergänzt Fehlendes, überschreibt nichts">⬆ Restore</span>
       · <span class="hc-foot ai-feature" onclick="openPromptCfg()" title="Eigene KI-Prompt-Vorlagen für TripPilot &amp; Hotelvergleich bearbeiten">⚙ KI-Prompts</span>
@@ -818,6 +829,18 @@
       <h2>Preis-Aufschlüsselung</h2>
       <div class="sub" id="split-sub"></div>
       <div id="split-body"></div>
+    </div>
+  </div>
+
+  <!-- Tracking-Statistik -->
+  <div class="modal-bg" id="stats-bg">
+    <div class="modal">
+      <button class="icon-btn modal-close" onclick="closeStats()">
+        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+      </button>
+      <h2>📊 Tracking-Statistik</h2>
+      <div class="sub">Kennzahlen über alle Angebote und den gesamten Preisverlauf.</div>
+      <div id="stats-body"></div>
     </div>
   </div>
 

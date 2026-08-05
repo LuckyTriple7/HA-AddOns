@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.73.0] - 2026-08-05
+
+### Added
+- **📊 Tracking-Statistik** (neuer Footer-Eintrag, `GET /api/stats`): Ersparnis
+  gegenüber dem Höchstpreis je aktivem Angebot (mit Summe), die größten
+  Einzelbewegungen zwischen zwei Prüfungen, **Preisänderungen nach Wochentag**
+  (Anzahl, ↓/↑, Ø-Richtung — Basis Markttrend-Daten), gebuchte Angebote vs.
+  heutiger Preis und die **Tiefstpreis-Rückschau**: bei abgeschlossenen
+  (archivierten) Angeboten lag der Tiefstpreis im Median X Tage vor Abreise —
+  erste empirische Antwort auf „wann buchen?". Neues Modul `stats_routes.py`.
+
 ## [0.72.0] - 2026-08-05
 
 ### Added

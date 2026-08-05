@@ -814,6 +814,16 @@ ein kritischer Endpunkt antwortet nicht. Ein Klick öffnet die Detailliste mit �
 prüfen". So lässt sich schnell unterscheiden, ob ein fehlender Preis am Angebot liegt
 oder TUI eine API geändert hat.
 
+## Tracking-Statistik (📊)
+
+**📊 Statistik** im Footer öffnet Kennzahlen über alle Angebote und den ganzen
+Preisverlauf: Angebote/Messpunkte/Aufzeichnungsbeginn, **Ersparnis gegenüber dem
+Höchstpreis** je aktivem Angebot, die **größten Einzelbewegungen** (eine Prüfung
+zur nächsten), **Preisänderungen nach Wochentag** (an welchen Tagen bewegt sich
+was, Ø-Richtung), gebuchte Angebote vs. heutiger Preis sowie die
+**Tiefstpreis-Rückschau**: bei abgeschlossenen (archivierten) Angeboten, wie viele
+Tage vor Abreise der tiefste Preis lag (Median).
+
 ## Daten
 
 Alles wird unter `/data/tuiwatch.db` (SQLite) gespeichert und bleibt über

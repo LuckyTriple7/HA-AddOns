@@ -1008,6 +1008,49 @@
       $('#srch-favsel').value=''; favBtnState();
     }
 
+    // ── Tracking-Statistik (📊 im Footer) ───────────────────────────────────────
+    async function openStats(){
+      $('#stats-bg').classList.add('show');
+      $('#stats-body').innerHTML = '<div class="cmp-load">Lade…</div>';
+      let d;
+      try { d = await fetch(api('/api/stats')).then(r=>r.json()); }
+      catch(e){ $('#stats-body').innerHTML = '<div class="cmp-load">Statistik konnte nicht geladen werden.</div>'; return; }
+      const since = d.since_ts ? new Date(d.since_ts*1000).toLocaleDateString('de-DE') : '–';
+      const tiles = [
+        ['Angebote (aktiv)', `${d.offers_active} / ${d.offers_total}`],
+        ['Messpunkte', (d.points||0).toLocaleString('de-DE')],
+        ['Aufzeichnung seit', since],
+        ['Ersparnis ggü. Höchstpreis', eur(d.saved_total)],
+      ].map(([l,v])=>`<div class="tstat"><div class="v">${v}</div><div class="l">${l}</div></div>`).join('');
+      const savedTbl = (d.saved_rows||[]).length ? `<h3>💰 Aktuell unter dem Höchstpreis</h3>
+        <table class="hist"><tr><th>Angebot</th><th>Hoch → jetzt</th><th>gespart</th></tr>${
+        d.saved_rows.map(r=>`<tr><td>${esc(r.name)}</td><td>${eur(r.peak)} → ${eur(r.price)}</td><td class="hist-diff down">−${eur(r.saved)}</td></tr>`).join('')}</table>` : '';
+      const mv = (rows, title, cls, sign) => rows && rows.length ? `<h3>${title}</h3>
+        <table class="hist"><tr><th>Angebot</th><th>Bewegung</th><th>Datum</th></tr>${
+        rows.map(r=>`<tr><td>${esc(r.name)}</td><td class="hist-diff ${cls}">${sign}${eur(Math.abs(r.delta))} → ${eur(r.price)}</td><td>${new Date(r.ts*1000).toLocaleDateString('de-DE')}</td></tr>`).join('')}</table>` : '';
+      // Wochentags-Muster: Balkenbreite ∝ Anzahl Bewegungen, Farbe nach Ø-Richtung
+      const maxN = Math.max(1, ...(d.weekday||[]).map(w=>w.n));
+      const wk = `<h3>📅 Preisänderungen nach Wochentag</h3>
+        <div class="stats-wk">${(d.weekday||[]).map(w=>{
+          const pct = w.avg_pct!=null ? (w.avg_pct>0?'+':'')+w.avg_pct.toLocaleString('de-DE')+' %' : '–';
+          const dir = w.avg_pct==null ? '' : (w.avg_pct<0?'down':'up');
+          return `<div class="stats-wk-row"><span class="wkd">${w.name}</span>
+            <span class="wkbar"><i class="${dir}" style="width:${Math.round(w.n/maxN*100)}%"></i></span>
+            <span class="wkn">${w.n}× · Ø <b class="hist-diff ${dir}">${pct}</b> · ↓${w.drops} ↑${w.rises}</span></div>`;
+        }).join('')}</div>
+        <div class="hint">Basis: alle echten Preisänderungen zwischen zwei Prüfungen (Markttrend-Datenbasis).</div>`;
+      const booked = (d.booked||[]).length ? `<h3>📌 Gebuchte Angebote vs. heute</h3>
+        <table class="hist">${d.booked.map(b=>`<tr><td>${esc(b.name)}</td><td class="hist-diff ${b.diff<0?'down':'up'}">${b.diff>0?'+':''}${eur(b.diff)} seit Buchung</td></tr>`).join('')}</table>` : '';
+      const low = d.low_days_median!=null
+        ? `<h3>⏱ Tiefstpreis-Rückschau</h3><p>Bei ${d.low_days_n} abgeschlossenen Angeboten lag der Tiefstpreis im Median <b>${d.low_days_median} Tage vor Abreise</b>.</p>`
+        : `<h3>⏱ Tiefstpreis-Rückschau</h3><p class="hint">Braucht abgeschlossene (archivierte) Angebote mit Preisverlauf — noch keine Daten.</p>`;
+      $('#stats-body').innerHTML = `<div class="trips-stats">${tiles}</div>
+        ${savedTbl}${mv(d.top_drops,'📉 Größte Preisstürze (eine Prüfung → nächste)','down','−')}
+        ${mv(d.top_rises,'📈 Größte Anstiege','up','+')}${wk}${booked}${low}`;
+    }
+    function closeStats(){ $('#stats-bg').classList.remove('show'); }
+    $('#stats-bg').addEventListener('click', e=>{ if(e.target.id==='stats-bg') closeStats(); });
+
     // ── Preis-Aufschlüsselung (Rechtsklick auf den Preis; vacancy-check) ────────
     function openPriceSplit(id){
       const o = (curOffers||[]).find(x=>x.id===id) || {};

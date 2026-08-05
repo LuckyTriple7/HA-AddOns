@@ -89,7 +89,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.72.0"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.73.0"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -3167,6 +3167,8 @@ import trips_routes  # noqa: E402
 import backup_routes  # noqa: E402
 import check24_routes  # noqa: E402
 import market_basket  # noqa: E402
+import stats_routes  # noqa: E402
+app.register_blueprint(stats_routes.bp)
 app.register_blueprint(trips_routes.bp)
 app.register_blueprint(backup_routes.bp)
 app.register_blueprint(check24_routes.bp)
