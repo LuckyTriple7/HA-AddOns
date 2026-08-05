@@ -62,6 +62,9 @@ configuration:
   notify_unavailable:
     name: Alarm nicht mehr buchbar
     description: "Benachrichtigen, wenn das TUI-Buchungssystem ein zuvor bestätigtes Angebot nicht mehr bestätigt (evtl. ausgebucht) — und Entwarnung geben, sobald es wieder bestätigt wird. Standard an."
+  notify_booking_changes:
+    name: Alarm Buchungsdetails geändert
+    description: "Benachrichtigen, wenn sich bestätigte Buchungsdetails eines Angebots ändern: Flugzeiten/Flugnummern/Buchungsklasse oder die Veranstalter-Hinweise (Errata). Standard an."
   notify_booked_drop:
     name: Alarm günstiger als gebucht
     description: "Benachrichtigen, wenn der Preis nach deiner Buchung unter den hinterlegten gebuchten Preis fällt (Umbuchen könnte sich lohnen). Standard an."

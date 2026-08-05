@@ -62,6 +62,9 @@ configuration:
   notify_unavailable:
     name: No-longer-bookable alert
     description: "Notify when the TUI booking system stops confirming a previously confirmed offer (possibly sold out) — and send an all-clear once it is confirmed again. Default on."
+  notify_booking_changes:
+    name: Booking-details-changed alert
+    description: "Notify when confirmed booking details of an offer change: flight times/numbers/booking class or the operator remarks (errata). Default on."
   notify_booked_drop:
     name: Cheaper-than-booked alert
     description: "Notify when the price drops below the booked price you entered after booking (rebooking might be worth it). Default on."

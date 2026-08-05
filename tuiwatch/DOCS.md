@@ -427,6 +427,12 @@ Preis-Tracking, als dauerhaftes Archiv (Vergangenheit und Zukunft).
   Abschalten `notify_cheaper_date: false` setzen.
 - **Ausverkauft-/Fehler-Alarm** (`notify_errors`): meldet, wenn ein Angebot mehrmals in
   Folge kein Ergebnis liefert, und gibt Entwarnung, sobald es wieder klappt.
+- **„Buchungsdetails geändert"-Alarm** (`notify_booking_changes`): meldet, wenn sich
+  die vom Buchungssystem bestätigten **Flugzeiten, Flugnummern oder Buchungsklassen**
+  eines Angebots ändern (mit vorher/jetzt) — oder die **Veranstalter-Hinweise
+  (Errata)**. Beides steht im Preis-Aufschlüsselungs-Fenster (Rechtsklick auf den
+  Preis), zusammen mit Badges für Charter-/Linienflug, Sitzplatzreservierung,
+  Sonderleistungen und Kontingent-Quelle (TUI vs. Bettenbank).
 - **„Nicht mehr buchbar?"-Alarm** (`notify_unavailable`): bei jeder Prüfung bestätigt
   TUIWatch das Angebot zusätzlich **live im TUI-Buchungssystem** (derselbe Mechanismus
   wie der Knopf „Verfügbarkeit prüfen" auf tui.com). Bestätigt das Buchungssystem ein

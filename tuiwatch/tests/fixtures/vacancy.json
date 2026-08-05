@@ -7,7 +7,8 @@
   "enddate": "2026-08-19",
   "traveltype": {"code": "TUR1", "touroperator": "LTUR"},
   "rooms": [
-   {"id": 0, "board": "A", "code": "DZX1", "supplier": {},
+   {"id": 0, "board": "A", "code": "DZX1",
+    "supplier": {"provider": "DBH", "supplierCode": "MTS", "subSupplierCode": "MTSC"},
     "travellers": [
      {"id": 1, "price": {"amount": 828, "currency": "EUR"}},
      {"id": 2, "price": {"amount": 828, "currency": "EUR"}}
@@ -15,6 +16,10 @@
   ],
   "price": {"amount": 1656, "currency": "EUR"}
  },
+ "errata": [
+  "Bitte beachten Sie vor Buchung zwingend die Flugzeiten.",
+  "\nDas Freigepäck beträgt max. 20 kg pro Person.\n"
+ ],
  "outboundFlight": {
   "travelType": {"code": "TUR1", "touroperator": "LTUR"},
   "key": "DUSSID-00653-_X3", "label": "A", "isInternal": true,
@@ -22,7 +27,17 @@
    {"id": 1, "price": {"amount": 296, "currency": "EUR"}},
    {"id": 2, "price": {"amount": 296, "currency": "EUR"}}
   ],
-  "segments": [], "specialServiceBookable": true
+  "segments": [
+   {"departureAirport": "DUS", "arrivalAirport": "BVC",
+    "startDate": "2026-08-12T06:20", "endDate": "2026-08-12T10:05",
+    "airline": "X3", "bookingClass": "Y", "cabinClass": "ECONOMY",
+    "flightNumber": "7102", "seatReservable": true},
+   {"departureAirport": "BVC", "arrivalAirport": "SID",
+    "startDate": "2026-08-12T10:55", "endDate": "2026-08-12T11:25",
+    "airline": "X3", "bookingClass": "Y", "cabinClass": "ECONOMY",
+    "flightNumber": "7102", "seatReservable": true}
+  ],
+  "specialServiceBookable": true
  },
  "inboundFlight": {
   "travelType": {"code": "TUR1", "touroperator": "LTUR"},
@@ -31,9 +46,16 @@
    {"id": 1, "price": {"amount": 328, "currency": "EUR"}},
    {"id": 2, "price": {"amount": 328, "currency": "EUR"}}
   ],
-  "segments": [], "specialServiceBookable": true
+  "segments": [
+   {"departureAirport": "SID", "arrivalAirport": "DUS",
+    "startDate": "2026-08-19T12:25", "endDate": "2026-08-19T21:25",
+    "airline": "X3", "bookingClass": "Y", "cabinClass": "ECONOMY",
+    "flightNumber": "7102", "seatReservable": true}
+  ],
+  "specialServiceBookable": true
  },
  "travellers": [{"id": 1, "birthdate": "1998-01-01"}, {"id": 2, "birthdate": "1998-01-01"}],
+ "iataContactRequired": false,
  "system": "ATCOMRES",
  "tracingId": "00000000-0000-0000-0000-000000000000"
 }

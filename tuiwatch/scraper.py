@@ -283,6 +283,8 @@ def _empty_result() -> dict:
             "booking_code": "", "room_booking_code": "",
             "vac_status": "", "price_hotel": None, "price_flight_out": None,
             "price_flight_ret": None, "last_booked": "",
+            "errata": None, "flight_segments": None, "hotel_supplier": None,
+            "flight_flags": None,
             "luggage": None, "deposit_pct": None, "final_payment_date": "",
             "source": "", "note": "", "detail": ""}
 
@@ -1463,6 +1465,39 @@ def _fetch_vacancy(data: dict, offer: dict, verbose: bool = False) -> dict:
         status = j.get("status") or ""
         out["vac_status"] = status
         if status == "OK":
+            # Veranstalter-Hinweise zur konkreten Buchung (sonst erst im Checkout
+            # sichtbar): Wasserflugzeug-Zeiten, Gepäcklimits, Sicherheitshinweise …
+            out["errata"] = [e.strip() for e in (j.get("errata") or []) if e and e.strip()]
+            # Bestätigte Flugsegmente (Zeiten, Flugnummern, Buchungsklasse) — Basis
+            # für den Flugzeiten-Änderungs-Alarm und die Umsteige-Anzeige
+            def _segs(node):
+                return [{
+                    "dep": s.get("departureAirport", ""),
+                    "arr": s.get("arrivalAirport", ""),
+                    "start": s.get("startDate", ""),
+                    "end": s.get("endDate", ""),
+                    "airline": s.get("airline", ""),
+                    "number": s.get("flightNumber", ""),
+                    "cls": s.get("bookingClass", ""),
+                    "fare": s.get("fareBase", ""),
+                } for s in (node or {}).get("segments", [])]
+            out["flight_segments"] = {"out": _segs(j.get("outboundFlight")),
+                                      "ret": _segs(j.get("inboundFlight"))}
+            # Badges: Charter (TUI-interner Flug) vs. Linienflug, Sitzplatz
+            # reservierbar, Sonderleistungen buchbar
+            ob, ib = j.get("outboundFlight") or {}, j.get("inboundFlight") or {}
+            out["flight_flags"] = {
+                "charter": bool(ob.get("isInternal")) and bool(ib.get("isInternal")),
+                "seat": any(s.get("seatReservable")
+                            for n in (ob, ib) for s in n.get("segments", [])),
+                "svc": bool(ob.get("specialServiceBookable")
+                            or ib.get("specialServiceBookable")),
+            }
+            # Kontingent-Quelle: leeres supplier-Objekt = TUI-eigenes Kontingent,
+            # sonst Bettenbank (z. B. DBH/MTS)
+            sup = ((j.get("hotel") or {}).get("rooms") or [{}])[0].get("supplier") or {}
+            out["hotel_supplier"] = "/".join(
+                x for x in (sup.get("provider"), sup.get("supplierCode")) if x)
             hotel_sum = None
             for rm in (j.get("hotel") or {}).get("rooms", []):
                 s = _sum_traveller_prices(rm)

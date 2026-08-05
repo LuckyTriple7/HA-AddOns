@@ -89,7 +89,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.74.1"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.75.0"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -618,7 +618,8 @@ def init_db() -> None:
             con.execute("ALTER TABLE offers ADD COLUMN notify_calendar_muted INTEGER NOT NULL DEFAULT 0")
         # vacancy-check (v0.69.0): Gepäck/Zahlungskonditionen einmalig je Angebot,
         # "zuletzt gebucht" je Poll aktualisiert
-        for col in ('luggage', 'last_booked', 'final_payment_date'):
+        for col in ('luggage', 'last_booked', 'final_payment_date',
+                    'errata', 'flight_segments', 'hotel_supplier', 'flight_flags'):
             if col not in ocols:
                 con.execute(f"ALTER TABLE offers ADD COLUMN {col} TEXT DEFAULT ''")
         if 'deposit_pct' not in ocols:
@@ -1480,6 +1481,82 @@ def _check_vacancy_alarm(offer: dict, vac_status: str, prev_vac_ok) -> None:
                      f"{offer.get('url','')}", muted=bool(offer.get('notify_muted')))
 
 
+def _flight_seg_lines(segs) -> list[str]:
+    """Kompakte, vergleichbare Textzeilen je Flugsegment (inkl. Buchungsklasse —
+    ein Klassenwechsel erklärt oft einen Preissprung und soll mit auffallen)."""
+    out = []
+    for s in segs or []:
+        t1, t2 = (s.get('start') or '')[11:16], (s.get('end') or '')[11:16]
+        cls = f" Kl. {s['cls']}" if s.get('cls') else ''
+        out.append(f"{s.get('dep', '?')}→{s.get('arr', '?')} {t1}–{t2} "
+                   f"{s.get('airline', '')}{s.get('number', '')}{cls}")
+    return out
+
+
+def _check_booking_changes(offer: dict, res: dict) -> None:
+    """Speichert die vom Buchungssystem bestätigten Details (Flugsegmente,
+    Veranstalter-Hinweise/Errata, Kontingent-Quelle) am Angebot und meldet
+    Änderungen gegenüber dem letzten Poll (`notify_booking_changes`).
+    Erstbefüllung meldet nichts — nur echte Übergänge alt→neu."""
+    oid = offer['id']
+    updates: dict = {}
+    msgs: list[str] = []
+
+    segs = res.get('flight_segments')
+    if segs is not None and (segs.get('out') or segs.get('ret')):
+        new_json = json.dumps(segs, ensure_ascii=False, sort_keys=True)
+        old_raw = offer.get('flight_segments') or ''
+        if old_raw and old_raw != new_json:
+            old = _json_loads_safe(old_raw, {})
+            for key, label in (('out', 'Hinflug'), ('ret', 'Rückflug')):
+                o_l, n_l = _flight_seg_lines(old.get(key)), _flight_seg_lines(segs.get(key))
+                if o_l != n_l:
+                    msgs.append(f"{label} geändert:\nvorher: " + " / ".join(o_l)
+                                + "\njetzt: " + " / ".join(n_l))
+        if old_raw != new_json:
+            updates['flight_segments'] = new_json
+
+    err = res.get('errata')
+    if err is not None:
+        new_json = json.dumps(err, ensure_ascii=False)
+        old_raw = offer.get('errata') or ''
+        if old_raw and old_raw != new_json:
+            msgs.append("Veranstalter-Hinweise (Errata) haben sich geändert — "
+                        "nachlesen per Rechtsklick auf den Preis.")
+        if old_raw != new_json:
+            updates['errata'] = new_json
+
+    sup = res.get('hotel_supplier')
+    if sup is not None and sup != (offer.get('hotel_supplier') or ''):
+        updates['hotel_supplier'] = sup
+
+    flags = res.get('flight_flags')
+    if flags is not None:
+        flags_json = json.dumps(flags, sort_keys=True)
+        if flags_json != (offer.get('flight_flags') or ''):
+            updates['flight_flags'] = flags_json
+
+    if updates:
+        with db() as con:
+            for k, v in updates.items():
+                con.execute(f'UPDATE offers SET {k}=? WHERE id=?', (v, oid))
+    if not msgs:
+        return
+    name = offer.get('label') or offer.get('hotel') or f"Angebot #{oid}"
+    for m in msgs:
+        _log_event(oid, 'booking', m.split('\n')[0])
+    if offer.get('history_only') or not load_config().get('notify_booking_changes', True):
+        return
+    text = "\n".join(msgs)
+    log.warning("✈ Buchungsdetails geändert (#%d %s): %s", oid, name,
+                " · ".join(m.split('\n')[0] for m in msgs))
+    _notify_ha(f"✈ Buchungsdetails geändert: {name}",
+               f"{name}\n{text}\n{offer.get('url', '')}", f"booking_{oid}",
+               muted=bool(offer.get('notify_muted')))
+    _notify_telegram(f"✈ <b>Buchungsdetails geändert: {name}</b>\n{text}",
+                     muted=bool(offer.get('notify_muted')))
+
+
 def _meta_get(key: str, default=None):
     with db() as con:
         row = con.execute('SELECT value FROM meta WHERE key=?', (key,)).fetchone()
@@ -1626,6 +1703,12 @@ def check_offer(offer_id: int) -> None:
                     'VALUES (?,?,?,?,?)', (ts, region, country, months_out, pct))
 
         if res.get('ok'):
+            # Bestätigte Buchungsdetails speichern + Änderungen melden (Flugzeiten,
+            # Errata, Kontingent, Badges) — Erstbefüllung bleibt still
+            try:
+                _check_booking_changes(offer, res)
+            except Exception as e:
+                log.warning("Buchungsdetail-Vergleich #%d fehlgeschlagen: %s", offer_id, e)
             extra = []
             if res.get('travellers_count') and res['travellers_count'] > 1 and res.get('total_price'):
                 extra.append(f"Gesamt {res['total_price']:.0f} €")
@@ -2725,6 +2808,12 @@ def _collect_offers() -> list[dict]:
                 'last_booked': o['last_booked'] or '',
                 'deposit_pct': o['deposit_pct'],
                 'final_payment_date': o['final_payment_date'] or '',
+                'errata': (_json_loads_safe(o['errata'], []) if o['errata'] else []),
+                'flight_segments': (_json_loads_safe(o['flight_segments'], None)
+                                    if o['flight_segments'] else None),
+                'hotel_supplier': o['hotel_supplier'] or '',
+                'flight_flags': (_json_loads_safe(o['flight_flags'], None)
+                                 if o['flight_flags'] else None),
                 'ok': bool(last['ok']) if last else None,
                 'note': last['note'] if last else '',
                 'last_ts': last['ts'] if last else None,

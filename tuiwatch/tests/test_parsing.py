@@ -411,6 +411,13 @@ def test_fetch_price_api(monkeypatch, fx, fake_resp):
     assert r["price_flight_ret"] == 656.0
     assert r["price_hotel"] + r["price_flight_out"] + r["price_flight_ret"] == r["total_price"]
     assert r["last_booked"] == "2026-08-03"
+    # Buchungsdetails: Errata, bestätigte Segmente, Kontingent-Quelle, Badges
+    assert len(r["errata"]) == 2 and "Flugzeiten" in r["errata"][0]
+    assert [s["number"] for s in r["flight_segments"]["out"]] == ["7102", "7102"]
+    assert r["flight_segments"]["out"][0]["cls"] == "Y"
+    assert r["flight_segments"]["ret"][0]["dep"] == "SID"
+    assert r["hotel_supplier"] == "DBH/MTS"
+    assert r["flight_flags"] == {"charter": True, "seat": True, "svc": True}
 
 
 def test_fetch_price_api_vacancy_failed_defensive(monkeypatch, fx, fake_resp):

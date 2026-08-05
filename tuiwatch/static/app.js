@@ -1134,6 +1134,36 @@
       }
       if(o.last_booked) extras.push('🕑 Hotel zuletzt von anderen gebucht: '+fmtD(o.last_booked));
       if(extras.length) h += '<div class="split-extras">'+extras.map(x=>`<div>${x}</div>`).join('')+'</div>';
+      // Badges aus dem Buchungssystem: Charter/Linie, Sitzplatz, Sonderleistungen, Kontingent
+      if(o.flight_flags){
+        const fl = o.flight_flags;
+        const badges = [fl.charter
+          ? '<span class="split-badge" title="TUI-interner Flug (z. B. TUIfly) — beide Richtungen einzeln bepreist">✈ Charterflug</span>'
+          : '<span class="split-badge" title="Linienflug über eine Airline-Buchungsklasse — Preis meist als Retour-Tarif auf einem Leg">✈ Linienflug</span>'];
+        badges.push(fl.seat
+          ? '<span class="split-badge ok" title="Sitzplatzreservierung über TUI möglich">💺 Sitzplatz reservierbar</span>'
+          : '<span class="split-badge" title="Keine Sitzplatzreservierung über TUI">💺 keine Sitzplatzwahl</span>');
+        if(fl.svc) badges.push('<span class="split-badge ok" title="Sonderleistungen (z. B. Gepäck-Extras, Assistenz) über TUI buchbar">🛎 Sonderleistungen</span>');
+        badges.push(o.hotel_supplier
+          ? `<span class="split-badge" title="Hotelkontingent kommt über eine Bettenbank (${esc(o.hotel_supplier)}) — Preis-/Stornoverhalten kann von TUI-eigenen Kontingenten abweichen">🏨 Bettenbank ${esc(o.hotel_supplier)}</span>`
+          : '<span class="split-badge" title="Hotelkontingent direkt von TUI">🏨 TUI-Kontingent</span>');
+        h += '<div class="split-badges">'+badges.join(' ')+'</div>';
+      }
+      // Bestätigte Flugverbindungen (Segmente mit Zeiten + Buchungsklasse)
+      const seg = o.flight_segments || {};
+      const segLine = list => (list||[]).map(s =>
+        `${esc(s.dep)}→${esc(s.arr)} ${(s.start||'').slice(11,16)}–${(s.end||'').slice(11,16)} ${esc(s.airline)}${esc(s.number)}${s.cls?(' · Kl. '+esc(s.cls)):''}`).join('&nbsp; ✚ &nbsp;');
+      if((seg.out||[]).length || (seg.ret||[]).length){
+        h += '<div class="split-extras">'
+          + ((seg.out||[]).length?`<div>🛫 ${segLine(seg.out)}</div>`:'')
+          + ((seg.ret||[]).length?`<div>🛬 ${segLine(seg.ret)}</div>`:'')
+          + '</div>';
+      }
+      // Veranstalter-Hinweise (Errata) — sonst erst im Checkout sichtbar
+      if((o.errata||[]).length){
+        h += `<details class="split-errata"><summary>⚠ Veranstalter-Hinweise (${o.errata.length}) — sonst erst im Checkout sichtbar</summary>`
+          + o.errata.map(e=>`<p>${esc(e).replace(/\n/g,'<br>')}</p>`).join('') + '</details>';
+      }
       $('#split-body').innerHTML = h;
       $('#split-bg').classList.add('show');
       return false;  // unterdrückt das Browser-Kontextmenü

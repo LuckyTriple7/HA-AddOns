@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.75.0] - 2026-08-05
+
+### Added
+Das Preis-Aufschlüsselungs-Fenster (Rechtsklick auf den Preis) zeigt jetzt alles,
+was das Buchungssystem über die konkrete Buchung verrät:
+
+- **⚠ Veranstalter-Hinweise (Errata)** — Infos, die sonst erst im Checkout
+  auftauchen: Wasserflugzeug-Zeitfenster, Gepäcklimits auf Inlandsflügen,
+  Sicherheitshinweise (z. B. fehlende Balkongeländer an Wasserbungalows) u. v. m.
+  Aufklappbar, damit das Fenster kompakt bleibt.
+- **Bestätigte Flugverbindungen** je Richtung mit allen Segmenten (Umsteigen
+  sichtbar, z. B. STR→VIE→MLE), Zeiten, Flugnummern und **Buchungsklasse** —
+  ein Klassenwechsel erklärt oft einen Preissprung.
+- **Badges:** ✈ Charter-/Linienflug, 💺 Sitzplatz reservierbar (oder nicht),
+  🛎 Sonderleistungen buchbar, 🏨 TUI-Kontingent vs. Bettenbank (z. B. DBH/MTS —
+  erklärt abweichendes Preis-/Stornoverhalten).
+- **Alarm „Buchungsdetails geändert"** (Option `notify_booking_changes`,
+  Standard an): ändern sich Flugzeiten, Flugnummern oder Buchungsklasse
+  gegenüber dem letzten Poll — oder die Veranstalter-Hinweise — kommt eine
+  Meldung mit vorher/jetzt über HA/Telegram, plus Marker im Verlauf-Diagramm.
+  Die Erstbefüllung bleibt bewusst still, gemeldet werden nur echte Übergänge.
+
 ## [0.74.1] - 2026-08-05
 
 ### Fixed
