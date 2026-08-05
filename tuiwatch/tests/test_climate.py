@@ -106,6 +106,23 @@ def test_incomplete_answer_is_rejected(client, m, monkeypatch):
         assert con.execute("SELECT 1 FROM climate WHERE giata=99").fetchone() is None
 
 
+def test_list_is_empty_at_first(client, ai):
+    assert client.get("/api/climate").get_json() == {"items": []}
+    assert not ai
+
+
+def test_list_shows_stored_destinations(client, ai):
+    """Zugriff von der Hauptseite: dort gibt es keinen Ziel-Picker, also braucht es
+    die Liste der bereits gespeicherten Tabellen."""
+    client.post("/api/ai/climate", json={"giata": 128, "label": "Gran Canaria"})
+    client.post("/api/ai/climate", json={"giata": 127, "label": "Fuerteventura"})
+    items = client.get("/api/climate").get_json()["items"]
+    assert [i["label"] for i in items] == ["Fuerteventura", "Gran Canaria"]   # alphabetisch
+    assert all("ts" in i and "giata" in i for i in items)
+    # Die Monatsdaten gehören nicht in die Liste — die wäre sonst unnötig groß.
+    assert all("data" not in i for i in items)
+
+
 def test_delete_removes_it(client, ai):
     client.post("/api/ai/climate", json={"giata": 128, "label": "Gran Canaria"})
     assert client.delete("/api/climate/128").get_json()["deleted"] == 1
@@ -124,6 +141,43 @@ def test_prompt_asks_for_twelve_months_and_water(client, ai):
     assert "Sonnenstunden" in p and "Regentage" in p
     assert "Klima-Normalwerte" in p        # keine Wettervorhersage
     assert "Gran Canaria" in p
+
+
+# ── Prompt-Vorschau ───────────────────────────────────────────────────────────
+# Die Option `ai_prompt_preview` lässt Routen statt der Daten erst den fertigen
+# Prompt zurückgeben. Live führte das zu einem stillen Totalausfall: das Frontend
+# rief die Route mit nacktem fetch auf, bekam HTTP 200 mit {prompt_preview:…} und
+# zeigte eine leere Tabelle — ohne Fehler, ohne Log-Eintrag, weil gar kein
+# KI-Aufruf stattfand.
+
+@pytest.fixture
+def preview(m, monkeypatch):
+    monkeypatch.setattr(m, "load_config", lambda: {
+        "anthropic_api_key": "sk-test", "anthropic_model": "claude-haiku-4-5",
+        "ai_prompt_preview": True})
+
+
+def test_preview_returns_the_prompt_instead_of_data(client, preview, ai):
+    d = client.post("/api/ai/climate", json={"giata": 128, "label": "Gran Canaria"}).get_json()
+    assert "prompt_preview" in d and "data" not in d
+    assert not ai          # kein KI-Aufruf vor der Bestätigung
+
+
+def test_confirmed_prompt_runs_through(client, preview, ai):
+    d = client.post("/api/ai/climate", json={"giata": 128, "label": "Gran Canaria",
+                                             "_prompt_confirmed": True}).get_json()
+    assert d["found"] is True and len(d["data"]["months"]) == 12
+    assert len(ai) == 1
+
+
+def test_stored_table_is_served_even_with_preview_on(client, preview, ai):
+    """Erst speichern, dann bei aktiver Vorschau erneut anfragen: die gespeicherte
+    Tabelle kommt direkt zurück — eine Vorschau für einen Aufruf, der gar nicht
+    stattfindet, wäre sinnlos."""
+    client.post("/api/ai/climate", json={"giata": 128, "label": "Gran Canaria",
+                                         "_prompt_confirmed": True})
+    d = client.post("/api/ai/climate", json={"giata": 128, "label": "Gran Canaria"}).get_json()
+    assert d["cached"] is True and "prompt_preview" not in d
 
 
 # ── E-Mail ────────────────────────────────────────────────────────────────────

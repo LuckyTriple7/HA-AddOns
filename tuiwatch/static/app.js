@@ -2223,13 +2223,48 @@
           } catch(e){}
           if(!aiEnabled()) return null;
         }
-        if(!silent) $('#climate-body').innerHTML = progBar(aiProviderName()+' stellt die Klimadaten zusammen…');
-        const r = await fetch(api('/api/ai/climate'), {method:'POST',
-          headers:{'Content-Type':'application/json'},
-          body: JSON.stringify({giata, label, refresh})});
-        const d = await r.json().catch(()=>({}));
-        if(!r.ok){
+        const busy = aiProviderName()+' stellt die Klimadaten zusammen…';
+        if(!silent) $('#climate-body').innerHTML = progBar(busy);
+        const body = {giata, label, refresh};
+        // Der Hintergrund-Abruf nach einer Suche ist ein automatischer Lauf — dort
+        // darf die Prompt-Vorschau (Option `ai_prompt_preview`) nicht aufpoppen,
+        // genau wie bei Wochenüberblick, Aktionscodes und Auto-Tagging. Deshalb
+        // gilt der Prompt hier als bestätigt.
+        if(silent) body._prompt_confirmed = true;
+        let resp, d;
+        if(silent){
+          resp = await fetch(api('/api/ai/climate'), {method:'POST',
+            headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
+          d = await resp.json().catch(()=>({}));
+        } else {
+          // Bei aktiver Prompt-Vorschau antwortet die Route erst mit dem Prompt
+          // statt mit Daten. `aiFetchPreviewable` würde ihn in #ai-body rendern —
+          // das KI-Fenster ist hier aber gar nicht offen, die Vorschau bliebe
+          // unsichtbar und der Ladebalken liefe ewig. Deshalb der Kern mit eigenem
+          // Renderer, der die Vorschau ins Klima-Fenster schreibt.
+          const rp = await aiFetchPreviewCore(api('/api/ai/climate'), {method:'POST',
+              headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)},
+            promptText => new Promise(resolve => {
+              $('#climate-body').innerHTML =
+                '<div class="hint" style="margin:4px 0 6px">📝 Prompt vor dem Senden prüfen/bearbeiten:</div>'
+                + promptPreviewBoxHtml(promptText);
+              $('#ai-pp-cancel').onclick = () => resolve(null);
+              $('#ai-pp-send').onclick = () => resolve($('#ai-pp-ta').value);
+            }),
+            () => { $('#climate-body').innerHTML = progBar(busy); });
+          if(rp.cancelled){
+            $('#climate-body').innerHTML = '<div class="cmp-load">Abgebrochen.</div>';
+            return null;
+          }
+          resp = rp.resp; d = rp.d;
+        }
+        if(!resp.ok){
           if(!silent) $('#climate-body').innerHTML = aiErrorBlock(aiErrorMsg(d.error), false);
+          return null;
+        }
+        if(!d || !d.data || !(d.data.months||[]).length){
+          if(!silent) $('#climate-body').innerHTML = aiErrorBlock(
+            'Die KI hat keine vollständige Klimatabelle geliefert. Versuch es noch einmal.', true);
           return null;
         }
         climateData = d;
@@ -2351,8 +2386,20 @@
       });
     }
     function renderClimate(d){
-      const sel = new Set(searchMonths());
+      // Reisemonate nur hervorheben, wenn das Fenster aus der Suche kam — von der
+      // Hauptseite aus stehen in der Maske irgendwelche Altwerte, die mit dieser
+      // Tabelle nichts zu tun haben.
+      const sel = new Set(climateFromSearch ? searchMonths() : []);
       const c = (d && d.data) || {};
+      // Ohne Monatsdaten würde sonst eine leere Tabelle mit bloßem Kopf erscheinen —
+      // die sieht aus wie ein kaputtes Fenster und sagt nicht, was zu tun ist.
+      if(!(c.months || []).length){
+        $('#climate-body').innerHTML =
+          '<div class="cmp-load">Für dieses Ziel liegt keine Klimatabelle vor. '
+          + '„🔄 Neu abrufen" erstellt sie.</div>';
+        $('#climate-stand').textContent = '';
+        return;
+      }
       const best = new Set(c.beste_monate || []);
       const rows = (c.months || []).slice().sort((a,b)=>(a.monat||0)-(b.monat||0)).map(m=>{
         const name = MONTHS_DE[(m.monat||1)-1] || m.monat;
@@ -2377,15 +2424,61 @@
         ? `Langjährige Mittelwerte · erstellt am ${when}${d.model ? ' mit '+d.model : ''}`
         : '';
     }
-    async function openClimate(){
-      if(!srchDest){ toast('Bitte zuerst ein Reiseziel wählen'); return; }
+    // Das Ziel, dessen Tabelle gerade angezeigt wird — nicht zwingend das der
+    // Suchmaske: von der Hauptseite aus wird eines aus der gespeicherten Liste
+    // gewählt, ohne dass eine Suche läuft.
+    let climateTarget = null;
+    let climateFromSearch = false;
+
+    // Von der Hauptseite ohne Reiseziel: Liste der bereits gespeicherten Tabellen.
+    // Neue Ziele entstehen über die Suche — dort gibt es einen Ziel-Picker, hier
+    // nicht, und ein zweiter Picker nur fürs Klima wäre doppelte Bedienung.
+    async function renderClimateList(){
+      $('#climate-sub').textContent = 'Gespeicherte Reiseziele';
+      $('#climate-stand').textContent = '';
+      // „Als E-Mail" und „Neu abrufen" beziehen sich auf EIN Ziel — in der Liste
+      // gibt es keins, also weg damit.
+      $('#climate-foot').style.display = 'none';
+      $('#climate-body').innerHTML = progBar('Lade…');
+      let items = [];
+      try { items = (await fetch(api('/api/climate')).then(r=>r.json())).items || []; }
+      catch(e){ $('#climate-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Laden fehlgeschlagen</div>'; return; }
+      if(!items.length){
+        $('#climate-body').innerHTML = '<div class="cmp-load">Noch keine Klimatabelle gespeichert. '
+          + 'Sie entsteht automatisch, sobald du in der <b>Suche</b> ein Reiseziel wählst und suchst.</div>';
+        return;
+      }
+      $('#climate-body').innerHTML = '<table class="hist">'
+        + '<tr><th>Reiseziel</th><th>erstellt</th><th></th></tr>'
+        + items.map(it=>`<tr><td><a href="#" onclick="event.preventDefault();`
+            + `openClimate(${it.giata},${esc(JSON.stringify(it.label))})">${esc(it.label)}</a></td>`
+          + `<td class="hint">${new Date(it.ts*1000).toLocaleDateString('de-DE')}</td>`
+          + `<td><button class="btn sec" onclick="deleteClimate(${it.giata},${esc(JSON.stringify(it.label))})" `
+          + `title="Gespeicherte Tabelle löschen">🗑</button></td></tr>`).join('')
+        + '</table>';
+    }
+    async function deleteClimate(giata, label){
+      if(!confirm(`Klimatabelle für „${label}" löschen?`)) return;
+      try { await fetch(api('/api/climate/'+giata), {method:'DELETE'}); }
+      catch(e){ toast('Löschen fehlgeschlagen'); return; }
+      if(climateData && climateData.giata === giata) climateData = null;
+      renderClimateList();
+    }
+    // Ohne Argumente: aus der Suche heraus das dortige Ziel, sonst die Liste.
+    async function openClimate(giata, label){
+      const fromSearch = giata == null && !!srchDest;
+      if(giata == null && srchDest){ giata = srchDest.giata; label = srchDest.label; }
       $('#climate-bg').classList.add('show');
-      $('#climate-sub').textContent = srchDest.label;
+      if(giata == null){ climateTarget = null; climateFromSearch = false; renderClimateList(); return; }
+      climateTarget = {giata, label};
+      climateFromSearch = fromSearch;
+      $('#climate-foot').style.display = '';
+      $('#climate-sub').textContent = label;
       // Schon geladen (z. B. vom Auto-Abruf nach der Suche) → sofort anzeigen.
-      if(climateData && climateData.giata === srchDest.giata){ renderClimate(climateData); return; }
+      if(climateData && climateData.giata === giata){ renderClimate(climateData); return; }
       $('#climate-body').innerHTML = progBar('Lade…');
       $('#climate-stand').textContent = '';
-      const d = await fetchClimate(srchDest.giata, srchDest.label);
+      const d = await fetchClimate(giata, label);
       if(d) renderClimate(d);
       else if(!aiEnabled()) $('#climate-body').innerHTML =
         '<div class="cmp-load">Für dieses Ziel ist noch keine Klimatabelle gespeichert — sie wird von der KI erstellt, dafür muss ein KI-Key hinterlegt sein.</div>';
@@ -2393,10 +2486,10 @@
     function closeClimate(){ $('#climate-bg').classList.remove('show'); }
     $('#climate-bg').addEventListener('click', e=>{ if(e.target.id==='climate-bg') closeClimate(); });
     async function refreshClimate(){
-      if(!srchDest) return;
+      if(!climateTarget){ toast('Kein Reiseziel gewählt'); return; }
       if(!confirm('Klimatabelle neu von der KI erstellen lassen? Das kostet einen KI-Aufruf.')) return;
       $('#climate-body').innerHTML = progBar('Wird neu erstellt…');
-      const d = await fetchClimate(srchDest.giata, srchDest.label, {refresh:true});
+      const d = await fetchClimate(climateTarget.giata, climateTarget.label, {refresh:true});
       if(d) renderClimate(d);
     }
     // Nach einer Suche im Hintergrund vorladen — beim ersten Mal je Ziel kostet das
@@ -3748,6 +3841,20 @@
     function closeCalendar(){ clearInterval(calTimer); calTimer=null; calId=null; $('#cal-bg').classList.remove('show'); }
     $('#cal-bg').addEventListener('click', e=>{ if(e.target.id==='cal-bg') closeCalendar(); });
     function calGo(m){ if(!m) return; calMonth=m; drawCalMonth(); }
+    // Zu einem Datum springen: Monat wechseln, die Zelle kurz hervorheben und den
+    // Tagesverlauf öffnen. Die Hervorhebung ist nötig, weil ein Monatsraster ohne
+    // sie nicht verrät, welcher der 30 Tage gemeint war.
+    function calJump(iso){
+      if(!iso) return;
+      calGo(iso.slice(0,7));
+      openCalDayChart(iso);
+      const cell = document.querySelector(`#cal-body [data-iso="${iso}"]`);
+      if(cell){
+        cell.classList.add('cal-flash');
+        cell.scrollIntoView({block:'nearest'});
+        setTimeout(()=>cell.classList.remove('cal-flash'), 2200);
+      }
+    }
 
     // — Zimmerauswahl —
     let roomId = null;
@@ -3918,6 +4025,7 @@
         const cls = ['cal-cell'];
         if(!inWin) cls.push('out');
         if(iso===job.cheapest_date) cls.push('cheapest');
+        if(iso===job.priciest_date) cls.push('priciest');
         if(iso===job.tracked_date) cls.push('tracked');
         const mv = moves[iso];
         let style = '';
@@ -3936,18 +4044,37 @@
           + (iso===job.cheapest_date?PIG:'')   // Sparschwein als direktes Zellenkind → mittig
           + (calTrendView && mv ? deltaBadge
              : price!=null ? `<span class="cal-p">${eur(price)}</span>` : '<span class="cal-p na">–</span>');
+        // data-iso: Ankerpunkt für calJump(), das die Zelle nach dem Monatswechsel
+        // kurz hervorhebt — im 30-Tage-Raster wäre sonst nicht erkennbar, welcher
+        // Tag gemeint war.
         if(price!=null && base){
           cls.push('clk');
-          cells += `<a class="${cls.join(' ')}" href="${esc(dayUrl(base,iso,nights))}" target="_blank" rel="noopener" oncontextmenu="return saveCalDay(event,'${iso}')" title="Linksklick: Termin auf tui.com öffnen · Rechtsklick: als neues Angebot tracken"${style}>${inner}</a>`;
+          cells += `<a class="${cls.join(' ')}" data-iso="${iso}" href="${esc(dayUrl(base,iso,nights))}" target="_blank" rel="noopener" oncontextmenu="return saveCalDay(event,'${iso}')" title="Linksklick: Termin auf tui.com öffnen · Rechtsklick: als neues Angebot tracken"${style}>${inner}</a>`;
         } else {
-          cells += `<div class="${cls.join(' ')}"${style}>${inner}</div>`;
+          cells += `<div class="${cls.join(' ')}" data-iso="${iso}"${style}>${inner}</div>`;
         }
       }
       const idx = months.indexOf(calMonth);
       const prev = idx>0?months[idx-1]:'', next = idx<months.length-1?months[idx+1]:'';
       const monthName = first.toLocaleDateString('de-DE',{month:'long',year:'numeric'});
-      let sum = job.cheapest_date ? `Günstigster Termin: <b>${fmtD(job.cheapest_date)}</b> ${eur(job.cheapest_price)}` : '';
-      if(job.tracked_date && job.tracked_date!==job.cheapest_date) sum += ` · In deinem Zeitraum: <b>${fmtD(job.tracked_date)}</b> ${eur(job.tracked_price)}`;
+      // Eckdaten der Zusammenfassung: jeweils anklickbar, springt zum Monat und
+      // öffnet den Tagesverlauf — sonst müsste man das Datum in bis zu einem Jahr
+      // Kalenderblättern selbst suchen.
+      const sumPart = (label, date, price, cls) => !date ? '' :
+        `<a class="cal-jump ${cls||''}" href="#" title="Im Kalender zu diesem Termin springen"`
+        + ` onclick="event.preventDefault();calJump('${date}')">${label}: `
+        + `<b>${fmtD(date)}</b> ${eur(price)}</a>`;
+      const sumParts = [
+        sumPart('Günstigster Termin', job.cheapest_date, job.cheapest_price, 'down'),
+        sumPart('Teuerster Termin', job.priciest_date, job.priciest_price, 'up'),
+      ];
+      if(job.tracked_date && job.tracked_date!==job.cheapest_date)
+        sumParts.push(sumPart('In deinem Zeitraum', job.tracked_date, job.tracked_price));
+      // Spanne zwischen billigstem und teuerstem Termin — die eigentliche Aussage:
+      // so viel macht allein die Wahl des Reisedatums aus.
+      if(job.cheapest_price!=null && job.priciest_price!=null && job.priciest_price>job.cheapest_price)
+        sumParts.push(`<span class="hint">Spanne ${eur(job.priciest_price-job.cheapest_price)} p.&nbsp;P.</span>`);
+      const sum = sumParts.filter(Boolean).join(' · ');
       const topMoves = job.top_moves || [];
       const topMovesHtml = topMoves.length ? `<details class="cal-moves" ${calMovesOpen?'open':''}
           ontoggle="calMovesOpen=this.open">
@@ -3974,6 +4101,7 @@
         <div id="cal-day-chart" class="cal-day-chart"></div>
         <div class="cal-legend">
           <span><i class="lg-cheap"></i>${PIG}günstigster Termin</span>
+          <span><i class="lg-pricey"></i>teuerster Termin</span>
           <span><i class="lg-track"></i>günstigster in deinem Zeitraum</span>
           <span><i class="lg-out"></i>außerhalb deines Zeitraums</span>
           <span>🟩→🟥 günstig→teuer · Klick: auf tui.com öffnen · Rechtsklick: als neues Angebot tracken · 📈: Preisverlauf dieses Tages</span>
@@ -4181,7 +4309,7 @@
       let r; try {
         r = await fetch(api('/api/climate/'+climateData.giata+'/email'), {method:'POST',
           headers:{'Content-Type':'application/json'},
-          body: JSON.stringify({to, months: searchMonths()})});
+          body: JSON.stringify({to, months: climateFromSearch ? searchMonths() : []})});
       } catch(e){ toast('Versand fehlgeschlagen'); return; }
       if(r.ok){ toast('Klimatabelle an '+to+' gesendet'); }
       else { const d=await r.json().catch(()=>({}));

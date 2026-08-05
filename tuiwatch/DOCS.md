@@ -126,6 +126,10 @@ Passatwind, Hochsaison …) und die aus Wetter-Sicht besten Monate (★).
   langjährige Mittel, kein Wetterbericht — ein erneuter KI-Aufruf brächte nur Kosten.
   Jeder weitere Aufruf kommt aus der Datenbank. **🔄 Neu abrufen** erzwingt eine
   Neuberechnung.
+- **Auch von der Hauptseite erreichbar** über den **🌤**-Knopf in der Kopfzeile: dort
+  erscheint die Liste aller bereits gespeicherten Ziele (mit Erstellungsdatum und 🗑
+  zum Löschen), Klick öffnet die Tabelle. Neue Ziele entstehen über die Suche — nur
+  dort gibt es einen Ziel-Picker.
 - **Automatisch nach jeder Suche vorgeladen**, sofern eine KI konfiguriert ist: beim
   ersten Mal je Ziel kostet das einen KI-Aufruf, danach nie wieder. So steht die
   Tabelle beim Klick sofort da.
@@ -775,6 +779,9 @@ Bei mehreren Reisenden wird zusätzlich zum **Preis pro Person** der **Gesamtpre
 angezeigt. TUIWatch ist außerdem als **PWA installierbar** (Manifest + Service Worker;
 am besten über Direktzugriff/Reverse-Proxy nutzen).
 - **Löschen** — Angebot inkl. Verlauf entfernen.
+- **Preiskalender-Zusammenfassung** — nennt **günstigsten** und **teuersten** Termin
+  samt Preisspanne. Klick auf einen Eintrag springt im Kalender zum passenden Monat,
+  hebt den Tag kurz hervor und öffnet dessen Preisverlauf.
 - **Doppelklick auf das Logo** — Live-Konsole mit den Hintergrund-Logs ein/aus
   (verschiebbares Panel, aktualisiert sich alle 2 Sekunden, zeigt die letzten 500
   Zeilen). Das komplette Log samt Filter steht unter **🔔 Meldungen & Fehler →

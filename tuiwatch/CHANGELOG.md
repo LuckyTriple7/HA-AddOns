@@ -1,5 +1,38 @@
 # Changelog
 
+## [0.67.0] - 2026-08-05
+
+### Fixed
+- **Klima-Fenster blieb bei aktivierter Prompt-Vorschau komplett leer** — keine
+  Tabelle, keine Fehlermeldung, kein Log-Eintrag. Ursache: bei aktiver Option
+  `ai_prompt_preview` antwortet die Route erst mit dem Prompt statt mit Daten. Das
+  Klima-Fenster rief sie mit einem nackten `fetch` auf, bekam HTTP 200 mit
+  `{prompt_preview:…}` und rendete eine leere Tabelle — der KI-Aufruf fand nie statt.
+  Jetzt läuft der Abruf über den Vorschau-Mechanismus, und die Vorschau wird **im
+  Klima-Fenster** gerendert (die Standardvariante schreibt sie ins KI-Ergebnis-
+  Fenster, das hier gar nicht offen ist — sie wäre unsichtbar geblieben und der
+  Ladebalken hätte ewig gedreht).
+- Der **automatische Abruf nach einer Suche** überspringt die Vorschau bewusst, wie
+  alle anderen Hintergrundläufe (Wochenüberblick, Aktionscodes, Auto-Tagging) — sonst
+  poppte nach jeder Suche ungefragt ein Dialog auf.
+- Fehlen die Monatsdaten, erscheint jetzt eine erklärende Meldung statt einer
+  Tabelle mit bloßer Kopfzeile.
+
+### Added
+- **Teuerster Termin im Preiskalender**, als Gegenstück zum günstigsten: ohne ihn
+  sagt der günstigste nichts darüber, wie viel die Wahl des Reisedatums überhaupt
+  ausmacht. Dazu die **Spanne** zwischen beiden. Die Zusammenfassungs-Einträge sind
+  jetzt **anklickbar** — der Kalender springt zum Monat, hebt den Tag kurz hervor
+  und öffnet dessen Preisverlauf. Bereits gespeicherte Kalender bekommen den Wert
+  nachgerechnet, ohne Neuabruf.
+- **Klimatabellen von der Hauptseite abrufbar** über den neuen **🌤**-Knopf in der
+  Kopfzeile: Liste aller gespeicherten Ziele mit Erstellungsdatum, Klick öffnet die
+  Tabelle, 🗑 löscht sie. Neuer Endpunkt `GET /api/climate`.
+
+### Changed
+- **Der „Frage"-Knopf zeigt nur noch das Symbol** ❓ (Beschriftung in den Tooltip
+  gewandert), damit die Kopfzeile mit dem neuen 🌤-Knopf nicht überläuft.
+
 ## [0.66.0] - 2026-08-05
 
 ### Added

@@ -1208,6 +1208,18 @@ def _climate_load(giata: int):
             'model': row['model'], 'data': data}
 
 
+@bp.route('/api/climate', methods=['GET'])
+def api_climate_list():
+    """Alle gespeicherten Klimatabellen (ohne die Monatsdaten) — für den Zugriff von
+    der Hauptseite aus, wo kein Reiseziel aus der Suchmaske vorliegt."""
+    if (err := A._require_api()):
+        return err
+    with A.db() as con:
+        rows = con.execute('SELECT giata, label, ts FROM climate '
+                           'ORDER BY label COLLATE NOCASE').fetchall()
+    return jsonify({'items': [dict(r) for r in rows]})
+
+
 @bp.route('/api/climate/<int:giata>', methods=['GET'])
 def api_climate_get(giata: int):
     """Gespeicherte Klimatabelle eines Reiseziels — **ohne** KI-Aufruf. Die Suchmaske

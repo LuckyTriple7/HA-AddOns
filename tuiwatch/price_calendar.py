@@ -242,6 +242,15 @@ def _calendar_payload(offer_id: int) -> dict:
         out['ts'] = row['ts']
         out['moves'] = moves
         out['top_moves'] = _calendar_top_moves(moves)
+        # Der teuerste Termin kam erst später dazu (v0.67.0). Für Snapshots, die
+        # davor abgerufen wurden, hier aus den Tagesdaten nachrechnen — sonst müsste
+        # der Nutzer jeden Kalender neu abrufen, nur um die Spanne zu sehen.
+        if 'priciest_date' not in out:
+            prices = {d['date']: d['price'] for d in (out.get('days') or [])
+                      if d.get('price') is not None}
+            if prices:
+                xd = max(prices, key=prices.get)
+                out['priciest_date'], out['priciest_price'] = xd, prices[xd]
     else:
         out = {'status': 'idle'}
     if st.get('status') == 'error':

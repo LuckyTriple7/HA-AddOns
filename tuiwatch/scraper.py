@@ -567,9 +567,16 @@ def fetch_calendar(url: str, *, verbose: bool = False) -> dict | None:
         od = min(days, key=days.get)
         res['cheapest_date'] = od
         res['cheapest_price'] = int(round(days[od]))
+        # Teuerster Termin als Gegenstück: erst mit beiden Enden lässt sich die
+        # Spanne einschätzen — ein „günstigster Termin" allein sagt nichts darüber,
+        # wie viel die Wahl des Datums überhaupt ausmacht.
+        xd = max(days, key=days.get)
+        res['priciest_date'] = xd
+        res['priciest_price'] = int(round(days[xd]))
     if verbose:
         log.info(f"Kalender: {len(days)} Tage, günstigster {res.get('cheapest_date')} "
-              f"= {res.get('cheapest_price')} €")
+              f"= {res.get('cheapest_price')} €, teuerster {res.get('priciest_date')} "
+              f"= {res.get('priciest_price')} €")
     return res
 
 
