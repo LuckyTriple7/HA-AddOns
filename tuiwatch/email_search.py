@@ -4,6 +4,7 @@ getrennt von app.py's `_email_html_offers()` (die getrackten Angebote aus der
 DB): Suchtreffer haben eine andere Datenform und kommen frisch vom Frontend
 (bereits abgerufene `/api/search`-Ergebnisse, ggf. per Checkbox vorgefiltert),
 nicht aus der eigenen DB — app.py soll dafür nicht weiter wachsen."""
+import re
 from datetime import datetime
 
 import app as A  # später Attributzugriff (A._eur/A.log), zyklenfrei wie in *_routes.py
@@ -23,6 +24,13 @@ def climate_html(label: str, data: dict, *, months_hl: list | None = None) -> st
     hervor — derselbe Dienst wie im UI."""
     def esc(s):
         return (str(s or '')).replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+
+    def cite(s):
+        """Quellen-Marker `[7](url)` (Perplexity) als Link — sonst stünde die
+        Markdown-Syntax roh in der Mail."""
+        return re.sub(r'\[(\d+)\]\((https?://[^\s")]+)\)',
+                      r'<a href="\2" style="color:#0b65d8;text-decoration:none">[\1]</a>',
+                      esc(s))
 
     def num(v, unit=''):
         if v in (None, '', 0) and unit == ' °C':
@@ -52,7 +60,7 @@ def climate_html(label: str, data: dict, *, months_hl: list | None = None) -> st
         rows.append(
             f'<tr><td style="padding:5px 8px;border-top:1px solid #e2e6ea;{bg}{weight}">'
             + esc(name) + (' ★' if mi in best else '')
-            + (f'<div style="font-size:11px;color:#777;font-weight:400">{esc(m["hinweis"])}</div>'
+            + (f'<div style="font-size:11px;color:#777;font-weight:400">{cite(m["hinweis"])}</div>'
                if m.get('hinweis') else '')
             + '</td>' + cells + '</tr>')
     head = ''.join(f'<th style="padding:6px 8px;text-align:right;color:#555;font-size:12px">{h}</th>'
@@ -69,7 +77,7 @@ def climate_html(label: str, data: dict, *, months_hl: list | None = None) -> st
         'style="background:#fff;border:1px solid #e2e6ea;border-radius:10px;border-collapse:separate">'
         '<tr><td style="padding:14px 16px">'
         + (f'<div style="font-size:14px;color:#333;margin-bottom:10px">'
-           f'{esc(data.get("zusammenfassung"))}</div>' if data.get('zusammenfassung') else '')
+           f'{cite(data.get("zusammenfassung"))}</div>' if data.get('zusammenfassung') else '')
         + '<table width="100%" cellpadding="0" cellspacing="0" style="font-size:13px;color:#10243e">'
         + f'<tr><th style="padding:6px 8px;text-align:left;color:#555;font-size:12px">Monat</th>{head}</tr>'
         + ''.join(rows) + '</table>'

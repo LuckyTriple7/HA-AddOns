@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.67.1] - 2026-08-05
+
+### Fixed
+- **Abo-Glocke im Dropdown der gespeicherten Suchen steht jetzt hinter dem Namen.**
+  Davor schob sie die Namen der Abos gegenüber den übrigen Einträgen ein und zerriss
+  die linke Kante der Liste.
+- **Quellen-Marker in der Klimatabelle sind anklickbar.** Perplexity setzt Marker wie
+  „[7][11]" auch in die Textfelder strukturierter Antworten; dort ließen sie sich
+  beim Abruf nicht verlinken (das hätte den JSON-String zerstört) und blieben als
+  toter Text stehen. Die Quellen-URLs werden jetzt durchgereicht und die Marker nach
+  dem Parsen verlinkt — in Zusammenfassung, Monatshinweisen und in der E-Mail.
+
 ## [0.67.0] - 2026-08-05
 
 ### Fixed

@@ -218,6 +218,40 @@ def test_climate_html_marks_best_and_selected_months():
     assert "<script>" not in html
 
 
+def test_perplexity_citations_become_links(client, m, monkeypatch):
+    """Perplexity setzt Marker wie „[7]" auch in die Textfelder strukturierter
+    Antworten. Beim Abruf lassen sie sich nicht verlinken (das zerstörte den
+    JSON-String), also passiert es nach dem Parsen — sonst bliebe toter Text."""
+    payload = dict(CLIMATE, zusammenfassung="Mild [1] und trocken [2].")
+    payload["months"] = [dict(mn, hinweis="Regenzeit [1]" if mn["monat"] == 11 else "")
+                         for mn in CLIMATE["months"]]
+
+    monkeypatch.setattr(m, "_ai_request", lambda *a, **k: (
+        json.dumps(payload),
+        {"input_tokens": 1, "output_tokens": 1,
+         "citation_urls": ["https://a.invalid/x", "https://b.invalid/y"]}, None))
+    d = client.post("/api/ai/climate", json={"giata": 5, "label": "X"}).get_json()
+    assert "[1](https://a.invalid/x)" in d["data"]["zusammenfassung"]
+    assert "[2](https://b.invalid/y)" in d["data"]["zusammenfassung"]
+    nov = [mn for mn in d["data"]["months"] if mn["monat"] == 11][0]
+    assert nov["hinweis"] == "Regenzeit [1](https://a.invalid/x)"
+    # Die URL-Liste selbst gehört nicht in die gespeicherte Nutzungsstatistik
+    assert "citation_urls" not in d["usage"]
+
+
+def test_other_providers_are_untouched(client, ai):
+    """Ohne Quellenliste (Claude/Gemini) darf nichts umgeschrieben werden."""
+    d = client.post("/api/ai/climate", json={"giata": 6, "label": "Y"}).get_json()
+    assert d["data"]["zusammenfassung"] == CLIMATE["zusammenfassung"]
+
+
+def test_climate_html_links_citations():
+    email_search = importlib.import_module("email_search")
+    html = email_search.climate_html("X", dict(
+        CLIMATE, zusammenfassung="Mild [1](https://a.invalid/x)."))
+    assert '<a href="https://a.invalid/x"' in html and ">[1]</a>" in html
+
+
 def test_climate_html_escapes_the_label():
     email_search = importlib.import_module("email_search")
     html = email_search.climate_html("<script>x</script>", CLIMATE)

@@ -1194,6 +1194,24 @@ def _climate_prompt(label: str) -> str:
     )
 
 
+def _linkify_citations_in_place(result: dict, urls: list | None) -> None:
+    """Perplexity setzt Quellen-Marker wie „[7][11]" auch in die Textfelder einer
+    strukturierten Antwort. Dort können sie beim Abruf nicht verlinkt werden (das
+    würde den JSON-String zerstören), also passiert es hier nach dem Parsen — sonst
+    bliebe im Klima-Fenster toter Text stehen. Bei den anderen Anbietern ist `urls`
+    leer und die Funktion tut nichts."""
+    if not urls:
+        return
+    from ai_client import _perplexity_linkify_citations
+    data = {'citations': urls}
+    if isinstance(result.get('zusammenfassung'), str):
+        result['zusammenfassung'] = _perplexity_linkify_citations(
+            result['zusammenfassung'], data)
+    for m in (result.get('months') or []):
+        if isinstance(m, dict) and isinstance(m.get('hinweis'), str):
+            m['hinweis'] = _perplexity_linkify_citations(m['hinweis'], data)
+
+
 def _climate_load(giata: int):
     with A.db() as con:
         row = con.execute('SELECT label, ts, model, data FROM climate WHERE giata=?',
@@ -1280,6 +1298,7 @@ def api_ai_climate():
     if len(months) < 12:
         A.log.warning("Klimatabelle %s: nur %d Monate geliefert", label, len(months))
         return jsonify({'error': 'ai_empty'}), 502
+    _linkify_citations_in_place(result, (usage or {}).pop('citation_urls', None))
     usage['estimated_usd'] = _ai_call_cost(model, usage)
     totals = _record_ai_usage(model, usage)
     ts = int(time.time())

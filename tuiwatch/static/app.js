@@ -2050,7 +2050,9 @@
       try { const d = await fetch(api('/api/searches')).then(r=>r.json()); srchFavs = d.searches||[]; }
       catch(e){ srchFavs = []; }
       $('#srch-favsel').innerHTML = '<option value="">– gespeicherte Suche wählen –</option>'
-        + srchFavs.map(f=>`<option value="${f.id}">${f.watch?'🔔 ':''}${esc(f.name)}</option>`).join('');
+        // Abo-Glocke hinter den Namen: davor schob sie die Namen der Abos gegenüber
+        // den übrigen Einträgen ein und zerriss die linke Kante der Liste.
+        + srchFavs.map(f=>`<option value="${f.id}">${esc(f.name)}${f.watch?' 🔔':''}</option>`).join('');
       favBtnState();
     }
     // „Änderungen speichern" nur aktiv, wenn eine gespeicherte Suche gewählt ist;
@@ -2406,14 +2408,16 @@
         const num = v => (v==null || v==='') ? '–' : Number(v).toLocaleString('de-DE',{maximumFractionDigits:1});
         return `<tr class="${sel.has(m.monat)?'clim-sel':''}">`
           + `<td>${esc(name)}${best.has(m.monat)?' <span class="clim-best" title="aus Wetter-Sicht bester Reisemonat">★</span>':''}`
-          + (m.hinweis ? `<div class="clim-note">${esc(m.hinweis)}</div>` : '') + '</td>'
+          // aiInline macht Perplexitys Quellen-Marker anklickbar; ohne stünde dort
+          // toter Text wie „[7][11]".
+          + (m.hinweis ? `<div class="clim-note">${aiInline(esc(m.hinweis))}</div>` : '') + '</td>'
           + `<td>${num(m.temp_tag)} °C</td><td>${num(m.temp_nacht)} °C</td>`
           + `<td>${m.wasser ? num(m.wasser)+' °C' : '–'}</td>`
           + `<td>${num(m.sonnenstunden)} h</td><td>${num(m.regentage)}</td></tr>`;
       }).join('');
       const box = $('#climate-body');
       box.innerHTML =
-        (c.zusammenfassung ? `<div style="margin-bottom:10px">${esc(c.zusammenfassung)}</div>` : '')
+        (c.zusammenfassung ? `<div style="margin-bottom:10px">${aiInline(esc(c.zusammenfassung))}</div>` : '')
         + climateChart(c.months || [], sel)
         + `<table class="hist clim" style="margin-top:10px"><tr><th>Monat</th><th>Tag</th><th>Nacht</th><th>Wasser</th>`
         + `<th title="Sonnenstunden pro Tag">Sonne</th><th title="Regentage im Monat">Regen</th></tr>${rows}</table>`
