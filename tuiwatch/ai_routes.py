@@ -1139,6 +1139,118 @@ def api_ai_region_outlook():
     return jsonify({'result': result, 'usage': usage, 'totals': totals, 'id': aid, 'cached': False})
 
 
+_BOARD_LABELS = {'AI': 'All Inclusive', 'VP': 'Vollpension', 'HP': 'Halbpension',
+                 'BB': 'Frühstück', 'OV': 'ohne Verpflegung'}
+
+
+def _search_advice_prompt(d: dict) -> str:
+    """Prompt für den Reisezeit-Check aus der Suchmaske: taugt der gewählte Zeitraum
+    für dieses Ziel, wie liegt er preislich, und was wären ähnliche Alternativen.
+
+    Die Suchmaske weiß nichts über Klima oder Saison — genau deshalb ist das eine
+    KI-Frage. Mitgegeben werden nur die Eckdaten der Suche und, falls schon gesucht
+    wurde, eine kurze Preisstatistik der Treffer: ohne die könnte die KI zum
+    Preisniveau nur allgemein herumraten, mit ihr kann sie den konkreten Zeitraum
+    einordnen."""
+    dest = (d.get('dest') or '').strip() or 'das gewählte Reiseziel'
+    start, end = (d.get('start') or '').strip(), (d.get('end') or '').strip()
+    lines = [f"Reiseziel: {dest}"]
+    if start and end:
+        lines.append(f"Gewünschter Reisezeitraum: {start} bis {end}")
+    elif start:
+        lines.append(f"Gewünschter Reisebeginn: {start}")
+    if d.get('duration'):
+        lines.append(f"Reisedauer: {d['duration']}"
+                     + (" (exakt dieser Zeitraum)" if d.get('exact') else " Nächte"))
+    if d.get('travellers'):
+        lines.append(f"Reisende: {d['travellers']}")
+    if (d.get('airport_label') or d.get('airport')):
+        lines.append(f"Abflughafen: {d.get('airport_label') or d.get('airport')}")
+    boards = [_BOARD_LABELS.get(str(b), str(b)) for b in (d.get('boards') or [])]
+    if boards:
+        lines.append("Verpflegung: " + ", ".join(boards))
+    if d.get('min_stars'):
+        lines.append(f"Mindestens {d['min_stars']} Sterne")
+    if d.get('min_recommend'):
+        lines.append(f"Mindestens {d['min_recommend']} % Weiterempfehlung")
+    if d.get('direct'):
+        lines.append("Nur Direktflüge")
+    if d.get('adults_only'):
+        lines.append("Nur Erwachsenenhotels")
+    stats = d.get('results') or {}
+    if stats.get('count'):
+        s = [f"{stats['count']} Treffer"]
+        if stats.get('total'):
+            s.append(f"von {stats['total']} in der Region")
+        if stats.get('min_price'):
+            s.append(f"günstigster {A._eur(stats['min_price'])} p. P.")
+        if stats.get('median_price'):
+            s.append(f"Median {A._eur(stats['median_price'])}")
+        if stats.get('max_price'):
+            s.append(f"teuerster {A._eur(stats['max_price'])}")
+        lines.append("Aktuelle Suchtreffer: " + ", ".join(s))
+    return (
+        "Ich plane folgende Reise und habe sie so in meiner Suchmaske stehen:\n\n"
+        + "\n".join(f"- {x}" for x in lines) + "\n\n"
+        "Bitte prüfe das und antworte auf Deutsch, sprich mich durchgehend mit „Du“ "
+        "an (informell, nicht „Sie“). Gliedere die Antwort mit diesen Überschriften:\n\n"
+        "**1. Reisezeit** — Taugt der gewählte Zeitraum für dieses Ziel? Gehe auf "
+        "Regen-/Trockenzeit, Temperaturen (Luft und Wasser), Luftfeuchtigkeit, Wind "
+        "sowie Hurrikan-/Monsun-/Zyklonsaison ein, soweit für das Ziel relevant. "
+        "Nenne konkrete Werte statt Allgemeinplätzen.\n"
+        "**2. Saison und Preisniveau** — Ist der Zeitraum Haupt-, Neben- oder "
+        "Zwischensaison? Welche Monate sind an diesem Ziel erfahrungsgemäß die "
+        "Schnäppchenmonate, und wie viel günstiger sind sie grob gegenüber der "
+        "Hauptsaison? Achte auf Schulferien und Feiertage in Deutschland sowie auf "
+        "lokale Feiertage/Großereignisse, die Preise oder Verfügbarkeit treiben.\n"
+        "**3. Besserer Zeitraum?** — Falls ein anderer Termin für dasselbe Ziel "
+        "deutlich mehr fürs Geld böte oder wetterseitig klar besser wäre, nenne ihn "
+        "konkret (Monat, gern mit Kalenderwoche) und sag, was er bringt. Passt der "
+        "gewählte Zeitraum schon gut, sag das ebenso klar, statt um jeden Preis eine "
+        "Alternative zu konstruieren.\n"
+        "**4. Ähnliche Ziele** — Nenne 2 bis 4 Alternativziele mit vergleichbarem "
+        "Charakter (Flugzeit ab dem genannten Abflughafen, Klima zur gewählten Zeit, "
+        "Preisniveau, Art des Urlaubs) und schreibe je Ziel einen Satz, worin es sich "
+        "vom Wunschziel unterscheidet — Vor- UND Nachteil.\n\n"
+        "Nutze die Websuche für alles Saison-, Wetter- und Preisabhängige. Sag klar, "
+        "worauf sich deine Angaben stützen; wo du unsicher bist, sag es offen statt "
+        "zu spekulieren. Keine Hotelempfehlungen — es geht um Zeitraum und Ziel."
+    )
+
+
+@bp.route('/api/ai/search-advice', methods=['POST'])
+def api_ai_search_advice():
+    """Reisezeit-Check direkt aus der Suchmaske: Klima/Saison zum gewählten Zeitraum,
+    Schnäppchenmonate und ähnliche Alternativziele. Die Eckdaten kommen vom Frontend
+    (Maskenstand plus optional eine Preisstatistik der aktuellen Treffer), nicht aus
+    der DB — die Suche wird ja nicht persistiert."""
+    if (err := A._require_api()):
+        return err
+    api_key, model = _ai_config()
+    if not api_key:
+        return jsonify({'error': 'no_api_key',
+                        'note': 'Kein Anthropic API-Key in den Add-on-Einstellungen hinterlegt'}), 400
+    data = request.get_json(silent=True) or {}
+    dest = (data.get('dest') or '').strip()
+    if not dest:
+        return jsonify({'error': 'no_dest'}), 400
+    prompt = _search_advice_prompt(data)
+    if (preview := _prompt_preview_response(data, prompt)):
+        return preview
+    prompt = _resolve_prompt(data, prompt)
+    text, usage, err = A._ai_call(api_key, model, prompt, max_tokens=2500,
+                                  log_ctx="Reisezeit-Check")
+    if err:
+        return err
+    usage['estimated_usd'] = _ai_call_cost(model, usage)
+    totals = _record_ai_usage(model, usage)
+    title = dest + (f" ({data['start']}–{data['end']})"
+                    if data.get('start') and data.get('end') else '')
+    aid = _save_ai_analysis('search_advice', title, model, text, usage, prompt)
+    return jsonify({'summary': text, 'usage': usage, 'totals': totals, 'id': aid,
+                    'cached': False})
+
+
 def _ai_ask_general(question: str, data: dict, api_key: str, model: str):
     """Allgemeine Reisefrage — zu Regionen, Ländern, Reisezeiten, Einreise,
     Verkehrsmitteln, allem was (noch) nicht im Portfolio steckt.
@@ -1748,6 +1860,7 @@ _AI_RETRY_MARKDOWN_CONFIG = {
     'calendar_outlook': {'max_tokens': 700, 'use_web_search': False},
     'ask': {'max_tokens': 1500, 'use_web_search': True},
     'ask_general': {'max_tokens': 1800, 'use_web_search': True},
+    'search_advice': {'max_tokens': 2500, 'use_web_search': True},
     'advisor': {'max_tokens': 3072, 'use_web_search': True},
     'compare': {'max_tokens': 6144, 'use_web_search': True},
 }

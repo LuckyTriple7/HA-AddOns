@@ -113,6 +113,27 @@ nicht). Der **Tracken**-Button bleibt aber nutzbar: Dasselbe Hotel kann **mehrfa
 **unterschiedlichen Suchparametern** (z. B. anderer Zeitraum) verfolgt werden; nur exakt
 identische Angebote werden abgelehnt.
 
+**🤖 Reisezeit-Check** (Knopf neben „Suchen", nur bei konfigurierter KI): prüft die
+Eckdaten der Maske, bevor du buchst. Vier Punkte:
+
+1. **Reisezeit** — taugt der gewählte Zeitraum für dieses Ziel? Regen-/Trockenzeit,
+   Temperaturen (Luft und Wasser), Luftfeuchtigkeit, Wind, Hurrikan-/Monsun-/
+   Zyklonsaison.
+2. **Saison und Preisniveau** — Haupt-, Neben- oder Zwischensaison, welche Monate an
+   diesem Ziel die Schnäppchenmonate sind, dazu Schulferien, Feiertage und lokale
+   Großereignisse.
+3. **Besserer Zeitraum?** — ein konkreter Alternativtermin, falls einer deutlich mehr
+   fürs Geld böte; passt der gewählte schon, sagt die KI das ebenso klar.
+4. **Ähnliche Ziele** — 2 bis 4 Alternativen mit vergleichbarem Charakter (Flugzeit ab
+   deinem Abflughafen, Klima zur gewählten Zeit, Preisniveau), je mit Vor- und
+   Nachteil gegenüber dem Wunschziel.
+
+Mitgeschickt werden nur die Eckdaten der Maske (Ziel, Zeitraum, Dauer, Reisende,
+Abflughafen, Verpflegung, Sterne-/Weiterempfehlungs-Filter). Wurde bereits gesucht,
+geht zusätzlich eine kurze **Preisstatistik der Treffer** mit (Anzahl, günstigster,
+Median, teuerster) — ohne die könnte die KI zum Preisniveau nur allgemein raten.
+Das Ergebnis landet im KI-Verlauf als „🤖 Reisezeit-Check".
+
 Die Trefferliste lässt sich **per E-Mail verschicken** (ganz oder nur die markierten
 Treffer). Die Kopfzeile der Mail nennt Reiseziel, **Anzahl der Reisenden** und
 **Abflughafen** — beides sind Suchparameter und stehen in keiner einzelnen

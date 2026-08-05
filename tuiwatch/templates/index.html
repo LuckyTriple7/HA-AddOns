@@ -668,6 +668,8 @@
         <label class="srch-num">Weiterempf. ≥ <input type="number" id="srch-rec" min="0" max="100" step="5" value="80" placeholder="0" style="width:60px">%</label>
         <label class="srch-chk" title="Sterne- und Weiterempfehlungs-Filter ignorieren"><input type="checkbox" id="srch-qual-off" onchange="toggleQualFilter()"> Egal</label>
         <button class="btn sec" onclick="resetSearch()" style="margin-left:auto" title="Eingaben auf Standard zurücksetzen">Reset</button>
+        <button class="btn sec ai-feature" onclick="askSearchAdvice()"
+                title="KI prüft den gewählten Reisezeitraum (Regenzeit, Temperaturen, Haupt-/Nebensaison, Schnäppchenmonate) und schlägt ähnliche Ziele vor">🤖 Reisezeit-Check</button>
         <button class="btn" onclick="runSearch()">Suchen</button>
       </div>
       <div id="srch-nights-warn" class="srch-warn" style="display:none"></div>

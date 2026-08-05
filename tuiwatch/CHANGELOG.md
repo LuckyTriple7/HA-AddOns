@@ -1,5 +1,36 @@
 # Changelog
 
+## [0.65.0] - 2026-08-05
+
+### Added
+- **🤖 Reisezeit-Check in der Suchmaske** (Knopf neben „Suchen"). Prüft vor dem
+  Buchen die Eckdaten der Suche in vier Punkten:
+  1. **Reisezeit** — taugt der gewählte Zeitraum für dieses Ziel? Regen-/Trockenzeit,
+     Temperaturen (Luft und Wasser), Luftfeuchtigkeit, Wind, Hurrikan-/Monsun-/
+     Zyklonsaison, mit konkreten Werten statt Allgemeinplätzen.
+  2. **Saison und Preisniveau** — Haupt-, Neben- oder Zwischensaison, die
+     Schnäppchenmonate des Ziels samt grober Ersparnis, dazu Schulferien, Feiertage
+     und lokale Großereignisse.
+  3. **Besserer Zeitraum?** — ein konkreter Alternativtermin, wenn einer deutlich
+     mehr fürs Geld böte; passt der gewählte schon, sagt die KI das ebenso klar,
+     statt eine Alternative zu konstruieren.
+  4. **Ähnliche Ziele** — 2 bis 4 Alternativen mit vergleichbarem Charakter
+     (Flugzeit ab dem gewählten Abflughafen, Klima zur Reisezeit, Preisniveau), je
+     mit Vor- **und** Nachteil gegenüber dem Wunschziel.
+
+  Mitgeschickt werden nur die Maskendaten; wurde bereits gesucht, zusätzlich eine
+  kurze Preisstatistik der Treffer (Anzahl, günstigster, Median, teuerster) — ohne
+  die könnte die KI zum Preisniveau nur allgemein raten. Neue Route
+  `POST /api/ai/search-advice`, Verlaufs-Kind `search_advice`.
+
+### Fixed
+- **ESC schloss beim KI-Ergebnis das falsche Fenster.** Das Ergebnis-Fenster steht
+  im DOM hinter Suchmaske, Kalender und Vergleich und liegt daher optisch darüber,
+  wenn es aus einem von ihnen geöffnet wird — geprüft wurde es aber erst nach ihnen.
+  Ein ESC schloss deshalb das darunterliegende Fenster und ließ das sichtbare offen.
+  Betraf schon den KI-Vergleich und die Kalenderanalyse, nicht nur den neuen
+  Reisezeit-Check.
+
 ## [0.64.1] - 2026-08-05
 
 ### Fixed

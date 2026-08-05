@@ -1234,6 +1234,12 @@
       ['giata-lightbox-bg', closeGiataLightbox],
       ['giata-gallery-bg', closeGiataGallery],
       ['cal-day-chart', closeCalDayChart],
+      // Das KI-Ergebnis steht im DOM hinter Suchmaske, Kalender, Vergleich & Co. und
+      // liegt daher optisch darüber, wenn es aus einem von ihnen heraus geöffnet wird
+      // (Reisezeit-Check und KI-Vergleich aus der Suche, Kalenderanalyse …). Es muss
+      // deshalb VOR diesen geprüft werden, sonst schlösse ESC das darunterliegende
+      // Fenster und ließe das sichtbare offen.
+      ['ai-bg', closeAiSummary],
       ['cal-bg', closeCalendar],
       ['modal-bg', closeModal],
       ['cmp-bg', closeCompare],
@@ -1241,7 +1247,6 @@
       ['nig-bg', closeNights],
       ['c24-bg', closeCheck24],
       ['room-bg', closeRooms],
-      ['ai-bg', closeAiSummary],
       ['syslog-bg', closeSyslog],
       ['aihist-bg', closeAiHistory],
       ['aiask-bg', closeAiAsk],
@@ -2168,6 +2173,60 @@
       if(ok){ await renderFavs(); toast('Gespeicherte Suche gelöscht'); } else { toast('Löschen fehlgeschlagen'); }
     }
 
+    // ── Reisezeit-Check (KI) direkt aus der Suchmaske ─────────────────────────
+    // Die Maske weiß nichts über Klima oder Saison — genau dafür ist das da. Sind
+    // schon Treffer geladen, geht eine kurze Preisstatistik mit: ohne sie könnte die
+    // KI zum Preisniveau nur allgemein raten, mit ihr ordnet sie den Zeitraum ein.
+    function searchPriceStats(){
+      const prices = srchResults.map(r=>r.price).filter(p=>typeof p==='number').sort((a,b)=>a-b);
+      if(!prices.length) return null;
+      return {count: srchResults.length, total: srchTotal,
+              min_price: prices[0], max_price: prices[prices.length-1],
+              median_price: prices[Math.floor(prices.length/2)]};
+    }
+    async function askSearchAdvice(){
+      if(!srchDest){ toast('Bitte zuerst ein Reiseziel wählen'); return; }
+      const air = $('#srch-airport').selectedOptions[0];
+      const body = {
+        dest: srchDest.label, giata: srchDest.giata,
+        start: $('#srch-vom').value, end: $('#srch-bis').value,
+        duration: parseInt($('#srch-dur').value)||null, exact: $('#srch-exact').checked,
+        travellers: parseInt($('#srch-trav').value)||null,
+        airport: $('#srch-airport').value, airport_label: air ? air.textContent : '',
+        boards: [...document.querySelectorAll('.srch-board:checked')].map(c=>c.value),
+        direct: $('#srch-direct').checked, adults_only: $('#srch-adults').checked,
+        min_stars: $('#srch-qual-off').checked ? 0 : (parseFloat($('#srch-stars').value)||0),
+        min_recommend: $('#srch-qual-off').checked ? 0 : (parseFloat($('#srch-rec').value)||0),
+        results: searchPriceStats() || undefined,
+      };
+      $('#ai-title').textContent = '🤖 Reisezeit-Check';
+      $('#ai-sub').textContent = srchDest.label
+        + (body.start && body.end ? ` · ${body.start} – ${body.end}` : '');
+      $('#ai-foot').style.display = 'none';
+      $('#ai-bg').classList.add('show');
+      const attempt = async () => {
+        await ensureAiProviderLoaded();
+        const busy = aiProviderName()+' prüft Reisezeit und Alternativen…';
+        $('#ai-body').innerHTML = progBar(busy);
+        let resp, d;
+        try {
+          const r = await aiFetchPreviewable(api('/api/ai/search-advice'),
+            {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)}, busy);
+          if(r.cancelled) return;
+          resp = r.resp; d = r.d;
+        } catch(e){ _aiRetryFn = attempt; $('#ai-body').innerHTML = aiErrorBlock('Reisezeit-Check fehlgeschlagen.', true); return; }
+        if(!resp.ok){
+          const retryable = aiRetryable(d.error);
+          const msg = d.error==='no_dest' ? 'Kein Reiseziel gewählt.' : aiErrorMsg(d.error);
+          _aiRetryFn = retryable ? attempt : null;
+          $('#ai-body').innerHTML = aiErrorBlock(msg, retryable);
+          return;
+        }
+        renderAiResult('#ai-body', d);
+      };
+      attempt();
+    }
+
     async function runSearch(){
       const url = $('#srch-url').value.trim();
       const boards = [...document.querySelectorAll('.srch-board:checked')].map(c=>c.value);
@@ -3035,6 +3094,7 @@
     function aiKindLabel(kind){
       return kind==='compare' ? '🤖 Vergleich' : kind==='ask' ? '📌 Portfolio-Frage'
         : kind==='ask_general' ? '🌍 Reisefrage'
+        : kind==='search_advice' ? '🤖 Reisezeit-Check'
         : kind==='advisor' ? '🗺️ TripPilot' : kind==='booking_score' ? '🔮 Buchungsscore'
         : kind==='region_outlook' ? '🔮 Region-Ausblick'
         : kind==='calendar_outlook' ? '📅 Kalender-Analyse' : '🤖 Fazit';
