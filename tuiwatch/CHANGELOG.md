@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.75.1] - 2026-08-05
+
+### Changed
+- **Footer zweizeilig** — die KI-Einträge (⚙ KI-Prompts, aktiver Anbieter,
+  KI-Kosten) stehen jetzt in einer eigenen zweiten Zeile statt in einem
+  langen Umbruch. Bei deaktivierter KI entfällt die Zeile komplett.
+
 ## [0.75.0] - 2026-08-05
 
 ### Added
