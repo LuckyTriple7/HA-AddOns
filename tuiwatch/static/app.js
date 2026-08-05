@@ -3053,7 +3053,7 @@
         </label>
         ${img}
         <div class="sr-main">
-          <div class="sr-name">${stars}${esc(r.name)}${r.tracked?'<span class="tracked">✓ getrackt</span>':''}</div>
+          <div class="sr-name">${stars}${esc(r.name)}${r.tracked?'<span class="tracked">✓ getrackt</span>':''}${r.is_new?' <span class="sr-new" title="Seit dem letzten Suchabo-Lauf neu unter der Schwelle">🆕</span>':''}${r.prev!=null?` <span class="sr-drop" title="Seit dem letzten Suchabo-Lauf gefallen: vorher ${eur(r.prev)}">📉 −${eur(r.prev-r.price)}</span>`:''}</div>
           <div class="sr-meta">📍 ${esc(r.location)}${r.country?(' · '+esc(r.country)):''}${rec}</div>
           <div class="sr-meta">${esc(r.board)} · ${r.nights} Nächte · ab ${fmtD(r.date)}</div>
           ${(r.locations&&r.locations.length)?'<div class="sr-locs">'+r.locations.map(l=>'<span class="tag-pill">'+esc(l)+'</span>').join('')+'</div>':''}

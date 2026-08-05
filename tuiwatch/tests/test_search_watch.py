@@ -108,6 +108,25 @@ def test_watch_threshold_filter_and_dedup(m, monkeypatch):
     assert lst[0]["last_checked"] > 0
 
 
+def test_watch_diff_markers(m, monkeypatch):
+    """Diff gegen den letzten Lauf: 🆕 erstmals unter der Schwelle, 📉 weiter
+    gefallen (mit Vorher-Preis) — in Meldung UND gespeicherter Trefferliste."""
+    c = m.app.test_client()
+    sid = _mk_watch(m, c)
+    _fake_search(m, monkeypatch, [_result(1, "Hotel A", 900)])
+    d = c.post(f"/api/searches/{sid}/check", headers=ING).get_json()
+    assert d["hits"][0].get("is_new") is True
+    assert "prev" not in d["hits"][0]
+    assert "🆕" in m._tg[0] and "1 neu" in m._tg[0]
+
+    _fake_search(m, monkeypatch, [_result(1, "Hotel A", 850)])
+    m._route_cooldowns.clear()
+    d = c.post(f"/api/searches/{sid}/check", headers=ING).get_json()
+    assert d["hits"][0].get("prev") == 900
+    assert "is_new" not in d["hits"][0]
+    assert "📉" in m._tg[1] and "1 billiger" in m._tg[1] and "vorher" in m._tg[1]
+
+
 def test_watch_api_guards(m, monkeypatch):
     c = m.app.test_client()
     r = c.post("/api/searches", headers=ING, json={"name": "X", "payload": _PAYLOAD})

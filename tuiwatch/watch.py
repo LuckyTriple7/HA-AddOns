@@ -57,15 +57,29 @@ def _esc_html(s) -> str:
     return str(s or '').replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
 
 
-def _notify_search_watch(name: str, new: list, limit: float) -> None:
-    """Meldet neue/tiefere Suchabo-Treffer per HA + Telegram."""
-    head = (f"{len(new)} Hotels" if len(new) != 1 else "1 Hotel") + f" unter {A._eur(limit)}"
-    plain = [f"• {r.get('name')}: {A._eur(r.get('price'))}"
-             + (f" — {r['location']}" if r.get('location') else '') for r in new[:8]]
-    tg = [f'• <a href="{_esc_html(r.get("offer_url"))}">{_esc_html(r.get("name"))}</a>: '
-          f'<b>{A._eur(r.get("price"))}</b>'
-          + (f" — {_esc_html(r['location'])}" if r.get('location') else '') for r in new[:8]]
-    more = f"… und {len(new) - 8} weitere" if len(new) > 8 else ''
+def _notify_search_watch(name: str, new: list, cheaper: list, limit: float) -> None:
+    """Meldet Suchabo-Treffer per HA + Telegram — getrennt nach „neu unter der
+    Schwelle" (🆕) und „weiter gefallen" (📉, mit vorher→jetzt). Vorher stand nur
+    eine Mischliste da, ohne zu sehen, was sich gegenüber dem letzten Lauf getan hat."""
+    parts = []
+    if new:
+        parts.append(f"{len(new)} neu")
+    if cheaper:
+        parts.append(f"{len(cheaper)} billiger")
+    head = ", ".join(parts) + f" unter {A._eur(limit)}"
+
+    def _drop(r):
+        return f" (vorher {A._eur(r['prev'])}, −{A._eur(r['prev'] - r['price'])})"
+
+    items = [('🆕', r, '') for r in new] + [('📉', r, _drop(r)) for r in cheaper]
+    plain = [f"{ico} {r.get('name')}: {A._eur(r.get('price'))}{suffix}"
+             + (f" — {r['location']}" if r.get('location') else '')
+             for ico, r, suffix in items[:8]]
+    tg = [f'{ico} <a href="{_esc_html(r.get("offer_url"))}">{_esc_html(r.get("name"))}</a>: '
+          f'<b>{A._eur(r.get("price"))}</b>{_esc_html(suffix)}'
+          + (f" — {_esc_html(r['location'])}" if r.get('location') else '')
+          for ico, r, suffix in items[:8]]
+    more = f"… und {len(items) - 8} weitere" if len(items) > 8 else ''
     A._notify_ha(f"🔎 Suchabo „{name}“: {head}",
                "\n".join(plain + ([more] if more else [])), f"watch_{A._slug(name)}")
     A._notify_telegram(f"🔎 <b>Suchabo „{_esc_html(name)}“</b>\n{head}\n"
@@ -99,29 +113,44 @@ def _check_search_watch(sid: int) -> dict | None:
         seen = json.loads(row['seen'] or '{}')
     except Exception:
         seen = {}
-    new, now_seen = [], {}
+    # Diff gegen den letzten Lauf: erstmals unter der Schwelle (new) vs. schon
+    # gemeldet, aber weiter gefallen (cheaper, mit Vorher-Preis)
+    new, cheaper, now_seen = [], [], {}
     for r in hits:
         g = str(r.get('giata') or '')
         if not g:
             continue
         prev = seen.get(g)
-        if prev is None or r['price'] < prev:
+        if prev is None:
             new.append(r)
+        elif r['price'] < prev:
+            cheaper.append({**r, 'prev': prev})
         now_seen[g] = min(prev, r['price']) if prev is not None else r['price']
-    hits_slim = [{k: r.get(k) for k in ('giata', 'name', 'price', 'location', 'stars',
-                                        'recommendation', 'board', 'nights', 'date',
-                                        'offer_url', 'image')} for r in hits]
+
+    def _slim(r):
+        out = {k: r.get(k) for k in ('giata', 'name', 'price', 'location', 'stars',
+                                     'recommendation', 'board', 'nights', 'date',
+                                     'offer_url', 'image')}
+        g = str(r.get('giata') or '')
+        prev = seen.get(g)
+        if prev is None:
+            out['is_new'] = True          # UI-Marker 🆕
+        elif r.get('price') is not None and r['price'] < prev:
+            out['prev'] = prev            # UI-Marker 📉 mit Vorher-Preis
+        return out
+
+    hits_slim = [_slim(r) for r in hits]
     with A.db() as con:
         con.execute('UPDATE saved_searches SET seen=?, hits=?, last_checked=? WHERE id=?',
                     (json.dumps(now_seen), json.dumps(hits_slim, ensure_ascii=False), ts, sid))
-    if new:
+    if new or cheaper:
         try:
-            _notify_search_watch(row['name'], new, limit)
+            _notify_search_watch(row['name'], new, cheaper, limit)
         except Exception as e:
             A.log.error("Suchabo-Benachrichtigung fehlgeschlagen: %s", e)
-    A.log.info("Suchabo „%s“: %d Treffer ≤ %s, davon %d neu", row['name'],
-             len(hits), A._eur(limit), len(new))
-    return {'hits': hits_slim, 'new': len(new)}
+    A.log.info("Suchabo „%s“: %d Treffer ≤ %s, davon %d neu, %d billiger", row['name'],
+             len(hits), A._eur(limit), len(new), len(cheaper))
+    return {'hits': hits_slim, 'new': len(new) + len(cheaper)}
 
 
 def _maybe_check_watches() -> None:

@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.71.0] - 2026-08-05
+
+### Added
+- **Suchabo-Meldungen zeigen jetzt den Unterschied zum letzten Lauf:** 🆕 für
+  Hotels, die erstmals unter die Schwelle gerutscht sind, 📉 mit „vorher X €,
+  −Y €" für bereits gemeldete, die weiter gefallen sind — Kopfzeile z. B.
+  „2 neu, 1 billiger unter 1.500 €". Vorher stand nur eine Mischliste da,
+  ohne zu sehen, was sich getan hat. Dieselben Marker stehen in der
+  Trefferliste im UI (🆕 bzw. 📉 −50 € am Hotelnamen).
+
 ## [0.70.0] - 2026-08-05
 
 ### Added
