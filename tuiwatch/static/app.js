@@ -1102,10 +1102,20 @@
       if(hasSplit){
         const sum = (o.price_hotel||0)+(o.price_flight_out||0)+(o.price_flight_ret||0);
         const n = o.travellers_count>1 ? ` <span class="split-muted">(${o.travellers_count} Reisende)</span>` : '';
+        // Linienflüge mit Retour-Tarif: TUI hängt den kompletten Flugpreis an EIN
+        // Leg, das andere steht mit 0 € im Buchungssystem — dann eine gemeinsame
+        // Flüge-Zeile zeigen statt eines verwirrenden "Rückflug 0 €"
+        const fo = o.price_flight_out, fr = o.price_flight_ret;
+        let flightRows;
+        if(fo!=null && fr!=null && (fo===0) !== (fr===0)){
+          flightRows = `<tr><td>✈ Flüge (Hin &amp; Rück) <span class="split-muted" title="Retour-Tarif: das Buchungssystem bepreist beide Flüge zusammen auf einem Leg">ⓘ</span></td><td>${eur(fo+fr)}</td></tr>`;
+        } else {
+          flightRows = `<tr><td>🛫 Hinflug</td><td>${eur(fo)}</td></tr>
+          <tr><td>🛬 Rückflug</td><td>${eur(fr)}</td></tr>`;
+        }
         h += `<table class="split-table">
           <tr><td>🏨 Hotel</td><td>${eur(o.price_hotel)}</td></tr>
-          <tr><td>🛫 Hinflug</td><td>${eur(o.price_flight_out)}</td></tr>
-          <tr><td>🛬 Rückflug</td><td>${eur(o.price_flight_ret)}</td></tr>
+          ${flightRows}
           <tr class="sum"><td>Summe${n}</td><td>${eur(sum)}</td></tr></table>`;
       } else {
         h += '<p class="split-muted">Noch keine Aufschlüsselung vorhanden — sie wird bei der nächsten Prüfung mit erfasst (Knopf „Prüfen").</p>';

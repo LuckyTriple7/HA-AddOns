@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.74.1] - 2026-08-05
+
+### Fixed
+- **Preis-Aufschlüsselung zeigte „Rückflug 0 €"** bei Linienflug-Angeboten
+  (z. B. Austrian zu den Malediven): kein Auslesefehler — bei Retour-Tarifen
+  bepreist das TUI-Buchungssystem beide Flüge zusammen auf **einem** Leg, das
+  andere steht echt mit 0 € drin (Charterflüge wie TUIfly haben dagegen je Leg
+  einen Preis). In dem Fall steht jetzt eine gemeinsame Zeile
+  „✈ Flüge (Hin & Rück)" mit dem Gesamtflugpreis samt Erklärungs-Tooltip statt
+  der verwirrenden 0.
+
 ## [0.74.0] - 2026-08-05
 
 ### Added
