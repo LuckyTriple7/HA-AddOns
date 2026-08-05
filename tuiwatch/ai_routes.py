@@ -1349,6 +1349,271 @@ def api_climate_delete(giata: int):
     return jsonify({'deleted': n})
 
 
+# ── Reiseführer je Reiseziel ──────────────────────────────────────────────────
+# Dieselbe Bauart wie die Klimatabelle: einmal je Ziel von der KI erzeugt, dauerhaft
+# gespeichert, Auffrischen nur auf Knopfdruck. Ein Reiseführer ist der teuerste
+# Einzelaufruf im Add-on (dreizehn Abschnitte, zwanzig Vokabeln) — ihn bei jedem
+# Öffnen neu zu erzeugen wäre nicht vertretbar.
+#
+# Bewusst eine generische Abschnittsstruktur statt vierzehn benannter Felder: die
+# Abschnitte sind inhaltlich völlig verschieden (Vokabelliste, Notrufnummern,
+# Verhaltensregeln), ein Schema mit festen Feldern je Abschnitt wäre riesig und
+# müsste bei jeder Prompt-Änderung mitgezogen werden. `label` bleibt leer, wo ein
+# Punkt keine Bezeichnung hat (Don't Dos, Insider-Tipps).
+_GUIDE_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "sections": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "titel": {"type": "string"},
+                    "einleitung": {"type": "string"},
+                    "punkte": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "label": {"type": "string"},
+                                "text": {"type": "string"},
+                                "volatil": {"type": "boolean"},
+                            },
+                            "required": ["label", "text", "volatil"],
+                            "additionalProperties": False,
+                        },
+                    },
+                },
+                "required": ["titel", "einleitung", "punkte"],
+                "additionalProperties": False,
+            },
+        },
+        "zusammenfassung": {"type": "array", "items": {"type": "string"}},
+    },
+    "required": ["sections", "zusammenfassung"],
+    "additionalProperties": False,
+}
+
+_GUIDE_SECTIONS = (
+    ("Allgemeine Informationen",
+     "Land; Hauptstadt (falls relevant); Sprache(n); Währung; aktueller Wechselkurs "
+     "zum Euro; Zeitzone; Flugzeit ab Deutschland; Landesvorwahl; Steckdosen-Typ und "
+     "Netzspannung"),
+    ("Einreise",
+     "Benötigte Dokumente; Visum erforderlich?; Gültigkeitsanforderungen für den "
+     "Reisepass; Zollbestimmungen; besondere Einreisehinweise"),
+    ("Klima",
+     "Beste Reisezeit; Temperaturen nach Jahreszeit; Wassertemperaturen; Regenzeit; "
+     "Windverhältnisse; UV-Index"),
+    ("Gesundheit",
+     "Trinkwasser; empfohlene Impfungen; Mücken; Apotheken; medizinische Versorgung"),
+    ("Geld",
+     "Kartenzahlung üblich?; Bargeld sinnvoll?; Geldautomaten; Trinkgeld-Empfehlungen; "
+     "Preisniveau im Vergleich zu Deutschland"),
+    ("Mobilität",
+     "Mietwagen sinnvoll?; öffentliche Verkehrsmittel; Taxi; Uber/Bolt vorhanden?; "
+     "Verkehrsregeln"),
+    ("Internet & Kommunikation", "Mobilfunknetz; eSIM verfügbar?; WLAN; Roaming"),
+    ("Sicherheit",
+     "Allgemeine Sicherheitslage; typische Betrugsmaschen; Gegenden, die man meiden "
+     "sollte; Verhalten bei Notfällen"),
+    ("Kultur & Etikette",
+     "Begrüßung; Kleidung; Fotografieren; religiöse Besonderheiten; Verhalten in "
+     "Restaurants; Umgang mit Einheimischen"),
+    ("Don't Dos",
+     "Mindestens 10 Dinge, die Touristen möglichst vermeiden sollten, jeweils mit "
+     "kurzer Begründung. `label` bleibt leer, die Begründung gehört in `text`."),
+    ("Insider-Tipps",
+     "10 Tipps, die viele Reiseführer nicht erwähnen; typische regionale "
+     "Spezialitäten; lokale Getränke; Souvenirs; schöne Aussichtspunkte; weniger "
+     "bekannte Ausflugsziele"),
+    ("Praktische Informationen",
+     "Notrufnummern; Öffnungszeiten; Feiertage; Stromausfälle häufig?; "
+     "Leitungswasser; Sonnenuntergang je nach Jahreszeit"),
+    ("Nützliche Wörter",
+     "Genau 20 wichtige Wörter und Redewendungen. `label` = Wort in der Landessprache, "
+     "`text` = deutsche Übersetzung (bei Bedarf mit Aussprachehilfe)."),
+)
+
+
+def _guide_prompt(label: str) -> str:
+    secs = '\n'.join(f"{i}. {t}\n   {d}" for i, (t, d) in enumerate(_GUIDE_SECTIONS, 1))
+    return (
+        "Du bist ein erfahrener Reiseberater.\n\n"
+        f"Erstelle für das Reiseziel „{label}\" einen kompakten, aber informativen "
+        "Reiseführer.\n\n"
+        "Liefere genau die folgenden dreizehn Abschnitte in dieser Reihenfolge und mit "
+        "genau diesen Titeln. `einleitung` ist ein einleitender Satz (darf leer "
+        "bleiben), `punkte` sind die Einzelangaben: `label` die Bezeichnung, `text` "
+        "die Angabe.\n\n"
+        f"{secs}\n\n"
+        "Dazu `zusammenfassung`: höchstens 15 Stichpunkte mit allen wichtigen "
+        "Informationen.\n\n"
+        "Setze `volatil` auf true bei allem, was sich kurzfristig ändern kann — "
+        "Einreisebestimmungen, Wechselkurs, Preise, Impfvorgaben, Sicherheitslage. "
+        "Sonst false. Suche aktuelle Informationen im Web."
+    )
+
+
+def _guide_linkify_in_place(result: dict, urls: list | None) -> None:
+    """Wie `_linkify_citations_in_place`, nur für die Reiseführer-Struktur — sonst
+    stünden Perplexitys Quellen-Marker („[7]") als toter Text in jedem Abschnitt."""
+    if not urls:
+        return
+    from ai_client import _perplexity_linkify_citations
+    data = {'citations': urls}
+
+    def lk(s):
+        return _perplexity_linkify_citations(s, data) if isinstance(s, str) else s
+
+    result['zusammenfassung'] = [lk(s) for s in (result.get('zusammenfassung') or [])]
+    for sec in (result.get('sections') or []):
+        if not isinstance(sec, dict):
+            continue
+        sec['einleitung'] = lk(sec.get('einleitung'))
+        for p in (sec.get('punkte') or []):
+            if isinstance(p, dict):
+                p['text'] = lk(p.get('text'))
+
+
+def _guide_load(giata: int):
+    with A.db() as con:
+        row = con.execute('SELECT label, ts, model, data FROM guide WHERE giata=?',
+                          (giata,)).fetchone()
+    if not row:
+        return None
+    try:
+        data = json.loads(row['data'])
+    except ValueError:
+        return None
+    return {'giata': giata, 'label': row['label'], 'ts': row['ts'],
+            'model': row['model'], 'data': data}
+
+
+@bp.route('/api/guide', methods=['GET'])
+def api_guide_list():
+    """Alle gespeicherten Reiseführer (ohne Inhalt) — für die Übersicht."""
+    if (err := A._require_api()):
+        return err
+    with A.db() as con:
+        rows = con.execute('SELECT giata, label, ts FROM guide '
+                           'ORDER BY label COLLATE NOCASE').fetchall()
+    return jsonify({'items': [dict(r) for r in rows]})
+
+
+@bp.route('/api/guide/<int:giata>', methods=['GET'])
+def api_guide_get(giata: int):
+    """Gespeicherter Reiseführer — **ohne** KI-Aufruf. Die zum Ziel gespeicherte
+    Klimatabelle kommt mit, sie wird im selben Fenster angezeigt."""
+    if (err := A._require_api()):
+        return err
+    got = _guide_load(giata)
+    if not got:
+        return jsonify({'found': False, 'giata': giata})
+    return jsonify(dict(got, found=True, climate=(_climate_load(giata) or {}).get('data')))
+
+
+@bp.route('/api/ai/guide', methods=['POST'])
+def api_ai_guide():
+    """Reiseführer per KI erzeugen und dauerhaft speichern. Liegt er vor, kommt er
+    unverändert zurück; `refresh: true` erzwingt eine Neuerstellung."""
+    if (err := A._require_api()):
+        return err
+    data = request.get_json(silent=True) or {}
+    try:
+        giata = int(data.get('giata'))
+    except (TypeError, ValueError):
+        return jsonify({'error': 'no_dest'}), 400
+    label = (data.get('label') or '').strip()
+    if not data.get('refresh'):
+        if (got := _guide_load(giata)):
+            return jsonify(dict(got, found=True, cached=True,
+                                climate=(_climate_load(giata) or {}).get('data')))
+    if not label:
+        return jsonify({'error': 'no_dest'}), 400
+    api_key, model = _ai_config()
+    if not api_key:
+        return jsonify({'error': 'no_api_key',
+                        'note': 'Kein KI-API-Key in den Add-on-Einstellungen hinterlegt'}), 400
+    prompt = _guide_prompt(label)
+    if (preview := _prompt_preview_response(data, prompt)):
+        return preview
+    prompt = _resolve_prompt(data, prompt)
+    # 12000 statt der 3000 der Klimatabelle: dreizehn Abschnitte plus zwanzig Vokabeln
+    # sprengen jedes kleinere Budget, und eine abgeschnittene Antwort ist kein
+    # gültiges JSON — der Aufruf wäre komplett verloren.
+    text, usage, code = A._ai_request(api_key, model, prompt, max_tokens=12000,
+                                      log_ctx=f"Reiseführer {label}",
+                                      use_web_search=True, output_schema=_GUIDE_SCHEMA)
+    if code == 'failed':
+        return jsonify({'error': 'ai_failed'}), 502
+    if code == 'refused':
+        return jsonify({'error': 'ai_refused'}), 502
+    if code == 'empty' or not text:
+        return jsonify({'error': 'ai_empty'}), 502
+    try:
+        result = json.loads(text)
+    except ValueError:
+        A.log.warning("Reiseführer %s: KI-Antwort kein gültiges JSON (%d Zeichen): %.200s",
+                      label, len(text), text)
+        return jsonify({'error': 'ai_empty'}), 502
+    sections = [s for s in (result.get('sections') or []) if isinstance(s, dict)]
+    if len(sections) < 5:
+        A.log.warning("Reiseführer %s: nur %d Abschnitte geliefert", label, len(sections))
+        return jsonify({'error': 'ai_empty'}), 502
+    _guide_linkify_in_place(result, (usage or {}).pop('citation_urls', None))
+    usage['estimated_usd'] = _ai_call_cost(model, usage)
+    totals = _record_ai_usage(model, usage)
+    ts = int(time.time())
+    with A.db() as con:
+        con.execute('INSERT OR REPLACE INTO guide (giata, label, ts, model, data) '
+                    'VALUES (?,?,?,?,?)',
+                    (giata, label, ts, model, json.dumps(result, ensure_ascii=False)))
+    A.log.info("Reiseführer für %s (%s) gespeichert — %d Abschnitte", label, giata,
+               len(sections))
+    return jsonify({'found': True, 'cached': False, 'giata': giata, 'label': label,
+                    'ts': ts, 'model': model, 'data': result,
+                    'climate': (_climate_load(giata) or {}).get('data'),
+                    'usage': usage, 'totals': totals})
+
+
+@bp.route('/api/guide/<int:giata>/email', methods=['POST'])
+def api_guide_email(giata: int):
+    """Gespeicherten Reiseführer per E-Mail verschicken — inklusive Klimatabelle,
+    sofern eine gespeichert ist. Kein KI-Aufruf."""
+    if (err := A._require_api()):
+        return err
+    if not A.smtp_configured():
+        return jsonify({'error': 'smtp_not_configured'}), 400
+    data = request.get_json(silent=True) or {}
+    to = (data.get('to') or A.load_config().get('smtp_to') or '').strip()
+    if not to:
+        return jsonify({'error': 'no_recipient'}), 400
+    got = _guide_load(giata)
+    if not got:
+        return jsonify({'error': 'not_found'}), 404
+    import email_search
+    html = email_search.guide_html(got['label'], got['data'],
+                                   climate=(_climate_load(giata) or {}).get('data'))
+    try:
+        A.send_email(f"TUIWatch – Reiseführer {got['label']}", html, to)
+    except Exception as e:
+        A.log.error("Reiseführer-E-Mail fehlgeschlagen: %s", e)
+        return jsonify({'error': 'send_failed'}), 502
+    A.log.info("Reiseführer %s an %s gesendet", got['label'], to)
+    return jsonify({'sent': True, 'to': to})
+
+
+@bp.route('/api/guide/<int:giata>', methods=['DELETE'])
+def api_guide_delete(giata: int):
+    """Gespeicherten Reiseführer verwerfen (der nächste Abruf erzeugt ihn neu)."""
+    if (err := A._require_api()):
+        return err
+    with A.db() as con:
+        n = con.execute('DELETE FROM guide WHERE giata=?', (giata,)).rowcount
+    return jsonify({'deleted': n})
+
+
 def _search_advice_prompt(d: dict) -> str:
     """Prompt für den Reisezeit-Check aus der Suchmaske: taugt der gewählte Zeitraum
     für dieses Ziel, wie liegt er preislich, und was wären ähnliche Alternativen.

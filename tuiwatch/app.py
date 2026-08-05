@@ -89,7 +89,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.67.2"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.68.0"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -633,6 +633,19 @@ def init_db() -> None:
         # Woche, ein erneuter KI-Aufruf brächte nur Kosten und minimal andere Zahlen.
         # Aufgefrischt wird nur auf ausdrücklichen Wunsch (Knopf im Klima-Fenster).
         con.execute('''CREATE TABLE IF NOT EXISTS climate (
+            giata   INTEGER PRIMARY KEY,
+            label   TEXT NOT NULL DEFAULT '',
+            ts      INTEGER NOT NULL,
+            model   TEXT DEFAULT '',
+            data    TEXT NOT NULL
+        )''')
+        # Reiseführer je Reiseziel (KI-generiert): Einreise, Gesundheit, Geld, Kultur,
+        # Insider-Tipps. Wie die Klimatabelle dauerhaft gespeichert und mit demselben
+        # Schlüssel (Region-giataId) — der Reiseführer zeigt die Klimatabelle mit an,
+        # beides muss also über denselben Schlüssel zusammenfinden. Anders als beim
+        # Klima veralten hier einzelne Angaben (Einreise, Wechselkurs); sie sind in den
+        # Daten als `volatil` markiert, aufgefrischt wird auf Knopfdruck.
+        con.execute('''CREATE TABLE IF NOT EXISTS guide (
             giata   INTEGER PRIMARY KEY,
             label   TEXT NOT NULL DEFAULT '',
             ts      INTEGER NOT NULL,

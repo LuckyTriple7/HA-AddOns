@@ -14,23 +14,23 @@ _MONTHS_DE = ('Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli',
               'August', 'September', 'Oktober', 'November', 'Dezember')
 
 
-def climate_html(label: str, data: dict, *, months_hl: list | None = None) -> str:
-    """HTML-Mail mit der Klimatabelle eines Reiseziels.
+def _esc(s):
+    return (str(s or '')).replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
 
-    Reine Tabelle, kein Diagramm: Mail-Clients (allen voran Outlook) rendern weder
-    inline-SVG noch moderne CSS-Farbfunktionen zuverlässig, und ein Bild müsste
-    serverseitig gerendert und als Anhang eingebettet werden. Die Zahlen sind hier
-    ohnehin der Inhalt. `months_hl` hebt die Monate des geplanten Reisezeitraums
-    hervor — derselbe Dienst wie im UI."""
-    def esc(s):
-        return (str(s or '')).replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
 
-    def cite(s):
-        """Quellen-Marker `[7](url)` (Perplexity) als Link — sonst stünde die
-        Markdown-Syntax roh in der Mail."""
-        return re.sub(r'\[(\d+)\]\((https?://[^\s")]+)\)',
-                      r'<a href="\2" style="color:#0b65d8;text-decoration:none">[\1]</a>',
-                      esc(s))
+def _cite(s):
+    """Quellen-Marker `[7](url)` (Perplexity) als Link — sonst stünde die
+    Markdown-Syntax roh in der Mail."""
+    return re.sub(r'\[(\d+)\]\((https?://[^\s")]+)\)',
+                  r'<a href="\2" style="color:#0b65d8;text-decoration:none">[\1]</a>',
+                  _esc(s))
+
+
+def _climate_card(data: dict, months_hl: list | None = None) -> str:
+    """Zusammenfassung + Monatstabelle einer Klimatabelle — der Inhalt der Karte,
+    ohne Mail-Rahmen. Geteilt von `climate_html()` (eigene Mail) und `guide_html()`
+    (Klima-Abschnitt im Reiseführer)."""
+    esc, cite = _esc, _cite
 
     def num(v, unit=''):
         if v in (None, '', 0) and unit == ' °C':
@@ -66,29 +66,99 @@ def climate_html(label: str, data: dict, *, months_hl: list | None = None) -> st
     head = ''.join(f'<th style="padding:6px 8px;text-align:right;color:#555;font-size:12px">{h}</th>'
                    for h in ('Tag', 'Nacht', 'Wasser', 'Sonne', 'Regen'))
     return (
-        '<div style="background:#eef2f8;padding:20px 0;font-family:-apple-system,Segoe UI,Roboto,sans-serif">'
-        '<table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center">'
-        '<table width="640" cellpadding="0" cellspacing="0" style="max-width:640px;width:100%">'
-        '<tr><td style="padding:0 16px 16px">'
-        '<div style="font-size:22px;font-weight:800;color:#0b65d8">✈ TUIWatch</div>'
-        f'<div style="font-size:13px;color:#666">Klima · {esc(label)} · langjährige Mittelwerte</div>'
-        '</td></tr>'
-        '<tr><td style="padding:0 16px"><table width="100%" cellpadding="0" cellspacing="0" '
-        'style="background:#fff;border:1px solid #e2e6ea;border-radius:10px;border-collapse:separate">'
-        '<tr><td style="padding:14px 16px">'
-        + (f'<div style="font-size:14px;color:#333;margin-bottom:10px">'
-           f'{cite(data.get("zusammenfassung"))}</div>' if data.get('zusammenfassung') else '')
+        (f'<div style="font-size:14px;color:#333;margin-bottom:10px">'
+         f'{cite(data.get("zusammenfassung"))}</div>' if data.get('zusammenfassung') else '')
         + '<table width="100%" cellpadding="0" cellspacing="0" style="font-size:13px;color:#10243e">'
         + f'<tr><th style="padding:6px 8px;text-align:left;color:#555;font-size:12px">Monat</th>{head}</tr>'
         + ''.join(rows) + '</table>'
         + ('<div style="font-size:12px;color:#777;margin-top:8px">★ = aus Wetter-Sicht bester '
            'Reisemonat' + (' · hervorgehoben: dein Reisezeitraum' if hl else '') + '</div>')
+    )
+
+
+def _mail_frame(subtitle: str, cards: str) -> str:
+    """Mail-Gerüst (Kopf, weiße Karte, Fußzeile) — identisch für Klima und
+    Reiseführer, damit beide Mails gleich aussehen."""
+    return (
+        '<div style="background:#eef2f8;padding:20px 0;font-family:-apple-system,Segoe UI,Roboto,sans-serif">'
+        '<table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center">'
+        '<table width="640" cellpadding="0" cellspacing="0" style="max-width:640px;width:100%">'
+        '<tr><td style="padding:0 16px 16px">'
+        '<div style="font-size:22px;font-weight:800;color:#0b65d8">✈ TUIWatch</div>'
+        f'<div style="font-size:13px;color:#666">{subtitle}</div>'
+        '</td></tr>'
+        '<tr><td style="padding:0 16px"><table width="100%" cellpadding="0" cellspacing="0" '
+        'style="background:#fff;border:1px solid #e2e6ea;border-radius:10px;border-collapse:separate">'
+        '<tr><td style="padding:14px 16px">'
+        + cards
         + '</td></tr></table></td></tr>'
         '<tr><td style="padding:10px 16px 0;font-size:11px;color:#99a">Generiert von '
         '<a href="https://github.com/LuckyTriple7/HA-AddOns" style="color:#0b65d8;text-decoration:none">TUIWatch</a>'
         ', einer App für Home Assistant</td></tr>'
         '</table></td></tr></table></div>'
     )
+
+
+def climate_html(label: str, data: dict, *, months_hl: list | None = None) -> str:
+    """HTML-Mail mit der Klimatabelle eines Reiseziels.
+
+    Reine Tabelle, kein Diagramm: Mail-Clients (allen voran Outlook) rendern weder
+    inline-SVG noch moderne CSS-Farbfunktionen zuverlässig, und ein Bild müsste
+    serverseitig gerendert und als Anhang eingebettet werden. Die Zahlen sind hier
+    ohnehin der Inhalt. `months_hl` hebt die Monate des geplanten Reisezeitraums
+    hervor — derselbe Dienst wie im UI."""
+    return _mail_frame(f'Klima · {_esc(label)} · langjährige Mittelwerte',
+                       _climate_card(data, months_hl))
+
+
+def guide_html(label: str, data: dict, *, climate: dict | None = None) -> str:
+    """HTML-Mail mit dem Reiseführer eines Ziels. Ist eine Klimatabelle gespeichert,
+    hängt sie als eigener Abschnitt hinter der Zusammenfassung — im Fenster steht sie
+    genauso, und ein Reiseführer ohne Klimawerte wäre halb so nützlich."""
+    esc, cite = _esc, _cite
+    out = []
+    summary = [s for s in (data.get('zusammenfassung') or []) if str(s).strip()]
+    if summary:
+        out.append('<div style="font-size:15px;font-weight:700;color:#10243e;margin:0 0 8px">'
+                   'Das Wichtigste in Kürze</div>'
+                   '<ul style="margin:0 0 18px;padding-left:20px;font-size:13px;color:#333">'
+                   + ''.join(f'<li style="margin-bottom:4px">{cite(s)}</li>' for s in summary)
+                   + '</ul>')
+    if climate and (climate.get('months') or []):
+        out.append('<div style="font-size:15px;font-weight:700;color:#10243e;margin:18px 0 8px">'
+                   'Klimatabelle</div>' + _climate_card(climate))
+    for sec in (data.get('sections') or []):
+        if not isinstance(sec, dict):
+            continue
+        pts = [p for p in (sec.get('punkte') or []) if isinstance(p, dict)]
+        if not pts and not (sec.get('einleitung') or '').strip():
+            continue
+        out.append('<div style="font-size:15px;font-weight:700;color:#10243e;margin:18px 0 6px">'
+                   + esc(sec.get('titel')) + '</div>')
+        if (sec.get('einleitung') or '').strip():
+            out.append(f'<div style="font-size:13px;color:#555;margin-bottom:8px">'
+                       f'{cite(sec.get("einleitung"))}</div>')
+        rows = []
+        for p in pts:
+            # „⏱" markiert kurzlebige Angaben (Einreise, Wechselkurs) — dieselbe
+            # Kennzeichnung wie im Fenster, damit niemand einen Monate alten
+            # Wechselkurs für bare Münze nimmt.
+            mark = (' <span style="color:#b26a00" title="kann sich kurzfristig ändern">⏱</span>'
+                    if p.get('volatil') else '')
+            lbl = esc(p.get('label')).strip()
+            rows.append(
+                '<tr><td style="padding:4px 8px 4px 0;font-size:13px;color:#555;'
+                'vertical-align:top;white-space:nowrap">'
+                + (f'<b>{lbl}</b>' if lbl else '•') + '</td>'
+                '<td style="padding:4px 0;font-size:13px;color:#10243e">'
+                + cite(p.get('text')) + mark + '</td></tr>')
+        if rows:
+            out.append('<table width="100%" cellpadding="0" cellspacing="0">'
+                       + ''.join(rows) + '</table>')
+    out.append('<div style="font-size:11px;color:#99a;margin-top:18px">⏱ = kann sich '
+               'kurzfristig ändern (Einreise, Wechselkurs, Preise) · KI-generiert, '
+               'ohne Gewähr</div>')
+    return _mail_frame(f'Reiseführer · {esc(label)}', ''.join(out))
 
 
 def _criteria_text(criteria: dict, esc) -> str:

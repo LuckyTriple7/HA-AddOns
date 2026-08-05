@@ -1,5 +1,33 @@
 # Changelog
 
+## [0.68.0] - 2026-08-05
+
+### Added
+- **Reiseführer je Reiseziel (KI).** Neuer Knopf **Reiseführer** an jedem Angebot,
+  in der Suchmaske und als 🧭 in der Kopfzeile. Dreizehn Abschnitte: Allgemeines
+  (Währung, Wechselkurs, Zeitzone, Flugzeit, Steckdosen), Einreise, Klima,
+  Gesundheit, Geld, Mobilität, Internet, Sicherheit, Kultur & Etikette, Don't Dos,
+  Insider-Tipps, Praktisches und 20 nützliche Wörter — dazu eine Kurzfassung in
+  höchstens 15 Stichpunkten und Sprungmarken über den Abschnitten.
+- **Die gespeicherte Klimatabelle steht mit im Reiseführer** — Diagramm und
+  Monatstabelle, im Fenster wie im Ausdruck und in der E-Mail. Beide hängen an
+  derselben Region-giataId, damit sie zusammenfinden.
+- **Drucken und E-Mail-Versand** des Reiseführers. Der Druck läuft über ein
+  verstecktes iframe mit eigenem Stylesheet statt über ein Popup — im HA-Ingress
+  läuft die Oberfläche selbst in einem iframe, ein Popup würde dort blockiert.
+- Angaben, die schnell veralten (Einreisebestimmungen, Wechselkurs, Preise,
+  Sicherheitslage), sind mit **⏱** markiert — ein Monate alter Wechselkurs wäre
+  sonst nicht als solcher zu erkennen.
+- Wie die Klimatabelle wird der Reiseführer **einmal je Ziel** erzeugt und dauerhaft
+  gespeichert; Neuerstellung nur über „🔄 Neu abrufen". Anders als beim Klima wird
+  **nicht** im Hintergrund vorgeladen: der Reiseführer ist der teuerste Einzelaufruf
+  im Add-on, einer je gesuchtem Ziel wäre Geldverbrennung.
+
+### Changed
+- **„Pausieren" und „Archivieren" in der Angebotsliste sind jetzt Symbole** (⏸/▶
+  und Archivkasten, Beschriftung im Tooltip). Die Zeile war mit elf beschrifteten
+  Knöpfen zu voll für einen weiteren.
+
 ## [0.67.2] - 2026-08-05
 
 ### Added

@@ -401,8 +401,17 @@
                  <button class="btn sec ai-feature" onclick="openBookingScore(${o.id})" title="KI-Buchungsscore: jetzt buchen, beobachten oder warten?">Buchungsscore</button>
                  <button class="btn sec" onclick="openNights(${o.id})" title="Preise für kürzere/längere Reisedauern vergleichen">Nächte</button>
                  <button class="btn sec" onclick="openSearchFromOffer(${o.id})" title="Weitere Hotels dieser Region suchen (Filter aus dem Angebot)">Region</button>
-                 <button class="btn sec" onclick="togglePause(${o.id}, ${o.paused})" title="Automatische Prüfung aussetzen/fortsetzen">${o.paused?'Fortsetzen':'Pausieren'}</button>
-                 <button class="btn sec" onclick="archiveOffer(${o.id})" title="Ins Archiv legen — keine Live-Abfragen mehr">Archivieren</button>
+                 <button class="btn sec ai-feature" onclick="openGuideFromOffer(${o.id})" title="Reiseführer zum Reiseziel: Einreise, Gesundheit, Geld, Mobilität, Sicherheit, Kultur, Don't Dos, Insider-Tipps — inklusive Klimatabelle">Reiseführer</button>
+                 <!-- Pausieren/Archivieren nur noch als Symbol: die Zeile war mit elf
+                      beschrifteten Knöpfen zu voll für einen weiteren. -->
+                 <button class="icon-btn" onclick="togglePause(${o.id}, ${o.paused})" title="${o.paused?'Automatische Prüfung fortsetzen':'Automatische Prüfung aussetzen'}">
+                   ${o.paused
+                     ? '<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>'
+                     : '<svg viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>'}
+                 </button>
+                 <button class="icon-btn" onclick="archiveOffer(${o.id})" title="Archivieren: ins Archiv legen — keine Live-Abfragen mehr">
+                   <svg viewBox="0 0 24 24"><path d="M20.54 5.23l-1.39-1.68A1.45 1.45 0 0 0 18 3H6c-.47 0-.88.21-1.16.55L3.46 5.23A2 2 0 0 0 3 6.5V19a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6.5c0-.48-.17-.93-.46-1.27zM12 17.5L6.5 12H10v-2h4v2h3.5L12 17.5zM5.12 5l.81-1h12l.94 1H5.12z"/></svg>
+                 </button>
                  <button class="icon-btn" onclick="resetOffer(${o.id})" title="Zurücksetzen: Verlauf löschen und neu bei null beginnen">
                    <svg viewBox="0 0 24 24"><path d="M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
                  </button>
@@ -1258,6 +1267,7 @@
       // Fenster und ließe das sichtbare offen.
       ['ai-bg', closeAiSummary],
       ['climate-bg', closeClimate],   // wird aus der Suchmaske geöffnet, liegt darüber
+      ['guide-bg', closeGuide],       // dito
       ['cal-bg', closeCalendar],
       ['modal-bg', closeModal],
       ['cmp-bg', closeCompare],
@@ -2506,6 +2516,277 @@
       if(!srchDest || !aiEnabled()) return;
       if(climateData && climateData.giata === srchDest.giata) return;
       fetchClimate(srchDest.giata, srchDest.label, {silent:true}).catch(()=>{});
+    }
+
+    // ── Reiseführer (KI) ──────────────────────────────────────────────────────
+    // Genau wie die Klimatabelle: einmal je Ziel erzeugt, dauerhaft gespeichert,
+    // Neuerstellung nur auf Knopfdruck. Der Reiseführer ist der teuerste Einzelaufruf
+    // im Add-on — dreizehn Abschnitte plus zwanzig Vokabeln. Anders als beim Klima
+    // wird hier NICHT im Hintergrund vorgeladen: die Tabelle entsteht nebenbei nach
+    // jeder Suche, ein Reiseführer je gesuchtem Ziel wäre Geldverbrennung.
+    let guideData = null;        // {giata,label,ts,model,data,climate}
+    let guideTarget = null;
+    let guideBusy = false;
+
+    async function fetchGuide(giata, label, {refresh=false}={}){
+      if(guideBusy) return null;
+      guideBusy = true;
+      try {
+        if(!refresh){
+          try {
+            const d = await fetch(api('/api/guide/'+giata)).then(r=>r.json());
+            if(d && d.found){ guideData = d; return d; }
+          } catch(e){}
+          if(!aiEnabled()) return null;
+        }
+        const busy = aiProviderName()+' stellt den Reiseführer zusammen — das dauert '
+          + 'eine Weile (dreizehn Abschnitte)…';
+        $('#guide-body').innerHTML = progBar(busy);
+        const body = {giata, label, refresh};
+        // Wie beim Klima-Fenster: bei aktiver Prompt-Vorschau muss die Vorschau HIER
+        // erscheinen, nicht im KI-Ergebnis-Fenster (das ist gar nicht offen).
+        const rp = await aiFetchPreviewCore(api('/api/ai/guide'), {method:'POST',
+            headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)},
+          promptText => new Promise(resolve => {
+            $('#guide-body').innerHTML =
+              '<div class="hint" style="margin:4px 0 6px">📝 Prompt vor dem Senden prüfen/bearbeiten:</div>'
+              + promptPreviewBoxHtml(promptText);
+            $('#ai-pp-cancel').onclick = () => resolve(null);
+            $('#ai-pp-send').onclick = () => resolve($('#ai-pp-ta').value);
+          }),
+          () => { $('#guide-body').innerHTML = progBar(busy); });
+        if(rp.cancelled){
+          $('#guide-body').innerHTML = '<div class="cmp-load">Abgebrochen.</div>';
+          return null;
+        }
+        const resp = rp.resp, d = rp.d;
+        if(!resp.ok){ $('#guide-body').innerHTML = aiErrorBlock(aiErrorMsg(d.error), false); return null; }
+        if(!d || !d.data || !((d.data.sections)||[]).length){
+          $('#guide-body').innerHTML = aiErrorBlock(
+            'Die KI hat keinen vollständigen Reiseführer geliefert. Versuch es noch einmal.', true);
+          return null;
+        }
+        guideData = d;
+        return d;
+      } catch(e){
+        $('#guide-body').innerHTML = aiErrorBlock('Reiseführer konnte nicht geladen werden.', false);
+        return null;
+      } finally { guideBusy = false; }
+    }
+
+    // Baut die Abschnitte als HTML. `plain` = Druckfassung: ohne Sprungmarken und
+    // ohne CSS-Variablen, die es im Druck-Dokument nicht gibt.
+    function guideSectionsHtml(d, {plain=false}={}){
+      const c = (d && d.data) || {};
+      const secs = (c.sections||[]).filter(s => s && (s.punkte||[]).length || (s||{}).einleitung);
+      const sum = (c.zusammenfassung||[]).filter(s => String(s||'').trim());
+      let out = '';
+      if(sum.length){
+        out += `<div class="gd-sum"><b>Das Wichtigste in Kürze</b><ul>`
+          + sum.map(s=>`<li>${aiInline(esc(s))}</li>`).join('') + '</ul></div>';
+      }
+      if(!plain && secs.length > 1){
+        out += '<div class="gd-toc">' + secs.map((s,i)=>
+          `<button onclick="guideJump(${i})">${esc(s.titel||('Abschnitt '+(i+1)))}</button>`).join('')
+          + '</div>';
+      }
+      out += secs.map((s,i)=>{
+        const pts = (s.punkte||[]).filter(p=>p && (p.text||p.label));
+        return `<div class="gd-sec" id="gd-sec-${i}"><h3>${esc(s.titel||'')}</h3>`
+          + ((s.einleitung||'').trim() ? `<div class="gd-intro">${aiInline(esc(s.einleitung))}</div>` : '')
+          + (pts.length ? '<ul class="gd-list">' + pts.map(p=>{
+              // „⏱" markiert kurzlebige Angaben — ein Wechselkurs oder eine
+              // Einreiseregel aus einem Monate alten Reiseführer wäre sonst nicht als
+              // solche zu erkennen.
+              const vol = p.volatil ? ' <span class="gd-vol" title="Kann sich kurzfristig ändern — vor der Reise prüfen">⏱</span>' : '';
+              const k = esc(p.label||'').trim();
+              return `<li><span class="gd-k">${k||'•'}</span>`
+                + `<span class="gd-v">${aiInline(esc(p.text||''))}${vol}</span></li>`;
+            }).join('') + '</ul>' : '')
+          + '</div>';
+      }).join('');
+      return out;
+    }
+
+    function guideJump(i){
+      const el = $('#gd-sec-'+i);
+      if(el) el.scrollIntoView({behavior:'smooth', block:'start'});
+    }
+
+    function renderGuide(d){
+      const c = (d && d.data) || {};
+      if(!(c.sections||[]).length){
+        $('#guide-body').innerHTML = '<div class="cmp-load">Für dieses Ziel liegt kein '
+          + 'Reiseführer vor. „🔄 Neu abrufen" erstellt ihn.</div>';
+        $('#guide-stand').textContent = '';
+        return;
+      }
+      // Klimatabelle mit im Fenster: die Zahlen gehören zum Reiseführer dazu, und der
+      // Klima-Abschnitt der KI ist bewusst der beschreibende Teil dazu.
+      let clim = '';
+      if(d.climate && (d.climate.months||[]).length){
+        clim = '<div class="gd-sec"><h3>Klimatabelle</h3>'
+          + climateChart(d.climate.months, new Set())
+          + '<table class="hist clim" style="margin-top:10px"><tr><th>Monat</th><th>Tag</th>'
+          + '<th>Nacht</th><th>Wasser</th><th title="Sonnenstunden pro Tag">Sonne</th>'
+          + '<th title="Regentage im Monat">Regen</th></tr>'
+          + d.climate.months.slice().sort((a,b)=>(a.monat||0)-(b.monat||0)).map(m=>{
+              const num = v => (v==null||v==='') ? '–' : Number(v).toLocaleString('de-DE',{maximumFractionDigits:1});
+              return `<tr><td>${esc(MONTHS_DE[(m.monat||1)-1]||m.monat)}</td>`
+                + `<td>${num(m.temp_tag)} °C</td><td>${num(m.temp_nacht)} °C</td>`
+                + `<td>${m.wasser ? num(m.wasser)+' °C' : '–'}</td>`
+                + `<td>${num(m.sonnenstunden)} h</td><td>${num(m.regentage)}</td></tr>`;
+            }).join('')
+          + '</table></div>';
+      }
+      const box = $('#guide-body');
+      box.innerHTML = guideSectionsHtml(d) + clim
+        + '<div class="hint" style="margin-top:14px">⏱ = kann sich kurzfristig ändern '
+        + '(Einreise, Wechselkurs, Preise) · KI-generiert, ohne Gewähr — verbindliche '
+        + 'Auskünfte nur beim Auswärtigen Amt und beim Veranstalter.</div>';
+      if(d.climate && (d.climate.months||[]).length) climateChartHover(box, d.climate.months);
+      const when = d && d.ts ? new Date(d.ts*1000).toLocaleDateString('de-DE') : '';
+      $('#guide-stand').textContent = when
+        ? `Erstellt am ${when}${d.model ? ' mit '+d.model : ''}` : '';
+    }
+
+    async function renderGuideList(){
+      $('#guide-sub').textContent = 'Gespeicherte Reiseziele';
+      $('#guide-stand').textContent = '';
+      $('#guide-foot').style.display = 'none';
+      $('#guide-body').innerHTML = progBar('Lade…');
+      let items = [];
+      try { items = (await fetch(api('/api/guide')).then(r=>r.json())).items || []; }
+      catch(e){ $('#guide-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Laden fehlgeschlagen</div>'; return; }
+      if(!items.length){
+        $('#guide-body').innerHTML = '<div class="cmp-load">Noch kein Reiseführer gespeichert. '
+          + 'Er entsteht über den Knopf <b>Reiseführer</b> an einem Angebot oder in der <b>Suche</b>.</div>';
+        return;
+      }
+      $('#guide-body').innerHTML = '<table class="hist">'
+        + '<tr><th>Reiseziel</th><th>erstellt</th><th></th></tr>'
+        + items.map(it=>`<tr><td><a href="#" onclick="event.preventDefault();`
+            + `openGuide(${it.giata},${esc(JSON.stringify(it.label))})">${esc(it.label)}</a></td>`
+          + `<td class="hint">${new Date(it.ts*1000).toLocaleDateString('de-DE')}</td>`
+          + `<td><button class="btn sec" onclick="deleteGuide(${it.giata},${esc(JSON.stringify(it.label))})" `
+          + `title="Gespeicherten Reiseführer löschen">🗑</button></td></tr>`).join('')
+        + '</table>';
+    }
+    async function deleteGuide(giata, label){
+      if(!confirm(`Reiseführer für „${label}" löschen?`)) return;
+      try { await fetch(api('/api/guide/'+giata), {method:'DELETE'}); }
+      catch(e){ toast('Löschen fehlgeschlagen'); return; }
+      if(guideData && guideData.giata === giata) guideData = null;
+      renderGuideList();
+    }
+
+    // Ohne Argumente: aus der Suche heraus das dortige Ziel, sonst die Liste.
+    async function openGuide(giata, label){
+      if(giata == null && srchDest){ giata = srchDest.giata; label = srchDest.label; }
+      $('#guide-bg').classList.add('show');
+      if(giata == null){ guideTarget = null; renderGuideList(); return; }
+      guideTarget = {giata, label};
+      $('#guide-foot').style.display = '';
+      $('#guide-sub').textContent = label;
+      if(guideData && guideData.giata === giata){ renderGuide(guideData); return; }
+      $('#guide-body').innerHTML = progBar('Lade…');
+      $('#guide-stand').textContent = '';
+      const d = await fetchGuide(giata, label);
+      if(d) renderGuide(d);
+      else if(!aiEnabled()) $('#guide-body').innerHTML =
+        '<div class="cmp-load">Für dieses Ziel ist noch kein Reiseführer gespeichert — er wird von der KI erstellt, dafür muss ein KI-Key hinterlegt sein.</div>';
+    }
+    // Aus der Angebotsliste: das Angebot kennt nur die Hotel-giataId, Reiseführer und
+    // Klimatabelle hängen an der Region — die löst der Server auf.
+    async function openGuideFromOffer(id){
+      let d;
+      try { d = await fetch(api('/api/offers/'+id+'/dest')).then(r=>r.json()); }
+      catch(e){ toast('Reiseziel konnte nicht ermittelt werden'); return; }
+      if(!d || !d.giata){ toast(d && d.note ? d.note : 'Reiseziel konnte nicht ermittelt werden'); return; }
+      openGuide(d.giata, d.label);
+    }
+    function closeGuide(){ $('#guide-bg').classList.remove('show'); }
+    $('#guide-bg').addEventListener('click', e=>{ if(e.target.id==='guide-bg') closeGuide(); });
+    async function refreshGuide(){
+      if(!guideTarget){ toast('Kein Reiseziel gewählt'); return; }
+      if(!confirm('Reiseführer neu von der KI erstellen lassen? Das kostet einen KI-Aufruf.')) return;
+      const d = await fetchGuide(guideTarget.giata, guideTarget.label, {refresh:true});
+      if(d) renderGuide(d);
+    }
+    // Druck über ein verstecktes iframe statt window.open: im HA-Ingress läuft die
+    // Oberfläche in einem iframe, ein Popup würde dort blockiert. Das Dokument bringt
+    // sein eigenes CSS mit — die Farbvariablen der App gibt es darin nicht.
+    function printGuide(){
+      if(!guideData){ toast('Noch kein Reiseführer geladen'); return; }
+      const css = `body{font:13px/1.5 -apple-system,Segoe UI,Roboto,sans-serif;color:#111;margin:24px}
+        h1{font-size:19px;margin:0 0 2px} .st{color:#666;font-size:12px;margin-bottom:16px}
+        .gd-sec{margin-top:16px;break-inside:avoid} .gd-sec h3{font-size:14px;color:#0b65d8;margin:0 0 4px}
+        .gd-intro{color:#555;margin-bottom:5px}
+        ul.gd-list{list-style:none;margin:0;padding:0}
+        ul.gd-list li{display:flex;gap:10px;padding:3px 0;border-top:1px solid #e2e6ea}
+        .gd-k{flex:0 0 30%;color:#555} .gd-v{flex:1}
+        .gd-sum{background:#f3f6fb;border:1px solid #e2e6ea;border-radius:6px;padding:9px 12px}
+        .gd-sum ul{margin:5px 0 0;padding-left:18px}
+        table{width:100%;border-collapse:collapse;font-size:12px;margin-top:6px}
+        th,td{text-align:left;padding:3px 6px;border-bottom:1px solid #e2e6ea}
+        a{color:#0b65d8;text-decoration:none} .foot{margin-top:20px;font-size:11px;color:#888}`;
+      let clim = '';
+      const cm = (guideData.climate||{}).months || [];
+      if(cm.length){
+        clim = '<div class="gd-sec"><h3>Klimatabelle</h3><table><tr><th>Monat</th><th>Tag</th>'
+          + '<th>Nacht</th><th>Wasser</th><th>Sonne</th><th>Regen</th></tr>'
+          + cm.slice().sort((a,b)=>(a.monat||0)-(b.monat||0)).map(m=>{
+              const num = v => (v==null||v==='') ? '–' : Number(v).toLocaleString('de-DE',{maximumFractionDigits:1});
+              return `<tr><td>${esc(MONTHS_DE[(m.monat||1)-1]||m.monat)}</td>`
+                + `<td>${num(m.temp_tag)} °C</td><td>${num(m.temp_nacht)} °C</td>`
+                + `<td>${m.wasser ? num(m.wasser)+' °C' : '–'}</td>`
+                + `<td>${num(m.sonnenstunden)} h</td><td>${num(m.regentage)}</td></tr>`;
+            }).join('') + '</table></div>';
+      }
+      const when = guideData.ts ? new Date(guideData.ts*1000).toLocaleDateString('de-DE') : '';
+      const doc = '<!doctype html><html lang="de"><head><meta charset="utf-8">'
+        + `<title>Reiseführer ${esc(guideData.label||'')}</title><style>${css}</style></head><body>`
+        + `<h1>Reiseführer · ${esc(guideData.label||'')}</h1>`
+        + `<div class="st">TUIWatch${when?' · erstellt am '+when:''}</div>`
+        + guideSectionsHtml(guideData, {plain:true}) + clim
+        + '<div class="foot">⏱ = kann sich kurzfristig ändern · KI-generiert, ohne Gewähr</div>'
+        + '</body></html>';
+      const fr = document.createElement('iframe');
+      fr.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0';
+      document.body.appendChild(fr);
+      fr.onload = () => {
+        try {
+          // focus() ist nötig, damit der Druck das iframe erwischt und nicht die
+          // Seite; danach zurückholen, sonst liefe die Tastatur (ESC schließt das
+          // Fenster) ins unsichtbare iframe und die Seite reagierte nicht mehr.
+          fr.contentWindow.focus();
+          fr.contentWindow.print();
+          window.focus();
+        } catch(e){ toast('Drucken fehlgeschlagen'); }
+        // Erst nach dem Druckdialog abräumen — wird das iframe sofort entfernt,
+        // bricht in Chrome der laufende Druckauftrag ab.
+        setTimeout(()=>fr.remove(), 60000);
+      };
+      fr.srcdoc = doc;
+    }
+    async function openGuideEmailModal(){
+      if(!guideData || !guideData.found){ toast('Noch kein Reiseführer geladen'); return; }
+      emailMode = 'guide';
+      await _openEmailModalCommon();
+    }
+    async function submitGuideEmail(to){
+      if(!guideData){ toast('Noch kein Reiseführer geladen'); return; }
+      toast('E-Mail wird gesendet…');
+      let r; try {
+        r = await fetch(api('/api/guide/'+guideData.giata+'/email'), {method:'POST',
+          headers:{'Content-Type':'application/json'}, body: JSON.stringify({to})});
+      } catch(e){ toast('Versand fehlgeschlagen'); return; }
+      if(r.ok){ toast('Reiseführer an '+to+' gesendet'); }
+      else { const d=await r.json().catch(()=>({}));
+        toast(d.error==='send_failed'?'Versand fehlgeschlagen – Einstellungen prüfen'
+          :d.error==='no_recipient'?'Kein Empfänger'
+          :d.error==='not_found'?'Kein gespeicherter Reiseführer'
+          :d.error==='smtp_not_configured'?'SMTP nicht konfiguriert':'Fehler beim Versand'); }
     }
 
     // ── Reisezeit-Check (KI) direkt aus der Suchmaske ─────────────────────────
@@ -4312,6 +4593,7 @@
       if(emailMode === 'trips') return submitTripSummaryEmail(to.trim());
       if(emailMode === 'search') return submitSearchEmail(to.trim());
       if(emailMode === 'climate') return submitClimateEmail(to.trim());
+      if(emailMode === 'guide') return submitGuideEmail(to.trim());
       toast('E-Mail wird gesendet…');
       const body = {to: to.trim()};
       if(emailIds) body.ids = emailIds;

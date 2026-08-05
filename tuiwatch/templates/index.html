@@ -354,6 +354,24 @@
     .clim tr.clim-sel td { font-weight:600; }
     .clim .clim-note { color:var(--muted); font-size:.78rem; }
     .clim-best { color:var(--green); font-weight:600; }
+    /* Reiseführer: dreizehn Abschnitte mit Label/Wert-Paaren. Sprungmarken oben,
+       weil die Liste sonst nur noch gescrollt werden kann. */
+    .gd-toc { display:flex; flex-wrap:wrap; gap:5px; margin:2px 0 4px; }
+    .gd-toc button { background:var(--surf2); border:1px solid var(--border); color:var(--muted); border-radius:14px; padding:2px 9px; font-size:.74rem; cursor:pointer; }
+    .gd-toc button:hover { color:var(--text); border-color:var(--accent); }
+    .gd-sec { margin-top:18px; scroll-margin-top:8px; }
+    .gd-sec > h3 { font-size:.92rem; color:var(--accent); margin:0 0 5px; }
+    .gd-intro { font-size:.84rem; color:var(--muted); margin-bottom:7px; }
+    .gd-list { list-style:none; margin:0; padding:0; font-size:.86rem; }
+    .gd-list li { display:flex; gap:10px; padding:5px 0; border-top:1px solid var(--border); }
+    .gd-list li:first-child { border-top:0; }
+    .gd-k { flex:0 0 32%; max-width:200px; color:var(--muted); }
+    .gd-v { flex:1; min-width:0; }
+    .gd-vol { color:var(--amber); cursor:help; }
+    .gd-sum { background:var(--surf2); border:1px solid var(--border); border-radius:8px; padding:10px 12px; }
+    .gd-sum ul { margin:6px 0 0; padding-left:18px; font-size:.86rem; }
+    .gd-sum li { margin-bottom:3px; }
+    @media (max-width:560px){ .gd-list li { flex-direction:column; gap:1px; } .gd-k { flex:none; max-width:none; } }
     /* Fortschritt des Barometer-Laufs (mehrere Suchen à mehrere Ergebnisseiten) */
     .bkt-bar { height:8px; border-radius:4px; background:var(--surf2); border:1px solid var(--border); overflow:hidden; }
     .bkt-fill { height:100%; background:var(--accent); transition:width .4s ease; }
@@ -522,6 +540,8 @@
                 title="Frage stellen — zu deinen getrackten Angeboten (Preis, Bewertung, Trend, Wunschpreis) oder allgemein zum Reisen (Region, Reisezeit, Einreise, Anreise)">❓</button>
         <button class="btn sec ai-feature" onclick="openClimate()"
                 title="Klimatabellen: Temperaturen, Wassertemperatur, Sonnenstunden und Regentage über zwölf Monate — für alle Ziele, zu denen bereits eine Tabelle gespeichert ist">🌤</button>
+        <button class="btn sec ai-feature" onclick="openGuide()"
+                title="Reiseführer: Einreise, Gesundheit, Geld, Mobilität, Sicherheit, Kultur, Don't Dos und Insider-Tipps — für alle Ziele, zu denen bereits ein Reiseführer gespeichert ist">🧭</button>
         <button class="icon-btn" onclick="toggleTheme()" title="Design wechseln">
           <svg class="icon-moon" viewBox="0 0 24 24"><path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c0-.46-.04-.92-.1-1.36-.98 1.37-2.58 2.26-4.4 2.26-2.98 0-5.4-2.42-5.4-5.4 0-1.81.89-3.42 2.26-4.4-.44-.06-.9-.1-1.36-.1z"/></svg>
           <svg class="icon-sun"  viewBox="0 0 24 24"><path d="M12 7c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zM2 13h2v-2H2v2zm18 0h2v-2h-2v2zM11 2v2h2V2h-2zm0 18v2h2v-2h-2zM5.99 4.58 4.58 5.99l1.41 1.41 1.41-1.41L5.99 4.58zm12.03 12.03-1.41 1.41 1.41 1.41 1.41-1.41-1.41-1.41zm1.41-12.44-1.41-1.41-1.41 1.41 1.41 1.41 1.41-1.41zM5.99 19.42l1.41 1.41 1.41-1.41-1.41-1.41-1.41 1.41z"/></svg>
@@ -720,6 +740,8 @@
         <button class="btn sec" onclick="resetSearch()" style="margin-left:auto" title="Eingaben auf Standard zurücksetzen">Reset</button>
         <button class="btn sec ai-feature" onclick="openClimate()"
                 title="Klimatabelle des Reiseziels: Temperaturen, Wassertemperatur, Sonnenstunden und Regentage für alle zwölf Monate">🌤 Klima</button>
+        <button class="btn sec ai-feature" onclick="openGuide()"
+                title="Reiseführer zum Reiseziel: Einreise, Gesundheit, Geld, Mobilität, Sicherheit, Kultur, Don't Dos und Insider-Tipps — inklusive Klimatabelle">🧭 Reiseführer</button>
         <button class="btn sec ai-feature" onclick="askSearchAdvice()"
                 title="KI prüft den gewählten Reisezeitraum (Regenzeit, Temperaturen, Haupt-/Nebensaison, Schnäppchenmonate) und schlägt ähnliche Ziele vor">🤖 Reisezeit-Check</button>
         <button class="btn" onclick="runSearch()">Suchen</button>
@@ -1057,6 +1079,28 @@
                 title="Klimatabelle per E-Mail verschicken (kein KI-Aufruf)">✉ Als E-Mail</button>
         <button class="btn sec" onclick="refreshClimate()"
                 title="Tabelle verwerfen und neu von der KI erstellen lassen (kostet einen KI-Aufruf)">🔄 Neu abrufen</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Reiseführer-Modal — wie das Klima-Fenster aus Suche und Angebotsliste heraus
+       erreichbar, steht daher ebenfalls hinter der Suchmaske im DOM. -->
+  <div class="modal-bg" id="guide-bg">
+    <div class="modal" style="max-width:760px">
+      <button class="icon-btn modal-close" onclick="closeGuide()">
+        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+      </button>
+      <h2>🧭 Reiseführer</h2>
+      <div class="sub" id="guide-sub"></div>
+      <div id="guide-body"></div>
+      <div class="cmp-foot" style="margin-top:12px" id="guide-foot">
+        <span class="hint" style="flex:1;min-width:220px" id="guide-stand"></span>
+        <button class="btn sec" onclick="printGuide()"
+                title="Reiseführer ausdrucken oder als PDF speichern">🖨 Drucken</button>
+        <button class="btn sec" onclick="openGuideEmailModal()"
+                title="Reiseführer per E-Mail verschicken (kein KI-Aufruf)">✉ Als E-Mail</button>
+        <button class="btn sec" onclick="refreshGuide()"
+                title="Reiseführer verwerfen und neu von der KI erstellen lassen (kostet einen KI-Aufruf)">🔄 Neu abrufen</button>
       </div>
     </div>
   </div>
