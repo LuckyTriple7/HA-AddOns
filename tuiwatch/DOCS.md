@@ -604,11 +604,13 @@ Woche 3 % gefallen" — die Zahl, die bei der Buchungsentscheidung hilft.
   Inclusive, Direktflug ab STR, Lage 10" sucht, bekommt vielleicht 12 Treffer, und
   ein einziger Verpflegungswechsel bei zweien hätte den Tag dauerhaft durchfallen
   lassen. Große Warenkörbe bleiben streng.
-- **Bedienung:** **🧺 Warenkorb jetzt füllen** stößt einen Lauf sofort an. Er läuft im
-  Hintergrund, ein **Fortschrittsbalken** zeigt „X von Y Suchen" samt der bisher
-  erfassten Hotelzahl und dem gerade laufenden Warenkorb. 🗑 je Zeile löscht die Daten
-  eines Warenkorbs und beginnt neu — nötig etwa, wenn du die Reisetermine der Suche
-  geändert hast (andere Preisbasis).
+- **Bedienung:** Der Warenkorb hat ein **eigenes Fenster** — im Markttrend-Fenster
+  über den Knopf **🧺 Warenkorb** erreichbar. Dort stößt **🧺 Jetzt füllen** einen Lauf
+  sofort an; er läuft im Hintergrund, ein **Fortschrittsbalken** zeigt „X von Y
+  Suchen" samt der bisher erfassten Hotelzahl und dem gerade laufenden Warenkorb.
+  Warenkörbe ohne zwei vergleichbare Tage stehen unter „Sammelt noch". 🗑 je Zeile
+  löscht die Daten eines Warenkorbs und beginnt neu — nötig etwa, wenn du die
+  Reisetermine der Suche geändert hast (andere Preisbasis).
 - **Speicher:** Roh-Snapshots werden nach 120 Tagen verworfen, die verdichteten
   Tagesbewegungen bleiben — der Index seit Aufzeichnungsbeginn überlebt das also.
 - **Vollständigkeit:** die Suche sortiert nach Preis aufsteigend, deshalb wird jedes
@@ -706,7 +708,11 @@ Bei mehreren Reisenden wird zusätzlich zum **Preis pro Person** der **Gesamtpre
 angezeigt. TUIWatch ist außerdem als **PWA installierbar** (Manifest + Service Worker;
 am besten über Direktzugriff/Reverse-Proxy nutzen).
 - **Löschen** — Angebot inkl. Verlauf entfernen.
-- **Doppelklick auf das Logo** — Konsole mit Hintergrund-Logs ein/aus.
+- **Doppelklick auf das Logo** — Live-Konsole mit den Hintergrund-Logs ein/aus
+  (verschiebbares Panel, aktualisiert sich alle 2 Sekunden, zeigt die letzten 500
+  Zeilen). Das komplette Log samt Filter steht unter **🔔 Meldungen & Fehler →
+  📜 Konsole**: bis zu 2000 Zeilen seit dem Add-on-Start, durchsuchbar nach Text und
+  Log-Stufe — Diagnose ohne Umweg über das HA-Log.
 
 ## API-Status / Selbsttest
 

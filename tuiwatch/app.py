@@ -60,11 +60,15 @@ log = logging.getLogger(__name__)
 logging.getLogger('werkzeug').setLevel(logging.ERROR)
 
 # ── In-App Log-Buffer (für Konsole im UI) ──────────────────────────────────────
-_log_buffer: deque = deque(maxlen=200)
+# 2000 statt der ursprünglichen 200 Zeilen: ein einziger Warenkorb-Lauf schreibt bei
+# vielen gespeicherten Suchen schon über hundert Zeilen (je Ergebnisseite eine), ein
+# Poll-Zyklus über alle Angebote ebenfalls. Mit 200 war der interessante Teil raus,
+# bevor man nachsehen konnte. ~150 Bytes je Zeile → gut 300 KB, das ist vertretbar.
+_log_buffer: deque = deque(maxlen=2000)
 # Warnungen/Fehler separat (fürs ⚠-Panel im UI): der INFO-lastige Hauptpuffer
 # rotiert sie sonst schnell raus — stille Fehlpfade waren live mehrfach nur mit
 # Log-Wühlen diagnostizierbar.
-_warn_buffer: deque = deque(maxlen=100)
+_warn_buffer: deque = deque(maxlen=500)
 
 
 class _BufferHandler(logging.Handler):
@@ -85,7 +89,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.61.1"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.62.0"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -2712,9 +2716,19 @@ def api_digest():
 
 @app.route('/api/console')
 def api_console():
+    """Live-Ticker für das Overlay-Panel (Doppelklick aufs Logo), älteste zuerst.
+    Standardmäßig nur die letzten `limit` Zeilen: das Panel pollt im 2-Sekunden-Takt
+    und baut seinen Inhalt jedes Mal komplett neu auf — den vollen 2000-Zeilen-Puffer
+    zu übertragen und zu rendern würde den Browser unnötig beschäftigen. Wer im
+    ganzen Log suchen will, nimmt `/api/logs` (Konsolen-Tab unter „Meldungen &
+    Fehler", mit Text- und Stufenfilter)."""
     if (err := _require_api()):
         return err
-    return jsonify({'lines': list(_log_buffer)})
+    try:
+        limit = max(50, min(_log_buffer.maxlen, int(request.args.get('limit', 300))))
+    except (TypeError, ValueError):
+        limit = 300
+    return jsonify({'lines': list(_log_buffer)[-limit:], 'total': len(_log_buffer)})
 
 
 @app.route('/api/notifications', methods=['GET'])
@@ -2736,6 +2750,26 @@ def api_errors():
     if (err := _require_api()):
         return err
     return jsonify({'items': list(reversed(_warn_buffer))})
+
+
+@app.route('/api/logs', methods=['GET'])
+def api_logs():
+    """Komplettes Add-on-Log seit Start (alle Stufen) aus `_log_buffer`, neueste
+    zuerst — die Konsole im UI. `?level=` filtert auf eine Mindeststufe, `?q=`
+    auf einen Textausschnitt; beides serverseitig, damit die Antwort bei 2000
+    Zeilen nicht unnötig groß wird.
+    Zweck ist Selbstdiagnose ohne Umweg über das HA-Log: das Add-on-Log ist dort
+    zwar vollständiger, aber ohne Filter und nur außerhalb des Ingress erreichbar."""
+    if (err := _require_api()):
+        return err
+    order = {'DEBUG': 10, 'INFO': 20, 'WARNING': 30, 'ERROR': 40, 'CRITICAL': 50}
+    want = order.get((request.args.get('level') or '').strip().upper(), 0)
+    q = (request.args.get('q') or '').strip().lower()
+    items = [it for it in reversed(_log_buffer)
+             if order.get(it['level'], 0) >= want
+             and (not q or q in it['msg'].lower())]
+    return jsonify({'items': items, 'total': len(_log_buffer),
+                    'capacity': _log_buffer.maxlen})
 
 
 # Läuft app.py als Skript (run.sh: `python3 app.py`), heißt DIESES Modul

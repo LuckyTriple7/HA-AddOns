@@ -18,16 +18,26 @@
     window.consoleToggle=consoleToggle;
     try{ if(localStorage.getItem('tw-console-open')==='1') setTimeout(function(){_setOpen(true);},100); }catch(e){}
     function _cls(l){ return (l==='WARNING'||l==='WARN')?'twc-warn':(l==='ERROR'||l==='CRITICAL')?'twc-error':(l==='DEBUG')?'twc-debug':'twc-info'; }
+    // Live-Ticker: nur die letzten 500 Zeilen. Der Puffer fasst 2000, die hier alle
+    // zwei Sekunden komplett neu zu rendern wäre Verschwendung — wer im ganzen Log
+    // suchen will, nimmt den Konsolen-Tab unter „Meldungen & Fehler" (mit Filter).
+    var _CONSOLE_TAIL=500;
     async function _poll(){
       try{
         var base=(window.G&&G.base)||'';
-        var lines=(await fetch(base+'/api/console').then(function(r){return r.json();})).lines||[];
+        var d=await fetch(base+'/api/console?limit='+_CONSOLE_TAIL).then(function(r){return r.json();});
+        var lines=d.lines||[];
         var sig=lines.length+':'+(lines.length?lines[lines.length-1].ts:0);
         if(sig===_seen)return;            // nichts Neues
         _seen=sig;
         var atBottom=body.scrollHeight-body.scrollTop-body.clientHeight<40;
         body.innerHTML='';
-        lines.forEach(function(e){ var d=document.createElement('div'); d.className=_cls(e.level); d.textContent=e.msg; body.appendChild(d); });
+        if((d.total||0)>lines.length){
+          var h=document.createElement('div'); h.className='twc-debug';
+          h.textContent='… ältere '+((d.total||0)-lines.length)+' Zeilen: Konsolen-Tab unter „Meldungen & Fehler"';
+          body.appendChild(h);
+        }
+        lines.forEach(function(e){ var d2=document.createElement('div'); d2.className=_cls(e.level); d2.textContent=e.msg; body.appendChild(d2); });
         if(atBottom)body.scrollTop=body.scrollHeight;
       }catch(e){}
     }
@@ -1050,32 +1060,6 @@
       return ` <span class="trend ${cls}" title="Index seit Aufzeichnungsbeginn (${i.n} Datenpunkte), unabhängig vom 14-Tage-Fenster">`
            + `Index ${i.index.toLocaleString('de-DE',{maximumFractionDigits:1})} (${sign}${i.pct.toLocaleString('de-DE',{maximumFractionDigits:1})} % seit ${since})</span>`;
     }
-    // Warenkorb-Block: eigener Abschnitt, weil die Zahlen eine andere Basis haben als
-    // der Angebots-Trend (alle Hotels einer gespeicherten Suche statt der eigenen paar
-    // Angebote) — in eine gemeinsame Tabelle gemischt wären sie nicht vergleichbar.
-    function renderBasketBlock(b){
-      if(!b) return '';
-      if(!b.enabled) return '<div class="cmp-load">Der Warenkorb ist in den Add-on-Einstellungen abgeschaltet.</div>';
-      const rows = (b.by_region||[]).map(r=>
-        `<tr><td>${esc(r.region)}<div class="hint">${esc(r.period||'')}</div></td>`
-        + `<td>${marketTrendBadge(r.trend)}${marketIndexLine(r.index)}</td>`
-        + `<td>${(r.trend||{}).hotels||''}</td>`
-        + `<td><button class="btn sec" onclick="resetBasketRegion(${esc(JSON.stringify(r.region))})" title="Warenkorb-Daten dieser Suche löschen und neu beginnen">🗑</button></td></tr>`).join('');
-      // Warenkörbe, die noch keine zwei vergleichbaren Tage haben, tauchen oben nicht
-      // auf — ohne diese Zeile sähe es so aus, als würden sie gar nicht erfasst.
-      const waiting = (b.baskets||[]).map(x=>x.key)
-        .filter(k => !(b.by_region||[]).some(r=>r.region===k));
-      const foot = b.last_day
-        ? `<div class="hint">Letzter Warenkorb-Lauf: ${esc(b.last_day)}`
-          + (waiting.length ? ` · sammelt noch: ${esc(waiting.join(', '))}` : '')
-          + (b.running ? ' · <b>läuft gerade…</b>' : '') + '</div>'
-        : '<div class="hint">Noch kein Warenkorb-Lauf — läuft automatisch 1×/Tag, oder unten sofort anstoßen.</div>';
-      return `<div class="trend-global" style="margin-top:14px"><b>Warenkorb gesamt:</b> `
-        + `${marketTrendBadge(b.global.trend)}${marketIndexLine(b.global.index)}</div>`
-        + (rows ? `<table class="hist"><tr><th>Gespeicherte Suche / Reisezeitraum</th><th>Trend (14 Tage) / Index (gesamt)</th><th>Hotels</th><th></th></tr>${rows}</table>`
-                : '<div class="cmp-load">Noch keine Suche mit zwei vergleichbaren Warenkorb-Tagen.</div>')
-        + foot;
-    }
     let _marketTrendData = null;
     function renderMarketTrend(d){
       _marketTrendData = d;
@@ -1086,15 +1070,60 @@
         + `<td>${(r.trend||r.index||{}).n||''}</td>`
         + `<td class="ai-feature"><button class="btn sec" onclick="openRegionOutlook(${i})" title="KI-Einschätzung für diese Destination">🔮</button></td>`
         + `<td><button class="btn sec" onclick="resetRegionTrend(${i})" title="Markttrend-Daten dieser Destination löschen und neu beginnen">🗑</button></td></tr>`).join('');
-      // Läuft beim Öffnen gerade ein (z. B. der automatische) Lauf, gleich den Balken
-      // zeigen — sonst wirkt das Fenster stehengeblieben.
-      if(b && b.running){ renderBasketProgress(b.progress); startBasketPoll(); }
-      $('#trend-body').innerHTML =
-        `<h3 style="margin:0 0 6px">🧺 Warenkorb (alle Hotels deiner gespeicherten Suchen)</h3>` + renderBasketBlock(b) +
-        `<h3 style="margin:18px 0 6px">📌 Deine getrackten Angebote</h3>` +
+      // Der Warenkorb hat ein eigenes Fenster (andere Basis, andere Zählweise) — hier
+      // nur eine Zeile als Wegweiser, damit die breitere Quelle nicht übersehen wird.
+      const bLine = (b && b.enabled && b.global && b.global.trend)
+        ? `<div class="hint" style="margin-bottom:12px">🧺 Warenkorb (alle Hotels deiner `
+          + `gespeicherten Suchen): ${marketTrendBadge(b.global.trend)} — Details über den `
+          + `Knopf unten.</div>`
+        : '';
+      $('#trend-body').innerHTML = bLine +
         `<div class="trend-global"><b>Gesamt:</b> ${marketTrendBadge(d.global.trend)}${marketIndexLine(d.global.index)}</div>` +
         (rows ? `<table class="hist"><tr><th>Destination</th><th>Trend (14 Tage) / Index (gesamt)</th><th>Datenpunkte</th><th class="ai-feature">KI</th><th></th></tr>${rows}</table>`
               : '<div class="cmp-load">Noch keine Destination mit genug Daten für eine eigene Aufschlüsselung.</div>');
+    }
+
+    // ── Warenkorb (eigenes Fenster) ───────────────────────────────────────────
+    function openBasket(){
+      $('#basket-bg').classList.add('show');
+      $('#basket-body').innerHTML = '<div class="cmp-load">Lade…</div>';
+      loadBasket();
+    }
+    function closeBasket(){ $('#basket-bg').classList.remove('show'); stopBasketPoll(); }
+    $('#basket-bg').addEventListener('click', e=>{ if(e.target.id==='basket-bg') closeBasket(); });
+    async function loadBasket(){
+      let b; try { b = await fetch(api('/api/market-basket')).then(r=>r.json()); }
+      catch(e){ $('#basket-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Laden fehlgeschlagen</div>'; return; }
+      renderBasket(b);
+    }
+    function renderBasket(b){
+      if(!b || !b.enabled){
+        $('#basket-body').innerHTML = '<div class="cmp-load">Der Warenkorb ist in den Add-on-Einstellungen abgeschaltet.</div>';
+        return;
+      }
+      const rows = (b.by_region||[]).map(r=>
+        `<tr><td>${esc(r.region)}<div class="hint">${esc(r.period||'')}</div></td>`
+        + `<td>${marketTrendBadge(r.trend)}${marketIndexLine(r.index)}</td>`
+        + `<td>${(r.trend||{}).hotels||''}</td>`
+        + `<td><button class="btn sec" onclick="resetBasketRegion(${esc(JSON.stringify(r.region))})" title="Warenkorb-Daten dieser Suche löschen und neu beginnen">🗑</button></td></tr>`).join('');
+      // Warenkörbe ohne zwei vergleichbare Tage stehen nicht in der Tabelle — ohne
+      // diese Liste sähe es so aus, als würden sie gar nicht erfasst.
+      const waiting = (b.baskets||[]).filter(x => !(b.by_region||[]).some(r=>r.region===x.key));
+      const waitRows = waiting.map(x=>
+        `<li>${esc(x.key)}${x.period ? ` <span class="hint">(${esc(x.period)})</span>` : ''}</li>`).join('');
+      $('#basket-body').innerHTML =
+        `<div class="trend-global"><b>Gesamt:</b> ${marketTrendBadge(b.global.trend)}${marketIndexLine(b.global.index)}</div>`
+        + (rows ? `<table class="hist"><tr><th>Gespeicherte Suche / Reisezeitraum</th><th>Trend (14 Tage) / Index (gesamt)</th><th>Hotels</th><th></th></tr>${rows}</table>`
+                : '<div class="cmp-load">Noch keine Suche mit zwei vergleichbaren Warenkorb-Tagen.</div>')
+        + (waitRows ? `<h3 style="margin:16px 0 4px;font-size:15px">Sammelt noch</h3>`
+            + `<ul style="margin:0;padding-left:18px;font-size:14px">${waitRows}</ul>` : '')
+        + (b.last_day
+            ? `<div class="hint" style="margin-top:10px">Letzter Lauf: ${esc(b.last_day)}`
+              + (b.running ? ' · <b>läuft gerade…</b>' : '') + '</div>'
+            : '<div class="hint" style="margin-top:10px">Noch kein Lauf — passiert automatisch 1×/Tag, oder unten sofort anstoßen.</div>');
+      // Läuft gerade ein (z. B. der automatische) Lauf, gleich den Balken zeigen —
+      // sonst wirkt das Fenster stehengeblieben.
+      if(b.running){ renderBasketProgress(b.progress); startBasketPoll(); }
     }
     function setTrendGlow(t){
       const b = document.getElementById('trend-btn'); if(!b) return;
@@ -1128,8 +1157,8 @@
     function startBasketPoll(){
       stopBasketPoll();
       _basketPoll = setInterval(async ()=>{
-        // Modal zu → nicht weiter pollen; der Lauf selbst läuft serverseitig weiter.
-        if(!$('#trend-bg').classList.contains('show')){ stopBasketPoll(); return; }
+        // Fenster zu → nicht weiter pollen; der Lauf selbst läuft serverseitig weiter.
+        if(!$('#basket-bg').classList.contains('show')){ stopBasketPoll(); return; }
         let d; try { d = await fetch(api('/api/market-basket/progress')).then(r=>r.json()); }
         catch(e){ return; }
         renderBasketProgress(d.progress);
@@ -1137,7 +1166,7 @@
           stopBasketPoll();
           renderBasketProgress(null);
           toast('Warenkorb fertig');
-          loadMarketTrend();
+          loadBasket();
           updateTrendBtn();
         }
       }, 1500);
@@ -1158,7 +1187,7 @@
           headers:{'Content-Type':'application/json'}, body:JSON.stringify({region})}).then(x=>x.json());
         toast(`${d.snapshots} Snapshots und ${d.moves} Tagesbewegungen gelöscht`);
       } catch(e){ toast('Löschen fehlgeschlagen'); }
-      loadMarketTrend();
+      loadBasket();
       updateTrendBtn();
     }
     async function resetRegionTrend(i){
@@ -1217,6 +1246,7 @@
       ['hc-bg', () => $('#hc-bg').classList.remove('show')],
       ['promptcfg-bg', closePromptCfg],
       ['aktion-bg', closeAktion],
+      ['basket-bg', closeBasket],   // liegt über dem Markttrend, daher davor prüfen
       ['trend-bg', closeMarketTrend],
       ['trips-summary-bg', closeTripsSummary],
       ['trips-bg', closeTrips],
@@ -2836,20 +2866,41 @@
         `<a href="${u}" target="_blank" rel="noopener" style="color:var(--accent)">${u.length>64?u.slice(0,61)+'…':u}</a>`);
       return h;
     }
+    const _SYSLOG_LEVEL_COLORS = {ERROR:'var(--red)', CRITICAL:'var(--red)',
+                                  WARNING:'var(--amber)', INFO:'var(--muted)', DEBUG:'var(--muted)'};
     async function openSyslog(tab){
       $('#syslog-bg').classList.add('show');
       $('#syslog-tab-notify').classList.toggle('sec', tab!=='notify');
       $('#syslog-tab-errors').classList.toggle('sec', tab!=='errors');
+      $('#syslog-tab-console').classList.toggle('sec', tab!=='console');
+      // Filterzeile gehört nur zur Konsole — die anderen Tabs liefern zu wenig Zeilen,
+      // als dass Filtern lohnte.
+      $('#syslog-filter').style.display = tab==='console' ? 'flex' : 'none';
       const body = $('#syslog-body');
       body.innerHTML = progBar('Lädt…');
+      let url = '/api/notifications';
+      if(tab==='errors') url = '/api/errors';
+      if(tab==='console'){
+        const q = ($('#syslog-q').value||'').trim(), lv = $('#syslog-level').value||'';
+        url = '/api/logs?q=' + encodeURIComponent(q) + '&level=' + encodeURIComponent(lv);
+      }
       let d;
       try {
-        const r = await fetch(api(tab==='errors'?'/api/errors':'/api/notifications'));
+        const r = await fetch(api(url));
         if(!r.ok) throw 0; d = await r.json();
       } catch(e){ body.innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Konnte nicht geladen werden.</div>'; return; }
       const items = d.items||[];
-      if(tab==='errors'){
-        $('#syslog-sub').textContent = 'Letzte Warnungen/Fehler seit Add-on-Start (max. 100) — Diagnose ohne HA-Log.';
+      if(tab==='console'){
+        $('#syslog-sub').textContent =
+          `Add-on-Log seit dem Start, neueste zuerst — ${items.length} von ${d.total||0} Zeilen `
+          + `(Puffer ${d.capacity||0}).`;
+        body.innerHTML = items.length ? items.map(it=>{
+          const col = _SYSLOG_LEVEL_COLORS[it.level] || 'var(--muted)';
+          return `<div style="padding:2px 0;font-size:.78rem;font-family:ui-monospace,monospace;`
+            + `word-break:break-word;color:${col}">${esc(it.msg)}</div>`;
+        }).join('') : '<div class="empty">Keine passenden Zeilen.</div>';
+      } else if(tab==='errors'){
+        $('#syslog-sub').textContent = 'Letzte Warnungen/Fehler seit Add-on-Start (max. 500) — Diagnose ohne HA-Log.';
         body.innerHTML = items.length ? items.map(it=>{
           const t = new Date(it.ts).toLocaleString('de-DE');
           const col = it.level==='ERROR'?'var(--red)':'var(--amber)';
@@ -2872,6 +2923,9 @@
       }
     }
     function closeSyslog(){ $('#syslog-bg').classList.remove('show'); }
+    // Enter im Filterfeld bzw. Wechsel der Stufe lädt die Konsole neu
+    $('#syslog-q').addEventListener('keydown', e=>{ if(e.key==='Enter') openSyslog('console'); });
+    $('#syslog-level').addEventListener('change', ()=> openSyslog('console'));
 
     async function openGiataGallery(giata){
       $('#giata-gallery-bg').classList.add('show');

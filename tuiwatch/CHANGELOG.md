@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.62.0] - 2026-08-05
+
+### Changed
+- **Warenkorb hat ein eigenes Fenster.** Beide Trends in einem Markttrend-Fenster
+  übereinander waren unübersichtlich — sie zählen unterschiedlich (Warenkorb-Tage
+  gegen Preisänderungs-Datenpunkte) und luden zum Verwechseln ein. Das
+  Markttrend-Fenster zeigt jetzt nur noch den Trend der getrackten Angebote, eine
+  Zeile nennt den Warenkorb-Gesamtwert, und der Knopf **🧺 Warenkorb** öffnet das
+  neue Fenster mit Tabelle, „Sammelt noch"-Liste, Fortschrittsbalken und
+  **🧺 Jetzt füllen**.
+- **Konsole fasst 2000 statt 200 Zeilen.** Ein einziger Warenkorb-Lauf schreibt bei
+  vielen gespeicherten Suchen über hundert Zeilen — der interessante Teil war raus,
+  bevor man nachsehen konnte. Der Warnungs-/Fehlerpuffer wächst von 100 auf 500.
+- **Neuer Konsolen-Tab unter „🔔 Meldungen & Fehler"** (`/api/logs`): das komplette
+  Log seit dem Start, **durchsuchbar nach Text und Log-Stufe**, serverseitig
+  gefiltert. Das Overlay-Panel per Logo-Doppelklick bleibt der Live-Ticker und holt
+  nur noch die letzten 500 Zeilen (`/api/console?limit=`) — es rendert im
+  2-Sekunden-Takt komplett neu, der volle Puffer wäre dort Verschwendung. Ein
+  Hinweis im Panel verweist auf den Tab, wenn ältere Zeilen vorhanden sind.
+
 ## [0.61.1] - 2026-08-04
 
 ### Fixed

@@ -766,11 +766,22 @@
         <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
       </button>
       <h2>🔔 Meldungen &amp; Fehler</h2>
-      <div style="display:flex;gap:6px;margin:8px 0">
+      <div style="display:flex;gap:6px;margin:8px 0;flex-wrap:wrap">
         <button class="btn sec" id="syslog-tab-notify" onclick="openSyslog('notify')">🔔 Benachrichtigungen</button>
         <button class="btn sec" id="syslog-tab-errors" onclick="openSyslog('errors')">⚠ Warnungen/Fehler</button>
+        <button class="btn sec" id="syslog-tab-console" onclick="openSyslog('console')">📜 Konsole</button>
       </div>
       <div class="sub" id="syslog-sub"></div>
+      <div id="syslog-filter" style="display:none;gap:6px;margin-bottom:8px;flex-wrap:wrap">
+        <input id="syslog-q" placeholder="Filtern (z. B. Warenkorb)" style="flex:1;min-width:180px">
+        <select id="syslog-level">
+          <option value="">alle Stufen</option>
+          <option value="INFO">ab INFO</option>
+          <option value="WARNING">ab WARNUNG</option>
+          <option value="ERROR">nur FEHLER</option>
+        </select>
+        <button class="btn sec" onclick="openSyslog('console')">🔄</button>
+      </div>
       <div id="syslog-body"></div>
     </div>
   </div>
@@ -926,19 +937,41 @@
         <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
       </button>
       <h2>Markttrend</h2>
-      <div class="sub">Marktweiter Preistrend der letzten 14 Tage (kein Orakel, nur ein Hinweis).
-        Bevorzugte Quelle ist der <b>Warenkorb</b>: einmal pro Tag läuft jede deiner
-        <b>gespeicherten Suchen</b> erneut — mit deinen Reiseterminen und Filtern. Verglichen wird
-        jedes Hotel mit sich selbst vom Vortag (Median über alle Hotels). Darunter der schmalere
-        Trend aus <b>deinen getrackten Angeboten</b> — er bleibt erhalten, auch wenn einzelne
-        Angebote gelöscht werden.</div>
+      <div class="sub">Preistrend der letzten 14 Tage aus <b>deinen getrackten Angeboten</b> —
+        die prozentuale Änderung jedes Angebots zu seinem eigenen Vorpreis, je Destination
+        zusammengefasst. Bleibt erhalten, auch wenn einzelne Angebote gelöscht werden
+        (kein Orakel, nur ein Hinweis).</div>
       <div id="trend-body"></div>
-      <div id="basket-progress" style="display:none;margin-top:10px"></div>
       <div class="cmp-foot" style="margin-top:12px">
         <span class="hint" style="flex:1;min-width:220px">Preissprung durch Zimmerwechsel dabei?
-          Neu berechnen schließt ihn nachträglich aus (nur Angebots-Trend).</span>
-        <button class="btn sec" onclick="runMarketBasket()">🧺 Warenkorb jetzt füllen</button>
+          Neu berechnen schließt ihn nachträglich aus.</span>
+        <button class="btn sec" onclick="openBasket()">🧺 Warenkorb</button>
         <button class="btn sec" onclick="recomputeMarketTrend()">🔄 Neu berechnen</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Warenkorb-Modal — liegt bewusst NACH dem Markttrend-Modal im DOM: beide teilen
+       sich den z-index, das spätere Element liegt oben. Der Warenkorb wird aus dem
+       Markttrend heraus geöffnet und muss darüber erscheinen. -->
+  <div class="modal-bg" id="basket-bg">
+    <div class="modal" style="max-width:720px">
+      <button class="icon-btn modal-close" onclick="closeBasket()">
+        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+      </button>
+      <h2>🧺 Warenkorb</h2>
+      <div class="sub">Einmal pro Tag läuft jede deiner <b>gespeicherten Suchen</b> erneut —
+        mit deinen Reiseterminen, deiner Dauer und deinen Filtern. Verglichen wird jedes Hotel
+        mit sich selbst vom Vortag, der <b>Median</b> über alle Hotels ergibt die Tagesbewegung.
+        Deutlich breitere Basis als die eigenen Angebote, und der Trend gilt für genau deinen
+        Reisetermin. Getrackte Angebote ohne gespeicherte Suche bekommen einen Warenkorb je
+        Region und Abreisemonat.</div>
+      <div id="basket-body"></div>
+      <div id="basket-progress" style="display:none;margin-top:10px"></div>
+      <div class="cmp-foot" style="margin-top:12px">
+        <span class="hint" style="flex:1;min-width:220px">Läuft automatisch 1×/Tag.
+          Ein Trend braucht zwei Tage.</span>
+        <button class="btn sec" onclick="runMarketBasket()">🧺 Jetzt füllen</button>
       </div>
     </div>
   </div>
