@@ -1,0 +1,39 @@
+{
+ "status": "OK",
+ "totalPrice": {"amount": 2904, "currency": "EUR"},
+ "hotel": {
+  "product": "SID10006",
+  "startdate": "2026-08-12",
+  "enddate": "2026-08-19",
+  "traveltype": {"code": "TUR1", "touroperator": "LTUR"},
+  "rooms": [
+   {"id": 0, "board": "A", "code": "DZX1", "supplier": {},
+    "travellers": [
+     {"id": 1, "price": {"amount": 828, "currency": "EUR"}},
+     {"id": 2, "price": {"amount": 828, "currency": "EUR"}}
+    ]}
+  ],
+  "price": {"amount": 1656, "currency": "EUR"}
+ },
+ "outboundFlight": {
+  "travelType": {"code": "TUR1", "touroperator": "LTUR"},
+  "key": "DUSSID-00653-_X3", "label": "A", "isInternal": true,
+  "travellers": [
+   {"id": 1, "price": {"amount": 296, "currency": "EUR"}},
+   {"id": 2, "price": {"amount": 296, "currency": "EUR"}}
+  ],
+  "segments": [], "specialServiceBookable": true
+ },
+ "inboundFlight": {
+  "travelType": {"code": "TUR1", "touroperator": "LTUR"},
+  "key": "SIDDUS-00653-_X3", "label": "A", "isInternal": true,
+  "travellers": [
+   {"id": 1, "price": {"amount": 328, "currency": "EUR"}},
+   {"id": 2, "price": {"amount": 328, "currency": "EUR"}}
+  ],
+  "segments": [], "specialServiceBookable": true
+ },
+ "travellers": [{"id": 1, "birthdate": "1998-01-01"}, {"id": 2, "birthdate": "1998-01-01"}],
+ "system": "ATCOMRES",
+ "tracingId": "00000000-0000-0000-0000-000000000000"
+}

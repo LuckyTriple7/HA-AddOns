@@ -89,7 +89,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.68.1"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.69.0"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -147,6 +147,7 @@ _aktion_state: dict = {}               # transienter Status des Aktionscode-Abru
 _aktion_lock = threading.Lock()
 _cheaper_notified: dict[int, str] = {}  # Dedup für Günstigerer-Termin-Alarm
 _fail_notified: set[int] = set()        # offer_ids mit aktivem Ausverkauft-/Fehler-Alarm
+_vac_notified: set[int] = set()         # offer_ids mit aktivem Nicht-bestätigt-Alarm (vacancy-check)
 ERROR_ALARM_STREAK = 3                   # ab so vielen Fehlversuchen in Folge melden
 _health_state: dict = {}                 # letzter API-Selbsttest {ok, ts, checks, running}
 _health_lock = threading.Lock()
@@ -615,9 +616,23 @@ def init_db() -> None:
             con.execute("ALTER TABLE offers ADD COLUMN notify_muted INTEGER NOT NULL DEFAULT 0")
         if 'notify_calendar_muted' not in ocols:
             con.execute("ALTER TABLE offers ADD COLUMN notify_calendar_muted INTEGER NOT NULL DEFAULT 0")
+        # vacancy-check (v0.69.0): Gepäck/Zahlungskonditionen einmalig je Angebot,
+        # "zuletzt gebucht" je Poll aktualisiert
+        for col in ('luggage', 'last_booked', 'final_payment_date'):
+            if col not in ocols:
+                con.execute(f"ALTER TABLE offers ADD COLUMN {col} TEXT DEFAULT ''")
+        if 'deposit_pct' not in ocols:
+            con.execute("ALTER TABLE offers ADD COLUMN deposit_pct REAL")
         hcols = {r['name'] for r in con.execute('PRAGMA table_info(price_history)').fetchall()}
         if 'available' not in hcols:
             con.execute("ALTER TABLE price_history ADD COLUMN available INTEGER")
+        # Preis-Aufschlüsselung Hotel/Hinflug/Rückflug + Live-Bestätigungsstatus
+        # aus dem vacancy-check (v0.69.0). vac_ok: NULL=unbekannt, 1=OK, 0=FAILED.
+        for col in ('price_hotel', 'price_flight_out', 'price_flight_ret'):
+            if col not in hcols:
+                con.execute(f"ALTER TABLE price_history ADD COLUMN {col} REAL")
+        if 'vac_ok' not in hcols:
+            con.execute("ALTER TABLE price_history ADD COLUMN vac_ok INTEGER")
         # Backfill: Hotelname aus der URL für Einträge ohne Namen
         for r in con.execute("SELECT id, url FROM offers WHERE hotel='' OR hotel IS NULL").fetchall():
             name = hotel_from_url(r['url'])
@@ -1420,6 +1435,37 @@ def _clear_error_alarm(offer: dict) -> None:
     _notify_telegram(f"✅ <b>Wieder verfügbar: {name}</b>")
 
 
+def _check_vacancy_alarm(offer: dict, vac_status: str, prev_vac_ok) -> None:
+    """Alarm beim Übergang „live bestätigt" → „nicht mehr bestätigt" (vacancy-check).
+    Bewusst nur der Übergang 1→0: ein FAILED ohne vorheriges OK kann auch
+    Payload-/API-Drift sein und wäre als Ausverkauft-Meldung falscher Alarm."""
+    oid = offer['id']
+    name = offer.get('label') or offer.get('hotel') or f"Angebot #{oid}"
+    if vac_status == 'OK':
+        if oid in _vac_notified:
+            _vac_notified.discard(oid)
+            log.info("✅ Entwarnung (#%d %s): Buchbarkeit wieder bestätigt", oid, name)
+            _notify_ha(f"✅ Wieder buchbar: {name}",
+                       f"{name} wird vom Buchungssystem wieder bestätigt.\n{offer.get('url','')}",
+                       f"vacancy_{oid}", muted=bool(offer.get('notify_muted')))
+            _notify_telegram(f"✅ <b>Wieder buchbar: {name}</b>",
+                             muted=bool(offer.get('notify_muted')))
+        return
+    if vac_status != 'FAILED' or prev_vac_ok != 1:
+        return
+    if not load_config().get('notify_unavailable', True) or oid in _vac_notified:
+        return
+    _vac_notified.add(oid)
+    log.warning("⚠ Buchbarkeits-Alarm (#%d %s): vacancy-check meldet FAILED", oid, name)
+    _notify_ha(f"⚠ Nicht mehr buchbar? {name}",
+               f"{name}\nDas Buchungssystem bestätigt dieses Angebot nicht mehr "
+               f"(vorher bestätigt) — evtl. ausgebucht.\n{offer.get('url','')}",
+               f"vacancy_{oid}", muted=bool(offer.get('notify_muted')))
+    _notify_telegram(f"⚠ <b>Nicht mehr buchbar? {name}</b>\nDas Buchungssystem bestätigt "
+                     f"dieses Angebot nicht mehr (vorher bestätigt) — evtl. ausgebucht.\n"
+                     f"{offer.get('url','')}", muted=bool(offer.get('notify_muted')))
+
+
 def _meta_get(key: str, default=None):
     with db() as con:
         row = con.execute('SELECT value FROM meta WHERE key=?', (key,)).fetchone()
@@ -1491,6 +1537,9 @@ def check_offer(offer_id: int) -> None:
             prev_row = con.execute(
                 'SELECT ts, price FROM price_history WHERE offer_id=? AND ok=1 AND price IS NOT NULL '
                 'ORDER BY ts DESC LIMIT 1', (offer_id,)).fetchone()
+            prev_vac = con.execute(
+                'SELECT vac_ok FROM price_history WHERE offer_id=? AND vac_ok IS NOT NULL '
+                'ORDER BY ts DESC LIMIT 1', (offer_id,)).fetchone()
             # Zimmerwechsel seit dem letzten Preis-Check? Dann macht dessen Preisschritt
             # keine Marktbewegung, sondern nur einen anderen Zimmertyp/-preis sichtbar —
             # für den Markttrend (`price_moves`) muss die Zählung neu beginnen. `>=`
@@ -1512,10 +1561,13 @@ def check_offer(offer_id: int) -> None:
         log.info("Prüfe Angebot #%d: %s …", offer_id, name)
 
         # bis zu 2 Versuche (gegen sporadische Timeouts/Bot-Drosselung)
+        # Gepäck + Zahlungskonditionen sind quasi-statisch → nur holen, solange
+        # sie am Angebot noch fehlen (je 1–2 zusätzliche Requests)
+        need_extras = not (offer.get('luggage') and offer.get('deposit_pct'))
         res = {}
         for attempt in (1, 2):
             with _scrape_lock:
-                res = fetch_price(url, verbose=_verbose())
+                res = fetch_price(url, extras=need_extras, verbose=_verbose())
             if res.get('ok'):
                 break
             if res.get('detail'):
@@ -1525,21 +1577,30 @@ def check_offer(offer_id: int) -> None:
 
         ts = int(time.time())
         avail = res.get('available')
+        vac_status = res.get('vac_status') or ''
+        vac_ok = None if not vac_status else (1 if vac_status == 'OK' else 0)
         with db() as con:
             con.execute(
-                'INSERT INTO price_history (offer_id, ts, price, old_price, discount, available, ok, note) '
-                'VALUES (?,?,?,?,?,?,?,?)',
+                'INSERT INTO price_history (offer_id, ts, price, old_price, discount, available, ok, note, '
+                'price_hotel, price_flight_out, price_flight_ret, vac_ok) '
+                'VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
                 (offer_id, ts, res.get('price'), res.get('old_price'), res.get('discount'),
                  (1 if avail else 0) if avail is not None else None,
-                 1 if res.get('ok') else 0, res.get('note', '')))
+                 1 if res.get('ok') else 0, res.get('note', ''),
+                 res.get('price_hotel'), res.get('price_flight_out'),
+                 res.get('price_flight_ret'), vac_ok))
             for col in ('hotel', 'details', 'room', 'board', 'dep_airport', 'flight_out',
                         'flight_ret', 'location', 'city', 'region', 'country',
                         'pdf_url', 'cancellation', 'stars', 'rating',
                         'rating_count', 'recommendation', 'total_price',
                         'travellers_count', 'return_date',
-                        'booking_code', 'room_booking_code'):
+                        'booking_code', 'room_booking_code',
+                        'last_booked', 'deposit_pct', 'final_payment_date'):
                 if res.get(col) is not None and res.get(col) != '':
                     con.execute(f'UPDATE offers SET {col}=? WHERE id=?', (res[col], offer_id))
+            if res.get('luggage'):
+                con.execute('UPDATE offers SET luggage=? WHERE id=?',
+                            (json.dumps(res['luggage'], ensure_ascii=False), offer_id))
             if res.get('ok') and res.get('price') is not None and prev_price and not room_changed:
                 pct = (res['price'] - prev_price) / prev_price * 100
                 region = res.get('region') or offer.get('region') or ''
@@ -1570,6 +1631,8 @@ def check_offer(offer_id: int) -> None:
             else:
                 _maybe_notify(offer, prev_price, res.get('price'), offer.get('target_price'))
                 _clear_error_alarm(offer)
+                _check_vacancy_alarm(offer, vac_status,
+                                     prev_vac['vac_ok'] if prev_vac else None)
                 if load_config().get('notify_cheaper_date', True) and res.get('price'):
                     # Preis geändert? Dann Kalender sofort neu abrufen statt bis zu
                     # 7 Tage auf den nächsten TTL-Ablauf zu warten (siehe
@@ -2638,6 +2701,16 @@ def _collect_offers() -> list[dict]:
                 'old_price': last['old_price'] if last else None,
                 'discount': last['discount'] if last else None,
                 'available': avail,
+                # vacancy-check: Live-Bestätigung + Preis-Split des letzten Polls
+                'vac_ok': (None if not last or last['vac_ok'] is None
+                           else bool(last['vac_ok'])),
+                'price_hotel': last['price_hotel'] if last else None,
+                'price_flight_out': last['price_flight_out'] if last else None,
+                'price_flight_ret': last['price_flight_ret'] if last else None,
+                'luggage': (_json_loads_safe(o['luggage'], None) if o['luggage'] else None),
+                'last_booked': o['last_booked'] or '',
+                'deposit_pct': o['deposit_pct'],
+                'final_payment_date': o['final_payment_date'] or '',
                 'ok': bool(last['ok']) if last else None,
                 'note': last['note'] if last else '',
                 'last_ts': last['ts'] if last else None,

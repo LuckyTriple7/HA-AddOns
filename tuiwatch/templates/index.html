@@ -94,6 +94,17 @@
     .avail { display:inline-block; font-size:.74rem; font-weight:700; padding:2px 7px; border-radius:10px; margin-top:6px; }
     .avail.yes { color:var(--green); background:rgba(46,160,67,.14); }
     .avail.no { color:var(--red); background:rgba(248,81,73,.13); }
+    .avail.warn { color:var(--amber); background:rgba(210,153,34,.14); }
+    /* Preis-Aufschlüsselung (Rechtsklick auf den Preis) */
+    .split-table { width:100%; border-collapse:collapse; margin:10px 0; }
+    .split-table td { padding:6px 4px; border-bottom:1px solid var(--border); }
+    .split-table td:last-child { text-align:right; font-weight:600; }
+    .split-table tr.sum td { border-bottom:none; font-weight:700; }
+    .split-note { margin:8px 0; font-size:.92em; font-weight:600; }
+    .split-note.ok { color:var(--green); }
+    .split-note.warn { color:var(--amber); }
+    .split-muted { color:var(--muted); font-size:.92em; }
+    .split-extras { margin-top:10px; color:var(--muted); font-size:.92em; display:flex; flex-direction:column; gap:4px; }
     .stats { font-size:.74rem; color:var(--muted); margin-top:8px; }
     .stats .best { color:var(--green); font-weight:700; }
     .stats .vs30.down { color:var(--green); font-weight:600; }
@@ -793,6 +804,18 @@
       <h2>Check24-Vergleich</h2>
       <div class="sub" id="c24-sub"></div>
       <div id="c24-body"></div>
+    </div>
+  </div>
+
+  <!-- Preis-Aufschlüsselung (Rechtsklick auf den Preis; Daten aus dem vacancy-check) -->
+  <div class="modal-bg" id="split-bg">
+    <div class="modal" style="max-width:440px">
+      <button class="icon-btn modal-close" onclick="closePriceSplit()">
+        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+      </button>
+      <h2>Preis-Aufschlüsselung</h2>
+      <div class="sub" id="split-sub"></div>
+      <div id="split-body"></div>
     </div>
   </div>
 

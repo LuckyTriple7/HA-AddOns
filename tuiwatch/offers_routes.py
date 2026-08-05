@@ -121,6 +121,7 @@ def api_delete_offer(offer_id: int):
         con.execute('DELETE FROM offers WHERE id=?', (offer_id,))
     A._cheaper_notified.pop(offer_id, None)
     A._fail_notified.discard(offer_id)
+    A._vac_notified.discard(offer_id)
     A.log.info("Angebot #%d gelöscht", offer_id)
     A.push_ha_sensors()  # entfernt verwaisten Sensor + nummeriert ggf. neu
     return jsonify({'deleted': offer_id})
@@ -258,7 +259,8 @@ def api_history(offer_id: int):
         return err
     with A.db() as con:
         rows = con.execute(
-            'SELECT ts, price, old_price, discount, ok, note FROM price_history '
+            'SELECT ts, price, old_price, discount, ok, note, '
+            'price_hotel, price_flight_out, price_flight_ret, vac_ok FROM price_history '
             'WHERE offer_id=? ORDER BY ts', (offer_id,)).fetchall()
         events = con.execute(
             'SELECT ts, type, text FROM offer_events WHERE offer_id=? ORDER BY ts',
@@ -274,19 +276,24 @@ def api_history_csv(offer_id: int):
     with A.db() as con:
         offer = con.execute('SELECT hotel, label FROM offers WHERE id=?', (offer_id,)).fetchone()
         rows = con.execute(
-            'SELECT ts, price, old_price, discount, available, ok, note FROM price_history '
+            'SELECT ts, price, old_price, discount, available, ok, note, '
+            'price_hotel, price_flight_out, price_flight_ret FROM price_history '
             'WHERE offer_id=? ORDER BY ts', (offer_id,)).fetchall()
     buf = io.StringIO()
     w = csv.writer(buf, delimiter=';')
     w.writerow(['Zeitpunkt', 'Preis (EUR)', 'Vergleichspreis (EUR)', 'Rabatt %',
-                'Verfuegbar', 'OK', 'Hinweis'])
+                'Verfuegbar', 'OK', 'Hinweis',
+                'Hotel (EUR)', 'Hinflug (EUR)', 'Rueckflug (EUR)'])
     for r in rows:
         avail = '' if r['available'] is None else ('ja' if r['available'] else 'nein')
         w.writerow([datetime.fromtimestamp(r['ts']).strftime('%Y-%m-%d %H:%M:%S'),
                     '' if r['price'] is None else int(round(r['price'])),
                     '' if r['old_price'] is None else int(round(r['old_price'])),
                     r['discount'] if r['discount'] is not None else '',
-                    avail, 'ja' if r['ok'] else 'nein', (r['note'] or '').replace('\n', ' ')])
+                    avail, 'ja' if r['ok'] else 'nein', (r['note'] or '').replace('\n', ' '),
+                    '' if r['price_hotel'] is None else int(round(r['price_hotel'])),
+                    '' if r['price_flight_out'] is None else int(round(r['price_flight_out'])),
+                    '' if r['price_flight_ret'] is None else int(round(r['price_flight_ret']))])
     name = A._slug((offer['label'] or offer['hotel']) if offer else '') or f'angebot_{offer_id}'
     resp = make_response('﻿' + buf.getvalue())  # BOM → Umlaute in Excel korrekt
     resp.headers['Content-Type'] = 'text/A.csv; charset=utf-8'
@@ -332,6 +339,7 @@ def api_reset_offer(offer_id: int):
         A._check24_state.pop(offer_id, None)
     A._cheaper_notified.pop(offer_id, None)
     A._fail_notified.discard(offer_id)
+    A._vac_notified.discard(offer_id)
     A.log.info("Angebot #%d zurückgesetzt (Verlauf + Caches gelöscht)", offer_id)
     A._spawn(A.check_offer, offer_id)  # frische Erstabfrage
     return jsonify({'reset': offer_id, 'started': True})

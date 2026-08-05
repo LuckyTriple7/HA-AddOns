@@ -1,5 +1,37 @@
 # Changelog
 
+## [0.69.0] - 2026-08-05
+
+### Added
+- **Preis-Aufschlüsselung Hotel / Hinflug / Rückflug** je Angebot — Daten, die die
+  TUI-Angebotsseite selbst nie anzeigt. Quelle ist der `vacancy-check`-Endpoint
+  (das, was der Knopf „Verfügbarkeit prüfen" auf tui.com auslöst): er antwortet
+  live aus dem Veranstaltersystem (ATCOMRES) mit dem bestätigten Gesamtpreis,
+  aufgeteilt in Hotel- und Fluganteile. Wird bei jeder Prüfung mit erfasst und
+  je Messpunkt gespeichert — damit ist erstmals sichtbar, **ob eine Preisänderung
+  vom Hotel oder vom Flug kommt.** Wichtig: die Flugpreise im normalen Offer-JSON
+  sind dafür unbrauchbar (dort stand für denselben Flug 45 € statt live 235 €).
+- **Rechtsklick auf den Preis** öffnet die Aufschlüsselung (Linksklick bleibt
+  Check24): Hotel/Hinflug/Rückflug mit Summe, dazu **Inklusiv-Gepäck** (z. B.
+  „1×20 kg p. P."), **Anzahlung und Restzahlungstermin** (z. B. „25 % · Rest bis
+  21.09.2026") und „Hotel zuletzt von anderen gebucht". Gepäck und
+  Zahlungskonditionen sind quasi-statisch und werden nur einmal je Angebot geholt.
+- **Verfügbarkeit ist jetzt live bestätigt statt nur abgeleitet:** bisher hieß
+  „verfügbar" nur „die Offer-API lieferte Treffer". Bei bestätigten Angeboten
+  zeigt das Badge „⚡ verfügbar · bestätigt"; bestätigt das Buchungssystem ein
+  Angebot nicht mehr, erscheint „⚠ nicht bestätigt".
+- **Alarm „nicht mehr buchbar?"** (Option `notify_unavailable`, Standard an):
+  meldet über HA/Telegram den Übergang bestätigt → nicht bestätigt (evtl.
+  ausgebucht) und gibt Entwarnung, sobald das Buchungssystem wieder bestätigt.
+  Bewusst nur der Übergang: ein FAILED ohne vorheriges OK kann auch API-Drift
+  sein und wäre als Ausverkauft-Meldung falscher Alarm.
+- Verlaufstabelle und CSV-Export enthalten die neuen Spalten Hotel/Hin/Rück.
+- Alles ohne Browser: reine JSON-Aufrufe (~0,5 s), Playwright war nur das
+  Erkundungswerkzeug. Neue Endpoints in [SCRAPING.md](SCRAPING.md) dokumentiert —
+  inklusive der Stolperfalle, dass `travelType` im vacancy-Payload ein Objekt
+  sein muss (als String antwortet der Endpoint mit FAILED) und paymentService
+  den Header `X-Agency` verlangt.
+
 ## [0.68.1] - 2026-08-05
 
 ### Added

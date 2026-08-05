@@ -296,7 +296,16 @@
           flights = `<div class="flights">${fl('Hin',o.flight_out)}${fl('Rück',o.flight_ret)}</div>`;
         }
         let availBadge = '';
-        if(o.available===true) availBadge = '<div><span class="avail yes">✓ verfügbar</span></div>';
+        if(o.available===true){
+          // vac_ok = Live-Bestätigung aus dem Buchungssystem (vacancy-check);
+          // FAILED überschreibt available nicht, wird aber als Warnung gezeigt
+          if(o.vac_ok===true)
+            availBadge = '<div><span class="avail yes" title="Vom TUI-Buchungssystem live bestätigt (letzte Prüfung)">⚡ verfügbar · bestätigt</span></div>';
+          else if(o.vac_ok===false)
+            availBadge = '<div><span class="avail yes">✓ verfügbar</span> <span class="avail warn" title="Das Buchungssystem bestätigt dieses Angebot aktuell nicht — evtl. vorübergehend oder ausgebucht">⚠ nicht bestätigt</span></div>';
+          else
+            availBadge = '<div><span class="avail yes">✓ verfügbar</span></div>';
+        }
         else if(o.available===false) availBadge = '<div><span class="avail no">✗ nicht verfügbar</span></div>';
         // Sterne + HolidayCheck-Bewertung + kostenlose Stornierung
         const metaParts = [];
@@ -366,7 +375,7 @@
             </div>
             <div class="price-box">
               ${o.archived?'':`<button class="icon-btn notify-bell" onclick="toggleNotifyMuted(${o.id}, ${!!o.notify_muted})" title="${o.notify_muted?'Benachrichtigungen (HA/Telegram) stummgeschaltet – klicken zum Aktivieren':'Benachrichtigungen (HA/Telegram) aktiv – klicken zum Stummschalten'}">${o.notify_muted?'🔕':'🔔'}</button>`}
-              <div class="price-now${(!o.archived&&G.check24)?' check24-feature check24-trigger':''}"${o.checking&&hasPrice?' style="opacity:.5"':''}${(!o.archived&&G.check24)?` onclick="${o.check24_linked?`openCheck24(${o.id})`:`linkCheck24(${o.id})`}" title="Preisvergleich über Check24 (andere Reiseveranstalter)"`:''}>${priceNow}</div>
+              <div class="price-now${(!o.archived&&G.check24)?' check24-feature check24-trigger':''}"${o.checking&&hasPrice?' style="opacity:.5"':''}${o.archived?'':` oncontextmenu="return openPriceSplit(${o.id})"`}${(!o.archived&&G.check24)?` onclick="${o.check24_linked?`openCheck24(${o.id})`:`linkCheck24(${o.id})`}" title="Preisvergleich über Check24 (andere Reiseveranstalter) · Rechtsklick: Preis-Aufschlüsselung Hotel/Flug"`:(o.archived?'':' title="Rechtsklick: Preis-Aufschlüsselung Hotel/Flug"')}>${priceNow}</div>
               <div class="price-pp">pro Person</div>
               ${priceSub?`<div class="price-sub">${priceSub}</div>`:''}
               ${perNight!=null?`<div class="price-sub">${eur(perNight)}/Nacht</div>`:''}
@@ -511,7 +520,7 @@
       drawChart($('#hist-canvas'), pts, true, {target: o.target_price, booked: o.booked_price, events: hd.events||[]});
       const rows = hist.map((h,i)=>{
         const d = new Date(h.ts*1000).toLocaleString('de-DE');
-        if(!h.ok) return {keep:true, html:`<tr><td>${d}</td><td colspan="2" style="color:var(--amber)">⚠ ${esc(h.note||'fehlgeschlagen')}</td></tr>`};
+        if(!h.ok) return {keep:true, html:`<tr><td>${d}</td><td colspan="3" style="color:var(--amber)">⚠ ${esc(h.note||'fehlgeschlagen')}</td></tr>`};
         const prev = hist[i-1];
         let diff = '', unchanged = false;
         if(prev && prev.ok && prev.price!=null){
@@ -523,10 +532,13 @@
         // unveränderte Preise ausblenden (Rauschen) — außer dem jüngsten Eintrag,
         // der zeigt, wann zuletzt geprüft wurde
         const keep = !unchanged || i === hist.length - 1;
-        const html = `<tr><td>${d}</td><td><b>${eur(h.price)}</b>${diff}</td><td>${h.old_price?('<span class="old">'+eur(h.old_price)+'</span>'+(h.discount?' -'+h.discount+'%':'')):''}</td></tr>`;
+        // Aufschlüsselung Hotel/Flüge (vacancy-check), sofern für den Messpunkt vorhanden
+        const split = (h.price_hotel!=null || h.price_flight_out!=null || h.price_flight_ret!=null)
+          ? `${eur(h.price_hotel)} / ${eur(h.price_flight_out)} / ${eur(h.price_flight_ret)}` : '';
+        const html = `<tr><td>${d}</td><td><b>${eur(h.price)}</b>${diff}</td><td>${h.old_price?('<span class="old">'+eur(h.old_price)+'</span>'+(h.discount?' -'+h.discount+'%':'')):''}</td><td class="split-muted">${split}</td></tr>`;
         return {keep, html};
       }).filter(r=>r.keep).map(r=>r.html).reverse().join('');
-      $('#hist-table').innerHTML = hist.length?`<table class="hist"><tr><th>Zeitpunkt</th><th>Preis</th><th>Vergleich</th></tr>${rows}</table>`:'';
+      $('#hist-table').innerHTML = hist.length?`<table class="hist"><tr><th>Zeitpunkt</th><th>Preis</th><th>Vergleich</th><th title="Aufschlüsselung aus dem Buchungssystem">Hotel / Hin / Rück</th></tr>${rows}</table>`:'';
     }
     function closeModal(){ $('#modal-bg').classList.remove('show'); }
     $('#modal-bg').addEventListener('click', e=>{ if(e.target.id==='modal-bg') closeModal(); });
@@ -995,6 +1007,46 @@
       setAirlines([]);
       $('#srch-favsel').value=''; favBtnState();
     }
+
+    // ── Preis-Aufschlüsselung (Rechtsklick auf den Preis; vacancy-check) ────────
+    function openPriceSplit(id){
+      const o = (curOffers||[]).find(x=>x.id===id) || {};
+      $('#split-sub').textContent = o.label || o.hotel || ('TUI-Angebot #'+id);
+      let h = '';
+      if(o.vac_ok===true) h += '<div class="split-note ok">⚡ Live vom TUI-Buchungssystem bestätigt (letzte Prüfung)</div>';
+      else if(o.vac_ok===false) h += '<div class="split-note warn">⚠ Das Buchungssystem bestätigt dieses Angebot aktuell nicht — evtl. vorübergehend oder ausgebucht</div>';
+      const hasSplit = o.price_hotel!=null || o.price_flight_out!=null || o.price_flight_ret!=null;
+      if(hasSplit){
+        const sum = (o.price_hotel||0)+(o.price_flight_out||0)+(o.price_flight_ret||0);
+        const n = o.travellers_count>1 ? ` <span class="split-muted">(${o.travellers_count} Reisende)</span>` : '';
+        h += `<table class="split-table">
+          <tr><td>🏨 Hotel</td><td>${eur(o.price_hotel)}</td></tr>
+          <tr><td>🛫 Hinflug</td><td>${eur(o.price_flight_out)}</td></tr>
+          <tr><td>🛬 Rückflug</td><td>${eur(o.price_flight_ret)}</td></tr>
+          <tr class="sum"><td>Summe${n}</td><td>${eur(sum)}</td></tr></table>`;
+      } else {
+        h += '<p class="split-muted">Noch keine Aufschlüsselung vorhanden — sie wird bei der nächsten Prüfung mit erfasst (Knopf „Prüfen").</p>';
+      }
+      const extras = [];
+      if(o.luggage && o.luggage.out){
+        extras.push('🧳 Gepäck inklusive: ' + (o.luggage.out===o.luggage.ret
+          ? o.luggage.out+' p. P.' : 'Hin '+o.luggage.out+' · Rück '+o.luggage.ret));
+      }
+      if(o.deposit_pct!=null){
+        let s = '💳 Anzahlung '+o.deposit_pct+' %';
+        const base = o.total_price!=null ? o.total_price : o.price;
+        if(base!=null) s += ' ('+eur(Math.round(base*o.deposit_pct/100))+')';
+        if(o.final_payment_date) s += ' · Rest bis '+fmtD(o.final_payment_date);
+        extras.push(s);
+      }
+      if(o.last_booked) extras.push('🕑 Hotel zuletzt von anderen gebucht: '+fmtD(o.last_booked));
+      if(extras.length) h += '<div class="split-extras">'+extras.map(x=>`<div>${x}</div>`).join('')+'</div>';
+      $('#split-body').innerHTML = h;
+      $('#split-bg').classList.add('show');
+      return false;  // unterdrückt das Browser-Kontextmenü
+    }
+    function closePriceSplit(){ $('#split-bg').classList.remove('show'); }
+    $('#split-bg').addEventListener('click', e=>{ if(e.target.id==='split-bg') closePriceSplit(); });
 
     // ── Reisen-Datenbank (PDF-Import gebuchter Reisen) ──────────────────────────
     let tripsData = [];

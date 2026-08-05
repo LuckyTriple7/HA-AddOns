@@ -345,6 +345,7 @@ def test_fetch_hotel_image(monkeypatch, fx, fake_resp):
 
 def test_fetch_price_api(monkeypatch, fx, fake_resp):
     offer, rating, bc = fx("offer.json"), fx("rating.json"), fx("breadcrumb.json")
+    vac = fx("vacancy.json")
 
     def fake_get(u, **kw):
         if scraper.OFFER_API in u:
@@ -353,9 +354,25 @@ def test_fetch_price_api(monkeypatch, fx, fake_resp):
             return fake_resp(rating)
         if u.startswith(scraper.BREADCRUMB_API):
             return fake_resp(bc)
+        if u.startswith(scraper.LAST_BOOKED_API):
+            return fake_resp({"date": "2026-08-03T18:45:22.000Z",
+                              "in_the_last_24_hours": False})
         raise AssertionError("unerwartete URL: " + u)
 
+    def fake_post(u, **kw):
+        assert u == scraper.VACANCY_API, "unerwarteter POST: " + u
+        p = kw.get("json") or {}
+        # Payload-Formate absichern: travelType muss ein Objekt sein (String → FAILED)
+        assert p["offer"]["travelType"] == {"code": "TUR1", "brand": "TUR1",
+                                            "tourOperator": "LTUR",
+                                            "bookingTourOperator": "TUR1"}
+        assert p["agency"] and p["channel"]
+        # Zimmer-Reisende mit Alter + Preis aus personPrices zusammengeführt
+        assert p["offer"]["rooms"][0]["travellers"][0] == {"id": 1, "age": 28, "price": 1452}
+        return fake_resp(vac)
+
     monkeypatch.setattr(scraper.requests, "get", fake_get)
+    monkeypatch.setattr(scraper.requests, "post", fake_post)
     url = ("https://www.tui.com/pauschalreisen/suchen/angebote/Hotel-Riu-Funana/259516/"
            "offer/?startDate=2026-08-12&endDate=2026-08-19&duration=7&travellers=2")
     r = scraper.fetch_price_api(url)
@@ -387,6 +404,109 @@ def test_fetch_price_api(monkeypatch, fx, fake_resp):
     assert r["recommendation"] == 83
     # Ort/Region aus dem Breadcrumb (regionGiata=88)
     assert r["region"].startswith("Kap Verde")
+    # vacancy-check: Live-Bestätigung + Preis-Aufschlüsselung (Summen über alle Reisenden)
+    assert r["vac_status"] == "OK"
+    assert r["price_hotel"] == 1656.0
+    assert r["price_flight_out"] == 592.0
+    assert r["price_flight_ret"] == 656.0
+    assert r["price_hotel"] + r["price_flight_out"] + r["price_flight_ret"] == r["total_price"]
+    assert r["last_booked"] == "2026-08-03"
+
+
+def test_fetch_price_api_vacancy_failed_defensive(monkeypatch, fx, fake_resp):
+    """FAILED vom vacancy-check darf weder ok noch available kippen (kann Drift sein)."""
+    offer, rating, bc = fx("offer.json"), fx("rating.json"), fx("breadcrumb.json")
+
+    def fake_get(u, **kw):
+        if scraper.OFFER_API in u:
+            return fake_resp(offer)
+        if scraper.CONTENT_API in u:
+            return fake_resp(rating)
+        if u.startswith(scraper.BREADCRUMB_API):
+            return fake_resp(bc)
+        if u.startswith(scraper.LAST_BOOKED_API):
+            return fake_resp({}, status=404)
+        raise AssertionError("unerwartete URL: " + u)
+
+    monkeypatch.setattr(scraper.requests, "get", fake_get)
+    monkeypatch.setattr(scraper.requests, "post",
+                        lambda *a, **k: fake_resp({"status": "FAILED"}))
+    url = ("https://www.tui.com/pauschalreisen/suchen/angebote/Hotel-Riu-Funana/259516/"
+           "offer/?startDate=2026-08-12&endDate=2026-08-19&duration=7&travellers=2")
+    r = scraper.fetch_price_api(url)
+    assert r["ok"] is True
+    assert r["available"] is True          # offers[] vorhanden → verfügbar
+    assert r["vac_status"] == "FAILED"     # aber nicht bestätigt
+    assert r["price_hotel"] is None
+    assert r["last_booked"] == ""
+
+
+def test_fetch_price_api_no_vacancy_flag(monkeypatch, fx, fake_resp):
+    """vacancy=False (Massen-Abrufe) darf den vacancy-check gar nicht erst aufrufen."""
+    offer, rating, bc = fx("offer.json"), fx("rating.json"), fx("breadcrumb.json")
+
+    def fake_get(u, **kw):
+        if scraper.OFFER_API in u:
+            return fake_resp(offer)
+        if scraper.CONTENT_API in u:
+            return fake_resp(rating)
+        if u.startswith(scraper.BREADCRUMB_API):
+            return fake_resp(bc)
+        raise AssertionError("unerwartete URL: " + u)
+
+    def fail_post(*a, **k):
+        raise AssertionError("vacancy-check darf bei vacancy=False nicht aufgerufen werden")
+
+    monkeypatch.setattr(scraper.requests, "get", fake_get)
+    monkeypatch.setattr(scraper.requests, "post", fail_post)
+    url = ("https://www.tui.com/pauschalreisen/suchen/angebote/Hotel-Riu-Funana/259516/"
+           "offer/?startDate=2026-08-12&endDate=2026-08-19&duration=7&travellers=2")
+    r = scraper.fetch_price_api(url, vacancy=False)
+    assert r["ok"] is True
+    assert r["vac_status"] == ""
+
+
+def test_fetch_luggage(monkeypatch, fx, fake_resp):
+    offer = fx("offer.json")["offers"][0]
+    seen = {}
+
+    def fake_post(u, **kw):
+        assert u == scraper.LUGGAGE_API
+        seen["body"] = kw.get("json")
+        return fake_resp([
+            {"luggage": {"adult": {"pcs": 1, "weight": 20}}, "state": "OK"},
+            {"luggage": {"adult": {"pcs": 1, "weight": 15}}, "state": "OK"},
+        ])
+
+    monkeypatch.setattr(scraper.requests, "post", fake_post)
+    assert scraper.fetch_luggage(offer) == {"out": "1×20 kg", "ret": "1×15 kg"}
+    # Routen + Airline aus dem Offer-JSON abgeleitet
+    assert seen["body"] == [
+        {"airline": "X3", "route": "DUS-SID", "organizer": "LTUR"},
+        {"airline": "X3", "route": "SID-DUS", "organizer": "LTUR"},
+    ]
+
+
+def test_fetch_payment_terms(monkeypatch, fx, fake_resp):
+    offer = fx("offer.json")["offers"][0]
+
+    def fake_get(u, **kw):
+        assert u.startswith(scraper.HOTEL_CONTENT_API)
+        return fake_resp({"contact": {"address": {"countryCode": "CV"}}})
+
+    def fake_post(u, **kw):
+        assert u == scraper.PAYMENT_API
+        assert kw["headers"].get("X-Agency")          # ohne Header: HTTP 400
+        svc = kw["json"]["services"][0]
+        assert svc["countryCodes"] == ["CV"]
+        assert svc["productCodes"] == ["SID10006"]
+        return fake_resp({"paymentMethods": [], "depositPercentage": 25,
+                          "finalPaymentDate": "2026-07-15T00:00:00"})
+
+    monkeypatch.setattr(scraper.requests, "get", fake_get)
+    monkeypatch.setattr(scraper.requests, "post", fake_post)
+    assert scraper.fetch_payment_terms(offer, "259516") == {
+        "deposit_pct": 25, "final_payment_date": "2026-07-15"}
 
 
 def test_fetch_price_api_empty_on_http400(monkeypatch, fx, fake_resp):

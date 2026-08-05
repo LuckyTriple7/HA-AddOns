@@ -56,6 +56,9 @@ configuration:
   notify_api_errors:
     name: API outage alert
     description: "Notify when the API self-test finds a critical TUI endpoint failing (TUI may have changed the API), and send an all-clear once everything works again. Default on."
+  notify_unavailable:
+    name: No-longer-bookable alert
+    description: "Notify when the TUI booking system stops confirming a previously confirmed offer (possibly sold out) — and send an all-clear once it is confirmed again. Default on."
   notify_booked_drop:
     name: Cheaper-than-booked alert
     description: "Notify when the price drops below the booked price you entered after booking (rebooking might be worth it). Default on."

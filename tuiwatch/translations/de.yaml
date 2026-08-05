@@ -56,6 +56,9 @@ configuration:
   notify_api_errors:
     name: API-Ausfall-Alarm
     description: "Benachrichtigen, wenn der API-Selbsttest einen kritischen TUI-Endpunkt als gestört erkennt (TUI hat evtl. die API geändert), und Entwarnung geben, sobald wieder alles läuft. Standard an."
+  notify_unavailable:
+    name: Alarm nicht mehr buchbar
+    description: "Benachrichtigen, wenn das TUI-Buchungssystem ein zuvor bestätigtes Angebot nicht mehr bestätigt (evtl. ausgebucht) — und Entwarnung geben, sobald es wieder bestätigt wird. Standard an."
   notify_booked_drop:
     name: Alarm günstiger als gebucht
     description: "Benachrichtigen, wenn der Preis nach deiner Buchung unter den hinterlegten gebuchten Preis fällt (Umbuchen könnte sich lohnen). Standard an."

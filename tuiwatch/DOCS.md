@@ -17,6 +17,7 @@ password: secret         # bitte ändern!
 session_hours: 24        # Dauer der Anmeldung
 poll_interval: 21600     # Prüfintervall in Sekunden (6 h); Minimum 600
 notify_api_errors: true  # Alarm, wenn eine TUI-API gestört ist
+notify_unavailable: true # Alarm, wenn das Buchungssystem ein Angebot nicht mehr bestätigt
 notify_booked_drop: true # Alarm, wenn Preis unter den gebuchten Preis fällt
 booked_drop_min_diff: 50 # Mindest-Ersparnis dafür (€)
 digest_enabled: false    # wöchentlicher Überblick (Telegram/E-Mail)
@@ -420,6 +421,14 @@ Preis-Tracking, als dauerhaftes Archiv (Vergangenheit und Zukunft).
   Abschalten `notify_cheaper_date: false` setzen.
 - **Ausverkauft-/Fehler-Alarm** (`notify_errors`): meldet, wenn ein Angebot mehrmals in
   Folge kein Ergebnis liefert, und gibt Entwarnung, sobald es wieder klappt.
+- **„Nicht mehr buchbar?"-Alarm** (`notify_unavailable`): bei jeder Prüfung bestätigt
+  TUIWatch das Angebot zusätzlich **live im TUI-Buchungssystem** (derselbe Mechanismus
+  wie der Knopf „Verfügbarkeit prüfen" auf tui.com). Bestätigt das Buchungssystem ein
+  zuvor bestätigtes Angebot nicht mehr (evtl. ausgebucht), kommt eine Meldung — und
+  Entwarnung, sobald es wieder bestätigt wird. Die Live-Bestätigung liefert nebenbei
+  die **Preis-Aufschlüsselung Hotel/Hinflug/Rückflug** (Rechtsklick auf den Preis,
+  auch je Messpunkt in Verlaufstabelle und CSV-Export) sowie Inklusiv-Gepäck,
+  Anzahlung und Restzahlungstermin.
 - **API-Ausfall-Alarm** (`notify_api_errors`): meldet, wenn der API-Selbsttest einen
   kritischen TUI-Endpunkt als gestört erkennt (TUI hat evtl. die API geändert), und gibt
   Entwarnung, sobald wieder alles läuft.
