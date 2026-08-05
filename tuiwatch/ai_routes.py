@@ -1142,6 +1142,181 @@ def api_ai_region_outlook():
 _BOARD_LABELS = {'AI': 'All Inclusive', 'VP': 'Vollpension', 'HP': 'Halbpension',
                  'BB': 'Frühstück', 'OV': 'ohne Verpflegung'}
 
+# ── Klimatabelle je Reiseziel ─────────────────────────────────────────────────
+# Strukturiert statt Fließtext: als JSON lässt sich die Tabelle sortiert rendern,
+# der Reisemonat hervorheben und später weiterverwenden (z. B. im Reisezeit-Check).
+# Ein Markdown-Block wäre nur einmal lesbar und nicht auswertbar.
+_CLIMATE_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "months": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "monat": {"type": "integer"},
+                    "temp_tag": {"type": "number"},
+                    "temp_nacht": {"type": "number"},
+                    "wasser": {"type": "number"},
+                    "sonnenstunden": {"type": "number"},
+                    "regentage": {"type": "integer"},
+                    "hinweis": {"type": "string"},
+                },
+                "required": ["monat", "temp_tag", "temp_nacht", "wasser",
+                             "sonnenstunden", "regentage", "hinweis"],
+                "additionalProperties": False,
+            },
+        },
+        "beste_monate": {"type": "array", "items": {"type": "integer"}},
+        "zusammenfassung": {"type": "string"},
+    },
+    "required": ["months", "beste_monate", "zusammenfassung"],
+    "additionalProperties": False,
+}
+
+
+def _climate_prompt(label: str) -> str:
+    return (
+        f"Stelle mir das Klima für {label} als Jahresübersicht zusammen — für alle "
+        "zwölf Monate, Januar (1) bis Dezember (12), jeder Monat genau einmal.\n\n"
+        "Je Monat: durchschnittliche Tageshöchsttemperatur und Nachttemperatur in °C, "
+        "durchschnittliche Wassertemperatur in °C, Sonnenstunden pro Tag, Regentage "
+        "im Monat. Dazu ein kurzer Hinweis (höchstens acht Wörter) für Besonderes wie "
+        "Regenzeit, Hurrikansaison, Passatwind, Hitze oder Hochsaison — sonst leer "
+        "lassen.\n\n"
+        "Nenne außerdem die aus Wetter-Sicht besten Reisemonate und eine "
+        "Zusammenfassung in zwei bis drei Sätzen (Klimatyp, Regenzeit, "
+        "Badesaison).\n\n"
+        "Nutze langjährige Klima-Normalwerte (Klimamittel), keine Vorhersage für ein "
+        "einzelnes Jahr. Suche die Werte im Web und stütze dich auf gängige "
+        "Klimatabellen. Wo für das Ziel keine Wassertemperatur sinnvoll ist "
+        "(Binnenland), trage 0 ein und schreibe es in den Hinweis."
+    )
+
+
+def _climate_load(giata: int):
+    with A.db() as con:
+        row = con.execute('SELECT label, ts, model, data FROM climate WHERE giata=?',
+                          (giata,)).fetchone()
+    if not row:
+        return None
+    try:
+        data = json.loads(row['data'])
+    except ValueError:
+        return None
+    return {'giata': giata, 'label': row['label'], 'ts': row['ts'],
+            'model': row['model'], 'data': data}
+
+
+@bp.route('/api/climate/<int:giata>', methods=['GET'])
+def api_climate_get(giata: int):
+    """Gespeicherte Klimatabelle eines Reiseziels — **ohne** KI-Aufruf. Die Suchmaske
+    fragt hier bei jedem Suchlauf an; das muss kostenlos sein. Fehlt die Tabelle,
+    kommt `{'found': False}` und der Client entscheidet, ob er sie erzeugen lässt."""
+    if (err := A._require_api()):
+        return err
+    got = _climate_load(giata)
+    if not got:
+        return jsonify({'found': False, 'giata': giata})
+    return jsonify(dict(got, found=True))
+
+
+@bp.route('/api/ai/climate', methods=['POST'])
+def api_ai_climate():
+    """Klimatabelle für ein Reiseziel per KI erzeugen und dauerhaft speichern.
+
+    Liegt sie schon vor, wird sie unverändert zurückgegeben — Klima-Normalwerte
+    ändern sich nicht, ein erneuter Aufruf wäre reine Geldverbrennung. `refresh: true`
+    erzwingt eine Neuberechnung (Knopf im Klima-Fenster)."""
+    if (err := A._require_api()):
+        return err
+    data = request.get_json(silent=True) or {}
+    try:
+        giata = int(data.get('giata'))
+    except (TypeError, ValueError):
+        return jsonify({'error': 'no_dest'}), 400
+    label = (data.get('label') or '').strip()
+    if not data.get('refresh'):
+        if (got := _climate_load(giata)):
+            return jsonify(dict(got, found=True, cached=True))
+    if not label:
+        return jsonify({'error': 'no_dest'}), 400
+    api_key, model = _ai_config()
+    if not api_key:
+        return jsonify({'error': 'no_api_key',
+                        'note': 'Kein Anthropic API-Key in den Add-on-Einstellungen hinterlegt'}), 400
+    prompt = _climate_prompt(label)
+    if (preview := _prompt_preview_response(data, prompt)):
+        return preview
+    prompt = _resolve_prompt(data, prompt)
+    text, usage, code = A._ai_request(api_key, model, prompt, max_tokens=3000,
+                                      log_ctx=f"Klimatabelle {label}",
+                                      use_web_search=True, output_schema=_CLIMATE_SCHEMA)
+    if code == 'failed':
+        return jsonify({'error': 'ai_failed'}), 502
+    if code == 'refused':
+        return jsonify({'error': 'ai_refused'}), 502
+    if code == 'empty' or not text:
+        return jsonify({'error': 'ai_empty'}), 502
+    try:
+        result = json.loads(text)
+    except ValueError:
+        A.log.warning("Klimatabelle %s: KI-Antwort kein gültiges JSON (%d Zeichen): %.200s",
+                      label, len(text), text)
+        return jsonify({'error': 'ai_empty'}), 502
+    months = [m for m in (result.get('months') or []) if isinstance(m, dict)]
+    if len(months) < 12:
+        A.log.warning("Klimatabelle %s: nur %d Monate geliefert", label, len(months))
+        return jsonify({'error': 'ai_empty'}), 502
+    usage['estimated_usd'] = _ai_call_cost(model, usage)
+    totals = _record_ai_usage(model, usage)
+    ts = int(time.time())
+    with A.db() as con:
+        con.execute('INSERT OR REPLACE INTO climate (giata, label, ts, model, data) '
+                    'VALUES (?,?,?,?,?)',
+                    (giata, label, ts, model, json.dumps(result, ensure_ascii=False)))
+    A.log.info("Klimatabelle für %s (%s) gespeichert", label, giata)
+    return jsonify({'found': True, 'cached': False, 'giata': giata, 'label': label,
+                    'ts': ts, 'model': model, 'data': result,
+                    'usage': usage, 'totals': totals})
+
+
+@bp.route('/api/climate/<int:giata>/email', methods=['POST'])
+def api_climate_email(giata: int):
+    """Gespeicherte Klimatabelle per E-Mail verschicken. Kein KI-Aufruf — verschickt
+    wird ausschließlich, was schon in der Datenbank liegt."""
+    if (err := A._require_api()):
+        return err
+    if not A.smtp_configured():
+        return jsonify({'error': 'smtp_not_configured'}), 400
+    data = request.get_json(silent=True) or {}
+    to = (data.get('to') or A.load_config().get('smtp_to') or '').strip()
+    if not to:
+        return jsonify({'error': 'no_recipient'}), 400
+    got = _climate_load(giata)
+    if not got:
+        return jsonify({'error': 'not_found'}), 404
+    months_hl = [int(m) for m in (data.get('months') or []) if str(m).isdigit()]
+    import email_search
+    html = email_search.climate_html(got['label'], got['data'], months_hl=months_hl)
+    try:
+        A.send_email(f"TUIWatch – Klima {got['label']}", html, to)
+    except Exception as e:
+        A.log.error("Klima-E-Mail fehlgeschlagen: %s", e)
+        return jsonify({'error': 'send_failed'}), 502
+    A.log.info("Klimatabelle %s an %s gesendet", got['label'], to)
+    return jsonify({'sent': True, 'to': to})
+
+
+@bp.route('/api/climate/<int:giata>', methods=['DELETE'])
+def api_climate_delete(giata: int):
+    """Gespeicherte Klimatabelle verwerfen (der nächste Abruf erzeugt sie neu)."""
+    if (err := A._require_api()):
+        return err
+    with A.db() as con:
+        n = con.execute('DELETE FROM climate WHERE giata=?', (giata,)).rowcount
+    return jsonify({'deleted': n})
+
 
 def _search_advice_prompt(d: dict) -> str:
     """Prompt für den Reisezeit-Check aus der Suchmaske: taugt der gewählte Zeitraum

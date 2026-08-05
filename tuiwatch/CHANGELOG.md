@@ -1,5 +1,35 @@
 # Changelog
 
+## [0.66.0] - 2026-08-05
+
+### Added
+- **🌤 Klima-Knopf in der Suchmaske.** Klimatabelle des Reiseziels über alle zwölf
+  Monate: Tages- und Nachttemperatur, **Wassertemperatur**, Sonnenstunden pro Tag,
+  Regentage, ein kurzer Hinweis je Monat (Regenzeit, Passatwind, Hochsaison …) und
+  die aus Wetter-Sicht besten Monate.
+  - **Dauerhaft in der Datenbank gespeichert** (neue Tabelle `climate`), einmal je
+    Ziel erzeugt. Klimawerte sind langjährige Mittel, kein Wetterbericht — ein
+    erneuter KI-Aufruf brächte nur Kosten. Jeder weitere Abruf kommt aus der DB;
+    **🔄 Neu abrufen** erzwingt eine Neuberechnung.
+  - **Nach jeder Suche automatisch vorgeladen**, sofern eine KI konfiguriert ist. Dank
+    der Speicherung ist das je Ziel genau ein Aufruf, kein Dauerverbrauch. Der
+    Lese-Endpunkt `GET /api/climate/<giata>` ruft nie die KI — die Suchmaske fragt ihn
+    bei jedem Suchlauf an.
+  - **Diagramm plus Tabelle:** zwei Panels mit gemeinsamer Monatsachse (Temperaturen
+    als Linien, Regentage als Säulen — bewusst keine zwei y-Achsen in einem Bild),
+    Werte des überfahrenen Monats als Zeile darüber, Reisemonate hervorgehoben.
+    Serienfarben aus einer CVD-geprüften Palette, in Hell und Dunkel eigens gesetzt.
+  - **✉ Als E-Mail** verschickt die gespeicherte Tabelle (ohne KI-Aufruf). Die Mail
+    enthält nur die Tabelle: Mail-Clients rendern inline-SVG nicht zuverlässig.
+  - Neue Routen: `POST /api/ai/climate`, `GET`/`DELETE /api/climate/<giata>`,
+    `POST /api/climate/<giata>/email`.
+
+### Fixed
+- **ESC schloss beim Empfänger-Dialog das falsche Fenster.** Der Dialog bekommt beim
+  Öffnen `z-index: 60` und liegt damit über dem Fenster, aus dem er aufgerufen wurde,
+  wurde in der ESC-Reihenfolge aber weit hinten geprüft — aus der Suchmaske heraus
+  schloss ESC also die Suche und ließ den sichtbaren Dialog stehen.
+
 ## [0.65.1] - 2026-08-05
 
 ### Fixed

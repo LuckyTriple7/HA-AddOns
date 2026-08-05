@@ -89,7 +89,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.65.1"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.66.0"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -628,6 +628,17 @@ def init_db() -> None:
         if not con.execute("SELECT 1 FROM meta WHERE key='price_moves_backfilled'").fetchone():
             _backfill_price_moves(con)
             con.execute("INSERT OR REPLACE INTO meta (key, value) VALUES ('price_moves_backfilled','1')")
+        # Klimatabellen je Reiseziel (KI-generiert). Dauerhaft gespeichert, nicht als
+        # Cache mit Ablaufdatum: Klima-Normalwerte ändern sich nicht von Woche zu
+        # Woche, ein erneuter KI-Aufruf brächte nur Kosten und minimal andere Zahlen.
+        # Aufgefrischt wird nur auf ausdrücklichen Wunsch (Knopf im Klima-Fenster).
+        con.execute('''CREATE TABLE IF NOT EXISTS climate (
+            giata   INTEGER PRIMARY KEY,
+            label   TEXT NOT NULL DEFAULT '',
+            ts      INTEGER NOT NULL,
+            model   TEXT DEFAULT '',
+            data    TEXT NOT NULL
+        )''')
         # Preisbarometer (tägliche Regionssuche) — Schema liegt im eigenen Modul,
         # das erst am Dateiende importiert wird; zur Laufzeit von init_db() ist es da.
         market_basket.init_basket_db(con)

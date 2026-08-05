@@ -113,6 +113,26 @@ nicht). Der **Tracken**-Button bleibt aber nutzbar: Dasselbe Hotel kann **mehrfa
 **unterschiedlichen Suchparametern** (z. B. anderer Zeitraum) verfolgt werden; nur exakt
 identische Angebote werden abgelehnt.
 
+**🌤 Klima** (Knopf neben „Suchen", nur bei konfigurierter KI): Klimatabelle des
+Reiseziels über alle zwölf Monate — Tages- und Nachttemperatur, **Wassertemperatur**,
+Sonnenstunden pro Tag und Regentage, dazu ein kurzer Hinweis je Monat (Regenzeit,
+Passatwind, Hochsaison …) und die aus Wetter-Sicht besten Monate (★).
+
+- **Diagramm + Tabelle.** Oben zwei Panels mit gemeinsamer Monatsachse: Temperaturen
+  als Linien, Regentage als Säulen (bewusst nicht zwei y-Achsen in einem Bild).
+  Überfahren eines Monats zeigt alle Werte als Zeile über dem Diagramm. Die Monate
+  deines Reisezeitraums sind in Diagramm und Tabelle hervorgehoben.
+- **Wird einmal je Ziel erzeugt und dauerhaft gespeichert.** Klimawerte sind
+  langjährige Mittel, kein Wetterbericht — ein erneuter KI-Aufruf brächte nur Kosten.
+  Jeder weitere Aufruf kommt aus der Datenbank. **🔄 Neu abrufen** erzwingt eine
+  Neuberechnung.
+- **Automatisch nach jeder Suche vorgeladen**, sofern eine KI konfiguriert ist: beim
+  ersten Mal je Ziel kostet das einen KI-Aufruf, danach nie wieder. So steht die
+  Tabelle beim Klick sofort da.
+- **✉ Als E-Mail** verschickt die Tabelle (kein KI-Aufruf — verschickt wird, was
+  gespeichert ist). Die Mail enthält die Tabelle ohne Diagramm: Mail-Clients rendern
+  inline-SVG nicht zuverlässig, und die Zahlen sind hier der Inhalt.
+
 **🤖 Reisezeit-Check** (Knopf neben „Suchen", nur bei konfigurierter KI): prüft die
 Eckdaten der Maske, bevor du buchst. Vier Punkte:
 

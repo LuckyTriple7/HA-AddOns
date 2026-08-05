@@ -308,6 +308,32 @@
     .btn.trend-active-up { border-color:var(--red); }
     .btn.trend-active-down { border-color:var(--green); }
     .trend-global { margin-bottom:14px; }
+    /* Klimadiagramm — Serienfarben aus der validierten Palette (CVD-geprüft für
+       alle Paare in beiden Modi). Temperatur und Regentage haben verschiedene
+       Einheiten und stehen deshalb in zwei Panels übereinander mit gemeinsamer
+       Monatsachse, NICHT auf zwei y-Achsen in einem Bild. */
+    :root { --viz-1:#3987e5; --viz-2:#d95926; --viz-3:#199e70; }
+    [data-theme="light"] { --viz-1:#2a78d6; --viz-2:#eb6834; --viz-3:#1baf7a; }
+    .climchart { width:100%; height:auto; display:block; }
+    .climchart .cc-grid { stroke:var(--border); stroke-width:1; }
+    .climchart .cc-axis { fill:var(--muted); font-size:10px; }
+    .climchart .cc-line { fill:none; stroke-width:2; stroke-linejoin:round; stroke-linecap:round; }
+    .climchart .cc-band { fill:transparent; }
+    .climchart .cc-band:hover { fill:color-mix(in srgb, var(--text) 7%, transparent); }
+    .climchart .cc-dot { stroke:var(--surf); stroke-width:2; }
+    .climchart .cc-end { fill:var(--muted); font-size:10px; }
+    .clim-legend { display:flex; gap:14px; flex-wrap:wrap; margin:2px 0 6px; font-size:.8rem; color:var(--muted); }
+    .clim-legend span { display:inline-flex; align-items:center; gap:5px; }
+    .clim-legend i { width:14px; height:2px; border-radius:1px; display:inline-block; }
+    .clim-tip { font-size:.78rem; color:var(--text); min-height:1.2em; margin-bottom:4px; }
+    /* Klimatabelle: der gewählte Reisemonat wird hervorgehoben, damit man ihn in
+       zwölf Zeilen sofort findet. Warm/kalt nur dezent über die Textfarbe. */
+    .clim td, .clim th { text-align:right; }
+    .clim td:first-child, .clim th:first-child { text-align:left; }
+    .clim tr.clim-sel { background:color-mix(in srgb, var(--accent) 16%, transparent); }
+    .clim tr.clim-sel td { font-weight:600; }
+    .clim .clim-note { color:var(--muted); font-size:.78rem; }
+    .clim-best { color:var(--green); font-weight:600; }
     /* Fortschritt des Barometer-Laufs (mehrere Suchen à mehrere Ergebnisseiten) */
     .bkt-bar { height:8px; border-radius:4px; background:var(--surf2); border:1px solid var(--border); overflow:hidden; }
     .bkt-fill { height:100%; background:var(--accent); transition:width .4s ease; }
@@ -668,6 +694,8 @@
         <label class="srch-num">Weiterempf. ≥ <input type="number" id="srch-rec" min="0" max="100" step="5" value="80" placeholder="0" style="width:60px">%</label>
         <label class="srch-chk" title="Sterne- und Weiterempfehlungs-Filter ignorieren"><input type="checkbox" id="srch-qual-off" onchange="toggleQualFilter()"> Egal</label>
         <button class="btn sec" onclick="resetSearch()" style="margin-left:auto" title="Eingaben auf Standard zurücksetzen">Reset</button>
+        <button class="btn sec ai-feature" onclick="openClimate()"
+                title="Klimatabelle des Reiseziels: Temperaturen, Wassertemperatur, Sonnenstunden und Regentage für alle zwölf Monate">🌤 Klima</button>
         <button class="btn sec ai-feature" onclick="askSearchAdvice()"
                 title="KI prüft den gewählten Reisezeitraum (Regenzeit, Temperaturen, Haupt-/Nebensaison, Schnäppchenmonate) und schlägt ähnliche Ziele vor">🤖 Reisezeit-Check</button>
         <button class="btn" onclick="runSearch()">Suchen</button>
@@ -978,6 +1006,26 @@
         <span class="hint" style="flex:1;min-width:220px">Läuft automatisch 1×/Tag.
           Ein Trend braucht zwei Tage.</span>
         <button class="btn sec" onclick="runMarketBasket()">🌡️ Jetzt messen</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Klima-Modal — steht bewusst hinter der Suchmaske im DOM (gleicher z-index,
+       späteres Element liegt oben): es wird aus der Suche heraus geöffnet. -->
+  <div class="modal-bg" id="climate-bg">
+    <div class="modal" style="max-width:700px">
+      <button class="icon-btn modal-close" onclick="closeClimate()">
+        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+      </button>
+      <h2>🌤 Klima</h2>
+      <div class="sub" id="climate-sub"></div>
+      <div id="climate-body"></div>
+      <div class="cmp-foot" style="margin-top:12px">
+        <span class="hint" style="flex:1;min-width:220px" id="climate-stand"></span>
+        <button class="btn sec" onclick="openClimateEmailModal()"
+                title="Klimatabelle per E-Mail verschicken (kein KI-Aufruf)">✉ Als E-Mail</button>
+        <button class="btn sec" onclick="refreshClimate()"
+                title="Tabelle verwerfen und neu von der KI erstellen lassen (kostet einen KI-Aufruf)">🔄 Neu abrufen</button>
       </div>
     </div>
   </div>

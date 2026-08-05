@@ -9,6 +9,80 @@ from datetime import datetime
 import app as A  # später Attributzugriff (A._eur/A.log), zyklenfrei wie in *_routes.py
 
 
+_MONTHS_DE = ('Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli',
+              'August', 'September', 'Oktober', 'November', 'Dezember')
+
+
+def climate_html(label: str, data: dict, *, months_hl: list | None = None) -> str:
+    """HTML-Mail mit der Klimatabelle eines Reiseziels.
+
+    Reine Tabelle, kein Diagramm: Mail-Clients (allen voran Outlook) rendern weder
+    inline-SVG noch moderne CSS-Farbfunktionen zuverlässig, und ein Bild müsste
+    serverseitig gerendert und als Anhang eingebettet werden. Die Zahlen sind hier
+    ohnehin der Inhalt. `months_hl` hebt die Monate des geplanten Reisezeitraums
+    hervor — derselbe Dienst wie im UI."""
+    def esc(s):
+        return (str(s or '')).replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+
+    def num(v, unit=''):
+        if v in (None, '', 0) and unit == ' °C':
+            return '–'
+        try:
+            s = f"{float(v):.1f}".rstrip('0').rstrip('.').replace('.', ',')
+        except (TypeError, ValueError):
+            return '–'
+        return s + unit
+
+    hl = set(months_hl or [])
+    best = set(data.get('beste_monate') or [])
+    months = sorted((m for m in (data.get('months') or []) if isinstance(m, dict)),
+                    key=lambda m: m.get('monat') or 0)
+    rows = []
+    for m in months:
+        mi = m.get('monat') or 0
+        on = mi in hl
+        bg = ' background:#eef4ff;' if on else ''
+        weight = ' font-weight:700;' if on else ''
+        name = _MONTHS_DE[mi - 1] if 1 <= mi <= 12 else str(mi)
+        cells = ''.join(
+            f'<td style="padding:5px 8px;text-align:right;border-top:1px solid #e2e6ea;{bg}{weight}">{c}</td>'
+            for c in (num(m.get('temp_tag'), ' °C'), num(m.get('temp_nacht'), ' °C'),
+                      num(m.get('wasser'), ' °C'), num(m.get('sonnenstunden'), ' h'),
+                      num(m.get('regentage'))))
+        rows.append(
+            f'<tr><td style="padding:5px 8px;border-top:1px solid #e2e6ea;{bg}{weight}">'
+            + esc(name) + (' ★' if mi in best else '')
+            + (f'<div style="font-size:11px;color:#777;font-weight:400">{esc(m["hinweis"])}</div>'
+               if m.get('hinweis') else '')
+            + '</td>' + cells + '</tr>')
+    head = ''.join(f'<th style="padding:6px 8px;text-align:right;color:#555;font-size:12px">{h}</th>'
+                   for h in ('Tag', 'Nacht', 'Wasser', 'Sonne', 'Regen'))
+    return (
+        '<div style="background:#eef2f8;padding:20px 0;font-family:-apple-system,Segoe UI,Roboto,sans-serif">'
+        '<table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center">'
+        '<table width="640" cellpadding="0" cellspacing="0" style="max-width:640px;width:100%">'
+        '<tr><td style="padding:0 16px 16px">'
+        '<div style="font-size:22px;font-weight:800;color:#0b65d8">✈ TUIWatch</div>'
+        f'<div style="font-size:13px;color:#666">Klima · {esc(label)} · langjährige Mittelwerte</div>'
+        '</td></tr>'
+        '<tr><td style="padding:0 16px"><table width="100%" cellpadding="0" cellspacing="0" '
+        'style="background:#fff;border:1px solid #e2e6ea;border-radius:10px;border-collapse:separate">'
+        '<tr><td style="padding:14px 16px">'
+        + (f'<div style="font-size:14px;color:#333;margin-bottom:10px">'
+           f'{esc(data.get("zusammenfassung"))}</div>' if data.get('zusammenfassung') else '')
+        + '<table width="100%" cellpadding="0" cellspacing="0" style="font-size:13px;color:#10243e">'
+        + f'<tr><th style="padding:6px 8px;text-align:left;color:#555;font-size:12px">Monat</th>{head}</tr>'
+        + ''.join(rows) + '</table>'
+        + ('<div style="font-size:12px;color:#777;margin-top:8px">★ = aus Wetter-Sicht bester '
+           'Reisemonat' + (' · hervorgehoben: dein Reisezeitraum' if hl else '') + '</div>')
+        + '</td></tr></table></td></tr>'
+        '<tr><td style="padding:10px 16px 0;font-size:11px;color:#99a">Generiert von '
+        '<a href="https://github.com/LuckyTriple7/HA-AddOns" style="color:#0b65d8;text-decoration:none">TUIWatch</a>'
+        ', einer App für Home Assistant</td></tr>'
+        '</table></td></tr></table></div>'
+    )
+
+
 def _criteria_text(criteria: dict, esc) -> str:
     """Reisendenzahl und Abflughafen für die Kopfzeile. Beides sind Suchparameter
     und stehen in keiner einzelnen Trefferzeile — ohne diese Angabe ließ sich einer

@@ -1244,12 +1244,16 @@
       ['giata-lightbox-bg', closeGiataLightbox],
       ['giata-gallery-bg', closeGiataGallery],
       ['cal-day-chart', closeCalDayChart],
+      // Der Empfänger-Dialog bekommt beim Öffnen z-index 60 und liegt damit über
+      // jedem anderen Fenster, aus dem er aufgerufen wurde — also zuerst prüfen.
+      ['email-bg', closeEmailModal],
       // Das KI-Ergebnis steht im DOM hinter Suchmaske, Kalender, Vergleich & Co. und
       // liegt daher optisch darüber, wenn es aus einem von ihnen heraus geöffnet wird
       // (Reisezeit-Check und KI-Vergleich aus der Suche, Kalenderanalyse …). Es muss
       // deshalb VOR diesen geprüft werden, sonst schlösse ESC das darunterliegende
       // Fenster und ließe das sichtbare offen.
       ['ai-bg', closeAiSummary],
+      ['climate-bg', closeClimate],   // wird aus der Suchmaske geöffnet, liegt darüber
       ['cal-bg', closeCalendar],
       ['modal-bg', closeModal],
       ['cmp-bg', closeCompare],
@@ -1261,7 +1265,6 @@
       ['aihist-bg', closeAiHistory],
       ['aiask-bg', closeAiAsk],
       ['reiseb-bg', closeAdvisor],
-      ['email-bg', closeEmailModal],
       ['hc-bg', () => $('#hc-bg').classList.remove('show')],
       ['promptcfg-bg', closePromptCfg],
       ['aktion-bg', closeAktion],
@@ -2183,6 +2186,227 @@
       if(ok){ await renderFavs(); toast('Gespeicherte Suche gelöscht'); } else { toast('Löschen fehlgeschlagen'); }
     }
 
+    // ── Klimatabelle des Reiseziels ───────────────────────────────────────────
+    // Wird je Ziel EINMAL von der KI erzeugt und dauerhaft gespeichert: Klimawerte
+    // sind langjährige Mittel, ein erneuter Abruf brächte nur Kosten. Der Abruf
+    // startet automatisch nach einer Suche (sofern eine KI konfiguriert ist), damit
+    // die Tabelle beim Klick sofort dasteht — dank Speicherung ist das je Ziel ein
+    // einziger Aufruf, kein Dauerverbrauch.
+    const MONTHS_DE = ['Januar','Februar','März','April','Mai','Juni','Juli','August',
+                       'September','Oktober','November','Dezember'];
+    let climateData = null;      // zuletzt geladene Tabelle {giata,label,ts,model,data}
+    let climateBusy = false;
+
+    function aiEnabled(){ return !document.body.classList.contains('ai-disabled'); }
+
+    // Monate, die im gewählten Reisezeitraum liegen — die werden in der Tabelle
+    // hervorgehoben, sonst sucht man sie in zwölf Zeilen.
+    function searchMonths(){
+      const vom = $('#srch-vom').value, bis = $('#srch-bis').value;
+      if(!vom) return [];
+      const a = new Date(vom+'T00:00:00'), b = new Date((bis||vom)+'T00:00:00');
+      if(isNaN(a) || isNaN(b) || b < a) return [];
+      const out = new Set();
+      const cur = new Date(a.getFullYear(), a.getMonth(), 1);
+      while(cur <= b && out.size < 12){ out.add(cur.getMonth()+1); cur.setMonth(cur.getMonth()+1); }
+      return [...out];
+    }
+    async function fetchClimate(giata, label, {refresh=false, silent=false}={}){
+      if(climateBusy) return null;
+      climateBusy = true;
+      try {
+        // Ohne refresh zuerst der billige Weg: gespeicherte Tabelle, kein KI-Aufruf.
+        if(!refresh){
+          try {
+            const d = await fetch(api('/api/climate/'+giata)).then(r=>r.json());
+            if(d && d.found){ climateData = d; return d; }
+          } catch(e){}
+          if(!aiEnabled()) return null;
+        }
+        if(!silent) $('#climate-body').innerHTML = progBar(aiProviderName()+' stellt die Klimadaten zusammen…');
+        const r = await fetch(api('/api/ai/climate'), {method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({giata, label, refresh})});
+        const d = await r.json().catch(()=>({}));
+        if(!r.ok){
+          if(!silent) $('#climate-body').innerHTML = aiErrorBlock(aiErrorMsg(d.error), false);
+          return null;
+        }
+        climateData = d;
+        return d;
+      } catch(e){
+        if(!silent) $('#climate-body').innerHTML = aiErrorBlock('Klimadaten konnten nicht geladen werden.', false);
+        return null;
+      } finally { climateBusy = false; }
+    }
+    // Zwei Panels übereinander mit gemeinsamer Monatsachse: Temperaturen (°C) als
+    // Linien, Regentage als Säulen. Bewusst NICHT zwei y-Achsen in einem Bild —
+    // verschiedene Einheiten auf einer Skala laden zu Fehldeutungen ein.
+    const CLIM_MON_KURZ = ['J','F','M','A','M','J','J','A','S','O','N','D'];
+    function climateChart(months, selMonths){
+      const ms = months.slice().sort((a,b)=>(a.monat||0)-(b.monat||0));
+      if(ms.length < 2) return '';
+      // PADR muss das längste Endlabel tragen („Wasser" ≈ 40px bei 10px Schrift) —
+      // ein Label, das nicht passt, wird nicht abgeschnitten, sondern bekommt Platz.
+      const W=680, PADL=30, PADR=52, TOP=14, TH=150, GAP=26, RH=64;
+      const BOT = TOP+TH+GAP+RH, H = BOT+18;
+      const iw = W-PADL-PADR, step = iw/ms.length, cx = i => PADL + step*(i+0.5);
+      const series = [
+        {key:'temp_tag',   label:'Tag',    color:'var(--viz-2)'},
+        {key:'temp_nacht', label:'Nacht',  color:'var(--viz-1)'},
+        {key:'wasser',     label:'Wasser', color:'var(--viz-3)'},
+      ];
+      const vals = series.flatMap(s=>ms.map(m=>Number(m[s.key])||0)).filter(v=>v>0);
+      // Kein Nullpunkt-Zwang: das gilt für Balken (Fläche = Menge), nicht für
+      // Temperaturlinien. Bei 15–28 °C würde eine Achse ab 0 die Kurven zu einem
+      // flachen Band zusammendrücken.
+      const lo = Math.floor(Math.min(...vals)/5)*5, hi = Math.ceil(Math.max(...vals)/5)*5;
+      const ty = v => TOP+TH - (v-lo)/((hi-lo)||1)*TH;
+      const rainMax = Math.max(1, ...ms.map(m=>Number(m.regentage)||0));
+      const ry = v => TOP+TH+GAP+RH - (v/rainMax)*RH;
+
+      let g = '';
+      for(let k=0;k<=4;k++){
+        const v = lo + (hi-lo)*k/4, y = ty(v);
+        g += `<line class="cc-grid" x1="${PADL}" y1="${y}" x2="${W-PADR}" y2="${y}"/>`
+           + `<text class="cc-axis" x="${PADL-6}" y="${y+3}" text-anchor="end">${Math.round(v)}</text>`;
+      }
+      g += `<line class="cc-grid" x1="${PADL}" y1="${TOP+TH+GAP+RH}" x2="${W-PADR}" y2="${TOP+TH+GAP+RH}"/>`
+         + `<text class="cc-axis" x="${PADL-6}" y="${TOP+TH+GAP+RH+3}" text-anchor="end">0</text>`
+         + `<text class="cc-axis" x="${PADL-6}" y="${ry(rainMax)+3}" text-anchor="end">${rainMax}</text>`;
+
+      // Säulen: max. 24px dick, 4px runde Kappe, 2px Luft zum Nachbarn über die Breite
+      const bw = Math.min(24, step-6);
+      const bars = ms.map((m,i)=>{
+        const v = Number(m.regentage)||0, y = ry(v), h = TOP+TH+GAP+RH-y;
+        return h < 0.5 ? '' :
+          `<rect x="${(cx(i)-bw/2).toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" `
+          + `height="${h.toFixed(1)}" rx="4" fill="var(--viz-1)" opacity=".55"/>`;
+      }).join('');
+
+      // Direktlabels am Linienende nur, wenn die Linien dort weit genug auseinander
+      // liegen. Übereinandergeschobene Labels lösen sich optisch von ihrer Linie und
+      // lesen sich als Rauschen — dann trägt die Legende die Identität allein
+      // (zusammen mit Tooltip und Tabelle darunter).
+      const endYs = series.map(s=>ty(Number(ms[ms.length-1][s.key])||0))
+                          .filter(y=>!isNaN(y)).sort((a,b)=>a-b);
+      const endLabels = endYs.every((y,i)=> i===0 || y-endYs[i-1] >= 12);
+      const lines = series.map(s=>{
+        const pts = ms.map((m,i)=>({x:cx(i), v:Number(m[s.key])||0}))
+                      .filter(p=>p.v>0).map(p=>`${p.x.toFixed(1)},${ty(p.v).toFixed(1)}`);
+        if(pts.length < 2) return '';
+        const lv = Number(ms[ms.length-1][s.key])||0;
+        const lbl = (endLabels && lv>0)
+          ? `<text class="cc-end" x="${W-PADR+4}" y="${ty(lv)+3}">${esc(s.label)}</text>` : '';
+        return `<polyline class="cc-line" points="${pts.join(' ')}" stroke="${s.color}"/>` + lbl;
+      }).join('');
+
+      const marks = ms.map((m,i)=>
+        series.map(s=>{ const v=Number(m[s.key])||0; return v>0
+          ? `<circle class="cc-dot cc-m${i}" cx="${cx(i).toFixed(1)}" cy="${ty(v).toFixed(1)}" r="4" fill="${s.color}" opacity="0"/>` : ''; }).join('')
+      ).join('');
+
+      // Hover-Zone je Monat über beide Panels — ein Ziel statt 48 winziger Punkte
+      const bands = ms.map((m,i)=>
+        `<rect class="cc-band" data-i="${i}" x="${(cx(i)-step/2).toFixed(1)}" y="${TOP-8}" `
+        + `width="${step.toFixed(1)}" height="${(BOT-TOP+8).toFixed(1)}" rx="4"/>`).join('');
+
+      const xlab = ms.map((m,i)=>{
+        const on = selMonths.has(m.monat);
+        return `<text class="cc-axis" x="${cx(i).toFixed(1)}" y="${H-4}" text-anchor="middle"`
+          + (on ? ' style="fill:var(--text);font-weight:700"' : '') + `>`
+          + `${CLIM_MON_KURZ[(m.monat||1)-1]}</text>`;
+      }).join('');
+
+      return '<div class="clim-legend">'
+        + series.map(s=>`<span><i style="background:${s.color}"></i>${esc(s.label)}</span>`).join('')
+        + '<span><i style="background:var(--viz-1);opacity:.55;height:8px;width:8px;border-radius:2px"></i>Regentage</span>'
+        + '</div>'
+        + '<div class="clim-tip" id="clim-tip">Fahre über einen Monat für die Werte.</div>'
+        + `<svg class="climchart" viewBox="0 0 ${W} ${H}" role="img" `
+        + 'aria-label="Klimadiagramm: Temperaturen und Regentage je Monat">'
+        + g + bars + lines + marks + bands + xlab + '</svg>';
+    }
+    // Tooltip-Verhalten: die Werte des überfahrenen Monats als Textzeile über dem
+    // Diagramm (statt schwebendem Kasten — im Modal ist der Platz knapp und die
+    // Zeile bleibt auch per Tastatur/Touch lesbar).
+    function climateChartHover(box, months){
+      const ms = months.slice().sort((a,b)=>(a.monat||0)-(b.monat||0));
+      const tip = box.querySelector('#clim-tip'); if(!tip) return;
+      const base = tip.textContent;
+      box.querySelectorAll('.cc-band').forEach(b=>{
+        const i = +b.dataset.i, m = ms[i]; if(!m) return;
+        const show = on => {
+          box.querySelectorAll('.cc-m'+i).forEach(c=>c.setAttribute('opacity', on?'1':'0'));
+          if(!on){ tip.textContent = base; return; }
+          const p = [`<b>${esc(MONTHS_DE[(m.monat||1)-1])}</b>`,
+                     `Tag ${m.temp_tag} °C`, `Nacht ${m.temp_nacht} °C`];
+          if(m.wasser) p.push(`Wasser ${m.wasser} °C`);
+          p.push(`${m.sonnenstunden} Sonnenstunden`, `${m.regentage} Regentage`);
+          if(m.hinweis) p.push(esc(m.hinweis));
+          tip.innerHTML = p.join(' · ');
+        };
+        b.addEventListener('mouseenter', ()=>show(true));
+        b.addEventListener('mouseleave', ()=>show(false));
+      });
+    }
+    function renderClimate(d){
+      const sel = new Set(searchMonths());
+      const c = (d && d.data) || {};
+      const best = new Set(c.beste_monate || []);
+      const rows = (c.months || []).slice().sort((a,b)=>(a.monat||0)-(b.monat||0)).map(m=>{
+        const name = MONTHS_DE[(m.monat||1)-1] || m.monat;
+        const num = v => (v==null || v==='') ? '–' : Number(v).toLocaleString('de-DE',{maximumFractionDigits:1});
+        return `<tr class="${sel.has(m.monat)?'clim-sel':''}">`
+          + `<td>${esc(name)}${best.has(m.monat)?' <span class="clim-best" title="aus Wetter-Sicht bester Reisemonat">★</span>':''}`
+          + (m.hinweis ? `<div class="clim-note">${esc(m.hinweis)}</div>` : '') + '</td>'
+          + `<td>${num(m.temp_tag)} °C</td><td>${num(m.temp_nacht)} °C</td>`
+          + `<td>${m.wasser ? num(m.wasser)+' °C' : '–'}</td>`
+          + `<td>${num(m.sonnenstunden)} h</td><td>${num(m.regentage)}</td></tr>`;
+      }).join('');
+      const box = $('#climate-body');
+      box.innerHTML =
+        (c.zusammenfassung ? `<div style="margin-bottom:10px">${esc(c.zusammenfassung)}</div>` : '')
+        + climateChart(c.months || [], sel)
+        + `<table class="hist clim" style="margin-top:10px"><tr><th>Monat</th><th>Tag</th><th>Nacht</th><th>Wasser</th>`
+        + `<th title="Sonnenstunden pro Tag">Sonne</th><th title="Regentage im Monat">Regen</th></tr>${rows}</table>`
+        + (sel.size ? '<div class="hint" style="margin-top:8px">Hervorgehoben: die Monate deines Reisezeitraums.</div>' : '');
+      climateChartHover(box, c.months || []);
+      const when = d && d.ts ? new Date(d.ts*1000).toLocaleDateString('de-DE') : '';
+      $('#climate-stand').textContent = when
+        ? `Langjährige Mittelwerte · erstellt am ${when}${d.model ? ' mit '+d.model : ''}`
+        : '';
+    }
+    async function openClimate(){
+      if(!srchDest){ toast('Bitte zuerst ein Reiseziel wählen'); return; }
+      $('#climate-bg').classList.add('show');
+      $('#climate-sub').textContent = srchDest.label;
+      // Schon geladen (z. B. vom Auto-Abruf nach der Suche) → sofort anzeigen.
+      if(climateData && climateData.giata === srchDest.giata){ renderClimate(climateData); return; }
+      $('#climate-body').innerHTML = progBar('Lade…');
+      $('#climate-stand').textContent = '';
+      const d = await fetchClimate(srchDest.giata, srchDest.label);
+      if(d) renderClimate(d);
+      else if(!aiEnabled()) $('#climate-body').innerHTML =
+        '<div class="cmp-load">Für dieses Ziel ist noch keine Klimatabelle gespeichert — sie wird von der KI erstellt, dafür muss ein KI-Key hinterlegt sein.</div>';
+    }
+    function closeClimate(){ $('#climate-bg').classList.remove('show'); }
+    $('#climate-bg').addEventListener('click', e=>{ if(e.target.id==='climate-bg') closeClimate(); });
+    async function refreshClimate(){
+      if(!srchDest) return;
+      if(!confirm('Klimatabelle neu von der KI erstellen lassen? Das kostet einen KI-Aufruf.')) return;
+      $('#climate-body').innerHTML = progBar('Wird neu erstellt…');
+      const d = await fetchClimate(srchDest.giata, srchDest.label, {refresh:true});
+      if(d) renderClimate(d);
+    }
+    // Nach einer Suche im Hintergrund vorladen — beim ersten Mal je Ziel kostet das
+    // einen KI-Aufruf, danach kommt die Tabelle aus der Datenbank.
+    function prefetchClimate(){
+      if(!srchDest || !aiEnabled()) return;
+      if(climateData && climateData.giata === srchDest.giata) return;
+      fetchClimate(srchDest.giata, srchDest.label, {silent:true}).catch(()=>{});
+    }
+
     // ── Reisezeit-Check (KI) direkt aus der Suchmaske ─────────────────────────
     // Die Maske weiß nichts über Klima oder Saison — genau dafür ist das da. Sind
     // schon Treffer geladen, geht eine kurze Preisstatistik mit: ohne sie könnte die
@@ -2285,6 +2509,7 @@
       srchResults.forEach(r=>{ r._key = String(r.giata||r.name); });
       srCmpSelected = new Set();
       sortSearchResults(); renderSearch();
+      prefetchClimate();   // Klimatabelle im Hintergrund bereitlegen
     }
 
     // "Mehr laden": die Such-API liefert pro Aufruf nur resultsPerPage (50) Treffer,
@@ -3901,6 +4126,11 @@
       emailMode = 'search';
       await _openEmailModalCommon();
     }
+    async function openClimateEmailModal(){
+      if(!climateData || !climateData.found){ toast('Noch keine Klimatabelle geladen'); return; }
+      emailMode = 'climate';
+      await _openEmailModalCommon();
+    }
     function closeEmailModal(){ $('#email-bg').classList.remove('show'); $('#email-bg').style.zIndex = ''; }
     $('#email-bg').addEventListener('click', e=>{ if(e.target.id==='email-bg') closeEmailModal(); });
     async function submitEmail(){
@@ -3911,6 +4141,7 @@
       if(emailMode === 'ai') return submitAiEmail(to.trim());
       if(emailMode === 'trips') return submitTripSummaryEmail(to.trim());
       if(emailMode === 'search') return submitSearchEmail(to.trim());
+      if(emailMode === 'climate') return submitClimateEmail(to.trim());
       toast('E-Mail wird gesendet…');
       const body = {to: to.trim()};
       if(emailIds) body.ids = emailIds;
@@ -3940,6 +4171,24 @@
       } catch(e){ toast('Versand fehlgeschlagen'); return; }
       if(r.ok){ const d=await r.json(); toast('E-Mail an '+d.to+' gesendet ('+d.count+' Treffer)'); }
       else { const d=await r.json().catch(()=>({})); toast(d.error==='send_failed'?'Versand fehlgeschlagen – Einstellungen prüfen':d.error==='no_recipient'?'Kein Empfänger':d.error==='no_results'?'Keine Treffer':'Fehler beim Versand'); }
+    }
+    // Verschickt die GESPEICHERTE Tabelle — der Server liest sie aus der Datenbank,
+    // kein KI-Aufruf. Die Monate des Reisezeitraums gehen mit, damit sie in der Mail
+    // genauso hervorgehoben sind wie im Fenster.
+    async function submitClimateEmail(to){
+      if(!climateData){ toast('Noch keine Klimatabelle geladen'); return; }
+      toast('E-Mail wird gesendet…');
+      let r; try {
+        r = await fetch(api('/api/climate/'+climateData.giata+'/email'), {method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({to, months: searchMonths()})});
+      } catch(e){ toast('Versand fehlgeschlagen'); return; }
+      if(r.ok){ toast('Klimatabelle an '+to+' gesendet'); }
+      else { const d=await r.json().catch(()=>({}));
+        toast(d.error==='send_failed'?'Versand fehlgeschlagen – Einstellungen prüfen'
+          :d.error==='no_recipient'?'Kein Empfänger'
+          :d.error==='not_found'?'Keine gespeicherte Klimatabelle'
+          :d.error==='smtp_not_configured'?'SMTP nicht konfiguriert':'Fehler beim Versand'); }
     }
     async function sendDigest(){
       toast('Wochenüberblick wird gesendet…');
