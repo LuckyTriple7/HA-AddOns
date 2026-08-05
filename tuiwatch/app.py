@@ -89,7 +89,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.69.1"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.70.0"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -1018,7 +1018,8 @@ def _notify_ha(title: str, message: str, tag: str, muted: bool = False) -> None:
     if muted:
         _log_notification('ha', title, message, tag, True)
         return
-    if not (SUPERVISOR_TOKEN and load_config().get('notify_ha', True)):
+    cfg = load_config()
+    if not (SUPERVISOR_TOKEN and cfg.get('notify_ha', True)):
         return
     ok = True
     try:
@@ -1028,6 +1029,19 @@ def _notify_ha(title: str, message: str, tag: str, muted: bool = False) -> None:
     except Exception as e:
         ok = False
         log.error("HA-Benachrichtigung fehlgeschlagen: %s", e)
+    # Zusätzlich an frei wählbare notify.*-Dienste (z. B. mobile_app_… für
+    # Companion-Push), kommagetrennt; "notify."-Präfix darf mit angegeben werden.
+    for svc in (cfg.get('ha_notify_service') or '').split(','):
+        svc = svc.strip().removeprefix('notify.')
+        if not svc:
+            continue
+        try:
+            http.post(f'{HA_BASE}/services/notify/{svc}',
+                      headers={'Authorization': f'Bearer {SUPERVISOR_TOKEN}'}, timeout=10,
+                      json={'title': title, 'message': message})
+        except Exception as e:
+            ok = False
+            log.error("HA-Notify-Dienst %s fehlgeschlagen: %s", svc, e)
     _log_notification('ha', title, message, tag, ok)
 
 

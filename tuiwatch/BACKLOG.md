@@ -43,6 +43,19 @@ Selbsttest stabil laufen, prüfen, ob Chromium nur noch bei Bedarf gebraucht wir
 Der Digest könnte je aktivem Suchabo die aktuellen Treffer unter der Schwelle
 mitauflisten (analog zu den Aktionscodes seit 0.26.2).
 
+## 14. Check24: GIATA-Auto-Mapping
+Hotel-Pinning fürs Check24-Feature ist heute manuell. Hotelname + Ort fuzzy
+gegen die Check24-Hotelsuche matchen, besten Treffer vorschlagen, Nutzer
+bestätigt nur noch (statt selbst zu suchen).
+
+## 15. cert_expiry-Debug-Log aktivieren
+Offener Punkt aus v0.58.1: das Debug-Log für den cert_expiry-Sensor wurde nie
+aktiviert — bei nächster „Sensor unavailable"-Meldung zuerst dieses Log anwerfen.
+
+## 16. static/app.js aufteilen
+~3.300 Zeilen; analog zu den app.py-Tranchen (#12) in Module splitten
+(Kalender / KI / Angebote / Suche je Datei). Rein intern, Tests bleiben grün.
+
 ---
 
 ## Erledigt

@@ -32,6 +32,9 @@ configuration:
   notify_ha:
     name: HA-Benachrichtigungen
     description: "Bei Preisänderung oder erreichtem Wunschpreis eine persistente Home-Assistant-Benachrichtigung anzeigen. Standard an."
+  ha_notify_service:
+    name: Zusätzlicher HA-Notify-Dienst
+    description: "Optional: Name eines notify-Dienstes (z. B. mobile_app_mein_handy für Push über die Companion-App), an den jede Benachrichtigung zusätzlich geht. Mehrere Dienste mit Komma trennen; leer = nur persistente Benachrichtigung."
   notify_price_change:
     name: Bei jeder Preisänderung benachrichtigen
     description: "Benachrichtigen, sobald sich ein Preis ändert (gestiegen/gefallen). Wunschpreis-Benachrichtigungen kommen unabhängig davon immer. Standard an."

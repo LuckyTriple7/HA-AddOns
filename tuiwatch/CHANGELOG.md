@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.70.0] - 2026-08-05
+
+### Added
+- **Push aufs Handy: frei wählbarer HA-Notify-Dienst** (`ha_notify_service`).
+  Bisher landeten HA-Meldungen nur als persistente Benachrichtigung in der
+  HA-Oberfläche — auf dem Handy sah man nichts. Mit z. B.
+  `mobile_app_mein_handy` geht jetzt jede Meldung zusätzlich als Push über die
+  Companion-App raus. Mehrere Dienste kommagetrennt, `notify.`-Präfix optional,
+  leer = Verhalten wie bisher. Die persistente Benachrichtigung bleibt immer
+  bestehen (sie trägt weiter das 🔔-Panel im UI).
+- Backlog um Check24-GIATA-Auto-Mapping, cert_expiry-Debug und app.js-Aufteilung
+  ergänzt.
+
 ## [0.69.1] - 2026-08-05
 
 ### Added

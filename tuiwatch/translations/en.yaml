@@ -32,6 +32,9 @@ configuration:
   notify_ha:
     name: HA notifications
     description: "Show a persistent Home Assistant notification on price change or when a target price is reached. Default on."
+  ha_notify_service:
+    name: Additional HA notify service
+    description: "Optional: name of a notify service (e.g. mobile_app_my_phone for push via the Companion app) that additionally receives every notification. Separate multiple services with commas; empty = persistent notification only."
   notify_price_change:
     name: Notify on every price change
     description: "Notify whenever a price changes (up/down). Target-price notifications are always sent regardless. Default on."

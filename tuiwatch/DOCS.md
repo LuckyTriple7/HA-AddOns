@@ -16,6 +16,7 @@ username: admin          # Login (Direktzugriff)
 password: secret         # bitte ändern!
 session_hours: 24        # Dauer der Anmeldung
 poll_interval: 21600     # Prüfintervall in Sekunden (6 h); Minimum 600
+ha_notify_service: ""    # optional: notify-Dienst(e) für Push, z. B. mobile_app_mein_handy
 notify_api_errors: true  # Alarm, wenn eine TUI-API gestört ist
 notify_unavailable: true # Alarm, wenn das Buchungssystem ein Angebot nicht mehr bestätigt
 notify_booked_drop: true # Alarm, wenn Preis unter den gebuchten Preis fällt
@@ -414,6 +415,11 @@ Preis-Tracking, als dauerhaftes Archiv (Vergangenheit und Zukunft).
   oder unter diesen Wert, wirst du benachrichtigt.
 - Bei **jeder Preisänderung** (steigt/fällt) kommt ebenfalls eine Meldung
   (abschaltbar über `notify_price_change`).
+- **Push aufs Handy** (`ha_notify_service`): standardmäßig erscheinen HA-Meldungen
+  als persistente Benachrichtigung in der HA-Oberfläche. Trägst du hier einen
+  notify-Dienst ein (z. B. `mobile_app_mein_handy` — Companion-App), geht jede
+  Meldung **zusätzlich** als Push dorthin. Mehrere Dienste mit Komma trennen,
+  `notify.`-Präfix optional.
 - **Günstigerer-Termin-Alarm** (`notify_cheaper_date`): meldet, wenn der Preiskalender
   einen anderen Abreisetag deutlich günstiger zeigt (Schwelle `cheaper_date_min_diff`).
   Die Meldung kommt nur bei einem **wirklich neuen Tiefstwert** (anderer Termin oder
