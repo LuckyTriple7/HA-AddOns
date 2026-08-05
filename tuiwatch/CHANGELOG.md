@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.72.0] - 2026-08-05
+
+### Added
+- **ICS-Kalender-Export für „Meine Reisen":** 📅-Knopf im Reisen-Fenster lädt
+  alle Reisen als `.ics`-Datei (`GET /api/trips/ics`), in der Detailansicht gibt
+  es den Export je Reise (`…/<id>/ics`). Ganztägiger Termin von An- bis
+  Abreisetag, mit Buchungsnummer, Nächten, Reisenden und Gesamtpreis in der
+  Beschreibung — importierbar in HA-Kalender, Google Kalender, Outlook & Co.
+
 ## [0.71.0] - 2026-08-05
 
 ### Added

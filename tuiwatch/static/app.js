@@ -1052,7 +1052,7 @@
     let tripsData = [];
     function eur(v){ return (v==null||v==='')?'–':Number(v).toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2})+' €'; }
     function deDate(iso){ if(!iso) return ''; const p=iso.split('-'); return p.length===3?(p[2]+'.'+p[1]+'.'+p[0]):iso; }
-    function openTrips(){ $('#trip-detail').style.display='none'; $('#trips-bg').classList.add('show'); loadTrips(); }
+    function openTrips(){ $('#trip-detail').style.display='none'; const ics=$('#trips-ics-link'); if(ics) ics.href=api('/api/trips/ics'); $('#trips-bg').classList.add('show'); loadTrips(); }
     function closeTrips(){ $('#trips-bg').classList.remove('show'); }
     $('#trips-bg').addEventListener('click', e=>{ if(e.target.id==='trips-bg') closeTrips(); });
 
@@ -1515,7 +1515,7 @@
       const packHtml = renderPackingSection(id, t, t.packing||[]);
       const box = $('#trip-detail');
       box.innerHTML = `<h3>${esc(t.title||('Reise #'+id))}</h3>
-        <div style="margin-bottom:6px">${pdf} ${dbg} ${rescan} <button class="btn sec" onclick="shareTripBanner(${id})" title="Reise als Bild teilen">📤 Teilen</button> <button class="btn sec" onclick="$('#trip-detail').style.display='none'">schließen</button></div>
+        <div style="margin-bottom:6px">${pdf} ${dbg} ${rescan} <button class="btn sec" onclick="shareTripBanner(${id})" title="Reise als Bild teilen">📤 Teilen</button> <a class="btn sec" href="${api('/api/trips/'+id+'/ics')}" title="Diese Reise als Kalender-Termin (.ics) herunterladen">📅 Kalender</a> <button class="btn sec" onclick="$('#trip-detail').style.display='none'">schließen</button></div>
         ${attRow}
         ${warnBox}<div class="dgrid">${grid}</div>${reisende}${fluege}${extras}${rabatte}${wuensche}
         ${packHtml}`;
