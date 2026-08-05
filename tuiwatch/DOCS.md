@@ -197,6 +197,24 @@ versteckt, `ai_provider` wird ignoriert).
   Empfehlung, welches Hotel für wen (Familie, Paar, Party, Ruhe …) am besten passt.
   Genau dieselbe Funktion gibt es auch in der **Angebotsübersicht** über die
   bestehende Mehrfachauswahl (Sammelaktionsleiste → „🤖 Vergleichen").
+- **❓ Frage** (Button oben) — Freitext-Frage, mit **zwei Knöpfen** im Fenster,
+  die dieselbe Frage mit unterschiedlichem Kontext verschicken:
+  - **📌 Portfolio fragen** — die KI bekommt deine aktuell getrackten Angebote
+    mit (Preis, Ort, Sterne/Weiterempfehlung, Trend, Wunschpreis, Tags) und
+    antwortet daraus; für alles darüber hinaus (z. B. Klima zur Reisezeit) nutzt
+    sie zusätzlich die Websuche. Braucht mindestens ein aktives Angebot.
+  - **🌍 Reisefrage** — allgemeine Frage zu Regionen, Ländern, Reisezeiten,
+    Einreise oder Anreise, **ohne** die Angebotsliste im Prompt. Die wäre hier nur
+    Ballast, würde Tokens kosten und die Antwort auf die eigenen Hotels lenken.
+    Funktioniert deshalb auch mit leerem Portfolio. Ist ein Heimatort hinterlegt
+    (`trippilot_home_location`), fließt er für Anreise-/Entfernungsfragen ein. Der
+    Prompt drängt auf Websuche und auf offene Unsicherheit — Einreiseregeln und
+    Preise ändern sich, eine selbstbewusst formulierte veraltete Auskunft wäre
+    hier schädlicher als der Hinweis, kurz vor der Reise gegenzuprüfen.
+
+  Beide landen im KI-Verlauf, unterscheidbar als „📌 Portfolio-Frage" bzw.
+  „🌍 Reisefrage", und lassen sich von dort wiederholen oder mit einer Folgefrage
+  vertiefen.
 - **Token- & Kosten-Anzeige** — jede Antwort zeigt Input-/Output-Tokens und die
   geschätzte Kostenschätzung in USD (Listenpreis des jeweiligen Anbieters —
   Claude/Gemini/Perplexity haben eigene Preistabellen) für genau diesen

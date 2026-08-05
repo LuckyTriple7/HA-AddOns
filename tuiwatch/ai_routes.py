@@ -1139,10 +1139,59 @@ def api_ai_region_outlook():
     return jsonify({'result': result, 'usage': usage, 'totals': totals, 'id': aid, 'cached': False})
 
 
+def _ai_ask_general(question: str, data: dict, api_key: str, model: str):
+    """Allgemeine Reisefrage — zu Regionen, Ländern, Reisezeiten, Einreise,
+    Verkehrsmitteln, allem was (noch) nicht im Portfolio steckt.
+
+    Anders als die Portfolio-Frage bekommt die KI hier keine Angebotsliste,
+    sondern muss auf Websuche und Allgemeinwissen zurückgreifen. Die Betonung im
+    Prompt liegt deshalb auf Aktualität und auf dem offenen Eingeständnis von
+    Unsicherheit: Einreiseregeln, Preise und Öffnungszeiten ändern sich, und eine
+    selbstbewusst formulierte veraltete Auskunft wäre hier schädlicher als ein
+    ehrliches „das solltest du kurz vor der Reise gegenprüfen"."""
+    home = (A.load_config().get('trippilot_home_location') or '').strip()
+    prompt = (
+        f"Allgemeine Reisefrage: {question}\n\n"
+        + (f"Mein Heimatort ist {home} — nutze das für Fragen zu Anreise, Flugzeit "
+           "oder Entfernung.\n\n" if home else "")
+        + "Beantworte die Frage auf Deutsch, sprich mich durchgehend mit „Du“ an "
+        "(informell, nicht „Sie“). Nutze die Websuche für alles, was sich ändern "
+        "kann — Einreise- und Visabestimmungen, Impfempfehlungen, Feiertage, "
+        "Wetter- und Klimadaten der Saison, Preisniveau, aktuelle Lage vor Ort. "
+        "Sag klar dazu, worauf sich deine Angabe stützt und wie aktuell sie ist; "
+        "bei Regeln, die sich häufig ändern (Einreise, Gesundheit), weise darauf "
+        "hin, dass sie kurz vor Reiseantritt gegenzuprüfen sind. Wenn du etwas "
+        "nicht verlässlich weißt, sag das offen, statt zu spekulieren. "
+        "Antworte strukturiert und knapp — Überschriften und Aufzählungen statt "
+        "langer Fließtexte. Es geht ausdrücklich NICHT um meine bereits "
+        "getrackten Angebote; empfiehl keine konkreten Hotelbuchungen, es sei "
+        "denn, ich frage danach."
+    )
+    if (preview := _prompt_preview_response(data, prompt)):
+        return preview
+    prompt = _resolve_prompt(data, prompt)
+    text, usage, err = A._ai_call(api_key, model, prompt, max_tokens=1800,
+                                  log_ctx="Allgemeine Reisefrage")
+    if err:
+        return err
+    usage['estimated_usd'] = _ai_call_cost(model, usage)
+    totals = _record_ai_usage(model, usage)
+    aid = _save_ai_analysis('ask_general', question, model, text, usage, prompt)
+    return jsonify({'summary': text, 'usage': usage, 'totals': totals, 'id': aid,
+                    'cached': False})
+
+
 @bp.route('/api/ai/ask', methods=['POST'])
 def api_ai_ask():
-    """Freitext-Frage über das aktuelle Portfolio (alle nicht-archivierten
-    Angebote): Preis, Ort, Sterne/Weiterempfehlung, Trend, Wunschpreis, Tags."""
+    """Freitext-Frage. Zwei Ausprägungen über `scope`:
+
+    * `portfolio` (Standard) — Frage über die aktuell getrackten Angebote: Preis,
+      Ort, Sterne/Weiterempfehlung, Trend, Wunschpreis, Tags werden mitgeschickt.
+    * `general` — allgemeine Reisefrage ohne Portfolio-Bezug (Region, Land,
+      Reisezeit, Einreise, Verkehrsmittel …). Bewusst OHNE die Angebotsliste: sie
+      wäre für solche Fragen nur Ballast, würde Tokens kosten und die Antwort
+      unnötig auf die eigenen Hotels lenken. Braucht deshalb auch keine Angebote —
+      die Frage lässt sich mit leerem Portfolio genauso stellen."""
     if (err := A._require_api()):
         return err
     api_key, model = _ai_config()
@@ -1153,6 +1202,8 @@ def api_ai_ask():
     question = (data.get('question') or '').strip()
     if not question:
         return jsonify({'error': 'invalid'}), 400
+    if (data.get('scope') or 'portfolio') == 'general':
+        return _ai_ask_general(question, data, api_key, model)
     offers = [o for o in A._collect_offers() if not o.get('archived')]
     if not offers:
         return jsonify({'error': 'no_offers'}), 400
@@ -1696,6 +1747,7 @@ _AI_RETRY_MARKDOWN_CONFIG = {
     'single': {'max_tokens': 4096, 'use_web_search': True},
     'calendar_outlook': {'max_tokens': 700, 'use_web_search': False},
     'ask': {'max_tokens': 1500, 'use_web_search': True},
+    'ask_general': {'max_tokens': 1800, 'use_web_search': True},
     'advisor': {'max_tokens': 3072, 'use_web_search': True},
     'compare': {'max_tokens': 6144, 'use_web_search': True},
 }

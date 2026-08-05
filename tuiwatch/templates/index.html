@@ -819,12 +819,16 @@
       <button class="icon-btn modal-close" onclick="closeAiAsk()">
         <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
       </button>
-      <h2>❓ Frag dein Portfolio</h2>
-      <div class="sub">Frage zu deinen aktuell getrackten Angeboten — Claude antwortet anhand von Preis, Bewertung, Trend, Wunschpreis &amp; Tags, und nutzt für alles darüber hinaus (z. B. Klima/Wetter zur Reisezeit) zusätzlich die Websuche.</div>
-      <textarea id="aiask-q" rows="3" style="width:100%;margin-top:10px;resize:vertical;background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:8px;font:inherit" placeholder="z. B. Welches Hotel ist gerade das beste Schnäppchen?"></textarea>
-      <div style="margin-top:14px;display:flex;gap:8px;justify-content:flex-end">
+      <h2>❓ Frage</h2>
+      <div class="sub" id="aiask-sub"></div>
+      <textarea id="aiask-q" rows="3" style="width:100%;margin-top:10px;resize:vertical;background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:8px;font:inherit"></textarea>
+      <div style="margin-top:14px;display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap">
+        <span class="hint" style="flex:1;min-width:180px" id="aiask-hint"></span>
         <button class="btn sec" onclick="closeAiAsk()">Abbrechen</button>
-        <button class="btn" onclick="submitAiAsk()">Fragen</button>
+        <button class="btn sec" id="aiask-btn-general" onclick="submitAiAsk('general')"
+                title="Allgemeine Reisefrage — ohne Bezug zu deinen Angeboten, mit Websuche">🌍 Reisefrage</button>
+        <button class="btn" id="aiask-btn-portfolio" onclick="submitAiAsk('portfolio')"
+                title="Frage zu deinen getrackten Angeboten">📌 Portfolio fragen</button>
       </div>
     </div>
   </div>

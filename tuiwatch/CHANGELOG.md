@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.64.0] - 2026-08-05
+
+### Added
+- **Zweiter Knopf im Frage-Fenster: „🌍 Reisefrage".** Bisher hing an ❓ Frage
+  immer der Portfolio-Prompt — für „wann ist die beste Reisezeit für Sri Lanka"
+  oder „was brauche ich zur Einreise nach Vietnam" war das der falsche Kontext,
+  und ohne getrackte Angebote ging die Frage gar nicht erst raus.
+  Das Fenster hat jetzt zwei Knöpfe, die dieselbe Frage mit unterschiedlichem
+  Kontext verschicken: **📌 Portfolio fragen** (wie bisher, mit Angebotsliste) und
+  **🌍 Reisefrage** (ohne Angebotsliste, dafür mit Websuche-Schwerpunkt). Die
+  Beschreibung im Fenster wechselt beim Überfahren des jeweiligen Knopfes.
+  - Die allgemeine Frage bekommt die Angebote bewusst **nicht** mit: sie wären
+    Ballast, würden Tokens kosten und die Antwort auf die eigenen Hotels lenken.
+    Sie funktioniert deshalb auch mit leerem Portfolio.
+  - Ein hinterlegter Heimatort (`trippilot_home_location`) fließt für Anreise-
+    und Entfernungsfragen ein.
+  - Der Prompt drängt auf Websuche und auf offenes Eingeständnis von Unsicherheit
+    — Einreiseregeln, Impfempfehlungen und Preise ändern sich, eine
+    selbstbewusst formulierte veraltete Auskunft wäre hier schädlicher als der
+    Hinweis, kurz vor Reiseantritt gegenzuprüfen.
+  - Technisch über `scope` an `POST /api/ai/ask` (unbekannte Werte fallen auf
+    `portfolio` zurück). Eigenes Verlaufs-Kind `ask_general`, im KI-Verlauf als
+    „🌍 Reisefrage" ausgewiesen und dort wie gewohnt wiederholbar; die
+    Portfolio-Frage heißt dort jetzt „📌 Portfolio-Frage".
+
 ## [0.63.0] - 2026-08-05
 
 ### Changed

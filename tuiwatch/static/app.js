@@ -3017,7 +3017,8 @@
       } catch(e){ toast('Speichern fehlgeschlagen'); }
     }
     function aiKindLabel(kind){
-      return kind==='compare' ? '🤖 Vergleich' : kind==='ask' ? '❓ Frage'
+      return kind==='compare' ? '🤖 Vergleich' : kind==='ask' ? '📌 Portfolio-Frage'
+        : kind==='ask_general' ? '🌍 Reisefrage'
         : kind==='advisor' ? '🗺️ TripPilot' : kind==='booking_score' ? '🔮 Buchungsscore'
         : kind==='region_outlook' ? '🔮 Region-Ausblick'
         : kind==='calendar_outlook' ? '📅 Kalender-Analyse' : '🤖 Fazit';
@@ -3101,30 +3102,65 @@
       attempt();
     }
 
-    // ── Frag dein Portfolio ────────────────────────────────────────────────────
-    function openAiAsk(){ $('#aiask-q').value=''; $('#aiask-bg').classList.add('show'); }
+    // ── Frage: ans eigene Portfolio oder allgemein zum Reisen ─────────────────
+    // Zwei Knöpfe statt eines Umschalters: die Frage selbst sieht in beiden Fällen
+    // gleich aus, erst die Wahl des Knopfes entscheidet, welcher Prompt rausgeht.
+    const AIASK_SCOPES = {
+      portfolio: {title:'📌 Frag dein Portfolio',
+                  busy:' durchsucht dein Portfolio…',
+                  sub:'Frage zu deinen aktuell getrackten Angeboten — beantwortet anhand von Preis, '
+                    + 'Bewertung, Trend, Wunschpreis & Tags, für alles darüber hinaus (z. B. Klima zur '
+                    + 'Reisezeit) zusätzlich mit Websuche.',
+                  ph:'z. B. Welches Hotel ist gerade das beste Schnäppchen?'},
+      general:   {title:'🌍 Allgemeine Reisefrage',
+                  busy:' recherchiert…',
+                  sub:'Frage zu Regionen, Ländern, Reisezeiten, Einreise, Anreise — ohne Bezug zu deinen '
+                    + 'Angeboten, dafür mit Websuche. Für alles, was (noch) nicht im Portfolio steckt.',
+                  ph:'z. B. Wann ist die beste Reisezeit für Sri Lanka und was muss ich zur Einreise wissen?'},
+    };
+    function aiaskShow(scope){
+      const c = AIASK_SCOPES[scope] || AIASK_SCOPES.portfolio;
+      $('#aiask-sub').textContent = c.sub;
+      $('#aiask-q').placeholder = c.ph;
+    }
+    function openAiAsk(){
+      $('#aiask-q').value='';
+      aiaskShow('portfolio');
+      $('#aiask-hint').textContent = 'Beide Knöpfe schicken dieselbe Frage — mit unterschiedlichem Kontext.';
+      $('#aiask-bg').classList.add('show');
+      $('#aiask-q').focus();
+    }
     function closeAiAsk(){ $('#aiask-bg').classList.remove('show'); }
     $('#aiask-bg').addEventListener('click', e=>{ if(e.target.id==='aiask-bg') closeAiAsk(); });
-    async function submitAiAsk(){
+    // Beim Tippen die Beschreibung nicht ändern — nur beim Überfahren der Knöpfe
+    // zeigen, worauf der jeweilige zielt.
+    $('#aiask-btn-general').addEventListener('mouseenter', ()=> aiaskShow('general'));
+    $('#aiask-btn-portfolio').addEventListener('mouseenter', ()=> aiaskShow('portfolio'));
+    async function submitAiAsk(scope){
+      scope = AIASK_SCOPES[scope] ? scope : 'portfolio';
+      const c = AIASK_SCOPES[scope];
       const q = $('#aiask-q').value.trim();
       if(!q){ toast('Bitte eine Frage eingeben'); return; }
       closeAiAsk();
-      $('#ai-title').textContent = '❓ Frag dein Portfolio';
+      $('#ai-title').textContent = c.title;
       $('#ai-sub').textContent = q;
       $('#ai-foot').style.display = 'none';
       $('#ai-bg').classList.add('show');
       const attempt = async () => {
         await ensureAiProviderLoaded();
-        $('#ai-body').innerHTML = progBar(aiProviderName()+' durchsucht dein Portfolio…');
+        const busy = aiProviderName()+c.busy;
+        $('#ai-body').innerHTML = progBar(busy);
         let resp, d;
         try {
-          const r = await aiFetchPreviewable(api('/api/ai/ask'), {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({question:q})}, aiProviderName()+' durchsucht dein Portfolio…');
+          const r = await aiFetchPreviewable(api('/api/ai/ask'), {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({question:q, scope})}, busy);
           if(r.cancelled) return;
           resp = r.resp; d = r.d;
         } catch(e){ _aiRetryFn = attempt; $('#ai-body').innerHTML = aiErrorBlock('Frage fehlgeschlagen.', true); return; }
         if(!resp.ok){
           const retryable = aiRetryable(d.error);
-          const msg = d.error==='no_offers' ? 'Keine aktiven Angebote vorhanden.' : aiErrorMsg(d.error);
+          const msg = d.error==='no_offers'
+            ? 'Keine aktiven Angebote vorhanden — für eine allgemeine Reisefrage nimm „🌍 Reisefrage".'
+            : aiErrorMsg(d.error);
           _aiRetryFn = retryable ? attempt : null;
           $('#ai-body').innerHTML = aiErrorBlock(msg, retryable);
           return;
