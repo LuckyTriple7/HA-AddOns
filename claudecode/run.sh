@@ -190,7 +190,7 @@ fi
 # Auto-update Claude Code on startup if enabled
 if [ "$AUTO_UPDATE" = "true" ]; then
     CURRENT_VER=$(claude --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
-    LATEST_VER=$(npm show @anthropic-ai/claude-code version 2>/dev/null)
+    LATEST_VER=$(npm show @anthropic-ai/claude-code dist-tags.stable 2>/dev/null)
     if [ -n "$LATEST_VER" ] && [ -n "$CURRENT_VER" ] && [ "$CURRENT_VER" != "$LATEST_VER" ]; then
         echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Updating Claude Code from $CURRENT_VER to $LATEST_VER..."
         # Install into the writable persisted prefix — avoids read-only Docker layer restriction
@@ -334,7 +334,7 @@ if [ "$AUTO_UPDATE" = "true" ]; then
         sleep 3600
         echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Checking for Claude Code updates..."
         IV=$(claude --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
-        LV=$(npm show @anthropic-ai/claude-code version 2>/dev/null)
+        LV=$(npm show @anthropic-ai/claude-code dist-tags.stable 2>/dev/null)
         if [ -n "$LV" ] && [ -n "$IV" ] && [ "$IV" != "$LV" ]; then
             echo "$LV" > "$PERSIST_DIR/.update_notice"
             echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Update available: $LV (installed: $IV)"

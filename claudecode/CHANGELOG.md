@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.4] - 2026-08-05
+
+### Changed
+- Claude Code wird jetzt über den npm-Tag `stable` statt `latest`/`next` installiert und aktualisiert (Build, `auto_update_claude`, `claude update`, `claude-update`) — deutlich seltenere Updates, da `stable` erst nach zusätzlicher Prüfung durch Anthropic gesetzt wird. Installierte Version kann dadurch niedriger sein als vorher (aktuell 2.1.220 statt 2.1.222).
+- Update-Check-Workflow (`check-claude-update.yml`) folgt ebenfalls `dist-tags.stable` statt `version` (= `latest`)
+
+
 ## [1.3.3] - 2026-08-05
 
 ### Security

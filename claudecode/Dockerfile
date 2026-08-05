@@ -57,11 +57,12 @@ RUN case "${TARGETARCH}" in \
 # (container runs as root so sudo is unnecessary, but HA's security profile blocks the real binary)
 RUN printf '#!/bin/sh\nexec "$@"\n' > /usr/local/bin/sudo && chmod +x /usr/local/bin/sudo
 
-# Install Claude Code via npm
+# Install Claude Code via npm — tracks the "stable" dist-tag, not "latest"/"next",
+# to avoid rebuilding on every bleeding-edge release
 # BUILD_VERSION is passed automatically by HA and busts the Docker cache on every version bump
 ARG BUILD_VERSION=dev
-RUN echo "Building add-on ${BUILD_VERSION} - installing latest Claude Code..." && \
-    npm install -g @anthropic-ai/claude-code@latest --no-fund --no-audit 2>&1 && \
+RUN echo "Building add-on ${BUILD_VERSION} - installing stable Claude Code..." && \
+    npm install -g @anthropic-ai/claude-code@stable --no-fund --no-audit 2>&1 && \
     echo "[INFO] Installed $(claude --version 2>/dev/null)"
 
 # Install hass-mcp for Home Assistant integration and pymodbus for Modbus operations
@@ -136,7 +137,7 @@ claude() {
     stty cols 220 2>/dev/null
     if [ "$1" = "update" ]; then
         echo "Updating Claude Code via npm..."
-        npm install -g @anthropic-ai/claude-code@latest --prefix /homeassistant/.claudecode/npm-global --no-fund --no-audit 2>&1
+        npm install -g @anthropic-ai/claude-code@stable --prefix /homeassistant/.claudecode/npm-global --no-fund --no-audit 2>&1
         hash -r 2>/dev/null
         echo "Done: $(command claude --version 2>/dev/null)"
         return
@@ -150,7 +151,7 @@ alias c='claude'
 alias cc='claude --continue'
 alias ha-config='cd /homeassistant'
 alias ha-logs='cat /homeassistant/home-assistant.log 2>/dev/null || echo "Log not found"'
-alias claude-update='echo "Updating Claude Code..." && npm install -g @anthropic-ai/claude-code@latest --prefix /homeassistant/.claudecode/npm-global --no-fund --no-audit 2>&1; hash -r 2>/dev/null; echo "Done: $(command claude --version 2>/dev/null)"'
+alias claude-update='echo "Updating Claude Code..." && npm install -g @anthropic-ai/claude-code@stable --prefix /homeassistant/.claudecode/npm-global --no-fund --no-audit 2>&1; hash -r 2>/dev/null; echo "Done: $(command claude --version 2>/dev/null)"'
 EOF
 
 # Create update notification script and wire into .bashrc

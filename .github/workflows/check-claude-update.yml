@@ -20,10 +20,10 @@ jobs:
         with:
           ref: dev
 
-      - name: Get latest Claude Code npm version
+      - name: Get stable Claude Code npm version
         id: claude
         run: |
-          VERSION=$(npm show @anthropic-ai/claude-code version)
+          VERSION=$(npm show @anthropic-ai/claude-code dist-tags.stable)
           if [ -z "$VERSION" ]; then
             echo "::error::Konnte Claude Code Version nicht ermitteln (npm show leer)."
             exit 1
