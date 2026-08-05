@@ -78,3 +78,51 @@ def test_stats_low_days_lookback(m):
 
 def test_stats_requires_auth(m):
     assert m.app.test_client().get("/api/stats").status_code == 401
+
+
+def _add_calendar(m, oid, travel_date, rows):
+    """rows = [(days_out, price)] → calendar_history-Einträge für ein Reisedatum."""
+    from datetime import date as _date
+    with m.db() as con:
+        for days_out, price in rows:
+            ts = int(datetime.combine(
+                _date.fromisoformat(travel_date) - timedelta(days=days_out),
+                datetime.min.time()).timestamp()) + 43200
+            con.execute("INSERT INTO calendar_history (offer_id, travel_date, ts, price) "
+                        "VALUES (?,?,?,?)", (oid, travel_date, ts, price))
+
+
+def test_forecast_from_lead_curve(m):
+    """Vorlaufzeit-Kurve: 3 Reisetermine zeigen 60→46 Tage vor Abreise +10 % —
+    Prognose überträgt das auf den eigenen Termin (Abreise in 60 Tagen)."""
+    ret = (datetime.now() + timedelta(days=67)).strftime("%Y-%m-%d")
+    oid = _mk_offer(m, "https://www.tui.com/f", [(int(time.time()) - 3600, 1000)],
+                    hotel="Gamma", return_date=ret,
+                    details="7 Nächte ab 01.01.2027 · 2 Erwachsene")
+    for i in range(3):   # drei Termine, je 2 Messungen (60 und 46 Tage vorher)
+        tdate = (datetime.now() + timedelta(days=80 + i * 7)).strftime("%Y-%m-%d")
+        _add_calendar(m, oid, tdate, [(60, 1000), (46, 1100)])
+
+    d = m.app.test_client().get(f"/api/forecast/{oid}", headers=ING).get_json()
+    assert d["ok"] is True
+    assert d["days_to_departure"] == 60
+    assert d["price"] == 1000
+    pts = {p["days"]: p for p in d["points"]}
+    # nur Horizont 14 hat beide Kurven-Buckets (60→Bucket 8, 46→Bucket 6);
+    # 7/30 Tage haben keine Daten und werden ohne Markttrend ehrlich weggelassen
+    assert list(pts) == [14]
+    assert pts[14]["price"] == 1100
+    assert d["basis"]["calendar_dates"] == 3
+
+
+def test_forecast_needs_departure_and_data(m):
+    # ohne Abreisedatum → ehrliche Absage
+    oid = _mk_offer(m, "https://www.tui.com/g", [(int(time.time()), 900)])
+    d = m.app.test_client().get(f"/api/forecast/{oid}", headers=ING).get_json()
+    assert d["ok"] is False and "Abreisedatum" in d["note"]
+    # mit Abreise, aber ohne Kalenderhistorie/Markttrend → ehrliche Absage
+    ret = (datetime.now() + timedelta(days=37)).strftime("%Y-%m-%d")
+    oid2 = _mk_offer(m, "https://www.tui.com/h", [(int(time.time()), 900)],
+                     return_date=ret, details="7 Nächte ab 01.01.2027 · 2 Erwachsene")
+    d = m.app.test_client().get(f"/api/forecast/{oid2}", headers=ING).get_json()
+    assert d["ok"] is False

@@ -814,6 +814,18 @@ ein kritischer Endpunkt antwortet nicht. Ein Klick öffnet die Detailliste mit �
 prüfen". So lässt sich schnell unterscheiden, ob ein fehlender Preis am Angebot liegt
 oder TUI eine API geändert hat.
 
+## Preisprognose (🔮)
+
+Im **Verlauf-Fenster** aktiver Angebote setzt eine gestrichelte Kurve den
+Preisverlauf **7/14/30 Tage in die Zukunft** fort — heuristisch, ohne KI-Kosten.
+Grundlage: die **Kalender-Historie** desselben Angebots (wie haben sich die Preise
+vieler Reisetermine mit schrumpfender Vorlaufzeit entwickelt?) plus der regionale
+**Markttrend** der letzten 14 Tage als Drift. Unter dem Diagramm steht die Prognose
+als Zahl samt Datenbasis — ausdrücklich eine **Annahme aus Erfahrungswerten, keine
+Garantie**. Reichen die Daten nicht (keine Kalenderhistorie, kein Markttrend),
+erscheint keine Prognose. Tipp: den Preiskalender eines Angebots einmal öffnen bzw.
+`calendar_daily_refresh` anlassen — je mehr Kalenderhistorie, desto besser die Kurve.
+
 ## Tracking-Statistik (📊)
 
 **📊 Statistik** im Footer öffnet Kennzahlen über alle Angebote und den ganzen

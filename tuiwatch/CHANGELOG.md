@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.74.0] - 2026-08-05
+
+### Added
+- **🔮 Preisprognose im Verlauf-Fenster** (heuristisch, ohne KI-Kosten): eine
+  gestrichelte Kurve setzt den Preisverlauf 7/14/30 Tage in die Zukunft fort.
+  Grundlage ist die **Kalender-Historie desselben Angebots** — sie enthält für
+  viele Reisetermine, wie sich deren Preis mit schrumpfender Vorlaufzeit
+  entwickelt hat (Median-Kurve je 7-Tage-Bucket „Tage vor Abreise") — plus der
+  **regionale Markttrend** der letzten 14 Tage als Drift. Unter dem Diagramm
+  steht die Prognose als Zahl mit Basisangabe und ausdrücklich als **Annahme**
+  markiert. Fehlen Kalenderhistorie **und** Markttrend, sagt TUIWatch ehrlich
+  „zu wenig Daten" statt zu raten; einzelne Horizonte ohne Datenbasis werden
+  weggelassen. Neuer Endpoint `GET /api/forecast/<offer_id>`.
+
 ## [0.73.0] - 2026-08-05
 
 ### Added

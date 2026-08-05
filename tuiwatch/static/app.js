@@ -447,7 +447,10 @@
       const green = cssvar('--green'), amber = cssvar('--amber');
       if(pts.length===0){ ctx.fillStyle=muted; ctx.font='12px sans-serif'; ctx.fillText('Noch keine Messpunkte',8,h/2); return; }
       const padL = full?52:6, padR=6, padT=full?14:8, padB=full?22:8;
-      const xs = pts.map(p=>p.ts), ys = pts.map(p=>p.price);
+      // Prognosepunkte (gestrichelt) erweitern den Wertebereich mit
+      const fc = (full && opts.forecast && opts.forecast.length) ? opts.forecast : [];
+      const xs = pts.map(p=>p.ts).concat(fc.map(f=>f.ts));
+      const ys = pts.map(p=>p.price).concat(fc.map(f=>f.price));
       // Wertebereich auf den echten Preisverlauf zoomen (+ Wunsch-/Buchungspreis als
       // Referenz). Der Vergleichspreis fließt NICHT ein, damit kleine Änderungen sichtbar
       // bleiben — er steht weiterhin in der Verlaufstabelle.
@@ -468,9 +471,24 @@
       ctx.strokeStyle=accent; ctx.lineWidth=2; ctx.beginPath();
       pts.forEach((p,i)=>{ const x=X(p.ts),y=Y(p.price); i?ctx.lineTo(x,y):ctx.moveTo(x,y); });
       ctx.stroke();
-      // Fläche
-      ctx.lineTo(X(maxX),h-padB); ctx.lineTo(X(minX),h-padB); ctx.closePath();
+      // Fläche — nur unter dem echten Verlauf, nicht unter der Prognose
+      const realMaxX = pts.length ? pts[pts.length-1].ts : maxX;
+      ctx.lineTo(X(realMaxX),h-padB); ctx.lineTo(X(minX),h-padB); ctx.closePath();
       ctx.fillStyle = accent+'22'; ctx.fill();
+      // Prognose (heuristisch): gestrichelte Fortsetzung ab dem letzten Messpunkt
+      if(fc.length && pts.length){
+        const lastP = pts[pts.length-1];
+        ctx.save(); ctx.strokeStyle=amber; ctx.setLineDash([6,5]); ctx.lineWidth=1.6;
+        ctx.beginPath(); ctx.moveTo(X(lastP.ts), Y(lastP.price));
+        fc.forEach(f=>ctx.lineTo(X(f.ts), Y(f.price)));
+        ctx.stroke(); ctx.restore();
+        ctx.fillStyle=amber;
+        fc.forEach(f=>{ ctx.beginPath(); ctx.arc(X(f.ts),Y(f.price),3,0,7); ctx.fill(); });
+        const fl = fc[fc.length-1];
+        ctx.font='10px sans-serif';
+        ctx.fillText('🔮 '+Math.round(fl.price).toLocaleString('de-DE')+' €',
+                     Math.min(X(fl.ts)+4, w-64), Y(fl.price)-5);
+      }
       // Wunschpreis-Linie
       if(opts.target){
         const ty=Y(opts.target);
@@ -517,7 +535,29 @@
       const hd = await r.json();
       const hist = hd.history;
       const pts = hist.filter(h=>h.ok && h.price!=null);
-      drawChart($('#hist-canvas'), pts, true, {target: o.target_price, booked: o.booked_price, events: hd.events||[]});
+      // Heuristische Prognose (Kalender-Vorlaufzeitkurve + Markttrend) dazuholen —
+      // scheitert leise, der Verlauf funktioniert auch ohne
+      let fc = null;
+      if(!o.archived){
+        try { fc = await fetch(api('/api/forecast/'+id)).then(x=>x.json()); } catch(e){}
+      }
+      const fpts = (fc && fc.ok) ? fc.points : [];
+      drawChart($('#hist-canvas'), pts, true, {target: o.target_price, booked: o.booked_price, events: hd.events||[], forecast: fpts});
+      const fbox = $('#hist-forecast');
+      if(fbox){
+        if(fc && fc.ok && fpts.length){
+          const p = fpts.find(x=>x.days===14) || fpts[fpts.length-1];
+          const d = p.price - fc.price;
+          const basis = [];
+          if(fc.basis.calendar_dates) basis.push('Kalenderhistorie ('+fc.basis.calendar_dates+' Reisetermine)');
+          if(fc.basis.market_pct!=null) basis.push('Markttrend '+(fc.basis.market_pct>0?'+':'')+fc.basis.market_pct.toLocaleString('de-DE')+' %/14 T');
+          fbox.innerHTML = `🔮 Prognose: in ${p.days} Tagen ≈ <b>${eur(p.price)}</b> `
+            + `(<span class="hist-diff ${d<0?'down':'up'}">${d>0?'+':''}${eur(d)}</span>)`
+            + ` · Abreise in ${fc.days_to_departure} Tagen · Basis: ${basis.join(' + ')}`
+            + ` · <span title="Heuristik aus der bisherigen Preisentwicklung dieses Ziels — eine Annahme, keine Garantie">Annahme ⓘ</span>`;
+          fbox.style.display = 'block';
+        } else fbox.style.display = 'none';
+      }
       const rows = hist.map((h,i)=>{
         const d = new Date(h.ts*1000).toLocaleString('de-DE');
         if(!h.ok) return {keep:true, html:`<tr><td>${d}</td><td colspan="3" style="color:var(--amber)">⚠ ${esc(h.note||'fehlgeschlagen')}</td></tr>`};

@@ -112,3 +112,107 @@ def api_stats():
     if (err := A._require_api()):
         return err
     return jsonify(_collect_stats())
+
+
+# ── Preisprognose (heuristisch, ohne KI) ───────────────────────────────────────
+#
+# Idee: die Kalender-Historie desselben Angebots enthält für viele Reisetermine,
+# wie sich deren Preis mit schrumpfender Vorlaufzeit entwickelt hat. Daraus wird
+# eine Vorlaufzeit-Kurve gebaut (Median des normierten Preises je 7-Tage-Bucket
+# "Tage vor Abreise") und auf den eigenen Termin angewendet; der regionale
+# Markttrend (letzte 14 Tage) fließt als Drift mit ein. Ausdrücklich eine
+# ANNAHME auf Erfahrungsbasis, keine Garantie — das sagt auch das UI dazu.
+
+_FORECAST_HORIZONS = (7, 14, 30)
+_MIN_BUCKET_SAMPLES = 3
+
+
+def _lead_curve(cal_rows) -> tuple[dict, int]:
+    """Vorlaufzeit-Kurve aus calendar_history-Zeilen (travel_date, ts, price):
+    {bucket(=Tage-vor-Abreise // 7): Median des auf den Termin-Median normierten
+    Preises}. Zweiter Rückgabewert: Anzahl verwendeter Reisetermine."""
+    by_date: dict[str, list] = {}
+    for r in cal_rows:
+        by_date.setdefault(r['travel_date'], []).append(r)
+    buckets: dict[int, list] = {}
+    used = 0
+    for tdate, rows in by_date.items():
+        if len(rows) < 2:
+            continue
+        try:
+            t = date.fromisoformat(tdate[:10])
+        except ValueError:
+            continue
+        prices = sorted(r['price'] for r in rows)
+        base = prices[len(prices) // 2]
+        if not base:
+            continue
+        used += 1
+        for r in rows:
+            days_out = (t - datetime.fromtimestamp(r['ts']).date()).days
+            if days_out < 0:
+                continue
+            buckets.setdefault(days_out // 7, []).append(r['price'] / base)
+    curve = {}
+    for b, vals in buckets.items():
+        if len(vals) >= _MIN_BUCKET_SAMPLES:
+            vals.sort()
+            curve[b] = vals[len(vals) // 2]
+    return curve, used
+
+
+def _forecast(offer_id: int) -> dict:
+    with A.db() as con:
+        o = con.execute('SELECT * FROM offers WHERE id=?', (offer_id,)).fetchone()
+        if not o:
+            return {'ok': False, 'note': 'unbekanntes Angebot'}
+        o = dict(o)
+        last = con.execute(
+            'SELECT ts, price FROM price_history WHERE offer_id=? AND ok=1 '
+            'AND price IS NOT NULL ORDER BY ts DESC LIMIT 1', (offer_id,)).fetchone()
+        cal = con.execute(
+            'SELECT travel_date, ts, price FROM calendar_history WHERE offer_id=?',
+            (offer_id,)).fetchall()
+        market = A._market_trend(con, region=o.get('region') or None)
+    if not last:
+        return {'ok': False, 'note': 'noch kein Preis'}
+    nights = A._offer_nights(o.get('details') or '') or 0
+    try:
+        start = date.fromisoformat((o.get('return_date') or '')[:10]) - timedelta(days=nights)
+    except ValueError:
+        return {'ok': False, 'note': 'Abreisedatum unbekannt'}
+    d0 = (start - date.today()).days
+    if d0 <= 0:
+        return {'ok': False, 'note': 'Reise hat begonnen oder liegt zurück'}
+
+    curve, n_dates = _lead_curve(cal)
+    f0 = curve.get(d0 // 7)
+    drift_daily = (market['pct'] / 100 / 14) if market else 0.0
+    price = float(last['price'])
+    now = int(datetime.now().timestamp())
+    points = []
+    for h in _FORECAST_HORIZONS:
+        if d0 - h < 0:
+            continue
+        f1 = curve.get((d0 - h) // 7)
+        season = (f1 / f0) if (f0 and f1) else None
+        if season is None and not market:
+            continue                      # weder Saisonkurve noch Markttrend → raten wäre Lüge
+        est = price * (season if season is not None else 1.0) * (1 + drift_daily * h)
+        points.append({'days': h, 'ts': now + h * 86400, 'price': round(est),
+                       'season': (round(season, 3) if season is not None else None)})
+    if not points:
+        return {'ok': False,
+                'note': 'zu wenig Kalenderhistorie und kein Markttrend — Prognose braucht Daten'}
+    return {'ok': True, 'price': round(price), 'days_to_departure': d0,
+            'points': points, 'basis': {'calendar_dates': n_dates,
+                                        'market_pct': market['pct'] if market else None,
+                                        'market_n': market['n'] if market else 0}}
+
+
+@bp.route('/api/forecast/<int:offer_id>', methods=['GET'])
+def api_forecast(offer_id: int):
+    """Heuristische Preisprognose fürs Verlauf-Fenster (gestrichelte Kurve)."""
+    if (err := A._require_api()):
+        return err
+    return jsonify(_forecast(offer_id))
