@@ -1,6 +1,14 @@
 # Changelog
 
-## [0.67.1] - 2026-08-05
+## [0.67.2] - 2026-08-05
+
+### Added
+- **Hotelfotos sind mit den Pfeiltasten ← / → blätterbar.** Bisher öffnete ein Klick
+  auf ein Foto der GIATA-Galerie nur ein einzelnes Vollbild — für das nächste Foto
+  musste man zurück ins Raster. Die Lightbox kennt jetzt die ganze Fotoliste: ← / →
+  oder die beiden Pfeilflächen blättern umlaufend durch, eine Zählanzeige
+  („3 / 24") zeigt die Position, und das jeweils nächste und vorherige Bild wird
+  vorgeladen. Bei nur einem Foto bleiben Pfeile und Zähler ausgeblendet.
 
 ### Fixed
 - **Abo-Glocke im Dropdown der gespeicherten Suchen steht jetzt hinter dem Namen.**

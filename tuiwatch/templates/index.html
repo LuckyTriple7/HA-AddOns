@@ -166,6 +166,13 @@
     /* Modal */
     .modal-bg { position:fixed; inset:0; background:rgba(0,0,0,.6); display:none; align-items:center; justify-content:center; padding:16px; z-index:50; overscroll-behavior:contain; }
     .modal-bg.show { display:flex; }
+    /* Lightbox-Blätterelemente: absolut über dem Hintergrund, damit das Foto im
+       zentrierten Flex-Container mittig bleibt und nicht von den Pfeilen verschoben wird. */
+    /* Aufgehellt statt abgedunkelt: der Lightbox-Hintergrund ist selbst schon dunkel,
+       dunkle Flächen darauf wären als Schaltfläche nicht zu erkennen. */
+    .gl-nav { position:absolute; top:50%; transform:translateY(-50%); width:46px; height:70px; border:1px solid rgba(255,255,255,.25); border-radius:8px; background:rgba(255,255,255,.14); color:#fff; font-size:2.1rem; line-height:1; cursor:pointer; display:flex; align-items:center; justify-content:center; }
+    .gl-nav:hover { background:rgba(255,255,255,.3); }
+    .gl-count { position:absolute; bottom:16px; left:50%; transform:translateX(-50%); background:rgba(255,255,255,.14); border:1px solid rgba(255,255,255,.25); color:#fff; font-size:.76rem; padding:3px 10px; border-radius:20px; pointer-events:none; }
     .modal { background:var(--surf); border:1px solid var(--border); border-radius:10px; width:100%; max-width:680px; max-height:88vh; overflow:auto; overscroll-behavior:contain; padding:18px; }
     .modal h2 { font-size:1.05rem; margin-bottom:4px; }
     .modal .sub { font-size:.8rem; color:var(--muted); margin-bottom:14px; }
@@ -843,9 +850,16 @@
     </div>
   </div>
 
+  <!-- Vollbild eines Galerie-Fotos. Blättern mit ← / → oder den Pfeilflächen; ein
+       Klick auf den Hintergrund schließt, daher stoppen die Pfeile die Weitergabe. -->
   <div class="modal-bg" id="giata-lightbox-bg" onclick="closeGiataLightbox()">
+    <button class="gl-nav" id="giata-lightbox-prev" style="left:10px" aria-label="Vorheriges Foto"
+            title="Vorheriges Foto (←)" onclick="event.stopPropagation();giataStep(-1)">&lsaquo;</button>
     <img id="giata-lightbox-img" src="" alt=""
          style="max-width:100%;max-height:100%;border-radius:8px;object-fit:contain">
+    <button class="gl-nav" id="giata-lightbox-next" style="right:10px" aria-label="Nächstes Foto"
+            title="Nächstes Foto (→)" onclick="event.stopPropagation();giataStep(1)">&rsaquo;</button>
+    <div class="gl-count" id="giata-lightbox-count"></div>
   </div>
 
   <div class="modal-bg" id="aihist-bg">

@@ -1229,6 +1229,10 @@
     // Preiskalender: mit Pfeiltasten ← / → durch die Monate blättern (nicht nur per Maus).
     document.addEventListener('keydown', e=>{
       if(!$('#cal-bg').classList.contains('show')) return;
+      // Die Foto-Lightbox blättert mit denselben Tasten und liegt darüber: sonst
+      // würden beide Handler auf einen Tastendruck reagieren (preventDefault stoppt
+      // keine weiteren Listener).
+      if($('#giata-lightbox-bg').classList.contains('show')) return;
       if(e.key!=='ArrowLeft' && e.key!=='ArrowRight') return;
       if(!calData || !calData.days) return;
       const months=[...new Set(calData.days.map(d=>d.date.slice(0,7)))].sort();
@@ -3343,11 +3347,13 @@
         const r = await fetch(api('/api/giata_images/'+encodeURIComponent(giata)));
         if(!r.ok) throw 0; d = await r.json();
       } catch(e){ body.innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Konnte nicht geladen werden.</div>'; return; }
-      const images = d.images||[];
-      body.innerHTML = images.length ? (
+      giataImages = d.images||[];
+      body.innerHTML = giataImages.length ? (
         '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-top:10px">'
-        + images.map(im=>(
-            '<a href="#" onclick="event.preventDefault();openGiataLightbox(\''+esc(im.full)+'\')">'
+        // Index statt URL: die Lightbox blättert durch giataImages, dafür muss sie
+        // wissen, an welcher Stelle der Liste sie startet.
+        + giataImages.map((im,i)=>(
+            '<a href="#" onclick="event.preventDefault();openGiataLightbox('+i+')">'
             +'<img src="'+esc(im.thumb)+'" loading="lazy" style="width:100%;height:110px;object-fit:cover;border-radius:6px;border:1px solid var(--border)">'
             +'</a>'
           )).join('')
@@ -3355,10 +3361,42 @@
       ) : '<div class="empty">Keine Fotos gefunden.</div>';
     }
     function closeGiataGallery(){ $('#giata-gallery-bg').classList.remove('show'); }
-    function openGiataLightbox(full){
-      $('#giata-lightbox-img').src = full;
+
+    let giataImages = [], giataIdx = 0;   // Fotoliste der offenen Galerie + Position der Lightbox
+    function openGiataLightbox(idx){
+      giataIdx = idx|0;
+      giataShow();
       $('#giata-lightbox-bg').classList.add('show');
     }
+    function giataShow(){
+      const im = giataImages[giataIdx];
+      if(!im) return;
+      $('#giata-lightbox-img').src = im.full;
+      $('#giata-lightbox-count').textContent = (giataIdx+1)+' / '+giataImages.length;
+      // Nachbarbilder vorladen: die Vollbilder kommen von GIATA und brauchen sonst
+      // beim Blättern sichtbar lange, das Bild bliebe kurz leer.
+      [giataIdx-1, giataIdx+1].forEach(i=>{
+        const n = giataImages[i];
+        if(n) new Image().src = n.full;
+      });
+      const single = giataImages.length < 2;
+      $('#giata-lightbox-prev').style.display = single ? 'none' : '';
+      $('#giata-lightbox-next').style.display = single ? 'none' : '';
+      $('#giata-lightbox-count').style.display = single ? 'none' : '';
+    }
+    // Umlaufend: am letzten Foto führt → zurück zum ersten. Bei einer Galerie ohne
+    // Ordnung ist eine Sackgasse am Rand nur lästig.
+    function giataStep(d){
+      if(giataImages.length < 2) return;
+      giataIdx = (giataIdx + d + giataImages.length) % giataImages.length;
+      giataShow();
+    }
+    document.addEventListener('keydown', e=>{
+      if(!$('#giata-lightbox-bg').classList.contains('show')) return;
+      if(e.key!=='ArrowLeft' && e.key!=='ArrowRight') return;
+      giataStep(e.key==='ArrowLeft' ? -1 : 1);
+      e.preventDefault();
+    });
     function closeGiataLightbox(){
       $('#giata-lightbox-bg').classList.remove('show');
       $('#giata-lightbox-img').src = '';
