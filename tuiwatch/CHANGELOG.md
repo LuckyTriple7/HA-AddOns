@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.75.2] - 2026-08-05
+
+### Fixed
+- **Unterstrich bei Link-Buttons entfernt** — „📄 PDF öffnen" und
+  „📅 Kalender" in „Meine Reisen" sind Links (`<a class="btn">`) und wurden
+  vom Browser unterstrichen. Jetzt sehen sie aus wie alle anderen Buttons.
+
 ## [0.75.1] - 2026-08-05
 
 ### Changed
