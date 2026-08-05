@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.8.10.1] - 2026-08-05
+
+chore(deps): bump cryptography from 48.0.1 to 50.0.0 in /mypage
+
+
 ## 0.8.10
 - ⚙️ **Produktions-Webserver (Waitress) statt Flask-Entwicklungsserver.** Beide Ports liefen bisher über den in Flask eingebauten Werkzeug-Server, der ausdrücklich nicht für den Produktivbetrieb gedacht ist: er legt **pro Verbindung einen Thread** an — ohne Obergrenze — und kennt weder Verbindungslimit noch Timeout für hängende Verbindungen. Gemessen im Vergleich: bei 300 gleichzeitigen Zugriffen brauchte Werkzeug **301 Threads**, Waitress konstant **21** (fester Thread-Pool mit Warteschlange davor, 8 Threads öffentlich / 4 im Admin). Der Ressourcenverbrauch ist damit gedeckelt statt offen.
 - Tempo und Verhalten bleiben im Alltag gleich (Durchsatz ~40–60 Seiten/s, begrenzt durch Python selbst, nicht durch den Server); unter hoher Last antwortet Waitress etwas zügiger (bei 200 gleichzeitig: 53,5 statt 40,1 Anfragen/s). Keine Anfrage schlug in den Tests fehl.
