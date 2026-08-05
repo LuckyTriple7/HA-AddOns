@@ -142,6 +142,27 @@ def test_list_and_delete(client, ai):
     assert client.get("/api/guide/128").get_json()["found"] is False
 
 
+def test_cost_lands_in_the_global_usage_totals(client, ai):
+    """Der Reiseführer muss in der Kostenanzeige in der Fußzeile auftauchen —
+    er ist der teuerste Einzelaufruf, gerade der darf nicht danebenlaufen."""
+    before = client.get("/api/ai/usage").get_json()
+    d = client.post("/api/ai/guide", json={"giata": 128, "label": "Gran Canaria"}).get_json()
+    after = client.get("/api/ai/usage").get_json()
+    assert d["usage"]["estimated_usd"] is not None
+    assert d["totals"]["calls"] == before["calls"] + 1
+    assert after["calls"] == before["calls"] + 1
+    assert after["input_tokens"] == before["input_tokens"] + 10
+    assert after["output_tokens"] == before["output_tokens"] + 20
+    assert after["today"]["calls"] == before["today"]["calls"] + 1
+
+
+def test_cached_guide_costs_nothing_in_the_totals(client, ai):
+    client.post("/api/ai/guide", json={"giata": 128, "label": "Gran Canaria"})
+    before = client.get("/api/ai/usage").get_json()
+    client.post("/api/ai/guide", json={"giata": 128, "label": "Gran Canaria"})
+    assert client.get("/api/ai/usage").get_json()["calls"] == before["calls"]
+
+
 def test_post_without_label_and_without_stored_guide(client, ai):
     assert client.post("/api/ai/guide", json={"giata": 1}).get_json()["error"] == "no_dest"
     assert not ai

@@ -356,6 +356,9 @@
     .clim-best { color:var(--green); font-weight:600; }
     /* Reiseführer: dreizehn Abschnitte mit Label/Wert-Paaren. Sprungmarken oben,
        weil die Liste sonst nur noch gescrollt werden kann. */
+    /* Grün umrandet = zu diesem Ziel liegt schon ein Reiseführer bereit, das
+       Öffnen kostet keinen KI-Aufruf. */
+    .btn.sec.has-guide { border-color:var(--green); color:var(--green); }
     .gd-toc { display:flex; flex-wrap:wrap; gap:5px; margin:2px 0 4px; }
     .gd-toc button { background:var(--surf2); border:1px solid var(--border); color:var(--muted); border-radius:14px; padding:2px 9px; font-size:.74rem; cursor:pointer; }
     .gd-toc button:hover { color:var(--text); border-color:var(--accent); }

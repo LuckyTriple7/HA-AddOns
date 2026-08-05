@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.68.1] - 2026-08-05
+
+### Added
+- **Grüner Rahmen am „Reiseführer"-Knopf**, wenn zu diesem Ziel schon einer
+  gespeichert ist — sonst sieht man einem Angebot nicht an, ob der Klick nur
+  nachschlägt oder einen KI-Aufruf auslöst. Abgeglichen wird über den Ziel-Namen:
+  die Angebotsliste kennt nur die Hotel-giataId, und die Region je Angebot einzeln
+  aufzulösen wäre ein Fremdaufruf pro Zeile.
+- **Tokens und Kosten stehen jetzt auch unter Reiseführer und Klimatabelle** —
+  dieselbe Zeile wie bei jedem anderen KI-Ergebnis (Input-/Output-Tokens,
+  Websuchen, geschätzte Kosten, Gesamtsumme). Nur beim frisch erzeugten Ergebnis:
+  kommt es aus der Datenbank, hat es nichts gekostet. In der Gesamtanzeige der
+  Fußzeile war beides schon immer enthalten (beide Routen zählen über
+  `_record_ai_usage`), sichtbar war es im Fenster aber nicht.
+
 ## [0.68.0] - 2026-08-05
 
 ### Added

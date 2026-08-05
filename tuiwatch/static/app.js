@@ -401,7 +401,9 @@
                  <button class="btn sec ai-feature" onclick="openBookingScore(${o.id})" title="KI-Buchungsscore: jetzt buchen, beobachten oder warten?">Buchungsscore</button>
                  <button class="btn sec" onclick="openNights(${o.id})" title="Preise für kürzere/längere Reisedauern vergleichen">Nächte</button>
                  <button class="btn sec" onclick="openSearchFromOffer(${o.id})" title="Weitere Hotels dieser Region suchen (Filter aus dem Angebot)">Region</button>
-                 <button class="btn sec ai-feature" onclick="openGuideFromOffer(${o.id})" title="Reiseführer zum Reiseziel: Einreise, Gesundheit, Geld, Mobilität, Sicherheit, Kultur, Don't Dos, Insider-Tipps — inklusive Klimatabelle">Reiseführer</button>
+                 <button class="btn sec ai-feature${offerHasGuide(o)?' has-guide':''}" onclick="openGuideFromOffer(${o.id})" title="${offerHasGuide(o)
+                    ? 'Reiseführer zu diesem Ziel liegt gespeichert vor — Öffnen kostet nichts'
+                    : 'Reiseführer zum Reiseziel: Einreise, Gesundheit, Geld, Mobilität, Sicherheit, Kultur, Don\'t Dos, Insider-Tipps — inklusive Klimatabelle. Wird beim ersten Öffnen von der KI erstellt.'}">Reiseführer</button>
                  <!-- Pausieren/Archivieren nur noch als Symbol: die Zeile war mit elf
                       beschrifteten Knöpfen zu voll für einen weiteren. -->
                  <button class="icon-btn" onclick="togglePause(${o.id}, ${o.paused})" title="${o.paused?'Automatische Prüfung fortsetzen':'Automatische Prüfung aussetzen'}">
@@ -2435,7 +2437,11 @@
         + climateChart(c.months || [], sel)
         + `<table class="hist clim" style="margin-top:10px"><tr><th>Monat</th><th>Tag</th><th>Nacht</th><th>Wasser</th>`
         + `<th title="Sonnenstunden pro Tag">Sonne</th><th title="Regentage im Monat">Regen</th></tr>${rows}</table>`
-        + (sel.size ? '<div class="hint" style="margin-top:8px">Hervorgehoben: die Monate deines Reisezeitraums.</div>' : '');
+        + (sel.size ? '<div class="hint" style="margin-top:8px">Hervorgehoben: die Monate deines Reisezeitraums.</div>' : '')
+        // Tokens und Kosten wie bei jedem anderen KI-Ergebnis. Nur beim frisch
+        // erzeugten Aufruf vorhanden — kommt die Tabelle aus der Datenbank, hat sie
+        // nichts gekostet und es steht bewusst nichts da.
+        + aiUsageLine(d && d.usage, false, d && d.totals);
       climateChartHover(box, c.months || []);
       const when = d && d.ts ? new Date(d.ts*1000).toLocaleDateString('de-DE') : '';
       $('#climate-stand').textContent = when
@@ -2528,6 +2534,34 @@
     let guideTarget = null;
     let guideBusy = false;
 
+    // Grüner Rahmen am „Reiseführer"-Knopf, wenn zu diesem Ziel schon einer
+    // gespeichert ist: sonst sieht man einem Angebot nicht an, ob der Klick nur
+    // nachschlägt oder einen (teuren) KI-Aufruf auslöst.
+    //
+    // Abgeglichen wird über den Ziel-NAMEN, nicht über die giataId: die
+    // Angebotsliste kennt nur die Hotel-giataId, die Region müsste je Angebot
+    // einzeln über die Breadcrumb-API aufgelöst werden. Denselben Namen benutzt
+    // `openGuideFromOffer()` als Label, beides bleibt also deckungsgleich; im
+    // schlimmsten Fall fehlt der Rahmen und der Klick liefert trotzdem den
+    // gespeicherten Reiseführer.
+    let guideLabels = new Set();
+    function offerHasGuide(o){
+      const k = String((o && (o.region || o.country)) || '').trim().toLowerCase();
+      return !!k && guideLabels.has(k);
+    }
+    async function loadGuideLabels(){
+      let items = [];
+      try { items = (await fetch(api('/api/guide')).then(r=>r.json())).items || []; }
+      catch(e){ return; }
+      const next = new Set(items.map(i=>String(i.label||'').trim().toLowerCase()).filter(Boolean));
+      const same = next.size === guideLabels.size && [...next].every(x=>guideLabels.has(x));
+      guideLabels = next;
+      // loadOffers() zeichnet nur bei geänderten Angebotsdaten neu (Signaturvergleich).
+      // Die Marke hängt aber an DIESER Liste, also gezielt anstoßen.
+      if(!same && curOffers && curOffers.length){ lastSig = null; renderAll(curOffers); }
+    }
+    loadGuideLabels();
+
     async function fetchGuide(giata, label, {refresh=false}={}){
       if(guideBusy) return null;
       guideBusy = true;
@@ -2567,6 +2601,7 @@
           return null;
         }
         guideData = d;
+        loadGuideLabels();   // neu erzeugt → Knopf am Angebot grün markieren
         return d;
       } catch(e){
         $('#guide-body').innerHTML = aiErrorBlock('Reiseführer konnte nicht geladen werden.', false);
@@ -2643,7 +2678,10 @@
       box.innerHTML = guideSectionsHtml(d) + clim
         + '<div class="hint" style="margin-top:14px">⏱ = kann sich kurzfristig ändern '
         + '(Einreise, Wechselkurs, Preise) · KI-generiert, ohne Gewähr — verbindliche '
-        + 'Auskünfte nur beim Auswärtigen Amt und beim Veranstalter.</div>';
+        + 'Auskünfte nur beim Auswärtigen Amt und beim Veranstalter.</div>'
+        // Nur beim frisch erzeugten Reiseführer vorhanden; aus der Datenbank
+        // gelesen hat er nichts gekostet.
+        + aiUsageLine(d && d.usage, false, d && d.totals);
       if(d.climate && (d.climate.months||[]).length) climateChartHover(box, d.climate.months);
       const when = d && d.ts ? new Date(d.ts*1000).toLocaleDateString('de-DE') : '';
       $('#guide-stand').textContent = when
@@ -2677,6 +2715,7 @@
       try { await fetch(api('/api/guide/'+giata), {method:'DELETE'}); }
       catch(e){ toast('Löschen fehlgeschlagen'); return; }
       if(guideData && guideData.giata === giata) guideData = null;
+      loadGuideLabels();   // Marke am Angebot wieder entfernen
       renderGuideList();
     }
 
