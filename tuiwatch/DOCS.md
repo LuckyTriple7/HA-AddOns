@@ -21,6 +21,9 @@ notify_booked_drop: true # Alarm, wenn Preis unter den gebuchten Preis fällt
 booked_drop_min_diff: 50 # Mindest-Ersparnis dafür (€)
 digest_enabled: false    # wöchentlicher Überblick (Telegram/E-Mail)
 digest_weekday: 1        # Versandtag (1 = Mo … 7 = So)
+market_basket_enabled: true   # Markttrend aus den täglich neu ausgeführten Suchen
+market_basket_lead_days: 91   # Ersatz-Abreise, nur wenn kein echtes Datum vorliegt
+market_basket_max_regions: 20 # Obergrenze für die täglich abgefragten Messreihen (1…50)
 anthropic_api_key: ""    # Anthropic API-Key, aktiviert das KI-Fazit (leer = aus)
 anthropic_model: claude-opus-5  # oder claude-sonnet-5 / claude-haiku-4-5 / claude-fable-5
 ai_provider: anthropic   # oder gemini / perplexity (gilt fuer ALLE KI-Features)
@@ -110,6 +113,59 @@ nicht). Der **Tracken**-Button bleibt aber nutzbar: Dasselbe Hotel kann **mehrfa
 **unterschiedlichen Suchparametern** (z. B. anderer Zeitraum) verfolgt werden; nur exakt
 identische Angebote werden abgelehnt.
 
+**🌤 Klima** (Knopf neben „Suchen", nur bei konfigurierter KI): Klimatabelle des
+Reiseziels über alle zwölf Monate — Tages- und Nachttemperatur, **Wassertemperatur**,
+Sonnenstunden pro Tag und Regentage, dazu ein kurzer Hinweis je Monat (Regenzeit,
+Passatwind, Hochsaison …) und die aus Wetter-Sicht besten Monate (★).
+
+- **Diagramm + Tabelle.** Oben zwei Panels mit gemeinsamer Monatsachse: Temperaturen
+  als Linien, Regentage als Säulen (bewusst nicht zwei y-Achsen in einem Bild).
+  Überfahren eines Monats zeigt alle Werte als Zeile über dem Diagramm. Die Monate
+  deines Reisezeitraums sind in Diagramm und Tabelle hervorgehoben.
+- **Wird einmal je Ziel erzeugt und dauerhaft gespeichert.** Klimawerte sind
+  langjährige Mittel, kein Wetterbericht — ein erneuter KI-Aufruf brächte nur Kosten.
+  Jeder weitere Aufruf kommt aus der Datenbank. **🔄 Neu abrufen** erzwingt eine
+  Neuberechnung.
+- **Auch von der Hauptseite erreichbar** über den **🌤**-Knopf in der Kopfzeile: dort
+  erscheint die Liste aller bereits gespeicherten Ziele (mit Erstellungsdatum und 🗑
+  zum Löschen), Klick öffnet die Tabelle. Neue Ziele entstehen über die Suche — nur
+  dort gibt es einen Ziel-Picker.
+- **Automatisch nach jeder Suche vorgeladen**, sofern eine KI konfiguriert ist: beim
+  ersten Mal je Ziel kostet das einen KI-Aufruf, danach nie wieder. So steht die
+  Tabelle beim Klick sofort da.
+- **✉ Als E-Mail** verschickt die Tabelle (kein KI-Aufruf — verschickt wird, was
+  gespeichert ist). Die Mail enthält die Tabelle ohne Diagramm: Mail-Clients rendern
+  inline-SVG nicht zuverlässig, und die Zahlen sind hier der Inhalt.
+
+**🤖 Reisezeit-Check** (Knopf neben „Suchen", nur bei konfigurierter KI): prüft die
+Eckdaten der Maske, bevor du buchst. Vier Punkte:
+
+1. **Reisezeit** — taugt der gewählte Zeitraum für dieses Ziel? Regen-/Trockenzeit,
+   Temperaturen (Luft und Wasser), Luftfeuchtigkeit, Wind, Hurrikan-/Monsun-/
+   Zyklonsaison.
+2. **Saison und Preisniveau** — Haupt-, Neben- oder Zwischensaison, welche Monate an
+   diesem Ziel die Schnäppchenmonate sind, dazu Schulferien, Feiertage und lokale
+   Großereignisse.
+3. **Besserer Zeitraum?** — ein konkreter Alternativtermin, falls einer deutlich mehr
+   fürs Geld böte; passt der gewählte schon, sagt die KI das ebenso klar.
+4. **Ähnliche Ziele** — 2 bis 4 Alternativen mit vergleichbarem Charakter (Flugzeit ab
+   deinem Abflughafen, Klima zur gewählten Zeit, Preisniveau), je mit Vor- und
+   Nachteil gegenüber dem Wunschziel.
+
+Mitgeschickt werden nur die Eckdaten der Maske (Ziel, Zeitraum, Dauer, Reisende,
+Abflughafen, Verpflegung, Sterne-/Weiterempfehlungs-Filter). Wurde bereits gesucht,
+geht zusätzlich eine kurze **Preisstatistik der Treffer** mit (Anzahl, günstigster,
+Median, teuerster) — ohne die könnte die KI zum Preisniveau nur allgemein raten.
+Das Ergebnis landet im KI-Verlauf als „🤖 Reisezeit-Check".
+
+Die Trefferliste lässt sich **per E-Mail verschicken** (ganz oder nur die markierten
+Treffer). Die Kopfzeile der Mail nennt Reiseziel, **Anzahl der Reisenden** und
+**Abflughafen** — beides sind Suchparameter und stehen in keiner einzelnen
+Trefferzeile; ohne sie ließe sich der verschickten Liste nicht ansehen, für wie viele
+Personen die „pro Person"-Preise gelten und ab wo geflogen wird. Die Werte stammen aus
+dem Suchlauf, der die Liste erzeugt hat (bei Treffern eines Suchabos also aus dem Abo),
+nicht aus dem aktuellen Stand der Suchmaske.
+
 Für jedes Angebot werden angezeigt: ein **Hotelbild** (sofern ermittelbar), Hotelname,
 **Ort/Region** (z. B. „Playa del
 Ingles, Gran Canaria"; Klick öffnet Google Maps), **Sterne & HolidayCheck-Bewertung**
@@ -194,6 +250,24 @@ versteckt, `ai_provider` wird ignoriert).
   Empfehlung, welches Hotel für wen (Familie, Paar, Party, Ruhe …) am besten passt.
   Genau dieselbe Funktion gibt es auch in der **Angebotsübersicht** über die
   bestehende Mehrfachauswahl (Sammelaktionsleiste → „🤖 Vergleichen").
+- **❓ Frage** (Button oben) — Freitext-Frage, mit **zwei Knöpfen** im Fenster,
+  die dieselbe Frage mit unterschiedlichem Kontext verschicken:
+  - **📌 Portfolio fragen** — die KI bekommt deine aktuell getrackten Angebote
+    mit (Preis, Ort, Sterne/Weiterempfehlung, Trend, Wunschpreis, Tags) und
+    antwortet daraus; für alles darüber hinaus (z. B. Klima zur Reisezeit) nutzt
+    sie zusätzlich die Websuche. Braucht mindestens ein aktives Angebot.
+  - **🌍 Reisefrage** — allgemeine Frage zu Regionen, Ländern, Reisezeiten,
+    Einreise oder Anreise, **ohne** die Angebotsliste im Prompt. Die wäre hier nur
+    Ballast, würde Tokens kosten und die Antwort auf die eigenen Hotels lenken.
+    Funktioniert deshalb auch mit leerem Portfolio. Ist ein Heimatort hinterlegt
+    (`trippilot_home_location`), fließt er für Anreise-/Entfernungsfragen ein. Der
+    Prompt drängt auf Websuche und auf offene Unsicherheit — Einreiseregeln und
+    Preise ändern sich, eine selbstbewusst formulierte veraltete Auskunft wäre
+    hier schädlicher als der Hinweis, kurz vor der Reise gegenzuprüfen.
+
+  Beide landen im KI-Verlauf, unterscheidbar als „📌 Portfolio-Frage" bzw.
+  „🌍 Reisefrage", und lassen sich von dort wiederholen oder mit einer Folgefrage
+  vertiefen.
 - **Token- & Kosten-Anzeige** — jede Antwort zeigt Input-/Output-Tokens und die
   geschätzte Kostenschätzung in USD (Listenpreis des jeweiligen Anbieters —
   Claude/Gemini/Perplexity haben eigene Preistabellen) für genau diesen
@@ -361,8 +435,12 @@ Preis-Tracking, als dauerhaftes Archiv (Vergangenheit und Zukunft).
   20 €) filtert Mini-Schwankungen aus der Benachrichtigung — die Trend-Ansicht im
   Kalender selbst zeigt trotzdem jede noch so kleine Änderung. 0 = Schwelle aus.
 - **Wochenüberblick / Digest** (`digest_enabled`): optionale wöchentliche Zusammenfassung
-  (größte Rückgänge, neue Tiefstwerte, Angebote unter Wunschpreis, Kalenderpreis-Änderungen)
-  per Telegram und/oder E-Mail. `digest_weekday` legt den Wochentag fest (1 = Montag …
+  (Markttrend der Woche, größte Rückgänge, neue Tiefstwerte, Angebote unter Wunschpreis,
+  Kalenderpreis-Änderungen) per Telegram und/oder E-Mail. Der Abschnitt **📈 Markttrend
+  (7 Tage)** zeigt global und je Destination die Bewegung der vergangenen Woche und
+  nennt die Basis (Preisbarometer, sonst die eigenen Angebote) — bewusst 7 statt der
+  14 Tage aus der UI, damit die Vorwoche nicht mit hineinzählt.
+  `digest_weekday` legt den Wochentag fest (1 = Montag …
   7 = Sonntag); war das Add-on am Stichtag aus, wird der Versand später in der Woche
   nachgeholt. Sofort testen über den Button **„📊 Wochenüberblick"**.
 - Kanäle:
@@ -494,12 +572,16 @@ Alle drei Binär-Sensoren werden per Timer alle paar Sekunden/Minuten aus dem
 zuletzt bekannten Stand erneut an HA gemeldet — sie sind daher direkt nach
 einem HA-Neustart wieder verfügbar, ohne auf den nächsten Live-Check zu warten.
 
-Außerdem `sensor.tuiwatch_markttrend`: **Wert** = kumulierte Preisänderung (%) über
-alle geprüften Angebote der letzten 14 Tage, oder `unknown` bei zu wenigen
-Datenpunkten. Attribute: `direction` (up/down/flat), `days` (seit wie vielen Tagen die
-Richtung anhält), `samples` (Anzahl Datenpunkte), `index`/`index_pct`/`index_since`
-(Index seit Aufzeichnungsbeginn, siehe unten), `by_region` (gleiche Aufschlüsselung je
-Destination, nur für Regionen mit genug Daten). Siehe unten „Markttrend".
+Außerdem `sensor.tuiwatch_markttrend`: **Wert** = kumulierte Preisänderung (%) der
+letzten 14 Tage, oder `unknown` bei zu wenigen Datenpunkten. Als Quelle hat der
+**Preisbarometer** Vorrang (breitere Basis), erst ersatzweise der Trend aus den
+eigenen Angeboten — welche gerade greift, sagt das Attribut `source`
+(`basket`/`offers`). Attribute: `direction` (up/down/flat), `days` (seit wie vielen
+Tagen die Richtung anhält), `samples` (Datenpunkte bzw. Barometer-Tage), `hotels`
+(Breite die Messreihe-Basis), `index`/`index_pct`/`index_since` (Index seit
+Aufzeichnungsbeginn), `by_region` (Aufschlüsselung je Destination aus den eigenen
+Angeboten) sowie die vollständigen Zweige `offers` und `basket`. Siehe unten
+„Markttrend".
 
 ## Markttrend
 
@@ -540,6 +622,75 @@ davon, ob ein einzelnes Angebot später gelöscht wird.
 - **Näherung:** die „Monate vor Abreise" je Datenpunkt wird aus Rückreisedatum minus
   angefragter Reisedauer geschätzt (kein exaktes Abreisedatum gespeichert) und fließt
   aktuell nicht in die UI-Anzeige ein, ist aber intern je Datenpunkt vorhanden.
+
+### Preisbarometer aus den gespeicherten Suchen (breitere Basis)
+
+Der oben beschriebene Trend sieht nur die **eigenen** getrackten Angebote — je
+Reiseziel oft nur ein bis zwei Hotels. Zusätzlich läuft daher **1×/Tag jede deiner
+gespeicherten Suchen** noch einmal — mit **deinen Reiseterminen**, deiner Dauer und
+deinen Filtern. Alle Treffer landen als Barometer-Snapshot in der Datenbank, die Suche
+**vollständig**, nicht nur die ersten Seiten (typisch 30–300 Hotels). Im
+Markttrend-Fenster steht dieser Block oben (**🌡️ Preisbarometer**), der Angebots-Trend
+darunter.
+
+Der Trend heißt damit: „alle Hotels für meinen Mai-Termin auf Teneriffa sind diese
+Woche 3 % gefallen" — die Zahl, die bei der Buchungsentscheidung hilft.
+
+- **Eine Messreihe je gespeicherter Suche**, nicht je Region. Zwei Suchen für dasselbe
+  Ziel mit verschiedenen Terminen ergeben zwei getrennte Messreihen — das sind
+  verschiedene Märkte. Angelegt wird eine Messreihe, indem du eine Suche speicherst;
+  ein Suchabo (Schwellenpreis) ist dafür **nicht** nötig.
+- **Getrackte Angebote ohne gespeicherte Suche** bekommen ebenfalls eine Messreihe:
+  Ziel = Region des Hotels, Termin = Abreisedatum des Angebots (Rückreise minus
+  Dauer). Nur wenn dort gar kein Datum steht, greift ersatzweise die konstante
+  Vorlaufzeit `market_basket_lead_days`. Gebündelt wird je **Region, Abreisemonat
+  und Dauer** — fünf Gran-Canaria-Angebote mit Abreise am 3., 7. und 31. Mai sowie
+  7. und 14. Juni ergeben zwei Messreihen („Mai 2027, 11 Nächte" und „Juni 2027,
+  11 Nächte"), nicht fünf. Gesucht wird der ganze Monat; die Suche liefert je Hotel
+  den günstigsten Termin darin, was für einen Markttrend genau die richtige Zahl ist.
+- **Abgelaufene Reisezeiträume** fallen automatisch raus.
+- Die Obergrenze steht in `market_basket_max_regions` (Standard 20, erlaubt 1…50) und
+  ist reiner Lastschutz — je 50 Hotels ein API-Aufruf pro Tag (typisch 1–6 je Suche).
+  Werden mehr Messreihen gefunden als erlaubt, nennt das Add-on-Log die weggelassenen;
+  sie fallen also nicht stillschweigend weg.
+- **Vergleich je Hotel, nicht je Durchschnitt** („Matched Pairs"): jedes Hotel wird
+  mit sich selbst vom Vortag verglichen. Hotels, die nur in einem der beiden
+  Snapshots stehen (ausgebucht, neu dazugekommen), zählen nicht — ein Vergleich der
+  Durchschnittspreise würde sonst vor allem die wechselnde Zusammensetzung des
+  Preisbarometers messen statt die Preise.
+- **Median** über die Hotel-Deltas statt Mittelwert: die Such-API liefert je Hotel das
+  günstigste Angebot, dessen Zimmerkategorie steht in keinem Feld und kann wechseln —
+  solche Ausreißer würden einen Mittelwert verzerren.
+- **Verpflegung/Dauer müssen übereinstimmen**, sonst wird das Hotel-Paar übersprungen
+  (Sprung von HP auf AI ist ein anderer Angebotstyp, kein Marktsignal). Das
+  Abreise**datum** wird bewusst *nicht* verglichen: Sucht die Suche über einen
+  Zeitraum (z. B. den ganzen Mai), ist der günstigste Termin innerhalb des Fensters
+  genau die interessante Zahl — wandert er, ist das die gesuchte Information.
+- **Verkettung erst auf Tagesebene:** je Messreihe und Tag wird **ein** Median
+  abgelegt, erst diese Tageswerte werden über die Zeit verkettet. Ein Trend braucht
+  mindestens zwei Tage; Lücken über 7 Tage (Add-on war aus) starten die Kette neu.
+- **Mindestbreite je Tag:** wie viele Hotels wiederauftauchen müssen, richtet sich
+  nach der Messreihengröße — 60 % des (kleineren) Snapshots, höchstens 10, mindestens
+  5. Eine feste Zahl war für stark gefilterte Suchen zu streng: wer „nur All
+  Inclusive, Direktflug ab STR, Lage 10" sucht, bekommt vielleicht 12 Treffer, und
+  ein einziger Verpflegungswechsel bei zweien hätte den Tag dauerhaft durchfallen
+  lassen. Große Messreihen bleiben streng.
+- **Bedienung:** Die Messreihe hat ein **eigenes Fenster** — im Markttrend-Fenster
+  über den Knopf **🌡️ Preisbarometer** erreichbar. Dort stößt **🌡️ Jetzt füllen** einen Lauf
+  sofort an; er läuft im Hintergrund, ein **Fortschrittsbalken** zeigt „X von Y
+  Suchen" samt der bisher erfassten Hotelzahl und dem gerade laufendie Messreihe.
+  Messreihen ohne zwei vergleichbare Tage stehen unter „Sammelt noch". 🗑 je Zeile
+  löscht die Daten einer Messreihe und beginnt neu — nötig etwa, wenn du die
+  Reisetermine der Suche geändert hast (andere Preisbasis).
+- **Speicher:** Roh-Snapshots werden nach 120 Tagen verworfen, die verdichteten
+  Tagesbewegungen bleiben — der Index seit Aufzeichnungsbeginn überlebt das also.
+- **Vollständigkeit:** die Suche sortiert nach Preis aufsteigend, deshalb wird jedes
+  Ergebnis **komplett** abgeholt (bis zur gemeldeten Gesamttrefferzahl). Ein fester
+  Seiten-Deckel würde stets nur die günstigsten N Hotels erfassen — und weil dessen
+  Randbelegung täglich wechselt, hätte der Median diese Fluktuation als
+  Preisbewegung missverstanden. Reißleine bei 1000 Hotels (dann steht eine Warnung
+  im Log).
+- **Abschaltbar** über `market_basket_enabled`.
 
 ## KI-Buchungsscore ("Orakel")
 
@@ -586,8 +737,10 @@ landen dauerhaft im **KI-Verlauf**.
   Original-PDFs**, die **gespeicherten Suchen**, der **dauerhafte KI-Verlauf** (Fazits/
   Vergleiche/TripPilot-Ergebnisse), die **KI-Einstellungen** (Reise-DNA,
   kumulierte Kosten-Zähler heute/Monat/gesamt, eigene KI-Prompt-Vorlagen) sowie die
-  **Markttrend-Datenpunkte** (überleben so einen Umzug auf ein anderes Add-on, auch
-  wenn die ursprünglichen Angebote dort nicht mehr existieren). Die
+  **Markttrend-Datenpunkte** samt der **Barometer-Tagesbewegungen** (überleben so
+  einen Umzug auf ein anderes Add-on, auch wenn die ursprünglichen Angebote dort nicht
+  mehr existieren; die Roh-Snapshots der Messreihe sind nicht dabei, die entstehen
+  täglich neu). Die
   Wiederherstellung liest die ZIP (das alte reine JSON wird weiterhin akzeptiert) und
   arbeitet **nicht-destruktiv**: Fehlendes wird ergänzt, Bestehendes bleibt erhalten
   (Abgleich per URL, Buchungsnummer bzw. Name; KI-Einstellungen/Kosten-Zähler werden nur
@@ -626,7 +779,14 @@ Bei mehreren Reisenden wird zusätzlich zum **Preis pro Person** der **Gesamtpre
 angezeigt. TUIWatch ist außerdem als **PWA installierbar** (Manifest + Service Worker;
 am besten über Direktzugriff/Reverse-Proxy nutzen).
 - **Löschen** — Angebot inkl. Verlauf entfernen.
-- **Doppelklick auf das Logo** — Konsole mit Hintergrund-Logs ein/aus.
+- **Preiskalender-Zusammenfassung** — nennt **günstigsten** und **teuersten** Termin
+  samt Preisspanne. Klick auf einen Eintrag springt im Kalender zum passenden Monat,
+  hebt den Tag kurz hervor und öffnet dessen Preisverlauf.
+- **Doppelklick auf das Logo** — Live-Konsole mit den Hintergrund-Logs ein/aus
+  (verschiebbares Panel, aktualisiert sich alle 2 Sekunden, zeigt die letzten 500
+  Zeilen). Das komplette Log samt Filter steht unter **🔔 Meldungen & Fehler →
+  📜 Konsole**: bis zu 2000 Zeilen seit dem Add-on-Start, durchsuchbar nach Text und
+  Log-Stufe — Diagnose ohne Umweg über das HA-Log.
 
 ## API-Status / Selbsttest
 

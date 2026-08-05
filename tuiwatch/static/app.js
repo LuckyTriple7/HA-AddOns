@@ -18,16 +18,26 @@
     window.consoleToggle=consoleToggle;
     try{ if(localStorage.getItem('tw-console-open')==='1') setTimeout(function(){_setOpen(true);},100); }catch(e){}
     function _cls(l){ return (l==='WARNING'||l==='WARN')?'twc-warn':(l==='ERROR'||l==='CRITICAL')?'twc-error':(l==='DEBUG')?'twc-debug':'twc-info'; }
+    // Live-Ticker: nur die letzten 500 Zeilen. Der Puffer fasst 2000, die hier alle
+    // zwei Sekunden komplett neu zu rendern wäre Verschwendung — wer im ganzen Log
+    // suchen will, nimmt den Konsolen-Tab unter „Meldungen & Fehler" (mit Filter).
+    var _CONSOLE_TAIL=500;
     async function _poll(){
       try{
         var base=(window.G&&G.base)||'';
-        var lines=(await fetch(base+'/api/console').then(function(r){return r.json();})).lines||[];
+        var d=await fetch(base+'/api/console?limit='+_CONSOLE_TAIL).then(function(r){return r.json();});
+        var lines=d.lines||[];
         var sig=lines.length+':'+(lines.length?lines[lines.length-1].ts:0);
         if(sig===_seen)return;            // nichts Neues
         _seen=sig;
         var atBottom=body.scrollHeight-body.scrollTop-body.clientHeight<40;
         body.innerHTML='';
-        lines.forEach(function(e){ var d=document.createElement('div'); d.className=_cls(e.level); d.textContent=e.msg; body.appendChild(d); });
+        if((d.total||0)>lines.length){
+          var h=document.createElement('div'); h.className='twc-debug';
+          h.textContent='… ältere '+((d.total||0)-lines.length)+' Zeilen: Konsolen-Tab unter „Meldungen & Fehler"';
+          body.appendChild(h);
+        }
+        lines.forEach(function(e){ var d2=document.createElement('div'); d2.className=_cls(e.level); d2.textContent=e.msg; body.appendChild(d2); });
         if(atBottom)body.scrollTop=body.scrollHeight;
       }catch(e){}
     }
@@ -809,14 +819,28 @@
     // ── Hotelsuche (Maske / URL / aus Angebot) ────────────────────────────────
     let srchResults = [], srchOfferId = null, srchDest = null, srchTotal = 0, srchFilter = '';
     let srchLastBody = null;
+    // Reisende/Abflughafen der Liste, die gerade angezeigt wird — kommt vom Server
+    // (`criteria` der Suchantwort) und NICHT aus der Suchmaske: die kann inzwischen
+    // ganz andere Werte zeigen, etwa wenn die Treffer aus einem Suchabo stammen.
+    let srchCriteria = null;
     let srchSort = localStorage.getItem('tw-srch-sort') || 'price';
     let srCmpSelected = new Set();  // Schlüssel (giata/Name) der für den KI-Vergleich ausgewählten Hotels
     let airportsLoaded = false, airlinesLoaded = false, destNode = null, destData = null, destStack = [];
     function urlParam(u, key){ try{ return new URL(u).searchParams.get(key)||''; }catch(e){ return ''; } }
     function isoPlus(days){ const d=new Date(); d.setUTCDate(d.getUTCDate()+days); return d.toISOString().slice(0,10); }
-    // Springt das Startdatum auf heute — z.B. wenn ein altes Datum stehengeblieben
-    // ist (TUIs Such-API antwortet auf Zeiträume in der Vergangenheit mit HTTP 500).
-    function srchDateToday(){ $('#srch-vom').value = isoPlus(0); syncBisMin(); }
+    // Frühester Termin, der sich zu suchen lohnt. Der Knopf setzte früher exakt
+    // „heute" — darauf antwortet TUIs Such-API aber mit HTTP 500, das Ergebnis war
+    // immer leer. Live gemessen (Gran Canaria, 7 Nächte): heute = Fehler,
+    // heute+1 = 53 Treffer, heute+2 = 132, heute+3 = 144. Zwei Tage sind der Punkt,
+    // ab dem das Angebot brauchbar ist.
+    const SEARCH_MIN_LEAD_DAYS = 2;
+    // Setzt das Startdatum auf den frühesten buchbaren Termin — z. B. wenn ein altes
+    // Datum stehengeblieben ist (TUIs Such-API antwortet auf Zeiträume in der
+    // Vergangenheit mit HTTP 500).
+    function srchDateToday(){
+      $('#srch-vom').value = isoPlus(SEARCH_MIN_LEAD_DAYS);
+      syncBisMin();
+    }
     // Nächte = Tage zwischen von und bis (null, wenn ungültig)
     function nightsBetween(vom, bis){
       if(!vom || !bis || bis < vom) return null;
@@ -1021,7 +1045,7 @@
       $('#trend-body').innerHTML = '<div class="cmp-load">Lade…</div>';
       loadMarketTrend();
     }
-    function closeMarketTrend(){ $('#trend-bg').classList.remove('show'); }
+    function closeMarketTrend(){ $('#trend-bg').classList.remove('show'); stopBasketPoll(); }
     $('#trend-bg').addEventListener('click', e=>{ if(e.target.id==='trend-bg') closeMarketTrend(); });
     async function loadMarketTrend(){
       let d; try { d = await fetch(api('/api/market-trend')).then(r=>r.json()); }
@@ -1032,7 +1056,12 @@
       if(!t) return '<span class="trend flat" title="Zu wenig Datenpunkte in den letzten 14 Tagen">→ keine Daten</span>';
       const pct = Math.abs(t.pct)>=0.5 ? (' '+(t.pct>0?'+':'−')+Math.abs(t.pct).toLocaleString('de-DE',{maximumFractionDigits:1})+' %') : '';
       const days = t.days>=2 ? ` seit ${t.days} Tagen` : '';
-      const title = `Marktweiter Trend über die letzten 14 Tage (${t.n} Datenpunkte)`;
+      // Barometer-Werte tragen zusätzlich `hotels` (Breite der Basis) — beim
+      // Angebots-Trend sind die Datenpunkte einzelne Preisänderungen, beim Preisbarometer
+      // ganze Tage, deshalb unterschiedliche Beschriftung.
+      const title = t.hotels
+        ? `Marktweiter Trend über die letzten 14 Tage (${t.n} Barometer-Tage, zuletzt ${t.hotels} Hotels verglichen)`
+        : `Marktweiter Trend über die letzten 14 Tage (${t.n} Datenpunkte)`;
       if(t.dir==='down') return `<span class="trend down" title="${title}">↘ fällt${pct}${days}</span>`;
       if(t.dir==='up')   return `<span class="trend up" title="${title}">↗ steigt${pct}${days}</span>`;
       return `<span class="trend flat" title="${title}">→ stabil${days}</span>`;
@@ -1048,16 +1077,67 @@
     let _marketTrendData = null;
     function renderMarketTrend(d){
       _marketTrendData = d;
-      setTrendGlow(d.global.trend);
+      const b = d.basket || null;
+      setTrendGlow((b && b.global && b.global.trend) || d.global.trend);
       const rows = (d.by_region||[]).map((r,i)=>
         `<tr><td>${esc(r.region)}</td><td>${marketTrendBadge(r.trend)}${marketIndexLine(r.index)}</td>`
         + `<td>${(r.trend||r.index||{}).n||''}</td>`
         + `<td class="ai-feature"><button class="btn sec" onclick="openRegionOutlook(${i})" title="KI-Einschätzung für diese Destination">🔮</button></td>`
         + `<td><button class="btn sec" onclick="resetRegionTrend(${i})" title="Markttrend-Daten dieser Destination löschen und neu beginnen">🗑</button></td></tr>`).join('');
-      $('#trend-body').innerHTML =
+      // Das Preisbarometer hat ein eigenes Fenster (andere Basis, andere Zählweise) — hier
+      // nur eine Zeile als Wegweiser, damit die breitere Quelle nicht übersehen wird.
+      const bLine = (b && b.enabled && b.global && b.global.trend)
+        ? `<div class="hint" style="margin-bottom:12px">🌡️ Preisbarometer (alle Hotels deiner `
+          + `gespeicherten Suchen): ${marketTrendBadge(b.global.trend)} — Details über den `
+          + `Knopf unten.</div>`
+        : '';
+      $('#trend-body').innerHTML = bLine +
         `<div class="trend-global"><b>Gesamt:</b> ${marketTrendBadge(d.global.trend)}${marketIndexLine(d.global.index)}</div>` +
         (rows ? `<table class="hist"><tr><th>Destination</th><th>Trend (14 Tage) / Index (gesamt)</th><th>Datenpunkte</th><th class="ai-feature">KI</th><th></th></tr>${rows}</table>`
               : '<div class="cmp-load">Noch keine Destination mit genug Daten für eine eigene Aufschlüsselung.</div>');
+    }
+
+    // ── Preisbarometer (eigenes Fenster) ───────────────────────────────────────────
+    function openBasket(){
+      $('#basket-bg').classList.add('show');
+      $('#basket-body').innerHTML = '<div class="cmp-load">Lade…</div>';
+      loadBasket();
+    }
+    function closeBasket(){ $('#basket-bg').classList.remove('show'); stopBasketPoll(); }
+    $('#basket-bg').addEventListener('click', e=>{ if(e.target.id==='basket-bg') closeBasket(); });
+    async function loadBasket(){
+      let b; try { b = await fetch(api('/api/market-basket')).then(r=>r.json()); }
+      catch(e){ $('#basket-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Laden fehlgeschlagen</div>'; return; }
+      renderBasket(b);
+    }
+    function renderBasket(b){
+      if(!b || !b.enabled){
+        $('#basket-body').innerHTML = '<div class="cmp-load">Das Preisbarometer ist in den Add-on-Einstellungen abgeschaltet.</div>';
+        return;
+      }
+      const rows = (b.by_region||[]).map(r=>
+        `<tr><td>${esc(r.region)}<div class="hint">${esc(r.period||'')}</div></td>`
+        + `<td>${marketTrendBadge(r.trend)}${marketIndexLine(r.index)}</td>`
+        + `<td>${(r.trend||{}).hotels||''}</td>`
+        + `<td><button class="btn sec" onclick="resetBasketRegion(${esc(JSON.stringify(r.region))})" title="Barometer-Daten dieser Suche löschen und neu beginnen">🗑</button></td></tr>`).join('');
+      // Messreihen ohne zwei vergleichbare Tage stehen nicht in der Tabelle — ohne
+      // diese Liste sähe es so aus, als würden sie gar nicht erfasst.
+      const waiting = (b.baskets||[]).filter(x => !(b.by_region||[]).some(r=>r.region===x.key));
+      const waitRows = waiting.map(x=>
+        `<li>${esc(x.key)}${x.period ? ` <span class="hint">(${esc(x.period)})</span>` : ''}</li>`).join('');
+      $('#basket-body').innerHTML =
+        `<div class="trend-global"><b>Gesamt:</b> ${marketTrendBadge(b.global.trend)}${marketIndexLine(b.global.index)}</div>`
+        + (rows ? `<table class="hist"><tr><th>Gespeicherte Suche / Reisezeitraum</th><th>Trend (14 Tage) / Index (gesamt)</th><th>Hotels</th><th></th></tr>${rows}</table>`
+                : '<div class="cmp-load">Noch keine Suche mit zwei vergleichbaren Barometer-Tagen.</div>')
+        + (waitRows ? `<h3 style="margin:16px 0 4px;font-size:15px">Sammelt noch</h3>`
+            + `<ul style="margin:0;padding-left:18px;font-size:14px">${waitRows}</ul>` : '')
+        + (b.last_day
+            ? `<div class="hint" style="margin-top:10px">Letzter Lauf: ${esc(b.last_day)}`
+              + (b.running ? ' · <b>läuft gerade…</b>' : '') + '</div>'
+            : '<div class="hint" style="margin-top:10px">Noch kein Lauf — passiert automatisch 1×/Tag, oder unten sofort anstoßen.</div>');
+      // Läuft gerade ein (z. B. der automatische) Lauf, gleich den Balken zeigen —
+      // sonst wirkt das Fenster stehengeblieben.
+      if(b.running){ renderBasketProgress(b.progress); startBasketPoll(); }
     }
     function setTrendGlow(t){
       const b = document.getElementById('trend-btn'); if(!b) return;
@@ -1066,8 +1146,63 @@
       else if(t && t.dir==='down') b.classList.add('trend-active-down');
     }
     async function updateTrendBtn(){
-      try { const d = await fetch(api('/api/market-trend')).then(r=>r.json()); setTrendGlow(d.global.trend); }
-      catch(e){}
+      try {
+        const d = await fetch(api('/api/market-trend')).then(r=>r.json());
+        setTrendGlow((d.basket && d.basket.global && d.basket.global.trend) || d.global.trend);
+      } catch(e){}
+    }
+    // Der Lauf holt je Suche mehrere Ergebnisseiten und läuft daher serverseitig im
+    // Hintergrund weiter — ohne Fortschrittsanzeige sähe der Nutzer nach dem Klick
+    // minutenlang nichts. Gepollt wird der schlanke /progress-Endpunkt, nicht die
+    // komplette Barometer-Auswertung.
+    let _basketPoll = null;
+    function renderBasketProgress(p){
+      const box = $('#basket-progress'); if(!box) return;
+      if(!p){ box.innerHTML = ''; box.style.display = 'none'; return; }
+      const total = p.total || 0, done = p.done || 0;
+      const pct = total ? Math.round(done / total * 100) : 0;
+      box.style.display = '';
+      box.innerHTML =
+        `<div class="bkt-bar"><div class="bkt-fill" style="width:${pct}%"></div></div>`
+        + `<div class="hint">${done} von ${total} Suchen · ${p.hotels||0} Hotels erfasst`
+        + (p.current ? ` · gerade: ${esc(p.current)}` : '') + '</div>';
+    }
+    function stopBasketPoll(){ if(_basketPoll){ clearInterval(_basketPoll); _basketPoll = null; } }
+    function startBasketPoll(){
+      stopBasketPoll();
+      _basketPoll = setInterval(async ()=>{
+        // Fenster zu → nicht weiter pollen; der Lauf selbst läuft serverseitig weiter.
+        if(!$('#basket-bg').classList.contains('show')){ stopBasketPoll(); return; }
+        let d; try { d = await fetch(api('/api/market-basket/progress')).then(r=>r.json()); }
+        catch(e){ return; }
+        renderBasketProgress(d.progress);
+        if(!d.running){
+          stopBasketPoll();
+          renderBasketProgress(null);
+          toast('Preisbarometer fertig');
+          loadBasket();
+          updateTrendBtn();
+        }
+      }, 1500);
+    }
+    async function runMarketBasket(){
+      try {
+        const d = await fetch(api('/api/market-basket/run'), {method:'POST'}).then(r=>r.json());
+        if(!d.started){ toast(`Preisbarometer nicht gestartet: ${d.note||'unbekannt'}`); return; }
+        renderBasketProgress({done:0, total:(d.regions||[]).length, hotels:0, current:''});
+        startBasketPoll();
+      } catch(e){ toast('Barometer-Lauf fehlgeschlagen'); }
+    }
+    async function resetBasketRegion(region){
+      if(!confirm(`Barometer-Daten für „${region}" löschen und neu beginnen?\n`
+        + `Die Messreihe wird beim nächsten Lauf neu erfasst, Trend und Index beginnen von vorn.`)) return;
+      try {
+        const d = await fetch(api('/api/market-basket/region'), {method:'DELETE',
+          headers:{'Content-Type':'application/json'}, body:JSON.stringify({region})}).then(x=>x.json());
+        toast(`${d.snapshots} Snapshots und ${d.moves} Tagesbewegungen gelöscht`);
+      } catch(e){ toast('Löschen fehlgeschlagen'); }
+      loadBasket();
+      updateTrendBtn();
     }
     async function resetRegionTrend(i){
       const r = _marketTrendData && _marketTrendData.by_region[i]; if(!r) return;
@@ -1094,6 +1229,10 @@
     // Preiskalender: mit Pfeiltasten ← / → durch die Monate blättern (nicht nur per Maus).
     document.addEventListener('keydown', e=>{
       if(!$('#cal-bg').classList.contains('show')) return;
+      // Die Foto-Lightbox blättert mit denselben Tasten und liegt darüber: sonst
+      // würden beide Handler auf einen Tastendruck reagieren (preventDefault stoppt
+      // keine weiteren Listener).
+      if($('#giata-lightbox-bg').classList.contains('show')) return;
       if(e.key!=='ArrowLeft' && e.key!=='ArrowRight') return;
       if(!calData || !calData.days) return;
       const months=[...new Set(calData.days.map(d=>d.date.slice(0,7)))].sort();
@@ -1109,6 +1248,16 @@
       ['giata-lightbox-bg', closeGiataLightbox],
       ['giata-gallery-bg', closeGiataGallery],
       ['cal-day-chart', closeCalDayChart],
+      // Der Empfänger-Dialog bekommt beim Öffnen z-index 60 und liegt damit über
+      // jedem anderen Fenster, aus dem er aufgerufen wurde — also zuerst prüfen.
+      ['email-bg', closeEmailModal],
+      // Das KI-Ergebnis steht im DOM hinter Suchmaske, Kalender, Vergleich & Co. und
+      // liegt daher optisch darüber, wenn es aus einem von ihnen heraus geöffnet wird
+      // (Reisezeit-Check und KI-Vergleich aus der Suche, Kalenderanalyse …). Es muss
+      // deshalb VOR diesen geprüft werden, sonst schlösse ESC das darunterliegende
+      // Fenster und ließe das sichtbare offen.
+      ['ai-bg', closeAiSummary],
+      ['climate-bg', closeClimate],   // wird aus der Suchmaske geöffnet, liegt darüber
       ['cal-bg', closeCalendar],
       ['modal-bg', closeModal],
       ['cmp-bg', closeCompare],
@@ -1116,15 +1265,14 @@
       ['nig-bg', closeNights],
       ['c24-bg', closeCheck24],
       ['room-bg', closeRooms],
-      ['ai-bg', closeAiSummary],
       ['syslog-bg', closeSyslog],
       ['aihist-bg', closeAiHistory],
       ['aiask-bg', closeAiAsk],
       ['reiseb-bg', closeAdvisor],
-      ['email-bg', closeEmailModal],
       ['hc-bg', () => $('#hc-bg').classList.remove('show')],
       ['promptcfg-bg', closePromptCfg],
       ['aktion-bg', closeAktion],
+      ['basket-bg', closeBasket],   // liegt über dem Markttrend, daher davor prüfen
       ['trend-bg', closeMarketTrend],
       ['trips-summary-bg', closeTripsSummary],
       ['trips-bg', closeTrips],
@@ -1906,7 +2054,9 @@
       try { const d = await fetch(api('/api/searches')).then(r=>r.json()); srchFavs = d.searches||[]; }
       catch(e){ srchFavs = []; }
       $('#srch-favsel').innerHTML = '<option value="">– gespeicherte Suche wählen –</option>'
-        + srchFavs.map(f=>`<option value="${f.id}">${f.watch?'🔔 ':''}${esc(f.name)}</option>`).join('');
+        // Abo-Glocke hinter den Namen: davor schob sie die Namen der Abos gegenüber
+        // den übrigen Einträgen ein und zerriss die linke Kante der Liste.
+        + srchFavs.map(f=>`<option value="${f.id}">${esc(f.name)}${f.watch?' 🔔':''}</option>`).join('');
       favBtnState();
     }
     // „Änderungen speichern" nur aktiv, wenn eine gespeicherte Suche gewählt ist;
@@ -1965,6 +2115,11 @@
     function showWatchHits(favId){
       const fav = srchFavs.find(x=>x.id===favId); if(!fav) return;
       srchResults = fav.hits||[]; srchTotal = srchResults.length; srchFilter='';
+      // Kriterien aus dem Abo selbst, nicht aus der Suchmaske — die Treffer stammen
+      // aus dem gespeicherten Lauf und können ganz andere Parameter gehabt haben.
+      const p = fav.payload || {};
+      srchCriteria = {travellers: parseInt(p.trav)||null,
+                      airports: p.airport ? [p.airport] : []};
       sortSearchResults(); renderSearch();
     }
     function curFav(){
@@ -2037,6 +2192,376 @@
       if(ok){ await renderFavs(); toast('Gespeicherte Suche gelöscht'); } else { toast('Löschen fehlgeschlagen'); }
     }
 
+    // ── Klimatabelle des Reiseziels ───────────────────────────────────────────
+    // Wird je Ziel EINMAL von der KI erzeugt und dauerhaft gespeichert: Klimawerte
+    // sind langjährige Mittel, ein erneuter Abruf brächte nur Kosten. Der Abruf
+    // startet automatisch nach einer Suche (sofern eine KI konfiguriert ist), damit
+    // die Tabelle beim Klick sofort dasteht — dank Speicherung ist das je Ziel ein
+    // einziger Aufruf, kein Dauerverbrauch.
+    const MONTHS_DE = ['Januar','Februar','März','April','Mai','Juni','Juli','August',
+                       'September','Oktober','November','Dezember'];
+    let climateData = null;      // zuletzt geladene Tabelle {giata,label,ts,model,data}
+    let climateBusy = false;
+
+    function aiEnabled(){ return !document.body.classList.contains('ai-disabled'); }
+
+    // Monate, die im gewählten Reisezeitraum liegen — die werden in der Tabelle
+    // hervorgehoben, sonst sucht man sie in zwölf Zeilen.
+    function searchMonths(){
+      const vom = $('#srch-vom').value, bis = $('#srch-bis').value;
+      if(!vom) return [];
+      const a = new Date(vom+'T00:00:00'), b = new Date((bis||vom)+'T00:00:00');
+      if(isNaN(a) || isNaN(b) || b < a) return [];
+      const out = new Set();
+      const cur = new Date(a.getFullYear(), a.getMonth(), 1);
+      while(cur <= b && out.size < 12){ out.add(cur.getMonth()+1); cur.setMonth(cur.getMonth()+1); }
+      return [...out];
+    }
+    async function fetchClimate(giata, label, {refresh=false, silent=false}={}){
+      if(climateBusy) return null;
+      climateBusy = true;
+      try {
+        // Ohne refresh zuerst der billige Weg: gespeicherte Tabelle, kein KI-Aufruf.
+        if(!refresh){
+          try {
+            const d = await fetch(api('/api/climate/'+giata)).then(r=>r.json());
+            if(d && d.found){ climateData = d; return d; }
+          } catch(e){}
+          if(!aiEnabled()) return null;
+        }
+        const busy = aiProviderName()+' stellt die Klimadaten zusammen…';
+        if(!silent) $('#climate-body').innerHTML = progBar(busy);
+        const body = {giata, label, refresh};
+        // Der Hintergrund-Abruf nach einer Suche ist ein automatischer Lauf — dort
+        // darf die Prompt-Vorschau (Option `ai_prompt_preview`) nicht aufpoppen,
+        // genau wie bei Wochenüberblick, Aktionscodes und Auto-Tagging. Deshalb
+        // gilt der Prompt hier als bestätigt.
+        if(silent) body._prompt_confirmed = true;
+        let resp, d;
+        if(silent){
+          resp = await fetch(api('/api/ai/climate'), {method:'POST',
+            headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
+          d = await resp.json().catch(()=>({}));
+        } else {
+          // Bei aktiver Prompt-Vorschau antwortet die Route erst mit dem Prompt
+          // statt mit Daten. `aiFetchPreviewable` würde ihn in #ai-body rendern —
+          // das KI-Fenster ist hier aber gar nicht offen, die Vorschau bliebe
+          // unsichtbar und der Ladebalken liefe ewig. Deshalb der Kern mit eigenem
+          // Renderer, der die Vorschau ins Klima-Fenster schreibt.
+          const rp = await aiFetchPreviewCore(api('/api/ai/climate'), {method:'POST',
+              headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)},
+            promptText => new Promise(resolve => {
+              $('#climate-body').innerHTML =
+                '<div class="hint" style="margin:4px 0 6px">📝 Prompt vor dem Senden prüfen/bearbeiten:</div>'
+                + promptPreviewBoxHtml(promptText);
+              $('#ai-pp-cancel').onclick = () => resolve(null);
+              $('#ai-pp-send').onclick = () => resolve($('#ai-pp-ta').value);
+            }),
+            () => { $('#climate-body').innerHTML = progBar(busy); });
+          if(rp.cancelled){
+            $('#climate-body').innerHTML = '<div class="cmp-load">Abgebrochen.</div>';
+            return null;
+          }
+          resp = rp.resp; d = rp.d;
+        }
+        if(!resp.ok){
+          if(!silent) $('#climate-body').innerHTML = aiErrorBlock(aiErrorMsg(d.error), false);
+          return null;
+        }
+        if(!d || !d.data || !(d.data.months||[]).length){
+          if(!silent) $('#climate-body').innerHTML = aiErrorBlock(
+            'Die KI hat keine vollständige Klimatabelle geliefert. Versuch es noch einmal.', true);
+          return null;
+        }
+        climateData = d;
+        return d;
+      } catch(e){
+        if(!silent) $('#climate-body').innerHTML = aiErrorBlock('Klimadaten konnten nicht geladen werden.', false);
+        return null;
+      } finally { climateBusy = false; }
+    }
+    // Zwei Panels übereinander mit gemeinsamer Monatsachse: Temperaturen (°C) als
+    // Linien, Regentage als Säulen. Bewusst NICHT zwei y-Achsen in einem Bild —
+    // verschiedene Einheiten auf einer Skala laden zu Fehldeutungen ein.
+    const CLIM_MON_KURZ = ['J','F','M','A','M','J','J','A','S','O','N','D'];
+    function climateChart(months, selMonths){
+      const ms = months.slice().sort((a,b)=>(a.monat||0)-(b.monat||0));
+      if(ms.length < 2) return '';
+      // PADR muss das längste Endlabel tragen („Wasser" ≈ 40px bei 10px Schrift) —
+      // ein Label, das nicht passt, wird nicht abgeschnitten, sondern bekommt Platz.
+      const W=680, PADL=30, PADR=52, TOP=14, TH=150, GAP=26, RH=64;
+      const BOT = TOP+TH+GAP+RH, H = BOT+18;
+      const iw = W-PADL-PADR, step = iw/ms.length, cx = i => PADL + step*(i+0.5);
+      const series = [
+        {key:'temp_tag',   label:'Tag',    color:'var(--viz-2)'},
+        {key:'temp_nacht', label:'Nacht',  color:'var(--viz-1)'},
+        {key:'wasser',     label:'Wasser', color:'var(--viz-3)'},
+      ];
+      const vals = series.flatMap(s=>ms.map(m=>Number(m[s.key])||0)).filter(v=>v>0);
+      // Kein Nullpunkt-Zwang: das gilt für Balken (Fläche = Menge), nicht für
+      // Temperaturlinien. Bei 15–28 °C würde eine Achse ab 0 die Kurven zu einem
+      // flachen Band zusammendrücken.
+      const lo = Math.floor(Math.min(...vals)/5)*5, hi = Math.ceil(Math.max(...vals)/5)*5;
+      const ty = v => TOP+TH - (v-lo)/((hi-lo)||1)*TH;
+      const rainMax = Math.max(1, ...ms.map(m=>Number(m.regentage)||0));
+      const ry = v => TOP+TH+GAP+RH - (v/rainMax)*RH;
+
+      let g = '';
+      for(let k=0;k<=4;k++){
+        const v = lo + (hi-lo)*k/4, y = ty(v);
+        g += `<line class="cc-grid" x1="${PADL}" y1="${y}" x2="${W-PADR}" y2="${y}"/>`
+           + `<text class="cc-axis" x="${PADL-6}" y="${y+3}" text-anchor="end">${Math.round(v)}</text>`;
+      }
+      g += `<line class="cc-grid" x1="${PADL}" y1="${TOP+TH+GAP+RH}" x2="${W-PADR}" y2="${TOP+TH+GAP+RH}"/>`
+         + `<text class="cc-axis" x="${PADL-6}" y="${TOP+TH+GAP+RH+3}" text-anchor="end">0</text>`
+         + `<text class="cc-axis" x="${PADL-6}" y="${ry(rainMax)+3}" text-anchor="end">${rainMax}</text>`;
+
+      // Säulen: max. 24px dick, 4px runde Kappe, 2px Luft zum Nachbarn über die Breite
+      const bw = Math.min(24, step-6);
+      const bars = ms.map((m,i)=>{
+        const v = Number(m.regentage)||0, y = ry(v), h = TOP+TH+GAP+RH-y;
+        return h < 0.5 ? '' :
+          `<rect x="${(cx(i)-bw/2).toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" `
+          + `height="${h.toFixed(1)}" rx="4" fill="var(--viz-1)" opacity=".55"/>`;
+      }).join('');
+
+      // Direktlabels am Linienende nur, wenn die Linien dort weit genug auseinander
+      // liegen. Übereinandergeschobene Labels lösen sich optisch von ihrer Linie und
+      // lesen sich als Rauschen — dann trägt die Legende die Identität allein
+      // (zusammen mit Tooltip und Tabelle darunter).
+      const endYs = series.map(s=>ty(Number(ms[ms.length-1][s.key])||0))
+                          .filter(y=>!isNaN(y)).sort((a,b)=>a-b);
+      const endLabels = endYs.every((y,i)=> i===0 || y-endYs[i-1] >= 12);
+      const lines = series.map(s=>{
+        const pts = ms.map((m,i)=>({x:cx(i), v:Number(m[s.key])||0}))
+                      .filter(p=>p.v>0).map(p=>`${p.x.toFixed(1)},${ty(p.v).toFixed(1)}`);
+        if(pts.length < 2) return '';
+        const lv = Number(ms[ms.length-1][s.key])||0;
+        const lbl = (endLabels && lv>0)
+          ? `<text class="cc-end" x="${W-PADR+4}" y="${ty(lv)+3}">${esc(s.label)}</text>` : '';
+        return `<polyline class="cc-line" points="${pts.join(' ')}" stroke="${s.color}"/>` + lbl;
+      }).join('');
+
+      const marks = ms.map((m,i)=>
+        series.map(s=>{ const v=Number(m[s.key])||0; return v>0
+          ? `<circle class="cc-dot cc-m${i}" cx="${cx(i).toFixed(1)}" cy="${ty(v).toFixed(1)}" r="4" fill="${s.color}" opacity="0"/>` : ''; }).join('')
+      ).join('');
+
+      // Hover-Zone je Monat über beide Panels — ein Ziel statt 48 winziger Punkte
+      const bands = ms.map((m,i)=>
+        `<rect class="cc-band" data-i="${i}" x="${(cx(i)-step/2).toFixed(1)}" y="${TOP-8}" `
+        + `width="${step.toFixed(1)}" height="${(BOT-TOP+8).toFixed(1)}" rx="4"/>`).join('');
+
+      const xlab = ms.map((m,i)=>{
+        const on = selMonths.has(m.monat);
+        return `<text class="cc-axis" x="${cx(i).toFixed(1)}" y="${H-4}" text-anchor="middle"`
+          + (on ? ' style="fill:var(--text);font-weight:700"' : '') + `>`
+          + `${CLIM_MON_KURZ[(m.monat||1)-1]}</text>`;
+      }).join('');
+
+      return '<div class="clim-legend">'
+        + series.map(s=>`<span><i style="background:${s.color}"></i>${esc(s.label)}</span>`).join('')
+        + '<span><i style="background:var(--viz-1);opacity:.55;height:8px;width:8px;border-radius:2px"></i>Regentage</span>'
+        + '</div>'
+        + '<div class="clim-tip" id="clim-tip">Fahre über einen Monat für die Werte.</div>'
+        + `<svg class="climchart" viewBox="0 0 ${W} ${H}" role="img" `
+        + 'aria-label="Klimadiagramm: Temperaturen und Regentage je Monat">'
+        + g + bars + lines + marks + bands + xlab + '</svg>';
+    }
+    // Tooltip-Verhalten: die Werte des überfahrenen Monats als Textzeile über dem
+    // Diagramm (statt schwebendem Kasten — im Modal ist der Platz knapp und die
+    // Zeile bleibt auch per Tastatur/Touch lesbar).
+    function climateChartHover(box, months){
+      const ms = months.slice().sort((a,b)=>(a.monat||0)-(b.monat||0));
+      const tip = box.querySelector('#clim-tip'); if(!tip) return;
+      const base = tip.textContent;
+      box.querySelectorAll('.cc-band').forEach(b=>{
+        const i = +b.dataset.i, m = ms[i]; if(!m) return;
+        const show = on => {
+          box.querySelectorAll('.cc-m'+i).forEach(c=>c.setAttribute('opacity', on?'1':'0'));
+          if(!on){ tip.textContent = base; return; }
+          const p = [`<b>${esc(MONTHS_DE[(m.monat||1)-1])}</b>`,
+                     `Tag ${m.temp_tag} °C`, `Nacht ${m.temp_nacht} °C`];
+          if(m.wasser) p.push(`Wasser ${m.wasser} °C`);
+          p.push(`${m.sonnenstunden} Sonnenstunden`, `${m.regentage} Regentage`);
+          if(m.hinweis) p.push(esc(m.hinweis));
+          tip.innerHTML = p.join(' · ');
+        };
+        b.addEventListener('mouseenter', ()=>show(true));
+        b.addEventListener('mouseleave', ()=>show(false));
+      });
+    }
+    function renderClimate(d){
+      // Reisemonate nur hervorheben, wenn das Fenster aus der Suche kam — von der
+      // Hauptseite aus stehen in der Maske irgendwelche Altwerte, die mit dieser
+      // Tabelle nichts zu tun haben.
+      const sel = new Set(climateFromSearch ? searchMonths() : []);
+      const c = (d && d.data) || {};
+      // Ohne Monatsdaten würde sonst eine leere Tabelle mit bloßem Kopf erscheinen —
+      // die sieht aus wie ein kaputtes Fenster und sagt nicht, was zu tun ist.
+      if(!(c.months || []).length){
+        $('#climate-body').innerHTML =
+          '<div class="cmp-load">Für dieses Ziel liegt keine Klimatabelle vor. '
+          + '„🔄 Neu abrufen" erstellt sie.</div>';
+        $('#climate-stand').textContent = '';
+        return;
+      }
+      const best = new Set(c.beste_monate || []);
+      const rows = (c.months || []).slice().sort((a,b)=>(a.monat||0)-(b.monat||0)).map(m=>{
+        const name = MONTHS_DE[(m.monat||1)-1] || m.monat;
+        const num = v => (v==null || v==='') ? '–' : Number(v).toLocaleString('de-DE',{maximumFractionDigits:1});
+        return `<tr class="${sel.has(m.monat)?'clim-sel':''}">`
+          + `<td>${esc(name)}${best.has(m.monat)?' <span class="clim-best" title="aus Wetter-Sicht bester Reisemonat">★</span>':''}`
+          // aiInline macht Perplexitys Quellen-Marker anklickbar; ohne stünde dort
+          // toter Text wie „[7][11]".
+          + (m.hinweis ? `<div class="clim-note">${aiInline(esc(m.hinweis))}</div>` : '') + '</td>'
+          + `<td>${num(m.temp_tag)} °C</td><td>${num(m.temp_nacht)} °C</td>`
+          + `<td>${m.wasser ? num(m.wasser)+' °C' : '–'}</td>`
+          + `<td>${num(m.sonnenstunden)} h</td><td>${num(m.regentage)}</td></tr>`;
+      }).join('');
+      const box = $('#climate-body');
+      box.innerHTML =
+        (c.zusammenfassung ? `<div style="margin-bottom:10px">${aiInline(esc(c.zusammenfassung))}</div>` : '')
+        + climateChart(c.months || [], sel)
+        + `<table class="hist clim" style="margin-top:10px"><tr><th>Monat</th><th>Tag</th><th>Nacht</th><th>Wasser</th>`
+        + `<th title="Sonnenstunden pro Tag">Sonne</th><th title="Regentage im Monat">Regen</th></tr>${rows}</table>`
+        + (sel.size ? '<div class="hint" style="margin-top:8px">Hervorgehoben: die Monate deines Reisezeitraums.</div>' : '');
+      climateChartHover(box, c.months || []);
+      const when = d && d.ts ? new Date(d.ts*1000).toLocaleDateString('de-DE') : '';
+      $('#climate-stand').textContent = when
+        ? `Langjährige Mittelwerte · erstellt am ${when}${d.model ? ' mit '+d.model : ''}`
+        : '';
+    }
+    // Das Ziel, dessen Tabelle gerade angezeigt wird — nicht zwingend das der
+    // Suchmaske: von der Hauptseite aus wird eines aus der gespeicherten Liste
+    // gewählt, ohne dass eine Suche läuft.
+    let climateTarget = null;
+    let climateFromSearch = false;
+
+    // Von der Hauptseite ohne Reiseziel: Liste der bereits gespeicherten Tabellen.
+    // Neue Ziele entstehen über die Suche — dort gibt es einen Ziel-Picker, hier
+    // nicht, und ein zweiter Picker nur fürs Klima wäre doppelte Bedienung.
+    async function renderClimateList(){
+      $('#climate-sub').textContent = 'Gespeicherte Reiseziele';
+      $('#climate-stand').textContent = '';
+      // „Als E-Mail" und „Neu abrufen" beziehen sich auf EIN Ziel — in der Liste
+      // gibt es keins, also weg damit.
+      $('#climate-foot').style.display = 'none';
+      $('#climate-body').innerHTML = progBar('Lade…');
+      let items = [];
+      try { items = (await fetch(api('/api/climate')).then(r=>r.json())).items || []; }
+      catch(e){ $('#climate-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Laden fehlgeschlagen</div>'; return; }
+      if(!items.length){
+        $('#climate-body').innerHTML = '<div class="cmp-load">Noch keine Klimatabelle gespeichert. '
+          + 'Sie entsteht automatisch, sobald du in der <b>Suche</b> ein Reiseziel wählst und suchst.</div>';
+        return;
+      }
+      $('#climate-body').innerHTML = '<table class="hist">'
+        + '<tr><th>Reiseziel</th><th>erstellt</th><th></th></tr>'
+        + items.map(it=>`<tr><td><a href="#" onclick="event.preventDefault();`
+            + `openClimate(${it.giata},${esc(JSON.stringify(it.label))})">${esc(it.label)}</a></td>`
+          + `<td class="hint">${new Date(it.ts*1000).toLocaleDateString('de-DE')}</td>`
+          + `<td><button class="btn sec" onclick="deleteClimate(${it.giata},${esc(JSON.stringify(it.label))})" `
+          + `title="Gespeicherte Tabelle löschen">🗑</button></td></tr>`).join('')
+        + '</table>';
+    }
+    async function deleteClimate(giata, label){
+      if(!confirm(`Klimatabelle für „${label}" löschen?`)) return;
+      try { await fetch(api('/api/climate/'+giata), {method:'DELETE'}); }
+      catch(e){ toast('Löschen fehlgeschlagen'); return; }
+      if(climateData && climateData.giata === giata) climateData = null;
+      renderClimateList();
+    }
+    // Ohne Argumente: aus der Suche heraus das dortige Ziel, sonst die Liste.
+    async function openClimate(giata, label){
+      const fromSearch = giata == null && !!srchDest;
+      if(giata == null && srchDest){ giata = srchDest.giata; label = srchDest.label; }
+      $('#climate-bg').classList.add('show');
+      if(giata == null){ climateTarget = null; climateFromSearch = false; renderClimateList(); return; }
+      climateTarget = {giata, label};
+      climateFromSearch = fromSearch;
+      $('#climate-foot').style.display = '';
+      $('#climate-sub').textContent = label;
+      // Schon geladen (z. B. vom Auto-Abruf nach der Suche) → sofort anzeigen.
+      if(climateData && climateData.giata === giata){ renderClimate(climateData); return; }
+      $('#climate-body').innerHTML = progBar('Lade…');
+      $('#climate-stand').textContent = '';
+      const d = await fetchClimate(giata, label);
+      if(d) renderClimate(d);
+      else if(!aiEnabled()) $('#climate-body').innerHTML =
+        '<div class="cmp-load">Für dieses Ziel ist noch keine Klimatabelle gespeichert — sie wird von der KI erstellt, dafür muss ein KI-Key hinterlegt sein.</div>';
+    }
+    function closeClimate(){ $('#climate-bg').classList.remove('show'); }
+    $('#climate-bg').addEventListener('click', e=>{ if(e.target.id==='climate-bg') closeClimate(); });
+    async function refreshClimate(){
+      if(!climateTarget){ toast('Kein Reiseziel gewählt'); return; }
+      if(!confirm('Klimatabelle neu von der KI erstellen lassen? Das kostet einen KI-Aufruf.')) return;
+      $('#climate-body').innerHTML = progBar('Wird neu erstellt…');
+      const d = await fetchClimate(climateTarget.giata, climateTarget.label, {refresh:true});
+      if(d) renderClimate(d);
+    }
+    // Nach einer Suche im Hintergrund vorladen — beim ersten Mal je Ziel kostet das
+    // einen KI-Aufruf, danach kommt die Tabelle aus der Datenbank.
+    function prefetchClimate(){
+      if(!srchDest || !aiEnabled()) return;
+      if(climateData && climateData.giata === srchDest.giata) return;
+      fetchClimate(srchDest.giata, srchDest.label, {silent:true}).catch(()=>{});
+    }
+
+    // ── Reisezeit-Check (KI) direkt aus der Suchmaske ─────────────────────────
+    // Die Maske weiß nichts über Klima oder Saison — genau dafür ist das da. Sind
+    // schon Treffer geladen, geht eine kurze Preisstatistik mit: ohne sie könnte die
+    // KI zum Preisniveau nur allgemein raten, mit ihr ordnet sie den Zeitraum ein.
+    function searchPriceStats(){
+      const prices = srchResults.map(r=>r.price).filter(p=>typeof p==='number').sort((a,b)=>a-b);
+      if(!prices.length) return null;
+      return {count: srchResults.length, total: srchTotal,
+              min_price: prices[0], max_price: prices[prices.length-1],
+              median_price: prices[Math.floor(prices.length/2)]};
+    }
+    async function askSearchAdvice(){
+      if(!srchDest){ toast('Bitte zuerst ein Reiseziel wählen'); return; }
+      const air = $('#srch-airport').selectedOptions[0];
+      const body = {
+        dest: srchDest.label, giata: srchDest.giata,
+        start: $('#srch-vom').value, end: $('#srch-bis').value,
+        duration: parseInt($('#srch-dur').value)||null, exact: $('#srch-exact').checked,
+        travellers: parseInt($('#srch-trav').value)||null,
+        airport: $('#srch-airport').value, airport_label: air ? air.textContent : '',
+        boards: [...document.querySelectorAll('.srch-board:checked')].map(c=>c.value),
+        direct: $('#srch-direct').checked, adults_only: $('#srch-adults').checked,
+        min_stars: $('#srch-qual-off').checked ? 0 : (parseFloat($('#srch-stars').value)||0),
+        min_recommend: $('#srch-qual-off').checked ? 0 : (parseFloat($('#srch-rec').value)||0),
+        results: searchPriceStats() || undefined,
+      };
+      $('#ai-title').textContent = '🤖 Reisezeit-Check';
+      $('#ai-sub').textContent = srchDest.label
+        + (body.start && body.end ? ` · ${body.start} – ${body.end}` : '');
+      $('#ai-foot').style.display = 'none';
+      $('#ai-bg').classList.add('show');
+      const attempt = async () => {
+        await ensureAiProviderLoaded();
+        const busy = aiProviderName()+' prüft Reisezeit und Alternativen…';
+        $('#ai-body').innerHTML = progBar(busy);
+        let resp, d;
+        try {
+          const r = await aiFetchPreviewable(api('/api/ai/search-advice'),
+            {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)}, busy);
+          if(r.cancelled) return;
+          resp = r.resp; d = r.d;
+        } catch(e){ _aiRetryFn = attempt; $('#ai-body').innerHTML = aiErrorBlock('Reisezeit-Check fehlgeschlagen.', true); return; }
+        if(!resp.ok){
+          const retryable = aiRetryable(d.error);
+          const msg = d.error==='no_dest' ? 'Kein Reiseziel gewählt.' : aiErrorMsg(d.error);
+          _aiRetryFn = retryable ? attempt : null;
+          $('#ai-body').innerHTML = aiErrorBlock(msg, retryable);
+          return;
+        }
+        renderAiResult('#ai-body', d);
+      };
+      attempt();
+    }
+
     async function runSearch(){
       const url = $('#srch-url').value.trim();
       const boards = [...document.querySelectorAll('.srch-board:checked')].map(c=>c.value);
@@ -2075,9 +2600,17 @@
       if(r.status===400){ $('#srch-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Keine gültige Eingabe.</div>'; return; }
       if(!r.ok){ $('#srch-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Suche fehlgeschlagen.</div>'; return; }
       srchResults = d.results||[]; srchTotal = d.total||srchResults.length; srchFilter = '';
+      srchCriteria = d.criteria || null;
+      // Klarnamen des Flughafens („Stuttgart (STR)") gibt es nur im Auswahlfeld —
+      // der Server kennt bloß den IATA-Code.
+      if(srchCriteria && body.airport){
+        const opt = $('#srch-airport').selectedOptions[0];
+        if(opt && opt.value===body.airport) srchCriteria.airport_label = opt.textContent;
+      }
       srchResults.forEach(r=>{ r._key = String(r.giata||r.name); });
       srCmpSelected = new Set();
       sortSearchResults(); renderSearch();
+      prefetchClimate();   // Klimatabelle im Hintergrund bereitlegen
     }
 
     // "Mehr laden": die Such-API liefert pro Aufruf nur resultsPerPage (50) Treffer,
@@ -2744,20 +3277,41 @@
         `<a href="${u}" target="_blank" rel="noopener" style="color:var(--accent)">${u.length>64?u.slice(0,61)+'…':u}</a>`);
       return h;
     }
+    const _SYSLOG_LEVEL_COLORS = {ERROR:'var(--red)', CRITICAL:'var(--red)',
+                                  WARNING:'var(--amber)', INFO:'var(--muted)', DEBUG:'var(--muted)'};
     async function openSyslog(tab){
       $('#syslog-bg').classList.add('show');
       $('#syslog-tab-notify').classList.toggle('sec', tab!=='notify');
       $('#syslog-tab-errors').classList.toggle('sec', tab!=='errors');
+      $('#syslog-tab-console').classList.toggle('sec', tab!=='console');
+      // Filterzeile gehört nur zur Konsole — die anderen Tabs liefern zu wenig Zeilen,
+      // als dass Filtern lohnte.
+      $('#syslog-filter').style.display = tab==='console' ? 'flex' : 'none';
       const body = $('#syslog-body');
       body.innerHTML = progBar('Lädt…');
+      let url = '/api/notifications';
+      if(tab==='errors') url = '/api/errors';
+      if(tab==='console'){
+        const q = ($('#syslog-q').value||'').trim(), lv = $('#syslog-level').value||'';
+        url = '/api/logs?q=' + encodeURIComponent(q) + '&level=' + encodeURIComponent(lv);
+      }
       let d;
       try {
-        const r = await fetch(api(tab==='errors'?'/api/errors':'/api/notifications'));
+        const r = await fetch(api(url));
         if(!r.ok) throw 0; d = await r.json();
       } catch(e){ body.innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Konnte nicht geladen werden.</div>'; return; }
       const items = d.items||[];
-      if(tab==='errors'){
-        $('#syslog-sub').textContent = 'Letzte Warnungen/Fehler seit Add-on-Start (max. 100) — Diagnose ohne HA-Log.';
+      if(tab==='console'){
+        $('#syslog-sub').textContent =
+          `Add-on-Log seit dem Start, neueste zuerst — ${items.length} von ${d.total||0} Zeilen `
+          + `(Puffer ${d.capacity||0}).`;
+        body.innerHTML = items.length ? items.map(it=>{
+          const col = _SYSLOG_LEVEL_COLORS[it.level] || 'var(--muted)';
+          return `<div style="padding:2px 0;font-size:.78rem;font-family:ui-monospace,monospace;`
+            + `word-break:break-word;color:${col}">${esc(it.msg)}</div>`;
+        }).join('') : '<div class="empty">Keine passenden Zeilen.</div>';
+      } else if(tab==='errors'){
+        $('#syslog-sub').textContent = 'Letzte Warnungen/Fehler seit Add-on-Start (max. 500) — Diagnose ohne HA-Log.';
         body.innerHTML = items.length ? items.map(it=>{
           const t = new Date(it.ts).toLocaleString('de-DE');
           const col = it.level==='ERROR'?'var(--red)':'var(--amber)';
@@ -2780,6 +3334,9 @@
       }
     }
     function closeSyslog(){ $('#syslog-bg').classList.remove('show'); }
+    // Enter im Filterfeld bzw. Wechsel der Stufe lädt die Konsole neu
+    $('#syslog-q').addEventListener('keydown', e=>{ if(e.key==='Enter') openSyslog('console'); });
+    $('#syslog-level').addEventListener('change', ()=> openSyslog('console'));
 
     async function openGiataGallery(giata){
       $('#giata-gallery-bg').classList.add('show');
@@ -2790,11 +3347,13 @@
         const r = await fetch(api('/api/giata_images/'+encodeURIComponent(giata)));
         if(!r.ok) throw 0; d = await r.json();
       } catch(e){ body.innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Konnte nicht geladen werden.</div>'; return; }
-      const images = d.images||[];
-      body.innerHTML = images.length ? (
+      giataImages = d.images||[];
+      body.innerHTML = giataImages.length ? (
         '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-top:10px">'
-        + images.map(im=>(
-            '<a href="#" onclick="event.preventDefault();openGiataLightbox(\''+esc(im.full)+'\')">'
+        // Index statt URL: die Lightbox blättert durch giataImages, dafür muss sie
+        // wissen, an welcher Stelle der Liste sie startet.
+        + giataImages.map((im,i)=>(
+            '<a href="#" onclick="event.preventDefault();openGiataLightbox('+i+')">'
             +'<img src="'+esc(im.thumb)+'" loading="lazy" style="width:100%;height:110px;object-fit:cover;border-radius:6px;border:1px solid var(--border)">'
             +'</a>'
           )).join('')
@@ -2802,10 +3361,42 @@
       ) : '<div class="empty">Keine Fotos gefunden.</div>';
     }
     function closeGiataGallery(){ $('#giata-gallery-bg').classList.remove('show'); }
-    function openGiataLightbox(full){
-      $('#giata-lightbox-img').src = full;
+
+    let giataImages = [], giataIdx = 0;   // Fotoliste der offenen Galerie + Position der Lightbox
+    function openGiataLightbox(idx){
+      giataIdx = idx|0;
+      giataShow();
       $('#giata-lightbox-bg').classList.add('show');
     }
+    function giataShow(){
+      const im = giataImages[giataIdx];
+      if(!im) return;
+      $('#giata-lightbox-img').src = im.full;
+      $('#giata-lightbox-count').textContent = (giataIdx+1)+' / '+giataImages.length;
+      // Nachbarbilder vorladen: die Vollbilder kommen von GIATA und brauchen sonst
+      // beim Blättern sichtbar lange, das Bild bliebe kurz leer.
+      [giataIdx-1, giataIdx+1].forEach(i=>{
+        const n = giataImages[i];
+        if(n) new Image().src = n.full;
+      });
+      const single = giataImages.length < 2;
+      $('#giata-lightbox-prev').style.display = single ? 'none' : '';
+      $('#giata-lightbox-next').style.display = single ? 'none' : '';
+      $('#giata-lightbox-count').style.display = single ? 'none' : '';
+    }
+    // Umlaufend: am letzten Foto führt → zurück zum ersten. Bei einer Galerie ohne
+    // Ordnung ist eine Sackgasse am Rand nur lästig.
+    function giataStep(d){
+      if(giataImages.length < 2) return;
+      giataIdx = (giataIdx + d + giataImages.length) % giataImages.length;
+      giataShow();
+    }
+    document.addEventListener('keydown', e=>{
+      if(!$('#giata-lightbox-bg').classList.contains('show')) return;
+      if(e.key!=='ArrowLeft' && e.key!=='ArrowRight') return;
+      giataStep(e.key==='ArrowLeft' ? -1 : 1);
+      e.preventDefault();
+    });
     function closeGiataLightbox(){
       $('#giata-lightbox-bg').classList.remove('show');
       $('#giata-lightbox-img').src = '';
@@ -2871,7 +3462,9 @@
       } catch(e){ toast('Speichern fehlgeschlagen'); }
     }
     function aiKindLabel(kind){
-      return kind==='compare' ? '🤖 Vergleich' : kind==='ask' ? '❓ Frage'
+      return kind==='compare' ? '🤖 Vergleich' : kind==='ask' ? '📌 Portfolio-Frage'
+        : kind==='ask_general' ? '🌍 Reisefrage'
+        : kind==='search_advice' ? '🤖 Reisezeit-Check'
         : kind==='advisor' ? '🗺️ TripPilot' : kind==='booking_score' ? '🔮 Buchungsscore'
         : kind==='region_outlook' ? '🔮 Region-Ausblick'
         : kind==='calendar_outlook' ? '📅 Kalender-Analyse' : '🤖 Fazit';
@@ -2955,30 +3548,65 @@
       attempt();
     }
 
-    // ── Frag dein Portfolio ────────────────────────────────────────────────────
-    function openAiAsk(){ $('#aiask-q').value=''; $('#aiask-bg').classList.add('show'); }
+    // ── Frage: ans eigene Portfolio oder allgemein zum Reisen ─────────────────
+    // Zwei Knöpfe statt eines Umschalters: die Frage selbst sieht in beiden Fällen
+    // gleich aus, erst die Wahl des Knopfes entscheidet, welcher Prompt rausgeht.
+    const AIASK_SCOPES = {
+      portfolio: {title:'📌 Frag dein Portfolio',
+                  busy:' durchsucht dein Portfolio…',
+                  sub:'Frage zu deinen aktuell getrackten Angeboten — beantwortet anhand von Preis, '
+                    + 'Bewertung, Trend, Wunschpreis & Tags, für alles darüber hinaus (z. B. Klima zur '
+                    + 'Reisezeit) zusätzlich mit Websuche.',
+                  ph:'z. B. Welches Hotel ist gerade das beste Schnäppchen?'},
+      general:   {title:'🌍 Allgemeine Reisefrage',
+                  busy:' recherchiert…',
+                  sub:'Frage zu Regionen, Ländern, Reisezeiten, Einreise, Anreise — ohne Bezug zu deinen '
+                    + 'Angeboten, dafür mit Websuche. Für alles, was (noch) nicht im Portfolio steckt.',
+                  ph:'z. B. Wann ist die beste Reisezeit für Sri Lanka und was muss ich zur Einreise wissen?'},
+    };
+    function aiaskShow(scope){
+      const c = AIASK_SCOPES[scope] || AIASK_SCOPES.portfolio;
+      $('#aiask-sub').textContent = c.sub;
+      $('#aiask-q').placeholder = c.ph;
+    }
+    function openAiAsk(){
+      $('#aiask-q').value='';
+      aiaskShow('portfolio');
+      $('#aiask-hint').textContent = 'Beide Knöpfe schicken dieselbe Frage — mit unterschiedlichem Kontext.';
+      $('#aiask-bg').classList.add('show');
+      $('#aiask-q').focus();
+    }
     function closeAiAsk(){ $('#aiask-bg').classList.remove('show'); }
     $('#aiask-bg').addEventListener('click', e=>{ if(e.target.id==='aiask-bg') closeAiAsk(); });
-    async function submitAiAsk(){
+    // Beim Tippen die Beschreibung nicht ändern — nur beim Überfahren der Knöpfe
+    // zeigen, worauf der jeweilige zielt.
+    $('#aiask-btn-general').addEventListener('mouseenter', ()=> aiaskShow('general'));
+    $('#aiask-btn-portfolio').addEventListener('mouseenter', ()=> aiaskShow('portfolio'));
+    async function submitAiAsk(scope){
+      scope = AIASK_SCOPES[scope] ? scope : 'portfolio';
+      const c = AIASK_SCOPES[scope];
       const q = $('#aiask-q').value.trim();
       if(!q){ toast('Bitte eine Frage eingeben'); return; }
       closeAiAsk();
-      $('#ai-title').textContent = '❓ Frag dein Portfolio';
+      $('#ai-title').textContent = c.title;
       $('#ai-sub').textContent = q;
       $('#ai-foot').style.display = 'none';
       $('#ai-bg').classList.add('show');
       const attempt = async () => {
         await ensureAiProviderLoaded();
-        $('#ai-body').innerHTML = progBar(aiProviderName()+' durchsucht dein Portfolio…');
+        const busy = aiProviderName()+c.busy;
+        $('#ai-body').innerHTML = progBar(busy);
         let resp, d;
         try {
-          const r = await aiFetchPreviewable(api('/api/ai/ask'), {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({question:q})}, aiProviderName()+' durchsucht dein Portfolio…');
+          const r = await aiFetchPreviewable(api('/api/ai/ask'), {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({question:q, scope})}, busy);
           if(r.cancelled) return;
           resp = r.resp; d = r.d;
         } catch(e){ _aiRetryFn = attempt; $('#ai-body').innerHTML = aiErrorBlock('Frage fehlgeschlagen.', true); return; }
         if(!resp.ok){
           const retryable = aiRetryable(d.error);
-          const msg = d.error==='no_offers' ? 'Keine aktiven Angebote vorhanden.' : aiErrorMsg(d.error);
+          const msg = d.error==='no_offers'
+            ? 'Keine aktiven Angebote vorhanden — für eine allgemeine Reisefrage nimm „🌍 Reisefrage".'
+            : aiErrorMsg(d.error);
           _aiRetryFn = retryable ? attempt : null;
           $('#ai-body').innerHTML = aiErrorBlock(msg, retryable);
           return;
@@ -3255,6 +3883,20 @@
     function closeCalendar(){ clearInterval(calTimer); calTimer=null; calId=null; $('#cal-bg').classList.remove('show'); }
     $('#cal-bg').addEventListener('click', e=>{ if(e.target.id==='cal-bg') closeCalendar(); });
     function calGo(m){ if(!m) return; calMonth=m; drawCalMonth(); }
+    // Zu einem Datum springen: Monat wechseln, die Zelle kurz hervorheben und den
+    // Tagesverlauf öffnen. Die Hervorhebung ist nötig, weil ein Monatsraster ohne
+    // sie nicht verrät, welcher der 30 Tage gemeint war.
+    function calJump(iso){
+      if(!iso) return;
+      calGo(iso.slice(0,7));
+      openCalDayChart(iso);
+      const cell = document.querySelector(`#cal-body [data-iso="${iso}"]`);
+      if(cell){
+        cell.classList.add('cal-flash');
+        cell.scrollIntoView({block:'nearest'});
+        setTimeout(()=>cell.classList.remove('cal-flash'), 2200);
+      }
+    }
 
     // — Zimmerauswahl —
     let roomId = null;
@@ -3425,6 +4067,7 @@
         const cls = ['cal-cell'];
         if(!inWin) cls.push('out');
         if(iso===job.cheapest_date) cls.push('cheapest');
+        if(iso===job.priciest_date) cls.push('priciest');
         if(iso===job.tracked_date) cls.push('tracked');
         const mv = moves[iso];
         let style = '';
@@ -3443,18 +4086,37 @@
           + (iso===job.cheapest_date?PIG:'')   // Sparschwein als direktes Zellenkind → mittig
           + (calTrendView && mv ? deltaBadge
              : price!=null ? `<span class="cal-p">${eur(price)}</span>` : '<span class="cal-p na">–</span>');
+        // data-iso: Ankerpunkt für calJump(), das die Zelle nach dem Monatswechsel
+        // kurz hervorhebt — im 30-Tage-Raster wäre sonst nicht erkennbar, welcher
+        // Tag gemeint war.
         if(price!=null && base){
           cls.push('clk');
-          cells += `<a class="${cls.join(' ')}" href="${esc(dayUrl(base,iso,nights))}" target="_blank" rel="noopener" oncontextmenu="return saveCalDay(event,'${iso}')" title="Linksklick: Termin auf tui.com öffnen · Rechtsklick: als neues Angebot tracken"${style}>${inner}</a>`;
+          cells += `<a class="${cls.join(' ')}" data-iso="${iso}" href="${esc(dayUrl(base,iso,nights))}" target="_blank" rel="noopener" oncontextmenu="return saveCalDay(event,'${iso}')" title="Linksklick: Termin auf tui.com öffnen · Rechtsklick: als neues Angebot tracken"${style}>${inner}</a>`;
         } else {
-          cells += `<div class="${cls.join(' ')}"${style}>${inner}</div>`;
+          cells += `<div class="${cls.join(' ')}" data-iso="${iso}"${style}>${inner}</div>`;
         }
       }
       const idx = months.indexOf(calMonth);
       const prev = idx>0?months[idx-1]:'', next = idx<months.length-1?months[idx+1]:'';
       const monthName = first.toLocaleDateString('de-DE',{month:'long',year:'numeric'});
-      let sum = job.cheapest_date ? `Günstigster Termin: <b>${fmtD(job.cheapest_date)}</b> ${eur(job.cheapest_price)}` : '';
-      if(job.tracked_date && job.tracked_date!==job.cheapest_date) sum += ` · In deinem Zeitraum: <b>${fmtD(job.tracked_date)}</b> ${eur(job.tracked_price)}`;
+      // Eckdaten der Zusammenfassung: jeweils anklickbar, springt zum Monat und
+      // öffnet den Tagesverlauf — sonst müsste man das Datum in bis zu einem Jahr
+      // Kalenderblättern selbst suchen.
+      const sumPart = (label, date, price, cls) => !date ? '' :
+        `<a class="cal-jump ${cls||''}" href="#" title="Im Kalender zu diesem Termin springen"`
+        + ` onclick="event.preventDefault();calJump('${date}')">${label}: `
+        + `<b>${fmtD(date)}</b> ${eur(price)}</a>`;
+      const sumParts = [
+        sumPart('Günstigster Termin', job.cheapest_date, job.cheapest_price, 'down'),
+        sumPart('Teuerster Termin', job.priciest_date, job.priciest_price, 'up'),
+      ];
+      if(job.tracked_date && job.tracked_date!==job.cheapest_date)
+        sumParts.push(sumPart('In deinem Zeitraum', job.tracked_date, job.tracked_price));
+      // Spanne zwischen billigstem und teuerstem Termin — die eigentliche Aussage:
+      // so viel macht allein die Wahl des Reisedatums aus.
+      if(job.cheapest_price!=null && job.priciest_price!=null && job.priciest_price>job.cheapest_price)
+        sumParts.push(`<span class="hint">Spanne ${eur(job.priciest_price-job.cheapest_price)} p.&nbsp;P.</span>`);
+      const sum = sumParts.filter(Boolean).join(' · ');
       const topMoves = job.top_moves || [];
       const topMovesHtml = topMoves.length ? `<details class="cal-moves" ${calMovesOpen?'open':''}
           ontoggle="calMovesOpen=this.open">
@@ -3481,6 +4143,7 @@
         <div id="cal-day-chart" class="cal-day-chart"></div>
         <div class="cal-legend">
           <span><i class="lg-cheap"></i>${PIG}günstigster Termin</span>
+          <span><i class="lg-pricey"></i>teuerster Termin</span>
           <span><i class="lg-track"></i>günstigster in deinem Zeitraum</span>
           <span><i class="lg-out"></i>außerhalb deines Zeitraums</span>
           <span>🟩→🟥 günstig→teuer · Klick: auf tui.com öffnen · Rechtsklick: als neues Angebot tracken · 📈: Preisverlauf dieses Tages</span>
@@ -3633,6 +4296,11 @@
       emailMode = 'search';
       await _openEmailModalCommon();
     }
+    async function openClimateEmailModal(){
+      if(!climateData || !climateData.found){ toast('Noch keine Klimatabelle geladen'); return; }
+      emailMode = 'climate';
+      await _openEmailModalCommon();
+    }
     function closeEmailModal(){ $('#email-bg').classList.remove('show'); $('#email-bg').style.zIndex = ''; }
     $('#email-bg').addEventListener('click', e=>{ if(e.target.id==='email-bg') closeEmailModal(); });
     async function submitEmail(){
@@ -3643,6 +4311,7 @@
       if(emailMode === 'ai') return submitAiEmail(to.trim());
       if(emailMode === 'trips') return submitTripSummaryEmail(to.trim());
       if(emailMode === 'search') return submitSearchEmail(to.trim());
+      if(emailMode === 'climate') return submitClimateEmail(to.trim());
       toast('E-Mail wird gesendet…');
       const body = {to: to.trim()};
       if(emailIds) body.ids = emailIds;
@@ -3667,10 +4336,29 @@
       toast('E-Mail wird gesendet…');
       let r; try {
         r = await fetch(api('/api/search/email'), {method:'POST', headers:{'Content-Type':'application/json'},
-          body: JSON.stringify({to, results: rows, dest: srchDest ? srchDest.label : ''})});
+          body: JSON.stringify({to, results: rows, dest: srchDest ? srchDest.label : '',
+                                criteria: srchCriteria || undefined})});
       } catch(e){ toast('Versand fehlgeschlagen'); return; }
       if(r.ok){ const d=await r.json(); toast('E-Mail an '+d.to+' gesendet ('+d.count+' Treffer)'); }
       else { const d=await r.json().catch(()=>({})); toast(d.error==='send_failed'?'Versand fehlgeschlagen – Einstellungen prüfen':d.error==='no_recipient'?'Kein Empfänger':d.error==='no_results'?'Keine Treffer':'Fehler beim Versand'); }
+    }
+    // Verschickt die GESPEICHERTE Tabelle — der Server liest sie aus der Datenbank,
+    // kein KI-Aufruf. Die Monate des Reisezeitraums gehen mit, damit sie in der Mail
+    // genauso hervorgehoben sind wie im Fenster.
+    async function submitClimateEmail(to){
+      if(!climateData){ toast('Noch keine Klimatabelle geladen'); return; }
+      toast('E-Mail wird gesendet…');
+      let r; try {
+        r = await fetch(api('/api/climate/'+climateData.giata+'/email'), {method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({to, months: climateFromSearch ? searchMonths() : []})});
+      } catch(e){ toast('Versand fehlgeschlagen'); return; }
+      if(r.ok){ toast('Klimatabelle an '+to+' gesendet'); }
+      else { const d=await r.json().catch(()=>({}));
+        toast(d.error==='send_failed'?'Versand fehlgeschlagen – Einstellungen prüfen'
+          :d.error==='no_recipient'?'Kein Empfänger'
+          :d.error==='not_found'?'Keine gespeicherte Klimatabelle'
+          :d.error==='smtp_not_configured'?'SMTP nicht konfiguriert':'Fehler beim Versand'); }
     }
     async function sendDigest(){
       toast('Wochenüberblick wird gesendet…');

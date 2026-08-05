@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.8.10.1] - 2026-08-05
+
+chore(deps): bump cryptography from 48.0.1 to 50.0.0 in /mypage
+
+
+## 0.8.10
+- ⚙️ **Produktions-Webserver (Waitress) statt Flask-Entwicklungsserver.** Beide Ports liefen bisher über den in Flask eingebauten Werkzeug-Server, der ausdrücklich nicht für den Produktivbetrieb gedacht ist: er legt **pro Verbindung einen Thread** an — ohne Obergrenze — und kennt weder Verbindungslimit noch Timeout für hängende Verbindungen. Gemessen im Vergleich: bei 300 gleichzeitigen Zugriffen brauchte Werkzeug **301 Threads**, Waitress konstant **21** (fester Thread-Pool mit Warteschlange davor, 8 Threads öffentlich / 4 im Admin). Der Ressourcenverbrauch ist damit gedeckelt statt offen.
+- Tempo und Verhalten bleiben im Alltag gleich (Durchsatz ~40–60 Seiten/s, begrenzt durch Python selbst, nicht durch den Server); unter hoher Last antwortet Waitress etwas zügiger (bei 200 gleichzeitig: 53,5 statt 40,1 Anfragen/s). Keine Anfrage schlug in den Tests fehl.
+- Der `Server`-Header entfällt (`ident=None`) — vorher standen dort Werkzeug- und Python-Version.
+- Das Upload-Limit wird an Waitress durchgereicht, damit große Dateien nicht schon vom Webserver abgewiesen werden, bevor die konfigurierte Grenze (`user_upload_max_mb`) greift.
+
+## 0.8.9
+- 💾 **Automatische tägliche Backups.** Das Add-on legt einmal pro Tag dasselbe vollständige ZIP wie der Download-Button automatisch unter `addon_configs/<slug>_mypage/autobackup/` ab (`mypage-auto-JJJJ-MM-TT.zip`). Die neue Option **`auto_backup_keep`** steuert, wie viele Stände aufbewahrt werden (Standard 7, `0` = aus); ältere werden automatisch gelöscht. Damit gibt es endlich einen sauberen Vorgängerstand, wenn eine Datei beschädigt wird oder etwas versehentlich gelöscht wurde — bisher existierte nur das manuelle Backup.
+- Neues Panel **„Automatische Backups"** im Tab *System*: vorhandene Stände mit Datum und Größe, einzeln herunterladbar und löschbar, plus Knopf **„Jetzt sichern"**. Vollständig DE/EN lokalisiert, inklusive der Beschreibung der neuen Option in den Add-on-Einstellungen.
+- Der Zip-Aufbau ist jetzt eine gemeinsame Funktion (`write_backup_zip()`) für Download und Auto-Backup — beide können nicht mehr auseinanderlaufen. Das Backup selbst wird atomar geschrieben (`.tmp` + `os.replace`), es wird also nie ein halb geschriebenes Archiv sichtbar. Der `autobackup/`-Ordner ist bewusst **nicht** Teil des Backup-Inhalts, sonst würde jedes Backup alle Vorgänger mitschleppen.
+
+## 0.8.8
+- 🛡️ **Datenverlust-Schutz: alle Kerndateien werden jetzt atomar geschrieben.** Bisher kürzte jedes Speichern die Zieldatei erst auf 0 Byte — starb der Prozess in diesem Moment (z. B. SIGKILL beim Add-on-Stop, wie bis v0.8.2 bei jedem Update), blieb eine halbe oder leere Datei zurück. Neuer Helfer `_atomic_write_json()` schreibt erst vollständig in eine `.tmp`-Datei (inkl. `fsync`) und benennt dann per `os.replace()` um: es existiert immer entweder der alte oder der neue Stand, nie etwas dazwischen. Betrifft `site.json`, `stats.json`, `messages.json`, `comments.json`, `polls.json`, `dm.json`, `subscribers.json`, `users.json`, `sessions.json`, `user_sessions.json` und `admin_2fa.json` (Spielstände waren bereits atomar).
+- 🛡️ **Beschädigte Dateien setzen die Seite nicht mehr still zurück.** Zuvor lieferte `load_site()` bei defekter `site.json` kommentarlos die Standardwerte und der nächste Speichervorgang — z. B. aus dem stündlichen GitHub-Sterne-Thread — schrieb diese Defaults endgültig fest: **alle Inhalte, Projekte und Einstellungen weg, im Log nur eine Warnung.** Jetzt wird die defekte Datei als `<name>.corrupt-<zeitstempel>` zur Seite gelegt, als `ERROR` protokolliert und eine persistente Home-Assistant-Benachrichtigung ausgelöst. Gilt ebenso für die übrigen Kerndateien; bei `admin_2fa.json` ist das zusätzlich sicherheitsrelevant, weil eine unlesbare Datei 2FA als deaktiviert gelten ließ.
+- Die Dateirechte `0600` für `admin_2fa.json` werden jetzt auf der `.tmp`-Datei **vor** dem Umbenennen gesetzt — vorher gab es ein kurzes Fenster mit Standardrechten.
+
 ## 0.8.7
 - Fix: trust2fa-Cookie wird jetzt mit `itsdangerous.URLSafeTimedSerializer` signiert (Flask `SECRET_KEY` in `secret.key`) statt den rohen Token direkt zu speichern — genau der Fix, den GitHubs eigener CodeQL-Autofix für Alert #193 vorgeschlagen hat. Der 0.8.6-Versuch (Token 1:1 wie beim session-Cookie speichern) hat den Alert nicht behoben.
 

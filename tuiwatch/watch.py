@@ -15,9 +15,13 @@ bp = Blueprint('watch', __name__)
 
 # ── Suchabo: gespeicherte Suche beobachten (Sammel-Alarm) ───────────────────────
 
-def _search_from_fav_payload(p: dict) -> dict | None:
+def _search_from_fav_payload(p: dict, *, offset: int = 0) -> dict | None:
     """Führt die Suche eines gespeicherten Favoriten aus (gleiche Payload-Form wie das
-    UI sie speichert) und wendet die Nachfilter Sterne/Weiterempfehlung an."""
+    UI sie speichert) und wendet die Nachfilter Sterne/Weiterempfehlung an.
+    `offset` reicht die Seitennummer der Such-API durch — das Preisbarometer
+    (`market_basket`) holt darüber alle Treffer, nicht nur die erste Seite. Die
+    gemeldete Gesamttrefferzahl (`total`) bleibt dabei erhalten, damit der Aufrufer
+    weiß, wann er fertig ist."""
     dest = p.get('dest') or {}
     try:
         region = int(dest.get('giata'))
@@ -33,7 +37,7 @@ def _search_from_fav_payload(p: dict) -> dict | None:
         airlines=[str(a) for a in (p.get('airlines') or []) if str(a).strip()],
         location=[int(i) for i in (p.get('location') or []) if str(i).strip().isdigit()],
         direct=bool(p.get('direct')), adults_only=bool(p.get('adults_only')),
-        verbose=A._verbose())
+        offset=offset, verbose=A._verbose())
     if not res or not res.get('ok'):
         return res
 
@@ -46,7 +50,7 @@ def _search_from_fav_payload(p: dict) -> dict | None:
     out = [r for r in res['results']
            if (not min_stars or (r.get('stars') or 0) >= min_stars)
            and (not min_rec or (r.get('recommendation') or 0) >= min_rec)]
-    return {'ok': True, 'results': out}
+    return {'ok': True, 'results': out, 'total': res.get('total', len(out))}
 
 
 def _esc_html(s) -> str:

@@ -101,6 +101,11 @@
   "btn_reopen_issue": "Reopen",
   "btn_close_pr": "Close",
   "btn_comment": "Comment",
+  "pr_conflict": "Conflict",
+  "pr_conflict_hint": "Merge conflict: branch cannot be merged automatically",
+  "btn_dependabot_rebase": "Rebase",
+  "btn_dependabot_rebase_hint": "Post a “@dependabot rebase” comment – Dependabot rebuilds the PR on the current base branch",
+  "confirm_dependabot_rebase": "Trigger Dependabot rebase for {nr}?",
 
   "review_approved": "Approved",
   "review_changes": "Changes requested",
@@ -264,7 +269,7 @@
   "sec_af_branch_ahead":          "dev is {n} commits ahead of main — the autofix might overwrite recent changes",
   "sec_af_branch_ahead_confirm":  "Proceed anyway?",
 
-  "tab_addon_manager": "Releases",
+  "tab_addon_manager": "Add-on Versions",
   "am_repo_label": "Repository",
   "am_branch_label": "Branch",
   "am_load": "Load Add-ons",

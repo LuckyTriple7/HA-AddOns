@@ -1,5 +1,36 @@
 # Changelog
 
+## [1.3.5] - 2026-08-05
+
+### Changed
+- Rebuild für Claude Code 2.1.222
+
+
+## [1.3.4] - 2026-08-05
+
+### Changed
+- Claude Code wird jetzt über den npm-Tag `stable` statt `latest`/`next` installiert und aktualisiert (Build, `auto_update_claude`, `claude update`, `claude-update`) — deutlich seltenere Updates, da `stable` erst nach zusätzlicher Prüfung durch Anthropic gesetzt wird. Installierte Version kann dadurch niedriger sein als vorher (aktuell 2.1.220 statt 2.1.222).
+- Update-Check-Workflow (`check-claude-update.yml`) folgt ebenfalls `dist-tags.stable` statt `version` (= `latest`)
+
+
+## [1.3.3] - 2026-08-05
+
+### Security
+- Der lebende Supervisor-Token wurde bei jedem `c`/`cc` und beim MCP-Setup als `HASS_TOKEN` in `settings.json` geschrieben — eine persistierte Kopie im HA-Config-Verzeichnis, die in jedem HA-Backup landet. Totes Feld: `hass-mcp` liest ausschließlich `HA_TOKEN` aus der Umgebung (bereits per `export` gesetzt), nie `HASS_TOKEN` aus der Config. `update_mcp_token()` entfernt, Write beim MCP-Setup entfernt, bereits persistierte Tokens werden beim ersten Start nach Update aus `settings.json` gelöscht.
+
+
+## [1.3.2] - 2026-08-05
+
+### Changed
+- Rebuild für Claude Code 2.1.222
+
+
+## [1.3.1] - 2026-08-04
+
+### Changed
+- Rebuild für Claude Code 2.1.221
+
+
 ## [1.3.0] - 2026-07-31
 
 ### Added

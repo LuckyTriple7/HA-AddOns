@@ -60,11 +60,15 @@ log = logging.getLogger(__name__)
 logging.getLogger('werkzeug').setLevel(logging.ERROR)
 
 # ── In-App Log-Buffer (für Konsole im UI) ──────────────────────────────────────
-_log_buffer: deque = deque(maxlen=200)
+# 2000 statt der ursprünglichen 200 Zeilen: ein einziger Barometer-Lauf schreibt bei
+# vielen gespeicherten Suchen schon über hundert Zeilen (je Ergebnisseite eine), ein
+# Poll-Zyklus über alle Angebote ebenfalls. Mit 200 war der interessante Teil raus,
+# bevor man nachsehen konnte. ~150 Bytes je Zeile → gut 300 KB, das ist vertretbar.
+_log_buffer: deque = deque(maxlen=2000)
 # Warnungen/Fehler separat (fürs ⚠-Panel im UI): der INFO-lastige Hauptpuffer
 # rotiert sie sonst schnell raus — stille Fehlpfade waren live mehrfach nur mit
 # Log-Wühlen diagnostizierbar.
-_warn_buffer: deque = deque(maxlen=100)
+_warn_buffer: deque = deque(maxlen=500)
 
 
 class _BufferHandler(logging.Handler):
@@ -85,7 +89,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.59.5"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.67.2"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -624,6 +628,20 @@ def init_db() -> None:
         if not con.execute("SELECT 1 FROM meta WHERE key='price_moves_backfilled'").fetchone():
             _backfill_price_moves(con)
             con.execute("INSERT OR REPLACE INTO meta (key, value) VALUES ('price_moves_backfilled','1')")
+        # Klimatabellen je Reiseziel (KI-generiert). Dauerhaft gespeichert, nicht als
+        # Cache mit Ablaufdatum: Klima-Normalwerte ändern sich nicht von Woche zu
+        # Woche, ein erneuter KI-Aufruf brächte nur Kosten und minimal andere Zahlen.
+        # Aufgefrischt wird nur auf ausdrücklichen Wunsch (Knopf im Klima-Fenster).
+        con.execute('''CREATE TABLE IF NOT EXISTS climate (
+            giata   INTEGER PRIMARY KEY,
+            label   TEXT NOT NULL DEFAULT '',
+            ts      INTEGER NOT NULL,
+            model   TEXT DEFAULT '',
+            data    TEXT NOT NULL
+        )''')
+        # Preisbarometer (tägliche Regionssuche) — Schema liegt im eigenen Modul,
+        # das erst am Dateiende importiert wird; zur Laufzeit von init_db() ist es da.
+        market_basket.init_basket_db(con)
     Path(TRIPS_DIR).mkdir(parents=True, exist_ok=True)
     log.info("Datenbank bereit: %s", DB_PATH)
 
@@ -2060,6 +2078,7 @@ def _poll_worker() -> None:
             _maybe_auto_backup()      # wöchentliches Backup nach /addon_config
             _maybe_check_watches()    # Suchabos (gespeicherte Suchen mit Schwellenpreis)
             _maybe_refresh_calendars()  # Preiskalender 1×/Tag je Angebot auffrischen
+            market_basket.maybe_run_baskets()  # Preisbarometer je gespeicherter Suche, 1×/Tag
             _auto_archive_expired()
             with db() as con:
                 offers = [(r['id'], bool(r['history_only'])) for r in con.execute(
@@ -2162,11 +2181,16 @@ def _push_health_sensor_from_cache() -> None:
 
 def _push_market_trend_sensor() -> None:
     """Meldet HA einen Sensor mit dem marktweiten Preistrend — State = kumulierte
-    %-Bewegung der letzten 14 Tage (`_market_trend`), oder 'unknown' bei zu
-    wenigen Daten (NIE 'unavailable' — das wäre HA-Konvention für einen kaputten
-    Sensor, hier ist der Sensor selbst ja da). Attribute ergänzen den Index seit
-    Aufzeichnungsbeginn (`_market_index`), der auch langsame, über Wochen verteilte
-    Bewegungen zeigt.
+    %-Bewegung der letzten 14 Tage, oder 'unknown' bei zu wenigen Daten (NIE
+    'unavailable' — das wäre HA-Konvention für einen kaputten Sensor, hier ist der
+    Sensor selbst ja da). Attribute ergänzen den Index seit Aufzeichnungsbeginn
+    (`_market_index`), der auch langsame, über Wochen verteilte Bewegungen zeigt.
+    Als Quelle hat die Messreihe Vorrang (`market_basket`: die gespeicherten Suchen,
+    täglich neu ausgeführt — hunderte Hotels für die eigenen Reisetermine statt nur
+    der eigenen Angebote); erst wenn der noch keine zwei Tagesbewegungen gesammelt
+    hat, greift der angebotsbasierte Trend. Das Attribut
+    `source` sagt, welche Quelle den State gerade liefert — beide Werte stehen
+    zusätzlich unter `offers`/`basket` im Attributbaum.
     Berechnung und POST sind bewusst GETRENNT abgesichert: bricht die Berechnung bei
     einer ungewöhnlichen Datenkonstellation (z. B. einzelne Region mit Sonderfällen)
     mit einer Exception ab, soll das NICHT den ganzen Refresh-Zyklus killen und die
@@ -2187,13 +2211,23 @@ def _push_market_trend_sensor() -> None:
                 t, i = _market_trend(con, region=r), _market_index(con, region=r)
                 if t or i:
                     by_region.append({'region': r, 'trend': t, 'index': i})
+        basket = market_basket.basket_payload()
+        bt, bi = basket['global']['trend'], basket['global']['index']
         attrs['by_region'] = by_region
-        if glob_trend:
-            attrs.update(direction=glob_trend['dir'], days=glob_trend['days'], samples=glob_trend['n'])
-        if glob_index:
-            attrs.update(index=glob_index['index'], index_pct=glob_index['pct'],
-                         index_since=datetime.fromtimestamp(glob_index['since']).isoformat())
-        state = glob_trend['pct'] if glob_trend else 'unknown'
+        attrs['offers'] = {'trend': glob_trend, 'index': glob_index}
+        attrs['basket'] = {'trend': bt, 'index': bi, 'by_region': basket['by_region'],
+                           'last_day': basket['last_day']}
+        src_trend, src_index = (bt, bi) if bt else (glob_trend, glob_index)
+        attrs['source'] = 'basket' if bt else 'offers'
+        if src_trend:
+            attrs.update(direction=src_trend['dir'], days=src_trend['days'],
+                         samples=src_trend['n'])
+            if src_trend.get('hotels'):
+                attrs['hotels'] = src_trend['hotels']
+        if src_index:
+            attrs.update(index=src_index['index'], index_pct=src_index['pct'],
+                         index_since=datetime.fromtimestamp(src_index['since']).isoformat())
+        state = src_trend['pct'] if src_trend else 'unknown'
     except Exception as e:
         log.warning("Markttrend-Berechnung fehlgeschlagen (poste trotzdem 'unknown'): %s: %s",
                      type(e).__name__, e)
@@ -2627,7 +2661,10 @@ def api_market_trend():
     """Marktweiter Preistrend über alle geprüften Angebote: ein rollierendes 14-Tage-
     Fenster (`trend`, reagiert auf aktuelle Bewegung) sowie ein Index seit Beginn der
     Aufzeichnung (`index`, Basis 100 — fängt auch langsame Bewegungen über mehrere
-    Wochen), jeweils global und aufgeschlüsselt nach Destination."""
+    Wochen), jeweils global und aufgeschlüsselt nach Destination.
+    `basket` ergänzt dieselben Kennzahlen aus dem täglichen Preisbarometer
+    (`market_basket`) — gleiche Datenform, aber auf Basis aller Hotels einer Region
+    statt nur der eigenen getrackten Angebote."""
     if (err := _require_api()):
         return err
     with db() as con:
@@ -2639,7 +2676,8 @@ def api_market_trend():
             t, i = _market_trend(con, region=r), _market_index(con, region=r)
             if t or i:
                 by_region.append({'region': r, 'trend': t, 'index': i})
-    return jsonify({'global': glob, 'by_region': by_region})
+    return jsonify({'global': glob, 'by_region': by_region,
+                    'basket': market_basket.basket_payload()})
 
 
 @app.route('/api/market-trend/recompute', methods=['POST'])
@@ -2689,9 +2727,19 @@ def api_digest():
 
 @app.route('/api/console')
 def api_console():
+    """Live-Ticker für das Overlay-Panel (Doppelklick aufs Logo), älteste zuerst.
+    Standardmäßig nur die letzten `limit` Zeilen: das Panel pollt im 2-Sekunden-Takt
+    und baut seinen Inhalt jedes Mal komplett neu auf — den vollen 2000-Zeilen-Puffer
+    zu übertragen und zu rendern würde den Browser unnötig beschäftigen. Wer im
+    ganzen Log suchen will, nimmt `/api/logs` (Konsolen-Tab unter „Meldungen &
+    Fehler", mit Text- und Stufenfilter)."""
     if (err := _require_api()):
         return err
-    return jsonify({'lines': list(_log_buffer)})
+    try:
+        limit = max(50, min(_log_buffer.maxlen, int(request.args.get('limit', 300))))
+    except (TypeError, ValueError):
+        limit = 300
+    return jsonify({'lines': list(_log_buffer)[-limit:], 'total': len(_log_buffer)})
 
 
 @app.route('/api/notifications', methods=['GET'])
@@ -2713,6 +2761,26 @@ def api_errors():
     if (err := _require_api()):
         return err
     return jsonify({'items': list(reversed(_warn_buffer))})
+
+
+@app.route('/api/logs', methods=['GET'])
+def api_logs():
+    """Komplettes Add-on-Log seit Start (alle Stufen) aus `_log_buffer`, neueste
+    zuerst — die Konsole im UI. `?level=` filtert auf eine Mindeststufe, `?q=`
+    auf einen Textausschnitt; beides serverseitig, damit die Antwort bei 2000
+    Zeilen nicht unnötig groß wird.
+    Zweck ist Selbstdiagnose ohne Umweg über das HA-Log: das Add-on-Log ist dort
+    zwar vollständiger, aber ohne Filter und nur außerhalb des Ingress erreichbar."""
+    if (err := _require_api()):
+        return err
+    order = {'DEBUG': 10, 'INFO': 20, 'WARNING': 30, 'ERROR': 40, 'CRITICAL': 50}
+    want = order.get((request.args.get('level') or '').strip().upper(), 0)
+    q = (request.args.get('q') or '').strip().lower()
+    items = [it for it in reversed(_log_buffer)
+             if order.get(it['level'], 0) >= want
+             and (not q or q in it['msg'].lower())]
+    return jsonify({'items': items, 'total': len(_log_buffer),
+                    'capacity': _log_buffer.maxlen})
 
 
 # Läuft app.py als Skript (run.sh: `python3 app.py`), heißt DIESES Modul
@@ -2998,9 +3066,20 @@ api_rooms_set = offers_routes.api_rooms_set
 import trips_routes  # noqa: E402
 import backup_routes  # noqa: E402
 import check24_routes  # noqa: E402
+import market_basket  # noqa: E402
 app.register_blueprint(trips_routes.bp)
 app.register_blueprint(backup_routes.bp)
 app.register_blueprint(check24_routes.bp)
+app.register_blueprint(market_basket.bp)
+
+# Preisbarometer: `init_db` und der Poll-Worker greifen oben schon auf
+# `market_basket` zu — beides läuft erst zur Laufzeit, da ist der Import hier durch.
+basket_trend = market_basket.basket_trend
+basket_index = market_basket.basket_index
+basket_payload = market_basket.basket_payload
+run_baskets = market_basket.run_baskets
+run_basket = market_basket.run_basket
+maybe_run_baskets = market_basket.maybe_run_baskets
 
 # Rückwärtskompatible Re-Exports: der Poller (oben) und die Tests sprechen die
 # Auto-Backup-Funktionen weiter über den app-Namespace an (monkeypatch-Ziel).

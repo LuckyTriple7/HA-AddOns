@@ -11,6 +11,43 @@ from datetime import date, datetime
 import app as A
 
 
+_TREND_WORDS = {'up': ('▲', 'gestiegen'), 'down': ('▼', 'gefallen'), 'flat': ('→', 'stabil')}
+
+
+def _market_section(con) -> dict | None:
+    """Markttrend für den Wochenüberblick. Quelle ist bevorzugt die Messreihe (die
+    gespeicherten Suchen, täglich neu ausgeführt — alle Hotels für die eigenen
+    Reisetermine), erst ersatzweise der schmalere Trend aus den getrackten Angeboten;
+    dieselbe Rangfolge wie beim HA-Sensor. Fenster 7 Tage statt der 14 aus der UI: der
+    Digest berichtet über die vergangene Woche, ein 14-Tage-Fenster würde die Vorwoche
+    mit hineinziehen."""
+    glob = A.basket_trend(con, window_days=7)
+    src = 'basket' if glob else 'offers'
+    if not glob:
+        glob = A._market_trend(con, window_days=7)
+    if not glob:
+        return None
+    # Fester Query-Text je Quelle (kein zur Laufzeit zusammengebautes SQL) — die
+    # Tabelle steht hier fest, nicht der Filterwert.
+    q = ("SELECT DISTINCT basket AS name FROM basket_moves WHERE basket!=''" if src == 'basket'
+         else "SELECT DISTINCT region AS name FROM price_moves WHERE region!=''")
+    regions = []
+    for name in sorted(r['name'] for r in con.execute(q).fetchall()):
+        t = (A.basket_trend(con, basket=name, window_days=7) if src == 'basket'
+             else A._market_trend(con, region=name, window_days=7))
+        if t:
+            regions.append((name, t))
+    return {'src': src, 'global': glob, 'regions': regions}
+
+
+def _market_line(t: dict) -> str:
+    """„▼ gefallen (−2,4 %)" — Vorzeichen als Minuszeichen (U+2212), wie in der UI."""
+    arrow, word = _TREND_WORDS.get(t['dir'], ('→', 'stabil'))
+    pct = abs(t['pct'])
+    sign = '+' if t['pct'] > 0 else ('−' if t['pct'] < 0 else '')
+    return f"{arrow} {word}" + (f" ({sign}{pct:.1f} %)".replace('.', ',') if pct >= 0.5 else '')
+
+
 def _build_digest() -> dict | None:
     """Baut die wöchentliche Zusammenfassung (größte Rückgänge, neue Tiefstwerte, unter
     Wunschpreis). Rückgabe {subject, html, text} oder None, wenn es nichts zu melden gibt."""
@@ -27,6 +64,7 @@ def _build_digest() -> dict | None:
             if months:
                 cal_moves.append({'name': o.get('label') or o.get('hotel') or f"Angebot #{o['id']}",
                                    'url': o['url'], 'months': A._format_month_list_de(months)})
+        market = _market_section(con)
     drops = sorted([o for o in offers if o['_wk'] is not None and o['_wk'] < 0],
                    key=lambda o: o['_wk'])
     rises = sorted([o for o in offers if o['_wk'] is not None and o['_wk'] > 0],
@@ -51,6 +89,12 @@ def _build_digest() -> dict | None:
           f"{len(offers)} aktive Reise(n) beobachtet."]
     if ai_summary:
         tl.append(f"\n🤖 {ai_summary}")
+    if market:
+        _basis = ("alle Hotels für deine gespeicherten Suchen" if market['src'] == 'basket'
+                  else "deine getrackten Angebote")
+        tl.append(f"\n📈 <b>Markttrend (7 Tage):</b> {_market_line(market['global'])}"
+                  f"\n<i>Basis: {_basis}</i>")
+        tl += [f"• {name}: {_market_line(t)}" for name, t in market['regions'][:8]]
     if trips:
         tl.append("\n🧳 <b>Bevorstehende Reisen:</b>")
         for t in trips:
@@ -108,6 +152,22 @@ def _build_digest() -> dict | None:
                     + (f'<p style="margin:0 0 6px;color:#777;font-size:13px">{_ctxh}</p>' if _ctxh else '')
                     + f'<ul style="margin:0;padding-left:18px;color:#333;font-size:14px">{_rows}</ul>')
 
+    market_html = ''
+    if market:
+        _basis = ('alle Hotels für deine gespeicherten Suchen (täglicher Preisbarometer)'
+                  if market['src'] == 'basket' else 'deine getrackten Angebote')
+        _color = {'up': '#cf222e', 'down': '#1a7f37'}.get(market['global']['dir'], '#555')
+        _rows = ''.join(
+            f'<li style="margin:4px 0">{esc(name)}: {esc(_market_line(t))}</li>'
+            for name, t in market['regions'][:8])
+        market_html = (
+            '<h3 style="margin:18px 0 6px;color:#10243e;font-size:15px">📈 Markttrend (7 Tage)</h3>'
+            f'<p style="margin:0;color:{_color};font-size:14px;font-weight:600">'
+            f'{esc(_market_line(market["global"]))}</p>'
+            f'<p style="margin:2px 0 6px;color:#777;font-size:13px">Basis: {_basis}</p>'
+            + (f'<ul style="margin:0;padding-left:18px;color:#333;font-size:14px">{_rows}</ul>'
+               if _rows else ''))
+
     ai_html = ''
     if ai_summary:
         _ai_inline = re.sub(r'\*\*(.+?)\*\*', r'<b>\1</b>', esc(ai_summary)).replace('\n', '<br>')
@@ -120,6 +180,7 @@ def _build_digest() -> dict | None:
         f'<h2 style="color:#10243e">📊 TUIWatch — Wochenüberblick</h2>'
         f'<p style="color:#555;font-size:13px">{datetime.now():%d.%m.%Y} · {len(offers)} aktive Reise(n) beobachtet.</p>'
         + ai_html
+        + market_html
         + section('🧳 Bevorstehende Reisen', trips,
                   lambda t: f'<b>{esc(t["destination"])}</b> — {esc(t["start_date"])}'
                             + (f' – {esc(t["end_date"])}' if t.get('end_date') else '')

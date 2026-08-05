@@ -165,6 +165,15 @@ def _ai_request_perplexity_messages(api_key: str, model: str, messages: list[dic
              'output_tokens': u.get('completion_tokens', 0) or 0,
              'cache_creation_input_tokens': 0, 'cache_read_input_tokens': 0,
              'web_search_requests': u.get('num_search_queries', 0) or 0}
+    # Quellen-URLs durchreichen: bei Structured Output stecken Perplexitys nackte
+    # Marker („[7][11]") in den JSON-Strings und lassen sich erst nach dem Parsen
+    # verlinken — ohne die Liste bliebe dort toter Text stehen.
+    if output_schema is not None:
+        srcs = [r.get('url') for r in (data.get('search_results') or [])
+                if isinstance(r, dict) and r.get('url')] \
+            or [u2 for u2 in (data.get('citations') or []) if u2]
+        if srcs:
+            usage['citation_urls'] = srcs
     return text, usage, None
 
 

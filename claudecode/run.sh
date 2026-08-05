@@ -104,6 +104,15 @@ EOF
 [ ! -L /root/.config/claude-code ] && { rm -rf /root/.config/claude-code; ln -s "$PERSIST_DIR/config" /root/.config/claude-code; }
 [ ! -L /root/.claude.json ] && { touch "$PERSIST_DIR/.claude.json"; rm -f /root/.claude.json; ln -s "$PERSIST_DIR/.claude.json" /root/.claude.json; }
 
+# One-time scrub: older versions persisted the live Supervisor token into settings.json
+# (a dead HASS_TOKEN field hass-mcp never reads — it only reads the HA_TOKEN env var).
+# That file lives under /homeassistant and is included in every HA backup, so remove it.
+SETTINGS_FILE_SCRUB="$PERSIST_DIR/settings.json"
+if [ -f "$SETTINGS_FILE_SCRUB" ] && jq -e '.mcpServers.homeassistant.env.HASS_TOKEN' "$SETTINGS_FILE_SCRUB" > /dev/null 2>&1; then
+    jq 'del(.mcpServers.homeassistant.env.HASS_TOKEN)' "$SETTINGS_FILE_SCRUB" > /tmp/settings.tmp && mv /tmp/settings.tmp "$SETTINGS_FILE_SCRUB"
+    echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Scrubbed persisted Supervisor token from settings.json (was unused, hass-mcp reads HA_TOKEN from env)"
+fi
+
 # Persist ~/.local/bin and ~/.local/share/claude across container rebuilds.
 # claude update stores symlinks in local-bin and actual version binaries in local-share-claude.
 # Without persisting both, the symlink survives but points to a missing binary after rebuild.
@@ -181,7 +190,7 @@ fi
 # Auto-update Claude Code on startup if enabled
 if [ "$AUTO_UPDATE" = "true" ]; then
     CURRENT_VER=$(claude --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
-    LATEST_VER=$(npm show @anthropic-ai/claude-code version 2>/dev/null)
+    LATEST_VER=$(npm show @anthropic-ai/claude-code dist-tags.stable 2>/dev/null)
     if [ -n "$LATEST_VER" ] && [ -n "$CURRENT_VER" ] && [ "$CURRENT_VER" != "$LATEST_VER" ]; then
         echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Updating Claude Code from $CURRENT_VER to $LATEST_VER..."
         # Install into the writable persisted prefix — avoids read-only Docker layer restriction
@@ -257,9 +266,6 @@ if [ "$ENABLE_MCP" = "true" ]; then
     jq --argjson tools "$ALLOWED_TOOLS" \
         '.permissions.allow = (($tools + ((.permissions.allow // []) | map(select(test("^(Glob|Grep)\\(") | not)))) | unique)' \
         "$SETTINGS_FILE" > /tmp/settings.tmp && mv /tmp/settings.tmp "$SETTINGS_FILE"
-    jq --arg token "$SUPERVISOR_TOKEN" \
-        '.mcpServers.homeassistant.env.HASS_TOKEN = $token' \
-        "$SETTINGS_FILE" > /tmp/settings.tmp && mv /tmp/settings.tmp "$SETTINGS_FILE"
     echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] MCP configured with Home Assistant integration"
     echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Pre-authorized read-only MCP tools"
 else
@@ -328,7 +334,7 @@ if [ "$AUTO_UPDATE" = "true" ]; then
         sleep 3600
         echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Checking for Claude Code updates..."
         IV=$(claude --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
-        LV=$(npm show @anthropic-ai/claude-code version 2>/dev/null)
+        LV=$(npm show @anthropic-ai/claude-code dist-tags.stable 2>/dev/null)
         if [ -n "$LV" ] && [ -n "$IV" ] && [ "$IV" != "$LV" ]; then
             echo "$LV" > "$PERSIST_DIR/.update_notice"
             echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Update available: $LV (installed: $IV)"

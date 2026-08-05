@@ -1,5 +1,353 @@
 # Changelog
 
+## [0.67.2] - 2026-08-05
+
+### Added
+- **Hotelfotos sind mit den Pfeiltasten ← / → blätterbar.** Bisher öffnete ein Klick
+  auf ein Foto der GIATA-Galerie nur ein einzelnes Vollbild — für das nächste Foto
+  musste man zurück ins Raster. Die Lightbox kennt jetzt die ganze Fotoliste: ← / →
+  oder die beiden Pfeilflächen blättern umlaufend durch, eine Zählanzeige
+  („3 / 24") zeigt die Position, und das jeweils nächste und vorherige Bild wird
+  vorgeladen. Bei nur einem Foto bleiben Pfeile und Zähler ausgeblendet.
+
+### Fixed
+- **Abo-Glocke im Dropdown der gespeicherten Suchen steht jetzt hinter dem Namen.**
+  Davor schob sie die Namen der Abos gegenüber den übrigen Einträgen ein und zerriss
+  die linke Kante der Liste.
+- **Quellen-Marker in der Klimatabelle sind anklickbar.** Perplexity setzt Marker wie
+  „[7][11]" auch in die Textfelder strukturierter Antworten; dort ließen sie sich
+  beim Abruf nicht verlinken (das hätte den JSON-String zerstört) und blieben als
+  toter Text stehen. Die Quellen-URLs werden jetzt durchgereicht und die Marker nach
+  dem Parsen verlinkt — in Zusammenfassung, Monatshinweisen und in der E-Mail.
+
+## [0.67.0] - 2026-08-05
+
+### Fixed
+- **Klima-Fenster blieb bei aktivierter Prompt-Vorschau komplett leer** — keine
+  Tabelle, keine Fehlermeldung, kein Log-Eintrag. Ursache: bei aktiver Option
+  `ai_prompt_preview` antwortet die Route erst mit dem Prompt statt mit Daten. Das
+  Klima-Fenster rief sie mit einem nackten `fetch` auf, bekam HTTP 200 mit
+  `{prompt_preview:…}` und rendete eine leere Tabelle — der KI-Aufruf fand nie statt.
+  Jetzt läuft der Abruf über den Vorschau-Mechanismus, und die Vorschau wird **im
+  Klima-Fenster** gerendert (die Standardvariante schreibt sie ins KI-Ergebnis-
+  Fenster, das hier gar nicht offen ist — sie wäre unsichtbar geblieben und der
+  Ladebalken hätte ewig gedreht).
+- Der **automatische Abruf nach einer Suche** überspringt die Vorschau bewusst, wie
+  alle anderen Hintergrundläufe (Wochenüberblick, Aktionscodes, Auto-Tagging) — sonst
+  poppte nach jeder Suche ungefragt ein Dialog auf.
+- Fehlen die Monatsdaten, erscheint jetzt eine erklärende Meldung statt einer
+  Tabelle mit bloßer Kopfzeile.
+
+### Added
+- **Teuerster Termin im Preiskalender**, als Gegenstück zum günstigsten: ohne ihn
+  sagt der günstigste nichts darüber, wie viel die Wahl des Reisedatums überhaupt
+  ausmacht. Dazu die **Spanne** zwischen beiden. Die Zusammenfassungs-Einträge sind
+  jetzt **anklickbar** — der Kalender springt zum Monat, hebt den Tag kurz hervor
+  und öffnet dessen Preisverlauf. Bereits gespeicherte Kalender bekommen den Wert
+  nachgerechnet, ohne Neuabruf.
+- **Klimatabellen von der Hauptseite abrufbar** über den neuen **🌤**-Knopf in der
+  Kopfzeile: Liste aller gespeicherten Ziele mit Erstellungsdatum, Klick öffnet die
+  Tabelle, 🗑 löscht sie. Neuer Endpunkt `GET /api/climate`.
+
+### Changed
+- **Der „Frage"-Knopf zeigt nur noch das Symbol** ❓ (Beschriftung in den Tooltip
+  gewandert), damit die Kopfzeile mit dem neuen 🌤-Knopf nicht überläuft.
+
+## [0.66.0] - 2026-08-05
+
+### Added
+- **🌤 Klima-Knopf in der Suchmaske.** Klimatabelle des Reiseziels über alle zwölf
+  Monate: Tages- und Nachttemperatur, **Wassertemperatur**, Sonnenstunden pro Tag,
+  Regentage, ein kurzer Hinweis je Monat (Regenzeit, Passatwind, Hochsaison …) und
+  die aus Wetter-Sicht besten Monate.
+  - **Dauerhaft in der Datenbank gespeichert** (neue Tabelle `climate`), einmal je
+    Ziel erzeugt. Klimawerte sind langjährige Mittel, kein Wetterbericht — ein
+    erneuter KI-Aufruf brächte nur Kosten. Jeder weitere Abruf kommt aus der DB;
+    **🔄 Neu abrufen** erzwingt eine Neuberechnung.
+  - **Nach jeder Suche automatisch vorgeladen**, sofern eine KI konfiguriert ist. Dank
+    der Speicherung ist das je Ziel genau ein Aufruf, kein Dauerverbrauch. Der
+    Lese-Endpunkt `GET /api/climate/<giata>` ruft nie die KI — die Suchmaske fragt ihn
+    bei jedem Suchlauf an.
+  - **Diagramm plus Tabelle:** zwei Panels mit gemeinsamer Monatsachse (Temperaturen
+    als Linien, Regentage als Säulen — bewusst keine zwei y-Achsen in einem Bild),
+    Werte des überfahrenen Monats als Zeile darüber, Reisemonate hervorgehoben.
+    Serienfarben aus einer CVD-geprüften Palette, in Hell und Dunkel eigens gesetzt.
+  - **✉ Als E-Mail** verschickt die gespeicherte Tabelle (ohne KI-Aufruf). Die Mail
+    enthält nur die Tabelle: Mail-Clients rendern inline-SVG nicht zuverlässig.
+  - Neue Routen: `POST /api/ai/climate`, `GET`/`DELETE /api/climate/<giata>`,
+    `POST /api/climate/<giata>/email`.
+
+### Fixed
+- **ESC schloss beim Empfänger-Dialog das falsche Fenster.** Der Dialog bekommt beim
+  Öffnen `z-index: 60` und liegt damit über dem Fenster, aus dem er aufgerufen wurde,
+  wurde in der ESC-Reihenfolge aber weit hinten geprüft — aus der Suchmaske heraus
+  schloss ESC also die Suche und ließ den sichtbaren Dialog stehen.
+
+## [0.65.1] - 2026-08-05
+
+### Fixed
+- **„Heute"-Knopf in der Suchmaske lieferte nie Treffer.** Er setzte das Startdatum
+  exakt auf heute — darauf antwortet TUIs Such-API aber mit HTTP 500, das Ergebnis
+  war immer leer. Er setzt jetzt **heute + 2 Tage** und heißt passend
+  **„Frühestens"**. Live gemessen (Gran Canaria, 7 Nächte): heute = Fehler,
+  heute+1 = 53 Treffer, heute+2 = 132, heute+3 = 144 — zwei Tage sind der Punkt, ab
+  dem das Angebot brauchbar ist. Ein früheres Datum lässt sich weiterhin von Hand
+  eintragen.
+
+## [0.65.0] - 2026-08-05
+
+### Added
+- **🤖 Reisezeit-Check in der Suchmaske** (Knopf neben „Suchen"). Prüft vor dem
+  Buchen die Eckdaten der Suche in vier Punkten:
+  1. **Reisezeit** — taugt der gewählte Zeitraum für dieses Ziel? Regen-/Trockenzeit,
+     Temperaturen (Luft und Wasser), Luftfeuchtigkeit, Wind, Hurrikan-/Monsun-/
+     Zyklonsaison, mit konkreten Werten statt Allgemeinplätzen.
+  2. **Saison und Preisniveau** — Haupt-, Neben- oder Zwischensaison, die
+     Schnäppchenmonate des Ziels samt grober Ersparnis, dazu Schulferien, Feiertage
+     und lokale Großereignisse.
+  3. **Besserer Zeitraum?** — ein konkreter Alternativtermin, wenn einer deutlich
+     mehr fürs Geld böte; passt der gewählte schon, sagt die KI das ebenso klar,
+     statt eine Alternative zu konstruieren.
+  4. **Ähnliche Ziele** — 2 bis 4 Alternativen mit vergleichbarem Charakter
+     (Flugzeit ab dem gewählten Abflughafen, Klima zur Reisezeit, Preisniveau), je
+     mit Vor- **und** Nachteil gegenüber dem Wunschziel.
+
+  Mitgeschickt werden nur die Maskendaten; wurde bereits gesucht, zusätzlich eine
+  kurze Preisstatistik der Treffer (Anzahl, günstigster, Median, teuerster) — ohne
+  die könnte die KI zum Preisniveau nur allgemein raten. Neue Route
+  `POST /api/ai/search-advice`, Verlaufs-Kind `search_advice`.
+
+### Fixed
+- **ESC schloss beim KI-Ergebnis das falsche Fenster.** Das Ergebnis-Fenster steht
+  im DOM hinter Suchmaske, Kalender und Vergleich und liegt daher optisch darüber,
+  wenn es aus einem von ihnen geöffnet wird — geprüft wurde es aber erst nach ihnen.
+  Ein ESC schloss deshalb das darunterliegende Fenster und ließ das sichtbare offen.
+  Betraf schon den KI-Vergleich und die Kalenderanalyse, nicht nur den neuen
+  Reisezeit-Check.
+
+## [0.64.1] - 2026-08-05
+
+### Fixed
+- **Reisende und Abflughafen fehlten in der versendeten Trefferliste.** Beides sind
+  Suchparameter und stehen in keiner einzelnen Trefferzeile — der Mail war deshalb
+  nicht anzusehen, für wie viele Personen die „pro Person"-Preise gelten und ab
+  welchem Flughafen. Die Kopfzeile nennt sie jetzt:
+  `Hotelsuche · Kapverdische Inseln · 2 Reisende · ab Stuttgart (STR) · Stand …`
+  - Die Werte stammen aus dem Suchlauf, der die angezeigte Liste erzeugt hat (neues
+    Feld `criteria` in der Antwort von `POST /api/search`), **nicht** aus dem
+    aktuellen Stand der Suchmaske: die kann längst andere Werte zeigen, etwa wenn die
+    Treffer aus einem Suchabo stammen. Für Abo-Treffer kommen sie aus dem Abo selbst.
+  - Funktioniert in allen drei Suchwegen — Maske, eingefügte TUI-URL und „Region"
+    aus einem Angebot heraus; bei den letzten beiden werden sie aus der URL gelesen.
+  - Ohne Klarnamen des Flughafens (URL-/Angebotssuche) steht der IATA-Code dort.
+
+## [0.64.0] - 2026-08-05
+
+### Added
+- **Zweiter Knopf im Frage-Fenster: „🌍 Reisefrage".** Bisher hing an ❓ Frage
+  immer der Portfolio-Prompt — für „wann ist die beste Reisezeit für Sri Lanka"
+  oder „was brauche ich zur Einreise nach Vietnam" war das der falsche Kontext,
+  und ohne getrackte Angebote ging die Frage gar nicht erst raus.
+  Das Fenster hat jetzt zwei Knöpfe, die dieselbe Frage mit unterschiedlichem
+  Kontext verschicken: **📌 Portfolio fragen** (wie bisher, mit Angebotsliste) und
+  **🌍 Reisefrage** (ohne Angebotsliste, dafür mit Websuche-Schwerpunkt). Die
+  Beschreibung im Fenster wechselt beim Überfahren des jeweiligen Knopfes.
+  - Die allgemeine Frage bekommt die Angebote bewusst **nicht** mit: sie wären
+    Ballast, würden Tokens kosten und die Antwort auf die eigenen Hotels lenken.
+    Sie funktioniert deshalb auch mit leerem Portfolio.
+  - Ein hinterlegter Heimatort (`trippilot_home_location`) fließt für Anreise-
+    und Entfernungsfragen ein.
+  - Der Prompt drängt auf Websuche und auf offenes Eingeständnis von Unsicherheit
+    — Einreiseregeln, Impfempfehlungen und Preise ändern sich, eine
+    selbstbewusst formulierte veraltete Auskunft wäre hier schädlicher als der
+    Hinweis, kurz vor Reiseantritt gegenzuprüfen.
+  - Technisch über `scope` an `POST /api/ai/ask` (unbekannte Werte fallen auf
+    `portfolio` zurück). Eigenes Verlaufs-Kind `ask_general`, im KI-Verlauf als
+    „🌍 Reisefrage" ausgewiesen und dort wie gewohnt wiederholbar; die
+    Portfolio-Frage heißt dort jetzt „📌 Portfolio-Frage".
+
+## [0.63.0] - 2026-08-05
+
+### Changed
+- **„Warenkorb" heißt jetzt „Preisbarometer" 🌡️** — der Begriff aus der
+  Statistik-Fachsprache (Warenkorb = feste Gütermenge zur Preismessung) war
+  außerhalb davon eher irreführend. Ein einzelner Eintrag heißt jetzt
+  **Messreihe** (je gespeicherter Suche eine). Reine Umbenennung der Anzeige- und
+  Log-Texte: Optionsnamen (`market_basket_*`), API-Routen, Datenbankspalten und
+  Sensor-Attribute bleiben unverändert — bestehende Konfigurationen und
+  Automationen laufen unberührt weiter.
+
+## [0.62.0] - 2026-08-05
+
+### Changed
+- **Warenkorb hat ein eigenes Fenster.** Beide Trends in einem Markttrend-Fenster
+  übereinander waren unübersichtlich — sie zählen unterschiedlich (Warenkorb-Tage
+  gegen Preisänderungs-Datenpunkte) und luden zum Verwechseln ein. Das
+  Markttrend-Fenster zeigt jetzt nur noch den Trend der getrackten Angebote, eine
+  Zeile nennt den Warenkorb-Gesamtwert, und der Knopf **🧺 Warenkorb** öffnet das
+  neue Fenster mit Tabelle, „Sammelt noch"-Liste, Fortschrittsbalken und
+  **🧺 Jetzt füllen**.
+- **Konsole fasst 2000 statt 200 Zeilen.** Ein einziger Warenkorb-Lauf schreibt bei
+  vielen gespeicherten Suchen über hundert Zeilen — der interessante Teil war raus,
+  bevor man nachsehen konnte. Der Warnungs-/Fehlerpuffer wächst von 100 auf 500.
+- **Neuer Konsolen-Tab unter „🔔 Meldungen & Fehler"** (`/api/logs`): das komplette
+  Log seit dem Start, **durchsuchbar nach Text und Log-Stufe**, serverseitig
+  gefiltert. Das Overlay-Panel per Logo-Doppelklick bleibt der Live-Ticker und holt
+  nur noch die letzten 500 Zeilen (`/api/console?limit=`) — es rendert im
+  2-Sekunden-Takt komplett neu, der volle Puffer wäre dort Verschwendung. Ein
+  Hinweis im Panel verweist auf den Tab, wenn ältere Zeilen vorhanden sind.
+
+## [0.61.1] - 2026-08-04
+
+### Fixed
+- **Kleine Warenkörbe blieben dauerhaft ohne Trend.** Ein Tag zählte nur mit
+  mindestens 10 vergleichbaren Hotels — bei stark gefilterten Suchen (nur All
+  Inclusive, Direktflug ab STR, bestimmte Lage) bleiben aber oft nur 11–16 Treffer
+  übrig, und ein einziger Verpflegungswechsel bei zweien ließ den Tag durchfallen.
+  Die Mindestbreite richtet sich jetzt nach der Warenkorbgröße: 60 % des kleineren
+  der beiden Snapshots, höchstens 10, mindestens 5. Große Warenkörbe bleiben streng,
+  schrumpfende (Saisonende) ziehen die Schwelle mit.
+- **Angebots-Warenkörbe je Region und Abreisemonat gebündelt** statt je Einzeltermin.
+  Fünf getrackte Gran-Canaria-Angebote mit Abreise am 3., 7. und 31. Mai sowie 7. und
+  14. Juni ergaben fünf Warenkörbe à ~220 Hotels und je fünf Ergebnisseiten — 25
+  Abrufe täglich für praktisch denselben Markt. Jetzt zwei Warenkörbe („Mai 2027,
+  11 Nächte" / „Juni 2027, 11 Nächte") mit 10 Abrufen. Die Dauer bleibt im Schlüssel,
+  weil eine und zwei Wochen unterschiedliche Preisniveaus haben. Das Suchfenster endet
+  am Monatsletzten **plus Reisedauer**, sonst fielen genau die Abreisen am Monatsende
+  heraus (`endDate` meint bei der Such-API die späteste Rückreise). Live geprüft:
+  Mai-Warenkorb 227 Hotels mit Abreisen vom 01.05. bis 31.05.
+  Die Snapshots der Einzeltermin-Fassung werden einmalig verworfen — zu ihren
+  Schlüsseln gibt es keinen Warenkorb mehr, sie blieben sonst als Karteileichen unter
+  „sammelt noch" stehen.
+
+## [0.61.0] - 2026-08-04
+
+### Changed
+- **Warenkorb richtet sich nach den Terminen der gespeicherten Suchen** statt nach
+  einer konstanten Vorlaufzeit. Bisher suchte er stur für „heute + 91 Tage" — der
+  Abreisetag wanderte also täglich weiter. Statistisch sauber, praktisch wertlos:
+  wer seinen Urlaub im **Mai** plant, dem hilft die Preisbewegung eines täglich
+  anderen Termins nicht bei der Frage, ob er jetzt buchen soll.
+  Jetzt läuft **1×/Tag genau die gespeicherte Suche** noch einmal — mit ihren
+  Reiseterminen, ihrer Dauer und ihren Filtern (Sterne, Weiterempfehlung,
+  Verpflegung, Flughafen …). Der Trend sagt damit: „alle Hotels für meinen
+  Mai-Termin auf Teneriffa sind diese Woche 3 % gefallen."
+  - **Ein Warenkorb je Suche**, nicht je Region — zwei Suchen für dasselbe Ziel mit
+    verschiedenen Terminen sind zwei verschiedene Märkte.
+  - **Getrackte Angebote ohne gespeicherte Suche** bekommen ihren Termin aus dem
+    Angebot selbst (Rückreisedatum minus Dauer). `market_basket_lead_days` ist nur
+    noch Rückfallebene, wenn gar kein Datum vorliegt.
+  - **Abgelaufene Reisezeiträume** fallen automatisch raus.
+  - Das Abreise**datum** ist bewusst kein Match-Kriterium mehr: sucht die Suche über
+    einen Zeitraum, ist der günstigste Termin darin genau die interessante Zahl.
+  - Die bisher gesammelten Warenkorb-Daten haben eine andere Preisbasis und werden
+    beim Update **einmalig verworfen** (Trend beginnt neu). Backup-Version 7;
+    Warenkorb-Daten aus Version-6-Backups werden aus demselben Grund ignoriert.
+- **Fortschrittsbalken für „🧺 Warenkorb jetzt füllen"** — zeigt „X von Y Suchen",
+  die bisher erfasste Hotelzahl und den gerade laufenden Warenkorb. Vorher lief der
+  Vorgang minutenlang ohne jede Rückmeldung. Läuft beim Öffnen des Fensters gerade
+  ein (auch automatischer) Lauf, erscheint der Balken ebenfalls. Neuer schlanker
+  Endpunkt `/api/market-basket/progress` fürs Polling.
+- Markttrend-Fenster nennt in der Warenkorb-Tabelle jetzt **Suchname und
+  Reisezeitraum** statt der Region, und zählt darunter die Warenkörbe auf, die noch
+  Daten sammeln.
+
+## [0.60.4] - 2026-08-04
+
+### Fixed
+- **Add-on-Einstellungen erschienen komplett auf Englisch.** In der neuen
+  Beschreibung zu `market_basket_lead_days` stand in `translations/de.yaml` ein
+  ASCII-Anführungszeichen mitten in einem doppelt-gequoteten Text
+  (`„heute + X Tage"`). Das beendet den YAML-String vorzeitig, die ganze Datei
+  war unparsebar — und Home Assistant fällt in dem Fall **kommentarlos** auf
+  `en.yaml` zurück, ohne Fehlermeldung oder Log-Eintrag. Zeichen korrigiert.
+- **Neuer Test `tests/test_yaml_valid.py`** prüft `config.yaml` und beide
+  Übersetzungsdateien auf gültiges YAML und darauf, dass jede Option in beiden
+  Sprachen Name und Beschreibung hat — damit dieser stille Rückfall nicht
+  wieder unbemerkt passiert.
+
+## [0.60.3] - 2026-08-04
+
+### Fixed
+- **Warenkorb holt jede Region jetzt vollständig** statt nur der ersten vier
+  Ergebnisseiten. Der feste Deckel schnitt große Regionen ab (live: Teneriffa 259
+  Hotels → 200 erfasst, Algarve 287 → 200) — und weil die Such-API nach Preis
+  **aufsteigend** sortiert, waren das stets die *günstigsten* 200. Hotels an
+  dieser Grenze wandern täglich rein und raus; der Median hätte diese wechselnde
+  Randbelegung als Preisbewegung gelesen. Paginiert wird nun bis zur gemeldeten
+  Gesamttrefferzahl, mit einer Reißleine bei 1000 Hotels je Region (dann steht
+  eine Warnung im Log). Nachgeprüft: Teneriffa und Algarve kommen jetzt
+  vollständig an, weiterhin ein einziger Abreisetag und 7 Nächte.
+
+## [0.60.2] - 2026-08-04
+
+### Changed
+- **Regions-Deckel des Warenkorbs von 8 auf 20 angehoben** und über die neue
+  Option `market_basket_max_regions` (1…50) einstellbar. Die 8 waren defensiv
+  geschätzt, bevor die echte Last bekannt war: je Region fallen 1–4 API-Aufrufe
+  pro Tag an (Abbruch, sobald eine Ergebnisseite weniger als 50 Treffer liefert),
+  bei acht Regionen also rund 30 Requests täglich — Kleingeld gegenüber dem
+  normalen Poller.
+- **Abgeschnittene Regionen stehen jetzt im Log** (mit Namen und dem Hinweis auf
+  die Option). Vorher wäre eine neu angelegte Suche über dem Deckel stillschweigend
+  nie im Warenkorb gelandet.
+
+## [0.60.1] - 2026-08-04
+
+### Fixed
+- **Warenkorb-Suche lief in HTTP 500** — jede Region meldete „Suche lieferte
+  keine Treffer". Ursache: der Warenkorb schickte `startDate == endDate`, um
+  einen einzelnen Abreisetag zu treffen. `endDate` ist bei der Such-API aber die
+  späteste **Rückreise**, nicht die späteste Abreise — zusammen mit `duration=7`
+  widersprechen sich Zeitfenster und Reisedauer, die API antwortet mit 500.
+  Jetzt `endDate = startDate + 7`, was die Treffer ebenfalls auf genau einen
+  Abreisetag eingrenzt (live verifiziert: Gran Canaria 196 Hotels, alle mit
+  demselben Abreisedatum und 7 Nächten). Ein Test hält den Abstand fest.
+
+## [0.60.0] - 2026-08-04
+
+### Added
+- **Markttrend aus einem Regions-Warenkorb** (`market_basket.py`) — bisher
+  entstand der Markttrend nur aus den Preisänderungen der eigenen getrackten
+  Angebote, je Destination oft nur ein bis zwei Hotels. Neu läuft **1×/Tag je
+  Region eine Hotelsuche** (bis zu 200 Hotels), aus deren Snapshots der Trend
+  berechnet wird. Regionen werden automatisch aus den gespeicherten Suchen und
+  den getrackten Angeboten abgeleitet, keine giataId-Pflege nötig.
+  - **Matched Pairs statt Durchschnittsvergleich**: verglichen wird jedes Hotel
+    mit sich selbst vom Vortag; Hotels, die nur in einem der beiden Snapshots
+    stehen (ausgebucht/neu dazugekommen), zählen nicht — sonst würde der Trend
+    die Zusammensetzung des Warenkorbs messen statt die Preise.
+  - **Median statt Mittelwert** über die Hotel-Deltas (die Such-API liefert je
+    Hotel das günstigste Angebot, dessen Zimmerkategorie unsichtbar wechseln
+    kann — der Median steckt solche Ausreißer weg).
+  - **Board-/Nächte-Wechsel** werden übersprungen (anderer Angebotstyp, kein
+    Marktsignal).
+  - **Konstante Vorlaufzeit** statt konstantem Abreisedatum: gesucht wird immer
+    für „heute + `market_basket_lead_days`" (Standard 91 = Vielfaches von 7 →
+    gleicher Wochentag, keine Wochenend-Preissprünge). So misst der Trend den
+    Markt und nicht den Last-Minute-Effekt.
+  - Verkettet wird erst auf **Tagesebene** (ein Median je Region und Tag), nicht
+    über die hunderten Hotel-Deltas eines Tages.
+- **Neue Optionen** `market_basket_enabled` (Standard an) und
+  `market_basket_lead_days` (Standard 91, auf 14…365 begrenzt).
+- **Markttrend-Fenster** zeigt beide Quellen getrennt: „🧺 Regions-Warenkorb
+  (alle Hotels)" mit Hotelzahl je Destination und „📌 Deine getrackten
+  Angebote" wie bisher. Neuer Button **🧺 Warenkorb jetzt füllen** stößt einen
+  Lauf sofort an (läuft im Hintergrund), 🗑 je Zeile setzt eine Region zurück.
+- **HA-Sensor `sensor.tuiwatch_markttrend`** nimmt den Warenkorb als Quelle,
+  sobald der zwei Tagesbewegungen hat, sonst weiter den Angebots-Trend. Neue
+  Attribute: `source` (basket/offers), `hotels` sowie die vollständigen
+  Zweige `offers` und `basket`.
+- **Wochenüberblick** (Telegram + E-Mail) enthält jetzt einen Abschnitt
+  **📈 Markttrend (7 Tage)** — global und je Destination, mit Angabe der Basis
+  (Warenkorb oder eigene Angebote). Fenster 7 statt 14 Tage, passend zum
+  Berichtszeitraum.
+- **Backup/Restore** sichert die Warenkorb-Tagesbewegungen mit
+  (`tuiwatch_backup` Version 6) — der Index seit Aufzeichnungsbeginn hängt allein
+  an diesen Zeilen und würde sonst bei einem Umzug wieder bei 100 anfangen. Die
+  Roh-Snapshots bleiben bewusst außen vor (groß, kurzlebig, entstehen täglich
+  neu). Ältere Backups ohne dieses Feld werden unverändert akzeptiert.
+
 ## [0.59.5] - 2026-07-31
 
 ### Added

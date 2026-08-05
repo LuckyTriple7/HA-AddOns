@@ -45,6 +45,7 @@ from flask import (Flask, render_template, request, redirect, url_for,
                    make_response, jsonify, abort, send_from_directory,
                    send_file)
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
+from waitress import serve
 from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename, safe_join
@@ -110,6 +111,13 @@ MEMBER_AVATARS_DIR.mkdir(parents=True, exist_ok=True)
 # Verschlüsselte Datei-Anhänge der Mitglieder-Nachrichten (lokal, NICHT auf SMB)
 DM_FILES_DIR = Path(_DATA) / 'dm_files'
 DM_FILES_DIR.mkdir(parents=True, exist_ok=True)
+# Automatische tägliche Backups — landen unter addon_configs/<slug>_mypage/autobackup/,
+# also im selben Ordner wie die Daten (map: app_config:rw). Bewusst NICHT Teil des
+# Backup-Inhalts, sonst würde sich jedes Backup mit allen Vorgängern selbst aufblähen.
+BACKUPS_DIR = Path(_DATA) / 'autobackup'
+BACKUPS_DIR.mkdir(parents=True, exist_ok=True)
+AUTO_BACKUP_KEEP_DEFAULT = 7
+_AUTO_BACKUP_RE = re.compile(r'^mypage-auto-\d{4}-\d{2}-\d{2}\.zip$')
 # Erlaubte Spieldateinamen (für Backup/Restore): <spiel>_<uid>.json /
 # <spiel>hist_<uid>.json / gsessions_<uid>.json (Sitzungs-Log)
 _GAME_FILE_RE = re.compile(
@@ -537,6 +545,49 @@ def _inject_font():
 
 # ── Config, Site-Daten & Sessions ─────────────────────────────────────────────
 
+def _atomic_write_json(path: str, data, *, indent: int | None = None,
+                       ensure_ascii: bool = False, mode: int | None = None) -> None:
+    """Schreibt JSON atomar: erst vollständig in <datei>.tmp, dann os.replace().
+
+    Ein einfaches open(path, 'w') kürzt die Zieldatei sofort auf 0 Byte. Stirbt der
+    Prozess in diesem Moment (z. B. SIGKILL beim Add-on-Stop), bleibt eine leere oder
+    halbe Datei zurück. os.replace() ist auf einem Dateisystem atomar — es existiert
+    immer entweder der alte oder der neue Stand, nie etwas dazwischen.
+    """
+    tmp = f'{path}.tmp'
+    with open(tmp, 'w', encoding='utf-8') as f:
+        json.dump(data, f, indent=indent, ensure_ascii=ensure_ascii)
+        f.flush()
+        os.fsync(f.fileno())   # erst auf die Platte, dann umbenennen
+    if mode is not None:
+        try:
+            os.chmod(tmp, mode)   # Rechte vor dem Umbenennen setzen — kein offenes Fenster
+        except OSError:
+            pass
+    os.replace(tmp, path)
+
+
+def _quarantine_corrupt(path: str, exc: Exception) -> None:
+    """Beschädigte Datei zur Seite legen, statt sie beim nächsten Speichern zu verlieren.
+
+    Ohne das würde nach einem Lesefehler mit Standardwerten weitergearbeitet und der
+    nächste save_*()-Aufruf die (evtl. reparierbaren) Reste überschreiben.
+    """
+    name = os.path.basename(path)
+    try:
+        backup = f'{path}.corrupt-{datetime.now().strftime("%Y%m%d-%H%M%S")}'
+        os.replace(path, backup)
+        log.error("%s ist beschädigt (%s) — gesichert als %s. Es wird mit Standardwerten "
+                  "weitergearbeitet!", name, exc, os.path.basename(backup))
+    except Exception as e:
+        log.error("%s ist beschädigt (%s) und konnte nicht gesichert werden: %s", name, exc, e)
+    notify_ha_async(
+        '⚠️ MyPage: Beschädigte Datendatei',
+        f'{name} konnte nicht gelesen werden und wurde zur Seite gelegt. '
+        f'MyPage arbeitet vorerst mit Standardwerten — bitte ein Backup einspielen.',
+        notification_id=f'mypage_corrupt_{name}')
+
+
 def load_config() -> dict:
     global _config_cache, _config_mtime
     try:
@@ -558,7 +609,9 @@ def load_site() -> dict:
         except FileNotFoundError:
             return json.loads(json.dumps(DEFAULT_SITE))
         except Exception as e:
-            log.warning("site.json konnte nicht geladen werden: %s", e)
+            # Beschädigte site.json nicht still mit Defaults überschreiben — sonst
+            # setzt der nächste save_site() die komplette Seite zurück.
+            _quarantine_corrupt(SITE_PATH, e)
             return json.loads(json.dumps(DEFAULT_SITE))
     # Fehlende Schlüssel mit Defaults auffüllen (für Updates)
     for section, defaults in DEFAULT_SITE.items():
@@ -573,8 +626,7 @@ def load_site() -> dict:
 def save_site(data: dict) -> None:
     with _site_lock:
         try:
-            with open(SITE_PATH, 'w', encoding='utf-8') as f:
-                json.dump(data, f, indent=2, ensure_ascii=False)
+            _atomic_write_json(SITE_PATH, data, indent=2)
         except Exception as e:
             log.warning("site.json konnte nicht gespeichert werden: %s", e)
 
@@ -587,15 +639,14 @@ def load_stats() -> dict:
         except FileNotFoundError:
             return {'total': 0, 'days': {}}
         except Exception as e:
-            log.warning("stats.json konnte nicht geladen werden: %s", e)
+            _quarantine_corrupt(STATS_PATH, e)
             return {'total': 0, 'days': {}}
 
 
 def save_stats(data: dict) -> None:
     with _stats_lock:
         try:
-            with open(STATS_PATH, 'w', encoding='utf-8') as f:
-                json.dump(data, f)
+            _atomic_write_json(STATS_PATH, data)
         except Exception as e:
             log.warning("stats.json konnte nicht gespeichert werden: %s", e)
 
@@ -608,15 +659,14 @@ def load_messages() -> list:
         except FileNotFoundError:
             return []
         except Exception as e:
-            log.warning("messages.json konnte nicht geladen werden: %s", e)
+            _quarantine_corrupt(MESSAGES_PATH, e)
             return []
 
 
 def save_messages(data: list) -> None:
     with _msg_lock:
         try:
-            with open(MESSAGES_PATH, 'w', encoding='utf-8') as f:
-                json.dump(data[-MESSAGES_MAX:], f, indent=2, ensure_ascii=False)
+            _atomic_write_json(MESSAGES_PATH, data[-MESSAGES_MAX:], indent=2)
         except Exception as e:
             log.warning("messages.json konnte nicht gespeichert werden: %s", e)
 
@@ -636,15 +686,14 @@ def load_comments() -> dict:
         except FileNotFoundError:
             return {}
         except Exception as e:
-            log.warning("comments.json konnte nicht geladen werden: %s", e)
+            _quarantine_corrupt(COMMENTS_PATH, e)
             return {}
 
 
 def save_comments(data: dict) -> None:
     with _comments_lock:
         try:
-            with open(COMMENTS_PATH, 'w', encoding='utf-8') as f:
-                json.dump(data, f, indent=2, ensure_ascii=False)
+            _atomic_write_json(COMMENTS_PATH, data, indent=2)
         except Exception as e:
             log.warning("comments.json konnte nicht gespeichert werden: %s", e)
 
@@ -668,15 +717,14 @@ def load_poll_votes() -> dict:
         except FileNotFoundError:
             return {}
         except Exception as e:
-            log.warning("polls.json konnte nicht geladen werden: %s", e)
+            _quarantine_corrupt(POLLS_PATH, e)
             return {}
 
 
 def save_poll_votes(data: dict) -> None:
     with _polls_lock:
         try:
-            with open(POLLS_PATH, 'w', encoding='utf-8') as f:
-                json.dump(data, f, ensure_ascii=False)
+            _atomic_write_json(POLLS_PATH, data)
         except Exception as e:
             log.warning("polls.json konnte nicht gespeichert werden: %s", e)
 
@@ -854,15 +902,14 @@ def load_dm() -> list:
         except FileNotFoundError:
             return []
         except Exception as e:
-            log.warning("dm.json konnte nicht geladen werden: %s", e)
+            _quarantine_corrupt(DM_PATH, e)
             return []
 
 
 def save_dm(data: list) -> None:
     with _dm_lock:
         try:
-            with open(DM_PATH, 'w', encoding='utf-8') as f:
-                json.dump(data, f, indent=2, ensure_ascii=False)
+            _atomic_write_json(DM_PATH, data, indent=2)
         except Exception as e:
             log.warning("dm.json konnte nicht gespeichert werden: %s", e)
 
@@ -1206,15 +1253,14 @@ def load_subscribers() -> list:
         except FileNotFoundError:
             return []
         except Exception as e:
-            log.warning("subscribers.json konnte nicht geladen werden: %s", e)
+            _quarantine_corrupt(SUBSCRIBERS_PATH, e)
             return []
 
 
 def save_subscribers(data: list) -> None:
     with _subs_lock:
         try:
-            with open(SUBSCRIBERS_PATH, 'w', encoding='utf-8') as f:
-                json.dump(data, f, indent=2, ensure_ascii=False)
+            _atomic_write_json(SUBSCRIBERS_PATH, data, indent=2)
         except Exception as e:
             log.warning("subscribers.json konnte nicht gespeichert werden: %s", e)
 
@@ -1343,8 +1389,7 @@ def _email_html(title: str, lines: list[str]) -> str:
 def save_sessions() -> None:
     try:
         now = time.time()
-        with open(SESSIONS_PATH, 'w') as f:
-            json.dump({k: v for k, v in sessions.items() if v > now}, f)
+        _atomic_write_json(SESSIONS_PATH, {k: v for k, v in sessions.items() if v > now})
     except Exception as e:
         log.warning("Sessions konnten nicht gespeichert werden: %s", e)
 
@@ -1443,19 +1488,15 @@ def load_2fa() -> dict:
         except FileNotFoundError:
             return {}
         except Exception as e:
-            log.warning("admin_2fa.json konnte nicht geladen werden: %s", e)
+            # Sicherheitsrelevant: ohne lesbare Datei gilt 2FA als deaktiviert
+            _quarantine_corrupt(TWOFA_PATH, e)
             return {}
 
 
 def save_2fa(data: dict) -> None:
     with _2fa_lock:
         try:
-            with open(TWOFA_PATH, 'w', encoding='utf-8') as f:
-                json.dump(data, f, indent=2)
-            try:
-                os.chmod(TWOFA_PATH, 0o600)
-            except OSError:
-                pass
+            _atomic_write_json(TWOFA_PATH, data, indent=2, mode=0o600)
         except Exception as e:
             log.warning("admin_2fa.json konnte nicht gespeichert werden: %s", e)
 
@@ -1891,15 +1932,14 @@ def load_users() -> list:
         except FileNotFoundError:
             return []
         except Exception as e:
-            log.warning("users.json konnte nicht geladen werden: %s", e)
+            _quarantine_corrupt(USERS_PATH, e)
             return []
 
 
 def save_users(users: list) -> None:
     with _users_lock:
         try:
-            with open(USERS_PATH, 'w', encoding='utf-8') as f:
-                json.dump(users, f, indent=2, ensure_ascii=False)
+            _atomic_write_json(USERS_PATH, users, indent=2)
         except Exception as e:
             log.warning("users.json konnte nicht gespeichert werden: %s", e)
 
@@ -2053,8 +2093,8 @@ def invalidate_user_sessions(uid: str, keep: str | None = None) -> int:
 def save_user_sessions() -> None:
     try:
         now = time.time()
-        with open(USESSIONS_PATH, 'w') as f:
-            json.dump({k: v for k, v in user_sessions.items() if v[1] > now}, f)
+        _atomic_write_json(USESSIONS_PATH,
+                           {k: v for k, v in user_sessions.items() if v[1] > now})
     except Exception as e:
         log.warning("User-Sessions konnten nicht gespeichert werden: %s", e)
 
@@ -3894,13 +3934,13 @@ def api_newsletter_send():
     return jsonify({'ok': True, 'count': len(confirmed)})
 
 
-@admin_app.route('/api/backup')
-def api_backup():
-    err = _api_auth()
-    if err:
-        return err
-    buf = io.BytesIO()
-    with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as z:
+def write_backup_zip(fp) -> None:
+    """Schreibt ein vollständiges Backup in ein Datei-Objekt (BytesIO oder offene Datei).
+
+    Gemeinsame Basis für den Download-Button und das automatische Backup — damit
+    können beide nicht auseinanderlaufen.
+    """
+    with zipfile.ZipFile(fp, 'w', zipfile.ZIP_DEFLATED) as z:
         for name in ('site.json', 'stats.json', 'messages.json', 'users.json',
                      'comments.json', 'audit.json', 'subscribers.json',
                      'dm.json', 'dm.key', 'admin_2fa.json', 'secret.key'):
@@ -3925,9 +3965,146 @@ def api_backup():
             for f in sorted(DM_FILES_DIR.iterdir()):
                 if f.is_file() and _FID_RE.match(f.name):
                     z.write(f, 'dm_files/' + f.name)
+
+
+def list_auto_backups() -> list:
+    """Vorhandene automatische Backups, neueste zuerst."""
+    try:
+        files = [f for f in BACKUPS_DIR.iterdir()
+                 if f.is_file() and _AUTO_BACKUP_RE.match(f.name)]
+    except OSError:
+        return []
+    out = []
+    for f in sorted(files, key=lambda p: p.name, reverse=True):
+        try:
+            out.append({'name': f.name, 'size': f.stat().st_size,
+                        'date': f.name[12:22]})
+        except OSError:
+            continue
+    return out
+
+
+def _rotate_auto_backups(keep: int) -> None:
+    for old in list_auto_backups()[keep:]:
+        try:
+            (BACKUPS_DIR / old['name']).unlink()
+            log.info("Altes automatisches Backup entfernt: %s", old['name'])
+        except OSError as e:
+            log.warning("Altes Backup '%s' konnte nicht entfernt werden: %s", old['name'], e)
+
+
+def create_auto_backup(keep: int) -> Path | None:
+    """Schreibt das Backup des heutigen Tages (atomar) und rotiert die alten weg."""
+    target = BACKUPS_DIR / f'mypage-auto-{date.today().isoformat()}.zip'
+    tmp = target.with_suffix('.tmp')
+    try:
+        with open(tmp, 'wb') as f:
+            write_backup_zip(f)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, target)   # nie ein halb geschriebenes Backup sichtbar
+    except Exception as e:
+        log.warning("Automatisches Backup fehlgeschlagen: %s", e)
+        try:
+            tmp.unlink(missing_ok=True)
+        except OSError:
+            pass
+        return None
+    log.info("Automatisches Backup erstellt: %s (%.1f MB)",
+             target.name, target.stat().st_size / 1048576)
+    _rotate_auto_backups(keep)
+    return target
+
+
+def auto_backup_loop() -> None:
+    """Sorgt dafür, dass es pro Tag ein Backup gibt.
+
+    Stündlich prüfen statt alle 24 h schlafen: übersteht Neustarts, ohne bei jedem
+    Start ein zusätzliches Backup anzulegen (die Datei des Tages existiert dann schon).
+    """
+    while True:
+        try:
+            keep = int(load_config().get('auto_backup_keep', AUTO_BACKUP_KEEP_DEFAULT) or 0)
+            if keep > 0:
+                if not (BACKUPS_DIR / f'mypage-auto-{date.today().isoformat()}.zip').exists():
+                    create_auto_backup(keep)
+                else:
+                    _rotate_auto_backups(keep)   # geänderte Aufbewahrung sofort anwenden
+        except Exception as e:
+            log.warning("Automatisches Backup: Durchlauf fehlgeschlagen: %s", e)
+        time.sleep(3600)
+
+
+@admin_app.route('/api/backup')
+def api_backup():
+    err = _api_auth()
+    if err:
+        return err
+    buf = io.BytesIO()
+    write_backup_zip(buf)
     buf.seek(0)
     return send_file(buf, mimetype='application/zip', as_attachment=True,
                      download_name=f'mypage-backup-{date.today().isoformat()}.zip')
+
+
+def _auto_backup_path(name: str) -> Path | None:
+    """Pfad zu einem automatischen Backup — nur exakt passende Namen, sonst None."""
+    if not _AUTO_BACKUP_RE.match(name or ''):
+        return None
+    return safe_under(BACKUPS_DIR, name)
+
+
+@admin_app.route('/api/backups')
+def api_backups_list():
+    err = _api_auth()
+    if err:
+        return err
+    keep = int(load_config().get('auto_backup_keep', AUTO_BACKUP_KEEP_DEFAULT) or 0)
+    return jsonify({'backups': list_auto_backups(), 'keep': keep})
+
+
+@admin_app.route('/api/backups/run', methods=['POST'])
+def api_backups_run():
+    err = _api_auth()
+    if err:
+        return err
+    keep = int(load_config().get('auto_backup_keep', AUTO_BACKUP_KEEP_DEFAULT) or 0)
+    if keep <= 0:
+        return jsonify({'error': 'disabled'}), 400
+    target = create_auto_backup(keep)
+    if target is None:
+        return jsonify({'error': 'backup failed'}), 500
+    log_audit('backup_auto_manual', target.name)
+    return jsonify({'ok': True, 'name': target.name})
+
+
+@admin_app.route('/api/backups/<name>')
+def api_backups_download(name: str):
+    err = _api_auth()
+    if err:
+        return err
+    p = _auto_backup_path(name)
+    if p is None or not p.is_file():
+        return jsonify({'error': 'not found'}), 404
+    return send_file(p, mimetype='application/zip', as_attachment=True,
+                     download_name=p.name)
+
+
+@admin_app.route('/api/backups/<name>', methods=['DELETE'])
+def api_backups_delete(name: str):
+    err = _api_auth()
+    if err:
+        return err
+    p = _auto_backup_path(name)
+    if p is None or not p.is_file():
+        return jsonify({'error': 'not found'}), 404
+    try:
+        p.unlink()
+    except OSError:
+        log.warning("Backup '%s' konnte nicht gelöscht werden", p.name)
+        return jsonify({'error': 'delete failed'}), 500
+    log_audit('backup_auto_delete', p.name)
+    return jsonify({'ok': True})
 
 
 @admin_app.route('/api/restore', methods=['POST'])
@@ -8641,8 +8818,28 @@ def custom_page(slug: str):
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 
+def _serve(app, port: int, threads: int) -> None:
+    """Startet eine App mit Waitress (produktionstauglicher WSGI-Server).
+
+    Der in Flask eingebaute Werkzeug-Server ist ein Entwicklungsserver: er legt pro
+    Anfrage einen neuen Thread an (unbegrenzt) und kennt weder Verbindungslimit noch
+    Timeout für hängende Verbindungen. Waitress arbeitet mit festem Thread-Pool und
+    Warteschlange, puffert Anfragen/Antworten und begrenzt beides.
+    """
+    opts = {}
+    # An MAX_CONTENT_LENGTH koppeln, sonst würde Waitress große Uploads schon abweisen,
+    # bevor Flask sein eigenes (konfigurierbares) Limit prüft. Nur setzen wenn bekannt —
+    # Waitress lehnt None ab (TypeError) und hat sonst einen sinnvollen Standard (1 GB).
+    limit = int(app.config.get('MAX_CONTENT_LENGTH') or 0)
+    if limit > 0:
+        opts['max_request_body_size'] = limit
+    serve(app, host='0.0.0.0', port=port, threads=threads,
+          ident=None,   # keine Server-Version im Response-Header
+          **opts)
+
+
 def _run_public():
-    public_app.run(host='0.0.0.0', port=PUBLIC_PORT, debug=False, threaded=True)
+    _serve(public_app, PUBLIC_PORT, threads=8)
 
 
 def _handle_sigterm(signum, frame) -> None:
@@ -8684,6 +8881,7 @@ if __name__ == '__main__':
     threading.Thread(target=_smb_watchdog, daemon=True).start()
     threading.Thread(target=_dm_reminder_worker, daemon=True).start()
     threading.Thread(target=_weekly_review_worker, daemon=True).start()
+    threading.Thread(target=auto_backup_loop, daemon=True).start()
 
     log.info("MyPage bereit — öffentlich: %d, Admin: %d", PUBLIC_PORT, ADMIN_PORT)
-    admin_app.run(host='0.0.0.0', port=ADMIN_PORT, debug=False, threaded=True)
+    _serve(admin_app, ADMIN_PORT, threads=4)

@@ -166,6 +166,13 @@
     /* Modal */
     .modal-bg { position:fixed; inset:0; background:rgba(0,0,0,.6); display:none; align-items:center; justify-content:center; padding:16px; z-index:50; overscroll-behavior:contain; }
     .modal-bg.show { display:flex; }
+    /* Lightbox-Blätterelemente: absolut über dem Hintergrund, damit das Foto im
+       zentrierten Flex-Container mittig bleibt und nicht von den Pfeilen verschoben wird. */
+    /* Aufgehellt statt abgedunkelt: der Lightbox-Hintergrund ist selbst schon dunkel,
+       dunkle Flächen darauf wären als Schaltfläche nicht zu erkennen. */
+    .gl-nav { position:absolute; top:50%; transform:translateY(-50%); width:46px; height:70px; border:1px solid rgba(255,255,255,.25); border-radius:8px; background:rgba(255,255,255,.14); color:#fff; font-size:2.1rem; line-height:1; cursor:pointer; display:flex; align-items:center; justify-content:center; }
+    .gl-nav:hover { background:rgba(255,255,255,.3); }
+    .gl-count { position:absolute; bottom:16px; left:50%; transform:translateX(-50%); background:rgba(255,255,255,.14); border:1px solid rgba(255,255,255,.25); color:#fff; font-size:.76rem; padding:3px 10px; border-radius:20px; pointer-events:none; }
     .modal { background:var(--surf); border:1px solid var(--border); border-radius:10px; width:100%; max-width:680px; max-height:88vh; overflow:auto; overscroll-behavior:contain; padding:18px; }
     .modal h2 { font-size:1.05rem; margin-bottom:4px; }
     .modal .sub { font-size:.8rem; color:var(--muted); margin-bottom:14px; }
@@ -286,6 +293,10 @@
     .cal-title { font-weight:700; font-size:1rem; }
     .cal-sum { font-size:.78rem; color:var(--muted); margin-bottom:10px; }
     .cal-sum b { color:var(--text); }
+    .cal-jump { color:inherit; text-decoration:none; border-bottom:1px dotted var(--border); cursor:pointer; }
+    .cal-jump:hover { color:var(--text); border-bottom-color:var(--accent); }
+    .cal-jump.down b { color:var(--green); }
+    .cal-jump.up b { color:var(--red); }
     .cal-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:4px; }
     .cal-grid.head { margin-bottom:4px; gap:4px; }
     .cal-wd { text-align:center; font-size:.72rem; color:var(--muted); font-weight:600; padding:2px 0; }
@@ -297,6 +308,15 @@
     .cal-cell.out { opacity:.4; }
     .cal-cell.cheapest { border-color:var(--green); background:rgba(46,160,67,.16); }
     .cal-cell.cheapest .cal-p { color:var(--green); }
+    /* Teuerster Termin als Gegenstück zum günstigsten — die Heatmap färbt zwar
+       schon grob ein, benennt den Extremwert aber nicht. */
+    .cal-cell.priciest { border-color:var(--red); }
+    .cal-cell.priciest .cal-p { color:var(--red); }
+    /* Ziel eines Klicks aus der Zusammenfassung: kurz aufblitzen, damit man den
+       Tag im Monatsraster überhaupt findet. */
+    @keyframes calflash { 0%,100% { box-shadow:0 0 0 0 transparent; } 30%,70% { box-shadow:0 0 0 3px var(--accent); } }
+    .cal-cell.cal-flash { animation:calflash 1.1s ease-in-out 2; }
+    @media (prefers-reduced-motion:reduce){ .cal-cell.cal-flash { animation:none; box-shadow:0 0 0 3px var(--accent); } }
     .cal-pig { width:16px; height:16px; color:var(--green); vertical-align:-3px; margin:0 4px 0 0; }  /* Legende: inline (grün via currentColor) */
     .cal-cell { position:relative; }
     .cal-cell .cal-d, .cal-cell .cal-p { position:relative; z-index:1; }   /* Text über dem Sparschwein */
@@ -308,12 +328,42 @@
     .btn.trend-active-up { border-color:var(--red); }
     .btn.trend-active-down { border-color:var(--green); }
     .trend-global { margin-bottom:14px; }
+    /* Klimadiagramm — Serienfarben aus der validierten Palette (CVD-geprüft für
+       alle Paare in beiden Modi). Temperatur und Regentage haben verschiedene
+       Einheiten und stehen deshalb in zwei Panels übereinander mit gemeinsamer
+       Monatsachse, NICHT auf zwei y-Achsen in einem Bild. */
+    :root { --viz-1:#3987e5; --viz-2:#d95926; --viz-3:#199e70; }
+    [data-theme="light"] { --viz-1:#2a78d6; --viz-2:#eb6834; --viz-3:#1baf7a; }
+    .climchart { width:100%; height:auto; display:block; }
+    .climchart .cc-grid { stroke:var(--border); stroke-width:1; }
+    .climchart .cc-axis { fill:var(--muted); font-size:10px; }
+    .climchart .cc-line { fill:none; stroke-width:2; stroke-linejoin:round; stroke-linecap:round; }
+    .climchart .cc-band { fill:transparent; }
+    .climchart .cc-band:hover { fill:color-mix(in srgb, var(--text) 7%, transparent); }
+    .climchart .cc-dot { stroke:var(--surf); stroke-width:2; }
+    .climchart .cc-end { fill:var(--muted); font-size:10px; }
+    .clim-legend { display:flex; gap:14px; flex-wrap:wrap; margin:2px 0 6px; font-size:.8rem; color:var(--muted); }
+    .clim-legend span { display:inline-flex; align-items:center; gap:5px; }
+    .clim-legend i { width:14px; height:2px; border-radius:1px; display:inline-block; }
+    .clim-tip { font-size:.78rem; color:var(--text); min-height:1.2em; margin-bottom:4px; }
+    /* Klimatabelle: der gewählte Reisemonat wird hervorgehoben, damit man ihn in
+       zwölf Zeilen sofort findet. Warm/kalt nur dezent über die Textfarbe. */
+    .clim td, .clim th { text-align:right; }
+    .clim td:first-child, .clim th:first-child { text-align:left; }
+    .clim tr.clim-sel { background:color-mix(in srgb, var(--accent) 16%, transparent); }
+    .clim tr.clim-sel td { font-weight:600; }
+    .clim .clim-note { color:var(--muted); font-size:.78rem; }
+    .clim-best { color:var(--green); font-weight:600; }
+    /* Fortschritt des Barometer-Laufs (mehrere Suchen à mehrere Ergebnisseiten) */
+    .bkt-bar { height:8px; border-radius:4px; background:var(--surf2); border:1px solid var(--border); overflow:hidden; }
+    .bkt-fill { height:100%; background:var(--accent); transition:width .4s ease; }
     .cal-cell.tracked { outline:2px solid var(--accent); outline-offset:-2px; }
     a.cal-cell.clk { text-decoration:none; color:inherit; cursor:pointer; transition:transform .08s; }
     a.cal-cell.clk:hover { border-color:var(--accent); transform:translateY(-1px); }
     .cal-legend { display:flex; flex-wrap:wrap; gap:6px 14px; margin-top:12px; font-size:.74rem; color:var(--muted); }
     .cal-legend i { width:11px; height:11px; border-radius:3px; display:inline-block; vertical-align:middle; margin-right:4px; }
     .cal-legend .lg-cheap { background:rgba(46,160,67,.5); border:1px solid var(--green); }
+    .cal-legend .lg-pricey { border:1px solid var(--red); }
     .cal-legend .lg-track { border:2px solid var(--accent); }
     .cal-legend .lg-out { background:var(--surf2); opacity:.4; }
     @media(max-width:560px){ .cal-cell{ min-height:44px; padding:3px; } .cal-cell .cal-p{ font-size:.7rem; } }
@@ -468,7 +518,10 @@
       <div class="header-actions">
         <button class="btn sec" id="check-all">Alle prüfen</button>
         <button class="btn sec ai-feature" onclick="openAiHistory()" title="Bisherige KI-Fazits/-Vergleiche einsehen">🤖 KI-Verlauf</button>
-        <button class="btn sec ai-feature" onclick="openAiAsk()" title="Frage zu deinem Portfolio stellen">❓ Frage</button>
+        <button class="btn sec ai-feature" onclick="openAiAsk()"
+                title="Frage stellen — zu deinen getrackten Angeboten (Preis, Bewertung, Trend, Wunschpreis) oder allgemein zum Reisen (Region, Reisezeit, Einreise, Anreise)">❓</button>
+        <button class="btn sec ai-feature" onclick="openClimate()"
+                title="Klimatabellen: Temperaturen, Wassertemperatur, Sonnenstunden und Regentage über zwölf Monate — für alle Ziele, zu denen bereits eine Tabelle gespeichert ist">🌤</button>
         <button class="icon-btn" onclick="toggleTheme()" title="Design wechseln">
           <svg class="icon-moon" viewBox="0 0 24 24"><path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c0-.46-.04-.92-.1-1.36-.98 1.37-2.58 2.26-4.4 2.26-2.98 0-5.4-2.42-5.4-5.4 0-1.81.89-3.42 2.26-4.4-.44-.06-.9-.1-1.36-.1z"/></svg>
           <svg class="icon-sun"  viewBox="0 0 24 24"><path d="M12 7c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zM2 13h2v-2H2v2zm18 0h2v-2h-2v2zM11 2v2h2V2h-2zm0 18v2h2v-2h-2zM5.99 4.58 4.58 5.99l1.41 1.41 1.41-1.41L5.99 4.58zm12.03 12.03-1.41 1.41 1.41 1.41 1.41-1.41-1.41-1.41zm1.41-12.44-1.41-1.41-1.41 1.41 1.41 1.41 1.41-1.41zM5.99 19.42l1.41 1.41 1.41-1.41-1.41-1.41-1.41 1.41z"/></svg>
@@ -612,7 +665,7 @@
           <label>von</label>
           <div style="display:flex;gap:4px">
             <input type="date" id="srch-vom" onchange="syncBisMin()" onclick="this.showPicker&&this.showPicker()" style="flex:1">
-            <button type="button" class="btn sec" onclick="srchDateToday()" title="Startdatum auf heute setzen">Heute</button>
+            <button type="button" class="btn sec" onclick="srchDateToday()" title="Startdatum auf den frühesten sinnvollen Termin setzen (heute + 2 Tage): für heute liefert TUI gar nichts, für morgen nur wenige Angebote">Frühestens</button>
           </div>
         </div>
         <div class="srch-field srch-sm">
@@ -665,6 +718,10 @@
         <label class="srch-num">Weiterempf. ≥ <input type="number" id="srch-rec" min="0" max="100" step="5" value="80" placeholder="0" style="width:60px">%</label>
         <label class="srch-chk" title="Sterne- und Weiterempfehlungs-Filter ignorieren"><input type="checkbox" id="srch-qual-off" onchange="toggleQualFilter()"> Egal</label>
         <button class="btn sec" onclick="resetSearch()" style="margin-left:auto" title="Eingaben auf Standard zurücksetzen">Reset</button>
+        <button class="btn sec ai-feature" onclick="openClimate()"
+                title="Klimatabelle des Reiseziels: Temperaturen, Wassertemperatur, Sonnenstunden und Regentage für alle zwölf Monate">🌤 Klima</button>
+        <button class="btn sec ai-feature" onclick="askSearchAdvice()"
+                title="KI prüft den gewählten Reisezeitraum (Regenzeit, Temperaturen, Haupt-/Nebensaison, Schnäppchenmonate) und schlägt ähnliche Ziele vor">🤖 Reisezeit-Check</button>
         <button class="btn" onclick="runSearch()">Suchen</button>
       </div>
       <div id="srch-nights-warn" class="srch-warn" style="display:none"></div>
@@ -763,11 +820,22 @@
         <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
       </button>
       <h2>🔔 Meldungen &amp; Fehler</h2>
-      <div style="display:flex;gap:6px;margin:8px 0">
+      <div style="display:flex;gap:6px;margin:8px 0;flex-wrap:wrap">
         <button class="btn sec" id="syslog-tab-notify" onclick="openSyslog('notify')">🔔 Benachrichtigungen</button>
         <button class="btn sec" id="syslog-tab-errors" onclick="openSyslog('errors')">⚠ Warnungen/Fehler</button>
+        <button class="btn sec" id="syslog-tab-console" onclick="openSyslog('console')">📜 Konsole</button>
       </div>
       <div class="sub" id="syslog-sub"></div>
+      <div id="syslog-filter" style="display:none;gap:6px;margin-bottom:8px;flex-wrap:wrap">
+        <input id="syslog-q" placeholder="Filtern (z. B. Preisbarometer)" style="flex:1;min-width:180px">
+        <select id="syslog-level">
+          <option value="">alle Stufen</option>
+          <option value="INFO">ab INFO</option>
+          <option value="WARNING">ab WARNUNG</option>
+          <option value="ERROR">nur FEHLER</option>
+        </select>
+        <button class="btn sec" onclick="openSyslog('console')">🔄</button>
+      </div>
       <div id="syslog-body"></div>
     </div>
   </div>
@@ -782,9 +850,16 @@
     </div>
   </div>
 
+  <!-- Vollbild eines Galerie-Fotos. Blättern mit ← / → oder den Pfeilflächen; ein
+       Klick auf den Hintergrund schließt, daher stoppen die Pfeile die Weitergabe. -->
   <div class="modal-bg" id="giata-lightbox-bg" onclick="closeGiataLightbox()">
+    <button class="gl-nav" id="giata-lightbox-prev" style="left:10px" aria-label="Vorheriges Foto"
+            title="Vorheriges Foto (←)" onclick="event.stopPropagation();giataStep(-1)">&lsaquo;</button>
     <img id="giata-lightbox-img" src="" alt=""
          style="max-width:100%;max-height:100%;border-radius:8px;object-fit:contain">
+    <button class="gl-nav" id="giata-lightbox-next" style="right:10px" aria-label="Nächstes Foto"
+            title="Nächstes Foto (→)" onclick="event.stopPropagation();giataStep(1)">&rsaquo;</button>
+    <div class="gl-count" id="giata-lightbox-count"></div>
   </div>
 
   <div class="modal-bg" id="aihist-bg">
@@ -805,12 +880,16 @@
       <button class="icon-btn modal-close" onclick="closeAiAsk()">
         <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
       </button>
-      <h2>❓ Frag dein Portfolio</h2>
-      <div class="sub">Frage zu deinen aktuell getrackten Angeboten — Claude antwortet anhand von Preis, Bewertung, Trend, Wunschpreis &amp; Tags, und nutzt für alles darüber hinaus (z. B. Klima/Wetter zur Reisezeit) zusätzlich die Websuche.</div>
-      <textarea id="aiask-q" rows="3" style="width:100%;margin-top:10px;resize:vertical;background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:8px;font:inherit" placeholder="z. B. Welches Hotel ist gerade das beste Schnäppchen?"></textarea>
-      <div style="margin-top:14px;display:flex;gap:8px;justify-content:flex-end">
+      <h2>❓ Frage</h2>
+      <div class="sub" id="aiask-sub"></div>
+      <textarea id="aiask-q" rows="3" style="width:100%;margin-top:10px;resize:vertical;background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:8px;font:inherit"></textarea>
+      <div style="margin-top:14px;display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap">
+        <span class="hint" style="flex:1;min-width:180px" id="aiask-hint"></span>
         <button class="btn sec" onclick="closeAiAsk()">Abbrechen</button>
-        <button class="btn" onclick="submitAiAsk()">Fragen</button>
+        <button class="btn sec" id="aiask-btn-general" onclick="submitAiAsk('general')"
+                title="Allgemeine Reisefrage — ohne Bezug zu deinen Angeboten, mit Websuche">🌍 Reisefrage</button>
+        <button class="btn" id="aiask-btn-portfolio" onclick="submitAiAsk('portfolio')"
+                title="Frage zu deinen getrackten Angeboten">📌 Portfolio fragen</button>
       </div>
     </div>
   </div>
@@ -923,14 +1002,61 @@
         <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
       </button>
       <h2>Markttrend</h2>
-      <div class="sub">Marktweiter Preistrend über alle geprüften Angebote der letzten 14 Tage —
-        gemittelt aus den Preisänderungen einzelner Angebote (kein Orakel, nur ein Hinweis).
-        Bleibt erhalten, auch wenn einzelne Angebote gelöscht werden.</div>
+      <div class="sub">Preistrend der letzten 14 Tage aus <b>deinen getrackten Angeboten</b> —
+        die prozentuale Änderung jedes Angebots zu seinem eigenen Vorpreis, je Destination
+        zusammengefasst. Bleibt erhalten, auch wenn einzelne Angebote gelöscht werden
+        (kein Orakel, nur ein Hinweis).</div>
       <div id="trend-body"></div>
       <div class="cmp-foot" style="margin-top:12px">
         <span class="hint" style="flex:1;min-width:220px">Preissprung durch Zimmerwechsel dabei?
           Neu berechnen schließt ihn nachträglich aus.</span>
+        <button class="btn sec" onclick="openBasket()">🌡️ Preisbarometer</button>
         <button class="btn sec" onclick="recomputeMarketTrend()">🔄 Neu berechnen</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Preisbarometer-Modal — liegt bewusst NACH dem Markttrend-Modal im DOM: beide teilen
+       sich den z-index, das spätere Element liegt oben. Das Preisbarometer wird aus dem
+       Markttrend heraus geöffnet und muss darüber erscheinen. -->
+  <div class="modal-bg" id="basket-bg">
+    <div class="modal" style="max-width:720px">
+      <button class="icon-btn modal-close" onclick="closeBasket()">
+        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+      </button>
+      <h2>🌡️ Preisbarometer</h2>
+      <div class="sub">Einmal pro Tag läuft jede deiner <b>gespeicherten Suchen</b> erneut —
+        mit deinen Reiseterminen, deiner Dauer und deinen Filtern. Verglichen wird jedes Hotel
+        mit sich selbst vom Vortag, der <b>Median</b> über alle Hotels ergibt die Tagesbewegung.
+        Deutlich breitere Basis als die eigenen Angebote, und der Trend gilt für genau deinen
+        Reisetermin. Getrackte Angebote ohne gespeicherte Suche bekommen eine Messreihe je
+        Region und Abreisemonat.</div>
+      <div id="basket-body"></div>
+      <div id="basket-progress" style="display:none;margin-top:10px"></div>
+      <div class="cmp-foot" style="margin-top:12px">
+        <span class="hint" style="flex:1;min-width:220px">Läuft automatisch 1×/Tag.
+          Ein Trend braucht zwei Tage.</span>
+        <button class="btn sec" onclick="runMarketBasket()">🌡️ Jetzt messen</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Klima-Modal — steht bewusst hinter der Suchmaske im DOM (gleicher z-index,
+       späteres Element liegt oben): es wird aus der Suche heraus geöffnet. -->
+  <div class="modal-bg" id="climate-bg">
+    <div class="modal" style="max-width:700px">
+      <button class="icon-btn modal-close" onclick="closeClimate()">
+        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+      </button>
+      <h2>🌤 Klima</h2>
+      <div class="sub" id="climate-sub"></div>
+      <div id="climate-body"></div>
+      <div class="cmp-foot" style="margin-top:12px" id="climate-foot">
+        <span class="hint" style="flex:1;min-width:220px" id="climate-stand"></span>
+        <button class="btn sec" onclick="openClimateEmailModal()"
+                title="Klimatabelle per E-Mail verschicken (kein KI-Aufruf)">✉ Als E-Mail</button>
+        <button class="btn sec" onclick="refreshClimate()"
+                title="Tabelle verwerfen und neu von der KI erstellen lassen (kostet einen KI-Aufruf)">🔄 Neu abrufen</button>
       </div>
     </div>
   </div>

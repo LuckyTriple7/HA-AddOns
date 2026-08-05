@@ -1139,10 +1139,377 @@ def api_ai_region_outlook():
     return jsonify({'result': result, 'usage': usage, 'totals': totals, 'id': aid, 'cached': False})
 
 
+_BOARD_LABELS = {'AI': 'All Inclusive', 'VP': 'Vollpension', 'HP': 'Halbpension',
+                 'BB': 'Frühstück', 'OV': 'ohne Verpflegung'}
+
+# ── Klimatabelle je Reiseziel ─────────────────────────────────────────────────
+# Strukturiert statt Fließtext: als JSON lässt sich die Tabelle sortiert rendern,
+# der Reisemonat hervorheben und später weiterverwenden (z. B. im Reisezeit-Check).
+# Ein Markdown-Block wäre nur einmal lesbar und nicht auswertbar.
+_CLIMATE_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "months": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "monat": {"type": "integer"},
+                    "temp_tag": {"type": "number"},
+                    "temp_nacht": {"type": "number"},
+                    "wasser": {"type": "number"},
+                    "sonnenstunden": {"type": "number"},
+                    "regentage": {"type": "integer"},
+                    "hinweis": {"type": "string"},
+                },
+                "required": ["monat", "temp_tag", "temp_nacht", "wasser",
+                             "sonnenstunden", "regentage", "hinweis"],
+                "additionalProperties": False,
+            },
+        },
+        "beste_monate": {"type": "array", "items": {"type": "integer"}},
+        "zusammenfassung": {"type": "string"},
+    },
+    "required": ["months", "beste_monate", "zusammenfassung"],
+    "additionalProperties": False,
+}
+
+
+def _climate_prompt(label: str) -> str:
+    return (
+        f"Stelle mir das Klima für {label} als Jahresübersicht zusammen — für alle "
+        "zwölf Monate, Januar (1) bis Dezember (12), jeder Monat genau einmal.\n\n"
+        "Je Monat: durchschnittliche Tageshöchsttemperatur und Nachttemperatur in °C, "
+        "durchschnittliche Wassertemperatur in °C, Sonnenstunden pro Tag, Regentage "
+        "im Monat. Dazu ein kurzer Hinweis (höchstens acht Wörter) für Besonderes wie "
+        "Regenzeit, Hurrikansaison, Passatwind, Hitze oder Hochsaison — sonst leer "
+        "lassen.\n\n"
+        "Nenne außerdem die aus Wetter-Sicht besten Reisemonate und eine "
+        "Zusammenfassung in zwei bis drei Sätzen (Klimatyp, Regenzeit, "
+        "Badesaison).\n\n"
+        "Nutze langjährige Klima-Normalwerte (Klimamittel), keine Vorhersage für ein "
+        "einzelnes Jahr. Suche die Werte im Web und stütze dich auf gängige "
+        "Klimatabellen. Wo für das Ziel keine Wassertemperatur sinnvoll ist "
+        "(Binnenland), trage 0 ein und schreibe es in den Hinweis."
+    )
+
+
+def _linkify_citations_in_place(result: dict, urls: list | None) -> None:
+    """Perplexity setzt Quellen-Marker wie „[7][11]" auch in die Textfelder einer
+    strukturierten Antwort. Dort können sie beim Abruf nicht verlinkt werden (das
+    würde den JSON-String zerstören), also passiert es hier nach dem Parsen — sonst
+    bliebe im Klima-Fenster toter Text stehen. Bei den anderen Anbietern ist `urls`
+    leer und die Funktion tut nichts."""
+    if not urls:
+        return
+    from ai_client import _perplexity_linkify_citations
+    data = {'citations': urls}
+    if isinstance(result.get('zusammenfassung'), str):
+        result['zusammenfassung'] = _perplexity_linkify_citations(
+            result['zusammenfassung'], data)
+    for m in (result.get('months') or []):
+        if isinstance(m, dict) and isinstance(m.get('hinweis'), str):
+            m['hinweis'] = _perplexity_linkify_citations(m['hinweis'], data)
+
+
+def _climate_load(giata: int):
+    with A.db() as con:
+        row = con.execute('SELECT label, ts, model, data FROM climate WHERE giata=?',
+                          (giata,)).fetchone()
+    if not row:
+        return None
+    try:
+        data = json.loads(row['data'])
+    except ValueError:
+        return None
+    return {'giata': giata, 'label': row['label'], 'ts': row['ts'],
+            'model': row['model'], 'data': data}
+
+
+@bp.route('/api/climate', methods=['GET'])
+def api_climate_list():
+    """Alle gespeicherten Klimatabellen (ohne die Monatsdaten) — für den Zugriff von
+    der Hauptseite aus, wo kein Reiseziel aus der Suchmaske vorliegt."""
+    if (err := A._require_api()):
+        return err
+    with A.db() as con:
+        rows = con.execute('SELECT giata, label, ts FROM climate '
+                           'ORDER BY label COLLATE NOCASE').fetchall()
+    return jsonify({'items': [dict(r) for r in rows]})
+
+
+@bp.route('/api/climate/<int:giata>', methods=['GET'])
+def api_climate_get(giata: int):
+    """Gespeicherte Klimatabelle eines Reiseziels — **ohne** KI-Aufruf. Die Suchmaske
+    fragt hier bei jedem Suchlauf an; das muss kostenlos sein. Fehlt die Tabelle,
+    kommt `{'found': False}` und der Client entscheidet, ob er sie erzeugen lässt."""
+    if (err := A._require_api()):
+        return err
+    got = _climate_load(giata)
+    if not got:
+        return jsonify({'found': False, 'giata': giata})
+    return jsonify(dict(got, found=True))
+
+
+@bp.route('/api/ai/climate', methods=['POST'])
+def api_ai_climate():
+    """Klimatabelle für ein Reiseziel per KI erzeugen und dauerhaft speichern.
+
+    Liegt sie schon vor, wird sie unverändert zurückgegeben — Klima-Normalwerte
+    ändern sich nicht, ein erneuter Aufruf wäre reine Geldverbrennung. `refresh: true`
+    erzwingt eine Neuberechnung (Knopf im Klima-Fenster)."""
+    if (err := A._require_api()):
+        return err
+    data = request.get_json(silent=True) or {}
+    try:
+        giata = int(data.get('giata'))
+    except (TypeError, ValueError):
+        return jsonify({'error': 'no_dest'}), 400
+    label = (data.get('label') or '').strip()
+    if not data.get('refresh'):
+        if (got := _climate_load(giata)):
+            return jsonify(dict(got, found=True, cached=True))
+    if not label:
+        return jsonify({'error': 'no_dest'}), 400
+    api_key, model = _ai_config()
+    if not api_key:
+        return jsonify({'error': 'no_api_key',
+                        'note': 'Kein Anthropic API-Key in den Add-on-Einstellungen hinterlegt'}), 400
+    prompt = _climate_prompt(label)
+    if (preview := _prompt_preview_response(data, prompt)):
+        return preview
+    prompt = _resolve_prompt(data, prompt)
+    text, usage, code = A._ai_request(api_key, model, prompt, max_tokens=3000,
+                                      log_ctx=f"Klimatabelle {label}",
+                                      use_web_search=True, output_schema=_CLIMATE_SCHEMA)
+    if code == 'failed':
+        return jsonify({'error': 'ai_failed'}), 502
+    if code == 'refused':
+        return jsonify({'error': 'ai_refused'}), 502
+    if code == 'empty' or not text:
+        return jsonify({'error': 'ai_empty'}), 502
+    try:
+        result = json.loads(text)
+    except ValueError:
+        A.log.warning("Klimatabelle %s: KI-Antwort kein gültiges JSON (%d Zeichen): %.200s",
+                      label, len(text), text)
+        return jsonify({'error': 'ai_empty'}), 502
+    months = [m for m in (result.get('months') or []) if isinstance(m, dict)]
+    if len(months) < 12:
+        A.log.warning("Klimatabelle %s: nur %d Monate geliefert", label, len(months))
+        return jsonify({'error': 'ai_empty'}), 502
+    _linkify_citations_in_place(result, (usage or {}).pop('citation_urls', None))
+    usage['estimated_usd'] = _ai_call_cost(model, usage)
+    totals = _record_ai_usage(model, usage)
+    ts = int(time.time())
+    with A.db() as con:
+        con.execute('INSERT OR REPLACE INTO climate (giata, label, ts, model, data) '
+                    'VALUES (?,?,?,?,?)',
+                    (giata, label, ts, model, json.dumps(result, ensure_ascii=False)))
+    A.log.info("Klimatabelle für %s (%s) gespeichert", label, giata)
+    return jsonify({'found': True, 'cached': False, 'giata': giata, 'label': label,
+                    'ts': ts, 'model': model, 'data': result,
+                    'usage': usage, 'totals': totals})
+
+
+@bp.route('/api/climate/<int:giata>/email', methods=['POST'])
+def api_climate_email(giata: int):
+    """Gespeicherte Klimatabelle per E-Mail verschicken. Kein KI-Aufruf — verschickt
+    wird ausschließlich, was schon in der Datenbank liegt."""
+    if (err := A._require_api()):
+        return err
+    if not A.smtp_configured():
+        return jsonify({'error': 'smtp_not_configured'}), 400
+    data = request.get_json(silent=True) or {}
+    to = (data.get('to') or A.load_config().get('smtp_to') or '').strip()
+    if not to:
+        return jsonify({'error': 'no_recipient'}), 400
+    got = _climate_load(giata)
+    if not got:
+        return jsonify({'error': 'not_found'}), 404
+    months_hl = [int(m) for m in (data.get('months') or []) if str(m).isdigit()]
+    import email_search
+    html = email_search.climate_html(got['label'], got['data'], months_hl=months_hl)
+    try:
+        A.send_email(f"TUIWatch – Klima {got['label']}", html, to)
+    except Exception as e:
+        A.log.error("Klima-E-Mail fehlgeschlagen: %s", e)
+        return jsonify({'error': 'send_failed'}), 502
+    A.log.info("Klimatabelle %s an %s gesendet", got['label'], to)
+    return jsonify({'sent': True, 'to': to})
+
+
+@bp.route('/api/climate/<int:giata>', methods=['DELETE'])
+def api_climate_delete(giata: int):
+    """Gespeicherte Klimatabelle verwerfen (der nächste Abruf erzeugt sie neu)."""
+    if (err := A._require_api()):
+        return err
+    with A.db() as con:
+        n = con.execute('DELETE FROM climate WHERE giata=?', (giata,)).rowcount
+    return jsonify({'deleted': n})
+
+
+def _search_advice_prompt(d: dict) -> str:
+    """Prompt für den Reisezeit-Check aus der Suchmaske: taugt der gewählte Zeitraum
+    für dieses Ziel, wie liegt er preislich, und was wären ähnliche Alternativen.
+
+    Die Suchmaske weiß nichts über Klima oder Saison — genau deshalb ist das eine
+    KI-Frage. Mitgegeben werden nur die Eckdaten der Suche und, falls schon gesucht
+    wurde, eine kurze Preisstatistik der Treffer: ohne die könnte die KI zum
+    Preisniveau nur allgemein herumraten, mit ihr kann sie den konkreten Zeitraum
+    einordnen."""
+    dest = (d.get('dest') or '').strip() or 'das gewählte Reiseziel'
+    start, end = (d.get('start') or '').strip(), (d.get('end') or '').strip()
+    lines = [f"Reiseziel: {dest}"]
+    if start and end:
+        lines.append(f"Gewünschter Reisezeitraum: {start} bis {end}")
+    elif start:
+        lines.append(f"Gewünschter Reisebeginn: {start}")
+    if d.get('duration'):
+        lines.append(f"Reisedauer: {d['duration']}"
+                     + (" (exakt dieser Zeitraum)" if d.get('exact') else " Nächte"))
+    if d.get('travellers'):
+        lines.append(f"Reisende: {d['travellers']}")
+    if (d.get('airport_label') or d.get('airport')):
+        lines.append(f"Abflughafen: {d.get('airport_label') or d.get('airport')}")
+    boards = [_BOARD_LABELS.get(str(b), str(b)) for b in (d.get('boards') or [])]
+    if boards:
+        lines.append("Verpflegung: " + ", ".join(boards))
+    if d.get('min_stars'):
+        lines.append(f"Mindestens {d['min_stars']} Sterne")
+    if d.get('min_recommend'):
+        lines.append(f"Mindestens {d['min_recommend']} % Weiterempfehlung")
+    if d.get('direct'):
+        lines.append("Nur Direktflüge")
+    if d.get('adults_only'):
+        lines.append("Nur Erwachsenenhotels")
+    stats = d.get('results') or {}
+    if stats.get('count'):
+        s = [f"{stats['count']} Treffer"]
+        if stats.get('total'):
+            s.append(f"von {stats['total']} in der Region")
+        if stats.get('min_price'):
+            s.append(f"günstigster {A._eur(stats['min_price'])} p. P.")
+        if stats.get('median_price'):
+            s.append(f"Median {A._eur(stats['median_price'])}")
+        if stats.get('max_price'):
+            s.append(f"teuerster {A._eur(stats['max_price'])}")
+        lines.append("Aktuelle Suchtreffer: " + ", ".join(s))
+    return (
+        "Ich plane folgende Reise und habe sie so in meiner Suchmaske stehen:\n\n"
+        + "\n".join(f"- {x}" for x in lines) + "\n\n"
+        "Bitte prüfe das und antworte auf Deutsch, sprich mich durchgehend mit „Du“ "
+        "an (informell, nicht „Sie“). Gliedere die Antwort mit diesen Überschriften:\n\n"
+        "**1. Reisezeit** — Taugt der gewählte Zeitraum für dieses Ziel? Gehe auf "
+        "Regen-/Trockenzeit, Temperaturen (Luft und Wasser), Luftfeuchtigkeit, Wind "
+        "sowie Hurrikan-/Monsun-/Zyklonsaison ein, soweit für das Ziel relevant. "
+        "Nenne konkrete Werte statt Allgemeinplätzen.\n"
+        "**2. Saison und Preisniveau** — Ist der Zeitraum Haupt-, Neben- oder "
+        "Zwischensaison? Welche Monate sind an diesem Ziel erfahrungsgemäß die "
+        "Schnäppchenmonate, und wie viel günstiger sind sie grob gegenüber der "
+        "Hauptsaison? Achte auf Schulferien und Feiertage in Deutschland sowie auf "
+        "lokale Feiertage/Großereignisse, die Preise oder Verfügbarkeit treiben.\n"
+        "**3. Besserer Zeitraum?** — Falls ein anderer Termin für dasselbe Ziel "
+        "deutlich mehr fürs Geld böte oder wetterseitig klar besser wäre, nenne ihn "
+        "konkret (Monat, gern mit Kalenderwoche) und sag, was er bringt. Passt der "
+        "gewählte Zeitraum schon gut, sag das ebenso klar, statt um jeden Preis eine "
+        "Alternative zu konstruieren.\n"
+        "**4. Ähnliche Ziele** — Nenne 2 bis 4 Alternativziele mit vergleichbarem "
+        "Charakter (Flugzeit ab dem genannten Abflughafen, Klima zur gewählten Zeit, "
+        "Preisniveau, Art des Urlaubs) und schreibe je Ziel einen Satz, worin es sich "
+        "vom Wunschziel unterscheidet — Vor- UND Nachteil.\n\n"
+        "Nutze die Websuche für alles Saison-, Wetter- und Preisabhängige. Sag klar, "
+        "worauf sich deine Angaben stützen; wo du unsicher bist, sag es offen statt "
+        "zu spekulieren. Keine Hotelempfehlungen — es geht um Zeitraum und Ziel."
+    )
+
+
+@bp.route('/api/ai/search-advice', methods=['POST'])
+def api_ai_search_advice():
+    """Reisezeit-Check direkt aus der Suchmaske: Klima/Saison zum gewählten Zeitraum,
+    Schnäppchenmonate und ähnliche Alternativziele. Die Eckdaten kommen vom Frontend
+    (Maskenstand plus optional eine Preisstatistik der aktuellen Treffer), nicht aus
+    der DB — die Suche wird ja nicht persistiert."""
+    if (err := A._require_api()):
+        return err
+    api_key, model = _ai_config()
+    if not api_key:
+        return jsonify({'error': 'no_api_key',
+                        'note': 'Kein Anthropic API-Key in den Add-on-Einstellungen hinterlegt'}), 400
+    data = request.get_json(silent=True) or {}
+    dest = (data.get('dest') or '').strip()
+    if not dest:
+        return jsonify({'error': 'no_dest'}), 400
+    prompt = _search_advice_prompt(data)
+    if (preview := _prompt_preview_response(data, prompt)):
+        return preview
+    prompt = _resolve_prompt(data, prompt)
+    text, usage, err = A._ai_call(api_key, model, prompt, max_tokens=2500,
+                                  log_ctx="Reisezeit-Check")
+    if err:
+        return err
+    usage['estimated_usd'] = _ai_call_cost(model, usage)
+    totals = _record_ai_usage(model, usage)
+    title = dest + (f" ({data['start']}–{data['end']})"
+                    if data.get('start') and data.get('end') else '')
+    aid = _save_ai_analysis('search_advice', title, model, text, usage, prompt)
+    return jsonify({'summary': text, 'usage': usage, 'totals': totals, 'id': aid,
+                    'cached': False})
+
+
+def _ai_ask_general(question: str, data: dict, api_key: str, model: str):
+    """Allgemeine Reisefrage — zu Regionen, Ländern, Reisezeiten, Einreise,
+    Verkehrsmitteln, allem was (noch) nicht im Portfolio steckt.
+
+    Anders als die Portfolio-Frage bekommt die KI hier keine Angebotsliste,
+    sondern muss auf Websuche und Allgemeinwissen zurückgreifen. Die Betonung im
+    Prompt liegt deshalb auf Aktualität und auf dem offenen Eingeständnis von
+    Unsicherheit: Einreiseregeln, Preise und Öffnungszeiten ändern sich, und eine
+    selbstbewusst formulierte veraltete Auskunft wäre hier schädlicher als ein
+    ehrliches „das solltest du kurz vor der Reise gegenprüfen"."""
+    home = (A.load_config().get('trippilot_home_location') or '').strip()
+    prompt = (
+        f"Allgemeine Reisefrage: {question}\n\n"
+        + (f"Mein Heimatort ist {home} — nutze das für Fragen zu Anreise, Flugzeit "
+           "oder Entfernung.\n\n" if home else "")
+        + "Beantworte die Frage auf Deutsch, sprich mich durchgehend mit „Du“ an "
+        "(informell, nicht „Sie“). Nutze die Websuche für alles, was sich ändern "
+        "kann — Einreise- und Visabestimmungen, Impfempfehlungen, Feiertage, "
+        "Wetter- und Klimadaten der Saison, Preisniveau, aktuelle Lage vor Ort. "
+        "Sag klar dazu, worauf sich deine Angabe stützt und wie aktuell sie ist; "
+        "bei Regeln, die sich häufig ändern (Einreise, Gesundheit), weise darauf "
+        "hin, dass sie kurz vor Reiseantritt gegenzuprüfen sind. Wenn du etwas "
+        "nicht verlässlich weißt, sag das offen, statt zu spekulieren. "
+        "Antworte strukturiert und knapp — Überschriften und Aufzählungen statt "
+        "langer Fließtexte. Es geht ausdrücklich NICHT um meine bereits "
+        "getrackten Angebote; empfiehl keine konkreten Hotelbuchungen, es sei "
+        "denn, ich frage danach."
+    )
+    if (preview := _prompt_preview_response(data, prompt)):
+        return preview
+    prompt = _resolve_prompt(data, prompt)
+    text, usage, err = A._ai_call(api_key, model, prompt, max_tokens=1800,
+                                  log_ctx="Allgemeine Reisefrage")
+    if err:
+        return err
+    usage['estimated_usd'] = _ai_call_cost(model, usage)
+    totals = _record_ai_usage(model, usage)
+    aid = _save_ai_analysis('ask_general', question, model, text, usage, prompt)
+    return jsonify({'summary': text, 'usage': usage, 'totals': totals, 'id': aid,
+                    'cached': False})
+
+
 @bp.route('/api/ai/ask', methods=['POST'])
 def api_ai_ask():
-    """Freitext-Frage über das aktuelle Portfolio (alle nicht-archivierten
-    Angebote): Preis, Ort, Sterne/Weiterempfehlung, Trend, Wunschpreis, Tags."""
+    """Freitext-Frage. Zwei Ausprägungen über `scope`:
+
+    * `portfolio` (Standard) — Frage über die aktuell getrackten Angebote: Preis,
+      Ort, Sterne/Weiterempfehlung, Trend, Wunschpreis, Tags werden mitgeschickt.
+    * `general` — allgemeine Reisefrage ohne Portfolio-Bezug (Region, Land,
+      Reisezeit, Einreise, Verkehrsmittel …). Bewusst OHNE die Angebotsliste: sie
+      wäre für solche Fragen nur Ballast, würde Tokens kosten und die Antwort
+      unnötig auf die eigenen Hotels lenken. Braucht deshalb auch keine Angebote —
+      die Frage lässt sich mit leerem Portfolio genauso stellen."""
     if (err := A._require_api()):
         return err
     api_key, model = _ai_config()
@@ -1153,6 +1520,8 @@ def api_ai_ask():
     question = (data.get('question') or '').strip()
     if not question:
         return jsonify({'error': 'invalid'}), 400
+    if (data.get('scope') or 'portfolio') == 'general':
+        return _ai_ask_general(question, data, api_key, model)
     offers = [o for o in A._collect_offers() if not o.get('archived')]
     if not offers:
         return jsonify({'error': 'no_offers'}), 400
@@ -1696,6 +2065,8 @@ _AI_RETRY_MARKDOWN_CONFIG = {
     'single': {'max_tokens': 4096, 'use_web_search': True},
     'calendar_outlook': {'max_tokens': 700, 'use_web_search': False},
     'ask': {'max_tokens': 1500, 'use_web_search': True},
+    'ask_general': {'max_tokens': 1800, 'use_web_search': True},
+    'search_advice': {'max_tokens': 2500, 'use_web_search': True},
     'advisor': {'max_tokens': 3072, 'use_web_search': True},
     'compare': {'max_tokens': 6144, 'use_web_search': True},
 }

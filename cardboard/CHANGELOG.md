@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.0.10.5] - 2026-08-05
+
+chore(deps): bump fastapi from 0.140.0 to 0.141.1 in /cardboard/rootfs/app
+chore(deps): bump uvicorn from 0.51.0 to 0.52.0 in /cardboard/rootfs/app
+
+
 ## [1.0.10.4] - 2026-07-27
 
 chore(deps): bump fastapi from 0.139.2 to 0.140.0 in /cardboard/rootfs/app

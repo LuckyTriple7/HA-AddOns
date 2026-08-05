@@ -14,6 +14,15 @@ configuration:
   market_trend_threshold:
     name: Schwelle für Markttrend (%)
     description: "Kumulierte Preisbewegung über 14 Tage, ab der der Markttrend als steigend/fallend statt stabil gilt. Standard 1.0 — kleinerer Wert reagiert empfindlicher auf kleine Bewegungen."
+  market_basket_enabled:
+    name: Preisbarometer
+    description: "Führt 1×/Tag jede deiner gespeicherten Suchen erneut aus (mit deinen Reiseterminen und Filtern) und berechnet den Markttrend aus allen gefundenen Hotels statt nur aus deinen Angeboten. Deutlich breitere Basis, und der Trend gilt genau für deinen Reisetermin. Standard an."
+  market_basket_lead_days:
+    name: Ersatz-Vorlaufzeit fürs Preisbarometer (Tage)
+    description: "Nur Rückfallebene: Messreihen holen ihren Reisetermin aus der gespeicherten Suche bzw. dem getrackten Angebot. Fehlt dort ein Datum, wird ersatzweise „heute + X Tage“ gesucht. Standard 91."
+  market_basket_max_regions:
+    name: Maximale Messreihen
+    description: "Obergrenze für die täglich abgefragten Messreihen (1…50), also für die Zahl der gespeicherten Suchen, die neu ausgeführt werden. Reiner Lastschutz: je 50 Hotels ein API-Aufruf pro Tag (typisch 1–6 je Suche). Werden mehr gefunden als erlaubt, nennt das Add-on-Log die weggelassenen. Standard 20."
   trippilot_home_location:
     name: TripPilot Heimatort (PLZ/Ort)
     description: "Vorbelegung für die TripPilot-Frage 'Von wo geht's los?' (bei Anreise mit Auto/Bus/Bahn oder Tagesausflug). Leer lassen, wenn nicht gewünscht — im Fragebogen jederzeit änderbar."

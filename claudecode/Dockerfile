@@ -57,11 +57,12 @@ RUN case "${TARGETARCH}" in \
 # (container runs as root so sudo is unnecessary, but HA's security profile blocks the real binary)
 RUN printf '#!/bin/sh\nexec "$@"\n' > /usr/local/bin/sudo && chmod +x /usr/local/bin/sudo
 
-# Install Claude Code via npm
+# Install Claude Code via npm — tracks the "stable" dist-tag, not "latest"/"next",
+# to avoid rebuilding on every bleeding-edge release
 # BUILD_VERSION is passed automatically by HA and busts the Docker cache on every version bump
 ARG BUILD_VERSION=dev
-RUN echo "Building add-on ${BUILD_VERSION} - installing latest Claude Code..." && \
-    npm install -g @anthropic-ai/claude-code@latest --no-fund --no-audit 2>&1 && \
+RUN echo "Building add-on ${BUILD_VERSION} - installing stable Claude Code..." && \
+    npm install -g @anthropic-ai/claude-code@stable --no-fund --no-audit 2>&1 && \
     echo "[INFO] Installed $(claude --version 2>/dev/null)"
 
 # Install hass-mcp for Home Assistant integration and pymodbus for Modbus operations
@@ -129,14 +130,6 @@ export COLUMNS=220
 export PATH="/homeassistant/.claudecode/npm-global/bin:/root/.local/bin:$PATH"
 PS1='\[\033[1;36m\]claude-code\[\033[0m\]:\[\033[1;34m\]\w\[\033[0m\]\$ '
 
-# Function to update MCP token before starting Claude
-update_mcp_token() {
-  local SETTINGS_FILE=/root/.claude/settings.json
-  if [ -f "$SETTINGS_FILE" ] && [ -n "$SUPERVISOR_TOKEN" ]; then
-    jq ".mcpServers.homeassistant.env.HASS_TOKEN = \"$SUPERVISOR_TOKEN\"" "$SETTINGS_FILE" > /tmp/settings.tmp 2>/dev/null && mv /tmp/settings.tmp "$SETTINGS_FILE"
-  fi
-}
-
 # Wrapper: set PTY width before Claude launches so auth URLs render as single lines
 # tmux resets PTY width via SIGWINCH on client attach; this re-applies immediately before exec
 # Intercepts "claude update" — the built-in updater fails on read-only Docker layers; use npm instead
@@ -144,7 +137,7 @@ claude() {
     stty cols 220 2>/dev/null
     if [ "$1" = "update" ]; then
         echo "Updating Claude Code via npm..."
-        npm install -g @anthropic-ai/claude-code@latest --prefix /homeassistant/.claudecode/npm-global --no-fund --no-audit 2>&1
+        npm install -g @anthropic-ai/claude-code@stable --prefix /homeassistant/.claudecode/npm-global --no-fund --no-audit 2>&1
         hash -r 2>/dev/null
         echo "Done: $(command claude --version 2>/dev/null)"
         return
@@ -154,11 +147,11 @@ claude() {
 
 # Aliases
 alias ll='ls -la'
-alias c='update_mcp_token && claude'
-alias cc='update_mcp_token && claude --continue'
+alias c='claude'
+alias cc='claude --continue'
 alias ha-config='cd /homeassistant'
 alias ha-logs='cat /homeassistant/home-assistant.log 2>/dev/null || echo "Log not found"'
-alias claude-update='echo "Updating Claude Code..." && npm install -g @anthropic-ai/claude-code@latest --prefix /homeassistant/.claudecode/npm-global --no-fund --no-audit 2>&1; hash -r 2>/dev/null; echo "Done: $(command claude --version 2>/dev/null)"'
+alias claude-update='echo "Updating Claude Code..." && npm install -g @anthropic-ai/claude-code@stable --prefix /homeassistant/.claudecode/npm-global --no-fund --no-audit 2>&1; hash -r 2>/dev/null; echo "Done: $(command claude --version 2>/dev/null)"'
 EOF
 
 # Create update notification script and wire into .bashrc
