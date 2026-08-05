@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.65.1] - 2026-08-05
+
+### Fixed
+- **„Heute"-Knopf in der Suchmaske lieferte nie Treffer.** Er setzte das Startdatum
+  exakt auf heute — darauf antwortet TUIs Such-API aber mit HTTP 500, das Ergebnis
+  war immer leer. Er setzt jetzt **heute + 2 Tage** und heißt passend
+  **„Frühestens"**. Live gemessen (Gran Canaria, 7 Nächte): heute = Fehler,
+  heute+1 = 53 Treffer, heute+2 = 132, heute+3 = 144 — zwei Tage sind der Punkt, ab
+  dem das Angebot brauchbar ist. Ein früheres Datum lässt sich weiterhin von Hand
+  eintragen.
+
 ## [0.65.0] - 2026-08-05
 
 ### Added

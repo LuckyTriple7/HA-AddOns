@@ -615,7 +615,7 @@
           <label>von</label>
           <div style="display:flex;gap:4px">
             <input type="date" id="srch-vom" onchange="syncBisMin()" onclick="this.showPicker&&this.showPicker()" style="flex:1">
-            <button type="button" class="btn sec" onclick="srchDateToday()" title="Startdatum auf heute setzen">Heute</button>
+            <button type="button" class="btn sec" onclick="srchDateToday()" title="Startdatum auf den frühesten sinnvollen Termin setzen (heute + 2 Tage): für heute liefert TUI gar nichts, für morgen nur wenige Angebote">Frühestens</button>
           </div>
         </div>
         <div class="srch-field srch-sm">

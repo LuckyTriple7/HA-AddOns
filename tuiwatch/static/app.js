@@ -828,9 +828,19 @@
     let airportsLoaded = false, airlinesLoaded = false, destNode = null, destData = null, destStack = [];
     function urlParam(u, key){ try{ return new URL(u).searchParams.get(key)||''; }catch(e){ return ''; } }
     function isoPlus(days){ const d=new Date(); d.setUTCDate(d.getUTCDate()+days); return d.toISOString().slice(0,10); }
-    // Springt das Startdatum auf heute — z.B. wenn ein altes Datum stehengeblieben
-    // ist (TUIs Such-API antwortet auf Zeiträume in der Vergangenheit mit HTTP 500).
-    function srchDateToday(){ $('#srch-vom').value = isoPlus(0); syncBisMin(); }
+    // Frühester Termin, der sich zu suchen lohnt. Der Knopf setzte früher exakt
+    // „heute" — darauf antwortet TUIs Such-API aber mit HTTP 500, das Ergebnis war
+    // immer leer. Live gemessen (Gran Canaria, 7 Nächte): heute = Fehler,
+    // heute+1 = 53 Treffer, heute+2 = 132, heute+3 = 144. Zwei Tage sind der Punkt,
+    // ab dem das Angebot brauchbar ist.
+    const SEARCH_MIN_LEAD_DAYS = 2;
+    // Setzt das Startdatum auf den frühesten buchbaren Termin — z. B. wenn ein altes
+    // Datum stehengeblieben ist (TUIs Such-API antwortet auf Zeiträume in der
+    // Vergangenheit mit HTTP 500).
+    function srchDateToday(){
+      $('#srch-vom').value = isoPlus(SEARCH_MIN_LEAD_DAYS);
+      syncBisMin();
+    }
     // Nächte = Tage zwischen von und bis (null, wenn ungültig)
     function nightsBetween(vom, bis){
       if(!vom || !bis || bis < vom) return null;
