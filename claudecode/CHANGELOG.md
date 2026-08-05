@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.3.2] - 2026-08-05
+
+### Security
+- Der lebende Supervisor-Token wurde bei jedem `c`/`cc` und beim MCP-Setup als `HASS_TOKEN` in `settings.json` geschrieben — eine persistierte Kopie im HA-Config-Verzeichnis, die in jedem HA-Backup landet. Totes Feld: `hass-mcp` liest ausschließlich `HA_TOKEN` aus der Umgebung (bereits per `export` gesetzt), nie `HASS_TOKEN` aus der Config. `update_mcp_token()` entfernt, Write beim MCP-Setup entfernt, bereits persistierte Tokens werden beim ersten Start nach Update aus `settings.json` gelöscht.
+
 ## [1.3.1] - 2026-08-04
 
 ### Changed
