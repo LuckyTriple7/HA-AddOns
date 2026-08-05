@@ -819,6 +819,10 @@
     // ── Hotelsuche (Maske / URL / aus Angebot) ────────────────────────────────
     let srchResults = [], srchOfferId = null, srchDest = null, srchTotal = 0, srchFilter = '';
     let srchLastBody = null;
+    // Reisende/Abflughafen der Liste, die gerade angezeigt wird — kommt vom Server
+    // (`criteria` der Suchantwort) und NICHT aus der Suchmaske: die kann inzwischen
+    // ganz andere Werte zeigen, etwa wenn die Treffer aus einem Suchabo stammen.
+    let srchCriteria = null;
     let srchSort = localStorage.getItem('tw-srch-sort') || 'price';
     let srCmpSelected = new Set();  // Schlüssel (giata/Name) der für den KI-Vergleich ausgewählten Hotels
     let airportsLoaded = false, airlinesLoaded = false, destNode = null, destData = null, destStack = [];
@@ -2087,6 +2091,11 @@
     function showWatchHits(favId){
       const fav = srchFavs.find(x=>x.id===favId); if(!fav) return;
       srchResults = fav.hits||[]; srchTotal = srchResults.length; srchFilter='';
+      // Kriterien aus dem Abo selbst, nicht aus der Suchmaske — die Treffer stammen
+      // aus dem gespeicherten Lauf und können ganz andere Parameter gehabt haben.
+      const p = fav.payload || {};
+      srchCriteria = {travellers: parseInt(p.trav)||null,
+                      airports: p.airport ? [p.airport] : []};
       sortSearchResults(); renderSearch();
     }
     function curFav(){
@@ -2197,6 +2206,13 @@
       if(r.status===400){ $('#srch-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Keine gültige Eingabe.</div>'; return; }
       if(!r.ok){ $('#srch-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Suche fehlgeschlagen.</div>'; return; }
       srchResults = d.results||[]; srchTotal = d.total||srchResults.length; srchFilter = '';
+      srchCriteria = d.criteria || null;
+      // Klarnamen des Flughafens („Stuttgart (STR)") gibt es nur im Auswahlfeld —
+      // der Server kennt bloß den IATA-Code.
+      if(srchCriteria && body.airport){
+        const opt = $('#srch-airport').selectedOptions[0];
+        if(opt && opt.value===body.airport) srchCriteria.airport_label = opt.textContent;
+      }
       srchResults.forEach(r=>{ r._key = String(r.giata||r.name); });
       srCmpSelected = new Set();
       sortSearchResults(); renderSearch();
@@ -3849,7 +3865,8 @@
       toast('E-Mail wird gesendet…');
       let r; try {
         r = await fetch(api('/api/search/email'), {method:'POST', headers:{'Content-Type':'application/json'},
-          body: JSON.stringify({to, results: rows, dest: srchDest ? srchDest.label : ''})});
+          body: JSON.stringify({to, results: rows, dest: srchDest ? srchDest.label : '',
+                                criteria: srchCriteria || undefined})});
       } catch(e){ toast('Versand fehlgeschlagen'); return; }
       if(r.ok){ const d=await r.json(); toast('E-Mail an '+d.to+' gesendet ('+d.count+' Treffer)'); }
       else { const d=await r.json().catch(()=>({})); toast(d.error==='send_failed'?'Versand fehlgeschlagen – Einstellungen prüfen':d.error==='no_recipient'?'Kein Empfänger':d.error==='no_results'?'Keine Treffer':'Fehler beim Versand'); }

@@ -113,6 +113,14 @@ nicht). Der **Tracken**-Button bleibt aber nutzbar: Dasselbe Hotel kann **mehrfa
 **unterschiedlichen Suchparametern** (z. B. anderer Zeitraum) verfolgt werden; nur exakt
 identische Angebote werden abgelehnt.
 
+Die Trefferliste lässt sich **per E-Mail verschicken** (ganz oder nur die markierten
+Treffer). Die Kopfzeile der Mail nennt Reiseziel, **Anzahl der Reisenden** und
+**Abflughafen** — beides sind Suchparameter und stehen in keiner einzelnen
+Trefferzeile; ohne sie ließe sich der verschickten Liste nicht ansehen, für wie viele
+Personen die „pro Person"-Preise gelten und ab wo geflogen wird. Die Werte stammen aus
+dem Suchlauf, der die Liste erzeugt hat (bei Treffern eines Suchabos also aus dem Abo),
+nicht aus dem aktuellen Stand der Suchmaske.
+
 Für jedes Angebot werden angezeigt: ein **Hotelbild** (sofern ermittelbar), Hotelname,
 **Ort/Region** (z. B. „Playa del
 Ingles, Gran Canaria"; Klick öffnet Google Maps), **Sterne & HolidayCheck-Bewertung**

@@ -13,7 +13,7 @@ import re
 import time
 from datetime import date, datetime, timedelta
 
-from urllib.parse import urlparse
+from urllib.parse import parse_qsl, urlparse
 
 from flask import Blueprint, jsonify, make_response, request
 
@@ -397,7 +397,9 @@ def api_search_email():
     if not isinstance(rows, list) or not rows:
         return jsonify({'error': 'no_results'}), 400
     rows = rows[:100]  # Schutz gegen versehentlich riesige Mails
-    html = email_search.html_for_rows(rows, dest=(data.get('dest') or '').strip())
+    crit = data.get('criteria')
+    html = email_search.html_for_rows(rows, dest=(data.get('dest') or '').strip(),
+                                      criteria=crit if isinstance(crit, dict) else None)
     subject = f"TUIWatch – {len(rows)} Hotel-Treffer ({datetime.now().strftime('%d.%m.%Y')})"
     try:
         A.send_email(subject, html, to)
@@ -479,6 +481,18 @@ def api_nights_get(offer_id: int):
     return jsonify(A._nights_payload(offer_id))
 
 
+def _criteria_from_url(url: str) -> dict:
+    """Reisendenzahl und Abflughäfen aus einer TUI-Such-/Angebots-URL. Beide sind
+    Suchparameter, keine Ergebnisfelder — in den Treffern selbst stehen sie nicht.
+    Die Suchantwort führt sie deshalb als `criteria` mit, damit die UI sie anzeigen
+    und die Mail-Ansicht sie in ihre Kopfzeile schreiben kann (ohne dort aus der
+    Suchmaske zu raten, die inzwischen ganz andere Werte zeigen kann)."""
+    q = dict(parse_qsl(urlparse(url).query, keep_blank_values=True))
+    airports = [a.strip() for a in re.split(r'[;,]', q.get('departureAirports', '') or '')
+                if a.strip()]
+    return {'travellers': A.travellers_from_url(url), 'airports': airports}
+
+
 @bp.route('/api/search', methods=['POST'])
 def api_search():
     """Hotelsuche — entweder über eine eingefügte TUI-Such-/Region-URL oder über ein
@@ -526,6 +540,7 @@ def api_search():
                 return jsonify({'error': 'no_region',
                                 'note': 'Region zum Angebot nicht ermittelbar'}), 400
         src = f"Angebot #{offer_id} ({o['label'] or o['hotel'] or ''})"
+        criteria = _criteria_from_url(url)
         res = A.fetch_search(url, operator_tui=operator_tui, boards=boards, region=region,
                            airlines=airlines, location=location, direct=direct,
                            adults_only=adults_only, transfer_included=transfer_included,
@@ -563,6 +578,11 @@ def api_search():
                  region, data.get('start'), data.get('end'), data.get('duration'),
                  data.get('travellers'), ','.join(airports) or '-', operator_tui,
                  ','.join(boards) or '-')
+        try:
+            _trav = max(1, int(data.get('travellers') or 2))
+        except (TypeError, ValueError):
+            _trav = 2
+        criteria = {'travellers': _trav, 'airports': airports}
         res = A.fetch_search_params(region=region, start=(data.get('start') or '').strip(),
                                   end=(data.get('end') or '').strip(),
                                   duration=data.get('duration'),
@@ -577,6 +597,7 @@ def api_search():
             return jsonify({'error': 'invalid_url'}), 400
         A.log.info("Suche: %s (TUI=%s, Verpflegung=%s)", url, operator_tui,
                  ','.join(boards) or '-')
+        criteria = _criteria_from_url(url)
         res = A.fetch_search(url, operator_tui=operator_tui, boards=boards,
                            airlines=airlines, location=location, direct=direct,
                            adults_only=adults_only, transfer_included=transfer_included,
@@ -602,7 +623,7 @@ def api_search():
         out.append(r)
     A.log.info("Suche: %d Treffer, %d nach Filter", len(res['results']), len(out))
     return jsonify({'results': out, 'total': res.get('total', len(out)),
-                    'matched': len(out)})
+                    'matched': len(out), 'criteria': criteria})
 
 
 # ── Reiseziel-Index (globale Suche über alle Ebenen) ───────────────────────────

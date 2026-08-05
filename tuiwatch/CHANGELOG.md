@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.64.1] - 2026-08-05
+
+### Fixed
+- **Reisende und Abflughafen fehlten in der versendeten Trefferliste.** Beides sind
+  Suchparameter und stehen in keiner einzelnen Trefferzeile — der Mail war deshalb
+  nicht anzusehen, für wie viele Personen die „pro Person"-Preise gelten und ab
+  welchem Flughafen. Die Kopfzeile nennt sie jetzt:
+  `Hotelsuche · Kapverdische Inseln · 2 Reisende · ab Stuttgart (STR) · Stand …`
+  - Die Werte stammen aus dem Suchlauf, der die angezeigte Liste erzeugt hat (neues
+    Feld `criteria` in der Antwort von `POST /api/search`), **nicht** aus dem
+    aktuellen Stand der Suchmaske: die kann längst andere Werte zeigen, etwa wenn die
+    Treffer aus einem Suchabo stammen. Für Abo-Treffer kommen sie aus dem Abo selbst.
+  - Funktioniert in allen drei Suchwegen — Maske, eingefügte TUI-URL und „Region"
+    aus einem Angebot heraus; bei den letzten beiden werden sie aus der URL gelesen.
+  - Ohne Klarnamen des Flughafens (URL-/Angebotssuche) steht der IATA-Code dort.
+
 ## [0.64.0] - 2026-08-05
 
 ### Added

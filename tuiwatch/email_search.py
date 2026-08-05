@@ -9,12 +9,38 @@ from datetime import datetime
 import app as A  # später Attributzugriff (A._eur/A.log), zyklenfrei wie in *_routes.py
 
 
-def html_for_rows(rows: list[dict], *, dest: str = '') -> str:
+def _criteria_text(criteria: dict, esc) -> str:
+    """Reisendenzahl und Abflughafen für die Kopfzeile. Beides sind Suchparameter
+    und stehen in keiner einzelnen Trefferzeile — ohne diese Angabe ließ sich einer
+    verschickten Liste nicht ansehen, für wie viele Personen und ab welchem Flughafen
+    die Preise gelten (und pro Person ist nicht pro Buchung)."""
+    if not isinstance(criteria, dict):
+        return ''
+    parts = []
+    try:
+        n = int(criteria.get('travellers') or 0)
+    except (TypeError, ValueError):
+        n = 0
+    if n:
+        parts.append('1 Reisender' if n == 1 else f'{n} Reisende')
+    # `airport_label` kommt aus dem Auswahlfeld der Suchmaske („Stuttgart (STR)"),
+    # `airports` sind die reinen IATA-Codes aus der Such-URL — Klarname bevorzugt.
+    label = (criteria.get('airport_label') or '').strip()
+    codes = [str(a).strip() for a in (criteria.get('airports') or []) if str(a).strip()]
+    if label:
+        parts.append(f'ab {label}')
+    elif codes:
+        parts.append('ab ' + ', '.join(codes))
+    return ' · '.join(esc(p) for p in parts)
+
+
+def html_for_rows(rows: list[dict], *, dest: str = '', criteria: dict | None = None) -> str:
     """Baut eine HTML-Mail aus Suchtreffer-Zeilen (Form wie von `/api/search`
     geliefert: name, location, country, stars, recommendation, reviews, price,
-    old_price, discount, board, nights, date, offer_url, ...). Zeilen kommen
-    vom Client, daher werden alle Textfelder escaped (kein Vertrauen in
-    Fremddaten für HTML-Ausgabe)."""
+    old_price, discount, board, nights, date, offer_url, ...). `criteria` trägt die
+    Suchparameter, die in keiner Zeile stehen (Reisende, Abflughafen) — sie landen in
+    der Kopfzeile. Zeilen kommen vom Client, daher werden alle Textfelder escaped
+    (kein Vertrauen in Fremddaten für HTML-Ausgabe)."""
     def esc(s):
         return (str(s or '')).replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
 
@@ -63,7 +89,9 @@ def html_for_rows(rows: list[dict], *, dest: str = '') -> str:
             + '</td></tr></table></td></tr>'
         )
     now = datetime.now().strftime('%d.%m.%Y %H:%M')
-    hdr = f'Hotelsuche{" · " + esc(dest) if dest else ""} · Stand {now}'
+    crit = _criteria_text(criteria or {}, esc)
+    hdr = (f'Hotelsuche{" · " + esc(dest) if dest else ""}'
+           + (f' · {crit}' if crit else '') + f' · Stand {now}')
     return (
         '<div style="background:#eef2f8;padding:20px 0;font-family:-apple-system,Segoe UI,Roboto,sans-serif">'
         '<table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center">'
