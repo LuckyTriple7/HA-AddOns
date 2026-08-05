@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.69.1] - 2026-08-05
+
+### Added
+- **Die vier neuen Endpoints stehen mit im API-Selbsttest** (Ampel im Footer):
+  Buchbarkeit (vacancy-check), Gepäck, Zahlungskonditionen, Zuletzt-gebucht —
+  alle als *nicht kritisch* (kein `notify_api_errors`-Alarm, nur gelbe Ampel).
+  Wichtig vor allem als Drift-Wächter für den vacancy-check: ändert TUI das
+  Payload-Format (wie beim travelType-Objekt), meldet der Endpoint dauerhaft
+  FAILED — ohne Selbsttest bliebe der „Nicht mehr buchbar"-Alarm einfach still
+  tot. Der Buchbarkeits-Check nutzt das Testangebot aus dem Preis-Check weiter,
+  der Zahlungs-Check testet nebenbei den Hotel-Content-Endpoint (Ländercode).
+
 ## [0.69.0] - 2026-08-05
 
 ### Added

@@ -1148,13 +1148,18 @@ def api_healthcheck(*, verbose: bool = False) -> dict:
         checks.append({"name": name, "ok": bool(ok), "detail": detail,
                        "critical": critical})
 
-    # 1) Preis/Angebot (OFFER_API) — kritisch (Kern des Trackings)
+    # 1) Preis/Angebot (OFFER_API) — kritisch (Kern des Trackings). Die Antwort
+    #    wird für die vacancy-/payment-Checks unten weiterverwendet (Testangebot).
+    offer_data: dict = {}
     try:
         q = {"giataId": _HC_GIATA, "locale": "de_DE", "tenant": "TUICOM",
              "startDate": sd, "endDate": ed, "durations": "7",
              "searchScope": "PACKAGE", "travellers": "2"}
         r = requests.get(f"{OFFER_API}?{urlencode(q)}", headers=_API_HEADERS, timeout=20)
-        ok = r.status_code == 200 and isinstance(r.json(), (dict, list))
+        body = r.json() if r.status_code == 200 else None
+        ok = r.status_code == 200 and isinstance(body, (dict, list))
+        if isinstance(body, dict):
+            offer_data = body
         add("Preis/Angebot-API", ok, f"HTTP {r.status_code}", critical=True)
     except Exception as e:
         add("Preis/Angebot-API", False, type(e).__name__, critical=True)
@@ -1213,6 +1218,54 @@ def api_healthcheck(*, verbose: bool = False) -> dict:
         add("Breadcrumb-API", ok, f"HTTP {r.status_code}")
     except Exception as e:
         add("Breadcrumb-API", False, type(e).__name__)
+
+    # 8) Live-Bestätigung (VACANCY_API) — nicht kritisch, aber Basis für Preis-Split
+    #    und Nicht-mehr-buchbar-Alarm. Wichtig als Drift-Wächter: ändert TUI das
+    #    Payload-Format (wie beim travelType-Objekt), bleibt der Status dauerhaft
+    #    FAILED und der Alarm wäre sonst still tot.
+    hc_offers = offer_data.get("offers") or []
+    hc_offer = next((o for o in hc_offers if o.get("cheapest")),
+                    hc_offers[0] if hc_offers else None)
+    try:
+        if hc_offer:
+            v = _fetch_vacancy(offer_data, hc_offer, verbose=verbose)
+            st = v.get("vac_status") or ""
+            add("Buchbarkeits-API", st == "OK",
+                st or "keine Antwort")
+        else:
+            add("Buchbarkeits-API", False, "kein Testangebot")
+    except Exception as e:
+        add("Buchbarkeits-API", False, type(e).__name__)
+
+    # 9) Inklusiv-Gepäck (LUGGAGE_API) — HTTP/Struktur reicht (state je Route variiert)
+    try:
+        r = requests.post(LUGGAGE_API,
+                          json=[{"airline": "X3", "route": "DUS-SID", "organizer": "TUID"}],
+                          headers=_API_HEADERS, timeout=20)
+        ok = r.status_code == 200 and isinstance(r.json(), list)
+        add("Gepäck-API", ok, f"HTTP {r.status_code}")
+    except Exception as e:
+        add("Gepäck-API", False, type(e).__name__)
+
+    # 10) Zahlungskonditionen (PAYMENT_API, testet nebenbei den Hotel-Content-
+    #     Endpoint für den Ländercode)
+    try:
+        if hc_offer:
+            p = fetch_payment_terms(hc_offer, _HC_GIATA, verbose=verbose)
+            add("Zahlungs-API", bool(p),
+                (f"{p.get('deposit_pct')}% Anzahlung" if p else "keine Konditionen"))
+        else:
+            add("Zahlungs-API", False, "kein Testangebot")
+    except Exception as e:
+        add("Zahlungs-API", False, type(e).__name__)
+
+    # 11) Zuletzt gebucht (LAST_BOOKED_API)
+    try:
+        r = requests.get(f"{LAST_BOOKED_API}{_HC_GIATA}", headers=_API_HEADERS, timeout=20)
+        ok = r.status_code == 200 and isinstance(r.json(), dict)
+        add("Zuletzt-gebucht-API", ok, f"HTTP {r.status_code}")
+    except Exception as e:
+        add("Zuletzt-gebucht-API", False, type(e).__name__)
 
     all_critical_ok = all(c["ok"] for c in checks if c["critical"])
     if verbose:
