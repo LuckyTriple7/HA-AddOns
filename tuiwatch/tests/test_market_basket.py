@@ -1,4 +1,4 @@
-"""Tests für den Markttrend aus dem täglichen Regions-Warenkorb (`market_basket`).
+"""Tests für den Markttrend aus dem täglichen Preisbarometer (`market_basket`).
 
 Kein Netz: `fetch_search_params` wird gemonkeypatcht. Der Fokus liegt auf den
 Stellen, an denen die Rechnung falsch werden KANN — Matched Pairs statt
@@ -70,7 +70,7 @@ def test_move_uses_median_of_matched_pairs(m, mb):
 
 def test_move_ignores_hotels_missing_in_one_snapshot(m, mb):
     """Neu hinzugekommene und verschwundene Hotels dürfen nicht als Preisbewegung
-    zählen — sonst misst der Trend die Zusammensetzung des Warenkorbs."""
+    zählen — sonst misst der Trend die Zusammensetzung der Messreihe."""
     _snap(m, "Kanaren", _day(-1),
           [(i, 1000.0, "AI", 7) for i in range(12)] + [(90, 300.0, "AI", 7)])
     _snap(m, "Kanaren", _day(0),
@@ -102,7 +102,7 @@ def test_move_needs_minimum_matched_hotels(m, mb):
 def test_min_matched_scales_with_basket_size(m, mb):
     """Eine feste Schwelle von 10 war für stark gefilterte Suchen zu streng: bei 12
     Treffern hätte ein Verpflegungswechsel bei zweien den Tag dauerhaft
-    durchfallen lassen. Große Warenkörbe bleiben streng."""
+    durchfallen lassen. Große Messreihen bleiben streng."""
     assert mb._min_matched(400) == mb.BASKET_MIN_MATCHED      # gedeckelt
     assert mb._min_matched(20) == mb.BASKET_MIN_MATCHED       # 60 % = 12, gedeckelt
     assert mb._min_matched(14) == 8                           # 60 %
@@ -111,7 +111,7 @@ def test_min_matched_scales_with_basket_size(m, mb):
 
 
 def test_small_basket_still_yields_a_move(m, mb):
-    """Warenkorb mit 12 Hotels (enge Filter): zwei fallen durch den Board-Wechsel
+    """Preisbarometer mit 12 Hotels (enge Filter): zwei fallen durch den Board-Wechsel
     raus, die restlichen zehn müssen trotzdem einen Tageswert ergeben."""
     _snap(m, "Lanzarote 2027", _day(-1), [(i, 1000.0, "AI", 7) for i in range(1, 13)])
     _snap(m, "Lanzarote 2027", _day(0),
@@ -123,7 +123,7 @@ def test_small_basket_still_yields_a_move(m, mb):
 
 
 def test_min_matched_follows_the_smaller_snapshot(m, mb):
-    """Schrumpft der Warenkorb (Saisonende), darf die Schwelle nicht am größeren
+    """Schrumpft die Messreihe (Saisonende), darf die Schwelle nicht am größeren
     Vortag hängen bleiben."""
     _snap(m, "Klein", _day(-1), [(i, 1000.0, "AI", 7) for i in range(1, 41)])
     _snap(m, "Klein", _day(0), [(i, 950.0, "AI", 7) for i in range(1, 9)])
@@ -200,14 +200,14 @@ def test_index_covers_full_history(m, mb):
 # ── Kompletter Lauf ────────────────────────────────────────────────────────────
 
 def _target(key="Mai auf Teneriffa", giata=135, vom="2027-05-01", bis="2027-05-31"):
-    """Warenkorb-Ziel, wie `_basket_targets` es liefert."""
+    """Messreihen-Ziel, wie `_basket_targets` es liefert."""
     return {"key": key, "giata": giata, "source": "search", "period": "Mai 2027",
             "payload": {"dest": {"giata": giata, "label": "Teneriffa"},
                         "vom": vom, "bis": bis, "dur": 7}}
 
 
 def _fake_search(m, monkeypatch, per_page, calls=None, total=None):
-    """`fetch_search_params` durch eine seitenweise Antwort ersetzen — der Warenkorb
+    """`fetch_search_params` durch eine seitenweise Antwort ersetzen — die Messreihe
     ruft sie über `watch._search_from_fav_payload` auf, also greift der Patch auch
     für den Payload-Pfad."""
     def _f(*, region, offset=0, **kw):
@@ -248,7 +248,7 @@ def test_fetch_stops_at_reported_total(m, mb, monkeypatch):
 
 
 def test_fetch_uses_the_searches_own_dates(m, mb, monkeypatch):
-    """Der Warenkorb reicht die Termine der gespeicherten Suche unverändert an die
+    """Die Messreihe reicht die Termine der gespeicherten Suche unverändert an die
     Such-API durch — kein aus einer Vorlaufzeit berechnetes Datum."""
     calls = []
     _fake_search(m, monkeypatch, {0: []}, calls, total=0)
@@ -292,7 +292,7 @@ def test_rerun_same_day_replaces_snapshot(m, mb, monkeypatch):
     assert n == 12          # nicht 24
 
 
-# ── Warenkörbe kommen aus den gespeicherten Suchen, mit deren echten Terminen ───
+# ── Messreihen kommen aus den gespeicherten Suchen, mit deren echten Terminen ───
 
 def _save_search(m, name, giata, label, vom="2027-05-01", bis="2027-05-31", dur=7):
     with m.db() as con:
@@ -303,7 +303,7 @@ def _save_search(m, name, giata, label, vom="2027-05-01", bis="2027-05-31", dur=
 
 
 def test_target_keeps_real_travel_dates(m, mb):
-    """Kern der Sache: der Warenkorb sucht mit dem Termin der gespeicherten Suche,
+    """Kern der Sache: die Messreihe sucht mit dem Termin der gespeicherten Suche,
     nicht mit einer konstanten Vorlaufzeit. Wer im Mai Urlaub plant, dem hilft ein
     täglich weiterwanderndes Datum nicht."""
     _save_search(m, "Mai auf Teneriffa", 135, "Teneriffa", vom="2027-05-01", bis="2027-05-31")
@@ -355,7 +355,7 @@ def test_offer_target_uses_offer_departure_month(m, mb, monkeypatch):
 
 def test_offers_in_same_month_share_one_basket(m, mb, monkeypatch):
     """Fünf Gran-Canaria-Angebote mit Abreise am 3., 7. und 31. Mai sowie 7. und
-    14. Juni ergaben früher fünf Warenkörbe à ~220 Hotels und je fünf Seiten —
+    14. Juni ergaben früher fünf Messreihen à ~220 Hotels und je fünf Seiten —
     25 Abrufe täglich für praktisch denselben Markt. Jetzt einer je Monat."""
     monkeypatch.setattr(m, "region_giata_from_breadcrumb", lambda g: 128)
     for giata, ret in ((1, "2027-05-14"), (2, "2027-05-18"), (3, "2027-06-11"),
@@ -368,7 +368,7 @@ def test_offers_in_same_month_share_one_basket(m, mb, monkeypatch):
 
 def test_different_durations_stay_separate(m, mb, monkeypatch):
     """Eine Woche und zwei Wochen haben unterschiedliche Preisniveaus — die dürfen
-    nicht in denselben Warenkorb."""
+    nicht in denselben Preisbarometer."""
     monkeypatch.setattr(m, "region_giata_from_breadcrumb", lambda g: 128)
     _add_offer(m, 1, "Gran Canaria", "2027-05-14", nights=7)
     _add_offer(m, 2, "Gran Canaria", "2027-05-18", nights=14)
@@ -401,8 +401,8 @@ def test_current_month_window_does_not_start_in_the_past(m, mb, monkeypatch):
 
 
 def test_max_regions_is_configurable_and_warns(m, mb, monkeypatch, caplog):
-    """Über dem Deckel abgeschnittene Warenkörbe müssen im Log stehen — sonst landet
-    eine neu angelegte Suche nie im Warenkorb, ohne dass es jemand merkt."""
+    """Über dem Deckel abgeschnittene Messreihen müssen im Log stehen — sonst landet
+    eine neu angelegte Suche nie im Preisbarometer, ohne dass es jemand merkt."""
     for k in range(5):
         _save_search(m, f"S{k}", 100 + k, f"Region {k}")
     monkeypatch.setattr(m, "load_config", lambda: {"market_basket_max_regions": 3})
@@ -466,7 +466,7 @@ def test_market_trend_endpoint_includes_basket(m, mb, monkeypatch):
 
 
 def test_wochenueberblick_prefers_basket(m, mb):
-    """Der Digest nimmt den Warenkorb, sobald der genug Tage hat — der schmalere
+    """Der Digest nimmt die Messreihe, sobald der genug Tage hat — der schmalere
     Angebots-Trend ist nur Rückfallebene."""
     digest = importlib.import_module("digest")
     _write_moves(m, "Kanaren", [-1.0, -1.0])
@@ -515,7 +515,7 @@ def test_backup_roundtrip_keeps_basket_moves(m, mb, monkeypatch):
 
 def test_progress_counts_only_pending_baskets(m, mb, monkeypatch):
     """Der Fortschritt muss die tatsächlich anstehende Arbeit zeigen. Schon heute
-    erledigte Warenkörbe werden vorab aussortiert — sonst bliebe der Balken bei
+    erledigte Messreihen werden vorab aussortiert — sonst bliebe der Balken bei
     „1 von 3" stehen, weil zwei übersprungen wurden."""
     for k in range(3):
         _save_search(m, f"S{k}", 100 + k, f"Region {k}")
@@ -532,7 +532,7 @@ def test_progress_counts_only_pending_baskets(m, mb, monkeypatch):
 
 
 def test_progress_endpoint_is_cheap(m, mb, monkeypatch):
-    """Die UI pollt diesen Endpunkt sekündlich — er darf die Warenkörbe NICHT neu
+    """Die UI pollt diesen Endpunkt sekündlich — er darf die Messreihen NICHT neu
     ermitteln (das kann Breadcrumb-Abrufe auslösen)."""
     monkeypatch.setattr(mb, "_basket_targets", lambda: pytest.fail(
         "/progress darf _basket_targets nicht aufrufen"))

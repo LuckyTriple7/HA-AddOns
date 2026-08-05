@@ -18,7 +18,7 @@ bp = Blueprint('watch', __name__)
 def _search_from_fav_payload(p: dict, *, offset: int = 0) -> dict | None:
     """Führt die Suche eines gespeicherten Favoriten aus (gleiche Payload-Form wie das
     UI sie speichert) und wendet die Nachfilter Sterne/Weiterempfehlung an.
-    `offset` reicht die Seitennummer der Such-API durch — der Warenkorb-Markttrend
+    `offset` reicht die Seitennummer der Such-API durch — das Preisbarometer
     (`market_basket`) holt darüber alle Treffer, nicht nur die erste Seite. Die
     gemeldete Gesamttrefferzahl (`total`) bleibt dabei erhalten, damit der Aufrufer
     weiß, wann er fertig ist."""

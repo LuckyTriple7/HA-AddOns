@@ -90,7 +90,7 @@ def _build_backup_zip() -> bytes:
                         for r in con.execute(
                             'SELECT ts, region, country, months_out, pct_change '
                             'FROM price_moves ORDER BY ts').fetchall()]
-        # Warenkorb-Tagesbewegungen (Markttrend je gespeicherter Suche): nur die
+        # Barometer-Tagesbewegungen (Markttrend je gespeicherter Suche): nur die
         # verdichteten Werte, nicht die Roh-Snapshots — die sind groß, werden ohnehin
         # nach 120 Tagen verworfen und entstehen täglich neu. Der Index seit
         # Aufzeichnungsbeginn hängt dagegen allein an diesen Zeilen, deshalb gehören
@@ -460,7 +460,7 @@ def api_restore():
         if isinstance(basket_moves, list) and basket_moves:
             # (basket, day) ist eindeutig — vorhandene Tage bleiben unangetastet
             # (nicht-destruktiv wie der übrige Restore), fehlende kommen dazu.
-            # Backup-Version 6 schlüsselte noch nach `region` (Warenkorb je Region,
+            # Backup-Version 6 schlüsselte noch nach `region` (Preisbarometer je Region,
             # konstante Vorlaufzeit). Diese Werte haben eine andere Preisbasis und
             # dürfen nicht mit den heutigen verkettet werden — sie werden ignoriert.
             existing_days = {(r['basket'], r['day']) for r in con.execute(
@@ -484,7 +484,7 @@ def api_restore():
                 existing_days.add(key)
                 basket_n += 1
             if skipped_v6:
-                A.log.info("Wiederherstellung: %d Warenkorb-Tage aus einem älteren "
+                A.log.info("Wiederherstellung: %d Barometer-Tage aus einem älteren "
                            "Backup übersprungen (andere Preisbasis)", skipped_v6)
         if isinstance(meta, dict):
             # Nicht-destruktiv wie der Rest des Restores: nur setzen, wenn lokal noch
@@ -501,7 +501,7 @@ def api_restore():
         A._spawn(A.check_offer, oid)
     A.log.info("Wiederherstellung: %d Angebote (+%d übersprungen), %d Reisen, %d Suchen, "
              "%d Reise-Anhänge, %d Packliste-Items, %d KI-Verlauf, %d KI-Einstellungen, "
-             "%d Markttrend-Datenpunkte, %d Warenkorb-Tage",
+             "%d Markttrend-Datenpunkte, %d Barometer-Tage",
              added, skipped, trips_n, searches_n, attachments_n, packing_n, ai_n, settings_n,
              moves_n, basket_n)
     return jsonify({'added': added, 'skipped': skipped, 'trips': trips_n, 'searches': searches_n,

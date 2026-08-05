@@ -15,7 +15,7 @@ _TREND_WORDS = {'up': ('▲', 'gestiegen'), 'down': ('▼', 'gefallen'), 'flat':
 
 
 def _market_section(con) -> dict | None:
-    """Markttrend für den Wochenüberblick. Quelle ist bevorzugt der Warenkorb (die
+    """Markttrend für den Wochenüberblick. Quelle ist bevorzugt die Messreihe (die
     gespeicherten Suchen, täglich neu ausgeführt — alle Hotels für die eigenen
     Reisetermine), erst ersatzweise der schmalere Trend aus den getrackten Angeboten;
     dieselbe Rangfolge wie beim HA-Sensor. Fenster 7 Tage statt der 14 aus der UI: der
@@ -154,7 +154,7 @@ def _build_digest() -> dict | None:
 
     market_html = ''
     if market:
-        _basis = ('alle Hotels für deine gespeicherten Suchen (täglicher Warenkorb)'
+        _basis = ('alle Hotels für deine gespeicherten Suchen (täglicher Preisbarometer)'
                   if market['src'] == 'basket' else 'deine getrackten Angebote')
         _color = {'up': '#cf222e', 'down': '#1a7f37'}.get(market['global']['dir'], '#555')
         _rows = ''.join(

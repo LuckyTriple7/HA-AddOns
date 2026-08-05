@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.63.0] - 2026-08-05
+
+### Changed
+- **„Warenkorb" heißt jetzt „Preisbarometer" 🌡️** — der Begriff aus der
+  Statistik-Fachsprache (Warenkorb = feste Gütermenge zur Preismessung) war
+  außerhalb davon eher irreführend. Ein einzelner Eintrag heißt jetzt
+  **Messreihe** (je gespeicherter Suche eine). Reine Umbenennung der Anzeige- und
+  Log-Texte: Optionsnamen (`market_basket_*`), API-Routen, Datenbankspalten und
+  Sensor-Attribute bleiben unverändert — bestehende Konfigurationen und
+  Automationen laufen unberührt weiter.
+
 ## [0.62.0] - 2026-08-05
 
 ### Changed

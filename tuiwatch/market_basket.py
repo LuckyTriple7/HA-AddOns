@@ -1,23 +1,23 @@
-"""Markttrend aus einem täglichen Warenkorb je gespeicherter Suche.
+"""Markttrend aus einem täglichen Preisbarometer je gespeicherter Suche.
 
 Der bisherige Markttrend (`price_moves` in app.py) misst nur die Preisbewegung der
 GETRACKTEN Angebote — je Reiseziel oft nur ein, zwei Hotels. Dieses Modul erweitert
 ihn um eine deutlich breitere Basis: einmal pro Tag läuft **genau die gespeicherte
-Suche** des Nutzers noch einmal, und alle ihre Treffer werden als Warenkorb-Snapshot
+Suche** des Nutzers noch einmal, und alle ihre Treffer werden als Barometer-Snapshot
 abgelegt. Der Trend entsteht aus dem Vergleich aufeinanderfolgender Snapshots.
 
-**Ein Warenkorb je gespeicherter Suche**, nicht je Region — mit deren echten
+**Eine Messreihe je gespeicherter Suche**, nicht je Region — mit deren echten
 Reiseterminen, Dauer, Verpflegungs-, Sterne- und Flughafenfiltern. Zwei Suchen für
-dasselbe Ziel mit verschiedenen Terminen ergeben zwei getrennte Warenkörbe; das sind
+dasselbe Ziel mit verschiedenen Terminen ergeben zwei getrennte Messreihen; das sind
 schlicht verschiedene Märkte. Ein früherer Entwurf suchte stattdessen mit konstanter
 Vorlaufzeit („heute + 91 Tage") — statistisch sauber, praktisch aber wertlos: wer
 seinen Urlaub im Mai plant, dem hilft die Preisbewegung eines täglich weiterwandernden
 Termins nicht bei der Frage, ob er JETZT buchen soll. Die konstante Vorlaufzeit ist
-nur noch Rückfallebene für Warenkörbe ohne eigenes Datum (siehe `_offer_targets`).
+nur noch Rückfallebene für Messreihen ohne eigenes Datum (siehe `_offer_targets`).
 
 Warum es so und nicht anders gerechnet wird:
 
-* **Matched Pairs statt Durchschnittsvergleich.** Der Warenkorb ändert sich täglich
+* **Matched Pairs statt Durchschnittsvergleich.** Die Messreihe ändert sich täglich
   (Hotels sind ausgebucht, neue kommen dazu). Mittelwert-heute gegen Mittelwert-gestern
   würde deshalb vor allem die Zusammensetzung messen, nicht den Preis. Verglichen wird
   daher je Hotel (giataId) gegen SEIN eigenes Vortagesergebnis; nur Hotels, die in
@@ -33,7 +33,7 @@ Warum es so und nicht anders gerechnet wird:
   die Zahl, um die es geht — wandert er, ist das die gesuchte Information.
 * **Verkettung erst auf Tagesebene.** `A._compound_pct` verkettet ALLE übergebenen
   Werte — die hunderten Hotel-Deltas eines Tages direkt hineinzugeben ergäbe Unsinn.
-  Deshalb wird pro Warenkorb und Tag EIN Median abgelegt (`basket_moves`) und erst
+  Deshalb wird pro Messreihe und Tag EIN Median abgelegt (`basket_moves`) und erst
   diese Tageswerte werden über die Zeit verkettet.
 
 Abgeholt wird jede Suche vollständig (siehe `_fetch_basket`) — ein fester Seiten-Deckel
@@ -61,14 +61,14 @@ BASKET_MAX_PAGES = 20           # Reißleine (1000 Hotels); normal endet die Sch
 BASKET_MAX_REGIONS_DEFAULT = 20  # Deckel für die tägliche API-Last (Option, siehe _max_regions)
 BASKET_MIN_MATCHED = 10         # Obergrenze der Mindestbreite, siehe _min_matched
 BASKET_MIN_MATCHED_FLOOR = 5    # darunter ist ein Median nicht mehr aussagekräftig
-BASKET_MIN_MATCHED_SHARE = 0.6  # Anteil des Warenkorbs, der wiederauftauchen muss
+BASKET_MIN_MATCHED_SHARE = 0.6  # Anteil der Messreihe, der wiederauftauchen muss
 BASKET_MIN_DAYS = 2             # weniger Tagesbewegungen → kein Trend
 BASKET_MAX_GAP_DAYS = 7         # größere Lücke (Add-on aus) → Kette neu beginnen
 BASKET_RETENTION_DAYS = 120     # Snapshots älter als das werden verworfen
 
 _run_lock = threading.Lock()
 _running = False
-# Fortschritt des laufenden Warenkorb-Laufs für die UI. Ein Lauf dauert je nach Anzahl
+# Fortschritt des laufenden Barometer-Laufs für die UI. Ein Lauf dauert je nach Anzahl
 # der Suchen und Treffer eine Weile; ohne diesen Zwischenstand sähe der Nutzer nach dem
 # Klick minutenlang nichts. Bewusst ein einfaches dict statt einer Tabelle — der Wert
 # ist rein flüchtig und nach einem Neustart bedeutungslos.
@@ -84,11 +84,11 @@ def _set_progress(**kw) -> None:
 def init_basket_db(con) -> None:
     """Tabellen anlegen — wird aus `app.init_db` aufgerufen.
     `basket_snapshots` ist die Rohdatenhaltung (wird nach `BASKET_RETENTION_DAYS`
-    beschnitten), `basket_moves` das verdichtete Ergebnis (eine Zeile je Warenkorb
+    beschnitten), `basket_moves` das verdichtete Ergebnis (eine Zeile je Messreihe
     und Tag, bleibt dauerhaft — winzig und die Grundlage des Index).
 
-    `basket` ist der Schlüssel eines Warenkorbs: der Name der gespeicherten Suche
-    bzw. „<Region> (Abreise TT.MM.JJJJ)" bei Warenkörben aus getrackten Angeboten.
+    `basket` ist der Schlüssel einer Messreihe: der Name der gespeicherten Suche
+    bzw. „<Region> (Abreise TT.MM.JJJJ)" bei Messreihenn aus getrackten Angeboten.
 
     Migration: die erste Fassung (v0.60.x) schlüsselte nach Region und suchte mit
     konstanter Vorlaufzeit statt mit den echten Reiseterminen. Diese Datenpunkte
@@ -98,7 +98,7 @@ def init_basket_db(con) -> None:
     if cols and 'basket' not in cols:
         con.execute('DROP TABLE IF EXISTS basket_snapshots')
         con.execute('DROP TABLE IF EXISTS basket_moves')
-        A.log.info("Warenkorb: Daten der Regions-Fassung verworfen — der Warenkorb "
+        A.log.info("Preisbarometer: Daten der Regions-Fassung verworfen — die Messreihe "
                    "richtet sich jetzt nach den Terminen der gespeicherten Suchen")
     con.execute('''CREATE TABLE IF NOT EXISTS basket_snapshots (
         id           INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -127,9 +127,9 @@ def init_basket_db(con) -> None:
     )''')
     con.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_basket_move '
                 'ON basket_moves(basket, day)')
-    # Angebots-Warenkörbe hießen kurzzeitig „<Region> (Abreise TT.MM.JJJJ)" — ein
-    # Warenkorb je Einzeltermin. Seit der Monatsbündelung gibt es zu diesen
-    # Schlüsseln keinen Warenkorb mehr; ihre Snapshots blieben sonst als
+    # Angebots-Messreihen hießen kurzzeitig „<Region> (Abreise TT.MM.JJJJ)" — ein
+    # Preisbarometer je Einzeltermin. Seit der Monatsbündelung gibt es zu diesen
+    # Schlüsseln keine Messreihe mehr; ihre Snapshots blieben sonst als
     # Karteileichen liegen und stünden bis zum Ablauf der Aufbewahrung in der UI
     # unter „sammelt noch".
     if not con.execute(
@@ -140,8 +140,8 @@ def init_basket_db(con) -> None:
         con.execute("INSERT OR REPLACE INTO meta (key, value) "
                     "VALUES ('basket_offer_keys_bundled','1')")
         if n:
-            A.log.info("Warenkorb: %d Snapshots der Einzeltermin-Fassung verworfen "
-                       "(Angebots-Warenkörbe laufen jetzt je Monat)", n)
+            A.log.info("Preisbarometer: %d Snapshots der Einzeltermin-Fassung verworfen "
+                       "(Angebots-Messreihen laufen jetzt je Monat)", n)
 
 
 # ── Konfiguration ──────────────────────────────────────────────────────────────
@@ -152,7 +152,7 @@ def _enabled() -> bool:
 
 def _lead_days() -> int:
     """Vorlaufzeit in Tagen für die Rückfallebene, auf 14…365 begrenzt. Greift NUR
-    für Warenkörbe ohne eigenen Reisetermin (siehe `_offer_targets`) — gespeicherte
+    für Messreihen ohne eigenen Reisetermin (siehe `_offer_targets`) — gespeicherte
     Suchen bringen ihr Datum selbst mit."""
     try:
         v = int(A.load_config().get('market_basket_lead_days', BASKET_LEAD_DAYS_DEFAULT))
@@ -162,8 +162,8 @@ def _lead_days() -> int:
 
 
 def _max_regions() -> int:
-    """Obergrenze für die täglich abgefragten Warenkörbe, auf 1…50 begrenzt.
-    Der Deckel ist reiner Lastschutz: ein Warenkorb kostet je 50 Hotels einen
+    """Obergrenze für die täglich abgefragten Messreihen, auf 1…50 begrenzt.
+    Der Deckel ist reiner Lastschutz: eine Messreihe kostet je 50 Hotels einen
     API-Aufruf pro Tag (typisch 1–6), der Standard also grob 100 Requests täglich —
     Kleingeld gegenüber dem normalen Poller."""
     try:
@@ -200,7 +200,7 @@ def _expired(p: dict) -> bool:
 
 
 def _basket_targets() -> list:
-    """Die täglich abzufragenden Warenkörbe. Jeder trägt seinen kompletten
+    """Die täglich abzufragenden Messreihen. Jeder trägt seinen kompletten
     Such-Payload — also die echten Reisetermine des Nutzers, nicht ein künstlich
     berechnetes Datum.
 
@@ -209,7 +209,7 @@ def _basket_targets() -> list:
     Filtern). Quelle 2 sind die Regionen der **getrackten Angebote**, für die kein
     Suchabo existiert. Abgelaufene Zeiträume fallen raus. Gedeckelt auf
     `_max_regions()`; wird abgeschnitten, sagt es das Log — sonst würde eine neu
-    angelegte Suche stillschweigend nie im Warenkorb landen."""
+    angelegte Suche stillschweigend nie im Preisbarometer landen."""
     limit = _max_regions()
     out, seen = [], set()
     with A.db() as con:
@@ -221,7 +221,7 @@ def _basket_targets() -> list:
         except (TypeError, ValueError, json.JSONDecodeError):
             continue
         if _expired(payload):
-            A.log.debug("Warenkorb: Suche „%s“ übersprungen (Reisezeitraum vorbei)", r['name'])
+            A.log.debug("Preisbarometer: Suche „%s“ übersprungen (Reisezeitraum vorbei)", r['name'])
             continue
         key = (r['name'] or '').strip() or f"Suche {giata}"
         if key in seen:
@@ -231,7 +231,7 @@ def _basket_targets() -> list:
                     'period': _period(payload), 'source': 'search'})
     out += _offer_targets(seen)
     if len(out) > limit:
-        A.log.warning("Warenkorb: %d Warenkörbe gefunden, aber nur %d erlaubt — nicht "
+        A.log.warning("Preisbarometer: %d Messreihen gefunden, aber nur %d erlaubt — nicht "
                       "berücksichtigt: %s (Option market_basket_max_regions erhöhen)",
                       len(out), limit, ", ".join(t['key'] for t in out[limit:]))
     return out[:limit]
@@ -244,7 +244,7 @@ _MONTHS_DE = ('Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli',
 def _month_window(dep: date, nights: int) -> tuple[date, date]:
     """Suchfenster für den Abreisemonat von `dep`: (früheste Abreise, späteste
     Rückreise). Ab heute gerechnet — ein bereits laufender Monat beginnt beim
-    Warenkorb heute, nicht rückwirkend.
+    Preisbarometer heute, nicht rückwirkend.
 
     Das Ende ist Monatsletzter **plus Reisedauer**, weil `endDate` bei der Such-API
     die späteste Rückreise meint. Ohne den Aufschlag fielen genau die Abreisen am
@@ -255,14 +255,14 @@ def _month_window(dep: date, nights: int) -> tuple[date, date]:
 
 
 def _offer_targets(seen: set) -> list:
-    """Warenkörbe aus den getrackten Angeboten — für Reiseziele, zu denen es keine
+    """Messreihen aus den getrackten Angeboten — für Reiseziele, zu denen es keine
     gespeicherte Suche gibt. Der Reisetermin kommt aus dem Angebot selbst (Abreise
     = Rückreisedatum minus Dauer aus der URL); nur wenn dort nichts steht, greift
     ersatzweise die konstante Vorlaufzeit `market_basket_lead_days`.
 
     Gebündelt wird je **Region, Abreisemonat und Dauer**, nicht je Einzeltermin.
     Fünf getrackte Gran-Canaria-Angebote mit Abreise am 3., 7., 31. Mai sowie 7. und
-    14. Juni ergaben sonst fünf Warenkörbe à ~220 Hotels und fünf Ergebnisseiten —
+    14. Juni ergaben sonst fünf Messreihen à ~220 Hotels und fünf Ergebnisseiten —
     25 Abrufe täglich für praktisch denselben Markt. Als Zeitraum dient der ganze
     Monat; die Suche liefert je Hotel den günstigsten Termin darin, was für einen
     Markttrend genau die richtige Zahl ist. Die Dauer bleibt im Schlüssel, weil eine
@@ -287,7 +287,7 @@ def _offer_targets(seen: set) -> list:
             try:
                 cache[hotel_giata] = A.region_giata_from_breadcrumb(hotel_giata)
             except Exception as e:
-                A.log.debug("Warenkorb: Region zu Hotel %s nicht ermittelbar: %s", hotel_giata, e)
+                A.log.debug("Preisbarometer: Region zu Hotel %s nicht ermittelbar: %s", hotel_giata, e)
                 continue
             dirty = True
         rg = cache.get(hotel_giata)
@@ -369,8 +369,8 @@ def _fetch_basket(payload: dict) -> list:
         if not rows:
             break
     else:
-        A.log.warning("Warenkorb nach %d Seiten abgebrochen (gemeldet: %s Treffer) — "
-                      "Warenkorb ist unvollständig", BASKET_MAX_PAGES, total)
+        A.log.warning("Preisbarometer nach %d Seiten abgebrochen (gemeldet: %s Treffer) — "
+                      "Preisbarometer ist unvollständig", BASKET_MAX_PAGES, total)
     return out
 
 
@@ -386,7 +386,7 @@ def _store_snapshot(con, basket: str, region_giata: int, day: str, ts: int, rows
 
 
 def _compute_move(con, basket: str, day: str) -> dict | None:
-    """Tagesbewegung eines Warenkorbs aus dem Vergleich mit dem letzten vorhandenen
+    """Tagesbewegung einer Messreihe aus dem Vergleich mit dem letzten vorhandenen
     Snapshot. Rückgabe None, wenn es keinen Vorgänger gibt, die Lücke zu groß ist
     oder zu wenige Hotels in beiden Snapshots stehen."""
     prev = con.execute(
@@ -400,7 +400,7 @@ def _compute_move(con, basket: str, day: str) -> dict | None:
     except ValueError:
         return None
     if gap > BASKET_MAX_GAP_DAYS:
-        A.log.info("Warenkorb „%s“: %d Tage Lücke seit %s — Kette beginnt neu",
+        A.log.info("Messreihe „%s“: %d Tage Lücke seit %s — Kette beginnt neu",
                    basket, gap, prev_day)
         return None
 
@@ -423,11 +423,11 @@ def _compute_move(con, basket: str, day: str) -> dict | None:
             continue
         pcts.append((c['price'] - o['price']) / o['price'] * 100)
     # Mindestbreite an der KLEINEREN der beiden Snapshot-Größen messen: schrumpft der
-    # Warenkorb (Saisonende, Hotels ausgebucht), soll die Schwelle mitschrumpfen und
+    # Preisbarometer (Saisonende, Hotels ausgebucht), soll die Schwelle mitschrumpfen und
     # nicht am größeren Vortag hängen bleiben.
     need = _min_matched(min(len(cur), len(old)))
     if len(pcts) < need:
-        A.log.info("Warenkorb „%s“: nur %d von %d vergleichbaren Hotels (min. %d) — "
+        A.log.info("Messreihe „%s“: nur %d von %d vergleichbaren Hotels (min. %d) — "
                    "Tag verworfen", basket, len(pcts), min(len(cur), len(old)), need)
         return None
     med = statistics.median(pcts)
@@ -445,8 +445,8 @@ def _min_matched(basket_size: int) -> int:
     Eine feste Zahl (10) war für stark gefilterte Suchen zu streng: wer „nur All
     Inclusive, Direktflug ab STR, Lage 10" sucht, bekommt vielleicht 12 Treffer —
     ein einziger Verpflegungswechsel bei zweien reicht dann, und der Tag fällt
-    dauerhaft durch. Deshalb relativ zur Warenkorbgröße (60 %), nach oben durch
-    BASKET_MIN_MATCHED gedeckelt (große Warenkörbe bleiben streng) und nach unten
+    dauerhaft durch. Deshalb relativ zur Messreihengröße (60 %), nach oben durch
+    BASKET_MIN_MATCHED gedeckelt (große Messreihen bleiben streng) und nach unten
     durch BASKET_MIN_MATCHED_FLOOR — unter fünf Werten ist ein Median beliebig."""
     return max(BASKET_MIN_MATCHED_FLOOR,
                min(BASKET_MIN_MATCHED, int(basket_size * BASKET_MIN_MATCHED_SHARE)))
@@ -460,12 +460,12 @@ def _prune(con) -> None:
 
 
 def run_basket(target: dict) -> dict:
-    """Einen Warenkorb komplett durchlaufen: Suche ausführen, Snapshot ablegen,
+    """Einen Preisbarometer komplett durchlaufen: Suche ausführen, Snapshot ablegen,
     Tagesbewegung berechnen. Rückgabe für Log/API."""
     key = target['key']
     rows = _fetch_basket(target['payload'])
     if not rows:
-        A.log.warning("Warenkorb „%s“ (%s): Suche lieferte keine Treffer",
+        A.log.warning("Messreihe „%s“ (%s): Suche lieferte keine Treffer",
                       key, target.get('period') or '?')
         return {'basket': key, 'hotels': 0, 'move': None}
     ts = int(time.time())
@@ -474,7 +474,7 @@ def run_basket(target: dict) -> dict:
         _store_snapshot(con, key, target.get('giata'), day, ts, rows)
         move = _compute_move(con, key, day)
         _prune(con)
-    A.log.info("Warenkorb „%s“ (%s): %d Hotels erfasst%s", key,
+    A.log.info("Messreihe „%s“ (%s): %d Hotels erfasst%s", key,
                target.get('period') or '?', len(rows),
                (f", Tagesbewegung {move['pct_median']:+.2f} % aus {move['n_matched']} Hotels"
                 if move else " (noch keine Tagesbewegung)"))
@@ -482,7 +482,7 @@ def run_basket(target: dict) -> dict:
 
 
 def run_baskets(*, force: bool = False) -> list:
-    """Alle Warenkörbe abarbeiten, jeden höchstens 1×/Tag (`force` umgeht das für den
+    """Alle Messreihen abarbeiten, jeden höchstens 1×/Tag (`force` umgeht das für den
     manuellen Anstoß aus der UI). Ein Lauf gleichzeitig — der Poll-Worker und ein
     UI-Klick dürfen sich nicht überlappen."""
     global _running
@@ -494,7 +494,7 @@ def run_baskets(*, force: bool = False) -> list:
         day = datetime.now().strftime('%Y-%m-%d')
         targets = _basket_targets()
         if not force:
-            # Schon erledigte Warenkörbe vorab aussortieren, damit der Fortschritt
+            # Schon erledigte Messreihen vorab aussortieren, damit der Fortschritt
             # die tatsächlich anstehende Arbeit zeigt und nicht bei „3 von 8"
             # stehenbleibt, weil fünf übersprungen wurden.
             with A.db() as con:
@@ -510,7 +510,7 @@ def run_baskets(*, force: bool = False) -> list:
                 out.append(res)
                 _set_progress(hotels=_progress['hotels'] + res['hotels'])
             except Exception as e:
-                A.log.error("Warenkorb „%s“ fehlgeschlagen: %s: %s",
+                A.log.error("Messreihe „%s“ fehlgeschlagen: %s: %s",
                             target['key'], type(e).__name__, e)
             _set_progress(done=_progress['done'] + 1)
         _set_progress(current='')
@@ -538,9 +538,9 @@ def _moves_query(basket: str | None, cutoff_day: str | None) -> tuple[str, list]
 
 
 def _daily_series(con, basket: str | None, cutoff_day: str | None) -> list:
-    """Tageswerte als [(tag, prozent, hotelzahl)]. Über alle Warenkörbe hinweg
+    """Tageswerte als [(tag, prozent, hotelzahl)]. Über alle Messreihen hinweg
     (basket None) werden deren Mediane eines Tages nach Hotelzahl gewichtet
-    gemittelt — ein Warenkorb mit 200 Hotels soll den Gesamtwert stärker prägen als
+    gemittelt — eine Messreihe mit 200 Hotels soll den Gesamtwert stärker prägen als
     einer mit 15."""
     q, params = _moves_query(basket, cutoff_day)
     by_day: dict[str, list] = defaultdict(list)
@@ -555,7 +555,7 @@ def _daily_series(con, basket: str | None, cutoff_day: str | None) -> list:
 
 
 def basket_trend(con, *, basket: str | None = None, window_days: int = 14) -> dict | None:
-    """Warenkorb-Trend über ein rollierendes Fenster. Gleiche Rückgabeform wie
+    """Preisbarometer-Trend über ein rollierendes Fenster. Gleiche Rückgabeform wie
     `A._market_trend` (dir/pct/days/n), damit UI und Sensor beide Quellen ohne
     Sonderfälle anzeigen können; `hotels` nennt zusätzlich die Breite der Basis."""
     cutoff = (date.today() - timedelta(days=window_days)).isoformat()
@@ -577,7 +577,7 @@ def basket_trend(con, *, basket: str | None = None, window_days: int = 14) -> di
 
 
 def basket_index(con, *, basket: str | None = None) -> dict | None:
-    """Warenkorb-Index seit Aufzeichnungsbeginn (Basis 100), analog `A._market_index` —
+    """Preisbarometer-Index seit Aufzeichnungsbeginn (Basis 100), analog `A._market_index` —
     fängt langsame Bewegungen ab, die aus dem 14-Tage-Fenster herausfallen."""
     series = _daily_series(con, basket, None)
     if len(series) < BASKET_MIN_DAYS:
@@ -592,9 +592,9 @@ def basket_index(con, *, basket: str | None = None) -> dict | None:
 
 
 def basket_payload() -> dict:
-    """Kompletter Warenkorb-Stand für API und HA-Sensor. `by_region` heißt aus
+    """Kompletter Barometer-Stand für API und HA-Sensor. `by_region` heißt aus
     Kompatibilitätsgründen weiter so (UI und Sensor-Attribute), enthält aber je einen
-    Warenkorb — also eine gespeicherte Suche samt Reisezeitraum."""
+    Preisbarometer — also eine gespeicherte Suche samt Reisezeitraum."""
     targets = _basket_targets()   # nur EINMAL — kann Breadcrumb-Abrufe auslösen
     periods = {t['key']: t.get('period') or '' for t in targets}
     with A.db() as con:
@@ -623,8 +623,8 @@ def basket_payload() -> dict:
 
 @bp.route('/api/market-basket')
 def api_market_basket():
-    """Warenkorb-Markttrend: global und je gespeicherter Suche, plus Status (letzter
-    Lauf, Warenkörbe ohne verwertbare Bewegung)."""
+    """Preisbarometer: global und je gespeicherter Suche, plus Status (letzter
+    Lauf, Messreihen ohne verwertbare Bewegung)."""
     if (err := A._require_api()):
         return err
     return jsonify(basket_payload())
@@ -634,7 +634,7 @@ def api_market_basket():
 def api_market_basket_progress():
     """Schlanker Endpunkt allein für den Fortschrittsbalken — die UI fragt ihn
     sekündlich ab, während ein Lauf läuft. Bewusst OHNE `basket_payload()`: das
-    ermittelt die Warenkörbe neu und liest die komplette Auswertung, viel zu teuer
+    ermittelt die Messreihen neu und liest die komplette Auswertung, viel zu teuer
     für eine Abfrage im Sekundentakt."""
     if (err := A._require_api()):
         return err
@@ -643,7 +643,7 @@ def api_market_basket_progress():
 
 @bp.route('/api/market-basket/run', methods=['POST'])
 def api_market_basket_run():
-    """Warenkorb-Lauf sofort anstoßen. Läuft im Hintergrund (mehrere Warenkörbe ×
+    """Barometer-Lauf sofort anstoßen. Läuft im Hintergrund (mehrere Messreihen ×
     mehrere Suchseiten dauern länger als ein sinnvolles Request-Timeout) — die UI
     fragt danach `/api/market-basket` erneut ab."""
     if (err := A._require_api()):
@@ -659,7 +659,7 @@ def api_market_basket_run():
 
 @bp.route('/api/market-basket/region', methods=['DELETE'])
 def api_market_basket_region_delete():
-    """Daten EINES Warenkorbs löschen (Snapshots und Bewegungen) — Neustart der
+    """Daten EINER Messreihe löschen (Snapshots und Bewegungen) — Neustart der
     Aufzeichnung, z. B. nachdem sich die Suchparameter geändert haben."""
     if (err := A._require_api()):
         return err
@@ -669,6 +669,6 @@ def api_market_basket_region_delete():
     with A.db() as con:
         snaps = con.execute('DELETE FROM basket_snapshots WHERE basket=?', (region,)).rowcount
         moves = con.execute('DELETE FROM basket_moves WHERE basket=?', (region,)).rowcount
-    A.log.info("Warenkorb-Daten für „%s“ gelöscht: %d Snapshots, %d Tagesbewegungen",
+    A.log.info("Barometer-Daten für „%s“ gelöscht: %d Snapshots, %d Tagesbewegungen",
                region, snaps, moves)
     return jsonify({'region': region, 'snapshots': snaps, 'moves': moves})

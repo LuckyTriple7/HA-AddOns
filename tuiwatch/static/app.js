@@ -1042,11 +1042,11 @@
       if(!t) return '<span class="trend flat" title="Zu wenig Datenpunkte in den letzten 14 Tagen">→ keine Daten</span>';
       const pct = Math.abs(t.pct)>=0.5 ? (' '+(t.pct>0?'+':'−')+Math.abs(t.pct).toLocaleString('de-DE',{maximumFractionDigits:1})+' %') : '';
       const days = t.days>=2 ? ` seit ${t.days} Tagen` : '';
-      // Warenkorb-Werte tragen zusätzlich `hotels` (Breite der Basis) — beim
-      // Angebots-Trend sind die Datenpunkte einzelne Preisänderungen, beim Warenkorb
+      // Barometer-Werte tragen zusätzlich `hotels` (Breite der Basis) — beim
+      // Angebots-Trend sind die Datenpunkte einzelne Preisänderungen, beim Preisbarometer
       // ganze Tage, deshalb unterschiedliche Beschriftung.
       const title = t.hotels
-        ? `Marktweiter Trend über die letzten 14 Tage (${t.n} Warenkorb-Tage, zuletzt ${t.hotels} Hotels verglichen)`
+        ? `Marktweiter Trend über die letzten 14 Tage (${t.n} Barometer-Tage, zuletzt ${t.hotels} Hotels verglichen)`
         : `Marktweiter Trend über die letzten 14 Tage (${t.n} Datenpunkte)`;
       if(t.dir==='down') return `<span class="trend down" title="${title}">↘ fällt${pct}${days}</span>`;
       if(t.dir==='up')   return `<span class="trend up" title="${title}">↗ steigt${pct}${days}</span>`;
@@ -1070,10 +1070,10 @@
         + `<td>${(r.trend||r.index||{}).n||''}</td>`
         + `<td class="ai-feature"><button class="btn sec" onclick="openRegionOutlook(${i})" title="KI-Einschätzung für diese Destination">🔮</button></td>`
         + `<td><button class="btn sec" onclick="resetRegionTrend(${i})" title="Markttrend-Daten dieser Destination löschen und neu beginnen">🗑</button></td></tr>`).join('');
-      // Der Warenkorb hat ein eigenes Fenster (andere Basis, andere Zählweise) — hier
+      // Das Preisbarometer hat ein eigenes Fenster (andere Basis, andere Zählweise) — hier
       // nur eine Zeile als Wegweiser, damit die breitere Quelle nicht übersehen wird.
       const bLine = (b && b.enabled && b.global && b.global.trend)
-        ? `<div class="hint" style="margin-bottom:12px">🧺 Warenkorb (alle Hotels deiner `
+        ? `<div class="hint" style="margin-bottom:12px">🌡️ Preisbarometer (alle Hotels deiner `
           + `gespeicherten Suchen): ${marketTrendBadge(b.global.trend)} — Details über den `
           + `Knopf unten.</div>`
         : '';
@@ -1083,7 +1083,7 @@
               : '<div class="cmp-load">Noch keine Destination mit genug Daten für eine eigene Aufschlüsselung.</div>');
     }
 
-    // ── Warenkorb (eigenes Fenster) ───────────────────────────────────────────
+    // ── Preisbarometer (eigenes Fenster) ───────────────────────────────────────────
     function openBasket(){
       $('#basket-bg').classList.add('show');
       $('#basket-body').innerHTML = '<div class="cmp-load">Lade…</div>';
@@ -1098,15 +1098,15 @@
     }
     function renderBasket(b){
       if(!b || !b.enabled){
-        $('#basket-body').innerHTML = '<div class="cmp-load">Der Warenkorb ist in den Add-on-Einstellungen abgeschaltet.</div>';
+        $('#basket-body').innerHTML = '<div class="cmp-load">Das Preisbarometer ist in den Add-on-Einstellungen abgeschaltet.</div>';
         return;
       }
       const rows = (b.by_region||[]).map(r=>
         `<tr><td>${esc(r.region)}<div class="hint">${esc(r.period||'')}</div></td>`
         + `<td>${marketTrendBadge(r.trend)}${marketIndexLine(r.index)}</td>`
         + `<td>${(r.trend||{}).hotels||''}</td>`
-        + `<td><button class="btn sec" onclick="resetBasketRegion(${esc(JSON.stringify(r.region))})" title="Warenkorb-Daten dieser Suche löschen und neu beginnen">🗑</button></td></tr>`).join('');
-      // Warenkörbe ohne zwei vergleichbare Tage stehen nicht in der Tabelle — ohne
+        + `<td><button class="btn sec" onclick="resetBasketRegion(${esc(JSON.stringify(r.region))})" title="Barometer-Daten dieser Suche löschen und neu beginnen">🗑</button></td></tr>`).join('');
+      // Messreihen ohne zwei vergleichbare Tage stehen nicht in der Tabelle — ohne
       // diese Liste sähe es so aus, als würden sie gar nicht erfasst.
       const waiting = (b.baskets||[]).filter(x => !(b.by_region||[]).some(r=>r.region===x.key));
       const waitRows = waiting.map(x=>
@@ -1114,7 +1114,7 @@
       $('#basket-body').innerHTML =
         `<div class="trend-global"><b>Gesamt:</b> ${marketTrendBadge(b.global.trend)}${marketIndexLine(b.global.index)}</div>`
         + (rows ? `<table class="hist"><tr><th>Gespeicherte Suche / Reisezeitraum</th><th>Trend (14 Tage) / Index (gesamt)</th><th>Hotels</th><th></th></tr>${rows}</table>`
-                : '<div class="cmp-load">Noch keine Suche mit zwei vergleichbaren Warenkorb-Tagen.</div>')
+                : '<div class="cmp-load">Noch keine Suche mit zwei vergleichbaren Barometer-Tagen.</div>')
         + (waitRows ? `<h3 style="margin:16px 0 4px;font-size:15px">Sammelt noch</h3>`
             + `<ul style="margin:0;padding-left:18px;font-size:14px">${waitRows}</ul>` : '')
         + (b.last_day
@@ -1140,7 +1140,7 @@
     // Der Lauf holt je Suche mehrere Ergebnisseiten und läuft daher serverseitig im
     // Hintergrund weiter — ohne Fortschrittsanzeige sähe der Nutzer nach dem Klick
     // minutenlang nichts. Gepollt wird der schlanke /progress-Endpunkt, nicht die
-    // komplette Warenkorb-Auswertung.
+    // komplette Barometer-Auswertung.
     let _basketPoll = null;
     function renderBasketProgress(p){
       const box = $('#basket-progress'); if(!box) return;
@@ -1165,7 +1165,7 @@
         if(!d.running){
           stopBasketPoll();
           renderBasketProgress(null);
-          toast('Warenkorb fertig');
+          toast('Preisbarometer fertig');
           loadBasket();
           updateTrendBtn();
         }
@@ -1174,14 +1174,14 @@
     async function runMarketBasket(){
       try {
         const d = await fetch(api('/api/market-basket/run'), {method:'POST'}).then(r=>r.json());
-        if(!d.started){ toast(`Warenkorb nicht gestartet: ${d.note||'unbekannt'}`); return; }
+        if(!d.started){ toast(`Preisbarometer nicht gestartet: ${d.note||'unbekannt'}`); return; }
         renderBasketProgress({done:0, total:(d.regions||[]).length, hotels:0, current:''});
         startBasketPoll();
-      } catch(e){ toast('Warenkorb-Lauf fehlgeschlagen'); }
+      } catch(e){ toast('Barometer-Lauf fehlgeschlagen'); }
     }
     async function resetBasketRegion(region){
-      if(!confirm(`Warenkorb-Daten für „${region}" löschen und neu beginnen?\n`
-        + `Der Warenkorb wird beim nächsten Lauf neu befüllt, Trend und Index beginnen von vorn.`)) return;
+      if(!confirm(`Barometer-Daten für „${region}" löschen und neu beginnen?\n`
+        + `Die Messreihe wird beim nächsten Lauf neu erfasst, Trend und Index beginnen von vorn.`)) return;
       try {
         const d = await fetch(api('/api/market-basket/region'), {method:'DELETE',
           headers:{'Content-Type':'application/json'}, body:JSON.stringify({region})}).then(x=>x.json());

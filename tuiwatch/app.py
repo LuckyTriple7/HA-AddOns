@@ -60,7 +60,7 @@ log = logging.getLogger(__name__)
 logging.getLogger('werkzeug').setLevel(logging.ERROR)
 
 # ── In-App Log-Buffer (für Konsole im UI) ──────────────────────────────────────
-# 2000 statt der ursprünglichen 200 Zeilen: ein einziger Warenkorb-Lauf schreibt bei
+# 2000 statt der ursprünglichen 200 Zeilen: ein einziger Barometer-Lauf schreibt bei
 # vielen gespeicherten Suchen schon über hundert Zeilen (je Ergebnisseite eine), ein
 # Poll-Zyklus über alle Angebote ebenfalls. Mit 200 war der interessante Teil raus,
 # bevor man nachsehen konnte. ~150 Bytes je Zeile → gut 300 KB, das ist vertretbar.
@@ -89,7 +89,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.62.0"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.63.0"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -628,7 +628,7 @@ def init_db() -> None:
         if not con.execute("SELECT 1 FROM meta WHERE key='price_moves_backfilled'").fetchone():
             _backfill_price_moves(con)
             con.execute("INSERT OR REPLACE INTO meta (key, value) VALUES ('price_moves_backfilled','1')")
-        # Warenkorb-Markttrend (tägliche Regionssuche) — Schema liegt im eigenen Modul,
+        # Preisbarometer (tägliche Regionssuche) — Schema liegt im eigenen Modul,
         # das erst am Dateiende importiert wird; zur Laufzeit von init_db() ist es da.
         market_basket.init_basket_db(con)
     Path(TRIPS_DIR).mkdir(parents=True, exist_ok=True)
@@ -2067,7 +2067,7 @@ def _poll_worker() -> None:
             _maybe_auto_backup()      # wöchentliches Backup nach /addon_config
             _maybe_check_watches()    # Suchabos (gespeicherte Suchen mit Schwellenpreis)
             _maybe_refresh_calendars()  # Preiskalender 1×/Tag je Angebot auffrischen
-            market_basket.maybe_run_baskets()  # Warenkorb je gespeicherter Suche, 1×/Tag
+            market_basket.maybe_run_baskets()  # Preisbarometer je gespeicherter Suche, 1×/Tag
             _auto_archive_expired()
             with db() as con:
                 offers = [(r['id'], bool(r['history_only'])) for r in con.execute(
@@ -2174,7 +2174,7 @@ def _push_market_trend_sensor() -> None:
     'unavailable' — das wäre HA-Konvention für einen kaputten Sensor, hier ist der
     Sensor selbst ja da). Attribute ergänzen den Index seit Aufzeichnungsbeginn
     (`_market_index`), der auch langsame, über Wochen verteilte Bewegungen zeigt.
-    Als Quelle hat der Warenkorb Vorrang (`market_basket`: die gespeicherten Suchen,
+    Als Quelle hat die Messreihe Vorrang (`market_basket`: die gespeicherten Suchen,
     täglich neu ausgeführt — hunderte Hotels für die eigenen Reisetermine statt nur
     der eigenen Angebote); erst wenn der noch keine zwei Tagesbewegungen gesammelt
     hat, greift der angebotsbasierte Trend. Das Attribut
@@ -2651,7 +2651,7 @@ def api_market_trend():
     Fenster (`trend`, reagiert auf aktuelle Bewegung) sowie ein Index seit Beginn der
     Aufzeichnung (`index`, Basis 100 — fängt auch langsame Bewegungen über mehrere
     Wochen), jeweils global und aufgeschlüsselt nach Destination.
-    `basket` ergänzt dieselben Kennzahlen aus dem täglichen Regions-Warenkorb
+    `basket` ergänzt dieselben Kennzahlen aus dem täglichen Preisbarometer
     (`market_basket`) — gleiche Datenform, aber auf Basis aller Hotels einer Region
     statt nur der eigenen getrackten Angebote."""
     if (err := _require_api()):
@@ -3061,7 +3061,7 @@ app.register_blueprint(backup_routes.bp)
 app.register_blueprint(check24_routes.bp)
 app.register_blueprint(market_basket.bp)
 
-# Warenkorb-Markttrend: `init_db` und der Poll-Worker greifen oben schon auf
+# Preisbarometer: `init_db` und der Poll-Worker greifen oben schon auf
 # `market_basket` zu — beides läuft erst zur Laufzeit, da ist der Import hier durch.
 basket_trend = market_basket.basket_trend
 basket_index = market_basket.basket_index

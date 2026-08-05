@@ -1,7 +1,7 @@
 """Tests für die Konsole im UI (`/api/logs`) und den In-Memory-Log-Puffer.
 
 Der Puffer fasste ursprünglich 200 Zeilen und wurde gar nicht ausgeliefert — ein
-einziger Warenkorb-Lauf schreibt bei vielen gespeicherten Suchen schon über hundert
+einziger Barometer-Lauf schreibt bei vielen gespeicherten Suchen schon über hundert
 Zeilen, der interessante Teil war also raus, bevor man nachsehen konnte.
 """
 import importlib
@@ -65,9 +65,9 @@ def test_logs_level_filter(m, client):
 
 
 def test_logs_text_filter_is_case_insensitive(m, client):
-    _log(m, "INFO", "Warenkorb „Teneriffa“: 259 Hotels erfasst")
+    _log(m, "INFO", "Messreihe „Teneriffa“: 259 Hotels erfasst")
     _log(m, "INFO", "Preis geprüft")
-    items = client.get("/api/logs?q=warenkorb").get_json()["items"]
+    items = client.get("/api/logs?q=messreihe").get_json()["items"]
     assert len(items) == 1 and "Teneriffa" in items[0]["msg"]
 
 

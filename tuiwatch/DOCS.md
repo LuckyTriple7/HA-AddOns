@@ -23,7 +23,7 @@ digest_enabled: false    # wöchentlicher Überblick (Telegram/E-Mail)
 digest_weekday: 1        # Versandtag (1 = Mo … 7 = So)
 market_basket_enabled: true   # Markttrend aus den täglich neu ausgeführten Suchen
 market_basket_lead_days: 91   # Ersatz-Abreise, nur wenn kein echtes Datum vorliegt
-market_basket_max_regions: 20 # Obergrenze für die täglich abgefragten Warenkörbe (1…50)
+market_basket_max_regions: 20 # Obergrenze für die täglich abgefragten Messreihen (1…50)
 anthropic_api_key: ""    # Anthropic API-Key, aktiviert das KI-Fazit (leer = aus)
 anthropic_model: claude-opus-5  # oder claude-sonnet-5 / claude-haiku-4-5 / claude-fable-5
 ai_provider: anthropic   # oder gemini / perplexity (gilt fuer ALLE KI-Features)
@@ -367,7 +367,7 @@ Preis-Tracking, als dauerhaftes Archiv (Vergangenheit und Zukunft).
   (Markttrend der Woche, größte Rückgänge, neue Tiefstwerte, Angebote unter Wunschpreis,
   Kalenderpreis-Änderungen) per Telegram und/oder E-Mail. Der Abschnitt **📈 Markttrend
   (7 Tage)** zeigt global und je Destination die Bewegung der vergangenen Woche und
-  nennt die Basis (Regions-Warenkorb, sonst die eigenen Angebote) — bewusst 7 statt der
+  nennt die Basis (Preisbarometer, sonst die eigenen Angebote) — bewusst 7 statt der
   14 Tage aus der UI, damit die Vorwoche nicht mit hineinzählt.
   `digest_weekday` legt den Wochentag fest (1 = Montag …
   7 = Sonntag); war das Add-on am Stichtag aus, wird der Versand später in der Woche
@@ -503,11 +503,11 @@ einem HA-Neustart wieder verfügbar, ohne auf den nächsten Live-Check zu warten
 
 Außerdem `sensor.tuiwatch_markttrend`: **Wert** = kumulierte Preisänderung (%) der
 letzten 14 Tage, oder `unknown` bei zu wenigen Datenpunkten. Als Quelle hat der
-**Warenkorb** Vorrang (breitere Basis), erst ersatzweise der Trend aus den
+**Preisbarometer** Vorrang (breitere Basis), erst ersatzweise der Trend aus den
 eigenen Angeboten — welche gerade greift, sagt das Attribut `source`
 (`basket`/`offers`). Attribute: `direction` (up/down/flat), `days` (seit wie vielen
-Tagen die Richtung anhält), `samples` (Datenpunkte bzw. Warenkorb-Tage), `hotels`
-(Breite der Warenkorb-Basis), `index`/`index_pct`/`index_since` (Index seit
+Tagen die Richtung anhält), `samples` (Datenpunkte bzw. Barometer-Tage), `hotels`
+(Breite die Messreihe-Basis), `index`/`index_pct`/`index_since` (Index seit
 Aufzeichnungsbeginn), `by_region` (Aufschlüsselung je Destination aus den eigenen
 Angeboten) sowie die vollständigen Zweige `offers` und `basket`. Siehe unten
 „Markttrend".
@@ -552,41 +552,41 @@ davon, ob ein einzelnes Angebot später gelöscht wird.
   angefragter Reisedauer geschätzt (kein exaktes Abreisedatum gespeichert) und fließt
   aktuell nicht in die UI-Anzeige ein, ist aber intern je Datenpunkt vorhanden.
 
-### Warenkorb aus den gespeicherten Suchen (breitere Basis)
+### Preisbarometer aus den gespeicherten Suchen (breitere Basis)
 
 Der oben beschriebene Trend sieht nur die **eigenen** getrackten Angebote — je
 Reiseziel oft nur ein bis zwei Hotels. Zusätzlich läuft daher **1×/Tag jede deiner
 gespeicherten Suchen** noch einmal — mit **deinen Reiseterminen**, deiner Dauer und
-deinen Filtern. Alle Treffer landen als Warenkorb-Snapshot in der Datenbank, die Suche
+deinen Filtern. Alle Treffer landen als Barometer-Snapshot in der Datenbank, die Suche
 **vollständig**, nicht nur die ersten Seiten (typisch 30–300 Hotels). Im
-Markttrend-Fenster steht dieser Block oben (**🧺 Warenkorb**), der Angebots-Trend
+Markttrend-Fenster steht dieser Block oben (**🌡️ Preisbarometer**), der Angebots-Trend
 darunter.
 
 Der Trend heißt damit: „alle Hotels für meinen Mai-Termin auf Teneriffa sind diese
 Woche 3 % gefallen" — die Zahl, die bei der Buchungsentscheidung hilft.
 
-- **Ein Warenkorb je gespeicherter Suche**, nicht je Region. Zwei Suchen für dasselbe
-  Ziel mit verschiedenen Terminen ergeben zwei getrennte Warenkörbe — das sind
-  verschiedene Märkte. Angelegt wird ein Warenkorb, indem du eine Suche speicherst;
+- **Eine Messreihe je gespeicherter Suche**, nicht je Region. Zwei Suchen für dasselbe
+  Ziel mit verschiedenen Terminen ergeben zwei getrennte Messreihen — das sind
+  verschiedene Märkte. Angelegt wird eine Messreihe, indem du eine Suche speicherst;
   ein Suchabo (Schwellenpreis) ist dafür **nicht** nötig.
-- **Getrackte Angebote ohne gespeicherte Suche** bekommen ebenfalls einen Warenkorb:
+- **Getrackte Angebote ohne gespeicherte Suche** bekommen ebenfalls eine Messreihe:
   Ziel = Region des Hotels, Termin = Abreisedatum des Angebots (Rückreise minus
   Dauer). Nur wenn dort gar kein Datum steht, greift ersatzweise die konstante
   Vorlaufzeit `market_basket_lead_days`. Gebündelt wird je **Region, Abreisemonat
   und Dauer** — fünf Gran-Canaria-Angebote mit Abreise am 3., 7. und 31. Mai sowie
-  7. und 14. Juni ergeben zwei Warenkörbe („Mai 2027, 11 Nächte" und „Juni 2027,
+  7. und 14. Juni ergeben zwei Messreihen („Mai 2027, 11 Nächte" und „Juni 2027,
   11 Nächte"), nicht fünf. Gesucht wird der ganze Monat; die Suche liefert je Hotel
   den günstigsten Termin darin, was für einen Markttrend genau die richtige Zahl ist.
 - **Abgelaufene Reisezeiträume** fallen automatisch raus.
 - Die Obergrenze steht in `market_basket_max_regions` (Standard 20, erlaubt 1…50) und
   ist reiner Lastschutz — je 50 Hotels ein API-Aufruf pro Tag (typisch 1–6 je Suche).
-  Werden mehr Warenkörbe gefunden als erlaubt, nennt das Add-on-Log die weggelassenen;
+  Werden mehr Messreihen gefunden als erlaubt, nennt das Add-on-Log die weggelassenen;
   sie fallen also nicht stillschweigend weg.
 - **Vergleich je Hotel, nicht je Durchschnitt** („Matched Pairs"): jedes Hotel wird
   mit sich selbst vom Vortag verglichen. Hotels, die nur in einem der beiden
   Snapshots stehen (ausgebucht, neu dazugekommen), zählen nicht — ein Vergleich der
   Durchschnittspreise würde sonst vor allem die wechselnde Zusammensetzung des
-  Warenkorbs messen statt die Preise.
+  Preisbarometers messen statt die Preise.
 - **Median** über die Hotel-Deltas statt Mittelwert: die Such-API liefert je Hotel das
   günstigste Angebot, dessen Zimmerkategorie steht in keinem Feld und kann wechseln —
   solche Ausreißer würden einen Mittelwert verzerren.
@@ -595,21 +595,21 @@ Woche 3 % gefallen" — die Zahl, die bei der Buchungsentscheidung hilft.
   Abreise**datum** wird bewusst *nicht* verglichen: Sucht die Suche über einen
   Zeitraum (z. B. den ganzen Mai), ist der günstigste Termin innerhalb des Fensters
   genau die interessante Zahl — wandert er, ist das die gesuchte Information.
-- **Verkettung erst auf Tagesebene:** je Warenkorb und Tag wird **ein** Median
+- **Verkettung erst auf Tagesebene:** je Messreihe und Tag wird **ein** Median
   abgelegt, erst diese Tageswerte werden über die Zeit verkettet. Ein Trend braucht
   mindestens zwei Tage; Lücken über 7 Tage (Add-on war aus) starten die Kette neu.
 - **Mindestbreite je Tag:** wie viele Hotels wiederauftauchen müssen, richtet sich
-  nach der Warenkorbgröße — 60 % des (kleineren) Snapshots, höchstens 10, mindestens
+  nach der Messreihengröße — 60 % des (kleineren) Snapshots, höchstens 10, mindestens
   5. Eine feste Zahl war für stark gefilterte Suchen zu streng: wer „nur All
   Inclusive, Direktflug ab STR, Lage 10" sucht, bekommt vielleicht 12 Treffer, und
   ein einziger Verpflegungswechsel bei zweien hätte den Tag dauerhaft durchfallen
-  lassen. Große Warenkörbe bleiben streng.
-- **Bedienung:** Der Warenkorb hat ein **eigenes Fenster** — im Markttrend-Fenster
-  über den Knopf **🧺 Warenkorb** erreichbar. Dort stößt **🧺 Jetzt füllen** einen Lauf
+  lassen. Große Messreihen bleiben streng.
+- **Bedienung:** Die Messreihe hat ein **eigenes Fenster** — im Markttrend-Fenster
+  über den Knopf **🌡️ Preisbarometer** erreichbar. Dort stößt **🌡️ Jetzt füllen** einen Lauf
   sofort an; er läuft im Hintergrund, ein **Fortschrittsbalken** zeigt „X von Y
-  Suchen" samt der bisher erfassten Hotelzahl und dem gerade laufenden Warenkorb.
-  Warenkörbe ohne zwei vergleichbare Tage stehen unter „Sammelt noch". 🗑 je Zeile
-  löscht die Daten eines Warenkorbs und beginnt neu — nötig etwa, wenn du die
+  Suchen" samt der bisher erfassten Hotelzahl und dem gerade laufendie Messreihe.
+  Messreihen ohne zwei vergleichbare Tage stehen unter „Sammelt noch". 🗑 je Zeile
+  löscht die Daten einer Messreihe und beginnt neu — nötig etwa, wenn du die
   Reisetermine der Suche geändert hast (andere Preisbasis).
 - **Speicher:** Roh-Snapshots werden nach 120 Tagen verworfen, die verdichteten
   Tagesbewegungen bleiben — der Index seit Aufzeichnungsbeginn überlebt das also.
@@ -666,9 +666,9 @@ landen dauerhaft im **KI-Verlauf**.
   Original-PDFs**, die **gespeicherten Suchen**, der **dauerhafte KI-Verlauf** (Fazits/
   Vergleiche/TripPilot-Ergebnisse), die **KI-Einstellungen** (Reise-DNA,
   kumulierte Kosten-Zähler heute/Monat/gesamt, eigene KI-Prompt-Vorlagen) sowie die
-  **Markttrend-Datenpunkte** samt der **Warenkorb-Tagesbewegungen** (überleben so
+  **Markttrend-Datenpunkte** samt der **Barometer-Tagesbewegungen** (überleben so
   einen Umzug auf ein anderes Add-on, auch wenn die ursprünglichen Angebote dort nicht
-  mehr existieren; die Roh-Snapshots des Warenkorbs sind nicht dabei, die entstehen
+  mehr existieren; die Roh-Snapshots der Messreihe sind nicht dabei, die entstehen
   täglich neu). Die
   Wiederherstellung liest die ZIP (das alte reine JSON wird weiterhin akzeptiert) und
   arbeitet **nicht-destruktiv**: Fehlendes wird ergänzt, Bestehendes bleibt erhalten

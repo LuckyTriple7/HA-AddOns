@@ -308,7 +308,7 @@
     .btn.trend-active-up { border-color:var(--red); }
     .btn.trend-active-down { border-color:var(--green); }
     .trend-global { margin-bottom:14px; }
-    /* Fortschritt des Warenkorb-Laufs (mehrere Suchen à mehrere Ergebnisseiten) */
+    /* Fortschritt des Barometer-Laufs (mehrere Suchen à mehrere Ergebnisseiten) */
     .bkt-bar { height:8px; border-radius:4px; background:var(--surf2); border:1px solid var(--border); overflow:hidden; }
     .bkt-fill { height:100%; background:var(--accent); transition:width .4s ease; }
     .cal-cell.tracked { outline:2px solid var(--accent); outline-offset:-2px; }
@@ -773,7 +773,7 @@
       </div>
       <div class="sub" id="syslog-sub"></div>
       <div id="syslog-filter" style="display:none;gap:6px;margin-bottom:8px;flex-wrap:wrap">
-        <input id="syslog-q" placeholder="Filtern (z. B. Warenkorb)" style="flex:1;min-width:180px">
+        <input id="syslog-q" placeholder="Filtern (z. B. Preisbarometer)" style="flex:1;min-width:180px">
         <select id="syslog-level">
           <option value="">alle Stufen</option>
           <option value="INFO">ab INFO</option>
@@ -945,33 +945,33 @@
       <div class="cmp-foot" style="margin-top:12px">
         <span class="hint" style="flex:1;min-width:220px">Preissprung durch Zimmerwechsel dabei?
           Neu berechnen schließt ihn nachträglich aus.</span>
-        <button class="btn sec" onclick="openBasket()">🧺 Warenkorb</button>
+        <button class="btn sec" onclick="openBasket()">🌡️ Preisbarometer</button>
         <button class="btn sec" onclick="recomputeMarketTrend()">🔄 Neu berechnen</button>
       </div>
     </div>
   </div>
 
-  <!-- Warenkorb-Modal — liegt bewusst NACH dem Markttrend-Modal im DOM: beide teilen
-       sich den z-index, das spätere Element liegt oben. Der Warenkorb wird aus dem
+  <!-- Preisbarometer-Modal — liegt bewusst NACH dem Markttrend-Modal im DOM: beide teilen
+       sich den z-index, das spätere Element liegt oben. Das Preisbarometer wird aus dem
        Markttrend heraus geöffnet und muss darüber erscheinen. -->
   <div class="modal-bg" id="basket-bg">
     <div class="modal" style="max-width:720px">
       <button class="icon-btn modal-close" onclick="closeBasket()">
         <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
       </button>
-      <h2>🧺 Warenkorb</h2>
+      <h2>🌡️ Preisbarometer</h2>
       <div class="sub">Einmal pro Tag läuft jede deiner <b>gespeicherten Suchen</b> erneut —
         mit deinen Reiseterminen, deiner Dauer und deinen Filtern. Verglichen wird jedes Hotel
         mit sich selbst vom Vortag, der <b>Median</b> über alle Hotels ergibt die Tagesbewegung.
         Deutlich breitere Basis als die eigenen Angebote, und der Trend gilt für genau deinen
-        Reisetermin. Getrackte Angebote ohne gespeicherte Suche bekommen einen Warenkorb je
+        Reisetermin. Getrackte Angebote ohne gespeicherte Suche bekommen eine Messreihe je
         Region und Abreisemonat.</div>
       <div id="basket-body"></div>
       <div id="basket-progress" style="display:none;margin-top:10px"></div>
       <div class="cmp-foot" style="margin-top:12px">
         <span class="hint" style="flex:1;min-width:220px">Läuft automatisch 1×/Tag.
           Ein Trend braucht zwei Tage.</span>
-        <button class="btn sec" onclick="runMarketBasket()">🧺 Jetzt füllen</button>
+        <button class="btn sec" onclick="runMarketBasket()">🌡️ Jetzt messen</button>
       </div>
     </div>
   </div>
