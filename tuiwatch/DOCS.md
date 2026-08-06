@@ -842,6 +842,63 @@ was, Ø-Richtung), gebuchte Angebote vs. heutiger Preis sowie die
 **Tiefstpreis-Rückschau**: bei abgeschlossenen (archivierten) Angeboten, wie viele
 Tage vor Abreise der tiefste Preis lag (Median).
 
+## Öffentliche Angebots-Links (🔗 Teilen)
+
+Wie die Angebotsseite eines Reisebüros: ein Link, den Familie oder Freunde **ohne
+Login** öffnen können. Die Seite ist reine Ansicht — keine Suche, keine Preisabfrage,
+keine KI-Aufrufe, kein Zugriff auf den Rest der App.
+
+**So geht's:** Angebote in der Liste markieren → **🔗 Teilen** in der Auswahlleiste →
+Titel, Notiz und Extras wählen (Klimatabelle, Reiseführer, Preisverlauf, ein
+gespeichertes Reiseberater-Ergebnis) → Link erzeugen. Alle Links verwaltest du über
+**🔗 Geteilte Links** im Footer: Aufrufe, Gültigkeit verlängern, widerrufen.
+
+**Eingefrorener Stand:** Der Inhalt wird beim Erzeugen als Schnappschuss gespeichert.
+Ändert sich der Preis später, bleibt der Link auf dem alten Stand — für aktuelle
+Zahlen einfach einen neuen Link erzeugen. Klima und Reiseführer erscheinen nur, wenn
+sie zum Reiseziel bereits gespeichert sind; erzeugt wird dabei nichts (keine Kosten).
+
+### Einrichtung
+
+Die Funktion ist standardmäßig **aus**. Zum Aktivieren in den Add-on-Optionen:
+
+| Option | Bedeutung |
+|---|---|
+| `enable_public_share` | schaltet die Funktion ein (bindet erst dann den Port) |
+| `public_port` | Port der öffentlichen Seite, Standard `17796` |
+| `public_base_url` | z. B. `https://reise.example.com` — nur für den fertigen Link |
+| `public_share_days` | Vorgabe für die Gültigkeit, Standard 30 Tage |
+
+Zusätzlich muss der Port unter **Konfiguration → Netzwerk** des Add-ons
+veröffentlicht werden (er steht dort standardmäßig auf „deaktiviert").
+
+### Reverse-Proxy
+
+**Nur** den öffentlichen Port nach außen geben, niemals 17794 — dort liegen Login,
+API und alle Angebote:
+
+```nginx
+server {
+    server_name reise.example.com;
+    # ... TLS ...
+    location /s/ { proxy_pass http://homeassistant.local:17796; }
+    location /a/ { proxy_pass http://homeassistant.local:17796; }   # CSS/JS der Seite
+    location /   { return 404; }
+}
+```
+
+Der öffentliche Server kennt selbst nur `/s/<token>`, `/a/<datei>` und `/robots.txt`;
+alles andere beantwortet er mit 404. Er liefert `X-Robots-Tag: noindex`, eine strikte
+Content-Security-Policy und bremst Token-Raten aus.
+
+### Was auf der Seite steht — und was nicht
+
+Übernommen werden Hotel, Ort, Sterne/Bewertung, Reisezeitraum, Flüge, Zimmer,
+Verpflegung, Reisende, Storno-Hinweis, Bild und Preis. **Nicht** übernommen werden
+die TUI-URL, Buchungscodes, PDF-Links, Wunsch-/Buchungspreise, Tags, Notiz-Interna
+und alles andere aus der Datenbank — die öffentliche Seite liest ausschließlich den
+Schnappschuss, nie die Live-Tabellen.
+
 ## Daten
 
 Alles wird unter `/data/tuiwatch.db` (SQLite) gespeichert und bleibt über

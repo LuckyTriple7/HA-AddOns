@@ -235,6 +235,15 @@
     .aihist-title { font-weight:600; font-size:.88rem; }
     body.ai-disabled .ai-feature { display:none !important; }
     body.check24-disabled .check24-feature { display:none !important; }
+    body.share-disabled .share-feature { display:none !important; }
+    .shr-row { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:8px 0; }
+    .shr-row label { font-size:.85rem; }
+    .shr-link { display:flex; gap:8px; align-items:center; margin-top:12px; }
+    .shr-link input { flex:1; min-width:0; }
+    .shr-list { width:100%; border-collapse:collapse; font-size:.85rem; margin-top:8px; }
+    .shr-list th, .shr-list td { padding:6px 8px; border-bottom:1px solid var(--border); text-align:left; }
+    .shr-list th { color:var(--muted); font-weight:600; font-size:.75rem; text-transform:uppercase; }
+    .shr-exp { color:var(--red); }
     .twprog { height:7px; background:var(--border); border-radius:5px; overflow:hidden; max-width:320px; margin:10px auto 0; }
     .twprog > i { display:block; height:100%; background:var(--accent); border-radius:5px; transition:width .3s ease; }
     .twprog.indet > i { width:40%; animation:twindet 1.1s ease-in-out infinite; }
@@ -686,6 +695,7 @@
       <button class="btn danger" onclick="bulkDelete()">Löschen</button>
       <button class="btn sec ai-feature" onclick="openAiCompareOffers()" title="Ausgewählte Angebote per KI vergleichen (max. 5)">🤖 Vergleichen</button>
       <button class="btn sec ai-feature" onclick="autoTagSelected()" title="Passende Tags automatisch per KI vergeben (ergänzt bestehende Tags)">🤖 Auto-Tag</button>
+      <button class="btn sec share-feature" onclick="openShareCreate()" title="Öffentlichen Link zum Anschauen erzeugen (ohne Login, nur Ansicht)">🔗 Teilen</button>
       <button class="btn sec" onclick="bulkClear()" style="margin-left:auto">Auswahl aufheben</button>
     </div>
     <div id="offers"></div>
@@ -695,6 +705,7 @@
         · <span id="hc-foot" class="hc-foot" title="API-Status — klicken für Details &amp; neuen Test" onclick="openHealth()">API: <span id="hc-dot">…</span></span>
         · <span class="hc-foot" onclick="openSyslog('notify')" title="Verlauf gesendeter Benachrichtigungen + letzte Warnungen/Fehler">🔔 Meldungen</span>
         · <span class="hc-foot" onclick="openStats()" title="Tracking-Statistik: Ersparnis, größte Preisbewegungen, Wochentags-Muster, Tiefstpreis-Rückschau">📊 Statistik</span>
+        · <span class="hc-foot share-feature" onclick="openShareList()" title="Öffentliche Links verwalten: Aufrufe, Gültigkeit, widerrufen">🔗 Geteilte Links</span>
         · <span class="hc-foot" onclick="backupOffers()" title="Komplettes Backup (Angebote mit Preisverlauf, Meine Reisen inkl. PDF, gespeicherte Suchen) als ZIP">⬇ Backup</span>
         · <span class="hc-foot" onclick="document.getElementById('restore-file').click()" title="Backup wiederherstellen (ZIP oder altes JSON) – ergänzt Fehlendes, überschreibt nichts">⬆ Restore</span></div>
       <div class="ai-feature"><span class="hc-foot" onclick="openPromptCfg()" title="Eigene KI-Prompt-Vorlagen für TripPilot &amp; Hotelvergleich bearbeiten">⚙ KI-Prompts</span>
@@ -889,6 +900,19 @@
       <h2>Preis-Aufschlüsselung</h2>
       <div class="sub" id="split-sub"></div>
       <div id="split-body"></div>
+    </div>
+  </div>
+
+  <!-- Öffentlich teilen (Link ohne Login, nur Ansicht) -->
+  <div class="modal-bg" id="shr-bg">
+    <div class="modal">
+      <button class="icon-btn modal-close" onclick="closeShare()">
+        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+      </button>
+      <h2>🔗 Öffentlich teilen</h2>
+      <div class="sub">Erzeugt eine Seite zum reinen Anschauen — ohne Login, ohne Preisabfrage.
+        Der Inhalt wird beim Erzeugen eingefroren; spätere Preisänderungen erscheinen dort nicht.</div>
+      <div id="shr-body"></div>
     </div>
   </div>
 
@@ -1272,11 +1296,14 @@
 
   <script>
     const G = { base: {{ (script_root or '')|tojson }}, iv: {{ poll_interval|tojson }}, ai: {{ ai_enabled|tojson }},
-                homeLoc: {{ trippilot_home_location|tojson }}, check24: {{ check24_enabled|tojson }} };
+                homeLoc: {{ trippilot_home_location|tojson }}, check24: {{ check24_enabled|tojson }},
+                share: {{ share_enabled|tojson }} };
     document.body.classList.toggle('ai-disabled', !G.ai);
     document.body.classList.toggle('check24-disabled', !G.check24);
+    document.body.classList.toggle('share-disabled', !G.share);
     window.G = G;  // auch für den Konsolen-Script-Block (Ingress-Pfad) erreichbar
   </script>
+  <script src="{{ (script_root or '') }}/static/aimd.js?v={{ app_version }}"></script>
   <script src="{{ (script_root or '') }}/static/app.js?v={{ app_version }}"></script>
 </body>
 </html>

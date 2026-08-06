@@ -1,5 +1,32 @@
 # Changelog
 
+## [0.76.0] - 2026-08-06
+
+### Added
+- **Öffentliche Angebots-Links (🔗 Teilen)** — ausgewählte Angebote lassen sich
+  als Seite zum reinen Anschauen weitergeben, ohne Login, wie beim Reisebüro.
+  Enthält auf Wunsch die gespeicherte Klimatabelle, den Reiseführer, ein
+  Reiseberater-Ergebnis und den Preisverlauf. Verwaltung (Aufrufe, Gültigkeit,
+  Widerruf) über „🔗 Geteilte Links" im Footer.
+  - Läuft auf einem **eigenen Port** (Standard 17796), damit im Reverse-Proxy
+    nur die öffentliche Seite freigegeben werden kann — Port 17794 mit Login,
+    API und Ingress bleibt unangetastet. Ohne `enable_public_share` wird der
+    Port gar nicht erst gebunden.
+  - Der Inhalt wird beim Erzeugen als Schnappschuss eingefroren; die öffentliche
+    Seite liest nie die Live-Tabellen und macht weder Preisabfragen noch
+    KI-Aufrufe. Übernommen wird nur eine feste Feld-Whitelist — TUI-URL,
+    Buchungscodes, PDF-Links und Wunsch-/Buchungspreise bleiben draußen.
+  - Links laufen ab (Standard 30 Tage, 1–365 einstellbar), lassen sich
+    verlängern und jederzeit widerrufen. Token mit 72 Bit Entropie,
+    `noindex`-Header, strikte CSP, Bremse gegen Token-Raten.
+- Neue Optionen `enable_public_share`, `public_port`, `public_base_url`,
+  `public_share_days`.
+
+### Changed
+- Der Markdown-Renderer für KI-Texte liegt jetzt in `static/aimd.js` und wird
+  von der Hauptseite **und** der öffentlichen Seite genutzt (vorher nur in
+  `app.js`) — kein zweiter, driftender Renderer.
+
 ## [0.75.4] - 2026-08-06
 
 ### Fixed

@@ -158,6 +158,18 @@ configuration:
   enable_check24_compare:
     name: Check24-Preisvergleich (Beta)
     description: "Erlaubt, ein Angebot mit einem manuell verknüpften Check24-Hotel zu vergleichen (andere Reiseveranstalter, gleiche Reisedaten). Nutzt Headless-Chromium gegen Check24 (kein offenes API), daher fragiler als der TUI-Abruf und ein zusätzliches externes ToS-Risiko. Standard aus — bewusst opt-in."
+  enable_public_share:
+    name: Öffentliche Angebots-Links
+    description: "Schaltet Links frei, mit denen sich ausgewählte Angebote ohne Login anschauen lassen (wie die Angebotsseite eines Reisebüros) — inklusive gespeicherter Klimatabelle, Reiseführer und Reiseberater-Ergebnis. Die Seite läuft auf einem eigenen Port (siehe „Port für öffentliche Links“), zeigt nur einen beim Erzeugen eingefrorenen Stand und erlaubt keinerlei Abfragen. Nur diesen zweiten Port im Reverse-Proxy nach außen geben, niemals 17794. Standard aus."
+  public_port:
+    name: Port für öffentliche Links
+    description: "Port, auf dem die öffentlichen Angebots-Seiten ausgeliefert werden. Standard 17796. Der Port muss zusätzlich in der Konfiguration des Add-ons unter „Netzwerk“ veröffentlicht werden, sonst ist er nur containerintern erreichbar."
+  public_base_url:
+    name: Öffentliche Basis-URL
+    description: "Adresse, unter der die öffentlichen Links von außen erreichbar sind, z. B. https://reise.example.com — daraus baut TUIWatch den fertigen Link zum Weitergeben. Bleibt das Feld leer, wird nur der Pfad /s/<token> angezeigt."
+  public_share_days:
+    name: Gültigkeit öffentlicher Links (Tage)
+    description: "Voreingestellte Gültigkeit beim Erzeugen eines öffentlichen Links. Danach zeigt der Link nur noch einen Hinweis; im Dialog lässt sich pro Link ein anderer Wert wählen (1 bis 365). Standard 30."
   verbose_log:
     name: Ausführliches Logging
     description: Gibt mehr Details pro Prüfung im Log aus. Standard aus — nur Fehler und wichtige Ereignisse werden geloggt.

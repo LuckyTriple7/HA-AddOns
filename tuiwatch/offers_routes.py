@@ -701,9 +701,8 @@ def _search_dest_index(q: str, limit: int = 60) -> list:
 _offer_dest_cache: dict = {}   # Hotel-giataId → Region-giataId (oder None)
 
 
-@bp.route('/api/offers/<int:offer_id>/dest', methods=['GET'])
-def api_offer_dest(offer_id: int):
-    """Reiseziel (Region) zu einem Angebot: Region-giataId + Klarname.
+def offer_region_giata(offer_id: int) -> tuple:
+    """Region-giataId + Klarname zu einem Angebot — `(None, '')`, wenn unbekannt.
 
     Klimatabelle und Reiseführer hängen beide an der Region-giataId, das Angebot
     kennt aber nur die Hotel-giataId — die Region steckt in der Breadcrumb-API
@@ -711,14 +710,13 @@ def api_offer_dest(offer_id: int):
     Fremdaufruf und pro Hotel unveränderlich, deshalb im Prozess gemerkt.
 
     Steht die Region-giataId schon in der Angebots-URL (`regionGiataIds=`), wird
-    nichts nachgeschlagen."""
-    if (err := A._require_api()):
-        return err
+    nichts nachgeschlagen. Auch von share_routes genutzt (Klima/Reiseführer im
+    öffentlichen Angebots-Link)."""
     with A.db() as con:
-        o = con.execute('SELECT url, region, country, label, hotel FROM offers WHERE id=?',
+        o = con.execute('SELECT url, region, country FROM offers WHERE id=?',
                         (offer_id,)).fetchone()
     if not o:
-        return jsonify({'error': 'not_found'}), 404
+        return None, ''
     label = (o['region'] or o['country'] or '').strip()
     region = None
     for val in parse_qsl(urlparse(o['url']).query):
@@ -733,9 +731,23 @@ def api_offer_dest(offer_id: int):
             region = A.region_giata_from_breadcrumb(hotel_giata)
             _offer_dest_cache[hotel_giata] = region
     if not region:
+        return None, label
+    return region, (label or f'Region {region}')
+
+
+@bp.route('/api/offers/<int:offer_id>/dest', methods=['GET'])
+def api_offer_dest(offer_id: int):
+    """Reiseziel (Region) zu einem Angebot: Region-giataId + Klarname."""
+    if (err := A._require_api()):
+        return err
+    with A.db() as con:
+        if not con.execute('SELECT 1 FROM offers WHERE id=?', (offer_id,)).fetchone():
+            return jsonify({'error': 'not_found'}), 404
+    region, label = offer_region_giata(offer_id)
+    if not region:
         return jsonify({'error': 'no_region',
                         'note': 'Region zum Angebot nicht ermittelbar'}), 400
-    return jsonify({'giata': region, 'label': label or f'Region {region}'})
+    return jsonify({'giata': region, 'label': label})
 
 
 @bp.route('/api/destinations', methods=['GET'])

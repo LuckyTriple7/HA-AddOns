@@ -89,7 +89,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.75.4"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.76.0"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -667,6 +667,20 @@ def init_db() -> None:
             ts      INTEGER NOT NULL,
             model   TEXT DEFAULT '',
             data    TEXT NOT NULL
+        )''')
+        # Öffentliche Angebots-Seiten (Share-Links, siehe share_routes.py). `payload`
+        # ist ein beim Anlegen eingefrorener JSON-Snapshot — die öffentliche Seite
+        # liest ausschließlich diese Spalte und nie die Live-Tabellen, damit kein
+        # nicht geteiltes Angebot durchsickern kann.
+        con.execute('''CREATE TABLE IF NOT EXISTS shares (
+            token        TEXT PRIMARY KEY,
+            title        TEXT NOT NULL DEFAULT '',
+            note         TEXT NOT NULL DEFAULT '',
+            payload      TEXT NOT NULL,
+            created_ts   INTEGER NOT NULL,
+            expires_ts   INTEGER NOT NULL,
+            views        INTEGER NOT NULL DEFAULT 0,
+            last_view_ts INTEGER
         )''')
         # Preisbarometer (tägliche Regionssuche) — Schema liegt im eigenen Modul,
         # das erst am Dateiende importiert wird; zur Laufzeit von init_db() ist es da.
@@ -2253,6 +2267,7 @@ def _poll_worker() -> None:
             _maybe_refresh_calendars()  # Preiskalender 1×/Tag je Angebot auffrischen
             market_basket.maybe_run_baskets()  # Preisbarometer je gespeicherter Suche, 1×/Tag
             _auto_archive_expired()
+            share_routes.cleanup_expired()  # abgelaufene öffentliche Links entsorgen
             with db() as con:
                 offers = [(r['id'], bool(r['history_only'])) for r in con.execute(
                     'SELECT id, history_only FROM offers WHERE COALESCE(paused,0)=0 '
@@ -2690,6 +2705,7 @@ def index():
         trippilot_home_location=(cfg.get('trippilot_home_location') or '').strip(),
         is_ingress=_is_ingress(),
         check24_enabled=bool(cfg.get('enable_check24_compare', False)),
+        share_enabled=bool(cfg.get('enable_public_share', False)),
         app_version=APP_VERSION))
 
 
@@ -3257,11 +3273,16 @@ import backup_routes  # noqa: E402
 import check24_routes  # noqa: E402
 import market_basket  # noqa: E402
 import stats_routes  # noqa: E402
+import share_routes  # noqa: E402
 app.register_blueprint(stats_routes.bp)
 app.register_blueprint(trips_routes.bp)
 app.register_blueprint(backup_routes.bp)
 app.register_blueprint(check24_routes.bp)
 app.register_blueprint(market_basket.bp)
+# Nur die Admin-Routen (/api/shares…) hängen an der geschützten App. Die
+# öffentliche Seite lebt in share_routes.share_app auf einem eigenen Port, siehe
+# _start_public_server() — bewusst KEIN Blueprint hier.
+app.register_blueprint(share_routes.bp)
 
 # Preisbarometer: `init_db` und der Poll-Worker greifen oben schon auf
 # `market_basket` zu — beides läuft erst zur Laufzeit, da ist der Import hier durch.
@@ -3347,6 +3368,24 @@ def _handle_sigterm(signum, frame) -> None:
     os._exit(0)
 
 
+def _start_public_server() -> None:
+    """Zweiter Webserver für die öffentlichen Angebots-Seiten (share_routes).
+
+    Bewusst ein eigener Port: so lässt sich im Reverse-Proxy ausschließlich die
+    öffentliche Seite freigeben, während Port 17794 (Login, API, Ingress) hinter
+    Cloudflare/HA bleibt. Ohne `enable_public_share` wird der Port gar nicht erst
+    gebunden."""
+    cfg = load_config()
+    if not cfg.get('enable_public_share', False):
+        return
+    port = int(cfg.get('public_port') or 17796)
+    log.info("Öffentliche Angebots-Seiten aktiv auf Port %d (nur /s/<token>)", port)
+    threading.Thread(
+        target=lambda: serve(share_routes.share_app, host='0.0.0.0', port=port,
+                             threads=8),
+        daemon=True).start()
+
+
 def main() -> None:
     signal.signal(signal.SIGTERM, _handle_sigterm)
     init_db()
@@ -3360,6 +3399,7 @@ def main() -> None:
     threading.Thread(target=_health_sensor_worker, daemon=True).start()
     threading.Thread(target=_cooldown_sensor_worker, daemon=True).start()
     threading.Thread(target=_market_trend_sensor_worker, daemon=True).start()
+    _start_public_server()
     port = int(os.environ.get('TUIWATCH_PORT', '17794'))
     log.info("TUIWatch startet auf Port %d", port)
     # Werkzeugs Dev-Server (app.run) verzoegert unter Last durch die Hintergrund-

@@ -1091,6 +1091,145 @@
     function closeStats(){ $('#stats-bg').classList.remove('show'); }
     $('#stats-bg').addEventListener('click', e=>{ if(e.target.id==='stats-bg') closeStats(); });
 
+    // ── Öffentlich teilen (share_routes.py) ────────────────────────────────────
+    // Erzeugt einen Link auf den zweiten, öffentlichen Port. Der Inhalt wird
+    // serverseitig eingefroren — hier wird nur ausgewählt, was hineinkommt.
+    let _shrIds = [], _shrUrls = {};
+    function closeShare(){ $('#shr-bg').classList.remove('show'); }
+    $('#shr-bg').addEventListener('click', e=>{ if(e.target.id==='shr-bg') closeShare(); });
+
+    async function openShareCreate(){
+      if(!selected.size){ toast('Erst Angebote auswählen'); return; }
+      _shrIds = [...selected];
+      $('#shr-bg').classList.add('show');
+      $('#shr-body').innerHTML = '<div class="cmp-load">Lade…</div>';
+      const names = _shrIds.map(id=>{
+        const o = (curOffers||[]).find(x=>x.id===id) || {};
+        return '<li>'+esc(o.label || o.hotel || ('Angebot #'+id))+'</li>';
+      }).join('');
+      let adv = [];
+      try {
+        const h = await fetch(api('/api/ai/history')).then(r=>r.json());
+        adv = (h.items||[]).filter(it=>it.kind==='advisor').slice(0,25);
+      } catch(e){}
+      const advSel = adv.length ? `<div class="shr-row">
+          <label for="shr-adv">Reiseberater-Ergebnis</label>
+          <select id="shr-adv"><option value="">— keins —</option>${
+            adv.map(a=>`<option value="${a.id}">${esc(a.title)} (${new Date(a.ts*1000).toLocaleDateString('de-DE')})</option>`).join('')}</select>
+        </div>` : '<div class="hint">Kein gespeichertes Reiseberater-Ergebnis vorhanden.</div>';
+      $('#shr-body').innerHTML = `
+        <ul class="gd-list" style="margin-bottom:10px">${names}</ul>
+        <div class="shr-row"><input type="text" id="shr-title" placeholder="Titel (z. B. „Unsere Auswahl für Herbst")" style="flex:1"></div>
+        <div class="shr-row"><textarea id="shr-note" rows="2" placeholder="Notiz für die Empfänger (optional)" style="flex:1"></textarea></div>
+        <div class="shr-row">
+          <label><input type="checkbox" id="shr-clim" checked> Klimatabelle</label>
+          <label><input type="checkbox" id="shr-guide"> Reiseführer</label>
+          <label><input type="checkbox" id="shr-hist"> Preisverlauf</label>
+        </div>
+        ${advSel}
+        <div class="shr-row">
+          <label for="shr-days">Gültig für</label>
+          <input type="number" id="shr-days" value="30" min="1" max="365" style="width:80px"> Tage
+        </div>
+        <div class="shr-row"><button class="btn" onclick="createShare()">Link erzeugen</button></div>
+        <div class="hint">Klima und Reiseführer erscheinen nur, wenn sie zum Reiseziel schon gespeichert sind —
+          es wird nichts neu von der KI berechnet.</div>`;
+    }
+
+    async function createShare(){
+      const body = {
+        offer_ids: _shrIds,
+        title: $('#shr-title').value.trim(),
+        note: $('#shr-note').value.trim(),
+        include: { climate: $('#shr-clim').checked, guide: $('#shr-guide').checked,
+                   history: $('#shr-hist').checked, advisor: !!($('#shr-adv')||{}).value },
+        advisor_id: ($('#shr-adv')||{}).value || null,
+        days: parseInt($('#shr-days').value, 10) || 30,
+      };
+      let d;
+      try {
+        d = await fetch(api('/api/shares'), {method:'POST', headers:{'Content-Type':'application/json'},
+                                             body: JSON.stringify(body)}).then(r=>r.json());
+      } catch(e){ toast('Link konnte nicht erzeugt werden'); return; }
+      if(!d || !d.token){ toast('Link konnte nicht erzeugt werden'); return; }
+      const absolute = d.url.startsWith('http');
+      $('#shr-body').innerHTML = `<p>Fertig — dieser Link zeigt die Auswahl ohne Login:</p>
+        <div class="shr-link">
+          <input type="text" id="shr-url" readonly value="${esc(d.url)}">
+          <button class="btn sec" onclick="copyShareLink()">Kopieren</button>
+        </div>
+        ${absolute ? '' : `<div class="hint">Für einen vollständigen Link „Öffentliche Basis-URL" in den
+          Add-on-Einstellungen eintragen (z. B. https://reise.example.com).</div>`}
+        <div class="hint">Gültig bis ${new Date(d.expires_ts*1000).toLocaleDateString('de-DE')}.
+          Der Inhalt ist eingefroren; für neue Preise einen neuen Link erzeugen.</div>
+        <div class="shr-row"><button class="btn sec" onclick="openShareList()">Alle Links verwalten</button></div>`;
+      bulkClear();
+    }
+
+    function copyShareLink(){
+      const el = $('#shr-url'); if(!el) return;
+      el.select();
+      navigator.clipboard.writeText(el.value).then(()=>toast('Link kopiert'),
+        ()=>{ try{ document.execCommand('copy'); toast('Link kopiert'); }catch(e){ toast('Kopieren fehlgeschlagen'); } });
+    }
+
+    async function openShareList(){
+      $('#shr-bg').classList.add('show');
+      $('#shr-body').innerHTML = '<div class="cmp-load">Lade…</div>';
+      let d;
+      try { d = await fetch(api('/api/shares')).then(r=>r.json()); }
+      catch(e){ $('#shr-body').innerHTML = '<div class="cmp-load">Liste konnte nicht geladen werden.</div>'; return; }
+      const items = d.items || [];
+      _shrUrls = {};
+      items.forEach(it=>{ _shrUrls[it.token] = it.url; });
+      if(!items.length){
+        $('#shr-body').innerHTML = `<p class="hint">Noch keine öffentlichen Links. Angebote in der Liste
+          markieren und dort „🔗 Teilen" wählen.</p>`;
+        return;
+      }
+      const rows = items.map(it=>{
+        const extras = [it.has_climate?'Klima':'', it.has_guide?'Reiseführer':'',
+                        it.has_advisor?'Reiseberater':''].filter(Boolean).join(', ') || '–';
+        const exp = new Date(it.expires_ts*1000).toLocaleDateString('de-DE');
+        return `<tr>
+          <td>${esc(it.title || '(ohne Titel)')}<div class="hint">${it.offers} Angebot(e) · ${esc(extras)}</div></td>
+          <td>${it.views}</td>
+          <td class="${it.expired?'shr-exp':''}">${exp}</td>
+          <td>
+            <button class="btn sec" onclick="copyShareUrl('${esc(it.token)}')">Kopieren</button>
+            <button class="btn sec" onclick="extendShare('${esc(it.token)}')" title="Gültigkeit auf 30 Tage ab heute setzen">+30 T</button>
+            <button class="btn danger" onclick="revokeShare('${esc(it.token)}')">Widerrufen</button>
+          </td></tr>`;
+      }).join('');
+      $('#shr-body').innerHTML = `<table class="shr-list">
+          <thead><tr><th>Titel</th><th>Aufrufe</th><th>Gültig bis</th><th></th></tr></thead>
+          <tbody>${rows}</tbody></table>
+        ${d.base_url ? '' : `<div class="hint">Ohne „Öffentliche Basis-URL" in den Add-on-Einstellungen
+          sind das nur relative Pfade — der volle Link entsteht erst mit deiner Domain.</div>`}`;
+    }
+
+    // Die URL kommt aus der zuletzt geladenen Liste, nicht aus dem onclick-Attribut —
+    // so landet die (frei konfigurierbare) Basis-URL nie im HTML-Kontext.
+    function copyShareUrl(token){
+      const url = _shrUrls[token]; if(!url) return;
+      navigator.clipboard.writeText(url).then(()=>toast('Link kopiert'), ()=>toast('Kopieren fehlgeschlagen'));
+    }
+
+    async function extendShare(token){
+      try { await fetch(api('/api/shares/'+encodeURIComponent(token)),
+                        {method:'PATCH', headers:{'Content-Type':'application/json'},
+                         body: JSON.stringify({days:30})}); }
+      catch(e){ toast('Verlängern fehlgeschlagen'); return; }
+      toast('Gültigkeit verlängert'); openShareList();
+    }
+
+    async function revokeShare(token){
+      if(!confirm('Diesen Link widerrufen? Er ist danach sofort ungültig.')) return;
+      try { await fetch(api('/api/shares/'+encodeURIComponent(token)), {method:'DELETE'}); }
+      catch(e){ toast('Widerrufen fehlgeschlagen'); return; }
+      toast('Link widerrufen'); openShareList();
+    }
+
     // ── Preis-Aufschlüsselung (Rechtsklick auf den Preis; vacancy-check) ────────
     function openPriceSplit(id){
       const o = (curOffers||[]).find(x=>x.id===id) || {};
@@ -3296,44 +3435,9 @@
     }
 
     // ── KI-Hotel-Fazit & -Vergleich (Lage, Zimmer, Restaurants, Pool, Ausstattung) ─
-    // [n](url) -> anklickbare Zitat-Nummer (Perplexity-Quellenangaben, siehe
-    // ai_client.py::_perplexity_linkify_citations); läuft vor **bold**, damit ein
-    // Fettdruck rund um eine Zitat-Klammer die Link-Erkennung nicht stört.
-    function aiInline(s){
-      s = s.replace(/\[(\d+)\]\((https?:\/\/[^\s")]+)\)/g,
-        '<a href="$2" target="_blank" rel="noopener" class="ai-cite">[$1]</a>');
-      return s.replace(/\*\*(.+?)\*\*/g,'<b>$1</b>');
-    }
-    function aiTableRow(l){ return l.trim().replace(/^\||\|$/g,'').split('|').map(c=>aiInline(c.trim())); }
-    function aiMdLite(text){
-      const lines = esc(text).split('\n');
-      let html = '', inList = false, i = 0;
-      const closeList = () => { if(inList){ html += '</ul>'; inList = false; } };
-      while(i < lines.length){
-        const line = lines[i].trim();
-        if(!line){ closeList(); i++; continue; }
-        // Markdown-Tabelle: Kopfzeile + Trennzeile aus -/:/| erkennen
-        if(line.startsWith('|') && lines[i+1] && /^\|?[\s:|-]+\|?$/.test(lines[i+1].trim())){
-          closeList();
-          const header = aiTableRow(line);
-          let body = '', j = i + 2;
-          for(; j < lines.length && lines[j].trim().startsWith('|'); j++){
-            body += '<tr>' + aiTableRow(lines[j]).map(c=>'<td>'+c+'</td>').join('') + '</tr>';
-          }
-          html += '<table class="ai-table"><thead><tr>' + header.map(c=>'<th>'+c+'</th>').join('')
-            + '</tr></thead><tbody>' + body + '</tbody></table>';
-          i = j; continue;
-        }
-        const h = /^#{1,4}\s+(.*)/.exec(line);
-        const bullet = /^[-*]\s+(.*)/.exec(line);
-        if(h){ closeList(); html += '<h4 class="ai-h">'+aiInline(h[1])+'</h4>'; }
-        else if(bullet){ if(!inList){ html += '<ul class="ai-list">'; inList = true; } html += '<li>'+aiInline(bullet[1])+'</li>'; }
-        else { closeList(); html += '<p>'+aiInline(line)+'</p>'; }
-        i++;
-      }
-      closeList();
-      return html;
-    }
+    // aiMdLite()/aiInline() stehen als globale Funktionen in static/aimd.js (vor
+    // app.js geladen) — dieselbe Datei nutzt die öffentliche Angebots-Seite, die
+    // app.js bewusst nicht lädt.
     function aiErrorMsg(err){
       return err==='no_api_key' ? 'Kein Anthropic API-Key in den Add-on-Einstellungen hinterlegt.'
         : err==='ai_refused' ? 'Die KI konnte keine Einschätzung liefern.'
