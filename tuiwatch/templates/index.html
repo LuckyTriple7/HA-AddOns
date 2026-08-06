@@ -20,7 +20,7 @@
     header { display:grid; grid-template-columns:auto minmax(0,1fr) minmax(0,auto); align-items:center; gap:10px; margin-bottom:18px; }
     .logo { display:flex; align-items:center; gap:8px; font-size:1.3rem; font-weight:700; color:var(--accent); }
     .logo svg { width:26px; height:26px; fill:var(--accent); }
-    .header-actions { display:flex; align-items:center; justify-content:flex-end; gap:8px; flex-wrap:nowrap; min-width:0; }
+    .header-actions { display:flex; align-items:center; justify-content:flex-end; gap:8px; flex-wrap:wrap; min-width:0; }
     .header-actions .btn { flex:0 1 auto; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     .header-actions .icon-btn { flex:0 0 auto; }
     .trip-countdown { justify-self:center; display:none; align-items:center; gap:7px; font-size:.8rem;
@@ -44,7 +44,9 @@
     .add-row input { flex:1 1 240px; background:var(--bg); border:1px solid var(--border); color:var(--text); padding:9px 12px; border-radius:6px; font-size:.85rem; }
     .add-row input:focus { outline:none; border-color:var(--accent); }
     .hint { font-size:.74rem; color:var(--muted); margin-top:8px; }
-    .toolbar { display:flex; gap:6px; flex-wrap:nowrap; margin-bottom:14px; }
+    /* Umbruch statt Ellipse: passt die Leiste nicht in eine Zeile (schmales
+       Fenster, Tablet), sind zwei Zeilen lesbarer als „Aktionscod…". */
+    .toolbar { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:14px; }
     .toolbar .btn { flex:1 1 auto; min-width:0; padding:7px 8px; font-size:.8rem;
                     white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     .bulk-bar { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:12px; padding:8px 12px; background:var(--surf); border:1px solid var(--accent); border-radius:8px; }
@@ -186,7 +188,7 @@
     .tag-row.inline { display:inline-flex; margin:0 0 0 10px; vertical-align:middle; }
     .offer-foot { display:flex; flex-direction:column; gap:6px; margin-top:12px; }
     .offer-foot .when { font-size:.74rem; color:var(--muted); }
-    .offer-actions { display:flex; align-items:center; gap:6px; flex-wrap:nowrap; min-width:0; }
+    .offer-actions { display:flex; align-items:center; gap:6px; flex-wrap:wrap; min-width:0; }
     .offer-actions .btn { flex:1 1 auto; min-width:0; padding:5px 9px; font-size:.76rem; font-weight:500;
                         overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     .offer-actions .icon-btn { flex:0 0 auto; }
@@ -540,6 +542,51 @@
     .dbg-pre { max-height:320px; overflow:auto; font-size:.72rem; line-height:1.35; background:var(--surf2); border:1px solid var(--border); border-radius:6px; padding:8px 10px; white-space:pre-wrap; word-break:break-word; }
     .dbg-sec { margin-top:8px; } .dbg-sec summary { cursor:pointer; font-size:.82rem; color:var(--muted); }
     @media(max-width:767px){ #tw-console{ display:none!important; } }
+    /* ── Tablet & Handy: Leisten umbrechen statt zusammenquetschen ───
+       Kopf-, Werkzeug- und Kartenleiste sind am Desktop bewusst
+       einzeilig (flex-wrap:nowrap). Darunter quetscht das die
+       Beschriftungen zu unlesbaren Stummeln („Prü…", „Verl…"). */
+    @media (max-width:767px) {
+      body { overflow-x:hidden; }
+      header { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-bottom:14px; }
+      .logo { flex:1 1 auto; }
+      .trip-countdown { order:3; flex:1 1 100%; justify-content:center; }
+      .header-actions { order:4; flex:1 1 100%; flex-wrap:wrap; justify-content:flex-start; gap:6px; }
+      .header-actions .btn { flex:0 0 auto; overflow:visible; text-overflow:clip; padding:8px 12px; }
+      .toolbar { flex-wrap:wrap; gap:6px; }
+      .toolbar .btn { flex:1 1 calc(50% - 3px); padding:9px 8px; overflow:visible; text-overflow:clip; }
+      .offer-actions { flex-wrap:wrap; gap:6px; }
+      .offer-actions .btn { flex:1 1 calc(50% - 3px); padding:9px 8px; font-size:.8rem; overflow:visible; text-overflow:clip; }
+      .offer-actions .icon-btn { flex:1 1 auto; justify-content:center; padding:9px 8px; }
+      .target-row { gap:6px 8px; }
+      .target-row input { flex:1 1 90px; width:auto; min-width:0; padding:7px 8px; }
+      .target-row .btn { flex:0 0 auto; padding:7px 12px; }
+      .pack-wrap { flex-direction:column; gap:0; }
+      .dbg-lbl, .dbg-cur { flex:1 1 100%; }
+    }
+    /* ── Handy: zusätzlich einspaltig ─────────────────────────────────
+       Preis-Spalte rutscht unter die Angebotsdaten, Bild über die volle
+       Breite, Preiskalender-Zellen kompakt (siehe calPrice() in app.js). */
+    @media (max-width:640px) {
+      .wrap { padding:10px; }
+      .logo { font-size:1.15rem; }
+      .logo svg { width:22px; height:22px; }
+      .search-row select { flex:1 1 100%; }
+      .offer { padding:12px; }
+      .offer-top { flex-direction:column; gap:6px; }
+      .price-box { width:100%; text-align:left; display:flex; flex-wrap:wrap; align-items:center; gap:5px 10px; }
+      .price-box > div, .price-box > span { margin-top:0; }
+      .notify-bell { margin-bottom:0; }
+      .offer-img { order:9; width:100%; height:170px; margin:4px 0 0; }
+      .modal-bg { padding:8px; align-items:flex-start; }
+      .modal { padding:14px; max-height:94vh; }
+      .cal-grid { grid-template-columns:repeat(7,minmax(0,1fr)); gap:3px; }
+      .cal-cell { padding:3px 4px; }
+      .cal-cell .cal-d { font-size:.62rem; }
+      .cal-cell .cal-p { font-size:.64rem; }
+      .cal-cell .cal-pig { width:20px; height:20px; }
+      table.hist, .split-table { font-size:.74rem; }
+    }
     /* ── Offline Banner ── */
     #offline-banner { display:none; position:fixed; inset:0; z-index:9000; background:rgba(0,0,0,0.72); backdrop-filter:blur(4px); -webkit-backdrop-filter:blur(4px); flex-direction:column; align-items:center; justify-content:center; gap:14px; }
     .ob-icon { font-size:44px; animation:ob-pulse 1.8s ease-in-out infinite; }

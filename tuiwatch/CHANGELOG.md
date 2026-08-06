@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.75.3] - 2026-08-06
+
+### Fixed
+- **Handy-Ansicht überarbeitet** — auf schmalen Displays waren Kopf-,
+  Werkzeug- und Karten-Knopfleiste einzeilig zusammengequetscht, die
+  Beschriftungen nur noch Stummel („Prü…", „Verl…", „Aktionscod…").
+  Jetzt brechen alle Leisten um (zwei Knöpfe pro Zeile), die Preis-Spalte
+  rutscht unter die Angebotsdaten, das Hotelbild nutzt die volle Breite
+  und Wunschpreis/Gebuchter Preis passen in je eine Zeile. Auch am Tablet
+  (bis 767 px) werden Leisten umgebrochen statt abgeschnitten.
+- **Preiskalender am Handy** — das 7-Spalten-Raster war breiter als der
+  Bildschirm; die Preise stehen dort jetzt ohne Nachkommastellen
+  („2.132 €"), damit alle Wochentage sichtbar bleiben.
+
+### Changed
+- **Preis-Aufschlüsselung** — der Zusatz „— sonst erst im Checkout
+  sichtbar" bei den Veranstalter-Hinweisen entfällt.
+
 ## [0.75.2] - 2026-08-05
 
 ### Fixed
