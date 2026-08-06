@@ -853,10 +853,20 @@ Titel, Notiz und Extras wählen (Klimatabelle, Reiseführer, Preisverlauf, ein
 gespeichertes Reiseberater-Ergebnis) → Link erzeugen. Alle Links verwaltest du über
 **🔗 Geteilte Links** im Footer: Aufrufe, Gültigkeit verlängern, widerrufen.
 
-**Eingefrorener Stand:** Der Inhalt wird beim Erzeugen als Schnappschuss gespeichert.
-Ändert sich der Preis später, bleibt der Link auf dem alten Stand — für aktuelle
-Zahlen einfach einen neuen Link erzeugen. Klima und Reiseführer erscheinen nur, wenn
-sie zum Reiseziel bereits gespeichert sind; erzeugt wird dabei nichts (keine Kosten).
+**Preis und Verfügbarkeit sind live:** Beide werden bei jedem Aufruf frisch aus der
+Datenbank gelesen — der Link zeigt also immer den Stand der letzten Preisprüfung,
+inklusive „verfügbar" bzw. „nicht mehr verfügbar" und dem Zeitpunkt der Prüfung.
+Gelesen wird ausschließlich zu den geteilten Angeboten; die Seite stößt selbst keine
+Abfrage bei TUI an.
+
+**Alles andere ist Schnappschuss:** Auswahl der Angebote, Beschreibung, Bilder,
+Klimatabelle, Reiseführer und Reiseberater-Text bleiben so, wie sie beim Erzeugen
+waren. Klima und Reiseführer erscheinen nur, wenn sie zum Reiseziel bereits
+gespeichert sind; erzeugt wird dabei nichts (keine Kosten).
+
+**Verlinkt** ist je Angebot die TUI-Seite (nur `*.tui.com` wird verlinkt) und —
+sofern eine Bewertung vorliegt — die HolidayCheck-Suche, dieselbe Google-Seitensuche
+wie in der Oberfläche.
 
 ### Einrichtung
 
@@ -894,10 +904,11 @@ Content-Security-Policy und bremst Token-Raten aus.
 ### Was auf der Seite steht — und was nicht
 
 Übernommen werden Hotel, Ort, Sterne/Bewertung, Reisezeitraum, Flüge, Zimmer,
-Verpflegung, Reisende, Storno-Hinweis, Bild und Preis. **Nicht** übernommen werden
-die TUI-URL, Buchungscodes, PDF-Links, Wunsch-/Buchungspreise, Tags, Notiz-Interna
-und alles andere aus der Datenbank — die öffentliche Seite liest ausschließlich den
-Schnappschuss, nie die Live-Tabellen.
+Verpflegung, Reisende, Storno-Hinweis, Bild, TUI-Link, Preis und Verfügbarkeit.
+**Nicht** übernommen werden Buchungscodes, PDF-Links, Wunsch- und Buchungspreise,
+Tags und alles andere aus der Datenbank. Der Live-Abgleich beim Aufruf holt nur
+Preis, Gesamtpreis, Verfügbarkeit und Prüfzeitpunkt — und das ausschließlich zu den
+Angebots-IDs, die im Schnappschuss stehen.
 
 ## Daten
 

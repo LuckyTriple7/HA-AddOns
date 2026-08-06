@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.77.0] - 2026-08-06
+
+### Added
+- **Öffentliche Links zeigen Preis und Verfügbarkeit live** — beide werden bei
+  jedem Aufruf frisch aus der Datenbank gelesen, samt Zeitpunkt der letzten
+  Prüfung und Badge „verfügbar" / „nicht mehr verfügbar". Gelesen wird nur zu
+  den geteilten Angebots-IDs; die Seite fragt selbst nichts bei TUI ab.
+  Auswahl, Beschreibung, Klima, Reiseführer und Reiseberater-Text bleiben
+  weiterhin der Stand vom Erzeugen.
+- **Links je Angebot** auf der öffentlichen Seite: TUI-Angebotsseite (nur
+  `*.tui.com` wird verlinkt) und HolidayCheck-Bewertungen über dieselbe
+  Google-Seitensuche wie in der Oberfläche.
+- Wird ein geteiltes Angebot gelöscht, zeigt der Link weiter den letzten
+  bekannten Stand statt einer Lücke.
+
 ## [0.76.0] - 2026-08-06
 
 ### Added

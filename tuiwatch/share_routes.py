@@ -21,6 +21,7 @@ import re
 import secrets
 import time
 from collections import defaultdict
+from urllib.parse import quote, urlparse
 
 from flask import (Blueprint, Flask, jsonify, make_response, render_template,
                    request, send_file)
@@ -33,14 +34,21 @@ import offers_routes
 bp = Blueprint('share_routes', __name__)
 
 # Whitelist der Angebotsfelder, die auf der öffentlichen Seite landen dürfen.
-# Bewusst NICHT dabei: url, pdf_url, booking_code, room_booking_code,
-# target_price, booked_price, check24_*, tags, notify_*, paused/archived, id.
+# `url` ist die öffentliche TUI-Angebotsseite (Empfänger sollen dort nachsehen
+# können). Bewusst NICHT dabei: pdf_url, booking_code, room_booking_code,
+# target_price, booked_price, check24_*, tags, notify_*, paused/archived.
 _OFFER_FIELDS = (
     'label', 'hotel', 'details', 'room', 'board', 'nights', 'dep_airport',
     'flight_out', 'flight_ret', 'location', 'city', 'region', 'country',
     'stars', 'rating', 'rating_count', 'recommendation', 'travellers_count',
-    'return_date', 'image_url', 'price', 'total_price', 'cancellation',
+    'return_date', 'image_url', 'price', 'total_price', 'cancellation', 'url',
 )
+
+# Diese Felder werden bei JEDEM Aufruf frisch aus der DB gelesen statt aus dem
+# Schnappschuss — ein Link soll den aktuellen Preis und Buchungsstatus zeigen,
+# nicht den Stand vom Erzeugen. Der Rest (Beschreibung, Bilder, Klima,
+# Reiseführer, Reiseberater) bleibt eingefroren.
+_LIVE_FIELDS = ('price', 'total_price', 'available', 'vac_ok', 'last_ts')
 
 _TOKEN_RE = re.compile(r'^[A-Za-z0-9_-]{8,64}$')
 _DEFAULT_DAYS = 30
@@ -86,6 +94,12 @@ def _build_payload(offer_ids: list, title: str, note: str, include: dict,
             if not o:
                 continue
             item = {k: o.get(k) for k in _OFFER_FIELDS}
+            # Nur als Schlüssel für den Live-Abgleich beim Anzeigen (siehe
+            # _refresh_live) — wird nie gerendert.
+            item['id'] = oid
+            item['available'] = o.get('available')
+            item['vac_ok'] = o.get('vac_ok')
+            item['last_ts'] = o.get('last_ts')
             if include.get('history'):
                 item['history'] = _price_points(con, oid)
             offers.append(item)
@@ -283,6 +297,15 @@ def _fmt_dt(ts):
         return ''
 
 
+@share_app.template_filter('dtm')
+def _fmt_dtm(ts):
+    """Unix-Zeitstempel → „06.08.2026, 14:32 Uhr" (letzte Preisprüfung)."""
+    try:
+        return time.strftime('%d.%m.%Y, %H:%M', time.localtime(int(ts))) + ' Uhr'
+    except (TypeError, ValueError):
+        return ''
+
+
 @share_app.template_filter('isodate')
 def _fmt_isodate(value):
     """„2026-08-13" → „13.08.2026" (unverändert, wenn kein ISO-Datum)."""
@@ -291,6 +314,77 @@ def _fmt_isodate(value):
         return s
     y, m, d = s.split('-')
     return f"{d}.{m}.{y}"
+
+
+def _refresh_live(offers: list, with_history: bool) -> None:
+    """Aktualisiert Preis und Verfügbarkeit aus der laufenden Datenbank.
+
+    Bewusst eng gefasst: gelesen wird ausschließlich zu den im Schnappschuss
+    hinterlegten Angebots-IDs und nur in `_LIVE_FIELDS`. Ein gelöschtes Angebot
+    behält seinen letzten bekannten Stand aus dem Schnappschuss (`stale`), damit
+    ein weitergegebener Link nicht plötzlich leer ist."""
+    ids = [o['id'] for o in offers if o.get('id')]
+    if not ids:
+        return
+    with A.db() as con:
+        alive = {r['id'] for r in con.execute(
+            'SELECT id FROM offers WHERE id IN (%s)' % ','.join('?' * len(ids)),
+            ids).fetchall()}
+        for o in offers:
+            oid = o.get('id')
+            if not oid:
+                continue
+            if oid not in alive:
+                o['stale'] = True
+                continue
+            row = con.execute(
+                'SELECT * FROM price_history WHERE offer_id=? ORDER BY ts DESC LIMIT 1',
+                (oid,)).fetchone()
+            total = con.execute('SELECT total_price FROM offers WHERE id=?',
+                                (oid,)).fetchone()
+            if total is not None:
+                o['total_price'] = total['total_price']
+            if row is None:
+                continue
+            if row['price'] is not None:
+                o['price'] = row['price']
+            elif (last_ok := con.execute(
+                    'SELECT price FROM price_history WHERE offer_id=? AND ok=1 '
+                    'AND price IS NOT NULL ORDER BY ts DESC LIMIT 1',
+                    (oid,)).fetchone()):
+                o['price'] = last_ok['price']
+            o['available'] = None if row['available'] is None else bool(row['available'])
+            o['vac_ok'] = None if row['vac_ok'] is None else bool(row['vac_ok'])
+            o['last_ts'] = row['ts']
+            if with_history:
+                o['history'] = _price_points(con, oid)
+
+
+def _tui_link(o: dict) -> str:
+    """Angebots-URL, nur wenn sie wirklich auf tui.com zeigt — der Link steht auf
+    einer öffentlichen Seite, da soll kein beliebiges Ziel hin."""
+    url = (o.get('url') or '').strip()
+    try:
+        host = urlparse(url).hostname or ''
+    except ValueError:
+        return ''
+    if urlparse(url).scheme != 'https':
+        return ''
+    return url if host == 'tui.com' or host.endswith('.tui.com') else ''
+
+
+def _hc_link(o: dict) -> str:
+    """HolidayCheck-Bewertungen über die Google-Seitensuche — dieselbe Mechanik
+    wie in der Oberfläche (app.js) und im E-Mail-Versand: HolidayCheck hat keine
+    stabile URL je Hotel, die sich aus den Angebotsdaten bilden ließe."""
+    if o.get('rating') is None:
+        return ''
+    name = (o.get('hotel') or o.get('label') or '').strip()
+    if not name:
+        return ''
+    where = (o.get('region') or o.get('country') or '').strip()
+    q = f"site:holidaycheck.de {name} {where}".strip()
+    return 'https://www.google.com/search?q=' + quote(q)
 
 
 def _place(o: dict) -> str:
@@ -400,9 +494,13 @@ def public_share(token: str):
     payload = A._json_loads_safe(row['payload'], None)
     if not isinstance(payload, dict):
         return _error_page(404, 'Nicht gefunden', 'Dieser Link existiert nicht (mehr).')
-    for o in (payload.get('offers') or []):
+    offers = payload.get('offers') or []
+    _refresh_live(offers, with_history=any(o.get('history') for o in offers))
+    for o in offers:
         o['place'] = _place(o)
         o['travel'] = _travel_line(o)
+        o['tui_url'] = _tui_link(o)
+        o['hc_url'] = _hc_link(o)
         if o.get('history'):
             o['spark'] = _spark(o['history'])
     return make_response(render_template(

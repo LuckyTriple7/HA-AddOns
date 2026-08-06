@@ -68,11 +68,26 @@
         {%- endif %}
       </div>
 
+      {%- if o.tui_url or o.hc_url %}
+      <div class="links">
+        {%- if o.tui_url %}<a href="{{ o.tui_url }}" target="_blank" rel="noopener nofollow">Angebot auf tui.com ↗</a>{% endif %}
+        {%- if o.hc_url %}<a href="{{ o.hc_url }}" target="_blank" rel="noopener nofollow">Bewertungen auf HolidayCheck ↗</a>{% endif %}
+      </div>
+      {%- endif %}
+
       {%- if o.price %}
       <div class="price">
         <span class="amount">{{ o.price|eur }}</span>
         <span class="per">pro Person{% if o.total_price and o.travellers_count and o.travellers_count > 1 %} · Gesamt {{ o.total_price|eur }} für {{ o.travellers_count }} Reisende{% endif %}</span>
+        {%- if o.available is true %}
+        <span class="avail yes">{% if o.vac_ok is true %}⚡ verfügbar · bestätigt{% else %}✓ verfügbar{% endif %}</span>
+        {%- elif o.available is false %}
+        <span class="avail no">✗ nicht mehr verfügbar</span>
+        {%- endif %}
       </div>
+      {%- if o.last_ts %}
+      <div class="stand">{% if o.stale %}Letzter bekannter Stand{% else %}Preis geprüft{% endif %}: {{ o.last_ts|dtm }}</div>
+      {%- endif %}
       {%- endif %}
 
       {%- if o.spark %}
@@ -157,8 +172,8 @@
   {%- endif %}
 
   <div class="foot">
-    Stand: {{ p.created|dt }} · Link gültig bis {{ expires_ts|dt }}<br>
-    Alle Angaben ohne Gewähr — Preise und Verfügbarkeit ändern sich laufend.
+    Zusammengestellt am {{ p.created|dt }} · Link gültig bis {{ expires_ts|dt }}<br>
+    Preis und Verfügbarkeit werden bei jedem Aufruf aktualisiert. Alle Angaben ohne Gewähr.
     {%- if advisor or guide %}<br>Texte teilweise KI-erzeugt.{% endif %}
   </div>
 </div>

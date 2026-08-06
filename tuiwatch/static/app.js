@@ -1161,7 +1161,7 @@
         ${absolute ? '' : `<div class="hint">Für einen vollständigen Link „Öffentliche Basis-URL" in den
           Add-on-Einstellungen eintragen (z. B. https://reise.example.com).</div>`}
         <div class="hint">Gültig bis ${new Date(d.expires_ts*1000).toLocaleDateString('de-DE')}.
-          Der Inhalt ist eingefroren; für neue Preise einen neuen Link erzeugen.</div>
+          Preis und Verfügbarkeit aktualisieren sich dort von selbst.</div>
         <div class="shr-row"><button class="btn sec" onclick="openShareList()">Alle Links verwalten</button></div>`;
       bulkClear();
     }

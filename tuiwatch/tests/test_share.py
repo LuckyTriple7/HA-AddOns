@@ -114,9 +114,10 @@ def test_payload_only_contains_whitelisted_fields(m, sr, admin, offer_id):
         payload = json.loads(con.execute("SELECT payload FROM shares WHERE token=?",
                                          (tok,)).fetchone()["payload"])
     item = payload["offers"][0]
-    assert set(item) <= set(sr._OFFER_FIELDS) | {"history", "spark"}
-    for forbidden in ("url", "pdf_url", "booking_code", "room_booking_code",
-                      "target_price", "booked_price", "id"):
+    allowed = set(sr._OFFER_FIELDS) | set(sr._LIVE_FIELDS) | {"history", "spark", "id"}
+    assert set(item) <= allowed
+    for forbidden in ("pdf_url", "booking_code", "room_booking_code",
+                      "target_price", "booked_price"):
         assert forbidden not in item
 
 
@@ -124,20 +125,56 @@ def test_public_page_leaks_nothing_sensitive(public, admin, offer_id):
     tok = _create(admin, offer_id, include={"climate": True})["token"]
     body = public.get("/s/" + tok).get_data(as_text=True)
     assert "Testangebot" in body and "Mallorca" in body
-    for secret in ("GEHEIM123", "geheim.pdf", "tui.com", "999", "1234"):
+    for secret in ("GEHEIM123", "geheim.pdf", "999", "1234"):
         assert secret not in body
 
 
-def test_snapshot_is_frozen(m, public, admin, offer_id):
-    """Preisänderungen nach dem Erzeugen dürfen den Link nicht verändern."""
+def test_price_and_availability_are_live(m, public, admin, offer_id):
+    """Preis und Verfügbarkeit sollen dem aktuellen Stand folgen — sonst zeigt ein
+    weitergegebener Link Wochen später einen Fantasiepreis."""
     tok = _create(admin, offer_id)["token"]
-    before = public.get("/s/" + tok).get_data(as_text=True)
-    assert "1.899" in before
+    assert "1.899" in public.get("/s/" + tok).get_data(as_text=True)
     with m.db() as con:
-        con.execute("INSERT INTO price_history (offer_id, ts, price, ok) VALUES (?,?,?,1)",
-                    (offer_id, int(time.time()) + 60, 4444.0))
-    after = public.get("/s/" + tok).get_data(as_text=True)
-    assert "4.444" not in after and "1.899" in after
+        con.execute("INSERT INTO price_history (offer_id, ts, price, ok, available) "
+                    "VALUES (?,?,?,1,0)", (offer_id, int(time.time()) + 60, 4444.0))
+    body = public.get("/s/" + tok).get_data(as_text=True)
+    assert "4.444" in body and "1.899" not in body
+    assert "nicht mehr verfügbar" in body
+
+
+def test_description_stays_frozen(m, public, admin, offer_id):
+    """Nur Preis/Verfügbarkeit sind live — Beschreibung bleibt der Stand vom Erzeugen."""
+    tok = _create(admin, offer_id)["token"]
+    with m.db() as con:
+        con.execute("UPDATE offers SET label='Umbenannt', room='Suite' WHERE id=?",
+                    (offer_id,))
+    body = public.get("/s/" + tok).get_data(as_text=True)
+    assert "Testangebot" in body and "Umbenannt" not in body
+
+
+def test_deleted_offer_keeps_last_known_state(m, public, admin, offer_id):
+    tok = _create(admin, offer_id)["token"]
+    with m.db() as con:
+        con.execute("DELETE FROM offers WHERE id=?", (offer_id,))
+    body = public.get("/s/" + tok).get_data(as_text=True)
+    assert "Testangebot" in body and "1.899" in body
+    assert "Letzter bekannter Stand" in body
+
+
+def test_links_to_tui_and_holidaycheck(public, admin, offer_id):
+    body = public.get("/s/" + _create(admin, offer_id)["token"]).get_data(as_text=True)
+    assert OFFER_URL.replace("&", "&amp;") in body or OFFER_URL in body
+    assert "site%3Aholidaycheck.de" in body
+
+
+def test_only_tui_urls_are_linked(m, sr):
+    """Die Angebots-URL landet als Link auf einer öffentlichen Seite — alles außer
+    tui.com per https bleibt draußen."""
+    assert sr._tui_link({"url": "https://www.tui.com/x"})
+    assert not sr._tui_link({"url": "http://www.tui.com/x"})
+    assert not sr._tui_link({"url": "https://evil.example/tui.com"})
+    assert not sr._tui_link({"url": "javascript:alert(1)"})
+    assert not sr._tui_link({"url": ""})
 
 
 def test_extras_only_when_requested(public, admin, offer_id):

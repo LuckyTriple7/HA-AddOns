@@ -41,10 +41,19 @@ body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif
 .fact-l { font-size:.74rem; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); }
 .fact-v { font-size:.95rem; }
 
-.price { margin-top:18px; padding-top:14px; border-top:1px solid var(--border);
+.links { display:flex; gap:16px; flex-wrap:wrap; margin-top:16px; }
+.links a { color:var(--accent); text-decoration:none; font-size:.9rem; }
+.links a:hover { text-decoration:underline; }
+
+.price { margin-top:16px; padding-top:14px; border-top:1px solid var(--border);
   display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; }
 .price .amount { font-size:1.7rem; font-weight:700; color:var(--green); }
 .price .per { color:var(--muted); font-size:.85rem; }
+.avail { font-size:.8rem; border-radius:20px; padding:3px 10px; white-space:nowrap; }
+.avail.yes { background:rgba(26,127,55,.12); color:var(--green); }
+.avail.no { background:rgba(207,34,46,.12); color:#cf222e; }
+@media (prefers-color-scheme: dark) { .avail.no { color:#f85149; } }
+.stand { color:var(--muted); font-size:.78rem; margin-top:6px; }
 
 .spark { margin-top:16px; }
 .spark svg { width:100%; height:60px; display:block; }
