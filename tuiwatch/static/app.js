@@ -1186,16 +1186,28 @@
       const jobs = missClim.map(i=>['/api/ai/climate', i, 'Klimatabelle'])
                     .concat(missGuide.map(i=>['/api/ai/guide', i, 'Reiseführer']));
       const box = $('#shr-body');
+      const failed = [];
       for(let n = 0; n < jobs.length; n++){
         const [path, it, what] = jobs[n];
         box.innerHTML = `<div class="cmp-load">${what} für ${esc(it.label)} wird erstellt…
-          (${n+1}/${jobs.length})</div>`;
+          (${n+1}/${jobs.length}) — das dauert einen Moment.</div>`;
         try {
+          // _prompt_confirmed überspringt die Prompt-Vorschau (Option
+          // ai_prompt_preview): Ohne das antwortet der Endpunkt nur mit
+          // {prompt_preview} und erzeugt nichts — die Rückfrage oben ist hier
+          // bereits die Bestätigung.
           const r = await fetch(api(path), {method:'POST', headers:{'Content-Type':'application/json'},
-                                            body: JSON.stringify({giata: it.giata, label: it.label})})
+                                            body: JSON.stringify({giata: it.giata, label: it.label,
+                                                                  _prompt_confirmed: true})})
                           .then(r=>r.json());
-          if(r.error) toast(what + ' für ' + it.label + ' fehlgeschlagen');
-        } catch(e){ toast(what + ' für ' + it.label + ' fehlgeschlagen'); }
+          if(r.error || r.prompt_preview) failed.push(what + ' für ' + it.label + (r.error ? ' ('+r.error+')' : ''));
+        } catch(e){ failed.push(what + ' für ' + it.label); }
+      }
+      if(failed.length){
+        box.innerHTML = `<div class="cmp-load">Nicht erstellt: ${esc(failed.join(', '))}.
+          Der Link wird ohne diese Abschnitte gespeichert.</div>`;
+        toast('KI-Erstellung teilweise fehlgeschlagen');
+        await new Promise(r=>setTimeout(r, 2500));
       }
     }
 
@@ -1274,9 +1286,9 @@
             <button class="btn danger" onclick="revokeShare('${esc(it.token)}')">Widerrufen</button>
           </td></tr>`;
       }).join('');
-      $('#shr-body').innerHTML = `<table class="shr-list">
+      $('#shr-body').innerHTML = `<div class="shr-list-wrap"><table class="shr-list">
           <thead><tr><th>Titel</th><th>Aufrufe</th><th>Gültig bis</th><th></th></tr></thead>
-          <tbody>${rows}</tbody></table>
+          <tbody>${rows}</tbody></table></div>
         ${d.base_url ? '' : `<div class="hint">Ohne „Öffentliche Basis-URL" in den Add-on-Einstellungen
           sind das nur relative Pfade — der volle Link entsteht erst mit deiner Domain.</div>`}`;
     }

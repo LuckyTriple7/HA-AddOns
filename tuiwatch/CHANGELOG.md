@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.79.0] - 2026-08-06
+
+### Added
+- **Hotelbeschreibung (PDF) im öffentlichen Link** — je Angebot verlinkt, wie
+  in der Oberfläche. Verlinkt wird wie beim Angebots-Link nur, was per https
+  auf tui.com zeigt.
+
+### Fixed
+- **Klima/Reiseführer aus dem Teilen-Dialog wurden nicht erstellt** — bei
+  aktiver Option „KI-Prompt vor dem Senden anzeigen" antworteten die Endpunkte
+  nur mit der Prompt-Vorschau statt zu erzeugen; das Fortschrittsfenster war
+  kurz zu sehen und danach stand sofort der Link da. Der Aufruf schickt jetzt
+  `_prompt_confirmed` — die Rückfrage im Dialog ist die Bestätigung, ein
+  zweites Vorschaufenster wäre doppelt gemoppelt.
+- Fehlgeschlagene Erzeugungen werden jetzt im Dialog benannt (vorher nur eine
+  leicht zu übersehende Kurzmeldung), bevor der Link gespeichert wird.
+- **Liste der geteilten Links zu schmal** — die Knöpfe „Kopieren / Bearbeiten /
+  +30 T / Widerrufen" brachen in eine zweite Reihe um und die Kopfzeile
+  „Gültig bis" auf zwei Zeilen. Das Fenster ist jetzt breiter, die
+  Aktionsspalte bleibt einzeilig, auf schmalen Displays scrollt die Tabelle
+  waagerecht.
+
 ## [0.78.0] - 2026-08-06
 
 ### Added

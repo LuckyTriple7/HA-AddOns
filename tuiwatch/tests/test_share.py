@@ -116,7 +116,7 @@ def test_payload_only_contains_whitelisted_fields(m, sr, admin, offer_id):
     item = payload["offers"][0]
     allowed = set(sr._OFFER_FIELDS) | set(sr._LIVE_FIELDS) | {"history", "spark", "id"}
     assert set(item) <= allowed
-    for forbidden in ("pdf_url", "booking_code", "room_booking_code",
+    for forbidden in ("booking_code", "room_booking_code",
                       "target_price", "booked_price"):
         assert forbidden not in item
 
@@ -165,6 +165,16 @@ def test_links_to_tui_and_holidaycheck(public, admin, offer_id):
     body = public.get("/s/" + _create(admin, offer_id)["token"]).get_data(as_text=True)
     assert OFFER_URL.replace("&", "&amp;") in body or OFFER_URL in body
     assert "site%3Aholidaycheck.de" in body
+
+
+def test_hotel_pdf_is_linked(m, public, admin, offer_id):
+    """Hotelbeschreibung als PDF gehört auf die Seite — aber nur die echte
+    TUI-Adresse; die Fixture hat bewusst eine fremde (siehe Leck-Test)."""
+    with m.db() as con:
+        con.execute("UPDATE offers SET pdf_url=? WHERE id=?",
+                    ("https://www.tui.com/api/hotelInfoPdf?giata=4711", offer_id))
+    body = public.get("/s/" + _create(admin, offer_id)["token"]).get_data(as_text=True)
+    assert "hotelInfoPdf" in body and "Hotelbeschreibung" in body
 
 
 def test_only_tui_urls_are_linked(m, sr):
@@ -282,6 +292,30 @@ def test_destinations_report_missing_extras(m, admin, offer_id):
     d = admin.post("/api/shares/destinations", json={"offer_ids": [offer_id]}).get_json()
     assert d["items"][0]["has_climate"] is False
     assert d["items"][0]["has_guide"] is True
+
+
+def test_share_extra_generation_bypasses_prompt_preview(m, monkeypatch):
+    """Die Rückfrage im Teilen-Dialog ist bereits die Bestätigung — der Aufruf muss
+    daher `_prompt_confirmed` schicken, sonst antwortet der Endpunkt bei aktiver
+    Option `ai_prompt_preview` nur mit der Prompt-Vorschau und erzeugt nichts
+    (v0.78.1: Fenster ging kurz auf, dann kam sofort der Link)."""
+    monkeypatch.setattr(m, "_auth_ok", lambda req: True)
+    monkeypatch.setattr(m, "load_config", lambda: {"anthropic_api_key": "sk-test",
+                                                   "ai_prompt_preview": True})
+    monkeypatch.setattr(m, "_ai_request",
+                        lambda *a, **kw: (json.dumps(CLIMATE), {"input_tokens": 1,
+                                                                "output_tokens": 1}, None))
+    m.app.config["TESTING"] = True
+    c = m.app.test_client()
+
+    without = c.post("/api/ai/climate", json={"giata": 777, "label": "Kreta"}).get_json()
+    assert "prompt_preview" in without          # so lief es in die Falle
+
+    withflag = c.post("/api/ai/climate", json={"giata": 777, "label": "Kreta",
+                                               "_prompt_confirmed": True}).get_json()
+    assert "prompt_preview" not in withflag
+    import ai_routes
+    assert ai_routes._climate_load(777) is not None
 
 
 def test_destinations_needs_auth(m):

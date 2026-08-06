@@ -34,14 +34,17 @@ import offers_routes
 bp = Blueprint('share_routes', __name__)
 
 # Whitelist der Angebotsfelder, die auf der öffentlichen Seite landen dürfen.
-# `url` ist die öffentliche TUI-Angebotsseite (Empfänger sollen dort nachsehen
-# können). Bewusst NICHT dabei: pdf_url, booking_code, room_booking_code,
-# target_price, booked_price, check24_*, tags, notify_*, paused/archived.
+# `url` (TUI-Angebotsseite) und `pdf_url` (Hotelbeschreibung als PDF) sind
+# öffentliche TUI-Adressen — verlinkt wird trotzdem nur, was per https auf
+# tui.com zeigt (siehe _tui_link). Bewusst NICHT dabei: booking_code,
+# room_booking_code, target_price, booked_price, check24_*, tags, notify_*,
+# paused/archived.
 _OFFER_FIELDS = (
     'label', 'hotel', 'details', 'room', 'board', 'nights', 'dep_airport',
     'flight_out', 'flight_ret', 'location', 'city', 'region', 'country',
     'stars', 'rating', 'rating_count', 'recommendation', 'travellers_count',
-    'return_date', 'image_url', 'price', 'total_price', 'cancellation', 'url',
+    'return_date', 'image_url', 'price', 'total_price', 'cancellation',
+    'url', 'pdf_url',
 )
 
 # Diese Felder werden bei JEDEM Aufruf frisch aus der DB gelesen statt aus dem
@@ -457,16 +460,18 @@ def _refresh_live(offers: list, with_history: bool) -> None:
                 o['history'] = _price_points(con, oid)
 
 
-def _tui_link(o: dict) -> str:
-    """Angebots-URL, nur wenn sie wirklich auf tui.com zeigt — der Link steht auf
-    einer öffentlichen Seite, da soll kein beliebiges Ziel hin."""
-    url = (o.get('url') or '').strip()
+def _tui_link(o: dict, field: str = 'url') -> str:
+    """Angebots- bzw. Hotelbeschreibungs-URL, nur wenn sie wirklich per https auf
+    tui.com zeigt — der Link steht auf einer öffentlichen Seite, da soll kein
+    beliebiges Ziel hin."""
+    url = (o.get(field) or '').strip()
     try:
-        host = urlparse(url).hostname or ''
+        parts = urlparse(url)
     except ValueError:
         return ''
-    if urlparse(url).scheme != 'https':
+    if parts.scheme != 'https':
         return ''
+    host = parts.hostname or ''
     return url if host == 'tui.com' or host.endswith('.tui.com') else ''
 
 
@@ -597,6 +602,7 @@ def public_share(token: str):
         o['place'] = _place(o)
         o['travel'] = _travel_line(o)
         o['tui_url'] = _tui_link(o)
+        o['pdf_link'] = _tui_link(o, 'pdf_url')
         o['hc_url'] = _hc_link(o)
         if o.get('history'):
             o['spark'] = _spark(o['history'])

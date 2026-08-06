@@ -68,9 +68,10 @@
         {%- endif %}
       </div>
 
-      {%- if o.tui_url or o.hc_url %}
+      {%- if o.tui_url or o.pdf_link or o.hc_url %}
       <div class="links">
         {%- if o.tui_url %}<a href="{{ o.tui_url }}" target="_blank" rel="noopener nofollow">Angebot auf tui.com ↗</a>{% endif %}
+        {%- if o.pdf_link %}<a href="{{ o.pdf_link }}" target="_blank" rel="noopener nofollow">📄 Hotelbeschreibung (PDF) ↗</a>{% endif %}
         {%- if o.hc_url %}<a href="{{ o.hc_url }}" target="_blank" rel="noopener nofollow">Bewertungen auf HolidayCheck ↗</a>{% endif %}
       </div>
       {%- endif %}

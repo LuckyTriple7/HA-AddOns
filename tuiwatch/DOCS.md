@@ -874,9 +874,10 @@ Klimatabelle, Reiseführer und Reiseberater-Text bleiben so, wie sie beim Erzeug
 waren. Klima und Reiseführer erscheinen nur, wenn sie zum Reiseziel bereits
 gespeichert sind; erzeugt wird dabei nichts (keine Kosten).
 
-**Verlinkt** ist je Angebot die TUI-Seite (nur `*.tui.com` wird verlinkt) und —
-sofern eine Bewertung vorliegt — die HolidayCheck-Suche, dieselbe Google-Seitensuche
-wie in der Oberfläche.
+**Verlinkt** ist je Angebot die TUI-Angebotsseite, die Hotelbeschreibung als PDF
+und — sofern eine Bewertung vorliegt — die HolidayCheck-Suche (dieselbe
+Google-Seitensuche wie in der Oberfläche). Bei TUI-Seite und PDF wird nur verlinkt,
+was per https auf `*.tui.com` zeigt.
 
 ### Einrichtung
 
@@ -914,9 +915,9 @@ Content-Security-Policy und bremst Token-Raten aus.
 ### Was auf der Seite steht — und was nicht
 
 Übernommen werden Hotel, Ort, Sterne/Bewertung, Reisezeitraum, Flüge, Zimmer,
-Verpflegung, Reisende, Storno-Hinweis, Bild, TUI-Link, Preis und Verfügbarkeit.
-**Nicht** übernommen werden Buchungscodes, PDF-Links, Wunsch- und Buchungspreise,
-Tags und alles andere aus der Datenbank. Der Live-Abgleich beim Aufruf holt nur
+Verpflegung, Reisende, Storno-Hinweis, Bild, TUI-Link, Hotelbeschreibungs-PDF,
+Preis und Verfügbarkeit. **Nicht** übernommen werden Buchungscodes, Wunsch- und
+Buchungspreise, Tags und alles andere aus der Datenbank. Der Live-Abgleich beim Aufruf holt nur
 Preis, Gesamtpreis, Verfügbarkeit und Prüfzeitpunkt — und das ausschließlich zu den
 Angebots-IDs, die im Schnappschuss stehen.
 

@@ -242,7 +242,13 @@
     .shr-link input { flex:1; min-width:0; }
     .shr-list { width:100%; border-collapse:collapse; font-size:.85rem; margin-top:8px; }
     .shr-list th, .shr-list td { padding:6px 8px; border-bottom:1px solid var(--border); text-align:left; }
-    .shr-list th { color:var(--muted); font-weight:600; font-size:.75rem; text-transform:uppercase; }
+    .shr-list th { color:var(--muted); font-weight:600; font-size:.75rem; text-transform:uppercase;
+      white-space:nowrap; }
+    /* Aktionsspalte in einer Zeile halten — umbrechende Knöpfe sahen aus wie zwei
+       getrennte Reihen. Auf schmalen Displays scrollt stattdessen die Tabelle. */
+    .shr-list td:last-child { white-space:nowrap; text-align:right; }
+    .shr-list td:last-child .btn { padding:5px 10px; font-size:.78rem; margin-left:4px; }
+    .shr-list-wrap { overflow-x:auto; -webkit-overflow-scrolling:touch; }
     .shr-exp { color:var(--red); }
     .shr-picks { max-height:230px; overflow:auto; border:1px solid var(--border); border-radius:8px;
       padding:6px 10px; margin-bottom:10px; }
@@ -909,7 +915,7 @@
 
   <!-- Öffentlich teilen (Link ohne Login, nur Ansicht) -->
   <div class="modal-bg" id="shr-bg">
-    <div class="modal">
+    <div class="modal" style="max-width:900px">
       <button class="icon-btn modal-close" onclick="closeShare()">
         <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
       </button>
