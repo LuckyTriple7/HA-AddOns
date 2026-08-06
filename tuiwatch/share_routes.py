@@ -121,6 +121,7 @@ def _build_payload(offer_ids: list, title: str, note: str, include: dict,
         payload['guide'] = [g for g in (ai_routes._guide_load(x) for x in giatas) if g]
     if include.get('advisor') and advisor_id:
         payload['advisor'] = _advisor_entry(advisor_id)
+        payload['advisor_id'] = advisor_id   # damit „Bearbeiten" vorbelegen kann
     return payload
 
 
@@ -215,25 +216,121 @@ def api_share_create():
                     'expires_ts': now + days * 86400})
 
 
+@bp.route('/api/shares/destinations', methods=['POST'])
+def api_share_destinations():
+    """Reiseziele der gewählten Angebote + ob Klima/Reiseführer schon vorliegen.
+
+    Die Oberfläche fragt das vor dem Speichern ab, um anzubieten, Fehlendes per
+    KI erzeugen zu lassen — sonst hakt man „Klimatabelle" an und auf der Seite
+    steht am Ende nichts."""
+    if (err := A._require_api()):
+        return err
+    data = request.get_json(silent=True) or {}
+    ids = data.get('offer_ids')
+    if not isinstance(ids, list):
+        return jsonify({'error': 'invalid'}), 400
+    try:
+        ids = [int(i) for i in ids][:_MAX_OFFERS]
+    except (TypeError, ValueError):
+        return jsonify({'error': 'invalid'}), 400
+    out, seen = [], set()
+    for oid in ids:
+        region, label = offers_routes.offer_region_giata(oid)
+        if not region or region in seen:
+            continue
+        seen.add(region)
+        out.append({'giata': region, 'label': label,
+                    'has_climate': ai_routes._climate_load(region) is not None,
+                    'has_guide': ai_routes._guide_load(region) is not None})
+    return jsonify({'items': out})
+
+
+@bp.route('/api/shares/<token>', methods=['GET'])
+def api_share_get(token: str):
+    """Ein Share zum Bearbeiten: Angebotsauswahl, Titel, Notiz, Extras.
+
+    Alte Shares (vor v0.77.0) haben keine Angebots-IDs im Schnappschuss — dann
+    kommt `offer_ids` leer zurück und die Oberfläche lässt neu auswählen."""
+    if (err := A._require_api()):
+        return err
+    if not _TOKEN_RE.match(token):
+        return jsonify({'error': 'not_found'}), 404
+    with A.db() as con:
+        row = con.execute('SELECT * FROM shares WHERE token=?', (token,)).fetchone()
+    if not row:
+        return jsonify({'error': 'not_found'}), 404
+    payload = A._json_loads_safe(row['payload'], {}) or {}
+    offers = payload.get('offers') or []
+    days_left = max(1, round((row['expires_ts'] - time.time()) / 86400))
+    return jsonify({
+        'token': token, 'title': row['title'], 'note': row['note'],
+        'offer_ids': [o['id'] for o in offers if o.get('id')],
+        'advisor_id': payload.get('advisor_id'),
+        'include': {'climate': bool(payload.get('climate')),
+                    'guide': bool(payload.get('guide')),
+                    'advisor': bool(payload.get('advisor')),
+                    'history': any(o.get('history') for o in offers)},
+        'days': days_left, 'expires_ts': row['expires_ts'], 'views': row['views'],
+        'url': _share_url(token),
+    })
+
+
 @bp.route('/api/shares/<token>', methods=['PATCH'])
 def api_share_patch(token: str):
-    """Nur die Gültigkeit verlängern — der Inhalt bleibt bewusst eingefroren."""
+    """Bestehenden Share ändern — **derselbe Link bleibt gültig**.
+
+    Ohne `offer_ids` wird nur die Gültigkeit verlängert (Knopf „+30 T"). Mit
+    `offer_ids` wird der Schnappschuss komplett neu gebaut: Angebote hinzufügen
+    oder entfernen, ohne dass Empfänger einen neuen Link brauchen. Aufrufzähler
+    und Erstelldatum bleiben erhalten."""
     if (err := A._require_api()):
         return err
     if not _TOKEN_RE.match(token):
         return jsonify({'error': 'not_found'}), 404
     data = request.get_json(silent=True) or {}
+    with A.db() as con:
+        row = con.execute('SELECT * FROM shares WHERE token=?', (token,)).fetchone()
+    if not row:
+        return jsonify({'error': 'not_found'}), 404
+
     try:
         days = int(data.get('days') or _DEFAULT_DAYS)
     except (TypeError, ValueError):
         days = _DEFAULT_DAYS
     days = max(1, min(_MAX_DAYS, days))
     expires = int(time.time()) + days * 86400
+
+    ids = data.get('offer_ids')
+    if ids is None:
+        with A.db() as con:
+            con.execute('UPDATE shares SET expires_ts=? WHERE token=?', (expires, token))
+        return jsonify({'expires_ts': expires, 'token': token})
+
+    if not isinstance(ids, list) or not ids:
+        return jsonify({'error': 'no_offers'}), 400
+    try:
+        ids = [int(i) for i in ids]
+    except (TypeError, ValueError):
+        return jsonify({'error': 'invalid'}), 400
+    include = data.get('include') if isinstance(data.get('include'), dict) else {}
+    title = str(data.get('title') if data.get('title') is not None
+                else row['title']).strip()[:120]
+    note = str(data.get('note') if data.get('note') is not None
+               else row['note']).strip()[:2000]
+    payload = _build_payload(ids, title, note, include, data.get('advisor_id'))
+    if not payload['offers']:
+        return jsonify({'error': 'no_offers'}), 400
+    # Erstelldatum des Links behalten — die Fußzeile der öffentlichen Seite zeigt,
+    # wann die Zusammenstellung entstanden ist, nicht wann zuletzt editiert wurde.
+    payload['created'] = row['created_ts']
     with A.db() as con:
-        cur = con.execute('UPDATE shares SET expires_ts=? WHERE token=?', (expires, token))
-        if not cur.rowcount:
-            return jsonify({'error': 'not_found'}), 404
-    return jsonify({'expires_ts': expires})
+        con.execute('UPDATE shares SET title=?, note=?, payload=?, expires_ts=? '
+                    'WHERE token=?',
+                    (title, note, json.dumps(payload, ensure_ascii=False),
+                     expires, token))
+    A.log.info("Öffentlicher Share aktualisiert (%d Angebote)", len(payload['offers']))
+    return jsonify({'token': token, 'url': _share_url(token),
+                    'expires_ts': expires, 'offers': len(payload['offers'])})
 
 
 @bp.route('/api/shares/<token>', methods=['DELETE'])

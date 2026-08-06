@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.78.0] - 2026-08-06
+
+### Added
+- **Öffentliche Links lassen sich bearbeiten** — „Bearbeiten" in der Liste
+  „🔗 Geteilte Links" öffnet die Zusammenstellung erneut: Angebote hinzufügen
+  oder entfernen, Titel, Notiz, Extras und Gültigkeit ändern. **Der Link bleibt
+  derselbe**, Aufrufzähler und Erstelldatum ebenfalls — bisher musste für jede
+  Änderung ein neuer Link erzeugt und verteilt werden.
+- Der Teilen-Dialog zeigt jetzt alle Angebote zum An- und Abhaken (vorher nur
+  die vorher markierten), damit sich beim Bearbeiten überhaupt etwas ergänzen
+  lässt.
+- **Rückfrage bei fehlendem Klima/Reiseführer** — sind sie zum Reiseziel noch
+  nicht gespeichert, fragt der Dialog vor dem Speichern, ob sie per KI erstellt
+  werden sollen, und zeigt den Fortschritt je Ziel. Wer ablehnt, bekommt den
+  Link ohne diese Abschnitte; ohne KI-Key kommt nur ein Hinweis. Vorher entstand
+  stillschweigend ein Link, in dem der angehakte Abschnitt schlicht fehlte.
+
 ## [0.77.0] - 2026-08-06
 
 ### Added

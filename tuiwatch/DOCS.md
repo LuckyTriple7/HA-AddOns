@@ -851,7 +851,17 @@ keine KI-Aufrufe, kein Zugriff auf den Rest der App.
 **So geht's:** Angebote in der Liste markieren → **🔗 Teilen** in der Auswahlleiste →
 Titel, Notiz und Extras wählen (Klimatabelle, Reiseführer, Preisverlauf, ein
 gespeichertes Reiseberater-Ergebnis) → Link erzeugen. Alle Links verwaltest du über
-**🔗 Geteilte Links** im Footer: Aufrufe, Gültigkeit verlängern, widerrufen.
+**🔗 Geteilte Links** im Footer: Aufrufe, Gültigkeit verlängern, bearbeiten, widerrufen.
+
+**Nachträglich ändern:** „Bearbeiten" öffnet die Zusammenstellung erneut — Angebote
+dazunehmen oder rauswerfen, Titel, Notiz, Extras und Gültigkeit ändern. **Der Link
+bleibt derselbe**, es muss also nichts neu verteilt werden; Aufrufzähler und
+Erstelldatum bleiben ebenfalls erhalten.
+
+**Fehlt Klima oder Reiseführer** zum Reiseziel, fragt der Dialog vor dem Speichern,
+ob er sie per KI erstellen soll (kostet KI-Aufrufe). Lehnst du ab, wird der Link
+ohne diese Abschnitte gespeichert. Ein Reiseberater-Ergebnis lässt sich nicht
+nachträglich erzeugen — das entsteht nur über den TripPilot-Fragebogen.
 
 **Preis und Verfügbarkeit sind live:** Beide werden bei jedem Aufruf frisch aus der
 Datenbank gelesen — der Link zeigt also immer den Stand der letzten Preisprüfung,

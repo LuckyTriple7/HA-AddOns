@@ -1092,53 +1092,120 @@
     $('#stats-bg').addEventListener('click', e=>{ if(e.target.id==='stats-bg') closeStats(); });
 
     // ── Öffentlich teilen (share_routes.py) ────────────────────────────────────
-    // Erzeugt einen Link auf den zweiten, öffentlichen Port. Der Inhalt wird
-    // serverseitig eingefroren — hier wird nur ausgewählt, was hineinkommt.
-    let _shrIds = [], _shrUrls = {};
+    // Erzeugt/ändert einen Link auf den zweiten, öffentlichen Port. Beim
+    // Bearbeiten bleibt der Token gleich — weitergegebene Links funktionieren
+    // weiter, auch wenn Angebote dazukommen oder rausfliegen.
+    let _shrUrls = {}, _shrEdit = null;
     function closeShare(){ $('#shr-bg').classList.remove('show'); }
     $('#shr-bg').addEventListener('click', e=>{ if(e.target.id==='shr-bg') closeShare(); });
 
-    async function openShareCreate(){
+    function openShareCreate(){
       if(!selected.size){ toast('Erst Angebote auswählen'); return; }
-      _shrIds = [...selected];
+      openShareDialog(null, [...selected]);
+    }
+
+    async function openShareDialog(token, preIds){
+      _shrEdit = token || null;
       $('#shr-bg').classList.add('show');
       $('#shr-body').innerHTML = '<div class="cmp-load">Lade…</div>';
-      const names = _shrIds.map(id=>{
-        const o = (curOffers||[]).find(x=>x.id===id) || {};
-        return '<li>'+esc(o.label || o.hotel || ('Angebot #'+id))+'</li>';
-      }).join('');
+      let cur = null;
+      if(token){
+        try { cur = await fetch(api('/api/shares/'+encodeURIComponent(token))).then(r=>r.json()); }
+        catch(e){ $('#shr-body').innerHTML = '<div class="cmp-load">Link konnte nicht geladen werden.</div>'; return; }
+        if(cur.error){ $('#shr-body').innerHTML = '<div class="cmp-load">Link existiert nicht mehr.</div>'; return; }
+      }
+      const chosen = new Set(cur ? cur.offer_ids : (preIds||[]));
       let adv = [];
       try {
         const h = await fetch(api('/api/ai/history')).then(r=>r.json());
         adv = (h.items||[]).filter(it=>it.kind==='advisor').slice(0,25);
       } catch(e){}
+      const inc = (cur && cur.include) || {climate:true, guide:false, history:false};
       const advSel = adv.length ? `<div class="shr-row">
           <label for="shr-adv">Reiseberater-Ergebnis</label>
           <select id="shr-adv"><option value="">— keins —</option>${
-            adv.map(a=>`<option value="${a.id}">${esc(a.title)} (${new Date(a.ts*1000).toLocaleDateString('de-DE')})</option>`).join('')}</select>
+            adv.map(a=>`<option value="${a.id}"${cur && String(cur.advisor_id)===String(a.id)?' selected':''}>${esc(a.title)} (${new Date(a.ts*1000).toLocaleDateString('de-DE')})</option>`).join('')}</select>
         </div>` : '<div class="hint">Kein gespeichertes Reiseberater-Ergebnis vorhanden.</div>';
+      // Vollständige Angebotsliste zum An-/Abwählen — beim Bearbeiten muss sich
+      // auch etwas hinzufügen lassen, das gerade nicht markiert ist.
+      const pick = (curOffers||[]).filter(o=>!o.archived).map(o=>
+        `<label class="shr-pick"><input type="checkbox" class="shr-off" value="${o.id}"${chosen.has(o.id)?' checked':''}>
+           <span>${esc(o.label || o.hotel || ('Angebot #'+o.id))}</span>
+           <span class="shr-pick-sub">${esc(o.location||'')}${o.price!=null?' · '+eur(o.price):''}</span></label>`).join('');
+      const emptyHint = (token && cur && !cur.offer_ids.length)
+        ? '<div class="hint">Dieser Link stammt aus einer älteren Version — bitte die Angebote einmal neu auswählen.</div>' : '';
       $('#shr-body').innerHTML = `
-        <ul class="gd-list" style="margin-bottom:10px">${names}</ul>
-        <div class="shr-row"><input type="text" id="shr-title" placeholder="Titel (z. B. „Unsere Auswahl für Herbst")" style="flex:1"></div>
-        <div class="shr-row"><textarea id="shr-note" rows="2" placeholder="Notiz für die Empfänger (optional)" style="flex:1"></textarea></div>
+        ${emptyHint}
+        <div class="shr-picks">${pick || '<div class="hint">Keine Angebote vorhanden.</div>'}</div>
+        <div class="shr-row"><input type="text" id="shr-title" placeholder="Titel (z. B. „Unsere Auswahl für Herbst")" style="flex:1" value="${esc(cur?cur.title:'')}"></div>
+        <div class="shr-row"><textarea id="shr-note" rows="2" placeholder="Notiz für die Empfänger (optional)" style="flex:1">${esc(cur?cur.note:'')}</textarea></div>
         <div class="shr-row">
-          <label><input type="checkbox" id="shr-clim" checked> Klimatabelle</label>
-          <label><input type="checkbox" id="shr-guide"> Reiseführer</label>
-          <label><input type="checkbox" id="shr-hist"> Preisverlauf</label>
+          <label><input type="checkbox" id="shr-clim"${inc.climate?' checked':''}> Klimatabelle</label>
+          <label><input type="checkbox" id="shr-guide"${inc.guide?' checked':''}> Reiseführer</label>
+          <label><input type="checkbox" id="shr-hist"${inc.history?' checked':''}> Preisverlauf</label>
         </div>
         ${advSel}
         <div class="shr-row">
           <label for="shr-days">Gültig für</label>
-          <input type="number" id="shr-days" value="30" min="1" max="365" style="width:80px"> Tage
+          <input type="number" id="shr-days" value="${cur?cur.days:30}" min="1" max="365" style="width:80px"> Tage
         </div>
-        <div class="shr-row"><button class="btn" onclick="createShare()">Link erzeugen</button></div>
-        <div class="hint">Klima und Reiseführer erscheinen nur, wenn sie zum Reiseziel schon gespeichert sind —
-          es wird nichts neu von der KI berechnet.</div>`;
+        <div class="shr-row"><button class="btn" onclick="saveShare()">${token?'Änderungen speichern':'Link erzeugen'}</button>
+          ${token?'<span class="hint">Der bestehende Link bleibt gültig.</span>':''}</div>
+        <div class="hint">Fehlen Klimatabelle oder Reiseführer zum Reiseziel, wird vor dem Speichern
+          gefragt, ob sie per KI erstellt werden sollen. Ein Reiseberater-Ergebnis entsteht nur
+          über den TripPilot-Fragebogen.</div>`;
     }
 
-    async function createShare(){
+    // Klima/Reiseführer landen nur im Link, wenn sie zum Reiseziel gespeichert sind.
+    // Fehlt etwas, hier nachfragen statt still einen Link ohne diese Abschnitte zu
+    // bauen — Erzeugen kostet KI-Aufrufe, deshalb nie ungefragt.
+    async function ensureShareExtras(ids, wantClim, wantGuide){
+      let d;
+      try {
+        d = await fetch(api('/api/shares/destinations'),
+                        {method:'POST', headers:{'Content-Type':'application/json'},
+                         body: JSON.stringify({offer_ids: ids})}).then(r=>r.json());
+      } catch(e){ return; }   // Netzfehler soll das Speichern nicht blockieren
+      const items = d.items || [];
+      const missClim = wantClim ? items.filter(i=>!i.has_climate) : [];
+      const missGuide = wantGuide ? items.filter(i=>!i.has_guide) : [];
+      if(!missClim.length && !missGuide.length) return;
+      const parts = [];
+      if(missClim.length) parts.push('Klimatabelle: ' + missClim.map(i=>i.label).join(', '));
+      if(missGuide.length) parts.push('Reiseführer: ' + missGuide.map(i=>i.label).join(', '));
+      if(!G.ai){
+        alert('Für diese Reiseziele fehlt noch:\n\n· ' + parts.join('\n· ') +
+              '\n\nOhne hinterlegten KI-API-Key lässt sich das nicht erzeugen — der Link ' +
+              'wird ohne diese Abschnitte gespeichert.');
+        return;
+      }
+      if(!confirm('Für diese Reiseziele fehlt noch:\n\n· ' + parts.join('\n· ') +
+                  '\n\nJetzt per KI erstellen? Das dauert je Eintrag einige Sekunden und ' +
+                  'kostet KI-Aufrufe.\n\nAbbrechen = Link ohne diese Abschnitte speichern.'))
+        return;
+      const jobs = missClim.map(i=>['/api/ai/climate', i, 'Klimatabelle'])
+                    .concat(missGuide.map(i=>['/api/ai/guide', i, 'Reiseführer']));
+      const box = $('#shr-body');
+      for(let n = 0; n < jobs.length; n++){
+        const [path, it, what] = jobs[n];
+        box.innerHTML = `<div class="cmp-load">${what} für ${esc(it.label)} wird erstellt…
+          (${n+1}/${jobs.length})</div>`;
+        try {
+          const r = await fetch(api(path), {method:'POST', headers:{'Content-Type':'application/json'},
+                                            body: JSON.stringify({giata: it.giata, label: it.label})})
+                          .then(r=>r.json());
+          if(r.error) toast(what + ' für ' + it.label + ' fehlgeschlagen');
+        } catch(e){ toast(what + ' für ' + it.label + ' fehlgeschlagen'); }
+      }
+    }
+
+    async function saveShare(){
+      const ids = [...document.querySelectorAll('.shr-off:checked')].map(c=>parseInt(c.value,10));
+      if(!ids.length){ toast('Mindestens ein Angebot auswählen'); return; }
+      // Formular zuerst auslesen: ensureShareExtras ersetzt für den Fortschritt den
+      // Dialoginhalt, danach gibt es die Eingabefelder nicht mehr.
       const body = {
-        offer_ids: _shrIds,
+        offer_ids: ids,
         title: $('#shr-title').value.trim(),
         note: $('#shr-note').value.trim(),
         include: { climate: $('#shr-clim').checked, guide: $('#shr-guide').checked,
@@ -1146,14 +1213,19 @@
         advisor_id: ($('#shr-adv')||{}).value || null,
         days: parseInt($('#shr-days').value, 10) || 30,
       };
+      if(body.include.climate || body.include.guide)
+        await ensureShareExtras(ids, body.include.climate, body.include.guide);
+      const editing = _shrEdit;
       let d;
       try {
-        d = await fetch(api('/api/shares'), {method:'POST', headers:{'Content-Type':'application/json'},
-                                             body: JSON.stringify(body)}).then(r=>r.json());
-      } catch(e){ toast('Link konnte nicht erzeugt werden'); return; }
-      if(!d || !d.token){ toast('Link konnte nicht erzeugt werden'); return; }
+        d = await fetch(api('/api/shares' + (editing ? '/'+encodeURIComponent(editing) : '')),
+                        {method: editing ? 'PATCH' : 'POST',
+                         headers:{'Content-Type':'application/json'},
+                         body: JSON.stringify(body)}).then(r=>r.json());
+      } catch(e){ toast('Speichern fehlgeschlagen'); return; }
+      if(!d || !d.token){ toast('Speichern fehlgeschlagen'); return; }
       const absolute = d.url.startsWith('http');
-      $('#shr-body').innerHTML = `<p>Fertig — dieser Link zeigt die Auswahl ohne Login:</p>
+      $('#shr-body').innerHTML = `<p>${editing?'Geändert — der Link bleibt derselbe:':'Fertig — dieser Link zeigt die Auswahl ohne Login:'}</p>
         <div class="shr-link">
           <input type="text" id="shr-url" readonly value="${esc(d.url)}">
           <button class="btn sec" onclick="copyShareLink()">Kopieren</button>
@@ -1197,6 +1269,7 @@
           <td class="${it.expired?'shr-exp':''}">${exp}</td>
           <td>
             <button class="btn sec" onclick="copyShareUrl('${esc(it.token)}')">Kopieren</button>
+            <button class="btn sec" onclick="openShareDialog('${esc(it.token)}')" title="Angebote hinzufügen oder entfernen — der Link bleibt derselbe">Bearbeiten</button>
             <button class="btn sec" onclick="extendShare('${esc(it.token)}')" title="Gültigkeit auf 30 Tage ab heute setzen">+30 T</button>
             <button class="btn danger" onclick="revokeShare('${esc(it.token)}')">Widerrufen</button>
           </td></tr>`;

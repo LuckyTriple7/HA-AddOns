@@ -223,6 +223,77 @@ def test_views_are_counted(public, admin, offer_id):
     assert item["token"] == tok and item["views"] == 2
 
 
+def test_edit_keeps_token_and_swaps_offers(m, public, admin, offer_id):
+    """Angebot austauschen, ohne dass Empfänger einen neuen Link brauchen."""
+    tok = _create(admin, offer_id)["token"]
+    public.get("/s/" + tok)          # ein Aufruf, muss erhalten bleiben
+    with m.db() as con:
+        second = con.execute(
+            "INSERT INTO offers (url, label, hotel, created) VALUES "
+            "('https://www.tui.com/pauschalreisen/angebote/Zweites/4712/','Zweitangebot',"
+            "'Hotel Zwei',?)", (int(time.time()),)).lastrowid
+
+    r = admin.patch("/api/shares/" + tok, json={"offer_ids": [second]})
+    assert r.status_code == 200 and r.get_json()["token"] == tok
+
+    body = public.get("/s/" + tok).get_data(as_text=True)
+    assert "Zweitangebot" in body and "Testangebot" not in body
+    item = admin.get("/api/shares").get_json()["items"][0]
+    assert item["token"] == tok and item["views"] == 2
+
+
+def test_edit_detail_prefills_current_state(admin, offer_id):
+    created = _create(admin, offer_id, include={"climate": True, "history": True},
+                      title="Titel", note="Notiz")
+    d = admin.get("/api/shares/" + created["token"]).get_json()
+    assert d["offer_ids"] == [offer_id]
+    assert d["title"] == "Titel" and d["note"] == "Notiz"
+    assert d["include"]["climate"] is True and d["include"]["history"] is True
+    assert d["include"]["guide"] is False
+    assert 1 <= d["days"] <= 31
+
+
+def test_edit_keeps_creation_date(m, admin, offer_id):
+    tok = _create(admin, offer_id)["token"]
+    with m.db() as con:
+        con.execute("UPDATE shares SET created_ts=? WHERE token=?", (1000, tok))
+    admin.patch("/api/shares/" + tok, json={"offer_ids": [offer_id]})
+    with m.db() as con:
+        row = con.execute("SELECT created_ts, payload FROM shares WHERE token=?",
+                          (tok,)).fetchone()
+    assert row["created_ts"] == 1000
+    assert json.loads(row["payload"])["created"] == 1000
+
+
+def test_edit_rejects_empty_selection(admin, offer_id):
+    tok = _create(admin, offer_id)["token"]
+    assert admin.patch("/api/shares/" + tok, json={"offer_ids": []}).status_code == 400
+    assert admin.patch("/api/shares/" + tok,
+                       json={"offer_ids": [9999]}).status_code == 400
+
+
+def test_destinations_report_missing_extras(m, admin, offer_id):
+    """Grundlage für die Rückfrage „Klimatabelle fehlt — jetzt erstellen?"."""
+    d = admin.post("/api/shares/destinations", json={"offer_ids": [offer_id]}).get_json()
+    assert d["items"] == [{"giata": 555, "label": "Spanien", "has_climate": True,
+                           "has_guide": True}]
+    with m.db() as con:
+        con.execute("DELETE FROM climate WHERE giata=555")
+    d = admin.post("/api/shares/destinations", json={"offer_ids": [offer_id]}).get_json()
+    assert d["items"][0]["has_climate"] is False
+    assert d["items"][0]["has_guide"] is True
+
+
+def test_destinations_needs_auth(m):
+    m.app.config["TESTING"] = True
+    assert m.app.test_client().post("/api/shares/destinations",
+                                    json={"offer_ids": [1]}).status_code == 401
+
+
+def test_detail_of_unknown_token_is_404(admin):
+    assert admin.get("/api/shares/" + "x" * 20).status_code == 404
+
+
 def test_patch_extends_validity(admin, offer_id):
     created = _create(admin, offer_id, days=1)
     r = admin.patch("/api/shares/" + created["token"], json={"days": 60})
