@@ -548,6 +548,11 @@ def api_search():
             return 0
     min_stars, min_recommend = _num('min_stars'), _num('min_recommend')
     max_price = _num('max_price')
+    # Sterne und Weiterempfehlung kann die Such-API selbst (Felder `category` und
+    # `recommendations`, siehe scraper._build_search_payload) — das spart bei
+    # preisaufsteigender Sortierung seitenweises Nachladen. Die Nachfilter unten
+    # bleiben als Netz, falls die API einen Wert einmal ignoriert.
+    min_category = int(min_stars) if 1 <= min_stars <= 5 else 0
 
     region = None
     offer_id = data.get('offer_id')
@@ -569,6 +574,8 @@ def api_search():
         res = A.fetch_search(url, operator_tui=operator_tui, boards=boards, region=region,
                            airlines=airlines, location=location, direct=direct,
                            adults_only=adults_only, transfer_included=transfer_included,
+                           min_category=min_category, min_recommend=min_recommend,
+                           max_price=max_price,
                            offset=offset, verbose=A._verbose())
     elif search_region:
         try:
@@ -615,6 +622,8 @@ def api_search():
                                   operator_tui=operator_tui, boards=boards,
                                   airlines=airlines, location=location, direct=direct,
                                   adults_only=adults_only, transfer_included=transfer_included,
+                                  min_category=min_category, min_recommend=min_recommend,
+                                  max_price=max_price,
                                   offset=offset, verbose=A._verbose())
     else:
         url = (data.get('url') or '').strip()
@@ -626,6 +635,8 @@ def api_search():
         res = A.fetch_search(url, operator_tui=operator_tui, boards=boards,
                            airlines=airlines, location=location, direct=direct,
                            adults_only=adults_only, transfer_included=transfer_included,
+                           min_category=min_category, min_recommend=min_recommend,
+                           max_price=max_price,
                            offset=offset, verbose=A._verbose())
     if res is None:
         return jsonify({'error': 'search_failed'}), 502
@@ -647,8 +658,13 @@ def api_search():
         r['tracked'] = str(r.get('giata')) in tracked
         out.append(r)
     A.log.info("Suche: %d Treffer, %d nach Filter", len(res['results']), len(out))
+    # `fetched` = von der Such-API gelieferte Treffer VOR den Nachfiltern. Nur damit
+    # kann „mehr laden" den nächsten Seitenanfang (resultsFrom) richtig berechnen —
+    # mit der Anzahl der angezeigten (gefilterten) Treffer würde die nächste Seite
+    # fast dieselben Hotels erneut holen und die Liste käme nicht voran.
     return jsonify({'results': out, 'total': res.get('total', len(out)),
-                    'matched': len(out), 'criteria': criteria})
+                    'matched': len(out), 'fetched': len(res['results']),
+                    'criteria': criteria})
 
 
 # ── Reiseziel-Index (globale Suche über alle Ebenen) ───────────────────────────

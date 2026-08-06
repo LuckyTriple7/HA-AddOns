@@ -1,5 +1,38 @@
 # Changelog
 
+## [0.81.0] - 2026-08-06
+
+### Changed
+- **Sterne, Weiterempfehlung und Höchstpreis gehen jetzt in die Such-Anfrage**
+  statt erst hinterher aussortiert zu werden. Die Such-API sortiert nach Preis
+  aufsteigend — in den ersten 50 Treffern stehen deshalb fast nur einfache
+  Hotels, und ein 4-Sterne-Filter ließ davon eine Handvoll übrig. Beispiel
+  (Kanaren, All Inclusive, ab STR, 9 Nächte, Transfer inklusive):
+  272 Treffer → 206 (ab 4 Sterne) → 135 (+ 80 % Weiterempfehlung) — genau die
+  Zahl, die tui.com für dieselben Filter anzeigt. Mit Preisdeckel 1.500 €
+  bleiben 8 übrig, alle darunter.
+  Die bisherigen Nachfilter bleiben als Netz erhalten.
+  Damit berücksichtigt die Suchmaske alle Optionen bereits serverseitig:
+  Nächte, Reisende, Airlines, Veranstalter, Transfer, Direktflug, nur
+  Erwachsene, Verpflegung, Lage — und nun auch Sterne, Weiterempfehlung und
+  Höchstpreis.
+
+### Fixed
+- **„Mehr laden" in der Hotelsuche brachte kaum neue Treffer** — als Startpunkt
+  der nächsten Seite wurde die Anzahl der **angezeigten** Treffer geschickt.
+  Sind Nachfilter aktiv (Sterne, Weiterempfehlung, Höchstpreis), sind das viel
+  weniger als die 50 tatsächlich abgeholten: die nächste Seite holte fast
+  dieselben Hotels erneut, es kam einer dazu, danach nichts mehr. Der Server
+  meldet jetzt mit, wie viele Angebote er wirklich durchsucht hat; danach
+  richtet sich der Seitenanfang. Beispiel (Kanaren, ab 4 Sterne, ab 80 %
+  Weiterempfehlung): 8 → 21 → 43 → 76 Treffer statt 8 → 9 → Stillstand.
+- **„Nachladen fehlgeschlagen" war irreführend**, wenn nur der eigene
+  3-Sekunden-Abstand zwischen zwei Suchen gegriffen hat (HTTP 429) — jetzt
+  steht dort, dass man kurz warten und erneut tippen soll.
+- Die Kopfzeile der Trefferliste zeigt jetzt „X Treffer · Y von Z Angeboten
+  durchsucht", damit der Unterschied zwischen gefundenen und gefilterten
+  Treffern sichtbar ist.
+
 ## [0.80.1] - 2026-08-06
 
 ### Fixed

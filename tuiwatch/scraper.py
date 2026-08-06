@@ -831,6 +831,36 @@ def _build_search_payload(p: dict, *, offset: int = 0) -> dict:
     }
     if p.get("direct"):           # nur Direktflug → max. 0 Zwischenstopps
         params["stopOver"] = 0
+    # Sterne und Weiterempfehlung gehören in die Anfrage, nicht in einen Nachfilter:
+    # die API sortiert nach Preis aufsteigend, in den ersten 50 Treffern stehen also
+    # fast nur einfache Hotels. Clientseitig gefiltert blieb davon eine Handvoll übrig
+    # und der Rest musste seitenweise nachgeladen werden.
+    #
+    # Beide Feldnamen stammen aus einem Mitschnitt der echten tui.com-Suche (dieselbe
+    # API, siehe SCRAPING.md): `category` als ZAHL = „ab n Sonnen" (Liste/String →
+    # HTTP 400), `recommendations` als Liste mit Vergleichsoperator. Live gegengeprüft
+    # gegen die Trefferzahl der Website: 272 → 206 (category=4) → 135 (+ 80 %
+    # Weiterempfehlung) — die Website zeigt für dieselben Filter exakt 135.
+    try:
+        cat = int(p.get("min_category") or 0)
+    except (TypeError, ValueError):
+        cat = 0
+    if 1 <= cat <= 5:
+        params["category"] = cat
+    try:
+        rec = float(p.get("min_recommend") or 0)
+    except (TypeError, ValueError):
+        rec = 0
+    if 0 < rec <= 100:
+        params["recommendations"] = [{"name": "recommendationsTotal",
+                                      "operator": "gt", "value": int(rec)}]
+    # Höchstpreis pro Person — ebenfalls aus dem Mitschnitt: schlichtes `maxPrice`.
+    try:
+        mx = float(p.get("max_price") or 0)
+    except (TypeError, ValueError):
+        mx = 0
+    if mx > 0:
+        params["maxPrice"] = int(mx)
     return {"parameters": params}
 
 
@@ -941,13 +971,17 @@ def fetch_search(url: str, *, operator_tui: bool = True, boards: list | None = N
                  region: int | None = None, airlines: list | None = None,
                  location: list | None = None,
                  direct: bool = False, adults_only: bool = False,
-                 transfer_included: bool = False,
+                 transfer_included: bool = False, min_category: int = 0,
+                 min_recommend: float = 0, max_price: float = 0,
                  offset: int = 0, verbose: bool = False) -> dict | None:
     """Hotelsuche aus einer TUI-Such-/Angebots-URL (`region` überschreibt die Region)."""
     params = _search_params_from_url(url, region=region, operator_tui=operator_tui,
                                      boards=boards, airlines=airlines, location=location,
                                      direct=direct, adults_only=adults_only,
                                      transfer_included=transfer_included)
+    params["min_category"] = min_category
+    params["min_recommend"] = min_recommend
+    params["max_price"] = max_price
     return _run_search(params, offset=offset, verbose=verbose)
 
 
@@ -956,7 +990,8 @@ def fetch_search_params(*, region: int, start: str, end: str, duration, travelle
                         boards: list | None = None, airlines: list | None = None,
                         location: list | None = None,
                         direct: bool = False, adults_only: bool = False,
-                        transfer_included: bool = False,
+                        transfer_included: bool = False, min_category: int = 0,
+                        min_recommend: float = 0, max_price: float = 0,
                         offset: int = 0, verbose: bool = False) -> dict | None:
     """Hotelsuche direkt aus Maskenfeldern (ohne URL) — für die eigene Suchmaske."""
     # „exact" ist ein nativer TUI-Wert (duration=exact): Reisedauer = genau der
@@ -983,6 +1018,8 @@ def fetch_search_params(*, region: int, start: str, end: str, duration, travelle
         "facility": [13] if adults_only else [],
         "regions": [int(region)] if region else [], "direct": bool(direct),
         "transfer_included": bool(transfer_included),
+        "min_category": min_category, "min_recommend": min_recommend,
+        "max_price": max_price,
     }
     return _run_search(params, offset=offset, verbose=verbose)
 

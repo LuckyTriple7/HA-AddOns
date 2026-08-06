@@ -942,6 +942,11 @@
 
     // ── Hotelsuche (Maske / URL / aus Angebot) ────────────────────────────────
     let srchResults = [], srchOfferId = null, srchDest = null, srchTotal = 0, srchFilter = '';
+    // Von der Such-API bereits abgeholte Treffer (VOR den Nachfiltern Sterne/
+    // Weiterempfehlung/Preis). „Mehr laden" muss hier weiterzählen, nicht bei den
+    // angezeigten Treffern — sonst holt die nächste Seite fast dieselben Hotels
+    // erneut und die Liste wächst nur um vereinzelte Nachzügler.
+    let srchFetched = 0;
     let srchLastBody = null;
     // Reisende/Abflughafen der Liste, die gerade angezeigt wird — kommt vom Server
     // (`criteria` der Suchantwort) und NICHT aus der Suchmaske: die kann inzwischen
@@ -2586,7 +2591,7 @@
     // Treffer eines Suchabos in der normalen Ergebnisliste anzeigen
     function showWatchHits(favId){
       const fav = srchFavs.find(x=>x.id===favId); if(!fav) return;
-      srchResults = fav.hits||[]; srchTotal = srchResults.length; srchFilter='';
+      srchResults = fav.hits||[]; srchTotal = srchResults.length; srchFetched = srchResults.length; srchFilter='';
       // Kriterien aus dem Abo selbst, nicht aus der Suchmaske — die Treffer stammen
       // aus dem gespeicherten Lauf und können ganz andere Parameter gehabt haben.
       const p = fav.payload || {};
@@ -3408,6 +3413,7 @@
       if(r.status===400){ $('#srch-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Keine gültige Eingabe.</div>'; return; }
       if(!r.ok){ $('#srch-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Suche fehlgeschlagen.</div>'; return; }
       srchResults = d.results||[]; srchTotal = d.total||srchResults.length; srchFilter = '';
+      srchFetched = (d.fetched!=null) ? d.fetched : srchResults.length;
       srchCriteria = d.criteria || null;
       // Klarnamen des Flughafens („Stuttgart (STR)") gibt es nur im Auswahlfeld —
       // der Server kennt bloß den IATA-Code.
@@ -3426,13 +3432,16 @@
     // Treffer erneut abgeschickt (resultsFrom serverseitig, siehe scraper.py).
     let srchLoadingMore = false;
     async function loadMoreSearch(){
-      if(srchLoadingMore || !srchLastBody || srchResults.length>=srchTotal) return;
+      if(srchLoadingMore || !srchLastBody || srchFetched>=srchTotal) return;
       srchLoadingMore = true;
       renderSearch();
-      const body = Object.assign({}, srchLastBody, {offset: srchResults.length});
+      const body = Object.assign({}, srchLastBody, {offset: srchFetched});
       let r, d;
       try { r = await fetch(api('/api/search'), {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)}); d = await r.json(); }
       catch(e){ srchLoadingMore = false; toast('Nachladen fehlgeschlagen.'); renderSearch(); return; }
+      // 429 = eigener Abstandshalter zwischen zwei Suchen (3 s) — das ist kein
+      // Fehler, sondern nur „zu schnell geklickt".
+      if(r.status===429){ srchLoadingMore = false; toast('Bitte kurz warten ('+(d.retry_after||3)+' s) und erneut auf „Mehr laden" tippen.'); renderSearch(); return; }
       if(!r.ok){ srchLoadingMore = false; toast(d.note || 'Nachladen fehlgeschlagen.'); renderSearch(); return; }
       const fresh = d.results || [];
       fresh.forEach(x=>{ x._key = String(x.giata||x.name); });
@@ -3441,6 +3450,7 @@
       const known = new Set(srchResults.map(x=>x._key));
       srchResults = srchResults.concat(fresh.filter(x=>!known.has(x._key)));
       srchTotal = d.total || srchTotal;
+      srchFetched += (d.fetched!=null) ? d.fetched : fresh.length;
       srchLoadingMore = false;
       sortSearchResults(); renderSearch();
     }
@@ -3525,7 +3535,7 @@
           <option value="stars"${srchSort==='stars'?' selected':''}>Sterne</option>
           <option value="value"${srchSort==='value'?' selected':''} title="60% Weiterempfehlung + 40% Preis/Nacht">Preis-Leistung</option>
         </select>`;
-      const head = `<div class="srch-head"><span><b id="srch-count">${srchResults.length}</b> Treffer${(srchTotal>srchResults.length)?(' (von '+srchTotal+' in der Region)'):''}</span>
+      const head = `<div class="srch-head"><span><b id="srch-count">${srchResults.length}</b> Treffer${(srchTotal>srchFetched)?(' · '+srchFetched+' von '+srchTotal+' Angeboten durchsucht'):((srchTotal>srchResults.length)?(' (von '+srchTotal+' durchsuchten)'):'')}</span>
          <input type="text" id="srch-filter" class="srch-listfilter" placeholder="In Treffern suchen…" autocomplete="off" oninput="filterSearch(this.value)" value="${esc(srchFilter)}">
          <span style="flex:1"></span>Sortieren: ${sortSel}
          <button class="btn sec" onclick="track3()" title="Günstigstes, mittleres und teuerstes Hotel aus den Treffern automatisch für den Preisverlauf tracken (keine Benachrichtigungen)">📊 3 tracken</button>
@@ -3537,8 +3547,8 @@
           <button class="btn" onclick="openAiCompare()">🤖 Vergleichen</button>
         </div>
         <div id="srch-rows"></div>
-        ${(srchResults.length<srchTotal)?`<div class="srch-more">
-          <button class="btn sec" onclick="loadMoreSearch()" ${srchLoadingMore?'disabled':''}>${srchLoadingMore?'Lädt…':('Mehr laden ('+(srchTotal-srchResults.length)+' weitere)')}</button>
+        ${(srchFetched<srchTotal)?`<div class="srch-more">
+          <button class="btn sec" onclick="loadMoreSearch()" ${srchLoadingMore?'disabled':''}>${srchLoadingMore?'Lädt…':('Mehr laden ('+(srchTotal-srchFetched)+' weitere durchsuchen)')}</button>
         </div>`:''}`;
       $('#srch-body').innerHTML = head;
       renderSearchRows();
