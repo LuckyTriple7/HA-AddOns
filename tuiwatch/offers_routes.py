@@ -182,6 +182,23 @@ def api_update_offer(offer_id: int):
                         (1 if data.get('notify_calendar_muted') else 0, offer_id))
             A.log.info("Angebot #%d Kalender-Benachrichtigungen %s", offer_id,
                      "stummgeschaltet" if data.get('notify_calendar_muted') else "aktiviert")
+        if 'is_foreign' in data:
+            # „Fremd" = Angebot ist nicht für den Nutzer selbst (Vorschlag für
+            # andere). Getrackt wird weiter wie bisher; nur beide Glocken gehen
+            # aus, damit fremde Reisen nicht mehr melden.
+            fr = 1 if data.get('is_foreign') else 0
+            con.execute('UPDATE offers SET is_foreign=? WHERE id=?', (fr, offer_id))
+            if fr:
+                con.execute('UPDATE offers SET notify_muted=1, notify_calendar_muted=1 '
+                            'WHERE id=?', (offer_id,))
+            # Beim Zurücknehmen bleiben die Glocken bewusst stumm: sie wieder
+            # einzuschalten würde eine womöglich absichtliche Stummschaltung
+            # überschreiben. Einschalten geht jederzeit über die Glocken selbst.
+            # Kein _log_event: die Marker im Verlaufsdiagramm sollen Preisereignisse
+            # zeigen, eine Sortier-/Anzeigeeinstellung gehört dort nicht hin.
+            A.log.info("Angebot #%d %s", offer_id,
+                       "als fremd markiert (Benachrichtigungen aus)" if fr
+                       else "nicht mehr als fremd markiert")
         if 'transfer_included' in data:
             # Manche Hotels (Selbstanreise-Regionen) bieten kein Transfer-Paket — dort
             # liefert die Offer-API bei transferIncluded=true 0 Treffer/Zimmer, obwohl

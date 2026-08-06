@@ -73,6 +73,14 @@
     .offer { background:var(--surf); border:1px solid var(--border); border-radius:8px; padding:14px 16px; margin-bottom:14px; }
     .offer.paused { opacity:.65; }
     .offer.archived { opacity:.78; border-style:dashed; }
+    /* „Für andere": eigener Block am Listenende, standardmäßig eingeklappt. Der
+       Akzentstreifen macht die Gruppe auch beim Scrollen ohne Überschrift kenntlich. */
+    .offer.foreign { border-left:3px solid var(--muted); }
+    .offer.collapsed { padding:10px 16px; margin-bottom:10px; }
+    .offer.collapsed .offer-top { align-items:center; }
+    .offer.collapsed .price-now { font-size:1.35rem; }
+    .foreign-toggle { font-size:.95rem; }
+    .icon-btn.foreign-on { color:var(--accent); }
     .paused-badge { color:var(--amber); font-weight:700; }
     .archived-badge { color:var(--muted); font-weight:700; }
     .arch-head { font-size:.95rem; font-weight:700; color:var(--muted); margin:22px 0 10px; padding-top:6px; border-top:1px solid var(--border); }
@@ -706,6 +714,7 @@
       <button class="btn sec ai-feature" onclick="openAiCompareOffers()" title="Ausgewählte Angebote per KI vergleichen (max. 5)">🤖 Vergleichen</button>
       <button class="btn sec ai-feature" onclick="autoTagSelected()" title="Passende Tags automatisch per KI vergeben (ergänzt bestehende Tags)">🤖 Auto-Tag</button>
       <button class="btn sec share-feature" onclick="openShareCreate()" title="Öffentlichen Link zum Anschauen erzeugen (ohne Login, nur Ansicht)">🔗 Teilen</button>
+      <button class="btn sec" onclick="bulkForeign()" title="Als „für andere" markieren: eingeklappt ans Listenende, keine Benachrichtigungen">👥 Für andere</button>
       <button class="btn sec" onclick="bulkClear()" style="margin-left:auto">Auswahl aufheben</button>
     </div>
     <div id="offers"></div>

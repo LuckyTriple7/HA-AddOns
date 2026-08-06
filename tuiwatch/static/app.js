@@ -64,6 +64,27 @@
     let showHistOnly = localStorage.getItem('tw-show-histonly')==='1';
     let sortMode = localStorage.getItem('tw-sort') || 'added';
 
+    // Aufgeklappte fremde Angebote. In localStorage, damit weder das periodische
+    // Neurendern (loadOffers alle 5 s) noch ein Reload die Karte wieder zuklappt.
+    let openForeign = new Set();
+    try { openForeign = new Set(JSON.parse(localStorage.getItem('tw-foreign-open')||'[]')); } catch(e){}
+    function foreignOpen(o){ return openForeign.has(o.id); }
+    function toggleForeignOpen(id){
+      if(openForeign.has(id)) openForeign.delete(id); else openForeign.add(id);
+      try { localStorage.setItem('tw-foreign-open', JSON.stringify([...openForeign])); } catch(e){}
+      lastSig = null; renderAll(curOffers||[]);
+    }
+    // „Fremd" = Angebot ist nicht für mich (Vorschlag für andere). Der Server
+    // schaltet dabei beide Glocken stumm; Einschalten bleibt manuell möglich.
+    async function toggleForeign(id, cur){
+      try {
+        await fetch(api('/api/offers/'+id), {method:'PATCH', headers:{'Content-Type':'application/json'},
+                                             body: JSON.stringify({is_foreign: !cur})});
+      } catch(e){ toast('Änderung fehlgeschlagen'); return; }
+      toast(cur ? 'Markierung „fremd" entfernt' : 'Als fremd markiert — Benachrichtigungen aus');
+      lastSig = null; loadOffers();
+    }
+
     function startDateOf(o){ const s=urlParam(o.url,'startDate'); return /^\d{4}-\d{2}-\d{2}/.test(s)?s:''; }
     function sortOffers(list){
       const arr = list.slice();
@@ -177,10 +198,18 @@
         html = hist.length ? hist.map(offerCard).join('')
           : '<div class="empty">Keine Angebote im Preisverlauf-Tracking.</div>';
       } else {
-        const active = sortOffers(list2.filter(o=>!o.archived && !o.history_only));
+        // Fremde Angebote (nicht für mich) stehen immer am Ende — unabhängig von
+        // der gewählten Sortierung, die innerhalb der beiden Blöcke gilt.
+        const activeAll = list2.filter(o=>!o.archived && !o.history_only);
+        const active = sortOffers(activeAll.filter(o=>!o.is_foreign));
+        const foreign = sortOffers(activeAll.filter(o=>o.is_foreign));
         const arch = sortOffers(list2.filter(o=>o.archived));
         html = active.map(offerCard).join('');
-        if(!active.length && arch.length && !showArchived){
+        if(foreign.length){
+          html += `<div class="arch-head">👥 Für andere (${foreign.length}) — keine Benachrichtigungen</div>`
+            + foreign.map(offerCard).join('');
+        }
+        if(!active.length && !foreign.length && arch.length && !showArchived){
           html = `<div class="empty">Keine aktiven Angebote — ${arch.length} im Archiv. „Archiv" oben einblenden.</div>`;
         }
         if(showArchived && arch.length){
@@ -220,6 +249,11 @@
     function bulkDelete(){
       if(!confirm(selected.size+' Angebot(e) inklusive Verlauf unwiderruflich löschen?')) return;
       bulkRun(id=>fetch(api('/api/offers/'+id),{method:'DELETE'}), ids_msg('werden gelöscht…'));
+    }
+    function bulkForeign(){
+      if(!confirm(selected.size+' Angebot(e) als „für andere" markieren? Sie rutschen eingeklappt '
+                  + 'ans Listenende, Benachrichtigungen und Kalender-Meldungen werden stummgeschaltet.')) return;
+      bulkRun(id=>fetch(api('/api/offers/'+id),{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({is_foreign:true})}), ids_msg('werden als fremd markiert…'));
     }
     function ids_msg(t){ return selected.size+' Angebot(e) '+t; }
     async function bulkEmail(){
@@ -347,6 +381,32 @@
             <input type="number" id="tgt-${o.id}" placeholder="z. B. 1800" value="${tgt}" onkeydown="if(event.key==='Enter')setTarget(${o.id})">
             <button class="btn sec" onclick="setTarget(${o.id})">setzen</button></div>`;
         const bk = o.booked_price!=null ? Math.round(o.booked_price) : '';
+        // Fremdes Angebot (nicht für mich): Kopf der Karte + Preis, sonst nichts.
+        // Aufgebaut aus denselben Bausteinen wie die volle Karte, damit beide
+        // Darstellungen nicht auseinanderlaufen.
+        const labelRow = `<div class="offer-label"><input type="checkbox" class="bulk-check" ${selected.has(o.id)?'checked':''} onclick="bulkToggle(${o.id}, this.checked)" title="Für Sammelaktion auswählen"> ${esc(title)} <button class="rename-btn" onclick="renameOffer(${o.id})" title="Umbenennen">✎</button>${
+          o.is_foreign?`<button class="rename-btn foreign-toggle" onclick="toggleForeignOpen(${o.id})" title="${foreignOpen(o)?'Einklappen':'Aufklappen'}">${foreignOpen(o)?'▴':'▾'}</button>`:''}<span class="tag-row card-tags inline">${(o.tags||[]).map(t =>
+            `<span class="tag-pill" onclick="removeTag(${o.id}, '${esc(t)}')" title="Entfernen">${esc(t)} ×</span>`
+          ).join('')}<span class="tag-pill add" onclick="addTag(${o.id})" title="Tag hinzufügen">＋</span></span></div>`;
+        const locRow = o.location?`<a class="offer-loc" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(((o.hotel||o.label||'')+' '+o.location).trim())}" target="_blank" rel="noopener" title="In Google Maps öffnen">📍 ${esc(o.location)} ↗</a>`:'';
+        const bellBtn = o.archived?'':`<button class="icon-btn notify-bell" onclick="toggleNotifyMuted(${o.id}, ${!!o.notify_muted})" title="${o.notify_muted?'Benachrichtigungen (HA/Telegram) stummgeschaltet – klicken zum Aktivieren':'Benachrichtigungen (HA/Telegram) aktiv – klicken zum Stummschalten'}">${o.notify_muted?'🔕':'🔔'}</button>`;
+        if(o.is_foreign && !foreignOpen(o)){
+          return `<div class="offer foreign collapsed${o.paused?' paused':''}${o.archived?' archived':''}" data-id="${o.id}">
+            <div class="offer-top">
+              <div class="offer-main">
+                ${labelRow}
+                ${locRow}
+                ${sub?`<div class="offer-details">${esc(sub)}</div>`:''}
+              </div>
+              <div class="price-box">
+                ${bellBtn}
+                <div class="price-now">${priceNow}</div>
+                <div class="price-pp">pro Person</div>
+                ${priceSub?`<div class="price-sub">${priceSub}</div>`:''}
+              </div>
+            </div>
+          </div>`;
+        }
         const bkLabel = o.booked_price!=null ? `<span class="booked-set">📌 Gebucht für ${eur(o.booked_price)}</span>` : '📌 Gebuchter Preis:';
         const bookedRow = `<div class="target-row booked-row">${bkLabel}
             <input type="number" id="book-${o.id}" placeholder="z. B. 1750" value="${bk}" onkeydown="if(event.key==='Enter')setBooked(${o.id})">
@@ -358,13 +418,11 @@
           else if(d>0) bookedSince = `<span class="booked-since up" title="seit deiner Buchung">📌 +${eur(d)} seit Buchung</span>`;
           else bookedSince = `<span class="booked-since flat" title="seit deiner Buchung">📌 wie gebucht</span>`;
         }
-        return `<div class="offer${o.paused?' paused':''}${o.archived?' archived':''}" data-id="${o.id}">
+        return `<div class="offer${o.is_foreign?' foreign':''}${o.paused?' paused':''}${o.archived?' archived':''}" data-id="${o.id}">
           <div class="offer-top">
             <div class="offer-main">
-              <div class="offer-label"><input type="checkbox" class="bulk-check" ${selected.has(o.id)?'checked':''} onclick="bulkToggle(${o.id}, this.checked)" title="Für Sammelaktion auswählen"> ${esc(title)} <button class="rename-btn" onclick="renameOffer(${o.id})" title="Umbenennen">✎</button><span class="tag-row card-tags inline">${(o.tags||[]).map(t =>
-                `<span class="tag-pill" onclick="removeTag(${o.id}, '${esc(t)}')" title="Entfernen">${esc(t)} ×</span>`
-              ).join('')}<span class="tag-pill add" onclick="addTag(${o.id})" title="Tag hinzufügen">＋</span></span></div>
-              ${o.location?`<a class="offer-loc" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(((o.hotel||o.label||'')+' '+o.location).trim())}" target="_blank" rel="noopener" title="In Google Maps öffnen">📍 ${esc(o.location)} ↗</a>`:''}
+              ${labelRow}
+              ${locRow}
               ${sub?`<div class="offer-details">${esc(sub)}</div>`:''}
               ${metaLine}
               ${flights}
@@ -374,7 +432,7 @@
               ${o.ok===false?`<div class="err-note">⚠ ${esc(o.note||'Preis konnte nicht gelesen werden')}</div>`:''}
             </div>
             <div class="price-box">
-              ${o.archived?'':`<button class="icon-btn notify-bell" onclick="toggleNotifyMuted(${o.id}, ${!!o.notify_muted})" title="${o.notify_muted?'Benachrichtigungen (HA/Telegram) stummgeschaltet – klicken zum Aktivieren':'Benachrichtigungen (HA/Telegram) aktiv – klicken zum Stummschalten'}">${o.notify_muted?'🔕':'🔔'}</button>`}
+              ${bellBtn}
               <div class="price-now${(!o.archived&&G.check24)?' check24-feature check24-trigger':''}"${o.checking&&hasPrice?' style="opacity:.5"':''}${o.archived?'':` oncontextmenu="return openPriceSplit(${o.id})"`}${(!o.archived&&G.check24)?` onclick="${o.check24_linked?`openCheck24(${o.id})`:`linkCheck24(${o.id})`}" title="Preisvergleich über Check24 (andere Reiseveranstalter) · Rechtsklick: Preis-Aufschlüsselung Hotel/Flug"`:(o.archived?'':' title="Rechtsklick: Preis-Aufschlüsselung Hotel/Flug"')}>${priceNow}</div>
               <div class="price-pp">pro Person</div>
               ${priceSub?`<div class="price-sub">${priceSub}</div>`:''}
@@ -423,6 +481,9 @@
                  <button class="icon-btn" onclick="archiveOffer(${o.id})" title="Archivieren: ins Archiv legen — keine Live-Abfragen mehr">
                    <svg viewBox="0 0 24 24"><path d="M20.54 5.23l-1.39-1.68A1.45 1.45 0 0 0 18 3H6c-.47 0-.88.21-1.16.55L3.46 5.23A2 2 0 0 0 3 6.5V19a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6.5c0-.48-.17-.93-.46-1.27zM12 17.5L6.5 12H10v-2h4v2h3.5L12 17.5zM5.12 5l.81-1h12l.94 1H5.12z"/></svg>
                  </button>
+                 <button class="icon-btn${o.is_foreign?' foreign-on':''}" onclick="toggleForeign(${o.id}, ${!!o.is_foreign})" title="${o.is_foreign
+                    ? 'Nicht mehr als „für andere" führen — Angebot wandert zurück in die normale Liste (Benachrichtigungen bleiben stumm, bis du sie einschaltest)'
+                    : 'Als „für andere" markieren: rutscht eingeklappt ans Listenende, Benachrichtigungen und Kalender-Meldungen werden stummgeschaltet'}">👥</button>
                  <button class="icon-btn" onclick="resetOffer(${o.id})" title="Zurücksetzen: Verlauf löschen und neu bei null beginnen">
                    <svg viewBox="0 0 24 24"><path d="M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
                  </button>

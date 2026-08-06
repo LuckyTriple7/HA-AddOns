@@ -89,7 +89,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.79.1"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.80.0"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -365,6 +365,11 @@ def init_db() -> None:
             check24_link     TEXT DEFAULT '',
             notify_muted          INTEGER NOT NULL DEFAULT 0,
             notify_calendar_muted INTEGER NOT NULL DEFAULT 0,
+            -- Angebot ist nicht für den Nutzer selbst, sondern ein Vorschlag für
+            -- andere (siehe Teilen-Funktion): rutscht in der Liste ans Ende und
+            -- wird dort eingeklappt gezeigt. `is_foreign` statt `foreign`, weil
+            -- FOREIGN ein SQL-Schlüsselwort ist.
+            is_foreign            INTEGER NOT NULL DEFAULT 0,
             created     INTEGER NOT NULL
         )''')
         con.execute('''CREATE TABLE IF NOT EXISTS price_history (
@@ -616,6 +621,8 @@ def init_db() -> None:
             con.execute("ALTER TABLE offers ADD COLUMN notify_muted INTEGER NOT NULL DEFAULT 0")
         if 'notify_calendar_muted' not in ocols:
             con.execute("ALTER TABLE offers ADD COLUMN notify_calendar_muted INTEGER NOT NULL DEFAULT 0")
+        if 'is_foreign' not in ocols:
+            con.execute("ALTER TABLE offers ADD COLUMN is_foreign INTEGER NOT NULL DEFAULT 0")
         # vacancy-check (v0.69.0): Gepäck/Zahlungskonditionen einmalig je Angebot,
         # "zuletzt gebucht" je Poll aktualisiert
         for col in ('luggage', 'last_booked', 'final_payment_date',
@@ -2801,6 +2808,7 @@ def _collect_offers() -> list[dict]:
                 'archived': bool(o['archived']),
                 'notify_muted': bool(o['notify_muted']),
                 'notify_calendar_muted': bool(o['notify_calendar_muted']),
+                'is_foreign': bool(o['is_foreign']),
                 'history_only': bool(o['history_only']),
                 'return_date': o['return_date'] or '',
                 'tags': (_json_loads_safe(o['tags'], []) if o['tags'] else []),

@@ -740,6 +740,21 @@ landen dauerhaft im **KI-Verlauf**.
 
 ## Bedienung
 
+- **👥 Für andere** — Angebote, die nicht für dich selbst sind (z. B. Vorschläge, die
+  du über einen öffentlichen Link weitergibst). Das 👥-Symbol in der Knopfleiste einer
+  Karte markiert sie; für mehrere auf einmal gibt es „👥 Für andere" in der
+  Auswahlleiste. Solche Angebote
+  - rutschen unter die Überschrift **„👥 Für andere"** ans Listenende (innerhalb der
+    beiden Blöcke gilt weiter die gewählte Sortierung),
+  - werden **eingeklappt** gezeigt: Titel, Tags, Ort, Reisedaten und Preis — Klick auf
+    ▾ klappt die volle Karte auf, der Zustand bleibt auch nach einem Neuladen erhalten,
+  - bekommen beim Markieren **Benachrichtigungen und Kalender-Meldungen
+    stummgeschaltet**. Einschalten geht jederzeit über die Glocken (🔔 auf der Karte,
+    Glocke im Preiskalender); das Zurücknehmen der Markierung schaltet sie
+    absichtlich **nicht** von selbst wieder ein.
+
+  Alles andere bleibt unverändert: Preisprüfung, Preisverlauf, Preiskalender, Tags,
+  Wunschpreis, Überblick, HA-Sensoren und die Teilen-Funktion.
 - **Tags** — frei vergebbare Schlagworte je Angebot (＋-Pille auf der Karte); Klick auf
   einen Tag entfernt ihn wieder. Unter der Suchleiste zeigt eine Pill-Zeile alle
   aktuell verwendeten Tags — Klick filtert die Liste sofort (wie die Suche, live, kein

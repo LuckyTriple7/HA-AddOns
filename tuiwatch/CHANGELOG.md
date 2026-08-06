@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.80.0] - 2026-08-06
+
+### Added
+- **Angebote als „für andere" markieren (👥)** — für Reisen, die nicht für einen
+  selbst sind. Sie rutschen unter eine eigene Überschrift ans Listenende und
+  werden dort **eingeklappt** gezeigt (Titel, Tags, Ort, Reisedaten, Preis);
+  ▾ klappt die volle Karte auf, der Zustand überlebt das Neuladen.
+  Beim Markieren werden **Benachrichtigungen und Kalender-Meldungen
+  stummgeschaltet** — einschalten geht jederzeit über die Glocken, das
+  Zurücknehmen der Markierung tut es bewusst nicht von selbst.
+  Markieren über das 👥-Symbol auf der Karte oder „👥 Für andere" in der
+  Auswahlleiste für mehrere auf einmal.
+  Preisprüfung, Verlauf, Kalender, Tags, Wunschpreis, Überblick, HA-Sensoren und
+  die Teilen-Funktion bleiben unverändert.
+
 ## [0.79.1] - 2026-08-06
 
 ### Fixed
