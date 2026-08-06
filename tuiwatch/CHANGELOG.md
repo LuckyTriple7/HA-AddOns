@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.80.1] - 2026-08-06
+
+### Fixed
+- **Klima- und Reiseführer-Fenster hingen dauerhaft bei „Lade…"** — wurde das
+  Fenster bei offener Prompt-Vorschau (Option „KI-Prompt vor dem Senden
+  anzeigen") geschlossen, blieb das Versprechen hinter der Vorschau für immer
+  offen. Damit stand die interne „läuft gerade"-Sperre bis zum Neuladen der
+  Seite auf true und jedes weitere Öffnen zeigte nur den Ladebalken — ohne
+  Fehlermeldung in der Konsole. Schließen bricht die Vorschau jetzt sauber ab.
+- Läuft tatsächlich schon ein Abruf (z. B. das Vorabladen der Klimatabelle nach
+  einer Suche), steht das jetzt im Fenster, statt den Ladebalken stumm stehen
+  zu lassen.
+
 ## [0.80.0] - 2026-08-06
 
 ### Added

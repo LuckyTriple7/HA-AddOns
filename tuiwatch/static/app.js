@@ -2674,6 +2674,9 @@
                        'September','Oktober','November','Dezember'];
     let climateData = null;      // zuletzt geladene Tabelle {giata,label,ts,model,data}
     let climateBusy = false;
+    // Offene Prompt-Vorschau: wird beim Schließen des Fensters aufgelöst (siehe
+    // closeClimate). Ohne das hing der Ladebalken bis zum Neuladen der Seite.
+    let _climatePreviewClose = null;
 
     function aiEnabled(){ return !document.body.classList.contains('ai-disabled'); }
 
@@ -2726,8 +2729,13 @@
               $('#climate-body').innerHTML =
                 '<div class="hint" style="margin:4px 0 6px">📝 Prompt vor dem Senden prüfen/bearbeiten:</div>'
                 + promptPreviewBoxHtml(promptText);
-              $('#ai-pp-cancel').onclick = () => resolve(null);
-              $('#ai-pp-send').onclick = () => resolve($('#ai-pp-ta').value);
+              // Auch das Schließen des Fensters muss dieses Promise auflösen —
+              // sonst bliebe climateBusy für immer true und jedes weitere Öffnen
+              // hinge bei „Lade…" bis zum Neuladen der Seite.
+              const done = v => { _climatePreviewClose = null; resolve(v); };
+              _climatePreviewClose = () => done(null);
+              $('#ai-pp-cancel').onclick = () => done(null);
+              $('#ai-pp-send').onclick = () => done($('#ai-pp-ta').value);
             }),
             () => { $('#climate-body').innerHTML = progBar(busy); });
           if(rp.cancelled){
@@ -2964,10 +2972,21 @@
       $('#climate-stand').textContent = '';
       const d = await fetchClimate(giata, label);
       if(d) renderClimate(d);
+      // Läuft bereits ein Abruf (z. B. das Vorabladen nach einer Suche), kam
+      // `null` zurück, ohne dass etwas gerendert wurde — dann muss hier etwas
+      // stehen statt eines ewigen Ladebalkens.
+      else if(climateBusy) $('#climate-body').innerHTML =
+        '<div class="cmp-load">Die Klimatabelle wird gerade schon geladen — Fenster kurz schließen und gleich noch einmal öffnen.</div>';
       else if(!aiEnabled()) $('#climate-body').innerHTML =
         '<div class="cmp-load">Für dieses Ziel ist noch keine Klimatabelle gespeichert — sie wird von der KI erstellt, dafür muss ein KI-Key hinterlegt sein.</div>';
     }
-    function closeClimate(){ $('#climate-bg').classList.remove('show'); }
+    function closeClimate(){
+      // Eine noch offene Prompt-Vorschau abbrechen — sonst bleibt das Promise
+      // dahinter für immer offen, climateBusy steht weiter auf true und jedes
+      // spätere Öffnen zeigt nur „Lade…" (bis v0.80.1 nur per Neuladen lösbar).
+      if(_climatePreviewClose) _climatePreviewClose();
+      $('#climate-bg').classList.remove('show');
+    }
     $('#climate-bg').addEventListener('click', e=>{ if(e.target.id==='climate-bg') closeClimate(); });
     async function refreshClimate(){
       if(!climateTarget){ toast('Kein Reiseziel gewählt'); return; }
@@ -2993,6 +3012,7 @@
     let guideData = null;        // {giata,label,ts,model,data,climate}
     let guideTarget = null;
     let guideBusy = false;
+    let _guidePreviewClose = null;   // siehe _climatePreviewClose
 
     // Grüner Rahmen am „Reiseführer"-Knopf, wenn zu diesem Ziel schon einer
     // gespeichert ist: sonst sieht man einem Angebot nicht an, ob der Klick nur
@@ -3045,8 +3065,11 @@
             $('#guide-body').innerHTML =
               '<div class="hint" style="margin:4px 0 6px">📝 Prompt vor dem Senden prüfen/bearbeiten:</div>'
               + promptPreviewBoxHtml(promptText);
-            $('#ai-pp-cancel').onclick = () => resolve(null);
-            $('#ai-pp-send').onclick = () => resolve($('#ai-pp-ta').value);
+            // Siehe fetchClimate: Schließen muss auflösen, sonst bleibt guideBusy hängen.
+            const done = v => { _guidePreviewClose = null; resolve(v); };
+            _guidePreviewClose = () => done(null);
+            $('#ai-pp-cancel').onclick = () => done(null);
+            $('#ai-pp-send').onclick = () => done($('#ai-pp-ta').value);
           }),
           () => { $('#guide-body').innerHTML = progBar(busy); });
         if(rp.cancelled){
@@ -3192,6 +3215,8 @@
       $('#guide-stand').textContent = '';
       const d = await fetchGuide(giata, label);
       if(d) renderGuide(d);
+      else if(guideBusy) $('#guide-body').innerHTML =
+        '<div class="cmp-load">Der Reiseführer wird gerade schon erstellt — Fenster kurz schließen und gleich noch einmal öffnen.</div>';
       else if(!aiEnabled()) $('#guide-body').innerHTML =
         '<div class="cmp-load">Für dieses Ziel ist noch kein Reiseführer gespeichert — er wird von der KI erstellt, dafür muss ein KI-Key hinterlegt sein.</div>';
     }
@@ -3204,7 +3229,10 @@
       if(!d || !d.giata){ toast(d && d.note ? d.note : 'Reiseziel konnte nicht ermittelt werden'); return; }
       openGuide(d.giata, d.label);
     }
-    function closeGuide(){ $('#guide-bg').classList.remove('show'); }
+    function closeGuide(){
+      if(_guidePreviewClose) _guidePreviewClose();   // siehe closeClimate
+      $('#guide-bg').classList.remove('show');
+    }
     $('#guide-bg').addEventListener('click', e=>{ if(e.target.id==='guide-bg') closeGuide(); });
     async function refreshGuide(){
       if(!guideTarget){ toast('Kein Reiseziel gewählt'); return; }
