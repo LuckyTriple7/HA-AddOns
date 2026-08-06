@@ -705,13 +705,17 @@ def offer_region_giata(offer_id: int) -> tuple:
     """Region-giataId + Klarname zu einem Angebot — `(None, '')`, wenn unbekannt.
 
     Klimatabelle und Reiseführer hängen beide an der Region-giataId, das Angebot
-    kennt aber nur die Hotel-giataId — die Region steckt in der Breadcrumb-API
+    kennt aber nur die Hotel-giataId — die Region kommt aus der Breadcrumb-API
     (derselbe Weg wie beim „Region"-Knopf). Die Auflösung ist ein zusätzlicher
     Fremdaufruf und pro Hotel unveränderlich, deshalb im Prozess gemerkt.
 
-    Steht die Region-giataId schon in der Angebots-URL (`regionGiataIds=`), wird
-    nichts nachgeschlagen. Auch von share_routes genutzt (Klima/Reiseführer im
-    öffentlichen Angebots-Link)."""
+    `regionGiataIds=` aus der Angebots-URL ist nur der **Notnagel**, nicht die
+    erste Wahl: dort steht die Region, in der gesucht wurde — und die kann viel
+    gröber sein als die Insel des Hotels. Zwei Malediven-Hotels aus einer
+    Landessuche trugen so beide `regionGiataIds=100020` („Malediven") und teilten
+    sich damit Klimatabelle und Reiseführer, obwohl sie auf verschiedenen Atollen
+    liegen (Breadcrumb: 1139 Addu vs. 1151 Nord Male). Auch von share_routes
+    genutzt (Klima/Reiseführer im öffentlichen Angebots-Link)."""
     with A.db() as con:
         o = con.execute('SELECT url, region, country FROM offers WHERE id=?',
                         (offer_id,)).fetchone()
@@ -719,17 +723,18 @@ def offer_region_giata(offer_id: int) -> tuple:
         return None, ''
     label = (o['region'] or o['country'] or '').strip()
     region = None
-    for val in parse_qsl(urlparse(o['url']).query):
-        if val[0] == 'regionGiataIds' and str(val[1]).strip().isdigit():
-            region = int(str(val[1]).strip())
-            break
-    if region is None:
-        hotel_giata = A._giata_from_url(o['url'])
+    hotel_giata = A._giata_from_url(o['url'])
+    if hotel_giata:
         if hotel_giata in _offer_dest_cache:
             region = _offer_dest_cache[hotel_giata]
         else:
             region = A.region_giata_from_breadcrumb(hotel_giata)
             _offer_dest_cache[hotel_giata] = region
+    if region is None:
+        for val in parse_qsl(urlparse(o['url']).query):
+            if val[0] == 'regionGiataIds' and str(val[1]).strip().isdigit():
+                region = int(str(val[1]).strip())
+                break
     if not region:
         return None, label
     return region, (label or f'Region {region}')

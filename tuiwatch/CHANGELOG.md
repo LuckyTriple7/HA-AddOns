@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.79.1] - 2026-08-06
+
+### Fixed
+- **Falscher Reiseführer/falsche Klimatabelle bei mehreren Zielen im selben
+  Land** — die Region eines Angebots wurde bevorzugt aus `regionGiataIds` der
+  Angebots-URL gelesen. Dort steht aber die Region, in der *gesucht* wurde: zwei
+  Malediven-Hotels aus einer Landessuche trugen beide „Malediven" (100020) und
+  teilten sich dadurch Reiseführer und Klimatabelle, obwohl sie auf
+  verschiedenen Atollen liegen. Beim zweiten Angebot öffnete sich der
+  Reiseführer des ersten. Aufgelöst wird jetzt zuerst über die Breadcrumb-API
+  (Addu Atoll 1139 vs. Nord Male Atoll 1151), die URL-Region ist nur noch der
+  Notnagel.
+  - **Hinweis:** Bereits erzeugte Reiseführer/Klimatabellen hängen weiter an der
+    gröberen Region. Sie werden für die jetzt korrekt aufgelöste Insel neu
+    erstellt; die alten Einträge lassen sich in der Reiseführer- bzw.
+    Klima-Übersicht löschen.
+
 ## [0.79.0] - 2026-08-06
 
 ### Added

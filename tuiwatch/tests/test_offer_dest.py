@@ -1,9 +1,9 @@
 """Tests für `GET /api/offers/<id>/dest` — die Region zu einem Angebot.
 
 Klimatabelle und Reiseführer hängen an der Region-giataId, das Angebot kennt aber
-nur die Hotel-giataId. Steht die Region schon in der Angebots-URL, darf kein
-Fremdaufruf an die Breadcrumb-API stattfinden; sonst wird einmal je Hotel
-nachgeschlagen und das Ergebnis gemerkt.
+nur die Hotel-giataId. Aufgelöst wird über die Breadcrumb-API (einmal je Hotel,
+danach aus dem Prozess-Cache); `regionGiataIds` aus der URL ist nur der Notnagel,
+weil dort die u. U. viel gröbere Such-Region steht.
 """
 import importlib
 
@@ -43,15 +43,26 @@ def _add(c, url, region="Gran Canaria"):
     return oid
 
 
-def test_region_from_url_needs_no_lookup(m, monkeypatch):
-    calls = []
-    monkeypatch.setattr(m, "region_giata_from_breadcrumb",
-                        lambda g: calls.append(g) or 999)
+def test_breadcrumb_beats_region_in_url(m, monkeypatch):
+    """Die Insel des Hotels schlägt die Region der Suche.
+
+    Zwei Malediven-Hotels aus einer Landessuche trugen beide dieselbe
+    `regionGiataIds` und teilten sich dadurch Klimatabelle und Reiseführer — beim
+    zweiten Angebot öffnete sich der Reiseführer des ersten (v0.79.0)."""
+    monkeypatch.setattr(m, "region_giata_from_breadcrumb", lambda g: 1151)
+    c = m.app.test_client()
+    oid = _add(c, _URL_REGION, region="Malediven: Nord Male Atoll")
+    d = c.get(f"/api/offers/{oid}/dest", headers=ING).get_json()
+    assert d == {"giata": 1151, "label": "Malediven: Nord Male Atoll"}
+
+
+def test_region_from_url_is_the_fallback(m, monkeypatch):
+    """Liefert die Breadcrumb-API nichts, rettet `regionGiataIds` die Auflösung."""
+    monkeypatch.setattr(m, "region_giata_from_breadcrumb", lambda g: None)
     c = m.app.test_client()
     oid = _add(c, _URL_REGION)
     d = c.get(f"/api/offers/{oid}/dest", headers=ING).get_json()
     assert d == {"giata": 128, "label": "Gran Canaria"}
-    assert not calls          # regionGiataIds stand in der URL
 
 
 def test_region_resolved_via_breadcrumb_and_cached(m, monkeypatch):
