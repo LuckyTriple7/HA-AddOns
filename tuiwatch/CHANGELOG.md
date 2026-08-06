@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.75.4] - 2026-08-06
+
+### Fixed
+- **Kopfzeile überlappte** — die Countdown-Pille („✈ Ziel · noch X Tage")
+  wuchs über ihre Rasterspalte hinaus und schob sich über Logo und
+  Knöpfe. Sie wird jetzt bei Platzmangel abgeschnitten (…), am Handy
+  steht sie in einer eigenen Zeile unter Logo und Knöpfen.
+- **Versionsnummer in `app.py`** hing auf 0.75.0 fest (seit v0.75.1 nicht
+  mitgezogen) — die Anzeige im Add-on zeigte eine falsche Version.
+
+### Changed
+- **„Alle prüfen" und „KI-Verlauf" nur noch als Symbol** (🔄 / 🤖) — die
+  Beschriftungen sprengten die Kopfzeile auf schmalen Displays. Der Text
+  steht weiterhin im Tooltip.
+
 ## [0.75.3] - 2026-08-06
 
 ### Fixed
