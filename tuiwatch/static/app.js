@@ -1584,7 +1584,8 @@
         : 'Noch keine Kommentare zu diesem Link.';
       $('#shc-body').innerHTML = items.length ? items.map(c => `
         <div class="shc-item">
-          <div class="shc-meta">${esc(c.author || 'Anonym')} · ${new Date(c.ts*1000).toLocaleString('de-DE')}</div>
+          <div class="shc-meta">${esc(c.author || 'Anonym')} · ${new Date(c.ts*1000).toLocaleString('de-DE')}${
+            c.ip?` · <span class="shc-ip" title="Absender-IP (hinter Cloudflare die echte Client-IP)">${esc(c.ip)}</span>`:''}</div>
           <div class="shc-text">${esc(c.text).replace(/\n/g,'<br>')}</div>
           <div class="shc-act">
             <button class="btn sec" onclick="editShareComment(${c.id})">Bearbeiten</button>

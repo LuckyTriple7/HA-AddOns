@@ -885,6 +885,12 @@ ohne Login und ohne App. In **🔗 Geteilte Links** gibt es je Link den Knopf
 damit auf, sobald du ihn geöffnet hast. Dort lassen sich Kommentare auch **bearbeiten**
 (Tippfehler, Kürzen) und **löschen** — beides schlägt sofort auf die öffentliche Seite
 durch. Widerrufen oder Ablaufen des Links löscht die zugehörigen Kommentare mit.
+Jeder neue Kommentar löst eine **Benachrichtigung über Home Assistant und Telegram**
+aus (Name, Text, Absender-IP) — abschaltbar über die Option „Benachrichtigung bei
+neuen Kommentaren". Die **IP** steht zusätzlich an jedem Kommentar in der Verwaltung;
+hinter Cloudflare ist das über `CF-Connecting-IP` die echte Client-IP, nicht die des
+Proxys. Auf der öffentlichen Seite ist die IP **nicht** zu sehen.
+
 Weil die Seite öffentlich beschreibbar ist, gelten Grenzen: 500 Zeichen je Kommentar,
 40 Zeichen für den Namen, 200 Kommentare je Link und 5 Kommentare je IP und
 10 Minuten. Gespeichert wird reiner Text, HTML wird nicht ausgeführt.

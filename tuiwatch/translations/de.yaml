@@ -170,6 +170,9 @@ configuration:
   public_share_days:
     name: Gültigkeit öffentlicher Links (Tage)
     description: "Voreingestellte Gültigkeit beim Erzeugen eines öffentlichen Links. Danach zeigt der Link nur noch einen Hinweis; im Dialog lässt sich pro Link ein anderer Wert wählen (1 bis 365). Standard 30."
+  notify_share_comments:
+    name: Benachrichtigung bei neuen Kommentaren
+    description: "Meldet jeden neuen Kommentar auf einer geteilten Seite über Home Assistant und Telegram — mit Name, Text und Absender-IP. Standard an."
   verbose_log:
     name: Ausführliches Logging
     description: Gibt mehr Details pro Prüfung im Log aus. Standard aus — nur Fehler und wichtige Ereignisse werden geloggt.

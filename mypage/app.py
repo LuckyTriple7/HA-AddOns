@@ -15,6 +15,7 @@ import io
 import ipaddress
 import json
 import logging
+import mimetypes
 import os
 import re
 import secrets
@@ -45,7 +46,7 @@ try:
     # Optional: PDF-Erzeugung für Bibliothek-Einträge. Braucht System-Bibliotheken
     # (pango/cairo). Fehlt das Paket, fällt der PDF-Button auf die Druckansicht
     # zurück — das Add-on startet in jedem Fall.
-    from weasyprint import HTML as _WeasyHTML, default_url_fetcher as _weasy_fetch
+    from weasyprint import HTML as _WeasyHTML
     _HAS_WEASY = True
 except Exception:
     _HAS_WEASY = False
@@ -2821,6 +2822,11 @@ def site_search(site: dict, query: str, loc, viewer_is_member: bool) -> list:
         consider('page', loc(p, 'title'), '/seite/' + p.get('slug', ''),
                  loc(p, 'body'), p.get('members_only'))
 
+    for e in _lib_public_entries(site):
+        body = ' '.join([loc(e, 'summary'), loc(e, 'body'), ' '.join(e.get('tags', []))])
+        consider('library', loc(e, 'title'), '/bibliothek/' + e.get('slug', ''),
+                 body, e.get('members_only'))
+
     return results[:SEARCH_MAX_RESULTS]
 
 
@@ -3175,6 +3181,111 @@ def _nav_library(site: dict, loc, t: dict) -> list:
     return [{'href': '/bibliothek', 'label': _library_label(site, loc, t)}]
 
 
+def _lib_pdf_fetcher(url: str):
+    """URL-Fetcher für WeasyPrint — liefert ausschließlich lokale Uploads aus.
+
+    WeasyPrint lädt referenzierte Ressourcen (`<img src>`, `url()`) sonst selbst
+    per HTTP nach. Da der Markdown-Text beliebige Adressen enthalten darf, wäre
+    das ein SSRF-Weg in interne Dienste (Supervisor, Router, Metadaten-Endpunkte),
+    dessen Antwort im erzeugten PDF landet. Deshalb: nur `/uploads/<datei>` aus
+    dem lokalen Ordner, alles andere wird abgelehnt.
+    """
+    if url.startswith('/uploads/'):
+        target = safe_under(UPLOADS_DIR, url[len('/uploads/'):])
+        if target is not None and target.is_file():
+            return {'file_obj': open(target, 'rb'),
+                    'mime_type': mimetypes.guess_type(target.name)[0] or 'application/octet-stream'}
+    raise ValueError(f'externe Ressource im PDF blockiert: {url[:80]}')
+
+
+def _lib_pdf_html(site: dict, entry: dict, lang: str, t: dict) -> str:
+    """Druckfertiges HTML eines Eintrags (Deckblatt-Kopf + Markdown + Seitenzahlen)."""
+    loc = _loc_factory(lang)
+    accent = site.get('design', {}).get('accent') or '#3b82f6'
+    cat = next((c for c in _library(site).get('categories', [])
+                if c.get('id') == entry.get('cat')), None)
+    subtitle = ' · '.join(x for x in [
+        (f"{cat.get('icon', '')} {loc(cat, 'name')}".strip() if cat else ''),
+        entry.get('updated') or '',
+    ] if x)
+    page_label = t.get('pdf_page', 'Seite')
+    return f"""<!DOCTYPE html><html lang="{escape(lang)}"><head><meta charset="utf-8">
+<title>{escape(loc(entry, 'title'))}</title><style>
+@page {{ size: A4; margin: 20mm 18mm 18mm;
+  @bottom-center {{ content: "{escape(page_label)} " counter(page) " / " counter(pages);
+                    font-size: 9pt; color: #666; }} }}
+body {{ font-family: "DejaVu Sans", sans-serif; font-size: 10.5pt; line-height: 1.55; color: #111; }}
+h1.doc-title {{ font-size: 20pt; margin: 0 0 2mm; color: {escape(accent)}; }}
+.doc-sub {{ font-size: 9pt; color: #666; margin-bottom: 8mm;
+            border-bottom: 1px solid #ddd; padding-bottom: 3mm; }}
+h1, h2, h3 {{ line-height: 1.25; margin: 6mm 0 2mm; page-break-after: avoid; }}
+h2 {{ font-size: 14pt; }} h3 {{ font-size: 12pt; }}
+p {{ margin: 0 0 3mm; }} ul, ol {{ margin: 0 0 3mm 6mm; }}
+img {{ max-width: 100%; }}
+blockquote {{ border-left: 2pt solid {escape(accent)}; margin: 3mm 0; padding: 0 4mm; color: #444; }}
+pre {{ background: #f4f4f4; padding: 3mm; border-radius: 2mm; white-space: pre-wrap;
+       font-family: "DejaVu Sans Mono", monospace; font-size: 9pt; }}
+code {{ font-family: "DejaVu Sans Mono", monospace; font-size: 9pt; }}
+table {{ border-collapse: collapse; width: 100%; margin: 3mm 0; page-break-inside: avoid; }}
+th, td {{ border: 0.5pt solid #bbb; padding: 1.5mm 2mm; text-align: left; font-size: 9.5pt; }}
+th {{ background: #f0f0f0; }}
+hr {{ border: none; border-top: 0.5pt solid #ccc; margin: 5mm 0; }}
+</style></head><body>
+<h1 class="doc-title">{escape(loc(entry, 'title'))}</h1>
+{f'<div class="doc-sub">{escape(subtitle)}</div>' if subtitle else ''}
+{render_md(loc(entry, 'body'))}
+</body></html>"""
+
+
+def _lib_pdf_source_hash(site: dict, entry: dict) -> str:
+    """Fingerabdruck über alles, was das PDF beeinflusst — Grundlage fürs Caching."""
+    src = json.dumps([entry.get('title_de'), entry.get('title_en'),
+                      entry.get('body_de'), entry.get('body_en'),
+                      entry.get('cat'), entry.get('updated'),
+                      site.get('design', {}).get('accent')],
+                     ensure_ascii=False)
+    return hashlib.sha256(src.encode('utf-8')).hexdigest()[:16]
+
+
+def _library_pdf_build(site: dict, entry: dict, lang: str = 'de') -> str | None:
+    """Erzeugt (oder bestätigt) das PDF eines Eintrags. Gibt den Dateinamen zurück.
+
+    Bei unverändertem Quelltext wird die vorhandene Datei wiederverwendet —
+    PDF-Rendern kostet spürbar CPU und soll nicht bei jedem Speichern laufen.
+    """
+    if not _HAS_WEASY:
+        return None
+    src_hash = _lib_pdf_source_hash(site, entry)
+    old = entry.get('pdf_gen') or ''
+    if (entry.get('pdf_hash') == src_hash and _DOC_FILE_RE.match(old)
+            and (DOCS_DIR / old).is_file()):
+        return old
+    t = load_translations(lang)
+    html = _lib_pdf_html(site, entry, lang, t)
+    name = uuid.uuid4().hex + '.pdf'
+    target = safe_under(DOCS_DIR, name)
+    if target is None:
+        return None
+    _WeasyHTML(string=html, base_url='/', url_fetcher=_lib_pdf_fetcher).write_pdf(target=str(target))
+    # Vorgänger erst nach erfolgreichem Rendern entfernen
+    if _DOC_FILE_RE.match(old):
+        old_path = safe_under(DOCS_DIR, old)
+        if old_path is not None:
+            old_path.unlink(missing_ok=True)
+    entry['pdf_gen'] = name
+    entry['pdf_hash'] = src_hash
+    return name
+
+
+def _library_pdf_drop(entry: dict, keep: str = '') -> None:
+    """Löscht die PDF-Dateien eines Eintrags (außer `keep`) vom Datenträger."""
+    for name in {entry.get('pdf') or '', entry.get('pdf_gen') or ''}:
+        if name and name != keep and _DOC_FILE_RE.match(name):
+            p = safe_under(DOCS_DIR, name)
+            if p is not None:
+                p.unlink(missing_ok=True)
+
+
 # ── Formular-Baukasten ────────────────────────────────────────────────────────
 
 FORM_FIELD_TYPES = {'text', 'textarea', 'email', 'tel', 'number', 'date',
@@ -3240,10 +3351,15 @@ def _nav_forms(site: dict, loc) -> list:
     return out
 
 
-def _nav_links(site: dict, loc, t: dict | None = None) -> list:
-    """Navi-Einträge für Bibliothek, eigene Seiten und Formulare."""
-    return (_nav_library(site, loc, t or {}) + _nav_pages(site, loc)
-            + _nav_forms(site, loc))
+def _nav_links(site: dict, loc, t: dict | None = None, with_library: bool = True) -> list:
+    """Navi-Einträge für Bibliothek, eigene Seiten und Formulare.
+
+    Auf der Startseite steckt die Bibliothek bereits als Abschnitt in der
+    Sektions-Navigation (Anker `#library`) — dort `with_library=False`, sonst
+    stünde sie doppelt in der Leiste.
+    """
+    lib = _nav_library(site, loc, t or {}) if with_library else []
+    return lib + _nav_pages(site, loc) + _nav_forms(site, loc)
 
 
 # ── Weiterleitungen (301/302) ─────────────────────────────────────────────────
@@ -4088,6 +4204,11 @@ def write_backup_zip(fp) -> None:
         for f in UPLOADS_DIR.iterdir():
             if f.is_file():
                 z.write(f, 'uploads/' + f.name)
+        # Bibliothek-PDFs (hochgeladen und erzeugt)
+        if DOCS_DIR.is_dir():
+            for f in sorted(DOCS_DIR.iterdir()):
+                if f.is_file() and _DOC_FILE_RE.match(f.name):
+                    z.write(f, 'docs/' + f.name)
         # Kartenspiel-Spielstände + Verlauf (66_<uid>.json / 66hist_<uid>.json)
         if GAMES_DIR.is_dir():
             for f in sorted(GAMES_DIR.iterdir()):
@@ -4292,6 +4413,14 @@ def api_restore():
                     if not _FID_RE.match(name):
                         continue
                     target = safe_under(DM_FILES_DIR, name)
+                elif member.startswith('docs/'):
+                    name = Path(member).name
+                    if not _DOC_FILE_RE.match(name):
+                        continue
+                    # Inhalt prüfen — im Backup darf unter .pdf nichts anderes stecken
+                    if not z.read(member).startswith(b'%PDF-'):
+                        continue
+                    target = safe_under(DOCS_DIR, name)
                 else:
                     continue
                 if target is None:
@@ -4466,6 +4595,206 @@ def api_pages_reorder():
     pages.sort(key=lambda p: pos.get(p.get('id'), len(pos)))
     save_site(site)
     return jsonify({'ok': True})
+
+
+# ── Bibliothek (Admin) ────────────────────────────────────────────────────────
+
+@admin_app.route('/api/library/settings', methods=['POST'])
+def api_library_settings():
+    err = _api_auth()
+    if err:
+        return err
+    raw = request.get_json(silent=True) or {}
+    site = load_site()
+    lib = _library(site)
+    lib['label_de'] = _clean_str(raw.get('label_de'), 60)
+    lib['label_en'] = _clean_str(raw.get('label_en'), 60)
+    lib['intro_de'] = _clean_str(raw.get('intro_de'), 2000)
+    lib['intro_en'] = _clean_str(raw.get('intro_en'), 2000)
+    lib['nav'] = bool(raw.get('nav', True))
+    save_site(site)
+    return jsonify({'ok': True})
+
+
+@admin_app.route('/api/library/categories', methods=['POST'])
+def api_library_cat_create():
+    err = _api_auth()
+    if err:
+        return err
+    raw = request.get_json(silent=True) or {}
+    if not (_clean_str(raw.get('name_de'), 60) or _clean_str(raw.get('name_en'), 60)):
+        return jsonify({'error': 'name required'}), 400
+    site = load_site()
+    lib = _library(site)
+    if len(lib['categories']) >= 40:
+        return jsonify({'error': 'too many'}), 400
+    lib['categories'].append(_normalize_lib_cat(raw))
+    save_site(site)
+    return jsonify({'ok': True})
+
+
+@admin_app.route('/api/library/categories/<cid>', methods=['PUT', 'DELETE'])
+def api_library_cat_edit(cid: str):
+    err = _api_auth()
+    if err:
+        return err
+    site = load_site()
+    lib = _library(site)
+    cats = lib['categories']
+    idx = next((i for i, c in enumerate(cats) if c.get('id') == cid), None)
+    if idx is None:
+        return jsonify({'error': 'not found'}), 404
+    if request.method == 'DELETE':
+        cats.pop(idx)
+        # Einträge nicht mitlöschen — sie rutschen in „ohne Kategorie"
+        for e in lib['entries']:
+            if e.get('cat') == cid:
+                e['cat'] = ''
+        save_site(site)
+        return jsonify({'ok': True})
+    raw = request.get_json(silent=True) or {}
+    if not (_clean_str(raw.get('name_de'), 60) or _clean_str(raw.get('name_en'), 60)):
+        return jsonify({'error': 'name required'}), 400
+    cats[idx] = _normalize_lib_cat(raw, cats[idx])
+    save_site(site)
+    return jsonify({'ok': True})
+
+
+@admin_app.route('/api/library/categories/reorder', methods=['POST'])
+def api_library_cat_reorder():
+    err = _api_auth()
+    if err:
+        return err
+    order = (request.get_json(silent=True) or {}).get('order') or []
+    if not isinstance(order, list):
+        return jsonify({'error': 'invalid'}), 400
+    site = load_site()
+    cats = _library(site)['categories']
+    pos = {cid: i for i, cid in enumerate(order)}
+    cats.sort(key=lambda c: pos.get(c.get('id'), len(pos)))
+    save_site(site)
+    return jsonify({'ok': True})
+
+
+def _library_apply_pdf(site: dict, entry: dict) -> str:
+    """PDF-Zustand eines Eintrags nach dem Speichern herstellen.
+
+    Gibt einen Statuscode für die Oberfläche zurück: '' (nichts zu tun),
+    'generated' (frisch erzeugt) oder 'unavailable' (WeasyPrint fehlt).
+    """
+    mode = entry.get('pdf_mode')
+    if mode == 'generated':
+        try:
+            if _library_pdf_build(site, entry):
+                return 'generated'
+        except Exception as e:
+            log.warning("PDF-Erzeugung für Bibliothek-Eintrag '%s' fehlgeschlagen: %s",
+                        entry.get('slug'), e)
+            return 'error'
+        return 'unavailable'
+    if mode == 'upload':
+        _library_pdf_drop(entry, keep=entry.get('pdf') or '')
+        entry['pdf_gen'], entry['pdf_hash'] = '', ''
+    else:
+        _library_pdf_drop(entry)
+        entry['pdf'], entry['pdf_gen'], entry['pdf_hash'] = '', '', ''
+    return ''
+
+
+@admin_app.route('/api/library/entries', methods=['POST'])
+def api_library_entry_create():
+    err = _api_auth()
+    if err:
+        return err
+    raw = request.get_json(silent=True) or {}
+    if not (_clean_str(raw.get('title_de'), 140) or _clean_str(raw.get('title_en'), 140)):
+        return jsonify({'error': 'title required'}), 400
+    site = load_site()
+    lib = _library(site)
+    entry = _normalize_lib_entry(site, raw)
+    entry['slug'] = _lib_entry_slug(site, raw, entry['id'])
+    lib['entries'].append(entry)
+    pdf_state = _library_apply_pdf(site, entry)
+    save_site(site)
+    return jsonify({'ok': True, 'slug': entry['slug'], 'pdf': pdf_state})
+
+
+@admin_app.route('/api/library/entries/<eid>', methods=['PUT', 'DELETE'])
+def api_library_entry_edit(eid: str):
+    err = _api_auth()
+    if err:
+        return err
+    site = load_site()
+    lib = _library(site)
+    entries = lib['entries']
+    idx = next((i for i, e in enumerate(entries) if e.get('id') == eid), None)
+    if idx is None:
+        return jsonify({'error': 'not found'}), 404
+    if request.method == 'DELETE':
+        _library_pdf_drop(entries[idx])
+        entries.pop(idx)
+        save_site(site)
+        return jsonify({'ok': True})
+    raw = request.get_json(silent=True) or {}
+    if not (_clean_str(raw.get('title_de'), 140) or _clean_str(raw.get('title_en'), 140)):
+        return jsonify({'error': 'title required'}), 400
+    entries[idx] = _normalize_lib_entry(site, raw, entries[idx])
+    entries[idx]['slug'] = _lib_entry_slug(site, raw, eid)
+    pdf_state = _library_apply_pdf(site, entries[idx])
+    save_site(site)
+    return jsonify({'ok': True, 'slug': entries[idx]['slug'], 'pdf': pdf_state})
+
+
+@admin_app.route('/api/library/entries/reorder', methods=['POST'])
+def api_library_entry_reorder():
+    err = _api_auth()
+    if err:
+        return err
+    order = (request.get_json(silent=True) or {}).get('order') or []
+    if not isinstance(order, list):
+        return jsonify({'error': 'invalid'}), 400
+    site = load_site()
+    entries = _library(site)['entries']
+    pos = {eid: i for i, eid in enumerate(order)}
+    entries.sort(key=lambda e: pos.get(e.get('id'), len(pos)))
+    save_site(site)
+    return jsonify({'ok': True})
+
+
+@admin_app.route('/api/library/upload-doc', methods=['POST'])
+def api_library_upload_doc():
+    """PDF-Upload für einen Bibliothek-Eintrag (getrennt von /api/upload für Bilder)."""
+    err = _api_auth()
+    if err:
+        return err
+    f = request.files.get('file')
+    if not f or not f.filename:
+        return jsonify({'error': 'no file'}), 400
+    if Path(f.filename).suffix.lower() not in ALLOWED_DOC_EXT:
+        return jsonify({'error': 'file type not allowed'}), 400
+    name = uuid.uuid4().hex + '.pdf'
+    target = safe_under(DOCS_DIR, name)
+    if target is None:
+        abort(400)
+    f.save(target)
+    if target.stat().st_size > DOC_MAX_BYTES:
+        target.unlink(missing_ok=True)
+        return jsonify({'error': 'too large'}), 413
+    # Inhalt prüfen, nicht nur die Endung — ein umbenanntes HTML soll nicht als
+    # „PDF" im Download landen.
+    with open(target, 'rb') as fh:
+        if fh.read(5) != b'%PDF-':
+            target.unlink(missing_ok=True)
+            return jsonify({'error': 'not a pdf'}), 400
+    return jsonify({'ok': True, 'name': name, 'size': target.stat().st_size})
+
+
+@admin_app.route('/api/library/pdf-support')
+def api_library_pdf_support():
+    err = _api_auth()
+    if err:
+        return err
+    return jsonify({'available': _HAS_WEASY})
 
 
 @admin_app.route('/api/forms', methods=['POST'])
@@ -4888,6 +5217,15 @@ def api_export():
         pages['blog/index.html'] = '/blog'
         for po in posts:
             pages[f"blog/{po['id']}/index.html"] = f"/blog/{po['id']}"
+    lib_entries = _lib_public_entries(site)
+    if lib_entries:
+        pages['bibliothek/index.html'] = '/bibliothek'
+        for e in lib_entries:
+            pages[f"bibliothek/{e['slug']}/index.html"] = f"/bibliothek/{e['slug']}"
+            # PDF unter derselben Adresse wie im Live-Betrieb — der Button im
+            # exportierten HTML zeigt damit auf eine echte Datei.
+            if _lib_entry_pdf_name(e) and not e.get('members_only'):
+                pages[f"bibliothek/{e['slug']}.pdf"] = f"/bibliothek/{e['slug']}.pdf"
     if loc(legal, 'impressum').strip():
         pages['impressum/index.html'] = '/impressum'
     if loc(legal, 'privacy').strip():
@@ -5234,7 +5572,10 @@ def _base_url() -> str:
 
 
 def _public_url_list(site: dict, base: str) -> list:
-    """Alle öffentlich indexierbaren URLs (Startseite, Projekt-Detailseiten, Blog)."""
+    """Alle öffentlich indexierbaren URLs (Startseite, Projekte, Blog, Bibliothek).
+
+    Grundlage für den IndexNow-Ping — was hier fehlt, wird Bing/Yandex nie gemeldet.
+    """
     urls = [base + '/']
     urls += [f"{base}/seite/{p['slug']}" for p in site.get('pages', []) if p.get('visible')]
     urls += [f"{base}/p/{p['id']}" for p in site['projects'] if _has_detail(p) and project_visible(p)]
@@ -5242,6 +5583,10 @@ def _public_url_list(site: dict, base: str) -> list:
     if posts:
         urls.append(base + '/blog')
         urls += [f"{base}/blog/{p['id']}" for p in posts]
+    lib_entries = _lib_public_entries(site)
+    if lib_entries:
+        urls.append(base + '/bibliothek')
+        urls += [f"{base}/bibliothek/{e['slug']}" for e in lib_entries]
     return urls
 
 
@@ -7419,6 +7764,12 @@ def sitemap():
     # (URL, lastmod) — lastmod optional
     entries = [(base + '/', newest)]
     entries += [(f"{base}/seite/{p['slug']}", '') for p in site.get('pages', []) if p.get('visible')]
+    lib_entries = _lib_public_entries(site)
+    if lib_entries:
+        entries.append((base + '/bibliothek', ''))
+        entries += [(f"{base}/bibliothek/{e['slug']}",
+                     e['updated'] if _valid_date(e.get('updated')) else '')
+                    for e in lib_entries]
     entries += [(f"{base}/p/{p['id']}", '') for p in site['projects']
                 if _has_detail(p) and project_visible(p)]
     if posts:
@@ -7614,6 +7965,9 @@ def public_index():
         albums = [a for a in albums if not a.get('locked')]
     latest_posts = sorted_posts(site, public_only=True)[:3]
     contact_enabled = bool(site['design'].get('contact_enabled')) and not static_export
+    # Bibliothek: auf der Startseite nur ein Anriss (die ersten sechs Einträge)
+    library_entries = _lib_view_entries(site, loc)[:6]
+    library_total = len(_lib_public_entries(site))
 
     loc_block = sections.get('location') or {}
     loc_present = bool(loc_block.get('address') or loc_block.get('hours_de') or loc_block.get('hours_en'))
@@ -7679,6 +8033,7 @@ def public_index():
         'skills':       ('skills',       'skills_heading',       bool(sections.get('skills'))),
         'testimonials': ('testimonials', 'testimonials_heading', bool(sections.get('testimonials'))),
         'photos':       ('photos',       'albums_heading',       bool(albums)),
+        'library':      ('library',      'library_heading',      bool(library_entries)),
         'team':         ('team',         'team_heading',         bool(sections.get('team'))),
         'timeline':     ('timeline',     'timeline_heading',     bool(sections.get('timeline'))),
         'events':       ('events',       'events_heading',       bool(sections.get('events'))),
@@ -7699,6 +8054,8 @@ def public_index():
 
     # Frei konfigurierbare Überschrift für den Werdegang (leer = Standard „Werdegang")
     timeline_title = loc(sections, 'timeline_title')
+    # Frei konfigurierbarer Name der Sammlung (leer = Standard „Bibliothek")
+    library_heading = _library_label(site, loc, t)
 
     # Navigations-Leiste: nur Sektionen mit Inhalt, in gewählter Reihenfolge
     nav_items = []
@@ -7712,13 +8069,16 @@ def public_index():
                     label = countdown_title
                 elif key == 'freetext' and freetext_title:
                     label = freetext_title
+                elif key == 'library':
+                    label = library_heading
                 else:
                     label = t.get(label_key, label_key)
                 nav_items.append({'anchor': anchor, 'label': label})
         if contact_enabled:
             nav_items.append({'anchor': 'kontakt', 'label': t.get('contact_heading', 'contact_heading')})
-        # Eigene Seiten und Formulare als echte Links (mit Navi-Schalter) anhängen
-        nav_items += _nav_links(site, loc)
+        # Eigene Seiten und Formulare als echte Links (mit Navi-Schalter) anhängen.
+        # Die Bibliothek steckt hier schon als Abschnitt in der Leiste.
+        nav_items += _nav_links(site, loc, t, with_library=False)
 
     return render_template('public.html', t=t, lang=lang, site=site, loc=loc,
                            projects=projects,
@@ -7730,6 +8090,9 @@ def public_index():
                            albums=albums,
                            album_protect=bool(site.get('album_protect')),
                            latest_posts=latest_posts,
+                           library_entries=library_entries,
+                           library_total=library_total,
+                           library_heading=library_heading,
                            countdown_title=countdown_title,
                            newsletter_open=newsletter_open() and not static_export,
                            nl=_clean_str(request.args.get('nl'), 20),
@@ -7790,8 +8153,9 @@ def site_search_page():
         'blog':    t.get('search_kind_blog', 'Blog'),
         'project': t.get('search_kind_project', 'Projekt'),
         'page':    t.get('search_kind_page', 'Seite'),
+        'library': _library_label(site, loc, t),
     }
-    nav_items = _nav_links(site, loc) if site['design'].get('show_nav', True) else []
+    nav_items = _nav_links(site, loc, t) if site['design'].get('show_nav', True) else []
     return render_template('search.html', t=t, lang=lang, site=site, loc=loc,
                            query=query, results=results, kind_labels=kind_labels,
                            nav_items=nav_items,
@@ -8078,7 +8442,7 @@ def admin_page_preview(pid: str):
     font_family, font_faces = font_css(site['design'])
     return render_template('page.html', t=t, lang=lang, site=site, loc=loc,
                            title=(loc(page, 'title') or t.get('page_untitled', '')),
-                           body_html=body_html, nav_items=_nav_links(site, loc),
+                           body_html=body_html, nav_items=_nav_links(site, loc, t),
                            page_slug=page.get('slug', ''),
                            members_only=bool(page.get('members_only')),
                            font_family=font_family, font_faces=font_faces,
@@ -8818,7 +9182,7 @@ def _render_form(form: dict, site: dict, lang: str, *, error: str = '', ok: bool
                            intro_html=render_md(loc(form, 'intro')),
                            success_html=render_md(loc(form, 'success')) if ok else '',
                            fields=fields, captcha=make_captcha(),
-                           nav_items=_nav_links(site, loc),
+                           nav_items=_nav_links(site, loc, t),
                            font_family=font_css(site['design'])[0],
                            font_faces=font_css(site['design'])[1],
                            error=error, ok=ok, form_slug=form['slug'],
@@ -8942,7 +9306,7 @@ def custom_page(slug: str):
     full_html = render_md(loc(page, 'body'))
     locked = bool(page.get('members_only')) and not is_member(request)
     body_html = ('<p>' + _locked_teaser(full_html) + '</p>') if locked else full_html
-    nav_items = _nav_links(site, loc) if site['design'].get('show_nav', True) else []
+    nav_items = _nav_links(site, loc, t) if site['design'].get('show_nav', True) else []
     font_family, font_faces = font_css(site['design'])
     return render_template('page.html', t=t, lang=lang, site=site, loc=loc,
                            title=title, body_html=body_html, nav_items=nav_items,
@@ -8952,6 +9316,152 @@ def custom_page(slug: str):
                            meta_desc=(loc(page, 'meta') or _plain_excerpt(body_html)
                                       or _site_meta(site, loc)),
                            year=datetime.now(timezone.utc).year)
+
+
+# ── Bibliothek (öffentlich) ───────────────────────────────────────────────────
+
+def _lib_view_entries(site: dict, loc, cat: str = '', query: str = '') -> list:
+    """Sichtbare Einträge als Anzeige-Objekte, optional nach Kategorie/Suche gefiltert."""
+    cats = {c['id']: c for c in _library(site).get('categories', []) if c.get('id')}
+    words = [w for w in (query or '').lower().split() if w]
+    out = []
+    for e in _lib_public_entries(site):
+        if cat and e.get('cat') != cat:
+            continue
+        if words:
+            hay = ' '.join([loc(e, 'title'), loc(e, 'summary'), loc(e, 'body'),
+                            ' '.join(e.get('tags') or [])]).lower()
+            if not all(w in hay for w in words):
+                continue
+        c = cats.get(e.get('cat'))
+        out.append({
+            'slug': e.get('slug', ''),
+            'title': loc(e, 'title'),
+            'summary': loc(e, 'summary') or _plain_excerpt(render_md(loc(e, 'body'))),
+            'image': e.get('image') or '',
+            'tags': e.get('tags') or [],
+            'updated': e.get('updated') or '',
+            'cat_name': (loc(c, 'name') if c else ''),
+            'cat_icon': (c.get('icon') if c else ''),
+            'has_pdf': bool(_lib_entry_pdf_name(e)),
+            'members_only': bool(e.get('members_only')),
+        })
+    return out
+
+
+def _lib_used_categories(site: dict, loc) -> list:
+    """Kategorien, die mindestens einen sichtbaren Eintrag haben (für die Filterleiste)."""
+    used = {e.get('cat') for e in _lib_public_entries(site)}
+    return [{'id': c['id'], 'name': loc(c, 'name'), 'icon': c.get('icon') or ''}
+            for c in _library(site).get('categories', [])
+            if c.get('id') in used and loc(c, 'name')]
+
+
+@public_app.route('/bibliothek')
+def library_index():
+    lang = detect_language(request)
+    site = load_site()
+    if site['design'].get('maintenance'):
+        return _maintenance_page(site, lang)
+    if not _lib_public_entries(site):
+        abort(404)
+    t = load_translations(lang)
+    loc = _loc_factory(lang)
+    cat = _clean_str(request.args.get('cat'), 32)
+    query = _clean_str(request.args.get('q'), 80)
+    count_visit(request)
+    intro = loc(_library(site), 'intro')
+    return render_template('library.html', t=t, lang=lang, site=site, loc=loc,
+                           heading=_library_label(site, loc, t),
+                           intro_html=render_md(intro) if intro else '',
+                           entries=_lib_view_entries(site, loc, cat, query),
+                           categories=_lib_used_categories(site, loc),
+                           active_cat=cat, query=query,
+                           nav_items=(_nav_links(site, loc, t, with_library=False)
+                                      if site['design'].get('show_nav', True) else []),
+                           meta_desc=(_plain_excerpt(render_md(intro)) if intro
+                                      else _site_meta(site, loc)),
+                           year=datetime.now(timezone.utc).year)
+
+
+def _render_library_entry(site: dict, entry: dict, lang: str, preview: bool = False):
+    t = load_translations(lang)
+    loc = _loc_factory(lang)
+    cat = next((c for c in _library(site).get('categories', [])
+                if c.get('id') == entry.get('cat')), None)
+    full_html = render_md(loc(entry, 'body'))
+    locked = bool(entry.get('members_only')) and not preview and not is_member(request)
+    body_html = ('<p>' + _locked_teaser(full_html) + '</p>') if locked else full_html
+    return render_template(
+        'library_entry.html', t=t, lang=lang, site=site, loc=loc, e=entry,
+        heading=_library_label(site, loc, t),
+        title=loc(entry, 'title') or t.get('library_untitled', ''),
+        body_html=body_html, locked=locked,
+        members_only=bool(entry.get('members_only')),
+        cat_name=(loc(cat, 'name') if cat else ''),
+        cat_icon=((cat.get('icon') or '') if cat else ''),
+        cat_id=(cat.get('id') if cat else ''),
+        pdf_ready=bool(_lib_entry_pdf_name(entry)) and not locked,
+        nav_items=(_nav_links(site, loc, t, with_library=False)
+                   if site['design'].get('show_nav', True) else []),
+        meta_desc=(loc(entry, 'meta') or loc(entry, 'summary')
+                   or _plain_excerpt(full_html) or _site_meta(site, loc)),
+        year=datetime.now(timezone.utc).year)
+
+
+@public_app.route('/bibliothek/<slug>')
+def library_entry(slug: str):
+    lang = detect_language(request)
+    site = load_site()
+    if site['design'].get('maintenance'):
+        return _maintenance_page(site, lang)
+    entry = _find_lib_entry(site, slug)
+    if entry is None or not entry.get('visible'):
+        abort(404)
+    count_visit(request)
+    return _render_library_entry(site, entry, lang)
+
+
+@public_app.route('/bibliothek/<slug>.pdf')
+def library_entry_pdf(slug: str):
+    """PDF eines Eintrags — immer als Datei-Download, nie inline im Browser.
+
+    Die Endung steht bewusst in der Route (statt `/pdf` als Unterpfad): so ist die
+    Adresse im statischen Export eine ganz normale Datei, der Link bleibt gleich.
+    """
+    site = load_site()
+    if site['design'].get('maintenance'):
+        abort(404)
+    entry = _find_lib_entry(site, slug)
+    if entry is None or not entry.get('visible'):
+        abort(404)
+    if entry.get('members_only') and not is_member(request):
+        abort(404)
+    name = _lib_entry_pdf_name(entry)
+    if not _DOC_FILE_RE.match(name or ''):
+        abort(404)
+    target = safe_under(DOCS_DIR, name)
+    if target is None or not target.is_file():
+        abort(404)
+    loc = _loc_factory(detect_language(request))
+    fname = (_slugify(loc(entry, 'title')) or slug) + '.pdf'
+    resp = send_file(target, mimetype='application/pdf',
+                     as_attachment=True, download_name=fname)
+    resp.headers['X-Content-Type-Options'] = 'nosniff'
+    return resp
+
+
+@admin_app.route('/preview/library/<eid>')
+def admin_library_preview(eid: str):
+    """Eintrags-Vorschau im Admin — rendert auch Entwürfe und gesperrte Einträge."""
+    err = _auth_required()
+    if err:
+        return err
+    site = load_site()
+    entry = next((e for e in _library(site).get('entries', []) if e.get('id') == eid), None)
+    if entry is None:
+        abort(404)
+    return _render_library_entry(site, entry, detect_language(request), preview=True)
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────

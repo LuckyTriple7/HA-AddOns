@@ -89,7 +89,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.84.0"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.85.0"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -742,10 +742,17 @@ def init_db() -> None:
             token  TEXT NOT NULL,
             author TEXT NOT NULL DEFAULT '',
             text   TEXT NOT NULL,
-            ts     INTEGER NOT NULL
+            ts     INTEGER NOT NULL,
+            -- Absender-IP (hinter Cloudflare CF-Connecting-IP): die Seite ist
+            -- öffentlich beschreibbar, bei Missbrauch soll sichtbar sein, woher.
+            ip     TEXT NOT NULL DEFAULT ''
         )''')
         con.execute('CREATE INDEX IF NOT EXISTS idx_share_comments '
                     'ON share_comments(token, ts)')
+        ccols = {r['name'] for r in con.execute(
+            'PRAGMA table_info(share_comments)').fetchall()}
+        if 'ip' not in ccols:
+            con.execute("ALTER TABLE share_comments ADD COLUMN ip TEXT NOT NULL DEFAULT ''")
         shcols = {r['name'] for r in con.execute('PRAGMA table_info(shares)').fetchall()}
         if 'comments_seen_ts' not in shcols:
             con.execute('ALTER TABLE shares ADD COLUMN comments_seen_ts '

@@ -491,3 +491,61 @@ def test_revoking_share_removes_its_comments(m, sr, public, admin, offer_id):
     admin.delete("/api/shares/" + tok)
     with m.db() as con:
         assert con.execute("SELECT COUNT(*) c FROM share_comments").fetchone()["c"] == 0
+
+
+def test_comment_stores_client_ip(m, sr, public, admin, offer_id):
+    sr._comment_hits.clear()
+    tok = _create(admin, offer_id)["token"]
+    public.post(f"/s/{tok}/comment", data={"text": "Hallo"},
+                headers={"CF-Connecting-IP": "203.0.113.9"})
+    items = admin.get(f"/api/shares/{tok}/comments").get_json()["items"]
+    assert items[0]["ip"] == "203.0.113.9"
+
+
+def test_public_page_never_shows_ips(sr, public, admin, offer_id):
+    """Die IP ist nur für den Besitzer — auf der öffentlichen Seite hat sie nichts
+    verloren (sonst sieht jeder Empfänger, woher die anderen schreiben)."""
+    sr._comment_hits.clear()
+    tok = _create(admin, offer_id)["token"]
+    public.post(f"/s/{tok}/comment", data={"text": "Hallo"},
+                headers={"CF-Connecting-IP": "203.0.113.9"})
+    assert "203.0.113.9" not in public.get("/s/" + tok).get_data(as_text=True)
+
+
+def test_comment_triggers_notification(m, sr, public, admin, offer_id, monkeypatch):
+    sr._comment_hits.clear()
+    monkeypatch.setattr(m, "_spawn", lambda fn, *a, **k: fn(*a, **k))  # synchron
+    ha, tg = [], []
+    monkeypatch.setattr(m, "_notify_ha", lambda t, msg, tag, muted=False: ha.append((t, msg)))
+    monkeypatch.setattr(m, "_notify_telegram", lambda text, muted=False: tg.append(text))
+    tok = _create(admin, offer_id)["token"]
+    public.post(f"/s/{tok}/comment", data={"text": "Gefällt mir", "author": "Oma"},
+                headers={"CF-Connecting-IP": "198.51.100.7"})
+    assert len(ha) == 1 and len(tg) == 1
+    assert "Oma" in ha[0][1] and "198.51.100.7" in ha[0][1] and "Gefällt mir" in ha[0][1]
+    assert "198.51.100.7" in tg[0]
+
+
+def test_comment_notification_can_be_switched_off(m, sr, public, admin, offer_id, monkeypatch):
+    sr._comment_hits.clear()
+    monkeypatch.setattr(m, "_spawn", lambda fn, *a, **k: fn(*a, **k))
+    monkeypatch.setattr(m, "load_config", lambda: {"notify_share_comments": False})
+    sent = []
+    monkeypatch.setattr(m, "_notify_ha", lambda *a, **k: sent.append(a))
+    monkeypatch.setattr(m, "_notify_telegram", lambda *a, **k: sent.append(a))
+    tok = _create(admin, offer_id)["token"]
+    public.post(f"/s/{tok}/comment", data={"text": "Still bitte"})
+    assert sent == []
+
+
+def test_notification_escapes_html_for_telegram(m, sr, public, admin, offer_id, monkeypatch):
+    """Kommentartext geht als HTML an Telegram — ungeschützt zerlegt er die Nachricht."""
+    sr._comment_hits.clear()
+    monkeypatch.setattr(m, "_spawn", lambda fn, *a, **k: fn(*a, **k))
+    tg = []
+    monkeypatch.setattr(m, "_notify_telegram", lambda text, muted=False: tg.append(text))
+    monkeypatch.setattr(m, "_notify_ha", lambda *a, **k: None)
+    tok = _create(admin, offer_id)["token"]
+    public.post(f"/s/{tok}/comment", data={"text": "<b>fett</b> & weg", "author": "<i>x</i>"})
+    assert "<b>fett</b>" not in tg[0]
+    assert "&lt;b&gt;fett&lt;/b&gt;" in tg[0] and "&amp;" in tg[0]

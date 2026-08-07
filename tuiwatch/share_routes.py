@@ -380,7 +380,7 @@ def api_share_comments(token: str):
     with A.db() as con:
         if not con.execute('SELECT 1 FROM shares WHERE token=?', (token,)).fetchone():
             return jsonify({'error': 'not_found'}), 404
-        rows = con.execute('SELECT id, author, text, ts FROM share_comments '
+        rows = con.execute('SELECT id, author, text, ts, ip FROM share_comments '
                            'WHERE token=? ORDER BY ts', (token,)).fetchall()
         con.execute('UPDATE shares SET comments_seen_ts=? WHERE token=?',
                     (int(time.time()), token))
@@ -746,11 +746,32 @@ def public_share_comment(token: str):
                         (token,)).fetchone()['n']
         if n >= _COMMENTS_PER_SHARE:
             return _comment_redirect(token, 'voll')
-        con.execute('INSERT INTO share_comments (token, author, text, ts) VALUES (?,?,?,?)',
-                    (token, author, text, now))
+        title = con.execute('SELECT title FROM shares WHERE token=?',
+                            (token,)).fetchone()['title']
+        con.execute('INSERT INTO share_comments (token, author, text, ts, ip) '
+                    'VALUES (?,?,?,?,?)', (token, author, text, now, ip))
     _comment_hits[ip].append(time.time())
-    A.log.info("Neuer Kommentar zu Share %s (%d Zeichen)", token[:6] + '…', len(text))
+    A.log.info("Neuer Kommentar zu Share %s von %s (%d Zeichen)",
+               token[:6] + '…', ip, len(text))
+    A._spawn(_notify_comment, title, author, text, ip)
     return _comment_redirect(token, 'ok')
+
+
+def _notify_comment(title: str, author: str, text: str, ip: str) -> None:
+    """Meldet einen neuen Kommentar an HA und Telegram (abschaltbar).
+
+    Die IP steht mit in der Meldung: die Seite ist öffentlich beschreibbar, und
+    bei Unfug soll ohne Log-Suche erkennbar sein, woher er kam.
+    """
+    if not A.load_config().get('notify_share_comments', True):
+        return
+    who = author or 'Anonym'
+    kurz = text if len(text) <= 300 else text[:297] + '…'
+    A._notify_ha(f"💬 Kommentar zu „{title or 'geteilte Angebote'}\"",
+                 f"{who} ({ip}):\n{kurz}", 'share_comment')
+    A._notify_telegram(
+        f"💬 <b>Kommentar zu „{A._esc_html(title or 'geteilte Angebote')}“</b>\n"
+        f"{A._esc_html(who)} <code>{A._esc_html(ip)}</code>\n{A._esc_html(kurz)}")
 
 
 def _comment_redirect(token: str, code: str):

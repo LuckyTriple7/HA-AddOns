@@ -170,6 +170,9 @@ configuration:
   public_share_days:
     name: Public link validity (days)
     description: "Default validity when creating a public link. After that the link only shows a notice; the dialog lets you pick a different value per link (1 to 365). Default 30."
+  notify_share_comments:
+    name: Notify on new comments
+    description: "Sends a Home Assistant and Telegram notification for every new comment on a shared page — including name, text and sender IP. Default on."
   verbose_log:
     name: Verbose logging
     description: Logs more detail per check. Default off — only errors and important events are logged.

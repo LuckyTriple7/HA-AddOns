@@ -253,6 +253,7 @@
         <button class="tab-btn" data-tab="projects">{{ t.tab_projects }}</button>
         <button class="tab-btn" data-tab="blog">{{ t.tab_blog }}</button>
         <button class="tab-btn" data-tab="pages">{{ t.tab_pages }}</button>
+        <button class="tab-btn" data-tab="library">{{ t.tab_library }}</button>
         <button class="tab-btn" data-tab="forms">{{ t.tab_forms }}</button>
         <button class="tab-btn" data-tab="design">{{ t.tab_design }}</button>
         <button class="tab-btn" data-tab="legal">{{ t.tab_legal }}</button>
@@ -485,6 +486,11 @@
         </div>
         <p class="hint">{{ t.album_protect_hint }}</p>
       </div>
+      <div class="panel acc" data-key="library">
+        <div class="acc-head" onclick="toggleAcc(event, this)"><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.library_heading }} <span class="acc-ext">↗</span></div>
+        <p class="hint">{{ t.section_edit_elsewhere }}</p>
+        <button class="btn secondary small" onclick="document.querySelector('.tab-btn[data-tab=library]').click()">{{ t.tab_library }} →</button>
+      </div>
       <div class="panel acc" data-key="team">
         <div class="acc-head" onclick="toggleAcc(event, this)"><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.team_heading }}</div>
         <p class="hint">{{ t.team_hint }}</p>
@@ -611,6 +617,54 @@
         </h3>
         <p class="hint">{{ t.pages_hint }}</p>
         <div class="proj-list" id="page-list"></div>
+      </div>
+    </section>
+
+    <!-- Bibliothek -->
+    <section class="tab" id="tab-library">
+      <div class="panel">
+        <h3>{{ t.library_settings_heading }}</h3>
+        <p class="hint">{{ t.library_settings_hint }}</p>
+        <div class="row">
+          <div>
+            <label>{{ t.library_label_field }} (DE)</label>
+            <input type="text" id="lb-label_de" maxlength="60" placeholder="{{ t.library_label_ph }}">
+          </div>
+          <div>
+            <label>{{ t.library_label_field }} (EN)</label>
+            <input type="text" id="lb-label_en" maxlength="60" placeholder="{{ t.library_label_ph }}">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <label>{{ t.library_intro }} (DE)</label>
+            <textarea id="lb-intro_de" rows="2"></textarea>
+          </div>
+          <div>
+            <label>{{ t.library_intro }} (EN)</label>
+            <textarea id="lb-intro_en" rows="2"></textarea>
+          </div>
+        </div>
+        <label class="checkbox" style="margin-top:10px"><input type="checkbox" id="lb-nav" checked> {{ t.page_in_nav }}</label>
+        <button class="btn" style="margin-top:16px" onclick="saveLibrarySettings()">{{ t.save }}</button>
+      </div>
+
+      <div class="panel">
+        <h3 style="display:flex;justify-content:space-between;align-items:center">
+          {{ t.library_cats_heading }}
+          <button class="btn small" onclick="openLibCatModal()">+ {{ t.library_new_cat }}</button>
+        </h3>
+        <p class="hint">{{ t.library_cats_hint }}</p>
+        <div class="proj-list" id="lib-cat-list"></div>
+      </div>
+
+      <div class="panel">
+        <h3 style="display:flex;justify-content:space-between;align-items:center">
+          {{ t.library_entries_heading }}
+          <button class="btn small" onclick="openLibEntryModal()">+ {{ t.library_new_entry }}</button>
+        </h3>
+        <p class="hint">{{ t.library_entries_hint }}</p>
+        <div class="proj-list" id="lib-entry-list"></div>
       </div>
     </section>
 
@@ -1550,6 +1604,120 @@
     </div>
   </div>
 
+  <!-- Bibliothek: Kategorie-Modal -->
+  <div class="modal-bg" id="libcat-modal">
+    <div class="modal">
+      <h3 id="lc-title">{{ t.library_new_cat }}</h3>
+      <div class="row">
+        <div>
+          <label>{{ t.library_cat_name }} (DE) *</label>
+          <input type="text" id="lc-name_de" maxlength="60">
+        </div>
+        <div>
+          <label>{{ t.library_cat_name }} (EN)</label>
+          <input type="text" id="lc-name_en" maxlength="60">
+        </div>
+      </div>
+      <label>{{ t.library_cat_icon }}</label>
+      <input type="text" id="lc-icon" maxlength="8" placeholder="🧭">
+      <p class="hint">{{ t.library_cat_icon_hint }}</p>
+      <div class="modal-actions">
+        <button class="btn secondary" onclick="el('libcat-modal').classList.remove('open')">{{ t.cancel }}</button>
+        <button class="btn" style="margin-top:16px" onclick="saveLibCat()">{{ t.save }}</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bibliothek: Eintrags-Modal -->
+  <div class="modal-bg" id="libentry-modal">
+    <div class="modal">
+      <h3 id="le-title">{{ t.library_new_entry }}</h3>
+      <div class="row">
+        <div>
+          <label>{{ t.page_slug }}</label>
+          <input type="text" id="le-slug" maxlength="60" placeholder="z. B. kreta-2026">
+          <p class="hint" id="le-url-hint"></p>
+        </div>
+        <div>
+          <label>{{ t.library_cat }}</label>
+          <select id="le-cat"></select>
+          <label class="checkbox" style="margin-top:10px"><input type="checkbox" id="le-visible" checked> {{ t.status_published }}</label>
+          <label class="checkbox" style="margin-top:6px"><input type="checkbox" id="le-members_only"> 🔒 {{ t.members_only_label }}</label>
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label>{{ t.field_title }} (DE) *</label>
+          <input type="text" id="le-title_de" maxlength="140">
+        </div>
+        <div>
+          <label>{{ t.field_title }} (EN)</label>
+          <input type="text" id="le-title_en" maxlength="140">
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label>{{ t.library_summary }} (DE)</label>
+          <textarea id="le-summary_de" rows="2" maxlength="400"></textarea>
+        </div>
+        <div>
+          <label>{{ t.library_summary }} (EN)</label>
+          <textarea id="le-summary_en" rows="2" maxlength="400"></textarea>
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label>{{ t.field_image }}</label>
+          <input type="text" id="le-image" placeholder="/uploads/…">
+          <input type="file" id="le-image-file" accept="image/*" style="margin-top:6px">
+        </div>
+        <div>
+          <label>{{ t.field_tags }}</label>
+          <input type="text" id="le-tags" placeholder="reisen, sommer">
+          <p class="hint">{{ t.post_tags_hint }}</p>
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label>{{ t.field_seo_desc }} (DE)</label>
+          <input type="text" id="le-meta_de" maxlength="300" placeholder="{{ t.post_seo_ph }}">
+        </div>
+        <div>
+          <label>{{ t.field_seo_desc }} (EN)</label>
+          <input type="text" id="le-meta_en" maxlength="300" placeholder="{{ t.post_seo_ph }}">
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label>{{ t.field_text_md }} (DE)</label>
+          <textarea id="le-body_de" rows="12"></textarea>
+        </div>
+        <div>
+          <label>{{ t.field_text_md }} (EN)</label>
+          <textarea id="le-body_en" rows="12"></textarea>
+        </div>
+      </div>
+
+      <h4 style="margin:18px 0 6px">{{ t.library_pdf_heading }}</h4>
+      <select id="le-pdf_mode" onchange="updateLibPdfMode()">
+        <option value="none">{{ t.library_pdf_none }}</option>
+        <option value="generated">{{ t.library_pdf_generated }}</option>
+        <option value="upload">{{ t.library_pdf_upload }}</option>
+      </select>
+      <p class="hint" id="le-pdf-hint"></p>
+      <div id="le-pdf-upload-box" style="display:none;margin-top:8px">
+        <input type="file" id="le-pdf-file" accept="application/pdf">
+        <p class="hint" id="le-pdf-status"></p>
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn secondary" onclick="el('libentry-modal').classList.remove('open')">{{ t.cancel }}</button>
+        {% if lang != 'en' %}<button class="btn secondary" style="margin-top:16px" onclick="translateFields(this, [['le-title_de','le-title_en'],['le-summary_de','le-summary_en'],['le-body_de','le-body_en'],['le-meta_de','le-meta_en']])">🌐 {{ t.tr_btn }}</button>{% endif %}
+        <button class="btn" style="margin-top:16px" onclick="saveLibEntry()">{{ t.save }}</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Seiten-Modal -->
   <div class="modal-bg" id="page-modal">
     <div class="modal">
@@ -1938,7 +2106,8 @@
     }
     function initMdEditors() {
       ['bm-text_de', 'bm-text_en', 'pm-long_de', 'pm-long_en', 'p-bio_de', 'p-bio_en', 'pg-body_de', 'pg-body_en', 'nl-body', 'fm-intro_de', 'fm-intro_en',
-       'fm-success_de', 'fm-success_en', 'm-text_de', 'm-text_en', 'lm-text', 'loc-hours_de', 'loc-hours_en', 'ft-content_de', 'ft-content_en'].forEach(id => attachMd(el(id)));
+       'fm-success_de', 'fm-success_en', 'm-text_de', 'm-text_en', 'lm-text', 'loc-hours_de', 'loc-hours_en', 'ft-content_de', 'ft-content_en',
+       'le-body_de', 'le-body_en'].forEach(id => attachMd(el(id)));
       document.addEventListener('keydown', e => { if (e.key === 'Escape' && el('md-modal').classList.contains('open')) closeMdModal(); });
     }
 
@@ -2024,6 +2193,9 @@
       renderProjects();
       renderPosts();
       renderPages();
+      fillLibrarySettings();
+      renderLibCats();
+      renderLibEntries();
       renderForms();
       renderRedirects();
       // GitHub-Import mit dem Benutzernamen aus dem Profil vorbefüllen
@@ -2239,6 +2411,233 @@
         : await apiJson('api/pages', 'POST', body);
       toast(r.ok ? T.saved : T.error_save, !r.ok);
       if (r.ok) { el('page-modal').classList.remove('open'); loadSite(); }
+    }
+
+    // ── Bibliothek ──
+    let editingLibCatId = null;
+    let editingLibEntryId = null;
+    let libEntryDragFrom = null;
+    let libCatDragFrom = null;
+    let libPdfName = '';          // hochgeladenes PDF des offenen Eintrags
+    let libPdfAvailable = null;   // ob der Server PDFs erzeugen kann (WeasyPrint)
+
+    const libData = () => SITE.library || { categories: [], entries: [] };
+    const libCatName = c => c.name_de || c.name_en || '';
+
+    function fillLibrarySettings() {
+      const lib = libData();
+      el('lb-label_de').value = lib.label_de || '';
+      el('lb-label_en').value = lib.label_en || '';
+      el('lb-intro_de').value = lib.intro_de || '';
+      el('lb-intro_en').value = lib.intro_en || '';
+      el('lb-nav').checked = lib.nav !== false;
+    }
+    async function saveLibrarySettings() {
+      const r = await apiJson('api/library/settings', 'POST', {
+        label_de: el('lb-label_de').value,
+        label_en: el('lb-label_en').value,
+        intro_de: el('lb-intro_de').value,
+        intro_en: el('lb-intro_en').value,
+        nav: el('lb-nav').checked,
+      });
+      toast(r.ok ? T.saved : T.error_save, !r.ok);
+      if (r.ok) loadSite();
+    }
+
+    function renderLibCats() {
+      const list = el('lib-cat-list');
+      list.innerHTML = '';
+      const cats = libData().categories || [];
+      if (!cats.length) { list.innerHTML = `<div class="empty-note">${T.library_no_cats}</div>`; return; }
+      cats.forEach((c, i) => {
+        const div = document.createElement('div');
+        div.className = 'proj-item';
+        div.draggable = true;
+        div.innerHTML = `<div class="proj-info"><div class="proj-name"></div><div class="proj-meta"></div></div>
+          <div class="proj-actions">
+            <button class="btn secondary small btn-edit">${T.edit}</button>
+            <button class="btn danger small btn-del">✕</button>
+          </div>`;
+        div.querySelector('.proj-name').textContent = ((c.icon || '') + ' ' + libCatName(c)).trim();
+        const used = (libData().entries || []).filter(e => e.cat === c.id).length;
+        div.querySelector('.proj-meta').textContent = T.library_cat_used.replace('{n}', used);
+        div.querySelector('.btn-edit').onclick = () => openLibCatModal(c.id);
+        div.querySelector('.btn-del').onclick = async () => {
+          if (!confirm(T.library_confirm_del_cat)) return;
+          const r = await fetch('api/library/categories/' + c.id, { method: 'DELETE', credentials: 'same-origin' });
+          if (r.ok) loadSite();
+        };
+        div.addEventListener('dragstart', () => { libCatDragFrom = i; div.classList.add('dragging'); });
+        div.addEventListener('dragend', () => { libCatDragFrom = null; div.classList.remove('dragging'); });
+        div.addEventListener('dragover', ev => ev.preventDefault());
+        div.addEventListener('drop', async ev => {
+          ev.preventDefault();
+          if (libCatDragFrom === null || libCatDragFrom === i) return;
+          const arr = libData().categories;
+          const [m] = arr.splice(libCatDragFrom, 1); arr.splice(i, 0, m);
+          renderLibCats();
+          await apiJson('api/library/categories/reorder', 'POST', { order: arr.map(x => x.id) });
+        });
+        list.appendChild(div);
+      });
+    }
+    function openLibCatModal(id) {
+      editingLibCatId = id || null;
+      const c = id ? (libData().categories || []).find(x => x.id === id) : {};
+      el('lc-title').textContent = id ? T.library_edit_cat : T.library_new_cat;
+      el('lc-name_de').value = c.name_de || '';
+      el('lc-name_en').value = c.name_en || '';
+      el('lc-icon').value = c.icon || '';
+      el('libcat-modal').classList.add('open');
+    }
+    async function saveLibCat() {
+      const body = {
+        name_de: el('lc-name_de').value,
+        name_en: el('lc-name_en').value,
+        icon: el('lc-icon').value,
+      };
+      if (!body.name_de.trim() && !body.name_en.trim()) { toast(T.error_title, true); return; }
+      const r = editingLibCatId
+        ? await apiJson('api/library/categories/' + editingLibCatId, 'PUT', body)
+        : await apiJson('api/library/categories', 'POST', body);
+      toast(r.ok ? T.saved : T.error_save, !r.ok);
+      if (r.ok) { el('libcat-modal').classList.remove('open'); loadSite(); }
+    }
+
+    function renderLibEntries() {
+      const list = el('lib-entry-list');
+      list.innerHTML = '';
+      const entries = libData().entries || [];
+      if (!entries.length) { list.innerHTML = `<div class="empty-note">${T.library_no_entries}</div>`; return; }
+      const cats = Object.fromEntries((libData().categories || []).map(c => [c.id, c]));
+      entries.forEach((e, i) => {
+        const div = document.createElement('div');
+        div.className = 'proj-item';
+        div.draggable = true;
+        div.innerHTML = `<div class="proj-info"><div class="proj-name"></div><div class="proj-meta"></div></div>
+          <div class="proj-actions">
+            <button class="btn secondary small btn-preview">${T.preview}</button>
+            <button class="btn secondary small btn-edit">${T.edit}</button>
+            <button class="btn danger small btn-del">✕</button>
+          </div>`;
+        div.querySelector('.proj-name').textContent = e.title_de || e.title_en;
+        let badge = '';
+        if (!e.visible) badge += ` <span class="badge-draft">${T.status_draft}</span>`;
+        if (e.members_only) badge += ` <span class="badge-reg">🔒</span>`;
+        if (badge) div.querySelector('.proj-name').insertAdjacentHTML('beforeend', badge);
+        const cat = cats[e.cat];
+        const parts = ['/bibliothek/' + e.slug];
+        if (cat) parts.push(((cat.icon || '') + ' ' + libCatName(cat)).trim());
+        if (e.pdf_mode === 'upload' && e.pdf) parts.push('📄 PDF');
+        else if (e.pdf_mode === 'generated') parts.push(e.pdf_gen ? '📄 PDF (auto)' : '⚠️ ' + T.library_pdf_unavailable);
+        div.querySelector('.proj-meta').textContent = parts.join(' · ');
+        div.querySelector('.btn-preview').onclick = () => window.open('preview/library/' + e.id, '_blank');
+        div.querySelector('.btn-edit').onclick = () => openLibEntryModal(e.id);
+        div.querySelector('.btn-del').onclick = async () => {
+          if (!confirm(T.library_confirm_del_entry)) return;
+          const r = await fetch('api/library/entries/' + e.id, { method: 'DELETE', credentials: 'same-origin' });
+          if (r.ok) loadSite();
+        };
+        div.addEventListener('dragstart', () => { libEntryDragFrom = i; div.classList.add('dragging'); });
+        div.addEventListener('dragend', () => { libEntryDragFrom = null; div.classList.remove('dragging'); });
+        div.addEventListener('dragover', ev => ev.preventDefault());
+        div.addEventListener('drop', async ev => {
+          ev.preventDefault();
+          if (libEntryDragFrom === null || libEntryDragFrom === i) return;
+          const arr = libData().entries;
+          const [m] = arr.splice(libEntryDragFrom, 1); arr.splice(i, 0, m);
+          renderLibEntries();
+          await apiJson('api/library/entries/reorder', 'POST', { order: arr.map(x => x.id) });
+        });
+        list.appendChild(div);
+      });
+    }
+    function libEntrySlugHint() {
+      const slug = (el('le-slug').value || '').trim();
+      el('le-url-hint').textContent = slug ? (publicUrl() + 'bibliothek/' + slug) : T.page_slug_auto;
+    }
+    function updateLibPdfMode() {
+      const mode = el('le-pdf_mode').value;
+      el('le-pdf-upload-box').style.display = mode === 'upload' ? '' : 'none';
+      let hint = T.library_pdf_hint_none;
+      if (mode === 'generated') {
+        hint = libPdfAvailable === false ? T.library_pdf_hint_unavailable : T.library_pdf_hint_generated;
+      } else if (mode === 'upload') {
+        hint = T.library_pdf_hint_upload;
+      }
+      el('le-pdf-hint').textContent = hint;
+      el('le-pdf-status').textContent = libPdfName ? T.library_pdf_ready : '';
+    }
+    async function checkLibPdfSupport() {
+      if (libPdfAvailable !== null) return;
+      const r = await api('api/library/pdf-support');
+      libPdfAvailable = r.ok ? (await r.json()).available : false;
+    }
+    function openLibEntryModal(id) {
+      editingLibEntryId = id || null;
+      const e = id ? (libData().entries || []).find(x => x.id === id) : {};
+      el('le-title').textContent = id ? T.library_edit_entry : T.library_new_entry;
+      const sel = el('le-cat');
+      sel.innerHTML = `<option value="">${T.library_no_cat}</option>`;
+      (libData().categories || []).forEach(c => {
+        const o = document.createElement('option');
+        o.value = c.id;
+        o.textContent = ((c.icon || '') + ' ' + libCatName(c)).trim();
+        sel.appendChild(o);
+      });
+      sel.value = e.cat || '';
+      el('le-slug').value = e.slug || '';
+      el('le-visible').checked = id ? e.visible !== false : true;
+      el('le-members_only').checked = !!e.members_only;
+      el('le-title_de').value = e.title_de || '';
+      el('le-title_en').value = e.title_en || '';
+      el('le-summary_de').value = e.summary_de || '';
+      el('le-summary_en').value = e.summary_en || '';
+      el('le-image').value = e.image || '';
+      el('le-tags').value = (e.tags || []).join(', ');
+      el('le-meta_de').value = e.meta_de || '';
+      el('le-meta_en').value = e.meta_en || '';
+      el('le-body_de').value = e.body_de || '';
+      el('le-body_en').value = e.body_en || '';
+      el('le-pdf_mode').value = e.pdf_mode || 'none';
+      libPdfName = e.pdf || '';
+      libEntrySlugHint();
+      checkLibPdfSupport().then(updateLibPdfMode);
+      updateLibPdfMode();
+      el('libentry-modal').classList.add('open');
+    }
+    async function saveLibEntry() {
+      const body = {
+        slug:         el('le-slug').value,
+        cat:          el('le-cat').value,
+        visible:      el('le-visible').checked,
+        members_only: el('le-members_only').checked,
+        title_de:     el('le-title_de').value,
+        title_en:     el('le-title_en').value,
+        summary_de:   el('le-summary_de').value,
+        summary_en:   el('le-summary_en').value,
+        image:        el('le-image').value,
+        tags:         el('le-tags').value,
+        meta_de:      el('le-meta_de').value,
+        meta_en:      el('le-meta_en').value,
+        body_de:      el('le-body_de').value,
+        body_en:      el('le-body_en').value,
+        pdf_mode:     el('le-pdf_mode').value,
+        pdf:          libPdfName,
+      };
+      if (!body.title_de.trim() && !body.title_en.trim()) { toast(T.error_title, true); return; }
+      const r = editingLibEntryId
+        ? await apiJson('api/library/entries/' + editingLibEntryId, 'PUT', body)
+        : await apiJson('api/library/entries', 'POST', body);
+      if (!r.ok) { toast(T.error_save, true); return; }
+      const d = await r.json();
+      // PDF-Erzeugung meldet ihren Ausgang getrennt — sonst wäre „gespeichert"
+      // irreführend, wenn WeasyPrint fehlt oder das Rendern scheitert.
+      if (d.pdf === 'unavailable') toast(T.library_pdf_hint_unavailable, true);
+      else if (d.pdf === 'error') toast(T.library_pdf_failed, true);
+      else toast(T.saved);
+      el('libentry-modal').classList.remove('open');
+      loadSite();
     }
 
     // ── Formulare ──
@@ -4430,6 +4829,29 @@
     initMdEditors();
     el('pg-slug').addEventListener('input', pageSlugHint);
     el('fm-slug').addEventListener('input', formSlugHint);
+    el('le-slug').addEventListener('input', libEntrySlugHint);
+    el('le-image-file').addEventListener('change', async ev => {
+      const f = ev.target.files[0]; ev.target.value = '';
+      if (!f) return;
+      const fd = new FormData(); fd.append('file', f);
+      const r = await fetch('api/upload', { method: 'POST', body: fd, credentials: 'same-origin' });
+      if (r.ok) el('le-image').value = (await r.json()).url;
+      else toast(T.error_save, true);
+    });
+    el('le-pdf-file').addEventListener('change', async ev => {
+      const f = ev.target.files[0]; ev.target.value = '';
+      if (!f) return;
+      el('le-pdf-status').textContent = T.library_pdf_uploading;
+      const fd = new FormData(); fd.append('file', f);
+      const r = await fetch('api/library/upload-doc', { method: 'POST', body: fd, credentials: 'same-origin' });
+      if (r.ok) {
+        libPdfName = (await r.json()).name;
+        el('le-pdf-status').textContent = T.library_pdf_ready;
+      } else {
+        el('le-pdf-status').textContent = '';
+        toast(T.library_pdf_upload_failed, true);
+      }
+    });
     loadSite();
   </script>
 </body>

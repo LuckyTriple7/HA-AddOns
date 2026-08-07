@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.85.0] - 2026-08-07
+
+### Added
+- **Benachrichtigung bei neuen Kommentaren** über Home Assistant und Telegram —
+  mit Name, Text (auf 300 Zeichen gekürzt) und **Absender-IP**. Abschaltbar über
+  die neue Option **„Benachrichtigung bei neuen Kommentaren"** (Standard an).
+- **Absender-IP je Kommentar** (`share_comments.ip`), sichtbar nur in der
+  Kommentar-Verwaltung des Besitzers — auf der öffentlichen Seite steht sie
+  nicht (durch Test abgesichert). Hinter Cloudflare wird `CF-Connecting-IP`
+  ausgewertet, sonst die Adresse aus dem Proxy-Header, es steht also die echte
+  Client-IP da und nicht die des Reverse-Proxys.
+
 ## [0.84.0] - 2026-08-07
 
 ### Added
