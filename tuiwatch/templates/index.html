@@ -125,6 +125,12 @@
     .meta .rating { color:var(--text); }
     a.rating { text-decoration:none; }
     a.rating:hover { text-decoration:underline; }
+    /* Reiseziel-Zeilen in den Listen (Klima, Reiseführer): sind Bedienelemente,
+       keine Verweise nach draußen — das Browser-Blau samt Unterstreichung und
+       violettem „besucht" ist im dunklen Design kaum lesbar. */
+    .dest-link, .dest-link:visited, .dest-link:active { color:var(--text); text-decoration:none;
+      font-weight:600; cursor:pointer; }
+    .dest-link:hover { color:var(--accent); }
     .meta .canc { color:var(--green); font-weight:700; background:rgba(46,160,67,.12); padding:1px 7px; border-radius:10px; }
     .avail { display:inline-block; font-size:.74rem; font-weight:700; padding:2px 7px; border-radius:10px; margin-top:6px; }
     .avail.yes { color:var(--green); background:rgba(46,160,67,.14); }

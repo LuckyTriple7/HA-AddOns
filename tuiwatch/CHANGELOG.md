@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.87.2] - 2026-08-07
+
+### Fixed
+- **Reiseziel-Namen in den Listen von Klimatabelle und Reiseführer** standen im
+  Browser-Blau samt Unterstreichung — im dunklen Design kaum lesbar, bereits
+  geöffnete Ziele zusätzlich violett („besucht"). Sie sind Bedienelemente, keine
+  Verweise nach draußen, und stehen jetzt in normaler Textfarbe ohne
+  Unterstreichung; beim Überfahren färben sie sich in der Akzentfarbe.
+
 ## [0.87.1] - 2026-08-07
 
 ### Fixed

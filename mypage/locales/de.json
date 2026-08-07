@@ -2323,5 +2323,8 @@
   "library_pdf_upload_failed": "PDF konnte nicht hochgeladen werden.",
   "library_pdf_unavailable": "PDF nicht verfügbar",
   "library_pdf_failed": "PDF konnte nicht erzeugt werden.",
-  "pdf_page": "Seite"
+  "pdf_page": "Seite",
+  "library_copy": "Kopieren",
+  "library_copied": "Kopie angelegt (Entwurf)",
+  "library_copy_suffix": "(Kopie)"
 }

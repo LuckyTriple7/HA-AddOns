@@ -4749,6 +4749,48 @@ def api_library_entry_edit(eid: str):
     return jsonify({'ok': True, 'slug': entries[idx]['slug'], 'pdf': pdf_state})
 
 
+@admin_app.route('/api/library/entries/<eid>/copy', methods=['POST'])
+def api_library_entry_copy(eid: str):
+    """Eintrag duplizieren — Kopie landet direkt hinter dem Original, als Entwurf.
+
+    Entwurf, weil eine Kopie fast immer noch überarbeitet wird: sie hätte sonst
+    denselben Text sofort ein zweites Mal öffentlich (und in der Sitemap).
+    """
+    err = _api_auth()
+    if err:
+        return err
+    site = load_site()
+    lib = _library(site)
+    entries = lib['entries']
+    idx = next((i for i, e in enumerate(entries) if e.get('id') == eid), None)
+    if idx is None:
+        return jsonify({'error': 'not found'}), 404
+    src = entries[idx]
+    copy = json.loads(json.dumps(src))
+    copy['id'] = uuid.uuid4().hex[:12]
+    copy['visible'] = False
+    suffix = ' ' + (load_translations(detect_language(request)).get('library_copy_suffix') or '(Kopie)')
+    for key in ('title_de', 'title_en'):
+        if copy.get(key):
+            copy[key] = _clean_str(copy[key] + suffix, 140)
+    copy['pdf'], copy['pdf_gen'], copy['pdf_hash'] = '', '', ''
+    copy['slug'] = _lib_entry_slug(site, {'slug': src.get('slug', '')}, copy['id'])
+    copy['updated'] = date.today().isoformat()
+    entries.insert(idx + 1, copy)
+    # Ein hochgeladenes PDF bekommt eine eigene Datei — teilten sich Original und
+    # Kopie eine, würde das Löschen des einen dem anderen die Datei wegnehmen.
+    if copy.get('pdf_mode') == 'upload' and _DOC_FILE_RE.match(src.get('pdf') or ''):
+        source = safe_under(DOCS_DIR, src['pdf'])
+        name = uuid.uuid4().hex + '.pdf'
+        target = safe_under(DOCS_DIR, name)
+        if source is not None and source.is_file() and target is not None:
+            shutil.copyfile(source, target)
+            copy['pdf'] = name
+    pdf_state = _library_apply_pdf(site, copy)
+    save_site(site)
+    return jsonify({'ok': True, 'id': copy['id'], 'slug': copy['slug'], 'pdf': pdf_state})
+
+
 @admin_app.route('/api/library/entries/reorder', methods=['POST'])
 def api_library_entry_reorder():
     err = _api_auth()

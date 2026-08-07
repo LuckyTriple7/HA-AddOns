@@ -2522,6 +2522,7 @@
         div.innerHTML = `<div class="proj-info"><div class="proj-name"></div><div class="proj-meta"></div></div>
           <div class="proj-actions">
             <button class="btn secondary small btn-preview">${T.preview}</button>
+            <button class="btn secondary small btn-copy">${T.library_copy}</button>
             <button class="btn secondary small btn-edit">${T.edit}</button>
             <button class="btn danger small btn-del">✕</button>
           </div>`;
@@ -2537,6 +2538,17 @@
         else if (e.pdf_mode === 'generated') parts.push(e.pdf_gen ? '📄 PDF (auto)' : '⚠️ ' + T.library_pdf_unavailable);
         div.querySelector('.proj-meta').textContent = parts.join(' · ');
         div.querySelector('.btn-preview').onclick = () => window.open('preview/library/' + e.id, '_blank');
+        div.querySelector('.btn-copy').onclick = async ev => {
+          const btn = ev.currentTarget;
+          btn.disabled = true;
+          const r = await apiJson('api/library/entries/' + e.id + '/copy', 'POST', {});
+          btn.disabled = false;
+          if (!r.ok) { toast(T.error_save, true); return; }
+          const d = await r.json();
+          toast(T.library_copied);
+          await loadSite();
+          openLibEntryModal(d.id);   // direkt zum Bearbeiten öffnen
+        };
         div.querySelector('.btn-edit').onclick = () => openLibEntryModal(e.id);
         div.querySelector('.btn-del').onclick = async () => {
           if (!confirm(T.library_confirm_del_entry)) return;

@@ -2323,5 +2323,8 @@
   "library_pdf_upload_failed": "Could not upload the PDF.",
   "library_pdf_unavailable": "PDF unavailable",
   "library_pdf_failed": "Could not generate the PDF.",
-  "pdf_page": "Page"
+  "pdf_page": "Page",
+  "library_copy": "Duplicate",
+  "library_copied": "Copy created (draft)",
+  "library_copy_suffix": "(copy)"
 }

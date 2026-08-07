@@ -3349,7 +3349,7 @@
       }
       $('#climate-body').innerHTML = '<table class="hist">'
         + '<tr><th>Reiseziel</th><th>erstellt</th><th></th></tr>'
-        + items.map(it=>`<tr><td><a href="#" onclick="event.preventDefault();`
+        + items.map(it=>`<tr><td><a class="dest-link" href="#" onclick="event.preventDefault();`
             + `openClimate(${it.giata},${esc(JSON.stringify(it.label))})">${esc(it.label)}</a></td>`
           + `<td class="hint">${new Date(it.ts*1000).toLocaleDateString('de-DE')}</td>`
           + `<td><button class="btn sec" onclick="deleteClimate(${it.giata},${esc(JSON.stringify(it.label))})" `
@@ -3593,7 +3593,7 @@
       }
       $('#guide-body').innerHTML = '<table class="hist">'
         + '<tr><th>Reiseziel</th><th>erstellt</th><th></th></tr>'
-        + items.map(it=>`<tr><td><a href="#" onclick="event.preventDefault();`
+        + items.map(it=>`<tr><td><a class="dest-link" href="#" onclick="event.preventDefault();`
             + `openGuide(${it.giata},${esc(JSON.stringify(it.label))})">${esc(it.label)}</a></td>`
           + `<td class="hint">${new Date(it.ts*1000).toLocaleDateString('de-DE')}</td>`
           + `<td><button class="btn sec" onclick="deleteGuide(${it.giata},${esc(JSON.stringify(it.label))})" `
