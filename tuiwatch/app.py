@@ -8,6 +8,7 @@ SQLite und zeigt Verlauf + Hoch/Runter-Anzeige in einer Weboberfläche.
 import csv
 import hashlib
 import io
+import ipaddress
 import json
 import logging
 import os
@@ -89,7 +90,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.85.0"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.86.0"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -293,9 +294,38 @@ def touch_session(token: str, hours: int) -> None:
         save_sessions()
 
 
+def _is_internal_ip(value: str) -> bool:
+    """Private/lokale Adresse? (Docker-Bridge 172.30.32.1, 192.168.…, ::1 …)"""
+    try:
+        addr = ipaddress.ip_address(value)
+    except ValueError:
+        return True   # kein gültiges Literal → als unbrauchbar behandeln
+    return (addr.is_private or addr.is_loopback or addr.is_link_local
+            or addr.is_reserved or addr.is_unspecified)
+
+
 def get_client_ip(req) -> str:
-    cf = req.headers.get('CF-Connecting-IP', '').strip()
-    return cf or (req.remote_addr or 'unknown')
+    """Beste bekannte Client-Adresse.
+
+    Läuft die Seite hinter mehreren Ebenen (Cloudflare → Reverse Proxy → HA), ist
+    `remote_addr` die Docker-Bridge (172.30.32.1) und ProxyFix greift nur einen
+    Hop tief. Deshalb der Reihe nach: die eindeutigen Proxy-Header, dann der
+    erste öffentliche Eintrag der X-Forwarded-For-Kette (links = Client), erst
+    zum Schluss der direkte Absender.
+
+    Verlassen kann man sich darauf nur so weit wie auf den eigenen Proxy: einen
+    X-Forwarded-For-Kopf kann jeder mitschicken. Cloudflare und die üblichen
+    Reverse Proxies überschreiben ihn, ein direkt erreichbarer Port nicht.
+    """
+    for header in ('CF-Connecting-IP', 'True-Client-IP', 'X-Real-IP'):
+        val = (req.headers.get(header) or '').strip()
+        if val and not _is_internal_ip(val):
+            return val
+    chain = [p.strip() for p in (req.headers.get('X-Forwarded-For') or '').split(',')]
+    for val in chain:
+        if val and not _is_internal_ip(val):
+            return val
+    return (chain[0] if chain and chain[0] else None) or req.remote_addr or 'unknown'
 
 
 def is_rate_limited(ip: str) -> bool:
@@ -732,7 +762,10 @@ def init_db() -> None:
             last_view_ts INTEGER,
             -- Zeitpunkt, zu dem der Besitzer die Kommentare zuletzt geöffnet hat.
             -- Alles Neuere lässt den Kommentar-Knopf in der Übersicht grün leuchten.
-            comments_seen_ts INTEGER NOT NULL DEFAULT 0
+            comments_seen_ts INTEGER NOT NULL DEFAULT 0,
+            -- Kommentarfeld auf der öffentlichen Seite (je Link abschaltbar).
+            -- Aus = bestehende Kommentare bleiben sichtbar, nur schreiben geht nicht.
+            comments_enabled INTEGER NOT NULL DEFAULT 1
         )''')
         # Kommentare der Empfänger auf der öffentlichen Seite. Bewusst ohne
         # Fremdschlüssel: die Tabelle wird beim Widerrufen/Ablaufen des Links
@@ -757,6 +790,9 @@ def init_db() -> None:
         if 'comments_seen_ts' not in shcols:
             con.execute('ALTER TABLE shares ADD COLUMN comments_seen_ts '
                         'INTEGER NOT NULL DEFAULT 0')
+        if 'comments_enabled' not in shcols:
+            con.execute('ALTER TABLE shares ADD COLUMN comments_enabled '
+                        'INTEGER NOT NULL DEFAULT 1')
         # Preisbarometer (tägliche Regionssuche) — Schema liegt im eigenen Modul,
         # das erst am Dateiende importiert wird; zur Laufzeit von init_db() ist es da.
         market_basket.init_basket_db(con)
@@ -3458,6 +3494,14 @@ def _start_public_server() -> None:
         return
     port = int(cfg.get('public_port') or 17796)
     log.info("Öffentliche Angebots-Seiten aktiv auf Port %d (nur /s/<token>)", port)
+    # Zur Client-IP hinter dem Reverse Proxy (Kommentare zeigen sie an):
+    # waitress verwirft X-Forwarded-For, solange kein `trusted_proxy` gesetzt
+    # ist — `X-Real-IP` und `CF-Connecting-IP` reicht es dagegen durch (gemessen).
+    # Genau die wertet get_client_ip aus. `trusted_proxy` wäre die Alternative,
+    # verlangt aber die exakte Zahl der Proxy-Ebenen (trusted_proxy_count); rät
+    # man daneben, steht am Ende wieder die Adresse eines Zwischenhops da.
+    # Deshalb bleibt es bei den Standardeinstellungen; fehlt die echte IP, sagt
+    # eine Warnung im Log, welcher Header im Proxy zu setzen ist.
     threading.Thread(
         target=lambda: serve(share_routes.share_app, host='0.0.0.0', port=port,
                              threads=8),

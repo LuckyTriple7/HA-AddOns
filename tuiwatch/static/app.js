@@ -1383,6 +1383,8 @@
           <label><input type="checkbox" id="shr-clim"${inc.climate?' checked':''}> Klimatabelle</label>
           <label><input type="checkbox" id="shr-guide"${inc.guide?' checked':''}> Reiseführer</label>
           <label><input type="checkbox" id="shr-hist"${inc.history?' checked':''}> Preisverlauf</label>
+          <label title="Empfänger können unter den Angeboten kommentieren (max. 500 Zeichen)"><input
+            type="checkbox" id="shr-cmt-on"${(cur ? cur.comments_enabled!==false : true)?' checked':''}> Kommentare</label>
         </div>
         ${advSel}
         <div class="shr-row">
@@ -1464,6 +1466,7 @@
                    history: $('#shr-hist').checked, advisor: !!($('#shr-adv')||{}).value },
         advisor_id: ($('#shr-adv')||{}).value || null,
         days: parseInt($('#shr-days').value, 10) || 30,
+        comments_enabled: $('#shr-cmt-on').checked,
       };
       if(body.include.climate || body.include.guide)
         await ensureShareExtras(ids, body.include.climate, body.include.guide);
@@ -1575,14 +1578,26 @@
     }
     $('#shc-bg').addEventListener('click', e=>{ if(e.target.id==='shc-bg') closeShareComments(); });
     async function renderShareComments(){
-      let d;
-      try { d = await fetch(api('/api/shares/'+encodeURIComponent(shcToken)+'/comments')).then(r=>r.json()); }
+      let d, meta;
+      const tok = encodeURIComponent(shcToken);
+      try {
+        [d, meta] = await Promise.all([
+          fetch(api('/api/shares/'+tok+'/comments')).then(r=>r.json()),
+          fetch(api('/api/shares/'+tok)).then(r=>r.json()),
+        ]);
+      }
       catch(e){ $('#shc-body').innerHTML = '<div class="cmp-load">Konnte nicht geladen werden.</div>'; return; }
       const items = d.items || [];
+      const on = (meta||{}).comments_enabled !== false;
       $('#shc-sub').textContent = items.length
         ? items.length + ' Kommentar(e) — von den Empfängern auf der öffentlichen Seite geschrieben'
         : 'Noch keine Kommentare zu diesem Link.';
-      $('#shc-body').innerHTML = items.length ? items.map(c => `
+      // Schalter je Link: aus = das Formular verschwindet auf der öffentlichen
+      // Seite, bereits geschriebene Kommentare bleiben aber stehen.
+      $('#shc-body').innerHTML = `<label class="shc-toggle" title="Bestimmt nur, ob neue Kommentare möglich sind — vorhandene bleiben sichtbar">
+          <input type="checkbox" id="shc-on"${on?' checked':''} onchange="toggleShareComments(this.checked)">
+          Kommentare auf der geteilten Seite erlauben</label>`
+        + (items.length ? items.map(c => `
         <div class="shc-item">
           <div class="shc-meta">${esc(c.author || 'Anonym')} · ${new Date(c.ts*1000).toLocaleString('de-DE')}${
             c.ip?` · <span class="shc-ip" title="Absender-IP (hinter Cloudflare die echte Client-IP)">${esc(c.ip)}</span>`:''}</div>
@@ -1591,7 +1606,7 @@
             <button class="btn sec" onclick="editShareComment(${c.id})">Bearbeiten</button>
             <button class="btn danger" onclick="deleteShareComment(${c.id})">Löschen</button>
           </div>
-        </div>`).join('') : '<p class="hint">Sobald jemand auf der geteilten Seite schreibt, steht es hier.</p>';
+        </div>`).join('') : '<p class="hint">Sobald jemand auf der geteilten Seite schreibt, steht es hier.</p>');
       _shcItems = items;
     }
     let _shcItems = [];
@@ -1609,6 +1624,15 @@
         if(!r.ok) throw new Error('http');
       } catch(e){ toast('Ändern fehlgeschlagen'); return; }
       toast('Kommentar geändert'); renderShareComments();
+    }
+    async function toggleShareComments(on){
+      try {
+        const r = await fetch(api('/api/shares/'+encodeURIComponent(shcToken)),
+          {method:'PATCH', headers:{'Content-Type':'application/json'},
+           body: JSON.stringify({comments_enabled: !!on})});
+        if(!r.ok) throw new Error('http');
+      } catch(e){ toast('Umschalten fehlgeschlagen'); renderShareComments(); return; }
+      toast(on ? 'Kommentare erlaubt' : 'Kommentare geschlossen — Vorhandene bleiben sichtbar');
     }
     async function deleteShareComment(id){
       if(!confirm('Diesen Kommentar löschen? Er verschwindet auch von der geteilten Seite.')) return;

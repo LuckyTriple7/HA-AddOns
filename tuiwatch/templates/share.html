@@ -172,7 +172,9 @@
   </details>
   {%- endif %}
 
-  {#- Kommentare: reines Formular ohne JavaScript (POST → Redirect → GET). -#}
+  {#- Kommentare: reines Formular ohne JavaScript (POST → Redirect → GET).
+      Abgeschaltet und noch nichts geschrieben → der Block entfällt ganz. -#}
+  {%- if comments_open or comments %}
   <div class="sec cmt" id="kommentare">
     <div class="sec-body">
       <h3>💬 Kommentare</h3>
@@ -185,7 +187,7 @@
         </li>
         {%- endfor %}
       </ul>
-      {%- else %}
+      {%- elif comments_open %}
       <p class="cmt-empty">Noch kein Kommentar — schreib den ersten.</p>
       {%- endif %}
 
@@ -193,16 +195,22 @@
       {%- elif note_code == 'leer' %}<p class="cmt-note warn">Da war kein Text drin.</p>
       {%- elif note_code == 'takt' %}<p class="cmt-note warn">Kurz durchatmen — gleich geht’s weiter.</p>
       {%- elif note_code == 'voll' %}<p class="cmt-note warn">Hier ist genug gesagt: mehr Kommentare gehen zu diesem Link nicht.</p>
+      {%- elif note_code == 'zu' %}<p class="cmt-note warn">Kommentare sind zu diesem Link geschlossen.</p>
       {%- endif %}
 
+      {%- if comments_open %}
       <form class="cmt-form" method="post" action="/s/{{ token }}/comment">
         <input type="text" name="author" maxlength="{{ author_max }}" placeholder="Dein Name (optional)">
         <textarea name="text" rows="3" maxlength="{{ comment_max }}" required
                   placeholder="Was meinst du zu den Angeboten? (max. {{ comment_max }} Zeichen)"></textarea>
         <button type="submit">Kommentar senden</button>
       </form>
+      {%- else %}
+      <p class="cmt-empty">Kommentare sind zu diesem Link geschlossen.</p>
+      {%- endif %}
     </div>
   </div>
+  {%- endif %}
 
   <div class="foot">
     Zusammengestellt am {{ p.created|dt }} · Link gültig bis {{ expires_ts|dt }}<br>

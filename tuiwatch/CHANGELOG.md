@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.86.0] - 2026-08-07
+
+### Added
+- **Kommentare je Link an-/abschaltbar** (Standard an): Haken **„Kommentare"** im
+  Teilen-Dialog und ein Schalter oben im Kommentar-Fenster. Aus bedeutet „nichts
+  Neues": das Formular verschwindet von der öffentlichen Seite, **bereits
+  geschriebene Kommentare bleiben sichtbar**. Sind Kommentare aus und noch keine
+  vorhanden, fehlt der Abschnitt dort ganz.
+
+### Fixed
+- **Bei Kommentaren stand die interne Adresse statt der echten Client-IP**
+  (z. B. 172.30.32.1, die Docker-Bridge). Zwei Ursachen: `get_client_ip` sah nur
+  `CF-Connecting-IP` und sonst `remote_addr`, und waitress verwirft
+  `X-Forwarded-For`, solange kein `trusted_proxy` gesetzt ist.
+  `get_client_ip` prüft jetzt der Reihe nach `CF-Connecting-IP`,
+  `True-Client-IP`, `X-Real-IP` und dann den ersten öffentlichen Eintrag der
+  `X-Forwarded-For`-Kette; private/interne Adressen werden dabei übersprungen,
+  eine LAN-Adresse bleibt aber stehen, wenn es nichts Besseres gibt.
+  **Damit das greift, muss der Reverse Proxy `X-Real-IP` setzen** (nginx/NPM:
+  `proxy_set_header X-Real-IP $remote_addr;`) oder Cloudflare davorstehen —
+  `X-Forwarded-For` allein reicht wegen waitress nicht. Fehlt beides, sagt eine
+  Warnung im Log genau das.
+
 ## [0.85.0] - 2026-08-07
 
 ### Added

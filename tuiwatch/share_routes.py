@@ -165,6 +165,7 @@ def _row_to_item(row, comments=(0, 0)) -> dict:
         'created_ts': row['created_ts'], 'expires_ts': row['expires_ts'],
         'views': row['views'], 'last_view_ts': row['last_view_ts'],
         'comments': comments[0], 'new_comments': comments[1],
+        'comments_enabled': bool(row['comments_enabled']),
         'offers': len(payload.get('offers') or []),
         'has_climate': bool(payload.get('climate')),
         'has_guide': bool(payload.get('guide')),
@@ -223,12 +224,13 @@ def api_share_create():
         return jsonify({'error': 'no_offers'}), 400
     token = secrets.token_urlsafe(12)
     now = int(time.time())
+    cmt = 0 if data.get('comments_enabled') is False else 1   # Standard: an
     with A.db() as con:
         con.execute(
-            'INSERT INTO shares (token, title, note, payload, created_ts, expires_ts) '
-            'VALUES (?,?,?,?,?,?)',
+            'INSERT INTO shares (token, title, note, payload, created_ts, expires_ts, '
+            'comments_enabled) VALUES (?,?,?,?,?,?,?)',
             (token, title, note, json.dumps(payload, ensure_ascii=False),
-             now, now + days * 86400))
+             now, now + days * 86400, cmt))
     A.log.info("Öffentlicher Share angelegt (%d Angebote, %d Tage gültig)",
                len(payload['offers']), days)
     return jsonify({'token': token, 'url': _share_url(token),
@@ -290,6 +292,7 @@ def api_share_get(token: str):
                     'advisor': bool(payload.get('advisor')),
                     'history': any(o.get('history') for o in offers)},
         'days': days_left, 'expires_ts': row['expires_ts'], 'views': row['views'],
+        'comments_enabled': bool(row['comments_enabled']),
         'url': _share_url(token),
     })
 
@@ -319,11 +322,22 @@ def api_share_patch(token: str):
     days = max(1, min(_MAX_DAYS, days))
     expires = int(time.time()) + days * 86400
 
+    # Kommentare je Link an/aus — auch allein schaltbar, ohne den Rest anzufassen
+    cmt = (1 if data.get('comments_enabled') else 0) \
+        if 'comments_enabled' in data else None
+
     ids = data.get('offer_ids')
     if ids is None:
         with A.db() as con:
-            con.execute('UPDATE shares SET expires_ts=? WHERE token=?', (expires, token))
-        return jsonify({'expires_ts': expires, 'token': token})
+            if cmt is not None:
+                con.execute('UPDATE shares SET comments_enabled=? WHERE token=?',
+                            (cmt, token))
+            if 'days' in data:
+                con.execute('UPDATE shares SET expires_ts=? WHERE token=?',
+                            (expires, token))
+        return jsonify({'expires_ts': expires if 'days' in data else row['expires_ts'],
+                        'token': token,
+                        'comments_enabled': bool(row['comments_enabled'] if cmt is None else cmt)})
 
     if not isinstance(ids, list) or not ids:
         return jsonify({'error': 'no_offers'}), 400
@@ -347,6 +361,8 @@ def api_share_patch(token: str):
                     'WHERE token=?',
                     (title, note, json.dumps(payload, ensure_ascii=False),
                      expires, token))
+        if cmt is not None:
+            con.execute('UPDATE shares SET comments_enabled=? WHERE token=?', (cmt, token))
     A.log.info("Öffentlicher Share aktualisiert (%d Angebote)", len(payload['offers']))
     return jsonify({'token': token, 'url': _share_url(token),
                     'expires_ts': expires, 'offers': len(payload['offers'])})
@@ -692,6 +708,7 @@ def public_share(token: str):
         climate=payload.get('climate') or [], guide=payload.get('guide') or [],
         advisor=payload.get('advisor'), expires_ts=row['expires_ts'],
         comments=_comments_of(token), token=token,
+        comments_open=bool(row['comments_enabled']),
         comment_max=_COMMENT_MAX, author_max=_AUTHOR_MAX,
         note_code=request.args.get('k', ''),
         app_version=A.APP_VERSION))
@@ -729,13 +746,16 @@ def public_share_comment(token: str):
         return _error_page(404, 'Nicht gefunden', 'Dieser Link existiert nicht.')
     now = int(time.time())
     with A.db() as con:
-        row = con.execute('SELECT expires_ts FROM shares WHERE token=?', (token,)).fetchone()
+        row = con.execute('SELECT expires_ts, comments_enabled FROM shares WHERE token=?',
+                          (token,)).fetchone()
         if not row:
             _note_fail(ip)
             return _error_page(404, 'Nicht gefunden', 'Dieser Link existiert nicht (mehr).')
         if row['expires_ts'] < now:
             return _error_page(410, 'Link abgelaufen',
                                'Dieser Link ist nicht mehr gültig. Frag einfach nach einem neuen.')
+        if not row['comments_enabled']:
+            return _comment_redirect(token, 'zu')
         text = str(request.form.get('text') or '').strip()[:_COMMENT_MAX]
         author = str(request.form.get('author') or '').strip()[:_AUTHOR_MAX]
         if not text:
@@ -753,6 +773,18 @@ def public_share_comment(token: str):
     _comment_hits[ip].append(time.time())
     A.log.info("Neuer Kommentar zu Share %s von %s (%d Zeichen)",
                token[:6] + '…', ip, len(text))
+    if A._is_internal_ip(ip):
+        # Nur die interne Adresse (Docker-Bridge o. ä.) bekannt: der Proxy vor dem
+        # öffentlichen Port reicht die Client-IP nicht weiter. Die vorhandenen
+        # Weiterleitungs-Header ins Log, damit sich das gezielt nachrüsten lässt.
+        vorhanden = {h: request.headers.get(h) for h in
+                     ('CF-Connecting-IP', 'True-Client-IP', 'X-Real-IP', 'X-Forwarded-For')
+                     if request.headers.get(h)}
+        A.log.warning(
+            "Kommentar ohne echte Client-IP (%s). Weitergereicht: %s. Im Reverse "
+            "Proxy „X-Real-IP\" setzen (nginx/NPM: proxy_set_header X-Real-IP "
+            "$remote_addr) — X-Forwarded-For allein reicht nicht, waitress "
+            "verwirft den Kopf.", ip, vorhanden or 'nichts')
     A._spawn(_notify_comment, title, author, text, ip)
     return _comment_redirect(token, 'ok')
 

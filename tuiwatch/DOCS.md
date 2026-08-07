@@ -885,11 +885,21 @@ ohne Login und ohne App. In **🔗 Geteilte Links** gibt es je Link den Knopf
 damit auf, sobald du ihn geöffnet hast. Dort lassen sich Kommentare auch **bearbeiten**
 (Tippfehler, Kürzen) und **löschen** — beides schlägt sofort auf die öffentliche Seite
 durch. Widerrufen oder Ablaufen des Links löscht die zugehörigen Kommentare mit.
+**Pro Link abschaltbar:** Der Haken „Kommentare" im Teilen-Dialog (und der Schalter
+oben im Kommentar-Fenster) bestimmt, ob **neue** Kommentare möglich sind — Standard an.
+Aus heißt: das Formular verschwindet, bereits geschriebene Kommentare bleiben stehen.
+
 Jeder neue Kommentar löst eine **Benachrichtigung über Home Assistant und Telegram**
 aus (Name, Text, Absender-IP) — abschaltbar über die Option „Benachrichtigung bei
-neuen Kommentaren". Die **IP** steht zusätzlich an jedem Kommentar in der Verwaltung;
-hinter Cloudflare ist das über `CF-Connecting-IP` die echte Client-IP, nicht die des
-Proxys. Auf der öffentlichen Seite ist die IP **nicht** zu sehen.
+neuen Kommentaren". Die **IP** steht zusätzlich an jedem Kommentar in der Verwaltung
+(auf der öffentlichen Seite **nicht**).
+
+> **Damit die echte IP ankommt**, muss der Reverse Proxy vor dem öffentlichen Port
+> `X-Real-IP` setzen — bei nginx/Nginx Proxy Manager `proxy_set_header X-Real-IP
+> $remote_addr;`, bei Cloudflare genügt der automatische `CF-Connecting-IP`.
+> `X-Forwarded-For` allein reicht **nicht**: der Webserver (waitress) verwirft diesen
+> Kopf ohne konfigurierten `trusted_proxy`. Ohne beides steht dort die interne
+> Docker-Adresse (z. B. 172.30.32.1) und im Log eine entsprechende Warnung.
 
 Weil die Seite öffentlich beschreibbar ist, gelten Grenzen: 500 Zeichen je Kommentar,
 40 Zeichen für den Namen, 200 Kommentare je Link und 5 Kommentare je IP und
