@@ -1275,6 +1275,8 @@
         <h3>{{ t.cleanup_heading }}</h3>
         <p class="hint">{{ t.cleanup_hint }}</p>
         <button class="btn secondary" id="cleanup-btn" onclick="cleanupUploads()">🧹 {{ t.cleanup_btn }}</button>
+        <p class="hint">{{ t.cleanup_pdf_hint }}</p>
+        <button class="btn secondary" id="cleanup-pdf-btn" onclick="cleanupDocs()">🧹 {{ t.cleanup_pdf_btn }}</button>
       </div>
       <div class="panel">
         <h3>{{ t.redirects_heading }}</h3>
@@ -4325,20 +4327,26 @@
       toast(r.ok ? T.saved : T.error_save, !r.ok);
       if (r.ok) loadSite();
     }
-    async function cleanupUploads() {
-      const btn = el('cleanup-btn'); btn.disabled = true;
+    // Bilder und PDFs liegen in getrennten Ordnern und werden getrennt
+    // aufgeräumt — gleicher Ablauf, deshalb eine Funktion mit Parametern.
+    async function cleanupFiles(kind, btnId, noneMsg, confirmMsg) {
+      const btn = el(btnId); btn.disabled = true;
       try {
-        const r = await api('api/uploads/unused');
+        const r = await api('api/' + kind + '/unused');
         if (!r.ok) { toast(T.error_load, true); return; }
         const info = await r.json();
-        if (!info.count) { toast(T.cleanup_none); return; }
-        if (!confirm(T.cleanup_confirm.replace('{n}', info.count).replace('{mb}', info.size_mb))) return;
-        const d = await apiJson('api/uploads/cleanup', 'POST', {});
+        if (!info.count) { toast(noneMsg); return; }
+        if (!confirm(confirmMsg.replace('{n}', info.count).replace('{mb}', info.size_mb))) return;
+        const d = await apiJson('api/' + kind + '/cleanup', 'POST', {});
         if (!d.ok) { toast(T.error_save, true); return; }
         const res = await d.json();
         toast(T.cleanup_done.replace('{n}', res.removed).replace('{mb}', res.freed_mb));
       } finally { btn.disabled = false; }
     }
+    const cleanupUploads = () =>
+      cleanupFiles('uploads', 'cleanup-btn', T.cleanup_none, T.cleanup_confirm);
+    const cleanupDocs = () =>
+      cleanupFiles('docs', 'cleanup-pdf-btn', T.cleanup_pdf_none, T.cleanup_pdf_confirm);
     el('restore-input').addEventListener('change', async e => {
       const f = e.target.files[0];
       if (!f) return;

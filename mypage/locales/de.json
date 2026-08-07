@@ -2357,5 +2357,9 @@
   "img_ai_hint": "KI-erzeugte Bilder tragen immer den Hinweis „KI generiert“ — unabhängig von dieser Einstellung.",
   "library_protect_hint": "Brennt das Wasserzeichen in Titelbilder und Bilder im Text der Bibliothek-Einträge ein — auch im erzeugten PDF. Dieselbe Einstellung wie bei den Fotoalben: eine Änderung hier wirkt auch dort. Leeres Textfeld = „© deine-domain.de“.",
   "library_pdf_running": "PDF wird erzeugt …",
-  "library_pdf_ok": "PDF erzeugt."
+  "library_pdf_ok": "PDF erzeugt.",
+  "cleanup_pdf_hint": "Entfernt PDFs der Bibliothek, zu denen es keinen Eintrag mehr gibt. Im Normalfall räumt die Bibliothek selbst auf; übrig bleibt, was daran vorbeigeht — ein abgebrochenes Rendern oder eine Wiederherstellung aus einem Backup mit weniger Einträgen.",
+  "cleanup_pdf_btn": "Ungenutzte PDFs aufräumen",
+  "cleanup_pdf_none": "Keine ungenutzten PDFs gefunden.",
+  "cleanup_pdf_confirm": "{n} ungenutzte PDF-Datei(en) ({mb} MB) endgültig löschen?"
 }

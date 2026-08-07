@@ -5771,20 +5771,53 @@ def api_uploads_list():
     return jsonify({'files': files[:UPLOADS_LIST_MAX], 'total': len(files)})
 
 
-def _unused_uploads(site: dict):
-    """Hochgeladene Dateien, die nirgends mehr in site.json referenziert sind.
+def _unused_in(directory: Path, site: dict):
+    """Dateien in `directory`, die nirgends mehr in site.json referenziert sind.
 
-    Alle Uploads (Bilder in Seiten/Beiträgen/Projekten/Alben, Avatar, Favicon)
-    werden in site.json als `/uploads/<name>` gespeichert. Dateinamen sind
-    eindeutige UUIDs, daher ist ein Vorkommen-Scan über den JSON-Text sicher.
+    Dateinamen sind durchweg eindeutige UUIDs, daher ist ein Vorkommen-Scan über
+    den JSON-Text sicher und deckt jede Fundstelle ab, ohne die Struktur zu kennen.
     """
     blob = json.dumps(site, ensure_ascii=False)
     orphans, total = [], 0
-    for f in UPLOADS_DIR.iterdir():
+    for f in directory.iterdir():
         if f.is_file() and f.name not in blob:
             orphans.append(f)
             total += f.stat().st_size
     return orphans, total
+
+
+def _unused_uploads(site: dict):
+    """Hochgeladene Bilder, die nirgends mehr referenziert sind.
+
+    Alle Uploads (Bilder in Seiten/Beiträgen/Projekten/Alben, Avatar, Favicon)
+    stehen in site.json als `/uploads/<name>`.
+    """
+    return _unused_in(UPLOADS_DIR, site)
+
+
+def _unused_docs(site: dict):
+    """PDFs der Bibliothek, zu denen es keinen Eintrag mehr gibt.
+
+    Im Normalbetrieb räumt die Bibliothek selbst auf (neu gerendert, Modus
+    gewechselt, Eintrag gelöscht). Übrig bleibt, was daran vorbeigeht: ein
+    abgebrochenes Rendern zwischen Schreiben und Eintragen in site.json, oder
+    eine Wiederherstellung aus einem Backup mit weniger Einträgen.
+    """
+    return _unused_in(DOCS_DIR, site)
+
+
+def _cleanup_dir(orphans, total, audit_tag: str):
+    """Waisen löschen und das Ergebnis als JSON-Antwort zurückgeben."""
+    removed = 0
+    for f in orphans:
+        try:
+            f.unlink()
+            removed += 1
+        except OSError as e:
+            log.warning("Aufräumen: %s konnte nicht gelöscht werden: %s", f.name, e)
+    if removed:
+        log_audit(audit_tag, f'{removed} Datei(en)')
+    return jsonify({'ok': True, 'removed': removed, 'freed_mb': round(total / 1048576, 1)})
 
 
 @admin_app.route('/api/uploads/unused')
@@ -5801,17 +5834,24 @@ def api_uploads_cleanup():
     err = _api_auth()
     if err:
         return err
-    orphans, total = _unused_uploads(load_site())
-    removed = 0
-    for f in orphans:
-        try:
-            f.unlink()
-            removed += 1
-        except OSError as e:
-            log.warning("Aufräumen: %s konnte nicht gelöscht werden: %s", f.name, e)
-    if removed:
-        log_audit('uploads_cleanup', f'{removed} Datei(en)')
-    return jsonify({'ok': True, 'removed': removed, 'freed_mb': round(total / 1048576, 1)})
+    return _cleanup_dir(*_unused_uploads(load_site()), 'uploads_cleanup')
+
+
+@admin_app.route('/api/docs/unused')
+def api_docs_unused():
+    err = _api_auth()
+    if err:
+        return err
+    orphans, total = _unused_docs(load_site())
+    return jsonify({'count': len(orphans), 'size_mb': round(total / 1048576, 1)})
+
+
+@admin_app.route('/api/docs/cleanup', methods=['POST'])
+def api_docs_cleanup():
+    err = _api_auth()
+    if err:
+        return err
+    return _cleanup_dir(*_unused_docs(load_site()), 'docs_cleanup')
 
 
 @admin_app.route('/api/github/repos')

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.5
+- 🧹 **Neuer Knopf „Ungenutzte PDFs aufräumen"** unter *System → Speicher aufräumen*. Bisher erfasste das Aufräumen nur den Bilder-Ordner — verwaiste Bibliothek-PDFs waren dort weder sichtbar noch löschbar, und ein PDF ist deutlich größer als ein Bild.
+- Im Normalbetrieb räumt die Bibliothek selbst auf (neu gerendert, PDF-Modus gewechselt, Eintrag gelöscht). Der Knopf fängt die Fälle ab, die daran vorbeigehen: ein **abgebrochenes Rendern** zwischen Schreiben der Datei und Eintragen in `site.json`, oder eine **Wiederherstellung aus einem Backup mit weniger Einträgen**.
+- Erkannt wird wie bei den Bildern über einen Vorkommen-Scan in `site.json`; gelöscht wird erst nach Rückfrage mit Anzahl und Größe. Beide Aufräum-Werkzeuge sind getrennt — eines fasst den Ordner des anderen nie an.
+
 ## 0.9.4
 - ⏳ **Die PDF-Erzeugung zeigt sich jetzt.** Beim Speichern eines Bibliothek-Eintrags mit „Aus dem Text erzeugen" erscheint oben ein **Banner mit Spinner** („PDF wird erzeugt …"), das stehen bleibt, bis das Rendern durch ist — danach wird es **grün** („PDF erzeugt.") oder **rot** mit dem Grund. Bisher passierte sichtbar nichts und der Ausgang stand nur im Add-on-Log oder für 2 Sekunden im Toast.
 - Der **Speichern-Knopf ist währenddessen gesperrt** — das Rendern läuft im selben Request, ein zweiter Klick hätte es unnötig noch einmal angestoßen.

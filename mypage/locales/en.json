@@ -2357,5 +2357,9 @@
   "img_ai_hint": "AI-generated images always carry the note “AI generated” — regardless of this setting.",
   "library_protect_hint": "Burns the watermark into cover images and images inside library entries — including the generated PDF. Same setting as for the photo albums: a change here applies there as well. Empty text field = “© your-domain.com”.",
   "library_pdf_running": "Generating PDF …",
-  "library_pdf_ok": "PDF generated."
+  "library_pdf_ok": "PDF generated.",
+  "cleanup_pdf_hint": "Removes library PDFs that no longer belong to any entry. Normally the library cleans up after itself; what remains are the cases that slip past — an aborted render, or a restore from a backup with fewer entries.",
+  "cleanup_pdf_btn": "Clean up unused PDFs",
+  "cleanup_pdf_none": "No unused PDFs found.",
+  "cleanup_pdf_confirm": "Permanently delete {n} unused PDF file(s) ({mb} MB)?"
 }
