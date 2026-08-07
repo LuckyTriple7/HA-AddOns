@@ -45,7 +45,7 @@ Name, Kurzbeschreibung (Tagline), „Über mich"-Text, Profilbild, GitHub-Benutz
 ### Inhalte
 Der Tab **Inhalt** zeigt alle Startseiten-Bereiche als einklappbare Karten (Akkordeon). Jede Karte hat links einen **Griff (⠿)** und ein **Auge-Symbol**:
 
-- **Reihenfolge:** Am Griff per **Drag & Drop** sortieren (Maus + Touch) — die Startseite übernimmt die Reihenfolge sofort. Der Kopfbereich bleibt immer oben, das Kontaktformular immer unten. Auch **Projekte** und **Blog** lassen sich hier positionieren (bearbeitet werden sie in ihren eigenen Tabs).
+- **Reihenfolge:** Am Griff per **Drag & Drop** sortieren (Maus + Touch) — die Startseite übernimmt die Reihenfolge sofort. Der Kopfbereich bleibt immer oben, das Kontaktformular immer unten. Auch **Projekte**, **Blog** und **Bibliothek** lassen sich hier positionieren (bearbeitet werden sie in ihren eigenen Tabs).
 - **Sichtbarkeit:** Mit dem Auge blendest du einen Bereich von der Startseite (und der Navigation) aus, ohne seinen Inhalt zu löschen.
 
 Verfügbare Bereiche:
@@ -61,11 +61,12 @@ Verfügbare Bereiche:
 - **Standort & Öffnungszeiten**: Adresse, Öffnungszeiten (DE/EN) und optional eine Karte. Die Karte nutzt **OpenStreetMap** und lädt **erst auf Klick** (datenschutzfreundlich); zusätzlich gibt es einen „Auf Karte öffnen"-Link. Für die eingebettete Karte optional Koordinaten (Breite, Länge) angeben.
 - **Linksammlung**: Links zu anderen Seiten mit Titel und Beschreibung (DE/EN). Auf der Startseite erscheint ein Button, der ein Overlay mit allen Links öffnet; ein Klick öffnet die Zielseite in einem neuen Tab.
 - **FAQ**: Fragen und Antworten (DE/EN, Antwort als Markdown), auf der Startseite als aufklappbare Liste
+- **Bibliothek**: Anriss der Sammlung (die ersten sechs Einträge als Karten) — Inhalt und Name werden im eigenen Tab *Bibliothek* gepflegt (siehe unten)
 - **Fotoalben**: Alben mit Titel/Beschreibung (DE/EN) und beliebig vielen Bildern (Mehrfach-Upload). Ein Klick öffnet eine Diashow mit Ausblend-Effekt und Autoplay; ein **Klick auf das Bild** zeigt es groß, ein weiterer Klick in voller Auflösung (scroll-/schwenkbar). Bilder werden automatisch auf max. 1600 px verkleinert und als WebP gespeichert. Die Bild-Reihenfolge lässt sich per **Drag & Drop** ändern; ein Klick auf eine Mini-Kachel im Admin zeigt eine Vorschau.
   - **Bildschutz** (Schalter „Bilder schützen"): Brennt ein Wasserzeichen (frei wählbarer Text, Standard `© deine-domain.de`) in alle Album-Bilder ein und deaktiviert Rechtsklick/Ziehen. Das Wasserzeichen wird beim Ausliefern dynamisch erzeugt und gecacht, eine Textänderung greift sofort. Ein vollständiger Download-Schutz ist im Web technisch nicht möglich (Screenshots), das Wasserzeichen ist der wirksame Teil.
 
 ### Markdown-Editor
-Alle Markdown-Textfelder (Blog-Beiträge, eigene Seiten, Projekt-Details, Bio, Newsletter, Formular-Einleitung & -Danke-Text, Tipps, FAQ-Antworten, Wartungsmodus-Text, Login-Nachricht je Benutzer, Standort-Öffnungszeiten) bieten über den Button **„✏️ Bearbeiten"** einen **Markdown-Editor mit Werkzeugleiste und Live-Vorschau**: Fett, Kursiv, Überschrift, Aufzählung, nummerierte Liste, Zitat, Code, **Link**, **Bild**, **Tabelle**, **Trennlinie** und Emoji. Beim **Bild** kannst du eine URL eingeben oder das Feld leer lassen, um eine Datei direkt **hochzuladen** (wird automatisch auf max. 1600 px verkleinert, als WebP gespeichert und um Metadaten/GPS bereinigt). Tabellen und Codeblöcke werden auf der öffentlichen Seite korrekt dargestellt.
+Alle Markdown-Textfelder (Blog-Beiträge, eigene Seiten, Bibliothek-Einträge, Projekt-Details, Bio, Newsletter, Formular-Einleitung & -Danke-Text, Tipps, FAQ-Antworten, Wartungsmodus-Text, Login-Nachricht je Benutzer, Standort-Öffnungszeiten) bieten über den Button **„✏️ Bearbeiten"** einen **Markdown-Editor mit Werkzeugleiste und Live-Vorschau**: Fett, Kursiv, Überschrift, Aufzählung, nummerierte Liste, Zitat, Code, **Link**, **Bild**, **Tabelle**, **Trennlinie** und Emoji. Beim **Bild** kannst du eine URL eingeben oder das Feld leer lassen, um eine Datei direkt **hochzuladen** (wird automatisch auf max. 1600 px verkleinert, als WebP gespeichert und um Metadaten/GPS bereinigt). Tabellen und Codeblöcke werden auf der öffentlichen Seite korrekt dargestellt.
 
 ### Projekte
 - **GitHub-Import**: Benutzernamen eingeben → „Repos laden" → Repos anhaken → importieren. Forks werden ausgeblendet, bereits importierte Repos sind ausgegraut. Sterne-Zahlen importierter Projekte werden stündlich automatisch aktualisiert.
@@ -98,10 +99,24 @@ Eigenständige Unterseiten neben Startseite und Blog — z. B. **„Über uns"**
 - **Reihenfolge**: Per **Drag & Drop** in der Seitenliste sortieren.
 - **SEO**: Veröffentlichte Seiten landen automatisch in `sitemap.xml` und im statischen Export; optional je Seite eine eigene Meta-Beschreibung. Die Seiten liegen in `site.json` (im Backup).
 
-### Volltextsuche
-Eine seitenweite Suche über **Blog-Beiträge, Projekte und Seiten** (Titel, Inhalt und Tags, jeweils DE & EN). Im Design-Tab aktivierbar (Standard aus). Ist sie an, erscheint ein **Suchfeld im Kopfbereich** der Startseite; die Ergebnisse stehen unter `/suche`.
+### Bibliothek
+Eine Sammlung eigenständiger **Markdown-Dokumente mit Kategorien** — für alles, was weder ein Blog-Beitrag (chronologisch) noch eine einzelne Seite ist: Reiseführer, Kochrezepte, Anleitungen, Handbücher. Übersicht unter `/bibliothek`, Einzeleintrag unter `/bibliothek/<slug>`.
 
-- **Treffer**: Jeder Treffer zeigt seine Art (Beitrag/Projekt/Seite), den Titel und einen **Auszug mit hervorgehobenen Suchbegriffen**. Mehrere Wörter werden alle gefordert (UND-Suche). Entwürfe, geplante Beiträge und unveröffentlichte Inhalte bleiben außen vor.
+- **Name frei wählbar**: Der Anzeigename der Sammlung wird im Tab *Bibliothek* gesetzt (DE/EN). Leer gelassen heißt sie „Bibliothek" — trägst du „Reiseführer" ein, heißt sie überall so (Navigation, Startseiten-Abschnitt, Suchergebnisse). Dazu optional eine **Einleitung** (Markdown), die über der Übersicht steht.
+- **Kategorien**: frei anlegbar, je mit Name (DE/EN) und optionalem Emoji, per Drag & Drop sortierbar. Auf der Übersicht erscheinen sie als **Filter-Chips**. Eine gelöschte Kategorie nimmt ihre Einträge nicht mit — die rutschen nur in „ohne Kategorie".
+- **Einträge**: Titel, Kurzbeschreibung, Titelbild, bis zu 8 Schlagwörter, Text in **Markdown** (DE/EN, gleicher Editor mit Live-Vorschau wie im Blog), eigene SEO-Beschreibung, Adresse (Slug, leer = automatisch aus dem Titel), Status *Veröffentlicht/Entwurf* und der Schalter **Nur für Mitglieder** (Gäste sehen dann nur einen Anriss). Reihenfolge per Drag & Drop; **Vorschau** zeigt auch Entwürfe.
+- **PDF je Eintrag** — drei Möglichkeiten:
+  - *Kein PDF*: Besucher können die Seite trotzdem über den **Druck-Knopf** als PDF speichern. Die Eintragsseite bringt ein eigenes Druck-Stylesheet mit (ohne Navigation, Fußzeile und Knöpfe, Links werden ausgeschrieben).
+  - *Aus dem Text erzeugen*: Beim Speichern rendert das Add-on ein PDF aus dem Markdown — mit Titelkopf, Seitenzahlen, Tabellen und Code-Blöcken — und bietet es zum Download an. Unveränderte Einträge werden nicht neu gerendert (Zwischenspeicher über einen Fingerabdruck des Quelltexts). Braucht `weasyprint`; fehlt es, sagt der Admin das und die anderen beiden Wege funktionieren weiter.
+  - *Eigenes PDF hochladen*: max. 25 MB. Die Datei wird am Dateikopf geprüft, nicht nur an der Endung.
+- **Auslieferung der PDFs**: Sie liegen in einem eigenen Ordner (`docs/`, im Backup) und kommen **ausschließlich** über `/bibliothek/<slug>.pdf` als **Datei-Download** (`Content-Disposition: attachment`, `nosniff`) — nie inline über die offene `/uploads/`-Route. Bei Mitglieder-Einträgen ist auch das PDF gesperrt.
+- **Startseite**: Die Bibliothek ist ein eigener Abschnitt (die ersten sechs Einträge als Karten) und lässt sich im Tab *Inhalt* wie jeder andere Abschnitt sortieren, ausblenden oder auf Mitglieder beschränken.
+- **SEO**: Veröffentlichte Einträge landen in `sitemap.xml`, im **IndexNow-Ping**, in der Volltextsuche und im statischen Export (dort inklusive der PDF-Dateien). Jede Eintragsseite liefert strukturierte Daten (`schema.org/Article`). Alle Inhalte liegen in `site.json` (im Backup).
+
+### Volltextsuche
+Eine seitenweite Suche über **Blog-Beiträge, Projekte, Seiten und Bibliothek-Einträge** (Titel, Inhalt und Tags, jeweils DE & EN). Im Design-Tab aktivierbar (Standard aus). Ist sie an, erscheint ein **Suchfeld im Kopfbereich** der Startseite; die Ergebnisse stehen unter `/suche`.
+
+- **Treffer**: Jeder Treffer zeigt seine Art (Beitrag/Projekt/Seite/Bibliothek), den Titel und einen **Auszug mit hervorgehobenen Suchbegriffen**. Mehrere Wörter werden alle gefordert (UND-Suche). Entwürfe, geplante Beiträge und unveröffentlichte Inhalte bleiben außen vor.
 - **Mitglieder-Inhalte**: Gesperrte (Mitglieder-only) Beiträge und Seiten erscheinen für Gäste nur als **Titel mit 🔒, ohne Inhalts-Vorschau** — angemeldete Mitglieder sehen die volle Vorschau. So wird kein geschützter Text geleakt.
 - **Hinweis**: Die Suchseite ist auf `noindex` gesetzt (keine Indexierung durch Suchmaschinen). Sie nutzt ausschließlich vorhandene Inhalte aus `site.json` — kein zusätzlicher Speicher, kein externer Dienst.
 
@@ -313,7 +328,7 @@ Im Tunnel nur `http://<host>:17760` als Ziel eintragen. Das Admin-Panel auf 1776
 
 ## Daten
 
-Alle Inhalte (`site.json`, `stats.json`, `sessions.json`, `uploads/`) liegen im Add-on-Konfigurationsordner und sind über den Share erreichbar: `\\<host>\addon_configs\XXX_mypage`. Sie überleben Add-on-Updates, Neustarts und sogar eine Neuinstallation.
+Alle Inhalte (`site.json`, `stats.json`, `sessions.json`, `uploads/`, `docs/`) liegen im Add-on-Konfigurationsordner und sind über den Share erreichbar: `\\<host>\addon_configs\XXX_mypage`. Sie überleben Add-on-Updates, Neustarts und sogar eine Neuinstallation.
 
 ## Jeopardy-Hintergrundmusik (optional)
 

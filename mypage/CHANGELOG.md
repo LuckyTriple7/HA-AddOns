@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.8.11
+- 📚 **Neues Modul „Bibliothek".** Eine Sammlung eigenständiger Markdown-Dokumente mit frei wählbaren Kategorien — gedacht für alles, was kein Blog-Beitrag und keine einzelne Seite ist: Reiseführer, Kochrezepte, Anleitungen, Handbücher. Übersicht unter `/bibliothek` (Karten-Raster mit Kategorie-Chips und Suchfeld), Einzeleintrag unter `/bibliothek/<slug>`. Neuer Admin-Tab **Bibliothek**.
+- **Name und Kategorien sind frei wählbar.** Der Anzeigename der Sammlung wird im Admin gesetzt (DE/EN, leer = „Bibliothek"), die Kategorien legst du selbst an — dieselbe Installation kann die Sammlung also „Reiseführer" nennen und darin „Reisen", „Kochen" und „Technik" führen. Kategorien haben ein frei wählbares Emoji und lassen sich per Drag & Drop sortieren, Einträge ebenso.
+- **Je Eintrag:** Titel, Kurzbeschreibung, Titelbild, Schlagwörter, Markdown-Text (DE/EN, gleicher Editor mit Live-Vorschau wie Blog und Seiten), eigene SEO-Beschreibung, Entwurfs-Status und der 🔒-Schalter **Nur für Mitglieder** (Gäste sehen dann nur einen Anriss).
+- 📄 **PDF je Eintrag — wahlweise erzeugt oder hochgeladen.** Im Modus *„Aus dem Text erzeugen"* rendert das Add-on beim Speichern ein PDF aus dem Markdown (Deckblatt-Kopf, Seitenzahlen, Tabellen, Code-Blöcke) und bietet es zum Download an; alternativ lädst du ein eigenes PDF hoch (max. 25 MB). Erzeugte PDFs werden über einen Fingerabdruck des Quelltexts zwischengespeichert — unveränderte Einträge werden beim Speichern nicht neu gerendert.
+- **Drucken geht immer.** Jede Eintragsseite hat einen Druck-Knopf mit eigenem Druck-Stylesheet (ohne Navigation, Fußzeile und Knöpfe, mit ausgeschriebenen Links) — auch ohne serverseitige PDF-Erzeugung lässt sich so ein sauberes PDF speichern.
+- **Sichtbar für Suchmaschinen wie der Blog:** veröffentlichte Einträge landen in `sitemap.xml`, im IndexNow-Ping, in der Volltextsuche und im statischen Export (inklusive der PDF-Dateien). Einzeleinträge liefern strukturierte Daten (`schema.org/Article`). Mitglieder-Einträge erscheinen in der Suche wie gehabt nur als Titel mit 🔒, ohne Textvorschau.
+- **Startseite:** Die Bibliothek ist ein eigener Startseiten-Abschnitt (die ersten sechs Einträge als Karten) und lässt sich im Tab *Inhalt* wie jeder andere Abschnitt sortieren, ausblenden oder auf Mitglieder beschränken.
+- **Sicherheit:** PDFs liegen in einem eigenen Ordner (`docs/`) und werden **ausschließlich** über eine eigene Route mit `Content-Disposition: attachment` und `X-Content-Type-Options: nosniff` ausgeliefert — nie inline über die offene `/uploads/`-Route. Uploads werden zusätzlich am Dateikopf (`%PDF-`) geprüft, nicht nur an der Endung. Der PDF-Renderer bekommt einen eigenen URL-Fetcher, der nur lokale `/uploads/`-Dateien lädt und **jede** externe Adresse ablehnt (sonst wäre ein Bild-Link im Markdown ein SSRF-Weg in interne Dienste).
+- PDFs werden im Backup mitgesichert und beim Wiederherstellen — nach Prüfung des Dateikopfs — zurückgeschrieben.
+- Neue Abhängigkeit `weasyprint` (plus `pango`/`libffi` im Image) für die PDF-Erzeugung. Fehlt sie, startet das Add-on unverändert und der Modus *„Aus dem Text erzeugen"* meldet das im Admin — Druck-Knopf und PDF-Upload funktionieren weiterhin.
+
 ## [0.8.10.1] - 2026-08-05
 
 chore(deps): bump cryptography from 48.0.1 to 50.0.0 in /mypage

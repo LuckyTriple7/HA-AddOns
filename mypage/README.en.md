@@ -9,6 +9,7 @@ Run your own homepage straight from Home Assistant — no design skills required
 - 🏠 **Public homepage** on port 17760 — profile, content sections, social links
 - 🛠 **Admin panel** on port 17761 (login + brute-force protection) and via HA ingress in the sidebar
 - 🧩 **Many content sections**: projects, blog, services, testimonials, team, photo albums, skills, timeline, news, **countdown**, events, link collection, FAQ, location & opening hours
+- 📚 **Library**: a collection of standalone Markdown documents with freely chosen categories (travel guides, recipes, manuals …) at `/bibliothek` — each entry optionally with a **PDF**, either uploaded or generated from the text; the collection name is freely configurable
 - 📄 **Custom pages**: standalone subpages (e.g. “About”, “Directions”) in Markdown (DE/EN) with their own address `/seite/<slug>`, optional nav entry and draft status
 - 🧾 **Form builder**: freely configurable forms (sign-up, survey, request) with arbitrary fields; submissions in the messages tab + notification (email/Telegram/HA), honeypot + captcha
 - ↪️ **Redirects (301/302)** + **Search Console verification** (Google/Bing) in the admin
@@ -48,7 +49,7 @@ In the admin panel under **Content** every section is a collapsible card:
 - **Reorder:** drag by the handle (⠿) on the left — works with **mouse and touch**. The homepage applies the order instantly.
 - **Hide/show:** use the **eye icon** to hide a section from the homepage. Its **content is kept** and can be shown again anytime. Hidden sections also disappear from the navigation bar.
 - The **header** (profile/image) always stays at the top, the **contact form** always at the bottom.
-- **Projects** and **Blog** can be positioned too (they are edited in their own tabs).
+- **Projects**, **Blog** and **Library** can be positioned too (they are edited in their own tabs).
 
 ## 📅 Booking calendar / appointment button
 
