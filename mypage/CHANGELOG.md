@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.8.12
+- 🔒 Fix: Bei Bibliothek-Einträgen mit **Nur für Mitglieder** stand der gesperrte Text in der Meta-Description (`<meta name="description">` und `og:description`) — er wurde aus dem vollen Markdown gebildet statt aus dem Anriss. Damit wären die ersten ~155 Zeichen im Suchmaschinen-Snippet und in Link-Vorschauen gelandet. Jetzt wie bei eigenen Seiten aus dem bereits gekürzten Anriss.
+- fontTools protokollierte bei jeder PDF-Erzeugung jeden Teilschritt der Schrift-Optimierung auf INFO („glyf pruned", „GDEF pruned", …) — pro PDF dutzende Zeilen im Add-on-Log. Auf WARNING gesetzt.
+
 ## 0.8.11
 - 📚 **Neues Modul „Bibliothek".** Eine Sammlung eigenständiger Markdown-Dokumente mit frei wählbaren Kategorien — gedacht für alles, was kein Blog-Beitrag und keine einzelne Seite ist: Reiseführer, Kochrezepte, Anleitungen, Handbücher. Übersicht unter `/bibliothek` (Karten-Raster mit Kategorie-Chips und Suchfeld), Einzeleintrag unter `/bibliothek/<slug>`. Neuer Admin-Tab **Bibliothek**.
 - **Name und Kategorien sind frei wählbar.** Der Anzeigename der Sammlung wird im Admin gesetzt (DE/EN, leer = „Bibliothek"), die Kategorien legst du selbst an — dieselbe Installation kann die Sammlung also „Reiseführer" nennen und darin „Reisen", „Kochen" und „Technik" führen. Kategorien haben ein frei wählbares Emoji und lassen sich per Drag & Drop sortieren, Einträge ebenso.
