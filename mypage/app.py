@@ -74,6 +74,10 @@ logging.basicConfig(format='[%(levelname)s] [%(asctime)s] %(message)s',
                     level=logging.INFO, datefmt='%Y-%m-%d %H:%M:%S', force=True)
 log = logging.getLogger(__name__)
 logging.getLogger('werkzeug').setLevel(logging.ERROR)
+# fontTools protokolliert beim PDF-Erzeugen jeden Teilschritt der Schrift-Optimierung
+# ("glyf pruned", "GDEF pruned", …) auf INFO — pro PDF dutzende Zeilen. Nur Warnungen.
+for _noisy in ('fontTools', 'fontTools.subset', 'fontTools.ttLib'):
+    logging.getLogger(_noisy).setLevel(logging.WARNING)
 
 _BASE = os.environ.get('MYPAGE_BASE', '/app')
 # Nutzdaten liegen im addon_config-Mapping (/addon_configs/<slug> auf dem Host),
@@ -9404,8 +9408,10 @@ def _render_library_entry(site: dict, entry: dict, lang: str, preview: bool = Fa
         pdf_ready=bool(_lib_entry_pdf_name(entry)) and not locked,
         nav_items=(_nav_links(site, loc, t, with_library=False)
                    if site['design'].get('show_nav', True) else []),
+        # Bewusst `body_html` (bei Mitglieder-Einträgen der Anriss) statt des
+        # vollen Textes — sonst stünde der gesperrte Inhalt in der Meta-Description.
         meta_desc=(loc(entry, 'meta') or loc(entry, 'summary')
-                   or _plain_excerpt(full_html) or _site_meta(site, loc)),
+                   or _plain_excerpt(body_html) or _site_meta(site, loc)),
         year=datetime.now(timezone.utc).year)
 
 
