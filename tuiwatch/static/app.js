@@ -1357,15 +1357,23 @@
         </div>` : '<div class="hint">Kein gespeichertes Reiseberater-Ergebnis vorhanden.</div>';
       // Vollständige Angebotsliste zum An-/Abwählen — beim Bearbeiten muss sich
       // auch etwas hinzufügen lassen, das gerade nicht markiert ist.
+      // Eigene Spalte für die „Für andere"-Liste: beim Teilen ist meist genau eine
+      // davon gemeint, ohne Hinweis sähen alle Angebote gleich aus. Die Spalte
+      // steht auch bei eigenen Angeboten (leer), damit die Zeilen fluchten.
       const pick = (curOffers||[]).filter(o=>!o.archived).map(o=>
         `<label class="shr-pick"><input type="checkbox" class="shr-off" value="${o.id}"${chosen.has(o.id)?' checked':''}>
-           <span>${esc(o.label || o.hotel || ('Angebot #'+o.id))}</span>
+           <span class="shr-pick-name">${esc(o.label || o.hotel || ('Angebot #'+o.id))}</span>
+           <span class="shr-pick-list"${o.is_foreign?` title="Aus der Liste: ${esc(foreignListOf(o))}"`:''}>${
+             o.is_foreign ? esc(foreignIconOf(o))+' '+esc(foreignListOf(o)) : ''}</span>
            <span class="shr-pick-sub">${esc(o.location||'')}${o.price!=null?' · '+eur(o.price):''}</span></label>`).join('');
       const emptyHint = (token && cur && !cur.offer_ids.length)
         ? '<div class="hint">Dieser Link stammt aus einer älteren Version — bitte die Angebote einmal neu auswählen.</div>' : '';
       $('#shr-body').innerHTML = `
         ${emptyHint}
-        <div class="shr-picks">${pick || '<div class="hint">Keine Angebote vorhanden.</div>'}</div>
+        <div class="shr-picks">${pick
+          ? `<div class="shr-pick shr-pick-head"><span></span><span class="shr-pick-name">Angebot</span>`
+            + `<span class="shr-pick-list">Liste</span><span class="shr-pick-sub">Ort · Preis</span></div>${pick}`
+          : '<div class="hint">Keine Angebote vorhanden.</div>'}</div>
         <div class="shr-row"><input type="text" id="shr-title" placeholder="Titel (z. B. „Unsere Auswahl für Herbst")" style="flex:1" value="${esc(cur?cur.title:'')}"></div>
         <div class="shr-row"><textarea id="shr-note" rows="2" placeholder="Notiz für die Empfänger (optional)" style="flex:1">${esc(cur?cur.note:'')}</textarea></div>
         <div class="shr-row">

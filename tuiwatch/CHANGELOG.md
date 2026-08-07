@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.83.1] - 2026-08-07
+
+### Changed
+- **Teilen-Dialog zeigt die „Für andere"-Liste in einer eigenen Spalte** (Symbol +
+  Name, leer bei eigenen Angeboten) — beim Teilen ist meist genau eine Liste
+  gemeint, in der bisherigen Aufzählung sah aber jedes Angebot gleich aus. Dazu
+  eine Kopfzeile (Angebot · Liste · Ort · Preis) und feste Spaltenbreiten, damit
+  die Zeilen fluchten. Das Fenster ist von 900 auf 1150 px verbreitert; auf
+  schmalen Bildschirmen (< 700 px) brechen die Spalten wie bisher untereinander.
+
 ## [0.83.0] - 2026-08-07
 
 ### Added
