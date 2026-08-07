@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.82.2] - 2026-08-07
+
+### Changed
+- **Listen-Überschrift zeigt nur noch Name und Anzahl** — der Zusatz
+  „— keine Benachrichtigungen" ist raus, er stand über jeder Liste im Weg. Die
+  Info steht weiter im Tooltip der Überschrift.
+
 ## [0.82.1] - 2026-08-07
 
 ### Fixed

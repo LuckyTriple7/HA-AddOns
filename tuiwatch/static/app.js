@@ -302,7 +302,7 @@
           if(!groups.has(n)) groups.set(n, []); groups.get(n).push(o); });
         [...groups.keys()].sort((a,b)=>a.localeCompare(b,'de')).forEach(name=>{
           const g = sortOffers(groups.get(name));
-          html += `<div class="arch-head">👥 ${esc(name)} (${g.length}) — keine Benachrichtigungen`
+          html += `<div class="arch-head" title="Angebote in dieser Liste melden nicht — Benachrichtigungen und Kalender-Meldungen sind stumm">👥 ${esc(name)} (${g.length})`
             + `<button class="rename-btn" data-fl-action="rename" data-list="${esc(name)}" title="Liste umbenennen">✎</button>`
             + `<button class="rename-btn" data-fl-action="dissolve" data-list="${esc(name)}" title="Liste auflösen — Angebote zurück in die normale Liste">✖</button>`
             + `</div>` + g.map(offerCard).join('');
