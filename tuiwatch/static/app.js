@@ -74,14 +74,96 @@
       try { localStorage.setItem('tw-foreign-open', JSON.stringify([...openForeign])); } catch(e){}
       lastSig = null; renderAll(curOffers||[]);
     }
-    // „Fremd" = Angebot ist nicht für mich (Vorschlag für andere). Der Server
-    // schaltet dabei beide Glocken stumm; Einschalten bleibt manuell möglich.
-    async function toggleForeign(id, cur){
+    // „Fremd" = Angebot ist nicht für mich (Vorschlag für andere). Solche
+    // Angebote stehen in einer frei benannten Liste; der Server schaltet dabei
+    // beide Glocken stumm, Einschalten bleibt manuell möglich.
+    const FL_DEFAULT = 'Für andere';
+    function foreignListOf(o){ return (o.foreign_list||'').trim() || FL_DEFAULT; }
+    // Vorhandene Listennamen aus den geladenen Angeboten (alphabetisch)
+    function foreignListNames(){
+      const s = new Set((curOffers||[]).filter(o=>o.is_foreign).map(foreignListOf));
+      return [...s].sort((a,b)=>a.localeCompare(b,'de'));
+    }
+    // String als JS-Argument in ein onclick-Attribut: JSON escapt für JS,
+    // &quot; für HTML — anders als esc() auch bei Namen mit Anführungszeichen.
+    function jsArg(s){ return JSON.stringify(String(s)).replace(/&/g,'&amp;').replace(/"/g,'&quot;'); }
+
+    // Listen-Auswahl: bestehende Liste wählen, neue anlegen oder Angebot(e) aus
+    // der Liste nehmen. Ziel sind ein Angebot (Karte) oder die Sammelauswahl.
+    let flIds = [], flFromBulk = false;
+    function openForeignPicker(ids, fromBulk){
+      flIds = (ids||[]).slice(); flFromBulk = !!fromBulk;
+      if(!flIds.length) return;
+      const picked = (curOffers||[]).filter(o=>flIds.includes(o.id));
+      const one = flIds.length===1 ? (picked[0]||{}) : null;
+      const curName = (one && one.is_foreign) ? foreignListOf(one) : '';
+      // Bei einer Sammelauswahl reicht ein einziges einsortiertes Angebot, damit
+      // „herausnehmen" Sinn ergibt.
+      const anyForeign = picked.some(o=>o.is_foreign);
+      const names = foreignListNames();
+      $('#fl-sub').textContent = (flIds.length===1
+          ? 'Das Angebot wandert eingeklappt ans Ende der Liste; '
+          : flIds.length+' Angebote wandern eingeklappt ans Ende der Liste; ')
+        + 'Benachrichtigungen und Kalender-Meldungen werden stummgeschaltet.';
+      $('#fl-body').innerHTML =
+        (names.length
+          ? `<div class="fl-list">` + names.map(n =>
+              `<button class="btn sec fl-pick${n===curName?' active':''}" onclick="setForeignList(${jsArg(n)})">👥 ${esc(n)}${n===curName?' ✓':''}</button>`
+            ).join('') + `</div>`
+          : `<div class="hint">Noch keine Liste vorhanden — leg die erste an.</div>`)
+        + `<div class="fl-new"><input id="fl-name" maxlength="40" placeholder="Neue Liste, z. B. Oma und Opa"
+             onkeydown="if(event.key==='Enter')setForeignListFromInput()">
+           <button class="btn" onclick="setForeignListFromInput()">Anlegen</button></div>`
+        + (anyForeign
+          ? `<div class="fl-off"><button class="btn sec" onclick="setForeignList('')">${curName
+              ? 'Aus „'+esc(curName)+'" nehmen'
+              : 'Aus der Liste nehmen'} — zurück in die normale Liste</button></div>`
+          : '');
+      $('#fl-bg').classList.add('show');
+      setTimeout(()=>{ const el=$('#fl-name'); if(el && !names.length) el.focus(); }, 50);
+    }
+    function closeForeignPicker(){ $('#fl-bg').classList.remove('show'); }
+    function setForeignListFromInput(){
+      const v = ($('#fl-name').value||'').trim();
+      if(!v){ toast('Bitte einen Namen eingeben'); return; }
+      setForeignList(v);
+    }
+    async function setForeignList(name){
+      const ids = flIds.slice(); if(!ids.length) return;
+      closeForeignPicker();
+      toast(ids.length+' Angebot(e) '+(name?'werden einsortiert…':'werden zurückgeholt…'));
+      for(const id of ids){
+        try {
+          await fetch(api('/api/offers/'+id), {method:'PATCH', headers:{'Content-Type':'application/json'},
+                                               body: JSON.stringify({foreign_list: name})});
+        } catch(e){ toast('Änderung fehlgeschlagen'); return; }
+      }
+      if(flFromBulk) bulkClear();
+      toast(name ? ('In „'+name+'" gelegt — Benachrichtigungen aus') : 'Zurück in der normalen Liste');
+      lastSig = null; loadOffers();
+    }
+    $('#fl-bg').addEventListener('click', e=>{ if(e.target.id==='fl-bg') closeForeignPicker(); });
+    async function renameForeignList(name){
+      const v = prompt('Neuer Name für die Liste „'+name+'":', name);
+      if(v===null) return;
+      const to = v.trim();
+      if(!to || to===name) return;
       try {
-        await fetch(api('/api/offers/'+id), {method:'PATCH', headers:{'Content-Type':'application/json'},
-                                             body: JSON.stringify({is_foreign: !cur})});
-      } catch(e){ toast('Änderung fehlgeschlagen'); return; }
-      toast(cur ? 'Markierung „fremd" entfernt' : 'Als fremd markiert — Benachrichtigungen aus');
+        const r = await fetch(api('/api/foreign-lists/rename'), {method:'POST',
+          headers:{'Content-Type':'application/json'}, body: JSON.stringify({from:name, to})});
+        if(!r.ok) throw new Error('http');
+      } catch(e){ toast('Umbenennen fehlgeschlagen'); return; }
+      toast('Liste heißt jetzt „'+to+'"');
+      lastSig = null; loadOffers();
+    }
+    async function dissolveForeignList(name){
+      if(!confirm('Liste „'+name+'" auflösen? Die Angebote wandern zurück in die normale Liste '
+                  + '(sie bleiben stummgeschaltet, bis du die Glocken wieder einschaltest).')) return;
+      try {
+        const r = await fetch(api('/api/foreign-lists/'+encodeURIComponent(name)), {method:'DELETE'});
+        if(!r.ok) throw new Error('http');
+      } catch(e){ toast('Auflösen fehlgeschlagen'); return; }
+      toast('Liste „'+name+'" aufgelöst');
       lastSig = null; loadOffers();
     }
 
@@ -199,16 +281,23 @@
           : '<div class="empty">Keine Angebote im Preisverlauf-Tracking.</div>';
       } else {
         // Fremde Angebote (nicht für mich) stehen immer am Ende — unabhängig von
-        // der gewählten Sortierung, die innerhalb der beiden Blöcke gilt.
+        // der gewählten Sortierung, die innerhalb der Blöcke gilt. Je Liste ein
+        // eigener Block, Listen alphabetisch.
         const activeAll = list2.filter(o=>!o.archived && !o.history_only);
         const active = sortOffers(activeAll.filter(o=>!o.is_foreign));
-        const foreign = sortOffers(activeAll.filter(o=>o.is_foreign));
+        const foreign = activeAll.filter(o=>o.is_foreign);
         const arch = sortOffers(list2.filter(o=>o.archived));
         html = active.map(offerCard).join('');
-        if(foreign.length){
-          html += `<div class="arch-head">👥 Für andere (${foreign.length}) — keine Benachrichtigungen</div>`
-            + foreign.map(offerCard).join('');
-        }
+        const groups = new Map();
+        foreign.forEach(o=>{ const n = foreignListOf(o);
+          if(!groups.has(n)) groups.set(n, []); groups.get(n).push(o); });
+        [...groups.keys()].sort((a,b)=>a.localeCompare(b,'de')).forEach(name=>{
+          const g = sortOffers(groups.get(name));
+          html += `<div class="arch-head">👥 ${esc(name)} (${g.length}) — keine Benachrichtigungen`
+            + `<button class="rename-btn" onclick="renameForeignList(${jsArg(name)})" title="Liste umbenennen">✎</button>`
+            + `<button class="rename-btn" onclick="dissolveForeignList(${jsArg(name)})" title="Liste auflösen — Angebote zurück in die normale Liste">✖</button>`
+            + `</div>` + g.map(offerCard).join('');
+        });
         if(!active.length && !foreign.length && arch.length && !showArchived){
           html = `<div class="empty">Keine aktiven Angebote — ${arch.length} im Archiv. „Archiv" oben einblenden.</div>`;
         }
@@ -251,9 +340,8 @@
       bulkRun(id=>fetch(api('/api/offers/'+id),{method:'DELETE'}), ids_msg('werden gelöscht…'));
     }
     function bulkForeign(){
-      if(!confirm(selected.size+' Angebot(e) als „für andere" markieren? Sie rutschen eingeklappt '
-                  + 'ans Listenende, Benachrichtigungen und Kalender-Meldungen werden stummgeschaltet.')) return;
-      bulkRun(id=>fetch(api('/api/offers/'+id),{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({is_foreign:true})}), ids_msg('werden als fremd markiert…'));
+      if(!selected.size) return;
+      openForeignPicker([...selected], true);
     }
     function ids_msg(t){ return selected.size+' Angebot(e) '+t; }
     async function bulkEmail(){
@@ -481,9 +569,9 @@
                  <button class="icon-btn" onclick="archiveOffer(${o.id})" title="Archivieren: ins Archiv legen — keine Live-Abfragen mehr">
                    <svg viewBox="0 0 24 24"><path d="M20.54 5.23l-1.39-1.68A1.45 1.45 0 0 0 18 3H6c-.47 0-.88.21-1.16.55L3.46 5.23A2 2 0 0 0 3 6.5V19a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6.5c0-.48-.17-.93-.46-1.27zM12 17.5L6.5 12H10v-2h4v2h3.5L12 17.5zM5.12 5l.81-1h12l.94 1H5.12z"/></svg>
                  </button>
-                 <button class="icon-btn${o.is_foreign?' foreign-on':''}" onclick="toggleForeign(${o.id}, ${!!o.is_foreign})" title="${o.is_foreign
-                    ? 'Nicht mehr als „für andere" führen — Angebot wandert zurück in die normale Liste (Benachrichtigungen bleiben stumm, bis du sie einschaltest)'
-                    : 'Als „für andere" markieren: rutscht eingeklappt ans Listenende, Benachrichtigungen und Kalender-Meldungen werden stummgeschaltet'}">👥</button>
+                 <button class="icon-btn${o.is_foreign?' foreign-on':''}" onclick="openForeignPicker([${o.id}])" title="${o.is_foreign
+                    ? esc('In Liste „'+foreignListOf(o)+'" — klicken zum Wechseln oder Entfernen')
+                    : 'Für andere: in eine Liste legen (rutscht eingeklappt ans Listenende, Benachrichtigungen und Kalender-Meldungen werden stummgeschaltet)'}">👥</button>
                  <button class="icon-btn" onclick="resetOffer(${o.id})" title="Zurücksetzen: Verlauf löschen und neu bei null beginnen">
                    <svg viewBox="0 0 24 24"><path d="M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
                  </button>
@@ -1736,6 +1824,7 @@
       ['climate-bg', closeClimate],   // wird aus der Suchmaske geöffnet, liegt darüber
       ['guide-bg', closeGuide],       // dito
       ['cal-bg', closeCalendar],
+      ['fl-bg', closeForeignPicker],
       ['modal-bg', closeModal],
       ['cmp-bg', closeCompare],
       ['srch-bg', closeSearch],

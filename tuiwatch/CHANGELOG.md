@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.82.0] - 2026-08-07
+
+### Added
+- **Mehrere „Für andere"-Listen mit frei wählbaren Namen.** Bisher gab es genau
+  einen Block „👥 Für andere"; jetzt legt das 👥-Symbol auf der Karte (bzw.
+  „👥 Für andere" in der Auswahlleiste) eine Auswahl offen: bestehende Liste
+  anklicken oder neuen Namen eintippen („Oma und Opa", „Kollegen", …). Jede
+  Liste bekommt einen eigenen Block am Listenende, alphabetisch sortiert; in der
+  Überschrift benennt **✎** die Liste um (gleicher Name wie eine andere = beide
+  werden zusammengeführt) und **✖** löst sie auf, wobei die Angebote zurück in
+  die normale Liste wandern. Verhalten sonst unverändert: eingeklappte Karten,
+  Glocken beim Einsortieren stumm und beim Herausnehmen bewusst nicht wieder an.
+  Der Listenname steht am Angebot selbst (`offers.foreign_list`) und wandert
+  daher ohne Zusatztabelle durch Backup/Restore; Bestandsangebote landen bei der
+  Migration in der Liste „Für andere". Neue Endpunkte: `GET /api/foreign-lists`,
+  `POST /api/foreign-lists/rename`, `DELETE /api/foreign-lists/<name>`.
+
 ## [0.81.0] - 2026-08-06
 
 ### Changed

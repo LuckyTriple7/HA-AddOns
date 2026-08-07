@@ -89,7 +89,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.81.0"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.82.0"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -104,6 +104,13 @@ MIN_POLL_INTERVAL = 600        # nie öfter als alle 10 min (Bot-Schutz/Fairness
 HISTORY_ONLY_HOUR = 9   # fixer Tages-Slot für Preisverlauf-Angebote (lokale Zeit)
 HISTORY_ONLY_SPREAD_MIN = 60  # Streuung in Minuten ab HISTORY_ONLY_HOUR (kein Burst um Punkt 9)
 MAX_PDF_BYTES = 16 * 1024 * 1024  # 16 MB Upload-Limit für Reise-PDFs
+
+# „Für andere"-Listen: frei benannte Sammlungen für Angebote, die nicht für den
+# Nutzer selbst sind. Der Name steht direkt am Angebot (offers.foreign_list) —
+# dadurch wandert er ohne Zusatztabelle durch Backup/Restore. Eine Liste ohne
+# Angebote existiert folglich nicht.
+FOREIGN_LIST_DEFAULT = 'Für andere'  # Name für Bestand aus der Ein-Listen-Zeit
+FOREIGN_LIST_MAXLEN = 40
 
 app = Flask(__name__, template_folder=_BASE + '/templates',
             static_folder=_BASE + '/static')
@@ -322,6 +329,16 @@ def _json_loads_safe(text, default):
         return default
 
 
+def normalize_foreign_list(raw) -> str:
+    """Listenname für „Für andere": eine Zeile, getrimmt, gekappt.
+
+    Leerstring bedeutet „steht in keiner Liste" (Angebot ist für den Nutzer
+    selbst) — der Name ist zugleich die Identität der Liste.
+    """
+    name = re.sub(r'\s+', ' ', str(raw or '')).strip()
+    return name[:FOREIGN_LIST_MAXLEN]
+
+
 # ── Datenbank ──────────────────────────────────────────────────────────────────
 
 def db() -> sqlite3.Connection:
@@ -370,6 +387,10 @@ def init_db() -> None:
             -- wird dort eingeklappt gezeigt. `is_foreign` statt `foreign`, weil
             -- FOREIGN ein SQL-Schlüsselwort ist.
             is_foreign            INTEGER NOT NULL DEFAULT 0,
+            -- Name der „Für andere"-Liste, in der das Angebot steht (leer = keine).
+            -- Mehrere Listen mit frei wählbaren Namen sind möglich; es gilt
+            -- immer is_foreign=1 <=> foreign_list<>''.
+            foreign_list          TEXT NOT NULL DEFAULT '',
             created     INTEGER NOT NULL
         )''')
         con.execute('''CREATE TABLE IF NOT EXISTS price_history (
@@ -623,6 +644,12 @@ def init_db() -> None:
             con.execute("ALTER TABLE offers ADD COLUMN notify_calendar_muted INTEGER NOT NULL DEFAULT 0")
         if 'is_foreign' not in ocols:
             con.execute("ALTER TABLE offers ADD COLUMN is_foreign INTEGER NOT NULL DEFAULT 0")
+        if 'foreign_list' not in ocols:
+            # Vor v0.82.0 gab es nur eine namenlose Liste — deren Angebote
+            # bekommen den bisherigen Anzeigenamen, damit nichts verschwindet.
+            con.execute("ALTER TABLE offers ADD COLUMN foreign_list TEXT NOT NULL DEFAULT ''")
+            con.execute("UPDATE offers SET foreign_list=? WHERE is_foreign=1",
+                        (FOREIGN_LIST_DEFAULT,))
         # vacancy-check (v0.69.0): Gepäck/Zahlungskonditionen einmalig je Angebot,
         # "zuletzt gebucht" je Poll aktualisiert
         for col in ('luggage', 'last_booked', 'final_payment_date',
@@ -2809,6 +2836,7 @@ def _collect_offers() -> list[dict]:
                 'notify_muted': bool(o['notify_muted']),
                 'notify_calendar_muted': bool(o['notify_calendar_muted']),
                 'is_foreign': bool(o['is_foreign']),
+                'foreign_list': (o['foreign_list'] or '') if o['is_foreign'] else '',
                 'history_only': bool(o['history_only']),
                 'return_date': o['return_date'] or '',
                 'tags': (_json_loads_safe(o['tags'], []) if o['tags'] else []),

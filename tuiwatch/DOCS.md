@@ -742,16 +742,24 @@ landen dauerhaft im **KI-Verlauf**.
 
 - **👥 Für andere** — Angebote, die nicht für dich selbst sind (z. B. Vorschläge, die
   du über einen öffentlichen Link weitergibst). Das 👥-Symbol in der Knopfleiste einer
-  Karte markiert sie; für mehrere auf einmal gibt es „👥 Für andere" in der
-  Auswahlleiste. Solche Angebote
-  - rutschen unter die Überschrift **„👥 Für andere"** ans Listenende (innerhalb der
-    beiden Blöcke gilt weiter die gewählte Sortierung),
+  Karte legt sie in eine Liste; für mehrere auf einmal gibt es „👥 Für andere" in der
+  Auswahlleiste. Beides öffnet dieselbe Auswahl: **bestehende Liste anklicken oder
+  neuen Namen eintippen** — es sind beliebig viele Listen mit frei wählbaren Namen
+  möglich („Oma und Opa", „Kollegen", …). Solche Angebote
+  - rutschen unter die Überschrift **„👥 &lt;Listenname&gt;"** ans Listenende (innerhalb
+    jedes Blocks gilt weiter die gewählte Sortierung); die Blöcke stehen alphabetisch,
   - werden **eingeklappt** gezeigt: Titel, Tags, Ort, Reisedaten und Preis — Klick auf
     ▾ klappt die volle Karte auf, der Zustand bleibt auch nach einem Neuladen erhalten,
-  - bekommen beim Markieren **Benachrichtigungen und Kalender-Meldungen
+  - bekommen beim Einsortieren **Benachrichtigungen und Kalender-Meldungen
     stummgeschaltet**. Einschalten geht jederzeit über die Glocken (🔔 auf der Karte,
-    Glocke im Preiskalender); das Zurücknehmen der Markierung schaltet sie
+    Glocke im Preiskalender); das Herausnehmen aus der Liste schaltet sie
     absichtlich **nicht** von selbst wieder ein.
+
+  In der Überschrift jeder Liste benennt **✎** sie um (ein bestehender Name führt die
+  beiden Listen zusammen) und **✖** löst sie auf — die Angebote wandern dann zurück in
+  die normale Liste. Eine Liste ist nur ein Name an den Angeboten: die letzte Zuordnung
+  zu entfernen löscht sie, leere Listen gibt es nicht. Namen werden im Backup
+  mitgesichert.
 
   Alles andere bleibt unverändert: Preisprüfung, Preisverlauf, Preiskalender, Tags,
   Wunschpreis, Überblick, HA-Sensoren und die Teilen-Funktion.

@@ -182,12 +182,26 @@ def api_update_offer(offer_id: int):
                         (1 if data.get('notify_calendar_muted') else 0, offer_id))
             A.log.info("Angebot #%d Kalender-Benachrichtigungen %s", offer_id,
                      "stummgeschaltet" if data.get('notify_calendar_muted') else "aktiviert")
-        if 'is_foreign' in data:
+        if 'foreign_list' in data or 'is_foreign' in data:
             # „Fremd" = Angebot ist nicht für den Nutzer selbst (Vorschlag für
             # andere). Getrackt wird weiter wie bisher; nur beide Glocken gehen
             # aus, damit fremde Reisen nicht mehr melden.
-            fr = 1 if data.get('is_foreign') else 0
-            con.execute('UPDATE offers SET is_foreign=? WHERE id=?', (fr, offer_id))
+            #
+            # `foreign_list` ist der frei wählbare Listenname (leer = keine
+            # Liste). `is_foreign` bleibt als Bool-Schalter erhalten: true legt
+            # in der zuletzt genutzten bzw. der Standardliste ab.
+            if 'foreign_list' in data:
+                name = A.normalize_foreign_list(data.get('foreign_list'))
+            elif data.get('is_foreign'):
+                row = con.execute('SELECT foreign_list FROM offers WHERE id=?',
+                                  (offer_id,)).fetchone()
+                name = A.normalize_foreign_list(row['foreign_list'] if row else '') \
+                    or A.FOREIGN_LIST_DEFAULT
+            else:
+                name = ''
+            fr = 1 if name else 0
+            con.execute('UPDATE offers SET is_foreign=?, foreign_list=? WHERE id=?',
+                        (fr, name, offer_id))
             if fr:
                 con.execute('UPDATE offers SET notify_muted=1, notify_calendar_muted=1 '
                             'WHERE id=?', (offer_id,))
@@ -197,7 +211,7 @@ def api_update_offer(offer_id: int):
             # Kein _log_event: die Marker im Verlaufsdiagramm sollen Preisereignisse
             # zeigen, eine Sortier-/Anzeigeeinstellung gehört dort nicht hin.
             A.log.info("Angebot #%d %s", offer_id,
-                       "als fremd markiert (Benachrichtigungen aus)" if fr
+                       f'in Liste "{name}" (Benachrichtigungen aus)' if fr
                        else "nicht mehr als fremd markiert")
         if 'transfer_included' in data:
             # Manche Hotels (Selbstanreise-Regionen) bieten kein Transfer-Paket — dort
@@ -268,6 +282,65 @@ def api_update_offer(offer_id: int):
     if 'transfer_included' in data:
         A._spawn(A.check_offer, offer_id)
     return jsonify({'id': offer_id, 'ok': True})
+
+
+# ── „Für andere"-Listen ────────────────────────────────────────────────────────
+# Eine Liste ist nichts weiter als ein Name an den Angeboten (offers.foreign_list).
+# Es gibt daher keine leeren Listen: die letzte Zuordnung zu entfernen löscht sie.
+
+@bp.route('/api/foreign-lists', methods=['GET'])
+def api_foreign_lists():
+    if (err := A._require_api()):
+        return err
+    with A.db() as con:
+        rows = con.execute(
+            "SELECT foreign_list AS name, COUNT(*) AS n FROM offers "
+            "WHERE is_foreign=1 AND foreign_list<>'' "
+            "GROUP BY foreign_list ORDER BY foreign_list COLLATE NOCASE").fetchall()
+    return jsonify({'lists': [{'name': r['name'], 'count': r['n']} for r in rows]})
+
+
+@bp.route('/api/foreign-lists/rename', methods=['POST'])
+def api_foreign_list_rename():
+    """Benennt eine Liste um. Existiert das Ziel bereits, werden beide vereint."""
+    if (err := A._require_api()):
+        return err
+    data = request.get_json(silent=True) or {}
+    old = A.normalize_foreign_list(data.get('from'))
+    new = A.normalize_foreign_list(data.get('to'))
+    if not old or not new:
+        return jsonify({'error': 'invalid_name'}), 400
+    with A.db() as con:
+        cur = con.execute('UPDATE offers SET foreign_list=? WHERE foreign_list=?',
+                          (new, old))
+        moved = cur.rowcount
+    if not moved:
+        return jsonify({'error': 'not_found'}), 404
+    A.log.info('Liste "%s" umbenannt in "%s" (%d Angebote)', old, new, moved)
+    return jsonify({'name': new, 'moved': moved})
+
+
+# <path:…>, weil ein Listenname einen Schrägstrich enthalten darf ("Oma/Opa")
+@bp.route('/api/foreign-lists/<path:name>', methods=['DELETE'])
+def api_foreign_list_delete(name: str):
+    """Löst eine Liste auf: die Angebote wandern zurück in die normale Liste.
+
+    Die Glocken bleiben dabei bewusst stumm — wie beim Zurücknehmen am einzelnen
+    Angebot, damit eine absichtliche Stummschaltung nicht überfahren wird.
+    """
+    if (err := A._require_api()):
+        return err
+    lname = A.normalize_foreign_list(name)
+    if not lname:
+        return jsonify({'error': 'invalid_name'}), 400
+    with A.db() as con:
+        cur = con.execute("UPDATE offers SET is_foreign=0, foreign_list='' "
+                          "WHERE foreign_list=?", (lname,))
+        freed = cur.rowcount
+    if not freed:
+        return jsonify({'error': 'not_found'}), 404
+    A.log.info('Liste "%s" aufgelöst (%d Angebote)', lname, freed)
+    return jsonify({'name': lname, 'freed': freed})
 
 
 @bp.route('/api/history/<int:offer_id>', methods=['GET'])
