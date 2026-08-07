@@ -564,6 +564,25 @@ def test_fetch_search_params_coupon_false_without_flag(monkeypatch, fake_resp):
     assert res["results"][0]["locations"] == []
 
 
+def test_fetch_search_params_region_separate(monkeypatch, fake_resp):
+    """`region` steht getrennt neben `location` — der Auto-Tag beim Tracken
+    vergibt nur die Region, nicht „Ort, Region"."""
+    payload = {"resultsTotal": 1, "items": [{
+        "hotel": {"giataId": 1, "name": "Testhotel", "category": "4",
+                  "location": {"city": "Palmar", "region": "Mauritius",
+                               "country": "Mauritius"}, "globalTypes": []},
+        "price": {"perPerson": {"amount": 1000}},
+        "boardType": "AI", "numberOfNights": 7, "startDate": "2027-01-01T00:00:00",
+    }]}
+    monkeypatch.setattr(scraper.requests, "post", lambda *a, **k: fake_resp(payload))
+    res = scraper.fetch_search_params(region=128, start="2027-01-01", end="2027-01-08",
+                                      duration=7, travellers=2, airports=["STR"])
+    first = res["results"][0]
+    assert first["region"] == "Mauritius"
+    assert first["location"] == "Palmar, Mauritius"      # Anzeige bleibt vollständig
+    assert first["country"] == "Mauritius"
+
+
 def test_fetch_search_no_region():
     # Ohne Region darf kein POST nötig sein → klare Leermeldung
     res = scraper._run_search({"regions": []})

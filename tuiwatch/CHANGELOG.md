@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.83.2] - 2026-08-07
+
+### Changed
+- **Auto-Tag beim Tracken vergibt nur noch die Region** („Mauritius",
+  „Gran Canaria") statt „Ort, Region" („Palmar, Mauritius"). Der Ort ist als
+  Filter zu speziell — praktisch bekam jedes Hotel seinen eigenen Tag. Die
+  Such-API liefert die Region dafür getrennt mit; in der Anzeige steht weiter
+  „Ort, Region". Bestehende Tags bleiben, wie sie sind.
+- **Sammelaktionen-Leiste zweizeilig**: oben die Anzahl und rechts „Auswahl
+  aufheben", darunter die Aktionsknöpfe. Vorher lief alles in einer
+  umbrechenden Zeile, „Auswahl aufheben" landete je nach Fensterbreite
+  irgendwo zwischen den Aktionen.
+
+### Fixed
+- **Teilen-Dialog wurde auf flachen Fenstern abgeschnitten** (Laptop im
+  Querformat, ~500 px Höhe): die Angebotsliste hatte feste 230 px, zusammen mit
+  Titel, Notiz, Optionen und Knopf passte das nicht mehr in die 88 vh des
+  Fensters. Die Liste bekommt jetzt einen Anteil der Fensterhöhe
+  (`clamp(110px, 30vh, 240px)`), unter 760 px Fensterhöhe darf das Fenster
+  96 vh nutzen. Geprüft mit 10 Angeboten bei 1142 × 506 px: nichts
+  abgeschnitten, die Liste scrollt für sich.
+- **Spalte „Ort · Preis" im Teilen-Dialog war zu schmal** (210 → 270 px), lange
+  Ziele wie „Ziyaaraifushi, Malediven: Nord Male Atoll" brachen mit „…" ab.
+
 ## [0.83.1] - 2026-08-07
 
 ### Changed

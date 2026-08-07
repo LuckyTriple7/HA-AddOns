@@ -3744,6 +3744,14 @@
     }
     function clearCmp(){ srCmpSelected = new Set(); renderSearchRows(); updateCmpBar(); }
 
+    // Auto-Tag beim Tracken: nur die Region („Mauritius", „Gran Canaria"), nicht
+    // „Ort, Region" — der Ort ist als Filter zu speziell, jedes Hotel bekäme
+    // seinen eigenen Tag. Ältere Treffer ohne region fallen auf location zurück.
+    function searchResultTags(r){
+      const t = (r.region || r.location || '').trim();
+      return t ? [t] : [];
+    }
+
     async function trackResult(i){
       const r = srchResults[i]; if(!r) return;
       const btn = document.getElementById('srt-'+i);
@@ -3754,7 +3762,7 @@
       let resp;
       // start:false — Angebot wird angelegt, aber erst nach der Zimmerauswahl
       // (pickRoom oder Schließen des Dialogs, siehe closeRooms) tatsächlich geprüft.
-      try { resp = await fetch(api('/api/offers'), {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({url:r.offer_url, label:r.name, image:r.image, start:false, tags:r.location?[r.location]:[]})}); }
+      try { resp = await fetch(api('/api/offers'), {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({url:r.offer_url, label:r.name, image:r.image, start:false, tags:searchResultTags(r)})}); }
       catch(e){ toast('Fehler beim Hinzufügen'); restore(); return; }
       if(resp.status===409){ toast('Dieses Angebot wird mit genau diesen Parametern bereits verfolgt'); restore(); return; }
       if(!resp.ok){ toast('Fehler beim Hinzufügen'); restore(); return; }
@@ -3772,7 +3780,7 @@
       if(!todo.length){ toast('Alle bereits getrackt'); return; }
       if(!confirm(todo.length+' Hotels ins Tracking übernehmen?')) return;
       for(const r of todo){
-        try { await fetch(api('/api/offers'), {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({url:r.offer_url, label:r.name, image:r.image, tags:r.location?[r.location]:[]})}); r.tracked=true; } catch(e){}
+        try { await fetch(api('/api/offers'), {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({url:r.offer_url, label:r.name, image:r.image, tags:searchResultTags(r)})}); r.tracked=true; } catch(e){}
       }
       toast(todo.length+' Hotels getrackt'); renderSearch(); loadOffers();
     }
@@ -3786,7 +3794,7 @@
       const picks = [byPrice[0], byPrice[Math.floor(byPrice.length/2)], byPrice[byPrice.length-1]];
       if(!confirm('Günstigstes, mittleres und teuerstes Hotel für den Preisverlauf tracken (ohne Benachrichtigungen)?')) return;
       for(const r of picks){
-        try { await fetch(api('/api/offers'), {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({url:r.offer_url, label:r.name, image:r.image, history_only:true, tags:r.location?[r.location]:[]})}); r.tracked=true; } catch(e){}
+        try { await fetch(api('/api/offers'), {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({url:r.offer_url, label:r.name, image:r.image, history_only:true, tags:searchResultTags(r)})}); r.tracked=true; } catch(e){}
       }
       toast('3 Hotels für den Preisverlauf getrackt'); renderSearch(); loadOffers();
     }

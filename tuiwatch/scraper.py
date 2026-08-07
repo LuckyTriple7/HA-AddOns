@@ -952,7 +952,10 @@ def _run_search(params: dict, *, offset: int = 0, verbose: bool = False) -> dict
             "giata": h.get("giataId"), "name": h.get("name", ""), "stars": stars,
             "recommendation": h.get("holidayCheckRecommendationRate"),
             "reviews": h.get("holidayCheckNumberOfCurrentReviews"),
-            "location": ", ".join(loc_parts), "country": loc.get("country", ""),
+            # location = „Ort, Region" für die Anzeige; region getrennt, weil der
+            # Auto-Tag beim Tracken nur die Region vergibt (Ort ist zu speziell).
+            "location": ", ".join(loc_parts), "region": loc.get("region", ""),
+            "country": loc.get("country", ""),
             "price": pp.get("amount"), "old_price": pp.get("originalAmount"),
             "discount": abs(adv) if adv else None,
             "board": it.get("boardType", ""), "nights": it.get("numberOfNights"),

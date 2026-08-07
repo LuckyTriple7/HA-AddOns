@@ -53,7 +53,12 @@
     .toolbar { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:14px; }
     .toolbar .btn { flex:1 1 auto; min-width:0; padding:7px 8px; font-size:.8rem;
                     white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-    .bulk-bar { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:12px; padding:8px 12px; background:var(--surf); border:1px solid var(--accent); border-radius:8px; }
+    /* Zwei Zeilen: oben Anzahl + „Auswahl aufheben" (rechts), darunter die Aktionen.
+       Vorher stand alles in einer umbrechenden Zeile — „Auswahl aufheben" landete
+       dann je nach Fensterbreite irgendwo zwischen den Aktionsknöpfen. */
+    .bulk-bar { display:flex; flex-direction:column; gap:8px; margin-bottom:12px; padding:8px 12px; background:var(--surf); border:1px solid var(--accent); border-radius:8px; }
+    .bulk-head { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+    .bulk-actions { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
     .bulk-bar #bulk-count { font-weight:600; font-size:.88rem; }
     .bulk-check { width:16px; height:16px; vertical-align:middle; cursor:pointer; accent-color:var(--accent); }
     .overview { background:var(--surf); border:1px solid var(--border); border-radius:8px; padding:9px 12px; margin-bottom:14px; font-size:.84rem; color:var(--muted); }
@@ -233,6 +238,8 @@
     .gl-nav:hover { background:rgba(255,255,255,.3); }
     .gl-count { position:absolute; bottom:16px; left:50%; transform:translateX(-50%); background:rgba(255,255,255,.14); border:1px solid rgba(255,255,255,.25); color:#fff; font-size:.76rem; padding:3px 10px; border-radius:20px; pointer-events:none; }
     .modal { background:var(--surf); border:1px solid var(--border); border-radius:10px; width:100%; max-width:680px; max-height:88vh; overflow:auto; overscroll-behavior:contain; padding:18px; }
+    /* Flache Fenster (Laptop im Querformat): mehr Höhe fürs Modal, weniger Rand */
+    @media (max-height:760px){ .modal-bg { padding:8px; } .modal { max-height:96vh; padding:14px; } }
     .modal h2 { font-size:1.05rem; margin-bottom:4px; }
     .modal .sub { font-size:.8rem; color:var(--muted); margin-bottom:14px; }
     #hist-canvas { width:100%; height:300px; display:block; }
@@ -273,8 +280,11 @@
     .shr-list td:last-child .btn { padding:5px 10px; font-size:.78rem; margin-left:4px; }
     .shr-list-wrap { overflow-x:auto; -webkit-overflow-scrolling:touch; }
     .shr-exp { color:var(--red); }
-    .shr-picks { max-height:230px; overflow:auto; border:1px solid var(--border); border-radius:8px;
-      padding:6px 10px; margin-bottom:10px; }
+    /* Die Angebotsliste bekommt einen Anteil der Fensterhöhe statt fester 230 px:
+       auf flachen Bildschirmen (Laptop, ~600 px) passte der Dialog sonst nicht
+       mehr in die 88vh des Modals und wurde unten abgeschnitten. */
+    .shr-picks { max-height:clamp(110px, 30vh, 240px); overflow:auto; border:1px solid var(--border);
+      border-radius:8px; padding:6px 10px; margin-bottom:10px; }
     /* Spalten: Haken · Angebot · „Für andere"-Liste · Ort/Preis. Feste Breiten statt
        Grid je Zeile, sonst richtet sich jede Zeile nach ihrem eigenen Inhalt aus. */
     .shr-pick { display:flex; align-items:center; gap:10px; padding:4px 0; font-size:.88rem; cursor:pointer; }
@@ -285,7 +295,7 @@
     .shr-pick-head > * { font-size:.72rem; color:var(--muted); }  /* Spaltenköpfe einheitlich */
     .shr-pick-name { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     .shr-pick-list { flex:0 0 170px; color:var(--muted); font-size:.78rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-    .shr-pick-sub { flex:0 0 210px; color:var(--muted); font-size:.78rem; text-align:right; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .shr-pick-sub { flex:0 0 270px; color:var(--muted); font-size:.78rem; text-align:right; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     @media (max-width:700px){
       .shr-pick { flex-wrap:wrap; }
       .shr-pick-list, .shr-pick-sub { flex:1 1 auto; text-align:left; }
@@ -735,7 +745,11 @@
     </div>
     <div class="tag-row" id="tag-pills" style="display:none"></div>
     <div id="bulk-bar" class="bulk-bar" style="display:none">
-      <span id="bulk-count"></span>
+      <div class="bulk-head">
+        <span id="bulk-count"></span>
+        <button class="btn sec" onclick="bulkClear()">Auswahl aufheben</button>
+      </div>
+      <div class="bulk-actions">
       <button class="btn sec" onclick="bulkCheck()">Prüfen</button>
       <button class="btn sec" onclick="bulkEmail()" title="Markierte als E-Mail senden">✉ E-Mail</button>
       <button class="btn sec" onclick="bulkArchive()">Archivieren</button>
@@ -744,7 +758,7 @@
       <button class="btn sec ai-feature" onclick="autoTagSelected()" title="Passende Tags automatisch per KI vergeben (ergänzt bestehende Tags)">🤖 Auto-Tag</button>
       <button class="btn sec share-feature" onclick="openShareCreate()" title="Öffentlichen Link zum Anschauen erzeugen (ohne Login, nur Ansicht)">🔗 Teilen</button>
       <button class="btn sec" onclick="bulkForeign()" title="In eine „Für andere"-Liste legen (Name frei wählbar): eingeklappt ans Listenende, keine Benachrichtigungen">👥 Für andere</button>
-      <button class="btn sec" onclick="bulkClear()" style="margin-left:auto">Auswahl aufheben</button>
+      </div>
     </div>
     <div id="offers"></div>
     <footer>
