@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.8.13
+- 🐛 Fix: In den Dialogen **Eintrag bearbeiten** (Bibliothek), **Seite** und **Formular** schob eine lange Adresse (Slug) das Layout auseinander — die Vorschau-URL unter dem Feld ist eine umbruchlose Zeichenkette, und Grid-Spalten schrumpfen von sich aus nicht unter ihren Inhalt (`min-width: auto`). Die linke Spalte wuchs mit jedem getippten Zeichen, die rechte („Kategorie", „Veröffentlicht", „Nur für Mitglieder") wanderte aus dem Dialog. Spalten dürfen jetzt schrumpfen (`min-width: 0`), Hinweistexte brechen um (`overflow-wrap: anywhere`).
+
 ## 0.8.12
 - 🔒 Fix: Bei Bibliothek-Einträgen mit **Nur für Mitglieder** stand der gesperrte Text in der Meta-Description (`<meta name="description">` und `og:description`) — er wurde aus dem vollen Markdown gebildet statt aus dem Anriss. Damit wären die ersten ~155 Zeichen im Suchmaschinen-Snippet und in Link-Vorschauen gelandet. Jetzt wie bei eigenen Seiten aus dem bereits gekürzten Anriss.
 - fontTools protokollierte bei jeder PDF-Erzeugung jeden Teilschritt der Schrift-Optimierung auf INFO („glyf pruned", „GDEF pruned", …) — pro PDF dutzende Zeilen im Add-on-Log. Auf WARNING gesetzt.

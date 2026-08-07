@@ -68,6 +68,10 @@
     input:focus, textarea:focus, select:focus { outline: none; border-color: var(--accent); }
     textarea { resize: vertical; min-height: 70px; }
     .row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 36px; margin-bottom: 6px; }
+    /* Grid-Spalten dürfen sonst nicht unter ihren Inhalt schrumpfen (min-width:auto).
+       Eine lange, umbruchlose Zeichenkette — z. B. die Slug-Vorschau-URL — würde die
+       Spalte aufblähen und die Nachbarspalte aus dem Dialog schieben. */
+    .row > * { min-width: 0; }
     .hint + .row, .hint + label, .hint + .upload-row { margin-top: 20px; }
     @media (max-width: 700px) { .row { grid-template-columns: 1fr; } }
     .btn { background: var(--green); border: 1px solid var(--green-h); color: #fff; padding: 8px 16px; border-radius: 6px; font-size: 0.85rem; font-weight: 600; cursor: pointer; margin-top: 16px; }
@@ -182,7 +186,8 @@
     .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--green); color: #fff; padding: 9px 18px; border-radius: 8px; font-size: 0.85rem; z-index: 100; opacity: 0; transition: opacity .25s; pointer-events: none; }
     .toast.show { opacity: 1; }
     .toast.err { background: var(--red); }
-    .hint { font-size: 0.74rem; color: var(--muted); margin-top: 6px; }
+    /* overflow-wrap: URLs und lange Slugs umbrechen, statt die Spalte zu sprengen */
+    .hint { font-size: 0.74rem; color: var(--muted); margin-top: 6px; overflow-wrap: anywhere; }
     .md-edit-btn { margin-top: 6px; padding: 5px 12px; font-size: 0.82rem; }
     .md-toolbar { display: flex; flex-wrap: wrap; gap: 3px; margin: 4px 0 10px; position: relative; }
     .md-btn { background: var(--surf2, var(--bg)); border: 1px solid var(--border); color: var(--text); border-radius: 5px; min-width: 30px; height: 30px; padding: 0 8px; font-size: 0.9rem; cursor: pointer; line-height: 1; }
