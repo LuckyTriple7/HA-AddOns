@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.8.16
+- 🐛 Fix: Der Schalter **„In der Navigation zeigen"** der Bibliothek blieb auf der Startseite wirkungslos, solange der Abschnitt dort sichtbar war — die Sprungmarke kam aus der Abschnitts-Navigation und ignorierte den Schalter. Jetzt gilt er überall: aus heißt aus.
+
 ## 0.8.15
 - 🏷️ **Schlagwort-Filter jetzt auch im Startseiten-Abschnitt.** Unter der Überschrift der Sammlung steht eine Chip-Reihe mit allen Schlagwörtern der angerissenen Einträge; ein Klick filtert die Kacheln **ohne Neuladen** der Startseite. Bisher gab es die Filter nur auf `/bibliothek`.
 - 🔗 **Weg zur Übersicht.** Der Link unter dem Abschnitt („Zur Übersicht →") erschien bisher nur, wenn es mehr Einträge gab als angerissen — bei wenigen Einträgen führte von der Startseite also **gar nichts** zu `/bibliothek`. Er steht jetzt immer da und übernimmt ein gewähltes Schlagwort (`/bibliothek?tag=…`), damit auch Treffer außerhalb des Anrisses erreichbar sind.

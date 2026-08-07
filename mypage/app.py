@@ -8113,6 +8113,11 @@ def public_index():
     if site['design'].get('show_nav', True):
         for key in section_order:
             anchor, label_key, present = section_defs[key]
+            # Der Navi-Schalter der Bibliothek gilt auch hier: sonst stünde die
+            # Sammlung trotz abgeschaltetem Schalter als Sprungmarke in der Leiste,
+            # nur weil der Abschnitt auf der Startseite sichtbar ist.
+            if key == 'library' and not _library(site).get('nav'):
+                continue
             if present:
                 if key == 'timeline' and timeline_title:
                     label = timeline_title
@@ -8132,7 +8137,8 @@ def public_index():
         # Abschnitt in der Leiste steht — sonst stünde sie doppelt. Ist der Abschnitt
         # ausgeblendet oder auf Mitglieder beschränkt, bleibt der Link der einzige Weg
         # zur Übersicht.
-        lib_in_nav = 'library' in section_order and section_defs['library'][2]
+        lib_in_nav = ('library' in section_order and section_defs['library'][2]
+                      and _library(site).get('nav'))
         nav_items += _nav_links(site, loc, t, with_library=not lib_in_nav)
 
     return render_template('public.html', t=t, lang=lang, site=site, loc=loc,
