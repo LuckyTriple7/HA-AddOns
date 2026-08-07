@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.87.1] - 2026-08-07
+
+### Fixed
+- **Adressen im Markdown-Export sind jetzt klickbare Links.** Bisher stand die
+  nackte Adresse im Text (`(https://www.marcopolo.de/…)`) und war in keiner
+  Notiz-App anklickbar. Sie wird an Ort und Stelle zu `[marcopolo.de](…)` — der
+  Satz bleibt heil (ans Zeilenende verschoben blieben Reste wie „Details:" ohne
+  Bezug stehen), die Quelle bleibt nachvollziehbar. Bereits fertige
+  Markdown-Links bleiben unangetastet, und ein `|` in einer Adresse sprengt die
+  Klimatabelle nicht mehr auf.
+
 ## [0.87.0] - 2026-08-07
 
 ### Added

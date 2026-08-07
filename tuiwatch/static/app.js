@@ -3146,8 +3146,30 @@
     // dem JSON gebaut, nicht aus dem DOM — kopierter Bildschirmtext bringt sonst
     // Aufzählungszeichen, Tabellenrahmen und Symbole als Fließtext mit.
     // Quellen-Marker der KI ([3], [11]) fliegen raus, in einer Notiz sind sie tot.
+    //
+    // Nackte Adressen mitten im Satz („… mehr dazu (https://www.marcopolo.de/…)")
+    // wandern ans Ende der Zeile und werden zu einem klickbaren Markdown-Link:
+    // roher Text in Klammern ist in keinem Notiz-Programm anklickbar, und die
+    // Herkunft wegzuwerfen wäre die schlechtere Antwort — ein Verweis auf eine
+    // öffentliche Seite ist üblich und nachvollziehbar.
+    function mdHost(url){
+      try { return new URL(url).hostname.replace(/^www\./, ''); }
+      catch(e){ return 'Quelle'; }
+    }
     function mdText(s){
-      return String(s == null ? '' : s).replace(/\s*\[\d+\]/g, '').replace(/\s+/g, ' ').trim();
+      let text = String(s == null ? '' : s).replace(/\s*\[\d+\]/g, '');
+      // Fertige Markdown-Links unangetastet lassen. Der Platzhalter benutzt
+      // Steuerzeichen, sonst kollidiert er mit Zahlen im Text („ab 3 Jahren").
+      const keep = [];
+      text = text.replace(/\[[^\]]*\]\(https?:\/\/[^)\s]+\)/g,
+                          m => { keep.push(m); return `\0${keep.length - 1}\0`; });
+      // Nackte Adresse → klickbarer Link an Ort und Stelle, beschriftet mit der
+      // Domain. Ans Zeilenende verschoben blieben Satzreste wie „Details:" ohne
+      // Bezug stehen; so bleibt der Satz heil und die Quelle nachvollziehbar.
+      text = text.replace(/(https?:\/\/[^\s)]+?)([.,;:!?]?)(?=[\s)]|$)/g,
+                          (m, url, punct) => `[${mdHost(url)}](${url})${punct}`);
+      text = text.replace(/\0(\d+)\0/g, (m, i) => keep[+i]);
+      return text.replace(/\s+/g, ' ').trim();
     }
     function mdNum(v, unit){
       if(v == null || v === '') return '–';
@@ -3164,7 +3186,9 @@
                        m.wasser ? mdNum(m.wasser,' °C') : '–',
                        mdNum(m.sonnenstunden,' h'), mdNum(m.regentage)];
         if(hasNote) cells.push(mdText(m.hinweis) || '');
-        return '| ' + cells.join(' | ') + ' |';
+        // Ein „|" im Zellinhalt (etwa in einer Quell-Adresse) würde die Tabelle
+        // sonst mitten in der Zeile aufsprengen
+        return '| ' + cells.map(c => String(c).replace(/\|/g, '\\|')).join(' | ') + ' |';
       });
       return ['| ' + head.join(' | ') + ' |',
               '| ' + head.map(()=>'---').join(' | ') + ' |'].concat(rows).join('\n');

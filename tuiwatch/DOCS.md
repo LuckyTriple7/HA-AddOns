@@ -145,6 +145,10 @@ Passatwind, Hochsaison …) und die aus Wetter-Sicht besten Monate (★).
   Monatswerte als Markdown-Tabelle. Quellen-Marker der KI (`[3]`, `[11]`) fallen
   dabei weg, kurzlebige Angaben werden als „(kann sich kurzfristig ändern)"
   ausgeschrieben, und beim Reiseführer hängt die Klimatabelle mit dran.
+  **Adressen im Text werden zu klickbaren Links** mit der Domain als Beschriftung
+  (`[marcopolo.de](https://…)`) — an Ort und Stelle, damit der Satz heil bleibt.
+  Die Quellen bleiben also erhalten: Verweise auf öffentlich erreichbare Seiten
+  sind üblich, und bei KI-Texten ist die Herkunft eher hilfreich als hinderlich.
 
 **🤖 Reisezeit-Check** (Knopf neben „Suchen", nur bei konfigurierter KI): prüft die
 Eckdaten der Maske, bevor du buchst. Vier Punkte:
