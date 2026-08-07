@@ -33,7 +33,7 @@ from email.mime.text import MIMEText
 from collections import defaultdict
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
-from urllib.parse import urlparse, urlsplit, urlunsplit
+from urllib.parse import urlencode, urlparse, urlsplit, urlunsplit
 
 import markdown as md_lib
 from markupsafe import Markup, escape
@@ -4769,10 +4769,11 @@ def api_library_entry_copy(eid: str):
     copy = json.loads(json.dumps(src))
     copy['id'] = uuid.uuid4().hex[:12]
     copy['visible'] = False
-    suffix = ' ' + (load_translations(detect_language(request)).get('library_copy_suffix') or '(Kopie)')
-    for key in ('title_de', 'title_en'):
+    # Suffix je Titelsprache — sonst stünde am englischen Titel „(Kopie)"
+    for lang, key in (('de', 'title_de'), ('en', 'title_en')):
         if copy.get(key):
-            copy[key] = _clean_str(copy[key] + suffix, 140)
+            suffix = load_translations(lang).get('library_copy_suffix') or '(Kopie)'
+            copy[key] = _clean_str(f'{copy[key]} {suffix}', 140)
     copy['pdf'], copy['pdf_gen'], copy['pdf_hash'] = '', '', ''
     copy['slug'] = _lib_entry_slug(site, {'slug': src.get('slug', '')}, copy['id'])
     copy['updated'] = date.today().isoformat()
@@ -8011,8 +8012,9 @@ def public_index():
         albums = [a for a in albums if not a.get('locked')]
     latest_posts = sorted_posts(site, public_only=True)[:3]
     contact_enabled = bool(site['design'].get('contact_enabled')) and not static_export
-    # Bibliothek: auf der Startseite nur ein Anriss (die ersten sechs Einträge)
-    library_entries = _lib_view_entries(site, loc)[:6]
+    # Bibliothek: Anriss als Karussell — es scrollt seitwärts, die Startseite wird
+    # also nicht länger. 12 statt 6 Karten, darüber verweist „Alle anzeigen".
+    library_entries = _lib_view_entries(site, loc)[:12]
     library_total = len(_lib_public_entries(site))
 
     loc_block = sections.get('location') or {}
@@ -9366,13 +9368,16 @@ def custom_page(slug: str):
 
 # ── Bibliothek (öffentlich) ───────────────────────────────────────────────────
 
-def _lib_view_entries(site: dict, loc, cat: str = '', query: str = '') -> list:
-    """Sichtbare Einträge als Anzeige-Objekte, optional nach Kategorie/Suche gefiltert."""
+def _lib_view_entries(site: dict, loc, cat: str = '', query: str = '', tag: str = '') -> list:
+    """Sichtbare Einträge als Anzeige-Objekte, optional nach Kategorie/Schlagwort/Suche gefiltert."""
     cats = {c['id']: c for c in _library(site).get('categories', []) if c.get('id')}
     words = [w for w in (query or '').lower().split() if w]
+    want_tag = (tag or '').lower()
     out = []
     for e in _lib_public_entries(site):
         if cat and e.get('cat') != cat:
+            continue
+        if want_tag and want_tag not in {str(x).lower() for x in (e.get('tags') or [])}:
             continue
         if words:
             hay = ' '.join([loc(e, 'title'), loc(e, 'summary'), loc(e, 'body'),
@@ -9403,6 +9408,27 @@ def _lib_used_categories(site: dict, loc) -> list:
             if c.get('id') in used and loc(c, 'name')]
 
 
+def _lib_used_tags(site: dict) -> list:
+    """Schlagwörter aller sichtbaren Einträge, alphabetisch, ohne Dubletten.
+
+    Groß-/Kleinschreibung wird zusammengefasst, angezeigt wird die erste
+    vorkommende Schreibweise.
+    """
+    seen = {}
+    for e in _lib_public_entries(site):
+        for tag in (e.get('tags') or []):
+            key = str(tag).lower()
+            if key and key not in seen:
+                seen[key] = str(tag)
+    return [seen[k] for k in sorted(seen)]
+
+
+def _lib_filter_url(cat: str = '', tag: str = '', query: str = '') -> str:
+    """/bibliothek-Adresse mit den gesetzten Filtern (leere werden weggelassen)."""
+    parts = [(k, v) for k, v in (('cat', cat), ('tag', tag), ('q', query)) if v]
+    return '/bibliothek' + ('?' + urlencode(parts) if parts else '')
+
+
 @public_app.route('/bibliothek')
 def library_index():
     lang = detect_language(request)
@@ -9414,15 +9440,26 @@ def library_index():
     t = load_translations(lang)
     loc = _loc_factory(lang)
     cat = _clean_str(request.args.get('cat'), 32)
+    tag = _clean_str(request.args.get('tag'), 30)
     query = _clean_str(request.args.get('q'), 80)
     count_visit(request)
     intro = loc(_library(site), 'intro')
+    # Filter-Chips als fertige Adressen — jeder Chip behält die übrigen Filter bei,
+    # ein erneuter Klick auf den aktiven Chip hebt ihn auf.
+    cat_chips = [{'label': (f"{c['icon']} {c['name']}".strip()), 'active': c['id'] == cat,
+                  'href': _lib_filter_url('' if c['id'] == cat else c['id'], tag, query)}
+                 for c in _lib_used_categories(site, loc)]
+    tag_chips = [{'label': x, 'active': x.lower() == tag.lower(),
+                  'href': _lib_filter_url(cat, '' if x.lower() == tag.lower() else x, query)}
+                 for x in _lib_used_tags(site)]
     return render_template('library.html', t=t, lang=lang, site=site, loc=loc,
                            heading=_library_label(site, loc, t),
                            intro_html=render_md(intro) if intro else '',
-                           entries=_lib_view_entries(site, loc, cat, query),
-                           categories=_lib_used_categories(site, loc),
-                           active_cat=cat, query=query,
+                           entries=_lib_view_entries(site, loc, cat, query, tag),
+                           cat_chips=cat_chips, tag_chips=tag_chips,
+                           all_cats_url=_lib_filter_url('', tag, query),
+                           all_tags_url=_lib_filter_url(cat, '', query),
+                           active_cat=cat, active_tag=tag, query=query,
                            nav_items=(_nav_links(site, loc, t, with_library=False)
                                       if site['design'].get('show_nav', True) else []),
                            meta_desc=(_plain_excerpt(render_md(intro)) if intro

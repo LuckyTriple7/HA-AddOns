@@ -87,6 +87,7 @@
     .page-content hr { border: none; border-top: 1px solid var(--border); margin: 1.6em 0; }
     .tag-row { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 28px; }
     .tag-chip { font-size: 0.75rem; padding: 3px 10px; border-radius: 999px; color: var(--muted); background: var(--surf); border: 1px solid var(--border); }
+    .tag-chip:hover { border-color: var(--accent); color: var(--accent); text-decoration: none; }
     footer { border-top: 1px solid var(--border); padding: 20px 0; text-align: center; font-size: 0.78rem; color: var(--muted); }
 
     /* Druckansicht: alles außer dem Inhalt raus, damit „Als PDF speichern"
@@ -153,7 +154,7 @@
 
     {% if e.tags and not locked %}
     <div class="tag-row">
-      {% for tag in e.tags %}<span class="tag-chip">{{ tag }}</span>{% endfor %}
+      {% for tag in e.tags %}<a class="tag-chip" href="/bibliothek?tag={{ tag|urlencode }}">{{ tag }}</a>{% endfor %}
     </div>
     {% endif %}
   </main>

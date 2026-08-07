@@ -68,6 +68,14 @@
     }
     .cat-chip:hover { border-color: var(--accent); text-decoration: none; }
     .cat-chip.active { border-color: var(--accent); color: var(--accent); }
+    .tag-bar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: -12px 0 22px; }
+    .tag-bar-label { font-size: 0.72rem; color: var(--muted); margin-right: 2px; }
+    .tag-chip {
+      font-size: 0.72rem; padding: 2px 9px; border-radius: 999px; color: var(--muted);
+      background: transparent; border: 1px solid var(--border); transition: border-color .15s;
+    }
+    .tag-chip:hover { border-color: var(--accent); color: var(--text); text-decoration: none; }
+    .tag-chip.active { border-color: var(--accent); color: var(--accent); }
     .lib-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 14px; }
     .lib-card {
       display: flex; flex-direction: column; background: var(--surf); border: 1px solid var(--border);
@@ -114,16 +122,26 @@
 
     <form class="lib-search" method="get" action="/bibliothek" role="search">
       {% if active_cat %}<input type="hidden" name="cat" value="{{ active_cat }}">{% endif %}
+      {% if active_tag %}<input type="hidden" name="tag" value="{{ active_tag }}">{% endif %}
       <input type="search" name="q" value="{{ query }}" placeholder="{{ t.library_search_ph }}" aria-label="{{ t.library_search_ph }}">
       <button type="submit">{{ t.blog_search_btn }}</button>
     </form>
 
-    {% if categories %}
+    {% if cat_chips %}
     <div class="cat-bar">
-      <a class="cat-chip {% if not active_cat %}active{% endif %}" href="/bibliothek{% if query %}?q={{ query|urlencode }}{% endif %}">{{ t.library_all }}</a>
-      {% for c in categories %}
-      <a class="cat-chip {% if active_cat == c.id %}active{% endif %}"
-         href="/bibliothek?cat={{ c.id|urlencode }}{% if query %}&q={{ query|urlencode }}{% endif %}">{% if c.icon %}{{ c.icon }} {% endif %}{{ c.name }}</a>
+      <a class="cat-chip {% if not active_cat %}active{% endif %}" href="{{ all_cats_url }}">{{ t.library_all }}</a>
+      {% for c in cat_chips %}
+      <a class="cat-chip {% if c.active %}active{% endif %}" href="{{ c.href }}">{{ c.label }}</a>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if tag_chips %}
+    <div class="tag-bar">
+      <span class="tag-bar-label">{{ t.field_tags_short }}:</span>
+      <a class="tag-chip {% if not active_tag %}active{% endif %}" href="{{ all_tags_url }}">{{ t.library_all }}</a>
+      {% for tg in tag_chips %}
+      <a class="tag-chip {% if tg.active %}active{% endif %}" href="{{ tg.href }}">{{ tg.label }}</a>
       {% endfor %}
     </div>
     {% endif %}

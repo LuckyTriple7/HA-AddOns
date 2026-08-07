@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.8.14
+- 📋 **Bibliothek: Kopieren-Knopf je Eintrag.** Legt ein Duplikat direkt hinter dem Original an — mit Text, Bild, Kategorie, Schlagwörtern und PDF-Einstellung, aber **als Entwurf** (eine Kopie wird fast immer noch überarbeitet und stünde sonst sofort ein zweites Mal öffentlich und in der Sitemap). Der Titel bekommt je Sprache das passende Suffix („(Kopie)" / „(copy)"), der Dialog öffnet sich gleich zum Bearbeiten. Ein hochgeladenes PDF wird als **eigene Datei** kopiert — sonst hätte das Löschen des einen Eintrags dem anderen die Datei weggenommen.
+- 🏷️ **Bibliothek: Schlagwort-Filter auf der Übersicht.** Unter den Kategorie-Chips steht jetzt eine Reihe mit allen vergebenen Schlagwörtern; ein Klick filtert die Kacheln, ein erneuter Klick hebt den Filter auf. Kategorie, Schlagwort und Suchfeld lassen sich frei kombinieren, jeder Chip behält die übrigen Filter bei. Groß-/Kleinschreibung wird zusammengefasst. Auf der Eintragsseite sind die Schlagwörter jetzt Links auf die gefilterte Übersicht.
+- 🎠 **Bibliothek auf der Startseite als Karussell.** Der Abschnitt scrollt seitwärts wie die Fotoalben (mit Pfeilen, Snap und Touch-Wischen), statt bei vielen Einträgen die Startseite in die Länge zu ziehen. Es werden bis zu 12 Kacheln angerissen (vorher 6), darüber führt „Alle anzeigen →" auf `/bibliothek`. Die Übersichtsseite selbst bleibt ein umbrechendes Raster.
+
 ## 0.8.13
 - 🐛 Fix: In den Dialogen **Eintrag bearbeiten** (Bibliothek), **Seite** und **Formular** schob eine lange Adresse (Slug) das Layout auseinander — die Vorschau-URL unter dem Feld ist eine umbruchlose Zeichenkette, und Grid-Spalten schrumpfen von sich aus nicht unter ihren Inhalt (`min-width: auto`). Die linke Spalte wuchs mit jedem getippten Zeichen, die rechte („Kategorie", „Veröffentlicht", „Nur für Mitglieder") wanderte aus dem Dialog. Spalten dürfen jetzt schrumpfen (`min-width: 0`), Hinweistexte brechen um (`overflow-wrap: anywhere`).
 
