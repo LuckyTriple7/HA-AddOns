@@ -2344,5 +2344,13 @@
   "ai_img_prompt_cat": "Topic: {v}.",
   "ai_img_prompt_tags": "Tags: {v}.",
   "ai_img_prompt_summary": "What it is about: {v}.",
-  "ai_img_prompt_style": "Style: modern, calm, high quality, photorealistic, no text or lettering in the image."
+  "ai_img_prompt_style": "Style: modern, calm, high quality, photorealistic, no text or lettering in the image.",
+  "image_pick": "Choose image",
+  "uploads_pick_title": "Choose image",
+  "uploads_pick_new": "Upload a new image",
+  "uploads_pick_loading": "Loading images …",
+  "uploads_pick_empty": "No images uploaded yet.",
+  "uploads_pick_count": "{n} images — newest first.",
+  "uploads_pick_capped": "Newest {n} of {t} images.",
+  "uploads_pick_unused": "unused"
 }

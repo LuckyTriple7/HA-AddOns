@@ -2344,5 +2344,13 @@
   "ai_img_prompt_cat": "Thema: {v}.",
   "ai_img_prompt_tags": "Schlagwörter: {v}.",
   "ai_img_prompt_summary": "Worum es geht: {v}.",
-  "ai_img_prompt_style": "Stil: modern, ruhig, hochwertig, fotorealistisch, ohne Text und ohne Schrift im Bild."
+  "ai_img_prompt_style": "Stil: modern, ruhig, hochwertig, fotorealistisch, ohne Text und ohne Schrift im Bild.",
+  "image_pick": "Bild wählen",
+  "uploads_pick_title": "Bild wählen",
+  "uploads_pick_new": "Neues Bild hochladen",
+  "uploads_pick_loading": "Bilder werden geladen …",
+  "uploads_pick_empty": "Noch keine Bilder hochgeladen.",
+  "uploads_pick_count": "{n} Bilder — neueste zuerst.",
+  "uploads_pick_capped": "Neueste {n} von {t} Bildern.",
+  "uploads_pick_unused": "unbenutzt"
 }

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.1
+- 🖼️ **Medien-Browser: bereits hochgeladene Bilder auswählen, statt sie erneut hochzuladen.** Überall, wo bisher „Hochladen" stand, heißt der Knopf jetzt **„Bild wählen"** und öffnet eine Galerie aller vorhandenen Bilder — neueste zuerst, mit Datum und Dateigröße. Ein Klick übernimmt das Bild ins Feld. Wer doch etwas Neues braucht: **„Neues Bild hochladen"** in derselben Galerie führt zum gewohnten Dateidialog.
+- Verfügbar bei **Titelbild der Bibliothek, Beitrags- und Projektbild, Favicon, Karten-Bild, Mitglieder-Avatar, Team-Fotos, Fotoalben** und im **Markdown-Editor**: Der Bild-Knopf fragt weiterhin nach einer URL — bleibt das Feld leer, kommt jetzt die Galerie statt sofort der Dateidialog.
+- Bilder, die **nirgends verwendet** werden, tragen in der Galerie die Plakette „unbenutzt" — praktisch, um vor dem Aufräumen im Tab *System* zu sehen, was übrig ist. Gelöscht wird dabei nichts.
+- Aus Rücksicht auf große Sammlungen zeigt die Galerie die **neuesten 300 Bilder** und nennt in der Kopfzeile die Gesamtzahl. Abgebrochene 0-Byte-Uploads werden übersprungen, damit keine kaputten Kacheln erscheinen.
+
 ## 0.9.0
 - ✨ **Titelbild eines Bibliothek-Eintrags von der KI erzeugen lassen.** Neben dem Bild-Feld sitzt ein Knopf **„Bild generieren"**, der ein Feld mit einer **vorgeschlagenen Bildbeschreibung aus Titel, Kategorie, Schlagwörtern und Kurzbeschreibung** des Eintrags öffnet. Trägt der Eintrag das Schlagwort „Rhodos", steht es im Vorschlag und das Bild passt dazu. Die Beschreibung ist frei änderbar; das fertige Bild wird sofort als Titelbild eingetragen. Gespeichert ist der Eintrag damit noch nicht — dazu braucht es weiterhin „Speichern".
 - **Der Knopf erscheint nur, wenn ein Key hinterlegt ist.** Neue Optionen `gemini_api_key` (Key auf [aistudio.google.com](https://aistudio.google.com)), `gemini_image_model` und `gemini_image_ratio` (Standard `16:9`). Ohne Key bleibt alles wie bisher. **Bildgenerierung ist bei Google je nach Modell kostenpflichtig** — deshalb sind höchstens 20 Bilder pro Stunde möglich und die Beschreibung ist auf 1200 Zeichen begrenzt, damit nicht versehentlich ein ganzer Artikel an eine Bezahl-API geht.

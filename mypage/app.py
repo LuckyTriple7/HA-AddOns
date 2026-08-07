@@ -5687,6 +5687,38 @@ def api_upload():
     return jsonify({'ok': True, 'url': '/uploads/' + name})
 
 
+UPLOADS_LIST_MAX = 300
+
+
+@admin_app.route('/api/uploads/list')
+def api_uploads_list():
+    """Vorhandene Bilder für den Medien-Browser im Admin.
+
+    Neueste zuerst und auf UPLOADS_LIST_MAX begrenzt — bei einigen hundert
+    Bildern wäre die Galerie sonst weder ladbar noch überschaubar. `used` sagt,
+    ob die Datei irgendwo in site.json steckt; so ist erkennbar, was nur
+    herumliegt (etwa ein verworfenes KI-Bild), ohne es gleich zu löschen.
+    """
+    err = _api_auth()
+    if err:
+        return err
+    blob = json.dumps(load_site(), ensure_ascii=False)
+    files = []
+    for f in UPLOADS_DIR.iterdir():
+        if not f.is_file() or f.suffix.lower() not in ALLOWED_UPLOAD_EXT:
+            continue
+        try:
+            st = f.stat()
+        except OSError:
+            continue
+        if st.st_size <= 0:
+            continue    # abgebrochener Upload — gäbe nur eine kaputte Kachel
+        files.append({'url': '/uploads/' + f.name, 'size': st.st_size,
+                      'mtime': int(st.st_mtime), 'used': f.name in blob})
+    files.sort(key=lambda x: x['mtime'], reverse=True)
+    return jsonify({'files': files[:UPLOADS_LIST_MAX], 'total': len(files)})
+
+
 def _unused_uploads(site: dict):
     """Hochgeladene Dateien, die nirgends mehr in site.json referenziert sind.
 
