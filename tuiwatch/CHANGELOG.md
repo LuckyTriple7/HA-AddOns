@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.87.0] - 2026-08-07
+
+### Added
+- **📋 Markdown** in Reiseführer und Klimatabelle: legt den Inhalt als sauberes
+  Markdown in die Zwischenablage, zum Einfügen in eine Notiz-/Wissenssammlung
+  (z. B. die Bibliothek von MyPage). Gebaut wird es aus den gespeicherten Daten
+  statt aus der Bildschirmdarstellung — kopierter Seitentext bringt sonst
+  Aufzählungszeichen, Tabellenrahmen und Symbole als Fließtext mit. Abschnitte
+  werden zu `##`, Punkte zu `- **Label:** Text`, Monatswerte zu einer
+  Markdown-Tabelle (★ für die besten Reisemonate, Hinweis-Spalte nur wenn es
+  welche gibt); beim Reiseführer hängt die Klimatabelle mit dran. Quellen-Marker
+  der KI (`[3]`) fallen weg, das ⏱ für kurzlebige Angaben wird als
+  „(kann sich kurzfristig ändern)" ausgeschrieben.
+  Kopiert wird über `navigator.clipboard` mit textarea-Rückfallebene — im
+  Ingress über http fehlt die Clipboard-API sonst.
+
 ## [0.86.0] - 2026-08-07
 
 ### Added

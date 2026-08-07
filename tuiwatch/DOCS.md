@@ -138,6 +138,13 @@ Passatwind, Hochsaison …) und die aus Wetter-Sicht besten Monate (★).
 - **✉ Als E-Mail** verschickt die Tabelle (kein KI-Aufruf — verschickt wird, was
   gespeichert ist). Die Mail enthält die Tabelle ohne Diagramm: Mail-Clients rendern
   inline-SVG nicht zuverlässig, und die Zahlen sind hier der Inhalt.
+- **📋 Markdown** legt Tabelle bzw. Reiseführer als sauberes Markdown in die
+  Zwischenablage — zum Einfügen in eine Notiz- oder Wissenssammlung (z. B. die
+  Bibliothek von MyPage). Erzeugt wird es aus den gespeicherten Daten, nicht aus der
+  Bildschirmdarstellung: Überschriften als `#`, Punkte als `- **Label:** Text`,
+  Monatswerte als Markdown-Tabelle. Quellen-Marker der KI (`[3]`, `[11]`) fallen
+  dabei weg, kurzlebige Angaben werden als „(kann sich kurzfristig ändern)"
+  ausgeschrieben, und beim Reiseführer hängt die Klimatabelle mit dran.
 
 **🤖 Reisezeit-Check** (Knopf neben „Suchen", nur bei konfigurierter KI): prüft die
 Eckdaten der Maske, bevor du buchst. Vier Punkte:

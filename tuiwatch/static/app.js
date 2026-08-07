@@ -3141,6 +3141,119 @@
         b.addEventListener('mouseleave', ()=>show(false));
       });
     }
+    // ── Markdown-Export (Reiseführer & Klimatabelle) ──────────────────────────
+    // Zum Weiterverwenden in einer Wissens-/Notiz-Sammlung (z. B. MyPage): aus
+    // dem JSON gebaut, nicht aus dem DOM — kopierter Bildschirmtext bringt sonst
+    // Aufzählungszeichen, Tabellenrahmen und Symbole als Fließtext mit.
+    // Quellen-Marker der KI ([3], [11]) fliegen raus, in einer Notiz sind sie tot.
+    function mdText(s){
+      return String(s == null ? '' : s).replace(/\s*\[\d+\]/g, '').replace(/\s+/g, ' ').trim();
+    }
+    function mdNum(v, unit){
+      if(v == null || v === '') return '–';
+      return Number(v).toLocaleString('de-DE', {maximumFractionDigits:1}) + (unit || '');
+    }
+    function climateTableMd(months, best){
+      const b = new Set(best || []);
+      const hasNote = (months||[]).some(m => mdText(m.hinweis));
+      const head = ['Monat','Tag','Nacht','Wasser','Sonne','Regentage']
+        .concat(hasNote ? ['Hinweis'] : []);
+      const rows = (months||[]).slice().sort((a,b2)=>(a.monat||0)-(b2.monat||0)).map(m=>{
+        const name = (MONTHS_DE[(m.monat||1)-1] || m.monat) + (b.has(m.monat) ? ' ★' : '');
+        const cells = [name, mdNum(m.temp_tag,' °C'), mdNum(m.temp_nacht,' °C'),
+                       m.wasser ? mdNum(m.wasser,' °C') : '–',
+                       mdNum(m.sonnenstunden,' h'), mdNum(m.regentage)];
+        if(hasNote) cells.push(mdText(m.hinweis) || '');
+        return '| ' + cells.join(' | ') + ' |';
+      });
+      return ['| ' + head.join(' | ') + ' |',
+              '| ' + head.map(()=>'---').join(' | ') + ' |'].concat(rows).join('\n');
+    }
+    function climateMarkdown(d){
+      const c = (d && d.data) || {};
+      const label = (d && d.label) || (climateTarget && climateTarget.label) || 'Reiseziel';
+      const out = ['# Klimatabelle ' + label, ''];
+      if(mdText(c.zusammenfassung)) out.push(mdText(c.zusammenfassung), '');
+      out.push(climateTableMd(c.months || [], c.beste_monate || []), '');
+      if((c.beste_monate||[]).length){
+        out.push('★ = aus Wetter-Sicht bester Reisemonat ('
+          + c.beste_monate.map(m=>MONTHS_DE[(m||1)-1] || m).join(', ') + ')', '');
+      }
+      out.push(mdStand(d, 'Langjährige Mittelwerte'));
+      return out.join('\n').trim() + '\n';
+    }
+    function guideMarkdown(d){
+      const c = (d && d.data) || {};
+      const label = (d && d.label) || (guideTarget && guideTarget.label) || 'Reiseziel';
+      const out = ['# Reiseführer ' + label, ''];
+      const sum = (c.zusammenfassung||[]).map(mdText).filter(Boolean);
+      if(sum.length){
+        out.push('## Das Wichtigste in Kürze', '');
+        sum.forEach(s => out.push('- ' + s));
+        out.push('');
+      }
+      (c.sections||[]).forEach(s=>{
+        const pts = (s.punkte||[]).filter(p => p && (p.text || p.label));
+        if(!pts.length && !mdText(s.einleitung)) return;
+        out.push('## ' + mdText(s.titel) , '');
+        if(mdText(s.einleitung)) out.push(mdText(s.einleitung), '');
+        pts.forEach(p=>{
+          const k = mdText(p.label);
+          // ⏱ markiert kurzlebige Angaben (Einreise, Kurs) — als Klartext, damit
+          // in der Notiz später erkennbar bleibt, was zu prüfen ist.
+          const vol = p.volatil ? ' _(kann sich kurzfristig ändern)_' : '';
+          out.push('- ' + (k ? '**' + k + ':** ' : '') + mdText(p.text) + vol);
+        });
+        out.push('');
+      });
+      if(d && d.climate && (d.climate.months||[]).length){
+        out.push('## Klimatabelle', '',
+                 climateTableMd(d.climate.months, d.climate.beste_monate || []), '');
+      }
+      out.push('KI-generiert, ohne Gewähr — verbindliche Auskünfte beim Auswärtigen Amt '
+               + 'und beim Veranstalter.', '', mdStand(d, ''));
+      return out.join('\n').trim() + '\n';
+    }
+    function mdStand(d, prefix){
+      const when = d && d.ts ? new Date(d.ts*1000).toLocaleDateString('de-DE') : '';
+      const parts = [prefix, when ? 'erstellt am ' + when : '', d && d.model ? 'Modell ' + d.model : ''];
+      const line = parts.filter(Boolean).join(' · ');
+      return line ? '_' + line + '_' : '';
+    }
+    // Zwischenablage: navigator.clipboard gibt es nur im sicheren Kontext — über
+    // Ingress per http (homeassistant.local:8123) fehlt es, deshalb der
+    // textarea-Umweg als Rückfallebene.
+    async function copyText(text, okMsg){
+      try {
+        if(navigator.clipboard && window.isSecureContext){
+          await navigator.clipboard.writeText(text);
+          toast(okMsg || 'Kopiert'); return true;
+        }
+      } catch(e){}
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0';
+        document.body.appendChild(ta); ta.focus(); ta.select();
+        const ok = document.execCommand('copy');
+        ta.remove();
+        toast(ok ? (okMsg || 'Kopiert') : 'Kopieren fehlgeschlagen');
+        return ok;
+      } catch(e){ toast('Kopieren fehlgeschlagen'); return false; }
+    }
+    function copyClimateMd(){
+      if(!climateData || !((climateData.data||{}).months||[]).length){
+        toast('Keine Klimatabelle geladen'); return;
+      }
+      copyText(climateMarkdown(climateData), 'Klimatabelle als Markdown kopiert');
+    }
+    function copyGuideMd(){
+      if(!guideData || !((guideData.data||{}).sections||[]).length){
+        toast('Kein Reiseführer geladen'); return;
+      }
+      copyText(guideMarkdown(guideData), 'Reiseführer als Markdown kopiert');
+    }
+
     function renderClimate(d){
       // Reisemonate nur hervorheben, wenn das Fenster aus der Suche kam — von der
       // Hauptseite aus stehen in der Maske irgendwelche Altwerte, die mit dieser
