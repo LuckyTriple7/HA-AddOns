@@ -14,6 +14,20 @@ configuration:
   visit_log_max:
     name: Visitor log size
     description: How many visits the visitor log keeps (50–10000, default 500). Referrers/browsers/countries are computed from it.
+  visit_file_log:
+    name: Visitor archive as a file
+    description: >-
+      Additionally writes every visit permanently as CSV to
+      addon_configs/<slug>_mypage/visits/visits-YYYY-MM.csv (one file per month, ready
+      to open from the share in Excel/LibreOffice). Contains date, IP, country, browser,
+      OS, path, referrer, language and user agent. The visitor log in the admin panel is
+      unaffected. Default: off - IP addresses are personal data, a permanent archive
+      should be switched on deliberately.
+  visit_file_keep:
+    name: Keep visitor archive (months)
+    description: >-
+      How many monthly files of the visitor archive are kept (0-120, default 12).
+      0 = keep indefinitely. Cleanup runs when a new monthly file is created.
   user_journal_max:
     name: Journal size per user
     description: How many events the journal keeps per user (20–1000, default 100).

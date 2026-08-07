@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.18
+- 🗂️ **Dauerhaftes Besucher-Archiv als Datei** (neue Option `visit_file_log`, Standard: aus). Das Besucher-Log im Admin ist ein Ringpuffer und zeigt nur die neuesten 500 Aufrufe — ist die Option an, wird jeder Aufruf zusätzlich unter `addon_configs/XXX_mypage/visits/visits-JJJJ-MM.csv` festgehalten, eine Datei je Monat, über den Share direkt erreichbar.
+- **Format bewusst Excel-tauglich**: CSV mit Semikolon als Trennzeichen und UTF-8-BOM — per Doppelklick korrekt in Spalten und mit richtigen Umlauten. Spalten: `datum`, `ip`, `land`, `browser`, `system`, `pfad`, `referrer`, `sprache`, `bot`, `neuer_besucher`, `user_agent`. Semikolons und Anführungszeichen in Referrer und User-Agent werden maskiert.
+- Neue Option **`visit_file_keep`**: wie viele Monatsdateien aufbewahrt werden (0–120, Standard 12; `0` = unbegrenzt). Aufgeräumt wird beim Anlegen einer neuen Monatsdatei.
+- Geschrieben werden — wie im Admin-Log — nur **öffentliche IPs**. Das Archiv ist bewusst **nicht** Teil des Backups: es würde jedes Backup mit der Zeit aufblähen.
+- Der Datenschutz-Grund für „Standard: aus": IP-Adressen sind personenbezogene Daten; ein zeitlich unbegrenztes Archiv soll bewusst eingeschaltet werden.
+- Dokumentiert: die Liste im Admin zeigt immer höchstens die neuesten 500 Einträge, auch wenn `visit_log_max` höher steht — die übrigen fließen weiter in Referrer-, Browser-, Länder- und Top-Seiten-Auswertung.
+
 ## 0.8.17
 - 🐛 **Fix: echte Besucher-IP kam seit v0.8.10 nicht mehr an.** Waitress entfernt `X-Forwarded-*`-Kopfzeilen standardmäßig, bevor die Anwendung sie sieht (`clear_untrusted_proxy_headers=True`). Hinter Reverse Proxy oder Cloudflare Tunnel blieb dadurch nur noch die Adresse des letzten Zwischenglieds übrig — im Home-Assistant-Setup für **alle** Besucher dasselbe Docker-Gateway (`172.30.32.1`). Die vorhandene ProxyFix-Auswertung lief ins Leere, weil die Kopfzeilen gar nicht mehr da waren. Waitress reicht sie jetzt durch.
   - Nebenwirkung des Fehlers, die damit ebenfalls behoben ist: **Brute-Force-Sperre und Rate-Limits** rechneten alle Besucher als eine einzige IP — fünf Fehlversuche irgendeines Besuchers hätten alle anderen mitgesperrt.

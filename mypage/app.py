@@ -7,6 +7,7 @@ Zwei Server in einem Prozess:
 """
 import base64
 import copy
+import csv
 import errno
 import hashlib
 import hmac
@@ -129,6 +130,14 @@ DM_FILES_DIR.mkdir(parents=True, exist_ok=True)
 DOCS_DIR = Path(_DATA) / 'docs'
 DOCS_DIR.mkdir(parents=True, exist_ok=True)
 _DOC_FILE_RE = re.compile(r'^[a-f0-9]{32}\.pdf$')
+# Dauerhaftes Besucher-Archiv (optional, Option visit_file_log). Liegt im
+# Add-on-Konfigurationsordner und ist damit über den Share erreichbar:
+# \\<host>\addon_configs\XXX_mypage\visits\visits-JJJJ-MM.csv
+VISITS_DIR = Path(_DATA) / 'visits'
+_VISIT_FILE_RE = re.compile(r'^visits-(\d{4})-(\d{2})\.csv$')
+_visit_file_lock = threading.Lock()
+VISIT_CSV_COLUMNS = ('datum', 'ip', 'land', 'browser', 'system', 'pfad', 'referrer',
+                     'sprache', 'bot', 'neuer_besucher', 'user_agent')
 # Automatische tägliche Backups — landen unter addon_configs/<slug>_mypage/autobackup/,
 # also im selben Ordner wie die Daten (map: app_config:rw). Bewusst NICHT Teil des
 # Backup-Inhalts, sonst würde sich jedes Backup mit allen Vorgängern selbst aufblähen.
@@ -1749,6 +1758,71 @@ def visit_log_max() -> int:
         return 500
 
 
+def visit_file_keep_months() -> int:
+    """Wie viele Monatsdateien das Besucher-Archiv behält (0 = unbegrenzt)."""
+    try:
+        return max(0, min(120, int(load_config().get('visit_file_keep') or 12)))
+    except (TypeError, ValueError):
+        return 12
+
+
+def _prune_visit_files() -> None:
+    """Zu alte Monatsdateien entfernen (nach Dateiname, nicht nach Zeitstempel)."""
+    keep = visit_file_keep_months()
+    if keep <= 0:
+        return
+    try:
+        files = sorted(f for f in VISITS_DIR.iterdir()
+                       if f.is_file() and _VISIT_FILE_RE.match(f.name))
+    except OSError:
+        return
+    for old in files[:-keep]:
+        old.unlink(missing_ok=True)
+
+
+def append_visit_file(entry: dict) -> None:
+    """Einen Aufruf ans dauerhafte Besucher-Archiv anhängen (CSV, eine Datei je Monat).
+
+    Bewusst getrennt vom Ringpuffer in `stats.json`: der hält nur die letzten
+    Aufrufe, hier bleibt die vollständige Historie erhalten und ist über den
+    Add-on-Konfigurations-Share direkt in Excel/LibreOffice zu öffnen.
+    """
+    if not load_config().get('visit_file_log'):
+        return
+    stamp = datetime.fromtimestamp(entry['ts'], timezone.utc).astimezone()
+    target = VISITS_DIR / f'visits-{stamp:%Y-%m}.csv'
+    ua = entry.get('ua', '')
+    row = {
+        'datum':          stamp.strftime('%Y-%m-%d %H:%M:%S'),
+        'ip':             entry.get('ip', ''),
+        'land':           entry.get('country', ''),
+        'browser':        _browser_name(ua),
+        'system':         _os_name(ua),
+        'pfad':           entry.get('path', ''),
+        'referrer':       entry.get('ref', ''),
+        'sprache':        entry.get('lang', ''),
+        'bot':            '1' if entry.get('bot') else '0',
+        'neuer_besucher': '1' if entry.get('new') else '0',
+        'user_agent':     ua,
+    }
+    try:
+        with _visit_file_lock:
+            VISITS_DIR.mkdir(parents=True, exist_ok=True)
+            new_month = not target.exists()
+            # Trennzeichen ';' — deutsche Excel-Installationen öffnen CSV sonst
+            # als eine einzige Spalte. Der csv-Writer maskiert Anführungszeichen
+            # und Semikolons in User-Agent und Referrer selbst.
+            with open(target, 'a', encoding='utf-8-sig', newline='') as f:
+                w = csv.DictWriter(f, fieldnames=VISIT_CSV_COLUMNS, delimiter=';')
+                if new_month:
+                    w.writeheader()
+                w.writerow(row)
+            if new_month:
+                _prune_visit_files()
+    except OSError as e:
+        log.warning("Besucher-Archiv konnte nicht geschrieben werden: %s", e)
+
+
 def total_uniques(stats: dict) -> int:
     """Eindeutige Besucher gesamt — Altbestand wird aus den Tageswerten migriert."""
     if 'total_uniques' in stats:
@@ -1885,8 +1959,7 @@ def count_visit(req) -> None:
     if not _is_public_ip(ip):
         _warn_missing_client_ip(req, ip)
     else:
-        visit_log = stats.setdefault('log', [])
-        visit_log.append({
+        entry = {
             'ts':   int(time.time()),
             'ip':   ip,
             'path': req.path[:100],
@@ -1896,8 +1969,12 @@ def count_visit(req) -> None:
             'country': _guess_country(req),
             'bot':  is_bot,
             'new':  is_new,
-        })
+        }
+        visit_log = stats.setdefault('log', [])
+        visit_log.append(entry)
         del visit_log[:-visit_log_max()]
+        # Dauerhaftes Archiv (optional) — der Ringpuffer oben vergisst alte Aufrufe
+        append_visit_file(entry)
 
     if not is_bot:
         base_uniques = total_uniques(stats)
@@ -1927,6 +2004,24 @@ def _browser_name(ua: str) -> str:
     if 'safari/' in u:
         return 'Safari'
     return 'Other'
+
+
+def _os_name(ua: str) -> str:
+    """Betriebssystem aus dem User-Agent — dieselbe grobe Einteilung wie im Admin."""
+    u = ua.lower()
+    if 'android' in u:
+        return 'Android'
+    if 'iphone' in u or 'ipad' in u or 'ios' in u:
+        return 'iOS'
+    if 'windows' in u:
+        return 'Windows'
+    if 'mac os' in u or 'macintosh' in u:
+        return 'macOS'
+    if 'cros' in u:
+        return 'ChromeOS'
+    if 'linux' in u:
+        return 'Linux'
+    return ''
 
 
 def _own_domain() -> str:

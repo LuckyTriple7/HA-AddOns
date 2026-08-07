@@ -14,6 +14,20 @@ configuration:
   visit_log_max:
     name: Besucher-Log-Größe
     description: Wie viele Aufrufe das Besucher-Log behält (50–10000, Standard 500). Referrer/Browser/Länder werden daraus berechnet.
+  visit_file_log:
+    name: Besucher-Archiv als Datei
+    description: >-
+      Schreibt jeden Aufruf zusätzlich dauerhaft als CSV nach
+      addon_configs/<slug>_mypage/visits/visits-JJJJ-MM.csv (eine Datei je Monat,
+      über den Share direkt in Excel/LibreOffice zu öffnen). Enthält Datum, IP, Land,
+      Browser, System, Pfad, Referrer, Sprache und User-Agent. Das Besucher-Log im
+      Admin bleibt davon unberührt. Standard: aus — IP-Adressen sind personenbezogene
+      Daten, ein dauerhaftes Archiv will bewusst eingeschaltet sein.
+  visit_file_keep:
+    name: Besucher-Archiv aufbewahren (Monate)
+    description: >-
+      Wie viele Monatsdateien des Besucher-Archivs behalten werden (0-120, Standard 12).
+      0 = unbegrenzt aufbewahren. Aufgeräumt wird beim Anlegen einer neuen Monatsdatei.
   user_journal_max:
     name: Journal-Größe pro Benutzer
     description: Wie viele Ereignisse das Journal je Benutzer behält (20–1000, Standard 100).
