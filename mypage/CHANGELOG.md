@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.8.19
+- 🐛 Fix: Im **PDF eines Bibliothek-Eintrags** stand vor dem Kategorienamen ein leeres Kästchen. Ursache war das Emoji-Symbol der Kategorie: der Druck-Zeichensatz (DejaVu) enthält keine Emoji, und der PDF-Erzeuger setzt für ein unbekanntes Zeichen ein Kästchen. Im Browser fällt das nicht auf, weil der dort vorhandene System-Zeichensatz einspringt. Das Symbol entfällt im PDF jetzt, die Kopfzeile lautet nur noch `Kategoriename · Datum` — in der Weboberfläche bleibt das Symbol wie gehabt.
+- Neu erzeugt wird ein PDF weiterhin nur beim **Speichern** des Eintrags. Damit Layout-Änderungen künftig überhaupt greifen, fließt jetzt eine Layout-Kennung in die Zwischenspeicher-Prüfsumme ein — vorher blieb bei unverändertem Text das alte PDF bestehen, obwohl das Layout ein anderes war.
+
 ## 0.8.18
 - 🗂️ **Dauerhaftes Besucher-Archiv als Datei** (neue Option `visit_file_log`, Standard: aus). Das Besucher-Log im Admin ist ein Ringpuffer und zeigt nur die neuesten 500 Aufrufe — ist die Option an, wird jeder Aufruf zusätzlich unter `addon_configs/XXX_mypage/visits/visits-JJJJ-MM.csv` festgehalten, eine Datei je Monat, über den Share direkt erreichbar.
 - **Format bewusst Excel-tauglich**: CSV mit Semikolon als Trennzeichen und UTF-8-BOM — per Doppelklick korrekt in Spalten und mit richtigen Umlauten. Spalten: `datum`, `ip`, `land`, `browser`, `system`, `pfad`, `referrer`, `sprache`, `bot`, `neuer_besucher`, `user_agent`. Semikolons und Anführungszeichen in Referrer und User-Agent werden maskiert.

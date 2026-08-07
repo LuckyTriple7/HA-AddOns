@@ -3350,14 +3350,20 @@ def _lib_pdf_fetcher(url: str):
     raise ValueError(f'externe Ressource im PDF blockiert: {url[:80]}')
 
 
+# Bei jeder Änderung an _lib_pdf_html hochzählen — erzwingt Neuaufbau der PDFs.
+_LIB_PDF_LAYOUT = 2
+
+
 def _lib_pdf_html(site: dict, entry: dict, lang: str, t: dict) -> str:
     """Druckfertiges HTML eines Eintrags (Deckblatt-Kopf + Markdown + Seitenzahlen)."""
     loc = _loc_factory(lang)
     accent = site.get('design', {}).get('accent') or '#3b82f6'
     cat = next((c for c in _library(site).get('categories', [])
                 if c.get('id') == entry.get('cat')), None)
+    # Kategorie-Icon bleibt draußen: der PDF-Font (DejaVu) kennt keine Emoji und
+    # WeasyPrint setzt dafür ein leeres Kästchen. Im Web rendert es der Browser.
     subtitle = ' · '.join(x for x in [
-        (f"{cat.get('icon', '')} {loc(cat, 'name')}".strip() if cat else ''),
+        (loc(cat, 'name') if cat else ''),
         entry.get('updated') or '',
     ] if x)
     page_label = t.get('pdf_page', 'Seite')
@@ -3390,8 +3396,13 @@ hr {{ border: none; border-top: 0.5pt solid #ccc; margin: 5mm 0; }}
 
 
 def _lib_pdf_source_hash(site: dict, entry: dict) -> str:
-    """Fingerabdruck über alles, was das PDF beeinflusst — Grundlage fürs Caching."""
-    src = json.dumps([entry.get('title_de'), entry.get('title_en'),
+    """Fingerabdruck über alles, was das PDF beeinflusst — Grundlage fürs Caching.
+
+    `_LIB_PDF_LAYOUT` mitzählen, damit Änderungen an `_lib_pdf_html` bestehende
+    PDFs entwerten — sonst bleibt bei unverändertem Text das alte Layout stehen.
+    """
+    src = json.dumps([_LIB_PDF_LAYOUT,
+                      entry.get('title_de'), entry.get('title_en'),
                       entry.get('body_de'), entry.get('body_en'),
                       entry.get('cat'), entry.get('updated'),
                       site.get('design', {}).get('accent')],
