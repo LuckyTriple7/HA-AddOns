@@ -90,6 +90,15 @@
     .fl-new { display:flex; gap:8px; align-items:center; }
     .fl-new input { flex:1; min-width:0; background:var(--surf); border:1px solid var(--border); color:var(--text); padding:9px 10px; border-radius:6px; font-size:.9rem; }
     .fl-off { margin-top:14px; padding-top:12px; border-top:1px solid var(--border); }
+    .fl-icon-btn { background:var(--surf); border:1px solid var(--border); color:var(--text); border-radius:6px; cursor:pointer; font-size:1.15rem; line-height:1; padding:7px 9px; }
+    .fl-icon-btn:hover { border-color:var(--accent); }
+    .fl-head-icon { background:none; border:none; padding:0; cursor:pointer; font-size:1rem; line-height:1; }
+    .fl-head-icon:hover { filter:brightness(1.4); }
+    .fl-emoji-grid { display:grid; grid-template-columns:repeat(10,minmax(0,1fr)); gap:6px; }
+    .fl-emoji { background:var(--surf); border:1px solid var(--border); border-radius:6px; cursor:pointer; font-size:1.25rem; line-height:1; padding:7px 0; }
+    .fl-emoji:hover { border-color:var(--accent); }
+    .fl-emoji.active { border-color:var(--accent); background:var(--surf2); }
+    @media (max-width:600px){ .fl-emoji-grid { grid-template-columns:repeat(6,minmax(0,1fr)); } }
     .arch-toggle { display:inline-flex; align-items:center; gap:6px; font-size:.82rem; color:var(--muted); cursor:pointer; user-select:none; padding:9px 4px; white-space:nowrap; }
     .arch-toggle input { accent-color:var(--accent); cursor:pointer; }
     .offer-top { display:flex; align-items:flex-start; gap:12px; }
@@ -937,6 +946,18 @@
       <h2>👥 Für andere</h2>
       <div class="sub" id="fl-sub"></div>
       <div id="fl-body"></div>
+    </div>
+  </div>
+
+  <!-- Symbol einer „Für andere"-Liste wählen (liegt über der Listenauswahl) -->
+  <div class="modal-bg" id="fli-bg" style="z-index:55">
+    <div class="modal" style="max-width:460px">
+      <button class="icon-btn modal-close" onclick="closeIconPicker()">
+        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+      </button>
+      <h2>Symbol wählen</h2>
+      <div class="sub" id="fli-sub"></div>
+      <div id="fli-body"></div>
     </div>
   </div>
 

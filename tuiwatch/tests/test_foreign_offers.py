@@ -144,7 +144,50 @@ def test_several_lists_side_by_side(app_mod):
     _patch(c, a, {"foreign_list": "Oma"})
     _patch(c, b, {"foreign_list": "Kollegen"})
     lists = c.get("/api/foreign-lists", headers=ING).get_json()["lists"]
-    assert lists == [{"name": "Kollegen", "count": 1}, {"name": "Oma", "count": 1}]
+    assert [(li["name"], li["count"]) for li in lists] == [("Kollegen", 1), ("Oma", 1)]
+
+
+def test_icon_defaults_to_empty_and_can_be_set(app_mod):
+    c = app_mod.app.test_client()
+    oid = _add_offer(c)
+    _patch(c, oid, {"foreign_list": "Oma"})
+    assert _offer(c, oid)["foreign_icon"] == ""      # leer = Standardsymbol im UI
+    r = c.post("/api/foreign-lists/icon", headers=ING, json={"name": "Oma", "icon": "👵"})
+    assert r.status_code == 200 and r.get_json()["changed"] == 1
+    assert _offer(c, oid)["foreign_icon"] == "👵"
+
+
+def test_icon_is_inherited_by_new_members(app_mod):
+    """Eine Liste sieht überall gleich aus — auch für später einsortierte Angebote."""
+    c = app_mod.app.test_client()
+    a = _add_offer(c)
+    _patch(c, a, {"foreign_list": "Oma", "foreign_icon": "👵"})
+    r = c.post("/api/offers", headers=ING, json={"url": _URL.replace("12345", "67890")})
+    b = r.get_json()["id"]
+    _patch(c, b, {"foreign_list": "Oma"})           # ohne Symbol
+    assert _offer(c, b)["foreign_icon"] == "👵"
+
+
+def test_icon_change_hits_all_members(app_mod):
+    c = app_mod.app.test_client()
+    a = _add_offer(c)
+    r = c.post("/api/offers", headers=ING, json={"url": _URL.replace("12345", "67890")})
+    b = r.get_json()["id"]
+    _patch(c, a, {"foreign_list": "Oma", "foreign_icon": "👵"})
+    _patch(c, b, {"foreign_list": "Oma"})
+    c.post("/api/foreign-lists/icon", headers=ING, json={"name": "Oma", "icon": "🎁"})
+    assert _offer(c, a)["foreign_icon"] == "🎁"
+    assert _offer(c, b)["foreign_icon"] == "🎁"
+
+
+def test_icon_survives_rename(app_mod):
+    c = app_mod.app.test_client()
+    oid = _add_offer(c)
+    _patch(c, oid, {"foreign_list": "Oma", "foreign_icon": "👵"})
+    c.post("/api/foreign-lists/rename", headers=ING,
+           json={"from": "Oma", "to": "Oma und Opa"})
+    o = _offer(c, oid)
+    assert o["foreign_list"] == "Oma und Opa" and o["foreign_icon"] == "👵"
 
 
 def test_rename_list(app_mod):

@@ -77,12 +77,15 @@
     // „Fremd" = Angebot ist nicht für mich (Vorschlag für andere). Solche
     // Angebote stehen in einer frei benannten Liste; der Server schaltet dabei
     // beide Glocken stumm, Einschalten bleibt manuell möglich.
-    const FL_DEFAULT = 'Für andere';
+    const FL_DEFAULT = 'Für andere', FL_ICON_DEFAULT = '👥';
     function foreignListOf(o){ return (o.foreign_list||'').trim() || FL_DEFAULT; }
-    // Vorhandene Listennamen aus den geladenen Angeboten (alphabetisch)
-    function foreignListNames(){
-      const s = new Set((curOffers||[]).filter(o=>o.is_foreign).map(foreignListOf));
-      return [...s].sort((a,b)=>a.localeCompare(b,'de'));
+    function foreignIconOf(o){ return (o.foreign_icon||'').trim() || FL_ICON_DEFAULT; }
+    // Vorhandene Listen aus den geladenen Angeboten: Name → Symbol (alphabetisch)
+    function foreignLists(){
+      const m = new Map();
+      (curOffers||[]).filter(o=>o.is_foreign).forEach(o=>{
+        if(!m.has(foreignListOf(o))) m.set(foreignListOf(o), foreignIconOf(o)); });
+      return [...m.entries()].sort((a,b)=>a[0].localeCompare(b[0],'de'));
     }
     // Listennamen sind frei gewählter Text und stehen deshalb NIE als Argument in
     // einem onclick-Attribut (Anführungszeichen, Klammern, Umlaute → kaputtes
@@ -94,6 +97,8 @@
       const act = t.dataset.flAction;
       if(act==='rename') renameForeignList(name);
       else if(act==='dissolve') dissolveForeignList(name);
+      else if(act==='icon') changeForeignListIcon(name);
+      else if(act==='seticon') pickIcon(t.dataset.icon||'');
       else if(act==='pick') setForeignList(name);
     });
 
@@ -109,18 +114,20 @@
       // Bei einer Sammelauswahl reicht ein einziges einsortiertes Angebot, damit
       // „herausnehmen" Sinn ergibt.
       const anyForeign = picked.some(o=>o.is_foreign);
-      const names = foreignListNames();
+      const lists = foreignLists();
       $('#fl-sub').textContent = (flIds.length===1
           ? 'Das Angebot wandert eingeklappt ans Ende der Liste; '
           : flIds.length+' Angebote wandern eingeklappt ans Ende der Liste; ')
         + 'Benachrichtigungen und Kalender-Meldungen werden stummgeschaltet.';
       $('#fl-body').innerHTML =
-        (names.length
-          ? `<div class="fl-list">` + names.map(n =>
-              `<button class="btn sec fl-pick${n===curName?' active':''}" data-fl-action="pick" data-list="${esc(n)}">👥 ${esc(n)}${n===curName?' ✓':''}</button>`
+        (lists.length
+          ? `<div class="fl-list">` + lists.map(([n, ic]) =>
+              `<button class="btn sec fl-pick${n===curName?' active':''}" data-fl-action="pick" data-list="${esc(n)}">${esc(ic)} ${esc(n)}${n===curName?' ✓':''}</button>`
             ).join('') + `</div>`
           : `<div class="hint">Noch keine Liste vorhanden — leg die erste an.</div>`)
-        + `<div class="fl-new"><input id="fl-name" maxlength="40" placeholder="Neue Liste, z. B. Oma und Opa"
+        + `<div class="fl-new"><button id="fl-icon-btn" class="fl-icon-btn" onclick="openIconPicker('new')"
+             title="Symbol der neuen Liste wählen">${esc(flNewIcon)}</button>
+           <input id="fl-name" maxlength="40" placeholder="Neue Liste, z. B. Oma und Opa"
              onkeydown="if(event.key==='Enter')setForeignListFromInput()">
            <button class="btn" onclick="setForeignListFromInput()">Anlegen</button></div>`
         + (anyForeign
@@ -129,22 +136,26 @@
               : 'Aus der Liste nehmen'} — zurück in die normale Liste</button></div>`
           : '');
       $('#fl-bg').classList.add('show');
-      setTimeout(()=>{ const el=$('#fl-name'); if(el && !names.length) el.focus(); }, 50);
+      setTimeout(()=>{ const el=$('#fl-name'); if(el && !lists.length) el.focus(); }, 50);
     }
     function closeForeignPicker(){ $('#fl-bg').classList.remove('show'); }
     function setForeignListFromInput(){
       const v = ($('#fl-name').value||'').trim();
       if(!v){ toast('Bitte einen Namen eingeben'); return; }
-      setForeignList(v);
+      // Symbol nur bei einer neu angelegten Liste mitschicken — bei einer
+      // bestehenden erbt der Server das dort schon gesetzte.
+      setForeignList(v, flNewIcon);
     }
-    async function setForeignList(name){
+    async function setForeignList(name, icon){
       const ids = flIds.slice(); if(!ids.length) return;
       closeForeignPicker();
       toast(ids.length+' Angebot(e) '+(name?'werden einsortiert…':'werden zurückgeholt…'));
+      const body = {foreign_list: name};
+      if(name && icon) body.foreign_icon = icon;
       for(const id of ids){
         try {
           await fetch(api('/api/offers/'+id), {method:'PATCH', headers:{'Content-Type':'application/json'},
-                                               body: JSON.stringify({foreign_list: name})});
+                                               body: JSON.stringify(body)});
         } catch(e){ toast('Änderung fehlgeschlagen'); return; }
       }
       if(flFromBulk) bulkClear();
@@ -152,6 +163,59 @@
       lastSig = null; loadOffers();
     }
     $('#fl-bg').addEventListener('click', e=>{ if(e.target.id==='fl-bg') closeForeignPicker(); });
+
+    // ── Symbol-Auswahl ────────────────────────────────────────────────────────
+    // Vorschläge fürs Reise-Umfeld; alles andere geht über das Freitextfeld
+    // (jedes Emoji, auch zusammengesetzte wie 👨‍👩‍👧, oder ein Zeichen wie ★).
+    const FL_ICONS = ['👥','👫','👬','👭','👨‍👩‍👧','👵','👴','🧓','👶','🧑‍🤝‍🧑',
+                      '❤️','💛','💚','💙','💜','🧡','🎁','🎂','🎉','💍',
+                      '⭐','✨','🍀','🔖','📌','🏷️','🌍','🗺️','🧳','✈️',
+                      '🏖️','🏝️','🌴','⛱️','🏨','🚢','⚓','🚗','🏔️','⛺',
+                      '☀️','🌙','🍹','🐣','🐶','🐱','🏡','🎓','⚽','🎣'];
+    let fliMode = null, fliName = '', flNewIcon = FL_ICON_DEFAULT;
+    function openIconPicker(mode, name){
+      fliMode = mode; fliName = name || '';
+      const cur = mode==='new' ? flNewIcon
+        : (foreignLists().find(([n])=>n===fliName)||[null, FL_ICON_DEFAULT])[1];
+      $('#fli-sub').textContent = mode==='new'
+        ? 'Symbol für die neue Liste'
+        : 'Symbol der Liste „'+fliName+'" — gilt für alle Angebote darin';
+      $('#fli-body').innerHTML =
+        `<div class="fl-emoji-grid">` + FL_ICONS.map(ic =>
+            `<button class="fl-emoji${ic===cur?' active':''}" data-fl-action="seticon" data-icon="${esc(ic)}">${ic}</button>`
+          ).join('') + `</div>`
+        + `<div class="fl-new" style="margin-top:14px">
+             <input id="fli-custom" maxlength="12" placeholder="Eigenes Zeichen, z. B. ★ oder ein Emoji"
+               onkeydown="if(event.key==='Enter')pickIconFromInput()">
+             <button class="btn" onclick="pickIconFromInput()">Übernehmen</button></div>`;
+      $('#fli-bg').classList.add('show');
+    }
+    function closeIconPicker(){ $('#fli-bg').classList.remove('show'); }
+    $('#fli-bg').addEventListener('click', e=>{ if(e.target.id==='fli-bg') closeIconPicker(); });
+    function pickIconFromInput(){
+      const v = ($('#fli-custom').value||'').trim();
+      if(!v){ toast('Bitte ein Zeichen eingeben'); return; }
+      pickIcon(v);
+    }
+    async function pickIcon(icon){
+      closeIconPicker();
+      if(fliMode==='new'){            // nur vormerken, gesetzt wird beim Anlegen
+        flNewIcon = icon;
+        const btn = $('#fl-icon-btn');
+        if(btn) btn.textContent = icon;
+        return;
+      }
+      try {
+        const r = await fetch(api('/api/foreign-lists/icon'), {method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({name: fliName, icon})});
+        if(!r.ok) throw new Error('http');
+      } catch(e){ toast('Symbol ändern fehlgeschlagen'); return; }
+      toast('Symbol geändert');
+      lastSig = null; loadOffers();
+    }
+    function changeForeignListIcon(name){ openIconPicker('list', name); }
+
     async function renameForeignList(name){
       const v = prompt('Neuer Name für die Liste „'+name+'":', name);
       if(v===null) return;
@@ -302,7 +366,9 @@
           if(!groups.has(n)) groups.set(n, []); groups.get(n).push(o); });
         [...groups.keys()].sort((a,b)=>a.localeCompare(b,'de')).forEach(name=>{
           const g = sortOffers(groups.get(name));
-          html += `<div class="arch-head" title="Angebote in dieser Liste melden nicht — Benachrichtigungen und Kalender-Meldungen sind stumm">👥 ${esc(name)} (${g.length})`
+          html += `<div class="arch-head" title="Angebote in dieser Liste melden nicht — Benachrichtigungen und Kalender-Meldungen sind stumm">`
+            + `<button class="fl-head-icon" data-fl-action="icon" data-list="${esc(name)}" title="Symbol der Liste ändern">${esc(foreignIconOf(g[0]))}</button>`
+            + ` ${esc(name)} (${g.length})`
             + `<button class="rename-btn" data-fl-action="rename" data-list="${esc(name)}" title="Liste umbenennen">✎</button>`
             + `<button class="rename-btn" data-fl-action="dissolve" data-list="${esc(name)}" title="Liste auflösen — Angebote zurück in die normale Liste">✖</button>`
             + `</div>` + g.map(offerCard).join('');
@@ -580,7 +646,7 @@
                  </button>
                  <button class="icon-btn${o.is_foreign?' foreign-on':''}" onclick="openForeignPicker([${o.id}])" title="${o.is_foreign
                     ? esc('In Liste „'+foreignListOf(o)+'" — klicken zum Wechseln oder Entfernen')
-                    : 'Für andere: in eine Liste legen (rutscht eingeklappt ans Listenende, Benachrichtigungen und Kalender-Meldungen werden stummgeschaltet)'}">👥</button>
+                    : 'Für andere: in eine Liste legen (rutscht eingeklappt ans Listenende, Benachrichtigungen und Kalender-Meldungen werden stummgeschaltet)'}">${o.is_foreign?esc(foreignIconOf(o)):'👥'}</button>
                  <button class="icon-btn" onclick="resetOffer(${o.id})" title="Zurücksetzen: Verlauf löschen und neu bei null beginnen">
                    <svg viewBox="0 0 24 24"><path d="M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
                  </button>
@@ -1833,6 +1899,7 @@
       ['climate-bg', closeClimate],   // wird aus der Suchmaske geöffnet, liegt darüber
       ['guide-bg', closeGuide],       // dito
       ['cal-bg', closeCalendar],
+      ['fli-bg', closeIconPicker],   // liegt über der Listenauswahl, daher davor
       ['fl-bg', closeForeignPicker],
       ['modal-bg', closeModal],
       ['cmp-bg', closeCompare],

@@ -199,12 +199,21 @@ def api_update_offer(offer_id: int):
                     or A.FOREIGN_LIST_DEFAULT
             else:
                 name = ''
+            # Symbol: mitgeschickt (neue Liste) oder von den übrigen Mitgliedern
+            # der Liste geerbt — eine Liste sieht überall gleich aus.
+            if 'foreign_icon' in data:
+                icon = A.normalize_foreign_icon(data.get('foreign_icon'))
+            else:
+                icon = _list_icon(con, name) if name else ''
             fr = 1 if name else 0
-            con.execute('UPDATE offers SET is_foreign=?, foreign_list=? WHERE id=?',
-                        (fr, name, offer_id))
+            con.execute('UPDATE offers SET is_foreign=?, foreign_list=?, foreign_icon=? '
+                        'WHERE id=?', (fr, name, icon, offer_id))
             if fr:
                 con.execute('UPDATE offers SET notify_muted=1, notify_calendar_muted=1 '
                             'WHERE id=?', (offer_id,))
+                if icon:  # gemeinsames Symbol für alle Mitglieder der Liste
+                    con.execute('UPDATE offers SET foreign_icon=? WHERE foreign_list=?',
+                                (icon, name))
             # Beim Zurücknehmen bleiben die Glocken bewusst stumm: sie wieder
             # einzuschalten würde eine womöglich absichtliche Stummschaltung
             # überschreiben. Einschalten geht jederzeit über die Glocken selbst.
@@ -285,8 +294,17 @@ def api_update_offer(offer_id: int):
 
 
 # ── „Für andere"-Listen ────────────────────────────────────────────────────────
-# Eine Liste ist nichts weiter als ein Name an den Angeboten (offers.foreign_list).
-# Es gibt daher keine leeren Listen: die letzte Zuordnung zu entfernen löscht sie.
+# Eine Liste ist nichts weiter als Name und Symbol an den Angeboten
+# (offers.foreign_list/foreign_icon). Es gibt daher keine leeren Listen: die
+# letzte Zuordnung zu entfernen löscht sie.
+
+def _list_icon(con, name: str) -> str:
+    """Symbol einer bestehenden Liste (leer, wenn keins gesetzt oder neue Liste)."""
+    row = con.execute("SELECT foreign_icon FROM offers "
+                      "WHERE foreign_list=? AND foreign_icon<>'' LIMIT 1",
+                      (name,)).fetchone()
+    return row['foreign_icon'] if row else ''
+
 
 @bp.route('/api/foreign-lists', methods=['GET'])
 def api_foreign_lists():
@@ -294,10 +312,31 @@ def api_foreign_lists():
         return err
     with A.db() as con:
         rows = con.execute(
-            "SELECT foreign_list AS name, COUNT(*) AS n FROM offers "
-            "WHERE is_foreign=1 AND foreign_list<>'' "
+            "SELECT foreign_list AS name, COUNT(*) AS n, MAX(foreign_icon) AS icon "
+            "FROM offers WHERE is_foreign=1 AND foreign_list<>'' "
             "GROUP BY foreign_list ORDER BY foreign_list COLLATE NOCASE").fetchall()
-    return jsonify({'lists': [{'name': r['name'], 'count': r['n']} for r in rows]})
+    return jsonify({'lists': [{'name': r['name'], 'count': r['n'],
+                               'icon': r['icon'] or ''} for r in rows]})
+
+
+@bp.route('/api/foreign-lists/icon', methods=['POST'])
+def api_foreign_list_icon():
+    """Setzt das Symbol einer Liste (für alle ihre Angebote). Leer = Standard 👥."""
+    if (err := A._require_api()):
+        return err
+    data = request.get_json(silent=True) or {}
+    name = A.normalize_foreign_list(data.get('name'))
+    icon = A.normalize_foreign_icon(data.get('icon'))
+    if not name:
+        return jsonify({'error': 'invalid_name'}), 400
+    with A.db() as con:
+        cur = con.execute('UPDATE offers SET foreign_icon=? WHERE foreign_list=?',
+                          (icon, name))
+        changed = cur.rowcount
+    if not changed:
+        return jsonify({'error': 'not_found'}), 404
+    A.log.info('Liste "%s": Symbol %s', name, icon or '(Standard)')
+    return jsonify({'name': name, 'icon': icon, 'changed': changed})
 
 
 @bp.route('/api/foreign-lists/rename', methods=['POST'])
@@ -311,9 +350,15 @@ def api_foreign_list_rename():
     if not old or not new:
         return jsonify({'error': 'invalid_name'}), 400
     with A.db() as con:
+        # Beim Zusammenführen gewinnt das Symbol der Zielliste, sonst wandert das
+        # bisherige mit — hinterher haben alle Mitglieder dasselbe.
+        icon = _list_icon(con, new) or _list_icon(con, old)
         cur = con.execute('UPDATE offers SET foreign_list=? WHERE foreign_list=?',
                           (new, old))
         moved = cur.rowcount
+        if moved and icon:
+            con.execute('UPDATE offers SET foreign_icon=? WHERE foreign_list=?',
+                        (icon, new))
     if not moved:
         return jsonify({'error': 'not_found'}), 404
     A.log.info('Liste "%s" umbenannt in "%s" (%d Angebote)', old, new, moved)

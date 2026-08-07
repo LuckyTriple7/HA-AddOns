@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.83.0] - 2026-08-07
+
+### Added
+- **Eigenes Symbol je „Für andere"-Liste.** Klick auf das Symbol in der
+  Listen-Überschrift öffnet einen Emoji-Picker (50 Vorschläge rund ums Reisen
+  plus Freitextfeld für jedes andere Zeichen, auch zusammengesetzte Emojis wie
+  👨‍👩‍👧 oder ein ★). Beim Anlegen einer Liste lässt sich das Symbol gleich
+  mitwählen; später einsortierte Angebote erben es, eine Änderung gilt für alle
+  Angebote der Liste. Auch der 👥-Knopf auf der Karte zeigt das Symbol der Liste,
+  in der das Angebot steckt.
+  Das Symbol steht wie der Name am Angebot (`offers.foreign_icon`, leer = 👥) und
+  wandert damit durch Backup/Restore. Neuer Endpunkt:
+  `POST /api/foreign-lists/icon`; `GET /api/foreign-lists` liefert das Symbol mit.
+
 ## [0.82.2] - 2026-08-07
 
 ### Changed

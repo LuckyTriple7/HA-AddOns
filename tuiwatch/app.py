@@ -89,7 +89,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.82.2"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.83.0"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -111,6 +111,11 @@ MAX_PDF_BYTES = 16 * 1024 * 1024  # 16 MB Upload-Limit für Reise-PDFs
 # Angebote existiert folglich nicht.
 FOREIGN_LIST_DEFAULT = 'Für andere'  # Name für Bestand aus der Ein-Listen-Zeit
 FOREIGN_LIST_MAXLEN = 40
+# Symbol der Liste, ebenfalls am Angebot (offers.foreign_icon). Leer = 👥.
+# Ein Emoji kann aus mehreren Codepoints bestehen (Familie, Hautton, Flagge),
+# deshalb 12 Zeichen statt 1 — es wird nur angezeigt, nie ausgewertet.
+FOREIGN_ICON_DEFAULT = '👥'
+FOREIGN_ICON_MAXLEN = 12
 
 app = Flask(__name__, template_folder=_BASE + '/templates',
             static_folder=_BASE + '/static')
@@ -339,6 +344,11 @@ def normalize_foreign_list(raw) -> str:
     return name[:FOREIGN_LIST_MAXLEN]
 
 
+def normalize_foreign_icon(raw) -> str:
+    """Symbol einer „Für andere"-Liste. Leerstring = Standardsymbol 👥."""
+    return re.sub(r'\s+', '', str(raw or ''))[:FOREIGN_ICON_MAXLEN]
+
+
 # ── Datenbank ──────────────────────────────────────────────────────────────────
 
 def db() -> sqlite3.Connection:
@@ -391,6 +401,9 @@ def init_db() -> None:
             -- Mehrere Listen mit frei wählbaren Namen sind möglich; es gilt
             -- immer is_foreign=1 <=> foreign_list<>''.
             foreign_list          TEXT NOT NULL DEFAULT '',
+            -- Symbol der Liste (leer = 👥). Steht wie der Name an jedem Angebot
+            -- der Liste und wird für alle Mitglieder gemeinsam geändert.
+            foreign_icon          TEXT NOT NULL DEFAULT '',
             created     INTEGER NOT NULL
         )''')
         con.execute('''CREATE TABLE IF NOT EXISTS price_history (
@@ -650,6 +663,8 @@ def init_db() -> None:
             con.execute("ALTER TABLE offers ADD COLUMN foreign_list TEXT NOT NULL DEFAULT ''")
             con.execute("UPDATE offers SET foreign_list=? WHERE is_foreign=1",
                         (FOREIGN_LIST_DEFAULT,))
+        if 'foreign_icon' not in ocols:
+            con.execute("ALTER TABLE offers ADD COLUMN foreign_icon TEXT NOT NULL DEFAULT ''")
         # vacancy-check (v0.69.0): Gepäck/Zahlungskonditionen einmalig je Angebot,
         # "zuletzt gebucht" je Poll aktualisiert
         for col in ('luggage', 'last_booked', 'final_payment_date',
@@ -2837,6 +2852,7 @@ def _collect_offers() -> list[dict]:
                 'notify_calendar_muted': bool(o['notify_calendar_muted']),
                 'is_foreign': bool(o['is_foreign']),
                 'foreign_list': (o['foreign_list'] or '') if o['is_foreign'] else '',
+                'foreign_icon': (o['foreign_icon'] or '') if o['is_foreign'] else '',
                 'history_only': bool(o['history_only']),
                 'return_date': o['return_date'] or '',
                 'tags': (_json_loads_safe(o['tags'], []) if o['tags'] else []),

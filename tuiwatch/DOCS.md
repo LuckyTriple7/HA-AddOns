@@ -746,8 +746,8 @@ landen dauerhaft im **KI-Verlauf**.
   Auswahlleiste. Beides öffnet dieselbe Auswahl: **bestehende Liste anklicken oder
   neuen Namen eintippen** — es sind beliebig viele Listen mit frei wählbaren Namen
   möglich („Oma und Opa", „Kollegen", …). Solche Angebote
-  - rutschen unter die Überschrift **„👥 &lt;Listenname&gt;"** ans Listenende (innerhalb
-    jedes Blocks gilt weiter die gewählte Sortierung); die Blöcke stehen alphabetisch,
+  - rutschen unter die Überschrift **„&lt;Symbol&gt; &lt;Listenname&gt;"** ans Listenende
+    (innerhalb jedes Blocks gilt weiter die gewählte Sortierung), Blöcke alphabetisch,
   - werden **eingeklappt** gezeigt: Titel, Tags, Ort, Reisedaten und Preis — Klick auf
     ▾ klappt die volle Karte auf, der Zustand bleibt auch nach einem Neuladen erhalten,
   - bekommen beim Einsortieren **Benachrichtigungen und Kalender-Meldungen
@@ -757,7 +757,9 @@ landen dauerhaft im **KI-Verlauf**.
 
   In der Überschrift jeder Liste benennt **✎** sie um (ein bestehender Name führt die
   beiden Listen zusammen) und **✖** löst sie auf — die Angebote wandern dann zurück in
-  die normale Liste. Eine Liste ist nur ein Name an den Angeboten: die letzte Zuordnung
+  die normale Liste. Ein Klick auf das **Symbol** öffnet einen Emoji-Picker (Vorschläge
+  plus Freitextfeld für jedes beliebige Zeichen); es lässt sich auch schon beim Anlegen
+  einer Liste wählen und gilt für alle Angebote darin. Eine Liste ist nur ein Name an den Angeboten: die letzte Zuordnung
   zu entfernen löscht sie, leere Listen gibt es nicht. Namen werden im Backup
   mitgesichert.
 
