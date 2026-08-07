@@ -1455,11 +1455,57 @@ def is_valid_session(token: str | None) -> bool:
     return True
 
 
+def _is_public_ip(value: str) -> bool:
+    """True nur für gültige, öffentlich routbare IP-Adressen."""
+    try:
+        addr = ipaddress.ip_address((value or '').strip())
+    except ValueError:
+        return False
+    return not (addr.is_private or addr.is_loopback or addr.is_link_local
+                or addr.is_reserved or addr.is_multicast or addr.is_unspecified)
+
+
 def get_client_ip(req) -> str:
-    cf = req.headers.get('CF-Connecting-IP', '').strip()
-    if cf:
-        return cf
+    """Beste verfügbare Besucher-IP.
+
+    Hinter Cloudflare Tunnel / Reverse Proxy ist `remote_addr` die Adresse des
+    letzten Zwischenglieds — im HA-Setup das Docker-Bridge-Gateway (172.30.32.1),
+    für alle Besucher dieselbe. Deshalb zuerst die Kopfzeilen auswerten, in denen
+    die echte Adresse steht, und dabei die erste **öffentliche** nehmen: die
+    Zwischenglieder hängen ihre eigenen (privaten) Adressen an die Kette an.
+    """
+    for header in ('CF-Connecting-IP', 'True-Client-IP', 'X-Real-IP'):
+        value = (req.headers.get(header) or '').strip()
+        if _is_public_ip(value):
+            return value
+    for part in (req.headers.get('X-Forwarded-For') or '').split(','):
+        if _is_public_ip(part):
+            return part.strip()
     return req.remote_addr or 'unknown'
+
+
+_PROXY_IP_HEADERS = ('CF-Connecting-IP', 'True-Client-IP', 'X-Real-IP', 'X-Forwarded-For')
+_last_ip_warning = 0.0
+
+
+def _warn_missing_client_ip(req, ip: str) -> None:
+    """Einmal pro Stunde melden, dass keine öffentliche Besucher-IP ankommt.
+
+    Ohne diesen Hinweis wäre nur zu sehen, dass das Besucher-Log leer bleibt —
+    die Ursache (Proxy reicht die Adresse nicht durch) stünde nirgends. Die
+    tatsächlich vorhandenen Kopfzeilen mitzuloggen macht die Suche kurz.
+    """
+    global _last_ip_warning
+    now = time.time()
+    if now - _last_ip_warning < 3600:
+        return
+    _last_ip_warning = now
+    seen = [h for h in _PROXY_IP_HEADERS if req.headers.get(h)]
+    log.warning(
+        "Besucher-IP ist nicht öffentlich (%s) — der Proxy reicht die echte Adresse "
+        "nicht durch. Vorhandene Kopfzeilen: %s. Betroffene Aufrufe erscheinen nicht "
+        "im Besucher-Log; Aufrufzähler laufen weiter.",
+        ip, ', '.join(seen) or 'keine')
 
 
 # ── Brute-Force-Schutz ────────────────────────────────────────────────────────
@@ -1831,20 +1877,27 @@ def count_visit(req) -> None:
         _seen_today.add(visitor)
 
     stats = load_stats()
-    # Besucher-Log (letzte Aufrufe inkl. Bots, für die Admin-Ansicht)
-    visit_log = stats.setdefault('log', [])
-    visit_log.append({
-        'ts':   int(time.time()),
-        'ip':   ip,
-        'path': req.path[:100],
-        'ua':   ua[:300],
-        'ref':  (req.headers.get('Referer') or '')[:300],
-        'lang': (req.headers.get('Accept-Language') or '')[:60],
-        'country': _guess_country(req),
-        'bot':  is_bot,
-        'new':  is_new,
-    })
-    del visit_log[:-visit_log_max()]
+    # Besucher-Log (letzte Aufrufe inkl. Bots, für die Admin-Ansicht).
+    # Nur öffentliche IPs: eigene Aufrufe aus dem Heimnetz und die internen
+    # Zugriffe von Home Assistant selbst sagen nichts über Besucher aus. Kommt
+    # ausschließlich das Docker-Gateway an, reicht der Proxy die echte Adresse
+    # nicht durch — dann steht statt vieler nutzloser Zeilen ein Hinweis im Log.
+    if not _is_public_ip(ip):
+        _warn_missing_client_ip(req, ip)
+    else:
+        visit_log = stats.setdefault('log', [])
+        visit_log.append({
+            'ts':   int(time.time()),
+            'ip':   ip,
+            'path': req.path[:100],
+            'ua':   ua[:300],
+            'ref':  (req.headers.get('Referer') or '')[:300],
+            'lang': (req.headers.get('Accept-Language') or '')[:60],
+            'country': _guess_country(req),
+            'bot':  is_bot,
+            'new':  is_new,
+        })
+        del visit_log[:-visit_log_max()]
 
     if not is_bot:
         base_uniques = total_uniques(stats)
@@ -9587,6 +9640,15 @@ def _serve(app, port: int, threads: int) -> None:
         opts['max_request_body_size'] = limit
     serve(app, host='0.0.0.0', port=port, threads=threads,
           ident=None,   # keine Server-Version im Response-Header
+          # Waitress entfernt X-Forwarded-*-Kopfzeilen standardmäßig, bevor die
+          # Anwendung sie sieht (clear_untrusted_proxy_headers=True). Dadurch kam
+          # seit der Umstellung auf Waitress (v0.8.10) hinter Reverse Proxy /
+          # Cloudflare Tunnel nur noch die Adresse des letzten Zwischenglieds an —
+          # im HA-Setup für alle Besucher dasselbe Docker-Gateway. ProxyFix wertet
+          # die Kopfzeilen aus, bekam sie aber nie zu sehen.
+          # Damit ist X-Forwarded-For wieder fälschbar (wie vor v0.8.10); die
+          # Auswertung nimmt deshalb die erste *öffentliche* Adresse der Kette.
+          clear_untrusted_proxy_headers=False,
           **opts)
 
 

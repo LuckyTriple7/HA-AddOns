@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.17
+- 🐛 **Fix: echte Besucher-IP kam seit v0.8.10 nicht mehr an.** Waitress entfernt `X-Forwarded-*`-Kopfzeilen standardmäßig, bevor die Anwendung sie sieht (`clear_untrusted_proxy_headers=True`). Hinter Reverse Proxy oder Cloudflare Tunnel blieb dadurch nur noch die Adresse des letzten Zwischenglieds übrig — im Home-Assistant-Setup für **alle** Besucher dasselbe Docker-Gateway (`172.30.32.1`). Die vorhandene ProxyFix-Auswertung lief ins Leere, weil die Kopfzeilen gar nicht mehr da waren. Waitress reicht sie jetzt durch.
+  - Nebenwirkung des Fehlers, die damit ebenfalls behoben ist: **Brute-Force-Sperre und Rate-Limits** rechneten alle Besucher als eine einzige IP — fünf Fehlversuche irgendeines Besuchers hätten alle anderen mitgesperrt.
+- **Besucher-IP wird robuster ermittelt**: `CF-Connecting-IP`, `True-Client-IP`, `X-Real-IP`, dann die erste **öffentliche** Adresse aus `X-Forwarded-For`. Zwischenglieder hängen ihre eigenen, privaten Adressen an die Kette an — die werden jetzt übersprungen statt als Besucher gezählt.
+- 📊 **Besucher-Log zeigt nur noch öffentliche IPs.** Aufrufe aus dem Heimnetz und die internen Zugriffe von Home Assistant selbst sagen nichts über Besucher aus und füllten die Liste. Die Aufrufzähler laufen unverändert weiter.
+- Kommt gar keine öffentliche Adresse an, steht **einmal pro Stunde** eine Meldung im Add-on-Log — inklusive der tatsächlich vorhandenen Proxy-Kopfzeilen. Ohne sie wäre nur zu sehen, dass das Besucher-Log leer bleibt, nicht warum.
+
 ## 0.8.16
 - 🐛 Fix: Der Schalter **„In der Navigation zeigen"** der Bibliothek blieb auf der Startseite wirkungslos, solange der Abschnitt dort sichtbar war — die Sprungmarke kam aus der Abschnitts-Navigation und ignorierte den Schalter. Jetzt gilt er überall: aus heißt aus.
 
