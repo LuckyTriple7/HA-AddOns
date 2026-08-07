@@ -59,6 +59,14 @@ _MAX_DAYS = 365
 _MAX_OFFERS = 20          # ein Share bündelt eine Auswahl, keine ganze Datenbank
 _HISTORY_POINTS = 60      # Preisverlauf ausgedünnt (Default ohnehin aus)
 
+# Kommentare der Empfänger auf der öffentlichen Seite. Öffentlich beschreibbar,
+# deshalb eng begrenzt: Länge, Menge je Link und Takt je IP.
+_COMMENT_MAX = 500
+_AUTHOR_MAX = 40
+_COMMENTS_PER_SHARE = 200
+_comment_hits: dict[str, list[float]] = defaultdict(list)
+_COMMENT_WINDOW, _COMMENT_MAX_PER_WINDOW = 600, 5
+
 # Brute-Force-Bremse gegen Token-Raten. Bei 72 Bit Entropie reine
 # Rauschunterdrückung, hält aber Scanner aus dem Log.
 _fail_hits: dict[str, list[float]] = defaultdict(list)
@@ -150,12 +158,13 @@ def _share_url(token: str) -> str:
     return f"{base}/s/{token}" if base else f"/s/{token}"
 
 
-def _row_to_item(row) -> dict:
+def _row_to_item(row, comments=(0, 0)) -> dict:
     payload = A._json_loads_safe(row['payload'], {}) or {}
     return {
         'token': row['token'], 'title': row['title'], 'note': row['note'],
         'created_ts': row['created_ts'], 'expires_ts': row['expires_ts'],
         'views': row['views'], 'last_view_ts': row['last_view_ts'],
+        'comments': comments[0], 'new_comments': comments[1],
         'offers': len(payload.get('offers') or []),
         'has_climate': bool(payload.get('climate')),
         'has_guide': bool(payload.get('guide')),
@@ -172,8 +181,15 @@ def api_shares():
     cleanup_expired()
     with A.db() as con:
         rows = con.execute('SELECT * FROM shares ORDER BY created_ts DESC').fetchall()
+        # Kommentare je Link: Gesamtzahl und wie viele seit dem letzten Öffnen
+        # dazugekommen sind (für den grün leuchtenden Knopf).
+        counts = {r['token']: (r['n'], r['neu']) for r in con.execute(
+            'SELECT c.token AS token, COUNT(*) AS n, '
+            '       SUM(CASE WHEN c.ts > s.comments_seen_ts THEN 1 ELSE 0 END) AS neu '
+            'FROM share_comments c JOIN shares s ON s.token=c.token '
+            'GROUP BY c.token').fetchall()}
     cfg = A.load_config()
-    return jsonify({'items': [_row_to_item(r) for r in rows],
+    return jsonify({'items': [_row_to_item(r, counts.get(r['token'], (0, 0))) for r in rows],
                     'base_url': (cfg.get('public_base_url') or '').strip(),
                     'enabled': bool(cfg.get('enable_public_share', False))})
 
@@ -346,8 +362,68 @@ def api_share_delete(token: str):
         cur = con.execute('DELETE FROM shares WHERE token=?', (token,))
         if not cur.rowcount:
             return jsonify({'error': 'not_found'}), 404
+        con.execute('DELETE FROM share_comments WHERE token=?', (token,))
     A.log.info("Öffentlicher Share widerrufen")
     return jsonify({'deleted': True})
+
+
+# ── Kommentare (Empfänger schreiben, Besitzer verwaltet) ──────────────────────
+
+@bp.route('/api/shares/<token>/comments', methods=['GET'])
+def api_share_comments(token: str):
+    """Kommentare eines Links. Das Abrufen gilt als „gelesen" — danach leuchtet
+    der Knopf in der Übersicht nicht mehr."""
+    if (err := A._require_api()):
+        return err
+    if not _TOKEN_RE.match(token):
+        return jsonify({'error': 'not_found'}), 404
+    with A.db() as con:
+        if not con.execute('SELECT 1 FROM shares WHERE token=?', (token,)).fetchone():
+            return jsonify({'error': 'not_found'}), 404
+        rows = con.execute('SELECT id, author, text, ts FROM share_comments '
+                           'WHERE token=? ORDER BY ts', (token,)).fetchall()
+        con.execute('UPDATE shares SET comments_seen_ts=? WHERE token=?',
+                    (int(time.time()), token))
+    return jsonify({'items': [dict(r) for r in rows]})
+
+
+@bp.route('/api/shares/<token>/comments/<int:cid>', methods=['PATCH'])
+def api_share_comment_edit(token: str, cid: int):
+    """Kommentar bearbeiten (Tippfehler, Kürzen, unerwünschte Passagen raus)."""
+    if (err := A._require_api()):
+        return err
+    if not _TOKEN_RE.match(token):
+        return jsonify({'error': 'not_found'}), 404
+    data = request.get_json(silent=True) or {}
+    with A.db() as con:
+        row = con.execute('SELECT author, text FROM share_comments WHERE id=? AND token=?',
+                          (cid, token)).fetchone()
+        if not row:
+            return jsonify({'error': 'not_found'}), 404
+        text = (str(data['text']).strip()[:_COMMENT_MAX]
+                if 'text' in data else row['text'])
+        author = (str(data['author']).strip()[:_AUTHOR_MAX]
+                  if 'author' in data else row['author'])
+        if not text:
+            return jsonify({'error': 'empty'}), 400
+        con.execute('UPDATE share_comments SET text=?, author=? WHERE id=?',
+                    (text, author, cid))
+    A.log.info("Kommentar #%d bearbeitet", cid)
+    return jsonify({'id': cid, 'text': text, 'author': author})
+
+
+@bp.route('/api/shares/<token>/comments/<int:cid>', methods=['DELETE'])
+def api_share_comment_delete(token: str, cid: int):
+    if (err := A._require_api()):
+        return err
+    if not _TOKEN_RE.match(token):
+        return jsonify({'error': 'not_found'}), 404
+    with A.db() as con:
+        cur = con.execute('DELETE FROM share_comments WHERE id=? AND token=?', (cid, token))
+        if not cur.rowcount:
+            return jsonify({'error': 'not_found'}), 404
+    A.log.info("Kommentar #%d gelöscht", cid)
+    return jsonify({'deleted': cid})
 
 
 def cleanup_expired() -> int:
@@ -355,6 +431,9 @@ def cleanup_expired() -> int:
     with A.db() as con:
         cur = con.execute('DELETE FROM shares WHERE expires_ts < ?',
                           (int(time.time()) - 7 * 86400,))
+        # Kommentare verwaister Links mit wegräumen (kein Fremdschlüssel)
+        con.execute('DELETE FROM share_comments WHERE token NOT IN '
+                    '(SELECT token FROM shares)')
     return cur.rowcount
 
 
@@ -373,9 +452,11 @@ _PUBLIC_ASSETS = {
     'icon-192.png': 'icon-192.png',
 }
 
+# form-action 'self': die Kommentarfunktion schickt ein normales Formular an
+# dieselbe App zurück (kein Fetch, damit die Seite ohne JavaScript funktioniert).
 _CSP = ("default-src 'self'; img-src 'self' data: https:; "
         "style-src 'self' 'unsafe-inline'; script-src 'self'; "
-        "base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
+        "base-uri 'none'; form-action 'self'; frame-ancestors 'none'")
 
 
 @share_app.template_filter('eur')
@@ -610,7 +691,72 @@ def public_share(token: str):
         'share.html', p=payload, offers=payload.get('offers') or [],
         climate=payload.get('climate') or [], guide=payload.get('guide') or [],
         advisor=payload.get('advisor'), expires_ts=row['expires_ts'],
+        comments=_comments_of(token), token=token,
+        comment_max=_COMMENT_MAX, author_max=_AUTHOR_MAX,
+        note_code=request.args.get('k', ''),
         app_version=A.APP_VERSION))
+
+
+def _comments_of(token: str) -> list:
+    with A.db() as con:
+        rows = con.execute(
+            'SELECT id, author, text, ts FROM share_comments WHERE token=? ORDER BY ts',
+            (token,)).fetchall()
+    return [dict(r) for r in rows]
+
+
+def _comment_flooded(ip: str) -> bool:
+    now = time.time()
+    hits = [t for t in _comment_hits[ip] if now - t < _COMMENT_WINDOW]
+    _comment_hits[ip] = hits
+    return len(hits) >= _COMMENT_MAX_PER_WINDOW
+
+
+@share_app.route('/s/<token>/comment', methods=['POST'])
+def public_share_comment(token: str):
+    """Kommentar eines Empfängers — normales Formular, danach Redirect zurück.
+
+    Öffentlich beschreibbar, deshalb streng begrenzt: nur zu einem gültigen,
+    nicht abgelaufenen Link, Text auf 500 Zeichen gekappt, 200 Kommentare je
+    Link, 5 Kommentare je IP und 10 Minuten. Gespeichert wird reiner Text; die
+    Ausgabe läuft über Jinjas Autoescape und in der Oberfläche über esc().
+    """
+    ip = A.get_client_ip(request)
+    if _rate_limited(ip):
+        return _error_page(429, 'Zu viele Anfragen', 'Bitte später noch einmal versuchen.')
+    if not _TOKEN_RE.match(token):
+        _note_fail(ip)
+        return _error_page(404, 'Nicht gefunden', 'Dieser Link existiert nicht.')
+    now = int(time.time())
+    with A.db() as con:
+        row = con.execute('SELECT expires_ts FROM shares WHERE token=?', (token,)).fetchone()
+        if not row:
+            _note_fail(ip)
+            return _error_page(404, 'Nicht gefunden', 'Dieser Link existiert nicht (mehr).')
+        if row['expires_ts'] < now:
+            return _error_page(410, 'Link abgelaufen',
+                               'Dieser Link ist nicht mehr gültig. Frag einfach nach einem neuen.')
+        text = str(request.form.get('text') or '').strip()[:_COMMENT_MAX]
+        author = str(request.form.get('author') or '').strip()[:_AUTHOR_MAX]
+        if not text:
+            return _comment_redirect(token, 'leer')
+        if _comment_flooded(ip):
+            return _comment_redirect(token, 'takt')
+        n = con.execute('SELECT COUNT(*) AS n FROM share_comments WHERE token=?',
+                        (token,)).fetchone()['n']
+        if n >= _COMMENTS_PER_SHARE:
+            return _comment_redirect(token, 'voll')
+        con.execute('INSERT INTO share_comments (token, author, text, ts) VALUES (?,?,?,?)',
+                    (token, author, text, now))
+    _comment_hits[ip].append(time.time())
+    A.log.info("Neuer Kommentar zu Share %s (%d Zeichen)", token[:6] + '…', len(text))
+    return _comment_redirect(token, 'ok')
+
+
+def _comment_redirect(token: str, code: str):
+    resp = make_response('', 303)
+    resp.headers['Location'] = f"/s/{quote(token)}?k={code}#kommentare"
+    return resp
 
 
 @share_app.route('/a/<name>', methods=['GET'])

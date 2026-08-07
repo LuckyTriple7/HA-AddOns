@@ -878,6 +878,17 @@ Titel, Notiz und Extras wählen (Klimatabelle, Reiseführer, Preisverlauf, ein
 gespeichertes Reiseberater-Ergebnis) → Link erzeugen. Alle Links verwaltest du über
 **🔗 Geteilte Links** im Footer: Aufrufe, Gültigkeit verlängern, bearbeiten, widerrufen.
 
+**💬 Kommentare:** Unter den Angeboten steht auf der geteilten Seite ein Kommentarfeld
+(Name optional, **max. 500 Zeichen**) — die Empfänger können also direkt antworten,
+ohne Login und ohne App. In **🔗 Geteilte Links** gibt es je Link den Knopf
+**„💬 Kommentare"**; er **leuchtet grün**, solange etwas Neues ungelesen ist, und hört
+damit auf, sobald du ihn geöffnet hast. Dort lassen sich Kommentare auch **bearbeiten**
+(Tippfehler, Kürzen) und **löschen** — beides schlägt sofort auf die öffentliche Seite
+durch. Widerrufen oder Ablaufen des Links löscht die zugehörigen Kommentare mit.
+Weil die Seite öffentlich beschreibbar ist, gelten Grenzen: 500 Zeichen je Kommentar,
+40 Zeichen für den Namen, 200 Kommentare je Link und 5 Kommentare je IP und
+10 Minuten. Gespeichert wird reiner Text, HTML wird nicht ausgeführt.
+
 **Nachträglich ändern:** „Bearbeiten" öffnet die Zusammenstellung erneut — Angebote
 dazunehmen oder rauswerfen, Titel, Notiz, Extras und Gültigkeit ändern. **Der Link
 bleibt derselbe**, es muss also nichts neu verteilt werden; Aufrufzähler und

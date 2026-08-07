@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.84.0] - 2026-08-07
+
+### Added
+- **Kommentare auf geteilten Seiten.** Unter den Angeboten steht ein Kommentarfeld
+  (Name optional, max. 500 Zeichen); die Empfänger können damit direkt antworten —
+  ohne Login, ohne App und ohne JavaScript (normales Formular, POST → Redirect).
+  In **🔗 Geteilte Links** gibt es je Link den Knopf **„💬 Kommentare"**, der
+  **grün leuchtet**, solange etwas Ungelesenes da ist; das Öffnen markiert die
+  Kommentare als gelesen. Dort lassen sie sich auch **bearbeiten und löschen**,
+  beides wirkt sofort auf die öffentliche Seite. Widerrufen oder Ablaufen eines
+  Links räumt seine Kommentare mit weg.
+  Weil die Seite öffentlich beschreibbar ist, gelten harte Grenzen: 500 Zeichen je
+  Kommentar, 40 für den Namen, 200 Kommentare je Link, 5 je IP und 10 Minuten;
+  gespeichert wird reiner Text, die Ausgabe läuft über Autoescape (in Tests
+  gegengeprüft). Die CSP der öffentlichen Seite erlaubt dafür jetzt
+  `form-action 'self'` statt `'none'` — Formulare gehen weiterhin nur an die
+  eigene App.
+  Neue Endpunkte: `POST /s/<token>/comment` (öffentlich),
+  `GET|PATCH|DELETE /api/shares/<token>/comments[/<id>]` (geschützt).
+
 ## [0.83.3] - 2026-08-07
 
 ### Changed

@@ -1520,6 +1520,10 @@
           <td>${it.views}</td>
           <td class="${it.expired?'shr-exp':''}">${exp}</td>
           <td>
+            <button class="btn sec shr-cmt${it.new_comments?' has-new':''}" onclick="openShareComments('${esc(it.token)}')"
+              title="${it.new_comments ? it.new_comments+' neue(r) Kommentar(e) seit dem letzten Öffnen'
+                                       : 'Kommentare der Empfänger ansehen, bearbeiten oder löschen'}">💬 Kommentare${
+              it.comments?` (${it.comments})`:''}</button>
             <button class="btn sec" onclick="copyShareUrl('${esc(it.token)}')">Kopieren</button>
             <button class="btn sec" onclick="openShareDialog('${esc(it.token)}')" title="Angebote hinzufügen oder entfernen — der Link bleibt derselbe">Bearbeiten</button>
             <button class="btn sec" onclick="extendShare('${esc(it.token)}')" title="Gültigkeit auf 30 Tage ab heute setzen">+30 T</button>
@@ -1553,6 +1557,66 @@
       try { await fetch(api('/api/shares/'+encodeURIComponent(token)), {method:'DELETE'}); }
       catch(e){ toast('Widerrufen fehlgeschlagen'); return; }
       toast('Link widerrufen'); openShareList();
+    }
+
+    // ── Kommentare zu einem geteilten Link ────────────────────────────────────
+    // Das Abrufen markiert sie serverseitig als gelesen — der Knopf in der
+    // Übersicht hört danach auf, grün zu leuchten.
+    let shcToken = null;
+    async function openShareComments(token){
+      shcToken = token;
+      $('#shc-bg').classList.add('show');
+      $('#shc-body').innerHTML = '<div class="cmp-load">Lade…</div>';
+      await renderShareComments();
+    }
+    function closeShareComments(){
+      $('#shc-bg').classList.remove('show');
+      if($('#shr-bg').classList.contains('show')) openShareList();  // Zähler auffrischen
+    }
+    $('#shc-bg').addEventListener('click', e=>{ if(e.target.id==='shc-bg') closeShareComments(); });
+    async function renderShareComments(){
+      let d;
+      try { d = await fetch(api('/api/shares/'+encodeURIComponent(shcToken)+'/comments')).then(r=>r.json()); }
+      catch(e){ $('#shc-body').innerHTML = '<div class="cmp-load">Konnte nicht geladen werden.</div>'; return; }
+      const items = d.items || [];
+      $('#shc-sub').textContent = items.length
+        ? items.length + ' Kommentar(e) — von den Empfängern auf der öffentlichen Seite geschrieben'
+        : 'Noch keine Kommentare zu diesem Link.';
+      $('#shc-body').innerHTML = items.length ? items.map(c => `
+        <div class="shc-item">
+          <div class="shc-meta">${esc(c.author || 'Anonym')} · ${new Date(c.ts*1000).toLocaleString('de-DE')}</div>
+          <div class="shc-text">${esc(c.text).replace(/\n/g,'<br>')}</div>
+          <div class="shc-act">
+            <button class="btn sec" onclick="editShareComment(${c.id})">Bearbeiten</button>
+            <button class="btn danger" onclick="deleteShareComment(${c.id})">Löschen</button>
+          </div>
+        </div>`).join('') : '<p class="hint">Sobald jemand auf der geteilten Seite schreibt, steht es hier.</p>';
+      _shcItems = items;
+    }
+    let _shcItems = [];
+    async function editShareComment(id){
+      const c = _shcItems.find(x=>x.id===id) || {};
+      const text = prompt('Kommentar bearbeiten (max. 500 Zeichen):', c.text || '');
+      if(text===null) return;
+      if(!text.trim()){ toast('Leerer Kommentar — zum Entfernen „Löschen" nehmen'); return; }
+      const author = prompt('Name des Verfassers (leer = Anonym):', c.author || '');
+      if(author===null) return;
+      try {
+        const r = await fetch(api('/api/shares/'+encodeURIComponent(shcToken)+'/comments/'+id),
+          {method:'PATCH', headers:{'Content-Type':'application/json'},
+           body: JSON.stringify({text: text.trim().slice(0,500), author: author.trim().slice(0,40)})});
+        if(!r.ok) throw new Error('http');
+      } catch(e){ toast('Ändern fehlgeschlagen'); return; }
+      toast('Kommentar geändert'); renderShareComments();
+    }
+    async function deleteShareComment(id){
+      if(!confirm('Diesen Kommentar löschen? Er verschwindet auch von der geteilten Seite.')) return;
+      try {
+        const r = await fetch(api('/api/shares/'+encodeURIComponent(shcToken)+'/comments/'+id),
+                              {method:'DELETE'});
+        if(!r.ok) throw new Error('http');
+      } catch(e){ toast('Löschen fehlgeschlagen'); return; }
+      toast('Kommentar gelöscht'); renderShareComments();
     }
 
     // ── Preis-Aufschlüsselung (Rechtsklick auf den Preis; vacancy-check) ────────

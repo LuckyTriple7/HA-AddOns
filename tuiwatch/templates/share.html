@@ -172,6 +172,38 @@
   </details>
   {%- endif %}
 
+  {#- Kommentare: reines Formular ohne JavaScript (POST → Redirect → GET). -#}
+  <div class="sec cmt" id="kommentare">
+    <div class="sec-body">
+      <h3>💬 Kommentare</h3>
+      {%- if comments %}
+      <ul class="cmt-list">
+        {%- for c in comments %}
+        <li>
+          <div class="cmt-meta">{{ c.author or 'Anonym' }} · {{ c.ts|dtm }}</div>
+          <div class="cmt-text">{{ c.text }}</div>
+        </li>
+        {%- endfor %}
+      </ul>
+      {%- else %}
+      <p class="cmt-empty">Noch kein Kommentar — schreib den ersten.</p>
+      {%- endif %}
+
+      {%- if note_code == 'ok' %}<p class="cmt-note ok">Danke, dein Kommentar steht unten.</p>
+      {%- elif note_code == 'leer' %}<p class="cmt-note warn">Da war kein Text drin.</p>
+      {%- elif note_code == 'takt' %}<p class="cmt-note warn">Kurz durchatmen — gleich geht’s weiter.</p>
+      {%- elif note_code == 'voll' %}<p class="cmt-note warn">Hier ist genug gesagt: mehr Kommentare gehen zu diesem Link nicht.</p>
+      {%- endif %}
+
+      <form class="cmt-form" method="post" action="/s/{{ token }}/comment">
+        <input type="text" name="author" maxlength="{{ author_max }}" placeholder="Dein Name (optional)">
+        <textarea name="text" rows="3" maxlength="{{ comment_max }}" required
+                  placeholder="Was meinst du zu den Angeboten? (max. {{ comment_max }} Zeichen)"></textarea>
+        <button type="submit">Kommentar senden</button>
+      </form>
+    </div>
+  </div>
+
   <div class="foot">
     Zusammengestellt am {{ p.created|dt }} · Link gültig bis {{ expires_ts|dt }}<br>
     Preis und Verfügbarkeit werden bei jedem Aufruf aktualisiert. Alle Angaben ohne Gewähr.

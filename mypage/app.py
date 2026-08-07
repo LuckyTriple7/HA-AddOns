@@ -41,6 +41,14 @@ try:
     _HAS_PIL = True
 except ImportError:
     _HAS_PIL = False
+try:
+    # Optional: PDF-Erzeugung für Bibliothek-Einträge. Braucht System-Bibliotheken
+    # (pango/cairo). Fehlt das Paket, fällt der PDF-Button auf die Druckansicht
+    # zurück — das Add-on startet in jedem Fall.
+    from weasyprint import HTML as _WeasyHTML, default_url_fetcher as _weasy_fetch
+    _HAS_WEASY = True
+except Exception:
+    _HAS_WEASY = False
 from flask import (Flask, render_template, request, redirect, url_for,
                    make_response, jsonify, abort, send_from_directory,
                    send_file)
@@ -111,6 +119,11 @@ MEMBER_AVATARS_DIR.mkdir(parents=True, exist_ok=True)
 # Verschlüsselte Datei-Anhänge der Mitglieder-Nachrichten (lokal, NICHT auf SMB)
 DM_FILES_DIR = Path(_DATA) / 'dm_files'
 DM_FILES_DIR.mkdir(parents=True, exist_ok=True)
+# Bibliothek-Dokumente (hochgeladene und erzeugte PDFs). Eigener Ordner, damit sie
+# nicht über die offene /uploads/-Route inline im Browser landen können.
+DOCS_DIR = Path(_DATA) / 'docs'
+DOCS_DIR.mkdir(parents=True, exist_ok=True)
+_DOC_FILE_RE = re.compile(r'^[a-f0-9]{32}\.pdf$')
 # Automatische tägliche Backups — landen unter addon_configs/<slug>_mypage/autobackup/,
 # also im selben Ordner wie die Daten (map: app_config:rw). Bewusst NICHT Teil des
 # Backup-Inhalts, sonst würde sich jedes Backup mit allen Vorgängern selbst aufblähen.
@@ -260,6 +273,11 @@ _seen_today:  set[str] = set()
 _seen_day:    str = ''
 
 ALLOWED_UPLOAD_EXT = {'.png', '.jpg', '.jpeg', '.gif', '.webp'}
+# Dokumente bewusst getrennt: sie dürfen NICHT über /uploads/<name> ausgeliefert
+# werden (dort landen sie inline im Browser), sondern nur über die Bibliothek-Route
+# mit Content-Disposition: attachment.
+ALLOWED_DOC_EXT = {'.pdf'}
+DOC_MAX_BYTES = 25 * 1024 * 1024
 ALLOWED_FONT_EXT = {'.woff2', '.woff', '.ttf', '.otf'}
 FONTS_DIR = Path(_BASE) / 'fonts'
 STATS_KEEP_DAYS = 365
@@ -350,9 +368,16 @@ DEFAULT_SITE = {
     'albums': [],
     'album_protect': False,
     'watermark_text': '',
+    'library': {
+        'label_de': '', 'label_en': '',
+        'intro_de': '', 'intro_en': '',
+        'nav': True,
+        'categories': [],
+        'entries': [],
+    },
     'section_order': [
         'news', 'countdown', 'tips', 'freetext', 'poll', 'blog', 'services', 'projects', 'skills', 'testimonials',
-        'photos', 'team', 'timeline', 'events', 'links', 'faq', 'location',
+        'photos', 'library', 'team', 'timeline', 'events', 'links', 'faq', 'location',
     ],
     'hidden_sections': [],
     'members_sections': [],
@@ -2982,7 +3007,7 @@ RESERVED_SLUGS = {
     'impressum', 'datenschutz', 'contact', 'newsletter', 'sitemap', 'sitemap.xml',
     'robots', 'robots.txt', 'feed', 'feed.xml', 'manifest.json', 'sw.js',
     'favicon.ico', 'icon.png', 'health', 'set-lang', 'seite', 'preview', 'static',
-    'suche', 'search',
+    'suche', 'search', 'bibliothek', 'library',
 }
 
 
@@ -3036,6 +3061,118 @@ def _nav_pages(site: dict, loc) -> list:
             if label:
                 out.append({'href': '/seite/' + p['slug'], 'label': label})
     return out
+
+
+# ── Bibliothek (Markdown-Sammlung mit Kategorien und PDF) ─────────────────────
+#
+# Bewusst generisch gehalten: Anzeigename und Kategorien sind frei wählbar, die
+# Sammlung kann also ebenso „Reiseführer" wie „Rezepte" oder „Handbücher" sein.
+# Ein Eintrag ist Markdown (DE/EN) plus optional ein PDF — entweder selbst
+# hochgeladen oder aus dem Markdown erzeugt (siehe _library_pdf_build).
+
+LIB_PDF_MODES = {'none', 'upload', 'generated'}
+
+
+def _library(site: dict) -> dict:
+    """Bibliothek-Block inkl. fehlender Schlüssel (alte site.json)."""
+    lib = site.get('library')
+    if not isinstance(lib, dict):
+        lib = {}
+        site['library'] = lib
+    lib.setdefault('label_de', '')
+    lib.setdefault('label_en', '')
+    lib.setdefault('intro_de', '')
+    lib.setdefault('intro_en', '')
+    lib.setdefault('nav', True)
+    if not isinstance(lib.get('categories'), list):
+        lib['categories'] = []
+    if not isinstance(lib.get('entries'), list):
+        lib['entries'] = []
+    return lib
+
+
+def _library_label(site: dict, loc, t: dict) -> str:
+    """Anzeigename der Sammlung — eigener Text oder Standard „Bibliothek"."""
+    return loc(_library(site), 'label') or t.get('library_heading', 'Bibliothek')
+
+
+def _normalize_lib_cat(raw: dict, existing: dict | None = None) -> dict:
+    c = existing or {'id': uuid.uuid4().hex[:12]}
+    c['name_de'] = _clean_str(raw.get('name_de'), 60)
+    c['name_en'] = _clean_str(raw.get('name_en'), 60)
+    c['icon']    = _clean_str(raw.get('icon'), 8)
+    return c
+
+
+def _normalize_lib_entry(site: dict, raw: dict, existing: dict | None = None) -> dict:
+    e = existing or {'id': uuid.uuid4().hex[:12]}
+    e['title_de']   = _clean_str(raw.get('title_de'), 140)
+    e['title_en']   = _clean_str(raw.get('title_en'), 140)
+    e['summary_de'] = _clean_str(raw.get('summary_de'), 400)
+    e['summary_en'] = _clean_str(raw.get('summary_en'), 400)
+    e['body_de']    = _clean_str(raw.get('body_de'), 80000)
+    e['body_en']    = _clean_str(raw.get('body_en'), 80000)
+    e['meta_de']    = _clean_str(raw.get('meta_de'), 300)
+    e['meta_en']    = _clean_str(raw.get('meta_en'), 300)
+    e['image']      = _clean_str(raw.get('image'), 500)
+    cat = _clean_str(raw.get('cat'), 32)
+    known = {c.get('id') for c in _library(site).get('categories', [])}
+    e['cat'] = cat if cat in known else ''
+    tags = raw.get('tags') or []
+    if isinstance(tags, str):
+        tags = tags.split(',')
+    e['tags'] = [_clean_str(x, 30) for x in tags if _clean_str(x, 30)][:8]
+    e['visible']      = bool(raw.get('visible', True))
+    e['members_only'] = bool(raw.get('members_only'))
+    mode = raw.get('pdf_mode')
+    e['pdf_mode'] = mode if mode in LIB_PDF_MODES else 'none'
+    # Dateinamen nie aus der Anfrage übernehmen — nur bereits gespeicherte, exakt
+    # passende Namen behalten (gesetzt werden sie ausschließlich vom Upload bzw.
+    # von der PDF-Erzeugung).
+    pdf = _clean_str(raw.get('pdf'), 40)
+    e['pdf'] = pdf if _DOC_FILE_RE.match(pdf) else ''
+    e.setdefault('pdf_gen', '')
+    e.setdefault('pdf_hash', '')
+    e['updated'] = date.today().isoformat()
+    return e
+
+
+def _lib_entry_slug(site: dict, raw: dict, entry_id: str) -> str:
+    slug = _slugify(raw.get('slug') or raw.get('title_de') or raw.get('title_en') or '')
+    if not slug:
+        slug = 'eintrag-' + entry_id[:6]
+    base, n = slug, 2
+    taken = {e.get('slug') for e in _library(site).get('entries', []) if e.get('id') != entry_id}
+    while slug in taken:
+        slug = f'{base}-{n}'
+        n += 1
+    return slug
+
+
+def _find_lib_entry(site: dict, slug: str) -> dict | None:
+    return next((e for e in _library(site).get('entries', []) if e.get('slug') == slug), None)
+
+
+def _lib_public_entries(site: dict) -> list:
+    """Veröffentlichte Einträge (Mitglieder-only bleibt gelistet, nur der Text ist gesperrt)."""
+    return [e for e in _library(site).get('entries', []) if e.get('visible')]
+
+
+def _lib_entry_pdf_name(e: dict) -> str:
+    """Auszuliefernde PDF-Datei eines Eintrags ('' wenn keine)."""
+    if e.get('pdf_mode') == 'upload':
+        return e.get('pdf') or ''
+    if e.get('pdf_mode') == 'generated':
+        return e.get('pdf_gen') or ''
+    return ''
+
+
+def _nav_library(site: dict, loc, t: dict) -> list:
+    """Navi-Eintrag der Bibliothek (nur mit sichtbaren Einträgen und aktivem Schalter)."""
+    lib = _library(site)
+    if not lib.get('nav') or not _lib_public_entries(site):
+        return []
+    return [{'href': '/bibliothek', 'label': _library_label(site, loc, t)}]
 
 
 # ── Formular-Baukasten ────────────────────────────────────────────────────────
@@ -3103,9 +3240,10 @@ def _nav_forms(site: dict, loc) -> list:
     return out
 
 
-def _nav_links(site: dict, loc) -> list:
-    """Navi-Einträge für eigene Seiten und Formulare."""
-    return _nav_pages(site, loc) + _nav_forms(site, loc)
+def _nav_links(site: dict, loc, t: dict | None = None) -> list:
+    """Navi-Einträge für Bibliothek, eigene Seiten und Formulare."""
+    return (_nav_library(site, loc, t or {}) + _nav_pages(site, loc)
+            + _nav_forms(site, loc))
 
 
 # ── Weiterleitungen (301/302) ─────────────────────────────────────────────────

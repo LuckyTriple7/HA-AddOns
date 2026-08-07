@@ -280,6 +280,13 @@
     .shr-list td:last-child .btn { padding:5px 10px; font-size:.78rem; margin-left:4px; }
     .shr-list-wrap { overflow-x:auto; -webkit-overflow-scrolling:touch; }
     .shr-exp { color:var(--red); }
+    /* Kommentare: der Knopf leuchtet grün, solange Neues ungelesen ist */
+    .shr-cmt.has-new { border-color:var(--green); color:var(--green); box-shadow:0 0 0 1px var(--green) inset; }
+    .shc-item { border-bottom:1px solid var(--border); padding:10px 0; }
+    .shc-item:last-child { border-bottom:none; }
+    .shc-meta { color:var(--muted); font-size:.76rem; margin-bottom:3px; }
+    .shc-text { font-size:.92rem; white-space:pre-wrap; overflow-wrap:anywhere; margin-bottom:8px; }
+    .shc-act { display:flex; gap:8px; }
     /* Die Angebotsliste bekommt einen Anteil der Fensterhöhe statt fester 230 px:
        auf flachen Bildschirmen (Laptop, ~600 px) passte der Dialog sonst nicht
        mehr in die 88vh des Modals und wurde unten abgeschnitten. */
@@ -974,6 +981,18 @@
       <h2>👥 Für andere</h2>
       <div class="sub" id="fl-sub"></div>
       <div id="fl-body"></div>
+    </div>
+  </div>
+
+  <!-- Kommentare zu einem geteilten Link (liegt über der Link-Übersicht) -->
+  <div class="modal-bg" id="shc-bg" style="z-index:55">
+    <div class="modal" style="max-width:700px">
+      <button class="icon-btn modal-close" onclick="closeShareComments()">
+        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+      </button>
+      <h2>💬 Kommentare</h2>
+      <div class="sub" id="shc-sub"></div>
+      <div id="shc-body"></div>
     </div>
   </div>
 

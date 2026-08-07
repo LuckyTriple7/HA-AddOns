@@ -89,7 +89,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.83.3"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.84.0"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -729,8 +729,27 @@ def init_db() -> None:
             created_ts   INTEGER NOT NULL,
             expires_ts   INTEGER NOT NULL,
             views        INTEGER NOT NULL DEFAULT 0,
-            last_view_ts INTEGER
+            last_view_ts INTEGER,
+            -- Zeitpunkt, zu dem der Besitzer die Kommentare zuletzt geöffnet hat.
+            -- Alles Neuere lässt den Kommentar-Knopf in der Übersicht grün leuchten.
+            comments_seen_ts INTEGER NOT NULL DEFAULT 0
         )''')
+        # Kommentare der Empfänger auf der öffentlichen Seite. Bewusst ohne
+        # Fremdschlüssel: die Tabelle wird beim Widerrufen/Ablaufen des Links
+        # explizit mit aufgeräumt (share_routes), so bleibt das Löschen sichtbar.
+        con.execute('''CREATE TABLE IF NOT EXISTS share_comments (
+            id     INTEGER PRIMARY KEY AUTOINCREMENT,
+            token  TEXT NOT NULL,
+            author TEXT NOT NULL DEFAULT '',
+            text   TEXT NOT NULL,
+            ts     INTEGER NOT NULL
+        )''')
+        con.execute('CREATE INDEX IF NOT EXISTS idx_share_comments '
+                    'ON share_comments(token, ts)')
+        shcols = {r['name'] for r in con.execute('PRAGMA table_info(shares)').fetchall()}
+        if 'comments_seen_ts' not in shcols:
+            con.execute('ALTER TABLE shares ADD COLUMN comments_seen_ts '
+                        'INTEGER NOT NULL DEFAULT 0')
         # Preisbarometer (tägliche Regionssuche) — Schema liegt im eigenen Modul,
         # das erst am Dateiende importiert wird; zur Laufzeit von init_db() ist es da.
         market_basket.init_basket_db(con)

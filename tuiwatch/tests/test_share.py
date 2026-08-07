@@ -381,3 +381,113 @@ def test_cleanup_removes_long_expired(m, sr, admin, offer_id):
     assert sr.cleanup_expired() == 1
     with m.db() as con:
         assert con.execute("SELECT COUNT(*) c FROM shares").fetchone()["c"] == 0
+
+
+# ── Kommentare der Empfänger ──────────────────────────────────────────────────
+
+def _comment(public, token, text="Sieht gut aus!", author="Oma"):
+    return public.post(f"/s/{token}/comment", data={"text": text, "author": author})
+
+
+def test_comment_is_stored_and_shown(public, admin, offer_id):
+    tok = _create(admin, offer_id)["token"]
+    r = _comment(public, tok)
+    assert r.status_code == 303 and f"/s/{tok}" in r.headers["Location"]
+    page = public.get("/s/" + tok).get_data(as_text=True)
+    assert "Sieht gut aus!" in page and "Oma" in page
+
+
+def test_comment_is_escaped_on_public_page(public, admin, offer_id):
+    """Kommentare sind Fremdeingaben — HTML darf niemals durchschlagen."""
+    tok = _create(admin, offer_id)["token"]
+    _comment(public, tok, text="<script>alert(1)</script>", author="<b>x</b>")
+    page = public.get("/s/" + tok).get_data(as_text=True)
+    assert "<script>alert(1)</script>" not in page
+    assert "&lt;script&gt;" in page
+
+
+def test_comment_length_is_capped(m, public, admin, offer_id):
+    tok = _create(admin, offer_id)["token"]
+    _comment(public, tok, text="x" * 900, author="y" * 90)
+    with m.db() as con:
+        row = con.execute("SELECT author, text FROM share_comments").fetchone()
+    assert len(row["text"]) == 500
+    assert len(row["author"]) == 40
+
+
+def test_empty_comment_is_rejected(m, public, admin, offer_id):
+    tok = _create(admin, offer_id)["token"]
+    r = _comment(public, tok, text="   ")
+    assert r.status_code == 303 and "k=leer" in r.headers["Location"]
+    with m.db() as con:
+        assert con.execute("SELECT COUNT(*) c FROM share_comments").fetchone()["c"] == 0
+
+
+def test_comment_rate_limit_per_ip(m, sr, public, admin, offer_id):
+    """Öffentlich beschreibbar → gedeckelt, sonst ist die Seite ein Gästebuch für Bots."""
+    sr._comment_hits.clear()
+    tok = _create(admin, offer_id)["token"]
+    for i in range(sr._COMMENT_MAX_PER_WINDOW):
+        assert "k=ok" in _comment(public, tok, text=f"Nr {i}").headers["Location"]
+    assert "k=takt" in _comment(public, tok, text="einer zu viel").headers["Location"]
+    with m.db() as con:
+        n = con.execute("SELECT COUNT(*) c FROM share_comments").fetchone()["c"]
+    assert n == sr._COMMENT_MAX_PER_WINDOW
+
+
+def test_comment_on_expired_link_is_gone(m, public, admin, offer_id):
+    tok = _create(admin, offer_id)["token"]
+    with m.db() as con:
+        con.execute("UPDATE shares SET expires_ts=? WHERE token=?",
+                    (int(time.time()) - 60, tok))
+    assert _comment(public, tok).status_code == 410
+
+
+def test_comment_on_unknown_token_is_404(public):
+    assert public.post("/s/gibtsnichtxx/comment", data={"text": "hallo"}).status_code == 404
+
+
+def test_admin_sees_new_comment_flag(sr, public, admin, offer_id):
+    sr._comment_hits.clear()
+    tok = _create(admin, offer_id)["token"]
+    _comment(public, tok)
+    item = next(i for i in admin.get("/api/shares").get_json()["items"] if i["token"] == tok)
+    assert item["comments"] == 1 and item["new_comments"] == 1
+    # Öffnen markiert als gelesen
+    assert len(admin.get(f"/api/shares/{tok}/comments").get_json()["items"]) == 1
+    item = next(i for i in admin.get("/api/shares").get_json()["items"] if i["token"] == tok)
+    assert item["comments"] == 1 and item["new_comments"] == 0
+
+
+def test_admin_can_edit_and_delete_comment(sr, public, admin, offer_id):
+    sr._comment_hits.clear()
+    tok = _create(admin, offer_id)["token"]
+    _comment(public, tok)
+    cid = admin.get(f"/api/shares/{tok}/comments").get_json()["items"][0]["id"]
+    r = admin.patch(f"/api/shares/{tok}/comments/{cid}",
+                    json={"text": "Korrigiert", "author": "Opa"})
+    assert r.status_code == 200
+    page = public.get("/s/" + tok).get_data(as_text=True)
+    assert "Korrigiert" in page and "Opa" in page
+    assert admin.delete(f"/api/shares/{tok}/comments/{cid}").status_code == 200
+    assert admin.get(f"/api/shares/{tok}/comments").get_json()["items"] == []
+
+
+def test_comment_admin_routes_need_auth(m):
+    """Ohne Session bleibt die Kommentarverwaltung dicht (kein `admin`-Fixture,
+    damit die echte _auth_ok-Prüfung greift)."""
+    m.app.config["TESTING"] = True
+    c = m.app.test_client()
+    tok = "abcdefghijkl"
+    assert c.get(f"/api/shares/{tok}/comments").status_code == 401
+    assert c.patch(f"/api/shares/{tok}/comments/1", json={"text": "x"}).status_code == 401
+    assert c.delete(f"/api/shares/{tok}/comments/1").status_code == 401
+
+
+def test_revoking_share_removes_its_comments(m, sr, public, admin, offer_id):
+    sr._comment_hits.clear()
+    tok = _create(admin, offer_id)["token"]
+    _comment(public, tok)
+    admin.delete("/api/shares/" + tok)
+    with m.db() as con:
+        assert con.execute("SELECT COUNT(*) c FROM share_comments").fetchone()["c"] == 0
