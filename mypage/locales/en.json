@@ -2328,5 +2328,21 @@
   "library_copied": "Copy created (draft)",
   "library_copy_suffix": "(copy)",
   "field_tags_short": "Tags",
-  "library_open": "Browse all"
+  "library_open": "Browse all",
+  "ai_img_btn": "Generate image",
+  "ai_img_prompt_label": "Image description",
+  "ai_img_prompt_hint": "Pre-filled from title, category, tags and summary — edit as you like. The generated image is set as the cover right away; the entry itself is only stored when you click “Save”.",
+  "ai_img_generate": "Generate",
+  "ai_img_running": "Generating image … (this can take up to a minute)",
+  "ai_img_done": "Image generated and set as the cover.",
+  "ai_img_err_prompt": "Please enter an image description.",
+  "ai_img_err_failed": "Could not generate the image.",
+  "ai_img_err_refused": "The AI declined the request. Please adjust the description.",
+  "ai_img_err_limit": "Too many image requests in a short time — please try again later.",
+  "ai_img_err_nokey": "No Gemini API key configured in the app options.",
+  "ai_img_prompt_title": "Cover image for an article titled “{v}”.",
+  "ai_img_prompt_cat": "Topic: {v}.",
+  "ai_img_prompt_tags": "Tags: {v}.",
+  "ai_img_prompt_summary": "What it is about: {v}.",
+  "ai_img_prompt_style": "Style: modern, calm, high quality, photorealistic, no text or lettering in the image."
 }

@@ -1675,12 +1675,24 @@
           <label>{{ t.field_image }}</label>
           <input type="text" id="le-image" placeholder="/uploads/…">
           <input type="file" id="le-image-file" accept="image/*" style="margin-top:6px">
+          <button type="button" class="btn secondary" id="le-img-ai-btn"
+                  style="display:none;margin-top:6px" onclick="toggleLibImgAi()">✨ {{ t.ai_img_btn }}</button>
         </div>
         <div>
           <label>{{ t.field_tags }}</label>
           <input type="text" id="le-tags" placeholder="reisen, sommer">
           <p class="hint">{{ t.post_tags_hint }}</p>
         </div>
+      </div>
+      <!-- Volle Breite statt in der Bild-Spalte: .row ist ein Zwei-Spalten-Raster,
+           ein Textfeld links würde die Zeile gegenüber den Schlagwörtern aufreißen. -->
+      <div id="le-img-ai-box" style="display:none;margin-bottom:14px">
+        <label>{{ t.ai_img_prompt_label }}</label>
+        <textarea id="le-img-ai-prompt" rows="3" maxlength="1200"></textarea>
+        <p class="hint">{{ t.ai_img_prompt_hint }}</p>
+        <button type="button" class="btn" onclick="runLibImgAi(this)">{{ t.ai_img_generate }}</button>
+        <p class="hint" id="le-img-ai-status" aria-live="polite"></p>
+        <img id="le-img-ai-preview" alt="" style="display:none;max-width:260px;border-radius:8px;margin-top:8px">
       </div>
       <div class="row">
         <div>
@@ -2590,6 +2602,64 @@
       const r = await api('api/library/pdf-support');
       libPdfAvailable = r.ok ? (await r.json()).available : false;
     }
+
+    // ── KI-Titelbild ──
+    let libImgAiAvailable = null;   // null = noch nicht gefragt
+    async function checkLibImgAi() {
+      if (libImgAiAvailable !== null) return;
+      const r = await api('api/ai/image-support');
+      libImgAiAvailable = r.ok ? (await r.json()).available : false;
+    }
+    // Vorschlag aus dem, was im Eintrag schon steht. Leere Felder fallen raus,
+    // damit kein Satzfragment wie „Thema: ." im Prompt landet.
+    function libImgAiPrompt() {
+      const title = el('le-title_de').value.trim() || el('le-title_en').value.trim();
+      const sum   = el('le-summary_de').value.trim() || el('le-summary_en').value.trim();
+      const cat   = (libData().categories || []).find(c => c.id === el('le-cat').value);
+      const tags  = el('le-tags').value.split(',').map(s => s.trim()).filter(Boolean);
+      return [
+        title      && T.ai_img_prompt_title.replace('{v}', title),
+        cat        && T.ai_img_prompt_cat.replace('{v}', libCatName(cat)),
+        tags.length && T.ai_img_prompt_tags.replace('{v}', tags.join(', ')),
+        sum        && T.ai_img_prompt_summary.replace('{v}', sum),
+        T.ai_img_prompt_style,
+      ].filter(Boolean).join(' ').slice(0, 1200);
+    }
+    function toggleLibImgAi() {
+      const box = el('le-img-ai-box');
+      const open = box.style.display === 'none';
+      box.style.display = open ? '' : 'none';
+      if (open && !el('le-img-ai-prompt').value.trim()) {
+        el('le-img-ai-prompt').value = libImgAiPrompt();
+      }
+    }
+    async function runLibImgAi(btn) {
+      const prompt = el('le-img-ai-prompt').value.trim();
+      if (prompt.length < 3) { toast(T.ai_img_err_prompt, true); return; }
+      const label = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = T.ai_img_running;
+      el('le-img-ai-status').textContent = T.ai_img_running;
+      let r = null;
+      try { r = await apiJson('api/ai/image', 'POST', { prompt }); } catch (e) { /* Netzfehler */ }
+      btn.disabled = false;
+      btn.textContent = label;
+      const d = r ? await r.json().catch(() => ({})) : {};
+      if (!r || !r.ok) {
+        const msg = d.error === 'ai_refused'   ? T.ai_img_err_refused
+                  : d.error === 'rate_limited' ? T.ai_img_err_limit
+                  : d.error === 'no_api_key'   ? T.ai_img_err_nokey
+                  : T.ai_img_err_failed;
+        el('le-img-ai-status').textContent = msg;
+        toast(msg, true);
+        return;
+      }
+      el('le-image').value = d.url;
+      el('le-img-ai-preview').src = assetUrl(d.url);
+      el('le-img-ai-preview').style.display = '';
+      el('le-img-ai-status').textContent = T.ai_img_done;
+      toast(T.ai_img_done);
+    }
     function openLibEntryModal(id) {
       editingLibEntryId = id || null;
       const e = id ? (libData().entries || []).find(x => x.id === id) : {};
@@ -2618,6 +2688,16 @@
       el('le-body_en').value = e.body_en || '';
       el('le-pdf_mode').value = e.pdf_mode || 'none';
       libPdfName = e.pdf || '';
+      // KI-Panel zurücksetzen — sonst schleppt der nächste Eintrag Beschreibung
+      // und Vorschau des vorherigen mit.
+      el('le-img-ai-box').style.display = 'none';
+      el('le-img-ai-prompt').value = '';
+      el('le-img-ai-status').textContent = '';
+      el('le-img-ai-preview').style.display = 'none';
+      el('le-img-ai-preview').removeAttribute('src');
+      checkLibImgAi().then(() => {
+        el('le-img-ai-btn').style.display = libImgAiAvailable ? '' : 'none';
+      });
       libEntrySlugHint();
       checkLibPdfSupport().then(updateLibPdfMode);
       updateLibPdfMode();

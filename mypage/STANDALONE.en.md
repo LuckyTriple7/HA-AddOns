@@ -45,6 +45,9 @@ The file is mounted to `/data/options.json` in the container (read-only) and rea
 | `visit_log_max` | Length of the visitor log | `500` |
 | `geoip_lookup` / `geoip_api_key` | Country lookup in the stats (optional) | `false` |
 | `smb_server` / `smb_share` / `smb_user` / `smb_password` | Optional SMB storage for member files | – |
+| `gemini_api_key` | Google Gemini key — enables “Generate image” in the library editor (billed) | – |
+| `gemini_image_model` | Model used for image generation | `gemini-3.1-flash-image` |
+| `gemini_image_ratio` | Aspect ratio of generated images | `16:9` |
 
 After changing `options.json`, restart the container: `docker compose restart`.
 

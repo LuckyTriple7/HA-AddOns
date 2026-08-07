@@ -2328,5 +2328,21 @@
   "library_copied": "Kopie angelegt (Entwurf)",
   "library_copy_suffix": "(Kopie)",
   "field_tags_short": "Schlagwörter",
-  "library_open": "Zur Übersicht"
+  "library_open": "Zur Übersicht",
+  "ai_img_btn": "Bild generieren",
+  "ai_img_prompt_label": "Bildbeschreibung",
+  "ai_img_prompt_hint": "Vorbefüllt aus Titel, Kategorie, Schlagwörtern und Zusammenfassung — frei änderbar. Das erzeugte Bild wird sofort als Titelbild eingetragen; gespeichert wird der Eintrag erst mit „Speichern“.",
+  "ai_img_generate": "Erzeugen",
+  "ai_img_running": "Bild wird erzeugt … (kann bis zu einer Minute dauern)",
+  "ai_img_done": "Bild erzeugt und als Titelbild eingetragen.",
+  "ai_img_err_prompt": "Bitte eine Bildbeschreibung eingeben.",
+  "ai_img_err_failed": "Bild konnte nicht erzeugt werden.",
+  "ai_img_err_refused": "Die KI hat die Anfrage abgelehnt. Bitte die Beschreibung anpassen.",
+  "ai_img_err_limit": "Zu viele Bildanfragen in kurzer Zeit — bitte später erneut versuchen.",
+  "ai_img_err_nokey": "Kein Gemini-API-Key in den App-Optionen hinterlegt.",
+  "ai_img_prompt_title": "Titelbild für einen Artikel mit dem Titel „{v}“.",
+  "ai_img_prompt_cat": "Thema: {v}.",
+  "ai_img_prompt_tags": "Schlagwörter: {v}.",
+  "ai_img_prompt_summary": "Worum es geht: {v}.",
+  "ai_img_prompt_style": "Stil: modern, ruhig, hochwertig, fotorealistisch, ohne Text und ohne Schrift im Bild."
 }

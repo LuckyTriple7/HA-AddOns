@@ -90,6 +90,20 @@ configuration:
   smb_password:
     name: SMB password
     description: Password of the SMB user.
+  gemini_api_key:
+    name: Google Gemini API key (optional)
+    description: >-
+      Enables the Generate image button in the library editor — the AI then creates
+      the cover image of an entry. Get a key at aistudio.google.com. Note: image
+      generation is billed depending on the model.
+  gemini_image_model:
+    name: Model used for image generation
+    description: >-
+      gemini-3.1-flash-image is the all-rounder, gemini-3.1-flash-lite-image the
+      fastest and cheapest, gemini-3-pro-image the premium option.
+  gemini_image_ratio:
+    name: Aspect ratio of generated images
+    description: 16:9 matches the cover images of the library.
 network:
   17760/tcp: Public homepage
   17761/tcp: Admin panel (login protected)

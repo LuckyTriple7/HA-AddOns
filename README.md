@@ -270,6 +270,7 @@ Homepage-Baukasten direkt in Home Assistant — eigene Webseite ohne Design-Kenn
 - Zweisprachig (DE/EN) mit optionaler Auto-Übersetzung, Hell/Dunkel, eigene Schriftarten & CSS
 - Besucherstatistik (Länder, Browser, Referrer), Kontaktformular mit Spam-Schutz, RSS, PWA, SEO
 - Mitglieder-Bereich mit Datei-Sharing (optional SMB), Termin-/Buchungs-Button, Unterstützen-Button
+- Bibliothek für Markdown-Dokumente mit PDF-Erzeugung und optionalem **KI-Titelbild** (Google Gemini)
 - Backup & statischer Export, Home-Assistant-Sensoren
 
 → [Dokumentation & Changelog](mypage/README.md)
@@ -572,6 +573,7 @@ Homepage builder directly in Home Assistant — your own website without design 
 - Bilingual (DE/EN) with optional auto-translation, light/dark, custom fonts & CSS
 - Visitor stats (countries, browsers, referrers), contact form with spam protection, RSS, PWA, SEO
 - Members area with file sharing (optional SMB), appointment/booking button, support button
+- Library for Markdown documents with PDF generation and an optional **AI cover image** (Google Gemini)
 - Backup & static export, Home Assistant sensors
 
 → [Documentation & Changelog](mypage/README.md)

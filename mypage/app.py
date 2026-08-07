@@ -51,6 +51,18 @@ try:
     _HAS_WEASY = True
 except Exception:
     _HAS_WEASY = False
+try:
+    # Optional: KI-Bilderzeugung (Google Gemini) für Bibliothek-Titelbilder.
+    # Fehlt das Paket, bleibt der Knopf im Admin aus — das Add-on startet
+    # in jedem Fall. Breites except wie oben: das SDK baut beim Import
+    # Pydantic-Modelle auf und kann dabei auch anders als mit ImportError
+    # scheitern.
+    from google import genai
+    from google.genai import errors as genai_errors
+    from google.genai import types as genai_types
+    _HAS_GENAI = True
+except Exception:
+    _HAS_GENAI = False
 from flask import (Flask, render_template, request, redirect, url_for,
                    make_response, jsonify, abort, send_from_directory,
                    send_file)
@@ -4760,6 +4772,138 @@ def api_pages_reorder():
     return jsonify({'ok': True})
 
 
+# ── KI-Bilderzeugung (Google Gemini) ──────────────────────────────────────────
+#
+# Titelbilder für Bibliothek-Einträge von Hand zu beschaffen ist mühsam. Gemini
+# erzeugt sie auf Zuruf; ohne hinterlegten API-Key bleibt die Funktion komplett
+# unsichtbar. Die erzeugte Datei landet über dieselbe Pipeline wie jeder Upload
+# unter /uploads/ — nie als Fremd-URL im Eintrag, sonst scheitert die
+# PDF-Erzeugung an `_lib_pdf_fetcher` (die lässt bewusst nur lokale Dateien zu).
+
+GEMINI_IMAGE_MODELS = ('gemini-3.1-flash-image', 'gemini-3.1-flash-lite-image',
+                       'gemini-3-pro-image', 'gemini-2.5-flash-image')
+GEMINI_IMAGE_RATIOS = ('16:9', '3:2', '4:3', '1:1', '3:4', '2:3', '9:16', '21:9')
+GEMINI_IMAGE_TIMEOUT_MS = 120_000   # google-genai erwartet Millisekunden
+AI_IMAGE_PROMPT_MAX = 1200
+AI_IMAGE_MAX_PER_HOUR = 20
+_ai_image_times: list[float] = []
+
+# Abbruchgründe, bei denen Gemini die Anfrage inhaltlich abgelehnt hat — davon
+# ist der Nutzer zu unterscheiden von einem technischen Fehler, denn hier hilft
+# nur eine andere Beschreibung, kein erneuter Versuch.
+_GEMINI_IMAGE_REFUSALS = {
+    genai_types.FinishReason.SAFETY, genai_types.FinishReason.PROHIBITED_CONTENT,
+    genai_types.FinishReason.BLOCKLIST, genai_types.FinishReason.RECITATION,
+    genai_types.FinishReason.SPII, genai_types.FinishReason.IMAGE_SAFETY,
+    genai_types.FinishReason.IMAGE_PROHIBITED_CONTENT,
+    genai_types.FinishReason.IMAGE_RECITATION,
+} if _HAS_GENAI else set()
+
+
+def gemini_image_enabled() -> bool:
+    """Ob der Knopf „Bild generieren" angeboten werden darf.
+
+    Pillow gehört mit ins Gate: ohne sie ließe sich die Antwort von Gemini nicht
+    in ein WebP wandeln, der Knopf wäre also wirkungslos.
+    """
+    return (_HAS_GENAI and _HAS_PIL
+            and bool((load_config().get('gemini_api_key') or '').strip()))
+
+
+def _gemini_image_model() -> str:
+    m = (load_config().get('gemini_image_model') or '').strip()
+    return m if m in GEMINI_IMAGE_MODELS else GEMINI_IMAGE_MODELS[0]
+
+
+def _gemini_image_ratio() -> str:
+    r = (load_config().get('gemini_image_ratio') or '').strip()
+    return r if r in GEMINI_IMAGE_RATIOS else GEMINI_IMAGE_RATIOS[0]
+
+
+def _gemini_generate_image(prompt: str) -> tuple[bytes | None, str]:
+    """Erzeugt ein Bild über Gemini. Zurück: (Bilddaten, Fehlercode).
+
+    Fehlercodes: '' (Erfolg), 'refused', 'empty', 'failed'. Die Ausnahme selbst
+    geht ausschließlich ins Log, nie an den Client.
+    """
+    model, ratio = _gemini_image_model(), _gemini_image_ratio()
+    try:
+        client = genai.Client(api_key=(load_config().get('gemini_api_key') or '').strip())
+        resp = client.models.generate_content(
+            model=model, contents=[prompt],
+            config=genai_types.GenerateContentConfig(
+                response_modalities=['IMAGE'],
+                image_config=genai_types.ImageConfig(aspect_ratio=ratio),
+                # Das SDK setzt von sich aus kein Timeout — ohne das hier könnte
+                # ein hängender Aufruf dauerhaft einen Waitress-Thread binden.
+                http_options=genai_types.HttpOptions(timeout=GEMINI_IMAGE_TIMEOUT_MS),
+            ),
+        )
+        cands = resp.candidates or []
+        if cands and cands[0].finish_reason in _GEMINI_IMAGE_REFUSALS:
+            log.info("Gemini hat die Bildanfrage abgelehnt: %s", cands[0].finish_reason)
+            return None, 'refused'
+        for part in (resp.parts or []):
+            if part.inline_data is not None and part.inline_data.data:
+                return part.inline_data.data, ''
+    except genai_errors.APIError as e:
+        # Bewusst nur der Statuscode: die Meldung des SDK kann die vollständige
+        # Anfrage-URL samt API-Key enthalten, die hat im Add-on-Log nichts zu suchen.
+        log.warning("Gemini-Bildanfrage fehlgeschlagen (%s): Status %s",
+                    model, getattr(e, 'code', '') or type(e).__name__)
+        return None, 'failed'
+    except Exception as e:
+        # Absichtlich breit: SDK-interne Fehler dürfen nicht als HTML-Fehlerseite
+        # beim Frontend landen, das ausschließlich JSON erwartet.
+        log.error("Gemini-Bildanfrage (%s) unerwartet fehlgeschlagen: %s: %s",
+                  model, type(e).__name__, e)
+        return None, 'failed'
+    log.warning("Gemini-Antwort (%s) enthielt kein Bild", model)
+    return None, 'empty'
+
+
+@admin_app.route('/api/ai/image-support')
+def api_ai_image_support():
+    err = _api_auth()
+    if err:
+        return err
+    return jsonify({'available': gemini_image_enabled()})
+
+
+@admin_app.route('/api/ai/image', methods=['POST'])
+def api_ai_image():
+    err = _api_auth()
+    if err:
+        return err
+    if not gemini_image_enabled():
+        return jsonify({'error': 'no_api_key'}), 400
+    prompt = _clean_str((request.get_json(silent=True) or {}).get('prompt'),
+                        AI_IMAGE_PROMPT_MAX)
+    if len(prompt) < 3:
+        return jsonify({'error': 'invalid'}), 400
+    # Rollierendes Stundenlimit. Bewusst global statt je IP: es schützt das
+    # Bezahlkontingent bei Google, nicht eine Ressource dieses Servers.
+    now = time.time()
+    _ai_image_times[:] = [x for x in _ai_image_times if now - x < 3600]
+    if len(_ai_image_times) >= AI_IMAGE_MAX_PER_HOUR:
+        return jsonify({'error': 'rate_limited'}), 429
+    _ai_image_times.append(now)   # vor dem Aufruf: ein Fehlversuch kostet auch
+    data, code = _gemini_generate_image(prompt)
+    if code:
+        return jsonify({'error': {'refused': 'ai_refused',
+                                  'empty': 'ai_empty'}.get(code, 'ai_failed')}), 502
+    try:
+        name = _store_upload_image(data)
+    except Exception as e:
+        log.warning("KI-Bild konnte nicht gespeichert werden: %s", e)
+        name = None
+    if not name:
+        return jsonify({'error': 'image_failed'}), 502
+    log.info("KI-Titelbild erzeugt (%s, %s): %s", _gemini_image_model(),
+             _gemini_image_ratio(), name)
+    return jsonify({'ok': True, 'url': '/uploads/' + name})
+
+
 # ── Bibliothek (Admin) ────────────────────────────────────────────────────────
 
 @admin_app.route('/api/library/settings', methods=['POST'])
@@ -5480,6 +5624,40 @@ def api_upload_font():
     return jsonify({'ok': True, 'name': display})
 
 
+def _store_upload_image(src, *, max_side: int = 1600, quality: int = 82) -> str | None:
+    """Bild verkleinern, Metadaten verwerfen und als WebP in UPLOADS_DIR ablegen.
+
+    `src` ist ein Datei-Objekt oder rohe Bilddaten; zurück kommt der erzeugte
+    Dateiname (`<uuid>.webp`) oder None, wenn Pillow fehlt.
+
+    Gemeinsam genutzt von `/api/upload` und der KI-Bilderzeugung — beide müssen
+    dieselben Zusagen einhalten: höchstens 1600 px, WebP, und ohne EXIF neu
+    kodiert, damit kein GPS-Standort mit ins Netz geht. Eine zweite Kopie dieser
+    Logik würde über die Zeit auseinanderlaufen und aus der Datenschutzzusage
+    einen Zufall machen. Der UUID-Dateiname ist ebenfalls Pflicht: `_unused_uploads`
+    erkennt verwaiste Dateien über einen Vorkommen-Scan im JSON-Text.
+
+    Lesefehler werden bewusst durchgereicht — die Aufrufer entscheiden über den
+    Rückfall.
+    """
+    if not _HAS_PIL:
+        return None
+    img = Image.open(io.BytesIO(src) if isinstance(src, (bytes, bytearray)) else src)
+    # EXIF-Orientierung anwenden (sonst erscheinen Handy-Hochkant-Fotos gedreht)
+    # und damit zugleich Metadaten verwerfen (GPS/Kamera) — Datenschutz.
+    img = ImageOps.exif_transpose(img)
+    img.thumbnail((max_side, max_side))
+    if img.mode not in ('RGB', 'RGBA'):
+        img = img.convert('RGBA' if 'A' in img.getbands() else 'RGB')
+    name = uuid.uuid4().hex + '.webp'
+    target = safe_under(UPLOADS_DIR, name)
+    if target is None:
+        return None
+    # ohne exif=... → das neu kodierte WebP enthält keine Metadaten mehr
+    img.save(target, 'WEBP', quality=quality)
+    return name
+
+
 @admin_app.route('/api/upload', methods=['POST'])
 def api_upload():
     err = _api_auth()
@@ -5492,25 +5670,14 @@ def api_upload():
     if ext not in ALLOWED_UPLOAD_EXT:
         return jsonify({'error': 'file type not allowed'}), 400
     # Bilder verkleinern und als WebP speichern (GIFs unverändert, wegen Animation)
-    if _HAS_PIL and ext != '.gif':
+    if ext != '.gif':
         try:
-            img = Image.open(f.stream)
-            # EXIF-Orientierung anwenden (sonst erscheinen Handy-Hochkant-Fotos gedreht)
-            # und damit zugleich Metadaten verwerfen (GPS/Kamera) — Datenschutz.
-            img = ImageOps.exif_transpose(img)
-            img.thumbnail((1600, 1600))
-            if img.mode not in ('RGB', 'RGBA'):
-                img = img.convert('RGBA' if 'A' in img.getbands() else 'RGB')
-            name = uuid.uuid4().hex + '.webp'
-            target = safe_under(UPLOADS_DIR, name)
-            if target is None:
-                abort(400)
-            # ohne exif=... → das neu kodierte WebP enthält keine Metadaten mehr
-            img.save(target, 'WEBP', quality=82)
-            return jsonify({'ok': True, 'url': '/uploads/' + name})
+            name = _store_upload_image(f.stream)
+            if name:
+                return jsonify({'ok': True, 'url': '/uploads/' + name})
         except Exception as e:
             log.warning("Bild-Optimierung fehlgeschlagen, speichere Original: %s", e)
-            f.stream.seek(0)
+        f.stream.seek(0)
     # ext stammt aus dem Dateinamen, ist aber gegen ALLOWED_UPLOAD_EXT geprüft
     name = uuid.uuid4().hex + ext
     target = safe_under(UPLOADS_DIR, name)

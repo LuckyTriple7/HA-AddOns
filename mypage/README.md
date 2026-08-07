@@ -9,7 +9,7 @@ Eigene Homepage direkt aus Home Assistant heraus betreiben — ohne Design-Kennt
 - 🏠 **Öffentliche Homepage** auf Port 17760 — Profil, Inhaltsbereiche, Social-Links
 - 🛠 **Admin-Panel** auf Port 17761 (Login + Brute-Force-Schutz) und über HA-Ingress in der Seitenleiste
 - 🧩 **Viele Inhaltsbereiche**: Projekte, Blog, Leistungen, Referenzen, Team, Fotoalben, Skills, Werdegang, Aktuelles, **Countdown**, Veranstaltungen, Linksammlung, FAQ, Standort & Öffnungszeiten
-- 📚 **Bibliothek**: Sammlung eigenständiger Markdown-Dokumente mit frei wählbaren Kategorien (Reiseführer, Rezepte, Anleitungen …) unter `/bibliothek` — je Eintrag optional ein **PDF**, entweder hochgeladen oder aus dem Text erzeugt; Name der Sammlung frei wählbar
+- 📚 **Bibliothek**: Sammlung eigenständiger Markdown-Dokumente mit frei wählbaren Kategorien (Reiseführer, Rezepte, Anleitungen …) unter `/bibliothek` — je Eintrag optional ein **PDF**, entweder hochgeladen oder aus dem Text erzeugt; **Titelbild wahlweise von der KI erzeugen lassen** (Google Gemini, eigener API-Key nötig); Name der Sammlung frei wählbar
 - 📄 **Eigene Seiten**: eigenständige Unterseiten (z. B. „Über uns", „Anfahrt") in Markdown (DE/EN) mit eigener Adresse `/seite/<slug>`, optionalem Navi-Eintrag und Entwurfs-Status
 - 🧾 **Formular-Baukasten**: frei konfigurierbare Formulare (Anmeldung, Umfrage, Anfrage) mit beliebigen Feldern; Einsendungen im Nachrichten-Tab + Benachrichtigung (E-Mail/Telegram/HA), Honeypot + Captcha
 - ↪️ **Weiterleitungen (301/302)** + **Search-Console-Verifizierung** (Google/Bing) im Admin

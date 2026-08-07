@@ -29,6 +29,9 @@
 | `smb_server` | Optional: Adresse des SMB-/CIFS-Servers für den Mitglieder-Speicher (z. B. FritzBox-NAS). Leer = lokaler Speicher im Add-on-Config-Ordner |
 | `smb_share` | Name der SMB-Freigabe (z. B. `FRITZ.NAS`) |
 | `smb_user` / `smb_password` | Zugangsdaten für die SMB-Freigabe |
+| `gemini_api_key` | Optional: Google-Gemini-Key — schaltet im Bibliothek-Editor den Knopf **Bild generieren** frei. Key auf [aistudio.google.com](https://aistudio.google.com) holen. **Bildgenerierung ist je nach Modell kostenpflichtig** |
+| `gemini_image_model` | Modell für die Bilderzeugung: `gemini-3.1-flash-image` (Allrounder, Standard), `gemini-3.1-flash-lite-image` (am schnellsten und günstigsten), `gemini-3-pro-image` (Premium), `gemini-2.5-flash-image` (älter) |
+| `gemini_image_ratio` | Seitenverhältnis der erzeugten Bilder (Standard `16:9`) |
 
 ## Ports
 
@@ -108,6 +111,7 @@ Eine Sammlung eigenständiger **Markdown-Dokumente mit Kategorien** — für all
 - **Name frei wählbar**: Der Anzeigename der Sammlung wird im Tab *Bibliothek* gesetzt (DE/EN). Leer gelassen heißt sie „Bibliothek" — trägst du „Reiseführer" ein, heißt sie überall so (Navigation, Startseiten-Abschnitt, Suchergebnisse). Dazu optional eine **Einleitung** (Markdown), die über der Übersicht steht.
 - **Kategorien**: frei anlegbar, je mit Name (DE/EN) und optionalem Emoji, per Drag & Drop sortierbar. Auf der Übersicht erscheinen sie als **Filter-Chips**. Eine gelöschte Kategorie nimmt ihre Einträge nicht mit — die rutschen nur in „ohne Kategorie".
 - **Einträge**: Titel, Kurzbeschreibung, Titelbild, bis zu 8 Schlagwörter (erscheinen auf der Übersicht als **Filter-Chips**, kombinierbar mit Kategorie und Suche), Text in **Markdown** (DE/EN, gleicher Editor mit Live-Vorschau wie im Blog), eigene SEO-Beschreibung, Adresse (Slug, leer = automatisch aus dem Titel), Status *Veröffentlicht/Entwurf* und der Schalter **Nur für Mitglieder** (Gäste sehen dann nur einen Anriss). Reihenfolge per Drag & Drop; **Vorschau** zeigt auch Entwürfe. **Kopieren** dupliziert einen Eintrag samt PDF-Einstellung als Entwurf — praktisch für Einträge nach gleichem Muster.
+- **Titelbild von der KI erzeugen lassen** (nur wenn `gemini_api_key` gesetzt ist): Neben dem Bild-Feld erscheint **✨ Bild generieren**. Der Knopf öffnet ein Feld mit einer **vorgeschlagenen Bildbeschreibung aus Titel, Kategorie, Schlagwörtern und Kurzbeschreibung** des Eintrags — trägt der Eintrag das Schlagwort „Rhodos", steht es im Vorschlag und das Bild passt dazu. Die Beschreibung ist frei änderbar; „Erzeugen" dauert etwa 10–60 Sekunden. Das fertige Bild wird auf max. 1600 px verkleinert, als WebP abgelegt und **sofort als Titelbild eingetragen** — gespeichert ist der Eintrag damit noch nicht, dazu braucht es „Speichern". Modell und Seitenverhältnis stehen in den App-Optionen; höchstens 20 Bilder pro Stunde. Lehnt die KI eine Beschreibung ab, sagt der Admin das und du kannst sie umformulieren.
 - **PDF je Eintrag** — drei Möglichkeiten:
   - *Kein PDF*: Besucher können die Seite trotzdem über den **Druck-Knopf** als PDF speichern. Die Eintragsseite bringt ein eigenes Druck-Stylesheet mit (ohne Navigation, Fußzeile und Knöpfe, Links werden ausgeschrieben).
   - *Aus dem Text erzeugen*: Beim Speichern rendert das Add-on ein PDF aus dem Markdown — mit Titelkopf, Seitenzahlen, Tabellen und Code-Blöcken — und bietet es zum Download an. Unveränderte Einträge werden nicht neu gerendert (Zwischenspeicher über einen Fingerabdruck des Quelltexts). Braucht `weasyprint`; fehlt es, sagt der Admin das und die anderen beiden Wege funktionieren weiter.
@@ -269,7 +273,9 @@ Eine ausführliche Schritt-für-Schritt-Anleitung (Google Search Console, Sitema
 
 ## Bilder
 
-Uploads werden automatisch auf maximal 1600 px verkleinert und als WebP gespeichert (GIFs bleiben unverändert, damit Animationen erhalten bleiben). Dabei wird die **EXIF-Orientierung angewendet** (Handy-Hochkant-Fotos erscheinen also richtig herum) und die **Metadaten werden entfernt** — insbesondere ein evtl. eingebetteter **GPS-Standort**, der sonst öffentlich auslesbar wäre.
+Uploads werden automatisch auf maximal 1600 px verkleinert und als WebP gespeichert (GIFs bleiben unverändert, damit Animationen erhalten bleiben). Dabei wird die **EXIF-Orientierung angewendet** (Handy-Hochkant-Fotos erscheinen also richtig herum) und die **Metadaten werden entfernt** — insbesondere ein evtl. eingebetteter **GPS-Standort**, der sonst öffentlich auslesbar wäre. KI-erzeugte Bilder (siehe [Bibliothek](#bibliothek)) laufen durch dieselbe Verarbeitung.
+
+**KI-Bilder, die du verwirfst, bleiben zunächst liegen.** Das Bild entsteht beim Klick auf „Erzeugen", nicht erst beim Speichern des Eintrags — schließt du den Dialog ohne zu speichern, liegt die Datei weiter unter `/uploads`. Sie verschwindet, sobald du im Tab **System** auf „Unbenutzte Uploads aufräumen" gehst; automatisch gelöscht wird nie etwas. Dasselbe gilt für ein Bild, das du von Hand hochlädst und dann doch nicht speicherst.
 
 ### Design
 **Design-Vorlagen (1-Klick-Stile):** Oben im Design-Tab gibt es eine Galerie fertiger Vorlagen (z. B. „Elegant Dunkel", „Hell & Clean", „Verspielt", „Tech Neon", „Magazin", „Natur Warm" sowie „Standard"). Ein Klick setzt **Modus, Akzentfarbe, Schrift und Layout** auf einmal — die Felder werden gefüllt, mit „Speichern" wird die Vorlage angewendet. Dein eigenes CSS bleibt dabei unangetastet.
