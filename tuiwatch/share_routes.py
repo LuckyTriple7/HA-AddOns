@@ -777,7 +777,7 @@ def public_share_comment(token: str):
         # Nur die interne Adresse (Docker-Bridge o. ä.) bekannt: der Proxy vor dem
         # öffentlichen Port reicht die Client-IP nicht weiter. Die vorhandenen
         # Weiterleitungs-Header ins Log, damit sich das gezielt nachrüsten lässt.
-        vorhanden = {h: request.headers.get(h) for h in
+        vorhanden = {h: A.log_safe(request.headers.get(h), 60) for h in
                      ('CF-Connecting-IP', 'True-Client-IP', 'X-Real-IP', 'X-Forwarded-For')
                      if request.headers.get(h)}
         A.log.warning(

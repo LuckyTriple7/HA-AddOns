@@ -637,3 +637,16 @@ def test_edit_keeps_comment_setting(sr, public, admin, offer_id):
     tok = _create(admin, offer_id, comments_enabled=False)["token"]
     admin.patch(f"/api/shares/{tok}", json={"offer_ids": [offer_id], "title": "Neu"})
     assert admin.get(f"/api/shares/{tok}").get_json()["comments_enabled"] is False
+
+
+def test_client_ip_rejects_garbage_headers(m):
+    """Header sind Fremdeingaben: nur geprüfte IP-Literale dürfen weiter, sonst
+    landet beliebiger Text in Log, Datenbank und Oberfläche."""
+    assert m.get_client_ip(_Req({"X-Real-IP": "nicht-l\nog-sicher"})) == "172.30.32.1"
+    assert m.get_client_ip(_Req({"X-Forwarded-For": "<script>, 45.83.12.7"})) == "45.83.12.7"
+    assert m.get_client_ip(_Req({"CF-Connecting-IP": "1.2.3.4.5.6"})) == "172.30.32.1"
+
+
+def test_log_safe_strips_control_chars(m):
+    assert "\n" not in m.log_safe("Zeile1\nZeile2 INFO gefälscht")
+    assert m.log_safe("x" * 300).endswith("…")

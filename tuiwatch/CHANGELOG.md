@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.87.3] - 2026-08-07
+
+### Security
+- **CodeQL #194 (`js/incomplete-sanitization`)**: Beim Markdown-Export maskierte
+  die Klimatabelle nur das `|`, nicht den Backslash davor. Ein Zellinhalt wie
+  `C:\Temp \| x` brach die Tabelle deshalb wieder auf. Escaping läuft jetzt in
+  der einzig richtigen Reihenfolge — erst Backslash, dann `|` — und
+  Zeilenumbrüche in einer Zelle fliegen raus.
+- **Fremde Header landen nicht mehr ungeprüft im Log und in der Datenbank**:
+  `get_client_ip` gibt nur noch ein geprüftes IP-Literal oder `remote_addr`
+  zurück. Vorher konnte im Rückfall beliebiger Text aus `X-Forwarded-For`
+  durchrutschen (Log-Injection über untergeschobene Zeilenumbrüche, außerdem
+  Unsinn in der Kommentar-Ansicht). Die Diagnose-Warnung zu fehlenden
+  Proxy-Headern schickt ihre Werte zusätzlich durch `log_safe()`
+  (Steuerzeichen raus, gekappt).
+
 ## [0.87.2] - 2026-08-07
 
 ### Fixed

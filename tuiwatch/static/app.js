@@ -3175,6 +3175,16 @@
       if(v == null || v === '') return '–';
       return Number(v).toLocaleString('de-DE', {maximumFractionDigits:1}) + (unit || '');
     }
+    // Zellinhalt einer Markdown-Tabelle. Reihenfolge zwingend: erst der
+    // Backslash, dann das „|" — andersherum verwandelt der zweite Durchlauf das
+    // gerade gesetzte Escape-Zeichen („\|" würde zu „\\|", die Zelle bricht
+    // wieder auf). Zeilenumbrüche würden die Zeile sprengen, deshalb raus.
+    function mdCell(v){
+      return String(v == null ? '' : v)
+        .replace(/\\/g, '\\\\')
+        .replace(/\|/g, '\\|')
+        .replace(/[\r\n]+/g, ' ');
+    }
     function climateTableMd(months, best){
       const b = new Set(best || []);
       const hasNote = (months||[]).some(m => mdText(m.hinweis));
@@ -3186,9 +3196,7 @@
                        m.wasser ? mdNum(m.wasser,' °C') : '–',
                        mdNum(m.sonnenstunden,' h'), mdNum(m.regentage)];
         if(hasNote) cells.push(mdText(m.hinweis) || '');
-        // Ein „|" im Zellinhalt (etwa in einer Quell-Adresse) würde die Tabelle
-        // sonst mitten in der Zeile aufsprengen
-        return '| ' + cells.map(c => String(c).replace(/\|/g, '\\|')).join(' | ') + ' |';
+        return '| ' + cells.map(mdCell).join(' | ') + ' |';
       });
       return ['| ' + head.join(' | ') + ' |',
               '| ' + head.map(()=>'---').join(' | ') + ' |'].concat(rows).join('\n');

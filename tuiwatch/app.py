@@ -90,7 +90,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.87.2"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.87.3"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -294,6 +294,16 @@ def touch_session(token: str, hours: int) -> None:
         save_sessions()
 
 
+def _is_valid_ip(value: str) -> bool:
+    """Syntaktisch gültige IP-Adresse? Header-Inhalte sind Fremdeingaben — nur
+    geprüfte Literale dürfen weiter (in Log, Datenbank, Anzeige)."""
+    try:
+        ipaddress.ip_address(value)
+        return True
+    except ValueError:
+        return False
+
+
 def _is_internal_ip(value: str) -> bool:
     """Private/lokale Adresse? (Docker-Bridge 172.30.32.1, 192.168.…, ::1 …)"""
     try:
@@ -302,6 +312,13 @@ def _is_internal_ip(value: str) -> bool:
         return True   # kein gültiges Literal → als unbrauchbar behandeln
     return (addr.is_private or addr.is_loopback or addr.is_link_local
             or addr.is_reserved or addr.is_unspecified)
+
+
+def log_safe(value, limit: int = 120) -> str:
+    """Fremdeingabe fürs Log entschärfen: keine Zeilenumbrüche/Steuerzeichen
+    (sonst lassen sich zusätzliche Log-Zeilen unterschieben), gekappte Länge."""
+    text = re.sub(r'[\x00-\x1f\x7f]', ' ', str(value))
+    return text[:limit] + ('…' if len(text) > limit else '')
 
 
 def get_client_ip(req) -> str:
@@ -316,16 +333,22 @@ def get_client_ip(req) -> str:
     Verlassen kann man sich darauf nur so weit wie auf den eigenen Proxy: einen
     X-Forwarded-For-Kopf kann jeder mitschicken. Cloudflare und die üblichen
     Reverse Proxies überschreiben ihn, ein direkt erreichbarer Port nicht.
+    Zurück kommt deshalb immer nur ein geprüftes IP-Literal oder `remote_addr`
+    aus der Verbindung — nie roher Header-Text, der später in Log, Datenbank
+    oder Oberfläche landen würde.
     """
     for header in ('CF-Connecting-IP', 'True-Client-IP', 'X-Real-IP'):
         val = (req.headers.get(header) or '').strip()
-        if val and not _is_internal_ip(val):
+        if val and _is_valid_ip(val) and not _is_internal_ip(val):
             return val
     chain = [p.strip() for p in (req.headers.get('X-Forwarded-For') or '').split(',')]
     for val in chain:
-        if val and not _is_internal_ip(val):
+        if val and _is_valid_ip(val) and not _is_internal_ip(val):
             return val
-    return (chain[0] if chain and chain[0] else None) or req.remote_addr or 'unknown'
+    # Nichts Öffentliches dabei: der erste gültige Eintrag der Kette (LAN-Zugriff),
+    # sonst der direkte Absender.
+    first_valid = next((v for v in chain if v and _is_valid_ip(v)), None)
+    return first_valid or req.remote_addr or 'unknown'
 
 
 def is_rate_limited(ip: str) -> bool:
