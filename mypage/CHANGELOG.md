@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.9.2
+- ⚖️ **KI-erzeugte Bilder werden gekennzeichnet.** Bilder aus „✨ Bild generieren" tragen beim Ausliefern den eingebrannten Hinweis **„KI generiert"** (auf der englischen Seite „AI generated"). Das erfüllt die Transparenzpflicht für KI-Inhalte und ist deshalb **bewusst nicht abschaltbar** — anders als das Wasserzeichen, das eine Komfortfunktion bleibt.
+  - Die Kennzeichnung erscheint auch beim **direkten Aufruf der Bildadresse** und im **erzeugten PDF**. Sonst wäre der Download des PDF oder ein Rechtsklick der einfachste Weg, sie loszuwerden.
+  - Erkannt wird ein KI-Bild am Dateinamen (Endung `-ai`, z. B. `a1b2…-ai.webp`). Der Marker steckt bewusst im Dateinamen statt in einer Liste: so übersteht er Backup und Wiederherstellung und gilt auch, wenn dasselbe Bild in mehreren Einträgen benutzt wird. Wer eine Datei außerhalb des Add-ons umbenennt, verliert die Kennzeichnung.
+- 🖼️ **„Bilder schützen" wirkt jetzt auch in der Bibliothek.** Bisher betraf das Wasserzeichen nur die Fotoalben; ist die Option an, erscheint es nun ebenso im **Titelbild und in den Bildern im Text** eines Bibliothek-Eintrags — auch im erzeugten PDF. Eingebundene Fremd-URLs bleiben unangetastet. Rechtsklick-Sperre bleibt weiterhin den Alben vorbehalten.
+- Sind beide Fälle zusammen gegeben, stehen sie als **eine Zeile** unten rechts: `@deine-domain.de · KI generiert`.
+- Ändert sich der Wasserzeichen-Text, werden **PDFs von Bibliothek-Einträgen neu erzeugt** — vorher hätte ein unveränderter Text weiter das alte PDF mit dem alten Wasserzeichen geliefert.
+
 ## 0.9.1
 - 🖼️ **Medien-Browser: bereits hochgeladene Bilder auswählen, statt sie erneut hochzuladen.** Überall, wo bisher „Hochladen" stand, heißt der Knopf jetzt **„Bild wählen"** und öffnet eine Galerie aller vorhandenen Bilder — neueste zuerst, mit Datum und Dateigröße. Ein Klick übernimmt das Bild ins Feld. Wer doch etwas Neues braucht: **„Neues Bild hochladen"** in derselben Galerie führt zum gewohnten Dateidialog.
 - Verfügbar bei **Titelbild der Bibliothek, Beitrags- und Projektbild, Favicon, Karten-Bild, Mitglieder-Avatar, Team-Fotos, Fotoalben** und im **Markdown-Editor**: Der Bild-Knopf fragt weiterhin nach einer URL — bleibt das Feld leer, kommt jetzt die Galerie statt sofort der Dateidialog.

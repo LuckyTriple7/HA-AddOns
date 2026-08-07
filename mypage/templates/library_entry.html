@@ -7,7 +7,7 @@
   <meta name="description" content="{{ meta_desc }}">
   <meta property="og:title" content="{{ title }}">
   <meta property="og:description" content="{{ meta_desc }}">
-  {% if e.image %}<meta property="og:image" content="{{ e.image }}">{% endif %}
+  {% if hero_img %}<meta property="og:image" content="{{ hero_img }}">{% endif %}
   {% if site.design.favicon %}<link rel="icon" href="{{ site.design.favicon }}">
   {% elif site.profile.avatar %}<link rel="icon" href="{{ site.profile.avatar }}">{% endif %}
   {% if not site.design.allow_indexing %}<meta name="robots" content="noindex, nofollow">{% endif %}
@@ -148,7 +148,7 @@
       {% endif %}
     </div>
 
-    {% if e.image %}<img class="entry-hero" src="{{ e.image }}" alt="">{% endif %}
+    {% if hero_img %}<img class="entry-hero" src="{{ hero_img }}" alt="">{% endif %}
     <div class="page-content">{{ body_html|safe }}</div>
     {% if locked %}<div id="locked-box">{% include '_locked.html' %}</div>{% endif %}
 

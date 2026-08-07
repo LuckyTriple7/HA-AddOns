@@ -299,6 +299,9 @@ _seen_today:  set[str] = set()
 _seen_day:    str = ''
 
 ALLOWED_UPLOAD_EXT = {'.png', '.jpg', '.jpeg', '.gif', '.webp'}
+# Marker im Dateinamen für KI-erzeugte Bilder (`<uuid>-ai.webp`). Daran macht die
+# Auslieferung die vorgeschriebene Kennzeichnung fest — siehe _store_upload_image.
+AI_IMAGE_SUFFIX = '-ai'
 # Dokumente bewusst getrennt: sie dürfen NICHT über /uploads/<name> ausgeliefert
 # werden (dort landen sie inline im Browser), sondern nur über die Bibliothek-Route
 # mit Content-Disposition: attachment.
@@ -3036,6 +3039,27 @@ def _albums_for_public(site: dict, viewer_member: bool = False) -> list:
     return out
 
 
+_MD_IMG_SRC_RE = re.compile(r'(<img\b[^>]*?\bsrc=")/uploads/([^"]+)(")', re.I)
+
+
+def _overlay_url(url: str) -> str:
+    """`/uploads/<name>` → `/img/<name>`; alles andere bleibt, wie es ist.
+
+    Nur über `/img/` kommen Wasserzeichen und KI-Kennzeichnung ins Bild — die
+    offene `/uploads/`-Route liefert immer das unveränderte Original aus.
+    """
+    return ('/img/' + url.removeprefix('/uploads/')) if url.startswith('/uploads/') else url
+
+
+def _overlay_html_images(html: str) -> str:
+    """Bilder in gerendertem Markdown auf die `/img/`-Route umhängen.
+
+    Betrifft nur lokale Uploads; eingebundene Fremd-URLs bleiben unangetastet,
+    weil an ihnen weder Wasserzeichen noch KI-Marker etwas zu suchen haben.
+    """
+    return _MD_IMG_SRC_RE.sub(r'\1/img/\2\3', html)
+
+
 def _normalize_album(raw: dict, existing: dict | None = None) -> dict:
     a = existing or {'id': uuid.uuid4().hex[:12]}
     a['title_de'] = _clean_str(raw.get('title_de'), 120)
@@ -3173,7 +3197,7 @@ def _has_detail(p: dict) -> bool:
 
 # Slugs, die nicht als eigene Seite vergeben werden dürfen (Kollision mit echten Routen)
 RESERVED_SLUGS = {
-    'blog', 'bereich', 'p', 'api', 'uploads', 'fonts', 'cards', 'album-img',
+    'blog', 'bereich', 'p', 'api', 'uploads', 'fonts', 'cards', 'album-img', 'img',
     'impressum', 'datenschutz', 'contact', 'newsletter', 'sitemap', 'sitemap.xml',
     'robots', 'robots.txt', 'feed', 'feed.xml', 'manifest.json', 'sw.js',
     'favicon.ico', 'icon.png', 'health', 'set-lang', 'seite', 'preview', 'static',
@@ -3345,25 +3369,39 @@ def _nav_library(site: dict, loc, t: dict) -> list:
     return [{'href': '/bibliothek', 'label': _library_label(site, loc, t)}]
 
 
-def _lib_pdf_fetcher(url: str):
+def _lib_pdf_fetcher(url: str, lang: str = 'de'):
     """URL-Fetcher für WeasyPrint — liefert ausschließlich lokale Uploads aus.
 
     WeasyPrint lädt referenzierte Ressourcen (`<img src>`, `url()`) sonst selbst
     per HTTP nach. Da der Markdown-Text beliebige Adressen enthalten darf, wäre
     das ein SSRF-Weg in interne Dienste (Supervisor, Router, Metadaten-Endpunkte),
-    dessen Antwort im erzeugten PDF landet. Deshalb: nur `/uploads/<datei>` aus
-    dem lokalen Ordner, alles andere wird abgelehnt.
+    dessen Antwort im erzeugten PDF landet. Deshalb: nur lokale Dateien, alles
+    andere wird abgelehnt.
+
+    `/img/<datei>` bekommt dieselbe Behandlung wie im Web — Wasserzeichen und
+    KI-Kennzeichnung müssen im PDF genauso drin sein, sonst wäre das Herunterladen
+    des PDF der einfachste Weg, die Kennzeichnung loszuwerden.
     """
-    if url.startswith('/uploads/'):
-        target = safe_under(UPLOADS_DIR, url[len('/uploads/'):])
-        if target is not None and target.is_file():
-            return {'file_obj': open(target, 'rb'),
-                    'mime_type': mimetypes.guess_type(target.name)[0] or 'application/octet-stream'}
+    for prefix, overlay in (('/img/', True), ('/uploads/', False)):
+        if not url.startswith(prefix):
+            continue
+        name = url[len(prefix):]
+        target = safe_under(UPLOADS_DIR, name)
+        if target is None or not target.is_file():
+            break
+        if overlay:
+            text = _image_overlay_text(target.name, load_site(), lang)
+            if text:
+                data = _render_watermark(target, text)
+                if data is not None:
+                    return {'file_obj': io.BytesIO(data), 'mime_type': 'image/webp'}
+        return {'file_obj': open(target, 'rb'),
+                'mime_type': mimetypes.guess_type(target.name)[0] or 'application/octet-stream'}
     raise ValueError(f'externe Ressource im PDF blockiert: {url[:80]}')
 
 
 # Bei jeder Änderung an _lib_pdf_html hochzählen — erzwingt Neuaufbau der PDFs.
-_LIB_PDF_LAYOUT = 2
+_LIB_PDF_LAYOUT = 3
 
 
 def _lib_pdf_html(site: dict, entry: dict, lang: str, t: dict) -> str:
@@ -3403,7 +3441,7 @@ hr {{ border: none; border-top: 0.5pt solid #ccc; margin: 5mm 0; }}
 </style></head><body>
 <h1 class="doc-title">{escape(loc(entry, 'title'))}</h1>
 {f'<div class="doc-sub">{escape(subtitle)}</div>' if subtitle else ''}
-{render_md(loc(entry, 'body'))}
+{_overlay_html_images(render_md(loc(entry, 'body')))}
 </body></html>"""
 
 
@@ -3417,7 +3455,11 @@ def _lib_pdf_source_hash(site: dict, entry: dict) -> str:
                       entry.get('title_de'), entry.get('title_en'),
                       entry.get('body_de'), entry.get('body_en'),
                       entry.get('cat'), entry.get('updated'),
-                      site.get('design', {}).get('accent')],
+                      site.get('design', {}).get('accent'),
+                      # Wasserzeichen wird in die Bilder eingebrannt — ändert es
+                      # sich, muss das PDF neu gebaut werden
+                      bool(site.get('album_protect')),
+                      effective_watermark() if site.get('album_protect') else ''],
                      ensure_ascii=False)
     return hashlib.sha256(src.encode('utf-8')).hexdigest()[:16]
 
@@ -3441,7 +3483,8 @@ def _library_pdf_build(site: dict, entry: dict, lang: str = 'de') -> str | None:
     target = safe_under(DOCS_DIR, name)
     if target is None:
         return None
-    _WeasyHTML(string=html, base_url='/', url_fetcher=_lib_pdf_fetcher).write_pdf(target=str(target))
+    _WeasyHTML(string=html, base_url='/',
+               url_fetcher=lambda url: _lib_pdf_fetcher(url, lang)).write_pdf(target=str(target))
     # Vorgänger erst nach erfolgreichem Rendern entfernen
     if _DOC_FILE_RE.match(old):
         old_path = safe_under(DOCS_DIR, old)
@@ -4893,7 +4936,9 @@ def api_ai_image():
         return jsonify({'error': {'refused': 'ai_refused',
                                   'empty': 'ai_empty'}.get(code, 'ai_failed')}), 502
     try:
-        name = _store_upload_image(data)
+        # ai=True → Dateiname trägt den Marker, an dem die Auslieferung später
+        # die Pflicht-Kennzeichnung „KI generiert" festmacht
+        name = _store_upload_image(data, ai=True)
     except Exception as e:
         log.warning("KI-Bild konnte nicht gespeichert werden: %s", e)
         name = None
@@ -5624,7 +5669,8 @@ def api_upload_font():
     return jsonify({'ok': True, 'name': display})
 
 
-def _store_upload_image(src, *, max_side: int = 1600, quality: int = 82) -> str | None:
+def _store_upload_image(src, *, max_side: int = 1600, quality: int = 82,
+                        ai: bool = False) -> str | None:
     """Bild verkleinern, Metadaten verwerfen und als WebP in UPLOADS_DIR ablegen.
 
     `src` ist ein Datei-Objekt oder rohe Bilddaten; zurück kommt der erzeugte
@@ -5636,6 +5682,12 @@ def _store_upload_image(src, *, max_side: int = 1600, quality: int = 82) -> str 
     Logik würde über die Zeit auseinanderlaufen und aus der Datenschutzzusage
     einen Zufall machen. Der UUID-Dateiname ist ebenfalls Pflicht: `_unused_uploads`
     erkennt verwaiste Dateien über einen Vorkommen-Scan im JSON-Text.
+
+    Mit `ai=True` bekommt der Dateiname das Suffix `-ai`. Daran — und nur daran —
+    erkennt die Bild-Auslieferung später, dass sie „KI generiert" einbrennen muss.
+    Der Marker steckt bewusst im Dateinamen statt in site.json: er übersteht
+    Backup und Wiederherstellung, gilt auch für ein Bild, das in mehreren
+    Einträgen benutzt wird, und die Auslieferroute braucht dafür keinen Zustand.
 
     Lesefehler werden bewusst durchgereicht — die Aufrufer entscheiden über den
     Rückfall.
@@ -5649,7 +5701,7 @@ def _store_upload_image(src, *, max_side: int = 1600, quality: int = 82) -> str 
     img.thumbnail((max_side, max_side))
     if img.mode not in ('RGB', 'RGBA'):
         img = img.convert('RGBA' if 'A' in img.getbands() else 'RGB')
-    name = uuid.uuid4().hex + '.webp'
+    name = uuid.uuid4().hex + (AI_IMAGE_SUFFIX if ai else '') + '.webp'
     target = safe_under(UPLOADS_DIR, name)
     if target is None:
         return None
@@ -5861,6 +5913,15 @@ def public_set_lang(lang: str):
 
 @public_app.route('/uploads/<path:filename>')
 def public_uploads(filename: str):
+    """Öffentliche Auslieferung hochgeladener Dateien.
+
+    KI-erzeugte Bilder bekommen auch hier die Kennzeichnung eingebrannt. Sonst
+    wäre der direkte Aufruf dieser Adresse — die in jedem Seitenquelltext steht —
+    der einfachste Weg, an eine ungekennzeichnete Fassung zu kommen; das
+    Wasserzeichen der Alben ist eine Komfortfunktion, die Kennzeichnung nicht.
+    """
+    if _is_ai_image(filename):
+        return _serve_image_with_overlay(filename, detect_language(request))
     return send_from_directory(UPLOADS_DIR, filename, max_age=86400)
 
 
@@ -5949,18 +6010,39 @@ def _render_watermark(src: Path, text: str) -> bytes | None:
         return None
 
 
-@public_app.route('/album-img/<path:filename>')
-def album_image(filename: str):
-    """Album-Bild ausliefern — mit eingebranntem Wasserzeichen, wenn aktiviert."""
+def _is_ai_image(name: str) -> bool:
+    """Ob der Dateiname als KI-erzeugt markiert ist (Suffix `-ai` vor der Endung)."""
+    return Path(name).stem.endswith(AI_IMAGE_SUFFIX)
+
+
+def _image_overlay_text(name: str, site: dict, lang: str) -> str:
+    """Text, der in dieses Bild eingebrannt wird — leer heißt: Original ausliefern.
+
+    Zwei voneinander unabhängige Gründe, kombiniert zu einer Zeile:
+    das Wasserzeichen (nur bei aktivierter Option „Bilder schützen") und die
+    Kennzeichnung KI-erzeugter Bilder. Letztere hängt **nicht** an der Option:
+    sie erfüllt die Transparenzpflicht für KI-Inhalte und darf sich deshalb
+    nicht versehentlich abschalten lassen.
+    """
+    parts = []
+    if site.get('album_protect'):
+        parts.append(effective_watermark())
+    if _is_ai_image(name):
+        parts.append(load_translations(lang).get('img_ai_label') or 'KI generiert')
+    return ' · '.join(p for p in parts if p)
+
+
+def _serve_image_with_overlay(filename: str, lang: str):
+    """Bild ausliefern, bei Bedarf mit eingebranntem Text (Cache in WM_CACHE_DIR)."""
     safe = secure_filename(filename)
     src = safe_under(UPLOADS_DIR, safe)
     if not safe or src is None or not src.is_file():
         abort(404)
-    site = load_site()
-    if not site.get('album_protect'):
+    text = _image_overlay_text(safe, load_site(), lang)
+    if not text:
         return send_from_directory(UPLOADS_DIR, safe, max_age=86400)
-    text = effective_watermark()
-    # Cache-Schlüssel aus Text + Dateiname → Textänderung erzeugt neue Datei
+    # Cache-Schlüssel aus Text + Dateiname → geänderter Text erzeugt eine neue
+    # Datei, alte Stände werden dadurch nie ausgeliefert
     key = hashlib.sha256((text + '|' + safe).encode()).hexdigest()[:24]
     cached = WM_CACHE_DIR / f'{key}.webp'
     if not cached.is_file():
@@ -5969,6 +6051,22 @@ def album_image(filename: str):
             return send_from_directory(UPLOADS_DIR, safe, max_age=86400)
         cached.write_bytes(data)
     return send_file(cached, mimetype='image/webp', max_age=86400)
+
+
+@public_app.route('/album-img/<path:filename>')
+def album_image(filename: str):
+    """Album-Bild ausliefern — mit eingebranntem Wasserzeichen, wenn aktiviert.
+
+    Bleibt als eigener Pfad bestehen, obwohl `/img/` dasselbe tut: die Adresse
+    steckt in bereits veröffentlichten Seiten und in Suchmaschinen-Indizes.
+    """
+    return _serve_image_with_overlay(filename, detect_language(request))
+
+
+@public_app.route('/img/<path:filename>')
+def overlay_image(filename: str):
+    """Bild mit Wasserzeichen/KI-Kennzeichnung — genutzt von der Bibliothek."""
+    return _serve_image_with_overlay(filename, detect_language(request))
 
 
 def _base_url() -> str:
@@ -9761,7 +9859,7 @@ def _lib_view_entries(site: dict, loc, cat: str = '', query: str = '', tag: str 
             'slug': e.get('slug', ''),
             'title': loc(e, 'title'),
             'summary': loc(e, 'summary') or _plain_excerpt(render_md(loc(e, 'body'))),
-            'image': e.get('image') or '',
+            'image': _overlay_url(e.get('image') or ''),
             'tags': e.get('tags') or [],
             'updated': e.get('updated') or '',
             'cat_name': (loc(c, 'name') if c else ''),
@@ -9849,11 +9947,12 @@ def _render_library_entry(site: dict, entry: dict, lang: str, preview: bool = Fa
     loc = _loc_factory(lang)
     cat = next((c for c in _library(site).get('categories', [])
                 if c.get('id') == entry.get('cat')), None)
-    full_html = render_md(loc(entry, 'body'))
+    full_html = _overlay_html_images(render_md(loc(entry, 'body')))
     locked = bool(entry.get('members_only')) and not preview and not is_member(request)
     body_html = ('<p>' + _locked_teaser(full_html) + '</p>') if locked else full_html
     return render_template(
         'library_entry.html', t=t, lang=lang, site=site, loc=loc, e=entry,
+        hero_img=_overlay_url(entry.get('image') or ''),
         heading=_library_label(site, loc, t),
         title=loc(entry, 'title') or t.get('library_untitled', ''),
         body_html=body_html, locked=locked,

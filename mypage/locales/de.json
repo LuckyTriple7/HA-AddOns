@@ -1207,7 +1207,7 @@
   "album_uploading": "Lade hoch … {n}/{total}",
   "album_protect": "Bilder schützen",
   "watermark_text": "Wasserzeichen-Text",
-  "album_protect_hint": "Brennt das Wasserzeichen in alle Album-Bilder ein und deaktiviert Rechtsklick/Ziehen. Hinweis: ein vollständiger Download-Schutz ist im Web technisch nicht möglich (Screenshots bleiben immer). Leeres Textfeld = „© deine-domain.de\".",
+  "album_protect_hint": "Brennt das Wasserzeichen in alle Album- und Bibliothek-Bilder ein und deaktiviert in den Alben Rechtsklick/Ziehen. Hinweis: ein vollständiger Download-Schutz ist im Web technisch nicht möglich (Screenshots bleiben immer). Leeres Textfeld = „© deine-domain.de“.",
   "field_long": "Detailtext (Markdown)",
   "long_hint": "Mit Detailtext oder Galerie bekommt das Projekt eine eigene Unterseite, die von der Karte aus verlinkt wird.",
   "field_gallery": "Galerie",
@@ -2352,5 +2352,7 @@
   "uploads_pick_empty": "Noch keine Bilder hochgeladen.",
   "uploads_pick_count": "{n} Bilder — neueste zuerst.",
   "uploads_pick_capped": "Neueste {n} von {t} Bildern.",
-  "uploads_pick_unused": "unbenutzt"
+  "uploads_pick_unused": "unbenutzt",
+  "img_ai_label": "KI generiert",
+  "img_ai_hint": "KI-erzeugte Bilder tragen immer den Hinweis „KI generiert“ — unabhängig von dieser Einstellung."
 }

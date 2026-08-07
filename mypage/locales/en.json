@@ -1207,7 +1207,7 @@
   "album_uploading": "Uploading … {n}/{total}",
   "album_protect": "Protect images",
   "watermark_text": "Watermark text",
-  "album_protect_hint": "Burns the watermark into all album images and disables right-click/drag. Note: full download protection is technically impossible on the web (screenshots always remain). Empty field = \"© your-domain.com\".",
+  "album_protect_hint": "Burns the watermark into all album and library images and disables right-click/dragging in the albums. Note: complete download protection is technically impossible on the web (screenshots always remain). Empty text field = “© your-domain.com”.",
   "field_long": "Detail text (Markdown)",
   "long_hint": "With a detail text or gallery the project gets its own subpage, linked from the card.",
   "field_gallery": "Gallery",
@@ -2352,5 +2352,7 @@
   "uploads_pick_empty": "No images uploaded yet.",
   "uploads_pick_count": "{n} images — newest first.",
   "uploads_pick_capped": "Newest {n} of {t} images.",
-  "uploads_pick_unused": "unused"
+  "uploads_pick_unused": "unused",
+  "img_ai_label": "AI generated",
+  "img_ai_hint": "AI-generated images always carry the note “AI generated” — regardless of this setting."
 }
