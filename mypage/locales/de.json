@@ -2327,5 +2327,6 @@
   "library_copy": "Kopieren",
   "library_copied": "Kopie angelegt (Entwurf)",
   "library_copy_suffix": "(Kopie)",
-  "field_tags_short": "Schlagwörter"
+  "field_tags_short": "Schlagwörter",
+  "library_open": "Zur Übersicht"
 }

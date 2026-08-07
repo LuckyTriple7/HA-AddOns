@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.15
+- 🏷️ **Schlagwort-Filter jetzt auch im Startseiten-Abschnitt.** Unter der Überschrift der Sammlung steht eine Chip-Reihe mit allen Schlagwörtern der angerissenen Einträge; ein Klick filtert die Kacheln **ohne Neuladen** der Startseite. Bisher gab es die Filter nur auf `/bibliothek`.
+- 🔗 **Weg zur Übersicht.** Der Link unter dem Abschnitt („Zur Übersicht →") erschien bisher nur, wenn es mehr Einträge gab als angerissen — bei wenigen Einträgen führte von der Startseite also **gar nichts** zu `/bibliothek`. Er steht jetzt immer da und übernimmt ein gewähltes Schlagwort (`/bibliothek?tag=…`), damit auch Treffer außerhalb des Anrisses erreichbar sind.
+- Ist der Bibliothek-Abschnitt im Tab *Inhalt* ausgeblendet oder auf Mitglieder beschränkt, erscheint die Sammlung in der Navigation jetzt als **echter Link** auf `/bibliothek` statt als Sprungmarke ins Leere. Steht der Abschnitt sichtbar auf der Startseite, bleibt es beim Anker — nicht beides.
+- Fix: In der Chip-Reihe standen Schlagwörter, die sich nur in der Groß-/Kleinschreibung unterschieden, doppelt („Griechenland" und „griechenland"). Startseite und Übersicht fassen sie jetzt gleich zusammen.
+
 ## 0.8.14
 - 📋 **Bibliothek: Kopieren-Knopf je Eintrag.** Legt ein Duplikat direkt hinter dem Original an — mit Text, Bild, Kategorie, Schlagwörtern und PDF-Einstellung, aber **als Entwurf** (eine Kopie wird fast immer noch überarbeitet und stünde sonst sofort ein zweites Mal öffentlich und in der Sitemap). Der Titel bekommt je Sprache das passende Suffix („(Kopie)" / „(copy)"), der Dialog öffnet sich gleich zum Bearbeiten. Ein hochgeladenes PDF wird als **eigene Datei** kopiert — sonst hätte das Löschen des einen Eintrags dem anderen die Datei weggenommen.
 - 🏷️ **Bibliothek: Schlagwort-Filter auf der Übersicht.** Unter den Kategorie-Chips steht jetzt eine Reihe mit allen vergebenen Schlagwörtern; ein Klick filtert die Kacheln, ein erneuter Klick hebt den Filter auf. Kategorie, Schlagwort und Suchfeld lassen sich frei kombinieren, jeder Chip behält die übrigen Filter bei. Groß-/Kleinschreibung wird zusammengefasst. Auf der Eintragsseite sind die Schlagwörter jetzt Links auf die gefilterte Übersicht.

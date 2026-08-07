@@ -2327,5 +2327,6 @@
   "library_copy": "Duplicate",
   "library_copied": "Copy created (draft)",
   "library_copy_suffix": "(copy)",
-  "field_tags_short": "Tags"
+  "field_tags_short": "Tags",
+  "library_open": "Browse all"
 }

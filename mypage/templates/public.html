@@ -356,6 +356,15 @@
     .lib-flags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; font-size: 0.72rem; color: var(--muted); }
     .lib-flag { border: 1px solid var(--border); border-radius: 999px; padding: 1px 8px; }
     .lib-more { margin-top: 14px; font-size: 0.9rem; }
+    .lib-tagbar { display: flex; flex-wrap: wrap; gap: 7px; margin: -8px 0 16px; }
+    .lib-tag {
+      font-family: inherit; font-size: 0.75rem; padding: 4px 12px; border-radius: 999px;
+      color: var(--muted); background: var(--surf); border: 1px solid var(--border);
+      cursor: pointer; transition: border-color .15s, color .15s;
+    }
+    .lib-tag:hover { border-color: var(--accent); color: var(--text); }
+    .lib-tag.active { border-color: var(--accent); color: var(--accent); }
+    .lib-card[hidden] { display: none; }
     /* Referenzen */
     .tm-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
     .tm-card { background: var(--surf); border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin: 0; }
@@ -707,11 +716,19 @@
     {% elif _sec == 'library' %}
     {% if library_entries %}
     <h2 class="section-title" id="library">{{ library_heading }}</h2>
+    {% if library_tags %}
+    <div class="lib-tagbar" id="lib-tagbar">
+      <button type="button" class="lib-tag active" data-tag="">{{ t.library_all }}</button>
+      {% for tg in library_tags %}
+      <button type="button" class="lib-tag" data-tag="{{ tg|lower }}">{{ tg }}</button>
+      {% endfor %}
+    </div>
+    {% endif %}
     <div class="lib-rail-wrap">
       <button class="lib-arrow lib-prev" onclick="libRailScroll(-1)" aria-label="{{ t.aria_back }}">‹</button>
       <div class="lib-rail" id="lib-rail">
         {% for le in library_entries %}
-        <a class="lib-card" href="/bibliothek/{{ le.slug }}">
+        <a class="lib-card" href="/bibliothek/{{ le.slug }}" data-tags="{{ le.tags|map('lower')|join('|') }}">
           {% if le.image %}<img class="lib-thumb" src="{{ le.image }}" alt="" loading="lazy">{% endif %}
           <div class="lib-body">
             {% if le.cat_name %}<div class="lib-cat">{% if le.cat_icon %}{{ le.cat_icon }} {% endif %}{{ le.cat_name }}</div>{% endif %}
@@ -727,9 +744,9 @@
       </div>
       <button class="lib-arrow lib-next" onclick="libRailScroll(1)" aria-label="{{ t.aria_next }}">›</button>
     </div>
-    {% if library_total > library_entries|length %}
-    <div class="lib-more"><a href="/bibliothek">{{ t.library_all }} →</a></div>
-    {% endif %}
+    <div class="lib-more">
+      <a href="/bibliothek" id="lib-more-link">{{ t.library_open }} →</a>
+    </div>
     {% endif %}
 
     {% elif _sec == 'services' %}
@@ -1207,6 +1224,29 @@
       window.addEventListener('resize', updateLibArrows);
       window.addEventListener('load', updateLibArrows);
       updateLibArrows();
+    }
+
+    // Schlagwort-Filter im Karussell — im Browser, ohne Neuladen der Startseite.
+    // Gefiltert werden die angerissenen Karten; „Alle anzeigen" führt auf die
+    // vollständige Übersicht und übernimmt dabei das gewählte Schlagwort.
+    const libTagbar = document.getElementById('lib-tagbar');
+    if (libTagbar && libRail) {
+      libTagbar.addEventListener('click', e => {
+        const btn = e.target.closest('.lib-tag');
+        if (!btn) return;
+        const tag = btn.dataset.tag || '';
+        libTagbar.querySelectorAll('.lib-tag').forEach(b => b.classList.toggle('active', b === btn));
+        libRail.querySelectorAll('.lib-card').forEach(card => {
+          const tags = (card.dataset.tags || '').split('|').filter(Boolean);
+          card.hidden = !(!tag || tags.includes(tag));
+        });
+        // Der Link zur vollen Übersicht übernimmt das gewählte Schlagwort — dort
+        // stehen auch Treffer, die außerhalb des Anrisses liegen.
+        const link = document.getElementById('lib-more-link');
+        if (link) link.href = tag ? '/bibliothek?tag=' + encodeURIComponent(tag) : '/bibliothek';
+        libRail.scrollTo({ left: 0, behavior: 'smooth' });
+        updateLibArrows();
+      });
     }
 
     // Karte erst auf Klick laden (datenschutzfreundlich, OpenStreetMap)

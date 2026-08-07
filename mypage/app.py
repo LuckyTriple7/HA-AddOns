@@ -8016,6 +8016,9 @@ def public_index():
     # also nicht länger. 12 statt 6 Karten, darüber verweist „Alle anzeigen".
     library_entries = _lib_view_entries(site, loc)[:12]
     library_total = len(_lib_public_entries(site))
+    # Schlagwörter nur aus den gezeigten Karten — die Filterleiste auf der Startseite
+    # arbeitet im Browser über genau diese Kacheln, ein Chip ohne Treffer wäre eine Sackgasse.
+    library_tags = _lib_tag_list(library_entries)
 
     loc_block = sections.get('location') or {}
     loc_present = bool(loc_block.get('address') or loc_block.get('hours_de') or loc_block.get('hours_en'))
@@ -8125,8 +8128,12 @@ def public_index():
         if contact_enabled:
             nav_items.append({'anchor': 'kontakt', 'label': t.get('contact_heading', 'contact_heading')})
         # Eigene Seiten und Formulare als echte Links (mit Navi-Schalter) anhängen.
-        # Die Bibliothek steckt hier schon als Abschnitt in der Leiste.
-        nav_items += _nav_links(site, loc, t, with_library=False)
+        # Die Bibliothek nur dann als eigenen Link, wenn sie hier NICHT schon als
+        # Abschnitt in der Leiste steht — sonst stünde sie doppelt. Ist der Abschnitt
+        # ausgeblendet oder auf Mitglieder beschränkt, bleibt der Link der einzige Weg
+        # zur Übersicht.
+        lib_in_nav = 'library' in section_order and section_defs['library'][2]
+        nav_items += _nav_links(site, loc, t, with_library=not lib_in_nav)
 
     return render_template('public.html', t=t, lang=lang, site=site, loc=loc,
                            projects=projects,
@@ -8140,6 +8147,7 @@ def public_index():
                            latest_posts=latest_posts,
                            library_entries=library_entries,
                            library_total=library_total,
+                           library_tags=library_tags,
                            library_heading=library_heading,
                            countdown_title=countdown_title,
                            newsletter_open=newsletter_open() and not static_export,
@@ -9408,19 +9416,24 @@ def _lib_used_categories(site: dict, loc) -> list:
             if c.get('id') in used and loc(c, 'name')]
 
 
-def _lib_used_tags(site: dict) -> list:
-    """Schlagwörter aller sichtbaren Einträge, alphabetisch, ohne Dubletten.
+def _lib_tag_list(entries: list) -> list:
+    """Schlagwörter der übergebenen Einträge, alphabetisch, ohne Dubletten.
 
-    Groß-/Kleinschreibung wird zusammengefasst, angezeigt wird die erste
-    vorkommende Schreibweise.
+    Groß-/Kleinschreibung wird zusammengefasst (»Griechenland« und »griechenland«
+    sind ein Chip), angezeigt wird die erste vorkommende Schreibweise.
     """
     seen = {}
-    for e in _lib_public_entries(site):
+    for e in entries:
         for tag in (e.get('tags') or []):
             key = str(tag).lower()
             if key and key not in seen:
                 seen[key] = str(tag)
     return [seen[k] for k in sorted(seen)]
+
+
+def _lib_used_tags(site: dict) -> list:
+    """Schlagwörter aller öffentlich sichtbaren Einträge."""
+    return _lib_tag_list(_lib_public_entries(site))
 
 
 def _lib_filter_url(cat: str = '', tag: str = '', query: str = '') -> str:
