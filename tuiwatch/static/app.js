@@ -302,13 +302,12 @@
 
     function renderTagPills(offers){
       const el = $('#tag-pills');
-      // Nur Tags der aktuell sichtbaren Ansicht: Preisverlauf ist exklusiv, die
-      // normale Ansicht zeigt aktive Angebote (+ Archiv nur wenn eingeblendet).
-      // Sonst stehen hier Pills für Angebote, die gar nicht in der Liste sind —
-      // und Tags der sichtbaren Liste fehlen.
-      const vis = (offers||[]).filter(o => showHistOnly
-        ? (o.history_only && !o.archived)
-        : (o.archived ? showArchived : !o.history_only));
+      // Nur Tags der aktuell sichtbaren Ansicht: Preisverlauf und Archiv sind
+      // exklusive Filter, sonst stehen hier Pills für Angebote, die gar nicht in
+      // der Liste sind — und Tags der sichtbaren Liste fehlen.
+      const vis = (offers||[]).filter(o => showHistOnly ? (o.history_only && !o.archived)
+        : showArchived ? o.archived
+        : (!o.archived && !o.history_only));
       const all = new Set();
       vis.forEach(o => (o.tags||[]).forEach(t => all.add(t)));
       // Aktive Filter-Tags, die es in dieser Ansicht nicht gibt, abwählen — ein
@@ -352,6 +351,13 @@
         // Preisverlauf-Filter ist exklusiv: nur diese Angebote, sonst nichts.
         html = hist.length ? hist.map(offerCard).join('')
           : '<div class="empty">Keine Angebote im Preisverlauf-Tracking.</div>';
+      } else if(showArchived){
+        // Archiv-Filter ebenso exklusiv: nur archivierte Angebote, sonst nichts.
+        const arch = sortOffers(list2.filter(o=>o.archived));
+        html = arch.length
+          ? `<div class="arch-head">📦 Archiv (${arch.length}) — abgelaufene oder manuell archivierte Reisen (keine Live-Abfragen)</div>`
+            + arch.map(offerCard).join('')
+          : '<div class="empty">Keine archivierten Angebote.</div>';
       } else {
         // Fremde Angebote (nicht für mich) stehen immer am Ende — unabhängig von
         // der gewählten Sortierung, die innerhalb der Blöcke gilt. Je Liste ein
@@ -373,11 +379,8 @@
             + `<button class="rename-btn" data-fl-action="dissolve" data-list="${esc(name)}" title="Liste auflösen — Angebote zurück in die normale Liste">✖</button>`
             + `</div>` + g.map(offerCard).join('');
         });
-        if(!active.length && !foreign.length && arch.length && !showArchived){
-          html = `<div class="empty">Keine aktiven Angebote — ${arch.length} im Archiv. „Archiv" oben einblenden.</div>`;
-        }
-        if(showArchived && arch.length){
-          html += `<div class="arch-head">📦 Archiv (${arch.length}) — abgelaufene oder manuell archivierte Reisen (keine Live-Abfragen)</div>` + arch.map(offerCard).join('');
+        if(!active.length && !foreign.length && arch.length){
+          html = `<div class="empty">Keine aktiven Angebote — ${arch.length} im Archiv. „Archiv" oben anhaken.</div>`;
         }
       }
       box.innerHTML = html;
@@ -5480,10 +5483,22 @@
 
     $('#sort').value = sortMode;
     $('#sort').addEventListener('change', e=>{ sortMode = e.target.value; localStorage.setItem('tw-sort', sortMode); renderAll(curOffers||[]); });
+    // Archiv und Preisverlauf sind exklusive Ansichten (nur diese Angebote) und
+    // schließen sich gegenseitig aus — beide an wäre eine leere Schnittmenge.
+    function setViewFilter(which, on){
+      showArchived = which==='archived' ? on : (on ? false : showArchived);
+      showHistOnly = which==='hist'     ? on : (on ? false : showHistOnly);
+      localStorage.setItem('tw-show-archived', showArchived?'1':'0');
+      localStorage.setItem('tw-show-histonly', showHistOnly?'1':'0');
+      $('#show-archived').checked = showArchived;
+      $('#show-histonly').checked = showHistOnly;
+      renderAll(curOffers||[]);
+    }
+    if(showArchived && showHistOnly) showArchived = false;   // Altstand aus localStorage
     $('#show-archived').checked = showArchived;
-    $('#show-archived').addEventListener('change', e=>{ showArchived = e.target.checked; localStorage.setItem('tw-show-archived', showArchived?'1':'0'); renderAll(curOffers||[]); });
+    $('#show-archived').addEventListener('change', e=>setViewFilter('archived', e.target.checked));
     $('#show-histonly').checked = showHistOnly;
-    $('#show-histonly').addEventListener('change', e=>{ showHistOnly = e.target.checked; localStorage.setItem('tw-show-histonly', showHistOnly?'1':'0'); renderAll(curOffers||[]); });
+    $('#show-histonly').addEventListener('change', e=>setViewFilter('hist', e.target.checked));
 
     if('serviceWorker' in navigator){ try{ navigator.serviceWorker.register((G.base||'')+'/sw.js', {scope:(G.base||'')+'/'}); }catch(e){} }
 

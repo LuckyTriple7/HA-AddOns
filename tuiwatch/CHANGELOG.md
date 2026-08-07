@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.83.3] - 2026-08-07
+
+### Changed
+- **Schalter „Archiv" zeigt jetzt nur noch die archivierten Angebote** — wie
+  „Preisverlauf" für die Verlaufs-Hotels, statt das Archiv zusätzlich unter die
+  aktive Liste zu hängen. Beide Schalter schließen sich gegenseitig aus (der eine
+  hakt den anderen ab); die Tag-Pillen zeigen entsprechend nur die Tags der
+  gerade sichtbaren Angebote.
+
 ## [0.83.2] - 2026-08-07
 
 ### Changed
