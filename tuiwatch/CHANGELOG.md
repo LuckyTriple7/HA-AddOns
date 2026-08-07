@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.82.1] - 2026-08-07
+
+### Fixed
+- **Listen ließen sich nicht umbenennen** („Uncaught SyntaxError: missing ) after
+  argument list"). Für die ✎/✖-Knöpfe wurde eine zweite Hilfsfunktion `jsArg`
+  angelegt — den Namen gab es in app.js aber schon, mit anderer Bedeutung (escapt
+  für einfache Anführungszeichen, setzt selbst keine). Die spätere Deklaration
+  gewinnt, also stand im Attribut `renameForeignList(Für andere)` statt
+  `renameForeignList("Für andere")`. Listennamen sind freier Text und stehen
+  jetzt gar nicht mehr in einem Inline-Script, sondern in `data-list`; geklickt
+  wird über Event-Delegation. Damit sind auch Namen mit Anführungszeichen,
+  Klammern oder Backslash unproblematisch (im Browser gegengeprüft).
+
 ## [0.82.0] - 2026-08-07
 
 ### Added

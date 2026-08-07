@@ -84,9 +84,18 @@
       const s = new Set((curOffers||[]).filter(o=>o.is_foreign).map(foreignListOf));
       return [...s].sort((a,b)=>a.localeCompare(b,'de'));
     }
-    // String als JS-Argument in ein onclick-Attribut: JSON escapt für JS,
-    // &quot; für HTML — anders als esc() auch bei Namen mit Anführungszeichen.
-    function jsArg(s){ return JSON.stringify(String(s)).replace(/&/g,'&amp;').replace(/"/g,'&quot;'); }
+    // Listennamen sind frei gewählter Text und stehen deshalb NIE als Argument in
+    // einem onclick-Attribut (Anführungszeichen, Klammern, Umlaute → kaputtes
+    // Inline-Script), sondern in data-list. Geklickt wird über Delegation.
+    document.addEventListener('click', e=>{
+      const t = e.target.closest && e.target.closest('[data-fl-action]');
+      if(!t) return;
+      const name = t.dataset.list || '';
+      const act = t.dataset.flAction;
+      if(act==='rename') renameForeignList(name);
+      else if(act==='dissolve') dissolveForeignList(name);
+      else if(act==='pick') setForeignList(name);
+    });
 
     // Listen-Auswahl: bestehende Liste wählen, neue anlegen oder Angebot(e) aus
     // der Liste nehmen. Ziel sind ein Angebot (Karte) oder die Sammelauswahl.
@@ -108,7 +117,7 @@
       $('#fl-body').innerHTML =
         (names.length
           ? `<div class="fl-list">` + names.map(n =>
-              `<button class="btn sec fl-pick${n===curName?' active':''}" onclick="setForeignList(${jsArg(n)})">👥 ${esc(n)}${n===curName?' ✓':''}</button>`
+              `<button class="btn sec fl-pick${n===curName?' active':''}" data-fl-action="pick" data-list="${esc(n)}">👥 ${esc(n)}${n===curName?' ✓':''}</button>`
             ).join('') + `</div>`
           : `<div class="hint">Noch keine Liste vorhanden — leg die erste an.</div>`)
         + `<div class="fl-new"><input id="fl-name" maxlength="40" placeholder="Neue Liste, z. B. Oma und Opa"
@@ -294,8 +303,8 @@
         [...groups.keys()].sort((a,b)=>a.localeCompare(b,'de')).forEach(name=>{
           const g = sortOffers(groups.get(name));
           html += `<div class="arch-head">👥 ${esc(name)} (${g.length}) — keine Benachrichtigungen`
-            + `<button class="rename-btn" onclick="renameForeignList(${jsArg(name)})" title="Liste umbenennen">✎</button>`
-            + `<button class="rename-btn" onclick="dissolveForeignList(${jsArg(name)})" title="Liste auflösen — Angebote zurück in die normale Liste">✖</button>`
+            + `<button class="rename-btn" data-fl-action="rename" data-list="${esc(name)}" title="Liste umbenennen">✎</button>`
+            + `<button class="rename-btn" data-fl-action="dissolve" data-list="${esc(name)}" title="Liste auflösen — Angebote zurück in die normale Liste">✖</button>`
             + `</div>` + g.map(offerCard).join('');
         });
         if(!active.length && !foreign.length && arch.length && !showArchived){
