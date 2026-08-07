@@ -626,19 +626,25 @@
                  <button class="icon-btn" style="color:var(--red)" onclick="delOffer(${o.id})" title="Löschen">
                    <svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
                  </button>`
-              : `<button class="btn sec" onclick="checkOne(${o.id})">Prüfen</button>
-                 <button class="btn sec" onclick="openHistory(${o.id})">Verlauf</button>
+              : `<button class="btn sec" onclick="openHistory(${o.id})">Verlauf</button>
                  <button class="btn sec${o.calendar_alert?' cal-alert':''}" onclick="openCalendar(${o.id})" title="${o.calendar_alert?'Preisänderung im Kalender seit letztem Öffnen! · ':''}Preis je Abreisetag (Preiskalender)">Kalender</button>
                  <button class="btn sec" onclick="pendingStartId=null;openRooms(${o.id})" title="Zimmerkategorie wählen (Standard = günstigstes)">Zimmer</button>
                  ${o.comparable?`<button class="btn sec" onclick="openCompare(${o.id})" title="Preis pro Person für andere Reisendenzahl vergleichen">Vergleich</button>`:''}
                  <button class="btn sec ai-feature" onclick="openBookingScore(${o.id})" title="KI-Buchungsscore: jetzt buchen, beobachten oder warten?">Buchungsscore</button>
                  <button class="btn sec" onclick="openNights(${o.id})" title="Preise für kürzere/längere Reisedauern vergleichen">Nächte</button>
                  <button class="btn sec" onclick="openSearchFromOffer(${o.id})" title="Weitere Hotels dieser Region suchen (Filter aus dem Angebot)">Region</button>
+                 <button class="btn sec ai-feature${offerHasClimate(o)?' has-climate':''}" onclick="openClimateFromOffer(${o.id})" title="${offerHasClimate(o)
+                    ? 'Klimatabelle zu diesem Ziel liegt gespeichert vor — Öffnen kostet nichts'
+                    : 'Klimatabelle des Reiseziels: Temperatur, Wassertemperatur, Regentage und Sonnenstunden je Monat. Wird beim ersten Öffnen von der KI erstellt.'}">Klima</button>
                  <button class="btn sec ai-feature${offerHasGuide(o)?' has-guide':''}" onclick="openGuideFromOffer(${o.id})" title="${offerHasGuide(o)
                     ? 'Reiseführer zu diesem Ziel liegt gespeichert vor — Öffnen kostet nichts'
                     : 'Reiseführer zum Reiseziel: Einreise, Gesundheit, Geld, Mobilität, Sicherheit, Kultur, Don\'t Dos, Insider-Tipps — inklusive Klimatabelle. Wird beim ersten Öffnen von der KI erstellt.'}">Reiseführer</button>
-                 <!-- Pausieren/Archivieren nur noch als Symbol: die Zeile war mit elf
-                      beschrifteten Knöpfen zu voll für einen weiteren. -->
+                 <!-- Ab hier nur noch Symbole: die Zeile war mit elf beschrifteten
+                      Knöpfen zu voll für einen weiteren. „Prüfen" steht deshalb
+                      seit v0.88.0 als Lupe bei den übrigen Symbolen rechts. -->
+                 <button class="icon-btn" onclick="checkOne(${o.id})" title="Preis jetzt prüfen">
+                   <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+                 </button>
                  <button class="icon-btn" onclick="togglePause(${o.id}, ${o.paused})" title="${o.paused?'Automatische Prüfung fortsetzen':'Automatische Prüfung aussetzen'}">
                    ${o.paused
                      ? '<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>'
@@ -3024,6 +3030,7 @@
           return null;
         }
         climateData = d;
+        loadClimateLabels();   // neu erzeugt → Knopf am Angebot grün markieren
         return d;
       } catch(e){
         if(!silent) $('#climate-body').innerHTML = aiErrorBlock('Klimadaten konnten nicht geladen werden.', false);
@@ -3341,6 +3348,25 @@
     let climateTarget = null;
     let climateFromSearch = false;
 
+    // Grüner Rahmen am „Klima"-Knopf des Angebots, wenn zu diesem Ziel schon eine
+    // Tabelle gespeichert ist — gleiche Mechanik und gleicher Vorbehalt wie beim
+    // Reiseführer, siehe offerHasGuide().
+    let climateLabels = new Set();
+    function offerHasClimate(o){
+      const k = String((o && (o.region || o.country)) || '').trim().toLowerCase();
+      return !!k && climateLabels.has(k);
+    }
+    async function loadClimateLabels(){
+      let items = [];
+      try { items = (await fetch(api('/api/climate')).then(r=>r.json())).items || []; }
+      catch(e){ return; }
+      const next = new Set(items.map(i=>String(i.label||'').trim().toLowerCase()).filter(Boolean));
+      const same = next.size === climateLabels.size && [...next].every(x=>climateLabels.has(x));
+      climateLabels = next;
+      if(!same && curOffers && curOffers.length){ lastSig = null; renderAll(curOffers); }
+    }
+    loadClimateLabels();
+
     // Von der Hauptseite ohne Reiseziel: Liste der bereits gespeicherten Tabellen.
     // Neue Ziele entstehen über die Suche — dort gibt es einen Ziel-Picker, hier
     // nicht, und ein zweiter Picker nur fürs Klima wäre doppelte Bedienung.
@@ -3373,6 +3399,7 @@
       try { await fetch(api('/api/climate/'+giata), {method:'DELETE'}); }
       catch(e){ toast('Löschen fehlgeschlagen'); return; }
       if(climateData && climateData.giata === giata) climateData = null;
+      loadClimateLabels();   // Marke am Angebot wieder entfernen
       renderClimateList();
     }
     // Ohne Argumente: aus der Suche heraus das dortige Ziel, sonst die Liste.
@@ -3398,6 +3425,15 @@
         '<div class="cmp-load">Die Klimatabelle wird gerade schon geladen — Fenster kurz schließen und gleich noch einmal öffnen.</div>';
       else if(!aiEnabled()) $('#climate-body').innerHTML =
         '<div class="cmp-load">Für dieses Ziel ist noch keine Klimatabelle gespeichert — sie wird von der KI erstellt, dafür muss ein KI-Key hinterlegt sein.</div>';
+    }
+    // Aus der Angebotsliste — wie openGuideFromOffer: das Angebot kennt nur die
+    // Hotel-giataId, die Klimatabelle hängt an der Region, die der Server auflöst.
+    async function openClimateFromOffer(id){
+      let d;
+      try { d = await fetch(api('/api/offers/'+id+'/dest')).then(r=>r.json()); }
+      catch(e){ toast('Reiseziel konnte nicht ermittelt werden'); return; }
+      if(!d || !d.giata){ toast(d && d.note ? d.note : 'Reiseziel konnte nicht ermittelt werden'); return; }
+      openClimate(d.giata, d.label);
     }
     function closeClimate(){
       // Eine noch offene Prompt-Vorschau abbrechen — sonst bleibt das Promise

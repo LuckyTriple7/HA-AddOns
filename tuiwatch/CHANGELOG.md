@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.88.0] - 2026-08-07
+
+### Added
+- **Knopf „Klima" am Angebot** (links neben „Reiseführer"): öffnet die Klimatabelle
+  der Region direkt aus der Liste, ohne den Umweg über Suche oder Kopfzeile. Wie
+  beim Reiseführer leuchtet der Knopf **grün**, wenn die Tabelle zu diesem Ziel
+  bereits gespeichert ist — dann kostet das Öffnen keinen KI-Aufruf.
+
+### Changed
+- **„Prüfen" ist jetzt ein Lupensymbol** und steht rechts bei den übrigen
+  Symbolknöpfen. Die Zeile war mit den beschrifteten Knöpfen bereits am Anschlag;
+  so bleibt Platz für „Klima".
+
 ## [0.87.4] - 2026-08-07
 
 ### Fixed

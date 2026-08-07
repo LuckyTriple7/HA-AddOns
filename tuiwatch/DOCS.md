@@ -132,6 +132,10 @@ Passatwind, Hochsaison …) und die aus Wetter-Sicht besten Monate (★).
   erscheint die Liste aller bereits gespeicherten Ziele (mit Erstellungsdatum und 🗑
   zum Löschen), Klick öffnet die Tabelle. Neue Ziele entstehen über die Suche — nur
   dort gibt es einen Ziel-Picker.
+- **Direkt am Angebot** über den Knopf **Klima** (links neben „Reiseführer"): öffnet
+  die Tabelle für die **Region** des Angebots — der Server löst sie aus der Hotel-
+  giataId auf. Ist sie schon gespeichert, leuchtet der Knopf **grün** und das Öffnen
+  kostet keinen KI-Aufruf; ohne Rahmen wird sie beim ersten Klick von der KI erstellt.
 - **Automatisch nach jeder Suche vorgeladen**, sofern eine KI konfiguriert ist: beim
   ersten Mal je Ziel kostet das einen KI-Aufruf, danach nie wieder. So steht die
   Tabelle beim Klick sofort da.
@@ -816,7 +820,7 @@ landen dauerhaft im **KI-Verlauf**.
 - **Sammelaktionen** — Angebote per Checkbox auswählen; in der erscheinenden Leiste lassen sich die ausgewählten gemeinsam **prüfen, als E-Mail senden, archivieren oder löschen** (E-Mail fragt den Empfänger ab und sendet nur die markierten aktiven Angebote).
 - **Trend-Hinweis** — je Angebot zeigt ein kleines Badge die Tendenz aus dem bisherigen Verlauf (↘ fällt / ↗ steigt / → stabil).
 - **Umbenennen** (✎ neben dem Namen) — eigenen Namen vergeben; leer = Hotelname.
-- **Prüfen** — ein Angebot sofort neu abfragen.
+- **Prüfen** (🔍-Symbol rechts in der Knopfzeile) — ein Angebot sofort neu abfragen.
 - **Alle prüfen** — alle Angebote abfragen.
 - **🤖 KI-Verlauf** (nur mit hinterlegtem `anthropic_api_key`) — bisherige
   KI-Fazits/-Vergleiche einsehen, siehe [KI-Fazit, -Vergleich & -Verlauf](#ki-fazit--vergleich--verlauf).
