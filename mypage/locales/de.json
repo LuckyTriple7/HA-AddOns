@@ -2354,5 +2354,6 @@
   "uploads_pick_capped": "Neueste {n} von {t} Bildern.",
   "uploads_pick_unused": "unbenutzt",
   "img_ai_label": "KI generiert",
-  "img_ai_hint": "KI-erzeugte Bilder tragen immer den Hinweis „KI generiert“ — unabhängig von dieser Einstellung."
+  "img_ai_hint": "KI-erzeugte Bilder tragen immer den Hinweis „KI generiert“ — unabhängig von dieser Einstellung.",
+  "library_protect_hint": "Brennt das Wasserzeichen in Titelbilder und Bilder im Text der Bibliothek-Einträge ein — auch im erzeugten PDF. Dieselbe Einstellung wie bei den Fotoalben: eine Änderung hier wirkt auch dort. Leeres Textfeld = „© deine-domain.de“."
 }

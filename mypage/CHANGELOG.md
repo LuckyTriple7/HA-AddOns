@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.9.3
+- ⚙️ **„Bilder schützen" ist jetzt auch im Tab *Bibliothek* bedienbar.** Seit v0.9.2 wirkt die Einstellung auf Bibliothek-Bilder, ließ sich aber nur unter *Inhalt → Fotoalben* umstellen — dort sucht sie niemand, der gerade an der Bibliothek arbeitet. Schalter und Wasserzeichen-Text stehen nun in beiden Bereichen.
+- Es bleibt **eine** Einstellung: eine Änderung an der einen Stelle erscheint sofort an der anderen. Der Hinweistext unter den Feldern sagt das ausdrücklich, damit niemand zwei getrennte Schalter vermutet.
+
 ## 0.9.2
 - ⚖️ **KI-erzeugte Bilder werden gekennzeichnet.** Bilder aus „✨ Bild generieren" tragen beim Ausliefern den eingebrannten Hinweis **„KI generiert"** (auf der englischen Seite „AI generated"). Das erfüllt die Transparenzpflicht für KI-Inhalte und ist deshalb **bewusst nicht abschaltbar** — anders als das Wasserzeichen, das eine Komfortfunktion bleibt.
   - Die Kennzeichnung erscheint auch beim **direkten Aufruf der Bildadresse** und im **erzeugten PDF**. Sonst wäre der Download des PDF oder ein Rechtsklick der einfachste Weg, sie loszuwerden.

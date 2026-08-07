@@ -2354,5 +2354,6 @@
   "uploads_pick_capped": "Newest {n} of {t} images.",
   "uploads_pick_unused": "unused",
   "img_ai_label": "AI generated",
-  "img_ai_hint": "AI-generated images always carry the note “AI generated” — regardless of this setting."
+  "img_ai_hint": "AI-generated images always carry the note “AI generated” — regardless of this setting.",
+  "library_protect_hint": "Burns the watermark into cover images and images inside library entries — including the generated PDF. Same setting as for the photo albums: a change here applies there as well. Empty text field = “© your-domain.com”."
 }

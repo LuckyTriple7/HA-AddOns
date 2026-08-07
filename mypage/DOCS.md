@@ -285,7 +285,7 @@ Bilder, die über **✨ Bild generieren** entstanden sind, tragen beim Ausliefer
 - Der Hinweis erscheint auch beim **direkten Aufruf** der Bildadresse und im **erzeugten PDF** — sonst wäre der Download des PDF der einfachste Weg, die Kennzeichnung loszuwerden.
 - Woran das System ein KI-Bild erkennt: der Dateiname endet auf `-ai` (z. B. `a1b2…-ai.webp`). Der Marker steckt im Dateinamen statt in einer Liste, damit er Backup und Wiederherstellung übersteht. Wer eine Datei außerhalb des Add-ons umbenennt, verliert die Kennzeichnung.
 
-**Wasserzeichen in der Bibliothek** gilt für das Titelbild *und* für Bilder im Markdown-Text eines Eintrags. Eingebundene Fremd-URLs bleiben unangetastet — an fremden Bildern hat weder ein Wasserzeichen noch ein KI-Marker etwas zu suchen.
+**Wasserzeichen in der Bibliothek** wird im Tab *Bibliothek* unter „Bilder schützen" ein- und ausgeschaltet — es ist dieselbe Einstellung wie unter *Inhalt → Fotoalben*, nur an beiden Stellen bedienbar. Es gilt für das Titelbild *und* für Bilder im Markdown-Text eines Eintrags. Eingebundene Fremd-URLs bleiben unangetastet — an fremden Bildern hat weder ein Wasserzeichen noch ein KI-Marker etwas zu suchen.
 
 **KI-Bilder, die du verwirfst, bleiben zunächst liegen.** Das Bild entsteht beim Klick auf „Erzeugen", nicht erst beim Speichern des Eintrags — schließt du den Dialog ohne zu speichern, liegt die Datei weiter unter `/uploads`. Sie verschwindet, sobald du im Tab **System** auf „Unbenutzte Uploads aufräumen" gehst; automatisch gelöscht wird nie etwas. Dasselbe gilt für ein Bild, das du von Hand hochlädst und dann doch nicht speicherst.
 

@@ -662,6 +662,27 @@
           </div>
         </div>
         <label class="checkbox" style="margin-top:10px"><input type="checkbox" id="lb-nav" checked> {{ t.page_in_nav }}</label>
+        <!-- Dieselbe Einstellung wie bei den Fotoalben, nur hier ebenfalls bedienbar:
+             sie gilt für beide Bereiche, deshalb halten saveImageProtect/loadSite
+             die zwei Bedienfelder synchron. -->
+        <div class="row" style="margin-top:16px">
+          <div>
+            <label>{{ t.album_protect }}</label>
+            <select id="lb-protect" onchange="saveImageProtect('lb-protect', 'lb-watermark')">
+              <option value="0">{{ t.no }}</option>
+              <option value="1">{{ t.yes }}</option>
+            </select>
+          </div>
+          <div>
+            <label>{{ t.watermark_text }}</label>
+            <div class="upload-row">
+              <input type="text" id="lb-watermark" placeholder="{{ t.ph_copyright }}">
+              <button class="btn secondary small" onclick="saveImageProtect('lb-protect', 'lb-watermark')">{{ t.save }}</button>
+            </div>
+          </div>
+        </div>
+        <p class="hint">{{ t.library_protect_hint }}</p>
+        <p class="hint">{{ t.img_ai_hint }}</p>
         <button class="btn" style="margin-top:16px" onclick="saveLibrarySettings()">{{ t.save }}</button>
       </div>
 
@@ -2983,8 +3004,9 @@
       el('poll-opts-list').innerHTML = '';
       (PL.options || []).forEach(addPollOptRow);
       renderAlbums();
-      el('a-protect').value = SITE.album_protect ? '1' : '0';
-      el('a-watermark').value = SITE.watermark_text || '';
+      // beide Bedienstellen des Bildschutzes gleich befüllen
+      el('a-protect').value = el('lb-protect').value = SITE.album_protect ? '1' : '0';
+      el('a-watermark').value = el('lb-watermark').value = SITE.watermark_text || '';
       applySectionOrder();
       initSectionDnD();
       applySectionVisibility();
@@ -3170,13 +3192,19 @@
       el('faq-list').appendChild(div);
       attachMd(div.querySelector('.f-a_de')); attachMd(div.querySelector('.f-a_en'));
     }
-    async function saveAlbumSettings() {
+    // Bildschutz ist eine Einstellung mit zwei Bedienstellen (Fotoalben und
+    // Bibliothek). Beide schreiben dieselben Felder; loadSite() gleicht danach
+    // die jeweils andere Ansicht wieder an.
+    async function saveImageProtect(selId, txtId) {
       const r = await apiJson('api/sections', 'POST', {
-        album_protect: el('a-protect').value === '1',
-        watermark_text: el('a-watermark').value,
+        album_protect: el(selId).value === '1',
+        watermark_text: el(txtId).value,
       });
       toast(r.ok ? T.saved : T.error_save, !r.ok);
       if (r.ok) loadSite();
+    }
+    function saveAlbumSettings() {
+      return saveImageProtect('a-protect', 'a-watermark');
     }
     function addNewsRow(n) {
       n = n || {};
