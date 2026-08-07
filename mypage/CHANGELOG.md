@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.9.4
+- ⏳ **Die PDF-Erzeugung zeigt sich jetzt.** Beim Speichern eines Bibliothek-Eintrags mit „Aus dem Text erzeugen" erscheint oben ein **Banner mit Spinner** („PDF wird erzeugt …"), das stehen bleibt, bis das Rendern durch ist — danach wird es **grün** („PDF erzeugt.") oder **rot** mit dem Grund. Bisher passierte sichtbar nichts und der Ausgang stand nur im Add-on-Log oder für 2 Sekunden im Toast.
+- Der **Speichern-Knopf ist währenddessen gesperrt** — das Rendern läuft im selben Request, ein zweiter Klick hätte es unnötig noch einmal angestoßen.
+- Gleiches beim **Kopieren** eines Eintrags: die Kopie erbt die PDF-Einstellung und rendert mit, das war bisher genauso unsichtbar.
+- Fehlermeldungen bleiben **7 Sekunden** stehen (Erfolg 3,5) — bei „PDF-Erzeugung ist auf diesem System nicht verfügbar" ist der Text zu lang für einen kurzen Einblender.
+- Ohne PDF-Erzeugung bleibt alles wie gehabt: kurzer Toast „Gespeichert", kein Banner.
+
 ## 0.9.3
 - ⚙️ **„Bilder schützen" ist jetzt auch im Tab *Bibliothek* bedienbar.** Seit v0.9.2 wirkt die Einstellung auf Bibliothek-Bilder, ließ sich aber nur unter *Inhalt → Fotoalben* umstellen — dort sucht sie niemand, der gerade an der Bibliothek arbeitet. Schalter und Wasserzeichen-Text stehen nun in beiden Bereichen.
 - Es bleibt **eine** Einstellung: eine Änderung an der einen Stelle erscheint sofort an der anderen. Der Hinweistext unter den Feldern sagt das ausdrücklich, damit niemand zwei getrennte Schalter vermutet.

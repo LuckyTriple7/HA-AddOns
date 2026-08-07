@@ -186,6 +186,22 @@
     .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--green); color: #fff; padding: 9px 18px; border-radius: 8px; font-size: 0.85rem; z-index: 100; opacity: 0; transition: opacity .25s; pointer-events: none; }
     .toast.show { opacity: 1; }
     .toast.err { background: var(--red); }
+    /* Fortschritts-Banner für Arbeit, die spürbar dauert (PDF-Erzeugung). Anders
+       als der Toast bleibt es stehen, solange gearbeitet wird — z-index über den
+       Modalen, weil es auch nach deren Schließen weiterlaufen kann. */
+    .busy-banner { position: fixed; top: 0; left: 0; right: 0; z-index: 120; display: none;
+                   align-items: center; justify-content: center; gap: 10px; padding: 11px 16px;
+                   background: var(--surf); border-bottom: 1px solid var(--border);
+                   color: var(--text); font-size: 0.88rem; box-shadow: 0 3px 14px rgba(0,0,0,.35); }
+    .busy-banner.show { display: flex; }
+    .busy-banner.ok { background: var(--green); border-bottom-color: var(--green); color: #fff; }
+    .busy-banner.err { background: var(--red); border-bottom-color: var(--red); color: #fff; }
+    .spinner { width: 16px; height: 16px; flex: none; border: 2px solid currentColor;
+               border-top-color: transparent; border-radius: 50%; animation: spin .7s linear infinite; }
+    .busy-banner.ok .spinner, .busy-banner.err .spinner { display: none; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    /* Nutzer mit reduzierter Bewegung: Ring steht still, bleibt aber sichtbar */
+    @media (prefers-reduced-motion: reduce) { .spinner { animation: none; } }
     /* overflow-wrap: URLs und lange Slugs umbrechen, statt die Spalte zu sprengen */
     .hint { font-size: 0.74rem; color: var(--muted); margin-top: 6px; overflow-wrap: anywhere; }
     .md-edit-btn { margin-top: 6px; padding: 5px 12px; font-size: 0.82rem; }
@@ -1860,6 +1876,9 @@
 
   <input type="file" id="file-input" accept=".png,.jpg,.jpeg,.gif,.webp" style="display:none">
   <div class="thumb-preview" id="thumb-preview" onclick="closeThumbPreview()"><img id="thumb-preview-img" src="" alt=""></div>
+  <div class="busy-banner" id="busy-banner" role="status" aria-live="polite">
+    <span class="spinner" aria-hidden="true"></span><span id="busy-text"></span>
+  </div>
   <div class="toast" id="toast"></div>
 
   <script>
@@ -1878,6 +1897,29 @@
       body: JSON.stringify(body),
     });
     const assetUrl = u => (u || '').replace(/^\//, '');
+
+    // ── Fortschritts-Banner ──
+    // Für Arbeit, die spürbar dauert. `busyShow` bleibt stehen, bis `busyDone`
+    // das Ergebnis nachreicht — der Toast allein wäre nach 2,2 s weg und sagt
+    // während der Wartezeit gar nichts.
+    let busyTimer = null;
+    function busyShow(msg) {
+      clearTimeout(busyTimer);
+      el('busy-text').textContent = msg;
+      el('busy-banner').className = 'busy-banner show';
+    }
+    function busyDone(msg, isErr) {
+      clearTimeout(busyTimer);
+      el('busy-text').textContent = msg;
+      el('busy-banner').className = 'busy-banner show ' + (isErr ? 'err' : 'ok');
+      // Fehler länger stehen lassen — die will man lesen können
+      busyTimer = setTimeout(() => { el('busy-banner').className = 'busy-banner'; },
+                             isErr ? 7000 : 3500);
+    }
+    function busyHide() {
+      clearTimeout(busyTimer);
+      el('busy-banner').className = 'busy-banner';
+    }
 
     function toast(msg, isErr) {
       const t = el('toast');
@@ -2602,11 +2644,22 @@
         div.querySelector('.btn-copy').onclick = async ev => {
           const btn = ev.currentTarget;
           btn.disabled = true;
-          const r = await apiJson('api/library/entries/' + e.id + '/copy', 'POST', {});
+          // Die Kopie erbt die PDF-Einstellung und rendert dabei mit
+          const pdfRun = e.pdf_mode === 'generated';
+          if (pdfRun) busyShow(T.library_pdf_running);
+          let r = null;
+          try { r = await apiJson('api/library/entries/' + e.id + '/copy', 'POST', {}); }
+          catch (err) { /* Netzfehler */ }
           btn.disabled = false;
-          if (!r.ok) { toast(T.error_save, true); return; }
+          if (!r || !r.ok) {
+            if (pdfRun) busyDone(T.error_save, true); else toast(T.error_save, true);
+            return;
+          }
           const d = await r.json();
-          toast(T.library_copied);
+          if (d.pdf === 'unavailable') libPdfReport(T.library_pdf_hint_unavailable, true, pdfRun);
+          else if (d.pdf === 'error') libPdfReport(T.library_pdf_failed, true, pdfRun);
+          else if (d.pdf === 'generated') busyDone(T.library_pdf_ok, false);
+          else { busyHide(); toast(T.library_copied); }
           await loadSite();
           openLibEntryModal(d.id);   // direkt zum Bearbeiten öffnen
         };
@@ -2772,18 +2825,36 @@
         pdf:          libPdfName,
       };
       if (!body.title_de.trim() && !body.title_en.trim()) { toast(T.error_title, true); return; }
-      const r = editingLibEntryId
-        ? await apiJson('api/library/entries/' + editingLibEntryId, 'PUT', body)
-        : await apiJson('api/library/entries', 'POST', body);
-      if (!r.ok) { toast(T.error_save, true); return; }
+      // Das Rendern läuft im Speichern-Request und dauert spürbar — Banner an,
+      // damit nicht der Eindruck entsteht, es sei nichts passiert.
+      const pdfRun = body.pdf_mode === 'generated';
+      const btn = el('libentry-modal').querySelector('.modal-actions .btn:not(.secondary)');
+      if (btn) btn.disabled = true;
+      if (pdfRun) busyShow(T.library_pdf_running);
+      let r = null;
+      try {
+        r = editingLibEntryId
+          ? await apiJson('api/library/entries/' + editingLibEntryId, 'PUT', body)
+          : await apiJson('api/library/entries', 'POST', body);
+      } catch (e) { /* Netzfehler */ }
+      if (btn) btn.disabled = false;
+      if (!r || !r.ok) {
+        if (pdfRun) busyDone(T.error_save, true); else toast(T.error_save, true);
+        return;
+      }
       const d = await r.json();
       // PDF-Erzeugung meldet ihren Ausgang getrennt — sonst wäre „gespeichert"
       // irreführend, wenn WeasyPrint fehlt oder das Rendern scheitert.
-      if (d.pdf === 'unavailable') toast(T.library_pdf_hint_unavailable, true);
-      else if (d.pdf === 'error') toast(T.library_pdf_failed, true);
-      else toast(T.saved);
+      if (d.pdf === 'unavailable') libPdfReport(T.library_pdf_hint_unavailable, true, pdfRun);
+      else if (d.pdf === 'error') libPdfReport(T.library_pdf_failed, true, pdfRun);
+      else if (d.pdf === 'generated') busyDone(T.library_pdf_ok, false);
+      else { busyHide(); toast(T.saved); }
       el('libentry-modal').classList.remove('open');
       loadSite();
+    }
+    // Fehler ins Banner, wenn eines läuft — sonst in den Toast
+    function libPdfReport(msg, isErr, viaBanner) {
+      if (viaBanner) busyDone(msg, isErr); else toast(msg, isErr);
     }
 
     // ── Formulare ──
