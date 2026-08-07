@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.87.4] - 2026-08-07
+
+### Fixed
+- **Klimatabelle im Markdown-Export: „21 °C" brach in der schmalen Spalte „Tag"
+  auf zwei Zeilen um** und machte die Zeile doppelt hoch. Zwischen Zahl und
+  Einheit steht jetzt ein geschütztes Leerzeichen, damit kein Renderer dort
+  trennt — gilt für °C, Sonnenstunden und alle weiteren Werte.
+
 ## [0.87.3] - 2026-08-07
 
 ### Security

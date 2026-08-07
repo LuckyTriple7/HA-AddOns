@@ -3173,7 +3173,11 @@
     }
     function mdNum(v, unit){
       if(v == null || v === '') return '–';
-      return Number(v).toLocaleString('de-DE', {maximumFractionDigits:1}) + (unit || '');
+      // Geschütztes Leerzeichen vor der Einheit: in einer schmalen Spalte („Tag")
+      // bricht der Markdown-Renderer sonst zwischen Zahl und Einheit um, die
+      // Zeile wird doppelt hoch und die Tabelle sieht schief aus.
+      const unit_ = (unit || '').replace(/^ /, ' ');
+      return Number(v).toLocaleString('de-DE', {maximumFractionDigits:1}) + unit_;
     }
     // Zellinhalt einer Markdown-Tabelle. Reihenfolge zwingend: erst der
     // Backslash, dann das „|" — andersherum verwandelt der zweite Durchlauf das
