@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.4.6] - 2026-08-09
+
+### Fixed
+- Code-Scanning-Alerts kamen doppelt per Telegram/E-Mail an: GitHub sendet für
+  einen neuen Alert zwei Webhooks (`created` und `appeared_in_branch`). Beide
+  Aktionen teilen jetzt einen Benachrichtigungs-Schlüssel
+  (`cs:{repo}#{nr}:open`, 15-Minuten-Fenster) — nur der erste Webhook löst eine
+  Nachricht aus. Gleiches gilt für `reopened`/`reopened_by_user`.
+
 ## [0.4.5] - 2026-08-04
 
 ### Added
