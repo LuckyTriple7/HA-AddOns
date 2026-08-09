@@ -5,26 +5,13 @@ weiterzugehen. Kein Ideen-Brainstorming — dafür ist `Ideas.md` da (Kartenspie
 
 ---
 
-## Reiseblog Stufe 3 — Reste aus der öffentlichen Darstellung
+## Reiseblog — nichts mehr offen, aber Fallstricke merken
 
-**Stand:** Stufe 2 ist fertig und live (v0.10.4). Slugs, Freigabe je Tag, die drei Routen
-(`/reiseblog`, `/reiseblog/<reise>`, `/reiseblog/<reise>/<tag>`), die Vorlagen `travel.html`,
-`travel_trip.html` und `travel_day.html`, der Startseiten-Abschnitt, Mitglieder-Sperre je
-Reise, Sitemap, Volltextsuche, IndexNow, statischer Export und die Tages-Vorschau im Admin
-stehen. Liegen geblieben ist:
-
-- **Ausgaben-Auswertung je Reise** — Summen je Währung liegen mit `travelblog.expense_total()`
-  schon vor, gezeigt werden sie öffentlich nirgends. Kür, kein Mangel.
-- **`section_defs['forms']`** steht weiterhin auf `present=False`. Anders als beim Reiseblog
-  fehlt dafür nicht nur das Flag: Formulare haben zwar öffentliche Seiten (`/formular/<slug>`)
-  und stehen über `_nav_forms()` in der Navigation, aber **keinen Abschnitt in `public.html`**.
-  Erst den Abschnitt bauen, dann das Flag umstellen — sonst zeigt die Sprungmarke `#formulare`
-  ins Leere.
-- **Wetterangaben sind nicht übersetzt.** Die Auswahllisten in `travelblog.py` (`sonnig`,
-  `leicht bewölkt`, …) sind deutsche Klartextwerte und wandern so, wie sie sind, in die
-  Faktenzeile des Tagesberichts — auf der englischen Seite steht also deutsches Wetter.
-  Gilt genauso im Admin. Wer das ändert, braucht Label-Karten in beiden Locales, so wie es
-  `trav_style_labels` schon vormacht.
+**Stand:** fertig mit v0.10.5. Stufe 1 (Admin, Wizard, KI-Bericht), Stufe 2 (öffentliche
+Seiten, Slugs, Freigabe je Tag, Mitglieder-Sperre, Sitemap, Suche, IndexNow, statischer
+Export, Vorschau) und die vier Reste aus Stufe 3 (Ausgaben-Auswertung, übersetzte
+Auswahllisten, Formular-Abschnitt, eigene Bildunterschriften) sind umgesetzt. Hier stehen
+nur noch die Stolperstellen für spätere Arbeit am Modul.
 
 **Fallstricke, die schon bekannt sind:**
 
@@ -37,7 +24,16 @@ stehen. Liegen geblieben ist:
 - Die KI-Bildunterschriften in `article.captions` gehören zu den Fotos **mit** Hinweis, in
   genau deren Reihenfolge — Fotos ohne Hinweis überspringt der Prompt. Wer über den Index der
   vollen Fotoliste geht, hängt die Unterschrift ans falsche Bild (genau das war bis v0.10.4
-  im Wizard so).
+  im Wizard so). Öffentlich schlägt seit v0.10.5 die eigene Unterschrift in
+  `photo.caption_<lang>` die der KI.
+- Die Auswahllisten in `travelblog.py` speichern **deutschen Klartext** (`sonnig`, `Eintritt`),
+  und der wandert unverändert in den Prompt. Übersetzt wird ausschließlich die Anzeige, über
+  `trav_opt_labels` in den Locales (`_trav_opt_label()` serverseitig, `travField()` im Admin).
+  Wer die Werte in den Tupeln ändert, muss die Karten in `en.json` nachziehen — sonst steht
+  dort wieder Deutsch, ohne dass etwas kaputtgeht.
+- Öffentliche Beträge hängen an `settings.include_prices` der Reise, demselben Schalter, der
+  der KI das Nennen von Preisen erlaubt. Kein zweiter Schalter — wer der KI Geld verbietet,
+  will es auch nicht als Tabelle darunter.
 
 ---
 

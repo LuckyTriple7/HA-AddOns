@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.10.5
+- 💶 **Ausgaben stehen jetzt im Tagesbericht** — Kategorie, Zweck und Betrag als Aufstellung, darunter die Summe. Auf der Reise-Seite zusätzlich die Summe der ganzen Reise. Getrennt je Währung, nicht umgerechnet: ein geratener Wechselkurs wäre eine erfundene Zahl. Nur veröffentlichte Tage zählen mit — sonst stünde dort ein Betrag, den kein sichtbarer Tag erklärt.
+  - Gesteuert vom vorhandenen Schalter **„Preise im Bericht nennen"** je Reise. Wer der KI verbietet, über Geld zu schreiben, will es auch nicht als Tabelle auf derselben Seite haben.
+- 🌦️ **Die Auswahllisten sind übersetzt.** Wetter, Wind, Art des Erlebnisses, Empfehlung, Verkehrsmittel, Mahlzeit, Kategorie des Moments und der Ausgabe standen auf Englisch bisher **auf Deutsch** da — im Admin wie im Tagesbericht. Gespeichert wird weiterhin der deutsche Klartext, weil er Teil des Prompts ist; übersetzt wird nur die Beschriftung.
+- 🖼️ **Eigene Bildunterschrift je Foto** im Wizard-Schritt *Fotos*. Sie schlägt die der KI — und ist der einzige Weg, ein Foto **ohne Hinweis** zu beschriften: für die schreibt die KI gar keine.
+- 📋 **Formulare haben einen Abschnitt auf der Startseite.** Er lässt sich unter *Inhalte* einsortieren und ausblenden wie jeder andere. Steht er in der Navigationsleiste, entfallen dort die einzelnen Formular-Links — sonst stünde erst „Formulare" und daneben nochmal jedes einzelne.
+- 🔧 **Der Schalter *Formulare* unter Design → Module wirkte nicht.** Er sollte die Formulare auf der Website ein- und ausblenden, wurde öffentlich aber nirgends abgefragt: die Seiten unter `/formular/…` blieben erreichbar und die Navi-Einträge stehen. Jetzt greift er — auch für das Absenden.
+- ✳️ **Pflichtfelder im Reise-Wizard sind mit `*` gekennzeichnet** (Reisetag und Datum). Der Satz „Nur diese beiden Felder sind Pflicht" stand unter vier Feldern, ohne zu verraten, welche beiden gemeint waren.
+
 ## 0.10.4
 - 🌍 **Der Reiseblog ist jetzt öffentlich sichtbar.** Drei neue Seiten: die Übersicht aller Reisen (`/reiseblog`), die Tage einer Reise (`/reiseblog/<reise>`) und der Tagesbericht selbst (`/reiseblog/<reise>/<tag>`) — aufgebaut wie die Bibliothek, mit Bildergalerie, Blättern zwischen den Tagen, SEO-Angaben und Druckansicht.
 - 🔒 **Nichts steht ungefragt im Netz.** Ein Tag erscheint erst mit dem Haken **„Tag veröffentlichen"** im letzten Wizard-Schritt — und auch dann nur, wenn er einen Bericht hat. Eine freigegebene Seite ohne Text wäre eine Seite mit Datum und sonst nichts.

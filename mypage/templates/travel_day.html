@@ -77,6 +77,12 @@
     .gallery figure { background: var(--surf); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
     .gallery img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; display: block; background: var(--surf2); }
     .gallery figcaption { padding: 8px 11px 10px; font-size: 0.78rem; color: var(--muted); }
+    .exp-title { font-size: 1.15rem; margin: 34px 0 12px; }
+    .exp-table { width: 100%; border-collapse: collapse; font-size: 0.86rem; }
+    .exp-table td { border-bottom: 1px solid var(--border); padding: 7px 4px; }
+    .exp-table .exp-cat { color: var(--muted); white-space: nowrap; }
+    .exp-table .exp-amt { text-align: right; white-space: nowrap; }
+    .exp-table tr.exp-sum td { border-bottom: none; font-weight: 600; padding-top: 10px; }
     .tag-row { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 28px; }
     .tag-chip { font-size: 0.75rem; padding: 3px 10px; border-radius: 999px; color: var(--muted); background: var(--surf); border: 1px solid var(--border); }
     /* Blättern zwischen den Tagen: das ist der Hauptweg durch eine Reise —
@@ -147,6 +153,24 @@
       </figure>
       {% endfor %}
     </div>
+    {% endif %}
+
+    {% if expenses %}
+    <h2 class="exp-title">{{ t.trav_expenses_heading }}</h2>
+    <table class="exp-table">
+      {% for e in expenses.rows %}
+      <tr>
+        <td class="exp-cat">{{ e.category }}</td>
+        <td>{{ e.description }}</td>
+        <td class="exp-amt">{{ e.amount }}</td>
+      </tr>
+      {% endfor %}
+      <tr class="exp-sum">
+        <td class="exp-cat">{{ t.trav_expenses_total }}</td>
+        <td></td>
+        <td class="exp-amt">{{ expenses.totals|join(' · ') }}</td>
+      </tr>
+    </table>
     {% endif %}
 
     {% if tags and not locked %}

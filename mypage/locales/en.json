@@ -2538,7 +2538,6 @@
   "trav_draft_saved": "Draft saved locally.",
   "trav_draft_restore": "There is an unsaved draft for this day. Restore it?",
   "trav_step_day": "Day & place",
-  "trav_step_day_hint": "Only these two fields are required. Everything else is optional.",
   "trav_step_weather": "Weather",
   "trav_step_experiences": "Experiences",
   "trav_step_meals": "Food",
@@ -2612,8 +2611,100 @@
   "trav_day_count_one": "1 day",
   "trav_all_trips": "Show all trips",
   "trav_gallery": "Photos",
+  "trav_expenses_heading": "Spending on this day",
+  "trav_expenses_total": "Total",
+  "trav_photo_caption": "Own caption",
+  "trav_photo_caption_hint": "Leave empty to use the caption written by the AI. Photos without a note get none from the AI — you can add one here.",
+  "forms_open": "Open form",
   "trav_prev_day": "Previous day",
   "trav_next_day": "Next day",
+  "trav_opt_labels": {
+    "weather_conditions": {
+      "sonnig": "Sunny",
+      "leicht bewölkt": "Partly cloudy",
+      "bewölkt": "Cloudy",
+      "regnerisch": "Rainy",
+      "wechselhaft": "Changeable",
+      "stürmisch": "Stormy"
+    },
+    "wind_strengths": {
+      "windstill": "Calm",
+      "leicht": "Light",
+      "mäßig": "Moderate",
+      "stark": "Strong",
+      "sehr stark": "Very strong"
+    },
+    "experience_types": {
+      "Ausflug": "Excursion",
+      "Strand": "Beach",
+      "Pool": "Pool",
+      "Sehenswürdigkeit": "Sight",
+      "Spaziergang": "Walk",
+      "Wanderung": "Hike",
+      "Shopping": "Shopping",
+      "Restaurant": "Restaurant",
+      "Café / Bar": "Café / bar",
+      "Aktivität": "Activity",
+      "Hotel": "Hotel",
+      "Nachtleben": "Nightlife",
+      "Fahrt / Transport": "Journey / transport",
+      "Sonstiges": "Other"
+    },
+    "recommendations": {
+      "Ja, unbedingt": "Yes, absolutely",
+      "Ja": "Yes",
+      "Vielleicht": "Maybe",
+      "Eher nicht": "Probably not",
+      "Nein": "No",
+      "Keine Einschätzung": "No opinion"
+    },
+    "transports": {
+      "Zu Fuß": "On foot",
+      "Bus": "Bus",
+      "Taxi": "Taxi",
+      "Mietwagen": "Rental car",
+      "Fahrrad": "Bicycle",
+      "Boot": "Boat",
+      "Ausflug/Transfer": "Excursion / transfer",
+      "ÖPNV": "Public transport",
+      "Sonstiges": "Other"
+    },
+    "meal_types": {
+      "Frühstück": "Breakfast",
+      "Mittagessen": "Lunch",
+      "Abendessen": "Dinner",
+      "Snack": "Snack",
+      "Café": "Café",
+      "Bar": "Bar",
+      "Sonstiges": "Other"
+    },
+    "moment_categories": {
+      "Highlight": "Highlight",
+      "Lustiger Moment": "Funny moment",
+      "Überraschung": "Surprise",
+      "Ärgernis": "Annoyance",
+      "Begegnung": "Encounter",
+      "Natur": "Nature",
+      "Sonnenaufgang": "Sunrise",
+      "Sonnenuntergang": "Sunset",
+      "Tier": "Animal",
+      "Sonstiges": "Other"
+    },
+    "expense_categories": {
+      "Transport": "Transport",
+      "Essen": "Food",
+      "Getränke": "Drinks",
+      "Eintritt": "Admission",
+      "Shopping": "Shopping",
+      "Souvenir": "Souvenir",
+      "Hotel": "Hotel",
+      "Ausflug": "Excursion",
+      "Sonstiges": "Other"
+    },
+    "currencies": {
+      "Sonstige": "Other"
+    }
+  },
   "trav_style_labels": {
     "persoenlich_locker": "Personal & casual",
     "persoenlich_humorvoll": "Personal & humorous",

@@ -5761,9 +5761,13 @@
         const empty = document.createElement('option');
         empty.value = ''; empty.textContent = '—';
         input.appendChild(empty);
+        // Gespeichert wird der deutsche Klartext — er steckt so im Prompt und
+        // darf sich nicht aendern. Uebersetzt wird nur die Beschriftung; ohne
+        // Eintrag in der Karte bleibt der Wert stehen (so ist es auf Deutsch).
+        const optLabels = (T.trav_opt_labels || {})[optKey] || {};
         (TRAVEL_OPT[optKey] || []).forEach(v => {
           const o = document.createElement('option');
-          o.value = v; o.textContent = v;
+          o.value = v; o.textContent = optLabels[v] || v;
           input.appendChild(o);
         });
       } else {
@@ -5884,14 +5888,13 @@
     }
 
     function wizDay(b) {
-      b.append(travRow(travField(DAY, 'day_number', 'number', T.trav_day_number),
-                       travField(DAY, 'date', 'date', T.field_date)),
+      // Pflicht sind Reisetag und Datum, erkennbar am * wie in den anderen
+      // Dialogen. Ein Satz darunter half nicht: „diese beiden Felder" stand
+      // unter vieren, und welche gemeint waren, war nicht zu sehen.
+      b.append(travRow(travField(DAY, 'day_number', 'number', T.trav_day_number + ' *'),
+                       travField(DAY, 'date', 'date', T.field_date + ' *')),
                travRow(travField(DAY, 'location', 'text', T.trav_location),
                        travField(DAY, 'hotel', 'text', T.trav_hotel_today)));
-      const p = document.createElement('p');
-      p.className = 'hint';
-      p.textContent = T.trav_step_day_hint;
-      b.appendChild(p);
     }
     function wizWeather(b) {
       const w = DAY.weather = DAY.weather || {};
@@ -5994,7 +5997,17 @@
           row.appendChild(img);
         }
         row.append(pick, travField(it, 'photo_note', 'text', T.trav_photo_note));
+        // Eigene Bildunterschrift schlaegt oeffentlich die der KI. Wichtig fuer
+        // Fotos ohne Hinweis: fuer die schreibt die KI gar keine.
+        const langs = ((curTrip().settings || {}).langs) || ['de'];
+        langs.forEach(lg => row.appendChild(travField(it, 'caption_' + lg, 'text',
+          langs.length > 1 ? T.trav_photo_caption + ' (' + lg.toUpperCase() + ')'
+                           : T.trav_photo_caption)));
       });
+      const capHint = document.createElement('p');
+      capHint.className = 'hint';
+      capHint.textContent = T.trav_photo_caption_hint;
+      b.appendChild(capHint);
       b.append(travField(DAY, 'additional_notes', 'textarea', T.trav_additional),
                travRow(travField(DAY, 'important', 'textarea', T.trav_important),
                        travField(DAY, 'exclude', 'textarea', T.trav_exclude)));

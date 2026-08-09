@@ -775,6 +775,22 @@
     <div class="lib-more"><a href="/reiseblog">{{ t.trav_all_trips }} →</a></div>
     {% endif %}
 
+    {% elif _sec == 'forms' %}
+    {% if form_cards %}
+    <h2 class="section-title" id="formulare">{{ t.forms_heading }}</h2>
+    <div class="trav-grid">
+      {% for f in form_cards %}
+      <a class="lib-card" href="/formular/{{ f.slug }}">
+        <div class="lib-body">
+          <div class="lib-name">📋 {{ f.title }}</div>
+          {% if f.intro %}<div class="lib-sum">{{ f.intro }}</div>{% endif %}
+          <div class="lib-flags"><span class="lib-flag">{{ t.forms_open }} →</span></div>
+        </div>
+      </a>
+      {% endfor %}
+    </div>
+    {% endif %}
+
     {% elif _sec == 'services' %}
     {% if sections.services %}
     <h2 class="section-title" id="services">{{ t.services_heading }}</h2>

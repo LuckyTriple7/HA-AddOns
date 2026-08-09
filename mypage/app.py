@@ -3598,15 +3598,22 @@ def _form_slug(site: dict, raw: dict, form_id: str) -> str:
     return slug
 
 
-def _find_form(site: dict, slug: str) -> dict | None:
-    return next((f for f in site.get('forms', []) if f.get('slug') == slug), None)
+def _public_forms(site: dict) -> list:
+    """Formulare, die öffentlich erreichbar sind.
+
+    Der Schalter unter Design → Module steuert die Website als Ganzes, der
+    Schalter am Formular das einzelne Formular. Beides muss zusammenkommen.
+    """
+    if not site['design'].get('forms_enabled', True):
+        return []
+    return [f for f in site.get('forms', []) if f.get('enabled') and f.get('slug')]
 
 
 def _nav_forms(site: dict, loc) -> list:
     """Aktive Formulare mit gesetztem Navi-Schalter."""
     out = []
-    for f in site.get('forms', []):
-        if f.get('enabled') and f.get('nav'):
+    for f in _public_forms(site):
+        if f.get('nav'):
             label = loc(f, 'title')
             if label:
                 out.append({'href': '/formular/' + f['slug'], 'label': label})
@@ -3614,17 +3621,18 @@ def _nav_forms(site: dict, loc) -> list:
 
 
 def _nav_links(site: dict, loc, t: dict | None = None, with_library: bool = True,
-               with_travel: bool = True) -> list:
+               with_travel: bool = True, with_forms: bool = True) -> list:
     """Navi-Einträge für Bibliothek, Reiseblog, eigene Seiten und Formulare.
 
-    Auf der Startseite stecken Bibliothek und Reiseblog bereits als Abschnitt in
-    der Sektions-Navigation (Anker `#library`, `#reiseblog`) — dort mit
-    `with_library=False` bzw. `with_travel=False`, sonst stünden sie doppelt in
-    der Leiste. Auf den Unterseiten sind es die einzigen Wege zurück.
+    Auf der Startseite stecken Bibliothek, Reiseblog und Formulare bereits als
+    Abschnitt in der Sektions-Navigation (Anker `#library`, `#reiseblog`,
+    `#formulare`) — dort jeweils mit `False`, sonst stünden sie doppelt in der
+    Leiste. Auf den Unterseiten sind es die einzigen Wege zurück.
     """
     lib = _nav_library(site, loc, t or {}) if with_library else []
     trav = _nav_travel(site, loc, t or {}) if with_travel else []
-    return lib + trav + _nav_pages(site, loc) + _nav_forms(site, loc)
+    forms = _nav_forms(site, loc) if with_forms else []
+    return lib + trav + _nav_pages(site, loc) + forms
 
 
 # ── Weiterleitungen (301/302) ─────────────────────────────────────────────────
@@ -9979,6 +9987,11 @@ def public_index():
     # Reiseblog: die jüngsten Reisen als Kacheln, „alle anzeigen" führt auf die
     # Übersicht. Reihenfolge wie im Admin — die neueste Reise steht dort oben.
     travel_trips = [_trav_trip_view(tr, lang) for tr in _trav_public_trips(site)[:6]]
+    # Formulare: Titel und Einleitung als Anriss, der Rest steht auf der Seite
+    # selbst. Ohne Titel gäbe es nichts anzuklicken, also fliegen sie raus.
+    form_cards = [{'slug': f['slug'], 'title': loc(f, 'title'),
+                   'intro': _plain_excerpt(render_md(loc(f, 'intro')))}
+                  for f in _public_forms(site) if loc(f, 'title')]
 
     loc_block = sections.get('location') or {}
     loc_present = bool(loc_block.get('address') or loc_block.get('hours_de') or loc_block.get('hours_en'))
@@ -10055,7 +10068,7 @@ def public_index():
         # Tag veroeffentlicht wurde -- sonst waere die Sprungmarke ein Verweis
         # ins Leere. Beides steckt schon in `travel_trips`.
         'travel':       ('reiseblog',    'trav_trips_heading',   bool(travel_trips)),
-        'forms':        ('formulare',    'tab_forms',            False),
+        'forms':        ('formulare',    'forms_heading',        bool(form_cards)),
     }
     # Gespeicherte Reihenfolge bereinigen: nur gültige Keys, fehlende hinten anhängen
     stored = [k for k in (site.get('section_order') or []) if k in section_defs]
@@ -10105,8 +10118,13 @@ def public_index():
         lib_in_nav = ('library' in section_order and section_defs['library'][2]
                       and _library(site).get('nav'))
         trav_in_nav = 'travel' in section_order and section_defs['travel'][2]
+        # Steht der Formular-Abschnitt schon als Sprungmarke in der Leiste,
+        # entfallen die einzelnen Formular-Links: sonst stünde dort erst
+        # „Formulare" und daneben nochmal jedes einzelne Formular.
+        forms_in_nav = 'forms' in section_order and section_defs['forms'][2]
         nav_items += _nav_links(site, loc, t, with_library=not lib_in_nav,
-                                with_travel=not trav_in_nav)
+                                with_travel=not trav_in_nav,
+                                with_forms=not forms_in_nav)
 
     return render_template('public.html', t=t, lang=lang, site=site, loc=loc,
                            projects=projects,
@@ -10123,6 +10141,7 @@ def public_index():
                            library_tags=library_tags,
                            library_heading=library_heading,
                            travel_trips=travel_trips,
+                           form_cards=form_cards,
                            countdown_title=countdown_title,
                            newsletter_open=newsletter_open() and not static_export,
                            nl=_clean_str(request.args.get('nl'), 20),
@@ -11227,8 +11246,8 @@ def custom_form(slug: str):
     site = load_site()
     if site['design'].get('maintenance'):
         return _maintenance_page(site, lang)
-    form = _find_form(site, slug)
-    if form is None or not form.get('enabled'):
+    form = next((f for f in _public_forms(site) if f['slug'] == slug), None)
+    if form is None:
         abort(404)
     count_visit(request)
     return _render_form(form, site, lang, ok=bool(request.args.get('ok')))
@@ -11240,8 +11259,8 @@ def custom_form_submit(slug: str):
     site = load_site()
     if site['design'].get('maintenance'):
         return _maintenance_page(site, lang)
-    form = _find_form(site, slug)
-    if form is None or not form.get('enabled'):
+    form = next((f for f in _public_forms(site) if f['slug'] == slug), None)
+    if form is None:
         abort(404)
     t = load_translations(lang)
     # Honeypot: Bots füllen das versteckte Feld aus → still „erfolgreich"
@@ -11654,22 +11673,75 @@ def _trav_gallery(day: dict, lang: str) -> list:
     return out
 
 
-def _trav_facts(day: dict, lang: str) -> list:
-    """Kurze Faktenzeile über dem Bericht: Datum, Ort, Wetter.
+def _trav_opt_label(t: dict, group: str, value: str) -> str:
+    """Deutschen Auswahlwert für die Anzeige übersetzen.
 
-    Das Wetter steht so da, wie es gespeichert wurde (deutsche Begriffe) — wie
-    überall sonst im Reiseblog auch, die Auswahllisten sind nicht übersetzt.
+    Gespeichert und in den Prompt gereicht wird immer der deutsche Klartext —
+    er ist Teil des Prompts und darf sich nicht ändern, sonst schriebe das
+    Modell plötzlich über anderes Wetter. Übersetzt wird ausschließlich die
+    Anzeige; ohne Eintrag in der Karte bleibt der Wert stehen. Die deutsche
+    Karte ist deshalb leer: dort ist der Wert schon die Beschriftung.
     """
+    return ((t.get('trav_opt_labels') or {}).get(group) or {}).get(value, value)
+
+
+def _trav_prices(trip: dict) -> bool:
+    """Ob Beträge öffentlich gezeigt werden dürfen — dieselbe Einstellung, die
+    schon steuert, ob die KI Preise nennen darf."""
+    return (trip.get('settings') or {}).get('include_prices', True) is not False
+
+
+def _trav_money(amount: float, currency: str, lang: str) -> str:
+    """Betrag mit Währung, deutsch mit Komma."""
+    text = f'{amount:.2f}'
+    if lang == 'de':
+        text = text.replace('.', ',')
+    return f'{text} {currency}'.strip()
+
+
+def _trav_facts(day: dict, lang: str, t: dict) -> list:
+    """Kurze Faktenzeile über dem Bericht: Datum, Ort, Wetter."""
     facts = [x for x in (_trav_date(day.get('date') or '', lang),
                          day.get('location') or '') if x]
     w = day.get('weather') or {}
     if w.get('mention'):
-        wx = ' '.join(x for x in (w.get('condition') or '',
-                                  f"{w['temperature']} °C"
-                                  if w.get('temperature') is not None else '') if x)
+        wx = ' '.join(x for x in (
+            _trav_opt_label(t, 'weather_conditions', w.get('condition') or ''),
+            f"{w['temperature']} °C" if w.get('temperature') is not None else '') if x)
         if wx:
             facts.append(wx)
     return facts
+
+
+def _trav_expenses(day: dict, lang: str, t: dict) -> dict:
+    """Ausgaben eines Tages: Zeilen und Summe je Währung.
+
+    Summiert wird getrennt je Währung, nicht umgerechnet — ein geratener
+    Wechselkurs wäre eine erfundene Zahl in einem Bericht, der keine enthalten
+    soll (dieselbe Regel wie in `travelblog.expense_total`).
+    """
+    rows = [{'category': _trav_opt_label(t, 'expense_categories', e.get('category') or ''),
+             'description': e.get('description') or '',
+             'amount': _trav_money(e['amount'], e.get('currency') or 'EUR', lang)}
+            for e in (day.get('expenses') or []) if e.get('amount') is not None]
+    if not rows:
+        return {}
+    return {'rows': rows,
+            'totals': [_trav_money(v, k, lang)
+                       for k, v in sorted(tb.expense_total(day).items())]}
+
+
+def _trav_trip_totals(trip: dict, lang: str) -> list:
+    """Ausgaben der ganzen Reise je Währung — nur aus veröffentlichten Tagen.
+
+    Ein Entwurf darf die öffentliche Summe nicht mitbestimmen: sonst stünde
+    unter der Reise ein Betrag, den kein sichtbarer Tag erklärt.
+    """
+    totals: dict[str, float] = {}
+    for d in _trav_public_days(trip):
+        for cur, val in tb.expense_total(d).items():
+            totals[cur] = round(totals.get(cur, 0) + val, 2)
+    return [_trav_money(v, k, lang) for k, v in sorted(totals.items())]
 
 
 def _nav_travel(site: dict, loc, t: dict) -> list:
@@ -11727,11 +11799,14 @@ def travel_trip_page(tslug: str):
     count_visit(request)
     t, loc, font_family, font_faces = _trav_head(site, lang)
     view = _trav_trip_view(trip, lang)
+    locked = _trav_locked(trip, False)
     return render_template(
         'travel_trip.html', t=t, lang=lang, site=site, loc=loc,
         heading=t.get('trav_trips_heading', ''), trip=view,
         days=[_trav_day_view(d, lang) for d in _trav_public_days(trip)],
-        locked=_trav_locked(trip, False),
+        locked=locked,
+        totals=([] if locked or not _trav_prices(trip)
+                else _trav_trip_totals(trip, lang)),
         font_family=font_family, font_faces=font_faces,
         nav_items=(_nav_links(site, loc, t, with_travel=False)
                    if site['design'].get('show_nav', True) else []),
@@ -11757,7 +11832,12 @@ def _render_travel_day(site: dict, trip: dict, day: dict, lang: str, preview: bo
         title=art.get('title') or f"{t.get('trav_day', 'Tag')} {day.get('day_number')}",
         body_html=body_html, locked=locked,
         members_only=bool(trip.get('members_only')),
-        facts=_trav_facts(day, lang),
+        facts=_trav_facts(day, lang, t),
+        # „Preise nennen" gilt für den Bericht wie für die Aufstellung darunter.
+        # Wer der KI verbietet, über Geld zu schreiben, will es auch nicht als
+        # Tabelle auf derselben Seite stehen haben.
+        expenses=({} if (locked or not _trav_prices(trip))
+                  else _trav_expenses(day, lang, t)),
         gallery=([] if locked else _trav_gallery(day, lang)),
         tags=((day.get('article') or {}).get('tags') or []),
         prev_day=(_trav_day_view(days[idx - 1], lang) if idx > 0 else None),

@@ -153,7 +153,9 @@ Ein Browser über **alle hochgeladenen Bilder** und die **PDFs der Bibliothek** 
 Ein eigenes Modul, getrennt vom normalen Blog: unterwegs ein paar Stichpunkte erfassen, den Tagesbericht schreibt die KI daraus.
 
 - **Reise anlegen** (Name, Ziel, Unterkunft, Zeitraum). Schreibstil, Perspektive, Länge und Sprache werden **einmal je Reise** festgelegt und gelten für alle Tage — nicht bei jedem Tag neu.
-- **Tag erfassen** im Wizard mit acht Schritten: Tag & Ort, Wetter, Erlebnisse, Essen, Eindrücke, Momente & Ausgaben, Fotos & Notizen, Bericht. **Pflicht sind nur Tagesnummer und Datum** — alles andere darf leer bleiben. Was leer ist, taucht im Prompt gar nicht erst auf, damit die KI nichts dazuerfindet.
+- **Tag erfassen** im Wizard mit acht Schritten: Tag & Ort, Wetter, Erlebnisse, Essen, Eindrücke, Momente & Ausgaben, Fotos & Notizen, Bericht. **Pflicht sind nur Reisetag und Datum** — beide mit `*` gekennzeichnet, alles andere darf leer bleiben. Was leer ist, taucht im Prompt gar nicht erst auf, damit die KI nichts dazuerfindet.
+- Die **Auswahllisten** (Wetter, Art des Erlebnisses, Verkehrsmittel, Kategorie …) speichern deutschen Klartext, weil genau der in den Prompt wandert. Auf Englisch werden nur die **Beschriftungen** übersetzt — im Admin wie auf der öffentlichen Seite.
+- **Bildunterschriften**: die KI schreibt eine je Foto **mit Hinweis**. Im Schritt *Fotos* lässt sich je Foto eine **eigene** eintragen; sie hat Vorrang und ist der einzige Weg, ein Foto ohne Hinweis zu beschriften.
 - Erlebnisse, Mahlzeiten, besondere Momente, Ausgaben und Fotos sind **beliebig oft** hinzufügbar. Ausgaben werden je Währung summiert — getrennt statt umgerechnet, ein geratener Wechselkurs wäre eine erfundene Zahl.
 - **„Wetter war erwähnenswert“**: ohne Haken lässt die KI das Wetter im Bericht weg.
 - Der Zwischenstand wird **laufend lokal im Browser gesichert**. Bricht unterwegs die Verbindung weg, ist die Eingabe nicht verloren.
@@ -168,7 +170,8 @@ Ein eigenes Modul, getrennt vom normalen Blog: unterwegs ein paar Stichpunkte er
 - **Adresse (Slug)** je Reise, frei wählbar im Reise-Dialog; leer gelassen wird sie aus dem Namen gebildet (`Gran Canaria 2027` → `gran-canaria-2027`). Einmal vergeben **bleibt sie**, auch beim Umbenennen — sonst führte jeder geteilte Link ins Leere. Die Tage heißen `tag-1`, `tag-2`, … und behalten ihre Adresse, wenn der Ort später korrigiert wird.
 - **Nur für Mitglieder** je Reise: Titel und Anrisstexte bleiben sichtbar, die Berichte nicht. Die Sperre gilt für die ganze Reise — eine halb gezeigte Reise wäre eine Geschichte mit Löchern.
 - Der **Abschnitt auf der Startseite** erscheint, sobald der Reiseblog unter *Design → Module* für die Website freigegeben ist **und** mindestens ein Tag veröffentlicht wurde. Position und Sichtbarkeit wie bei jedem Abschnitt unter *Inhalte*.
-- Der Tagesbericht zeigt **Fakten** (Datum, Ort, Wetter), den Text, eine **Bildergalerie** mit den Unterschriften der KI, die Schlagwörter und eine Leiste zum **Blättern** zum vorherigen und nächsten Tag. Über „Drucken“ des Browsers entsteht ein sauberes PDF ohne Kopf-, Fuß- und Navigationsleiste.
+- **Ausgaben**: Der Tagesbericht zeigt eine Aufstellung (Kategorie, Zweck, Betrag) mit Summe, die Reise-Seite die Summe über alle veröffentlichten Tage — je Währung getrennt, nicht umgerechnet. Gesteuert vom Schalter **„Preise im Bericht nennen"** der Reise: ist er aus, bleiben auch die Aufstellungen weg. Entwürfe zählen nicht mit.
+- Der Tagesbericht zeigt **Fakten** (Datum, Ort, Wetter), den Text, eine **Bildergalerie** mit den Unterschriften, die Schlagwörter und eine Leiste zum **Blättern** zum vorherigen und nächsten Tag. Über „Drucken“ des Browsers entsteht ein sauberes PDF ohne Kopf-, Fuß- und Navigationsleiste.
 - **Sitemap, Volltextsuche, IndexNow und der statische Export** kennen die veröffentlichten Tage; Entwürfe bleiben überall außen vor.
 
 ### Volltextsuche
@@ -180,6 +183,9 @@ Eine seitenweite Suche über **Blog-Beiträge, Projekte, Seiten, Bibliothek-Eint
 
 ### Formulare
 Frei konfigurierbare Formulare über das eine Kontaktformular hinaus — z. B. **Veranstaltungs-Anmeldung, Umfrage oder Anfrage**. Jedes Formular ist unter `/formular/<slug>` erreichbar (optional als Navi-Eintrag).
+
+- **Abschnitt auf der Startseite** mit einer Kachel je aktivem Formular; einsortierbar und ausblendbar unter *Inhalte*. Steht der Abschnitt in der Navigationsleiste, entfallen dort die einzelnen Formular-Links — sonst stünde erst „Formulare" und daneben nochmal jedes einzelne.
+- Der Schalter **Formulare** unter *Design → Module* blendet alles davon auf der Website aus: Abschnitt, Navi-Einträge und die Seiten unter `/formular/…`. Der Reiter im Admin bleibt sichtbar, damit sich Formulare vorbereiten lassen.
 
 - **Felder**: beliebig viele, per Drag sortierbar. Typen: Text, mehrzeiliges Textfeld, E-Mail, Telefon, Zahl, Datum, Auswahl (Dropdown), Auswahl (Radio) und Kontrollkästchen. Je Feld DE/EN-Bezeichnung, optionaler Platzhalter, **Pflicht**-Schalter und (für Auswahl/Radio) Optionen (eine je Zeile).
 - **Einleitung & Danke-Text** (DE/EN, Markdown) lassen sich frei texten.

@@ -106,6 +106,7 @@
       {% if trip.start %}<span>{{ trip.start }}{% if trip.end %} – {{ trip.end }}{% endif %}</span>{% endif %}
       <span class="trav-flag">{{ (t.trav_day_count_one if trip.day_count == 1 else t.trav_day_count).replace('{n}', trip.day_count|string) }}</span>
       {% if trip.members_only %}<span class="trav-flag">🔒 {{ t.members_only_badge }}</span>{% endif %}
+      {% if totals %}<span class="trav-flag">{{ t.trav_expenses_total }}: {{ totals|join(' · ') }}</span>{% endif %}
     </div>
 
     {% if trip.image %}<img class="trip-hero" src="{{ trip.image }}" alt="">{% endif %}
