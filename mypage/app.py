@@ -110,6 +110,7 @@ AUDIT_PATH = _DATA + '/audit.json'
 SUBSCRIBERS_PATH = _DATA + '/subscribers.json'
 SESSIONS_PATH = _DATA + '/sessions.json'
 USERS_PATH    = _DATA + '/users.json'
+AI_USAGE_PATH = _DATA + '/ai_usage.json'   # Gemini-Verbrauch je Monat und Modell
 USESSIONS_PATH = _DATA + '/user_sessions.json'
 DM_PATH       = _DATA + '/dm.json'          # Mitglieder-Direktnachrichten (Text verschlüsselt)
 DMKEY_PATH    = _DATA + '/dm.key'           # Fernet-Schlüssel für die DM-Verschlüsselung
@@ -4439,7 +4440,8 @@ def write_backup_zip(fp) -> None:
     with zipfile.ZipFile(fp, 'w', zipfile.ZIP_DEFLATED) as z:
         for name in ('site.json', 'stats.json', 'messages.json', 'users.json',
                      'comments.json', 'audit.json', 'subscribers.json',
-                     'dm.json', 'dm.key', 'admin_2fa.json', 'secret.key'):
+                     'dm.json', 'dm.key', 'admin_2fa.json', 'secret.key',
+                     'ai_usage.json'):
             p = Path(_DATA) / name
             if p.is_file():
                 z.write(p, name)
@@ -4627,7 +4629,7 @@ def api_restore():
                 # gegen Zip-Slip absichern
                 if member in ('site.json', 'stats.json', 'messages.json', 'users.json',
                               'comments.json', 'audit.json', 'subscribers.json', 'dm.json',
-                              'admin_2fa.json'):
+                              'admin_2fa.json', 'ai_usage.json'):
                     target = safe_under(Path(_DATA), member)
                 elif member in ('dm.key', 'secret.key'):  # Binär-/Text-Schlüssel, kein JSON
                     target = safe_under(Path(_DATA), member)
@@ -5018,11 +5020,14 @@ def _gemini_generate_image(prompt: str, *, model: str = '', ratio: str = '',
         cands = resp.candidates or []
         if cands and cands[0].finish_reason in _GEMINI_IMAGE_REFUSALS:
             log.info("Gemini hat die Bildanfrage abgelehnt: %s", cands[0].finish_reason)
+            _ai_usage_record(model, resp)
             return None, '', 'refused'
         for part in (resp.parts or []):
             if part.inline_data is not None and part.inline_data.data:
+                _ai_usage_record(model, resp, images=1)
                 return (part.inline_data.data,
                         part.inline_data.mime_type or 'image/png', '')
+        _ai_usage_record(model, resp)
     except genai_errors.APIError as e:
         # Bewusst nur der Statuscode: die Meldung des SDK kann die vollständige
         # Anfrage-URL samt API-Key enthalten, die hat im Add-on-Log nichts zu suchen.
@@ -5418,6 +5423,7 @@ def _gemini_generate_text(*, topic: str, kind: str, tone: str, length: str,
                 http_options=genai_types.HttpOptions(timeout=GEMINI_TEXT_TIMEOUT_MS),
             ),
         )
+        _ai_usage_record(model, resp)
         cands = resp.candidates or []
         if cands and cands[0].finish_reason in _GEMINI_TEXT_REFUSALS:
             log.info("Gemini hat die Textanfrage abgelehnt: %s", cands[0].finish_reason)
@@ -5484,6 +5490,134 @@ def api_ai_text():
     return jsonify({'ok': True, 'result': data})
 
 
+# ── KI-Verbrauch ──────────────────────────────────────────────────────────────
+#
+# Die Stundenlimits verhindern Ausreißer, sagen aber nichts darüber, was der
+# Monat gekostet hat. Google liefert je Antwort die Token-Zahlen mit — die sind
+# hier die Wahrheit. Preise liefert die API NICHT, und eine fest verdrahtete
+# Preistabelle wäre nach der nächsten Anpassung still falsch. Deshalb pflegt sie
+# der Admin selbst: Zahlen von Google, Preis vom Nutzer. Ohne Preis bleibt es bei
+# Tokens. Maßgeblich ist und bleibt die Abrechnung in der Google Cloud Console.
+
+AI_USAGE_KEEP_MONTHS = 24
+_ai_usage_lock = threading.Lock()
+
+
+def _ai_usage_load() -> dict:
+    try:
+        with open(AI_USAGE_PATH, encoding='utf-8') as f:
+            data = json.load(f)
+    except FileNotFoundError:
+        data = {}
+    except Exception as e:
+        log.warning("ai_usage.json nicht lesbar (%s) — starte mit leerem Verbrauch", e)
+        data = {}
+    if not isinstance(data.get('months'), dict):
+        data['months'] = {}
+    if not isinstance(data.get('prices'), dict):
+        data['prices'] = {}
+    return data
+
+
+def _ai_usage_record(model: str, resp, images: int = 0) -> None:
+    """Bucht eine Anfrage auf den laufenden Monat.
+
+    Wird auch bei abgelehnten oder leeren Antworten aufgerufen: die kosten die
+    Eingabe-Tokens genauso. Fehlschläge ohne Antwort tauchen nicht auf — dort
+    gibt es nichts zu buchen.
+    """
+    um = getattr(resp, 'usage_metadata', None)
+
+    def _n(attr: str) -> int:
+        try:
+            return max(0, int(getattr(um, attr, 0) or 0))
+        except (TypeError, ValueError):
+            return 0
+
+    # Denk-Tokens werden wie Ausgabe abgerechnet und gehören deshalb dazu
+    tin, tout = _n('prompt_token_count'), _n('candidates_token_count') + _n('thoughts_token_count')
+    month = date.today().strftime('%Y-%m')
+    with _ai_usage_lock:
+        data = _ai_usage_load()
+        row = data['months'].setdefault(month, {}).setdefault(
+            model, {'calls': 0, 'in': 0, 'out': 0, 'images': 0})
+        row['calls'] += 1
+        row['in'] += tin
+        row['out'] += tout
+        row['images'] += images
+        for old in sorted(data['months'])[:-AI_USAGE_KEEP_MONTHS]:
+            del data['months'][old]
+        try:
+            _atomic_write_json(AI_USAGE_PATH, data, indent=2)
+        except Exception as e:
+            log.warning("KI-Verbrauch konnte nicht gespeichert werden: %s", e)
+
+
+def _ai_usage_cost(row: dict, price: dict) -> float:
+    """Kosten einer Zeile. Preise sind je Million Tokens bzw. je Bild."""
+    return round((row.get('in', 0) / 1e6) * float(price.get('in') or 0)
+                 + (row.get('out', 0) / 1e6) * float(price.get('out') or 0)
+                 + row.get('images', 0) * float(price.get('image') or 0), 4)
+
+
+@admin_app.route('/api/ai/usage')
+def api_ai_usage():
+    err = _api_auth()
+    if err:
+        return err
+    with _ai_usage_lock:
+        data = _ai_usage_load()
+    months, prices = data['months'], data['prices']
+    out = {}
+    for month in sorted(months, reverse=True)[:12]:
+        rows = []
+        for model in sorted(months[month]):
+            row = dict(months[month][model])
+            row['model'] = model
+            row['cost'] = _ai_usage_cost(row, prices.get(model) or {})
+            rows.append(row)
+        out[month] = rows
+    # Auch die gerade eingestellten Modelle anbieten, damit ein Preis schon vor
+    # der ersten Anfrage hinterlegt werden kann
+    known = sorted({m for mo in months.values() for m in mo}
+                   | {_gemini_image_model(), _gemini_text_model()} | set(prices))
+    return jsonify({'months': out, 'prices': prices, 'models': known,
+                    'current': date.today().strftime('%Y-%m')})
+
+
+@admin_app.route('/api/ai/prices', methods=['POST'])
+def api_ai_prices():
+    err = _api_auth()
+    if err:
+        return err
+    raw = (request.get_json(silent=True) or {}).get('prices')
+    if not isinstance(raw, dict):
+        return jsonify({'error': 'invalid'}), 400
+    clean = {}
+    for model, p in list(raw.items())[:60]:
+        if not _AI_MODEL_RE.match(str(model)) or not isinstance(p, dict):
+            continue
+        vals = {}
+        for k in ('in', 'out', 'image'):
+            try:
+                v = round(float(p.get(k) or 0), 6)
+            except (TypeError, ValueError):
+                v = 0.0
+            if v > 0:
+                vals[k] = v
+        if vals:
+            clean[model] = vals
+    with _ai_usage_lock:
+        data = _ai_usage_load()
+        data['prices'] = clean
+        try:
+            _atomic_write_json(AI_USAGE_PATH, data, indent=2)
+        except Exception as e:
+            log.warning("KI-Preise konnten nicht gespeichert werden: %s", e)
+            return jsonify({'error': 'save_failed'}), 500
+    return jsonify({'ok': True})
+
+
 def _gemini_translate(text: str, src: str, dst: str) -> str:
     """Übersetzt in einem Rutsch — Gemini kommt mit 20 000 Zeichen zurecht.
 
@@ -5493,9 +5627,10 @@ def _gemini_translate(text: str, src: str, dst: str) -> str:
     fällt dann auf MyMemory zurück.
     """
     names = {'de': 'Deutsch', 'en': 'Englisch'}
+    model = _gemini_text_model()
     client = _gemini_client()
     resp = client.models.generate_content(
-        model=_gemini_text_model(), contents=[text],
+        model=model, contents=[text],
         config=genai_types.GenerateContentConfig(
             system_instruction=(
                 f"Übersetze den Text von {names[src]} nach {names[dst]}. "
@@ -5507,6 +5642,7 @@ def _gemini_translate(text: str, src: str, dst: str) -> str:
             http_options=genai_types.HttpOptions(timeout=GEMINI_TEXT_TIMEOUT_MS),
         ),
     )
+    _ai_usage_record(model, resp)
     out = (resp.text or '').strip()
     if not out:
         raise ValueError('empty translation')

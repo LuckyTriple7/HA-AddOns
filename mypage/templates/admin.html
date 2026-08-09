@@ -766,6 +766,25 @@
       </div>
 
       <div class="panel">
+        <h3>💶 {{ t.ai_usage_heading }}</h3>
+        <p class="hint">{{ t.ai_usage_hint }} <a href="https://console.cloud.google.com/billing" target="_blank" rel="noopener">{{ t.ai_usage_billing_link }}</a></p>
+        <div class="row">
+          <div>
+            <label>{{ t.ai_usage_month }}</label>
+            <select id="ai-usage-month" onchange="renderAiUsage()"></select>
+          </div>
+          <div></div>
+        </div>
+        <div id="ai-usage-table" style="margin-top:14px;overflow-x:auto"></div>
+        <button class="btn secondary small" style="margin-top:14px" onclick="toggleAiPrices()">💰 {{ t.ai_prices_toggle }}</button>
+        <div id="ai-prices-box" style="display:none;margin-top:14px">
+          <p class="hint">{{ t.ai_prices_hint }}</p>
+          <div id="ai-prices-list" style="overflow-x:auto"></div>
+          <button class="btn" style="margin-top:12px" onclick="saveAiPrices()">{{ t.save }}</button>
+        </div>
+      </div>
+
+      <div class="panel">
         <h3>🖼️ {{ t.ai_img_heading }}</h3>
         <p class="hint">{{ t.ai_img_hint }}</p>
         <label>{{ t.ai_img_prompt }}</label>
@@ -5311,7 +5330,8 @@
       if (AI_STATUS.text || AI_STATUS.image) el('tab-btn-ai').style.display = '';
     }
     async function initAiTab() {
-      if (aiTabReady) { refreshAiStatus(); return; }
+      refreshAiStatus();   // Kontingent und Verbrauch bei jedem Tabwechsel frisch
+      if (aiTabReady) return;
       aiTabReady = true;
       buildAiStyleChips();
       aiLangChanged();
@@ -5340,6 +5360,7 @@
       if (current) sel.value = current;
     }
     async function refreshAiStatus() {
+      loadAiUsage();
       const r = await api('api/ai/status');
       if (!r.ok) return;
       AI_STATUS = await r.json();
@@ -5361,6 +5382,119 @@
       toast(r.ok ? T.saved : T.error_save, !r.ok);
       if (r.ok) refreshAiStatus();
     }
+    // ── Verbrauch ──
+    // Tabellen werden per DOM-Knoten gebaut, nicht per innerHTML: Modellnamen
+    // stammen zwar aus der eigenen API, aber ein HTML-Sink ist hier schlicht
+    // unnötig.
+    let AI_USAGE = null;
+    async function loadAiUsage() {
+      const r = await api('api/ai/usage');
+      if (!r.ok) return;
+      AI_USAGE = await r.json();
+      const sel = el('ai-usage-month');
+      const months = Object.keys(AI_USAGE.months).sort().reverse();
+      if (!months.includes(AI_USAGE.current)) months.unshift(AI_USAGE.current);
+      const keep = sel.value;
+      sel.innerHTML = '';
+      months.forEach(m => {
+        const o = document.createElement('option');
+        o.value = m; o.textContent = m;
+        sel.appendChild(o);
+      });
+      sel.value = months.includes(keep) ? keep : months[0];
+      renderAiUsage();
+      renderAiPrices();
+    }
+    function aiCell(text, bold) {
+      const td = document.createElement('td');
+      td.textContent = text;
+      if (bold) td.style.fontWeight = '600';
+      return td;
+    }
+    function aiCost(v) {
+      return v > 0 ? (v >= 1 ? v.toFixed(2) : v.toFixed(4)) + ' €' : '—';
+    }
+    function renderAiUsage() {
+      const box = el('ai-usage-table');
+      box.innerHTML = '';
+      const rows = (AI_USAGE && AI_USAGE.months[el('ai-usage-month').value]) || [];
+      if (!rows.length) {
+        const d = document.createElement('div');
+        d.className = 'empty-note';
+        d.textContent = T.ai_usage_empty;
+        box.appendChild(d);
+        return;
+      }
+      const tbl = document.createElement('table');
+      tbl.className = 'vtable';
+      const head = document.createElement('tr');
+      [T.ai_col_model, T.ai_col_calls, T.ai_col_images, T.ai_col_in, T.ai_col_out, T.ai_col_cost]
+        .forEach(h => { const th = document.createElement('th'); th.textContent = h; head.appendChild(th); });
+      const thead = document.createElement('thead'); thead.appendChild(head); tbl.appendChild(thead);
+      const tbody = document.createElement('tbody');
+      const sum = { calls: 0, images: 0, in: 0, out: 0, cost: 0 };
+      rows.forEach(r => {
+        ['calls', 'images', 'in', 'out', 'cost'].forEach(k => sum[k] += r[k] || 0);
+        const tr = document.createElement('tr');
+        tr.append(aiCell(r.model), aiCell(r.calls.toLocaleString()),
+                  aiCell(r.images.toLocaleString()), aiCell(r.in.toLocaleString()),
+                  aiCell(r.out.toLocaleString()), aiCell(aiCost(r.cost)));
+        tbody.appendChild(tr);
+      });
+      tbl.appendChild(tbody);
+      const foot = document.createElement('tr');
+      foot.append(aiCell(T.ai_col_total, true), aiCell(sum.calls.toLocaleString(), true),
+                  aiCell(sum.images.toLocaleString(), true), aiCell(sum.in.toLocaleString(), true),
+                  aiCell(sum.out.toLocaleString(), true), aiCell(aiCost(sum.cost), true));
+      const tfoot = document.createElement('tfoot'); tfoot.appendChild(foot); tbl.appendChild(tfoot);
+      box.appendChild(tbl);
+    }
+    function toggleAiPrices() {
+      const b = el('ai-prices-box');
+      b.style.display = b.style.display === 'none' ? '' : 'none';
+    }
+    function renderAiPrices() {
+      const box = el('ai-prices-list');
+      box.innerHTML = '';
+      if (!AI_USAGE) return;
+      const tbl = document.createElement('table');
+      tbl.className = 'vtable';
+      const head = document.createElement('tr');
+      [T.ai_col_model, T.ai_price_in, T.ai_price_out, T.ai_price_image]
+        .forEach(h => { const th = document.createElement('th'); th.textContent = h; head.appendChild(th); });
+      const thead = document.createElement('thead'); thead.appendChild(head); tbl.appendChild(thead);
+      const tbody = document.createElement('tbody');
+      AI_USAGE.models.forEach(m => {
+        const p = AI_USAGE.prices[m] || {};
+        const tr = document.createElement('tr');
+        tr.appendChild(aiCell(m));
+        ['in', 'out', 'image'].forEach(k => {
+          const td = document.createElement('td');
+          const inp = document.createElement('input');
+          inp.type = 'number'; inp.step = '0.0001'; inp.min = '0';
+          inp.style.maxWidth = '110px';
+          inp.dataset.model = m; inp.dataset.kind = k;
+          inp.value = p[k] || '';
+          td.appendChild(inp);
+          tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+      });
+      tbl.appendChild(tbody);
+      box.appendChild(tbl);
+    }
+    async function saveAiPrices() {
+      const prices = {};
+      el('ai-prices-list').querySelectorAll('input[data-model]').forEach(i => {
+        const v = parseFloat(i.value);
+        if (!(v > 0)) return;
+        (prices[i.dataset.model] = prices[i.dataset.model] || {})[i.dataset.kind] = v;
+      });
+      const r = await apiJson('api/ai/prices', 'POST', { prices });
+      toast(r.ok ? T.saved : T.error_save, !r.ok);
+      if (r.ok) loadAiUsage();
+    }
+
     function aiErrMsg(code) {
       return code === 'ai_refused'   ? T.ai_err_refused
            : code === 'rate_limited' ? T.ai_err_limit

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.8
+- 💶 **Verbrauchsanzeige im Tab *KI*.** Bisher gab es nur Stundenlimits — die verhindern Ausreißer, sagen aber nichts darüber, was der Monat gekostet hat. Jede Anfrage wird jetzt nach **Monat und Modell** festgehalten: Aufrufe, erzeugte Bilder sowie Ein- und Ausgabe-Tokens, direkt aus der Antwort von Google. Denk-Tokens zählen zur Ausgabe, weil sie so abgerechnet werden; abgelehnte und leere Antworten zählen mit, weil sie die Eingabe genauso kosten.
+- **Preise trägst du selbst ein** (€ je Mio. Tokens rein/raus und € je Bild, je Modell) — daraus rechnet der Tab die Kosten je Modell und die Monatssumme. Die Gemini-API liefert keine Preise, und eine fest eingebaute Tabelle wäre nach der nächsten Google-Anpassung still falsch. Ohne Preis bleibt es bei den reinen Token-Zahlen.
+- Gespeichert in `ai_usage.json` (24 Monate, im Backup enthalten), Monatswähler für die letzten 12 Monate.
+- **Es bleibt eine Schätzung**, und das steht auch so im Tab: Freikontingente, Rundungen und Preisänderungen kennt das Add-on nicht. Die echten Kosten sind mit dem Gemini-Key nicht abrufbar — der berechtigt nur zum Modellaufruf. Ein Link neben der Überschrift führt zur Abrechnung bei Google.
+
 ## 0.9.7
 - 🐛 **Kein Gemini-Aufruf kam durch.** Bilder, Texte und die Modellliste scheiterten alle mit „Cannot send a request, as the client has been closed" und erreichten Google nie. Der Client hatte im neuen KI-Tab keine feste Referenz mehr, wurde mitten im Aufruf eingesammelt, und sein Destruktor schloss die Verbindung. Er wird jetzt zwischengespeichert (neu aufgebaut, wenn sich der API-Key ändert) und an jeder Aufrufstelle festgehalten.
 - 🔒 Die Adresse des **Vorlagenbilds** im Bild-Studio wird nicht mehr aus dem Eingabefeld zurückgelesen, sondern intern gehalten und vor der Verwendung gegen die Form einer eigenen Upload-Adresse geprüft (CodeQL `js/xss-through-dom`).
