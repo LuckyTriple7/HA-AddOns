@@ -46,6 +46,14 @@
       scrolls through the tmux history (survives browser reloads), but touch
       scrolling is unavailable and copying goes through tmux. If input seems
       blocked, press q (exits copy mode). Default: browser.
+  mobile_scroll_ui:
+    name: Mobile Scroll Controls
+    description: >-
+      Swipe to scroll plus two scroll buttons in the terminal — touch devices
+      only (phone, tablet, HA Companion App), desktop browsers are left
+      unchanged. Needed because xterm.js disables touch scrolling as soon as an
+      application turns on mouse tracking (e.g. tmux in scroll mode tmux).
+      Default: enabled.
   claude_autostart:
     name: Auto-start Claude
     description: >-

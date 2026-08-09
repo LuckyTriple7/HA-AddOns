@@ -27,6 +27,7 @@ claude --continue   # letzte Unterhaltung fortsetzen
 | `terminal_theme` | `dark` | Terminal-Theme: `dark` oder `light` |
 | `session_persistence` | `true` | tmux verwenden — Session überlebt Browser-Reload |
 | `tmux_scroll_mode` | `browser` | Scroll-Verhalten mit tmux: `browser` (natives Scrollen/Touch/Copy-Paste) oder `tmux` (Mausrad scrollt tmux-Historie) |
+| `mobile_scroll_ui` | `true` | Wisch-Scrollen und Scroll-Knöpfe auf Touch-Geräten (Handy/Tablet/HA App) |
 | `claude_autostart` | `false` | Claude beim Öffnen des Terminals automatisch starten |
 | `auto_update_claude` | `true` | Claude Code beim Start automatisch aktualisieren |
 | `model` | `claude-sonnet-5` | Zu verwendendes Claude-Modell |
@@ -95,6 +96,10 @@ Das Terminal verwendet tmux für persistente Sessions. Das Scroll-Verhalten steu
 
 Wer gar kein tmux möchte: `session_persistence: false` startet eine reine Bash — natives Scrollen und Kopieren ohne Einschränkungen, aber die Session überlebt keinen Browser-Reload.
 
+### Scrollen auf Handy & Tablet
+
+Auf Touch-Geräten (auch in der HA Companion App) blendet das Terminal zwei Scroll-Knöpfe unten rechts ein, und ein Wisch nach oben/unten scrollt. Das Terminal-Frontend (xterm.js) schaltet sein eigenes Touch-Scrollen ab, sobald eine Anwendung die Maus-Erfassung aktiviert — im Modus `tmux` also immer. Die Option `mobile_scroll_ui` (Standard: aktiviert) ersetzt es und funktioniert in **beiden** Scroll-Modi. Desktop-Browser bleiben unverändert; abschaltbar über die Option.
+
 ## Update-Benachrichtigungen
 
 Bei aktiviertem `auto_update_claude` prüft das Add-on stündlich auf neue Claude Code Versionen. Bei einem Update erscheint eine persistente HA-Benachrichtigung. Nach dem Neustart des Add-ons wird automatisch aktualisiert.
@@ -130,6 +135,7 @@ claude --continue   # continue last conversation
 | `terminal_theme` | `dark` | Terminal theme: `dark` or `light` |
 | `session_persistence` | `true` | Use tmux — session survives browser reload |
 | `tmux_scroll_mode` | `browser` | Scroll behavior with tmux: `browser` (native scrolling/touch/copy-paste) or `tmux` (mouse wheel scrolls tmux history) |
+| `mobile_scroll_ui` | `true` | Swipe scrolling and scroll buttons on touch devices (phone/tablet/HA app) |
 | `claude_autostart` | `false` | Auto-start Claude when the terminal opens |
 | `auto_update_claude` | `true` | Auto-update Claude Code on startup |
 | `model` | `claude-sonnet-5` | Claude model to use |
@@ -197,6 +203,10 @@ The terminal uses tmux for persistent sessions. Scroll behavior is controlled by
 | Exit scroll/copy mode | `q` |
 
 If you don't want tmux at all: `session_persistence: false` starts plain bash — native scrolling and copying without restrictions, but the session does not survive a browser reload.
+
+### Scrolling on phone & tablet
+
+On touch devices (including the HA Companion App) the terminal shows two scroll buttons in the bottom-right corner, and swiping up/down scrolls. The terminal frontend (xterm.js) disables its own touch scrolling as soon as an application turns on mouse tracking — which is always the case in `tmux` mode. The `mobile_scroll_ui` option (default: enabled) replaces it and works in **both** scroll modes. Desktop browsers are left unchanged; the option turns it off.
 
 ## Update Notifications
 

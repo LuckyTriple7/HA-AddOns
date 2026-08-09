@@ -49,6 +49,14 @@
       a recarregamentos do navegador), mas sem rolagem por toque e a cópia é
       feita via tmux. Se a entrada parecer bloqueada, pressione q (sai do
       modo cópia). Padrão: browser.
+  mobile_scroll_ui:
+    name: Controles de Rolagem Móvel
+    description: >-
+      Deslizar para rolar e dois botões de rolagem no terminal — apenas em
+      dispositivos de toque (celular, tablet, app HA Companion); navegadores de
+      desktop não mudam. Necessário porque o xterm.js desativa a rolagem por
+      toque assim que um aplicativo ativa o rastreamento do mouse (por exemplo,
+      tmux no modo de rolagem tmux). Padrão: ativado.
   auto_update_claude:
     name: Atualização Automática do Claude Code
     description: >-

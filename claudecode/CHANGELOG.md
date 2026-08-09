@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.3.7] - 2026-08-09
+
+### Added
+- Scrollen per Wischgeste und zwei Scroll-Knöpfe im Web-Terminal auf Touch-Geräten (Handy, Tablet, HA Companion App) — neue Option `mobile_scroll_ui` (Standard: aktiviert), Desktop-Browser bleiben unverändert. Hintergrund: xterm.js besitzt zwar eigenes Touch-Scrollen, steigt aber in `touchstart`/`touchmove` sofort aus, sobald eine Anwendung die Maus-Erfassung aktiviert (`coreMouseService.areMouseEventsActive`) — im Scroll-Modus `tmux` (`set -g mouse on`) also immer. Die neue Gestenerkennung greift in der Capture-Phase (kein doppeltes Scrollen) und reicht die Bewegung als synthetisches `wheel`-Event an xterm zurück, das damit je nach Modus das Browser-Scrollback scrollt oder Wheel-Reports an tmux schickt.
+
+### Changed
+- ttyd liefert die Client-Seite als eine einzige inline-`index.html` aus; sie wird jetzt beim Image-Build von einer Wegwerf-ttyd-Instanz abgeholt, um das Skript ergänzt und über `ttyd --index` ausgeliefert. Ändert ttyd sein Seiten-Layout, bricht der Build hörbar ab statt still eine kaputte Seite auszuliefern.
+
+
 ## [1.3.6] - 2026-08-06
 
 ### Changed

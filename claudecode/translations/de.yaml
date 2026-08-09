@@ -48,6 +48,14 @@ configuration:
       Mausrad scrollt durch die tmux-Historie (überlebt Browser-Reloads),
       dafür kein Touch-Scrollen und Kopieren nur über tmux. Wirkt die Eingabe
       blockiert: q drücken (verlässt den Copy-Mode). Standard: browser.
+  mobile_scroll_ui:
+    name: Mobile Scroll-Bedienung
+    description: >-
+      Wischen zum Scrollen und zwei Scroll-Knöpfe im Terminal — nur auf
+      Touch-Geräten (Handy, Tablet, HA Companion App), Desktop-Browser bleiben
+      unverändert. Nötig, weil xterm.js das Touch-Scrollen abschaltet, sobald
+      eine Anwendung die Maus-Erfassung aktiviert (z. B. tmux im
+      Scroll-Modus tmux). Standard: aktiviert.
   claude_autostart:
     name: Claude automatisch starten
     description: >-
