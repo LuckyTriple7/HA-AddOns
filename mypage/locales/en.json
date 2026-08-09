@@ -2458,6 +2458,7 @@
   "ai_prices_fetch_none": "No matching items found. Please enter prices by hand.",
   "ai_prices_fetch_disabled": "The “Cloud Billing API” is not enabled in your Google Cloud project.",
   "ai_prices_fetch_key": "The API key was rejected by the price catalogue — invalid or restricted to specific services (Google Cloud → Credentials → API restrictions).",
+  "ai_prices_fetch_oauth": "Google does not accept an API key for the price catalogue, only an OAuth account. Automatic retrieval is therefore not possible here — please enter the prices by hand.",
   "ai_prices_fetch_failed": "The price catalogue could not be reached.",
   "ai_price_own": "own value",
   "ai_price_default": "default",

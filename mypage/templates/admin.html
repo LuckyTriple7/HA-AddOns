@@ -5526,9 +5526,10 @@
       if (!r || !r.ok) {
         el('ai-prices-fetch-info').textContent =
           d.error === 'billing_disabled'    ? T.ai_prices_fetch_disabled
+          : d.error === 'needs_oauth'       ? T.ai_prices_fetch_oauth
           : d.error === 'key_rejected'      ? T.ai_prices_fetch_key
           : d.error === 'service_not_found' ? T.ai_prices_fetch_none
-          : T.ai_prices_fetch_failed;
+          : T.ai_prices_fetch_failed + (d.reason ? ' (' + d.reason + ')' : '');
         return;
       }
       let n = 0;

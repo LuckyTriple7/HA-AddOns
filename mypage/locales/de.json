@@ -2458,6 +2458,7 @@
   "ai_prices_fetch_none": "Keine passenden Posten gefunden. Preise bitte von Hand eintragen.",
   "ai_prices_fetch_disabled": "Die „Cloud Billing API“ ist in deinem Google-Cloud-Projekt nicht freigeschaltet.",
   "ai_prices_fetch_key": "Der API-Schlüssel wird vom Preiskatalog abgelehnt — ungültig oder auf bestimmte Dienste beschränkt (Google Cloud → Anmeldedaten → API-Einschränkungen).",
+  "ai_prices_fetch_oauth": "Google nimmt für den Preiskatalog keinen API-Schlüssel an, sondern nur ein OAuth-Konto. Damit ist der automatische Abruf hier nicht möglich — bitte die Preise von Hand eintragen.",
   "ai_prices_fetch_failed": "Der Preiskatalog war nicht erreichbar.",
   "ai_price_own": "eigener Wert",
   "ai_price_default": "Vorgabe",

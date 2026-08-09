@@ -5643,37 +5643,53 @@ def _sku_unit_price(sku: dict) -> float | None:
     return round(price, 6)   # z. B. „image" — je Stück
 
 
-def _billing_error(r) -> str:
-    """Fehlercode aus einer Google-Fehlerantwort ableiten.
+# Der `reason` aus Googles Fehlerkörper ist die einzige belastbare Auskunft.
+# Nach dem Statuscode zu gehen wäre falsch: „Dienst nicht freigeschaltet" und
+# „API-Keys werden hier nicht unterstützt" sind beide 403, verlangen aber völlig
+# verschiedene Schritte — im zweiten Fall gibt es überhaupt nichts freizuschalten.
+_BILLING_REASONS = {
+    'SERVICE_DISABLED':              'billing_disabled',
+    'API_KEY_INVALID':               'key_rejected',
+    'API_KEY_SERVICE_BLOCKED':       'key_rejected',
+    'API_KEY_HTTP_REFERRER_BLOCKED': 'key_rejected',
+    'CREDENTIALS_MISSING':           'needs_oauth',
+    'ACCESS_TOKEN_TYPE_UNSUPPORTED': 'needs_oauth',
+}
 
-    Der `reason` im Body ist belastbarer als der Statuscode und trennt die drei
-    Fälle, die der Admin unterschiedlich beheben muss: Dienst nicht
-    freigeschaltet, Schlüssel abgelehnt, sonstiger Ausfall.
+
+def _billing_error(r) -> tuple[str, str]:
+    """(Fehlercode, roher Grund) aus einer Google-Fehlerantwort.
+
+    Der rohe Grund geht mit an die Oberfläche: bei einem unbekannten Fall soll
+    dort stehen, was Google wirklich sagt, statt einer geratenen Empfehlung.
     """
     try:
         err = (r.json() or {}).get('error') or {}
-        reasons = {d.get('reason') for d in (err.get('details') or []) if isinstance(d, dict)}
+        reasons = [d.get('reason') for d in (err.get('details') or [])
+                   if isinstance(d, dict) and d.get('reason')]
     except ValueError:
-        reasons = set()
-    if 'SERVICE_DISABLED' in reasons or r.status_code == 403:
-        return 'billing_disabled'
-    if reasons & {'API_KEY_INVALID', 'API_KEY_SERVICE_BLOCKED', 'API_KEY_HTTP_REFERRER_BLOCKED'}:
-        return 'key_rejected'
-    return 'failed'
+        reasons = []
+    for reason in reasons:
+        if reason in _BILLING_REASONS:
+            return _BILLING_REASONS[reason], reason
+    return 'failed', (reasons[0] if reasons else f'HTTP {r.status_code}')
 
 
-def _gemini_fetch_prices(models: list[str]) -> tuple[dict | None, str]:
-    """Preisvorschläge aus dem Cloud-Preiskatalog. Zurück: (Vorschläge, Fehlercode)."""
+def _gemini_fetch_prices(models: list[str]) -> tuple[dict | None, str, str]:
+    """Preisvorschläge aus dem Cloud-Preiskatalog.
+
+    Zurück: (Vorschläge, Fehlercode, roher Grund von Google).
+    """
     key = _gemini_key()
     try:
         r = http.get(f'{CLOUD_BILLING_API}/services',
                      params={'key': key, 'pageSize': 5000}, timeout=20)
         if not r.ok:
-            return None, _billing_error(r)
+            return (None,) + _billing_error(r)
         service = next((s['name'] for s in (r.json().get('services') or [])
                         if str(s.get('displayName', '')).lower() == GEMINI_BILLING_SERVICE), None)
         if not service:
-            return None, 'service_not_found'
+            return None, 'service_not_found', ''
         skus, token = [], ''
         while True:
             p = {'key': key, 'pageSize': 5000}
@@ -5681,7 +5697,7 @@ def _gemini_fetch_prices(models: list[str]) -> tuple[dict | None, str]:
                 p['pageToken'] = token
             r = http.get(f'{CLOUD_BILLING_API}/{service}/skus', params=p, timeout=20)
             if not r.ok:
-                return None, _billing_error(r)
+                return (None,) + _billing_error(r)
             data = r.json()
             skus.extend(data.get('skus') or [])
             token = data.get('nextPageToken') or ''
@@ -5690,7 +5706,7 @@ def _gemini_fetch_prices(models: list[str]) -> tuple[dict | None, str]:
     except Exception as e:
         # Nur der Typ: die Meldung von requests enthält die URL samt Key
         log.warning("Preiskatalog nicht abrufbar: %s", type(e).__name__)
-        return None, 'failed'
+        return None, 'failed', type(e).__name__
     # Längster Treffer gewinnt, sonst schnappt sich „gemini-3-flash" die SKUs
     # von „gemini-3-flash-lite"
     wanted = sorted(((m, m.replace('-', ' ').lower()) for m in models),
@@ -5705,7 +5721,7 @@ def _gemini_fetch_prices(models: list[str]) -> tuple[dict | None, str]:
         price = _sku_unit_price(sku) if kind else None
         if kind and price:
             out.setdefault(model, {})[kind] = price
-    return out, ''
+    return out, '', ''
 
 
 @admin_app.route('/api/ai/prices/fetch', methods=['POST'])
@@ -5720,9 +5736,10 @@ def api_ai_prices_fetch():
               if isinstance(m, str) and _AI_MODEL_RE.match(m)]
     if not models:
         return jsonify({'error': 'invalid'}), 400
-    prices, code = _gemini_fetch_prices(models)
+    prices, code, reason = _gemini_fetch_prices(models)
     if code:
-        return jsonify({'error': code}), 502
+        log.info("Preiskatalog abgelehnt (%s): %s", code, reason)
+        return jsonify({'error': code, 'reason': reason}), 502
     log.info("Preiskatalog abgefragt: %d von %d Modellen zugeordnet",
              len(prices), len(models))
     return jsonify({'ok': True, 'prices': prices})

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.11
+- 🔍 **Die Fehlermeldung der Preis-Abfrage sagt jetzt die Wahrheit.** Bisher wurde *jeder* 403 von Google als „Cloud Billing API nicht freigeschaltet" gedeutet — auch „API-Keys werden von diesem Dienst nicht unterstützt". Wer der Meldung folgte, schaltete Dienste frei, die gar nicht das Problem waren.
+- Ausgewertet wird jetzt ausschließlich der `reason` aus Googles Antwort. Neuer eigener Fall: **der Preiskatalog nimmt womöglich nur OAuth und keinen API-Schlüssel** — dann sagt die Meldung genau das und rät zur Eingabe von Hand, statt in die Irre zu führen.
+- Unbekannte Gründe werden **im Klartext angehängt** (`Der Preiskatalog war nicht erreichbar. (REASON)`), statt hinter einer allgemeinen Meldung zu verschwinden.
+
 ## 0.9.10
 - 💰 **Die Preistabelle ist vorbelegt.** Für bekannte Gemini-Modelle sind die Listenpreise von Google hinterlegt; sie stehen grau im Feld und werden gerechnet, ohne dass du etwas eintippen musst. Bisher blieb die Kostenspalte leer, bis man alles von Hand eingetragen hatte. Ein selbst eingetragener Wert schlägt die Vorgabe weiterhin.
 - Die Vorgaben sind **bewusst unvollständig**: Google benennt Modelle laufend um, und ein geratener Preis wäre schlimmer als eine leere Zeile — die fragt nach, eine falsche Zahl nicht. Eine neue Spalte sagt je Modell, ob gerade *Vorgabe*, *eigener Wert* oder *kein Vorgabepreis* gilt.
