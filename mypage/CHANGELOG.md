@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.10.2
+- 🖥️ **Das Admin-Panel nutzt jetzt die Breite des Fensters.** Die Arbeitsfläche war auf 1100 px festgenagelt — auf einem breiten Bildschirm blieb links und rechts alles leer, während Tabellen, Kachelraster und der Reise-Wizard unnötig scrollten. Nach oben bei 1900 px gedeckelt, damit Textzeilen nicht unlesbar lang werden.
+- Große Dialoge (Markdown-Editor, Reise-Wizard) wachsen mit bis 1400 px, normale Dialoge bis 760 px — jeweils höchstens 94 % der Fensterbreite, damit auf dem Handy nichts übersteht.
+
 ## 0.10.1
 - ⚙️ **Reiseblog und Formulare lassen sich ab- und anschalten** (Design → Module). Ein Reiter, der zu einem ungenutzten Modul gehört, ist nur Ballast. Der Reiseblog startet **aus**, Formulare bleiben **an**, damit bestehende Installationen ihren Reiter behalten.
 - 🧭 **Der Reiseblog lässt sich unter *Inhalte* einsortieren und ausblenden** wie jeder andere Abschnitt. Auf der Startseite erscheint er erst mit den öffentlichen Seiten — bis dahin wäre die Sprungmarke ein Verweis ins Leere.
