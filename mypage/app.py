@@ -5647,6 +5647,12 @@ AI_SKU_SAMPLES = 40   # Beispiele für die Oberfläche, wenn nichts zugeordnet w
 # vom Text ab. Diese Dimension bildet die Preistabelle nicht ab — solche Posten
 # als Textpreis zu buchen wäre schlicht falsch, also bleiben sie außen vor.
 _SKU_MODALITIES = ('image', 'video', 'audio')
+# Sondertarife: Google führt Stapelverarbeitung, zwischengespeicherte Eingaben,
+# feinabgestimmte Modelle und Recherche-Aufschläge als eigene Posten. MyPage ruft
+# nichts davon auf — solche Zeilen als Normaltarif zu übernehmen ergäbe eine
+# Summe, die zu niedrig ist und deshalb nicht auffällt.
+_SKU_SKIP = ('batch', 'cach', 'tuning', 'tuned', 'grounding', 'search',
+             'provisioned', 'free tier')
 
 # Der `reason` aus Googles Fehlerkörper ist die einzige belastbare Auskunft.
 # Nach dem Statuscode zu gehen wäre falsch: „Dienst nicht freigeschaltet" und
@@ -5695,14 +5701,19 @@ def _sku_kind(desc: str, unit: str, model: str) -> str | None:
     Verbrauchszählung führt für diese Modelle ebenfalls Ausgabe-Tokens, das
     rechnet sich von selbst zusammen.
     """
-    modality = any(w in desc for w in _SKU_MODALITIES)
+    if any(w in desc for w in _SKU_SKIP):
+        return None
+    if 'image' in model:
+        # Bildmodelle ausschließlich über den Posten je Bild. Ein Token-Posten
+        # daneben würde neben dem Bildpreis ein zweites Mal zählen, und welcher
+        # der beiden gemeint ist, entscheidet erst der Tarif des Nutzers.
+        return 'image' if ('image' in unit or 'per image' in desc) else None
+    if any(w in desc for w in _SKU_MODALITIES):
+        return None
     if 'output' in desc:
-        # Bildausgabe eines Bildmodells zählt, Bildausgabe sonst gibt es nicht
-        return 'out' if (not modality or 'image' in model) else None
+        return 'out'
     if 'input' in desc or 'prompt' in desc:
-        return None if modality else 'in'
-    if 'image' in unit or 'per image' in desc:
-        return 'image' if 'image' in model else None
+        return 'in'
     return None
 
 
@@ -5808,9 +5819,13 @@ def _gemini_fetch_prices(models: list[str]) -> tuple[dict | None, str, str]:
         kind = _sku_kind(desc, unit, model)
         price = _sku_price(sku, kind) if kind else None
         if kind and price:
-            # Google führt denselben Posten in mehreren Stufen und Regionen. Der
-            # erste Treffer gilt; der zweite waere sonst reiner Zufall.
-            out.setdefault(model, {}).setdefault(kind, price)
+            # Google führt denselben Posten in mehreren Stufen und Regionen. Bei
+            # mehreren Kandidaten gewinnt der höchste: unter dem Normaltarif zu
+            # liegen wäre der gefährliche Irrtum — eine zu niedrige Summe fällt
+            # niemandem auf, eine zu hohe schon.
+            row = out.setdefault(model, {})
+            if price > row.get(kind, 0):
+                row[kind] = price
     log.info("Preiskatalog: %d Posten gelesen, %d Modelle zugeordnet",
              len(skus), len(out))
     return ({'prices': out,

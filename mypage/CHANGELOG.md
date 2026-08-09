@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.17
+- 💸 **Die Preis-Abfrage zog Sondertarife heran.** Google führt Stapelverarbeitung, zwischengespeicherte Eingaben, feinabgestimmte Modelle und Recherche-Aufschläge als eigene Posten — MyPage löst nichts davon aus. Ein solcher Posten als Normaltarif ergab eine Summe, die zu niedrig ist und deshalb nicht auffällt (im Test: 0,05 statt 0,90 je Mio. Eingabe-Tokens). Diese Zeilen bleiben jetzt draußen.
+- Bleiben mehrere Kandidaten übrig, **gewinnt der höchste**. Unter dem Normaltarif zu liegen ist der gefährliche Irrtum — eine zu hohe Summe fällt auf, eine zu niedrige nicht.
+- **Bildmodelle werden nur noch über den Posten je Bild befüllt.** Vorher konnte ein Token-Posten daneben landen und nach dem Speichern **doppelt** zählen — einmal je Bild aus der Vorgabe, einmal je Token aus dem Abruf.
+
 ## 0.9.16
 - 🐞 **Die Preis-Abfrage trug Unsinn ein.** Sie prüfte zuerst auf „image“ und hielt damit „Gemini 3 Flash **Image Input** Tokens“ — den Aufschlag für ein Bild als *Eingabe* — für den Preis eines erzeugten Bildes. Ergebnis: jedes Textmodell bekam einen Bildpreis, und bei Bildmodellen überschrieb der falsche Wert die brauchbare Vorgabe.
 - Erkannt wird jetzt in der richtigen Reihenfolge: **Ausgabe vor Eingabe vor Bild**. Posten mit Bild-, Video- oder Audio-*Eingabe* bleiben ganz draußen — Google rechnet sie getrennt ab, und die Preistabelle bildet diese Dimension nicht ab. Sie als Textpreis zu buchen wäre schlicht falsch.
