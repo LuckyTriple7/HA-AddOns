@@ -44,6 +44,27 @@ def test_notify_telegram_logged_in_history(m, monkeypatch):
     assert "1.999" in it["message"]
 
 
+def test_notify_ha_extra_service(m, monkeypatch):
+    """ha_notify_service: zusätzliche notify.*-Dienste (Komma-Liste, Präfix optional)."""
+    _write_options(m, ha_notify_service="notify.mobile_app_handy, tv")
+    monkeypatch.setattr(m, "SUPERVISOR_TOKEN", "tok")
+    calls = []
+    monkeypatch.setattr(m.http, "post", lambda url, **k: calls.append(url))
+    m._notify_ha("Titel", "Text", "test")
+    assert any(u.endswith("/services/persistent_notification/create") for u in calls)
+    assert any(u.endswith("/services/notify/mobile_app_handy") for u in calls)
+    assert any(u.endswith("/services/notify/tv") for u in calls)
+
+
+def test_notify_ha_no_extra_service_by_default(m, monkeypatch):
+    _write_options(m)
+    monkeypatch.setattr(m, "SUPERVISOR_TOKEN", "tok")
+    calls = []
+    monkeypatch.setattr(m.http, "post", lambda url, **k: calls.append(url))
+    m._notify_ha("Titel", "Text", "test")
+    assert len(calls) == 1  # nur persistent_notification
+
+
 def test_notify_failure_logged_as_not_ok(m, monkeypatch):
     _write_options(m, telegram_bot_token="tok", telegram_chat_id="42")
     def boom(*a, **k):

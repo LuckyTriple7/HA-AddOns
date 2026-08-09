@@ -281,6 +281,11 @@ def _empty_result() -> dict:
             "recommendation": None, "location": "", "city": "", "region": "",
             "country": "", "pdf_url": "", "travellers_count": None,
             "booking_code": "", "room_booking_code": "",
+            "vac_status": "", "price_hotel": None, "price_flight_out": None,
+            "price_flight_ret": None, "last_booked": "",
+            "errata": None, "flight_segments": None, "hotel_supplier": None,
+            "flight_flags": None,
+            "luggage": None, "deposit_pct": None, "final_payment_date": "",
             "source": "", "note": "", "detail": ""}
 
 
@@ -300,6 +305,16 @@ SEARCH_API = "https://api.cloud.tui.com/hotel-offer-cards/v2/search/TUICOM"
 # Reiseziel-Picker (Regionen/Unterregionen) + Abflughäfen.
 DEST_API = "https://api.cloud.tui.com/search-destination/v2"
 AIRPORTS_API = "https://api.cloud.tui.com/search-departure-airport/v2"
+VACANCY_API = "https://d2z3tkv1undzra.cloudfront.net/vacancy-check"  # Live-Bestätigung (ATCOMRES)
+LUGGAGE_API = "https://api.cloud.tui.com/flight-luggage-api/get"     # Inklusiv-Gepäck je Flugroute
+LAST_BOOKED_API = "https://d3hw3spwqlykxv.cloudfront.net/hotel-last-booked/TUICOM/"
+HOTEL_CONTENT_API = "https://d2tzlxlrauxuk9.cloudfront.net/data"     # Adresse inkl. countryCode
+PAYMENT_API = "https://www.tui.com/api/paymentService/payments"      # Zahlarten/Anzahlung
+# Konstanten, mit denen das TUI-Buchungs-Frontend selbst die Endpoints aufruft
+# (per Netzwerk-Mitschnitt ermittelt, siehe SCRAPING.md → vacancy-check).
+_BOOKING_AGENCY = "021245"
+_BOOKING_AGENT = "0000"
+_BOOKING_CHANNEL = "TUIIA"
 _API_HEADERS = {"User-Agent": USER_AGENT, "Accept": "application/json"}
 _SEARCH_HEADERS = {"User-Agent": USER_AGENT, "Accept": "application/json",
                    "Content-Type": "application/json", "Origin": "https://www.tui.com",
@@ -816,6 +831,36 @@ def _build_search_payload(p: dict, *, offset: int = 0) -> dict:
     }
     if p.get("direct"):           # nur Direktflug → max. 0 Zwischenstopps
         params["stopOver"] = 0
+    # Sterne und Weiterempfehlung gehören in die Anfrage, nicht in einen Nachfilter:
+    # die API sortiert nach Preis aufsteigend, in den ersten 50 Treffern stehen also
+    # fast nur einfache Hotels. Clientseitig gefiltert blieb davon eine Handvoll übrig
+    # und der Rest musste seitenweise nachgeladen werden.
+    #
+    # Beide Feldnamen stammen aus einem Mitschnitt der echten tui.com-Suche (dieselbe
+    # API, siehe SCRAPING.md): `category` als ZAHL = „ab n Sonnen" (Liste/String →
+    # HTTP 400), `recommendations` als Liste mit Vergleichsoperator. Live gegengeprüft
+    # gegen die Trefferzahl der Website: 272 → 206 (category=4) → 135 (+ 80 %
+    # Weiterempfehlung) — die Website zeigt für dieselben Filter exakt 135.
+    try:
+        cat = int(p.get("min_category") or 0)
+    except (TypeError, ValueError):
+        cat = 0
+    if 1 <= cat <= 5:
+        params["category"] = cat
+    try:
+        rec = float(p.get("min_recommend") or 0)
+    except (TypeError, ValueError):
+        rec = 0
+    if 0 < rec <= 100:
+        params["recommendations"] = [{"name": "recommendationsTotal",
+                                      "operator": "gt", "value": int(rec)}]
+    # Höchstpreis pro Person — ebenfalls aus dem Mitschnitt: schlichtes `maxPrice`.
+    try:
+        mx = float(p.get("max_price") or 0)
+    except (TypeError, ValueError):
+        mx = 0
+    if mx > 0:
+        params["maxPrice"] = int(mx)
     return {"parameters": params}
 
 
@@ -907,7 +952,10 @@ def _run_search(params: dict, *, offset: int = 0, verbose: bool = False) -> dict
             "giata": h.get("giataId"), "name": h.get("name", ""), "stars": stars,
             "recommendation": h.get("holidayCheckRecommendationRate"),
             "reviews": h.get("holidayCheckNumberOfCurrentReviews"),
-            "location": ", ".join(loc_parts), "country": loc.get("country", ""),
+            # location = „Ort, Region" für die Anzeige; region getrennt, weil der
+            # Auto-Tag beim Tracken nur die Region vergibt (Ort ist zu speziell).
+            "location": ", ".join(loc_parts), "region": loc.get("region", ""),
+            "country": loc.get("country", ""),
             "price": pp.get("amount"), "old_price": pp.get("originalAmount"),
             "discount": abs(adv) if adv else None,
             "board": it.get("boardType", ""), "nights": it.get("numberOfNights"),
@@ -926,13 +974,17 @@ def fetch_search(url: str, *, operator_tui: bool = True, boards: list | None = N
                  region: int | None = None, airlines: list | None = None,
                  location: list | None = None,
                  direct: bool = False, adults_only: bool = False,
-                 transfer_included: bool = False,
+                 transfer_included: bool = False, min_category: int = 0,
+                 min_recommend: float = 0, max_price: float = 0,
                  offset: int = 0, verbose: bool = False) -> dict | None:
     """Hotelsuche aus einer TUI-Such-/Angebots-URL (`region` überschreibt die Region)."""
     params = _search_params_from_url(url, region=region, operator_tui=operator_tui,
                                      boards=boards, airlines=airlines, location=location,
                                      direct=direct, adults_only=adults_only,
                                      transfer_included=transfer_included)
+    params["min_category"] = min_category
+    params["min_recommend"] = min_recommend
+    params["max_price"] = max_price
     return _run_search(params, offset=offset, verbose=verbose)
 
 
@@ -941,7 +993,8 @@ def fetch_search_params(*, region: int, start: str, end: str, duration, travelle
                         boards: list | None = None, airlines: list | None = None,
                         location: list | None = None,
                         direct: bool = False, adults_only: bool = False,
-                        transfer_included: bool = False,
+                        transfer_included: bool = False, min_category: int = 0,
+                        min_recommend: float = 0, max_price: float = 0,
                         offset: int = 0, verbose: bool = False) -> dict | None:
     """Hotelsuche direkt aus Maskenfeldern (ohne URL) — für die eigene Suchmaske."""
     # „exact" ist ein nativer TUI-Wert (duration=exact): Reisedauer = genau der
@@ -968,6 +1021,8 @@ def fetch_search_params(*, region: int, start: str, end: str, duration, travelle
         "facility": [13] if adults_only else [],
         "regions": [int(region)] if region else [], "direct": bool(direct),
         "transfer_included": bool(transfer_included),
+        "min_category": min_category, "min_recommend": min_recommend,
+        "max_price": max_price,
     }
     return _run_search(params, offset=offset, verbose=verbose)
 
@@ -1135,13 +1190,18 @@ def api_healthcheck(*, verbose: bool = False) -> dict:
         checks.append({"name": name, "ok": bool(ok), "detail": detail,
                        "critical": critical})
 
-    # 1) Preis/Angebot (OFFER_API) — kritisch (Kern des Trackings)
+    # 1) Preis/Angebot (OFFER_API) — kritisch (Kern des Trackings). Die Antwort
+    #    wird für die vacancy-/payment-Checks unten weiterverwendet (Testangebot).
+    offer_data: dict = {}
     try:
         q = {"giataId": _HC_GIATA, "locale": "de_DE", "tenant": "TUICOM",
              "startDate": sd, "endDate": ed, "durations": "7",
              "searchScope": "PACKAGE", "travellers": "2"}
         r = requests.get(f"{OFFER_API}?{urlencode(q)}", headers=_API_HEADERS, timeout=20)
-        ok = r.status_code == 200 and isinstance(r.json(), (dict, list))
+        body = r.json() if r.status_code == 200 else None
+        ok = r.status_code == 200 and isinstance(body, (dict, list))
+        if isinstance(body, dict):
+            offer_data = body
         add("Preis/Angebot-API", ok, f"HTTP {r.status_code}", critical=True)
     except Exception as e:
         add("Preis/Angebot-API", False, type(e).__name__, critical=True)
@@ -1200,6 +1260,54 @@ def api_healthcheck(*, verbose: bool = False) -> dict:
         add("Breadcrumb-API", ok, f"HTTP {r.status_code}")
     except Exception as e:
         add("Breadcrumb-API", False, type(e).__name__)
+
+    # 8) Live-Bestätigung (VACANCY_API) — nicht kritisch, aber Basis für Preis-Split
+    #    und Nicht-mehr-buchbar-Alarm. Wichtig als Drift-Wächter: ändert TUI das
+    #    Payload-Format (wie beim travelType-Objekt), bleibt der Status dauerhaft
+    #    FAILED und der Alarm wäre sonst still tot.
+    hc_offers = offer_data.get("offers") or []
+    hc_offer = next((o for o in hc_offers if o.get("cheapest")),
+                    hc_offers[0] if hc_offers else None)
+    try:
+        if hc_offer:
+            v = _fetch_vacancy(offer_data, hc_offer, verbose=verbose)
+            st = v.get("vac_status") or ""
+            add("Buchbarkeits-API", st == "OK",
+                st or "keine Antwort")
+        else:
+            add("Buchbarkeits-API", False, "kein Testangebot")
+    except Exception as e:
+        add("Buchbarkeits-API", False, type(e).__name__)
+
+    # 9) Inklusiv-Gepäck (LUGGAGE_API) — HTTP/Struktur reicht (state je Route variiert)
+    try:
+        r = requests.post(LUGGAGE_API,
+                          json=[{"airline": "X3", "route": "DUS-SID", "organizer": "TUID"}],
+                          headers=_API_HEADERS, timeout=20)
+        ok = r.status_code == 200 and isinstance(r.json(), list)
+        add("Gepäck-API", ok, f"HTTP {r.status_code}")
+    except Exception as e:
+        add("Gepäck-API", False, type(e).__name__)
+
+    # 10) Zahlungskonditionen (PAYMENT_API, testet nebenbei den Hotel-Content-
+    #     Endpoint für den Ländercode)
+    try:
+        if hc_offer:
+            p = fetch_payment_terms(hc_offer, _HC_GIATA, verbose=verbose)
+            add("Zahlungs-API", bool(p),
+                (f"{p.get('deposit_pct')}% Anzahlung" if p else "keine Konditionen"))
+        else:
+            add("Zahlungs-API", False, "kein Testangebot")
+    except Exception as e:
+        add("Zahlungs-API", False, type(e).__name__)
+
+    # 11) Zuletzt gebucht (LAST_BOOKED_API)
+    try:
+        r = requests.get(f"{LAST_BOOKED_API}{_HC_GIATA}", headers=_API_HEADERS, timeout=20)
+        ok = r.status_code == 200 and isinstance(r.json(), dict)
+        add("Zuletzt-gebucht-API", ok, f"HTTP {r.status_code}")
+    except Exception as e:
+        add("Zuletzt-gebucht-API", False, type(e).__name__)
 
     all_critical_ok = all(c["ok"] for c in checks if c["critical"])
     if verbose:
@@ -1318,7 +1426,243 @@ def _fetch_location(giata: str, region_giata=None, verbose: bool = False) -> dic
     return out
 
 
-def fetch_price_api(url: str, *, verbose: bool = False) -> dict | None:
+def _build_vacancy_payload(data: dict, offer: dict) -> dict:
+    """Baut den vacancy-check-Body aus dem Offer-JSON nach. Feld-Formate exakt wie
+    im Buchungs-Frontend beobachtet — Achtung: `travelType` ist hier ein **Objekt**
+    (im Offer-JSON nur ein String), sonst antwortet der Endpoint mit FAILED."""
+    trav = {t["id"]: t for t in (offer.get("travellers") or data.get("travellers") or [])}
+    pp = {p["id"]: p.get("price") for p in offer.get("personPrices", [])}
+    rooms = [{
+        "id": i,
+        "code": rm.get("code"),
+        "board": rm.get("board"),
+        "boardCode": rm.get("boardCode"),
+        "description": rm.get("description"),
+        "boardDescription": rm.get("boardDescription"),
+        "title": rm.get("description"),
+        "travellers": [{"id": t["id"], "age": trav.get(t["id"], {}).get("age"),
+                        "price": pp.get(t["id"])}
+                       for t in rm.get("travellers", [])],
+        "supplier": offer.get("supplier", {}),
+        "transferIncluded": rm.get("transferIncluded"),
+        "trainToFlight": rm.get("trainToFlight"),
+    } for i, rm in enumerate(offer.get("rooms", []), 1)]
+    return {
+        "scope": "PACKAGE", "tenant": "TUICOM", "locale": "de_DE",
+        "agency": _BOOKING_AGENCY, "agent": _BOOKING_AGENT, "channel": _BOOKING_CHANNEL,
+        "offer": {
+            "tempId": offer.get("tempId", ""),
+            "startDate": offer.get("arrivalDate", ""),
+            "checkInDate": offer.get("checkInDate", ""),
+            "nights": offer.get("lengthOfStay"),
+            "hotel": offer.get("hotel", {}),
+            "programType": offer.get("programType", ""),
+            "currency": offer.get("currency", "EUR"),
+            "cancellationType": offer.get("cancellationType", ""),
+            "travelType": {"code": offer.get("travelType", ""),
+                           "brand": offer.get("brand", ""),
+                           "tourOperator": offer.get("tourOperator", ""),
+                           "bookingTourOperator": offer.get("bookingTourOperator", "")},
+            "departureFlight": offer.get("departure", {}),
+            "returnFlight": offer.get("return", {}),
+            "rooms": rooms,
+            "price": {"totalNetPrice": offer.get("totalPrice"),
+                      "discountAmount": offer.get("discount"),
+                      "travellersCount": len(trav) or 1,
+                      "earlyBird": False,
+                      "priceByUnit": (offer.get("rooms") or [{}])[0].get("priceByUnit", False)},
+        },
+    }
+
+
+def _sum_traveller_prices(node: dict) -> float | None:
+    """Summe der Reisenden-Preise eines vacancy-check-Blocks (Flug/Zimmer)."""
+    total = 0.0
+    found = False
+    for t in (node or {}).get("travellers", []):
+        amt = (t.get("price") or {}).get("amount")
+        if amt is not None:
+            total += float(amt)
+            found = True
+    return total if found else None
+
+
+def _fetch_vacancy(data: dict, offer: dict, verbose: bool = False) -> dict:
+    """Live-Bestätigung über den vacancy-check-Endpoint (das, was der Knopf
+    „Verfügbarkeit prüfen" auf tui.com auslöst). Liefert den Status aus dem
+    Veranstaltersystem plus die Preis-Aufschlüsselung Hotel/Hinflug/Rückflug,
+    die die Angebotsseite selbst nie anzeigt. Fehler → leeres dict (defensiv:
+    unbekannter Status ist KEIN Nichtverfügbar-Signal)."""
+    out: dict = {}
+    try:
+        resp = requests.post(VACANCY_API, json=_build_vacancy_payload(data, offer),
+                             headers=_API_HEADERS, timeout=30)
+        if resp.status_code != 200:
+            if verbose:
+                log.info(f"vacancy-check HTTP {resp.status_code}")
+            return out
+        j = resp.json()
+        status = j.get("status") or ""
+        out["vac_status"] = status
+        if status == "OK":
+            # Veranstalter-Hinweise zur konkreten Buchung (sonst erst im Checkout
+            # sichtbar): Wasserflugzeug-Zeiten, Gepäcklimits, Sicherheitshinweise …
+            out["errata"] = [e.strip() for e in (j.get("errata") or []) if e and e.strip()]
+            # Bestätigte Flugsegmente (Zeiten, Flugnummern, Buchungsklasse) — Basis
+            # für den Flugzeiten-Änderungs-Alarm und die Umsteige-Anzeige
+            def _segs(node):
+                return [{
+                    "dep": s.get("departureAirport", ""),
+                    "arr": s.get("arrivalAirport", ""),
+                    "start": s.get("startDate", ""),
+                    "end": s.get("endDate", ""),
+                    "airline": s.get("airline", ""),
+                    "number": s.get("flightNumber", ""),
+                    "cls": s.get("bookingClass", ""),
+                    "fare": s.get("fareBase", ""),
+                } for s in (node or {}).get("segments", [])]
+            out["flight_segments"] = {"out": _segs(j.get("outboundFlight")),
+                                      "ret": _segs(j.get("inboundFlight"))}
+            # Badges: Charter (TUI-interner Flug) vs. Linienflug, Sitzplatz
+            # reservierbar, Sonderleistungen buchbar
+            ob, ib = j.get("outboundFlight") or {}, j.get("inboundFlight") or {}
+            out["flight_flags"] = {
+                "charter": bool(ob.get("isInternal")) and bool(ib.get("isInternal")),
+                "seat": any(s.get("seatReservable")
+                            for n in (ob, ib) for s in n.get("segments", [])),
+                "svc": bool(ob.get("specialServiceBookable")
+                            or ib.get("specialServiceBookable")),
+            }
+            # Kontingent-Quelle: leeres supplier-Objekt = TUI-eigenes Kontingent,
+            # sonst Bettenbank (z. B. DBH/MTS)
+            sup = ((j.get("hotel") or {}).get("rooms") or [{}])[0].get("supplier") or {}
+            out["hotel_supplier"] = "/".join(
+                x for x in (sup.get("provider"), sup.get("supplierCode")) if x)
+            hotel_sum = None
+            for rm in (j.get("hotel") or {}).get("rooms", []):
+                s = _sum_traveller_prices(rm)
+                if s is not None:
+                    hotel_sum = (hotel_sum or 0.0) + s
+            if hotel_sum is None:
+                amt = ((j.get("hotel") or {}).get("price") or {}).get("amount")
+                hotel_sum = float(amt) if amt is not None else None
+            out["price_hotel"] = hotel_sum
+            out["price_flight_out"] = _sum_traveller_prices(j.get("outboundFlight"))
+            out["price_flight_ret"] = _sum_traveller_prices(j.get("inboundFlight"))
+            if verbose:
+                log.info("vacancy-check OK: Hotel=%s Hin=%s Rück=%s (System %s)",
+                         out["price_hotel"], out["price_flight_out"],
+                         out["price_flight_ret"], j.get("system", "?"))
+        elif verbose:
+            log.info(f"vacancy-check Status: {status}")
+    except Exception as e:
+        if verbose:
+            log.info(f"vacancy-check nicht abrufbar: {e}")
+    return out
+
+
+def _fetch_last_booked(giata: str, verbose: bool = False) -> str:
+    """„Zuletzt gebucht am …" für dieses Hotel (ISO-Datum oder '')."""
+    if not giata:
+        return ""
+    try:
+        resp = requests.get(f"{LAST_BOOKED_API}{giata}", headers=_API_HEADERS, timeout=15)
+        if resp.status_code == 200:
+            return (resp.json().get("date") or "")[:10]
+    except Exception as e:
+        if verbose:
+            log.info(f"last-booked nicht abrufbar: {e}")
+    return ""
+
+
+def fetch_luggage(offer: dict, verbose: bool = False) -> dict:
+    """Inklusiv-Gepäck für Hin-/Rückflug eines Offer-JSON-Angebots.
+    Rückgabe {'out': '1×20 kg', 'ret': '1×20 kg'} oder {} — die Beschriftung
+    (Hin/Rück, p. P.) übernimmt lokalisiert das Frontend."""
+    try:
+        legs = []
+        for leg in (offer.get("departure"), offer.get("return")):
+            leg = leg or {}
+            al = (leg.get("airline") or {}).get("code", "")
+            dep = (leg.get("departureAirport") or {}).get("code", "")
+            arr = (leg.get("arrivalAirport") or {}).get("code", "")
+            if not (al and dep and arr):
+                return {}
+            legs.append({"airline": al, "route": f"{dep}-{arr}",
+                         "organizer": offer.get("tourOperator", "")})
+        resp = requests.post(LUGGAGE_API, json=legs, headers=_API_HEADERS, timeout=15)
+        if resp.status_code != 200:
+            return {}
+        parts = []
+        for e in resp.json():
+            if e.get("state") != "OK":
+                return {}
+            ad = (e.get("luggage") or {}).get("adult") or {}
+            if ad.get("pcs") is None or ad.get("weight") is None:
+                return {}
+            parts.append(f"{ad['pcs']}×{ad['weight']} kg")
+        if len(parts) != 2:
+            return {}
+        if verbose:
+            log.info(f"Gepäck: {parts[0]} / {parts[1]}")
+        return {"out": parts[0], "ret": parts[1]}
+    except Exception as e:
+        if verbose:
+            log.info(f"Gepäck nicht abrufbar: {e}")
+        return {}
+
+
+def _fetch_country_code(giata: str) -> str:
+    """ISO-Ländercode des Hotels (z. B. 'GR') aus dem Hotel-Content-Endpoint —
+    der Breadcrumb kennt nur Ländernamen, paymentService will den Code."""
+    try:
+        resp = requests.get(f"{HOTEL_CONTENT_API}?giataId={giata}&locale=de_DE&tenant=TUICOM",
+                            headers=_API_HEADERS, timeout=15)
+        if resp.status_code == 200:
+            return ((resp.json().get("contact") or {}).get("address") or {}) \
+                .get("countryCode", "") or ""
+    except Exception:
+        pass
+    return ""
+
+
+def fetch_payment_terms(offer: dict, giata: str, verbose: bool = False) -> dict:
+    """Anzahlung (%) und Restzahlungstermin über den paymentService.
+    Rückgabe {'deposit_pct': .., 'final_payment_date': 'YYYY-MM-DD'} oder {}."""
+    out: dict = {}
+    try:
+        country = _fetch_country_code(giata)
+        if not country:
+            return out
+        body = {"tenant": "tuicom",
+                "cancellationType": offer.get("cancellationType", ""),
+                "isOmnichannel": False, "isPackagetour": True,
+                "services": [{"system": "ATCOMRES",
+                              "tourOperator": offer.get("tourOperator", ""),
+                              "startDate": offer.get("arrivalDate", ""),
+                              "countryCodes": [country],
+                              "productCodes": [(offer.get("hotel") or {}).get("product", "")]}]}
+        headers = dict(_API_HEADERS)
+        headers["X-Agency"] = _BOOKING_AGENCY   # ohne: HTTP 400 "insufficient headers"
+        resp = requests.post(PAYMENT_API, json=body, headers=headers, timeout=20)
+        if resp.status_code != 200:
+            return out
+        j = resp.json()
+        if j.get("depositPercentage") is not None:
+            out["deposit_pct"] = j["depositPercentage"]
+        if j.get("finalPaymentDate"):
+            out["final_payment_date"] = j["finalPaymentDate"][:10]
+        if verbose and out:
+            log.info("Zahlung: %s%% Anzahlung, Rest bis %s",
+                     out.get("deposit_pct"), out.get("final_payment_date"))
+    except Exception as e:
+        if verbose:
+            log.info(f"Zahlungskonditionen nicht abrufbar: {e}")
+    return out
+
+
+def fetch_price_api(url: str, *, vacancy: bool = True, extras: bool = False,
+                    verbose: bool = False) -> dict | None:
     """Liest Preis/Details direkt aus der JSON-API. Rückgabe:
        - dict mit ok=True bei Treffer,
        - dict mit ok=False + Note bei *gültiger* Leermenge (kein Angebot im Zeitraum),
@@ -1469,6 +1813,17 @@ def fetch_price_api(url: str, *, verbose: bool = False) -> dict | None:
         })
 
     r["available"] = True
+    if vacancy:
+        # Live-Bestätigung + Preis-Aufschlüsselung Hotel/Flüge (ATCOMRES).
+        # Defensiv: nur ein explizites OK bestätigt; FAILED wird gespeichert,
+        # überschreibt aber nicht available (kann auch Payload-/API-Drift sein).
+        r.update(_fetch_vacancy(data, offer, verbose=verbose))
+        r["last_booked"] = _fetch_last_booked(giata, verbose=verbose)
+    if extras:
+        # Quasi-statische Zusatzinfos (Gepäck, Anzahlung/Restzahlung) — der
+        # Aufrufer holt sie nur, solange sie am Angebot noch fehlen.
+        r["luggage"] = fetch_luggage(offer, verbose=verbose) or None
+        r.update(fetch_payment_terms(offer, giata, verbose=verbose))
     r["ok"] = True
     if verbose:
         log.info(f"API ok: {r['price']} € p.P. · {r['hotel']} · "
@@ -1477,7 +1832,7 @@ def fetch_price_api(url: str, *, verbose: bool = False) -> dict | None:
 
 
 def fetch_price(url: str, *, timeout_ms: int = 60000, check_availability: bool = True,
-                verbose: bool = False) -> dict:
+                extras: bool = False, verbose: bool = False) -> dict:
     """Liest den konkreten 'Günstigster Preis' einer TUI-Angebots-URL.
 
     Bevorzugt die JSON-API (schnell, robust); bei technischem Fehler automatischer
@@ -1489,7 +1844,10 @@ def fetch_price(url: str, *, timeout_ms: int = 60000, check_availability: bool =
         available (bool|None), total_price, cancellation, stars, rating,
         rating_count, recommendation, source, note
     """
-    api = fetch_price_api(url, verbose=verbose)
+    # check_availability steuert im API-Pfad den vacancy-check (Live-Bestätigung
+    # + Preis-Split) — Massen-Abrufe (Vergleiche, Nächte-Matrix) sparen ihn aus.
+    api = fetch_price_api(url, vacancy=check_availability, extras=extras,
+                          verbose=verbose)
     if api is not None:
         return api  # API hat gültig geantwortet (Treffer oder echte Leermenge)
     # API technisch fehlgeschlagen → Browser-Fallback (immer sichtbar, gelb)

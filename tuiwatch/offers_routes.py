@@ -121,6 +121,7 @@ def api_delete_offer(offer_id: int):
         con.execute('DELETE FROM offers WHERE id=?', (offer_id,))
     A._cheaper_notified.pop(offer_id, None)
     A._fail_notified.discard(offer_id)
+    A._vac_notified.discard(offer_id)
     A.log.info("Angebot #%d gelöscht", offer_id)
     A.push_ha_sensors()  # entfernt verwaisten Sensor + nummeriert ggf. neu
     return jsonify({'deleted': offer_id})
@@ -181,6 +182,46 @@ def api_update_offer(offer_id: int):
                         (1 if data.get('notify_calendar_muted') else 0, offer_id))
             A.log.info("Angebot #%d Kalender-Benachrichtigungen %s", offer_id,
                      "stummgeschaltet" if data.get('notify_calendar_muted') else "aktiviert")
+        if 'foreign_list' in data or 'is_foreign' in data:
+            # „Fremd" = Angebot ist nicht für den Nutzer selbst (Vorschlag für
+            # andere). Getrackt wird weiter wie bisher; nur beide Glocken gehen
+            # aus, damit fremde Reisen nicht mehr melden.
+            #
+            # `foreign_list` ist der frei wählbare Listenname (leer = keine
+            # Liste). `is_foreign` bleibt als Bool-Schalter erhalten: true legt
+            # in der zuletzt genutzten bzw. der Standardliste ab.
+            if 'foreign_list' in data:
+                name = A.normalize_foreign_list(data.get('foreign_list'))
+            elif data.get('is_foreign'):
+                row = con.execute('SELECT foreign_list FROM offers WHERE id=?',
+                                  (offer_id,)).fetchone()
+                name = A.normalize_foreign_list(row['foreign_list'] if row else '') \
+                    or A.FOREIGN_LIST_DEFAULT
+            else:
+                name = ''
+            # Symbol: mitgeschickt (neue Liste) oder von den übrigen Mitgliedern
+            # der Liste geerbt — eine Liste sieht überall gleich aus.
+            if 'foreign_icon' in data:
+                icon = A.normalize_foreign_icon(data.get('foreign_icon'))
+            else:
+                icon = _list_icon(con, name) if name else ''
+            fr = 1 if name else 0
+            con.execute('UPDATE offers SET is_foreign=?, foreign_list=?, foreign_icon=? '
+                        'WHERE id=?', (fr, name, icon, offer_id))
+            if fr:
+                con.execute('UPDATE offers SET notify_muted=1, notify_calendar_muted=1 '
+                            'WHERE id=?', (offer_id,))
+                if icon:  # gemeinsames Symbol für alle Mitglieder der Liste
+                    con.execute('UPDATE offers SET foreign_icon=? WHERE foreign_list=?',
+                                (icon, name))
+            # Beim Zurücknehmen bleiben die Glocken bewusst stumm: sie wieder
+            # einzuschalten würde eine womöglich absichtliche Stummschaltung
+            # überschreiben. Einschalten geht jederzeit über die Glocken selbst.
+            # Kein _log_event: die Marker im Verlaufsdiagramm sollen Preisereignisse
+            # zeigen, eine Sortier-/Anzeigeeinstellung gehört dort nicht hin.
+            A.log.info("Angebot #%d %s", offer_id,
+                       f'in Liste "{name}" (Benachrichtigungen aus)' if fr
+                       else "nicht mehr als fremd markiert")
         if 'transfer_included' in data:
             # Manche Hotels (Selbstanreise-Regionen) bieten kein Transfer-Paket — dort
             # liefert die Offer-API bei transferIncluded=true 0 Treffer/Zimmer, obwohl
@@ -252,13 +293,109 @@ def api_update_offer(offer_id: int):
     return jsonify({'id': offer_id, 'ok': True})
 
 
+# ── „Für andere"-Listen ────────────────────────────────────────────────────────
+# Eine Liste ist nichts weiter als Name und Symbol an den Angeboten
+# (offers.foreign_list/foreign_icon). Es gibt daher keine leeren Listen: die
+# letzte Zuordnung zu entfernen löscht sie.
+
+def _list_icon(con, name: str) -> str:
+    """Symbol einer bestehenden Liste (leer, wenn keins gesetzt oder neue Liste)."""
+    row = con.execute("SELECT foreign_icon FROM offers "
+                      "WHERE foreign_list=? AND foreign_icon<>'' LIMIT 1",
+                      (name,)).fetchone()
+    return row['foreign_icon'] if row else ''
+
+
+@bp.route('/api/foreign-lists', methods=['GET'])
+def api_foreign_lists():
+    if (err := A._require_api()):
+        return err
+    with A.db() as con:
+        rows = con.execute(
+            "SELECT foreign_list AS name, COUNT(*) AS n, MAX(foreign_icon) AS icon "
+            "FROM offers WHERE is_foreign=1 AND foreign_list<>'' "
+            "GROUP BY foreign_list ORDER BY foreign_list COLLATE NOCASE").fetchall()
+    return jsonify({'lists': [{'name': r['name'], 'count': r['n'],
+                               'icon': r['icon'] or ''} for r in rows]})
+
+
+@bp.route('/api/foreign-lists/icon', methods=['POST'])
+def api_foreign_list_icon():
+    """Setzt das Symbol einer Liste (für alle ihre Angebote). Leer = Standard 👥."""
+    if (err := A._require_api()):
+        return err
+    data = request.get_json(silent=True) or {}
+    name = A.normalize_foreign_list(data.get('name'))
+    icon = A.normalize_foreign_icon(data.get('icon'))
+    if not name:
+        return jsonify({'error': 'invalid_name'}), 400
+    with A.db() as con:
+        cur = con.execute('UPDATE offers SET foreign_icon=? WHERE foreign_list=?',
+                          (icon, name))
+        changed = cur.rowcount
+    if not changed:
+        return jsonify({'error': 'not_found'}), 404
+    A.log.info('Liste "%s": Symbol %s', name, icon or '(Standard)')
+    return jsonify({'name': name, 'icon': icon, 'changed': changed})
+
+
+@bp.route('/api/foreign-lists/rename', methods=['POST'])
+def api_foreign_list_rename():
+    """Benennt eine Liste um. Existiert das Ziel bereits, werden beide vereint."""
+    if (err := A._require_api()):
+        return err
+    data = request.get_json(silent=True) or {}
+    old = A.normalize_foreign_list(data.get('from'))
+    new = A.normalize_foreign_list(data.get('to'))
+    if not old or not new:
+        return jsonify({'error': 'invalid_name'}), 400
+    with A.db() as con:
+        # Beim Zusammenführen gewinnt das Symbol der Zielliste, sonst wandert das
+        # bisherige mit — hinterher haben alle Mitglieder dasselbe.
+        icon = _list_icon(con, new) or _list_icon(con, old)
+        cur = con.execute('UPDATE offers SET foreign_list=? WHERE foreign_list=?',
+                          (new, old))
+        moved = cur.rowcount
+        if moved and icon:
+            con.execute('UPDATE offers SET foreign_icon=? WHERE foreign_list=?',
+                        (icon, new))
+    if not moved:
+        return jsonify({'error': 'not_found'}), 404
+    A.log.info('Liste "%s" umbenannt in "%s" (%d Angebote)', old, new, moved)
+    return jsonify({'name': new, 'moved': moved})
+
+
+# <path:…>, weil ein Listenname einen Schrägstrich enthalten darf ("Oma/Opa")
+@bp.route('/api/foreign-lists/<path:name>', methods=['DELETE'])
+def api_foreign_list_delete(name: str):
+    """Löst eine Liste auf: die Angebote wandern zurück in die normale Liste.
+
+    Die Glocken bleiben dabei bewusst stumm — wie beim Zurücknehmen am einzelnen
+    Angebot, damit eine absichtliche Stummschaltung nicht überfahren wird.
+    """
+    if (err := A._require_api()):
+        return err
+    lname = A.normalize_foreign_list(name)
+    if not lname:
+        return jsonify({'error': 'invalid_name'}), 400
+    with A.db() as con:
+        cur = con.execute("UPDATE offers SET is_foreign=0, foreign_list='' "
+                          "WHERE foreign_list=?", (lname,))
+        freed = cur.rowcount
+    if not freed:
+        return jsonify({'error': 'not_found'}), 404
+    A.log.info('Liste "%s" aufgelöst (%d Angebote)', lname, freed)
+    return jsonify({'name': lname, 'freed': freed})
+
+
 @bp.route('/api/history/<int:offer_id>', methods=['GET'])
 def api_history(offer_id: int):
     if (err := A._require_api()):
         return err
     with A.db() as con:
         rows = con.execute(
-            'SELECT ts, price, old_price, discount, ok, note FROM price_history '
+            'SELECT ts, price, old_price, discount, ok, note, '
+            'price_hotel, price_flight_out, price_flight_ret, vac_ok FROM price_history '
             'WHERE offer_id=? ORDER BY ts', (offer_id,)).fetchall()
         events = con.execute(
             'SELECT ts, type, text FROM offer_events WHERE offer_id=? ORDER BY ts',
@@ -274,19 +411,24 @@ def api_history_csv(offer_id: int):
     with A.db() as con:
         offer = con.execute('SELECT hotel, label FROM offers WHERE id=?', (offer_id,)).fetchone()
         rows = con.execute(
-            'SELECT ts, price, old_price, discount, available, ok, note FROM price_history '
+            'SELECT ts, price, old_price, discount, available, ok, note, '
+            'price_hotel, price_flight_out, price_flight_ret FROM price_history '
             'WHERE offer_id=? ORDER BY ts', (offer_id,)).fetchall()
     buf = io.StringIO()
     w = csv.writer(buf, delimiter=';')
     w.writerow(['Zeitpunkt', 'Preis (EUR)', 'Vergleichspreis (EUR)', 'Rabatt %',
-                'Verfuegbar', 'OK', 'Hinweis'])
+                'Verfuegbar', 'OK', 'Hinweis',
+                'Hotel (EUR)', 'Hinflug (EUR)', 'Rueckflug (EUR)'])
     for r in rows:
         avail = '' if r['available'] is None else ('ja' if r['available'] else 'nein')
         w.writerow([datetime.fromtimestamp(r['ts']).strftime('%Y-%m-%d %H:%M:%S'),
                     '' if r['price'] is None else int(round(r['price'])),
                     '' if r['old_price'] is None else int(round(r['old_price'])),
                     r['discount'] if r['discount'] is not None else '',
-                    avail, 'ja' if r['ok'] else 'nein', (r['note'] or '').replace('\n', ' ')])
+                    avail, 'ja' if r['ok'] else 'nein', (r['note'] or '').replace('\n', ' '),
+                    '' if r['price_hotel'] is None else int(round(r['price_hotel'])),
+                    '' if r['price_flight_out'] is None else int(round(r['price_flight_out'])),
+                    '' if r['price_flight_ret'] is None else int(round(r['price_flight_ret']))])
     name = A._slug((offer['label'] or offer['hotel']) if offer else '') or f'angebot_{offer_id}'
     resp = make_response('﻿' + buf.getvalue())  # BOM → Umlaute in Excel korrekt
     resp.headers['Content-Type'] = 'text/A.csv; charset=utf-8'
@@ -332,6 +474,7 @@ def api_reset_offer(offer_id: int):
         A._check24_state.pop(offer_id, None)
     A._cheaper_notified.pop(offer_id, None)
     A._fail_notified.discard(offer_id)
+    A._vac_notified.discard(offer_id)
     A.log.info("Angebot #%d zurückgesetzt (Verlauf + Caches gelöscht)", offer_id)
     A._spawn(A.check_offer, offer_id)  # frische Erstabfrage
     return jsonify({'reset': offer_id, 'started': True})
@@ -523,6 +666,11 @@ def api_search():
             return 0
     min_stars, min_recommend = _num('min_stars'), _num('min_recommend')
     max_price = _num('max_price')
+    # Sterne und Weiterempfehlung kann die Such-API selbst (Felder `category` und
+    # `recommendations`, siehe scraper._build_search_payload) — das spart bei
+    # preisaufsteigender Sortierung seitenweises Nachladen. Die Nachfilter unten
+    # bleiben als Netz, falls die API einen Wert einmal ignoriert.
+    min_category = int(min_stars) if 1 <= min_stars <= 5 else 0
 
     region = None
     offer_id = data.get('offer_id')
@@ -544,6 +692,8 @@ def api_search():
         res = A.fetch_search(url, operator_tui=operator_tui, boards=boards, region=region,
                            airlines=airlines, location=location, direct=direct,
                            adults_only=adults_only, transfer_included=transfer_included,
+                           min_category=min_category, min_recommend=min_recommend,
+                           max_price=max_price,
                            offset=offset, verbose=A._verbose())
     elif search_region:
         try:
@@ -590,6 +740,8 @@ def api_search():
                                   operator_tui=operator_tui, boards=boards,
                                   airlines=airlines, location=location, direct=direct,
                                   adults_only=adults_only, transfer_included=transfer_included,
+                                  min_category=min_category, min_recommend=min_recommend,
+                                  max_price=max_price,
                                   offset=offset, verbose=A._verbose())
     else:
         url = (data.get('url') or '').strip()
@@ -601,6 +753,8 @@ def api_search():
         res = A.fetch_search(url, operator_tui=operator_tui, boards=boards,
                            airlines=airlines, location=location, direct=direct,
                            adults_only=adults_only, transfer_included=transfer_included,
+                           min_category=min_category, min_recommend=min_recommend,
+                           max_price=max_price,
                            offset=offset, verbose=A._verbose())
     if res is None:
         return jsonify({'error': 'search_failed'}), 502
@@ -622,8 +776,13 @@ def api_search():
         r['tracked'] = str(r.get('giata')) in tracked
         out.append(r)
     A.log.info("Suche: %d Treffer, %d nach Filter", len(res['results']), len(out))
+    # `fetched` = von der Such-API gelieferte Treffer VOR den Nachfiltern. Nur damit
+    # kann „mehr laden" den nächsten Seitenanfang (resultsFrom) richtig berechnen —
+    # mit der Anzahl der angezeigten (gefilterten) Treffer würde die nächste Seite
+    # fast dieselben Hotels erneut holen und die Liste käme nicht voran.
     return jsonify({'results': out, 'total': res.get('total', len(out)),
-                    'matched': len(out), 'criteria': criteria})
+                    'matched': len(out), 'fetched': len(res['results']),
+                    'criteria': criteria})
 
 
 # ── Reiseziel-Index (globale Suche über alle Ebenen) ───────────────────────────
@@ -688,6 +847,63 @@ def _search_dest_index(q: str, limit: int = 60) -> list:
     out.sort(key=lambda it: (not (it.get('label') or '').lower().startswith(ql),
                              (it.get('label') or '').lower()))
     return out[:limit]
+
+
+_offer_dest_cache: dict = {}   # Hotel-giataId → Region-giataId (oder None)
+
+
+def offer_region_giata(offer_id: int) -> tuple:
+    """Region-giataId + Klarname zu einem Angebot — `(None, '')`, wenn unbekannt.
+
+    Klimatabelle und Reiseführer hängen beide an der Region-giataId, das Angebot
+    kennt aber nur die Hotel-giataId — die Region kommt aus der Breadcrumb-API
+    (derselbe Weg wie beim „Region"-Knopf). Die Auflösung ist ein zusätzlicher
+    Fremdaufruf und pro Hotel unveränderlich, deshalb im Prozess gemerkt.
+
+    `regionGiataIds=` aus der Angebots-URL ist nur der **Notnagel**, nicht die
+    erste Wahl: dort steht die Region, in der gesucht wurde — und die kann viel
+    gröber sein als die Insel des Hotels. Zwei Malediven-Hotels aus einer
+    Landessuche trugen so beide `regionGiataIds=100020` („Malediven") und teilten
+    sich damit Klimatabelle und Reiseführer, obwohl sie auf verschiedenen Atollen
+    liegen (Breadcrumb: 1139 Addu vs. 1151 Nord Male). Auch von share_routes
+    genutzt (Klima/Reiseführer im öffentlichen Angebots-Link)."""
+    with A.db() as con:
+        o = con.execute('SELECT url, region, country FROM offers WHERE id=?',
+                        (offer_id,)).fetchone()
+    if not o:
+        return None, ''
+    label = (o['region'] or o['country'] or '').strip()
+    region = None
+    hotel_giata = A._giata_from_url(o['url'])
+    if hotel_giata:
+        if hotel_giata in _offer_dest_cache:
+            region = _offer_dest_cache[hotel_giata]
+        else:
+            region = A.region_giata_from_breadcrumb(hotel_giata)
+            _offer_dest_cache[hotel_giata] = region
+    if region is None:
+        for val in parse_qsl(urlparse(o['url']).query):
+            if val[0] == 'regionGiataIds' and str(val[1]).strip().isdigit():
+                region = int(str(val[1]).strip())
+                break
+    if not region:
+        return None, label
+    return region, (label or f'Region {region}')
+
+
+@bp.route('/api/offers/<int:offer_id>/dest', methods=['GET'])
+def api_offer_dest(offer_id: int):
+    """Reiseziel (Region) zu einem Angebot: Region-giataId + Klarname."""
+    if (err := A._require_api()):
+        return err
+    with A.db() as con:
+        if not con.execute('SELECT 1 FROM offers WHERE id=?', (offer_id,)).fetchone():
+            return jsonify({'error': 'not_found'}), 404
+    region, label = offer_region_giata(offer_id)
+    if not region:
+        return jsonify({'error': 'no_region',
+                        'note': 'Region zum Angebot nicht ermittelbar'}), 400
+    return jsonify({'giata': region, 'label': label})
 
 
 @bp.route('/api/destinations', methods=['GET'])

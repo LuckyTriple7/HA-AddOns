@@ -1,5 +1,610 @@
 # Changelog
 
+## [0.88.0] - 2026-08-07
+
+### Added
+- **Knopf „Klima" am Angebot** (links neben „Reiseführer"): öffnet die Klimatabelle
+  der Region direkt aus der Liste, ohne den Umweg über Suche oder Kopfzeile. Wie
+  beim Reiseführer leuchtet der Knopf **grün**, wenn die Tabelle zu diesem Ziel
+  bereits gespeichert ist — dann kostet das Öffnen keinen KI-Aufruf.
+
+### Changed
+- **„Prüfen" ist jetzt ein Lupensymbol** und steht rechts bei den übrigen
+  Symbolknöpfen. Die Zeile war mit den beschrifteten Knöpfen bereits am Anschlag;
+  so bleibt Platz für „Klima".
+
+## [0.87.4] - 2026-08-07
+
+### Fixed
+- **Klimatabelle im Markdown-Export: „21 °C" brach in der schmalen Spalte „Tag"
+  auf zwei Zeilen um** und machte die Zeile doppelt hoch. Zwischen Zahl und
+  Einheit steht jetzt ein geschütztes Leerzeichen, damit kein Renderer dort
+  trennt — gilt für °C, Sonnenstunden und alle weiteren Werte.
+
+## [0.87.3] - 2026-08-07
+
+### Security
+- **CodeQL #194 (`js/incomplete-sanitization`)**: Beim Markdown-Export maskierte
+  die Klimatabelle nur das `|`, nicht den Backslash davor. Ein Zellinhalt wie
+  `C:\Temp \| x` brach die Tabelle deshalb wieder auf. Escaping läuft jetzt in
+  der einzig richtigen Reihenfolge — erst Backslash, dann `|` — und
+  Zeilenumbrüche in einer Zelle fliegen raus.
+- **Fremde Header landen nicht mehr ungeprüft im Log und in der Datenbank**:
+  `get_client_ip` gibt nur noch ein geprüftes IP-Literal oder `remote_addr`
+  zurück. Vorher konnte im Rückfall beliebiger Text aus `X-Forwarded-For`
+  durchrutschen (Log-Injection über untergeschobene Zeilenumbrüche, außerdem
+  Unsinn in der Kommentar-Ansicht). Die Diagnose-Warnung zu fehlenden
+  Proxy-Headern schickt ihre Werte zusätzlich durch `log_safe()`
+  (Steuerzeichen raus, gekappt).
+
+## [0.87.2] - 2026-08-07
+
+### Fixed
+- **Reiseziel-Namen in den Listen von Klimatabelle und Reiseführer** standen im
+  Browser-Blau samt Unterstreichung — im dunklen Design kaum lesbar, bereits
+  geöffnete Ziele zusätzlich violett („besucht"). Sie sind Bedienelemente, keine
+  Verweise nach draußen, und stehen jetzt in normaler Textfarbe ohne
+  Unterstreichung; beim Überfahren färben sie sich in der Akzentfarbe.
+
+## [0.87.1] - 2026-08-07
+
+### Fixed
+- **Adressen im Markdown-Export sind jetzt klickbare Links.** Bisher stand die
+  nackte Adresse im Text (`(https://www.marcopolo.de/…)`) und war in keiner
+  Notiz-App anklickbar. Sie wird an Ort und Stelle zu `[marcopolo.de](…)` — der
+  Satz bleibt heil (ans Zeilenende verschoben blieben Reste wie „Details:" ohne
+  Bezug stehen), die Quelle bleibt nachvollziehbar. Bereits fertige
+  Markdown-Links bleiben unangetastet, und ein `|` in einer Adresse sprengt die
+  Klimatabelle nicht mehr auf.
+
+## [0.87.0] - 2026-08-07
+
+### Added
+- **📋 Markdown** in Reiseführer und Klimatabelle: legt den Inhalt als sauberes
+  Markdown in die Zwischenablage, zum Einfügen in eine Notiz-/Wissenssammlung
+  (z. B. die Bibliothek von MyPage). Gebaut wird es aus den gespeicherten Daten
+  statt aus der Bildschirmdarstellung — kopierter Seitentext bringt sonst
+  Aufzählungszeichen, Tabellenrahmen und Symbole als Fließtext mit. Abschnitte
+  werden zu `##`, Punkte zu `- **Label:** Text`, Monatswerte zu einer
+  Markdown-Tabelle (★ für die besten Reisemonate, Hinweis-Spalte nur wenn es
+  welche gibt); beim Reiseführer hängt die Klimatabelle mit dran. Quellen-Marker
+  der KI (`[3]`) fallen weg, das ⏱ für kurzlebige Angaben wird als
+  „(kann sich kurzfristig ändern)" ausgeschrieben.
+  Kopiert wird über `navigator.clipboard` mit textarea-Rückfallebene — im
+  Ingress über http fehlt die Clipboard-API sonst.
+
+## [0.86.0] - 2026-08-07
+
+### Added
+- **Kommentare je Link an-/abschaltbar** (Standard an): Haken **„Kommentare"** im
+  Teilen-Dialog und ein Schalter oben im Kommentar-Fenster. Aus bedeutet „nichts
+  Neues": das Formular verschwindet von der öffentlichen Seite, **bereits
+  geschriebene Kommentare bleiben sichtbar**. Sind Kommentare aus und noch keine
+  vorhanden, fehlt der Abschnitt dort ganz.
+
+### Fixed
+- **Bei Kommentaren stand die interne Adresse statt der echten Client-IP**
+  (z. B. 172.30.32.1, die Docker-Bridge). Zwei Ursachen: `get_client_ip` sah nur
+  `CF-Connecting-IP` und sonst `remote_addr`, und waitress verwirft
+  `X-Forwarded-For`, solange kein `trusted_proxy` gesetzt ist.
+  `get_client_ip` prüft jetzt der Reihe nach `CF-Connecting-IP`,
+  `True-Client-IP`, `X-Real-IP` und dann den ersten öffentlichen Eintrag der
+  `X-Forwarded-For`-Kette; private/interne Adressen werden dabei übersprungen,
+  eine LAN-Adresse bleibt aber stehen, wenn es nichts Besseres gibt.
+  **Damit das greift, muss der Reverse Proxy `X-Real-IP` setzen** (nginx/NPM:
+  `proxy_set_header X-Real-IP $remote_addr;`) oder Cloudflare davorstehen —
+  `X-Forwarded-For` allein reicht wegen waitress nicht. Fehlt beides, sagt eine
+  Warnung im Log genau das.
+
+## [0.85.0] - 2026-08-07
+
+### Added
+- **Benachrichtigung bei neuen Kommentaren** über Home Assistant und Telegram —
+  mit Name, Text (auf 300 Zeichen gekürzt) und **Absender-IP**. Abschaltbar über
+  die neue Option **„Benachrichtigung bei neuen Kommentaren"** (Standard an).
+- **Absender-IP je Kommentar** (`share_comments.ip`), sichtbar nur in der
+  Kommentar-Verwaltung des Besitzers — auf der öffentlichen Seite steht sie
+  nicht (durch Test abgesichert). Hinter Cloudflare wird `CF-Connecting-IP`
+  ausgewertet, sonst die Adresse aus dem Proxy-Header, es steht also die echte
+  Client-IP da und nicht die des Reverse-Proxys.
+
+## [0.84.0] - 2026-08-07
+
+### Added
+- **Kommentare auf geteilten Seiten.** Unter den Angeboten steht ein Kommentarfeld
+  (Name optional, max. 500 Zeichen); die Empfänger können damit direkt antworten —
+  ohne Login, ohne App und ohne JavaScript (normales Formular, POST → Redirect).
+  In **🔗 Geteilte Links** gibt es je Link den Knopf **„💬 Kommentare"**, der
+  **grün leuchtet**, solange etwas Ungelesenes da ist; das Öffnen markiert die
+  Kommentare als gelesen. Dort lassen sie sich auch **bearbeiten und löschen**,
+  beides wirkt sofort auf die öffentliche Seite. Widerrufen oder Ablaufen eines
+  Links räumt seine Kommentare mit weg.
+  Weil die Seite öffentlich beschreibbar ist, gelten harte Grenzen: 500 Zeichen je
+  Kommentar, 40 für den Namen, 200 Kommentare je Link, 5 je IP und 10 Minuten;
+  gespeichert wird reiner Text, die Ausgabe läuft über Autoescape (in Tests
+  gegengeprüft). Die CSP der öffentlichen Seite erlaubt dafür jetzt
+  `form-action 'self'` statt `'none'` — Formulare gehen weiterhin nur an die
+  eigene App.
+  Neue Endpunkte: `POST /s/<token>/comment` (öffentlich),
+  `GET|PATCH|DELETE /api/shares/<token>/comments[/<id>]` (geschützt).
+
+## [0.83.3] - 2026-08-07
+
+### Changed
+- **Schalter „Archiv" zeigt jetzt nur noch die archivierten Angebote** — wie
+  „Preisverlauf" für die Verlaufs-Hotels, statt das Archiv zusätzlich unter die
+  aktive Liste zu hängen. Beide Schalter schließen sich gegenseitig aus (der eine
+  hakt den anderen ab); die Tag-Pillen zeigen entsprechend nur die Tags der
+  gerade sichtbaren Angebote.
+
+## [0.83.2] - 2026-08-07
+
+### Changed
+- **Auto-Tag beim Tracken vergibt nur noch die Region** („Mauritius",
+  „Gran Canaria") statt „Ort, Region" („Palmar, Mauritius"). Der Ort ist als
+  Filter zu speziell — praktisch bekam jedes Hotel seinen eigenen Tag. Die
+  Such-API liefert die Region dafür getrennt mit; in der Anzeige steht weiter
+  „Ort, Region". Bestehende Tags bleiben, wie sie sind.
+- **Sammelaktionen-Leiste zweizeilig**: oben die Anzahl und rechts „Auswahl
+  aufheben", darunter die Aktionsknöpfe. Vorher lief alles in einer
+  umbrechenden Zeile, „Auswahl aufheben" landete je nach Fensterbreite
+  irgendwo zwischen den Aktionen.
+
+### Fixed
+- **Teilen-Dialog wurde auf flachen Fenstern abgeschnitten** (Laptop im
+  Querformat, ~500 px Höhe): die Angebotsliste hatte feste 230 px, zusammen mit
+  Titel, Notiz, Optionen und Knopf passte das nicht mehr in die 88 vh des
+  Fensters. Die Liste bekommt jetzt einen Anteil der Fensterhöhe
+  (`clamp(110px, 30vh, 240px)`), unter 760 px Fensterhöhe darf das Fenster
+  96 vh nutzen. Geprüft mit 10 Angeboten bei 1142 × 506 px: nichts
+  abgeschnitten, die Liste scrollt für sich.
+- **Spalte „Ort · Preis" im Teilen-Dialog war zu schmal** (210 → 270 px), lange
+  Ziele wie „Ziyaaraifushi, Malediven: Nord Male Atoll" brachen mit „…" ab.
+
+## [0.83.1] - 2026-08-07
+
+### Changed
+- **Teilen-Dialog zeigt die „Für andere"-Liste in einer eigenen Spalte** (Symbol +
+  Name, leer bei eigenen Angeboten) — beim Teilen ist meist genau eine Liste
+  gemeint, in der bisherigen Aufzählung sah aber jedes Angebot gleich aus. Dazu
+  eine Kopfzeile (Angebot · Liste · Ort · Preis) und feste Spaltenbreiten, damit
+  die Zeilen fluchten. Das Fenster ist von 900 auf 1150 px verbreitert; auf
+  schmalen Bildschirmen (< 700 px) brechen die Spalten wie bisher untereinander.
+
+## [0.83.0] - 2026-08-07
+
+### Added
+- **Eigenes Symbol je „Für andere"-Liste.** Klick auf das Symbol in der
+  Listen-Überschrift öffnet einen Emoji-Picker (50 Vorschläge rund ums Reisen
+  plus Freitextfeld für jedes andere Zeichen, auch zusammengesetzte Emojis wie
+  👨‍👩‍👧 oder ein ★). Beim Anlegen einer Liste lässt sich das Symbol gleich
+  mitwählen; später einsortierte Angebote erben es, eine Änderung gilt für alle
+  Angebote der Liste. Auch der 👥-Knopf auf der Karte zeigt das Symbol der Liste,
+  in der das Angebot steckt.
+  Das Symbol steht wie der Name am Angebot (`offers.foreign_icon`, leer = 👥) und
+  wandert damit durch Backup/Restore. Neuer Endpunkt:
+  `POST /api/foreign-lists/icon`; `GET /api/foreign-lists` liefert das Symbol mit.
+
+## [0.82.2] - 2026-08-07
+
+### Changed
+- **Listen-Überschrift zeigt nur noch Name und Anzahl** — der Zusatz
+  „— keine Benachrichtigungen" ist raus, er stand über jeder Liste im Weg. Die
+  Info steht weiter im Tooltip der Überschrift.
+
+## [0.82.1] - 2026-08-07
+
+### Fixed
+- **Listen ließen sich nicht umbenennen** („Uncaught SyntaxError: missing ) after
+  argument list"). Für die ✎/✖-Knöpfe wurde eine zweite Hilfsfunktion `jsArg`
+  angelegt — den Namen gab es in app.js aber schon, mit anderer Bedeutung (escapt
+  für einfache Anführungszeichen, setzt selbst keine). Die spätere Deklaration
+  gewinnt, also stand im Attribut `renameForeignList(Für andere)` statt
+  `renameForeignList("Für andere")`. Listennamen sind freier Text und stehen
+  jetzt gar nicht mehr in einem Inline-Script, sondern in `data-list`; geklickt
+  wird über Event-Delegation. Damit sind auch Namen mit Anführungszeichen,
+  Klammern oder Backslash unproblematisch (im Browser gegengeprüft).
+
+## [0.82.0] - 2026-08-07
+
+### Added
+- **Mehrere „Für andere"-Listen mit frei wählbaren Namen.** Bisher gab es genau
+  einen Block „👥 Für andere"; jetzt legt das 👥-Symbol auf der Karte (bzw.
+  „👥 Für andere" in der Auswahlleiste) eine Auswahl offen: bestehende Liste
+  anklicken oder neuen Namen eintippen („Oma und Opa", „Kollegen", …). Jede
+  Liste bekommt einen eigenen Block am Listenende, alphabetisch sortiert; in der
+  Überschrift benennt **✎** die Liste um (gleicher Name wie eine andere = beide
+  werden zusammengeführt) und **✖** löst sie auf, wobei die Angebote zurück in
+  die normale Liste wandern. Verhalten sonst unverändert: eingeklappte Karten,
+  Glocken beim Einsortieren stumm und beim Herausnehmen bewusst nicht wieder an.
+  Der Listenname steht am Angebot selbst (`offers.foreign_list`) und wandert
+  daher ohne Zusatztabelle durch Backup/Restore; Bestandsangebote landen bei der
+  Migration in der Liste „Für andere". Neue Endpunkte: `GET /api/foreign-lists`,
+  `POST /api/foreign-lists/rename`, `DELETE /api/foreign-lists/<name>`.
+
+## [0.81.0] - 2026-08-06
+
+### Changed
+- **Sterne, Weiterempfehlung und Höchstpreis gehen jetzt in die Such-Anfrage**
+  statt erst hinterher aussortiert zu werden. Die Such-API sortiert nach Preis
+  aufsteigend — in den ersten 50 Treffern stehen deshalb fast nur einfache
+  Hotels, und ein 4-Sterne-Filter ließ davon eine Handvoll übrig. Beispiel
+  (Kanaren, All Inclusive, ab STR, 9 Nächte, Transfer inklusive):
+  272 Treffer → 206 (ab 4 Sterne) → 135 (+ 80 % Weiterempfehlung) — genau die
+  Zahl, die tui.com für dieselben Filter anzeigt. Mit Preisdeckel 1.500 €
+  bleiben 8 übrig, alle darunter.
+  Die bisherigen Nachfilter bleiben als Netz erhalten.
+  Damit berücksichtigt die Suchmaske alle Optionen bereits serverseitig:
+  Nächte, Reisende, Airlines, Veranstalter, Transfer, Direktflug, nur
+  Erwachsene, Verpflegung, Lage — und nun auch Sterne, Weiterempfehlung und
+  Höchstpreis.
+
+### Fixed
+- **„Mehr laden" in der Hotelsuche brachte kaum neue Treffer** — als Startpunkt
+  der nächsten Seite wurde die Anzahl der **angezeigten** Treffer geschickt.
+  Sind Nachfilter aktiv (Sterne, Weiterempfehlung, Höchstpreis), sind das viel
+  weniger als die 50 tatsächlich abgeholten: die nächste Seite holte fast
+  dieselben Hotels erneut, es kam einer dazu, danach nichts mehr. Der Server
+  meldet jetzt mit, wie viele Angebote er wirklich durchsucht hat; danach
+  richtet sich der Seitenanfang. Beispiel (Kanaren, ab 4 Sterne, ab 80 %
+  Weiterempfehlung): 8 → 21 → 43 → 76 Treffer statt 8 → 9 → Stillstand.
+- **„Nachladen fehlgeschlagen" war irreführend**, wenn nur der eigene
+  3-Sekunden-Abstand zwischen zwei Suchen gegriffen hat (HTTP 429) — jetzt
+  steht dort, dass man kurz warten und erneut tippen soll.
+- Die Kopfzeile der Trefferliste zeigt jetzt „X Treffer · Y von Z Angeboten
+  durchsucht", damit der Unterschied zwischen gefundenen und gefilterten
+  Treffern sichtbar ist.
+
+## [0.80.1] - 2026-08-06
+
+### Fixed
+- **Klima- und Reiseführer-Fenster hingen dauerhaft bei „Lade…"** — wurde das
+  Fenster bei offener Prompt-Vorschau (Option „KI-Prompt vor dem Senden
+  anzeigen") geschlossen, blieb das Versprechen hinter der Vorschau für immer
+  offen. Damit stand die interne „läuft gerade"-Sperre bis zum Neuladen der
+  Seite auf true und jedes weitere Öffnen zeigte nur den Ladebalken — ohne
+  Fehlermeldung in der Konsole. Schließen bricht die Vorschau jetzt sauber ab.
+- Läuft tatsächlich schon ein Abruf (z. B. das Vorabladen der Klimatabelle nach
+  einer Suche), steht das jetzt im Fenster, statt den Ladebalken stumm stehen
+  zu lassen.
+
+## [0.80.0] - 2026-08-06
+
+### Added
+- **Angebote als „für andere" markieren (👥)** — für Reisen, die nicht für einen
+  selbst sind. Sie rutschen unter eine eigene Überschrift ans Listenende und
+  werden dort **eingeklappt** gezeigt (Titel, Tags, Ort, Reisedaten, Preis);
+  ▾ klappt die volle Karte auf, der Zustand überlebt das Neuladen.
+  Beim Markieren werden **Benachrichtigungen und Kalender-Meldungen
+  stummgeschaltet** — einschalten geht jederzeit über die Glocken, das
+  Zurücknehmen der Markierung tut es bewusst nicht von selbst.
+  Markieren über das 👥-Symbol auf der Karte oder „👥 Für andere" in der
+  Auswahlleiste für mehrere auf einmal.
+  Preisprüfung, Verlauf, Kalender, Tags, Wunschpreis, Überblick, HA-Sensoren und
+  die Teilen-Funktion bleiben unverändert.
+
+## [0.79.1] - 2026-08-06
+
+### Fixed
+- **Falscher Reiseführer/falsche Klimatabelle bei mehreren Zielen im selben
+  Land** — die Region eines Angebots wurde bevorzugt aus `regionGiataIds` der
+  Angebots-URL gelesen. Dort steht aber die Region, in der *gesucht* wurde: zwei
+  Malediven-Hotels aus einer Landessuche trugen beide „Malediven" (100020) und
+  teilten sich dadurch Reiseführer und Klimatabelle, obwohl sie auf
+  verschiedenen Atollen liegen. Beim zweiten Angebot öffnete sich der
+  Reiseführer des ersten. Aufgelöst wird jetzt zuerst über die Breadcrumb-API
+  (Addu Atoll 1139 vs. Nord Male Atoll 1151), die URL-Region ist nur noch der
+  Notnagel.
+  - **Hinweis:** Bereits erzeugte Reiseführer/Klimatabellen hängen weiter an der
+    gröberen Region. Sie werden für die jetzt korrekt aufgelöste Insel neu
+    erstellt; die alten Einträge lassen sich in der Reiseführer- bzw.
+    Klima-Übersicht löschen.
+
+## [0.79.0] - 2026-08-06
+
+### Added
+- **Hotelbeschreibung (PDF) im öffentlichen Link** — je Angebot verlinkt, wie
+  in der Oberfläche. Verlinkt wird wie beim Angebots-Link nur, was per https
+  auf tui.com zeigt.
+
+### Fixed
+- **Klima/Reiseführer aus dem Teilen-Dialog wurden nicht erstellt** — bei
+  aktiver Option „KI-Prompt vor dem Senden anzeigen" antworteten die Endpunkte
+  nur mit der Prompt-Vorschau statt zu erzeugen; das Fortschrittsfenster war
+  kurz zu sehen und danach stand sofort der Link da. Der Aufruf schickt jetzt
+  `_prompt_confirmed` — die Rückfrage im Dialog ist die Bestätigung, ein
+  zweites Vorschaufenster wäre doppelt gemoppelt.
+- Fehlgeschlagene Erzeugungen werden jetzt im Dialog benannt (vorher nur eine
+  leicht zu übersehende Kurzmeldung), bevor der Link gespeichert wird.
+- **Liste der geteilten Links zu schmal** — die Knöpfe „Kopieren / Bearbeiten /
+  +30 T / Widerrufen" brachen in eine zweite Reihe um und die Kopfzeile
+  „Gültig bis" auf zwei Zeilen. Das Fenster ist jetzt breiter, die
+  Aktionsspalte bleibt einzeilig, auf schmalen Displays scrollt die Tabelle
+  waagerecht.
+
+## [0.78.0] - 2026-08-06
+
+### Added
+- **Öffentliche Links lassen sich bearbeiten** — „Bearbeiten" in der Liste
+  „🔗 Geteilte Links" öffnet die Zusammenstellung erneut: Angebote hinzufügen
+  oder entfernen, Titel, Notiz, Extras und Gültigkeit ändern. **Der Link bleibt
+  derselbe**, Aufrufzähler und Erstelldatum ebenfalls — bisher musste für jede
+  Änderung ein neuer Link erzeugt und verteilt werden.
+- Der Teilen-Dialog zeigt jetzt alle Angebote zum An- und Abhaken (vorher nur
+  die vorher markierten), damit sich beim Bearbeiten überhaupt etwas ergänzen
+  lässt.
+- **Rückfrage bei fehlendem Klima/Reiseführer** — sind sie zum Reiseziel noch
+  nicht gespeichert, fragt der Dialog vor dem Speichern, ob sie per KI erstellt
+  werden sollen, und zeigt den Fortschritt je Ziel. Wer ablehnt, bekommt den
+  Link ohne diese Abschnitte; ohne KI-Key kommt nur ein Hinweis. Vorher entstand
+  stillschweigend ein Link, in dem der angehakte Abschnitt schlicht fehlte.
+
+## [0.77.0] - 2026-08-06
+
+### Added
+- **Öffentliche Links zeigen Preis und Verfügbarkeit live** — beide werden bei
+  jedem Aufruf frisch aus der Datenbank gelesen, samt Zeitpunkt der letzten
+  Prüfung und Badge „verfügbar" / „nicht mehr verfügbar". Gelesen wird nur zu
+  den geteilten Angebots-IDs; die Seite fragt selbst nichts bei TUI ab.
+  Auswahl, Beschreibung, Klima, Reiseführer und Reiseberater-Text bleiben
+  weiterhin der Stand vom Erzeugen.
+- **Links je Angebot** auf der öffentlichen Seite: TUI-Angebotsseite (nur
+  `*.tui.com` wird verlinkt) und HolidayCheck-Bewertungen über dieselbe
+  Google-Seitensuche wie in der Oberfläche.
+- Wird ein geteiltes Angebot gelöscht, zeigt der Link weiter den letzten
+  bekannten Stand statt einer Lücke.
+
+## [0.76.0] - 2026-08-06
+
+### Added
+- **Öffentliche Angebots-Links (🔗 Teilen)** — ausgewählte Angebote lassen sich
+  als Seite zum reinen Anschauen weitergeben, ohne Login, wie beim Reisebüro.
+  Enthält auf Wunsch die gespeicherte Klimatabelle, den Reiseführer, ein
+  Reiseberater-Ergebnis und den Preisverlauf. Verwaltung (Aufrufe, Gültigkeit,
+  Widerruf) über „🔗 Geteilte Links" im Footer.
+  - Läuft auf einem **eigenen Port** (Standard 17796), damit im Reverse-Proxy
+    nur die öffentliche Seite freigegeben werden kann — Port 17794 mit Login,
+    API und Ingress bleibt unangetastet. Ohne `enable_public_share` wird der
+    Port gar nicht erst gebunden.
+  - Der Inhalt wird beim Erzeugen als Schnappschuss eingefroren; die öffentliche
+    Seite liest nie die Live-Tabellen und macht weder Preisabfragen noch
+    KI-Aufrufe. Übernommen wird nur eine feste Feld-Whitelist — TUI-URL,
+    Buchungscodes, PDF-Links und Wunsch-/Buchungspreise bleiben draußen.
+  - Links laufen ab (Standard 30 Tage, 1–365 einstellbar), lassen sich
+    verlängern und jederzeit widerrufen. Token mit 72 Bit Entropie,
+    `noindex`-Header, strikte CSP, Bremse gegen Token-Raten.
+- Neue Optionen `enable_public_share`, `public_port`, `public_base_url`,
+  `public_share_days`.
+
+### Changed
+- Der Markdown-Renderer für KI-Texte liegt jetzt in `static/aimd.js` und wird
+  von der Hauptseite **und** der öffentlichen Seite genutzt (vorher nur in
+  `app.js`) — kein zweiter, driftender Renderer.
+
+## [0.75.4] - 2026-08-06
+
+### Fixed
+- **Kopfzeile überlappte** — die Countdown-Pille („✈ Ziel · noch X Tage")
+  wuchs über ihre Rasterspalte hinaus und schob sich über Logo und
+  Knöpfe. Sie wird jetzt bei Platzmangel abgeschnitten (…), am Handy
+  steht sie in einer eigenen Zeile unter Logo und Knöpfen.
+- **Versionsnummer in `app.py`** hing auf 0.75.0 fest (seit v0.75.1 nicht
+  mitgezogen) — die Anzeige im Add-on zeigte eine falsche Version.
+
+### Changed
+- **„Alle prüfen" und „KI-Verlauf" nur noch als Symbol** (🔄 / 🤖) — die
+  Beschriftungen sprengten die Kopfzeile auf schmalen Displays. Der Text
+  steht weiterhin im Tooltip.
+
+## [0.75.3] - 2026-08-06
+
+### Fixed
+- **Handy-Ansicht überarbeitet** — auf schmalen Displays waren Kopf-,
+  Werkzeug- und Karten-Knopfleiste einzeilig zusammengequetscht, die
+  Beschriftungen nur noch Stummel („Prü…", „Verl…", „Aktionscod…").
+  Jetzt brechen alle Leisten um (zwei Knöpfe pro Zeile), die Preis-Spalte
+  rutscht unter die Angebotsdaten, das Hotelbild nutzt die volle Breite
+  und Wunschpreis/Gebuchter Preis passen in je eine Zeile. Auch am Tablet
+  (bis 767 px) werden Leisten umgebrochen statt abgeschnitten.
+- **Preiskalender am Handy** — das 7-Spalten-Raster war breiter als der
+  Bildschirm; die Preise stehen dort jetzt ohne Nachkommastellen
+  („2.132 €"), damit alle Wochentage sichtbar bleiben.
+
+### Changed
+- **Preis-Aufschlüsselung** — der Zusatz „— sonst erst im Checkout
+  sichtbar" bei den Veranstalter-Hinweisen entfällt.
+
+## [0.75.2] - 2026-08-05
+
+### Fixed
+- **Unterstrich bei Link-Buttons entfernt** — „📄 PDF öffnen" und
+  „📅 Kalender" in „Meine Reisen" sind Links (`<a class="btn">`) und wurden
+  vom Browser unterstrichen. Jetzt sehen sie aus wie alle anderen Buttons.
+
+## [0.75.1] - 2026-08-05
+
+### Changed
+- **Footer zweizeilig** — die KI-Einträge (⚙ KI-Prompts, aktiver Anbieter,
+  KI-Kosten) stehen jetzt in einer eigenen zweiten Zeile statt in einem
+  langen Umbruch. Bei deaktivierter KI entfällt die Zeile komplett.
+
+## [0.75.0] - 2026-08-05
+
+### Added
+Das Preis-Aufschlüsselungs-Fenster (Rechtsklick auf den Preis) zeigt jetzt alles,
+was das Buchungssystem über die konkrete Buchung verrät:
+
+- **⚠ Veranstalter-Hinweise (Errata)** — Infos, die sonst erst im Checkout
+  auftauchen: Wasserflugzeug-Zeitfenster, Gepäcklimits auf Inlandsflügen,
+  Sicherheitshinweise (z. B. fehlende Balkongeländer an Wasserbungalows) u. v. m.
+  Aufklappbar, damit das Fenster kompakt bleibt.
+- **Bestätigte Flugverbindungen** je Richtung mit allen Segmenten (Umsteigen
+  sichtbar, z. B. STR→VIE→MLE), Zeiten, Flugnummern und **Buchungsklasse** —
+  ein Klassenwechsel erklärt oft einen Preissprung.
+- **Badges:** ✈ Charter-/Linienflug, 💺 Sitzplatz reservierbar (oder nicht),
+  🛎 Sonderleistungen buchbar, 🏨 TUI-Kontingent vs. Bettenbank (z. B. DBH/MTS —
+  erklärt abweichendes Preis-/Stornoverhalten).
+- **Alarm „Buchungsdetails geändert"** (Option `notify_booking_changes`,
+  Standard an): ändern sich Flugzeiten, Flugnummern oder Buchungsklasse
+  gegenüber dem letzten Poll — oder die Veranstalter-Hinweise — kommt eine
+  Meldung mit vorher/jetzt über HA/Telegram, plus Marker im Verlauf-Diagramm.
+  Die Erstbefüllung bleibt bewusst still, gemeldet werden nur echte Übergänge.
+
+## [0.74.1] - 2026-08-05
+
+### Fixed
+- **Preis-Aufschlüsselung zeigte „Rückflug 0 €"** bei Linienflug-Angeboten
+  (z. B. Austrian zu den Malediven): kein Auslesefehler — bei Retour-Tarifen
+  bepreist das TUI-Buchungssystem beide Flüge zusammen auf **einem** Leg, das
+  andere steht echt mit 0 € drin (Charterflüge wie TUIfly haben dagegen je Leg
+  einen Preis). In dem Fall steht jetzt eine gemeinsame Zeile
+  „✈ Flüge (Hin & Rück)" mit dem Gesamtflugpreis samt Erklärungs-Tooltip statt
+  der verwirrenden 0.
+
+## [0.74.0] - 2026-08-05
+
+### Added
+- **🔮 Preisprognose im Verlauf-Fenster** (heuristisch, ohne KI-Kosten): eine
+  gestrichelte Kurve setzt den Preisverlauf 7/14/30 Tage in die Zukunft fort.
+  Grundlage ist die **Kalender-Historie desselben Angebots** — sie enthält für
+  viele Reisetermine, wie sich deren Preis mit schrumpfender Vorlaufzeit
+  entwickelt hat (Median-Kurve je 7-Tage-Bucket „Tage vor Abreise") — plus der
+  **regionale Markttrend** der letzten 14 Tage als Drift. Unter dem Diagramm
+  steht die Prognose als Zahl mit Basisangabe und ausdrücklich als **Annahme**
+  markiert. Fehlen Kalenderhistorie **und** Markttrend, sagt TUIWatch ehrlich
+  „zu wenig Daten" statt zu raten; einzelne Horizonte ohne Datenbasis werden
+  weggelassen. Neuer Endpoint `GET /api/forecast/<offer_id>`.
+
+## [0.73.0] - 2026-08-05
+
+### Added
+- **📊 Tracking-Statistik** (neuer Footer-Eintrag, `GET /api/stats`): Ersparnis
+  gegenüber dem Höchstpreis je aktivem Angebot (mit Summe), die größten
+  Einzelbewegungen zwischen zwei Prüfungen, **Preisänderungen nach Wochentag**
+  (Anzahl, ↓/↑, Ø-Richtung — Basis Markttrend-Daten), gebuchte Angebote vs.
+  heutiger Preis und die **Tiefstpreis-Rückschau**: bei abgeschlossenen
+  (archivierten) Angeboten lag der Tiefstpreis im Median X Tage vor Abreise —
+  erste empirische Antwort auf „wann buchen?". Neues Modul `stats_routes.py`.
+
+## [0.72.0] - 2026-08-05
+
+### Added
+- **ICS-Kalender-Export für „Meine Reisen":** 📅-Knopf im Reisen-Fenster lädt
+  alle Reisen als `.ics`-Datei (`GET /api/trips/ics`), in der Detailansicht gibt
+  es den Export je Reise (`…/<id>/ics`). Ganztägiger Termin von An- bis
+  Abreisetag, mit Buchungsnummer, Nächten, Reisenden und Gesamtpreis in der
+  Beschreibung — importierbar in HA-Kalender, Google Kalender, Outlook & Co.
+
+## [0.71.0] - 2026-08-05
+
+### Added
+- **Suchabo-Meldungen zeigen jetzt den Unterschied zum letzten Lauf:** 🆕 für
+  Hotels, die erstmals unter die Schwelle gerutscht sind, 📉 mit „vorher X €,
+  −Y €" für bereits gemeldete, die weiter gefallen sind — Kopfzeile z. B.
+  „2 neu, 1 billiger unter 1.500 €". Vorher stand nur eine Mischliste da,
+  ohne zu sehen, was sich getan hat. Dieselben Marker stehen in der
+  Trefferliste im UI (🆕 bzw. 📉 −50 € am Hotelnamen).
+
+## [0.70.0] - 2026-08-05
+
+### Added
+- **Push aufs Handy: frei wählbarer HA-Notify-Dienst** (`ha_notify_service`).
+  Bisher landeten HA-Meldungen nur als persistente Benachrichtigung in der
+  HA-Oberfläche — auf dem Handy sah man nichts. Mit z. B.
+  `mobile_app_mein_handy` geht jetzt jede Meldung zusätzlich als Push über die
+  Companion-App raus. Mehrere Dienste kommagetrennt, `notify.`-Präfix optional,
+  leer = Verhalten wie bisher. Die persistente Benachrichtigung bleibt immer
+  bestehen (sie trägt weiter das 🔔-Panel im UI).
+- Backlog um Check24-GIATA-Auto-Mapping, cert_expiry-Debug und app.js-Aufteilung
+  ergänzt.
+
+## [0.69.1] - 2026-08-05
+
+### Added
+- **Die vier neuen Endpoints stehen mit im API-Selbsttest** (Ampel im Footer):
+  Buchbarkeit (vacancy-check), Gepäck, Zahlungskonditionen, Zuletzt-gebucht —
+  alle als *nicht kritisch* (kein `notify_api_errors`-Alarm, nur gelbe Ampel).
+  Wichtig vor allem als Drift-Wächter für den vacancy-check: ändert TUI das
+  Payload-Format (wie beim travelType-Objekt), meldet der Endpoint dauerhaft
+  FAILED — ohne Selbsttest bliebe der „Nicht mehr buchbar"-Alarm einfach still
+  tot. Der Buchbarkeits-Check nutzt das Testangebot aus dem Preis-Check weiter,
+  der Zahlungs-Check testet nebenbei den Hotel-Content-Endpoint (Ländercode).
+
+## [0.69.0] - 2026-08-05
+
+### Added
+- **Preis-Aufschlüsselung Hotel / Hinflug / Rückflug** je Angebot — Daten, die die
+  TUI-Angebotsseite selbst nie anzeigt. Quelle ist der `vacancy-check`-Endpoint
+  (das, was der Knopf „Verfügbarkeit prüfen" auf tui.com auslöst): er antwortet
+  live aus dem Veranstaltersystem (ATCOMRES) mit dem bestätigten Gesamtpreis,
+  aufgeteilt in Hotel- und Fluganteile. Wird bei jeder Prüfung mit erfasst und
+  je Messpunkt gespeichert — damit ist erstmals sichtbar, **ob eine Preisänderung
+  vom Hotel oder vom Flug kommt.** Wichtig: die Flugpreise im normalen Offer-JSON
+  sind dafür unbrauchbar (dort stand für denselben Flug 45 € statt live 235 €).
+- **Rechtsklick auf den Preis** öffnet die Aufschlüsselung (Linksklick bleibt
+  Check24): Hotel/Hinflug/Rückflug mit Summe, dazu **Inklusiv-Gepäck** (z. B.
+  „1×20 kg p. P."), **Anzahlung und Restzahlungstermin** (z. B. „25 % · Rest bis
+  21.09.2026") und „Hotel zuletzt von anderen gebucht". Gepäck und
+  Zahlungskonditionen sind quasi-statisch und werden nur einmal je Angebot geholt.
+- **Verfügbarkeit ist jetzt live bestätigt statt nur abgeleitet:** bisher hieß
+  „verfügbar" nur „die Offer-API lieferte Treffer". Bei bestätigten Angeboten
+  zeigt das Badge „⚡ verfügbar · bestätigt"; bestätigt das Buchungssystem ein
+  Angebot nicht mehr, erscheint „⚠ nicht bestätigt".
+- **Alarm „nicht mehr buchbar?"** (Option `notify_unavailable`, Standard an):
+  meldet über HA/Telegram den Übergang bestätigt → nicht bestätigt (evtl.
+  ausgebucht) und gibt Entwarnung, sobald das Buchungssystem wieder bestätigt.
+  Bewusst nur der Übergang: ein FAILED ohne vorheriges OK kann auch API-Drift
+  sein und wäre als Ausverkauft-Meldung falscher Alarm.
+- Verlaufstabelle und CSV-Export enthalten die neuen Spalten Hotel/Hin/Rück.
+- Alles ohne Browser: reine JSON-Aufrufe (~0,5 s), Playwright war nur das
+  Erkundungswerkzeug. Neue Endpoints in [SCRAPING.md](SCRAPING.md) dokumentiert —
+  inklusive der Stolperfalle, dass `travelType` im vacancy-Payload ein Objekt
+  sein muss (als String antwortet der Endpoint mit FAILED) und paymentService
+  den Header `X-Agency` verlangt.
+
+## [0.68.1] - 2026-08-05
+
+### Added
+- **Grüner Rahmen am „Reiseführer"-Knopf**, wenn zu diesem Ziel schon einer
+  gespeichert ist — sonst sieht man einem Angebot nicht an, ob der Klick nur
+  nachschlägt oder einen KI-Aufruf auslöst. Abgeglichen wird über den Ziel-Namen:
+  die Angebotsliste kennt nur die Hotel-giataId, und die Region je Angebot einzeln
+  aufzulösen wäre ein Fremdaufruf pro Zeile.
+- **Tokens und Kosten stehen jetzt auch unter Reiseführer und Klimatabelle** —
+  dieselbe Zeile wie bei jedem anderen KI-Ergebnis (Input-/Output-Tokens,
+  Websuchen, geschätzte Kosten, Gesamtsumme). Nur beim frisch erzeugten Ergebnis:
+  kommt es aus der Datenbank, hat es nichts gekostet. In der Gesamtanzeige der
+  Fußzeile war beides schon immer enthalten (beide Routen zählen über
+  `_record_ai_usage`), sichtbar war es im Fenster aber nicht.
+
+## [0.68.0] - 2026-08-05
+
+### Added
+- **Reiseführer je Reiseziel (KI).** Neuer Knopf **Reiseführer** an jedem Angebot,
+  in der Suchmaske und als 🧭 in der Kopfzeile. Dreizehn Abschnitte: Allgemeines
+  (Währung, Wechselkurs, Zeitzone, Flugzeit, Steckdosen), Einreise, Klima,
+  Gesundheit, Geld, Mobilität, Internet, Sicherheit, Kultur & Etikette, Don't Dos,
+  Insider-Tipps, Praktisches und 20 nützliche Wörter — dazu eine Kurzfassung in
+  höchstens 15 Stichpunkten und Sprungmarken über den Abschnitten.
+- **Die gespeicherte Klimatabelle steht mit im Reiseführer** — Diagramm und
+  Monatstabelle, im Fenster wie im Ausdruck und in der E-Mail. Beide hängen an
+  derselben Region-giataId, damit sie zusammenfinden.
+- **Drucken und E-Mail-Versand** des Reiseführers. Der Druck läuft über ein
+  verstecktes iframe mit eigenem Stylesheet statt über ein Popup — im HA-Ingress
+  läuft die Oberfläche selbst in einem iframe, ein Popup würde dort blockiert.
+- Angaben, die schnell veralten (Einreisebestimmungen, Wechselkurs, Preise,
+  Sicherheitslage), sind mit **⏱** markiert — ein Monate alter Wechselkurs wäre
+  sonst nicht als solcher zu erkennen.
+- Wie die Klimatabelle wird der Reiseführer **einmal je Ziel** erzeugt und dauerhaft
+  gespeichert; Neuerstellung nur über „🔄 Neu abrufen". Anders als beim Klima wird
+  **nicht** im Hintergrund vorgeladen: der Reiseführer ist der teuerste Einzelaufruf
+  im Add-on, einer je gesuchtem Ziel wäre Geldverbrennung.
+
+### Changed
+- **„Pausieren" und „Archivieren" in der Angebotsliste sind jetzt Symbole** (⏸/▶
+  und Archivkasten, Beschriftung im Tooltip). Die Zeile war mit elf beschrifteten
+  Knöpfen zu voll für einen weiteren.
+
 ## [0.67.2] - 2026-08-05
 
 ### Added

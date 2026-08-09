@@ -12,7 +12,7 @@ import json
 import re
 import secrets
 import time
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 from flask import Blueprint, jsonify, request, send_file
@@ -1009,6 +1009,93 @@ def _iso_to_de(iso: str | None) -> str:
         return date.fromisoformat(iso).strftime('%d.%m.%Y')
     except ValueError:
         return iso
+
+
+# ── ICS-Export (Kalender-Datei) ────────────────────────────────────────────────
+
+def _ics_escape(s) -> str:
+    """Text nach RFC 5545 escapen (\\ ; , und Zeilenumbrüche)."""
+    return (str(s or '').replace('\\', '\\\\').replace(';', '\\;')
+            .replace(',', '\\,').replace('\r\n', '\\n').replace('\n', '\\n'))
+
+
+def _ics_event(t: dict, stamp: str) -> list[str]:
+    """VEVENT einer Reise als ganztägiger Termin Anreise…Abreise (DTEND exklusiv
+    → Abreisetag + 1, damit der Rückreisetag im Kalender mit drin ist)."""
+    start = (t.get('start_date') or '')[:10].replace('-', '')
+    if len(start) != 8:
+        return []
+    end = (t.get('end_date') or '')[:10]
+    try:
+        dtend = (date.fromisoformat(end) + timedelta(days=1)).strftime('%Y%m%d')
+    except ValueError:
+        dtend = start
+    name = t.get('hotel') or t.get('title') or t.get('destination') or 'TUI-Reise'
+    summary = f"✈ {name}" + (f" ({t['destination']})"
+                             if t.get('destination') and t.get('destination') != name else '')
+    desc = []
+    if t.get('booking_code'):
+        desc.append(f"Buchungsnummer: {t['booking_code']}")
+    if t.get('nights'):
+        desc.append(f"{t['nights']} Nächte")
+    if t.get('travellers'):
+        desc.append(f"{t['travellers']} Reisende")
+    if t.get('total_price') is not None:
+        desc.append(f"Gesamtpreis: {A._eur(t['total_price'])}")
+    loc = ', '.join(x for x in (t.get('hotel'), t.get('destination')) if x)
+    out = ['BEGIN:VEVENT',
+           f"UID:tuiwatch-trip-{t['id']}@tuiwatch",
+           f"DTSTAMP:{stamp}",
+           f"DTSTART;VALUE=DATE:{start}",
+           f"DTEND;VALUE=DATE:{dtend}",
+           f"SUMMARY:{_ics_escape(summary)}"]
+    if loc:
+        out.append(f"LOCATION:{_ics_escape(loc)}")
+    if desc:
+        out.append(f"DESCRIPTION:{_ics_escape(chr(10).join(desc))}")
+    out.append('END:VEVENT')
+    return out
+
+
+def _ics_response(trips: list[dict], filename: str):
+    stamp = datetime.utcnow().strftime('%Y%m%dT%H%M%SZ')
+    lines = ['BEGIN:VCALENDAR', 'VERSION:2.0',
+             'PRODID:-//TUIWatch//Reisen//DE', 'CALSCALE:GREGORIAN',
+             'METHOD:PUBLISH', 'X-WR-CALNAME:TUI-Reisen']
+    for t in trips:
+        lines += _ics_event(t, stamp)
+    lines.append('END:VCALENDAR')
+    body = '\r\n'.join(lines) + '\r\n'
+    resp = A.make_response(body)
+    resp.headers['Content-Type'] = 'text/calendar; charset=utf-8'
+    resp.headers['Content-Disposition'] = f'attachment; filename="{filename}"'
+    return resp
+
+
+@bp.route('/api/trips/ics', methods=['GET'])
+def api_trips_ics_all():
+    """Alle Reisen als ICS-Kalenderdatei (Import in HA-Kalender, Google, Outlook …)."""
+    if (err := A._require_api()):
+        return err
+    with A.db() as con:
+        rows = con.execute(
+            'SELECT id, booking_code, title, destination, hotel, start_date, end_date, '
+            'nights, travellers, total_price FROM trips ORDER BY start_date').fetchall()
+    return _ics_response([dict(r) for r in rows], 'tuiwatch_reisen.ics')
+
+
+@bp.route('/api/trips/<int:tid>/ics', methods=['GET'])
+def api_trips_ics_one(tid: int):
+    """Eine Reise als ICS-Kalenderdatei."""
+    if (err := A._require_api()):
+        return err
+    with A.db() as con:
+        r = con.execute(
+            'SELECT id, booking_code, title, destination, hotel, start_date, end_date, '
+            'nights, travellers, total_price FROM trips WHERE id=?', (tid,)).fetchone()
+    if not r:
+        return jsonify({'error': 'not_found'}), 404
+    return _ics_response([dict(r)], f'tui_reise_{tid}.ics')
 
 
 def _upcoming_trips_summary() -> list[dict]:

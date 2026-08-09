@@ -17,6 +17,10 @@
   "github_token": "",
   "translate_email": "",
 
+  "gemini_api_key": "",
+  "gemini_image_model": "gemini-3.1-flash-image",
+  "gemini_image_ratio": "16:9",
+
   "user_upload_max_mb": 200,
   "visit_log_max": 500,
   "user_journal_max": 100,

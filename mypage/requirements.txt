@@ -5,3 +5,9 @@ markdown==3.10.2
 pillow==12.3.0
 cryptography==50.0.0
 qrcode==7.4.2
+# PDF-Erzeugung für Bibliothek-Einträge. Braucht pango (siehe Dockerfile);
+# fehlt das Paket, läuft das Add-on ohne PDF-Button weiter (siehe _HAS_WEASY).
+weasyprint==69.0
+# KI-Bilderzeugung (Google Gemini) für Bibliothek-Titelbilder. Fehlt das Paket oder
+# der API-Key, bleibt der Knopf im Admin einfach aus (siehe _HAS_GENAI).
+google-genai==2.10.0

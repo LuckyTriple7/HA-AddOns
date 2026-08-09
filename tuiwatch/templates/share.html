@@ -1,0 +1,224 @@
+{#- Öffentliche Angebots-Seite (share_routes.share_app, zweiter Port).
+    Rein serverseitig gerendert aus dem eingefrorenen Snapshot: keine API, kein
+    Login, keine Abfragen. Das einzige Script (share.js) macht aus den
+    data-Attributen der KI-Texte HTML. -#}
+{%- set MONTHS = ['', 'Januar','Februar','März','April','Mai','Juni','Juli',
+                  'August','September','Oktober','November','Dezember'] -%}
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex, nofollow">
+  <title>{{ p.title or 'Reiseangebote' }}</title>
+  <meta name="theme-color" content="#1f6feb">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%233b82f6' d='M21 16v-2l-8-5V3.5A1.5 1.5 0 0 0 11.5 2 1.5 1.5 0 0 0 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/a/share.css?v={{ app_version }}">
+</head>
+<body>
+<div class="wrap">
+
+  <div class="top">
+    <svg viewBox="0 0 24 24"><path d="M21 16v-2l-8-5V3.5A1.5 1.5 0 0 0 11.5 2 1.5 1.5 0 0 0 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/></svg>
+    Reiseangebote
+  </div>
+
+  <div class="head">
+    <h1>{{ p.title or 'Deine Reiseangebote' }}</h1>
+    {%- if p.note %}<div class="note">{{ p.note }}</div>{% endif %}
+  </div>
+
+  {%- for o in offers %}
+  <div class="card">
+    {%- if o.image_url %}
+    <img class="card-img" src="{{ o.image_url }}" alt="{{ o.hotel or o.label }}" loading="lazy" referrerpolicy="no-referrer">
+    {%- endif %}
+    <div class="card-body">
+      <h2>{{ o.label or o.hotel }}</h2>
+      {%- if o.stars %}<div class="stars">{{ '★' * (o.stars|int) }}{% if o.stars % 1 %}½{% endif %}</div>{% endif %}
+      {%- if o.place %}<div class="place">{{ o.place }}</div>{% endif %}
+      {%- if o.rating %}
+      <div class="rating">★ {{ '%.1f'|format(o.rating) }}{% if o.rating_count %} · {{ o.rating_count }} Bewertungen{% endif %}{% if o.recommendation %} · {{ o.recommendation }} % Weiterempfehlung{% endif %}</div>
+      {%- endif %}
+
+      <div class="facts">
+        {%- if o.travel %}
+        <div><div class="fact-l">Reisezeitraum</div><div class="fact-v">{{ o.travel }}</div></div>
+        {%- endif %}
+        {%- if o.room %}
+        <div><div class="fact-l">Zimmer</div><div class="fact-v">{{ o.room }}</div></div>
+        {%- endif %}
+        {%- if o.board %}
+        <div><div class="fact-l">Verpflegung</div><div class="fact-v">{{ o.board }}</div></div>
+        {%- endif %}
+        {%- if o.travellers_count %}
+        <div><div class="fact-l">Reisende</div><div class="fact-v">{{ o.travellers_count }}</div></div>
+        {%- endif %}
+        {%- if o.dep_airport %}
+        <div><div class="fact-l">Abflughafen</div><div class="fact-v">{{ o.dep_airport }}</div></div>
+        {%- endif %}
+        {%- if o.flight_out %}
+        <div><div class="fact-l">Hinflug</div><div class="fact-v">{{ o.flight_out }}</div></div>
+        {%- endif %}
+        {%- if o.flight_ret %}
+        <div><div class="fact-l">Rückflug</div><div class="fact-v">{{ o.flight_ret }}</div></div>
+        {%- endif %}
+        {%- if o.cancellation %}
+        <div><div class="fact-l">Stornierung</div><div class="fact-v">{{ o.cancellation }}</div></div>
+        {%- endif %}
+      </div>
+
+      {%- if o.tui_url or o.pdf_link or o.hc_url %}
+      <div class="links">
+        {%- if o.tui_url %}<a href="{{ o.tui_url }}" target="_blank" rel="noopener nofollow">Angebot auf tui.com ↗</a>{% endif %}
+        {%- if o.pdf_link %}<a href="{{ o.pdf_link }}" target="_blank" rel="noopener nofollow">📄 Hotelbeschreibung (PDF) ↗</a>{% endif %}
+        {%- if o.hc_url %}<a href="{{ o.hc_url }}" target="_blank" rel="noopener nofollow">Bewertungen auf HolidayCheck ↗</a>{% endif %}
+      </div>
+      {%- endif %}
+
+      {%- if o.price %}
+      <div class="price">
+        <span class="amount">{{ o.price|eur }}</span>
+        <span class="per">pro Person{% if o.total_price and o.travellers_count and o.travellers_count > 1 %} · Gesamt {{ o.total_price|eur }} für {{ o.travellers_count }} Reisende{% endif %}</span>
+        {%- if o.available is true %}
+        <span class="avail yes">{% if o.vac_ok is true %}⚡ verfügbar · bestätigt{% else %}✓ verfügbar{% endif %}</span>
+        {%- elif o.available is false %}
+        <span class="avail no">✗ nicht mehr verfügbar</span>
+        {%- endif %}
+      </div>
+      {%- if o.last_ts %}
+      <div class="stand">{% if o.stale %}Letzter bekannter Stand{% else %}Preis geprüft{% endif %}: {{ o.last_ts|dtm }}</div>
+      {%- endif %}
+      {%- endif %}
+
+      {%- if o.spark %}
+      <div class="spark">
+        <svg viewBox="0 0 320 60" preserveAspectRatio="none" aria-label="Preisverlauf">
+          <path d="{{ o.spark.area }}" fill="rgba(31,111,235,.12)"/>
+          <path d="{{ o.spark.d }}" fill="none" stroke="#1f6feb" stroke-width="2"
+                stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"/>
+        </svg>
+        <div class="lbl"><span>Preisverlauf {{ o.spark.first_ts|dt }} – {{ o.spark.last_ts|dt }}</span><span>Tief {{ o.spark.min|eur }} · Hoch {{ o.spark.max|eur }}</span></div>
+      </div>
+      {%- endif %}
+    </div>
+  </div>
+  {%- endfor %}
+
+  {%- for c in climate %}
+  <details class="sec">
+    <summary>🌤 Klima – {{ c.label }}</summary>
+    <div class="sec-body">
+      {%- if c.data.zusammenfassung %}
+      <div class="clim-sum" data-t="{{ c.data.zusammenfassung }}"></div>
+      {%- endif %}
+      <div class="scroll-x">
+        <table class="clim">
+          <thead><tr>
+            <th>Monat</th><th>Tag</th><th>Nacht</th><th>Wasser</th><th>Sonne</th><th>Regen</th><th>Hinweis</th>
+          </tr></thead>
+          <tbody>
+            {%- for m in c.data.months %}
+            <tr{% if m.monat in (c.data.beste_monate or []) %} class="best"{% endif %}>
+              <td>{{ MONTHS[m.monat] if m.monat and m.monat <= 12 else m.monat }}</td>
+              <td>{{ m.temp_tag|round|int }} °C</td>
+              <td>{{ m.temp_nacht|round|int }} °C</td>
+              <td>{% if m.wasser %}{{ m.wasser|round|int }} °C{% else %}–{% endif %}</td>
+              <td>{{ m.sonnenstunden|round|int }} h</td>
+              <td>{{ m.regentage }}</td>
+              <td class="clim-note" data-t="{{ m.hinweis }}"></td>
+            </tr>
+            {%- endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </details>
+  {%- endfor %}
+
+  {%- for g in guide %}
+  <details class="sec">
+    <summary>📖 Reiseführer – {{ g.label }}</summary>
+    <div class="sec-body">
+      {%- if g.data.zusammenfassung %}
+      <div class="gd-sec">
+        <h3>Auf einen Blick</h3>
+        <ul class="gd-list">
+          {%- for s in g.data.zusammenfassung %}<li data-t="{{ s }}"></li>{% endfor %}
+        </ul>
+      </div>
+      {%- endif %}
+      {%- for sec in g.data.sections %}
+      <div class="gd-sec">
+        <h3>{{ sec.titel }}</h3>
+        {%- if sec.einleitung %}<div class="gd-intro" data-t="{{ sec.einleitung }}"></div>{% endif %}
+        <ul class="gd-list">
+          {%- for pt in sec.punkte %}
+          <li>{% if pt.label %}<span class="gd-k">{{ pt.label }}:</span>{% endif %}<span data-t="{{ pt.text }}"></span></li>
+          {%- endfor %}
+        </ul>
+      </div>
+      {%- endfor %}
+    </div>
+  </details>
+  {%- endfor %}
+
+  {%- if advisor %}
+  <details class="sec">
+    <summary>🧭 Reiseberater – {{ advisor.title }}</summary>
+    <div class="sec-body">
+      <div class="ai-md" data-md="{{ advisor.summary }}"></div>
+    </div>
+  </details>
+  {%- endif %}
+
+  {#- Kommentare: reines Formular ohne JavaScript (POST → Redirect → GET).
+      Abgeschaltet und noch nichts geschrieben → der Block entfällt ganz. -#}
+  {%- if comments_open or comments %}
+  <div class="sec cmt" id="kommentare">
+    <div class="sec-body">
+      <h3>💬 Kommentare</h3>
+      {%- if comments %}
+      <ul class="cmt-list">
+        {%- for c in comments %}
+        <li>
+          <div class="cmt-meta">{{ c.author or 'Anonym' }} · {{ c.ts|dtm }}</div>
+          <div class="cmt-text">{{ c.text }}</div>
+        </li>
+        {%- endfor %}
+      </ul>
+      {%- elif comments_open %}
+      <p class="cmt-empty">Noch kein Kommentar — schreib den ersten.</p>
+      {%- endif %}
+
+      {%- if note_code == 'ok' %}<p class="cmt-note ok">Danke, dein Kommentar steht unten.</p>
+      {%- elif note_code == 'leer' %}<p class="cmt-note warn">Da war kein Text drin.</p>
+      {%- elif note_code == 'takt' %}<p class="cmt-note warn">Kurz durchatmen — gleich geht’s weiter.</p>
+      {%- elif note_code == 'voll' %}<p class="cmt-note warn">Hier ist genug gesagt: mehr Kommentare gehen zu diesem Link nicht.</p>
+      {%- elif note_code == 'zu' %}<p class="cmt-note warn">Kommentare sind zu diesem Link geschlossen.</p>
+      {%- endif %}
+
+      {%- if comments_open %}
+      <form class="cmt-form" method="post" action="/s/{{ token }}/comment">
+        <input type="text" name="author" maxlength="{{ author_max }}" placeholder="Dein Name (optional)">
+        <textarea name="text" rows="3" maxlength="{{ comment_max }}" required
+                  placeholder="Was meinst du zu den Angeboten? (max. {{ comment_max }} Zeichen)"></textarea>
+        <button type="submit">Kommentar senden</button>
+      </form>
+      {%- else %}
+      <p class="cmt-empty">Kommentare sind zu diesem Link geschlossen.</p>
+      {%- endif %}
+    </div>
+  </div>
+  {%- endif %}
+
+  <div class="foot">
+    Zusammengestellt am {{ p.created|dt }} · Link gültig bis {{ expires_ts|dt }}<br>
+    Preis und Verfügbarkeit werden bei jedem Aufruf aktualisiert. Alle Angaben ohne Gewähr.
+    {%- if advisor or guide %}<br>Texte teilweise KI-erzeugt.{% endif %}
+  </div>
+</div>
+<script src="/a/aimd.js?v={{ app_version }}"></script>
+<script src="/a/share.js?v={{ app_version }}"></script>
+</body>
+</html>

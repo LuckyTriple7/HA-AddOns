@@ -16,7 +16,9 @@ username: admin          # Login (Direktzugriff)
 password: secret         # bitte ändern!
 session_hours: 24        # Dauer der Anmeldung
 poll_interval: 21600     # Prüfintervall in Sekunden (6 h); Minimum 600
+ha_notify_service: ""    # optional: notify-Dienst(e) für Push, z. B. mobile_app_mein_handy
 notify_api_errors: true  # Alarm, wenn eine TUI-API gestört ist
+notify_unavailable: true # Alarm, wenn das Buchungssystem ein Angebot nicht mehr bestätigt
 notify_booked_drop: true # Alarm, wenn Preis unter den gebuchten Preis fällt
 booked_drop_min_diff: 50 # Mindest-Ersparnis dafür (€)
 digest_enabled: false    # wöchentlicher Überblick (Telegram/E-Mail)
@@ -130,12 +132,27 @@ Passatwind, Hochsaison …) und die aus Wetter-Sicht besten Monate (★).
   erscheint die Liste aller bereits gespeicherten Ziele (mit Erstellungsdatum und 🗑
   zum Löschen), Klick öffnet die Tabelle. Neue Ziele entstehen über die Suche — nur
   dort gibt es einen Ziel-Picker.
+- **Direkt am Angebot** über den Knopf **Klima** (links neben „Reiseführer"): öffnet
+  die Tabelle für die **Region** des Angebots — der Server löst sie aus der Hotel-
+  giataId auf. Ist sie schon gespeichert, leuchtet der Knopf **grün** und das Öffnen
+  kostet keinen KI-Aufruf; ohne Rahmen wird sie beim ersten Klick von der KI erstellt.
 - **Automatisch nach jeder Suche vorgeladen**, sofern eine KI konfiguriert ist: beim
   ersten Mal je Ziel kostet das einen KI-Aufruf, danach nie wieder. So steht die
   Tabelle beim Klick sofort da.
 - **✉ Als E-Mail** verschickt die Tabelle (kein KI-Aufruf — verschickt wird, was
   gespeichert ist). Die Mail enthält die Tabelle ohne Diagramm: Mail-Clients rendern
   inline-SVG nicht zuverlässig, und die Zahlen sind hier der Inhalt.
+- **📋 Markdown** legt Tabelle bzw. Reiseführer als sauberes Markdown in die
+  Zwischenablage — zum Einfügen in eine Notiz- oder Wissenssammlung (z. B. die
+  Bibliothek von MyPage). Erzeugt wird es aus den gespeicherten Daten, nicht aus der
+  Bildschirmdarstellung: Überschriften als `#`, Punkte als `- **Label:** Text`,
+  Monatswerte als Markdown-Tabelle. Quellen-Marker der KI (`[3]`, `[11]`) fallen
+  dabei weg, kurzlebige Angaben werden als „(kann sich kurzfristig ändern)"
+  ausgeschrieben, und beim Reiseführer hängt die Klimatabelle mit dran.
+  **Adressen im Text werden zu klickbaren Links** mit der Domain als Beschriftung
+  (`[marcopolo.de](https://…)`) — an Ort und Stelle, damit der Satz heil bleibt.
+  Die Quellen bleiben also erhalten: Verweise auf öffentlich erreichbare Seiten
+  sind üblich, und bei KI-Texten ist die Herkunft eher hilfreich als hinderlich.
 
 **🤖 Reisezeit-Check** (Knopf neben „Suchen", nur bei konfigurierter KI): prüft die
 Eckdaten der Maske, bevor du buchst. Vier Punkte:
@@ -413,6 +430,11 @@ Preis-Tracking, als dauerhaftes Archiv (Vergangenheit und Zukunft).
   oder unter diesen Wert, wirst du benachrichtigt.
 - Bei **jeder Preisänderung** (steigt/fällt) kommt ebenfalls eine Meldung
   (abschaltbar über `notify_price_change`).
+- **Push aufs Handy** (`ha_notify_service`): standardmäßig erscheinen HA-Meldungen
+  als persistente Benachrichtigung in der HA-Oberfläche. Trägst du hier einen
+  notify-Dienst ein (z. B. `mobile_app_mein_handy` — Companion-App), geht jede
+  Meldung **zusätzlich** als Push dorthin. Mehrere Dienste mit Komma trennen,
+  `notify.`-Präfix optional.
 - **Günstigerer-Termin-Alarm** (`notify_cheaper_date`): meldet, wenn der Preiskalender
   einen anderen Abreisetag deutlich günstiger zeigt (Schwelle `cheaper_date_min_diff`).
   Die Meldung kommt nur bei einem **wirklich neuen Tiefstwert** (anderer Termin oder
@@ -420,6 +442,20 @@ Preis-Tracking, als dauerhaftes Archiv (Vergangenheit und Zukunft).
   Abschalten `notify_cheaper_date: false` setzen.
 - **Ausverkauft-/Fehler-Alarm** (`notify_errors`): meldet, wenn ein Angebot mehrmals in
   Folge kein Ergebnis liefert, und gibt Entwarnung, sobald es wieder klappt.
+- **„Buchungsdetails geändert"-Alarm** (`notify_booking_changes`): meldet, wenn sich
+  die vom Buchungssystem bestätigten **Flugzeiten, Flugnummern oder Buchungsklassen**
+  eines Angebots ändern (mit vorher/jetzt) — oder die **Veranstalter-Hinweise
+  (Errata)**. Beides steht im Preis-Aufschlüsselungs-Fenster (Rechtsklick auf den
+  Preis), zusammen mit Badges für Charter-/Linienflug, Sitzplatzreservierung,
+  Sonderleistungen und Kontingent-Quelle (TUI vs. Bettenbank).
+- **„Nicht mehr buchbar?"-Alarm** (`notify_unavailable`): bei jeder Prüfung bestätigt
+  TUIWatch das Angebot zusätzlich **live im TUI-Buchungssystem** (derselbe Mechanismus
+  wie der Knopf „Verfügbarkeit prüfen" auf tui.com). Bestätigt das Buchungssystem ein
+  zuvor bestätigtes Angebot nicht mehr (evtl. ausgebucht), kommt eine Meldung — und
+  Entwarnung, sobald es wieder bestätigt wird. Die Live-Bestätigung liefert nebenbei
+  die **Preis-Aufschlüsselung Hotel/Hinflug/Rückflug** (Rechtsklick auf den Preis,
+  auch je Messpunkt in Verlaufstabelle und CSV-Export) sowie Inklusiv-Gepäck,
+  Anzahlung und Restzahlungstermin.
 - **API-Ausfall-Alarm** (`notify_api_errors`): meldet, wenn der API-Selbsttest einen
   kritischen TUI-Endpunkt als gestört erkennt (TUI hat evtl. die API geändert), und gibt
   Entwarnung, sobald wieder alles läuft.
@@ -719,6 +755,31 @@ landen dauerhaft im **KI-Verlauf**.
 
 ## Bedienung
 
+- **👥 Für andere** — Angebote, die nicht für dich selbst sind (z. B. Vorschläge, die
+  du über einen öffentlichen Link weitergibst). Das 👥-Symbol in der Knopfleiste einer
+  Karte legt sie in eine Liste; für mehrere auf einmal gibt es „👥 Für andere" in der
+  Auswahlleiste. Beides öffnet dieselbe Auswahl: **bestehende Liste anklicken oder
+  neuen Namen eintippen** — es sind beliebig viele Listen mit frei wählbaren Namen
+  möglich („Oma und Opa", „Kollegen", …). Solche Angebote
+  - rutschen unter die Überschrift **„&lt;Symbol&gt; &lt;Listenname&gt;"** ans Listenende
+    (innerhalb jedes Blocks gilt weiter die gewählte Sortierung), Blöcke alphabetisch,
+  - werden **eingeklappt** gezeigt: Titel, Tags, Ort, Reisedaten und Preis — Klick auf
+    ▾ klappt die volle Karte auf, der Zustand bleibt auch nach einem Neuladen erhalten,
+  - bekommen beim Einsortieren **Benachrichtigungen und Kalender-Meldungen
+    stummgeschaltet**. Einschalten geht jederzeit über die Glocken (🔔 auf der Karte,
+    Glocke im Preiskalender); das Herausnehmen aus der Liste schaltet sie
+    absichtlich **nicht** von selbst wieder ein.
+
+  In der Überschrift jeder Liste benennt **✎** sie um (ein bestehender Name führt die
+  beiden Listen zusammen) und **✖** löst sie auf — die Angebote wandern dann zurück in
+  die normale Liste. Ein Klick auf das **Symbol** öffnet einen Emoji-Picker (Vorschläge
+  plus Freitextfeld für jedes beliebige Zeichen); es lässt sich auch schon beim Anlegen
+  einer Liste wählen und gilt für alle Angebote darin. Eine Liste ist nur ein Name an den Angeboten: die letzte Zuordnung
+  zu entfernen löscht sie, leere Listen gibt es nicht. Namen werden im Backup
+  mitgesichert.
+
+  Alles andere bleibt unverändert: Preisprüfung, Preisverlauf, Preiskalender, Tags,
+  Wunschpreis, Überblick, HA-Sensoren und die Teilen-Funktion.
 - **Tags** — frei vergebbare Schlagworte je Angebot (＋-Pille auf der Karte); Klick auf
   einen Tag entfernt ihn wieder. Unter der Suchleiste zeigt eine Pill-Zeile alle
   aktuell verwendeten Tags — Klick filtert die Liste sofort (wie die Suche, live, kein
@@ -759,7 +820,7 @@ landen dauerhaft im **KI-Verlauf**.
 - **Sammelaktionen** — Angebote per Checkbox auswählen; in der erscheinenden Leiste lassen sich die ausgewählten gemeinsam **prüfen, als E-Mail senden, archivieren oder löschen** (E-Mail fragt den Empfänger ab und sendet nur die markierten aktiven Angebote).
 - **Trend-Hinweis** — je Angebot zeigt ein kleines Badge die Tendenz aus dem bisherigen Verlauf (↘ fällt / ↗ steigt / → stabil).
 - **Umbenennen** (✎ neben dem Namen) — eigenen Namen vergeben; leer = Hotelname.
-- **Prüfen** — ein Angebot sofort neu abfragen.
+- **Prüfen** (🔍-Symbol rechts in der Knopfzeile) — ein Angebot sofort neu abfragen.
 - **Alle prüfen** — alle Angebote abfragen.
 - **🤖 KI-Verlauf** (nur mit hinterlegtem `anthropic_api_key`) — bisherige
   KI-Fazits/-Vergleiche einsehen, siehe [KI-Fazit, -Vergleich & -Verlauf](#ki-fazit--vergleich--verlauf).
@@ -773,7 +834,7 @@ landen dauerhaft im **KI-Verlauf**.
   Festlegung wieder auf.
 - **Pausieren / Fortsetzen** — setzt die automatische Prüfung für ein Angebot aus, ohne es zu löschen.
 - **Zurücksetzen** — löscht den Preisverlauf (und Vergleichs-/Kalender-Cache samt Kalender-Trend-Historie) und beginnt nach einer frischen Abfrage wieder bei „null". Angebot, Name und Wunschpreis bleiben.
-- **Archivieren / Reaktivieren** — legt ein Angebot ins Archiv (keine Live-Abfragen mehr) bzw. holt es zurück. Reisen werden **automatisch archiviert**, sobald ihr Rückreisedatum vergangen ist; manuell z. B. wenn ein Angebot ausgebucht/nicht mehr verfügbar ist. Archivierte Angebote sind über den Schalter **„Archiv"** oben einblendbar und werden bei Prüfungen, Übersicht und E-Mail-Versand ausgenommen.
+- **Archivieren / Reaktivieren** — legt ein Angebot ins Archiv (keine Live-Abfragen mehr) bzw. holt es zurück. Reisen werden **automatisch archiviert**, sobald ihr Rückreisedatum vergangen ist; manuell z. B. wenn ein Angebot ausgebucht/nicht mehr verfügbar ist. Der Schalter **„Archiv"** oben zeigt **nur** die archivierten Angebote (wie „Preisverlauf" für die Verlaufs-Hotels; beide Schalter schließen sich gegenseitig aus). Bei Prüfungen, Übersicht und E-Mail-Versand bleiben archivierte Angebote außen vor.
 
 Bei mehreren Reisenden wird zusätzlich zum **Preis pro Person** der **Gesamtpreis**
 angezeigt. TUIWatch ist außerdem als **PWA installierbar** (Manifest + Service Worker;
@@ -798,6 +859,134 @@ Reiseziele, Abflughäfen, Preiskalender, Bewertung, Breadcrumb). Der Status steh
 ein kritischer Endpunkt antwortet nicht. Ein Klick öffnet die Detailliste mit „Erneut
 prüfen". So lässt sich schnell unterscheiden, ob ein fehlender Preis am Angebot liegt
 oder TUI eine API geändert hat.
+
+## Preisprognose (🔮)
+
+Im **Verlauf-Fenster** aktiver Angebote setzt eine gestrichelte Kurve den
+Preisverlauf **7/14/30 Tage in die Zukunft** fort — heuristisch, ohne KI-Kosten.
+Grundlage: die **Kalender-Historie** desselben Angebots (wie haben sich die Preise
+vieler Reisetermine mit schrumpfender Vorlaufzeit entwickelt?) plus der regionale
+**Markttrend** der letzten 14 Tage als Drift. Unter dem Diagramm steht die Prognose
+als Zahl samt Datenbasis — ausdrücklich eine **Annahme aus Erfahrungswerten, keine
+Garantie**. Reichen die Daten nicht (keine Kalenderhistorie, kein Markttrend),
+erscheint keine Prognose. Tipp: den Preiskalender eines Angebots einmal öffnen bzw.
+`calendar_daily_refresh` anlassen — je mehr Kalenderhistorie, desto besser die Kurve.
+
+## Tracking-Statistik (📊)
+
+**📊 Statistik** im Footer öffnet Kennzahlen über alle Angebote und den ganzen
+Preisverlauf: Angebote/Messpunkte/Aufzeichnungsbeginn, **Ersparnis gegenüber dem
+Höchstpreis** je aktivem Angebot, die **größten Einzelbewegungen** (eine Prüfung
+zur nächsten), **Preisänderungen nach Wochentag** (an welchen Tagen bewegt sich
+was, Ø-Richtung), gebuchte Angebote vs. heutiger Preis sowie die
+**Tiefstpreis-Rückschau**: bei abgeschlossenen (archivierten) Angeboten, wie viele
+Tage vor Abreise der tiefste Preis lag (Median).
+
+## Öffentliche Angebots-Links (🔗 Teilen)
+
+Wie die Angebotsseite eines Reisebüros: ein Link, den Familie oder Freunde **ohne
+Login** öffnen können. Die Seite ist reine Ansicht — keine Suche, keine Preisabfrage,
+keine KI-Aufrufe, kein Zugriff auf den Rest der App.
+
+**So geht's:** Angebote in der Liste markieren → **🔗 Teilen** in der Auswahlleiste →
+Titel, Notiz und Extras wählen (Klimatabelle, Reiseführer, Preisverlauf, ein
+gespeichertes Reiseberater-Ergebnis) → Link erzeugen. Alle Links verwaltest du über
+**🔗 Geteilte Links** im Footer: Aufrufe, Gültigkeit verlängern, bearbeiten, widerrufen.
+
+**💬 Kommentare:** Unter den Angeboten steht auf der geteilten Seite ein Kommentarfeld
+(Name optional, **max. 500 Zeichen**) — die Empfänger können also direkt antworten,
+ohne Login und ohne App. In **🔗 Geteilte Links** gibt es je Link den Knopf
+**„💬 Kommentare"**; er **leuchtet grün**, solange etwas Neues ungelesen ist, und hört
+damit auf, sobald du ihn geöffnet hast. Dort lassen sich Kommentare auch **bearbeiten**
+(Tippfehler, Kürzen) und **löschen** — beides schlägt sofort auf die öffentliche Seite
+durch. Widerrufen oder Ablaufen des Links löscht die zugehörigen Kommentare mit.
+**Pro Link abschaltbar:** Der Haken „Kommentare" im Teilen-Dialog (und der Schalter
+oben im Kommentar-Fenster) bestimmt, ob **neue** Kommentare möglich sind — Standard an.
+Aus heißt: das Formular verschwindet, bereits geschriebene Kommentare bleiben stehen.
+
+Jeder neue Kommentar löst eine **Benachrichtigung über Home Assistant und Telegram**
+aus (Name, Text, Absender-IP) — abschaltbar über die Option „Benachrichtigung bei
+neuen Kommentaren". Die **IP** steht zusätzlich an jedem Kommentar in der Verwaltung
+(auf der öffentlichen Seite **nicht**).
+
+> **Damit die echte IP ankommt**, muss der Reverse Proxy vor dem öffentlichen Port
+> `X-Real-IP` setzen — bei nginx/Nginx Proxy Manager `proxy_set_header X-Real-IP
+> $remote_addr;`, bei Cloudflare genügt der automatische `CF-Connecting-IP`.
+> `X-Forwarded-For` allein reicht **nicht**: der Webserver (waitress) verwirft diesen
+> Kopf ohne konfigurierten `trusted_proxy`. Ohne beides steht dort die interne
+> Docker-Adresse (z. B. 172.30.32.1) und im Log eine entsprechende Warnung.
+
+Weil die Seite öffentlich beschreibbar ist, gelten Grenzen: 500 Zeichen je Kommentar,
+40 Zeichen für den Namen, 200 Kommentare je Link und 5 Kommentare je IP und
+10 Minuten. Gespeichert wird reiner Text, HTML wird nicht ausgeführt.
+
+**Nachträglich ändern:** „Bearbeiten" öffnet die Zusammenstellung erneut — Angebote
+dazunehmen oder rauswerfen, Titel, Notiz, Extras und Gültigkeit ändern. **Der Link
+bleibt derselbe**, es muss also nichts neu verteilt werden; Aufrufzähler und
+Erstelldatum bleiben ebenfalls erhalten.
+
+**Fehlt Klima oder Reiseführer** zum Reiseziel, fragt der Dialog vor dem Speichern,
+ob er sie per KI erstellen soll (kostet KI-Aufrufe). Lehnst du ab, wird der Link
+ohne diese Abschnitte gespeichert. Ein Reiseberater-Ergebnis lässt sich nicht
+nachträglich erzeugen — das entsteht nur über den TripPilot-Fragebogen.
+
+**Preis und Verfügbarkeit sind live:** Beide werden bei jedem Aufruf frisch aus der
+Datenbank gelesen — der Link zeigt also immer den Stand der letzten Preisprüfung,
+inklusive „verfügbar" bzw. „nicht mehr verfügbar" und dem Zeitpunkt der Prüfung.
+Gelesen wird ausschließlich zu den geteilten Angeboten; die Seite stößt selbst keine
+Abfrage bei TUI an.
+
+**Alles andere ist Schnappschuss:** Auswahl der Angebote, Beschreibung, Bilder,
+Klimatabelle, Reiseführer und Reiseberater-Text bleiben so, wie sie beim Erzeugen
+waren. Klima und Reiseführer erscheinen nur, wenn sie zum Reiseziel bereits
+gespeichert sind; erzeugt wird dabei nichts (keine Kosten).
+
+**Verlinkt** ist je Angebot die TUI-Angebotsseite, die Hotelbeschreibung als PDF
+und — sofern eine Bewertung vorliegt — die HolidayCheck-Suche (dieselbe
+Google-Seitensuche wie in der Oberfläche). Bei TUI-Seite und PDF wird nur verlinkt,
+was per https auf `*.tui.com` zeigt.
+
+### Einrichtung
+
+Die Funktion ist standardmäßig **aus**. Zum Aktivieren in den Add-on-Optionen:
+
+| Option | Bedeutung |
+|---|---|
+| `enable_public_share` | schaltet die Funktion ein (bindet erst dann den Port) |
+| `public_port` | Port der öffentlichen Seite, Standard `17796` |
+| `public_base_url` | z. B. `https://reise.example.com` — nur für den fertigen Link |
+| `public_share_days` | Vorgabe für die Gültigkeit, Standard 30 Tage |
+
+Zusätzlich muss der Port unter **Konfiguration → Netzwerk** des Add-ons
+veröffentlicht werden (er steht dort standardmäßig auf „deaktiviert").
+
+### Reverse-Proxy
+
+**Nur** den öffentlichen Port nach außen geben, niemals 17794 — dort liegen Login,
+API und alle Angebote:
+
+```nginx
+server {
+    server_name reise.example.com;
+    # ... TLS ...
+    location /s/ { proxy_pass http://homeassistant.local:17796; }
+    location /a/ { proxy_pass http://homeassistant.local:17796; }   # CSS/JS der Seite
+    location /   { return 404; }
+}
+```
+
+Der öffentliche Server kennt selbst nur `/s/<token>`, `/a/<datei>` und `/robots.txt`;
+alles andere beantwortet er mit 404. Er liefert `X-Robots-Tag: noindex`, eine strikte
+Content-Security-Policy und bremst Token-Raten aus.
+
+### Was auf der Seite steht — und was nicht
+
+Übernommen werden Hotel, Ort, Sterne/Bewertung, Reisezeitraum, Flüge, Zimmer,
+Verpflegung, Reisende, Storno-Hinweis, Bild, TUI-Link, Hotelbeschreibungs-PDF,
+Preis und Verfügbarkeit. **Nicht** übernommen werden Buchungscodes, Wunsch- und
+Buchungspreise, Tags und alles andere aus der Datenbank. Der Live-Abgleich beim Aufruf holt nur
+Preis, Gesamtpreis, Verfügbarkeit und Prüfzeitpunkt — und das ausschließlich zu den
+Angebots-IDs, die im Schnappschuss stehen.
 
 ## Daten
 

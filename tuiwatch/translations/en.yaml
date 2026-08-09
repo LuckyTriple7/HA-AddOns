@@ -32,6 +32,9 @@ configuration:
   notify_ha:
     name: HA notifications
     description: "Show a persistent Home Assistant notification on price change or when a target price is reached. Default on."
+  ha_notify_service:
+    name: Additional HA notify service
+    description: "Optional: name of a notify service (e.g. mobile_app_my_phone for push via the Companion app) that additionally receives every notification. Separate multiple services with commas; empty = persistent notification only."
   notify_price_change:
     name: Notify on every price change
     description: "Notify whenever a price changes (up/down). Target-price notifications are always sent regardless. Default on."
@@ -56,6 +59,12 @@ configuration:
   notify_api_errors:
     name: API outage alert
     description: "Notify when the API self-test finds a critical TUI endpoint failing (TUI may have changed the API), and send an all-clear once everything works again. Default on."
+  notify_unavailable:
+    name: No-longer-bookable alert
+    description: "Notify when the TUI booking system stops confirming a previously confirmed offer (possibly sold out) — and send an all-clear once it is confirmed again. Default on."
+  notify_booking_changes:
+    name: Booking-details-changed alert
+    description: "Notify when confirmed booking details of an offer change: flight times/numbers/booking class or the operator remarks (errata). Default on."
   notify_booked_drop:
     name: Cheaper-than-booked alert
     description: "Notify when the price drops below the booked price you entered after booking (rebooking might be worth it). Default on."
@@ -149,6 +158,21 @@ configuration:
   enable_check24_compare:
     name: Check24 price comparison (beta)
     description: "Allows comparing an offer against a manually linked Check24 hotel (other tour operators, same travel dates). Uses headless Chromium against Check24 (no open API), so it's more fragile than the TUI fetch and adds a second external ToS risk. Default off — deliberately opt-in."
+  enable_public_share:
+    name: Public offer links
+    description: "Enables links that let others view selected offers without logging in (like a travel agency's offer page) — including the stored climate table, travel guide and travel advisor result. The page runs on its own port (see \"Public link port\"), shows only a snapshot frozen at creation time and allows no queries at all. Expose only this second port through your reverse proxy, never 17794. Default off."
+  public_port:
+    name: Public link port
+    description: "Port serving the public offer pages. Default 17796. The port must also be published in the add-on's network configuration, otherwise it is only reachable inside the container."
+  public_base_url:
+    name: Public base URL
+    description: "Address under which the public links are reachable from outside, e.g. https://travel.example.com — TUIWatch uses it to build the complete link to hand out. If left empty, only the path /s/<token> is shown."
+  public_share_days:
+    name: Public link validity (days)
+    description: "Default validity when creating a public link. After that the link only shows a notice; the dialog lets you pick a different value per link (1 to 365). Default 30."
+  notify_share_comments:
+    name: Notify on new comments
+    description: "Sends a Home Assistant and Telegram notification for every new comment on a shared page — including name, text and sender IP. Default on."
   verbose_log:
     name: Verbose logging
     description: Logs more detail per check. Default off — only errors and important events are logged.

@@ -64,6 +64,182 @@
     let showHistOnly = localStorage.getItem('tw-show-histonly')==='1';
     let sortMode = localStorage.getItem('tw-sort') || 'added';
 
+    // Aufgeklappte fremde Angebote. In localStorage, damit weder das periodische
+    // Neurendern (loadOffers alle 5 s) noch ein Reload die Karte wieder zuklappt.
+    let openForeign = new Set();
+    try { openForeign = new Set(JSON.parse(localStorage.getItem('tw-foreign-open')||'[]')); } catch(e){}
+    function foreignOpen(o){ return openForeign.has(o.id); }
+    function toggleForeignOpen(id){
+      if(openForeign.has(id)) openForeign.delete(id); else openForeign.add(id);
+      try { localStorage.setItem('tw-foreign-open', JSON.stringify([...openForeign])); } catch(e){}
+      lastSig = null; renderAll(curOffers||[]);
+    }
+    // „Fremd" = Angebot ist nicht für mich (Vorschlag für andere). Solche
+    // Angebote stehen in einer frei benannten Liste; der Server schaltet dabei
+    // beide Glocken stumm, Einschalten bleibt manuell möglich.
+    const FL_DEFAULT = 'Für andere', FL_ICON_DEFAULT = '👥';
+    function foreignListOf(o){ return (o.foreign_list||'').trim() || FL_DEFAULT; }
+    function foreignIconOf(o){ return (o.foreign_icon||'').trim() || FL_ICON_DEFAULT; }
+    // Vorhandene Listen aus den geladenen Angeboten: Name → Symbol (alphabetisch)
+    function foreignLists(){
+      const m = new Map();
+      (curOffers||[]).filter(o=>o.is_foreign).forEach(o=>{
+        if(!m.has(foreignListOf(o))) m.set(foreignListOf(o), foreignIconOf(o)); });
+      return [...m.entries()].sort((a,b)=>a[0].localeCompare(b[0],'de'));
+    }
+    // Listennamen sind frei gewählter Text und stehen deshalb NIE als Argument in
+    // einem onclick-Attribut (Anführungszeichen, Klammern, Umlaute → kaputtes
+    // Inline-Script), sondern in data-list. Geklickt wird über Delegation.
+    document.addEventListener('click', e=>{
+      const t = e.target.closest && e.target.closest('[data-fl-action]');
+      if(!t) return;
+      const name = t.dataset.list || '';
+      const act = t.dataset.flAction;
+      if(act==='rename') renameForeignList(name);
+      else if(act==='dissolve') dissolveForeignList(name);
+      else if(act==='icon') changeForeignListIcon(name);
+      else if(act==='seticon') pickIcon(t.dataset.icon||'');
+      else if(act==='pick') setForeignList(name);
+    });
+
+    // Listen-Auswahl: bestehende Liste wählen, neue anlegen oder Angebot(e) aus
+    // der Liste nehmen. Ziel sind ein Angebot (Karte) oder die Sammelauswahl.
+    let flIds = [], flFromBulk = false;
+    function openForeignPicker(ids, fromBulk){
+      flIds = (ids||[]).slice(); flFromBulk = !!fromBulk;
+      if(!flIds.length) return;
+      const picked = (curOffers||[]).filter(o=>flIds.includes(o.id));
+      const one = flIds.length===1 ? (picked[0]||{}) : null;
+      const curName = (one && one.is_foreign) ? foreignListOf(one) : '';
+      // Bei einer Sammelauswahl reicht ein einziges einsortiertes Angebot, damit
+      // „herausnehmen" Sinn ergibt.
+      const anyForeign = picked.some(o=>o.is_foreign);
+      const lists = foreignLists();
+      $('#fl-sub').textContent = (flIds.length===1
+          ? 'Das Angebot wandert eingeklappt ans Ende der Liste; '
+          : flIds.length+' Angebote wandern eingeklappt ans Ende der Liste; ')
+        + 'Benachrichtigungen und Kalender-Meldungen werden stummgeschaltet.';
+      $('#fl-body').innerHTML =
+        (lists.length
+          ? `<div class="fl-list">` + lists.map(([n, ic]) =>
+              `<button class="btn sec fl-pick${n===curName?' active':''}" data-fl-action="pick" data-list="${esc(n)}">${esc(ic)} ${esc(n)}${n===curName?' ✓':''}</button>`
+            ).join('') + `</div>`
+          : `<div class="hint">Noch keine Liste vorhanden — leg die erste an.</div>`)
+        + `<div class="fl-new"><button id="fl-icon-btn" class="fl-icon-btn" onclick="openIconPicker('new')"
+             title="Symbol der neuen Liste wählen">${esc(flNewIcon)}</button>
+           <input id="fl-name" maxlength="40" placeholder="Neue Liste, z. B. Oma und Opa"
+             onkeydown="if(event.key==='Enter')setForeignListFromInput()">
+           <button class="btn" onclick="setForeignListFromInput()">Anlegen</button></div>`
+        + (anyForeign
+          ? `<div class="fl-off"><button class="btn sec" onclick="setForeignList('')">${curName
+              ? 'Aus „'+esc(curName)+'" nehmen'
+              : 'Aus der Liste nehmen'} — zurück in die normale Liste</button></div>`
+          : '');
+      $('#fl-bg').classList.add('show');
+      setTimeout(()=>{ const el=$('#fl-name'); if(el && !lists.length) el.focus(); }, 50);
+    }
+    function closeForeignPicker(){ $('#fl-bg').classList.remove('show'); }
+    function setForeignListFromInput(){
+      const v = ($('#fl-name').value||'').trim();
+      if(!v){ toast('Bitte einen Namen eingeben'); return; }
+      // Symbol nur bei einer neu angelegten Liste mitschicken — bei einer
+      // bestehenden erbt der Server das dort schon gesetzte.
+      setForeignList(v, flNewIcon);
+    }
+    async function setForeignList(name, icon){
+      const ids = flIds.slice(); if(!ids.length) return;
+      closeForeignPicker();
+      toast(ids.length+' Angebot(e) '+(name?'werden einsortiert…':'werden zurückgeholt…'));
+      const body = {foreign_list: name};
+      if(name && icon) body.foreign_icon = icon;
+      for(const id of ids){
+        try {
+          await fetch(api('/api/offers/'+id), {method:'PATCH', headers:{'Content-Type':'application/json'},
+                                               body: JSON.stringify(body)});
+        } catch(e){ toast('Änderung fehlgeschlagen'); return; }
+      }
+      if(flFromBulk) bulkClear();
+      toast(name ? ('In „'+name+'" gelegt — Benachrichtigungen aus') : 'Zurück in der normalen Liste');
+      lastSig = null; loadOffers();
+    }
+    $('#fl-bg').addEventListener('click', e=>{ if(e.target.id==='fl-bg') closeForeignPicker(); });
+
+    // ── Symbol-Auswahl ────────────────────────────────────────────────────────
+    // Vorschläge fürs Reise-Umfeld; alles andere geht über das Freitextfeld
+    // (jedes Emoji, auch zusammengesetzte wie 👨‍👩‍👧, oder ein Zeichen wie ★).
+    const FL_ICONS = ['👥','👫','👬','👭','👨‍👩‍👧','👵','👴','🧓','👶','🧑‍🤝‍🧑',
+                      '❤️','💛','💚','💙','💜','🧡','🎁','🎂','🎉','💍',
+                      '⭐','✨','🍀','🔖','📌','🏷️','🌍','🗺️','🧳','✈️',
+                      '🏖️','🏝️','🌴','⛱️','🏨','🚢','⚓','🚗','🏔️','⛺',
+                      '☀️','🌙','🍹','🐣','🐶','🐱','🏡','🎓','⚽','🎣'];
+    let fliMode = null, fliName = '', flNewIcon = FL_ICON_DEFAULT;
+    function openIconPicker(mode, name){
+      fliMode = mode; fliName = name || '';
+      const cur = mode==='new' ? flNewIcon
+        : (foreignLists().find(([n])=>n===fliName)||[null, FL_ICON_DEFAULT])[1];
+      $('#fli-sub').textContent = mode==='new'
+        ? 'Symbol für die neue Liste'
+        : 'Symbol der Liste „'+fliName+'" — gilt für alle Angebote darin';
+      $('#fli-body').innerHTML =
+        `<div class="fl-emoji-grid">` + FL_ICONS.map(ic =>
+            `<button class="fl-emoji${ic===cur?' active':''}" data-fl-action="seticon" data-icon="${esc(ic)}">${ic}</button>`
+          ).join('') + `</div>`
+        + `<div class="fl-new" style="margin-top:14px">
+             <input id="fli-custom" maxlength="12" placeholder="Eigenes Zeichen, z. B. ★ oder ein Emoji"
+               onkeydown="if(event.key==='Enter')pickIconFromInput()">
+             <button class="btn" onclick="pickIconFromInput()">Übernehmen</button></div>`;
+      $('#fli-bg').classList.add('show');
+    }
+    function closeIconPicker(){ $('#fli-bg').classList.remove('show'); }
+    $('#fli-bg').addEventListener('click', e=>{ if(e.target.id==='fli-bg') closeIconPicker(); });
+    function pickIconFromInput(){
+      const v = ($('#fli-custom').value||'').trim();
+      if(!v){ toast('Bitte ein Zeichen eingeben'); return; }
+      pickIcon(v);
+    }
+    async function pickIcon(icon){
+      closeIconPicker();
+      if(fliMode==='new'){            // nur vormerken, gesetzt wird beim Anlegen
+        flNewIcon = icon;
+        const btn = $('#fl-icon-btn');
+        if(btn) btn.textContent = icon;
+        return;
+      }
+      try {
+        const r = await fetch(api('/api/foreign-lists/icon'), {method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({name: fliName, icon})});
+        if(!r.ok) throw new Error('http');
+      } catch(e){ toast('Symbol ändern fehlgeschlagen'); return; }
+      toast('Symbol geändert');
+      lastSig = null; loadOffers();
+    }
+    function changeForeignListIcon(name){ openIconPicker('list', name); }
+
+    async function renameForeignList(name){
+      const v = prompt('Neuer Name für die Liste „'+name+'":', name);
+      if(v===null) return;
+      const to = v.trim();
+      if(!to || to===name) return;
+      try {
+        const r = await fetch(api('/api/foreign-lists/rename'), {method:'POST',
+          headers:{'Content-Type':'application/json'}, body: JSON.stringify({from:name, to})});
+        if(!r.ok) throw new Error('http');
+      } catch(e){ toast('Umbenennen fehlgeschlagen'); return; }
+      toast('Liste heißt jetzt „'+to+'"');
+      lastSig = null; loadOffers();
+    }
+    async function dissolveForeignList(name){
+      if(!confirm('Liste „'+name+'" auflösen? Die Angebote wandern zurück in die normale Liste '
+                  + '(sie bleiben stummgeschaltet, bis du die Glocken wieder einschaltest).')) return;
+      try {
+        const r = await fetch(api('/api/foreign-lists/'+encodeURIComponent(name)), {method:'DELETE'});
+        if(!r.ok) throw new Error('http');
+      } catch(e){ toast('Auflösen fehlgeschlagen'); return; }
+      toast('Liste „'+name+'" aufgelöst');
+      lastSig = null; loadOffers();
+    }
+
     function startDateOf(o){ const s=urlParam(o.url,'startDate'); return /^\d{4}-\d{2}-\d{2}/.test(s)?s:''; }
     function sortOffers(list){
       const arr = list.slice();
@@ -126,13 +302,12 @@
 
     function renderTagPills(offers){
       const el = $('#tag-pills');
-      // Nur Tags der aktuell sichtbaren Ansicht: Preisverlauf ist exklusiv, die
-      // normale Ansicht zeigt aktive Angebote (+ Archiv nur wenn eingeblendet).
-      // Sonst stehen hier Pills für Angebote, die gar nicht in der Liste sind —
-      // und Tags der sichtbaren Liste fehlen.
-      const vis = (offers||[]).filter(o => showHistOnly
-        ? (o.history_only && !o.archived)
-        : (o.archived ? showArchived : !o.history_only));
+      // Nur Tags der aktuell sichtbaren Ansicht: Preisverlauf und Archiv sind
+      // exklusive Filter, sonst stehen hier Pills für Angebote, die gar nicht in
+      // der Liste sind — und Tags der sichtbaren Liste fehlen.
+      const vis = (offers||[]).filter(o => showHistOnly ? (o.history_only && !o.archived)
+        : showArchived ? o.archived
+        : (!o.archived && !o.history_only));
       const all = new Set();
       vis.forEach(o => (o.tags||[]).forEach(t => all.add(t)));
       // Aktive Filter-Tags, die es in dieser Ansicht nicht gibt, abwählen — ein
@@ -176,15 +351,36 @@
         // Preisverlauf-Filter ist exklusiv: nur diese Angebote, sonst nichts.
         html = hist.length ? hist.map(offerCard).join('')
           : '<div class="empty">Keine Angebote im Preisverlauf-Tracking.</div>';
+      } else if(showArchived){
+        // Archiv-Filter ebenso exklusiv: nur archivierte Angebote, sonst nichts.
+        const arch = sortOffers(list2.filter(o=>o.archived));
+        html = arch.length
+          ? `<div class="arch-head">📦 Archiv (${arch.length}) — abgelaufene oder manuell archivierte Reisen (keine Live-Abfragen)</div>`
+            + arch.map(offerCard).join('')
+          : '<div class="empty">Keine archivierten Angebote.</div>';
       } else {
-        const active = sortOffers(list2.filter(o=>!o.archived && !o.history_only));
+        // Fremde Angebote (nicht für mich) stehen immer am Ende — unabhängig von
+        // der gewählten Sortierung, die innerhalb der Blöcke gilt. Je Liste ein
+        // eigener Block, Listen alphabetisch.
+        const activeAll = list2.filter(o=>!o.archived && !o.history_only);
+        const active = sortOffers(activeAll.filter(o=>!o.is_foreign));
+        const foreign = activeAll.filter(o=>o.is_foreign);
         const arch = sortOffers(list2.filter(o=>o.archived));
         html = active.map(offerCard).join('');
-        if(!active.length && arch.length && !showArchived){
-          html = `<div class="empty">Keine aktiven Angebote — ${arch.length} im Archiv. „Archiv" oben einblenden.</div>`;
-        }
-        if(showArchived && arch.length){
-          html += `<div class="arch-head">📦 Archiv (${arch.length}) — abgelaufene oder manuell archivierte Reisen (keine Live-Abfragen)</div>` + arch.map(offerCard).join('');
+        const groups = new Map();
+        foreign.forEach(o=>{ const n = foreignListOf(o);
+          if(!groups.has(n)) groups.set(n, []); groups.get(n).push(o); });
+        [...groups.keys()].sort((a,b)=>a.localeCompare(b,'de')).forEach(name=>{
+          const g = sortOffers(groups.get(name));
+          html += `<div class="arch-head" title="Angebote in dieser Liste melden nicht — Benachrichtigungen und Kalender-Meldungen sind stumm">`
+            + `<button class="fl-head-icon" data-fl-action="icon" data-list="${esc(name)}" title="Symbol der Liste ändern">${esc(foreignIconOf(g[0]))}</button>`
+            + ` ${esc(name)} (${g.length})`
+            + `<button class="rename-btn" data-fl-action="rename" data-list="${esc(name)}" title="Liste umbenennen">✎</button>`
+            + `<button class="rename-btn" data-fl-action="dissolve" data-list="${esc(name)}" title="Liste auflösen — Angebote zurück in die normale Liste">✖</button>`
+            + `</div>` + g.map(offerCard).join('');
+        });
+        if(!active.length && !foreign.length && arch.length){
+          html = `<div class="empty">Keine aktiven Angebote — ${arch.length} im Archiv. „Archiv" oben anhaken.</div>`;
         }
       }
       box.innerHTML = html;
@@ -220,6 +416,10 @@
     function bulkDelete(){
       if(!confirm(selected.size+' Angebot(e) inklusive Verlauf unwiderruflich löschen?')) return;
       bulkRun(id=>fetch(api('/api/offers/'+id),{method:'DELETE'}), ids_msg('werden gelöscht…'));
+    }
+    function bulkForeign(){
+      if(!selected.size) return;
+      openForeignPicker([...selected], true);
     }
     function ids_msg(t){ return selected.size+' Angebot(e) '+t; }
     async function bulkEmail(){
@@ -296,7 +496,16 @@
           flights = `<div class="flights">${fl('Hin',o.flight_out)}${fl('Rück',o.flight_ret)}</div>`;
         }
         let availBadge = '';
-        if(o.available===true) availBadge = '<div><span class="avail yes">✓ verfügbar</span></div>';
+        if(o.available===true){
+          // vac_ok = Live-Bestätigung aus dem Buchungssystem (vacancy-check);
+          // FAILED überschreibt available nicht, wird aber als Warnung gezeigt
+          if(o.vac_ok===true)
+            availBadge = '<div><span class="avail yes" title="Vom TUI-Buchungssystem live bestätigt (letzte Prüfung)">⚡ verfügbar · bestätigt</span></div>';
+          else if(o.vac_ok===false)
+            availBadge = '<div><span class="avail yes">✓ verfügbar</span> <span class="avail warn" title="Das Buchungssystem bestätigt dieses Angebot aktuell nicht — evtl. vorübergehend oder ausgebucht">⚠ nicht bestätigt</span></div>';
+          else
+            availBadge = '<div><span class="avail yes">✓ verfügbar</span></div>';
+        }
         else if(o.available===false) availBadge = '<div><span class="avail no">✗ nicht verfügbar</span></div>';
         // Sterne + HolidayCheck-Bewertung + kostenlose Stornierung
         const metaParts = [];
@@ -338,6 +547,32 @@
             <input type="number" id="tgt-${o.id}" placeholder="z. B. 1800" value="${tgt}" onkeydown="if(event.key==='Enter')setTarget(${o.id})">
             <button class="btn sec" onclick="setTarget(${o.id})">setzen</button></div>`;
         const bk = o.booked_price!=null ? Math.round(o.booked_price) : '';
+        // Fremdes Angebot (nicht für mich): Kopf der Karte + Preis, sonst nichts.
+        // Aufgebaut aus denselben Bausteinen wie die volle Karte, damit beide
+        // Darstellungen nicht auseinanderlaufen.
+        const labelRow = `<div class="offer-label"><input type="checkbox" class="bulk-check" ${selected.has(o.id)?'checked':''} onclick="bulkToggle(${o.id}, this.checked)" title="Für Sammelaktion auswählen"> ${esc(title)} <button class="rename-btn" onclick="renameOffer(${o.id})" title="Umbenennen">✎</button>${
+          o.is_foreign?`<button class="rename-btn foreign-toggle" onclick="toggleForeignOpen(${o.id})" title="${foreignOpen(o)?'Einklappen':'Aufklappen'}">${foreignOpen(o)?'▴':'▾'}</button>`:''}<span class="tag-row card-tags inline">${(o.tags||[]).map(t =>
+            `<span class="tag-pill" onclick="removeTag(${o.id}, '${esc(t)}')" title="Entfernen">${esc(t)} ×</span>`
+          ).join('')}<span class="tag-pill add" onclick="addTag(${o.id})" title="Tag hinzufügen">＋</span></span></div>`;
+        const locRow = o.location?`<a class="offer-loc" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(((o.hotel||o.label||'')+' '+o.location).trim())}" target="_blank" rel="noopener" title="In Google Maps öffnen">📍 ${esc(o.location)} ↗</a>`:'';
+        const bellBtn = o.archived?'':`<button class="icon-btn notify-bell" onclick="toggleNotifyMuted(${o.id}, ${!!o.notify_muted})" title="${o.notify_muted?'Benachrichtigungen (HA/Telegram) stummgeschaltet – klicken zum Aktivieren':'Benachrichtigungen (HA/Telegram) aktiv – klicken zum Stummschalten'}">${o.notify_muted?'🔕':'🔔'}</button>`;
+        if(o.is_foreign && !foreignOpen(o)){
+          return `<div class="offer foreign collapsed${o.paused?' paused':''}${o.archived?' archived':''}" data-id="${o.id}">
+            <div class="offer-top">
+              <div class="offer-main">
+                ${labelRow}
+                ${locRow}
+                ${sub?`<div class="offer-details">${esc(sub)}</div>`:''}
+              </div>
+              <div class="price-box">
+                ${bellBtn}
+                <div class="price-now">${priceNow}</div>
+                <div class="price-pp">pro Person</div>
+                ${priceSub?`<div class="price-sub">${priceSub}</div>`:''}
+              </div>
+            </div>
+          </div>`;
+        }
         const bkLabel = o.booked_price!=null ? `<span class="booked-set">📌 Gebucht für ${eur(o.booked_price)}</span>` : '📌 Gebuchter Preis:';
         const bookedRow = `<div class="target-row booked-row">${bkLabel}
             <input type="number" id="book-${o.id}" placeholder="z. B. 1750" value="${bk}" onkeydown="if(event.key==='Enter')setBooked(${o.id})">
@@ -349,13 +584,11 @@
           else if(d>0) bookedSince = `<span class="booked-since up" title="seit deiner Buchung">📌 +${eur(d)} seit Buchung</span>`;
           else bookedSince = `<span class="booked-since flat" title="seit deiner Buchung">📌 wie gebucht</span>`;
         }
-        return `<div class="offer${o.paused?' paused':''}${o.archived?' archived':''}" data-id="${o.id}">
+        return `<div class="offer${o.is_foreign?' foreign':''}${o.paused?' paused':''}${o.archived?' archived':''}" data-id="${o.id}">
           <div class="offer-top">
             <div class="offer-main">
-              <div class="offer-label"><input type="checkbox" class="bulk-check" ${selected.has(o.id)?'checked':''} onclick="bulkToggle(${o.id}, this.checked)" title="Für Sammelaktion auswählen"> ${esc(title)} <button class="rename-btn" onclick="renameOffer(${o.id})" title="Umbenennen">✎</button><span class="tag-row card-tags inline">${(o.tags||[]).map(t =>
-                `<span class="tag-pill" onclick="removeTag(${o.id}, '${esc(t)}')" title="Entfernen">${esc(t)} ×</span>`
-              ).join('')}<span class="tag-pill add" onclick="addTag(${o.id})" title="Tag hinzufügen">＋</span></span></div>
-              ${o.location?`<a class="offer-loc" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(((o.hotel||o.label||'')+' '+o.location).trim())}" target="_blank" rel="noopener" title="In Google Maps öffnen">📍 ${esc(o.location)} ↗</a>`:''}
+              ${labelRow}
+              ${locRow}
               ${sub?`<div class="offer-details">${esc(sub)}</div>`:''}
               ${metaLine}
               ${flights}
@@ -365,8 +598,8 @@
               ${o.ok===false?`<div class="err-note">⚠ ${esc(o.note||'Preis konnte nicht gelesen werden')}</div>`:''}
             </div>
             <div class="price-box">
-              ${o.archived?'':`<button class="icon-btn notify-bell" onclick="toggleNotifyMuted(${o.id}, ${!!o.notify_muted})" title="${o.notify_muted?'Benachrichtigungen (HA/Telegram) stummgeschaltet – klicken zum Aktivieren':'Benachrichtigungen (HA/Telegram) aktiv – klicken zum Stummschalten'}">${o.notify_muted?'🔕':'🔔'}</button>`}
-              <div class="price-now${(!o.archived&&G.check24)?' check24-feature check24-trigger':''}"${o.checking&&hasPrice?' style="opacity:.5"':''}${(!o.archived&&G.check24)?` onclick="${o.check24_linked?`openCheck24(${o.id})`:`linkCheck24(${o.id})`}" title="Preisvergleich über Check24 (andere Reiseveranstalter)"`:''}>${priceNow}</div>
+              ${bellBtn}
+              <div class="price-now${(!o.archived&&G.check24)?' check24-feature check24-trigger':''}"${o.checking&&hasPrice?' style="opacity:.5"':''}${o.archived?'':` oncontextmenu="return openPriceSplit(${o.id})"`}${(!o.archived&&G.check24)?` onclick="${o.check24_linked?`openCheck24(${o.id})`:`linkCheck24(${o.id})`}" title="Preisvergleich über Check24 (andere Reiseveranstalter) · Rechtsklick: Preis-Aufschlüsselung Hotel/Flug"`:(o.archived?'':' title="Rechtsklick: Preis-Aufschlüsselung Hotel/Flug"')}>${priceNow}</div>
               <div class="price-pp">pro Person</div>
               ${priceSub?`<div class="price-sub">${priceSub}</div>`:''}
               ${perNight!=null?`<div class="price-sub">${eur(perNight)}/Nacht</div>`:''}
@@ -393,16 +626,36 @@
                  <button class="icon-btn" style="color:var(--red)" onclick="delOffer(${o.id})" title="Löschen">
                    <svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
                  </button>`
-              : `<button class="btn sec" onclick="checkOne(${o.id})">Prüfen</button>
-                 <button class="btn sec" onclick="openHistory(${o.id})">Verlauf</button>
+              : `<button class="btn sec" onclick="openHistory(${o.id})">Verlauf</button>
                  <button class="btn sec${o.calendar_alert?' cal-alert':''}" onclick="openCalendar(${o.id})" title="${o.calendar_alert?'Preisänderung im Kalender seit letztem Öffnen! · ':''}Preis je Abreisetag (Preiskalender)">Kalender</button>
                  <button class="btn sec" onclick="pendingStartId=null;openRooms(${o.id})" title="Zimmerkategorie wählen (Standard = günstigstes)">Zimmer</button>
                  ${o.comparable?`<button class="btn sec" onclick="openCompare(${o.id})" title="Preis pro Person für andere Reisendenzahl vergleichen">Vergleich</button>`:''}
                  <button class="btn sec ai-feature" onclick="openBookingScore(${o.id})" title="KI-Buchungsscore: jetzt buchen, beobachten oder warten?">Buchungsscore</button>
                  <button class="btn sec" onclick="openNights(${o.id})" title="Preise für kürzere/längere Reisedauern vergleichen">Nächte</button>
                  <button class="btn sec" onclick="openSearchFromOffer(${o.id})" title="Weitere Hotels dieser Region suchen (Filter aus dem Angebot)">Region</button>
-                 <button class="btn sec" onclick="togglePause(${o.id}, ${o.paused})" title="Automatische Prüfung aussetzen/fortsetzen">${o.paused?'Fortsetzen':'Pausieren'}</button>
-                 <button class="btn sec" onclick="archiveOffer(${o.id})" title="Ins Archiv legen — keine Live-Abfragen mehr">Archivieren</button>
+                 <button class="btn sec ai-feature${offerHasClimate(o)?' has-climate':''}" onclick="openClimateFromOffer(${o.id})" title="${offerHasClimate(o)
+                    ? 'Klimatabelle zu diesem Ziel liegt gespeichert vor — Öffnen kostet nichts'
+                    : 'Klimatabelle des Reiseziels: Temperatur, Wassertemperatur, Regentage und Sonnenstunden je Monat. Wird beim ersten Öffnen von der KI erstellt.'}">Klima</button>
+                 <button class="btn sec ai-feature${offerHasGuide(o)?' has-guide':''}" onclick="openGuideFromOffer(${o.id})" title="${offerHasGuide(o)
+                    ? 'Reiseführer zu diesem Ziel liegt gespeichert vor — Öffnen kostet nichts'
+                    : 'Reiseführer zum Reiseziel: Einreise, Gesundheit, Geld, Mobilität, Sicherheit, Kultur, Don\'t Dos, Insider-Tipps — inklusive Klimatabelle. Wird beim ersten Öffnen von der KI erstellt.'}">Reiseführer</button>
+                 <!-- Ab hier nur noch Symbole: die Zeile war mit elf beschrifteten
+                      Knöpfen zu voll für einen weiteren. „Prüfen" steht deshalb
+                      seit v0.88.0 als Lupe bei den übrigen Symbolen rechts. -->
+                 <button class="icon-btn" onclick="checkOne(${o.id})" title="Preis jetzt prüfen">
+                   <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+                 </button>
+                 <button class="icon-btn" onclick="togglePause(${o.id}, ${o.paused})" title="${o.paused?'Automatische Prüfung fortsetzen':'Automatische Prüfung aussetzen'}">
+                   ${o.paused
+                     ? '<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>'
+                     : '<svg viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>'}
+                 </button>
+                 <button class="icon-btn" onclick="archiveOffer(${o.id})" title="Archivieren: ins Archiv legen — keine Live-Abfragen mehr">
+                   <svg viewBox="0 0 24 24"><path d="M20.54 5.23l-1.39-1.68A1.45 1.45 0 0 0 18 3H6c-.47 0-.88.21-1.16.55L3.46 5.23A2 2 0 0 0 3 6.5V19a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6.5c0-.48-.17-.93-.46-1.27zM12 17.5L6.5 12H10v-2h4v2h3.5L12 17.5zM5.12 5l.81-1h12l.94 1H5.12z"/></svg>
+                 </button>
+                 <button class="icon-btn${o.is_foreign?' foreign-on':''}" onclick="openForeignPicker([${o.id}])" title="${o.is_foreign
+                    ? esc('In Liste „'+foreignListOf(o)+'" — klicken zum Wechseln oder Entfernen')
+                    : 'Für andere: in eine Liste legen (rutscht eingeklappt ans Listenende, Benachrichtigungen und Kalender-Meldungen werden stummgeschaltet)'}">${o.is_foreign?esc(foreignIconOf(o)):'👥'}</button>
                  <button class="icon-btn" onclick="resetOffer(${o.id})" title="Zurücksetzen: Verlauf löschen und neu bei null beginnen">
                    <svg viewBox="0 0 24 24"><path d="M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
                  </button>
@@ -427,7 +680,10 @@
       const green = cssvar('--green'), amber = cssvar('--amber');
       if(pts.length===0){ ctx.fillStyle=muted; ctx.font='12px sans-serif'; ctx.fillText('Noch keine Messpunkte',8,h/2); return; }
       const padL = full?52:6, padR=6, padT=full?14:8, padB=full?22:8;
-      const xs = pts.map(p=>p.ts), ys = pts.map(p=>p.price);
+      // Prognosepunkte (gestrichelt) erweitern den Wertebereich mit
+      const fc = (full && opts.forecast && opts.forecast.length) ? opts.forecast : [];
+      const xs = pts.map(p=>p.ts).concat(fc.map(f=>f.ts));
+      const ys = pts.map(p=>p.price).concat(fc.map(f=>f.price));
       // Wertebereich auf den echten Preisverlauf zoomen (+ Wunsch-/Buchungspreis als
       // Referenz). Der Vergleichspreis fließt NICHT ein, damit kleine Änderungen sichtbar
       // bleiben — er steht weiterhin in der Verlaufstabelle.
@@ -448,9 +704,24 @@
       ctx.strokeStyle=accent; ctx.lineWidth=2; ctx.beginPath();
       pts.forEach((p,i)=>{ const x=X(p.ts),y=Y(p.price); i?ctx.lineTo(x,y):ctx.moveTo(x,y); });
       ctx.stroke();
-      // Fläche
-      ctx.lineTo(X(maxX),h-padB); ctx.lineTo(X(minX),h-padB); ctx.closePath();
+      // Fläche — nur unter dem echten Verlauf, nicht unter der Prognose
+      const realMaxX = pts.length ? pts[pts.length-1].ts : maxX;
+      ctx.lineTo(X(realMaxX),h-padB); ctx.lineTo(X(minX),h-padB); ctx.closePath();
       ctx.fillStyle = accent+'22'; ctx.fill();
+      // Prognose (heuristisch): gestrichelte Fortsetzung ab dem letzten Messpunkt
+      if(fc.length && pts.length){
+        const lastP = pts[pts.length-1];
+        ctx.save(); ctx.strokeStyle=amber; ctx.setLineDash([6,5]); ctx.lineWidth=1.6;
+        ctx.beginPath(); ctx.moveTo(X(lastP.ts), Y(lastP.price));
+        fc.forEach(f=>ctx.lineTo(X(f.ts), Y(f.price)));
+        ctx.stroke(); ctx.restore();
+        ctx.fillStyle=amber;
+        fc.forEach(f=>{ ctx.beginPath(); ctx.arc(X(f.ts),Y(f.price),3,0,7); ctx.fill(); });
+        const fl = fc[fc.length-1];
+        ctx.font='10px sans-serif';
+        ctx.fillText('🔮 '+Math.round(fl.price).toLocaleString('de-DE')+' €',
+                     Math.min(X(fl.ts)+4, w-64), Y(fl.price)-5);
+      }
       // Wunschpreis-Linie
       if(opts.target){
         const ty=Y(opts.target);
@@ -497,10 +768,32 @@
       const hd = await r.json();
       const hist = hd.history;
       const pts = hist.filter(h=>h.ok && h.price!=null);
-      drawChart($('#hist-canvas'), pts, true, {target: o.target_price, booked: o.booked_price, events: hd.events||[]});
+      // Heuristische Prognose (Kalender-Vorlaufzeitkurve + Markttrend) dazuholen —
+      // scheitert leise, der Verlauf funktioniert auch ohne
+      let fc = null;
+      if(!o.archived){
+        try { fc = await fetch(api('/api/forecast/'+id)).then(x=>x.json()); } catch(e){}
+      }
+      const fpts = (fc && fc.ok) ? fc.points : [];
+      drawChart($('#hist-canvas'), pts, true, {target: o.target_price, booked: o.booked_price, events: hd.events||[], forecast: fpts});
+      const fbox = $('#hist-forecast');
+      if(fbox){
+        if(fc && fc.ok && fpts.length){
+          const p = fpts.find(x=>x.days===14) || fpts[fpts.length-1];
+          const d = p.price - fc.price;
+          const basis = [];
+          if(fc.basis.calendar_dates) basis.push('Kalenderhistorie ('+fc.basis.calendar_dates+' Reisetermine)');
+          if(fc.basis.market_pct!=null) basis.push('Markttrend '+(fc.basis.market_pct>0?'+':'')+fc.basis.market_pct.toLocaleString('de-DE')+' %/14 T');
+          fbox.innerHTML = `🔮 Prognose: in ${p.days} Tagen ≈ <b>${eur(p.price)}</b> `
+            + `(<span class="hist-diff ${d<0?'down':'up'}">${d>0?'+':''}${eur(d)}</span>)`
+            + ` · Abreise in ${fc.days_to_departure} Tagen · Basis: ${basis.join(' + ')}`
+            + ` · <span title="Heuristik aus der bisherigen Preisentwicklung dieses Ziels — eine Annahme, keine Garantie">Annahme ⓘ</span>`;
+          fbox.style.display = 'block';
+        } else fbox.style.display = 'none';
+      }
       const rows = hist.map((h,i)=>{
         const d = new Date(h.ts*1000).toLocaleString('de-DE');
-        if(!h.ok) return {keep:true, html:`<tr><td>${d}</td><td colspan="2" style="color:var(--amber)">⚠ ${esc(h.note||'fehlgeschlagen')}</td></tr>`};
+        if(!h.ok) return {keep:true, html:`<tr><td>${d}</td><td colspan="3" style="color:var(--amber)">⚠ ${esc(h.note||'fehlgeschlagen')}</td></tr>`};
         const prev = hist[i-1];
         let diff = '', unchanged = false;
         if(prev && prev.ok && prev.price!=null){
@@ -512,10 +805,13 @@
         // unveränderte Preise ausblenden (Rauschen) — außer dem jüngsten Eintrag,
         // der zeigt, wann zuletzt geprüft wurde
         const keep = !unchanged || i === hist.length - 1;
-        const html = `<tr><td>${d}</td><td><b>${eur(h.price)}</b>${diff}</td><td>${h.old_price?('<span class="old">'+eur(h.old_price)+'</span>'+(h.discount?' -'+h.discount+'%':'')):''}</td></tr>`;
+        // Aufschlüsselung Hotel/Flüge (vacancy-check), sofern für den Messpunkt vorhanden
+        const split = (h.price_hotel!=null || h.price_flight_out!=null || h.price_flight_ret!=null)
+          ? `${eur(h.price_hotel)} / ${eur(h.price_flight_out)} / ${eur(h.price_flight_ret)}` : '';
+        const html = `<tr><td>${d}</td><td><b>${eur(h.price)}</b>${diff}</td><td>${h.old_price?('<span class="old">'+eur(h.old_price)+'</span>'+(h.discount?' -'+h.discount+'%':'')):''}</td><td class="split-muted">${split}</td></tr>`;
         return {keep, html};
       }).filter(r=>r.keep).map(r=>r.html).reverse().join('');
-      $('#hist-table').innerHTML = hist.length?`<table class="hist"><tr><th>Zeitpunkt</th><th>Preis</th><th>Vergleich</th></tr>${rows}</table>`:'';
+      $('#hist-table').innerHTML = hist.length?`<table class="hist"><tr><th>Zeitpunkt</th><th>Preis</th><th>Vergleich</th><th title="Aufschlüsselung aus dem Buchungssystem">Hotel / Hin / Rück</th></tr>${rows}</table>`:'';
     }
     function closeModal(){ $('#modal-bg').classList.remove('show'); }
     $('#modal-bg').addEventListener('click', e=>{ if(e.target.id==='modal-bg') closeModal(); });
@@ -818,6 +1114,11 @@
 
     // ── Hotelsuche (Maske / URL / aus Angebot) ────────────────────────────────
     let srchResults = [], srchOfferId = null, srchDest = null, srchTotal = 0, srchFilter = '';
+    // Von der Such-API bereits abgeholte Treffer (VOR den Nachfiltern Sterne/
+    // Weiterempfehlung/Preis). „Mehr laden" muss hier weiterzählen, nicht bei den
+    // angezeigten Treffern — sonst holt die nächste Seite fast dieselben Hotels
+    // erneut und die Liste wächst nur um vereinzelte Nachzügler.
+    let srchFetched = 0;
     let srchLastBody = null;
     // Reisende/Abflughafen der Liste, die gerade angezeigt wird — kommt vom Server
     // (`criteria` der Suchantwort) und NICHT aus der Suchmaske: die kann inzwischen
@@ -985,11 +1286,455 @@
       $('#srch-favsel').value=''; favBtnState();
     }
 
+    // ── Tracking-Statistik (📊 im Footer) ───────────────────────────────────────
+    async function openStats(){
+      $('#stats-bg').classList.add('show');
+      $('#stats-body').innerHTML = '<div class="cmp-load">Lade…</div>';
+      let d;
+      try { d = await fetch(api('/api/stats')).then(r=>r.json()); }
+      catch(e){ $('#stats-body').innerHTML = '<div class="cmp-load">Statistik konnte nicht geladen werden.</div>'; return; }
+      const since = d.since_ts ? new Date(d.since_ts*1000).toLocaleDateString('de-DE') : '–';
+      const tiles = [
+        ['Angebote (aktiv)', `${d.offers_active} / ${d.offers_total}`],
+        ['Messpunkte', (d.points||0).toLocaleString('de-DE')],
+        ['Aufzeichnung seit', since],
+        ['Ersparnis ggü. Höchstpreis', eur(d.saved_total)],
+      ].map(([l,v])=>`<div class="tstat"><div class="v">${v}</div><div class="l">${l}</div></div>`).join('');
+      const savedTbl = (d.saved_rows||[]).length ? `<h3>💰 Aktuell unter dem Höchstpreis</h3>
+        <table class="hist"><tr><th>Angebot</th><th>Hoch → jetzt</th><th>gespart</th></tr>${
+        d.saved_rows.map(r=>`<tr><td>${esc(r.name)}</td><td>${eur(r.peak)} → ${eur(r.price)}</td><td class="hist-diff down">−${eur(r.saved)}</td></tr>`).join('')}</table>` : '';
+      const mv = (rows, title, cls, sign) => rows && rows.length ? `<h3>${title}</h3>
+        <table class="hist"><tr><th>Angebot</th><th>Bewegung</th><th>Datum</th></tr>${
+        rows.map(r=>`<tr><td>${esc(r.name)}</td><td class="hist-diff ${cls}">${sign}${eur(Math.abs(r.delta))} → ${eur(r.price)}</td><td>${new Date(r.ts*1000).toLocaleDateString('de-DE')}</td></tr>`).join('')}</table>` : '';
+      // Wochentags-Muster: Balkenbreite ∝ Anzahl Bewegungen, Farbe nach Ø-Richtung
+      const maxN = Math.max(1, ...(d.weekday||[]).map(w=>w.n));
+      const wk = `<h3>📅 Preisänderungen nach Wochentag</h3>
+        <div class="stats-wk">${(d.weekday||[]).map(w=>{
+          const pct = w.avg_pct!=null ? (w.avg_pct>0?'+':'')+w.avg_pct.toLocaleString('de-DE')+' %' : '–';
+          const dir = w.avg_pct==null ? '' : (w.avg_pct<0?'down':'up');
+          return `<div class="stats-wk-row"><span class="wkd">${w.name}</span>
+            <span class="wkbar"><i class="${dir}" style="width:${Math.round(w.n/maxN*100)}%"></i></span>
+            <span class="wkn">${w.n}× · Ø <b class="hist-diff ${dir}">${pct}</b> · ↓${w.drops} ↑${w.rises}</span></div>`;
+        }).join('')}</div>
+        <div class="hint">Basis: alle echten Preisänderungen zwischen zwei Prüfungen (Markttrend-Datenbasis).</div>`;
+      const booked = (d.booked||[]).length ? `<h3>📌 Gebuchte Angebote vs. heute</h3>
+        <table class="hist">${d.booked.map(b=>`<tr><td>${esc(b.name)}</td><td class="hist-diff ${b.diff<0?'down':'up'}">${b.diff>0?'+':''}${eur(b.diff)} seit Buchung</td></tr>`).join('')}</table>` : '';
+      const low = d.low_days_median!=null
+        ? `<h3>⏱ Tiefstpreis-Rückschau</h3><p>Bei ${d.low_days_n} abgeschlossenen Angeboten lag der Tiefstpreis im Median <b>${d.low_days_median} Tage vor Abreise</b>.</p>`
+        : `<h3>⏱ Tiefstpreis-Rückschau</h3><p class="hint">Braucht abgeschlossene (archivierte) Angebote mit Preisverlauf — noch keine Daten.</p>`;
+      $('#stats-body').innerHTML = `<div class="trips-stats">${tiles}</div>
+        ${savedTbl}${mv(d.top_drops,'📉 Größte Preisstürze (eine Prüfung → nächste)','down','−')}
+        ${mv(d.top_rises,'📈 Größte Anstiege','up','+')}${wk}${booked}${low}`;
+    }
+    function closeStats(){ $('#stats-bg').classList.remove('show'); }
+    $('#stats-bg').addEventListener('click', e=>{ if(e.target.id==='stats-bg') closeStats(); });
+
+    // ── Öffentlich teilen (share_routes.py) ────────────────────────────────────
+    // Erzeugt/ändert einen Link auf den zweiten, öffentlichen Port. Beim
+    // Bearbeiten bleibt der Token gleich — weitergegebene Links funktionieren
+    // weiter, auch wenn Angebote dazukommen oder rausfliegen.
+    let _shrUrls = {}, _shrEdit = null;
+    function closeShare(){ $('#shr-bg').classList.remove('show'); }
+    $('#shr-bg').addEventListener('click', e=>{ if(e.target.id==='shr-bg') closeShare(); });
+
+    function openShareCreate(){
+      if(!selected.size){ toast('Erst Angebote auswählen'); return; }
+      openShareDialog(null, [...selected]);
+    }
+
+    async function openShareDialog(token, preIds){
+      _shrEdit = token || null;
+      $('#shr-bg').classList.add('show');
+      $('#shr-body').innerHTML = '<div class="cmp-load">Lade…</div>';
+      let cur = null;
+      if(token){
+        try { cur = await fetch(api('/api/shares/'+encodeURIComponent(token))).then(r=>r.json()); }
+        catch(e){ $('#shr-body').innerHTML = '<div class="cmp-load">Link konnte nicht geladen werden.</div>'; return; }
+        if(cur.error){ $('#shr-body').innerHTML = '<div class="cmp-load">Link existiert nicht mehr.</div>'; return; }
+      }
+      const chosen = new Set(cur ? cur.offer_ids : (preIds||[]));
+      let adv = [];
+      try {
+        const h = await fetch(api('/api/ai/history')).then(r=>r.json());
+        adv = (h.items||[]).filter(it=>it.kind==='advisor').slice(0,25);
+      } catch(e){}
+      const inc = (cur && cur.include) || {climate:true, guide:false, history:false};
+      const advSel = adv.length ? `<div class="shr-row">
+          <label for="shr-adv">Reiseberater-Ergebnis</label>
+          <select id="shr-adv"><option value="">— keins —</option>${
+            adv.map(a=>`<option value="${a.id}"${cur && String(cur.advisor_id)===String(a.id)?' selected':''}>${esc(a.title)} (${new Date(a.ts*1000).toLocaleDateString('de-DE')})</option>`).join('')}</select>
+        </div>` : '<div class="hint">Kein gespeichertes Reiseberater-Ergebnis vorhanden.</div>';
+      // Vollständige Angebotsliste zum An-/Abwählen — beim Bearbeiten muss sich
+      // auch etwas hinzufügen lassen, das gerade nicht markiert ist.
+      // Eigene Spalte für die „Für andere"-Liste: beim Teilen ist meist genau eine
+      // davon gemeint, ohne Hinweis sähen alle Angebote gleich aus. Die Spalte
+      // steht auch bei eigenen Angeboten (leer), damit die Zeilen fluchten.
+      const pick = (curOffers||[]).filter(o=>!o.archived).map(o=>
+        `<label class="shr-pick"><input type="checkbox" class="shr-off" value="${o.id}"${chosen.has(o.id)?' checked':''}>
+           <span class="shr-pick-name">${esc(o.label || o.hotel || ('Angebot #'+o.id))}</span>
+           <span class="shr-pick-list"${o.is_foreign?` title="Aus der Liste: ${esc(foreignListOf(o))}"`:''}>${
+             o.is_foreign ? esc(foreignIconOf(o))+' '+esc(foreignListOf(o)) : ''}</span>
+           <span class="shr-pick-sub">${esc(o.location||'')}${o.price!=null?' · '+eur(o.price):''}</span></label>`).join('');
+      const emptyHint = (token && cur && !cur.offer_ids.length)
+        ? '<div class="hint">Dieser Link stammt aus einer älteren Version — bitte die Angebote einmal neu auswählen.</div>' : '';
+      $('#shr-body').innerHTML = `
+        ${emptyHint}
+        <div class="shr-picks">${pick
+          ? `<div class="shr-pick shr-pick-head"><span></span><span class="shr-pick-name">Angebot</span>`
+            + `<span class="shr-pick-list">Liste</span><span class="shr-pick-sub">Ort · Preis</span></div>${pick}`
+          : '<div class="hint">Keine Angebote vorhanden.</div>'}</div>
+        <div class="shr-row"><input type="text" id="shr-title" placeholder="Titel (z. B. „Unsere Auswahl für Herbst")" style="flex:1" value="${esc(cur?cur.title:'')}"></div>
+        <div class="shr-row"><textarea id="shr-note" rows="2" placeholder="Notiz für die Empfänger (optional)" style="flex:1">${esc(cur?cur.note:'')}</textarea></div>
+        <div class="shr-row">
+          <label><input type="checkbox" id="shr-clim"${inc.climate?' checked':''}> Klimatabelle</label>
+          <label><input type="checkbox" id="shr-guide"${inc.guide?' checked':''}> Reiseführer</label>
+          <label><input type="checkbox" id="shr-hist"${inc.history?' checked':''}> Preisverlauf</label>
+          <label title="Empfänger können unter den Angeboten kommentieren (max. 500 Zeichen)"><input
+            type="checkbox" id="shr-cmt-on"${(cur ? cur.comments_enabled!==false : true)?' checked':''}> Kommentare</label>
+        </div>
+        ${advSel}
+        <div class="shr-row">
+          <label for="shr-days">Gültig für</label>
+          <input type="number" id="shr-days" value="${cur?cur.days:30}" min="1" max="365" style="width:80px"> Tage
+        </div>
+        <div class="shr-row"><button class="btn" onclick="saveShare()">${token?'Änderungen speichern':'Link erzeugen'}</button>
+          ${token?'<span class="hint">Der bestehende Link bleibt gültig.</span>':''}</div>
+        <div class="hint">Fehlen Klimatabelle oder Reiseführer zum Reiseziel, wird vor dem Speichern
+          gefragt, ob sie per KI erstellt werden sollen. Ein Reiseberater-Ergebnis entsteht nur
+          über den TripPilot-Fragebogen.</div>`;
+    }
+
+    // Klima/Reiseführer landen nur im Link, wenn sie zum Reiseziel gespeichert sind.
+    // Fehlt etwas, hier nachfragen statt still einen Link ohne diese Abschnitte zu
+    // bauen — Erzeugen kostet KI-Aufrufe, deshalb nie ungefragt.
+    async function ensureShareExtras(ids, wantClim, wantGuide){
+      let d;
+      try {
+        d = await fetch(api('/api/shares/destinations'),
+                        {method:'POST', headers:{'Content-Type':'application/json'},
+                         body: JSON.stringify({offer_ids: ids})}).then(r=>r.json());
+      } catch(e){ return; }   // Netzfehler soll das Speichern nicht blockieren
+      const items = d.items || [];
+      const missClim = wantClim ? items.filter(i=>!i.has_climate) : [];
+      const missGuide = wantGuide ? items.filter(i=>!i.has_guide) : [];
+      if(!missClim.length && !missGuide.length) return;
+      const parts = [];
+      if(missClim.length) parts.push('Klimatabelle: ' + missClim.map(i=>i.label).join(', '));
+      if(missGuide.length) parts.push('Reiseführer: ' + missGuide.map(i=>i.label).join(', '));
+      if(!G.ai){
+        alert('Für diese Reiseziele fehlt noch:\n\n· ' + parts.join('\n· ') +
+              '\n\nOhne hinterlegten KI-API-Key lässt sich das nicht erzeugen — der Link ' +
+              'wird ohne diese Abschnitte gespeichert.');
+        return;
+      }
+      if(!confirm('Für diese Reiseziele fehlt noch:\n\n· ' + parts.join('\n· ') +
+                  '\n\nJetzt per KI erstellen? Das dauert je Eintrag einige Sekunden und ' +
+                  'kostet KI-Aufrufe.\n\nAbbrechen = Link ohne diese Abschnitte speichern.'))
+        return;
+      const jobs = missClim.map(i=>['/api/ai/climate', i, 'Klimatabelle'])
+                    .concat(missGuide.map(i=>['/api/ai/guide', i, 'Reiseführer']));
+      const box = $('#shr-body');
+      const failed = [];
+      for(let n = 0; n < jobs.length; n++){
+        const [path, it, what] = jobs[n];
+        box.innerHTML = `<div class="cmp-load">${what} für ${esc(it.label)} wird erstellt…
+          (${n+1}/${jobs.length}) — das dauert einen Moment.</div>`;
+        try {
+          // _prompt_confirmed überspringt die Prompt-Vorschau (Option
+          // ai_prompt_preview): Ohne das antwortet der Endpunkt nur mit
+          // {prompt_preview} und erzeugt nichts — die Rückfrage oben ist hier
+          // bereits die Bestätigung.
+          const r = await fetch(api(path), {method:'POST', headers:{'Content-Type':'application/json'},
+                                            body: JSON.stringify({giata: it.giata, label: it.label,
+                                                                  _prompt_confirmed: true})})
+                          .then(r=>r.json());
+          if(r.error || r.prompt_preview) failed.push(what + ' für ' + it.label + (r.error ? ' ('+r.error+')' : ''));
+        } catch(e){ failed.push(what + ' für ' + it.label); }
+      }
+      if(failed.length){
+        box.innerHTML = `<div class="cmp-load">Nicht erstellt: ${esc(failed.join(', '))}.
+          Der Link wird ohne diese Abschnitte gespeichert.</div>`;
+        toast('KI-Erstellung teilweise fehlgeschlagen');
+        await new Promise(r=>setTimeout(r, 2500));
+      }
+    }
+
+    async function saveShare(){
+      const ids = [...document.querySelectorAll('.shr-off:checked')].map(c=>parseInt(c.value,10));
+      if(!ids.length){ toast('Mindestens ein Angebot auswählen'); return; }
+      // Formular zuerst auslesen: ensureShareExtras ersetzt für den Fortschritt den
+      // Dialoginhalt, danach gibt es die Eingabefelder nicht mehr.
+      const body = {
+        offer_ids: ids,
+        title: $('#shr-title').value.trim(),
+        note: $('#shr-note').value.trim(),
+        include: { climate: $('#shr-clim').checked, guide: $('#shr-guide').checked,
+                   history: $('#shr-hist').checked, advisor: !!($('#shr-adv')||{}).value },
+        advisor_id: ($('#shr-adv')||{}).value || null,
+        days: parseInt($('#shr-days').value, 10) || 30,
+        comments_enabled: $('#shr-cmt-on').checked,
+      };
+      if(body.include.climate || body.include.guide)
+        await ensureShareExtras(ids, body.include.climate, body.include.guide);
+      const editing = _shrEdit;
+      let d;
+      try {
+        d = await fetch(api('/api/shares' + (editing ? '/'+encodeURIComponent(editing) : '')),
+                        {method: editing ? 'PATCH' : 'POST',
+                         headers:{'Content-Type':'application/json'},
+                         body: JSON.stringify(body)}).then(r=>r.json());
+      } catch(e){ toast('Speichern fehlgeschlagen'); return; }
+      if(!d || !d.token){ toast('Speichern fehlgeschlagen'); return; }
+      const absolute = d.url.startsWith('http');
+      $('#shr-body').innerHTML = `<p>${editing?'Geändert — der Link bleibt derselbe:':'Fertig — dieser Link zeigt die Auswahl ohne Login:'}</p>
+        <div class="shr-link">
+          <input type="text" id="shr-url" readonly value="${esc(d.url)}">
+          <button class="btn sec" onclick="copyShareLink()">Kopieren</button>
+        </div>
+        ${absolute ? '' : `<div class="hint">Für einen vollständigen Link „Öffentliche Basis-URL" in den
+          Add-on-Einstellungen eintragen (z. B. https://reise.example.com).</div>`}
+        <div class="hint">Gültig bis ${new Date(d.expires_ts*1000).toLocaleDateString('de-DE')}.
+          Preis und Verfügbarkeit aktualisieren sich dort von selbst.</div>
+        <div class="shr-row"><button class="btn sec" onclick="openShareList()">Alle Links verwalten</button></div>`;
+      bulkClear();
+    }
+
+    function copyShareLink(){
+      const el = $('#shr-url'); if(!el) return;
+      el.select();
+      navigator.clipboard.writeText(el.value).then(()=>toast('Link kopiert'),
+        ()=>{ try{ document.execCommand('copy'); toast('Link kopiert'); }catch(e){ toast('Kopieren fehlgeschlagen'); } });
+    }
+
+    async function openShareList(){
+      $('#shr-bg').classList.add('show');
+      $('#shr-body').innerHTML = '<div class="cmp-load">Lade…</div>';
+      let d;
+      try { d = await fetch(api('/api/shares')).then(r=>r.json()); }
+      catch(e){ $('#shr-body').innerHTML = '<div class="cmp-load">Liste konnte nicht geladen werden.</div>'; return; }
+      const items = d.items || [];
+      _shrUrls = {};
+      items.forEach(it=>{ _shrUrls[it.token] = it.url; });
+      if(!items.length){
+        $('#shr-body').innerHTML = `<p class="hint">Noch keine öffentlichen Links. Angebote in der Liste
+          markieren und dort „🔗 Teilen" wählen.</p>`;
+        return;
+      }
+      const rows = items.map(it=>{
+        const extras = [it.has_climate?'Klima':'', it.has_guide?'Reiseführer':'',
+                        it.has_advisor?'Reiseberater':''].filter(Boolean).join(', ') || '–';
+        const exp = new Date(it.expires_ts*1000).toLocaleDateString('de-DE');
+        return `<tr>
+          <td>${esc(it.title || '(ohne Titel)')}<div class="hint">${it.offers} Angebot(e) · ${esc(extras)}</div></td>
+          <td>${it.views}</td>
+          <td class="${it.expired?'shr-exp':''}">${exp}</td>
+          <td>
+            <button class="btn sec shr-cmt${it.new_comments?' has-new':''}" onclick="openShareComments('${esc(it.token)}')"
+              title="${it.new_comments ? it.new_comments+' neue(r) Kommentar(e) seit dem letzten Öffnen'
+                                       : 'Kommentare der Empfänger ansehen, bearbeiten oder löschen'}">💬 Kommentare${
+              it.comments?` (${it.comments})`:''}</button>
+            <button class="btn sec" onclick="copyShareUrl('${esc(it.token)}')">Kopieren</button>
+            <button class="btn sec" onclick="openShareDialog('${esc(it.token)}')" title="Angebote hinzufügen oder entfernen — der Link bleibt derselbe">Bearbeiten</button>
+            <button class="btn sec" onclick="extendShare('${esc(it.token)}')" title="Gültigkeit auf 30 Tage ab heute setzen">+30 T</button>
+            <button class="btn danger" onclick="revokeShare('${esc(it.token)}')">Widerrufen</button>
+          </td></tr>`;
+      }).join('');
+      $('#shr-body').innerHTML = `<div class="shr-list-wrap"><table class="shr-list">
+          <thead><tr><th>Titel</th><th>Aufrufe</th><th>Gültig bis</th><th></th></tr></thead>
+          <tbody>${rows}</tbody></table></div>
+        ${d.base_url ? '' : `<div class="hint">Ohne „Öffentliche Basis-URL" in den Add-on-Einstellungen
+          sind das nur relative Pfade — der volle Link entsteht erst mit deiner Domain.</div>`}`;
+    }
+
+    // Die URL kommt aus der zuletzt geladenen Liste, nicht aus dem onclick-Attribut —
+    // so landet die (frei konfigurierbare) Basis-URL nie im HTML-Kontext.
+    function copyShareUrl(token){
+      const url = _shrUrls[token]; if(!url) return;
+      navigator.clipboard.writeText(url).then(()=>toast('Link kopiert'), ()=>toast('Kopieren fehlgeschlagen'));
+    }
+
+    async function extendShare(token){
+      try { await fetch(api('/api/shares/'+encodeURIComponent(token)),
+                        {method:'PATCH', headers:{'Content-Type':'application/json'},
+                         body: JSON.stringify({days:30})}); }
+      catch(e){ toast('Verlängern fehlgeschlagen'); return; }
+      toast('Gültigkeit verlängert'); openShareList();
+    }
+
+    async function revokeShare(token){
+      if(!confirm('Diesen Link widerrufen? Er ist danach sofort ungültig.')) return;
+      try { await fetch(api('/api/shares/'+encodeURIComponent(token)), {method:'DELETE'}); }
+      catch(e){ toast('Widerrufen fehlgeschlagen'); return; }
+      toast('Link widerrufen'); openShareList();
+    }
+
+    // ── Kommentare zu einem geteilten Link ────────────────────────────────────
+    // Das Abrufen markiert sie serverseitig als gelesen — der Knopf in der
+    // Übersicht hört danach auf, grün zu leuchten.
+    let shcToken = null;
+    async function openShareComments(token){
+      shcToken = token;
+      $('#shc-bg').classList.add('show');
+      $('#shc-body').innerHTML = '<div class="cmp-load">Lade…</div>';
+      await renderShareComments();
+    }
+    function closeShareComments(){
+      $('#shc-bg').classList.remove('show');
+      if($('#shr-bg').classList.contains('show')) openShareList();  // Zähler auffrischen
+    }
+    $('#shc-bg').addEventListener('click', e=>{ if(e.target.id==='shc-bg') closeShareComments(); });
+    async function renderShareComments(){
+      let d, meta;
+      const tok = encodeURIComponent(shcToken);
+      try {
+        [d, meta] = await Promise.all([
+          fetch(api('/api/shares/'+tok+'/comments')).then(r=>r.json()),
+          fetch(api('/api/shares/'+tok)).then(r=>r.json()),
+        ]);
+      }
+      catch(e){ $('#shc-body').innerHTML = '<div class="cmp-load">Konnte nicht geladen werden.</div>'; return; }
+      const items = d.items || [];
+      const on = (meta||{}).comments_enabled !== false;
+      $('#shc-sub').textContent = items.length
+        ? items.length + ' Kommentar(e) — von den Empfängern auf der öffentlichen Seite geschrieben'
+        : 'Noch keine Kommentare zu diesem Link.';
+      // Schalter je Link: aus = das Formular verschwindet auf der öffentlichen
+      // Seite, bereits geschriebene Kommentare bleiben aber stehen.
+      $('#shc-body').innerHTML = `<label class="shc-toggle" title="Bestimmt nur, ob neue Kommentare möglich sind — vorhandene bleiben sichtbar">
+          <input type="checkbox" id="shc-on"${on?' checked':''} onchange="toggleShareComments(this.checked)">
+          Kommentare auf der geteilten Seite erlauben</label>`
+        + (items.length ? items.map(c => `
+        <div class="shc-item">
+          <div class="shc-meta">${esc(c.author || 'Anonym')} · ${new Date(c.ts*1000).toLocaleString('de-DE')}${
+            c.ip?` · <span class="shc-ip" title="Absender-IP (hinter Cloudflare die echte Client-IP)">${esc(c.ip)}</span>`:''}</div>
+          <div class="shc-text">${esc(c.text).replace(/\n/g,'<br>')}</div>
+          <div class="shc-act">
+            <button class="btn sec" onclick="editShareComment(${c.id})">Bearbeiten</button>
+            <button class="btn danger" onclick="deleteShareComment(${c.id})">Löschen</button>
+          </div>
+        </div>`).join('') : '<p class="hint">Sobald jemand auf der geteilten Seite schreibt, steht es hier.</p>');
+      _shcItems = items;
+    }
+    let _shcItems = [];
+    async function editShareComment(id){
+      const c = _shcItems.find(x=>x.id===id) || {};
+      const text = prompt('Kommentar bearbeiten (max. 500 Zeichen):', c.text || '');
+      if(text===null) return;
+      if(!text.trim()){ toast('Leerer Kommentar — zum Entfernen „Löschen" nehmen'); return; }
+      const author = prompt('Name des Verfassers (leer = Anonym):', c.author || '');
+      if(author===null) return;
+      try {
+        const r = await fetch(api('/api/shares/'+encodeURIComponent(shcToken)+'/comments/'+id),
+          {method:'PATCH', headers:{'Content-Type':'application/json'},
+           body: JSON.stringify({text: text.trim().slice(0,500), author: author.trim().slice(0,40)})});
+        if(!r.ok) throw new Error('http');
+      } catch(e){ toast('Ändern fehlgeschlagen'); return; }
+      toast('Kommentar geändert'); renderShareComments();
+    }
+    async function toggleShareComments(on){
+      try {
+        const r = await fetch(api('/api/shares/'+encodeURIComponent(shcToken)),
+          {method:'PATCH', headers:{'Content-Type':'application/json'},
+           body: JSON.stringify({comments_enabled: !!on})});
+        if(!r.ok) throw new Error('http');
+      } catch(e){ toast('Umschalten fehlgeschlagen'); renderShareComments(); return; }
+      toast(on ? 'Kommentare erlaubt' : 'Kommentare geschlossen — Vorhandene bleiben sichtbar');
+    }
+    async function deleteShareComment(id){
+      if(!confirm('Diesen Kommentar löschen? Er verschwindet auch von der geteilten Seite.')) return;
+      try {
+        const r = await fetch(api('/api/shares/'+encodeURIComponent(shcToken)+'/comments/'+id),
+                              {method:'DELETE'});
+        if(!r.ok) throw new Error('http');
+      } catch(e){ toast('Löschen fehlgeschlagen'); return; }
+      toast('Kommentar gelöscht'); renderShareComments();
+    }
+
+    // ── Preis-Aufschlüsselung (Rechtsklick auf den Preis; vacancy-check) ────────
+    function openPriceSplit(id){
+      const o = (curOffers||[]).find(x=>x.id===id) || {};
+      $('#split-sub').textContent = o.label || o.hotel || ('TUI-Angebot #'+id);
+      let h = '';
+      if(o.vac_ok===true) h += '<div class="split-note ok">⚡ Live vom TUI-Buchungssystem bestätigt (letzte Prüfung)</div>';
+      else if(o.vac_ok===false) h += '<div class="split-note warn">⚠ Das Buchungssystem bestätigt dieses Angebot aktuell nicht — evtl. vorübergehend oder ausgebucht</div>';
+      const hasSplit = o.price_hotel!=null || o.price_flight_out!=null || o.price_flight_ret!=null;
+      if(hasSplit){
+        const sum = (o.price_hotel||0)+(o.price_flight_out||0)+(o.price_flight_ret||0);
+        const n = o.travellers_count>1 ? ` <span class="split-muted">(${o.travellers_count} Reisende)</span>` : '';
+        // Linienflüge mit Retour-Tarif: TUI hängt den kompletten Flugpreis an EIN
+        // Leg, das andere steht mit 0 € im Buchungssystem — dann eine gemeinsame
+        // Flüge-Zeile zeigen statt eines verwirrenden "Rückflug 0 €"
+        const fo = o.price_flight_out, fr = o.price_flight_ret;
+        let flightRows;
+        if(fo!=null && fr!=null && (fo===0) !== (fr===0)){
+          flightRows = `<tr><td>✈ Flüge (Hin &amp; Rück) <span class="split-muted" title="Retour-Tarif: das Buchungssystem bepreist beide Flüge zusammen auf einem Leg">ⓘ</span></td><td>${eur(fo+fr)}</td></tr>`;
+        } else {
+          flightRows = `<tr><td>🛫 Hinflug</td><td>${eur(fo)}</td></tr>
+          <tr><td>🛬 Rückflug</td><td>${eur(fr)}</td></tr>`;
+        }
+        h += `<table class="split-table">
+          <tr><td>🏨 Hotel</td><td>${eur(o.price_hotel)}</td></tr>
+          ${flightRows}
+          <tr class="sum"><td>Summe${n}</td><td>${eur(sum)}</td></tr></table>`;
+      } else {
+        h += '<p class="split-muted">Noch keine Aufschlüsselung vorhanden — sie wird bei der nächsten Prüfung mit erfasst (Knopf „Prüfen").</p>';
+      }
+      const extras = [];
+      if(o.luggage && o.luggage.out){
+        extras.push('🧳 Gepäck inklusive: ' + (o.luggage.out===o.luggage.ret
+          ? o.luggage.out+' p. P.' : 'Hin '+o.luggage.out+' · Rück '+o.luggage.ret));
+      }
+      if(o.deposit_pct!=null){
+        let s = '💳 Anzahlung '+o.deposit_pct+' %';
+        const base = o.total_price!=null ? o.total_price : o.price;
+        if(base!=null) s += ' ('+eur(Math.round(base*o.deposit_pct/100))+')';
+        if(o.final_payment_date) s += ' · Rest bis '+fmtD(o.final_payment_date);
+        extras.push(s);
+      }
+      if(o.last_booked) extras.push('🕑 Hotel zuletzt von anderen gebucht: '+fmtD(o.last_booked));
+      if(extras.length) h += '<div class="split-extras">'+extras.map(x=>`<div>${x}</div>`).join('')+'</div>';
+      // Badges aus dem Buchungssystem: Charter/Linie, Sitzplatz, Sonderleistungen, Kontingent
+      if(o.flight_flags){
+        const fl = o.flight_flags;
+        const badges = [fl.charter
+          ? '<span class="split-badge" title="TUI-interner Flug (z. B. TUIfly) — beide Richtungen einzeln bepreist">✈ Charterflug</span>'
+          : '<span class="split-badge" title="Linienflug über eine Airline-Buchungsklasse — Preis meist als Retour-Tarif auf einem Leg">✈ Linienflug</span>'];
+        badges.push(fl.seat
+          ? '<span class="split-badge ok" title="Sitzplatzreservierung über TUI möglich">💺 Sitzplatz reservierbar</span>'
+          : '<span class="split-badge" title="Keine Sitzplatzreservierung über TUI">💺 keine Sitzplatzwahl</span>');
+        if(fl.svc) badges.push('<span class="split-badge ok" title="Sonderleistungen (z. B. Gepäck-Extras, Assistenz) über TUI buchbar">🛎 Sonderleistungen</span>');
+        badges.push(o.hotel_supplier
+          ? `<span class="split-badge" title="Hotelkontingent kommt über eine Bettenbank (${esc(o.hotel_supplier)}) — Preis-/Stornoverhalten kann von TUI-eigenen Kontingenten abweichen">🏨 Bettenbank ${esc(o.hotel_supplier)}</span>`
+          : '<span class="split-badge" title="Hotelkontingent direkt von TUI">🏨 TUI-Kontingent</span>');
+        h += '<div class="split-badges">'+badges.join(' ')+'</div>';
+      }
+      // Bestätigte Flugverbindungen (Segmente mit Zeiten + Buchungsklasse)
+      const seg = o.flight_segments || {};
+      const segLine = list => (list||[]).map(s =>
+        `${esc(s.dep)}→${esc(s.arr)} ${(s.start||'').slice(11,16)}–${(s.end||'').slice(11,16)} ${esc(s.airline)}${esc(s.number)}${s.cls?(' · Kl. '+esc(s.cls)):''}`).join('&nbsp; ✚ &nbsp;');
+      if((seg.out||[]).length || (seg.ret||[]).length){
+        h += '<div class="split-extras">'
+          + ((seg.out||[]).length?`<div>🛫 ${segLine(seg.out)}</div>`:'')
+          + ((seg.ret||[]).length?`<div>🛬 ${segLine(seg.ret)}</div>`:'')
+          + '</div>';
+      }
+      // Veranstalter-Hinweise (Errata) — sonst erst im Checkout sichtbar
+      if((o.errata||[]).length){
+        h += `<details class="split-errata"><summary>⚠ Veranstalter-Hinweise (${o.errata.length})</summary>`
+          + o.errata.map(e=>`<p>${esc(e).replace(/\n/g,'<br>')}</p>`).join('') + '</details>';
+      }
+      $('#split-body').innerHTML = h;
+      $('#split-bg').classList.add('show');
+      return false;  // unterdrückt das Browser-Kontextmenü
+    }
+    function closePriceSplit(){ $('#split-bg').classList.remove('show'); }
+    $('#split-bg').addEventListener('click', e=>{ if(e.target.id==='split-bg') closePriceSplit(); });
+
     // ── Reisen-Datenbank (PDF-Import gebuchter Reisen) ──────────────────────────
     let tripsData = [];
     function eur(v){ return (v==null||v==='')?'–':Number(v).toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2})+' €'; }
     function deDate(iso){ if(!iso) return ''; const p=iso.split('-'); return p.length===3?(p[2]+'.'+p[1]+'.'+p[0]):iso; }
-    function openTrips(){ $('#trip-detail').style.display='none'; $('#trips-bg').classList.add('show'); loadTrips(); }
+    function openTrips(){ $('#trip-detail').style.display='none'; const ics=$('#trips-ics-link'); if(ics) ics.href=api('/api/trips/ics'); $('#trips-bg').classList.add('show'); loadTrips(); }
     function closeTrips(){ $('#trips-bg').classList.remove('show'); }
     $('#trips-bg').addEventListener('click', e=>{ if(e.target.id==='trips-bg') closeTrips(); });
 
@@ -1258,7 +2003,10 @@
       // Fenster und ließe das sichtbare offen.
       ['ai-bg', closeAiSummary],
       ['climate-bg', closeClimate],   // wird aus der Suchmaske geöffnet, liegt darüber
+      ['guide-bg', closeGuide],       // dito
       ['cal-bg', closeCalendar],
+      ['fli-bg', closeIconPicker],   // liegt über der Listenauswahl, daher davor
+      ['fl-bg', closeForeignPicker],
       ['modal-bg', closeModal],
       ['cmp-bg', closeCompare],
       ['srch-bg', closeSearch],
@@ -1451,7 +2199,7 @@
       const packHtml = renderPackingSection(id, t, t.packing||[]);
       const box = $('#trip-detail');
       box.innerHTML = `<h3>${esc(t.title||('Reise #'+id))}</h3>
-        <div style="margin-bottom:6px">${pdf} ${dbg} ${rescan} <button class="btn sec" onclick="shareTripBanner(${id})" title="Reise als Bild teilen">📤 Teilen</button> <button class="btn sec" onclick="$('#trip-detail').style.display='none'">schließen</button></div>
+        <div style="margin-bottom:6px">${pdf} ${dbg} ${rescan} <button class="btn sec" onclick="shareTripBanner(${id})" title="Reise als Bild teilen">📤 Teilen</button> <a class="btn sec" href="${api('/api/trips/'+id+'/ics')}" title="Diese Reise als Kalender-Termin (.ics) herunterladen">📅 Kalender</a> <button class="btn sec" onclick="$('#trip-detail').style.display='none'">schließen</button></div>
         ${attRow}
         ${warnBox}<div class="dgrid">${grid}</div>${reisende}${fluege}${extras}${rabatte}${wuensche}
         ${packHtml}`;
@@ -2114,7 +2862,7 @@
     // Treffer eines Suchabos in der normalen Ergebnisliste anzeigen
     function showWatchHits(favId){
       const fav = srchFavs.find(x=>x.id===favId); if(!fav) return;
-      srchResults = fav.hits||[]; srchTotal = srchResults.length; srchFilter='';
+      srchResults = fav.hits||[]; srchTotal = srchResults.length; srchFetched = srchResults.length; srchFilter='';
       // Kriterien aus dem Abo selbst, nicht aus der Suchmaske — die Treffer stammen
       // aus dem gespeicherten Lauf und können ganz andere Parameter gehabt haben.
       const p = fav.payload || {};
@@ -2202,6 +2950,9 @@
                        'September','Oktober','November','Dezember'];
     let climateData = null;      // zuletzt geladene Tabelle {giata,label,ts,model,data}
     let climateBusy = false;
+    // Offene Prompt-Vorschau: wird beim Schließen des Fensters aufgelöst (siehe
+    // closeClimate). Ohne das hing der Ladebalken bis zum Neuladen der Seite.
+    let _climatePreviewClose = null;
 
     function aiEnabled(){ return !document.body.classList.contains('ai-disabled'); }
 
@@ -2254,8 +3005,13 @@
               $('#climate-body').innerHTML =
                 '<div class="hint" style="margin:4px 0 6px">📝 Prompt vor dem Senden prüfen/bearbeiten:</div>'
                 + promptPreviewBoxHtml(promptText);
-              $('#ai-pp-cancel').onclick = () => resolve(null);
-              $('#ai-pp-send').onclick = () => resolve($('#ai-pp-ta').value);
+              // Auch das Schließen des Fensters muss dieses Promise auflösen —
+              // sonst bliebe climateBusy für immer true und jedes weitere Öffnen
+              // hinge bei „Lade…" bis zum Neuladen der Seite.
+              const done = v => { _climatePreviewClose = null; resolve(v); };
+              _climatePreviewClose = () => done(null);
+              $('#ai-pp-cancel').onclick = () => done(null);
+              $('#ai-pp-send').onclick = () => done($('#ai-pp-ta').value);
             }),
             () => { $('#climate-body').innerHTML = progBar(busy); });
           if(rp.cancelled){
@@ -2274,6 +3030,7 @@
           return null;
         }
         climateData = d;
+        loadClimateLabels();   // neu erzeugt → Knopf am Angebot grün markieren
         return d;
       } catch(e){
         if(!silent) $('#climate-body').innerHTML = aiErrorBlock('Klimadaten konnten nicht geladen werden.', false);
@@ -2391,6 +3148,155 @@
         b.addEventListener('mouseleave', ()=>show(false));
       });
     }
+    // ── Markdown-Export (Reiseführer & Klimatabelle) ──────────────────────────
+    // Zum Weiterverwenden in einer Wissens-/Notiz-Sammlung (z. B. MyPage): aus
+    // dem JSON gebaut, nicht aus dem DOM — kopierter Bildschirmtext bringt sonst
+    // Aufzählungszeichen, Tabellenrahmen und Symbole als Fließtext mit.
+    // Quellen-Marker der KI ([3], [11]) fliegen raus, in einer Notiz sind sie tot.
+    //
+    // Nackte Adressen mitten im Satz („… mehr dazu (https://www.marcopolo.de/…)")
+    // wandern ans Ende der Zeile und werden zu einem klickbaren Markdown-Link:
+    // roher Text in Klammern ist in keinem Notiz-Programm anklickbar, und die
+    // Herkunft wegzuwerfen wäre die schlechtere Antwort — ein Verweis auf eine
+    // öffentliche Seite ist üblich und nachvollziehbar.
+    function mdHost(url){
+      try { return new URL(url).hostname.replace(/^www\./, ''); }
+      catch(e){ return 'Quelle'; }
+    }
+    function mdText(s){
+      let text = String(s == null ? '' : s).replace(/\s*\[\d+\]/g, '');
+      // Fertige Markdown-Links unangetastet lassen. Der Platzhalter benutzt
+      // Steuerzeichen, sonst kollidiert er mit Zahlen im Text („ab 3 Jahren").
+      const keep = [];
+      text = text.replace(/\[[^\]]*\]\(https?:\/\/[^)\s]+\)/g,
+                          m => { keep.push(m); return `\0${keep.length - 1}\0`; });
+      // Nackte Adresse → klickbarer Link an Ort und Stelle, beschriftet mit der
+      // Domain. Ans Zeilenende verschoben blieben Satzreste wie „Details:" ohne
+      // Bezug stehen; so bleibt der Satz heil und die Quelle nachvollziehbar.
+      text = text.replace(/(https?:\/\/[^\s)]+?)([.,;:!?]?)(?=[\s)]|$)/g,
+                          (m, url, punct) => `[${mdHost(url)}](${url})${punct}`);
+      text = text.replace(/\0(\d+)\0/g, (m, i) => keep[+i]);
+      return text.replace(/\s+/g, ' ').trim();
+    }
+    function mdNum(v, unit){
+      if(v == null || v === '') return '–';
+      // Geschütztes Leerzeichen vor der Einheit: in einer schmalen Spalte („Tag")
+      // bricht der Markdown-Renderer sonst zwischen Zahl und Einheit um, die
+      // Zeile wird doppelt hoch und die Tabelle sieht schief aus.
+      const unit_ = (unit || '').replace(/^ /, ' ');
+      return Number(v).toLocaleString('de-DE', {maximumFractionDigits:1}) + unit_;
+    }
+    // Zellinhalt einer Markdown-Tabelle. Reihenfolge zwingend: erst der
+    // Backslash, dann das „|" — andersherum verwandelt der zweite Durchlauf das
+    // gerade gesetzte Escape-Zeichen („\|" würde zu „\\|", die Zelle bricht
+    // wieder auf). Zeilenumbrüche würden die Zeile sprengen, deshalb raus.
+    function mdCell(v){
+      return String(v == null ? '' : v)
+        .replace(/\\/g, '\\\\')
+        .replace(/\|/g, '\\|')
+        .replace(/[\r\n]+/g, ' ');
+    }
+    function climateTableMd(months, best){
+      const b = new Set(best || []);
+      const hasNote = (months||[]).some(m => mdText(m.hinweis));
+      const head = ['Monat','Tag','Nacht','Wasser','Sonne','Regentage']
+        .concat(hasNote ? ['Hinweis'] : []);
+      const rows = (months||[]).slice().sort((a,b2)=>(a.monat||0)-(b2.monat||0)).map(m=>{
+        const name = (MONTHS_DE[(m.monat||1)-1] || m.monat) + (b.has(m.monat) ? ' ★' : '');
+        const cells = [name, mdNum(m.temp_tag,' °C'), mdNum(m.temp_nacht,' °C'),
+                       m.wasser ? mdNum(m.wasser,' °C') : '–',
+                       mdNum(m.sonnenstunden,' h'), mdNum(m.regentage)];
+        if(hasNote) cells.push(mdText(m.hinweis) || '');
+        return '| ' + cells.map(mdCell).join(' | ') + ' |';
+      });
+      return ['| ' + head.join(' | ') + ' |',
+              '| ' + head.map(()=>'---').join(' | ') + ' |'].concat(rows).join('\n');
+    }
+    function climateMarkdown(d){
+      const c = (d && d.data) || {};
+      const label = (d && d.label) || (climateTarget && climateTarget.label) || 'Reiseziel';
+      const out = ['# Klimatabelle ' + label, ''];
+      if(mdText(c.zusammenfassung)) out.push(mdText(c.zusammenfassung), '');
+      out.push(climateTableMd(c.months || [], c.beste_monate || []), '');
+      if((c.beste_monate||[]).length){
+        out.push('★ = aus Wetter-Sicht bester Reisemonat ('
+          + c.beste_monate.map(m=>MONTHS_DE[(m||1)-1] || m).join(', ') + ')', '');
+      }
+      out.push(mdStand(d, 'Langjährige Mittelwerte'));
+      return out.join('\n').trim() + '\n';
+    }
+    function guideMarkdown(d){
+      const c = (d && d.data) || {};
+      const label = (d && d.label) || (guideTarget && guideTarget.label) || 'Reiseziel';
+      const out = ['# Reiseführer ' + label, ''];
+      const sum = (c.zusammenfassung||[]).map(mdText).filter(Boolean);
+      if(sum.length){
+        out.push('## Das Wichtigste in Kürze', '');
+        sum.forEach(s => out.push('- ' + s));
+        out.push('');
+      }
+      (c.sections||[]).forEach(s=>{
+        const pts = (s.punkte||[]).filter(p => p && (p.text || p.label));
+        if(!pts.length && !mdText(s.einleitung)) return;
+        out.push('## ' + mdText(s.titel) , '');
+        if(mdText(s.einleitung)) out.push(mdText(s.einleitung), '');
+        pts.forEach(p=>{
+          const k = mdText(p.label);
+          // ⏱ markiert kurzlebige Angaben (Einreise, Kurs) — als Klartext, damit
+          // in der Notiz später erkennbar bleibt, was zu prüfen ist.
+          const vol = p.volatil ? ' _(kann sich kurzfristig ändern)_' : '';
+          out.push('- ' + (k ? '**' + k + ':** ' : '') + mdText(p.text) + vol);
+        });
+        out.push('');
+      });
+      if(d && d.climate && (d.climate.months||[]).length){
+        out.push('## Klimatabelle', '',
+                 climateTableMd(d.climate.months, d.climate.beste_monate || []), '');
+      }
+      out.push('KI-generiert, ohne Gewähr — verbindliche Auskünfte beim Auswärtigen Amt '
+               + 'und beim Veranstalter.', '', mdStand(d, ''));
+      return out.join('\n').trim() + '\n';
+    }
+    function mdStand(d, prefix){
+      const when = d && d.ts ? new Date(d.ts*1000).toLocaleDateString('de-DE') : '';
+      const parts = [prefix, when ? 'erstellt am ' + when : '', d && d.model ? 'Modell ' + d.model : ''];
+      const line = parts.filter(Boolean).join(' · ');
+      return line ? '_' + line + '_' : '';
+    }
+    // Zwischenablage: navigator.clipboard gibt es nur im sicheren Kontext — über
+    // Ingress per http (homeassistant.local:8123) fehlt es, deshalb der
+    // textarea-Umweg als Rückfallebene.
+    async function copyText(text, okMsg){
+      try {
+        if(navigator.clipboard && window.isSecureContext){
+          await navigator.clipboard.writeText(text);
+          toast(okMsg || 'Kopiert'); return true;
+        }
+      } catch(e){}
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0';
+        document.body.appendChild(ta); ta.focus(); ta.select();
+        const ok = document.execCommand('copy');
+        ta.remove();
+        toast(ok ? (okMsg || 'Kopiert') : 'Kopieren fehlgeschlagen');
+        return ok;
+      } catch(e){ toast('Kopieren fehlgeschlagen'); return false; }
+    }
+    function copyClimateMd(){
+      if(!climateData || !((climateData.data||{}).months||[]).length){
+        toast('Keine Klimatabelle geladen'); return;
+      }
+      copyText(climateMarkdown(climateData), 'Klimatabelle als Markdown kopiert');
+    }
+    function copyGuideMd(){
+      if(!guideData || !((guideData.data||{}).sections||[]).length){
+        toast('Kein Reiseführer geladen'); return;
+      }
+      copyText(guideMarkdown(guideData), 'Reiseführer als Markdown kopiert');
+    }
+
     function renderClimate(d){
       // Reisemonate nur hervorheben, wenn das Fenster aus der Suche kam — von der
       // Hauptseite aus stehen in der Maske irgendwelche Altwerte, die mit dieser
@@ -2425,7 +3331,11 @@
         + climateChart(c.months || [], sel)
         + `<table class="hist clim" style="margin-top:10px"><tr><th>Monat</th><th>Tag</th><th>Nacht</th><th>Wasser</th>`
         + `<th title="Sonnenstunden pro Tag">Sonne</th><th title="Regentage im Monat">Regen</th></tr>${rows}</table>`
-        + (sel.size ? '<div class="hint" style="margin-top:8px">Hervorgehoben: die Monate deines Reisezeitraums.</div>' : '');
+        + (sel.size ? '<div class="hint" style="margin-top:8px">Hervorgehoben: die Monate deines Reisezeitraums.</div>' : '')
+        // Tokens und Kosten wie bei jedem anderen KI-Ergebnis. Nur beim frisch
+        // erzeugten Aufruf vorhanden — kommt die Tabelle aus der Datenbank, hat sie
+        // nichts gekostet und es steht bewusst nichts da.
+        + aiUsageLine(d && d.usage, false, d && d.totals);
       climateChartHover(box, c.months || []);
       const when = d && d.ts ? new Date(d.ts*1000).toLocaleDateString('de-DE') : '';
       $('#climate-stand').textContent = when
@@ -2437,6 +3347,25 @@
     // gewählt, ohne dass eine Suche läuft.
     let climateTarget = null;
     let climateFromSearch = false;
+
+    // Grüner Rahmen am „Klima"-Knopf des Angebots, wenn zu diesem Ziel schon eine
+    // Tabelle gespeichert ist — gleiche Mechanik und gleicher Vorbehalt wie beim
+    // Reiseführer, siehe offerHasGuide().
+    let climateLabels = new Set();
+    function offerHasClimate(o){
+      const k = String((o && (o.region || o.country)) || '').trim().toLowerCase();
+      return !!k && climateLabels.has(k);
+    }
+    async function loadClimateLabels(){
+      let items = [];
+      try { items = (await fetch(api('/api/climate')).then(r=>r.json())).items || []; }
+      catch(e){ return; }
+      const next = new Set(items.map(i=>String(i.label||'').trim().toLowerCase()).filter(Boolean));
+      const same = next.size === climateLabels.size && [...next].every(x=>climateLabels.has(x));
+      climateLabels = next;
+      if(!same && curOffers && curOffers.length){ lastSig = null; renderAll(curOffers); }
+    }
+    loadClimateLabels();
 
     // Von der Hauptseite ohne Reiseziel: Liste der bereits gespeicherten Tabellen.
     // Neue Ziele entstehen über die Suche — dort gibt es einen Ziel-Picker, hier
@@ -2458,7 +3387,7 @@
       }
       $('#climate-body').innerHTML = '<table class="hist">'
         + '<tr><th>Reiseziel</th><th>erstellt</th><th></th></tr>'
-        + items.map(it=>`<tr><td><a href="#" onclick="event.preventDefault();`
+        + items.map(it=>`<tr><td><a class="dest-link" href="#" onclick="event.preventDefault();`
             + `openClimate(${it.giata},${esc(JSON.stringify(it.label))})">${esc(it.label)}</a></td>`
           + `<td class="hint">${new Date(it.ts*1000).toLocaleDateString('de-DE')}</td>`
           + `<td><button class="btn sec" onclick="deleteClimate(${it.giata},${esc(JSON.stringify(it.label))})" `
@@ -2470,6 +3399,7 @@
       try { await fetch(api('/api/climate/'+giata), {method:'DELETE'}); }
       catch(e){ toast('Löschen fehlgeschlagen'); return; }
       if(climateData && climateData.giata === giata) climateData = null;
+      loadClimateLabels();   // Marke am Angebot wieder entfernen
       renderClimateList();
     }
     // Ohne Argumente: aus der Suche heraus das dortige Ziel, sonst die Liste.
@@ -2488,10 +3418,30 @@
       $('#climate-stand').textContent = '';
       const d = await fetchClimate(giata, label);
       if(d) renderClimate(d);
+      // Läuft bereits ein Abruf (z. B. das Vorabladen nach einer Suche), kam
+      // `null` zurück, ohne dass etwas gerendert wurde — dann muss hier etwas
+      // stehen statt eines ewigen Ladebalkens.
+      else if(climateBusy) $('#climate-body').innerHTML =
+        '<div class="cmp-load">Die Klimatabelle wird gerade schon geladen — Fenster kurz schließen und gleich noch einmal öffnen.</div>';
       else if(!aiEnabled()) $('#climate-body').innerHTML =
         '<div class="cmp-load">Für dieses Ziel ist noch keine Klimatabelle gespeichert — sie wird von der KI erstellt, dafür muss ein KI-Key hinterlegt sein.</div>';
     }
-    function closeClimate(){ $('#climate-bg').classList.remove('show'); }
+    // Aus der Angebotsliste — wie openGuideFromOffer: das Angebot kennt nur die
+    // Hotel-giataId, die Klimatabelle hängt an der Region, die der Server auflöst.
+    async function openClimateFromOffer(id){
+      let d;
+      try { d = await fetch(api('/api/offers/'+id+'/dest')).then(r=>r.json()); }
+      catch(e){ toast('Reiseziel konnte nicht ermittelt werden'); return; }
+      if(!d || !d.giata){ toast(d && d.note ? d.note : 'Reiseziel konnte nicht ermittelt werden'); return; }
+      openClimate(d.giata, d.label);
+    }
+    function closeClimate(){
+      // Eine noch offene Prompt-Vorschau abbrechen — sonst bleibt das Promise
+      // dahinter für immer offen, climateBusy steht weiter auf true und jedes
+      // spätere Öffnen zeigt nur „Lade…" (bis v0.80.1 nur per Neuladen lösbar).
+      if(_climatePreviewClose) _climatePreviewClose();
+      $('#climate-bg').classList.remove('show');
+    }
     $('#climate-bg').addEventListener('click', e=>{ if(e.target.id==='climate-bg') closeClimate(); });
     async function refreshClimate(){
       if(!climateTarget){ toast('Kein Reiseziel gewählt'); return; }
@@ -2506,6 +3456,319 @@
       if(!srchDest || !aiEnabled()) return;
       if(climateData && climateData.giata === srchDest.giata) return;
       fetchClimate(srchDest.giata, srchDest.label, {silent:true}).catch(()=>{});
+    }
+
+    // ── Reiseführer (KI) ──────────────────────────────────────────────────────
+    // Genau wie die Klimatabelle: einmal je Ziel erzeugt, dauerhaft gespeichert,
+    // Neuerstellung nur auf Knopfdruck. Der Reiseführer ist der teuerste Einzelaufruf
+    // im Add-on — dreizehn Abschnitte plus zwanzig Vokabeln. Anders als beim Klima
+    // wird hier NICHT im Hintergrund vorgeladen: die Tabelle entsteht nebenbei nach
+    // jeder Suche, ein Reiseführer je gesuchtem Ziel wäre Geldverbrennung.
+    let guideData = null;        // {giata,label,ts,model,data,climate}
+    let guideTarget = null;
+    let guideBusy = false;
+    let _guidePreviewClose = null;   // siehe _climatePreviewClose
+
+    // Grüner Rahmen am „Reiseführer"-Knopf, wenn zu diesem Ziel schon einer
+    // gespeichert ist: sonst sieht man einem Angebot nicht an, ob der Klick nur
+    // nachschlägt oder einen (teuren) KI-Aufruf auslöst.
+    //
+    // Abgeglichen wird über den Ziel-NAMEN, nicht über die giataId: die
+    // Angebotsliste kennt nur die Hotel-giataId, die Region müsste je Angebot
+    // einzeln über die Breadcrumb-API aufgelöst werden. Denselben Namen benutzt
+    // `openGuideFromOffer()` als Label, beides bleibt also deckungsgleich; im
+    // schlimmsten Fall fehlt der Rahmen und der Klick liefert trotzdem den
+    // gespeicherten Reiseführer.
+    let guideLabels = new Set();
+    function offerHasGuide(o){
+      const k = String((o && (o.region || o.country)) || '').trim().toLowerCase();
+      return !!k && guideLabels.has(k);
+    }
+    async function loadGuideLabels(){
+      let items = [];
+      try { items = (await fetch(api('/api/guide')).then(r=>r.json())).items || []; }
+      catch(e){ return; }
+      const next = new Set(items.map(i=>String(i.label||'').trim().toLowerCase()).filter(Boolean));
+      const same = next.size === guideLabels.size && [...next].every(x=>guideLabels.has(x));
+      guideLabels = next;
+      // loadOffers() zeichnet nur bei geänderten Angebotsdaten neu (Signaturvergleich).
+      // Die Marke hängt aber an DIESER Liste, also gezielt anstoßen.
+      if(!same && curOffers && curOffers.length){ lastSig = null; renderAll(curOffers); }
+    }
+    loadGuideLabels();
+
+    async function fetchGuide(giata, label, {refresh=false}={}){
+      if(guideBusy) return null;
+      guideBusy = true;
+      try {
+        if(!refresh){
+          try {
+            const d = await fetch(api('/api/guide/'+giata)).then(r=>r.json());
+            if(d && d.found){ guideData = d; return d; }
+          } catch(e){}
+          if(!aiEnabled()) return null;
+        }
+        const busy = aiProviderName()+' stellt den Reiseführer zusammen — das dauert '
+          + 'eine Weile (dreizehn Abschnitte)…';
+        $('#guide-body').innerHTML = progBar(busy);
+        const body = {giata, label, refresh};
+        // Wie beim Klima-Fenster: bei aktiver Prompt-Vorschau muss die Vorschau HIER
+        // erscheinen, nicht im KI-Ergebnis-Fenster (das ist gar nicht offen).
+        const rp = await aiFetchPreviewCore(api('/api/ai/guide'), {method:'POST',
+            headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)},
+          promptText => new Promise(resolve => {
+            $('#guide-body').innerHTML =
+              '<div class="hint" style="margin:4px 0 6px">📝 Prompt vor dem Senden prüfen/bearbeiten:</div>'
+              + promptPreviewBoxHtml(promptText);
+            // Siehe fetchClimate: Schließen muss auflösen, sonst bleibt guideBusy hängen.
+            const done = v => { _guidePreviewClose = null; resolve(v); };
+            _guidePreviewClose = () => done(null);
+            $('#ai-pp-cancel').onclick = () => done(null);
+            $('#ai-pp-send').onclick = () => done($('#ai-pp-ta').value);
+          }),
+          () => { $('#guide-body').innerHTML = progBar(busy); });
+        if(rp.cancelled){
+          $('#guide-body').innerHTML = '<div class="cmp-load">Abgebrochen.</div>';
+          return null;
+        }
+        const resp = rp.resp, d = rp.d;
+        if(!resp.ok){ $('#guide-body').innerHTML = aiErrorBlock(aiErrorMsg(d.error), false); return null; }
+        if(!d || !d.data || !((d.data.sections)||[]).length){
+          $('#guide-body').innerHTML = aiErrorBlock(
+            'Die KI hat keinen vollständigen Reiseführer geliefert. Versuch es noch einmal.', true);
+          return null;
+        }
+        guideData = d;
+        loadGuideLabels();   // neu erzeugt → Knopf am Angebot grün markieren
+        return d;
+      } catch(e){
+        $('#guide-body').innerHTML = aiErrorBlock('Reiseführer konnte nicht geladen werden.', false);
+        return null;
+      } finally { guideBusy = false; }
+    }
+
+    // Baut die Abschnitte als HTML. `plain` = Druckfassung: ohne Sprungmarken und
+    // ohne CSS-Variablen, die es im Druck-Dokument nicht gibt.
+    function guideSectionsHtml(d, {plain=false}={}){
+      const c = (d && d.data) || {};
+      const secs = (c.sections||[]).filter(s => s && (s.punkte||[]).length || (s||{}).einleitung);
+      const sum = (c.zusammenfassung||[]).filter(s => String(s||'').trim());
+      let out = '';
+      if(sum.length){
+        out += `<div class="gd-sum"><b>Das Wichtigste in Kürze</b><ul>`
+          + sum.map(s=>`<li>${aiInline(esc(s))}</li>`).join('') + '</ul></div>';
+      }
+      if(!plain && secs.length > 1){
+        out += '<div class="gd-toc">' + secs.map((s,i)=>
+          `<button onclick="guideJump(${i})">${esc(s.titel||('Abschnitt '+(i+1)))}</button>`).join('')
+          + '</div>';
+      }
+      out += secs.map((s,i)=>{
+        const pts = (s.punkte||[]).filter(p=>p && (p.text||p.label));
+        return `<div class="gd-sec" id="gd-sec-${i}"><h3>${esc(s.titel||'')}</h3>`
+          + ((s.einleitung||'').trim() ? `<div class="gd-intro">${aiInline(esc(s.einleitung))}</div>` : '')
+          + (pts.length ? '<ul class="gd-list">' + pts.map(p=>{
+              // „⏱" markiert kurzlebige Angaben — ein Wechselkurs oder eine
+              // Einreiseregel aus einem Monate alten Reiseführer wäre sonst nicht als
+              // solche zu erkennen.
+              const vol = p.volatil ? ' <span class="gd-vol" title="Kann sich kurzfristig ändern — vor der Reise prüfen">⏱</span>' : '';
+              const k = esc(p.label||'').trim();
+              return `<li><span class="gd-k">${k||'•'}</span>`
+                + `<span class="gd-v">${aiInline(esc(p.text||''))}${vol}</span></li>`;
+            }).join('') + '</ul>' : '')
+          + '</div>';
+      }).join('');
+      return out;
+    }
+
+    function guideJump(i){
+      const el = $('#gd-sec-'+i);
+      if(el) el.scrollIntoView({behavior:'smooth', block:'start'});
+    }
+
+    function renderGuide(d){
+      const c = (d && d.data) || {};
+      if(!(c.sections||[]).length){
+        $('#guide-body').innerHTML = '<div class="cmp-load">Für dieses Ziel liegt kein '
+          + 'Reiseführer vor. „🔄 Neu abrufen" erstellt ihn.</div>';
+        $('#guide-stand').textContent = '';
+        return;
+      }
+      // Klimatabelle mit im Fenster: die Zahlen gehören zum Reiseführer dazu, und der
+      // Klima-Abschnitt der KI ist bewusst der beschreibende Teil dazu.
+      let clim = '';
+      if(d.climate && (d.climate.months||[]).length){
+        clim = '<div class="gd-sec"><h3>Klimatabelle</h3>'
+          + climateChart(d.climate.months, new Set())
+          + '<table class="hist clim" style="margin-top:10px"><tr><th>Monat</th><th>Tag</th>'
+          + '<th>Nacht</th><th>Wasser</th><th title="Sonnenstunden pro Tag">Sonne</th>'
+          + '<th title="Regentage im Monat">Regen</th></tr>'
+          + d.climate.months.slice().sort((a,b)=>(a.monat||0)-(b.monat||0)).map(m=>{
+              const num = v => (v==null||v==='') ? '–' : Number(v).toLocaleString('de-DE',{maximumFractionDigits:1});
+              return `<tr><td>${esc(MONTHS_DE[(m.monat||1)-1]||m.monat)}</td>`
+                + `<td>${num(m.temp_tag)} °C</td><td>${num(m.temp_nacht)} °C</td>`
+                + `<td>${m.wasser ? num(m.wasser)+' °C' : '–'}</td>`
+                + `<td>${num(m.sonnenstunden)} h</td><td>${num(m.regentage)}</td></tr>`;
+            }).join('')
+          + '</table></div>';
+      }
+      const box = $('#guide-body');
+      box.innerHTML = guideSectionsHtml(d) + clim
+        + '<div class="hint" style="margin-top:14px">⏱ = kann sich kurzfristig ändern '
+        + '(Einreise, Wechselkurs, Preise) · KI-generiert, ohne Gewähr — verbindliche '
+        + 'Auskünfte nur beim Auswärtigen Amt und beim Veranstalter.</div>'
+        // Nur beim frisch erzeugten Reiseführer vorhanden; aus der Datenbank
+        // gelesen hat er nichts gekostet.
+        + aiUsageLine(d && d.usage, false, d && d.totals);
+      if(d.climate && (d.climate.months||[]).length) climateChartHover(box, d.climate.months);
+      const when = d && d.ts ? new Date(d.ts*1000).toLocaleDateString('de-DE') : '';
+      $('#guide-stand').textContent = when
+        ? `Erstellt am ${when}${d.model ? ' mit '+d.model : ''}` : '';
+    }
+
+    async function renderGuideList(){
+      $('#guide-sub').textContent = 'Gespeicherte Reiseziele';
+      $('#guide-stand').textContent = '';
+      $('#guide-foot').style.display = 'none';
+      $('#guide-body').innerHTML = progBar('Lade…');
+      let items = [];
+      try { items = (await fetch(api('/api/guide')).then(r=>r.json())).items || []; }
+      catch(e){ $('#guide-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Laden fehlgeschlagen</div>'; return; }
+      if(!items.length){
+        $('#guide-body').innerHTML = '<div class="cmp-load">Noch kein Reiseführer gespeichert. '
+          + 'Er entsteht über den Knopf <b>Reiseführer</b> an einem Angebot oder in der <b>Suche</b>.</div>';
+        return;
+      }
+      $('#guide-body').innerHTML = '<table class="hist">'
+        + '<tr><th>Reiseziel</th><th>erstellt</th><th></th></tr>'
+        + items.map(it=>`<tr><td><a class="dest-link" href="#" onclick="event.preventDefault();`
+            + `openGuide(${it.giata},${esc(JSON.stringify(it.label))})">${esc(it.label)}</a></td>`
+          + `<td class="hint">${new Date(it.ts*1000).toLocaleDateString('de-DE')}</td>`
+          + `<td><button class="btn sec" onclick="deleteGuide(${it.giata},${esc(JSON.stringify(it.label))})" `
+          + `title="Gespeicherten Reiseführer löschen">🗑</button></td></tr>`).join('')
+        + '</table>';
+    }
+    async function deleteGuide(giata, label){
+      if(!confirm(`Reiseführer für „${label}" löschen?`)) return;
+      try { await fetch(api('/api/guide/'+giata), {method:'DELETE'}); }
+      catch(e){ toast('Löschen fehlgeschlagen'); return; }
+      if(guideData && guideData.giata === giata) guideData = null;
+      loadGuideLabels();   // Marke am Angebot wieder entfernen
+      renderGuideList();
+    }
+
+    // Ohne Argumente: aus der Suche heraus das dortige Ziel, sonst die Liste.
+    async function openGuide(giata, label){
+      if(giata == null && srchDest){ giata = srchDest.giata; label = srchDest.label; }
+      $('#guide-bg').classList.add('show');
+      if(giata == null){ guideTarget = null; renderGuideList(); return; }
+      guideTarget = {giata, label};
+      $('#guide-foot').style.display = '';
+      $('#guide-sub').textContent = label;
+      if(guideData && guideData.giata === giata){ renderGuide(guideData); return; }
+      $('#guide-body').innerHTML = progBar('Lade…');
+      $('#guide-stand').textContent = '';
+      const d = await fetchGuide(giata, label);
+      if(d) renderGuide(d);
+      else if(guideBusy) $('#guide-body').innerHTML =
+        '<div class="cmp-load">Der Reiseführer wird gerade schon erstellt — Fenster kurz schließen und gleich noch einmal öffnen.</div>';
+      else if(!aiEnabled()) $('#guide-body').innerHTML =
+        '<div class="cmp-load">Für dieses Ziel ist noch kein Reiseführer gespeichert — er wird von der KI erstellt, dafür muss ein KI-Key hinterlegt sein.</div>';
+    }
+    // Aus der Angebotsliste: das Angebot kennt nur die Hotel-giataId, Reiseführer und
+    // Klimatabelle hängen an der Region — die löst der Server auf.
+    async function openGuideFromOffer(id){
+      let d;
+      try { d = await fetch(api('/api/offers/'+id+'/dest')).then(r=>r.json()); }
+      catch(e){ toast('Reiseziel konnte nicht ermittelt werden'); return; }
+      if(!d || !d.giata){ toast(d && d.note ? d.note : 'Reiseziel konnte nicht ermittelt werden'); return; }
+      openGuide(d.giata, d.label);
+    }
+    function closeGuide(){
+      if(_guidePreviewClose) _guidePreviewClose();   // siehe closeClimate
+      $('#guide-bg').classList.remove('show');
+    }
+    $('#guide-bg').addEventListener('click', e=>{ if(e.target.id==='guide-bg') closeGuide(); });
+    async function refreshGuide(){
+      if(!guideTarget){ toast('Kein Reiseziel gewählt'); return; }
+      if(!confirm('Reiseführer neu von der KI erstellen lassen? Das kostet einen KI-Aufruf.')) return;
+      const d = await fetchGuide(guideTarget.giata, guideTarget.label, {refresh:true});
+      if(d) renderGuide(d);
+    }
+    // Druck über ein verstecktes iframe statt window.open: im HA-Ingress läuft die
+    // Oberfläche in einem iframe, ein Popup würde dort blockiert. Das Dokument bringt
+    // sein eigenes CSS mit — die Farbvariablen der App gibt es darin nicht.
+    function printGuide(){
+      if(!guideData){ toast('Noch kein Reiseführer geladen'); return; }
+      const css = `body{font:13px/1.5 -apple-system,Segoe UI,Roboto,sans-serif;color:#111;margin:24px}
+        h1{font-size:19px;margin:0 0 2px} .st{color:#666;font-size:12px;margin-bottom:16px}
+        .gd-sec{margin-top:16px;break-inside:avoid} .gd-sec h3{font-size:14px;color:#0b65d8;margin:0 0 4px}
+        .gd-intro{color:#555;margin-bottom:5px}
+        ul.gd-list{list-style:none;margin:0;padding:0}
+        ul.gd-list li{display:flex;gap:10px;padding:3px 0;border-top:1px solid #e2e6ea}
+        .gd-k{flex:0 0 30%;color:#555} .gd-v{flex:1}
+        .gd-sum{background:#f3f6fb;border:1px solid #e2e6ea;border-radius:6px;padding:9px 12px}
+        .gd-sum ul{margin:5px 0 0;padding-left:18px}
+        table{width:100%;border-collapse:collapse;font-size:12px;margin-top:6px}
+        th,td{text-align:left;padding:3px 6px;border-bottom:1px solid #e2e6ea}
+        a{color:#0b65d8;text-decoration:none} .foot{margin-top:20px;font-size:11px;color:#888}`;
+      let clim = '';
+      const cm = (guideData.climate||{}).months || [];
+      if(cm.length){
+        clim = '<div class="gd-sec"><h3>Klimatabelle</h3><table><tr><th>Monat</th><th>Tag</th>'
+          + '<th>Nacht</th><th>Wasser</th><th>Sonne</th><th>Regen</th></tr>'
+          + cm.slice().sort((a,b)=>(a.monat||0)-(b.monat||0)).map(m=>{
+              const num = v => (v==null||v==='') ? '–' : Number(v).toLocaleString('de-DE',{maximumFractionDigits:1});
+              return `<tr><td>${esc(MONTHS_DE[(m.monat||1)-1]||m.monat)}</td>`
+                + `<td>${num(m.temp_tag)} °C</td><td>${num(m.temp_nacht)} °C</td>`
+                + `<td>${m.wasser ? num(m.wasser)+' °C' : '–'}</td>`
+                + `<td>${num(m.sonnenstunden)} h</td><td>${num(m.regentage)}</td></tr>`;
+            }).join('') + '</table></div>';
+      }
+      const when = guideData.ts ? new Date(guideData.ts*1000).toLocaleDateString('de-DE') : '';
+      const doc = '<!doctype html><html lang="de"><head><meta charset="utf-8">'
+        + `<title>Reiseführer ${esc(guideData.label||'')}</title><style>${css}</style></head><body>`
+        + `<h1>Reiseführer · ${esc(guideData.label||'')}</h1>`
+        + `<div class="st">TUIWatch${when?' · erstellt am '+when:''}</div>`
+        + guideSectionsHtml(guideData, {plain:true}) + clim
+        + '<div class="foot">⏱ = kann sich kurzfristig ändern · KI-generiert, ohne Gewähr</div>'
+        + '</body></html>';
+      const fr = document.createElement('iframe');
+      fr.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0';
+      document.body.appendChild(fr);
+      fr.onload = () => {
+        try {
+          // focus() ist nötig, damit der Druck das iframe erwischt und nicht die
+          // Seite; danach zurückholen, sonst liefe die Tastatur (ESC schließt das
+          // Fenster) ins unsichtbare iframe und die Seite reagierte nicht mehr.
+          fr.contentWindow.focus();
+          fr.contentWindow.print();
+          window.focus();
+        } catch(e){ toast('Drucken fehlgeschlagen'); }
+        // Erst nach dem Druckdialog abräumen — wird das iframe sofort entfernt,
+        // bricht in Chrome der laufende Druckauftrag ab.
+        setTimeout(()=>fr.remove(), 60000);
+      };
+      fr.srcdoc = doc;
+    }
+    async function openGuideEmailModal(){
+      if(!guideData || !guideData.found){ toast('Noch kein Reiseführer geladen'); return; }
+      emailMode = 'guide';
+      await _openEmailModalCommon();
+    }
+    async function submitGuideEmail(to){
+      if(!guideData){ toast('Noch kein Reiseführer geladen'); return; }
+      toast('E-Mail wird gesendet…');
+      let r; try {
+        r = await fetch(api('/api/guide/'+guideData.giata+'/email'), {method:'POST',
+          headers:{'Content-Type':'application/json'}, body: JSON.stringify({to})});
+      } catch(e){ toast('Versand fehlgeschlagen'); return; }
+      if(r.ok){ toast('Reiseführer an '+to+' gesendet'); }
+      else { const d=await r.json().catch(()=>({}));
+        toast(d.error==='send_failed'?'Versand fehlgeschlagen – Einstellungen prüfen'
+          :d.error==='no_recipient'?'Kein Empfänger'
+          :d.error==='not_found'?'Kein gespeicherter Reiseführer'
+          :d.error==='smtp_not_configured'?'SMTP nicht konfiguriert':'Fehler beim Versand'); }
     }
 
     // ── Reisezeit-Check (KI) direkt aus der Suchmaske ─────────────────────────
@@ -2600,6 +3863,7 @@
       if(r.status===400){ $('#srch-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Keine gültige Eingabe.</div>'; return; }
       if(!r.ok){ $('#srch-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Suche fehlgeschlagen.</div>'; return; }
       srchResults = d.results||[]; srchTotal = d.total||srchResults.length; srchFilter = '';
+      srchFetched = (d.fetched!=null) ? d.fetched : srchResults.length;
       srchCriteria = d.criteria || null;
       // Klarnamen des Flughafens („Stuttgart (STR)") gibt es nur im Auswahlfeld —
       // der Server kennt bloß den IATA-Code.
@@ -2618,13 +3882,16 @@
     // Treffer erneut abgeschickt (resultsFrom serverseitig, siehe scraper.py).
     let srchLoadingMore = false;
     async function loadMoreSearch(){
-      if(srchLoadingMore || !srchLastBody || srchResults.length>=srchTotal) return;
+      if(srchLoadingMore || !srchLastBody || srchFetched>=srchTotal) return;
       srchLoadingMore = true;
       renderSearch();
-      const body = Object.assign({}, srchLastBody, {offset: srchResults.length});
+      const body = Object.assign({}, srchLastBody, {offset: srchFetched});
       let r, d;
       try { r = await fetch(api('/api/search'), {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)}); d = await r.json(); }
       catch(e){ srchLoadingMore = false; toast('Nachladen fehlgeschlagen.'); renderSearch(); return; }
+      // 429 = eigener Abstandshalter zwischen zwei Suchen (3 s) — das ist kein
+      // Fehler, sondern nur „zu schnell geklickt".
+      if(r.status===429){ srchLoadingMore = false; toast('Bitte kurz warten ('+(d.retry_after||3)+' s) und erneut auf „Mehr laden" tippen.'); renderSearch(); return; }
       if(!r.ok){ srchLoadingMore = false; toast(d.note || 'Nachladen fehlgeschlagen.'); renderSearch(); return; }
       const fresh = d.results || [];
       fresh.forEach(x=>{ x._key = String(x.giata||x.name); });
@@ -2633,6 +3900,7 @@
       const known = new Set(srchResults.map(x=>x._key));
       srchResults = srchResults.concat(fresh.filter(x=>!known.has(x._key)));
       srchTotal = d.total || srchTotal;
+      srchFetched += (d.fetched!=null) ? d.fetched : fresh.length;
       srchLoadingMore = false;
       sortSearchResults(); renderSearch();
     }
@@ -2681,7 +3949,7 @@
         </label>
         ${img}
         <div class="sr-main">
-          <div class="sr-name">${stars}${esc(r.name)}${r.tracked?'<span class="tracked">✓ getrackt</span>':''}</div>
+          <div class="sr-name">${stars}${esc(r.name)}${r.tracked?'<span class="tracked">✓ getrackt</span>':''}${r.is_new?' <span class="sr-new" title="Seit dem letzten Suchabo-Lauf neu unter der Schwelle">🆕</span>':''}${r.prev!=null?` <span class="sr-drop" title="Seit dem letzten Suchabo-Lauf gefallen: vorher ${eur(r.prev)}">📉 −${eur(r.prev-r.price)}</span>`:''}</div>
           <div class="sr-meta">📍 ${esc(r.location)}${r.country?(' · '+esc(r.country)):''}${rec}</div>
           <div class="sr-meta">${esc(r.board)} · ${r.nights} Nächte · ab ${fmtD(r.date)}</div>
           ${(r.locations&&r.locations.length)?'<div class="sr-locs">'+r.locations.map(l=>'<span class="tag-pill">'+esc(l)+'</span>').join('')+'</div>':''}
@@ -2717,7 +3985,7 @@
           <option value="stars"${srchSort==='stars'?' selected':''}>Sterne</option>
           <option value="value"${srchSort==='value'?' selected':''} title="60% Weiterempfehlung + 40% Preis/Nacht">Preis-Leistung</option>
         </select>`;
-      const head = `<div class="srch-head"><span><b id="srch-count">${srchResults.length}</b> Treffer${(srchTotal>srchResults.length)?(' (von '+srchTotal+' in der Region)'):''}</span>
+      const head = `<div class="srch-head"><span><b id="srch-count">${srchResults.length}</b> Treffer${(srchTotal>srchFetched)?(' · '+srchFetched+' von '+srchTotal+' Angeboten durchsucht'):((srchTotal>srchResults.length)?(' (von '+srchTotal+' durchsuchten)'):'')}</span>
          <input type="text" id="srch-filter" class="srch-listfilter" placeholder="In Treffern suchen…" autocomplete="off" oninput="filterSearch(this.value)" value="${esc(srchFilter)}">
          <span style="flex:1"></span>Sortieren: ${sortSel}
          <button class="btn sec" onclick="track3()" title="Günstigstes, mittleres und teuerstes Hotel aus den Treffern automatisch für den Preisverlauf tracken (keine Benachrichtigungen)">📊 3 tracken</button>
@@ -2729,8 +3997,8 @@
           <button class="btn" onclick="openAiCompare()">🤖 Vergleichen</button>
         </div>
         <div id="srch-rows"></div>
-        ${(srchResults.length<srchTotal)?`<div class="srch-more">
-          <button class="btn sec" onclick="loadMoreSearch()" ${srchLoadingMore?'disabled':''}>${srchLoadingMore?'Lädt…':('Mehr laden ('+(srchTotal-srchResults.length)+' weitere)')}</button>
+        ${(srchFetched<srchTotal)?`<div class="srch-more">
+          <button class="btn sec" onclick="loadMoreSearch()" ${srchLoadingMore?'disabled':''}>${srchLoadingMore?'Lädt…':('Mehr laden ('+(srchTotal-srchFetched)+' weitere durchsuchen)')}</button>
         </div>`:''}`;
       $('#srch-body').innerHTML = head;
       renderSearchRows();
@@ -2753,6 +4021,14 @@
     }
     function clearCmp(){ srCmpSelected = new Set(); renderSearchRows(); updateCmpBar(); }
 
+    // Auto-Tag beim Tracken: nur die Region („Mauritius", „Gran Canaria"), nicht
+    // „Ort, Region" — der Ort ist als Filter zu speziell, jedes Hotel bekäme
+    // seinen eigenen Tag. Ältere Treffer ohne region fallen auf location zurück.
+    function searchResultTags(r){
+      const t = (r.region || r.location || '').trim();
+      return t ? [t] : [];
+    }
+
     async function trackResult(i){
       const r = srchResults[i]; if(!r) return;
       const btn = document.getElementById('srt-'+i);
@@ -2763,7 +4039,7 @@
       let resp;
       // start:false — Angebot wird angelegt, aber erst nach der Zimmerauswahl
       // (pickRoom oder Schließen des Dialogs, siehe closeRooms) tatsächlich geprüft.
-      try { resp = await fetch(api('/api/offers'), {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({url:r.offer_url, label:r.name, image:r.image, start:false, tags:r.location?[r.location]:[]})}); }
+      try { resp = await fetch(api('/api/offers'), {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({url:r.offer_url, label:r.name, image:r.image, start:false, tags:searchResultTags(r)})}); }
       catch(e){ toast('Fehler beim Hinzufügen'); restore(); return; }
       if(resp.status===409){ toast('Dieses Angebot wird mit genau diesen Parametern bereits verfolgt'); restore(); return; }
       if(!resp.ok){ toast('Fehler beim Hinzufügen'); restore(); return; }
@@ -2781,7 +4057,7 @@
       if(!todo.length){ toast('Alle bereits getrackt'); return; }
       if(!confirm(todo.length+' Hotels ins Tracking übernehmen?')) return;
       for(const r of todo){
-        try { await fetch(api('/api/offers'), {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({url:r.offer_url, label:r.name, image:r.image, tags:r.location?[r.location]:[]})}); r.tracked=true; } catch(e){}
+        try { await fetch(api('/api/offers'), {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({url:r.offer_url, label:r.name, image:r.image, tags:searchResultTags(r)})}); r.tracked=true; } catch(e){}
       }
       toast(todo.length+' Hotels getrackt'); renderSearch(); loadOffers();
     }
@@ -2795,50 +4071,15 @@
       const picks = [byPrice[0], byPrice[Math.floor(byPrice.length/2)], byPrice[byPrice.length-1]];
       if(!confirm('Günstigstes, mittleres und teuerstes Hotel für den Preisverlauf tracken (ohne Benachrichtigungen)?')) return;
       for(const r of picks){
-        try { await fetch(api('/api/offers'), {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({url:r.offer_url, label:r.name, image:r.image, history_only:true, tags:r.location?[r.location]:[]})}); r.tracked=true; } catch(e){}
+        try { await fetch(api('/api/offers'), {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({url:r.offer_url, label:r.name, image:r.image, history_only:true, tags:searchResultTags(r)})}); r.tracked=true; } catch(e){}
       }
       toast('3 Hotels für den Preisverlauf getrackt'); renderSearch(); loadOffers();
     }
 
     // ── KI-Hotel-Fazit & -Vergleich (Lage, Zimmer, Restaurants, Pool, Ausstattung) ─
-    // [n](url) -> anklickbare Zitat-Nummer (Perplexity-Quellenangaben, siehe
-    // ai_client.py::_perplexity_linkify_citations); läuft vor **bold**, damit ein
-    // Fettdruck rund um eine Zitat-Klammer die Link-Erkennung nicht stört.
-    function aiInline(s){
-      s = s.replace(/\[(\d+)\]\((https?:\/\/[^\s")]+)\)/g,
-        '<a href="$2" target="_blank" rel="noopener" class="ai-cite">[$1]</a>');
-      return s.replace(/\*\*(.+?)\*\*/g,'<b>$1</b>');
-    }
-    function aiTableRow(l){ return l.trim().replace(/^\||\|$/g,'').split('|').map(c=>aiInline(c.trim())); }
-    function aiMdLite(text){
-      const lines = esc(text).split('\n');
-      let html = '', inList = false, i = 0;
-      const closeList = () => { if(inList){ html += '</ul>'; inList = false; } };
-      while(i < lines.length){
-        const line = lines[i].trim();
-        if(!line){ closeList(); i++; continue; }
-        // Markdown-Tabelle: Kopfzeile + Trennzeile aus -/:/| erkennen
-        if(line.startsWith('|') && lines[i+1] && /^\|?[\s:|-]+\|?$/.test(lines[i+1].trim())){
-          closeList();
-          const header = aiTableRow(line);
-          let body = '', j = i + 2;
-          for(; j < lines.length && lines[j].trim().startsWith('|'); j++){
-            body += '<tr>' + aiTableRow(lines[j]).map(c=>'<td>'+c+'</td>').join('') + '</tr>';
-          }
-          html += '<table class="ai-table"><thead><tr>' + header.map(c=>'<th>'+c+'</th>').join('')
-            + '</tr></thead><tbody>' + body + '</tbody></table>';
-          i = j; continue;
-        }
-        const h = /^#{1,4}\s+(.*)/.exec(line);
-        const bullet = /^[-*]\s+(.*)/.exec(line);
-        if(h){ closeList(); html += '<h4 class="ai-h">'+aiInline(h[1])+'</h4>'; }
-        else if(bullet){ if(!inList){ html += '<ul class="ai-list">'; inList = true; } html += '<li>'+aiInline(bullet[1])+'</li>'; }
-        else { closeList(); html += '<p>'+aiInline(line)+'</p>'; }
-        i++;
-      }
-      closeList();
-      return html;
-    }
+    // aiMdLite()/aiInline() stehen als globale Funktionen in static/aimd.js (vor
+    // app.js geladen) — dieselbe Datei nutzt die öffentliche Angebots-Seite, die
+    // app.js bewusst nicht lädt.
     function aiErrorMsg(err){
       return err==='no_api_key' ? 'Kein Anthropic API-Key in den Add-on-Einstellungen hinterlegt.'
         : err==='ai_refused' ? 'Die KI konnte keine Einschätzung liefern.'
@@ -4060,6 +5301,10 @@
       const PIG = '<svg class="cal-pig" aria-hidden="true" viewBox="0 0 960 960" fill="none" xmlns="http://www.w3.org/2000/svg"> <g clip-path="url(#pigclip)"> <path d="M426.591 879.981C422.074 879.981 417.557 879.981 413.04 879.981C411.752 879.787 410.463 879.558 409.168 879.404C401.148 878.444 393.027 877.995 385.114 876.444C366.282 872.766 356.436 859.914 357.926 841.283C358.53 833.706 359.718 826.162 360.886 818.646C362.644 807.35 364.617 796.082 366.51 784.74C349.597 780.874 332.597 776.981 316.262 773.243C315.195 781.491 314.295 789.78 313.02 798.008C311.503 807.847 310.175 817.76 307.852 827.418C304.349 841.968 295.973 852.726 280.617 855.813C274.289 857.089 267.396 857.337 261.04 856.31C247.899 854.183 234.805 851.404 221.94 847.961C197.295 841.364 185.362 824.679 186.812 799.23C187.705 783.532 190.282 768.048 194.913 752.961C197.564 744.324 201.094 736.075 206.027 728.377C205.483 727.968 205.128 727.666 204.745 727.418C178.57 710.511 158.282 687.894 141.55 661.921C110.805 614.196 94.6107 561.652 90.0872 505.297C89.7383 500.914 89.3624 496.532 89 492.156C89 483.498 89 474.84 89 466.189C89.1544 465.183 89.4027 464.176 89.443 463.162C90.0604 448.015 91.8389 433.001 94.7114 418.122C102.06 380.062 116.087 344.84 139.268 313.505C139.96 312.572 140.255 310.881 139.953 309.753C136.416 296.552 133.953 283.122 133.208 269.512C132.275 252.532 131.839 235.512 131.772 218.505C131.604 177.787 135.745 137.438 143.107 97.4041C144.477 89.9478 148.805 85.1222 155.658 82.3571C157.47 81.6256 159.396 81.1826 161.268 80.6055C163.523 80.6055 165.785 80.6055 168.04 80.6055C175.228 81.8873 180.322 86.337 184.799 91.7129C185.04 92.0014 185.309 92.2699 185.564 92.5384C213.711 122.102 241.852 151.679 270.02 181.23C279.054 190.713 287.859 200.371 294.047 212.055C294.987 213.827 296.027 213.189 297.295 212.793C308.047 209.418 318.718 205.78 329.57 202.78C351.906 196.599 374.604 192.357 397.792 191.136C403.893 190.814 410.02 190.894 416.087 190.31C430.772 188.901 445.423 187.149 460.107 185.699C462.289 185.485 463.987 184.934 465.624 183.451C489.832 161.592 516.416 143.156 545.55 128.458C548.275 127.082 551.295 126.035 554.295 125.505C566.43 123.371 576.705 130.27 578.295 141.518C580.671 158.27 582.94 175.028 585.175 191.8C585.389 193.418 586.034 194.008 587.584 194.277C590.913 194.854 594.208 195.632 597.51 196.364C638.477 205.424 677.624 219.418 714.349 239.847C758.322 264.303 795.826 296.095 824.248 337.948C850.248 376.236 866.081 418.256 869.846 464.592C870.134 468.136 870.53 471.673 870.879 475.216C870.879 482.934 870.879 490.646 870.879 498.364C870.329 504.142 869.832 509.928 869.228 515.706C865.732 549.337 856.248 581.236 841.262 611.505C823.315 647.74 798.43 678.599 768.094 705.162C766.369 706.673 765.785 708.189 765.752 710.458C765.617 720.612 765.55 730.787 764.886 740.914C763.94 755.364 762.812 769.807 761.168 784.189C760.04 794.048 758.423 803.928 756.067 813.558C753.557 823.8 747.255 831.518 737.342 835.867C730.772 838.746 723.832 839.766 716.725 839.881C702.409 840.122 688.524 837.109 674.597 834.357C668.886 833.23 664.993 829.907 663.315 824.498C662.309 821.25 661.839 817.659 662.007 814.263C662.389 806.572 663.43 798.914 664 791.223C664.544 783.934 664.826 776.619 665.248 768.954C659.074 771.33 653.208 773.538 647.403 775.887C646.859 776.109 646.436 777.183 646.362 777.901C645.322 788.659 644.497 799.444 643.315 810.189C642.289 819.545 640.651 828.807 636.678 837.458C629.53 853.035 617.584 861.975 600.282 862.525C590.436 862.834 580.53 862.323 570.691 861.672C563.745 861.216 556.94 859.619 550.685 856.277C543.685 852.532 539.201 846.807 539.154 838.807C539.101 829.243 539.819 819.666 540.477 810.115C540.758 806.055 541.745 802.042 542.329 798.505C517.919 798.505 493.738 798.505 470.423 798.505C468.738 810.035 467.436 821.142 465.423 832.109C463.537 842.364 460.933 852.485 455.94 861.793C451.275 870.485 444.168 876.048 434.557 878.337C431.913 878.961 429.242 879.438 426.591 879.981ZM388.007 246.163C385.705 244.069 383.369 241.807 380.873 239.746C380.067 239.082 378.752 238.465 377.812 238.632C369.497 240.142 361.154 241.592 352.933 243.518C308.993 253.82 268.175 271.572 229.698 295.035C208.389 308.028 190.517 324.498 176.691 345.277C154.275 378.981 143.993 416.558 141.503 456.565C139.718 485.283 142.154 513.693 148.295 541.78C155.215 573.444 166.503 603.377 184.463 630.532C200.396 654.612 220.235 674.558 246.242 687.813C261.53 695.605 277.765 700.948 293.953 706.471C355.524 727.478 418.524 740.787 483.758 742.545C521.235 743.558 558.389 741.156 594.987 732.626C657.765 717.995 711.383 687.35 754.685 639.505C788.644 601.981 809.376 558.196 814.047 507.371C817.248 472.518 811.953 438.928 798.396 406.706C781.852 367.371 755.128 336.062 721.403 310.465C687.188 284.498 648.752 267.156 607.557 255.605C602.45 254.176 597.295 252.914 592.175 251.579C591.416 253.988 592.242 254.961 594.208 255.646C599.443 257.458 604.638 259.397 609.785 261.444C636.644 272.142 662.282 285.31 687.134 300.048C691.477 302.626 694.557 306.169 695.295 311.283C696.409 318.988 693.584 325.223 687.356 329.673C681.289 334.015 675.034 333.183 668.852 329.485C649.886 318.142 630.416 307.74 610.208 298.767C605.248 296.565 600.222 294.512 594.926 292.256C595.06 295.243 595.309 297.767 595.268 300.283C595.161 307.726 590.832 313.471 583.846 315.23C576.456 317.089 569.919 315.27 564.215 310.236C561.993 308.277 561.181 306.062 561.564 303.015C564.242 281.626 563.282 260.196 561.852 238.78C560.718 221.699 559.275 204.646 558.242 187.558C557.436 174.209 545.329 167.438 533.685 174.062C514.456 184.995 496.953 198.23 480.946 213.471C458.06 235.263 439.081 260.216 421.517 286.364C414.658 296.579 418.329 307.169 425.315 313.163C425.926 313.686 426.523 314.223 427.154 314.78C420.523 319.887 410.148 320.156 401.134 314.988C388.168 307.552 382.443 296.733 387.081 281.491C386.235 281.673 385.698 281.78 385.175 281.907C373.772 284.706 362.423 287.74 350.96 290.25C338.98 292.874 326.846 294.297 314.544 292.84C310.188 292.324 306.765 290.371 305.356 286.055C303.913 281.626 305.524 277.921 308.893 274.941C310.087 273.887 311.416 272.981 312.738 272.075C326.181 262.847 341.262 257.404 356.893 253.384C367.235 250.74 377.691 248.545 388.007 246.163ZM181.772 270.384C204.376 252.256 230.181 240.538 255.671 229.169C230.678 203.069 205.779 177.069 180.591 150.76C175.973 168.552 176.839 249.807 181.772 270.384ZM276.275 761.699C261.658 755.746 247.356 749.921 232.94 744.055C231.926 749.33 230.826 754.834 229.819 760.35C228.094 769.86 226.221 779.35 224.785 788.901C222.913 801.35 227.859 807.431 240.349 808.995C247.691 809.914 254.993 811.136 262.322 812.183C263.228 812.31 264.168 812.203 265.409 812.203C266.282 806.035 267.208 800.015 267.98 793.975C269.389 782.82 269.966 771.471 276.275 761.699ZM721.725 740.324C720.591 740.525 720.289 740.505 720.067 740.626C711.993 745.223 703.899 749.793 695.893 754.498C695.114 754.954 694.423 756.23 694.383 757.156C693.933 767.666 693.55 778.176 693.302 788.693C693.228 791.934 693.631 795.183 693.826 798.579C701.846 798.579 709.503 798.579 717.685 798.579C719.02 779.277 720.356 760.008 721.725 740.324ZM568.846 822.149C574.128 822.149 579.094 822.022 584.047 822.183C589.087 822.35 594.121 822.814 599.315 823.156C602.074 819.089 605.04 796.746 603.772 788.773C593.718 790.565 583.664 792.337 573.617 794.189C573.054 794.29 572.302 794.981 572.161 795.525C569.987 804.001 568.389 812.552 568.846 822.149ZM398.537 832.995C404.248 833.666 409.295 834.116 414.295 834.907C417.101 835.35 418.181 834.203 418.711 831.706C420.154 824.827 421.946 818.015 423.121 811.089C424.054 805.599 424.289 799.981 424.839 794.357C417.101 793.263 409.879 792.236 402.745 791.23C401.336 805.203 399.953 818.975 398.537 832.995Z" fill="currentColor"/> <path d="M388.009 246.162C377.686 248.545 367.237 250.733 356.901 253.397C341.277 257.417 326.196 262.86 312.747 272.088C311.431 272.994 310.096 273.894 308.901 274.954C305.532 277.941 303.921 281.645 305.364 286.068C306.774 290.384 310.19 292.337 314.552 292.853C326.854 294.31 338.988 292.887 350.968 290.263C362.431 287.753 373.78 284.719 385.183 281.92C385.713 281.793 386.243 281.686 387.089 281.504C382.451 296.739 388.183 307.558 401.143 315.001C410.156 320.169 420.532 319.9 427.163 314.793C426.532 314.236 425.935 313.699 425.324 313.175C418.337 307.182 414.666 296.585 421.525 286.377C439.089 260.222 458.069 235.276 480.955 213.484C496.962 198.243 514.465 185.008 533.693 174.075C545.337 167.457 557.445 174.229 558.25 187.571C559.284 204.659 560.727 221.712 561.861 238.793C563.284 260.209 564.25 281.639 561.572 303.028C561.19 306.075 562.009 308.29 564.223 310.249C569.928 315.283 576.465 317.102 583.854 315.243C590.841 313.484 595.17 307.739 595.277 300.296C595.317 297.779 595.069 295.256 594.935 292.269C600.237 294.518 605.264 296.571 610.217 298.78C630.425 307.759 649.894 318.155 668.861 329.498C675.042 333.196 681.29 334.028 687.364 329.686C693.592 325.229 696.418 319.001 695.304 311.296C694.566 306.182 691.485 302.639 687.143 300.061C662.297 285.316 636.66 272.155 609.794 261.457C604.646 259.41 599.451 257.471 594.217 255.659C592.243 254.974 591.425 254.001 592.183 251.592C597.304 252.927 602.458 254.189 607.566 255.618C648.753 267.169 687.19 284.511 721.411 310.477C755.129 336.068 781.861 367.384 798.405 406.719C811.955 438.941 817.257 472.531 814.055 507.384C809.384 558.209 788.653 602.001 754.693 639.518C711.391 687.363 657.774 718.001 594.995 732.639C558.398 741.169 521.25 743.571 483.767 742.558C418.532 740.8 355.532 727.491 293.962 706.484C277.774 700.961 261.539 695.618 246.25 687.826C220.243 674.571 200.405 654.625 184.472 630.545C166.505 603.39 155.223 573.457 148.304 541.793C142.17 513.712 139.727 485.296 141.512 456.578C143.995 416.571 154.277 378.994 176.7 345.29C190.525 324.511 208.398 308.041 229.707 295.048C268.183 271.578 309.002 253.833 352.941 243.531C361.163 241.605 369.505 240.155 377.821 238.645C378.753 238.477 380.076 239.095 380.881 239.759C383.371 241.806 385.706 244.068 388.009 246.162ZM610.056 393.243C610.056 386.759 610.176 380.37 610.022 373.994C609.861 367.256 605.613 362.169 599.163 360.605C589.123 358.175 580.941 364.263 580.438 374.833C580.042 383.196 580.009 391.571 579.908 399.947C579.888 401.652 579.384 402.598 577.747 403.377C552.982 415.169 535.982 434.155 526.894 459.894C518.995 482.283 520.183 504.155 533.539 524.444C544.163 540.571 559.438 550.303 577.894 555.303C579.505 555.739 580.72 555.974 580.76 558.243C581.082 576.115 581.572 593.981 581.995 611.853C582.015 612.585 581.915 613.316 581.861 614.336C580.76 614.075 579.834 613.961 578.988 613.632C570.948 610.498 562.854 607.484 554.915 604.115C550.257 602.135 545.619 600.538 540.498 600.927C528.861 601.82 519.337 610.383 516.633 622.357C514.29 632.712 518.894 642.209 529.29 648.249C545.378 657.592 562.613 663.84 580.955 666.914C583.284 667.303 583.794 668.216 583.841 670.33C584.042 679.545 584.391 688.759 584.68 697.974C584.841 703.122 587.23 706.726 591.532 708.296C598.874 710.981 605.908 706.504 606.472 698.645C606.754 694.706 606.653 690.746 606.78 686.8C606.962 681.001 607.19 675.209 607.398 669.316C613.787 668.847 619.948 668.39 626.324 667.92C626.371 668.847 626.418 669.766 626.472 670.685C627.089 681.014 627.633 691.343 628.358 701.665C628.666 706.035 631.337 708.659 634.975 708.706C638.035 708.746 639.673 706.981 640.458 702.397C642.498 690.451 644.579 678.511 646.358 666.524C646.76 663.833 647.861 662.82 650.277 662.021C696.693 646.639 731.25 604.33 736.089 556.31C738.069 536.699 732.311 519.249 718.284 505.014C704.753 491.29 687.901 487.028 669.203 488.504C665.881 488.766 662.586 489.316 659.27 489.733C658.539 481.873 662.545 428.988 664.257 425.625C668.814 427.773 673.626 429.545 677.915 432.169C686.8 437.605 695.465 443.424 704.123 449.236C709.069 452.558 713.76 452.115 717.606 447.592C721.029 443.565 721.425 438.847 718.639 434.31C709.297 419.108 696.384 407.954 680.096 400.773C675.384 398.699 670.458 397.102 665.297 395.162C665.297 391.075 665.512 386.746 665.243 382.437C664.928 377.384 664.619 372.263 663.532 367.343C662.364 362.075 656.639 358.303 651.445 358.484C646.572 358.659 643.525 361.632 642.056 367.746C641.485 370.122 640.935 372.504 640.552 374.914C639.666 380.444 638.881 385.988 638.102 391.216C628.881 391.9 619.901 392.538 610.056 393.243ZM318.639 608.954C323.337 608.504 332.753 608.068 342.022 606.632C367.418 602.685 390.391 593.028 410.196 576.363C446.552 545.779 450.767 496.182 419.982 460.082C407.539 445.491 391.7 435.8 373.982 428.947C366.17 425.927 357.874 424.585 349.894 422.29C316.753 412.739 283.693 412.612 250.968 422.927C207.391 436.665 181.19 466.249 174.76 511.847C171.948 531.793 177.552 550.075 190.579 565.746C201.082 578.383 214.854 586.363 229.74 592.592C256.66 603.847 284.941 608.243 318.639 608.954ZM376.539 349.095C367.277 349.135 359.378 352.538 353.183 359.551C343.767 370.216 342.847 384.934 350.666 397.498C357.606 408.659 371.713 413.967 385.217 410.491C401.988 406.175 412.599 388.981 408.492 372.853C407.035 367.122 403.351 362.981 399.304 358.954C393.002 352.672 385.519 349.343 376.539 349.095ZM200.458 358.907C197.19 359.659 193.794 360.068 190.68 361.229C178.941 365.598 170.673 378.035 171.579 389.726C172.693 404.075 181.243 415.263 195.096 419.196C200.109 420.618 205.19 420.41 210.21 418.088C216.935 414.981 220.76 409.135 224.693 403.477C226.545 400.82 227.599 397.39 228.223 394.155C228.753 391.37 228.196 388.37 228.049 385.464C227.25 370.531 215.559 359.437 200.458 358.907ZM512.472 229.162C505.841 229.296 500.371 233.645 496.149 240.222C489.592 250.417 482.74 260.424 476.29 270.686C473.915 274.457 471.76 278.551 470.505 282.8C468.559 289.37 471.378 296.162 476.606 299.746C482.156 303.551 489.056 303.592 494.847 299.484C497.351 297.712 499.72 295.571 501.66 293.196C509.029 284.162 516.284 275.028 523.398 265.793C525.854 262.605 528.082 259.162 529.888 255.565C536.042 243.269 527.512 229.243 512.472 229.162Z" fill="white"/> <path d="M181.77 270.382C176.837 249.805 175.965 168.55 180.589 150.758C205.777 177.067 230.676 203.067 255.67 229.167C230.186 240.536 204.374 252.254 181.77 270.382Z" fill="white"/> <path d="M276.276 761.698C269.967 771.47 269.39 782.819 267.981 793.966C267.216 800.007 266.289 806.027 265.41 812.195C264.169 812.195 263.229 812.309 262.323 812.174C254.994 811.127 247.692 809.906 240.35 808.986C227.86 807.423 222.914 801.342 224.786 788.893C226.222 779.335 228.095 769.846 229.82 760.342C230.82 754.825 231.927 749.322 232.94 744.047C247.357 749.919 261.659 755.745 276.276 761.698Z" fill="white"/> <path d="M721.725 740.32C720.356 760.005 719.02 779.273 717.685 798.575C709.497 798.575 701.846 798.575 693.825 798.575C693.631 795.179 693.228 791.931 693.302 788.689C693.544 778.173 693.933 767.663 694.382 757.152C694.423 756.226 695.121 754.951 695.893 754.495C703.906 749.79 711.993 745.22 720.067 740.622C720.289 740.502 720.591 740.522 721.725 740.32Z" fill="white"/> <path d="M568.846 822.146C568.383 812.549 569.987 803.999 572.161 795.529C572.302 794.979 573.054 794.294 573.618 794.193C583.658 792.341 593.718 790.569 603.772 788.777C605.04 796.744 602.074 819.093 599.315 823.16C594.128 822.818 589.094 822.361 584.047 822.187C579.094 822.019 574.128 822.146 568.846 822.146Z" fill="white"/> <path d="M398.535 832.992C399.945 818.972 401.334 805.2 402.737 791.227C409.871 792.24 417.092 793.26 424.83 794.354C424.28 799.985 424.045 805.596 423.112 811.086C421.938 818.005 420.146 824.824 418.703 831.703C418.179 834.2 417.092 835.348 414.287 834.905C409.3 834.113 404.247 833.663 398.535 832.992Z" fill="white"/> <path d="M610.054 393.242C619.9 392.537 628.88 391.899 638.115 391.242C638.893 386.007 639.678 380.463 640.564 374.94C640.954 372.53 641.497 370.148 642.068 367.772C643.537 361.658 646.584 358.678 651.457 358.51C656.652 358.329 662.376 362.094 663.544 367.369C664.631 372.289 664.94 377.41 665.256 382.463C665.524 386.765 665.309 391.101 665.309 395.188C670.47 397.128 675.397 398.725 680.108 400.799C696.403 407.98 709.309 419.134 718.652 434.336C721.437 438.873 721.048 443.591 717.618 447.618C713.772 452.141 709.081 452.584 704.135 449.262C695.477 443.45 686.819 437.638 677.927 432.195C673.638 429.571 668.826 427.799 664.269 425.651C662.558 429.014 658.551 481.899 659.282 489.758C662.591 489.342 665.893 488.792 669.215 488.53C687.907 487.054 704.766 491.316 718.296 505.04C732.323 519.269 738.074 536.718 736.101 556.336C731.262 604.356 696.712 646.665 650.289 662.047C647.873 662.846 646.772 663.859 646.37 666.55C644.591 678.537 642.511 690.477 640.47 702.423C639.685 707.007 638.048 708.772 634.987 708.732C631.35 708.685 628.678 706.061 628.37 701.691C627.638 691.369 627.101 681.04 626.484 670.712C626.43 669.792 626.39 668.873 626.336 667.946C619.96 668.416 613.806 668.873 607.41 669.342C607.202 675.235 606.974 681.027 606.793 686.826C606.672 690.772 606.766 694.738 606.484 698.671C605.92 706.53 598.886 711.007 591.544 708.322C587.242 706.752 584.853 703.148 584.692 698C584.403 688.785 584.054 679.571 583.853 670.356C583.806 668.242 583.296 667.329 580.967 666.94C562.625 663.866 545.39 657.618 529.303 648.275C518.907 642.235 514.303 632.738 516.645 622.383C519.35 610.403 528.873 601.839 540.511 600.953C545.631 600.564 550.269 602.161 554.927 604.141C562.866 607.517 570.96 610.53 579.001 613.658C579.846 613.987 580.772 614.101 581.873 614.363C581.933 613.336 582.027 612.604 582.007 611.879C581.584 594.007 581.095 576.141 580.772 558.269C580.732 556 579.517 555.758 577.907 555.329C559.45 550.329 544.168 540.597 533.551 524.47C520.189 504.181 519.001 482.309 526.907 459.92C535.987 434.181 552.994 415.195 577.759 403.403C579.397 402.624 579.893 401.678 579.92 399.973C580.021 391.604 580.054 383.222 580.45 374.859C580.954 364.289 589.135 358.201 599.175 360.631C605.625 362.188 609.88 367.275 610.034 374.02C610.168 380.369 610.054 386.758 610.054 393.242ZM636.712 420.926C628.793 420.96 621.289 422.275 613.927 424.705C611.84 425.396 611.061 426.302 611.074 428.644C611.175 453.282 611.128 477.926 611.121 502.564C611.121 503.47 611.121 504.376 611.121 505.967C618.457 503.49 625.303 501.222 632.088 498.805C632.678 498.597 633.222 497.389 633.262 496.624C634.45 473.43 635.584 450.235 636.699 427.04C636.793 425.094 636.712 423.141 636.712 420.926ZM652.35 604.456C664.155 597.611 676.538 582.584 681.303 569.738C683.598 563.557 684.531 557.215 684.068 550.638C683.484 542.443 679.276 538.738 671.269 540.101C666.772 540.866 662.45 542.618 658.007 543.799C656.249 544.269 655.725 545.181 655.631 546.96C654.826 561.893 653.907 576.812 653.034 591.745C652.786 595.852 652.584 599.96 652.35 604.456ZM610.262 558.423C609.793 578.181 609.316 597.946 608.826 618.369C614.692 617.564 620.061 616.906 625.39 616C626.041 615.893 626.873 614.47 626.92 613.611C627.933 596.081 628.853 578.537 629.752 561C629.866 558.805 629.766 556.604 629.766 554.503C623.289 555.805 616.967 557.074 610.262 558.423ZM579.464 448.624C572.873 454.725 568.088 461.785 565.853 470.363C563.276 480.289 565.39 489.356 571.088 497.685C573.168 500.718 575.933 503.034 579.457 504.738C579.464 485.772 579.464 467.201 579.464 448.624Z" fill="currentColor"/> <path d="M318.639 608.952C284.935 608.24 256.66 603.844 229.74 592.583C214.854 586.354 201.082 578.374 190.579 565.737C177.552 550.066 171.948 531.791 174.76 511.838C181.19 466.24 207.391 436.656 250.968 422.918C283.7 412.603 316.753 412.73 349.894 422.281C357.874 424.583 366.17 425.918 373.982 428.938C391.7 435.791 407.539 445.482 419.982 460.072C450.767 496.173 446.552 545.77 410.196 576.354C390.391 593.019 367.418 602.676 342.022 606.623C332.76 608.066 323.337 608.502 318.639 608.952ZM313.566 562.093C325.116 561.999 336.324 560.891 347.21 557.596C360.713 553.509 373.129 547.435 382.821 536.838C389.478 529.556 393.076 521.005 391.525 511.025C390.888 506.918 388.982 503.019 387.834 498.972C383.525 483.811 372.841 474.247 359.404 467.556C351.532 463.636 343.062 460.905 334.868 457.616C332.72 456.757 330.686 455.408 328.465 454.978C305.438 450.529 282.807 452.106 260.686 459.979C241.619 466.757 227.827 479.334 219.787 497.965C216.559 505.442 215.156 513.267 216.847 521.381C219.29 533.106 226.928 540.636 237.492 545.052C261.874 555.254 287.203 561.569 313.566 562.093Z" fill="currentColor"/> <path d="M376.536 349.094C385.509 349.342 392.992 352.671 399.294 358.946C403.335 362.973 407.026 367.121 408.482 372.845C412.59 388.973 401.979 406.168 385.207 410.483C371.704 413.959 357.596 408.651 350.657 397.49C342.845 384.926 343.757 370.201 353.174 359.543C359.375 352.537 367.274 349.134 376.536 349.094Z" fill="currentColor"/> <path d="M200.455 358.906C215.555 359.43 227.253 370.53 228.039 385.47C228.193 388.369 228.75 391.376 228.213 394.161C227.596 397.396 226.535 400.819 224.683 403.483C220.75 409.141 216.924 414.98 210.2 418.094C205.179 420.416 200.099 420.618 195.086 419.202C181.24 415.275 172.69 404.081 171.569 389.732C170.656 378.04 178.931 365.598 190.669 361.235C193.79 360.067 197.186 359.665 200.455 358.906Z" fill="currentColor"/> <path d="M512.47 229.16C527.517 229.241 536.04 243.268 529.879 255.563C528.081 259.16 525.846 262.603 523.389 265.791C516.275 275.026 509.02 284.16 501.651 293.194C499.712 295.57 497.343 297.704 494.839 299.482C489.047 303.583 482.148 303.543 476.598 299.744C471.369 296.16 468.551 289.368 470.497 282.798C471.752 278.556 473.913 274.462 476.282 270.684C482.732 260.422 489.584 250.422 496.141 240.221C500.369 233.643 505.832 229.301 512.47 229.16Z" fill="currentColor"/> <path d="M636.712 420.926C636.712 423.141 636.792 425.094 636.699 427.04C635.584 450.235 634.45 473.429 633.262 496.624C633.222 497.396 632.678 498.597 632.088 498.805C625.296 501.221 618.457 503.49 611.121 505.966C611.121 504.375 611.121 503.469 611.121 502.563C611.128 477.926 611.175 453.281 611.074 428.644C611.068 426.302 611.839 425.389 613.927 424.704C621.289 422.275 628.792 420.959 636.712 420.926Z" fill="white"/> <path d="M652.348 604.456C652.589 599.953 652.791 595.852 653.026 591.745C653.898 576.818 654.817 561.892 655.623 546.959C655.717 545.181 656.24 544.261 657.999 543.798C662.435 542.624 666.757 540.865 671.26 540.1C679.274 538.738 683.482 542.443 684.059 550.637C684.522 557.208 683.589 563.557 681.294 569.738C676.536 582.584 664.153 597.61 652.348 604.456Z" fill="white"/> <path d="M610.262 558.424C616.966 557.082 623.295 555.807 629.772 554.512C629.772 556.606 629.872 558.814 629.758 561.008C628.859 578.545 627.933 596.089 626.926 613.619C626.879 614.471 626.04 615.894 625.396 616.008C620.067 616.914 614.698 617.572 608.832 618.377C609.315 597.948 609.785 578.183 610.262 558.424Z" fill="white"/> <path d="M579.463 448.625C579.463 467.202 579.463 485.779 579.463 504.739C575.94 503.034 573.168 500.719 571.094 497.685C565.396 489.363 563.282 480.289 565.859 470.363C568.088 461.779 572.873 454.719 579.463 448.625Z" fill="white"/> <path d="M313.565 562.095C287.202 561.572 261.874 555.256 237.491 545.062C226.934 540.646 219.29 533.115 216.847 521.391C215.155 513.276 216.558 505.444 219.786 497.974C227.833 479.337 241.619 466.766 260.686 459.988C282.813 452.122 305.437 450.538 328.464 454.988C330.686 455.417 332.719 456.766 334.867 457.625C343.061 460.914 351.525 463.639 359.404 467.565C372.84 474.256 383.518 483.82 387.833 498.981C388.981 503.028 390.887 506.927 391.525 511.035C393.075 521.015 389.478 529.558 382.82 536.847C373.129 547.451 360.713 553.518 347.209 557.605C336.33 560.894 325.115 561.995 313.565 562.095ZM355.223 503.162C355.008 501.659 354.988 498.86 354.189 496.303C351.518 487.78 346.102 481.565 337.283 479.337C328.934 477.223 321.585 479.8 315.921 486.27C309.981 493.062 309.605 501.102 311.78 509.391C313.276 515.102 315.343 520.666 316.793 526.391C318.397 532.74 322.229 536.592 328.545 537.833C335.357 539.176 341.572 537.599 345.518 531.699C351.008 523.498 354.565 514.417 355.223 503.162ZM288.746 506.511C288.572 504.954 288.464 503.545 288.249 502.156C286.451 490.532 273.88 482.464 263.062 485.968C251.088 489.847 246.491 503.149 252.853 515.115C253.813 516.927 254.437 519.075 254.598 521.115C255.176 528.142 259.008 533.263 265.384 535.035C271.666 536.78 278.317 534.431 281.806 528.733C285.981 521.914 288.115 514.357 288.746 506.511Z" fill="white"/> <path d="M355.221 503.16C354.563 514.415 351.006 523.495 345.523 531.703C341.577 537.603 335.369 539.18 328.55 537.838C322.235 536.596 318.402 532.737 316.798 526.395C315.355 520.67 313.288 515.106 311.785 509.395C309.61 501.106 309.98 493.066 315.926 486.274C321.59 479.804 328.939 477.227 337.288 479.341C346.107 481.569 351.523 487.784 354.194 496.308C354.986 498.858 355.006 501.657 355.221 503.16Z" fill="currentColor"/> <path d="M288.744 506.511C288.12 514.35 285.979 521.914 281.805 528.739C278.315 534.437 271.657 536.786 265.382 535.041C259.006 533.27 255.167 528.149 254.597 521.122C254.429 519.082 253.811 516.927 252.852 515.122C246.489 503.155 251.093 489.847 263.06 485.974C273.885 482.471 286.456 490.538 288.248 502.162C288.456 503.551 288.563 504.954 288.744 506.511Z" fill="currentColor"/> </g> <defs> <clipPath id="pigclip"> <rect width="781.879" height="800" fill="white" transform="translate(89 80)"/> </clipPath> </defs> </svg>';
       let cells = '';
       for(let i=0;i<startWd;i++) cells += '<div class="cal-cell empty"></div>';
+      // Auf dem Handy ist eine Zelle nur ~46 px breit — „2.132,00 €" passt dort
+      // nicht und würde das 7-Spalten-Raster über den Bildschirmrand drücken.
+      const calNarrow = window.innerWidth <= 640;
+      const calPrice = p => calNarrow ? Math.round(p).toLocaleString('de-DE') + ' €' : eur(p);
       for(let d=1; d<=dim; d++){
         const iso = `${Y}-${String(M).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
         const price = pm[iso];
@@ -4085,7 +5330,7 @@
         const inner = `<span class="cal-d">${d}</span>${infoIcon}`
           + (iso===job.cheapest_date?PIG:'')   // Sparschwein als direktes Zellenkind → mittig
           + (calTrendView && mv ? deltaBadge
-             : price!=null ? `<span class="cal-p">${eur(price)}</span>` : '<span class="cal-p na">–</span>');
+             : price!=null ? `<span class="cal-p">${calPrice(price)}</span>` : '<span class="cal-p na">–</span>');
         // data-iso: Ankerpunkt für calJump(), das die Zelle nach dem Monatswechsel
         // kurz hervorhebt — im 30-Tage-Raster wäre sonst nicht erkennbar, welcher
         // Tag gemeint war.
@@ -4312,6 +5557,7 @@
       if(emailMode === 'trips') return submitTripSummaryEmail(to.trim());
       if(emailMode === 'search') return submitSearchEmail(to.trim());
       if(emailMode === 'climate') return submitClimateEmail(to.trim());
+      if(emailMode === 'guide') return submitGuideEmail(to.trim());
       toast('E-Mail wird gesendet…');
       const body = {to: to.trim()};
       if(emailIds) body.ids = emailIds;
@@ -4511,10 +5757,22 @@
 
     $('#sort').value = sortMode;
     $('#sort').addEventListener('change', e=>{ sortMode = e.target.value; localStorage.setItem('tw-sort', sortMode); renderAll(curOffers||[]); });
+    // Archiv und Preisverlauf sind exklusive Ansichten (nur diese Angebote) und
+    // schließen sich gegenseitig aus — beide an wäre eine leere Schnittmenge.
+    function setViewFilter(which, on){
+      showArchived = which==='archived' ? on : (on ? false : showArchived);
+      showHistOnly = which==='hist'     ? on : (on ? false : showHistOnly);
+      localStorage.setItem('tw-show-archived', showArchived?'1':'0');
+      localStorage.setItem('tw-show-histonly', showHistOnly?'1':'0');
+      $('#show-archived').checked = showArchived;
+      $('#show-histonly').checked = showHistOnly;
+      renderAll(curOffers||[]);
+    }
+    if(showArchived && showHistOnly) showArchived = false;   // Altstand aus localStorage
     $('#show-archived').checked = showArchived;
-    $('#show-archived').addEventListener('change', e=>{ showArchived = e.target.checked; localStorage.setItem('tw-show-archived', showArchived?'1':'0'); renderAll(curOffers||[]); });
+    $('#show-archived').addEventListener('change', e=>setViewFilter('archived', e.target.checked));
     $('#show-histonly').checked = showHistOnly;
-    $('#show-histonly').addEventListener('change', e=>{ showHistOnly = e.target.checked; localStorage.setItem('tw-show-histonly', showHistOnly?'1':'0'); renderAll(curOffers||[]); });
+    $('#show-histonly').addEventListener('change', e=>setViewFilter('hist', e.target.checked));
 
     if('serviceWorker' in navigator){ try{ navigator.serviceWorker.register((G.base||'')+'/sw.js', {scope:(G.base||'')+'/'}); }catch(e){} }
 

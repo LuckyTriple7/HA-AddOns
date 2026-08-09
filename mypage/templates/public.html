@@ -324,6 +324,47 @@
     .svc-title { font-weight: 700; margin-bottom: 6px; }
     .svc-desc { color: var(--muted); font-size: 0.9rem; }
     .svc-price { margin-top: 10px; font-weight: 700; color: var(--accent); }
+    /* Bibliothek — horizontales Karussell wie die Fotoalben, damit viele Einträge
+       die Startseite nicht in die Länge ziehen */
+    .lib-rail-wrap { position: relative; padding-bottom: 8px; }
+    .lib-rail {
+      display: flex; gap: 14px; overflow-x: auto; scroll-snap-type: x mandatory;
+      scroll-behavior: smooth; padding-bottom: 4px;
+      scrollbar-width: thin; scrollbar-color: var(--border) transparent;
+    }
+    .lib-rail::-webkit-scrollbar { height: 8px; }
+    .lib-rail::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+    .lib-arrow {
+      position: absolute; top: calc(50% - 6px); transform: translateY(-50%); z-index: 3;
+      width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--border);
+      background: var(--surf); color: var(--text); cursor: pointer; font-size: 1.3rem; line-height: 1;
+      display: none; align-items: center; justify-content: center; box-shadow: 0 2px 10px rgba(0,0,0,.25);
+    }
+    .lib-arrow:hover { border-color: var(--accent); color: var(--accent); }
+    .lib-arrow.show { display: flex; }
+    .lib-arrow.lib-prev { left: -6px; } .lib-arrow.lib-next { right: -6px; }
+    @media (hover: none) { .lib-arrow { display: none !important; } }
+    .lib-card { flex: 0 0 260px; scroll-snap-align: start;
+                display: flex; flex-direction: column; background: var(--surf); border: 1px solid var(--border);
+                border-radius: 12px; overflow: hidden; color: var(--text); transition: transform .15s, border-color .15s; }
+    .lib-card:hover { transform: translateY(-3px); border-color: var(--accent); text-decoration: none; }
+    .lib-thumb { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; background: var(--surf2, var(--surf)); }
+    .lib-body { padding: 14px 16px 16px; }
+    .lib-cat { font-size: 0.74rem; color: var(--muted); }
+    .lib-name { font-weight: 700; margin: 3px 0 5px; }
+    .lib-sum { color: var(--muted); font-size: 0.86rem; }
+    .lib-flags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; font-size: 0.72rem; color: var(--muted); }
+    .lib-flag { border: 1px solid var(--border); border-radius: 999px; padding: 1px 8px; }
+    .lib-more { margin-top: 14px; font-size: 0.9rem; }
+    .lib-tagbar { display: flex; flex-wrap: wrap; gap: 7px; margin: -8px 0 16px; }
+    .lib-tag {
+      font-family: inherit; font-size: 0.75rem; padding: 4px 12px; border-radius: 999px;
+      color: var(--muted); background: var(--surf); border: 1px solid var(--border);
+      cursor: pointer; transition: border-color .15s, color .15s;
+    }
+    .lib-tag:hover { border-color: var(--accent); color: var(--text); }
+    .lib-tag.active { border-color: var(--accent); color: var(--accent); }
+    .lib-card[hidden] { display: none; }
     /* Referenzen */
     .tm-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
     .tm-card { background: var(--surf); border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin: 0; }
@@ -669,6 +710,42 @@
       </div>
       {% endfor %}
       <div class="news-item"><span class="news-date"></span><span class="news-text"><a href="/blog">{{ t.blog_all }} →</a></span></div>
+    </div>
+    {% endif %}
+
+    {% elif _sec == 'library' %}
+    {% if library_entries %}
+    <h2 class="section-title" id="library">{{ library_heading }}</h2>
+    {% if library_tags %}
+    <div class="lib-tagbar" id="lib-tagbar">
+      <button type="button" class="lib-tag active" data-tag="">{{ t.library_all }}</button>
+      {% for tg in library_tags %}
+      <button type="button" class="lib-tag" data-tag="{{ tg|lower }}">{{ tg }}</button>
+      {% endfor %}
+    </div>
+    {% endif %}
+    <div class="lib-rail-wrap">
+      <button class="lib-arrow lib-prev" onclick="libRailScroll(-1)" aria-label="{{ t.aria_back }}">‹</button>
+      <div class="lib-rail" id="lib-rail">
+        {% for le in library_entries %}
+        <a class="lib-card" href="/bibliothek/{{ le.slug }}" data-tags="{{ le.tags|map('lower')|join('|') }}">
+          {% if le.image %}<img class="lib-thumb" src="{{ le.image }}" alt="" loading="lazy">{% endif %}
+          <div class="lib-body">
+            {% if le.cat_name %}<div class="lib-cat">{% if le.cat_icon %}{{ le.cat_icon }} {% endif %}{{ le.cat_name }}</div>{% endif %}
+            <div class="lib-name">{{ le.title }}</div>
+            {% if le.summary %}<div class="lib-sum">{{ le.summary }}</div>{% endif %}
+            <div class="lib-flags">
+              {% if le.has_pdf %}<span class="lib-flag">📄 PDF</span>{% endif %}
+              {% if le.members_only %}<span class="lib-flag">🔒 {{ t.members_only_badge }}</span>{% endif %}
+            </div>
+          </div>
+        </a>
+        {% endfor %}
+      </div>
+      <button class="lib-arrow lib-next" onclick="libRailScroll(1)" aria-label="{{ t.aria_next }}">›</button>
+    </div>
+    <div class="lib-more">
+      <a href="/bibliothek" id="lib-more-link">{{ t.library_open }} →</a>
     </div>
     {% endif %}
 
@@ -1128,6 +1205,48 @@
       window.addEventListener('resize', updateRailArrows);
       window.addEventListener('load', updateRailArrows);
       updateRailArrows();
+    }
+
+    // Bibliothek-Karussell (gleiches Muster wie die Fotoalben, eigener Zustand)
+    const libRail = document.getElementById('lib-rail');
+    function libRailScroll(dir) {
+      if (libRail) libRail.scrollBy({ left: dir * 274, behavior: 'smooth' });
+    }
+    function updateLibArrows() {
+      if (!libRail) return;
+      const prev = document.querySelector('.lib-prev'), next = document.querySelector('.lib-next');
+      const overflow = libRail.scrollWidth > libRail.clientWidth + 4;
+      prev.classList.toggle('show', overflow && libRail.scrollLeft > 4);
+      next.classList.toggle('show', overflow && libRail.scrollLeft < libRail.scrollWidth - libRail.clientWidth - 4);
+    }
+    if (libRail) {
+      libRail.addEventListener('scroll', updateLibArrows, { passive: true });
+      window.addEventListener('resize', updateLibArrows);
+      window.addEventListener('load', updateLibArrows);
+      updateLibArrows();
+    }
+
+    // Schlagwort-Filter im Karussell — im Browser, ohne Neuladen der Startseite.
+    // Gefiltert werden die angerissenen Karten; „Alle anzeigen" führt auf die
+    // vollständige Übersicht und übernimmt dabei das gewählte Schlagwort.
+    const libTagbar = document.getElementById('lib-tagbar');
+    if (libTagbar && libRail) {
+      libTagbar.addEventListener('click', e => {
+        const btn = e.target.closest('.lib-tag');
+        if (!btn) return;
+        const tag = btn.dataset.tag || '';
+        libTagbar.querySelectorAll('.lib-tag').forEach(b => b.classList.toggle('active', b === btn));
+        libRail.querySelectorAll('.lib-card').forEach(card => {
+          const tags = (card.dataset.tags || '').split('|').filter(Boolean);
+          card.hidden = !(!tag || tags.includes(tag));
+        });
+        // Der Link zur vollen Übersicht übernimmt das gewählte Schlagwort — dort
+        // stehen auch Treffer, die außerhalb des Anrisses liegen.
+        const link = document.getElementById('lib-more-link');
+        if (link) link.href = tag ? '/bibliothek?tag=' + encodeURIComponent(tag) : '/bibliothek';
+        libRail.scrollTo({ left: 0, behavior: 'smooth' });
+        updateLibArrows();
+      });
     }
 
     // Karte erst auf Klick laden (datenschutzfreundlich, OpenStreetMap)

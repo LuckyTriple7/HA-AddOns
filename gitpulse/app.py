@@ -152,6 +152,13 @@ _seen_issues: dict[str, set] = defaultdict(set)  # repo → {issue_number, …}
 _known_run_conclusions: dict[int, str | None] = {}  # run_id → conclusion
 _repo_stats: dict[str, dict] = {}  # repo → {stars, forks, watchers} für Änderungserkennung
 
+# Doppel-Benachrichtigungen bei Security-Alerts unterdrücken.
+# GitHub feuert für einen neuen Code-Scanning-Alert zwei Webhooks ("created" und
+# "appeared_in_branch") — beide sollen zusammen nur eine Nachricht ergeben.
+_ALERT_NOTIFY_TTL = 900   # Sekunden
+_alert_notified: dict[str, float] = {}   # "cs:{repo}#{num}:{gruppe}" → timestamp
+_alert_notify_lock = threading.Lock()
+
 # ── Rate limiting ─────────────────────────────────────────────────────────────
 _failed_attempts: dict[str, list[float]] = defaultdict(list)
 _blocked_ips:     dict[str, float]       = {}
@@ -989,6 +996,24 @@ def _trigger_repo_poll(repo_name: str) -> None:
             log.info("Webhook-Repo-Poll abgeschlossen: %s", repo_name)
     except Exception as e:
         log.error("Webhook-Repo-Poll Fehler (%s): %s", repo_name, e)
+
+
+def _alert_notify_once(key: str) -> bool:
+    """True, wenn für diesen Alert-Schlüssel im TTL-Fenster noch nicht benachrichtigt wurde.
+
+    GitHub schickt pro neuem Code-Scanning-Alert mehrere Webhooks (z. B. "created"
+    und "appeared_in_branch"). Beide bekommen denselben Schlüssel, damit nur der
+    erste eine Nachricht auslöst.
+    """
+    now = time.time()
+    with _alert_notify_lock:
+        for k, ts in list(_alert_notified.items()):
+            if now - ts > _ALERT_NOTIFY_TTL:
+                del _alert_notified[k]
+        if key in _alert_notified:
+            return False
+        _alert_notified[key] = now
+        return True
 
 
 def _tg_em(cfg: dict, tg_token: str, tg_chat: str, tg_notif: dict, em_notif: dict,
@@ -2810,7 +2835,11 @@ def github_webhook():
         sev_icon = _sev_icons.get(severity, '⚠️')
         act_label = _action_map.get(action, action)
         log.warning("Code Scanning Alert [%s/%s] in %s: %s (#%s)", severity, action, repo_full, desc, alert_num)
-        if action in ('created', 'appeared_in_branch', 'reopened', 'reopened_by_user'):
+        # "created" und "appeared_in_branch" beschreiben denselben neuen Alert und kommen
+        # als zwei Webhooks — gemeinsamer Schlüssel, damit nur eine Nachricht rausgeht.
+        _grp = 'open' if action in ('created', 'appeared_in_branch') else 'reopen'
+        if action in ('created', 'appeared_in_branch', 'reopened', 'reopened_by_user') \
+                and _alert_notify_once(f"cs:{repo_full}#{alert_num}:{_grp}"):
             em_lines = [f"#{alert_num} · {severity.upper()} · {act_label}", f"Tool: {tool_name}", desc]
             if loc_str: em_lines.append(f"📄 {loc_str}")
             if alert_url: em_lines.append(f"<a href=\"{alert_url}\">Alert anzeigen</a>")

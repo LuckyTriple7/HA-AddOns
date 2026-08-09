@@ -8,6 +8,7 @@ SQLite und zeigt Verlauf + Hoch/Runter-Anzeige in einer Weboberfläche.
 import csv
 import hashlib
 import io
+import ipaddress
 import json
 import logging
 import os
@@ -89,7 +90,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.67.2"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.87.4"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -104,6 +105,18 @@ MIN_POLL_INTERVAL = 600        # nie öfter als alle 10 min (Bot-Schutz/Fairness
 HISTORY_ONLY_HOUR = 9   # fixer Tages-Slot für Preisverlauf-Angebote (lokale Zeit)
 HISTORY_ONLY_SPREAD_MIN = 60  # Streuung in Minuten ab HISTORY_ONLY_HOUR (kein Burst um Punkt 9)
 MAX_PDF_BYTES = 16 * 1024 * 1024  # 16 MB Upload-Limit für Reise-PDFs
+
+# „Für andere"-Listen: frei benannte Sammlungen für Angebote, die nicht für den
+# Nutzer selbst sind. Der Name steht direkt am Angebot (offers.foreign_list) —
+# dadurch wandert er ohne Zusatztabelle durch Backup/Restore. Eine Liste ohne
+# Angebote existiert folglich nicht.
+FOREIGN_LIST_DEFAULT = 'Für andere'  # Name für Bestand aus der Ein-Listen-Zeit
+FOREIGN_LIST_MAXLEN = 40
+# Symbol der Liste, ebenfalls am Angebot (offers.foreign_icon). Leer = 👥.
+# Ein Emoji kann aus mehreren Codepoints bestehen (Familie, Hautton, Flagge),
+# deshalb 12 Zeichen statt 1 — es wird nur angezeigt, nie ausgewertet.
+FOREIGN_ICON_DEFAULT = '👥'
+FOREIGN_ICON_MAXLEN = 12
 
 app = Flask(__name__, template_folder=_BASE + '/templates',
             static_folder=_BASE + '/static')
@@ -147,6 +160,7 @@ _aktion_state: dict = {}               # transienter Status des Aktionscode-Abru
 _aktion_lock = threading.Lock()
 _cheaper_notified: dict[int, str] = {}  # Dedup für Günstigerer-Termin-Alarm
 _fail_notified: set[int] = set()        # offer_ids mit aktivem Ausverkauft-/Fehler-Alarm
+_vac_notified: set[int] = set()         # offer_ids mit aktivem Nicht-bestätigt-Alarm (vacancy-check)
 ERROR_ALARM_STREAK = 3                   # ab so vielen Fehlversuchen in Folge melden
 _health_state: dict = {}                 # letzter API-Selbsttest {ok, ts, checks, running}
 _health_lock = threading.Lock()
@@ -280,9 +294,61 @@ def touch_session(token: str, hours: int) -> None:
         save_sessions()
 
 
+def _is_valid_ip(value: str) -> bool:
+    """Syntaktisch gültige IP-Adresse? Header-Inhalte sind Fremdeingaben — nur
+    geprüfte Literale dürfen weiter (in Log, Datenbank, Anzeige)."""
+    try:
+        ipaddress.ip_address(value)
+        return True
+    except ValueError:
+        return False
+
+
+def _is_internal_ip(value: str) -> bool:
+    """Private/lokale Adresse? (Docker-Bridge 172.30.32.1, 192.168.…, ::1 …)"""
+    try:
+        addr = ipaddress.ip_address(value)
+    except ValueError:
+        return True   # kein gültiges Literal → als unbrauchbar behandeln
+    return (addr.is_private or addr.is_loopback or addr.is_link_local
+            or addr.is_reserved or addr.is_unspecified)
+
+
+def log_safe(value, limit: int = 120) -> str:
+    """Fremdeingabe fürs Log entschärfen: keine Zeilenumbrüche/Steuerzeichen
+    (sonst lassen sich zusätzliche Log-Zeilen unterschieben), gekappte Länge."""
+    text = re.sub(r'[\x00-\x1f\x7f]', ' ', str(value))
+    return text[:limit] + ('…' if len(text) > limit else '')
+
+
 def get_client_ip(req) -> str:
-    cf = req.headers.get('CF-Connecting-IP', '').strip()
-    return cf or (req.remote_addr or 'unknown')
+    """Beste bekannte Client-Adresse.
+
+    Läuft die Seite hinter mehreren Ebenen (Cloudflare → Reverse Proxy → HA), ist
+    `remote_addr` die Docker-Bridge (172.30.32.1) und ProxyFix greift nur einen
+    Hop tief. Deshalb der Reihe nach: die eindeutigen Proxy-Header, dann der
+    erste öffentliche Eintrag der X-Forwarded-For-Kette (links = Client), erst
+    zum Schluss der direkte Absender.
+
+    Verlassen kann man sich darauf nur so weit wie auf den eigenen Proxy: einen
+    X-Forwarded-For-Kopf kann jeder mitschicken. Cloudflare und die üblichen
+    Reverse Proxies überschreiben ihn, ein direkt erreichbarer Port nicht.
+    Zurück kommt deshalb immer nur ein geprüftes IP-Literal oder `remote_addr`
+    aus der Verbindung — nie roher Header-Text, der später in Log, Datenbank
+    oder Oberfläche landen würde.
+    """
+    for header in ('CF-Connecting-IP', 'True-Client-IP', 'X-Real-IP'):
+        val = (req.headers.get(header) or '').strip()
+        if val and _is_valid_ip(val) and not _is_internal_ip(val):
+            return val
+    chain = [p.strip() for p in (req.headers.get('X-Forwarded-For') or '').split(',')]
+    for val in chain:
+        if val and _is_valid_ip(val) and not _is_internal_ip(val):
+            return val
+    # Nichts Öffentliches dabei: der erste gültige Eintrag der Kette (LAN-Zugriff),
+    # sonst der direkte Absender.
+    first_valid = next((v for v in chain if v and _is_valid_ip(v)), None)
+    return first_valid or req.remote_addr or 'unknown'
 
 
 def is_rate_limited(ip: str) -> bool:
@@ -319,6 +385,21 @@ def _json_loads_safe(text, default):
     except (ValueError, TypeError) as e:
         log.warning("Kaputtes JSON in DB-Feld ignoriert: %s", e)
         return default
+
+
+def normalize_foreign_list(raw) -> str:
+    """Listenname für „Für andere": eine Zeile, getrimmt, gekappt.
+
+    Leerstring bedeutet „steht in keiner Liste" (Angebot ist für den Nutzer
+    selbst) — der Name ist zugleich die Identität der Liste.
+    """
+    name = re.sub(r'\s+', ' ', str(raw or '')).strip()
+    return name[:FOREIGN_LIST_MAXLEN]
+
+
+def normalize_foreign_icon(raw) -> str:
+    """Symbol einer „Für andere"-Liste. Leerstring = Standardsymbol 👥."""
+    return re.sub(r'\s+', '', str(raw or ''))[:FOREIGN_ICON_MAXLEN]
 
 
 # ── Datenbank ──────────────────────────────────────────────────────────────────
@@ -364,6 +445,18 @@ def init_db() -> None:
             check24_link     TEXT DEFAULT '',
             notify_muted          INTEGER NOT NULL DEFAULT 0,
             notify_calendar_muted INTEGER NOT NULL DEFAULT 0,
+            -- Angebot ist nicht für den Nutzer selbst, sondern ein Vorschlag für
+            -- andere (siehe Teilen-Funktion): rutscht in der Liste ans Ende und
+            -- wird dort eingeklappt gezeigt. `is_foreign` statt `foreign`, weil
+            -- FOREIGN ein SQL-Schlüsselwort ist.
+            is_foreign            INTEGER NOT NULL DEFAULT 0,
+            -- Name der „Für andere"-Liste, in der das Angebot steht (leer = keine).
+            -- Mehrere Listen mit frei wählbaren Namen sind möglich; es gilt
+            -- immer is_foreign=1 <=> foreign_list<>''.
+            foreign_list          TEXT NOT NULL DEFAULT '',
+            -- Symbol der Liste (leer = 👥). Steht wie der Name an jedem Angebot
+            -- der Liste und wird für alle Mitglieder gemeinsam geändert.
+            foreign_icon          TEXT NOT NULL DEFAULT '',
             created     INTEGER NOT NULL
         )''')
         con.execute('''CREATE TABLE IF NOT EXISTS price_history (
@@ -615,9 +708,34 @@ def init_db() -> None:
             con.execute("ALTER TABLE offers ADD COLUMN notify_muted INTEGER NOT NULL DEFAULT 0")
         if 'notify_calendar_muted' not in ocols:
             con.execute("ALTER TABLE offers ADD COLUMN notify_calendar_muted INTEGER NOT NULL DEFAULT 0")
+        if 'is_foreign' not in ocols:
+            con.execute("ALTER TABLE offers ADD COLUMN is_foreign INTEGER NOT NULL DEFAULT 0")
+        if 'foreign_list' not in ocols:
+            # Vor v0.82.0 gab es nur eine namenlose Liste — deren Angebote
+            # bekommen den bisherigen Anzeigenamen, damit nichts verschwindet.
+            con.execute("ALTER TABLE offers ADD COLUMN foreign_list TEXT NOT NULL DEFAULT ''")
+            con.execute("UPDATE offers SET foreign_list=? WHERE is_foreign=1",
+                        (FOREIGN_LIST_DEFAULT,))
+        if 'foreign_icon' not in ocols:
+            con.execute("ALTER TABLE offers ADD COLUMN foreign_icon TEXT NOT NULL DEFAULT ''")
+        # vacancy-check (v0.69.0): Gepäck/Zahlungskonditionen einmalig je Angebot,
+        # "zuletzt gebucht" je Poll aktualisiert
+        for col in ('luggage', 'last_booked', 'final_payment_date',
+                    'errata', 'flight_segments', 'hotel_supplier', 'flight_flags'):
+            if col not in ocols:
+                con.execute(f"ALTER TABLE offers ADD COLUMN {col} TEXT DEFAULT ''")
+        if 'deposit_pct' not in ocols:
+            con.execute("ALTER TABLE offers ADD COLUMN deposit_pct REAL")
         hcols = {r['name'] for r in con.execute('PRAGMA table_info(price_history)').fetchall()}
         if 'available' not in hcols:
             con.execute("ALTER TABLE price_history ADD COLUMN available INTEGER")
+        # Preis-Aufschlüsselung Hotel/Hinflug/Rückflug + Live-Bestätigungsstatus
+        # aus dem vacancy-check (v0.69.0). vac_ok: NULL=unbekannt, 1=OK, 0=FAILED.
+        for col in ('price_hotel', 'price_flight_out', 'price_flight_ret'):
+            if col not in hcols:
+                con.execute(f"ALTER TABLE price_history ADD COLUMN {col} REAL")
+        if 'vac_ok' not in hcols:
+            con.execute("ALTER TABLE price_history ADD COLUMN vac_ok INTEGER")
         # Backfill: Hotelname aus der URL für Einträge ohne Namen
         for r in con.execute("SELECT id, url FROM offers WHERE hotel='' OR hotel IS NULL").fetchall():
             name = hotel_from_url(r['url'])
@@ -639,6 +757,65 @@ def init_db() -> None:
             model   TEXT DEFAULT '',
             data    TEXT NOT NULL
         )''')
+        # Reiseführer je Reiseziel (KI-generiert): Einreise, Gesundheit, Geld, Kultur,
+        # Insider-Tipps. Wie die Klimatabelle dauerhaft gespeichert und mit demselben
+        # Schlüssel (Region-giataId) — der Reiseführer zeigt die Klimatabelle mit an,
+        # beides muss also über denselben Schlüssel zusammenfinden. Anders als beim
+        # Klima veralten hier einzelne Angaben (Einreise, Wechselkurs); sie sind in den
+        # Daten als `volatil` markiert, aufgefrischt wird auf Knopfdruck.
+        con.execute('''CREATE TABLE IF NOT EXISTS guide (
+            giata   INTEGER PRIMARY KEY,
+            label   TEXT NOT NULL DEFAULT '',
+            ts      INTEGER NOT NULL,
+            model   TEXT DEFAULT '',
+            data    TEXT NOT NULL
+        )''')
+        # Öffentliche Angebots-Seiten (Share-Links, siehe share_routes.py). `payload`
+        # ist ein beim Anlegen eingefrorener JSON-Snapshot — die öffentliche Seite
+        # liest ausschließlich diese Spalte und nie die Live-Tabellen, damit kein
+        # nicht geteiltes Angebot durchsickern kann.
+        con.execute('''CREATE TABLE IF NOT EXISTS shares (
+            token        TEXT PRIMARY KEY,
+            title        TEXT NOT NULL DEFAULT '',
+            note         TEXT NOT NULL DEFAULT '',
+            payload      TEXT NOT NULL,
+            created_ts   INTEGER NOT NULL,
+            expires_ts   INTEGER NOT NULL,
+            views        INTEGER NOT NULL DEFAULT 0,
+            last_view_ts INTEGER,
+            -- Zeitpunkt, zu dem der Besitzer die Kommentare zuletzt geöffnet hat.
+            -- Alles Neuere lässt den Kommentar-Knopf in der Übersicht grün leuchten.
+            comments_seen_ts INTEGER NOT NULL DEFAULT 0,
+            -- Kommentarfeld auf der öffentlichen Seite (je Link abschaltbar).
+            -- Aus = bestehende Kommentare bleiben sichtbar, nur schreiben geht nicht.
+            comments_enabled INTEGER NOT NULL DEFAULT 1
+        )''')
+        # Kommentare der Empfänger auf der öffentlichen Seite. Bewusst ohne
+        # Fremdschlüssel: die Tabelle wird beim Widerrufen/Ablaufen des Links
+        # explizit mit aufgeräumt (share_routes), so bleibt das Löschen sichtbar.
+        con.execute('''CREATE TABLE IF NOT EXISTS share_comments (
+            id     INTEGER PRIMARY KEY AUTOINCREMENT,
+            token  TEXT NOT NULL,
+            author TEXT NOT NULL DEFAULT '',
+            text   TEXT NOT NULL,
+            ts     INTEGER NOT NULL,
+            -- Absender-IP (hinter Cloudflare CF-Connecting-IP): die Seite ist
+            -- öffentlich beschreibbar, bei Missbrauch soll sichtbar sein, woher.
+            ip     TEXT NOT NULL DEFAULT ''
+        )''')
+        con.execute('CREATE INDEX IF NOT EXISTS idx_share_comments '
+                    'ON share_comments(token, ts)')
+        ccols = {r['name'] for r in con.execute(
+            'PRAGMA table_info(share_comments)').fetchall()}
+        if 'ip' not in ccols:
+            con.execute("ALTER TABLE share_comments ADD COLUMN ip TEXT NOT NULL DEFAULT ''")
+        shcols = {r['name'] for r in con.execute('PRAGMA table_info(shares)').fetchall()}
+        if 'comments_seen_ts' not in shcols:
+            con.execute('ALTER TABLE shares ADD COLUMN comments_seen_ts '
+                        'INTEGER NOT NULL DEFAULT 0')
+        if 'comments_enabled' not in shcols:
+            con.execute('ALTER TABLE shares ADD COLUMN comments_enabled '
+                        'INTEGER NOT NULL DEFAULT 1')
         # Preisbarometer (tägliche Regionssuche) — Schema liegt im eigenen Modul,
         # das erst am Dateiende importiert wird; zur Laufzeit von init_db() ist es da.
         market_basket.init_basket_db(con)
@@ -990,7 +1167,8 @@ def _notify_ha(title: str, message: str, tag: str, muted: bool = False) -> None:
     if muted:
         _log_notification('ha', title, message, tag, True)
         return
-    if not (SUPERVISOR_TOKEN and load_config().get('notify_ha', True)):
+    cfg = load_config()
+    if not (SUPERVISOR_TOKEN and cfg.get('notify_ha', True)):
         return
     ok = True
     try:
@@ -1000,6 +1178,19 @@ def _notify_ha(title: str, message: str, tag: str, muted: bool = False) -> None:
     except Exception as e:
         ok = False
         log.error("HA-Benachrichtigung fehlgeschlagen: %s", e)
+    # Zusätzlich an frei wählbare notify.*-Dienste (z. B. mobile_app_… für
+    # Companion-Push), kommagetrennt; "notify."-Präfix darf mit angegeben werden.
+    for svc in (cfg.get('ha_notify_service') or '').split(','):
+        svc = svc.strip().removeprefix('notify.')
+        if not svc:
+            continue
+        try:
+            http.post(f'{HA_BASE}/services/notify/{svc}',
+                      headers={'Authorization': f'Bearer {SUPERVISOR_TOKEN}'}, timeout=10,
+                      json={'title': title, 'message': message})
+        except Exception as e:
+            ok = False
+            log.error("HA-Notify-Dienst %s fehlgeschlagen: %s", svc, e)
     _log_notification('ha', title, message, tag, ok)
 
 
@@ -1407,6 +1598,113 @@ def _clear_error_alarm(offer: dict) -> None:
     _notify_telegram(f"✅ <b>Wieder verfügbar: {name}</b>")
 
 
+def _check_vacancy_alarm(offer: dict, vac_status: str, prev_vac_ok) -> None:
+    """Alarm beim Übergang „live bestätigt" → „nicht mehr bestätigt" (vacancy-check).
+    Bewusst nur der Übergang 1→0: ein FAILED ohne vorheriges OK kann auch
+    Payload-/API-Drift sein und wäre als Ausverkauft-Meldung falscher Alarm."""
+    oid = offer['id']
+    name = offer.get('label') or offer.get('hotel') or f"Angebot #{oid}"
+    if vac_status == 'OK':
+        if oid in _vac_notified:
+            _vac_notified.discard(oid)
+            log.info("✅ Entwarnung (#%d %s): Buchbarkeit wieder bestätigt", oid, name)
+            _notify_ha(f"✅ Wieder buchbar: {name}",
+                       f"{name} wird vom Buchungssystem wieder bestätigt.\n{offer.get('url','')}",
+                       f"vacancy_{oid}", muted=bool(offer.get('notify_muted')))
+            _notify_telegram(f"✅ <b>Wieder buchbar: {name}</b>",
+                             muted=bool(offer.get('notify_muted')))
+        return
+    if vac_status != 'FAILED' or prev_vac_ok != 1:
+        return
+    if not load_config().get('notify_unavailable', True) or oid in _vac_notified:
+        return
+    _vac_notified.add(oid)
+    log.warning("⚠ Buchbarkeits-Alarm (#%d %s): vacancy-check meldet FAILED", oid, name)
+    _notify_ha(f"⚠ Nicht mehr buchbar? {name}",
+               f"{name}\nDas Buchungssystem bestätigt dieses Angebot nicht mehr "
+               f"(vorher bestätigt) — evtl. ausgebucht.\n{offer.get('url','')}",
+               f"vacancy_{oid}", muted=bool(offer.get('notify_muted')))
+    _notify_telegram(f"⚠ <b>Nicht mehr buchbar? {name}</b>\nDas Buchungssystem bestätigt "
+                     f"dieses Angebot nicht mehr (vorher bestätigt) — evtl. ausgebucht.\n"
+                     f"{offer.get('url','')}", muted=bool(offer.get('notify_muted')))
+
+
+def _flight_seg_lines(segs) -> list[str]:
+    """Kompakte, vergleichbare Textzeilen je Flugsegment (inkl. Buchungsklasse —
+    ein Klassenwechsel erklärt oft einen Preissprung und soll mit auffallen)."""
+    out = []
+    for s in segs or []:
+        t1, t2 = (s.get('start') or '')[11:16], (s.get('end') or '')[11:16]
+        cls = f" Kl. {s['cls']}" if s.get('cls') else ''
+        out.append(f"{s.get('dep', '?')}→{s.get('arr', '?')} {t1}–{t2} "
+                   f"{s.get('airline', '')}{s.get('number', '')}{cls}")
+    return out
+
+
+def _check_booking_changes(offer: dict, res: dict) -> None:
+    """Speichert die vom Buchungssystem bestätigten Details (Flugsegmente,
+    Veranstalter-Hinweise/Errata, Kontingent-Quelle) am Angebot und meldet
+    Änderungen gegenüber dem letzten Poll (`notify_booking_changes`).
+    Erstbefüllung meldet nichts — nur echte Übergänge alt→neu."""
+    oid = offer['id']
+    updates: dict = {}
+    msgs: list[str] = []
+
+    segs = res.get('flight_segments')
+    if segs is not None and (segs.get('out') or segs.get('ret')):
+        new_json = json.dumps(segs, ensure_ascii=False, sort_keys=True)
+        old_raw = offer.get('flight_segments') or ''
+        if old_raw and old_raw != new_json:
+            old = _json_loads_safe(old_raw, {})
+            for key, label in (('out', 'Hinflug'), ('ret', 'Rückflug')):
+                o_l, n_l = _flight_seg_lines(old.get(key)), _flight_seg_lines(segs.get(key))
+                if o_l != n_l:
+                    msgs.append(f"{label} geändert:\nvorher: " + " / ".join(o_l)
+                                + "\njetzt: " + " / ".join(n_l))
+        if old_raw != new_json:
+            updates['flight_segments'] = new_json
+
+    err = res.get('errata')
+    if err is not None:
+        new_json = json.dumps(err, ensure_ascii=False)
+        old_raw = offer.get('errata') or ''
+        if old_raw and old_raw != new_json:
+            msgs.append("Veranstalter-Hinweise (Errata) haben sich geändert — "
+                        "nachlesen per Rechtsklick auf den Preis.")
+        if old_raw != new_json:
+            updates['errata'] = new_json
+
+    sup = res.get('hotel_supplier')
+    if sup is not None and sup != (offer.get('hotel_supplier') or ''):
+        updates['hotel_supplier'] = sup
+
+    flags = res.get('flight_flags')
+    if flags is not None:
+        flags_json = json.dumps(flags, sort_keys=True)
+        if flags_json != (offer.get('flight_flags') or ''):
+            updates['flight_flags'] = flags_json
+
+    if updates:
+        with db() as con:
+            for k, v in updates.items():
+                con.execute(f'UPDATE offers SET {k}=? WHERE id=?', (v, oid))
+    if not msgs:
+        return
+    name = offer.get('label') or offer.get('hotel') or f"Angebot #{oid}"
+    for m in msgs:
+        _log_event(oid, 'booking', m.split('\n')[0])
+    if offer.get('history_only') or not load_config().get('notify_booking_changes', True):
+        return
+    text = "\n".join(msgs)
+    log.warning("✈ Buchungsdetails geändert (#%d %s): %s", oid, name,
+                " · ".join(m.split('\n')[0] for m in msgs))
+    _notify_ha(f"✈ Buchungsdetails geändert: {name}",
+               f"{name}\n{text}\n{offer.get('url', '')}", f"booking_{oid}",
+               muted=bool(offer.get('notify_muted')))
+    _notify_telegram(f"✈ <b>Buchungsdetails geändert: {name}</b>\n{text}",
+                     muted=bool(offer.get('notify_muted')))
+
+
 def _meta_get(key: str, default=None):
     with db() as con:
         row = con.execute('SELECT value FROM meta WHERE key=?', (key,)).fetchone()
@@ -1478,6 +1776,9 @@ def check_offer(offer_id: int) -> None:
             prev_row = con.execute(
                 'SELECT ts, price FROM price_history WHERE offer_id=? AND ok=1 AND price IS NOT NULL '
                 'ORDER BY ts DESC LIMIT 1', (offer_id,)).fetchone()
+            prev_vac = con.execute(
+                'SELECT vac_ok FROM price_history WHERE offer_id=? AND vac_ok IS NOT NULL '
+                'ORDER BY ts DESC LIMIT 1', (offer_id,)).fetchone()
             # Zimmerwechsel seit dem letzten Preis-Check? Dann macht dessen Preisschritt
             # keine Marktbewegung, sondern nur einen anderen Zimmertyp/-preis sichtbar —
             # für den Markttrend (`price_moves`) muss die Zählung neu beginnen. `>=`
@@ -1499,10 +1800,13 @@ def check_offer(offer_id: int) -> None:
         log.info("Prüfe Angebot #%d: %s …", offer_id, name)
 
         # bis zu 2 Versuche (gegen sporadische Timeouts/Bot-Drosselung)
+        # Gepäck + Zahlungskonditionen sind quasi-statisch → nur holen, solange
+        # sie am Angebot noch fehlen (je 1–2 zusätzliche Requests)
+        need_extras = not (offer.get('luggage') and offer.get('deposit_pct'))
         res = {}
         for attempt in (1, 2):
             with _scrape_lock:
-                res = fetch_price(url, verbose=_verbose())
+                res = fetch_price(url, extras=need_extras, verbose=_verbose())
             if res.get('ok'):
                 break
             if res.get('detail'):
@@ -1512,21 +1816,30 @@ def check_offer(offer_id: int) -> None:
 
         ts = int(time.time())
         avail = res.get('available')
+        vac_status = res.get('vac_status') or ''
+        vac_ok = None if not vac_status else (1 if vac_status == 'OK' else 0)
         with db() as con:
             con.execute(
-                'INSERT INTO price_history (offer_id, ts, price, old_price, discount, available, ok, note) '
-                'VALUES (?,?,?,?,?,?,?,?)',
+                'INSERT INTO price_history (offer_id, ts, price, old_price, discount, available, ok, note, '
+                'price_hotel, price_flight_out, price_flight_ret, vac_ok) '
+                'VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
                 (offer_id, ts, res.get('price'), res.get('old_price'), res.get('discount'),
                  (1 if avail else 0) if avail is not None else None,
-                 1 if res.get('ok') else 0, res.get('note', '')))
+                 1 if res.get('ok') else 0, res.get('note', ''),
+                 res.get('price_hotel'), res.get('price_flight_out'),
+                 res.get('price_flight_ret'), vac_ok))
             for col in ('hotel', 'details', 'room', 'board', 'dep_airport', 'flight_out',
                         'flight_ret', 'location', 'city', 'region', 'country',
                         'pdf_url', 'cancellation', 'stars', 'rating',
                         'rating_count', 'recommendation', 'total_price',
                         'travellers_count', 'return_date',
-                        'booking_code', 'room_booking_code'):
+                        'booking_code', 'room_booking_code',
+                        'last_booked', 'deposit_pct', 'final_payment_date'):
                 if res.get(col) is not None and res.get(col) != '':
                     con.execute(f'UPDATE offers SET {col}=? WHERE id=?', (res[col], offer_id))
+            if res.get('luggage'):
+                con.execute('UPDATE offers SET luggage=? WHERE id=?',
+                            (json.dumps(res['luggage'], ensure_ascii=False), offer_id))
             if res.get('ok') and res.get('price') is not None and prev_price and not room_changed:
                 pct = (res['price'] - prev_price) / prev_price * 100
                 region = res.get('region') or offer.get('region') or ''
@@ -1538,6 +1851,12 @@ def check_offer(offer_id: int) -> None:
                     'VALUES (?,?,?,?,?)', (ts, region, country, months_out, pct))
 
         if res.get('ok'):
+            # Bestätigte Buchungsdetails speichern + Änderungen melden (Flugzeiten,
+            # Errata, Kontingent, Badges) — Erstbefüllung bleibt still
+            try:
+                _check_booking_changes(offer, res)
+            except Exception as e:
+                log.warning("Buchungsdetail-Vergleich #%d fehlgeschlagen: %s", offer_id, e)
             extra = []
             if res.get('travellers_count') and res['travellers_count'] > 1 and res.get('total_price'):
                 extra.append(f"Gesamt {res['total_price']:.0f} €")
@@ -1557,6 +1876,8 @@ def check_offer(offer_id: int) -> None:
             else:
                 _maybe_notify(offer, prev_price, res.get('price'), offer.get('target_price'))
                 _clear_error_alarm(offer)
+                _check_vacancy_alarm(offer, vac_status,
+                                     prev_vac['vac_ok'] if prev_vac else None)
                 if load_config().get('notify_cheaper_date', True) and res.get('price'):
                     # Preis geändert? Dann Kalender sofort neu abrufen statt bis zu
                     # 7 Tage auf den nächsten TTL-Ablauf zu warten (siehe
@@ -2080,6 +2401,7 @@ def _poll_worker() -> None:
             _maybe_refresh_calendars()  # Preiskalender 1×/Tag je Angebot auffrischen
             market_basket.maybe_run_baskets()  # Preisbarometer je gespeicherter Suche, 1×/Tag
             _auto_archive_expired()
+            share_routes.cleanup_expired()  # abgelaufene öffentliche Links entsorgen
             with db() as con:
                 offers = [(r['id'], bool(r['history_only'])) for r in con.execute(
                     'SELECT id, history_only FROM offers WHERE COALESCE(paused,0)=0 '
@@ -2517,6 +2839,7 @@ def index():
         trippilot_home_location=(cfg.get('trippilot_home_location') or '').strip(),
         is_ingress=_is_ingress(),
         check24_enabled=bool(cfg.get('enable_check24_compare', False)),
+        share_enabled=bool(cfg.get('enable_public_share', False)),
         app_version=APP_VERSION))
 
 
@@ -2612,6 +2935,9 @@ def _collect_offers() -> list[dict]:
                 'archived': bool(o['archived']),
                 'notify_muted': bool(o['notify_muted']),
                 'notify_calendar_muted': bool(o['notify_calendar_muted']),
+                'is_foreign': bool(o['is_foreign']),
+                'foreign_list': (o['foreign_list'] or '') if o['is_foreign'] else '',
+                'foreign_icon': (o['foreign_icon'] or '') if o['is_foreign'] else '',
                 'history_only': bool(o['history_only']),
                 'return_date': o['return_date'] or '',
                 'tags': (_json_loads_safe(o['tags'], []) if o['tags'] else []),
@@ -2625,6 +2951,22 @@ def _collect_offers() -> list[dict]:
                 'old_price': last['old_price'] if last else None,
                 'discount': last['discount'] if last else None,
                 'available': avail,
+                # vacancy-check: Live-Bestätigung + Preis-Split des letzten Polls
+                'vac_ok': (None if not last or last['vac_ok'] is None
+                           else bool(last['vac_ok'])),
+                'price_hotel': last['price_hotel'] if last else None,
+                'price_flight_out': last['price_flight_out'] if last else None,
+                'price_flight_ret': last['price_flight_ret'] if last else None,
+                'luggage': (_json_loads_safe(o['luggage'], None) if o['luggage'] else None),
+                'last_booked': o['last_booked'] or '',
+                'deposit_pct': o['deposit_pct'],
+                'final_payment_date': o['final_payment_date'] or '',
+                'errata': (_json_loads_safe(o['errata'], []) if o['errata'] else []),
+                'flight_segments': (_json_loads_safe(o['flight_segments'], None)
+                                    if o['flight_segments'] else None),
+                'hotel_supplier': o['hotel_supplier'] or '',
+                'flight_flags': (_json_loads_safe(o['flight_flags'], None)
+                                 if o['flight_flags'] else None),
                 'ok': bool(last['ok']) if last else None,
                 'note': last['note'] if last else '',
                 'last_ts': last['ts'] if last else None,
@@ -3067,10 +3409,17 @@ import trips_routes  # noqa: E402
 import backup_routes  # noqa: E402
 import check24_routes  # noqa: E402
 import market_basket  # noqa: E402
+import stats_routes  # noqa: E402
+import share_routes  # noqa: E402
+app.register_blueprint(stats_routes.bp)
 app.register_blueprint(trips_routes.bp)
 app.register_blueprint(backup_routes.bp)
 app.register_blueprint(check24_routes.bp)
 app.register_blueprint(market_basket.bp)
+# Nur die Admin-Routen (/api/shares…) hängen an der geschützten App. Die
+# öffentliche Seite lebt in share_routes.share_app auf einem eigenen Port, siehe
+# _start_public_server() — bewusst KEIN Blueprint hier.
+app.register_blueprint(share_routes.bp)
 
 # Preisbarometer: `init_db` und der Poll-Worker greifen oben schon auf
 # `market_basket` zu — beides läuft erst zur Laufzeit, da ist der Import hier durch.
@@ -3156,6 +3505,32 @@ def _handle_sigterm(signum, frame) -> None:
     os._exit(0)
 
 
+def _start_public_server() -> None:
+    """Zweiter Webserver für die öffentlichen Angebots-Seiten (share_routes).
+
+    Bewusst ein eigener Port: so lässt sich im Reverse-Proxy ausschließlich die
+    öffentliche Seite freigeben, während Port 17794 (Login, API, Ingress) hinter
+    Cloudflare/HA bleibt. Ohne `enable_public_share` wird der Port gar nicht erst
+    gebunden."""
+    cfg = load_config()
+    if not cfg.get('enable_public_share', False):
+        return
+    port = int(cfg.get('public_port') or 17796)
+    log.info("Öffentliche Angebots-Seiten aktiv auf Port %d (nur /s/<token>)", port)
+    # Zur Client-IP hinter dem Reverse Proxy (Kommentare zeigen sie an):
+    # waitress verwirft X-Forwarded-For, solange kein `trusted_proxy` gesetzt
+    # ist — `X-Real-IP` und `CF-Connecting-IP` reicht es dagegen durch (gemessen).
+    # Genau die wertet get_client_ip aus. `trusted_proxy` wäre die Alternative,
+    # verlangt aber die exakte Zahl der Proxy-Ebenen (trusted_proxy_count); rät
+    # man daneben, steht am Ende wieder die Adresse eines Zwischenhops da.
+    # Deshalb bleibt es bei den Standardeinstellungen; fehlt die echte IP, sagt
+    # eine Warnung im Log, welcher Header im Proxy zu setzen ist.
+    threading.Thread(
+        target=lambda: serve(share_routes.share_app, host='0.0.0.0', port=port,
+                             threads=8),
+        daemon=True).start()
+
+
 def main() -> None:
     signal.signal(signal.SIGTERM, _handle_sigterm)
     init_db()
@@ -3169,6 +3544,7 @@ def main() -> None:
     threading.Thread(target=_health_sensor_worker, daemon=True).start()
     threading.Thread(target=_cooldown_sensor_worker, daemon=True).start()
     threading.Thread(target=_market_trend_sensor_worker, daemon=True).start()
+    _start_public_server()
     port = int(os.environ.get('TUIWATCH_PORT', '17794'))
     log.info("TUIWatch startet auf Port %d", port)
     # Werkzeugs Dev-Server (app.run) verzoegert unter Last durch die Hintergrund-

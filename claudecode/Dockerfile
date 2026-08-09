@@ -163,8 +163,27 @@ RUN echo 'stty cols 220 rows 50 2>/dev/null || true' >> /root/.bashrc
 # Ensure .bashrc is sourced for login shells too
 RUN echo 'source ~/.bashrc' > /root/.profile
 
-# Bundle optional Caveman skill (opt-in via enable_caveman_skill option, copied by run.sh at startup)
-COPY skills/caveman /opt/default-skills/caveman
+# Build the mobile-scroll index.html: ttyd ships its client as a single inlined
+# index.html, so the only way to add client-side JS is ttyd's --index option.
+# Fetch the stock page from a throwaway ttyd instance and inject the script.
+# Fails the build loudly if ttyd's page layout ever changes.
+COPY mobile-scroll.js /opt/mobile-scroll.js
+RUN set -eu; \
+    ttyd -p 17681 true & \
+    TTYD_PID=$!; \
+    for i in 1 2 3 4 5 6 7 8 9 10; do \
+        curl -sf http://127.0.0.1:17681/ -o /opt/ttyd-index.html && break; \
+        sleep 1; \
+    done; \
+    kill "$TTYD_PID" 2>/dev/null || true; \
+    test -s /opt/ttyd-index.html; \
+    python3 -c "import io; p='/opt/ttyd-index.html'; h=io.open(p,encoding='utf-8').read(); j=io.open('/opt/mobile-scroll.js',encoding='utf-8').read(); assert '</body>' in h, 'ttyd index.html has no </body> — layout changed'; io.open(p,'w',encoding='utf-8').write(h.replace('</body>','<script>'+j+'</script></body>',1))"; \
+    grep -q 'cc-mscroll' /opt/ttyd-index.html
+
+# Bundle optional Caveman skills + cavecrew agents (opt-in via enable_caveman_skill,
+# copied by run.sh at startup). Vendored from upstream, see skills/UPSTREAM.md
+COPY skills /opt/default-skills/skills
+COPY agents /opt/default-skills/agents
 
 # Copy startup script to a path AppArmor allows execution from
 COPY run.sh /usr/local/bin/start-addon.sh

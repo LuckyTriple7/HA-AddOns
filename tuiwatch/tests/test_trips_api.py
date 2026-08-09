@@ -61,6 +61,28 @@ def _import_pdf(client):
                        content_type="multipart/form-data")
 
 
+def test_trips_ics_export(client):
+    """ICS-Export: eine Reise und alle Reisen als RFC-5545-Kalender, ganztägiger
+    Termin Anreise…Abreise (DTEND exklusiv = Abreise + 1 Tag)."""
+    tid = _import_pdf(client).get_json()["id"]
+
+    r = client.get(f"/api/trips/{tid}/ics", headers=ING)
+    assert r.status_code == 200
+    assert r.headers["Content-Type"].startswith("text/calendar")
+    body = r.data.decode("utf-8")
+    assert "BEGIN:VCALENDAR" in body and body.count("BEGIN:VEVENT") == 1
+    assert "DTSTART;VALUE=DATE:20260501" in body
+    assert "DTEND;VALUE=DATE:20260509" in body      # 08.05. + 1 (exklusiv)
+    assert "Test Hotel" in body and f"tuiwatch-trip-{tid}@tuiwatch" in body
+    assert "Buchungsnummer: 99999999" in body.replace("\\n", "\n").replace("\r\n", "\n")
+
+    r = client.get("/api/trips/ics", headers=ING)
+    assert r.status_code == 200 and r.data.decode().count("BEGIN:VEVENT") == 1
+    # unbekannte Reise → 404, ohne Auth → 401
+    assert client.get("/api/trips/9999/ics", headers=ING).status_code == 404
+    assert client.get("/api/trips/ics").status_code == 401
+
+
 def test_unauth_without_ingress(client):
     assert client.get("/api/trips").status_code == 401
 

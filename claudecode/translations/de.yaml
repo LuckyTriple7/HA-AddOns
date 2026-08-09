@@ -48,6 +48,14 @@ configuration:
       Mausrad scrollt durch die tmux-Historie (überlebt Browser-Reloads),
       dafür kein Touch-Scrollen und Kopieren nur über tmux. Wirkt die Eingabe
       blockiert: q drücken (verlässt den Copy-Mode). Standard: browser.
+  mobile_scroll_ui:
+    name: Mobile Scroll-Bedienung
+    description: >-
+      Wischen zum Scrollen und zwei Scroll-Knöpfe im Terminal — nur auf
+      Touch-Geräten (Handy, Tablet, HA Companion App), Desktop-Browser bleiben
+      unverändert. Nötig, weil xterm.js das Touch-Scrollen abschaltet, sobald
+      eine Anwendung die Maus-Erfassung aktiviert (z. B. tmux im
+      Scroll-Modus tmux). Standard: aktiviert.
   claude_autostart:
     name: Claude automatisch starten
     description: >-
@@ -88,10 +96,12 @@ configuration:
       "Memory exportieren" aktiviert ist). 0 = kein geplanter Export, nur beim Start.
       Beispiele: 60 = stündlich, 1440 = täglich. Standard: 60.
   enable_caveman_skill:
-    name: Caveman-Skill aktivieren
+    name: Caveman-Skills aktivieren
     description: >-
-      Installiert den optionalen "Caveman"-Skill für Claude Code (knappe,
-      technisch präzise Antworten ohne Füllwörter). Aktivierbar/deaktivierbar
+      Installiert die optionalen "Caveman"-Skills für Claude Code (knappe,
+      technisch präzise Antworten ohne Füllwörter): /caveman plus /caveman-commit,
+      /caveman-review, /caveman-compress, /caveman-help, /caveman-stats und
+      /cavecrew samt der drei cavecrew-Subagenten. Aktivierbar/deaktivierbar
       jederzeit, wird bei jedem Start neu synchronisiert. Standard: deaktiviert.
 
 network:

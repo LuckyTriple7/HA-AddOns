@@ -7,6 +7,7 @@ Zwei Server in einem Prozess:
 """
 import base64
 import copy
+import csv
 import errno
 import hashlib
 import hmac
@@ -15,6 +16,7 @@ import io
 import ipaddress
 import json
 import logging
+import mimetypes
 import os
 import re
 import secrets
@@ -32,7 +34,7 @@ from email.mime.text import MIMEText
 from collections import defaultdict
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
-from urllib.parse import urlparse, urlsplit, urlunsplit
+from urllib.parse import urlencode, urlparse, urlsplit, urlunsplit
 
 import markdown as md_lib
 from markupsafe import Markup, escape
@@ -41,6 +43,26 @@ try:
     _HAS_PIL = True
 except ImportError:
     _HAS_PIL = False
+try:
+    # Optional: PDF-Erzeugung für Bibliothek-Einträge. Braucht System-Bibliotheken
+    # (pango/cairo). Fehlt das Paket, fällt der PDF-Button auf die Druckansicht
+    # zurück — das Add-on startet in jedem Fall.
+    from weasyprint import HTML as _WeasyHTML
+    _HAS_WEASY = True
+except Exception:
+    _HAS_WEASY = False
+try:
+    # Optional: KI-Bilderzeugung (Google Gemini) für Bibliothek-Titelbilder.
+    # Fehlt das Paket, bleibt der Knopf im Admin aus — das Add-on startet
+    # in jedem Fall. Breites except wie oben: das SDK baut beim Import
+    # Pydantic-Modelle auf und kann dabei auch anders als mit ImportError
+    # scheitern.
+    from google import genai
+    from google.genai import errors as genai_errors
+    from google.genai import types as genai_types
+    _HAS_GENAI = True
+except Exception:
+    _HAS_GENAI = False
 from flask import (Flask, render_template, request, redirect, url_for,
                    make_response, jsonify, abort, send_from_directory,
                    send_file)
@@ -65,6 +87,13 @@ logging.basicConfig(format='[%(levelname)s] [%(asctime)s] %(message)s',
                     level=logging.INFO, datefmt='%Y-%m-%d %H:%M:%S', force=True)
 log = logging.getLogger(__name__)
 logging.getLogger('werkzeug').setLevel(logging.ERROR)
+# fontTools protokolliert beim PDF-Erzeugen jeden Teilschritt der Schrift-Optimierung
+# ("glyf pruned", "GDEF pruned", …) auf INFO — pro PDF dutzende Zeilen. Nur Warnungen.
+for _noisy in ('fontTools', 'fontTools.subset', 'fontTools.ttLib'):
+    logging.getLogger(_noisy).setLevel(logging.WARNING)
+# google-genai meldet bei jeder Anfrage „AFC is enabled with max remote calls: 10"
+# auf INFO — eine Einstellung, die MyPage gar nicht nutzt. Nur Warnungen.
+logging.getLogger('google_genai').setLevel(logging.WARNING)
 
 _BASE = os.environ.get('MYPAGE_BASE', '/app')
 # Nutzdaten liegen im addon_config-Mapping (/addon_configs/<slug> auf dem Host),
@@ -81,6 +110,7 @@ AUDIT_PATH = _DATA + '/audit.json'
 SUBSCRIBERS_PATH = _DATA + '/subscribers.json'
 SESSIONS_PATH = _DATA + '/sessions.json'
 USERS_PATH    = _DATA + '/users.json'
+AI_USAGE_PATH = _DATA + '/ai_usage.json'   # Gemini-Verbrauch je Monat und Modell
 USESSIONS_PATH = _DATA + '/user_sessions.json'
 DM_PATH       = _DATA + '/dm.json'          # Mitglieder-Direktnachrichten (Text verschlüsselt)
 DMKEY_PATH    = _DATA + '/dm.key'           # Fernet-Schlüssel für die DM-Verschlüsselung
@@ -102,6 +132,12 @@ UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 USERFILES_BASE.mkdir(parents=True, exist_ok=True)
 WM_CACHE_DIR = Path(_DATA) / 'wm_cache'
 WM_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+# Zwischenablage des KI-Studios: frisch erzeugte Bilder liegen hier, bis der
+# Admin sie übernimmt. Bewusst NICHT unter uploads/ — was dort liegt, ist sofort
+# öffentlich abrufbar und landet im Backup. Verworfene Entwürfe sollen spurlos
+# verschwinden; write_backup_zip listet die Ordner einzeln auf, dieser fehlt dort.
+AI_TMP_DIR = Path(_DATA) / 'ai_tmp'
+AI_TMP_DIR.mkdir(parents=True, exist_ok=True)
 # Kartenspiel-Spielstände (lokal im addon_config, NICHT auf dem SMB-Share)
 GAMES_DIR = Path(_DATA) / 'games'
 GAMES_DIR.mkdir(parents=True, exist_ok=True)
@@ -111,6 +147,19 @@ MEMBER_AVATARS_DIR.mkdir(parents=True, exist_ok=True)
 # Verschlüsselte Datei-Anhänge der Mitglieder-Nachrichten (lokal, NICHT auf SMB)
 DM_FILES_DIR = Path(_DATA) / 'dm_files'
 DM_FILES_DIR.mkdir(parents=True, exist_ok=True)
+# Bibliothek-Dokumente (hochgeladene und erzeugte PDFs). Eigener Ordner, damit sie
+# nicht über die offene /uploads/-Route inline im Browser landen können.
+DOCS_DIR = Path(_DATA) / 'docs'
+DOCS_DIR.mkdir(parents=True, exist_ok=True)
+_DOC_FILE_RE = re.compile(r'^[a-f0-9]{32}\.pdf$')
+# Dauerhaftes Besucher-Archiv (optional, Option visit_file_log). Liegt im
+# Add-on-Konfigurationsordner und ist damit über den Share erreichbar:
+# \\<host>\addon_configs\XXX_mypage\visits\visits-JJJJ-MM.csv
+VISITS_DIR = Path(_DATA) / 'visits'
+_VISIT_FILE_RE = re.compile(r'^visits-(\d{4})-(\d{2})\.csv$')
+_visit_file_lock = threading.Lock()
+VISIT_CSV_COLUMNS = ('datum', 'ip', 'land', 'browser', 'system', 'pfad', 'referrer',
+                     'sprache', 'bot', 'neuer_besucher', 'user_agent')
 # Automatische tägliche Backups — landen unter addon_configs/<slug>_mypage/autobackup/,
 # also im selben Ordner wie die Daten (map: app_config:rw). Bewusst NICHT Teil des
 # Backup-Inhalts, sonst würde sich jedes Backup mit allen Vorgängern selbst aufblähen.
@@ -260,6 +309,14 @@ _seen_today:  set[str] = set()
 _seen_day:    str = ''
 
 ALLOWED_UPLOAD_EXT = {'.png', '.jpg', '.jpeg', '.gif', '.webp'}
+# Marker im Dateinamen für KI-erzeugte Bilder (`<uuid>-ai.webp`). Daran macht die
+# Auslieferung die vorgeschriebene Kennzeichnung fest — siehe _store_upload_image.
+AI_IMAGE_SUFFIX = '-ai'
+# Dokumente bewusst getrennt: sie dürfen NICHT über /uploads/<name> ausgeliefert
+# werden (dort landen sie inline im Browser), sondern nur über die Bibliothek-Route
+# mit Content-Disposition: attachment.
+ALLOWED_DOC_EXT = {'.pdf'}
+DOC_MAX_BYTES = 25 * 1024 * 1024
 ALLOWED_FONT_EXT = {'.woff2', '.woff', '.ttf', '.otf'}
 FONTS_DIR = Path(_BASE) / 'fonts'
 STATS_KEEP_DAYS = 365
@@ -350,9 +407,16 @@ DEFAULT_SITE = {
     'albums': [],
     'album_protect': False,
     'watermark_text': '',
+    'library': {
+        'label_de': '', 'label_en': '',
+        'intro_de': '', 'intro_en': '',
+        'nav': True,
+        'categories': [],
+        'entries': [],
+    },
     'section_order': [
         'news', 'countdown', 'tips', 'freetext', 'poll', 'blog', 'services', 'projects', 'skills', 'testimonials',
-        'photos', 'team', 'timeline', 'events', 'links', 'faq', 'location',
+        'photos', 'library', 'team', 'timeline', 'events', 'links', 'faq', 'location',
     ],
     'hidden_sections': [],
     'members_sections': [],
@@ -362,6 +426,12 @@ DEFAULT_SITE = {
     'tips_stats': {},
     'indexnow_key': '',
     'slot_jackpot': 500,
+    # KI-Vorgaben aus dem Admin. Leer = die Add-on-Optionen gelten; ein gesetzter
+    # Wert schlägt sie, damit ein Modellwechsel ohne HA-Neustart möglich ist.
+    'ai': {
+        'image_model': '', 'text_model': '', 'image_ratio': '',
+        'translate_provider': 'mymemory',
+    },
 }
 
 # Reihenfolge der Startseiten-Abschnitte (Hero immer zuerst, Kontakt immer zuletzt)
@@ -1425,11 +1495,57 @@ def is_valid_session(token: str | None) -> bool:
     return True
 
 
+def _is_public_ip(value: str) -> bool:
+    """True nur für gültige, öffentlich routbare IP-Adressen."""
+    try:
+        addr = ipaddress.ip_address((value or '').strip())
+    except ValueError:
+        return False
+    return not (addr.is_private or addr.is_loopback or addr.is_link_local
+                or addr.is_reserved or addr.is_multicast or addr.is_unspecified)
+
+
 def get_client_ip(req) -> str:
-    cf = req.headers.get('CF-Connecting-IP', '').strip()
-    if cf:
-        return cf
+    """Beste verfügbare Besucher-IP.
+
+    Hinter Cloudflare Tunnel / Reverse Proxy ist `remote_addr` die Adresse des
+    letzten Zwischenglieds — im HA-Setup das Docker-Bridge-Gateway (172.30.32.1),
+    für alle Besucher dieselbe. Deshalb zuerst die Kopfzeilen auswerten, in denen
+    die echte Adresse steht, und dabei die erste **öffentliche** nehmen: die
+    Zwischenglieder hängen ihre eigenen (privaten) Adressen an die Kette an.
+    """
+    for header in ('CF-Connecting-IP', 'True-Client-IP', 'X-Real-IP'):
+        value = (req.headers.get(header) or '').strip()
+        if _is_public_ip(value):
+            return value
+    for part in (req.headers.get('X-Forwarded-For') or '').split(','):
+        if _is_public_ip(part):
+            return part.strip()
     return req.remote_addr or 'unknown'
+
+
+_PROXY_IP_HEADERS = ('CF-Connecting-IP', 'True-Client-IP', 'X-Real-IP', 'X-Forwarded-For')
+_last_ip_warning = 0.0
+
+
+def _warn_missing_client_ip(req, ip: str) -> None:
+    """Einmal pro Stunde melden, dass keine öffentliche Besucher-IP ankommt.
+
+    Ohne diesen Hinweis wäre nur zu sehen, dass das Besucher-Log leer bleibt —
+    die Ursache (Proxy reicht die Adresse nicht durch) stünde nirgends. Die
+    tatsächlich vorhandenen Kopfzeilen mitzuloggen macht die Suche kurz.
+    """
+    global _last_ip_warning
+    now = time.time()
+    if now - _last_ip_warning < 3600:
+        return
+    _last_ip_warning = now
+    seen = [h for h in _PROXY_IP_HEADERS if req.headers.get(h)]
+    log.warning(
+        "Besucher-IP ist nicht öffentlich (%s) — der Proxy reicht die echte Adresse "
+        "nicht durch. Vorhandene Kopfzeilen: %s. Betroffene Aufrufe erscheinen nicht "
+        "im Besucher-Log; Aufrufzähler laufen weiter.",
+        ip, ', '.join(seen) or 'keine')
 
 
 # ── Brute-Force-Schutz ────────────────────────────────────────────────────────
@@ -1673,6 +1789,71 @@ def visit_log_max() -> int:
         return 500
 
 
+def visit_file_keep_months() -> int:
+    """Wie viele Monatsdateien das Besucher-Archiv behält (0 = unbegrenzt)."""
+    try:
+        return max(0, min(120, int(load_config().get('visit_file_keep') or 12)))
+    except (TypeError, ValueError):
+        return 12
+
+
+def _prune_visit_files() -> None:
+    """Zu alte Monatsdateien entfernen (nach Dateiname, nicht nach Zeitstempel)."""
+    keep = visit_file_keep_months()
+    if keep <= 0:
+        return
+    try:
+        files = sorted(f for f in VISITS_DIR.iterdir()
+                       if f.is_file() and _VISIT_FILE_RE.match(f.name))
+    except OSError:
+        return
+    for old in files[:-keep]:
+        old.unlink(missing_ok=True)
+
+
+def append_visit_file(entry: dict) -> None:
+    """Einen Aufruf ans dauerhafte Besucher-Archiv anhängen (CSV, eine Datei je Monat).
+
+    Bewusst getrennt vom Ringpuffer in `stats.json`: der hält nur die letzten
+    Aufrufe, hier bleibt die vollständige Historie erhalten und ist über den
+    Add-on-Konfigurations-Share direkt in Excel/LibreOffice zu öffnen.
+    """
+    if not load_config().get('visit_file_log'):
+        return
+    stamp = datetime.fromtimestamp(entry['ts'], timezone.utc).astimezone()
+    target = VISITS_DIR / f'visits-{stamp:%Y-%m}.csv'
+    ua = entry.get('ua', '')
+    row = {
+        'datum':          stamp.strftime('%Y-%m-%d %H:%M:%S'),
+        'ip':             entry.get('ip', ''),
+        'land':           entry.get('country', ''),
+        'browser':        _browser_name(ua),
+        'system':         _os_name(ua),
+        'pfad':           entry.get('path', ''),
+        'referrer':       entry.get('ref', ''),
+        'sprache':        entry.get('lang', ''),
+        'bot':            '1' if entry.get('bot') else '0',
+        'neuer_besucher': '1' if entry.get('new') else '0',
+        'user_agent':     ua,
+    }
+    try:
+        with _visit_file_lock:
+            VISITS_DIR.mkdir(parents=True, exist_ok=True)
+            new_month = not target.exists()
+            # Trennzeichen ';' — deutsche Excel-Installationen öffnen CSV sonst
+            # als eine einzige Spalte. Der csv-Writer maskiert Anführungszeichen
+            # und Semikolons in User-Agent und Referrer selbst.
+            with open(target, 'a', encoding='utf-8-sig', newline='') as f:
+                w = csv.DictWriter(f, fieldnames=VISIT_CSV_COLUMNS, delimiter=';')
+                if new_month:
+                    w.writeheader()
+                w.writerow(row)
+            if new_month:
+                _prune_visit_files()
+    except OSError as e:
+        log.warning("Besucher-Archiv konnte nicht geschrieben werden: %s", e)
+
+
 def total_uniques(stats: dict) -> int:
     """Eindeutige Besucher gesamt — Altbestand wird aus den Tageswerten migriert."""
     if 'total_uniques' in stats:
@@ -1801,20 +1982,30 @@ def count_visit(req) -> None:
         _seen_today.add(visitor)
 
     stats = load_stats()
-    # Besucher-Log (letzte Aufrufe inkl. Bots, für die Admin-Ansicht)
-    visit_log = stats.setdefault('log', [])
-    visit_log.append({
-        'ts':   int(time.time()),
-        'ip':   ip,
-        'path': req.path[:100],
-        'ua':   ua[:300],
-        'ref':  (req.headers.get('Referer') or '')[:300],
-        'lang': (req.headers.get('Accept-Language') or '')[:60],
-        'country': _guess_country(req),
-        'bot':  is_bot,
-        'new':  is_new,
-    })
-    del visit_log[:-visit_log_max()]
+    # Besucher-Log (letzte Aufrufe inkl. Bots, für die Admin-Ansicht).
+    # Nur öffentliche IPs: eigene Aufrufe aus dem Heimnetz und die internen
+    # Zugriffe von Home Assistant selbst sagen nichts über Besucher aus. Kommt
+    # ausschließlich das Docker-Gateway an, reicht der Proxy die echte Adresse
+    # nicht durch — dann steht statt vieler nutzloser Zeilen ein Hinweis im Log.
+    if not _is_public_ip(ip):
+        _warn_missing_client_ip(req, ip)
+    else:
+        entry = {
+            'ts':   int(time.time()),
+            'ip':   ip,
+            'path': req.path[:100],
+            'ua':   ua[:300],
+            'ref':  (req.headers.get('Referer') or '')[:300],
+            'lang': (req.headers.get('Accept-Language') or '')[:60],
+            'country': _guess_country(req),
+            'bot':  is_bot,
+            'new':  is_new,
+        }
+        visit_log = stats.setdefault('log', [])
+        visit_log.append(entry)
+        del visit_log[:-visit_log_max()]
+        # Dauerhaftes Archiv (optional) — der Ringpuffer oben vergisst alte Aufrufe
+        append_visit_file(entry)
 
     if not is_bot:
         base_uniques = total_uniques(stats)
@@ -1844,6 +2035,24 @@ def _browser_name(ua: str) -> str:
     if 'safari/' in u:
         return 'Safari'
     return 'Other'
+
+
+def _os_name(ua: str) -> str:
+    """Betriebssystem aus dem User-Agent — dieselbe grobe Einteilung wie im Admin."""
+    u = ua.lower()
+    if 'android' in u:
+        return 'Android'
+    if 'iphone' in u or 'ipad' in u or 'ios' in u:
+        return 'iOS'
+    if 'windows' in u:
+        return 'Windows'
+    if 'mac os' in u or 'macintosh' in u:
+        return 'macOS'
+    if 'cros' in u:
+        return 'ChromeOS'
+    if 'linux' in u:
+        return 'Linux'
+    return ''
 
 
 def _own_domain() -> str:
@@ -2796,6 +3005,11 @@ def site_search(site: dict, query: str, loc, viewer_is_member: bool) -> list:
         consider('page', loc(p, 'title'), '/seite/' + p.get('slug', ''),
                  loc(p, 'body'), p.get('members_only'))
 
+    for e in _lib_public_entries(site):
+        body = ' '.join([loc(e, 'summary'), loc(e, 'body'), ' '.join(e.get('tags', []))])
+        consider('library', loc(e, 'title'), '/bibliothek/' + e.get('slug', ''),
+                 body, e.get('members_only'))
+
     return results[:SEARCH_MAX_RESULTS]
 
 
@@ -2839,6 +3053,27 @@ def _albums_for_public(site: dict, viewer_member: bool = False) -> list:
                   for u in imgs]
         out.append({**a, 'images': mapped, 'locked': False, 'photo_count': len(imgs)})
     return out
+
+
+_MD_IMG_SRC_RE = re.compile(r'(<img\b[^>]*?\bsrc=")/uploads/([^"]+)(")', re.I)
+
+
+def _overlay_url(url: str) -> str:
+    """`/uploads/<name>` → `/img/<name>`; alles andere bleibt, wie es ist.
+
+    Nur über `/img/` kommen Wasserzeichen und KI-Kennzeichnung ins Bild — die
+    offene `/uploads/`-Route liefert immer das unveränderte Original aus.
+    """
+    return ('/img/' + url.removeprefix('/uploads/')) if url.startswith('/uploads/') else url
+
+
+def _overlay_html_images(html: str) -> str:
+    """Bilder in gerendertem Markdown auf die `/img/`-Route umhängen.
+
+    Betrifft nur lokale Uploads; eingebundene Fremd-URLs bleiben unangetastet,
+    weil an ihnen weder Wasserzeichen noch KI-Marker etwas zu suchen haben.
+    """
+    return _MD_IMG_SRC_RE.sub(r'\1/img/\2\3', html)
 
 
 def _normalize_album(raw: dict, existing: dict | None = None) -> dict:
@@ -2978,11 +3213,11 @@ def _has_detail(p: dict) -> bool:
 
 # Slugs, die nicht als eigene Seite vergeben werden dürfen (Kollision mit echten Routen)
 RESERVED_SLUGS = {
-    'blog', 'bereich', 'p', 'api', 'uploads', 'fonts', 'cards', 'album-img',
+    'blog', 'bereich', 'p', 'api', 'uploads', 'fonts', 'cards', 'album-img', 'img',
     'impressum', 'datenschutz', 'contact', 'newsletter', 'sitemap', 'sitemap.xml',
     'robots', 'robots.txt', 'feed', 'feed.xml', 'manifest.json', 'sw.js',
     'favicon.ico', 'icon.png', 'health', 'set-lang', 'seite', 'preview', 'static',
-    'suche', 'search',
+    'suche', 'search', 'bibliothek', 'library',
 }
 
 
@@ -3036,6 +3271,253 @@ def _nav_pages(site: dict, loc) -> list:
             if label:
                 out.append({'href': '/seite/' + p['slug'], 'label': label})
     return out
+
+
+# ── Bibliothek (Markdown-Sammlung mit Kategorien und PDF) ─────────────────────
+#
+# Bewusst generisch gehalten: Anzeigename und Kategorien sind frei wählbar, die
+# Sammlung kann also ebenso „Reiseführer" wie „Rezepte" oder „Handbücher" sein.
+# Ein Eintrag ist Markdown (DE/EN) plus optional ein PDF — entweder selbst
+# hochgeladen oder aus dem Markdown erzeugt (siehe _library_pdf_build).
+
+LIB_PDF_MODES = {'none', 'upload', 'generated'}
+
+
+def _library(site: dict) -> dict:
+    """Bibliothek-Block inkl. fehlender Schlüssel (alte site.json)."""
+    lib = site.get('library')
+    if not isinstance(lib, dict):
+        lib = {}
+        site['library'] = lib
+    lib.setdefault('label_de', '')
+    lib.setdefault('label_en', '')
+    lib.setdefault('intro_de', '')
+    lib.setdefault('intro_en', '')
+    lib.setdefault('nav', True)
+    if not isinstance(lib.get('categories'), list):
+        lib['categories'] = []
+    if not isinstance(lib.get('entries'), list):
+        lib['entries'] = []
+    return lib
+
+
+def _library_label(site: dict, loc, t: dict) -> str:
+    """Anzeigename der Sammlung — eigener Text oder Standard „Bibliothek"."""
+    return loc(_library(site), 'label') or t.get('library_heading', 'Bibliothek')
+
+
+def _normalize_lib_cat(raw: dict, existing: dict | None = None) -> dict:
+    c = existing or {'id': uuid.uuid4().hex[:12]}
+    c['name_de'] = _clean_str(raw.get('name_de'), 60)
+    c['name_en'] = _clean_str(raw.get('name_en'), 60)
+    c['icon']    = _clean_str(raw.get('icon'), 8)
+    return c
+
+
+def _normalize_lib_entry(site: dict, raw: dict, existing: dict | None = None) -> dict:
+    e = existing or {'id': uuid.uuid4().hex[:12]}
+    e['title_de']   = _clean_str(raw.get('title_de'), 140)
+    e['title_en']   = _clean_str(raw.get('title_en'), 140)
+    e['summary_de'] = _clean_str(raw.get('summary_de'), 400)
+    e['summary_en'] = _clean_str(raw.get('summary_en'), 400)
+    e['body_de']    = _clean_str(raw.get('body_de'), 80000)
+    e['body_en']    = _clean_str(raw.get('body_en'), 80000)
+    e['meta_de']    = _clean_str(raw.get('meta_de'), 300)
+    e['meta_en']    = _clean_str(raw.get('meta_en'), 300)
+    e['image']      = _clean_str(raw.get('image'), 500)
+    cat = _clean_str(raw.get('cat'), 32)
+    known = {c.get('id') for c in _library(site).get('categories', [])}
+    e['cat'] = cat if cat in known else ''
+    tags = raw.get('tags') or []
+    if isinstance(tags, str):
+        tags = tags.split(',')
+    e['tags'] = [_clean_str(x, 30) for x in tags if _clean_str(x, 30)][:8]
+    e['visible']      = bool(raw.get('visible', True))
+    e['members_only'] = bool(raw.get('members_only'))
+    mode = raw.get('pdf_mode')
+    e['pdf_mode'] = mode if mode in LIB_PDF_MODES else 'none'
+    # Dateinamen nie aus der Anfrage übernehmen — nur bereits gespeicherte, exakt
+    # passende Namen behalten (gesetzt werden sie ausschließlich vom Upload bzw.
+    # von der PDF-Erzeugung).
+    pdf = _clean_str(raw.get('pdf'), 40)
+    e['pdf'] = pdf if _DOC_FILE_RE.match(pdf) else ''
+    e.setdefault('pdf_gen', '')
+    e.setdefault('pdf_hash', '')
+    e['updated'] = date.today().isoformat()
+    return e
+
+
+def _lib_entry_slug(site: dict, raw: dict, entry_id: str) -> str:
+    slug = _slugify(raw.get('slug') or raw.get('title_de') or raw.get('title_en') or '')
+    if not slug:
+        slug = 'eintrag-' + entry_id[:6]
+    base, n = slug, 2
+    taken = {e.get('slug') for e in _library(site).get('entries', []) if e.get('id') != entry_id}
+    while slug in taken:
+        slug = f'{base}-{n}'
+        n += 1
+    return slug
+
+
+def _find_lib_entry(site: dict, slug: str) -> dict | None:
+    return next((e for e in _library(site).get('entries', []) if e.get('slug') == slug), None)
+
+
+def _lib_public_entries(site: dict) -> list:
+    """Veröffentlichte Einträge (Mitglieder-only bleibt gelistet, nur der Text ist gesperrt)."""
+    return [e for e in _library(site).get('entries', []) if e.get('visible')]
+
+
+def _lib_entry_pdf_name(e: dict) -> str:
+    """Auszuliefernde PDF-Datei eines Eintrags ('' wenn keine)."""
+    if e.get('pdf_mode') == 'upload':
+        return e.get('pdf') or ''
+    if e.get('pdf_mode') == 'generated':
+        return e.get('pdf_gen') or ''
+    return ''
+
+
+def _nav_library(site: dict, loc, t: dict) -> list:
+    """Navi-Eintrag der Bibliothek (nur mit sichtbaren Einträgen und aktivem Schalter)."""
+    lib = _library(site)
+    if not lib.get('nav') or not _lib_public_entries(site):
+        return []
+    return [{'href': '/bibliothek', 'label': _library_label(site, loc, t)}]
+
+
+def _lib_pdf_fetcher(url: str, lang: str = 'de'):
+    """URL-Fetcher für WeasyPrint — liefert ausschließlich lokale Uploads aus.
+
+    WeasyPrint lädt referenzierte Ressourcen (`<img src>`, `url()`) sonst selbst
+    per HTTP nach. Da der Markdown-Text beliebige Adressen enthalten darf, wäre
+    das ein SSRF-Weg in interne Dienste (Supervisor, Router, Metadaten-Endpunkte),
+    dessen Antwort im erzeugten PDF landet. Deshalb: nur lokale Dateien, alles
+    andere wird abgelehnt.
+
+    `/img/<datei>` bekommt dieselbe Behandlung wie im Web — Wasserzeichen und
+    KI-Kennzeichnung müssen im PDF genauso drin sein, sonst wäre das Herunterladen
+    des PDF der einfachste Weg, die Kennzeichnung loszuwerden.
+    """
+    for prefix, overlay in (('/img/', True), ('/uploads/', False)):
+        if not url.startswith(prefix):
+            continue
+        name = url[len(prefix):]
+        target = safe_under(UPLOADS_DIR, name)
+        if target is None or not target.is_file():
+            break
+        if overlay:
+            text = _image_overlay_text(target.name, load_site(), lang)
+            if text:
+                data = _render_watermark(target, text)
+                if data is not None:
+                    return {'file_obj': io.BytesIO(data), 'mime_type': 'image/webp'}
+        return {'file_obj': open(target, 'rb'),
+                'mime_type': mimetypes.guess_type(target.name)[0] or 'application/octet-stream'}
+    raise ValueError(f'externe Ressource im PDF blockiert: {url[:80]}')
+
+
+# Bei jeder Änderung an _lib_pdf_html hochzählen — erzwingt Neuaufbau der PDFs.
+_LIB_PDF_LAYOUT = 3
+
+
+def _lib_pdf_html(site: dict, entry: dict, lang: str, t: dict) -> str:
+    """Druckfertiges HTML eines Eintrags (Deckblatt-Kopf + Markdown + Seitenzahlen)."""
+    loc = _loc_factory(lang)
+    accent = site.get('design', {}).get('accent') or '#3b82f6'
+    cat = next((c for c in _library(site).get('categories', [])
+                if c.get('id') == entry.get('cat')), None)
+    # Kategorie-Icon bleibt draußen: der PDF-Font (DejaVu) kennt keine Emoji und
+    # WeasyPrint setzt dafür ein leeres Kästchen. Im Web rendert es der Browser.
+    subtitle = ' · '.join(x for x in [
+        (loc(cat, 'name') if cat else ''),
+        entry.get('updated') or '',
+    ] if x)
+    page_label = t.get('pdf_page', 'Seite')
+    return f"""<!DOCTYPE html><html lang="{escape(lang)}"><head><meta charset="utf-8">
+<title>{escape(loc(entry, 'title'))}</title><style>
+@page {{ size: A4; margin: 20mm 18mm 18mm;
+  @bottom-center {{ content: "{escape(page_label)} " counter(page) " / " counter(pages);
+                    font-size: 9pt; color: #666; }} }}
+body {{ font-family: "DejaVu Sans", sans-serif; font-size: 10.5pt; line-height: 1.55; color: #111; }}
+h1.doc-title {{ font-size: 20pt; margin: 0 0 2mm; color: {escape(accent)}; }}
+.doc-sub {{ font-size: 9pt; color: #666; margin-bottom: 8mm;
+            border-bottom: 1px solid #ddd; padding-bottom: 3mm; }}
+h1, h2, h3 {{ line-height: 1.25; margin: 6mm 0 2mm; page-break-after: avoid; }}
+h2 {{ font-size: 14pt; }} h3 {{ font-size: 12pt; }}
+p {{ margin: 0 0 3mm; }} ul, ol {{ margin: 0 0 3mm 6mm; }}
+img {{ max-width: 100%; }}
+blockquote {{ border-left: 2pt solid {escape(accent)}; margin: 3mm 0; padding: 0 4mm; color: #444; }}
+pre {{ background: #f4f4f4; padding: 3mm; border-radius: 2mm; white-space: pre-wrap;
+       font-family: "DejaVu Sans Mono", monospace; font-size: 9pt; }}
+code {{ font-family: "DejaVu Sans Mono", monospace; font-size: 9pt; }}
+table {{ border-collapse: collapse; width: 100%; margin: 3mm 0; page-break-inside: avoid; }}
+th, td {{ border: 0.5pt solid #bbb; padding: 1.5mm 2mm; text-align: left; font-size: 9.5pt; }}
+th {{ background: #f0f0f0; }}
+hr {{ border: none; border-top: 0.5pt solid #ccc; margin: 5mm 0; }}
+</style></head><body>
+<h1 class="doc-title">{escape(loc(entry, 'title'))}</h1>
+{f'<div class="doc-sub">{escape(subtitle)}</div>' if subtitle else ''}
+{_overlay_html_images(render_md(loc(entry, 'body')))}
+</body></html>"""
+
+
+def _lib_pdf_source_hash(site: dict, entry: dict) -> str:
+    """Fingerabdruck über alles, was das PDF beeinflusst — Grundlage fürs Caching.
+
+    `_LIB_PDF_LAYOUT` mitzählen, damit Änderungen an `_lib_pdf_html` bestehende
+    PDFs entwerten — sonst bleibt bei unverändertem Text das alte Layout stehen.
+    """
+    src = json.dumps([_LIB_PDF_LAYOUT,
+                      entry.get('title_de'), entry.get('title_en'),
+                      entry.get('body_de'), entry.get('body_en'),
+                      entry.get('cat'), entry.get('updated'),
+                      site.get('design', {}).get('accent'),
+                      # Wasserzeichen wird in die Bilder eingebrannt — ändert es
+                      # sich, muss das PDF neu gebaut werden
+                      bool(site.get('album_protect')),
+                      effective_watermark() if site.get('album_protect') else ''],
+                     ensure_ascii=False)
+    return hashlib.sha256(src.encode('utf-8')).hexdigest()[:16]
+
+
+def _library_pdf_build(site: dict, entry: dict, lang: str = 'de') -> str | None:
+    """Erzeugt (oder bestätigt) das PDF eines Eintrags. Gibt den Dateinamen zurück.
+
+    Bei unverändertem Quelltext wird die vorhandene Datei wiederverwendet —
+    PDF-Rendern kostet spürbar CPU und soll nicht bei jedem Speichern laufen.
+    """
+    if not _HAS_WEASY:
+        return None
+    src_hash = _lib_pdf_source_hash(site, entry)
+    old = entry.get('pdf_gen') or ''
+    if (entry.get('pdf_hash') == src_hash and _DOC_FILE_RE.match(old)
+            and (DOCS_DIR / old).is_file()):
+        return old
+    t = load_translations(lang)
+    html = _lib_pdf_html(site, entry, lang, t)
+    name = uuid.uuid4().hex + '.pdf'
+    target = safe_under(DOCS_DIR, name)
+    if target is None:
+        return None
+    _WeasyHTML(string=html, base_url='/',
+               url_fetcher=lambda url: _lib_pdf_fetcher(url, lang)).write_pdf(target=str(target))
+    # Vorgänger erst nach erfolgreichem Rendern entfernen
+    if _DOC_FILE_RE.match(old):
+        old_path = safe_under(DOCS_DIR, old)
+        if old_path is not None:
+            old_path.unlink(missing_ok=True)
+    entry['pdf_gen'] = name
+    entry['pdf_hash'] = src_hash
+    return name
+
+
+def _library_pdf_drop(entry: dict, keep: str = '') -> None:
+    """Löscht die PDF-Dateien eines Eintrags (außer `keep`) vom Datenträger."""
+    for name in {entry.get('pdf') or '', entry.get('pdf_gen') or ''}:
+        if name and name != keep and _DOC_FILE_RE.match(name):
+            p = safe_under(DOCS_DIR, name)
+            if p is not None:
+                p.unlink(missing_ok=True)
 
 
 # ── Formular-Baukasten ────────────────────────────────────────────────────────
@@ -3103,9 +3585,15 @@ def _nav_forms(site: dict, loc) -> list:
     return out
 
 
-def _nav_links(site: dict, loc) -> list:
-    """Navi-Einträge für eigene Seiten und Formulare."""
-    return _nav_pages(site, loc) + _nav_forms(site, loc)
+def _nav_links(site: dict, loc, t: dict | None = None, with_library: bool = True) -> list:
+    """Navi-Einträge für Bibliothek, eigene Seiten und Formulare.
+
+    Auf der Startseite steckt die Bibliothek bereits als Abschnitt in der
+    Sektions-Navigation (Anker `#library`) — dort `with_library=False`, sonst
+    stünde sie doppelt in der Leiste.
+    """
+    lib = _nav_library(site, loc, t or {}) if with_library else []
+    return lib + _nav_pages(site, loc) + _nav_forms(site, loc)
 
 
 # ── Weiterleitungen (301/302) ─────────────────────────────────────────────────
@@ -3451,6 +3939,15 @@ def api_translate():
     dst = raw.get('to') if raw.get('to') in ('de', 'en') else 'en'
     if not text.strip() or src == dst:
         return jsonify({'text': text})
+    # Gemini nur, wenn im KI-Tab ausgewählt UND ein Key hinterlegt ist. Scheitert
+    # es, übernimmt MyMemory — eine schlechtere Übersetzung ist besser als keine.
+    if _ai_translate_provider() == 'gemini' and _ai_rate_take(_ai_text_times,
+                                                             AI_TEXT_MAX_PER_HOUR):
+        try:
+            return jsonify({'text': _gemini_translate(text, src, dst)})
+        except Exception as e:
+            log.warning("KI-Übersetzung fehlgeschlagen (%s) — weiche auf MyMemory aus",
+                        type(e).__name__)
     try:
         out = []
         for chunk in _split_for_translation(text):
@@ -3943,13 +4440,19 @@ def write_backup_zip(fp) -> None:
     with zipfile.ZipFile(fp, 'w', zipfile.ZIP_DEFLATED) as z:
         for name in ('site.json', 'stats.json', 'messages.json', 'users.json',
                      'comments.json', 'audit.json', 'subscribers.json',
-                     'dm.json', 'dm.key', 'admin_2fa.json', 'secret.key'):
+                     'dm.json', 'dm.key', 'admin_2fa.json', 'secret.key',
+                     'ai_usage.json'):
             p = Path(_DATA) / name
             if p.is_file():
                 z.write(p, name)
         for f in UPLOADS_DIR.iterdir():
             if f.is_file():
                 z.write(f, 'uploads/' + f.name)
+        # Bibliothek-PDFs (hochgeladen und erzeugt)
+        if DOCS_DIR.is_dir():
+            for f in sorted(DOCS_DIR.iterdir()):
+                if f.is_file() and _DOC_FILE_RE.match(f.name):
+                    z.write(f, 'docs/' + f.name)
         # Kartenspiel-Spielstände + Verlauf (66_<uid>.json / 66hist_<uid>.json)
         if GAMES_DIR.is_dir():
             for f in sorted(GAMES_DIR.iterdir()):
@@ -4126,7 +4629,7 @@ def api_restore():
                 # gegen Zip-Slip absichern
                 if member in ('site.json', 'stats.json', 'messages.json', 'users.json',
                               'comments.json', 'audit.json', 'subscribers.json', 'dm.json',
-                              'admin_2fa.json'):
+                              'admin_2fa.json', 'ai_usage.json'):
                     target = safe_under(Path(_DATA), member)
                 elif member in ('dm.key', 'secret.key'):  # Binär-/Text-Schlüssel, kein JSON
                     target = safe_under(Path(_DATA), member)
@@ -4154,6 +4657,14 @@ def api_restore():
                     if not _FID_RE.match(name):
                         continue
                     target = safe_under(DM_FILES_DIR, name)
+                elif member.startswith('docs/'):
+                    name = Path(member).name
+                    if not _DOC_FILE_RE.match(name):
+                        continue
+                    # Inhalt prüfen — im Backup darf unter .pdf nichts anderes stecken
+                    if not z.read(member).startswith(b'%PDF-'):
+                        continue
+                    target = safe_under(DOCS_DIR, name)
                 else:
                     continue
                 if target is None:
@@ -4328,6 +4839,1217 @@ def api_pages_reorder():
     pages.sort(key=lambda p: pos.get(p.get('id'), len(pos)))
     save_site(site)
     return jsonify({'ok': True})
+
+
+# ── KI-Bilderzeugung (Google Gemini) ──────────────────────────────────────────
+#
+# Titelbilder für Bibliothek-Einträge von Hand zu beschaffen ist mühsam. Gemini
+# erzeugt sie auf Zuruf; ohne hinterlegten API-Key bleibt die Funktion komplett
+# unsichtbar. Die erzeugte Datei landet über dieselbe Pipeline wie jeder Upload
+# unter /uploads/ — nie als Fremd-URL im Eintrag, sonst scheitert die
+# PDF-Erzeugung an `_lib_pdf_fetcher` (die lässt bewusst nur lokale Dateien zu).
+
+GEMINI_IMAGE_MODELS = ('gemini-3.1-flash-image', 'gemini-3.1-flash-lite-image',
+                       'gemini-3-pro-image', 'gemini-2.5-flash-image')
+# Rückfall für die Textmodelle: die Auswahl im KI-Studio kommt normalerweise
+# live von `client.models.list()`, weil Google die Namen laufend ändert. Nur
+# wenn dieser Aufruf scheitert, greift diese Liste — Reihenfolge = Vorauswahl.
+GEMINI_TEXT_MODELS = ('gemini-3-pro', 'gemini-3-flash', 'gemini-2.5-pro',
+                      'gemini-2.5-flash', 'gemini-2.5-flash-lite')
+GEMINI_IMAGE_RATIOS = ('16:9', '3:2', '4:3', '1:1', '3:4', '2:3', '9:16', '21:9')
+GEMINI_IMAGE_TIMEOUT_MS = 120_000   # google-genai erwartet Millisekunden
+GEMINI_TEXT_TIMEOUT_MS = 180_000    # Text mit zwei Sprachen dauert länger
+AI_IMAGE_PROMPT_MAX = 1200
+AI_IMAGE_MAX_PER_HOUR = 20
+_ai_image_times: list[float] = []
+AI_TEXT_TOPIC_MAX = 4000
+AI_TEXT_MAX_PER_HOUR = 60           # Text ist deutlich billiger als ein Bild
+_ai_text_times: list[float] = []
+AI_STUDIO_MAX_IMAGES = 4            # pro Anfrage; jedes Bild zählt einzeln aufs Limit
+AI_TMP_TTL = 3600                   # Entwürfe verfallen nach einer Stunde
+# Modellnamen wandern in die Anfrage-URL. Streng prüfen, statt auf die Liste zu
+# vertrauen: die kommt live von Google und darf nichts durchreichen, was einen
+# Pfad verlassen könnte.
+_AI_MODEL_RE = re.compile(r'^[a-z0-9][a-z0-9.\-]{2,63}$')
+_AI_TMP_RE = re.compile(r'^[a-f0-9]{32}$')
+
+AI_TEXT_KINDS = ('blog', 'news', 'project', 'library', 'seo')
+AI_TEXT_TONES = ('sachlich', 'locker', 'technisch', 'werblich', 'persoenlich')
+AI_TEXT_LENGTHS = {'kurz': 150, 'mittel': 400, 'lang': 800}
+AI_TRANSLATE_PROVIDERS = ('mymemory', 'gemini')
+
+# Abbruchgründe, bei denen Gemini die Anfrage inhaltlich abgelehnt hat — davon
+# ist der Nutzer zu unterscheiden von einem technischen Fehler, denn hier hilft
+# nur eine andere Beschreibung, kein erneuter Versuch.
+_GEMINI_IMAGE_REFUSALS = {
+    genai_types.FinishReason.SAFETY, genai_types.FinishReason.PROHIBITED_CONTENT,
+    genai_types.FinishReason.BLOCKLIST, genai_types.FinishReason.RECITATION,
+    genai_types.FinishReason.SPII, genai_types.FinishReason.IMAGE_SAFETY,
+    genai_types.FinishReason.IMAGE_PROHIBITED_CONTENT,
+    genai_types.FinishReason.IMAGE_RECITATION,
+} if _HAS_GENAI else set()
+
+
+def _gemini_key() -> str:
+    return (load_config().get('gemini_api_key') or '').strip()
+
+
+def gemini_text_enabled() -> bool:
+    """Ob Textfunktionen (Studio, KI-Übersetzung) angeboten werden dürfen."""
+    return _HAS_GENAI and bool(_gemini_key())
+
+
+def gemini_image_enabled() -> bool:
+    """Ob der Knopf „Bild generieren" angeboten werden darf.
+
+    Pillow gehört mit ins Gate: ohne sie ließe sich die Antwort von Gemini nicht
+    in ein WebP wandeln, der Knopf wäre also wirkungslos.
+    """
+    return gemini_text_enabled() and _HAS_PIL
+
+
+_gemini_client_cache: tuple[str, object] | None = None
+_gemini_client_lock = threading.Lock()
+
+
+def _gemini_client():
+    """Client mit dem hinterlegten Schlüssel. Nur aufrufen, wenn ein Key da ist.
+
+    Der Client wird zwischengespeichert und muss es auch bleiben: Ein Einzeiler
+    wie `_gemini_client().models.generate_content(...)` erzeugt ein Objekt ohne
+    Referenz, das der Sammler mitten im Aufruf einziehen darf. Sein Destruktor
+    schließt die HTTP-Verbindung, und die laufende Anfrage endet mit
+    „Cannot send a request, as the client has been closed" — noch bevor sie
+    Google erreicht. Aufrufer binden das Ergebnis zusätzlich an eine lokale
+    Variable, damit das auch ohne diesen Cache hält.
+
+    Ein Wechsel des API-Keys in den Add-on-Optionen baut den Client neu auf.
+    """
+    global _gemini_client_cache
+    key = _gemini_key()
+    with _gemini_client_lock:
+        if _gemini_client_cache is not None and _gemini_client_cache[0] == key:
+            return _gemini_client_cache[1]
+        client = genai.Client(api_key=key)
+        _gemini_client_cache = (key, client)
+        return client
+
+
+def _ai_settings(site: dict | None = None) -> dict:
+    """Die im Admin gewählten KI-Vorgaben aus site.json.
+
+    Liegt hier nichts, greifen die Add-on-Optionen — der Admin darf die
+    HA-Konfiguration überschreiben, ohne sie anzufassen.
+    """
+    ai = (site if site is not None else load_site()).get('ai')
+    return ai if isinstance(ai, dict) else {}
+
+
+def _ai_model_or(candidate: str, fallback: str) -> str:
+    c = (candidate or '').strip()
+    return c if _AI_MODEL_RE.match(c) else fallback
+
+
+def _gemini_image_model() -> str:
+    cfg = (load_config().get('gemini_image_model') or '').strip()
+    default = cfg if cfg in GEMINI_IMAGE_MODELS else GEMINI_IMAGE_MODELS[0]
+    return _ai_model_or(_ai_settings().get('image_model'), default)
+
+
+def _gemini_text_model() -> str:
+    return _ai_model_or(_ai_settings().get('text_model'), GEMINI_TEXT_MODELS[0])
+
+
+def _gemini_image_ratio() -> str:
+    cfg = (load_config().get('gemini_image_ratio') or '').strip()
+    default = cfg if cfg in GEMINI_IMAGE_RATIOS else GEMINI_IMAGE_RATIOS[0]
+    r = (_ai_settings().get('image_ratio') or '').strip()
+    return r if r in GEMINI_IMAGE_RATIOS else default
+
+
+def _ai_translate_provider() -> str:
+    p = (_ai_settings().get('translate_provider') or '').strip()
+    if p not in AI_TRANSLATE_PROVIDERS:
+        return 'mymemory'
+    # Ohne Key wäre „gemini" ein Versprechen, das die Übersetzung nicht halten kann
+    return p if (p != 'gemini' or gemini_text_enabled()) else 'mymemory'
+
+
+def _ai_rate_take(times: list[float], limit: int, n: int = 1) -> bool:
+    """Rollierendes Stundenlimit. Bewusst global statt je IP: es schützt das
+    Bezahlkontingent bei Google, nicht eine Ressource dieses Servers.
+
+    Die Buchung passiert vor dem Aufruf — ein Fehlversuch kostet bei Google auch.
+    """
+    now = time.time()
+    times[:] = [x for x in times if now - x < 3600]
+    if len(times) + n > limit:
+        return False
+    times.extend([now] * n)
+    return True
+
+
+def _gemini_generate_image(prompt: str, *, model: str = '', ratio: str = '',
+                           ref: tuple[bytes, str] | None = None
+                           ) -> tuple[bytes | None, str, str]:
+    """Erzeugt ein Bild über Gemini. Zurück: (Bilddaten, MIME-Typ, Fehlercode).
+
+    `ref` ist ein optionales Vorlagenbild (Daten, MIME) — damit wird aus der
+    Anfrage eine Abwandlung statt einer Neuschöpfung.
+
+    Fehlercodes: '' (Erfolg), 'refused', 'empty', 'failed'. Die Ausnahme selbst
+    geht ausschließlich ins Log, nie an den Client.
+    """
+    model = model or _gemini_image_model()
+    ratio = ratio or _gemini_image_ratio()
+    contents: list = [prompt]
+    if ref is not None:
+        contents.append(genai_types.Part.from_bytes(data=ref[0], mime_type=ref[1]))
+    try:
+        client = _gemini_client()
+        resp = client.models.generate_content(
+            model=model, contents=contents,
+            config=genai_types.GenerateContentConfig(
+                response_modalities=['IMAGE'],
+                image_config=genai_types.ImageConfig(aspect_ratio=ratio),
+                # Das SDK setzt von sich aus kein Timeout — ohne das hier könnte
+                # ein hängender Aufruf dauerhaft einen Waitress-Thread binden.
+                http_options=genai_types.HttpOptions(timeout=GEMINI_IMAGE_TIMEOUT_MS),
+            ),
+        )
+        cands = resp.candidates or []
+        if cands and cands[0].finish_reason in _GEMINI_IMAGE_REFUSALS:
+            log.info("Gemini hat die Bildanfrage abgelehnt: %s", cands[0].finish_reason)
+            _ai_usage_record(model, resp)
+            return None, '', 'refused'
+        for part in (resp.parts or []):
+            if part.inline_data is not None and part.inline_data.data:
+                _ai_usage_record(model, resp, images=1)
+                return (part.inline_data.data,
+                        part.inline_data.mime_type or 'image/png', '')
+        _ai_usage_record(model, resp)
+    except genai_errors.APIError as e:
+        # Bewusst nur der Statuscode: die Meldung des SDK kann die vollständige
+        # Anfrage-URL samt API-Key enthalten, die hat im Add-on-Log nichts zu suchen.
+        log.warning("Gemini-Bildanfrage fehlgeschlagen (%s): Status %s",
+                    model, getattr(e, 'code', '') or type(e).__name__)
+        return None, '', 'failed'
+    except Exception as e:
+        # Absichtlich breit: SDK-interne Fehler dürfen nicht als HTML-Fehlerseite
+        # beim Frontend landen, das ausschließlich JSON erwartet.
+        log.error("Gemini-Bildanfrage (%s) unerwartet fehlgeschlagen: %s: %s",
+                  model, type(e).__name__, e)
+        return None, '', 'failed'
+    log.warning("Gemini-Antwort (%s) enthielt kein Bild", model)
+    return None, '', 'empty'
+
+
+@admin_app.route('/api/ai/image-support')
+def api_ai_image_support():
+    err = _api_auth()
+    if err:
+        return err
+    return jsonify({'available': gemini_image_enabled()})
+
+
+@admin_app.route('/api/ai/image', methods=['POST'])
+def api_ai_image():
+    err = _api_auth()
+    if err:
+        return err
+    if not gemini_image_enabled():
+        return jsonify({'error': 'no_api_key'}), 400
+    prompt = _clean_str((request.get_json(silent=True) or {}).get('prompt'),
+                        AI_IMAGE_PROMPT_MAX)
+    if len(prompt) < 3:
+        return jsonify({'error': 'invalid'}), 400
+    if not _ai_rate_take(_ai_image_times, AI_IMAGE_MAX_PER_HOUR):
+        return jsonify({'error': 'rate_limited'}), 429
+    data, _mime, code = _gemini_generate_image(prompt)
+    if code:
+        return jsonify({'error': {'refused': 'ai_refused',
+                                  'empty': 'ai_empty'}.get(code, 'ai_failed')}), 502
+    try:
+        # ai=True → Dateiname trägt den Marker, an dem die Auslieferung später
+        # die Pflicht-Kennzeichnung „KI generiert" festmacht
+        name = _store_upload_image(data, ai=True)
+    except Exception as e:
+        log.warning("KI-Bild konnte nicht gespeichert werden: %s", e)
+        name = None
+    if not name:
+        return jsonify({'error': 'image_failed'}), 502
+    log.info("KI-Titelbild erzeugt (%s, %s): %s", _gemini_image_model(),
+             _gemini_image_ratio(), name)
+    return jsonify({'ok': True, 'url': '/uploads/' + name})
+
+
+# ── KI-Studio ─────────────────────────────────────────────────────────────────
+#
+# Der Bild-Knopf in der Bibliothek legt sein Ergebnis sofort unter uploads/ ab —
+# das ist dort richtig, weil das Bild direkt in den offenen Eintrag wandert. Im
+# Studio wird dagegen ausprobiert: mehrere Entwürfe, die meisten davon Ausschuss.
+# Die landen erst in ai_tmp/ und wechseln nur auf ausdrückliches „Speichern" in
+# die Uploads. So wächst die Bildersammlung nicht mit jedem Fehlversuch, und ein
+# verworfener Entwurf war nie öffentlich abrufbar.
+
+_ai_tmp: dict[str, dict] = {}       # id → {mime, ts, prompt}
+_ai_models_cache: tuple[float, dict] | None = None
+AI_REF_MAX_BYTES = 8 * 1024 * 1024
+_AI_REF_MIME = {'.webp': 'image/webp', '.png': 'image/png', '.jpg': 'image/jpeg',
+                '.jpeg': 'image/jpeg', '.gif': 'image/gif'}
+
+_GEMINI_TEXT_REFUSALS = {
+    genai_types.FinishReason.SAFETY, genai_types.FinishReason.PROHIBITED_CONTENT,
+    genai_types.FinishReason.BLOCKLIST, genai_types.FinishReason.RECITATION,
+    genai_types.FinishReason.SPII,
+} if _HAS_GENAI else set()
+
+
+def _ai_tmp_sweep() -> None:
+    """Abgelaufene Entwürfe löschen — auch die, deren Eintrag ein Neustart
+    verloren hat. Deshalb über die Dateizeit statt über die Registry."""
+    now = time.time()
+    for tid, meta in list(_ai_tmp.items()):
+        if now - meta.get('ts', 0) > AI_TMP_TTL:
+            _ai_tmp.pop(tid, None)
+    try:
+        for f in AI_TMP_DIR.iterdir():
+            try:
+                if f.is_file() and now - f.stat().st_mtime > AI_TMP_TTL:
+                    f.unlink()
+            except OSError:
+                pass
+    except OSError:
+        pass
+
+
+def _ai_tmp_file(tid: str) -> Path | None:
+    if not _AI_TMP_RE.match(tid or ''):
+        return None
+    p = safe_under(AI_TMP_DIR, tid + '.img')
+    return p if (p is not None and p.is_file()) else None
+
+
+def _ai_ref_image(url: str) -> tuple[bytes, str] | None:
+    """Vorlagenbild aus den eigenen Uploads laden. Fremd-URLs sind bewusst nicht
+    erlaubt: der Server soll auf Zuruf des Browsers nichts nachladen (SSRF)."""
+    name = (url or '').strip().rsplit('/', 1)[-1]
+    ext = Path(name).suffix.lower()
+    if ext not in ALLOWED_UPLOAD_EXT:
+        return None
+    p = safe_under(UPLOADS_DIR, name)
+    if p is None or not p.is_file() or p.stat().st_size > AI_REF_MAX_BYTES:
+        return None
+    return p.read_bytes(), _AI_REF_MIME.get(ext, 'image/png')
+
+
+def _ai_model_lists() -> dict:
+    """Verfügbare Modelle bei Google erfragen (eine Stunde gecacht).
+
+    Google benennt Modelle laufend um und stellt alte ab. Eine fest verdrahtete
+    Liste wäre nach jedem Wechsel falsch und würde ein Add-on-Update erzwingen —
+    also live fragen und nur im Fehlerfall auf die Konstanten zurückfallen.
+    """
+    global _ai_models_cache
+    if _ai_models_cache and time.time() - _ai_models_cache[0] < 3600:
+        return _ai_models_cache[1]
+    out = {'image': list(GEMINI_IMAGE_MODELS), 'text': list(GEMINI_TEXT_MODELS)}
+    if gemini_text_enabled():
+        try:
+            img, txt = [], []
+            client = _gemini_client()
+            for m in client.models.list():
+                short = (m.name or '').rsplit('/', 1)[-1]
+                if not _AI_MODEL_RE.match(short):
+                    continue
+                if 'generateContent' not in (m.supported_actions or []):
+                    continue
+                if any(x in short for x in ('embedding', 'aqa', 'tts', 'audio',
+                                            'veo', 'imagen', 'learnlm')):
+                    continue
+                (img if 'image' in short else txt).append(short)
+            if img or txt:
+                out = {'image': sorted(set(img), reverse=True),
+                       'text': sorted(set(txt), reverse=True)}
+        except Exception as e:
+            # Nicht schlimm: die Konstanten reichen zum Arbeiten
+            log.info("Gemini-Modellliste nicht abrufbar (%s) — nutze Vorgabeliste",
+                     type(e).__name__)
+    _ai_models_cache = (time.time(), out)
+    return out
+
+
+@admin_app.route('/api/ai/status')
+def api_ai_status():
+    err = _api_auth()
+    if err:
+        return err
+    now = time.time()
+    img_used = len([x for x in _ai_image_times if now - x < 3600])
+    txt_used = len([x for x in _ai_text_times if now - x < 3600])
+    return jsonify({
+        'image': gemini_image_enabled(), 'text': gemini_text_enabled(),
+        'image_model': _gemini_image_model(), 'text_model': _gemini_text_model(),
+        'image_ratio': _gemini_image_ratio(), 'ratios': list(GEMINI_IMAGE_RATIOS),
+        'translate_provider': _ai_translate_provider(),
+        'image_used': img_used, 'image_max': AI_IMAGE_MAX_PER_HOUR,
+        'text_used': txt_used, 'text_max': AI_TEXT_MAX_PER_HOUR,
+        'max_images': AI_STUDIO_MAX_IMAGES,
+    })
+
+
+@admin_app.route('/api/ai/models')
+def api_ai_models():
+    err = _api_auth()
+    if err:
+        return err
+    return jsonify(_ai_model_lists())
+
+
+@admin_app.route('/api/ai/settings', methods=['POST'])
+def api_ai_settings():
+    err = _api_auth()
+    if err:
+        return err
+    raw = request.get_json(silent=True) or {}
+    site = load_site()
+    ai = site.get('ai') if isinstance(site.get('ai'), dict) else {}
+    for key in ('image_model', 'text_model'):
+        v = _clean_str(raw.get(key), 64)
+        if v and _AI_MODEL_RE.match(v):
+            ai[key] = v
+    ratio = _clean_str(raw.get('image_ratio'), 10)
+    if ratio in GEMINI_IMAGE_RATIOS:
+        ai['image_ratio'] = ratio
+    prov = _clean_str(raw.get('translate_provider'), 20)
+    if prov in AI_TRANSLATE_PROVIDERS:
+        ai['translate_provider'] = prov
+    site['ai'] = ai
+    save_site(site)
+    return jsonify({'ok': True, 'translate_provider': _ai_translate_provider()})
+
+
+@admin_app.route('/api/ai/studio/image', methods=['POST'])
+def api_ai_studio_image():
+    err = _api_auth()
+    if err:
+        return err
+    if not gemini_image_enabled():
+        return jsonify({'error': 'no_api_key'}), 400
+    raw = request.get_json(silent=True) or {}
+    prompt = _clean_str(raw.get('prompt'), AI_IMAGE_PROMPT_MAX)
+    if len(prompt) < 3:
+        return jsonify({'error': 'invalid'}), 400
+    model = _ai_model_or(raw.get('model'), _gemini_image_model())
+    ratio = raw.get('ratio') if raw.get('ratio') in GEMINI_IMAGE_RATIOS else _gemini_image_ratio()
+    try:
+        count = max(1, min(AI_STUDIO_MAX_IMAGES, int(raw.get('count') or 1)))
+    except (TypeError, ValueError):
+        count = 1
+    ref = _ai_ref_image(raw.get('ref') or '') if raw.get('ref') else None
+    if raw.get('ref') and ref is None:
+        return jsonify({'error': 'bad_ref'}), 400
+    if not _ai_rate_take(_ai_image_times, AI_IMAGE_MAX_PER_HOUR, count):
+        return jsonify({'error': 'rate_limited'}), 429
+    _ai_tmp_sweep()
+    images, last = [], 'failed'
+    for _ in range(count):
+        data, mime, code = _gemini_generate_image(prompt, model=model, ratio=ratio,
+                                                  ref=ref)
+        if code:
+            last = code
+            continue
+        tid = uuid.uuid4().hex
+        target = safe_under(AI_TMP_DIR, tid + '.img')
+        if target is None:
+            continue
+        try:
+            target.write_bytes(data)
+        except OSError as e:
+            log.warning("KI-Entwurf konnte nicht zwischengespeichert werden: %s", e)
+            continue
+        _ai_tmp[tid] = {'mime': mime, 'ts': time.time(), 'prompt': prompt}
+        images.append({'id': tid, 'url': 'api/ai/studio/preview/' + tid})
+    if not images:
+        return jsonify({'error': {'refused': 'ai_refused',
+                                  'empty': 'ai_empty'}.get(last, 'ai_failed')}), 502
+    log.info("KI-Studio: %d Bildentwurf/-entwürfe erzeugt (%s, %s%s)",
+             len(images), model, ratio, ', mit Vorlage' if ref else '')
+    return jsonify({'ok': True, 'images': images})
+
+
+@admin_app.route('/api/ai/studio/preview/<tid>')
+def api_ai_studio_preview(tid: str):
+    err = _api_auth()
+    if err:
+        return err
+    p = _ai_tmp_file(tid)
+    if p is None:
+        return jsonify({'error': 'not_found'}), 404
+    mime = (_ai_tmp.get(tid) or {}).get('mime') or 'image/png'
+    resp = send_file(p, mimetype=mime)
+    # Entwürfe sind flüchtig — ein Cache-Treffer nach dem Verwerfen wäre irritierend
+    resp.headers['Cache-Control'] = 'no-store'
+    return resp
+
+
+@admin_app.route('/api/ai/studio/image/keep', methods=['POST'])
+def api_ai_studio_keep():
+    err = _api_auth()
+    if err:
+        return err
+    tid = _clean_str((request.get_json(silent=True) or {}).get('id'), 40)
+    p = _ai_tmp_file(tid)
+    if p is None:
+        return jsonify({'error': 'not_found'}), 404
+    try:
+        # ai=True → Dateiname trägt den Marker, an dem die Auslieferung später
+        # die Pflicht-Kennzeichnung „KI generiert" festmacht
+        name = _store_upload_image(p.read_bytes(), ai=True)
+    except Exception as e:
+        log.warning("KI-Entwurf konnte nicht übernommen werden: %s", e)
+        name = None
+    if not name:
+        return jsonify({'error': 'image_failed'}), 502
+    try:
+        p.unlink()
+    except OSError:
+        pass
+    _ai_tmp.pop(tid, None)
+    log.info("KI-Entwurf übernommen: %s", name)
+    return jsonify({'ok': True, 'url': '/uploads/' + name})
+
+
+@admin_app.route('/api/ai/studio/image/discard', methods=['POST'])
+def api_ai_studio_discard():
+    err = _api_auth()
+    if err:
+        return err
+    tid = _clean_str((request.get_json(silent=True) or {}).get('id'), 40)
+    p = _ai_tmp_file(tid)
+    if p is not None:
+        try:
+            p.unlink()
+        except OSError:
+            pass
+    _ai_tmp.pop(tid, None)
+    return jsonify({'ok': True})
+
+
+# ── KI-Texte ──────────────────────────────────────────────────────────────────
+
+_AI_TEXT_KIND_DE = {
+    'blog': 'ein Blogartikel',
+    'news': 'eine kurze Neuigkeit (zwei bis vier Sätze, ohne Zwischenüberschriften)',
+    'project': 'eine Projektbeschreibung für ein Technik- oder Softwareprojekt',
+    'library': 'eine Zusammenfassung für einen Eintrag in einer Wissens-Bibliothek',
+    'seo': 'ausschließlich Titel und SEO-Beschreibung; das Feld „text" bleibt leer',
+}
+_AI_TEXT_TONE_DE = {
+    'sachlich': 'sachlich und nüchtern',
+    'locker': 'locker und persönlich, aber nicht anbiedernd',
+    'technisch': 'technisch präzise, für ein fachkundiges Publikum',
+    'werblich': 'werbend und begeisternd, ohne Übertreibung',
+    'persoenlich': 'in der Ich-Form, erzählend',
+}
+
+
+def _ai_text_schema(langs: list[str]):
+    """JSON-Schema für die Antwort — erzwingt beide Sprachen in einem Aufruf.
+
+    Ohne Schema liefert das Modell gern Fließtext mit Vorrede; damit bekommt das
+    Frontend verlässlich Titel, SEO-Text, Fließtext und Schlagwörter getrennt.
+    """
+    one = genai_types.Schema(
+        type=genai_types.Type.OBJECT,
+        properties={
+            'title': genai_types.Schema(type=genai_types.Type.STRING),
+            'meta':  genai_types.Schema(type=genai_types.Type.STRING),
+            'text':  genai_types.Schema(type=genai_types.Type.STRING),
+            'tags':  genai_types.Schema(type=genai_types.Type.ARRAY,
+                                        items=genai_types.Schema(type=genai_types.Type.STRING)),
+        },
+        required=['title', 'meta', 'text', 'tags'],
+    )
+    return genai_types.Schema(
+        type=genai_types.Type.OBJECT,
+        properties={lg: one for lg in langs},
+        required=list(langs),
+    )
+
+
+def _gemini_generate_text(*, topic: str, kind: str, tone: str, length: str,
+                          langs: list[str], mode: str, model: str
+                          ) -> tuple[dict | None, str]:
+    """Erzeugt Titel, SEO-Beschreibung, Fließtext und Schlagwörter je Sprache.
+
+    Zurück: (Ergebnis, Fehlercode) mit denselben Codes wie bei den Bildern.
+    """
+    words = AI_TEXT_LENGTHS.get(length, 400)
+    sys = (
+        "Du bist Redakteur einer persönlichen Website. Du lieferst fertige, "
+        "veröffentlichungsreife Inhalte: keine Rückfragen, keine Meta-Kommentare, "
+        "keine Platzhalter wie [hier einfügen], keine erfundenen Zahlen oder Zitate. "
+        "Feldbedeutung: 'title' = Überschrift ohne Markdown-Zeichen; "
+        "'meta' = SEO-Beschreibung, ein Satz, höchstens 155 Zeichen; "
+        "'text' = Fließtext in Markdown, Zwischenüberschriften ab '##', keine H1; "
+        "'tags' = drei bis sechs kurze Schlagwörter, klein geschrieben."
+    )
+    parts = [
+        f"Gewünscht ist {_AI_TEXT_KIND_DE.get(kind, _AI_TEXT_KIND_DE['blog'])}.",
+        f"Thema und Stichpunkte:\n{topic}",
+        f"Tonfall: {_AI_TEXT_TONE_DE.get(tone, _AI_TEXT_TONE_DE['sachlich'])}.",
+        f"Zielumfang: rund {words} Wörter je Sprache.",
+    ]
+    if len(langs) > 1:
+        parts.append(
+            "Schreibe die deutsche und die englische Fassung jeweils eigenständig "
+            "und idiomatisch — die englische ist keine Wort-für-Wort-Übersetzung."
+            if mode != 'translate' else
+            "Schreibe zuerst die deutsche Fassung. Die englische Fassung ist deren "
+            "treue Übersetzung mit gleicher Gliederung und gleicher Länge."
+        )
+    else:
+        parts.append("Sprache der Ausgabe: "
+                     + ("Deutsch." if langs[0] == 'de' else "Englisch."))
+    try:
+        client = _gemini_client()
+        resp = client.models.generate_content(
+            model=model, contents=['\n\n'.join(parts)],
+            config=genai_types.GenerateContentConfig(
+                system_instruction=sys,
+                response_mime_type='application/json',
+                response_schema=_ai_text_schema(langs),
+                http_options=genai_types.HttpOptions(timeout=GEMINI_TEXT_TIMEOUT_MS),
+            ),
+        )
+        _ai_usage_record(model, resp)
+        cands = resp.candidates or []
+        if cands and cands[0].finish_reason in _GEMINI_TEXT_REFUSALS:
+            log.info("Gemini hat die Textanfrage abgelehnt: %s", cands[0].finish_reason)
+            return None, 'refused'
+        data = json.loads(resp.text or '')
+        if not isinstance(data, dict):
+            return None, 'empty'
+    except genai_errors.APIError as e:
+        # Nur der Statuscode: die SDK-Meldung kann die Anfrage-URL samt Key enthalten
+        log.warning("Gemini-Textanfrage fehlgeschlagen (%s): Status %s",
+                    model, getattr(e, 'code', '') or type(e).__name__)
+        return None, 'failed'
+    except (ValueError, TypeError) as e:
+        log.warning("Gemini-Textantwort (%s) war kein gültiges JSON: %s", model, type(e).__name__)
+        return None, 'empty'
+    except Exception as e:
+        log.error("Gemini-Textanfrage (%s) unerwartet fehlgeschlagen: %s: %s",
+                  model, type(e).__name__, e)
+        return None, 'failed'
+    out = {}
+    for lg in langs:
+        d = data.get(lg) if isinstance(data.get(lg), dict) else {}
+        tags = d.get('tags') if isinstance(d.get('tags'), list) else []
+        out[lg] = {
+            'title': _clean_str(d.get('title'), 150),
+            'meta':  _clean_str(d.get('meta'), 300),
+            'text':  _clean_str(d.get('text'), 30000),
+            'tags':  [_clean_str(t, 40) for t in tags[:8] if _clean_str(t, 40)],
+        }
+    if not any(v['title'] or v['text'] for v in out.values()):
+        return None, 'empty'
+    return out, ''
+
+
+@admin_app.route('/api/ai/text', methods=['POST'])
+def api_ai_text():
+    err = _api_auth()
+    if err:
+        return err
+    if not gemini_text_enabled():
+        return jsonify({'error': 'no_api_key'}), 400
+    raw = request.get_json(silent=True) or {}
+    topic = _clean_str(raw.get('topic'), AI_TEXT_TOPIC_MAX)
+    if len(topic) < 3:
+        return jsonify({'error': 'invalid'}), 400
+    kind = raw.get('kind') if raw.get('kind') in AI_TEXT_KINDS else 'blog'
+    tone = raw.get('tone') if raw.get('tone') in AI_TEXT_TONES else 'sachlich'
+    length = raw.get('length') if raw.get('length') in AI_TEXT_LENGTHS else 'mittel'
+    mode = 'translate' if raw.get('mode') == 'translate' else 'native'
+    wanted = raw.get('langs')
+    langs = [lg for lg in ('de', 'en') if isinstance(wanted, list) and lg in wanted]
+    if not langs:
+        langs = ['de']
+    model = _ai_model_or(raw.get('model'), _gemini_text_model())
+    if not _ai_rate_take(_ai_text_times, AI_TEXT_MAX_PER_HOUR):
+        return jsonify({'error': 'rate_limited'}), 429
+    data, code = _gemini_generate_text(topic=topic, kind=kind, tone=tone,
+                                       length=length, langs=langs, mode=mode,
+                                       model=model)
+    if code:
+        return jsonify({'error': {'refused': 'ai_refused',
+                                  'empty': 'ai_empty'}.get(code, 'ai_failed')}), 502
+    log.info("KI-Text erzeugt (%s, %s, %s)", model, kind, '+'.join(langs))
+    return jsonify({'ok': True, 'result': data})
+
+
+# ── KI-Verbrauch ──────────────────────────────────────────────────────────────
+#
+# Die Stundenlimits verhindern Ausreißer, sagen aber nichts darüber, was der
+# Monat gekostet hat. Google liefert je Antwort die Token-Zahlen mit — die sind
+# hier die Wahrheit. Preise liefert die API NICHT, und eine fest verdrahtete
+# Preistabelle wäre nach der nächsten Anpassung still falsch. Deshalb pflegt sie
+# der Admin selbst: Zahlen von Google, Preis vom Nutzer. Ohne Preis bleibt es bei
+# Tokens. Maßgeblich ist und bleibt die Abrechnung in der Google Cloud Console.
+
+AI_USAGE_KEEP_MONTHS = 24
+_ai_usage_lock = threading.Lock()
+
+# Vorbelegung der Preistabelle: Listenpreise von Google AI (ai.google.dev/pricing),
+# USD je 1 Mio Tokens bzw. je erzeugtem Bild, Stand August 2026 — dieselbe Pflege
+# von Hand wie in TUIWatch (`_AI_PRICING`), weil es für die Gemini-API keine
+# Preis-Schnittstelle gibt.
+#
+# Ein im Admin eingetragener Preis schlägt diese Werte immer. Bewusst NICHT
+# vollständig: Google benennt Modelle laufend um, und ein geratener Preis wäre
+# schlimmer als eine leere Zeile — die fragt nach, eine falsche Zahl nicht. Was
+# hier fehlt, bleibt leer, bis es jemand einträgt.
+GEMINI_DEFAULT_PRICES = {
+    'gemini-3.1-pro':         {'in': 2.0, 'out': 12.0},
+    'gemini-3.6-flash':       {'in': 1.5, 'out': 7.5},
+    'gemini-3.5-flash':       {'in': 1.5, 'out': 9.0},
+    'gemini-2.5-flash':       {'in': 0.3, 'out': 2.5},
+    # Bildmodelle rechnen je Bild; 0.039 = 1290 Ausgabe-Tokens à 30 USD/Mio
+    'gemini-2.5-flash-image': {'in': 0.3, 'image': 0.039},
+}
+
+
+def _ai_price_for(model: str, prices: dict) -> dict:
+    """Eigener Preis, sonst Vorgabe, sonst nichts."""
+    return prices.get(model) or GEMINI_DEFAULT_PRICES.get(model) or {}
+
+
+def _ai_usage_load() -> dict:
+    try:
+        with open(AI_USAGE_PATH, encoding='utf-8') as f:
+            data = json.load(f)
+    except FileNotFoundError:
+        data = {}
+    except Exception as e:
+        log.warning("ai_usage.json nicht lesbar (%s) — starte mit leerem Verbrauch", e)
+        data = {}
+    if not isinstance(data.get('months'), dict):
+        data['months'] = {}
+    if not isinstance(data.get('prices'), dict):
+        data['prices'] = {}
+    return data
+
+
+def _ai_usage_record(model: str, resp, images: int = 0) -> None:
+    """Bucht eine Anfrage auf den laufenden Monat.
+
+    Wird auch bei abgelehnten oder leeren Antworten aufgerufen: die kosten die
+    Eingabe-Tokens genauso. Fehlschläge ohne Antwort tauchen nicht auf — dort
+    gibt es nichts zu buchen.
+    """
+    um = getattr(resp, 'usage_metadata', None)
+
+    def _n(attr: str) -> int:
+        try:
+            return max(0, int(getattr(um, attr, 0) or 0))
+        except (TypeError, ValueError):
+            return 0
+
+    # Denk-Tokens werden wie Ausgabe abgerechnet und gehören deshalb dazu
+    tin, tout = _n('prompt_token_count'), _n('candidates_token_count') + _n('thoughts_token_count')
+    month = date.today().strftime('%Y-%m')
+    with _ai_usage_lock:
+        data = _ai_usage_load()
+        row = data['months'].setdefault(month, {}).setdefault(
+            model, {'calls': 0, 'in': 0, 'out': 0, 'images': 0})
+        row['calls'] += 1
+        row['in'] += tin
+        row['out'] += tout
+        row['images'] += images
+        for old in sorted(data['months'])[:-AI_USAGE_KEEP_MONTHS]:
+            del data['months'][old]
+        try:
+            _atomic_write_json(AI_USAGE_PATH, data, indent=2)
+        except Exception as e:
+            log.warning("KI-Verbrauch konnte nicht gespeichert werden: %s", e)
+
+
+def _ai_usage_cost(row: dict, price: dict) -> float:
+    """Kosten einer Zeile. Preise sind je Million Tokens bzw. je Bild."""
+    return round((row.get('in', 0) / 1e6) * float(price.get('in') or 0)
+                 + (row.get('out', 0) / 1e6) * float(price.get('out') or 0)
+                 + row.get('images', 0) * float(price.get('image') or 0), 4)
+
+
+@admin_app.route('/api/ai/usage')
+def api_ai_usage():
+    err = _api_auth()
+    if err:
+        return err
+    with _ai_usage_lock:
+        data = _ai_usage_load()
+    months, prices = data['months'], data['prices']
+    out = {}
+    for month in sorted(months, reverse=True)[:12]:
+        rows = []
+        for model in sorted(months[month]):
+            row = dict(months[month][model])
+            row['model'] = model
+            row['cost'] = _ai_usage_cost(row, _ai_price_for(model, prices))
+            rows.append(row)
+        out[month] = rows
+    # Auch die gerade eingestellten Modelle anbieten, damit ein Preis schon vor
+    # der ersten Anfrage hinterlegt werden kann
+    known = sorted({m for mo in months.values() for m in mo}
+                   | {_gemini_image_model(), _gemini_text_model()} | set(prices))
+    return jsonify({'months': out, 'prices': prices, 'models': known,
+                    'defaults': GEMINI_DEFAULT_PRICES,
+                    'current': date.today().strftime('%Y-%m')})
+
+
+# Die Gemini-API selbst kennt keine Preise. Was es gibt, ist der öffentliche
+# Preiskatalog von Google Cloud — der nimmt denselben API-Key, muss im Projekt
+# aber erst freigeschaltet sein. Er liefert Fließtext („Gemini 2.5 Flash Input
+# Tokens"), keine Modell-IDs; die Zuordnung ist deshalb geraten und wird dem
+# Admin zur Prüfung vorgelegt, statt direkt gespeichert zu werden.
+CLOUD_BILLING_API = 'https://cloudbilling.googleapis.com/v1'
+GEMINI_BILLING_SERVICE = 'generative language api'
+_SKU_KINDS = (('image', 'image'), ('input', 'in'), ('prompt', 'in'), ('output', 'out'))
+
+
+def _sku_unit_price(sku: dict) -> float | None:
+    """USD je Million Einheiten aus einem SKU-Eintrag.
+
+    Google gibt den Preis je Verrechnungseinheit an (units + nanos). Bei Tokens
+    ist das je Token, deshalb hochrechnen — außer die Einheitsbeschreibung sagt
+    schon „million". Passt nichts davon, lieber None als eine Zahl, die um
+    Faktor 10^6 danebenliegt.
+    """
+    try:
+        expr = (sku.get('pricingInfo') or [])[-1]['pricingExpression']
+        rate = (expr.get('tieredRates') or [])[-1]['unitPrice']
+        price = int(rate.get('units') or 0) + int(rate.get('nanos') or 0) / 1e9
+    except (LookupError, TypeError, ValueError):
+        return None
+    if price <= 0:
+        return None
+    unit = str(expr.get('usageUnitDescription') or expr.get('usageUnit') or '').lower()
+    if 'million' in unit:
+        return round(price, 6)
+    if 'count' in unit or 'token' in unit:
+        return round(price * 1e6, 6)
+    return round(price, 6)   # z. B. „image" — je Stück
+
+
+# Der `reason` aus Googles Fehlerkörper ist die einzige belastbare Auskunft.
+# Nach dem Statuscode zu gehen wäre falsch: „Dienst nicht freigeschaltet" und
+# „API-Keys werden hier nicht unterstützt" sind beide 403, verlangen aber völlig
+# verschiedene Schritte — im zweiten Fall gibt es überhaupt nichts freizuschalten.
+_BILLING_REASONS = {
+    'SERVICE_DISABLED':              'billing_disabled',
+    'API_KEY_INVALID':               'key_rejected',
+    'API_KEY_SERVICE_BLOCKED':       'key_rejected',
+    'API_KEY_HTTP_REFERRER_BLOCKED': 'key_rejected',
+    'CREDENTIALS_MISSING':           'needs_oauth',
+    'ACCESS_TOKEN_TYPE_UNSUPPORTED': 'needs_oauth',
+}
+
+
+def _billing_error(r) -> tuple[str, str]:
+    """(Fehlercode, roher Grund) aus einer Google-Fehlerantwort.
+
+    Der rohe Grund geht mit an die Oberfläche: bei einem unbekannten Fall soll
+    dort stehen, was Google wirklich sagt, statt einer geratenen Empfehlung.
+    """
+    try:
+        err = (r.json() or {}).get('error') or {}
+        reasons = [d.get('reason') for d in (err.get('details') or [])
+                   if isinstance(d, dict) and d.get('reason')]
+    except ValueError:
+        reasons = []
+    for reason in reasons:
+        if reason in _BILLING_REASONS:
+            return _BILLING_REASONS[reason], reason
+    return 'failed', (reasons[0] if reasons else f'HTTP {r.status_code}')
+
+
+def _gemini_fetch_prices(models: list[str]) -> tuple[dict | None, str, str]:
+    """Preisvorschläge aus dem Cloud-Preiskatalog.
+
+    Zurück: (Vorschläge, Fehlercode, roher Grund von Google).
+    """
+    key = _gemini_key()
+    try:
+        r = http.get(f'{CLOUD_BILLING_API}/services',
+                     params={'key': key, 'pageSize': 5000}, timeout=20)
+        if not r.ok:
+            return (None,) + _billing_error(r)
+        service = next((s['name'] for s in (r.json().get('services') or [])
+                        if str(s.get('displayName', '')).lower() == GEMINI_BILLING_SERVICE), None)
+        if not service:
+            return None, 'service_not_found', ''
+        skus, token = [], ''
+        while True:
+            p = {'key': key, 'pageSize': 5000}
+            if token:
+                p['pageToken'] = token
+            r = http.get(f'{CLOUD_BILLING_API}/{service}/skus', params=p, timeout=20)
+            if not r.ok:
+                return (None,) + _billing_error(r)
+            data = r.json()
+            skus.extend(data.get('skus') or [])
+            token = data.get('nextPageToken') or ''
+            if not token or len(skus) > 20000:
+                break
+    except Exception as e:
+        # Nur der Typ: die Meldung von requests enthält die URL samt Key
+        log.warning("Preiskatalog nicht abrufbar: %s", type(e).__name__)
+        return None, 'failed', type(e).__name__
+    # Längster Treffer gewinnt, sonst schnappt sich „gemini-3-flash" die SKUs
+    # von „gemini-3-flash-lite"
+    wanted = sorted(((m, m.replace('-', ' ').lower()) for m in models),
+                    key=lambda x: -len(x[1]))
+    out: dict[str, dict] = {}
+    for sku in skus:
+        desc = str(sku.get('description') or '').lower()
+        model = next((m for m, needle in wanted if needle in desc), None)
+        if not model:
+            continue
+        kind = next((k for word, k in _SKU_KINDS if word in desc), None)
+        price = _sku_unit_price(sku) if kind else None
+        if kind and price:
+            out.setdefault(model, {})[kind] = price
+    return out, '', ''
+
+
+@admin_app.route('/api/ai/prices/fetch', methods=['POST'])
+def api_ai_prices_fetch():
+    err = _api_auth()
+    if err:
+        return err
+    if not gemini_text_enabled():
+        return jsonify({'error': 'no_api_key'}), 400
+    raw = (request.get_json(silent=True) or {}).get('models')
+    models = [m for m in (raw if isinstance(raw, list) else [])[:60]
+              if isinstance(m, str) and _AI_MODEL_RE.match(m)]
+    if not models:
+        return jsonify({'error': 'invalid'}), 400
+    prices, code, reason = _gemini_fetch_prices(models)
+    if code:
+        log.info("Preiskatalog abgelehnt (%s): %s", code, reason)
+        return jsonify({'error': code, 'reason': reason}), 502
+    log.info("Preiskatalog abgefragt: %d von %d Modellen zugeordnet",
+             len(prices), len(models))
+    return jsonify({'ok': True, 'prices': prices})
+
+
+@admin_app.route('/api/ai/prices', methods=['POST'])
+def api_ai_prices():
+    err = _api_auth()
+    if err:
+        return err
+    raw = (request.get_json(silent=True) or {}).get('prices')
+    if not isinstance(raw, dict):
+        return jsonify({'error': 'invalid'}), 400
+    clean = {}
+    for model, p in list(raw.items())[:60]:
+        if not _AI_MODEL_RE.match(str(model)) or not isinstance(p, dict):
+            continue
+        vals = {}
+        for k in ('in', 'out', 'image'):
+            try:
+                v = round(float(p.get(k) or 0), 6)
+            except (TypeError, ValueError):
+                v = 0.0
+            if v > 0:
+                vals[k] = v
+        if vals:
+            clean[model] = vals
+    with _ai_usage_lock:
+        data = _ai_usage_load()
+        data['prices'] = clean
+        try:
+            _atomic_write_json(AI_USAGE_PATH, data, indent=2)
+        except Exception as e:
+            log.warning("KI-Preise konnten nicht gespeichert werden: %s", e)
+            return jsonify({'error': 'save_failed'}), 500
+    return jsonify({'ok': True})
+
+
+def _gemini_translate(text: str, src: str, dst: str) -> str:
+    """Übersetzt in einem Rutsch — Gemini kommt mit 20 000 Zeichen zurecht.
+
+    Das Zerlegen in 450-Zeichen-Häppchen wie bei MyMemory würde hier schaden:
+    ohne den Zusammenhang übersetzt jedes Stück für sich, und Markdown-Blöcke
+    zerfielen mitten im Satz. Ausnahmen fliegen bewusst nach oben — der Aufrufer
+    fällt dann auf MyMemory zurück.
+    """
+    names = {'de': 'Deutsch', 'en': 'Englisch'}
+    model = _gemini_text_model()
+    client = _gemini_client()
+    resp = client.models.generate_content(
+        model=model, contents=[text],
+        config=genai_types.GenerateContentConfig(
+            system_instruction=(
+                f"Übersetze den Text von {names[src]} nach {names[dst]}. "
+                "Antworte ausschließlich mit der Übersetzung — keine Vorrede, keine "
+                "Anführungszeichen, keine Erklärung. Markdown, Links, Code-Blöcke, "
+                "Zeilenumbrüche und Emojis bleiben unverändert erhalten. "
+                "Eigennamen und Produktnamen werden nicht übersetzt."
+            ),
+            http_options=genai_types.HttpOptions(timeout=GEMINI_TEXT_TIMEOUT_MS),
+        ),
+    )
+    _ai_usage_record(model, resp)
+    out = (resp.text or '').strip()
+    if not out:
+        raise ValueError('empty translation')
+    return out
+
+
+# ── Bibliothek (Admin) ────────────────────────────────────────────────────────
+
+@admin_app.route('/api/library/settings', methods=['POST'])
+def api_library_settings():
+    err = _api_auth()
+    if err:
+        return err
+    raw = request.get_json(silent=True) or {}
+    site = load_site()
+    lib = _library(site)
+    lib['label_de'] = _clean_str(raw.get('label_de'), 60)
+    lib['label_en'] = _clean_str(raw.get('label_en'), 60)
+    lib['intro_de'] = _clean_str(raw.get('intro_de'), 2000)
+    lib['intro_en'] = _clean_str(raw.get('intro_en'), 2000)
+    lib['nav'] = bool(raw.get('nav', True))
+    save_site(site)
+    return jsonify({'ok': True})
+
+
+@admin_app.route('/api/library/categories', methods=['POST'])
+def api_library_cat_create():
+    err = _api_auth()
+    if err:
+        return err
+    raw = request.get_json(silent=True) or {}
+    if not (_clean_str(raw.get('name_de'), 60) or _clean_str(raw.get('name_en'), 60)):
+        return jsonify({'error': 'name required'}), 400
+    site = load_site()
+    lib = _library(site)
+    if len(lib['categories']) >= 40:
+        return jsonify({'error': 'too many'}), 400
+    lib['categories'].append(_normalize_lib_cat(raw))
+    save_site(site)
+    return jsonify({'ok': True})
+
+
+@admin_app.route('/api/library/categories/<cid>', methods=['PUT', 'DELETE'])
+def api_library_cat_edit(cid: str):
+    err = _api_auth()
+    if err:
+        return err
+    site = load_site()
+    lib = _library(site)
+    cats = lib['categories']
+    idx = next((i for i, c in enumerate(cats) if c.get('id') == cid), None)
+    if idx is None:
+        return jsonify({'error': 'not found'}), 404
+    if request.method == 'DELETE':
+        cats.pop(idx)
+        # Einträge nicht mitlöschen — sie rutschen in „ohne Kategorie"
+        for e in lib['entries']:
+            if e.get('cat') == cid:
+                e['cat'] = ''
+        save_site(site)
+        return jsonify({'ok': True})
+    raw = request.get_json(silent=True) or {}
+    if not (_clean_str(raw.get('name_de'), 60) or _clean_str(raw.get('name_en'), 60)):
+        return jsonify({'error': 'name required'}), 400
+    cats[idx] = _normalize_lib_cat(raw, cats[idx])
+    save_site(site)
+    return jsonify({'ok': True})
+
+
+@admin_app.route('/api/library/categories/reorder', methods=['POST'])
+def api_library_cat_reorder():
+    err = _api_auth()
+    if err:
+        return err
+    order = (request.get_json(silent=True) or {}).get('order') or []
+    if not isinstance(order, list):
+        return jsonify({'error': 'invalid'}), 400
+    site = load_site()
+    cats = _library(site)['categories']
+    pos = {cid: i for i, cid in enumerate(order)}
+    cats.sort(key=lambda c: pos.get(c.get('id'), len(pos)))
+    save_site(site)
+    return jsonify({'ok': True})
+
+
+def _library_apply_pdf(site: dict, entry: dict) -> str:
+    """PDF-Zustand eines Eintrags nach dem Speichern herstellen.
+
+    Gibt einen Statuscode für die Oberfläche zurück: '' (nichts zu tun),
+    'generated' (frisch erzeugt) oder 'unavailable' (WeasyPrint fehlt).
+    """
+    mode = entry.get('pdf_mode')
+    if mode == 'generated':
+        try:
+            if _library_pdf_build(site, entry):
+                return 'generated'
+        except Exception as e:
+            log.warning("PDF-Erzeugung für Bibliothek-Eintrag '%s' fehlgeschlagen: %s",
+                        entry.get('slug'), e)
+            return 'error'
+        return 'unavailable'
+    if mode == 'upload':
+        _library_pdf_drop(entry, keep=entry.get('pdf') or '')
+        entry['pdf_gen'], entry['pdf_hash'] = '', ''
+    else:
+        _library_pdf_drop(entry)
+        entry['pdf'], entry['pdf_gen'], entry['pdf_hash'] = '', '', ''
+    return ''
+
+
+@admin_app.route('/api/library/entries', methods=['POST'])
+def api_library_entry_create():
+    err = _api_auth()
+    if err:
+        return err
+    raw = request.get_json(silent=True) or {}
+    if not (_clean_str(raw.get('title_de'), 140) or _clean_str(raw.get('title_en'), 140)):
+        return jsonify({'error': 'title required'}), 400
+    site = load_site()
+    lib = _library(site)
+    entry = _normalize_lib_entry(site, raw)
+    entry['slug'] = _lib_entry_slug(site, raw, entry['id'])
+    lib['entries'].append(entry)
+    pdf_state = _library_apply_pdf(site, entry)
+    save_site(site)
+    return jsonify({'ok': True, 'slug': entry['slug'], 'pdf': pdf_state})
+
+
+@admin_app.route('/api/library/entries/<eid>', methods=['PUT', 'DELETE'])
+def api_library_entry_edit(eid: str):
+    err = _api_auth()
+    if err:
+        return err
+    site = load_site()
+    lib = _library(site)
+    entries = lib['entries']
+    idx = next((i for i, e in enumerate(entries) if e.get('id') == eid), None)
+    if idx is None:
+        return jsonify({'error': 'not found'}), 404
+    if request.method == 'DELETE':
+        _library_pdf_drop(entries[idx])
+        entries.pop(idx)
+        save_site(site)
+        return jsonify({'ok': True})
+    raw = request.get_json(silent=True) or {}
+    if not (_clean_str(raw.get('title_de'), 140) or _clean_str(raw.get('title_en'), 140)):
+        return jsonify({'error': 'title required'}), 400
+    entries[idx] = _normalize_lib_entry(site, raw, entries[idx])
+    entries[idx]['slug'] = _lib_entry_slug(site, raw, eid)
+    pdf_state = _library_apply_pdf(site, entries[idx])
+    save_site(site)
+    return jsonify({'ok': True, 'slug': entries[idx]['slug'], 'pdf': pdf_state})
+
+
+@admin_app.route('/api/library/entries/<eid>/copy', methods=['POST'])
+def api_library_entry_copy(eid: str):
+    """Eintrag duplizieren — Kopie landet direkt hinter dem Original, als Entwurf.
+
+    Entwurf, weil eine Kopie fast immer noch überarbeitet wird: sie hätte sonst
+    denselben Text sofort ein zweites Mal öffentlich (und in der Sitemap).
+    """
+    err = _api_auth()
+    if err:
+        return err
+    site = load_site()
+    lib = _library(site)
+    entries = lib['entries']
+    idx = next((i for i, e in enumerate(entries) if e.get('id') == eid), None)
+    if idx is None:
+        return jsonify({'error': 'not found'}), 404
+    src = entries[idx]
+    copy = json.loads(json.dumps(src))
+    copy['id'] = uuid.uuid4().hex[:12]
+    copy['visible'] = False
+    # Suffix je Titelsprache — sonst stünde am englischen Titel „(Kopie)"
+    for lang, key in (('de', 'title_de'), ('en', 'title_en')):
+        if copy.get(key):
+            suffix = load_translations(lang).get('library_copy_suffix') or '(Kopie)'
+            copy[key] = _clean_str(f'{copy[key]} {suffix}', 140)
+    copy['pdf'], copy['pdf_gen'], copy['pdf_hash'] = '', '', ''
+    copy['slug'] = _lib_entry_slug(site, {'slug': src.get('slug', '')}, copy['id'])
+    copy['updated'] = date.today().isoformat()
+    entries.insert(idx + 1, copy)
+    # Ein hochgeladenes PDF bekommt eine eigene Datei — teilten sich Original und
+    # Kopie eine, würde das Löschen des einen dem anderen die Datei wegnehmen.
+    if copy.get('pdf_mode') == 'upload' and _DOC_FILE_RE.match(src.get('pdf') or ''):
+        source = safe_under(DOCS_DIR, src['pdf'])
+        name = uuid.uuid4().hex + '.pdf'
+        target = safe_under(DOCS_DIR, name)
+        if source is not None and source.is_file() and target is not None:
+            shutil.copyfile(source, target)
+            copy['pdf'] = name
+    pdf_state = _library_apply_pdf(site, copy)
+    save_site(site)
+    return jsonify({'ok': True, 'id': copy['id'], 'slug': copy['slug'], 'pdf': pdf_state})
+
+
+@admin_app.route('/api/library/entries/reorder', methods=['POST'])
+def api_library_entry_reorder():
+    err = _api_auth()
+    if err:
+        return err
+    order = (request.get_json(silent=True) or {}).get('order') or []
+    if not isinstance(order, list):
+        return jsonify({'error': 'invalid'}), 400
+    site = load_site()
+    entries = _library(site)['entries']
+    pos = {eid: i for i, eid in enumerate(order)}
+    entries.sort(key=lambda e: pos.get(e.get('id'), len(pos)))
+    save_site(site)
+    return jsonify({'ok': True})
+
+
+@admin_app.route('/api/library/upload-doc', methods=['POST'])
+def api_library_upload_doc():
+    """PDF-Upload für einen Bibliothek-Eintrag (getrennt von /api/upload für Bilder)."""
+    err = _api_auth()
+    if err:
+        return err
+    f = request.files.get('file')
+    if not f or not f.filename:
+        return jsonify({'error': 'no file'}), 400
+    if Path(f.filename).suffix.lower() not in ALLOWED_DOC_EXT:
+        return jsonify({'error': 'file type not allowed'}), 400
+    name = uuid.uuid4().hex + '.pdf'
+    target = safe_under(DOCS_DIR, name)
+    if target is None:
+        abort(400)
+    f.save(target)
+    if target.stat().st_size > DOC_MAX_BYTES:
+        target.unlink(missing_ok=True)
+        return jsonify({'error': 'too large'}), 413
+    # Inhalt prüfen, nicht nur die Endung — ein umbenanntes HTML soll nicht als
+    # „PDF" im Download landen.
+    with open(target, 'rb') as fh:
+        if fh.read(5) != b'%PDF-':
+            target.unlink(missing_ok=True)
+            return jsonify({'error': 'not a pdf'}), 400
+    return jsonify({'ok': True, 'name': name, 'size': target.stat().st_size})
+
+
+@admin_app.route('/api/library/pdf-support')
+def api_library_pdf_support():
+    err = _api_auth()
+    if err:
+        return err
+    return jsonify({'available': _HAS_WEASY})
 
 
 @admin_app.route('/api/forms', methods=['POST'])
@@ -4750,6 +6472,15 @@ def api_export():
         pages['blog/index.html'] = '/blog'
         for po in posts:
             pages[f"blog/{po['id']}/index.html"] = f"/blog/{po['id']}"
+    lib_entries = _lib_public_entries(site)
+    if lib_entries:
+        pages['bibliothek/index.html'] = '/bibliothek'
+        for e in lib_entries:
+            pages[f"bibliothek/{e['slug']}/index.html"] = f"/bibliothek/{e['slug']}"
+            # PDF unter derselben Adresse wie im Live-Betrieb — der Button im
+            # exportierten HTML zeigt damit auf eine echte Datei.
+            if _lib_entry_pdf_name(e) and not e.get('members_only'):
+                pages[f"bibliothek/{e['slug']}.pdf"] = f"/bibliothek/{e['slug']}.pdf"
     if loc(legal, 'impressum').strip():
         pages['impressum/index.html'] = '/impressum'
     if loc(legal, 'privacy').strip():
@@ -4798,6 +6529,47 @@ def api_upload_font():
     return jsonify({'ok': True, 'name': display})
 
 
+def _store_upload_image(src, *, max_side: int = 1600, quality: int = 82,
+                        ai: bool = False) -> str | None:
+    """Bild verkleinern, Metadaten verwerfen und als WebP in UPLOADS_DIR ablegen.
+
+    `src` ist ein Datei-Objekt oder rohe Bilddaten; zurück kommt der erzeugte
+    Dateiname (`<uuid>.webp`) oder None, wenn Pillow fehlt.
+
+    Gemeinsam genutzt von `/api/upload` und der KI-Bilderzeugung — beide müssen
+    dieselben Zusagen einhalten: höchstens 1600 px, WebP, und ohne EXIF neu
+    kodiert, damit kein GPS-Standort mit ins Netz geht. Eine zweite Kopie dieser
+    Logik würde über die Zeit auseinanderlaufen und aus der Datenschutzzusage
+    einen Zufall machen. Der UUID-Dateiname ist ebenfalls Pflicht: `_unused_uploads`
+    erkennt verwaiste Dateien über einen Vorkommen-Scan im JSON-Text.
+
+    Mit `ai=True` bekommt der Dateiname das Suffix `-ai`. Daran — und nur daran —
+    erkennt die Bild-Auslieferung später, dass sie „KI generiert" einbrennen muss.
+    Der Marker steckt bewusst im Dateinamen statt in site.json: er übersteht
+    Backup und Wiederherstellung, gilt auch für ein Bild, das in mehreren
+    Einträgen benutzt wird, und die Auslieferroute braucht dafür keinen Zustand.
+
+    Lesefehler werden bewusst durchgereicht — die Aufrufer entscheiden über den
+    Rückfall.
+    """
+    if not _HAS_PIL:
+        return None
+    img = Image.open(io.BytesIO(src) if isinstance(src, (bytes, bytearray)) else src)
+    # EXIF-Orientierung anwenden (sonst erscheinen Handy-Hochkant-Fotos gedreht)
+    # und damit zugleich Metadaten verwerfen (GPS/Kamera) — Datenschutz.
+    img = ImageOps.exif_transpose(img)
+    img.thumbnail((max_side, max_side))
+    if img.mode not in ('RGB', 'RGBA'):
+        img = img.convert('RGBA' if 'A' in img.getbands() else 'RGB')
+    name = uuid.uuid4().hex + (AI_IMAGE_SUFFIX if ai else '') + '.webp'
+    target = safe_under(UPLOADS_DIR, name)
+    if target is None:
+        return None
+    # ohne exif=... → das neu kodierte WebP enthält keine Metadaten mehr
+    img.save(target, 'WEBP', quality=quality)
+    return name
+
+
 @admin_app.route('/api/upload', methods=['POST'])
 def api_upload():
     err = _api_auth()
@@ -4810,25 +6582,14 @@ def api_upload():
     if ext not in ALLOWED_UPLOAD_EXT:
         return jsonify({'error': 'file type not allowed'}), 400
     # Bilder verkleinern und als WebP speichern (GIFs unverändert, wegen Animation)
-    if _HAS_PIL and ext != '.gif':
+    if ext != '.gif':
         try:
-            img = Image.open(f.stream)
-            # EXIF-Orientierung anwenden (sonst erscheinen Handy-Hochkant-Fotos gedreht)
-            # und damit zugleich Metadaten verwerfen (GPS/Kamera) — Datenschutz.
-            img = ImageOps.exif_transpose(img)
-            img.thumbnail((1600, 1600))
-            if img.mode not in ('RGB', 'RGBA'):
-                img = img.convert('RGBA' if 'A' in img.getbands() else 'RGB')
-            name = uuid.uuid4().hex + '.webp'
-            target = safe_under(UPLOADS_DIR, name)
-            if target is None:
-                abort(400)
-            # ohne exif=... → das neu kodierte WebP enthält keine Metadaten mehr
-            img.save(target, 'WEBP', quality=82)
-            return jsonify({'ok': True, 'url': '/uploads/' + name})
+            name = _store_upload_image(f.stream)
+            if name:
+                return jsonify({'ok': True, 'url': '/uploads/' + name})
         except Exception as e:
             log.warning("Bild-Optimierung fehlgeschlagen, speichere Original: %s", e)
-            f.stream.seek(0)
+        f.stream.seek(0)
     # ext stammt aus dem Dateinamen, ist aber gegen ALLOWED_UPLOAD_EXT geprüft
     name = uuid.uuid4().hex + ext
     target = safe_under(UPLOADS_DIR, name)
@@ -4838,20 +6599,85 @@ def api_upload():
     return jsonify({'ok': True, 'url': '/uploads/' + name})
 
 
-def _unused_uploads(site: dict):
-    """Hochgeladene Dateien, die nirgends mehr in site.json referenziert sind.
+UPLOADS_LIST_MAX = 300
 
-    Alle Uploads (Bilder in Seiten/Beiträgen/Projekten/Alben, Avatar, Favicon)
-    werden in site.json als `/uploads/<name>` gespeichert. Dateinamen sind
-    eindeutige UUIDs, daher ist ein Vorkommen-Scan über den JSON-Text sicher.
+
+@admin_app.route('/api/uploads/list')
+def api_uploads_list():
+    """Vorhandene Bilder für den Medien-Browser im Admin.
+
+    Neueste zuerst und auf UPLOADS_LIST_MAX begrenzt — bei einigen hundert
+    Bildern wäre die Galerie sonst weder ladbar noch überschaubar. `used` sagt,
+    ob die Datei irgendwo in site.json steckt; so ist erkennbar, was nur
+    herumliegt (etwa ein verworfenes KI-Bild), ohne es gleich zu löschen.
+    """
+    err = _api_auth()
+    if err:
+        return err
+    blob = json.dumps(load_site(), ensure_ascii=False)
+    files = []
+    for f in UPLOADS_DIR.iterdir():
+        if not f.is_file() or f.suffix.lower() not in ALLOWED_UPLOAD_EXT:
+            continue
+        try:
+            st = f.stat()
+        except OSError:
+            continue
+        if st.st_size <= 0:
+            continue    # abgebrochener Upload — gäbe nur eine kaputte Kachel
+        files.append({'url': '/uploads/' + f.name, 'size': st.st_size,
+                      'mtime': int(st.st_mtime), 'used': f.name in blob})
+    files.sort(key=lambda x: x['mtime'], reverse=True)
+    return jsonify({'files': files[:UPLOADS_LIST_MAX], 'total': len(files)})
+
+
+def _unused_in(directory: Path, site: dict):
+    """Dateien in `directory`, die nirgends mehr in site.json referenziert sind.
+
+    Dateinamen sind durchweg eindeutige UUIDs, daher ist ein Vorkommen-Scan über
+    den JSON-Text sicher und deckt jede Fundstelle ab, ohne die Struktur zu kennen.
     """
     blob = json.dumps(site, ensure_ascii=False)
     orphans, total = [], 0
-    for f in UPLOADS_DIR.iterdir():
+    for f in directory.iterdir():
         if f.is_file() and f.name not in blob:
             orphans.append(f)
             total += f.stat().st_size
     return orphans, total
+
+
+def _unused_uploads(site: dict):
+    """Hochgeladene Bilder, die nirgends mehr referenziert sind.
+
+    Alle Uploads (Bilder in Seiten/Beiträgen/Projekten/Alben, Avatar, Favicon)
+    stehen in site.json als `/uploads/<name>`.
+    """
+    return _unused_in(UPLOADS_DIR, site)
+
+
+def _unused_docs(site: dict):
+    """PDFs der Bibliothek, zu denen es keinen Eintrag mehr gibt.
+
+    Im Normalbetrieb räumt die Bibliothek selbst auf (neu gerendert, Modus
+    gewechselt, Eintrag gelöscht). Übrig bleibt, was daran vorbeigeht: ein
+    abgebrochenes Rendern zwischen Schreiben und Eintragen in site.json, oder
+    eine Wiederherstellung aus einem Backup mit weniger Einträgen.
+    """
+    return _unused_in(DOCS_DIR, site)
+
+
+def _cleanup_dir(orphans, total, audit_tag: str):
+    """Waisen löschen und das Ergebnis als JSON-Antwort zurückgeben."""
+    removed = 0
+    for f in orphans:
+        try:
+            f.unlink()
+            removed += 1
+        except OSError as e:
+            log.warning("Aufräumen: %s konnte nicht gelöscht werden: %s", f.name, e)
+    if removed:
+        log_audit(audit_tag, f'{removed} Datei(en)')
+    return jsonify({'ok': True, 'removed': removed, 'freed_mb': round(total / 1048576, 1)})
 
 
 @admin_app.route('/api/uploads/unused')
@@ -4863,22 +6689,58 @@ def api_uploads_unused():
     return jsonify({'count': len(orphans), 'size_mb': round(total / 1048576, 1)})
 
 
+@admin_app.route('/api/uploads/delete', methods=['POST'])
+def api_uploads_delete():
+    """Ein einzelnes Bild löschen — für den Fall, dass ein gespeichertes Bild
+    doch nicht gefällt. Das Sammel-Aufräumen im Tab System ist dafür zu grob.
+
+    Eingebundene Bilder bleiben tabu: sonst reißt ein Beitrag oder ein
+    Bibliothek-Eintrag ein Loch, das erst beim Betrachten auffällt. Geprüft
+    wird mit demselben Vorkommen-Scan wie beim Aufräumen.
+    """
+    err = _api_auth()
+    if err:
+        return err
+    name = Path(_clean_str((request.get_json(silent=True) or {}).get('name'), 120)).name
+    if Path(name).suffix.lower() not in ALLOWED_UPLOAD_EXT:
+        return jsonify({'error': 'invalid'}), 400
+    p = safe_under(UPLOADS_DIR, name)
+    if p is None or not p.is_file():
+        return jsonify({'error': 'not_found'}), 404
+    if name in json.dumps(load_site(), ensure_ascii=False):
+        return jsonify({'error': 'in_use'}), 409
+    try:
+        p.unlink()
+    except OSError as e:
+        log.warning("Bild '%s' konnte nicht gelöscht werden: %s", name, e)
+        return jsonify({'error': 'delete_failed'}), 500
+    log_audit('upload_delete', name)
+    return jsonify({'ok': True})
+
+
 @admin_app.route('/api/uploads/cleanup', methods=['POST'])
 def api_uploads_cleanup():
     err = _api_auth()
     if err:
         return err
-    orphans, total = _unused_uploads(load_site())
-    removed = 0
-    for f in orphans:
-        try:
-            f.unlink()
-            removed += 1
-        except OSError as e:
-            log.warning("Aufräumen: %s konnte nicht gelöscht werden: %s", f.name, e)
-    if removed:
-        log_audit('uploads_cleanup', f'{removed} Datei(en)')
-    return jsonify({'ok': True, 'removed': removed, 'freed_mb': round(total / 1048576, 1)})
+    return _cleanup_dir(*_unused_uploads(load_site()), 'uploads_cleanup')
+
+
+@admin_app.route('/api/docs/unused')
+def api_docs_unused():
+    err = _api_auth()
+    if err:
+        return err
+    orphans, total = _unused_docs(load_site())
+    return jsonify({'count': len(orphans), 'size_mb': round(total / 1048576, 1)})
+
+
+@admin_app.route('/api/docs/cleanup', methods=['POST'])
+def api_docs_cleanup():
+    err = _api_auth()
+    if err:
+        return err
+    return _cleanup_dir(*_unused_docs(load_site()), 'docs_cleanup')
 
 
 @admin_app.route('/api/github/repos')
@@ -4980,6 +6842,15 @@ def public_set_lang(lang: str):
 
 @public_app.route('/uploads/<path:filename>')
 def public_uploads(filename: str):
+    """Öffentliche Auslieferung hochgeladener Dateien.
+
+    KI-erzeugte Bilder bekommen auch hier die Kennzeichnung eingebrannt. Sonst
+    wäre der direkte Aufruf dieser Adresse — die in jedem Seitenquelltext steht —
+    der einfachste Weg, an eine ungekennzeichnete Fassung zu kommen; das
+    Wasserzeichen der Alben ist eine Komfortfunktion, die Kennzeichnung nicht.
+    """
+    if _is_ai_image(filename):
+        return _serve_image_with_overlay(filename, detect_language(request))
     return send_from_directory(UPLOADS_DIR, filename, max_age=86400)
 
 
@@ -5068,18 +6939,39 @@ def _render_watermark(src: Path, text: str) -> bytes | None:
         return None
 
 
-@public_app.route('/album-img/<path:filename>')
-def album_image(filename: str):
-    """Album-Bild ausliefern — mit eingebranntem Wasserzeichen, wenn aktiviert."""
+def _is_ai_image(name: str) -> bool:
+    """Ob der Dateiname als KI-erzeugt markiert ist (Suffix `-ai` vor der Endung)."""
+    return Path(name).stem.endswith(AI_IMAGE_SUFFIX)
+
+
+def _image_overlay_text(name: str, site: dict, lang: str) -> str:
+    """Text, der in dieses Bild eingebrannt wird — leer heißt: Original ausliefern.
+
+    Zwei voneinander unabhängige Gründe, kombiniert zu einer Zeile:
+    das Wasserzeichen (nur bei aktivierter Option „Bilder schützen") und die
+    Kennzeichnung KI-erzeugter Bilder. Letztere hängt **nicht** an der Option:
+    sie erfüllt die Transparenzpflicht für KI-Inhalte und darf sich deshalb
+    nicht versehentlich abschalten lassen.
+    """
+    parts = []
+    if site.get('album_protect'):
+        parts.append(effective_watermark())
+    if _is_ai_image(name):
+        parts.append(load_translations(lang).get('img_ai_label') or 'KI generiert')
+    return ' · '.join(p for p in parts if p)
+
+
+def _serve_image_with_overlay(filename: str, lang: str):
+    """Bild ausliefern, bei Bedarf mit eingebranntem Text (Cache in WM_CACHE_DIR)."""
     safe = secure_filename(filename)
     src = safe_under(UPLOADS_DIR, safe)
     if not safe or src is None or not src.is_file():
         abort(404)
-    site = load_site()
-    if not site.get('album_protect'):
+    text = _image_overlay_text(safe, load_site(), lang)
+    if not text:
         return send_from_directory(UPLOADS_DIR, safe, max_age=86400)
-    text = effective_watermark()
-    # Cache-Schlüssel aus Text + Dateiname → Textänderung erzeugt neue Datei
+    # Cache-Schlüssel aus Text + Dateiname → geänderter Text erzeugt eine neue
+    # Datei, alte Stände werden dadurch nie ausgeliefert
     key = hashlib.sha256((text + '|' + safe).encode()).hexdigest()[:24]
     cached = WM_CACHE_DIR / f'{key}.webp'
     if not cached.is_file():
@@ -5090,13 +6982,32 @@ def album_image(filename: str):
     return send_file(cached, mimetype='image/webp', max_age=86400)
 
 
+@public_app.route('/album-img/<path:filename>')
+def album_image(filename: str):
+    """Album-Bild ausliefern — mit eingebranntem Wasserzeichen, wenn aktiviert.
+
+    Bleibt als eigener Pfad bestehen, obwohl `/img/` dasselbe tut: die Adresse
+    steckt in bereits veröffentlichten Seiten und in Suchmaschinen-Indizes.
+    """
+    return _serve_image_with_overlay(filename, detect_language(request))
+
+
+@public_app.route('/img/<path:filename>')
+def overlay_image(filename: str):
+    """Bild mit Wasserzeichen/KI-Kennzeichnung — genutzt von der Bibliothek."""
+    return _serve_image_with_overlay(filename, detect_language(request))
+
+
 def _base_url() -> str:
     site = load_site()
     return (site['design'].get('public_url') or request.url_root.rstrip('/')).rstrip('/')
 
 
 def _public_url_list(site: dict, base: str) -> list:
-    """Alle öffentlich indexierbaren URLs (Startseite, Projekt-Detailseiten, Blog)."""
+    """Alle öffentlich indexierbaren URLs (Startseite, Projekte, Blog, Bibliothek).
+
+    Grundlage für den IndexNow-Ping — was hier fehlt, wird Bing/Yandex nie gemeldet.
+    """
     urls = [base + '/']
     urls += [f"{base}/seite/{p['slug']}" for p in site.get('pages', []) if p.get('visible')]
     urls += [f"{base}/p/{p['id']}" for p in site['projects'] if _has_detail(p) and project_visible(p)]
@@ -5104,6 +7015,10 @@ def _public_url_list(site: dict, base: str) -> list:
     if posts:
         urls.append(base + '/blog')
         urls += [f"{base}/blog/{p['id']}" for p in posts]
+    lib_entries = _lib_public_entries(site)
+    if lib_entries:
+        urls.append(base + '/bibliothek')
+        urls += [f"{base}/bibliothek/{e['slug']}" for e in lib_entries]
     return urls
 
 
@@ -7281,6 +9196,12 @@ def sitemap():
     # (URL, lastmod) — lastmod optional
     entries = [(base + '/', newest)]
     entries += [(f"{base}/seite/{p['slug']}", '') for p in site.get('pages', []) if p.get('visible')]
+    lib_entries = _lib_public_entries(site)
+    if lib_entries:
+        entries.append((base + '/bibliothek', ''))
+        entries += [(f"{base}/bibliothek/{e['slug']}",
+                     e['updated'] if _valid_date(e.get('updated')) else '')
+                    for e in lib_entries]
     entries += [(f"{base}/p/{p['id']}", '') for p in site['projects']
                 if _has_detail(p) and project_visible(p)]
     if posts:
@@ -7476,6 +9397,13 @@ def public_index():
         albums = [a for a in albums if not a.get('locked')]
     latest_posts = sorted_posts(site, public_only=True)[:3]
     contact_enabled = bool(site['design'].get('contact_enabled')) and not static_export
+    # Bibliothek: Anriss als Karussell — es scrollt seitwärts, die Startseite wird
+    # also nicht länger. 12 statt 6 Karten, darüber verweist „Alle anzeigen".
+    library_entries = _lib_view_entries(site, loc)[:12]
+    library_total = len(_lib_public_entries(site))
+    # Schlagwörter nur aus den gezeigten Karten — die Filterleiste auf der Startseite
+    # arbeitet im Browser über genau diese Kacheln, ein Chip ohne Treffer wäre eine Sackgasse.
+    library_tags = _lib_tag_list(library_entries)
 
     loc_block = sections.get('location') or {}
     loc_present = bool(loc_block.get('address') or loc_block.get('hours_de') or loc_block.get('hours_en'))
@@ -7541,6 +9469,7 @@ def public_index():
         'skills':       ('skills',       'skills_heading',       bool(sections.get('skills'))),
         'testimonials': ('testimonials', 'testimonials_heading', bool(sections.get('testimonials'))),
         'photos':       ('photos',       'albums_heading',       bool(albums)),
+        'library':      ('library',      'library_heading',      bool(library_entries)),
         'team':         ('team',         'team_heading',         bool(sections.get('team'))),
         'timeline':     ('timeline',     'timeline_heading',     bool(sections.get('timeline'))),
         'events':       ('events',       'events_heading',       bool(sections.get('events'))),
@@ -7561,12 +9490,19 @@ def public_index():
 
     # Frei konfigurierbare Überschrift für den Werdegang (leer = Standard „Werdegang")
     timeline_title = loc(sections, 'timeline_title')
+    # Frei konfigurierbarer Name der Sammlung (leer = Standard „Bibliothek")
+    library_heading = _library_label(site, loc, t)
 
     # Navigations-Leiste: nur Sektionen mit Inhalt, in gewählter Reihenfolge
     nav_items = []
     if site['design'].get('show_nav', True):
         for key in section_order:
             anchor, label_key, present = section_defs[key]
+            # Der Navi-Schalter der Bibliothek gilt auch hier: sonst stünde die
+            # Sammlung trotz abgeschaltetem Schalter als Sprungmarke in der Leiste,
+            # nur weil der Abschnitt auf der Startseite sichtbar ist.
+            if key == 'library' and not _library(site).get('nav'):
+                continue
             if present:
                 if key == 'timeline' and timeline_title:
                     label = timeline_title
@@ -7574,13 +9510,21 @@ def public_index():
                     label = countdown_title
                 elif key == 'freetext' and freetext_title:
                     label = freetext_title
+                elif key == 'library':
+                    label = library_heading
                 else:
                     label = t.get(label_key, label_key)
                 nav_items.append({'anchor': anchor, 'label': label})
         if contact_enabled:
             nav_items.append({'anchor': 'kontakt', 'label': t.get('contact_heading', 'contact_heading')})
-        # Eigene Seiten und Formulare als echte Links (mit Navi-Schalter) anhängen
-        nav_items += _nav_links(site, loc)
+        # Eigene Seiten und Formulare als echte Links (mit Navi-Schalter) anhängen.
+        # Die Bibliothek nur dann als eigenen Link, wenn sie hier NICHT schon als
+        # Abschnitt in der Leiste steht — sonst stünde sie doppelt. Ist der Abschnitt
+        # ausgeblendet oder auf Mitglieder beschränkt, bleibt der Link der einzige Weg
+        # zur Übersicht.
+        lib_in_nav = ('library' in section_order and section_defs['library'][2]
+                      and _library(site).get('nav'))
+        nav_items += _nav_links(site, loc, t, with_library=not lib_in_nav)
 
     return render_template('public.html', t=t, lang=lang, site=site, loc=loc,
                            projects=projects,
@@ -7592,6 +9536,10 @@ def public_index():
                            albums=albums,
                            album_protect=bool(site.get('album_protect')),
                            latest_posts=latest_posts,
+                           library_entries=library_entries,
+                           library_total=library_total,
+                           library_tags=library_tags,
+                           library_heading=library_heading,
                            countdown_title=countdown_title,
                            newsletter_open=newsletter_open() and not static_export,
                            nl=_clean_str(request.args.get('nl'), 20),
@@ -7652,8 +9600,9 @@ def site_search_page():
         'blog':    t.get('search_kind_blog', 'Blog'),
         'project': t.get('search_kind_project', 'Projekt'),
         'page':    t.get('search_kind_page', 'Seite'),
+        'library': _library_label(site, loc, t),
     }
-    nav_items = _nav_links(site, loc) if site['design'].get('show_nav', True) else []
+    nav_items = _nav_links(site, loc, t) if site['design'].get('show_nav', True) else []
     return render_template('search.html', t=t, lang=lang, site=site, loc=loc,
                            query=query, results=results, kind_labels=kind_labels,
                            nav_items=nav_items,
@@ -7940,7 +9889,7 @@ def admin_page_preview(pid: str):
     font_family, font_faces = font_css(site['design'])
     return render_template('page.html', t=t, lang=lang, site=site, loc=loc,
                            title=(loc(page, 'title') or t.get('page_untitled', '')),
-                           body_html=body_html, nav_items=_nav_links(site, loc),
+                           body_html=body_html, nav_items=_nav_links(site, loc, t),
                            page_slug=page.get('slug', ''),
                            members_only=bool(page.get('members_only')),
                            font_family=font_family, font_faces=font_faces,
@@ -8680,7 +10629,7 @@ def _render_form(form: dict, site: dict, lang: str, *, error: str = '', ok: bool
                            intro_html=render_md(loc(form, 'intro')),
                            success_html=render_md(loc(form, 'success')) if ok else '',
                            fields=fields, captcha=make_captcha(),
-                           nav_items=_nav_links(site, loc),
+                           nav_items=_nav_links(site, loc, t),
                            font_family=font_css(site['design'])[0],
                            font_faces=font_css(site['design'])[1],
                            error=error, ok=ok, form_slug=form['slug'],
@@ -8804,7 +10753,7 @@ def custom_page(slug: str):
     full_html = render_md(loc(page, 'body'))
     locked = bool(page.get('members_only')) and not is_member(request)
     body_html = ('<p>' + _locked_teaser(full_html) + '</p>') if locked else full_html
-    nav_items = _nav_links(site, loc) if site['design'].get('show_nav', True) else []
+    nav_items = _nav_links(site, loc, t) if site['design'].get('show_nav', True) else []
     font_family, font_faces = font_css(site['design'])
     return render_template('page.html', t=t, lang=lang, site=site, loc=loc,
                            title=title, body_html=body_html, nav_items=nav_items,
@@ -8814,6 +10763,195 @@ def custom_page(slug: str):
                            meta_desc=(loc(page, 'meta') or _plain_excerpt(body_html)
                                       or _site_meta(site, loc)),
                            year=datetime.now(timezone.utc).year)
+
+
+# ── Bibliothek (öffentlich) ───────────────────────────────────────────────────
+
+def _lib_view_entries(site: dict, loc, cat: str = '', query: str = '', tag: str = '') -> list:
+    """Sichtbare Einträge als Anzeige-Objekte, optional nach Kategorie/Schlagwort/Suche gefiltert."""
+    cats = {c['id']: c for c in _library(site).get('categories', []) if c.get('id')}
+    words = [w for w in (query or '').lower().split() if w]
+    want_tag = (tag or '').lower()
+    out = []
+    for e in _lib_public_entries(site):
+        if cat and e.get('cat') != cat:
+            continue
+        if want_tag and want_tag not in {str(x).lower() for x in (e.get('tags') or [])}:
+            continue
+        if words:
+            hay = ' '.join([loc(e, 'title'), loc(e, 'summary'), loc(e, 'body'),
+                            ' '.join(e.get('tags') or [])]).lower()
+            if not all(w in hay for w in words):
+                continue
+        c = cats.get(e.get('cat'))
+        out.append({
+            'slug': e.get('slug', ''),
+            'title': loc(e, 'title'),
+            'summary': loc(e, 'summary') or _plain_excerpt(render_md(loc(e, 'body'))),
+            'image': _overlay_url(e.get('image') or ''),
+            'tags': e.get('tags') or [],
+            'updated': e.get('updated') or '',
+            'cat_name': (loc(c, 'name') if c else ''),
+            'cat_icon': (c.get('icon') if c else ''),
+            'has_pdf': bool(_lib_entry_pdf_name(e)),
+            'members_only': bool(e.get('members_only')),
+        })
+    return out
+
+
+def _lib_used_categories(site: dict, loc) -> list:
+    """Kategorien, die mindestens einen sichtbaren Eintrag haben (für die Filterleiste)."""
+    used = {e.get('cat') for e in _lib_public_entries(site)}
+    return [{'id': c['id'], 'name': loc(c, 'name'), 'icon': c.get('icon') or ''}
+            for c in _library(site).get('categories', [])
+            if c.get('id') in used and loc(c, 'name')]
+
+
+def _lib_tag_list(entries: list) -> list:
+    """Schlagwörter der übergebenen Einträge, alphabetisch, ohne Dubletten.
+
+    Groß-/Kleinschreibung wird zusammengefasst (»Griechenland« und »griechenland«
+    sind ein Chip), angezeigt wird die erste vorkommende Schreibweise.
+    """
+    seen = {}
+    for e in entries:
+        for tag in (e.get('tags') or []):
+            key = str(tag).lower()
+            if key and key not in seen:
+                seen[key] = str(tag)
+    return [seen[k] for k in sorted(seen)]
+
+
+def _lib_used_tags(site: dict) -> list:
+    """Schlagwörter aller öffentlich sichtbaren Einträge."""
+    return _lib_tag_list(_lib_public_entries(site))
+
+
+def _lib_filter_url(cat: str = '', tag: str = '', query: str = '') -> str:
+    """/bibliothek-Adresse mit den gesetzten Filtern (leere werden weggelassen)."""
+    parts = [(k, v) for k, v in (('cat', cat), ('tag', tag), ('q', query)) if v]
+    return '/bibliothek' + ('?' + urlencode(parts) if parts else '')
+
+
+@public_app.route('/bibliothek')
+def library_index():
+    lang = detect_language(request)
+    site = load_site()
+    if site['design'].get('maintenance'):
+        return _maintenance_page(site, lang)
+    if not _lib_public_entries(site):
+        abort(404)
+    t = load_translations(lang)
+    loc = _loc_factory(lang)
+    cat = _clean_str(request.args.get('cat'), 32)
+    tag = _clean_str(request.args.get('tag'), 30)
+    query = _clean_str(request.args.get('q'), 80)
+    count_visit(request)
+    intro = loc(_library(site), 'intro')
+    # Filter-Chips als fertige Adressen — jeder Chip behält die übrigen Filter bei,
+    # ein erneuter Klick auf den aktiven Chip hebt ihn auf.
+    cat_chips = [{'label': (f"{c['icon']} {c['name']}".strip()), 'active': c['id'] == cat,
+                  'href': _lib_filter_url('' if c['id'] == cat else c['id'], tag, query)}
+                 for c in _lib_used_categories(site, loc)]
+    tag_chips = [{'label': x, 'active': x.lower() == tag.lower(),
+                  'href': _lib_filter_url(cat, '' if x.lower() == tag.lower() else x, query)}
+                 for x in _lib_used_tags(site)]
+    return render_template('library.html', t=t, lang=lang, site=site, loc=loc,
+                           heading=_library_label(site, loc, t),
+                           intro_html=render_md(intro) if intro else '',
+                           entries=_lib_view_entries(site, loc, cat, query, tag),
+                           cat_chips=cat_chips, tag_chips=tag_chips,
+                           all_cats_url=_lib_filter_url('', tag, query),
+                           all_tags_url=_lib_filter_url(cat, '', query),
+                           active_cat=cat, active_tag=tag, query=query,
+                           nav_items=(_nav_links(site, loc, t, with_library=False)
+                                      if site['design'].get('show_nav', True) else []),
+                           meta_desc=(_plain_excerpt(render_md(intro)) if intro
+                                      else _site_meta(site, loc)),
+                           year=datetime.now(timezone.utc).year)
+
+
+def _render_library_entry(site: dict, entry: dict, lang: str, preview: bool = False):
+    t = load_translations(lang)
+    loc = _loc_factory(lang)
+    cat = next((c for c in _library(site).get('categories', [])
+                if c.get('id') == entry.get('cat')), None)
+    full_html = _overlay_html_images(render_md(loc(entry, 'body')))
+    locked = bool(entry.get('members_only')) and not preview and not is_member(request)
+    body_html = ('<p>' + _locked_teaser(full_html) + '</p>') if locked else full_html
+    return render_template(
+        'library_entry.html', t=t, lang=lang, site=site, loc=loc, e=entry,
+        hero_img=_overlay_url(entry.get('image') or ''),
+        heading=_library_label(site, loc, t),
+        title=loc(entry, 'title') or t.get('library_untitled', ''),
+        body_html=body_html, locked=locked,
+        members_only=bool(entry.get('members_only')),
+        cat_name=(loc(cat, 'name') if cat else ''),
+        cat_icon=((cat.get('icon') or '') if cat else ''),
+        cat_id=(cat.get('id') if cat else ''),
+        pdf_ready=bool(_lib_entry_pdf_name(entry)) and not locked,
+        nav_items=(_nav_links(site, loc, t, with_library=False)
+                   if site['design'].get('show_nav', True) else []),
+        # Bewusst `body_html` (bei Mitglieder-Einträgen der Anriss) statt des
+        # vollen Textes — sonst stünde der gesperrte Inhalt in der Meta-Description.
+        meta_desc=(loc(entry, 'meta') or loc(entry, 'summary')
+                   or _plain_excerpt(body_html) or _site_meta(site, loc)),
+        year=datetime.now(timezone.utc).year)
+
+
+@public_app.route('/bibliothek/<slug>')
+def library_entry(slug: str):
+    lang = detect_language(request)
+    site = load_site()
+    if site['design'].get('maintenance'):
+        return _maintenance_page(site, lang)
+    entry = _find_lib_entry(site, slug)
+    if entry is None or not entry.get('visible'):
+        abort(404)
+    count_visit(request)
+    return _render_library_entry(site, entry, lang)
+
+
+@public_app.route('/bibliothek/<slug>.pdf')
+def library_entry_pdf(slug: str):
+    """PDF eines Eintrags — immer als Datei-Download, nie inline im Browser.
+
+    Die Endung steht bewusst in der Route (statt `/pdf` als Unterpfad): so ist die
+    Adresse im statischen Export eine ganz normale Datei, der Link bleibt gleich.
+    """
+    site = load_site()
+    if site['design'].get('maintenance'):
+        abort(404)
+    entry = _find_lib_entry(site, slug)
+    if entry is None or not entry.get('visible'):
+        abort(404)
+    if entry.get('members_only') and not is_member(request):
+        abort(404)
+    name = _lib_entry_pdf_name(entry)
+    if not _DOC_FILE_RE.match(name or ''):
+        abort(404)
+    target = safe_under(DOCS_DIR, name)
+    if target is None or not target.is_file():
+        abort(404)
+    loc = _loc_factory(detect_language(request))
+    fname = (_slugify(loc(entry, 'title')) or slug) + '.pdf'
+    resp = send_file(target, mimetype='application/pdf',
+                     as_attachment=True, download_name=fname)
+    resp.headers['X-Content-Type-Options'] = 'nosniff'
+    return resp
+
+
+@admin_app.route('/preview/library/<eid>')
+def admin_library_preview(eid: str):
+    """Eintrags-Vorschau im Admin — rendert auch Entwürfe und gesperrte Einträge."""
+    err = _auth_required()
+    if err:
+        return err
+    site = load_site()
+    entry = next((e for e in _library(site).get('entries', []) if e.get('id') == eid), None)
+    if entry is None:
+        abort(404)
+    return _render_library_entry(site, entry, detect_language(request), preview=True)
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────
@@ -8835,6 +10973,15 @@ def _serve(app, port: int, threads: int) -> None:
         opts['max_request_body_size'] = limit
     serve(app, host='0.0.0.0', port=port, threads=threads,
           ident=None,   # keine Server-Version im Response-Header
+          # Waitress entfernt X-Forwarded-*-Kopfzeilen standardmäßig, bevor die
+          # Anwendung sie sieht (clear_untrusted_proxy_headers=True). Dadurch kam
+          # seit der Umstellung auf Waitress (v0.8.10) hinter Reverse Proxy /
+          # Cloudflare Tunnel nur noch die Adresse des letzten Zwischenglieds an —
+          # im HA-Setup für alle Besucher dasselbe Docker-Gateway. ProxyFix wertet
+          # die Kopfzeilen aus, bekam sie aber nie zu sehen.
+          # Damit ist X-Forwarded-For wieder fälschbar (wie vor v0.8.10); die
+          # Auswertung nimmt deshalb die erste *öffentliche* Adresse der Kette.
+          clear_untrusted_proxy_headers=False,
           **opts)
 
 

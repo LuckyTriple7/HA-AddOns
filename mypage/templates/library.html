@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}" data-theme="{{ 'light' if site.design.mode == 'light' else 'dark' }}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ heading }} – {{ site.design.site_title or site.profile.name or 'MyPage' }}</title>
+  <meta name="description" content="{{ meta_desc }}">
+  <meta property="og:title" content="{{ heading }} – {{ site.design.site_title or site.profile.name or 'MyPage' }}">
+  <meta property="og:description" content="{{ meta_desc }}">
+  {% if site.design.favicon %}<link rel="icon" href="{{ site.design.favicon }}">
+  {% elif site.profile.avatar %}<link rel="icon" href="{{ site.profile.avatar }}">{% endif %}
+  {% if not site.design.allow_indexing %}<meta name="robots" content="noindex, nofollow">{% endif %}
+  <meta name="theme-color" content="#0d1117">
+  <link rel="apple-touch-icon" href="/icon.png">
+  <style>
+    :root {
+      --bg:#0d1117; --surf:#161b22; --surf2:#1c2230; --border:#30363d;
+      --text:#c9d1d9; --muted:#8b949e; --accent:{{ site.design.accent }}; --font: {{ font_family|safe }};
+    }
+    [data-theme="light"] {
+      --bg:#f6f8fa; --surf:#ffffff; --surf2:#f0f2f5; --border:#d0d7de; --text:#1f2328; --muted:#636c76;
+    }
+    {{ font_faces|safe }}
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: var(--font, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif);
+      background: var(--bg); color: var(--text); line-height: 1.65;
+    }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .wrap { max-width: 940px; margin: 0 auto; padding: 0 20px; }
+    header { border-bottom: 1px solid var(--border); }
+    .header-inner { display: flex; align-items: center; justify-content: space-between; padding: 12px 0; }
+    .brand { font-weight: 700; color: var(--text); }
+    .brand:hover { text-decoration: none; }
+    .header-actions { display: flex; align-items: center; gap: 6px; }
+    .lang-btn { background: none; border: 1px solid var(--border); color: var(--muted); padding: 2px 9px; border-radius: 5px; font-size: 0.75rem; }
+    .lang-btn:hover { text-decoration: none; color: var(--text); }
+    .lang-btn.active { border-color: var(--accent); color: var(--accent); }
+    .theme-btn { background: none; border: 1px solid var(--border); color: var(--muted); padding: 4px 7px; border-radius: 5px; cursor: pointer; display: inline-flex; }
+    .theme-btn svg { width: 13px; height: 13px; fill: currentColor; }
+    .icon-sun { display: none; }
+    [data-theme="light"] .icon-moon { display: none; }
+    [data-theme="light"] .icon-sun { display: inline; }
+    .site-nav { border-top: 1px solid var(--border); }
+    .site-nav-inner { display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; -ms-overflow-style: none; padding: 2px 20px; }
+    .site-nav-inner::-webkit-scrollbar { display: none; }
+    .site-nav a { color: var(--muted); font-size: 0.85rem; padding: 9px 11px; white-space: nowrap; border-bottom: 2px solid transparent; }
+    .site-nav a:hover { color: var(--text); text-decoration: none; border-bottom-color: var(--accent); }
+    main { padding: 36px 0 60px; }
+    h1 { font-size: 1.7rem; margin-bottom: 10px; }
+    .lib-intro { color: var(--muted); font-size: 0.92rem; margin-bottom: 22px; }
+    .lib-intro p { margin: 0 0 .6em; }
+    .lib-search { display: flex; gap: 8px; margin-bottom: 16px; }
+    .lib-search input {
+      flex: 1; background: var(--surf); border: 1px solid var(--border); color: var(--text);
+      padding: 9px 12px; border-radius: 8px; font-size: 0.9rem; font-family: inherit;
+    }
+    .lib-search input:focus { outline: none; border-color: var(--accent); }
+    .lib-search button {
+      background: var(--accent); border: none; color: #fff; padding: 9px 16px;
+      border-radius: 8px; font-size: 0.86rem; font-weight: 600; cursor: pointer;
+    }
+    .cat-bar { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 22px; }
+    .cat-chip {
+      font-size: 0.79rem; padding: 5px 12px; border-radius: 999px; color: var(--muted);
+      background: var(--surf); border: 1px solid var(--border); transition: border-color .15s;
+    }
+    .cat-chip:hover { border-color: var(--accent); text-decoration: none; }
+    .cat-chip.active { border-color: var(--accent); color: var(--accent); }
+    .tag-bar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: -12px 0 22px; }
+    .tag-bar-label { font-size: 0.72rem; color: var(--muted); margin-right: 2px; }
+    .tag-chip {
+      font-size: 0.72rem; padding: 2px 9px; border-radius: 999px; color: var(--muted);
+      background: transparent; border: 1px solid var(--border); transition: border-color .15s;
+    }
+    .tag-chip:hover { border-color: var(--accent); color: var(--text); text-decoration: none; }
+    .tag-chip.active { border-color: var(--accent); color: var(--accent); }
+    .lib-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 14px; }
+    .lib-card {
+      display: flex; flex-direction: column; background: var(--surf); border: 1px solid var(--border);
+      border-radius: 10px; overflow: hidden; color: var(--text); transition: border-color .15s;
+    }
+    .lib-card:hover { border-color: var(--accent); text-decoration: none; }
+    .lib-thumb { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; background: var(--surf2); }
+    .lib-body { padding: 14px 16px 16px; }
+    .lib-cat { font-size: 0.74rem; color: var(--muted); }
+    .lib-name { font-weight: 600; font-size: 1.02rem; margin: 3px 0 5px; }
+    .lib-sum { font-size: 0.85rem; color: var(--muted); }
+    .lib-meta { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 10px; font-size: 0.72rem; color: var(--muted); }
+    .lib-flag { border: 1px solid var(--border); border-radius: 999px; padding: 1px 8px; }
+    .empty-note { color: var(--muted); font-size: 0.9rem; padding: 30px 0; text-align: center; }
+    footer { border-top: 1px solid var(--border); padding: 20px 0; text-align: center; font-size: 0.78rem; color: var(--muted); }
+    {{ site.design.custom_css|safe }}
+  </style>
+</head>
+<body>
+{% include '_banner.html' %}
+  <header>
+    <div class="wrap header-inner">
+      <a class="brand" href="/">&larr; {{ site.design.site_title or site.profile.name or 'MyPage' }}</a>
+      <div class="header-actions">
+        <a href="/set-lang/de?next=/bibliothek" class="lang-btn {% if lang == 'de' %}active{% endif %}">DE</a>
+        <a href="/set-lang/en?next=/bibliothek" class="lang-btn {% if lang == 'en' %}active{% endif %}">EN</a>
+        <button class="theme-btn" onclick="toggleTheme()" type="button" aria-label="Theme">
+          <svg class="icon-moon" viewBox="0 0 24 24"><path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c0-.46-.04-.92-.1-1.36-.98 1.37-2.58 2.26-4.4 2.26-2.98 0-5.4-2.42-5.4-5.4 0-1.81.89-3.42 2.26-4.4-.44-.06-.9-.1-1.36-.1z"/></svg>
+          <svg class="icon-sun"  viewBox="0 0 24 24"><path d="M12 7c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zM2 13h2v-2H2v2zm18 0h2v-2h-2v2zM11 2v2h2V2h-2zm0 18v2h2v-2h-2zM5.99 4.58 4.58 5.99l1.41 1.41 1.41-1.41L5.99 4.58zm12.03 12.03-1.41 1.41 1.41 1.41 1.41-1.41-1.41-1.41zm1.41-12.44-1.41-1.41-1.41 1.41 1.41 1.41 1.41-1.41zM5.99 19.42l1.41 1.41 1.41-1.41-1.41-1.41-1.41 1.41z"/></svg>
+        </button>
+      </div>
+    </div>
+    {% if nav_items %}
+    <nav class="site-nav" aria-label="{{ t.pages_nav_aria }}">
+      <div class="wrap site-nav-inner">
+        {% for it in nav_items %}<a href="{{ it.href }}">{{ it.label }}</a>{% endfor %}
+      </div>
+    </nav>
+    {% endif %}
+  </header>
+  <main class="wrap">
+    <h1>{{ heading }}</h1>
+    {% if intro_html %}<div class="lib-intro">{{ intro_html|safe }}</div>{% endif %}
+
+    <form class="lib-search" method="get" action="/bibliothek" role="search">
+      {% if active_cat %}<input type="hidden" name="cat" value="{{ active_cat }}">{% endif %}
+      {% if active_tag %}<input type="hidden" name="tag" value="{{ active_tag }}">{% endif %}
+      <input type="search" name="q" value="{{ query }}" placeholder="{{ t.library_search_ph }}" aria-label="{{ t.library_search_ph }}">
+      <button type="submit">{{ t.blog_search_btn }}</button>
+    </form>
+
+    {% if cat_chips %}
+    <div class="cat-bar">
+      <a class="cat-chip {% if not active_cat %}active{% endif %}" href="{{ all_cats_url }}">{{ t.library_all }}</a>
+      {% for c in cat_chips %}
+      <a class="cat-chip {% if c.active %}active{% endif %}" href="{{ c.href }}">{{ c.label }}</a>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if tag_chips %}
+    <div class="tag-bar">
+      <span class="tag-bar-label">{{ t.field_tags_short }}:</span>
+      <a class="tag-chip {% if not active_tag %}active{% endif %}" href="{{ all_tags_url }}">{{ t.library_all }}</a>
+      {% for tg in tag_chips %}
+      <a class="tag-chip {% if tg.active %}active{% endif %}" href="{{ tg.href }}">{{ tg.label }}</a>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if entries %}
+    <div class="lib-grid">
+      {% for e in entries %}
+      <a class="lib-card" href="/bibliothek/{{ e.slug }}">
+        {% if e.image %}<img class="lib-thumb" src="{{ e.image }}" alt="" loading="lazy">{% endif %}
+        <div class="lib-body">
+          {% if e.cat_name %}<div class="lib-cat">{% if e.cat_icon %}{{ e.cat_icon }} {% endif %}{{ e.cat_name }}</div>{% endif %}
+          <div class="lib-name">{{ e.title }}</div>
+          {% if e.summary %}<div class="lib-sum">{{ e.summary }}</div>{% endif %}
+          <div class="lib-meta">
+            {% if e.updated %}<span>{{ e.updated }}</span>{% endif %}
+            {% if e.has_pdf %}<span class="lib-flag">📄 PDF</span>{% endif %}
+            {% if e.members_only %}<span class="lib-flag">🔒 {{ t.members_only_badge }}</span>{% endif %}
+          </div>
+        </div>
+      </a>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-note">{{ t.library_no_results }}</div>
+    {% endif %}
+  </main>
+  <footer>
+    <div class="wrap">&copy; {{ year }} {{ site.profile.name or 'MyPage' }}</div>
+  </footer>
+  <script>
+    const saved = localStorage.getItem('mp-public-theme');
+    if (saved) document.documentElement.setAttribute('data-theme', saved);
+    function toggleTheme() {
+      const cur = document.documentElement.getAttribute('data-theme');
+      const next = cur === 'light' ? 'dark' : 'light';
+      document.documentElement.setAttribute('data-theme', next);
+      localStorage.setItem('mp-public-theme', next);
+    }
+  </script>
+</body>
+</html>

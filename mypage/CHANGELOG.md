@@ -1,5 +1,135 @@
 # Changelog
 
+## 0.9.11
+- 🔍 **Die Fehlermeldung der Preis-Abfrage sagt jetzt die Wahrheit.** Bisher wurde *jeder* 403 von Google als „Cloud Billing API nicht freigeschaltet" gedeutet — auch „API-Keys werden von diesem Dienst nicht unterstützt". Wer der Meldung folgte, schaltete Dienste frei, die gar nicht das Problem waren.
+- Ausgewertet wird jetzt ausschließlich der `reason` aus Googles Antwort. Neuer eigener Fall: **der Preiskatalog nimmt womöglich nur OAuth und keinen API-Schlüssel** — dann sagt die Meldung genau das und rät zur Eingabe von Hand, statt in die Irre zu führen.
+- Unbekannte Gründe werden **im Klartext angehängt** (`Der Preiskatalog war nicht erreichbar. (REASON)`), statt hinter einer allgemeinen Meldung zu verschwinden.
+
+## 0.9.10
+- 💰 **Die Preistabelle ist vorbelegt.** Für bekannte Gemini-Modelle sind die Listenpreise von Google hinterlegt; sie stehen grau im Feld und werden gerechnet, ohne dass du etwas eintippen musst. Bisher blieb die Kostenspalte leer, bis man alles von Hand eingetragen hatte. Ein selbst eingetragener Wert schlägt die Vorgabe weiterhin.
+- Die Vorgaben sind **bewusst unvollständig**: Google benennt Modelle laufend um, und ein geratener Preis wäre schlimmer als eine leere Zeile — die fragt nach, eine falsche Zahl nicht. Eine neue Spalte sagt je Modell, ob gerade *Vorgabe*, *eigener Wert* oder *kein Vorgabepreis* gilt.
+- ⬇ **Neuer Knopf „Preise bei Google abfragen".** Holt die Posten aus dem öffentlichen Preiskatalog von Google Cloud und trägt die Treffer in die Felder ein — gespeichert wird erst mit „Speichern", denn Google beschreibt seine Posten im Fließtext und die Zuordnung zum Modell ist geraten. Braucht die **Cloud Billing API** im Google-Cloud-Projekt; ist sie aus oder der Schlüssel eingeschränkt, sagt die Meldung genau das.
+- **Beträge jetzt in US-Dollar** statt Euro — Google weist seine Preise so aus, die Euro-Beschriftung war schlicht falsch.
+- 🎨 Zahlen-, Datums- und Datum/Zeit-Felder waren im Admin **weiß statt dunkel**: die CSS-Regel führte nur `text`, `email` und `url` auf. Betraf neben der Preistabelle auch das Beitragsdatum und den Countdown-Zeitpunkt.
+
+## 0.9.9
+- 🎠 **Die Entwürfe im Bild-Studio stehen jetzt in einem waagerechten Streifen mit Pfeilen** statt in einem Raster. Bisher blieb jeder Durchgang untereinander stehen und schob Text-Studio und Verbrauch immer weiter nach unten — nach ein paar Versuchen war der Tab meterlang. Alle Entwürfe der Sitzung bleiben zum Vergleich erhalten, brauchen aber nur noch eine Zeile.
+- **Neue Zeile darunter sagt, wie viele es sind** und wie viele davon schon gespeichert wurden. Vorher war nicht erkennbar, ob links noch etwas aus dem Bild gescrollt ist.
+- 🗑 **Löschen-Knopf für gespeicherte Bilder.** Gefällt ein Bild nach dem Speichern doch nicht, ließ es sich bisher nur über *System → Speicher aufräumen* wieder entfernen — und auch das nur im Rutsch. Der Knopf sitzt jetzt direkt an der Karte.
+  - **Eingebundene Bilder bleiben tabu**: steckt die Datei irgendwo in `site.json`, verweigert das Add-on das Löschen mit einem Hinweis, statt einem Beitrag oder Bibliothek-Eintrag das Bild unter den Füßen wegzuziehen. Geprüft wird mit demselben Vorkommen-Scan wie beim Aufräumen.
+
+## 0.9.8
+- 💶 **Verbrauchsanzeige im Tab *KI*.** Bisher gab es nur Stundenlimits — die verhindern Ausreißer, sagen aber nichts darüber, was der Monat gekostet hat. Jede Anfrage wird jetzt nach **Monat und Modell** festgehalten: Aufrufe, erzeugte Bilder sowie Ein- und Ausgabe-Tokens, direkt aus der Antwort von Google. Denk-Tokens zählen zur Ausgabe, weil sie so abgerechnet werden; abgelehnte und leere Antworten zählen mit, weil sie die Eingabe genauso kosten.
+- **Preise trägst du selbst ein** (€ je Mio. Tokens rein/raus und € je Bild, je Modell) — daraus rechnet der Tab die Kosten je Modell und die Monatssumme. Die Gemini-API liefert keine Preise, und eine fest eingebaute Tabelle wäre nach der nächsten Google-Anpassung still falsch. Ohne Preis bleibt es bei den reinen Token-Zahlen.
+- Gespeichert in `ai_usage.json` (24 Monate, im Backup enthalten), Monatswähler für die letzten 12 Monate.
+- **Es bleibt eine Schätzung**, und das steht auch so im Tab: Freikontingente, Rundungen und Preisänderungen kennt das Add-on nicht. Die echten Kosten sind mit dem Gemini-Key nicht abrufbar — der berechtigt nur zum Modellaufruf. Ein Link neben der Überschrift führt zur Abrechnung bei Google.
+
+## 0.9.7
+- 🐛 **Kein Gemini-Aufruf kam durch.** Bilder, Texte und die Modellliste scheiterten alle mit „Cannot send a request, as the client has been closed" und erreichten Google nie. Der Client hatte im neuen KI-Tab keine feste Referenz mehr, wurde mitten im Aufruf eingesammelt, und sein Destruktor schloss die Verbindung. Er wird jetzt zwischengespeichert (neu aufgebaut, wenn sich der API-Key ändert) und an jeder Aufrufstelle festgehalten.
+- 🔒 Die Adresse des **Vorlagenbilds** im Bild-Studio wird nicht mehr aus dem Eingabefeld zurückgelesen, sondern intern gehalten und vor der Verwendung gegen die Form einer eigenen Upload-Adresse geprüft (CodeQL `js/xss-through-dom`).
+- 🔇 `google-genai` meldete bei **jeder** Anfrage „AFC is enabled with max remote calls: 10" ins Add-on-Log — eine Einstellung, die MyPage gar nicht nutzt. Nur noch Warnungen, wie schon bei fontTools.
+
+## 0.9.6
+- ✦ **Neuer Tab „KI" im Admin-Panel** — sichtbar nur, wenn ein `gemini_api_key` hinterlegt ist. Bisher steckte die KI-Bilderzeugung ausschließlich im Bibliothek-Editor und konnte nur Titelbilder für genau diesen einen Eintrag liefern.
+- 🖼️ **Bild-Studio**: Beschreibung, **Stil-Bausteine** zum Anklicken (Fotorealistisch, Illustration, Flat/Vektor, 3D-Render, Aquarell, Retro), **bis zu 4 Entwürfe** je Anfrage und ein optionales **Vorlagenbild** aus den eigenen Uploads, das abgewandelt statt neu erfunden wird.
+  - Entwürfe liegen zunächst **nur zwischengespeichert** auf dem Server und sind **nicht öffentlich abrufbar**. Erst „Speichern" legt sie in den Uploads ab — mit KI-Kennzeichnung, wie gehabt auf 1600 px verkleinert und ohne Metadaten. „Verwerfen" löscht sofort, unbestätigte Entwürfe verfallen nach einer Stunde. Ausschuss landet damit nicht mehr in der Bildersammlung.
+- 📝 **Text-Studio**: erzeugt **Titel, SEO-Beschreibung, Fließtext in Markdown und Schlagwörter** aus Thema und Stichpunkten — mit Textart (Blogartikel, Kurzmeldung, Projektbeschreibung, Bibliothek-Zusammenfassung, nur SEO), Tonfall und Länge.
+  - **Deutsch und Englisch in einem Durchgang**, wahlweise **jede Fassung eigenständig geschrieben** (idiomatischer) oder die englische **aus der deutschen übersetzt** (gleiche Gliederung).
+  - Das Ergebnis ist vor der Übernahme editierbar. „Als Blogbeitrag übernehmen" öffnet den Beitrags-Dialog **als Entwurf** — veröffentlicht wird nichts automatisch. „Titelbild dazu vorbereiten" füllt das Bild-Studio passend zum Text.
+- 🌐 **Übersetzung wahlweise über Gemini** statt MyMemory — einstellbar im neuen Tab, wirkt auf **alle 🌐-Knöpfe im Admin**. Gemini übersetzt den Text am Stück statt in 450-Zeichen-Häppchen und lässt Markdown, Links und Code-Blöcke intakt. Scheitert die Anfrage, springt MyMemory automatisch ein.
+- ⚙️ **Modell-Auswahl kommt live von Google** (stündlich zwischengespeichert): neue Modelle stehen ohne Add-on-Update zur Verfügung. Die Auswahl im Tab **überschreibt** `gemini_image_model` und `gemini_image_ratio`, ein Modellwechsel braucht also keinen Neustart mehr.
+- Getrennte Stundenlimits: **20 Bilder**, **60 Textanfragen**. Das verbrauchte Kontingent steht sichtbar im Tab.
+
+## 0.9.5
+- 🧹 **Neuer Knopf „Ungenutzte PDFs aufräumen"** unter *System → Speicher aufräumen*. Bisher erfasste das Aufräumen nur den Bilder-Ordner — verwaiste Bibliothek-PDFs waren dort weder sichtbar noch löschbar, und ein PDF ist deutlich größer als ein Bild.
+- Im Normalbetrieb räumt die Bibliothek selbst auf (neu gerendert, PDF-Modus gewechselt, Eintrag gelöscht). Der Knopf fängt die Fälle ab, die daran vorbeigehen: ein **abgebrochenes Rendern** zwischen Schreiben der Datei und Eintragen in `site.json`, oder eine **Wiederherstellung aus einem Backup mit weniger Einträgen**.
+- Erkannt wird wie bei den Bildern über einen Vorkommen-Scan in `site.json`; gelöscht wird erst nach Rückfrage mit Anzahl und Größe. Beide Aufräum-Werkzeuge sind getrennt — eines fasst den Ordner des anderen nie an.
+
+## 0.9.4
+- ⏳ **Die PDF-Erzeugung zeigt sich jetzt.** Beim Speichern eines Bibliothek-Eintrags mit „Aus dem Text erzeugen" erscheint oben ein **Banner mit Spinner** („PDF wird erzeugt …"), das stehen bleibt, bis das Rendern durch ist — danach wird es **grün** („PDF erzeugt.") oder **rot** mit dem Grund. Bisher passierte sichtbar nichts und der Ausgang stand nur im Add-on-Log oder für 2 Sekunden im Toast.
+- Der **Speichern-Knopf ist währenddessen gesperrt** — das Rendern läuft im selben Request, ein zweiter Klick hätte es unnötig noch einmal angestoßen.
+- Gleiches beim **Kopieren** eines Eintrags: die Kopie erbt die PDF-Einstellung und rendert mit, das war bisher genauso unsichtbar.
+- Fehlermeldungen bleiben **7 Sekunden** stehen (Erfolg 3,5) — bei „PDF-Erzeugung ist auf diesem System nicht verfügbar" ist der Text zu lang für einen kurzen Einblender.
+- Ohne PDF-Erzeugung bleibt alles wie gehabt: kurzer Toast „Gespeichert", kein Banner.
+
+## 0.9.3
+- ⚙️ **„Bilder schützen" ist jetzt auch im Tab *Bibliothek* bedienbar.** Seit v0.9.2 wirkt die Einstellung auf Bibliothek-Bilder, ließ sich aber nur unter *Inhalt → Fotoalben* umstellen — dort sucht sie niemand, der gerade an der Bibliothek arbeitet. Schalter und Wasserzeichen-Text stehen nun in beiden Bereichen.
+- Es bleibt **eine** Einstellung: eine Änderung an der einen Stelle erscheint sofort an der anderen. Der Hinweistext unter den Feldern sagt das ausdrücklich, damit niemand zwei getrennte Schalter vermutet.
+
+## 0.9.2
+- ⚖️ **KI-erzeugte Bilder werden gekennzeichnet.** Bilder aus „✨ Bild generieren" tragen beim Ausliefern den eingebrannten Hinweis **„KI generiert"** (auf der englischen Seite „AI generated"). Das erfüllt die Transparenzpflicht für KI-Inhalte und ist deshalb **bewusst nicht abschaltbar** — anders als das Wasserzeichen, das eine Komfortfunktion bleibt.
+  - Die Kennzeichnung erscheint auch beim **direkten Aufruf der Bildadresse** und im **erzeugten PDF**. Sonst wäre der Download des PDF oder ein Rechtsklick der einfachste Weg, sie loszuwerden.
+  - Erkannt wird ein KI-Bild am Dateinamen (Endung `-ai`, z. B. `a1b2…-ai.webp`). Der Marker steckt bewusst im Dateinamen statt in einer Liste: so übersteht er Backup und Wiederherstellung und gilt auch, wenn dasselbe Bild in mehreren Einträgen benutzt wird. Wer eine Datei außerhalb des Add-ons umbenennt, verliert die Kennzeichnung.
+- 🖼️ **„Bilder schützen" wirkt jetzt auch in der Bibliothek.** Bisher betraf das Wasserzeichen nur die Fotoalben; ist die Option an, erscheint es nun ebenso im **Titelbild und in den Bildern im Text** eines Bibliothek-Eintrags — auch im erzeugten PDF. Eingebundene Fremd-URLs bleiben unangetastet. Rechtsklick-Sperre bleibt weiterhin den Alben vorbehalten.
+- Sind beide Fälle zusammen gegeben, stehen sie als **eine Zeile** unten rechts: `@deine-domain.de · KI generiert`.
+- Ändert sich der Wasserzeichen-Text, werden **PDFs von Bibliothek-Einträgen neu erzeugt** — vorher hätte ein unveränderter Text weiter das alte PDF mit dem alten Wasserzeichen geliefert.
+
+## 0.9.1
+- 🖼️ **Medien-Browser: bereits hochgeladene Bilder auswählen, statt sie erneut hochzuladen.** Überall, wo bisher „Hochladen" stand, heißt der Knopf jetzt **„Bild wählen"** und öffnet eine Galerie aller vorhandenen Bilder — neueste zuerst, mit Datum und Dateigröße. Ein Klick übernimmt das Bild ins Feld. Wer doch etwas Neues braucht: **„Neues Bild hochladen"** in derselben Galerie führt zum gewohnten Dateidialog.
+- Verfügbar bei **Titelbild der Bibliothek, Beitrags- und Projektbild, Favicon, Karten-Bild, Mitglieder-Avatar, Team-Fotos, Fotoalben** und im **Markdown-Editor**: Der Bild-Knopf fragt weiterhin nach einer URL — bleibt das Feld leer, kommt jetzt die Galerie statt sofort der Dateidialog.
+- Bilder, die **nirgends verwendet** werden, tragen in der Galerie die Plakette „unbenutzt" — praktisch, um vor dem Aufräumen im Tab *System* zu sehen, was übrig ist. Gelöscht wird dabei nichts.
+- Aus Rücksicht auf große Sammlungen zeigt die Galerie die **neuesten 300 Bilder** und nennt in der Kopfzeile die Gesamtzahl. Abgebrochene 0-Byte-Uploads werden übersprungen, damit keine kaputten Kacheln erscheinen.
+
+## 0.9.0
+- ✨ **Titelbild eines Bibliothek-Eintrags von der KI erzeugen lassen.** Neben dem Bild-Feld sitzt ein Knopf **„Bild generieren"**, der ein Feld mit einer **vorgeschlagenen Bildbeschreibung aus Titel, Kategorie, Schlagwörtern und Kurzbeschreibung** des Eintrags öffnet. Trägt der Eintrag das Schlagwort „Rhodos", steht es im Vorschlag und das Bild passt dazu. Die Beschreibung ist frei änderbar; das fertige Bild wird sofort als Titelbild eingetragen. Gespeichert ist der Eintrag damit noch nicht — dazu braucht es weiterhin „Speichern".
+- **Der Knopf erscheint nur, wenn ein Key hinterlegt ist.** Neue Optionen `gemini_api_key` (Key auf [aistudio.google.com](https://aistudio.google.com)), `gemini_image_model` und `gemini_image_ratio` (Standard `16:9`). Ohne Key bleibt alles wie bisher. **Bildgenerierung ist bei Google je nach Modell kostenpflichtig** — deshalb sind höchstens 20 Bilder pro Stunde möglich und die Beschreibung ist auf 1200 Zeichen begrenzt, damit nicht versehentlich ein ganzer Artikel an eine Bezahl-API geht.
+- Warum Google und nicht Claude: Anthropic-Modelle erzeugen keine Bilder. Gemini ist bereits in der TUIWatch-App eingebunden, das Muster ließ sich übernehmen.
+- Das erzeugte Bild läuft durch **dieselbe Verarbeitung wie jeder Upload** — auf 1600 px verkleinert, als WebP gespeichert, ohne Metadaten. Es liegt lokal unter `/uploads/` und nie als Google-Adresse im Eintrag; sonst würde die PDF-Erzeugung scheitern, die aus Sicherheitsgründen nur lokale Dateien lädt.
+- Ein KI-Bild entsteht beim Klick auf „Erzeugen", nicht erst beim Speichern. Schließt du den Dialog, ohne zu speichern, **bleibt die Datei zunächst liegen** — genau wie ein von Hand hochgeladenes Bild. Sie verschwindet über „Unbenutzte Uploads aufräumen" im Tab *System*; von allein löscht das Add-on nie etwas.
+- Lehnt die KI eine Beschreibung ab, sagt der Admin das ausdrücklich („Bitte die Beschreibung anpassen") statt einen allgemeinen Fehler zu zeigen — bei einer Ablehnung hilft nur eine andere Formulierung, kein erneuter Versuch.
+
+## 0.8.19
+- 🐛 Fix: Im **PDF eines Bibliothek-Eintrags** stand vor dem Kategorienamen ein leeres Kästchen. Ursache war das Emoji-Symbol der Kategorie: der Druck-Zeichensatz (DejaVu) enthält keine Emoji, und der PDF-Erzeuger setzt für ein unbekanntes Zeichen ein Kästchen. Im Browser fällt das nicht auf, weil der dort vorhandene System-Zeichensatz einspringt. Das Symbol entfällt im PDF jetzt, die Kopfzeile lautet nur noch `Kategoriename · Datum` — in der Weboberfläche bleibt das Symbol wie gehabt.
+- Neu erzeugt wird ein PDF weiterhin nur beim **Speichern** des Eintrags. Damit Layout-Änderungen künftig überhaupt greifen, fließt jetzt eine Layout-Kennung in die Zwischenspeicher-Prüfsumme ein — vorher blieb bei unverändertem Text das alte PDF bestehen, obwohl das Layout ein anderes war.
+
+## 0.8.18
+- 🗂️ **Dauerhaftes Besucher-Archiv als Datei** (neue Option `visit_file_log`, Standard: aus). Das Besucher-Log im Admin ist ein Ringpuffer und zeigt nur die neuesten 500 Aufrufe — ist die Option an, wird jeder Aufruf zusätzlich unter `addon_configs/XXX_mypage/visits/visits-JJJJ-MM.csv` festgehalten, eine Datei je Monat, über den Share direkt erreichbar.
+- **Format bewusst Excel-tauglich**: CSV mit Semikolon als Trennzeichen und UTF-8-BOM — per Doppelklick korrekt in Spalten und mit richtigen Umlauten. Spalten: `datum`, `ip`, `land`, `browser`, `system`, `pfad`, `referrer`, `sprache`, `bot`, `neuer_besucher`, `user_agent`. Semikolons und Anführungszeichen in Referrer und User-Agent werden maskiert.
+- Neue Option **`visit_file_keep`**: wie viele Monatsdateien aufbewahrt werden (0–120, Standard 12; `0` = unbegrenzt). Aufgeräumt wird beim Anlegen einer neuen Monatsdatei.
+- Geschrieben werden — wie im Admin-Log — nur **öffentliche IPs**. Das Archiv ist bewusst **nicht** Teil des Backups: es würde jedes Backup mit der Zeit aufblähen.
+- Der Datenschutz-Grund für „Standard: aus": IP-Adressen sind personenbezogene Daten; ein zeitlich unbegrenztes Archiv soll bewusst eingeschaltet werden.
+- Dokumentiert: die Liste im Admin zeigt immer höchstens die neuesten 500 Einträge, auch wenn `visit_log_max` höher steht — die übrigen fließen weiter in Referrer-, Browser-, Länder- und Top-Seiten-Auswertung.
+
+## 0.8.17
+- 🐛 **Fix: echte Besucher-IP kam seit v0.8.10 nicht mehr an.** Waitress entfernt `X-Forwarded-*`-Kopfzeilen standardmäßig, bevor die Anwendung sie sieht (`clear_untrusted_proxy_headers=True`). Hinter Reverse Proxy oder Cloudflare Tunnel blieb dadurch nur noch die Adresse des letzten Zwischenglieds übrig — im Home-Assistant-Setup für **alle** Besucher dasselbe Docker-Gateway (`172.30.32.1`). Die vorhandene ProxyFix-Auswertung lief ins Leere, weil die Kopfzeilen gar nicht mehr da waren. Waitress reicht sie jetzt durch.
+  - Nebenwirkung des Fehlers, die damit ebenfalls behoben ist: **Brute-Force-Sperre und Rate-Limits** rechneten alle Besucher als eine einzige IP — fünf Fehlversuche irgendeines Besuchers hätten alle anderen mitgesperrt.
+- **Besucher-IP wird robuster ermittelt**: `CF-Connecting-IP`, `True-Client-IP`, `X-Real-IP`, dann die erste **öffentliche** Adresse aus `X-Forwarded-For`. Zwischenglieder hängen ihre eigenen, privaten Adressen an die Kette an — die werden jetzt übersprungen statt als Besucher gezählt.
+- 📊 **Besucher-Log zeigt nur noch öffentliche IPs.** Aufrufe aus dem Heimnetz und die internen Zugriffe von Home Assistant selbst sagen nichts über Besucher aus und füllten die Liste. Die Aufrufzähler laufen unverändert weiter.
+- Kommt gar keine öffentliche Adresse an, steht **einmal pro Stunde** eine Meldung im Add-on-Log — inklusive der tatsächlich vorhandenen Proxy-Kopfzeilen. Ohne sie wäre nur zu sehen, dass das Besucher-Log leer bleibt, nicht warum.
+
+## 0.8.16
+- 🐛 Fix: Der Schalter **„In der Navigation zeigen"** der Bibliothek blieb auf der Startseite wirkungslos, solange der Abschnitt dort sichtbar war — die Sprungmarke kam aus der Abschnitts-Navigation und ignorierte den Schalter. Jetzt gilt er überall: aus heißt aus.
+
+## 0.8.15
+- 🏷️ **Schlagwort-Filter jetzt auch im Startseiten-Abschnitt.** Unter der Überschrift der Sammlung steht eine Chip-Reihe mit allen Schlagwörtern der angerissenen Einträge; ein Klick filtert die Kacheln **ohne Neuladen** der Startseite. Bisher gab es die Filter nur auf `/bibliothek`.
+- 🔗 **Weg zur Übersicht.** Der Link unter dem Abschnitt („Zur Übersicht →") erschien bisher nur, wenn es mehr Einträge gab als angerissen — bei wenigen Einträgen führte von der Startseite also **gar nichts** zu `/bibliothek`. Er steht jetzt immer da und übernimmt ein gewähltes Schlagwort (`/bibliothek?tag=…`), damit auch Treffer außerhalb des Anrisses erreichbar sind.
+- Ist der Bibliothek-Abschnitt im Tab *Inhalt* ausgeblendet oder auf Mitglieder beschränkt, erscheint die Sammlung in der Navigation jetzt als **echter Link** auf `/bibliothek` statt als Sprungmarke ins Leere. Steht der Abschnitt sichtbar auf der Startseite, bleibt es beim Anker — nicht beides.
+- Fix: In der Chip-Reihe standen Schlagwörter, die sich nur in der Groß-/Kleinschreibung unterschieden, doppelt („Griechenland" und „griechenland"). Startseite und Übersicht fassen sie jetzt gleich zusammen.
+
+## 0.8.14
+- 📋 **Bibliothek: Kopieren-Knopf je Eintrag.** Legt ein Duplikat direkt hinter dem Original an — mit Text, Bild, Kategorie, Schlagwörtern und PDF-Einstellung, aber **als Entwurf** (eine Kopie wird fast immer noch überarbeitet und stünde sonst sofort ein zweites Mal öffentlich und in der Sitemap). Der Titel bekommt je Sprache das passende Suffix („(Kopie)" / „(copy)"), der Dialog öffnet sich gleich zum Bearbeiten. Ein hochgeladenes PDF wird als **eigene Datei** kopiert — sonst hätte das Löschen des einen Eintrags dem anderen die Datei weggenommen.
+- 🏷️ **Bibliothek: Schlagwort-Filter auf der Übersicht.** Unter den Kategorie-Chips steht jetzt eine Reihe mit allen vergebenen Schlagwörtern; ein Klick filtert die Kacheln, ein erneuter Klick hebt den Filter auf. Kategorie, Schlagwort und Suchfeld lassen sich frei kombinieren, jeder Chip behält die übrigen Filter bei. Groß-/Kleinschreibung wird zusammengefasst. Auf der Eintragsseite sind die Schlagwörter jetzt Links auf die gefilterte Übersicht.
+- 🎠 **Bibliothek auf der Startseite als Karussell.** Der Abschnitt scrollt seitwärts wie die Fotoalben (mit Pfeilen, Snap und Touch-Wischen), statt bei vielen Einträgen die Startseite in die Länge zu ziehen. Es werden bis zu 12 Kacheln angerissen (vorher 6), darüber führt „Alle anzeigen →" auf `/bibliothek`. Die Übersichtsseite selbst bleibt ein umbrechendes Raster.
+
+## 0.8.13
+- 🐛 Fix: In den Dialogen **Eintrag bearbeiten** (Bibliothek), **Seite** und **Formular** schob eine lange Adresse (Slug) das Layout auseinander — die Vorschau-URL unter dem Feld ist eine umbruchlose Zeichenkette, und Grid-Spalten schrumpfen von sich aus nicht unter ihren Inhalt (`min-width: auto`). Die linke Spalte wuchs mit jedem getippten Zeichen, die rechte („Kategorie", „Veröffentlicht", „Nur für Mitglieder") wanderte aus dem Dialog. Spalten dürfen jetzt schrumpfen (`min-width: 0`), Hinweistexte brechen um (`overflow-wrap: anywhere`).
+
+## 0.8.12
+- 🔒 Fix: Bei Bibliothek-Einträgen mit **Nur für Mitglieder** stand der gesperrte Text in der Meta-Description (`<meta name="description">` und `og:description`) — er wurde aus dem vollen Markdown gebildet statt aus dem Anriss. Damit wären die ersten ~155 Zeichen im Suchmaschinen-Snippet und in Link-Vorschauen gelandet. Jetzt wie bei eigenen Seiten aus dem bereits gekürzten Anriss.
+- fontTools protokollierte bei jeder PDF-Erzeugung jeden Teilschritt der Schrift-Optimierung auf INFO („glyf pruned", „GDEF pruned", …) — pro PDF dutzende Zeilen im Add-on-Log. Auf WARNING gesetzt.
+
+## 0.8.11
+- 📚 **Neues Modul „Bibliothek".** Eine Sammlung eigenständiger Markdown-Dokumente mit frei wählbaren Kategorien — gedacht für alles, was kein Blog-Beitrag und keine einzelne Seite ist: Reiseführer, Kochrezepte, Anleitungen, Handbücher. Übersicht unter `/bibliothek` (Karten-Raster mit Kategorie-Chips und Suchfeld), Einzeleintrag unter `/bibliothek/<slug>`. Neuer Admin-Tab **Bibliothek**.
+- **Name und Kategorien sind frei wählbar.** Der Anzeigename der Sammlung wird im Admin gesetzt (DE/EN, leer = „Bibliothek"), die Kategorien legst du selbst an — dieselbe Installation kann die Sammlung also „Reiseführer" nennen und darin „Reisen", „Kochen" und „Technik" führen. Kategorien haben ein frei wählbares Emoji und lassen sich per Drag & Drop sortieren, Einträge ebenso.
+- **Je Eintrag:** Titel, Kurzbeschreibung, Titelbild, Schlagwörter, Markdown-Text (DE/EN, gleicher Editor mit Live-Vorschau wie Blog und Seiten), eigene SEO-Beschreibung, Entwurfs-Status und der 🔒-Schalter **Nur für Mitglieder** (Gäste sehen dann nur einen Anriss).
+- 📄 **PDF je Eintrag — wahlweise erzeugt oder hochgeladen.** Im Modus *„Aus dem Text erzeugen"* rendert das Add-on beim Speichern ein PDF aus dem Markdown (Deckblatt-Kopf, Seitenzahlen, Tabellen, Code-Blöcke) und bietet es zum Download an; alternativ lädst du ein eigenes PDF hoch (max. 25 MB). Erzeugte PDFs werden über einen Fingerabdruck des Quelltexts zwischengespeichert — unveränderte Einträge werden beim Speichern nicht neu gerendert.
+- **Drucken geht immer.** Jede Eintragsseite hat einen Druck-Knopf mit eigenem Druck-Stylesheet (ohne Navigation, Fußzeile und Knöpfe, mit ausgeschriebenen Links) — auch ohne serverseitige PDF-Erzeugung lässt sich so ein sauberes PDF speichern.
+- **Sichtbar für Suchmaschinen wie der Blog:** veröffentlichte Einträge landen in `sitemap.xml`, im IndexNow-Ping, in der Volltextsuche und im statischen Export (inklusive der PDF-Dateien). Einzeleinträge liefern strukturierte Daten (`schema.org/Article`). Mitglieder-Einträge erscheinen in der Suche wie gehabt nur als Titel mit 🔒, ohne Textvorschau.
+- **Startseite:** Die Bibliothek ist ein eigener Startseiten-Abschnitt (die ersten sechs Einträge als Karten) und lässt sich im Tab *Inhalt* wie jeder andere Abschnitt sortieren, ausblenden oder auf Mitglieder beschränken.
+- **Sicherheit:** PDFs liegen in einem eigenen Ordner (`docs/`) und werden **ausschließlich** über eine eigene Route mit `Content-Disposition: attachment` und `X-Content-Type-Options: nosniff` ausgeliefert — nie inline über die offene `/uploads/`-Route. Uploads werden zusätzlich am Dateikopf (`%PDF-`) geprüft, nicht nur an der Endung. Der PDF-Renderer bekommt einen eigenen URL-Fetcher, der nur lokale `/uploads/`-Dateien lädt und **jede** externe Adresse ablehnt (sonst wäre ein Bild-Link im Markdown ein SSRF-Weg in interne Dienste).
+- PDFs werden im Backup mitgesichert und beim Wiederherstellen — nach Prüfung des Dateikopfs — zurückgeschrieben.
+- Neue Abhängigkeit `weasyprint` (plus `pango`/`libffi` im Image) für die PDF-Erzeugung. Fehlt sie, startet das Add-on unverändert und der Modus *„Aus dem Text erzeugen"* meldet das im Admin — Druck-Knopf und PDF-Upload funktionieren weiterhin.
+
 ## [0.8.10.1] - 2026-08-05
 
 chore(deps): bump cryptography from 48.0.1 to 50.0.0 in /mypage

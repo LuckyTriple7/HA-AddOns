@@ -1,6 +1,6 @@
 name: TUIWatch
 description: Reisepreis-Tracker — verfolgt TUI-Angebotspreise und zeigt den Verlauf
-version: "0.67.2"
+version: "0.88.0"
 slug: tuiwatch
 url: https://github.com/LuckyTriple7/HA-AddOns
 image: "ghcr.io/luckytriple7/tuiwatch"
@@ -27,9 +27,14 @@ map:
 
 ports:
   17794/tcp: 17794
+  # Öffentliche Angebots-Seiten (share_routes.py). Standardmäßig NICHT
+  # veröffentlicht — erst wenn hier bewusst ein Port gesetzt wird, ist er
+  # erreichbar. Nur diesen Port im Reverse-Proxy nach außen geben, nie 17794.
+  17796/tcp: null
 
 ports_description:
-  17794/tcp: TUIWatch Web-UI (direkt)
+  17794/tcp: TUIWatch Web-UI (direkt) — nicht ins Internet geben
+  17796/tcp: Öffentliche Angebots-Links (nur /s/<token>, ohne Login)
 
 options:
   username: "admin"
@@ -43,6 +48,7 @@ options:
   trippilot_home_location: ""
   ha_sensors: true
   notify_ha: true
+  ha_notify_service: ""
   notify_price_change: true
   notify_cheaper_date: true
   cheaper_date_min_diff: 50
@@ -51,6 +57,8 @@ options:
   calendar_daily_refresh: true
   notify_errors: true
   notify_api_errors: true
+  notify_unavailable: true
+  notify_booking_changes: true
   notify_booked_drop: true
   booked_drop_min_diff: 50
   digest_enabled: false
@@ -82,6 +90,11 @@ options:
   ai_max_web_searches: 12
   ai_prompt_preview: false
   enable_check24_compare: false
+  enable_public_share: false
+  public_port: 17796
+  public_base_url: ""
+  public_share_days: 30
+  notify_share_comments: true
   verbose_log: false
 
 schema:
@@ -96,6 +109,7 @@ schema:
   trippilot_home_location: str?
   ha_sensors: bool?
   notify_ha: bool?
+  ha_notify_service: str?
   notify_price_change: bool?
   notify_cheaper_date: bool?
   cheaper_date_min_diff: int?
@@ -104,6 +118,8 @@ schema:
   calendar_daily_refresh: bool?
   notify_errors: bool?
   notify_api_errors: bool?
+  notify_unavailable: bool?
+  notify_booking_changes: bool?
   notify_booked_drop: bool?
   booked_drop_min_diff: int?
   digest_enabled: bool?
@@ -135,4 +151,9 @@ schema:
   ai_max_web_searches: int?
   ai_prompt_preview: bool?
   enable_check24_compare: bool?
+  enable_public_share: bool?
+  public_port: port?
+  public_base_url: str?
+  public_share_days: int(1,365)?
+  notify_share_comments: bool?
   verbose_log: bool?

@@ -49,6 +49,15 @@
       (sobrevive a recargas del navegador), pero sin desplazamiento táctil y
       el copiado se hace via tmux. Si la entrada parece bloqueada, pulsa q
       (sale del modo copia). Predeterminado: browser.
+  mobile_scroll_ui:
+    name: Controles de Desplazamiento Móvil
+    description: >-
+      Deslizar para desplazar y dos botones de desplazamiento en el terminal —
+      solo en dispositivos táctiles (móvil, tablet, app HA Companion); los
+      navegadores de escritorio no cambian. Necesario porque xterm.js desactiva
+      el desplazamiento táctil en cuanto una aplicación activa el seguimiento
+      del ratón (p. ej. tmux en modo de desplazamiento tmux).
+      Predeterminado: activado.
   auto_update_claude:
     name: Actualización Automática de Claude Code
     description: >-
@@ -69,12 +78,14 @@
       La actualización automática de Claude Code (arriba) garantiza que
       los nuevos modelos estén disponibles sin necesidad de actualizar el add-on.
   enable_caveman_skill:
-    name: Activar habilidad Caveman
+    name: Activar habilidades Caveman
     description: >-
-      Instala la habilidad opcional "Caveman" para Claude Code (respuestas
-      concisas y técnicamente precisas sin relleno). Se puede activar o
-      desactivar en cualquier momento; se resincroniza en cada inicio.
-      Predeterminado: desactivado.
+      Instala las habilidades opcionales "Caveman" para Claude Code (respuestas
+      concisas y técnicamente precisas sin relleno): /caveman más
+      /caveman-commit, /caveman-review, /caveman-compress, /caveman-help,
+      /caveman-stats y /cavecrew junto con los tres subagentes cavecrew. Se
+      puede activar o desactivar en cualquier momento; se resincroniza en cada
+      inicio. Predeterminado: desactivado.
 
 network:
   7681/tcp: Terminal Web (ttyd)

@@ -134,6 +134,7 @@ FONT_SIZE=$(jq -r '.terminal_font_size // 14' /data/options.json)
 THEME=$(jq -r --arg d dark '.terminal_theme // $d' /data/options.json)
 SESSION_PERSIST=$(jq -r 'if .session_persistence == false then "false" else "true" end' /data/options.json)
 TMUX_SCROLL=$(jq -r --arg d browser '.tmux_scroll_mode // $d' /data/options.json)
+MOBILE_SCROLL=$(jq -r 'if .mobile_scroll_ui == false then "false" else "true" end' /data/options.json)
 CLAUDE_AUTOSTART=$(jq -r '.claude_autostart // false' /data/options.json)
 ENABLE_MCP=$(jq -r 'if .enable_mcp == false then "false" else "true" end' /data/options.json)
 ENABLE_PLAYWRIGHT=$(jq -r '.enable_playwright_mcp // false' /data/options.json)
@@ -155,6 +156,7 @@ echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] terminal_font_size     : $FONT_SIZE"
 echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] terminal_theme         : $THEME"
 echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] session_persistence    : $SESSION_PERSIST"
 echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] tmux_scroll_mode       : $TMUX_SCROLL"
+echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] mobile_scroll_ui       : $MOBILE_SCROLL"
 echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] claude_autostart       : $CLAUDE_AUTOSTART"
 echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] auto_update_claude     : $AUTO_UPDATE"
 echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] notify_on_update       : $NOTIFY_ON_UPDATE"
@@ -162,15 +164,24 @@ echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] export_memory          : $EXPORT_MEM
 echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] export_memory_interval : ${EXPORT_MEMORY_INTERVAL} min"
 echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] enable_caveman_skill   : $ENABLE_CAVEMAN"
 
-# Caveman skill: opt-in, copy/remove on every start so toggling the option takes effect immediately
-CAVEMAN_DEST="$PERSIST_DIR/skills/caveman"
+# Caveman skills: opt-in, copied/removed on every start so toggling the option takes
+# effect immediately. Only the bundled names are touched — own skills/agents stay put.
+CAVEMAN_SRC=/opt/default-skills
 if [ "$ENABLE_CAVEMAN" = "true" ]; then
-    mkdir -p "$PERSIST_DIR/skills"
-    rm -rf "$CAVEMAN_DEST"
-    cp -a /opt/default-skills/caveman "$CAVEMAN_DEST"
-    echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Caveman skill installed → /root/.claude/skills/caveman"
+    mkdir -p "$PERSIST_DIR/skills" "$PERSIST_DIR/agents"
+    for SKILL_DIR in "$CAVEMAN_SRC"/skills/*/; do
+        rm -rf "$PERSIST_DIR/skills/$(basename "$SKILL_DIR")"
+        cp -a "${SKILL_DIR%/}" "$PERSIST_DIR/skills/"
+    done
+    cp -a "$CAVEMAN_SRC"/agents/. "$PERSIST_DIR/agents/"
+    echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Caveman skills installed → /root/.claude/skills/ ($(find "$CAVEMAN_SRC/skills" -mindepth 1 -maxdepth 1 -type d | wc -l) skills, $(find "$CAVEMAN_SRC/agents" -name '*.md' | wc -l) agents)"
 else
-    rm -rf "$CAVEMAN_DEST"
+    for SKILL_DIR in "$CAVEMAN_SRC"/skills/*/; do
+        rm -rf "$PERSIST_DIR/skills/$(basename "$SKILL_DIR")"
+    done
+    for AGENT_FILE in "$CAVEMAN_SRC"/agents/*.md; do
+        rm -f "$PERSIST_DIR/agents/$(basename "$AGENT_FILE")"
+    done
 fi
 
 # Auto-detect Playwright Browser hostname if not explicitly set
@@ -361,6 +372,16 @@ else
     echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Auto-update disabled — update checker not started"
 fi
 
+# Serve the patched index.html (swipe scrolling + on-screen scroll buttons on
+# touch devices, see mobile-scroll.js). Falls back to ttyd's built-in page if the
+# build-time patch is missing.
+TTYD_INDEX=""
+if [ "$MOBILE_SCROLL" = "true" ] && [ -s /opt/ttyd-index.html ]; then
+    TTYD_INDEX="--index /opt/ttyd-index.html"
+else
+    echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Mobile scroll UI off — serving ttyd's built-in page"
+fi
+
 # Start web terminal
 cd /homeassistant
 exec ttyd --port 7681 --writable --ping-interval 30 --max-clients 5 \
@@ -368,4 +389,5 @@ exec ttyd --port 7681 --writable --ping-interval 30 --max-clients 5 \
     -t fontFamily=Monaco,Consolas,monospace \
     -t scrollback=20000 \
     -t "theme=$COLORS" \
+    $TTYD_INDEX \
     $SHELL_CMD

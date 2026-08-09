@@ -9,7 +9,9 @@
 | `session_hours` | Gültigkeit der Login-Session in Stunden (Standard: 24) |
 | `github_token` | Optional: GitHub-Token (erhöht das API-Limit für Import und Sterne-Updates) |
 | `translate_email` | Optional: E-Mail für die DE↔EN-Auto-Übersetzung (MyMemory) — erhöht das kostenlose Tageslimit |
-| `visit_log_max` | Größe des Besucher-Logs (50–10000, Standard 500) — Referrer/Browser/Länder werden daraus berechnet |
+| `visit_log_max` | Größe des Besucher-Logs (50–10000, Standard 500) — Referrer/Browser/Länder/Top-Seiten werden daraus berechnet. Die **Liste im Admin zeigt immer höchstens die neuesten 500 Einträge**, auch bei größerem Wert; die übrigen fließen weiter in die Auswertungen |
+| `visit_file_log` | Schreibt jeden Aufruf zusätzlich dauerhaft als CSV nach `addon_configs/XXX_mypage/visits/` (Standard: aus) |
+| `visit_file_keep` | Wie viele Monatsdateien des Besucher-Archivs behalten werden (0–120, Standard 12; `0` = unbegrenzt) |
 | `user_journal_max` | Journal-Einträge pro Benutzer (20–1000, Standard 100) |
 | `geoip_lookup` | Exakte Länder-Erkennung über ipapi.is (Standard: aus — Besucher-IPs werden an den Dienst übertragen) |
 | `geoip_api_key` | Optional: ipapi.is-Key — ohne Key ca. 1.000 Lookups/Tag frei |
@@ -27,6 +29,9 @@
 | `smb_server` | Optional: Adresse des SMB-/CIFS-Servers für den Mitglieder-Speicher (z. B. FritzBox-NAS). Leer = lokaler Speicher im Add-on-Config-Ordner |
 | `smb_share` | Name der SMB-Freigabe (z. B. `FRITZ.NAS`) |
 | `smb_user` / `smb_password` | Zugangsdaten für die SMB-Freigabe |
+| `gemini_api_key` | Optional: Google-Gemini-Key — schaltet den Tab **KI** und im Bibliothek-Editor den Knopf **Bild generieren** frei. Key auf [aistudio.google.com](https://aistudio.google.com) holen. **Bild- und Texterzeugung sind je nach Modell kostenpflichtig** |
+| `gemini_image_model` | Startwert für die Bilderzeugung: `gemini-3.1-flash-image` (Allrounder, Standard), `gemini-3.1-flash-lite-image` (am schnellsten und günstigsten), `gemini-3-pro-image` (Premium), `gemini-2.5-flash-image` (älter). Im Tab **KI** überschreibbar |
+| `gemini_image_ratio` | Startwert für das Seitenverhältnis der erzeugten Bilder (Standard `16:9`). Im Tab **KI** überschreibbar |
 
 ## Ports
 
@@ -45,7 +50,7 @@ Name, Kurzbeschreibung (Tagline), „Über mich"-Text, Profilbild, GitHub-Benutz
 ### Inhalte
 Der Tab **Inhalt** zeigt alle Startseiten-Bereiche als einklappbare Karten (Akkordeon). Jede Karte hat links einen **Griff (⠿)** und ein **Auge-Symbol**:
 
-- **Reihenfolge:** Am Griff per **Drag & Drop** sortieren (Maus + Touch) — die Startseite übernimmt die Reihenfolge sofort. Der Kopfbereich bleibt immer oben, das Kontaktformular immer unten. Auch **Projekte** und **Blog** lassen sich hier positionieren (bearbeitet werden sie in ihren eigenen Tabs).
+- **Reihenfolge:** Am Griff per **Drag & Drop** sortieren (Maus + Touch) — die Startseite übernimmt die Reihenfolge sofort. Der Kopfbereich bleibt immer oben, das Kontaktformular immer unten. Auch **Projekte**, **Blog** und **Bibliothek** lassen sich hier positionieren (bearbeitet werden sie in ihren eigenen Tabs).
 - **Sichtbarkeit:** Mit dem Auge blendest du einen Bereich von der Startseite (und der Navigation) aus, ohne seinen Inhalt zu löschen.
 
 Verfügbare Bereiche:
@@ -61,11 +66,12 @@ Verfügbare Bereiche:
 - **Standort & Öffnungszeiten**: Adresse, Öffnungszeiten (DE/EN) und optional eine Karte. Die Karte nutzt **OpenStreetMap** und lädt **erst auf Klick** (datenschutzfreundlich); zusätzlich gibt es einen „Auf Karte öffnen"-Link. Für die eingebettete Karte optional Koordinaten (Breite, Länge) angeben.
 - **Linksammlung**: Links zu anderen Seiten mit Titel und Beschreibung (DE/EN). Auf der Startseite erscheint ein Button, der ein Overlay mit allen Links öffnet; ein Klick öffnet die Zielseite in einem neuen Tab.
 - **FAQ**: Fragen und Antworten (DE/EN, Antwort als Markdown), auf der Startseite als aufklappbare Liste
+- **Bibliothek**: Anriss der Sammlung (bis zu 12 Einträge als scrollendes Karussell, mit Schlagwort-Filter) — Inhalt und Name werden im eigenen Tab *Bibliothek* gepflegt (siehe unten)
 - **Fotoalben**: Alben mit Titel/Beschreibung (DE/EN) und beliebig vielen Bildern (Mehrfach-Upload). Ein Klick öffnet eine Diashow mit Ausblend-Effekt und Autoplay; ein **Klick auf das Bild** zeigt es groß, ein weiterer Klick in voller Auflösung (scroll-/schwenkbar). Bilder werden automatisch auf max. 1600 px verkleinert und als WebP gespeichert. Die Bild-Reihenfolge lässt sich per **Drag & Drop** ändern; ein Klick auf eine Mini-Kachel im Admin zeigt eine Vorschau.
-  - **Bildschutz** (Schalter „Bilder schützen"): Brennt ein Wasserzeichen (frei wählbarer Text, Standard `© deine-domain.de`) in alle Album-Bilder ein und deaktiviert Rechtsklick/Ziehen. Das Wasserzeichen wird beim Ausliefern dynamisch erzeugt und gecacht, eine Textänderung greift sofort. Ein vollständiger Download-Schutz ist im Web technisch nicht möglich (Screenshots), das Wasserzeichen ist der wirksame Teil.
+  - **Bildschutz** (Schalter „Bilder schützen"): Brennt ein Wasserzeichen (frei wählbarer Text, Standard `© deine-domain.de`) in alle **Album- und Bibliothek-Bilder** ein und deaktiviert in den Alben Rechtsklick/Ziehen. Das Wasserzeichen wird beim Ausliefern dynamisch erzeugt und gecacht, eine Textänderung greift sofort. Ein vollständiger Download-Schutz ist im Web technisch nicht möglich (Screenshots), das Wasserzeichen ist der wirksame Teil. Siehe auch [Kennzeichnung von KI-Bildern](#kennzeichnung-von-ki-bildern).
 
 ### Markdown-Editor
-Alle Markdown-Textfelder (Blog-Beiträge, eigene Seiten, Projekt-Details, Bio, Newsletter, Formular-Einleitung & -Danke-Text, Tipps, FAQ-Antworten, Wartungsmodus-Text, Login-Nachricht je Benutzer, Standort-Öffnungszeiten) bieten über den Button **„✏️ Bearbeiten"** einen **Markdown-Editor mit Werkzeugleiste und Live-Vorschau**: Fett, Kursiv, Überschrift, Aufzählung, nummerierte Liste, Zitat, Code, **Link**, **Bild**, **Tabelle**, **Trennlinie** und Emoji. Beim **Bild** kannst du eine URL eingeben oder das Feld leer lassen, um eine Datei direkt **hochzuladen** (wird automatisch auf max. 1600 px verkleinert, als WebP gespeichert und um Metadaten/GPS bereinigt). Tabellen und Codeblöcke werden auf der öffentlichen Seite korrekt dargestellt.
+Alle Markdown-Textfelder (Blog-Beiträge, eigene Seiten, Bibliothek-Einträge, Projekt-Details, Bio, Newsletter, Formular-Einleitung & -Danke-Text, Tipps, FAQ-Antworten, Wartungsmodus-Text, Login-Nachricht je Benutzer, Standort-Öffnungszeiten) bieten über den Button **„✏️ Bearbeiten"** einen **Markdown-Editor mit Werkzeugleiste und Live-Vorschau**: Fett, Kursiv, Überschrift, Aufzählung, nummerierte Liste, Zitat, Code, **Link**, **Bild**, **Tabelle**, **Trennlinie** und Emoji. Beim **Bild** kannst du eine URL eingeben oder das Feld leer lassen — dann öffnet sich der **Medien-Browser** mit allen bereits hochgeladenen Bildern (siehe [Bilder](#bilder)), aus dem heraus sich auch ein neues hochladen lässt (wird automatisch auf max. 1600 px verkleinert, als WebP gespeichert und um Metadaten/GPS bereinigt). Tabellen und Codeblöcke werden auf der öffentlichen Seite korrekt dargestellt.
 
 ### Projekte
 - **GitHub-Import**: Benutzernamen eingeben → „Repos laden" → Repos anhaken → importieren. Forks werden ausgeblendet, bereits importierte Repos sind ausgegraut. Sterne-Zahlen importierter Projekte werden stündlich automatisch aktualisiert.
@@ -98,10 +104,45 @@ Eigenständige Unterseiten neben Startseite und Blog — z. B. **„Über uns"**
 - **Reihenfolge**: Per **Drag & Drop** in der Seitenliste sortieren.
 - **SEO**: Veröffentlichte Seiten landen automatisch in `sitemap.xml` und im statischen Export; optional je Seite eine eigene Meta-Beschreibung. Die Seiten liegen in `site.json` (im Backup).
 
-### Volltextsuche
-Eine seitenweite Suche über **Blog-Beiträge, Projekte und Seiten** (Titel, Inhalt und Tags, jeweils DE & EN). Im Design-Tab aktivierbar (Standard aus). Ist sie an, erscheint ein **Suchfeld im Kopfbereich** der Startseite; die Ergebnisse stehen unter `/suche`.
+### Bibliothek
+Eine Sammlung eigenständiger **Markdown-Dokumente mit Kategorien** — für alles, was weder ein Blog-Beitrag (chronologisch) noch eine einzelne Seite ist: Reiseführer, Kochrezepte, Anleitungen, Handbücher. Übersicht unter `/bibliothek`, Einzeleintrag unter `/bibliothek/<slug>`.
 
-- **Treffer**: Jeder Treffer zeigt seine Art (Beitrag/Projekt/Seite), den Titel und einen **Auszug mit hervorgehobenen Suchbegriffen**. Mehrere Wörter werden alle gefordert (UND-Suche). Entwürfe, geplante Beiträge und unveröffentlichte Inhalte bleiben außen vor.
+- **In der Navigation zeigen** (Schalter im Tab *Bibliothek*): Blendet die Sammlung als Eintrag in der Navigationsleiste ein — auf der Startseite als Sprung zum Abschnitt, auf Unterseiten als Link auf `/bibliothek`. Aus heißt: kein Navi-Eintrag; erreichbar bleibt die Übersicht über „Zur Übersicht →" unter dem Startseiten-Abschnitt und über die Adresse selbst. Ohne veröffentlichte Einträge erscheint ohnehin nichts.
+- **Name frei wählbar**: Der Anzeigename der Sammlung wird im Tab *Bibliothek* gesetzt (DE/EN). Leer gelassen heißt sie „Bibliothek" — trägst du „Reiseführer" ein, heißt sie überall so (Navigation, Startseiten-Abschnitt, Suchergebnisse). Dazu optional eine **Einleitung** (Markdown), die über der Übersicht steht.
+- **Kategorien**: frei anlegbar, je mit Name (DE/EN) und optionalem Emoji, per Drag & Drop sortierbar. Auf der Übersicht erscheinen sie als **Filter-Chips**. Eine gelöschte Kategorie nimmt ihre Einträge nicht mit — die rutschen nur in „ohne Kategorie".
+- **Einträge**: Titel, Kurzbeschreibung, Titelbild, bis zu 8 Schlagwörter (erscheinen auf der Übersicht als **Filter-Chips**, kombinierbar mit Kategorie und Suche), Text in **Markdown** (DE/EN, gleicher Editor mit Live-Vorschau wie im Blog), eigene SEO-Beschreibung, Adresse (Slug, leer = automatisch aus dem Titel), Status *Veröffentlicht/Entwurf* und der Schalter **Nur für Mitglieder** (Gäste sehen dann nur einen Anriss). Reihenfolge per Drag & Drop; **Vorschau** zeigt auch Entwürfe. **Kopieren** dupliziert einen Eintrag samt PDF-Einstellung als Entwurf — praktisch für Einträge nach gleichem Muster.
+- **Titelbild von der KI erzeugen lassen** (nur wenn `gemini_api_key` gesetzt ist): Neben dem Bild-Feld erscheint **✨ Bild generieren**. Der Knopf öffnet ein Feld mit einer **vorgeschlagenen Bildbeschreibung aus Titel, Kategorie, Schlagwörtern und Kurzbeschreibung** des Eintrags — trägt der Eintrag das Schlagwort „Rhodos", steht es im Vorschlag und das Bild passt dazu. Die Beschreibung ist frei änderbar; „Erzeugen" dauert etwa 10–60 Sekunden. Das fertige Bild wird auf max. 1600 px verkleinert, als WebP abgelegt und **sofort als Titelbild eingetragen** — gespeichert ist der Eintrag damit noch nicht, dazu braucht es „Speichern". Modell und Seitenverhältnis stehen in den App-Optionen; höchstens 20 Bilder pro Stunde. Lehnt die KI eine Beschreibung ab, sagt der Admin das und du kannst sie umformulieren.
+- **PDF je Eintrag** — drei Möglichkeiten:
+  - *Kein PDF*: Besucher können die Seite trotzdem über den **Druck-Knopf** als PDF speichern. Die Eintragsseite bringt ein eigenes Druck-Stylesheet mit (ohne Navigation, Fußzeile und Knöpfe, Links werden ausgeschrieben).
+  - *Aus dem Text erzeugen*: Beim Speichern rendert das Add-on ein PDF aus dem Markdown — mit Titelkopf, Seitenzahlen, Tabellen und Code-Blöcken — und bietet es zum Download an. Währenddessen läuft oben ein **Banner mit Spinner**; danach meldet es grün „PDF erzeugt." oder rot den Grund. Der Speichern-Knopf ist so lange gesperrt. Unveränderte Einträge werden nicht neu gerendert (Zwischenspeicher über einen Fingerabdruck des Quelltexts). Braucht `weasyprint`; fehlt es, sagt der Admin das und die anderen beiden Wege funktionieren weiter.
+  - *Eigenes PDF hochladen*: max. 25 MB. Die Datei wird am Dateikopf geprüft, nicht nur an der Endung.
+- **Auslieferung der PDFs**: Sie liegen in einem eigenen Ordner (`docs/`, im Backup) und kommen **ausschließlich** über `/bibliothek/<slug>.pdf` als **Datei-Download** (`Content-Disposition: attachment`, `nosniff`) — nie inline über die offene `/uploads/`-Route. Bei Mitglieder-Einträgen ist auch das PDF gesperrt.
+- **Startseite**: Die Bibliothek ist ein eigener Abschnitt — bis zu 12 Einträge als **seitwärts scrollendes Karussell** (wie die Fotoalben, mit Pfeilen und Touch-Wischen). Darüber steht eine **Schlagwort-Leiste**, die die Kacheln ohne Neuladen filtert, darunter der Link **„Zur Übersicht →"** auf `/bibliothek` (er übernimmt ein gewähltes Schlagwort). Ist der Abschnitt ausgeblendet oder auf Mitglieder beschränkt, erscheint die Sammlung stattdessen als echter Link in der Navigation. Der Abschnitt lässt sich im Tab *Inhalt* wie jeder andere sortieren, ausblenden oder auf Mitglieder beschränken.
+- **SEO**: Veröffentlichte Einträge landen in `sitemap.xml`, im **IndexNow-Ping**, in der Volltextsuche und im statischen Export (dort inklusive der PDF-Dateien). Jede Eintragsseite liefert strukturierte Daten (`schema.org/Article`). Alle Inhalte liegen in `site.json` (im Backup).
+
+### KI
+Der Tab erscheint **nur, wenn `gemini_api_key` gesetzt ist**. Er bündelt alles, was mit Google Gemini erzeugt wird.
+
+- **Einstellungen**: Text- und Bildmodell, Seitenverhältnis und der Übersetzungsdienst. Die Modell-Listen werden **live bei Google abgefragt** (stündlich zwischengespeichert) — neue Modelle stehen also ohne Add-on-Update zur Auswahl. Was hier gespeichert wird, **überschreibt die App-Optionen** `gemini_image_model` und `gemini_image_ratio`; ein Modellwechsel braucht damit keinen Neustart. Darunter steht das verbrauchte Stundenkontingent.
+- **Übersetzung**: `MyMemory` (kostenlos, ohne Schlüssel — Standard) oder `Gemini` (deutlich bessere Qualität, verbraucht Kontingent). Die Wahl gilt für **alle 🌐-Knöpfe im Admin**. Scheitert Gemini, übernimmt automatisch MyMemory — eine schlechtere Übersetzung ist besser als keine.
+- **Bild-Studio**: Beschreibung eingeben, optional einen **Stil anhängen** (Fotorealistisch, Illustration, Flat/Vektor, 3D-Render, Aquarell, Retro) und **bis zu 4 Entwürfe** auf einmal erzeugen. Ein **Vorlagenbild** aus den eigenen Uploads wandelt ein vorhandenes Bild ab, statt neu zu erfinden (nur eigene Uploads, keine Fremd-URLs).
+  - Entwürfe liegen zunächst **nur zwischengespeichert** auf dem Server und sind nicht öffentlich abrufbar. Erst **„Speichern"** legt einen Entwurf in den Uploads ab — verkleinert auf 1600 px, als WebP, ohne Metadaten und mit der [KI-Kennzeichnung](#kennzeichnung-von-ki-bildern). Nicht gespeicherte Entwürfe **verfallen nach einer Stunde**; „Verwerfen" löscht sofort. So wächst die Bildersammlung nicht mit jedem Fehlversuch.
+  - Die Ergebnisse stehen in einem **waagerechten Streifen** mit Pfeilen — alle Entwürfe der Sitzung bleiben zum Vergleich stehen, ohne die Seite immer weiter nach unten zu schieben. Die Zeile darunter sagt, wie viele es sind und wie viele davon schon gespeichert wurden. Beim Neuladen der Seite ist der Streifen leer.
+  - Gespeicherte Bilder stehen anschließend überall im Medien-Browser („Bild wählen") bereit. Gefällt eins doch nicht, löscht **„🗑 Löschen"** die Datei wieder. Ist das Bild bereits irgendwo eingebunden, verweigert das Add-on den Löschvorgang — sonst risse der betroffene Beitrag oder Eintrag ein Loch.
+- **Text-Studio**: Aus Thema und Stichpunkten entstehen **Titel, SEO-Beschreibung, Fließtext (Markdown) und Schlagwörter**. Einstellbar sind Textart (Blogartikel, Kurzmeldung, Projektbeschreibung, Bibliothek-Zusammenfassung, nur SEO), Tonfall und Länge.
+  - **Sprachen**: nur DE, nur EN oder **DE + EN in einem Durchgang**. Bei beiden Sprachen wird entweder jede Fassung **eigenständig geschrieben** (idiomatischer) oder die englische **aus der deutschen übersetzt** (gleiche Gliederung). Beide Fassungen entstehen in **einem** Aufruf.
+  - Das Ergebnis ist vor der Übernahme frei editierbar. **„Als Blogbeitrag übernehmen"** öffnet den Beitrags-Dialog **als Entwurf** — veröffentlicht wird nichts automatisch. **„Titelbild dazu vorbereiten"** füllt das Bild-Studio mit einer aus Titel, Schlagwörtern und SEO-Text gebauten Beschreibung.
+- **Limits**: 20 Bilder und 60 Textanfragen pro Stunde, add-on-weit. Sie schützen das Kontingent bei Google; jeder Entwurf zählt einzeln, ein Fehlversuch ebenfalls.
+- **Verbrauch**: Jede Anfrage wird nach **Monat und Modell** festgehalten — Aufrufe, erzeugte Bilder sowie Ein- und Ausgabe-Tokens direkt aus der Antwort von Google (Denk-Tokens zählen zur Ausgabe). Abgelehnte und leere Antworten werden mitgezählt, denn sie kosten die Eingabe genauso. Gespeichert in `ai_usage.json`, 24 Monate, im Backup enthalten.
+  - **Preise sind für bekannte Modelle hinterlegt** (Listenpreise von Google, USD je Mio. Tokens bzw. je Bild) und stehen grau als Platzhalter im Feld — sie werden gerechnet, ohne dass du etwas tun musst. Eintragen musst du nur, wo kein Platzhalter steht oder dein Tarif abweicht; ein eingetragener Wert schlägt die Vorgabe immer.
+  - Die Tabelle ist **bewusst nicht vollständig**: Google benennt Modelle laufend um, und ein geratener Preis wäre schlimmer als eine leere Zeile. Die Spalte rechts sagt je Modell, ob gerade *Vorgabe*, *eigener Wert* oder *kein Vorgabepreis* gilt.
+  - **„Preise bei Google abfragen"** holt die Posten aus dem öffentlichen Preiskatalog von Google Cloud und trägt die Treffer in die Felder ein — gespeichert wird erst mit „Speichern". Google beschreibt seine Posten im Fließtext („Gemini 2.5 Flash Input Tokens"), die Zuordnung zum Modell ist deshalb geraten und gehört angesehen. Voraussetzung: die **Cloud Billing API** ist im Google-Cloud-Projekt freigeschaltet und der API-Key ist nicht auf andere Dienste beschränkt. Klappt es nicht, sagt die Meldung welcher der beiden Fälle vorliegt.
+  - **Es bleibt eine Schätzung.** Maßgeblich ist die Abrechnung bei Google — Freikontingente, Rundungen und Preisänderungen kennt das Add-on nicht. Ein Zugriff auf die echten Kosten ist mit dem Gemini-Key nicht möglich: der berechtigt nur zum Modellaufruf, Abrechnungsdaten liegen hinter der Cloud Billing API mit eigenem Dienstkonto und hinken ohnehin Stunden hinterher. Der Link neben der Überschrift führt direkt zur Abrechnungsseite.
+
+### Volltextsuche
+Eine seitenweite Suche über **Blog-Beiträge, Projekte, Seiten und Bibliothek-Einträge** (Titel, Inhalt und Tags, jeweils DE & EN). Im Design-Tab aktivierbar (Standard aus). Ist sie an, erscheint ein **Suchfeld im Kopfbereich** der Startseite; die Ergebnisse stehen unter `/suche`.
+
+- **Treffer**: Jeder Treffer zeigt seine Art (Beitrag/Projekt/Seite/Bibliothek), den Titel und einen **Auszug mit hervorgehobenen Suchbegriffen**. Mehrere Wörter werden alle gefordert (UND-Suche). Entwürfe, geplante Beiträge und unveröffentlichte Inhalte bleiben außen vor.
 - **Mitglieder-Inhalte**: Gesperrte (Mitglieder-only) Beiträge und Seiten erscheinen für Gäste nur als **Titel mit 🔒, ohne Inhalts-Vorschau** — angemeldete Mitglieder sehen die volle Vorschau. So wird kein geschützter Text geleakt.
 - **Hinweis**: Die Suchseite ist auf `noindex` gesetzt (keine Indexierung durch Suchmaschinen). Sie nutzt ausschließlich vorhandene Inhalte aus `site.json` — kein zusätzlicher Speicher, kein externer Dienst.
 
@@ -128,7 +169,9 @@ Der Anriss zeigt höchstens die Hälfte des Textes (max. ~280 Zeichen), sodass a
 ### System
 - **Wartungsmodus**: Schalter, der die öffentliche Seite durch eine Hinweisseite ersetzt (HTTP 503, eigener Text in DE/EN, Markdown möglich). Das Admin-Panel bleibt erreichbar. Ist im Tab **Inhalt** ein **Countdown** eingerichtet, wird er auf dieser Seite mit angezeigt — so entsteht eine Coming-Soon-Seite mit Countdown und optionalem „Benachrichtige mich"-Newsletter-Button.
 - **Admin-Protokoll (Audit-Log)**: Listet sicherheitsrelevante Admin-Aktionen mit Zeitpunkt und IP — erfolgreiche und fehlgeschlagene Logins, Benutzer angelegt/gelöscht/freigegeben, Passwort/Quota/Spiele geändert, Einstellungen gespeichert und Backup eingespielt. Die letzten 500 Einträge werden in `audit.json` gehalten und im Backup mitgesichert.
-- **Speicher aufräumen**: Entfernt hochgeladene Bilder, die in keinem Beitrag, keiner Seite, keinem Projekt und keinem Album mehr verwendet werden (z. B. nach dem Löschen einer Seite). Vor dem Löschen werden Anzahl und Größe angezeigt; es werden ausschließlich nicht mehr referenzierte Dateien entfernt (geteilte Bilder bleiben erhalten).
+- **Speicher aufräumen** — zwei getrennte Werkzeuge, keines fasst den Ordner des anderen an. Vor dem Löschen werden jeweils Anzahl und Größe angezeigt; entfernt wird ausschließlich, was nirgends mehr referenziert ist (geteilte Dateien bleiben erhalten).
+  - **Ungenutzte Bilder aufräumen**: hochgeladene Bilder, die in keinem Beitrag, keiner Seite, keinem Projekt und keinem Album mehr verwendet werden (z. B. nach dem Löschen einer Seite oder nach einem verworfenen KI-Bild).
+  - **Ungenutzte PDFs aufräumen**: PDFs der Bibliothek, zu denen es keinen Eintrag mehr gibt. Im Normalbetrieb räumt die Bibliothek selbst auf (neu gerendert, PDF-Modus gewechselt, Eintrag gelöscht) — der Knopf fängt ab, was daran vorbeigeht: ein abgebrochenes Rendern oder eine Wiederherstellung aus einem Backup mit weniger Einträgen.
 - **Weiterleitungen (301)**: Leitet alte/geänderte Adressen auf eine neue um — dauerhaft (301) oder temporär (302). Ziel als interner Pfad (`/neue-seite`) oder vollständige URL (`https://…`). Greift **nur für Pfade, die es nicht (mehr) gibt** — bestehende Seiten werden nie überschrieben. Praktisch, wenn du den Slug einer Seite/eines Beitrags geändert hast und alte Links/Lesezeichen weiter funktionieren sollen.
 - **Backup**: Ein Klick lädt ein ZIP mit allen Inhalten, Statistiken, Nachrichten, Blog-Kommentaren, Benutzern, Spielständen und Uploads herunter; über „Backup einspielen" wird es wiederhergestellt.
 - **Automatische Backups**: Einmal täglich legt das Add-on dasselbe ZIP automatisch unter `addon_configs/<slug>_mypage/autobackup/` ab (Dateiname `mypage-auto-JJJJ-MM-TT.zip`). Wie viele Stände aufbewahrt werden, steuert die Option `auto_backup_keep` (Standard 7, `0` schaltet es ab) — ältere werden automatisch gelöscht. Im Tab **System** siehst du die vorhandenen Stände mit Datum und Größe und kannst sie einzeln herunterladen oder löschen; „Jetzt sichern" erzeugt den Stand des Tages sofort neu. Die Sicherungen liegen bewusst **außerhalb** des Backup-Inhalts, damit sie sich nicht gegenseitig aufblähen. Einspielen geht wie gewohnt über „Backup einspielen" mit der heruntergeladenen Datei.
@@ -251,7 +294,21 @@ Eine ausführliche Schritt-für-Schritt-Anleitung (Google Search Console, Sitema
 
 ## Bilder
 
-Uploads werden automatisch auf maximal 1600 px verkleinert und als WebP gespeichert (GIFs bleiben unverändert, damit Animationen erhalten bleiben). Dabei wird die **EXIF-Orientierung angewendet** (Handy-Hochkant-Fotos erscheinen also richtig herum) und die **Metadaten werden entfernt** — insbesondere ein evtl. eingebetteter **GPS-Standort**, der sonst öffentlich auslesbar wäre.
+**Medien-Browser:** Überall, wo ein Bild gesetzt wird — Titelbild der Bibliothek, Beitrags- und Projektbild, Favicon, Karten-Bild, Mitglieder-Avatar, Team-Fotos, Fotoalben —, führt der Knopf **„Bild wählen"** zu einer Galerie aller bereits hochgeladenen Bilder, neueste zuerst, mit Datum und Größe. Ein Klick übernimmt das Bild; **„Neues Bild hochladen"** in derselben Galerie öffnet den Dateidialog. Bilder, die nirgends verwendet werden, tragen die Plakette **„unbenutzt"** — so ist vor dem Aufräumen im Tab *System* sichtbar, was übrig ist. Angezeigt werden die neuesten 300 Bilder; die Gesamtzahl steht in der Kopfzeile.
+
+Uploads werden automatisch auf maximal 1600 px verkleinert und als WebP gespeichert (GIFs bleiben unverändert, damit Animationen erhalten bleiben). Dabei wird die **EXIF-Orientierung angewendet** (Handy-Hochkant-Fotos erscheinen also richtig herum) und die **Metadaten werden entfernt** — insbesondere ein evtl. eingebetteter **GPS-Standort**, der sonst öffentlich auslesbar wäre. KI-erzeugte Bilder (siehe [Bibliothek](#bibliothek)) laufen durch dieselbe Verarbeitung.
+
+### Kennzeichnung von KI-Bildern
+
+Bilder, die über **✨ Bild generieren** entstanden sind, tragen beim Ausliefern immer den eingebrannten Hinweis **„KI generiert"** (englische Seite: „AI generated") — **unabhängig** vom Schalter „Bilder schützen". Er erfüllt die Transparenzpflicht für KI-erzeugte Inhalte und lässt sich deshalb bewusst nicht abschalten.
+
+- Ist „Bilder schützen" zusätzlich an, stehen beide Angaben in **einer Zeile** unten rechts, z. B. `@deine-domain.de · KI generiert`.
+- Der Hinweis erscheint auch beim **direkten Aufruf** der Bildadresse und im **erzeugten PDF** — sonst wäre der Download des PDF der einfachste Weg, die Kennzeichnung loszuwerden.
+- Woran das System ein KI-Bild erkennt: der Dateiname endet auf `-ai` (z. B. `a1b2…-ai.webp`). Der Marker steckt im Dateinamen statt in einer Liste, damit er Backup und Wiederherstellung übersteht. Wer eine Datei außerhalb des Add-ons umbenennt, verliert die Kennzeichnung.
+
+**Wasserzeichen in der Bibliothek** wird im Tab *Bibliothek* unter „Bilder schützen" ein- und ausgeschaltet — es ist dieselbe Einstellung wie unter *Inhalt → Fotoalben*, nur an beiden Stellen bedienbar. Es gilt für das Titelbild *und* für Bilder im Markdown-Text eines Eintrags. Eingebundene Fremd-URLs bleiben unangetastet — an fremden Bildern hat weder ein Wasserzeichen noch ein KI-Marker etwas zu suchen.
+
+**KI-Bilder, die du verwirfst, bleiben zunächst liegen.** Das Bild entsteht beim Klick auf „Erzeugen", nicht erst beim Speichern des Eintrags — schließt du den Dialog ohne zu speichern, liegt die Datei weiter unter `/uploads`. Sie verschwindet, sobald du im Tab **System** auf „Unbenutzte Uploads aufräumen" gehst; automatisch gelöscht wird nie etwas. Dasselbe gilt für ein Bild, das du von Hand hochlädst und dann doch nicht speicherst.
 
 ### Design
 **Design-Vorlagen (1-Klick-Stile):** Oben im Design-Tab gibt es eine Galerie fertiger Vorlagen (z. B. „Elegant Dunkel", „Hell & Clean", „Verspielt", „Tech Neon", „Magazin", „Natur Warm" sowie „Standard"). Ein Klick setzt **Modus, Akzentfarbe, Schrift und Layout** auf einmal — die Felder werden gefüllt, mit „Speichern" wird die Vorlage angewendet. Dein eigenes CSS bleibt dabei unangetastet.
@@ -311,9 +368,19 @@ Du kannst dich praktisch nie wirklich aussperren — vom bequemsten zum letzten 
 
 Im Tunnel nur `http://<host>:17760` als Ziel eintragen. Das Admin-Panel auf 17761 sollte nicht öffentlich erreichbar sein — falls doch nötig, schützt der Login mit Rate-Limit.
 
+### Besucher-Archiv (Datei)
+
+Das Besucher-Log im Admin ist ein **Ringpuffer** — es zeigt die neuesten 500 Aufrufe, ältere fallen heraus. Wer die vollständige Historie behalten will, schaltet die Option **`visit_file_log`** ein (Standard: aus).
+
+- **Ablage**: `addon_configs/XXX_mypage/visits/visits-JJJJ-MM.csv` — eine Datei je Monat, über den Share direkt erreichbar.
+- **Format**: CSV mit Semikolon als Trennzeichen und UTF-8-BOM, also **per Doppelklick in Excel/LibreOffice** korrekt in Spalten und mit richtigen Umlauten. Spalten: `datum`, `ip`, `land`, `browser`, `system`, `pfad`, `referrer`, `sprache`, `bot`, `neuer_besucher`, `user_agent`. Semikolons und Anführungszeichen in Referrer/User-Agent werden maskiert.
+- **Aufbewahrung**: `visit_file_keep` (Standard 12 Monate, `0` = unbegrenzt). Aufgeräumt wird beim Anlegen einer neuen Monatsdatei.
+- Es werden — wie im Admin-Log — nur **öffentliche IPs** geschrieben; Bots stehen mit `bot=1` drin.
+- **Datenschutz**: IP-Adressen sind personenbezogene Daten. Deshalb ist die Option bewusst standardmäßig aus, und die Aufbewahrungsdauer ist begrenzbar. Das Archiv ist **nicht** Teil des Backups (es würde jedes Backup mit der Zeit aufblähen) — sichere den Ordner bei Bedarf selbst.
+
 ## Daten
 
-Alle Inhalte (`site.json`, `stats.json`, `sessions.json`, `uploads/`) liegen im Add-on-Konfigurationsordner und sind über den Share erreichbar: `\\<host>\addon_configs\XXX_mypage`. Sie überleben Add-on-Updates, Neustarts und sogar eine Neuinstallation.
+Alle Inhalte (`site.json`, `stats.json`, `sessions.json`, `uploads/`, `docs/`) liegen im Add-on-Konfigurationsordner und sind über den Share erreichbar: `\\<host>\addon_configs\XXX_mypage`. Sie überleben Add-on-Updates, Neustarts und sogar eine Neuinstallation.
 
 ## Jeopardy-Hintergrundmusik (optional)
 
