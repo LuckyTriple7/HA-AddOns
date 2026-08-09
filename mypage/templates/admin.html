@@ -2965,10 +2965,7 @@
       btn.textContent = label;
       const d = r ? await r.json().catch(() => ({})) : {};
       if (!r || !r.ok) {
-        const msg = d.error === 'ai_refused'   ? T.ai_img_err_refused
-                  : d.error === 'rate_limited' ? T.ai_img_err_limit
-                  : d.error === 'no_api_key'   ? T.ai_img_err_nokey
-                  : T.ai_img_err_failed;
+        const msg = aiErrMsg(d.error, d.model, d.detail);
         el('le-img-ai-status').textContent = msg;
         toast(msg, true);
         return;
@@ -5683,13 +5680,19 @@
       if (r.ok) loadAiUsage();
     }
 
-    function aiErrMsg(code, model) {
-      return code === 'ai_refused'       ? T.ai_err_refused
+    // `detail` ist Googles Abbruchgrund bzw. die Erklaerung, die das Modell
+    // selbst mitgeschickt hat. Ohne sie stand im Admin nur „fehlgeschlagen",
+    // waehrend im Add-on-Log der Grund schwarz auf weiss stand.
+    function aiErrMsg(code, model, detail) {
+      const base =
+             code === 'ai_refused'       ? T.ai_err_refused
+           : code === 'ai_empty'         ? T.ai_err_empty
            : code === 'rate_limited'     ? T.ai_err_limit
            : code === 'no_api_key'       ? T.ai_err_nokey
            : code === 'bad_ref'          ? T.ai_err_ref
            : code === 'ai_model_missing' ? T.ai_err_model.replace('{v}', model || '?')
            : T.ai_err_failed;
+      return detail ? base + ' — ' + T.ai_err_detail.replace('{v}', detail) : base;
     }
 
     function buildAiStyleChips() {
@@ -5740,7 +5743,7 @@
       btn.disabled = false;
       const d = r ? await r.json().catch(() => ({})) : {};
       if (!r || !r.ok) {
-        const msg = aiErrMsg(d.error, d.model);
+        const msg = aiErrMsg(d.error, d.model, d.detail);
         el('ai-img-status').textContent = msg;
         busyDone(msg, true);
         refreshAiStatus();
@@ -5880,7 +5883,7 @@
       btn.disabled = false;
       const d = r ? await r.json().catch(() => ({})) : {};
       if (!r || !r.ok) {
-        const msg = aiErrMsg(d.error, d.model);
+        const msg = aiErrMsg(d.error, d.model, d.detail);
         el('ai-txt-status').textContent = msg;
         busyDone(msg, true);
         refreshAiStatus();

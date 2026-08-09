@@ -2493,5 +2493,7 @@
   "files_del_confirm": "„{v}“ endgültig löschen?",
   "files_del_used_confirm": "Diese Datei wird noch verwendet. Das Löschen wird deshalb voraussichtlich abgelehnt. Trotzdem versuchen?",
   "uploads_pick_ai_only": "Nur KI-erzeugte Bilder",
-  "uploads_pick_ai_count": "{n} KI-erzeugte Bilder"
+  "uploads_pick_ai_count": "{n} KI-erzeugte Bilder",
+  "ai_err_empty": "Die KI hat kein Bild geliefert. Meist wurde die Beschreibung als unzulässig eingestuft, ohne dass es als Ablehnung gemeldet wird — bitte umformulieren.",
+  "ai_err_detail": "Google meldet: {v}"
 }

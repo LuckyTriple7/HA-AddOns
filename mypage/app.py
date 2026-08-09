@@ -4993,10 +4993,28 @@ def _ai_rate_take(times: list[float], limit: int, n: int = 1) -> bool:
     return True
 
 
+def _resp_text(resp) -> str:
+    """Textteile einer Antwort zusammenfassen.
+
+    Liefert Gemini statt eines Bildes eine Erklärung, steht sie genau hier. Sie
+    wegzuwerfen war der Grund, warum ein Fehlschlag nur „fehlgeschlagen" hiess.
+    """
+    out = []
+    for part in (getattr(resp, 'parts', None) or []):
+        text = (getattr(part, 'text', '') or '').strip()
+        if text:
+            out.append(text)
+    return ' '.join(out)[:400]
+
+
 def _gemini_generate_image(prompt: str, *, model: str = '', ratio: str = '',
                            ref: tuple[bytes, str] | None = None
-                           ) -> tuple[bytes | None, str, str]:
-    """Erzeugt ein Bild über Gemini. Zurück: (Bilddaten, MIME-Typ, Fehlercode).
+                           ) -> tuple[bytes | None, str, str, str]:
+    """Erzeugt ein Bild über Gemini.
+
+    Zurück: (Bilddaten, MIME-Typ, Fehlercode, Erläuterung). Die Erläuterung ist
+    das, was Gemini selbst dazu geschrieben hat — bei einer Absage steht dort
+    der Grund, und der hilft mehr als jede eigene Vermutung.
 
     `ref` ist ein optionales Vorlagenbild (Daten, MIME) — damit wird aus der
     Anfrage eine Abwandlung statt einer Neuschöpfung.
@@ -5022,15 +5040,17 @@ def _gemini_generate_image(prompt: str, *, model: str = '', ratio: str = '',
             ),
         )
         cands = resp.candidates or []
-        if cands and cands[0].finish_reason in _GEMINI_IMAGE_REFUSALS:
-            log.info("Gemini hat die Bildanfrage abgelehnt: %s", cands[0].finish_reason)
+        finish = cands[0].finish_reason if cands else None
+        reason = getattr(finish, 'name', None) or (str(finish) if finish else '')
+        if finish in _GEMINI_IMAGE_REFUSALS:
+            log.info("Gemini hat die Bildanfrage abgelehnt: %s", finish)
             _ai_usage_record(model, resp)
-            return None, '', 'refused'
+            return None, '', 'refused', _resp_text(resp) or reason
         for part in (resp.parts or []):
             if part.inline_data is not None and part.inline_data.data:
                 _ai_usage_record(model, resp, images=1)
                 return (part.inline_data.data,
-                        part.inline_data.mime_type or 'image/png', '')
+                        part.inline_data.mime_type or 'image/png', '', '')
         _ai_usage_record(model, resp)
     except genai_errors.APIError as e:
         # Bewusst nur der Statuscode: die Meldung des SDK kann die vollständige
@@ -5040,15 +5060,21 @@ def _gemini_generate_image(prompt: str, *, model: str = '', ratio: str = '',
                     model, code or type(e).__name__)
         # 404 heißt hier nicht „Ausfall", sondern „diesen Modellnamen gibt es
         # nicht (mehr)". Ohne eigene Meldung sucht der Nutzer den Fehler bei sich.
-        return None, '', ('model_missing' if code == 404 else 'failed')
+        return None, '', ('model_missing' if code == 404 else 'failed'), f'HTTP {code}' if code else ''
     except Exception as e:
         # Absichtlich breit: SDK-interne Fehler dürfen nicht als HTML-Fehlerseite
         # beim Frontend landen, das ausschließlich JSON erwartet.
         log.error("Gemini-Bildanfrage (%s) unerwartet fehlgeschlagen: %s: %s",
                   model, type(e).__name__, e)
-        return None, '', 'failed'
-    log.warning("Gemini-Antwort (%s) enthielt kein Bild", model)
-    return None, '', 'empty'
+        return None, '', 'failed', type(e).__name__
+    # 200, aber kein Bild: Grund und Erlaeuterung sind hier die einzige Auskunft.
+    # Frueher ging beides verloren und der Nutzer sah nur "fehlgeschlagen".
+    note = _resp_text(resp)
+    block = getattr(getattr(resp, 'prompt_feedback', None), 'block_reason', None)
+    log.warning("Gemini-Antwort (%s) enthielt kein Bild — finish_reason=%s block_reason=%s%s",
+                model, reason or '?', block or '-', (': ' + note) if note else '')
+    return None, '', 'empty', note or ' / '.join(
+        x for x in (reason, getattr(block, 'name', None) or (str(block) if block else '')) if x)
 
 
 @admin_app.route('/api/ai/image-support')
@@ -5072,9 +5098,9 @@ def api_ai_image():
         return jsonify({'error': 'invalid'}), 400
     if not _ai_rate_take(_ai_image_times, AI_IMAGE_MAX_PER_HOUR):
         return jsonify({'error': 'rate_limited'}), 429
-    data, _mime, code = _gemini_generate_image(prompt)
+    data, _mime, code, detail = _gemini_generate_image(prompt)
     if code:
-        return jsonify({'error': _AI_ERRORS.get(code, 'ai_failed'),
+        return jsonify({'error': _AI_ERRORS.get(code, 'ai_failed'), 'detail': detail,
                         'model': _gemini_image_model()}), 502
     try:
         # ai=True → Dateiname trägt den Marker, an dem die Auslieferung später
@@ -5259,12 +5285,12 @@ def api_ai_studio_image():
     if not _ai_rate_take(_ai_image_times, AI_IMAGE_MAX_PER_HOUR, count):
         return jsonify({'error': 'rate_limited'}), 429
     _ai_tmp_sweep()
-    images, last = [], 'failed'
+    images, last, last_detail = [], 'failed', ''
     for _ in range(count):
-        data, mime, code = _gemini_generate_image(prompt, model=model, ratio=ratio,
-                                                  ref=ref)
+        data, mime, code, detail = _gemini_generate_image(prompt, model=model,
+                                                          ratio=ratio, ref=ref)
         if code:
-            last = code
+            last, last_detail = code, detail
             continue
         tid = uuid.uuid4().hex
         target = safe_under(AI_TMP_DIR, tid + '.img')
@@ -5278,7 +5304,8 @@ def api_ai_studio_image():
         _ai_tmp[tid] = {'mime': mime, 'ts': time.time(), 'prompt': prompt}
         images.append({'id': tid, 'url': 'api/ai/studio/preview/' + tid})
     if not images:
-        return jsonify({'error': _AI_ERRORS.get(last, 'ai_failed'), 'model': model}), 502
+        return jsonify({'error': _AI_ERRORS.get(last, 'ai_failed'),
+                        'detail': last_detail, 'model': model}), 502
     log.info("KI-Studio: %d Bildentwurf/-entwürfe erzeugt (%s, %s%s)",
              len(images), model, ratio, ', mit Vorlage' if ref else '')
     return jsonify({'ok': True, 'images': images})
@@ -5386,10 +5413,12 @@ def _ai_text_schema(langs: list[str]):
 
 def _gemini_generate_text(*, topic: str, kind: str, tone: str, length: str,
                           langs: list[str], mode: str, model: str
-                          ) -> tuple[dict | None, str]:
+                          ) -> tuple[dict | None, str, str]:
     """Erzeugt Titel, SEO-Beschreibung, Fließtext und Schlagwörter je Sprache.
 
-    Zurück: (Ergebnis, Fehlercode) mit denselben Codes wie bei den Bildern.
+    Zurück: (Ergebnis, Fehlercode, Erläuterung) — dieselben Codes wie bei den
+    Bildern. Die Erläuterung ist Googles Abbruchgrund im Klartext; ohne sie
+    steht im Admin nur „fehlgeschlagen" und niemand weiß, woran es lag.
     """
     words = AI_TEXT_LENGTHS.get(length, 400)
     sys = (
@@ -5431,25 +5460,30 @@ def _gemini_generate_text(*, topic: str, kind: str, tone: str, length: str,
         )
         _ai_usage_record(model, resp)
         cands = resp.candidates or []
-        if cands and cands[0].finish_reason in _GEMINI_TEXT_REFUSALS:
-            log.info("Gemini hat die Textanfrage abgelehnt: %s", cands[0].finish_reason)
-            return None, 'refused'
+        finish = cands[0].finish_reason if cands else None
+        reason = getattr(finish, 'name', None) or (str(finish) if finish else '')
+        if finish in _GEMINI_TEXT_REFUSALS:
+            log.info("Gemini hat die Textanfrage abgelehnt: %s", finish)
+            return None, 'refused', reason
         data = json.loads(resp.text or '')
         if not isinstance(data, dict):
-            return None, 'empty'
+            log.warning("Gemini-Textantwort (%s) ohne verwertbaren Inhalt — finish_reason=%s",
+                        model, reason or '?')
+            return None, 'empty', reason
     except genai_errors.APIError as e:
         # Nur der Statuscode: die SDK-Meldung kann die Anfrage-URL samt Key enthalten
         code = getattr(e, 'code', None)
         log.warning("Gemini-Textanfrage fehlgeschlagen (%s): Status %s",
                     model, code or type(e).__name__)
-        return None, ('model_missing' if code == 404 else 'failed')
+        return (None, ('model_missing' if code == 404 else 'failed'),
+                f'HTTP {code}' if code else '')
     except (ValueError, TypeError) as e:
         log.warning("Gemini-Textantwort (%s) war kein gültiges JSON: %s", model, type(e).__name__)
-        return None, 'empty'
+        return None, 'empty', type(e).__name__
     except Exception as e:
         log.error("Gemini-Textanfrage (%s) unerwartet fehlgeschlagen: %s: %s",
                   model, type(e).__name__, e)
-        return None, 'failed'
+        return None, 'failed', type(e).__name__
     out = {}
     for lg in langs:
         d = data.get(lg) if isinstance(data.get(lg), dict) else {}
@@ -5461,8 +5495,8 @@ def _gemini_generate_text(*, topic: str, kind: str, tone: str, length: str,
             'tags':  [_clean_str(t, 40) for t in tags[:8] if _clean_str(t, 40)],
         }
     if not any(v['title'] or v['text'] for v in out.values()):
-        return None, 'empty'
-    return out, ''
+        return None, 'empty', reason
+    return out, '', ''
 
 
 @admin_app.route('/api/ai/text', methods=['POST'])
@@ -5487,11 +5521,12 @@ def api_ai_text():
     model = _ai_model_or(raw.get('model'), _gemini_text_model())
     if not _ai_rate_take(_ai_text_times, AI_TEXT_MAX_PER_HOUR):
         return jsonify({'error': 'rate_limited'}), 429
-    data, code = _gemini_generate_text(topic=topic, kind=kind, tone=tone,
-                                       length=length, langs=langs, mode=mode,
-                                       model=model)
+    data, code, detail = _gemini_generate_text(topic=topic, kind=kind, tone=tone,
+                                               length=length, langs=langs, mode=mode,
+                                               model=model)
     if code:
-        return jsonify({'error': _AI_ERRORS.get(code, 'ai_failed'), 'model': model}), 502
+        return jsonify({'error': _AI_ERRORS.get(code, 'ai_failed'),
+                        'detail': detail, 'model': model}), 502
     log.info("KI-Text erzeugt (%s, %s, %s)", model, kind, '+'.join(langs))
     return jsonify({'ok': True, 'result': data})
 

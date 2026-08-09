@@ -2493,5 +2493,7 @@
   "files_del_confirm": "Delete “{v}” for good?",
   "files_del_used_confirm": "This file is still in use, so deleting it will most likely be refused. Try anyway?",
   "uploads_pick_ai_only": "AI-generated images only",
-  "uploads_pick_ai_count": "{n} AI-generated images"
+  "uploads_pick_ai_count": "{n} AI-generated images",
+  "ai_err_empty": "The AI returned no image. Usually the description was judged not permissible without being reported as a refusal — please rephrase it.",
+  "ai_err_detail": "Google says: {v}"
 }

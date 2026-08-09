@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.9.20
+- 🔍 **Fehlgeschlagene KI-Anfragen sagen jetzt, woran es lag.** Im Add-on-Log stand der Grund längst (`PROHIBITED_CONTENT`, „enthielt kein Bild“), im Admin kam nur „Die Anfrage ist fehlgeschlagen“ an. Googles Abbruchgrund steht jetzt **in der Oberfläche**.
+- Liefert Gemini statt eines Bildes eine **Erklärung im Text** — der häufigste Fall bei einer stillen Absage — wird sie angezeigt statt weggeworfen. Genau daran erkennt man, welches Wort in der Beschreibung gestört hat.
+- Der Fall „200, aber kein Bild“ hatte in der Oberfläche **gar keine eigene Meldung** und fiel auf den allgemeinen Fehlertext zurück. Er hat jetzt einen: die Beschreibung wurde vermutlich als unzulässig eingestuft, ohne dass es als Ablehnung gemeldet wird.
+- Das Log nennt zusätzlich `finish_reason` und `block_reason` — beide fehlten bisher genau in dem Zweig, in dem sie gebraucht werden.
+- Gilt für **Bild-Studio, Text-Studio und den Knopf im Bibliothek-Editor**. Letzterer hatte eine eigene, kürzere Fehlerliste und kannte den Fall gar nicht.
+
 ## 0.9.19
 - 🗂️ **Neuer Datei-Browser im Tab *System*.** Zeigt alle hochgeladenen **Bilder** und die **PDFs der Bibliothek** mit Datum, Größe und der Plakette „unbenutzt“. Bisher liess sich nur im Rutsch aufräumen — sehen, was da liegt, ging gar nicht.
 - **Linksklick öffnet** die Datei in einem neuen Tab. PDFs erscheinen dabei inline (mit `sandbox` und `nosniff`); öffentlich bleiben sie weiterhin reine Downloads.
