@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.7
+- 🐛 **Kein Gemini-Aufruf kam durch.** Bilder, Texte und die Modellliste scheiterten alle mit „Cannot send a request, as the client has been closed" und erreichten Google nie. Der Client hatte im neuen KI-Tab keine feste Referenz mehr, wurde mitten im Aufruf eingesammelt, und sein Destruktor schloss die Verbindung. Er wird jetzt zwischengespeichert (neu aufgebaut, wenn sich der API-Key ändert) und an jeder Aufrufstelle festgehalten.
+- 🔒 Die Adresse des **Vorlagenbilds** im Bild-Studio wird nicht mehr aus dem Eingabefeld zurückgelesen, sondern intern gehalten und vor der Verwendung gegen die Form einer eigenen Upload-Adresse geprüft (CodeQL `js/xss-through-dom`).
+- 🔇 `google-genai` meldete bei **jeder** Anfrage „AFC is enabled with max remote calls: 10" ins Add-on-Log — eine Einstellung, die MyPage gar nicht nutzt. Nur noch Warnungen, wie schon bei fontTools.
+
 ## 0.9.6
 - ✦ **Neuer Tab „KI" im Admin-Panel** — sichtbar nur, wenn ein `gemini_api_key` hinterlegt ist. Bisher steckte die KI-Bilderzeugung ausschließlich im Bibliothek-Editor und konnte nur Titelbilder für genau diesen einen Eintrag liefern.
 - 🖼️ **Bild-Studio**: Beschreibung, **Stil-Bausteine** zum Anklicken (Fotorealistisch, Illustration, Flat/Vektor, 3D-Render, Aquarell, Retro), **bis zu 4 Entwürfe** je Anfrage und ein optionales **Vorlagenbild** aus den eigenen Uploads, das abgewandelt statt neu erfunden wird.
