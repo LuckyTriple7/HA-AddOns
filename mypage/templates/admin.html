@@ -230,6 +230,9 @@
     /* „unbenutzt“ ist die Info, die man beim Aufräumen braucht — genutzte Bilder
        bleiben unmarkiert, damit die Galerie nicht voller Plaketten hängt */
     .uploads-tile .unused { position: absolute; top: 4px; right: 4px; background: var(--accent); color: #fff; font-size: 0.6rem; padding: 1px 5px; border-radius: 99px; }
+    .uploads-tile .ai-flag { position: absolute; top: 4px; left: 4px; background: rgba(0,0,0,.55); color: #fff; font-size: 0.7rem; line-height: 1; padding: 3px 5px; border-radius: 99px; }
+    /* PDF-Kachel: gleiche Grundfläche wie ein Bild, damit das Raster nicht springt */
+    .uploads-tile .doc-icon { display: flex; align-items: center; justify-content: center; width: 100%; aspect-ratio: 1; font-size: 2rem; background: var(--bg); }
     .md-toolbar { display: flex; flex-wrap: wrap; gap: 3px; margin: 4px 0 10px; position: relative; }
     .md-btn { background: var(--surf2, var(--bg)); border: 1px solid var(--border); color: var(--text); border-radius: 5px; min-width: 30px; height: 30px; padding: 0 8px; font-size: 0.9rem; cursor: pointer; line-height: 1; }
     .md-btn:hover { border-color: var(--accent); color: var(--accent); }
@@ -1480,6 +1483,15 @@
         <button class="btn secondary" id="cleanup-pdf-btn" onclick="cleanupDocs()">🧹 {{ t.cleanup_pdf_btn }}</button>
       </div>
       <div class="panel">
+        <h3>{{ t.files_heading }}</h3>
+        <p class="hint">{{ t.files_hint }}</p>
+        <label class="checkbox"><input type="checkbox" id="files-ai-only" onchange="renderFileBrowser()"> ✨ {{ t.files_ai_only }}</label>
+        <h4 style="margin:14px 0 6px">{{ t.files_images }} <span class="hint" id="files-img-count" style="font-weight:normal"></span></h4>
+        <div class="uploads-grid" id="files-img-grid"></div>
+        <h4 style="margin:18px 0 6px">{{ t.files_docs }} <span class="hint" id="files-doc-count" style="font-weight:normal"></span></h4>
+        <div class="uploads-grid" id="files-doc-grid"></div>
+      </div>
+      <div class="panel">
         <h3>{{ t.redirects_heading }}</h3>
         <p class="hint">{{ t.redirects_hint }}</p>
         <div id="redirect-list"></div>
@@ -2069,6 +2081,7 @@
     <div class="modal md-modal-box">
       <h3>{{ t.uploads_pick_title }}</h3>
       <p class="hint" id="uploads-pick-info"></p>
+      <label class="checkbox" id="uploads-ai-row" style="margin-bottom:10px"><input type="checkbox" id="uploads-ai-only" onchange="renderUploadTiles()"> ✨ {{ t.uploads_pick_ai_only }}</label>
       <div class="uploads-grid" id="uploads-grid"></div>
       <div class="modal-actions">
         <button class="btn secondary" onclick="closeUploadsModal()">{{ t.cancel }}</button>
@@ -2486,7 +2499,7 @@
         if (btn.dataset.tab === 'messages') { loadMessages(); loadComments(); }
         if (btn.dataset.tab === 'users') { loadUsers(); initStorageBrowser(); startUsersPolling(); }
         if (btn.dataset.tab === 'design') { initPreview(); setTimeout(updatePresetArrows, 50); }
-        if (btn.dataset.tab === 'system') { loadAudit(); loadTwofa(); loadAutoBackups(); }
+        if (btn.dataset.tab === 'system') { loadAudit(); loadTwofa(); loadAutoBackups(); loadFileBrowser(); }
         if (btn.dataset.tab === 'blog') loadSubscribers();
         if (btn.dataset.tab === 'ai') initAiTab();
       });
@@ -4949,21 +4962,35 @@
     function fmtBytes(n) {
       return n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.round(n / 1024) + ' kB';
     }
+    let browseFiles = [];
     async function browseUploads(cb) {
       browseCb = cb;
-      const grid = el('uploads-grid');
-      grid.innerHTML = '';
+      browseFiles = [];
+      el('uploads-grid').innerHTML = '';
       el('uploads-pick-info').textContent = T.uploads_pick_loading;
       el('uploads-modal').classList.add('open');
       const r = await api('api/uploads/list');
       if (!r.ok) { el('uploads-pick-info').textContent = T.error_load; return; }
       const d = await r.json();
       if (!d.files.length) { el('uploads-pick-info').textContent = T.uploads_pick_empty; return; }
-      el('uploads-pick-info').textContent = d.total > d.files.length
-        ? T.uploads_pick_capped.replace('{n}', d.files.length).replace('{t}', d.total)
-        : T.uploads_pick_count.replace('{n}', d.total);
+      browseFiles = d.files;
+      browseFiles.capped = d.total > d.files.length ? d.total : 0;
+      renderUploadTiles();
+    }
+    // Gefiltert wird im Browser statt auf dem Server: die Liste ist ohnehin schon
+    // geladen und auf 300 Kacheln gedeckelt, ein zweiter Aufruf brächte nichts.
+    function renderUploadTiles() {
+      const aiOnly = el('uploads-ai-only').checked;
+      const files = browseFiles.filter(f => !aiOnly || f.ai);
+      el('uploads-pick-info').textContent = aiOnly
+        ? T.uploads_pick_ai_count.replace('{n}', files.length)
+        : (browseFiles.capped
+            ? T.uploads_pick_capped.replace('{n}', browseFiles.length).replace('{t}', browseFiles.capped)
+            : T.uploads_pick_count.replace('{n}', browseFiles.length));
+      const grid = el('uploads-grid');
+      grid.innerHTML = '';
       const frag = document.createDocumentFragment();
-      d.files.forEach(f => {
+      files.forEach(f => {
         const b = document.createElement('button');
         b.type = 'button';
         b.className = 'uploads-tile';
@@ -4971,6 +4998,7 @@
         // loading="lazy": bei 300 Kacheln lädt der Browser sonst alles auf einmal
         b.innerHTML = `<img src="${assetUrl(f.url)}" alt="" loading="lazy">`
           + (f.used ? '' : `<span class="unused">${T.uploads_pick_unused}</span>`)
+          + (f.ai ? `<span class="ai-flag">✨</span>` : '')
           + `<span class="meta">${new Date(f.mtime * 1000).toLocaleDateString()}<br>${fmtBytes(f.size)}</span>`;
         b.onclick = () => { closeUploadsModal(); if (browseCb) browseCb(f.url); };
         frag.appendChild(b);
@@ -4979,6 +5007,67 @@
     }
     function closeUploadsModal() {
       el('uploads-modal').classList.remove('open');
+    }
+
+    // ── Datei-Browser (Tab System) ──
+    // Linksklick öffnet, Rechtsklick löscht. Das Löschen liegt bewusst auf dem
+    // Kontextmenü und fragt nach: ein Klick daneben in einem Raster aus 300
+    // Kacheln darf keine Datei kosten.
+    let FILES = { images: [], docs: [] };
+    async function loadFileBrowser() {
+      const [ri, rd] = await Promise.all([api('api/uploads/list'), api('api/docs/list')]);
+      FILES.images = ri.ok ? (await ri.json()).files : [];
+      FILES.docs = rd.ok ? (await rd.json()).files : [];
+      renderFileBrowser();
+    }
+    function fileTile(inner, title, onOpen, onDelete) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'uploads-tile';
+      b.title = title;
+      b.innerHTML = inner;
+      b.onclick = onOpen;
+      b.addEventListener('contextmenu', e => { e.preventDefault(); onDelete(); });
+      return b;
+    }
+    function renderFileBrowser() {
+      const aiOnly = el('files-ai-only').checked;
+      const imgs = FILES.images.filter(f => !aiOnly || f.ai);
+      const grid = el('files-img-grid');
+      grid.innerHTML = '';
+      el('files-img-count').textContent = '(' + imgs.length + ')';
+      imgs.forEach(f => grid.appendChild(fileTile(
+        `<img src="${assetUrl(f.url)}" alt="" loading="lazy">`
+          + (f.used ? '' : `<span class="unused">${T.uploads_pick_unused}</span>`)
+          + (f.ai ? `<span class="ai-flag">✨</span>` : '')
+          + `<span class="meta">${new Date(f.mtime * 1000).toLocaleDateString()}<br>${fmtBytes(f.size)}</span>`,
+        f.url + ' — ' + T.files_rightclick,
+        () => window.open(assetUrl(f.url), '_blank', 'noopener'),
+        () => deleteFile('api/uploads/delete', f.url.split('/').pop(), f.used))));
+      const dgrid = el('files-doc-grid');
+      dgrid.innerHTML = '';
+      el('files-doc-count').textContent = '(' + FILES.docs.length + ')';
+      if (aiOnly) { dgrid.innerHTML = `<div class="empty-note">${T.files_docs_hidden}</div>`; return; }
+      FILES.docs.forEach(f => dgrid.appendChild(fileTile(
+        `<span class="doc-icon">📄</span>`
+          + (f.used ? '' : `<span class="unused">${T.uploads_pick_unused}</span>`)
+          + `<span class="meta">${new Date(f.mtime * 1000).toLocaleDateString()}<br>${fmtBytes(f.size)}</span>`,
+        f.name + ' — ' + T.files_rightclick,
+        () => window.open('api/docs/file/' + encodeURIComponent(f.name), '_blank', 'noopener'),
+        () => deleteFile('api/docs/delete', f.name, f.used))));
+    }
+    async function deleteFile(path, name, used) {
+      if (used && !confirm(T.files_del_used_confirm)) return;
+      if (!confirm(T.files_del_confirm.replace('{v}', name))) return;
+      let r = null;
+      try { r = await apiJson(path, 'POST', { name }); } catch (e) { /* Netzfehler */ }
+      const d = r ? await r.json().catch(() => ({})) : {};
+      if (!r || !r.ok) {
+        toast(d.error === 'in_use' ? T.ai_delete_in_use : T.error_save, true);
+        return;
+      }
+      toast(T.ai_deleted);
+      loadFileBrowser();
     }
     // Aus der Galerie heraus doch neu hochladen — der Rückruf bleibt derselbe
     function uploadFromBrowser() {

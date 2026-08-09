@@ -2482,5 +2482,16 @@
   "ai_prices_fetch_nomatch": "Durchsucht: {s} — {n} Posten gelesen, aber keine Bezeichnung enthält einen Modellnamen. Preise bitte von Hand eintragen.",
   "ai_prices_samples_title": "So benennt Google seine Posten (Auszug):",
   "ai_err_model": "Das eingestellte Modell „{v}“ gibt es bei Google nicht (mehr). Bitte oben unter Einstellungen ein anderes wählen und speichern.",
-  "ai_model_stale": "nicht in Googles Liste"
+  "ai_model_stale": "nicht in Googles Liste",
+  "files_heading": "Dateien",
+  "files_hint": "Alle hochgeladenen Bilder und die PDFs der Bibliothek. Linksklick öffnet die Datei in einem neuen Tab, Rechtsklick löscht sie nach Nachfrage. Eingebundene Dateien lassen sich nicht löschen — erst im Beitrag oder Eintrag ersetzen.",
+  "files_ai_only": "Nur KI-erzeugte Bilder",
+  "files_images": "Bilder",
+  "files_docs": "PDFs der Bibliothek",
+  "files_docs_hidden": "Bei aktivem KI-Filter ausgeblendet — PDFs tragen keine KI-Kennzeichnung.",
+  "files_rightclick": "Rechtsklick zum Löschen",
+  "files_del_confirm": "„{v}“ endgültig löschen?",
+  "files_del_used_confirm": "Diese Datei wird noch verwendet. Das Löschen wird deshalb voraussichtlich abgelehnt. Trotzdem versuchen?",
+  "uploads_pick_ai_only": "Nur KI-erzeugte Bilder",
+  "uploads_pick_ai_count": "{n} KI-erzeugte Bilder"
 }

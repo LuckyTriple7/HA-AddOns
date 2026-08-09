@@ -2482,5 +2482,16 @@
   "ai_prices_fetch_nomatch": "Searched: {s} — {n} items read, but no description contains a model name. Please enter the prices by hand.",
   "ai_prices_samples_title": "How Google names its items (excerpt):",
   "ai_err_model": "The configured model “{v}” does not exist at Google (any more). Please pick another one under Settings above and save.",
-  "ai_model_stale": "not in Google’s list"
+  "ai_model_stale": "not in Google’s list",
+  "files_heading": "Files",
+  "files_hint": "All uploaded images and the library PDFs. Left-click opens a file in a new tab, right-click deletes it after confirmation. Files still in use cannot be deleted — replace them in the post or entry first.",
+  "files_ai_only": "AI-generated images only",
+  "files_images": "Images",
+  "files_docs": "Library PDFs",
+  "files_docs_hidden": "Hidden while the AI filter is on — PDFs carry no AI marker.",
+  "files_rightclick": "right-click to delete",
+  "files_del_confirm": "Delete “{v}” for good?",
+  "files_del_used_confirm": "This file is still in use, so deleting it will most likely be refused. Try anyway?",
+  "uploads_pick_ai_only": "AI-generated images only",
+  "uploads_pick_ai_count": "{n} AI-generated images"
 }

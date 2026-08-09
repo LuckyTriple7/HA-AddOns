@@ -6746,9 +6746,82 @@ def api_uploads_list():
         if st.st_size <= 0:
             continue    # abgebrochener Upload — gäbe nur eine kaputte Kachel
         files.append({'url': '/uploads/' + f.name, 'size': st.st_size,
+                      'mtime': int(st.st_mtime), 'used': f.name in blob,
+                      # Marker steckt im Dateinamen (siehe _store_upload_image) —
+                      # damit lässt sich die Galerie auf KI-Bilder eingrenzen
+                      'ai': f.stem.endswith(AI_IMAGE_SUFFIX)})
+    files.sort(key=lambda x: x['mtime'], reverse=True)
+    return jsonify({'files': files[:UPLOADS_LIST_MAX], 'total': len(files)})
+
+
+@admin_app.route('/api/docs/list')
+def api_docs_list():
+    """Vorhandene Bibliothek-PDFs für den Datei-Browser im Tab System."""
+    err = _api_auth()
+    if err:
+        return err
+    blob = json.dumps(load_site(), ensure_ascii=False)
+    files = []
+    for f in DOCS_DIR.iterdir():
+        if not f.is_file() or not _DOC_FILE_RE.match(f.name):
+            continue
+        try:
+            st = f.stat()
+        except OSError:
+            continue
+        files.append({'name': f.name, 'size': st.st_size,
                       'mtime': int(st.st_mtime), 'used': f.name in blob})
     files.sort(key=lambda x: x['mtime'], reverse=True)
     return jsonify({'files': files[:UPLOADS_LIST_MAX], 'total': len(files)})
+
+
+@admin_app.route('/api/docs/file/<name>')
+def api_docs_file(name: str):
+    """Ein PDF zur Ansicht im Admin — bewusst inline, anders als öffentlich.
+
+    Die öffentliche Bibliothek-Route liefert PDFs ausschließlich als Download
+    (siehe library_entry_pdf): dort ist die Datei für jeden Besucher erreichbar,
+    und ein PDF darf im Browser Skript ausführen. Hier hinter dem Login sieht sie
+    nur, wer sie selbst hochgeladen hat — trotzdem `sandbox` und `nosniff`, damit
+    ein präpariertes PDF nicht auf die Admin-Sitzung zugreifen kann.
+    """
+    err = _api_auth()
+    if err:
+        return err
+    if not _DOC_FILE_RE.match(name or ''):
+        return jsonify({'error': 'invalid'}), 400
+    target = safe_under(DOCS_DIR, name)
+    if target is None or not target.is_file():
+        return jsonify({'error': 'not_found'}), 404
+    resp = send_file(target, mimetype='application/pdf')
+    resp.headers['Content-Disposition'] = 'inline; filename="dokument.pdf"'
+    resp.headers['X-Content-Type-Options'] = 'nosniff'
+    resp.headers['Content-Security-Policy'] = 'sandbox'
+    return resp
+
+
+@admin_app.route('/api/docs/delete', methods=['POST'])
+def api_docs_delete():
+    """Ein einzelnes PDF löschen. Eingebundene bleiben tabu — dieselbe Regel wie
+    bei den Bildern, sonst zeigt ein Bibliothek-Eintrag ins Leere."""
+    err = _api_auth()
+    if err:
+        return err
+    name = Path(_clean_str((request.get_json(silent=True) or {}).get('name'), 120)).name
+    if not _DOC_FILE_RE.match(name):
+        return jsonify({'error': 'invalid'}), 400
+    p = safe_under(DOCS_DIR, name)
+    if p is None or not p.is_file():
+        return jsonify({'error': 'not_found'}), 404
+    if name in json.dumps(load_site(), ensure_ascii=False):
+        return jsonify({'error': 'in_use'}), 409
+    try:
+        p.unlink()
+    except OSError as e:
+        log.warning("PDF '%s' konnte nicht gelöscht werden: %s", name, e)
+        return jsonify({'error': 'delete_failed'}), 500
+    log_audit('doc_delete', name)
+    return jsonify({'ok': True})
 
 
 def _unused_in(directory: Path, site: dict):

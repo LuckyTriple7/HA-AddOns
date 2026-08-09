@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.19
+- 🗂️ **Neuer Datei-Browser im Tab *System*.** Zeigt alle hochgeladenen **Bilder** und die **PDFs der Bibliothek** mit Datum, Größe und der Plakette „unbenutzt“. Bisher liess sich nur im Rutsch aufräumen — sehen, was da liegt, ging gar nicht.
+- **Linksklick öffnet** die Datei in einem neuen Tab. PDFs erscheinen dabei inline (mit `sandbox` und `nosniff`); öffentlich bleiben sie weiterhin reine Downloads.
+- **Rechtsklick löscht**, nach Nachfrage. Bewusst das Kontextmenü: ein Fehlklick in einem Raster aus hunderten Kacheln darf keine Datei kosten. Eingebundene Dateien bleiben geschützt.
+- ✨ **Kontrollkästchen „Nur KI-erzeugte Bilder“** — im neuen Browser und im Medien-Browser hinter jedem „Bild wählen“. KI-Kacheln tragen zusätzlich ein Sternchen.
+
 ## 0.9.18
 - 🚫 **Ein nicht mehr existierendes Modell meldet sich jetzt als solches.** Wer noch einen Modellnamen aus einer früheren Version gespeichert hatte, bekam bei jeder Anfrage nur „Die Anfrage ist fehlgeschlagen“ — obwohl Google klar mit 404 antwortet. Die Meldung nennt jetzt den Namen und verweist auf die Einstellungen.
 - Im Auswahlfeld wird ein gespeichertes Modell, das Google **nicht listet**, als „nicht in Googles Liste“ gekennzeichnet. Wählbar bleibt es — die Live-Abfrage kann ausfallen, dann soll die eigene Einstellung nicht verlorengehen — aber es ist nun erkennbar.

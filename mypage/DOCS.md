@@ -140,6 +140,15 @@ Der Tab erscheint **nur, wenn `gemini_api_key` gesetzt ist**. Er bündelt alles,
   - **Warum ein zweiter Schlüssel:** der Gemini-Key aus AI Studio ist auf die Generative Language API beschränkt und wird vom Preiskatalog mit `API_KEY_SERVICE_BLOCKED` abgewiesen. Der zweite Schlüssel muss aus einem Google-Cloud-Projekt stammen, in dem die **Cloud Billing API** freigeschaltet ist. Fehlt er, bleibt der Knopf weg und du pflegst die Preise von Hand — für die üblichen Modelle sind sie ohnehin hinterlegt.
   - **Es bleibt eine Schätzung.** Maßgeblich ist die Abrechnung bei Google — Freikontingente, Rundungen und Preisänderungen kennt das Add-on nicht. Ein Zugriff auf die echten Kosten ist mit dem Gemini-Key nicht möglich: der berechtigt nur zum Modellaufruf, Abrechnungsdaten liegen hinter der Cloud Billing API mit eigenem Dienstkonto und hinken ohnehin Stunden hinterher. Der Link neben der Überschrift führt direkt zur Abrechnungsseite.
 
+### Dateien (Tab System)
+Ein Browser über **alle hochgeladenen Bilder** und die **PDFs der Bibliothek** — gedacht zum Aufräumen und Nachsehen, was eigentlich alles herumliegt.
+
+- **Linksklick** öffnet die Datei in einem neuen Tab. PDFs werden dabei **inline** angezeigt (mit `sandbox` und `nosniff`), anders als öffentlich — dort gibt es sie ausschließlich als Download.
+- **Rechtsklick löscht**, nach Nachfrage. Das Löschen liegt bewusst auf dem Kontextmenü: ein Fehlklick in einem Raster aus hunderten Kacheln darf keine Datei kosten.
+- **Eingebundene Dateien lassen sich nicht löschen.** Steckt der Dateiname noch in `site.json`, verweigert das Add-on den Vorgang — sonst reisst der betroffene Beitrag oder Eintrag ein Loch. Die Plakette „unbenutzt“ zeigt vorab, was gefahrlos weg kann.
+- Die Kachel eines **KI-Bildes** trägt ✨; die Kennzeichnung stammt aus dem Dateinamen.
+- Das Kontrollkästchen **„Nur KI-erzeugte Bilder“** blendet alles andere aus. Dieselbe Möglichkeit gibt es im Medien-Browser hinter jedem „Bild wählen“.
+
 ### Volltextsuche
 Eine seitenweite Suche über **Blog-Beiträge, Projekte, Seiten und Bibliothek-Einträge** (Titel, Inhalt und Tags, jeweils DE & EN). Im Design-Tab aktivierbar (Standard aus). Ist sie an, erscheint ein **Suchfeld im Kopfbereich** der Startseite; die Ergebnisse stehen unter `/suche`.
 
