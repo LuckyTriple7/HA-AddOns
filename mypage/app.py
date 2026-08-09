@@ -5534,8 +5534,14 @@ GEMINI_DEFAULT_PRICES = {
 
 
 def _ai_price_for(model: str, prices: dict) -> dict:
-    """Eigener Preis, sonst Vorgabe, sonst nichts."""
-    return prices.get(model) or GEMINI_DEFAULT_PRICES.get(model) or {}
+    """Eigener Preis je Spalte, sonst Vorgabe.
+
+    Spaltenweise mischen statt den ganzen Eintrag zu ersetzen: wer nur den
+    Ausgabepreis einträgt, soll nicht stillschweigend den Eingabepreis der
+    Vorgabe verlieren. Das Ergebnis wäre eine zu niedrige Summe, die niemandem
+    auffällt — und genau dafür ist die Anzeige nicht da.
+    """
+    return {**(GEMINI_DEFAULT_PRICES.get(model) or {}), **(prices.get(model) or {})}
 
 
 def _ai_usage_load() -> dict:
@@ -5636,8 +5642,11 @@ CLOUD_BILLING_API = 'https://cloudbilling.googleapis.com/v1'
 # nennt, ist nicht zugesichert und hat sich schon geändert. Alle Dienste, deren
 # Name einen dieser Bausteine enthält, werden durchsucht.
 GEMINI_BILLING_HINTS = ('generative language', 'gemini')
-_SKU_KINDS = (('image', 'image'), ('input', 'in'), ('prompt', 'in'), ('output', 'out'))
 AI_SKU_SAMPLES = 40   # Beispiele für die Oberfläche, wenn nichts zugeordnet wurde
+# Modalitäts-Zuschläge: Google rechnet Bild-, Video- und Audio-EINGABE getrennt
+# vom Text ab. Diese Dimension bildet die Preistabelle nicht ab — solche Posten
+# als Textpreis zu buchen wäre schlicht falsch, also bleiben sie außen vor.
+_SKU_MODALITIES = ('image', 'video', 'audio')
 
 # Der `reason` aus Googles Fehlerkörper ist die einzige belastbare Auskunft.
 # Nach dem Statuscode zu gehen wäre falsch: „Dienst nicht freigeschaltet" und
@@ -5674,13 +5683,36 @@ def _billing_error(r) -> tuple[str, str]:
     return 'failed', (reasons[0] if reasons else f'HTTP {r.status_code}')
 
 
-def _sku_unit_price(sku: dict) -> float | None:
-    """USD je Million Einheiten aus einem SKU-Eintrag.
+def _sku_kind(desc: str, unit: str, model: str) -> str | None:
+    """Welche Preisspalte ein Posten füllt — oder None, wenn er nicht passt.
 
-    Google gibt den Preis je Verrechnungseinheit an (units + nanos). Bei Tokens
-    ist das je Token, deshalb hochrechnen — außer die Einheitsbeschreibung sagt
-    schon „million". Passt nichts davon, lieber None als eine Zahl, die um
-    Faktor 10^6 danebenliegt.
+    Reihenfolge ist entscheidend: „Image Input Tokens" ist der Aufschlag für ein
+    Bild als EINGABE, nicht der Preis eines erzeugten Bildes. Wer hier zuerst auf
+    „image" prüft, schreibt bei jedem Textmodell einen Bildpreis ein.
+
+    Bei Bildmodellen ist die Ausgabe genau das erzeugte Bild; Google rechnet sie
+    trotzdem in Tokens ab. Die landen deshalb als Ausgabepreis — die
+    Verbrauchszählung führt für diese Modelle ebenfalls Ausgabe-Tokens, das
+    rechnet sich von selbst zusammen.
+    """
+    modality = any(w in desc for w in _SKU_MODALITIES)
+    if 'output' in desc:
+        # Bildausgabe eines Bildmodells zählt, Bildausgabe sonst gibt es nicht
+        return 'out' if (not modality or 'image' in model) else None
+    if 'input' in desc or 'prompt' in desc:
+        return None if modality else 'in'
+    if 'image' in unit or 'per image' in desc:
+        return 'image' if 'image' in model else None
+    return None
+
+
+def _sku_price(sku: dict, kind: str) -> float | None:
+    """Preis eines Postens in der Einheit, die die Preistabelle erwartet.
+
+    Google nennt den Betrag je Verrechnungseinheit (units + nanos). Token-Preise
+    stehen je Token und müssen auf eine Million hochgerechnet werden; ein Preis
+    je Bild darf das gerade nicht. Passt die Einheit zu nichts davon, lieber
+    None als eine Zahl, die um Faktor 10^6 danebenliegt.
     """
     try:
         expr = (sku.get('pricingInfo') or [])[-1]['pricingExpression']
@@ -5690,12 +5722,14 @@ def _sku_unit_price(sku: dict) -> float | None:
         return None
     if price <= 0:
         return None
+    if kind == 'image':
+        return round(price, 6)
     unit = str(expr.get('usageUnitDescription') or expr.get('usageUnit') or '').lower()
     if 'million' in unit:
         return round(price, 6)
     if 'count' in unit or 'token' in unit:
         return round(price * 1e6, 6)
-    return round(price, 6)   # z. B. „image" — je Stück
+    return None
 
 
 def _billing_pages(url: str, field: str, key: str, cap: int = 40) -> tuple[list, str, str]:
@@ -5766,10 +5800,17 @@ def _gemini_fetch_prices(models: list[str]) -> tuple[dict | None, str, str]:
         model = next((m for m, needle in wanted if needle in desc), None)
         if not model:
             continue
-        kind = next((k for word, k in _SKU_KINDS if word in desc), None)
-        price = _sku_unit_price(sku) if kind else None
+        try:
+            expr = (sku.get('pricingInfo') or [])[-1]['pricingExpression']
+            unit = str(expr.get('usageUnitDescription') or expr.get('usageUnit') or '').lower()
+        except (LookupError, TypeError):
+            unit = ''
+        kind = _sku_kind(desc, unit, model)
+        price = _sku_price(sku, kind) if kind else None
         if kind and price:
-            out.setdefault(model, {})[kind] = price
+            # Google führt denselben Posten in mehreren Stufen und Regionen. Der
+            # erste Treffer gilt; der zweite waere sonst reiner Zufall.
+            out.setdefault(model, {}).setdefault(kind, price)
     log.info("Preiskatalog: %d Posten gelesen, %d Modelle zugeordnet",
              len(skus), len(out))
     return ({'prices': out,

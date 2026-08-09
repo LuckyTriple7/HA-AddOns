@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.9.16
+- 🐞 **Die Preis-Abfrage trug Unsinn ein.** Sie prüfte zuerst auf „image“ und hielt damit „Gemini 3 Flash **Image Input** Tokens“ — den Aufschlag für ein Bild als *Eingabe* — für den Preis eines erzeugten Bildes. Ergebnis: jedes Textmodell bekam einen Bildpreis, und bei Bildmodellen überschrieb der falsche Wert die brauchbare Vorgabe.
+- Erkannt wird jetzt in der richtigen Reihenfolge: **Ausgabe vor Eingabe vor Bild**. Posten mit Bild-, Video- oder Audio-*Eingabe* bleiben ganz draußen — Google rechnet sie getrennt ab, und die Preistabelle bildet diese Dimension nicht ab. Sie als Textpreis zu buchen wäre schlicht falsch.
+- Bei **Bildmodellen** landen die Ausgabe-Tokens jetzt als Ausgabepreis statt als Preis je Bild. Google rechnet dort in Tokens, und die Verbrauchszählung führt für diese Modelle ebenfalls Ausgabe-Tokens — das rechnet sich von selbst zusammen.
+- Ein eingetragener Preis ersetzt die Vorgabe jetzt **nur in der jeweiligen Spalte**. Vorher verlor man mit einem einzelnen Eintrag die Vorgabewerte der anderen Spalten — das Ergebnis wäre eine zu niedrige Summe gewesen, die niemandem auffällt.
+- Kommt derselbe Posten mehrfach vor (Google führt Stufen und Regionen getrennt), gilt der erste Treffer statt des zufällig letzten.
+
 ## 0.9.15
 - 🔎 **Die Preis-Abfrage fand den Dienst nicht.** Sie verglich den Namen im Preiskatalog buchstabengetreu mit „Generative Language API“ — wie Google den Dienst dort nennt, ist aber nirgends zugesichert. Gesucht wird jetzt unscharf nach „generative language“ und „gemini“, und **alle** passenden Dienste werden durchsucht statt nur des ersten.
 - **„Nichts gefunden“ war zweideutig** und stand sowohl für „Dienst nicht gefunden“ als auch für „Dienst gefunden, aber keine Posten-Bezeichnung passte“ — zwei völlig verschiedene Ursachen. Die Meldungen sind jetzt getrennt und nennen die Zahlen: wie viele Dienste gelesen wurden bzw. welche Dienste durchsucht und wie viele Posten gefunden wurden.
