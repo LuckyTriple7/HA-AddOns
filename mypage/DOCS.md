@@ -29,9 +29,9 @@
 | `smb_server` | Optional: Adresse des SMB-/CIFS-Servers für den Mitglieder-Speicher (z. B. FritzBox-NAS). Leer = lokaler Speicher im Add-on-Config-Ordner |
 | `smb_share` | Name der SMB-Freigabe (z. B. `FRITZ.NAS`) |
 | `smb_user` / `smb_password` | Zugangsdaten für die SMB-Freigabe |
-| `gemini_api_key` | Optional: Google-Gemini-Key — schaltet im Bibliothek-Editor den Knopf **Bild generieren** frei. Key auf [aistudio.google.com](https://aistudio.google.com) holen. **Bildgenerierung ist je nach Modell kostenpflichtig** |
-| `gemini_image_model` | Modell für die Bilderzeugung: `gemini-3.1-flash-image` (Allrounder, Standard), `gemini-3.1-flash-lite-image` (am schnellsten und günstigsten), `gemini-3-pro-image` (Premium), `gemini-2.5-flash-image` (älter) |
-| `gemini_image_ratio` | Seitenverhältnis der erzeugten Bilder (Standard `16:9`) |
+| `gemini_api_key` | Optional: Google-Gemini-Key — schaltet den Tab **KI** und im Bibliothek-Editor den Knopf **Bild generieren** frei. Key auf [aistudio.google.com](https://aistudio.google.com) holen. **Bild- und Texterzeugung sind je nach Modell kostenpflichtig** |
+| `gemini_image_model` | Startwert für die Bilderzeugung: `gemini-3.1-flash-image` (Allrounder, Standard), `gemini-3.1-flash-lite-image` (am schnellsten und günstigsten), `gemini-3-pro-image` (Premium), `gemini-2.5-flash-image` (älter). Im Tab **KI** überschreibbar |
+| `gemini_image_ratio` | Startwert für das Seitenverhältnis der erzeugten Bilder (Standard `16:9`). Im Tab **KI** überschreibbar |
 
 ## Ports
 
@@ -119,6 +119,19 @@ Eine Sammlung eigenständiger **Markdown-Dokumente mit Kategorien** — für all
 - **Auslieferung der PDFs**: Sie liegen in einem eigenen Ordner (`docs/`, im Backup) und kommen **ausschließlich** über `/bibliothek/<slug>.pdf` als **Datei-Download** (`Content-Disposition: attachment`, `nosniff`) — nie inline über die offene `/uploads/`-Route. Bei Mitglieder-Einträgen ist auch das PDF gesperrt.
 - **Startseite**: Die Bibliothek ist ein eigener Abschnitt — bis zu 12 Einträge als **seitwärts scrollendes Karussell** (wie die Fotoalben, mit Pfeilen und Touch-Wischen). Darüber steht eine **Schlagwort-Leiste**, die die Kacheln ohne Neuladen filtert, darunter der Link **„Zur Übersicht →"** auf `/bibliothek` (er übernimmt ein gewähltes Schlagwort). Ist der Abschnitt ausgeblendet oder auf Mitglieder beschränkt, erscheint die Sammlung stattdessen als echter Link in der Navigation. Der Abschnitt lässt sich im Tab *Inhalt* wie jeder andere sortieren, ausblenden oder auf Mitglieder beschränken.
 - **SEO**: Veröffentlichte Einträge landen in `sitemap.xml`, im **IndexNow-Ping**, in der Volltextsuche und im statischen Export (dort inklusive der PDF-Dateien). Jede Eintragsseite liefert strukturierte Daten (`schema.org/Article`). Alle Inhalte liegen in `site.json` (im Backup).
+
+### KI
+Der Tab erscheint **nur, wenn `gemini_api_key` gesetzt ist**. Er bündelt alles, was mit Google Gemini erzeugt wird.
+
+- **Einstellungen**: Text- und Bildmodell, Seitenverhältnis und der Übersetzungsdienst. Die Modell-Listen werden **live bei Google abgefragt** (stündlich zwischengespeichert) — neue Modelle stehen also ohne Add-on-Update zur Auswahl. Was hier gespeichert wird, **überschreibt die App-Optionen** `gemini_image_model` und `gemini_image_ratio`; ein Modellwechsel braucht damit keinen Neustart. Darunter steht das verbrauchte Stundenkontingent.
+- **Übersetzung**: `MyMemory` (kostenlos, ohne Schlüssel — Standard) oder `Gemini` (deutlich bessere Qualität, verbraucht Kontingent). Die Wahl gilt für **alle 🌐-Knöpfe im Admin**. Scheitert Gemini, übernimmt automatisch MyMemory — eine schlechtere Übersetzung ist besser als keine.
+- **Bild-Studio**: Beschreibung eingeben, optional einen **Stil anhängen** (Fotorealistisch, Illustration, Flat/Vektor, 3D-Render, Aquarell, Retro) und **bis zu 4 Entwürfe** auf einmal erzeugen. Ein **Vorlagenbild** aus den eigenen Uploads wandelt ein vorhandenes Bild ab, statt neu zu erfinden (nur eigene Uploads, keine Fremd-URLs).
+  - Entwürfe liegen zunächst **nur zwischengespeichert** auf dem Server und sind nicht öffentlich abrufbar. Erst **„Speichern"** legt einen Entwurf in den Uploads ab — verkleinert auf 1600 px, als WebP, ohne Metadaten und mit der [KI-Kennzeichnung](#kennzeichnung-von-ki-bildern). Nicht gespeicherte Entwürfe **verfallen nach einer Stunde**; „Verwerfen" löscht sofort. So wächst die Bildersammlung nicht mit jedem Fehlversuch.
+  - Gespeicherte Bilder stehen anschließend überall im Medien-Browser („Bild wählen") bereit.
+- **Text-Studio**: Aus Thema und Stichpunkten entstehen **Titel, SEO-Beschreibung, Fließtext (Markdown) und Schlagwörter**. Einstellbar sind Textart (Blogartikel, Kurzmeldung, Projektbeschreibung, Bibliothek-Zusammenfassung, nur SEO), Tonfall und Länge.
+  - **Sprachen**: nur DE, nur EN oder **DE + EN in einem Durchgang**. Bei beiden Sprachen wird entweder jede Fassung **eigenständig geschrieben** (idiomatischer) oder die englische **aus der deutschen übersetzt** (gleiche Gliederung). Beide Fassungen entstehen in **einem** Aufruf.
+  - Das Ergebnis ist vor der Übernahme frei editierbar. **„Als Blogbeitrag übernehmen"** öffnet den Beitrags-Dialog **als Entwurf** — veröffentlicht wird nichts automatisch. **„Titelbild dazu vorbereiten"** füllt das Bild-Studio mit einer aus Titel, Schlagwörtern und SEO-Text gebauten Beschreibung.
+- **Limits**: 20 Bilder und 60 Textanfragen pro Stunde, add-on-weit. Sie schützen das Kontingent bei Google; jeder Entwurf zählt einzeln, ein Fehlversuch ebenfalls.
 
 ### Volltextsuche
 Eine seitenweite Suche über **Blog-Beiträge, Projekte, Seiten und Bibliothek-Einträge** (Titel, Inhalt und Tags, jeweils DE & EN). Im Design-Tab aktivierbar (Standard aus). Ist sie an, erscheint ein **Suchfeld im Kopfbereich** der Startseite; die Ergebnisse stehen unter `/suche`.

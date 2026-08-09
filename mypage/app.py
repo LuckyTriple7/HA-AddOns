@@ -128,6 +128,12 @@ UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 USERFILES_BASE.mkdir(parents=True, exist_ok=True)
 WM_CACHE_DIR = Path(_DATA) / 'wm_cache'
 WM_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+# Zwischenablage des KI-Studios: frisch erzeugte Bilder liegen hier, bis der
+# Admin sie übernimmt. Bewusst NICHT unter uploads/ — was dort liegt, ist sofort
+# öffentlich abrufbar und landet im Backup. Verworfene Entwürfe sollen spurlos
+# verschwinden; write_backup_zip listet die Ordner einzeln auf, dieser fehlt dort.
+AI_TMP_DIR = Path(_DATA) / 'ai_tmp'
+AI_TMP_DIR.mkdir(parents=True, exist_ok=True)
 # Kartenspiel-Spielstände (lokal im addon_config, NICHT auf dem SMB-Share)
 GAMES_DIR = Path(_DATA) / 'games'
 GAMES_DIR.mkdir(parents=True, exist_ok=True)
@@ -416,6 +422,12 @@ DEFAULT_SITE = {
     'tips_stats': {},
     'indexnow_key': '',
     'slot_jackpot': 500,
+    # KI-Vorgaben aus dem Admin. Leer = die Add-on-Optionen gelten; ein gesetzter
+    # Wert schlägt sie, damit ein Modellwechsel ohne HA-Neustart möglich ist.
+    'ai': {
+        'image_model': '', 'text_model': '', 'image_ratio': '',
+        'translate_provider': 'mymemory',
+    },
 }
 
 # Reihenfolge der Startseiten-Abschnitte (Hero immer zuerst, Kontakt immer zuletzt)
@@ -3923,6 +3935,15 @@ def api_translate():
     dst = raw.get('to') if raw.get('to') in ('de', 'en') else 'en'
     if not text.strip() or src == dst:
         return jsonify({'text': text})
+    # Gemini nur, wenn im KI-Tab ausgewählt UND ein Key hinterlegt ist. Scheitert
+    # es, übernimmt MyMemory — eine schlechtere Übersetzung ist besser als keine.
+    if _ai_translate_provider() == 'gemini' and _ai_rate_take(_ai_text_times,
+                                                             AI_TEXT_MAX_PER_HOUR):
+        try:
+            return jsonify({'text': _gemini_translate(text, src, dst)})
+        except Exception as e:
+            log.warning("KI-Übersetzung fehlgeschlagen (%s) — weiche auf MyMemory aus",
+                        type(e).__name__)
     try:
         out = []
         for chunk in _split_for_translation(text):
@@ -4825,11 +4846,32 @@ def api_pages_reorder():
 
 GEMINI_IMAGE_MODELS = ('gemini-3.1-flash-image', 'gemini-3.1-flash-lite-image',
                        'gemini-3-pro-image', 'gemini-2.5-flash-image')
+# Rückfall für die Textmodelle: die Auswahl im KI-Studio kommt normalerweise
+# live von `client.models.list()`, weil Google die Namen laufend ändert. Nur
+# wenn dieser Aufruf scheitert, greift diese Liste — Reihenfolge = Vorauswahl.
+GEMINI_TEXT_MODELS = ('gemini-3-pro', 'gemini-3-flash', 'gemini-2.5-pro',
+                      'gemini-2.5-flash', 'gemini-2.5-flash-lite')
 GEMINI_IMAGE_RATIOS = ('16:9', '3:2', '4:3', '1:1', '3:4', '2:3', '9:16', '21:9')
 GEMINI_IMAGE_TIMEOUT_MS = 120_000   # google-genai erwartet Millisekunden
+GEMINI_TEXT_TIMEOUT_MS = 180_000    # Text mit zwei Sprachen dauert länger
 AI_IMAGE_PROMPT_MAX = 1200
 AI_IMAGE_MAX_PER_HOUR = 20
 _ai_image_times: list[float] = []
+AI_TEXT_TOPIC_MAX = 4000
+AI_TEXT_MAX_PER_HOUR = 60           # Text ist deutlich billiger als ein Bild
+_ai_text_times: list[float] = []
+AI_STUDIO_MAX_IMAGES = 4            # pro Anfrage; jedes Bild zählt einzeln aufs Limit
+AI_TMP_TTL = 3600                   # Entwürfe verfallen nach einer Stunde
+# Modellnamen wandern in die Anfrage-URL. Streng prüfen, statt auf die Liste zu
+# vertrauen: die kommt live von Google und darf nichts durchreichen, was einen
+# Pfad verlassen könnte.
+_AI_MODEL_RE = re.compile(r'^[a-z0-9][a-z0-9.\-]{2,63}$')
+_AI_TMP_RE = re.compile(r'^[a-f0-9]{32}$')
+
+AI_TEXT_KINDS = ('blog', 'news', 'project', 'library', 'seo')
+AI_TEXT_TONES = ('sachlich', 'locker', 'technisch', 'werblich', 'persoenlich')
+AI_TEXT_LENGTHS = {'kurz': 150, 'mittel': 400, 'lang': 800}
+AI_TRANSLATE_PROVIDERS = ('mymemory', 'gemini')
 
 # Abbruchgründe, bei denen Gemini die Anfrage inhaltlich abgelehnt hat — davon
 # ist der Nutzer zu unterscheiden von einem technischen Fehler, denn hier hilft
@@ -4843,37 +4885,102 @@ _GEMINI_IMAGE_REFUSALS = {
 } if _HAS_GENAI else set()
 
 
+def _gemini_key() -> str:
+    return (load_config().get('gemini_api_key') or '').strip()
+
+
+def gemini_text_enabled() -> bool:
+    """Ob Textfunktionen (Studio, KI-Übersetzung) angeboten werden dürfen."""
+    return _HAS_GENAI and bool(_gemini_key())
+
+
 def gemini_image_enabled() -> bool:
     """Ob der Knopf „Bild generieren" angeboten werden darf.
 
     Pillow gehört mit ins Gate: ohne sie ließe sich die Antwort von Gemini nicht
     in ein WebP wandeln, der Knopf wäre also wirkungslos.
     """
-    return (_HAS_GENAI and _HAS_PIL
-            and bool((load_config().get('gemini_api_key') or '').strip()))
+    return gemini_text_enabled() and _HAS_PIL
+
+
+def _gemini_client():
+    """Client mit dem hinterlegten Schlüssel. Nur aufrufen, wenn ein Key da ist."""
+    return genai.Client(api_key=_gemini_key())
+
+
+def _ai_settings(site: dict | None = None) -> dict:
+    """Die im Admin gewählten KI-Vorgaben aus site.json.
+
+    Liegt hier nichts, greifen die Add-on-Optionen — der Admin darf die
+    HA-Konfiguration überschreiben, ohne sie anzufassen.
+    """
+    ai = (site if site is not None else load_site()).get('ai')
+    return ai if isinstance(ai, dict) else {}
+
+
+def _ai_model_or(candidate: str, fallback: str) -> str:
+    c = (candidate or '').strip()
+    return c if _AI_MODEL_RE.match(c) else fallback
 
 
 def _gemini_image_model() -> str:
-    m = (load_config().get('gemini_image_model') or '').strip()
-    return m if m in GEMINI_IMAGE_MODELS else GEMINI_IMAGE_MODELS[0]
+    cfg = (load_config().get('gemini_image_model') or '').strip()
+    default = cfg if cfg in GEMINI_IMAGE_MODELS else GEMINI_IMAGE_MODELS[0]
+    return _ai_model_or(_ai_settings().get('image_model'), default)
+
+
+def _gemini_text_model() -> str:
+    return _ai_model_or(_ai_settings().get('text_model'), GEMINI_TEXT_MODELS[0])
 
 
 def _gemini_image_ratio() -> str:
-    r = (load_config().get('gemini_image_ratio') or '').strip()
-    return r if r in GEMINI_IMAGE_RATIOS else GEMINI_IMAGE_RATIOS[0]
+    cfg = (load_config().get('gemini_image_ratio') or '').strip()
+    default = cfg if cfg in GEMINI_IMAGE_RATIOS else GEMINI_IMAGE_RATIOS[0]
+    r = (_ai_settings().get('image_ratio') or '').strip()
+    return r if r in GEMINI_IMAGE_RATIOS else default
 
 
-def _gemini_generate_image(prompt: str) -> tuple[bytes | None, str]:
-    """Erzeugt ein Bild über Gemini. Zurück: (Bilddaten, Fehlercode).
+def _ai_translate_provider() -> str:
+    p = (_ai_settings().get('translate_provider') or '').strip()
+    if p not in AI_TRANSLATE_PROVIDERS:
+        return 'mymemory'
+    # Ohne Key wäre „gemini" ein Versprechen, das die Übersetzung nicht halten kann
+    return p if (p != 'gemini' or gemini_text_enabled()) else 'mymemory'
+
+
+def _ai_rate_take(times: list[float], limit: int, n: int = 1) -> bool:
+    """Rollierendes Stundenlimit. Bewusst global statt je IP: es schützt das
+    Bezahlkontingent bei Google, nicht eine Ressource dieses Servers.
+
+    Die Buchung passiert vor dem Aufruf — ein Fehlversuch kostet bei Google auch.
+    """
+    now = time.time()
+    times[:] = [x for x in times if now - x < 3600]
+    if len(times) + n > limit:
+        return False
+    times.extend([now] * n)
+    return True
+
+
+def _gemini_generate_image(prompt: str, *, model: str = '', ratio: str = '',
+                           ref: tuple[bytes, str] | None = None
+                           ) -> tuple[bytes | None, str, str]:
+    """Erzeugt ein Bild über Gemini. Zurück: (Bilddaten, MIME-Typ, Fehlercode).
+
+    `ref` ist ein optionales Vorlagenbild (Daten, MIME) — damit wird aus der
+    Anfrage eine Abwandlung statt einer Neuschöpfung.
 
     Fehlercodes: '' (Erfolg), 'refused', 'empty', 'failed'. Die Ausnahme selbst
     geht ausschließlich ins Log, nie an den Client.
     """
-    model, ratio = _gemini_image_model(), _gemini_image_ratio()
+    model = model or _gemini_image_model()
+    ratio = ratio or _gemini_image_ratio()
+    contents: list = [prompt]
+    if ref is not None:
+        contents.append(genai_types.Part.from_bytes(data=ref[0], mime_type=ref[1]))
     try:
-        client = genai.Client(api_key=(load_config().get('gemini_api_key') or '').strip())
-        resp = client.models.generate_content(
-            model=model, contents=[prompt],
+        resp = _gemini_client().models.generate_content(
+            model=model, contents=contents,
             config=genai_types.GenerateContentConfig(
                 response_modalities=['IMAGE'],
                 image_config=genai_types.ImageConfig(aspect_ratio=ratio),
@@ -4885,24 +4992,25 @@ def _gemini_generate_image(prompt: str) -> tuple[bytes | None, str]:
         cands = resp.candidates or []
         if cands and cands[0].finish_reason in _GEMINI_IMAGE_REFUSALS:
             log.info("Gemini hat die Bildanfrage abgelehnt: %s", cands[0].finish_reason)
-            return None, 'refused'
+            return None, '', 'refused'
         for part in (resp.parts or []):
             if part.inline_data is not None and part.inline_data.data:
-                return part.inline_data.data, ''
+                return (part.inline_data.data,
+                        part.inline_data.mime_type or 'image/png', '')
     except genai_errors.APIError as e:
         # Bewusst nur der Statuscode: die Meldung des SDK kann die vollständige
         # Anfrage-URL samt API-Key enthalten, die hat im Add-on-Log nichts zu suchen.
         log.warning("Gemini-Bildanfrage fehlgeschlagen (%s): Status %s",
                     model, getattr(e, 'code', '') or type(e).__name__)
-        return None, 'failed'
+        return None, '', 'failed'
     except Exception as e:
         # Absichtlich breit: SDK-interne Fehler dürfen nicht als HTML-Fehlerseite
         # beim Frontend landen, das ausschließlich JSON erwartet.
         log.error("Gemini-Bildanfrage (%s) unerwartet fehlgeschlagen: %s: %s",
                   model, type(e).__name__, e)
-        return None, 'failed'
+        return None, '', 'failed'
     log.warning("Gemini-Antwort (%s) enthielt kein Bild", model)
-    return None, 'empty'
+    return None, '', 'empty'
 
 
 @admin_app.route('/api/ai/image-support')
@@ -4924,14 +5032,9 @@ def api_ai_image():
                         AI_IMAGE_PROMPT_MAX)
     if len(prompt) < 3:
         return jsonify({'error': 'invalid'}), 400
-    # Rollierendes Stundenlimit. Bewusst global statt je IP: es schützt das
-    # Bezahlkontingent bei Google, nicht eine Ressource dieses Servers.
-    now = time.time()
-    _ai_image_times[:] = [x for x in _ai_image_times if now - x < 3600]
-    if len(_ai_image_times) >= AI_IMAGE_MAX_PER_HOUR:
+    if not _ai_rate_take(_ai_image_times, AI_IMAGE_MAX_PER_HOUR):
         return jsonify({'error': 'rate_limited'}), 429
-    _ai_image_times.append(now)   # vor dem Aufruf: ein Fehlversuch kostet auch
-    data, code = _gemini_generate_image(prompt)
+    data, _mime, code = _gemini_generate_image(prompt)
     if code:
         return jsonify({'error': {'refused': 'ai_refused',
                                   'empty': 'ai_empty'}.get(code, 'ai_failed')}), 502
@@ -4947,6 +5050,438 @@ def api_ai_image():
     log.info("KI-Titelbild erzeugt (%s, %s): %s", _gemini_image_model(),
              _gemini_image_ratio(), name)
     return jsonify({'ok': True, 'url': '/uploads/' + name})
+
+
+# ── KI-Studio ─────────────────────────────────────────────────────────────────
+#
+# Der Bild-Knopf in der Bibliothek legt sein Ergebnis sofort unter uploads/ ab —
+# das ist dort richtig, weil das Bild direkt in den offenen Eintrag wandert. Im
+# Studio wird dagegen ausprobiert: mehrere Entwürfe, die meisten davon Ausschuss.
+# Die landen erst in ai_tmp/ und wechseln nur auf ausdrückliches „Speichern" in
+# die Uploads. So wächst die Bildersammlung nicht mit jedem Fehlversuch, und ein
+# verworfener Entwurf war nie öffentlich abrufbar.
+
+_ai_tmp: dict[str, dict] = {}       # id → {mime, ts, prompt}
+_ai_models_cache: tuple[float, dict] | None = None
+AI_REF_MAX_BYTES = 8 * 1024 * 1024
+_AI_REF_MIME = {'.webp': 'image/webp', '.png': 'image/png', '.jpg': 'image/jpeg',
+                '.jpeg': 'image/jpeg', '.gif': 'image/gif'}
+
+_GEMINI_TEXT_REFUSALS = {
+    genai_types.FinishReason.SAFETY, genai_types.FinishReason.PROHIBITED_CONTENT,
+    genai_types.FinishReason.BLOCKLIST, genai_types.FinishReason.RECITATION,
+    genai_types.FinishReason.SPII,
+} if _HAS_GENAI else set()
+
+
+def _ai_tmp_sweep() -> None:
+    """Abgelaufene Entwürfe löschen — auch die, deren Eintrag ein Neustart
+    verloren hat. Deshalb über die Dateizeit statt über die Registry."""
+    now = time.time()
+    for tid, meta in list(_ai_tmp.items()):
+        if now - meta.get('ts', 0) > AI_TMP_TTL:
+            _ai_tmp.pop(tid, None)
+    try:
+        for f in AI_TMP_DIR.iterdir():
+            try:
+                if f.is_file() and now - f.stat().st_mtime > AI_TMP_TTL:
+                    f.unlink()
+            except OSError:
+                pass
+    except OSError:
+        pass
+
+
+def _ai_tmp_file(tid: str) -> Path | None:
+    if not _AI_TMP_RE.match(tid or ''):
+        return None
+    p = safe_under(AI_TMP_DIR, tid + '.img')
+    return p if (p is not None and p.is_file()) else None
+
+
+def _ai_ref_image(url: str) -> tuple[bytes, str] | None:
+    """Vorlagenbild aus den eigenen Uploads laden. Fremd-URLs sind bewusst nicht
+    erlaubt: der Server soll auf Zuruf des Browsers nichts nachladen (SSRF)."""
+    name = (url or '').strip().rsplit('/', 1)[-1]
+    ext = Path(name).suffix.lower()
+    if ext not in ALLOWED_UPLOAD_EXT:
+        return None
+    p = safe_under(UPLOADS_DIR, name)
+    if p is None or not p.is_file() or p.stat().st_size > AI_REF_MAX_BYTES:
+        return None
+    return p.read_bytes(), _AI_REF_MIME.get(ext, 'image/png')
+
+
+def _ai_model_lists() -> dict:
+    """Verfügbare Modelle bei Google erfragen (eine Stunde gecacht).
+
+    Google benennt Modelle laufend um und stellt alte ab. Eine fest verdrahtete
+    Liste wäre nach jedem Wechsel falsch und würde ein Add-on-Update erzwingen —
+    also live fragen und nur im Fehlerfall auf die Konstanten zurückfallen.
+    """
+    global _ai_models_cache
+    if _ai_models_cache and time.time() - _ai_models_cache[0] < 3600:
+        return _ai_models_cache[1]
+    out = {'image': list(GEMINI_IMAGE_MODELS), 'text': list(GEMINI_TEXT_MODELS)}
+    if gemini_text_enabled():
+        try:
+            img, txt = [], []
+            for m in _gemini_client().models.list():
+                short = (m.name or '').rsplit('/', 1)[-1]
+                if not _AI_MODEL_RE.match(short):
+                    continue
+                if 'generateContent' not in (m.supported_actions or []):
+                    continue
+                if any(x in short for x in ('embedding', 'aqa', 'tts', 'audio',
+                                            'veo', 'imagen', 'learnlm')):
+                    continue
+                (img if 'image' in short else txt).append(short)
+            if img or txt:
+                out = {'image': sorted(set(img), reverse=True),
+                       'text': sorted(set(txt), reverse=True)}
+        except Exception as e:
+            # Nicht schlimm: die Konstanten reichen zum Arbeiten
+            log.info("Gemini-Modellliste nicht abrufbar (%s) — nutze Vorgabeliste",
+                     type(e).__name__)
+    _ai_models_cache = (time.time(), out)
+    return out
+
+
+@admin_app.route('/api/ai/status')
+def api_ai_status():
+    err = _api_auth()
+    if err:
+        return err
+    now = time.time()
+    img_used = len([x for x in _ai_image_times if now - x < 3600])
+    txt_used = len([x for x in _ai_text_times if now - x < 3600])
+    return jsonify({
+        'image': gemini_image_enabled(), 'text': gemini_text_enabled(),
+        'image_model': _gemini_image_model(), 'text_model': _gemini_text_model(),
+        'image_ratio': _gemini_image_ratio(), 'ratios': list(GEMINI_IMAGE_RATIOS),
+        'translate_provider': _ai_translate_provider(),
+        'image_used': img_used, 'image_max': AI_IMAGE_MAX_PER_HOUR,
+        'text_used': txt_used, 'text_max': AI_TEXT_MAX_PER_HOUR,
+        'max_images': AI_STUDIO_MAX_IMAGES,
+    })
+
+
+@admin_app.route('/api/ai/models')
+def api_ai_models():
+    err = _api_auth()
+    if err:
+        return err
+    return jsonify(_ai_model_lists())
+
+
+@admin_app.route('/api/ai/settings', methods=['POST'])
+def api_ai_settings():
+    err = _api_auth()
+    if err:
+        return err
+    raw = request.get_json(silent=True) or {}
+    site = load_site()
+    ai = site.get('ai') if isinstance(site.get('ai'), dict) else {}
+    for key in ('image_model', 'text_model'):
+        v = _clean_str(raw.get(key), 64)
+        if v and _AI_MODEL_RE.match(v):
+            ai[key] = v
+    ratio = _clean_str(raw.get('image_ratio'), 10)
+    if ratio in GEMINI_IMAGE_RATIOS:
+        ai['image_ratio'] = ratio
+    prov = _clean_str(raw.get('translate_provider'), 20)
+    if prov in AI_TRANSLATE_PROVIDERS:
+        ai['translate_provider'] = prov
+    site['ai'] = ai
+    save_site(site)
+    return jsonify({'ok': True, 'translate_provider': _ai_translate_provider()})
+
+
+@admin_app.route('/api/ai/studio/image', methods=['POST'])
+def api_ai_studio_image():
+    err = _api_auth()
+    if err:
+        return err
+    if not gemini_image_enabled():
+        return jsonify({'error': 'no_api_key'}), 400
+    raw = request.get_json(silent=True) or {}
+    prompt = _clean_str(raw.get('prompt'), AI_IMAGE_PROMPT_MAX)
+    if len(prompt) < 3:
+        return jsonify({'error': 'invalid'}), 400
+    model = _ai_model_or(raw.get('model'), _gemini_image_model())
+    ratio = raw.get('ratio') if raw.get('ratio') in GEMINI_IMAGE_RATIOS else _gemini_image_ratio()
+    try:
+        count = max(1, min(AI_STUDIO_MAX_IMAGES, int(raw.get('count') or 1)))
+    except (TypeError, ValueError):
+        count = 1
+    ref = _ai_ref_image(raw.get('ref') or '') if raw.get('ref') else None
+    if raw.get('ref') and ref is None:
+        return jsonify({'error': 'bad_ref'}), 400
+    if not _ai_rate_take(_ai_image_times, AI_IMAGE_MAX_PER_HOUR, count):
+        return jsonify({'error': 'rate_limited'}), 429
+    _ai_tmp_sweep()
+    images, last = [], 'failed'
+    for _ in range(count):
+        data, mime, code = _gemini_generate_image(prompt, model=model, ratio=ratio,
+                                                  ref=ref)
+        if code:
+            last = code
+            continue
+        tid = uuid.uuid4().hex
+        target = safe_under(AI_TMP_DIR, tid + '.img')
+        if target is None:
+            continue
+        try:
+            target.write_bytes(data)
+        except OSError as e:
+            log.warning("KI-Entwurf konnte nicht zwischengespeichert werden: %s", e)
+            continue
+        _ai_tmp[tid] = {'mime': mime, 'ts': time.time(), 'prompt': prompt}
+        images.append({'id': tid, 'url': 'api/ai/studio/preview/' + tid})
+    if not images:
+        return jsonify({'error': {'refused': 'ai_refused',
+                                  'empty': 'ai_empty'}.get(last, 'ai_failed')}), 502
+    log.info("KI-Studio: %d Bildentwurf/-entwürfe erzeugt (%s, %s%s)",
+             len(images), model, ratio, ', mit Vorlage' if ref else '')
+    return jsonify({'ok': True, 'images': images})
+
+
+@admin_app.route('/api/ai/studio/preview/<tid>')
+def api_ai_studio_preview(tid: str):
+    err = _api_auth()
+    if err:
+        return err
+    p = _ai_tmp_file(tid)
+    if p is None:
+        return jsonify({'error': 'not_found'}), 404
+    mime = (_ai_tmp.get(tid) or {}).get('mime') or 'image/png'
+    resp = send_file(p, mimetype=mime)
+    # Entwürfe sind flüchtig — ein Cache-Treffer nach dem Verwerfen wäre irritierend
+    resp.headers['Cache-Control'] = 'no-store'
+    return resp
+
+
+@admin_app.route('/api/ai/studio/image/keep', methods=['POST'])
+def api_ai_studio_keep():
+    err = _api_auth()
+    if err:
+        return err
+    tid = _clean_str((request.get_json(silent=True) or {}).get('id'), 40)
+    p = _ai_tmp_file(tid)
+    if p is None:
+        return jsonify({'error': 'not_found'}), 404
+    try:
+        # ai=True → Dateiname trägt den Marker, an dem die Auslieferung später
+        # die Pflicht-Kennzeichnung „KI generiert" festmacht
+        name = _store_upload_image(p.read_bytes(), ai=True)
+    except Exception as e:
+        log.warning("KI-Entwurf konnte nicht übernommen werden: %s", e)
+        name = None
+    if not name:
+        return jsonify({'error': 'image_failed'}), 502
+    try:
+        p.unlink()
+    except OSError:
+        pass
+    _ai_tmp.pop(tid, None)
+    log.info("KI-Entwurf übernommen: %s", name)
+    return jsonify({'ok': True, 'url': '/uploads/' + name})
+
+
+@admin_app.route('/api/ai/studio/image/discard', methods=['POST'])
+def api_ai_studio_discard():
+    err = _api_auth()
+    if err:
+        return err
+    tid = _clean_str((request.get_json(silent=True) or {}).get('id'), 40)
+    p = _ai_tmp_file(tid)
+    if p is not None:
+        try:
+            p.unlink()
+        except OSError:
+            pass
+    _ai_tmp.pop(tid, None)
+    return jsonify({'ok': True})
+
+
+# ── KI-Texte ──────────────────────────────────────────────────────────────────
+
+_AI_TEXT_KIND_DE = {
+    'blog': 'ein Blogartikel',
+    'news': 'eine kurze Neuigkeit (zwei bis vier Sätze, ohne Zwischenüberschriften)',
+    'project': 'eine Projektbeschreibung für ein Technik- oder Softwareprojekt',
+    'library': 'eine Zusammenfassung für einen Eintrag in einer Wissens-Bibliothek',
+    'seo': 'ausschließlich Titel und SEO-Beschreibung; das Feld „text" bleibt leer',
+}
+_AI_TEXT_TONE_DE = {
+    'sachlich': 'sachlich und nüchtern',
+    'locker': 'locker und persönlich, aber nicht anbiedernd',
+    'technisch': 'technisch präzise, für ein fachkundiges Publikum',
+    'werblich': 'werbend und begeisternd, ohne Übertreibung',
+    'persoenlich': 'in der Ich-Form, erzählend',
+}
+
+
+def _ai_text_schema(langs: list[str]):
+    """JSON-Schema für die Antwort — erzwingt beide Sprachen in einem Aufruf.
+
+    Ohne Schema liefert das Modell gern Fließtext mit Vorrede; damit bekommt das
+    Frontend verlässlich Titel, SEO-Text, Fließtext und Schlagwörter getrennt.
+    """
+    one = genai_types.Schema(
+        type=genai_types.Type.OBJECT,
+        properties={
+            'title': genai_types.Schema(type=genai_types.Type.STRING),
+            'meta':  genai_types.Schema(type=genai_types.Type.STRING),
+            'text':  genai_types.Schema(type=genai_types.Type.STRING),
+            'tags':  genai_types.Schema(type=genai_types.Type.ARRAY,
+                                        items=genai_types.Schema(type=genai_types.Type.STRING)),
+        },
+        required=['title', 'meta', 'text', 'tags'],
+    )
+    return genai_types.Schema(
+        type=genai_types.Type.OBJECT,
+        properties={lg: one for lg in langs},
+        required=list(langs),
+    )
+
+
+def _gemini_generate_text(*, topic: str, kind: str, tone: str, length: str,
+                          langs: list[str], mode: str, model: str
+                          ) -> tuple[dict | None, str]:
+    """Erzeugt Titel, SEO-Beschreibung, Fließtext und Schlagwörter je Sprache.
+
+    Zurück: (Ergebnis, Fehlercode) mit denselben Codes wie bei den Bildern.
+    """
+    words = AI_TEXT_LENGTHS.get(length, 400)
+    sys = (
+        "Du bist Redakteur einer persönlichen Website. Du lieferst fertige, "
+        "veröffentlichungsreife Inhalte: keine Rückfragen, keine Meta-Kommentare, "
+        "keine Platzhalter wie [hier einfügen], keine erfundenen Zahlen oder Zitate. "
+        "Feldbedeutung: 'title' = Überschrift ohne Markdown-Zeichen; "
+        "'meta' = SEO-Beschreibung, ein Satz, höchstens 155 Zeichen; "
+        "'text' = Fließtext in Markdown, Zwischenüberschriften ab '##', keine H1; "
+        "'tags' = drei bis sechs kurze Schlagwörter, klein geschrieben."
+    )
+    parts = [
+        f"Gewünscht ist {_AI_TEXT_KIND_DE.get(kind, _AI_TEXT_KIND_DE['blog'])}.",
+        f"Thema und Stichpunkte:\n{topic}",
+        f"Tonfall: {_AI_TEXT_TONE_DE.get(tone, _AI_TEXT_TONE_DE['sachlich'])}.",
+        f"Zielumfang: rund {words} Wörter je Sprache.",
+    ]
+    if len(langs) > 1:
+        parts.append(
+            "Schreibe die deutsche und die englische Fassung jeweils eigenständig "
+            "und idiomatisch — die englische ist keine Wort-für-Wort-Übersetzung."
+            if mode != 'translate' else
+            "Schreibe zuerst die deutsche Fassung. Die englische Fassung ist deren "
+            "treue Übersetzung mit gleicher Gliederung und gleicher Länge."
+        )
+    else:
+        parts.append("Sprache der Ausgabe: "
+                     + ("Deutsch." if langs[0] == 'de' else "Englisch."))
+    try:
+        resp = _gemini_client().models.generate_content(
+            model=model, contents=['\n\n'.join(parts)],
+            config=genai_types.GenerateContentConfig(
+                system_instruction=sys,
+                response_mime_type='application/json',
+                response_schema=_ai_text_schema(langs),
+                http_options=genai_types.HttpOptions(timeout=GEMINI_TEXT_TIMEOUT_MS),
+            ),
+        )
+        cands = resp.candidates or []
+        if cands and cands[0].finish_reason in _GEMINI_TEXT_REFUSALS:
+            log.info("Gemini hat die Textanfrage abgelehnt: %s", cands[0].finish_reason)
+            return None, 'refused'
+        data = json.loads(resp.text or '')
+        if not isinstance(data, dict):
+            return None, 'empty'
+    except genai_errors.APIError as e:
+        # Nur der Statuscode: die SDK-Meldung kann die Anfrage-URL samt Key enthalten
+        log.warning("Gemini-Textanfrage fehlgeschlagen (%s): Status %s",
+                    model, getattr(e, 'code', '') or type(e).__name__)
+        return None, 'failed'
+    except (ValueError, TypeError) as e:
+        log.warning("Gemini-Textantwort (%s) war kein gültiges JSON: %s", model, type(e).__name__)
+        return None, 'empty'
+    except Exception as e:
+        log.error("Gemini-Textanfrage (%s) unerwartet fehlgeschlagen: %s: %s",
+                  model, type(e).__name__, e)
+        return None, 'failed'
+    out = {}
+    for lg in langs:
+        d = data.get(lg) if isinstance(data.get(lg), dict) else {}
+        tags = d.get('tags') if isinstance(d.get('tags'), list) else []
+        out[lg] = {
+            'title': _clean_str(d.get('title'), 150),
+            'meta':  _clean_str(d.get('meta'), 300),
+            'text':  _clean_str(d.get('text'), 30000),
+            'tags':  [_clean_str(t, 40) for t in tags[:8] if _clean_str(t, 40)],
+        }
+    if not any(v['title'] or v['text'] for v in out.values()):
+        return None, 'empty'
+    return out, ''
+
+
+@admin_app.route('/api/ai/text', methods=['POST'])
+def api_ai_text():
+    err = _api_auth()
+    if err:
+        return err
+    if not gemini_text_enabled():
+        return jsonify({'error': 'no_api_key'}), 400
+    raw = request.get_json(silent=True) or {}
+    topic = _clean_str(raw.get('topic'), AI_TEXT_TOPIC_MAX)
+    if len(topic) < 3:
+        return jsonify({'error': 'invalid'}), 400
+    kind = raw.get('kind') if raw.get('kind') in AI_TEXT_KINDS else 'blog'
+    tone = raw.get('tone') if raw.get('tone') in AI_TEXT_TONES else 'sachlich'
+    length = raw.get('length') if raw.get('length') in AI_TEXT_LENGTHS else 'mittel'
+    mode = 'translate' if raw.get('mode') == 'translate' else 'native'
+    wanted = raw.get('langs')
+    langs = [lg for lg in ('de', 'en') if isinstance(wanted, list) and lg in wanted]
+    if not langs:
+        langs = ['de']
+    model = _ai_model_or(raw.get('model'), _gemini_text_model())
+    if not _ai_rate_take(_ai_text_times, AI_TEXT_MAX_PER_HOUR):
+        return jsonify({'error': 'rate_limited'}), 429
+    data, code = _gemini_generate_text(topic=topic, kind=kind, tone=tone,
+                                       length=length, langs=langs, mode=mode,
+                                       model=model)
+    if code:
+        return jsonify({'error': {'refused': 'ai_refused',
+                                  'empty': 'ai_empty'}.get(code, 'ai_failed')}), 502
+    log.info("KI-Text erzeugt (%s, %s, %s)", model, kind, '+'.join(langs))
+    return jsonify({'ok': True, 'result': data})
+
+
+def _gemini_translate(text: str, src: str, dst: str) -> str:
+    """Übersetzt in einem Rutsch — Gemini kommt mit 20 000 Zeichen zurecht.
+
+    Das Zerlegen in 450-Zeichen-Häppchen wie bei MyMemory würde hier schaden:
+    ohne den Zusammenhang übersetzt jedes Stück für sich, und Markdown-Blöcke
+    zerfielen mitten im Satz. Ausnahmen fliegen bewusst nach oben — der Aufrufer
+    fällt dann auf MyMemory zurück.
+    """
+    names = {'de': 'Deutsch', 'en': 'Englisch'}
+    resp = _gemini_client().models.generate_content(
+        model=_gemini_text_model(), contents=[text],
+        config=genai_types.GenerateContentConfig(
+            system_instruction=(
+                f"Übersetze den Text von {names[src]} nach {names[dst]}. "
+                "Antworte ausschließlich mit der Übersetzung — keine Vorrede, keine "
+                "Anführungszeichen, keine Erklärung. Markdown, Links, Code-Blöcke, "
+                "Zeilenumbrüche und Emojis bleiben unverändert erhalten. "
+                "Eigennamen und Produktnamen werden nicht übersetzt."
+            ),
+            http_options=genai_types.HttpOptions(timeout=GEMINI_TEXT_TIMEOUT_MS),
+        ),
+    )
+    out = (resp.text or '').strip()
+    if not out:
+        raise ValueError('empty translation')
+    return out
 
 
 # ── Bibliothek (Admin) ────────────────────────────────────────────────────────

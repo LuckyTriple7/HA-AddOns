@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.9.6
+- ✦ **Neuer Tab „KI" im Admin-Panel** — sichtbar nur, wenn ein `gemini_api_key` hinterlegt ist. Bisher steckte die KI-Bilderzeugung ausschließlich im Bibliothek-Editor und konnte nur Titelbilder für genau diesen einen Eintrag liefern.
+- 🖼️ **Bild-Studio**: Beschreibung, **Stil-Bausteine** zum Anklicken (Fotorealistisch, Illustration, Flat/Vektor, 3D-Render, Aquarell, Retro), **bis zu 4 Entwürfe** je Anfrage und ein optionales **Vorlagenbild** aus den eigenen Uploads, das abgewandelt statt neu erfunden wird.
+  - Entwürfe liegen zunächst **nur zwischengespeichert** auf dem Server und sind **nicht öffentlich abrufbar**. Erst „Speichern" legt sie in den Uploads ab — mit KI-Kennzeichnung, wie gehabt auf 1600 px verkleinert und ohne Metadaten. „Verwerfen" löscht sofort, unbestätigte Entwürfe verfallen nach einer Stunde. Ausschuss landet damit nicht mehr in der Bildersammlung.
+- 📝 **Text-Studio**: erzeugt **Titel, SEO-Beschreibung, Fließtext in Markdown und Schlagwörter** aus Thema und Stichpunkten — mit Textart (Blogartikel, Kurzmeldung, Projektbeschreibung, Bibliothek-Zusammenfassung, nur SEO), Tonfall und Länge.
+  - **Deutsch und Englisch in einem Durchgang**, wahlweise **jede Fassung eigenständig geschrieben** (idiomatischer) oder die englische **aus der deutschen übersetzt** (gleiche Gliederung).
+  - Das Ergebnis ist vor der Übernahme editierbar. „Als Blogbeitrag übernehmen" öffnet den Beitrags-Dialog **als Entwurf** — veröffentlicht wird nichts automatisch. „Titelbild dazu vorbereiten" füllt das Bild-Studio passend zum Text.
+- 🌐 **Übersetzung wahlweise über Gemini** statt MyMemory — einstellbar im neuen Tab, wirkt auf **alle 🌐-Knöpfe im Admin**. Gemini übersetzt den Text am Stück statt in 450-Zeichen-Häppchen und lässt Markdown, Links und Code-Blöcke intakt. Scheitert die Anfrage, springt MyMemory automatisch ein.
+- ⚙️ **Modell-Auswahl kommt live von Google** (stündlich zwischengespeichert): neue Modelle stehen ohne Add-on-Update zur Verfügung. Die Auswahl im Tab **überschreibt** `gemini_image_model` und `gemini_image_ratio`, ein Modellwechsel braucht also keinen Neustart mehr.
+- Getrennte Stundenlimits: **20 Bilder**, **60 Textanfragen**. Das verbrauchte Kontingent steht sichtbar im Tab.
+
 ## 0.9.5
 - 🧹 **Neuer Knopf „Ungenutzte PDFs aufräumen"** unter *System → Speicher aufräumen*. Bisher erfasste das Aufräumen nur den Bilder-Ordner — verwaiste Bibliothek-PDFs waren dort weder sichtbar noch löschbar, und ein PDF ist deutlich größer als ein Bild.
 - Im Normalbetrieb räumt die Bibliothek selbst auf (neu gerendert, PDF-Modus gewechselt, Eintrag gelöscht). Der Knopf fängt die Fälle ab, die daran vorbeigehen: ein **abgebrochenes Rendern** zwischen Schreiben der Datei und Eintragen in `site.json`, oder eine **Wiederherstellung aus einem Backup mit weniger Einträgen**.

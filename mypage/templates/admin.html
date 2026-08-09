@@ -183,6 +183,16 @@
 
     .upload-row { display: flex; gap: 8px; align-items: center; }
     .upload-row input[type="text"] { flex: 1; }
+    /* KI-Studio */
+    .ai-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+    .ai-chip { background: var(--surf2); border: 1px solid var(--border); color: var(--muted); padding: 4px 10px; border-radius: 999px; font-size: 0.78rem; cursor: pointer; }
+    .ai-chip:hover { color: var(--text); border-color: var(--accent); }
+    .ai-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 12px; margin-top: 16px; }
+    .ai-card { border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--surf2); display: flex; flex-direction: column; }
+    .ai-card img { width: 100%; display: block; aspect-ratio: 16 / 10; object-fit: cover; cursor: zoom-in; }
+    .ai-card-actions { display: flex; gap: 6px; padding: 8px; flex-wrap: wrap; }
+    .ai-card.kept { border-color: var(--accent); }
+    .ai-card .ai-url { font-size: 0.72rem; color: var(--muted); padding: 0 8px 8px; word-break: break-all; }
     .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--green); color: #fff; padding: 9px 18px; border-radius: 8px; font-size: 0.85rem; z-index: 100; opacity: 0; transition: opacity .25s; pointer-events: none; }
     .toast.show { opacity: 1; }
     .toast.err { background: var(--red); }
@@ -285,6 +295,7 @@
         <button class="tab-btn" data-tab="blog">{{ t.tab_blog }}</button>
         <button class="tab-btn" data-tab="pages">{{ t.tab_pages }}</button>
         <button class="tab-btn" data-tab="library">{{ t.tab_library }}</button>
+        <button class="tab-btn" data-tab="ai" id="tab-btn-ai" style="display:none">✦ {{ t.tab_ai }}</button>
         <button class="tab-btn" data-tab="forms">{{ t.tab_forms }}</button>
         <button class="tab-btn" data-tab="design">{{ t.tab_design }}</button>
         <button class="tab-btn" data-tab="legal">{{ t.tab_legal }}</button>
@@ -718,6 +729,161 @@
         </h3>
         <p class="hint">{{ t.library_entries_hint }}</p>
         <div class="proj-list" id="lib-entry-list"></div>
+      </div>
+    </section>
+
+    <!-- KI-Studio -->
+    <section class="tab" id="tab-ai">
+      <div class="panel">
+        <h3>⚙️ {{ t.ai_settings_heading }}</h3>
+        <p class="hint">{{ t.ai_settings_hint }}</p>
+        <div class="row">
+          <div>
+            <label>{{ t.ai_text_model }}</label>
+            <select id="ai-text-model"></select>
+          </div>
+          <div>
+            <label>{{ t.ai_image_model }}</label>
+            <select id="ai-image-model"></select>
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <label>{{ t.ai_ratio }}</label>
+            <select id="ai-ratio"></select>
+          </div>
+          <div>
+            <label>{{ t.ai_translate_provider }}</label>
+            <select id="ai-translate-provider">
+              <option value="mymemory">{{ t.ai_provider_mymemory }}</option>
+              <option value="gemini">{{ t.ai_provider_gemini }}</option>
+            </select>
+          </div>
+        </div>
+        <p class="hint">{{ t.ai_translate_hint }}</p>
+        <button class="btn" style="margin-top:12px" onclick="saveAiSettings()">{{ t.save }}</button>
+        <p class="hint" id="ai-quota" style="margin-top:12px"></p>
+      </div>
+
+      <div class="panel">
+        <h3>🖼️ {{ t.ai_img_heading }}</h3>
+        <p class="hint">{{ t.ai_img_hint }}</p>
+        <label>{{ t.ai_img_prompt }}</label>
+        <textarea id="ai-img-prompt" rows="4" placeholder="{{ t.ai_img_prompt_ph }}"></textarea>
+        <label style="margin-top:12px">{{ t.ai_img_style }}</label>
+        <div class="ai-chips" id="ai-img-styles"></div>
+        <div class="row" style="margin-top:14px">
+          <div>
+            <label>{{ t.ai_img_count }}</label>
+            <select id="ai-img-count">
+              <option value="1">1</option><option value="2">2</option>
+              <option value="3">3</option><option value="4">4</option>
+            </select>
+          </div>
+          <div>
+            <label>{{ t.ai_img_ref }}</label>
+            <div class="upload-row">
+              <input type="text" id="ai-img-ref" readonly placeholder="{{ t.ai_img_ref_none }}">
+              <button class="btn secondary small" onclick="browseUploads(u => { el('ai-img-ref').value = u; renderAiRef(); })">{{ t.image_pick }}</button>
+              <button class="btn secondary small" onclick="el('ai-img-ref').value=''; renderAiRef()">✕</button>
+            </div>
+          </div>
+        </div>
+        <p class="hint">{{ t.ai_img_ref_hint }}</p>
+        <img id="ai-img-ref-thumb" alt="" style="display:none;max-height:90px;border-radius:6px;margin-top:8px">
+        <div style="margin-top:14px">
+          <button class="btn" id="ai-img-run" onclick="runAiImage(this)">✦ {{ t.ai_img_generate }}</button>
+          <span class="hint" id="ai-img-status" style="margin-left:10px"></span>
+        </div>
+        <div class="ai-grid" id="ai-img-results"></div>
+      </div>
+
+      <div class="panel">
+        <h3>📝 {{ t.ai_txt_heading }}</h3>
+        <p class="hint">{{ t.ai_txt_hint }}</p>
+        <div class="row">
+          <div>
+            <label>{{ t.ai_txt_kind }}</label>
+            <select id="ai-txt-kind">
+              <option value="blog">{{ t.ai_kind_blog }}</option>
+              <option value="news">{{ t.ai_kind_news }}</option>
+              <option value="project">{{ t.ai_kind_project }}</option>
+              <option value="library">{{ t.ai_kind_library }}</option>
+              <option value="seo">{{ t.ai_kind_seo }}</option>
+            </select>
+          </div>
+          <div>
+            <label>{{ t.ai_txt_tone }}</label>
+            <select id="ai-txt-tone">
+              <option value="sachlich">{{ t.ai_tone_sachlich }}</option>
+              <option value="locker">{{ t.ai_tone_locker }}</option>
+              <option value="technisch">{{ t.ai_tone_technisch }}</option>
+              <option value="werblich">{{ t.ai_tone_werblich }}</option>
+              <option value="persoenlich">{{ t.ai_tone_persoenlich }}</option>
+            </select>
+          </div>
+        </div>
+        <label>{{ t.ai_txt_topic }}</label>
+        <textarea id="ai-txt-topic" rows="5" placeholder="{{ t.ai_txt_topic_ph }}"></textarea>
+        <div class="row" style="margin-top:12px">
+          <div>
+            <label>{{ t.ai_txt_length }}</label>
+            <select id="ai-txt-length">
+              <option value="kurz">{{ t.ai_len_kurz }}</option>
+              <option value="mittel" selected>{{ t.ai_len_mittel }}</option>
+              <option value="lang">{{ t.ai_len_lang }}</option>
+            </select>
+          </div>
+          <div>
+            <label>{{ t.ai_txt_langs }}</label>
+            <select id="ai-txt-langs" onchange="aiLangChanged()">
+              <option value="de">{{ t.ai_lang_de }}</option>
+              <option value="en">{{ t.ai_lang_en }}</option>
+              <option value="both" selected>{{ t.ai_lang_both }}</option>
+            </select>
+          </div>
+        </div>
+        <div id="ai-txt-mode-box" style="margin-top:12px">
+          <label>{{ t.ai_txt_mode }}</label>
+          <select id="ai-txt-mode">
+            <option value="native">{{ t.ai_mode_native }}</option>
+            <option value="translate">{{ t.ai_mode_translate }}</option>
+          </select>
+        </div>
+        <div style="margin-top:14px">
+          <button class="btn" id="ai-txt-run" onclick="runAiText(this)">✦ {{ t.ai_txt_generate }}</button>
+          <span class="hint" id="ai-txt-status" style="margin-left:10px"></span>
+        </div>
+        <div id="ai-txt-result" style="display:none;margin-top:20px">
+          <div class="row">
+            <div id="ai-out-de">
+              <h4 style="margin:0 0 8px">🇩🇪 {{ t.ai_out_de }}</h4>
+              <label>{{ t.field_title }}</label>
+              <input type="text" id="ai-out-title_de">
+              <label>{{ t.field_seo_desc }}</label>
+              <input type="text" id="ai-out-meta_de" maxlength="300">
+              <label>{{ t.field_text_md }}</label>
+              <textarea id="ai-out-text_de" rows="14"></textarea>
+            </div>
+            <div id="ai-out-en">
+              <h4 style="margin:0 0 8px">🇬🇧 {{ t.ai_out_en }}</h4>
+              <label>{{ t.field_title }}</label>
+              <input type="text" id="ai-out-title_en">
+              <label>{{ t.field_seo_desc }}</label>
+              <input type="text" id="ai-out-meta_en" maxlength="300">
+              <label>{{ t.field_text_md }}</label>
+              <textarea id="ai-out-text_en" rows="14"></textarea>
+            </div>
+          </div>
+          <label>{{ t.field_tags }}</label>
+          <input type="text" id="ai-out-tags">
+          <div style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn" onclick="aiToPost()">📰 {{ t.ai_to_post }}</button>
+            <button class="btn secondary" onclick="aiToImagePrompt()">🖼️ {{ t.ai_to_image }}</button>
+            <button class="btn secondary" onclick="aiCopyText()">📋 {{ t.ai_copy }}</button>
+          </div>
+          <p class="hint">{{ t.ai_to_post_hint }}</p>
+        </div>
       </div>
     </section>
 
@@ -2287,6 +2453,7 @@
         if (btn.dataset.tab === 'design') { initPreview(); setTimeout(updatePresetArrows, 50); }
         if (btn.dataset.tab === 'system') { loadAudit(); loadTwofa(); loadAutoBackups(); }
         if (btn.dataset.tab === 'blog') loadSubscribers();
+        if (btn.dataset.tab === 'ai') initAiTab();
       });
     });
 
@@ -5127,6 +5294,274 @@
         toast(T.library_pdf_upload_failed, true);
       }
     });
+    // ── KI-Studio ──
+    // Der Tab bleibt unsichtbar, solange kein Gemini-Key hinterlegt ist: ein
+    // Reiter, der nur „kein Schlüssel" sagen kann, hilft niemandem.
+    // Erzeugte Bilder liegen zunächst nur in der Zwischenablage des Servers und
+    // wandern erst mit „Speichern" in die Uploads — Ausschuss soll nicht die
+    // Bildersammlung zumüllen.
+    let AI_STATUS = null;
+    let aiTabReady = false;
+    const AI_STYLES = ['photo', 'illu', 'flat', 'render3d', 'water', 'retro'];
+
+    async function initAiVisibility() {
+      const r = await api('api/ai/status');
+      if (!r.ok) return;
+      AI_STATUS = await r.json();
+      if (AI_STATUS.text || AI_STATUS.image) el('tab-btn-ai').style.display = '';
+    }
+    async function initAiTab() {
+      if (aiTabReady) { refreshAiStatus(); return; }
+      aiTabReady = true;
+      buildAiStyleChips();
+      aiLangChanged();
+      renderAiQuota();
+      const r = await api('api/ai/models');
+      const m = r.ok ? await r.json() : { image: [], text: [] };
+      const s = AI_STATUS || {};
+      aiFillSelect('ai-text-model', m.text, s.text_model);
+      aiFillSelect('ai-image-model', m.image, s.image_model);
+      aiFillSelect('ai-ratio', s.ratios || [], s.image_ratio);
+      el('ai-translate-provider').value = s.translate_provider || 'mymemory';
+    }
+    // Ein in den Add-on-Optionen eingetragenes Modell kann fehlen, wenn Google es
+    // nicht (mehr) auflistet. Trotzdem anbieten, sonst überschreibt das Speichern
+    // die Einstellung stillschweigend mit etwas anderem.
+    function aiFillSelect(id, values, current) {
+      const sel = el(id);
+      const list = (values || []).slice();
+      if (current && !list.includes(current)) list.unshift(current);
+      sel.innerHTML = '';
+      list.forEach(v => {
+        const o = document.createElement('option');
+        o.value = v; o.textContent = v;
+        sel.appendChild(o);
+      });
+      if (current) sel.value = current;
+    }
+    async function refreshAiStatus() {
+      const r = await api('api/ai/status');
+      if (!r.ok) return;
+      AI_STATUS = await r.json();
+      renderAiQuota();
+    }
+    function renderAiQuota() {
+      if (!AI_STATUS) return;
+      el('ai-quota').textContent = T.ai_quota
+        .replace('{iu}', AI_STATUS.image_used).replace('{im}', AI_STATUS.image_max)
+        .replace('{tu}', AI_STATUS.text_used).replace('{tm}', AI_STATUS.text_max);
+    }
+    async function saveAiSettings() {
+      const r = await apiJson('api/ai/settings', 'POST', {
+        text_model:  el('ai-text-model').value,
+        image_model: el('ai-image-model').value,
+        image_ratio: el('ai-ratio').value,
+        translate_provider: el('ai-translate-provider').value,
+      });
+      toast(r.ok ? T.saved : T.error_save, !r.ok);
+      if (r.ok) refreshAiStatus();
+    }
+    function aiErrMsg(code) {
+      return code === 'ai_refused'   ? T.ai_err_refused
+           : code === 'rate_limited' ? T.ai_err_limit
+           : code === 'no_api_key'   ? T.ai_err_nokey
+           : code === 'bad_ref'      ? T.ai_err_ref
+           : T.ai_err_failed;
+    }
+
+    function buildAiStyleChips() {
+      const box = el('ai-img-styles');
+      box.innerHTML = '';
+      AI_STYLES.forEach(k => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'ai-chip';
+        b.textContent = T['ai_style_' + k];
+        b.onclick = () => aiAppendStyle(T['ai_style_' + k + '_txt']);
+        box.appendChild(b);
+      });
+    }
+    function aiAppendStyle(txt) {
+      const ta = el('ai-img-prompt');
+      if (ta.value.includes(txt)) return;
+      ta.value = (ta.value.trim() ? ta.value.trim() + ' ' : '') + txt;
+      ta.focus();
+    }
+    function renderAiRef() {
+      const u = el('ai-img-ref').value.trim();
+      const img = el('ai-img-ref-thumb');
+      img.style.display = u ? '' : 'none';
+      if (u) img.src = assetUrl(u);
+    }
+    async function runAiImage(btn) {
+      const prompt = el('ai-img-prompt').value.trim();
+      if (prompt.length < 3) { toast(T.ai_img_err_prompt, true); return; }
+      const body = {
+        prompt,
+        model: el('ai-image-model').value,
+        ratio: el('ai-ratio').value,
+        count: parseInt(el('ai-img-count').value, 10) || 1,
+      };
+      const ref = el('ai-img-ref').value.trim();
+      if (ref) body.ref = ref;
+      btn.disabled = true;
+      el('ai-img-status').textContent = T.ai_img_running;
+      busyShow(T.ai_img_running);
+      let r = null;
+      try { r = await apiJson('api/ai/studio/image', 'POST', body); } catch (e) { /* Netzfehler */ }
+      btn.disabled = false;
+      const d = r ? await r.json().catch(() => ({})) : {};
+      if (!r || !r.ok) {
+        const msg = aiErrMsg(d.error);
+        el('ai-img-status').textContent = msg;
+        busyDone(msg, true);
+        refreshAiStatus();
+        return;
+      }
+      el('ai-img-status').textContent = '';
+      busyDone(T.ai_img_ready.replace('{n}', d.images.length));
+      d.images.forEach(addAiCard);
+      refreshAiStatus();
+    }
+    function addAiCard(im) {
+      const card = document.createElement('div');
+      card.className = 'ai-card';
+      const img = document.createElement('img');
+      img.src = im.url; img.alt = '';
+      img.onclick = () => openThumbPreview(img.src);
+      const act = document.createElement('div');
+      act.className = 'ai-card-actions';
+      const keep = document.createElement('button');
+      keep.className = 'btn small';
+      keep.textContent = '💾 ' + T.ai_keep;
+      keep.onclick = () => aiKeepImage(im.id, card, keep);
+      const drop = document.createElement('button');
+      drop.className = 'btn secondary small';
+      drop.textContent = '✕ ' + T.ai_discard;
+      drop.onclick = () => aiDiscardImage(im.id, card);
+      act.append(keep, drop);
+      card.append(img, act);
+      el('ai-img-results').prepend(card);
+    }
+    async function aiKeepImage(id, card, keep) {
+      keep.disabled = true;
+      let r = null;
+      try { r = await apiJson('api/ai/studio/image/keep', 'POST', { id }); } catch (e) { /* Netzfehler */ }
+      const d = r ? await r.json().catch(() => ({})) : {};
+      if (!r || !r.ok) { keep.disabled = false; toast(T.error_save, true); return; }
+      card.classList.add('kept');
+      // Der Entwurf ist weg — ab jetzt die gespeicherte Datei anzeigen
+      card.querySelector('img').src = assetUrl(d.url);
+      const act = card.querySelector('.ai-card-actions');
+      act.innerHTML = '';
+      const ok = document.createElement('span');
+      ok.className = 'hint';
+      ok.textContent = '✅ ' + T.ai_kept;
+      const copy = document.createElement('button');
+      copy.className = 'btn secondary small';
+      copy.textContent = '📋 ' + T.ai_copy_url;
+      copy.onclick = () => { navigator.clipboard.writeText(d.url); toast(T.ai_url_copied); };
+      const asRef = document.createElement('button');
+      asRef.className = 'btn secondary small';
+      asRef.textContent = '🎨 ' + T.ai_as_ref;
+      asRef.onclick = () => { el('ai-img-ref').value = d.url; renderAiRef(); toast(T.ai_ref_set); };
+      act.append(ok, copy, asRef);
+      const u = document.createElement('div');
+      u.className = 'ai-url';
+      u.textContent = d.url;
+      card.appendChild(u);
+    }
+    async function aiDiscardImage(id, card) {
+      try { await apiJson('api/ai/studio/image/discard', 'POST', { id }); } catch (e) { /* egal */ }
+      card.remove();
+    }
+
+    function aiLangChanged() {
+      const v = el('ai-txt-langs').value;
+      el('ai-txt-mode-box').style.display = v === 'both' ? '' : 'none';
+      el('ai-out-de').style.display = v === 'en' ? 'none' : '';
+      el('ai-out-en').style.display = v === 'de' ? 'none' : '';
+    }
+    async function runAiText(btn) {
+      const topic = el('ai-txt-topic').value.trim();
+      if (topic.length < 3) { toast(T.ai_txt_err_topic, true); return; }
+      const v = el('ai-txt-langs').value;
+      btn.disabled = true;
+      el('ai-txt-status').textContent = T.ai_txt_running;
+      busyShow(T.ai_txt_running);
+      let r = null;
+      try {
+        r = await apiJson('api/ai/text', 'POST', {
+          topic,
+          langs:  v === 'both' ? ['de', 'en'] : [v],
+          kind:   el('ai-txt-kind').value,
+          tone:   el('ai-txt-tone').value,
+          length: el('ai-txt-length').value,
+          mode:   el('ai-txt-mode').value,
+          model:  el('ai-text-model').value,
+        });
+      } catch (e) { /* Netzfehler */ }
+      btn.disabled = false;
+      const d = r ? await r.json().catch(() => ({})) : {};
+      if (!r || !r.ok) {
+        const msg = aiErrMsg(d.error);
+        el('ai-txt-status').textContent = msg;
+        busyDone(msg, true);
+        refreshAiStatus();
+        return;
+      }
+      const res = d.result || {};
+      const tags = new Set();
+      ['de', 'en'].forEach(lg => {
+        const x = res[lg] || null;
+        el('ai-out-title_' + lg).value = x ? (x.title || '') : '';
+        el('ai-out-meta_' + lg).value  = x ? (x.meta || '') : '';
+        el('ai-out-text_' + lg).value  = x ? (x.text || '') : '';
+        if (x) (x.tags || []).forEach(t => tags.add(t));
+      });
+      el('ai-out-tags').value = [...tags].join(', ');
+      el('ai-txt-result').style.display = '';
+      el('ai-txt-status').textContent = '';
+      aiLangChanged();
+      busyDone(T.ai_txt_ready);
+      refreshAiStatus();
+    }
+    // Bewusst als Entwurf: der Text soll vor der Veröffentlichung gelesen werden.
+    function aiToPost() {
+      openPostModal();
+      el('bm-title_de').value = el('ai-out-title_de').value;
+      el('bm-title_en').value = el('ai-out-title_en').value;
+      el('bm-meta_de').value  = el('ai-out-meta_de').value;
+      el('bm-meta_en').value  = el('ai-out-meta_en').value;
+      el('bm-text_de').value  = el('ai-out-text_de').value;
+      el('bm-text_en').value  = el('ai-out-text_en').value;
+      el('bm-tags').value     = el('ai-out-tags').value;
+      el('bm-published').value = '0';
+    }
+    function aiToImagePrompt() {
+      const title = el('ai-out-title_de').value.trim() || el('ai-out-title_en').value.trim();
+      const meta  = el('ai-out-meta_de').value.trim()  || el('ai-out-meta_en').value.trim();
+      const tags  = el('ai-out-tags').value.trim();
+      el('ai-img-prompt').value = [
+        title && T.ai_img_prompt_title.replace('{v}', title),
+        tags  && T.ai_img_prompt_tags.replace('{v}', tags),
+        meta  && T.ai_img_prompt_summary.replace('{v}', meta),
+        T.ai_img_prompt_style,
+      ].filter(Boolean).join(' ').slice(0, 1200);
+      el('ai-img-prompt').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+    function aiCopyText() {
+      const parts = [];
+      ['de', 'en'].forEach(lg => {
+        const t = el('ai-out-title_' + lg).value.trim();
+        const x = el('ai-out-text_' + lg).value.trim();
+        if (t || x) parts.push('# ' + t + '\n\n' + x);
+      });
+      navigator.clipboard.writeText(parts.join('\n\n---\n\n'));
+      toast(T.ai_copied);
+    }
+
+    initAiVisibility();
     loadSite();
   </script>
 </body>
