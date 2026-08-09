@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.10.3
+- 🗂️ **Die Reiter *Reiseblog* und *Formulare* sind jetzt immer sichtbar.** Die Schalter unter Design steuern ab sofort die **Website**, nicht den Reiter — sonst liesse sich nichts vorbereiten, bevor der Bereich online geht.
+- 🧭 **Formulare stehen jetzt ebenfalls unter *Inhalte*** und lassen sich dort einsortieren und ausblenden, genau wie der Reiseblog.
+- 💾 **Ein gescheitertes Speichern im Reiseblog blieb unbemerkt.** Drei Stellen konnten still versagen und einen eingetippten Tag verlieren, während die Oberfläche nichts oder sogar „Gespeichert“ meldete:
+  - Ein **Schreibfehler auf der Platte** wurde nur ins Log geschrieben, die Antwort lautete trotzdem „ok“. Jetzt meldet der Server einen Fehler.
+  - Ein **Netzfehler** (Add-on gerade neu gestartet, WLAN weg) löste gar keine Meldung aus. Jetzt bleibt der Dialog offen, es erscheint eine rote Meldung, und der lokale Entwurf bleibt ausdrücklich liegen.
+  - Eine **abgelaufene Anmeldung** sah aus wie ein beliebiger Fehler. Jetzt steht da, dass man sich neu anmelden und dann erneut speichern soll.
+- Die Rückfrage nach einem gespeicherten Zwischenstand kommt nur noch, wenn der Entwurf überhaupt Inhalt hat.
+
 ## 0.10.2
 - 🖥️ **Das Admin-Panel nutzt jetzt die Breite des Fensters.** Die Arbeitsfläche war auf 1100 px festgenagelt — auf einem breiten Bildschirm blieb links und rechts alles leer, während Tabellen, Kachelraster und der Reise-Wizard unnötig scrollten. Nach oben bei 1900 px gedeckelt, damit Textzeilen nicht unlesbar lang werden.
 - Große Dialoge (Markdown-Editor, Reise-Wizard) wachsen mit bis 1400 px, normale Dialoge bis 760 px — jeweils höchstens 94 % der Fensterbreite, damit auf dem Handy nichts übersteht.

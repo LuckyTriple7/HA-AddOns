@@ -2616,7 +2616,10 @@
     "lang": "Ausführlich (~1200 Wörter)"
   },
   "field_travel_enabled": "Reiseblog",
-  "travel_enabled_hint": "Blendet den Reiter „Reiseblog“ im Admin ein. Der Abschnitt lässt sich unter Inhalte einsortieren und ausblenden.",
+  "travel_enabled_hint": "Zeigt den Reiseblog auf der Website. Der Reiter im Admin bleibt immer sichtbar, damit du Reisen und Tage vorbereiten kannst, bevor etwas online geht. Position und Sichtbarkeit des Abschnitts stellst du unter Inhalte ein.",
   "field_forms_enabled": "Formulare",
-  "forms_enabled_hint": "Blendet den Reiter „Formulare“ im Admin ein. Vorhandene Formulare bleiben erreichbar, auch wenn der Reiter aus ist."
+  "forms_enabled_hint": "Zeigt die Formulare auf der Website. Der Reiter im Admin bleibt immer sichtbar. Position und Sichtbarkeit des Abschnitts stellst du unter Inhalte ein.",
+  "trav_no_trip_selected": "Keine Reise ausgewählt — bitte links eine Reise anklicken.",
+  "trav_save_offline": "Nicht gespeichert: Der Server war nicht erreichbar. Der Dialog bleibt offen, deine Eingaben sind lokal gesichert — bitte gleich noch einmal auf Speichern drücken.",
+  "trav_save_session": "Nicht gespeichert: Die Anmeldung ist abgelaufen. Bitte in einem zweiten Tab neu anmelden und dann hier erneut speichern."
 }

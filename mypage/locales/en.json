@@ -2616,7 +2616,10 @@
     "lang": "Detailed (~1200 words)"
   },
   "field_travel_enabled": "Travel blog",
-  "travel_enabled_hint": "Shows the “Travel blog” tab in the admin. The section can be positioned and hidden under Content.",
+  "travel_enabled_hint": "Shows the travel blog on the website. The admin tab always stays visible so you can prepare trips and days before anything goes live. Position and visibility of the section are set under Content.",
   "field_forms_enabled": "Forms",
-  "forms_enabled_hint": "Shows the “Forms” tab in the admin. Existing forms stay reachable even when the tab is off."
+  "forms_enabled_hint": "Shows the forms on the website. The admin tab always stays visible. Position and visibility of the section are set under Content.",
+  "trav_no_trip_selected": "No trip selected — please click a trip on the left.",
+  "trav_save_offline": "Not saved: the server could not be reached. The dialog stays open and your input is stored locally — please press Save again in a moment.",
+  "trav_save_session": "Not saved: your session has expired. Please sign in again in a second tab, then save here once more."
 }

@@ -321,7 +321,7 @@
         <button class="tab-btn" data-tab="content">{{ t.tab_content }}</button>
         <button class="tab-btn" data-tab="projects">{{ t.tab_projects }}</button>
         <button class="tab-btn" data-tab="blog">{{ t.tab_blog }}</button>
-        <button class="tab-btn" data-tab="travel" id="tab-btn-travel" style="display:none">{{ t.tab_travel }}</button>
+        <button class="tab-btn" data-tab="travel" id="tab-btn-travel">{{ t.tab_travel }}</button>
         <button class="tab-btn" data-tab="pages">{{ t.tab_pages }}</button>
         <button class="tab-btn" data-tab="library">{{ t.tab_library }}</button>
         <button class="tab-btn" data-tab="ai" id="tab-btn-ai" style="display:none">✦ {{ t.tab_ai }}</button>
@@ -562,6 +562,11 @@
         <div class="acc-head" onclick="toggleAcc(event, this)"><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.library_heading }} <span class="acc-ext">↗</span></div>
         <p class="hint">{{ t.section_edit_elsewhere }}</p>
         <button class="btn secondary small" onclick="document.querySelector('.tab-btn[data-tab=library]').click()">{{ t.tab_library }} →</button>
+      </div>
+      <div class="panel acc" data-key="forms">
+        <div class="acc-head" onclick="toggleAcc(event, this)"><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.tab_forms }} <span class="acc-ext">↗</span></div>
+        <p class="hint">{{ t.section_edit_elsewhere }}</p>
+        <button class="btn secondary small" onclick="document.querySelector('.tab-btn[data-tab=forms]').click()">{{ t.tab_forms }} →</button>
       </div>
       <div class="panel acc" data-key="travel">
         <div class="acc-head" onclick="toggleAcc(event, this)"><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.trav_trips_heading }} <span class="acc-ext">↗</span></div>
@@ -4764,7 +4769,6 @@
       el('d-search_enabled').value = d.search_enabled ? '1' : '0';
       el('d-travel_enabled').value = d.travel_enabled ? '1' : '0';
       el('d-forms_enabled').value = d.forms_enabled !== false ? '1' : '0';
-      applyModuleTabs(d);
       el('d-registration_enabled').value = d.registration_enabled ? '1' : '0';
       el('d-registration_quota_mb').value = d.registration_quota_mb || 500;
       el('d-newsletter_enabled').value = d.newsletter_enabled ? '1' : '0';
@@ -5546,21 +5550,6 @@
         toast(T.library_pdf_upload_failed, true);
       }
     });
-    // Reiter der abschaltbaren Module. Ein Reiter, der zu einem ausgeschalteten
-    // Modul gehoert, ist nur Ballast -- und wer gerade auf ihm steht, wird auf
-    // Profil zurueckgeschickt, sonst bliebe ein unsichtbarer Bereich offen.
-    function applyModuleTabs(design) {
-      [['tab-btn-travel', !!design.travel_enabled],
-       ['tab-btn-forms', design.forms_enabled !== false]].forEach(([id, on]) => {
-        const btn = el(id);
-        if (!btn) return;
-        btn.style.display = on ? '' : 'none';
-        if (!on && btn.classList.contains('active')) {
-          document.querySelector('.tab-btn[data-tab=profile]').click();
-        }
-      });
-    }
-
     // ── Reiseblog ──
     // Der Wizard arbeitet direkt auf einem einfachen Objekt `DAY`, das genau der
     // Form entspricht, die der Server erwartet. Dadurch gibt es kein Mapping
@@ -5705,9 +5694,15 @@
         },
       };
       if (!body.name.trim()) { toast(T.error_title, true); return; }
-      const r = editingTripId
-        ? await apiJson('api/travel/trips/' + editingTripId, 'PUT', body)
-        : await apiJson('api/travel/trips', 'POST', body);
+      let r = null;
+      try {
+        r = editingTripId
+          ? await apiJson('api/travel/trips/' + editingTripId, 'PUT', body)
+          : await apiJson('api/travel/trips', 'POST', body);
+      } catch (e) {
+        toast(T.trav_save_offline, true);
+        return;
+      }
       toast(r.ok ? T.saved : T.error_save, !r.ok);
       if (r.ok) {
         if (!editingTripId) curTripId = (await r.json()).id;
@@ -5823,6 +5818,12 @@
         article: null,
       };
     }
+    function travHasContent(d) {
+      return !!(d && ((d.experiences || []).length || (d.meals || []).length
+        || (d.special_moments || []).length || (d.expenses || []).length
+        || (d.photos || []).length || d.location || d.additional_notes
+        || (d.personal || {}).day_summary));
+    }
     function draftKey() { return 'mp-trav-' + curTripId + '-' + (editingDayId || 'new'); }
     // Unterwegs im Hotel-WLAN: ein Verbindungsabbruch nach zwanzig Minuten
     // Tippen waere bitter. Deshalb liegt der Stand laufend lokal.
@@ -5837,7 +5838,9 @@
       DAY = existing ? JSON.parse(JSON.stringify(existing)) : emptyDay();
       let draft = null;
       try { draft = JSON.parse(localStorage.getItem(draftKey()) || 'null'); } catch (e) { /* egal */ }
-      if (draft && confirm(T.trav_draft_restore)) DAY = draft;
+      // Nur fragen, wenn der Entwurf ueberhaupt Inhalt hat -- sonst nervt die
+      // Rueckfrage bei jedem Oeffnen eines frisch gespeicherten Tages.
+      if (draft && travHasContent(draft) && confirm(T.trav_draft_restore)) DAY = draft;
       el('day-modal-title').textContent = id ? T.trav_edit_day : T.trav_new_day;
       wizStep = 0;
       wizRender();
@@ -6019,13 +6022,27 @@
       });
     }
 
+    // Scheitert das Speichern, MUSS es sichtbar werden und der Dialog offen
+    // bleiben: sonst ist ein halbe Stunde eingetippter Tag weg, und der Nutzer
+    // hat den Knopf gedrueckt und eine Bestaetigung gesehen. Der lokale Entwurf
+    // bleibt in dem Fall ausdruecklich liegen.
     async function saveDay(silent) {
       const trip = curTrip();
-      if (!trip) return null;
-      const r = editingDayId
-        ? await apiJson(`api/travel/trips/${trip.id}/days/${editingDayId}`, 'PUT', DAY)
-        : await apiJson(`api/travel/trips/${trip.id}/days`, 'POST', DAY);
-      if (!r.ok) { toast(T.error_save, true); return null; }
+      if (!trip) { toast(T.trav_no_trip_selected, true); return null; }
+      let r = null;
+      try {
+        r = editingDayId
+          ? await apiJson(`api/travel/trips/${trip.id}/days/${editingDayId}`, 'PUT', DAY)
+          : await apiJson(`api/travel/trips/${trip.id}/days`, 'POST', DAY);
+      } catch (e) {
+        // Netzfehler: Add-on neu gestartet, WLAN weg, Sitzung tot
+        busyDone(T.trav_save_offline, true);
+        return null;
+      }
+      if (!r.ok) {
+        busyDone(r.status === 401 || r.status === 403 ? T.trav_save_session : T.error_save, true);
+        return null;
+      }
       if (!editingDayId) editingDayId = (await r.json()).id;
       try { localStorage.removeItem(draftKey()); } catch (e) { /* egal */ }
       if (!silent) { toast(T.saved); el('day-modal').classList.remove('open'); }

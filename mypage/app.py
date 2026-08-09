@@ -367,9 +367,8 @@ DEFAULT_SITE = {
         'dm_ha_notify': False,
         'directory_enabled': False,
         'search_enabled': False,
-        # Reiter im Admin und Abschnitt auf der Startseite. Formulare stehen auf
-        # True, damit bestehende Installationen ihren Reiter behalten; der
-        # Reiseblog ist neu und startet aus.
+        # Sichtbarkeit auf der WEBSITE. Die Reiter im Admin bleiben immer da:
+        # sonst liesse sich nichts vorbereiten, bevor der Bereich online geht.
         'travel_enabled': False,
         'forms_enabled': True,
         'registration_enabled': False,
@@ -430,7 +429,7 @@ DEFAULT_SITE = {
     },
     'section_order': [
         'news', 'countdown', 'tips', 'freetext', 'poll', 'blog', 'services', 'projects', 'skills', 'testimonials',
-        'photos', 'library', 'travel', 'team', 'timeline', 'events', 'links', 'faq', 'location',
+        'photos', 'library', 'travel', 'forms', 'team', 'timeline', 'events', 'links', 'faq', 'location',
     ],
     'hidden_sections': [],
     'members_sections': [],
@@ -5568,12 +5567,26 @@ def load_travel() -> dict:
     return data
 
 
-def save_travel(data: dict) -> None:
+def save_travel(data: dict) -> bool:
+    """Speichert und sagt, ob es geklappt hat.
+
+    Ein verschluckter Schreibfehler ist hier besonders teuer: die Oberfläche
+    meldete „Gespeichert", der Dialog schloss sich, und der eingetippte Tag war
+    weg. Der Rückgabewert zwingt die Routen, das Scheitern zu melden.
+    """
     with _travel_lock:
         try:
             _atomic_write_json(TRAVEL_PATH, data, indent=2)
+            return True
         except Exception as e:
-            log.warning("travel.json konnte nicht gespeichert werden: %s", e)
+            log.error("travel.json konnte nicht gespeichert werden: %s", e)
+            return False
+
+
+def _saved(ok: bool, payload: dict | None = None):
+    if not ok:
+        return jsonify({'error': 'save_failed'}), 500
+    return jsonify({'ok': True, **(payload or {})})
 
 
 def _trip(data: dict, tid: str) -> dict | None:
@@ -5628,8 +5641,7 @@ def api_travel_trip_create():
         return jsonify({'error': 'name required'}), 400
     trip['id'] = uuid.uuid4().hex[:12]
     data['trips'].insert(0, trip)
-    save_travel(data)
-    return jsonify({'ok': True, 'id': trip['id']})
+    return _saved(save_travel(data), {'id': trip['id']})
 
 
 @admin_app.route('/api/travel/trips/<tid>', methods=['PUT', 'DELETE'])
@@ -5643,14 +5655,14 @@ def api_travel_trip(tid: str):
         return jsonify({'error': 'not_found'}), 404
     if request.method == 'DELETE':
         data['trips'] = [t for t in data['trips'] if t.get('id') != tid]
-        save_travel(data)
-        log_audit('travel_trip_delete', trip.get('name', ''))
-        return jsonify({'ok': True})
+        ok = save_travel(data)
+        if ok:
+            log_audit('travel_trip_delete', trip.get('name', ''))
+        return _saved(ok)
     merged = tb.normalize_trip(request.get_json(silent=True) or {}, trip)
     merged['id'] = tid
     data['trips'] = [merged if t.get('id') == tid else t for t in data['trips']]
-    save_travel(data)
-    return jsonify({'ok': True})
+    return _saved(save_travel(data))
 
 
 @admin_app.route('/api/travel/trips/<tid>/days', methods=['POST'])
@@ -5668,8 +5680,7 @@ def api_travel_day_create(tid: str):
     day['id'] = uuid.uuid4().hex[:12]
     trip.setdefault('days', []).append(day)
     trip['days'].sort(key=lambda d: (d.get('day_number') or 0, d.get('date') or ''))
-    save_travel(data)
-    return jsonify({'ok': True, 'id': day['id']})
+    return _saved(save_travel(data), {'id': day['id']})
 
 
 @admin_app.route('/api/travel/trips/<tid>/days/<did>', methods=['PUT', 'DELETE'])
@@ -5684,15 +5695,15 @@ def api_travel_day(tid: str, did: str):
         return jsonify({'error': 'not_found'}), 404
     if request.method == 'DELETE':
         trip['days'] = [d for d in trip['days'] if d.get('id') != did]
-        save_travel(data)
-        log_audit('travel_day_delete', f"{trip.get('name', '')} #{day.get('day_number')}")
-        return jsonify({'ok': True})
+        ok = save_travel(data)
+        if ok:
+            log_audit('travel_day_delete', f"{trip.get('name', '')} #{day.get('day_number')}")
+        return _saved(ok)
     merged = tb.normalize_day(request.get_json(silent=True) or {}, day)
     merged['id'] = did
     trip['days'] = [merged if d.get('id') == did else d for d in trip['days']]
     trip['days'].sort(key=lambda d: (d.get('day_number') or 0, d.get('date') or ''))
-    save_travel(data)
-    return jsonify({'ok': True})
+    return _saved(save_travel(data))
 
 
 def _travel_article_schema(langs: list[str], photos: int):
@@ -9968,6 +9979,7 @@ def public_index():
         # der Startseite erscheint er erst mit den oeffentlichen Seiten -- bis
         # dahin waere die Sprungmarke ein Verweis ins Leere.
         'travel':       ('reiseblog',    'trav_trips_heading',   False),
+        'forms':        ('formulare',    'tab_forms',            False),
     }
     # Gespeicherte Reihenfolge bereinigen: nur gültige Keys, fehlende hinten anhängen
     stored = [k for k in (site.get('section_order') or []) if k in section_defs]
