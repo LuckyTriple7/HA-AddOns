@@ -5524,12 +5524,16 @@
       btn.disabled = false;
       const d = r ? await r.json().catch(() => ({})) : {};
       if (!r || !r.ok) {
-        el('ai-prices-fetch-info').textContent =
+        // Googles Grund immer mit anzeigen: „Schlüssel abgelehnt" hat zwei
+        // Ursachen mit völlig verschiedenen Schritten (ungültig vs. auf andere
+        // Dienste beschränkt), und ohne den Code ist nicht zu erkennen, welche.
+        const msg =
           d.error === 'billing_disabled'    ? T.ai_prices_fetch_disabled
           : d.error === 'needs_oauth'       ? T.ai_prices_fetch_oauth
           : d.error === 'key_rejected'      ? T.ai_prices_fetch_key
           : d.error === 'service_not_found' ? T.ai_prices_fetch_none
-          : T.ai_prices_fetch_failed + (d.reason ? ' (' + d.reason + ')' : '');
+          : T.ai_prices_fetch_failed;
+        el('ai-prices-fetch-info').textContent = msg + (d.reason ? ' [' + d.reason + ']' : '');
         return;
       }
       let n = 0;

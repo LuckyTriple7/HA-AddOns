@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.9.12
+- 🔍 Die Preis-Abfrage hängt Googles Grund-Code jetzt an **jede** Fehlermeldung an, nicht nur an unbekannte. „Schlüssel abgelehnt" hat zwei Ursachen mit völlig verschiedenen Schritten — `API_KEY_INVALID` (Schlüssel taugt nicht) und `API_KEY_SERVICE_BLOCKED` (Schlüssel ist auf andere Dienste beschränkt). Ohne den Code war nicht zu erkennen, welche vorliegt.
+
 ## 0.9.11
 - 🔍 **Die Fehlermeldung der Preis-Abfrage sagt jetzt die Wahrheit.** Bisher wurde *jeder* 403 von Google als „Cloud Billing API nicht freigeschaltet" gedeutet — auch „API-Keys werden von diesem Dienst nicht unterstützt". Wer der Meldung folgte, schaltete Dienste frei, die gar nicht das Problem waren.
 - Ausgewertet wird jetzt ausschließlich der `reason` aus Googles Antwort. Neuer eigener Fall: **der Preiskatalog nimmt womöglich nur OAuth und keinen API-Schlüssel** — dann sagt die Meldung genau das und rät zur Eingabe von Hand, statt in die Irre zu führen.
