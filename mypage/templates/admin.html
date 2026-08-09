@@ -61,7 +61,8 @@
     .sec-lock:hover { opacity: .85; }
     label { display: block; font-size: 0.78rem; color: var(--muted); margin: 12px 0 4px; }
     label:first-of-type { margin-top: 0; }
-    input[type="text"], input[type="email"], input[type="url"], textarea, select {
+    input[type="text"], input[type="email"], input[type="url"], input[type="number"],
+    input[type="date"], input[type="datetime-local"], textarea, select {
       width: 100%; background: var(--bg); border: 1px solid var(--border); color: var(--text);
       padding: 8px 11px; border-radius: 6px; font-size: 0.87rem; font-family: inherit;
     }
@@ -782,9 +783,14 @@
         <div id="ai-usage-table" style="margin-top:14px;overflow-x:auto"></div>
         <button class="btn secondary small" style="margin-top:14px" onclick="toggleAiPrices()">💰 {{ t.ai_prices_toggle }}</button>
         <div id="ai-prices-box" style="display:none;margin-top:14px">
-          <p class="hint">{{ t.ai_prices_hint }}</p>
+          <p class="hint">{{ t.ai_prices_hint }} <a href="https://ai.google.dev/pricing" target="_blank" rel="noopener">{{ t.ai_prices_link }}</a></p>
           <div id="ai-prices-list" style="overflow-x:auto"></div>
-          <button class="btn" style="margin-top:12px" onclick="saveAiPrices()">{{ t.save }}</button>
+          <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+            <button class="btn" onclick="saveAiPrices()">{{ t.save }}</button>
+            <button class="btn secondary" id="ai-prices-fetch" onclick="fetchAiPrices(this)">⬇ {{ t.ai_prices_fetch }}</button>
+            <span class="hint" id="ai-prices-fetch-info"></span>
+          </div>
+          <p class="hint">{{ t.ai_prices_fetch_hint }}</p>
         </div>
       </div>
 
@@ -5423,7 +5429,7 @@
       return td;
     }
     function aiCost(v) {
-      return v > 0 ? (v >= 1 ? v.toFixed(2) : v.toFixed(4)) + ' €' : '—';
+      return v > 0 ? '$ ' + (v >= 1 ? v.toFixed(2) : v.toFixed(4)) : '—';
     }
     function renderAiUsage() {
       const box = el('ai-usage-table');
@@ -5471,12 +5477,16 @@
       const tbl = document.createElement('table');
       tbl.className = 'vtable';
       const head = document.createElement('tr');
-      [T.ai_col_model, T.ai_price_in, T.ai_price_out, T.ai_price_image]
+      [T.ai_col_model, T.ai_price_in, T.ai_price_out, T.ai_price_image, '']
         .forEach(h => { const th = document.createElement('th'); th.textContent = h; head.appendChild(th); });
       const thead = document.createElement('thead'); thead.appendChild(head); tbl.appendChild(thead);
       const tbody = document.createElement('tbody');
+      // Leeres Feld heißt „Vorgabe gilt": der hinterlegte Listenpreis steht als
+      // Platzhalter drin und wird gerechnet. Getippt wird nur, wo die Vorgabe
+      // fehlt oder nicht stimmt.
       AI_USAGE.models.forEach(m => {
-        const p = AI_USAGE.prices[m] || {};
+        const own = AI_USAGE.prices[m] || {};
+        const def = (AI_USAGE.defaults || {})[m] || {};
         const tr = document.createElement('tr');
         tr.appendChild(aiCell(m));
         ['in', 'out', 'image'].forEach(k => {
@@ -5485,14 +5495,53 @@
           inp.type = 'number'; inp.step = '0.0001'; inp.min = '0';
           inp.style.maxWidth = '110px';
           inp.dataset.model = m; inp.dataset.kind = k;
-          inp.value = p[k] || '';
+          inp.value = own[k] || '';
+          inp.placeholder = def[k] !== undefined ? String(def[k]) : '—';
           td.appendChild(inp);
           tr.appendChild(td);
         });
+        const note = aiCell(Object.keys(own).length ? T.ai_price_own
+                            : (Object.keys(def).length ? T.ai_price_default : T.ai_price_missing));
+        note.style.color = 'var(--muted)';
+        note.style.fontSize = '0.78rem';
+        tr.appendChild(note);
         tbody.appendChild(tr);
       });
       tbl.appendChild(tbody);
       box.appendChild(tbl);
+    }
+    // Holt Vorschläge aus dem Cloud-Preiskatalog und trägt sie NUR in die Felder
+    // ein. Gespeichert wird erst mit „Speichern" — die Zuordnung von SKU-Text zu
+    // Modell ist geraten, das gehört vor dem Übernehmen angesehen.
+    async function fetchAiPrices(btn) {
+      if (!AI_USAGE) return;
+      btn.disabled = true;
+      el('ai-prices-fetch-info').textContent = T.ai_prices_fetch_running;
+      let r = null;
+      try {
+        r = await apiJson('api/ai/prices/fetch', 'POST', { models: AI_USAGE.models });
+      } catch (e) { /* Netzfehler */ }
+      btn.disabled = false;
+      const d = r ? await r.json().catch(() => ({})) : {};
+      if (!r || !r.ok) {
+        el('ai-prices-fetch-info').textContent =
+          d.error === 'billing_disabled'    ? T.ai_prices_fetch_disabled
+          : d.error === 'key_rejected'      ? T.ai_prices_fetch_key
+          : d.error === 'service_not_found' ? T.ai_prices_fetch_none
+          : T.ai_prices_fetch_failed;
+        return;
+      }
+      let n = 0;
+      Object.entries(d.prices || {}).forEach(([model, p]) => {
+        Object.entries(p).forEach(([kind, v]) => {
+          const inp = el('ai-prices-list').querySelector(
+            `input[data-model="${CSS.escape(model)}"][data-kind="${CSS.escape(kind)}"]`);
+          if (inp) { inp.value = v; n++; }
+        });
+      });
+      el('ai-prices-fetch-info').textContent = n
+        ? T.ai_prices_fetched.replace('{n}', n)
+        : T.ai_prices_fetch_none;
     }
     async function saveAiPrices() {
       const prices = {};

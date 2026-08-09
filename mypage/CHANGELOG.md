@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.9.10
+- 💰 **Die Preistabelle ist vorbelegt.** Für bekannte Gemini-Modelle sind die Listenpreise von Google hinterlegt; sie stehen grau im Feld und werden gerechnet, ohne dass du etwas eintippen musst. Bisher blieb die Kostenspalte leer, bis man alles von Hand eingetragen hatte. Ein selbst eingetragener Wert schlägt die Vorgabe weiterhin.
+- Die Vorgaben sind **bewusst unvollständig**: Google benennt Modelle laufend um, und ein geratener Preis wäre schlimmer als eine leere Zeile — die fragt nach, eine falsche Zahl nicht. Eine neue Spalte sagt je Modell, ob gerade *Vorgabe*, *eigener Wert* oder *kein Vorgabepreis* gilt.
+- ⬇ **Neuer Knopf „Preise bei Google abfragen".** Holt die Posten aus dem öffentlichen Preiskatalog von Google Cloud und trägt die Treffer in die Felder ein — gespeichert wird erst mit „Speichern", denn Google beschreibt seine Posten im Fließtext und die Zuordnung zum Modell ist geraten. Braucht die **Cloud Billing API** im Google-Cloud-Projekt; ist sie aus oder der Schlüssel eingeschränkt, sagt die Meldung genau das.
+- **Beträge jetzt in US-Dollar** statt Euro — Google weist seine Preise so aus, die Euro-Beschriftung war schlicht falsch.
+- 🎨 Zahlen-, Datums- und Datum/Zeit-Felder waren im Admin **weiß statt dunkel**: die CSS-Regel führte nur `text`, `email` und `url` auf. Betraf neben der Preistabelle auch das Beitragsdatum und den Countdown-Zeitpunkt.
+
 ## 0.9.9
 - 🎠 **Die Entwürfe im Bild-Studio stehen jetzt in einem waagerechten Streifen mit Pfeilen** statt in einem Raster. Bisher blieb jeder Durchgang untereinander stehen und schob Text-Studio und Verbrauch immer weiter nach unten — nach ein paar Versuchen war der Tab meterlang. Alle Entwürfe der Sitzung bleiben zum Vergleich erhalten, brauchen aber nur noch eine Zeile.
 - **Neue Zeile darunter sagt, wie viele es sind** und wie viele davon schon gespeichert wurden. Vorher war nicht erkennbar, ob links noch etwas aus dem Bild gescrollt ist.

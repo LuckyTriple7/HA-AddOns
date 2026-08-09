@@ -5502,6 +5502,29 @@ def api_ai_text():
 AI_USAGE_KEEP_MONTHS = 24
 _ai_usage_lock = threading.Lock()
 
+# Vorbelegung der Preistabelle: Listenpreise von Google AI (ai.google.dev/pricing),
+# USD je 1 Mio Tokens bzw. je erzeugtem Bild, Stand August 2026 — dieselbe Pflege
+# von Hand wie in TUIWatch (`_AI_PRICING`), weil es für die Gemini-API keine
+# Preis-Schnittstelle gibt.
+#
+# Ein im Admin eingetragener Preis schlägt diese Werte immer. Bewusst NICHT
+# vollständig: Google benennt Modelle laufend um, und ein geratener Preis wäre
+# schlimmer als eine leere Zeile — die fragt nach, eine falsche Zahl nicht. Was
+# hier fehlt, bleibt leer, bis es jemand einträgt.
+GEMINI_DEFAULT_PRICES = {
+    'gemini-3.1-pro':         {'in': 2.0, 'out': 12.0},
+    'gemini-3.6-flash':       {'in': 1.5, 'out': 7.5},
+    'gemini-3.5-flash':       {'in': 1.5, 'out': 9.0},
+    'gemini-2.5-flash':       {'in': 0.3, 'out': 2.5},
+    # Bildmodelle rechnen je Bild; 0.039 = 1290 Ausgabe-Tokens à 30 USD/Mio
+    'gemini-2.5-flash-image': {'in': 0.3, 'image': 0.039},
+}
+
+
+def _ai_price_for(model: str, prices: dict) -> dict:
+    """Eigener Preis, sonst Vorgabe, sonst nichts."""
+    return prices.get(model) or GEMINI_DEFAULT_PRICES.get(model) or {}
+
 
 def _ai_usage_load() -> dict:
     try:
@@ -5574,7 +5597,7 @@ def api_ai_usage():
         for model in sorted(months[month]):
             row = dict(months[month][model])
             row['model'] = model
-            row['cost'] = _ai_usage_cost(row, prices.get(model) or {})
+            row['cost'] = _ai_usage_cost(row, _ai_price_for(model, prices))
             rows.append(row)
         out[month] = rows
     # Auch die gerade eingestellten Modelle anbieten, damit ein Preis schon vor
@@ -5582,7 +5605,127 @@ def api_ai_usage():
     known = sorted({m for mo in months.values() for m in mo}
                    | {_gemini_image_model(), _gemini_text_model()} | set(prices))
     return jsonify({'months': out, 'prices': prices, 'models': known,
+                    'defaults': GEMINI_DEFAULT_PRICES,
                     'current': date.today().strftime('%Y-%m')})
+
+
+# Die Gemini-API selbst kennt keine Preise. Was es gibt, ist der öffentliche
+# Preiskatalog von Google Cloud — der nimmt denselben API-Key, muss im Projekt
+# aber erst freigeschaltet sein. Er liefert Fließtext („Gemini 2.5 Flash Input
+# Tokens"), keine Modell-IDs; die Zuordnung ist deshalb geraten und wird dem
+# Admin zur Prüfung vorgelegt, statt direkt gespeichert zu werden.
+CLOUD_BILLING_API = 'https://cloudbilling.googleapis.com/v1'
+GEMINI_BILLING_SERVICE = 'generative language api'
+_SKU_KINDS = (('image', 'image'), ('input', 'in'), ('prompt', 'in'), ('output', 'out'))
+
+
+def _sku_unit_price(sku: dict) -> float | None:
+    """USD je Million Einheiten aus einem SKU-Eintrag.
+
+    Google gibt den Preis je Verrechnungseinheit an (units + nanos). Bei Tokens
+    ist das je Token, deshalb hochrechnen — außer die Einheitsbeschreibung sagt
+    schon „million". Passt nichts davon, lieber None als eine Zahl, die um
+    Faktor 10^6 danebenliegt.
+    """
+    try:
+        expr = (sku.get('pricingInfo') or [])[-1]['pricingExpression']
+        rate = (expr.get('tieredRates') or [])[-1]['unitPrice']
+        price = int(rate.get('units') or 0) + int(rate.get('nanos') or 0) / 1e9
+    except (LookupError, TypeError, ValueError):
+        return None
+    if price <= 0:
+        return None
+    unit = str(expr.get('usageUnitDescription') or expr.get('usageUnit') or '').lower()
+    if 'million' in unit:
+        return round(price, 6)
+    if 'count' in unit or 'token' in unit:
+        return round(price * 1e6, 6)
+    return round(price, 6)   # z. B. „image" — je Stück
+
+
+def _billing_error(r) -> str:
+    """Fehlercode aus einer Google-Fehlerantwort ableiten.
+
+    Der `reason` im Body ist belastbarer als der Statuscode und trennt die drei
+    Fälle, die der Admin unterschiedlich beheben muss: Dienst nicht
+    freigeschaltet, Schlüssel abgelehnt, sonstiger Ausfall.
+    """
+    try:
+        err = (r.json() or {}).get('error') or {}
+        reasons = {d.get('reason') for d in (err.get('details') or []) if isinstance(d, dict)}
+    except ValueError:
+        reasons = set()
+    if 'SERVICE_DISABLED' in reasons or r.status_code == 403:
+        return 'billing_disabled'
+    if reasons & {'API_KEY_INVALID', 'API_KEY_SERVICE_BLOCKED', 'API_KEY_HTTP_REFERRER_BLOCKED'}:
+        return 'key_rejected'
+    return 'failed'
+
+
+def _gemini_fetch_prices(models: list[str]) -> tuple[dict | None, str]:
+    """Preisvorschläge aus dem Cloud-Preiskatalog. Zurück: (Vorschläge, Fehlercode)."""
+    key = _gemini_key()
+    try:
+        r = http.get(f'{CLOUD_BILLING_API}/services',
+                     params={'key': key, 'pageSize': 5000}, timeout=20)
+        if not r.ok:
+            return None, _billing_error(r)
+        service = next((s['name'] for s in (r.json().get('services') or [])
+                        if str(s.get('displayName', '')).lower() == GEMINI_BILLING_SERVICE), None)
+        if not service:
+            return None, 'service_not_found'
+        skus, token = [], ''
+        while True:
+            p = {'key': key, 'pageSize': 5000}
+            if token:
+                p['pageToken'] = token
+            r = http.get(f'{CLOUD_BILLING_API}/{service}/skus', params=p, timeout=20)
+            if not r.ok:
+                return None, _billing_error(r)
+            data = r.json()
+            skus.extend(data.get('skus') or [])
+            token = data.get('nextPageToken') or ''
+            if not token or len(skus) > 20000:
+                break
+    except Exception as e:
+        # Nur der Typ: die Meldung von requests enthält die URL samt Key
+        log.warning("Preiskatalog nicht abrufbar: %s", type(e).__name__)
+        return None, 'failed'
+    # Längster Treffer gewinnt, sonst schnappt sich „gemini-3-flash" die SKUs
+    # von „gemini-3-flash-lite"
+    wanted = sorted(((m, m.replace('-', ' ').lower()) for m in models),
+                    key=lambda x: -len(x[1]))
+    out: dict[str, dict] = {}
+    for sku in skus:
+        desc = str(sku.get('description') or '').lower()
+        model = next((m for m, needle in wanted if needle in desc), None)
+        if not model:
+            continue
+        kind = next((k for word, k in _SKU_KINDS if word in desc), None)
+        price = _sku_unit_price(sku) if kind else None
+        if kind and price:
+            out.setdefault(model, {})[kind] = price
+    return out, ''
+
+
+@admin_app.route('/api/ai/prices/fetch', methods=['POST'])
+def api_ai_prices_fetch():
+    err = _api_auth()
+    if err:
+        return err
+    if not gemini_text_enabled():
+        return jsonify({'error': 'no_api_key'}), 400
+    raw = (request.get_json(silent=True) or {}).get('models')
+    models = [m for m in (raw if isinstance(raw, list) else [])[:60]
+              if isinstance(m, str) and _AI_MODEL_RE.match(m)]
+    if not models:
+        return jsonify({'error': 'invalid'}), 400
+    prices, code = _gemini_fetch_prices(models)
+    if code:
+        return jsonify({'error': code}), 502
+    log.info("Preiskatalog abgefragt: %d von %d Modellen zugeordnet",
+             len(prices), len(models))
+    return jsonify({'ok': True, 'prices': prices})
 
 
 @admin_app.route('/api/ai/prices', methods=['POST'])
