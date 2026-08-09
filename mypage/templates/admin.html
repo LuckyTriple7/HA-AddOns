@@ -184,6 +184,16 @@
 
     .upload-row { display: flex; gap: 8px; align-items: center; }
     .upload-row input[type="text"] { flex: 1; }
+    /* Reiseblog-Wizard */
+    .wiz-steps { display: flex; flex-wrap: wrap; gap: 6px; margin: 14px 0 16px; }
+    .wiz-step { background: var(--surf2); border: 1px solid var(--border); color: var(--muted); padding: 5px 11px; border-radius: 99px; font-size: 0.78rem; cursor: pointer; }
+    .wiz-step.active { border-color: var(--accent); color: var(--accent); font-weight: 600; }
+    .wiz-step.filled { color: var(--text); }
+    .trav-item { border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 10px; background: var(--surf2); }
+    .trav-item-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px; }
+    .trav-rating { display: flex; gap: 3px; }
+    .trav-rating button { background: none; border: none; cursor: pointer; font-size: 1.1rem; padding: 0 2px; color: var(--border); }
+    .trav-rating button.on { color: #f5b301; }
     /* KI-Studio */
     .ai-chips { display: flex; flex-wrap: wrap; gap: 6px; }
     .ai-chip { background: var(--surf2); border: 1px solid var(--border); color: var(--muted); padding: 4px 10px; border-radius: 999px; font-size: 0.78rem; cursor: pointer; }
@@ -301,6 +311,7 @@
         <button class="tab-btn" data-tab="content">{{ t.tab_content }}</button>
         <button class="tab-btn" data-tab="projects">{{ t.tab_projects }}</button>
         <button class="tab-btn" data-tab="blog">{{ t.tab_blog }}</button>
+        <button class="tab-btn" data-tab="travel">🧳 {{ t.tab_travel }}</button>
         <button class="tab-btn" data-tab="pages">{{ t.tab_pages }}</button>
         <button class="tab-btn" data-tab="library">{{ t.tab_library }}</button>
         <button class="tab-btn" data-tab="ai" id="tab-btn-ai" style="display:none">✦ {{ t.tab_ai }}</button>
@@ -656,6 +667,26 @@
         <button class="btn" style="margin-top:12px" onclick="sendNewsletter()">✉ {{ t.nl_send }}</button>
         <div id="nl-subs" class="collapsible" style="margin-top:16px"></div>
         <button class="btn secondary small collapse-btn" id="nl-subs-btn" onclick="toggleCollapse('nl-subs')"></button>
+      </div>
+    </section>
+
+    <!-- Reiseblog -->
+    <section class="tab" id="tab-travel">
+      <div class="panel">
+        <h3 style="display:flex;justify-content:space-between;align-items:center">
+          🧳 {{ t.trav_trips_heading }}
+          <button class="btn small" onclick="openTripModal()">+ {{ t.trav_new_trip }}</button>
+        </h3>
+        <p class="hint">{{ t.trav_trips_hint }}</p>
+        <div class="proj-list" id="trav-trip-list"></div>
+      </div>
+      <div class="panel" id="trav-days-panel" style="display:none">
+        <h3 style="display:flex;justify-content:space-between;align-items:center">
+          <span id="trav-days-title"></span>
+          <button class="btn small" onclick="openDayModal()">+ {{ t.trav_new_day }}</button>
+        </h3>
+        <p class="hint">{{ t.trav_days_hint }}</p>
+        <div class="proj-list" id="trav-day-list"></div>
       </div>
     </section>
 
@@ -2077,6 +2108,67 @@
   <!-- Medien-Browser. Steht bewusst als letztes Modal im Dokument: alle .modal-bg
        teilen sich z-index 50, gestapelt wird also über die DOM-Reihenfolge — und
        dieses hier wird aus anderen Dialogen heraus geöffnet. -->
+  <!-- Reise-Modal -->
+  <div class="modal-bg" id="trip-modal">
+    <div class="modal">
+      <h3 id="trip-modal-title">{{ t.trav_new_trip }}</h3>
+      <div class="row">
+        <div><label>{{ t.trav_trip_name }} *</label><input type="text" id="tr-name" placeholder="Gran Canaria 2027"></div>
+        <div><label>{{ t.trav_destination }}</label><input type="text" id="tr-destination" placeholder="Gran Canaria"></div>
+      </div>
+      <label>{{ t.trav_hotel }}</label>
+      <input type="text" id="tr-hotel">
+      <div class="row">
+        <div><label>{{ t.trav_start }}</label><input type="date" id="tr-start"></div>
+        <div><label>{{ t.trav_end }}</label><input type="date" id="tr-end"></div>
+      </div>
+      <h4 style="margin:18px 0 4px">{{ t.trav_settings }}</h4>
+      <p class="hint">{{ t.trav_settings_hint }}</p>
+      <div class="row">
+        <div><label>{{ t.trav_style }}</label><select id="tr-style"></select></div>
+        <div><label>{{ t.trav_perspective }}</label><select id="tr-perspective"></select></div>
+      </div>
+      <div class="row">
+        <div><label>{{ t.trav_length }}</label><select id="tr-length"></select></div>
+        <div><label>{{ t.trav_langs }}</label>
+          <select id="tr-langs">
+            <option value="de">{{ t.ai_lang_de }}</option>
+            <option value="de,en">{{ t.ai_lang_both }}</option>
+          </select>
+        </div>
+      </div>
+      <label class="checkbox"><input type="checkbox" id="tr-humor"> {{ t.trav_humor }}</label>
+      <label class="checkbox"><input type="checkbox" id="tr-prices" checked> {{ t.trav_inc_prices }}</label>
+      <label class="checkbox"><input type="checkbox" id="tr-practical" checked> {{ t.trav_inc_practical }}</label>
+      <label class="checkbox"><input type="checkbox" id="tr-ratings" checked> {{ t.trav_inc_ratings }}</label>
+      <div class="modal-actions">
+        <button class="btn secondary" onclick="el('trip-modal').classList.remove('open')">{{ t.cancel }}</button>
+        <button class="btn" style="margin-top:16px" onclick="saveTrip()">{{ t.save }}</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tages-Wizard -->
+  <div class="modal-bg" id="day-modal">
+    <div class="modal md-modal-box">
+      <h3 id="day-modal-title">{{ t.trav_new_day }}</h3>
+      <div class="wiz-steps" id="wiz-steps"></div>
+      <div id="wiz-body"></div>
+      <p class="hint" id="wiz-draft-note" style="min-height:1em"></p>
+      <div class="modal-actions" style="justify-content:space-between">
+        <div>
+          <button class="btn secondary" onclick="el('day-modal').classList.remove('open')">{{ t.cancel }}</button>
+          <button class="btn secondary" id="wiz-prev" onclick="wizGo(-1)">‹ {{ t.trav_back }}</button>
+          <button class="btn secondary" id="wiz-next" onclick="wizGo(1)">{{ t.trav_next }} ›</button>
+        </div>
+        <div>
+          <button class="btn secondary" onclick="saveDay(false)">{{ t.save }}</button>
+          <button class="btn" id="wiz-gen" onclick="generateReport(this)">✦ {{ t.trav_generate }}</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div class="modal-bg" id="uploads-modal">
     <div class="modal md-modal-box">
       <h3>{{ t.uploads_pick_title }}</h3>
@@ -2502,6 +2594,7 @@
         if (btn.dataset.tab === 'system') { loadAudit(); loadTwofa(); loadAutoBackups(); loadFileBrowser(); }
         if (btn.dataset.tab === 'blog') loadSubscribers();
         if (btn.dataset.tab === 'ai') initAiTab();
+        if (btn.dataset.tab === 'travel') loadTravel();
       });
     });
 
@@ -5415,6 +5508,502 @@
         toast(T.library_pdf_upload_failed, true);
       }
     });
+    // ── Reiseblog ──
+    // Der Wizard arbeitet direkt auf einem einfachen Objekt `DAY`, das genau der
+    // Form entspricht, die der Server erwartet. Dadurch gibt es kein Mapping
+    // zwischen Formular und Datenmodell, das auseinanderlaufen könnte.
+    let TRAVEL = { trips: [] };
+    let TRAVEL_OPT = null;
+    let curTripId = null, editingDayId = null, DAY = null, wizStep = 0;
+
+    async function loadTravel() {
+      if (!TRAVEL_OPT) {
+        const ro = await api('api/travel/options');
+        TRAVEL_OPT = ro.ok ? await ro.json() : {};
+      }
+      const r = await api('api/travel');
+      if (!r.ok) { toast(T.error_load, true); return; }
+      TRAVEL = await r.json();
+      renderTrips();
+    }
+    function curTrip() { return TRAVEL.trips.find(t => t.id === curTripId) || null; }
+
+    function renderTrips() {
+      const list = el('trav-trip-list');
+      list.innerHTML = '';
+      if (!TRAVEL.trips.length) {
+        list.innerHTML = `<div class="empty-note">${T.trav_no_trips}</div>`;
+        el('trav-days-panel').style.display = 'none';
+        return;
+      }
+      TRAVEL.trips.forEach(t => {
+        const div = document.createElement('div');
+        div.className = 'proj-item' + (t.id === curTripId ? ' active' : '');
+        const span = document.createElement('div');
+        span.style.flex = '1';
+        span.style.cursor = 'pointer';
+        span.innerHTML = `<strong>${escHtml(t.name)}</strong>`
+          + `<div class="hint">${escHtml([t.destination, t.travel_start, (t.days || []).length + ' ' + T.trav_days_word].filter(Boolean).join(' · '))}</div>`;
+        span.onclick = () => { curTripId = t.id; renderTrips(); renderDays(); };
+        const edit = document.createElement('button');
+        edit.className = 'btn secondary small';
+        edit.textContent = T.edit;
+        edit.onclick = () => openTripModal(t.id);
+        const del = document.createElement('button');
+        del.className = 'btn danger small';
+        del.textContent = '✕';
+        del.onclick = async () => {
+          if (!confirm(T.trav_del_trip_confirm.replace('{v}', t.name))) return;
+          const r = await apiJson('api/travel/trips/' + t.id, 'DELETE', {});
+          if (r.ok) { if (curTripId === t.id) curTripId = null; loadTravel(); }
+        };
+        div.append(span, edit, del);
+        list.appendChild(div);
+      });
+      if (curTrip()) renderDays();
+    }
+    function escHtml(s) {
+      const d = document.createElement('div');
+      d.textContent = s == null ? '' : s;
+      return d.innerHTML;
+    }
+
+    function renderDays() {
+      const trip = curTrip();
+      el('trav-days-panel').style.display = trip ? '' : 'none';
+      if (!trip) return;
+      el('trav-days-title').textContent = trip.name;
+      const list = el('trav-day-list');
+      list.innerHTML = '';
+      const days = trip.days || [];
+      if (!days.length) { list.innerHTML = `<div class="empty-note">${T.trav_no_days}</div>`; return; }
+      days.forEach(d => {
+        const div = document.createElement('div');
+        div.className = 'proj-item';
+        const art = (d.article || {}).de || {};
+        const span = document.createElement('div');
+        span.style.flex = '1';
+        span.innerHTML = `<strong>${T.trav_day} ${d.day_number}${d.location ? ' — ' + escHtml(d.location) : ''}</strong>`
+          + `<div class="hint">${escHtml([d.date, (d.experiences || []).length + ' ' + T.trav_experiences_word,
+              art.title ? '✔ ' + T.trav_has_report : T.trav_no_report].filter(Boolean).join(' · '))}</div>`;
+        const edit = document.createElement('button');
+        edit.className = 'btn secondary small';
+        edit.textContent = T.edit;
+        edit.onclick = () => openDayModal(d.id);
+        const del = document.createElement('button');
+        del.className = 'btn danger small';
+        del.textContent = '✕';
+        del.onclick = async () => {
+          if (!confirm(T.confirm_delete)) return;
+          const r = await apiJson(`api/travel/trips/${curTripId}/days/${d.id}`, 'DELETE', {});
+          if (r.ok) loadTravel();
+        };
+        div.append(span, edit, del);
+        list.appendChild(div);
+      });
+    }
+
+    // ── Reise-Modal ──
+    let editingTripId = null;
+    function fillOptSelect(id, values, labels) {
+      const sel = el(id);
+      sel.innerHTML = '';
+      (values || []).forEach(v => {
+        const o = document.createElement('option');
+        o.value = v;
+        o.textContent = (labels && labels[v]) || v;
+        sel.appendChild(o);
+      });
+    }
+    function openTripModal(id) {
+      editingTripId = id || null;
+      const t = id ? TRAVEL.trips.find(x => x.id === id) : {};
+      const s = t.settings || {};
+      fillOptSelect('tr-style', TRAVEL_OPT.writing_styles, T.trav_style_labels);
+      fillOptSelect('tr-perspective', TRAVEL_OPT.perspectives, T.trav_perspective_labels);
+      fillOptSelect('tr-length', TRAVEL_OPT.lengths, T.trav_length_labels);
+      el('trip-modal-title').textContent = id ? T.trav_edit_trip : T.trav_new_trip;
+      el('tr-name').value = t.name || '';
+      el('tr-destination').value = t.destination || '';
+      el('tr-hotel').value = t.hotel || '';
+      el('tr-start').value = t.travel_start || '';
+      el('tr-end').value = t.travel_end || '';
+      el('tr-style').value = s.writing_style || 'persoenlich_locker';
+      el('tr-perspective').value = s.perspective || 'wir';
+      el('tr-length').value = s.length || 'mittel';
+      el('tr-langs').value = (s.langs || ['de']).join(',');
+      el('tr-humor').checked = !!s.humor;
+      el('tr-prices').checked = s.include_prices !== false;
+      el('tr-practical').checked = s.include_practical_info !== false;
+      el('tr-ratings').checked = s.include_ratings !== false;
+      el('trip-modal').classList.add('open');
+    }
+    async function saveTrip() {
+      const body = {
+        name: el('tr-name').value, destination: el('tr-destination').value,
+        hotel: el('tr-hotel').value, travel_start: el('tr-start').value,
+        travel_end: el('tr-end').value,
+        settings: {
+          writing_style: el('tr-style').value, perspective: el('tr-perspective').value,
+          length: el('tr-length').value, langs: el('tr-langs').value.split(','),
+          humor: el('tr-humor').checked, include_prices: el('tr-prices').checked,
+          include_practical_info: el('tr-practical').checked,
+          include_ratings: el('tr-ratings').checked,
+        },
+      };
+      if (!body.name.trim()) { toast(T.error_title, true); return; }
+      const r = editingTripId
+        ? await apiJson('api/travel/trips/' + editingTripId, 'PUT', body)
+        : await apiJson('api/travel/trips', 'POST', body);
+      toast(r.ok ? T.saved : T.error_save, !r.ok);
+      if (r.ok) {
+        if (!editingTripId) curTripId = (await r.json()).id;
+        el('trip-modal').classList.remove('open');
+        loadTravel();
+      }
+    }
+
+    // ── Bausteine für den Wizard ──
+    function travLabel(text) {
+      const l = document.createElement('label');
+      l.textContent = text;
+      return l;
+    }
+    // Bindet ein Eingabefeld an ein Objekt. Leere Eingaben werden zu '' bzw.
+    // null gespeichert — der Prompt-Bau laesst genau diese Felder dann weg.
+    function travField(obj, key, type, label, optKey) {
+      const wrap = document.createElement('div');
+      if (type === 'rating') {
+        wrap.appendChild(travLabel(label));
+        const box = document.createElement('div');
+        box.className = 'trav-rating';
+        const paint = () => [...box.children].forEach((b, i) =>
+          b.classList.toggle('on', (obj[key] || 0) > i));
+        for (let i = 1; i <= 5; i++) {
+          const b = document.createElement('button');
+          b.type = 'button'; b.textContent = '★';
+          b.onclick = () => { obj[key] = (obj[key] === i) ? null : i; paint(); travDraft(); };
+          box.appendChild(b);
+        }
+        paint();
+        wrap.appendChild(box);
+        return wrap;
+      }
+      let input;
+      if (type === 'textarea') {
+        input = document.createElement('textarea');
+        input.rows = 3;
+      } else if (type === 'select') {
+        input = document.createElement('select');
+        const empty = document.createElement('option');
+        empty.value = ''; empty.textContent = '—';
+        input.appendChild(empty);
+        (TRAVEL_OPT[optKey] || []).forEach(v => {
+          const o = document.createElement('option');
+          o.value = v; o.textContent = v;
+          input.appendChild(o);
+        });
+      } else {
+        input = document.createElement('input');
+        input.type = type;
+        if (type === 'number') input.step = 'any';
+      }
+      input.value = obj[key] == null ? '' : obj[key];
+      input.oninput = () => {
+        obj[key] = (type === 'number')
+          ? (input.value === '' ? null : parseFloat(input.value))
+          : input.value;
+        travDraft();
+      };
+      wrap.append(travLabel(label), input);
+      return wrap;
+    }
+    function travRow(...nodes) {
+      const r = document.createElement('div');
+      r.className = 'row';
+      nodes.forEach(n => r.appendChild(n));
+      return r;
+    }
+    // Wiederholbare Blöcke (Erlebnisse, Essen, Momente, Ausgaben, Fotos)
+    function travList(container, obj, listKey, addLabel, render) {
+      const draw = () => {
+        container.innerHTML = '';
+        (obj[listKey] || []).forEach((item, idx) => {
+          const box = document.createElement('div');
+          box.className = 'trav-item';
+          const head = document.createElement('div');
+          head.className = 'trav-item-head';
+          const h = document.createElement('strong');
+          h.textContent = addLabel + ' ' + (idx + 1);
+          const del = document.createElement('button');
+          del.className = 'btn danger small';
+          del.textContent = '✕';
+          del.onclick = () => { obj[listKey].splice(idx, 1); travDraft(); draw(); };
+          head.append(h, del);
+          box.appendChild(head);
+          render(box, item);
+          container.appendChild(box);
+        });
+        const add = document.createElement('button');
+        add.className = 'btn secondary small';
+        add.textContent = '+ ' + addLabel;
+        add.onclick = () => { (obj[listKey] = obj[listKey] || []).push({}); travDraft(); draw(); };
+        container.appendChild(add);
+      };
+      draw();
+    }
+
+    // ── Wizard ──
+    const WIZ = [
+      ['trav_step_day', wizDay], ['trav_step_weather', wizWeather],
+      ['trav_step_experiences', wizExperiences], ['trav_step_meals', wizMeals],
+      ['trav_step_personal', wizPersonal], ['trav_step_extras', wizExtras],
+      ['trav_step_photos', wizPhotos], ['trav_step_report', wizReport],
+    ];
+    function emptyDay() {
+      const days = (curTrip() || {}).days || [];
+      const next = days.reduce((m, d) => Math.max(m, d.day_number || 0), 0) + 1;
+      return {
+        day_number: next, date: new Date().toLocaleDateString('en-CA'), location: '', hotel: '',
+        weather: { mention: false }, experiences: [], meals: [], special_moments: [],
+        expenses: [], photos: [], personal: {}, additional_notes: '', important: '', exclude: '',
+        article: null,
+      };
+    }
+    function draftKey() { return 'mp-trav-' + curTripId + '-' + (editingDayId || 'new'); }
+    // Unterwegs im Hotel-WLAN: ein Verbindungsabbruch nach zwanzig Minuten
+    // Tippen waere bitter. Deshalb liegt der Stand laufend lokal.
+    function travDraft() {
+      try { localStorage.setItem(draftKey(), JSON.stringify(DAY)); } catch (e) { /* voll */ }
+      el('wiz-draft-note').textContent = T.trav_draft_saved;
+    }
+    function openDayModal(id) {
+      editingDayId = id || null;
+      const trip = curTrip();
+      const existing = id ? (trip.days || []).find(d => d.id === id) : null;
+      DAY = existing ? JSON.parse(JSON.stringify(existing)) : emptyDay();
+      let draft = null;
+      try { draft = JSON.parse(localStorage.getItem(draftKey()) || 'null'); } catch (e) { /* egal */ }
+      if (draft && confirm(T.trav_draft_restore)) DAY = draft;
+      el('day-modal-title').textContent = id ? T.trav_edit_day : T.trav_new_day;
+      wizStep = 0;
+      wizRender();
+      el('day-modal').classList.add('open');
+    }
+    function wizGo(dir) {
+      wizStep = Math.max(0, Math.min(WIZ.length - 1, wizStep + dir));
+      wizRender();
+    }
+    function wizRender() {
+      const steps = el('wiz-steps');
+      steps.innerHTML = '';
+      WIZ.forEach(([key], i) => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'wiz-step' + (i === wizStep ? ' active' : '');
+        b.textContent = (i + 1) + '. ' + T[key];
+        b.onclick = () => { wizStep = i; wizRender(); };
+        steps.appendChild(b);
+      });
+      const body = el('wiz-body');
+      body.innerHTML = '';
+      WIZ[wizStep][1](body);
+      el('wiz-prev').style.visibility = wizStep ? '' : 'hidden';
+      el('wiz-next').style.visibility = wizStep < WIZ.length - 1 ? '' : 'hidden';
+    }
+
+    function wizDay(b) {
+      b.append(travRow(travField(DAY, 'day_number', 'number', T.trav_day_number),
+                       travField(DAY, 'date', 'date', T.field_date)),
+               travRow(travField(DAY, 'location', 'text', T.trav_location),
+                       travField(DAY, 'hotel', 'text', T.trav_hotel_today)));
+      const p = document.createElement('p');
+      p.className = 'hint';
+      p.textContent = T.trav_step_day_hint;
+      b.appendChild(p);
+    }
+    function wizWeather(b) {
+      const w = DAY.weather = DAY.weather || {};
+      const lab = document.createElement('label');
+      lab.className = 'checkbox';
+      const cb = document.createElement('input');
+      cb.type = 'checkbox'; cb.checked = !!w.mention;
+      cb.onchange = () => { w.mention = cb.checked; travDraft(); };
+      lab.append(cb, document.createTextNode(' ' + T.trav_weather_mention));
+      b.appendChild(lab);
+      const hint = document.createElement('p');
+      hint.className = 'hint';
+      hint.textContent = T.trav_weather_hint;
+      b.appendChild(hint);
+      b.append(travRow(travField(w, 'condition', 'select', T.trav_weather, 'weather_conditions'),
+                       travField(w, 'temperature', 'number', T.trav_temperature)),
+               travRow(travField(w, 'wind', 'select', T.trav_wind, 'wind_strengths'),
+                       document.createElement('div')),
+               travField(w, 'comment', 'textarea', T.trav_weather_comment));
+    }
+    function wizExperiences(b) {
+      travList(b, DAY, 'experiences', T.trav_experience, (box, it) => {
+        box.append(travRow(travField(it, 'type', 'select', T.trav_type, 'experience_types'),
+                           travField(it, 'title', 'text', T.trav_title_place)),
+                   travRow(travField(it, 'start_time', 'time', T.trav_start_time),
+                           travField(it, 'end_time', 'time', T.trav_end_time)),
+                   travField(it, 'description', 'textarea', T.field_desc),
+                   travRow(travField(it, 'rating', 'rating', T.trav_rating),
+                           travField(it, 'recommendation', 'select', T.trav_recommendation, 'recommendations')),
+                   travRow(travField(it, 'positive', 'textarea', T.trav_positive),
+                           travField(it, 'negative', 'textarea', T.trav_negative)),
+                   travField(it, 'highlight', 'textarea', T.trav_highlight),
+                   travRow(travField(it, 'transport', 'select', T.trav_transport, 'transports'),
+                           travField(it, 'travel_time', 'number', T.trav_travel_time)),
+                   travRow(travField(it, 'entry_fee', 'number', T.trav_entry_fee),
+                           travField(it, 'currency', 'select', T.trav_currency, 'currencies')),
+                   travField(it, 'practical_info', 'textarea', T.trav_practical));
+      });
+    }
+    function wizMeals(b) {
+      travList(b, DAY, 'meals', T.trav_meal, (box, it) => {
+        box.append(travRow(travField(it, 'meal_type', 'select', T.trav_meal_type, 'meal_types'),
+                           travField(it, 'restaurant', 'text', T.trav_restaurant)),
+                   travRow(travField(it, 'food', 'textarea', T.trav_food),
+                           travField(it, 'drinks', 'text', T.trav_drinks)),
+                   travRow(travField(it, 'price', 'number', T.trav_price),
+                           travField(it, 'currency', 'select', T.trav_currency, 'currencies')),
+                   travRow(travField(it, 'rating', 'rating', T.trav_rating),
+                           travField(it, 'taste', 'text', T.trav_taste)),
+                   travField(it, 'comment', 'textarea', T.trav_comment));
+      });
+    }
+    function wizPersonal(b) {
+      const p = DAY.personal = DAY.personal || {};
+      b.append(travField(p, 'day_highlight', 'textarea', T.trav_day_highlight),
+               travRow(travField(p, 'day_positive', 'textarea', T.trav_day_positive),
+                       travField(p, 'day_negative', 'textarea', T.trav_day_negative)),
+               travRow(travField(p, 'funny_moment', 'textarea', T.trav_funny),
+                       travField(p, 'unexpected', 'textarea', T.trav_unexpected)),
+               travField(p, 'day_summary', 'textarea', T.trav_day_summary),
+               travField(p, 'overall_rating', 'rating', T.trav_overall_rating));
+    }
+    function wizExtras(b) {
+      const h1 = document.createElement('h4');
+      h1.textContent = T.trav_moments;
+      b.appendChild(h1);
+      const box1 = document.createElement('div');
+      b.appendChild(box1);
+      travList(box1, DAY, 'special_moments', T.trav_moment, (box, it) => {
+        box.append(travRow(travField(it, 'category', 'select', T.trav_category, 'moment_categories'),
+                           travField(it, 'time', 'time', T.trav_time)),
+                   travField(it, 'title', 'text', T.field_title),
+                   travField(it, 'description', 'textarea', T.field_desc));
+      });
+      const h2 = document.createElement('h4');
+      h2.style.marginTop = '18px';
+      h2.textContent = T.trav_expenses;
+      b.appendChild(h2);
+      const box2 = document.createElement('div');
+      b.appendChild(box2);
+      travList(box2, DAY, 'expenses', T.trav_expense, (box, it) => {
+        box.append(travRow(travField(it, 'category', 'select', T.trav_category, 'expense_categories'),
+                           travField(it, 'description', 'text', T.field_desc)),
+                   travRow(travField(it, 'amount', 'number', T.trav_amount),
+                           travField(it, 'currency', 'select', T.trav_currency, 'currencies')));
+      });
+    }
+    function wizPhotos(b) {
+      const box = document.createElement('div');
+      b.appendChild(box);
+      travList(box, DAY, 'photos', T.trav_photo, (row, it) => {
+        const pick = document.createElement('button');
+        pick.className = 'btn secondary small';
+        pick.textContent = it.url ? T.image_pick + ' …' : '+ ' + T.image_pick;
+        pick.onclick = () => browseUploads(u => { it.url = u; travDraft(); wizRender(); });
+        if (it.url) {
+          const img = document.createElement('img');
+          img.src = assetUrl(it.url);
+          img.style.cssText = 'max-height:90px;border-radius:6px;display:block;margin-bottom:6px';
+          row.appendChild(img);
+        }
+        row.append(pick, travField(it, 'photo_note', 'text', T.trav_photo_note));
+      });
+      b.append(travField(DAY, 'additional_notes', 'textarea', T.trav_additional),
+               travRow(travField(DAY, 'important', 'textarea', T.trav_important),
+                       travField(DAY, 'exclude', 'textarea', T.trav_exclude)));
+    }
+    function wizReport(b) {
+      const art = DAY.article;
+      if (!art || !(art.de || {}).title) {
+        const p = document.createElement('p');
+        p.className = 'empty-note';
+        p.textContent = T.trav_no_report_yet;
+        b.appendChild(p);
+        return;
+      }
+      const langs = ((curTrip().settings || {}).langs) || ['de'];
+      langs.forEach(lg => {
+        const h = document.createElement('h4');
+        h.textContent = lg === 'de' ? T.ai_out_de : T.ai_out_en;
+        h.style.margin = '10px 0 4px';
+        b.appendChild(h);
+        art[lg] = art[lg] || {};
+        b.append(travField(art[lg], 'title', 'text', T.field_title),
+                 travField(art[lg], 'teaser', 'text', T.trav_teaser),
+                 travField(art[lg], 'body', 'textarea', T.field_text_md));
+        b.lastChild.querySelector('textarea').rows = 16;
+      });
+      const tagWrap = document.createElement('div');
+      const tagInput = document.createElement('input');
+      tagInput.type = 'text';
+      tagInput.value = (art.tags || []).join(', ');
+      tagInput.oninput = () => {
+        art.tags = tagInput.value.split(',').map(s => s.trim()).filter(Boolean);
+        travDraft();
+      };
+      tagWrap.append(travLabel(T.field_tags), tagInput);
+      b.appendChild(tagWrap);
+      (art.captions || []).forEach((c, i) => {
+        const note = ((DAY.photos || [])[i] || {}).photo_note || '';
+        b.appendChild(travField(c, 'de', 'text',
+          T.trav_caption.replace('{n}', i + 1) + (note ? ' — ' + note : '')));
+      });
+    }
+
+    async function saveDay(silent) {
+      const trip = curTrip();
+      if (!trip) return null;
+      const r = editingDayId
+        ? await apiJson(`api/travel/trips/${trip.id}/days/${editingDayId}`, 'PUT', DAY)
+        : await apiJson(`api/travel/trips/${trip.id}/days`, 'POST', DAY);
+      if (!r.ok) { toast(T.error_save, true); return null; }
+      if (!editingDayId) editingDayId = (await r.json()).id;
+      try { localStorage.removeItem(draftKey()); } catch (e) { /* egal */ }
+      if (!silent) { toast(T.saved); el('day-modal').classList.remove('open'); }
+      await loadTravel();
+      return editingDayId;
+    }
+    async function generateReport(btn) {
+      if (!(DAY.experiences || []).length && !(DAY.personal || {}).day_summary) {
+        toast(T.trav_need_content, true);
+        return;
+      }
+      // Erst speichern: der Server baut den Prompt aus dem gespeicherten Tag,
+      // nicht aus dem, was gerade im Formular steht.
+      const id = await saveDay(true);
+      if (!id) return;
+      btn.disabled = true;
+      busyShow(T.trav_generating);
+      let r = null;
+      try {
+        r = await apiJson(`api/travel/trips/${curTripId}/days/${id}/generate`, 'POST', {});
+      } catch (e) { /* Netzfehler */ }
+      btn.disabled = false;
+      const d = r ? await r.json().catch(() => ({})) : {};
+      if (!r || !r.ok) { busyDone(aiErrMsg(d.error, d.model, d.detail), true); return; }
+      DAY.article = d.article;
+      busyDone(T.trav_generated);
+      wizStep = WIZ.length - 1;
+      wizRender();
+      await saveDay(true);
+    }
+
     // ── KI-Studio ──
     // Der Tab bleibt unsichtbar, solange kein Gemini-Key hinterlegt ist: ein
     // Reiter, der nur „kein Schlüssel" sagen kann, hilft niemandem.

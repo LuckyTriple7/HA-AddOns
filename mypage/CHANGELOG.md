@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.10.0
+- 🧳 **Neues Modul Reiseblog** (Tab *Reiseblog*). Unterwegs ein paar Stichpunkte erfassen — den Tagesbericht schreibt die KI daraus. Bewusst getrennt vom normalen Blog, mit eigenem Datenmodell und eigener Speicherung.
+- **Wizard mit acht Schritten** statt eines langen Formulars: Tag & Ort, Wetter, Erlebnisse, Essen, Eindrücke, Momente & Ausgaben, Fotos & Notizen, Bericht. **Pflicht sind nur Tagesnummer und Datum.** Leere Felder tauchen im Prompt gar nicht erst auf — sonst stünde dort „Wetter: —“ und das Modell dichtet etwas dazu.
+- **Schreibvorgaben je Reise** (Stil, Perspektive, Länge, Humor, Sprache, ob Preise, praktische Hinweise und Bewertungen genannt werden) — einmal einstellen, gilt für alle Tage.
+- Erzeugt **Titel, Anrisstext, Fließtext, Schlagwörter und Bildunterschriften**, auf Wunsch **deutsch und englisch in einem Durchgang**. Alles danach frei editierbar.
+- Die **vorherigen Reisetage** gehen als Kurzfassung mit in den Prompt, damit sich die Berichte nicht wiederholen.
+- **Zwischenstand wird laufend lokal gesichert.** Erfasst wird das unterwegs im Hotel-WLAN; ein Verbindungsabbruch nach zwanzig Minuten Tippen soll die Eingabe nicht kosten.
+- Eigene Datei **`travel.json`**, im Backup und in der Wiederherstellung enthalten. Wichtig dabei: **Aufräumen und Löschschutz lesen sie mit** — sonst hätte „Speicher aufräumen“ jedes Reisefoto für verwaist gehalten und gelöscht.
+- Noch **nicht öffentlich sichtbar**: die Berichte entstehen und werden im Admin verwaltet, die öffentlichen Seiten folgen als nächster Schritt.
+
 ## 0.9.20
 - 🔍 **Fehlgeschlagene KI-Anfragen sagen jetzt, woran es lag.** Im Add-on-Log stand der Grund längst (`PROHIBITED_CONTENT`, „enthielt kein Bild“), im Admin kam nur „Die Anfrage ist fehlgeschlagen“ an. Googles Abbruchgrund steht jetzt **in der Oberfläche**.
 - Liefert Gemini statt eines Bildes eine **Erklärung im Text** — der häufigste Fall bei einer stillen Absage — wird sie angezeigt statt weggeworfen. Genau daran erkennt man, welches Wort in der Beschreibung gestört hat.

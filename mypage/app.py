@@ -38,6 +38,8 @@ from urllib.parse import urlencode, urlparse, urlsplit, urlunsplit
 
 import markdown as md_lib
 from markupsafe import Markup, escape
+
+import travelblog as tb
 try:
     from PIL import Image, ImageDraw, ImageFont, ImageOps
     _HAS_PIL = True
@@ -117,6 +119,12 @@ DMKEY_PATH    = _DATA + '/dm.key'           # Fernet-Schlüssel für die DM-Vers
 TWOFA_PATH    = _DATA + '/admin_2fa.json'   # TOTP-Secret + Backup-Codes (Admin-2FA)
 SECRETKEY_PATH = _DATA + '/secret.key'      # Flask SECRET_KEY (signiert das trust2fa-Cookie)
 POLLS_PATH    = _DATA + '/polls.json'       # Umfrage-Stimmen (getrennt von site.json)
+# Reiseblog getrennt von site.json: eine Zwei-Wochen-Reise mit Erlebnissen,
+# Essen und Fotos sind schnell hundert Kilobyte, und site.json wird bei jedem
+# Admin-Speichern komplett neu geschrieben und beim Aufräumen komplett
+# durchsucht. Getrennt bleibt beides schnell und ein Fehler beim Schreiben
+# kostet nicht die ganze Seitenkonfiguration.
+TRAVEL_PATH   = _DATA + '/travel.json'
 UPLOADS_DIR   = Path(_DATA) / 'uploads'
 # Benutzerdateien: optional auf SMB-Share (run.sh setzt MYPAGE_USERFILES nach Mount)
 USERFILES_BASE = Path(os.environ.get('MYPAGE_USERFILES', _DATA + '/users'))
@@ -241,6 +249,7 @@ _subs_lock = threading.Lock()
 _slot_lock  = threading.Lock()
 _game_lock  = threading.Lock()
 _polls_lock = threading.Lock()
+_travel_lock = threading.Lock()
 
 # Mitglieder-Sessions (getrennt vom Admin)
 user_sessions: dict[str, list] = {}  # token → [user_id, expires]
@@ -4441,7 +4450,7 @@ def write_backup_zip(fp) -> None:
         for name in ('site.json', 'stats.json', 'messages.json', 'users.json',
                      'comments.json', 'audit.json', 'subscribers.json',
                      'dm.json', 'dm.key', 'admin_2fa.json', 'secret.key',
-                     'ai_usage.json'):
+                     'ai_usage.json', 'travel.json'):
             p = Path(_DATA) / name
             if p.is_file():
                 z.write(p, name)
@@ -4629,7 +4638,7 @@ def api_restore():
                 # gegen Zip-Slip absichern
                 if member in ('site.json', 'stats.json', 'messages.json', 'users.json',
                               'comments.json', 'audit.json', 'subscribers.json', 'dm.json',
-                              'admin_2fa.json', 'ai_usage.json'):
+                              'admin_2fa.json', 'ai_usage.json', 'travel.json'):
                     target = safe_under(Path(_DATA), member)
                 elif member in ('dm.key', 'secret.key'):  # Binär-/Text-Schlüssel, kein JSON
                     target = safe_under(Path(_DATA), member)
@@ -5529,6 +5538,240 @@ def api_ai_text():
                         'detail': detail, 'model': model}), 502
     log.info("KI-Text erzeugt (%s, %s, %s)", model, kind, '+'.join(langs))
     return jsonify({'ok': True, 'result': data})
+
+
+# ── Reiseblog ─────────────────────────────────────────────────────────────────
+#
+# Unterwegs entsteht kein fertiger Text, sondern ein paar Stichpunkte. Aus denen
+# baut `travelblog.build_prompt` einen Prompt, und daraus schreibt das Modell den
+# Tagesbericht. Rohdaten und Artikel bleiben getrennt gespeichert: eine Korrektur
+# am Text darf nicht verlorengehen, nur weil später eine Ausgabe nachgetragen wird.
+
+def load_travel() -> dict:
+    with _travel_lock:
+        try:
+            with open(TRAVEL_PATH, encoding='utf-8') as f:
+                data = json.load(f)
+        except FileNotFoundError:
+            return {'trips': []}
+        except Exception as e:
+            _quarantine_corrupt(TRAVEL_PATH, e)
+            return {'trips': []}
+    if not isinstance(data.get('trips'), list):
+        data['trips'] = []
+    return data
+
+
+def save_travel(data: dict) -> None:
+    with _travel_lock:
+        try:
+            _atomic_write_json(TRAVEL_PATH, data, indent=2)
+        except Exception as e:
+            log.warning("travel.json konnte nicht gespeichert werden: %s", e)
+
+
+def _trip(data: dict, tid: str) -> dict | None:
+    return next((t for t in data['trips'] if t.get('id') == tid), None)
+
+
+def _day(trip: dict, did: str) -> dict | None:
+    return next((d for d in trip.get('days', []) if d.get('id') == did), None)
+
+
+@admin_app.route('/api/travel')
+def api_travel_get():
+    err = _api_auth()
+    if err:
+        return err
+    return jsonify(load_travel())
+
+
+@admin_app.route('/api/travel/options')
+def api_travel_options():
+    """Auswahllisten aus einer Hand — sonst müssten sie im JavaScript ein
+    zweites Mal stehen und liefen mit der Zeit auseinander."""
+    err = _api_auth()
+    if err:
+        return err
+    return jsonify({
+        'weather_conditions': list(tb.WEATHER_CONDITIONS),
+        'wind_strengths': list(tb.WIND_STRENGTHS),
+        'experience_types': list(tb.EXPERIENCE_TYPES),
+        'recommendations': list(tb.RECOMMENDATIONS),
+        'transports': list(tb.TRANSPORTS),
+        'meal_types': list(tb.MEAL_TYPES),
+        'moment_categories': list(tb.MOMENT_CATEGORIES),
+        'expense_categories': list(tb.EXPENSE_CATEGORIES),
+        'currencies': list(tb.CURRENCIES),
+        'writing_styles': list(tb.WRITING_STYLES),
+        'perspectives': list(tb.PERSPECTIVES),
+        'lengths': list(tb.LENGTHS),
+    })
+
+
+@admin_app.route('/api/travel/trips', methods=['POST'])
+def api_travel_trip_create():
+    err = _api_auth()
+    if err:
+        return err
+    data = load_travel()
+    if len(data['trips']) >= tb.MAX_TRIPS:
+        return jsonify({'error': 'too many'}), 400
+    trip = tb.normalize_trip(request.get_json(silent=True) or {})
+    if not trip['name']:
+        return jsonify({'error': 'name required'}), 400
+    trip['id'] = uuid.uuid4().hex[:12]
+    data['trips'].insert(0, trip)
+    save_travel(data)
+    return jsonify({'ok': True, 'id': trip['id']})
+
+
+@admin_app.route('/api/travel/trips/<tid>', methods=['PUT', 'DELETE'])
+def api_travel_trip(tid: str):
+    err = _api_auth()
+    if err:
+        return err
+    data = load_travel()
+    trip = _trip(data, tid)
+    if trip is None:
+        return jsonify({'error': 'not_found'}), 404
+    if request.method == 'DELETE':
+        data['trips'] = [t for t in data['trips'] if t.get('id') != tid]
+        save_travel(data)
+        log_audit('travel_trip_delete', trip.get('name', ''))
+        return jsonify({'ok': True})
+    merged = tb.normalize_trip(request.get_json(silent=True) or {}, trip)
+    merged['id'] = tid
+    data['trips'] = [merged if t.get('id') == tid else t for t in data['trips']]
+    save_travel(data)
+    return jsonify({'ok': True})
+
+
+@admin_app.route('/api/travel/trips/<tid>/days', methods=['POST'])
+def api_travel_day_create(tid: str):
+    err = _api_auth()
+    if err:
+        return err
+    data = load_travel()
+    trip = _trip(data, tid)
+    if trip is None:
+        return jsonify({'error': 'not_found'}), 404
+    if len(trip.get('days', [])) >= tb.MAX_DAYS:
+        return jsonify({'error': 'too many'}), 400
+    day = tb.normalize_day(request.get_json(silent=True) or {})
+    day['id'] = uuid.uuid4().hex[:12]
+    trip.setdefault('days', []).append(day)
+    trip['days'].sort(key=lambda d: (d.get('day_number') or 0, d.get('date') or ''))
+    save_travel(data)
+    return jsonify({'ok': True, 'id': day['id']})
+
+
+@admin_app.route('/api/travel/trips/<tid>/days/<did>', methods=['PUT', 'DELETE'])
+def api_travel_day(tid: str, did: str):
+    err = _api_auth()
+    if err:
+        return err
+    data = load_travel()
+    trip = _trip(data, tid)
+    day = _day(trip, did) if trip else None
+    if day is None:
+        return jsonify({'error': 'not_found'}), 404
+    if request.method == 'DELETE':
+        trip['days'] = [d for d in trip['days'] if d.get('id') != did]
+        save_travel(data)
+        log_audit('travel_day_delete', f"{trip.get('name', '')} #{day.get('day_number')}")
+        return jsonify({'ok': True})
+    merged = tb.normalize_day(request.get_json(silent=True) or {}, day)
+    merged['id'] = did
+    trip['days'] = [merged if d.get('id') == did else d for d in trip['days']]
+    trip['days'].sort(key=lambda d: (d.get('day_number') or 0, d.get('date') or ''))
+    save_travel(data)
+    return jsonify({'ok': True})
+
+
+def _travel_article_schema(langs: list[str], photos: int):
+    """Antwortformat: je Sprache Titel, Anriss und Text, dazu Schlagwörter und
+    eine Bildunterschrift je Fotohinweis."""
+    per_lang = genai_types.Schema(
+        type=genai_types.Type.OBJECT,
+        properties={
+            'title':  genai_types.Schema(type=genai_types.Type.STRING),
+            'teaser': genai_types.Schema(type=genai_types.Type.STRING),
+            'body':   genai_types.Schema(type=genai_types.Type.STRING),
+        },
+        required=['title', 'teaser', 'body'],
+    )
+    props = {lg: per_lang for lg in langs}
+    props['tags'] = genai_types.Schema(
+        type=genai_types.Type.ARRAY,
+        items=genai_types.Schema(type=genai_types.Type.STRING))
+    if photos:
+        props['captions'] = genai_types.Schema(
+            type=genai_types.Type.ARRAY,
+            items=genai_types.Schema(
+                type=genai_types.Type.OBJECT,
+                properties={lg: genai_types.Schema(type=genai_types.Type.STRING)
+                            for lg in langs},
+                required=list(langs)))
+    return genai_types.Schema(type=genai_types.Type.OBJECT, properties=props,
+                              required=list(langs) + ['tags'])
+
+
+@admin_app.route('/api/travel/trips/<tid>/days/<did>/generate', methods=['POST'])
+def api_travel_generate(tid: str, did: str):
+    err = _api_auth()
+    if err:
+        return err
+    if not gemini_text_enabled():
+        return jsonify({'error': 'no_api_key'}), 400
+    data = load_travel()
+    trip = _trip(data, tid)
+    day = _day(trip, did) if trip else None
+    if day is None:
+        return jsonify({'error': 'not_found'}), 404
+    langs = (trip.get('settings') or {}).get('langs') or ['de']
+    # Vortage nach Tagesnummer, damit der Kontext stimmt, auch wenn ein Tag
+    # nachträglich eingeschoben wurde
+    previous = [d for d in trip.get('days', [])
+                if (d.get('day_number') or 0) < (day.get('day_number') or 0)]
+    prompt = tb.build_prompt(trip, day, previous)
+    photo_notes = [p for p in (day.get('photos') or []) if p.get('photo_note')]
+    if not _ai_rate_take(_ai_text_times, AI_TEXT_MAX_PER_HOUR):
+        return jsonify({'error': 'rate_limited'}), 429
+    model = _gemini_text_model()
+    try:
+        client = _gemini_client()
+        resp = client.models.generate_content(
+            model=model, contents=[prompt],
+            config=genai_types.GenerateContentConfig(
+                system_instruction=tb.SYSTEM_PROMPT,
+                response_mime_type='application/json',
+                response_schema=_travel_article_schema(langs, len(photo_notes)),
+                http_options=genai_types.HttpOptions(timeout=GEMINI_TEXT_TIMEOUT_MS),
+            ),
+        )
+        _ai_usage_record(model, resp)
+        cands = resp.candidates or []
+        finish = cands[0].finish_reason if cands else None
+        reason = getattr(finish, 'name', None) or (str(finish) if finish else '')
+        if finish in _GEMINI_TEXT_REFUSALS:
+            return jsonify({'error': 'ai_refused', 'detail': reason}), 502
+        raw = json.loads(resp.text or '')
+        if not isinstance(raw, dict):
+            return jsonify({'error': 'ai_empty', 'detail': reason}), 502
+    except genai_errors.APIError as e:
+        code = getattr(e, 'code', None)
+        log.warning("Reisebericht fehlgeschlagen (%s): Status %s", model, code)
+        return jsonify({'error': 'ai_model_missing' if code == 404 else 'ai_failed',
+                        'detail': f'HTTP {code}' if code else '', 'model': model}), 502
+    except Exception as e:
+        log.error("Reisebericht (%s) unerwartet fehlgeschlagen: %s: %s",
+                  model, type(e).__name__, e)
+        return jsonify({'error': 'ai_failed', 'detail': type(e).__name__}), 502
+    article = tb.normalize_article(raw)
+    log.info("Reisebericht erzeugt: %s Tag %s (%s, %s)", trip.get('name'),
+             day.get('day_number'), model, '+'.join(langs))
+    return jsonify({'ok': True, 'article': article, 'prompt': prompt})
 
 
 # ── KI-Verbrauch ──────────────────────────────────────────────────────────────
@@ -6769,7 +7012,7 @@ def api_uploads_list():
     err = _api_auth()
     if err:
         return err
-    blob = json.dumps(load_site(), ensure_ascii=False)
+    blob = _reference_blob(load_site())
     files = []
     for f in UPLOADS_DIR.iterdir():
         if not f.is_file() or f.suffix.lower() not in ALLOWED_UPLOAD_EXT:
@@ -6795,7 +7038,7 @@ def api_docs_list():
     err = _api_auth()
     if err:
         return err
-    blob = json.dumps(load_site(), ensure_ascii=False)
+    blob = _reference_blob(load_site())
     files = []
     for f in DOCS_DIR.iterdir():
         if not f.is_file() or not _DOC_FILE_RE.match(f.name):
@@ -6848,7 +7091,7 @@ def api_docs_delete():
     p = safe_under(DOCS_DIR, name)
     if p is None or not p.is_file():
         return jsonify({'error': 'not_found'}), 404
-    if name in json.dumps(load_site(), ensure_ascii=False):
+    if name in _reference_blob(load_site()):
         return jsonify({'error': 'in_use'}), 409
     try:
         p.unlink()
@@ -6859,13 +7102,24 @@ def api_docs_delete():
     return jsonify({'ok': True})
 
 
+def _reference_blob(site: dict) -> str:
+    """Der Text, in dem nach Dateinamen gesucht wird.
+
+    Enthält site.json UND travel.json. Ohne den Reiseblog-Teil hielte das
+    Aufräumen jedes Reisefoto für verwaist und löschte es beim nächsten Klick —
+    derselbe Grund, aus dem der Löschschutz im Datei-Browser hier mitliest.
+    """
+    return (json.dumps(site, ensure_ascii=False)
+            + json.dumps(load_travel(), ensure_ascii=False))
+
+
 def _unused_in(directory: Path, site: dict):
-    """Dateien in `directory`, die nirgends mehr in site.json referenziert sind.
+    """Dateien in `directory`, die nirgends mehr referenziert sind.
 
     Dateinamen sind durchweg eindeutige UUIDs, daher ist ein Vorkommen-Scan über
     den JSON-Text sicher und deckt jede Fundstelle ab, ohne die Struktur zu kennen.
     """
-    blob = json.dumps(site, ensure_ascii=False)
+    blob = _reference_blob(site)
     orphans, total = [], 0
     for f in directory.iterdir():
         if f.is_file() and f.name not in blob:
@@ -6935,7 +7189,7 @@ def api_uploads_delete():
     p = safe_under(UPLOADS_DIR, name)
     if p is None or not p.is_file():
         return jsonify({'error': 'not_found'}), 404
-    if name in json.dumps(load_site(), ensure_ascii=False):
+    if name in _reference_blob(load_site()):
         return jsonify({'error': 'in_use'}), 409
     try:
         p.unlink()

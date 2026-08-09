@@ -149,6 +149,19 @@ Ein Browser über **alle hochgeladenen Bilder** und die **PDFs der Bibliothek** 
 - Die Kachel eines **KI-Bildes** trägt ✨; die Kennzeichnung stammt aus dem Dateinamen.
 - Das Kontrollkästchen **„Nur KI-erzeugte Bilder“** blendet alles andere aus. Dieselbe Möglichkeit gibt es im Medien-Browser hinter jedem „Bild wählen“.
 
+### Reiseblog
+Ein eigenes Modul, getrennt vom normalen Blog: unterwegs ein paar Stichpunkte erfassen, den Tagesbericht schreibt die KI daraus.
+
+- **Reise anlegen** (Name, Ziel, Unterkunft, Zeitraum). Schreibstil, Perspektive, Länge und Sprache werden **einmal je Reise** festgelegt und gelten für alle Tage — nicht bei jedem Tag neu.
+- **Tag erfassen** im Wizard mit acht Schritten: Tag & Ort, Wetter, Erlebnisse, Essen, Eindrücke, Momente & Ausgaben, Fotos & Notizen, Bericht. **Pflicht sind nur Tagesnummer und Datum** — alles andere darf leer bleiben. Was leer ist, taucht im Prompt gar nicht erst auf, damit die KI nichts dazuerfindet.
+- Erlebnisse, Mahlzeiten, besondere Momente, Ausgaben und Fotos sind **beliebig oft** hinzufügbar. Ausgaben werden je Währung summiert — getrennt statt umgerechnet, ein geratener Wechselkurs wäre eine erfundene Zahl.
+- **„Wetter war erwähnenswert“**: ohne Haken lässt die KI das Wetter im Bericht weg.
+- Der Zwischenstand wird **laufend lokal im Browser gesichert**. Bricht unterwegs die Verbindung weg, ist die Eingabe nicht verloren.
+- **„Reisebericht erstellen“** baut aus den Angaben einen Prompt und liefert Titel, Anrisstext, Fließtext in Markdown, Schlagwörter und Bildunterschriften — auf Wunsch deutsch und englisch in einem Durchgang. Das Ergebnis ist frei editierbar.
+- Die **vorherigen Reisetage** gehen als Kurzfassung mit in den Prompt, damit sich die Berichte nicht wiederholen.
+- Gespeichert wird in **`travel.json`**, getrennt von `site.json` und im Backup enthalten. Rohdaten und fertiger Text liegen getrennt: eine Korrektur am Text geht nicht verloren, wenn später noch eine Ausgabe nachgetragen wird.
+- Noch **nicht öffentlich sichtbar** — die Berichte entstehen und werden im Admin verwaltet; die öffentlichen Seiten folgen in einem nächsten Schritt.
+
 ### Volltextsuche
 Eine seitenweite Suche über **Blog-Beiträge, Projekte, Seiten und Bibliothek-Einträge** (Titel, Inhalt und Tags, jeweils DE & EN). Im Design-Tab aktivierbar (Standard aus). Ist sie an, erscheint ein **Suchfeld im Kopfbereich** der Startseite; die Ergebnisse stehen unter `/suche`.
 
