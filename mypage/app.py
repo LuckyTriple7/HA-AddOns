@@ -367,6 +367,11 @@ DEFAULT_SITE = {
         'dm_ha_notify': False,
         'directory_enabled': False,
         'search_enabled': False,
+        # Reiter im Admin und Abschnitt auf der Startseite. Formulare stehen auf
+        # True, damit bestehende Installationen ihren Reiter behalten; der
+        # Reiseblog ist neu und startet aus.
+        'travel_enabled': False,
+        'forms_enabled': True,
         'registration_enabled': False,
         'registration_quota_mb': 500,
         'newsletter_enabled': False,
@@ -425,7 +430,7 @@ DEFAULT_SITE = {
     },
     'section_order': [
         'news', 'countdown', 'tips', 'freetext', 'poll', 'blog', 'services', 'projects', 'skills', 'testimonials',
-        'photos', 'library', 'team', 'timeline', 'events', 'links', 'faq', 'location',
+        'photos', 'library', 'travel', 'team', 'timeline', 'events', 'links', 'faq', 'location',
     ],
     'hidden_sections': [],
     'members_sections': [],
@@ -4036,7 +4041,8 @@ def api_design():
                  'registration_enabled', 'newsletter_enabled', 'maintenance', 'indexnow',
                  'allow_indexing', 'easter_eggs', 'mini_games', 'reveal_stagger',
                  'banner_enabled', 'banner_dismissible', 'share_enabled', 'dm_enabled',
-                 'dm_ha_notify', 'directory_enabled', 'search_enabled', 'weekly_review'):
+                 'dm_ha_notify', 'directory_enabled', 'search_enabled', 'weekly_review',
+                 'travel_enabled', 'forms_enabled'):
         if flag in raw:
             d[flag] = bool(raw[flag])
     if 'banner_link_url' in raw:
@@ -9958,6 +9964,10 @@ def public_index():
         'links':        ('links',        'links_heading',        bool(sections.get('links'))),
         'faq':          ('faq',          'faq_heading',          bool(sections.get('faq'))),
         'location':     ('standort',     'location_heading',     loc_present),
+        # Der Reiseblog laesst sich hier schon einsortieren und ausblenden. Auf
+        # der Startseite erscheint er erst mit den oeffentlichen Seiten -- bis
+        # dahin waere die Sprungmarke ein Verweis ins Leere.
+        'travel':       ('reiseblog',    'trav_trips_heading',   False),
     }
     # Gespeicherte Reihenfolge bereinigen: nur gültige Keys, fehlende hinten anhängen
     stored = [k for k in (site.get('section_order') or []) if k in section_defs]

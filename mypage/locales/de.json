@@ -2614,5 +2614,9 @@
     "kurz": "Kurz (~350 Wörter)",
     "mittel": "Mittel (~700 Wörter)",
     "lang": "Ausführlich (~1200 Wörter)"
-  }
+  },
+  "field_travel_enabled": "Reiseblog",
+  "travel_enabled_hint": "Blendet den Reiter „Reiseblog“ im Admin ein. Der Abschnitt lässt sich unter Inhalte einsortieren und ausblenden.",
+  "field_forms_enabled": "Formulare",
+  "forms_enabled_hint": "Blendet den Reiter „Formulare“ im Admin ein. Vorhandene Formulare bleiben erreichbar, auch wenn der Reiter aus ist."
 }

@@ -61,8 +61,14 @@
     .sec-lock:hover { opacity: .85; }
     label { display: block; font-size: 0.78rem; color: var(--muted); margin: 12px 0 4px; }
     label:first-of-type { margin-top: 0; }
+    /* color-scheme: sonst zeichnet der Browser Kalender-Symbol und Auswahlfenster
+       hell auf dunklem Grund -- das Symbol war praktisch unsichtbar. */
+    input[type="date"], input[type="datetime-local"], input[type="time"] { color-scheme: dark; }
+    :root[data-theme="light"] input[type="date"],
+    :root[data-theme="light"] input[type="datetime-local"],
+    :root[data-theme="light"] input[type="time"] { color-scheme: light; }
     input[type="text"], input[type="email"], input[type="url"], input[type="number"],
-    input[type="date"], input[type="datetime-local"], textarea, select {
+    input[type="date"], input[type="datetime-local"], input[type="time"], textarea, select {
       width: 100%; background: var(--bg); border: 1px solid var(--border); color: var(--text);
       padding: 8px 11px; border-radius: 6px; font-size: 0.87rem; font-family: inherit;
     }
@@ -311,11 +317,11 @@
         <button class="tab-btn" data-tab="content">{{ t.tab_content }}</button>
         <button class="tab-btn" data-tab="projects">{{ t.tab_projects }}</button>
         <button class="tab-btn" data-tab="blog">{{ t.tab_blog }}</button>
-        <button class="tab-btn" data-tab="travel">🧳 {{ t.tab_travel }}</button>
+        <button class="tab-btn" data-tab="travel" id="tab-btn-travel" style="display:none">{{ t.tab_travel }}</button>
         <button class="tab-btn" data-tab="pages">{{ t.tab_pages }}</button>
         <button class="tab-btn" data-tab="library">{{ t.tab_library }}</button>
         <button class="tab-btn" data-tab="ai" id="tab-btn-ai" style="display:none">✦ {{ t.tab_ai }}</button>
-        <button class="tab-btn" data-tab="forms">{{ t.tab_forms }}</button>
+        <button class="tab-btn" data-tab="forms" id="tab-btn-forms">{{ t.tab_forms }}</button>
         <button class="tab-btn" data-tab="design">{{ t.tab_design }}</button>
         <button class="tab-btn" data-tab="legal">{{ t.tab_legal }}</button>
         <button class="tab-btn" data-tab="messages">{{ t.tab_messages }} <span class="msg-badge" id="msg-badge" style="display:none"></span></button>
@@ -553,6 +559,11 @@
         <p class="hint">{{ t.section_edit_elsewhere }}</p>
         <button class="btn secondary small" onclick="document.querySelector('.tab-btn[data-tab=library]').click()">{{ t.tab_library }} →</button>
       </div>
+      <div class="panel acc" data-key="travel">
+        <div class="acc-head" onclick="toggleAcc(event, this)"><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.trav_trips_heading }} <span class="acc-ext">↗</span></div>
+        <p class="hint">{{ t.section_edit_elsewhere }}</p>
+        <button class="btn secondary small" onclick="document.querySelector('.tab-btn[data-tab=travel]').click()">{{ t.tab_travel }} →</button>
+      </div>
       <div class="panel acc" data-key="team">
         <div class="acc-head" onclick="toggleAcc(event, this)"><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.team_heading }}</div>
         <p class="hint">{{ t.team_hint }}</p>
@@ -674,7 +685,7 @@
     <section class="tab" id="tab-travel">
       <div class="panel">
         <h3 style="display:flex;justify-content:space-between;align-items:center">
-          🧳 {{ t.trav_trips_heading }}
+          {{ t.trav_trips_heading }}
           <button class="btn small" onclick="openTripModal()">+ {{ t.trav_new_trip }}</button>
         </h3>
         <p class="hint">{{ t.trav_trips_hint }}</p>
@@ -1174,6 +1185,24 @@
               <option value="1">{{ t.yes }}</option>
             </select>
             <p class="hint">{{ t.search_enabled_hint }}</p>
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <label>{{ t.field_travel_enabled }}</label>
+            <select id="d-travel_enabled">
+              <option value="0">{{ t.no }}</option>
+              <option value="1">{{ t.yes }}</option>
+            </select>
+            <p class="hint">{{ t.travel_enabled_hint }}</p>
+          </div>
+          <div>
+            <label>{{ t.field_forms_enabled }}</label>
+            <select id="d-forms_enabled">
+              <option value="0">{{ t.no }}</option>
+              <option value="1">{{ t.yes }}</option>
+            </select>
+            <p class="hint">{{ t.forms_enabled_hint }}</p>
           </div>
         </div>
         <div class="row">
@@ -4729,6 +4758,9 @@
       el('d-dm_ha_notify').value = d.dm_ha_notify ? '1' : '0';
       el('d-directory_enabled').value = d.directory_enabled ? '1' : '0';
       el('d-search_enabled').value = d.search_enabled ? '1' : '0';
+      el('d-travel_enabled').value = d.travel_enabled ? '1' : '0';
+      el('d-forms_enabled').value = d.forms_enabled !== false ? '1' : '0';
+      applyModuleTabs(d);
       el('d-registration_enabled').value = d.registration_enabled ? '1' : '0';
       el('d-registration_quota_mb').value = d.registration_quota_mb || 500;
       el('d-newsletter_enabled').value = d.newsletter_enabled ? '1' : '0';
@@ -4866,6 +4898,8 @@
         dm_ha_notify:     el('d-dm_ha_notify').value === '1',
         directory_enabled: el('d-directory_enabled').value === '1',
         search_enabled:    el('d-search_enabled').value === '1',
+        travel_enabled:    el('d-travel_enabled').value === '1',
+        forms_enabled:     el('d-forms_enabled').value === '1',
         registration_enabled: el('d-registration_enabled').value === '1',
         registration_quota_mb: parseInt(el('d-registration_quota_mb').value) || 500,
         newsletter_enabled: el('d-newsletter_enabled').value === '1',
@@ -5508,6 +5542,21 @@
         toast(T.library_pdf_upload_failed, true);
       }
     });
+    // Reiter der abschaltbaren Module. Ein Reiter, der zu einem ausgeschalteten
+    // Modul gehoert, ist nur Ballast -- und wer gerade auf ihm steht, wird auf
+    // Profil zurueckgeschickt, sonst bliebe ein unsichtbarer Bereich offen.
+    function applyModuleTabs(design) {
+      [['tab-btn-travel', !!design.travel_enabled],
+       ['tab-btn-forms', design.forms_enabled !== false]].forEach(([id, on]) => {
+        const btn = el(id);
+        if (!btn) return;
+        btn.style.display = on ? '' : 'none';
+        if (!on && btn.classList.contains('active')) {
+          document.querySelector('.tab-btn[data-tab=profile]').click();
+        }
+      });
+    }
+
     // ── Reiseblog ──
     // Der Wizard arbeitet direkt auf einem einfachen Objekt `DAY`, das genau der
     // Form entspricht, die der Server erwartet. Dadurch gibt es kein Mapping

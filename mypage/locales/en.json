@@ -2614,5 +2614,9 @@
     "kurz": "Short (~350 words)",
     "mittel": "Medium (~700 words)",
     "lang": "Detailed (~1200 words)"
-  }
+  },
+  "field_travel_enabled": "Travel blog",
+  "travel_enabled_hint": "Shows the “Travel blog” tab in the admin. The section can be positioned and hidden under Content.",
+  "field_forms_enabled": "Forms",
+  "forms_enabled_hint": "Shows the “Forms” tab in the admin. Existing forms stay reachable even when the tab is off."
 }

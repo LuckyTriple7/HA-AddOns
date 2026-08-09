@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.10.1
+- ⚙️ **Reiseblog und Formulare lassen sich ab- und anschalten** (Design → Module). Ein Reiter, der zu einem ungenutzten Modul gehört, ist nur Ballast. Der Reiseblog startet **aus**, Formulare bleiben **an**, damit bestehende Installationen ihren Reiter behalten.
+- 🧭 **Der Reiseblog lässt sich unter *Inhalte* einsortieren und ausblenden** wie jeder andere Abschnitt. Auf der Startseite erscheint er erst mit den öffentlichen Seiten — bis dahin wäre die Sprungmarke ein Verweis ins Leere.
+- 📅 **Datumsfelder zeigen wieder einen Kalender.** Ohne `color-scheme` zeichnete der Browser Symbol und Auswahlfenster hell auf dunklem Grund — das Kalendersymbol war praktisch unsichtbar. Betrifft auch Beitragsdatum und Countdown.
+- Das Sinnbild am Reiter *Reiseblog* ist weg.
+
 ## 0.10.0
 - 🧳 **Neues Modul Reiseblog** (Tab *Reiseblog*). Unterwegs ein paar Stichpunkte erfassen — den Tagesbericht schreibt die KI daraus. Bewusst getrennt vom normalen Blog, mit eigenem Datenmodell und eigener Speicherung.
 - **Wizard mit acht Schritten** statt eines langen Formulars: Tag & Ort, Wetter, Erlebnisse, Essen, Eindrücke, Momente & Ausgaben, Fotos & Notizen, Bericht. **Pflicht sind nur Tagesnummer und Datum.** Leere Felder tauchen im Prompt gar nicht erst auf — sonst stünde dort „Wetter: —“ und das Modell dichtet etwas dazu.
