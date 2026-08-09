@@ -784,8 +784,8 @@
             <label>{{ t.ai_img_ref }}</label>
             <div class="upload-row">
               <input type="text" id="ai-img-ref" readonly placeholder="{{ t.ai_img_ref_none }}">
-              <button class="btn secondary small" onclick="browseUploads(u => { el('ai-img-ref').value = u; renderAiRef(); })">{{ t.image_pick }}</button>
-              <button class="btn secondary small" onclick="el('ai-img-ref').value=''; renderAiRef()">✕</button>
+              <button class="btn secondary small" onclick="browseUploads(setAiRef)">{{ t.image_pick }}</button>
+              <button class="btn secondary small" onclick="setAiRef('')">✕</button>
             </div>
           </div>
         </div>
@@ -5387,11 +5387,17 @@
       ta.value = (ta.value.trim() ? ta.value.trim() + ' ' : '') + txt;
       ta.focus();
     }
-    function renderAiRef() {
-      const u = el('ai-img-ref').value.trim();
+    // Die Vorlage wird in `aiRefUrl` gehalten und NICHT aus dem Eingabefeld
+    // zurückgelesen: der Wert landet in einem <img src> und im Anfrage-Body,
+    // beides darf nur die Form einer eigenen Upload-Adresse annehmen. Das Feld
+    // ist reine Anzeige.
+    let aiRefUrl = '';
+    function setAiRef(u) {
+      aiRefUrl = /^\/uploads\/[A-Za-z0-9._-]+$/.test(u || '') ? u : '';
+      el('ai-img-ref').value = aiRefUrl;
       const img = el('ai-img-ref-thumb');
-      img.style.display = u ? '' : 'none';
-      if (u) img.src = assetUrl(u);
+      img.style.display = aiRefUrl ? '' : 'none';
+      if (aiRefUrl) img.src = assetUrl(aiRefUrl);
     }
     async function runAiImage(btn) {
       const prompt = el('ai-img-prompt').value.trim();
@@ -5402,8 +5408,7 @@
         ratio: el('ai-ratio').value,
         count: parseInt(el('ai-img-count').value, 10) || 1,
       };
-      const ref = el('ai-img-ref').value.trim();
-      if (ref) body.ref = ref;
+      if (aiRefUrl) body.ref = aiRefUrl;
       btn.disabled = true;
       el('ai-img-status').textContent = T.ai_img_running;
       busyShow(T.ai_img_running);
@@ -5464,7 +5469,7 @@
       const asRef = document.createElement('button');
       asRef.className = 'btn secondary small';
       asRef.textContent = '🎨 ' + T.ai_as_ref;
-      asRef.onclick = () => { el('ai-img-ref').value = d.url; renderAiRef(); toast(T.ai_ref_set); };
+      asRef.onclick = () => { setAiRef(d.url); toast(T.ai_ref_set); };
       act.append(ok, copy, asRef);
       const u = document.createElement('div');
       u.className = 'ai-url';
