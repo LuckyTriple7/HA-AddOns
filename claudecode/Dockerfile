@@ -180,8 +180,10 @@ RUN set -eu; \
     python3 -c "import io; p='/opt/ttyd-index.html'; h=io.open(p,encoding='utf-8').read(); j=io.open('/opt/mobile-scroll.js',encoding='utf-8').read(); assert '</body>' in h, 'ttyd index.html has no </body> — layout changed'; io.open(p,'w',encoding='utf-8').write(h.replace('</body>','<script>'+j+'</script></body>',1))"; \
     grep -q 'cc-mscroll' /opt/ttyd-index.html
 
-# Bundle optional Caveman skill (opt-in via enable_caveman_skill option, copied by run.sh at startup)
-COPY skills/caveman /opt/default-skills/caveman
+# Bundle optional Caveman skills + cavecrew agents (opt-in via enable_caveman_skill,
+# copied by run.sh at startup). Vendored from upstream, see skills/UPSTREAM.md
+COPY skills /opt/default-skills/skills
+COPY agents /opt/default-skills/agents
 
 # Copy startup script to a path AppArmor allows execution from
 COPY run.sh /usr/local/bin/start-addon.sh

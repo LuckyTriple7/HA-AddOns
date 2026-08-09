@@ -92,11 +92,13 @@
       "Export Memory" is enabled). 0 = no scheduled export, startup only.
       Examples: 60 = hourly, 1440 = daily. Default: 60.
   enable_caveman_skill:
-    name: Enable Caveman Skill
+    name: Enable Caveman Skills
     description: >-
-      Installs the optional "Caveman" skill for Claude Code (terse, technically
-      precise responses without filler). Can be toggled at any time; re-synced
-      on every startup. Default: disabled.
+      Installs the optional "Caveman" skills for Claude Code (terse, technically
+      precise responses without filler): /caveman plus /caveman-commit,
+      /caveman-review, /caveman-compress, /caveman-help, /caveman-stats and
+      /cavecrew together with the three cavecrew subagents. Can be toggled at any
+      time; re-synced on every startup. Default: disabled.
 
 network:
   7681/tcp: Web Terminal (ttyd)

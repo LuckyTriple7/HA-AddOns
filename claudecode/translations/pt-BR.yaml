@@ -77,12 +77,14 @@
       A atualização automática do Claude Code (acima) garante que novos
       modelos fiquem disponíveis sem precisar atualizar o add-on.
   enable_caveman_skill:
-    name: Ativar habilidade Caveman
+    name: Ativar habilidades Caveman
     description: >-
-      Instala a habilidade opcional "Caveman" para Claude Code (respostas
-      concisas e tecnicamente precisas, sem enrolação). Pode ser ativada ou
-      desativada a qualquer momento; ressincronizada a cada inicialização.
-      Padrão: desativado.
+      Instala as habilidades opcionais "Caveman" para Claude Code (respostas
+      concisas e tecnicamente precisas, sem enrolação): /caveman mais
+      /caveman-commit, /caveman-review, /caveman-compress, /caveman-help,
+      /caveman-stats e /cavecrew junto com os três subagentes cavecrew. Podem
+      ser ativadas ou desativadas a qualquer momento; ressincronizadas a cada
+      inicialização. Padrão: desativado.
 
 network:
   7681/tcp: Terminal Web (ttyd)

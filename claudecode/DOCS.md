@@ -34,7 +34,7 @@ claude --continue   # letzte Unterhaltung fortsetzen
 | `enable_playwright_mcp` | `false` | Playwright Browser-MCP aktivieren (benötigt Playwright Browser Add-on) |
 | `export_memory` | `false` | Claude-Speicher in `/config/memory/` exportieren |
 | `export_memory_interval` | `60` | Export-Intervall in Minuten |
-| `enable_caveman_skill` | `false` | Optionalen "Caveman"-Skill (knappe Antworten) installieren |
+| `enable_caveman_skill` | `false` | Optionale "Caveman"-Skills (knappe Antworten) installieren — 7 Skills + 3 Subagenten |
 
 ## Modellauswahl
 
@@ -101,11 +101,33 @@ Wer gar kein tmux möchte: `session_persistence: false` startet eine reine Bash 
 Auf Touch-Geräten (auch in der HA Companion App) blendet das Terminal zwei Scroll-Knöpfe unten rechts ein, und ein Wisch nach oben/unten scrollt.
 
 > 💡 **Nach dem Update erst nur am rechten Rand scrollbar?** Dann hält die App noch die alte Terminal-Seite im Cache. HA Companion App komplett beenden (aus dem App-Umschalter wischen) und neu starten — ein Reload der Seite genügt nicht immer.
- Das Terminal-Frontend (xterm.js) schaltet sein eigenes Touch-Scrollen ab, sobald eine Anwendung die Maus-Erfassung aktiviert — im Modus `tmux` also immer. Die Option `mobile_scroll_ui` (Standard: aktiviert) ersetzt es und funktioniert in **beiden** Scroll-Modi. Desktop-Browser bleiben unverändert; abschaltbar über die Option.
+
+
+Das Terminal-Frontend (xterm.js) schaltet sein eigenes Touch-Scrollen ab, sobald eine Anwendung die Maus-Erfassung aktiviert — im Modus `tmux` also immer. Die Option `mobile_scroll_ui` (Standard: aktiviert) ersetzt es und funktioniert in **beiden** Scroll-Modi. Desktop-Browser bleiben unverändert; abschaltbar über die Option.
+
+## Caveman-Skills
+
+`enable_caveman_skill` installiert die Skills des Projekts [JuliusBrussee/caveman](https://github.com/JuliusBrussee/caveman) (MIT) nach `/root/.claude/skills/` — knappe, technisch vollständige Antworten ohne Füllwörter:
+
+| Skill | Was er tut |
+|-------|------------|
+| `/caveman` | Der Modus selbst, Stufen `lite`/`full`/`ultra` (plus 文言文-Varianten) |
+| `/caveman-commit` | Commit-Nachrichten im Conventional-Commits-Format, Betreff ≤ 50 Zeichen |
+| `/caveman-review` | Code-Review-Kommentare, eine Zeile je Fund: Ort, Problem, Fix |
+| `/caveman-compress` | Komprimiert Memory-Dateien (CLAUDE.md & Co.), Backup als `*.original.md` |
+| `/caveman-help` | Übersicht aller Modi und Befehle |
+| `/caveman-stats` | Token-Statistik der Sitzung |
+| `/cavecrew` | Wann an die drei `cavecrew-*`-Subagenten delegiert wird (Agents werden mitinstalliert) |
+
+Die Skills liegen versioniert im Add-on (Stand siehe `skills/UPSTREAM.md`) und werden bei jedem Start neu synchronisiert. Ausgeschaltet entfernt das Add-on genau diese Skills und Agents wieder — eigene bleiben unberührt.
+
+> ℹ️ `/caveman-stats` liefert seine Zahlen beim Upstream aus einem Hook. Der Hook ist bewusst nicht gebündelt (er müsste sich in `settings.json` eintragen), der Skill bleibt daher ohne Zahlen.
 
 ## Update-Benachrichtigungen
 
 Bei aktiviertem `auto_update_claude` prüft das Add-on stündlich auf neue Claude Code Versionen. Bei einem Update erscheint eine persistente HA-Benachrichtigung. Nach dem Neustart des Add-ons wird automatisch aktualisiert.
+
+Verfolgt wird dabei nur der npm-Tag **`stable`**, nicht mehr jede veröffentlichte Version (`latest`). Anthropic setzt `stable` erst nach zusätzlicher Prüfung — dadurch deutlich seltenere Updates und weniger frische Regressionen, die installierte Version liegt dafür manchmal hinter der neuesten. Das gilt für alle drei Wege gleich: Image-Build, der stündliche Check und der manuelle Befehl `claude-update`. Auch der GitHub-Workflow, der neue Add-on-Versionen baut, wacht nur noch über `dist-tags.stable`.
 
 ---
 
@@ -145,7 +167,7 @@ claude --continue   # continue last conversation
 | `enable_playwright_mcp` | `false` | Enable Playwright browser MCP (requires Playwright Browser add-on) |
 | `export_memory` | `false` | Export Claude memory to `/config/memory/` |
 | `export_memory_interval` | `60` | Export interval in minutes |
-| `enable_caveman_skill` | `false` | Install the optional "Caveman" skill (terse responses) |
+| `enable_caveman_skill` | `false` | Install the optional "Caveman" skills (terse responses) — 7 skills + 3 subagents |
 
 ## Model Selection
 
@@ -212,8 +234,30 @@ If you don't want tmux at all: `session_persistence: false` starts plain bash �
 On touch devices (including the HA Companion App) the terminal shows two scroll buttons in the bottom-right corner, and swiping up/down scrolls.
 
 > 💡 **After the update only the right edge scrolls?** The app is still holding the old terminal page in its cache. Fully quit the HA Companion App (swipe it away in the app switcher) and start it again — a page reload is not always enough.
- The terminal frontend (xterm.js) disables its own touch scrolling as soon as an application turns on mouse tracking — which is always the case in `tmux` mode. The `mobile_scroll_ui` option (default: enabled) replaces it and works in **both** scroll modes. Desktop browsers are left unchanged; the option turns it off.
+
+
+The terminal frontend (xterm.js) disables its own touch scrolling as soon as an application turns on mouse tracking — which is always the case in `tmux` mode. The `mobile_scroll_ui` option (default: enabled) replaces it and works in **both** scroll modes. Desktop browsers are left unchanged; the option turns it off.
+
+## Caveman Skills
+
+`enable_caveman_skill` installs the skills from [JuliusBrussee/caveman](https://github.com/JuliusBrussee/caveman) (MIT) into `/root/.claude/skills/` — terse, technically complete answers without filler:
+
+| Skill | What it does |
+|-------|--------------|
+| `/caveman` | The mode itself, levels `lite`/`full`/`ultra` (plus 文言文 variants) |
+| `/caveman-commit` | Commit messages in Conventional Commits format, subject ≤ 50 chars |
+| `/caveman-review` | Code review comments, one line per finding: location, problem, fix |
+| `/caveman-compress` | Compresses memory files (CLAUDE.md & co.), backup as `*.original.md` |
+| `/caveman-help` | Reference card for all modes and commands |
+| `/caveman-stats` | Token statistics for the session |
+| `/cavecrew` | When to delegate to the three `cavecrew-*` subagents (agents are installed too) |
+
+The skills are vendored into the add-on (see `skills/UPSTREAM.md` for the version) and re-synced on every startup. Turning the option off removes exactly those skills and agents again — your own ones are left alone.
+
+> ℹ️ Upstream, `/caveman-stats` gets its numbers from a hook. That hook is deliberately not bundled (it would have to register itself in `settings.json`), so the skill stays without numbers.
 
 ## Update Notifications
 
 With `auto_update_claude` enabled, the add-on checks hourly for new Claude Code versions. A persistent HA notification appears when an update is available. Restarting the add-on installs the latest version automatically.
+
+Only the npm tag **`stable`** is tracked, no longer every published release (`latest`). Anthropic sets `stable` after additional vetting — far fewer updates and fewer fresh regressions, at the price of sometimes running behind the newest release. This applies to all three paths alike: image build, the hourly check and the manual `claude-update` command. The GitHub workflow that builds new add-on versions also watches `dist-tags.stable` only.

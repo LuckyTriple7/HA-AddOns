@@ -164,15 +164,24 @@ echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] export_memory          : $EXPORT_MEM
 echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] export_memory_interval : ${EXPORT_MEMORY_INTERVAL} min"
 echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] enable_caveman_skill   : $ENABLE_CAVEMAN"
 
-# Caveman skill: opt-in, copy/remove on every start so toggling the option takes effect immediately
-CAVEMAN_DEST="$PERSIST_DIR/skills/caveman"
+# Caveman skills: opt-in, copied/removed on every start so toggling the option takes
+# effect immediately. Only the bundled names are touched — own skills/agents stay put.
+CAVEMAN_SRC=/opt/default-skills
 if [ "$ENABLE_CAVEMAN" = "true" ]; then
-    mkdir -p "$PERSIST_DIR/skills"
-    rm -rf "$CAVEMAN_DEST"
-    cp -a /opt/default-skills/caveman "$CAVEMAN_DEST"
-    echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Caveman skill installed → /root/.claude/skills/caveman"
+    mkdir -p "$PERSIST_DIR/skills" "$PERSIST_DIR/agents"
+    for SKILL_DIR in "$CAVEMAN_SRC"/skills/*/; do
+        rm -rf "$PERSIST_DIR/skills/$(basename "$SKILL_DIR")"
+        cp -a "${SKILL_DIR%/}" "$PERSIST_DIR/skills/"
+    done
+    cp -a "$CAVEMAN_SRC"/agents/. "$PERSIST_DIR/agents/"
+    echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Caveman skills installed → /root/.claude/skills/ ($(find "$CAVEMAN_SRC/skills" -mindepth 1 -maxdepth 1 -type d | wc -l) skills, $(find "$CAVEMAN_SRC/agents" -name '*.md' | wc -l) agents)"
 else
-    rm -rf "$CAVEMAN_DEST"
+    for SKILL_DIR in "$CAVEMAN_SRC"/skills/*/; do
+        rm -rf "$PERSIST_DIR/skills/$(basename "$SKILL_DIR")"
+    done
+    for AGENT_FILE in "$CAVEMAN_SRC"/agents/*.md; do
+        rm -f "$PERSIST_DIR/agents/$(basename "$AGENT_FILE")"
+    done
 fi
 
 # Auto-detect Playwright Browser hostname if not explicitly set

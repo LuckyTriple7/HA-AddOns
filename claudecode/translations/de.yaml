@@ -96,10 +96,12 @@ configuration:
       "Memory exportieren" aktiviert ist). 0 = kein geplanter Export, nur beim Start.
       Beispiele: 60 = stündlich, 1440 = täglich. Standard: 60.
   enable_caveman_skill:
-    name: Caveman-Skill aktivieren
+    name: Caveman-Skills aktivieren
     description: >-
-      Installiert den optionalen "Caveman"-Skill für Claude Code (knappe,
-      technisch präzise Antworten ohne Füllwörter). Aktivierbar/deaktivierbar
+      Installiert die optionalen "Caveman"-Skills für Claude Code (knappe,
+      technisch präzise Antworten ohne Füllwörter): /caveman plus /caveman-commit,
+      /caveman-review, /caveman-compress, /caveman-help, /caveman-stats und
+      /cavecrew samt der drei cavecrew-Subagenten. Aktivierbar/deaktivierbar
       jederzeit, wird bei jedem Start neu synchronisiert. Standard: deaktiviert.
 
 network:

@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.3.8] - 2026-08-09
+
+### Added
+- `enable_caveman_skill` installiert jetzt alle sieben Skills des Upstream-Projekts statt nur `caveman`: `/caveman-commit`, `/caveman-review`, `/caveman-compress`, `/caveman-help`, `/caveman-stats` und `/cavecrew` kommen dazu, samt der drei `cavecrew-*`-Subagenten nach `/root/.claude/agents/`. Beim Ausschalten entfernt das Add-on genau diese Namen wieder — eigene Skills und Agents bleiben unberührt.
+
+### Changed
+- Gebündelte Caveman-Skills von Stand 2026-07-03 auf Upstream-Tag `v1.10.0` aktualisiert. Enthält u. a. den Fix "nie Verneinungen droppen" (weggekürzte `not`/`never` kehrten Anweisungen um), Härtung gegen Sprach-Drift und die Regel, dass dauerhafter Text (Doku, Issues, PR-Texte, Memory-Dateien) normal geschrieben wird. Herkunft und Update-Rezept stehen jetzt in `skills/UPSTREAM.md`, Upstream-`LICENSE` (MIT) liegt bei.
+- Doku: eigener Abschnitt zu den Caveman-Skills (DE/EN) und Hinweis, dass Claude-Code-Updates nur noch dem npm-Tag `stable` folgen — Image-Build, stündlicher Check, `claude-update` und der GitHub-Workflow gleichermaßen.
+
+
 ## [1.3.7] - 2026-08-09
 
 ### Added
