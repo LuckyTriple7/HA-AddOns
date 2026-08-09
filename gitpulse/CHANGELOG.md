@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.4.7] - 2026-08-09
+
+### Added
+- Ungelesene Kommentare werden optisch markiert: 💬-Badge mit Zähler `+N` in
+  Akzentfarbe, blauer Punkt hinter dem Titel, farbige Zeilen-Markierung
+  (linker Rand) und hervorgehobener Kommentare-Button. Zusätzlich ein Punkt an
+  den Tabs "PRs", "Issues" und "Aktivität".
+- Kommentar-Stände werden persistent in `seen_comments.json` gehalten. Öffnen
+  des Kommentar-Panels markiert das Item als gelesen. Beim ersten Erfassen
+  eines Items wird der Ist-Stand still übernommen — alte Kommentare melden
+  sich nicht rückwirkend als "neu".
+
+### Fixed
+- Issues zeigten nie eine Kommentar-Anzahl und keinen Kommentare-Button: das
+  Backend lieferte für Issues kein `comments`-Feld, die Oberfläche prüfte also
+  immer gegen `undefined`. Feld wird jetzt für offene und geschlossene Issues
+  mitgeliefert.
+
 ## [0.4.6] - 2026-08-09
 
 ### Fixed

@@ -162,6 +162,9 @@
   "comments_none":         "No comments yet",
   "comments_total":        "Total:",
   "comments_showing":      "Showing last:",
+  "comments_new_hint":     "unread comments — opening the panel marks them read",
+  "comments_unread_all":   "unread",
+  "comments_mark_all_read": "Mark all read",
 
   "insights_license":      "License",
   "insights_no_license":   "No license",

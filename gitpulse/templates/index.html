@@ -94,6 +94,16 @@
     .pr-state-merged { color:var(--purple); }
     .pr-draft { color:var(--muted); }
 
+    /* ── Kommentare / ungelesen ─────────────────────────────── */
+    .cmt-badge { font-size:0.72rem; color:var(--muted); }
+    .cmt-badge-new { color:var(--accent); font-weight:600; }
+    .cmt-badge-new .cmt-count-new { background:var(--accent); color:#fff; border-radius:9px;
+                                    padding:0 5px; font-size:0.66rem; margin-left:2px; }
+    .item-row.cmt-unread { border-left:3px solid var(--accent); background:var(--surf2); }
+    .cmt-btn-new { border-color:var(--accent) !important; color:var(--accent) !important; }
+    .cmt-dot { display:inline-block; width:7px; height:7px; border-radius:50%;
+               background:var(--accent); margin-left:4px; vertical-align:middle; }
+
     /* ── CI Runs ────────────────────────────────────────────── */
     .run-row { display:flex; align-items:center; gap:10px; padding:8px 14px; border-bottom:1px solid var(--border); font-size:0.83rem; }
     .run-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
@@ -308,11 +318,13 @@
       <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg>
       {{ t.tab_repos }}
       <span id="badge-prs" class="badge" style="display:none">0</span>
+      <span id="cmtdot-prs" class="cmt-dot" style="display:none"></span>
     </div>
     <div class="tab" data-tab="issues" onclick="switchTab('issues')">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
       {{ t.tab_issues }}
       <span id="badge-issues" class="badge badge-yellow" style="display:none">0</span>
+      <span id="cmtdot-issues" class="cmt-dot" style="display:none"></span>
     </div>
     <div class="tab" data-tab="security" onclick="switchTab('security')">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/></svg>
@@ -340,6 +352,7 @@
       <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
       {{ t.tab_activity }}
       <span id="badge-activity" class="badge badge-yellow" style="display:none">0</span>
+      <span id="cmtdot-activity" class="cmt-dot" style="display:none"></span>
     </div>
     <div class="tab" data-tab="console" onclick="switchTab('console')">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 14H4V6h16v12zM6 10l1.41-1.41L10 11.17l-1.41 1.41L6 10zm4 4h6v2h-6v-2z"/></svg>
@@ -1399,6 +1412,9 @@
     btn_dependabot_rebase:      '{{ t.btn_dependabot_rebase }}',
     btn_dependabot_rebase_hint: '{{ t.btn_dependabot_rebase_hint }}',
     confirm_dependabot_rebase:  '{{ t.confirm_dependabot_rebase }}',
+    comments_new_hint:      {{ t.comments_new_hint|tojson }},
+    comments_unread_all:    {{ t.comments_unread_all|tojson }},
+    comments_mark_all_read: {{ t.comments_mark_all_read|tojson }},
     review_approved:   '{{ t.review_approved }}',
     review_changes:    '{{ t.review_changes }}',
     review_pending:    '{{ t.review_pending }}',
@@ -1576,6 +1592,22 @@
     if (newRel)       { badgeRel.textContent = newRel;        badgeRel.style.display = ''; } else badgeRel.style.display = 'none';
     if (totalActivity){ badgeAct.textContent = totalActivity; badgeAct.style.display = ''; } else badgeAct.style.display = 'none';
     if (totalSec)   { badgeSec.textContent = totalSec;    badgeSec.style.display = ''; } else badgeSec.style.display = 'none';
+
+    // Ungelesene Kommentare → Punkt am Tab
+    const _unread = (arr, repoFull) => (arr || []).reduce((s, it) => s + cmtUnread(it, repoFull), 0);
+    let uPR = 0, uIss = 0;
+    (data.my_repos || []).forEach(r => {
+      uPR  += _unread(r.pulls,  r.repo) + _unread(r.closed_pulls,  r.repo);
+      uIss += _unread(r.issues, r.repo) + _unread(r.closed_issues, r.repo);
+    });
+    const actA = data.my_activity || {};
+    const uAct = _unread(actA.prs) + _unread(actA.issues) + _unread(actA.review_prs);
+    [['cmtdot-prs', uPR], ['cmtdot-issues', uIss], ['cmtdot-activity', uAct]].forEach(([id, n]) => {
+      const d = document.getElementById(id);
+      if (!d) return;
+      d.style.display = n ? '' : 'none';
+      d.title = n ? `${n} ${T.comments_unread_all}` : '';
+    });
   }
 
   // ── Render: Token alert ───────────────────────────────────────────
@@ -1753,21 +1785,22 @@
       const bodyOpen = _actBodyVisible.has(bkey);
       const conflict = !closed && pr.mergeable === 'dirty';
       const isDependabot = /^dependabot(\[bot\])?$/i.test(pr.user || '');
+      const cmtNew = cmtUnread(pr, repo.repo);
       return `
-      <div class="item-row" style="flex-direction:column;align-items:stretch;gap:0">
+      <div class="item-row${cmtNew ? ' cmt-unread' : ''}" style="flex-direction:column;align-items:stretch;gap:0">
         <div style="display:flex;align-items:flex-start;gap:10px">
           <img class="avatar" src="${pr.avatar}" alt="${pr.user}" loading="lazy">
           <div class="item-main">
-            <div class="item-title"><a href="${pr.url}" target="_blank" rel="noopener noreferrer">#${pr.number} ${escHtml(pr.title)}</a></div>
+            <div class="item-title"><a href="${pr.url}" target="_blank" rel="noopener noreferrer">#${pr.number} ${escHtml(pr.title)}</a>${cmtNew ? `<span class="cmt-dot" title="${escHtml(T.comments_new_hint)}"></span>` : ''}</div>
             <div class="item-meta">
               ${stateSpan}
               ${conflict ? `<span style="color:var(--red)" title="${T.pr_conflict_hint}">⚠ ${T.pr_conflict}</span>` : ''}
               <span>@${escHtml(pr.user)}</span>
               <span>${relTime(pr.updated)}</span>
               ${!closed ? reviewBadge(pr.review_state) : ''}
-              ${pr.comments > 0 ? `<span style="font-size:.72rem;color:var(--muted)">💬 ${pr.comments}</span>` : ''}
+              ${cmtBadge(pr, repo.repo)}
               ${hasBody ? `<button class="act-btn" style="padding:1px 7px;font-size:.7rem" id="bodybtn-${bdomId}" onclick="toggleBody(${safeJsArg(bkey)},this)">${bodyOpen ? T.pr_body_hide : T.pr_body_show}</button>` : ''}
-              ${pr.comments > 0 ? `<button class="act-btn act-btn-dispatch" style="padding:1px 7px;font-size:.7rem" onclick="loadComments(${safeJsArg(repo.repo)},${pr.number},'cmts-${bdomId}')">{{ t.comments_load }}</button>` : ''}
+              ${pr.comments > 0 ? `<button class="act-btn act-btn-dispatch${cmtBtnClass(pr, repo.repo)}" style="padding:1px 7px;font-size:.7rem" onclick="loadComments(${safeJsArg(repo.repo)},${pr.number},'cmts-${bdomId}')">{{ t.comments_load }}${cmtNew ? ` +${cmtNew}` : ''}</button>` : ''}
               ${(pr.labels||[]).filter(Boolean).map(l=>`<span class="label-chip" style="color:${labelColor(l)};border-color:${labelColor(l)}40">${escHtml(l)}</span>`).join('')}
             </div>
           </div>
@@ -1818,21 +1851,22 @@
       const bdomId = mkId(bkey);
       const hasBody = (iss.body || '').trim().length > 0;
       const bodyOpen = _actBodyVisible.has(bkey);
+      const cmtNew = cmtUnread(iss, repo.repo);
       return `
-      <div class="item-row" style="flex-direction:column;align-items:stretch;gap:0">
+      <div class="item-row${cmtNew ? ' cmt-unread' : ''}" style="flex-direction:column;align-items:stretch;gap:0">
         <div style="display:flex;align-items:flex-start;gap:10px">
           <img class="avatar" src="${iss.avatar}" alt="${iss.user}" loading="lazy">
           <div class="item-main">
-            <div class="item-title"><a href="${iss.url}" target="_blank" rel="noopener noreferrer">#${iss.number} ${escHtml(iss.title)}</a></div>
+            <div class="item-title"><a href="${iss.url}" target="_blank" rel="noopener noreferrer">#${iss.number} ${escHtml(iss.title)}</a>${cmtNew ? `<span class="cmt-dot" title="${escHtml(T.comments_new_hint)}"></span>` : ''}</div>
             <div class="item-meta">
               ${closed
                 ? `<span style="color:var(--muted)">✓ ${T.filter_closed}</span>`
                 : `<span class="pr-state-open">● ${T.iss_open}</span>`}
               <span>@${escHtml(iss.user)}</span>
               <span>${relTime(closed && iss.closed_at ? iss.closed_at : iss.updated)}</span>
-              ${iss.comments > 0 ? `<span style="font-size:.72rem;color:var(--muted)">💬 ${iss.comments}</span>` : ''}
+              ${cmtBadge(iss, repo.repo)}
               ${hasBody ? `<button class="act-btn" style="padding:1px 7px;font-size:.7rem" id="bodybtn-${bdomId}" onclick="toggleBody(${safeJsArg(bkey)},this)">${bodyOpen ? T.pr_body_hide : T.pr_body_show}</button>` : ''}
-              ${iss.comments > 0 ? `<button class="act-btn act-btn-dispatch" style="padding:1px 7px;font-size:.7rem" onclick="loadComments(${safeJsArg(repo.repo)},${iss.number},'cmts-${bdomId}')">{{ t.comments_load }}</button>` : ''}
+              ${iss.comments > 0 ? `<button class="act-btn act-btn-dispatch${cmtBtnClass(iss, repo.repo)}" style="padding:1px 7px;font-size:.7rem" onclick="loadComments(${safeJsArg(repo.repo)},${iss.number},'cmts-${bdomId}')">{{ t.comments_load }}${cmtNew ? ` +${cmtNew}` : ''}</button>` : ''}
               ${(iss.labels||[]).filter(Boolean).map(l=>`<span class="label-chip" style="color:${labelColor(l)};border-color:${labelColor(l)}40">${escHtml(l)}</span>`).join('')}
             </div>
           </div>
@@ -2114,6 +2148,49 @@
   let _actBodyVisible = new Set();  // "repo#number" — aufgeklappte Bodies in Activity
   let _commentsCache  = {};          // "repo#number" → {total, comments}
   let _commentsOpenKeys = new Set(); // "repo#number" — aufgeklappte Kommentar-Panels (Re-Render-Restore)
+  let _cmtReadLocal   = new Set();   // "repo#number" — in dieser Sitzung gelesen (bis Server-Stand nachzieht)
+
+  // Ungelesene Kommentare eines Items. Server liefert comments_new, lokal gelesene
+  // Items werden sofort auf 0 gezogen, ohne auf den nächsten Poll zu warten.
+  function cmtUnread(item, repoFull) {
+    const key = (repoFull || item.repo || '') + '#' + item.number;
+    if (_cmtReadLocal.has(key)) return 0;
+    return Math.max(0, item.comments_new || 0);
+  }
+
+  // 💬-Badge: Gesamtzahl grau, ungelesene zusätzlich in Akzentfarbe mit Zähler
+  function cmtBadge(item, repoFull) {
+    const n = item.comments || 0;
+    if (!n) return '';
+    const nw = cmtUnread(item, repoFull);
+    if (!nw) return `<span class="cmt-badge">💬 ${n}</span>`;
+    return `<span class="cmt-badge cmt-badge-new" title="${escHtml(nw + ' ' + T.comments_unread_all + ' — ' + T.comments_new_hint)}">`
+         + `💬 ${n}<span class="cmt-count-new">+${nw}</span></span>`;
+  }
+
+  // Kommentar-Button hervorheben, solange ungelesene Kommentare offen sind
+  function cmtBtnClass(item, repoFull) {
+    return cmtUnread(item, repoFull) ? ' cmt-btn-new' : '';
+  }
+
+  // Angezeigte Kommentar-Anzahl eines Items — PRs zählen Review-Kommentare mit,
+  // der Server kennt beim /api/comments-Call nur die Issue-Kommentare.
+  function _cmtShownCount(repo, number) {
+    if (!ghData) return 0;
+    const num   = Number(number);
+    const lists = [];
+    (ghData.my_repos || []).forEach(r => {
+      if (r.repo === repo) lists.push(r.pulls, r.issues, r.closed_pulls, r.closed_issues);
+    });
+    const act = ghData.my_activity || {};
+    lists.push(act.prs, act.issues, act.review_prs);
+    let best = 0;
+    lists.forEach(l => (l || []).forEach(it => {
+      if (Number(it.number) === num && (it.repo === undefined || it.repo === repo))
+        best = Math.max(best, it.comments || 0);
+    }));
+    return best;
+  }
 
   function toggleBody(key, btnEl) {
     const div = document.getElementById('body-' + mkId(key));
@@ -2124,6 +2201,30 @@
     if (show) _actBodyVisible.add(key); else _actBodyVisible.delete(key);
   }
 
+  // Panel geöffnet = gelesen: Server-Stand setzen und Markierungen sofort entfernen,
+  // ohne auf den nächsten Poll zu warten.
+  function _markCmtReadUI(repo, number) {
+    const ckey = repo + '#' + number;
+    if (_cmtReadLocal.has(ckey)) return;
+    _cmtReadLocal.add(ckey);
+    if (!ghData) return;
+    const num   = Number(number);
+    const lists = [];
+    (ghData.my_repos || []).forEach(r => {
+      if (r.repo === repo) lists.push(r.pulls, r.issues, r.closed_pulls, r.closed_issues);
+    });
+    const act = ghData.my_activity || {};
+    lists.push(act.prs, act.issues, act.review_prs);
+    lists.forEach(l => (l || []).forEach(it => {
+      if (Number(it.number) === num && (it.repo === undefined || it.repo === repo)) it.comments_new = 0;
+    }));
+    renderPRs(ghData);
+    renderIssues(ghData);
+    renderActivity(ghData);
+    renderSummary(ghData);
+    _restoreOpenComments();
+  }
+
   function loadComments(repo, number, containerId) {
     const ckey = repo + '#' + number;
     const el = document.getElementById(containerId);
@@ -2132,11 +2233,13 @@
     _commentsOpenKeys.add(ckey);
     if (_commentsCache[ckey]) { _renderComments(el, _commentsCache[ckey]); return; }
     el.innerHTML = `<div style="font-size:.78rem;color:var(--muted);padding:6px 0">{{ t.comments_loading }}</div>`;
-    fetch(u('/api/comments?repo=' + encodeURIComponent(repo) + '&number=' + number))
+    const shown = _cmtShownCount(repo, number);
+    fetch(u('/api/comments?repo=' + encodeURIComponent(repo) + '&number=' + number + '&shown=' + shown))
       .then(r => r.json())
       .then(d => {
         _commentsCache[ckey] = d;
         _renderComments(el, d);
+        _markCmtReadUI(repo, number);
       })
       .catch(() => {
         el.innerHTML = `<div style="font-size:.78rem;color:var(--red);padding:6px 0">Fehler</div>`;
@@ -2197,14 +2300,16 @@
       const bdomId = mkId(item.repo + '#' + item.number);
       const hasBody = (item.body || '').trim().length > 0;
       const bodyOpen = _actBodyVisible.has(item.repo + '#' + item.number);
+      const cmtNew = cmtUnread(item);
       return `
-      <div class="item-row" style="flex-direction:column;align-items:stretch;gap:0">
+      <div class="item-row${cmtNew ? ' cmt-unread' : ''}" style="flex-direction:column;align-items:stretch;gap:0">
         <div style="display:flex;align-items:flex-start;gap:10px">
           <div class="item-main">
             <div class="item-title">
               <span style="font-size:.72rem;color:var(--muted);margin-right:4px">${escHtml(item.repo)}</span>
               <a href="${item.url}" target="_blank" rel="noopener noreferrer">#${item.number} ${escHtml(item.title)}</a>
               ${item.draft ? `<span style="font-size:.7rem;color:var(--muted);border:1px solid var(--border);border-radius:3px;padding:0 4px">Draft</span>` : ''}
+              ${cmtNew ? `<span class="cmt-dot" title="${escHtml(T.comments_new_hint)}"></span>` : ''}
             </div>
             <div class="item-meta">
               ${type === 'review'
@@ -2213,9 +2318,9 @@
                   ? `<span class="pr-state-open">⇄ PR</span>`
                   : `<span style="color:var(--yellow)">● Issue</span>`}
               <span>${relTime(item.updated)}</span>
-              ${item.comments ? `<span style="color:var(--muted)">💬 ${item.comments}</span>` : ''}
+              ${cmtBadge(item)}
               ${hasBody ? `<button class="act-btn" style="padding:1px 7px;font-size:.7rem;margin-left:4px" id="bodybtn-${bdomId}" onclick="toggleBody(${safeJsArg(item.repo+'#'+item.number)},this)">${bodyOpen ? T.pr_body_hide : T.pr_body_show}</button>` : ''}
-              ${item.comments > 0 ? `<button class="act-btn act-btn-dispatch" style="padding:1px 7px;font-size:.7rem" onclick="loadComments(${safeJsArg(item.repo)},${item.number},'cmts-${bdomId}')">💬 {{ t.comments_load }}</button>` : ''}
+              ${item.comments > 0 ? `<button class="act-btn act-btn-dispatch${cmtBtnClass(item)}" style="padding:1px 7px;font-size:.7rem" onclick="loadComments(${safeJsArg(item.repo)},${item.number},'cmts-${bdomId}')">💬 {{ t.comments_load }}${cmtNew ? ` +${cmtNew}` : ''}</button>` : ''}
               ${(item.labels||[]).filter(Boolean).map(l=>`<span class="label-chip" style="color:${labelColor(l)};border-color:${labelColor(l)}40">${escHtml(l)}</span>`).join('')}
             </div>
           </div>

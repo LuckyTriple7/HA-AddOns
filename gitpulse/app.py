@@ -122,6 +122,14 @@ _seen_releases: set[str] = set()
 _SEEN_ACTIVITY_PATH = _DATA + '/seen_activity.json'
 _seen_activity: set[str] = set()   # "{owner}/{repo}#{number}:{state}"
 
+# Gelesene Kommentar-Stände — "{repo}#{nummer}" → Kommentar-Anzahl beim letzten Lesen.
+# Unbekannte Einträge werden beim ersten Poll still auf den Ist-Stand gesetzt, damit
+# nicht die gesamte Historie als "neu" markiert wird.
+_SEEN_COMMENTS_PATH = _DATA + '/seen_comments.json'
+_seen_comment_totals: dict[str, int] = {}
+_seen_comments_lock = threading.Lock()
+_seen_comments_dirty = False
+
 # GitHub-Login des authentifizierten Nutzers (wird beim ersten Poll gesetzt)
 _gh_login: str = ''
 
@@ -366,6 +374,60 @@ def save_seen_activity() -> None:
         log.warning("seen_activity konnte nicht gespeichert werden: %s", e)
 
 
+def load_seen_comments() -> None:
+    global _seen_comment_totals
+    try:
+        with open(_SEEN_COMMENTS_PATH) as f:
+            raw = json.load(f)
+        if isinstance(raw, dict):
+            _seen_comment_totals = {str(k): int(v) for k, v in raw.items()}
+        log.info("Gelesene Kommentar-Stände geladen: %d Einträge", len(_seen_comment_totals))
+    except FileNotFoundError:
+        pass
+    except Exception as e:
+        log.warning("seen_comments konnte nicht geladen werden: %s", e)
+
+
+def save_seen_comments() -> None:
+    global _seen_comments_dirty
+    with _seen_comments_lock:
+        if not _seen_comments_dirty:
+            return
+        snapshot = dict(_seen_comment_totals)
+        _seen_comments_dirty = False
+    try:
+        with open(_SEEN_COMMENTS_PATH, 'w') as f:
+            json.dump(snapshot, f)
+    except Exception as e:
+        log.warning("seen_comments konnte nicht gespeichert werden: %s", e)
+
+
+def _comments_new(repo: str, number: int, total: int) -> int:
+    """Anzahl ungelesener Kommentare. Unbekannte Items werden still auf den Ist-Stand
+    gesetzt (kein Nachmelden alter Kommentare)."""
+    global _seen_comments_dirty
+    key = f'{repo}#{number}'
+    with _seen_comments_lock:
+        seen = _seen_comment_totals.get(key)
+        if seen is None:
+            _seen_comment_totals[key] = total
+            _seen_comments_dirty = True
+            return 0
+        if total < seen:            # Kommentare gelöscht → Stand nachziehen
+            _seen_comment_totals[key] = total
+            _seen_comments_dirty = True
+            return 0
+    return total - seen
+
+
+def _mark_comments_read(repo: str, number: int, total: int) -> None:
+    global _seen_comments_dirty
+    with _seen_comments_lock:
+        _seen_comment_totals[f'{repo}#{number}'] = max(0, int(total))
+        _seen_comments_dirty = True
+    save_seen_comments()
+
+
 # ── Workflow-Favoriten (Persistence) ──────────────────────────────────────────
 
 def load_favorites() -> list:
@@ -523,6 +585,7 @@ def _fetch_repo_data(repo: str, token: str, run_limit: int = 25) -> dict:
         # mergeable_state liefert nur der Einzel-PR-Endpoint, nicht die Liste.
         # GitHub berechnet den Wert asynchron → beim ersten Abruf oft "unknown".
         pr_detail = _gh_get(f'/repos/{repo}/pulls/{pr["number"]}', token) or {}
+        _pr_cmts = (pr_detail.get('comments') or 0) + (pr_detail.get('review_comments') or 0)
         pulls.append({
             'number':       pr['number'],
             'title':        pr['title'],
@@ -535,7 +598,8 @@ def _fetch_repo_data(repo: str, token: str, run_limit: int = 25) -> dict:
             'created':      pr['created_at'],
             'updated':      pr['updated_at'],
             'mergeable':    pr_detail.get('mergeable_state') or '',
-            'comments':     (pr_detail.get('comments') or 0) + (pr_detail.get('review_comments') or 0),
+            'comments':     _pr_cmts,
+            'comments_new': _comments_new(repo, pr['number'], _pr_cmts),
             'review_state': _compute_review_state(reviews_raw),
             'body':         (pr.get('body') or '')[:1500],
         })
@@ -556,6 +620,8 @@ def _fetch_repo_data(repo: str, token: str, run_limit: int = 25) -> dict:
             'created':   iss['created_at'],
             'updated':   iss['updated_at'],
             'closed_at': iss.get('closed_at'),
+            'comments':     iss.get('comments') or 0,
+            'comments_new': _comments_new(repo, iss['number'], iss.get('comments') or 0),
             'body':      (iss.get('body') or '')[:1500],
         })
 
@@ -576,6 +642,8 @@ def _fetch_repo_data(repo: str, token: str, run_limit: int = 25) -> dict:
             'updated':   pr['updated_at'],
             'merged_at': pr.get('merged_at'),
             'comments':  (pr.get('comments') or 0) + (pr.get('review_comments') or 0),
+            'comments_new': _comments_new(repo, pr['number'],
+                                          (pr.get('comments') or 0) + (pr.get('review_comments') or 0)),
             'review_state': 'none',
         })
 
@@ -603,6 +671,8 @@ def _fetch_repo_data(repo: str, token: str, run_limit: int = 25) -> dict:
                 'created':   iss['created_at'],
                 'updated':   iss['updated_at'],
                 'closed_at': iss.get('closed_at'),
+                'comments':     iss.get('comments') or 0,
+                'comments_new': _comments_new(repo, iss['number'], iss.get('comments') or 0),
             })
         if len(closed_issues) >= 50:
             break
@@ -681,6 +751,8 @@ def _fetch_repo_data(repo: str, token: str, run_limit: int = 25) -> dict:
     _sec_count = (len(security.get('dependabot', [])) +
                   len(security.get('code_scanning', [])) +
                   len(security.get('secret_scanning', [])))
+
+    save_seen_comments()
 
     return {
         'repo':           repo,
@@ -867,16 +939,19 @@ def _fetch_my_activity(login: str, token: str) -> dict:
         return []
 
     def _fmt(item: dict) -> dict:
+        _repo = item['repository_url'].removeprefix(f'{GITHUB_API}/repos/')
+        _cmts = item.get('comments', 0) or 0
         return {
             'number':   item['number'],
             'title':    item['title'],
             'url':      item['html_url'],
-            'repo':     item['repository_url'].removeprefix(f'{GITHUB_API}/repos/'),
+            'repo':     _repo,
             'state':    item['state'],
             'draft':    item.get('draft', False),
             'updated':  item['updated_at'],
             'created':  item['created_at'],
-            'comments': item.get('comments', 0),
+            'comments': _cmts,
+            'comments_new': _comments_new(_repo, item['number'], _cmts),
             'labels':   [l['name'] for l in item.get('labels', [])],
             'body':     (item.get('body') or '')[:1000],
         }
@@ -888,6 +963,7 @@ def _fetch_my_activity(login: str, token: str) -> dict:
     for item in _search(f'review-requested:{login} type:pr state:open'):
         review_prs.append(_fmt(item))
 
+    save_seen_comments()
     return {'prs': prs, 'issues': issues, 'review_prs': review_prs}
 
 
@@ -2170,6 +2246,14 @@ def api_comments():
             return jsonify({'error': f'HTTP {r.status_code}'}), 502
         all_comments = r.json() if isinstance(r.json(), list) else []
         last3 = all_comments[-3:]
+        # Panel geöffnet = gelesen. Bei PRs zählt die Übersicht zusätzlich die
+        # Review-Kommentare mit, deshalb schickt das Frontend den angezeigten
+        # Stand als "shown" mit — sonst bliebe die Ungelesen-Markierung hängen.
+        try:
+            _shown = int(request.args.get('shown', '0'))
+        except ValueError:
+            _shown = 0
+        _mark_comments_read(repo, int(number), max(len(all_comments), _shown))
         return jsonify({
             'total': len(all_comments),
             'comments': [
@@ -3377,6 +3461,7 @@ if __name__ == '__main__':
     load_sessions()
     load_seen_releases()
     load_seen_activity()
+    load_seen_comments()
 
     # Initiales Token-Ablauf-Warning
     cfg   = load_config()
