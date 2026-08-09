@@ -785,12 +785,7 @@
         <div id="ai-prices-box" style="display:none;margin-top:14px">
           <p class="hint">{{ t.ai_prices_hint }} <a href="https://ai.google.dev/pricing" target="_blank" rel="noopener">{{ t.ai_prices_link }}</a></p>
           <div id="ai-prices-list" style="overflow-x:auto"></div>
-          <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-            <button class="btn" onclick="saveAiPrices()">{{ t.save }}</button>
-            <button class="btn secondary" id="ai-prices-fetch" onclick="fetchAiPrices(this)">⬇ {{ t.ai_prices_fetch }}</button>
-            <span class="hint" id="ai-prices-fetch-info"></span>
-          </div>
-          <p class="hint">{{ t.ai_prices_fetch_hint }}</p>
+          <button class="btn" style="margin-top:12px" onclick="saveAiPrices()">{{ t.save }}</button>
         </div>
       </div>
 
@@ -5509,44 +5504,6 @@
       });
       tbl.appendChild(tbody);
       box.appendChild(tbl);
-    }
-    // Holt Vorschläge aus dem Cloud-Preiskatalog und trägt sie NUR in die Felder
-    // ein. Gespeichert wird erst mit „Speichern" — die Zuordnung von SKU-Text zu
-    // Modell ist geraten, das gehört vor dem Übernehmen angesehen.
-    async function fetchAiPrices(btn) {
-      if (!AI_USAGE) return;
-      btn.disabled = true;
-      el('ai-prices-fetch-info').textContent = T.ai_prices_fetch_running;
-      let r = null;
-      try {
-        r = await apiJson('api/ai/prices/fetch', 'POST', { models: AI_USAGE.models });
-      } catch (e) { /* Netzfehler */ }
-      btn.disabled = false;
-      const d = r ? await r.json().catch(() => ({})) : {};
-      if (!r || !r.ok) {
-        // Googles Grund immer mit anzeigen: „Schlüssel abgelehnt" hat zwei
-        // Ursachen mit völlig verschiedenen Schritten (ungültig vs. auf andere
-        // Dienste beschränkt), und ohne den Code ist nicht zu erkennen, welche.
-        const msg =
-          d.error === 'billing_disabled'    ? T.ai_prices_fetch_disabled
-          : d.error === 'needs_oauth'       ? T.ai_prices_fetch_oauth
-          : d.error === 'key_rejected'      ? T.ai_prices_fetch_key
-          : d.error === 'service_not_found' ? T.ai_prices_fetch_none
-          : T.ai_prices_fetch_failed;
-        el('ai-prices-fetch-info').textContent = msg + (d.reason ? ' [' + d.reason + ']' : '');
-        return;
-      }
-      let n = 0;
-      Object.entries(d.prices || {}).forEach(([model, p]) => {
-        Object.entries(p).forEach(([kind, v]) => {
-          const inp = el('ai-prices-list').querySelector(
-            `input[data-model="${CSS.escape(model)}"][data-kind="${CSS.escape(kind)}"]`);
-          if (inp) { inp.value = v; n++; }
-        });
-      });
-      el('ai-prices-fetch-info').textContent = n
-        ? T.ai_prices_fetched.replace('{n}', n)
-        : T.ai_prices_fetch_none;
     }
     async function saveAiPrices() {
       const prices = {};

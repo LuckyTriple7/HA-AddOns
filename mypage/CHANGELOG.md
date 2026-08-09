@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.13
+- 💰 **Die Preistabelle deckt jetzt alle gängigen Gemini-Modelle ab** — 13 Einträge mit den Listenpreisen von [ai.google.dev/pricing](https://ai.google.dev/pricing), Textmodelle je Mio. Tokens, Bildmodelle je erzeugtem Bild. Damit rechnet die Kostenspalte für die üblichen Fälle ohne jede Eingabe.
+- ❌ **Der Knopf „Preise bei Google abfragen" ist wieder raus.** Er sollte den Preiskatalog von Google Cloud anzapfen, aber der verlangt ein OAuth-Konto statt eines API-Schlüssels — mit einem Gemini-Key ist er nicht erreichbar. Der Weg war eine Sackgasse und kostete nur Einrichtungsschritte, die nichts brachten.
+- Die Rückfall-Liste der Textmodelle nannte Namen, die es so nicht gibt (`gemini-3-pro`, `gemini-3-flash`); sie führt jetzt die tatsächlich gelisteten. Sie greift ohnehin nur, wenn die Live-Abfrage bei Google scheitert.
+
 ## 0.9.12
 - 🔍 Die Preis-Abfrage hängt Googles Grund-Code jetzt an **jede** Fehlermeldung an, nicht nur an unbekannte. „Schlüssel abgelehnt" hat zwei Ursachen mit völlig verschiedenen Schritten — `API_KEY_INVALID` (Schlüssel taugt nicht) und `API_KEY_SERVICE_BLOCKED` (Schlüssel ist auf andere Dienste beschränkt). Ohne den Code war nicht zu erkennen, welche vorliegt.
 
