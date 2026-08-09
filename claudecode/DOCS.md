@@ -98,7 +98,10 @@ Wer gar kein tmux möchte: `session_persistence: false` startet eine reine Bash 
 
 ### Scrollen auf Handy & Tablet
 
-Auf Touch-Geräten (auch in der HA Companion App) blendet das Terminal zwei Scroll-Knöpfe unten rechts ein, und ein Wisch nach oben/unten scrollt. Das Terminal-Frontend (xterm.js) schaltet sein eigenes Touch-Scrollen ab, sobald eine Anwendung die Maus-Erfassung aktiviert — im Modus `tmux` also immer. Die Option `mobile_scroll_ui` (Standard: aktiviert) ersetzt es und funktioniert in **beiden** Scroll-Modi. Desktop-Browser bleiben unverändert; abschaltbar über die Option.
+Auf Touch-Geräten (auch in der HA Companion App) blendet das Terminal zwei Scroll-Knöpfe unten rechts ein, und ein Wisch nach oben/unten scrollt.
+
+> 💡 **Nach dem Update erst nur am rechten Rand scrollbar?** Dann hält die App noch die alte Terminal-Seite im Cache. HA Companion App komplett beenden (aus dem App-Umschalter wischen) und neu starten — ein Reload der Seite genügt nicht immer.
+ Das Terminal-Frontend (xterm.js) schaltet sein eigenes Touch-Scrollen ab, sobald eine Anwendung die Maus-Erfassung aktiviert — im Modus `tmux` also immer. Die Option `mobile_scroll_ui` (Standard: aktiviert) ersetzt es und funktioniert in **beiden** Scroll-Modi. Desktop-Browser bleiben unverändert; abschaltbar über die Option.
 
 ## Update-Benachrichtigungen
 
@@ -206,7 +209,10 @@ If you don't want tmux at all: `session_persistence: false` starts plain bash �
 
 ### Scrolling on phone & tablet
 
-On touch devices (including the HA Companion App) the terminal shows two scroll buttons in the bottom-right corner, and swiping up/down scrolls. The terminal frontend (xterm.js) disables its own touch scrolling as soon as an application turns on mouse tracking — which is always the case in `tmux` mode. The `mobile_scroll_ui` option (default: enabled) replaces it and works in **both** scroll modes. Desktop browsers are left unchanged; the option turns it off.
+On touch devices (including the HA Companion App) the terminal shows two scroll buttons in the bottom-right corner, and swiping up/down scrolls.
+
+> 💡 **After the update only the right edge scrolls?** The app is still holding the old terminal page in its cache. Fully quit the HA Companion App (swipe it away in the app switcher) and start it again — a page reload is not always enough.
+ The terminal frontend (xterm.js) disables its own touch scrolling as soon as an application turns on mouse tracking — which is always the case in `tmux` mode. The `mobile_scroll_ui` option (default: enabled) replaces it and works in **both** scroll modes. Desktop browsers are left unchanged; the option turns it off.
 
 ## Update Notifications
 
