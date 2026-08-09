@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.10.4
+- 🌍 **Der Reiseblog ist jetzt öffentlich sichtbar.** Drei neue Seiten: die Übersicht aller Reisen (`/reiseblog`), die Tage einer Reise (`/reiseblog/<reise>`) und der Tagesbericht selbst (`/reiseblog/<reise>/<tag>`) — aufgebaut wie die Bibliothek, mit Bildergalerie, Blättern zwischen den Tagen, SEO-Angaben und Druckansicht.
+- 🔒 **Nichts steht ungefragt im Netz.** Ein Tag erscheint erst mit dem Haken **„Tag veröffentlichen"** im letzten Wizard-Schritt — und auch dann nur, wenn er einen Bericht hat. Eine freigegebene Seite ohne Text wäre eine Seite mit Datum und sonst nichts.
+- 🏷️ **Reisen und Tage haben feste Adressen.** Die Adresse einer Reise lässt sich im Reise-Dialog frei wählen; leer gelassen wird sie aus dem Namen gebildet. Einmal vergeben bleibt sie bestehen, auch wenn die Reise später umbenannt wird — sonst führte jeder geteilte Link ins Leere.
+- 👥 **Eine Reise kann auf Mitglieder beschränkt werden.** Die Sperre gilt für die ganze Reise: Titel und Anrisstexte bleiben sichtbar, die Berichte nicht. Eine Reise halb zu zeigen ergäbe eine Geschichte mit Löchern.
+- 🏠 **Der Abschnitt auf der Startseite ist damit aktiv** — sichtbar, sobald der Reiseblog freigegeben ist und mindestens ein Tag veröffentlicht wurde. Position und Sichtbarkeit wie gehabt unter *Inhalte*.
+- 🔎 **Sitemap, Volltextsuche, IndexNow und der statische Export** kennen den Reiseblog jetzt ebenfalls; Entwürfe bleiben in allen vier Fällen außen vor.
+- 👁️ **Vorschau je Reisetag** im Reiter *Reiseblog* — zeigt auch noch nicht freigegebene Tage, damit man vor dem Veröffentlichen sieht, was tatsächlich herauskommt.
+- 🖼️ **Bildunterschriften hingen am falschen Foto**, sobald ein Foto ohne Hinweis dazwischenlag: die KI schreibt nur zu Fotos **mit** Hinweis eine Unterschrift, zugeordnet wurde aber über die volle Fotoliste. Betrifft die Anzeige im Wizard und jetzt auch die öffentliche Galerie.
+- Bei zweisprachigen Reisen lassen sich die Bildunterschriften jetzt in **beiden Sprachen** bearbeiten — vorher nur auf Deutsch.
+
 ## 0.10.3
 - 🗂️ **Die Reiter *Reiseblog* und *Formulare* sind jetzt immer sichtbar.** Die Schalter unter Design steuern ab sofort die **Website**, nicht den Reiter — sonst liesse sich nichts vorbereiten, bevor der Bereich online geht.
 - 🧭 **Formulare stehen jetzt ebenfalls unter *Inhalte*** und lassen sich dort einsortieren und ausblenden, genau wie der Reiseblog.

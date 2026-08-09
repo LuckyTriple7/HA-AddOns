@@ -160,10 +160,19 @@ Ein eigenes Modul, getrennt vom normalen Blog: unterwegs ein paar Stichpunkte er
 - **„Reisebericht erstellen“** baut aus den Angaben einen Prompt und liefert Titel, Anrisstext, Fließtext in Markdown, Schlagwörter und Bildunterschriften — auf Wunsch deutsch und englisch in einem Durchgang. Das Ergebnis ist frei editierbar.
 - Die **vorherigen Reisetage** gehen als Kurzfassung mit in den Prompt, damit sich die Berichte nicht wiederholen.
 - Gespeichert wird in **`travel.json`**, getrennt von `site.json` und im Backup enthalten. Rohdaten und fertiger Text liegen getrennt: eine Korrektur am Text geht nicht verloren, wenn später noch eine Ausgabe nachgetragen wird.
-- Noch **nicht öffentlich sichtbar** — die Berichte entstehen und werden im Admin verwaltet; die öffentlichen Seiten folgen in einem nächsten Schritt.
+
+**Öffentlich:** Drei Seiten — die Übersicht aller Reisen unter `/reiseblog`, die Tage einer Reise unter `/reiseblog/<reise>` und der Bericht unter `/reiseblog/<reise>/<tag>`. Sichtbar wird davon nur, was ausdrücklich freigegeben ist:
+
+- **„Tag veröffentlichen“** steht im letzten Wizard-Schritt beim Bericht. Ohne Haken bleibt der Tag im Admin — und mit Haken, aber **ohne Bericht**, ebenfalls: eine Seite mit Datum und ohne Text hilft niemandem. Die Liste im Reiter zeigt je Tag, was gerade gilt (🌐 veröffentlicht / Entwurf).
+- **Vorschau** je Tag im Reiter — zeigt auch Entwürfe, damit vor dem Freigeben sichtbar ist, was tatsächlich herauskommt.
+- **Adresse (Slug)** je Reise, frei wählbar im Reise-Dialog; leer gelassen wird sie aus dem Namen gebildet (`Gran Canaria 2027` → `gran-canaria-2027`). Einmal vergeben **bleibt sie**, auch beim Umbenennen — sonst führte jeder geteilte Link ins Leere. Die Tage heißen `tag-1`, `tag-2`, … und behalten ihre Adresse, wenn der Ort später korrigiert wird.
+- **Nur für Mitglieder** je Reise: Titel und Anrisstexte bleiben sichtbar, die Berichte nicht. Die Sperre gilt für die ganze Reise — eine halb gezeigte Reise wäre eine Geschichte mit Löchern.
+- Der **Abschnitt auf der Startseite** erscheint, sobald der Reiseblog unter *Design → Module* für die Website freigegeben ist **und** mindestens ein Tag veröffentlicht wurde. Position und Sichtbarkeit wie bei jedem Abschnitt unter *Inhalte*.
+- Der Tagesbericht zeigt **Fakten** (Datum, Ort, Wetter), den Text, eine **Bildergalerie** mit den Unterschriften der KI, die Schlagwörter und eine Leiste zum **Blättern** zum vorherigen und nächsten Tag. Über „Drucken“ des Browsers entsteht ein sauberes PDF ohne Kopf-, Fuß- und Navigationsleiste.
+- **Sitemap, Volltextsuche, IndexNow und der statische Export** kennen die veröffentlichten Tage; Entwürfe bleiben überall außen vor.
 
 ### Volltextsuche
-Eine seitenweite Suche über **Blog-Beiträge, Projekte, Seiten und Bibliothek-Einträge** (Titel, Inhalt und Tags, jeweils DE & EN). Im Design-Tab aktivierbar (Standard aus). Ist sie an, erscheint ein **Suchfeld im Kopfbereich** der Startseite; die Ergebnisse stehen unter `/suche`.
+Eine seitenweite Suche über **Blog-Beiträge, Projekte, Seiten, Bibliothek-Einträge und veröffentlichte Reisetage** (Titel, Inhalt und Tags, jeweils DE & EN). Im Design-Tab aktivierbar (Standard aus). Ist sie an, erscheint ein **Suchfeld im Kopfbereich** der Startseite; die Ergebnisse stehen unter `/suche`.
 
 - **Treffer**: Jeder Treffer zeigt seine Art (Beitrag/Projekt/Seite/Bibliothek), den Titel und einen **Auszug mit hervorgehobenen Suchbegriffen**. Mehrere Wörter werden alle gefordert (UND-Suche). Entwürfe, geplante Beiträge und unveröffentlichte Inhalte bleiben außen vor.
 - **Mitglieder-Inhalte**: Gesperrte (Mitglieder-only) Beiträge und Seiten erscheinen für Gäste nur als **Titel mit 🔒, ohne Inhalts-Vorschau** — angemeldete Mitglieder sehen die volle Vorschau. So wird kein geschützter Text geleakt.

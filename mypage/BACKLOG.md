@@ -5,26 +5,26 @@ weiterzugehen. Kein Ideen-Brainstorming — dafür ist `Ideas.md` da (Kartenspie
 
 ---
 
-## Reiseblog Stufe 2 — öffentliche Darstellung
+## Reiseblog Stufe 3 — Reste aus der öffentlichen Darstellung
 
-**Stand:** Stufe 1 ist fertig und live (v0.10.0–0.10.3). Reisen, Tage, Wizard, Prompt-Bau und
-KI-Bericht laufen im Admin. Öffentlich ist noch nichts sichtbar.
+**Stand:** Stufe 2 ist fertig und live (v0.10.4). Slugs, Freigabe je Tag, die drei Routen
+(`/reiseblog`, `/reiseblog/<reise>`, `/reiseblog/<reise>/<tag>`), die Vorlagen `travel.html`,
+`travel_trip.html` und `travel_day.html`, der Startseiten-Abschnitt, Mitglieder-Sperre je
+Reise, Sitemap, Volltextsuche, IndexNow, statischer Export und die Tages-Vorschau im Admin
+stehen. Liegen geblieben ist:
 
-**Was fehlt:**
-
-- **Slugs** für Reisen und Tage, dazu ein `veröffentlicht`-Schalter je Tag — ein halbfertiger
-  Tag darf nicht online stehen.
-- **Routen** `/reiseblog` (Reisen), `/reiseblog/<reise>` (Tage einer Reise),
-  `/reiseblog/<reise>/<tag>` (der Bericht).
-- **Vorlagen**: Übersicht, Reise, Tagesbericht. Die Bibliothek (`library.html`,
-  `library_entry.html`) ist die passende Bauvorlage — gleiche Struktur aus Liste und Detail,
-  inklusive SEO-Meta, Mitglieder-Sperre und Bildergalerie.
-- **Abschnitt auf der Startseite**: `section_defs['travel']` steht schon in `app.py`, aber mit
-  `present=False`. Sobald es öffentliche Seiten gibt, auf „aktiviert und mindestens ein
-  veröffentlichter Tag" umstellen — sonst ist die Sprungmarke ein Verweis ins Leere.
-  Dasselbe gilt für `section_defs['forms']`.
-- **Sitemap und Volltextsuche** ergänzen (siehe wie `bibliothek/...` dort eingehängt ist).
-- **Ausgaben-Auswertung** je Reise wäre ein hübsches Extra, ist aber Kür.
+- **Ausgaben-Auswertung je Reise** — Summen je Währung liegen mit `travelblog.expense_total()`
+  schon vor, gezeigt werden sie öffentlich nirgends. Kür, kein Mangel.
+- **`section_defs['forms']`** steht weiterhin auf `present=False`. Anders als beim Reiseblog
+  fehlt dafür nicht nur das Flag: Formulare haben zwar öffentliche Seiten (`/formular/<slug>`)
+  und stehen über `_nav_forms()` in der Navigation, aber **keinen Abschnitt in `public.html`**.
+  Erst den Abschnitt bauen, dann das Flag umstellen — sonst zeigt die Sprungmarke `#formulare`
+  ins Leere.
+- **Wetterangaben sind nicht übersetzt.** Die Auswahllisten in `travelblog.py` (`sonnig`,
+  `leicht bewölkt`, …) sind deutsche Klartextwerte und wandern so, wie sie sind, in die
+  Faktenzeile des Tagesberichts — auf der englischen Seite steht also deutsches Wetter.
+  Gilt genauso im Admin. Wer das ändert, braucht Label-Karten in beiden Locales, so wie es
+  `trav_style_labels` schon vormacht.
 
 **Fallstricke, die schon bekannt sind:**
 
@@ -34,6 +34,10 @@ KI-Bericht laufen im Admin. Öffentlich ist noch nichts sichtbar.
 - Flask lädt Vorlagen **nicht** neu — den Testserver nach jeder Änderung an `admin.html`
   oder den öffentlichen Vorlagen neu starten, sonst testet man den alten Stand.
 - Neue `.py`-Dateien brauchen eine eigene `COPY`-Zeile im Dockerfile.
+- Die KI-Bildunterschriften in `article.captions` gehören zu den Fotos **mit** Hinweis, in
+  genau deren Reihenfolge — Fotos ohne Hinweis überspringt der Prompt. Wer über den Index der
+  vollen Fotoliste geht, hängt die Unterschrift ans falsche Bild (genau das war bis v0.10.4
+  im Wizard so).
 
 ---
 

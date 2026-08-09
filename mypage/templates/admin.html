@@ -2160,6 +2160,10 @@
         <div><label>{{ t.trav_start }}</label><input type="date" id="tr-start"></div>
         <div><label>{{ t.trav_end }}</label><input type="date" id="tr-end"></div>
       </div>
+      <label>{{ t.trav_slug }}</label>
+      <input type="text" id="tr-slug" placeholder="gran-canaria-2027">
+      <p class="hint">{{ t.trav_slug_hint }}</p>
+      <label class="checkbox"><input type="checkbox" id="tr-members"> 🔒 {{ t.trav_members_only }}</label>
       <h4 style="margin:18px 0 4px">{{ t.trav_settings }}</h4>
       <p class="hint">{{ t.trav_settings_hint }}</p>
       <div class="row">
@@ -5627,7 +5631,15 @@
         span.style.flex = '1';
         span.innerHTML = `<strong>${T.trav_day} ${d.day_number}${d.location ? ' — ' + escHtml(d.location) : ''}</strong>`
           + `<div class="hint">${escHtml([d.date, (d.experiences || []).length + ' ' + T.trav_experiences_word,
-              art.title ? '✔ ' + T.trav_has_report : T.trav_no_report].filter(Boolean).join(' · '))}</div>`;
+              art.title ? '✔ ' + T.trav_has_report : T.trav_no_report,
+              // Freigegeben ohne Bericht heisst weiterhin unsichtbar — deshalb
+              // zaehlt hier beides zusammen, nicht der Schalter allein.
+              (d.published && art.title) ? '🌐 ' + T.trav_published_flag : T.trav_draft_flag,
+             ].filter(Boolean).join(' · '))}</div>`;
+        const prev = document.createElement('button');
+        prev.className = 'btn secondary small';
+        prev.textContent = T.trav_preview;
+        prev.onclick = () => window.open(`preview/travel/${curTripId}/${d.id}`, '_blank');
         const edit = document.createElement('button');
         edit.className = 'btn secondary small';
         edit.textContent = T.edit;
@@ -5640,7 +5652,7 @@
           const r = await apiJson(`api/travel/trips/${curTripId}/days/${d.id}`, 'DELETE', {});
           if (r.ok) loadTravel();
         };
-        div.append(span, edit, del);
+        div.append(span, prev, edit, del);
         list.appendChild(div);
       });
     }
@@ -5670,6 +5682,8 @@
       el('tr-hotel').value = t.hotel || '';
       el('tr-start').value = t.travel_start || '';
       el('tr-end').value = t.travel_end || '';
+      el('tr-slug').value = t.slug || '';
+      el('tr-members').checked = !!t.members_only;
       el('tr-style').value = s.writing_style || 'persoenlich_locker';
       el('tr-perspective').value = s.perspective || 'wir';
       el('tr-length').value = s.length || 'mittel';
@@ -5684,7 +5698,8 @@
       const body = {
         name: el('tr-name').value, destination: el('tr-destination').value,
         hotel: el('tr-hotel').value, travel_start: el('tr-start').value,
-        travel_end: el('tr-end').value,
+        travel_end: el('tr-end').value, slug: el('tr-slug').value,
+        members_only: el('tr-members').checked,
         settings: {
           writing_style: el('tr-style').value, perspective: el('tr-perspective').value,
           length: el('tr-length').value, langs: el('tr-langs').value.split(','),
@@ -5993,6 +6008,20 @@
         b.appendChild(p);
         return;
       }
+      // Die Freigabe steht oben: auf dieser Seite entsteht der Bericht, hier
+      // wird auch entschieden, ob er ins Netz geht.
+      const pub = document.createElement('label');
+      pub.className = 'checkbox';
+      const pubCb = document.createElement('input');
+      pubCb.type = 'checkbox';
+      pubCb.checked = !!DAY.published;
+      pubCb.onchange = () => { DAY.published = pubCb.checked; travDraft(); };
+      pub.append(pubCb, document.createTextNode(' 🌐 ' + T.trav_publish));
+      const pubHint = document.createElement('p');
+      pubHint.className = 'hint';
+      pubHint.textContent = T.trav_publish_hint;
+      b.append(pub, pubHint);
+
       const langs = ((curTrip().settings || {}).langs) || ['de'];
       langs.forEach(lg => {
         const h = document.createElement('h4');
@@ -6015,10 +6044,18 @@
       };
       tagWrap.append(travLabel(T.field_tags), tagInput);
       b.appendChild(tagWrap);
+      // Die Unterschriften gehoeren zu den Fotos MIT Hinweis, in genau deren
+      // Reihenfolge — der Prompt hat die anderen uebersprungen. Ueber den Index
+      // der vollen Fotoliste zu gehen haengte sie ans falsche Bild, sobald ein
+      // Foto ohne Hinweis dazwischenliegt.
+      const noted = (DAY.photos || []).map((p, idx) => ({ p, idx }))
+        .filter(x => x.p.photo_note);
       (art.captions || []).forEach((c, i) => {
-        const note = ((DAY.photos || [])[i] || {}).photo_note || '';
-        b.appendChild(travField(c, 'de', 'text',
-          T.trav_caption.replace('{n}', i + 1) + (note ? ' — ' + note : '')));
+        const ph = noted[i];
+        const label = T.trav_caption.replace('{n}', (ph ? ph.idx : i) + 1)
+          + (ph ? ' — ' + ph.p.photo_note : '');
+        langs.forEach(lg => b.appendChild(travField(c, lg, 'text',
+          langs.length > 1 ? label + ' (' + lg.toUpperCase() + ')' : label)));
       });
     }
 

@@ -118,6 +118,12 @@ def normalize_trip(raw: dict, existing: dict | None = None) -> dict:
     t['hotel'] = _s(raw.get('hotel'), 160)
     t['travel_start'] = _date(raw.get('travel_start'))
     t['travel_end'] = _date(raw.get('travel_end'))
+    # Der Slug wird in app.py gesetzt (nur dort ist bekannt, welche schon
+    # vergeben sind). Ein leerer Wert im Formular heißt „neu ableiten", ein
+    # fehlendes Feld dagegen „unverändert lassen" — sonst verlöre ein Aufruf
+    # ohne Slug-Feld die Adresse, unter der die Reise schon verlinkt ist.
+    t['slug'] = _s(raw.get('slug'), 60) or _s((existing or {}).get('slug'), 60)
+    t['members_only'] = bool(raw.get('members_only'))
     s = raw.get('settings') if isinstance(raw.get('settings'), dict) else {}
     t['settings'] = {
         'writing_style': _pick(s.get('writing_style'), WRITING_STYLES, 'persoenlich_locker'),
@@ -206,6 +212,11 @@ def normalize_day(raw: dict, existing: dict | None = None) -> dict:
     d = dict(existing or {})
     d['day_number'] = _num(raw.get('day_number'), 1, 999, 0) or 1
     d['date'] = _date(raw.get('date'))
+    # Ein Tag ist erst online, wenn er ausdrücklich freigegeben wurde. Ohne
+    # diesen Schalter stünde jeder halbfertige Tag in dem Moment im Netz, in
+    # dem er gespeichert wird — und gespeichert wird unterwegs ständig.
+    d['published'] = bool(raw.get('published'))
+    d['slug'] = _s(raw.get('slug'), 60) or _s((existing or {}).get('slug'), 60)
     d['location'] = _s(raw.get('location'), 160)
     d['hotel'] = _s(raw.get('hotel'), 160)
     w = raw.get('weather') if isinstance(raw.get('weather'), dict) else {}

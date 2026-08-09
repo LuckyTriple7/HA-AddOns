@@ -2978,9 +2978,14 @@ def _search_highlight(text: str, words: list) -> Markup:
     return Markup(out)
 
 
-def site_search(site: dict, query: str, loc, viewer_is_member: bool) -> list:
-    """Seitenweite Volltextsuche über Beiträge, Projekte und Seiten.
-    Liefert eine Liste {kind, title, title_html, url, snippet, locked}."""
+def site_search(site: dict, query: str, loc, viewer_is_member: bool,
+                lang: str = 'de') -> list:
+    """Seitenweite Volltextsuche über Beiträge, Projekte, Seiten, Bibliothek und
+    Reiseblog. Liefert eine Liste {kind, title, title_html, url, snippet, locked}.
+
+    `lang` braucht nur der Reiseblog: dessen Texte liegen im Artikel-Objekt und
+    nicht in `<feld>_de`/`<feld>_en`, `loc` greift dort also nicht.
+    """
     words = _search_words(query)
     if not words:
         return []
@@ -3022,6 +3027,16 @@ def site_search(site: dict, query: str, loc, viewer_is_member: bool) -> list:
         body = ' '.join([loc(e, 'summary'), loc(e, 'body'), ' '.join(e.get('tags', []))])
         consider('library', loc(e, 'title'), '/bibliothek/' + e.get('slug', ''),
                  body, e.get('members_only'))
+
+    for trip in _trav_public_trips(site):
+        for d in _trav_public_days(trip):
+            art = _trav_article(d, lang)
+            body = ' '.join([art.get('teaser') or '', art.get('body') or '',
+                             ' '.join((d.get('article') or {}).get('tags') or []),
+                             d.get('location') or '', trip.get('destination') or ''])
+            consider('travel', art.get('title') or '',
+                     f"/reiseblog/{trip['slug']}/{d.get('slug', '')}",
+                     body, trip.get('members_only'))
 
     return results[:SEARCH_MAX_RESULTS]
 
@@ -3598,15 +3613,18 @@ def _nav_forms(site: dict, loc) -> list:
     return out
 
 
-def _nav_links(site: dict, loc, t: dict | None = None, with_library: bool = True) -> list:
-    """Navi-Einträge für Bibliothek, eigene Seiten und Formulare.
+def _nav_links(site: dict, loc, t: dict | None = None, with_library: bool = True,
+               with_travel: bool = True) -> list:
+    """Navi-Einträge für Bibliothek, Reiseblog, eigene Seiten und Formulare.
 
-    Auf der Startseite steckt die Bibliothek bereits als Abschnitt in der
-    Sektions-Navigation (Anker `#library`) — dort `with_library=False`, sonst
-    stünde sie doppelt in der Leiste.
+    Auf der Startseite stecken Bibliothek und Reiseblog bereits als Abschnitt in
+    der Sektions-Navigation (Anker `#library`, `#reiseblog`) — dort mit
+    `with_library=False` bzw. `with_travel=False`, sonst stünden sie doppelt in
+    der Leiste. Auf den Unterseiten sind es die einzigen Wege zurück.
     """
     lib = _nav_library(site, loc, t or {}) if with_library else []
-    return lib + _nav_pages(site, loc) + _nav_forms(site, loc)
+    trav = _nav_travel(site, loc, t or {}) if with_travel else []
+    return lib + trav + _nav_pages(site, loc) + _nav_forms(site, loc)
 
 
 # ── Weiterleitungen (301/302) ─────────────────────────────────────────────────
@@ -5597,6 +5615,34 @@ def _day(trip: dict, did: str) -> dict | None:
     return next((d for d in trip.get('days', []) if d.get('id') == did), None)
 
 
+def _trav_slug(wish: str, fallback: str, taken: set) -> str:
+    """Eindeutiger Slug aus Wunsch oder Notnagel, Dubletten mit -2, -3, …"""
+    base = _slugify(wish) or fallback
+    slug, n = base, 2
+    while slug in taken:
+        slug = f'{base}-{n}'
+        n += 1
+    return slug
+
+
+def _trav_trip_slug(data: dict, trip: dict, tid: str) -> str:
+    """Adresse der Reise. Ein einmal vergebener Slug bleibt, auch wenn die Reise
+    später umbenannt wird — sonst führt jeder geteilte Link ins Leere."""
+    taken = {t.get('slug') for t in data['trips'] if t.get('id') != tid and t.get('slug')}
+    return _trav_slug(trip.get('slug') or trip.get('name') or '', 'reise-' + tid[:6], taken)
+
+
+def _trav_day_slug(trip: dict, day: dict, did: str) -> str:
+    """Adresse des Tages, standardmäßig `tag-3`.
+
+    Bewusst ohne Ort im Slug: der Ort wird beim Nachtragen gern noch korrigiert,
+    die Tagesnummer nicht. Eindeutig muss der Slug nur innerhalb der Reise sein.
+    """
+    taken = {d.get('slug') for d in trip.get('days', []) if d.get('id') != did and d.get('slug')}
+    return _trav_slug(day.get('slug') or f"tag-{day.get('day_number') or 1}",
+                      'tag-' + did[:6], taken)
+
+
 @admin_app.route('/api/travel')
 def api_travel_get():
     err = _api_auth()
@@ -5640,6 +5686,7 @@ def api_travel_trip_create():
     if not trip['name']:
         return jsonify({'error': 'name required'}), 400
     trip['id'] = uuid.uuid4().hex[:12]
+    trip['slug'] = _trav_trip_slug(data, trip, trip['id'])
     data['trips'].insert(0, trip)
     return _saved(save_travel(data), {'id': trip['id']})
 
@@ -5661,6 +5708,7 @@ def api_travel_trip(tid: str):
         return _saved(ok)
     merged = tb.normalize_trip(request.get_json(silent=True) or {}, trip)
     merged['id'] = tid
+    merged['slug'] = _trav_trip_slug(data, merged, tid)
     data['trips'] = [merged if t.get('id') == tid else t for t in data['trips']]
     return _saved(save_travel(data))
 
@@ -5678,6 +5726,7 @@ def api_travel_day_create(tid: str):
         return jsonify({'error': 'too many'}), 400
     day = tb.normalize_day(request.get_json(silent=True) or {})
     day['id'] = uuid.uuid4().hex[:12]
+    day['slug'] = _trav_day_slug(trip, day, day['id'])
     trip.setdefault('days', []).append(day)
     trip['days'].sort(key=lambda d: (d.get('day_number') or 0, d.get('date') or ''))
     return _saved(save_travel(data), {'id': day['id']})
@@ -5701,6 +5750,7 @@ def api_travel_day(tid: str, did: str):
         return _saved(ok)
     merged = tb.normalize_day(request.get_json(silent=True) or {}, day)
     merged['id'] = did
+    merged['slug'] = _trav_day_slug(trip, merged, did)
     trip['days'] = [merged if d.get('id') == did else d for d in trip['days']]
     trip['days'].sort(key=lambda d: (d.get('day_number') or 0, d.get('date') or ''))
     return _saved(save_travel(data))
@@ -6896,6 +6946,14 @@ def api_export():
             # exportierten HTML zeigt damit auf eine echte Datei.
             if _lib_entry_pdf_name(e) and not e.get('members_only'):
                 pages[f"bibliothek/{e['slug']}.pdf"] = f"/bibliothek/{e['slug']}.pdf"
+    trav_trips = _trav_public_trips(site)
+    if trav_trips:
+        pages['reiseblog/index.html'] = '/reiseblog'
+        for tr in trav_trips:
+            pages[f"reiseblog/{tr['slug']}/index.html"] = f"/reiseblog/{tr['slug']}"
+            for d in _trav_public_days(tr):
+                pages[f"reiseblog/{tr['slug']}/{d['slug']}/index.html"] = \
+                    f"/reiseblog/{tr['slug']}/{d['slug']}"
     if loc(legal, 'impressum').strip():
         pages['impressum/index.html'] = '/impressum'
     if loc(legal, 'privacy').strip():
@@ -7518,6 +7576,13 @@ def _public_url_list(site: dict, base: str) -> list:
     if lib_entries:
         urls.append(base + '/bibliothek')
         urls += [f"{base}/bibliothek/{e['slug']}" for e in lib_entries]
+    trav_trips = _trav_public_trips(site)
+    if trav_trips:
+        urls.append(base + '/reiseblog')
+        for tr in trav_trips:
+            urls.append(f"{base}/reiseblog/{tr['slug']}")
+            urls += [f"{base}/reiseblog/{tr['slug']}/{d['slug']}"
+                     for d in _trav_public_days(tr)]
     return urls
 
 
@@ -9701,6 +9766,14 @@ def sitemap():
         entries += [(f"{base}/bibliothek/{e['slug']}",
                      e['updated'] if _valid_date(e.get('updated')) else '')
                     for e in lib_entries]
+    trav_trips = _trav_public_trips(site)
+    if trav_trips:
+        entries.append((base + '/reiseblog', ''))
+        for tr in trav_trips:
+            entries.append((f"{base}/reiseblog/{tr['slug']}", ''))
+            entries += [(f"{base}/reiseblog/{tr['slug']}/{d['slug']}",
+                         d['date'] if _valid_date(d.get('date')) else '')
+                        for d in _trav_public_days(tr)]
     entries += [(f"{base}/p/{p['id']}", '') for p in site['projects']
                 if _has_detail(p) and project_visible(p)]
     if posts:
@@ -9903,6 +9976,9 @@ def public_index():
     # Schlagwörter nur aus den gezeigten Karten — die Filterleiste auf der Startseite
     # arbeitet im Browser über genau diese Kacheln, ein Chip ohne Treffer wäre eine Sackgasse.
     library_tags = _lib_tag_list(library_entries)
+    # Reiseblog: die jüngsten Reisen als Kacheln, „alle anzeigen" führt auf die
+    # Übersicht. Reihenfolge wie im Admin — die neueste Reise steht dort oben.
+    travel_trips = [_trav_trip_view(tr, lang) for tr in _trav_public_trips(site)[:6]]
 
     loc_block = sections.get('location') or {}
     loc_present = bool(loc_block.get('address') or loc_block.get('hours_de') or loc_block.get('hours_en'))
@@ -9975,10 +10051,10 @@ def public_index():
         'links':        ('links',        'links_heading',        bool(sections.get('links'))),
         'faq':          ('faq',          'faq_heading',          bool(sections.get('faq'))),
         'location':     ('standort',     'location_heading',     loc_present),
-        # Der Reiseblog laesst sich hier schon einsortieren und ausblenden. Auf
-        # der Startseite erscheint er erst mit den oeffentlichen Seiten -- bis
-        # dahin waere die Sprungmarke ein Verweis ins Leere.
-        'travel':       ('reiseblog',    'trav_trips_heading',   False),
+        # Der Reiseblog erscheint, sobald er freigegeben ist UND mindestens ein
+        # Tag veroeffentlicht wurde -- sonst waere die Sprungmarke ein Verweis
+        # ins Leere. Beides steckt schon in `travel_trips`.
+        'travel':       ('reiseblog',    'trav_trips_heading',   bool(travel_trips)),
         'forms':        ('formulare',    'tab_forms',            False),
     }
     # Gespeicherte Reihenfolge bereinigen: nur gültige Keys, fehlende hinten anhängen
@@ -10028,7 +10104,9 @@ def public_index():
         # zur Übersicht.
         lib_in_nav = ('library' in section_order and section_defs['library'][2]
                       and _library(site).get('nav'))
-        nav_items += _nav_links(site, loc, t, with_library=not lib_in_nav)
+        trav_in_nav = 'travel' in section_order and section_defs['travel'][2]
+        nav_items += _nav_links(site, loc, t, with_library=not lib_in_nav,
+                                with_travel=not trav_in_nav)
 
     return render_template('public.html', t=t, lang=lang, site=site, loc=loc,
                            projects=projects,
@@ -10044,6 +10122,7 @@ def public_index():
                            library_total=library_total,
                            library_tags=library_tags,
                            library_heading=library_heading,
+                           travel_trips=travel_trips,
                            countdown_title=countdown_title,
                            newsletter_open=newsletter_open() and not static_export,
                            nl=_clean_str(request.args.get('nl'), 20),
@@ -10097,7 +10176,7 @@ def site_search_page():
     query = _clean_str(request.args.get('q'), 80)
     loc = _loc_factory(lang)
     member = current_member(request)
-    results = site_search(site, query, loc, member is not None) if query else []
+    results = site_search(site, query, loc, member is not None, lang) if query else []
     count_visit(request)
     t = load_translations(lang)
     kind_labels = {
@@ -10105,6 +10184,7 @@ def site_search_page():
         'project': t.get('search_kind_project', 'Projekt'),
         'page':    t.get('search_kind_page', 'Seite'),
         'library': _library_label(site, loc, t),
+        'travel':  t.get('trav_trips_heading', 'Reiseblog'),
     }
     nav_items = _nav_links(site, loc, t) if site['design'].get('show_nav', True) else []
     return render_template('search.html', t=t, lang=lang, site=site, loc=loc,
@@ -11456,6 +11536,275 @@ def admin_library_preview(eid: str):
     if entry is None:
         abort(404)
     return _render_library_entry(site, entry, detect_language(request), preview=True)
+
+
+# ── Reiseblog (öffentlich) ────────────────────────────────────────────────────
+#
+# Aufbau wie die Bibliothek — Übersicht, dann Detail —, nur mit einer Ebene mehr:
+# ein Reisetag ohne seine Reise hat keinen Zusammenhang. Daher /reiseblog,
+# /reiseblog/<reise> und /reiseblog/<reise>/<tag>.
+#
+# Sichtbar ist ein Tag nur, wenn er freigegeben ist UND einen Artikel hat. Der
+# Schalter allein genügt nicht: unterwegs wird ständig zwischengespeichert, und
+# eine freigegebene Seite ohne Text wäre eine leere Seite mit Datum.
+
+def _trav_article(day: dict, lang: str) -> dict:
+    """Artikel in der gewünschten Sprache, sonst in der anderen.
+
+    Eine Reise kann einsprachig geführt sein — dann steht auf der englischen
+    Seite der deutsche Bericht. Das ist besser als eine leere Seite.
+    """
+    art = day.get('article') or {}
+    want = art.get(lang) or {}
+    if want.get('title') or want.get('body'):
+        return want
+    other = art.get('en' if lang == 'de' else 'de') or {}
+    return other if (other.get('title') or other.get('body')) else want
+
+
+def _trav_day_public(day: dict) -> bool:
+    art = day.get('article') or {}
+    return bool(day.get('published') and day.get('slug')
+                and any((art.get(lg) or {}).get('title') for lg in ('de', 'en')))
+
+
+def _trav_public_days(trip: dict) -> list:
+    return [d for d in (trip.get('days') or []) if _trav_day_public(d)]
+
+
+def _trav_public_trips(site: dict, data: dict | None = None) -> list:
+    """Reisen mit mindestens einem veröffentlichten Tag.
+
+    Leer, solange der Reiseblog in den Einstellungen nicht für die Website
+    freigegeben ist — der Admin-Reiter bleibt davon unberührt.
+    """
+    if not site['design'].get('travel_enabled'):
+        return []
+    data = load_travel() if data is None else data
+    return [t for t in (data.get('trips') or [])
+            if t.get('slug') and _trav_public_days(t)]
+
+
+def _trav_date(iso: str, lang: str) -> str:
+    """Datum zum Anzeigen: deutsch 12.05.2027, sonst unverändert ISO."""
+    if lang != 'de' or not re.fullmatch(r'\d{4}-\d{2}-\d{2}', iso or ''):
+        return iso or ''
+    y, m, d = iso.split('-')
+    return f'{d}.{m}.{y}'
+
+
+def _trav_first_photo(day: dict) -> str:
+    return next((p['url'] for p in (day.get('photos') or []) if p.get('url')), '')
+
+
+def _trav_trip_view(trip: dict, lang: str) -> dict:
+    """Reise als Kachel für die Übersicht."""
+    days = _trav_public_days(trip)
+    lead = _trav_article(days[0], lang) if days else {}
+    cover = next((_trav_first_photo(d) for d in days if _trav_first_photo(d)), '')
+    return {
+        'slug': trip.get('slug', ''),
+        'name': trip.get('name') or trip.get('destination') or trip.get('slug', ''),
+        'destination': trip.get('destination') or '',
+        'day_count': len(days),
+        'start': _trav_date(trip.get('travel_start') or '', lang),
+        'end': _trav_date(trip.get('travel_end') or '', lang),
+        'image': _overlay_url(cover),
+        'teaser': lead.get('teaser') or '',
+        'members_only': bool(trip.get('members_only')),
+    }
+
+
+def _trav_day_view(day: dict, lang: str) -> dict:
+    """Tag als Kachel für die Reise-Seite."""
+    art = _trav_article(day, lang)
+    return {
+        'slug': day.get('slug', ''),
+        'number': day.get('day_number') or 0,
+        'date': _trav_date(day.get('date') or '', lang),
+        'location': day.get('location') or '',
+        'title': art.get('title') or '',
+        'teaser': art.get('teaser') or '',
+        'image': _overlay_url(_trav_first_photo(day)),
+    }
+
+
+def _trav_gallery(day: dict, lang: str) -> list:
+    """Fotos mit Bildunterschrift.
+
+    Die KI-Unterschriften in `article.captions` gehören zu den Fotos MIT
+    Hinweis, in genau deren Reihenfolge — Fotos ohne Hinweis hat der Prompt
+    übersprungen. Der Zähler läuft deshalb über alle Fotos, hochgezählt wird
+    aber nur bei denen mit Hinweis. Wer stumpf über den Index der Fotoliste
+    ginge, hängte die Unterschriften ans falsche Bild.
+    """
+    caps = (day.get('article') or {}).get('captions') or []
+    other = 'en' if lang == 'de' else 'de'
+    out, k = [], 0
+    for p in (day.get('photos') or []):
+        ai = {}
+        if p.get('photo_note'):
+            ai = caps[k] if k < len(caps) else {}
+            k += 1
+        if not p.get('url'):
+            continue
+        out.append({'url': _overlay_url(p['url']),
+                    'caption': (p.get('caption_' + lang) or ai.get(lang)
+                                or p.get('caption_' + other) or ai.get(other) or '')})
+    return out
+
+
+def _trav_facts(day: dict, lang: str) -> list:
+    """Kurze Faktenzeile über dem Bericht: Datum, Ort, Wetter.
+
+    Das Wetter steht so da, wie es gespeichert wurde (deutsche Begriffe) — wie
+    überall sonst im Reiseblog auch, die Auswahllisten sind nicht übersetzt.
+    """
+    facts = [x for x in (_trav_date(day.get('date') or '', lang),
+                         day.get('location') or '') if x]
+    w = day.get('weather') or {}
+    if w.get('mention'):
+        wx = ' '.join(x for x in (w.get('condition') or '',
+                                  f"{w['temperature']} °C"
+                                  if w.get('temperature') is not None else '') if x)
+        if wx:
+            facts.append(wx)
+    return facts
+
+
+def _nav_travel(site: dict, loc, t: dict) -> list:
+    """Navi-Eintrag des Reiseblogs (nur mit veröffentlichten Tagen)."""
+    if not _trav_public_trips(site):
+        return []
+    return [{'href': '/reiseblog', 'label': t.get('trav_trips_heading', 'Reiseblog')}]
+
+
+def _trav_locked(trip: dict, preview: bool) -> bool:
+    """Mitglieder-Sperre gilt für die ganze Reise, nicht je Tag: eine Reise
+    halb öffentlich zu zeigen ergäbe eine Geschichte mit Löchern."""
+    return bool(trip.get('members_only')) and not preview and not is_member(request)
+
+
+def _trav_head(site: dict, lang: str):
+    """Gemeinsamer Kopf aller Reiseblog-Seiten."""
+    t = load_translations(lang)
+    loc = _loc_factory(lang)
+    font_family, font_faces = font_css(site['design'])
+    return t, loc, font_family, font_faces
+
+
+@public_app.route('/reiseblog')
+def travel_index():
+    lang = detect_language(request)
+    site = load_site()
+    if site['design'].get('maintenance'):
+        return _maintenance_page(site, lang)
+    trips = _trav_public_trips(site)
+    if not trips:
+        abort(404)
+    count_visit(request)
+    t, loc, font_family, font_faces = _trav_head(site, lang)
+    return render_template(
+        'travel.html', t=t, lang=lang, site=site, loc=loc,
+        heading=t.get('trav_trips_heading', ''),
+        trips=[_trav_trip_view(tr, lang) for tr in trips],
+        font_family=font_family, font_faces=font_faces,
+        nav_items=(_nav_links(site, loc, t, with_travel=False)
+                   if site['design'].get('show_nav', True) else []),
+        meta_desc=(t.get('trav_public_intro', '') or _site_meta(site, loc)),
+        year=datetime.now(timezone.utc).year)
+
+
+@public_app.route('/reiseblog/<tslug>')
+def travel_trip_page(tslug: str):
+    lang = detect_language(request)
+    site = load_site()
+    if site['design'].get('maintenance'):
+        return _maintenance_page(site, lang)
+    trip = next((x for x in _trav_public_trips(site) if x['slug'] == tslug), None)
+    if trip is None:
+        abort(404)
+    count_visit(request)
+    t, loc, font_family, font_faces = _trav_head(site, lang)
+    view = _trav_trip_view(trip, lang)
+    return render_template(
+        'travel_trip.html', t=t, lang=lang, site=site, loc=loc,
+        heading=t.get('trav_trips_heading', ''), trip=view,
+        days=[_trav_day_view(d, lang) for d in _trav_public_days(trip)],
+        locked=_trav_locked(trip, False),
+        font_family=font_family, font_faces=font_faces,
+        nav_items=(_nav_links(site, loc, t, with_travel=False)
+                   if site['design'].get('show_nav', True) else []),
+        meta_desc=(view['teaser'] or view['destination'] or _site_meta(site, loc)),
+        year=datetime.now(timezone.utc).year)
+
+
+def _render_travel_day(site: dict, trip: dict, day: dict, lang: str, preview: bool = False):
+    t, loc, font_family, font_faces = _trav_head(site, lang)
+    art = _trav_article(day, lang)
+    # Geblättert wird nur über veröffentlichte Tage. In der Vorschau eines noch
+    # nicht freigegebenen Tages steht er nicht in der Liste — dann entfällt die
+    # Blätter-Leiste, statt auf Adressen zu zeigen, die es öffentlich nicht gibt.
+    days = _trav_public_days(trip)
+    idx = next((i for i, d in enumerate(days) if d.get('id') == day.get('id')), -1)
+    locked = _trav_locked(trip, preview)
+    full_html = _overlay_html_images(render_md(art.get('body') or ''))
+    body_html = ('<p>' + _locked_teaser(full_html) + '</p>') if locked else full_html
+    return render_template(
+        'travel_day.html', t=t, lang=lang, site=site, loc=loc,
+        trip=_trav_trip_view(trip, lang), day=_trav_day_view(day, lang),
+        heading=t.get('trav_trips_heading', ''),
+        title=art.get('title') or f"{t.get('trav_day', 'Tag')} {day.get('day_number')}",
+        body_html=body_html, locked=locked,
+        members_only=bool(trip.get('members_only')),
+        facts=_trav_facts(day, lang),
+        gallery=([] if locked else _trav_gallery(day, lang)),
+        tags=((day.get('article') or {}).get('tags') or []),
+        prev_day=(_trav_day_view(days[idx - 1], lang) if idx > 0 else None),
+        next_day=(_trav_day_view(days[idx + 1], lang)
+                  if 0 <= idx < len(days) - 1 else None),
+        font_family=font_family, font_faces=font_faces,
+        nav_items=(_nav_links(site, loc, t, with_travel=False)
+                   if site['design'].get('show_nav', True) else []),
+        # Bewusst `body_html` (bei gesperrten Reisen der Anriss): der volle Text
+        # gehört nicht in die Meta-Description, wenn die Seite gesperrt ist.
+        meta_desc=(art.get('teaser') or _plain_excerpt(body_html)
+                   or _site_meta(site, loc)),
+        year=datetime.now(timezone.utc).year)
+
+
+@public_app.route('/reiseblog/<tslug>/<dslug>')
+def travel_day_page(tslug: str, dslug: str):
+    lang = detect_language(request)
+    site = load_site()
+    if site['design'].get('maintenance'):
+        return _maintenance_page(site, lang)
+    trip = next((x for x in _trav_public_trips(site) if x['slug'] == tslug), None)
+    day = next((d for d in _trav_public_days(trip) if d.get('slug') == dslug),
+               None) if trip else None
+    if day is None:
+        abort(404)
+    count_visit(request)
+    return _render_travel_day(site, trip, day, lang)
+
+
+@admin_app.route('/preview/travel/<tid>/<did>')
+def admin_travel_preview(tid: str, did: str):
+    """Tages-Vorschau im Admin — zeigt auch noch nicht freigegebene Tage.
+
+    Ohne sie ließe sich vor dem Freigeben nicht sehen, wie der Bericht mit
+    Fotos und Bildunterschriften tatsächlich aussieht.
+    """
+    err = _auth_required()
+    if err:
+        return err
+    data = load_travel()
+    trip = _trip(data, tid)
+    day = _day(trip, did) if trip else None
+    if day is None:
+        abort(404)
+    return _render_travel_day(load_site(), trip, day,
+                              detect_language(request), preview=True)
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────

@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}" data-theme="{{ 'light' if site.design.mode == 'light' else 'dark' }}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ trip.name }} – {{ site.design.site_title or site.profile.name or 'MyPage' }}</title>
+  <meta name="description" content="{{ meta_desc }}">
+  <meta property="og:title" content="{{ trip.name }}">
+  <meta property="og:description" content="{{ meta_desc }}">
+  {% if trip.image %}<meta property="og:image" content="{{ trip.image }}">{% endif %}
+  {% if site.design.favicon %}<link rel="icon" href="{{ site.design.favicon }}">
+  {% elif site.profile.avatar %}<link rel="icon" href="{{ site.profile.avatar }}">{% endif %}
+  {% if not site.design.allow_indexing %}<meta name="robots" content="noindex, nofollow">{% endif %}
+  <meta name="theme-color" content="#0d1117">
+  <link rel="apple-touch-icon" href="/icon.png">
+  <style>
+    :root {
+      --bg:#0d1117; --surf:#161b22; --surf2:#1c2230; --border:#30363d;
+      --text:#c9d1d9; --muted:#8b949e; --accent:{{ site.design.accent }}; --font: {{ font_family|safe }};
+    }
+    [data-theme="light"] {
+      --bg:#f6f8fa; --surf:#ffffff; --surf2:#f0f2f5; --border:#d0d7de; --text:#1f2328; --muted:#636c76;
+    }
+    {{ font_faces|safe }}
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: var(--font, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif);
+      background: var(--bg); color: var(--text); line-height: 1.65;
+    }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .wrap { max-width: 940px; margin: 0 auto; padding: 0 20px; }
+    header { border-bottom: 1px solid var(--border); }
+    .header-inner { display: flex; align-items: center; justify-content: space-between; padding: 12px 0; }
+    .brand { font-weight: 700; color: var(--text); }
+    .brand:hover { text-decoration: none; }
+    .header-actions { display: flex; align-items: center; gap: 6px; }
+    .lang-btn { background: none; border: 1px solid var(--border); color: var(--muted); padding: 2px 9px; border-radius: 5px; font-size: 0.75rem; }
+    .lang-btn:hover { text-decoration: none; color: var(--text); }
+    .lang-btn.active { border-color: var(--accent); color: var(--accent); }
+    .theme-btn { background: none; border: 1px solid var(--border); color: var(--muted); padding: 4px 7px; border-radius: 5px; cursor: pointer; display: inline-flex; }
+    .theme-btn svg { width: 13px; height: 13px; fill: currentColor; }
+    .icon-sun { display: none; }
+    [data-theme="light"] .icon-moon { display: none; }
+    [data-theme="light"] .icon-sun { display: inline; }
+    .site-nav { border-top: 1px solid var(--border); }
+    .site-nav-inner { display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; -ms-overflow-style: none; padding: 2px 20px; }
+    .site-nav-inner::-webkit-scrollbar { display: none; }
+    .site-nav a { color: var(--muted); font-size: 0.85rem; padding: 9px 11px; white-space: nowrap; border-bottom: 2px solid transparent; }
+    .site-nav a:hover { color: var(--text); text-decoration: none; border-bottom-color: var(--accent); }
+    main { padding: 34px 0 60px; }
+    .crumb { font-size: 0.8rem; color: var(--muted); margin-bottom: 10px; }
+    h1 { font-size: 1.9rem; margin-bottom: 8px; }
+    .trip-meta { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 0.78rem; color: var(--muted); margin-bottom: 20px; }
+    .trav-flag { border: 1px solid var(--border); border-radius: 999px; padding: 1px 9px; }
+    .trip-hero { width: 100%; border-radius: 10px; margin-bottom: 24px; }
+    /* Ein Reisetag ist eine Zeile, keine Kachel: die Tage werden der Reihe nach
+       gelesen, und eine Liste zeigt die Reihenfolge deutlicher als ein Raster. */
+    .day-list { display: flex; flex-direction: column; gap: 12px; }
+    .day-item {
+      display: flex; gap: 14px; align-items: stretch; background: var(--surf);
+      border: 1px solid var(--border); border-radius: 10px; overflow: hidden;
+      color: var(--text); transition: border-color .15s;
+    }
+    .day-item:hover { border-color: var(--accent); text-decoration: none; }
+    .day-thumb { width: 150px; flex: 0 0 150px; object-fit: cover; background: var(--surf2); }
+    .day-body { padding: 13px 16px 14px; min-width: 0; }
+    .day-num { font-size: 0.72rem; color: var(--muted); }
+    .day-title { font-weight: 600; font-size: 1.02rem; margin: 2px 0 5px; }
+    .day-teaser { font-size: 0.86rem; color: var(--muted); }
+    @media (max-width: 560px) {
+      .day-item { flex-direction: column; }
+      .day-thumb { width: 100%; flex: none; aspect-ratio: 16 / 9; }
+    }
+    footer { border-top: 1px solid var(--border); padding: 20px 0; text-align: center; font-size: 0.78rem; color: var(--muted); }
+    {{ site.design.custom_css|safe }}
+  </style>
+</head>
+<body>
+{% include '_banner.html' %}
+  <header>
+    <div class="wrap header-inner">
+      <a class="brand" href="/reiseblog">&larr; {{ heading }}</a>
+      <div class="header-actions">
+        <a href="/set-lang/de?next=/reiseblog/{{ trip.slug }}" class="lang-btn {% if lang == 'de' %}active{% endif %}">DE</a>
+        <a href="/set-lang/en?next=/reiseblog/{{ trip.slug }}" class="lang-btn {% if lang == 'en' %}active{% endif %}">EN</a>
+        <button class="theme-btn" onclick="toggleTheme()" type="button" aria-label="Theme">
+          <svg class="icon-moon" viewBox="0 0 24 24"><path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c0-.46-.04-.92-.1-1.36-.98 1.37-2.58 2.26-4.4 2.26-2.98 0-5.4-2.42-5.4-5.4 0-1.81.89-3.42 2.26-4.4-.44-.06-.9-.1-1.36-.1z"/></svg>
+          <svg class="icon-sun"  viewBox="0 0 24 24"><path d="M12 7c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zM2 13h2v-2H2v2zm18 0h2v-2h-2v2zM11 2v2h2V2h-2zm0 18v2h2v-2h-2zM5.99 4.58 4.58 5.99l1.41 1.41 1.41-1.41L5.99 4.58zm12.03 12.03-1.41 1.41 1.41 1.41 1.41-1.41-1.41-1.41zm1.41-12.44-1.41-1.41-1.41 1.41 1.41 1.41 1.41-1.41zM5.99 19.42l1.41 1.41 1.41-1.41-1.41-1.41-1.41 1.41z"/></svg>
+        </button>
+      </div>
+    </div>
+    {% if nav_items %}
+    <nav class="site-nav" aria-label="{{ t.pages_nav_aria }}">
+      <div class="wrap site-nav-inner">
+        {% for it in nav_items %}<a href="{{ it.href }}">{{ it.label }}</a>{% endfor %}
+      </div>
+    </nav>
+    {% endif %}
+  </header>
+  <main class="wrap">
+    <div class="crumb"><a href="/reiseblog">{{ heading }}</a></div>
+    <h1>{{ trip.name }}</h1>
+    <div class="trip-meta">
+      {% if trip.destination %}<span>📍 {{ trip.destination }}</span>{% endif %}
+      {% if trip.start %}<span>{{ trip.start }}{% if trip.end %} – {{ trip.end }}{% endif %}</span>{% endif %}
+      <span class="trav-flag">{{ (t.trav_day_count_one if trip.day_count == 1 else t.trav_day_count).replace('{n}', trip.day_count|string) }}</span>
+      {% if trip.members_only %}<span class="trav-flag">🔒 {{ t.members_only_badge }}</span>{% endif %}
+    </div>
+
+    {% if trip.image %}<img class="trip-hero" src="{{ trip.image }}" alt="">{% endif %}
+    {% if locked %}{% include '_locked.html' %}{% endif %}
+
+    <div class="day-list">
+      {% for d in days %}
+      <a class="day-item" href="/reiseblog/{{ trip.slug }}/{{ d.slug }}">
+        {% if d.image %}<img class="day-thumb" src="{{ d.image }}" alt="" loading="lazy">{% endif %}
+        <div class="day-body">
+          <div class="day-num">{{ t.trav_day }} {{ d.number }}{% if d.date %} · {{ d.date }}{% endif %}{% if d.location %} · {{ d.location }}{% endif %}</div>
+          <div class="day-title">{{ d.title }}</div>
+          {% if d.teaser %}<div class="day-teaser">{{ d.teaser }}</div>{% endif %}
+        </div>
+      </a>
+      {% endfor %}
+    </div>
+  </main>
+  <footer>
+    <div class="wrap">&copy; {{ year }} {{ site.profile.name or 'MyPage' }}</div>
+  </footer>
+  <script>
+    const saved = localStorage.getItem('mp-public-theme');
+    if (saved) document.documentElement.setAttribute('data-theme', saved);
+    function toggleTheme() {
+      const cur = document.documentElement.getAttribute('data-theme');
+      const next = cur === 'light' ? 'dark' : 'light';
+      document.documentElement.setAttribute('data-theme', next);
+      localStorage.setItem('mp-public-theme', next);
+    }
+  </script>
+</body>
+</html>
