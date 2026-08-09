@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.7.47.1] - 2026-08-09
+
+chore(deps): bump js-yaml from 4.3.0 to 4.3.1 in /whatsapp
+
+
 ## [1.7.47] - 2026-07-31
 - Neu: **„🧹 Fehlerhafte aufräumen"-Button im Status-Archiv-Fenster** — neuer Endpoint `POST /api/status-archive/:chatId/cleanup` entfernt dauerhaft nur die Einträge ohne ladbares Medium (kein `mediaFile` oder Datei nicht mehr auf Platte). Hat der Eintrag eine Bildunterschrift, wird er zu einem reinen Text-Eintrag statt gelöscht. Danach stimmen Badge-Zähler und tatsächlich angezeigte Kacheln wieder überein — im Gegensatz zu „Archiv leeren" bleibt der Rest der Historie erhalten
 
