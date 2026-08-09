@@ -5,6 +5,38 @@ weiterzugehen. Kein Ideen-Brainstorming — dafür ist `Ideas.md` da (Kartenspie
 
 ---
 
+## Reiseblog Stufe 2 — öffentliche Darstellung
+
+**Stand:** Stufe 1 ist fertig und live (v0.10.0–0.10.3). Reisen, Tage, Wizard, Prompt-Bau und
+KI-Bericht laufen im Admin. Öffentlich ist noch nichts sichtbar.
+
+**Was fehlt:**
+
+- **Slugs** für Reisen und Tage, dazu ein `veröffentlicht`-Schalter je Tag — ein halbfertiger
+  Tag darf nicht online stehen.
+- **Routen** `/reiseblog` (Reisen), `/reiseblog/<reise>` (Tage einer Reise),
+  `/reiseblog/<reise>/<tag>` (der Bericht).
+- **Vorlagen**: Übersicht, Reise, Tagesbericht. Die Bibliothek (`library.html`,
+  `library_entry.html`) ist die passende Bauvorlage — gleiche Struktur aus Liste und Detail,
+  inklusive SEO-Meta, Mitglieder-Sperre und Bildergalerie.
+- **Abschnitt auf der Startseite**: `section_defs['travel']` steht schon in `app.py`, aber mit
+  `present=False`. Sobald es öffentliche Seiten gibt, auf „aktiviert und mindestens ein
+  veröffentlichter Tag" umstellen — sonst ist die Sprungmarke ein Verweis ins Leere.
+  Dasselbe gilt für `section_defs['forms']`.
+- **Sitemap und Volltextsuche** ergänzen (siehe wie `bibliothek/...` dort eingehängt ist).
+- **Ausgaben-Auswertung** je Reise wäre ein hübsches Extra, ist aber Kür.
+
+**Fallstricke, die schon bekannt sind:**
+
+- `_reference_blob()` in `app.py` liest site.json UND travel.json. Wer eine weitere Ablage
+  hinzufügt, muss sie dort ebenfalls eintragen, sonst hält „Speicher aufräumen" die Dateien
+  für verwaist und löscht sie.
+- Flask lädt Vorlagen **nicht** neu — den Testserver nach jeder Änderung an `admin.html`
+  oder den öffentlichen Vorlagen neu starten, sonst testet man den alten Stand.
+- Neue `.py`-Dateien brauchen eine eigene `COPY`-Zeile im Dockerfile.
+
+---
+
 ## KI-Monatsbudget als harter Stopp
 
 **Stand:** zurückgestellt am 2026-08-09 bei der Umsetzung der Verbrauchsanzeige (v0.9.8).
