@@ -2470,5 +2470,13 @@
   "cleanup_pdf_hint": "Entfernt PDFs der Bibliothek, zu denen es keinen Eintrag mehr gibt. Im Normalfall räumt die Bibliothek selbst auf; übrig bleibt, was daran vorbeigeht — ein abgebrochenes Rendern oder eine Wiederherstellung aus einem Backup mit weniger Einträgen.",
   "cleanup_pdf_btn": "Ungenutzte PDFs aufräumen",
   "cleanup_pdf_none": "Keine ungenutzten PDFs gefunden.",
-  "cleanup_pdf_confirm": "{n} ungenutzte PDF-Datei(en) ({mb} MB) endgültig löschen?"
+  "cleanup_pdf_confirm": "{n} ungenutzte PDF-Datei(en) ({mb} MB) endgültig löschen?",
+  "ai_prices_fetch": "Preise bei Google abfragen",
+  "ai_prices_fetch_hint": "Fragt den Preiskatalog von Google Cloud ab und trägt die Treffer oben ein — gespeichert wird erst mit „Speichern“. Google beschreibt seine Posten im Fließtext, die Zuordnung zum Modell ist also geraten: bitte ansehen, bevor du übernimmst.",
+  "ai_prices_fetch_running": "Preiskatalog wird abgefragt … (kann eine Minute dauern)",
+  "ai_prices_fetched": "{n} Preise eingetragen — bitte prüfen und speichern.",
+  "ai_prices_fetch_none": "Keine passenden Posten gefunden. Preise bitte von Hand eintragen.",
+  "ai_prices_fetch_disabled": "Die „Cloud Billing API“ ist im Projekt dieses Schlüssels nicht freigeschaltet.",
+  "ai_prices_fetch_key": "Der Preisabfrage-Schlüssel wird abgelehnt — ungültig oder auf andere Dienste beschränkt.",
+  "ai_prices_fetch_failed": "Der Preiskatalog war nicht erreichbar."
 }

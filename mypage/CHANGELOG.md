@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.14
+- ⬇ **„Preise bei Google abfragen“ ist zurück — jetzt mit eigenem Schlüssel.** In v0.9.13 hatte ich den Knopf entfernt in der Annahme, der Preiskatalog von Google Cloud nehme nur OAuth. Das war falsch: er akzeptiert sehr wohl einen API-Schlüssel — nur nicht den aus AI Studio, denn der ist auf die Generative Language API beschränkt.
+- Neue Option **`gemini_billing_key`**: ein zweiter Schlüssel aus einem Projekt, in dem die **Cloud Billing API** freigeschaltet ist. Ist er nicht gesetzt, bleibt der Knopf unsichtbar — er könnte ohne ihn nur scheitern.
+- Die Dienstliste wird jetzt **vollständig durchgeblättert**. Vorher holte ein einzelner Aufruf die erste Seite; Google liefert mehrere tausend Dienste seitenweise, der gesuchte Eintrag wäre schlicht verfehlt worden.
+- Treffer landen weiterhin **nur in den Feldern**, gespeichert wird erst auf Klick — Google beschreibt seine Posten im Fließtext, die Zuordnung zum Modell ist geraten.
+
 ## 0.9.13
 - 💰 **Die Preistabelle deckt jetzt alle gängigen Gemini-Modelle ab** — 13 Einträge mit den Listenpreisen von [ai.google.dev/pricing](https://ai.google.dev/pricing), Textmodelle je Mio. Tokens, Bildmodelle je erzeugtem Bild. Damit rechnet die Kostenspalte für die üblichen Fälle ohne jede Eingabe.
 - ❌ **Der Knopf „Preise bei Google abfragen" ist wieder raus.** Er sollte den Preiskatalog von Google Cloud anzapfen, aber der verlangt ein OAuth-Konto statt eines API-Schlüssels — mit einem Gemini-Key ist er nicht erreichbar. Der Weg war eine Sackgasse und kostete nur Einrichtungsschritte, die nichts brachten.

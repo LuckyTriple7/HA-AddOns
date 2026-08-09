@@ -5618,7 +5618,164 @@ def api_ai_usage():
                    | {_gemini_image_model(), _gemini_text_model()} | set(prices))
     return jsonify({'months': out, 'prices': prices, 'models': known,
                     'defaults': GEMINI_DEFAULT_PRICES,
+                    'can_fetch': bool(_billing_key()),
                     'current': date.today().strftime('%Y-%m')})
+
+
+# Der öffentliche Preiskatalog von Google Cloud nimmt einen API-Schlüssel — aber
+# nicht den aus AI Studio: der ist auf die Generative Language API beschränkt und
+# wird hier mit API_KEY_SERVICE_BLOCKED abgewiesen. Deshalb ein zweiter,
+# getrennter Schlüssel aus einem Projekt, in dem die Cloud Billing API
+# freigeschaltet ist. Ohne diesen Schlüssel bleibt der Knopf unsichtbar.
+#
+# Der Katalog liefert Fließtext („Gemini 2.5 Flash Input Tokens"), keine
+# Modell-IDs. Die Zuordnung ist deshalb geraten und wird dem Admin zur Prüfung
+# in die Felder gelegt, statt direkt gespeichert zu werden.
+CLOUD_BILLING_API = 'https://cloudbilling.googleapis.com/v1'
+GEMINI_BILLING_SERVICE = 'generative language api'
+_SKU_KINDS = (('image', 'image'), ('input', 'in'), ('prompt', 'in'), ('output', 'out'))
+
+# Der `reason` aus Googles Fehlerkörper ist die einzige belastbare Auskunft.
+# Nach dem Statuscode zu gehen wäre falsch: „Dienst nicht freigeschaltet" und
+# „Schlüssel auf andere Dienste beschränkt" sind beide 403, verlangen aber
+# verschiedene Schritte.
+_BILLING_REASONS = {
+    'SERVICE_DISABLED':              'billing_disabled',
+    'API_KEY_INVALID':               'key_rejected',
+    'API_KEY_SERVICE_BLOCKED':       'key_rejected',
+    'API_KEY_HTTP_REFERRER_BLOCKED': 'key_rejected',
+    'CREDENTIALS_MISSING':           'key_rejected',
+}
+
+
+def _billing_key() -> str:
+    return (load_config().get('gemini_billing_key') or '').strip()
+
+
+def _billing_error(r) -> tuple[str, str]:
+    """(Fehlercode, roher Grund) aus einer Google-Fehlerantwort.
+
+    Der rohe Grund geht mit an die Oberfläche: bei einem unbekannten Fall soll
+    dort stehen, was Google wirklich sagt, statt einer geratenen Empfehlung.
+    """
+    try:
+        err = (r.json() or {}).get('error') or {}
+        reasons = [d.get('reason') for d in (err.get('details') or [])
+                   if isinstance(d, dict) and d.get('reason')]
+    except ValueError:
+        reasons = []
+    for reason in reasons:
+        if reason in _BILLING_REASONS:
+            return _BILLING_REASONS[reason], reason
+    return 'failed', (reasons[0] if reasons else f'HTTP {r.status_code}')
+
+
+def _sku_unit_price(sku: dict) -> float | None:
+    """USD je Million Einheiten aus einem SKU-Eintrag.
+
+    Google gibt den Preis je Verrechnungseinheit an (units + nanos). Bei Tokens
+    ist das je Token, deshalb hochrechnen — außer die Einheitsbeschreibung sagt
+    schon „million". Passt nichts davon, lieber None als eine Zahl, die um
+    Faktor 10^6 danebenliegt.
+    """
+    try:
+        expr = (sku.get('pricingInfo') or [])[-1]['pricingExpression']
+        rate = (expr.get('tieredRates') or [])[-1]['unitPrice']
+        price = int(rate.get('units') or 0) + int(rate.get('nanos') or 0) / 1e9
+    except (LookupError, TypeError, ValueError):
+        return None
+    if price <= 0:
+        return None
+    unit = str(expr.get('usageUnitDescription') or expr.get('usageUnit') or '').lower()
+    if 'million' in unit:
+        return round(price, 6)
+    if 'count' in unit or 'token' in unit:
+        return round(price * 1e6, 6)
+    return round(price, 6)   # z. B. „image" — je Stück
+
+
+def _billing_pages(url: str, field: str, key: str, cap: int = 40) -> tuple[list, str, str]:
+    """Blättert eine Katalog-Liste vollständig durch.
+
+    Google liefert die Dienste seitenweise (mehrere tausend Einträge, auch bei
+    großem pageSize). Ein einzelner Aufruf würde die gesuchte Zeile schlicht
+    verfehlen. Zurück: (Einträge, Fehlercode, Grund).
+    """
+    items, token = [], ''
+    for _ in range(cap):
+        params = {'key': key, 'pageSize': 5000}
+        if token:
+            params['pageToken'] = token
+        r = http.get(url, params=params, timeout=30)
+        if not r.ok:
+            return [], *_billing_error(r)
+        data = r.json()
+        items.extend(data.get(field) or [])
+        token = data.get('nextPageToken') or ''
+        if not token:
+            break
+    return items, '', ''
+
+
+def _gemini_fetch_prices(models: list[str]) -> tuple[dict | None, str, str]:
+    """Preisvorschläge aus dem Cloud-Preiskatalog.
+
+    Zurück: (Vorschläge, Fehlercode, roher Grund von Google).
+    """
+    key = _billing_key()
+    try:
+        services, code, reason = _billing_pages(f'{CLOUD_BILLING_API}/services',
+                                                'services', key)
+        if code:
+            return None, code, reason
+        service = next((s['name'] for s in services
+                        if str(s.get('displayName', '')).lower() == GEMINI_BILLING_SERVICE), None)
+        if not service:
+            return None, 'service_not_found', ''
+        skus, code, reason = _billing_pages(f'{CLOUD_BILLING_API}/{service}/skus',
+                                            'skus', key)
+        if code:
+            return None, code, reason
+    except Exception as e:
+        # Nur der Typ: die Meldung von requests enthält die URL samt Key
+        log.warning("Preiskatalog nicht abrufbar: %s", type(e).__name__)
+        return None, 'failed', type(e).__name__
+    # Längster Treffer gewinnt, sonst schnappt sich „gemini-3.5-flash" die SKUs
+    # von „gemini-3.5-flash-lite"
+    wanted = sorted(((m, m.replace('-', ' ').lower()) for m in models),
+                    key=lambda x: -len(x[1]))
+    out: dict[str, dict] = {}
+    for sku in skus:
+        desc = str(sku.get('description') or '').lower()
+        model = next((m for m, needle in wanted if needle in desc), None)
+        if not model:
+            continue
+        kind = next((k for word, k in _SKU_KINDS if word in desc), None)
+        price = _sku_unit_price(sku) if kind else None
+        if kind and price:
+            out.setdefault(model, {})[kind] = price
+    log.info("Preiskatalog: %d Posten gelesen, %d Modelle zugeordnet",
+             len(skus), len(out))
+    return out, '', ''
+
+
+@admin_app.route('/api/ai/prices/fetch', methods=['POST'])
+def api_ai_prices_fetch():
+    err = _api_auth()
+    if err:
+        return err
+    if not _billing_key():
+        return jsonify({'error': 'no_billing_key'}), 400
+    raw = (request.get_json(silent=True) or {}).get('models')
+    models = [m for m in (raw if isinstance(raw, list) else [])[:60]
+              if isinstance(m, str) and _AI_MODEL_RE.match(m)]
+    if not models:
+        return jsonify({'error': 'invalid'}), 400
+    prices, code, reason = _gemini_fetch_prices(models)
+    if code:
+        log.info("Preiskatalog abgelehnt (%s): %s", code, reason)
+        return jsonify({'error': code, 'reason': reason}), 502
+    return jsonify({'ok': True, 'prices': prices})
 
 
 @admin_app.route('/api/ai/prices', methods=['POST'])

@@ -96,6 +96,13 @@ configuration:
       Enables the Generate image button in the library editor — the AI then creates
       the cover image of an entry. Get a key at aistudio.google.com. Note: image
       generation is billed depending on the model.
+  gemini_billing_key:
+    name: Google Cloud key for price lookup (optional)
+    description: >-
+      Second API key, used only by the "Fetch prices from Google" button in the AI
+      tab. The Gemini key does not work there because it is restricted to the
+      Generative Language API. The key must come from a project with the Cloud
+      Billing API enabled. Leave empty if you maintain the prices by hand.
   gemini_image_model:
     name: Model used for image generation
     description: >-
