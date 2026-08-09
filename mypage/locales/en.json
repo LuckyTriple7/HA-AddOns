@@ -2475,8 +2475,10 @@
   "ai_prices_fetch_hint": "Queries Google Cloud's price catalogue and fills in the matches above — nothing is stored until you click “Save”. Google describes its items in prose, so mapping them to a model is guesswork: please look before you accept.",
   "ai_prices_fetch_running": "Querying the price catalogue … (this can take a minute)",
   "ai_prices_fetched": "{n} prices filled in — please check and save.",
-  "ai_prices_fetch_none": "No matching items found. Please enter prices by hand.",
   "ai_prices_fetch_disabled": "The “Cloud Billing API” is not enabled in the project this key belongs to.",
   "ai_prices_fetch_key": "The price-lookup key was rejected — invalid or restricted to other services.",
-  "ai_prices_fetch_failed": "The price catalogue could not be reached."
+  "ai_prices_fetch_failed": "The price catalogue could not be reached.",
+  "ai_prices_fetch_noservice": "No Gemini service found in the price catalogue ({n} services read).",
+  "ai_prices_fetch_nomatch": "Searched: {s} — {n} items read, but no description contains a model name. Please enter the prices by hand.",
+  "ai_prices_samples_title": "How Google names its items (excerpt):"
 }

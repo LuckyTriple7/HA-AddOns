@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.15
+- 🔎 **Die Preis-Abfrage fand den Dienst nicht.** Sie verglich den Namen im Preiskatalog buchstabengetreu mit „Generative Language API“ — wie Google den Dienst dort nennt, ist aber nirgends zugesichert. Gesucht wird jetzt unscharf nach „generative language“ und „gemini“, und **alle** passenden Dienste werden durchsucht statt nur des ersten.
+- **„Nichts gefunden“ war zweideutig** und stand sowohl für „Dienst nicht gefunden“ als auch für „Dienst gefunden, aber keine Posten-Bezeichnung passte“ — zwei völlig verschiedene Ursachen. Die Meldungen sind jetzt getrennt und nennen die Zahlen: wie viele Dienste gelesen wurden bzw. welche Dienste durchsucht und wie viele Posten gefunden wurden.
+- Passt keine Bezeichnung, zeigt der Tab jetzt **einen Auszug der echten Posten-Namen** von Google. Daran lässt sich erkennen, wie Google die Modelle benennt — statt vor einem „nichts gefunden“ ohne Anhaltspunkt zu stehen.
+
 ## 0.9.14
 - ⬇ **„Preise bei Google abfragen“ ist zurück — jetzt mit eigenem Schlüssel.** In v0.9.13 hatte ich den Knopf entfernt in der Annahme, der Preiskatalog von Google Cloud nehme nur OAuth. Das war falsch: er akzeptiert sehr wohl einen API-Schlüssel — nur nicht den aus AI Studio, denn der ist auf die Generative Language API beschränkt.
 - Neue Option **`gemini_billing_key`**: ein zweiter Schlüssel aus einem Projekt, in dem die **Cloud Billing API** freigeschaltet ist. Ist er nicht gesetzt, bleibt der Knopf unsichtbar — er könnte ohne ihn nur scheitern.

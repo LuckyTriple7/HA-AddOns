@@ -791,6 +791,7 @@
             <span class="hint" id="ai-prices-fetch-info"></span>
           </div>
           <p class="hint" id="ai-prices-fetch-hint" style="display:none">{{ t.ai_prices_fetch_hint }}</p>
+          <div id="ai-prices-samples"></div>
         </div>
       </div>
 
@@ -5528,6 +5529,7 @@
       } catch (e) { /* Netzfehler */ }
       btn.disabled = false;
       const d = r ? await r.json().catch(() => ({})) : {};
+      el('ai-prices-samples').innerHTML = '';
       if (!r || !r.ok) {
         // Googles Grund immer mit anzeigen: „Schlüssel abgelehnt" hat mehrere
         // Ursachen mit verschiedenen Schritten, ohne den Code ist nicht zu
@@ -5535,7 +5537,8 @@
         const msg =
           d.error === 'billing_disabled'    ? T.ai_prices_fetch_disabled
           : d.error === 'key_rejected'      ? T.ai_prices_fetch_key
-          : d.error === 'service_not_found' ? T.ai_prices_fetch_none
+          : d.error === 'service_not_found' ? T.ai_prices_fetch_noservice
+                                                .replace('{n}', d.service_count || 0)
           : T.ai_prices_fetch_failed;
         el('ai-prices-fetch-info').textContent = msg + (d.reason ? ' [' + d.reason + ']' : '');
         return;
@@ -5548,9 +5551,31 @@
           if (inp) { inp.value = v; n++; }
         });
       });
-      el('ai-prices-fetch-info').textContent = n
-        ? T.ai_prices_fetched.replace('{n}', n)
-        : T.ai_prices_fetch_none;
+      if (n) {
+        el('ai-prices-fetch-info').textContent = T.ai_prices_fetched.replace('{n}', n);
+        return;
+      }
+      // Nichts zugeordnet: Googles Posten-Bezeichnungen zeigen, statt den Nutzer
+      // mit „nichts gefunden" allein zu lassen. Daran lässt sich erkennen, wie
+      // Google die Modelle benennt.
+      el('ai-prices-fetch-info').textContent = T.ai_prices_fetch_nomatch
+        .replace('{s}', (d.services || []).join(', ') || '–')
+        .replace('{n}', d.sku_count || 0);
+      renderAiSkuSamples(d.samples || []);
+    }
+    function renderAiSkuSamples(samples) {
+      const box = el('ai-prices-samples');
+      box.innerHTML = '';
+      if (!samples.length) return;
+      const h = document.createElement('p');
+      h.className = 'hint';
+      h.style.marginBottom = '4px';
+      h.textContent = T.ai_prices_samples_title;
+      const pre = document.createElement('pre');
+      pre.style.cssText = 'background:var(--bg);border:1px solid var(--border);border-radius:6px;'
+        + 'padding:10px;max-height:220px;overflow:auto;font-size:0.76rem;white-space:pre-wrap';
+      pre.textContent = samples.join('\n');
+      box.append(h, pre);
     }
     async function saveAiPrices() {
       const prices = {};

@@ -2475,8 +2475,10 @@
   "ai_prices_fetch_hint": "Fragt den Preiskatalog von Google Cloud ab und trägt die Treffer oben ein — gespeichert wird erst mit „Speichern“. Google beschreibt seine Posten im Fließtext, die Zuordnung zum Modell ist also geraten: bitte ansehen, bevor du übernimmst.",
   "ai_prices_fetch_running": "Preiskatalog wird abgefragt … (kann eine Minute dauern)",
   "ai_prices_fetched": "{n} Preise eingetragen — bitte prüfen und speichern.",
-  "ai_prices_fetch_none": "Keine passenden Posten gefunden. Preise bitte von Hand eintragen.",
   "ai_prices_fetch_disabled": "Die „Cloud Billing API“ ist im Projekt dieses Schlüssels nicht freigeschaltet.",
   "ai_prices_fetch_key": "Der Preisabfrage-Schlüssel wird abgelehnt — ungültig oder auf andere Dienste beschränkt.",
-  "ai_prices_fetch_failed": "Der Preiskatalog war nicht erreichbar."
+  "ai_prices_fetch_failed": "Der Preiskatalog war nicht erreichbar.",
+  "ai_prices_fetch_noservice": "Im Preiskatalog ist kein Gemini-Dienst zu finden ({n} Dienste gelesen).",
+  "ai_prices_fetch_nomatch": "Durchsucht: {s} — {n} Posten gelesen, aber keine Bezeichnung enthält einen Modellnamen. Preise bitte von Hand eintragen.",
+  "ai_prices_samples_title": "So benennt Google seine Posten (Auszug):"
 }

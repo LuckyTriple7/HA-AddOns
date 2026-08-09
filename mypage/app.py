@@ -5632,8 +5632,12 @@ def api_ai_usage():
 # Modell-IDs. Die Zuordnung ist deshalb geraten und wird dem Admin zur Prüfung
 # in die Felder gelegt, statt direkt gespeichert zu werden.
 CLOUD_BILLING_API = 'https://cloudbilling.googleapis.com/v1'
-GEMINI_BILLING_SERVICE = 'generative language api'
+# Nicht auf einen exakten Namen festnageln: wie Google den Dienst im Katalog
+# nennt, ist nicht zugesichert und hat sich schon geändert. Alle Dienste, deren
+# Name einen dieser Bausteine enthält, werden durchsucht.
+GEMINI_BILLING_HINTS = ('generative language', 'gemini')
 _SKU_KINDS = (('image', 'image'), ('input', 'in'), ('prompt', 'in'), ('output', 'out'))
+AI_SKU_SAMPLES = 40   # Beispiele für die Oberfläche, wenn nichts zugeordnet wurde
 
 # Der `reason` aus Googles Fehlerkörper ist die einzige belastbare Auskunft.
 # Nach dem Statuscode zu gehen wäre falsch: „Dienst nicht freigeschaltet" und
@@ -5720,7 +5724,11 @@ def _billing_pages(url: str, field: str, key: str, cap: int = 40) -> tuple[list,
 def _gemini_fetch_prices(models: list[str]) -> tuple[dict | None, str, str]:
     """Preisvorschläge aus dem Cloud-Preiskatalog.
 
-    Zurück: (Vorschläge, Fehlercode, roher Grund von Google).
+    Zurück: (Ergebnis, Fehlercode, roher Grund von Google). Das Ergebnis trägt
+    neben den Preisen auch die gelesenen Dienstnamen und ein paar
+    Posten-Bezeichnungen — ohne die ist bei „nichts zugeordnet" nicht zu
+    erkennen, ob der falsche Dienst durchsucht wurde oder ob Google seine Posten
+    nur anders benennt als erwartet.
     """
     key = _billing_key()
     try:
@@ -5728,14 +5736,22 @@ def _gemini_fetch_prices(models: list[str]) -> tuple[dict | None, str, str]:
                                                 'services', key)
         if code:
             return None, code, reason
-        service = next((s['name'] for s in services
-                        if str(s.get('displayName', '')).lower() == GEMINI_BILLING_SERVICE), None)
-        if not service:
-            return None, 'service_not_found', ''
-        skus, code, reason = _billing_pages(f'{CLOUD_BILLING_API}/{service}/skus',
-                                            'skus', key)
-        if code:
-            return None, code, reason
+        matched = [s for s in services
+                   if any(h in str(s.get('displayName', '')).lower()
+                          for h in GEMINI_BILLING_HINTS)]
+        log.info("Preiskatalog: %d Dienste gelesen, %d passen (%s)", len(services),
+                 len(matched), ', '.join(s.get('displayName', '') for s in matched))
+        if not matched:
+            return ({'prices': {}, 'services': [], 'samples': [],
+                     'service_count': len(services), 'sku_count': 0},
+                    'service_not_found', '')
+        skus = []
+        for s in matched:
+            page, code, reason = _billing_pages(f"{CLOUD_BILLING_API}/{s['name']}/skus",
+                                                'skus', key)
+            if code:
+                return None, code, reason
+            skus.extend(page)
     except Exception as e:
         # Nur der Typ: die Meldung von requests enthält die URL samt Key
         log.warning("Preiskatalog nicht abrufbar: %s", type(e).__name__)
@@ -5756,7 +5772,13 @@ def _gemini_fetch_prices(models: list[str]) -> tuple[dict | None, str, str]:
             out.setdefault(model, {})[kind] = price
     log.info("Preiskatalog: %d Posten gelesen, %d Modelle zugeordnet",
              len(skus), len(out))
-    return out, '', ''
+    return ({'prices': out,
+             'services': [s.get('displayName', '') for s in matched],
+             # Nur bei Fehlschlag mitschicken — sonst ist es unnötiger Ballast
+             'samples': ([] if out else
+                         sorted({str(x.get('description') or '') for x in skus})[:AI_SKU_SAMPLES]),
+             'service_count': len(services), 'sku_count': len(skus)},
+            '', '')
 
 
 @admin_app.route('/api/ai/prices/fetch', methods=['POST'])
@@ -5771,11 +5793,14 @@ def api_ai_prices_fetch():
               if isinstance(m, str) and _AI_MODEL_RE.match(m)]
     if not models:
         return jsonify({'error': 'invalid'}), 400
-    prices, code, reason = _gemini_fetch_prices(models)
+    result, code, reason = _gemini_fetch_prices(models)
     if code:
         log.info("Preiskatalog abgelehnt (%s): %s", code, reason)
-        return jsonify({'error': code, 'reason': reason}), 502
-    return jsonify({'ok': True, 'prices': prices})
+        payload = {'error': code, 'reason': reason}
+        if isinstance(result, dict):   # Diagnose auch im Fehlerfall mitgeben
+            payload['service_count'] = result.get('service_count', 0)
+        return jsonify(payload), 502
+    return jsonify({'ok': True, **result})
 
 
 @admin_app.route('/api/ai/prices', methods=['POST'])
