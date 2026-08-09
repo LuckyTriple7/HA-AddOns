@@ -2480,5 +2480,7 @@
   "ai_prices_fetch_failed": "Der Preiskatalog war nicht erreichbar.",
   "ai_prices_fetch_noservice": "Im Preiskatalog ist kein Gemini-Dienst zu finden ({n} Dienste gelesen).",
   "ai_prices_fetch_nomatch": "Durchsucht: {s} — {n} Posten gelesen, aber keine Bezeichnung enthält einen Modellnamen. Preise bitte von Hand eintragen.",
-  "ai_prices_samples_title": "So benennt Google seine Posten (Auszug):"
+  "ai_prices_samples_title": "So benennt Google seine Posten (Auszug):",
+  "ai_err_model": "Das eingestellte Modell „{v}“ gibt es bei Google nicht (mehr). Bitte oben unter Einstellungen ein anderes wählen und speichern.",
+  "ai_model_stale": "nicht in Googles Liste"
 }

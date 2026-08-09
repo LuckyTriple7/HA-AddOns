@@ -2480,5 +2480,7 @@
   "ai_prices_fetch_failed": "The price catalogue could not be reached.",
   "ai_prices_fetch_noservice": "No Gemini service found in the price catalogue ({n} services read).",
   "ai_prices_fetch_nomatch": "Searched: {s} — {n} items read, but no description contains a model name. Please enter the prices by hand.",
-  "ai_prices_samples_title": "How Google names its items (excerpt):"
+  "ai_prices_samples_title": "How Google names its items (excerpt):",
+  "ai_err_model": "The configured model “{v}” does not exist at Google (any more). Please pick another one under Settings above and save.",
+  "ai_model_stale": "not in Google’s list"
 }

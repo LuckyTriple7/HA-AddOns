@@ -5368,11 +5368,16 @@
     function aiFillSelect(id, values, current) {
       const sel = el(id);
       const list = (values || []).slice();
-      if (current && !list.includes(current)) list.unshift(current);
+      const stale = current && !list.includes(current);
+      if (stale) list.unshift(current);
       sel.innerHTML = '';
       list.forEach(v => {
         const o = document.createElement('option');
-        o.value = v; o.textContent = v;
+        o.value = v;
+        // Ein gespeichertes Modell, das Google nicht (mehr) listet, bleibt
+        // waehlbar -- aber sichtbar als das, was es ist. Sonst sucht man den
+        // 404 bei sich selbst.
+        o.textContent = (stale && v === current) ? v + ' — ' + T.ai_model_stale : v;
         sel.appendChild(o);
       });
       if (current) sel.value = current;
@@ -5589,11 +5594,12 @@
       if (r.ok) loadAiUsage();
     }
 
-    function aiErrMsg(code) {
-      return code === 'ai_refused'   ? T.ai_err_refused
-           : code === 'rate_limited' ? T.ai_err_limit
-           : code === 'no_api_key'   ? T.ai_err_nokey
-           : code === 'bad_ref'      ? T.ai_err_ref
+    function aiErrMsg(code, model) {
+      return code === 'ai_refused'       ? T.ai_err_refused
+           : code === 'rate_limited'     ? T.ai_err_limit
+           : code === 'no_api_key'       ? T.ai_err_nokey
+           : code === 'bad_ref'          ? T.ai_err_ref
+           : code === 'ai_model_missing' ? T.ai_err_model.replace('{v}', model || '?')
            : T.ai_err_failed;
     }
 
@@ -5645,7 +5651,7 @@
       btn.disabled = false;
       const d = r ? await r.json().catch(() => ({})) : {};
       if (!r || !r.ok) {
-        const msg = aiErrMsg(d.error);
+        const msg = aiErrMsg(d.error, d.model);
         el('ai-img-status').textContent = msg;
         busyDone(msg, true);
         refreshAiStatus();
@@ -5785,7 +5791,7 @@
       btn.disabled = false;
       const d = r ? await r.json().catch(() => ({})) : {};
       if (!r || !r.ok) {
-        const msg = aiErrMsg(d.error);
+        const msg = aiErrMsg(d.error, d.model);
         el('ai-txt-status').textContent = msg;
         busyDone(msg, true);
         refreshAiStatus();

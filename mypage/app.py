@@ -4877,6 +4877,10 @@ AI_TEXT_KINDS = ('blog', 'news', 'project', 'library', 'seo')
 AI_TEXT_TONES = ('sachlich', 'locker', 'technisch', 'werblich', 'persoenlich')
 AI_TEXT_LENGTHS = {'kurz': 150, 'mittel': 400, 'lang': 800}
 AI_TRANSLATE_PROVIDERS = ('mymemory', 'gemini')
+# Interner Fehlercode -> Code fuer das Frontend. `model_missing` ist der Fall,
+# der eine eigene Meldung braucht: nicht kaputt, sondern falsch eingestellt.
+_AI_ERRORS = {'refused': 'ai_refused', 'empty': 'ai_empty',
+              'model_missing': 'ai_model_missing'}
 
 # Abbruchgründe, bei denen Gemini die Anfrage inhaltlich abgelehnt hat — davon
 # ist der Nutzer zu unterscheiden von einem technischen Fehler, denn hier hilft
@@ -5031,9 +5035,12 @@ def _gemini_generate_image(prompt: str, *, model: str = '', ratio: str = '',
     except genai_errors.APIError as e:
         # Bewusst nur der Statuscode: die Meldung des SDK kann die vollständige
         # Anfrage-URL samt API-Key enthalten, die hat im Add-on-Log nichts zu suchen.
+        code = getattr(e, 'code', None)
         log.warning("Gemini-Bildanfrage fehlgeschlagen (%s): Status %s",
-                    model, getattr(e, 'code', '') or type(e).__name__)
-        return None, '', 'failed'
+                    model, code or type(e).__name__)
+        # 404 heißt hier nicht „Ausfall", sondern „diesen Modellnamen gibt es
+        # nicht (mehr)". Ohne eigene Meldung sucht der Nutzer den Fehler bei sich.
+        return None, '', ('model_missing' if code == 404 else 'failed')
     except Exception as e:
         # Absichtlich breit: SDK-interne Fehler dürfen nicht als HTML-Fehlerseite
         # beim Frontend landen, das ausschließlich JSON erwartet.
@@ -5067,8 +5074,8 @@ def api_ai_image():
         return jsonify({'error': 'rate_limited'}), 429
     data, _mime, code = _gemini_generate_image(prompt)
     if code:
-        return jsonify({'error': {'refused': 'ai_refused',
-                                  'empty': 'ai_empty'}.get(code, 'ai_failed')}), 502
+        return jsonify({'error': _AI_ERRORS.get(code, 'ai_failed'),
+                        'model': _gemini_image_model()}), 502
     try:
         # ai=True → Dateiname trägt den Marker, an dem die Auslieferung später
         # die Pflicht-Kennzeichnung „KI generiert" festmacht
@@ -5271,8 +5278,7 @@ def api_ai_studio_image():
         _ai_tmp[tid] = {'mime': mime, 'ts': time.time(), 'prompt': prompt}
         images.append({'id': tid, 'url': 'api/ai/studio/preview/' + tid})
     if not images:
-        return jsonify({'error': {'refused': 'ai_refused',
-                                  'empty': 'ai_empty'}.get(last, 'ai_failed')}), 502
+        return jsonify({'error': _AI_ERRORS.get(last, 'ai_failed'), 'model': model}), 502
     log.info("KI-Studio: %d Bildentwurf/-entwürfe erzeugt (%s, %s%s)",
              len(images), model, ratio, ', mit Vorlage' if ref else '')
     return jsonify({'ok': True, 'images': images})
@@ -5433,9 +5439,10 @@ def _gemini_generate_text(*, topic: str, kind: str, tone: str, length: str,
             return None, 'empty'
     except genai_errors.APIError as e:
         # Nur der Statuscode: die SDK-Meldung kann die Anfrage-URL samt Key enthalten
+        code = getattr(e, 'code', None)
         log.warning("Gemini-Textanfrage fehlgeschlagen (%s): Status %s",
-                    model, getattr(e, 'code', '') or type(e).__name__)
-        return None, 'failed'
+                    model, code or type(e).__name__)
+        return None, ('model_missing' if code == 404 else 'failed')
     except (ValueError, TypeError) as e:
         log.warning("Gemini-Textantwort (%s) war kein gültiges JSON: %s", model, type(e).__name__)
         return None, 'empty'
@@ -5484,8 +5491,7 @@ def api_ai_text():
                                        length=length, langs=langs, mode=mode,
                                        model=model)
     if code:
-        return jsonify({'error': {'refused': 'ai_refused',
-                                  'empty': 'ai_empty'}.get(code, 'ai_failed')}), 502
+        return jsonify({'error': _AI_ERRORS.get(code, 'ai_failed'), 'model': model}), 502
     log.info("KI-Text erzeugt (%s, %s, %s)", model, kind, '+'.join(langs))
     return jsonify({'ok': True, 'result': data})
 

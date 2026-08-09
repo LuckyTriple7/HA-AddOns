@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.18
+- 🚫 **Ein nicht mehr existierendes Modell meldet sich jetzt als solches.** Wer noch einen Modellnamen aus einer früheren Version gespeichert hatte, bekam bei jeder Anfrage nur „Die Anfrage ist fehlgeschlagen“ — obwohl Google klar mit 404 antwortet. Die Meldung nennt jetzt den Namen und verweist auf die Einstellungen.
+- Im Auswahlfeld wird ein gespeichertes Modell, das Google **nicht listet**, als „nicht in Googles Liste“ gekennzeichnet. Wählbar bleibt es — die Live-Abfrage kann ausfallen, dann soll die eigene Einstellung nicht verlorengehen — aber es ist nun erkennbar.
+- Hintergrund: die Vorgabeliste enthielt bis v0.9.12 geratene Namen (`gemini-3-pro`, `gemini-3-flash`). Wer einen davon gespeichert hat, muss im Tab *KI* einmal ein gültiges Modell wählen und speichern.
+
 ## 0.9.17
 - 💸 **Die Preis-Abfrage zog Sondertarife heran.** Google führt Stapelverarbeitung, zwischengespeicherte Eingaben, feinabgestimmte Modelle und Recherche-Aufschläge als eigene Posten — MyPage löst nichts davon aus. Ein solcher Posten als Normaltarif ergab eine Summe, die zu niedrig ist und deshalb nicht auffällt (im Test: 0,05 statt 0,90 je Mio. Eingabe-Tokens). Diese Zeilen bleiben jetzt draußen.
 - Bleiben mehrere Kandidaten übrig, **gewinnt der höchste**. Unter dem Normaltarif zu liegen ist der gefährliche Irrtum — eine zu hohe Summe fällt auf, eine zu niedrige nicht.
