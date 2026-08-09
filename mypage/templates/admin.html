@@ -187,8 +187,12 @@
     .ai-chips { display: flex; flex-wrap: wrap; gap: 6px; }
     .ai-chip { background: var(--surf2); border: 1px solid var(--border); color: var(--muted); padding: 4px 10px; border-radius: 999px; font-size: 0.78rem; cursor: pointer; }
     .ai-chip:hover { color: var(--text); border-color: var(--accent); }
-    .ai-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 12px; margin-top: 16px; }
-    .ai-card { border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--surf2); display: flex; flex-direction: column; }
+    /* Waagerechter Streifen statt Raster: die Entwürfe einer Sitzung sammeln sich
+       an, und ein Raster schiebt bei jedem Durchgang alles darunter weiter nach
+       unten. Bedienung wie die Design-Vorlagen — gleiche Pfeile, gleiche Optik. */
+    .ai-strip { display: flex; gap: 12px; overflow-x: auto; scroll-behavior: smooth; scrollbar-width: none; -ms-overflow-style: none; padding-bottom: 2px; }
+    .ai-strip::-webkit-scrollbar { display: none; }
+    .ai-card { flex: 0 0 210px; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--surf2); display: flex; flex-direction: column; }
     .ai-card img { width: 100%; display: block; aspect-ratio: 16 / 10; object-fit: cover; cursor: zoom-in; }
     .ai-card-actions { display: flex; gap: 6px; padding: 8px; flex-wrap: wrap; }
     .ai-card.kept { border-color: var(--accent); }
@@ -814,7 +818,12 @@
           <button class="btn" id="ai-img-run" onclick="runAiImage(this)">✦ {{ t.ai_img_generate }}</button>
           <span class="hint" id="ai-img-status" style="margin-left:10px"></span>
         </div>
-        <div class="ai-grid" id="ai-img-results"></div>
+        <div class="preset-wrap" id="ai-results-wrap" style="display:none;margin-top:16px">
+          <button type="button" class="nav-arrow preset-arrow preset-left" aria-label="◄" onclick="aiResultsScroll(-1)">‹</button>
+          <div class="ai-strip" id="ai-img-results"></div>
+          <button type="button" class="nav-arrow preset-arrow preset-right" aria-label="►" onclick="aiResultsScroll(1)">›</button>
+        </div>
+        <p class="hint" id="ai-results-info"></p>
       </div>
 
       <div class="panel">
@@ -5335,6 +5344,8 @@
       aiTabReady = true;
       buildAiStyleChips();
       aiLangChanged();
+      el('ai-img-results').addEventListener('scroll', updateAiArrows, { passive: true });
+      window.addEventListener('resize', updateAiArrows);
       renderAiQuota();
       const r = await api('api/ai/models');
       const m = r.ok ? await r.json() : { image: [], text: [] };
@@ -5581,6 +5592,28 @@
       act.append(keep, drop);
       card.append(img, act);
       el('ai-img-results').prepend(card);
+      renderAiResultsInfo();
+    }
+    // Der Streifen wächst über die Sitzung; ohne Zähler ist nicht erkennbar, wie
+    // viel links aus dem Bild gescrollt ist.
+    function renderAiResultsInfo() {
+      const n = el('ai-img-results').children.length;
+      const kept = el('ai-img-results').querySelectorAll('.ai-card.kept').length;
+      el('ai-results-wrap').style.display = n ? '' : 'none';
+      el('ai-results-info').textContent = n
+        ? T.ai_results_info.replace('{n}', n).replace('{k}', kept)
+        : '';
+      updateAiArrows();
+    }
+    function aiResultsScroll(dir) {
+      el('ai-img-results').scrollBy({ left: dir * 222, behavior: 'smooth' });
+    }
+    function updateAiArrows() {
+      const g = el('ai-img-results');
+      if (!g) return;
+      const max = g.scrollWidth - g.clientWidth, wrap = g.parentNode;
+      wrap.querySelector('.preset-left').classList.toggle('show', g.scrollLeft > 4);
+      wrap.querySelector('.preset-right').classList.toggle('show', g.scrollLeft < max - 4);
     }
     async function aiKeepImage(id, card, keep) {
       keep.disabled = true;
@@ -5604,15 +5637,41 @@
       asRef.className = 'btn secondary small';
       asRef.textContent = '🎨 ' + T.ai_as_ref;
       asRef.onclick = () => { setAiRef(d.url); toast(T.ai_ref_set); };
-      act.append(ok, copy, asRef);
+      const del = document.createElement('button');
+      del.className = 'btn danger small';
+      del.textContent = '🗑 ' + T.ai_delete;
+      del.onclick = () => aiDeleteImage(d.url, card, del);
+      act.append(ok, copy, asRef, del);
       const u = document.createElement('div');
       u.className = 'ai-url';
       u.textContent = d.url;
       card.appendChild(u);
+      renderAiResultsInfo();
     }
     async function aiDiscardImage(id, card) {
       try { await apiJson('api/ai/studio/image/discard', 'POST', { id }); } catch (e) { /* egal */ }
       card.remove();
+      renderAiResultsInfo();
+    }
+    // Löscht die bereits gespeicherte Datei wieder. Der Server verweigert das,
+    // sobald das Bild irgendwo eingebunden ist — dann bleibt nur, es dort erst
+    // zu ersetzen.
+    async function aiDeleteImage(url, card, btn) {
+      if (!confirm(T.ai_delete_confirm)) return;
+      btn.disabled = true;
+      let r = null;
+      try {
+        r = await apiJson('api/uploads/delete', 'POST', { name: url.split('/').pop() });
+      } catch (e) { /* Netzfehler */ }
+      const d = r ? await r.json().catch(() => ({})) : {};
+      if (!r || !r.ok) {
+        btn.disabled = false;
+        toast(d.error === 'in_use' ? T.ai_delete_in_use : T.error_save, true);
+        return;
+      }
+      card.remove();
+      renderAiResultsInfo();
+      toast(T.ai_deleted);
     }
 
     function aiLangChanged() {

@@ -6529,6 +6529,35 @@ def api_uploads_unused():
     return jsonify({'count': len(orphans), 'size_mb': round(total / 1048576, 1)})
 
 
+@admin_app.route('/api/uploads/delete', methods=['POST'])
+def api_uploads_delete():
+    """Ein einzelnes Bild löschen — für den Fall, dass ein gespeichertes Bild
+    doch nicht gefällt. Das Sammel-Aufräumen im Tab System ist dafür zu grob.
+
+    Eingebundene Bilder bleiben tabu: sonst reißt ein Beitrag oder ein
+    Bibliothek-Eintrag ein Loch, das erst beim Betrachten auffällt. Geprüft
+    wird mit demselben Vorkommen-Scan wie beim Aufräumen.
+    """
+    err = _api_auth()
+    if err:
+        return err
+    name = Path(_clean_str((request.get_json(silent=True) or {}).get('name'), 120)).name
+    if Path(name).suffix.lower() not in ALLOWED_UPLOAD_EXT:
+        return jsonify({'error': 'invalid'}), 400
+    p = safe_under(UPLOADS_DIR, name)
+    if p is None or not p.is_file():
+        return jsonify({'error': 'not_found'}), 404
+    if name in json.dumps(load_site(), ensure_ascii=False):
+        return jsonify({'error': 'in_use'}), 409
+    try:
+        p.unlink()
+    except OSError as e:
+        log.warning("Bild '%s' konnte nicht gelöscht werden: %s", name, e)
+        return jsonify({'error': 'delete_failed'}), 500
+    log_audit('upload_delete', name)
+    return jsonify({'ok': True})
+
+
 @admin_app.route('/api/uploads/cleanup', methods=['POST'])
 def api_uploads_cleanup():
     err = _api_auth()

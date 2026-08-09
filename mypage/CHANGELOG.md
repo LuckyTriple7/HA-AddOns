@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.9
+- 🎠 **Die Entwürfe im Bild-Studio stehen jetzt in einem waagerechten Streifen mit Pfeilen** statt in einem Raster. Bisher blieb jeder Durchgang untereinander stehen und schob Text-Studio und Verbrauch immer weiter nach unten — nach ein paar Versuchen war der Tab meterlang. Alle Entwürfe der Sitzung bleiben zum Vergleich erhalten, brauchen aber nur noch eine Zeile.
+- **Neue Zeile darunter sagt, wie viele es sind** und wie viele davon schon gespeichert wurden. Vorher war nicht erkennbar, ob links noch etwas aus dem Bild gescrollt ist.
+- 🗑 **Löschen-Knopf für gespeicherte Bilder.** Gefällt ein Bild nach dem Speichern doch nicht, ließ es sich bisher nur über *System → Speicher aufräumen* wieder entfernen — und auch das nur im Rutsch. Der Knopf sitzt jetzt direkt an der Karte.
+  - **Eingebundene Bilder bleiben tabu**: steckt die Datei irgendwo in `site.json`, verweigert das Add-on das Löschen mit einem Hinweis, statt einem Beitrag oder Bibliothek-Eintrag das Bild unter den Füßen wegzuziehen. Geprüft wird mit demselben Vorkommen-Scan wie beim Aufräumen.
+
 ## 0.9.8
 - 💶 **Verbrauchsanzeige im Tab *KI*.** Bisher gab es nur Stundenlimits — die verhindern Ausreißer, sagen aber nichts darüber, was der Monat gekostet hat. Jede Anfrage wird jetzt nach **Monat und Modell** festgehalten: Aufrufe, erzeugte Bilder sowie Ein- und Ausgabe-Tokens, direkt aus der Antwort von Google. Denk-Tokens zählen zur Ausgabe, weil sie so abgerechnet werden; abgelehnte und leere Antworten zählen mit, weil sie die Eingabe genauso kosten.
 - **Preise trägst du selbst ein** (€ je Mio. Tokens rein/raus und € je Bild, je Modell) — daraus rechnet der Tab die Kosten je Modell und die Monatssumme. Die Gemini-API liefert keine Preise, und eine fest eingebaute Tabelle wäre nach der nächsten Google-Anpassung still falsch. Ohne Preis bleibt es bei den reinen Token-Zahlen.
