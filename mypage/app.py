@@ -91,6 +91,9 @@ logging.getLogger('werkzeug').setLevel(logging.ERROR)
 # ("glyf pruned", "GDEF pruned", …) auf INFO — pro PDF dutzende Zeilen. Nur Warnungen.
 for _noisy in ('fontTools', 'fontTools.subset', 'fontTools.ttLib'):
     logging.getLogger(_noisy).setLevel(logging.WARNING)
+# google-genai meldet bei jeder Anfrage „AFC is enabled with max remote calls: 10"
+# auf INFO — eine Einstellung, die MyPage gar nicht nutzt. Nur Warnungen.
+logging.getLogger('google_genai').setLevel(logging.WARNING)
 
 _BASE = os.environ.get('MYPAGE_BASE', '/app')
 # Nutzdaten liegen im addon_config-Mapping (/addon_configs/<slug> auf dem Host),
@@ -4903,9 +4906,31 @@ def gemini_image_enabled() -> bool:
     return gemini_text_enabled() and _HAS_PIL
 
 
+_gemini_client_cache: tuple[str, object] | None = None
+_gemini_client_lock = threading.Lock()
+
+
 def _gemini_client():
-    """Client mit dem hinterlegten Schlüssel. Nur aufrufen, wenn ein Key da ist."""
-    return genai.Client(api_key=_gemini_key())
+    """Client mit dem hinterlegten Schlüssel. Nur aufrufen, wenn ein Key da ist.
+
+    Der Client wird zwischengespeichert und muss es auch bleiben: Ein Einzeiler
+    wie `_gemini_client().models.generate_content(...)` erzeugt ein Objekt ohne
+    Referenz, das der Sammler mitten im Aufruf einziehen darf. Sein Destruktor
+    schließt die HTTP-Verbindung, und die laufende Anfrage endet mit
+    „Cannot send a request, as the client has been closed" — noch bevor sie
+    Google erreicht. Aufrufer binden das Ergebnis zusätzlich an eine lokale
+    Variable, damit das auch ohne diesen Cache hält.
+
+    Ein Wechsel des API-Keys in den Add-on-Optionen baut den Client neu auf.
+    """
+    global _gemini_client_cache
+    key = _gemini_key()
+    with _gemini_client_lock:
+        if _gemini_client_cache is not None and _gemini_client_cache[0] == key:
+            return _gemini_client_cache[1]
+        client = genai.Client(api_key=key)
+        _gemini_client_cache = (key, client)
+        return client
 
 
 def _ai_settings(site: dict | None = None) -> dict:
@@ -4979,7 +5004,8 @@ def _gemini_generate_image(prompt: str, *, model: str = '', ratio: str = '',
     if ref is not None:
         contents.append(genai_types.Part.from_bytes(data=ref[0], mime_type=ref[1]))
     try:
-        resp = _gemini_client().models.generate_content(
+        client = _gemini_client()
+        resp = client.models.generate_content(
             model=model, contents=contents,
             config=genai_types.GenerateContentConfig(
                 response_modalities=['IMAGE'],
@@ -5126,7 +5152,8 @@ def _ai_model_lists() -> dict:
     if gemini_text_enabled():
         try:
             img, txt = [], []
-            for m in _gemini_client().models.list():
+            client = _gemini_client()
+            for m in client.models.list():
                 short = (m.name or '').rsplit('/', 1)[-1]
                 if not _AI_MODEL_RE.match(short):
                     continue
@@ -5381,7 +5408,8 @@ def _gemini_generate_text(*, topic: str, kind: str, tone: str, length: str,
         parts.append("Sprache der Ausgabe: "
                      + ("Deutsch." if langs[0] == 'de' else "Englisch."))
     try:
-        resp = _gemini_client().models.generate_content(
+        client = _gemini_client()
+        resp = client.models.generate_content(
             model=model, contents=['\n\n'.join(parts)],
             config=genai_types.GenerateContentConfig(
                 system_instruction=sys,
@@ -5465,7 +5493,8 @@ def _gemini_translate(text: str, src: str, dst: str) -> str:
     fällt dann auf MyMemory zurück.
     """
     names = {'de': 'Deutsch', 'en': 'Englisch'}
-    resp = _gemini_client().models.generate_content(
+    client = _gemini_client()
+    resp = client.models.generate_content(
         model=_gemini_text_model(), contents=[text],
         config=genai_types.GenerateContentConfig(
             system_instruction=(
