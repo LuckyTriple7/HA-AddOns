@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.10.25
+- 🩹 **Übersetzen lud nur die Überschrift.** Die Feldauswahl stand nach dem Wählen eines Eintrags auf „Titel" — der ersten Option — und „Laden" holte folgerichtig nur die Überschrift. Vorbelegt ist jetzt der **Fließtext**; Titel und SEO-Beschreibung bleiben in derselben Auswahl.
+- 👀 **Eintrag und Feld stehen jetzt nebeneinander, jedes mit eigener Beschriftung.** Vorher hingen beide Auswahlfelder ohne Unterscheidung in einer Zeile, und dass es überhaupt eine Feldauswahl gibt, war leicht zu übersehen. Bei „freie Eingabe" verschwindet sie ganz.
+
 ## 0.10.24
 - 🌐 **Eigener Übersetzen-Bereich im KI-Tab.** Die 🌐-Knöpfe in den Formularen konnten immer nur DE→EN und immer nur ihr eigenes Formular. Neu: **freier Text** oder ein **vorhandener Eintrag** als Quelle — Blogbeitrag, Projekt, Bibliothek-Eintrag oder Seite, dazu das Feld (Titel, SEO-Beschreibung, Text …). „Laden" holt die Fassung in der Ausgangssprache, also bei „Englisch → Deutsch" die englische.
 - ↔️ **Beide Richtungen**, DE→EN und EN→DE, und **„⇅ Richtung tauschen"** dreht Richtung und Texte gleich mit — praktisch für die Gegenprobe.

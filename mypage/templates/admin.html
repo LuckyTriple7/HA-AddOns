@@ -1158,11 +1158,19 @@
       <div class="panel" data-ai-panel="translate">
         <h3>🌐 {{ t.tr_heading }}</h3>
         <p class="hint">{{ t.tr_hint }}</p>
-        <label>{{ t.tr_source }}</label>
-        <div class="upload-row">
-          <select id="tr-entry" onchange="trEntryChanged()"></select>
-          <select id="tr-field" style="max-width:220px"></select>
-          <button class="btn secondary" onclick="trLoadSource()">📥 {{ t.tr_load }}</button>
+        <p class="hint">{{ t.tr_source }}</p>
+        <div class="row">
+          <div>
+            <label>{{ t.tr_entry }}</label>
+            <select id="tr-entry" onchange="trEntryChanged()"></select>
+          </div>
+          <div id="tr-field-box">
+            <label>{{ t.tr_field }}</label>
+            <div class="upload-row">
+              <select id="tr-field"></select>
+              <button class="btn secondary" onclick="trLoadSource()">📥 {{ t.tr_load }}</button>
+            </div>
+          </div>
         </div>
         <p class="hint" id="tr-provider"></p>
         <div class="row" style="margin-top:12px">
@@ -8107,6 +8115,10 @@
       const x = type[2]().find(r => r.id === id);
       return x ? { kind, x } : null;
     }
+    // Vorbelegt ist der Fließtext, nicht das erste Feld der Liste: den Titel
+    // übersetzt man selten allein, und ein „Laden", das wortlos nur die
+    // Überschrift holt, sieht nach einem Fehler aus.
+    const TR_MAIN_FIELD = { post: 'text', project: 'long', library: 'body', page: 'body' };
     function trEntryChanged() {
       const kind = (el('tr-entry').value || '').split(':')[0];
       const fields = TR_FIELDS[kind] || [];
@@ -8118,7 +8130,8 @@
         o.textContent = T[label];
         sel.appendChild(o);
       });
-      sel.style.display = fields.length ? '' : 'none';
+      if (fields.length) sel.value = TR_MAIN_FIELD[kind] || fields[0][0];
+      el('tr-field-box').style.display = fields.length ? '' : 'none';
     }
     function trDirChanged() {
       const [src, dst] = el('tr-dir').value.split('-');
