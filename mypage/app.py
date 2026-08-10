@@ -5030,6 +5030,11 @@ _AI_TMP_RE = re.compile(r'^[a-f0-9]{32}$')
 AI_TEXT_KINDS = ('blog', 'news', 'project', 'library', 'seo')
 AI_TEXT_TONES = ('sachlich', 'locker', 'technisch', 'werblich', 'persoenlich')
 AI_TEXT_LENGTHS = {'kurz': 150, 'mittel': 400, 'lang': 800}
+# Überarbeiten statt neu schreiben: der vorhandene Text geht mit in die Anfrage
+# zurück. Sonst bliebe nur „nochmal erzeugen", und das wirft die Handarbeit weg.
+AI_TEXT_ACTIONS = ('shorter', 'longer', 'polish', 'custom')
+AI_TEXT_NOTE_MAX = 500
+AI_INSTRUCTIONS_MAX = 800           # Dauervorgaben, hängen an jedem Textlauf
 AI_DRAFTS_MAX = 200                 # ältester Entwurf fliegt raus, wenn voll
 AI_DRAFT_TEXT_MAX = 60_000          # ein „langer" Artikel liegt bei ~6 kB
 AI_TRANSLATE_PROVIDERS = ('mymemory', 'gemini')
@@ -5125,6 +5130,13 @@ def _gemini_image_ratio() -> str:
     default = cfg if cfg in GEMINI_IMAGE_RATIOS else GEMINI_IMAGE_RATIOS[0]
     r = (_ai_settings().get('image_ratio') or '').strip()
     return r if r in GEMINI_IMAGE_RATIOS else default
+
+
+# Dauervorgaben des Admins („duzen", „keine Emojis", Eigennamen). Sie gehören in
+# die Systemanweisung, nicht in den Auftrag: dort gelten sie für jeden Lauf und
+# überleben auch das Überarbeiten.
+def _ai_instructions() -> str:
+    return _clean_str(_ai_settings().get('instructions'), AI_INSTRUCTIONS_MAX)
 
 
 def _ai_translate_provider() -> str:
@@ -5381,6 +5393,7 @@ def api_ai_status():
         'image_model': _gemini_image_model(), 'text_model': _gemini_text_model(),
         'image_ratio': _gemini_image_ratio(), 'ratios': list(GEMINI_IMAGE_RATIOS),
         'translate_provider': _ai_translate_provider(),
+        'instructions': _ai_instructions(),
         'image_used': img_used, 'image_max': AI_IMAGE_MAX_PER_HOUR,
         'text_used': txt_used, 'text_max': AI_TEXT_MAX_PER_HOUR,
         'max_images': AI_STUDIO_MAX_IMAGES,
@@ -5416,6 +5429,9 @@ def api_ai_settings():
     prov = _clean_str(raw.get('translate_provider'), 20)
     if prov in AI_TRANSLATE_PROVIDERS:
         ai['translate_provider'] = prov
+    # Leerer Text ist eine gültige Angabe: er löscht die Dauervorgaben wieder
+    if 'instructions' in raw:
+        ai['instructions'] = _clean_str(raw.get('instructions'), AI_INSTRUCTIONS_MAX)
     site['ai'] = ai
     save_site(site)
     return jsonify({'ok': True, 'translate_provider': _ai_translate_provider()})
@@ -6080,6 +6096,60 @@ _AI_TEXT_TONE_DE = {
 }
 
 
+_AI_TEXT_ACTION_DE = {
+    'shorter': ('Kürze den Text deutlich — etwa auf die Hälfte — ohne eine Kernaussage '
+                'zu verlieren. Lieber ganze Nebenschauplätze streichen als überall Wörter.'),
+    'longer':  ('Baue den Text aus — etwa auf das Anderthalbfache — mit Beispielen, '
+                'Begründungen und Details. Keine Wiederholungen, keine Füllsätze.'),
+    'polish':  ('Feinschliff: Stil, Rhythmus und Übergänge verbessern, Wiederholungen '
+                'und Floskeln entfernen. Inhalt und Umfang bleiben, wie sie sind.'),
+    'custom':  'Setze den folgenden Änderungswunsch um, sonst bleibt alles erhalten.',
+}
+_AI_LANG_DE = {'de': 'Deutsch', 'en': 'Englisch'}
+
+
+def _ai_lang_line(langs: list[str], mode: str) -> str:
+    """Sprachanweisung — bei zwei Sprachen entscheidet `mode` über den Weg."""
+    if len(langs) < 2:
+        return "Sprache der Ausgabe: " + ("Deutsch." if langs[0] == 'de' else "Englisch.")
+    if mode == 'translate':
+        return ("Schreibe zuerst die deutsche Fassung. Die englische Fassung ist deren "
+                "treue Übersetzung mit gleicher Gliederung und gleicher Länge.")
+    return ("Schreibe die deutsche und die englische Fassung jeweils eigenständig "
+            "und idiomatisch — die englische ist keine Wort-für-Wort-Übersetzung.")
+
+
+def _ai_revise_parts(*, kind: str, tone: str, topic: str, action: str, note: str,
+                     source: dict, langs: list[str], lang_line: str) -> list[str]:
+    """Auftrag fürs Überarbeiten — der vorhandene Text geht vollständig mit.
+
+    Zurück kommt trotzdem die volle Fassung je Sprache, kein Änderungsprotokoll:
+    das Formular ersetzt seine Felder damit, und ein Diff könnte es nicht.
+    """
+    parts = [
+        "Überarbeite den vorhandenen Text. Gib je Sprache die vollständige neue "
+        "Fassung zurück — Titel, SEO-Beschreibung, Fließtext und Schlagwörter. "
+        "Keine Auflistung der Änderungen, kein Kommentar dazu.",
+        f"Gewünscht ist {_AI_TEXT_KIND_DE.get(kind, _AI_TEXT_KIND_DE['blog'])}.",
+        _AI_TEXT_ACTION_DE.get(action, _AI_TEXT_ACTION_DE['polish']),
+    ]
+    if note:
+        parts.append(f"Änderungswunsch:\n{note}")
+    parts.append(f"Tonfall: {_AI_TEXT_TONE_DE.get(tone, _AI_TEXT_TONE_DE['sachlich'])}.")
+    parts.append(lang_line)
+    if topic:
+        parts.append(f"Ursprüngliches Thema und Stichpunkte:\n{topic}")
+    for lg in langs:
+        d = source.get(lg) or {}
+        parts.append(
+            f"Vorhandene Fassung ({_AI_LANG_DE.get(lg, lg)}):\n"
+            f"Titel: {d.get('title', '')}\n"
+            f"SEO-Beschreibung: {d.get('meta', '')}\n"
+            f"Text:\n{d.get('text', '')}"
+        )
+    return parts
+
+
 def _ai_text_schema(langs: list[str]):
     """JSON-Schema für die Antwort — erzwingt beide Sprachen in einem Aufruf.
 
@@ -6105,9 +6175,15 @@ def _ai_text_schema(langs: list[str]):
 
 
 def _gemini_generate_text(*, topic: str, kind: str, tone: str, length: str,
-                          langs: list[str], mode: str, model: str
+                          langs: list[str], mode: str, model: str,
+                          action: str = '', note: str = '',
+                          source: dict | None = None
                           ) -> tuple[dict | None, str, str]:
     """Erzeugt Titel, SEO-Beschreibung, Fließtext und Schlagwörter je Sprache.
+
+    Mit `action` (und dem vorhandenen Text in `source`) wird stattdessen
+    überarbeitet — dieselbe Antwortform, damit das Formular beide Wege gleich
+    behandeln kann.
 
     Zurück: (Ergebnis, Fehlercode, Erläuterung) — dieselben Codes wie bei den
     Bildern. Die Erläuterung ist Googles Abbruchgrund im Klartext; ohne sie
@@ -6123,23 +6199,22 @@ def _gemini_generate_text(*, topic: str, kind: str, tone: str, length: str,
         "'text' = Fließtext in Markdown, Zwischenüberschriften ab '##', keine H1; "
         "'tags' = drei bis sechs kurze Schlagwörter, klein geschrieben."
     )
-    parts = [
-        f"Gewünscht ist {_AI_TEXT_KIND_DE.get(kind, _AI_TEXT_KIND_DE['blog'])}.",
-        f"Thema und Stichpunkte:\n{topic}",
-        f"Tonfall: {_AI_TEXT_TONE_DE.get(tone, _AI_TEXT_TONE_DE['sachlich'])}.",
-        f"Zielumfang: rund {words} Wörter je Sprache.",
-    ]
-    if len(langs) > 1:
-        parts.append(
-            "Schreibe die deutsche und die englische Fassung jeweils eigenständig "
-            "und idiomatisch — die englische ist keine Wort-für-Wort-Übersetzung."
-            if mode != 'translate' else
-            "Schreibe zuerst die deutsche Fassung. Die englische Fassung ist deren "
-            "treue Übersetzung mit gleicher Gliederung und gleicher Länge."
-        )
+    extra = _ai_instructions()
+    if extra:
+        sys += ("\n\nZusätzliche Vorgaben für diese Website, die immer gelten "
+                "(sie ändern nichts an der Antwortform):\n" + extra)
+    if action:
+        parts = _ai_revise_parts(kind=kind, tone=tone, topic=topic, action=action,
+                                 note=note, source=source or {}, langs=langs,
+                                 lang_line=_ai_lang_line(langs, mode))
     else:
-        parts.append("Sprache der Ausgabe: "
-                     + ("Deutsch." if langs[0] == 'de' else "Englisch."))
+        parts = [
+            f"Gewünscht ist {_AI_TEXT_KIND_DE.get(kind, _AI_TEXT_KIND_DE['blog'])}.",
+            f"Thema und Stichpunkte:\n{topic}",
+            f"Tonfall: {_AI_TEXT_TONE_DE.get(tone, _AI_TEXT_TONE_DE['sachlich'])}.",
+            f"Zielumfang: rund {words} Wörter je Sprache.",
+            _ai_lang_line(langs, mode),
+        ]
     try:
         client = _gemini_client()
         resp = client.models.generate_content(
@@ -6201,7 +6276,13 @@ def api_ai_text():
         return jsonify({'error': 'no_api_key'}), 400
     raw = request.get_json(silent=True) or {}
     topic = _clean_str(raw.get('topic'), AI_TEXT_TOPIC_MAX)
-    if len(topic) < 3:
+    action = raw.get('action') if raw.get('action') in AI_TEXT_ACTIONS else ''
+    note = _clean_str(raw.get('note'), AI_TEXT_NOTE_MAX)
+    # Beim Überarbeiten ist der vorhandene Text der Auftrag; ein Thema darf dann
+    # fehlen. Ohne beides gäbe es nichts zu tun.
+    if not action and len(topic) < 3:
+        return jsonify({'error': 'invalid'}), 400
+    if action == 'custom' and not note:
         return jsonify({'error': 'invalid'}), 400
     kind = raw.get('kind') if raw.get('kind') in AI_TEXT_KINDS else 'blog'
     tone = raw.get('tone') if raw.get('tone') in AI_TEXT_TONES else 'sachlich'
@@ -6212,15 +6293,24 @@ def api_ai_text():
     if not langs:
         langs = ['de']
     model = _ai_model_or(raw.get('model'), _gemini_text_model())
+    source = {}
+    if action:
+        raw_src = raw.get('source') if isinstance(raw.get('source'), dict) else {}
+        for lg in langs:
+            source[lg] = _ai_draft_lang(raw_src.get(lg))
+        if not any(d['text'] or d['title'] for d in source.values()):
+            return jsonify({'error': 'invalid'}), 400
     if not _ai_rate_take(_ai_text_times, AI_TEXT_MAX_PER_HOUR):
         return jsonify({'error': 'rate_limited'}), 429
     data, code, detail = _gemini_generate_text(topic=topic, kind=kind, tone=tone,
                                                length=length, langs=langs, mode=mode,
-                                               model=model)
+                                               model=model, action=action, note=note,
+                                               source=source)
     if code:
         return jsonify({'error': _AI_ERRORS.get(code, 'ai_failed'),
                         'detail': detail, 'model': model}), 502
-    log.info("KI-Text erzeugt (%s, %s, %s)", model, kind, '+'.join(langs))
+    log.info("KI-Text %s (%s, %s, %s)", 'überarbeitet' if action else 'erzeugt',
+             model, kind, '+'.join(langs))
     return jsonify({'ok': True, 'result': data})
 
 

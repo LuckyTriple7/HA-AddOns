@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.10.16
+- 🗂️ **Übernehmen richtet sich jetzt nach der Textart.** Das Studio kennt fünf Textarten, konnte das Ergebnis aber nur an den Blog weiterreichen — eine Projektbeschreibung musste man von Hand hinüberkopieren. Neu: **„Als Projekt übernehmen"** (SEO-Beschreibung wird Kurzbeschreibung, Fließtext die lange, unveröffentlicht), **„Als Bibliothek-Eintrag übernehmen"** (unsichtbar geschaltet) und bei „nur SEO" **„In die Website-SEO übernehmen"**, das die Beschreibung in beide Felder im Design-Tab einträgt und dorthin springt — gespeichert wird sie dort mit „Speichern". Der Weg zum Blogbeitrag bleibt immer offen, veröffentlicht wird auf keinem Weg automatisch.
+- ✂️ **Überarbeiten statt neu erzeugen.** Bisher gab es nur „nochmal", und das warf jede Handarbeit im Formular weg. Unter dem Ergebnis stehen jetzt **„Kürzer"**, **„Länger"**, **„Feinschliff"** und ein freies Feld für einen eigenen Änderungswunsch. Der vorhandene Text geht mit in die Anfrage und kommt vollständig überarbeitet zurück.
+- 🇩🇪 **Eine einzelne Sprache überarbeiten.** Die Auswahl „Beide / Nur Deutsch / Nur Englisch" erzeugt nur die gewählte Fassung neu; die andere bleibt unangetastet — ein Korrekturlauf kostet damit die Hälfte. Maßgeblich ist, was wirklich in den Feldern steht: ohne englischen Text gibt es auch nichts auf Englisch zu kürzen.
+- 📌 **„Immer beachten" — Dauervorgaben für jeden Text.** Ein Feld in den KI-Einstellungen (bis 800 Zeichen), dessen Inhalt bei jedem Textlauf mitgeht, auch beim Überarbeiten: „Leser duzen", „keine Emojis", „Produktname immer als MyPage schreiben". Leer lassen schaltet es ab.
+
 ## 0.10.15
 - 📁 **Vorhandene Logo-Sätze klappen jetzt zusammen.** Jeder Satz zeigte alle Vorschaubilder auf einmal — bei mehreren Sätzen war der Logo-Designer damit endlos lang. Zu sehen ist nun je Satz eine Zeile mit Name, Dateizahl und den Knöpfen „Alle als ZIP", „Größen neu rechnen" und „Löschen"; ein Klick auf den Namen zeigt die Dateien, ein zweiter versteckt sie wieder.
 - 🔓 **Frisch gespeicherte, eingelesene und neu gerechnete Sätze klappen von selbst auf** — das Ergebnis will man sofort sehen. Welche Sätze offen sind, bleibt auch dann erhalten, wenn sich die Liste zwischendurch neu aufbaut.

@@ -845,6 +845,9 @@
           </div>
         </div>
         <p class="hint">{{ t.ai_translate_hint }}</p>
+        <label style="margin-top:14px">{{ t.ai_instructions }}</label>
+        <textarea id="ai-instructions" rows="3" maxlength="800" placeholder="{{ t.ai_instructions_ph }}"></textarea>
+        <p class="hint">{{ t.ai_instructions_hint }}</p>
         <button class="btn" style="margin-top:12px" onclick="saveAiSettings()">{{ t.save }}</button>
         <p class="hint" id="ai-quota" style="margin-top:12px"></p>
       </div>
@@ -998,7 +1001,7 @@
         <div class="row">
           <div>
             <label>{{ t.ai_txt_kind }}</label>
-            <select id="ai-txt-kind">
+            <select id="ai-txt-kind" onchange="aiKindChanged()">
               <option value="blog">{{ t.ai_kind_blog }}</option>
               <option value="news">{{ t.ai_kind_news }}</option>
               <option value="project">{{ t.ai_kind_project }}</option>
@@ -1072,8 +1075,31 @@
           </div>
           <label>{{ t.field_tags }}</label>
           <input type="text" id="ai-out-tags">
-          <div style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap">
-            <button class="btn" onclick="aiToPost()">📰 {{ t.ai_to_post }}</button>
+
+          <div style="margin-top:18px;border-top:1px solid var(--border);padding-top:14px">
+            <label>{{ t.ai_revise }}</label>
+            <p class="hint">{{ t.ai_revise_hint }}</p>
+            <div class="upload-row">
+              <button class="btn secondary" onclick="aiRevise('shorter', this)">✂ {{ t.ai_revise_shorter }}</button>
+              <button class="btn secondary" onclick="aiRevise('longer', this)">➕ {{ t.ai_revise_longer }}</button>
+              <button class="btn secondary" onclick="aiRevise('polish', this)">✨ {{ t.ai_revise_polish }}</button>
+              <select id="ai-revise-scope" style="max-width:190px">
+                <option value="both">{{ t.ai_revise_scope_both }}</option>
+                <option value="de">{{ t.ai_revise_scope_de }}</option>
+                <option value="en">{{ t.ai_revise_scope_en }}</option>
+              </select>
+            </div>
+            <div class="upload-row" style="margin-top:8px">
+              <input type="text" id="ai-revise-note" maxlength="500" placeholder="{{ t.ai_revise_note_ph }}">
+              <button class="btn" onclick="aiRevise('custom', this)">↻ {{ t.ai_revise_run }}</button>
+            </div>
+          </div>
+
+          <div style="margin-top:18px;display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn" id="ai-take-post" onclick="aiToPost()">📰 {{ t.ai_to_post }}</button>
+            <button class="btn" id="ai-take-project" style="display:none" onclick="aiToProject()">🗂️ {{ t.ai_to_project }}</button>
+            <button class="btn" id="ai-take-lib" style="display:none" onclick="aiToLibEntry()">📚 {{ t.ai_to_library }}</button>
+            <button class="btn" id="ai-take-seo" style="display:none" onclick="aiToSeo()">🔍 {{ t.ai_to_seo }}</button>
             <button class="btn secondary" onclick="aiToImagePrompt()">🖼️ {{ t.ai_to_image }}</button>
             <button class="btn secondary" onclick="aiCopyText()">📋 {{ t.ai_copy }}</button>
           </div>
@@ -6364,6 +6390,7 @@
         if (f) importLogo(f);
       });
       aiLangChanged();
+      aiKindChanged();
       if (AI_STATUS && AI_STATUS.text) loadAiDrafts();
       el('ai-img-results').addEventListener('scroll', updateAiArrows, { passive: true });
       el('logo-results').addEventListener('scroll', updateLogoArrows, { passive: true });
@@ -6376,6 +6403,7 @@
       aiFillSelect('ai-image-model', m.image, s.image_model);
       aiFillSelect('ai-ratio', s.ratios || [], s.image_ratio);
       el('ai-translate-provider').value = s.translate_provider || 'mymemory';
+      el('ai-instructions').value = s.instructions || '';
     }
     // Ein in den Add-on-Optionen eingetragenes Modell kann fehlen, wenn Google es
     // nicht (mehr) auflistet. Trotzdem anbieten, sonst überschreibt das Speichern
@@ -6416,6 +6444,7 @@
         image_model: el('ai-image-model').value,
         image_ratio: el('ai-ratio').value,
         translate_provider: el('ai-translate-provider').value,
+        instructions: el('ai-instructions').value,
       });
       toast(r.ok ? T.saved : T.error_save, !r.ok);
       if (r.ok) refreshAiStatus();
@@ -7145,21 +7174,86 @@
         refreshAiStatus();
         return;
       }
-      const res = d.result || {};
+      aiApplyText(d.result || {}, true);
+      busyDone(T.ai_txt_ready);
+      refreshAiStatus();
+    }
+    // `clearOthers` trennt die beiden Wege: ein neuer Text ersetzt alles, eine
+    // Überarbeitung nur die Sprachen, die tatsächlich zurückgekommen sind —
+    // sonst wäre die andere Fassung nach „nur Deutsch kürzen" leer.
+    function aiApplyText(res, clearOthers) {
       const tags = new Set();
       ['de', 'en'].forEach(lg => {
         const x = res[lg] || null;
+        if (!x && !clearOthers) return;
         el('ai-out-title_' + lg).value = x ? (x.title || '') : '';
         el('ai-out-meta_' + lg).value  = x ? (x.meta || '') : '';
         el('ai-out-text_' + lg).value  = x ? (x.text || '') : '';
         if (x) (x.tags || []).forEach(t => tags.add(t));
       });
-      el('ai-out-tags').value = [...tags].join(', ');
+      if (tags.size || clearOthers) el('ai-out-tags').value = [...tags].join(', ');
       el('ai-txt-result').style.display = '';
       el('ai-txt-status').textContent = '';
       aiLangChanged();
-      busyDone(T.ai_txt_ready);
+      aiKindChanged();
+    }
+    // Überarbeiten schickt den vorhandenen Text mit zurück. Maßgeblich ist, was
+    // wirklich in den Feldern steht — nicht die Sprachwahl von oben: nach einem
+    // Lauf „nur Deutsch" gibt es keine englische Fassung zu kürzen.
+    async function aiRevise(action, btn) {
+      const have = ['de', 'en'].filter(lg =>
+        el('ai-out-text_' + lg).value.trim() || el('ai-out-title_' + lg).value.trim());
+      if (!have.length) { toast(T.ai_revise_err_empty, true); return; }
+      const scope = el('ai-revise-scope').value;
+      const langs = scope === 'both' ? have : have.filter(lg => lg === scope);
+      if (!langs.length) { toast(T.ai_revise_err_lang, true); return; }
+      const note = el('ai-revise-note').value.trim();
+      if (action === 'custom' && !note) { toast(T.ai_revise_err_note, true); el('ai-revise-note').focus(); return; }
+      const source = {};
+      langs.forEach(lg => {
+        source[lg] = { title: el('ai-out-title_' + lg).value,
+                       meta:  el('ai-out-meta_' + lg).value,
+                       text:  el('ai-out-text_' + lg).value };
+      });
+      btn.disabled = true;
+      el('ai-txt-status').textContent = T.ai_revise_running;
+      busyShow(T.ai_revise_running);
+      let r = null;
+      try {
+        r = await apiJson('api/ai/text', 'POST', {
+          action, note, source, langs,
+          topic:  el('ai-txt-topic').value.trim(),
+          kind:   el('ai-txt-kind').value,
+          tone:   el('ai-txt-tone').value,
+          length: el('ai-txt-length').value,
+          mode:   el('ai-txt-mode').value,
+          model:  el('ai-text-model').value,
+        });
+      } catch (e) { /* Netzfehler */ }
+      btn.disabled = false;
+      const d = r ? await r.json().catch(() => ({})) : {};
+      if (!r || !r.ok) {
+        const msg = aiErrMsg(d.error, d.model, d.detail);
+        el('ai-txt-status').textContent = msg;
+        busyDone(msg, true);
+        refreshAiStatus();
+        return;
+      }
+      aiApplyText(d.result || {}, false);
+      busyDone(T.ai_revise_ready);
       refreshAiStatus();
+    }
+    // Die Textart bestimmt, wohin das Ergebnis gehört. „Als Blogbeitrag" bleibt
+    // daneben stehen: aus einer Projektbeschreibung kann man immer noch einen
+    // Beitrag machen, nur ist es dann nicht mehr der naheliegende Weg.
+    const AI_TAKE = { blog: null, news: null, project: 'ai-take-project',
+                      library: 'ai-take-lib', seo: 'ai-take-seo' };
+    function aiKindChanged() {
+      const want = AI_TAKE[el('ai-txt-kind').value] || null;
+      ['ai-take-project', 'ai-take-lib', 'ai-take-seo'].forEach(id => {
+        el(id).style.display = (id === want) ? '' : 'none';
+      });
+      el('ai-take-post').className = want ? 'btn secondary' : 'btn';
     }
     // Bewusst als Entwurf: der Text soll vor der Veröffentlichung gelesen werden.
     function aiToPost() {
@@ -7172,6 +7266,42 @@
       el('bm-text_en').value  = el('ai-out-text_en').value;
       el('bm-tags').value     = el('ai-out-tags').value;
       el('bm-published').value = '0';
+    }
+    // Beim Projekt ist der Titel einsprachig; die SEO-Beschreibung passt in die
+    // Kurzbeschreibung, der Fließtext in die lange.
+    function aiToProject() {
+      openProjectModal();
+      el('pm-titlefield').value = el('ai-out-title_de').value.trim() || el('ai-out-title_en').value.trim();
+      el('pm-desc_de').value = el('ai-out-meta_de').value;
+      el('pm-desc_en').value = el('ai-out-meta_en').value;
+      el('pm-long_de').value = el('ai-out-text_de').value;
+      el('pm-long_en').value = el('ai-out-text_en').value;
+      el('pm-tags').value    = el('ai-out-tags').value;
+      el('pm-published').value = '0';
+    }
+    // Der Bibliothek-Eintrag hat Zusammenfassung UND SEO-Beschreibung. Beide
+    // bekommen denselben Satz — mehr hat das Studio nicht, und ein leeres
+    // Kurzfeld sähe in der Liste schlechter aus als ein doppelter.
+    function aiToLibEntry() {
+      openLibEntryModal();
+      ['de', 'en'].forEach(lg => {
+        el('le-title_' + lg).value   = el('ai-out-title_' + lg).value;
+        el('le-summary_' + lg).value = el('ai-out-meta_' + lg).value;
+        el('le-meta_' + lg).value    = el('ai-out-meta_' + lg).value;
+        el('le-body_' + lg).value    = el('ai-out-text_' + lg).value;
+      });
+      el('le-tags').value = el('ai-out-tags').value;
+      el('le-visible').checked = false;
+    }
+    // Anders als die übrigen Wege füllt dieser kein Fenster, sondern zwei Felder
+    // im Design-Tab — deshalb der Sprung dorthin und der Hinweis aufs Speichern.
+    function aiToSeo() {
+      el('d-meta_description_de').value = el('ai-out-meta_de').value;
+      el('d-meta_description_en').value = el('ai-out-meta_en').value;
+      const btn = document.querySelector('.tab-btn[data-tab="design"]');
+      if (btn) btn.click();
+      el('d-meta_description_de').scrollIntoView({ behavior: 'smooth', block: 'center' });
+      toast(T.ai_to_seo_done);
     }
     function aiToImagePrompt() {
       const title = el('ai-out-title_de').value.trim() || el('ai-out-title_en').value.trim();
@@ -7211,7 +7341,10 @@
       el('ai-txt-mode').value   = 'native';
       el('ai-txt-result').style.display = 'none';
       el('ai-txt-status').textContent = '';
+      el('ai-revise-note').value = '';
+      el('ai-revise-scope').value = 'both';
       aiLangChanged();
+      aiKindChanged();
       aiDraftNew();
       loadAiDrafts();
       el('ai-txt-topic').focus();
@@ -7343,6 +7476,7 @@
       el('ai-txt-result').style.display = '';
       el('ai-txt-status').textContent = '';
       aiLangChanged();
+      aiKindChanged();
       aiDraftId = x.id || null;
       el('ai-draft-name').value = x.name || '';
       aiDraftState(x.name);
