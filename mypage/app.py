@@ -41,7 +41,8 @@ from markupsafe import Markup, escape
 
 import travelblog as tb
 try:
-    from PIL import Image, ImageDraw, ImageFont, ImageOps
+    from PIL import (Image, ImageChops, ImageDraw, ImageFilter, ImageFont,
+                     ImageOps, PngImagePlugin)
     _HAS_PIL = True
 except ImportError:
     _HAS_PIL = False
@@ -160,6 +161,17 @@ DM_FILES_DIR.mkdir(parents=True, exist_ok=True)
 DOCS_DIR = Path(_DATA) / 'docs'
 DOCS_DIR.mkdir(parents=True, exist_ok=True)
 _DOC_FILE_RE = re.compile(r'^[a-f0-9]{32}\.pdf$')
+# Logo-Werkstatt: je Satz ein Unterordner mit allen erzeugten Größen. Bewusst
+# NICHT unter uploads/ — dort wird alles zu WebP mit höchstens 1600 px, und ein
+# KI-Bild bekäme über den `-ai`-Marker die Kennzeichnung „KI generiert"
+# eingebrannt. Beides macht ein Logo unbrauchbar. Zweiter Grund: der Ordner liegt
+# im Add-on-Konfigurationsordner und ist damit direkt über den Share erreichbar —
+# \\<host>\addon_configs\XXX_mypage\logos\<name>\icon.png lässt sich ohne Umweg
+# ins Add-on-Repository kopieren.
+LOGOS_DIR = Path(_DATA) / 'logos'
+LOGOS_DIR.mkdir(parents=True, exist_ok=True)
+LOGO_SLUG_RE = re.compile(r'^[a-z0-9][a-z0-9_-]{0,40}$')
+LOGO_FILE_RE = re.compile(r'^[A-Za-z0-9][A-Za-z0-9._-]{0,60}\.(?:png|ico|txt)$')
 # Dauerhaftes Besucher-Archiv (optional, Option visit_file_log). Liegt im
 # Add-on-Konfigurationsordner und ist damit über den Share erreichbar:
 # \\<host>\addon_configs\XXX_mypage\visits\visits-JJJJ-MM.csv
@@ -4508,6 +4520,15 @@ def write_backup_zip(fp) -> None:
             for f in sorted(DM_FILES_DIR.iterdir()):
                 if f.is_file() and _FID_RE.match(f.name):
                     z.write(f, 'dm_files/' + f.name)
+        # Logo-Sätze (logos/<slug>/<datei>) — anders als die KI-Entwürfe sind das
+        # fertige Arbeitsergebnisse, die niemand ein zweites Mal erzeugen will
+        if LOGOS_DIR.is_dir():
+            for d in sorted(LOGOS_DIR.iterdir()):
+                if not d.is_dir() or not LOGO_SLUG_RE.match(d.name):
+                    continue
+                for f in sorted(d.iterdir()):
+                    if f.is_file() and LOGO_FILE_RE.match(f.name):
+                        z.write(f, f'logos/{d.name}/{f.name}')
 
 
 def list_auto_backups() -> list:
@@ -4697,6 +4718,20 @@ def api_restore():
                     if not _FID_RE.match(name):
                         continue
                     target = safe_under(DM_FILES_DIR, name)
+                elif member.startswith('logos/'):
+                    # Einzige Stelle mit Unterordner im Backup: logos/<slug>/<datei>.
+                    # Beide Teile einzeln prüfen, damit aus dem Zip kein Pfad
+                    # entstehen kann, der LOGOS_DIR verlässt.
+                    parts = member.split('/')
+                    if len(parts) != 3 or not LOGO_SLUG_RE.match(parts[1]):
+                        continue
+                    if not LOGO_FILE_RE.match(parts[2]):
+                        continue
+                    sub = safe_under(LOGOS_DIR, parts[1])
+                    if sub is None:
+                        continue
+                    sub.mkdir(parents=True, exist_ok=True)
+                    target = safe_under(sub, parts[2])
                 elif member.startswith('docs/'):
                     name = Path(member).name
                     if not _DOC_FILE_RE.match(name):
@@ -5268,6 +5303,9 @@ def api_ai_status():
         'image_used': img_used, 'image_max': AI_IMAGE_MAX_PER_HOUR,
         'text_used': txt_used, 'text_max': AI_TEXT_MAX_PER_HOUR,
         'max_images': AI_STUDIO_MAX_IMAGES,
+        # Der Logo-Designer rechnet auch ohne Schlüssel — für den Weg über ein
+        # eigenes Bild braucht er nur Pillow
+        'logo': _HAS_PIL,
     })
 
 
@@ -5406,6 +5444,540 @@ def api_ai_studio_discard():
         except OSError:
             pass
     _ai_tmp.pop(tid, None)
+    return jsonify({'ok': True})
+
+
+# ── Logo-Designer ─────────────────────────────────────────────────────────────
+#
+# Ein Logo ist kein Titelbild. Es braucht exakte Pixelmaße statt eines
+# Seitenverhältnisses, PNG statt WebP, meist einen freigestellten Hintergrund —
+# und auf keinen Fall ein eingebranntes „KI generiert". Deshalb eine eigene
+# Ablage (LOGOS_DIR) und eine eigene Aufbereitung, statt `_store_upload_image`
+# zu verbiegen: dessen Zusagen (WebP, 1600 px, Kennzeichnung) sind für Uploads
+# richtig und für Logos genau verkehrt.
+#
+# Gemini liefert nur Seitenverhältnisse. Die Maße rechnet darum diese Datei:
+# einmal quadratisch erzeugen, dann je Ziel freistellen, zuschneiden, einpassen.
+# Derselbe Weg steht auch ohne KI offen — ein vorhandenes Bild hochladen und nur
+# die Größen erzeugen lassen.
+
+# Zielformate je Vorlage: (Dateiname, Breite, Höhe, Rand). Der Rand ist ein
+# Anteil der kürzeren Kante; 0 heißt randlos, wie es Icons brauchen.
+LOGO_PRESETS: dict[str, tuple] = {
+    # Home-Assistant-Add-on: icon.png quadratisch, logo.png im Breitformat
+    'ha':      (('icon.png', 256, 256, 0.0), ('logo.png', 250, 100, 0.06)),
+    # Progressive Web App (manifest.json) und iOS-Startbildschirm
+    'pwa':     (('icon-192.png', 192, 192, 0.0), ('icon-512.png', 512, 512, 0.0),
+                ('apple-touch-icon.png', 180, 180, 0.08)),
+    'favicon': (('favicon.ico', 0, 0, 0.0), ('favicon-32.png', 32, 32, 0.0)),
+    # Vorschaubild für geteilte Links — hier gehört Luft um das Motiv
+    'social':  (('og-image.png', 1200, 630, 0.22),),
+}
+LOGO_ICO_SIZES = ((16, 16), (32, 32), (48, 48))
+LOGO_SOURCE_MAX = 1024      # Kantenlänge der abgelegten source.png
+LOGO_CUSTOM_MIN = 16
+LOGO_CUSTOM_MAX = 4096
+LOGO_SETS_MAX = 200
+LOGO_IMPORT_MAX_BYTES = 16 * 1024 * 1024
+LOGO_CUT_TOLERANCE_MAX = 90
+LOGO_CUT_SCAN_MAX = 512     # Kantenlänge, auf der die Randsuche läuft
+# Ohne diesen Zusatz liefert Gemini gern einen Farbverlauf oder eine gemalte
+# Szene als Grund — beides lässt sich nicht freistellen.
+LOGO_BG_HINT = ('The logo sits centered on a plain, uniform, pure white '
+                'background. No shadow, no gradient, no frame, no border, '
+                'no additional text or caption outside the logo itself.')
+# Der Wert wird nicht zurückgemeldet, sondern in die PNG-Textfelder geschrieben:
+# ein Logo trägt keine sichtbare Kennzeichnung (die wäre der Zweck zuwider), aber
+# in der Datei soll nachlesbar bleiben, woher es stammt.
+LOGO_PNG_SOFTWARE = 'MyPage Logo-Designer'
+# Alpha-Umsetzung der Randsuche: 0 (kein Hintergrund) → 255 deckend, 1 → 0
+_LOGO_ALPHA_TABLE = bytes([255] + [0] * 255)
+
+
+def _logo_bg_color(img) -> tuple:
+    """Farbe, die als Hintergrund gilt — der zweitkleinste der vier Eckwerte.
+
+    Median statt „linke obere Ecke": ein einzelnes verirrtes Eckpixel (die KI
+    setzt gern eine Signatur dorthin) würde sonst die ganze Maske verschieben.
+    """
+    w, h = img.size
+    corners = [img.getpixel(p)[:3]
+               for p in ((0, 0), (w - 1, 0), (0, h - 1), (w - 1, h - 1))]
+    return tuple(sorted(c[i] for c in corners)[1] for i in range(3))
+
+
+def _logo_edge_mask(like):
+    """Vom Rand aus erreichbare Flächen einer Kandidatenmaske (255 = erreichbar).
+
+    Läuft auf einer verkleinerten Fassung: die Frage lautet nur „hängt dieser
+    Fleck am Bildrand?", und dafür reichen ein paar hundert Pixel. Eine
+    Breitensuche über 1024² wäre in reinem Python sekundenlang, `ImageDraw.
+    floodfill` müsste zudem für jeden Randpunkt einzeln starten.
+    """
+    w, h = like.size
+    scale = min(1.0, LOGO_CUT_SCAN_MAX / max(w, h))
+    sw, sh = max(1, int(w * scale)), max(1, int(h * scale))
+    small = like.resize((sw, sh), Image.NEAREST).tobytes()
+    seen = bytearray(sw * sh)
+    stack = [x for x in range(sw)] + [(sh - 1) * sw + x for x in range(sw)]
+    stack += [y * sw for y in range(sh)] + [y * sw + sw - 1 for y in range(sh)]
+    total = sw * sh
+    while stack:
+        i = stack.pop()
+        if seen[i] or not small[i]:
+            continue
+        seen[i] = 1
+        x = i % sw
+        if x:
+            stack.append(i - 1)
+        if x < sw - 1:
+            stack.append(i + 1)
+        if i >= sw:
+            stack.append(i - sw)
+        if i + sw < total:
+            stack.append(i + sw)
+    reach = Image.frombytes('L', (sw, sh), bytes(seen).translate(
+        bytes([0] + [255] * 255)))
+    # Bilinear zurück: die weiche Kante schadet nicht, weil gleich noch mit der
+    # scharfen Maske in voller Auflösung multipliziert wird
+    return reach.resize((w, h), Image.BILINEAR)
+
+
+def _logo_cutout(img, tolerance: int):
+    """Randverbundenen Hintergrund transparent machen.
+
+    Bewusst nur vom Rand aus: geschlossene helle Flächen im Motiv — das Auge
+    eines Maskottchens, die Fläche in einem „O" — sollen bleiben, was sie sind.
+
+    Die Kante wird leicht weichgezeichnet. Die KI liefert kantengeglättete
+    Ränder; eine harte Maske schneidet mitten durch die Übergangspixel und
+    hinterlässt eine Treppe samt hellem Saum.
+    """
+    img = img.convert('RGBA')
+    w, h = img.size
+    ref = Image.new('RGB', (w, h), _logo_bg_color(img))
+    diff = ImageChops.difference(img.convert('RGB'), ref).convert('L')
+    like = diff.point(lambda v: 255 if v <= tolerance else 0)
+    bg = ImageChops.multiply(like, _logo_edge_mask(like))
+    alpha = ImageChops.invert(bg).filter(ImageFilter.GaussianBlur(0.7))
+    # Der alte Alphakanal zählt mit: ein bereits freigestelltes PNG soll nicht
+    # plötzlich wieder deckend werden
+    img.putalpha(ImageChops.multiply(img.getchannel('A'), alpha))
+    return img
+
+
+def _logo_trim_box(img):
+    """Zuschnitt auf das Motiv. Bei RGBA über den Alphakanal — `getbbox()` sähe
+    sonst die (noch weißen) Farbwerte der durchsichtigen Pixel und fände nichts."""
+    return (img.getchannel('A').getbbox() if img.mode == 'RGBA' else img.getbbox())
+
+
+def _logo_fit(img, w: int, h: int, pad: float):
+    """Motiv auf w×h einpassen, mittig, mit durchsichtigem Grund.
+
+    Erst zuschneiden, dann einpassen: ohne den Zuschnitt bestimmt der zufällige
+    Leerraum der KI-Vorlage die Größe, und dasselbe Motiv wäre in jedem Format
+    unterschiedlich groß.
+    """
+    box = _logo_trim_box(img)
+    src = img.crop(box) if box else img
+    m = int(min(w, h) * pad)
+    inner = (max(1, w - 2 * m), max(1, h - 2 * m))
+    fitted = ImageOps.contain(src, inner, Image.LANCZOS)
+    out = Image.new('RGBA', (w, h), (0, 0, 0, 0))
+    out.paste(fitted, ((w - fitted.width) // 2, (h - fitted.height) // 2), fitted)
+    return out
+
+
+def _logo_pnginfo(meta: dict):
+    """Herkunft in die PNG-Textfelder schreiben.
+
+    Ein Logo mit sichtbarem Wasserzeichen wäre wertlos, verschweigen wollen wir
+    die Herkunft trotzdem nicht — sie steht in der Datei und in prompt.txt.
+    """
+    info = PngImagePlugin.PngInfo()
+    info.add_text('Software', LOGO_PNG_SOFTWARE)
+    info.add_text('Creation Time', datetime.now(timezone.utc).isoformat(timespec='seconds'))
+    if meta.get('model'):
+        info.add_text('Source', 'Google Gemini ' + meta['model'])
+    if meta.get('prompt'):
+        info.add_text('Description', meta['prompt'][:800])
+    return info
+
+
+def _logo_targets(presets: list, custom: tuple | None) -> list:
+    """Gewählte Vorlagen zu einer Liste von Zielformaten auflösen."""
+    out = []
+    for key in presets:
+        out.extend(LOGO_PRESETS.get(key) or ())
+    if custom:
+        cw, ch = custom
+        out.append((f'custom-{cw}x{ch}.png', cw, ch, 0.0))
+    # Reihenfolge erhalten, Doppelte (Vorlagen überschneiden sich) entfernen
+    seen, uniq = set(), []
+    for t in out:
+        if t[0] not in seen:
+            seen.add(t[0])
+            uniq.append(t)
+    return uniq
+
+
+def _logo_render(src_bytes: bytes, slug: str, targets: list, *, cutout: bool,
+                 tolerance: int, meta: dict) -> list:
+    """Einen Logo-Satz erzeugen. Zurück: die geschriebenen Dateinamen.
+
+    Wirft bei kaputten Bilddaten oder unschreibbarem Ordner — die Aufrufer
+    machen daraus eine Meldung, hier bleibt der Fehler roh.
+    """
+    img = ImageOps.exif_transpose(Image.open(io.BytesIO(src_bytes)))
+    img = img.convert('RGBA')
+    img.thumbnail((LOGO_SOURCE_MAX, LOGO_SOURCE_MAX), Image.LANCZOS)
+    if cutout:
+        img = _logo_cutout(img, tolerance)
+    target_dir = safe_under(LOGOS_DIR, slug)
+    if target_dir is None:
+        raise ValueError('bad slug')
+    target_dir.mkdir(parents=True, exist_ok=True)
+    info = _logo_pnginfo(meta)
+    written = []
+    src_path = safe_under(target_dir, 'source.png')
+    if src_path is not None:
+        img.save(src_path, 'PNG', pnginfo=info, optimize=True)
+        written.append('source.png')
+    for name, w, h, pad in targets:
+        p = safe_under(target_dir, name)
+        if p is None:
+            continue
+        if name.endswith('.ico'):
+            # ICO trägt mehrere Auflösungen in einer Datei; Pillow leitet sie aus
+            # der übergebenen Vorlage ab, die dafür groß genug sein muss
+            _logo_fit(img, 256, 256, 0.0).save(p, 'ICO', sizes=list(LOGO_ICO_SIZES))
+        else:
+            _logo_fit(img, w, h, pad).save(p, 'PNG', pnginfo=info, optimize=True)
+        written.append(name)
+    note = safe_under(target_dir, 'prompt.txt')
+    if note is not None:
+        lines = [
+            f"Erzeugt: {datetime.now().strftime('%Y-%m-%d %H:%M')}",
+            f"Herkunft: {meta.get('origin') or 'unbekannt'}",
+            f"Modell:   {meta.get('model') or '—'}",
+            f"Freigestellt: {'ja, Toleranz ' + str(tolerance) if cutout else 'nein'}",
+            f"Dateien:  {', '.join(written)}",
+            '',
+            meta.get('prompt') or '',
+        ]
+        note.write_text('\n'.join(lines), encoding='utf-8')
+        written.append('prompt.txt')
+    log.info("Logo-Satz „%s“ erzeugt: %s", slug, ', '.join(written))
+    return written
+
+
+def _logo_dir(slug: str) -> Path | None:
+    if not LOGO_SLUG_RE.match(slug or ''):
+        return None
+    p = safe_under(LOGOS_DIR, slug)
+    return p if (p is not None and p.is_dir()) else None
+
+
+def _logo_files(d: Path) -> list:
+    """Dateien eines Satzes mit Maßen — die Maße stehen sonst nur im Dateinamen,
+    und beim Import eigener Bilder auch dort nicht."""
+    out = []
+    try:
+        entries = sorted(d.iterdir(), key=lambda p: p.name)
+    except OSError:
+        return out
+    for f in entries:
+        if not f.is_file() or not LOGO_FILE_RE.match(f.name):
+            continue
+        item = {'name': f.name, 'size': f.stat().st_size, 'w': 0, 'h': 0}
+        if f.suffix.lower() in ('.png', '.ico'):
+            try:
+                with Image.open(f) as im:
+                    item['w'], item['h'] = im.size
+            except Exception:
+                pass
+        out.append(item)
+    return out
+
+
+def _logo_sets() -> list:
+    """Alle Sätze, neueste zuerst."""
+    out = []
+    try:
+        dirs = [d for d in LOGOS_DIR.iterdir()
+                if d.is_dir() and LOGO_SLUG_RE.match(d.name)]
+    except OSError:
+        return out
+    for d in dirs:
+        try:
+            ts = d.stat().st_mtime
+        except OSError:
+            continue
+        out.append({'slug': d.name, 'ts': int(ts), 'files': _logo_files(d)})
+    out.sort(key=lambda s: s['ts'], reverse=True)
+    return out
+
+
+def _logo_read_params(raw: dict) -> tuple:
+    """Die geteilten Felder von „speichern" und „neu rechnen" prüfen."""
+    slug = _clean_str(raw.get('slug'), 41).lower()
+    presets = [p for p in (raw.get('presets') or []) if p in LOGO_PRESETS]
+    custom = None
+    try:
+        cw, ch = int(raw.get('custom_w') or 0), int(raw.get('custom_h') or 0)
+        if LOGO_CUSTOM_MIN <= cw <= LOGO_CUSTOM_MAX and LOGO_CUSTOM_MIN <= ch <= LOGO_CUSTOM_MAX:
+            custom = (cw, ch)
+    except (TypeError, ValueError):
+        custom = None
+    try:
+        tol = max(0, min(LOGO_CUT_TOLERANCE_MAX, int(raw.get('tolerance') or 12)))
+    except (TypeError, ValueError):
+        tol = 12
+    return slug, presets, custom, bool(raw.get('cutout')), tol
+
+
+@admin_app.route('/api/ai/logo', methods=['POST'])
+def api_ai_logo():
+    """Logo-Entwürfe erzeugen. Legt wie das Bild-Studio nur in AI_TMP_DIR ab."""
+    err = _api_auth()
+    if err:
+        return err
+    if not gemini_image_enabled():
+        return jsonify({'error': 'no_api_key'}), 400
+    raw = request.get_json(silent=True) or {}
+    prompt = _clean_str(raw.get('prompt'), AI_IMAGE_PROMPT_MAX)
+    if len(prompt) < 3:
+        return jsonify({'error': 'invalid'}), 400
+    model = _ai_model_or(raw.get('model'), _gemini_image_model())
+    try:
+        count = max(1, min(AI_STUDIO_MAX_IMAGES, int(raw.get('count') or 1)))
+    except (TypeError, ValueError):
+        count = 1
+    ref = _ai_ref_image(raw.get('ref') or '') if raw.get('ref') else None
+    if raw.get('ref') and ref is None:
+        return jsonify({'error': 'bad_ref'}), 400
+    # Der Hintergrund-Hinweis geht immer mit, nicht nur beim Freistellen: ein
+    # ruhiger Grund ist auch für ein deckendes Icon die bessere Vorlage.
+    full = prompt + ' ' + LOGO_BG_HINT
+    if not _ai_rate_take(_ai_image_times, AI_IMAGE_MAX_PER_HOUR, count):
+        return jsonify({'error': 'rate_limited'}), 429
+    _ai_tmp_sweep()
+    images, last, last_detail = [], 'failed', ''
+    for _ in range(count):
+        # Quadratisch erzeugen: alle Zielformate entstehen daraus durch
+        # Zuschnitt, und ein 16:9-Entwurf hätte für icon.png zu wenig Höhe
+        data, mime, code, detail = _gemini_generate_image(full, model=model,
+                                                          ratio='1:1', ref=ref)
+        if code:
+            last, last_detail = code, detail
+            continue
+        tid = uuid.uuid4().hex
+        target = safe_under(AI_TMP_DIR, tid + '.img')
+        if target is None:
+            continue
+        try:
+            target.write_bytes(data)
+        except OSError as e:
+            log.warning("Logo-Entwurf konnte nicht zwischengespeichert werden: %s", e)
+            continue
+        _ai_tmp[tid] = {'mime': mime, 'ts': time.time(), 'prompt': prompt,
+                        'model': model}
+        images.append({'id': tid, 'url': 'api/ai/studio/preview/' + tid})
+    if not images:
+        return jsonify({'error': _AI_ERRORS.get(last, 'ai_failed'),
+                        'detail': last_detail, 'model': model}), 502
+    log.info("Logo-Designer: %d Entwurf/Entwürfe erzeugt (%s%s)",
+             len(images), model, ', mit Vorlage' if ref else '')
+    return jsonify({'ok': True, 'images': images})
+
+
+@admin_app.route('/api/ai/logo/keep', methods=['POST'])
+def api_ai_logo_keep():
+    """Einen Entwurf als Logo-Satz ablegen."""
+    err = _api_auth()
+    if err:
+        return err
+    raw = request.get_json(silent=True) or {}
+    slug, presets, custom, cutout, tol = _logo_read_params(raw)
+    if not LOGO_SLUG_RE.match(slug):
+        return jsonify({'error': 'bad_slug'}), 400
+    targets = _logo_targets(presets, custom)
+    if not targets:
+        return jsonify({'error': 'no_targets'}), 400
+    if len(_logo_sets()) >= LOGO_SETS_MAX and not _logo_dir(slug):
+        return jsonify({'error': 'too_many'}), 400
+    tid = _clean_str(raw.get('id'), 40)
+    p = _ai_tmp_file(tid)
+    if p is None:
+        return jsonify({'error': 'not_found'}), 404
+    meta = _ai_tmp.get(tid) or {}
+    try:
+        written = _logo_render(p.read_bytes(), slug, targets, cutout=cutout,
+                               tolerance=tol,
+                               meta={'prompt': meta.get('prompt'),
+                                     'model': meta.get('model'),
+                                     'origin': 'KI (Google Gemini)'})
+    except Exception as e:
+        log.warning("Logo-Satz „%s“ konnte nicht erzeugt werden: %s: %s",
+                    slug, type(e).__name__, e)
+        return jsonify({'error': 'render_failed'}), 502
+    try:
+        p.unlink()
+    except OSError:
+        pass
+    _ai_tmp.pop(tid, None)
+    log_audit('logo_create', slug)
+    return jsonify({'ok': True, 'slug': slug, 'files': written})
+
+
+@admin_app.route('/api/logos/import', methods=['POST'])
+def api_logos_import():
+    """Vorhandenes Bild in einen Logo-Satz verwandeln — ohne KI.
+
+    Damit lassen sich auch die fehlenden Größen zu einem längst gezeichneten
+    Icon nachziehen; dafür braucht es keinen API-Schlüssel.
+    """
+    err = _api_auth()
+    if err:
+        return err
+    if not _HAS_PIL:
+        return jsonify({'error': 'no_pil'}), 400
+    f = request.files.get('file')
+    if not f or not f.filename:
+        return jsonify({'error': 'no file'}), 400
+    if Path(f.filename).suffix.lower() not in ALLOWED_UPLOAD_EXT:
+        return jsonify({'error': 'file type not allowed'}), 400
+    raw = request.form
+    slug, presets, custom, cutout, tol = _logo_read_params({
+        'slug': raw.get('slug'), 'presets': raw.getlist('presets'),
+        'custom_w': raw.get('custom_w'), 'custom_h': raw.get('custom_h'),
+        'cutout': raw.get('cutout') == '1', 'tolerance': raw.get('tolerance'),
+    })
+    if not LOGO_SLUG_RE.match(slug):
+        return jsonify({'error': 'bad_slug'}), 400
+    targets = _logo_targets(presets, custom)
+    if not targets:
+        return jsonify({'error': 'no_targets'}), 400
+    if len(_logo_sets()) >= LOGO_SETS_MAX and not _logo_dir(slug):
+        return jsonify({'error': 'too_many'}), 400
+    data = f.read(LOGO_IMPORT_MAX_BYTES + 1)
+    if len(data) > LOGO_IMPORT_MAX_BYTES:
+        return jsonify({'error': 'too_large'}), 400
+    try:
+        written = _logo_render(data, slug, targets, cutout=cutout, tolerance=tol,
+                               meta={'origin': 'Eigenes Bild: '
+                                     + secure_filename(f.filename)})
+    except Exception as e:
+        log.warning("Logo-Satz „%s“ aus eigenem Bild fehlgeschlagen: %s: %s",
+                    slug, type(e).__name__, e)
+        return jsonify({'error': 'render_failed'}), 502
+    log_audit('logo_import', slug)
+    return jsonify({'ok': True, 'slug': slug, 'files': written})
+
+
+@admin_app.route('/api/logos/render', methods=['POST'])
+def api_logos_render():
+    """Weitere Größen aus der abgelegten source.png nachziehen — ohne neuen
+    KI-Aufruf, denn die Vorlage liegt ja schon da."""
+    err = _api_auth()
+    if err:
+        return err
+    raw = request.get_json(silent=True) or {}
+    slug, presets, custom, cutout, tol = _logo_read_params(raw)
+    d = _logo_dir(slug)
+    if d is None:
+        return jsonify({'error': 'not_found'}), 404
+    src = safe_under(d, 'source.png')
+    if src is None or not src.is_file():
+        return jsonify({'error': 'no_source'}), 404
+    targets = _logo_targets(presets, custom)
+    if not targets:
+        return jsonify({'error': 'no_targets'}), 400
+    try:
+        written = _logo_render(src.read_bytes(), slug, targets, cutout=cutout,
+                               tolerance=tol, meta={'origin': 'Neu gerechnet aus source.png'})
+    except Exception as e:
+        log.warning("Logo-Satz „%s“ konnte nicht neu gerechnet werden: %s: %s",
+                    slug, type(e).__name__, e)
+        return jsonify({'error': 'render_failed'}), 502
+    return jsonify({'ok': True, 'slug': slug, 'files': written})
+
+
+@admin_app.route('/api/logos')
+def api_logos_list():
+    err = _api_auth()
+    if err:
+        return err
+    return jsonify({'sets': _logo_sets(), 'presets': list(LOGO_PRESETS),
+                    'available': _HAS_PIL,
+                    'path': str(LOGOS_DIR)})
+
+
+@admin_app.route('/api/logos/<slug>/<name>')
+def api_logos_file(slug: str, name: str):
+    """Einzelne Datei ansehen oder herunterladen (`?dl=1`)."""
+    err = _api_auth()
+    if err:
+        return err
+    d = _logo_dir(slug)
+    if d is None or not LOGO_FILE_RE.match(name or ''):
+        return jsonify({'error': 'not_found'}), 404
+    p = safe_under(d, name)
+    if p is None or not p.is_file():
+        return jsonify({'error': 'not_found'}), 404
+    resp = send_file(p, as_attachment=bool(request.args.get('dl')),
+                     download_name=name)
+    # Ein neu gerechneter Satz behält seine Dateinamen — ohne das hier zeigte
+    # der Browser nach „neu rechnen" weiter die alte Fassung
+    resp.headers['Cache-Control'] = 'no-store'
+    return resp
+
+
+@admin_app.route('/api/logos/<slug>.zip')
+def api_logos_zip(slug: str):
+    """Ganzer Satz als ZIP — für den Weg an einen Rechner ohne Share-Zugriff."""
+    err = _api_auth()
+    if err:
+        return err
+    d = _logo_dir(slug)
+    if d is None:
+        return jsonify({'error': 'not_found'}), 404
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as z:
+        for item in _logo_files(d):
+            p = safe_under(d, item['name'])
+            if p is not None and p.is_file():
+                z.write(p, slug + '/' + item['name'])
+    buf.seek(0)
+    return send_file(buf, mimetype='application/zip', as_attachment=True,
+                     download_name=slug + '-logo.zip')
+
+
+@admin_app.route('/api/logos/delete', methods=['POST'])
+def api_logos_delete():
+    err = _api_auth()
+    if err:
+        return err
+    slug = _clean_str((request.get_json(silent=True) or {}).get('slug'), 41).lower()
+    d = _logo_dir(slug)
+    if d is None:
+        return jsonify({'error': 'not_found'}), 404
+    # Gezielt die eigenen Dateien löschen statt rmtree: liegt dort etwas
+    # Fremdes, bleibt es liegen und der Ordner damit bestehen
+    for item in _logo_files(d):
+        p = safe_under(d, item['name'])
+        if p is not None and p.is_file():
+            try:
+                p.unlink()
+            except OSError:
+                pass
+    try:
+        d.rmdir()
+    except OSError:
+        pass
+    log_audit('logo_delete', slug)
+    log.info("Logo-Satz „%s“ gelöscht", slug)
     return jsonify({'ok': True})
 
 

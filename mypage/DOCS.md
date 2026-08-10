@@ -121,7 +121,7 @@ Eine Sammlung eigenständiger **Markdown-Dokumente mit Kategorien** — für all
 - **SEO**: Veröffentlichte Einträge landen in `sitemap.xml`, im **IndexNow-Ping**, in der Volltextsuche und im statischen Export (dort inklusive der PDF-Dateien). Jede Eintragsseite liefert strukturierte Daten (`schema.org/Article`). Alle Inhalte liegen in `site.json` (im Backup).
 
 ### KI
-Der Tab erscheint **nur, wenn `gemini_api_key` gesetzt ist**. Er bündelt alles, was mit Google Gemini erzeugt wird.
+Der Tab bündelt alles, was mit Google Gemini erzeugt wird. Ohne `gemini_api_key` bleibt davon nur der **Logo-Designer** sichtbar — der rechnet selbst und braucht keinen Schlüssel, solange man ihm ein eigenes Bild gibt.
 
 - **Einstellungen**: Text- und Bildmodell, Seitenverhältnis und der Übersetzungsdienst. Die Modell-Listen werden **live bei Google abgefragt** (stündlich zwischengespeichert) — neue Modelle stehen also ohne Add-on-Update zur Auswahl. Was hier gespeichert wird, **überschreibt die App-Optionen** `gemini_image_model` und `gemini_image_ratio`; ein Modellwechsel braucht damit keinen Neustart. Darunter steht das verbrauchte Stundenkontingent.
 - **Übersetzung**: `MyMemory` (kostenlos, ohne Schlüssel — Standard) oder `Gemini` (deutlich bessere Qualität, verbraucht Kontingent). Die Wahl gilt für **alle 🌐-Knöpfe im Admin**. Scheitert Gemini, übernimmt automatisch MyMemory — eine schlechtere Übersetzung ist besser als keine.
@@ -129,6 +129,21 @@ Der Tab erscheint **nur, wenn `gemini_api_key` gesetzt ist**. Er bündelt alles,
   - Entwürfe liegen zunächst **nur zwischengespeichert** auf dem Server und sind nicht öffentlich abrufbar. Erst **„Speichern"** legt einen Entwurf in den Uploads ab — verkleinert auf 1600 px, als WebP, ohne Metadaten und mit der [KI-Kennzeichnung](#kennzeichnung-von-ki-bildern). Nicht gespeicherte Entwürfe **verfallen nach einer Stunde**; „Verwerfen" löscht sofort. So wächst die Bildersammlung nicht mit jedem Fehlversuch.
   - Die Ergebnisse stehen in einem **waagerechten Streifen** mit Pfeilen — alle Entwürfe der Sitzung bleiben zum Vergleich stehen, ohne die Seite immer weiter nach unten zu schieben. Die Zeile darunter sagt, wie viele es sind und wie viele davon schon gespeichert wurden. Beim Neuladen der Seite ist der Streifen leer.
   - Gespeicherte Bilder stehen anschließend überall im Medien-Browser („Bild wählen") bereit. Gefällt eins doch nicht, löscht **„🗑 Löschen"** die Datei wieder. Ist das Bild bereits irgendwo eingebunden, verweigert das Add-on den Löschvorgang — sonst risse der betroffene Beitrag oder Eintrag ein Loch.
+- **Logo-Designer**: Erzeugt fertige **Logo-Sätze in exakten Pixelmaßen** — für Home-Assistant-Add-ons, PWAs, Favicons und Link-Vorschaubilder. Gedacht für alles, was ein Icon in mehreren Größen braucht und nicht auf die Homepage soll.
+  - **Warum ein eigener Ordner:** Logos landen **nicht** in den Uploads, sondern unter `logos/<name>/` im Add-on-Konfigurationsordner — erreichbar über den Share als `\\<host>\addon_configs\XXX_mypage\logos\<name>\`. In den Uploads würde aus jedem Logo ein WebP mit höchstens 1600 px **und** der eingebrannten [KI-Kennzeichnung](#kennzeichnung-von-ki-bildern); beides macht ein Logo unbrauchbar. Die Herkunft steht stattdessen unsichtbar in den **PNG-Textfeldern** und im mitgeschriebenen `prompt.txt`.
+  - **Zielformate** (mehrere gleichzeitig wählbar, dazu ein freies Maß von 16 bis 4096 px):
+
+    | Vorlage | Dateien |
+    |---|---|
+    | Home-Assistant-Add-on | `icon.png` 256×256, `logo.png` 250×100 |
+    | PWA / App-Symbol | `icon-192.png`, `icon-512.png`, `apple-touch-icon.png` 180×180 |
+    | Favicon | `favicon.ico` (16/32/48 in einer Datei), `favicon-32.png` |
+    | Vorschaubild für Links | `og-image.png` 1200×630 |
+
+  - **Die Maße rechnet MyPage, nicht die KI.** Gemini kennt nur Seitenverhältnisse. Der Entwurf entsteht deshalb immer quadratisch und wird je Ziel zugeschnitten und eingepasst — mittig, mit erhaltenem Seitenverhältnis. Die unveränderte Vorlage bleibt als `source.png` liegen, damit sich weitere Größen später **ohne neuen KI-Aufruf** nachziehen lassen („↻ Größen neu rechnen").
+  - **Hintergrund freistellen** (Standard an): Der Prompt verlangt einen einfarbigen weißen Grund, danach entfernt das Add-on den **vom Bildrand aus zusammenhängenden** Hintergrund und macht ihn durchsichtig. Geschlossene Flächen im Motiv — das Auge eines Maskottchens, die Fläche in einem „O" — bleiben erhalten. Wie ähnlich der Grund sein darf, ist in vier Stufen einstellbar. Wirkt gut bei flachen Logos, bei Verläufen und Fotos eher nicht.
+  - **Ohne KI nutzbar:** „⬆ Eigenes Bild einlesen" schickt ein vorhandenes Bild durch dieselbe Aufbereitung — praktisch, um zu einem längst gezeichneten Icon die fehlenden Größen nachzuziehen. Je größer die Vorlage, desto besser; kleiner als das größte Ziel wird sie hochgerechnet.
+  - **Herausholen:** entweder direkt aus dem Ordner auf dem Share, per Klick auf den Dateinamen als Einzeldownload oder als **ZIP über den ganzen Satz**. Logo-Sätze sind **Teil des Backups**.
 - **Text-Studio**: Aus Thema und Stichpunkten entstehen **Titel, SEO-Beschreibung, Fließtext (Markdown) und Schlagwörter**. Einstellbar sind Textart (Blogartikel, Kurzmeldung, Projektbeschreibung, Bibliothek-Zusammenfassung, nur SEO), Tonfall und Länge.
   - **Sprachen**: nur DE, nur EN oder **DE + EN in einem Durchgang**. Bei beiden Sprachen wird entweder jede Fassung **eigenständig geschrieben** (idiomatischer) oder die englische **aus der deutschen übersetzt** (gleiche Gliederung). Beide Fassungen entstehen in **einem** Aufruf.
   - Das Ergebnis ist vor der Übernahme frei editierbar. **„Als Blogbeitrag übernehmen"** öffnet den Beitrags-Dialog **als Entwurf** — veröffentlicht wird nichts automatisch. **„Titelbild dazu vorbereiten"** füllt das Bild-Studio mit einer aus Titel, Schlagwörtern und SEO-Text gebauten Beschreibung.
@@ -344,6 +359,8 @@ Bilder, die über **✨ Bild generieren** entstanden sind, tragen beim Ausliefer
 - Der Hinweis erscheint auch beim **direkten Aufruf** der Bildadresse und im **erzeugten PDF** — sonst wäre der Download des PDF der einfachste Weg, die Kennzeichnung loszuwerden.
 - Woran das System ein KI-Bild erkennt: der Dateiname endet auf `-ai` (z. B. `a1b2…-ai.webp`). Der Marker steckt im Dateinamen statt in einer Liste, damit er Backup und Wiederherstellung übersteht. Wer eine Datei außerhalb des Add-ons umbenennt, verliert die Kennzeichnung.
 
+**Ausnahme Logo-Designer:** Ein Logo mit eingebranntem Hinweis wäre kein Logo mehr. Erzeugte Logo-Sätze tragen deshalb **keine sichtbare Kennzeichnung** — sie sind auch nicht Teil der Website, sondern Arbeitsmaterial in einem eigenen Ordner und werden von MyPage nirgends ausgeliefert. Die Herkunft steht in den **PNG-Textfeldern** (`Software`, `Source`, `Description`) und in `prompt.txt` neben den Dateien. Wer ein solches Logo veröffentlicht, entscheidet selbst über die Kennzeichnung — das Add-on nimmt ihm diese Entscheidung nicht ab.
+
 **Wasserzeichen in der Bibliothek** wird im Tab *Bibliothek* unter „Bilder schützen" ein- und ausgeschaltet — es ist dieselbe Einstellung wie unter *Inhalt → Fotoalben*, nur an beiden Stellen bedienbar. Es gilt für das Titelbild *und* für Bilder im Markdown-Text eines Eintrags. Eingebundene Fremd-URLs bleiben unangetastet — an fremden Bildern hat weder ein Wasserzeichen noch ein KI-Marker etwas zu suchen.
 
 **KI-Bilder, die du verwirfst, bleiben zunächst liegen.** Das Bild entsteht beim Klick auf „Erzeugen", nicht erst beim Speichern des Eintrags — schließt du den Dialog ohne zu speichern, liegt die Datei weiter unter `/uploads`. Sie verschwindet, sobald du im Tab **System** auf „Unbenutzte Uploads aufräumen" gehst; automatisch gelöscht wird nie etwas. Dasselbe gilt für ein Bild, das du von Hand hochlädst und dann doch nicht speicherst.
@@ -418,7 +435,7 @@ Das Besucher-Log im Admin ist ein **Ringpuffer** — es zeigt die neuesten 500 A
 
 ## Daten
 
-Alle Inhalte (`site.json`, `stats.json`, `sessions.json`, `uploads/`, `docs/`) liegen im Add-on-Konfigurationsordner und sind über den Share erreichbar: `\\<host>\addon_configs\XXX_mypage`. Sie überleben Add-on-Updates, Neustarts und sogar eine Neuinstallation.
+Alle Inhalte (`site.json`, `stats.json`, `sessions.json`, `uploads/`, `docs/`, `logos/`) liegen im Add-on-Konfigurationsordner und sind über den Share erreichbar: `\\<host>\addon_configs\XXX_mypage`. Sie überleben Add-on-Updates, Neustarts und sogar eine Neuinstallation.
 
 ## Jeopardy-Hintergrundmusik (optional)
 

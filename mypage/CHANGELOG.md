@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.10.6
+- 🏷️ **Logo-Designer im KI-Tab.** Erzeugt fertige Logo-Sätze in exakten Pixelmaßen: Home-Assistant-Add-on (`icon.png` 256×256, `logo.png` 250×100), PWA (`icon-192`, `icon-512`, `apple-touch-icon`), Favicon (`favicon.ico` mit 16/32/48 in einer Datei) und Link-Vorschaubild (`og-image.png` 1200×630). Dazu ein freies Maß von 16 bis 4096 px.
+  - **Die Maße rechnet MyPage, nicht die KI.** Gemini kennt nur Seitenverhältnisse — der Entwurf entsteht quadratisch und wird je Ziel zugeschnitten und mittig eingepasst. Die Vorlage bleibt als `source.png` liegen, weitere Größen lassen sich später **ohne neuen KI-Aufruf** nachziehen.
+  - **Eigener Ablageort:** `logos/<name>/` im Add-on-Konfigurationsordner, also direkt über den Share erreichbar — nicht bei den Uploads. Dort würde aus jedem Logo ein WebP mit höchstens 1600 px **und** eingebrannter KI-Kennzeichnung; beides macht ein Logo unbrauchbar. Die Herkunft steht stattdessen unsichtbar in den PNG-Textfeldern und in `prompt.txt`.
+  - **Hintergrund freistellen** (Standard an, vier Stufen): entfernt den vom Bildrand aus zusammenhängenden einfarbigen Grund. Geschlossene Flächen im Motiv — das Auge eines Maskottchens, die Fläche in einem „O" — bleiben erhalten.
+  - **Auch ohne Gemini-Schlüssel nutzbar:** „Eigenes Bild einlesen" schickt ein vorhandenes Bild durch dieselbe Aufbereitung. Damit lassen sich zu einem längst gezeichneten Icon die fehlenden Größen nachziehen. Ohne Schlüssel zeigt der KI-Tab nur noch dieses eine Panel.
+  - Herausholen per Einzeldownload, als ZIP über den ganzen Satz — oder gar nicht, weil die Dateien ohnehin im Share-Ordner liegen. Logo-Sätze sind **Teil des Backups**.
+
 ## 0.10.5
 - 💶 **Ausgaben stehen jetzt im Tagesbericht** — Kategorie, Zweck und Betrag als Aufstellung, darunter die Summe. Auf der Reise-Seite zusätzlich die Summe der ganzen Reise. Getrennt je Währung, nicht umgerechnet: ein geratener Wechselkurs wäre eine erfundene Zahl. Nur veröffentlichte Tage zählen mit — sonst stünde dort ein Betrag, den kein sichtbarer Tag erklärt.
   - Gesteuert vom vorhandenen Schalter **„Preise im Bericht nennen"** je Reise. Wer der KI verbietet, über Geld zu schreiben, will es auch nicht als Tabelle auf derselben Seite haben.
