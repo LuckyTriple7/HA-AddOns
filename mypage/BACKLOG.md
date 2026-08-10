@@ -3,6 +3,10 @@
 Zurückgestellte Vorhaben, die konkret genug sind, um später ohne Neuentwurf
 weiterzugehen. Kein Ideen-Brainstorming — dafür ist `Ideas.md` da (Kartenspiele).
 
+Recherchen zu einzelnen Themen liegen in eigenen Dateien:
+`INSTAGRAM.md` (Beiträge automatisch auf Instagram veröffentlichen — Wege,
+Meta-Voraussetzungen, Rezept über den RSS-Feed).
+
 ---
 
 ## Reiseblog — nichts mehr offen, aber Fallstricke merken
