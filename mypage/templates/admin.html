@@ -895,6 +895,7 @@
         <img id="ai-img-ref-thumb" alt="" style="display:none;max-height:90px;border-radius:6px;margin-top:8px">
         <div style="margin-top:14px">
           <button class="btn" id="ai-img-run" onclick="runAiImage(this)">✦ {{ t.ai_img_generate }}</button>
+          <button class="btn secondary" onclick="aiImageReset()">↺ {{ t.ai_reset }}</button>
           <span class="hint" id="ai-img-status" style="margin-left:10px"></span>
         </div>
         <div class="preset-wrap" id="ai-results-wrap" style="display:none;margin-top:16px">
@@ -932,6 +933,7 @@
           </div>
           <div style="margin-top:14px">
             <button class="btn" id="logo-run" onclick="runAiLogo(this)">✦ {{ t.logo_generate }}</button>
+            <button class="btn secondary" onclick="logoReset()">↺ {{ t.ai_reset }}</button>
             <span class="hint" id="logo-status" style="margin-left:10px"></span>
           </div>
           <div class="preset-wrap" id="logo-results-wrap" style="display:none;margin-top:16px">
@@ -1037,6 +1039,7 @@
         </div>
         <div style="margin-top:14px">
           <button class="btn" id="ai-txt-run" onclick="runAiText(this)">✦ {{ t.ai_txt_generate }}</button>
+          <button class="btn secondary" onclick="aiTextReset()">↺ {{ t.ai_reset }}</button>
           <span class="hint" id="ai-txt-status" style="margin-left:10px"></span>
         </div>
         <div id="ai-txt-result" style="display:none;margin-top:20px">
@@ -6644,6 +6647,18 @@
       img.style.display = aiRefUrl ? '' : 'none';
       if (aiRefUrl) img.src = assetUrl(aiRefUrl);
     }
+    // Leert nur die Eingaben. Der Ergebnis-Streifen bleibt stehen: die Bilder
+    // darin sind entweder schon gespeichert oder liegen als Entwurf beim Server,
+    // und beides wegzuwerfen erwartet niemand von einem „Zurücksetzen".
+    function aiImageReset() {
+      if (el('ai-img-prompt').value.trim() && !confirm(T.ai_reset_confirm_img)) return;
+      el('ai-img-prompt').value = '';
+      el('ai-img-count').value = '1';
+      setAiRef('');
+      el('ai-img-status').textContent = '';
+      el('ai-img-prompt').focus();
+      toast(T.ai_reset_done);
+    }
     async function runAiImage(btn) {
       const prompt = el('ai-img-prompt').value.trim();
       if (prompt.length < 3) { toast(T.ai_img_err_prompt, true); return; }
@@ -6845,6 +6860,25 @@
     }
     function logoTargetsChosen(p) {
       return p.presets.length > 0 || (p.custom_w >= 16 && p.custom_h >= 16);
+    }
+
+    // Wie im Bild-Studio: Eingaben zurück auf Start, Entwürfe und gespeicherte
+    // Logo-Sätze bleiben unberührt.
+    function logoReset() {
+      if (el('logo-prompt').value.trim() && !confirm(T.ai_reset_confirm_img)) return;
+      el('logo-prompt').value = '';
+      el('logo-count').value = '2';
+      el('logo-slug').value = '';
+      el('logo-cw').value = '';
+      el('logo-ch').value = '';
+      el('logo-cutout').checked = true;
+      el('logo-tol').value = '12';
+      logoCutoutChanged();
+      logoPresets = ['ha'];
+      buildLogoChips();
+      el('logo-status').textContent = '';
+      el('logo-prompt').focus();
+      toast(T.ai_reset_done);
     }
 
     async function runAiLogo(btn) {
@@ -7129,6 +7163,28 @@
       });
       navigator.clipboard.writeText(parts.join('\n\n---\n\n'));
       toast(T.ai_copied);
+    }
+    // Ohne diesen Knopf blieb nur das Neuladen der Seite, um einen zweiten Text
+    // zu beginnen. Geleert wird ausschließlich das Formular — gespeicherte
+    // Entwürfe bleiben, deshalb am Ende `loadAiDrafts()`: dort wandert nur der
+    // Merker „geöffnet" weg.
+    function aiTextReset() {
+      const fields = ['ai-txt-topic', 'ai-out-title_de', 'ai-out-meta_de', 'ai-out-text_de',
+                      'ai-out-title_en', 'ai-out-meta_en', 'ai-out-text_en', 'ai-out-tags'];
+      if (fields.some(id => el(id).value.trim()) && !confirm(T.ai_reset_confirm_text)) return;
+      fields.forEach(id => { el(id).value = ''; });
+      el('ai-txt-kind').value   = 'blog';
+      el('ai-txt-tone').value   = 'sachlich';
+      el('ai-txt-length').value = 'mittel';
+      el('ai-txt-langs').value  = 'both';
+      el('ai-txt-mode').value   = 'native';
+      el('ai-txt-result').style.display = 'none';
+      el('ai-txt-status').textContent = '';
+      aiLangChanged();
+      aiDraftNew();
+      loadAiDrafts();
+      el('ai-txt-topic').focus();
+      toast(T.ai_reset_done);
     }
 
     // ── Entwürfe des Text-Studios ──

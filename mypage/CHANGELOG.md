@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.10.14
+- ↺ **„Zurücksetzen" im KI-Tab — in allen drei Studios.** Wer einen gespeicherten Entwurf geöffnet hatte und danach etwas Neues anfangen wollte, kam bisher nur über das Neuladen der Seite (Strg+R) zu leeren Feldern zurück. Der neue Knopf steht jeweils direkt neben „Erzeugen".
+- 📝 **Text-Studio:** leert Thema, Titel, SEO-Beschreibung, beide Textfassungen, Schlagwörter und den Entwurfsnamen und stellt Textart, Tonfall, Länge, Sprachen und Schreibweise auf die Vorgaben zurück. Ein geöffneter Entwurf wird gelöst, damit das nächste Speichern nicht den alten Eintrag überschreibt.
+- 🖼️ **Bild-Studio:** leert Beschreibung, Anzahl und Vorlagenbild. 🏷️ **Logo-Designer:** zusätzlich Name, freies Maß, Zielformate und Freistellen zurück auf den Ausgangszustand.
+- 🔒 **Gelöscht wird dabei nichts** — gespeicherte Entwürfe, die erzeugten Bilder im Ergebnis-Streifen und fertige Logo-Sätze bleiben stehen. Stehen noch Eingaben im Formular, fragt der Knopf vorher nach.
+
 ## 0.10.13
 - 💾 **Das Text-Studio kann Entwürfe speichern.** Bisher lebte ein erzeugter Text nur im Formular: ein zweiter Durchgang, ein Tabwechsel oder das Neuladen der Seite haben ihn ersatzlos verworfen — bezahlt war der Aufruf trotzdem. Neu unter dem Ergebnis: **„💾 Entwurf speichern"** mit Namensfeld (leer = der Titel wird genommen) und darunter die Liste **„Gespeicherte Entwürfe"** mit Textart, Sprachen, Zeichenzahl und Datum. **„Öffnen"** holt alles zurück ins Studio, **„Löschen"** entfernt den Eintrag.
 - 🔁 **Mitgespeichert werden auch die Eingaben** — Thema, Textart, Tonfall, Länge, Sprachen und die Wahl „eigenständig schreiben / übersetzen". Ein geöffneter Entwurf lässt sich damit ohne Abtippen neu erzeugen, etwa mit einem anderen Modell oder Tonfall.
