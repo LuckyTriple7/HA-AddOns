@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.10.24
+- 🌐 **Eigener Übersetzen-Bereich im KI-Tab.** Die 🌐-Knöpfe in den Formularen konnten immer nur DE→EN und immer nur ihr eigenes Formular. Neu: **freier Text** oder ein **vorhandener Eintrag** als Quelle — Blogbeitrag, Projekt, Bibliothek-Eintrag oder Seite, dazu das Feld (Titel, SEO-Beschreibung, Text …). „Laden" holt die Fassung in der Ausgangssprache, also bei „Englisch → Deutsch" die englische.
+- ↔️ **Beide Richtungen**, DE→EN und EN→DE, und **„⇅ Richtung tauschen"** dreht Richtung und Texte gleich mit — praktisch für die Gegenprobe.
+- 🔒 **Zurückgeschrieben wird nichts**: das Ergebnis steht zum Kopieren da, das Original bleibt unangetastet. Für das direkte Füllen im Beitrag gibt es weiterhin den 🌐-Knopf im jeweiligen Formular.
+- 🆓 Der Bereich ist **auch ohne Gemini-Schlüssel sichtbar** — MyMemory braucht keinen. Welcher Anbieter gerade übersetzt, steht dabei; mit Gemini zählt jeder Durchgang aufs Textkontingent. Höchstens 20.000 Zeichen am Stück.
+
 ## 0.10.23
 - 📂 **Auch „Dateien" im Tab System klappt jetzt zusammen.** Bei 91 Bildern war der Abschnitt der mit Abstand längste des Tabs. Stehen bleibt eine Zeile mit der Bilanz — „91 Bilder, 4 PDFs" —, ein Klick auf die Überschrift öffnet ihn.
 - ⚡ Die Kacheln werden **erst beim Aufklappen gebaut**. Vorher lud jeder Besuch des Tabs alle Vorschaubilder mit, auch wenn man wegen etwas ganz anderem dort war.

@@ -1154,6 +1154,42 @@
         </div>
         <div class="proj-list" id="ai-drafts-list" style="margin-top:12px"></div>
       </div>
+
+      <div class="panel" data-ai-panel="translate">
+        <h3>🌐 {{ t.tr_heading }}</h3>
+        <p class="hint">{{ t.tr_hint }}</p>
+        <label>{{ t.tr_source }}</label>
+        <div class="upload-row">
+          <select id="tr-entry" onchange="trEntryChanged()"></select>
+          <select id="tr-field" style="max-width:220px"></select>
+          <button class="btn secondary" onclick="trLoadSource()">📥 {{ t.tr_load }}</button>
+        </div>
+        <p class="hint" id="tr-provider"></p>
+        <div class="row" style="margin-top:12px">
+          <div>
+            <label>{{ t.tr_dir }}</label>
+            <select id="tr-dir" onchange="trDirChanged()">
+              <option value="de-en">{{ t.tr_dir_deen }}</option>
+              <option value="en-de">{{ t.tr_dir_ende }}</option>
+            </select>
+          </div>
+          <div style="display:flex;align-items:flex-end">
+            <button class="btn secondary" onclick="trSwap()">⇅ {{ t.tr_swap }}</button>
+          </div>
+        </div>
+        <label style="margin-top:12px" id="tr-in-label">{{ t.tr_input }}</label>
+        <textarea id="tr-in" rows="10" maxlength="20000" placeholder="{{ t.tr_input_ph }}"></textarea>
+        <div style="margin-top:12px">
+          <button class="btn" id="tr-run" onclick="runTranslate(this)">🌐 {{ t.tr_run }}</button>
+          <button class="btn secondary" onclick="trReset()">↺ {{ t.ai_reset }}</button>
+          <span class="hint" id="tr-status" style="margin-left:10px"></span>
+        </div>
+        <label style="margin-top:14px" id="tr-out-label">{{ t.tr_output }}</label>
+        <textarea id="tr-out" rows="10"></textarea>
+        <div style="margin-top:10px">
+          <button class="btn secondary" onclick="trCopy()">📋 {{ t.ai_copy }}</button>
+        </div>
+      </div>
     </section>
 
     <!-- Formulare -->
@@ -6605,6 +6641,9 @@
         const on = need === 'logo' ? AI_STATUS.logo
                  : need === 'text' ? AI_STATUS.text
                  : need === 'image' ? AI_STATUS.image
+                 // Übersetzen läuft notfalls über MyMemory und braucht deshalb
+                 // keinen Schlüssel — das Feld bleibt immer sichtbar.
+                 : need === 'translate' ? true
                  : (AI_STATUS.text || AI_STATUS.image);
         p.style.display = on ? '' : 'none';
       });
@@ -6614,6 +6653,7 @@
     async function initAiTab() {
       refreshAiStatus();   // Kontingent und Verbrauch bei jedem Tabwechsel frisch
       aiFillImportSelect();
+      trFillEntries();
       if (aiTabReady) return;
       aiTabReady = true;
       buildAiStyleChips();
@@ -8010,6 +8050,143 @@
       if (aiDraftId === id) aiDraftNew();
       toast(T.ai_draft_deleted);
       loadAiDrafts();
+    }
+
+    // ── Übersetzen ──
+    // Die 🌐-Knöpfe in den Formularen können nur DE→EN und nur ihr eigenes
+    // Formular. Hier geht beides: freier Text oder ein vorhandener Eintrag, in
+    // beide Richtungen. Übersetzt wird über denselben Endpunkt und damit über
+    // denselben Anbieter wie überall (MyMemory oder Gemini).
+    const TR_TYPES = [
+      ['post',    'tab_blog',     () => SITE.posts || [],                     p => p.title_de || p.title_en],
+      ['project', 'tab_projects', () => SITE.projects || [],                  p => p.title],
+      ['library', 'tab_library',  () => (SITE.library || {}).entries || [],   e => e.title_de || e.title_en],
+      ['page',    'tab_pages',    () => SITE.pages || [],                     p => p.title_de || p.title_en],
+    ];
+    // Je Art die übersetzbaren Felder. Der Projekt-Titel fehlt mit Absicht: den
+    // gibt es nur einmal für beide Sprachen, da wäre nichts zu übersetzen.
+    const TR_FIELDS = {
+      post:    [['title', 'field_title'], ['meta', 'field_seo_desc'], ['text', 'field_text_md']],
+      project: [['desc', 'tr_field_desc'], ['long', 'tr_field_long']],
+      library: [['title', 'field_title'], ['summary', 'tr_field_summary'],
+                ['meta', 'field_seo_desc'], ['body', 'field_text_md']],
+      page:    [['title', 'field_title'], ['meta', 'field_seo_desc'], ['body', 'field_text_md']],
+    };
+    function trFillEntries() {
+      const sel = el('tr-entry');
+      const keep = sel.value;
+      sel.innerHTML = '';
+      const free = document.createElement('option');
+      free.value = '';
+      free.textContent = T.tr_source_free;
+      sel.appendChild(free);
+      if (SITE) {
+        TR_TYPES.forEach(([kind, label, rowsOf, nameOf]) => {
+          const rows = rowsOf();
+          if (!rows.length) return;
+          const g = document.createElement('optgroup');
+          g.label = T[label];
+          rows.forEach(x => {
+            const o = document.createElement('option');
+            o.value = kind + ':' + x.id;
+            o.textContent = nameOf(x) || x.id;
+            g.appendChild(o);
+          });
+          sel.appendChild(g);
+        });
+      }
+      sel.value = keep;
+      if (sel.value !== keep) sel.value = '';
+      trEntryChanged();
+      trDirChanged();
+    }
+    function trEntry() {
+      const [kind, id] = (el('tr-entry').value || '').split(':');
+      const type = TR_TYPES.find(t => t[0] === kind);
+      if (!type || !id || !SITE) return null;
+      const x = type[2]().find(r => r.id === id);
+      return x ? { kind, x } : null;
+    }
+    function trEntryChanged() {
+      const kind = (el('tr-entry').value || '').split(':')[0];
+      const fields = TR_FIELDS[kind] || [];
+      const sel = el('tr-field');
+      sel.innerHTML = '';
+      fields.forEach(([key, label]) => {
+        const o = document.createElement('option');
+        o.value = key;
+        o.textContent = T[label];
+        sel.appendChild(o);
+      });
+      sel.style.display = fields.length ? '' : 'none';
+    }
+    function trDirChanged() {
+      const [src, dst] = el('tr-dir').value.split('-');
+      const name = lg => lg === 'de' ? T.tr_lang_de : T.tr_lang_en;
+      el('tr-in-label').textContent  = T.tr_input.replace('{v}', name(src));
+      el('tr-out-label').textContent = T.tr_output.replace('{v}', name(dst));
+      const prov = (AI_STATUS && AI_STATUS.translate_provider) === 'gemini'
+        ? T.ai_provider_gemini : T.ai_provider_mymemory;
+      el('tr-provider').textContent = T.tr_provider.replace('{v}', prov);
+    }
+    // Geladen wird die Fassung in der Ausgangssprache — bei „Englisch →
+    // Deutsch" also das englische Feld. Sonst übersetzte man Deutsch nach
+    // Deutsch und wunderte sich.
+    function trLoadSource() {
+      const e = trEntry();
+      if (!e) { toast(T.tr_err_pick, true); return; }
+      const src = el('tr-dir').value.slice(0, 2);
+      const val = (e.x[el('tr-field').value + '_' + src] || '').trim();
+      if (!val) { toast(T.tr_err_source_empty, true); return; }
+      el('tr-in').value = val;
+      el('tr-out').value = '';
+      el('tr-status').textContent = '';
+      toast(T.tr_loaded);
+    }
+    // Richtung drehen und die Texte mitdrehen: nach dem Prüfen einer
+    // Übersetzung will man oft genau die Gegenprobe.
+    function trSwap() {
+      el('tr-dir').value = el('tr-dir').value === 'de-en' ? 'en-de' : 'de-en';
+      const a = el('tr-in').value;
+      el('tr-in').value = el('tr-out').value;
+      el('tr-out').value = a;
+      trDirChanged();
+    }
+    async function runTranslate(btn) {
+      const text = el('tr-in').value.trim();
+      if (!text) { toast(T.tr_err_empty, true); return; }
+      const [from, to] = el('tr-dir').value.split('-');
+      btn.disabled = true;
+      el('tr-status').textContent = T.tr_running;
+      busyShow(T.tr_running);
+      let r = null;
+      try { r = await apiJson('api/translate', 'POST', { text, from, to }); }
+      catch (e) { /* Netzfehler */ }
+      btn.disabled = false;
+      const d = r ? await r.json().catch(() => ({})) : {};
+      if (!r || !r.ok) {
+        el('tr-status').textContent = T.tr_error;
+        busyDone(T.tr_error, true);
+        return;
+      }
+      el('tr-out').value = d.text || '';
+      el('tr-status').textContent = '';
+      busyDone(T.tr_ready);
+      // Gemini bucht die Übersetzung aufs Kontingent — Anzeige nachziehen
+      refreshAiStatus();
+    }
+    function trReset() {
+      el('tr-in').value = '';
+      el('tr-out').value = '';
+      el('tr-entry').value = '';
+      el('tr-status').textContent = '';
+      trEntryChanged();
+    }
+    function trCopy() {
+      const v = el('tr-out').value;
+      if (!v.trim()) { toast(T.tr_err_nothing_copy, true); return; }
+      navigator.clipboard.writeText(v);
+      toast(T.ai_copied);
     }
 
     initAiVisibility();
