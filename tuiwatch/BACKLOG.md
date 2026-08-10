@@ -11,24 +11,6 @@ Die öffentlichen Aktionscodes (seit 0.26.1 erkannt/gemeldet) auf die Angebote a
 - Achtung: Mindestbuchungswerte/Bedingungen der Codes (z. B. „ab 1.500 €") beachten;
   myTUI-Codes brauchen ein Konto → als Hinweis kennzeichnen.
 
-## 12. Wartbarkeit: app.py / index.html aufteilen
-`app.py` und `templates/index.html` in Module aufteilen, damit künftige Änderungen
-kleiner und Reviews gezielter werden. Rein intern.
-
-- _Erste Tranche erledigt (v0.48.1):_ `trips_routes.py` (Reisen-Blueprint, 984 Z.),
-  `backup_routes.py` (Backup/Restore, 469 Z.), `digest.py` (Wochen-Digest, 190 Z.) —
-  app.py von ~7.400 auf ~5.500 Zeilen. Muster: `import app as A` + später
-  Attribut-Zugriff (monkeypatch-sicher, zyklenfrei), Re-Exports für Poller/Tests.
-- _Zweite Tranche erledigt (v0.48.4/0.48.5):_ `ai_client.py` (KI-Provider-Client),
-  `price_calendar.py` (Preiskalender + Routen), `watch.py` (Suchabo) —
-  app.py bei ~4.900 Zeilen. Guards: `tests/test_dockerfile.py` (COPY-Liste),
-  `tests/test_script_start.py` (Skript-Start wie run.sh).
-- _Dritte Tranche erledigt (v0.48.6):_ `ai_routes.py` (KI-Analyse, 1.514 Z.),
-  `offers_routes.py` (Angebote/Suche/Vergleiche, 768 Z.) — app.py ~2.800 Zeilen.
-- _Vierte Tranche erledigt (v0.48.7):_ Frontend-JS nach `static/app.js`
-  (~3.280 Z.), index.html ~930 Zeilen — **#12 damit abgeschlossen.**
-- Keine Verhaltensänderung; Tests müssen unverändert grün bleiben.
-
 ## 9. Image-Größe / Playwright-Last reduzieren
 Der Playwright-/Chromium-Fallback macht das Add-on-Image groß. Da die JSON-APIs laut
 Selbsttest stabil laufen, prüfen, ob Chromium nur noch bei Bedarf gebraucht wird.
@@ -60,6 +42,20 @@ aktiviert — bei nächster „Sensor unavailable"-Meldung zuerst dieses Log anw
 
 ## Erledigt
 
+- **#12 Wartbarkeit: app.py / index.html aufteilen → v0.48.7.** In vier Tranchen,
+  ohne Verhaltensänderung, Tests durchgehend grün:
+  - _v0.48.1:_ `trips_routes.py` (Reisen-Blueprint, 984 Z.), `backup_routes.py`
+    (Backup/Restore, 469 Z.), `digest.py` (Wochen-Digest, 190 Z.) — app.py von
+    ~7.400 auf ~5.500 Zeilen.
+  - _v0.48.4/0.48.5:_ `ai_client.py` (KI-Provider-Client), `price_calendar.py`
+    (Preiskalender + Routen), `watch.py` (Suchabo) — app.py ~4.900 Zeilen.
+  - _v0.48.6:_ `ai_routes.py` (KI-Analyse, 1.514 Z.), `offers_routes.py`
+    (Angebote/Suche/Vergleiche, 768 Z.) — app.py ~2.800 Zeilen.
+  - _v0.48.7:_ Frontend-JS nach `static/app.js` (~3.280 Z.), index.html ~930 Zeilen.
+  - **Muster für weitere Splits:** `import app as A` und der Zugriff erst später
+    über das Attribut — monkeypatch-sicher und zyklenfrei; Re-Exports für Poller
+    und Tests. Guards dazu: `tests/test_dockerfile.py` (COPY-Liste),
+    `tests/test_script_start.py` (Skript-Start wie run.sh). Gilt genauso für #16.
 - **#7 Such-Treffer als Sammel-Alarm → v0.27.0.** Gespeicherte Suchen lassen sich als
   „Suchabo" beobachten (Schwellenpreis, eigener Poll, Telegram/HA-Meldung bei neuen/
   tieferen Treffern, „Jetzt prüfen", Trefferliste im UI).
