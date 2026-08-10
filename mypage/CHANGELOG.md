@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.10.23
+- 📂 **Auch „Dateien" im Tab System klappt jetzt zusammen.** Bei 91 Bildern war der Abschnitt der mit Abstand längste des Tabs. Stehen bleibt eine Zeile mit der Bilanz — „91 Bilder, 4 PDFs" —, ein Klick auf die Überschrift öffnet ihn.
+- ⚡ Die Kacheln werden **erst beim Aufklappen gebaut**. Vorher lud jeder Besuch des Tabs alle Vorschaubilder mit, auch wenn man wegen etwas ganz anderem dort war.
+
 ## 0.10.22
 - 📂 **Der Alternativtext-Bereich klappt zusammen.** Bei vielen Bildern schob er den Tab System endlos in die Länge. Stehen bleibt eine Zeile mit Überschrift und Zähler — „34 Bilder, davon 12 ohne Text" —, ein Klick öffnet den Editor. Zugeklappt werden die Zeilen samt Vorschaubildern gar nicht erst gebaut.
 - 🔔 **Rückmeldung im Banner wie im KI-Tab.** Der KI-Knopf war bisher stumm: klicken, warten, hoffen. Jetzt meldet das Banner oben „Alternativtext wird erzeugt …", danach „steht im Feld — noch speichern", und beim Sammellauf den Fortschritt „Bild 3 von 12 …". Fehler stehen ebenfalls dort statt in einer kurzen Einblendung — mit Grund und länger lesbar.

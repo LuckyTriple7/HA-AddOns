@@ -2445,6 +2445,7 @@
   "ai_drafts_heading": "Gespeicherte Entwürfe",
   "ai_drafts_hint": "„Öffnen“ lädt Eingaben und Text zurück ins Studio — auch nach einem Neustart.",
   "ai_drafts_empty": "Noch keine Entwürfe gespeichert.",
+  "files_info": "{i} Bilder, {d} PDFs",
   "alts_heading": "Alternativtexte der Bilder",
   "alts_hint": "Ein Bild ohne Alternativtext ist für Screenreader nicht vorhanden und für Suchmaschinen stumm. Der Text hängt an der Datei und gilt überall, wo sie eingebunden ist. In Markdown gilt er nur, wenn dort kein eigener steht: ![eigener Text](…) schlägt ihn immer.",
   "alts_missing_only": "Nur Bilder ohne Alternativtext",

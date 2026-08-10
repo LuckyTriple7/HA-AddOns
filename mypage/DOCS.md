@@ -170,6 +170,7 @@ Der Tab bündelt alles, was mit Google Gemini erzeugt wird. Ohne `gemini_api_key
 ### Dateien (Tab System)
 Ein Browser über **alle hochgeladenen Bilder** und die **PDFs der Bibliothek** — gedacht zum Aufräumen und Nachsehen, was eigentlich alles herumliegt.
 
+- Der Abschnitt ist **zusammengeklappt**; in der Zeile steht die Bilanz („91 Bilder, 4 PDFs"). Ein Klick auf die Überschrift öffnet ihn. Die Kacheln werden erst dabei gebaut — bei einigen hundert Bildern lädt der Tab System sonst jedes Mal alles mit.
 - **Linksklick** öffnet die Datei in einem neuen Tab. PDFs werden dabei **inline** angezeigt (mit `sandbox` und `nosniff`), anders als öffentlich — dort gibt es sie ausschließlich als Download.
 - **Rechtsklick löscht**, nach Nachfrage. Das Löschen liegt bewusst auf dem Kontextmenü: ein Fehlklick in einem Raster aus hunderten Kacheln darf keine Datei kosten.
 - **Eingebundene Dateien lassen sich nicht löschen.** Steckt der Dateiname noch in `site.json`, verweigert das Add-on den Vorgang — sonst reisst der betroffene Beitrag oder Eintrag ein Loch. Die Plakette „unbenutzt“ zeigt vorab, was gefahrlos weg kann.

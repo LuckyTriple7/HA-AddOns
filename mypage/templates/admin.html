@@ -1772,13 +1772,21 @@
         <button class="btn secondary" id="cleanup-pdf-btn" onclick="cleanupDocs()">🧹 {{ t.cleanup_pdf_btn }}</button>
       </div>
       <div class="panel">
-        <h3>{{ t.files_heading }}</h3>
-        <p class="hint">{{ t.files_hint }}</p>
-        <label class="checkbox"><input type="checkbox" id="files-ai-only" onchange="renderFileBrowser()"> ✨ {{ t.files_ai_only }}</label>
-        <h4 style="margin:14px 0 6px">{{ t.files_images }} <span class="hint" id="files-img-count" style="font-weight:normal"></span></h4>
-        <div class="uploads-grid" id="files-img-grid"></div>
-        <h4 style="margin:18px 0 6px">{{ t.files_docs }} <span class="hint" id="files-doc-count" style="font-weight:normal"></span></h4>
-        <div class="uploads-grid" id="files-doc-grid"></div>
+        <h3 style="margin:0">
+          <button type="button" class="set-toggle" id="files-toggle" aria-expanded="false" onclick="toggleFiles()">
+            <span class="caret">▶</span>
+            <span>{{ t.files_heading }}</span>
+            <span class="count" id="files-info"></span>
+          </button>
+        </h3>
+        <div id="files-body" style="display:none;margin-top:12px">
+          <p class="hint">{{ t.files_hint }}</p>
+          <label class="checkbox"><input type="checkbox" id="files-ai-only" onchange="renderFileBrowser()"> ✨ {{ t.files_ai_only }}</label>
+          <h4 style="margin:14px 0 6px">{{ t.files_images }} <span class="hint" id="files-img-count" style="font-weight:normal"></span></h4>
+          <div class="uploads-grid" id="files-img-grid"></div>
+          <h4 style="margin:18px 0 6px">{{ t.files_docs }} <span class="hint" id="files-doc-count" style="font-weight:normal"></span></h4>
+          <div class="uploads-grid" id="files-doc-grid"></div>
+        </div>
       </div>
       <div class="panel">
         <h3 style="margin:0">
@@ -5446,7 +5454,23 @@
       b.addEventListener('contextmenu', e => { e.preventDefault(); onDelete(); });
       return b;
     }
+    // Zähler in der Kopfzeile, damit man zugeklappt sieht, wie viel dort liegt.
+    function renderFilesSummary() {
+      el('files-info').textContent = T.files_info
+        .replace('{i}', FILES.images.length).replace('{d}', FILES.docs.length);
+    }
+    // Einige hundert Kacheln mit Vorschaubild baut man nicht auf Vorrat — erst
+    // beim Aufklappen. Dasselbe Muster wie bei den Alternativtexten.
+    function toggleFiles() {
+      const body = el('files-body');
+      const open = body.style.display === 'none';
+      body.style.display = open ? '' : 'none';
+      el('files-toggle').setAttribute('aria-expanded', open ? 'true' : 'false');
+      if (open) renderFileBrowser();
+    }
     function renderFileBrowser() {
+      renderFilesSummary();
+      if (el('files-body').style.display === 'none') return;
       const aiOnly = el('files-ai-only').checked;
       const imgs = FILES.images.filter(f => !aiOnly || f.ai);
       const grid = el('files-img-grid');

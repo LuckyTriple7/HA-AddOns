@@ -2445,6 +2445,7 @@
   "ai_drafts_heading": "Saved drafts",
   "ai_drafts_hint": "“Open” loads inputs and text back into the studio — even after a restart.",
   "ai_drafts_empty": "No drafts saved yet.",
+  "files_info": "{i} images, {d} PDFs",
   "alts_heading": "Image alternative text",
   "alts_hint": "An image without alternative text does not exist for screen readers and says nothing to search engines. The text belongs to the file and applies everywhere it is used. In Markdown it only fills in where you wrote none: ![your own text](…) always wins.",
   "alts_missing_only": "Only images without alternative text",
