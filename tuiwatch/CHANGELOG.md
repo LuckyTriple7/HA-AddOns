@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.89.1] - 2026-08-10
+
+### Fixed
+- **Add-on startete nicht** (`ModuleNotFoundError: No module named 'str_flights_routes'`):
+  Dockerfile kopierte die neuen Module aus 0.89.0 nicht ins Image (Fix kam erst
+  nach dem Image-Build). Reiner Dockerfile-Commit hatte zudem den Image-Build-
+  Workflow gar nicht getriggert (Pfad-Filter reagiert nur auf `config.yaml`) —
+  dieser Versionsbump erzwingt den Rebuild.
+- **Fehlende Übersetzung**: `enable_str_flights` zeigte im Add-on-Konfigurations-
+  formular nur den rohen Options-Key statt Name/Beschreibung (DE+EN nachgetragen).
+
 ## [0.89.0] - 2026-08-10
 
 ### Added

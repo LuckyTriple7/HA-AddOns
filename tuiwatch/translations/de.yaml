@@ -158,6 +158,9 @@ configuration:
   enable_check24_compare:
     name: Check24-Preisvergleich (Beta)
     description: "Erlaubt, ein Angebot mit einem manuell verknüpften Check24-Hotel zu vergleichen (andere Reiseveranstalter, gleiche Reisedaten). Nutzt Headless-Chromium gegen Check24 (kein offenes API), daher fragiler als der TUI-Abruf und ein zusätzliches externes ToS-Risiko. Standard aus — bewusst opt-in."
+  enable_str_flights:
+    name: Flugplan ab Stuttgart Airport (STR)
+    description: "Schaltet den ✈️-Knopf in der Kopfzeile frei: eigenständige Suche nach Linienflug-Verbindungen ab/nach STR (Fluggesellschaft, Wochentage, Zeiten, Saisonzeitraum) über Zielflughafen oder Land. Nutzt das offene JSON-API des Flughafen-Betreibers, unabhängig von TUI-/Check24-Angeboten. Standard aus."
   enable_public_share:
     name: Öffentliche Angebots-Links
     description: "Schaltet Links frei, mit denen sich ausgewählte Angebote ohne Login anschauen lassen (wie die Angebotsseite eines Reisebüros) — inklusive gespeicherter Klimatabelle, Reiseführer und Reiseberater-Ergebnis. Die Seite läuft auf einem eigenen Port (siehe „Port für öffentliche Links“), zeigt nur einen beim Erzeugen eingefrorenen Stand und erlaubt keinerlei Abfragen. Nur diesen zweiten Port im Reverse-Proxy nach außen geben, niemals 17794. Standard aus."
