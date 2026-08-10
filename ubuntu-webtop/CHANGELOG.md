@@ -1,3 +1,9 @@
+## [1.8.47] - 2026-08-10
+
+### Aktualisiert
+
+- Claude Desktop: 3.2.1+claude1.24012.11 → 3.2.2+claude1.26832.0
+
 ## [1.8.46] - 2026-08-06
 
 ### Aktualisiert
