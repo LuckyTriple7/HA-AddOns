@@ -6791,8 +6791,13 @@ def _gemini_fetch_prices(models: list[str]) -> tuple[dict | None, str, str]:
         matched = [s for s in services
                    if any(h in str(s.get('displayName', '')).lower()
                           for h in GEMINI_BILLING_HINTS)]
-        log.info("Preiskatalog: %d Dienste gelesen, %d passen (%s)", len(services),
-                 len(matched), ', '.join(s.get('displayName', '') for s in matched))
+        # Bewusst ohne die Dienstnamen: sie stammen aus der Antwort auf eine
+        # Anfrage, die den Abrechnungs-Schlüssel trägt, und alles daraus gilt
+        # als schutzbedürftig (CodeQL py/clear-text-logging-sensitive-data).
+        # Verloren geht nichts — die Namen stehen unten im Ergebnis unter
+        # `services` und damit im Admin.
+        log.info("Preiskatalog: %d Dienste gelesen, %d passen",
+                 len(services), len(matched))
         if not matched:
             return ({'prices': {}, 'services': [], 'samples': [],
                      'service_count': len(services), 'sku_count': 0},
@@ -6858,7 +6863,11 @@ def api_ai_prices_fetch():
         return jsonify({'error': 'invalid'}), 400
     result, code, reason = _gemini_fetch_prices(models)
     if code:
-        log.info("Preiskatalog abgelehnt (%s): %s", code, reason)
+        # Nur der eigene Fehlercode ins Log. `reason` ist Googles Klartext aus
+        # der Antwort auf eine Anfrage mit dem Abrechnungs-Schlüssel und gehört
+        # damit nicht ins Log (CodeQL py/clear-text-logging-sensitive-data). Der
+        # Admin sieht ihn weiterhin — er steht direkt darunter in der Antwort.
+        log.info("Preiskatalog abgelehnt (%s)", code)
         payload = {'error': code, 'reason': reason}
         if isinstance(result, dict):   # Diagnose auch im Fehlerfall mitgeben
             payload['service_count'] = result.get('service_count', 0)
@@ -8873,10 +8882,22 @@ def _ng_history_write(game: str, uid: str, games: list) -> None:
 
 
 def _ng_rules_html(game: str, lang: str) -> str:
-    fname = f'game_{game}_rules_{lang}.md'
-    path = Path(_BASE) / fname
-    if not path.is_file():
-        path = Path(_BASE) / f'game_{game}_rules_de.md'
+    """Spielregeln aus dem mitgelieferten Markdown, mit Rückfall auf Deutsch.
+
+    `lang` stammt über `detect_language` aus der Anfrage — seit `?lang=` dort
+    mitzählt, sogar direkt aus der Adresszeile. Deshalb wird der Wert nicht
+    weitergereicht, sondern auf eines von zwei Literalen zurückgeführt: er baut
+    einen Dateinamen, und ein durchgereichter Anfragewert in einem Pfad ist
+    genau das, was CodeQL zu Recht als `py/path-injection` meldet. `safe_under`
+    kommt als zweiter Riegel dazu; `game` setzen ausschließlich die Aufrufer als
+    feste Zeichenkette.
+    """
+    code = 'en' if lang == 'en' else 'de'
+    path = safe_under(Path(_BASE), f'game_{game}_rules_{code}.md')
+    if path is None or not path.is_file():
+        path = safe_under(Path(_BASE), f'game_{game}_rules_de.md')
+    if path is None or not path.is_file():
+        return ''
     try:
         text = path.read_text(encoding='utf-8')
     except OSError:

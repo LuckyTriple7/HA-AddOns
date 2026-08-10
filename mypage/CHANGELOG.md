@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.10.10
+- 🛡️ **Fünf CodeQL-Meldungen behoben.**
+  - **Pfad aus einem Anfragewert (2×, `py/path-injection`):** Die Spielregeln wurden aus `game_<spiel>_rules_<sprache>.md` zusammengesetzt, und die Sprache kommt seit 0.10.9 auch aus `?lang=` in der Adresszeile — also direkt vom Aufrufer in einen Dateinamen. Die Sprache wird jetzt auf eines von zwei festen Kürzeln zurückgeführt, bevor sie einen Pfad berührt, und der Pfad zusätzlich über `safe_join` gebaut. Ein Wert wie `?lang=../../etc/passwd` landet damit auf den deutschen Regeln statt irgendwo im Dateisystem.
+  - **Antwortdaten des Abrechnungs-Katalogs im Log (3×, `py/clear-text-logging-sensitive-data`):** Der Abruf der Google-Preise geht mit dem Abrechnungs-Schlüssel raus; alles, was zurückkommt, gilt damit als schutzbedürftig. Aus dem Log fliegen die gelesenen Dienstnamen und Googles Klartext-Begründung. Zu sehen ist beides weiterhin — es steht im Preise-Bereich des Admin, wo es hingehört, statt in einer Datei, die beim Support-Fall mitgeschickt wird.
+- Am Verhalten ändert sich nichts: Spielregeln laden weiter in beiden Sprachen (alle neun Spiele geprüft), und die Preisabfrage meldet Fehler unverändert im Admin.
+
 ## 0.10.9
 - 🌍 **Suchmaschinen bekamen auf einer deutschen Seite die englische Fassung.** Ohne Sprach-Cookie entschied bisher die Kopfzeile `Accept-Language` — und Googlebot schickt keine. Der Rückfall lautete `en`, also sah Google `<html lang="en">`, englischen Titel und englische Beschreibung, und bewertete die Seite entsprechend für deutsche Suchanfragen. Neu: **Standardsprache der Website** unter *Design* (Vorgabe **Deutsch**). Die Reihenfolge lautet jetzt `?lang=` → Cookie → Einstellung; die Browser-Einstellung entscheidet nur noch, wenn die Einstellung ausdrücklich auf *Automatisch* steht.
   - Besucher schalten weiter über die Sprachumschaltung um, und die Wahl bleibt im Cookie gespeichert. Wer das alte Verhalten will, stellt *Automatisch* ein — dann bleibt aber der Suchmaschinen-Nachteil.
