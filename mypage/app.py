@@ -383,6 +383,13 @@ DEFAULT_SITE = {
         # sonst liesse sich nichts vorbereiten, bevor der Bereich online geht.
         'travel_enabled': False,
         'forms_enabled': True,
+        # RSS-Feed: Sprache fest wählen statt am Browser des Abrufers hängen zu
+        # lassen (siehe _feed_lang). Blog und Reiseblog stehen immer drin,
+        # Projekte und Bibliothek nur auf Wunsch — sie ändern sich selten und
+        # würden den Feed sonst mit Altbestand fluten.
+        'feed_lang': 'de',
+        'feed_projects': False,
+        'feed_library': False,
         'registration_enabled': False,
         'registration_quota_mb': 500,
         'newsletter_enabled': False,
@@ -468,10 +475,26 @@ def render_md(text: str) -> str:
     return md_lib.markdown(text or '', extensions=['nl2br', 'sane_lists', 'tables', 'fenced_code'])
 
 
+# Tags, die `render_md` erzeugen kann. Bewusst eine Liste statt `<[^>]+>`: der
+# offene Ausdruck frisst auch spitze Klammern, die als Text gemeint sind — aus
+# „Platzhalter <Name> einsetzen" wurde „Platzhalter  einsetzen".
+_HTML_TAG_RE = re.compile(
+    r'</?(?:p|br|hr|h[1-6]|a|em|strong|b|i|u|s|del|ins|sup|sub|small|mark|code|pre|kbd'
+    r'|blockquote|ul|ol|li|dl|dt|dd|img|figure|figcaption|table|thead|tbody|tfoot'
+    r'|tr|th|td|caption|span|div|hgroup|section|article)\b[^>]*>', re.I)
+
+
 def _plain_excerpt(s: str, limit: int = 155) -> str:
-    """HTML/Markdown-Text in einen kurzen Klartext-Auszug für Meta-Description wandeln."""
-    txt = re.sub(r'\s+', ' ', re.sub(r'<[^>]+>', ' ', s or '')).strip()
-    return txt[:limit].rstrip()
+    """HTML/Markdown-Text in einen kurzen Klartext-Auszug wandeln.
+
+    `unescape` gehört zwingend dazu: nach dem Entfernen der Tags stehen im Text
+    noch die Entities, die der Markdown-Schritt gesetzt hat (`&amp;`). Wer das
+    Ergebnis anschließend nochmal maskiert — Jinja in der Meta-Description, der
+    Feed beim Zusammenbauen des XML — machte daraus `&amp;amp;`, und im Reader
+    stand wörtlich „&amp;". Einmal zurückwandeln, danach einmal maskieren.
+    """
+    txt = html_mod.unescape(re.sub(r'\s+', ' ', _HTML_TAG_RE.sub(' ', s or '')).strip())
+    return re.sub(r'\s+', ' ', txt).strip()[:limit].rstrip()
 
 
 def _locked_teaser(html: str, cap: int = 280) -> str:
@@ -4079,9 +4102,12 @@ def api_design():
                  'allow_indexing', 'easter_eggs', 'mini_games', 'reveal_stagger',
                  'banner_enabled', 'banner_dismissible', 'share_enabled', 'dm_enabled',
                  'dm_ha_notify', 'directory_enabled', 'search_enabled', 'weekly_review',
-                 'travel_enabled', 'forms_enabled'):
+                 'travel_enabled', 'forms_enabled', 'feed_projects', 'feed_library'):
         if flag in raw:
             d[flag] = bool(raw[flag])
+    if 'feed_lang' in raw:
+        fl = _clean_str(raw['feed_lang'], 2).lower()
+        d['feed_lang'] = fl if fl in ('de', 'en') else 'de'
     if 'banner_link_url' in raw:
         bl = _clean_str(raw['banner_link_url'], 500)
         d['banner_link_url'] = bl if bl.startswith(('http://', 'https://', '/')) or not bl else ''
@@ -10410,40 +10436,256 @@ def service_worker():
     return js, 200, {'Content-Type': 'application/javascript', 'Cache-Control': 'no-cache'}
 
 
+# ── RSS-Feed ──────────────────────────────────────────────────────────────────
+#
+# Der Feed ist die einzige Schnittstelle, über die andere Programme neue Inhalte
+# mitbekommen: Feed-Leser, Home Assistants `feedreader` und jeder
+# Automatisierungsdienst, der „neuer Eintrag → irgendwohin weiterreichen"
+# anbietet. Deshalb steht hier alles drin, was ein solcher Dienst braucht —
+# Volltext, Bildadresse und Schlagwörter — und nicht nur Titel plus drei Zeilen.
+
+FEED_MAX_ITEMS = 50
+FEED_TEASER_MAX = 400
+FEED_TTL_MIN = 60
+_FEED_MIME = {'.webp': 'image/webp', '.png': 'image/png', '.jpg': 'image/jpeg',
+              '.jpeg': 'image/jpeg', '.gif': 'image/gif'}
+# Mittags statt um Mitternacht: `00:00:00 +0000` ist für jeden Leser westlich von
+# Greenwich noch der Vortag, ein Beitrag vom 7. stünde in den USA unter dem 6.
+FEED_HOUR = 12
+_FEED_ABS_RE = re.compile(r'\b(src|href)="/([^"/][^"]*)"', re.I)
+
+
+def _feed_lang(site: dict) -> str:
+    """Sprache des Feeds. `?lang=` schlägt die Konfiguration, der Browser zählt nie.
+
+    Ein Feed-Leser holt dieselbe Adresse für alle seine Nutzer und schickt dabei
+    meist gar kein `Accept-Language`. Hinge die Sprache daran, lieferte derselbe
+    URL mal Deutsch und mal Englisch — und der erste Zwischenspeicher friert eine
+    der beiden Fassungen für alle ein.
+    """
+    q = (request.args.get('lang') or '').strip().lower()
+    if q in ('de', 'en'):
+        return q
+    cfg = (site['design'].get('feed_lang') or '').strip().lower()
+    return cfg if cfg in ('de', 'en') else 'de'
+
+
+def _feed_cut(text: str, limit: int = FEED_TEASER_MAX) -> str:
+    """Auf `limit` kürzen, aber an der letzten Wortgrenze davor statt mittendrin."""
+    txt = (text or '').strip()
+    if len(txt) <= limit:
+        return txt
+    cut = txt[:limit]
+    sp = cut.rfind(' ')
+    return (cut[:sp] if sp > limit // 2 else cut).rstrip(' ,;:-–') + ' …'
+
+
+def _feed_abs(html: str, base: str) -> str:
+    """Absolute Adressen im Volltext. Ein Feed-Leser kennt den Kontext der Seite
+    nicht — `/uploads/x.webp` zeigt bei ihm ins Leere."""
+    return _FEED_ABS_RE.sub(lambda m: f'{m.group(1)}="{base}/{m.group(2)}"', html or '')
+
+
+def _feed_media(url: str, base: str) -> tuple:
+    """(Adresse, MIME-Typ, Größe) eines Bildes für `<enclosure>`.
+
+    Nur eigene Uploads: RSS verlangt eine Längenangabe, und die ließe sich für
+    ein fremdes Bild nur durch Abholen ermitteln — ein Abruf auf Zuruf
+    gespeicherter Daten (SSRF) und obendrein langsam.
+
+    Die Adresse zeigt bewusst auf `/uploads/`: diese Route brennt KI-erzeugten
+    Bildern die Kennzeichnung ein. Die Größe ist dann eine Schätzung, weil die
+    Auslieferung neu kodiert — RSS behandelt `length` ohnehin als Hinweis.
+    """
+    name = (url or '').strip()
+    if not name.startswith('/uploads/'):
+        return ('', '', 0)
+    name = name.removeprefix('/uploads/')
+    p = safe_under(UPLOADS_DIR, name)
+    if p is None or not p.is_file():
+        return ('', '', 0)
+    try:
+        size = p.stat().st_size
+    except OSError:
+        return ('', '', 0)
+    return (f'{base}/uploads/{name}',
+            _FEED_MIME.get(p.suffix.lower(), 'application/octet-stream'), size)
+
+
+def _feed_items(site: dict, lang: str, t: dict, loc, base: str) -> list:
+    """Alle Feed-Einträge aus Blog, Reiseblog und (auf Wunsch) Projekten und
+    Bibliothek.
+
+    Mitglieder-only-Inhalte kommen mit Titel und Adresse vor, aber ohne Text und
+    ohne Bild. Sie ganz zu verschweigen wäre auch falsch — auf der Website stehen
+    sie ja ebenfalls in der Liste, nur gesperrt. Der alte Feed prüfte die Sperre
+    gar nicht und lieferte 300 Zeichen des Textes an jeden.
+    """
+    d = site['design']
+    locked_note = t.get('feed_members_only') or 'Nur für Mitglieder.'
+    untitled = t.get('feed_untitled') or '—'
+    items = []
+
+    def add(*, title, link, date_iso, summary, body, tags, image, locked):
+        items.append({
+            'title': (title or '').strip() or untitled,
+            'link': link,
+            'date': date_iso or '',
+            'summary': locked_note if locked else _feed_cut(summary),
+            'body': '' if locked else (body or ''),
+            'tags': [x for x in (tags or []) if x][:8],
+            'image': '' if locked else (image or ''),
+            'locked': locked,
+        })
+
+    for p in sorted_posts(site, public_only=True):
+        locked = bool(p.get('members_only'))
+        body = '' if locked else _overlay_html_images(render_md(loc(p, 'text')))
+        add(title=loc(p, 'title'), link=f"{base}/blog/{p['id']}",
+            date_iso=p.get('date'),
+            summary=loc(p, 'meta') or _plain_excerpt(body, 100000),
+            body=body, tags=p.get('tags'), image=p.get('image'), locked=locked)
+
+    # Reiseblog: hängt am Modulschalter, sonst stünden Tage im Feed, die die
+    # Website gar nicht ausliefert
+    if d.get('travel_enabled'):
+        data = load_travel()
+        for trip in _trav_public_trips(site, data):
+            locked = bool(trip.get('members_only'))
+            for day in _trav_public_days(trip):
+                art = _trav_article(day, lang)
+                body = ('' if locked else
+                        _overlay_html_images(render_md(art.get('body') or '')))
+                photo = next((ph.get('url') for ph in (day.get('photos') or [])
+                              if ph.get('url')), '')
+                # Der Tagestitel allein („Ankunft") sagt im Feed-Leser nichts —
+                # dort stehen die Einträge ohne den Zusammenhang der Reise
+                head = ' · '.join(x for x in (trip.get('name'), art.get('title')) if x)
+                add(title=head,
+                    link=f"{base}/reiseblog/{trip['slug']}/{day['slug']}",
+                    date_iso=day.get('date'),
+                    summary=art.get('teaser') or _plain_excerpt(body, 100000),
+                    body=body, tags=(day.get('article') or {}).get('tags'),
+                    image=photo, locked=locked)
+
+    if d.get('feed_projects'):
+        for p in site.get('projects', []):
+            if not project_visible(p):
+                continue
+            # Ohne Detailseite gäbe es keine Adresse, auf die der Eintrag zeigen
+            # könnte — ein Feed-Eintrag ohne Ziel ist wertlos
+            if not _has_detail(p):
+                continue
+            body = _overlay_html_images(render_md(loc(p, 'long')))
+            add(title=p.get('title'), link=f"{base}/p/{p['id']}",
+                date_iso='',   # Projekte haben kein Datum
+                summary=loc(p, 'desc') or _plain_excerpt(body, 100000),
+                body=body, tags=p.get('tags'), image=p.get('image'), locked=False)
+
+    if d.get('feed_library'):
+        for e in _lib_public_entries(site):
+            locked = bool(e.get('members_only'))
+            body = '' if locked else _overlay_html_images(render_md(loc(e, 'body')))
+            add(title=loc(e, 'title'), link=f"{base}/bibliothek/{e.get('slug', '')}",
+                date_iso=e.get('updated'),
+                summary=loc(e, 'meta') or loc(e, 'summary') or _plain_excerpt(body, 100000),
+                body=body, tags=e.get('tags'), image=e.get('image'), locked=locked)
+
+    # Neueste zuerst; Einträge ohne Datum (Projekte) landen dadurch hinten
+    items.sort(key=lambda i: i['date'], reverse=True)
+    return items[:FEED_MAX_ITEMS]
+
+
+def _feed_pubdate(date_iso: str, seq: int) -> str:
+    """`YYYY-MM-DD` → RFC-822. `seq` verschiebt gleiche Daten um je eine Minute.
+
+    Ohne den Versatz tragen alle Einträge eines Tages denselben Zeitstempel, und
+    die Reihenfolge im Leser wird zufällig. Die Minute ist keine erfundene
+    Uhrzeit, sondern die Position im Feed — anders lässt sich „selber Tag, diese
+    Reihenfolge" in RSS nicht ausdrücken.
+    """
+    try:
+        base = datetime.strptime(date_iso, '%Y-%m-%d').replace(
+            hour=FEED_HOUR, tzinfo=timezone.utc)
+    except (ValueError, TypeError):
+        return ''
+    return (base - timedelta(minutes=seq)).strftime('%a, %d %b %Y %H:%M:%S +0000')
+
+
 @public_app.route('/feed.xml')
 def rss_feed():
     site = load_site()
-    posts = sorted_posts(site, public_only=True)
-    if not posts:
-        abort(404)
-    base = _base_url()
-    lang = detect_language(request)
+    lang = _feed_lang(site)
+    t = load_translations(lang)
     loc = _loc_factory(lang)
-    title = site['design'].get('site_title') or site['profile'].get('name') or 'MyPage'
+    base = _base_url()
+    d = site['design']
     esc = html_mod.escape
-    items = ''
-    for p in posts[:30]:
-        link = f"{base}/blog/{p['id']}"
-        # YYYY-MM-DD → RFC-822 (für RSS-Reader)
-        try:
-            pub = datetime.strptime(p.get('date', ''), '%Y-%m-%d').strftime('%a, %d %b %Y 00:00:00 +0000')
-        except ValueError:
-            pub = ''
-        teaser = re.sub('<[^>]+>', '', render_md(loc(p, 'text')))[:300]
-        items += (f'    <item>\n'
-                  f'      <title>{esc(loc(p, "title"))}</title>\n'
-                  f'      <link>{esc(link)}</link>\n'
-                  f'      <guid isPermaLink="true">{esc(link)}</guid>\n'
-                  + (f'      <pubDate>{pub}</pubDate>\n' if pub else '')
-                  + f'      <description>{esc(teaser)}</description>\n'
-                  f'    </item>\n')
+    items = _feed_items(site, lang, t, loc, base)
+
+    body = ''
+    seen_dates: dict[str, int] = {}
+    for it in items:
+        seq = seen_dates[it['date']] = seen_dates.get(it['date'], -1) + 1
+        pub = _feed_pubdate(it['date'], seq)
+        img_url, img_type, img_len = _feed_media(it['image'], base)
+        body += (f'    <item>\n'
+                 f'      <title>{esc(it["title"])}</title>\n'
+                 f'      <link>{esc(it["link"])}</link>\n'
+                 f'      <guid isPermaLink="true">{esc(it["link"])}</guid>\n'
+                 + (f'      <pubDate>{pub}</pubDate>\n' if pub else '')
+                 + f'      <description>{esc(it["summary"])}</description>\n'
+                 + ''.join(f'      <category>{esc(tag)}</category>\n' for tag in it['tags'])
+                 + (f'      <enclosure url="{esc(img_url)}" type="{img_type}" '
+                    f'length="{img_len}"/>\n' if img_url else '')
+                 # CDATA statt Maskieren: der Volltext ist HTML und soll es
+                 # bleiben. `]]>` kann darin nicht vorkommen — `render_md`
+                 # erzeugt es nicht und Markdown-Quelltext wird escaped —,
+                 # sicherheitshalber wird es trotzdem aufgetrennt.
+                 + (f'      <content:encoded><![CDATA['
+                    f'{_feed_abs(it["body"], base).replace("]]>", "]]]]><![CDATA[>")}'
+                    f']]></content:encoded>\n' if it['body'] else '')
+                 + f'    </item>\n')
+
+    title = d.get('site_title') or site['profile'].get('name') or 'MyPage'
+    desc = loc(site['profile'], 'tagline') or title
+    author = site['profile'].get('name') or ''
+    self_url = f'{base}/feed.xml' + (f'?lang={lang}' if request.args.get('lang') else '')
+    # Kanal-Logo: das Profilbild, sonst das Favicon — beides nur, wenn es ein
+    # eigener Upload ist (siehe _feed_media)
+    logo, _lt, _ll = _feed_media(site['profile'].get('avatar') or d.get('favicon') or '', base)
+    built = max((it['date'] for it in items if it['date']), default='')
+    head = (f'    <title>{esc(title)}</title>\n'
+            f'    <link>{esc(base)}/blog</link>\n'
+            f'    <description>{esc(desc)}</description>\n'
+            f'    <language>{lang}</language>\n'
+            f'    <generator>MyPage</generator>\n'
+            f'    <ttl>{FEED_TTL_MIN}</ttl>\n'
+            f'    <atom:link href="{esc(self_url)}" rel="self" type="application/rss+xml"/>\n'
+            + (f'    <lastBuildDate>{_feed_pubdate(built, 0)}</lastBuildDate>\n'
+               if built else '')
+            + (f'    <managingEditor>{esc(author)}</managingEditor>\n' if author else '')
+            + (f'    <image>\n      <url>{esc(logo)}</url>\n'
+               f'      <title>{esc(title)}</title>\n'
+               f'      <link>{esc(base)}/</link>\n    </image>\n' if logo else ''))
+
     xml = ('<?xml version="1.0" encoding="UTF-8"?>\n'
-           '<rss version="2.0"><channel>\n'
-           f'    <title>{esc(title)}</title>\n'
-           f'    <link>{esc(base)}/blog</link>\n'
-           f'    <description>{esc(loc(site["profile"], "tagline"))}</description>\n'
-           f'{items}</channel></rss>\n')
-    return xml, 200, {'Content-Type': 'application/rss+xml; charset=utf-8'}
+           '<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"'
+           ' xmlns:content="http://purl.org/rss/1.0/modules/content/">\n'
+           '  <channel>\n'
+           f'{head}{body}'
+           '  </channel>\n</rss>\n')
+
+    # Kein 404 mehr, wenn nichts da ist: ein leerer, gültiger Feed heißt „noch
+    # nichts veröffentlicht", ein 404 heißt für den Leser „kaputt" — und manche
+    # tragen einen so gemeldeten Feed dauerhaft aus.
+    resp = make_response(xml)
+    resp.headers['Content-Type'] = 'application/rss+xml; charset=utf-8'
+    resp.set_etag(hashlib.sha256(xml.encode('utf-8')).hexdigest()[:32])
+    resp.headers['Cache-Control'] = f'public, max-age={FEED_TTL_MIN * 60}'
+    # make_conditional beantwortet If-None-Match/If-Modified-Since mit 304 —
+    # der Feed wird im Minutentakt abgefragt und ändert sich fast nie
+    return resp.make_conditional(request)
 
 
 @public_app.errorhandler(404)

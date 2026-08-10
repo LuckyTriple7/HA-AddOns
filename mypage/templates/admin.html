@@ -1312,6 +1312,34 @@
         </div>
         <div class="row">
           <div>
+            <label>{{ t.field_feed_lang }}</label>
+            <select id="d-feed_lang">
+              <option value="de">{{ t.feed_lang_de }}</option>
+              <option value="en">{{ t.feed_lang_en }}</option>
+            </select>
+            <p class="hint">{{ t.feed_lang_hint }}</p>
+          </div>
+          <div>
+            <label>{{ t.field_feed_extra }}</label>
+            <div class="row">
+              <div>
+                <select id="d-feed_projects">
+                  <option value="0">{{ t.feed_projects_off }}</option>
+                  <option value="1">{{ t.feed_projects_on }}</option>
+                </select>
+              </div>
+              <div>
+                <select id="d-feed_library">
+                  <option value="0">{{ t.feed_library_off }}</option>
+                  <option value="1">{{ t.feed_library_on }}</option>
+                </select>
+              </div>
+            </div>
+            <p class="hint">{{ t.feed_extra_hint }}</p>
+          </div>
+        </div>
+        <div class="row">
+          <div>
             <label>{{ t.field_registration_enabled }}</label>
             <select id="d-registration_enabled">
               <option value="0">{{ t.no }}</option>
@@ -4869,6 +4897,9 @@
       el('d-search_enabled').value = d.search_enabled ? '1' : '0';
       el('d-travel_enabled').value = d.travel_enabled ? '1' : '0';
       el('d-forms_enabled').value = d.forms_enabled !== false ? '1' : '0';
+      el('d-feed_lang').value = d.feed_lang === 'en' ? 'en' : 'de';
+      el('d-feed_projects').value = d.feed_projects ? '1' : '0';
+      el('d-feed_library').value = d.feed_library ? '1' : '0';
       el('d-registration_enabled').value = d.registration_enabled ? '1' : '0';
       el('d-registration_quota_mb').value = d.registration_quota_mb || 500;
       el('d-newsletter_enabled').value = d.newsletter_enabled ? '1' : '0';
@@ -5038,6 +5069,9 @@
         search_enabled:    el('d-search_enabled').value === '1',
         travel_enabled:    el('d-travel_enabled').value === '1',
         forms_enabled:     el('d-forms_enabled').value === '1',
+        feed_lang:         el('d-feed_lang').value,
+        feed_projects:     el('d-feed_projects').value === '1',
+        feed_library:      el('d-feed_library').value === '1',
         registration_enabled: el('d-registration_enabled').value === '1',
         registration_quota_mb: parseInt(el('d-registration_quota_mb').value) || 500,
         newsletter_enabled: el('d-newsletter_enabled').value === '1',

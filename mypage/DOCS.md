@@ -346,6 +346,31 @@ Wiederholungen derselben Quelle aktualisieren dieselbe Meldung, statt sie zu ver
 
 Eine ausführliche Schritt-für-Schritt-Anleitung (Google Search Console, Sitemap einreichen, Tipps für die Platzierung) findest du in [SEO.md](SEO.md).
 
+## RSS-Feed
+
+Unter **`/feed.xml`** liefert MyPage einen RSS-2.0-Feed. Er ist im Kopf jeder öffentlichen Seite verlinkt, Feed-Leser finden ihn also durch die bloße Eingabe der Domain. Adressaten sind Feed-Leser (Feedly, NetNewsWire, Thunderbird), die `feedreader`-Integration von Home Assistant und Automatisierungsdienste wie Buffer, Make oder Zapier, die auf einen neuen Eintrag hin etwas auslösen.
+
+**Was drinsteht** — die 50 neuesten Einträge, neueste zuerst:
+
+| Quelle | Bedingung |
+|---|---|
+| Blogbeiträge | immer (veröffentlicht, Datum nicht in der Zukunft) |
+| Reisetage | wenn *Design → Module → Reiseblog* auf JA steht; nur freigegebene Tage |
+| Projekte | Schalter *Projekte im Feed*; nur mit Detailseite, **ohne Datum** → am Ende |
+| Bibliothek | Schalter *Bibliothek im Feed* |
+
+Projekte und Bibliothek sind abschaltbar, weil sie sich selten ändern: beim Einschalten spült der Feed den Altbestand einmalig als „neu" durch jeden Reader.
+
+**Je Eintrag** stehen Titel, Adresse, Datum, ein Anriss (`<description>`), die Schlagwörter als `<category>`, der **Volltext** als `<content:encoded>` mit absoluten Bild- und Link-Adressen und — falls vorhanden — das Titelbild als `<enclosure>`. Genau daran hängen Automatisierungsdienste, wenn sie einen Beitrag mit Bild weiterreichen sollen.
+
+**Mitglieder-only-Inhalte** stehen mit Titel und Adresse im Feed, aber ohne Text und ohne Bild; an der Stelle des Anrisses steht ein Hinweis. Sie ganz zu verschweigen wäre falsch — auf der Website stehen sie ebenfalls in der Liste, nur gesperrt.
+
+**Sprache**: fest über *Design → Sprache des RSS-Feeds*, nicht über den Browser des Abrufers. Ein Feed-Leser holt dieselbe Adresse für alle seine Nutzer und schickt meist gar keine Sprachkennung; hinge die Sprache daran, lieferte derselbe URL mal Deutsch und mal Englisch. Die andere Fassung gibt es unter `/feed.xml?lang=en` bzw. `?lang=de`.
+
+**Zeitstempel**: Beiträge haben nur ein Datum, keine Uhrzeit. Der Feed setzt **12:00 UTC** — bei `00:00` stünde ein Beitrag für jeden Leser westlich von Greenwich unter dem Vortag. Mehrere Einträge desselben Tages werden um je eine Minute versetzt; das ist keine erfundene Uhrzeit, sondern die einzige Möglichkeit, „selber Tag, diese Reihenfolge" in RSS auszudrücken.
+
+**Abrufe** beantwortet der Feed mit `ETag` und `Cache-Control`; ein unveränderter Feed kommt als `304` zurück. Ohne veröffentlichte Inhalte liefert er einen **gültigen leeren Feed** statt eines Fehlers — ein 404 heißt für einen Reader „kaputt", und manche tragen einen so gemeldeten Feed dauerhaft aus.
+
 ## Bilder
 
 **Medien-Browser:** Überall, wo ein Bild gesetzt wird — Titelbild der Bibliothek, Beitrags- und Projektbild, Favicon, Karten-Bild, Mitglieder-Avatar, Team-Fotos, Fotoalben —, führt der Knopf **„Bild wählen"** zu einer Galerie aller bereits hochgeladenen Bilder, neueste zuerst, mit Datum und Größe. Ein Klick übernimmt das Bild; **„Neues Bild hochladen"** in derselben Galerie öffnet den Dateidialog. Bilder, die nirgends verwendet werden, tragen die Plakette **„unbenutzt"** — so ist vor dem Aufräumen im Tab *System* sichtbar, was übrig ist. Angezeigt werden die neuesten 300 Bilder; die Gesamtzahl steht in der Kopfzeile.

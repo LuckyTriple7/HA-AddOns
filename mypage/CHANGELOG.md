@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.10.8
+- 🔒 **Mitglieder-only-Beiträge standen ungefiltert im RSS-Feed.** Der Feed prüfte die Sperre gar nicht und lieferte jedem 300 Zeichen des Textes — bei kurzen Beiträgen also alles. Die Website zeigt Gästen an derselben Stelle höchstens die *halbe* Textlänge. Jetzt stehen gesperrte Beiträge, Reisen und Bibliothek-Einträge mit Titel und Adresse im Feed, aber ohne Text und ohne Bild; an der Stelle des Anrisses steht der Hinweis auf die Anmeldung.
+- 🐛 **`&` erschien im Feed als `&amp;`.** Der Text wurde zweimal maskiert: einmal beim Markdown-Rendern, einmal beim Zusammenbauen des XML. Aus „Rum & Cola" wurde im Reader wörtlich „Rum &amp;amp; Cola". Betraf auch die **Meta-Descriptions** der Seiten — dieselbe Hilfsfunktion, derselbe Fehler.
+- 🐛 **Spitze Klammern im Text verschwanden.** Der Ausdruck zum Entfernen der HTML-Tags fraß alles zwischen `<` und `>`; aus „Platzhalter `<Name>` einsetzen" wurde „Platzhalter einsetzen". Jetzt werden nur die Tags entfernt, die tatsächlich aus dem Markdown stammen.
+- 📰 **Der Feed enthält jetzt Reisetage** — bisher nur Blogbeiträge. Projekte und Bibliothek-Einträge lassen sich unter *Design* einzeln zuschalten; sie ändern sich selten und würden den Feed beim Einschalten einmalig mit Altbestand fluten. Projekte erscheinen nur mit Detailseite und ohne Datum, also am Ende.
+- 🖼️ **Volltext, Bild und Schlagwörter im Feed.** Neu je Eintrag: `<content:encoded>` mit dem ganzen Beitrag (Bild- und Link-Adressen absolut), `<enclosure>` mit dem Titelbild und `<category>` je Schlagwort. Statt eines mitten im Wort abgeschnittenen Anrisses steht jetzt die gepflegte SEO-Beschreibung im `<description>`, sonst ein an der Wortgrenze gekürzter Auszug.
+- 🌍 **Die Feed-Sprache ist einstellbar** (*Design → Sprache des RSS-Feeds*) statt vom Browser des Abrufers abzuhängen. Ein Feed-Leser holt dieselbe Adresse für alle seine Nutzer und schickt meist gar keine Sprachkennung — bisher entschied das den Inhalt. Die andere Fassung gibt es unter `/feed.xml?lang=en`.
+- 🕛 **Zeitstempel auf 12:00 UTC** statt Mitternacht: bei `00:00` stand ein Beitrag für jeden Leser westlich von Greenwich unter dem **Vortag**. Mehrere Einträge desselben Tages werden um je eine Minute versetzt, damit ihre Reihenfolge im Reader feststeht.
+- ⚡ **`ETag` und `Cache-Control`**: ein unveränderter Feed kommt als `304` zurück statt jedes Mal komplett.
+- 📭 **Ohne Beiträge liefert der Feed einen gültigen leeren Feed statt 404.** Ein 404 heißt für einen Reader „kaputt", und manche tragen einen so gemeldeten Feed dauerhaft aus. Aus demselben Grund ist der Feed jetzt **immer** im Seitenkopf verlinkt.
+- Dazu die üblichen Kanal-Angaben, die bisher fehlten: `<language>`, `<lastBuildDate>`, `<atom:link rel="self">`, `<generator>`, `<ttl>`, Kanal-Logo und Herausgeber.
+
 ## 0.10.7
 - 🎚️ **Ein abgeschaltetes Modul verschwindet jetzt auch aus dem Admin.** Stehen **Reiseblog** oder **Formulare** unter *Design → Module* auf NEIN, sind nicht mehr nur Abschnitt, Navi-Einträge und Seiten auf der Website weg — es verschwinden auch der **Reiter** und der **Abschnitt unter *Inhalte***. Bisher pflegte man dort weiter Inhalte, die nirgends ankamen, und der Schalter blieb für alles folgenlos, was man täglich sieht.
   - **Nichts wird gelöscht.** Reisen, Tage, Formulare und eingegangene Antworten bleiben gespeichert; auch **Position und Augen-Zustand** des Abschnitts bleiben erhalten und kommen beim Einschalten unverändert zurück.
