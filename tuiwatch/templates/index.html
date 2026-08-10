@@ -272,6 +272,8 @@
     body.ai-disabled .ai-feature { display:none !important; }
     body.check24-disabled .check24-feature { display:none !important; }
     body.str-flights-disabled .str-flights-feature { display:none !important; }
+    .strf-row { cursor:pointer; }
+    .strf-row:hover td { background:var(--surf); }
     body.share-disabled .share-feature { display:none !important; }
     .shr-row { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:8px 0; }
     .shr-row label { font-size:.85rem; }
@@ -1386,12 +1388,25 @@
           <input type="month" id="strf-bis" title="Verbindung spätestens bis zu diesem Monat" style="width:150px">
         </label>
       </div>
-      <div id="strf-body"><div class="hint">Suchbegriff eingeben, z. B. „Palma“, „PMI“ oder „Spanien“.</div></div>
+      <div id=”strf-body”><div class=”hint”>Suchbegriff eingeben, z. B. „Palma”, „PMI” oder „Spanien”.</div></div>
+    </div>
+  </div>
+
+  <!-- STR-Flugdetail-Modal — auf Zeilenklick, über strf-bg gestapelt (wie
+       email-bg über climate-bg: gleicher .modal-bg-z-index, deshalb hier
+       explizit höher gesetzt, siehe strFlightDetail()). -->
+  <div class=”modal-bg” id=”strf-detail-bg”>
+    <div class=”modal” style=”max-width:480px”>
+      <button class=”icon-btn modal-close” onclick=”closeStrFlightDetail()”>
+        <svg viewBox=”0 0 24 24”><path d=”M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z”/></svg>
+      </button>
+      <h2 id=”strf-detail-title”>✈️ Flugdetails</h2>
+      <div id=”strf-detail-body”></div>
     </div>
   </div>
 
   <!-- Reisen-Datenbank-Modal -->
-  <div class="modal-bg" id="trips-bg">
+  <div class=”modal-bg” id=”trips-bg”>
     <div class="modal" style="max-width:960px">
       <button class="icon-btn modal-close" onclick="closeTrips()">
         <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>

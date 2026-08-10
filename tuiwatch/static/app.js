@@ -1776,7 +1776,7 @@
     }
     function renderStrFlights(rows){
       if(!rows.length){ $('#strf-body').innerHTML = '<div class="hint">Keine Verbindung gefunden.</div>'; return; }
-      const rowsHtml = rows.map(r => `<tr>
+      const rowsHtml = rows.map((r,i) => `<tr class="strf-row" onclick="strFlightDetail(${i})" title="Klicken für Flugdetails (Airline, Strecke)">
         <td title="${r.type==='Departure'?'Abflug ab STR':'Ankunft in STR'}">${r.type==='Departure'?'🛫':'🛬'}</td>
         <td>${esc(r.airport_name)} <span class="hint">(${esc(r.airport_code)})</span></td>
         <td>${esc(r.country)}</td>
@@ -1785,8 +1785,45 @@
         <td>${esc(r.departure)}–${esc(r.arrival)}${r.via?' <span class="hint">via '+esc(r.via)+'</span>':''}</td>
         <td class="hint">${strfMonYear(r.date_from)}–${strfMonYear(r.date_till)}</td>
       </tr>`).join('');
-      $('#strf-body').innerHTML = `<div class="hint" style="margin-bottom:6px">${rows.length} Verbindung${rows.length===1?'':'en'} gefunden</div>
+      $('#strf-body').innerHTML = `<div class="hint" style="margin-bottom:6px">${rows.length} Verbindung${rows.length===1?'':'en'} gefunden — Zeile anklicken für Flugdetails</div>
         <div style="overflow-x:auto"><table class="hist"><tr><th></th><th>Ziel</th><th>Land</th><th>Flug</th><th>Tage</th><th>Zeiten</th><th>Zeitraum</th></tr>${rowsHtml}</table></div>`;
+      strfLastRows = rows;
+    }
+    let strfLastRows = [];
+    function closeStrFlightDetail(){ $('#strf-detail-bg').classList.remove('show'); $('#strf-detail-bg').style.zIndex = ''; }
+    $('#strf-detail-bg').addEventListener('click', e=>{ if(e.target.id==='strf-detail-bg') closeStrFlightDetail(); });
+    // Details (Airline, Standardstrecke) zu einer angeklickten Zeile — über ein
+    // offenes Drittanbieter-API (adsbdb.com), server-seitig geproxied
+    // (str_flights_client.lookup_callsign). Reine Zusatzinfo, kein Bezug zu
+    // TUI/Check24 — kann für exotischere Callsigns auch "nichts gefunden" sein.
+    async function strFlightDetail(i){
+      const r = strfLastRows[i];
+      if(!r) return;
+      $('#strf-detail-title').textContent = '✈️ ' + (r.airline_name || r.airline_code) + ' ' + r.flight_no;
+      $('#strf-detail-body').innerHTML = progBar('Lade Flugdetails…');
+      $('#strf-detail-bg').style.zIndex = 60;
+      $('#strf-detail-bg').classList.add('show');
+      let data;
+      try {
+        data = await fetch(api('/api/strflights/callsign?airline='+encodeURIComponent(r.airline_code)
+          +'&no='+encodeURIComponent(r.flight_no))).then(x=>x.json());
+      } catch(e){ data = {error:'fetch_failed'}; }
+      if(data.error){
+        $('#strf-detail-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Details nicht abrufbar. Bitte später erneut versuchen.</div>';
+        return;
+      }
+      if(!data.found){
+        $('#strf-detail-body').innerHTML = '<div class="hint">Keine zusätzlichen Daten zu diesem Flug gefunden (externe Quelle kennt diesen Callsign nicht).</div>';
+        return;
+      }
+      $('#strf-detail-body').innerHTML = `
+        <div class="hint" style="margin-bottom:10px">${esc(data.airline_name)} · Callsign ${esc(data.callsign_icao)} (${esc(data.callsign_iata)})</div>
+        <table class="hist">
+          <tr><th></th><th>Flughafen</th><th>Ort</th></tr>
+          <tr><td>Start</td><td>${esc(data.origin_name)} <span class="hint">(${esc(data.origin_iata)})</span></td><td>${esc(data.origin_city)}, ${esc(data.origin_country)}</td></tr>
+          <tr><td>Ziel</td><td>${esc(data.dest_name)} <span class="hint">(${esc(data.dest_iata)})</span></td><td>${esc(data.dest_city)}, ${esc(data.dest_country)}</td></tr>
+        </table>
+        <div class="hint" style="margin-top:10px">Quelle: adsbdb.com — planmäßige Standardroute, kann bei Ad-hoc-Umleitungen abweichen.</div>`;
     }
 
     // ── Reisen-Datenbank (PDF-Import gebuchter Reisen) ──────────────────────────

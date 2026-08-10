@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.89.4] - 2026-08-10
+
+### Added
+- **STR-Flugplan: Flugdetails per Klick** — jede Zeile ist jetzt anklickbar
+  und zeigt Airline, Callsign sowie die planmäßige Standardstrecke (Start-/
+  Zielflughafen mit Ort). Nutzt das offene Community-API adsbdb.com (Callsign
+  aus Fluggesellschaftscode + Flugnummer), server-seitig geproxied und 12h
+  gecacht. Reine Zusatzinfo — nicht jeder Callsign hat dort hinterlegte Daten.
+
 ## [0.89.3] - 2026-08-10
 
 ### Added

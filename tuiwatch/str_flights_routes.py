@@ -25,3 +25,19 @@ def api_str_flights():
     if rows is None:
         return jsonify({'error': 'fetch_failed'}), 502
     return jsonify({'rows': rows})
+
+
+@bp.route('/api/strflights/callsign', methods=['GET'])
+def api_str_flights_callsign():
+    if (err := A._require_api()):
+        return err
+    if not bool(A.load_config().get('enable_str_flights', False)):
+        return jsonify({'error': 'disabled'}), 404
+    airline = (request.args.get('airline') or '').strip()
+    no = (request.args.get('no') or '').strip()
+    if not airline or not no:
+        return jsonify({'error': 'bad_request'}), 400
+    result = str_flights_client.lookup_callsign(airline + no, verbose=A._verbose())
+    if result is None:
+        return jsonify({'error': 'fetch_failed'}), 502
+    return jsonify(result)

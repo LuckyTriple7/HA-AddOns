@@ -155,3 +155,72 @@ def search_connections(query: str = "", *, flight_type: str = "", date_from: str
     # internem Datensatz-Import sortiert ist, nicht alphabetisch/zeitlich).
     out.sort(key=lambda r: (r["airport_name"], r["departure"]))
     return out
+
+
+# Flugnummer-Details (Airline, Streckenbestätigung) über adsbdb.com — offene
+# Community-Datenbank, kein Key, CORS offen (access-control-allow-origin: *),
+# hier trotzdem server-seitig proxied wie alle anderen externen Abrufe im
+# Add-on (Caching, ein Aufrufmuster, kein Drittanbieter-Call direkt aus dem
+# Browser). Liefert die *planmäßige Standardroute* zu einem Callsign
+# (Fluggesellschafts-Code + Flugnummer, z. B. "EW2262") — keine Live-Ortung,
+# kein Bezug zum tatsächlichen Flugzeug/Tag (dafür bräuchte es einen
+# ADS-B-Empfänger/Live-Feed, hat das Add-on nicht).
+_CALLSIGN_URL = "https://api.adsbdb.com/v0/callsign/"
+_CALLSIGN_CACHE_TTL = 12 * 3600
+_callsign_cache_lock = threading.Lock()
+_callsign_cache: dict = {}
+
+
+def lookup_callsign(callsign: str, *, verbose: bool = False) -> dict | None:
+    """Airline + Standardstrecke zu einem Callsign. Rückgabe
+    {'ok': True, 'found': bool, ...} — 'found': False heißt adsbdb kennt
+    diesen Callsign nicht (keine Routendaten hinterlegt, keine Fehlerlage).
+    None bei technischem Fehler (Netzwerk/HTTP/Parsing)."""
+    callsign = (callsign or "").strip().upper()
+    if not callsign:
+        return {"ok": True, "found": False}
+    with _callsign_cache_lock:
+        cached = _callsign_cache.get(callsign)
+        if cached and time.time() - cached[0] < _CALLSIGN_CACHE_TTL:
+            return cached[1]
+    try:
+        resp = requests.get(_CALLSIGN_URL + callsign, headers=_HEADERS, timeout=10)
+    except Exception as e:
+        log.warning("adsbdb-Abruf fehlgeschlagen (callsign=%s): %s", callsign, e)
+        return None
+    if resp.status_code == 404:
+        result = {"ok": True, "found": False}
+    elif resp.status_code != 200:
+        log.warning("adsbdb HTTP %s (callsign=%s)", resp.status_code, callsign)
+        return None
+    else:
+        try:
+            route = ((resp.json() or {}).get("response") or {}).get("flightroute")
+        except Exception as e:
+            log.warning("adsbdb-Antwort nicht lesbar (callsign=%s): %s", callsign, e)
+            return None
+        if not route:
+            result = {"ok": True, "found": False}
+        else:
+            al = route.get("airline") or {}
+            origin = route.get("origin") or {}
+            dest = route.get("destination") or {}
+            result = {
+                "ok": True, "found": True,
+                "callsign_icao": str(route.get("callsign_icao") or ""),
+                "callsign_iata": str(route.get("callsign_iata") or ""),
+                "airline_name": str(al.get("name") or ""),
+                "origin_name": str(origin.get("name") or ""),
+                "origin_iata": str(origin.get("iata_code") or ""),
+                "origin_city": str(origin.get("municipality") or ""),
+                "origin_country": str(origin.get("country_name") or ""),
+                "dest_name": str(dest.get("name") or ""),
+                "dest_iata": str(dest.get("iata_code") or ""),
+                "dest_city": str(dest.get("municipality") or ""),
+                "dest_country": str(dest.get("country_name") or ""),
+            }
+    with _callsign_cache_lock:
+        _callsign_cache[callsign] = (time.time(), result)
+    if verbose:
+        log.info("adsbdb %s: %s", callsign, "gefunden" if result["found"] else "keine Routendaten")
+    return result
