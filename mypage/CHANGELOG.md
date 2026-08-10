@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.10.20
+- 📥 **Vorhandene Texte lassen sich ins Studio holen.** Bisher ging es nur in eine Richtung: erzeugen und übernehmen. Wer einen alten Beitrag überarbeiten, ihm die englische Fassung nachziehen oder eine SEO-Beschreibung nachtragen wollte, musste kopieren. Die Auswahl oben im Text-Studio listet **alle Blogbeiträge, Projekte und Bibliothek-Einträge**; „Laden" füllt die Ergebnisfelder, Textart und Sprachwahl stellen sich passend ein.
+- 🔒 **Das Original bleibt unangetastet.** Zurückgeschrieben wird erst über „Übernehmen", und dabei entsteht ein neuer Eintrag — der alte wird nicht ersetzt. Ein geöffneter Entwurf wird beim Laden gelöst, damit Speichern nichts Fremdes überschreibt; „↶ Vorherige Fassung" macht das Laden rückgängig.
+- ⚠️ Nicht ganz verlustfrei: ein **Projekt hat nur einen Titel** für beide Sprachen, der steht danach in beiden Titelfeldern.
+
 ## 0.10.19
 - 💾 **Prompt-Bibliothek im Bild-Studio.** Das Text-Studio kann Entwürfe speichern, das Bild-Studio konnte es nicht — ein mühsam zurechtgefeilter Prompt war nach dem Neuladen weg. **„Prompt speichern"** legt Beschreibung, Anzahl, Seitenverhältnis und Vorlagenbild unter einem Namen ab, **„📂 Übernehmen"** holt alles zurück ins Studio. Ohne Namen werden die ersten Wörter genommen; derselbe Name überschreibt den Eintrag, statt eine zweite Zeile anzulegen.
 - 🗄️ Gespeichert wird in einer eigenen Datei `ai_prompts.json` im Add-on-Konfigurationsordner, höchstens 100 Einträge, **im Backup und in der Wiederherstellung enthalten**.

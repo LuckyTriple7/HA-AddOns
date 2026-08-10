@@ -1016,7 +1016,13 @@
       <div class="panel" data-ai-panel="text">
         <h3>📝 {{ t.ai_txt_heading }}</h3>
         <p class="hint">{{ t.ai_txt_hint }}</p>
-        <div class="row">
+        <label>{{ t.ai_import }}</label>
+        <div class="upload-row">
+          <select id="ai-import-sel"></select>
+          <button class="btn secondary" onclick="aiImportContent()">📥 {{ t.ai_import_load }}</button>
+        </div>
+        <p class="hint">{{ t.ai_import_hint }}</p>
+        <div class="row" style="margin-top:14px">
           <div>
             <label>{{ t.ai_txt_kind }}</label>
             <select id="ai-txt-kind" onchange="aiKindChanged()">
@@ -6406,6 +6412,7 @@
     }
     async function initAiTab() {
       refreshAiStatus();   // Kontingent und Verbrauch bei jedem Tabwechsel frisch
+      aiFillImportSelect();
       if (aiTabReady) return;
       aiTabReady = true;
       buildAiStyleChips();
@@ -7456,6 +7463,82 @@
       aiApplyText(d.result || {}, false);
       busyDone(T.ai_revise_ready);
       refreshAiStatus();
+    }
+    // ── Vorhandenes ins Studio holen ──
+    // Gegenrichtung zu „Übernehmen": einen bestehenden Text überarbeiten, ihm
+    // die fehlende Sprache nachziehen oder eine SEO-Beschreibung nachtragen,
+    // ohne ihn abzutippen. Die Auswahl wird bei jedem Tabwechsel neu gebaut,
+    // damit ein eben angelegter Beitrag sofort dabei ist.
+    function aiFillImportSelect() {
+      const sel = el('ai-import-sel');
+      const keep = sel.value;
+      sel.innerHTML = '';
+      const none = document.createElement('option');
+      none.value = '';
+      none.textContent = T.ai_import_none;
+      sel.appendChild(none);
+      if (!SITE) return;
+      const groups = [
+        ['post',    T.tab_blog,     SITE.posts || [],    p => p.title_de || p.title_en],
+        ['project', T.tab_projects, SITE.projects || [], p => p.title],
+        ['library', T.tab_library,  (SITE.library || {}).entries || [], e => e.title_de || e.title_en],
+      ];
+      groups.forEach(([kind, label, rows, nameOf]) => {
+        if (!rows.length) return;
+        const g = document.createElement('optgroup');
+        g.label = label;
+        rows.forEach(x => {
+          const o = document.createElement('option');
+          o.value = kind + ':' + x.id;
+          o.textContent = nameOf(x) || x.id;
+          g.appendChild(o);
+        });
+        sel.appendChild(g);
+      });
+      sel.value = keep;
+      if (sel.value !== keep) sel.value = '';
+    }
+    // Die Zuordnung ist die Umkehrung von aiToPost() und Geschwistern und nicht
+    // überall verlustfrei: ein Projekt hat nur einen Titel für beide Sprachen,
+    // der landet deshalb in beiden Feldern.
+    function aiImportContent() {
+      const [kind, id] = (el('ai-import-sel').value || '').split(':');
+      if (!kind || !id) { toast(T.ai_import_err_pick, true); return; }
+      const x =
+          kind === 'post'    ? (SITE.posts || []).find(p => p.id === id)
+        : kind === 'project' ? (SITE.projects || []).find(p => p.id === id)
+        :                      ((SITE.library || {}).entries || []).find(e => e.id === id);
+      if (!x) { toast(T.ai_import_err_pick, true); return; }
+      const f = kind === 'post'
+        ? { title_de: x.title_de, title_en: x.title_en, meta_de: x.meta_de, meta_en: x.meta_en,
+            text_de: x.text_de, text_en: x.text_en }
+        : kind === 'project'
+        ? { title_de: x.title, title_en: x.title, meta_de: x.desc_de, meta_en: x.desc_en,
+            text_de: x.long_de, text_en: x.long_en }
+        : { title_de: x.title_de, title_en: x.title_en,
+            meta_de: x.meta_de || x.summary_de, meta_en: x.meta_en || x.summary_en,
+            text_de: x.body_de, text_en: x.body_en };
+      aiRemember();
+      ['de', 'en'].forEach(lg => {
+        el('ai-out-title_' + lg).value = f['title_' + lg] || '';
+        el('ai-out-meta_' + lg).value  = f['meta_' + lg] || '';
+        el('ai-out-text_' + lg).value  = f['text_' + lg] || '';
+      });
+      el('ai-out-tags').value = (x.tags || []).join(', ');
+      el('ai-txt-kind').value = kind === 'post' ? 'blog' : kind;
+      const hasDe = !!(f.title_de || f.text_de), hasEn = !!(f.title_en || f.text_en);
+      el('ai-txt-langs').value = (hasDe && hasEn) ? 'both' : (hasEn ? 'en' : 'de');
+      // Kein Entwurf: Speichern soll einen neuen Eintrag anlegen, nicht einen
+      // fremden überschreiben.
+      aiDraftId = null;
+      el('ai-draft-name').value = '';
+      aiDraftState('');
+      el('ai-txt-result').style.display = '';
+      el('ai-txt-status').textContent = '';
+      aiLangChanged();
+      aiKindChanged();
+      el('ai-txt-result').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      toast(T.ai_import_done);
     }
     // Die Textart bestimmt, wohin das Ergebnis gehört. „Als Blogbeitrag" bleibt
     // daneben stehen: aus einer Projektbeschreibung kann man immer noch einen
