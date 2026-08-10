@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.10.22
+- 📂 **Der Alternativtext-Bereich klappt zusammen.** Bei vielen Bildern schob er den Tab System endlos in die Länge. Stehen bleibt eine Zeile mit Überschrift und Zähler — „34 Bilder, davon 12 ohne Text" —, ein Klick öffnet den Editor. Zugeklappt werden die Zeilen samt Vorschaubildern gar nicht erst gebaut.
+- 🔔 **Rückmeldung im Banner wie im KI-Tab.** Der KI-Knopf war bisher stumm: klicken, warten, hoffen. Jetzt meldet das Banner oben „Alternativtext wird erzeugt …", danach „steht im Feld — noch speichern", und beim Sammellauf den Fortschritt „Bild 3 von 12 …". Fehler stehen ebenfalls dort statt in einer kurzen Einblendung — mit Grund und länger lesbar.
+- 🧯 Bricht der Sammellauf ab (etwa am Stundenlimit), bleibt die Fehlermeldung stehen und **das bis dahin Erzeugte wird trotzdem gespeichert**.
+
 ## 0.10.21
 - 🏷️ **Alternativtexte für Bilder — bisher hatte MyPage gar keine.** Jedes hochgeladene Bild ging ohne `alt` nach draußen: für Screenreader nicht vorhanden, für Suchmaschinen stumm. Im Tab **System** steht unter dem Datei-Browser jetzt je Bild ein Feld für Deutsch und Englisch; standardmäßig sind nur die Bilder ohne Text eingeblendet.
 - 🔗 **Der Text hängt an der Datei, nicht am Beitrag** — dasselbe Bild zeigt in Beitrag, Projekt und Bibliothek dasselbe. Er wirkt bei Titelbildern und Galerien in Beiträgen, Projekten, Bibliothek, Reiseblog und auf der Startseite. In Markdown füllt er nur leere Klammern: `![](…)` bekommt ihn, `![eigener Text](…)` behält deinen. Fehlt die gewünschte Sprache, gilt die andere.

@@ -229,12 +229,13 @@
     .logo-set { border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 10px; background: var(--surf2); }
     .logo-set-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
     .logo-set-head strong { word-break: break-all; }
-    /* Der Name klappt den Satz auf — zusammengeklappt ist die Liste eine Zeile je Satz. */
-    .logo-set-toggle { display: flex; align-items: center; gap: 8px; background: none; border: 0; padding: 0; margin: 0;
+    /* Aufklapper: Zeile mit Pfeil, Titel und Zähler — zusammengeklappt bleibt
+       eine Zeile stehen. Genutzt von den Logo-Sätzen und den Alternativtexten. */
+    .set-toggle { display: flex; align-items: center; gap: 8px; background: none; border: 0; padding: 0; margin: 0;
       color: var(--text); font: inherit; text-align: left; cursor: pointer; }
-    .logo-set-toggle .caret { color: var(--muted); font-size: 0.8rem; transition: transform .15s; }
-    .logo-set-toggle[aria-expanded="true"] .caret { transform: rotate(90deg); }
-    .logo-set-toggle .count { color: var(--muted); font-size: 0.78rem; font-weight: 400; }
+    .set-toggle .caret { color: var(--muted); font-size: 0.8rem; transition: transform .15s; }
+    .set-toggle[aria-expanded="true"] .caret { transform: rotate(90deg); }
+    .set-toggle .count { color: var(--muted); font-size: 0.78rem; font-weight: 400; }
     .logo-set .logo-grid { margin-top: 10px; }
     .logo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 8px; }
     .logo-file { border: 1px solid var(--border); border-radius: 6px; padding: 6px; text-align: center; font-size: 0.7rem; color: var(--muted); background: var(--surf); }
@@ -1780,17 +1781,24 @@
         <div class="uploads-grid" id="files-doc-grid"></div>
       </div>
       <div class="panel">
-        <h3>🏷️ {{ t.alts_heading }}</h3>
-        <p class="hint">{{ t.alts_hint }}</p>
-        <div class="upload-row">
-          <label class="checkbox" style="margin:0"><input type="checkbox" id="alts-missing-only" checked onchange="renderAltEditor()"> {{ t.alts_missing_only }}</label>
-          <span class="hint" id="alts-info" style="margin:0"></span>
-        </div>
-        <div id="alts-list" style="margin-top:12px"></div>
-        <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-          <button class="btn" id="alts-save" onclick="saveAlts(this)">{{ t.save }}</button>
-          <button class="btn secondary" id="alts-ai-all" style="display:none" onclick="altAiAll(this)">✦ {{ t.alts_ai_all }}</button>
-          <span class="hint" id="alts-ai-info" style="margin:0"></span>
+        <h3 style="margin:0">
+          <button type="button" class="set-toggle" id="alts-toggle" aria-expanded="false" onclick="toggleAlts()">
+            <span class="caret">▶</span>
+            <span>🏷️ {{ t.alts_heading }}</span>
+            <span class="count" id="alts-info"></span>
+          </button>
+        </h3>
+        <div id="alts-body" style="display:none;margin-top:12px">
+          <p class="hint">{{ t.alts_hint }}</p>
+          <div class="upload-row">
+            <label class="checkbox" style="margin:0"><input type="checkbox" id="alts-missing-only" checked onchange="renderAltEditor()"> {{ t.alts_missing_only }}</label>
+          </div>
+          <div id="alts-list" style="margin-top:12px"></div>
+          <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+            <button class="btn" id="alts-save" onclick="saveAlts(this)">{{ t.save }}</button>
+            <button class="btn secondary" id="alts-ai-all" style="display:none" onclick="altAiAll(this)">✦ {{ t.alts_ai_all }}</button>
+            <span class="hint" id="alts-ai-info" style="margin:0"></span>
+          </div>
         </div>
       </div>
       <div class="panel">
@@ -5474,14 +5482,30 @@
       return FILES.images.filter(f => !el('alts-missing-only').checked
                                       || !(f.alt_de || f.alt_en));
     }
-    function renderAltEditor() {
-      const box = el('alts-list');
-      box.innerHTML = '';
-      const rows = altsFiles();
+    // Der Zähler steht in der Kopfzeile und gilt auch zugeklappt — sonst wüsste
+    // man erst nach dem Aufklappen, ob überhaupt etwas fehlt.
+    function renderAltSummary() {
       const missing = FILES.images.filter(f => !(f.alt_de || f.alt_en)).length;
       el('alts-info').textContent = T.alts_info
         .replace('{n}', FILES.images.length).replace('{m}', missing);
       el('alts-ai-all').style.display = (AI_STATUS && AI_STATUS.text && missing) ? '' : 'none';
+    }
+    // Zugeklappt gar nicht erst bauen: hundert Zeilen mit Vorschaubild sind
+    // nichts, was man im Hintergrund anlegt.
+    function toggleAlts() {
+      const body = el('alts-body');
+      const open = body.style.display === 'none';
+      body.style.display = open ? '' : 'none';
+      el('alts-toggle').setAttribute('aria-expanded', open ? 'true' : 'false');
+      if (open) renderAltEditor();
+    }
+    function renderAltEditor() {
+      renderAltSummary();
+      if (el('alts-body').style.display === 'none') return;
+      const box = el('alts-list');
+      box.innerHTML = '';
+      const rows = altsFiles();
+      const missing = FILES.images.filter(f => !(f.alt_de || f.alt_en)).length;
       if (!rows.length) {
         const p = document.createElement('p');
         p.className = 'hint';
@@ -5540,14 +5564,18 @@
     }
     // Trägt das Ergebnis direkt in die Felder ein, gespeichert wird erst mit
     // „Speichern" — so bleibt ein danebengegangener Vorschlag korrigierbar.
-    async function altAi(name, btn, info) {
+    // Rückmeldung über dasselbe Banner wie im KI-Tab: der Aufruf dauert und ein
+    // stummer Knopf sieht aus wie ein kaputter. `quiet` gehört dem Sammellauf,
+    // der die Fortschrittszeile selbst schreibt.
+    async function altAi(name, btn, info, quiet) {
       btn.disabled = true;
+      if (!quiet) busyShow(T.alts_ai_one);
       let r = null;
       try { r = await apiJson('api/ai/alt', 'POST', { name, model: el('ai-text-model').value }); }
       catch (e) { /* Netzfehler */ }
       btn.disabled = false;
       const d = r ? await r.json().catch(() => ({})) : {};
-      if (!r || !r.ok) { toast(aiErrMsg(d.error, d.model, d.detail), true); return false; }
+      if (!r || !r.ok) { busyDone(aiErrMsg(d.error, d.model, d.detail), true); return false; }
       const cur = ALT_ROWS.get(name) || { de: '', en: '' };
       ['de', 'en'].forEach(lg => {
         cur[lg] = (d.alt || {})[lg] || '';
@@ -5555,6 +5583,7 @@
         if (inp) inp.value = cur[lg];
       });
       ALT_ROWS.set(name, cur);
+      if (!quiet) busyDone(T.alts_ai_one_done);
       refreshAiStatus();
       return true;
     }
@@ -5565,17 +5594,22 @@
       if (!rows.length) return;
       if (!confirm(T.alts_ai_all_confirm.replace('{n}', rows.length))) return;
       btn.disabled = true;
-      let done = 0;
+      let done = 0, failed = false;
       for (const f of rows) {
         const name = f.url.split('/').pop();
         const info = el('alts-list').querySelector('input[data-name="' + CSS.escape(name) + '"]');
-        el('alts-ai-info').textContent = T.alts_ai_running
-          .replace('{i}', done + 1).replace('{n}', rows.length);
-        if (!await altAi(name, btn, info ? info.parentNode : document.createElement('div'))) break;
+        const step = T.alts_ai_running.replace('{i}', done + 1).replace('{n}', rows.length);
+        el('alts-ai-info').textContent = step;
+        busyShow(step);
+        if (!await altAi(name, btn, info ? info.parentNode : document.createElement('div'), true)) {
+          failed = true;   // Grund steht schon im Banner, nicht überschreiben
+          break;
+        }
         done++;
       }
       btn.disabled = false;
       el('alts-ai-info').textContent = T.alts_ai_done.replace('{n}', done);
+      if (!failed) busyDone(T.alts_ai_done.replace('{n}', done));
       if (done) saveAlts(el('alts-save'));
     }
     async function saveAlts(btn) {
@@ -7387,7 +7421,7 @@
       head.className = 'logo-set-head';
       const toggle = document.createElement('button');
       toggle.type = 'button';
-      toggle.className = 'logo-set-toggle';
+      toggle.className = 'set-toggle';
       const caret = document.createElement('span');
       caret.className = 'caret';
       caret.textContent = '▶';
