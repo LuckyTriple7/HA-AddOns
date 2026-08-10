@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.89.5] - 2026-08-10
+
+### Fixed
+- **STR-Flugplan-Modal komplett kaputt** — beim Einfügen des Blocks in
+  `index.html` waren HTML-Attribut-Anführungszeichen (`id="…"`, `class="…"`,
+  `viewBox="…"`) durch typografische Zeichen (`"…"`) ersetzt worden. Browser
+  erkannten die Attribute nicht mehr, `getElementById()` lieferte `null`,
+  app.js crashte beim Start und SVG-Icons rendern kaputt. Zurück auf gerade
+  Anführungszeichen.
+
+### Added
+- **Regressionstest `test_template_quotes.py`** — prüft alle `templates/*.html`
+  auf typografische Anführungszeichen an Attribut-Delimiter-Position, damit
+  dieser Fehler künftig vor dem Commit auffliegt statt live.
+
 ## [0.89.4] - 2026-08-10
 
 ### Added
