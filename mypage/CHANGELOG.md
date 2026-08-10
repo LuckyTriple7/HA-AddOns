@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.10.11
+- 🛡️ **Nachtrag zu 0.10.10:** Eine der fünf CodeQL-Meldungen kam wieder — der Fehlercode des Preiskatalogs steht selbst unter Verdacht. Er entsteht durch Nachschlagen mit einem Schlüssel aus Googles Antwort, und die kam auf eine Anfrage mit dem Abrechnungs-Schlüssel; damit gilt auch das Nachschlage-Ergebnis als aus der Antwort stammend, obwohl es nur eines von vier festen Wörtern sein kann. Der Code wird jetzt vor dem Loggen aus einer festen Liste geholt statt aus der Variablen — nachweislich eine Konstante, und ein unbekannter Code landet als `unbekannt` im Log statt ungeprüft.
+
 ## 0.10.10
 - 🛡️ **Fünf CodeQL-Meldungen behoben.**
   - **Pfad aus einem Anfragewert (2×, `py/path-injection`):** Die Spielregeln wurden aus `game_<spiel>_rules_<sprache>.md` zusammengesetzt, und die Sprache kommt seit 0.10.9 auch aus `?lang=` in der Adresszeile — also direkt vom Aufrufer in einen Dateinamen. Die Sprache wird jetzt auf eines von zwei festen Kürzeln zurückgeführt, bevor sie einen Pfad berührt, und der Pfad zusätzlich über `safe_join` gebaut. Ein Wert wie `?lang=../../etc/passwd` landet damit auf den deutschen Regeln statt irgendwo im Dateisystem.

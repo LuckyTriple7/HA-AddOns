@@ -6672,6 +6672,22 @@ _BILLING_REASONS = {
     'API_KEY_HTTP_REFERRER_BLOCKED': 'key_rejected',
     'CREDENTIALS_MISSING':           'key_rejected',
 }
+# Alle Fehlercodes, die dieser Bereich vergibt.
+BILLING_CODES = ('billing_disabled', 'key_rejected', 'service_not_found', 'failed')
+
+
+def _billing_code_label(code: str) -> str:
+    """Denselben Code — aber nachweislich aus der festen Liste oben geholt.
+
+    `code` entsteht in `_billing_error` durch Nachschlagen mit einem Schlüssel
+    aus Googles Antwort, und die kam auf eine Anfrage mit dem
+    Abrechnungs-Schlüssel. Damit gilt auch das Nachschlage-Ergebnis als aus der
+    Antwort stammend, obwohl es nur eines von vier festen Wörtern sein kann —
+    ins Log gehört es deshalb nicht ungeprüft. Der Umweg über die Liste macht
+    aus dem Wert eine Konstante und fängt nebenbei ab, wenn hier je ein
+    unbekannter Code ankommt.
+    """
+    return next((c for c in BILLING_CODES if c == code), 'unbekannt')
 
 
 def _billing_key() -> str:
@@ -6863,11 +6879,13 @@ def api_ai_prices_fetch():
         return jsonify({'error': 'invalid'}), 400
     result, code, reason = _gemini_fetch_prices(models)
     if code:
-        # Nur der eigene Fehlercode ins Log. `reason` ist Googles Klartext aus
-        # der Antwort auf eine Anfrage mit dem Abrechnungs-Schlüssel und gehört
-        # damit nicht ins Log (CodeQL py/clear-text-logging-sensitive-data). Der
-        # Admin sieht ihn weiterhin — er steht direkt darunter in der Antwort.
-        log.info("Preiskatalog abgelehnt (%s)", code)
+        # Nur der eigene Fehlercode ins Log, und der über `_billing_code_label`
+        # aus der festen Liste. `reason` — Googles Klartext — bleibt ganz
+        # draußen. Beides stammt aus der Antwort auf eine Anfrage mit dem
+        # Abrechnungs-Schlüssel und gehört damit nicht in eine Datei, die im
+        # Supportfall weitergereicht wird. Der Admin sieht beides weiterhin: es
+        # steht direkt darunter in der Antwort.
+        log.info("Preiskatalog abgelehnt (%s)", _billing_code_label(code))
         payload = {'error': code, 'reason': reason}
         if isinstance(result, dict):   # Diagnose auch im Fehlerfall mitgeben
             payload['service_count'] = result.get('service_count', 0)
