@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.4.9] - 2026-08-10
+
+### Fixed
+- Roh-HTML in Kommentaren, PR-/Issue-Beschreibungen und Release-Notes stand als
+  Tag-Salat im Klartext. Die Oberfläche rendert diese Texte bewusst escaped
+  (kein XSS), GitHub-Signaturen und `<details>`-Boxen bestehen aber aus
+  `<p>`/`<a>`/`<img>`-Blöcken. Tags werden jetzt serverseitig entfernt,
+  Zeilenumbrüche bleiben erhalten. Fenced- und Inline-Code sind ausgenommen,
+  dort ist HTML meist genau der Inhalt, den jemand zeigen will.
+
 ## [0.4.8] - 2026-08-10
 
 ### Added

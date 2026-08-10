@@ -2,6 +2,7 @@
 import base64
 import hashlib
 import hmac
+import html as htmllib
 import json
 import logging
 import os
@@ -587,6 +588,43 @@ def _check_token(token: str) -> tuple[bool, str, str]:
         return False, '', ''
 
 
+_CODE_SPLIT_RE   = re.compile(r'(```[\s\S]*?```|~~~[\s\S]*?~~~|`[^`\n]+`)')
+_HTML_COMMENT_RE = re.compile(r'<!--[\s\S]*?-->')
+_HTML_DROP_RE    = re.compile(r'<(?:img|picture|source|svg|iframe|video|audio)\b[^>]*>', re.I)
+_HTML_CELL_RE    = re.compile(r'</t[dh]\s*>', re.I)
+_HTML_BREAK_RE   = re.compile(r'<br\s*/?>|</(?:p|div|li|ul|ol|tr|h[1-6]|blockquote|summary|details|table)\s*>', re.I)
+_HTML_TAG_RE     = re.compile(r'</?[A-Za-z][A-Za-z0-9-]*(?:\s[^<>]*)?/?>')
+_BLANK_LINES_RE  = re.compile(r'\n{3,}')
+
+
+def _strip_html(text: str) -> str:
+    """Roh-HTML aus Markdown-Text entfernen.
+
+    Kommentare werden in der Oberfläche escaped gerendert (kein XSS). GitHub-Texte
+    enthalten aber oft HTML-Blöcke — Signaturen aus <p>/<a>/<img>, <details>-Boxen,
+    Tabellen — die dadurch als Tag-Salat im Klartext stehen. Fenced- und Inline-Code
+    bleibt unangetastet: dort ist HTML meist genau der Inhalt, den jemand zeigen will.
+    """
+    if not text or ('<' not in text and '&' not in text):
+        return text or ''
+    parts = _CODE_SPLIT_RE.split(text)
+    for i in range(0, len(parts), 2):  # ungerade Indizes sind die Code-Abschnitte
+        chunk = _HTML_COMMENT_RE.sub('', parts[i])
+        chunk = _HTML_DROP_RE.sub('', chunk)
+        chunk = _HTML_CELL_RE.sub(' ', chunk)
+        chunk = _HTML_BREAK_RE.sub('\n', chunk)
+        chunk = _HTML_TAG_RE.sub('', chunk)
+        # Erst nach dem Strippen entschärfen, sonst würde ein bewusst escaptes
+        # &lt;div&gt; zu einem echten Tag und gleich wieder wegfallen.
+        chunk = htmllib.unescape(chunk).replace('\xa0', ' ')
+        # Zeilenenden säubern, die letzte Zeile aber nicht: sie geht direkt in
+        # einen folgenden Code-Abschnitt über, dort würde das Leerzeichen fehlen.
+        lines = chunk.split('\n')
+        chunk = '\n'.join([ln.rstrip() for ln in lines[:-1]] + lines[-1:])
+        parts[i] = _BLANK_LINES_RE.sub('\n\n', chunk)
+    return ''.join(parts).strip()
+
+
 def _compute_review_state(reviews: list, requested: int = 0) -> str:
     """Aggregiert Review-Entscheidungen: 'approved', 'changes_requested', 'pending', 'none'.
 
@@ -649,7 +687,7 @@ def _fetch_repo_data(repo: str, token: str, run_limit: int = 25) -> dict:
             'comments_new': _comments_new(repo, pr['number'], _pr_cmts),
             'review_state': _compute_review_state(reviews_raw, len(_pr_reqs)),
             'reviewers':    [u.get('login', '') for u in _pr_reqs if u.get('login')],
-            'body':         (pr.get('body') or '')[:1500],
+            'body':         _strip_html(pr.get('body') or '')[:1500],
         })
 
     issues_raw = _gh_get_paginated(f'/repos/{repo}/issues', token) or []
@@ -670,7 +708,7 @@ def _fetch_repo_data(repo: str, token: str, run_limit: int = 25) -> dict:
             'closed_at': iss.get('closed_at'),
             'comments':     iss.get('comments') or 0,
             'comments_new': _comments_new(repo, iss['number'], iss.get('comments') or 0),
-            'body':      (iss.get('body') or '')[:1500],
+            'body':      _strip_html(iss.get('body') or '')[:1500],
         })
 
     closed_pulls_raw = _gh_get(f'/repos/{repo}/pulls', token,
@@ -959,7 +997,7 @@ def _fetch_releases(repos: list[str], token: str, include_betas: bool) -> list[d
                     'url':        rel['html_url'],
                     'date':       rel['published_at'],
                     'prerelease': is_pre or is_beta,
-                    'body':       (rel.get('body') or '')[:500],
+                    'body':       _strip_html(rel.get('body') or '')[:500],
                 })
                 break  # nur neuestes Release pro Repo
         except Exception as e:
@@ -1037,7 +1075,7 @@ def _fetch_my_activity(login: str, token: str) -> dict:
             'reviewers':    _meta.get('reviewers', []),
             'mergeable':    _meta.get('mergeable', ''),
             'labels':   [l['name'] for l in item.get('labels', [])],
-            'body':     (item.get('body') or '')[:1000],
+            'body':     _strip_html(item.get('body') or '')[:1000],
         }
 
     for item in _search(f'author:{login} type:pr state:open'):
@@ -2334,7 +2372,7 @@ def api_comments():
         return {
             'user':    user.get('login', '?'),
             'avatar':  user.get('avatar_url', ''),
-            'body':    (c.get('body') or '')[:_COMMENT_BODY_MAX],
+            'body':    _strip_html(c.get('body') or '')[:_COMMENT_BODY_MAX],
             'created': c.get(created_key) or '',
             'url':     c.get('html_url', ''),
             'kind':    kind,
