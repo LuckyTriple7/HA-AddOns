@@ -84,11 +84,16 @@ def _weekdays_short(weekdays: dict) -> str:
     return "".join(_WEEKDAY_SHORT[k] for k in _WEEKDAY_KEYS if weekdays.get(k)) or "–"
 
 
-def search_connections(query: str = "", *, flight_type: str = "", verbose: bool = False) -> list[dict] | None:
+def search_connections(query: str = "", *, flight_type: str = "", date_from: str = "",
+                       date_till: str = "", verbose: bool = False) -> list[dict] | None:
     """Verbindungen nach Zielflughafen (Code/Name) oder Land filtern.
-    `flight_type`: '' (beide), 'Departure' oder 'Arrival'. None bei
-    technischem Fehler (kein Cache-Stand vorhanden), sonst Liste (leer bei
-    keinem Treffer) von
+    `flight_type`: '' (beide), 'Departure' oder 'Arrival'. `date_from`/
+    `date_till`: Monatsgranularität 'YYYY-MM' (leer = keine Grenze) — ein
+    Eintrag zählt als Treffer, wenn sein Saisonzeitraum (DateFrom–DateTill)
+    das gewünschte Fenster überschneidet, nicht erst wenn er es vollständig
+    umschließt (Standard-Intervall-Überlappungstest). None bei technischem
+    Fehler (kein Cache-Stand vorhanden), sonst Liste (leer bei keinem
+    Treffer) von
     {type, airline_code, airline_name, flight_no, airport_code, airport_name,
      country, weekdays_short, departure, arrival, via, date_from, date_till}."""
     items = _cached_items(verbose=verbose)
@@ -96,9 +101,18 @@ def search_connections(query: str = "", *, flight_type: str = "", verbose: bool 
         return None
     q = (query or "").strip().lower()
     ft = (flight_type or "").strip()
+    # 'YYYY-MM' vergleicht sich als Text genauso wie als Datum (fixe Breite),
+    # kein date-Parsing nötig — Monatsgranularität reicht (Wunsch: "als
+    # Zeitraum reicht der Monat und das Jahr").
+    df = (date_from or "").strip()[:7]
+    dt = (date_till or "").strip()[:7]
     out = []
     for it in items:
         if ft and it.get("Type") != ft:
+            continue
+        if df and (it.get("DateTill") or "")[:7] < df:
+            continue
+        if dt and (it.get("DateFrom") or "")[:7] > dt:
             continue
         ap = it.get("Airport") or {}
         if q:

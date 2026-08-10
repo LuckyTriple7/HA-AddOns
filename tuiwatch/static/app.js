@@ -1740,22 +1740,39 @@
     function closeStrFlights(){ $('#strf-bg').classList.remove('show'); }
     $('#strf-bg').addEventListener('click', e=>{ if(e.target.id==='strf-bg') closeStrFlights(); });
     $('#strf-q').addEventListener('input', ()=>{ clearTimeout(strfTimer); strfTimer = setTimeout(strFlightsSearch, 350); });
+    $('#strf-von').addEventListener('change', strFlightsSearch);
+    $('#strf-bis').addEventListener('change', strFlightsSearch);
     async function strFlightsSearch(){
       const q = $('#strf-q').value.trim();
       const type = $('#strf-type').value;
+      const von = $('#strf-von').value;   // 'YYYY-MM' oder leer (input type=month)
+      const bis = $('#strf-bis').value;
       if(q.length < 2){
         $('#strf-body').innerHTML = '<div class="hint">Suchbegriff eingeben, z. B. „Palma", „PMI" oder „Spanien".</div>';
         return;
       }
       $('#strf-body').innerHTML = progBar('Suche…');
       let data;
-      try { data = await fetch(api('/api/strflights?q='+encodeURIComponent(q)+'&type='+encodeURIComponent(type))).then(r=>r.json()); }
+      try {
+        data = await fetch(api('/api/strflights?q='+encodeURIComponent(q)+'&type='+encodeURIComponent(type)
+          +'&from='+encodeURIComponent(von)+'&till='+encodeURIComponent(bis))).then(r=>r.json());
+      }
       catch(e){ data = {error:'fetch_failed'}; }
       if(data.error){
         $('#strf-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Flugplan nicht erreichbar. Bitte später erneut versuchen.</div>';
         return;
       }
       renderStrFlights(data.rows || []);
+    }
+    const STRF_MONTHS = ['Jan','Feb','Mär','Apr','Mai','Jun','Jul','Aug','Sep','Okt','Nov','Dez'];
+    // Zeitraum reicht auf Monat+Jahr verkürzt (Tagesgenauigkeit ist für die
+    // Saisonspanne einer Fahrplanzeile keine nützliche Information) — z. B.
+    // "Okt 2026–Mär 2027" statt "31.10.2026–27.03.2027".
+    function strfMonYear(iso){
+      const p = (iso||'').split('-');
+      if(p.length < 2) return iso || '';
+      const m = parseInt(p[1], 10);
+      return (STRF_MONTHS[m-1] || p[1]) + ' ' + p[0];
     }
     function renderStrFlights(rows){
       if(!rows.length){ $('#strf-body').innerHTML = '<div class="hint">Keine Verbindung gefunden.</div>'; return; }
@@ -1766,7 +1783,7 @@
         <td>${esc(r.airline_name)} ${esc(r.flight_no)}</td>
         <td>${esc(r.weekdays_short)}</td>
         <td>${esc(r.departure)}–${esc(r.arrival)}${r.via?' <span class="hint">via '+esc(r.via)+'</span>':''}</td>
-        <td class="hint">${deDate(r.date_from)}–${deDate(r.date_till)}</td>
+        <td class="hint">${strfMonYear(r.date_from)}–${strfMonYear(r.date_till)}</td>
       </tr>`).join('');
       $('#strf-body').innerHTML = `<div class="hint" style="margin-bottom:6px">${rows.length} Verbindung${rows.length===1?'':'en'} gefunden</div>
         <div style="overflow-x:auto"><table class="hist"><tr><th></th><th>Ziel</th><th>Land</th><th>Flug</th><th>Tage</th><th>Zeiten</th><th>Zeitraum</th></tr>${rowsHtml}</table></div>`;

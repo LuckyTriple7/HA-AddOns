@@ -1374,12 +1374,17 @@
       <h2>✈️ Flugplan ab Stuttgart Airport (STR)</h2>
       <div class="sub">Linienflug-Verbindungen nach Zielflughafen oder Land — Daten des Flughafen-Betreibers, keine Pauschalreise-Angebote.</div>
       <div class="shr-row" style="margin:10px 0">
-        <input type="text" id="strf-q" placeholder="Ziel suchen… (Flughafencode, Ort oder Land)" autocomplete="off" style="flex:1;min-width:220px">
+        <input type="text" id="strf-q" placeholder="Ziel suchen… (Code, Ort, Land)" autocomplete="off" style="flex:1 1 180px;min-width:140px">
         <select id="strf-type" onchange="strFlightsSearch()">
           <option value="">Abflug &amp; Ankunft</option>
           <option value="Departure">Nur Abflug ab STR</option>
           <option value="Arrival">Nur Ankunft in STR</option>
         </select>
+        <label class="hint" style="display:flex;align-items:center;gap:5px">Zeitraum
+          <input type="month" id="strf-von" title="Verbindung frühestens ab diesem Monat" style="width:150px">
+          <span>–</span>
+          <input type="month" id="strf-bis" title="Verbindung spätestens bis zu diesem Monat" style="width:150px">
+        </label>
       </div>
       <div id="strf-body"><div class="hint">Suchbegriff eingeben, z. B. „Palma“, „PMI“ oder „Spanien“.</div></div>
     </div>

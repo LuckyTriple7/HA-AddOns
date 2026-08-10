@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.89.3] - 2026-08-10
+
+### Added
+- **STR-Flugplan: Zeitraum-Filter** (von/bis, Monatsauswahl) — grenzt die
+  Suche auf Verbindungen ein, deren Saisonzeitraum das gewählte Fenster
+  überschneidet.
+
+### Changed
+- **STR-Flugplan-Suchfeld schmaler**, Zeitraum-Filter passt in dieselbe Zeile.
+- **Zeitraum-Spalte zeigt nur noch Monat + Jahr** (z. B. „Okt 2026–Mär 2027“
+  statt „31.10.2026–27.03.2027“) — Tagesgenauigkeit war für die Saisonspanne
+  einer Fahrplanzeile keine nützliche Information.
+
 ## [0.89.2] - 2026-08-10
 
 ### Fixed

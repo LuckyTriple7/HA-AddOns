@@ -18,7 +18,10 @@ def api_str_flights():
     flight_type = (request.args.get('type') or '').strip()
     if flight_type not in ('', 'Departure', 'Arrival'):
         return jsonify({'error': 'bad_type'}), 400
-    rows = str_flights_client.search_connections(q, flight_type=flight_type, verbose=A._verbose())
+    date_from = (request.args.get('from') or '').strip()
+    date_till = (request.args.get('till') or '').strip()
+    rows = str_flights_client.search_connections(
+        q, flight_type=flight_type, date_from=date_from, date_till=date_till, verbose=A._verbose())
     if rows is None:
         return jsonify({'error': 'fetch_failed'}), 502
     return jsonify({'rows': rows})
