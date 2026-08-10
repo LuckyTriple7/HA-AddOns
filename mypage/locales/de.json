@@ -2508,6 +2508,7 @@
   "logo_import_hint": "Ohne KI: ein vorhandenes Bild in dieselben Größen bringen. Je größer die Vorlage, desto besser — kleiner als das größte Ziel wird sie hochgerechnet und unscharf.",
   "logo_sets": "Vorhandene Sätze",
   "logo_sets_empty": "Noch kein Logo-Satz vorhanden.",
+  "logo_set_files": "{n} Dateien — zum Anzeigen anklicken",
   "logo_path": "Ablage auf dem Share: {v}",
   "logo_zip": "Alle als ZIP",
   "logo_rerender": "Größen neu rechnen",

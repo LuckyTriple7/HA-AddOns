@@ -227,8 +227,15 @@
       background-size: 16px 16px; background-position: 0 0, 8px 8px; }
     .ai-card.logo-card img { aspect-ratio: 1 / 1; object-fit: contain; }
     .logo-set { border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 10px; background: var(--surf2); }
-    .logo-set-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+    .logo-set-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
     .logo-set-head strong { word-break: break-all; }
+    /* Der Name klappt den Satz auf — zusammengeklappt ist die Liste eine Zeile je Satz. */
+    .logo-set-toggle { display: flex; align-items: center; gap: 8px; background: none; border: 0; padding: 0; margin: 0;
+      color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+    .logo-set-toggle .caret { color: var(--muted); font-size: 0.8rem; transition: transform .15s; }
+    .logo-set-toggle[aria-expanded="true"] .caret { transform: rotate(90deg); }
+    .logo-set-toggle .count { color: var(--muted); font-size: 0.78rem; font-weight: 400; }
+    .logo-set .logo-grid { margin-top: 10px; }
     .logo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 8px; }
     .logo-file { border: 1px solid var(--border); border-radius: 6px; padding: 6px; text-align: center; font-size: 0.7rem; color: var(--muted); background: var(--surf); }
     .logo-file img { width: 100%; height: 62px; object-fit: contain; display: block; margin-bottom: 5px; border-radius: 4px; }
@@ -6954,6 +6961,7 @@
       busyDone(T.logo_saved.replace('{n}', d.files.length).replace('{v}', d.slug));
       card.remove();
       logoStripChanged();
+      logoOpenSets.add(d.slug);   // frisch erzeugt: Ergebnis soll man sofort sehen
       loadLogoSets();
     }
     function logoErr(code) {
@@ -6985,6 +6993,7 @@
       const d = r ? await r.json().catch(() => ({})) : {};
       if (!r || !r.ok) { busyDone(logoErr(d.error), true); return; }
       busyDone(T.logo_saved.replace('{n}', d.files.length).replace('{v}', d.slug));
+      logoOpenSets.add(d.slug);
       loadLogoSets();
     }
     async function loadLogoSets() {
@@ -7003,13 +7012,25 @@
       }
       d.sets.forEach(s => box.appendChild(logoSetNode(s)));
     }
+    // Aufgeklappte Sätze überleben das Neuladen der Liste (Neu-Rechnen, Löschen).
+    const logoOpenSets = new Set();
     function logoSetNode(s) {
       const wrap = document.createElement('div');
       wrap.className = 'logo-set';
       const head = document.createElement('div');
       head.className = 'logo-set-head';
+      const toggle = document.createElement('button');
+      toggle.type = 'button';
+      toggle.className = 'logo-set-toggle';
+      const caret = document.createElement('span');
+      caret.className = 'caret';
+      caret.textContent = '▶';
       const name = document.createElement('strong');
       name.textContent = s.slug;
+      const count = document.createElement('span');
+      count.className = 'count';
+      count.textContent = T.logo_set_files.replace('{n}', s.files.length);
+      toggle.append(caret, name, count);
       const acts = document.createElement('div');
       acts.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap';
       const zip = document.createElement('a');
@@ -7026,9 +7047,18 @@
       del.textContent = '🗑 ' + T.ai_delete;
       del.onclick = () => logoDelete(s.slug);
       acts.append(zip, again, del);
-      head.append(name, acts);
+      head.append(toggle, acts);
       const grid = document.createElement('div');
       grid.className = 'logo-grid';
+      const open = logoOpenSets.has(s.slug);
+      grid.style.display = open ? '' : 'none';
+      toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+      toggle.onclick = () => {
+        const now = grid.style.display === 'none';
+        grid.style.display = now ? '' : 'none';
+        toggle.setAttribute('aria-expanded', now ? 'true' : 'false');
+        if (now) logoOpenSets.add(s.slug); else logoOpenSets.delete(s.slug);
+      };
       s.files.forEach(f => {
         const cell = document.createElement('div');
         cell.className = 'logo-file';
@@ -7069,6 +7099,7 @@
       btn.disabled = false;
       if (!r || !r.ok) { busyDone(logoErr(d.error), true); return; }
       busyDone(T.logo_saved.replace('{n}', d.files.length).replace('{v}', d.slug));
+      logoOpenSets.add(slug);
       loadLogoSets();
     }
     async function logoDelete(slug) {

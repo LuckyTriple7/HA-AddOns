@@ -2508,6 +2508,7 @@
   "logo_import_hint": "Without AI: bring an existing image into the same sizes. The bigger the source, the better — anything smaller than the largest target gets upscaled and turns blurry.",
   "logo_sets": "Existing sets",
   "logo_sets_empty": "No logo set yet.",
+  "logo_set_files": "{n} files — click to show",
   "logo_path": "Stored on the share at: {v}",
   "logo_zip": "All as ZIP",
   "logo_rerender": "Re-render sizes",

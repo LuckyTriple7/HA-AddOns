@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.10.15
+- 📁 **Vorhandene Logo-Sätze klappen jetzt zusammen.** Jeder Satz zeigte alle Vorschaubilder auf einmal — bei mehreren Sätzen war der Logo-Designer damit endlos lang. Zu sehen ist nun je Satz eine Zeile mit Name, Dateizahl und den Knöpfen „Alle als ZIP", „Größen neu rechnen" und „Löschen"; ein Klick auf den Namen zeigt die Dateien, ein zweiter versteckt sie wieder.
+- 🔓 **Frisch gespeicherte, eingelesene und neu gerechnete Sätze klappen von selbst auf** — das Ergebnis will man sofort sehen. Welche Sätze offen sind, bleibt auch dann erhalten, wenn sich die Liste zwischendurch neu aufbaut.
+
 ## 0.10.14
 - ↺ **„Zurücksetzen" im KI-Tab — in allen drei Studios.** Wer einen gespeicherten Entwurf geöffnet hatte und danach etwas Neues anfangen wollte, kam bisher nur über das Neuladen der Seite (Strg+R) zu leeren Feldern zurück. Der neue Knopf steht jeweils direkt neben „Erzeugen".
 - 📝 **Text-Studio:** leert Thema, Titel, SEO-Beschreibung, beide Textfassungen, Schlagwörter und den Entwurfsnamen und stellt Textart, Tonfall, Länge, Sprachen und Schreibweise auf die Vorgaben zurück. Ein geöffneter Entwurf wird gelöst, damit das nächste Speichern nicht den alten Eintrag überschreibt.
