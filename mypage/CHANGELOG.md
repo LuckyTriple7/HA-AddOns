@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.10.26
+- 📏 **Auswahlfelder und Knöpfe stehen wieder auf einer Linie.** Ein Knopf bringt 16 px Abstand nach oben mit — gedacht für Knöpfe **unter** einem Formular. Steht er neben einem Feld, schob dieser Abstand die ganze Zeile nach unten, und die Nachbarspalte lag höher. Am deutlichsten im neuen Übersetzen-Bereich („Eintrag" und „Feld" versetzt), aber dieselbe Schieflage steckte in jeder Zeile mit einem großen Knopf — Prompt speichern, Entwurf speichern, Überarbeiten, Text ins Studio holen.
+- ↔️ Auswahlfelder in solchen Zeilen füllen jetzt die freie Breite, statt sich auf ihren Inhalt zu schrumpfen, und der Knopf daneben bricht nicht mehr in zwei Zeilen um.
+
 ## 0.10.25
 - 🩹 **Übersetzen lud nur die Überschrift.** Die Feldauswahl stand nach dem Wählen eines Eintrags auf „Titel" — der ersten Option — und „Laden" holte folgerichtig nur die Überschrift. Vorbelegt ist jetzt der **Fließtext**; Titel und SEO-Beschreibung bleiben in derselben Auswahl.
 - 👀 **Eintrag und Feld stehen jetzt nebeneinander, jedes mit eigener Beschriftung.** Vorher hingen beide Auswahlfelder ohne Unterscheidung in einer Zeile, und dass es überhaupt eine Feldauswahl gibt, war leicht zu übersehen. Bei „freie Eingabe" verschwindet sie ganz.

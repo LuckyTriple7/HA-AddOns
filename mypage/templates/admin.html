@@ -194,6 +194,12 @@
 
     .upload-row { display: flex; gap: 8px; align-items: center; }
     .upload-row input[type="text"] { flex: 1; }
+    /* `.btn` bringt margin-top:16px mit (für Knöpfe unter einem Formular). In
+       einer Zeile neben einem Feld schiebt dieser Abstand die ganze Zeile nach
+       unten — daneben stehende Spalten stehen dann nicht mehr auf einer Linie.
+       `.btn.small` setzt ihn schon selbst zurück, große Knöpfe brauchen es hier. */
+    .upload-row > .btn { margin-top: 0; white-space: nowrap; }
+    .upload-row > select { min-width: 0; flex: 1; }
     /* Reiseblog-Wizard */
     .wiz-steps { display: flex; flex-wrap: wrap; gap: 6px; margin: 14px 0 16px; }
     .wiz-step { background: var(--surf2); border: 1px solid var(--border); color: var(--muted); padding: 5px 11px; border-radius: 99px; font-size: 0.78rem; cursor: pointer; }

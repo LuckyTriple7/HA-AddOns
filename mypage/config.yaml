@@ -1,6 +1,6 @@
 name: MyPage
 description: Homepage-Baukasten — eigene Projekte präsentieren, GitHub-Import, Besucherzähler
-version: "0.10.25"
+version: "0.10.26"
 slug: mypage
 url: https://github.com/LuckyTriple7/HA-AddOns
 image: "ghcr.io/luckytriple7/mypage"
