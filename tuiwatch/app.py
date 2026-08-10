@@ -2839,6 +2839,7 @@ def index():
         trippilot_home_location=(cfg.get('trippilot_home_location') or '').strip(),
         is_ingress=_is_ingress(),
         check24_enabled=bool(cfg.get('enable_check24_compare', False)),
+        str_flights_enabled=bool(cfg.get('enable_str_flights', False)),
         share_enabled=bool(cfg.get('enable_public_share', False)),
         app_version=APP_VERSION))
 
@@ -3408,6 +3409,7 @@ api_rooms_set = offers_routes.api_rooms_set
 import trips_routes  # noqa: E402
 import backup_routes  # noqa: E402
 import check24_routes  # noqa: E402
+import str_flights_routes  # noqa: E402
 import market_basket  # noqa: E402
 import stats_routes  # noqa: E402
 import share_routes  # noqa: E402
@@ -3415,6 +3417,7 @@ app.register_blueprint(stats_routes.bp)
 app.register_blueprint(trips_routes.bp)
 app.register_blueprint(backup_routes.bp)
 app.register_blueprint(check24_routes.bp)
+app.register_blueprint(str_flights_routes.bp)
 app.register_blueprint(market_basket.bp)
 # Nur die Admin-Routen (/api/shares…) hängen an der geschützten App. Die
 # öffentliche Seite lebt in share_routes.share_app auf einem eigenen Port, siehe

@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.88.1] - 2026-08-10
+
+### Added
+- **Flugplan ab Stuttgart Airport (STR)** (neuer ✈️-Knopf in der Kopfzeile,
+  Opt-in `enable_str_flights`): eigenständige Suche nach Linienflug-
+  Verbindungen (Abflug/Ankunft, Fluggesellschaft, Wochentage, Zeiten,
+  Saisonzeitraum) über Zielflughafen oder Land. Nutzt das offene JSON-API des
+  Flughafen-Betreibers (`fsg-datahub.azure-api.net`), keine Anmeldung nötig,
+  komplett unabhängig von TUI-/Check24-Angeboten. Details: SCRAPING_STR.md.
+
 ## [0.88.0] - 2026-08-07
 
 ### Added

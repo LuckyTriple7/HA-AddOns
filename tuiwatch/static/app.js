@@ -1730,6 +1730,44 @@
     function closePriceSplit(){ $('#split-bg').classList.remove('show'); }
     $('#split-bg').addEventListener('click', e=>{ if(e.target.id==='split-bg') closePriceSplit(); });
 
+    // ── STR-Flugplan (Direktverbindungen Stuttgart Airport, unabhängig von Reisen) ──
+    let strfTimer = null;
+    function openStrFlights(){ $('#strf-bg').classList.add('show'); $('#strf-q').focus(); }
+    function closeStrFlights(){ $('#strf-bg').classList.remove('show'); }
+    $('#strf-bg').addEventListener('click', e=>{ if(e.target.id==='strf-bg') closeStrFlights(); });
+    $('#strf-q').addEventListener('input', ()=>{ clearTimeout(strfTimer); strfTimer = setTimeout(strFlightsSearch, 350); });
+    async function strFlightsSearch(){
+      const q = $('#strf-q').value.trim();
+      const type = $('#strf-type').value;
+      if(q.length < 2){
+        $('#strf-body').innerHTML = '<div class="hint">Suchbegriff eingeben, z. B. „Palma", „PMI" oder „Spanien".</div>';
+        return;
+      }
+      $('#strf-body').innerHTML = progBar('Suche…');
+      let data;
+      try { data = await fetch(api('/api/strflights?q='+encodeURIComponent(q)+'&type='+encodeURIComponent(type))).then(r=>r.json()); }
+      catch(e){ data = {error:'fetch_failed'}; }
+      if(data.error){
+        $('#strf-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Flugplan nicht erreichbar. Bitte später erneut versuchen.</div>';
+        return;
+      }
+      renderStrFlights(data.rows || []);
+    }
+    function renderStrFlights(rows){
+      if(!rows.length){ $('#strf-body').innerHTML = '<div class="hint">Keine Verbindung gefunden.</div>'; return; }
+      const rowsHtml = rows.map(r => `<tr>
+        <td title="${r.type==='Departure'?'Abflug ab STR':'Ankunft in STR'}">${r.type==='Departure'?'🛫':'🛬'}</td>
+        <td>${esc(r.airport_name)} <span class="hint">(${esc(r.airport_code)})</span></td>
+        <td>${esc(r.country)}</td>
+        <td>${esc(r.airline_name)} ${esc(r.flight_no)}</td>
+        <td>${esc(r.weekdays_short)}</td>
+        <td>${esc(r.departure)}–${esc(r.arrival)}${r.via?' <span class="hint">via '+esc(r.via)+'</span>':''}</td>
+        <td class="hint">${deDate(r.date_from)}–${deDate(r.date_till)}</td>
+      </tr>`).join('');
+      $('#strf-body').innerHTML = `<div class="hint" style="margin-bottom:6px">${rows.length} Verbindung${rows.length===1?'':'en'} gefunden</div>
+        <div style="overflow-x:auto"><table class="hist"><tr><th></th><th>Ziel</th><th>Land</th><th>Flug</th><th>Tage</th><th>Zeiten</th><th>Zeitraum</th></tr>${rowsHtml}</table></div>`;
+    }
+
     // ── Reisen-Datenbank (PDF-Import gebuchter Reisen) ──────────────────────────
     let tripsData = [];
     function eur(v){ return (v==null||v==='')?'–':Number(v).toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2})+' €'; }
