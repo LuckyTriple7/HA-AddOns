@@ -86,47 +86,30 @@ in jeder HA-Instanz ohne KI drei Sensoren mit 0 herum.
 
 ---
 
-## KI-Studio — zurückgestellte Ausbaustufen
+## KI-Studio — nichts mehr offen, aber Fallstricke merken
 
-**Stand:** aufgenommen am 2026-08-10 bei der Durchsicht des KI-Tabs (v0.10.16).
-Umgesetzt wurden daraus bereits die Übernahme passend zur Textart, das
-Überarbeiten vorhandener Texte und die Dauervorgaben. Der Rest steht hier.
+**Stand:** alle acht Punkte der Durchsicht vom 2026-08-10 sind umgesetzt —
+Übernahme passend zur Textart, Überarbeiten, Dauervorgaben (v0.10.16),
+Seitenverhältnis im Studio, Variation, „Vorherige Fassung", Entwurfssuche
+(v0.10.17), Kostenschätzung (v0.10.18), Prompt-Bibliothek (v0.10.19),
+vorhandene Texte laden (v0.10.20), Alternativtexte (v0.10.21). Hier stehen nur
+noch die Stolperstellen für spätere Arbeit.
 
-Grob nach Nutzen pro Aufwand sortiert:
+**Fallstricke, die schon bekannt sind:**
 
-- **Seitenverhältnis ins Bild-Studio spiegeln.** `ai-ratio` steht im
-  Einstellungs-Panel, wird aber je Bildlauf mitgeschickt (`runAiImage`). Zum
-  Wechseln muss man hochscrollen und die Einstellungen speichern. Dasselbe
-  `<select>` gehört neben „Anzahl" — beide Stellen auf denselben Wert
-  synchronisieren, gespeichert wird weiterhin nur oben.
-- **„↻ Variation" an der Ergebniskarte.** Heute: „🎨 Als Vorlage" klicken, hoch
-  scrollen, neu erzeugen. Ein Knopf auf der Karte kann `setAiRef(url)` und
-  `runAiImage()` in einem Schritt tun. Nur für bereits gespeicherte Bilder
-  sinnvoll — ein Entwurf hat noch keine Upload-Adresse, die als `ref` taugt.
-- **Kostenschätzung vor dem Lauf.** Preise und Verbrauch liegen seit v0.9.8 in
-  `ai_usage.json`, `_ai_usage_cost()` rechnet eine Zeile ab. Daraus eine Zeile
-  „4 Bilder ≈ 0,12 $" neben dem Erzeugen-Knopf. Haken: für Text sind die Tokens
-  vorher nicht bekannt — dort nur der Preis je Mio. Tokens als Anhalt, keine
-  Summe, sonst steht da eine erfundene Zahl.
-- **Prompt-Bibliothek fürs Bild-Studio.** Das Text-Studio hat Entwürfe
-  (`ai_drafts.json`), das Bild-Studio nichts — ein guter Prompt ist nach dem
-  Neuladen weg. Gleiche Mechanik, eigene Datei `ai_prompts.json`: Name, Prompt,
-  Stil-Anhang, Vorlagenbild, Anzahl. Backup-Regex nicht vergessen.
-- **Vorhandenen Beitrag ins Studio laden.** Gegenrichtung zu „Als Blogbeitrag
-  übernehmen": Beitrag/Projekt/Bibliothek-Eintrag auswählen, Felder füllen, dann
-  überarbeiten oder die fehlende Sprache nachziehen. Braucht eine Auswahl-Liste
-  im Studio und die Rückrichtung der Feldzuordnung aus `aiToPost()` und
-  Geschwistern. **Haken:** die Zuordnung ist nicht überall verlustfrei — ein
-  Projekt hat nur einen Titel für beide Sprachen.
-- **Sicherheitsnetz beim Neu-Erzeugen.** Ein zweiter Lauf überschreibt die Felder
-  still, ebenso jede Überarbeitung. Die vorige Fassung im Speicher halten und
-  „↶ Vorherige Fassung" anbieten (nur zur Laufzeit, nichts speichern).
-- **Entwurfsliste: Suche und Sortierung.** Ab ~20 Einträgen wird die Liste
-  unübersichtlich. Filterfeld über Name und Textart, Sortierung nach Datum oder
-  Name. Rein im Frontend, `/api/ai/drafts` liefert bereits alle Zeilen.
-- **KI-Alt-Text für Bilder.** Uploads haben keinerlei Alt-Text — nur
-  Reiseblog-Fotos kennen Bildunterschriften. Bilder gehen damit ohne
-  Alternativtext in Beiträge, schlecht für Barrierefreiheit und SEO. Gemini kann
-  ihn aus dem Bild erzeugen (DE + EN). **Der größte Brocken der Liste:** Uploads
-  brauchen dafür überhaupt erst eine Metadaten-Ablage, und die öffentlichen
-  Vorlagen müssen den Text dann auch ausgeben.
+- `_reference_blob()` entscheidet, was „Speicher aufräumen" für benutzt hält.
+  `ai_prompts.json` **gehört hinein** (ein gespeichertes Vorlagenbild ist eine
+  echte Verwendung), `uploads_meta.json` **auf keinen Fall** — sonst gälte jede
+  Datei mit Alternativtext als benutzt und es gäbe nie wieder eine Waise.
+- Alternativtexte hängen am Dateinamen. Wer einen weiteren Weg zum Löschen von
+  Uploads baut, muss `_uploads_meta_forget()` mit aufrufen, sonst bleiben
+  Einträge für Dateien zurück, die es nicht mehr gibt.
+- `render_md()` füllt **nur leere** `alt=""`. Ein selbst geschriebener Text in
+  `![…](…)` bleibt unangetastet — das ist Absicht und keine Lücke.
+- Das Seitenverhältnis steht an zwei Stellen (Einstellungen und Bild-Studio).
+  `aiRatioChanged()` hält sie gleich; gespeichert wird nur die obere. Wer eine
+  dritte Stelle baut, muss sie dort eintragen.
+- Die Kostenschätzung für Text ist bewusst eine Schätzung mit genannter Annahme.
+  Wer sie „genauer" macht, ohne die Tokens zu kennen, macht sie nur falscher.
+- Neue Ablagen im Add-on-Konfigurationsordner gehören in **beide** Listen des
+  Backups (Sichern und Wiederherstellen) — sonst fehlen sie beim Zurückspielen.
