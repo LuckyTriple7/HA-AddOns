@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.10.19
+- 💾 **Prompt-Bibliothek im Bild-Studio.** Das Text-Studio kann Entwürfe speichern, das Bild-Studio konnte es nicht — ein mühsam zurechtgefeilter Prompt war nach dem Neuladen weg. **„Prompt speichern"** legt Beschreibung, Anzahl, Seitenverhältnis und Vorlagenbild unter einem Namen ab, **„📂 Übernehmen"** holt alles zurück ins Studio. Ohne Namen werden die ersten Wörter genommen; derselbe Name überschreibt den Eintrag, statt eine zweite Zeile anzulegen.
+- 🗄️ Gespeichert wird in einer eigenen Datei `ai_prompts.json` im Add-on-Konfigurationsordner, höchstens 100 Einträge, **im Backup und in der Wiederherstellung enthalten**.
+- 🧹 **Ein in der Bibliothek hinterlegtes Vorlagenbild gilt als benutzt** und wird von „Speicher aufräumen" nicht mehr als verwaist gelöscht.
+
 ## 0.10.18
 - 💰 **Was der nächste Lauf kostet, steht jetzt unter dem Knopf.** Bisher sah man den Preis erst hinterher im Verbrauchs-Bereich. Bild-Studio und Logo-Designer zeigen „≈ 0,16 $ für 4 Bilder", das Text-Studio eine Schätzung samt genannter Annahme („bei rund 800 Wörtern Ausgabe") — abgerechnet wird nach Tokens, die vorher niemand kennt, und eine nackte Zahl wäre hier eine erfundene.
 - 🔁 Die Anzeige rechnet **live** mit: Länge, Sprachen, Thema, Modellwechsel und Bildanzahl schlagen sofort durch. Gerechnet wird mit denselben Preisen wie im Verbrauchs-Bereich, eigene Werte schlagen die Vorgaben. Ist für ein Modell kein Preis hinterlegt, steht dort der Hinweis statt einer Zahl.

@@ -115,6 +115,7 @@ SESSIONS_PATH = _DATA + '/sessions.json'
 USERS_PATH    = _DATA + '/users.json'
 AI_USAGE_PATH = _DATA + '/ai_usage.json'   # Gemini-Verbrauch je Monat und Modell
 AI_DRAFTS_PATH = _DATA + '/ai_drafts.json'  # gespeicherte Entwürfe des Text-Studios
+AI_PROMPTS_PATH = _DATA + '/ai_prompts.json'  # Prompt-Bibliothek des Bild-Studios
 USESSIONS_PATH = _DATA + '/user_sessions.json'
 DM_PATH       = _DATA + '/dm.json'          # Mitglieder-Direktnachrichten (Text verschlüsselt)
 DMKEY_PATH    = _DATA + '/dm.key'           # Fernet-Schlüssel für die DM-Verschlüsselung
@@ -264,6 +265,7 @@ _game_lock  = threading.Lock()
 _polls_lock = threading.Lock()
 _travel_lock = threading.Lock()
 _ai_drafts_lock = threading.Lock()
+_ai_prompts_lock = threading.Lock()
 
 # Mitglieder-Sessions (getrennt vom Admin)
 user_sessions: dict[str, list] = {}  # token → [user_id, expires]
@@ -4571,7 +4573,8 @@ def write_backup_zip(fp) -> None:
         for name in ('site.json', 'stats.json', 'messages.json', 'users.json',
                      'comments.json', 'audit.json', 'subscribers.json',
                      'dm.json', 'dm.key', 'admin_2fa.json', 'secret.key',
-                     'ai_usage.json', 'travel.json', 'ai_drafts.json'):
+                     'ai_usage.json', 'travel.json', 'ai_drafts.json',
+                     'ai_prompts.json'):
             p = Path(_DATA) / name
             if p.is_file():
                 z.write(p, name)
@@ -4769,7 +4772,7 @@ def api_restore():
                 if member in ('site.json', 'stats.json', 'messages.json', 'users.json',
                               'comments.json', 'audit.json', 'subscribers.json', 'dm.json',
                               'admin_2fa.json', 'ai_usage.json', 'travel.json',
-                              'ai_drafts.json'):
+                              'ai_drafts.json', 'ai_prompts.json'):
                     target = safe_under(Path(_DATA), member)
                 elif member in ('dm.key', 'secret.key'):  # Binär-/Text-Schlüssel, kein JSON
                     target = safe_under(Path(_DATA), member)
@@ -5036,6 +5039,10 @@ AI_TEXT_ACTIONS = ('shorter', 'longer', 'polish', 'custom')
 AI_TEXT_NOTE_MAX = 500
 AI_INSTRUCTIONS_MAX = 800           # Dauervorgaben, hängen an jedem Textlauf
 AI_DRAFTS_MAX = 200                 # ältester Entwurf fliegt raus, wenn voll
+AI_PROMPTS_MAX = 100                # dasselbe für die Prompt-Bibliothek
+# Ein gespeichertes Vorlagenbild ist eine eigene Upload-Adresse und nichts
+# anderes — der Wert landet im Browser in einem <img src> und in einer Anfrage.
+_UPLOAD_PATH_RE = re.compile(r'^/uploads/[A-Za-z0-9._-]+$')
 AI_DRAFT_TEXT_MAX = 60_000          # ein „langer" Artikel liegt bei ~6 kB
 AI_TRANSLATE_PROVIDERS = ('mymemory', 'gemini')
 # Interner Fehlercode -> Code fuer das Frontend. `model_missing` ist der Fall,
@@ -6441,6 +6448,104 @@ def api_ai_draft_delete(did):
     if len(rest) == len(drafts):
         return jsonify({'error': 'not_found'}), 404
     if not _ai_drafts_save(rest):
+        return jsonify({'error': 'save_failed'}), 500
+    return jsonify({'ok': True})
+
+
+# ── Prompt-Bibliothek des Bild-Studios ────────────────────────────────────────
+#
+# Dasselbe Muster wie die Text-Entwürfe, nur kleiner: ein guter Prompt ist Arbeit
+# und war nach dem Neuladen weg. Die Einträge bleiben klein genug, dass die Liste
+# sie vollständig ausliefert — es gibt also keinen zweiten Aufruf zum Laden.
+# Achtung: das Vorlagenbild ist eine Upload-Adresse, deshalb liest
+# `_reference_blob()` diese Datei mit, sonst räumt „Speicher aufräumen" sie weg.
+
+def _ai_prompts_load() -> list[dict]:
+    with _ai_prompts_lock:
+        try:
+            with open(AI_PROMPTS_PATH, encoding='utf-8') as f:
+                data = json.load(f)
+        except FileNotFoundError:
+            return []
+        except Exception as e:
+            _quarantine_corrupt(AI_PROMPTS_PATH, e)
+            return []
+    items = data.get('prompts') if isinstance(data, dict) else None
+    return [p for p in items if isinstance(p, dict)] if isinstance(items, list) else []
+
+
+def _ai_prompts_save(items: list[dict]) -> bool:
+    with _ai_prompts_lock:
+        try:
+            _atomic_write_json(AI_PROMPTS_PATH, {'prompts': items}, indent=2)
+            return True
+        except Exception as e:
+            log.error("ai_prompts.json konnte nicht gespeichert werden: %s", e)
+            return False
+
+
+def _ai_prompt_from(raw: dict, existing: dict | None = None) -> dict:
+    now = int(datetime.now(timezone.utc).timestamp())
+    p = existing or {'id': uuid.uuid4().hex[:12], 'ts': now}
+    p['updated'] = now
+    p['name']   = _clean_str(raw.get('name'), 120)
+    p['prompt'] = _clean_str(raw.get('prompt'), AI_IMAGE_PROMPT_MAX)
+    p['ratio']  = raw.get('ratio') if raw.get('ratio') in GEMINI_IMAGE_RATIOS else ''
+    try:
+        p['count'] = max(1, min(AI_STUDIO_MAX_IMAGES, int(raw.get('count') or 1)))
+    except (TypeError, ValueError):
+        p['count'] = 1
+    # Nur eigene Uploads, gleiche Form wie im Studio — der Wert landet später in
+    # einem <img src> und in einer Anfrage
+    ref = _clean_str(raw.get('ref'), 200)
+    p['ref'] = ref if _UPLOAD_PATH_RE.match(ref) else ''
+    if not p['name']:
+        p['name'] = p['prompt'][:60] or datetime.now().strftime('%Y-%m-%d %H:%M')
+    return p
+
+
+@admin_app.route('/api/ai/prompts')
+def api_ai_prompts():
+    err = _api_auth()
+    if err:
+        return err
+    items = sorted(_ai_prompts_load(), key=lambda p: p.get('updated', 0), reverse=True)
+    return jsonify({'prompts': items, 'max': AI_PROMPTS_MAX})
+
+
+@admin_app.route('/api/ai/prompts', methods=['POST'])
+def api_ai_prompt_save():
+    err = _api_auth()
+    if err:
+        return err
+    raw = request.get_json(silent=True) or {}
+    items = _ai_prompts_load()
+    pid = _clean_str(raw.get('id'), 32)
+    existing = next((x for x in items if x.get('id') == pid), None) if pid else None
+    p = _ai_prompt_from(raw, existing)
+    if len(p['prompt']) < 3:
+        return jsonify({'error': 'empty'}), 400
+    if existing is None:
+        items.append(p)
+        if len(items) > AI_PROMPTS_MAX:
+            items = sorted(items, key=lambda x: x.get('updated', 0),
+                           reverse=True)[:AI_PROMPTS_MAX]
+    if not _ai_prompts_save(items):
+        return jsonify({'error': 'save_failed'}), 500
+    log.info("Bild-Prompt gespeichert (%s)", p['id'])
+    return jsonify({'ok': True, 'id': p['id'], 'name': p['name']})
+
+
+@admin_app.route('/api/ai/prompts/<pid>', methods=['DELETE'])
+def api_ai_prompt_delete(pid):
+    err = _api_auth()
+    if err:
+        return err
+    items = _ai_prompts_load()
+    rest = [p for p in items if p.get('id') != pid]
+    if len(rest) == len(items):
+        return jsonify({'error': 'not_found'}), 404
+    if not _ai_prompts_save(rest):
         return jsonify({'error': 'save_failed'}), 500
     return jsonify({'ok': True})
 
@@ -8084,12 +8189,15 @@ def api_docs_delete():
 def _reference_blob(site: dict) -> str:
     """Der Text, in dem nach Dateinamen gesucht wird.
 
-    Enthält site.json UND travel.json. Ohne den Reiseblog-Teil hielte das
-    Aufräumen jedes Reisefoto für verwaist und löschte es beim nächsten Klick —
-    derselbe Grund, aus dem der Löschschutz im Datei-Browser hier mitliest.
+    Enthält site.json, travel.json UND die Prompt-Bibliothek. Ohne den
+    Reiseblog-Teil hielte das Aufräumen jedes Reisefoto für verwaist und löschte
+    es beim nächsten Klick — derselbe Grund, aus dem der Löschschutz im
+    Datei-Browser hier mitliest. Dieselbe Falle gilt für das Vorlagenbild eines
+    gespeicherten Prompts.
     """
     return (json.dumps(site, ensure_ascii=False)
-            + json.dumps(load_travel(), ensure_ascii=False))
+            + json.dumps(load_travel(), ensure_ascii=False)
+            + json.dumps(_ai_prompts_load(), ensure_ascii=False))
 
 
 def _unused_in(directory: Path, site: dict):
