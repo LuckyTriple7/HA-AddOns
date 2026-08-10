@@ -1312,6 +1312,18 @@
         </div>
         <div class="row">
           <div>
+            <label>{{ t.field_default_lang }}</label>
+            <select id="d-default_lang">
+              <option value="de">{{ t.feed_lang_de }}</option>
+              <option value="en">{{ t.feed_lang_en }}</option>
+              <option value="auto">{{ t.default_lang_auto }}</option>
+            </select>
+            <p class="hint">{{ t.default_lang_hint }}</p>
+          </div>
+          <div></div>
+        </div>
+        <div class="row">
+          <div>
             <label>{{ t.field_feed_lang }}</label>
             <select id="d-feed_lang">
               <option value="de">{{ t.feed_lang_de }}</option>
@@ -4897,6 +4909,7 @@
       el('d-search_enabled').value = d.search_enabled ? '1' : '0';
       el('d-travel_enabled').value = d.travel_enabled ? '1' : '0';
       el('d-forms_enabled').value = d.forms_enabled !== false ? '1' : '0';
+      el('d-default_lang').value = ['de', 'en', 'auto'].includes(d.default_lang) ? d.default_lang : 'de';
       el('d-feed_lang').value = d.feed_lang === 'en' ? 'en' : 'de';
       el('d-feed_projects').value = d.feed_projects ? '1' : '0';
       el('d-feed_library').value = d.feed_library ? '1' : '0';
@@ -5069,6 +5082,7 @@
         search_enabled:    el('d-search_enabled').value === '1',
         travel_enabled:    el('d-travel_enabled').value === '1',
         forms_enabled:     el('d-forms_enabled').value === '1',
+        default_lang:      el('d-default_lang').value,
         feed_lang:         el('d-feed_lang').value,
         feed_projects:     el('d-feed_projects').value === '1',
         feed_library:      el('d-feed_library').value === '1',

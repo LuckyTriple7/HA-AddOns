@@ -11,6 +11,7 @@
   {% if site.design.favicon %}<link rel="icon" href="{{ site.design.favicon }}">
   {% elif site.profile.avatar %}<link rel="icon" href="{{ site.profile.avatar }}">{% endif %}
   {% if not site.design.allow_indexing %}<meta name="robots" content="noindex, nofollow">{% endif %}
+  {% include '_seo.html' %}
   <meta name="theme-color" content="#0d1117">
   <link rel="apple-touch-icon" href="/icon.png">
   <script type="application/ld+json">{{ {

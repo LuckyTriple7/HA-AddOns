@@ -344,6 +344,12 @@ Wiederholungen derselben Quelle aktualisieren dieselbe Meldung, statt sie zu ver
 
 **Search-Console-Verifizierung (optional):** Im Design-Tab gibt es Felder für den **Google-Search-Console-** und **Bing-Webmaster-Code**. Trägst du dort den Bestätigungs-Code ein (oder fügst das komplette Meta-Tag ein — der Code wird automatisch herausgelesen), setzt MyPage das passende `<meta>`-Tag in den Kopf der Startseite, sodass du die Seite per „HTML-Tag"-Methode bestätigen kannst. Leer lassen, wenn deine Seite dort bereits bestätigt ist.
 
+**Sprache und kanonische Adressen:** Jede indexierbare Seite trägt ein `<link rel="canonical">` **ohne Filter- und Suchparameter** — `/blog`, `/blog?tag=x` und `/blog?q=y` melden alle `/blog`, statt die Signale auf drei fast gleiche Seiten zu verteilen. Dazu kommen `hreflang`-Angaben für die deutsche und die englische Fassung (`?lang=de` / `?lang=en`, plus `x-default`) sowie die Kopfzeilen `Content-Language` und `Vary`.
+
+Welche Sprache eine Adresse **ohne Zusatz** ausliefert, legt *Design → Standardsprache der Website* fest. Die Reihenfolge ist `?lang=` → Cookie → diese Einstellung. Die Browser-Einstellung des Besuchers entscheidet nur bei *Automatisch*. Das ist bewusst so: ein Suchmaschinen-Roboter schickt keine Spracheinstellung mit, und der frühere Rückfall war `en` — auf einer deutschen Domain wurde also die englische Fassung indexiert. Außerdem kann `canonical` nur dann etwas Wahres aussagen, wenn einer Adresse **eine** Sprache fest zugeordnet ist.
+
+**„Gefunden – zurzeit nicht indexiert"** in der Search Console ist kein Fehler der Seite: Google kennt die Adresse aus deiner Sitemap, hat sie aber noch nicht abgerufen. Bei jungen Domains normal. Erzwingen lässt sich nichts, beschleunigen schon — in der Search Console *URL-Prüfung → Indexierung beantragen*. Am meisten bringt das für **`/blog`**, denn erst diese Seite verlinkt alle Beiträge; von dort findet Google den Rest von allein.
+
 Eine ausführliche Schritt-für-Schritt-Anleitung (Google Search Console, Sitemap einreichen, Tipps für die Platzierung) findest du in [SEO.md](SEO.md).
 
 ## RSS-Feed

@@ -68,7 +68,7 @@ except Exception:
     _HAS_GENAI = False
 from flask import (Flask, render_template, request, redirect, url_for,
                    make_response, jsonify, abort, send_from_directory,
-                   send_file)
+                   send_file, g, has_request_context)
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from waitress import serve
 from werkzeug.middleware.proxy_fix import ProxyFix
@@ -387,6 +387,9 @@ DEFAULT_SITE = {
         # lassen (siehe _feed_lang). Blog und Reiseblog stehen immer drin,
         # Projekte und Bibliothek nur auf Wunsch — sie ändern sich selten und
         # würden den Feed sonst mit Altbestand fluten.
+        # Sprache, die eine Adresse ohne ?lang= und ohne Cookie ausliefert.
+        # 'auto' = wie früher nach Accept-Language; siehe detect_language.
+        'default_lang': 'de',
         'feed_lang': 'de',
         'feed_projects': False,
         'feed_library': False,
@@ -1805,12 +1808,56 @@ def load_translations(lang: str) -> dict:
         return {}
 
 
+SITE_LANGS = ('de', 'en')
+
+
+def site_default_lang(site: dict | None = None) -> str:
+    """Sprache, die eine Adresse ohne weitere Angabe ausliefert.
+
+    'auto' bedeutet: wie früher nach `Accept-Language` entscheiden.
+    """
+    d = (site if site is not None else load_site())['design']
+    v = (d.get('default_lang') or '').strip().lower()
+    return v if v in SITE_LANGS + ('auto',) else 'de'
+
+
 def detect_language(req) -> str:
+    """Sprache dieser Anfrage: `?lang=` → Cookie → Standardsprache der Seite.
+
+    `Accept-Language` entscheidet **nicht** mehr mit, außer die Standardsprache
+    steht ausdrücklich auf „automatisch". Grund: dieselbe Adresse lieferte je
+    nach Kopfzeile eine andere Seite. Googlebot crawlt ohne diese Kopfzeile und
+    bekam dadurch auf einer deutschen Seite durchgehend die englische Fassung —
+    Titel, Beschreibung und `<html lang>` inbegriffen. Zugleich ist eine feste
+    Zuordnung „Adresse → Sprache" die Voraussetzung dafür, dass `canonical` und
+    `hreflang` überhaupt etwas Wahres aussagen können.
+
+    Das Ergebnis hängt an der Anfrage und wird dort gemerkt: `detect_language`
+    wird je Anfrage mehrfach aufgerufen, und `load_site()` liest jedes Mal die
+    Datei.
+    """
+    if has_request_context() and req is request:
+        cached = getattr(g, 'mypage_lang', None)
+        if cached:
+            return cached
+    q = (req.args.get('lang') or '').strip().lower()
     cookie = req.cookies.get('lang', '')
-    if cookie in ('de', 'en'):
-        return cookie
-    accept = req.headers.get('Accept-Language', '')
-    return 'de' if accept.lower().startswith('de') else 'en'
+    if q in SITE_LANGS:
+        lang = q
+    elif cookie in SITE_LANGS:
+        lang = cookie
+    else:
+        default = site_default_lang()
+        if has_request_context() and req is request:
+            g.mypage_lang_auto = (default == 'auto')
+        if default == 'auto':
+            accept = req.headers.get('Accept-Language', '')
+            lang = 'de' if accept.lower().startswith('de') else 'en'
+        else:
+            lang = default
+    if has_request_context() and req is request:
+        g.mypage_lang = lang
+    return lang
 
 
 def _safe_next(raw: str) -> str:
@@ -4105,6 +4152,9 @@ def api_design():
                  'travel_enabled', 'forms_enabled', 'feed_projects', 'feed_library'):
         if flag in raw:
             d[flag] = bool(raw[flag])
+    if 'default_lang' in raw:
+        dl = _clean_str(raw['default_lang'], 4).lower()
+        d['default_lang'] = dl if dl in ('de', 'en', 'auto') else 'de'
     if 'feed_lang' in raw:
         fl = _clean_str(raw['feed_lang'], 2).lower()
         d['feed_lang'] = fl if fl in ('de', 'en') else 'de'
@@ -7989,6 +8039,55 @@ def admin_uploads(filename: str):
 
 
 # ── Öffentliche Routen ────────────────────────────────────────────────────────
+
+# ── Sprache und kanonische Adressen ───────────────────────────────────────────
+#
+# Eine Adresse, zwei Sprachen — das ging bisher ohne jede Auskunft darüber nach
+# außen. Für Suchmaschinen war die Seite dadurch nicht einzuordnen, und jeder
+# Zwischenspeicher durfte eine der beiden Fassungen für alle festhalten.
+
+def _seo_urls(lang: str) -> dict:
+    """Kanonische Adresse und Sprachvarianten der gerade gerenderten Seite.
+
+    Filter- und Suchparameter (`?tag=`, `?q=`, `?nl=`) fallen bewusst weg: sie
+    zeigen Ausschnitte desselben Bestandes, und jeden als eigene Seite zu melden
+    verteilt genau die Signale, die die Hauptseite braucht.
+
+    Steht die Standardsprache auf „automatisch", trägt die nackte Adresse keine
+    feste Sprache. Dann ist sie für beide Fassungen die kanonische, und nur die
+    `hreflang`-Angaben benennen die eindeutigen Adressen.
+    """
+    base = _base_url() + request.path
+    default = site_default_lang()
+    alts = [(lg, base if lg == default else f'{base}?lang={lg}') for lg in SITE_LANGS]
+    canonical = base if (default == 'auto' or lang == default) else f'{base}?lang={lang}'
+    return {'canonical_url': canonical, 'hreflang_urls': alts + [('x-default', base)]}
+
+
+@public_app.context_processor
+def _inject_seo():
+    return _seo_urls(detect_language(request))
+
+
+@public_app.after_request
+def _lang_headers(resp):
+    """`Content-Language` und `Vary` an jede ausgelieferte Seite.
+
+    Ohne `Vary` darf jeder Zwischenspeicher — nginx, Cloudflare, ein
+    Firmen-Proxy — die erste Fassung, die durch ihn hindurchgeht, für alle
+    festhalten. Bei zwei Sprachen auf derselben Adresse heißt das: kommt der
+    Suchmaschinen-Roboter zuerst, sehen danach auch die Besucher dessen Fassung.
+    """
+    if resp.mimetype != 'text/html':
+        return resp
+    lang = getattr(g, 'mypage_lang', None)
+    if lang:
+        resp.headers['Content-Language'] = lang
+    resp.vary.add('Cookie')
+    if getattr(g, 'mypage_lang_auto', False):
+        resp.vary.add('Accept-Language')
+    return resp
+
 
 @public_app.route('/health')
 def public_health():
