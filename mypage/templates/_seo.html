@@ -1,0 +1,11 @@
+{# Kanonische Adresse und Sprachvarianten.
+
+   Nur bei erlaubter Indexierung: „canonical" und „hreflang" sind Angaben für
+   den Suchindex, und über eine Seite, die dort gar nicht auftauchen soll, gibt
+   es nichts zu sagen. Die Adressen liefert `_seo_urls` in app.py. #}
+{%- if site.design.allow_indexing %}
+  <link rel="canonical" href="{{ canonical_url }}">
+  {%- for hl, hu in hreflang_urls %}
+  <link rel="alternate" hreflang="{{ hl }}" href="{{ hu }}">
+  {%- endfor %}
+{%- endif %}

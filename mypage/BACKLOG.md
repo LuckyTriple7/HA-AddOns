@@ -5,6 +5,38 @@ weiterzugehen. Kein Ideen-Brainstorming — dafür ist `Ideas.md` da (Kartenspie
 
 ---
 
+## Reiseblog — nichts mehr offen, aber Fallstricke merken
+
+**Stand:** fertig mit v0.10.5. Stufe 1 (Admin, Wizard, KI-Bericht), Stufe 2 (öffentliche
+Seiten, Slugs, Freigabe je Tag, Mitglieder-Sperre, Sitemap, Suche, IndexNow, statischer
+Export, Vorschau) und die vier Reste aus Stufe 3 (Ausgaben-Auswertung, übersetzte
+Auswahllisten, Formular-Abschnitt, eigene Bildunterschriften) sind umgesetzt. Hier stehen
+nur noch die Stolperstellen für spätere Arbeit am Modul.
+
+**Fallstricke, die schon bekannt sind:**
+
+- `_reference_blob()` in `app.py` liest site.json UND travel.json. Wer eine weitere Ablage
+  hinzufügt, muss sie dort ebenfalls eintragen, sonst hält „Speicher aufräumen" die Dateien
+  für verwaist und löscht sie.
+- Flask lädt Vorlagen **nicht** neu — den Testserver nach jeder Änderung an `admin.html`
+  oder den öffentlichen Vorlagen neu starten, sonst testet man den alten Stand.
+- Neue `.py`-Dateien brauchen eine eigene `COPY`-Zeile im Dockerfile.
+- Die KI-Bildunterschriften in `article.captions` gehören zu den Fotos **mit** Hinweis, in
+  genau deren Reihenfolge — Fotos ohne Hinweis überspringt der Prompt. Wer über den Index der
+  vollen Fotoliste geht, hängt die Unterschrift ans falsche Bild (genau das war bis v0.10.4
+  im Wizard so). Öffentlich schlägt seit v0.10.5 die eigene Unterschrift in
+  `photo.caption_<lang>` die der KI.
+- Die Auswahllisten in `travelblog.py` speichern **deutschen Klartext** (`sonnig`, `Eintritt`),
+  und der wandert unverändert in den Prompt. Übersetzt wird ausschließlich die Anzeige, über
+  `trav_opt_labels` in den Locales (`_trav_opt_label()` serverseitig, `travField()` im Admin).
+  Wer die Werte in den Tupeln ändert, muss die Karten in `en.json` nachziehen — sonst steht
+  dort wieder Deutsch, ohne dass etwas kaputtgeht.
+- Öffentliche Beträge hängen an `settings.include_prices` der Reise, demselben Schalter, der
+  der KI das Nennen von Preisen erlaubt. Kein zweiter Schalter — wer der KI Geld verbietet,
+  will es auch nicht als Tabelle darunter.
+
+---
+
 ## KI-Monatsbudget als harter Stopp
 
 **Stand:** zurückgestellt am 2026-08-09 bei der Umsetzung der Verbrauchsanzeige (v0.9.8).

@@ -1,6 +1,6 @@
 name: MyPage
 description: Homepage-Baukasten — eigene Projekte präsentieren, GitHub-Import, Besucherzähler
-version: "0.9.11"
+version: "0.10.12"
 slug: mypage
 url: https://github.com/LuckyTriple7/HA-AddOns
 image: "ghcr.io/luckytriple7/mypage"
@@ -66,6 +66,7 @@ options:
   smb_user: ""
   smb_password: ""
   gemini_api_key: ""
+  gemini_billing_key: ""
   gemini_image_model: "gemini-3.1-flash-image"
   gemini_image_ratio: "16:9"
 
@@ -98,5 +99,6 @@ schema:
   smb_user: str?
   smb_password: str?
   gemini_api_key: password?
+  gemini_billing_key: password?
   gemini_image_model: list(gemini-3.1-flash-image|gemini-3.1-flash-lite-image|gemini-3-pro-image|gemini-2.5-flash-image)?
   gemini_image_ratio: list(16:9|3:2|4:3|1:1|3:4|2:3|9:16|21:9)?

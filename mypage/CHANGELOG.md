@@ -1,5 +1,150 @@
 # Changelog
 
+## 0.10.12
+- 🛡️ **Dieselbe CodeQL-Meldung, dritter Anlauf — jetzt ohne Umweg.** Der Fehlercode des Preiskatalogs gilt als aus Googles Antwort stammend, und die Markierung überlebt jede Weiterverarbeitung: weder das Nachschlagen im Wörterbuch (0.10.10) noch das Holen aus einer Konstantenliste (0.10.11) hat sie abgestreift. Jetzt wird gar kein Wert mehr übergeben, sondern die Meldung ausgewählt — im Log steht nur noch fester Text („Abrechnung im Google-Projekt nicht aktiviert", „Schlüssel zurückgewiesen", „kein passender Dienst im Katalog"). Aussagekräftiger als der Code ist es obendrein. Code und Klartextgrund bekommt der Admin unverändert in der Antwort.
+
+## 0.10.11
+- 🛡️ **Nachtrag zu 0.10.10:** Eine der fünf CodeQL-Meldungen kam wieder — der Fehlercode des Preiskatalogs steht selbst unter Verdacht. Er entsteht durch Nachschlagen mit einem Schlüssel aus Googles Antwort, und die kam auf eine Anfrage mit dem Abrechnungs-Schlüssel; damit gilt auch das Nachschlage-Ergebnis als aus der Antwort stammend, obwohl es nur eines von vier festen Wörtern sein kann. Der Code wird jetzt vor dem Loggen aus einer festen Liste geholt statt aus der Variablen — nachweislich eine Konstante, und ein unbekannter Code landet als `unbekannt` im Log statt ungeprüft.
+
+## 0.10.10
+- 🛡️ **Fünf CodeQL-Meldungen behoben.**
+  - **Pfad aus einem Anfragewert (2×, `py/path-injection`):** Die Spielregeln wurden aus `game_<spiel>_rules_<sprache>.md` zusammengesetzt, und die Sprache kommt seit 0.10.9 auch aus `?lang=` in der Adresszeile — also direkt vom Aufrufer in einen Dateinamen. Die Sprache wird jetzt auf eines von zwei festen Kürzeln zurückgeführt, bevor sie einen Pfad berührt, und der Pfad zusätzlich über `safe_join` gebaut. Ein Wert wie `?lang=../../etc/passwd` landet damit auf den deutschen Regeln statt irgendwo im Dateisystem.
+  - **Antwortdaten des Abrechnungs-Katalogs im Log (3×, `py/clear-text-logging-sensitive-data`):** Der Abruf der Google-Preise geht mit dem Abrechnungs-Schlüssel raus; alles, was zurückkommt, gilt damit als schutzbedürftig. Aus dem Log fliegen die gelesenen Dienstnamen und Googles Klartext-Begründung. Zu sehen ist beides weiterhin — es steht im Preise-Bereich des Admin, wo es hingehört, statt in einer Datei, die beim Support-Fall mitgeschickt wird.
+- Am Verhalten ändert sich nichts: Spielregeln laden weiter in beiden Sprachen (alle neun Spiele geprüft), und die Preisabfrage meldet Fehler unverändert im Admin.
+
+## 0.10.9
+- 🌍 **Suchmaschinen bekamen auf einer deutschen Seite die englische Fassung.** Ohne Sprach-Cookie entschied bisher die Kopfzeile `Accept-Language` — und Googlebot schickt keine. Der Rückfall lautete `en`, also sah Google `<html lang="en">`, englischen Titel und englische Beschreibung, und bewertete die Seite entsprechend für deutsche Suchanfragen. Neu: **Standardsprache der Website** unter *Design* (Vorgabe **Deutsch**). Die Reihenfolge lautet jetzt `?lang=` → Cookie → Einstellung; die Browser-Einstellung entscheidet nur noch, wenn die Einstellung ausdrücklich auf *Automatisch* steht.
+  - Besucher schalten weiter über die Sprachumschaltung um, und die Wahl bleibt im Cookie gespeichert. Wer das alte Verhalten will, stellt *Automatisch* ein — dann bleibt aber der Suchmaschinen-Nachteil.
+- 🔗 **`<link rel="canonical">` gab es auf keiner einzigen Seite.** Jetzt auf allen indexierbaren öffentlichen Seiten, **ohne Filter- und Suchparameter**: `/blog`, `/blog?tag=x` und `/blog?q=y` melden alle `/blog` als die eine richtige Adresse, statt die Signale auf drei fast gleiche Seiten zu verteilen.
+- 🈯 **`hreflang`-Angaben** verbinden die deutsche und die englische Fassung jeder Seite (`?lang=de` / `?lang=en`, dazu `x-default`). Damit ist beiden Fassungen eine feste Adresse zugeordnet — vorher gab es überhaupt keine, unter der sich eine bestimmte Sprache verlässlich abrufen ließ.
+- 🧊 **`Vary: Cookie` und `Content-Language` fehlten.** Ohne `Vary` darf jeder Zwischenspeicher — nginx, Cloudflare, ein Firmen-Proxy — die erste Fassung, die durch ihn hindurchgeht, für alle festhalten. Bei zwei Sprachen auf derselben Adresse hieß das: kommt der Suchmaschinen-Roboter zuerst, sehen danach auch Besucher dessen Fassung. Steht die Standardsprache auf *Automatisch*, kommt zusätzlich `Vary: Accept-Language` dazu.
+- Hinweis zu „Gefunden – zurzeit nicht indexiert" in der Search Console: Das heißt, dass Google die Adresse kennt, aber noch nicht abgerufen hat — eine Entscheidung von Google, kein Fehler der Seite. Die Punkte oben nehmen ihr die technischen Gründe; erzwingen lässt sich die Indexierung nur über *URL-Prüfung → Indexierung beantragen*. Am meisten bringt das für `/blog`, weil erst diese Seite alle Beiträge verlinkt.
+
+## 0.10.8
+- 🔒 **Mitglieder-only-Beiträge standen ungefiltert im RSS-Feed.** Der Feed prüfte die Sperre gar nicht und lieferte jedem 300 Zeichen des Textes — bei kurzen Beiträgen also alles. Die Website zeigt Gästen an derselben Stelle höchstens die *halbe* Textlänge. Jetzt stehen gesperrte Beiträge, Reisen und Bibliothek-Einträge mit Titel und Adresse im Feed, aber ohne Text und ohne Bild; an der Stelle des Anrisses steht der Hinweis auf die Anmeldung.
+- 🐛 **`&` erschien im Feed als `&amp;`.** Der Text wurde zweimal maskiert: einmal beim Markdown-Rendern, einmal beim Zusammenbauen des XML. Aus „Rum & Cola" wurde im Reader wörtlich „Rum &amp;amp; Cola". Betraf auch die **Meta-Descriptions** der Seiten — dieselbe Hilfsfunktion, derselbe Fehler.
+- 🐛 **Spitze Klammern im Text verschwanden.** Der Ausdruck zum Entfernen der HTML-Tags fraß alles zwischen `<` und `>`; aus „Platzhalter `<Name>` einsetzen" wurde „Platzhalter einsetzen". Jetzt werden nur die Tags entfernt, die tatsächlich aus dem Markdown stammen.
+- 📰 **Der Feed enthält jetzt Reisetage** — bisher nur Blogbeiträge. Projekte und Bibliothek-Einträge lassen sich unter *Design* einzeln zuschalten; sie ändern sich selten und würden den Feed beim Einschalten einmalig mit Altbestand fluten. Projekte erscheinen nur mit Detailseite und ohne Datum, also am Ende.
+- 🖼️ **Volltext, Bild und Schlagwörter im Feed.** Neu je Eintrag: `<content:encoded>` mit dem ganzen Beitrag (Bild- und Link-Adressen absolut), `<enclosure>` mit dem Titelbild und `<category>` je Schlagwort. Statt eines mitten im Wort abgeschnittenen Anrisses steht jetzt die gepflegte SEO-Beschreibung im `<description>`, sonst ein an der Wortgrenze gekürzter Auszug.
+- 🌍 **Die Feed-Sprache ist einstellbar** (*Design → Sprache des RSS-Feeds*) statt vom Browser des Abrufers abzuhängen. Ein Feed-Leser holt dieselbe Adresse für alle seine Nutzer und schickt meist gar keine Sprachkennung — bisher entschied das den Inhalt. Die andere Fassung gibt es unter `/feed.xml?lang=en`.
+- 🕛 **Zeitstempel auf 12:00 UTC** statt Mitternacht: bei `00:00` stand ein Beitrag für jeden Leser westlich von Greenwich unter dem **Vortag**. Mehrere Einträge desselben Tages werden um je eine Minute versetzt, damit ihre Reihenfolge im Reader feststeht.
+- ⚡ **`ETag` und `Cache-Control`**: ein unveränderter Feed kommt als `304` zurück statt jedes Mal komplett.
+- 📭 **Ohne Beiträge liefert der Feed einen gültigen leeren Feed statt 404.** Ein 404 heißt für einen Reader „kaputt", und manche tragen einen so gemeldeten Feed dauerhaft aus. Aus demselben Grund ist der Feed jetzt **immer** im Seitenkopf verlinkt.
+- Dazu die üblichen Kanal-Angaben, die bisher fehlten: `<language>`, `<lastBuildDate>`, `<atom:link rel="self">`, `<generator>`, `<ttl>`, Kanal-Logo und Herausgeber.
+
+## 0.10.7
+- 🎚️ **Ein abgeschaltetes Modul verschwindet jetzt auch aus dem Admin.** Stehen **Reiseblog** oder **Formulare** unter *Design → Module* auf NEIN, sind nicht mehr nur Abschnitt, Navi-Einträge und Seiten auf der Website weg — es verschwinden auch der **Reiter** und der **Abschnitt unter *Inhalte***. Bisher pflegte man dort weiter Inhalte, die nirgends ankamen, und der Schalter blieb für alles folgenlos, was man täglich sieht.
+  - **Nichts wird gelöscht.** Reisen, Tage, Formulare und eingegangene Antworten bleiben gespeichert; auch **Position und Augen-Zustand** des Abschnitts bleiben erhalten und kommen beim Einschalten unverändert zurück.
+  - Wer gerade auf einem Reiter steht, den er abschaltet, landet automatisch wieder im Design-Tab.
+  - **Zum Vorbereiten muss der Schalter nicht aus:** ein Reisetag ohne „veröffentlichen" und ein Formular ohne „aktiv" gehen ohnehin nicht online. Die Hinweistexte an beiden Schaltern sagen das jetzt.
+  - Zu beachten: **Werkseinstellung des Reiseblogs ist NEIN** — sein Reiter erscheint also erst, wenn er unter *Design → Module* eingeschaltet wird.
+
+## 0.10.6
+- 🏷️ **Logo-Designer im KI-Tab.** Erzeugt fertige Logo-Sätze in exakten Pixelmaßen: Home-Assistant-Add-on (`icon.png` 256×256, `logo.png` 250×100), PWA (`icon-192`, `icon-512`, `apple-touch-icon`), Favicon (`favicon.ico` mit 16/32/48 in einer Datei) und Link-Vorschaubild (`og-image.png` 1200×630). Dazu ein freies Maß von 16 bis 4096 px.
+  - **Die Maße rechnet MyPage, nicht die KI.** Gemini kennt nur Seitenverhältnisse — der Entwurf entsteht quadratisch und wird je Ziel zugeschnitten und mittig eingepasst. Die Vorlage bleibt als `source.png` liegen, weitere Größen lassen sich später **ohne neuen KI-Aufruf** nachziehen.
+  - **Eigener Ablageort:** `logos/<name>/` im Add-on-Konfigurationsordner, also direkt über den Share erreichbar — nicht bei den Uploads. Dort würde aus jedem Logo ein WebP mit höchstens 1600 px **und** eingebrannter KI-Kennzeichnung; beides macht ein Logo unbrauchbar. Die Herkunft steht stattdessen unsichtbar in den PNG-Textfeldern und in `prompt.txt`.
+  - **Hintergrund freistellen** (Standard an, vier Stufen): entfernt den vom Bildrand aus zusammenhängenden einfarbigen Grund. Geschlossene Flächen im Motiv — das Auge eines Maskottchens, die Fläche in einem „O" — bleiben erhalten.
+  - **Auch ohne Gemini-Schlüssel nutzbar:** „Eigenes Bild einlesen" schickt ein vorhandenes Bild durch dieselbe Aufbereitung. Damit lassen sich zu einem längst gezeichneten Icon die fehlenden Größen nachziehen. Ohne Schlüssel zeigt der KI-Tab nur noch dieses eine Panel.
+  - Herausholen per Einzeldownload, als ZIP über den ganzen Satz — oder gar nicht, weil die Dateien ohnehin im Share-Ordner liegen. Logo-Sätze sind **Teil des Backups**.
+
+## 0.10.5
+- 💶 **Ausgaben stehen jetzt im Tagesbericht** — Kategorie, Zweck und Betrag als Aufstellung, darunter die Summe. Auf der Reise-Seite zusätzlich die Summe der ganzen Reise. Getrennt je Währung, nicht umgerechnet: ein geratener Wechselkurs wäre eine erfundene Zahl. Nur veröffentlichte Tage zählen mit — sonst stünde dort ein Betrag, den kein sichtbarer Tag erklärt.
+  - Gesteuert vom vorhandenen Schalter **„Preise im Bericht nennen"** je Reise. Wer der KI verbietet, über Geld zu schreiben, will es auch nicht als Tabelle auf derselben Seite haben.
+- 🌦️ **Die Auswahllisten sind übersetzt.** Wetter, Wind, Art des Erlebnisses, Empfehlung, Verkehrsmittel, Mahlzeit, Kategorie des Moments und der Ausgabe standen auf Englisch bisher **auf Deutsch** da — im Admin wie im Tagesbericht. Gespeichert wird weiterhin der deutsche Klartext, weil er Teil des Prompts ist; übersetzt wird nur die Beschriftung.
+- 🖼️ **Eigene Bildunterschrift je Foto** im Wizard-Schritt *Fotos*. Sie schlägt die der KI — und ist der einzige Weg, ein Foto **ohne Hinweis** zu beschriften: für die schreibt die KI gar keine.
+- 📋 **Formulare haben einen Abschnitt auf der Startseite.** Er lässt sich unter *Inhalte* einsortieren und ausblenden wie jeder andere. Steht er in der Navigationsleiste, entfallen dort die einzelnen Formular-Links — sonst stünde erst „Formulare" und daneben nochmal jedes einzelne.
+- 🔧 **Der Schalter *Formulare* unter Design → Module wirkte nicht.** Er sollte die Formulare auf der Website ein- und ausblenden, wurde öffentlich aber nirgends abgefragt: die Seiten unter `/formular/…` blieben erreichbar und die Navi-Einträge stehen. Jetzt greift er — auch für das Absenden.
+- ✳️ **Pflichtfelder im Reise-Wizard sind mit `*` gekennzeichnet** (Reisetag und Datum). Der Satz „Nur diese beiden Felder sind Pflicht" stand unter vier Feldern, ohne zu verraten, welche beiden gemeint waren.
+
+## 0.10.4
+- 🌍 **Der Reiseblog ist jetzt öffentlich sichtbar.** Drei neue Seiten: die Übersicht aller Reisen (`/reiseblog`), die Tage einer Reise (`/reiseblog/<reise>`) und der Tagesbericht selbst (`/reiseblog/<reise>/<tag>`) — aufgebaut wie die Bibliothek, mit Bildergalerie, Blättern zwischen den Tagen, SEO-Angaben und Druckansicht.
+- 🔒 **Nichts steht ungefragt im Netz.** Ein Tag erscheint erst mit dem Haken **„Tag veröffentlichen"** im letzten Wizard-Schritt — und auch dann nur, wenn er einen Bericht hat. Eine freigegebene Seite ohne Text wäre eine Seite mit Datum und sonst nichts.
+- 🏷️ **Reisen und Tage haben feste Adressen.** Die Adresse einer Reise lässt sich im Reise-Dialog frei wählen; leer gelassen wird sie aus dem Namen gebildet. Einmal vergeben bleibt sie bestehen, auch wenn die Reise später umbenannt wird — sonst führte jeder geteilte Link ins Leere.
+- 👥 **Eine Reise kann auf Mitglieder beschränkt werden.** Die Sperre gilt für die ganze Reise: Titel und Anrisstexte bleiben sichtbar, die Berichte nicht. Eine Reise halb zu zeigen ergäbe eine Geschichte mit Löchern.
+- 🏠 **Der Abschnitt auf der Startseite ist damit aktiv** — sichtbar, sobald der Reiseblog freigegeben ist und mindestens ein Tag veröffentlicht wurde. Position und Sichtbarkeit wie gehabt unter *Inhalte*.
+- 🔎 **Sitemap, Volltextsuche, IndexNow und der statische Export** kennen den Reiseblog jetzt ebenfalls; Entwürfe bleiben in allen vier Fällen außen vor.
+- 👁️ **Vorschau je Reisetag** im Reiter *Reiseblog* — zeigt auch noch nicht freigegebene Tage, damit man vor dem Veröffentlichen sieht, was tatsächlich herauskommt.
+- 🖼️ **Bildunterschriften hingen am falschen Foto**, sobald ein Foto ohne Hinweis dazwischenlag: die KI schreibt nur zu Fotos **mit** Hinweis eine Unterschrift, zugeordnet wurde aber über die volle Fotoliste. Betrifft die Anzeige im Wizard und jetzt auch die öffentliche Galerie.
+- Bei zweisprachigen Reisen lassen sich die Bildunterschriften jetzt in **beiden Sprachen** bearbeiten — vorher nur auf Deutsch.
+
+## 0.10.3
+- 🗂️ **Die Reiter *Reiseblog* und *Formulare* sind jetzt immer sichtbar.** Die Schalter unter Design steuern ab sofort die **Website**, nicht den Reiter — sonst liesse sich nichts vorbereiten, bevor der Bereich online geht.
+- 🧭 **Formulare stehen jetzt ebenfalls unter *Inhalte*** und lassen sich dort einsortieren und ausblenden, genau wie der Reiseblog.
+- 💾 **Ein gescheitertes Speichern im Reiseblog blieb unbemerkt.** Drei Stellen konnten still versagen und einen eingetippten Tag verlieren, während die Oberfläche nichts oder sogar „Gespeichert“ meldete:
+  - Ein **Schreibfehler auf der Platte** wurde nur ins Log geschrieben, die Antwort lautete trotzdem „ok“. Jetzt meldet der Server einen Fehler.
+  - Ein **Netzfehler** (Add-on gerade neu gestartet, WLAN weg) löste gar keine Meldung aus. Jetzt bleibt der Dialog offen, es erscheint eine rote Meldung, und der lokale Entwurf bleibt ausdrücklich liegen.
+  - Eine **abgelaufene Anmeldung** sah aus wie ein beliebiger Fehler. Jetzt steht da, dass man sich neu anmelden und dann erneut speichern soll.
+- Die Rückfrage nach einem gespeicherten Zwischenstand kommt nur noch, wenn der Entwurf überhaupt Inhalt hat.
+
+## 0.10.2
+- 🖥️ **Das Admin-Panel nutzt jetzt die Breite des Fensters.** Die Arbeitsfläche war auf 1100 px festgenagelt — auf einem breiten Bildschirm blieb links und rechts alles leer, während Tabellen, Kachelraster und der Reise-Wizard unnötig scrollten. Nach oben bei 1900 px gedeckelt, damit Textzeilen nicht unlesbar lang werden.
+- Große Dialoge (Markdown-Editor, Reise-Wizard) wachsen mit bis 1400 px, normale Dialoge bis 760 px — jeweils höchstens 94 % der Fensterbreite, damit auf dem Handy nichts übersteht.
+
+## 0.10.1
+- ⚙️ **Reiseblog und Formulare lassen sich ab- und anschalten** (Design → Module). Ein Reiter, der zu einem ungenutzten Modul gehört, ist nur Ballast. Der Reiseblog startet **aus**, Formulare bleiben **an**, damit bestehende Installationen ihren Reiter behalten.
+- 🧭 **Der Reiseblog lässt sich unter *Inhalte* einsortieren und ausblenden** wie jeder andere Abschnitt. Auf der Startseite erscheint er erst mit den öffentlichen Seiten — bis dahin wäre die Sprungmarke ein Verweis ins Leere.
+- 📅 **Datumsfelder zeigen wieder einen Kalender.** Ohne `color-scheme` zeichnete der Browser Symbol und Auswahlfenster hell auf dunklem Grund — das Kalendersymbol war praktisch unsichtbar. Betrifft auch Beitragsdatum und Countdown.
+- Das Sinnbild am Reiter *Reiseblog* ist weg.
+
+## 0.10.0
+- 🧳 **Neues Modul Reiseblog** (Tab *Reiseblog*). Unterwegs ein paar Stichpunkte erfassen — den Tagesbericht schreibt die KI daraus. Bewusst getrennt vom normalen Blog, mit eigenem Datenmodell und eigener Speicherung.
+- **Wizard mit acht Schritten** statt eines langen Formulars: Tag & Ort, Wetter, Erlebnisse, Essen, Eindrücke, Momente & Ausgaben, Fotos & Notizen, Bericht. **Pflicht sind nur Tagesnummer und Datum.** Leere Felder tauchen im Prompt gar nicht erst auf — sonst stünde dort „Wetter: —“ und das Modell dichtet etwas dazu.
+- **Schreibvorgaben je Reise** (Stil, Perspektive, Länge, Humor, Sprache, ob Preise, praktische Hinweise und Bewertungen genannt werden) — einmal einstellen, gilt für alle Tage.
+- Erzeugt **Titel, Anrisstext, Fließtext, Schlagwörter und Bildunterschriften**, auf Wunsch **deutsch und englisch in einem Durchgang**. Alles danach frei editierbar.
+- Die **vorherigen Reisetage** gehen als Kurzfassung mit in den Prompt, damit sich die Berichte nicht wiederholen.
+- **Zwischenstand wird laufend lokal gesichert.** Erfasst wird das unterwegs im Hotel-WLAN; ein Verbindungsabbruch nach zwanzig Minuten Tippen soll die Eingabe nicht kosten.
+- Eigene Datei **`travel.json`**, im Backup und in der Wiederherstellung enthalten. Wichtig dabei: **Aufräumen und Löschschutz lesen sie mit** — sonst hätte „Speicher aufräumen“ jedes Reisefoto für verwaist gehalten und gelöscht.
+- Noch **nicht öffentlich sichtbar**: die Berichte entstehen und werden im Admin verwaltet, die öffentlichen Seiten folgen als nächster Schritt.
+
+## 0.9.20
+- 🔍 **Fehlgeschlagene KI-Anfragen sagen jetzt, woran es lag.** Im Add-on-Log stand der Grund längst (`PROHIBITED_CONTENT`, „enthielt kein Bild“), im Admin kam nur „Die Anfrage ist fehlgeschlagen“ an. Googles Abbruchgrund steht jetzt **in der Oberfläche**.
+- Liefert Gemini statt eines Bildes eine **Erklärung im Text** — der häufigste Fall bei einer stillen Absage — wird sie angezeigt statt weggeworfen. Genau daran erkennt man, welches Wort in der Beschreibung gestört hat.
+- Der Fall „200, aber kein Bild“ hatte in der Oberfläche **gar keine eigene Meldung** und fiel auf den allgemeinen Fehlertext zurück. Er hat jetzt einen: die Beschreibung wurde vermutlich als unzulässig eingestuft, ohne dass es als Ablehnung gemeldet wird.
+- Das Log nennt zusätzlich `finish_reason` und `block_reason` — beide fehlten bisher genau in dem Zweig, in dem sie gebraucht werden.
+- Gilt für **Bild-Studio, Text-Studio und den Knopf im Bibliothek-Editor**. Letzterer hatte eine eigene, kürzere Fehlerliste und kannte den Fall gar nicht.
+
+## 0.9.19
+- 🗂️ **Neuer Datei-Browser im Tab *System*.** Zeigt alle hochgeladenen **Bilder** und die **PDFs der Bibliothek** mit Datum, Größe und der Plakette „unbenutzt“. Bisher liess sich nur im Rutsch aufräumen — sehen, was da liegt, ging gar nicht.
+- **Linksklick öffnet** die Datei in einem neuen Tab. PDFs erscheinen dabei inline (mit `sandbox` und `nosniff`); öffentlich bleiben sie weiterhin reine Downloads.
+- **Rechtsklick löscht**, nach Nachfrage. Bewusst das Kontextmenü: ein Fehlklick in einem Raster aus hunderten Kacheln darf keine Datei kosten. Eingebundene Dateien bleiben geschützt.
+- ✨ **Kontrollkästchen „Nur KI-erzeugte Bilder“** — im neuen Browser und im Medien-Browser hinter jedem „Bild wählen“. KI-Kacheln tragen zusätzlich ein Sternchen.
+
+## 0.9.18
+- 🚫 **Ein nicht mehr existierendes Modell meldet sich jetzt als solches.** Wer noch einen Modellnamen aus einer früheren Version gespeichert hatte, bekam bei jeder Anfrage nur „Die Anfrage ist fehlgeschlagen“ — obwohl Google klar mit 404 antwortet. Die Meldung nennt jetzt den Namen und verweist auf die Einstellungen.
+- Im Auswahlfeld wird ein gespeichertes Modell, das Google **nicht listet**, als „nicht in Googles Liste“ gekennzeichnet. Wählbar bleibt es — die Live-Abfrage kann ausfallen, dann soll die eigene Einstellung nicht verlorengehen — aber es ist nun erkennbar.
+- Hintergrund: die Vorgabeliste enthielt bis v0.9.12 geratene Namen (`gemini-3-pro`, `gemini-3-flash`). Wer einen davon gespeichert hat, muss im Tab *KI* einmal ein gültiges Modell wählen und speichern.
+
+## 0.9.17
+- 💸 **Die Preis-Abfrage zog Sondertarife heran.** Google führt Stapelverarbeitung, zwischengespeicherte Eingaben, feinabgestimmte Modelle und Recherche-Aufschläge als eigene Posten — MyPage löst nichts davon aus. Ein solcher Posten als Normaltarif ergab eine Summe, die zu niedrig ist und deshalb nicht auffällt (im Test: 0,05 statt 0,90 je Mio. Eingabe-Tokens). Diese Zeilen bleiben jetzt draußen.
+- Bleiben mehrere Kandidaten übrig, **gewinnt der höchste**. Unter dem Normaltarif zu liegen ist der gefährliche Irrtum — eine zu hohe Summe fällt auf, eine zu niedrige nicht.
+- **Bildmodelle werden nur noch über den Posten je Bild befüllt.** Vorher konnte ein Token-Posten daneben landen und nach dem Speichern **doppelt** zählen — einmal je Bild aus der Vorgabe, einmal je Token aus dem Abruf.
+
+## 0.9.16
+- 🐞 **Die Preis-Abfrage trug Unsinn ein.** Sie prüfte zuerst auf „image“ und hielt damit „Gemini 3 Flash **Image Input** Tokens“ — den Aufschlag für ein Bild als *Eingabe* — für den Preis eines erzeugten Bildes. Ergebnis: jedes Textmodell bekam einen Bildpreis, und bei Bildmodellen überschrieb der falsche Wert die brauchbare Vorgabe.
+- Erkannt wird jetzt in der richtigen Reihenfolge: **Ausgabe vor Eingabe vor Bild**. Posten mit Bild-, Video- oder Audio-*Eingabe* bleiben ganz draußen — Google rechnet sie getrennt ab, und die Preistabelle bildet diese Dimension nicht ab. Sie als Textpreis zu buchen wäre schlicht falsch.
+- Bei **Bildmodellen** landen die Ausgabe-Tokens jetzt als Ausgabepreis statt als Preis je Bild. Google rechnet dort in Tokens, und die Verbrauchszählung führt für diese Modelle ebenfalls Ausgabe-Tokens — das rechnet sich von selbst zusammen.
+- Ein eingetragener Preis ersetzt die Vorgabe jetzt **nur in der jeweiligen Spalte**. Vorher verlor man mit einem einzelnen Eintrag die Vorgabewerte der anderen Spalten — das Ergebnis wäre eine zu niedrige Summe gewesen, die niemandem auffällt.
+- Kommt derselbe Posten mehrfach vor (Google führt Stufen und Regionen getrennt), gilt der erste Treffer statt des zufällig letzten.
+
+## 0.9.15
+- 🔎 **Die Preis-Abfrage fand den Dienst nicht.** Sie verglich den Namen im Preiskatalog buchstabengetreu mit „Generative Language API“ — wie Google den Dienst dort nennt, ist aber nirgends zugesichert. Gesucht wird jetzt unscharf nach „generative language“ und „gemini“, und **alle** passenden Dienste werden durchsucht statt nur des ersten.
+- **„Nichts gefunden“ war zweideutig** und stand sowohl für „Dienst nicht gefunden“ als auch für „Dienst gefunden, aber keine Posten-Bezeichnung passte“ — zwei völlig verschiedene Ursachen. Die Meldungen sind jetzt getrennt und nennen die Zahlen: wie viele Dienste gelesen wurden bzw. welche Dienste durchsucht und wie viele Posten gefunden wurden.
+- Passt keine Bezeichnung, zeigt der Tab jetzt **einen Auszug der echten Posten-Namen** von Google. Daran lässt sich erkennen, wie Google die Modelle benennt — statt vor einem „nichts gefunden“ ohne Anhaltspunkt zu stehen.
+
+## 0.9.14
+- ⬇ **„Preise bei Google abfragen“ ist zurück — jetzt mit eigenem Schlüssel.** In v0.9.13 hatte ich den Knopf entfernt in der Annahme, der Preiskatalog von Google Cloud nehme nur OAuth. Das war falsch: er akzeptiert sehr wohl einen API-Schlüssel — nur nicht den aus AI Studio, denn der ist auf die Generative Language API beschränkt.
+- Neue Option **`gemini_billing_key`**: ein zweiter Schlüssel aus einem Projekt, in dem die **Cloud Billing API** freigeschaltet ist. Ist er nicht gesetzt, bleibt der Knopf unsichtbar — er könnte ohne ihn nur scheitern.
+- Die Dienstliste wird jetzt **vollständig durchgeblättert**. Vorher holte ein einzelner Aufruf die erste Seite; Google liefert mehrere tausend Dienste seitenweise, der gesuchte Eintrag wäre schlicht verfehlt worden.
+- Treffer landen weiterhin **nur in den Feldern**, gespeichert wird erst auf Klick — Google beschreibt seine Posten im Fließtext, die Zuordnung zum Modell ist geraten.
+
+## 0.9.13
+- 💰 **Die Preistabelle deckt jetzt alle gängigen Gemini-Modelle ab** — 13 Einträge mit den Listenpreisen von [ai.google.dev/pricing](https://ai.google.dev/pricing), Textmodelle je Mio. Tokens, Bildmodelle je erzeugtem Bild. Damit rechnet die Kostenspalte für die üblichen Fälle ohne jede Eingabe.
+- ❌ **Der Knopf „Preise bei Google abfragen" ist wieder raus.** Er sollte den Preiskatalog von Google Cloud anzapfen, aber der verlangt ein OAuth-Konto statt eines API-Schlüssels — mit einem Gemini-Key ist er nicht erreichbar. Der Weg war eine Sackgasse und kostete nur Einrichtungsschritte, die nichts brachten.
+- Die Rückfall-Liste der Textmodelle nannte Namen, die es so nicht gibt (`gemini-3-pro`, `gemini-3-flash`); sie führt jetzt die tatsächlich gelisteten. Sie greift ohnehin nur, wenn die Live-Abfrage bei Google scheitert.
+
+## 0.9.12
+- 🔍 Die Preis-Abfrage hängt Googles Grund-Code jetzt an **jede** Fehlermeldung an, nicht nur an unbekannte. „Schlüssel abgelehnt" hat zwei Ursachen mit völlig verschiedenen Schritten — `API_KEY_INVALID` (Schlüssel taugt nicht) und `API_KEY_SERVICE_BLOCKED` (Schlüssel ist auf andere Dienste beschränkt). Ohne den Code war nicht zu erkennen, welche vorliegt.
+
 ## 0.9.11
 - 🔍 **Die Fehlermeldung der Preis-Abfrage sagt jetzt die Wahrheit.** Bisher wurde *jeder* 403 von Google als „Cloud Billing API nicht freigeschaltet" gedeutet — auch „API-Keys werden von diesem Dienst nicht unterstützt". Wer der Meldung folgte, schaltete Dienste frei, die gar nicht das Problem waren.
 - Ausgewertet wird jetzt ausschließlich der `reason` aus Googles Antwort. Neuer eigener Fall: **der Preiskatalog nimmt womöglich nur OAuth und keinen API-Schlüssel** — dann sagt die Meldung genau das und rät zur Eingabe von Hand, statt in die Irre zu führen.

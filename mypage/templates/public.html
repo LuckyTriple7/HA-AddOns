@@ -11,13 +11,17 @@
   {% if site.design.favicon %}<link rel="icon" href="{{ site.design.favicon }}">
   {% elif site.profile.avatar %}<link rel="icon" href="{{ site.profile.avatar }}">{% endif %}
   {% if not site.design.allow_indexing %}<meta name="robots" content="noindex, nofollow">{% endif %}
+  {% include '_seo.html' %}
   {% if site.design.google_verify %}<meta name="google-site-verification" content="{{ site.design.google_verify }}">{% endif %}
   {% if site.design.bing_verify %}<meta name="msvalidate.01" content="{{ site.design.bing_verify }}">{% endif %}
   <meta name="theme-color" content="#0d1117">
   {% if not static_export %}
   <link rel="manifest" href="/manifest.json" crossorigin="use-credentials">
   <link rel="apple-touch-icon" href="/icon.png">
-  {% if site.posts %}<link rel="alternate" type="application/rss+xml" title="{{ site.design.site_title or site.profile.name or 'MyPage' }} Feed" href="/feed.xml">{% endif %}
+  {# Immer verlinkt: der Feed antwortet auch ohne Beiträge mit einem gültigen
+     (leeren) Dokument, und wer ihn einmal abonniert hat, bekommt den ersten
+     Beitrag dann von selbst mit. #}
+  <link rel="alternate" type="application/rss+xml" title="{{ site.design.site_title or site.profile.name or 'MyPage' }} Feed" href="/feed.xml">
   {% endif %}
   <script type="application/ld+json">{{ {
     '@context': 'https://schema.org',
@@ -365,6 +369,10 @@
     .lib-tag:hover { border-color: var(--accent); color: var(--text); }
     .lib-tag.active { border-color: var(--accent); color: var(--accent); }
     .lib-card[hidden] { display: none; }
+    /* Reiseblog — dieselben Karten wie die Bibliothek, nur im Raster statt im
+       Karussell: es sind wenige Reisen, die alle auf einen Blick passen sollen.
+       `flex` aus `.lib-card` greift im Raster nicht, die Breite kommt von der Spalte. */
+    .trav-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; }
     /* Referenzen */
     .tm-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
     .tm-card { background: var(--surf); border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin: 0; }
@@ -746,6 +754,44 @@
     </div>
     <div class="lib-more">
       <a href="/bibliothek" id="lib-more-link">{{ t.library_open }} →</a>
+    </div>
+    {% endif %}
+
+    {% elif _sec == 'travel' %}
+    {% if travel_trips %}
+    <h2 class="section-title" id="reiseblog">{{ t.trav_trips_heading }}</h2>
+    <div class="trav-grid">
+      {% for tr in travel_trips %}
+      <a class="lib-card" href="/reiseblog/{{ tr.slug }}">
+        {% if tr.image %}<img class="lib-thumb" src="{{ tr.image }}" alt="" loading="lazy">{% endif %}
+        <div class="lib-body">
+          {% if tr.destination %}<div class="lib-cat">📍 {{ tr.destination }}</div>{% endif %}
+          <div class="lib-name">{{ tr.name }}</div>
+          {% if tr.teaser %}<div class="lib-sum">{{ tr.teaser }}</div>{% endif %}
+          <div class="lib-flags">
+            <span class="lib-flag">{{ (t.trav_day_count_one if tr.day_count == 1 else t.trav_day_count).replace('{n}', tr.day_count|string) }}</span>
+            {% if tr.members_only %}<span class="lib-flag">🔒 {{ t.members_only_badge }}</span>{% endif %}
+          </div>
+        </div>
+      </a>
+      {% endfor %}
+    </div>
+    <div class="lib-more"><a href="/reiseblog">{{ t.trav_all_trips }} →</a></div>
+    {% endif %}
+
+    {% elif _sec == 'forms' %}
+    {% if form_cards %}
+    <h2 class="section-title" id="formulare">{{ t.forms_heading }}</h2>
+    <div class="trav-grid">
+      {% for f in form_cards %}
+      <a class="lib-card" href="/formular/{{ f.slug }}">
+        <div class="lib-body">
+          <div class="lib-name">📋 {{ f.title }}</div>
+          {% if f.intro %}<div class="lib-sum">{{ f.intro }}</div>{% endif %}
+          <div class="lib-flags"><span class="lib-flag">{{ t.forms_open }} →</span></div>
+        </div>
+      </a>
+      {% endfor %}
     </div>
     {% endif %}
 

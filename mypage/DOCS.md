@@ -121,7 +121,7 @@ Eine Sammlung eigenständiger **Markdown-Dokumente mit Kategorien** — für all
 - **SEO**: Veröffentlichte Einträge landen in `sitemap.xml`, im **IndexNow-Ping**, in der Volltextsuche und im statischen Export (dort inklusive der PDF-Dateien). Jede Eintragsseite liefert strukturierte Daten (`schema.org/Article`). Alle Inhalte liegen in `site.json` (im Backup).
 
 ### KI
-Der Tab erscheint **nur, wenn `gemini_api_key` gesetzt ist**. Er bündelt alles, was mit Google Gemini erzeugt wird.
+Der Tab bündelt alles, was mit Google Gemini erzeugt wird. Ohne `gemini_api_key` bleibt davon nur der **Logo-Designer** sichtbar — der rechnet selbst und braucht keinen Schlüssel, solange man ihm ein eigenes Bild gibt.
 
 - **Einstellungen**: Text- und Bildmodell, Seitenverhältnis und der Übersetzungsdienst. Die Modell-Listen werden **live bei Google abgefragt** (stündlich zwischengespeichert) — neue Modelle stehen also ohne Add-on-Update zur Auswahl. Was hier gespeichert wird, **überschreibt die App-Optionen** `gemini_image_model` und `gemini_image_ratio`; ein Modellwechsel braucht damit keinen Neustart. Darunter steht das verbrauchte Stundenkontingent.
 - **Übersetzung**: `MyMemory` (kostenlos, ohne Schlüssel — Standard) oder `Gemini` (deutlich bessere Qualität, verbraucht Kontingent). Die Wahl gilt für **alle 🌐-Knöpfe im Admin**. Scheitert Gemini, übernimmt automatisch MyMemory — eine schlechtere Übersetzung ist besser als keine.
@@ -129,6 +129,21 @@ Der Tab erscheint **nur, wenn `gemini_api_key` gesetzt ist**. Er bündelt alles,
   - Entwürfe liegen zunächst **nur zwischengespeichert** auf dem Server und sind nicht öffentlich abrufbar. Erst **„Speichern"** legt einen Entwurf in den Uploads ab — verkleinert auf 1600 px, als WebP, ohne Metadaten und mit der [KI-Kennzeichnung](#kennzeichnung-von-ki-bildern). Nicht gespeicherte Entwürfe **verfallen nach einer Stunde**; „Verwerfen" löscht sofort. So wächst die Bildersammlung nicht mit jedem Fehlversuch.
   - Die Ergebnisse stehen in einem **waagerechten Streifen** mit Pfeilen — alle Entwürfe der Sitzung bleiben zum Vergleich stehen, ohne die Seite immer weiter nach unten zu schieben. Die Zeile darunter sagt, wie viele es sind und wie viele davon schon gespeichert wurden. Beim Neuladen der Seite ist der Streifen leer.
   - Gespeicherte Bilder stehen anschließend überall im Medien-Browser („Bild wählen") bereit. Gefällt eins doch nicht, löscht **„🗑 Löschen"** die Datei wieder. Ist das Bild bereits irgendwo eingebunden, verweigert das Add-on den Löschvorgang — sonst risse der betroffene Beitrag oder Eintrag ein Loch.
+- **Logo-Designer**: Erzeugt fertige **Logo-Sätze in exakten Pixelmaßen** — für Home-Assistant-Add-ons, PWAs, Favicons und Link-Vorschaubilder. Gedacht für alles, was ein Icon in mehreren Größen braucht und nicht auf die Homepage soll.
+  - **Warum ein eigener Ordner:** Logos landen **nicht** in den Uploads, sondern unter `logos/<name>/` im Add-on-Konfigurationsordner — erreichbar über den Share als `\\<host>\addon_configs\XXX_mypage\logos\<name>\`. In den Uploads würde aus jedem Logo ein WebP mit höchstens 1600 px **und** der eingebrannten [KI-Kennzeichnung](#kennzeichnung-von-ki-bildern); beides macht ein Logo unbrauchbar. Die Herkunft steht stattdessen unsichtbar in den **PNG-Textfeldern** und im mitgeschriebenen `prompt.txt`.
+  - **Zielformate** (mehrere gleichzeitig wählbar, dazu ein freies Maß von 16 bis 4096 px):
+
+    | Vorlage | Dateien |
+    |---|---|
+    | Home-Assistant-Add-on | `icon.png` 256×256, `logo.png` 250×100 |
+    | PWA / App-Symbol | `icon-192.png`, `icon-512.png`, `apple-touch-icon.png` 180×180 |
+    | Favicon | `favicon.ico` (16/32/48 in einer Datei), `favicon-32.png` |
+    | Vorschaubild für Links | `og-image.png` 1200×630 |
+
+  - **Die Maße rechnet MyPage, nicht die KI.** Gemini kennt nur Seitenverhältnisse. Der Entwurf entsteht deshalb immer quadratisch und wird je Ziel zugeschnitten und eingepasst — mittig, mit erhaltenem Seitenverhältnis. Die unveränderte Vorlage bleibt als `source.png` liegen, damit sich weitere Größen später **ohne neuen KI-Aufruf** nachziehen lassen („↻ Größen neu rechnen").
+  - **Hintergrund freistellen** (Standard an): Der Prompt verlangt einen einfarbigen weißen Grund, danach entfernt das Add-on den **vom Bildrand aus zusammenhängenden** Hintergrund und macht ihn durchsichtig. Geschlossene Flächen im Motiv — das Auge eines Maskottchens, die Fläche in einem „O" — bleiben erhalten. Wie ähnlich der Grund sein darf, ist in vier Stufen einstellbar. Wirkt gut bei flachen Logos, bei Verläufen und Fotos eher nicht.
+  - **Ohne KI nutzbar:** „⬆ Eigenes Bild einlesen" schickt ein vorhandenes Bild durch dieselbe Aufbereitung — praktisch, um zu einem längst gezeichneten Icon die fehlenden Größen nachzuziehen. Je größer die Vorlage, desto besser; kleiner als das größte Ziel wird sie hochgerechnet.
+  - **Herausholen:** entweder direkt aus dem Ordner auf dem Share, per Klick auf den Dateinamen als Einzeldownload oder als **ZIP über den ganzen Satz**. Logo-Sätze sind **Teil des Backups**.
 - **Text-Studio**: Aus Thema und Stichpunkten entstehen **Titel, SEO-Beschreibung, Fließtext (Markdown) und Schlagwörter**. Einstellbar sind Textart (Blogartikel, Kurzmeldung, Projektbeschreibung, Bibliothek-Zusammenfassung, nur SEO), Tonfall und Länge.
   - **Sprachen**: nur DE, nur EN oder **DE + EN in einem Durchgang**. Bei beiden Sprachen wird entweder jede Fassung **eigenständig geschrieben** (idiomatischer) oder die englische **aus der deutschen übersetzt** (gleiche Gliederung). Beide Fassungen entstehen in **einem** Aufruf.
   - Das Ergebnis ist vor der Übernahme frei editierbar. **„Als Blogbeitrag übernehmen"** öffnet den Beitrags-Dialog **als Entwurf** — veröffentlicht wird nichts automatisch. **„Titelbild dazu vorbereiten"** füllt das Bild-Studio mit einer aus Titel, Schlagwörtern und SEO-Text gebauten Beschreibung.
@@ -136,11 +151,47 @@ Der Tab erscheint **nur, wenn `gemini_api_key` gesetzt ist**. Er bündelt alles,
 - **Verbrauch**: Jede Anfrage wird nach **Monat und Modell** festgehalten — Aufrufe, erzeugte Bilder sowie Ein- und Ausgabe-Tokens direkt aus der Antwort von Google (Denk-Tokens zählen zur Ausgabe). Abgelehnte und leere Antworten werden mitgezählt, denn sie kosten die Eingabe genauso. Gespeichert in `ai_usage.json`, 24 Monate, im Backup enthalten.
   - **Preise sind für bekannte Modelle hinterlegt** (Listenpreise von Google, USD je Mio. Tokens bzw. je Bild) und stehen grau als Platzhalter im Feld — sie werden gerechnet, ohne dass du etwas tun musst. Eintragen musst du nur, wo kein Platzhalter steht oder dein Tarif abweicht; ein eingetragener Wert schlägt die Vorgabe immer.
   - Die Tabelle ist **bewusst nicht vollständig**: Google benennt Modelle laufend um, und ein geratener Preis wäre schlimmer als eine leere Zeile. Die Spalte rechts sagt je Modell, ob gerade *Vorgabe*, *eigener Wert* oder *kein Vorgabepreis* gilt.
-  - **„Preise bei Google abfragen"** holt die Posten aus dem öffentlichen Preiskatalog von Google Cloud und trägt die Treffer in die Felder ein — gespeichert wird erst mit „Speichern". Google beschreibt seine Posten im Fließtext („Gemini 2.5 Flash Input Tokens"), die Zuordnung zum Modell ist deshalb geraten und gehört angesehen. Voraussetzung: die **Cloud Billing API** ist im Google-Cloud-Projekt freigeschaltet und der API-Key ist nicht auf andere Dienste beschränkt. Klappt es nicht, sagt die Meldung welcher der beiden Fälle vorliegt.
+  - **„Preise bei Google abfragen“** erscheint nur, wenn die Option `gemini_billing_key` gesetzt ist. Der Knopf liest den Preiskatalog von Google Cloud und trägt die Treffer in die Felder ein — gespeichert wird erst mit „Speichern“, denn Google beschreibt seine Posten im Fließtext („Gemini 2.5 Flash Input Tokens“) und die Zuordnung zum Modell ist geraten.
+  - **Warum ein zweiter Schlüssel:** der Gemini-Key aus AI Studio ist auf die Generative Language API beschränkt und wird vom Preiskatalog mit `API_KEY_SERVICE_BLOCKED` abgewiesen. Der zweite Schlüssel muss aus einem Google-Cloud-Projekt stammen, in dem die **Cloud Billing API** freigeschaltet ist. Fehlt er, bleibt der Knopf weg und du pflegst die Preise von Hand — für die üblichen Modelle sind sie ohnehin hinterlegt.
   - **Es bleibt eine Schätzung.** Maßgeblich ist die Abrechnung bei Google — Freikontingente, Rundungen und Preisänderungen kennt das Add-on nicht. Ein Zugriff auf die echten Kosten ist mit dem Gemini-Key nicht möglich: der berechtigt nur zum Modellaufruf, Abrechnungsdaten liegen hinter der Cloud Billing API mit eigenem Dienstkonto und hinken ohnehin Stunden hinterher. Der Link neben der Überschrift führt direkt zur Abrechnungsseite.
 
+### Dateien (Tab System)
+Ein Browser über **alle hochgeladenen Bilder** und die **PDFs der Bibliothek** — gedacht zum Aufräumen und Nachsehen, was eigentlich alles herumliegt.
+
+- **Linksklick** öffnet die Datei in einem neuen Tab. PDFs werden dabei **inline** angezeigt (mit `sandbox` und `nosniff`), anders als öffentlich — dort gibt es sie ausschließlich als Download.
+- **Rechtsklick löscht**, nach Nachfrage. Das Löschen liegt bewusst auf dem Kontextmenü: ein Fehlklick in einem Raster aus hunderten Kacheln darf keine Datei kosten.
+- **Eingebundene Dateien lassen sich nicht löschen.** Steckt der Dateiname noch in `site.json`, verweigert das Add-on den Vorgang — sonst reisst der betroffene Beitrag oder Eintrag ein Loch. Die Plakette „unbenutzt“ zeigt vorab, was gefahrlos weg kann.
+- Die Kachel eines **KI-Bildes** trägt ✨; die Kennzeichnung stammt aus dem Dateinamen.
+- Das Kontrollkästchen **„Nur KI-erzeugte Bilder“** blendet alles andere aus. Dieselbe Möglichkeit gibt es im Medien-Browser hinter jedem „Bild wählen“.
+
+### Reiseblog
+Ein eigenes Modul, getrennt vom normalen Blog: unterwegs ein paar Stichpunkte erfassen, den Tagesbericht schreibt die KI daraus.
+
+- **Reise anlegen** (Name, Ziel, Unterkunft, Zeitraum). Schreibstil, Perspektive, Länge und Sprache werden **einmal je Reise** festgelegt und gelten für alle Tage — nicht bei jedem Tag neu.
+- **Tag erfassen** im Wizard mit acht Schritten: Tag & Ort, Wetter, Erlebnisse, Essen, Eindrücke, Momente & Ausgaben, Fotos & Notizen, Bericht. **Pflicht sind nur Reisetag und Datum** — beide mit `*` gekennzeichnet, alles andere darf leer bleiben. Was leer ist, taucht im Prompt gar nicht erst auf, damit die KI nichts dazuerfindet.
+- Die **Auswahllisten** (Wetter, Art des Erlebnisses, Verkehrsmittel, Kategorie …) speichern deutschen Klartext, weil genau der in den Prompt wandert. Auf Englisch werden nur die **Beschriftungen** übersetzt — im Admin wie auf der öffentlichen Seite.
+- **Bildunterschriften**: die KI schreibt eine je Foto **mit Hinweis**. Im Schritt *Fotos* lässt sich je Foto eine **eigene** eintragen; sie hat Vorrang und ist der einzige Weg, ein Foto ohne Hinweis zu beschriften.
+- Erlebnisse, Mahlzeiten, besondere Momente, Ausgaben und Fotos sind **beliebig oft** hinzufügbar. Ausgaben werden je Währung summiert — getrennt statt umgerechnet, ein geratener Wechselkurs wäre eine erfundene Zahl.
+- **„Wetter war erwähnenswert“**: ohne Haken lässt die KI das Wetter im Bericht weg.
+- Der Zwischenstand wird **laufend lokal im Browser gesichert**. Bricht unterwegs die Verbindung weg, ist die Eingabe nicht verloren.
+- **„Reisebericht erstellen“** baut aus den Angaben einen Prompt und liefert Titel, Anrisstext, Fließtext in Markdown, Schlagwörter und Bildunterschriften — auf Wunsch deutsch und englisch in einem Durchgang. Das Ergebnis ist frei editierbar.
+- Die **vorherigen Reisetage** gehen als Kurzfassung mit in den Prompt, damit sich die Berichte nicht wiederholen.
+- Gespeichert wird in **`travel.json`**, getrennt von `site.json` und im Backup enthalten. Rohdaten und fertiger Text liegen getrennt: eine Korrektur am Text geht nicht verloren, wenn später noch eine Ausgabe nachgetragen wird.
+
+**Öffentlich:** Drei Seiten — die Übersicht aller Reisen unter `/reiseblog`, die Tage einer Reise unter `/reiseblog/<reise>` und der Bericht unter `/reiseblog/<reise>/<tag>`. Sichtbar wird davon nur, was ausdrücklich freigegeben ist:
+
+- **„Tag veröffentlichen“** steht im letzten Wizard-Schritt beim Bericht. Ohne Haken bleibt der Tag im Admin — und mit Haken, aber **ohne Bericht**, ebenfalls: eine Seite mit Datum und ohne Text hilft niemandem. Die Liste im Reiter zeigt je Tag, was gerade gilt (🌐 veröffentlicht / Entwurf).
+- **Vorschau** je Tag im Reiter — zeigt auch Entwürfe, damit vor dem Freigeben sichtbar ist, was tatsächlich herauskommt.
+- **Adresse (Slug)** je Reise, frei wählbar im Reise-Dialog; leer gelassen wird sie aus dem Namen gebildet (`Gran Canaria 2027` → `gran-canaria-2027`). Einmal vergeben **bleibt sie**, auch beim Umbenennen — sonst führte jeder geteilte Link ins Leere. Die Tage heißen `tag-1`, `tag-2`, … und behalten ihre Adresse, wenn der Ort später korrigiert wird.
+- **Nur für Mitglieder** je Reise: Titel und Anrisstexte bleiben sichtbar, die Berichte nicht. Die Sperre gilt für die ganze Reise — eine halb gezeigte Reise wäre eine Geschichte mit Löchern.
+- Der **Abschnitt auf der Startseite** erscheint, sobald der Reiseblog unter *Design → Module* für die Website freigegeben ist **und** mindestens ein Tag veröffentlicht wurde. Position und Sichtbarkeit wie bei jedem Abschnitt unter *Inhalte*.
+- Steht der Schalter auf **NEIN**, ist das Modul ganz aus: keine Seiten unter `/reise/…`, kein Abschnitt — und im Admin verschwinden **auch der Reiter *Reiseblog* und der Abschnitt unter *Inhalte***. Reisen und Tage bleiben gespeichert und kommen beim Einschalten unverändert zurück. Zum Vorbereiten muss der Schalter **nicht** aus: solange kein Tag veröffentlicht ist, zeigt die Website nichts an. **Werkseinstellung ist NEIN** — der Reiter *Reiseblog* erscheint also erst, wenn du ihn hier einschaltest.
+- **Ausgaben**: Der Tagesbericht zeigt eine Aufstellung (Kategorie, Zweck, Betrag) mit Summe, die Reise-Seite die Summe über alle veröffentlichten Tage — je Währung getrennt, nicht umgerechnet. Gesteuert vom Schalter **„Preise im Bericht nennen"** der Reise: ist er aus, bleiben auch die Aufstellungen weg. Entwürfe zählen nicht mit.
+- Der Tagesbericht zeigt **Fakten** (Datum, Ort, Wetter), den Text, eine **Bildergalerie** mit den Unterschriften, die Schlagwörter und eine Leiste zum **Blättern** zum vorherigen und nächsten Tag. Über „Drucken“ des Browsers entsteht ein sauberes PDF ohne Kopf-, Fuß- und Navigationsleiste.
+- **Sitemap, Volltextsuche, IndexNow und der statische Export** kennen die veröffentlichten Tage; Entwürfe bleiben überall außen vor.
+
 ### Volltextsuche
-Eine seitenweite Suche über **Blog-Beiträge, Projekte, Seiten und Bibliothek-Einträge** (Titel, Inhalt und Tags, jeweils DE & EN). Im Design-Tab aktivierbar (Standard aus). Ist sie an, erscheint ein **Suchfeld im Kopfbereich** der Startseite; die Ergebnisse stehen unter `/suche`.
+Eine seitenweite Suche über **Blog-Beiträge, Projekte, Seiten, Bibliothek-Einträge und veröffentlichte Reisetage** (Titel, Inhalt und Tags, jeweils DE & EN). Im Design-Tab aktivierbar (Standard aus). Ist sie an, erscheint ein **Suchfeld im Kopfbereich** der Startseite; die Ergebnisse stehen unter `/suche`.
 
 - **Treffer**: Jeder Treffer zeigt seine Art (Beitrag/Projekt/Seite/Bibliothek), den Titel und einen **Auszug mit hervorgehobenen Suchbegriffen**. Mehrere Wörter werden alle gefordert (UND-Suche). Entwürfe, geplante Beiträge und unveröffentlichte Inhalte bleiben außen vor.
 - **Mitglieder-Inhalte**: Gesperrte (Mitglieder-only) Beiträge und Seiten erscheinen für Gäste nur als **Titel mit 🔒, ohne Inhalts-Vorschau** — angemeldete Mitglieder sehen die volle Vorschau. So wird kein geschützter Text geleakt.
@@ -148,6 +199,9 @@ Eine seitenweite Suche über **Blog-Beiträge, Projekte, Seiten und Bibliothek-E
 
 ### Formulare
 Frei konfigurierbare Formulare über das eine Kontaktformular hinaus — z. B. **Veranstaltungs-Anmeldung, Umfrage oder Anfrage**. Jedes Formular ist unter `/formular/<slug>` erreichbar (optional als Navi-Eintrag).
+
+- **Abschnitt auf der Startseite** mit einer Kachel je aktivem Formular; einsortierbar und ausblendbar unter *Inhalte*. Steht der Abschnitt in der Navigationsleiste, entfallen dort die einzelnen Formular-Links — sonst stünde erst „Formulare" und daneben nochmal jedes einzelne.
+- Der Schalter **Formulare** unter *Design → Module* nimmt das Modul **ganz** aus dem Betrieb: Abschnitt, Navi-Einträge und die Seiten unter `/formular/…` sind weg — und im Admin verschwinden **auch der Reiter *Formulare* und der Abschnitt unter *Inhalte***. Angelegte Formulare und eingegangene Antworten bleiben unangetastet und kommen beim Einschalten unverändert zurück, samt Position und Augen-Zustand des Abschnitts. Zum Vorbereiten muss der Schalter also **nicht** aus: ein Formular ohne eigenen Schalter „aktiv“ geht ohnehin nicht online.
 
 - **Felder**: beliebig viele, per Drag sortierbar. Typen: Text, mehrzeiliges Textfeld, E-Mail, Telefon, Zahl, Datum, Auswahl (Dropdown), Auswahl (Radio) und Kontrollkästchen. Je Feld DE/EN-Bezeichnung, optionaler Platzhalter, **Pflicht**-Schalter und (für Auswahl/Radio) Optionen (eine je Zeile).
 - **Einleitung & Danke-Text** (DE/EN, Markdown) lassen sich frei texten.
@@ -290,7 +344,38 @@ Wiederholungen derselben Quelle aktualisieren dieselbe Meldung, statt sie zu ver
 
 **Search-Console-Verifizierung (optional):** Im Design-Tab gibt es Felder für den **Google-Search-Console-** und **Bing-Webmaster-Code**. Trägst du dort den Bestätigungs-Code ein (oder fügst das komplette Meta-Tag ein — der Code wird automatisch herausgelesen), setzt MyPage das passende `<meta>`-Tag in den Kopf der Startseite, sodass du die Seite per „HTML-Tag"-Methode bestätigen kannst. Leer lassen, wenn deine Seite dort bereits bestätigt ist.
 
+**Sprache und kanonische Adressen:** Jede indexierbare Seite trägt ein `<link rel="canonical">` **ohne Filter- und Suchparameter** — `/blog`, `/blog?tag=x` und `/blog?q=y` melden alle `/blog`, statt die Signale auf drei fast gleiche Seiten zu verteilen. Dazu kommen `hreflang`-Angaben für die deutsche und die englische Fassung (`?lang=de` / `?lang=en`, plus `x-default`) sowie die Kopfzeilen `Content-Language` und `Vary`.
+
+Welche Sprache eine Adresse **ohne Zusatz** ausliefert, legt *Design → Standardsprache der Website* fest. Die Reihenfolge ist `?lang=` → Cookie → diese Einstellung. Die Browser-Einstellung des Besuchers entscheidet nur bei *Automatisch*. Das ist bewusst so: ein Suchmaschinen-Roboter schickt keine Spracheinstellung mit, und der frühere Rückfall war `en` — auf einer deutschen Domain wurde also die englische Fassung indexiert. Außerdem kann `canonical` nur dann etwas Wahres aussagen, wenn einer Adresse **eine** Sprache fest zugeordnet ist.
+
+**„Gefunden – zurzeit nicht indexiert"** in der Search Console ist kein Fehler der Seite: Google kennt die Adresse aus deiner Sitemap, hat sie aber noch nicht abgerufen. Bei jungen Domains normal. Erzwingen lässt sich nichts, beschleunigen schon — in der Search Console *URL-Prüfung → Indexierung beantragen*. Am meisten bringt das für **`/blog`**, denn erst diese Seite verlinkt alle Beiträge; von dort findet Google den Rest von allein.
+
 Eine ausführliche Schritt-für-Schritt-Anleitung (Google Search Console, Sitemap einreichen, Tipps für die Platzierung) findest du in [SEO.md](SEO.md).
+
+## RSS-Feed
+
+Unter **`/feed.xml`** liefert MyPage einen RSS-2.0-Feed. Er ist im Kopf jeder öffentlichen Seite verlinkt, Feed-Leser finden ihn also durch die bloße Eingabe der Domain. Adressaten sind Feed-Leser (Feedly, NetNewsWire, Thunderbird), die `feedreader`-Integration von Home Assistant und Automatisierungsdienste wie Buffer, Make oder Zapier, die auf einen neuen Eintrag hin etwas auslösen.
+
+**Was drinsteht** — die 50 neuesten Einträge, neueste zuerst:
+
+| Quelle | Bedingung |
+|---|---|
+| Blogbeiträge | immer (veröffentlicht, Datum nicht in der Zukunft) |
+| Reisetage | wenn *Design → Module → Reiseblog* auf JA steht; nur freigegebene Tage |
+| Projekte | Schalter *Projekte im Feed*; nur mit Detailseite, **ohne Datum** → am Ende |
+| Bibliothek | Schalter *Bibliothek im Feed* |
+
+Projekte und Bibliothek sind abschaltbar, weil sie sich selten ändern: beim Einschalten spült der Feed den Altbestand einmalig als „neu" durch jeden Reader.
+
+**Je Eintrag** stehen Titel, Adresse, Datum, ein Anriss (`<description>`), die Schlagwörter als `<category>`, der **Volltext** als `<content:encoded>` mit absoluten Bild- und Link-Adressen und — falls vorhanden — das Titelbild als `<enclosure>`. Genau daran hängen Automatisierungsdienste, wenn sie einen Beitrag mit Bild weiterreichen sollen.
+
+**Mitglieder-only-Inhalte** stehen mit Titel und Adresse im Feed, aber ohne Text und ohne Bild; an der Stelle des Anrisses steht ein Hinweis. Sie ganz zu verschweigen wäre falsch — auf der Website stehen sie ebenfalls in der Liste, nur gesperrt.
+
+**Sprache**: fest über *Design → Sprache des RSS-Feeds*, nicht über den Browser des Abrufers. Ein Feed-Leser holt dieselbe Adresse für alle seine Nutzer und schickt meist gar keine Sprachkennung; hinge die Sprache daran, lieferte derselbe URL mal Deutsch und mal Englisch. Die andere Fassung gibt es unter `/feed.xml?lang=en` bzw. `?lang=de`.
+
+**Zeitstempel**: Beiträge haben nur ein Datum, keine Uhrzeit. Der Feed setzt **12:00 UTC** — bei `00:00` stünde ein Beitrag für jeden Leser westlich von Greenwich unter dem Vortag. Mehrere Einträge desselben Tages werden um je eine Minute versetzt; das ist keine erfundene Uhrzeit, sondern die einzige Möglichkeit, „selber Tag, diese Reihenfolge" in RSS auszudrücken.
+
+**Abrufe** beantwortet der Feed mit `ETag` und `Cache-Control`; ein unveränderter Feed kommt als `304` zurück. Ohne veröffentlichte Inhalte liefert er einen **gültigen leeren Feed** statt eines Fehlers — ein 404 heißt für einen Reader „kaputt", und manche tragen einen so gemeldeten Feed dauerhaft aus.
 
 ## Bilder
 
@@ -305,6 +390,8 @@ Bilder, die über **✨ Bild generieren** entstanden sind, tragen beim Ausliefer
 - Ist „Bilder schützen" zusätzlich an, stehen beide Angaben in **einer Zeile** unten rechts, z. B. `@deine-domain.de · KI generiert`.
 - Der Hinweis erscheint auch beim **direkten Aufruf** der Bildadresse und im **erzeugten PDF** — sonst wäre der Download des PDF der einfachste Weg, die Kennzeichnung loszuwerden.
 - Woran das System ein KI-Bild erkennt: der Dateiname endet auf `-ai` (z. B. `a1b2…-ai.webp`). Der Marker steckt im Dateinamen statt in einer Liste, damit er Backup und Wiederherstellung übersteht. Wer eine Datei außerhalb des Add-ons umbenennt, verliert die Kennzeichnung.
+
+**Ausnahme Logo-Designer:** Ein Logo mit eingebranntem Hinweis wäre kein Logo mehr. Erzeugte Logo-Sätze tragen deshalb **keine sichtbare Kennzeichnung** — sie sind auch nicht Teil der Website, sondern Arbeitsmaterial in einem eigenen Ordner und werden von MyPage nirgends ausgeliefert. Die Herkunft steht in den **PNG-Textfeldern** (`Software`, `Source`, `Description`) und in `prompt.txt` neben den Dateien. Wer ein solches Logo veröffentlicht, entscheidet selbst über die Kennzeichnung — das Add-on nimmt ihm diese Entscheidung nicht ab.
 
 **Wasserzeichen in der Bibliothek** wird im Tab *Bibliothek* unter „Bilder schützen" ein- und ausgeschaltet — es ist dieselbe Einstellung wie unter *Inhalt → Fotoalben*, nur an beiden Stellen bedienbar. Es gilt für das Titelbild *und* für Bilder im Markdown-Text eines Eintrags. Eingebundene Fremd-URLs bleiben unangetastet — an fremden Bildern hat weder ein Wasserzeichen noch ein KI-Marker etwas zu suchen.
 
@@ -380,7 +467,7 @@ Das Besucher-Log im Admin ist ein **Ringpuffer** — es zeigt die neuesten 500 A
 
 ## Daten
 
-Alle Inhalte (`site.json`, `stats.json`, `sessions.json`, `uploads/`, `docs/`) liegen im Add-on-Konfigurationsordner und sind über den Share erreichbar: `\\<host>\addon_configs\XXX_mypage`. Sie überleben Add-on-Updates, Neustarts und sogar eine Neuinstallation.
+Alle Inhalte (`site.json`, `stats.json`, `sessions.json`, `uploads/`, `docs/`, `logos/`) liegen im Add-on-Konfigurationsordner und sind über den Share erreichbar: `\\<host>\addon_configs\XXX_mypage`. Sie überleben Add-on-Updates, Neustarts und sogar eine Neuinstallation.
 
 ## Jeopardy-Hintergrundmusik (optional)
 

@@ -162,6 +162,9 @@
   "comments_none":         "Keine Kommentare",
   "comments_total":        "Gesamt:",
   "comments_showing":      "Letzte:",
+  "comments_new_hint":     "ungelesene Kommentare — Panel öffnen markiert sie als gelesen",
+  "comments_unread_all":   "ungelesen",
+  "comments_mark_all_read": "Alle als gelesen",
 
   "insights_license":      "Lizenz",
   "insights_no_license":   "Keine Lizenz",

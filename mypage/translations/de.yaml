@@ -96,6 +96,14 @@ configuration:
       Schaltet im Bibliothek-Editor den Knopf „Bild generieren“ frei — die KI erzeugt
       dann das Titelbild eines Eintrags. Key auf aistudio.google.com holen. Achtung:
       Bildgenerierung ist je nach Modell kostenpflichtig.
+  gemini_billing_key:
+    name: Google-Cloud-Key für Preisabfrage (optional)
+    description: >-
+      Zweiter API-Schlüssel, nur für den Knopf „Preise bei Google abfragen" im
+      Tab KI. Der Gemini-Key taugt dafür nicht, weil er auf die Generative
+      Language API beschränkt ist. Der Schlüssel muss aus einem Projekt stammen,
+      in dem die Cloud Billing API freigeschaltet ist. Leer lassen, wenn du die
+      Preise von Hand pflegst.
   gemini_image_model:
     name: Modell für die Bilderzeugung
     description: >-

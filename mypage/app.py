@@ -38,8 +38,11 @@ from urllib.parse import urlencode, urlparse, urlsplit, urlunsplit
 
 import markdown as md_lib
 from markupsafe import Markup, escape
+
+import travelblog as tb
 try:
-    from PIL import Image, ImageDraw, ImageFont, ImageOps
+    from PIL import (Image, ImageChops, ImageDraw, ImageFilter, ImageFont,
+                     ImageOps, PngImagePlugin)
     _HAS_PIL = True
 except ImportError:
     _HAS_PIL = False
@@ -65,7 +68,7 @@ except Exception:
     _HAS_GENAI = False
 from flask import (Flask, render_template, request, redirect, url_for,
                    make_response, jsonify, abort, send_from_directory,
-                   send_file)
+                   send_file, g, has_request_context)
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from waitress import serve
 from werkzeug.middleware.proxy_fix import ProxyFix
@@ -117,6 +120,12 @@ DMKEY_PATH    = _DATA + '/dm.key'           # Fernet-Schlüssel für die DM-Vers
 TWOFA_PATH    = _DATA + '/admin_2fa.json'   # TOTP-Secret + Backup-Codes (Admin-2FA)
 SECRETKEY_PATH = _DATA + '/secret.key'      # Flask SECRET_KEY (signiert das trust2fa-Cookie)
 POLLS_PATH    = _DATA + '/polls.json'       # Umfrage-Stimmen (getrennt von site.json)
+# Reiseblog getrennt von site.json: eine Zwei-Wochen-Reise mit Erlebnissen,
+# Essen und Fotos sind schnell hundert Kilobyte, und site.json wird bei jedem
+# Admin-Speichern komplett neu geschrieben und beim Aufräumen komplett
+# durchsucht. Getrennt bleibt beides schnell und ein Fehler beim Schreiben
+# kostet nicht die ganze Seitenkonfiguration.
+TRAVEL_PATH   = _DATA + '/travel.json'
 UPLOADS_DIR   = Path(_DATA) / 'uploads'
 # Benutzerdateien: optional auf SMB-Share (run.sh setzt MYPAGE_USERFILES nach Mount)
 USERFILES_BASE = Path(os.environ.get('MYPAGE_USERFILES', _DATA + '/users'))
@@ -152,6 +161,17 @@ DM_FILES_DIR.mkdir(parents=True, exist_ok=True)
 DOCS_DIR = Path(_DATA) / 'docs'
 DOCS_DIR.mkdir(parents=True, exist_ok=True)
 _DOC_FILE_RE = re.compile(r'^[a-f0-9]{32}\.pdf$')
+# Logo-Werkstatt: je Satz ein Unterordner mit allen erzeugten Größen. Bewusst
+# NICHT unter uploads/ — dort wird alles zu WebP mit höchstens 1600 px, und ein
+# KI-Bild bekäme über den `-ai`-Marker die Kennzeichnung „KI generiert"
+# eingebrannt. Beides macht ein Logo unbrauchbar. Zweiter Grund: der Ordner liegt
+# im Add-on-Konfigurationsordner und ist damit direkt über den Share erreichbar —
+# \\<host>\addon_configs\XXX_mypage\logos\<name>\icon.png lässt sich ohne Umweg
+# ins Add-on-Repository kopieren.
+LOGOS_DIR = Path(_DATA) / 'logos'
+LOGOS_DIR.mkdir(parents=True, exist_ok=True)
+LOGO_SLUG_RE = re.compile(r'^[a-z0-9][a-z0-9_-]{0,40}$')
+LOGO_FILE_RE = re.compile(r'^[A-Za-z0-9][A-Za-z0-9._-]{0,60}\.(?:png|ico|txt)$')
 # Dauerhaftes Besucher-Archiv (optional, Option visit_file_log). Liegt im
 # Add-on-Konfigurationsordner und ist damit über den Share erreichbar:
 # \\<host>\addon_configs\XXX_mypage\visits\visits-JJJJ-MM.csv
@@ -241,6 +261,7 @@ _subs_lock = threading.Lock()
 _slot_lock  = threading.Lock()
 _game_lock  = threading.Lock()
 _polls_lock = threading.Lock()
+_travel_lock = threading.Lock()
 
 # Mitglieder-Sessions (getrennt vom Admin)
 user_sessions: dict[str, list] = {}  # token → [user_id, expires]
@@ -358,6 +379,20 @@ DEFAULT_SITE = {
         'dm_ha_notify': False,
         'directory_enabled': False,
         'search_enabled': False,
+        # Sichtbarkeit auf der WEBSITE. Die Reiter im Admin bleiben immer da:
+        # sonst liesse sich nichts vorbereiten, bevor der Bereich online geht.
+        'travel_enabled': False,
+        'forms_enabled': True,
+        # RSS-Feed: Sprache fest wählen statt am Browser des Abrufers hängen zu
+        # lassen (siehe _feed_lang). Blog und Reiseblog stehen immer drin,
+        # Projekte und Bibliothek nur auf Wunsch — sie ändern sich selten und
+        # würden den Feed sonst mit Altbestand fluten.
+        # Sprache, die eine Adresse ohne ?lang= und ohne Cookie ausliefert.
+        # 'auto' = wie früher nach Accept-Language; siehe detect_language.
+        'default_lang': 'de',
+        'feed_lang': 'de',
+        'feed_projects': False,
+        'feed_library': False,
         'registration_enabled': False,
         'registration_quota_mb': 500,
         'newsletter_enabled': False,
@@ -416,7 +451,7 @@ DEFAULT_SITE = {
     },
     'section_order': [
         'news', 'countdown', 'tips', 'freetext', 'poll', 'blog', 'services', 'projects', 'skills', 'testimonials',
-        'photos', 'library', 'team', 'timeline', 'events', 'links', 'faq', 'location',
+        'photos', 'library', 'travel', 'forms', 'team', 'timeline', 'events', 'links', 'faq', 'location',
     ],
     'hidden_sections': [],
     'members_sections': [],
@@ -443,10 +478,26 @@ def render_md(text: str) -> str:
     return md_lib.markdown(text or '', extensions=['nl2br', 'sane_lists', 'tables', 'fenced_code'])
 
 
+# Tags, die `render_md` erzeugen kann. Bewusst eine Liste statt `<[^>]+>`: der
+# offene Ausdruck frisst auch spitze Klammern, die als Text gemeint sind — aus
+# „Platzhalter <Name> einsetzen" wurde „Platzhalter  einsetzen".
+_HTML_TAG_RE = re.compile(
+    r'</?(?:p|br|hr|h[1-6]|a|em|strong|b|i|u|s|del|ins|sup|sub|small|mark|code|pre|kbd'
+    r'|blockquote|ul|ol|li|dl|dt|dd|img|figure|figcaption|table|thead|tbody|tfoot'
+    r'|tr|th|td|caption|span|div|hgroup|section|article)\b[^>]*>', re.I)
+
+
 def _plain_excerpt(s: str, limit: int = 155) -> str:
-    """HTML/Markdown-Text in einen kurzen Klartext-Auszug für Meta-Description wandeln."""
-    txt = re.sub(r'\s+', ' ', re.sub(r'<[^>]+>', ' ', s or '')).strip()
-    return txt[:limit].rstrip()
+    """HTML/Markdown-Text in einen kurzen Klartext-Auszug wandeln.
+
+    `unescape` gehört zwingend dazu: nach dem Entfernen der Tags stehen im Text
+    noch die Entities, die der Markdown-Schritt gesetzt hat (`&amp;`). Wer das
+    Ergebnis anschließend nochmal maskiert — Jinja in der Meta-Description, der
+    Feed beim Zusammenbauen des XML — machte daraus `&amp;amp;`, und im Reader
+    stand wörtlich „&amp;". Einmal zurückwandeln, danach einmal maskieren.
+    """
+    txt = html_mod.unescape(re.sub(r'\s+', ' ', _HTML_TAG_RE.sub(' ', s or '')).strip())
+    return re.sub(r'\s+', ' ', txt).strip()[:limit].rstrip()
 
 
 def _locked_teaser(html: str, cap: int = 280) -> str:
@@ -1757,12 +1808,56 @@ def load_translations(lang: str) -> dict:
         return {}
 
 
+SITE_LANGS = ('de', 'en')
+
+
+def site_default_lang(site: dict | None = None) -> str:
+    """Sprache, die eine Adresse ohne weitere Angabe ausliefert.
+
+    'auto' bedeutet: wie früher nach `Accept-Language` entscheiden.
+    """
+    d = (site if site is not None else load_site())['design']
+    v = (d.get('default_lang') or '').strip().lower()
+    return v if v in SITE_LANGS + ('auto',) else 'de'
+
+
 def detect_language(req) -> str:
+    """Sprache dieser Anfrage: `?lang=` → Cookie → Standardsprache der Seite.
+
+    `Accept-Language` entscheidet **nicht** mehr mit, außer die Standardsprache
+    steht ausdrücklich auf „automatisch". Grund: dieselbe Adresse lieferte je
+    nach Kopfzeile eine andere Seite. Googlebot crawlt ohne diese Kopfzeile und
+    bekam dadurch auf einer deutschen Seite durchgehend die englische Fassung —
+    Titel, Beschreibung und `<html lang>` inbegriffen. Zugleich ist eine feste
+    Zuordnung „Adresse → Sprache" die Voraussetzung dafür, dass `canonical` und
+    `hreflang` überhaupt etwas Wahres aussagen können.
+
+    Das Ergebnis hängt an der Anfrage und wird dort gemerkt: `detect_language`
+    wird je Anfrage mehrfach aufgerufen, und `load_site()` liest jedes Mal die
+    Datei.
+    """
+    if has_request_context() and req is request:
+        cached = getattr(g, 'mypage_lang', None)
+        if cached:
+            return cached
+    q = (req.args.get('lang') or '').strip().lower()
     cookie = req.cookies.get('lang', '')
-    if cookie in ('de', 'en'):
-        return cookie
-    accept = req.headers.get('Accept-Language', '')
-    return 'de' if accept.lower().startswith('de') else 'en'
+    if q in SITE_LANGS:
+        lang = q
+    elif cookie in SITE_LANGS:
+        lang = cookie
+    else:
+        default = site_default_lang()
+        if has_request_context() and req is request:
+            g.mypage_lang_auto = (default == 'auto')
+        if default == 'auto':
+            accept = req.headers.get('Accept-Language', '')
+            lang = 'de' if accept.lower().startswith('de') else 'en'
+        else:
+            lang = default
+    if has_request_context() and req is request:
+        g.mypage_lang = lang
+    return lang
 
 
 def _safe_next(raw: str) -> str:
@@ -2965,9 +3060,14 @@ def _search_highlight(text: str, words: list) -> Markup:
     return Markup(out)
 
 
-def site_search(site: dict, query: str, loc, viewer_is_member: bool) -> list:
-    """Seitenweite Volltextsuche über Beiträge, Projekte und Seiten.
-    Liefert eine Liste {kind, title, title_html, url, snippet, locked}."""
+def site_search(site: dict, query: str, loc, viewer_is_member: bool,
+                lang: str = 'de') -> list:
+    """Seitenweite Volltextsuche über Beiträge, Projekte, Seiten, Bibliothek und
+    Reiseblog. Liefert eine Liste {kind, title, title_html, url, snippet, locked}.
+
+    `lang` braucht nur der Reiseblog: dessen Texte liegen im Artikel-Objekt und
+    nicht in `<feld>_de`/`<feld>_en`, `loc` greift dort also nicht.
+    """
     words = _search_words(query)
     if not words:
         return []
@@ -3009,6 +3109,16 @@ def site_search(site: dict, query: str, loc, viewer_is_member: bool) -> list:
         body = ' '.join([loc(e, 'summary'), loc(e, 'body'), ' '.join(e.get('tags', []))])
         consider('library', loc(e, 'title'), '/bibliothek/' + e.get('slug', ''),
                  body, e.get('members_only'))
+
+    for trip in _trav_public_trips(site):
+        for d in _trav_public_days(trip):
+            art = _trav_article(d, lang)
+            body = ' '.join([art.get('teaser') or '', art.get('body') or '',
+                             ' '.join((d.get('article') or {}).get('tags') or []),
+                             d.get('location') or '', trip.get('destination') or ''])
+            consider('travel', art.get('title') or '',
+                     f"/reiseblog/{trip['slug']}/{d.get('slug', '')}",
+                     body, trip.get('members_only'))
 
     return results[:SEARCH_MAX_RESULTS]
 
@@ -3570,30 +3680,41 @@ def _form_slug(site: dict, raw: dict, form_id: str) -> str:
     return slug
 
 
-def _find_form(site: dict, slug: str) -> dict | None:
-    return next((f for f in site.get('forms', []) if f.get('slug') == slug), None)
+def _public_forms(site: dict) -> list:
+    """Formulare, die öffentlich erreichbar sind.
+
+    Der Schalter unter Design → Module steuert die Website als Ganzes, der
+    Schalter am Formular das einzelne Formular. Beides muss zusammenkommen.
+    """
+    if not site['design'].get('forms_enabled', True):
+        return []
+    return [f for f in site.get('forms', []) if f.get('enabled') and f.get('slug')]
 
 
 def _nav_forms(site: dict, loc) -> list:
     """Aktive Formulare mit gesetztem Navi-Schalter."""
     out = []
-    for f in site.get('forms', []):
-        if f.get('enabled') and f.get('nav'):
+    for f in _public_forms(site):
+        if f.get('nav'):
             label = loc(f, 'title')
             if label:
                 out.append({'href': '/formular/' + f['slug'], 'label': label})
     return out
 
 
-def _nav_links(site: dict, loc, t: dict | None = None, with_library: bool = True) -> list:
-    """Navi-Einträge für Bibliothek, eigene Seiten und Formulare.
+def _nav_links(site: dict, loc, t: dict | None = None, with_library: bool = True,
+               with_travel: bool = True, with_forms: bool = True) -> list:
+    """Navi-Einträge für Bibliothek, Reiseblog, eigene Seiten und Formulare.
 
-    Auf der Startseite steckt die Bibliothek bereits als Abschnitt in der
-    Sektions-Navigation (Anker `#library`) — dort `with_library=False`, sonst
-    stünde sie doppelt in der Leiste.
+    Auf der Startseite stecken Bibliothek, Reiseblog und Formulare bereits als
+    Abschnitt in der Sektions-Navigation (Anker `#library`, `#reiseblog`,
+    `#formulare`) — dort jeweils mit `False`, sonst stünden sie doppelt in der
+    Leiste. Auf den Unterseiten sind es die einzigen Wege zurück.
     """
     lib = _nav_library(site, loc, t or {}) if with_library else []
-    return lib + _nav_pages(site, loc) + _nav_forms(site, loc)
+    trav = _nav_travel(site, loc, t or {}) if with_travel else []
+    forms = _nav_forms(site, loc) if with_forms else []
+    return lib + trav + _nav_pages(site, loc) + forms
 
 
 # ── Weiterleitungen (301/302) ─────────────────────────────────────────────────
@@ -4027,9 +4148,16 @@ def api_design():
                  'registration_enabled', 'newsletter_enabled', 'maintenance', 'indexnow',
                  'allow_indexing', 'easter_eggs', 'mini_games', 'reveal_stagger',
                  'banner_enabled', 'banner_dismissible', 'share_enabled', 'dm_enabled',
-                 'dm_ha_notify', 'directory_enabled', 'search_enabled', 'weekly_review'):
+                 'dm_ha_notify', 'directory_enabled', 'search_enabled', 'weekly_review',
+                 'travel_enabled', 'forms_enabled', 'feed_projects', 'feed_library'):
         if flag in raw:
             d[flag] = bool(raw[flag])
+    if 'default_lang' in raw:
+        dl = _clean_str(raw['default_lang'], 4).lower()
+        d['default_lang'] = dl if dl in ('de', 'en', 'auto') else 'de'
+    if 'feed_lang' in raw:
+        fl = _clean_str(raw['feed_lang'], 2).lower()
+        d['feed_lang'] = fl if fl in ('de', 'en') else 'de'
     if 'banner_link_url' in raw:
         bl = _clean_str(raw['banner_link_url'], 500)
         d['banner_link_url'] = bl if bl.startswith(('http://', 'https://', '/')) or not bl else ''
@@ -4441,7 +4569,7 @@ def write_backup_zip(fp) -> None:
         for name in ('site.json', 'stats.json', 'messages.json', 'users.json',
                      'comments.json', 'audit.json', 'subscribers.json',
                      'dm.json', 'dm.key', 'admin_2fa.json', 'secret.key',
-                     'ai_usage.json'):
+                     'ai_usage.json', 'travel.json'):
             p = Path(_DATA) / name
             if p.is_file():
                 z.write(p, name)
@@ -4468,6 +4596,15 @@ def write_backup_zip(fp) -> None:
             for f in sorted(DM_FILES_DIR.iterdir()):
                 if f.is_file() and _FID_RE.match(f.name):
                     z.write(f, 'dm_files/' + f.name)
+        # Logo-Sätze (logos/<slug>/<datei>) — anders als die KI-Entwürfe sind das
+        # fertige Arbeitsergebnisse, die niemand ein zweites Mal erzeugen will
+        if LOGOS_DIR.is_dir():
+            for d in sorted(LOGOS_DIR.iterdir()):
+                if not d.is_dir() or not LOGO_SLUG_RE.match(d.name):
+                    continue
+                for f in sorted(d.iterdir()):
+                    if f.is_file() and LOGO_FILE_RE.match(f.name):
+                        z.write(f, f'logos/{d.name}/{f.name}')
 
 
 def list_auto_backups() -> list:
@@ -4629,7 +4766,7 @@ def api_restore():
                 # gegen Zip-Slip absichern
                 if member in ('site.json', 'stats.json', 'messages.json', 'users.json',
                               'comments.json', 'audit.json', 'subscribers.json', 'dm.json',
-                              'admin_2fa.json', 'ai_usage.json'):
+                              'admin_2fa.json', 'ai_usage.json', 'travel.json'):
                     target = safe_under(Path(_DATA), member)
                 elif member in ('dm.key', 'secret.key'):  # Binär-/Text-Schlüssel, kein JSON
                     target = safe_under(Path(_DATA), member)
@@ -4657,6 +4794,20 @@ def api_restore():
                     if not _FID_RE.match(name):
                         continue
                     target = safe_under(DM_FILES_DIR, name)
+                elif member.startswith('logos/'):
+                    # Einzige Stelle mit Unterordner im Backup: logos/<slug>/<datei>.
+                    # Beide Teile einzeln prüfen, damit aus dem Zip kein Pfad
+                    # entstehen kann, der LOGOS_DIR verlässt.
+                    parts = member.split('/')
+                    if len(parts) != 3 or not LOGO_SLUG_RE.match(parts[1]):
+                        continue
+                    if not LOGO_FILE_RE.match(parts[2]):
+                        continue
+                    sub = safe_under(LOGOS_DIR, parts[1])
+                    if sub is None:
+                        continue
+                    sub.mkdir(parents=True, exist_ok=True)
+                    target = safe_under(sub, parts[2])
                 elif member.startswith('docs/'):
                     name = Path(member).name
                     if not _DOC_FILE_RE.match(name):
@@ -4854,8 +5005,8 @@ GEMINI_IMAGE_MODELS = ('gemini-3.1-flash-image', 'gemini-3.1-flash-lite-image',
 # Rückfall für die Textmodelle: die Auswahl im KI-Studio kommt normalerweise
 # live von `client.models.list()`, weil Google die Namen laufend ändert. Nur
 # wenn dieser Aufruf scheitert, greift diese Liste — Reihenfolge = Vorauswahl.
-GEMINI_TEXT_MODELS = ('gemini-3-pro', 'gemini-3-flash', 'gemini-2.5-pro',
-                      'gemini-2.5-flash', 'gemini-2.5-flash-lite')
+GEMINI_TEXT_MODELS = ('gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-3.1-pro-preview',
+                      'gemini-2.5-pro', 'gemini-2.5-flash')
 GEMINI_IMAGE_RATIOS = ('16:9', '3:2', '4:3', '1:1', '3:4', '2:3', '9:16', '21:9')
 GEMINI_IMAGE_TIMEOUT_MS = 120_000   # google-genai erwartet Millisekunden
 GEMINI_TEXT_TIMEOUT_MS = 180_000    # Text mit zwei Sprachen dauert länger
@@ -4877,6 +5028,10 @@ AI_TEXT_KINDS = ('blog', 'news', 'project', 'library', 'seo')
 AI_TEXT_TONES = ('sachlich', 'locker', 'technisch', 'werblich', 'persoenlich')
 AI_TEXT_LENGTHS = {'kurz': 150, 'mittel': 400, 'lang': 800}
 AI_TRANSLATE_PROVIDERS = ('mymemory', 'gemini')
+# Interner Fehlercode -> Code fuer das Frontend. `model_missing` ist der Fall,
+# der eine eigene Meldung braucht: nicht kaputt, sondern falsch eingestellt.
+_AI_ERRORS = {'refused': 'ai_refused', 'empty': 'ai_empty',
+              'model_missing': 'ai_model_missing'}
 
 # Abbruchgründe, bei denen Gemini die Anfrage inhaltlich abgelehnt hat — davon
 # ist der Nutzer zu unterscheiden von einem technischen Fehler, denn hier hilft
@@ -4989,10 +5144,28 @@ def _ai_rate_take(times: list[float], limit: int, n: int = 1) -> bool:
     return True
 
 
+def _resp_text(resp) -> str:
+    """Textteile einer Antwort zusammenfassen.
+
+    Liefert Gemini statt eines Bildes eine Erklärung, steht sie genau hier. Sie
+    wegzuwerfen war der Grund, warum ein Fehlschlag nur „fehlgeschlagen" hiess.
+    """
+    out = []
+    for part in (getattr(resp, 'parts', None) or []):
+        text = (getattr(part, 'text', '') or '').strip()
+        if text:
+            out.append(text)
+    return ' '.join(out)[:400]
+
+
 def _gemini_generate_image(prompt: str, *, model: str = '', ratio: str = '',
                            ref: tuple[bytes, str] | None = None
-                           ) -> tuple[bytes | None, str, str]:
-    """Erzeugt ein Bild über Gemini. Zurück: (Bilddaten, MIME-Typ, Fehlercode).
+                           ) -> tuple[bytes | None, str, str, str]:
+    """Erzeugt ein Bild über Gemini.
+
+    Zurück: (Bilddaten, MIME-Typ, Fehlercode, Erläuterung). Die Erläuterung ist
+    das, was Gemini selbst dazu geschrieben hat — bei einer Absage steht dort
+    der Grund, und der hilft mehr als jede eigene Vermutung.
 
     `ref` ist ein optionales Vorlagenbild (Daten, MIME) — damit wird aus der
     Anfrage eine Abwandlung statt einer Neuschöpfung.
@@ -5018,30 +5191,41 @@ def _gemini_generate_image(prompt: str, *, model: str = '', ratio: str = '',
             ),
         )
         cands = resp.candidates or []
-        if cands and cands[0].finish_reason in _GEMINI_IMAGE_REFUSALS:
-            log.info("Gemini hat die Bildanfrage abgelehnt: %s", cands[0].finish_reason)
+        finish = cands[0].finish_reason if cands else None
+        reason = getattr(finish, 'name', None) or (str(finish) if finish else '')
+        if finish in _GEMINI_IMAGE_REFUSALS:
+            log.info("Gemini hat die Bildanfrage abgelehnt: %s", finish)
             _ai_usage_record(model, resp)
-            return None, '', 'refused'
+            return None, '', 'refused', _resp_text(resp) or reason
         for part in (resp.parts or []):
             if part.inline_data is not None and part.inline_data.data:
                 _ai_usage_record(model, resp, images=1)
                 return (part.inline_data.data,
-                        part.inline_data.mime_type or 'image/png', '')
+                        part.inline_data.mime_type or 'image/png', '', '')
         _ai_usage_record(model, resp)
     except genai_errors.APIError as e:
         # Bewusst nur der Statuscode: die Meldung des SDK kann die vollständige
         # Anfrage-URL samt API-Key enthalten, die hat im Add-on-Log nichts zu suchen.
+        code = getattr(e, 'code', None)
         log.warning("Gemini-Bildanfrage fehlgeschlagen (%s): Status %s",
-                    model, getattr(e, 'code', '') or type(e).__name__)
-        return None, '', 'failed'
+                    model, code or type(e).__name__)
+        # 404 heißt hier nicht „Ausfall", sondern „diesen Modellnamen gibt es
+        # nicht (mehr)". Ohne eigene Meldung sucht der Nutzer den Fehler bei sich.
+        return None, '', ('model_missing' if code == 404 else 'failed'), f'HTTP {code}' if code else ''
     except Exception as e:
         # Absichtlich breit: SDK-interne Fehler dürfen nicht als HTML-Fehlerseite
         # beim Frontend landen, das ausschließlich JSON erwartet.
         log.error("Gemini-Bildanfrage (%s) unerwartet fehlgeschlagen: %s: %s",
                   model, type(e).__name__, e)
-        return None, '', 'failed'
-    log.warning("Gemini-Antwort (%s) enthielt kein Bild", model)
-    return None, '', 'empty'
+        return None, '', 'failed', type(e).__name__
+    # 200, aber kein Bild: Grund und Erlaeuterung sind hier die einzige Auskunft.
+    # Frueher ging beides verloren und der Nutzer sah nur "fehlgeschlagen".
+    note = _resp_text(resp)
+    block = getattr(getattr(resp, 'prompt_feedback', None), 'block_reason', None)
+    log.warning("Gemini-Antwort (%s) enthielt kein Bild — finish_reason=%s block_reason=%s%s",
+                model, reason or '?', block or '-', (': ' + note) if note else '')
+    return None, '', 'empty', note or ' / '.join(
+        x for x in (reason, getattr(block, 'name', None) or (str(block) if block else '')) if x)
 
 
 @admin_app.route('/api/ai/image-support')
@@ -5065,10 +5249,10 @@ def api_ai_image():
         return jsonify({'error': 'invalid'}), 400
     if not _ai_rate_take(_ai_image_times, AI_IMAGE_MAX_PER_HOUR):
         return jsonify({'error': 'rate_limited'}), 429
-    data, _mime, code = _gemini_generate_image(prompt)
+    data, _mime, code, detail = _gemini_generate_image(prompt)
     if code:
-        return jsonify({'error': {'refused': 'ai_refused',
-                                  'empty': 'ai_empty'}.get(code, 'ai_failed')}), 502
+        return jsonify({'error': _AI_ERRORS.get(code, 'ai_failed'), 'detail': detail,
+                        'model': _gemini_image_model()}), 502
     try:
         # ai=True → Dateiname trägt den Marker, an dem die Auslieferung später
         # die Pflicht-Kennzeichnung „KI generiert" festmacht
@@ -5195,6 +5379,9 @@ def api_ai_status():
         'image_used': img_used, 'image_max': AI_IMAGE_MAX_PER_HOUR,
         'text_used': txt_used, 'text_max': AI_TEXT_MAX_PER_HOUR,
         'max_images': AI_STUDIO_MAX_IMAGES,
+        # Der Logo-Designer rechnet auch ohne Schlüssel — für den Weg über ein
+        # eigenes Bild braucht er nur Pillow
+        'logo': _HAS_PIL,
     })
 
 
@@ -5252,12 +5439,12 @@ def api_ai_studio_image():
     if not _ai_rate_take(_ai_image_times, AI_IMAGE_MAX_PER_HOUR, count):
         return jsonify({'error': 'rate_limited'}), 429
     _ai_tmp_sweep()
-    images, last = [], 'failed'
+    images, last, last_detail = [], 'failed', ''
     for _ in range(count):
-        data, mime, code = _gemini_generate_image(prompt, model=model, ratio=ratio,
-                                                  ref=ref)
+        data, mime, code, detail = _gemini_generate_image(prompt, model=model,
+                                                          ratio=ratio, ref=ref)
         if code:
-            last = code
+            last, last_detail = code, detail
             continue
         tid = uuid.uuid4().hex
         target = safe_under(AI_TMP_DIR, tid + '.img')
@@ -5271,8 +5458,8 @@ def api_ai_studio_image():
         _ai_tmp[tid] = {'mime': mime, 'ts': time.time(), 'prompt': prompt}
         images.append({'id': tid, 'url': 'api/ai/studio/preview/' + tid})
     if not images:
-        return jsonify({'error': {'refused': 'ai_refused',
-                                  'empty': 'ai_empty'}.get(last, 'ai_failed')}), 502
+        return jsonify({'error': _AI_ERRORS.get(last, 'ai_failed'),
+                        'detail': last_detail, 'model': model}), 502
     log.info("KI-Studio: %d Bildentwurf/-entwürfe erzeugt (%s, %s%s)",
              len(images), model, ratio, ', mit Vorlage' if ref else '')
     return jsonify({'ok': True, 'images': images})
@@ -5336,6 +5523,540 @@ def api_ai_studio_discard():
     return jsonify({'ok': True})
 
 
+# ── Logo-Designer ─────────────────────────────────────────────────────────────
+#
+# Ein Logo ist kein Titelbild. Es braucht exakte Pixelmaße statt eines
+# Seitenverhältnisses, PNG statt WebP, meist einen freigestellten Hintergrund —
+# und auf keinen Fall ein eingebranntes „KI generiert". Deshalb eine eigene
+# Ablage (LOGOS_DIR) und eine eigene Aufbereitung, statt `_store_upload_image`
+# zu verbiegen: dessen Zusagen (WebP, 1600 px, Kennzeichnung) sind für Uploads
+# richtig und für Logos genau verkehrt.
+#
+# Gemini liefert nur Seitenverhältnisse. Die Maße rechnet darum diese Datei:
+# einmal quadratisch erzeugen, dann je Ziel freistellen, zuschneiden, einpassen.
+# Derselbe Weg steht auch ohne KI offen — ein vorhandenes Bild hochladen und nur
+# die Größen erzeugen lassen.
+
+# Zielformate je Vorlage: (Dateiname, Breite, Höhe, Rand). Der Rand ist ein
+# Anteil der kürzeren Kante; 0 heißt randlos, wie es Icons brauchen.
+LOGO_PRESETS: dict[str, tuple] = {
+    # Home-Assistant-Add-on: icon.png quadratisch, logo.png im Breitformat
+    'ha':      (('icon.png', 256, 256, 0.0), ('logo.png', 250, 100, 0.06)),
+    # Progressive Web App (manifest.json) und iOS-Startbildschirm
+    'pwa':     (('icon-192.png', 192, 192, 0.0), ('icon-512.png', 512, 512, 0.0),
+                ('apple-touch-icon.png', 180, 180, 0.08)),
+    'favicon': (('favicon.ico', 0, 0, 0.0), ('favicon-32.png', 32, 32, 0.0)),
+    # Vorschaubild für geteilte Links — hier gehört Luft um das Motiv
+    'social':  (('og-image.png', 1200, 630, 0.22),),
+}
+LOGO_ICO_SIZES = ((16, 16), (32, 32), (48, 48))
+LOGO_SOURCE_MAX = 1024      # Kantenlänge der abgelegten source.png
+LOGO_CUSTOM_MIN = 16
+LOGO_CUSTOM_MAX = 4096
+LOGO_SETS_MAX = 200
+LOGO_IMPORT_MAX_BYTES = 16 * 1024 * 1024
+LOGO_CUT_TOLERANCE_MAX = 90
+LOGO_CUT_SCAN_MAX = 512     # Kantenlänge, auf der die Randsuche läuft
+# Ohne diesen Zusatz liefert Gemini gern einen Farbverlauf oder eine gemalte
+# Szene als Grund — beides lässt sich nicht freistellen.
+LOGO_BG_HINT = ('The logo sits centered on a plain, uniform, pure white '
+                'background. No shadow, no gradient, no frame, no border, '
+                'no additional text or caption outside the logo itself.')
+# Der Wert wird nicht zurückgemeldet, sondern in die PNG-Textfelder geschrieben:
+# ein Logo trägt keine sichtbare Kennzeichnung (die wäre der Zweck zuwider), aber
+# in der Datei soll nachlesbar bleiben, woher es stammt.
+LOGO_PNG_SOFTWARE = 'MyPage Logo-Designer'
+# Alpha-Umsetzung der Randsuche: 0 (kein Hintergrund) → 255 deckend, 1 → 0
+_LOGO_ALPHA_TABLE = bytes([255] + [0] * 255)
+
+
+def _logo_bg_color(img) -> tuple:
+    """Farbe, die als Hintergrund gilt — der zweitkleinste der vier Eckwerte.
+
+    Median statt „linke obere Ecke": ein einzelnes verirrtes Eckpixel (die KI
+    setzt gern eine Signatur dorthin) würde sonst die ganze Maske verschieben.
+    """
+    w, h = img.size
+    corners = [img.getpixel(p)[:3]
+               for p in ((0, 0), (w - 1, 0), (0, h - 1), (w - 1, h - 1))]
+    return tuple(sorted(c[i] for c in corners)[1] for i in range(3))
+
+
+def _logo_edge_mask(like):
+    """Vom Rand aus erreichbare Flächen einer Kandidatenmaske (255 = erreichbar).
+
+    Läuft auf einer verkleinerten Fassung: die Frage lautet nur „hängt dieser
+    Fleck am Bildrand?", und dafür reichen ein paar hundert Pixel. Eine
+    Breitensuche über 1024² wäre in reinem Python sekundenlang, `ImageDraw.
+    floodfill` müsste zudem für jeden Randpunkt einzeln starten.
+    """
+    w, h = like.size
+    scale = min(1.0, LOGO_CUT_SCAN_MAX / max(w, h))
+    sw, sh = max(1, int(w * scale)), max(1, int(h * scale))
+    small = like.resize((sw, sh), Image.NEAREST).tobytes()
+    seen = bytearray(sw * sh)
+    stack = [x for x in range(sw)] + [(sh - 1) * sw + x for x in range(sw)]
+    stack += [y * sw for y in range(sh)] + [y * sw + sw - 1 for y in range(sh)]
+    total = sw * sh
+    while stack:
+        i = stack.pop()
+        if seen[i] or not small[i]:
+            continue
+        seen[i] = 1
+        x = i % sw
+        if x:
+            stack.append(i - 1)
+        if x < sw - 1:
+            stack.append(i + 1)
+        if i >= sw:
+            stack.append(i - sw)
+        if i + sw < total:
+            stack.append(i + sw)
+    reach = Image.frombytes('L', (sw, sh), bytes(seen).translate(
+        bytes([0] + [255] * 255)))
+    # Bilinear zurück: die weiche Kante schadet nicht, weil gleich noch mit der
+    # scharfen Maske in voller Auflösung multipliziert wird
+    return reach.resize((w, h), Image.BILINEAR)
+
+
+def _logo_cutout(img, tolerance: int):
+    """Randverbundenen Hintergrund transparent machen.
+
+    Bewusst nur vom Rand aus: geschlossene helle Flächen im Motiv — das Auge
+    eines Maskottchens, die Fläche in einem „O" — sollen bleiben, was sie sind.
+
+    Die Kante wird leicht weichgezeichnet. Die KI liefert kantengeglättete
+    Ränder; eine harte Maske schneidet mitten durch die Übergangspixel und
+    hinterlässt eine Treppe samt hellem Saum.
+    """
+    img = img.convert('RGBA')
+    w, h = img.size
+    ref = Image.new('RGB', (w, h), _logo_bg_color(img))
+    diff = ImageChops.difference(img.convert('RGB'), ref).convert('L')
+    like = diff.point(lambda v: 255 if v <= tolerance else 0)
+    bg = ImageChops.multiply(like, _logo_edge_mask(like))
+    alpha = ImageChops.invert(bg).filter(ImageFilter.GaussianBlur(0.7))
+    # Der alte Alphakanal zählt mit: ein bereits freigestelltes PNG soll nicht
+    # plötzlich wieder deckend werden
+    img.putalpha(ImageChops.multiply(img.getchannel('A'), alpha))
+    return img
+
+
+def _logo_trim_box(img):
+    """Zuschnitt auf das Motiv. Bei RGBA über den Alphakanal — `getbbox()` sähe
+    sonst die (noch weißen) Farbwerte der durchsichtigen Pixel und fände nichts."""
+    return (img.getchannel('A').getbbox() if img.mode == 'RGBA' else img.getbbox())
+
+
+def _logo_fit(img, w: int, h: int, pad: float):
+    """Motiv auf w×h einpassen, mittig, mit durchsichtigem Grund.
+
+    Erst zuschneiden, dann einpassen: ohne den Zuschnitt bestimmt der zufällige
+    Leerraum der KI-Vorlage die Größe, und dasselbe Motiv wäre in jedem Format
+    unterschiedlich groß.
+    """
+    box = _logo_trim_box(img)
+    src = img.crop(box) if box else img
+    m = int(min(w, h) * pad)
+    inner = (max(1, w - 2 * m), max(1, h - 2 * m))
+    fitted = ImageOps.contain(src, inner, Image.LANCZOS)
+    out = Image.new('RGBA', (w, h), (0, 0, 0, 0))
+    out.paste(fitted, ((w - fitted.width) // 2, (h - fitted.height) // 2), fitted)
+    return out
+
+
+def _logo_pnginfo(meta: dict):
+    """Herkunft in die PNG-Textfelder schreiben.
+
+    Ein Logo mit sichtbarem Wasserzeichen wäre wertlos, verschweigen wollen wir
+    die Herkunft trotzdem nicht — sie steht in der Datei und in prompt.txt.
+    """
+    info = PngImagePlugin.PngInfo()
+    info.add_text('Software', LOGO_PNG_SOFTWARE)
+    info.add_text('Creation Time', datetime.now(timezone.utc).isoformat(timespec='seconds'))
+    if meta.get('model'):
+        info.add_text('Source', 'Google Gemini ' + meta['model'])
+    if meta.get('prompt'):
+        info.add_text('Description', meta['prompt'][:800])
+    return info
+
+
+def _logo_targets(presets: list, custom: tuple | None) -> list:
+    """Gewählte Vorlagen zu einer Liste von Zielformaten auflösen."""
+    out = []
+    for key in presets:
+        out.extend(LOGO_PRESETS.get(key) or ())
+    if custom:
+        cw, ch = custom
+        out.append((f'custom-{cw}x{ch}.png', cw, ch, 0.0))
+    # Reihenfolge erhalten, Doppelte (Vorlagen überschneiden sich) entfernen
+    seen, uniq = set(), []
+    for t in out:
+        if t[0] not in seen:
+            seen.add(t[0])
+            uniq.append(t)
+    return uniq
+
+
+def _logo_render(src_bytes: bytes, slug: str, targets: list, *, cutout: bool,
+                 tolerance: int, meta: dict) -> list:
+    """Einen Logo-Satz erzeugen. Zurück: die geschriebenen Dateinamen.
+
+    Wirft bei kaputten Bilddaten oder unschreibbarem Ordner — die Aufrufer
+    machen daraus eine Meldung, hier bleibt der Fehler roh.
+    """
+    img = ImageOps.exif_transpose(Image.open(io.BytesIO(src_bytes)))
+    img = img.convert('RGBA')
+    img.thumbnail((LOGO_SOURCE_MAX, LOGO_SOURCE_MAX), Image.LANCZOS)
+    if cutout:
+        img = _logo_cutout(img, tolerance)
+    target_dir = safe_under(LOGOS_DIR, slug)
+    if target_dir is None:
+        raise ValueError('bad slug')
+    target_dir.mkdir(parents=True, exist_ok=True)
+    info = _logo_pnginfo(meta)
+    written = []
+    src_path = safe_under(target_dir, 'source.png')
+    if src_path is not None:
+        img.save(src_path, 'PNG', pnginfo=info, optimize=True)
+        written.append('source.png')
+    for name, w, h, pad in targets:
+        p = safe_under(target_dir, name)
+        if p is None:
+            continue
+        if name.endswith('.ico'):
+            # ICO trägt mehrere Auflösungen in einer Datei; Pillow leitet sie aus
+            # der übergebenen Vorlage ab, die dafür groß genug sein muss
+            _logo_fit(img, 256, 256, 0.0).save(p, 'ICO', sizes=list(LOGO_ICO_SIZES))
+        else:
+            _logo_fit(img, w, h, pad).save(p, 'PNG', pnginfo=info, optimize=True)
+        written.append(name)
+    note = safe_under(target_dir, 'prompt.txt')
+    if note is not None:
+        lines = [
+            f"Erzeugt: {datetime.now().strftime('%Y-%m-%d %H:%M')}",
+            f"Herkunft: {meta.get('origin') or 'unbekannt'}",
+            f"Modell:   {meta.get('model') or '—'}",
+            f"Freigestellt: {'ja, Toleranz ' + str(tolerance) if cutout else 'nein'}",
+            f"Dateien:  {', '.join(written)}",
+            '',
+            meta.get('prompt') or '',
+        ]
+        note.write_text('\n'.join(lines), encoding='utf-8')
+        written.append('prompt.txt')
+    log.info("Logo-Satz „%s“ erzeugt: %s", slug, ', '.join(written))
+    return written
+
+
+def _logo_dir(slug: str) -> Path | None:
+    if not LOGO_SLUG_RE.match(slug or ''):
+        return None
+    p = safe_under(LOGOS_DIR, slug)
+    return p if (p is not None and p.is_dir()) else None
+
+
+def _logo_files(d: Path) -> list:
+    """Dateien eines Satzes mit Maßen — die Maße stehen sonst nur im Dateinamen,
+    und beim Import eigener Bilder auch dort nicht."""
+    out = []
+    try:
+        entries = sorted(d.iterdir(), key=lambda p: p.name)
+    except OSError:
+        return out
+    for f in entries:
+        if not f.is_file() or not LOGO_FILE_RE.match(f.name):
+            continue
+        item = {'name': f.name, 'size': f.stat().st_size, 'w': 0, 'h': 0}
+        if f.suffix.lower() in ('.png', '.ico'):
+            try:
+                with Image.open(f) as im:
+                    item['w'], item['h'] = im.size
+            except Exception:
+                pass
+        out.append(item)
+    return out
+
+
+def _logo_sets() -> list:
+    """Alle Sätze, neueste zuerst."""
+    out = []
+    try:
+        dirs = [d for d in LOGOS_DIR.iterdir()
+                if d.is_dir() and LOGO_SLUG_RE.match(d.name)]
+    except OSError:
+        return out
+    for d in dirs:
+        try:
+            ts = d.stat().st_mtime
+        except OSError:
+            continue
+        out.append({'slug': d.name, 'ts': int(ts), 'files': _logo_files(d)})
+    out.sort(key=lambda s: s['ts'], reverse=True)
+    return out
+
+
+def _logo_read_params(raw: dict) -> tuple:
+    """Die geteilten Felder von „speichern" und „neu rechnen" prüfen."""
+    slug = _clean_str(raw.get('slug'), 41).lower()
+    presets = [p for p in (raw.get('presets') or []) if p in LOGO_PRESETS]
+    custom = None
+    try:
+        cw, ch = int(raw.get('custom_w') or 0), int(raw.get('custom_h') or 0)
+        if LOGO_CUSTOM_MIN <= cw <= LOGO_CUSTOM_MAX and LOGO_CUSTOM_MIN <= ch <= LOGO_CUSTOM_MAX:
+            custom = (cw, ch)
+    except (TypeError, ValueError):
+        custom = None
+    try:
+        tol = max(0, min(LOGO_CUT_TOLERANCE_MAX, int(raw.get('tolerance') or 12)))
+    except (TypeError, ValueError):
+        tol = 12
+    return slug, presets, custom, bool(raw.get('cutout')), tol
+
+
+@admin_app.route('/api/ai/logo', methods=['POST'])
+def api_ai_logo():
+    """Logo-Entwürfe erzeugen. Legt wie das Bild-Studio nur in AI_TMP_DIR ab."""
+    err = _api_auth()
+    if err:
+        return err
+    if not gemini_image_enabled():
+        return jsonify({'error': 'no_api_key'}), 400
+    raw = request.get_json(silent=True) or {}
+    prompt = _clean_str(raw.get('prompt'), AI_IMAGE_PROMPT_MAX)
+    if len(prompt) < 3:
+        return jsonify({'error': 'invalid'}), 400
+    model = _ai_model_or(raw.get('model'), _gemini_image_model())
+    try:
+        count = max(1, min(AI_STUDIO_MAX_IMAGES, int(raw.get('count') or 1)))
+    except (TypeError, ValueError):
+        count = 1
+    ref = _ai_ref_image(raw.get('ref') or '') if raw.get('ref') else None
+    if raw.get('ref') and ref is None:
+        return jsonify({'error': 'bad_ref'}), 400
+    # Der Hintergrund-Hinweis geht immer mit, nicht nur beim Freistellen: ein
+    # ruhiger Grund ist auch für ein deckendes Icon die bessere Vorlage.
+    full = prompt + ' ' + LOGO_BG_HINT
+    if not _ai_rate_take(_ai_image_times, AI_IMAGE_MAX_PER_HOUR, count):
+        return jsonify({'error': 'rate_limited'}), 429
+    _ai_tmp_sweep()
+    images, last, last_detail = [], 'failed', ''
+    for _ in range(count):
+        # Quadratisch erzeugen: alle Zielformate entstehen daraus durch
+        # Zuschnitt, und ein 16:9-Entwurf hätte für icon.png zu wenig Höhe
+        data, mime, code, detail = _gemini_generate_image(full, model=model,
+                                                          ratio='1:1', ref=ref)
+        if code:
+            last, last_detail = code, detail
+            continue
+        tid = uuid.uuid4().hex
+        target = safe_under(AI_TMP_DIR, tid + '.img')
+        if target is None:
+            continue
+        try:
+            target.write_bytes(data)
+        except OSError as e:
+            log.warning("Logo-Entwurf konnte nicht zwischengespeichert werden: %s", e)
+            continue
+        _ai_tmp[tid] = {'mime': mime, 'ts': time.time(), 'prompt': prompt,
+                        'model': model}
+        images.append({'id': tid, 'url': 'api/ai/studio/preview/' + tid})
+    if not images:
+        return jsonify({'error': _AI_ERRORS.get(last, 'ai_failed'),
+                        'detail': last_detail, 'model': model}), 502
+    log.info("Logo-Designer: %d Entwurf/Entwürfe erzeugt (%s%s)",
+             len(images), model, ', mit Vorlage' if ref else '')
+    return jsonify({'ok': True, 'images': images})
+
+
+@admin_app.route('/api/ai/logo/keep', methods=['POST'])
+def api_ai_logo_keep():
+    """Einen Entwurf als Logo-Satz ablegen."""
+    err = _api_auth()
+    if err:
+        return err
+    raw = request.get_json(silent=True) or {}
+    slug, presets, custom, cutout, tol = _logo_read_params(raw)
+    if not LOGO_SLUG_RE.match(slug):
+        return jsonify({'error': 'bad_slug'}), 400
+    targets = _logo_targets(presets, custom)
+    if not targets:
+        return jsonify({'error': 'no_targets'}), 400
+    if len(_logo_sets()) >= LOGO_SETS_MAX and not _logo_dir(slug):
+        return jsonify({'error': 'too_many'}), 400
+    tid = _clean_str(raw.get('id'), 40)
+    p = _ai_tmp_file(tid)
+    if p is None:
+        return jsonify({'error': 'not_found'}), 404
+    meta = _ai_tmp.get(tid) or {}
+    try:
+        written = _logo_render(p.read_bytes(), slug, targets, cutout=cutout,
+                               tolerance=tol,
+                               meta={'prompt': meta.get('prompt'),
+                                     'model': meta.get('model'),
+                                     'origin': 'KI (Google Gemini)'})
+    except Exception as e:
+        log.warning("Logo-Satz „%s“ konnte nicht erzeugt werden: %s: %s",
+                    slug, type(e).__name__, e)
+        return jsonify({'error': 'render_failed'}), 502
+    try:
+        p.unlink()
+    except OSError:
+        pass
+    _ai_tmp.pop(tid, None)
+    log_audit('logo_create', slug)
+    return jsonify({'ok': True, 'slug': slug, 'files': written})
+
+
+@admin_app.route('/api/logos/import', methods=['POST'])
+def api_logos_import():
+    """Vorhandenes Bild in einen Logo-Satz verwandeln — ohne KI.
+
+    Damit lassen sich auch die fehlenden Größen zu einem längst gezeichneten
+    Icon nachziehen; dafür braucht es keinen API-Schlüssel.
+    """
+    err = _api_auth()
+    if err:
+        return err
+    if not _HAS_PIL:
+        return jsonify({'error': 'no_pil'}), 400
+    f = request.files.get('file')
+    if not f or not f.filename:
+        return jsonify({'error': 'no file'}), 400
+    if Path(f.filename).suffix.lower() not in ALLOWED_UPLOAD_EXT:
+        return jsonify({'error': 'file type not allowed'}), 400
+    raw = request.form
+    slug, presets, custom, cutout, tol = _logo_read_params({
+        'slug': raw.get('slug'), 'presets': raw.getlist('presets'),
+        'custom_w': raw.get('custom_w'), 'custom_h': raw.get('custom_h'),
+        'cutout': raw.get('cutout') == '1', 'tolerance': raw.get('tolerance'),
+    })
+    if not LOGO_SLUG_RE.match(slug):
+        return jsonify({'error': 'bad_slug'}), 400
+    targets = _logo_targets(presets, custom)
+    if not targets:
+        return jsonify({'error': 'no_targets'}), 400
+    if len(_logo_sets()) >= LOGO_SETS_MAX and not _logo_dir(slug):
+        return jsonify({'error': 'too_many'}), 400
+    data = f.read(LOGO_IMPORT_MAX_BYTES + 1)
+    if len(data) > LOGO_IMPORT_MAX_BYTES:
+        return jsonify({'error': 'too_large'}), 400
+    try:
+        written = _logo_render(data, slug, targets, cutout=cutout, tolerance=tol,
+                               meta={'origin': 'Eigenes Bild: '
+                                     + secure_filename(f.filename)})
+    except Exception as e:
+        log.warning("Logo-Satz „%s“ aus eigenem Bild fehlgeschlagen: %s: %s",
+                    slug, type(e).__name__, e)
+        return jsonify({'error': 'render_failed'}), 502
+    log_audit('logo_import', slug)
+    return jsonify({'ok': True, 'slug': slug, 'files': written})
+
+
+@admin_app.route('/api/logos/render', methods=['POST'])
+def api_logos_render():
+    """Weitere Größen aus der abgelegten source.png nachziehen — ohne neuen
+    KI-Aufruf, denn die Vorlage liegt ja schon da."""
+    err = _api_auth()
+    if err:
+        return err
+    raw = request.get_json(silent=True) or {}
+    slug, presets, custom, cutout, tol = _logo_read_params(raw)
+    d = _logo_dir(slug)
+    if d is None:
+        return jsonify({'error': 'not_found'}), 404
+    src = safe_under(d, 'source.png')
+    if src is None or not src.is_file():
+        return jsonify({'error': 'no_source'}), 404
+    targets = _logo_targets(presets, custom)
+    if not targets:
+        return jsonify({'error': 'no_targets'}), 400
+    try:
+        written = _logo_render(src.read_bytes(), slug, targets, cutout=cutout,
+                               tolerance=tol, meta={'origin': 'Neu gerechnet aus source.png'})
+    except Exception as e:
+        log.warning("Logo-Satz „%s“ konnte nicht neu gerechnet werden: %s: %s",
+                    slug, type(e).__name__, e)
+        return jsonify({'error': 'render_failed'}), 502
+    return jsonify({'ok': True, 'slug': slug, 'files': written})
+
+
+@admin_app.route('/api/logos')
+def api_logos_list():
+    err = _api_auth()
+    if err:
+        return err
+    return jsonify({'sets': _logo_sets(), 'presets': list(LOGO_PRESETS),
+                    'available': _HAS_PIL,
+                    'path': str(LOGOS_DIR)})
+
+
+@admin_app.route('/api/logos/<slug>/<name>')
+def api_logos_file(slug: str, name: str):
+    """Einzelne Datei ansehen oder herunterladen (`?dl=1`)."""
+    err = _api_auth()
+    if err:
+        return err
+    d = _logo_dir(slug)
+    if d is None or not LOGO_FILE_RE.match(name or ''):
+        return jsonify({'error': 'not_found'}), 404
+    p = safe_under(d, name)
+    if p is None or not p.is_file():
+        return jsonify({'error': 'not_found'}), 404
+    resp = send_file(p, as_attachment=bool(request.args.get('dl')),
+                     download_name=name)
+    # Ein neu gerechneter Satz behält seine Dateinamen — ohne das hier zeigte
+    # der Browser nach „neu rechnen" weiter die alte Fassung
+    resp.headers['Cache-Control'] = 'no-store'
+    return resp
+
+
+@admin_app.route('/api/logos/<slug>.zip')
+def api_logos_zip(slug: str):
+    """Ganzer Satz als ZIP — für den Weg an einen Rechner ohne Share-Zugriff."""
+    err = _api_auth()
+    if err:
+        return err
+    d = _logo_dir(slug)
+    if d is None:
+        return jsonify({'error': 'not_found'}), 404
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as z:
+        for item in _logo_files(d):
+            p = safe_under(d, item['name'])
+            if p is not None and p.is_file():
+                z.write(p, slug + '/' + item['name'])
+    buf.seek(0)
+    return send_file(buf, mimetype='application/zip', as_attachment=True,
+                     download_name=slug + '-logo.zip')
+
+
+@admin_app.route('/api/logos/delete', methods=['POST'])
+def api_logos_delete():
+    err = _api_auth()
+    if err:
+        return err
+    slug = _clean_str((request.get_json(silent=True) or {}).get('slug'), 41).lower()
+    d = _logo_dir(slug)
+    if d is None:
+        return jsonify({'error': 'not_found'}), 404
+    # Gezielt die eigenen Dateien löschen statt rmtree: liegt dort etwas
+    # Fremdes, bleibt es liegen und der Ordner damit bestehen
+    for item in _logo_files(d):
+        p = safe_under(d, item['name'])
+        if p is not None and p.is_file():
+            try:
+                p.unlink()
+            except OSError:
+                pass
+    try:
+        d.rmdir()
+    except OSError:
+        pass
+    log_audit('logo_delete', slug)
+    log.info("Logo-Satz „%s“ gelöscht", slug)
+    return jsonify({'ok': True})
+
+
 # ── KI-Texte ──────────────────────────────────────────────────────────────────
 
 _AI_TEXT_KIND_DE = {
@@ -5380,10 +6101,12 @@ def _ai_text_schema(langs: list[str]):
 
 def _gemini_generate_text(*, topic: str, kind: str, tone: str, length: str,
                           langs: list[str], mode: str, model: str
-                          ) -> tuple[dict | None, str]:
+                          ) -> tuple[dict | None, str, str]:
     """Erzeugt Titel, SEO-Beschreibung, Fließtext und Schlagwörter je Sprache.
 
-    Zurück: (Ergebnis, Fehlercode) mit denselben Codes wie bei den Bildern.
+    Zurück: (Ergebnis, Fehlercode, Erläuterung) — dieselben Codes wie bei den
+    Bildern. Die Erläuterung ist Googles Abbruchgrund im Klartext; ohne sie
+    steht im Admin nur „fehlgeschlagen" und niemand weiß, woran es lag.
     """
     words = AI_TEXT_LENGTHS.get(length, 400)
     sys = (
@@ -5425,24 +6148,30 @@ def _gemini_generate_text(*, topic: str, kind: str, tone: str, length: str,
         )
         _ai_usage_record(model, resp)
         cands = resp.candidates or []
-        if cands and cands[0].finish_reason in _GEMINI_TEXT_REFUSALS:
-            log.info("Gemini hat die Textanfrage abgelehnt: %s", cands[0].finish_reason)
-            return None, 'refused'
+        finish = cands[0].finish_reason if cands else None
+        reason = getattr(finish, 'name', None) or (str(finish) if finish else '')
+        if finish in _GEMINI_TEXT_REFUSALS:
+            log.info("Gemini hat die Textanfrage abgelehnt: %s", finish)
+            return None, 'refused', reason
         data = json.loads(resp.text or '')
         if not isinstance(data, dict):
-            return None, 'empty'
+            log.warning("Gemini-Textantwort (%s) ohne verwertbaren Inhalt — finish_reason=%s",
+                        model, reason or '?')
+            return None, 'empty', reason
     except genai_errors.APIError as e:
         # Nur der Statuscode: die SDK-Meldung kann die Anfrage-URL samt Key enthalten
+        code = getattr(e, 'code', None)
         log.warning("Gemini-Textanfrage fehlgeschlagen (%s): Status %s",
-                    model, getattr(e, 'code', '') or type(e).__name__)
-        return None, 'failed'
+                    model, code or type(e).__name__)
+        return (None, ('model_missing' if code == 404 else 'failed'),
+                f'HTTP {code}' if code else '')
     except (ValueError, TypeError) as e:
         log.warning("Gemini-Textantwort (%s) war kein gültiges JSON: %s", model, type(e).__name__)
-        return None, 'empty'
+        return None, 'empty', type(e).__name__
     except Exception as e:
         log.error("Gemini-Textanfrage (%s) unerwartet fehlgeschlagen: %s: %s",
                   model, type(e).__name__, e)
-        return None, 'failed'
+        return None, 'failed', type(e).__name__
     out = {}
     for lg in langs:
         d = data.get(lg) if isinstance(data.get(lg), dict) else {}
@@ -5454,8 +6183,8 @@ def _gemini_generate_text(*, topic: str, kind: str, tone: str, length: str,
             'tags':  [_clean_str(t, 40) for t in tags[:8] if _clean_str(t, 40)],
         }
     if not any(v['title'] or v['text'] for v in out.values()):
-        return None, 'empty'
-    return out, ''
+        return None, 'empty', reason
+    return out, '', ''
 
 
 @admin_app.route('/api/ai/text', methods=['POST'])
@@ -5480,14 +6209,292 @@ def api_ai_text():
     model = _ai_model_or(raw.get('model'), _gemini_text_model())
     if not _ai_rate_take(_ai_text_times, AI_TEXT_MAX_PER_HOUR):
         return jsonify({'error': 'rate_limited'}), 429
-    data, code = _gemini_generate_text(topic=topic, kind=kind, tone=tone,
-                                       length=length, langs=langs, mode=mode,
-                                       model=model)
+    data, code, detail = _gemini_generate_text(topic=topic, kind=kind, tone=tone,
+                                               length=length, langs=langs, mode=mode,
+                                               model=model)
     if code:
-        return jsonify({'error': {'refused': 'ai_refused',
-                                  'empty': 'ai_empty'}.get(code, 'ai_failed')}), 502
+        return jsonify({'error': _AI_ERRORS.get(code, 'ai_failed'),
+                        'detail': detail, 'model': model}), 502
     log.info("KI-Text erzeugt (%s, %s, %s)", model, kind, '+'.join(langs))
     return jsonify({'ok': True, 'result': data})
+
+
+# ── Reiseblog ─────────────────────────────────────────────────────────────────
+#
+# Unterwegs entsteht kein fertiger Text, sondern ein paar Stichpunkte. Aus denen
+# baut `travelblog.build_prompt` einen Prompt, und daraus schreibt das Modell den
+# Tagesbericht. Rohdaten und Artikel bleiben getrennt gespeichert: eine Korrektur
+# am Text darf nicht verlorengehen, nur weil später eine Ausgabe nachgetragen wird.
+
+def load_travel() -> dict:
+    with _travel_lock:
+        try:
+            with open(TRAVEL_PATH, encoding='utf-8') as f:
+                data = json.load(f)
+        except FileNotFoundError:
+            return {'trips': []}
+        except Exception as e:
+            _quarantine_corrupt(TRAVEL_PATH, e)
+            return {'trips': []}
+    if not isinstance(data.get('trips'), list):
+        data['trips'] = []
+    return data
+
+
+def save_travel(data: dict) -> bool:
+    """Speichert und sagt, ob es geklappt hat.
+
+    Ein verschluckter Schreibfehler ist hier besonders teuer: die Oberfläche
+    meldete „Gespeichert", der Dialog schloss sich, und der eingetippte Tag war
+    weg. Der Rückgabewert zwingt die Routen, das Scheitern zu melden.
+    """
+    with _travel_lock:
+        try:
+            _atomic_write_json(TRAVEL_PATH, data, indent=2)
+            return True
+        except Exception as e:
+            log.error("travel.json konnte nicht gespeichert werden: %s", e)
+            return False
+
+
+def _saved(ok: bool, payload: dict | None = None):
+    if not ok:
+        return jsonify({'error': 'save_failed'}), 500
+    return jsonify({'ok': True, **(payload or {})})
+
+
+def _trip(data: dict, tid: str) -> dict | None:
+    return next((t for t in data['trips'] if t.get('id') == tid), None)
+
+
+def _day(trip: dict, did: str) -> dict | None:
+    return next((d for d in trip.get('days', []) if d.get('id') == did), None)
+
+
+def _trav_slug(wish: str, fallback: str, taken: set) -> str:
+    """Eindeutiger Slug aus Wunsch oder Notnagel, Dubletten mit -2, -3, …"""
+    base = _slugify(wish) or fallback
+    slug, n = base, 2
+    while slug in taken:
+        slug = f'{base}-{n}'
+        n += 1
+    return slug
+
+
+def _trav_trip_slug(data: dict, trip: dict, tid: str) -> str:
+    """Adresse der Reise. Ein einmal vergebener Slug bleibt, auch wenn die Reise
+    später umbenannt wird — sonst führt jeder geteilte Link ins Leere."""
+    taken = {t.get('slug') for t in data['trips'] if t.get('id') != tid and t.get('slug')}
+    return _trav_slug(trip.get('slug') or trip.get('name') or '', 'reise-' + tid[:6], taken)
+
+
+def _trav_day_slug(trip: dict, day: dict, did: str) -> str:
+    """Adresse des Tages, standardmäßig `tag-3`.
+
+    Bewusst ohne Ort im Slug: der Ort wird beim Nachtragen gern noch korrigiert,
+    die Tagesnummer nicht. Eindeutig muss der Slug nur innerhalb der Reise sein.
+    """
+    taken = {d.get('slug') for d in trip.get('days', []) if d.get('id') != did and d.get('slug')}
+    return _trav_slug(day.get('slug') or f"tag-{day.get('day_number') or 1}",
+                      'tag-' + did[:6], taken)
+
+
+@admin_app.route('/api/travel')
+def api_travel_get():
+    err = _api_auth()
+    if err:
+        return err
+    return jsonify(load_travel())
+
+
+@admin_app.route('/api/travel/options')
+def api_travel_options():
+    """Auswahllisten aus einer Hand — sonst müssten sie im JavaScript ein
+    zweites Mal stehen und liefen mit der Zeit auseinander."""
+    err = _api_auth()
+    if err:
+        return err
+    return jsonify({
+        'weather_conditions': list(tb.WEATHER_CONDITIONS),
+        'wind_strengths': list(tb.WIND_STRENGTHS),
+        'experience_types': list(tb.EXPERIENCE_TYPES),
+        'recommendations': list(tb.RECOMMENDATIONS),
+        'transports': list(tb.TRANSPORTS),
+        'meal_types': list(tb.MEAL_TYPES),
+        'moment_categories': list(tb.MOMENT_CATEGORIES),
+        'expense_categories': list(tb.EXPENSE_CATEGORIES),
+        'currencies': list(tb.CURRENCIES),
+        'writing_styles': list(tb.WRITING_STYLES),
+        'perspectives': list(tb.PERSPECTIVES),
+        'lengths': list(tb.LENGTHS),
+    })
+
+
+@admin_app.route('/api/travel/trips', methods=['POST'])
+def api_travel_trip_create():
+    err = _api_auth()
+    if err:
+        return err
+    data = load_travel()
+    if len(data['trips']) >= tb.MAX_TRIPS:
+        return jsonify({'error': 'too many'}), 400
+    trip = tb.normalize_trip(request.get_json(silent=True) or {})
+    if not trip['name']:
+        return jsonify({'error': 'name required'}), 400
+    trip['id'] = uuid.uuid4().hex[:12]
+    trip['slug'] = _trav_trip_slug(data, trip, trip['id'])
+    data['trips'].insert(0, trip)
+    return _saved(save_travel(data), {'id': trip['id']})
+
+
+@admin_app.route('/api/travel/trips/<tid>', methods=['PUT', 'DELETE'])
+def api_travel_trip(tid: str):
+    err = _api_auth()
+    if err:
+        return err
+    data = load_travel()
+    trip = _trip(data, tid)
+    if trip is None:
+        return jsonify({'error': 'not_found'}), 404
+    if request.method == 'DELETE':
+        data['trips'] = [t for t in data['trips'] if t.get('id') != tid]
+        ok = save_travel(data)
+        if ok:
+            log_audit('travel_trip_delete', trip.get('name', ''))
+        return _saved(ok)
+    merged = tb.normalize_trip(request.get_json(silent=True) or {}, trip)
+    merged['id'] = tid
+    merged['slug'] = _trav_trip_slug(data, merged, tid)
+    data['trips'] = [merged if t.get('id') == tid else t for t in data['trips']]
+    return _saved(save_travel(data))
+
+
+@admin_app.route('/api/travel/trips/<tid>/days', methods=['POST'])
+def api_travel_day_create(tid: str):
+    err = _api_auth()
+    if err:
+        return err
+    data = load_travel()
+    trip = _trip(data, tid)
+    if trip is None:
+        return jsonify({'error': 'not_found'}), 404
+    if len(trip.get('days', [])) >= tb.MAX_DAYS:
+        return jsonify({'error': 'too many'}), 400
+    day = tb.normalize_day(request.get_json(silent=True) or {})
+    day['id'] = uuid.uuid4().hex[:12]
+    day['slug'] = _trav_day_slug(trip, day, day['id'])
+    trip.setdefault('days', []).append(day)
+    trip['days'].sort(key=lambda d: (d.get('day_number') or 0, d.get('date') or ''))
+    return _saved(save_travel(data), {'id': day['id']})
+
+
+@admin_app.route('/api/travel/trips/<tid>/days/<did>', methods=['PUT', 'DELETE'])
+def api_travel_day(tid: str, did: str):
+    err = _api_auth()
+    if err:
+        return err
+    data = load_travel()
+    trip = _trip(data, tid)
+    day = _day(trip, did) if trip else None
+    if day is None:
+        return jsonify({'error': 'not_found'}), 404
+    if request.method == 'DELETE':
+        trip['days'] = [d for d in trip['days'] if d.get('id') != did]
+        ok = save_travel(data)
+        if ok:
+            log_audit('travel_day_delete', f"{trip.get('name', '')} #{day.get('day_number')}")
+        return _saved(ok)
+    merged = tb.normalize_day(request.get_json(silent=True) or {}, day)
+    merged['id'] = did
+    merged['slug'] = _trav_day_slug(trip, merged, did)
+    trip['days'] = [merged if d.get('id') == did else d for d in trip['days']]
+    trip['days'].sort(key=lambda d: (d.get('day_number') or 0, d.get('date') or ''))
+    return _saved(save_travel(data))
+
+
+def _travel_article_schema(langs: list[str], photos: int):
+    """Antwortformat: je Sprache Titel, Anriss und Text, dazu Schlagwörter und
+    eine Bildunterschrift je Fotohinweis."""
+    per_lang = genai_types.Schema(
+        type=genai_types.Type.OBJECT,
+        properties={
+            'title':  genai_types.Schema(type=genai_types.Type.STRING),
+            'teaser': genai_types.Schema(type=genai_types.Type.STRING),
+            'body':   genai_types.Schema(type=genai_types.Type.STRING),
+        },
+        required=['title', 'teaser', 'body'],
+    )
+    props = {lg: per_lang for lg in langs}
+    props['tags'] = genai_types.Schema(
+        type=genai_types.Type.ARRAY,
+        items=genai_types.Schema(type=genai_types.Type.STRING))
+    if photos:
+        props['captions'] = genai_types.Schema(
+            type=genai_types.Type.ARRAY,
+            items=genai_types.Schema(
+                type=genai_types.Type.OBJECT,
+                properties={lg: genai_types.Schema(type=genai_types.Type.STRING)
+                            for lg in langs},
+                required=list(langs)))
+    return genai_types.Schema(type=genai_types.Type.OBJECT, properties=props,
+                              required=list(langs) + ['tags'])
+
+
+@admin_app.route('/api/travel/trips/<tid>/days/<did>/generate', methods=['POST'])
+def api_travel_generate(tid: str, did: str):
+    err = _api_auth()
+    if err:
+        return err
+    if not gemini_text_enabled():
+        return jsonify({'error': 'no_api_key'}), 400
+    data = load_travel()
+    trip = _trip(data, tid)
+    day = _day(trip, did) if trip else None
+    if day is None:
+        return jsonify({'error': 'not_found'}), 404
+    langs = (trip.get('settings') or {}).get('langs') or ['de']
+    # Vortage nach Tagesnummer, damit der Kontext stimmt, auch wenn ein Tag
+    # nachträglich eingeschoben wurde
+    previous = [d for d in trip.get('days', [])
+                if (d.get('day_number') or 0) < (day.get('day_number') or 0)]
+    prompt = tb.build_prompt(trip, day, previous)
+    photo_notes = [p for p in (day.get('photos') or []) if p.get('photo_note')]
+    if not _ai_rate_take(_ai_text_times, AI_TEXT_MAX_PER_HOUR):
+        return jsonify({'error': 'rate_limited'}), 429
+    model = _gemini_text_model()
+    try:
+        client = _gemini_client()
+        resp = client.models.generate_content(
+            model=model, contents=[prompt],
+            config=genai_types.GenerateContentConfig(
+                system_instruction=tb.SYSTEM_PROMPT,
+                response_mime_type='application/json',
+                response_schema=_travel_article_schema(langs, len(photo_notes)),
+                http_options=genai_types.HttpOptions(timeout=GEMINI_TEXT_TIMEOUT_MS),
+            ),
+        )
+        _ai_usage_record(model, resp)
+        cands = resp.candidates or []
+        finish = cands[0].finish_reason if cands else None
+        reason = getattr(finish, 'name', None) or (str(finish) if finish else '')
+        if finish in _GEMINI_TEXT_REFUSALS:
+            return jsonify({'error': 'ai_refused', 'detail': reason}), 502
+        raw = json.loads(resp.text or '')
+        if not isinstance(raw, dict):
+            return jsonify({'error': 'ai_empty', 'detail': reason}), 502
+    except genai_errors.APIError as e:
+        code = getattr(e, 'code', None)
+        log.warning("Reisebericht fehlgeschlagen (%s): Status %s", model, code)
+        return jsonify({'error': 'ai_model_missing' if code == 404 else 'ai_failed',
+                        'detail': f'HTTP {code}' if code else '', 'model': model}), 502
+    except Exception as e:
+        log.error("Reisebericht (%s) unerwartet fehlgeschlagen: %s: %s",
+                  model, type(e).__name__, e)
+        return jsonify({'error': 'ai_failed', 'detail': type(e).__name__}), 502
+    article = tb.normalize_article(raw)
+    log.info("Reisebericht erzeugt: %s Tag %s (%s, %s)", trip.get('name'),
+             day.get('day_number'), model, '+'.join(langs))
+    return jsonify({'ok': True, 'article': article, 'prompt': prompt})
 
 
 # ── KI-Verbrauch ──────────────────────────────────────────────────────────────
@@ -5502,28 +6509,46 @@ def api_ai_text():
 AI_USAGE_KEEP_MONTHS = 24
 _ai_usage_lock = threading.Lock()
 
-# Vorbelegung der Preistabelle: Listenpreise von Google AI (ai.google.dev/pricing),
-# USD je 1 Mio Tokens bzw. je erzeugtem Bild, Stand August 2026 — dieselbe Pflege
-# von Hand wie in TUIWatch (`_AI_PRICING`), weil es für die Gemini-API keine
-# Preis-Schnittstelle gibt.
+# Vorbelegung der Preistabelle: Listenpreise von ai.google.dev/pricing, Stand
+# August 2026 — von Hand gepflegt wie in TUIWatch (`_AI_PRICING`), weil es für
+# die Gemini-API keine Preis-Schnittstelle gibt. Der Preiskatalog von Google
+# Cloud wäre die einzige Alternative, verlangt aber ein OAuth-Konto statt eines
+# API-Keys und scheidet damit für ein Add-on aus.
 #
 # Ein im Admin eingetragener Preis schlägt diese Werte immer. Bewusst NICHT
 # vollständig: Google benennt Modelle laufend um, und ein geratener Preis wäre
 # schlimmer als eine leere Zeile — die fragt nach, eine falsche Zahl nicht. Was
 # hier fehlt, bleibt leer, bis es jemand einträgt.
 GEMINI_DEFAULT_PRICES = {
-    'gemini-3.1-pro':         {'in': 2.0, 'out': 12.0},
-    'gemini-3.6-flash':       {'in': 1.5, 'out': 7.5},
-    'gemini-3.5-flash':       {'in': 1.5, 'out': 9.0},
-    'gemini-2.5-flash':       {'in': 0.3, 'out': 2.5},
-    # Bildmodelle rechnen je Bild; 0.039 = 1290 Ausgabe-Tokens à 30 USD/Mio
-    'gemini-2.5-flash-image': {'in': 0.3, 'image': 0.039},
+    # Textmodelle: USD je 1 Mio Tokens
+    'gemini-3.6-flash':            {'in': 1.5,  'out': 7.5},
+    'gemini-3.5-flash':            {'in': 1.5,  'out': 9.0},
+    'gemini-3.5-flash-lite':       {'in': 0.3,  'out': 2.5},
+    'gemini-3.1-flash-lite':       {'in': 0.25, 'out': 1.5},
+    # dasselbe Modell, je nach Auflistung mit und ohne -preview
+    'gemini-3.1-pro-preview':      {'in': 2.0,  'out': 12.0},
+    'gemini-3.1-pro':              {'in': 2.0,  'out': 12.0},
+    'gemini-2.5-pro':              {'in': 1.25, 'out': 10.0},
+    'gemini-2.5-flash':            {'in': 0.3,  'out': 2.5},
+    'gemini-2.5-flash-lite':       {'in': 0.1,  'out': 0.4},
+    # Bildmodelle: USD je erzeugtem Bild in 1K-Auflösung. Ein Eingabepreis steht
+    # hier bewusst nicht — Google weist ihn für diese Modelle nicht getrennt aus.
+    'gemini-3.1-flash-image':      {'image': 0.067},
+    'gemini-3.1-flash-lite-image': {'image': 0.0336},
+    'gemini-3-pro-image':          {'image': 0.134},
+    'gemini-2.5-flash-image':      {'image': 0.039},
 }
 
 
 def _ai_price_for(model: str, prices: dict) -> dict:
-    """Eigener Preis, sonst Vorgabe, sonst nichts."""
-    return prices.get(model) or GEMINI_DEFAULT_PRICES.get(model) or {}
+    """Eigener Preis je Spalte, sonst Vorgabe.
+
+    Spaltenweise mischen statt den ganzen Eintrag zu ersetzen: wer nur den
+    Ausgabepreis einträgt, soll nicht stillschweigend den Eingabepreis der
+    Vorgabe verlieren. Das Ergebnis wäre eine zu niedrige Summe, die niemandem
+    auffällt — und genau dafür ist die Anzeige nicht da.
+    """
+    return {**(GEMINI_DEFAULT_PRICES.get(model) or {}), **(prices.get(model) or {})}
 
 
 def _ai_usage_load() -> dict:
@@ -5606,55 +6631,51 @@ def api_ai_usage():
                    | {_gemini_image_model(), _gemini_text_model()} | set(prices))
     return jsonify({'months': out, 'prices': prices, 'models': known,
                     'defaults': GEMINI_DEFAULT_PRICES,
+                    'can_fetch': bool(_billing_key()),
                     'current': date.today().strftime('%Y-%m')})
 
 
-# Die Gemini-API selbst kennt keine Preise. Was es gibt, ist der öffentliche
-# Preiskatalog von Google Cloud — der nimmt denselben API-Key, muss im Projekt
-# aber erst freigeschaltet sein. Er liefert Fließtext („Gemini 2.5 Flash Input
-# Tokens"), keine Modell-IDs; die Zuordnung ist deshalb geraten und wird dem
-# Admin zur Prüfung vorgelegt, statt direkt gespeichert zu werden.
+# Der öffentliche Preiskatalog von Google Cloud nimmt einen API-Schlüssel — aber
+# nicht den aus AI Studio: der ist auf die Generative Language API beschränkt und
+# wird hier mit API_KEY_SERVICE_BLOCKED abgewiesen. Deshalb ein zweiter,
+# getrennter Schlüssel aus einem Projekt, in dem die Cloud Billing API
+# freigeschaltet ist. Ohne diesen Schlüssel bleibt der Knopf unsichtbar.
+#
+# Der Katalog liefert Fließtext („Gemini 2.5 Flash Input Tokens"), keine
+# Modell-IDs. Die Zuordnung ist deshalb geraten und wird dem Admin zur Prüfung
+# in die Felder gelegt, statt direkt gespeichert zu werden.
 CLOUD_BILLING_API = 'https://cloudbilling.googleapis.com/v1'
-GEMINI_BILLING_SERVICE = 'generative language api'
-_SKU_KINDS = (('image', 'image'), ('input', 'in'), ('prompt', 'in'), ('output', 'out'))
-
-
-def _sku_unit_price(sku: dict) -> float | None:
-    """USD je Million Einheiten aus einem SKU-Eintrag.
-
-    Google gibt den Preis je Verrechnungseinheit an (units + nanos). Bei Tokens
-    ist das je Token, deshalb hochrechnen — außer die Einheitsbeschreibung sagt
-    schon „million". Passt nichts davon, lieber None als eine Zahl, die um
-    Faktor 10^6 danebenliegt.
-    """
-    try:
-        expr = (sku.get('pricingInfo') or [])[-1]['pricingExpression']
-        rate = (expr.get('tieredRates') or [])[-1]['unitPrice']
-        price = int(rate.get('units') or 0) + int(rate.get('nanos') or 0) / 1e9
-    except (LookupError, TypeError, ValueError):
-        return None
-    if price <= 0:
-        return None
-    unit = str(expr.get('usageUnitDescription') or expr.get('usageUnit') or '').lower()
-    if 'million' in unit:
-        return round(price, 6)
-    if 'count' in unit or 'token' in unit:
-        return round(price * 1e6, 6)
-    return round(price, 6)   # z. B. „image" — je Stück
-
+# Nicht auf einen exakten Namen festnageln: wie Google den Dienst im Katalog
+# nennt, ist nicht zugesichert und hat sich schon geändert. Alle Dienste, deren
+# Name einen dieser Bausteine enthält, werden durchsucht.
+GEMINI_BILLING_HINTS = ('generative language', 'gemini')
+AI_SKU_SAMPLES = 40   # Beispiele für die Oberfläche, wenn nichts zugeordnet wurde
+# Modalitäts-Zuschläge: Google rechnet Bild-, Video- und Audio-EINGABE getrennt
+# vom Text ab. Diese Dimension bildet die Preistabelle nicht ab — solche Posten
+# als Textpreis zu buchen wäre schlicht falsch, also bleiben sie außen vor.
+_SKU_MODALITIES = ('image', 'video', 'audio')
+# Sondertarife: Google führt Stapelverarbeitung, zwischengespeicherte Eingaben,
+# feinabgestimmte Modelle und Recherche-Aufschläge als eigene Posten. MyPage ruft
+# nichts davon auf — solche Zeilen als Normaltarif zu übernehmen ergäbe eine
+# Summe, die zu niedrig ist und deshalb nicht auffällt.
+_SKU_SKIP = ('batch', 'cach', 'tuning', 'tuned', 'grounding', 'search',
+             'provisioned', 'free tier')
 
 # Der `reason` aus Googles Fehlerkörper ist die einzige belastbare Auskunft.
 # Nach dem Statuscode zu gehen wäre falsch: „Dienst nicht freigeschaltet" und
-# „API-Keys werden hier nicht unterstützt" sind beide 403, verlangen aber völlig
-# verschiedene Schritte — im zweiten Fall gibt es überhaupt nichts freizuschalten.
+# „Schlüssel auf andere Dienste beschränkt" sind beide 403, verlangen aber
+# verschiedene Schritte.
 _BILLING_REASONS = {
     'SERVICE_DISABLED':              'billing_disabled',
     'API_KEY_INVALID':               'key_rejected',
     'API_KEY_SERVICE_BLOCKED':       'key_rejected',
     'API_KEY_HTTP_REFERRER_BLOCKED': 'key_rejected',
-    'CREDENTIALS_MISSING':           'needs_oauth',
-    'ACCESS_TOKEN_TYPE_UNSUPPORTED': 'needs_oauth',
+    'CREDENTIALS_MISSING':           'key_rejected',
 }
+
+
+def _billing_key() -> str:
+    return (load_config().get('gemini_billing_key') or '').strip()
 
 
 def _billing_error(r) -> tuple[str, str]:
@@ -5675,40 +6696,125 @@ def _billing_error(r) -> tuple[str, str]:
     return 'failed', (reasons[0] if reasons else f'HTTP {r.status_code}')
 
 
+def _sku_kind(desc: str, unit: str, model: str) -> str | None:
+    """Welche Preisspalte ein Posten füllt — oder None, wenn er nicht passt.
+
+    Reihenfolge ist entscheidend: „Image Input Tokens" ist der Aufschlag für ein
+    Bild als EINGABE, nicht der Preis eines erzeugten Bildes. Wer hier zuerst auf
+    „image" prüft, schreibt bei jedem Textmodell einen Bildpreis ein.
+
+    Bei Bildmodellen ist die Ausgabe genau das erzeugte Bild; Google rechnet sie
+    trotzdem in Tokens ab. Die landen deshalb als Ausgabepreis — die
+    Verbrauchszählung führt für diese Modelle ebenfalls Ausgabe-Tokens, das
+    rechnet sich von selbst zusammen.
+    """
+    if any(w in desc for w in _SKU_SKIP):
+        return None
+    if 'image' in model:
+        # Bildmodelle ausschließlich über den Posten je Bild. Ein Token-Posten
+        # daneben würde neben dem Bildpreis ein zweites Mal zählen, und welcher
+        # der beiden gemeint ist, entscheidet erst der Tarif des Nutzers.
+        return 'image' if ('image' in unit or 'per image' in desc) else None
+    if any(w in desc for w in _SKU_MODALITIES):
+        return None
+    if 'output' in desc:
+        return 'out'
+    if 'input' in desc or 'prompt' in desc:
+        return 'in'
+    return None
+
+
+def _sku_price(sku: dict, kind: str) -> float | None:
+    """Preis eines Postens in der Einheit, die die Preistabelle erwartet.
+
+    Google nennt den Betrag je Verrechnungseinheit (units + nanos). Token-Preise
+    stehen je Token und müssen auf eine Million hochgerechnet werden; ein Preis
+    je Bild darf das gerade nicht. Passt die Einheit zu nichts davon, lieber
+    None als eine Zahl, die um Faktor 10^6 danebenliegt.
+    """
+    try:
+        expr = (sku.get('pricingInfo') or [])[-1]['pricingExpression']
+        rate = (expr.get('tieredRates') or [])[-1]['unitPrice']
+        price = int(rate.get('units') or 0) + int(rate.get('nanos') or 0) / 1e9
+    except (LookupError, TypeError, ValueError):
+        return None
+    if price <= 0:
+        return None
+    if kind == 'image':
+        return round(price, 6)
+    unit = str(expr.get('usageUnitDescription') or expr.get('usageUnit') or '').lower()
+    if 'million' in unit:
+        return round(price, 6)
+    if 'count' in unit or 'token' in unit:
+        return round(price * 1e6, 6)
+    return None
+
+
+def _billing_pages(url: str, field: str, key: str, cap: int = 40) -> tuple[list, str, str]:
+    """Blättert eine Katalog-Liste vollständig durch.
+
+    Google liefert die Dienste seitenweise (mehrere tausend Einträge, auch bei
+    großem pageSize). Ein einzelner Aufruf würde die gesuchte Zeile schlicht
+    verfehlen. Zurück: (Einträge, Fehlercode, Grund).
+    """
+    items, token = [], ''
+    for _ in range(cap):
+        params = {'key': key, 'pageSize': 5000}
+        if token:
+            params['pageToken'] = token
+        r = http.get(url, params=params, timeout=30)
+        if not r.ok:
+            return [], *_billing_error(r)
+        data = r.json()
+        items.extend(data.get(field) or [])
+        token = data.get('nextPageToken') or ''
+        if not token:
+            break
+    return items, '', ''
+
+
 def _gemini_fetch_prices(models: list[str]) -> tuple[dict | None, str, str]:
     """Preisvorschläge aus dem Cloud-Preiskatalog.
 
-    Zurück: (Vorschläge, Fehlercode, roher Grund von Google).
+    Zurück: (Ergebnis, Fehlercode, roher Grund von Google). Das Ergebnis trägt
+    neben den Preisen auch die gelesenen Dienstnamen und ein paar
+    Posten-Bezeichnungen — ohne die ist bei „nichts zugeordnet" nicht zu
+    erkennen, ob der falsche Dienst durchsucht wurde oder ob Google seine Posten
+    nur anders benennt als erwartet.
     """
-    key = _gemini_key()
+    key = _billing_key()
     try:
-        r = http.get(f'{CLOUD_BILLING_API}/services',
-                     params={'key': key, 'pageSize': 5000}, timeout=20)
-        if not r.ok:
-            return (None,) + _billing_error(r)
-        service = next((s['name'] for s in (r.json().get('services') or [])
-                        if str(s.get('displayName', '')).lower() == GEMINI_BILLING_SERVICE), None)
-        if not service:
-            return None, 'service_not_found', ''
-        skus, token = [], ''
-        while True:
-            p = {'key': key, 'pageSize': 5000}
-            if token:
-                p['pageToken'] = token
-            r = http.get(f'{CLOUD_BILLING_API}/{service}/skus', params=p, timeout=20)
-            if not r.ok:
-                return (None,) + _billing_error(r)
-            data = r.json()
-            skus.extend(data.get('skus') or [])
-            token = data.get('nextPageToken') or ''
-            if not token or len(skus) > 20000:
-                break
+        services, code, reason = _billing_pages(f'{CLOUD_BILLING_API}/services',
+                                                'services', key)
+        if code:
+            return None, code, reason
+        matched = [s for s in services
+                   if any(h in str(s.get('displayName', '')).lower()
+                          for h in GEMINI_BILLING_HINTS)]
+        # Bewusst ohne die Dienstnamen: sie stammen aus der Antwort auf eine
+        # Anfrage, die den Abrechnungs-Schlüssel trägt, und alles daraus gilt
+        # als schutzbedürftig (CodeQL py/clear-text-logging-sensitive-data).
+        # Verloren geht nichts — die Namen stehen unten im Ergebnis unter
+        # `services` und damit im Admin.
+        log.info("Preiskatalog: %d Dienste gelesen, %d passen",
+                 len(services), len(matched))
+        if not matched:
+            return ({'prices': {}, 'services': [], 'samples': [],
+                     'service_count': len(services), 'sku_count': 0},
+                    'service_not_found', '')
+        skus = []
+        for s in matched:
+            page, code, reason = _billing_pages(f"{CLOUD_BILLING_API}/{s['name']}/skus",
+                                                'skus', key)
+            if code:
+                return None, code, reason
+            skus.extend(page)
     except Exception as e:
         # Nur der Typ: die Meldung von requests enthält die URL samt Key
         log.warning("Preiskatalog nicht abrufbar: %s", type(e).__name__)
         return None, 'failed', type(e).__name__
-    # Längster Treffer gewinnt, sonst schnappt sich „gemini-3-flash" die SKUs
-    # von „gemini-3-flash-lite"
+    # Längster Treffer gewinnt, sonst schnappt sich „gemini-3.5-flash" die SKUs
+    # von „gemini-3.5-flash-lite"
     wanted = sorted(((m, m.replace('-', ' ').lower()) for m in models),
                     key=lambda x: -len(x[1]))
     out: dict[str, dict] = {}
@@ -5717,11 +6823,30 @@ def _gemini_fetch_prices(models: list[str]) -> tuple[dict | None, str, str]:
         model = next((m for m, needle in wanted if needle in desc), None)
         if not model:
             continue
-        kind = next((k for word, k in _SKU_KINDS if word in desc), None)
-        price = _sku_unit_price(sku) if kind else None
+        try:
+            expr = (sku.get('pricingInfo') or [])[-1]['pricingExpression']
+            unit = str(expr.get('usageUnitDescription') or expr.get('usageUnit') or '').lower()
+        except (LookupError, TypeError):
+            unit = ''
+        kind = _sku_kind(desc, unit, model)
+        price = _sku_price(sku, kind) if kind else None
         if kind and price:
-            out.setdefault(model, {})[kind] = price
-    return out, '', ''
+            # Google führt denselben Posten in mehreren Stufen und Regionen. Bei
+            # mehreren Kandidaten gewinnt der höchste: unter dem Normaltarif zu
+            # liegen wäre der gefährliche Irrtum — eine zu niedrige Summe fällt
+            # niemandem auf, eine zu hohe schon.
+            row = out.setdefault(model, {})
+            if price > row.get(kind, 0):
+                row[kind] = price
+    log.info("Preiskatalog: %d Posten gelesen, %d Modelle zugeordnet",
+             len(skus), len(out))
+    return ({'prices': out,
+             'services': [s.get('displayName', '') for s in matched],
+             # Nur bei Fehlschlag mitschicken — sonst ist es unnötiger Ballast
+             'samples': ([] if out else
+                         sorted({str(x.get('description') or '') for x in skus})[:AI_SKU_SAMPLES]),
+             'service_count': len(services), 'sku_count': len(skus)},
+            '', '')
 
 
 @admin_app.route('/api/ai/prices/fetch', methods=['POST'])
@@ -5729,20 +6854,38 @@ def api_ai_prices_fetch():
     err = _api_auth()
     if err:
         return err
-    if not gemini_text_enabled():
-        return jsonify({'error': 'no_api_key'}), 400
+    if not _billing_key():
+        return jsonify({'error': 'no_billing_key'}), 400
     raw = (request.get_json(silent=True) or {}).get('models')
     models = [m for m in (raw if isinstance(raw, list) else [])[:60]
               if isinstance(m, str) and _AI_MODEL_RE.match(m)]
     if not models:
         return jsonify({'error': 'invalid'}), 400
-    prices, code, reason = _gemini_fetch_prices(models)
+    result, code, reason = _gemini_fetch_prices(models)
     if code:
-        log.info("Preiskatalog abgelehnt (%s): %s", code, reason)
-        return jsonify({'error': code, 'reason': reason}), 502
-    log.info("Preiskatalog abgefragt: %d von %d Modellen zugeordnet",
-             len(prices), len(models))
-    return jsonify({'ok': True, 'prices': prices})
+        # Der Preiskatalog wird mit dem Abrechnungs-Schlüssel abgefragt; alles,
+        # was aus dieser Antwort stammt, gehört nicht in eine Logdatei, die im
+        # Supportfall weitergereicht wird. Das gilt auch für `code`: er entsteht
+        # in `_billing_error` durch Nachschlagen mit einem Schlüssel aus Googles
+        # Antwort. Deshalb wird hier **kein** Wert übergeben, sondern die Meldung
+        # ausgewählt — was im Log landet, ist damit nachweislich fester Text.
+        # (Zwei sanftere Fassungen — Nachschlagen im Wörterbuch, Holen aus einer
+        # Konstantenliste — hat CodeQL beide weiterhin bemängelt; die Markierung
+        # überlebt jeden Umweg, der den Wert noch anfasst.)
+        # Der Admin bekommt Code und Klartextgrund unverändert in der Antwort.
+        if code == 'billing_disabled':
+            log.info("Preiskatalog abgelehnt: Abrechnung im Google-Projekt nicht aktiviert")
+        elif code == 'key_rejected':
+            log.info("Preiskatalog abgelehnt: Schlüssel zurückgewiesen")
+        elif code == 'service_not_found':
+            log.info("Preiskatalog abgelehnt: kein passender Dienst im Katalog")
+        else:
+            log.info("Preiskatalog abgelehnt")
+        payload = {'error': code, 'reason': reason}
+        if isinstance(result, dict):   # Diagnose auch im Fehlerfall mitgeben
+            payload['service_count'] = result.get('service_count', 0)
+        return jsonify(payload), 502
+    return jsonify({'ok': True, **result})
 
 
 @admin_app.route('/api/ai/prices', methods=['POST'])
@@ -6481,6 +7624,14 @@ def api_export():
             # exportierten HTML zeigt damit auf eine echte Datei.
             if _lib_entry_pdf_name(e) and not e.get('members_only'):
                 pages[f"bibliothek/{e['slug']}.pdf"] = f"/bibliothek/{e['slug']}.pdf"
+    trav_trips = _trav_public_trips(site)
+    if trav_trips:
+        pages['reiseblog/index.html'] = '/reiseblog'
+        for tr in trav_trips:
+            pages[f"reiseblog/{tr['slug']}/index.html"] = f"/reiseblog/{tr['slug']}"
+            for d in _trav_public_days(tr):
+                pages[f"reiseblog/{tr['slug']}/{d['slug']}/index.html"] = \
+                    f"/reiseblog/{tr['slug']}/{d['slug']}"
     if loc(legal, 'impressum').strip():
         pages['impressum/index.html'] = '/impressum'
     if loc(legal, 'privacy').strip():
@@ -6614,7 +7765,7 @@ def api_uploads_list():
     err = _api_auth()
     if err:
         return err
-    blob = json.dumps(load_site(), ensure_ascii=False)
+    blob = _reference_blob(load_site())
     files = []
     for f in UPLOADS_DIR.iterdir():
         if not f.is_file() or f.suffix.lower() not in ALLOWED_UPLOAD_EXT:
@@ -6626,18 +7777,102 @@ def api_uploads_list():
         if st.st_size <= 0:
             continue    # abgebrochener Upload — gäbe nur eine kaputte Kachel
         files.append({'url': '/uploads/' + f.name, 'size': st.st_size,
+                      'mtime': int(st.st_mtime), 'used': f.name in blob,
+                      # Marker steckt im Dateinamen (siehe _store_upload_image) —
+                      # damit lässt sich die Galerie auf KI-Bilder eingrenzen
+                      'ai': f.stem.endswith(AI_IMAGE_SUFFIX)})
+    files.sort(key=lambda x: x['mtime'], reverse=True)
+    return jsonify({'files': files[:UPLOADS_LIST_MAX], 'total': len(files)})
+
+
+@admin_app.route('/api/docs/list')
+def api_docs_list():
+    """Vorhandene Bibliothek-PDFs für den Datei-Browser im Tab System."""
+    err = _api_auth()
+    if err:
+        return err
+    blob = _reference_blob(load_site())
+    files = []
+    for f in DOCS_DIR.iterdir():
+        if not f.is_file() or not _DOC_FILE_RE.match(f.name):
+            continue
+        try:
+            st = f.stat()
+        except OSError:
+            continue
+        files.append({'name': f.name, 'size': st.st_size,
                       'mtime': int(st.st_mtime), 'used': f.name in blob})
     files.sort(key=lambda x: x['mtime'], reverse=True)
     return jsonify({'files': files[:UPLOADS_LIST_MAX], 'total': len(files)})
 
 
+@admin_app.route('/api/docs/file/<name>')
+def api_docs_file(name: str):
+    """Ein PDF zur Ansicht im Admin — bewusst inline, anders als öffentlich.
+
+    Die öffentliche Bibliothek-Route liefert PDFs ausschließlich als Download
+    (siehe library_entry_pdf): dort ist die Datei für jeden Besucher erreichbar,
+    und ein PDF darf im Browser Skript ausführen. Hier hinter dem Login sieht sie
+    nur, wer sie selbst hochgeladen hat — trotzdem `sandbox` und `nosniff`, damit
+    ein präpariertes PDF nicht auf die Admin-Sitzung zugreifen kann.
+    """
+    err = _api_auth()
+    if err:
+        return err
+    if not _DOC_FILE_RE.match(name or ''):
+        return jsonify({'error': 'invalid'}), 400
+    target = safe_under(DOCS_DIR, name)
+    if target is None or not target.is_file():
+        return jsonify({'error': 'not_found'}), 404
+    resp = send_file(target, mimetype='application/pdf')
+    resp.headers['Content-Disposition'] = 'inline; filename="dokument.pdf"'
+    resp.headers['X-Content-Type-Options'] = 'nosniff'
+    resp.headers['Content-Security-Policy'] = 'sandbox'
+    return resp
+
+
+@admin_app.route('/api/docs/delete', methods=['POST'])
+def api_docs_delete():
+    """Ein einzelnes PDF löschen. Eingebundene bleiben tabu — dieselbe Regel wie
+    bei den Bildern, sonst zeigt ein Bibliothek-Eintrag ins Leere."""
+    err = _api_auth()
+    if err:
+        return err
+    name = Path(_clean_str((request.get_json(silent=True) or {}).get('name'), 120)).name
+    if not _DOC_FILE_RE.match(name):
+        return jsonify({'error': 'invalid'}), 400
+    p = safe_under(DOCS_DIR, name)
+    if p is None or not p.is_file():
+        return jsonify({'error': 'not_found'}), 404
+    if name in _reference_blob(load_site()):
+        return jsonify({'error': 'in_use'}), 409
+    try:
+        p.unlink()
+    except OSError as e:
+        log.warning("PDF '%s' konnte nicht gelöscht werden: %s", name, e)
+        return jsonify({'error': 'delete_failed'}), 500
+    log_audit('doc_delete', name)
+    return jsonify({'ok': True})
+
+
+def _reference_blob(site: dict) -> str:
+    """Der Text, in dem nach Dateinamen gesucht wird.
+
+    Enthält site.json UND travel.json. Ohne den Reiseblog-Teil hielte das
+    Aufräumen jedes Reisefoto für verwaist und löschte es beim nächsten Klick —
+    derselbe Grund, aus dem der Löschschutz im Datei-Browser hier mitliest.
+    """
+    return (json.dumps(site, ensure_ascii=False)
+            + json.dumps(load_travel(), ensure_ascii=False))
+
+
 def _unused_in(directory: Path, site: dict):
-    """Dateien in `directory`, die nirgends mehr in site.json referenziert sind.
+    """Dateien in `directory`, die nirgends mehr referenziert sind.
 
     Dateinamen sind durchweg eindeutige UUIDs, daher ist ein Vorkommen-Scan über
     den JSON-Text sicher und deckt jede Fundstelle ab, ohne die Struktur zu kennen.
     """
-    blob = json.dumps(site, ensure_ascii=False)
+    blob = _reference_blob(site)
     orphans, total = [], 0
     for f in directory.iterdir():
         if f.is_file() and f.name not in blob:
@@ -6707,7 +7942,7 @@ def api_uploads_delete():
     p = safe_under(UPLOADS_DIR, name)
     if p is None or not p.is_file():
         return jsonify({'error': 'not_found'}), 404
-    if name in json.dumps(load_site(), ensure_ascii=False):
+    if name in _reference_blob(load_site()):
         return jsonify({'error': 'in_use'}), 409
     try:
         p.unlink()
@@ -6826,6 +8061,55 @@ def admin_uploads(filename: str):
 
 
 # ── Öffentliche Routen ────────────────────────────────────────────────────────
+
+# ── Sprache und kanonische Adressen ───────────────────────────────────────────
+#
+# Eine Adresse, zwei Sprachen — das ging bisher ohne jede Auskunft darüber nach
+# außen. Für Suchmaschinen war die Seite dadurch nicht einzuordnen, und jeder
+# Zwischenspeicher durfte eine der beiden Fassungen für alle festhalten.
+
+def _seo_urls(lang: str) -> dict:
+    """Kanonische Adresse und Sprachvarianten der gerade gerenderten Seite.
+
+    Filter- und Suchparameter (`?tag=`, `?q=`, `?nl=`) fallen bewusst weg: sie
+    zeigen Ausschnitte desselben Bestandes, und jeden als eigene Seite zu melden
+    verteilt genau die Signale, die die Hauptseite braucht.
+
+    Steht die Standardsprache auf „automatisch", trägt die nackte Adresse keine
+    feste Sprache. Dann ist sie für beide Fassungen die kanonische, und nur die
+    `hreflang`-Angaben benennen die eindeutigen Adressen.
+    """
+    base = _base_url() + request.path
+    default = site_default_lang()
+    alts = [(lg, base if lg == default else f'{base}?lang={lg}') for lg in SITE_LANGS]
+    canonical = base if (default == 'auto' or lang == default) else f'{base}?lang={lang}'
+    return {'canonical_url': canonical, 'hreflang_urls': alts + [('x-default', base)]}
+
+
+@public_app.context_processor
+def _inject_seo():
+    return _seo_urls(detect_language(request))
+
+
+@public_app.after_request
+def _lang_headers(resp):
+    """`Content-Language` und `Vary` an jede ausgelieferte Seite.
+
+    Ohne `Vary` darf jeder Zwischenspeicher — nginx, Cloudflare, ein
+    Firmen-Proxy — die erste Fassung, die durch ihn hindurchgeht, für alle
+    festhalten. Bei zwei Sprachen auf derselben Adresse heißt das: kommt der
+    Suchmaschinen-Roboter zuerst, sehen danach auch die Besucher dessen Fassung.
+    """
+    if resp.mimetype != 'text/html':
+        return resp
+    lang = getattr(g, 'mypage_lang', None)
+    if lang:
+        resp.headers['Content-Language'] = lang
+    resp.vary.add('Cookie')
+    if getattr(g, 'mypage_lang_auto', False):
+        resp.vary.add('Accept-Language')
+    return resp
+
 
 @public_app.route('/health')
 def public_health():
@@ -7019,6 +8303,13 @@ def _public_url_list(site: dict, base: str) -> list:
     if lib_entries:
         urls.append(base + '/bibliothek')
         urls += [f"{base}/bibliothek/{e['slug']}" for e in lib_entries]
+    trav_trips = _trav_public_trips(site)
+    if trav_trips:
+        urls.append(base + '/reiseblog')
+        for tr in trav_trips:
+            urls.append(f"{base}/reiseblog/{tr['slug']}")
+            urls += [f"{base}/reiseblog/{tr['slug']}/{d['slug']}"
+                     for d in _trav_public_days(tr)]
     return urls
 
 
@@ -7604,10 +8895,22 @@ def _ng_history_write(game: str, uid: str, games: list) -> None:
 
 
 def _ng_rules_html(game: str, lang: str) -> str:
-    fname = f'game_{game}_rules_{lang}.md'
-    path = Path(_BASE) / fname
-    if not path.is_file():
-        path = Path(_BASE) / f'game_{game}_rules_de.md'
+    """Spielregeln aus dem mitgelieferten Markdown, mit Rückfall auf Deutsch.
+
+    `lang` stammt über `detect_language` aus der Anfrage — seit `?lang=` dort
+    mitzählt, sogar direkt aus der Adresszeile. Deshalb wird der Wert nicht
+    weitergereicht, sondern auf eines von zwei Literalen zurückgeführt: er baut
+    einen Dateinamen, und ein durchgereichter Anfragewert in einem Pfad ist
+    genau das, was CodeQL zu Recht als `py/path-injection` meldet. `safe_under`
+    kommt als zweiter Riegel dazu; `game` setzen ausschließlich die Aufrufer als
+    feste Zeichenkette.
+    """
+    code = 'en' if lang == 'en' else 'de'
+    path = safe_under(Path(_BASE), f'game_{game}_rules_{code}.md')
+    if path is None or not path.is_file():
+        path = safe_under(Path(_BASE), f'game_{game}_rules_de.md')
+    if path is None or not path.is_file():
+        return ''
     try:
         text = path.read_text(encoding='utf-8')
     except OSError:
@@ -9202,6 +10505,14 @@ def sitemap():
         entries += [(f"{base}/bibliothek/{e['slug']}",
                      e['updated'] if _valid_date(e.get('updated')) else '')
                     for e in lib_entries]
+    trav_trips = _trav_public_trips(site)
+    if trav_trips:
+        entries.append((base + '/reiseblog', ''))
+        for tr in trav_trips:
+            entries.append((f"{base}/reiseblog/{tr['slug']}", ''))
+            entries += [(f"{base}/reiseblog/{tr['slug']}/{d['slug']}",
+                         d['date'] if _valid_date(d.get('date')) else '')
+                        for d in _trav_public_days(tr)]
     entries += [(f"{base}/p/{p['id']}", '') for p in site['projects']
                 if _has_detail(p) and project_visible(p)]
     if posts:
@@ -9258,40 +10569,256 @@ def service_worker():
     return js, 200, {'Content-Type': 'application/javascript', 'Cache-Control': 'no-cache'}
 
 
+# ── RSS-Feed ──────────────────────────────────────────────────────────────────
+#
+# Der Feed ist die einzige Schnittstelle, über die andere Programme neue Inhalte
+# mitbekommen: Feed-Leser, Home Assistants `feedreader` und jeder
+# Automatisierungsdienst, der „neuer Eintrag → irgendwohin weiterreichen"
+# anbietet. Deshalb steht hier alles drin, was ein solcher Dienst braucht —
+# Volltext, Bildadresse und Schlagwörter — und nicht nur Titel plus drei Zeilen.
+
+FEED_MAX_ITEMS = 50
+FEED_TEASER_MAX = 400
+FEED_TTL_MIN = 60
+_FEED_MIME = {'.webp': 'image/webp', '.png': 'image/png', '.jpg': 'image/jpeg',
+              '.jpeg': 'image/jpeg', '.gif': 'image/gif'}
+# Mittags statt um Mitternacht: `00:00:00 +0000` ist für jeden Leser westlich von
+# Greenwich noch der Vortag, ein Beitrag vom 7. stünde in den USA unter dem 6.
+FEED_HOUR = 12
+_FEED_ABS_RE = re.compile(r'\b(src|href)="/([^"/][^"]*)"', re.I)
+
+
+def _feed_lang(site: dict) -> str:
+    """Sprache des Feeds. `?lang=` schlägt die Konfiguration, der Browser zählt nie.
+
+    Ein Feed-Leser holt dieselbe Adresse für alle seine Nutzer und schickt dabei
+    meist gar kein `Accept-Language`. Hinge die Sprache daran, lieferte derselbe
+    URL mal Deutsch und mal Englisch — und der erste Zwischenspeicher friert eine
+    der beiden Fassungen für alle ein.
+    """
+    q = (request.args.get('lang') or '').strip().lower()
+    if q in ('de', 'en'):
+        return q
+    cfg = (site['design'].get('feed_lang') or '').strip().lower()
+    return cfg if cfg in ('de', 'en') else 'de'
+
+
+def _feed_cut(text: str, limit: int = FEED_TEASER_MAX) -> str:
+    """Auf `limit` kürzen, aber an der letzten Wortgrenze davor statt mittendrin."""
+    txt = (text or '').strip()
+    if len(txt) <= limit:
+        return txt
+    cut = txt[:limit]
+    sp = cut.rfind(' ')
+    return (cut[:sp] if sp > limit // 2 else cut).rstrip(' ,;:-–') + ' …'
+
+
+def _feed_abs(html: str, base: str) -> str:
+    """Absolute Adressen im Volltext. Ein Feed-Leser kennt den Kontext der Seite
+    nicht — `/uploads/x.webp` zeigt bei ihm ins Leere."""
+    return _FEED_ABS_RE.sub(lambda m: f'{m.group(1)}="{base}/{m.group(2)}"', html or '')
+
+
+def _feed_media(url: str, base: str) -> tuple:
+    """(Adresse, MIME-Typ, Größe) eines Bildes für `<enclosure>`.
+
+    Nur eigene Uploads: RSS verlangt eine Längenangabe, und die ließe sich für
+    ein fremdes Bild nur durch Abholen ermitteln — ein Abruf auf Zuruf
+    gespeicherter Daten (SSRF) und obendrein langsam.
+
+    Die Adresse zeigt bewusst auf `/uploads/`: diese Route brennt KI-erzeugten
+    Bildern die Kennzeichnung ein. Die Größe ist dann eine Schätzung, weil die
+    Auslieferung neu kodiert — RSS behandelt `length` ohnehin als Hinweis.
+    """
+    name = (url or '').strip()
+    if not name.startswith('/uploads/'):
+        return ('', '', 0)
+    name = name.removeprefix('/uploads/')
+    p = safe_under(UPLOADS_DIR, name)
+    if p is None or not p.is_file():
+        return ('', '', 0)
+    try:
+        size = p.stat().st_size
+    except OSError:
+        return ('', '', 0)
+    return (f'{base}/uploads/{name}',
+            _FEED_MIME.get(p.suffix.lower(), 'application/octet-stream'), size)
+
+
+def _feed_items(site: dict, lang: str, t: dict, loc, base: str) -> list:
+    """Alle Feed-Einträge aus Blog, Reiseblog und (auf Wunsch) Projekten und
+    Bibliothek.
+
+    Mitglieder-only-Inhalte kommen mit Titel und Adresse vor, aber ohne Text und
+    ohne Bild. Sie ganz zu verschweigen wäre auch falsch — auf der Website stehen
+    sie ja ebenfalls in der Liste, nur gesperrt. Der alte Feed prüfte die Sperre
+    gar nicht und lieferte 300 Zeichen des Textes an jeden.
+    """
+    d = site['design']
+    locked_note = t.get('feed_members_only') or 'Nur für Mitglieder.'
+    untitled = t.get('feed_untitled') or '—'
+    items = []
+
+    def add(*, title, link, date_iso, summary, body, tags, image, locked):
+        items.append({
+            'title': (title or '').strip() or untitled,
+            'link': link,
+            'date': date_iso or '',
+            'summary': locked_note if locked else _feed_cut(summary),
+            'body': '' if locked else (body or ''),
+            'tags': [x for x in (tags or []) if x][:8],
+            'image': '' if locked else (image or ''),
+            'locked': locked,
+        })
+
+    for p in sorted_posts(site, public_only=True):
+        locked = bool(p.get('members_only'))
+        body = '' if locked else _overlay_html_images(render_md(loc(p, 'text')))
+        add(title=loc(p, 'title'), link=f"{base}/blog/{p['id']}",
+            date_iso=p.get('date'),
+            summary=loc(p, 'meta') or _plain_excerpt(body, 100000),
+            body=body, tags=p.get('tags'), image=p.get('image'), locked=locked)
+
+    # Reiseblog: hängt am Modulschalter, sonst stünden Tage im Feed, die die
+    # Website gar nicht ausliefert
+    if d.get('travel_enabled'):
+        data = load_travel()
+        for trip in _trav_public_trips(site, data):
+            locked = bool(trip.get('members_only'))
+            for day in _trav_public_days(trip):
+                art = _trav_article(day, lang)
+                body = ('' if locked else
+                        _overlay_html_images(render_md(art.get('body') or '')))
+                photo = next((ph.get('url') for ph in (day.get('photos') or [])
+                              if ph.get('url')), '')
+                # Der Tagestitel allein („Ankunft") sagt im Feed-Leser nichts —
+                # dort stehen die Einträge ohne den Zusammenhang der Reise
+                head = ' · '.join(x for x in (trip.get('name'), art.get('title')) if x)
+                add(title=head,
+                    link=f"{base}/reiseblog/{trip['slug']}/{day['slug']}",
+                    date_iso=day.get('date'),
+                    summary=art.get('teaser') or _plain_excerpt(body, 100000),
+                    body=body, tags=(day.get('article') or {}).get('tags'),
+                    image=photo, locked=locked)
+
+    if d.get('feed_projects'):
+        for p in site.get('projects', []):
+            if not project_visible(p):
+                continue
+            # Ohne Detailseite gäbe es keine Adresse, auf die der Eintrag zeigen
+            # könnte — ein Feed-Eintrag ohne Ziel ist wertlos
+            if not _has_detail(p):
+                continue
+            body = _overlay_html_images(render_md(loc(p, 'long')))
+            add(title=p.get('title'), link=f"{base}/p/{p['id']}",
+                date_iso='',   # Projekte haben kein Datum
+                summary=loc(p, 'desc') or _plain_excerpt(body, 100000),
+                body=body, tags=p.get('tags'), image=p.get('image'), locked=False)
+
+    if d.get('feed_library'):
+        for e in _lib_public_entries(site):
+            locked = bool(e.get('members_only'))
+            body = '' if locked else _overlay_html_images(render_md(loc(e, 'body')))
+            add(title=loc(e, 'title'), link=f"{base}/bibliothek/{e.get('slug', '')}",
+                date_iso=e.get('updated'),
+                summary=loc(e, 'meta') or loc(e, 'summary') or _plain_excerpt(body, 100000),
+                body=body, tags=e.get('tags'), image=e.get('image'), locked=locked)
+
+    # Neueste zuerst; Einträge ohne Datum (Projekte) landen dadurch hinten
+    items.sort(key=lambda i: i['date'], reverse=True)
+    return items[:FEED_MAX_ITEMS]
+
+
+def _feed_pubdate(date_iso: str, seq: int) -> str:
+    """`YYYY-MM-DD` → RFC-822. `seq` verschiebt gleiche Daten um je eine Minute.
+
+    Ohne den Versatz tragen alle Einträge eines Tages denselben Zeitstempel, und
+    die Reihenfolge im Leser wird zufällig. Die Minute ist keine erfundene
+    Uhrzeit, sondern die Position im Feed — anders lässt sich „selber Tag, diese
+    Reihenfolge" in RSS nicht ausdrücken.
+    """
+    try:
+        base = datetime.strptime(date_iso, '%Y-%m-%d').replace(
+            hour=FEED_HOUR, tzinfo=timezone.utc)
+    except (ValueError, TypeError):
+        return ''
+    return (base - timedelta(minutes=seq)).strftime('%a, %d %b %Y %H:%M:%S +0000')
+
+
 @public_app.route('/feed.xml')
 def rss_feed():
     site = load_site()
-    posts = sorted_posts(site, public_only=True)
-    if not posts:
-        abort(404)
-    base = _base_url()
-    lang = detect_language(request)
+    lang = _feed_lang(site)
+    t = load_translations(lang)
     loc = _loc_factory(lang)
-    title = site['design'].get('site_title') or site['profile'].get('name') or 'MyPage'
+    base = _base_url()
+    d = site['design']
     esc = html_mod.escape
-    items = ''
-    for p in posts[:30]:
-        link = f"{base}/blog/{p['id']}"
-        # YYYY-MM-DD → RFC-822 (für RSS-Reader)
-        try:
-            pub = datetime.strptime(p.get('date', ''), '%Y-%m-%d').strftime('%a, %d %b %Y 00:00:00 +0000')
-        except ValueError:
-            pub = ''
-        teaser = re.sub('<[^>]+>', '', render_md(loc(p, 'text')))[:300]
-        items += (f'    <item>\n'
-                  f'      <title>{esc(loc(p, "title"))}</title>\n'
-                  f'      <link>{esc(link)}</link>\n'
-                  f'      <guid isPermaLink="true">{esc(link)}</guid>\n'
-                  + (f'      <pubDate>{pub}</pubDate>\n' if pub else '')
-                  + f'      <description>{esc(teaser)}</description>\n'
-                  f'    </item>\n')
+    items = _feed_items(site, lang, t, loc, base)
+
+    body = ''
+    seen_dates: dict[str, int] = {}
+    for it in items:
+        seq = seen_dates[it['date']] = seen_dates.get(it['date'], -1) + 1
+        pub = _feed_pubdate(it['date'], seq)
+        img_url, img_type, img_len = _feed_media(it['image'], base)
+        body += (f'    <item>\n'
+                 f'      <title>{esc(it["title"])}</title>\n'
+                 f'      <link>{esc(it["link"])}</link>\n'
+                 f'      <guid isPermaLink="true">{esc(it["link"])}</guid>\n'
+                 + (f'      <pubDate>{pub}</pubDate>\n' if pub else '')
+                 + f'      <description>{esc(it["summary"])}</description>\n'
+                 + ''.join(f'      <category>{esc(tag)}</category>\n' for tag in it['tags'])
+                 + (f'      <enclosure url="{esc(img_url)}" type="{img_type}" '
+                    f'length="{img_len}"/>\n' if img_url else '')
+                 # CDATA statt Maskieren: der Volltext ist HTML und soll es
+                 # bleiben. `]]>` kann darin nicht vorkommen — `render_md`
+                 # erzeugt es nicht und Markdown-Quelltext wird escaped —,
+                 # sicherheitshalber wird es trotzdem aufgetrennt.
+                 + (f'      <content:encoded><![CDATA['
+                    f'{_feed_abs(it["body"], base).replace("]]>", "]]]]><![CDATA[>")}'
+                    f']]></content:encoded>\n' if it['body'] else '')
+                 + f'    </item>\n')
+
+    title = d.get('site_title') or site['profile'].get('name') or 'MyPage'
+    desc = loc(site['profile'], 'tagline') or title
+    author = site['profile'].get('name') or ''
+    self_url = f'{base}/feed.xml' + (f'?lang={lang}' if request.args.get('lang') else '')
+    # Kanal-Logo: das Profilbild, sonst das Favicon — beides nur, wenn es ein
+    # eigener Upload ist (siehe _feed_media)
+    logo, _lt, _ll = _feed_media(site['profile'].get('avatar') or d.get('favicon') or '', base)
+    built = max((it['date'] for it in items if it['date']), default='')
+    head = (f'    <title>{esc(title)}</title>\n'
+            f'    <link>{esc(base)}/blog</link>\n'
+            f'    <description>{esc(desc)}</description>\n'
+            f'    <language>{lang}</language>\n'
+            f'    <generator>MyPage</generator>\n'
+            f'    <ttl>{FEED_TTL_MIN}</ttl>\n'
+            f'    <atom:link href="{esc(self_url)}" rel="self" type="application/rss+xml"/>\n'
+            + (f'    <lastBuildDate>{_feed_pubdate(built, 0)}</lastBuildDate>\n'
+               if built else '')
+            + (f'    <managingEditor>{esc(author)}</managingEditor>\n' if author else '')
+            + (f'    <image>\n      <url>{esc(logo)}</url>\n'
+               f'      <title>{esc(title)}</title>\n'
+               f'      <link>{esc(base)}/</link>\n    </image>\n' if logo else ''))
+
     xml = ('<?xml version="1.0" encoding="UTF-8"?>\n'
-           '<rss version="2.0"><channel>\n'
-           f'    <title>{esc(title)}</title>\n'
-           f'    <link>{esc(base)}/blog</link>\n'
-           f'    <description>{esc(loc(site["profile"], "tagline"))}</description>\n'
-           f'{items}</channel></rss>\n')
-    return xml, 200, {'Content-Type': 'application/rss+xml; charset=utf-8'}
+           '<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"'
+           ' xmlns:content="http://purl.org/rss/1.0/modules/content/">\n'
+           '  <channel>\n'
+           f'{head}{body}'
+           '  </channel>\n</rss>\n')
+
+    # Kein 404 mehr, wenn nichts da ist: ein leerer, gültiger Feed heißt „noch
+    # nichts veröffentlicht", ein 404 heißt für den Leser „kaputt" — und manche
+    # tragen einen so gemeldeten Feed dauerhaft aus.
+    resp = make_response(xml)
+    resp.headers['Content-Type'] = 'application/rss+xml; charset=utf-8'
+    resp.set_etag(hashlib.sha256(xml.encode('utf-8')).hexdigest()[:32])
+    resp.headers['Cache-Control'] = f'public, max-age={FEED_TTL_MIN * 60}'
+    # make_conditional beantwortet If-None-Match/If-Modified-Since mit 304 —
+    # der Feed wird im Minutentakt abgefragt und ändert sich fast nie
+    return resp.make_conditional(request)
 
 
 @public_app.errorhandler(404)
@@ -9404,6 +10931,14 @@ def public_index():
     # Schlagwörter nur aus den gezeigten Karten — die Filterleiste auf der Startseite
     # arbeitet im Browser über genau diese Kacheln, ein Chip ohne Treffer wäre eine Sackgasse.
     library_tags = _lib_tag_list(library_entries)
+    # Reiseblog: die jüngsten Reisen als Kacheln, „alle anzeigen" führt auf die
+    # Übersicht. Reihenfolge wie im Admin — die neueste Reise steht dort oben.
+    travel_trips = [_trav_trip_view(tr, lang) for tr in _trav_public_trips(site)[:6]]
+    # Formulare: Titel und Einleitung als Anriss, der Rest steht auf der Seite
+    # selbst. Ohne Titel gäbe es nichts anzuklicken, also fliegen sie raus.
+    form_cards = [{'slug': f['slug'], 'title': loc(f, 'title'),
+                   'intro': _plain_excerpt(render_md(loc(f, 'intro')))}
+                  for f in _public_forms(site) if loc(f, 'title')]
 
     loc_block = sections.get('location') or {}
     loc_present = bool(loc_block.get('address') or loc_block.get('hours_de') or loc_block.get('hours_en'))
@@ -9476,6 +11011,11 @@ def public_index():
         'links':        ('links',        'links_heading',        bool(sections.get('links'))),
         'faq':          ('faq',          'faq_heading',          bool(sections.get('faq'))),
         'location':     ('standort',     'location_heading',     loc_present),
+        # Der Reiseblog erscheint, sobald er freigegeben ist UND mindestens ein
+        # Tag veroeffentlicht wurde -- sonst waere die Sprungmarke ein Verweis
+        # ins Leere. Beides steckt schon in `travel_trips`.
+        'travel':       ('reiseblog',    'trav_trips_heading',   bool(travel_trips)),
+        'forms':        ('formulare',    'forms_heading',        bool(form_cards)),
     }
     # Gespeicherte Reihenfolge bereinigen: nur gültige Keys, fehlende hinten anhängen
     stored = [k for k in (site.get('section_order') or []) if k in section_defs]
@@ -9524,7 +11064,14 @@ def public_index():
         # zur Übersicht.
         lib_in_nav = ('library' in section_order and section_defs['library'][2]
                       and _library(site).get('nav'))
-        nav_items += _nav_links(site, loc, t, with_library=not lib_in_nav)
+        trav_in_nav = 'travel' in section_order and section_defs['travel'][2]
+        # Steht der Formular-Abschnitt schon als Sprungmarke in der Leiste,
+        # entfallen die einzelnen Formular-Links: sonst stünde dort erst
+        # „Formulare" und daneben nochmal jedes einzelne Formular.
+        forms_in_nav = 'forms' in section_order and section_defs['forms'][2]
+        nav_items += _nav_links(site, loc, t, with_library=not lib_in_nav,
+                                with_travel=not trav_in_nav,
+                                with_forms=not forms_in_nav)
 
     return render_template('public.html', t=t, lang=lang, site=site, loc=loc,
                            projects=projects,
@@ -9540,6 +11087,8 @@ def public_index():
                            library_total=library_total,
                            library_tags=library_tags,
                            library_heading=library_heading,
+                           travel_trips=travel_trips,
+                           form_cards=form_cards,
                            countdown_title=countdown_title,
                            newsletter_open=newsletter_open() and not static_export,
                            nl=_clean_str(request.args.get('nl'), 20),
@@ -9593,7 +11142,7 @@ def site_search_page():
     query = _clean_str(request.args.get('q'), 80)
     loc = _loc_factory(lang)
     member = current_member(request)
-    results = site_search(site, query, loc, member is not None) if query else []
+    results = site_search(site, query, loc, member is not None, lang) if query else []
     count_visit(request)
     t = load_translations(lang)
     kind_labels = {
@@ -9601,6 +11150,7 @@ def site_search_page():
         'project': t.get('search_kind_project', 'Projekt'),
         'page':    t.get('search_kind_page', 'Seite'),
         'library': _library_label(site, loc, t),
+        'travel':  t.get('trav_trips_heading', 'Reiseblog'),
     }
     nav_items = _nav_links(site, loc, t) if site['design'].get('show_nav', True) else []
     return render_template('search.html', t=t, lang=lang, site=site, loc=loc,
@@ -10643,8 +12193,8 @@ def custom_form(slug: str):
     site = load_site()
     if site['design'].get('maintenance'):
         return _maintenance_page(site, lang)
-    form = _find_form(site, slug)
-    if form is None or not form.get('enabled'):
+    form = next((f for f in _public_forms(site) if f['slug'] == slug), None)
+    if form is None:
         abort(404)
     count_visit(request)
     return _render_form(form, site, lang, ok=bool(request.args.get('ok')))
@@ -10656,8 +12206,8 @@ def custom_form_submit(slug: str):
     site = load_site()
     if site['design'].get('maintenance'):
         return _maintenance_page(site, lang)
-    form = _find_form(site, slug)
-    if form is None or not form.get('enabled'):
+    form = next((f for f in _public_forms(site) if f['slug'] == slug), None)
+    if form is None:
         abort(404)
     t = load_translations(lang)
     # Honeypot: Bots füllen das versteckte Feld aus → still „erfolgreich"
@@ -10952,6 +12502,336 @@ def admin_library_preview(eid: str):
     if entry is None:
         abort(404)
     return _render_library_entry(site, entry, detect_language(request), preview=True)
+
+
+# ── Reiseblog (öffentlich) ────────────────────────────────────────────────────
+#
+# Aufbau wie die Bibliothek — Übersicht, dann Detail —, nur mit einer Ebene mehr:
+# ein Reisetag ohne seine Reise hat keinen Zusammenhang. Daher /reiseblog,
+# /reiseblog/<reise> und /reiseblog/<reise>/<tag>.
+#
+# Sichtbar ist ein Tag nur, wenn er freigegeben ist UND einen Artikel hat. Der
+# Schalter allein genügt nicht: unterwegs wird ständig zwischengespeichert, und
+# eine freigegebene Seite ohne Text wäre eine leere Seite mit Datum.
+
+def _trav_article(day: dict, lang: str) -> dict:
+    """Artikel in der gewünschten Sprache, sonst in der anderen.
+
+    Eine Reise kann einsprachig geführt sein — dann steht auf der englischen
+    Seite der deutsche Bericht. Das ist besser als eine leere Seite.
+    """
+    art = day.get('article') or {}
+    want = art.get(lang) or {}
+    if want.get('title') or want.get('body'):
+        return want
+    other = art.get('en' if lang == 'de' else 'de') or {}
+    return other if (other.get('title') or other.get('body')) else want
+
+
+def _trav_day_public(day: dict) -> bool:
+    art = day.get('article') or {}
+    return bool(day.get('published') and day.get('slug')
+                and any((art.get(lg) or {}).get('title') for lg in ('de', 'en')))
+
+
+def _trav_public_days(trip: dict) -> list:
+    return [d for d in (trip.get('days') or []) if _trav_day_public(d)]
+
+
+def _trav_public_trips(site: dict, data: dict | None = None) -> list:
+    """Reisen mit mindestens einem veröffentlichten Tag.
+
+    Leer, solange der Reiseblog in den Einstellungen nicht für die Website
+    freigegeben ist — der Admin-Reiter bleibt davon unberührt.
+    """
+    if not site['design'].get('travel_enabled'):
+        return []
+    data = load_travel() if data is None else data
+    return [t for t in (data.get('trips') or [])
+            if t.get('slug') and _trav_public_days(t)]
+
+
+def _trav_date(iso: str, lang: str) -> str:
+    """Datum zum Anzeigen: deutsch 12.05.2027, sonst unverändert ISO."""
+    if lang != 'de' or not re.fullmatch(r'\d{4}-\d{2}-\d{2}', iso or ''):
+        return iso or ''
+    y, m, d = iso.split('-')
+    return f'{d}.{m}.{y}'
+
+
+def _trav_first_photo(day: dict) -> str:
+    return next((p['url'] for p in (day.get('photos') or []) if p.get('url')), '')
+
+
+def _trav_trip_view(trip: dict, lang: str) -> dict:
+    """Reise als Kachel für die Übersicht."""
+    days = _trav_public_days(trip)
+    lead = _trav_article(days[0], lang) if days else {}
+    cover = next((_trav_first_photo(d) for d in days if _trav_first_photo(d)), '')
+    return {
+        'slug': trip.get('slug', ''),
+        'name': trip.get('name') or trip.get('destination') or trip.get('slug', ''),
+        'destination': trip.get('destination') or '',
+        'day_count': len(days),
+        'start': _trav_date(trip.get('travel_start') or '', lang),
+        'end': _trav_date(trip.get('travel_end') or '', lang),
+        'image': _overlay_url(cover),
+        'teaser': lead.get('teaser') or '',
+        'members_only': bool(trip.get('members_only')),
+    }
+
+
+def _trav_day_view(day: dict, lang: str) -> dict:
+    """Tag als Kachel für die Reise-Seite."""
+    art = _trav_article(day, lang)
+    return {
+        'slug': day.get('slug', ''),
+        'number': day.get('day_number') or 0,
+        'date': _trav_date(day.get('date') or '', lang),
+        'location': day.get('location') or '',
+        'title': art.get('title') or '',
+        'teaser': art.get('teaser') or '',
+        'image': _overlay_url(_trav_first_photo(day)),
+    }
+
+
+def _trav_gallery(day: dict, lang: str) -> list:
+    """Fotos mit Bildunterschrift.
+
+    Die KI-Unterschriften in `article.captions` gehören zu den Fotos MIT
+    Hinweis, in genau deren Reihenfolge — Fotos ohne Hinweis hat der Prompt
+    übersprungen. Der Zähler läuft deshalb über alle Fotos, hochgezählt wird
+    aber nur bei denen mit Hinweis. Wer stumpf über den Index der Fotoliste
+    ginge, hängte die Unterschriften ans falsche Bild.
+    """
+    caps = (day.get('article') or {}).get('captions') or []
+    other = 'en' if lang == 'de' else 'de'
+    out, k = [], 0
+    for p in (day.get('photos') or []):
+        ai = {}
+        if p.get('photo_note'):
+            ai = caps[k] if k < len(caps) else {}
+            k += 1
+        if not p.get('url'):
+            continue
+        out.append({'url': _overlay_url(p['url']),
+                    'caption': (p.get('caption_' + lang) or ai.get(lang)
+                                or p.get('caption_' + other) or ai.get(other) or '')})
+    return out
+
+
+def _trav_opt_label(t: dict, group: str, value: str) -> str:
+    """Deutschen Auswahlwert für die Anzeige übersetzen.
+
+    Gespeichert und in den Prompt gereicht wird immer der deutsche Klartext —
+    er ist Teil des Prompts und darf sich nicht ändern, sonst schriebe das
+    Modell plötzlich über anderes Wetter. Übersetzt wird ausschließlich die
+    Anzeige; ohne Eintrag in der Karte bleibt der Wert stehen. Die deutsche
+    Karte ist deshalb leer: dort ist der Wert schon die Beschriftung.
+    """
+    return ((t.get('trav_opt_labels') or {}).get(group) or {}).get(value, value)
+
+
+def _trav_prices(trip: dict) -> bool:
+    """Ob Beträge öffentlich gezeigt werden dürfen — dieselbe Einstellung, die
+    schon steuert, ob die KI Preise nennen darf."""
+    return (trip.get('settings') or {}).get('include_prices', True) is not False
+
+
+def _trav_money(amount: float, currency: str, lang: str) -> str:
+    """Betrag mit Währung, deutsch mit Komma."""
+    text = f'{amount:.2f}'
+    if lang == 'de':
+        text = text.replace('.', ',')
+    return f'{text} {currency}'.strip()
+
+
+def _trav_facts(day: dict, lang: str, t: dict) -> list:
+    """Kurze Faktenzeile über dem Bericht: Datum, Ort, Wetter."""
+    facts = [x for x in (_trav_date(day.get('date') or '', lang),
+                         day.get('location') or '') if x]
+    w = day.get('weather') or {}
+    if w.get('mention'):
+        wx = ' '.join(x for x in (
+            _trav_opt_label(t, 'weather_conditions', w.get('condition') or ''),
+            f"{w['temperature']} °C" if w.get('temperature') is not None else '') if x)
+        if wx:
+            facts.append(wx)
+    return facts
+
+
+def _trav_expenses(day: dict, lang: str, t: dict) -> dict:
+    """Ausgaben eines Tages: Zeilen und Summe je Währung.
+
+    Summiert wird getrennt je Währung, nicht umgerechnet — ein geratener
+    Wechselkurs wäre eine erfundene Zahl in einem Bericht, der keine enthalten
+    soll (dieselbe Regel wie in `travelblog.expense_total`).
+    """
+    rows = [{'category': _trav_opt_label(t, 'expense_categories', e.get('category') or ''),
+             'description': e.get('description') or '',
+             'amount': _trav_money(e['amount'], e.get('currency') or 'EUR', lang)}
+            for e in (day.get('expenses') or []) if e.get('amount') is not None]
+    if not rows:
+        return {}
+    return {'rows': rows,
+            'totals': [_trav_money(v, k, lang)
+                       for k, v in sorted(tb.expense_total(day).items())]}
+
+
+def _trav_trip_totals(trip: dict, lang: str) -> list:
+    """Ausgaben der ganzen Reise je Währung — nur aus veröffentlichten Tagen.
+
+    Ein Entwurf darf die öffentliche Summe nicht mitbestimmen: sonst stünde
+    unter der Reise ein Betrag, den kein sichtbarer Tag erklärt.
+    """
+    totals: dict[str, float] = {}
+    for d in _trav_public_days(trip):
+        for cur, val in tb.expense_total(d).items():
+            totals[cur] = round(totals.get(cur, 0) + val, 2)
+    return [_trav_money(v, k, lang) for k, v in sorted(totals.items())]
+
+
+def _nav_travel(site: dict, loc, t: dict) -> list:
+    """Navi-Eintrag des Reiseblogs (nur mit veröffentlichten Tagen)."""
+    if not _trav_public_trips(site):
+        return []
+    return [{'href': '/reiseblog', 'label': t.get('trav_trips_heading', 'Reiseblog')}]
+
+
+def _trav_locked(trip: dict, preview: bool) -> bool:
+    """Mitglieder-Sperre gilt für die ganze Reise, nicht je Tag: eine Reise
+    halb öffentlich zu zeigen ergäbe eine Geschichte mit Löchern."""
+    return bool(trip.get('members_only')) and not preview and not is_member(request)
+
+
+def _trav_head(site: dict, lang: str):
+    """Gemeinsamer Kopf aller Reiseblog-Seiten."""
+    t = load_translations(lang)
+    loc = _loc_factory(lang)
+    font_family, font_faces = font_css(site['design'])
+    return t, loc, font_family, font_faces
+
+
+@public_app.route('/reiseblog')
+def travel_index():
+    lang = detect_language(request)
+    site = load_site()
+    if site['design'].get('maintenance'):
+        return _maintenance_page(site, lang)
+    trips = _trav_public_trips(site)
+    if not trips:
+        abort(404)
+    count_visit(request)
+    t, loc, font_family, font_faces = _trav_head(site, lang)
+    return render_template(
+        'travel.html', t=t, lang=lang, site=site, loc=loc,
+        heading=t.get('trav_trips_heading', ''),
+        trips=[_trav_trip_view(tr, lang) for tr in trips],
+        font_family=font_family, font_faces=font_faces,
+        nav_items=(_nav_links(site, loc, t, with_travel=False)
+                   if site['design'].get('show_nav', True) else []),
+        meta_desc=(t.get('trav_public_intro', '') or _site_meta(site, loc)),
+        year=datetime.now(timezone.utc).year)
+
+
+@public_app.route('/reiseblog/<tslug>')
+def travel_trip_page(tslug: str):
+    lang = detect_language(request)
+    site = load_site()
+    if site['design'].get('maintenance'):
+        return _maintenance_page(site, lang)
+    trip = next((x for x in _trav_public_trips(site) if x['slug'] == tslug), None)
+    if trip is None:
+        abort(404)
+    count_visit(request)
+    t, loc, font_family, font_faces = _trav_head(site, lang)
+    view = _trav_trip_view(trip, lang)
+    locked = _trav_locked(trip, False)
+    return render_template(
+        'travel_trip.html', t=t, lang=lang, site=site, loc=loc,
+        heading=t.get('trav_trips_heading', ''), trip=view,
+        days=[_trav_day_view(d, lang) for d in _trav_public_days(trip)],
+        locked=locked,
+        totals=([] if locked or not _trav_prices(trip)
+                else _trav_trip_totals(trip, lang)),
+        font_family=font_family, font_faces=font_faces,
+        nav_items=(_nav_links(site, loc, t, with_travel=False)
+                   if site['design'].get('show_nav', True) else []),
+        meta_desc=(view['teaser'] or view['destination'] or _site_meta(site, loc)),
+        year=datetime.now(timezone.utc).year)
+
+
+def _render_travel_day(site: dict, trip: dict, day: dict, lang: str, preview: bool = False):
+    t, loc, font_family, font_faces = _trav_head(site, lang)
+    art = _trav_article(day, lang)
+    # Geblättert wird nur über veröffentlichte Tage. In der Vorschau eines noch
+    # nicht freigegebenen Tages steht er nicht in der Liste — dann entfällt die
+    # Blätter-Leiste, statt auf Adressen zu zeigen, die es öffentlich nicht gibt.
+    days = _trav_public_days(trip)
+    idx = next((i for i, d in enumerate(days) if d.get('id') == day.get('id')), -1)
+    locked = _trav_locked(trip, preview)
+    full_html = _overlay_html_images(render_md(art.get('body') or ''))
+    body_html = ('<p>' + _locked_teaser(full_html) + '</p>') if locked else full_html
+    return render_template(
+        'travel_day.html', t=t, lang=lang, site=site, loc=loc,
+        trip=_trav_trip_view(trip, lang), day=_trav_day_view(day, lang),
+        heading=t.get('trav_trips_heading', ''),
+        title=art.get('title') or f"{t.get('trav_day', 'Tag')} {day.get('day_number')}",
+        body_html=body_html, locked=locked,
+        members_only=bool(trip.get('members_only')),
+        facts=_trav_facts(day, lang, t),
+        # „Preise nennen" gilt für den Bericht wie für die Aufstellung darunter.
+        # Wer der KI verbietet, über Geld zu schreiben, will es auch nicht als
+        # Tabelle auf derselben Seite stehen haben.
+        expenses=({} if (locked or not _trav_prices(trip))
+                  else _trav_expenses(day, lang, t)),
+        gallery=([] if locked else _trav_gallery(day, lang)),
+        tags=((day.get('article') or {}).get('tags') or []),
+        prev_day=(_trav_day_view(days[idx - 1], lang) if idx > 0 else None),
+        next_day=(_trav_day_view(days[idx + 1], lang)
+                  if 0 <= idx < len(days) - 1 else None),
+        font_family=font_family, font_faces=font_faces,
+        nav_items=(_nav_links(site, loc, t, with_travel=False)
+                   if site['design'].get('show_nav', True) else []),
+        # Bewusst `body_html` (bei gesperrten Reisen der Anriss): der volle Text
+        # gehört nicht in die Meta-Description, wenn die Seite gesperrt ist.
+        meta_desc=(art.get('teaser') or _plain_excerpt(body_html)
+                   or _site_meta(site, loc)),
+        year=datetime.now(timezone.utc).year)
+
+
+@public_app.route('/reiseblog/<tslug>/<dslug>')
+def travel_day_page(tslug: str, dslug: str):
+    lang = detect_language(request)
+    site = load_site()
+    if site['design'].get('maintenance'):
+        return _maintenance_page(site, lang)
+    trip = next((x for x in _trav_public_trips(site) if x['slug'] == tslug), None)
+    day = next((d for d in _trav_public_days(trip) if d.get('slug') == dslug),
+               None) if trip else None
+    if day is None:
+        abort(404)
+    count_visit(request)
+    return _render_travel_day(site, trip, day, lang)
+
+
+@admin_app.route('/preview/travel/<tid>/<did>')
+def admin_travel_preview(tid: str, did: str):
+    """Tages-Vorschau im Admin — zeigt auch noch nicht freigegebene Tage.
+
+    Ohne sie ließe sich vor dem Freigeben nicht sehen, wie der Bericht mit
+    Fotos und Bildunterschriften tatsächlich aussieht.
+    """
+    err = _auth_required()
+    if err:
+        return err
+    data = load_travel()
+    trip = _trip(data, tid)
+    day = _day(trip, did) if trip else None
+    if day is None:
+        abort(404)
+    return _render_travel_day(load_site(), trip, day,
+                              detect_language(request), preview=True)
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────

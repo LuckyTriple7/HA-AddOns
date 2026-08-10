@@ -11,7 +11,11 @@
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; transition: background .2s, color .2s; }
     a { color: var(--accent); text-decoration: none; }
-    .wrap { max-width: 1100px; margin: 0 auto; padding: 0 16px; }
+    /* Die Arbeitsflaeche nutzt die Breite des Fensters. 1100 px waren fuer
+       Formulare gedacht, kosten auf einem breiten Bildschirm aber viel
+       Scrollen bei Tabellen, Kachelrastern und dem Reise-Wizard. Nach oben
+       bei 1900 px gedeckelt, damit Zeilen nicht unlesbar lang werden. */
+    .wrap { max-width: 1900px; margin: 0 auto; padding: 0 24px; }
 
     header { background: var(--surf); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 20; }
     .header-inner { display: flex; align-items: center; gap: 14px; padding: 10px 0; flex-wrap: wrap; }
@@ -61,8 +65,14 @@
     .sec-lock:hover { opacity: .85; }
     label { display: block; font-size: 0.78rem; color: var(--muted); margin: 12px 0 4px; }
     label:first-of-type { margin-top: 0; }
+    /* color-scheme: sonst zeichnet der Browser Kalender-Symbol und Auswahlfenster
+       hell auf dunklem Grund -- das Symbol war praktisch unsichtbar. */
+    input[type="date"], input[type="datetime-local"], input[type="time"] { color-scheme: dark; }
+    :root[data-theme="light"] input[type="date"],
+    :root[data-theme="light"] input[type="datetime-local"],
+    :root[data-theme="light"] input[type="time"] { color-scheme: light; }
     input[type="text"], input[type="email"], input[type="url"], input[type="number"],
-    input[type="date"], input[type="datetime-local"], textarea, select {
+    input[type="date"], input[type="datetime-local"], input[type="time"], textarea, select {
       width: 100%; background: var(--bg); border: 1px solid var(--border); color: var(--text);
       padding: 8px 11px; border-radius: 6px; font-size: 0.87rem; font-family: inherit;
     }
@@ -120,7 +130,7 @@
 
     .modal-bg { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 50; align-items: flex-start; justify-content: center; overflow-y: auto; padding: 30px 14px; }
     .modal-bg.open { display: flex; }
-    .modal { background: var(--surf); border: 1px solid var(--border); border-radius: 10px; padding: 22px; width: 100%; max-width: 620px; }
+    .modal { background: var(--surf); border: 1px solid var(--border); border-radius: 10px; padding: 22px; width: 100%; max-width: min(760px, 94vw); }
     .modal h3 { margin-bottom: 4px; }
     .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
 
@@ -184,6 +194,16 @@
 
     .upload-row { display: flex; gap: 8px; align-items: center; }
     .upload-row input[type="text"] { flex: 1; }
+    /* Reiseblog-Wizard */
+    .wiz-steps { display: flex; flex-wrap: wrap; gap: 6px; margin: 14px 0 16px; }
+    .wiz-step { background: var(--surf2); border: 1px solid var(--border); color: var(--muted); padding: 5px 11px; border-radius: 99px; font-size: 0.78rem; cursor: pointer; }
+    .wiz-step.active { border-color: var(--accent); color: var(--accent); font-weight: 600; }
+    .wiz-step.filled { color: var(--text); }
+    .trav-item { border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 10px; background: var(--surf2); }
+    .trav-item-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px; }
+    .trav-rating { display: flex; gap: 3px; }
+    .trav-rating button { background: none; border: none; cursor: pointer; font-size: 1.1rem; padding: 0 2px; color: var(--border); }
+    .trav-rating button.on { color: #f5b301; }
     /* KI-Studio */
     .ai-chips { display: flex; flex-wrap: wrap; gap: 6px; }
     .ai-chip { background: var(--surf2); border: 1px solid var(--border); color: var(--muted); padding: 4px 10px; border-radius: 999px; font-size: 0.78rem; cursor: pointer; }
@@ -198,6 +218,24 @@
     .ai-card-actions { display: flex; gap: 6px; padding: 8px; flex-wrap: wrap; }
     .ai-card.kept { border-color: var(--accent); }
     .ai-card .ai-url { font-size: 0.72rem; color: var(--muted); padding: 0 8px 8px; word-break: break-all; }
+    /* Logo-Designer */
+    /* Schachbrett hinter jeder Vorschau: bei einem freigestellten Logo ist sonst
+       nicht zu erkennen, wo das Motiv aufhört und der Panel-Hintergrund anfängt. */
+    .logo-check { background-image:
+        linear-gradient(45deg, #8883 25%, transparent 25%, transparent 75%, #8883 75%),
+        linear-gradient(45deg, #8883 25%, transparent 25%, transparent 75%, #8883 75%);
+      background-size: 16px 16px; background-position: 0 0, 8px 8px; }
+    .ai-card.logo-card img { aspect-ratio: 1 / 1; object-fit: contain; }
+    .logo-set { border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 10px; background: var(--surf2); }
+    .logo-set-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+    .logo-set-head strong { word-break: break-all; }
+    .logo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 8px; }
+    .logo-file { border: 1px solid var(--border); border-radius: 6px; padding: 6px; text-align: center; font-size: 0.7rem; color: var(--muted); background: var(--surf); }
+    .logo-file img { width: 100%; height: 62px; object-fit: contain; display: block; margin-bottom: 5px; border-radius: 4px; }
+    .logo-file a { color: var(--accent); text-decoration: none; overflow-wrap: anywhere; }
+    .logo-file a:hover { text-decoration: underline; }
+    /* Vorlagen-Auswahl: dieselben Chips wie die Stile, nur zum Ein-/Ausschalten */
+    .ai-chip.on { color: var(--text); border-color: var(--accent); background: var(--surf); }
     .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--green); color: #fff; padding: 9px 18px; border-radius: 8px; font-size: 0.85rem; z-index: 100; opacity: 0; transition: opacity .25s; pointer-events: none; }
     .toast.show { opacity: 1; }
     .toast.err { background: var(--red); }
@@ -230,13 +268,16 @@
     /* „unbenutzt“ ist die Info, die man beim Aufräumen braucht — genutzte Bilder
        bleiben unmarkiert, damit die Galerie nicht voller Plaketten hängt */
     .uploads-tile .unused { position: absolute; top: 4px; right: 4px; background: var(--accent); color: #fff; font-size: 0.6rem; padding: 1px 5px; border-radius: 99px; }
+    .uploads-tile .ai-flag { position: absolute; top: 4px; left: 4px; background: rgba(0,0,0,.55); color: #fff; font-size: 0.7rem; line-height: 1; padding: 3px 5px; border-radius: 99px; }
+    /* PDF-Kachel: gleiche Grundfläche wie ein Bild, damit das Raster nicht springt */
+    .uploads-tile .doc-icon { display: flex; align-items: center; justify-content: center; width: 100%; aspect-ratio: 1; font-size: 2rem; background: var(--bg); }
     .md-toolbar { display: flex; flex-wrap: wrap; gap: 3px; margin: 4px 0 10px; position: relative; }
     .md-btn { background: var(--surf2, var(--bg)); border: 1px solid var(--border); color: var(--text); border-radius: 5px; min-width: 30px; height: 30px; padding: 0 8px; font-size: 0.9rem; cursor: pointer; line-height: 1; }
     .md-btn:hover { border-color: var(--accent); color: var(--accent); }
     .md-emoji-pop { position: absolute; top: 34px; left: 0; z-index: 30; background: var(--surf); border: 1px solid var(--border); border-radius: 8px; padding: 6px; display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; box-shadow: 0 6px 24px rgba(0,0,0,.4); }
     .md-emoji-pop button { background: none; border: none; font-size: 1.1rem; cursor: pointer; padding: 3px; border-radius: 4px; }
     .md-emoji-pop button:hover { background: var(--surf2, var(--border)); }
-    .md-modal-box { max-width: 1000px; }
+    .md-modal-box { max-width: min(1400px, 94vw); }
     .md-split { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
     .md-editor-ta { width: 100%; min-height: 360px; resize: vertical; font-family: ui-monospace, "Cascadia Code", Consolas, monospace; font-size: 0.88rem; line-height: 1.5; }
     .md-preview { min-height: 360px; max-height: 60vh; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; padding: 12px 16px; background: var(--bg); }
@@ -298,10 +339,11 @@
         <button class="tab-btn" data-tab="content">{{ t.tab_content }}</button>
         <button class="tab-btn" data-tab="projects">{{ t.tab_projects }}</button>
         <button class="tab-btn" data-tab="blog">{{ t.tab_blog }}</button>
+        <button class="tab-btn" data-tab="travel" id="tab-btn-travel">{{ t.tab_travel }}</button>
         <button class="tab-btn" data-tab="pages">{{ t.tab_pages }}</button>
         <button class="tab-btn" data-tab="library">{{ t.tab_library }}</button>
         <button class="tab-btn" data-tab="ai" id="tab-btn-ai" style="display:none">✦ {{ t.tab_ai }}</button>
-        <button class="tab-btn" data-tab="forms">{{ t.tab_forms }}</button>
+        <button class="tab-btn" data-tab="forms" id="tab-btn-forms">{{ t.tab_forms }}</button>
         <button class="tab-btn" data-tab="design">{{ t.tab_design }}</button>
         <button class="tab-btn" data-tab="legal">{{ t.tab_legal }}</button>
         <button class="tab-btn" data-tab="messages">{{ t.tab_messages }} <span class="msg-badge" id="msg-badge" style="display:none"></span></button>
@@ -539,6 +581,16 @@
         <p class="hint">{{ t.section_edit_elsewhere }}</p>
         <button class="btn secondary small" onclick="document.querySelector('.tab-btn[data-tab=library]').click()">{{ t.tab_library }} →</button>
       </div>
+      <div class="panel acc" data-key="forms">
+        <div class="acc-head" onclick="toggleAcc(event, this)"><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.tab_forms }} <span class="acc-ext">↗</span></div>
+        <p class="hint">{{ t.section_edit_elsewhere }}</p>
+        <button class="btn secondary small" onclick="document.querySelector('.tab-btn[data-tab=forms]').click()">{{ t.tab_forms }} →</button>
+      </div>
+      <div class="panel acc" data-key="travel">
+        <div class="acc-head" onclick="toggleAcc(event, this)"><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.trav_trips_heading }} <span class="acc-ext">↗</span></div>
+        <p class="hint">{{ t.section_edit_elsewhere }}</p>
+        <button class="btn secondary small" onclick="document.querySelector('.tab-btn[data-tab=travel]').click()">{{ t.tab_travel }} →</button>
+      </div>
       <div class="panel acc" data-key="team">
         <div class="acc-head" onclick="toggleAcc(event, this)"><span class="drag-handle" title="{{ t.drag_section }}">⠿</span><button type="button" class="sec-eye" title="{{ t.toggle_visible }}" onclick="toggleSectionVisible(this, event)"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/></svg></button>{{ t.team_heading }}</div>
         <p class="hint">{{ t.team_hint }}</p>
@@ -656,6 +708,26 @@
       </div>
     </section>
 
+    <!-- Reiseblog -->
+    <section class="tab" id="tab-travel">
+      <div class="panel">
+        <h3 style="display:flex;justify-content:space-between;align-items:center">
+          {{ t.trav_trips_heading }}
+          <button class="btn small" onclick="openTripModal()">+ {{ t.trav_new_trip }}</button>
+        </h3>
+        <p class="hint">{{ t.trav_trips_hint }}</p>
+        <div class="proj-list" id="trav-trip-list"></div>
+      </div>
+      <div class="panel" id="trav-days-panel" style="display:none">
+        <h3 style="display:flex;justify-content:space-between;align-items:center">
+          <span id="trav-days-title"></span>
+          <button class="btn small" onclick="openDayModal()">+ {{ t.trav_new_day }}</button>
+        </h3>
+        <p class="hint">{{ t.trav_days_hint }}</p>
+        <div class="proj-list" id="trav-day-list"></div>
+      </div>
+    </section>
+
     <!-- Seiten -->
     <section class="tab" id="tab-pages">
       <div class="panel">
@@ -739,7 +811,7 @@
 
     <!-- KI-Studio -->
     <section class="tab" id="tab-ai">
-      <div class="panel">
+      <div class="panel" data-ai-panel="gemini">
         <h3>⚙️ {{ t.ai_settings_heading }}</h3>
         <p class="hint">{{ t.ai_settings_hint }}</p>
         <div class="row">
@@ -770,7 +842,7 @@
         <p class="hint" id="ai-quota" style="margin-top:12px"></p>
       </div>
 
-      <div class="panel">
+      <div class="panel" data-ai-panel="gemini">
         <h3>💶 {{ t.ai_usage_heading }}</h3>
         <p class="hint">{{ t.ai_usage_hint }} <a href="https://console.cloud.google.com/billing" target="_blank" rel="noopener">{{ t.ai_usage_billing_link }}</a></p>
         <div class="row">
@@ -787,14 +859,15 @@
           <div id="ai-prices-list" style="overflow-x:auto"></div>
           <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
             <button class="btn" onclick="saveAiPrices()">{{ t.save }}</button>
-            <button class="btn secondary" id="ai-prices-fetch" onclick="fetchAiPrices(this)">⬇ {{ t.ai_prices_fetch }}</button>
+            <button class="btn secondary" id="ai-prices-fetch" style="display:none" onclick="fetchAiPrices(this)">⬇ {{ t.ai_prices_fetch }}</button>
             <span class="hint" id="ai-prices-fetch-info"></span>
           </div>
-          <p class="hint">{{ t.ai_prices_fetch_hint }}</p>
+          <p class="hint" id="ai-prices-fetch-hint" style="display:none">{{ t.ai_prices_fetch_hint }}</p>
+          <div id="ai-prices-samples"></div>
         </div>
       </div>
 
-      <div class="panel">
+      <div class="panel" data-ai-panel="image">
         <h3>🖼️ {{ t.ai_img_heading }}</h3>
         <p class="hint">{{ t.ai_img_hint }}</p>
         <label>{{ t.ai_img_prompt }}</label>
@@ -832,7 +905,85 @@
         <p class="hint" id="ai-results-info"></p>
       </div>
 
-      <div class="panel">
+      <div class="panel" data-ai-panel="logo" id="ai-panel-logo">
+        <h3>🏷️ {{ t.logo_heading }}</h3>
+        <p class="hint">{{ t.logo_hint }}</p>
+
+        <div id="logo-ai-box">
+          <label>{{ t.logo_prompt }}</label>
+          <textarea id="logo-prompt" rows="3" placeholder="{{ t.logo_prompt_ph }}"></textarea>
+          <label style="margin-top:12px">{{ t.logo_style }}</label>
+          <div class="ai-chips" id="logo-styles"></div>
+          <div class="row" style="margin-top:14px">
+            <div>
+              <label>{{ t.logo_color }}</label>
+              <div class="upload-row">
+                <input type="color" id="logo-color" value="#3b82f6" style="width:56px;padding:2px">
+                <button class="btn secondary small" onclick="logoAddColor()">{{ t.logo_color_add }}</button>
+              </div>
+            </div>
+            <div>
+              <label>{{ t.ai_img_count }}</label>
+              <select id="logo-count">
+                <option value="1">1</option><option value="2" selected>2</option>
+                <option value="3">3</option><option value="4">4</option>
+              </select>
+            </div>
+          </div>
+          <div style="margin-top:14px">
+            <button class="btn" id="logo-run" onclick="runAiLogo(this)">✦ {{ t.logo_generate }}</button>
+            <span class="hint" id="logo-status" style="margin-left:10px"></span>
+          </div>
+          <div class="preset-wrap" id="logo-results-wrap" style="display:none;margin-top:16px">
+            <button type="button" class="nav-arrow preset-arrow preset-left" aria-label="◄" onclick="logoResultsScroll(-1)">‹</button>
+            <div class="ai-strip logo-check" id="logo-results"></div>
+            <button type="button" class="nav-arrow preset-arrow preset-right" aria-label="►" onclick="logoResultsScroll(1)">›</button>
+          </div>
+        </div>
+
+        <h4 style="margin:22px 0 6px">📐 {{ t.logo_targets }}</h4>
+        <p class="hint">{{ t.logo_targets_hint }}</p>
+        <div class="ai-chips" id="logo-presets" style="margin-top:10px"></div>
+        <div class="row" style="margin-top:14px">
+          <div>
+            <label>{{ t.logo_slug }}</label>
+            <input type="text" id="logo-slug" maxlength="41" placeholder="mediagrab">
+            <p class="hint">{{ t.logo_slug_hint }}</p>
+          </div>
+          <div>
+            <label>{{ t.logo_custom }}</label>
+            <div class="upload-row">
+              <input type="number" id="logo-cw" min="16" max="4096" placeholder="{{ t.logo_width }}">
+              <span class="hint" style="margin:0">×</span>
+              <input type="number" id="logo-ch" min="16" max="4096" placeholder="{{ t.logo_height }}">
+            </div>
+            <p class="hint">{{ t.logo_custom_hint }}</p>
+          </div>
+        </div>
+        <label class="checkbox" style="margin-top:12px"><input type="checkbox" id="logo-cutout" checked onchange="logoCutoutChanged()"> {{ t.logo_cutout }}</label>
+        <div id="logo-tol-box" style="margin-top:10px;max-width:280px">
+          <label>{{ t.logo_tolerance }}</label>
+          <select id="logo-tol">
+            <option value="6">{{ t.logo_tol_strict }}</option>
+            <option value="12" selected>{{ t.logo_tol_normal }}</option>
+            <option value="24">{{ t.logo_tol_loose }}</option>
+            <option value="40">{{ t.logo_tol_wide }}</option>
+          </select>
+        </div>
+        <p class="hint">{{ t.logo_cutout_hint }}</p>
+
+        <div style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <button class="btn secondary" onclick="el('logo-import-file').click()">⬆ {{ t.logo_import }}</button>
+          <input type="file" id="logo-import-file" accept=".png,.jpg,.jpeg,.gif,.webp" style="display:none">
+          <span class="hint" style="margin:0">{{ t.logo_import_hint }}</span>
+        </div>
+
+        <h4 style="margin:24px 0 6px">📁 {{ t.logo_sets }}</h4>
+        <p class="hint" id="logo-path"></p>
+        <div id="logo-sets" style="margin-top:12px"></div>
+      </div>
+
+      <div class="panel" data-ai-panel="text">
         <h3>📝 {{ t.ai_txt_heading }}</h3>
         <p class="hint">{{ t.ai_txt_hint }}</p>
         <div class="row">
@@ -1139,6 +1290,64 @@
               <option value="1">{{ t.yes }}</option>
             </select>
             <p class="hint">{{ t.search_enabled_hint }}</p>
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <label>{{ t.field_travel_enabled }}</label>
+            <select id="d-travel_enabled">
+              <option value="0">{{ t.no }}</option>
+              <option value="1">{{ t.yes }}</option>
+            </select>
+            <p class="hint">{{ t.travel_enabled_hint }}</p>
+          </div>
+          <div>
+            <label>{{ t.field_forms_enabled }}</label>
+            <select id="d-forms_enabled">
+              <option value="0">{{ t.no }}</option>
+              <option value="1">{{ t.yes }}</option>
+            </select>
+            <p class="hint">{{ t.forms_enabled_hint }}</p>
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <label>{{ t.field_default_lang }}</label>
+            <select id="d-default_lang">
+              <option value="de">{{ t.feed_lang_de }}</option>
+              <option value="en">{{ t.feed_lang_en }}</option>
+              <option value="auto">{{ t.default_lang_auto }}</option>
+            </select>
+            <p class="hint">{{ t.default_lang_hint }}</p>
+          </div>
+          <div></div>
+        </div>
+        <div class="row">
+          <div>
+            <label>{{ t.field_feed_lang }}</label>
+            <select id="d-feed_lang">
+              <option value="de">{{ t.feed_lang_de }}</option>
+              <option value="en">{{ t.feed_lang_en }}</option>
+            </select>
+            <p class="hint">{{ t.feed_lang_hint }}</p>
+          </div>
+          <div>
+            <label>{{ t.field_feed_extra }}</label>
+            <div class="row">
+              <div>
+                <select id="d-feed_projects">
+                  <option value="0">{{ t.feed_projects_off }}</option>
+                  <option value="1">{{ t.feed_projects_on }}</option>
+                </select>
+              </div>
+              <div>
+                <select id="d-feed_library">
+                  <option value="0">{{ t.feed_library_off }}</option>
+                  <option value="1">{{ t.feed_library_on }}</option>
+                </select>
+              </div>
+            </div>
+            <p class="hint">{{ t.feed_extra_hint }}</p>
           </div>
         </div>
         <div class="row">
@@ -1477,6 +1686,15 @@
         <button class="btn secondary" id="cleanup-btn" onclick="cleanupUploads()">🧹 {{ t.cleanup_btn }}</button>
         <p class="hint">{{ t.cleanup_pdf_hint }}</p>
         <button class="btn secondary" id="cleanup-pdf-btn" onclick="cleanupDocs()">🧹 {{ t.cleanup_pdf_btn }}</button>
+      </div>
+      <div class="panel">
+        <h3>{{ t.files_heading }}</h3>
+        <p class="hint">{{ t.files_hint }}</p>
+        <label class="checkbox"><input type="checkbox" id="files-ai-only" onchange="renderFileBrowser()"> ✨ {{ t.files_ai_only }}</label>
+        <h4 style="margin:14px 0 6px">{{ t.files_images }} <span class="hint" id="files-img-count" style="font-weight:normal"></span></h4>
+        <div class="uploads-grid" id="files-img-grid"></div>
+        <h4 style="margin:18px 0 6px">{{ t.files_docs }} <span class="hint" id="files-doc-count" style="font-weight:normal"></span></h4>
+        <div class="uploads-grid" id="files-doc-grid"></div>
       </div>
       <div class="panel">
         <h3>{{ t.redirects_heading }}</h3>
@@ -2064,10 +2282,76 @@
   <!-- Medien-Browser. Steht bewusst als letztes Modal im Dokument: alle .modal-bg
        teilen sich z-index 50, gestapelt wird also über die DOM-Reihenfolge — und
        dieses hier wird aus anderen Dialogen heraus geöffnet. -->
+  <!-- Reise-Modal -->
+  <div class="modal-bg" id="trip-modal">
+    <div class="modal">
+      <h3 id="trip-modal-title">{{ t.trav_new_trip }}</h3>
+      <div class="row">
+        <div><label>{{ t.trav_trip_name }} *</label><input type="text" id="tr-name" placeholder="Gran Canaria 2027"></div>
+        <div><label>{{ t.trav_destination }}</label><input type="text" id="tr-destination" placeholder="Gran Canaria"></div>
+      </div>
+      <label>{{ t.trav_hotel }}</label>
+      <input type="text" id="tr-hotel">
+      <div class="row">
+        <div><label>{{ t.trav_start }}</label><input type="date" id="tr-start"></div>
+        <div><label>{{ t.trav_end }}</label><input type="date" id="tr-end"></div>
+      </div>
+      <label>{{ t.trav_slug }}</label>
+      <input type="text" id="tr-slug" placeholder="gran-canaria-2027">
+      <p class="hint">{{ t.trav_slug_hint }}</p>
+      <label class="checkbox"><input type="checkbox" id="tr-members"> 🔒 {{ t.trav_members_only }}</label>
+      <h4 style="margin:18px 0 4px">{{ t.trav_settings }}</h4>
+      <p class="hint">{{ t.trav_settings_hint }}</p>
+      <div class="row">
+        <div><label>{{ t.trav_style }}</label><select id="tr-style"></select></div>
+        <div><label>{{ t.trav_perspective }}</label><select id="tr-perspective"></select></div>
+      </div>
+      <div class="row">
+        <div><label>{{ t.trav_length }}</label><select id="tr-length"></select></div>
+        <div><label>{{ t.trav_langs }}</label>
+          <select id="tr-langs">
+            <option value="de">{{ t.ai_lang_de }}</option>
+            <option value="de,en">{{ t.ai_lang_both }}</option>
+          </select>
+        </div>
+      </div>
+      <label class="checkbox"><input type="checkbox" id="tr-humor"> {{ t.trav_humor }}</label>
+      <label class="checkbox"><input type="checkbox" id="tr-prices" checked> {{ t.trav_inc_prices }}</label>
+      <label class="checkbox"><input type="checkbox" id="tr-practical" checked> {{ t.trav_inc_practical }}</label>
+      <label class="checkbox"><input type="checkbox" id="tr-ratings" checked> {{ t.trav_inc_ratings }}</label>
+      <div class="modal-actions">
+        <button class="btn secondary" onclick="el('trip-modal').classList.remove('open')">{{ t.cancel }}</button>
+        <button class="btn" style="margin-top:16px" onclick="saveTrip()">{{ t.save }}</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tages-Wizard -->
+  <div class="modal-bg" id="day-modal">
+    <div class="modal md-modal-box">
+      <h3 id="day-modal-title">{{ t.trav_new_day }}</h3>
+      <div class="wiz-steps" id="wiz-steps"></div>
+      <div id="wiz-body"></div>
+      <p class="hint" id="wiz-draft-note" style="min-height:1em"></p>
+      <div class="modal-actions" style="justify-content:space-between">
+        <div>
+          <button class="btn secondary" onclick="el('day-modal').classList.remove('open')">{{ t.cancel }}</button>
+          <button class="btn secondary" id="wiz-prev" onclick="wizGo(-1)">‹ {{ t.trav_back }}</button>
+          <button class="btn secondary" id="wiz-next" onclick="wizGo(1)">{{ t.trav_next }} ›</button>
+        </div>
+        <div>
+          <button class="btn secondary" onclick="saveDay(false)">{{ t.save }}</button>
+          <button class="btn" id="wiz-gen" onclick="generateReport(this)">✦ {{ t.trav_generate }}</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div class="modal-bg" id="uploads-modal">
     <div class="modal md-modal-box">
       <h3>{{ t.uploads_pick_title }}</h3>
       <p class="hint" id="uploads-pick-info"></p>
+      <label class="checkbox" id="uploads-ai-row" style="margin-bottom:10px"><input type="checkbox" id="uploads-ai-only" onchange="renderUploadTiles()"> ✨ {{ t.uploads_pick_ai_only }}</label>
       <div class="uploads-grid" id="uploads-grid"></div>
       <div class="modal-actions">
         <button class="btn secondary" onclick="closeUploadsModal()">{{ t.cancel }}</button>
@@ -2485,9 +2769,10 @@
         if (btn.dataset.tab === 'messages') { loadMessages(); loadComments(); }
         if (btn.dataset.tab === 'users') { loadUsers(); initStorageBrowser(); startUsersPolling(); }
         if (btn.dataset.tab === 'design') { initPreview(); setTimeout(updatePresetArrows, 50); }
-        if (btn.dataset.tab === 'system') { loadAudit(); loadTwofa(); loadAutoBackups(); }
+        if (btn.dataset.tab === 'system') { loadAudit(); loadTwofa(); loadAutoBackups(); loadFileBrowser(); }
         if (btn.dataset.tab === 'blog') loadSubscribers();
         if (btn.dataset.tab === 'ai') initAiTab();
+        if (btn.dataset.tab === 'travel') loadTravel();
       });
     });
 
@@ -2951,10 +3236,7 @@
       btn.textContent = label;
       const d = r ? await r.json().catch(() => ({})) : {};
       if (!r || !r.ok) {
-        const msg = d.error === 'ai_refused'   ? T.ai_img_err_refused
-                  : d.error === 'rate_limited' ? T.ai_img_err_limit
-                  : d.error === 'no_api_key'   ? T.ai_img_err_nokey
-                  : T.ai_img_err_failed;
+        const msg = aiErrMsg(d.error, d.model, d.detail);
         el('le-img-ai-status').textContent = msg;
         toast(msg, true);
         return;
@@ -4625,6 +4907,12 @@
       el('d-dm_ha_notify').value = d.dm_ha_notify ? '1' : '0';
       el('d-directory_enabled').value = d.directory_enabled ? '1' : '0';
       el('d-search_enabled').value = d.search_enabled ? '1' : '0';
+      el('d-travel_enabled').value = d.travel_enabled ? '1' : '0';
+      el('d-forms_enabled').value = d.forms_enabled !== false ? '1' : '0';
+      el('d-default_lang').value = ['de', 'en', 'auto'].includes(d.default_lang) ? d.default_lang : 'de';
+      el('d-feed_lang').value = d.feed_lang === 'en' ? 'en' : 'de';
+      el('d-feed_projects').value = d.feed_projects ? '1' : '0';
+      el('d-feed_library').value = d.feed_library ? '1' : '0';
       el('d-registration_enabled').value = d.registration_enabled ? '1' : '0';
       el('d-registration_quota_mb').value = d.registration_quota_mb || 500;
       el('d-newsletter_enabled').value = d.newsletter_enabled ? '1' : '0';
@@ -4670,6 +4958,36 @@
       el('d-banner_link_label_de').value = d.banner_link_label_de || '';
       el('d-banner_link_label_en').value = d.banner_link_label_en || '';
       renderPresets();
+      applyModuleVisibility();
+    }
+
+    // ── Abgeschaltete Module aus dem Admin nehmen ──
+    // Steht ein Modul unter Design → Module auf NEIN, ist es auf der Website
+    // vollständig aus. Dann hat es auch im Admin nichts verloren: weder als
+    // Reiter noch als Abschnitt unter Inhalte — sonst pflegt man dort etwas,
+    // das nirgends ankommt, und der Schalter bliebe folgenlos für alles, was
+    // man täglich sieht.
+    //
+    // Ausgeblendet wird nur die Bedienung. Reisen, Tage und Formulare bleiben
+    // gespeichert; auch Reihenfolge und Augen-Zustand des Abschnitts bleiben
+    // erhalten, weil das Panel im DOM stehen bleibt (`saveSectionOrder` liest
+    // alle `.acc`, `toggleSectionVisible` nur die mit `acc-hidden`).
+    const MODULE_TABS = ['travel', 'forms'];
+    function applyModuleVisibility() {
+      const d = (SITE && SITE.design) || {};
+      const on = { travel: !!d.travel_enabled, forms: d.forms_enabled !== false };
+      MODULE_TABS.forEach(key => {
+        const btn = el('tab-btn-' + key);
+        const acc = document.querySelector('#section-acc .acc[data-key="' + key + '"]');
+        if (acc) acc.style.display = on[key] ? '' : 'none';
+        if (!btn) return;
+        btn.style.display = on[key] ? '' : 'none';
+        // Wer gerade auf dem Reiter steht, den er abschaltet, säße sonst vor
+        // einem Formular ohne Reiter darüber
+        if (!on[key] && btn.classList.contains('active')) {
+          document.querySelector('.tab-btn[data-tab=design]').click();
+        }
+      });
     }
 
     // ── Design-Vorlagen (1-Klick-Stile) ──
@@ -4762,6 +5080,12 @@
         dm_ha_notify:     el('d-dm_ha_notify').value === '1',
         directory_enabled: el('d-directory_enabled').value === '1',
         search_enabled:    el('d-search_enabled').value === '1',
+        travel_enabled:    el('d-travel_enabled').value === '1',
+        forms_enabled:     el('d-forms_enabled').value === '1',
+        default_lang:      el('d-default_lang').value,
+        feed_lang:         el('d-feed_lang').value,
+        feed_projects:     el('d-feed_projects').value === '1',
+        feed_library:      el('d-feed_library').value === '1',
         registration_enabled: el('d-registration_enabled').value === '1',
         registration_quota_mb: parseInt(el('d-registration_quota_mb').value) || 500,
         newsletter_enabled: el('d-newsletter_enabled').value === '1',
@@ -4948,21 +5272,35 @@
     function fmtBytes(n) {
       return n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.round(n / 1024) + ' kB';
     }
+    let browseFiles = [];
     async function browseUploads(cb) {
       browseCb = cb;
-      const grid = el('uploads-grid');
-      grid.innerHTML = '';
+      browseFiles = [];
+      el('uploads-grid').innerHTML = '';
       el('uploads-pick-info').textContent = T.uploads_pick_loading;
       el('uploads-modal').classList.add('open');
       const r = await api('api/uploads/list');
       if (!r.ok) { el('uploads-pick-info').textContent = T.error_load; return; }
       const d = await r.json();
       if (!d.files.length) { el('uploads-pick-info').textContent = T.uploads_pick_empty; return; }
-      el('uploads-pick-info').textContent = d.total > d.files.length
-        ? T.uploads_pick_capped.replace('{n}', d.files.length).replace('{t}', d.total)
-        : T.uploads_pick_count.replace('{n}', d.total);
+      browseFiles = d.files;
+      browseFiles.capped = d.total > d.files.length ? d.total : 0;
+      renderUploadTiles();
+    }
+    // Gefiltert wird im Browser statt auf dem Server: die Liste ist ohnehin schon
+    // geladen und auf 300 Kacheln gedeckelt, ein zweiter Aufruf brächte nichts.
+    function renderUploadTiles() {
+      const aiOnly = el('uploads-ai-only').checked;
+      const files = browseFiles.filter(f => !aiOnly || f.ai);
+      el('uploads-pick-info').textContent = aiOnly
+        ? T.uploads_pick_ai_count.replace('{n}', files.length)
+        : (browseFiles.capped
+            ? T.uploads_pick_capped.replace('{n}', browseFiles.length).replace('{t}', browseFiles.capped)
+            : T.uploads_pick_count.replace('{n}', browseFiles.length));
+      const grid = el('uploads-grid');
+      grid.innerHTML = '';
       const frag = document.createDocumentFragment();
-      d.files.forEach(f => {
+      files.forEach(f => {
         const b = document.createElement('button');
         b.type = 'button';
         b.className = 'uploads-tile';
@@ -4970,6 +5308,7 @@
         // loading="lazy": bei 300 Kacheln lädt der Browser sonst alles auf einmal
         b.innerHTML = `<img src="${assetUrl(f.url)}" alt="" loading="lazy">`
           + (f.used ? '' : `<span class="unused">${T.uploads_pick_unused}</span>`)
+          + (f.ai ? `<span class="ai-flag">✨</span>` : '')
           + `<span class="meta">${new Date(f.mtime * 1000).toLocaleDateString()}<br>${fmtBytes(f.size)}</span>`;
         b.onclick = () => { closeUploadsModal(); if (browseCb) browseCb(f.url); };
         frag.appendChild(b);
@@ -4978,6 +5317,67 @@
     }
     function closeUploadsModal() {
       el('uploads-modal').classList.remove('open');
+    }
+
+    // ── Datei-Browser (Tab System) ──
+    // Linksklick öffnet, Rechtsklick löscht. Das Löschen liegt bewusst auf dem
+    // Kontextmenü und fragt nach: ein Klick daneben in einem Raster aus 300
+    // Kacheln darf keine Datei kosten.
+    let FILES = { images: [], docs: [] };
+    async function loadFileBrowser() {
+      const [ri, rd] = await Promise.all([api('api/uploads/list'), api('api/docs/list')]);
+      FILES.images = ri.ok ? (await ri.json()).files : [];
+      FILES.docs = rd.ok ? (await rd.json()).files : [];
+      renderFileBrowser();
+    }
+    function fileTile(inner, title, onOpen, onDelete) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'uploads-tile';
+      b.title = title;
+      b.innerHTML = inner;
+      b.onclick = onOpen;
+      b.addEventListener('contextmenu', e => { e.preventDefault(); onDelete(); });
+      return b;
+    }
+    function renderFileBrowser() {
+      const aiOnly = el('files-ai-only').checked;
+      const imgs = FILES.images.filter(f => !aiOnly || f.ai);
+      const grid = el('files-img-grid');
+      grid.innerHTML = '';
+      el('files-img-count').textContent = '(' + imgs.length + ')';
+      imgs.forEach(f => grid.appendChild(fileTile(
+        `<img src="${assetUrl(f.url)}" alt="" loading="lazy">`
+          + (f.used ? '' : `<span class="unused">${T.uploads_pick_unused}</span>`)
+          + (f.ai ? `<span class="ai-flag">✨</span>` : '')
+          + `<span class="meta">${new Date(f.mtime * 1000).toLocaleDateString()}<br>${fmtBytes(f.size)}</span>`,
+        f.url + ' — ' + T.files_rightclick,
+        () => window.open(assetUrl(f.url), '_blank', 'noopener'),
+        () => deleteFile('api/uploads/delete', f.url.split('/').pop(), f.used))));
+      const dgrid = el('files-doc-grid');
+      dgrid.innerHTML = '';
+      el('files-doc-count').textContent = '(' + FILES.docs.length + ')';
+      if (aiOnly) { dgrid.innerHTML = `<div class="empty-note">${T.files_docs_hidden}</div>`; return; }
+      FILES.docs.forEach(f => dgrid.appendChild(fileTile(
+        `<span class="doc-icon">📄</span>`
+          + (f.used ? '' : `<span class="unused">${T.uploads_pick_unused}</span>`)
+          + `<span class="meta">${new Date(f.mtime * 1000).toLocaleDateString()}<br>${fmtBytes(f.size)}</span>`,
+        f.name + ' — ' + T.files_rightclick,
+        () => window.open('api/docs/file/' + encodeURIComponent(f.name), '_blank', 'noopener'),
+        () => deleteFile('api/docs/delete', f.name, f.used))));
+    }
+    async function deleteFile(path, name, used) {
+      if (used && !confirm(T.files_del_used_confirm)) return;
+      if (!confirm(T.files_del_confirm.replace('{v}', name))) return;
+      let r = null;
+      try { r = await apiJson(path, 'POST', { name }); } catch (e) { /* Netzfehler */ }
+      const d = r ? await r.json().catch(() => ({})) : {};
+      if (!r || !r.ok) {
+        toast(d.error === 'in_use' ? T.ai_delete_in_use : T.error_save, true);
+        return;
+      }
+      toast(T.ai_deleted);
+      loadFileBrowser();
     }
     // Aus der Galerie heraus doch neu hochladen — der Rückruf bleibt derselbe
     function uploadFromBrowser() {
@@ -5328,6 +5728,576 @@
         toast(T.library_pdf_upload_failed, true);
       }
     });
+    // ── Reiseblog ──
+    // Der Wizard arbeitet direkt auf einem einfachen Objekt `DAY`, das genau der
+    // Form entspricht, die der Server erwartet. Dadurch gibt es kein Mapping
+    // zwischen Formular und Datenmodell, das auseinanderlaufen könnte.
+    let TRAVEL = { trips: [] };
+    let TRAVEL_OPT = null;
+    let curTripId = null, editingDayId = null, DAY = null, wizStep = 0;
+
+    async function loadTravel() {
+      if (!TRAVEL_OPT) {
+        const ro = await api('api/travel/options');
+        TRAVEL_OPT = ro.ok ? await ro.json() : {};
+      }
+      const r = await api('api/travel');
+      if (!r.ok) { toast(T.error_load, true); return; }
+      TRAVEL = await r.json();
+      renderTrips();
+    }
+    function curTrip() { return TRAVEL.trips.find(t => t.id === curTripId) || null; }
+
+    function renderTrips() {
+      const list = el('trav-trip-list');
+      list.innerHTML = '';
+      if (!TRAVEL.trips.length) {
+        list.innerHTML = `<div class="empty-note">${T.trav_no_trips}</div>`;
+        el('trav-days-panel').style.display = 'none';
+        return;
+      }
+      TRAVEL.trips.forEach(t => {
+        const div = document.createElement('div');
+        div.className = 'proj-item' + (t.id === curTripId ? ' active' : '');
+        const span = document.createElement('div');
+        span.style.flex = '1';
+        span.style.cursor = 'pointer';
+        span.innerHTML = `<strong>${escHtml(t.name)}</strong>`
+          + `<div class="hint">${escHtml([t.destination, t.travel_start, (t.days || []).length + ' ' + T.trav_days_word].filter(Boolean).join(' · '))}</div>`;
+        span.onclick = () => { curTripId = t.id; renderTrips(); renderDays(); };
+        const edit = document.createElement('button');
+        edit.className = 'btn secondary small';
+        edit.textContent = T.edit;
+        edit.onclick = () => openTripModal(t.id);
+        const del = document.createElement('button');
+        del.className = 'btn danger small';
+        del.textContent = '✕';
+        del.onclick = async () => {
+          if (!confirm(T.trav_del_trip_confirm.replace('{v}', t.name))) return;
+          const r = await apiJson('api/travel/trips/' + t.id, 'DELETE', {});
+          if (r.ok) { if (curTripId === t.id) curTripId = null; loadTravel(); }
+        };
+        div.append(span, edit, del);
+        list.appendChild(div);
+      });
+      if (curTrip()) renderDays();
+    }
+    function escHtml(s) {
+      const d = document.createElement('div');
+      d.textContent = s == null ? '' : s;
+      return d.innerHTML;
+    }
+
+    function renderDays() {
+      const trip = curTrip();
+      el('trav-days-panel').style.display = trip ? '' : 'none';
+      if (!trip) return;
+      el('trav-days-title').textContent = trip.name;
+      const list = el('trav-day-list');
+      list.innerHTML = '';
+      const days = trip.days || [];
+      if (!days.length) { list.innerHTML = `<div class="empty-note">${T.trav_no_days}</div>`; return; }
+      days.forEach(d => {
+        const div = document.createElement('div');
+        div.className = 'proj-item';
+        const art = (d.article || {}).de || {};
+        const span = document.createElement('div');
+        span.style.flex = '1';
+        span.innerHTML = `<strong>${T.trav_day} ${d.day_number}${d.location ? ' — ' + escHtml(d.location) : ''}</strong>`
+          + `<div class="hint">${escHtml([d.date, (d.experiences || []).length + ' ' + T.trav_experiences_word,
+              art.title ? '✔ ' + T.trav_has_report : T.trav_no_report,
+              // Freigegeben ohne Bericht heisst weiterhin unsichtbar — deshalb
+              // zaehlt hier beides zusammen, nicht der Schalter allein.
+              (d.published && art.title) ? '🌐 ' + T.trav_published_flag : T.trav_draft_flag,
+             ].filter(Boolean).join(' · '))}</div>`;
+        const prev = document.createElement('button');
+        prev.className = 'btn secondary small';
+        prev.textContent = T.trav_preview;
+        prev.onclick = () => window.open(`preview/travel/${curTripId}/${d.id}`, '_blank');
+        const edit = document.createElement('button');
+        edit.className = 'btn secondary small';
+        edit.textContent = T.edit;
+        edit.onclick = () => openDayModal(d.id);
+        const del = document.createElement('button');
+        del.className = 'btn danger small';
+        del.textContent = '✕';
+        del.onclick = async () => {
+          if (!confirm(T.confirm_delete)) return;
+          const r = await apiJson(`api/travel/trips/${curTripId}/days/${d.id}`, 'DELETE', {});
+          if (r.ok) loadTravel();
+        };
+        div.append(span, prev, edit, del);
+        list.appendChild(div);
+      });
+    }
+
+    // ── Reise-Modal ──
+    let editingTripId = null;
+    function fillOptSelect(id, values, labels) {
+      const sel = el(id);
+      sel.innerHTML = '';
+      (values || []).forEach(v => {
+        const o = document.createElement('option');
+        o.value = v;
+        o.textContent = (labels && labels[v]) || v;
+        sel.appendChild(o);
+      });
+    }
+    function openTripModal(id) {
+      editingTripId = id || null;
+      const t = id ? TRAVEL.trips.find(x => x.id === id) : {};
+      const s = t.settings || {};
+      fillOptSelect('tr-style', TRAVEL_OPT.writing_styles, T.trav_style_labels);
+      fillOptSelect('tr-perspective', TRAVEL_OPT.perspectives, T.trav_perspective_labels);
+      fillOptSelect('tr-length', TRAVEL_OPT.lengths, T.trav_length_labels);
+      el('trip-modal-title').textContent = id ? T.trav_edit_trip : T.trav_new_trip;
+      el('tr-name').value = t.name || '';
+      el('tr-destination').value = t.destination || '';
+      el('tr-hotel').value = t.hotel || '';
+      el('tr-start').value = t.travel_start || '';
+      el('tr-end').value = t.travel_end || '';
+      el('tr-slug').value = t.slug || '';
+      el('tr-members').checked = !!t.members_only;
+      el('tr-style').value = s.writing_style || 'persoenlich_locker';
+      el('tr-perspective').value = s.perspective || 'wir';
+      el('tr-length').value = s.length || 'mittel';
+      el('tr-langs').value = (s.langs || ['de']).join(',');
+      el('tr-humor').checked = !!s.humor;
+      el('tr-prices').checked = s.include_prices !== false;
+      el('tr-practical').checked = s.include_practical_info !== false;
+      el('tr-ratings').checked = s.include_ratings !== false;
+      el('trip-modal').classList.add('open');
+    }
+    async function saveTrip() {
+      const body = {
+        name: el('tr-name').value, destination: el('tr-destination').value,
+        hotel: el('tr-hotel').value, travel_start: el('tr-start').value,
+        travel_end: el('tr-end').value, slug: el('tr-slug').value,
+        members_only: el('tr-members').checked,
+        settings: {
+          writing_style: el('tr-style').value, perspective: el('tr-perspective').value,
+          length: el('tr-length').value, langs: el('tr-langs').value.split(','),
+          humor: el('tr-humor').checked, include_prices: el('tr-prices').checked,
+          include_practical_info: el('tr-practical').checked,
+          include_ratings: el('tr-ratings').checked,
+        },
+      };
+      if (!body.name.trim()) { toast(T.error_title, true); return; }
+      let r = null;
+      try {
+        r = editingTripId
+          ? await apiJson('api/travel/trips/' + editingTripId, 'PUT', body)
+          : await apiJson('api/travel/trips', 'POST', body);
+      } catch (e) {
+        toast(T.trav_save_offline, true);
+        return;
+      }
+      toast(r.ok ? T.saved : T.error_save, !r.ok);
+      if (r.ok) {
+        if (!editingTripId) curTripId = (await r.json()).id;
+        el('trip-modal').classList.remove('open');
+        loadTravel();
+      }
+    }
+
+    // ── Bausteine für den Wizard ──
+    function travLabel(text) {
+      const l = document.createElement('label');
+      l.textContent = text;
+      return l;
+    }
+    // Bindet ein Eingabefeld an ein Objekt. Leere Eingaben werden zu '' bzw.
+    // null gespeichert — der Prompt-Bau laesst genau diese Felder dann weg.
+    function travField(obj, key, type, label, optKey) {
+      const wrap = document.createElement('div');
+      if (type === 'rating') {
+        wrap.appendChild(travLabel(label));
+        const box = document.createElement('div');
+        box.className = 'trav-rating';
+        const paint = () => [...box.children].forEach((b, i) =>
+          b.classList.toggle('on', (obj[key] || 0) > i));
+        for (let i = 1; i <= 5; i++) {
+          const b = document.createElement('button');
+          b.type = 'button'; b.textContent = '★';
+          b.onclick = () => { obj[key] = (obj[key] === i) ? null : i; paint(); travDraft(); };
+          box.appendChild(b);
+        }
+        paint();
+        wrap.appendChild(box);
+        return wrap;
+      }
+      let input;
+      if (type === 'textarea') {
+        input = document.createElement('textarea');
+        input.rows = 3;
+      } else if (type === 'select') {
+        input = document.createElement('select');
+        const empty = document.createElement('option');
+        empty.value = ''; empty.textContent = '—';
+        input.appendChild(empty);
+        // Gespeichert wird der deutsche Klartext — er steckt so im Prompt und
+        // darf sich nicht aendern. Uebersetzt wird nur die Beschriftung; ohne
+        // Eintrag in der Karte bleibt der Wert stehen (so ist es auf Deutsch).
+        const optLabels = (T.trav_opt_labels || {})[optKey] || {};
+        (TRAVEL_OPT[optKey] || []).forEach(v => {
+          const o = document.createElement('option');
+          o.value = v; o.textContent = optLabels[v] || v;
+          input.appendChild(o);
+        });
+      } else {
+        input = document.createElement('input');
+        input.type = type;
+        if (type === 'number') input.step = 'any';
+      }
+      input.value = obj[key] == null ? '' : obj[key];
+      input.oninput = () => {
+        obj[key] = (type === 'number')
+          ? (input.value === '' ? null : parseFloat(input.value))
+          : input.value;
+        travDraft();
+      };
+      wrap.append(travLabel(label), input);
+      return wrap;
+    }
+    function travRow(...nodes) {
+      const r = document.createElement('div');
+      r.className = 'row';
+      nodes.forEach(n => r.appendChild(n));
+      return r;
+    }
+    // Wiederholbare Blöcke (Erlebnisse, Essen, Momente, Ausgaben, Fotos)
+    function travList(container, obj, listKey, addLabel, render) {
+      const draw = () => {
+        container.innerHTML = '';
+        (obj[listKey] || []).forEach((item, idx) => {
+          const box = document.createElement('div');
+          box.className = 'trav-item';
+          const head = document.createElement('div');
+          head.className = 'trav-item-head';
+          const h = document.createElement('strong');
+          h.textContent = addLabel + ' ' + (idx + 1);
+          const del = document.createElement('button');
+          del.className = 'btn danger small';
+          del.textContent = '✕';
+          del.onclick = () => { obj[listKey].splice(idx, 1); travDraft(); draw(); };
+          head.append(h, del);
+          box.appendChild(head);
+          render(box, item);
+          container.appendChild(box);
+        });
+        const add = document.createElement('button');
+        add.className = 'btn secondary small';
+        add.textContent = '+ ' + addLabel;
+        add.onclick = () => { (obj[listKey] = obj[listKey] || []).push({}); travDraft(); draw(); };
+        container.appendChild(add);
+      };
+      draw();
+    }
+
+    // ── Wizard ──
+    const WIZ = [
+      ['trav_step_day', wizDay], ['trav_step_weather', wizWeather],
+      ['trav_step_experiences', wizExperiences], ['trav_step_meals', wizMeals],
+      ['trav_step_personal', wizPersonal], ['trav_step_extras', wizExtras],
+      ['trav_step_photos', wizPhotos], ['trav_step_report', wizReport],
+    ];
+    function emptyDay() {
+      const days = (curTrip() || {}).days || [];
+      const next = days.reduce((m, d) => Math.max(m, d.day_number || 0), 0) + 1;
+      return {
+        day_number: next, date: new Date().toLocaleDateString('en-CA'), location: '', hotel: '',
+        weather: { mention: false }, experiences: [], meals: [], special_moments: [],
+        expenses: [], photos: [], personal: {}, additional_notes: '', important: '', exclude: '',
+        article: null,
+      };
+    }
+    function travHasContent(d) {
+      return !!(d && ((d.experiences || []).length || (d.meals || []).length
+        || (d.special_moments || []).length || (d.expenses || []).length
+        || (d.photos || []).length || d.location || d.additional_notes
+        || (d.personal || {}).day_summary));
+    }
+    function draftKey() { return 'mp-trav-' + curTripId + '-' + (editingDayId || 'new'); }
+    // Unterwegs im Hotel-WLAN: ein Verbindungsabbruch nach zwanzig Minuten
+    // Tippen waere bitter. Deshalb liegt der Stand laufend lokal.
+    function travDraft() {
+      try { localStorage.setItem(draftKey(), JSON.stringify(DAY)); } catch (e) { /* voll */ }
+      el('wiz-draft-note').textContent = T.trav_draft_saved;
+    }
+    function openDayModal(id) {
+      editingDayId = id || null;
+      const trip = curTrip();
+      const existing = id ? (trip.days || []).find(d => d.id === id) : null;
+      DAY = existing ? JSON.parse(JSON.stringify(existing)) : emptyDay();
+      let draft = null;
+      try { draft = JSON.parse(localStorage.getItem(draftKey()) || 'null'); } catch (e) { /* egal */ }
+      // Nur fragen, wenn der Entwurf ueberhaupt Inhalt hat -- sonst nervt die
+      // Rueckfrage bei jedem Oeffnen eines frisch gespeicherten Tages.
+      if (draft && travHasContent(draft) && confirm(T.trav_draft_restore)) DAY = draft;
+      el('day-modal-title').textContent = id ? T.trav_edit_day : T.trav_new_day;
+      wizStep = 0;
+      wizRender();
+      el('day-modal').classList.add('open');
+    }
+    function wizGo(dir) {
+      wizStep = Math.max(0, Math.min(WIZ.length - 1, wizStep + dir));
+      wizRender();
+    }
+    function wizRender() {
+      const steps = el('wiz-steps');
+      steps.innerHTML = '';
+      WIZ.forEach(([key], i) => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'wiz-step' + (i === wizStep ? ' active' : '');
+        b.textContent = (i + 1) + '. ' + T[key];
+        b.onclick = () => { wizStep = i; wizRender(); };
+        steps.appendChild(b);
+      });
+      const body = el('wiz-body');
+      body.innerHTML = '';
+      WIZ[wizStep][1](body);
+      el('wiz-prev').style.visibility = wizStep ? '' : 'hidden';
+      el('wiz-next').style.visibility = wizStep < WIZ.length - 1 ? '' : 'hidden';
+    }
+
+    function wizDay(b) {
+      // Pflicht sind Reisetag und Datum, erkennbar am * wie in den anderen
+      // Dialogen. Ein Satz darunter half nicht: „diese beiden Felder" stand
+      // unter vieren, und welche gemeint waren, war nicht zu sehen.
+      b.append(travRow(travField(DAY, 'day_number', 'number', T.trav_day_number + ' *'),
+                       travField(DAY, 'date', 'date', T.field_date + ' *')),
+               travRow(travField(DAY, 'location', 'text', T.trav_location),
+                       travField(DAY, 'hotel', 'text', T.trav_hotel_today)));
+    }
+    function wizWeather(b) {
+      const w = DAY.weather = DAY.weather || {};
+      const lab = document.createElement('label');
+      lab.className = 'checkbox';
+      const cb = document.createElement('input');
+      cb.type = 'checkbox'; cb.checked = !!w.mention;
+      cb.onchange = () => { w.mention = cb.checked; travDraft(); };
+      lab.append(cb, document.createTextNode(' ' + T.trav_weather_mention));
+      b.appendChild(lab);
+      const hint = document.createElement('p');
+      hint.className = 'hint';
+      hint.textContent = T.trav_weather_hint;
+      b.appendChild(hint);
+      b.append(travRow(travField(w, 'condition', 'select', T.trav_weather, 'weather_conditions'),
+                       travField(w, 'temperature', 'number', T.trav_temperature)),
+               travRow(travField(w, 'wind', 'select', T.trav_wind, 'wind_strengths'),
+                       document.createElement('div')),
+               travField(w, 'comment', 'textarea', T.trav_weather_comment));
+    }
+    function wizExperiences(b) {
+      travList(b, DAY, 'experiences', T.trav_experience, (box, it) => {
+        box.append(travRow(travField(it, 'type', 'select', T.trav_type, 'experience_types'),
+                           travField(it, 'title', 'text', T.trav_title_place)),
+                   travRow(travField(it, 'start_time', 'time', T.trav_start_time),
+                           travField(it, 'end_time', 'time', T.trav_end_time)),
+                   travField(it, 'description', 'textarea', T.field_desc),
+                   travRow(travField(it, 'rating', 'rating', T.trav_rating),
+                           travField(it, 'recommendation', 'select', T.trav_recommendation, 'recommendations')),
+                   travRow(travField(it, 'positive', 'textarea', T.trav_positive),
+                           travField(it, 'negative', 'textarea', T.trav_negative)),
+                   travField(it, 'highlight', 'textarea', T.trav_highlight),
+                   travRow(travField(it, 'transport', 'select', T.trav_transport, 'transports'),
+                           travField(it, 'travel_time', 'number', T.trav_travel_time)),
+                   travRow(travField(it, 'entry_fee', 'number', T.trav_entry_fee),
+                           travField(it, 'currency', 'select', T.trav_currency, 'currencies')),
+                   travField(it, 'practical_info', 'textarea', T.trav_practical));
+      });
+    }
+    function wizMeals(b) {
+      travList(b, DAY, 'meals', T.trav_meal, (box, it) => {
+        box.append(travRow(travField(it, 'meal_type', 'select', T.trav_meal_type, 'meal_types'),
+                           travField(it, 'restaurant', 'text', T.trav_restaurant)),
+                   travRow(travField(it, 'food', 'textarea', T.trav_food),
+                           travField(it, 'drinks', 'text', T.trav_drinks)),
+                   travRow(travField(it, 'price', 'number', T.trav_price),
+                           travField(it, 'currency', 'select', T.trav_currency, 'currencies')),
+                   travRow(travField(it, 'rating', 'rating', T.trav_rating),
+                           travField(it, 'taste', 'text', T.trav_taste)),
+                   travField(it, 'comment', 'textarea', T.trav_comment));
+      });
+    }
+    function wizPersonal(b) {
+      const p = DAY.personal = DAY.personal || {};
+      b.append(travField(p, 'day_highlight', 'textarea', T.trav_day_highlight),
+               travRow(travField(p, 'day_positive', 'textarea', T.trav_day_positive),
+                       travField(p, 'day_negative', 'textarea', T.trav_day_negative)),
+               travRow(travField(p, 'funny_moment', 'textarea', T.trav_funny),
+                       travField(p, 'unexpected', 'textarea', T.trav_unexpected)),
+               travField(p, 'day_summary', 'textarea', T.trav_day_summary),
+               travField(p, 'overall_rating', 'rating', T.trav_overall_rating));
+    }
+    function wizExtras(b) {
+      const h1 = document.createElement('h4');
+      h1.textContent = T.trav_moments;
+      b.appendChild(h1);
+      const box1 = document.createElement('div');
+      b.appendChild(box1);
+      travList(box1, DAY, 'special_moments', T.trav_moment, (box, it) => {
+        box.append(travRow(travField(it, 'category', 'select', T.trav_category, 'moment_categories'),
+                           travField(it, 'time', 'time', T.trav_time)),
+                   travField(it, 'title', 'text', T.field_title),
+                   travField(it, 'description', 'textarea', T.field_desc));
+      });
+      const h2 = document.createElement('h4');
+      h2.style.marginTop = '18px';
+      h2.textContent = T.trav_expenses;
+      b.appendChild(h2);
+      const box2 = document.createElement('div');
+      b.appendChild(box2);
+      travList(box2, DAY, 'expenses', T.trav_expense, (box, it) => {
+        box.append(travRow(travField(it, 'category', 'select', T.trav_category, 'expense_categories'),
+                           travField(it, 'description', 'text', T.field_desc)),
+                   travRow(travField(it, 'amount', 'number', T.trav_amount),
+                           travField(it, 'currency', 'select', T.trav_currency, 'currencies')));
+      });
+    }
+    function wizPhotos(b) {
+      const box = document.createElement('div');
+      b.appendChild(box);
+      travList(box, DAY, 'photos', T.trav_photo, (row, it) => {
+        const pick = document.createElement('button');
+        pick.className = 'btn secondary small';
+        pick.textContent = it.url ? T.image_pick + ' …' : '+ ' + T.image_pick;
+        pick.onclick = () => browseUploads(u => { it.url = u; travDraft(); wizRender(); });
+        if (it.url) {
+          const img = document.createElement('img');
+          img.src = assetUrl(it.url);
+          img.style.cssText = 'max-height:90px;border-radius:6px;display:block;margin-bottom:6px';
+          row.appendChild(img);
+        }
+        row.append(pick, travField(it, 'photo_note', 'text', T.trav_photo_note));
+        // Eigene Bildunterschrift schlaegt oeffentlich die der KI. Wichtig fuer
+        // Fotos ohne Hinweis: fuer die schreibt die KI gar keine.
+        const langs = ((curTrip().settings || {}).langs) || ['de'];
+        langs.forEach(lg => row.appendChild(travField(it, 'caption_' + lg, 'text',
+          langs.length > 1 ? T.trav_photo_caption + ' (' + lg.toUpperCase() + ')'
+                           : T.trav_photo_caption)));
+      });
+      const capHint = document.createElement('p');
+      capHint.className = 'hint';
+      capHint.textContent = T.trav_photo_caption_hint;
+      b.appendChild(capHint);
+      b.append(travField(DAY, 'additional_notes', 'textarea', T.trav_additional),
+               travRow(travField(DAY, 'important', 'textarea', T.trav_important),
+                       travField(DAY, 'exclude', 'textarea', T.trav_exclude)));
+    }
+    function wizReport(b) {
+      const art = DAY.article;
+      if (!art || !(art.de || {}).title) {
+        const p = document.createElement('p');
+        p.className = 'empty-note';
+        p.textContent = T.trav_no_report_yet;
+        b.appendChild(p);
+        return;
+      }
+      // Die Freigabe steht oben: auf dieser Seite entsteht der Bericht, hier
+      // wird auch entschieden, ob er ins Netz geht.
+      const pub = document.createElement('label');
+      pub.className = 'checkbox';
+      const pubCb = document.createElement('input');
+      pubCb.type = 'checkbox';
+      pubCb.checked = !!DAY.published;
+      pubCb.onchange = () => { DAY.published = pubCb.checked; travDraft(); };
+      pub.append(pubCb, document.createTextNode(' 🌐 ' + T.trav_publish));
+      const pubHint = document.createElement('p');
+      pubHint.className = 'hint';
+      pubHint.textContent = T.trav_publish_hint;
+      b.append(pub, pubHint);
+
+      const langs = ((curTrip().settings || {}).langs) || ['de'];
+      langs.forEach(lg => {
+        const h = document.createElement('h4');
+        h.textContent = lg === 'de' ? T.ai_out_de : T.ai_out_en;
+        h.style.margin = '10px 0 4px';
+        b.appendChild(h);
+        art[lg] = art[lg] || {};
+        b.append(travField(art[lg], 'title', 'text', T.field_title),
+                 travField(art[lg], 'teaser', 'text', T.trav_teaser),
+                 travField(art[lg], 'body', 'textarea', T.field_text_md));
+        b.lastChild.querySelector('textarea').rows = 16;
+      });
+      const tagWrap = document.createElement('div');
+      const tagInput = document.createElement('input');
+      tagInput.type = 'text';
+      tagInput.value = (art.tags || []).join(', ');
+      tagInput.oninput = () => {
+        art.tags = tagInput.value.split(',').map(s => s.trim()).filter(Boolean);
+        travDraft();
+      };
+      tagWrap.append(travLabel(T.field_tags), tagInput);
+      b.appendChild(tagWrap);
+      // Die Unterschriften gehoeren zu den Fotos MIT Hinweis, in genau deren
+      // Reihenfolge — der Prompt hat die anderen uebersprungen. Ueber den Index
+      // der vollen Fotoliste zu gehen haengte sie ans falsche Bild, sobald ein
+      // Foto ohne Hinweis dazwischenliegt.
+      const noted = (DAY.photos || []).map((p, idx) => ({ p, idx }))
+        .filter(x => x.p.photo_note);
+      (art.captions || []).forEach((c, i) => {
+        const ph = noted[i];
+        const label = T.trav_caption.replace('{n}', (ph ? ph.idx : i) + 1)
+          + (ph ? ' — ' + ph.p.photo_note : '');
+        langs.forEach(lg => b.appendChild(travField(c, lg, 'text',
+          langs.length > 1 ? label + ' (' + lg.toUpperCase() + ')' : label)));
+      });
+    }
+
+    // Scheitert das Speichern, MUSS es sichtbar werden und der Dialog offen
+    // bleiben: sonst ist ein halbe Stunde eingetippter Tag weg, und der Nutzer
+    // hat den Knopf gedrueckt und eine Bestaetigung gesehen. Der lokale Entwurf
+    // bleibt in dem Fall ausdruecklich liegen.
+    async function saveDay(silent) {
+      const trip = curTrip();
+      if (!trip) { toast(T.trav_no_trip_selected, true); return null; }
+      let r = null;
+      try {
+        r = editingDayId
+          ? await apiJson(`api/travel/trips/${trip.id}/days/${editingDayId}`, 'PUT', DAY)
+          : await apiJson(`api/travel/trips/${trip.id}/days`, 'POST', DAY);
+      } catch (e) {
+        // Netzfehler: Add-on neu gestartet, WLAN weg, Sitzung tot
+        busyDone(T.trav_save_offline, true);
+        return null;
+      }
+      if (!r.ok) {
+        busyDone(r.status === 401 || r.status === 403 ? T.trav_save_session : T.error_save, true);
+        return null;
+      }
+      if (!editingDayId) editingDayId = (await r.json()).id;
+      try { localStorage.removeItem(draftKey()); } catch (e) { /* egal */ }
+      if (!silent) { toast(T.saved); el('day-modal').classList.remove('open'); }
+      await loadTravel();
+      return editingDayId;
+    }
+    async function generateReport(btn) {
+      if (!(DAY.experiences || []).length && !(DAY.personal || {}).day_summary) {
+        toast(T.trav_need_content, true);
+        return;
+      }
+      // Erst speichern: der Server baut den Prompt aus dem gespeicherten Tag,
+      // nicht aus dem, was gerade im Formular steht.
+      const id = await saveDay(true);
+      if (!id) return;
+      btn.disabled = true;
+      busyShow(T.trav_generating);
+      let r = null;
+      try {
+        r = await apiJson(`api/travel/trips/${curTripId}/days/${id}/generate`, 'POST', {});
+      } catch (e) { /* Netzfehler */ }
+      btn.disabled = false;
+      const d = r ? await r.json().catch(() => ({})) : {};
+      if (!r || !r.ok) { busyDone(aiErrMsg(d.error, d.model, d.detail), true); return; }
+      DAY.article = d.article;
+      busyDone(T.trav_generated);
+      wizStep = WIZ.length - 1;
+      wizRender();
+      await saveDay(true);
+    }
+
     // ── KI-Studio ──
     // Der Tab bleibt unsichtbar, solange kein Gemini-Key hinterlegt ist: ein
     // Reiter, der nur „kein Schlüssel" sagen kann, hilft niemandem.
@@ -5342,16 +6312,38 @@
       const r = await api('api/ai/status');
       if (!r.ok) return;
       AI_STATUS = await r.json();
-      if (AI_STATUS.text || AI_STATUS.image) el('tab-btn-ai').style.display = '';
+      if (AI_STATUS.text || AI_STATUS.image || AI_STATUS.logo) el('tab-btn-ai').style.display = '';
+      // Ohne Gemini-Schlüssel bleibt vom Reiter nur der Logo-Designer übrig — der
+      // rechnet ja selbst. Leere Modell-Listen und ein Verbrauch von null wären
+      // dort nur Ballast, also aus.
+      document.querySelectorAll('#tab-ai [data-ai-panel]').forEach(p => {
+        const need = p.dataset.aiPanel;
+        const on = need === 'logo' ? AI_STATUS.logo
+                 : need === 'text' ? AI_STATUS.text
+                 : need === 'image' ? AI_STATUS.image
+                 : (AI_STATUS.text || AI_STATUS.image);
+        p.style.display = on ? '' : 'none';
+      });
+      // Der KI-Teil des Logo-Panels hängt am Bildmodell, der Rest nicht
+      if (!AI_STATUS.image) el('logo-ai-box').style.display = 'none';
     }
     async function initAiTab() {
       refreshAiStatus();   // Kontingent und Verbrauch bei jedem Tabwechsel frisch
       if (aiTabReady) return;
       aiTabReady = true;
       buildAiStyleChips();
+      buildLogoChips();
+      logoCutoutChanged();
+      loadLogoSets();
+      el('logo-import-file').addEventListener('change', ev => {
+        const f = ev.target.files[0];
+        ev.target.value = '';
+        if (f) importLogo(f);
+      });
       aiLangChanged();
       el('ai-img-results').addEventListener('scroll', updateAiArrows, { passive: true });
-      window.addEventListener('resize', updateAiArrows);
+      el('logo-results').addEventListener('scroll', updateLogoArrows, { passive: true });
+      window.addEventListener('resize', () => { updateAiArrows(); updateLogoArrows(); });
       renderAiQuota();
       const r = await api('api/ai/models');
       const m = r.ok ? await r.json() : { image: [], text: [] };
@@ -5367,11 +6359,16 @@
     function aiFillSelect(id, values, current) {
       const sel = el(id);
       const list = (values || []).slice();
-      if (current && !list.includes(current)) list.unshift(current);
+      const stale = current && !list.includes(current);
+      if (stale) list.unshift(current);
       sel.innerHTML = '';
       list.forEach(v => {
         const o = document.createElement('option');
-        o.value = v; o.textContent = v;
+        o.value = v;
+        // Ein gespeichertes Modell, das Google nicht (mehr) listet, bleibt
+        // waehlbar -- aber sichtbar als das, was es ist. Sonst sucht man den
+        // 404 bei sich selbst.
+        o.textContent = (stale && v === current) ? v + ' — ' + T.ai_model_stale : v;
         sel.appendChild(o);
       });
       if (current) sel.value = current;
@@ -5419,6 +6416,11 @@
         sel.appendChild(o);
       });
       sel.value = months.includes(keep) ? keep : months[0];
+      // Ohne zweiten Schlüssel in den Add-on-Optionen bleibt der Abruf-Knopf weg —
+      // er könnte ohne ihn nur scheitern.
+      const show = AI_USAGE.can_fetch ? '' : 'none';
+      el('ai-prices-fetch').style.display = show;
+      el('ai-prices-fetch-hint').style.display = show;
       renderAiUsage();
       renderAiPrices();
     }
@@ -5523,13 +6525,18 @@
       } catch (e) { /* Netzfehler */ }
       btn.disabled = false;
       const d = r ? await r.json().catch(() => ({})) : {};
+      el('ai-prices-samples').innerHTML = '';
       if (!r || !r.ok) {
-        el('ai-prices-fetch-info').textContent =
+        // Googles Grund immer mit anzeigen: „Schlüssel abgelehnt" hat mehrere
+        // Ursachen mit verschiedenen Schritten, ohne den Code ist nicht zu
+        // erkennen, welche.
+        const msg =
           d.error === 'billing_disabled'    ? T.ai_prices_fetch_disabled
-          : d.error === 'needs_oauth'       ? T.ai_prices_fetch_oauth
           : d.error === 'key_rejected'      ? T.ai_prices_fetch_key
-          : d.error === 'service_not_found' ? T.ai_prices_fetch_none
-          : T.ai_prices_fetch_failed + (d.reason ? ' (' + d.reason + ')' : '');
+          : d.error === 'service_not_found' ? T.ai_prices_fetch_noservice
+                                                .replace('{n}', d.service_count || 0)
+          : T.ai_prices_fetch_failed;
+        el('ai-prices-fetch-info').textContent = msg + (d.reason ? ' [' + d.reason + ']' : '');
         return;
       }
       let n = 0;
@@ -5540,9 +6547,31 @@
           if (inp) { inp.value = v; n++; }
         });
       });
-      el('ai-prices-fetch-info').textContent = n
-        ? T.ai_prices_fetched.replace('{n}', n)
-        : T.ai_prices_fetch_none;
+      if (n) {
+        el('ai-prices-fetch-info').textContent = T.ai_prices_fetched.replace('{n}', n);
+        return;
+      }
+      // Nichts zugeordnet: Googles Posten-Bezeichnungen zeigen, statt den Nutzer
+      // mit „nichts gefunden" allein zu lassen. Daran lässt sich erkennen, wie
+      // Google die Modelle benennt.
+      el('ai-prices-fetch-info').textContent = T.ai_prices_fetch_nomatch
+        .replace('{s}', (d.services || []).join(', ') || '–')
+        .replace('{n}', d.sku_count || 0);
+      renderAiSkuSamples(d.samples || []);
+    }
+    function renderAiSkuSamples(samples) {
+      const box = el('ai-prices-samples');
+      box.innerHTML = '';
+      if (!samples.length) return;
+      const h = document.createElement('p');
+      h.className = 'hint';
+      h.style.marginBottom = '4px';
+      h.textContent = T.ai_prices_samples_title;
+      const pre = document.createElement('pre');
+      pre.style.cssText = 'background:var(--bg);border:1px solid var(--border);border-radius:6px;'
+        + 'padding:10px;max-height:220px;overflow:auto;font-size:0.76rem;white-space:pre-wrap';
+      pre.textContent = samples.join('\n');
+      box.append(h, pre);
     }
     async function saveAiPrices() {
       const prices = {};
@@ -5556,12 +6585,19 @@
       if (r.ok) loadAiUsage();
     }
 
-    function aiErrMsg(code) {
-      return code === 'ai_refused'   ? T.ai_err_refused
-           : code === 'rate_limited' ? T.ai_err_limit
-           : code === 'no_api_key'   ? T.ai_err_nokey
-           : code === 'bad_ref'      ? T.ai_err_ref
+    // `detail` ist Googles Abbruchgrund bzw. die Erklaerung, die das Modell
+    // selbst mitgeschickt hat. Ohne sie stand im Admin nur „fehlgeschlagen",
+    // waehrend im Add-on-Log der Grund schwarz auf weiss stand.
+    function aiErrMsg(code, model, detail) {
+      const base =
+             code === 'ai_refused'       ? T.ai_err_refused
+           : code === 'ai_empty'         ? T.ai_err_empty
+           : code === 'rate_limited'     ? T.ai_err_limit
+           : code === 'no_api_key'       ? T.ai_err_nokey
+           : code === 'bad_ref'          ? T.ai_err_ref
+           : code === 'ai_model_missing' ? T.ai_err_model.replace('{v}', model || '?')
            : T.ai_err_failed;
+      return detail ? base + ' — ' + T.ai_err_detail.replace('{v}', detail) : base;
     }
 
     function buildAiStyleChips() {
@@ -5612,7 +6648,7 @@
       btn.disabled = false;
       const d = r ? await r.json().catch(() => ({})) : {};
       if (!r || !r.ok) {
-        const msg = aiErrMsg(d.error);
+        const msg = aiErrMsg(d.error, d.model, d.detail);
         el('ai-img-status').textContent = msg;
         busyDone(msg, true);
         refreshAiStatus();
@@ -5658,13 +6694,18 @@
     function aiResultsScroll(dir) {
       el('ai-img-results').scrollBy({ left: dir * 222, behavior: 'smooth' });
     }
-    function updateAiArrows() {
-      const g = el('ai-img-results');
+    // Beide Streifen (Bild-Studio und Logo-Designer) teilen sich diese Pfeile.
+    // Sie sind ohne die Klasse `show` ausgeblendet — ohne diesen Aufruf wären es
+    // unsichtbare Knöpfe.
+    function updateStripArrows(id) {
+      const g = el(id);
       if (!g) return;
       const max = g.scrollWidth - g.clientWidth, wrap = g.parentNode;
       wrap.querySelector('.preset-left').classList.toggle('show', g.scrollLeft > 4);
       wrap.querySelector('.preset-right').classList.toggle('show', g.scrollLeft < max - 4);
     }
+    function updateAiArrows() { updateStripArrows('ai-img-results'); }
+    function updateLogoArrows() { updateStripArrows('logo-results'); }
     async function aiKeepImage(id, card, keep) {
       keep.disabled = true;
       let r = null;
@@ -5724,6 +6765,273 @@
       toast(T.ai_deleted);
     }
 
+    // ── Logo-Designer ──
+    // Zwei Wege in dieselbe Aufbereitung: ein KI-Entwurf oder ein eigenes Bild.
+    // Beide landen als Ordner unter logos/<name>/ — nicht in den Uploads, denn
+    // dort würde aus dem PNG ein WebP mit eingebrannter KI-Kennzeichnung.
+    const LOGO_STYLES = ['flat', 'line', 'mascot', 'mono', 'emblem', 'glassy', 'ha'];
+    const LOGO_PRESET_KEYS = ['ha', 'pwa', 'favicon', 'social'];
+    let logoPresets = ['ha'];
+
+    function buildLogoChips() {
+      const styles = el('logo-styles');
+      styles.innerHTML = '';
+      LOGO_STYLES.forEach(k => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'ai-chip';
+        b.textContent = T['logo_style_' + k];
+        b.onclick = () => logoAppend(T['logo_style_' + k + '_txt']);
+        styles.appendChild(b);
+      });
+      const box = el('logo-presets');
+      box.innerHTML = '';
+      LOGO_PRESET_KEYS.forEach(k => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'ai-chip' + (logoPresets.includes(k) ? ' on' : '');
+        b.textContent = T['logo_preset_' + k];
+        b.title = T['logo_preset_' + k + '_files'];
+        b.onclick = () => {
+          const i = logoPresets.indexOf(k);
+          if (i < 0) logoPresets.push(k); else logoPresets.splice(i, 1);
+          b.classList.toggle('on', i < 0);
+        };
+        box.appendChild(b);
+      });
+    }
+    function logoAppend(txt) {
+      const ta = el('logo-prompt');
+      if (ta.value.includes(txt)) return;
+      ta.value = (ta.value.trim() ? ta.value.trim() + ' ' : '') + txt;
+      ta.focus();
+    }
+    function logoAddColor() {
+      logoAppend(T.logo_color_txt.replace('{v}', el('logo-color').value));
+    }
+    function logoCutoutChanged() {
+      el('logo-tol-box').style.display = el('logo-cutout').checked ? '' : 'none';
+    }
+    // Der Ordnername wandert in einen Pfad — deshalb hier dieselbe enge Form wie
+    // auf dem Server, statt sich auf dessen Prüfung zu verlassen.
+    function logoSlug() {
+      return el('logo-slug').value.trim().toLowerCase()
+        .replace(/[^a-z0-9_-]+/g, '-').replace(/^-+/, '').slice(0, 41);
+    }
+    // Die Zielangaben teilen sich KI-Entwurf, Import und Neu-Rechnen
+    function logoParams() {
+      const cw = parseInt(el('logo-cw').value, 10) || 0;
+      const ch = parseInt(el('logo-ch').value, 10) || 0;
+      return {
+        slug: logoSlug(), presets: logoPresets.slice(),
+        custom_w: cw, custom_h: ch,
+        cutout: el('logo-cutout').checked,
+        tolerance: parseInt(el('logo-tol').value, 10) || 12,
+      };
+    }
+    function logoTargetsChosen(p) {
+      return p.presets.length > 0 || (p.custom_w >= 16 && p.custom_h >= 16);
+    }
+
+    async function runAiLogo(btn) {
+      const prompt = el('logo-prompt').value.trim();
+      if (prompt.length < 3) { toast(T.ai_img_err_prompt, true); return; }
+      btn.disabled = true;
+      el('logo-status').textContent = T.logo_running;
+      busyShow(T.logo_running);
+      let r = null;
+      try {
+        r = await apiJson('api/ai/logo', 'POST', {
+          prompt, model: el('ai-image-model').value,
+          count: parseInt(el('logo-count').value, 10) || 1,
+        });
+      } catch (e) { /* Netzfehler */ }
+      btn.disabled = false;
+      const d = r ? await r.json().catch(() => ({})) : {};
+      if (!r || !r.ok) {
+        const msg = aiErrMsg(d.error, d.model, d.detail);
+        el('logo-status').textContent = msg;
+        busyDone(msg, true);
+        refreshAiStatus();
+        return;
+      }
+      el('logo-status').textContent = '';
+      busyDone(T.ai_img_ready.replace('{n}', d.images.length));
+      d.images.forEach(addLogoCard);
+      refreshAiStatus();
+    }
+    function addLogoCard(im) {
+      const card = document.createElement('div');
+      card.className = 'ai-card logo-card';
+      const img = document.createElement('img');
+      img.src = im.url; img.alt = '';
+      img.onclick = () => openThumbPreview(img.src);
+      const act = document.createElement('div');
+      act.className = 'ai-card-actions';
+      const keep = document.createElement('button');
+      keep.className = 'btn small';
+      keep.textContent = '💾 ' + T.logo_keep;
+      keep.onclick = () => logoKeep(im.id, card, keep);
+      const drop = document.createElement('button');
+      drop.className = 'btn secondary small';
+      drop.textContent = '✕ ' + T.ai_discard;
+      drop.onclick = async () => {
+        try { await apiJson('api/ai/studio/image/discard', 'POST', { id: im.id }); } catch (e) { /* egal */ }
+        card.remove();
+        logoStripChanged();
+      };
+      act.append(keep, drop);
+      card.append(img, act);
+      el('logo-results').prepend(card);
+      logoStripChanged();
+    }
+    function logoStripChanged() {
+      el('logo-results-wrap').style.display = el('logo-results').children.length ? '' : 'none';
+      updateLogoArrows();
+    }
+    function logoResultsScroll(dir) {
+      el('logo-results').scrollBy({ left: dir * 222, behavior: 'smooth' });
+    }
+    async function logoKeep(id, card, btn) {
+      const p = logoParams();
+      if (!p.slug) { toast(T.logo_err_slug, true); el('logo-slug').focus(); return; }
+      if (!logoTargetsChosen(p)) { toast(T.logo_err_targets, true); return; }
+      btn.disabled = true;
+      busyShow(T.logo_saving);
+      let r = null;
+      try { r = await apiJson('api/ai/logo/keep', 'POST', Object.assign({ id }, p)); }
+      catch (e) { /* Netzfehler */ }
+      const d = r ? await r.json().catch(() => ({})) : {};
+      if (!r || !r.ok) { btn.disabled = false; busyDone(logoErr(d.error), true); return; }
+      busyDone(T.logo_saved.replace('{n}', d.files.length).replace('{v}', d.slug));
+      card.remove();
+      logoStripChanged();
+      loadLogoSets();
+    }
+    function logoErr(code) {
+      return code === 'bad_slug'      ? T.logo_err_slug
+           : code === 'no_targets'    ? T.logo_err_targets
+           : code === 'too_many'      ? T.logo_err_many
+           : code === 'too_large'     ? T.logo_err_large
+           : code === 'render_failed' ? T.logo_err_render
+           : code === 'no_source'     ? T.logo_err_source
+           : T.error_save;
+    }
+    async function importLogo(f) {
+      const p = logoParams();
+      if (!p.slug) { toast(T.logo_err_slug, true); el('logo-slug').focus(); return; }
+      if (!logoTargetsChosen(p)) { toast(T.logo_err_targets, true); return; }
+      const fd = new FormData();
+      fd.append('file', f);
+      fd.append('slug', p.slug);
+      p.presets.forEach(k => fd.append('presets', k));
+      fd.append('custom_w', p.custom_w);
+      fd.append('custom_h', p.custom_h);
+      fd.append('cutout', p.cutout ? '1' : '0');
+      fd.append('tolerance', p.tolerance);
+      busyShow(T.logo_saving);
+      let r = null;
+      try {
+        r = await fetch('api/logos/import', { method: 'POST', body: fd, credentials: 'same-origin' });
+      } catch (e) { /* Netzfehler */ }
+      const d = r ? await r.json().catch(() => ({})) : {};
+      if (!r || !r.ok) { busyDone(logoErr(d.error), true); return; }
+      busyDone(T.logo_saved.replace('{n}', d.files.length).replace('{v}', d.slug));
+      loadLogoSets();
+    }
+    async function loadLogoSets() {
+      const r = await api('api/logos');
+      if (!r.ok) return;
+      const d = await r.json();
+      el('logo-path').textContent = T.logo_path.replace('{v}', d.path);
+      const box = el('logo-sets');
+      box.innerHTML = '';
+      if (!d.sets.length) {
+        const p = document.createElement('p');
+        p.className = 'hint';
+        p.textContent = T.logo_sets_empty;
+        box.appendChild(p);
+        return;
+      }
+      d.sets.forEach(s => box.appendChild(logoSetNode(s)));
+    }
+    function logoSetNode(s) {
+      const wrap = document.createElement('div');
+      wrap.className = 'logo-set';
+      const head = document.createElement('div');
+      head.className = 'logo-set-head';
+      const name = document.createElement('strong');
+      name.textContent = s.slug;
+      const acts = document.createElement('div');
+      acts.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap';
+      const zip = document.createElement('a');
+      zip.className = 'btn secondary small';
+      zip.href = 'api/logos/' + encodeURIComponent(s.slug) + '.zip';
+      zip.textContent = '⬇ ' + T.logo_zip;
+      const again = document.createElement('button');
+      again.className = 'btn secondary small';
+      again.textContent = '↻ ' + T.logo_rerender;
+      again.title = T.logo_rerender_hint;
+      again.onclick = () => logoRerender(s.slug, again);
+      const del = document.createElement('button');
+      del.className = 'btn danger small';
+      del.textContent = '🗑 ' + T.ai_delete;
+      del.onclick = () => logoDelete(s.slug);
+      acts.append(zip, again, del);
+      head.append(name, acts);
+      const grid = document.createElement('div');
+      grid.className = 'logo-grid';
+      s.files.forEach(f => {
+        const cell = document.createElement('div');
+        cell.className = 'logo-file';
+        const base = 'api/logos/' + encodeURIComponent(s.slug) + '/' + encodeURIComponent(f.name);
+        if (f.name.endsWith('.png')) {
+          const img = document.createElement('img');
+          img.className = 'logo-check';
+          img.src = base;
+          img.alt = '';
+          img.onclick = () => openThumbPreview(base);
+          img.style.cursor = 'zoom-in';
+          cell.appendChild(img);
+        }
+        const a = document.createElement('a');
+        a.href = base + '?dl=1';
+        a.download = f.name;
+        a.textContent = f.name;
+        cell.appendChild(a);
+        if (f.w) {
+          const dim = document.createElement('div');
+          dim.textContent = f.w + '×' + f.h;
+          cell.appendChild(dim);
+        }
+        grid.appendChild(cell);
+      });
+      wrap.append(head, grid);
+      return wrap;
+    }
+    async function logoRerender(slug, btn) {
+      const p = logoParams();
+      if (!logoTargetsChosen(p)) { toast(T.logo_err_targets, true); return; }
+      btn.disabled = true;
+      busyShow(T.logo_saving);
+      let r = null;
+      try { r = await apiJson('api/logos/render', 'POST', Object.assign({}, p, { slug })); }
+      catch (e) { /* Netzfehler */ }
+      const d = r ? await r.json().catch(() => ({})) : {};
+      btn.disabled = false;
+      if (!r || !r.ok) { busyDone(logoErr(d.error), true); return; }
+      busyDone(T.logo_saved.replace('{n}', d.files.length).replace('{v}', d.slug));
+      loadLogoSets();
+    }
+    async function logoDelete(slug) {
+      if (!confirm(T.logo_delete_confirm.replace('{v}', slug))) return;
+      let r = null;
+      try { r = await apiJson('api/logos/delete', 'POST', { slug }); } catch (e) { /* Netzfehler */ }
+      if (!r || !r.ok) { toast(T.error_save, true); return; }
+      toast(T.logo_deleted);
+      loadLogoSets();
+    }
+
     function aiLangChanged() {
       const v = el('ai-txt-langs').value;
       el('ai-txt-mode-box').style.display = v === 'both' ? '' : 'none';
@@ -5752,7 +7060,7 @@
       btn.disabled = false;
       const d = r ? await r.json().catch(() => ({})) : {};
       if (!r || !r.ok) {
-        const msg = aiErrMsg(d.error);
+        const msg = aiErrMsg(d.error, d.model, d.detail);
         el('ai-txt-status').textContent = msg;
         busyDone(msg, true);
         refreshAiStatus();

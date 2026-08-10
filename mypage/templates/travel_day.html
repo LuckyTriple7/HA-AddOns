@@ -7,7 +7,7 @@
   <meta name="description" content="{{ meta_desc }}">
   <meta property="og:title" content="{{ title }}">
   <meta property="og:description" content="{{ meta_desc }}">
-  {% if hero_img %}<meta property="og:image" content="{{ hero_img }}">{% endif %}
+  {% if day.image %}<meta property="og:image" content="{{ day.image }}">{% endif %}
   {% if site.design.favicon %}<link rel="icon" href="{{ site.design.favicon }}">
   {% elif site.profile.avatar %}<link rel="icon" href="{{ site.profile.avatar }}">{% endif %}
   {% if not site.design.allow_indexing %}<meta name="robots" content="noindex, nofollow">{% endif %}
@@ -16,10 +16,10 @@
   <link rel="apple-touch-icon" href="/icon.png">
   <script type="application/ld+json">{{ {
     '@context': 'https://schema.org',
-    '@type': 'Article',
+    '@type': 'BlogPosting',
     'headline': title,
-    'dateModified': e.updated,
-    'articleSection': cat_name,
+    'datePublished': day.date,
+    'articleSection': trip.name,
     'author': {'@type': 'Person', 'name': site.profile.name}
   }|tojson }}</script>
   <style>
@@ -59,19 +59,11 @@
     .site-nav a:hover { color: var(--text); text-decoration: none; border-bottom-color: var(--accent); }
     main { padding: 34px 0 60px; }
     .crumb { font-size: 0.8rem; color: var(--muted); margin-bottom: 10px; }
-    h1.page-title { font-size: 1.9rem; margin-bottom: 8px; }
-    .entry-meta { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 0.76rem; color: var(--muted); margin-bottom: 20px; }
-    .entry-flag { border: 1px solid var(--border); border-radius: 999px; padding: 1px 9px; }
-    .entry-hero { width: 100%; border-radius: 10px; margin-bottom: 22px; }
-    .doc-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 26px; }
-    .doc-btn {
-      display: inline-flex; align-items: center; gap: 6px; background: var(--surf);
-      border: 1px solid var(--border); color: var(--text); border-radius: 8px;
-      padding: 8px 14px; font-size: 0.85rem; font-weight: 600; cursor: pointer; font-family: inherit;
-    }
-    .doc-btn:hover { border-color: var(--accent); color: var(--accent); text-decoration: none; }
-    .doc-btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
-    .doc-btn.primary:hover { color: #fff; opacity: .9; }
+    .day-kicker { font-size: 0.8rem; color: var(--accent); font-weight: 600; }
+    h1.page-title { font-size: 1.9rem; margin: 4px 0 8px; }
+    .fact-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 0.76rem; color: var(--muted); margin-bottom: 22px; }
+    .fact { border: 1px solid var(--border); border-radius: 999px; padding: 1px 9px; }
+    .day-hero { width: 100%; border-radius: 10px; margin-bottom: 22px; }
     .page-content h1, .page-content h2, .page-content h3 { margin: 1.4em 0 .5em; line-height: 1.3; }
     .page-content h2 { font-size: 1.4rem; }
     .page-content h3 { font-size: 1.15rem; }
@@ -80,30 +72,39 @@
     .page-content li { margin: .3em 0; }
     .page-content img { max-width: 100%; height: auto; border-radius: 8px; }
     .page-content blockquote { border-left: 3px solid var(--accent); margin: 1em 0; padding: .2em 1em; color: var(--muted); }
-    .page-content pre { background: var(--surf2); padding: 14px; border-radius: 8px; overflow-x: auto; }
-    .page-content code { background: var(--surf2); padding: 2px 5px; border-radius: 4px; font-size: 0.9em; }
-    .page-content pre code { background: none; padding: 0; }
-    .page-content table { border-collapse: collapse; width: 100%; margin: 1em 0; }
-    .page-content th, .page-content td { border: 1px solid var(--border); padding: 8px 10px; text-align: left; }
     .page-content hr { border: none; border-top: 1px solid var(--border); margin: 1.6em 0; }
+    .gallery-title { font-size: 1.15rem; margin: 34px 0 14px; }
+    .gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+    .gallery figure { background: var(--surf); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+    .gallery img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; display: block; background: var(--surf2); }
+    .gallery figcaption { padding: 8px 11px 10px; font-size: 0.78rem; color: var(--muted); }
+    .exp-title { font-size: 1.15rem; margin: 34px 0 12px; }
+    .exp-table { width: 100%; border-collapse: collapse; font-size: 0.86rem; }
+    .exp-table td { border-bottom: 1px solid var(--border); padding: 7px 4px; }
+    .exp-table .exp-cat { color: var(--muted); white-space: nowrap; }
+    .exp-table .exp-amt { text-align: right; white-space: nowrap; }
+    .exp-table tr.exp-sum td { border-bottom: none; font-weight: 600; padding-top: 10px; }
     .tag-row { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 28px; }
     .tag-chip { font-size: 0.75rem; padding: 3px 10px; border-radius: 999px; color: var(--muted); background: var(--surf); border: 1px solid var(--border); }
-    .tag-chip:hover { border-color: var(--accent); color: var(--accent); text-decoration: none; }
+    /* Blättern zwischen den Tagen: das ist der Hauptweg durch eine Reise —
+       wer Tag 3 liest, will als Nächstes Tag 4, nicht zurück zur Liste. */
+    .day-nav { display: flex; justify-content: space-between; gap: 12px; margin-top: 34px; border-top: 1px solid var(--border); padding-top: 18px; }
+    .day-nav a { max-width: 48%; font-size: 0.86rem; }
+    .day-nav .nx { margin-left: auto; text-align: right; }
+    .day-nav .lbl { display: block; font-size: 0.72rem; color: var(--muted); }
     footer { border-top: 1px solid var(--border); padding: 20px 0; text-align: center; font-size: 0.78rem; color: var(--muted); }
 
-    /* Druckansicht: alles außer dem Inhalt raus, damit „Als PDF speichern"
-       ein sauberes Dokument ergibt — auch ohne serverseitige PDF-Erzeugung. */
+    /* Druckansicht: alles außer dem Bericht raus, damit „Als PDF speichern"
+       ein sauberes Dokument ergibt. */
     @media print {
-      header, footer, .doc-actions, .crumb, .tag-row, #locked-box { display: none !important; }
+      header, footer, .crumb, .tag-row, .day-nav, #locked-box { display: none !important; }
       body { background: #fff; color: #000; font-size: 11pt; }
       .wrap { max-width: none; padding: 0; }
       main { padding: 0; }
       a { color: #000; text-decoration: none; }
-      .page-content a::after { content: " (" attr(href) ")"; font-size: 9pt; color: #555; }
-      .page-content pre, .page-content code { background: #f4f4f4; color: #000; }
       .page-content h1, .page-content h2, .page-content h3 { page-break-after: avoid; }
-      .page-content table, .page-content img, .page-content pre { page-break-inside: avoid; }
-      .entry-hero { max-height: 60mm; object-fit: cover; }
+      .page-content img, .gallery figure { page-break-inside: avoid; }
+      .day-hero { max-height: 60mm; object-fit: cover; }
     }
     {{ site.design.custom_css|safe }}
   </style>
@@ -112,10 +113,10 @@
 {% include '_banner.html' %}
   <header>
     <div class="wrap header-inner">
-      <a class="brand" href="/bibliothek">&larr; {{ heading }}</a>
+      <a class="brand" href="/reiseblog/{{ trip.slug }}">&larr; {{ trip.name }}</a>
       <div class="header-actions">
-        <a href="/set-lang/de?next=/bibliothek/{{ e.slug }}" class="lang-btn {% if lang == 'de' %}active{% endif %}">DE</a>
-        <a href="/set-lang/en?next=/bibliothek/{{ e.slug }}" class="lang-btn {% if lang == 'en' %}active{% endif %}">EN</a>
+        <a href="/set-lang/de?next=/reiseblog/{{ trip.slug }}/{{ day.slug }}" class="lang-btn {% if lang == 'de' %}active{% endif %}">DE</a>
+        <a href="/set-lang/en?next=/reiseblog/{{ trip.slug }}/{{ day.slug }}" class="lang-btn {% if lang == 'en' %}active{% endif %}">EN</a>
         <button class="theme-btn" onclick="toggleTheme()" type="button" aria-label="Theme">
           <svg class="icon-moon" viewBox="0 0 24 24"><path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c0-.46-.04-.92-.1-1.36-.98 1.37-2.58 2.26-4.4 2.26-2.98 0-5.4-2.42-5.4-5.4 0-1.81.89-3.42 2.26-4.4-.44-.06-.9-.1-1.36-.1z"/></svg>
           <svg class="icon-sun"  viewBox="0 0 24 24"><path d="M12 7c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zM2 13h2v-2H2v2zm18 0h2v-2h-2v2zM11 2v2h2V2h-2zm0 18v2h2v-2h-2zM5.99 4.58 4.58 5.99l1.41 1.41 1.41-1.41L5.99 4.58zm12.03 12.03-1.41 1.41 1.41 1.41 1.41-1.41-1.41-1.41zm1.41-12.44-1.41-1.41-1.41 1.41 1.41 1.41 1.41-1.41zM5.99 19.42l1.41 1.41 1.41-1.41-1.41-1.41-1.41 1.41z"/></svg>
@@ -131,32 +132,67 @@
     {% endif %}
   </header>
   <main class="wrap">
-    {% if cat_name %}
-    <div class="crumb"><a href="/bibliothek?cat={{ cat_id|urlencode }}">{% if cat_icon %}{{ cat_icon }} {% endif %}{{ cat_name }}</a></div>
-    {% endif %}
+    <div class="crumb"><a href="/reiseblog">{{ heading }}</a> › <a href="/reiseblog/{{ trip.slug }}">{{ trip.name }}</a></div>
+    <div class="day-kicker">{{ t.trav_day }} {{ day.number }}</div>
     <h1 class="page-title">{{ title }}</h1>
-    <div class="entry-meta">
-      {% if e.updated %}<span>{{ t.library_updated }}: {{ e.updated }}</span>{% endif %}
-      {% if members_only %}<span class="entry-flag">🔒 {{ t.members_only_badge }}</span>{% endif %}
+    <div class="fact-row">
+      {% for f in facts %}<span class="fact">{{ f }}</span>{% endfor %}
+      {% if members_only %}<span class="fact">🔒 {{ t.members_only_badge }}</span>{% endif %}
     </div>
 
-    <div class="doc-actions">
-      {% if pdf_ready %}
-      <a class="doc-btn primary" href="/bibliothek/{{ e.slug }}.pdf">📄 {{ t.library_pdf_download }}</a>
-      {% endif %}
-      {% if not locked %}
-      <button class="doc-btn" type="button" onclick="window.print()">🖨️ {{ t.library_print }}</button>
-      {% endif %}
-    </div>
-
-    {% if hero_img %}<img class="entry-hero" src="{{ hero_img }}" alt="">{% endif %}
+    {% if day.image and not locked %}<img class="day-hero" src="{{ day.image }}" alt="">{% endif %}
     <div class="page-content">{{ body_html|safe }}</div>
     {% if locked %}<div id="locked-box">{% include '_locked.html' %}</div>{% endif %}
 
-    {% if e.tags and not locked %}
-    <div class="tag-row">
-      {% for tag in e.tags %}<a class="tag-chip" href="/bibliothek?tag={{ tag|urlencode }}">{{ tag }}</a>{% endfor %}
+    {% if gallery %}
+    <h2 class="gallery-title">{{ t.trav_gallery }}</h2>
+    <div class="gallery">
+      {% for ph in gallery %}
+      <figure>
+        <img src="{{ ph.url }}" alt="{{ ph.caption }}" loading="lazy">
+        {% if ph.caption %}<figcaption>{{ ph.caption }}</figcaption>{% endif %}
+      </figure>
+      {% endfor %}
     </div>
+    {% endif %}
+
+    {% if expenses %}
+    <h2 class="exp-title">{{ t.trav_expenses_heading }}</h2>
+    <table class="exp-table">
+      {% for e in expenses.rows %}
+      <tr>
+        <td class="exp-cat">{{ e.category }}</td>
+        <td>{{ e.description }}</td>
+        <td class="exp-amt">{{ e.amount }}</td>
+      </tr>
+      {% endfor %}
+      <tr class="exp-sum">
+        <td class="exp-cat">{{ t.trav_expenses_total }}</td>
+        <td></td>
+        <td class="exp-amt">{{ expenses.totals|join(' · ') }}</td>
+      </tr>
+    </table>
+    {% endif %}
+
+    {% if tags and not locked %}
+    <div class="tag-row">
+      {% for tag in tags %}<span class="tag-chip">{{ tag }}</span>{% endfor %}
+    </div>
+    {% endif %}
+
+    {% if prev_day or next_day %}
+    <nav class="day-nav">
+      {% if prev_day %}
+      <a href="/reiseblog/{{ trip.slug }}/{{ prev_day.slug }}">
+        <span class="lbl">‹ {{ t.trav_prev_day }}</span>{{ prev_day.title or (t.trav_day + ' ' + prev_day.number|string) }}
+      </a>
+      {% endif %}
+      {% if next_day %}
+      <a class="nx" href="/reiseblog/{{ trip.slug }}/{{ next_day.slug }}">
+        <span class="lbl">{{ t.trav_next_day }} ›</span>{{ next_day.title or (t.trav_day + ' ' + next_day.number|string) }}
+      </a>
+      {% endif %}
+    </nav>
     {% endif %}
   </main>
   <footer>
