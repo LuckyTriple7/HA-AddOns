@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.4.10] - 2026-08-10
+
+### Security
+- Der HTML-Filter aus 0.4.9 konnte durch präparierte Kommentare ausgebremst
+  werden (CodeQL `py/polynomial-redos`, #205). `<!--[\s\S]*?-->` setzt an jedem
+  `<!--` neu an und scannt jedes Mal bis zum Textende — bei 8000 offenen `<!--`
+  waren das 1,3 s statt Millisekunden, Laufzeit quadratisch zur Textlänge.
+  Dasselbe galt für `<img …` ohne schließendes `>`. Kommentar- und
+  Code-Erkennung laufen jetzt als linearer Scan, der sich merkt, dass es keinen
+  weiteren Abschluss mehr gibt; das Tag-Muster endet an `<` statt am Textende.
+  Verhalten unverändert (gegen die alte Zerlegung gefuzzt).
+
 ## [0.4.9] - 2026-08-10
 
 ### Fixed

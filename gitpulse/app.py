@@ -588,13 +588,84 @@ def _check_token(token: str) -> tuple[bool, str, str]:
         return False, '', ''
 
 
-_CODE_SPLIT_RE   = re.compile(r'(```[\s\S]*?```|~~~[\s\S]*?~~~|`[^`\n]+`)')
-_HTML_COMMENT_RE = re.compile(r'<!--[\s\S]*?-->')
-_HTML_DROP_RE    = re.compile(r'<(?:img|picture|source|svg|iframe|video|audio)\b[^>]*>', re.I)
+_CODE_FENCES     = ('```', '~~~')
+# Kein `[^>]*`: bei vielen `<img` ohne schließendes `>` würde jeder Startpunkt
+# erneut bis zum Textende laufen. `<` beendet den Scan sofort — und in einem Tag
+# darf ohnehin kein `<` stehen.
+_HTML_DROP_RE    = re.compile(r'<(?:img|picture|source|svg|iframe|video|audio)\b[^<>]*>', re.I)
 _HTML_CELL_RE    = re.compile(r'</t[dh]\s*>', re.I)
 _HTML_BREAK_RE   = re.compile(r'<br\s*/?>|</(?:p|div|li|ul|ol|tr|h[1-6]|blockquote|summary|details|table)\s*>', re.I)
 _HTML_TAG_RE     = re.compile(r'</?[A-Za-z][A-Za-z0-9-]*(?:\s[^<>]*)?/?>')
 _BLANK_LINES_RE  = re.compile(r'\n{3,}')
+
+
+def _split_code(text: str) -> list[str]:
+    """Text in [Fließtext, Code, Fließtext, …] zerlegen — Code auf ungeraden Indizes.
+
+    Bewusst ein linearer Scan statt `(```[\\s\\S]*?```|…)`: ein solches Muster setzt
+    an jeder öffnenden Fence neu an und läuft bei unabgeschlossenen Fences ins
+    quadratische Backtracking (CodeQL py/polynomial-redos). Hier merkt sich der
+    Scan stattdessen, dass es keinen weiteren Abschluss mehr gibt, und sucht
+    kein zweites Mal danach.
+    """
+    parts: list[str] = []
+    plain = i = 0
+    n = len(text)
+    fence_open = {'```': True, '~~~': True}  # False = kein Abschluss mehr im Rest
+    tick_left  = True                        # False = kein Backtick mehr im Rest
+    next_nl    = text.find('\n')
+    while i < n:
+        if 0 <= next_nl < i:
+            next_nl = text.find('\n', i)
+        ch = text[i]
+        if ch != '`' and ch != '~':
+            i += 1
+            continue
+        marker = text[i:i + 3]
+        if marker in fence_open:
+            if fence_open[marker]:
+                end = text.find(marker, i + 3)
+                if end >= 0:
+                    parts.append(text[plain:i])
+                    parts.append(text[i:end + 3])
+                    plain = i = end + 3
+                    continue
+                fence_open[marker] = False
+            i += 1
+            continue
+        if ch == '`' and tick_left:
+            end = text.find('`', i + 1)
+            if end < 0:
+                tick_left = False
+            # Inline-Code braucht mindestens ein Zeichen und bleibt in einer Zeile
+            elif end > i + 1 and (next_nl < 0 or end < next_nl):
+                parts.append(text[plain:i])
+                parts.append(text[i:end + 1])
+                plain = i = end + 1
+                continue
+        i += 1
+    parts.append(text[plain:])
+    return parts
+
+
+def _drop_html_comments(text: str) -> str:
+    """`<!-- … -->` entfernen. Auch hier linear statt `<!--[\\s\\S]*?-->`, das bei
+    vielen unabgeschlossenen `<!--` jeden Start erneut bis zum Textende scannt."""
+    if '<!--' not in text:
+        return text
+    out: list[str] = []
+    pos = 0
+    while True:
+        start = text.find('<!--', pos)
+        if start < 0:
+            break
+        end = text.find('-->', start + 4)
+        if end < 0:
+            break  # unabgeschlossen — Rest unverändert stehen lassen
+        out.append(text[pos:start])
+        pos = end + 3
+    out.append(text[pos:])
+    return ''.join(out)
 
 
 def _strip_html(text: str) -> str:
@@ -607,9 +678,9 @@ def _strip_html(text: str) -> str:
     """
     if not text or ('<' not in text and '&' not in text):
         return text or ''
-    parts = _CODE_SPLIT_RE.split(text)
+    parts = _split_code(text)
     for i in range(0, len(parts), 2):  # ungerade Indizes sind die Code-Abschnitte
-        chunk = _HTML_COMMENT_RE.sub('', parts[i])
+        chunk = _drop_html_comments(parts[i])
         chunk = _HTML_DROP_RE.sub('', chunk)
         chunk = _HTML_CELL_RE.sub(' ', chunk)
         chunk = _HTML_BREAK_RE.sub('\n', chunk)
