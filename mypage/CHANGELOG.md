@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.10.13
+- 💾 **Das Text-Studio kann Entwürfe speichern.** Bisher lebte ein erzeugter Text nur im Formular: ein zweiter Durchgang, ein Tabwechsel oder das Neuladen der Seite haben ihn ersatzlos verworfen — bezahlt war der Aufruf trotzdem. Neu unter dem Ergebnis: **„💾 Entwurf speichern"** mit Namensfeld (leer = der Titel wird genommen) und darunter die Liste **„Gespeicherte Entwürfe"** mit Textart, Sprachen, Zeichenzahl und Datum. **„Öffnen"** holt alles zurück ins Studio, **„Löschen"** entfernt den Eintrag.
+- 🔁 **Mitgespeichert werden auch die Eingaben** — Thema, Textart, Tonfall, Länge, Sprachen und die Wahl „eigenständig schreiben / übersetzen". Ein geöffneter Entwurf lässt sich damit ohne Abtippen neu erzeugen, etwa mit einem anderen Modell oder Tonfall.
+- ♻️ Solange ein Entwurf geöffnet ist, **überschreibt** Speichern genau diesen Eintrag, statt bei jedem Klick eine weitere Kopie anzulegen; der Merker „geöffnet" steht in der Liste. **„✕ Lösen"** beendet die Verbindung — danach entsteht beim nächsten Speichern ein neuer Eintrag.
+- 🗄️ Entwürfe liegen in einer **eigenen Datei** `ai_drafts.json` im Add-on-Konfigurationsordner (nicht in `site.json`, die bei jedem Admin-Speichern komplett neu geschrieben wird) und sind **im Backup und in der Wiederherstellung enthalten**. Höchstens 200 Entwürfe, danach fällt der jeweils älteste heraus. Öffentlich wird davon nichts: ein Entwurf erscheint weder im Blog noch in Suche oder Feed, bis er über „Als Blogbeitrag übernehmen" ein Beitrag wird und dort veröffentlicht wird.
+
 ## 0.10.12
 - 🛡️ **Dieselbe CodeQL-Meldung, dritter Anlauf — jetzt ohne Umweg.** Der Fehlercode des Preiskatalogs gilt als aus Googles Antwort stammend, und die Markierung überlebt jede Weiterverarbeitung: weder das Nachschlagen im Wörterbuch (0.10.10) noch das Holen aus einer Konstantenliste (0.10.11) hat sie abgestreift. Jetzt wird gar kein Wert mehr übergeben, sondern die Meldung ausgewählt — im Log steht nur noch fester Text („Abrechnung im Google-Projekt nicht aktiviert", „Schlüssel zurückgewiesen", „kein passender Dienst im Katalog"). Aussagekräftiger als der Code ist es obendrein. Code und Klartextgrund bekommt der Admin unverändert in der Antwort.
 

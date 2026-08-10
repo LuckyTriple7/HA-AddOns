@@ -114,6 +114,7 @@ SUBSCRIBERS_PATH = _DATA + '/subscribers.json'
 SESSIONS_PATH = _DATA + '/sessions.json'
 USERS_PATH    = _DATA + '/users.json'
 AI_USAGE_PATH = _DATA + '/ai_usage.json'   # Gemini-Verbrauch je Monat und Modell
+AI_DRAFTS_PATH = _DATA + '/ai_drafts.json'  # gespeicherte Entwürfe des Text-Studios
 USESSIONS_PATH = _DATA + '/user_sessions.json'
 DM_PATH       = _DATA + '/dm.json'          # Mitglieder-Direktnachrichten (Text verschlüsselt)
 DMKEY_PATH    = _DATA + '/dm.key'           # Fernet-Schlüssel für die DM-Verschlüsselung
@@ -262,6 +263,7 @@ _slot_lock  = threading.Lock()
 _game_lock  = threading.Lock()
 _polls_lock = threading.Lock()
 _travel_lock = threading.Lock()
+_ai_drafts_lock = threading.Lock()
 
 # Mitglieder-Sessions (getrennt vom Admin)
 user_sessions: dict[str, list] = {}  # token → [user_id, expires]
@@ -4569,7 +4571,7 @@ def write_backup_zip(fp) -> None:
         for name in ('site.json', 'stats.json', 'messages.json', 'users.json',
                      'comments.json', 'audit.json', 'subscribers.json',
                      'dm.json', 'dm.key', 'admin_2fa.json', 'secret.key',
-                     'ai_usage.json', 'travel.json'):
+                     'ai_usage.json', 'travel.json', 'ai_drafts.json'):
             p = Path(_DATA) / name
             if p.is_file():
                 z.write(p, name)
@@ -4766,7 +4768,8 @@ def api_restore():
                 # gegen Zip-Slip absichern
                 if member in ('site.json', 'stats.json', 'messages.json', 'users.json',
                               'comments.json', 'audit.json', 'subscribers.json', 'dm.json',
-                              'admin_2fa.json', 'ai_usage.json', 'travel.json'):
+                              'admin_2fa.json', 'ai_usage.json', 'travel.json',
+                              'ai_drafts.json'):
                     target = safe_under(Path(_DATA), member)
                 elif member in ('dm.key', 'secret.key'):  # Binär-/Text-Schlüssel, kein JSON
                     target = safe_under(Path(_DATA), member)
@@ -5027,6 +5030,8 @@ _AI_TMP_RE = re.compile(r'^[a-f0-9]{32}$')
 AI_TEXT_KINDS = ('blog', 'news', 'project', 'library', 'seo')
 AI_TEXT_TONES = ('sachlich', 'locker', 'technisch', 'werblich', 'persoenlich')
 AI_TEXT_LENGTHS = {'kurz': 150, 'mittel': 400, 'lang': 800}
+AI_DRAFTS_MAX = 200                 # ältester Entwurf fliegt raus, wenn voll
+AI_DRAFT_TEXT_MAX = 60_000          # ein „langer" Artikel liegt bei ~6 kB
 AI_TRANSLATE_PROVIDERS = ('mymemory', 'gemini')
 # Interner Fehlercode -> Code fuer das Frontend. `model_missing` ist der Fall,
 # der eine eigene Meldung braucht: nicht kaputt, sondern falsch eingestellt.
@@ -6217,6 +6222,137 @@ def api_ai_text():
                         'detail': detail, 'model': model}), 502
     log.info("KI-Text erzeugt (%s, %s, %s)", model, kind, '+'.join(langs))
     return jsonify({'ok': True, 'result': data})
+
+
+# ── Entwürfe des Text-Studios ─────────────────────────────────────────────────
+#
+# Ein erzeugter Text lebte bisher nur im Formular: Tabwechsel, Neuladen oder ein
+# zweiter Durchgang haben ihn verworfen. Entwürfe liegen deshalb in einer eigenen
+# Datei — nicht in site.json, die bei jedem Admin-Speichern komplett neu
+# geschrieben wird, und nicht als unveröffentlichter Blogbeitrag, denn ein
+# Entwurf kann auch für ein Projekt oder eine SEO-Beschreibung gedacht sein.
+# Mitgespeichert werden auch die Eingaben (Thema, Textart, Tonfall …), damit ein
+# geladener Entwurf ohne Abtippen neu erzeugt werden kann.
+
+def _ai_drafts_load() -> list[dict]:
+    with _ai_drafts_lock:
+        try:
+            with open(AI_DRAFTS_PATH, encoding='utf-8') as f:
+                data = json.load(f)
+        except FileNotFoundError:
+            return []
+        except Exception as e:
+            _quarantine_corrupt(AI_DRAFTS_PATH, e)
+            return []
+    drafts = data.get('drafts') if isinstance(data, dict) else None
+    return [d for d in drafts if isinstance(d, dict)] if isinstance(drafts, list) else []
+
+
+def _ai_drafts_save(drafts: list[dict]) -> bool:
+    with _ai_drafts_lock:
+        try:
+            _atomic_write_json(AI_DRAFTS_PATH, {'drafts': drafts}, indent=2)
+            return True
+        except Exception as e:
+            log.error("ai_drafts.json konnte nicht gespeichert werden: %s", e)
+            return False
+
+
+def _ai_draft_lang(raw) -> dict:
+    raw = raw if isinstance(raw, dict) else {}
+    return {'title': _clean_str(raw.get('title'), 300),
+            'meta':  _clean_str(raw.get('meta'), 300),
+            'text':  _clean_str(raw.get('text'), AI_DRAFT_TEXT_MAX)}
+
+
+def _ai_draft_from(raw: dict, existing: dict | None = None) -> dict:
+    now = int(datetime.now(timezone.utc).timestamp())
+    d = existing or {'id': uuid.uuid4().hex[:12], 'ts': now}
+    wanted = raw.get('langs')
+    langs = [lg for lg in ('de', 'en') if isinstance(wanted, list) and lg in wanted] or ['de']
+    d['updated'] = now
+    d['name']   = _clean_str(raw.get('name'), 120)
+    d['topic']  = _clean_str(raw.get('topic'), AI_TEXT_TOPIC_MAX)
+    d['kind']   = raw.get('kind') if raw.get('kind') in AI_TEXT_KINDS else 'blog'
+    d['tone']   = raw.get('tone') if raw.get('tone') in AI_TEXT_TONES else 'sachlich'
+    d['length'] = raw.get('length') if raw.get('length') in AI_TEXT_LENGTHS else 'mittel'
+    d['mode']   = 'translate' if raw.get('mode') == 'translate' else 'native'
+    d['langs']  = langs
+    d['tags']   = _clean_str(raw.get('tags'), 500)
+    d['de'] = _ai_draft_lang(raw.get('de'))
+    d['en'] = _ai_draft_lang(raw.get('en'))
+    # Ohne Namen wäre die Liste eine Reihe leerer Zeilen — Titel, sonst Thema
+    if not d['name']:
+        d['name'] = (d['de']['title'] or d['en']['title'] or d['topic']
+                     or datetime.now().strftime('%Y-%m-%d %H:%M'))[:120]
+    return d
+
+
+def _ai_draft_row(d: dict) -> dict:
+    """Zeile für die Liste — ohne Fließtext, der kann sechsstellig sein."""
+    return {'id': d.get('id', ''), 'name': d.get('name', ''),
+            'kind': d.get('kind', 'blog'), 'langs': d.get('langs', ['de']),
+            'ts': d.get('ts', 0), 'updated': d.get('updated', 0),
+            'chars': len(d.get('de', {}).get('text', '')) + len(d.get('en', {}).get('text', ''))}
+
+
+@admin_app.route('/api/ai/drafts')
+def api_ai_drafts():
+    err = _api_auth()
+    if err:
+        return err
+    drafts = sorted(_ai_drafts_load(), key=lambda d: d.get('updated', 0), reverse=True)
+    return jsonify({'drafts': [_ai_draft_row(d) for d in drafts], 'max': AI_DRAFTS_MAX})
+
+
+@admin_app.route('/api/ai/drafts/<did>')
+def api_ai_draft_get(did):
+    err = _api_auth()
+    if err:
+        return err
+    d = next((x for x in _ai_drafts_load() if x.get('id') == did), None)
+    if not d:
+        return jsonify({'error': 'not_found'}), 404
+    return jsonify({'ok': True, 'draft': d})
+
+
+@admin_app.route('/api/ai/drafts', methods=['POST'])
+def api_ai_draft_save():
+    err = _api_auth()
+    if err:
+        return err
+    raw = request.get_json(silent=True) or {}
+    drafts = _ai_drafts_load()
+    did = _clean_str(raw.get('id'), 32)
+    existing = next((x for x in drafts if x.get('id') == did), None) if did else None
+    d = _ai_draft_from(raw, existing)
+    if not (d['de']['text'] or d['en']['text'] or d['de']['title'] or d['en']['title']):
+        return jsonify({'error': 'empty'}), 400
+    if existing is None:
+        drafts.append(d)
+        # Ältestes zuerst weg. Die Grenze schützt die Datei davor, mit jedem
+        # Durchgang ungebremst zu wachsen — gespeichert wird ja per Knopfdruck.
+        if len(drafts) > AI_DRAFTS_MAX:
+            drafts = sorted(drafts, key=lambda x: x.get('updated', 0),
+                            reverse=True)[:AI_DRAFTS_MAX]
+    if not _ai_drafts_save(drafts):
+        return jsonify({'error': 'save_failed'}), 500
+    log.info("KI-Entwurf gespeichert (%s)", d['id'])
+    return jsonify({'ok': True, 'id': d['id'], 'name': d['name']})
+
+
+@admin_app.route('/api/ai/drafts/<did>', methods=['DELETE'])
+def api_ai_draft_delete(did):
+    err = _api_auth()
+    if err:
+        return err
+    drafts = _ai_drafts_load()
+    rest = [d for d in drafts if d.get('id') != did]
+    if len(rest) == len(drafts):
+        return jsonify({'error': 'not_found'}), 404
+    if not _ai_drafts_save(rest):
+        return jsonify({'error': 'save_failed'}), 500
+    return jsonify({'ok': True})
 
 
 # ── Reiseblog ─────────────────────────────────────────────────────────────────
