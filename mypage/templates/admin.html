@@ -913,6 +913,7 @@
           <button class="btn secondary" onclick="aiImageReset()">↺ {{ t.ai_reset }}</button>
           <span class="hint" id="ai-img-status" style="margin-left:10px"></span>
         </div>
+        <p class="hint" id="ai-img-est"></p>
         <div class="preset-wrap" id="ai-results-wrap" style="display:none;margin-top:16px">
           <button type="button" class="nav-arrow preset-arrow preset-left" aria-label="◄" onclick="aiResultsScroll(-1)">‹</button>
           <div class="ai-strip" id="ai-img-results"></div>
@@ -951,6 +952,7 @@
             <button class="btn secondary" onclick="logoReset()">↺ {{ t.ai_reset }}</button>
             <span class="hint" id="logo-status" style="margin-left:10px"></span>
           </div>
+          <p class="hint" id="logo-est"></p>
           <div class="preset-wrap" id="logo-results-wrap" style="display:none;margin-top:16px">
             <button type="button" class="nav-arrow preset-arrow preset-left" aria-label="◄" onclick="logoResultsScroll(-1)">‹</button>
             <div class="ai-strip logo-check" id="logo-results"></div>
@@ -1057,6 +1059,7 @@
           <button class="btn secondary" onclick="aiTextReset()">↺ {{ t.ai_reset }}</button>
           <span class="hint" id="ai-txt-status" style="margin-left:10px"></span>
         </div>
+        <p class="hint" id="ai-txt-est"></p>
         <div id="ai-txt-result" style="display:none;margin-top:20px">
           <div class="row">
             <div id="ai-out-de">
@@ -6405,6 +6408,9 @@
       });
       aiLangChanged();
       aiKindChanged();
+      ['ai-txt-length', 'ai-text-model', 'ai-image-model', 'ai-img-count', 'logo-count']
+        .forEach(id => el(id).addEventListener('change', aiEstimates));
+      el('ai-txt-topic').addEventListener('input', aiEstimates);
       if (AI_STATUS && AI_STATUS.text) loadAiDrafts();
       el('ai-img-results').addEventListener('scroll', updateAiArrows, { passive: true });
       el('logo-results').addEventListener('scroll', updateLogoArrows, { passive: true });
@@ -6439,6 +6445,46 @@
         sel.appendChild(o);
       });
       if (current) sel.value = current;
+    }
+    // ── Was kostet der nächste Lauf? ──
+    // Die Preise liegen ohnehin schon im Browser (Verbrauchs-Bereich). Bei
+    // Bildern ist die Rechnung exakt bis auf die Auflösung; beim Text sind die
+    // Tokens vorher unbekannt, deshalb steht die Annahme dabei — eine nackte
+    // Zahl wäre hier eine erfundene.
+    const AI_EST_WORDS = { kurz: 150, mittel: 400, lang: 800 };
+    const AI_EST_TOKENS_PER_WORD = 1.5;   // grob, gemischt DE/EN
+    const AI_EST_PROMPT_TOKENS = 400;     // Systemanweisung und Rahmen
+    function aiPriceFor(model) {
+      if (!AI_USAGE) return {};
+      return Object.assign({}, AI_USAGE.defaults[model] || {}, AI_USAGE.prices[model] || {});
+    }
+    function aiMoney(v) {
+      const digits = v > 0 && v < 0.01 ? 4 : 2;
+      return v.toLocaleString(undefined, { minimumFractionDigits: digits,
+                                           maximumFractionDigits: digits });
+    }
+    function aiEstimates() {
+      if (!AI_USAGE) return;
+      const txt = aiPriceFor(el('ai-text-model').value);
+      const words = (AI_EST_WORDS[el('ai-txt-length').value] || 400)
+                  * (el('ai-txt-langs').value === 'both' ? 2 : 1);
+      if (txt.in || txt.out) {
+        const outTok = words * AI_EST_TOKENS_PER_WORD;
+        const inTok = AI_EST_PROMPT_TOKENS
+                    + (el('ai-txt-topic').value.length + el('ai-instructions').value.length) / 4;
+        const cost = inTok / 1e6 * (txt.in || 0) + outTok / 1e6 * (txt.out || 0);
+        el('ai-txt-est').textContent = T.ai_est_text.replace('{v}', aiMoney(cost))
+                                                    .replace('{w}', words);
+      } else {
+        el('ai-txt-est').textContent = T.ai_est_none;
+      }
+      const img = aiPriceFor(el('ai-image-model').value);
+      [['ai-img-est', 'ai-img-count'], ['logo-est', 'logo-count']].forEach(([box, sel]) => {
+        const n = parseInt(el(sel).value, 10) || 1;
+        el(box).textContent = img.image
+          ? T.ai_est_images.replace('{v}', aiMoney(n * img.image)).replace('{n}', n)
+          : T.ai_est_none;
+      });
     }
     // Dasselbe Seitenverhältnis steht an zwei Stellen: oben in den Einstellungen
     // (dort wird es gespeichert) und im Bild-Studio, wo man es beim Arbeiten
@@ -6499,6 +6545,7 @@
       el('ai-prices-fetch-hint').style.display = show;
       renderAiUsage();
       renderAiPrices();
+      aiEstimates();
     }
     function aiCell(text, bold) {
       const td = document.createElement('td');
@@ -7175,6 +7222,7 @@
     }
 
     function aiLangChanged() {
+      aiEstimates();
       const v = el('ai-txt-langs').value;
       el('ai-txt-mode-box').style.display = v === 'both' ? '' : 'none';
       el('ai-out-de').style.display = v === 'en' ? 'none' : '';

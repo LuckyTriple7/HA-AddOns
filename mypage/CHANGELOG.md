@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.10.18
+- 💰 **Was der nächste Lauf kostet, steht jetzt unter dem Knopf.** Bisher sah man den Preis erst hinterher im Verbrauchs-Bereich. Bild-Studio und Logo-Designer zeigen „≈ 0,16 $ für 4 Bilder", das Text-Studio eine Schätzung samt genannter Annahme („bei rund 800 Wörtern Ausgabe") — abgerechnet wird nach Tokens, die vorher niemand kennt, und eine nackte Zahl wäre hier eine erfundene.
+- 🔁 Die Anzeige rechnet **live** mit: Länge, Sprachen, Thema, Modellwechsel und Bildanzahl schlagen sofort durch. Gerechnet wird mit denselben Preisen wie im Verbrauchs-Bereich, eigene Werte schlagen die Vorgaben. Ist für ein Modell kein Preis hinterlegt, steht dort der Hinweis statt einer Zahl.
+
 ## 0.10.17
 - 📐 **Seitenverhältnis steht jetzt im Bild-Studio**, direkt neben „Anzahl". Bisher lag es nur oben in den Einstellungen: zum Wechseln musste man hochscrollen und speichern, obwohl es bei jedem Lauf einzeln mitgeschickt wird. Beide Felder zeigen denselben Wert und ziehen einander nach; dauerhaft gespeichert wird er weiterhin nur oben.
 - ↻ **„Variation" an gespeicherten Bildern.** Ein Klick setzt das Bild als Vorlage und startet sofort einen neuen Lauf mit derselben Beschreibung — statt „Als Vorlage", hochscrollen, „Erzeugen". Nur an gespeicherten Bildern, ein Entwurf hat noch keine taugliche Adresse.
