@@ -2702,9 +2702,9 @@
     "lang": "Ausführlich (~1200 Wörter)"
   },
   "field_travel_enabled": "Reiseblog",
-  "travel_enabled_hint": "Zeigt den Reiseblog auf der Website. Der Reiter im Admin bleibt immer sichtbar, damit du Reisen und Tage vorbereiten kannst, bevor etwas online geht. Position und Sichtbarkeit des Abschnitts stellst du unter Inhalte ein.",
+  "travel_enabled_hint": "Schaltet den Reiseblog ein. NEIN nimmt ihn komplett aus dem Betrieb: Abschnitt, Navi-Einträge und die Seiten unter /reise/… sind weg, und auch der Reiter Reiseblog und der Abschnitt unter Inhalte verschwinden. Gespeicherte Reisen und Tage bleiben unangetastet und kommen beim Einschalten unverändert zurück. Zum Vorbereiten reicht JA — solange kein Tag veröffentlicht ist, zeigt die Website nichts an.",
   "field_forms_enabled": "Formulare",
-  "forms_enabled_hint": "Zeigt die Formulare auf der Website. Der Reiter im Admin bleibt immer sichtbar. Position und Sichtbarkeit des Abschnitts stellst du unter Inhalte ein.",
+  "forms_enabled_hint": "Schaltet die Formulare ein. NEIN nimmt sie komplett aus dem Betrieb: Abschnitt, Navi-Einträge und die Seiten unter /formular/… sind weg, und auch der Reiter Formulare und der Abschnitt unter Inhalte verschwinden. Angelegte Formulare und eingegangene Antworten bleiben unangetastet. Zum Vorbereiten reicht JA — ein Formular ohne eigenen Schalter „aktiv\" geht nicht online.",
   "trav_no_trip_selected": "Keine Reise ausgewählt — bitte links eine Reise anklicken.",
   "trav_save_offline": "Nicht gespeichert: Der Server war nicht erreichbar. Der Dialog bleibt offen, deine Eingaben sind lokal gesichert — bitte gleich noch einmal auf Speichern drücken.",
   "trav_save_session": "Nicht gespeichert: Die Anmeldung ist abgelaufen. Bitte in einem zweiten Tab neu anmelden und dann hier erneut speichern."

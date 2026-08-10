@@ -2788,9 +2788,9 @@
     "lang": "Detailed (~1200 words)"
   },
   "field_travel_enabled": "Travel blog",
-  "travel_enabled_hint": "Shows the travel blog on the website. The admin tab always stays visible so you can prepare trips and days before anything goes live. Position and visibility of the section are set under Content.",
+  "travel_enabled_hint": "Turns the travel blog on. NO takes it out of service entirely: section, nav entries and the pages under /reise/… are gone, and so are the Travel blog tab and the section under Content. Stored trips and days are left untouched and come back unchanged when you switch it on. YES is enough for preparing — as long as no day is published, the website shows nothing.",
   "field_forms_enabled": "Forms",
-  "forms_enabled_hint": "Shows the forms on the website. The admin tab always stays visible. Position and visibility of the section are set under Content.",
+  "forms_enabled_hint": "Turns the forms on. NO takes them out of service entirely: section, nav entries and the pages under /formular/… are gone, and so are the Forms tab and the section under Content. Existing forms and received answers are left untouched. YES is enough for preparing — a form without its own \"active\" switch never goes live.",
   "trav_no_trip_selected": "No trip selected — please click a trip on the left.",
   "trav_save_offline": "Not saved: the server could not be reached. The dialog stays open and your input is stored locally — please press Save again in a moment.",
   "trav_save_session": "Not saved: your session has expired. Please sign in again in a second tab, then save here once more."

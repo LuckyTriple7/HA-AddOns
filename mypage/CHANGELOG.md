@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.10.7
+- 🎚️ **Ein abgeschaltetes Modul verschwindet jetzt auch aus dem Admin.** Stehen **Reiseblog** oder **Formulare** unter *Design → Module* auf NEIN, sind nicht mehr nur Abschnitt, Navi-Einträge und Seiten auf der Website weg — es verschwinden auch der **Reiter** und der **Abschnitt unter *Inhalte***. Bisher pflegte man dort weiter Inhalte, die nirgends ankamen, und der Schalter blieb für alles folgenlos, was man täglich sieht.
+  - **Nichts wird gelöscht.** Reisen, Tage, Formulare und eingegangene Antworten bleiben gespeichert; auch **Position und Augen-Zustand** des Abschnitts bleiben erhalten und kommen beim Einschalten unverändert zurück.
+  - Wer gerade auf einem Reiter steht, den er abschaltet, landet automatisch wieder im Design-Tab.
+  - **Zum Vorbereiten muss der Schalter nicht aus:** ein Reisetag ohne „veröffentlichen" und ein Formular ohne „aktiv" gehen ohnehin nicht online. Die Hinweistexte an beiden Schaltern sagen das jetzt.
+  - Zu beachten: **Werkseinstellung des Reiseblogs ist NEIN** — sein Reiter erscheint also erst, wenn er unter *Design → Module* eingeschaltet wird.
+
 ## 0.10.6
 - 🏷️ **Logo-Designer im KI-Tab.** Erzeugt fertige Logo-Sätze in exakten Pixelmaßen: Home-Assistant-Add-on (`icon.png` 256×256, `logo.png` 250×100), PWA (`icon-192`, `icon-512`, `apple-touch-icon`), Favicon (`favicon.ico` mit 16/32/48 in einer Datei) und Link-Vorschaubild (`og-image.png` 1200×630). Dazu ein freies Maß von 16 bis 4096 px.
   - **Die Maße rechnet MyPage, nicht die KI.** Gemini kennt nur Seitenverhältnisse — der Entwurf entsteht quadratisch und wird je Ziel zugeschnitten und mittig eingepasst. Die Vorlage bleibt als `source.png` liegen, weitere Größen lassen sich später **ohne neuen KI-Aufruf** nachziehen.

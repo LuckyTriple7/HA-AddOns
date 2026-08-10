@@ -4914,6 +4914,36 @@
       el('d-banner_link_label_de').value = d.banner_link_label_de || '';
       el('d-banner_link_label_en').value = d.banner_link_label_en || '';
       renderPresets();
+      applyModuleVisibility();
+    }
+
+    // ── Abgeschaltete Module aus dem Admin nehmen ──
+    // Steht ein Modul unter Design → Module auf NEIN, ist es auf der Website
+    // vollständig aus. Dann hat es auch im Admin nichts verloren: weder als
+    // Reiter noch als Abschnitt unter Inhalte — sonst pflegt man dort etwas,
+    // das nirgends ankommt, und der Schalter bliebe folgenlos für alles, was
+    // man täglich sieht.
+    //
+    // Ausgeblendet wird nur die Bedienung. Reisen, Tage und Formulare bleiben
+    // gespeichert; auch Reihenfolge und Augen-Zustand des Abschnitts bleiben
+    // erhalten, weil das Panel im DOM stehen bleibt (`saveSectionOrder` liest
+    // alle `.acc`, `toggleSectionVisible` nur die mit `acc-hidden`).
+    const MODULE_TABS = ['travel', 'forms'];
+    function applyModuleVisibility() {
+      const d = (SITE && SITE.design) || {};
+      const on = { travel: !!d.travel_enabled, forms: d.forms_enabled !== false };
+      MODULE_TABS.forEach(key => {
+        const btn = el('tab-btn-' + key);
+        const acc = document.querySelector('#section-acc .acc[data-key="' + key + '"]');
+        if (acc) acc.style.display = on[key] ? '' : 'none';
+        if (!btn) return;
+        btn.style.display = on[key] ? '' : 'none';
+        // Wer gerade auf dem Reiter steht, den er abschaltet, säße sonst vor
+        // einem Formular ohne Reiter darüber
+        if (!on[key] && btn.classList.contains('active')) {
+          document.querySelector('.tab-btn[data-tab=design]').click();
+        }
+      });
     }
 
     // ── Design-Vorlagen (1-Klick-Stile) ──
