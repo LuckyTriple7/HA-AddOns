@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.10.17
+- 📐 **Seitenverhältnis steht jetzt im Bild-Studio**, direkt neben „Anzahl". Bisher lag es nur oben in den Einstellungen: zum Wechseln musste man hochscrollen und speichern, obwohl es bei jedem Lauf einzeln mitgeschickt wird. Beide Felder zeigen denselben Wert und ziehen einander nach; dauerhaft gespeichert wird er weiterhin nur oben.
+- ↻ **„Variation" an gespeicherten Bildern.** Ein Klick setzt das Bild als Vorlage und startet sofort einen neuen Lauf mit derselben Beschreibung — statt „Als Vorlage", hochscrollen, „Erzeugen". Nur an gespeicherten Bildern, ein Entwurf hat noch keine taugliche Adresse.
+- ↶ **„Vorherige Fassung" im Text-Studio.** Ein zweiter Lauf, eine Überarbeitung oder ein geöffneter Entwurf haben die Felder bisher still überschrieben. Der Knopf holt den Stand davor zurück und führt mit demselben Klick wieder vorwärts. Eine Stufe, nur in der geöffneten Seite — nichts wird gespeichert.
+- 🔎 **Suche und Sortierung in der Entwurfsliste.** Ab fünf Entwürfen erscheinen ein Suchfeld (Name und Textart) und die Sortierung nach neueste / älteste / Name A–Z. Reine Anzeige, ohne weiteren Aufruf.
+
 ## 0.10.16
 - 🗂️ **Übernehmen richtet sich jetzt nach der Textart.** Das Studio kennt fünf Textarten, konnte das Ergebnis aber nur an den Blog weiterreichen — eine Projektbeschreibung musste man von Hand hinüberkopieren. Neu: **„Als Projekt übernehmen"** (SEO-Beschreibung wird Kurzbeschreibung, Fließtext die lange, unveröffentlicht), **„Als Bibliothek-Eintrag übernehmen"** (unsichtbar geschaltet) und bei „nur SEO" **„In die Website-SEO übernehmen"**, das die Beschreibung in beide Felder im Design-Tab einträgt und dorthin springt — gespeichert wird sie dort mit „Speichern". Der Weg zum Blogbeitrag bleibt immer offen, veröffentlicht wird auf keinem Weg automatisch.
 - ✂️ **Überarbeiten statt neu erzeugen.** Bisher gab es nur „nochmal", und das warf jede Handarbeit im Formular weg. Unter dem Ergebnis stehen jetzt **„Kürzer"**, **„Länger"**, **„Feinschliff"** und ein freies Feld für einen eigenen Änderungswunsch. Der vorhandene Text geht mit in die Anfrage und kommt vollständig überarbeitet zurück.

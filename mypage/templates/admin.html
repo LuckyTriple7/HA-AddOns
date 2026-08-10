@@ -834,7 +834,7 @@
         <div class="row">
           <div>
             <label>{{ t.ai_ratio }}</label>
-            <select id="ai-ratio"></select>
+            <select id="ai-ratio" onchange="aiRatioChanged('ai-ratio')"></select>
           </div>
           <div>
             <label>{{ t.ai_translate_provider }}</label>
@@ -893,12 +893,17 @@
             </select>
           </div>
           <div>
-            <label>{{ t.ai_img_ref }}</label>
-            <div class="upload-row">
-              <input type="text" id="ai-img-ref" readonly placeholder="{{ t.ai_img_ref_none }}">
-              <button class="btn secondary small" onclick="browseUploads(setAiRef)">{{ t.image_pick }}</button>
-              <button class="btn secondary small" onclick="setAiRef('')">✕</button>
-            </div>
+            <label>{{ t.ai_ratio }}</label>
+            <select id="ai-img-ratio" onchange="aiRatioChanged('ai-img-ratio')"></select>
+            <p class="hint">{{ t.ai_img_ratio_hint }}</p>
+          </div>
+        </div>
+        <div style="margin-top:12px">
+          <label>{{ t.ai_img_ref }}</label>
+          <div class="upload-row">
+            <input type="text" id="ai-img-ref" readonly placeholder="{{ t.ai_img_ref_none }}">
+            <button class="btn secondary small" onclick="browseUploads(setAiRef)">{{ t.image_pick }}</button>
+            <button class="btn secondary small" onclick="setAiRef('')">✕</button>
           </div>
         </div>
         <p class="hint">{{ t.ai_img_ref_hint }}</p>
@@ -1088,6 +1093,7 @@
                 <option value="de">{{ t.ai_revise_scope_de }}</option>
                 <option value="en">{{ t.ai_revise_scope_en }}</option>
               </select>
+              <button class="btn secondary" id="ai-undo" style="display:none" onclick="aiTextUndo()">↶ {{ t.ai_undo }}</button>
             </div>
             <div class="upload-row" style="margin-top:8px">
               <input type="text" id="ai-revise-note" maxlength="500" placeholder="{{ t.ai_revise_note_ph }}">
@@ -1117,6 +1123,14 @@
 
         <h4 style="margin:24px 0 6px">💾 {{ t.ai_drafts_heading }}</h4>
         <p class="hint">{{ t.ai_drafts_hint }}</p>
+        <div class="upload-row" id="ai-drafts-tools" style="margin-top:12px;display:none">
+          <input type="text" id="ai-drafts-filter" placeholder="{{ t.ai_drafts_filter_ph }}" oninput="renderAiDrafts()">
+          <select id="ai-drafts-sort" style="max-width:190px" onchange="renderAiDrafts()">
+            <option value="new">{{ t.ai_drafts_sort_new }}</option>
+            <option value="old">{{ t.ai_drafts_sort_old }}</option>
+            <option value="name">{{ t.ai_drafts_sort_name }}</option>
+          </select>
+        </div>
         <div class="proj-list" id="ai-drafts-list" style="margin-top:12px"></div>
       </div>
     </section>
@@ -6402,6 +6416,7 @@
       aiFillSelect('ai-text-model', m.text, s.text_model);
       aiFillSelect('ai-image-model', m.image, s.image_model);
       aiFillSelect('ai-ratio', s.ratios || [], s.image_ratio);
+      aiFillSelect('ai-img-ratio', s.ratios || [], s.image_ratio);
       el('ai-translate-provider').value = s.translate_provider || 'mymemory';
       el('ai-instructions').value = s.instructions || '';
     }
@@ -6424,6 +6439,14 @@
         sel.appendChild(o);
       });
       if (current) sel.value = current;
+    }
+    // Dasselbe Seitenverhältnis steht an zwei Stellen: oben in den Einstellungen
+    // (dort wird es gespeichert) und im Bild-Studio, wo man es beim Arbeiten
+    // braucht. Beide Felder ziehen einander nach, gespeichert wird weiter nur
+    // über „Speichern" in den Einstellungen.
+    function aiRatioChanged(from) {
+      const other = from === 'ai-ratio' ? 'ai-img-ratio' : 'ai-ratio';
+      el(other).value = el(from).value;
     }
     async function refreshAiStatus() {
       loadAiUsage();
@@ -6690,6 +6713,10 @@
       if (el('ai-img-prompt').value.trim() && !confirm(T.ai_reset_confirm_img)) return;
       el('ai-img-prompt').value = '';
       el('ai-img-count').value = '1';
+      if (AI_STATUS && AI_STATUS.image_ratio) {
+        el('ai-img-ratio').value = AI_STATUS.image_ratio;
+        aiRatioChanged('ai-img-ratio');
+      }
       setAiRef('');
       el('ai-img-status').textContent = '';
       el('ai-img-prompt').focus();
@@ -6701,7 +6728,7 @@
       const body = {
         prompt,
         model: el('ai-image-model').value,
-        ratio: el('ai-ratio').value,
+        ratio: el('ai-img-ratio').value,
         count: parseInt(el('ai-img-count').value, 10) || 1,
       };
       if (aiRefUrl) body.ref = aiRefUrl;
@@ -6793,11 +6820,18 @@
       asRef.className = 'btn secondary small';
       asRef.textContent = '🎨 ' + T.ai_as_ref;
       asRef.onclick = () => { setAiRef(d.url); toast(T.ai_ref_set); };
+      // Abkürzung für „nochmal, aber anders": Vorlage setzen und sofort laufen.
+      // Nur hier, nicht am Entwurf — als Vorlage taugt allein eine Upload-Adresse.
+      const vary = document.createElement('button');
+      vary.className = 'btn secondary small';
+      vary.textContent = '↻ ' + T.ai_vary;
+      vary.title = T.ai_vary_hint;
+      vary.onclick = () => { setAiRef(d.url); runAiImage(vary); };
       const del = document.createElement('button');
       del.className = 'btn danger small';
       del.textContent = '🗑 ' + T.ai_delete;
       del.onclick = () => aiDeleteImage(d.url, card, del);
-      act.append(ok, copy, asRef, del);
+      act.append(ok, copy, asRef, vary, del);
       const u = document.createElement('div');
       u.className = 'ai-url';
       u.textContent = d.url;
@@ -7178,10 +7212,36 @@
       busyDone(T.ai_txt_ready);
       refreshAiStatus();
     }
+    // Ein zweiter Lauf und jede Überarbeitung überschreiben die Felder still.
+    // Die vorige Fassung liegt deshalb im Speicher — eine Stufe, absichtlich
+    // nichts Gespeichertes: nach dem Neuladen der Seite ist sie weg.
+    const AI_OUT_FIELDS = ['ai-out-title_de', 'ai-out-meta_de', 'ai-out-text_de',
+                           'ai-out-title_en', 'ai-out-meta_en', 'ai-out-text_en',
+                           'ai-out-tags'];
+    let aiTextPrev = null;
+    function aiSnapshot() {
+      const s = {};
+      AI_OUT_FIELDS.forEach(id => { s[id] = el(id).value; });
+      return s;
+    }
+    function aiRemember() {
+      aiTextPrev = AI_OUT_FIELDS.some(id => el(id).value.trim()) ? aiSnapshot() : null;
+      el('ai-undo').style.display = aiTextPrev ? '' : 'none';
+    }
+    // Tauschen statt nur zurücksetzen: wer versehentlich zurückgeht, kommt mit
+    // demselben Knopf wieder nach vorn.
+    function aiTextUndo() {
+      if (!aiTextPrev) return;
+      const now = aiSnapshot();
+      AI_OUT_FIELDS.forEach(id => { el(id).value = aiTextPrev[id] || ''; });
+      aiTextPrev = now;
+      toast(T.ai_undo_done);
+    }
     // `clearOthers` trennt die beiden Wege: ein neuer Text ersetzt alles, eine
     // Überarbeitung nur die Sprachen, die tatsächlich zurückgekommen sind —
     // sonst wäre die andere Fassung nach „nur Deutsch kürzen" leer.
     function aiApplyText(res, clearOthers) {
+      aiRemember();
       const tags = new Set();
       ['de', 'en'].forEach(lg => {
         const x = res[lg] || null;
@@ -7343,6 +7403,10 @@
       el('ai-txt-status').textContent = '';
       el('ai-revise-note').value = '';
       el('ai-revise-scope').value = 'both';
+      // Der Rückweg gehört zum geleerten Formular nicht mehr dazu — der Knopf
+      // säße im ausgeblendeten Ergebnisblock und wäre ohnehin nicht erreichbar.
+      aiTextPrev = null;
+      el('ai-undo').style.display = 'none';
       aiLangChanged();
       aiKindChanged();
       aiDraftNew();
@@ -7403,20 +7467,36 @@
       toast(isNew ? T.ai_draft_saved : T.ai_draft_updated);
       loadAiDrafts();
     }
+    // Die Liste kommt vollständig vom Server und wird hier gehalten: Suchen und
+    // Sortieren sind damit reine Anzeige, ohne einen weiteren Aufruf.
+    let aiDraftRows = [];
     async function loadAiDrafts() {
       const r = await api('api/ai/drafts');
       if (!r.ok) return;
-      const d = await r.json();
+      aiDraftRows = (await r.json()).drafts || [];
+      renderAiDrafts();
+    }
+    function renderAiDrafts() {
       const box = el('ai-drafts-list');
       box.innerHTML = '';
-      if (!d.drafts.length) {
+      el('ai-drafts-tools').style.display = aiDraftRows.length > 4 ? '' : 'none';
+      const q = el('ai-drafts-filter').value.trim().toLowerCase();
+      const rows = aiDraftRows.filter(x => !q
+        || (x.name || '').toLowerCase().includes(q)
+        || (T['ai_kind_' + x.kind] || x.kind || '').toLowerCase().includes(q));
+      const sort = el('ai-drafts-sort').value;
+      rows.sort((a, b) =>
+          sort === 'name' ? (a.name || '').localeCompare(b.name || '')
+        : sort === 'old'  ? (a.updated || a.ts || 0) - (b.updated || b.ts || 0)
+        :                   (b.updated || b.ts || 0) - (a.updated || a.ts || 0));
+      if (!rows.length) {
         const p = document.createElement('p');
         p.className = 'hint';
-        p.textContent = T.ai_drafts_empty;
+        p.textContent = aiDraftRows.length ? T.ai_drafts_none_match : T.ai_drafts_empty;
         box.appendChild(p);
         return;
       }
-      d.drafts.forEach(x => box.appendChild(aiDraftNode(x)));
+      rows.forEach(x => box.appendChild(aiDraftNode(x)));
     }
     function aiDraftNode(x) {
       const item = document.createElement('div');
@@ -7459,6 +7539,7 @@
       const r = await api('api/ai/drafts/' + encodeURIComponent(id));
       if (!r.ok) { toast(T.error_save, true); return; }
       const x = (await r.json()).draft || {};
+      aiRemember();   // ein Entwurf über ungesicherten Text ist der Klassiker
       el('ai-txt-topic').value  = x.topic || '';
       el('ai-txt-kind').value   = x.kind || 'blog';
       el('ai-txt-tone').value   = x.tone || 'sachlich';
