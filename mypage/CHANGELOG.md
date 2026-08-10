@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.10.12
+- 🛡️ **Dieselbe CodeQL-Meldung, dritter Anlauf — jetzt ohne Umweg.** Der Fehlercode des Preiskatalogs gilt als aus Googles Antwort stammend, und die Markierung überlebt jede Weiterverarbeitung: weder das Nachschlagen im Wörterbuch (0.10.10) noch das Holen aus einer Konstantenliste (0.10.11) hat sie abgestreift. Jetzt wird gar kein Wert mehr übergeben, sondern die Meldung ausgewählt — im Log steht nur noch fester Text („Abrechnung im Google-Projekt nicht aktiviert", „Schlüssel zurückgewiesen", „kein passender Dienst im Katalog"). Aussagekräftiger als der Code ist es obendrein. Code und Klartextgrund bekommt der Admin unverändert in der Antwort.
+
 ## 0.10.11
 - 🛡️ **Nachtrag zu 0.10.10:** Eine der fünf CodeQL-Meldungen kam wieder — der Fehlercode des Preiskatalogs steht selbst unter Verdacht. Er entsteht durch Nachschlagen mit einem Schlüssel aus Googles Antwort, und die kam auf eine Anfrage mit dem Abrechnungs-Schlüssel; damit gilt auch das Nachschlage-Ergebnis als aus der Antwort stammend, obwohl es nur eines von vier festen Wörtern sein kann. Der Code wird jetzt vor dem Loggen aus einer festen Liste geholt statt aus der Variablen — nachweislich eine Konstante, und ein unbekannter Code landet als `unbekannt` im Log statt ungeprüft.
 

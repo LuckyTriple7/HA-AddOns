@@ -6672,22 +6672,6 @@ _BILLING_REASONS = {
     'API_KEY_HTTP_REFERRER_BLOCKED': 'key_rejected',
     'CREDENTIALS_MISSING':           'key_rejected',
 }
-# Alle Fehlercodes, die dieser Bereich vergibt.
-BILLING_CODES = ('billing_disabled', 'key_rejected', 'service_not_found', 'failed')
-
-
-def _billing_code_label(code: str) -> str:
-    """Denselben Code — aber nachweislich aus der festen Liste oben geholt.
-
-    `code` entsteht in `_billing_error` durch Nachschlagen mit einem Schlüssel
-    aus Googles Antwort, und die kam auf eine Anfrage mit dem
-    Abrechnungs-Schlüssel. Damit gilt auch das Nachschlage-Ergebnis als aus der
-    Antwort stammend, obwohl es nur eines von vier festen Wörtern sein kann —
-    ins Log gehört es deshalb nicht ungeprüft. Der Umweg über die Liste macht
-    aus dem Wert eine Konstante und fängt nebenbei ab, wenn hier je ein
-    unbekannter Code ankommt.
-    """
-    return next((c for c in BILLING_CODES if c == code), 'unbekannt')
 
 
 def _billing_key() -> str:
@@ -6879,13 +6863,24 @@ def api_ai_prices_fetch():
         return jsonify({'error': 'invalid'}), 400
     result, code, reason = _gemini_fetch_prices(models)
     if code:
-        # Nur der eigene Fehlercode ins Log, und der über `_billing_code_label`
-        # aus der festen Liste. `reason` — Googles Klartext — bleibt ganz
-        # draußen. Beides stammt aus der Antwort auf eine Anfrage mit dem
-        # Abrechnungs-Schlüssel und gehört damit nicht in eine Datei, die im
-        # Supportfall weitergereicht wird. Der Admin sieht beides weiterhin: es
-        # steht direkt darunter in der Antwort.
-        log.info("Preiskatalog abgelehnt (%s)", _billing_code_label(code))
+        # Der Preiskatalog wird mit dem Abrechnungs-Schlüssel abgefragt; alles,
+        # was aus dieser Antwort stammt, gehört nicht in eine Logdatei, die im
+        # Supportfall weitergereicht wird. Das gilt auch für `code`: er entsteht
+        # in `_billing_error` durch Nachschlagen mit einem Schlüssel aus Googles
+        # Antwort. Deshalb wird hier **kein** Wert übergeben, sondern die Meldung
+        # ausgewählt — was im Log landet, ist damit nachweislich fester Text.
+        # (Zwei sanftere Fassungen — Nachschlagen im Wörterbuch, Holen aus einer
+        # Konstantenliste — hat CodeQL beide weiterhin bemängelt; die Markierung
+        # überlebt jeden Umweg, der den Wert noch anfasst.)
+        # Der Admin bekommt Code und Klartextgrund unverändert in der Antwort.
+        if code == 'billing_disabled':
+            log.info("Preiskatalog abgelehnt: Abrechnung im Google-Projekt nicht aktiviert")
+        elif code == 'key_rejected':
+            log.info("Preiskatalog abgelehnt: Schlüssel zurückgewiesen")
+        elif code == 'service_not_found':
+            log.info("Preiskatalog abgelehnt: kein passender Dienst im Katalog")
+        else:
+            log.info("Preiskatalog abgelehnt")
         payload = {'error': code, 'reason': reason}
         if isinstance(result, dict):   # Diagnose auch im Fehlerfall mitgeben
             payload['service_count'] = result.get('service_count', 0)
