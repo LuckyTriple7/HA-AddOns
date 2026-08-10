@@ -133,8 +133,18 @@ _seen_comments_dirty = False
 # GitHub-Login des authentifizierten Nutzers (wird beim ersten Poll gesetzt)
 _gh_login: str = ''
 
-# Kommentar-Zähler für eigene PRs/Issues — erkennt neue Kommentare ohne extra API-Call
+# Kommentar-Zähler für eigene PRs/Issues — Grundlage der "Neuer Kommentar"-Meldung.
+# Persistent, sonst gilt nach jedem Neustart der Ist-Stand als bekannt und
+# Kommentare, die während des Neustarts kamen, lösen nie eine Meldung aus.
+_ACTIVITY_COMMENTS_PATH = _DATA + '/activity_comments.json'
 _activity_comment_counts: dict[str, int] = {}  # "repo#number" -> comment count
+
+# Kommentar-Panel: maximale Textlänge pro Kommentar und Anzahl gezeigter Kommentare
+_COMMENT_BODY_MAX = 2000
+_COMMENT_SHOW_MAX = 10
+
+# Höchstzahl fremder PRs pro Poll, für die Review-Status/Kommentarzahl nachgeladen wird
+_ACTIVITY_META_MAX = 40
 
 # Repos ohne Releases — 404 bekommen, 1h warten bevor erneut geprüft wird
 _NO_RELEASE_TTL = 3600
@@ -374,6 +384,29 @@ def save_seen_activity() -> None:
         log.warning("seen_activity konnte nicht gespeichert werden: %s", e)
 
 
+def load_activity_comment_counts() -> None:
+    global _activity_comment_counts
+    try:
+        with open(_ACTIVITY_COMMENTS_PATH) as f:
+            raw = json.load(f)
+        if isinstance(raw, dict):
+            _activity_comment_counts = {str(k): int(v) for k, v in raw.items()}
+        log.info("Kommentar-Zähler eigener Aktivität geladen: %d Einträge",
+                 len(_activity_comment_counts))
+    except FileNotFoundError:
+        pass
+    except Exception as e:
+        log.warning("activity_comments konnte nicht geladen werden: %s", e)
+
+
+def save_activity_comment_counts() -> None:
+    try:
+        with open(_ACTIVITY_COMMENTS_PATH, 'w') as f:
+            json.dump(_activity_comment_counts, f)
+    except Exception as e:
+        log.warning("activity_comments konnte nicht gespeichert werden: %s", e)
+
+
 def load_seen_comments() -> None:
     global _seen_comment_totals
     try:
@@ -554,8 +587,13 @@ def _check_token(token: str) -> tuple[bool, str, str]:
         return False, '', ''
 
 
-def _compute_review_state(reviews: list) -> str:
-    """Aggregiert Review-Entscheidungen: 'approved', 'changes_requested', 'pending', 'none'."""
+def _compute_review_state(reviews: list, requested: int = 0) -> str:
+    """Aggregiert Review-Entscheidungen: 'approved', 'changes_requested', 'pending', 'none'.
+
+    `requested` = Anzahl noch offener Review-Anfragen. GitHub zeigt einen PR auch
+    dann als "Review ausstehend", wenn noch niemand ein Review abgegeben hat, aber
+    Reviewer angefragt sind.
+    """
     latest: dict[str, str] = {}
     for rev in reviews:
         state = rev.get('state', '')
@@ -566,9 +604,15 @@ def _compute_review_state(reviews: list) -> str:
         return 'changes_requested'
     if 'APPROVED' in states:
         return 'approved'
-    if reviews:
+    if reviews or requested:
         return 'pending'
     return 'none'
+
+
+def _review_bodies_count(reviews: list) -> int:
+    """Reviews mit Text zählen — die tauchen im GitHub-Verlauf als Kommentar auf,
+    werden aber weder von `comments` noch von `review_comments` mitgezählt."""
+    return sum(1 for rev in reviews if (rev.get('body') or '').strip())
 
 
 def _fetch_repo_data(repo: str, token: str, run_limit: int = 25) -> dict:
@@ -585,7 +629,10 @@ def _fetch_repo_data(repo: str, token: str, run_limit: int = 25) -> dict:
         # mergeable_state liefert nur der Einzel-PR-Endpoint, nicht die Liste.
         # GitHub berechnet den Wert asynchron → beim ersten Abruf oft "unknown".
         pr_detail = _gh_get(f'/repos/{repo}/pulls/{pr["number"]}', token) or {}
-        _pr_cmts = (pr_detail.get('comments') or 0) + (pr_detail.get('review_comments') or 0)
+        _pr_reqs = pr_detail.get('requested_reviewers') or []
+        _pr_cmts = ((pr_detail.get('comments') or 0)
+                    + (pr_detail.get('review_comments') or 0)
+                    + _review_bodies_count(reviews_raw))
         pulls.append({
             'number':       pr['number'],
             'title':        pr['title'],
@@ -600,7 +647,8 @@ def _fetch_repo_data(repo: str, token: str, run_limit: int = 25) -> dict:
             'mergeable':    pr_detail.get('mergeable_state') or '',
             'comments':     _pr_cmts,
             'comments_new': _comments_new(repo, pr['number'], _pr_cmts),
-            'review_state': _compute_review_state(reviews_raw),
+            'review_state': _compute_review_state(reviews_raw, len(_pr_reqs)),
+            'reviewers':    [u.get('login', '') for u in _pr_reqs if u.get('login')],
             'body':         (pr.get('body') or '')[:1500],
         })
 
@@ -919,6 +967,27 @@ def _fetch_releases(repos: list[str], token: str, include_betas: bool) -> list[d
     return results
 
 
+def _pr_activity_meta(repo: str, number: int, token: str) -> dict:
+    """Review-Status und vollständige Kommentarzahl eines PRs in einem fremden Repo.
+
+    Die Search-API liefert nur `comments` (reine Issue-Kommentare). Review-Texte
+    und Inline-Review-Kommentare fehlen dort komplett — genau die, mit denen
+    Maintainer üblicherweise antworten. Beide Endpunkte laufen über `_gh_get`,
+    also mit ETag-Cache: unveränderte PRs kosten kein Rate-Limit-Kontingent.
+    """
+    detail  = _gh_get(f'/repos/{repo}/pulls/{number}', token) or {}
+    reviews = _gh_get(f'/repos/{repo}/pulls/{number}/reviews', token)
+    if not isinstance(reviews, list):
+        reviews = []
+    requested = detail.get('requested_reviewers') or []
+    return {
+        'review_state':   _compute_review_state(reviews, len(requested)),
+        'reviewers':      [u.get('login', '') for u in requested if u.get('login')],
+        'mergeable':      detail.get('mergeable_state') or '',
+        'extra_comments': _review_bodies_count(reviews) + (detail.get('review_comments') or 0),
+    }
+
+
 def _fetch_my_activity(login: str, token: str) -> dict:
     """Eigene offene PRs, Issues und Review-Requests via GitHub Search API."""
     if not login:
@@ -938,9 +1007,20 @@ def _fetch_my_activity(login: str, token: str) -> dict:
             log.error("my_activity search '%s': %s", q, e)
         return []
 
+    # Jeder PR kostet zwei Zusatzabfragen. Bei sehr vielen offenen PRs/Review-Anfragen
+    # wird gedeckelt, damit ein Poll nicht das Rate-Limit leerräumt — der Rest bleibt
+    # bei den Werten aus der Search-API.
+    _meta_budget = [_ACTIVITY_META_MAX]
+
     def _fmt(item: dict) -> dict:
-        _repo = item['repository_url'].removeprefix(f'{GITHUB_API}/repos/')
-        _cmts = item.get('comments', 0) or 0
+        _repo  = item['repository_url'].removeprefix(f'{GITHUB_API}/repos/')
+        _cmts  = item.get('comments', 0) or 0
+        _is_pr = 'pull_request' in item
+        _meta  = {}
+        if _is_pr and _meta_budget[0] > 0:
+            _meta_budget[0] -= 1
+            _meta = _pr_activity_meta(_repo, item['number'], token)
+        _cmts += _meta.get('extra_comments', 0)
         return {
             'number':   item['number'],
             'title':    item['title'],
@@ -952,6 +1032,10 @@ def _fetch_my_activity(login: str, token: str) -> dict:
             'created':  item['created_at'],
             'comments': _cmts,
             'comments_new': _comments_new(_repo, item['number'], _cmts),
+            'is_pr':        _is_pr,
+            'review_state': _meta.get('review_state', 'none'),
+            'reviewers':    _meta.get('reviewers', []),
+            'mergeable':    _meta.get('mergeable', ''),
             'labels':   [l['name'] for l in item.get('labels', [])],
             'body':     (item.get('body') or '')[:1000],
         }
@@ -1380,6 +1464,7 @@ def _do_poll(cfg: dict, token: str) -> None:
     # Eigene Aktivität (PRs + Issues die ich erstellt habe)
     activity = _fetch_my_activity(_gh_login, token)
     activity_changed = False
+    counts_changed   = False
     new_activity_comments = []
     all_items = [('pr', pr) for pr in activity['prs']] + [('issue', iss) for iss in activity['issues']]
     for kind, item in all_items:
@@ -1400,21 +1485,29 @@ def _do_poll(cfg: dict, token: str) -> None:
                         f"🐛 Neues eigenes Issue: <b>{item['repo']}</b>\n<a href=\"{item['url']}\">#I{item['number']} {item['title']}</a>",
                         f"Neues eigenes Issue: {item['repo']} #{item['number']} {item['title']}",
                         [f"Repo: <b>{item['repo']}</b>", f"Issue: <a href=\"{item['url']}\">#I{item['number']} {item['title']}</a>"])
-            prev_cnt = _activity_comment_counts.get(ckey)
-            if prev_cnt is not None and cnt > prev_cnt:
-                label = 'PR' if kind == 'pr' else 'Issue'
-                new_cnt = cnt - prev_cnt
-                _tg_em(cfg, tg_token, tg_chat, tg_notif, em_notif, 'my_activity',
-                    f"💬 Neuer Kommentar auf deinem {label}: <b>{item['repo']}</b>\n<a href=\"{item['url']}\">#PR{item['number']} {item['title']}</a>\n{new_cnt} neuer Kommentar{'e' if new_cnt > 1 else ''}",
-                    f"Neuer Kommentar auf {label} {item['repo']} #{item['number']}",
-                    [f"Repo: <b>{item['repo']}</b>", f"{label}: <a href=\"{item['url']}\">#PR{item['number']} {item['title']}</a>", f"{new_cnt} neuer Kommentar{'e' if new_cnt > 1 else ''}"])
-                new_activity_comments.append({'kind': kind, 'item': item, 'new_cnt': new_cnt})
         else:
             _seen_activity.add(key)
             activity_changed = True
-        _activity_comment_counts[ckey] = cnt
+        # Kommentar-Diff läuft auch beim ersten Poll nach einem Neustart: die
+        # Zähler sind persistent, ein unbekannter Eintrag (prev_cnt = None) wird
+        # still übernommen, ein gewachsener meldet sich.
+        prev_cnt = _activity_comment_counts.get(ckey)
+        if prev_cnt is not None and cnt > prev_cnt:
+            label = 'PR' if kind == 'pr' else 'Issue'
+            ref   = f"#PR{item['number']}" if kind == 'pr' else f"#I{item['number']}"
+            new_cnt = cnt - prev_cnt
+            _tg_em(cfg, tg_token, tg_chat, tg_notif, em_notif, 'my_activity',
+                f"💬 Neuer Kommentar auf deinem {label}: <b>{item['repo']}</b>\n<a href=\"{item['url']}\">{ref} {item['title']}</a>\n{new_cnt} neuer Kommentar{'e' if new_cnt > 1 else ''}",
+                f"Neuer Kommentar auf {label} {item['repo']} #{item['number']}",
+                [f"Repo: <b>{item['repo']}</b>", f"{label}: <a href=\"{item['url']}\">{ref} {item['title']}</a>", f"{new_cnt} neuer Kommentar{'e' if new_cnt > 1 else ''}"])
+            new_activity_comments.append({'kind': kind, 'item': item, 'new_cnt': new_cnt})
+        if _activity_comment_counts.get(ckey) != cnt:
+            _activity_comment_counts[ckey] = cnt
+            counts_changed = True
     if activity_changed:
         save_seen_activity()
+    if counts_changed:
+        save_activity_comment_counts()
 
     # Review-Requests: benachrichtigen wenn neue PRs zur Review angefragt wurden
     for rpr in activity.get('review_prs', []):
@@ -2229,11 +2322,25 @@ def api_comments():
         return jsonify({'error': 'unauthorized'}), 401
     repo   = request.args.get('repo', '').strip()
     number = request.args.get('number', '').strip()
+    is_pr  = request.args.get('type', '').strip().lower() == 'pr'
     if not repo or '/' not in repo or not number or not number.isdigit():
         return jsonify({'error': 'invalid params'}), 400
     token = load_config().get('github_token', '').strip()
     if not token:
         return jsonify({'error': 'no token'}), 400
+
+    def _entry(c: dict, kind: str, created_key: str = 'created_at', **extra) -> dict:
+        user = c.get('user') or {}
+        return {
+            'user':    user.get('login', '?'),
+            'avatar':  user.get('avatar_url', ''),
+            'body':    (c.get('body') or '')[:_COMMENT_BODY_MAX],
+            'created': c.get(created_key) or '',
+            'url':     c.get('html_url', ''),
+            'kind':    kind,
+            **extra,
+        }
+
     try:
         r = http.get(
             f'{GITHUB_API}/repos/{repo}/issues/{number}/comments',
@@ -2244,8 +2351,37 @@ def api_comments():
         _update_rate_limit(r.headers)
         if r.status_code != 200:
             return jsonify({'error': f'HTTP {r.status_code}'}), 502
-        all_comments = r.json() if isinstance(r.json(), list) else []
-        last3 = all_comments[-3:]
+        raw = r.json()
+        merged = [_entry(c, 'comment') for c in (raw if isinstance(raw, list) else [])]
+
+        # PRs: Review-Texte und Inline-Review-Kommentare hängen an eigenen
+        # Endpunkten. Ohne sie fehlt genau das, womit Maintainer antworten
+        # (z.B. ein "Changes requested" mit Begründung).
+        if is_pr:
+            for path, kind, ckey in (
+                (f'/repos/{repo}/pulls/{number}/reviews',  'review',         'submitted_at'),
+                (f'/repos/{repo}/pulls/{number}/comments', 'review_comment', 'created_at'),
+            ):
+                rr = http.get(f'{GITHUB_API}{path}', headers=_gh_headers(token),
+                              params={'per_page': 100}, timeout=15)
+                _update_rate_limit(rr.headers)
+                if rr.status_code != 200:
+                    continue
+                data = rr.json()
+                for c in (data if isinstance(data, list) else []):
+                    if kind == 'review':
+                        state = c.get('state', '')
+                        # Leere PENDING/COMMENTED-Reviews sind reine Container
+                        # für Inline-Kommentare — die kommen separat.
+                        if not (c.get('body') or '').strip() and state not in ('APPROVED', 'CHANGES_REQUESTED'):
+                            continue
+                        merged.append(_entry(c, kind, ckey, state=state))
+                    else:
+                        merged.append(_entry(c, kind, ckey, path=c.get('path') or ''))
+
+        merged.sort(key=lambda c: c['created'] or '')
+        shown_list = merged[-_COMMENT_SHOW_MAX:]
+
         # Panel geöffnet = gelesen. Bei PRs zählt die Übersicht zusätzlich die
         # Review-Kommentare mit, deshalb schickt das Frontend den angezeigten
         # Stand als "shown" mit — sonst bliebe die Ungelesen-Markierung hängen.
@@ -2253,19 +2389,8 @@ def api_comments():
             _shown = int(request.args.get('shown', '0'))
         except ValueError:
             _shown = 0
-        _mark_comments_read(repo, int(number), max(len(all_comments), _shown))
-        return jsonify({
-            'total': len(all_comments),
-            'comments': [
-                {
-                    'user':    c['user']['login'],
-                    'avatar':  c['user']['avatar_url'],
-                    'body':    (c.get('body') or '')[:500],
-                    'created': c['created_at'],
-                    'url':     c.get('html_url', ''),
-                } for c in last3
-            ],
-        })
+        _mark_comments_read(repo, int(number), max(len(merged), _shown))
+        return jsonify({'total': len(merged), 'comments': shown_list})
     except Exception:
         log.exception("Comments-Abfrage Fehler")
         return jsonify({'error': 'internal error'}), 500
@@ -3462,6 +3587,7 @@ if __name__ == '__main__':
     load_seen_releases()
     load_seen_activity()
     load_seen_comments()
+    load_activity_comment_counts()
 
     # Initiales Token-Ablauf-Warning
     cfg   = load_config()
