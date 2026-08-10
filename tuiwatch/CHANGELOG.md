@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.89.6] - 2026-08-10
+
+### Added
+- **STR-Flugdetails: Link „Live-Position auf planefinder.net"** im
+  Detail-Popup — direkt neben den adsbdb-Infos, unabhängig von deren
+  Ladezustand nutzbar. (Live-Lookup über OpenSky wurde geprüft: kein
+  `callsign`-Filter im API, TUIfly sendet als Charter-Airline zudem
+  Rotations-Callsigns ohne erkennbaren Bezug zur Flugnummer — für einen
+  Fahrplan-Browser nicht sinnvoll konstruierbar, siehe Konsolen-Diskussion.)
+
 ## [0.89.5] - 2026-08-10
 
 ### Fixed

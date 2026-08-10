@@ -1800,6 +1800,12 @@
       const r = strfLastRows[i];
       if(!r) return;
       $('#strf-detail-title').textContent = '✈️ ' + (r.airline_name || r.airline_code) + ' ' + r.flight_no;
+      // Live-Link steht sofort, unabhängig vom adsbdb-Ladezustand — planefinder
+      // erwartet IATA-Airline-Code + Flugnummer ohne Trennzeichen (z. B. "X34715").
+      const pfCode = (r.airline_code||'') + (r.flight_no||'');
+      $('#strf-detail-live').innerHTML = pfCode
+        ? `<a href="https://planefinder.net/data/flight/${encodeURIComponent(pfCode)}" target="_blank" rel="noopener">🛰 Live-Position auf planefinder.net</a>`
+        : '';
       $('#strf-detail-body').innerHTML = progBar('Lade Flugdetails…');
       $('#strf-detail-bg').style.zIndex = 60;
       $('#strf-detail-bg').classList.add('show');
