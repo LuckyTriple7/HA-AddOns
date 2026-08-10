@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.88.1] - 2026-08-10
+## [0.89.0] - 2026-08-10
 
 ### Added
 - **Flugplan ab Stuttgart Airport (STR)** (neuer ✈️-Knopf in der Kopfzeile,
