@@ -149,7 +149,7 @@
       {% endif %}
     </div>
 
-    {% if hero_img %}<img class="entry-hero" src="{{ hero_img }}" alt="">{% endif %}
+    {% if hero_img %}<img class="entry-hero" src="{{ hero_img }}" alt="{{ alt_for(hero_img) }}">{% endif %}
     <div class="page-content">{{ body_html|safe }}</div>
     {% if locked %}<div id="locked-box">{% include '_locked.html' %}</div>{% endif %}
 

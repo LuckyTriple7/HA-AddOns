@@ -98,7 +98,7 @@
     <div class="trav-grid">
       {% for tr in trips %}
       <a class="trav-card" href="/reiseblog/{{ tr.slug }}">
-        {% if tr.image %}<img class="trav-thumb" src="{{ tr.image }}" alt="" loading="lazy">{% endif %}
+        {% if tr.image %}<img class="trav-thumb" src="{{ tr.image }}" alt="{{ alt_for(tr.image) }}" loading="lazy">{% endif %}
         <div class="trav-body">
           {% if tr.destination %}<div class="trav-dest">📍 {{ tr.destination }}</div>{% endif %}
           <div class="trav-name">{{ tr.name }}</div>

@@ -140,7 +140,7 @@
       {% if members_only %}<span class="fact">🔒 {{ t.members_only_badge }}</span>{% endif %}
     </div>
 
-    {% if day.image and not locked %}<img class="day-hero" src="{{ day.image }}" alt="">{% endif %}
+    {% if day.image and not locked %}<img class="day-hero" src="{{ day.image }}" alt="{{ alt_for(day.image) }}">{% endif %}
     <div class="page-content">{{ body_html|safe }}</div>
     {% if locked %}<div id="locked-box">{% include '_locked.html' %}</div>{% endif %}
 

@@ -116,6 +116,7 @@ USERS_PATH    = _DATA + '/users.json'
 AI_USAGE_PATH = _DATA + '/ai_usage.json'   # Gemini-Verbrauch je Monat und Modell
 AI_DRAFTS_PATH = _DATA + '/ai_drafts.json'  # gespeicherte Entwürfe des Text-Studios
 AI_PROMPTS_PATH = _DATA + '/ai_prompts.json'  # Prompt-Bibliothek des Bild-Studios
+UPLOADS_META_PATH = _DATA + '/uploads_meta.json'  # Alternativtexte je Bilddatei
 USESSIONS_PATH = _DATA + '/user_sessions.json'
 DM_PATH       = _DATA + '/dm.json'          # Mitglieder-Direktnachrichten (Text verschlüsselt)
 DMKEY_PATH    = _DATA + '/dm.key'           # Fernet-Schlüssel für die DM-Verschlüsselung
@@ -266,6 +267,7 @@ _polls_lock = threading.Lock()
 _travel_lock = threading.Lock()
 _ai_drafts_lock = threading.Lock()
 _ai_prompts_lock = threading.Lock()
+_uploads_meta_lock = threading.Lock()
 
 # Mitglieder-Sessions (getrennt vom Admin)
 user_sessions: dict[str, list] = {}  # token → [user_id, expires]
@@ -477,9 +479,99 @@ DEFAULT_SITE = {
 SECTION_KEYS = list(DEFAULT_SITE['section_order'])
 
 
-def render_md(text: str) -> str:
+# ── Alternativtexte der Bilder ────────────────────────────────────────────────
+#
+# Ein Bild ohne Alternativtext ist für Screenreader und Suchmaschinen nicht da.
+# Die Texte hängen an der Datei, nicht am Beitrag: dasselbe Bild kann in Beitrag,
+# Projekt und Bibliothek stecken und beschreibt dabei immer dasselbe.
+#
+# WICHTIG: `uploads_meta.json` gehört NICHT in `_reference_blob()`. Sonst gälte
+# jede Datei mit Alternativtext als benutzt und „Speicher aufräumen" fände nie
+# wieder eine Waise.
+
+def _uploads_meta_load() -> dict:
+    with _uploads_meta_lock:
+        try:
+            with open(UPLOADS_META_PATH, encoding='utf-8') as f:
+                data = json.load(f)
+        except FileNotFoundError:
+            return {}
+        except Exception as e:
+            _quarantine_corrupt(UPLOADS_META_PATH, e)
+            return {}
+    alts = data.get('alts') if isinstance(data, dict) else None
+    return {k: v for k, v in alts.items() if isinstance(v, dict)} if isinstance(alts, dict) else {}
+
+
+def _uploads_meta_save(alts: dict) -> bool:
+    with _uploads_meta_lock:
+        try:
+            _atomic_write_json(UPLOADS_META_PATH, {'alts': alts}, indent=2)
+            return True
+        except Exception as e:
+            log.error("uploads_meta.json konnte nicht gespeichert werden: %s", e)
+            return False
+
+
+def _uploads_meta_forget(names) -> None:
+    """Einträge gelöschter Dateien mitnehmen — sonst wächst die Ablage ewig."""
+    names = {n for n in names if n}
+    if not names:
+        return
+    alts = _uploads_meta_load()
+    rest = {k: v for k, v in alts.items() if k not in names}
+    if len(rest) != len(alts):
+        _uploads_meta_save(rest)
+
+
+def _req_lang() -> str:
+    """Sprache der laufenden Anfrage, leer außerhalb eines Anfragekontexts
+    (statischer Export, Hintergrundaufgaben)."""
+    try:
+        return detect_language(request)
+    except Exception:
+        return ''
+
+
+def alt_for(url: str, lang: str = '', fallback: str = '') -> str:
+    """Alternativtext zu einer Upload-Adresse.
+
+    Fehlt die gewünschte Sprache, gilt die andere: ein deutscher Text ist für
+    einen Screenreader immer noch besser als gar keiner. Erst danach greift der
+    Rückfall, den die Vorlage mitgibt (meist der Titel).
+    """
+    name = (url or '').strip().rsplit('/', 1)[-1]
+    entry = _uploads_meta_load().get(name) or {}
+    lang = lang or _req_lang() or 'de'
+    other = 'en' if lang == 'de' else 'de'
+    return (entry.get(lang) or entry.get(other) or fallback or '').strip()
+
+
+# Markdown erzeugt für `![](…)` ein leeres alt. Genau die werden nachgefüllt —
+# ein selbst geschriebener Text bleibt unangetastet.
+_IMG_TAG_RE = re.compile(r'<img\b[^>]*>', re.I)
+_IMG_SRC_RE = re.compile(r'src="([^"]*)"', re.I)
+
+
+def _fill_img_alts(html: str, lang: str) -> str:
+    if 'alt=""' not in html:
+        return html
+
+    def one(m):
+        tag = m.group(0)
+        src = _IMG_SRC_RE.search(tag)
+        if 'alt=""' not in tag or not src:
+            return tag
+        alt = alt_for(src.group(1), lang)
+        return tag.replace('alt=""', 'alt="' + html_mod.escape(alt, quote=True) + '"', 1) if alt else tag
+
+    return _IMG_TAG_RE.sub(one, html)
+
+
+def render_md(text: str, lang: str = '') -> str:
     """Markdown → HTML (Inhalte stammen ausschließlich vom Admin)."""
-    return md_lib.markdown(text or '', extensions=['nl2br', 'sane_lists', 'tables', 'fenced_code'])
+    out = md_lib.markdown(text or '', extensions=['nl2br', 'sane_lists', 'tables', 'fenced_code'])
+    return _fill_img_alts(out, lang or _req_lang())
 
 
 # Tags, die `render_md` erzeugen kann. Bewusst eine Liste statt `<[^>]+>`: der
@@ -629,8 +721,10 @@ def parse_video(url: str) -> tuple[str, str]:
 
 public_app.jinja_env.globals['parse_video'] = parse_video
 public_app.jinja_env.globals['render_md'] = render_md
+public_app.jinja_env.globals['alt_for'] = alt_for
 
 # Admin-App rendert öffentliche Templates (z. B. Blog-Vorschau) — dieselben Globals bereitstellen
+admin_app.jinja_env.globals['alt_for'] = alt_for
 admin_app.jinja_env.globals['parse_video'] = parse_video
 admin_app.jinja_env.globals['render_md'] = render_md
 admin_app.jinja_env.globals['link_platform'] = link_platform
@@ -4574,7 +4668,7 @@ def write_backup_zip(fp) -> None:
                      'comments.json', 'audit.json', 'subscribers.json',
                      'dm.json', 'dm.key', 'admin_2fa.json', 'secret.key',
                      'ai_usage.json', 'travel.json', 'ai_drafts.json',
-                     'ai_prompts.json'):
+                     'ai_prompts.json', 'uploads_meta.json'):
             p = Path(_DATA) / name
             if p.is_file():
                 z.write(p, name)
@@ -4772,7 +4866,8 @@ def api_restore():
                 if member in ('site.json', 'stats.json', 'messages.json', 'users.json',
                               'comments.json', 'audit.json', 'subscribers.json', 'dm.json',
                               'admin_2fa.json', 'ai_usage.json', 'travel.json',
-                              'ai_drafts.json', 'ai_prompts.json'):
+                              'ai_drafts.json', 'ai_prompts.json',
+                              'uploads_meta.json'):
                     target = safe_under(Path(_DATA), member)
                 elif member in ('dm.key', 'secret.key'):  # Binär-/Text-Schlüssel, kein JSON
                     target = safe_under(Path(_DATA), member)
@@ -5040,6 +5135,7 @@ AI_TEXT_NOTE_MAX = 500
 AI_INSTRUCTIONS_MAX = 800           # Dauervorgaben, hängen an jedem Textlauf
 AI_DRAFTS_MAX = 200                 # ältester Entwurf fliegt raus, wenn voll
 AI_PROMPTS_MAX = 100                # dasselbe für die Prompt-Bibliothek
+UPLOAD_ALT_MAX = 300                # Alternativtext je Sprache; 125 sind empfohlen
 # Ein gespeichertes Vorlagenbild ist eine eigene Upload-Adresse und nichts
 # anderes — der Wert landet im Browser in einem <img src> und in einer Anfrage.
 _UPLOAD_PATH_RE = re.compile(r'^/uploads/[A-Za-z0-9._-]+$')
@@ -6155,6 +6251,62 @@ def _ai_revise_parts(*, kind: str, tone: str, topic: str, action: str, note: str
             f"Text:\n{d.get('text', '')}"
         )
     return parts
+
+
+def _gemini_image_alt(ref: tuple[bytes, str], *, model: str
+                      ) -> tuple[dict | None, str, str]:
+    """Alternativtext zu einem Bild — deutsch und englisch in einem Aufruf.
+
+    Bewusst knapp gehalten: ein Alternativtext beschreibt, was zu sehen ist, und
+    ist keine Bildunterschrift. Zu lange Texte sind für Screenreader schlimmer
+    als zu kurze.
+    """
+    sys = ("Du schreibst Alternativtexte (alt-Attribute) für Bilder einer Website. "
+           "Beschreibe sachlich, was zu sehen ist — höchstens 125 Zeichen je Sprache, "
+           "ein Satz ohne Punkt am Ende. Keine Einleitung wie 'Bild von' oder 'Foto zeigt', "
+           "keine Vermutungen über Namen, Orte oder Marken, keine Deutung der Stimmung. "
+           "Steht Text im Bild und trägt er die Aussage, gib ihn wieder.")
+    schema = genai_types.Schema(
+        type=genai_types.Type.OBJECT,
+        properties={'de': genai_types.Schema(type=genai_types.Type.STRING),
+                    'en': genai_types.Schema(type=genai_types.Type.STRING)},
+        required=['de', 'en'],
+    )
+    try:
+        client = _gemini_client()
+        resp = client.models.generate_content(
+            model=model,
+            contents=[genai_types.Part.from_bytes(data=ref[0], mime_type=ref[1]),
+                      'Schreibe den Alternativtext auf Deutsch (de) und auf Englisch (en).'],
+            config=genai_types.GenerateContentConfig(
+                system_instruction=sys,
+                response_mime_type='application/json',
+                response_schema=schema,
+                http_options=genai_types.HttpOptions(timeout=GEMINI_TEXT_TIMEOUT_MS),
+            ),
+        )
+        _ai_usage_record(model, resp)
+        cands = resp.candidates or []
+        finish = cands[0].finish_reason if cands else None
+        reason = getattr(finish, 'name', None) or (str(finish) if finish else '')
+        if finish in _GEMINI_TEXT_REFUSALS:
+            log.info("Gemini hat den Alternativtext abgelehnt: %s", finish)
+            return None, 'refused', reason
+        data = json.loads(resp.text or '')
+        if not isinstance(data, dict):
+            return None, 'empty', reason
+    except genai_errors.APIError as e:
+        code = getattr(e, 'code', None)
+        log.warning("Alternativtext fehlgeschlagen (%s): Status %s", model, code or type(e).__name__)
+        return (None, ('model_missing' if code == 404 else 'failed'),
+                f'HTTP {code}' if code else '')
+    except Exception as e:
+        log.error("Alternativtext (%s) unerwartet fehlgeschlagen: %s", model, type(e).__name__)
+        return None, 'failed', type(e).__name__
+    out = {lg: _clean_str(data.get(lg), UPLOAD_ALT_MAX) for lg in ('de', 'en')}
+    if not (out['de'] or out['en']):
+        return None, 'empty', reason
+    return out, '', ''
 
 
 def _ai_text_schema(langs: list[str]):
@@ -8097,6 +8249,7 @@ def api_uploads_list():
     if err:
         return err
     blob = _reference_blob(load_site())
+    alts = _uploads_meta_load()
     files = []
     for f in UPLOADS_DIR.iterdir():
         if not f.is_file() or f.suffix.lower() not in ALLOWED_UPLOAD_EXT:
@@ -8107,8 +8260,10 @@ def api_uploads_list():
             continue
         if st.st_size <= 0:
             continue    # abgebrochener Upload — gäbe nur eine kaputte Kachel
+        a = alts.get(f.name) or {}
         files.append({'url': '/uploads/' + f.name, 'size': st.st_size,
                       'mtime': int(st.st_mtime), 'used': f.name in blob,
+                      'alt_de': a.get('de', ''), 'alt_en': a.get('en', ''),
                       # Marker steckt im Dateinamen (siehe _store_upload_image) —
                       # damit lässt sich die Galerie auf KI-Bilder eingrenzen
                       'ai': f.stem.endswith(AI_IMAGE_SUFFIX)})
@@ -8237,13 +8392,15 @@ def _unused_docs(site: dict):
 
 def _cleanup_dir(orphans, total, audit_tag: str):
     """Waisen löschen und das Ergebnis als JSON-Antwort zurückgeben."""
-    removed = 0
+    removed, gone = 0, []
     for f in orphans:
         try:
             f.unlink()
             removed += 1
+            gone.append(f.name)
         except OSError as e:
             log.warning("Aufräumen: %s konnte nicht gelöscht werden: %s", f.name, e)
+    _uploads_meta_forget(gone)
     if removed:
         log_audit(audit_tag, f'{removed} Datei(en)')
     return jsonify({'ok': True, 'removed': removed, 'freed_mb': round(total / 1048576, 1)})
@@ -8283,8 +8440,61 @@ def api_uploads_delete():
     except OSError as e:
         log.warning("Bild '%s' konnte nicht gelöscht werden: %s", name, e)
         return jsonify({'error': 'delete_failed'}), 500
+    _uploads_meta_forget([name])
     log_audit('upload_delete', name)
     return jsonify({'ok': True})
+
+
+@admin_app.route('/api/uploads/alts', methods=['POST'])
+def api_uploads_alts():
+    """Alternativtexte in einem Rutsch speichern.
+
+    Der Editor schickt nur die geänderten Zeilen; ein leerer Text löscht den
+    Eintrag, damit die Ablage nicht mit leeren Feldern zuwächst.
+    """
+    err = _api_auth()
+    if err:
+        return err
+    raw = (request.get_json(silent=True) or {}).get('alts')
+    if not isinstance(raw, dict):
+        return jsonify({'error': 'invalid'}), 400
+    alts = _uploads_meta_load()
+    for key, val in list(raw.items())[:UPLOADS_LIST_MAX]:
+        name = Path(_clean_str(key, 120)).name
+        if not name or Path(name).suffix.lower() not in ALLOWED_UPLOAD_EXT:
+            continue
+        val = val if isinstance(val, dict) else {}
+        entry = {lg: _clean_str(val.get(lg), UPLOAD_ALT_MAX) for lg in ('de', 'en')}
+        if entry['de'] or entry['en']:
+            alts[name] = entry
+        else:
+            alts.pop(name, None)
+    if not _uploads_meta_save(alts):
+        return jsonify({'error': 'save_failed'}), 500
+    return jsonify({'ok': True, 'count': len(alts)})
+
+
+@admin_app.route('/api/ai/alt', methods=['POST'])
+def api_ai_alt():
+    """Alternativtext aus dem Bild selbst — dieselbe Anfrage liefert DE und EN."""
+    err = _api_auth()
+    if err:
+        return err
+    if not gemini_text_enabled():
+        return jsonify({'error': 'no_api_key'}), 400
+    name = Path(_clean_str((request.get_json(silent=True) or {}).get('name'), 120)).name
+    ref = _ai_ref_image('/uploads/' + name) if name else None
+    if ref is None:
+        return jsonify({'error': 'bad_ref'}), 400
+    model = _ai_model_or((request.get_json(silent=True) or {}).get('model'), _gemini_text_model())
+    if not _ai_rate_take(_ai_text_times, AI_TEXT_MAX_PER_HOUR):
+        return jsonify({'error': 'rate_limited'}), 429
+    data, code, detail = _gemini_image_alt(ref, model=model)
+    if code:
+        return jsonify({'error': _AI_ERRORS.get(code, 'ai_failed'),
+                        'detail': detail, 'model': model}), 502
+    log.info("Alternativtext erzeugt (%s)", model)
+    return jsonify({'ok': True, 'alt': data})
 
 
 @admin_app.route('/api/uploads/cleanup', methods=['POST'])

@@ -95,7 +95,7 @@
       {% if p.repo_url %}<a href="{{ p.repo_url }}" target="_blank" rel="noopener">GitHub</a>{% endif %}
     </div>
     {% endif %}
-    {% if p.image %}<img class="hero-img" src="{{ p.image }}" alt="{{ p.title }}">{% endif %}
+    {% if p.image %}<img class="hero-img" src="{{ p.image }}" alt="{{ alt_for(p.image, '', p.title) }}">{% endif %}
     {% set vp = parse_video(p.video) %}
     {% if vp[1] %}
     <div class="video-embed" data-src="{{ vp[1] }}" onclick="loadVideo(this)">
@@ -107,7 +107,7 @@
     {% elif loc(p, 'desc') %}<div class="long"><p>{{ loc(p, 'desc') }}</p></div>{% endif %}
     {% if p.gallery %}
     <div class="gallery">
-      {% for img in p.gallery %}<img src="{{ img }}" alt="" loading="lazy" onclick="openLightbox(this.src)">{% endfor %}
+      {% for img in p.gallery %}<img src="{{ img }}" alt="{{ alt_for(img) }}" loading="lazy" onclick="openLightbox(this.src)">{% endfor %}
     </div>
     {% endif %}
     {% include '_share.html' %}

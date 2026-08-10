@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.10.21
+- 🏷️ **Alternativtexte für Bilder — bisher hatte MyPage gar keine.** Jedes hochgeladene Bild ging ohne `alt` nach draußen: für Screenreader nicht vorhanden, für Suchmaschinen stumm. Im Tab **System** steht unter dem Datei-Browser jetzt je Bild ein Feld für Deutsch und Englisch; standardmäßig sind nur die Bilder ohne Text eingeblendet.
+- 🔗 **Der Text hängt an der Datei, nicht am Beitrag** — dasselbe Bild zeigt in Beitrag, Projekt und Bibliothek dasselbe. Er wirkt bei Titelbildern und Galerien in Beiträgen, Projekten, Bibliothek, Reiseblog und auf der Startseite. In Markdown füllt er nur leere Klammern: `![](…)` bekommt ihn, `![eigener Text](…)` behält deinen. Fehlt die gewünschte Sprache, gilt die andere.
+- ✦ **Mit Gemini erzeugen:** je Bild ein KI-Knopf, dazu „Alle fehlenden erzeugen" (der Reihe nach, wegen des Stundenlimits). Der Vorschlag landet erst im Feld und wird mit „Speichern" übernommen — ein danebengegangener lässt sich vorher ändern. Der Prompt hält die Texte kurz und sachlich: keine Einleitung wie „Bild von", keine Vermutungen über Namen oder Orte.
+- 🗄️ Gespeichert in `uploads_meta.json`, **im Backup und in der Wiederherstellung enthalten**. Wird ein Bild gelöscht oder weggeräumt, verschwindet sein Alternativtext mit. Umgekehrt schützt ein Alternativtext eine Datei **nicht** vor dem Aufräumen — sonst fände „Ungenutzte Bilder aufräumen" nie wieder eine Waise.
+
 ## 0.10.20
 - 📥 **Vorhandene Texte lassen sich ins Studio holen.** Bisher ging es nur in eine Richtung: erzeugen und übernehmen. Wer einen alten Beitrag überarbeiten, ihm die englische Fassung nachziehen oder eine SEO-Beschreibung nachtragen wollte, musste kopieren. Die Auswahl oben im Text-Studio listet **alle Blogbeiträge, Projekte und Bibliothek-Einträge**; „Laden" füllt die Ergebnisfelder, Textart und Sprachwahl stellen sich passend ein.
 - 🔒 **Das Original bleibt unangetastet.** Zurückgeschrieben wird erst über „Übernehmen", und dabei entsteht ein neuer Eintrag — der alte wird nicht ersetzt. Ein geöffneter Entwurf wird beim Laden gelöst, damit Speichern nichts Fremdes überschreibt; „↶ Vorherige Fassung" macht das Laden rückgängig.

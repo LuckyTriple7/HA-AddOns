@@ -1,7 +1,7 @@
 {% if cd and cd.target %}
 <section class="countdown" id="countdown" data-target="{{ cd.target }}" data-size="{{ cd.size or 'm' }}">
   <h2 class="section-title cd-h">{{ loc(cd, 'title') or t.countdown_heading }}</h2>
-  {% if cd.image %}<img class="cd-image" src="{{ cd.image }}" alt="" loading="lazy">{% endif %}
+  {% if cd.image %}<img class="cd-image" src="{{ cd.image }}" alt="{{ alt_for(cd.image) }}" loading="lazy">{% endif %}
   {% if loc(cd, 'subtitle') %}<p class="cd-subtitle">{{ loc(cd, 'subtitle') }}</p>{% endif %}
   <div class="cd-grid">
     <div class="cd-tile"><span class="cd-num" data-cd="d">--</span><span class="cd-label">{{ t.countdown_days }}</span></div>

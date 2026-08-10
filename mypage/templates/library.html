@@ -151,7 +151,7 @@
     <div class="lib-grid">
       {% for e in entries %}
       <a class="lib-card" href="/bibliothek/{{ e.slug }}">
-        {% if e.image %}<img class="lib-thumb" src="{{ e.image }}" alt="" loading="lazy">{% endif %}
+        {% if e.image %}<img class="lib-thumb" src="{{ e.image }}" alt="{{ alt_for(e.image) }}" loading="lazy">{% endif %}
         <div class="lib-body">
           {% if e.cat_name %}<div class="lib-cat">{% if e.cat_icon %}{{ e.cat_icon }} {% endif %}{{ e.cat_name }}</div>{% endif %}
           <div class="lib-name">{{ e.title }}</div>

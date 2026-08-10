@@ -1780,6 +1780,20 @@
         <div class="uploads-grid" id="files-doc-grid"></div>
       </div>
       <div class="panel">
+        <h3>🏷️ {{ t.alts_heading }}</h3>
+        <p class="hint">{{ t.alts_hint }}</p>
+        <div class="upload-row">
+          <label class="checkbox" style="margin:0"><input type="checkbox" id="alts-missing-only" checked onchange="renderAltEditor()"> {{ t.alts_missing_only }}</label>
+          <span class="hint" id="alts-info" style="margin:0"></span>
+        </div>
+        <div id="alts-list" style="margin-top:12px"></div>
+        <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <button class="btn" id="alts-save" onclick="saveAlts(this)">{{ t.save }}</button>
+          <button class="btn secondary" id="alts-ai-all" style="display:none" onclick="altAiAll(this)">✦ {{ t.alts_ai_all }}</button>
+          <span class="hint" id="alts-ai-info" style="margin:0"></span>
+        </div>
+      </div>
+      <div class="panel">
         <h3>{{ t.redirects_heading }}</h3>
         <p class="hint">{{ t.redirects_hint }}</p>
         <div id="redirect-list"></div>
@@ -5412,6 +5426,7 @@
       FILES.images = ri.ok ? (await ri.json()).files : [];
       FILES.docs = rd.ok ? (await rd.json()).files : [];
       renderFileBrowser();
+      renderAltEditor();
     }
     function fileTile(inner, title, onOpen, onDelete) {
       const b = document.createElement('button');
@@ -5449,6 +5464,134 @@
         () => window.open('api/docs/file/' + encodeURIComponent(f.name), '_blank', 'noopener'),
         () => deleteFile('api/docs/delete', f.name, f.used))));
     }
+    // ── Alternativtexte ──
+    // Ein Bild ohne Alternativtext ist für Screenreader nicht vorhanden und für
+    // Suchmaschinen stumm. Die Texte hängen an der Datei, nicht am Beitrag:
+    // dasselbe Bild zeigt überall dasselbe. Bearbeiten geht immer, der
+    // KI-Knopf erscheint nur mit Textmodell.
+    const ALT_ROWS = new Map();   // Dateiname -> {de, en}, nur die geänderten
+    function altsFiles() {
+      return FILES.images.filter(f => !el('alts-missing-only').checked
+                                      || !(f.alt_de || f.alt_en));
+    }
+    function renderAltEditor() {
+      const box = el('alts-list');
+      box.innerHTML = '';
+      const rows = altsFiles();
+      const missing = FILES.images.filter(f => !(f.alt_de || f.alt_en)).length;
+      el('alts-info').textContent = T.alts_info
+        .replace('{n}', FILES.images.length).replace('{m}', missing);
+      el('alts-ai-all').style.display = (AI_STATUS && AI_STATUS.text && missing) ? '' : 'none';
+      if (!rows.length) {
+        const p = document.createElement('p');
+        p.className = 'hint';
+        p.textContent = missing ? T.alts_none : T.alts_all_done;
+        box.appendChild(p);
+        return;
+      }
+      rows.slice(0, 100).forEach(f => box.appendChild(altRow(f)));
+      if (rows.length > 100) {
+        const p = document.createElement('p');
+        p.className = 'hint';
+        p.textContent = T.alts_capped.replace('{n}', rows.length);
+        box.appendChild(p);
+      }
+    }
+    function altRow(f) {
+      const name = f.url.split('/').pop();
+      const item = document.createElement('div');
+      item.className = 'proj-item';
+      item.style.alignItems = 'flex-start';
+      const img = document.createElement('img');
+      img.src = assetUrl(f.url);
+      img.alt = '';
+      img.loading = 'lazy';
+      img.style.cssText = 'width:74px;height:56px;object-fit:cover;border-radius:6px;flex:0 0 auto';
+      const info = document.createElement('div');
+      info.className = 'proj-info';
+      ['de', 'en'].forEach(lg => {
+        const lab = document.createElement('label');
+        lab.textContent = T['alts_' + lg];
+        lab.style.marginTop = lg === 'en' ? '6px' : '0';
+        const inp = document.createElement('input');
+        inp.type = 'text';
+        inp.maxLength = 300;
+        inp.value = f['alt_' + lg] || '';
+        inp.dataset.name = name;
+        inp.dataset.lang = lg;
+        inp.oninput = () => {
+          const cur = ALT_ROWS.get(name) || { de: f.alt_de || '', en: f.alt_en || '' };
+          cur[lg] = inp.value;
+          ALT_ROWS.set(name, cur);
+        };
+        info.append(lab, inp);
+      });
+      const acts = document.createElement('div');
+      acts.className = 'proj-actions';
+      if (AI_STATUS && AI_STATUS.text) {
+        const ai = document.createElement('button');
+        ai.className = 'btn secondary small';
+        ai.textContent = '✦ ' + T.alts_ai;
+        ai.onclick = () => altAi(name, ai, info);
+        acts.appendChild(ai);
+      }
+      item.append(img, info, acts);
+      return item;
+    }
+    // Trägt das Ergebnis direkt in die Felder ein, gespeichert wird erst mit
+    // „Speichern" — so bleibt ein danebengegangener Vorschlag korrigierbar.
+    async function altAi(name, btn, info) {
+      btn.disabled = true;
+      let r = null;
+      try { r = await apiJson('api/ai/alt', 'POST', { name, model: el('ai-text-model').value }); }
+      catch (e) { /* Netzfehler */ }
+      btn.disabled = false;
+      const d = r ? await r.json().catch(() => ({})) : {};
+      if (!r || !r.ok) { toast(aiErrMsg(d.error, d.model, d.detail), true); return false; }
+      const cur = ALT_ROWS.get(name) || { de: '', en: '' };
+      ['de', 'en'].forEach(lg => {
+        cur[lg] = (d.alt || {})[lg] || '';
+        const inp = info.querySelector('input[data-lang="' + lg + '"]');
+        if (inp) inp.value = cur[lg];
+      });
+      ALT_ROWS.set(name, cur);
+      refreshAiStatus();
+      return true;
+    }
+    // Der Reihe nach, nicht parallel: das Stundenlimit gilt add-on-weit, und
+    // zwanzig gleichzeitige Anfragen liefen ihm direkt ins Messer.
+    async function altAiAll(btn) {
+      const rows = FILES.images.filter(f => !(f.alt_de || f.alt_en));
+      if (!rows.length) return;
+      if (!confirm(T.alts_ai_all_confirm.replace('{n}', rows.length))) return;
+      btn.disabled = true;
+      let done = 0;
+      for (const f of rows) {
+        const name = f.url.split('/').pop();
+        const info = el('alts-list').querySelector('input[data-name="' + CSS.escape(name) + '"]');
+        el('alts-ai-info').textContent = T.alts_ai_running
+          .replace('{i}', done + 1).replace('{n}', rows.length);
+        if (!await altAi(name, btn, info ? info.parentNode : document.createElement('div'))) break;
+        done++;
+      }
+      btn.disabled = false;
+      el('alts-ai-info').textContent = T.alts_ai_done.replace('{n}', done);
+      if (done) saveAlts(el('alts-save'));
+    }
+    async function saveAlts(btn) {
+      if (!ALT_ROWS.size) { toast(T.alts_nothing, true); return; }
+      const alts = {};
+      ALT_ROWS.forEach((v, k) => { alts[k] = v; });
+      btn.disabled = true;
+      let r = null;
+      try { r = await apiJson('api/uploads/alts', 'POST', { alts }); } catch (e) { /* Netzfehler */ }
+      btn.disabled = false;
+      if (!r || !r.ok) { toast(T.error_save, true); return; }
+      ALT_ROWS.clear();
+      toast(T.saved);
+      loadFileBrowser();
+    }
+
     async function deleteFile(path, name, used) {
       if (used && !confirm(T.files_del_used_confirm)) return;
       if (!confirm(T.files_del_confirm.replace('{v}', name))) return;

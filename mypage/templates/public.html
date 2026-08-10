@@ -737,7 +737,7 @@
       <div class="lib-rail" id="lib-rail">
         {% for le in library_entries %}
         <a class="lib-card" href="/bibliothek/{{ le.slug }}" data-tags="{{ le.tags|map('lower')|join('|') }}">
-          {% if le.image %}<img class="lib-thumb" src="{{ le.image }}" alt="" loading="lazy">{% endif %}
+          {% if le.image %}<img class="lib-thumb" src="{{ le.image }}" alt="{{ alt_for(le.image) }}" loading="lazy">{% endif %}
           <div class="lib-body">
             {% if le.cat_name %}<div class="lib-cat">{% if le.cat_icon %}{{ le.cat_icon }} {% endif %}{{ le.cat_name }}</div>{% endif %}
             <div class="lib-name">{{ le.title }}</div>
@@ -763,7 +763,7 @@
     <div class="trav-grid">
       {% for tr in travel_trips %}
       <a class="lib-card" href="/reiseblog/{{ tr.slug }}">
-        {% if tr.image %}<img class="lib-thumb" src="{{ tr.image }}" alt="" loading="lazy">{% endif %}
+        {% if tr.image %}<img class="lib-thumb" src="{{ tr.image }}" alt="{{ alt_for(tr.image) }}" loading="lazy">{% endif %}
         <div class="lib-body">
           {% if tr.destination %}<div class="lib-cat">📍 {{ tr.destination }}</div>{% endif %}
           <div class="lib-name">{{ tr.name }}</div>
@@ -835,8 +835,8 @@
       {% for p in projects %}
       <article class="row-item">
         {% if p.image %}
-          {% if p.has_detail %}<a href="/p/{{ p.id }}"><img class="row-img" src="{{ p.image }}" alt="{{ p.title }}" loading="lazy"></a>
-          {% else %}<img class="row-img" src="{{ p.image }}" alt="{{ p.title }}" loading="lazy">{% endif %}
+          {% if p.has_detail %}<a href="/p/{{ p.id }}"><img class="row-img" src="{{ p.image }}" alt="{{ alt_for(p.image, '', p.title) }}" loading="lazy"></a>
+          {% else %}<img class="row-img" src="{{ p.image }}" alt="{{ alt_for(p.image, '', p.title) }}" loading="lazy">{% endif %}
         {% endif %}
         <div class="card-body" style="padding:0">
           <div class="card-title">
@@ -861,8 +861,8 @@
       {% for p in projects %}
       <article class="card">
         {% if p.image %}
-          {% if p.has_detail %}<a href="/p/{{ p.id }}"><img class="card-img" src="{{ p.image }}" alt="{{ p.title }}" loading="lazy"></a>
-          {% else %}<img class="card-img" src="{{ p.image }}" alt="{{ p.title }}" loading="lazy">{% endif %}
+          {% if p.has_detail %}<a href="/p/{{ p.id }}"><img class="card-img" src="{{ p.image }}" alt="{{ alt_for(p.image, '', p.title) }}" loading="lazy"></a>
+          {% else %}<img class="card-img" src="{{ p.image }}" alt="{{ alt_for(p.image, '', p.title) }}" loading="lazy">{% endif %}
         {% endif %}
         <div class="card-body">
           <div class="card-title">
@@ -939,7 +939,7 @@
         {% else %}
         <article class="album-card" onclick="openAlbum({{ loop.index0 }})">
           <div class="album-cover">
-            <img src="{{ a.images[0] }}" alt="{{ loc(a, 'title') }}" loading="lazy">
+            <img src="{{ a.images[0] }}" alt="{{ alt_for(a.images[0], '', loc(a, 'title')) }}" loading="lazy">
             <span class="album-count">{{ a.images|length }} 📷</span>
           </div>
           <div class="album-body">
