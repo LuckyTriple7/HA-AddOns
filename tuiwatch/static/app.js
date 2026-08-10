@@ -667,7 +667,11 @@
         </div>`;
     }
 
-    function esc(s){ return (s||'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+    // String(s||'') statt (s||'') -- Werte aus JSON-APIs sind nicht immer schon
+    // String (z. B. rein numerische Flugnummern kommen als JS-Number an, siehe
+    // str_flights_client.py) -- (s||'').replace crasht dann mit "not a function",
+    // String(...) macht daraus zuerst zuverlässig einen String.
+    function esc(s){ return String(s||'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 
     function drawChart(cv, pts, full, opts){
       opts = opts || {};

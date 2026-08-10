@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.89.2] - 2026-08-10
+
+### Fixed
+- **STR-Flugplan-Suche fand scheinbar nichts** (z. B. Suche nach „LPA“):
+  `Via` (Zwischenstopp-Flughafen) liefert das API entgegen der ursprünglichen
+  Annahme kein Code-String, sondern ein volles Airport-Objekt — ungeprüft ans
+  Frontend durchgereicht crashte `esc()` dort (`(s||"").replace is not a
+  function`), das Rendering brach vor dem Anzeigen ab. `str_flights_client.py`
+  extrahiert jetzt nur `Via.Code`; alle übrigen Felder zusätzlich hart auf
+  `str()` abgesichert. `esc()` selbst stringt jetzt defensiv (`String(s||'')`
+  statt `(s||'')`) gegen künftige Typüberraschungen aus JSON-APIs.
+
 ## [0.89.1] - 2026-08-10
 
 ### Fixed

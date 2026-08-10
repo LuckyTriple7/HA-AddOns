@@ -107,20 +107,34 @@ def search_connections(query: str = "", *, flight_type: str = "", verbose: bool 
             if q not in haystack:
                 continue
         al = it.get("Airline") or {}
+        # `Via` ist entgegen der ursprünglichen Annahme (SCRAPING_STR.md) bei
+        # Flügen mit Zwischenstopp KEIN Flughafencode-String, sondern ein
+        # volles Airport-Objekt wie `Airport` selbst ({"Code": "LPA", "Name":
+        # ..., "Country": ...}) — live verifiziert (7 von 4119 Einträgen, u. a.
+        # Zwischenstopp LPA). Ungeprüft ans Frontend durchgereicht crashte dort
+        # esc() mit "(s||'').replace is not a function" (Bugreport, Suche nach
+        # "LPA" fand scheinbar 0 Treffer, weil das Rendering nach dem ersten
+        # betroffenen Ergebnis abbrach). Nur den Code extrahieren, wie beim
+        # Zielflughafen.
+        via = it.get("Via")
+        via_code = via.get("Code") if isinstance(via, dict) else via
+        # Alle übrigen Felder ebenfalls hart auf str() casten, als Absicherung
+        # gegen künftige Typüberraschungen aus diesem nicht offiziell
+        # dokumentierten Drittanbieter-API.
         out.append({
-            "type": it.get("Type") or "",
-            "airline_code": al.get("Code") or "",
-            "airline_name": al.get("Name") or "",
-            "flight_no": it.get("FlightName") or "",
-            "airport_code": ap.get("Code") or "",
-            "airport_name": ap.get("Name") or "",
-            "country": ap.get("Country") or "",
+            "type": str(it.get("Type") or ""),
+            "airline_code": str(al.get("Code") or ""),
+            "airline_name": str(al.get("Name") or ""),
+            "flight_no": str(it.get("FlightName") or ""),
+            "airport_code": str(ap.get("Code") or ""),
+            "airport_name": str(ap.get("Name") or ""),
+            "country": str(ap.get("Country") or ""),
             "weekdays_short": _weekdays_short(it.get("Weekdays") or {}),
-            "departure": it.get("Departure") or "",
-            "arrival": it.get("Arrival") or "",
-            "via": it.get("Via") or "",
-            "date_from": (it.get("DateFrom") or "")[:10],
-            "date_till": (it.get("DateTill") or "")[:10],
+            "departure": str(it.get("Departure") or ""),
+            "arrival": str(it.get("Arrival") or ""),
+            "via": str(via_code or ""),
+            "date_from": str(it.get("DateFrom") or "")[:10],
+            "date_till": str(it.get("DateTill") or "")[:10],
         })
     # Nach Zielflughafen, dann nach Abflugzeit sortiert — stabile,
     # nachvollziehbare Reihenfolge statt API-Originalreihenfolge (die nach

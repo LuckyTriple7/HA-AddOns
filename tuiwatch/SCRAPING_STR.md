@@ -74,9 +74,13 @@ Ein `Items`-Eintrag = **eine Zeile im Saisonfahrplan**, nicht eine einzelne
 Flugbewegung: `Weekdays` gibt an, an welchen Wochentagen der Flug im Zeitraum
 `DateFrom`–`DateTill` verkehrt. Derselbe Zielflughafen taucht deshalb oft
 mehrfach auf (unterschiedliche Wochentage/Saisonabschnitte je eigener Zeile).
-`Via` ist bei Direktflügen `null`; bei Flügen mit Zwischenstopp vermutlich der
-Wochentag-Flughafencode (nicht live beobachtet, da im Testsample keine
-Verbindung mit `Via` vorkam).
+`Via` ist bei Direktflügen `null`; bei Flügen mit Zwischenstopp **kein**
+Code-String, sondern ein volles Airport-Objekt wie `Airport` selbst
+(`{"Code": "LPA", "Name": "GRAN CANARIA", "Country": "...", ...}`) — live
+verifiziert (7 von 4119 Einträgen im Gesamtdatensatz, u. a. Zwischenstopp
+LPA). Ungeprüft durchgereicht crashte das Frontend beim Rendern (`esc()`
+erwartet einen String, siehe Bugreport unten) — `str_flights_client.py`
+extrahiert deshalb nur `Via.Code`.
 
 ## Client-Implementierung (`str_flights_client.py`)
 
