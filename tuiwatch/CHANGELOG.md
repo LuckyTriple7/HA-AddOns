@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.89.7] - 2026-08-11
+
+### Changed
+- **Trip Pilot, Reiseart „Pauschalreise (TUI)" → „Pauschalreise"**
+  entschärft. KI-Prompt verlangte bislang eine strikte Einzelprüfung, ob
+  TUI das Ziel nachweislich im Katalog führt — daran scheiterten
+  Websuchen (z. B. Perplexity) mangels belastbarer Treffer. Prompt
+  plausibilisiert jetzt grob über gängige Veranstalter (TUI, DER
+  Touristik, FTI) statt eine einzelne Quelle hart zu verifizieren.
+
 ## [0.89.6] - 2026-08-10
 
 ### Added

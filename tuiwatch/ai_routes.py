@@ -108,8 +108,8 @@ _DEFAULT_ADVISOR_INSTRUCTIONS = (
     "keine Unterkünfte mit auffallend vielen schlechten Bewertungen, auch nicht in "
     "der Budget-Kategorie. Weise darauf hin, dass Verfügbarkeit/Preis/Buchbarkeit "
     "der Nutzer selbst live prüfen muss (die Websuche liefert nur einen "
-    "Anhaltspunkt) — bei „Pauschalreise (TUI)“ zusätzlich, dass die genaue "
-    "Hotelverfügbarkeit separat im TUI-Katalog zu prüfen ist. Ergänze danach einen "
+    "Anhaltspunkt) — bei „Pauschalreise“ zusätzlich, dass die genaue "
+    "Hotelverfügbarkeit separat beim Veranstalter zu prüfen ist. Ergänze danach einen "
     "Abschnitt „#### 🔀 Alternative“ mit einem Ziel, das vom genannten Profil bewusst "
     "etwas abweicht (z. B. eine weniger bekannte Nachbarregion), aber ähnlich gut "
     "passen könnte. Ergänze außerdem einen Abschnitt „#### 🎲 Überraschung“ mit einem "
@@ -1948,13 +1948,12 @@ def _advisor_prompt(p: dict, prev_dna: dict | None = None) -> str:
             val = ", ".join(str(v).strip() for v in val if str(v).strip())
         if val:
             lines.append(f"- {_ADVISOR_LABELS[key]}: {val}")
-    if not is_daytrip and 'Pauschalreise (TUI)' in (p.get('travel_type') or []):
+    if not is_daytrip and 'Pauschalreise' in (p.get('travel_type') or []):
         lines.append(
-            "\nWichtig: Der Nutzer will eine Pauschalreise (Flug + Hotel) über TUI "
-            "buchen. Empfehle ausschließlich Ziele/Regionen, die TUI tatsächlich im "
-            "Programm hat — prüfe das per Websuche (z. B. auf tui.com oder aktuellen "
-            "TUI-Katalogseiten für das Zielland). Kein Ziel vorschlagen, das TUI "
-            "nachweislich nicht anbietet."
+            "\nWichtig: Der Nutzer will eine Pauschalreise (Flug + Hotel) buchen. "
+            "Empfehle Ziele/Regionen, die gängige Veranstalter (z. B. TUI, DER "
+            "Touristik, FTI) im Programm haben — grob per Websuche plausibilisieren, "
+            "aber keine übertrieben strikte Einzelprüfung verlangen."
         )
     if not is_daytrip and (p.get('excluded_countries') or p.get('excluded_countries_other')):
         lines.append(
@@ -1975,8 +1974,8 @@ def _advisor_prompt(p: dict, prev_dna: dict | None = None) -> str:
             "anderen Kontinent vorschlagen, sondern muss ebenfalls innerhalb "
             "der Fahrdistanz bleiben — wähle stattdessen ein Ziel in "
             "Reichweite, an das der Nutzer wahrscheinlich nicht selbst gedacht "
-            "hätte. Bei „Pauschalreise (TUI)“ gemeinsam mit eigener Anreise "
-            "weise darauf hin, dass viele TUI-Pauschalreisen einen Flug "
+            "hätte. Bei „Pauschalreise“ gemeinsam mit eigener Anreise "
+            "weise darauf hin, dass viele Pauschalreisen einen Flug "
             "beinhalten und das Angebot an reinen Fahr-Pauschalreisen "
             "eingeschränkter sein kann."
         )

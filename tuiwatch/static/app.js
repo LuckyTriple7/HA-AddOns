@@ -4994,7 +4994,7 @@
                 'Ruhig, wenig Tourismus']},
       {title:'Welche Reiseart?', key:'travel_type', multi:true,
        showIf: state => !isDaytrip(state),
-       options:['Pauschalreise (TUI)','Badeurlaub','Rundreise','Städtereise','Kreuzfahrt','Wellness',
+       options:['Pauschalreise','Badeurlaub','Rundreise','Städtereise','Kreuzfahrt','Wellness',
                 'Aktivurlaub','Abenteuer','Luxus','Camping','All Inclusive','Ferienwohnung']},
       {title:'Mit wem reist du?', key:'companions', multi:false,
        showIf: state => !isDaytrip(state),

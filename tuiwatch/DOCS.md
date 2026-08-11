@@ -340,8 +340,8 @@ Am Ende ruft Claude einmal die passenden Ziele ab.
   TUI-Katalog) muss der Nutzer selbst live prüfen.
 - **Sicherheit eingebaut, nicht abschaltbar:** ausgeschlossene Länder werden
   nie vorgeschlagen; Claude prüft für jedes Land per Websuche aktuelle
-  Reisewarnungen des Auswärtigen Amts; bei „Pauschalreise (TUI)" werden nur
-  Ziele vorgeschlagen, die TUI nachweislich im Programm hat.
+  Reisewarnungen des Auswärtigen Amts; bei „Pauschalreise" werden nur
+  Ziele vorgeschlagen, die gängige Veranstalter im Programm haben.
 - **Klima/Wind ortsgenau:** Recherche möglichst auf Insel-/Teilregionsebene
   statt nur fürs Land (Wind kann z. B. auf den Kapverden zwischen Sal und
   Boa Vista stark variieren) — gilt auch für KI-Fazit und Hotelvergleich.
