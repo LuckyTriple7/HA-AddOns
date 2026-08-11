@@ -125,9 +125,16 @@ RUN ARCH=$(dpkg --print-architecture) \
     esac \
     && curl -fsSL "https://github.com/anomalyco/opencode/releases/download/v${OPENCODE_VERSION}/opencode-${OPENCODE_ARCH}.tar.gz" -o /tmp/opencode.tar.gz \
     && tar -xzf /tmp/opencode.tar.gz -C /tmp \
-    && mv /tmp/opencode /usr/local/bin/opencode \
-    && chmod 755 /usr/local/bin/opencode \
+    && mv /tmp/opencode /usr/local/bin/opencode.orig \
+    && chmod 755 /usr/local/bin/opencode.orig \
     && rm -rf /tmp/opencode.tar.gz
+
+# OpenCode-Wrapper: /tmp ist noexec-tmpfs (HA "tmpfs: true"), aber opencode
+# entpackt seine OpenTUI-Renderlib zur Laufzeit dorthin und lädt sie per
+# dlopen nach — scheitert dort mit "failed to map segment from shared object".
+# Fix: TMPDIR auf einen exec-fähigen, persistenten Pfad unter /config umbiegen.
+RUN printf '#!/bin/sh\nexport TMPDIR=/config/.cache/opencode-tmp\nmkdir -p "$TMPDIR"\nexec /usr/local/bin/opencode.orig "$@"\n' > /usr/local/bin/opencode \
+    && chmod 755 /usr/local/bin/opencode
 
 # Java separat installieren: /usr/share/man/man1 muss vorher existieren,
 # sonst schlägt das ca-certificates-java Postinst-Skript im Docker-Build fehl.

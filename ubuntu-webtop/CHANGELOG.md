@@ -1,3 +1,9 @@
+## [1.8.49] - 2026-08-11
+
+### Behoben
+
+- OpenCode-Start crashte mit "failed to map segment from shared object": /tmp ist noexec-tmpfs, OpenTUI-Renderlib wird jetzt via TMPDIR-Wrapper nach /config/.cache/opencode-tmp entpackt
+
 ## [1.8.48] - 2026-08-11
 
 ### Hinzugefügt
