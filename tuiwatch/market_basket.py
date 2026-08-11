@@ -526,6 +526,28 @@ def maybe_run_baskets() -> None:
     run_baskets()
 
 
+def schedule_info() -> dict:
+    """Wann steht das Preisbarometer das nächste Mal an? Für die Zeitplan-Übersicht
+    (Rechtsklick aufs Logo). `next`: 0 = beim nächsten Poll-Durchlauf, sonst Zeitstempel;
+    `disabled` = im Add-on abgeschaltet."""
+    if not _enabled():
+        return {'next': None, 'disabled': True, 'note': 'in den Add-on-Optionen abgeschaltet'}
+    day = datetime.now().strftime('%Y-%m-%d')
+    targets = _basket_targets()
+    if not targets:
+        return {'next': None, 'note': 'keine Messreihen (gespeicherte Suchen/Regionen)'}
+    with A.db() as con:
+        open_n = sum(1 for t in targets if not con.execute(
+            'SELECT 1 FROM basket_snapshots WHERE basket=? AND day=? LIMIT 1',
+            (t['key'], day)).fetchone())
+    if open_n:
+        return {'next': 0, 'note': f'{open_n} von {len(targets)} Messreihen heute offen'}
+    tomorrow = (datetime.now() + timedelta(days=1)).replace(
+        hour=0, minute=0, second=0, microsecond=0)
+    return {'next': int(tomorrow.timestamp()),
+            'note': f'{len(targets)} Messreihen heute erledigt'}
+
+
 # ── Auswertung ─────────────────────────────────────────────────────────────────
 
 def _moves_query(basket: str | None, cutoff_day: str | None) -> tuple[str, list]:

@@ -849,6 +849,11 @@ am besten über Direktzugriff/Reverse-Proxy nutzen).
   Zeilen). Das komplette Log samt Filter steht unter **🔔 Meldungen & Fehler →
   📜 Konsole**: bis zu 2000 Zeilen seit dem Add-on-Start, durchsuchbar nach Text und
   Log-Stufe — Diagnose ohne Umweg über das HA-Log.
+- **Rechtsklick auf das Logo** — **Nächste Läufe**: wann Preis-Checks, Suchabos,
+  Preiskalender, Preisbarometer, Aktionscodes, Selbsttest, Backup und die
+  wöchentliche Zusammenfassung das nächste Mal anstehen (Frühestens-Zeiten — der
+  Poller startet Fälliges erst beim nächsten Aufwachen). Läuft gerade etwas, färbt
+  sich das Logo bernsteinfarben; der Tooltip nennt die laufende Aufgabe.
 
 ## API-Status / Selbsttest
 

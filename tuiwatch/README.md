@@ -105,4 +105,4 @@ Saisonalität berechnet, mit klarer Kennzeichnung Daten vs. Annahme. Details:
   hilft die Neukalibrierung in [SCRAPING.md](SCRAPING.md).
 - Bitte ein faires Prüfintervall lassen (nicht im Minutentakt).
 - Tipp: Doppelklick auf das **TUIWatch**-Logo öffnet eine Konsole mit den
-  Hintergrund-Logs.
+  Hintergrund-Logs, Rechtsklick zeigt die nächsten Läufe der Hintergrund-Aufgaben.

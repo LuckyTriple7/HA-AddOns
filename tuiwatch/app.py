@@ -91,7 +91,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.89.10"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.89.11"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -3133,6 +3133,165 @@ def api_digest():
         return jsonify({'sent': True})
     return jsonify({'sent': False, 'note': 'Nichts zu berichten oder kein Kanal '
                     '(Telegram/SMTP) konfiguriert.'})
+
+
+def _sched_next(ts: int, now: int) -> int:
+    """Normiert einen errechneten Fälligkeitszeitpunkt für den Zeitplan: alles, was
+    bereits erreicht ist, wird zu 0 („beim nächsten Durchlauf"). Ohne das stünde für
+    nie gelaufene Aufgaben (letzter Lauf = 0) ein Zeitstempel von 1970 im Payload."""
+    return 0 if ts <= now else int(ts)
+
+
+def _next_prices_task(now: int, interval: int) -> dict:
+    """Nächster fälliger Preis-Check über alle aktiven Angebote (inkl. der festen
+    Tages-Slots der Preisverlauf-Angebote)."""
+    with db() as con:
+        offers = [(r['id'], bool(r['history_only']),
+                   r['label'] or r['hotel'] or f"#{r['id']}") for r in con.execute(
+            'SELECT id, history_only, label, hotel FROM offers '
+            'WHERE COALESCE(paused,0)=0 AND COALESCE(archived,0)=0 ORDER BY id').fetchall()]
+        last_map = {r['offer_id']: r['m'] for r in con.execute(
+            'SELECT offer_id, MAX(ts) m FROM price_history GROUP BY offer_id').fetchall()}
+    if not offers:
+        return {'next': None, 'note': 'keine aktiven Angebote'}
+    nxt, nxt_name, due_now = None, '', 0
+    for oid, history_only, name in offers:
+        last_ts = last_map.get(oid) or 0
+        if history_only:
+            ts = now + max(0, _history_only_wait_seconds(oid, last_ts, now))
+        else:
+            ts = last_ts + interval
+        if ts <= now:
+            due_now += 1
+        if nxt is None or ts < nxt:
+            nxt, nxt_name = ts, name
+    note = f'{len(offers)} aktiv'
+    note += f' · {due_now} fällig' if due_now else f' · als Nächstes: {nxt_name}'
+    return {'next': _sched_next(nxt, now), 'note': note}
+
+
+def _schedule_overview() -> dict:
+    """Wann laufen die Hintergrund-Aufgaben das nächste Mal? Alle Zeiten sind
+    Frühestens-Angaben: der Poll-Worker schläft zwischen zwei Durchläufen und startet
+    fällige Aufgaben erst beim nächsten Aufwachen (siehe `_poll_worker`).
+
+    Konvention je Eintrag: `next` = Zeitstempel, 0 = beim nächsten Durchlauf fällig,
+    None = nichts geplant; `disabled` = in den Optionen abgeschaltet."""
+    now = int(time.time())
+    cfg = load_config()
+    try:
+        interval = max(MIN_POLL_INTERVAL, int(cfg.get('poll_interval', POLL_INTERVAL_DEFAULT)
+                                              or POLL_INTERVAL_DEFAULT))
+    except (TypeError, ValueError):
+        interval = POLL_INTERVAL_DEFAULT
+    tasks = [dict(key='prices', label='Preis-Checks', **_next_prices_task(now, interval))]
+
+    # Suchabos — je Abo 1×/Intervall, mindestens stündlich (siehe watch._maybe_check_watches)
+    watch_interval = max(3600, interval)
+    with db() as con:
+        row = con.execute(
+            'SELECT COUNT(*) n, MIN(COALESCE(last_checked,0)) m FROM saved_searches '
+            'WHERE COALESCE(watch,0)=1 AND COALESCE(max_price,0)>0').fetchone()
+    tasks.append({'key': 'watches', 'label': 'Suchabos',
+                  'next': _sched_next((row['m'] or 0) + watch_interval, now) if row['n'] else None,
+                  'note': f"{row['n']} beobachtete Suche(n)" if row['n']
+                          else 'keine beobachtete Suche'})
+
+    # Preiskalender — 1×/Tag je Angebot, max. 10 Angebote je Durchlauf
+    if cfg.get('calendar_daily_refresh', True):
+        with db() as con:
+            row = con.execute(
+                'SELECT COUNT(*) n, MIN(c.ts) m FROM calendar_cache c JOIN offers o '
+                'ON o.id = c.offer_id WHERE COALESCE(o.paused,0)=0 '
+                'AND COALESCE(o.archived,0)=0').fetchone()
+        tasks.append({'key': 'calendar', 'label': 'Preiskalender',
+                      'next': _sched_next((row['m'] or 0) + 86400, now) if row['n'] else None,
+                      'note': f"{row['n']} Kalender · max. 10 je Durchlauf" if row['n']
+                              else 'noch kein Kalender abgerufen'})
+    else:
+        tasks.append({'key': 'calendar', 'label': 'Preiskalender', 'next': None,
+                      'disabled': True, 'note': 'täglicher Refresh abgeschaltet'})
+
+    tasks.append(dict(key='basket', label='Preisbarometer', **market_basket.schedule_info()))
+
+    # Aktionscodes — eigener Takt (aktionscode_interval), mindestens 30 min
+    try:
+        ak_interval = max(1800, int(cfg.get('aktionscode_interval', 21600) or 21600))
+    except (TypeError, ValueError):
+        ak_interval = 21600
+    try:
+        ak_last = int(_meta_get('aktion_checked', 0) or 0)
+    except (TypeError, ValueError):
+        ak_last = 0
+    tasks.append({'key': 'aktion', 'label': 'Aktionscodes', 'last': ak_last or None,
+                  'next': _sched_next(ak_last + ak_interval, now),
+                  'note': f'alle {_dur(ak_interval)}'})
+
+    # API-Selbsttest — 1×/Tag
+    with _health_lock:
+        hc_last = int(_health_state.get('ts') or 0)
+    tasks.append({'key': 'health', 'label': 'API-Selbsttest', 'last': hc_last or None,
+                  'next': _sched_next(hc_last + 86400, now), 'note': 'täglich'})
+
+    # Auto-Backup — wöchentlich nach /addon_config
+    if cfg.get('auto_backup', True):
+        try:
+            bk_last = int(_meta_get('last_auto_backup', 0) or 0)
+        except (TypeError, ValueError):
+            bk_last = 0
+        tasks.append({'key': 'backup', 'label': 'Backup', 'last': bk_last or None,
+                      'next': _sched_next(bk_last + backup_routes.AUTO_BACKUP_INTERVAL, now),
+                      'note': 'wöchentlich'})
+    else:
+        tasks.append({'key': 'backup', 'label': 'Backup', 'next': None, 'disabled': True,
+                      'note': 'Auto-Backup abgeschaltet'})
+
+    tasks.append(dict(key='digest', label='Zusammenfassung', **_digest_schedule(cfg)))
+
+    # 0 (= sofort fällig) vor allen datierten Einträgen, „nichts geplant" ans Ende
+    tasks.sort(key=lambda t: (t.get('next') is None, t.get('next') or 0))
+    return {'now': now, 'poll_interval': interval, 'poll_gap': _poll_gap(),
+            'busy': busy_labels(), 'tasks': tasks}
+
+
+def _digest_schedule(cfg: dict) -> dict:
+    """Nächster Wochenüberblick (siehe digest._maybe_send_digest): fester Wochentag,
+    höchstens 1×/ISO-Woche, verpasste Wochen werden noch in derselben Woche nachgeholt."""
+    if not cfg.get('digest_enabled'):
+        return {'next': None, 'disabled': True, 'note': 'nicht aktiviert'}
+    try:
+        target = min(7, max(1, int(cfg.get('digest_weekday', 1) or 1)))
+    except (TypeError, ValueError):
+        target = 1
+    today = date.today()
+    y, w, _ = today.isocalendar()
+    days = ('Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag')
+    note = f'wöchentlich, {days[target - 1]}'
+    if _meta_get('last_digest') == f'{y}-W{w:02d}':   # diese Woche schon raus
+        d = today + timedelta(days=(7 - today.isoweekday()) + target)
+    elif today.isoweekday() >= target:                # überfällig oder heute dran
+        return {'next': 0, 'note': note}
+    else:
+        d = today + timedelta(days=target - today.isoweekday())
+    return {'next': int(datetime(d.year, d.month, d.day).timestamp()), 'note': note}
+
+
+def _dur(seconds: int) -> str:
+    """Kurze Dauer in Klartext („6 h", „45 min") für die Zeitplan-Notizen."""
+    if seconds >= 86400:
+        return f'{round(seconds / 86400)} Tage' if seconds >= 172800 else '1 Tag'
+    if seconds >= 3600:
+        h = seconds / 3600
+        return f'{h:.0f} h' if abs(h - round(h)) < 0.05 else f'{h:.1f} h'
+    return f'{max(1, round(seconds / 60))} min'
+
+
+@app.route('/api/schedule', methods=['GET'])
+def api_schedule():
+    """Zeitplan der Hintergrund-Aufgaben (Rechtsklick aufs Logo)."""
+    if (err := _require_api()):
+        return err
+    return jsonify(_schedule_overview())
 
 
 @app.route('/api/console')

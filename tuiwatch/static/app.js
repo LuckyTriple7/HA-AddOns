@@ -257,7 +257,7 @@
     // Logo-Signal: färbt Schrift + Flieger bernsteinfarben, solange im Hintergrund
     // etwas läuft (Preis-Checks, Suchabos, Kalender, Backup …). Der Tooltip nennt
     // die laufenden Aufgaben im Klartext, sonst steht dort wieder der Konsolen-Hinweis.
-    const LOGO_TITLE = 'Doppelklick: Konsole';
+    const LOGO_TITLE = 'Doppelklick: Konsole · Rechtsklick: nächste Läufe';
     function setBusy(labels){
       const el = document.querySelector('header .logo');
       if(!el) return;
@@ -265,6 +265,56 @@
       el.classList.toggle('busy', on);
       el.title = on ? ('Läuft gerade: ' + labels.join(', ')) : LOGO_TITLE;
     }
+
+    // ── Zeitplan der Hintergrund-Aufgaben (Rechtsklick aufs Logo) ──────────────
+    function inWords(sec){
+      if(sec < 60) return 'unter 1 Min';
+      if(sec < 3600) return Math.round(sec/60) + ' Min';
+      if(sec < 86400){ const h=Math.floor(sec/3600), m=Math.round((sec%3600)/60);
+                       return h + ' Std' + (m ? ' ' + m + ' Min' : ''); }
+      const d=Math.floor(sec/86400), h=Math.round((sec%86400)/3600);
+      return d + ' Tg' + (h ? ' ' + h + ' Std' : '');
+    }
+    function schedWhen(t, now){
+      if(t.disabled) return '<span class="sched-off">abgeschaltet</span>';
+      if(t.next === null || t.next === undefined) return '<span class="sched-off">nichts geplant</span>';
+      if(t.next <= now) return '<span class="sched-due">beim nächsten Durchlauf</span>';
+      const at = new Date(t.next*1000);
+      const day = at.toDateString()===new Date(now*1000).toDateString() ? ''
+                : (' · ' + at.toLocaleDateString('de-DE', {weekday:'short', day:'2-digit', month:'2-digit'}));
+      return 'in ' + inWords(t.next-now) + '<span class="sched-at"> (' +
+             at.toLocaleTimeString('de-DE', {hour:'2-digit', minute:'2-digit'}) + day + ')</span>';
+    }
+    function renderSchedule(d){
+      const now = d.now;
+      $('#sched-sub').innerHTML = 'Alle Angaben sind Frühestens-Zeiten: der Poller wacht in seinem Takt auf ('
+        + inWords(d.poll_interval) + ') und startet dann, was fällig ist.'
+        + (d.busy.length ? ' <b>Läuft gerade:</b> ' + esc(d.busy.join(', ')) + '.' : '');
+      $('#sched-body').innerHTML = d.tasks.map(t => `
+        <div class="hc-row">
+          <div><b>${esc(t.label)}</b>${t.note?`<div class="sched-note">${esc(t.note)}</div>`:''}</div>
+          <div style="text-align:right;white-space:nowrap">${schedWhen(t, now)}</div>
+        </div>`).join('');
+    }
+    async function loadSchedule(){
+      try {
+        const r = await fetch(api('/api/schedule'));
+        if(!r.ok) throw new Error(r.status);
+        renderSchedule(await r.json());
+      } catch(e) {
+        $('#sched-body').innerHTML = '<div class="sched-note">Zeitplan nicht abrufbar.</div>';
+      }
+    }
+    // bewusst synchron: der Rechtsklick-Handler braucht sofort `false` zurück, sonst
+    // käme mit dem Promise einer async-Funktion das Kontextmenü des Browsers durch.
+    function openSchedule(){
+      $('#sched-bg').classList.add('show');
+      $('#sched-body').innerHTML = '<div class="sched-note">lädt…</div>';
+      $('#sched-sub').textContent = '';
+      loadSchedule();
+      return false;
+    }
+    window.openSchedule = openSchedule;
 
     async function loadOffers(){
       try {

@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.89.11] - 2026-08-11
+
+### Added
+- **Rechtsklick aufs Logo → „Nächste Läufe".** Zeigt für jede
+  Hintergrund-Aufgabe (Preis-Checks, Suchabos, Preiskalender,
+  Preisbarometer, Aktionscodes, API-Selbsttest, Backup, wöchentliche
+  Zusammenfassung), wann sie das nächste Mal ansteht — als Restzeit plus
+  Uhrzeit, fällige zuerst, abgeschaltete als solche markiert. Dazu je
+  Zeile eine Notiz mit dem Warum (z. B. „12 aktiv · als Nächstes: Hotel
+  Riu", „3 von 8 Messreihen heute offen", „wöchentlich, Montag"). Alle
+  Zeiten sind Frühestens-Angaben: der Poller startet Fälliges erst beim
+  nächsten Aufwachen, der Kopf der Ansicht nennt seinen Takt. Neuer
+  Endpunkt `GET /api/schedule`; der Doppelklick (Konsole) bleibt
+  unverändert.
+
 ## [0.89.10] - 2026-08-11
 
 ### Fixed
