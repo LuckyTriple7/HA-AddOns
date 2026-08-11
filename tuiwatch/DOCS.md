@@ -373,9 +373,26 @@ Am Ende ruft Claude einmal die passenden Ziele ab.
 ### Eigene Fragen: `/config/trippilot/questions.json`
 
 Der Fragebogen steht nicht im Programmcode, sondern in einer JSON-Datei im
-Add-on-Konfigurationsordner — im **File Editor**, über **Samba** oder per
-**Studio Code Server** bearbeitbar, direkt neben `/config/backups`. Änderungen
+Add-on-Konfigurationsordner — direkt neben `/config/backups`. Änderungen
 greifen beim nächsten Öffnen des Fragebogens, **ohne Add-on-Neustart**.
+
+Zwei Wege führen zu derselben Datei:
+
+* **Rechtsklick auf „🗺️ TripPilot"** öffnet den eingebauten Editor. Fragen
+  anlegen, umsortieren und löschen; Fragetext, Prompt-Bezeichnung, Feldname und
+  Typ ändern; Antwortmöglichkeiten pflegen; `show_if` und `semantics` als JSON
+  bearbeiten; den Tagesausflug-Wert auswählen. Gespeichert wird nur, wenn das
+  Ergebnis fehlerfrei ist — sonst stehen die Probleme im Editor und die Datei
+  bleibt, wie sie war.
+* **File Editor**, **Samba** oder **Studio Code Server** für alle, die lieber
+  direkt in der Datei arbeiten.
+
+Der Editor hat einen Vorteil gegenüber dem Texteditor: Beim **Umbenennen oder
+Löschen einer Antwortmöglichkeit** zieht er jede weitere Nennung dieses Wertes
+mit — `exclusive`, `show_if` anderer Fragen, `semantics` und `daytrip_value`.
+Von Hand ist genau das die Stelle, an der man etwas übersieht. Nur bei Werten,
+die in mehreren Fragen gleich heißen (z. B. „Keine Präferenz"), hält er sich
+zurück: dort lässt sich nicht entscheiden, welche Frage gemeint war.
 
 | Datei | Gehört | Bei einem Add-on-Update |
 |---|---|---|
@@ -385,7 +402,7 @@ greifen beim nächsten Öffnen des Fragebogens, **ohne Add-on-Neustart**.
 
 Nach einem Update zeigt ein Vergleich der beiden JSON-Dateien, welche Fragen
 neu dazugekommen sind — Übernehmen ist deine Entscheidung, eigene Änderungen
-gehen dabei nie verloren. Ein Editor in der Oberfläche ist noch nicht dabei.
+gehen dabei nie verloren.
 
 Pro Frage einstellbar: Fragetext (`title`), Bezeichnung im KI-Prompt
 (`label`), Art (`type`: `multi` = Mehrfachauswahl, `single` = eine Antwort,

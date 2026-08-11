@@ -1,5 +1,40 @@
 # Changelog
 
+## [0.90.1] - 2026-08-11
+
+### Added
+- **Fragebogen-Editor in der Oberfläche.** Ein **Rechtsklick auf „🗺️ TripPilot"**
+  öffnet einen Editor für den Fragebogen — kein Umweg mehr über Dateimanager,
+  Samba oder Studio Code Server. Bearbeitet wird dieselbe Datei
+  (`/config/trippilot/questions.json`); beide Wege bleiben also nutzbar.
+  Möglich sind: Fragen anlegen, umsortieren und löschen, Titel, Prompt-Label,
+  Feldname und Typ ändern, Antwortmöglichkeiten pflegen (inkl. „exklusiv" bei
+  Mehrfachauswahl), Pflichtfrage setzen, die Bedingung `show_if` als JSON
+  bearbeiten, den Tagesausflug-Wert auswählen und den `semantics`-Block
+  bearbeiten. „Auslieferungsstand laden" holt die mitgelieferten Fragen in den
+  Editor, gespeichert wird erst auf Knopfdruck.
+- **Umbenennen zieht alle Nennungen mit.** Ein Antwortwert steht oft nicht nur
+  in `options`, sondern auch in `exclusive`, in `show_if` anderer Fragen, im
+  `semantics`-Block und bei `daytrip_value`. Der Editor ändert beim Umbenennen
+  oder Löschen einer Option alle diese Stellen mit — genau der Handgriff, den
+  zu vergessen in 0.90.0 vier Kopplungen stillgelegt hätte. Werte, die in
+  mehreren Fragen gleich heißen (z. B. „Keine Präferenz"), bleiben dabei
+  bewusst unangetastet, weil sich nicht entscheiden lässt, welche gemeint war.
+
+### Changed
+- **Gespeichert wird nur ein fehlerfreier Fragebogen.** Der Editor schickt das
+  Dokument zur Prüfung an das Add-on; bei Problemen wird nichts geschrieben und
+  die Fehler stehen mit Fragen-Nummer im Editor. Eine über die Oberfläche
+  erzeugte Datei kann den Wizard also nie auf die Auslieferungsversion
+  zurückwerfen. Geschrieben wird über eine Temp-Datei plus `os.replace`, damit
+  ein Abbruch keine halbe Datei hinterlässt.
+- Eine fehlerhafte eigene `questions.json` zeigt der Editor **so, wie sie auf
+  der Platte liegt** — nur wenn sie nicht einmal gültiges JSON ist, tritt der
+  Auslieferungsstand an ihre Stelle (mit Hinweis). Sonst würde man im Editor
+  etwas anderes reparieren als das, was gespeichert ist.
+- Nach dem Speichern lädt der Wizard den Fragebogen beim nächsten Öffnen neu —
+  ohne Seiten-Reload und ohne Add-on-Neustart.
+
 ## [0.90.0] - 2026-08-11
 
 ### Added

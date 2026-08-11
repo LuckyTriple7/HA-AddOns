@@ -336,6 +336,55 @@ def load(force: bool = False) -> dict:
     return result
 
 
+def bundled() -> dict:
+    """Auslieferungsstand als rohes Dokument — Grundlage für „Auslieferungsstand
+    laden" im GUI-Editor."""
+    try:
+        return _read(BUNDLED_PATH)
+    except (OSError, ValueError):  # darf nie passieren (Image-Datei)
+        return {}
+
+
+def user_raw():
+    """Die Nutzerdatei so, wie sie auf der Platte liegt — auch mit
+    Validierungsfehlern. Der Editor muss das echte Dokument zeigen, sonst würde
+    ein Speichern die eigene (nur leicht kaputte) Datei stillschweigend durch
+    etwas anderes ersetzen. None = fehlt oder ist kein JSON."""
+    try:
+        return _read(QUESTIONS_PATH)
+    except (OSError, ValueError):
+        return None
+
+
+def user_exists() -> bool:
+    return os.path.exists(QUESTIONS_PATH)
+
+
+def save(data) -> list:
+    """Schreibt den Fragebogen nach `questions.json` — aber nur, wenn er gültig
+    ist. Rückgabe: Liste der Fehler (leer = gespeichert).
+
+    Geschrieben wird über eine Temp-Datei im selben Ordner plus `os.replace`:
+    ein Abbruch mitten im Schreiben hinterlässt so keine halbe Datei, mit der
+    der Wizard beim nächsten Öffnen auf die Auslieferungsversion zurückfiele."""
+    errors = validate(data)
+    if errors:
+        return errors
+    tmp = QUESTIONS_PATH + '.tmp'
+    try:
+        os.makedirs(QUESTIONS_DIR, exist_ok=True)
+        with open(tmp, 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+            f.write('\n')
+        os.replace(tmp, QUESTIONS_PATH)
+    except OSError as e:
+        log.warning('TripPilot-Fragen nicht speicherbar (%s): %s', QUESTIONS_PATH,
+                    type(e).__name__)
+        return [f'Datei konnte nicht geschrieben werden ({type(e).__name__})']
+    _cache['data'] = None  # nächster load() liest neu, statt den alten Stand zu liefern
+    return []
+
+
 def steps() -> list:
     return load()['steps']
 
@@ -374,6 +423,12 @@ _README_TEXT = """# TripPilot-Fragen
 `questions.json` in diesem Ordner steuert den TripPilot-Fragebogen von TUIWatch
 — Fragen, Reihenfolge, Antwortmöglichkeiten und welche Frage wann erscheint.
 Änderungen greifen beim nächsten Öffnen des Fragebogens, ohne Add-on-Neustart.
+
+Diese Datei lässt sich auch ohne Texteditor bearbeiten: in der Oberfläche ein
+**Rechtsklick auf den Knopf „🗺️ TripPilot"** öffnet den eingebauten Editor. Er
+zieht beim Umbenennen einer Option alle Nennungen in `show_if`, `exclusive`,
+`semantics` und `daytrip_value` automatisch mit und speichert nur, wenn das
+Ergebnis fehlerfrei ist.
 
 Ist die Datei fehlerhaft, benutzt TUIWatch weiter die mitgelieferten Fragen und
 zeigt den Fehler im Fragebogen sowie im Add-on-Log an. Die Datei löschen und das

@@ -5194,6 +5194,384 @@
       attempt();
     }
 
+
+    // ── Fragebogen-Editor (Rechtsklick auf den TripPilot-Knopf) ───────────────
+    // Bearbeitet dieselbe /config/trippilot/questions.json, die auch im
+    // Dateimanager offensteht. Der Mehrwert gegenüber dem Texteditor: ein
+    // Antwortwert steht nicht nur in `options`, sondern ggf. auch in `show_if`,
+    // `exclusive`, `semantics` und `daytrip_value` — der Editor zieht beim
+    // Umbenennen alle Nennungen mit. Genau das von Hand zu vergessen war der
+    // Grund, warum der überarbeitete Fragebogen in 0.90.0 vier Kopplungen
+    // stillgelegt hat.
+    let tpDoc = null, tpBundled = null, tpSel = 0, tpPath = '';
+
+    function openTpEdit(){ tpLoad(); return false; }   // false = kein Browser-Kontextmenü
+
+    async function tpLoad(){
+      $('#tpedit-bg').classList.add('show');
+      $('#tpedit-msg').innerHTML = '';
+      $('#tpedit-daytrip').innerHTML = '';
+      $('#tpedit-sub').textContent = 'Wird geladen…';
+      $('#tpedit-list').innerHTML = '';
+      $('#tpedit-detail').innerHTML = '';
+      let d;
+      try { d = await fetch(api('/api/trippilot/editor')).then(r=>r.json()); }
+      catch(e){ toast('Laden fehlgeschlagen'); closeTpEdit(); return; }
+      tpDoc = d.data || {};
+      tpBundled = d.bundled || {};
+      tpPath = d.path || 'questions.json';
+      tpSel = 0;
+      if(!Array.isArray(tpDoc.steps)) tpDoc.steps = [];
+      tpSemPush();
+      tpRender(d.errors || []);
+    }
+    function closeTpEdit(){ $('#tpedit-bg').classList.remove('show'); }
+    $('#tpedit-bg').addEventListener('click', e=>{ if(e.target.id==='tpedit-bg') closeTpEdit(); });
+
+    // ── Umbenennen: alle Nennungen eines Wertes mitziehen ─────────────────────
+    function tpCondWalk(cond, fn){
+      if(!cond || typeof cond !== 'object') return;
+      for(const combi of ['all','any']){
+        if(Array.isArray(cond[combi])){ cond[combi].forEach(c => tpCondWalk(c, fn)); return; }
+      }
+      if(cond.not){ tpCondWalk(cond.not, fn); return; }
+      fn(cond);
+    }
+    function tpValueExists(v){ return tpDoc.steps.some(s => (s.options||[]).includes(v)); }
+    function tpDna(){ const d = (tpDoc.semantics||{}).dna; return (d && typeof d === 'object') ? d : {}; }
+
+    function tpRenameValue(stepKey, oldVal, newVal){
+      if(!oldVal || oldVal === newVal) return;
+      const swap = a => (a||[]).map(v => v === oldVal ? newVal : v);
+      const st = tpDoc.steps.find(s => s.key === stepKey);
+      if(st){
+        if(Array.isArray(st.options)) st.options = swap(st.options);
+        if(Array.isArray(st.exclusive)) st.exclusive = swap(st.exclusive);
+      }
+      // show_if und semantics.dna nennen den Fragen-Key, hier ist die Zuordnung
+      // eindeutig.
+      for(const s of tpDoc.steps) tpCondWalk(s.show_if, c => {
+        if(c.key !== stepKey) return;
+        for(const op of ['contains','equals']) if(c[op] === oldVal) c[op] = newVal;
+        for(const op of ['contains_any','in']) if(Array.isArray(c[op])) c[op] = swap(c[op]);
+      });
+      const dna = tpDna();
+      for(const label of Object.keys(dna)){
+        if(Array.isArray(dna[label][stepKey])) dna[label][stepKey] = swap(dna[label][stepKey]);
+      }
+      // package_tour/self_arrival und daytrip_value nennen keinen Fragen-Key.
+      // Nur mitziehen, wenn der alte Wert danach nirgends mehr als Option
+      // existiert — sonst könnte die Nennung die gleichnamige Option einer
+      // anderen Frage meinen („Keine Präferenz" gibt es mehrfach).
+      if(tpValueExists(oldVal)) return;
+      for(const n of ['package_tour','self_arrival']){
+        if(Array.isArray((tpDoc.semantics||{})[n])) tpDoc.semantics[n] = swap(tpDoc.semantics[n]);
+      }
+      if(tpDoc.daytrip_value === oldVal) tpDoc.daytrip_value = newVal;
+    }
+
+    function tpDropValue(stepKey, val){
+      if(!val) return;
+      const drop = a => (a||[]).filter(v => v !== val);
+      const st = tpDoc.steps.find(s => s.key === stepKey);
+      if(st){
+        if(Array.isArray(st.options)) st.options = drop(st.options);
+        if(Array.isArray(st.exclusive)){
+          st.exclusive = drop(st.exclusive);
+          if(!st.exclusive.length) delete st.exclusive;
+        }
+      }
+      for(const s of tpDoc.steps) tpCondWalk(s.show_if, c => {
+        if(c.key !== stepKey) return;
+        for(const op of ['contains_any','in']) if(Array.isArray(c[op])) c[op] = drop(c[op]);
+      });
+      const dna = tpDna();
+      for(const label of Object.keys(dna)){
+        if(Array.isArray(dna[label][stepKey])){
+          dna[label][stepKey] = drop(dna[label][stepKey]);
+          if(!dna[label][stepKey].length) delete dna[label][stepKey];
+        }
+      }
+      if(tpValueExists(val)) return;
+      for(const n of ['package_tour','self_arrival']){
+        if(Array.isArray((tpDoc.semantics||{})[n])) tpDoc.semantics[n] = drop(tpDoc.semantics[n]);
+      }
+      if(tpDoc.daytrip_value === val) delete tpDoc.daytrip_value;
+    }
+
+    function tpRenameKey(oldKey, newKey){
+      if(!oldKey || oldKey === newKey) return;
+      for(const s of tpDoc.steps) tpCondWalk(s.show_if, c => { if(c.key === oldKey) c.key = newKey; });
+      const dna = tpDna();
+      for(const label of Object.keys(dna)){
+        if(!(oldKey in dna[label])) continue;
+        // Neu aufbauen statt löschen+anhängen: sonst rutscht der Eintrag beim
+        // Speichern ans Ende und die Datei zeigt einen Diff, den niemand wollte.
+        const rebuilt = {};
+        for(const k of Object.keys(dna[label])) rebuilt[k === oldKey ? newKey : k] = dna[label][k];
+        dna[label] = rebuilt;
+      }
+    }
+    function tpKeyRefs(key){
+      const hits = [];
+      for(const s of tpDoc.steps){
+        if(s.key === key) continue;
+        let used = false;
+        tpCondWalk(s.show_if, c => { if(c.key === key) used = true; });
+        if(used) hits.push('„' + (s.title || s.key) + '"');
+      }
+      const dna = tpDna();
+      for(const label of Object.keys(dna)) if(key in dna[label]) hits.push('semantics.dna.' + label);
+      return hits;
+    }
+
+    // Der semantics-Block wird als Text bearbeitet, Umbenennungen ändern ihn
+    // aber im Dokument. Vor jeder Umbenennung den Textstand übernehmen und
+    // danach zurückschreiben — sonst gewänne mal die eine, mal die andere Seite.
+    function tpSemPull(){
+      const raw = ($('#tpedit-sem').value || '').trim();
+      if(!raw){ delete tpDoc.semantics; return true; }
+      try {
+        const sem = JSON.parse(raw);
+        if(sem && typeof sem === 'object' && !Array.isArray(sem)){ tpDoc.semantics = sem; return true; }
+      } catch(e){ /* unten als Fehler gemeldet */ }
+      return false;   // kaputtes JSON unangetastet lassen, statt es zu verwerfen
+    }
+    function tpSemPush(){
+      $('#tpedit-sem').value = tpDoc.semantics ? JSON.stringify(tpDoc.semantics, null, 2) : '';
+    }
+
+    // ── Anzeige ───────────────────────────────────────────────────────────────
+    function tpErrBox(errors){
+      if(!errors || !errors.length) return '';
+      return '<div class="tpe-err"><b>' + errors.length + (errors.length === 1 ? ' Problem' : ' Probleme')
+        + ':</b><ul>' + errors.slice(0, 12).map(e => '<li>' + esc(e) + '</li>').join('')
+        + (errors.length > 12 ? '<li>… und ' + (errors.length - 12) + ' weitere</li>' : '')
+        + '</ul></div>';
+    }
+    function tpRender(errors){
+      const steps = tpDoc.steps;
+      if(tpSel >= steps.length) tpSel = Math.max(0, steps.length - 1);
+      $('#tpedit-sub').textContent = steps.length + (steps.length === 1 ? ' Frage · ' : ' Fragen · ') + tpPath;
+      if(errors !== undefined) $('#tpedit-msg').innerHTML = tpErrBox(errors);
+      $('#tpedit-list').innerHTML = steps.map((s, i) =>
+        `<div class="tpe-item${i === tpSel ? ' active' : ''}" onclick="tpSelect(${i})" title="${esc(s.key||'')}">`
+        + `<span class="tpe-num">${i + 1}</span>`
+        + `<span class="tpe-txt">${esc(s.title || s.key || '(ohne Titel)')}</span></div>`).join('')
+        || '<div class="tpe-item">Noch keine Frage</div>';
+      tpRenderDaytrip();
+      tpRenderDetail();
+    }
+    function tpRenderDaytrip(){
+      const all = [];
+      for(const s of tpDoc.steps) for(const o of (s.options||[])) if(!all.includes(o)) all.push(o);
+      $('#tpedit-daytrip').innerHTML =
+        '<span class="hint">Tagesausflug-Modus (eigener KI-Prompt, keine Reise-DNA) auslösen mit:</span>'
+        + '<select onchange="tpDocField(\'daytrip_value\', this.value)" '
+        + 'style="background:var(--surf);border:1px solid var(--border);color:var(--text);'
+        + 'border-radius:5px;padding:4px 6px;font:inherit;font-size:.78rem;max-width:60%">'
+        + '<option value="">— keiner —</option>'
+        + all.map(o => `<option value="${esc(o)}"${tpDoc.daytrip_value === o ? ' selected' : ''}>${esc(o)}</option>`).join('')
+        + '</select>';
+    }
+    function tpSelect(i){ tpSel = i; tpRender(); }
+    function tpRenderDetail(){
+      const s = tpDoc.steps[tpSel], box = $('#tpedit-detail');
+      if(!s){ box.innerHTML = '<div class="hint">Keine Frage ausgewählt.</div>'; return; }
+      let h = '<div class="tpe-row" style="justify-content:space-between">'
+        + '<span class="tpe-row"><button class="tpe-mini" onclick="tpMoveStep(-1)" title="Frage nach oben">▲</button>'
+        + '<button class="tpe-mini" onclick="tpMoveStep(1)" title="Frage nach unten">▼</button></span>'
+        + '<button class="tpe-mini danger" onclick="tpDelStep()">Frage löschen</button></div>'
+        + '<label>Frage, wie sie im Fragebogen steht</label>'
+        + `<input type="text" value="${esc(s.title||'')}" oninput="tpField('title', this.value)" onchange="tpRender()">`
+        + '<label>Bezeichnung dieser Angabe im KI-Prompt</label>'
+        + `<input type="text" value="${esc(s.label||'')}" oninput="tpField('label', this.value)">`
+        + '<div class="tpe-row" style="align-items:flex-end;gap:8px">'
+        + '<span style="flex:1"><label>Feldname (<code>key</code>)</label>'
+        + `<input type="text" value="${esc(s.key||'')}" onchange="tpKeyChange(this.value)"></span>`
+        + '<span style="flex:1"><label>Typ</label><select onchange="tpTypeChange(this.value)">'
+        + [['multi','Mehrfachauswahl'],['single','Eine Antwort'],['text','Freitext']]
+            .map(([v, t]) => `<option value="${v}"${s.type === v ? ' selected' : ''}>${t}</option>`).join('')
+        + '</select></span></div>'
+        + '<label style="display:flex;align-items:center;gap:6px;margin-top:10px;color:var(--text);font-size:.78rem">'
+        + `<input type="checkbox"${s.required ? ' checked' : ''} style="width:auto" `
+        + 'onchange="tpField(\'required\', this.checked)"> Pflichtfrage (ohne Antwort geht es nicht weiter)</label>';
+      if(s.type === 'text'){
+        h += '<label>Hinweistext im Eingabefeld</label>'
+          + `<input type="text" value="${esc(s.placeholder||'')}" oninput="tpField('placeholder', this.value)">`;
+      } else {
+        h += '<label>Antwortmöglichkeiten</label>'
+          + (s.options||[]).map((o, oi) => '<div class="tpe-opt">'
+              + `<input type="text" value="${esc(o)}" onchange="tpOptRename(${oi}, this.value)">`
+              + (s.type === 'multi'
+                  ? '<label style="margin:0;white-space:nowrap" title="Wählt beim Anklicken alle anderen Optionen dieser Frage ab">'
+                    + `<input type="checkbox"${(s.exclusive||[]).includes(o) ? ' checked' : ''} `
+                    + `style="width:auto" onchange="tpOptExcl(${oi}, this.checked)"> exkl.</label>`
+                  : '')
+              + `<button class="tpe-mini" onclick="tpOptMove(${oi}, -1)" title="Nach oben">▲</button>`
+              + `<button class="tpe-mini" onclick="tpOptMove(${oi}, 1)" title="Nach unten">▼</button>`
+              + `<button class="tpe-mini danger" onclick="tpOptDel(${oi})" title="Option löschen">✕</button>`
+              + '</div>').join('')
+          + '<button class="tpe-mini" onclick="tpOptAdd()">+ Option</button>'
+          + '<div class="hint" style="margin-top:6px">Ein geänderter Text wird überall mitgezogen, wo dieser Wert sonst noch genannt wird.</div>';
+      }
+      h += '<label>Wann wird die Frage gestellt? (<code>show_if</code>, leer = immer)</label>'
+        + '<textarea rows="5" spellcheck="false" onchange="tpShowIf(this.value)">'
+        + esc(s.show_if ? JSON.stringify(s.show_if, null, 2) : '') + '</textarea>'
+        + '<div class="hint" id="tpe-cond-msg"></div>';
+      box.innerHTML = h;
+    }
+
+    // ── Änderungen ────────────────────────────────────────────────────────────
+    function tpField(f, v){
+      const s = tpDoc.steps[tpSel];
+      if(!s) return;
+      if(v === '' || v === false || v == null) delete s[f]; else s[f] = v;
+    }
+    function tpDocField(f, v){ if(v === '') delete tpDoc[f]; else tpDoc[f] = v; }
+    function tpKeyChange(val){
+      const s = tpDoc.steps[tpSel], nk = (val||'').trim();
+      if(!s || !nk || nk === s.key){ tpRenderDetail(); return; }
+      if(!tpSemPull()){ tpSemErr(); return; }
+      tpRenameKey(s.key, nk);
+      s.key = nk;
+      tpSemPush();
+      tpRender();
+    }
+    function tpTypeChange(t){
+      const s = tpDoc.steps[tpSel];
+      if(!s) return;
+      s.type = t;
+      // Die Validierung verbietet options/exclusive bei Freitext und verlangt
+      // options bei Auswahl — beim Umschalten also gleich mit aufräumen.
+      if(t === 'text'){ delete s.options; delete s.exclusive; }
+      else {
+        delete s.placeholder;
+        if(!Array.isArray(s.options) || !s.options.length) s.options = ['Option 1'];
+        if(t === 'single') delete s.exclusive;
+      }
+      tpRender();
+    }
+    function tpMoveStep(dir){
+      const i = tpSel, j = i + dir;
+      if(j < 0 || j >= tpDoc.steps.length) return;
+      [tpDoc.steps[i], tpDoc.steps[j]] = [tpDoc.steps[j], tpDoc.steps[i]];
+      tpSel = j;
+      tpRender();
+    }
+    function tpAddStep(){
+      let n = 1, key;
+      do { key = 'frage_' + n++; } while(tpDoc.steps.some(s => s.key === key));
+      tpDoc.steps.push({key, title:'Neue Frage', label:'Neue Angabe', type:'single', options:['Option 1']});
+      tpSel = tpDoc.steps.length - 1;
+      tpRender();
+    }
+    function tpDelStep(){
+      const s = tpDoc.steps[tpSel];
+      if(!s) return;
+      const refs = tpKeyRefs(s.key);
+      const warn = refs.length
+        ? '\n\nAchtung: Auf den Feldnamen „' + s.key + '" verweisen noch ' + refs.join(', ')
+          + '. Das muss vor dem Speichern weg.' : '';
+      if(!confirm('Frage „' + (s.title || s.key) + '" löschen?' + warn)) return;
+      tpDoc.steps.splice(tpSel, 1);
+      tpRender();
+    }
+    function tpOptRename(oi, val){
+      const s = tpDoc.steps[tpSel];
+      if(!s) return;
+      const old = (s.options||[])[oi], nv = (val||'').trim();
+      if(old === undefined || !nv || nv === old){ tpRenderDetail(); return; }
+      if(!tpSemPull()){ tpSemErr(); return; }
+      tpRenameValue(s.key, old, nv);
+      tpSemPush();
+      tpRender();
+    }
+    function tpOptAdd(){
+      const s = tpDoc.steps[tpSel];
+      if(!s) return;
+      (s.options = s.options || []).push('Neue Option');
+      tpRenderDetail();
+    }
+    function tpOptDel(oi){
+      const s = tpDoc.steps[tpSel];
+      if(!s || !Array.isArray(s.options)) return;
+      const val = s.options[oi];
+      if(!tpSemPull()){ tpSemErr(); return; }
+      tpDropValue(s.key, val);
+      tpSemPush();
+      tpRender();
+    }
+    function tpOptMove(oi, dir){
+      const s = tpDoc.steps[tpSel], opts = s && s.options;
+      if(!opts) return;
+      const j = oi + dir;
+      if(j < 0 || j >= opts.length) return;
+      [opts[oi], opts[j]] = [opts[j], opts[oi]];
+      tpRenderDetail();
+    }
+    function tpOptExcl(oi, on){
+      const s = tpDoc.steps[tpSel];
+      if(!s) return;
+      const o = (s.options||[])[oi], arr = s.exclusive = s.exclusive || [];
+      const i = arr.indexOf(o);
+      if(on && i < 0) arr.push(o);
+      if(!on && i >= 0) arr.splice(i, 1);
+      if(!arr.length) delete s.exclusive;
+    }
+    function tpShowIf(txt){
+      const s = tpDoc.steps[tpSel];
+      if(!s) return;
+      const t = (txt||'').trim(), msg = $('#tpe-cond-msg');
+      if(!t){ delete s.show_if; msg.textContent = 'Die Frage wird jetzt immer gestellt.'; return; }
+      let obj;
+      try { obj = JSON.parse(t); }
+      catch(e){
+        msg.innerHTML = '<span style="color:var(--red)">Kein gültiges JSON — die bisherige Bedingung bleibt stehen.</span>';
+        return;
+      }
+      if(!obj || typeof obj !== 'object' || Array.isArray(obj)){
+        msg.innerHTML = '<span style="color:var(--red)">Die Bedingung muss ein JSON-Objekt sein.</span>';
+        return;
+      }
+      s.show_if = obj;
+      msg.textContent = 'Übernommen.';
+    }
+    function tpSemErr(){
+      $('#tpedit-msg').innerHTML = tpErrBox(['Bedeutungen (semantics): kein gültiges JSON — '
+        + 'erst dort reparieren, sonst ginge der Block beim Umbenennen verloren.']);
+    }
+
+    function tpLoadBundled(){
+      if(!confirm('Die Fragen im Editor durch den Auslieferungsstand des Add-ons ersetzen?\n\n'
+        + 'Gespeichert wird erst mit „Speichern" — bis dahin bleibt die Datei unverändert.')) return;
+      tpDoc = JSON.parse(JSON.stringify(tpBundled || {}));
+      if(!Array.isArray(tpDoc.steps)) tpDoc.steps = [];
+      tpSel = 0;
+      tpSemPush();
+      tpRender([]);
+    }
+    async function tpSave(){
+      if(!tpSemPull()){ tpSemErr(); return; }
+      $('#tpedit-save').disabled = true;
+      let resp, d;
+      try {
+        resp = await fetch(api('/api/trippilot/editor'), {method:'POST',
+          headers:{'Content-Type':'application/json'}, body: JSON.stringify({data: tpDoc})});
+        d = await resp.json();
+      } catch(e){ $('#tpedit-save').disabled = false; toast('Speichern fehlgeschlagen'); return; }
+      $('#tpedit-save').disabled = false;
+      if(!resp.ok || (d.errors||[]).length){
+        // Serverseitig validiert: eine über den Editor erzeugte Datei kann den
+        // Wizard nie auf die Auslieferungsversion zurückwerfen.
+        $('#tpedit-msg').innerHTML = tpErrBox((d.errors||[]).length ? d.errors : ['Speichern fehlgeschlagen']);
+        return;
+      }
+      ADV_STEPS = [];   // Wizard lädt den Fragebogen beim nächsten Öffnen neu
+      toast('Fragebogen gespeichert');
+      closeTpEdit();
+    }
+
     // ── Preiskalender (Monats-Grid, gespeichert) ──────────────────────────────
     let calTimer = null, calId = null, calData = null, calMonth = null, calTrendView = false;
     let calMovesOpen = false;   // "Größte Bewegungen"-Liste: default eingeklappt, Zustand überlebt Monatswechsel

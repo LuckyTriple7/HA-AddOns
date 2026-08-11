@@ -170,6 +170,93 @@ def test_ensure_user_copy_never_overwrites_user_file(tq):
         assert json.load(f) == BUNDLED
 
 
+# ── Speichern (GUI-Editor) ─────────────────────────────────────────────────────
+
+VALID = {'daytrip_value': 'Ausflug',
+         'steps': [{'key': 'a', 'title': 'Frage?', 'label': 'Feld', 'type': 'single',
+                    'options': ['ja', 'Ausflug']}]}
+
+
+def test_save_writes_valid_document(tq):
+    assert tq.save(VALID) == []
+    with open(tq.QUESTIONS_PATH, encoding='utf-8') as f:
+        assert json.load(f) == VALID
+    assert tq.load()['source'] == 'user'
+
+
+def test_save_creates_missing_directory(tq, tmp_path, monkeypatch):
+    d = tmp_path / 'neu' / 'trippilot'
+    monkeypatch.setattr(tq, 'QUESTIONS_DIR', str(d))
+    monkeypatch.setattr(tq, 'QUESTIONS_PATH', str(d / 'questions.json'))
+    assert tq.save(VALID) == []
+    assert tq.user_exists() is True
+
+
+def test_save_rejects_invalid_and_leaves_file_alone(tq):
+    """Kernpunkt: was der Editor schreibt, kann den Wizard nie auf die
+    Auslieferungsversion zurueckwerfen — ungueltiges wird gar nicht erst
+    geschrieben."""
+    tq.save(VALID)
+    errors = tq.save({'steps': [{'key': 'a', 'title': 'T', 'label': 'L', 'type': 'bogus'}]})
+    assert errors and any('type' in e for e in errors)
+    with open(tq.QUESTIONS_PATH, encoding='utf-8') as f:
+        assert json.load(f) == VALID
+
+
+def test_save_rejects_value_that_is_no_option(tq):
+    bad = json.loads(json.dumps(VALID))
+    bad['daytrip_value'] = 'Gibt es nicht'
+    assert tq.save(bad)
+    assert tq.user_exists() is False
+
+
+def test_save_invalidates_cache(tq):
+    write(tq, VALID)
+    assert [s['key'] for s in tq.load()['steps']] == ['a']
+    other = {'steps': [{'key': 'b', 'title': 'T', 'label': 'L', 'type': 'text'}]}
+    assert tq.save(other) == []
+    # ohne Cache-Invalidierung stuende hier weiter 'a' — die mtime-Aufloesung
+    # ist zu grob, um eine Aenderung in derselben Sekunde zu bemerken.
+    assert [s['key'] for s in tq.load()['steps']] == ['b']
+
+
+def test_save_leaves_no_temp_file(tq):
+    import os
+    tq.save(VALID)
+    assert os.listdir(tq.QUESTIONS_DIR) == ['questions.json']
+
+
+def test_save_keeps_unicode_readable(tq):
+    """Emojis/Umlaute muessen im Klartext in der Datei stehen, damit die Datei
+    auch im Texteditor bearbeitbar bleibt."""
+    doc = {'steps': [{'key': 'a', 'title': 'Wohin?', 'label': 'Ziel', 'type': 'single',
+                      'options': ['🌴 Strand', 'Gebäude']}]}
+    assert tq.save(doc) == []
+    with open(tq.QUESTIONS_PATH, encoding='utf-8') as f:
+        raw = f.read()
+    assert '🌴 Strand' in raw and 'Gebäude' in raw
+
+
+def test_user_raw_returns_broken_but_parsable_document(tq):
+    """Der Editor muss eine fehlerhafte Datei zeigen koennen — sonst wuerde ein
+    Speichern die eigenen Fragen durch etwas anderes ersetzen."""
+    broken = {'steps': [{'key': 'a', 'title': 'T', 'label': 'L', 'type': 'bogus'}]}
+    write(tq, broken)
+    assert tq.user_raw() == broken
+    assert tq.validate(broken)
+
+
+def test_user_raw_is_none_without_file_or_on_garbage(tq):
+    assert tq.user_raw() is None
+    with open(tq.QUESTIONS_PATH, 'w', encoding='utf-8') as f:
+        f.write('{ kaputt')
+    assert tq.user_raw() is None
+
+
+def test_bundled_returns_shipped_document(tq):
+    assert tq.bundled() == BUNDLED
+
+
 # ── Ableitungen fuer den Prompt ────────────────────────────────────────────────
 
 def test_derived_fields_match_step_types(tq):
@@ -333,6 +420,63 @@ def test_advisor_accepts_field_added_in_user_file(client, tq, monkeypatch):
     assert ai_routes._advisor_fields() == ("haustier",)
     prompt = ai_routes._advisor_prompt({"haustier": "Katze"})
     assert "- Haustier an Bord: Katze" in prompt
+
+
+def test_editor_endpoint_offers_bundled_when_no_user_file(client, tq):
+    d = client.get("/api/trippilot/editor").get_json()
+    assert d["source"] == "bundled" and d["errors"] == []
+    assert d["data"] == BUNDLED and d["bundled"] == BUNDLED
+    assert d["path"] == tq.QUESTIONS_PATH
+
+
+def test_editor_endpoint_shows_user_file_with_its_errors(client, tq):
+    """Nicht die Auslieferungsversion zeigen, sondern die kaputte eigene Datei —
+    sonst repariert man im Editor etwas anderes, als auf der Platte liegt."""
+    broken = {"steps": [{"key": "a", "title": "T", "label": "L", "type": "bogus"}]}
+    write(tq, broken)
+    d = client.get("/api/trippilot/editor").get_json()
+    assert d["source"] == "user" and d["data"] == broken
+    assert any("type" in e for e in d["errors"])
+
+
+def test_editor_endpoint_flags_unparsable_user_file(client, tq):
+    with open(tq.QUESTIONS_PATH, "w", encoding="utf-8") as f:
+        f.write("{ kein JSON")
+    d = client.get("/api/trippilot/editor").get_json()
+    assert d["source"] == "bundled" and d["data"] == BUNDLED
+    assert any("kein gültiges JSON" in e for e in d["errors"])
+
+
+def test_editor_endpoint_saves_and_wizard_serves_it(client, tq):
+    doc = {"daytrip_value": "Ausflug",
+           "steps": [{"key": "eigene", "title": "Frage?", "label": "Feld",
+                      "type": "single", "options": ["ja", "Ausflug"]}]}
+    r = client.post("/api/trippilot/editor", json={"data": doc})
+    assert r.status_code == 200 and r.get_json()["saved"] is True
+    q = client.get("/api/trippilot/questions").get_json()
+    assert q["source"] == "user" and [s["key"] for s in q["steps"]] == ["eigene"]
+
+
+def test_editor_endpoint_rejects_invalid_document(client, tq):
+    r = client.post("/api/trippilot/editor",
+                    json={"data": {"steps": [{"key": "a", "title": "T", "label": "L",
+                                              "type": "bogus"}]}})
+    assert r.status_code == 400
+    assert any("type" in e for e in r.get_json()["errors"])
+    assert tq.user_exists() is False
+
+
+def test_editor_endpoint_rejects_non_object(client, tq):
+    r = client.post("/api/trippilot/editor", json={"data": [1, 2, 3]})
+    assert r.status_code == 400 and r.get_json()["errors"]
+
+
+def test_editor_endpoint_requires_auth(client, tq, monkeypatch):
+    import app as A
+    monkeypatch.setattr(A, "_auth_ok", lambda req: False)
+    assert client.get("/api/trippilot/editor").status_code == 401
+    assert client.post("/api/trippilot/editor", json={"data": BUNDLED}).status_code == 401
+    assert tq.user_exists() is False
 
 
 # ── Wirkung im Prompt/Scoring mit den ausgelieferten Fragen ────────────────────

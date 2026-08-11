@@ -2090,6 +2090,43 @@ def api_trippilot_questions():
                     'path': TQ.QUESTIONS_PATH})
 
 
+@bp.route('/api/trippilot/editor', methods=['GET', 'POST'])
+def api_trippilot_editor():
+    """GUI-Editor für den Fragebogen (Rechtsklick auf den TripPilot-Knopf).
+
+    GET liefert das Dokument so, wie es in `questions.json` steht — bewusst
+    auch mit Validierungsfehlern, denn wer eine kaputte Datei reparieren will,
+    muss sie sehen; würde der Editor stattdessen die Auslieferungsversion
+    zeigen, ersetzte ein Speichern die eigenen Fragen unbemerkt. Dazu kommt der
+    Auslieferungsstand für den Zurücksetzen-Knopf.
+
+    POST validiert und schreibt nur bei null Fehlern: eine über die Oberfläche
+    erzeugte Datei kann den Wizard also nie auf die Notversion zurückwerfen."""
+    if (err := A._require_api()):
+        return err
+    if request.method == 'POST':
+        data = (request.get_json(silent=True) or {}).get('data')
+        if not isinstance(data, dict):
+            return jsonify({'errors': ['Es wurde kein JSON-Objekt übergeben']}), 400
+        if (errors := TQ.save(data)):
+            return jsonify({'errors': errors}), 400
+        return jsonify({'saved': True, 'errors': []})
+
+    raw = TQ.user_raw()
+    resp = {'bundled': TQ.bundled(), 'path': TQ.QUESTIONS_PATH}
+    if raw is None:
+        # Datei fehlt (dann ist das kein Fehler, sie wird beim Speichern
+        # angelegt) oder ist nicht mal gültiges JSON — dann kann nur der
+        # Auslieferungsstand als Startpunkt dienen, und das muss dranstehen.
+        resp.update({'data': resp['bundled'], 'source': 'bundled',
+                     'errors': (['questions.json ist kein gültiges JSON — angezeigt wird der '
+                                 'Auslieferungsstand. Speichern überschreibt die Datei.']
+                                if TQ.user_exists() else [])})
+    else:
+        resp.update({'data': raw, 'source': 'user', 'errors': TQ.validate(raw)})
+    return jsonify(resp)
+
+
 @bp.route('/api/ai/travel-advisor', methods=['POST'])
 def api_ai_travel_advisor():
     """KI-Reiseberater: aus einem kurzen Profil (Region, Interessen, Reiseart,

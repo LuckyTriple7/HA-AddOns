@@ -224,6 +224,30 @@
     .reiseb-text { display:block; box-sizing:border-box; width:100%; resize:vertical; background:var(--bg); border:1px solid var(--border); color:var(--text); border-radius:6px; padding:8px; font:inherit; }
     .reiseb-text::placeholder { color:var(--muted); }
     .promptcfg-text { display:block; box-sizing:border-box; width:100%; resize:vertical; background:var(--bg); border:1px solid var(--border); color:var(--text); border-radius:6px; padding:8px; font:inherit; font-size:.82rem; }
+    /* Fragebogen-Editor (Rechtsklick auf den TripPilot-Knopf) */
+    .tpe-grid { display:grid; grid-template-columns:220px 1fr; gap:12px; margin-top:10px; }
+    @media (max-width:640px) { .tpe-grid { grid-template-columns:1fr; } }
+    .tpe-list { max-height:46vh; overflow-y:auto; border:1px solid var(--border); border-radius:6px; background:var(--bg); }
+    .tpe-item { display:flex; align-items:center; gap:6px; padding:5px 8px; font-size:.78rem; cursor:pointer; border-bottom:1px solid var(--border); }
+    .tpe-item:last-child { border-bottom:0; }
+    .tpe-item:hover { background:var(--surf2); }
+    .tpe-item.active { background:var(--accent); color:#fff; }
+    .tpe-item .tpe-num { color:var(--muted); font-variant-numeric:tabular-nums; min-width:1.4em; }
+    .tpe-item.active .tpe-num { color:#fff; }
+    .tpe-item .tpe-txt { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .tpe-detail { border:1px solid var(--border); border-radius:6px; background:var(--bg); padding:10px; max-height:46vh; overflow-y:auto; }
+    .tpe-detail label { display:block; font-size:.72rem; color:var(--muted); margin:8px 0 2px; }
+    .tpe-detail input[type=text], .tpe-detail select, .tpe-detail textarea {
+      box-sizing:border-box; width:100%; background:var(--surf); border:1px solid var(--border);
+      color:var(--text); border-radius:5px; padding:5px 7px; font:inherit; font-size:.8rem; }
+    .tpe-opt { display:flex; align-items:center; gap:5px; margin-bottom:4px; }
+    .tpe-opt input[type=text] { flex:1; }
+    .tpe-mini { background:var(--surf); border:1px solid var(--border); color:var(--muted); border-radius:4px; cursor:pointer; font-size:.72rem; line-height:1; padding:4px 6px; }
+    .tpe-mini:hover { border-color:var(--accent); color:var(--accent); }
+    .tpe-mini.danger:hover { border-color:var(--red); color:var(--red); }
+    .tpe-row { display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+    .tpe-err { border:1px solid var(--red); background:rgba(248,81,73,.08); color:var(--red); border-radius:6px; padding:8px 10px; font-size:.78rem; margin-top:8px; }
+    .tpe-err ul { margin:4px 0 0; padding-left:18px; }
     .tag-pill { display:inline-flex; align-items:center; gap:4px; font-size:.74rem; padding:3px 9px; border-radius:12px; background:var(--surf); border:1px solid var(--border); color:var(--text); cursor:pointer; user-select:none; }
     .tag-pill:hover { border-color:var(--accent); color:var(--accent); }
     .tag-pill.active { background:var(--accent); border-color:var(--accent); color:#fff; }
@@ -753,7 +777,7 @@
     <div class="toolbar">
       <button class="btn" onclick="openSearch()" title="Hotels einer Region suchen (TUI-Such-URL einfügen)">🔍 Suche</button>
       <button class="btn sec" onclick="openTrips()" title="Gebuchte Reisen verwalten (TUI-PDF importieren)">🧳 Meine Reisen</button>
-      <button class="btn sec ai-feature" onclick="openAdvisor()" title="TripPilot: passende Ziele nach Vorlieben finden">🗺️ TripPilot</button>
+      <button class="btn sec ai-feature" onclick="openAdvisor()" oncontextmenu="return openTpEdit()" title="TripPilot: passende Ziele nach Vorlieben finden · Rechtsklick: Fragebogen bearbeiten">🗺️ TripPilot</button>
       <button class="btn sec" id="aktion-btn" onclick="openAktion()" title="Aktuelle öffentliche TUI-Aktionscodes anzeigen und bei neuen benachrichtigt werden">🎟 Aktionscodes</button>
       <button class="btn sec" id="trend-btn" onclick="openMarketTrend()" title="Marktweiter Preistrend über alle geprüften Angebote, optional nach Destination">📈 Markttrend</button>
       <button class="btn sec" onclick="sendEmail()" title="Alle Angebote als E-Mail senden">✉ Als E-Mail senden</button>
@@ -1242,6 +1266,38 @@
       <h2>Nächste Läufe</h2>
       <div class="sub" id="sched-sub"></div>
       <div id="sched-body"></div>
+    </div>
+  </div>
+
+  <!-- TripPilot-Fragebogen bearbeiten (Rechtsklick auf den TripPilot-Knopf) -->
+  <div class="modal-bg" id="tpedit-bg">
+    <div class="modal" style="max-width:900px">
+      <button class="icon-btn modal-close" onclick="closeTpEdit()">
+        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+      </button>
+      <h2>🗺️ Fragebogen bearbeiten</h2>
+      <div class="sub" id="tpedit-sub"></div>
+      <div id="tpedit-msg"></div>
+      <div id="tpedit-daytrip" class="tpe-row" style="margin-top:10px"></div>
+      <div class="tpe-grid">
+        <div>
+          <div class="tpe-list" id="tpedit-list"></div>
+          <button class="tpe-mini" style="margin-top:6px" onclick="tpAddStep()">+ Frage</button>
+        </div>
+        <div class="tpe-detail" id="tpedit-detail"></div>
+      </div>
+      <details style="margin-top:12px">
+        <summary class="hint" style="cursor:pointer">Bedeutungen (<code>semantics</code>) als JSON bearbeiten</summary>
+        <div class="hint" style="margin:6px 0">Welche Antwortwerte Logik auslösen: Eigenanreise, Pauschalreise, Reise-DNA. Beim Umbenennen einer Option wird das hier automatisch mitgezogen — Handarbeit ist nur für neue Einträge nötig.</div>
+        <textarea id="tpedit-sem" class="promptcfg-text" rows="10" spellcheck="false"></textarea>
+      </details>
+      <div style="margin-top:14px;display:flex;gap:8px;justify-content:space-between;flex-wrap:wrap">
+        <button class="btn sec" onclick="tpLoadBundled()" title="Verwirft die Änderungen im Editor und lädt die mit dem Add-on ausgelieferten Fragen — gespeichert wird erst mit „Speichern“.">Auslieferungsstand laden</button>
+        <span style="display:flex;gap:8px">
+          <button class="btn sec" onclick="closeTpEdit()">Abbrechen</button>
+          <button class="btn" id="tpedit-save" onclick="tpSave()">Speichern</button>
+        </span>
+      </div>
     </div>
   </div>
 
