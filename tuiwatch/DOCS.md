@@ -370,6 +370,54 @@ Am Ende ruft Claude einmal die passenden Ziele ab.
 - Landet wie Fazit/Vergleich im **KI-Verlauf** (inkl. gewähltem Monat im
   Titel) und ist per E-Mail versendbar.
 
+### Eigene Fragen: `/config/trippilot/questions.json`
+
+Der Fragebogen steht nicht im Programmcode, sondern in einer JSON-Datei im
+Add-on-Konfigurationsordner — im **File Editor**, über **Samba** oder per
+**Studio Code Server** bearbeitbar, direkt neben `/config/backups`. Änderungen
+greifen beim nächsten Öffnen des Fragebogens, **ohne Add-on-Neustart**.
+
+| Datei | Gehört | Bei einem Add-on-Update |
+|---|---|---|
+| `questions.json` | dir | bleibt unangetastet |
+| `questions.default.json` | dem Add-on | wird auf den neuen Auslieferungsstand gesetzt |
+| `README.md` | dem Add-on | wird neu geschrieben (vollständiges Schema) |
+
+Nach einem Update zeigt ein Vergleich der beiden JSON-Dateien, welche Fragen
+neu dazugekommen sind — Übernehmen ist deine Entscheidung, eigene Änderungen
+gehen dabei nie verloren. Ein Editor in der Oberfläche ist noch nicht dabei.
+
+Pro Frage einstellbar: Fragetext (`title`), Bezeichnung im KI-Prompt
+(`label`), Art (`type`: `multi` = Mehrfachauswahl, `single` = eine Antwort,
+`text` = Freitext), Antwortmöglichkeiten (`options`), Optionen die alle
+anderen abwählen (`exclusive`), Pflichtfeld (`required`), Hinweistext
+(`placeholder`) — und mit `show_if`, wann die Frage überhaupt erscheint:
+
+```json
+{"key": "accommodation_size",
+ "title": "Wie groß darf das Hotel sein?",
+ "label": "Hotelgröße",
+ "type": "single",
+ "show_if": {"key": "accommodation", "equals": "Hotel"},
+ "options": ["klein", "Boutique", "mittelgroß", "riesige Clubanlage", "egal"]}
+```
+
+Als Bedingung stehen `contains`, `contains_any`, `equals`, `in` und
+`answered` zur Verfügung, verknüpfbar mit `all`, `any` und `not`. Die
+Reihenfolge der Fragen ist zugleich die Reihenfolge der Angaben im KI-Prompt.
+
+Zwei Dinge sind wichtig:
+
+- Die Datei muss **UTF-8** sein, sonst gehen Umlaute und Emojis kaputt.
+- Ist sie unlesbar oder fehlerhaft, gelten weiter die mitgelieferten Fragen —
+  der Fragebogen bleibt also benutzbar. Der erste Fehler steht mit Dateipfad
+  auf Schritt 1 des Wizards und im Add-on-Log.
+
+Umbenannte Antwortwerte sind unkritisch für die Fragen selbst, können aber die
+**Reise-DNA** betreffen: deren Auswertung erkennt einzelne Werte namentlich
+(z. B. `🌴 Strand` bei `interests`, `Spa` bei `hotel_wishes`). Ein umbenannter
+Wert zählt dort schlicht nicht mehr mit.
+
 ## Eigene KI-Prompts
 
 Über **⚙ KI-Prompts** im Footer lässt sich der Standard-Instruktionstext für

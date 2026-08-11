@@ -1,5 +1,35 @@
 # Changelog
 
+## [0.89.12] - 2026-08-11
+
+### Changed
+- **TripPilot-Fragen stehen jetzt in einer editierbaren JSON-Datei.** Bis
+  hierher waren sie an zwei Stellen fest im Code hinterlegt — im Frontend
+  (`ADV_STEPS`) für Anzeige und Sichtbarkeit, im Backend
+  (`_ADVISOR_FIELDS`/`_ADVISOR_LABELS`) für den KI-Prompt. Beides kommt nun
+  aus **einer** Datei: `/config/trippilot/questions.json`, im Dateimanager
+  oder per Samba direkt neben `/config/backups` bearbeitbar. Änderungen
+  greifen beim nächsten Öffnen des Fragebogens, ohne Add-on-Neustart.
+  Bearbeitbar sind Fragetext, Reihenfolge, Antwortmöglichkeiten, Frage-Art
+  (Mehrfachauswahl/Einzelauswahl/Freitext) und die Bedingung, wann eine
+  Frage überhaupt erscheint. Weil auch das Backend diese Datei liest, landet
+  eine neu ergänzte Frage wirklich im KI-Prompt statt beim Absenden still
+  verworfen zu werden.
+- **Bedingungen ohne Code.** Die bisherigen JavaScript-Ausdrücke hinter
+  `showIf` sind durch ein deklaratives `show_if` ersetzt — `contains`,
+  `contains_any`, `equals`, `in`, `answered`, verknüpfbar mit `all`, `any`
+  und `not`. Der ausgelieferte Fragebogen verhält sich unverändert.
+- **Updatesicher.** Eine einmal angelegte `questions.json` wird von
+  Add-on-Updates nie überschrieben. Der jeweils aktuelle Auslieferungsstand
+  liegt zum Vergleichen als `questions.default.json` daneben und wird bei
+  jedem Start erneuert, dazu eine `README.md` mit dem vollständigen Schema.
+- **Kaputte Datei legt nichts lahm.** Unlesbares JSON oder ein Schemafehler
+  führen nicht zum leeren Fragebogen: es gelten weiter die mitgelieferten
+  Fragen, und der erste Fehler steht mit Dateipfad direkt auf Schritt 1 des
+  Wizards sowie im Add-on-Log.
+- Neuer Endpunkt `GET /api/trippilot/questions` (liefert Fragen, Quelle und
+  etwaige Fehler). Ein GUI-Editor dafür ist noch nicht enthalten.
+
 ## [0.89.11] - 2026-08-11
 
 ### Added

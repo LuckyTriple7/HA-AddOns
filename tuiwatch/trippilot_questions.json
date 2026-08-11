@@ -1,0 +1,290 @@
+{
+  "version": 1,
+  "daytrip_value": "Tagesausflug in der Nähe",
+  "steps": [
+    {
+      "key": "region",
+      "title": "Wohin soll die Reise ungefähr gehen?",
+      "label": "Ziel-Region",
+      "type": "multi",
+      "exclusive": ["Tagesausflug in der Nähe"],
+      "options": ["Deutschland", "Europa", "Makaronesien", "Griechische Inseln", "Balearen",
+                  "Italien", "Frankreich", "Adriaküste", "Algarve", "Zypern", "Kanaren",
+                  "Mittelmeer", "Karibik", "Südostasien", "Indischer Ozean", "Weltweit", "Egal",
+                  "Tagesausflug in der Nähe"]
+    },
+    {
+      "key": "excluded_countries",
+      "title": "Welche Länder kommen für dich nicht in Frage?",
+      "label": "Kommt nicht in Frage",
+      "type": "multi",
+      "show_if": {"all": [
+        {"not": {"key": "region", "contains": "Tagesausflug in der Nähe"}},
+        {"key": "region", "contains_any": ["Weltweit", "Egal"]}
+      ]},
+      "options": ["Türkei", "Ägypten", "Tunesien", "Marokko", "Kenia", "Thailand", "Sri Lanka",
+                  "Dominikanische Republik", "Mexiko", "Malediven"]
+    },
+    {
+      "key": "excluded_countries_other",
+      "title": "Weitere Länder ausschließen? (optional)",
+      "label": "Weitere ausgeschlossene Länder",
+      "type": "text",
+      "placeholder": "z. B. weitere Länder, kommagetrennt",
+      "show_if": {"all": [
+        {"not": {"key": "region", "contains": "Tagesausflug in der Nähe"}},
+        {"key": "region", "contains_any": ["Weltweit", "Egal"]}
+      ]}
+    },
+    {
+      "key": "interests",
+      "title": "Was ist dir im Urlaub wichtig?",
+      "label": "Wichtig im Urlaub",
+      "type": "multi",
+      "show_if": {"not": {"key": "region", "contains": "Tagesausflug in der Nähe"}},
+      "options": ["🌴 Strand", "⛰️ Berge", "🏛️ Kultur", "🍹 Entspannung", "🎉 Nachtleben",
+                  "🚶 Wandern", "🚴 Radfahren", "🍽️ Essen", "🛍️ Shopping", "👨‍👩‍👧 Familie",
+                  "❤️ Romantik"]
+    },
+    {
+      "key": "beach_detail",
+      "title": "Wie soll dein Strand sein?",
+      "label": "Strand-Details",
+      "type": "multi",
+      "show_if": {"key": "interests", "contains": "🌴 Strand"},
+      "options": ["Feinsandig", "Kies/Felsen", "Naturstrand, unberührt",
+                  "Weitläufig, kilometerlang", "Kleine, ruhige Bucht", "Belebt mit Beach-Bars",
+                  "Flach abfallend (familienfreundlich)", "Schattenplätze/Palmen",
+                  "Gut zum Schnorcheln", "Direkt am Hotel", "Fußweg/Promenade OK"]
+    },
+    {
+      "key": "berge_detail",
+      "title": "Wie sollen die Berge sein?",
+      "label": "Berge-Details",
+      "type": "multi",
+      "show_if": {"key": "interests", "contains": "⛰️ Berge"},
+      "options": ["Sanfte Wanderwege", "Anspruchsvolle Gipfeltouren", "Skigebiet (Winter)",
+                  "Aussicht/Panorama", "Alm-/Hüttenromantik", "Seilbahn/Gondel vorhanden",
+                  "Ruhig, wenig Tourismus"]
+    },
+    {
+      "key": "travel_type",
+      "title": "Welche Reiseart?",
+      "label": "Reiseart",
+      "type": "multi",
+      "show_if": {"not": {"key": "region", "contains": "Tagesausflug in der Nähe"}},
+      "options": ["Pauschalreise", "Badeurlaub", "Rundreise", "Städtereise", "Kreuzfahrt",
+                  "Wellness", "Aktivurlaub", "Abenteuer", "Luxus", "Camping", "All Inclusive",
+                  "Ferienwohnung"]
+    },
+    {
+      "key": "companions",
+      "title": "Mit wem reist du?",
+      "label": "Reist mit",
+      "type": "single",
+      "show_if": {"not": {"key": "region", "contains": "Tagesausflug in der Nähe"}},
+      "options": ["Alleine", "Partner", "Familie", "Freunde", "Senioren", "Mit Hund"]
+    },
+    {
+      "key": "budget",
+      "title": "Budget pro Person?",
+      "label": "Budget pro Person",
+      "type": "single",
+      "show_if": {"not": {"key": "region", "contains": "Tagesausflug in der Nähe"}},
+      "options": ["bis 500 €", "500–1000 €", "1000–2000 €", "2000–3000 €", "egal"]
+    },
+    {
+      "key": "duration",
+      "title": "Reisedauer?",
+      "label": "Reisedauer",
+      "type": "single",
+      "show_if": {"not": {"key": "region", "contains": "Tagesausflug in der Nähe"}},
+      "options": ["Wochenende", "5 Tage", "1 Woche", "9–12 Tage", "2 Wochen", "3+ Wochen"]
+    },
+    {
+      "key": "duration_daytrip",
+      "title": "Wie viel Zeit hast du?",
+      "label": "Verfügbare Zeit",
+      "type": "single",
+      "show_if": {"key": "region", "contains": "Tagesausflug in der Nähe"},
+      "options": ["Vormittag", "Nachmittag", "Ganzer Tag", "Ganzer Tag inkl. Abend"]
+    },
+    {
+      "key": "month",
+      "title": "Wann soll es losgehen?",
+      "label": "Reisezeit",
+      "type": "single",
+      "options": ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August",
+                  "September", "Oktober", "November", "Dezember", "Egal"]
+    },
+    {
+      "key": "temp",
+      "title": "Wie warm soll es sein?",
+      "label": "Gewünschte Temperatur",
+      "type": "single",
+      "show_if": {"not": {"key": "region", "contains": "Tagesausflug in der Nähe"}},
+      "options": ["unter 20°C", "20–25°C", "25–30°C", "20–30°C", "möglichst heiß", "egal"]
+    },
+    {
+      "key": "water_type",
+      "title": "Meer oder See?",
+      "label": "Gewässer",
+      "type": "multi",
+      "exclusive": ["Kein Gewässer nötig"],
+      "options": ["Meer", "See", "Kein Gewässer nötig"]
+    },
+    {
+      "key": "sea",
+      "title": "Wie warm soll das Wasser sein?",
+      "label": "Wassertemperatur",
+      "type": "single",
+      "show_if": {"all": [
+        {"key": "water_type", "answered": true},
+        {"not": {"key": "water_type", "contains": "Kein Gewässer nötig"}}
+      ]},
+      "options": ["28°C+ (tropisch warm)", "24–27°C (angenehm warm)", "20–24°C ist ok", "egal"]
+    },
+    {
+      "key": "rain",
+      "title": "Regen?",
+      "label": "Niederschlag",
+      "type": "single",
+      "options": ["möglichst trocken", "egal"]
+    },
+    {
+      "key": "activities",
+      "title": "Welche Aktivitäten interessieren dich?",
+      "label": "Gewünschte Aktivitäten",
+      "type": "multi",
+      "options": ["Tauchen", "Schnorcheln", "Wandern", "Skifahren", "Golf", "Mountainbike",
+                  "Surfen", "Safari", "Fotografieren", "Museen", "Freizeitparks", "Wein",
+                  "Kulinarik", "Reiten", "Segeln", "Angeln", "Klettern", "Yoga", "Tennis",
+                  "Kajak/SUP", "Bootsausflüge", "Zoo/Tierpark", "Therme/Wellness-Tag",
+                  "Sehenswürdigkeit/Schloss", "Kletterpark", "Escape Room", "Minigolf",
+                  "Flohmarkt/Markt", "Natur", "FKK"]
+    },
+    {
+      "key": "accommodation",
+      "title": "Welche Unterkunftsart?",
+      "label": "Unterkunftsart",
+      "type": "single",
+      "show_if": {"not": {"key": "region", "contains": "Tagesausflug in der Nähe"}},
+      "options": ["Hotel", "Apartment", "Ferienwohnung", "Airbnb", "Villa", "Camping", "Hostel",
+                  "egal"]
+    },
+    {
+      "key": "accommodation_size",
+      "title": "Wie groß darf das Hotel sein?",
+      "label": "Hotelgröße",
+      "type": "single",
+      "show_if": {"all": [
+        {"not": {"key": "region", "contains": "Tagesausflug in der Nähe"}},
+        {"key": "accommodation", "equals": "Hotel"}
+      ]},
+      "options": ["klein", "Boutique", "mittelgroß", "riesige Clubanlage", "egal"]
+    },
+    {
+      "key": "hotel_wishes",
+      "title": "Was ist dir beim Hotel besonders wichtig?",
+      "label": "Hotelwünsche",
+      "type": "multi",
+      "show_if": {"not": {"key": "region", "contains": "Tagesausflug in der Nähe"}},
+      "options": ["Erwachsenenhotel", "Familienhotel", "Kinderpool", "Rutschen", "Animation",
+                  "Ruhe", "All Inclusive", "Frühstück", "Halbpension", "Swim-Up", "Privatpool",
+                  "Spa", "Fitnessstudio", "direkte Strandlage", "Sandstrand", "flach abfallend",
+                  "Hausriff", "WLAN", "Homeoffice geeignet"]
+    },
+    {
+      "key": "arrival_mode",
+      "title": "Wie möchtest du anreisen?",
+      "label": "Anreise",
+      "type": "single",
+      "show_if": {"not": {"key": "region", "contains": "Tagesausflug in der Nähe"}},
+      "options": ["Flugzeug", "Auto", "Bus", "Bahn", "Ist mir egal"]
+    },
+    {
+      "key": "home_location",
+      "title": "Von wo geht's los?",
+      "label": "Startort eigene Anreise",
+      "type": "text",
+      "required": true,
+      "placeholder": "PLZ oder Ort",
+      "show_if": {"any": [
+        {"key": "arrival_mode", "in": ["Auto", "Bus", "Bahn"]},
+        {"key": "region", "contains": "Tagesausflug in der Nähe"}
+      ]}
+    },
+    {
+      "key": "max_distance",
+      "title": "Wie weit darf es maximal sein?",
+      "label": "Max. Entfernung eigene Anreise",
+      "type": "single",
+      "show_if": {"any": [
+        {"key": "arrival_mode", "in": ["Auto", "Bus", "Bahn"]},
+        {"key": "region", "contains": "Tagesausflug in der Nähe"}
+      ]},
+      "options": ["bis 50 km", "bis 100 km", "bis 200 km", "bis 400 km", "bis 600 km", "egal"]
+    },
+    {
+      "key": "flight_time",
+      "title": "Flugzeit?",
+      "label": "Flugzeit",
+      "type": "single",
+      "show_if": {"all": [
+        {"not": {"key": "region", "contains": "Tagesausflug in der Nähe"}},
+        {"any": [
+          {"key": "arrival_mode", "answered": false},
+          {"key": "arrival_mode", "in": ["Flugzeug", "Ist mir egal"]}
+        ]}
+      ]},
+      "options": ["Direktflug", "max. 4 Stunden", "max. 6 Stunden", "egal"]
+    },
+    {
+      "key": "airports",
+      "title": "Abflughafen?",
+      "label": "Abflughafen",
+      "type": "multi",
+      "show_if": {"all": [
+        {"not": {"key": "region", "contains": "Tagesausflug in der Nähe"}},
+        {"any": [
+          {"key": "arrival_mode", "answered": false},
+          {"key": "arrival_mode", "in": ["Flugzeug", "Ist mir egal"]}
+        ]}
+      ]},
+      "options": ["Frankfurt", "Stuttgart", "München", "Hamburg", "Düsseldorf", "Berlin"]
+    },
+    {
+      "key": "dislikes",
+      "title": "Was nervt dich im Urlaub?",
+      "label": "Nervt im Urlaub",
+      "type": "multi",
+      "show_if": {"not": {"key": "region", "contains": "Tagesausflug in der Nähe"}},
+      "options": ["überfüllte Strände", "Kinder", "Animation", "Wind", "Hitze",
+                  "lange Transfers", "frühes Aufstehen", "Starker Wellengang"]
+    },
+    {
+      "key": "perfect_holiday",
+      "title": "Was macht für dich einen perfekten Urlaub aus?",
+      "label": "Perfekter Urlaub laut Nutzer (Freitext)",
+      "type": "text",
+      "placeholder": "Freitext, optional",
+      "show_if": {"not": {"key": "region", "contains": "Tagesausflug in der Nähe"}}
+    },
+    {
+      "key": "past_trips",
+      "title": "Welche Hotels/Urlaube haben dir gefallen – welche nicht? Warum?",
+      "label": "Frühere Urlaubserfahrungen (Freitext)",
+      "type": "text",
+      "placeholder": "z. B. \"RIU Papayas war super, viel Auswahl beim Essen, ruhige Lage\"",
+      "show_if": {"not": {"key": "region", "contains": "Tagesausflug in der Nähe"}}
+    },
+    {
+      "key": "perfect_daytrip",
+      "title": "Was macht für dich einen perfekten Ausflug aus?",
+      "label": "Perfekter Ausflug laut Nutzer (Freitext)",
+      "type": "text",
+      "placeholder": "Freitext, optional",
+      "show_if": {"key": "region", "contains": "Tagesausflug in der Nähe"}
+    }
+  ]
+}

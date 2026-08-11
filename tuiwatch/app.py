@@ -50,6 +50,7 @@ from scraper import (_giata_from_url, _valid_img_url, api_healthcheck,
                      with_duration, with_room_code, with_transfer_included, with_travellers,
                      without_room_code)
 import check24_client
+import trippilot_questions
 from aktionscodes import fetch_aktionscodes
 from nextcloud import fetch_contacts
 from packliste import PACKING_TEMPLATE, default_packing_rows
@@ -91,7 +92,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.89.11"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.89.12"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -3417,6 +3418,7 @@ _ADVISOR_SAFETY_TRAILER = ai_routes._ADVISOR_SAFETY_TRAILER
 _DEFAULT_COMPARE_INSTRUCTIONS = ai_routes._DEFAULT_COMPARE_INSTRUCTIONS
 _DEFAULT_SUMMARY_INSTRUCTIONS = ai_routes._DEFAULT_SUMMARY_INSTRUCTIONS
 _DAYTRIP_REGION_VALUE = ai_routes._DAYTRIP_REGION_VALUE
+_is_daytrip = ai_routes._is_daytrip
 _region_values = ai_routes._region_values
 _DEFAULT_DAYTRIP_INSTRUCTIONS = ai_routes._DEFAULT_DAYTRIP_INSTRUCTIONS
 _PROMPT_FEATURES = ai_routes._PROMPT_FEATURES
@@ -3455,10 +3457,10 @@ api_ai_region_outlook = ai_routes.api_ai_region_outlook
 api_ai_ask = ai_routes.api_ai_ask
 api_ai_prompt_settings = ai_routes.api_ai_prompt_settings
 api_ai_provider = ai_routes.api_ai_provider
-_ADVISOR_FIELDS = ai_routes._ADVISOR_FIELDS
-_ADVISOR_LIST_FIELDS = ai_routes._ADVISOR_LIST_FIELDS
-_ADVISOR_TEXT_FIELDS = ai_routes._ADVISOR_TEXT_FIELDS
-_ADVISOR_LABELS = ai_routes._ADVISOR_LABELS
+_advisor_fields = ai_routes._advisor_fields
+_advisor_list_fields = ai_routes._advisor_list_fields
+_advisor_text_fields = ai_routes._advisor_text_fields
+_advisor_labels = ai_routes._advisor_labels
 _advisor_prompt = ai_routes._advisor_prompt
 _advisor_dna_scores = ai_routes._advisor_dna_scores
 _advisor_dna_update = ai_routes._advisor_dna_update
@@ -3764,6 +3766,9 @@ def main() -> None:
     signal.signal(signal.SIGTERM, _handle_sigterm)
     init_db()
     load_sessions()
+    # /config/trippilot einrichten: eigene questions.json bleibt unangetastet,
+    # questions.default.json/README werden auf den Auslieferungsstand gebracht
+    trippilot_questions.ensure_user_copy()
     _spawn(push_ha_sensors)  # vorhandene Preise sofort als Sensoren melden
     _spawn(_notify_startup)  # kurze Telegram-Statusmeldung (falls konfiguriert)
     _spawn(_run_healthcheck)  # API-Erreichbarkeit beim Start prüfen

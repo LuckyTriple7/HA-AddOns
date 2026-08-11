@@ -1,39 +1,38 @@
 // Reiner Node-Test ohne Dependency (kein npm/jest im Projekt) fuer die
-// bedingte Folge-Schritt-Logik (`showIf`/`advVisibleSteps`) des
-// Reiseberater-Wizards. Extrahiert `ADV_STEPS` + `advVisibleSteps` per
-// vm-Modul direkt aus static/app.js (dorthin ausgelagert, Backlog #12) —
-// so bleibt der Test immer synchron zur ausgelieferten Datei.
-// Test nie von der HTML-Datei abweicht.
+// bedingte Folge-Schritt-Logik des TripPilot-Wizards. Seit 0.89.12 stehen die
+// Fragen in trippilot_questions.json statt in static/app.js; der Test laedt
+// deshalb die ausgelieferte JSON und den Bedingungs-Auswerter `advCondMet` +
+// `advVisibleSteps` per vm-Modul direkt aus static/app.js — so bleibt er
+// synchron zu beidem.
 'use strict';
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
 
-const htmlPath = path.join(__dirname, '..', 'static', 'app.js');
-const html = fs.readFileSync(htmlPath, 'utf8');
+const jsPath = path.join(__dirname, '..', 'static', 'app.js');
+const js = fs.readFileSync(jsPath, 'utf8');
+const questionsPath = path.join(__dirname, '..', 'trippilot_questions.json');
+const questions = JSON.parse(fs.readFileSync(questionsPath, 'utf8'));
 
 function extractBlock(startMarker, endMarker) {
-  const start = html.indexOf(startMarker);
+  const start = js.indexOf(startMarker);
   if (start === -1) throw new Error('Start-Marker nicht gefunden: ' + startMarker);
-  const end = html.indexOf(endMarker, start);
+  const end = js.indexOf(endMarker, start);
   if (end === -1) throw new Error('End-Marker nicht gefunden: ' + endMarker);
-  return html.slice(start, end + endMarker.length);
+  return js.slice(start, end + endMarker.length);
 }
 
-const daytripSrc = extractBlock("const DAYTRIP = '", "';");
-const isDaytripSrc = extractBlock('const isDaytrip = ', ';');
-const stepsSrc = extractBlock('const ADV_STEPS = [', '\n    ];');
+const condSrc = extractBlock('function advCondMet(cond, state){', '\n    }');
 const fnSrc = extractBlock('function advVisibleSteps(){', '}');
 
 const sandbox = {};
 vm.createContext(sandbox);
-vm.runInContext(daytripSrc, sandbox);
-vm.runInContext(isDaytripSrc, sandbox);
-vm.runInContext(stepsSrc, sandbox);
+vm.runInContext(condSrc, sandbox);
 vm.runInContext('var advState = {};', sandbox);
+vm.runInContext('var ADV_STEPS = ' + JSON.stringify(questions.steps) + ';', sandbox);
 vm.runInContext(fnSrc, sandbox);
 
-const DAYTRIP = vm.runInContext('DAYTRIP', sandbox);
+const DAYTRIP = questions.daytrip_value;
 
 function setState(state) {
   vm.runInContext('advState = ' + JSON.stringify(state) + ';', sandbox);
@@ -42,10 +41,13 @@ function visibleKeys() {
   return vm.runInContext('advVisibleSteps().map(s => s.key)', sandbox);
 }
 function stepCount() {
-  return vm.runInContext('ADV_STEPS.length', sandbox);
+  return questions.steps.length;
 }
 function conditionalCount() {
-  return vm.runInContext('ADV_STEPS.filter(s => s.showIf).length', sandbox);
+  return questions.steps.filter(s => s.show_if).length;
+}
+function step(key) {
+  return questions.steps.find(s => s.key === key);
 }
 
 let failures = 0;
@@ -59,6 +61,60 @@ function check(name, actual, expected) {
   }
 }
 
+// ── Schema der ausgelieferten Datei ───────────────────────────────────────────
+check('daytrip_value gesetzt', typeof DAYTRIP === 'string' && DAYTRIP.length > 0, true);
+check('daytrip_value ist eine Option der region-Frage',
+  step('region').options.includes(DAYTRIP), true);
+check('jede Frage hat key/title/label/type', questions.steps.every(
+  s => s.key && s.title && s.label && ['multi', 'single', 'text'].includes(s.type)), true);
+check('keine doppelten Keys',
+  new Set(questions.steps.map(s => s.key)).size, stepCount());
+check('multi/single haben Optionen', questions.steps.every(
+  s => s.type === 'text' || (Array.isArray(s.options) && s.options.length > 0)), true);
+check('show_if verweist nur auf existierende Keys', (() => {
+  const keys = new Set(questions.steps.map(s => s.key));
+  const walk = c => {
+    if (Array.isArray(c.all)) return c.all.every(walk);
+    if (Array.isArray(c.any)) return c.any.every(walk);
+    if (c.not) return walk(c.not);
+    return keys.has(c.key);
+  };
+  return questions.steps.filter(s => s.show_if).every(s => walk(s.show_if));
+})(), true);
+
+// ── Auswerter: jeder Operator einzeln ─────────────────────────────────────────
+function cond(c, state) {
+  vm.runInContext('advState = ' + JSON.stringify(state) + ';', sandbox);
+  return vm.runInContext('advCondMet(' + JSON.stringify(c) + ', advState)', sandbox);
+}
+check('contains trifft auf Listenantwort',
+  cond({ key: 'a', contains: 'x' }, { a: ['x', 'y'] }), true);
+check('contains trifft auf Einzelantwort',
+  cond({ key: 'a', contains: 'x' }, { a: 'x' }), true);
+check('contains trifft nicht bei fehlender Antwort',
+  cond({ key: 'a', contains: 'x' }, {}), false);
+check('contains_any trifft bei einem Treffer',
+  cond({ key: 'a', contains_any: ['x', 'z'] }, { a: ['y', 'z'] }), true);
+check('contains_any trifft nicht ohne Treffer',
+  cond({ key: 'a', contains_any: ['x', 'z'] }, { a: ['y'] }), false);
+check('equals trifft exakt', cond({ key: 'a', equals: 'x' }, { a: 'x' }), true);
+check('equals trifft nicht auf Liste', cond({ key: 'a', equals: 'x' }, { a: ['x'] }), false);
+check('in trifft', cond({ key: 'a', in: ['x', 'y'] }, { a: 'y' }), true);
+check('in trifft nicht', cond({ key: 'a', in: ['x', 'y'] }, { a: 'z' }), false);
+check('answered:true bei Antwort', cond({ key: 'a', answered: true }, { a: ['x'] }), true);
+check('answered:true bei leerer Liste', cond({ key: 'a', answered: true }, { a: [] }), false);
+check('answered:true bei leerem Text', cond({ key: 'a', answered: true }, { a: '' }), false);
+check('answered:false ohne Antwort', cond({ key: 'a', answered: false }, {}), true);
+check('all verlangt alle', cond({ all: [{ key: 'a', contains: 'x' },
+  { key: 'b', contains: 'y' }] }, { a: ['x'] }), false);
+check('any reicht eine', cond({ any: [{ key: 'a', contains: 'x' },
+  { key: 'b', contains: 'y' }] }, { a: ['x'] }), true);
+check('not kehrt um', cond({ not: { key: 'a', contains: 'x' } }, { a: ['x'] }), false);
+check('unbekannter Operator gilt als nicht erfuellt',
+  cond({ key: 'a', bogus: 'x' }, { a: ['x'] }), false);
+check('fehlendes show_if bedeutet immer sichtbar', cond(undefined, {}), true);
+
+// ── Sichtbarkeitslogik der ausgelieferten Fragen ──────────────────────────────
 // Kein Interesse gesetzt, kein Tagesausflug, keine Unterkunftsart, keine Region ->
 // beach_detail/berge_detail/home_location/max_distance/duration_daytrip/
 // accommodation_size/sea/excluded_countries/excluded_countries_other/
@@ -92,13 +148,12 @@ setState({ region: ['Weltweit', 'Europa'] });
 check('Region Weltweit+Europa: excluded_countries sichtbar (mind. eine Bedingung erfuellt)',
   visibleKeys().includes('excluded_countries'), true);
 
-// region + exclusive: Tagesausflug-Wert steuert weiterhin isDaytrip, auch als Teil eines Arrays
-check('region-Step ist jetzt Mehrfachauswahl', vm.runInContext(
-  "ADV_STEPS.find(s => s.key === 'region').multi", sandbox), true);
-check('region-Step hat Tagesausflug als exklusive Option', vm.runInContext(
-  "ADV_STEPS.find(s => s.key === 'region').exclusive", sandbox), [DAYTRIP]);
-check('water_type-Step hat "Kein Gewaesser noetig" als exklusive Option', vm.runInContext(
-  "ADV_STEPS.find(s => s.key === 'water_type').exclusive", sandbox), ['Kein Gewässer nötig']);
+// region + exclusive: Tagesausflug-Wert steuert weiterhin die Sichtbarkeit,
+// auch als Teil eines Arrays
+check('region-Step ist Mehrfachauswahl', step('region').type, 'multi');
+check('region-Step hat Tagesausflug als exklusive Option', step('region').exclusive, [DAYTRIP]);
+check('water_type-Step hat "Kein Gewaesser noetig" als exklusive Option',
+  step('water_type').exclusive, ['Kein Gewässer nötig']);
 
 // water_type steuert sea-Sichtbarkeit
 setState({ water_type: ['Kein Gewässer nötig'] });

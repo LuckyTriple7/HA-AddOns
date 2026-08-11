@@ -5025,143 +5025,94 @@
     }
 
     // ── KI-Reiseberater (geführter Fragebogen → 3 Zielvorschläge) ─────────────
-    const DAYTRIP = 'Tagesausflug in der Nähe';
+    // Fragen, Reihenfolge und Sichtbarkeit stehen seit 0.89.12 nicht mehr hier,
+    // sondern in /config/trippilot/questions.json (editierbar, überlebt Updates).
+    // Dieselbe Datei liefert dem Backend die Feldnamen/Labels für den Prompt —
+    // eine dort ergänzte Frage kommt also auch wirklich bei der KI an.
+    let DAYTRIP = 'Tagesausflug in der Nähe';   // aus der JSON, bis dahin Fallback
+    let ADV_STEPS = [];
+    let advQuestionsSource = null, advQuestionsErrors = [], advQuestionsPath = '';
     const isDaytrip = state => (state.region||[]).includes(DAYTRIP);
-    const ADV_STEPS = [
-      {title:'Wohin soll die Reise ungefähr gehen?', key:'region', multi:true,
-       exclusive:[DAYTRIP],
-       options:['Deutschland','Europa','Makaronesien','Griechische Inseln','Balearen','Italien',
-                'Frankreich','Adriaküste','Algarve','Zypern','Kanaren','Mittelmeer','Karibik',
-                'Südostasien','Indischer Ozean','Weltweit','Egal',DAYTRIP]},
-      {title:'Welche Länder kommen für dich nicht in Frage?', key:'excluded_countries', multi:true,
-       showIf: state => !(state.region||[]).includes(DAYTRIP) &&
-         ((state.region||[]).includes('Weltweit') || (state.region||[]).includes('Egal')),
-       options:['Türkei','Ägypten','Tunesien','Marokko','Kenia','Thailand','Sri Lanka',
-                'Dominikanische Republik','Mexiko','Malediven']},
-      {title:'Weitere Länder ausschließen? (optional)', key:'excluded_countries_other', type:'text',
-       showIf: state => !(state.region||[]).includes(DAYTRIP) &&
-         ((state.region||[]).includes('Weltweit') || (state.region||[]).includes('Egal')),
-       placeholder:'z. B. weitere Länder, kommagetrennt'},
-      {title:'Was ist dir im Urlaub wichtig?', key:'interests', multi:true,
-       showIf: state => !isDaytrip(state),
-       options:['🌴 Strand','⛰️ Berge','🏛️ Kultur','🍹 Entspannung','🎉 Nachtleben','🚶 Wandern',
-                '🚴 Radfahren','🍽️ Essen','🛍️ Shopping','👨‍👩‍👧 Familie','❤️ Romantik']},
-      {title:'Wie soll dein Strand sein?', key:'beach_detail', multi:true,
-       showIf: state => (state.interests||[]).includes('🌴 Strand'),
-       options:['Feinsandig','Kies/Felsen','Naturstrand, unberührt','Weitläufig, kilometerlang',
-                'Kleine, ruhige Bucht','Belebt mit Beach-Bars','Flach abfallend (familienfreundlich)',
-                'Schattenplätze/Palmen','Gut zum Schnorcheln','Direkt am Hotel',
-                'Fußweg/Promenade OK']},
-      {title:'Wie sollen die Berge sein?', key:'berge_detail', multi:true,
-       showIf: state => (state.interests||[]).includes('⛰️ Berge'),
-       options:['Sanfte Wanderwege','Anspruchsvolle Gipfeltouren','Skigebiet (Winter)',
-                'Aussicht/Panorama','Alm-/Hüttenromantik','Seilbahn/Gondel vorhanden',
-                'Ruhig, wenig Tourismus']},
-      {title:'Welche Reiseart?', key:'travel_type', multi:true,
-       showIf: state => !isDaytrip(state),
-       options:['Pauschalreise','Badeurlaub','Rundreise','Städtereise','Kreuzfahrt','Wellness',
-                'Aktivurlaub','Abenteuer','Luxus','Camping','All Inclusive','Ferienwohnung']},
-      {title:'Mit wem reist du?', key:'companions', multi:false,
-       showIf: state => !isDaytrip(state),
-       options:['Alleine','Partner','Familie','Freunde','Senioren','Mit Hund']},
-      {title:'Budget pro Person?', key:'budget', multi:false,
-       showIf: state => !isDaytrip(state),
-       options:['bis 500 €','500–1000 €','1000–2000 €','2000–3000 €','egal']},
-      {title:'Reisedauer?', key:'duration', multi:false,
-       showIf: state => !isDaytrip(state),
-       options:['Wochenende','5 Tage','1 Woche','9–12 Tage','2 Wochen','3+ Wochen']},
-      {title:'Wie viel Zeit hast du?', key:'duration_daytrip', multi:false,
-       showIf: state => isDaytrip(state),
-       options:['Vormittag','Nachmittag','Ganzer Tag','Ganzer Tag inkl. Abend']},
-      {title:'Wann soll es losgehen?', key:'month', multi:false,
-       options:['Januar','Februar','März','April','Mai','Juni','Juli','August','September',
-                'Oktober','November','Dezember','Egal']},
-      {title:'Wie warm soll es sein?', key:'temp', multi:false,
-       showIf: state => !isDaytrip(state),
-       options:['unter 20°C','20–25°C','25–30°C','20–30°C','möglichst heiß','egal']},
-      {title:'Meer oder See?', key:'water_type', multi:true,
-       exclusive:['Kein Gewässer nötig'],
-       options:['Meer','See','Kein Gewässer nötig']},
-      {title:'Wie warm soll das Wasser sein?', key:'sea', multi:false,
-       showIf: state => (state.water_type||[]).length > 0 && !state.water_type.includes('Kein Gewässer nötig'),
-       options:['28°C+ (tropisch warm)','24–27°C (angenehm warm)','20–24°C ist ok','egal']},
-      {title:'Regen?', key:'rain', multi:false,
-       options:['möglichst trocken','egal']},
-      {title:'Welche Aktivitäten interessieren dich?', key:'activities', multi:true,
-       options:['Tauchen','Schnorcheln','Wandern','Skifahren','Golf','Mountainbike','Surfen',
-                'Safari','Fotografieren','Museen','Freizeitparks','Wein','Kulinarik',
-                'Reiten','Segeln','Angeln','Klettern','Yoga','Tennis','Kajak/SUP','Bootsausflüge',
-                'Zoo/Tierpark','Therme/Wellness-Tag','Sehenswürdigkeit/Schloss','Kletterpark',
-                'Escape Room','Minigolf','Flohmarkt/Markt','Natur','FKK']},
-      {title:'Welche Unterkunftsart?', key:'accommodation', multi:false,
-       showIf: state => !isDaytrip(state),
-       options:['Hotel','Apartment','Ferienwohnung','Airbnb','Villa','Camping','Hostel','egal']},
-      {title:'Wie groß darf das Hotel sein?', key:'accommodation_size', multi:false,
-       showIf: state => !isDaytrip(state) && state.accommodation === 'Hotel',
-       options:['klein','Boutique','mittelgroß','riesige Clubanlage','egal']},
-      {title:'Was ist dir beim Hotel besonders wichtig?', key:'hotel_wishes', multi:true,
-       showIf: state => !isDaytrip(state),
-       options:['Erwachsenenhotel','Familienhotel','Kinderpool','Rutschen','Animation','Ruhe',
-                'All Inclusive','Frühstück','Halbpension','Swim-Up','Privatpool','Spa',
-                'Fitnessstudio','direkte Strandlage','Sandstrand','flach abfallend','Hausriff',
-                'WLAN','Homeoffice geeignet']},
-      {title:'Wie möchtest du anreisen?', key:'arrival_mode', multi:false,
-       showIf: state => !isDaytrip(state),
-       options:['Flugzeug','Auto','Bus','Bahn','Ist mir egal']},
-      {title:'Von wo geht\'s los?', key:'home_location', type:'text', required:true,
-       showIf: state => ['Auto','Bus','Bahn'].includes(state.arrival_mode) || isDaytrip(state),
-       placeholder:'PLZ oder Ort'},
-      {title:'Wie weit darf es maximal sein?', key:'max_distance', multi:false,
-       showIf: state => ['Auto','Bus','Bahn'].includes(state.arrival_mode) || isDaytrip(state),
-       options:['bis 50 km','bis 100 km','bis 200 km','bis 400 km','bis 600 km','egal']},
-      {title:'Flugzeit?', key:'flight_time', multi:false,
-       showIf: state => !isDaytrip(state) &&
-         (!state.arrival_mode || ['Flugzeug','Ist mir egal'].includes(state.arrival_mode)),
-       options:['Direktflug','max. 4 Stunden','max. 6 Stunden','egal']},
-      {title:'Abflughafen?', key:'airports', multi:true,
-       showIf: state => !isDaytrip(state) &&
-         (!state.arrival_mode || ['Flugzeug','Ist mir egal'].includes(state.arrival_mode)),
-       options:['Frankfurt','Stuttgart','München','Hamburg','Düsseldorf','Berlin']},
-      {title:'Was nervt dich im Urlaub?', key:'dislikes', multi:true,
-       showIf: state => !isDaytrip(state),
-       options:['überfüllte Strände','Kinder','Animation','Wind','Hitze','lange Transfers',
-                'frühes Aufstehen','Starker Wellengang']},
-      {title:'Was macht für dich einen perfekten Urlaub aus?', key:'perfect_holiday', type:'text',
-       showIf: state => !isDaytrip(state),
-       placeholder:'Freitext, optional'},
-      {title:'Welche Hotels/Urlaube haben dir gefallen – welche nicht? Warum?',
-       key:'past_trips', type:'text',
-       showIf: state => !isDaytrip(state),
-       placeholder:'z. B. "RIU Papayas war super, viel Auswahl beim Essen, ruhige Lage"'},
-      {title:'Was macht für dich einen perfekten Ausflug aus?', key:'perfect_daytrip', type:'text',
-       showIf: state => isDaytrip(state),
-       placeholder:'Freitext, optional'},
-    ];
+
+    // `show_if` ist deklarativ (kein Code in der JSON) — hier die Auswertung.
+    // Unbekannte Operatoren gelten als nicht erfüllt, damit eine vertippte
+    // Bedingung die Frage versteckt statt den Wizard abstürzen zu lassen.
+    function advCondMet(cond, state){
+      if(!cond || typeof cond !== 'object') return true;
+      if(Array.isArray(cond.all)) return cond.all.every(c => advCondMet(c, state));
+      if(Array.isArray(cond.any)) return cond.any.some(c => advCondMet(c, state));
+      if(cond.not) return !advCondMet(cond.not, state);
+      const v = state[cond.key];
+      const arr = Array.isArray(v) ? v : (v == null || v === '' ? [] : [v]);
+      if('contains' in cond) return arr.includes(cond.contains);
+      if('contains_any' in cond) return (cond.contains_any||[]).some(x => arr.includes(x));
+      if('equals' in cond) return v === cond.equals;
+      if('in' in cond) return (cond.in||[]).includes(v);
+      if('answered' in cond) return (arr.length > 0) === !!cond.answered;
+      return false;
+    }
+
+    async function loadAdvQuestions(){
+      if(ADV_STEPS.length) return true;
+      let d;
+      try { d = await fetch(api('/api/trippilot/questions')).then(r=>r.json()); }
+      catch(e){ return false; }
+      if(!d || !Array.isArray(d.steps) || !d.steps.length) return false;
+      ADV_STEPS = d.steps;
+      if(d.daytrip_value) DAYTRIP = d.daytrip_value;
+      advQuestionsSource = d.source || null;
+      advQuestionsErrors = d.errors || [];
+      advQuestionsPath = d.path || '';
+      return true;
+    }
     let advIdx = 0, advState = {};
-    function openAdvisor(){
+    async function openAdvisor(){
       advIdx = 0; advState = {};
       if(G.homeLoc) advState.home_location = G.homeLoc;
       $('#reiseb-bg').classList.add('show');
+      $('#reiseb-sub').textContent = '';
+      $('#reiseb-body').innerHTML = '<div class="cmp-load">Fragebogen wird geladen…</div>';
+      $('#reiseb-back').style.visibility = 'hidden';
+      $('#reiseb-next').disabled = true;
+      if(!await loadAdvQuestions()){
+        $('#reiseb-body').innerHTML = '<div class="hint" style="color:var(--amber)">'
+          + '⚠ Der Fragebogen konnte nicht geladen werden. Bitte Seite neu laden.</div>';
+        return;
+      }
+      $('#reiseb-next').disabled = false;
       advRender();
     }
     function closeAdvisor(){ $('#reiseb-bg').classList.remove('show'); }
     $('#reiseb-bg').addEventListener('click', e=>{ if(e.target.id==='reiseb-bg') closeAdvisor(); });
-    function advVisibleSteps(){ return ADV_STEPS.filter(s => !s.showIf || s.showIf(advState)); }
+    function advVisibleSteps(){ return ADV_STEPS.filter(s => advCondMet(s.show_if, advState)); }
+    // Eine fehlerhafte eigene questions.json versteckt das Add-on nicht im Log:
+    // der Wizard läuft mit den mitgelieferten Fragen und sagt das auf Schritt 1.
+    function advQuestionsWarning(){
+      if(advIdx !== 0 || advQuestionsSource !== 'bundled' || !advQuestionsErrors.length) return '';
+      return '<div class="hint" style="color:var(--amber);margin-bottom:10px">⚠ '
+        + esc(advQuestionsPath || 'questions.json') + ' ist fehlerhaft — es gelten die '
+        + 'mitgelieferten Fragen. ' + esc(advQuestionsErrors[0])
+        + (advQuestionsErrors.length > 1
+            ? ' (und ' + (advQuestionsErrors.length - 1) + ' weitere)' : '') + '</div>';
+    }
     function advRender(){
       const steps = advVisibleSteps();
       const s = steps[advIdx];
+      const multi = s.type === 'multi';
       $('#reiseb-sub').textContent = 'Schritt '+(advIdx+1)+' von '+steps.length
-        + (s.multi ? ' · Mehrfachauswahl möglich' : '');
+        + (multi ? ' · Mehrfachauswahl möglich' : '');
       if(s.type === 'text'){
         const val = advState[s.key] || '';
-        $('#reiseb-body').innerHTML = '<h3 style="margin:4px 0 12px">'+esc(s.title)+'</h3>'
+        $('#reiseb-body').innerHTML = advQuestionsWarning()
+          + '<h3 style="margin:4px 0 12px">'+esc(s.title)+'</h3>'
           + `<textarea id="reiseb-text" class="reiseb-text" rows="4" oninput="advUpdateNextState()" `
           + `placeholder="${esc(s.placeholder||'Optional')}">${esc(val)}</textarea>`;
       } else {
-        const sel = advState[s.key] != null ? advState[s.key] : (s.multi ? [] : null);
-        $('#reiseb-body').innerHTML = '<h3 style="margin:4px 0 12px">'+esc(s.title)+'</h3>'
-          + '<div class="tag-row">' + s.options.map((o, oi) => {
-              const active = s.multi ? sel.includes(o) : sel === o;
+        const sel = advState[s.key] != null ? advState[s.key] : (multi ? [] : null);
+        $('#reiseb-body').innerHTML = advQuestionsWarning()
+          + '<h3 style="margin:4px 0 12px">'+esc(s.title)+'</h3>'
+          + '<div class="tag-row">' + (s.options||[]).map((o, oi) => {
+              const active = multi ? sel.includes(o) : sel === o;
               return `<span class="tag-pill${active?' active':''}" onclick="advPick(${oi})">${esc(o)}</span>`;
             }).join('') + '</div>';
       }
@@ -5177,8 +5128,8 @@
       $('#reiseb-next').disabled = !!s.required && !filled;
     }
     function advPick(oi){
-      const s = advVisibleSteps()[advIdx], o = s.options[oi];
-      if(s.multi){
+      const s = advVisibleSteps()[advIdx], o = (s.options||[])[oi];
+      if(s.type === 'multi'){
         const arr = advState[s.key] || (advState[s.key] = []);
         const excl = s.exclusive || [];
         if(excl.includes(o)){

@@ -68,7 +68,10 @@ Tagesausflug-Modus) — Claude schlägt danach 3 passende Reiseziele plus eine
 Alternative und eine Überraschung außerhalb der gewählten Region vor.
 Berechnet nebenbei ein persönliches Präferenzprofil („Reise-DNA"), ganz ohne
 Zusatzkosten. Prompts für TripPilot, Hotelvergleich und KI-Fazit lassen sich
-über **⚙ KI-Prompts** im Footer auch selbst anpassen.
+über **⚙ KI-Prompts** im Footer auch selbst anpassen. Die Fragen selbst stehen
+in `/config/trippilot/questions.json` und sind frei editierbar — Fragetext,
+Reihenfolge, Antwortmöglichkeiten und wann eine Frage erscheint; ein
+Add-on-Update überschreibt die Datei nicht.
 Details: [DOCS.md](DOCS.md#-trippilot).
 
 ## Preiskalender

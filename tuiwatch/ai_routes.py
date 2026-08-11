@@ -13,6 +13,7 @@ from datetime import date, datetime, timedelta
 from flask import Blueprint, jsonify, request
 
 import app as A
+import trippilot_questions as TQ
 
 bp = Blueprint('ai_routes', __name__)
 
@@ -164,7 +165,17 @@ _DEFAULT_SUMMARY_INSTRUCTIONS = (
     "prüfen“."
 )
 
-_DAYTRIP_REGION_VALUE = 'Tagesausflug in der Nähe'
+_DAYTRIP_REGION_VALUE = 'Tagesausflug in der Nähe'  # Fallback, wenn die JSON keinen nennt
+
+
+def _daytrip_value() -> str:
+    """Antwortwert, der den Tagesausflug-Modus auslöst — aus dem Fragebogen, damit
+    ein umbenannter Wert in der JSON auch hier greift."""
+    return TQ.daytrip_value() or _DAYTRIP_REGION_VALUE
+
+
+def _is_daytrip(p: dict) -> bool:
+    return _daytrip_value() in _region_values(p)
 
 
 def _region_values(p: dict) -> list:
@@ -1899,35 +1910,20 @@ def api_ai_provider():
                     'perplexity_configured': 'perplexity' in configured})
 
 
-_ADVISOR_FIELDS = ('region', 'excluded_countries', 'excluded_countries_other', 'interests',
-                   'beach_detail', 'berge_detail', 'travel_type', 'companions', 'budget',
-                   'duration', 'duration_daytrip', 'month', 'temp', 'water_type', 'sea', 'rain',
-                   'activities', 'accommodation', 'accommodation_size', 'hotel_wishes',
-                   'arrival_mode', 'home_location', 'max_distance', 'flight_time', 'airports',
-                   'dislikes', 'perfect_holiday', 'past_trips', 'perfect_daytrip')
-_ADVISOR_LIST_FIELDS = {'interests', 'beach_detail', 'berge_detail', 'travel_type', 'activities',
-                        'hotel_wishes', 'airports', 'dislikes', 'excluded_countries', 'water_type',
-                        'region'}
-_ADVISOR_TEXT_FIELDS = {'perfect_holiday', 'past_trips', 'excluded_countries_other',
-                        'home_location', 'perfect_daytrip'}
-_ADVISOR_LABELS = {
-    'region': 'Ziel-Region', 'excluded_countries': 'Kommt nicht in Frage',
-    'excluded_countries_other': 'Weitere ausgeschlossene Länder',
-    'interests': 'Wichtig im Urlaub', 'beach_detail': 'Strand-Details',
-    'berge_detail': 'Berge-Details', 'travel_type': 'Reiseart',
-    'companions': 'Reist mit', 'budget': 'Budget pro Person', 'duration': 'Reisedauer',
-    'duration_daytrip': 'Verfügbare Zeit',
-    'month': 'Reisezeit', 'temp': 'Gewünschte Temperatur', 'water_type': 'Gewässer',
-    'sea': 'Wassertemperatur',
-    'rain': 'Niederschlag', 'activities': 'Gewünschte Aktivitäten',
-    'accommodation': 'Unterkunftsart', 'accommodation_size': 'Hotelgröße',
-    'hotel_wishes': 'Hotelwünsche', 'arrival_mode': 'Anreise',
-    'home_location': 'Startort eigene Anreise', 'max_distance': 'Max. Entfernung eigene Anreise',
-    'flight_time': 'Flugzeit', 'airports': 'Abflughafen',
-    'dislikes': 'Nervt im Urlaub', 'perfect_holiday': 'Perfekter Urlaub laut Nutzer (Freitext)',
-    'past_trips': 'Frühere Urlaubserfahrungen (Freitext)',
-    'perfect_daytrip': 'Perfekter Ausflug laut Nutzer (Freitext)',
-}
+# Felder/Labels/Typen kommen aus derselben JSON wie der Wizard im Frontend
+# (trippilot_questions) — sonst würde eine dort ergänzte Frage beim Absenden
+# still verworfen. Absichtlich Funktionen statt Modul-Konstanten: die Datei ist
+# zur Laufzeit editierbar, ein einmal gelesenes Tupel wäre sofort veraltet.
+# Reihenfolge der Fragen = Reihenfolge der Profilzeilen im Prompt.
+_advisor_fields = TQ.fields              # Mehrfachauswahl -> Liste (max. 15 x 40 Zeichen)
+_advisor_list_fields = TQ.list_fields    # Freitext        -> max. 500 Zeichen
+_advisor_text_fields = TQ.text_fields    # Einfachauswahl  -> max. 60 Zeichen
+_advisor_labels = TQ.labels
+
+_ADVISOR_VALUE_MAXLEN = 40
+_ADVISOR_LIST_MAXLEN = 15
+_ADVISOR_TEXT_MAXLEN = 500
+_ADVISOR_CHOICE_MAXLEN = 60
 
 
 def _advisor_prompt(p: dict, prev_dna: dict | None = None) -> str:
@@ -1936,18 +1932,19 @@ def _advisor_prompt(p: dict, prev_dna: dict | None = None) -> str:
     Abneigungen/Freitext) — freie KI-Empfehlung, nicht auf eigene Angebote
     beschränkt, mit Websuche für reale/aktuelle Klimadaten. `prev_dna` (optional)
     ist das aus früheren Anfragen gespeicherte Reise-DNA-Profil (Zusatzkontext).
-    Ist `region` == `_DAYTRIP_REGION_VALUE`, wird stattdessen ein Tagesausflug
-    ohne Übernachtung geplant (eigener Instruktionstext, keine TUI/Unterkunfts-
-    Klauseln, keine Reise-DNA)."""
-    is_daytrip = _DAYTRIP_REGION_VALUE in _region_values(p)
+    Ist `region` der Tagesausflug-Wert des Fragebogens, wird stattdessen ein
+    Tagesausflug ohne Übernachtung geplant (eigener Instruktionstext, keine
+    TUI/Unterkunfts-Klauseln, keine Reise-DNA)."""
+    is_daytrip = _is_daytrip(p)
+    labels = _advisor_labels()
     lines = ["Ein Nutzer sucht per Reiseberater-Fragebogen sein nächstes Urlaubsziel. "
              "Sein Profil:\n"]
-    for key in _ADVISOR_FIELDS:
+    for key in _advisor_fields():
         val = p.get(key)
         if isinstance(val, list):
             val = ", ".join(str(v).strip() for v in val if str(v).strip())
         if val:
-            lines.append(f"- {_ADVISOR_LABELS[key]}: {val}")
+            lines.append(f"- {labels.get(key, key)}: {val}")
     if not is_daytrip and 'Pauschalreise' in (p.get('travel_type') or []):
         lines.append(
             "\nWichtig: Der Nutzer will eine Pauschalreise (Flug + Hotel) buchen. "
@@ -2055,6 +2052,20 @@ def _advisor_dna_table(scores: dict) -> str:
     return f"\n\n#### 🧬 Deine Reise-DNA\n| Kategorie | Ausprägung |\n|---|---|\n{rows}\n"
 
 
+@bp.route('/api/trippilot/questions')
+def api_trippilot_questions():
+    """Fragebogen für den TripPilot-Wizard. `source` sagt, ob die Nutzerdatei
+    unter /config/trippilot greift oder die Auslieferungsversion; `errors` sind
+    Probleme in einer fehlerhaften Nutzerdatei, damit die Oberfläche sie
+    anzeigen kann statt sie nur ins Log zu schreiben."""
+    if (err := A._require_api()):
+        return err
+    q = TQ.load()
+    return jsonify({'steps': q['steps'], 'daytrip_value': _daytrip_value(),
+                    'source': q['source'], 'errors': q['errors'],
+                    'path': TQ.QUESTIONS_PATH})
+
+
 @bp.route('/api/ai/travel-advisor', methods=['POST'])
 def api_ai_travel_advisor():
     """KI-Reiseberater: aus einem kurzen Profil (Region, Interessen, Reiseart,
@@ -2070,16 +2081,18 @@ def api_ai_travel_advisor():
     if not isinstance(data, dict):
         return jsonify({'error': 'invalid'}), 400
     profile = {}
-    for key in _ADVISOR_FIELDS:
+    list_fields, text_fields = _advisor_list_fields(), _advisor_text_fields()
+    for key in _advisor_fields():
         val = data.get(key)
-        if key in _ADVISOR_LIST_FIELDS:
+        if key in list_fields:
             if isinstance(val, list):
-                profile[key] = [str(v).strip()[:40] for v in val if str(v).strip()][:15]
-        elif key in _ADVISOR_TEXT_FIELDS:
+                profile[key] = [str(v).strip()[:_ADVISOR_VALUE_MAXLEN]
+                                for v in val if str(v).strip()][:_ADVISOR_LIST_MAXLEN]
+        elif key in text_fields:
             if isinstance(val, str) and val.strip():
-                profile[key] = val.strip()[:500]
+                profile[key] = val.strip()[:_ADVISOR_TEXT_MAXLEN]
         elif isinstance(val, str) and val.strip():
-            profile[key] = val.strip()[:60]
+            profile[key] = val.strip()[:_ADVISOR_CHOICE_MAXLEN]
     if not any(profile.values()):
         return jsonify({'error': 'invalid'}), 400
 
@@ -2100,7 +2113,7 @@ def api_ai_travel_advisor():
     if err:
         return err
     dna = {}
-    if _DAYTRIP_REGION_VALUE not in _region_values(profile):
+    if not _is_daytrip(profile):
         dna = _advisor_dna_update(_advisor_dna_scores(profile))
         text += _advisor_dna_table(dna)
     usage['estimated_usd'] = _ai_call_cost(model, usage)
