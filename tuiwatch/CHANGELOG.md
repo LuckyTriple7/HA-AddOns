@@ -1,5 +1,37 @@
 # Changelog
 
+## [0.90.0] - 2026-08-11
+
+### Added
+- **Überarbeiteter TripPilot-Fragebogen.** 31 statt 29 Fragen, durchgehend
+  ausformulierte Antworten mit Symbolen. Neu: **Reisetempo** (wie voll darf
+  der Tag sein) und **Transferdauer** (wie lange vom Flughafen zum Hotel).
+  Deutlich mehr Auswahl bei Hotelwünschen, Aktivitäten und besonders bei
+  „Was möchtest du vermeiden?" (u. a. Luftfeuchtigkeit, Stechmücken,
+  Seegras, Baustellen, sehr touristische Orte). Feinere Abstufungen bei
+  Temperatur, Regen und Budget.
+- **`semantics`-Block in der Fragen-JSON.** Einige Antwortwerte lösen nicht
+  nur Prompt-Text aus, sondern Logik — Tagesausflug-Modus, die
+  Eigenanreise-Klausel, der Veranstalter-Hinweis bei Pauschalreisen und die
+  Signale der Reise-DNA. Bisher standen diese Werte fest in `ai_routes.py`;
+  jetzt stehen sie in derselben Datei wie die Fragen. Damit lassen sich
+  Antworten frei umbenennen, ohne dass Funktionen still ausfallen. Fehlt der
+  Block, gelten weiter die eingebauten Standardwerte.
+
+### Fixed
+- **Validierung prüft jetzt auch Antwortwerte.** Ein Wert in `show_if`, in
+  `semantics` oder bei `daytrip_value`, den es als Option gar nicht gibt,
+  galt bisher als gültig — die betroffene Frage wäre dann stumm nie wieder
+  erschienen und der Tagesausflug-Modus nicht auswählbar gewesen. Solche
+  Abweichungen sind jetzt ein gemeldeter Fehler mit Angabe des Werts. Genau
+  diese Klasse Fehler entsteht beim Umbenennen von Optionen.
+
+### Changed
+- **Reise-DNA wertet mehr Fragen aus.** „Aktiv" und „Entspannung" beziehen
+  jetzt auch das neue Reisetempo ein, „Kulinarik" die Hotelwünsche, „Kultur"
+  die Sehenswürdigkeiten-Antworten. Die Zählweise bleibt: 15 % Sockel, je
+  zutreffender Frage +35 %, mehrere Treffer in derselben Frage zählen einmal.
+
 ## [0.89.12] - 2026-08-11
 
 ### Changed

@@ -1945,7 +1945,8 @@ def _advisor_prompt(p: dict, prev_dna: dict | None = None) -> str:
             val = ", ".join(str(v).strip() for v in val if str(v).strip())
         if val:
             lines.append(f"- {labels.get(key, key)}: {val}")
-    if not is_daytrip and 'Pauschalreise' in (p.get('travel_type') or []):
+    if not is_daytrip and _profile_has(p, 'travel_type',
+                                       _semantic('package_tour', _DEFAULT_PACKAGE_TOUR)):
         lines.append(
             "\nWichtig: Der Nutzer will eine Pauschalreise (Flug + Hotel) buchen. "
             "Empfehle Ziele/Regionen, die gängige Veranstalter (z. B. TUI, DER "
@@ -1958,7 +1959,8 @@ def _advisor_prompt(p: dict, prev_dna: dict | None = None) -> str:
             "„Kommt nicht in Frage“/„Weitere ausgeschlossene Länder“ genannten "
             "Ländern/Regionen vor — auch nicht als Alternative."
         )
-    if not is_daytrip and p.get('arrival_mode') in ('Auto', 'Bus', 'Bahn'):
+    if not is_daytrip and _profile_has(p, 'arrival_mode',
+                                       _semantic('self_arrival', _DEFAULT_SELF_ARRIVAL)):
         transport = p.get('arrival_mode')
         lines.append(
             "\nWichtig: Der Nutzer reist eigenständig mit "
@@ -1998,35 +2000,57 @@ def _advisor_prompt(p: dict, prev_dna: dict | None = None) -> str:
     return "\n".join(lines)
 
 
+# Welche Antwortwerte welche Bedeutung tragen, steht im `semantics`-Block der
+# Fragen-JSON — sonst wäre jede Umbenennung einer Option ein stiller Ausfall
+# (Reise-DNA auf Sockelwert, Prompt-Klauseln futsch). Diese Vorgaben greifen
+# nur, solange eine Datei ohne `semantics`-Block im Einsatz ist.
+_DEFAULT_PACKAGE_TOUR = ('Pauschalreise',)
+_DEFAULT_SELF_ARRIVAL = ('Auto', 'Bus', 'Bahn')
+_DEFAULT_DNA = {
+    '🌴 Strand': {'interests': ['🌴 Strand'],
+                 'hotel_wishes': ['direkte Strandlage', 'Sandstrand', 'Hausriff'],
+                 'sea': ['28°C+ (tropisch warm)', '24–27°C (angenehm warm)'],
+                 'beach_detail': ['Feinsandig', 'Weitläufig, kilometerlang', 'Direkt am Hotel']},
+    '🏛️ Kultur': {'interests': ['🏛️ Kultur'], 'activities': ['Museen', 'Fotografieren']},
+    '🎉 Nachtleben': {'interests': ['🎉 Nachtleben']},
+    '⛰️ Aktiv': {'interests': ['🚶 Wandern', '🚴 Radfahren', '⛰️ Berge'],
+                'activities': ['Wandern', 'Mountainbike', 'Skifahren', 'Surfen', 'Golf',
+                               'Reiten', 'Segeln', 'Klettern', 'Tennis', 'Kajak/SUP'],
+                'berge_detail': ['Anspruchsvolle Gipfeltouren', 'Skigebiet (Winter)']},
+    '🍹 Entspannung': {'interests': ['🍹 Entspannung'], 'hotel_wishes': ['Spa', 'Ruhe']},
+    '🍽️ Kulinarik': {'interests': ['🍽️ Essen'], 'activities': ['Kulinarik', 'Wein']},
+    '👨‍👩‍👧 Familie': {'interests': ['👨‍👩‍👧 Familie'], 'companions': ['Familie'],
+                    'hotel_wishes': ['Familienhotel', 'Kinderpool', 'Rutschen']},
+    '💰 Preisbewusst': {'budget': ['bis 500 €', '500–1000 €']},
+}
+
+
+def _semantic(name: str, default):
+    val = TQ.semantics().get(name)
+    return val if val else default
+
+
+def _profile_has(p: dict, key: str, vals) -> bool:
+    """Trifft einer der Werte auf die (Einzel- oder Mehrfach-)Antwort zu?"""
+    v = p.get(key)
+    if isinstance(v, list):
+        return any(x in v for x in vals)
+    return v in vals
+
+
 def _advisor_dna_scores(p: dict) -> dict:
     """Deterministisches Reise-DNA-Profil aus den Fragebogen-Antworten (kein
-    zusätzlicher KI-Call) — je Kategorie ein grober 0-100-Score aus passenden
-    Signalen über mehrere Fragen hinweg."""
-    def has(key, *vals):
-        v = p.get(key)
-        if isinstance(v, list):
-            return any(x in v for x in vals)
-        return v in vals
-
-    checks = {
-        '🌴 Strand': [has('interests', '🌴 Strand'),
-                     has('hotel_wishes', 'direkte Strandlage', 'Sandstrand', 'Hausriff'),
-                     has('sea', '28°C+ (tropisch warm)', '24–27°C (angenehm warm)'),
-                     has('beach_detail', 'Feinsandig', 'Weitläufig, kilometerlang', 'Direkt am Hotel')],
-        '🏛️ Kultur': [has('interests', '🏛️ Kultur'), has('activities', 'Museen', 'Fotografieren')],
-        '🎉 Nachtleben': [has('interests', '🎉 Nachtleben')],
-        '⛰️ Aktiv': [has('interests', '🚶 Wandern', '🚴 Radfahren', '⛰️ Berge'),
-                    has('activities', 'Wandern', 'Mountainbike', 'Skifahren', 'Surfen', 'Golf',
-                        'Reiten', 'Segeln', 'Klettern', 'Tennis', 'Kajak/SUP'),
-                    has('berge_detail', 'Anspruchsvolle Gipfeltouren', 'Skigebiet (Winter)')],
-        '🍹 Entspannung': [has('interests', '🍹 Entspannung'), has('hotel_wishes', 'Spa', 'Ruhe')],
-        '🍽️ Kulinarik': [has('interests', '🍽️ Essen'), has('activities', 'Kulinarik', 'Wein')],
-        '👨‍👩‍👧 Familie': [has('interests', '👨‍👩‍👧 Familie'), has('companions', 'Familie'),
-                        has('hotel_wishes', 'Familienhotel', 'Kinderpool', 'Rutschen')],
-        '💰 Preisbewusst': [has('budget', 'bis 500 €'), has('budget', '500–1000 €')],
-    }
-    return {label: min(100, 15 + 35 * sum(1 for s in signals if s))
-            for label, signals in checks.items()}
+    zusätzlicher KI-Call) — je Kategorie ein grober 0-100-Score. Jede Frage
+    liefert höchstens ein Signal, egal wie viele ihrer Werte passen."""
+    dna = _semantic('dna', None) or _DEFAULT_DNA
+    scores = {}
+    for label, groups in dna.items():
+        if not isinstance(groups, dict):
+            continue
+        hits = sum(1 for key, vals in groups.items()
+                   if isinstance(vals, list) and _profile_has(p, key, vals))
+        scores[label] = min(100, 15 + 35 * hits)
+    return scores
 
 
 def _advisor_dna_update(new_scores: dict) -> dict:

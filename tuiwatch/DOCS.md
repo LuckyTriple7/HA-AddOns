@@ -406,17 +406,27 @@ Als Bedingung stehen `contains`, `contains_any`, `equals`, `in` und
 `answered` zur Verfügung, verknüpfbar mit `all`, `any` und `not`. Die
 Reihenfolge der Fragen ist zugleich die Reihenfolge der Angaben im KI-Prompt.
 
-Zwei Dinge sind wichtig:
+Ein paar Antwortwerte lösen nicht nur Prompt-Text aus, sondern Logik. Diese
+Zuordnung steht im Block `semantics` derselben Datei, damit Umbenennen von
+Optionen gefahrlos bleibt:
+
+| Eintrag | Wirkung |
+|---|---|
+| `package_tour` | Werte bei `travel_type`, die den Hinweis auslösen, nur Ziele gängiger Veranstalter vorzuschlagen |
+| `self_arrival` | Werte bei `arrival_mode` für eigene Anreise — die KI schlägt dann nur Ziele in Fahrdistanz vor |
+| `dna` | Signale der **Reise-DNA**, je Kategorie nach Frage gruppiert |
+| `daytrip_value` (oben) | die Option, die den Tagesausflug-Modus auslöst |
+
+Drei Dinge sind wichtig:
 
 - Die Datei muss **UTF-8** sein, sonst gehen Umlaute und Emojis kaputt.
-- Ist sie unlesbar oder fehlerhaft, gelten weiter die mitgelieferten Fragen —
-  der Fragebogen bleibt also benutzbar. Der erste Fehler steht mit Dateipfad
-  auf Schritt 1 des Wizards und im Add-on-Log.
-
-Umbenannte Antwortwerte sind unkritisch für die Fragen selbst, können aber die
-**Reise-DNA** betreffen: deren Auswertung erkennt einzelne Werte namentlich
-(z. B. `🌴 Strand` bei `interests`, `Spa` bei `hotel_wishes`). Ein umbenannter
-Wert zählt dort schlicht nicht mehr mit.
+- **Jeder Antwortwert, der irgendwo genannt wird** — in `show_if`, in
+  `semantics` oder als `daytrip_value` — **muss wörtlich einer echten Option
+  entsprechen.** Beim Umbenennen einer Option also prüfen, wo sie sonst noch
+  vorkommt; TUIWatch meldet solche Abweichungen, statt sie stumm zu ignorieren.
+- Ist die Datei unlesbar oder fehlerhaft, gelten weiter die mitgelieferten
+  Fragen — der Fragebogen bleibt also benutzbar. Der erste Fehler steht mit
+  Dateipfad auf Schritt 1 des Wizards und im Add-on-Log.
 
 ## Eigene KI-Prompts
 

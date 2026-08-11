@@ -50,6 +50,17 @@ function step(key) {
   return questions.steps.find(s => s.key === key);
 }
 
+// Antwortwerte NIE im Test abtippen: sie stehen in der JSON und aendern sich
+// dort (Emoji-Praefixe, Umformulierungen). Der Test holt sie ueber einen
+// eindeutigen Teilstring — mehrdeutig/unbekannt bricht sofort ab.
+function opt(key, needle) {
+  const hits = (step(key).options || []).filter(o => o.includes(needle));
+  if (hits.length !== 1) {
+    throw new Error(`${key}: "${needle}" -> ${hits.length} Treffer: ${JSON.stringify(hits)}`);
+  }
+  return hits[0];
+}
+
 let failures = 0;
 function check(name, actual, expected) {
   const a = JSON.stringify(actual), e = JSON.stringify(expected);
@@ -115,120 +126,139 @@ check('unbekannter Operator gilt als nicht erfuellt',
 check('fehlendes show_if bedeutet immer sichtbar', cond(undefined, {}), true);
 
 // ── Sichtbarkeitslogik der ausgelieferten Fragen ──────────────────────────────
-// Kein Interesse gesetzt, kein Tagesausflug, keine Unterkunftsart, keine Region ->
-// beach_detail/berge_detail/home_location/max_distance/duration_daytrip/
-// accommodation_size/sea/excluded_countries/excluded_countries_other/
-// perfect_daytrip versteckt (10)
-setState({});
-check('leerer Status: beach_detail versteckt', visibleKeys().includes('beach_detail'), false);
-check('leerer Status: berge_detail versteckt', visibleKeys().includes('berge_detail'), false);
-check('leerer Status: duration_daytrip versteckt', visibleKeys().includes('duration_daytrip'), false);
-check('leerer Status: accommodation_size versteckt (keine Unterkunftsart gewaehlt)',
-  visibleKeys().includes('accommodation_size'), false);
-check('leerer Status: sea versteckt (kein water_type gewaehlt)',
-  visibleKeys().includes('sea'), false);
-check('leerer Status: excluded_countries versteckt (keine Region gewaehlt)',
-  visibleKeys().includes('excluded_countries'), false);
-check('leerer Status: duration sichtbar', visibleKeys().includes('duration'), true);
-check('leerer Status: sichtbare Anzahl = Gesamt - 10 versteckte bedingte Schritte',
-  visibleKeys().length, stepCount() - 10);
-check('leerer Status: genau 24 bedingte Schritte insgesamt definiert', conditionalCount(), 24);
+// Antwortwerte kommen aus der Datei, nie aus dem Testcode — sonst bricht der
+// Test bei jeder Umbenennung/Emoji-Aenderung, ohne dass wirklich etwas kaputt ist.
+const WELTWEIT = opt('region', 'Weltweit');
+const REGION_EGAL = opt('region', 'Keine Präferenz');
+const EUROPA = opt('region', 'Europa');
+const BALEAREN = opt('region', 'Balearen');
+const ITALIEN = opt('region', 'Italien');
+const KEIN_GEWAESSER = opt('water_type', 'Kein Gewässer');
+const MEER = opt('water_type', 'Meer');
+const SEE = opt('water_type', 'See');
+const HOTEL = opt('accommodation', 'Hotel');
+const STRAND = opt('interests', 'Strand');
+const BERGE = opt('interests', 'Berge');
+const FLUGZEUG = opt('arrival_mode', 'Flugzeug');
+const ARRIVAL_EGAL = opt('arrival_mode', 'Keine Präferenz');
+const AUTO = opt('arrival_mode', 'Auto');
+const BUS = opt('arrival_mode', 'Bus');
+const BAHN = opt('arrival_mode', 'Bahn');
 
-// excluded_countries nur sinnvoll bei Weltweit/Egal
-setState({ region: ['Europa'] });
+// Ohne jede Antwort sind genau die Fragen versteckt, die auf einer noch nicht
+// gegebenen Antwort aufbauen.
+setState({});
+const hiddenWhenEmpty = ['excluded_countries', 'excluded_countries_other', 'beach_detail',
+  'berge_detail', 'duration_daytrip', 'sea', 'accommodation_size', 'home_location',
+  'max_distance', 'perfect_daytrip'];
+for (const key of hiddenWhenEmpty) {
+  check(`leerer Status: ${key} versteckt`, visibleKeys().includes(key), false);
+}
+check('leerer Status: duration sichtbar', visibleKeys().includes('duration'), true);
+check('leerer Status: alle uebrigen Fragen sind sichtbar',
+  visibleKeys(), questions.steps.map(s => s.key).filter(k => !hiddenWhenEmpty.includes(k)));
+check('bedingte Schritte = Gesamt minus die 4 unbedingten',
+  conditionalCount(), stepCount() - 4);
+
+// excluded_countries nur sinnvoll ohne festgelegte Zielregion
+setState({ region: [EUROPA] });
 check('Region Europa: excluded_countries versteckt', visibleKeys().includes('excluded_countries'), false);
-setState({ region: ['Weltweit'] });
+setState({ region: [WELTWEIT] });
 check('Region Weltweit: excluded_countries sichtbar', visibleKeys().includes('excluded_countries'), true);
-setState({ region: ['Egal'] });
-check('Region Egal: excluded_countries sichtbar', visibleKeys().includes('excluded_countries'), true);
-setState({ region: ['Balearen', 'Italien'] });
+setState({ region: [REGION_EGAL] });
+check('Region ohne Praeferenz: excluded_countries sichtbar',
+  visibleKeys().includes('excluded_countries'), true);
+setState({ region: [BALEAREN, ITALIEN] });
 check('Region Balearen+Italien (Mehrfachauswahl): excluded_countries versteckt',
   visibleKeys().includes('excluded_countries'), false);
-setState({ region: ['Weltweit', 'Europa'] });
+setState({ region: [WELTWEIT, EUROPA] });
 check('Region Weltweit+Europa: excluded_countries sichtbar (mind. eine Bedingung erfuellt)',
   visibleKeys().includes('excluded_countries'), true);
 
-// region + exclusive: Tagesausflug-Wert steuert weiterhin die Sichtbarkeit,
-// auch als Teil eines Arrays
+// region + exclusive: Tagesausflug-Wert steuert die Sichtbarkeit, auch als Teil
+// eines Arrays
 check('region-Step ist Mehrfachauswahl', step('region').type, 'multi');
-check('region-Step hat Tagesausflug als exklusive Option', step('region').exclusive, [DAYTRIP]);
+check('region-Step hat Tagesausflug als exklusive Option',
+  (step('region').exclusive || []).includes(DAYTRIP), true);
 check('water_type-Step hat "Kein Gewaesser noetig" als exklusive Option',
-  step('water_type').exclusive, ['Kein Gewässer nötig']);
+  step('water_type').exclusive, [KEIN_GEWAESSER]);
 
 // water_type steuert sea-Sichtbarkeit
-setState({ water_type: ['Kein Gewässer nötig'] });
+setState({ water_type: [KEIN_GEWAESSER] });
 check('water_type Kein Gewaesser: sea versteckt', visibleKeys().includes('sea'), false);
-setState({ water_type: ['Meer'] });
+setState({ water_type: [MEER] });
 check('water_type Meer: sea sichtbar', visibleKeys().includes('sea'), true);
-setState({ water_type: ['Meer', 'See'] });
+setState({ water_type: [MEER, SEE] });
 check('water_type Meer+See: sea sichtbar', visibleKeys().includes('sea'), true);
 
 // Unterkunftsart != Hotel -> Hotelgroesse-Frage bleibt versteckt
-for (const acc of ['Apartment', 'Ferienwohnung', 'Airbnb', 'Villa', 'Camping', 'Hostel']) {
+for (const acc of (step('accommodation').options || []).filter(o => o !== HOTEL)) {
   setState({ accommodation: acc });
   check(`Unterkunftsart ${acc}: accommodation_size versteckt`,
     visibleKeys().includes('accommodation_size'), false);
 }
-setState({ accommodation: 'Hotel' });
+setState({ accommodation: HOTEL });
 check('Unterkunftsart Hotel: accommodation_size sichtbar',
   visibleKeys().includes('accommodation_size'), true);
 
 // Nur Strand gewaehlt -> nur beach_detail sichtbar
-setState({ interests: ['🌴 Strand'] });
+setState({ interests: [STRAND] });
 check('Strand gewaehlt: beach_detail sichtbar', visibleKeys().includes('beach_detail'), true);
 check('Strand gewaehlt: berge_detail weiterhin versteckt', visibleKeys().includes('berge_detail'), false);
 
 // Nur Berge gewaehlt -> nur berge_detail sichtbar
-setState({ interests: ['⛰️ Berge'] });
+setState({ interests: [BERGE] });
 check('Berge gewaehlt: berge_detail sichtbar', visibleKeys().includes('berge_detail'), true);
 check('Berge gewaehlt: beach_detail weiterhin versteckt', visibleKeys().includes('beach_detail'), false);
 
 // Beides gewaehlt -> beide sichtbar, keine Duplikate/Fehler
-setState({ interests: ['🌴 Strand', '⛰️ Berge'] });
+setState({ interests: [STRAND, BERGE] });
 check('Beide gewaehlt: beach_detail sichtbar', visibleKeys().includes('beach_detail'), true);
 check('Beide gewaehlt: berge_detail sichtbar', visibleKeys().includes('berge_detail'), true);
 
 // Kein interests-Key im Status (undefined statt leerem Array) darf nicht crashen
-setState({ region: ['Europa'] });
+setState({ region: [EUROPA] });
 check('interests fehlt: kein Crash, beach_detail versteckt', visibleKeys().includes('beach_detail'), false);
 
-// Anreise: ohne arrival_mode oder mit Flugzeug/Ist mir egal -> Flugzeit/Abflughafen
-// sichtbar, Startort/Entfernung versteckt
-for (const mode of [undefined, 'Flugzeug', 'Ist mir egal']) {
+// Anreise: ohne arrival_mode oder mit Flugzeug/keine Praeferenz -> Flugzeit/
+// Abflughafen/Transferdauer sichtbar, Startort/Entfernung versteckt
+for (const mode of [undefined, FLUGZEUG, ARRIVAL_EGAL]) {
   setState(mode === undefined ? {} : { arrival_mode: mode });
   check(`Anreise ${mode}: flight_time sichtbar`, visibleKeys().includes('flight_time'), true);
   check(`Anreise ${mode}: airports sichtbar`, visibleKeys().includes('airports'), true);
+  check(`Anreise ${mode}: transfer_time sichtbar`, visibleKeys().includes('transfer_time'), true);
   check(`Anreise ${mode}: home_location versteckt`, visibleKeys().includes('home_location'), false);
   check(`Anreise ${mode}: max_distance versteckt`, visibleKeys().includes('max_distance'), false);
 }
 
-// Anreise: Auto/Bus/Bahn -> Startort/Entfernung sichtbar, Flugzeit/Abflughafen versteckt
-for (const mode of ['Auto', 'Bus', 'Bahn']) {
+// Anreise: Auto/Bus/Bahn -> Startort/Entfernung sichtbar, Flug-Fragen versteckt
+for (const mode of [AUTO, BUS, BAHN]) {
   setState({ arrival_mode: mode });
   check(`Anreise ${mode}: home_location sichtbar`, visibleKeys().includes('home_location'), true);
   check(`Anreise ${mode}: max_distance sichtbar`, visibleKeys().includes('max_distance'), true);
   check(`Anreise ${mode}: flight_time versteckt`, visibleKeys().includes('flight_time'), false);
   check(`Anreise ${mode}: airports versteckt`, visibleKeys().includes('airports'), false);
+  check(`Anreise ${mode}: transfer_time versteckt`, visibleKeys().includes('transfer_time'), false);
 }
 
 // Tagesausflug gewaehlt -> Laender/Reiseart/Mitreisende/Budget/Unterkunft/Anreise/
 // Flug/Freitext versteckt, dafuer Startort/Entfernung/Zeit-Frage sichtbar
-setState({ region: [DAYTRIP], water_type: ['Meer'] });
+setState({ region: [DAYTRIP], water_type: [MEER] });
 const hiddenForDaytrip = ['excluded_countries', 'excluded_countries_other', 'interests',
   'travel_type', 'companions', 'budget', 'duration', 'temp', 'accommodation',
-  'accommodation_size', 'hotel_wishes', 'arrival_mode', 'flight_time', 'airports',
-  'dislikes', 'perfect_holiday', 'past_trips'];
+  'accommodation_size', 'hotel_wishes', 'travel_pace', 'arrival_mode', 'flight_time',
+  'airports', 'transfer_time', 'dislikes', 'perfect_holiday', 'past_trips'];
 for (const key of hiddenForDaytrip) {
   check(`Tagesausflug: ${key} versteckt`, visibleKeys().includes(key), false);
 }
 const shownForDaytrip = ['region', 'duration_daytrip', 'home_location',
-  'max_distance', 'month', 'water_type', 'sea', 'rain', 'activities', 'perfect_daytrip'];
+  'max_distance', 'month', 'water_type', 'sea', 'activities', 'perfect_daytrip'];
 for (const key of shownForDaytrip) {
   check(`Tagesausflug: ${key} sichtbar`, visibleKeys().includes(key), true);
 }
 
 // Normaler Urlaubsmodus bleibt von der Tagesausflug-Erweiterung unberuehrt (Regression)
-setState({ region: ['Europa'] });
+setState({ region: [EUROPA] });
 check('Urlaubsmodus: duration sichtbar', visibleKeys().includes('duration'), true);
 check('Urlaubsmodus: duration_daytrip versteckt', visibleKeys().includes('duration_daytrip'), false);
 check('Urlaubsmodus: dislikes sichtbar', visibleKeys().includes('dislikes'), true);

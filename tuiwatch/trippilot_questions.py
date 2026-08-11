@@ -39,6 +39,20 @@ Bedingungen sind deklarativ (kein Code in der JSON):
     {"key": K, "in": [...]}              Antwort ist einer der Werte
     {"key": K, "answered": true|false}   Frage (nicht) beantwortet
     {"all": [...]} / {"any": [...]} / {"not": {...}}
+
+Der optionale `semantics`-Block benennt, welche Antwortwerte eine feste
+Bedeutung tragen — ohne ihn müsste ai_routes.py Antworttexte fest kennen, und
+jedes Umbenennen einer Option wäre ein stiller Ausfall (v0.90.0, nachdem genau
+das beim Ergänzen von Emoji-Präfixen passiert ist):
+
+    "semantics": {
+      "package_tour": ["✈️ Pauschalreise"],   # löst die Veranstalter-Klausel aus
+      "self_arrival": ["🚗 Auto", ...],       # löst die Eigenanreise-Klausel aus
+      "dna": {"🌴 Strand": {"interests": [...], "hotel_wishes": [...]}}}
+
+Die Validierung prüft alle Antwortwerte — in `show_if`, in `semantics` und bei
+`daytrip_value` — gegen die tatsächlich vorhandenen Optionen. Ein Wert, den es
+nicht gibt, ist immer ein Fehler, nie eine stumm wirkungslose Zeile.
 """
 import json
 import logging
@@ -67,7 +81,8 @@ _cache = {'mtime': None, 'path': None, 'data': None, 'errors': [], 'source': 'bu
 
 # ── Validierung ────────────────────────────────────────────────────────────────
 
-def _check_condition(cond, path: str, keys: set, errors: list):
+def _check_condition(cond, path: str, options: dict, errors: list):
+    """`options`: Fragen-Key -> Optionsliste (leer bei Freitext-Fragen)."""
     if not isinstance(cond, dict):
         errors.append(f'{path}: Bedingung muss ein Objekt sein')
         return
@@ -77,16 +92,16 @@ def _check_condition(cond, path: str, keys: set, errors: list):
                 errors.append(f'{path}.{combi}: muss eine nicht-leere Liste sein')
                 return
             for i, sub in enumerate(cond[combi]):
-                _check_condition(sub, f'{path}.{combi}[{i}]', keys, errors)
+                _check_condition(sub, f'{path}.{combi}[{i}]', options, errors)
             return
     if 'not' in cond:
-        _check_condition(cond['not'], f'{path}.not', keys, errors)
+        _check_condition(cond['not'], f'{path}.not', options, errors)
         return
     key = cond.get('key')
     if not isinstance(key, str) or not key:
         errors.append(f'{path}: "key" fehlt (oder all/any/not verwenden)')
         return
-    if keys and key not in keys:
+    if options and key not in options:
         errors.append(f'{path}: verweist auf unbekannten Fragen-Key "{key}"')
     ops = [o for o in _LEAF_OPS if o in cond]
     if len(ops) != 1:
@@ -100,6 +115,21 @@ def _check_condition(cond, path: str, keys: set, errors: list):
         errors.append(f'{path}.{op}: muss ein Text sein')
     elif op == 'answered' and not isinstance(val, bool):
         errors.append(f'{path}.answered: muss true oder false sein')
+    else:
+        # Ein Antwortwert, den es als Option gar nicht gibt, versteckt die Frage
+        # für immer — meist ein Tippfehler oder eine halb durchgezogene
+        # Umbenennung. Freitext-Fragen haben keine Optionen, dort nicht prüfen.
+        _check_values(val if isinstance(val, list) else [val],
+                      key, path + '.' + op, options, errors)
+
+
+def _check_values(values, key: str, path: str, options: dict, errors: list):
+    opts = options.get(key)
+    if not opts:
+        return
+    for v in values:
+        if isinstance(v, str) and v not in opts:
+            errors.append(f'{path}: "{v}" ist keine Option der Frage "{key}"')
 
 
 def validate(data) -> list:
@@ -116,7 +146,7 @@ def validate(data) -> list:
     if daytrip is not None and not isinstance(daytrip, str):
         errors.append('"daytrip_value": muss ein Text sein')
 
-    keys = set()
+    options = {}
     for i, s in enumerate(steps):
         at = f'steps[{i}]'
         if not isinstance(s, dict):
@@ -125,10 +155,11 @@ def validate(data) -> list:
         key = s.get('key')
         if not isinstance(key, str) or not key.strip():
             errors.append(f'{at}: "key" fehlt')
-        elif key in keys:
+        elif key in options:
             errors.append(f'{at}: doppelter Key "{key}"')
         else:
-            keys.add(key)
+            opt_list = s.get('options')
+            options[key] = list(opt_list) if isinstance(opt_list, list) else []
         for field in ('title', 'label'):
             if not isinstance(s.get(field), str) or not s[field].strip():
                 errors.append(f'{at} ({key}): "{field}" fehlt')
@@ -165,7 +196,53 @@ def validate(data) -> list:
     # Bedingungen erst prüfen, wenn alle Keys bekannt sind (Vorwärts-Referenzen).
     for i, s in enumerate(steps):
         if isinstance(s, dict) and 'show_if' in s:
-            _check_condition(s['show_if'], f'steps[{i}].show_if', keys, errors)
+            _check_condition(s['show_if'], f'steps[{i}].show_if', options, errors)
+
+    all_options = {o for opts in options.values() for o in opts}
+    if daytrip and all_options and daytrip not in all_options:
+        errors.append(f'"daytrip_value": "{daytrip}" kommt in keiner Frage als Option vor — '
+                      'der Tagesausflug-Modus wäre damit nicht auswählbar')
+    errors += _check_semantics(data.get('semantics'), options, all_options)
+    return errors
+
+
+def _check_semantics(sem, options: dict, all_options: set) -> list:
+    """`semantics` verknüpft Antwortwerte mit fester Logik (Prompt-Klauseln,
+    Reise-DNA). Ein Wert, den es als Option nicht gibt, wirkt nie — genau das
+    passiert bei einer halb durchgezogenen Umbenennung, deshalb hart prüfen."""
+    errors = []
+    if sem is None:
+        return errors
+    if not isinstance(sem, dict):
+        return ['"semantics": muss ein Objekt sein']
+    for name in ('package_tour', 'self_arrival'):
+        vals = sem.get(name)
+        if vals is None:
+            continue
+        if not isinstance(vals, list) or not all(isinstance(v, str) for v in vals):
+            errors.append(f'"semantics.{name}": muss eine Liste von Texten sein')
+            continue
+        for v in vals:
+            if all_options and v not in all_options:
+                errors.append(f'"semantics.{name}": "{v}" kommt in keiner Frage als Option vor')
+    dna = sem.get('dna')
+    if dna is None:
+        return errors
+    if not isinstance(dna, dict):
+        return errors + ['"semantics.dna": muss ein Objekt sein']
+    for label, groups in dna.items():
+        at = f'"semantics.dna.{label}"'
+        if not isinstance(groups, dict) or not groups:
+            errors.append(f'{at}: muss ein nicht-leeres Objekt sein')
+            continue
+        for key, vals in groups.items():
+            if options and key not in options:
+                errors.append(f'{at}: unbekannter Fragen-Key "{key}"')
+                continue
+            if not isinstance(vals, list) or not all(isinstance(v, str) for v in vals):
+                errors.append(f'{at}.{key}: muss eine Liste von Texten sein')
+                continue
+            _check_values(vals, key, f'{at}.{key}', options, errors)
     return errors
 
 
@@ -249,8 +326,10 @@ def load(force: bool = False) -> dict:
             log.error('Mitgelieferte TripPilot-Fragen unlesbar: %s', type(e).__name__)
             data = {'steps': [], 'daytrip_value': ''}
 
+    sem = data.get('semantics')
     result = {'steps': data.get('steps') or [],
               'daytrip_value': data.get('daytrip_value') or '',
+              'semantics': sem if isinstance(sem, dict) else {},
               'source': source, 'errors': errors}
     _cache.update({'mtime': mtime, 'path': path, 'data': result,
                    'errors': errors, 'source': source})
@@ -259,6 +338,13 @@ def load(force: bool = False) -> dict:
 
 def steps() -> list:
     return load()['steps']
+
+
+def semantics() -> dict:
+    """Verknüpfung von Antwortwerten mit fester Logik: `package_tour` und
+    `self_arrival` (Prompt-Klauseln) sowie `dna` (Reise-DNA-Signale). Fehlt der
+    Block, greifen in ai_routes die eingebauten Standardwerte."""
+    return load().get('semantics') or {}
 
 
 def daytrip_value() -> str:
@@ -310,13 +396,15 @@ Nach einem Update lohnt ein Vergleich der beiden JSON-Dateien: Was in
 ```json
 {
   "version": 1,
-  "daytrip_value": "Tagesausflug in der Nähe",
+  "daytrip_value": "🚗 Tagesausflug in der Nähe",
+  "semantics": { ... },
   "steps": [ ... ]
 }
 ```
 
 `daytrip_value` ist der Antwortwert, der den Tagesausflug-Modus auslöst (anderer
-KI-Prompt, keine Reise-DNA). Er muss als Option bei der Frage `region` vorkommen.
+KI-Prompt, keine Reise-DNA). Er muss **wörtlich** einer Option der Frage `region`
+entsprechen — inklusive Emoji.
 
 Jeder Eintrag in `steps`:
 
@@ -353,14 +441,45 @@ Verknüpfen mit `all` (und), `any` (oder), `not` (nicht):
 ]}
 ```
 
+## Bedeutung von Antwortwerten (`semantics`)
+
+Ein paar Antwortwerte lösen nicht nur Text im KI-Prompt aus, sondern Logik.
+Welche das sind, steht in `semantics` — **nicht** im Programmcode. Deshalb darfst
+du Optionen frei umbenennen: du ziehst die Nennung hier einfach mit.
+
+```json
+"semantics": {
+  "package_tour": ["✈️ Pauschalreise"],
+  "self_arrival": ["🚗 Auto", "🚆 Bahn", "🚌 Bus"],
+  "dna": {
+    "🌴 Strand": {
+      "interests":    ["🌴 Strand und Meer"],
+      "hotel_wishes": ["🏖️ Direkte Strandlage", "🏝️ Sandstrand"]
+    }
+  }
+}
+```
+
+| Eintrag | Wirkung |
+|---|---|
+| `package_tour` | Werte bei `travel_type`, die den Hinweis auslösen, nur Ziele gängiger Veranstalter vorzuschlagen |
+| `self_arrival` | Werte bei `arrival_mode` für eigene Anreise: die KI schlägt dann **nur** Ziele in Fahrdistanz vor |
+| `dna` | Signale für die Reise-DNA-Tabelle, je Kategorie nach Frage gruppiert |
+
+Zur Reise-DNA: jede Kategorie startet bei 15 % und steigt je zutreffender
+**Frage** um 35 % (max. 100 %). Mehrere Treffer innerhalb derselben Frage zählen
+nur einmal — wer alle Strand-Hotelwünsche anklickt, bekommt denselben Punkt wie
+jemand mit einem.
+
 ## Hinweise
 
 * Die Datei muss **UTF-8** sein, sonst gehen Umlaute und Emojis kaputt.
 * Antwortwerte gehen wörtlich an die KI — sprechende Werte („Direktflug“) wirken
   besser als Kürzel („df“).
-* Der Fragebogen wertet einzelne Antwortwerte zusätzlich für die Reise-DNA aus
-  (z. B. `🌴 Strand` bei `interests`, `Spa` bei `hotel_wishes`). Werden solche
-  Werte umbenannt, bleiben die Fragen funktionsfähig, nur die DNA-Auswertung
-  greift für diesen Wert nicht mehr.
+* **Jeder Antwortwert, der irgendwo genannt wird — in `show_if`, in `semantics`
+  oder als `daytrip_value` — muss wörtlich einer echten Option entsprechen.**
+  Sonst meldet TUIWatch einen Fehler und bleibt bei den mitgelieferten Fragen.
+  Beim Umbenennen einer Option also immer prüfen, wo sie sonst noch vorkommt
+  (Suchfunktion des Editors).
 * Vor größeren Umbauten eine Kopie der Datei anlegen.
 """

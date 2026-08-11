@@ -115,7 +115,7 @@ def test_load_without_user_file_uses_bundled(tq):
 def test_load_prefers_valid_user_file(tq):
     write(tq, {'daytrip_value': 'Ausflug',
                'steps': [{'key': 'nur_eine', 'title': 'Frage?', 'label': 'Feld',
-                          'type': 'single', 'options': ['ja', 'nein']}]})
+                          'type': 'single', 'options': ['ja', 'nein', 'Ausflug']}]})
     q = tq.load(force=True)
     assert q['source'] == 'user'
     assert [s['key'] for s in q['steps']] == ['nur_eine']
@@ -185,24 +185,90 @@ def test_derived_fields_match_step_types(tq):
     assert tq.labels() == {'m': 'Mehrfach', 's': 'Einzeln', 't': 'Text'}
 
 
-def test_bundled_derivation_matches_previous_hardcoded_sets():
-    """Regression: die bis 0.89.x fest im Code stehenden Feldlisten muessen sich
-    unveraendert aus der ausgelieferten JSON ergeben."""
-    steps = BUNDLED['steps']
-    assert tuple(s['key'] for s in steps) == (
+def test_bundled_keeps_all_historically_known_fields():
+    """Regression: die bis 0.89.x fest im Code stehenden Felder muessen weiter
+    existieren — sonst laufen Prompt-Aufbau und Reise-DNA ins Leere. Neue Fragen
+    duerfen dazukommen."""
+    keys = {s['key'] for s in BUNDLED['steps']}
+    assert keys >= {
         'region', 'excluded_countries', 'excluded_countries_other', 'interests',
         'beach_detail', 'berge_detail', 'travel_type', 'companions', 'budget',
         'duration', 'duration_daytrip', 'month', 'temp', 'water_type', 'sea', 'rain',
         'activities', 'accommodation', 'accommodation_size', 'hotel_wishes',
         'arrival_mode', 'home_location', 'max_distance', 'flight_time', 'airports',
-        'dislikes', 'perfect_holiday', 'past_trips', 'perfect_daytrip')
-    assert {s['key'] for s in steps if s['type'] == 'multi'} == {
-        'interests', 'beach_detail', 'berge_detail', 'travel_type', 'activities',
-        'hotel_wishes', 'airports', 'dislikes', 'excluded_countries', 'water_type', 'region'}
-    assert {s['key'] for s in steps if s['type'] == 'text'} == {
-        'perfect_holiday', 'past_trips', 'excluded_countries_other',
-        'home_location', 'perfect_daytrip'}
-    assert {s['key']: s['label'] for s in steps}['region'] == 'Ziel-Region'
+        'dislikes', 'perfect_holiday', 'past_trips', 'perfect_daytrip'}
+    types = {s['key']: s['type'] for s in BUNDLED['steps']}
+    assert types['region'] == 'multi' and types['companions'] == 'single'
+    assert types['home_location'] == 'text' and types['perfect_holiday'] == 'text'
+
+
+# ── Semantik-Block (Reise-DNA / Prompt-Klauseln) ───────────────────────────────
+
+def test_bundled_semantics_cover_every_dna_category():
+    """Alle acht Kategorien der Reise-DNA-Tabelle brauchen Signale, sonst bleibt
+    die Kategorie auf dem Sockelwert stehen."""
+    dna = BUNDLED['semantics']['dna']
+    assert set(dna) == {'🌴 Strand', '🏛️ Kultur', '🎉 Nachtleben', '⛰️ Aktiv',
+                        '🍹 Entspannung', '🍽️ Kulinarik', '👨‍👩‍👧 Familie', '💰 Preisbewusst'}
+    assert all(groups for groups in dna.values())
+
+
+def test_bundled_semantics_values_are_real_options():
+    """Kernpunkt: ein Semantik-Wert, den es als Option nicht gibt, wirkt nie."""
+    options = {s['key']: s.get('options', []) for s in BUNDLED['steps']}
+    sem = BUNDLED['semantics']
+    all_options = {o for opts in options.values() for o in opts}
+    for name in ('package_tour', 'self_arrival'):
+        assert set(sem[name]) <= all_options, name
+    for label, groups in sem['dna'].items():
+        for key, vals in groups.items():
+            assert set(vals) <= set(options[key]), f'{label}/{key}'
+
+
+def test_bundled_daytrip_value_is_an_option():
+    """Ohne exakte Übereinstimmung waere der Tagesausflug-Modus nicht auswaehlbar."""
+    assert BUNDLED['daytrip_value'] in \
+        {o for s in BUNDLED['steps'] for o in s.get('options', [])}
+
+
+@pytest.mark.parametrize('sem,broken', [
+    ({'package_tour': ['gibt es nicht']}, True),
+    ({'self_arrival': ['gibt es nicht']}, True),
+    ({'self_arrival': 'kein Array'}, True),
+    ({'dna': {'Kategorie': {'unbekannter_key': ['x']}}}, True),
+    ({'dna': {'Kategorie': {'a': ['gibt es nicht']}}}, True),
+    ({'dna': {'Kategorie': {}}}, True),
+    ({'package_tour': ['x'], 'dna': {'Kategorie': {'a': ['x']}}}, False),
+])
+def test_validate_checks_semantics(sem, broken):
+    data = {'steps': [{'key': 'a', 'title': 'T', 'label': 'L', 'type': 'multi',
+                       'options': ['x']}],
+            'semantics': sem}
+    assert bool(TQ.validate(data)) is broken
+
+
+def test_validate_rejects_daytrip_value_that_is_no_option():
+    data = {'daytrip_value': 'nicht vorhanden',
+            'steps': [{'key': 'a', 'title': 'T', 'label': 'L', 'type': 'multi',
+                       'options': ['x']}]}
+    assert any('daytrip_value' in e for e in TQ.validate(data))
+
+
+def test_validate_rejects_show_if_value_that_is_no_option():
+    """Genau der Fehler, der bei einer halb durchgezogenen Umbenennung entsteht:
+    die Frage wuerde stumm nie mehr erscheinen."""
+    data = {'steps': [
+        {'key': 'a', 'title': 'T', 'label': 'L', 'type': 'multi', 'options': ['x']},
+        {'key': 'b', 'title': 'T', 'label': 'L', 'type': 'text',
+         'show_if': {'key': 'a', 'contains': 'alter Name'}},
+    ]}
+    assert any('alter Name' in e for e in TQ.validate(data))
+
+
+def test_semantics_returns_empty_dict_when_absent(tq):
+    write(tq, {'steps': [{'key': 'a', 'title': 'T', 'label': 'L', 'type': 'text'}]})
+    tq.load(force=True)
+    assert tq.semantics() == {}
 
 
 def test_module_imports_without_config_dir():
@@ -240,7 +306,7 @@ def test_questions_endpoint_serves_bundled_by_default(client, tq):
 def test_questions_endpoint_serves_user_file(client, tq):
     write(tq, {"daytrip_value": "Ausflug",
                "steps": [{"key": "eigene", "title": "Frage?", "label": "Feld",
-                          "type": "single", "options": ["ja"]}]})
+                          "type": "single", "options": ["ja", "Ausflug"]}]})
     tq.load(force=True)
     d = client.get("/api/trippilot/questions").get_json()
     assert d["source"] == "user"
@@ -260,11 +326,76 @@ def test_advisor_accepts_field_added_in_user_file(client, tq, monkeypatch):
     """Kernpunkt der Umstellung: eine in der JSON ergaenzte Frage landet auch im
     KI-Prompt statt beim Absenden still verworfen zu werden."""
     import ai_routes
-    write(tq, {"daytrip_value": "Tagesausflug in der Nähe",
-               "steps": [{"key": "haustier", "title": "Tier dabei?",
+    write(tq, {"steps": [{"key": "haustier", "title": "Tier dabei?",
                           "label": "Haustier an Bord", "type": "single",
                           "options": ["Hund", "Katze"]}]})
     tq.load(force=True)
     assert ai_routes._advisor_fields() == ("haustier",)
     prompt = ai_routes._advisor_prompt({"haustier": "Katze"})
     assert "- Haustier an Bord: Katze" in prompt
+
+
+# ── Wirkung im Prompt/Scoring mit den ausgelieferten Fragen ────────────────────
+
+@pytest.fixture
+def bundled_ai(tq):
+    """ai_routes gegen die ausgelieferte Fragen-Datei (keine Nutzerdatei)."""
+    pytest.importorskip("flask")
+    tq.load(force=True)
+    import ai_routes
+    return ai_routes
+
+
+def _opt(key, needle):
+    """Die eine Option von `key`, die `needle` enthaelt — nie abtippen."""
+    step = next(s for s in BUNDLED['steps'] if s['key'] == key)
+    hits = [o for o in step['options'] if needle in o]
+    assert len(hits) == 1, f'{key}/{needle}: {hits}'
+    return hits[0]
+
+
+def test_daytrip_mode_triggers_with_bundled_value(bundled_ai):
+    """Regression: mit Emoji-Praefix an der Option muss der Tagesausflug-Modus
+    weiter anspringen (sonst greift der falsche Prompt)."""
+    profile = {'region': [BUNDLED['daytrip_value']]}
+    assert bundled_ai._is_daytrip(profile) is True
+    assert bundled_ai._is_daytrip({'region': [_opt('region', 'Europa')]}) is False
+
+
+def test_self_arrival_clause_in_prompt(bundled_ai):
+    """Ohne diese Klausel schlaegt die KI Flugziele vor, obwohl Auto gewaehlt ist."""
+    for needle in ('Auto', 'Bahn', 'Bus'):
+        prompt = bundled_ai._advisor_prompt({'arrival_mode': _opt('arrival_mode', needle),
+                                             'home_location': 'Köln'})
+        assert 'reist eigenständig mit' in prompt, needle
+    flug = bundled_ai._advisor_prompt({'arrival_mode': _opt('arrival_mode', 'Flugzeug')})
+    assert 'reist eigenständig mit' not in flug
+
+
+def test_package_tour_clause_in_prompt(bundled_ai):
+    prompt = bundled_ai._advisor_prompt(
+        {'travel_type': [_opt('travel_type', 'Pauschalreise')]})
+    assert 'Pauschalreise (Flug + Hotel)' in prompt
+    other = bundled_ai._advisor_prompt(
+        {'travel_type': [_opt('travel_type', 'Kreuzfahrt')]})
+    assert 'Pauschalreise (Flug + Hotel)' not in other
+
+
+def test_dna_scores_react_to_bundled_answers(bundled_ai):
+    """Alle acht Kategorien muessen mit den ausgelieferten Antwortwerten ueber
+    den Sockelwert steigen koennen — sonst ist die Tabelle wertlos."""
+    base = bundled_ai._advisor_dna_scores({})
+    assert set(base.values()) == {15}
+    for label, groups in BUNDLED['semantics']['dna'].items():
+        profile = {key: list(vals) for key, vals in groups.items()}
+        scores = bundled_ai._advisor_dna_scores(profile)
+        assert scores[label] > 15, label
+        assert scores[label] == min(100, 15 + 35 * len(groups)), label
+
+
+def test_dna_counts_one_signal_per_question(bundled_ai):
+    """Mehrere Treffer in derselben Frage zaehlen nur einmal."""
+    groups = BUNDLED['semantics']['dna']['🌴 Strand']
+    one = bundled_ai._advisor_dna_scores({'hotel_wishes': groups['hotel_wishes'][:1]})
+    all_ = bundled_ai._advisor_dna_scores({'hotel_wishes': groups['hotel_wishes']})
+    assert one['🌴 Strand'] == all_['🌴 Strand'] == 50
