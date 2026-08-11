@@ -1,3 +1,9 @@
+## [1.8.48] - 2026-08-11
+
+### Hinzugefügt
+
+- OpenCode CLI (v1.18.16) fest im Image installiert — wird von der OpenCode-VSCode-Extension benötigt
+
 ## [1.8.47] - 2026-08-10
 
 ### Aktualisiert
