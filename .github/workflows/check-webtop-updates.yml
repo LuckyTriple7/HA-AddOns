@@ -67,6 +67,10 @@ jobs:
             | jq -r '.tag_name' | sed 's/^v//')
           check_version "Claude Desktop" "$CLAUDE_DESKTOP"
 
+          OPENCODE=$(curl -s -H "$AUTH_HEADER" "https://api.github.com/repos/anomalyco/opencode/releases/latest" \
+            | jq -r '.tag_name' | sed 's/^v//')
+          check_version "OpenCode" "$OPENCODE"
+
           echo "bitwarden=${BW}"              >> $GITHUB_OUTPUT
           echo "ipscan=${IPSCAN}"             >> $GITHUB_OUTPUT
           echo "vscode=${VSCODE}"             >> $GITHUB_OUTPUT
@@ -75,7 +79,8 @@ jobs:
           echo "thunderbird=${THUNDERBIRD}"   >> $GITHUB_OUTPUT
           echo "rclone=${RCLONE}"             >> $GITHUB_OUTPUT
           echo "claude_desktop=${CLAUDE_DESKTOP}" >> $GITHUB_OUTPUT
-          echo "Bitwarden: ${BW} | AngryIP: ${IPSCAN} | VSCode: ${VSCODE} | GH CLI: ${GHCLI} | Firefox: ${FIREFOX} | Thunderbird: ${THUNDERBIRD} | rclone: ${RCLONE} | Claude Desktop: ${CLAUDE_DESKTOP}"
+          echo "opencode=${OPENCODE}"         >> $GITHUB_OUTPUT
+          echo "Bitwarden: ${BW} | AngryIP: ${IPSCAN} | VSCode: ${VSCODE} | GH CLI: ${GHCLI} | Firefox: ${FIREFOX} | Thunderbird: ${THUNDERBIRD} | rclone: ${RCLONE} | Claude Desktop: ${CLAUDE_DESKTOP} | OpenCode: ${OPENCODE}"
 
       - name: Getrackte Versionen lesen
         id: tracked
@@ -88,6 +93,7 @@ jobs:
           echo "thunderbird=$(cat .webtop-thunderbird-version 2>/dev/null || echo 'unknown')" >> $GITHUB_OUTPUT
           echo "rclone=$(cat .webtop-rclone-version         2>/dev/null || echo 'unknown')" >> $GITHUB_OUTPUT
           echo "claude_desktop=$(cat .webtop-claude-desktop-version 2>/dev/null || echo 'unknown')" >> $GITHUB_OUTPUT
+          echo "opencode=$(cat .webtop-opencode-version     2>/dev/null || echo 'unknown')" >> $GITHUB_OUTPUT
 
       - name: Änderungen prüfen
         id: check
@@ -102,6 +108,7 @@ jobs:
           if [ "${{ steps.latest.outputs.thunderbird }}"  != "${{ steps.tracked.outputs.thunderbird }}" ];  then CHANGED=true; CHANGES="${CHANGES}\n- Thunderbird: ${{ steps.tracked.outputs.thunderbird }} → ${{ steps.latest.outputs.thunderbird }}"; fi
           if [ "${{ steps.latest.outputs.rclone }}"         != "${{ steps.tracked.outputs.rclone }}" ];         then CHANGED=true; CHANGES="${CHANGES}\n- rclone: ${{ steps.tracked.outputs.rclone }} → ${{ steps.latest.outputs.rclone }}"; fi
           if [ "${{ steps.latest.outputs.claude_desktop }}" != "${{ steps.tracked.outputs.claude_desktop }}" ]; then CHANGED=true; CHANGES="${CHANGES}\n- Claude Desktop: ${{ steps.tracked.outputs.claude_desktop }} → ${{ steps.latest.outputs.claude_desktop }}"; fi
+          if [ "${{ steps.latest.outputs.opencode }}"       != "${{ steps.tracked.outputs.opencode }}" ];       then CHANGED=true; CHANGES="${CHANGES}\n- OpenCode: ${{ steps.tracked.outputs.opencode }} → ${{ steps.latest.outputs.opencode }}"; fi
           echo "changed=${CHANGED}" >> $GITHUB_OUTPUT
           echo "changes=${CHANGES}" >> $GITHUB_OUTPUT
           if [ "$CHANGED" = "false" ]; then echo "Alle Webtop-Pakete aktuell — nichts zu tun."; fi
@@ -118,6 +125,7 @@ jobs:
           TB_VER:   ${{ steps.latest.outputs.thunderbird }}
           RC_VER:   ${{ steps.latest.outputs.rclone }}
           CD_VER:   ${{ steps.latest.outputs.claude_desktop }}
+          OC_VER:   ${{ steps.latest.outputs.opencode }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -142,6 +150,7 @@ jobs:
           sed -i "s/ARG FIREFOX_VERSION=.*/ARG FIREFOX_VERSION=${FF_VER}/"     ubuntu-webtop/Dockerfile
           sed -i "s/ARG THUNDERBIRD_VERSION=.*/ARG THUNDERBIRD_VERSION=${TB_VER}/" ubuntu-webtop/Dockerfile
           sed -i "s/ARG RCLONE_VERSION=.*/ARG RCLONE_VERSION=${RC_VER}/"         ubuntu-webtop/Dockerfile
+          sed -i "s/ARG OPENCODE_VERSION=.*/ARG OPENCODE_VERSION=${OC_VER}/"     ubuntu-webtop/Dockerfile
 
           # Tracking-Dateien aktualisieren
           echo "$BW_VER" > .webtop-bitwarden-version
@@ -152,6 +161,7 @@ jobs:
           echo "$TB_VER" > .webtop-thunderbird-version
           echo "$RC_VER" > .webtop-rclone-version
           echo "$CD_VER" > .webtop-claude-desktop-version
+          echo "$OC_VER" > .webtop-opencode-version
 
           # Add-on Version bumpen
           ADDON_VER=$(grep '^version:' ubuntu-webtop/config.yaml | sed 's/version: *"\(.*\)"/\1/')
@@ -173,7 +183,7 @@ jobs:
           git add ubuntu-webtop/Dockerfile ubuntu-webtop/config.yaml ubuntu-webtop/CHANGELOG.md \
                   .webtop-bitwarden-version .webtop-ipscan-version .webtop-vscode-version \
                   .webtop-ghcli-version .webtop-firefox-version .webtop-thunderbird-version \
-                  .webtop-rclone-version .webtop-claude-desktop-version
+                  .webtop-rclone-version .webtop-claude-desktop-version .webtop-opencode-version
           git commit -m "Webtop v${NEW_ADDON_VER}: Paket-Updates ${DATE}"
           git push origin "$BRANCH"
 
