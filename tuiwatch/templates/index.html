@@ -530,6 +530,11 @@
     .modal-close { float:right; }
     footer { text-align:center; margin:24px 0 8px; font-size:.72rem; color:var(--muted); }
     .hc-foot { cursor:pointer; }
+    /* Als <a> (Download-Links, z. B. „Als Kalender (.ics)") sonst im Browser-Blau
+       mit Unterstreichung — auf dunklem Grund kaum lesbar. Wie die <span>-Varianten
+       in Textfarbe, Unterstreichung erst beim Hover als Klick-Hinweis. */
+    a.hc-foot { color:inherit; text-decoration:none; }
+    a.hc-foot:hover { color:var(--accent); text-decoration:underline; }
     #hc-dot { font-weight:600; }
     #hc-dot::before { content:'●'; margin-right:3px; }
     #hc-dot.ok { color:#22c55e; }

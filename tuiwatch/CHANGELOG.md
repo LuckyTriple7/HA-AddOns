@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.89.10] - 2026-08-11
+
+### Fixed
+- **„Meine Reisen" → „📅 Als Kalender (.ics)" war kaum lesbar.** Der Link
+  war der einzige `.hc-foot` als `<a>` und bekam damit die
+  Browser-Standardfarbe (Blau, unterstrichen) — auf dunklem Grund
+  schlecht lesbar. Steht jetzt wie die übrigen Einträge in Textfarbe,
+  Unterstreichung und Akzentfarbe erst beim Hover.
+
 ## [0.89.9] - 2026-08-11
 
 ### Added
