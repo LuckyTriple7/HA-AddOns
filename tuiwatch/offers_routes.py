@@ -28,7 +28,10 @@ bp = Blueprint('offers_routes', __name__)
 def api_offers():
     if (err := A._require_api()):
         return err
-    return jsonify({'offers': A._collect_offers()})
+    # `busy`: Klartext-Labels laufender Hintergrund-Aufgaben — das UI färbt damit das
+    # Logo. Bewusst hier angehängt statt als eigener Endpunkt: die Liste wird ohnehin
+    # alle 5 s geholt, das spart einen zweiten Poll-Timer.
+    return jsonify({'offers': A._collect_offers(), 'busy': A.busy_labels()})
 
 
 def _normalize_tags(raw) -> list[str]:

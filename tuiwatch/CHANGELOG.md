@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.89.9] - 2026-08-11
+
+### Added
+- **Logo signalisiert Hintergrund-Aktivität.** Läuft im Hintergrund etwas
+  (Preis-Checks, Suchabos, Preiskalender, Preisbarometer, Aktionscodes,
+  Selbsttest, Backup, wöchentliche Zusammenfassung), färbt sich der
+  Schriftzug „TUIWatch" samt Flieger bernsteinfarben, der Flieger pulst
+  dezent. Der Tooltip nennt die laufenden Aufgaben im Klartext
+  („Läuft gerade: Preis-Checks (10), Preiskalender"), sonst steht dort
+  wie bisher der Konsolen-Hinweis. `prefers-reduced-motion` schaltet die
+  Animation ab, die Farbe bleibt. Die Labels kommen über `/api/offers`
+  mit (kein zweiter Poll-Timer), Aktualisierung damit alle 5 Sekunden.
+
 ## [0.89.8] - 2026-08-11
 
 ### Added

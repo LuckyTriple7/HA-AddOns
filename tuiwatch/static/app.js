@@ -254,6 +254,18 @@
       return arr;
     }
 
+    // Logo-Signal: färbt Schrift + Flieger bernsteinfarben, solange im Hintergrund
+    // etwas läuft (Preis-Checks, Suchabos, Kalender, Backup …). Der Tooltip nennt
+    // die laufenden Aufgaben im Klartext, sonst steht dort wieder der Konsolen-Hinweis.
+    const LOGO_TITLE = 'Doppelklick: Konsole';
+    function setBusy(labels){
+      const el = document.querySelector('header .logo');
+      if(!el) return;
+      const on = labels.length > 0;
+      el.classList.toggle('busy', on);
+      el.title = on ? ('Läuft gerade: ' + labels.join(', ')) : LOGO_TITLE;
+    }
+
     async function loadOffers(){
       try {
         const r = await fetch(api('/api/offers'));
@@ -264,6 +276,9 @@
         const d = await r.json();
         _offlineFails = 0; hideOfflineBanner();
         curOffers = d.offers;
+        // vor dem Signatur-Vergleich: das Busy-Signal muss auch dann aktuell bleiben,
+        // wenn sich an den Angeboten selbst nichts geändert hat (früher Ausstieg unten).
+        setBusy(d.busy || []);
         // Nur neu rendern, wenn sich wirklich etwas geändert hat — verhindert das
         // periodische Neuzeichnen (Flackern) der Preisdiagramme alle 5 s.
         const sig = JSON.stringify(d.offers);

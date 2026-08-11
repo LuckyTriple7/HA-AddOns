@@ -21,6 +21,7 @@ import threading
 import time
 import zipfile
 from collections import defaultdict, deque
+from contextlib import contextmanager
 from datetime import date, datetime, timedelta
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -90,7 +91,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.89.8"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.89.9"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -149,6 +150,8 @@ sessions: dict[str, float] = {}
 _scrape_lock = threading.Lock()      # nur ein Chromium gleichzeitig
 _checking: set[int] = set()          # offer_ids, die gerade geprüft werden
 _checking_lock = threading.Lock()
+_busy: dict[str, int] = {}           # laufende Hintergrund-Aufgaben: Label → Zähler
+_busy_lock = threading.Lock()
 _compare_state: dict[int, dict] = {}  # offer_id → transienter Status {running|error}
 _compare_lock = threading.Lock()
 _calendar_state: dict[int, dict] = {}  # offer_id → transienter Status {running|error}
@@ -190,6 +193,41 @@ RATE_LIMIT_MAX, RATE_LIMIT_WINDOW, RATE_LIMIT_BLOCK = 5, 600, 900
 # TUIs Server vor wiederholtem Klicken/Skript-Aufrufen, die die eigene IP dort blocken
 # könnten. Kein Fehlversuchs-Zähler wie oben, nur ein simpler Zeitstempel pro Key.
 _route_cooldowns: dict[str, float] = {}
+
+
+@contextmanager
+def busy(label: str):
+    """Markiert eine laufende Hintergrund-Aufgabe. Das UI färbt das Logo, solange
+    mindestens ein Label offen ist (siehe `busy_labels`, /api/offers). Zähler statt
+    Set, weil dieselbe Aufgabe doppelt laufen kann — etwa ein Preis-Check aus dem
+    Poller und gleichzeitig einer aus der Oberfläche."""
+    with _busy_lock:
+        _busy[label] = _busy.get(label, 0) + 1
+    try:
+        yield
+    finally:
+        with _busy_lock:
+            if _busy.get(label, 0) > 1:
+                _busy[label] -= 1
+            else:
+                _busy.pop(label, None)
+
+
+def busy_labels() -> list[str]:
+    """Klartext-Labels der gerade laufenden Hintergrund-Aufgaben (für den Tooltip).
+
+    Einzelne Preis-Checks kommen aus `_checking` statt aus einem eigenen `busy`-Label
+    in check_offer: so sind alle Aufrufwege (Poller, „Jetzt prüfen", „Alle prüfen",
+    Erstabfrage nach dem Tracken) ohne Zusatzcode abgedeckt. Läuft gerade der
+    Poller-Block, hat der bereits sein eigenes „Preis-Checks (n)"-Label — dann wird
+    nichts doppelt gemeldet."""
+    with _busy_lock:
+        labels = set(_busy)
+    with _checking_lock:
+        n = len(_checking)
+    if n and not any(x.startswith('Preis-Check') for x in labels):
+        labels.add('Preis-Check' if n == 1 else f'Preis-Checks ({n})')
+    return sorted(labels)
 
 
 def _cooldown_remaining(key: str, seconds: int) -> int:
@@ -2407,13 +2445,20 @@ def _poll_worker() -> None:
         next_in = interval
         try:
             now = int(time.time())
-            _maybe_periodic_health()  # API-Selbsttest 1×/Tag — VOR den Preisprüfungen
-            _maybe_send_digest()      # wöchentliche Zusammenfassung (falls aktiviert)
-            _maybe_check_aktionscodes()   # öffentliche TUI-Aktionscodes
-            _maybe_auto_backup()      # wöchentliches Backup nach /addon_config
-            _maybe_check_watches()    # Suchabos (gespeicherte Suchen mit Schwellenpreis)
-            _maybe_refresh_calendars()  # Preiskalender 1×/Tag je Angebot auffrischen
-            market_basket.maybe_run_baskets()  # Preisbarometer je gespeicherter Suche, 1×/Tag
+            # Reihenfolge wie gehabt (Selbsttest zuerst, VOR den Preisprüfungen); die
+            # Labels landen über busy_labels()/api_offers im Logo-Tooltip. Die Funktionen
+            # werden hier bei jedem Durchlauf frisch aus den Globals geholt, damit
+            # spätere Neubindungen (watch/backup/digest) und Test-Patches greifen.
+            for _label, _step in (
+                    ('Selbsttest', _maybe_periodic_health),
+                    ('Zusammenfassung', _maybe_send_digest),
+                    ('Aktionscodes', _maybe_check_aktionscodes),
+                    ('Backup', _maybe_auto_backup),
+                    ('Suchabos', _maybe_check_watches),
+                    ('Preiskalender', _maybe_refresh_calendars),
+                    ('Preisbarometer', market_basket.maybe_run_baskets)):
+                with busy(_label):
+                    _step()
             _auto_archive_expired()
             share_routes.cleanup_expired()  # abgelaufene öffentliche Links entsorgen
             with db() as con:
@@ -2440,12 +2485,15 @@ def _poll_worker() -> None:
             if due:
                 gap = _poll_gap()
                 log.info("Prüfe %d fällige(s) Angebot(e), %d s Abstand", len(due), gap)
-                for i, oid in enumerate(due):
-                    check_offer(oid)
-                    # Pause nur zwischen zwei Angeboten (nicht nach dem letzten) und
-                    # nur hier im Poller — „Jetzt prüfen" aus der UI bleibt sofortig.
-                    if gap and i < len(due) - 1:
-                        time.sleep(gap + secrets.randbelow(POLL_GAP_JITTER + 1))
+                # busy um den ganzen Block, nicht je Angebot: sonst blinkt das
+                # Logo-Signal während der poll_gap-Pausen im Sekundentakt an/aus.
+                with busy(f'Preis-Checks ({len(due)})'):
+                    for i, oid in enumerate(due):
+                        check_offer(oid)
+                        # Pause nur zwischen zwei Angeboten (nicht nach dem letzten) und
+                        # nur hier im Poller — „Jetzt prüfen" aus der UI bleibt sofortig.
+                        if gap and i < len(due) - 1:
+                            time.sleep(gap + secrets.randbelow(POLL_GAP_JITTER + 1))
                 continue  # danach sofort neu bewerten, was als Nächstes fällig ist
         except Exception as e:
             log.error("Poll-Fehler: %s", e)

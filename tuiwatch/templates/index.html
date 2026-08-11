@@ -18,8 +18,14 @@
     body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; background:var(--bg); color:var(--text); min-height:100vh; transition:background .2s,color .2s; }
     .wrap { max-width: 1000px; margin: 0 auto; padding: 16px; }
     header { display:grid; grid-template-columns:minmax(0,auto) minmax(0,1fr) minmax(0,auto); align-items:center; gap:10px; margin-bottom:18px; }
-    .logo { display:flex; align-items:center; gap:8px; font-size:1.3rem; font-weight:700; color:var(--accent); }
-    .logo svg { width:26px; height:26px; fill:var(--accent); }
+    .logo { display:flex; align-items:center; gap:8px; font-size:1.3rem; font-weight:700; color:var(--accent); transition:color .3s; }
+    .logo svg { width:26px; height:26px; fill:var(--accent); transition:fill .3s; }
+    /* Hintergrund-Signal: setBusy() (app.js) schaltet .busy, solange laufende
+       Aufgaben gemeldet sind (/api/offers → busy). Puls nur auf dem Flieger. */
+    .logo.busy { color:var(--amber); }
+    .logo.busy svg { fill:var(--amber); animation:logo-busy 1.6s ease-in-out infinite; }
+    @keyframes logo-busy { 0%,100%{opacity:1} 50%{opacity:.35} }
+    @media (prefers-reduced-motion:reduce) { .logo.busy svg { animation:none; } }
     .header-actions { display:flex; align-items:center; justify-content:flex-end; gap:8px; flex-wrap:wrap; min-width:0; }
     .header-actions .btn { flex:0 1 auto; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     .header-actions .icon-btn { flex:0 0 auto; }
