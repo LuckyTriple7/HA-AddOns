@@ -16,6 +16,7 @@ username: admin          # Login (Direktzugriff)
 password: secret         # bitte ändern!
 session_hours: 24        # Dauer der Anmeldung
 poll_interval: 21600     # Prüfintervall in Sekunden (6 h); Minimum 600
+poll_gap: 10             # Pause in Sekunden zwischen zwei Hintergrund-Abrufen (0 = aus)
 ha_notify_service: ""    # optional: notify-Dienst(e) für Push, z. B. mobile_app_mein_handy
 notify_api_errors: true  # Alarm, wenn eine TUI-API gestört ist
 notify_unavailable: true # Alarm, wenn das Buchungssystem ein Angebot nicht mehr bestätigt

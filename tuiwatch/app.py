@@ -90,7 +90,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.89.7"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.89.8"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -104,6 +104,8 @@ POLL_INTERVAL_DEFAULT = 21600  # 6h — Reisepreise ändern sich langsam
 MIN_POLL_INTERVAL = 600        # nie öfter als alle 10 min (Bot-Schutz/Fairness)
 HISTORY_ONLY_HOUR = 9   # fixer Tages-Slot für Preisverlauf-Angebote (lokale Zeit)
 HISTORY_ONLY_SPREAD_MIN = 60  # Streuung in Minuten ab HISTORY_ONLY_HOUR (kein Burst um Punkt 9)
+POLL_GAP_DEFAULT = 10   # s Pause zwischen zwei Angebots-Checks im Poller (Bot-Schutz/Fairness)
+POLL_GAP_JITTER = 5     # + 0..5 s Zufall, damit die Abrufe kein exaktes Taktmuster ergeben
 MAX_PDF_BYTES = 16 * 1024 * 1024  # 16 MB Upload-Limit für Reise-PDFs
 
 # „Für andere"-Listen: frei benannte Sammlungen für Angebote, die nicht für den
@@ -2379,6 +2381,18 @@ def _history_only_wait_seconds(oid: int, last_ts: int, now: int) -> int:
     return slot_ts - now
 
 
+def _poll_gap() -> int:
+    """Sekunden Pause zwischen zwei aufeinanderfolgenden Hintergrund-Abrufen
+    (Angebote im Poller, Suchabos). `poll_gap: 0` schaltet die Pause ab."""
+    raw = load_config().get('poll_gap')
+    if raw is None or raw == '':
+        return POLL_GAP_DEFAULT
+    try:
+        return max(0, int(raw))
+    except (TypeError, ValueError):
+        return POLL_GAP_DEFAULT
+
+
 def _poll_worker() -> None:
     """Prüft Angebote fälligkeitsbasiert: ein Angebot wird erst wieder abgefragt,
     wenn seit seinem letzten Check (auch über Neustarts hinweg) das Intervall
@@ -2424,9 +2438,14 @@ def _poll_worker() -> None:
                 else:
                     next_in = min(next_in, interval - age)
             if due:
-                log.info("Prüfe %d fällige(s) Angebot(e)", len(due))
-                for oid in due:
+                gap = _poll_gap()
+                log.info("Prüfe %d fällige(s) Angebot(e), %d s Abstand", len(due), gap)
+                for i, oid in enumerate(due):
                     check_offer(oid)
+                    # Pause nur zwischen zwei Angeboten (nicht nach dem letzten) und
+                    # nur hier im Poller — „Jetzt prüfen" aus der UI bleibt sofortig.
+                    if gap and i < len(due) - 1:
+                        time.sleep(gap + secrets.randbelow(POLL_GAP_JITTER + 1))
                 continue  # danach sofort neu bewerten, was als Nächstes fällig ist
         except Exception as e:
             log.error("Poll-Fehler: %s", e)

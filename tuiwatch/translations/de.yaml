@@ -11,6 +11,9 @@ configuration:
   poll_interval:
     name: Prüfintervall (Sekunden)
     description: "Pause zwischen zwei automatischen Preisprüfungen. Reisepreise ändern sich langsam — Standard 21600 (6 Stunden), Minimum 600 (10 Minuten). Bitte fair wählen, nicht im Minutentakt."
+  poll_gap:
+    name: Abstand zwischen Abrufen (Sekunden)
+    description: "Pause zwischen zwei aufeinanderfolgenden Hintergrund-Abrufen (Angebote und Suchabos werden nacheinander geprüft). Verhindert einen Abruf-Burst, wenn viele Angebote gleichzeitig fällig sind. Standard 10, dazu 0–5 Sekunden Zufall; 0 schaltet die Pause ab."
   market_trend_threshold:
     name: Schwelle für Markttrend (%)
     description: "Kumulierte Preisbewegung über 14 Tage, ab der der Markttrend als steigend/fallend statt stabil gilt. Standard 1.0 — kleinerer Wert reagiert empfindlicher auf kleine Bewegungen."

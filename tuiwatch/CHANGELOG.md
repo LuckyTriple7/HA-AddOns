@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.89.8] - 2026-08-11
+
+### Added
+- **Pause zwischen Hintergrund-Abrufen (`poll_gap`, Standard 10 s).** Der
+  Poller arbeitet alle fälligen Angebote seriell in einem Block ab; bei
+  vielen Angeboten entstand so ein Burst von Abrufen innerhalb weniger
+  Sekunden. Zwischen zwei Angeboten (und zwischen zwei Suchabos) liegt
+  jetzt eine Pause von `poll_gap` Sekunden plus 0–5 s Zufall, damit die
+  Abrufe kein exaktes Taktmuster ergeben. Die Pause greift nur im
+  Hintergrund — „Jetzt prüfen" aus der UI bleibt unverändert sofortig.
+  `poll_gap: 0` schaltet sie ab.
+
 ## [0.89.7] - 2026-08-11
 
 ### Changed

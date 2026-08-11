@@ -11,6 +11,9 @@ configuration:
   poll_interval:
     name: Check interval (seconds)
     description: "Delay between two automatic price checks. Travel prices change slowly — default 21600 (6 hours), minimum 600 (10 minutes). Please keep it fair, not every minute."
+  poll_gap:
+    name: Gap between requests (seconds)
+    description: "Pause between two consecutive background requests (offers and saved-search watches are checked one after another). Prevents a burst of requests when many offers fall due at once. Default 10, plus 0–5 seconds of jitter; 0 disables the pause."
   market_trend_threshold:
     name: Market trend threshold (%)
     description: "Cumulative price movement over 14 days above which the market trend counts as rising/falling instead of stable. Default 1.0 — a smaller value reacts to smaller moves."
