@@ -383,6 +383,8 @@
 
     /* Sparkline */
     .spark { display: block; overflow: visible; }
+    .spark-click { cursor: pointer; display: inline-block; border-radius: 4px; }
+    .spark-click:hover { background: rgba(255,255,255,0.06); }
 
     /* Actions */
     .actions { display: flex; gap: 4px; }
@@ -1049,7 +1051,9 @@ function rowHtml(c) {
     <td class="col-hide">${run ? fmtBytes(c.net_rx) + ' / ' + fmtBytes(c.net_tx) : '-'}</td>
     <td class="col-hide">${run ? fmtBytes(c.blk_r) + ' / ' + fmtBytes(c.blk_w) : '-'}</td>
     <td class="col-hide">${run ? (c.pids || 0) : '-'}</td>
-    <td class="col-hide">${run ? sparkline(c.history || []) : ''}</td>
+    <td class="col-hide">${run
+      ? `<span class="spark-click" onclick="openContainerHist(${safeJsArg(c.name)})" title="${esc(T.hist_open_container||'')}">${sparkline(c.history || [])}</span>`
+      : ''}</td>
     <td>
       <div class="actions">
         <button class="btn sm" data-action="logs" data-name="${esc(c.name)}"
@@ -1411,6 +1415,30 @@ function openSysHist(metric, label) {
 
 function closeSysHist() {
   document.getElementById('sys-hist-overlay').classList.remove('open');
+}
+
+function openContainerHist(name) {
+  const overlay = document.getElementById('sys-hist-overlay');
+  if (!overlay) return;
+  document.getElementById('sys-hist-title').textContent =
+    name + ' — ' + (T.hist_title_container_cpu || 'CPU Verlauf 24h');
+  document.getElementById('sys-hist-back').style.display = 'none';
+  overlay.classList.add('open');
+
+  const footer = document.getElementById('sys-hist-footer');
+  footer.innerHTML = '';
+
+  const canvas = document.getElementById('sys-hist-canvas');
+  canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
+
+  fetch('/api/containers/' + encodeURIComponent(name) + '/history', { credentials: 'include' })
+    .then(r => r.json())
+    .then(json => {
+      const data = json.data || [];
+      drawSysChart(canvas, data, 'cpu');
+      renderSysHistStats(footer, data.map(d => d.c), '%', sysPctColor);
+    })
+    .catch(() => drawSysChartError(canvas, T.hist_load_error || 'Fehler beim Laden'));
 }
 
 function tempColor(t) {

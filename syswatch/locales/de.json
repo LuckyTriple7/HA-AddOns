@@ -83,6 +83,8 @@
   "hist_load_error": "Fehler beim Laden",
   "hist_no_sensors": "Keine Sensor-Daten verfügbar",
   "hist_temp_tooltip": "Temperaturverlauf anzeigen",
+  "hist_open_container": "24h-CPU-Verlauf anzeigen",
+  "hist_title_container_cpu": "CPU-Verlauf 24h",
 
   "banner_offline_title": "Verbindung unterbrochen",
   "banner_offline_sub": "Stelle Verbindung wieder her…",

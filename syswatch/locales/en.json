@@ -83,6 +83,8 @@
   "hist_load_error": "Error loading data",
   "hist_no_sensors": "No sensor data available",
   "hist_temp_tooltip": "Show temperature history",
+  "hist_open_container": "Show 24h CPU history",
+  "hist_title_container_cpu": "CPU History 24h",
 
   "banner_offline_title": "Connection lost",
   "banner_offline_sub": "Reconnecting…",
