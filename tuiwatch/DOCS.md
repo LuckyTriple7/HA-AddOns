@@ -677,21 +677,29 @@ Eigenständige Flugplan-Suche ohne Bezug zu deinen getrackten Angeboten — Date
 kommen direkt von den Flughäfen, es sind **keine** Pauschalreise-Preise. Zwei
 Flughäfen, je ein eigener Schalter:
 
-| | **Stuttgart (STR)**, `enable_str_flights` | **Frankfurt (FRA)**, `enable_fra_flights` |
-|---|---|---|
-| Datenmodell | **Saisonstrecken**: Verbindung mit Wochentagen und Gültigkeit von–bis | **Einzelflüge je Datum** |
-| Gut für | „Fliegt da überhaupt wer hin, und an welchen Tagen?" | „Wie sieht mein konkreter Reisetag aus?" |
-| Zeigt | Airline + Flugnummer, Wochentage, Zeiten, Saisonzeitraum, Zwischenstopp | Datum, Zeiten, Flugdauer, Airline + Flugnummer, Terminal/Halle/Gate, Check-in-Schalter, Flugzeugtyp + Kennzeichen, Codeshares |
-| Zeilenklick | Flugdetails über adsbdb.com (Standardroute) | Detailfenster aus den Flugdaten selbst |
+| | **Stuttgart (STR)**, `enable_str_flights` | **Frankfurt (FRA)**, `enable_fra_flights` | **München (MUC)**, `enable_muc_flights` |
+|---|---|---|---|
+| Quelle | offenes JSON des Flughafens | offenes JSON des Flughafens | offizielles **Flugplan-PDF** (kein API vorhanden) |
+| Datenmodell | **Saisonstrecken**: Verbindung mit Wochentagen und Gültigkeit von–bis | **Einzelflüge je Datum** | **Saisonstrecken** wie STR |
+| Horizont | Saison/Inventar des Flughafens | Monate im Voraus (rollierend) | **nur die laufende Saison** (Sommer bzw. Winter) |
+| Zeigt | Airline + Flugnummer, Wochentage, Zeiten, Saisonzeitraum, Zwischenstopp | Datum, Zeiten, Flugdauer, Airline + Flugnummer, Terminal/Halle/Gate, Check-in-Schalter, Flugzeugtyp + Kennzeichen, Codeshares | Airline + Flugnummer, Wochentage, Zeiten (± Vor-/Folgetag), Gültigkeitszeitraum, Terminal, Zwischenstopp |
+| Zeilenklick | Flugdetails über adsbdb.com (Standardroute) | Detailfenster aus den Flugdaten selbst | – |
 
-Sind **beide** aktiv, fragt der ✈️-Knopf zuerst nach dem Flughafen; ist nur einer
-freigeschaltet, öffnet er direkt dessen Fenster. Gesucht wird per IATA-Code
-(`PMI`), Ort oder Land, der Zeitraum als Monat–Monat.
+Sind **mehrere** aktiv, fragt der ✈️-Knopf zuerst nach dem Flughafen (nur die
+freigeschalteten stehen zur Wahl); ist nur einer aktiv, öffnet er direkt dessen
+Fenster. Gesucht wird per IATA-Code (`PMI`), Ort oder Land, der Zeitraum als
+Monat–Monat.
+
+Der Münchner Plan kommt aus einem PDF, das **täglich neu erzeugt** wird (der
+Inhalt bleibt die laufende Saison). Das Add-on prüft alle drei Stunden, ob eine
+neue Fassung hängt, und liest sie nur dann neu ein (~15 s); die Fußzeile im
+Fenster zeigt **Datenstand** und Saisonzeitraum, **„🔄 Flugplan neu einlesen"**
+erzwingt es sofort.
 
 > Frankfurt hat kein Datumsfilter im Backend und liefert feste 25 Treffer je
 > Seite; TUIWatch sucht die passende Seite deshalb per Binärsuche und begrenzt
 > auf 300 Flüge je Abfrage. Steht „weitere vorhanden", grenze den Zeitraum ein.
-> Technische Details: [SCRAPING_STR.md](SCRAPING_STR.md) / [SCRAPING_FRA.md](SCRAPING_FRA.md).
+> Technische Details: [SCRAPING_STR.md](SCRAPING_STR.md) / [SCRAPING_FRA.md](SCRAPING_FRA.md) / [SCRAPING_MUC.md](SCRAPING_MUC.md).
 
 ## Home-Assistant-Sensoren
 

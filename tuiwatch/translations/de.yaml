@@ -167,6 +167,9 @@ configuration:
   enable_fra_flights:
     name: Flugplan ab Frankfurt Airport (FRA)
     description: "Ergänzt den ✈️-Knopf um den Flugplan ab/nach Frankfurt. Anders als beim Stuttgarter Flugplan liefert Frankfurt Einzelflüge je Datum (statt Saisonstrecken mit Wochentagen) — dafür mit Terminal, Halle, Gate, Check-in-Schaltern, Flugzeugtyp und Codeshare-Nummern. Sind beide Flughäfen aktiv, fragt der ✈️-Knopf zuerst nach dem Flughafen. Nutzt das offene JSON der Flughafen-Website, unabhängig von TUI-/Check24-Angeboten. Standard aus."
+  enable_muc_flights:
+    name: Flugplan ab München Airport (MUC)
+    description: "Ergänzt den ✈️-Knopf um den Flugplan ab/nach München. München bietet kein Flugplan-API — die Daten stammen aus dem offiziellen Saison-Flugplan-PDF des Flughafens (rund 3.300 Verbindungen mit Wochentagen, Zeiten, Terminal und Gültigkeitszeitraum, wie beim Stuttgarter Plan). Das PDF wird täglich neu erzeugt; das Add-on prüft alle drei Stunden, ob eine neue Fassung hängt, und liest sie nur dann neu ein. Achtung: Das PDF deckt immer nur die laufende Saison ab (Sommer bzw. Winter), nicht 12 Monate im Voraus. Standard aus."
   enable_public_share:
     name: Öffentliche Angebots-Links
     description: "Schaltet Links frei, mit denen sich ausgewählte Angebote ohne Login anschauen lassen (wie die Angebotsseite eines Reisebüros) — inklusive gespeicherter Klimatabelle, Reiseführer und Reiseberater-Ergebnis. Die Seite läuft auf einem eigenen Port (siehe „Port für öffentliche Links“), zeigt nur einen beim Erzeugen eingefrorenen Stand und erlaubt keinerlei Abfragen. Nur diesen zweiten Port im Reverse-Proxy nach außen geben, niemals 17794. Standard aus."

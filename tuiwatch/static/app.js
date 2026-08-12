@@ -1830,8 +1830,17 @@
     // fragt der Knopf zuerst nach dem Flughafen; ist nur einer aktiv, geht es
     // ohne Zwischenschritt direkt dorthin.
     function openFlightPlan(){
-      if(G.strFlights && G.fraFlights){ $('#fpick-bg').classList.add('show'); return; }
-      if(G.fraFlights) openFraFlights(); else openStrFlights();
+      const on = [G.strFlights && openStrFlights, G.fraFlights && openFraFlights,
+                  G.mucFlights && openMucFlights].filter(Boolean);
+      if(on.length > 1){
+        // Nur die freigeschalteten Flughäfen zur Wahl stellen
+        $('#fpick-str').style.display = G.strFlights ? '' : 'none';
+        $('#fpick-fra').style.display = G.fraFlights ? '' : 'none';
+        $('#fpick-muc').style.display = G.mucFlights ? '' : 'none';
+        $('#fpick-bg').classList.add('show');
+        return;
+      }
+      if(on.length === 1) on[0]();
     }
     function closeFlightPick(){ $('#fpick-bg').classList.remove('show'); }
     $('#fpick-bg').addEventListener('click', e=>{ if(e.target.id==='fpick-bg') closeFlightPick(); });
@@ -1916,6 +1925,69 @@
         <div class="hint" style="margin-top:10px">Quelle: Flughafen Frankfurt — Planung, Gate und Schalter können sich kurzfristig ändern.</div>`;
       $('#fraf-detail-bg').style.zIndex = 60;
       $('#fraf-detail-bg').classList.add('show');
+    }
+
+    // ── MUC-Flugplan (Saisonstrecken aus dem Flugplan-PDF des Flughafens) ──────
+    let mucfTimer = null;
+    function openMucFlights(){ $('#mucf-bg').classList.add('show'); $('#mucf-q').focus(); }
+    function closeMucFlights(){ $('#mucf-bg').classList.remove('show'); }
+    $('#mucf-bg').addEventListener('click', e=>{ if(e.target.id==='mucf-bg') closeMucFlights(); });
+    $('#mucf-q').addEventListener('input', ()=>{ clearTimeout(mucfTimer); mucfTimer = setTimeout(mucFlightsSearch, 350); });
+    $('#mucf-von').addEventListener('change', mucFlightsSearch);
+    $('#mucf-bis').addEventListener('change', mucFlightsSearch);
+    async function mucFlightsSearch(){
+      const q = $('#mucf-q').value.trim();
+      const type = $('#mucf-type').value;
+      const von = $('#mucf-von').value, bis = $('#mucf-bis').value;
+      if(q.length < 2){
+        $('#mucf-body').innerHTML = '<div class="hint">Suchbegriff eingeben, z. B. „Palma", „PMI" oder „Spanien".</div>';
+        return;
+      }
+      // Beim allerersten Aufruf liest der Server das PDF ein (~15 s) — deshalb
+      // hier ein Hinweis statt eines stillen Spinners.
+      $('#mucf-body').innerHTML = progBar('Suche… (beim ersten Mal wird der Flugplan eingelesen)');
+      let data;
+      try {
+        data = await fetch(api('/api/mucflights?q='+encodeURIComponent(q)+'&type='+encodeURIComponent(type)
+          +'&from='+encodeURIComponent(von)+'&till='+encodeURIComponent(bis))).then(r=>r.json());
+      } catch(e){ data = {error:'fetch_failed'}; }
+      if(data.error){
+        $('#mucf-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Flugplan nicht erreichbar. Bitte später erneut versuchen.</div>';
+        return;
+      }
+      renderMucFlights(data);
+    }
+    function renderMucFlights(data){
+      const rows = data.rows || [];
+      const foot = `<div class="hint" style="margin-top:8px">Datenstand ${esc(data.datenstand||'?')} · Saison ${esc(data.season||'?')} · ${(data.count||0).toLocaleString('de-DE')} Verbindungen im Plan</div>`;
+      if(!rows.length){ $('#mucf-body').innerHTML = '<div class="hint">Keine Verbindung gefunden.</div>'+foot; return; }
+      const rowsHtml = rows.map(r => {
+        // Zeiten immer aus MUC-Sicht: bei Abflug ist die erste Zeit ab MUC, bei
+        // Ankunft die zweite in MUC (±Tag über die Marker des PDF).
+        const t = `${esc(r.departure)}${r.prev_day?'<span class="hint" title="Abflug am Vortag">⁻¹</span>':''}–${esc(r.arrival)}${r.next_day?'<span class="hint" title="Ankunft am Folgetag">⁺¹</span>':''}`;
+        return `<tr class="mucf-row">
+          <td title="${r.direction==='departure'?'Abflug ab MUC':'Ankunft in MUC'}">${r.direction==='departure'?'🛫':'🛬'}</td>
+          <td>${esc(r.airport_name)} <span class="hint">(${esc(r.airport_code)})</span></td>
+          <td>${esc(r.country)}</td>
+          <td>${esc(r.airline_name||r.airline_code)} ${esc(r.flight_no)}</td>
+          <td>${esc(r.weekdays_short)}</td>
+          <td>${t}${r.stop?' <span class="hint">via '+esc(r.stop)+'</span>':''}</td>
+          <td class="hint">${esc(deDate(r.date_from))}–${esc(deDate(r.date_till))}</td>
+          <td class="hint">T${esc(r.terminal)}</td>
+        </tr>`;
+      }).join('');
+      const more = data.total > rows.length ? ` (von ${data.total}, Zeitraum oder Suchbegriff eingrenzen)` : '';
+      $('#mucf-body').innerHTML = `<div class="hint" style="margin-bottom:6px">${rows.length} Verbindung${rows.length===1?'':'en'}${more}</div>
+        <div style="overflow-x:auto"><table class="hist"><tr><th></th><th>Ziel</th><th>Land</th><th>Flug</th><th>Tage</th><th>Zeiten</th><th>Zeitraum</th><th>Term.</th></tr>${rowsHtml}</table></div>${foot}`;
+    }
+    async function mucFlightsRefresh(){
+      $('#mucf-body').innerHTML = progBar('Flugplan-PDF wird neu eingelesen…');
+      try {
+        const r = await fetch(api('/api/mucflights/refresh'), {method:'POST'}).then(x=>x.json());
+        if(r.error){ toast('Flugplan nicht abrufbar'); }
+        else toast('Flugplan neu eingelesen (Datenstand '+(r.datenstand||'?')+')');
+      } catch(e){ toast('Flugplan nicht abrufbar'); }
+      mucFlightsSearch();
     }
 
     // ── STR-Flugplan (Direktverbindungen Stuttgart Airport, unabhängig von Reisen) ──

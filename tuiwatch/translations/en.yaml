@@ -167,6 +167,9 @@ configuration:
   enable_fra_flights:
     name: Frankfurt Airport (FRA) flight schedule
     description: "Adds the Frankfurt flight schedule to the ✈️ button. Unlike the Stuttgart schedule, Frankfurt returns individual flights per date (instead of seasonal routes with weekdays) — but with terminal, hall, gate, check-in counters, aircraft type and codeshare numbers. With both airports enabled, the ✈️ button asks which airport first. Uses the airport website's open JSON, independent of TUI/Check24 offers. Default off."
+  enable_muc_flights:
+    name: Munich Airport (MUC) flight schedule
+    description: "Adds the Munich flight schedule to the ✈️ button. Munich offers no flight schedule API — the data comes from the airport's official seasonal timetable PDF (around 3,300 connections with weekdays, times, terminal and validity range, like the Stuttgart plan). The PDF is regenerated daily; the add-on checks every three hours whether a new edition is up and only then re-reads it. Note: the PDF only ever covers the current season (summer or winter), not 12 months ahead. Default off."
   enable_public_share:
     name: Public offer links
     description: "Enables links that let others view selected offers without logging in (like a travel agency's offer page) — including the stored climate table, travel guide and travel advisor result. The page runs on its own port (see \"Public link port\"), shows only a snapshot frozen at creation time and allows no queries at all. Expose only this second port through your reverse proxy, never 17794. Default off."

@@ -31,6 +31,7 @@ COPY trips_routes.py backup_routes.py digest.py ai_client.py price_calendar.py w
 COPY check24_client.py check24_routes.py email_search.py market_basket.py stats_routes.py share_routes.py ./
 COPY str_flights_client.py str_flights_routes.py trippilot_questions.py ./
 COPY fra_flights_client.py fra_flights_routes.py ./
+COPY muc_flights_client.py muc_flights_routes.py ./
 # Auslieferungsstand des TripPilot-Fragebogens — muss neben trippilot_questions.py
 # liegen und wird beim Start nach /config/trippilot kopiert (dort editierbar)
 COPY trippilot_questions.json ./

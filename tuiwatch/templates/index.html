@@ -326,6 +326,7 @@
     .strf-row:hover td { background:var(--surf); }
     .fraf-row { cursor:pointer; }
     .fraf-row:hover td { background:var(--surf); }
+    .mucf-row:hover td { background:var(--surf); }
     .fpick-opts { display:flex; gap:12px; flex-wrap:wrap; margin:14px 0 4px; }
     .fpick-opt { flex:1 1 200px; text-align:left; padding:14px; border-radius:8px; cursor:pointer;
       background:var(--surf2); border:1px solid var(--border); color:var(--text); font-size:.9rem; }
@@ -1486,13 +1487,17 @@
       <h2>✈️ Flugplan</h2>
       <div class="sub">Von welchem Flughafen? Die beiden Flughäfen liefern unterschiedliche Daten.</div>
       <div class="fpick-opts">
-        <button class="fpick-opt" onclick="closeFlightPick(); openStrFlights()">
+        <button class="fpick-opt" id="fpick-str" onclick="closeFlightPick(); openStrFlights()">
           <b>Stuttgart (STR)</b>
           <span>Saisonstrecken mit Wochentagen, Uhrzeiten und Gültigkeitszeitraum — gut für „fliegt da überhaupt wer hin".</span>
         </button>
-        <button class="fpick-opt" onclick="closeFlightPick(); openFraFlights()">
+        <button class="fpick-opt" id="fpick-fra" onclick="closeFlightPick(); openFraFlights()">
           <b>Frankfurt (FRA)</b>
           <span>Einzelflüge je Datum mit Terminal, Gate, Check-in, Flugzeugtyp und Codeshares — gut für einen konkreten Reisetag.</span>
+        </button>
+        <button class="fpick-opt" id="fpick-muc" onclick="closeFlightPick(); openMucFlights()">
+          <b>München (MUC)</b>
+          <span>Saisonstrecken mit Wochentagen und Terminal, aus dem offiziellen Flugplan-PDF des Flughafens — nur die laufende Saison.</span>
         </button>
       </div>
     </div>
@@ -1534,6 +1539,33 @@
       <h2 id="fraf-detail-title">✈️ Flugdetails</h2>
       <div class="sub" id="fraf-detail-live"></div>
       <div id="fraf-detail-body"></div>
+    </div>
+  </div>
+
+  <!-- MUC-Flugplan-Modal — Daten aus dem Saison-Flugplan-PDF des Flughafens
+       München (kein API vorhanden), siehe SCRAPING_MUC.md. -->
+  <div class="modal-bg" id="mucf-bg">
+    <div class="modal" style="max-width:980px">
+      <button class="icon-btn modal-close" onclick="closeMucFlights()">
+        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+      </button>
+      <h2>✈️ Flugplan ab München Airport (MUC)</h2>
+      <div class="sub">Linienflug-Verbindungen der laufenden Saison — aus dem offiziellen Flugplan-PDF des Flughafens, keine Pauschalreise-Angebote.</div>
+      <div class="shr-row" style="margin:10px 0">
+        <input type="text" id="mucf-q" placeholder="Ziel suchen… (Code, Ort, Land)" autocomplete="off" style="flex:1 1 180px;min-width:140px">
+        <select id="mucf-type" onchange="mucFlightsSearch()">
+          <option value="">Abflug &amp; Ankunft</option>
+          <option value="departure">Nur Abflug ab MUC</option>
+          <option value="arrival">Nur Ankunft in MUC</option>
+        </select>
+        <label class="hint" style="display:flex;align-items:center;gap:5px">Zeitraum
+          <input type="month" id="mucf-von" title="Verbindung frühestens ab diesem Monat" style="width:150px">
+          <span>–</span>
+          <input type="month" id="mucf-bis" title="Verbindung spätestens bis zu diesem Monat" style="width:150px">
+        </label>
+      </div>
+      <div id="mucf-body"><div class="hint">Suchbegriff eingeben, z. B. „Palma", „PMI" oder „Spanien".</div></div>
+      <div class="hc-foot" style="margin-top:8px" onclick="mucFlightsRefresh()" title="Flugplan-PDF sofort neu einlesen (passiert sonst automatisch alle drei Stunden, sobald eine neue Fassung hängt)">🔄 Flugplan neu einlesen</div>
     </div>
   </div>
 
@@ -1636,10 +1668,11 @@
     const G = { base: {{ (script_root or '')|tojson }}, iv: {{ poll_interval|tojson }}, ai: {{ ai_enabled|tojson }},
                 homeLoc: {{ trippilot_home_location|tojson }}, check24: {{ check24_enabled|tojson }},
                 strFlights: {{ str_flights_enabled|tojson }}, share: {{ share_enabled|tojson }},
-                fraFlights: {{ fra_flights_enabled|tojson }} };
+                fraFlights: {{ fra_flights_enabled|tojson }},
+                mucFlights: {{ muc_flights_enabled|tojson }} };
     document.body.classList.toggle('ai-disabled', !G.ai);
     document.body.classList.toggle('check24-disabled', !G.check24);
-    document.body.classList.toggle('flights-disabled', !G.strFlights && !G.fraFlights);
+    document.body.classList.toggle('flights-disabled', !G.strFlights && !G.fraFlights && !G.mucFlights);
     document.body.classList.toggle('share-disabled', !G.share);
     window.G = G;  // auch für den Konsolen-Script-Block (Ingress-Pfad) erreichbar
   </script>

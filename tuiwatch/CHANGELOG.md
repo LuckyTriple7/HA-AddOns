@@ -1,5 +1,32 @@
 # Changelog
 
+## [0.93.0] - 2026-08-12
+
+### Added
+- **Flugplan ab München (MUC)**, neuer Schalter `enable_muc_flights` — dritter
+  Flughafen im ✈️-Auswahldialog. München bietet **kein** Flugplan-API: die
+  Flugtafel der Website deckt nur rund ±2 Tage ab (live geprüft). Genutzt wird
+  deshalb der offizielle **Saison-Flugplan als PDF**, der dasselbe Datenmodell
+  hat wie der Stuttgarter Plan — Verbindung mit Wochentagen, Zeiten, Terminal
+  und Gültigkeit von–bis. Aktuell 3.337 Verbindungen aus dem Sommerplan 2026,
+  Suche über Zielcode, Ort oder Land, Zeitraum als Monat–Monat.
+- **Automatische Aktualisierung:** Das PDF wird täglich neu erzeugt und hängt
+  unter einer Adresse mit wechselndem Hash. Das Add-on löst die Adresse deshalb
+  jedes Mal von der Seite auf und prüft **alle drei Stunden**, ob Adresse oder
+  Dateigröße abweichen; heruntergeladen und geparst (~15 s) wird nur dann. Der
+  erste Lauf beim Start wärmt den Speicher vor, damit die erste Suche schnell
+  ist. Im Fenster gibt es zusätzlich **„🔄 Flugplan neu einlesen"**, die Fußzeile
+  zeigt Datenstand und Saisonzeitraum.
+
+### Notes
+- **Einschränkung:** Das PDF deckt immer nur die **laufende Saison** ab (Sommer
+  2026: 29.03.–24.10.). Flüge im Folgezeitraum stehen erst im nächsten PDF —
+  MUC ist damit eher wie STR und nicht so weitreichend wie FRA.
+- Dokumentiert in [SCRAPING_MUC.md](SCRAPING_MUC.md), inklusive Zeilenformat
+  (`S` = Start ab MUC, `L` = Landung in MUC, `+`/`-` für Folge-/Vortag), der
+  Ableitung von Stadt und Land über die x-Position im PDF und der Stolperfalle,
+  dass das Inhaltsverzeichnis die Spalten vertauscht.
+
 ## [0.92.0] - 2026-08-12
 
 ### Added

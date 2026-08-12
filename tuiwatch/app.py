@@ -92,7 +92,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.92.0"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.93.0"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -2930,6 +2930,7 @@ def index():
         check24_enabled=bool(cfg.get('enable_check24_compare', False)),
         str_flights_enabled=bool(cfg.get('enable_str_flights', False)),
         fra_flights_enabled=bool(cfg.get('enable_fra_flights', False)),
+        muc_flights_enabled=bool(cfg.get('enable_muc_flights', False)),
         share_enabled=bool(cfg.get('enable_public_share', False)),
         app_version=APP_VERSION))
 
@@ -3664,6 +3665,7 @@ import backup_routes  # noqa: E402
 import check24_routes  # noqa: E402
 import str_flights_routes  # noqa: E402
 import fra_flights_routes  # noqa: E402
+import muc_flights_routes  # noqa: E402
 import market_basket  # noqa: E402
 import stats_routes  # noqa: E402
 import share_routes  # noqa: E402
@@ -3673,6 +3675,7 @@ app.register_blueprint(backup_routes.bp)
 app.register_blueprint(check24_routes.bp)
 app.register_blueprint(str_flights_routes.bp)
 app.register_blueprint(fra_flights_routes.bp)
+app.register_blueprint(muc_flights_routes.bp)
 app.register_blueprint(market_basket.bp)
 # Nur die Admin-Routen (/api/shares…) hängen an der geschützten App. Die
 # öffentliche Seite lebt in share_routes.share_app auf einem eigenen Port, siehe
@@ -3752,6 +3755,24 @@ def _market_trend_sensor_worker() -> None:
         time.sleep(120)
 
 
+def _muc_flights_worker() -> None:
+    """Hält den Münchner Saison-Flugplan aktuell (nur bei `enable_muc_flights`).
+
+    Das PDF wird täglich neu erzeugt (Feld „Datenstand"), die Adresse enthält
+    einen Hash und kann sich dabei ändern. Geprüft wird deshalb mehrmals täglich,
+    ob Adresse oder Dateigröße abweichen — heruntergeladen und geparst (~15 s)
+    wird nur dann. Der erste Lauf direkt nach dem Start wärmt den Speicher vor,
+    damit die erste Suche im Fenster nicht auf das Parsen warten muss."""
+    import muc_flights_client
+    while True:
+        try:
+            if bool(load_config().get('enable_muc_flights', False)):
+                muc_flights_client.refresh(verbose=_verbose())
+        except Exception as e:
+            log.warning("MUC-Flugplan-Aktualisierung fehlgeschlagen: %s", e)
+        time.sleep(muc_flights_client.CHECK_INTERVAL)
+
+
 def _handle_sigterm(signum, frame) -> None:
     """Sauberer Exit bei SIGTERM (HA-Supervisor-Stop/Update) — ohne eigenen Handler
     würde Python den Default-Handler laufen lassen (exit 143), worüber sich der
@@ -3805,6 +3826,7 @@ def main() -> None:
     threading.Thread(target=_health_sensor_worker, daemon=True).start()
     threading.Thread(target=_cooldown_sensor_worker, daemon=True).start()
     threading.Thread(target=_market_trend_sensor_worker, daemon=True).start()
+    threading.Thread(target=_muc_flights_worker, daemon=True).start()
     _start_public_server()
     port = int(os.environ.get('TUIWATCH_PORT', '17794'))
     log.info("TUIWatch startet auf Port %d", port)
