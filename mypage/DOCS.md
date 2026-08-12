@@ -66,7 +66,7 @@ Verfügbare Bereiche:
 - **Standort & Öffnungszeiten**: Adresse, Öffnungszeiten (DE/EN) und optional eine Karte. Die Karte nutzt **OpenStreetMap** und lädt **erst auf Klick** (datenschutzfreundlich); zusätzlich gibt es einen „Auf Karte öffnen"-Link. Für die eingebettete Karte optional Koordinaten (Breite, Länge) angeben.
 - **Linksammlung**: Links zu anderen Seiten mit Titel und Beschreibung (DE/EN). Auf der Startseite erscheint ein Button, der ein Overlay mit allen Links öffnet; ein Klick öffnet die Zielseite in einem neuen Tab.
 - **FAQ**: Fragen und Antworten (DE/EN, Antwort als Markdown), auf der Startseite als aufklappbare Liste
-- **Bibliothek**: Anriss der Sammlung (bis zu 12 Einträge als scrollendes Karussell, mit Schlagwort-Filter) — Inhalt und Name werden im eigenen Tab *Bibliothek* gepflegt (siehe unten)
+- **Bibliothek**: Anriss der Sammlung (bis zu 12 Einträge, Darstellung wählbar — Karussell, Bildkacheln, Mini-Karten, Liste oder Klappzeile —, mit Schlagwort-Filter) — Inhalt und Name werden im eigenen Tab *Bibliothek* gepflegt (siehe unten)
 - **Fotoalben**: Alben mit Titel/Beschreibung (DE/EN) und beliebig vielen Bildern (Mehrfach-Upload). Ein Klick öffnet eine Diashow mit Ausblend-Effekt und Autoplay; ein **Klick auf das Bild** zeigt es groß, ein weiterer Klick in voller Auflösung (scroll-/schwenkbar). Bilder werden automatisch auf max. 1600 px verkleinert und als WebP gespeichert. Die Bild-Reihenfolge lässt sich per **Drag & Drop** ändern; ein Klick auf eine Mini-Kachel im Admin zeigt eine Vorschau.
   - **Bildschutz** (Schalter „Bilder schützen"): Brennt ein Wasserzeichen (frei wählbarer Text, Standard `© deine-domain.de`) in alle **Album- und Bibliothek-Bilder** ein und deaktiviert in den Alben Rechtsklick/Ziehen. Das Wasserzeichen wird beim Ausliefern dynamisch erzeugt und gecacht, eine Textänderung greift sofort. Ein vollständiger Download-Schutz ist im Web technisch nicht möglich (Screenshots), das Wasserzeichen ist der wirksame Teil. Siehe auch [Kennzeichnung von KI-Bildern](#kennzeichnung-von-ki-bildern).
 
@@ -118,6 +118,12 @@ Eine Sammlung eigenständiger **Markdown-Dokumente mit Kategorien** — für all
   - *Eigenes PDF hochladen*: max. 25 MB. Die Datei wird am Dateikopf geprüft, nicht nur an der Endung.
 - **Auslieferung der PDFs**: Sie liegen in einem eigenen Ordner (`docs/`, im Backup) und kommen **ausschließlich** über `/bibliothek/<slug>.pdf` als **Datei-Download** (`Content-Disposition: attachment`, `nosniff`) — nie inline über die offene `/uploads/`-Route. Bei Mitglieder-Einträgen ist auch das PDF gesperrt.
 - **Startseite**: Die Bibliothek ist ein eigener Abschnitt — bis zu 12 Einträge als **seitwärts scrollendes Karussell** (wie die Fotoalben, mit Pfeilen und Touch-Wischen). Darüber steht eine **Schlagwort-Leiste**, die die Kacheln ohne Neuladen filtert, darunter der Link **„Zur Übersicht →"** auf `/bibliothek` (er übernimmt ein gewähltes Schlagwort). Ist der Abschnitt ausgeblendet oder auf Mitglieder beschränkt, erscheint die Sammlung stattdessen als echter Link in der Navigation. Der Abschnitt lässt sich im Tab *Inhalt* wie jeder andere sortieren, ausblenden oder auf Mitglieder beschränken.
+- **Darstellung auf der Startseite** (Auswahl im Tab *Bibliothek*): Der Abschnitt frisst mit großen Bildkarten viel Höhe — deshalb fünf Varianten, alle mit derselben Schlagwort-Leiste und demselben Übersichts-Link:
+  - *Große Karten (Karussell)* — Bild, Kategorie, Titel und Zusammenfassung untereinander (Standard, wie bisher).
+  - *Bildkacheln mit Titel im Bild* — Titel liegt auf dem Bild statt darunter, Karte gut halb so hoch.
+  - *Kleine Karten mit Bild links* — Karte quer, Vorschaubild links neben dem Titel.
+  - *Liste* — kein Karussell: eine Zeile je Eintrag mit kleinem Vorschaubild, alle Einträge auf einen Blick.
+  - *Klappzeile* — eine Zeile mit Name und Anzahl, das Karussell öffnet sich erst auf Klick.
 - **SEO**: Veröffentlichte Einträge landen in `sitemap.xml`, im **IndexNow-Ping**, in der Volltextsuche und im statischen Export (dort inklusive der PDF-Dateien). Jede Eintragsseite liefert strukturierte Daten (`schema.org/Article`). Alle Inhalte liegen in `site.json` (im Backup).
 
 ### KI

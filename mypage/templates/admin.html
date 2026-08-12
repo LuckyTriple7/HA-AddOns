@@ -779,6 +779,20 @@
             <textarea id="lb-intro_en" rows="2"></textarea>
           </div>
         </div>
+        <div class="row" style="margin-top:10px">
+          <div>
+            <label>{{ t.library_layout }}</label>
+            <select id="lb-layout">
+              <option value="carousel">{{ t.library_layout_carousel }}</option>
+              <option value="overlay">{{ t.library_layout_overlay }}</option>
+              <option value="mini">{{ t.library_layout_mini }}</option>
+              <option value="list">{{ t.library_layout_list }}</option>
+              <option value="collapsed">{{ t.library_layout_collapsed }}</option>
+            </select>
+          </div>
+          <div></div>
+        </div>
+        <p class="hint">{{ t.library_layout_hint }}</p>
         <label class="checkbox" style="margin-top:10px"><input type="checkbox" id="lb-nav" checked> {{ t.page_in_nav }}</label>
         <!-- Dieselbe Einstellung wie bei den Fotoalben, nur hier ebenfalls bedienbar:
              sie gilt für beide Bereiche, deshalb halten saveImageProtect/loadSite
@@ -3190,6 +3204,7 @@
       el('lb-intro_de').value = lib.intro_de || '';
       el('lb-intro_en').value = lib.intro_en || '';
       el('lb-nav').checked = lib.nav !== false;
+      el('lb-layout').value = lib.layout || 'carousel';
     }
     async function saveLibrarySettings() {
       const r = await apiJson('api/library/settings', 'POST', {
@@ -3198,6 +3213,7 @@
         intro_de: el('lb-intro_de').value,
         intro_en: el('lb-intro_en').value,
         nav: el('lb-nav').checked,
+        layout: el('lb-layout').value,
       });
       toast(r.ok ? T.saved : T.error_save, !r.ok);
       if (r.ok) loadSite();

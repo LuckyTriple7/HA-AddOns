@@ -3490,6 +3490,11 @@ def _nav_pages(site: dict, loc) -> list:
 
 LIB_PDF_MODES = {'none', 'upload', 'generated'}
 
+# Darstellung des Bibliothek-Anrisses auf der Startseite. Alle Varianten nutzen
+# dasselbe Karten-Markup, nur die CSS-Klasse am Rail unterscheidet sich —
+# siehe „Layout-Varianten der Bibliothek" in templates/public.html.
+LIB_LAYOUTS = {'carousel', 'overlay', 'list', 'mini', 'collapsed'}
+
 
 def _library(site: dict) -> dict:
     """Bibliothek-Block inkl. fehlender Schlüssel (alte site.json)."""
@@ -3502,6 +3507,8 @@ def _library(site: dict) -> dict:
     lib.setdefault('intro_de', '')
     lib.setdefault('intro_en', '')
     lib.setdefault('nav', True)
+    if lib.get('layout') not in LIB_LAYOUTS:
+        lib['layout'] = 'carousel'
     if not isinstance(lib.get('categories'), list):
         lib['categories'] = []
     if not isinstance(lib.get('entries'), list):
@@ -7450,6 +7457,8 @@ def api_library_settings():
     lib['intro_de'] = _clean_str(raw.get('intro_de'), 2000)
     lib['intro_en'] = _clean_str(raw.get('intro_en'), 2000)
     lib['nav'] = bool(raw.get('nav', True))
+    lay = _clean_str(raw.get('layout'), 20)
+    lib['layout'] = lay if lay in LIB_LAYOUTS else 'carousel'
     save_site(site)
     return jsonify({'ok': True})
 
@@ -11631,6 +11640,7 @@ def public_index():
                            library_total=library_total,
                            library_tags=library_tags,
                            library_heading=library_heading,
+                           library_layout=_library(site).get('layout', 'carousel'),
                            travel_trips=travel_trips,
                            form_cards=form_cards,
                            countdown_title=countdown_title,

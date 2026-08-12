@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.10.27
+- 📐 **Die Bibliothek auf der Startseite lässt sich jetzt schmaler stellen.** Die großen Bildkarten nahmen bislang gut die halbe Bildschirmhöhe ein, ohne Alternative. Im Tab *Bibliothek* steht nun **Darstellung auf der Startseite** mit fünf Möglichkeiten:
+  - **Große Karten (Karussell)** — wie bisher, bleibt eingestellt.
+  - **Bildkacheln mit Titel im Bild** — der Titel liegt auf dem Bild statt darunter; halbe Höhe, das Bild bleibt groß.
+  - **Kleine Karten mit Bild links** — Karte quer, Vorschaubild neben dem Titel.
+  - **Liste** — kein Karussell mehr: eine Zeile je Eintrag, alle auf einen Blick, ohne seitliches Scrollen.
+  - **Klappzeile** — nur noch eine Zeile mit Name und Anzahl; das Karussell öffnet sich auf Klick.
+- 🔎 Schlagwort-Leiste, „Zur Übersicht →" und der Mitglieder-Schutz arbeiten in allen fünf Varianten gleich. Die Einstellung gilt **nur für den Anriss auf der Startseite**, die Übersicht unter `/bibliothek` bleibt unverändert.
+
 ## 0.10.26
 - 📏 **Auswahlfelder und Knöpfe stehen wieder auf einer Linie.** Ein Knopf bringt 16 px Abstand nach oben mit — gedacht für Knöpfe **unter** einem Formular. Steht er neben einem Feld, schob dieser Abstand die ganze Zeile nach unten, und die Nachbarspalte lag höher. Am deutlichsten im neuen Übersetzen-Bereich („Eintrag" und „Feld" versetzt), aber dieselbe Schieflage steckte in jeder Zeile mit einem großen Knopf — Prompt speichern, Entwurf speichern, Überarbeiten, Text ins Studio holen.
 - ↔️ Auswahlfelder in solchen Zeilen füllen jetzt die freie Breite, statt sich auf ihren Inhalt zu schrumpfen, und der Knopf daneben bricht nicht mehr in zwei Zeilen um.
