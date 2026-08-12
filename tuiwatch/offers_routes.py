@@ -983,6 +983,35 @@ def api_airlines():
     return jsonify({'airlines': A.fetch_airlines()})
 
 
+_FLIGHT_KEY_RE = re.compile(r'[A-Za-z0-9]{0,4}\|\d{0,2}\|(\d{2}:\d{2})?\|(\d{4}-\d{2}-\d{2})?')
+
+
+@bp.route('/api/flights/<int:offer_id>', methods=['POST'])
+def api_flight_pin(offer_id: int):
+    """Fixiert eine Flugvariante (`key` aus `flight_options`) für das Angebot —
+    danach wird deren Preis verfolgt statt des günstigsten Fluges. Leerer Key =
+    wieder automatisch der günstigste. Die getrackte URL bleibt unverändert; die
+    Auswahl passiert beim Auswerten der Angebots-API (scraper._flight_key)."""
+    if (err := A._require_api()):
+        return err
+    data = request.get_json(silent=True) or {}
+    key = (data.get('key') or '').strip()
+    label = (data.get('label') or '').strip()
+    if key and not _FLIGHT_KEY_RE.fullmatch(key):
+        return jsonify({'error': 'invalid_key'}), 400
+    with A.db() as con:
+        o = con.execute('SELECT id FROM offers WHERE id=?', (offer_id,)).fetchone()
+        if not o:
+            return jsonify({'error': 'not_found'}), 404
+        con.execute('UPDATE offers SET flight_pin=? WHERE id=?', (key, offer_id))
+    A.log.info("Angebot #%d: Flugvariante %s fixiert", offer_id, key or '(günstigste)')
+    A._log_event(offer_id, 'flight',
+                 f"Flug fixiert: {label or key}" if key
+                 else "Flug: günstigster (automatisch)")
+    A._spawn(A.check_offer, offer_id)
+    return jsonify({'ok': True, 'started': True})
+
+
 @bp.route('/api/rooms/<int:offer_id>', methods=['GET'])
 def api_rooms_get(offer_id: int):
     """Wählbare Zimmerkategorien (mit Preis p. P.) für ein Angebot — live abgefragt."""

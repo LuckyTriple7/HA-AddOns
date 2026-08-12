@@ -203,6 +203,22 @@ Wunschpreis, Zurücksetzen) — mit **Mouseover** erscheint Datum + Beschreibung
 > robust); bei Störungen schaltet TUIWatch automatisch auf das langsamere
 > Browser-Auslesen um. Details: [SCRAPING.md](SCRAPING.md).
 
+### Flugvarianten (seit v0.91.0)
+
+Zu derselben Reise bietet TUI häufig **mehrere Flüge** an — der günstigste ist oft
+der mit der frühesten Abflugzeit und den meisten Zwischenstopps. Verfolgt wird
+weiterhin der **günstigste**; gibt es Alternativen, zeigt die Angebotskarte
+**„✈ N Flugvarianten"** zum Aufklappen: je Variante Preis pro Person, **Aufpreis**
+gegenüber dem verfolgten Flug und beide Flugzeiten (Airline, Route, Stopps).
+
+Mit **📌 verfolgen** wird eine Variante fixiert — ab dann verfolgt TUIWatch deren
+Preis statt des günstigsten Fluges (z. B. „lieber 51 € mehr für einen
+Zwischenstopp weniger"). Die Fixierung lässt sich jederzeit wieder lösen
+(**📌 fixiert ✕**). Verschwindet der fixierte Flug aus dem Angebot, löst TUIWatch
+die Fixierung automatisch, vermerkt das im Verlauf und verfolgt wieder den
+günstigsten Flug. Der Preisverlauf läuft dabei durch — beachte nur, dass ein
+Wechsel der Flugvariante den Preis springen lässt, wie beim Zimmerwechsel.
+
 > Getrackt wird der konkrete, buchbare Preis der günstigsten Angebotskarte — nicht
 > der unverbindliche „ab"-Lockpreis.
 

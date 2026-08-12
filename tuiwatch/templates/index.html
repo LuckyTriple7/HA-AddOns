@@ -126,6 +126,24 @@
     .flight { font-size:.78rem; color:var(--text); display:flex; align-items:center; gap:6px; }
     .flight svg { width:13px; height:13px; fill:var(--muted); flex-shrink:0; }
     .flight .fdir { color:var(--muted); }
+    /* Flugvarianten: gleicher Zeitraum, anderer Flug (später/weniger Stopps kostet
+       meist Aufpreis). Aufklappbar, damit die Karte kompakt bleibt. */
+    .flight-vars { margin:4px 0 2px; font-size:.78rem; }
+    .flight-vars > summary { cursor:pointer; color:var(--muted); list-style:none; }
+    .flight-vars > summary::-webkit-details-marker { display:none; }
+    .flight-vars > summary:hover { color:var(--text); }
+    .flight-vars .fv-pin { color:var(--amber); }
+    .fv-row { display:flex; align-items:center; gap:10px; padding:6px 0;
+      border-top:1px solid var(--border); }
+    .fv-row.cur { background:rgba(88,166,255,.07); }
+    .fv-price { min-width:120px; font-weight:600; }
+    .fv-price .fv-d { font-weight:400; font-size:.74rem; color:var(--muted); }
+    .fv-price .fv-d.up { color:var(--red); }
+    .fv-price .fv-d.down { color:var(--green); }
+    .fv-legs { flex:1; color:var(--text); line-height:1.5; font-size:.74rem; }
+    .fv-legs svg { width:11px; height:11px; fill:var(--muted); margin-right:4px; }
+    .fv-cur { color:var(--green); font-size:.74rem; white-space:nowrap; }
+    .fv-act { white-space:nowrap; }
     .meta { display:flex; flex-wrap:wrap; gap:6px 12px; align-items:center; margin:7px 0 2px; font-size:.76rem; color:var(--muted); }
     .meta .stars { color:var(--amber); letter-spacing:1px; }
     .meta .rating { color:var(--text); }

@@ -560,6 +560,30 @@
           const fl = (label, v) => v?`<div class="flight">${plane}<span><span class="fdir">${label}:</span> ${esc(v)}</span></div>`:'';
           flights = `<div class="flights">${fl('Hin',o.flight_out)}${fl('Rück',o.flight_ret)}</div>`;
         }
+        // Flugvarianten: TUI liefert für denselben Zeitraum oft mehrere Angebote, die
+        // sich nur im Flug unterscheiden (früher/mehr Stopps = billiger). Getrackt wird
+        // der günstigste — hier steht, was die anderen kosten würden.
+        let flightAlts = '';
+        const fopts = o.flight_options || [];
+        if(fopts.length > 1){
+          const rows = fopts.map(v => {
+            const cur = o.flight_pin ? (v.key===o.flight_pin) : !!v.selected;
+            const d = v.delta;
+            const dTxt = (d==null || Math.abs(d)<0.5) ? '<span class="fv-d">±0 €</span>'
+              : `<span class="fv-d ${d>0?'up':'down'}">${d>0?'+':'−'}${eur(Math.abs(d))}</span>`;
+            const btn = cur
+              ? (o.flight_pin?`<button class="btn sec" onclick="pinFlight(${o.id},'')" title="Fixierung lösen – wieder günstigster Flug">📌 fixiert ✕</button>`
+                             :'<span class="fv-cur" title="Dieser Flug wird aktuell verfolgt">✓ verfolgt</span>')
+              : `<button class="btn sec" onclick="pinFlight(${o.id},'${esc(v.key)}')" title="Diesen Flug verfolgen statt des günstigsten">📌 verfolgen</button>`;
+            return `<div class="fv-row${cur?' cur':''}">
+              <div class="fv-price">${eur(v.price)} ${dTxt}</div>
+              <div class="fv-legs">${plane}<span>${esc(v.out)}</span><br>${plane}<span>${esc(v.ret)}</span></div>
+              <div class="fv-act">${btn}</div>
+            </div>`;
+          }).join('');
+          const pinNote = o.flight_pin ? ' · <span class="fv-pin">📌 Flug fixiert</span>' : '';
+          flightAlts = `<details class="flight-vars"><summary>✈ ${fopts.length} Flugvarianten${pinNote}</summary>${rows}</details>`;
+        }
         let availBadge = '';
         if(o.available===true){
           // vac_ok = Live-Bestätigung aus dem Buchungssystem (vacancy-check);
@@ -657,6 +681,7 @@
               ${sub?`<div class="offer-details">${esc(sub)}</div>`:''}
               ${metaLine}
               ${flights}
+              ${flightAlts}
               ${codesLine}
               <a class="offer-url" href="${esc(o.url)}" target="_blank" rel="noopener">Angebot auf tui.com öffnen ↗</a>
               ${o.pdf_url?`<a class="offer-url pdf" href="${esc(o.pdf_url)}" target="_blank" rel="noopener">📄 Hotelbeschreibung (PDF)</a>`:''}
@@ -5706,6 +5731,17 @@
       toast(code?'Zimmer gewählt – wird geprüft…':'Günstigstes Zimmer – wird geprüft…');
       pendingStartId = null;   // Prüfung läuft bereits über POST /api/rooms/<id> — closeRooms soll nicht nochmal starten
       closeRooms(); lastSig=null; loadOffers();
+    }
+    // Flugvariante fixieren (leerer key = wieder günstigster Flug). Ändert die
+    // getrackte URL nicht — der Scraper wählt beim nächsten Abruf per Schlüssel.
+    async function pinFlight(id, key){
+      try {
+        const r = await fetch(api('/api/flights/'+id), {method:'POST',
+          headers:{'Content-Type':'application/json'}, body: JSON.stringify({key: key||''})});
+        if(!r.ok){ toast('Flugauswahl fehlgeschlagen'); return; }
+      } catch(e){ toast('Flugauswahl fehlgeschlagen'); return; }
+      toast(key?'Flug fixiert – wird geprüft…':'Günstigster Flug – wird geprüft…');
+      lastSig=null; loadOffers();
     }
     function closeRooms(){
       // Zimmerauswahl für ein neu angelegtes (start:false) Angebot wurde OHNE

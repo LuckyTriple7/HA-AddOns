@@ -92,7 +92,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.90.1"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.91.0"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -761,8 +761,11 @@ def init_db() -> None:
             con.execute("ALTER TABLE offers ADD COLUMN foreign_icon TEXT NOT NULL DEFAULT ''")
         # vacancy-check (v0.69.0): Gepäck/Zahlungskonditionen einmalig je Angebot,
         # "zuletzt gebucht" je Poll aktualisiert
+        # Flugvarianten (v0.91.0): alle Offers eines Abrufs als JSON + optional
+        # fixierte Variante (Schlüssel aus scraper._flight_key)
         for col in ('luggage', 'last_booked', 'final_payment_date',
-                    'errata', 'flight_segments', 'hotel_supplier', 'flight_flags'):
+                    'errata', 'flight_segments', 'hotel_supplier', 'flight_flags',
+                    'flight_options', 'flight_pin'):
             if col not in ocols:
                 con.execute(f"ALTER TABLE offers ADD COLUMN {col} TEXT DEFAULT ''")
         if 'deposit_pct' not in ocols:
@@ -1847,7 +1850,9 @@ def check_offer(offer_id: int) -> None:
         res = {}
         for attempt in (1, 2):
             with _scrape_lock:
-                res = fetch_price(url, extras=need_extras, verbose=_verbose())
+                res = fetch_price(url, extras=need_extras,
+                                  flight_pin=offer.get('flight_pin') or '',
+                                  verbose=_verbose())
             if res.get('ok'):
                 break
             if res.get('detail'):
@@ -1881,6 +1886,12 @@ def check_offer(offer_id: int) -> None:
             if res.get('luggage'):
                 con.execute('UPDATE offers SET luggage=? WHERE id=?',
                             (json.dumps(res['luggage'], ensure_ascii=False), offer_id))
+            # Flugvarianten je Abruf ersetzen (nicht mergen) — verschwundene Varianten
+            # sollen auch aus der Anzeige verschwinden. Nur der API-Pfad liefert sie;
+            # beim Browser-Fallback bleibt der letzte Stand stehen.
+            if res.get('flight_options') is not None:
+                con.execute('UPDATE offers SET flight_options=? WHERE id=?',
+                            (json.dumps(res['flight_options'], ensure_ascii=False), offer_id))
             if res.get('ok') and res.get('price') is not None and prev_price and not room_changed:
                 pct = (res['price'] - prev_price) / prev_price * 100
                 region = res.get('region') or offer.get('region') or ''
@@ -1890,6 +1901,16 @@ def check_offer(offer_id: int) -> None:
                 con.execute(
                     'INSERT INTO price_moves (ts, region, country, months_out, pct_change) '
                     'VALUES (?,?,?,?,?)', (ts, region, country, months_out, pct))
+
+        if res.get('ok') and res.get('flight_pin_missed') and offer.get('flight_pin'):
+            # Fixierte Flugvariante ist aus dem Angebot verschwunden → Fixierung lösen
+            # (sonst würde bei jedem Poll erneut gemeldet) und wieder günstigster Flug.
+            with db() as con:
+                con.execute("UPDATE offers SET flight_pin='' WHERE id=?", (offer_id,))
+            _log_event(offer_id, 'flight',
+                       'Fixierter Flug nicht mehr im Angebot → wieder günstigster Flug')
+            log.warning("Angebot #%d (%s): fixierte Flugvariante entfallen → "
+                        "Fixierung gelöst", offer_id, name)
 
         if res.get('ok'):
             # Bestätigte Buchungsdetails speichern + Änderungen melden (Flugzeiten,
@@ -3027,6 +3048,9 @@ def _collect_offers() -> list[dict]:
                 'price_flight_out': last['price_flight_out'] if last else None,
                 'price_flight_ret': last['price_flight_ret'] if last else None,
                 'luggage': (_json_loads_safe(o['luggage'], None) if o['luggage'] else None),
+                'flight_options': (_json_loads_safe(o['flight_options'], [])
+                                   if o['flight_options'] else []),
+                'flight_pin': o['flight_pin'] or '',
                 'last_booked': o['last_booked'] or '',
                 'deposit_pct': o['deposit_pct'],
                 'final_payment_date': o['final_payment_date'] or '',

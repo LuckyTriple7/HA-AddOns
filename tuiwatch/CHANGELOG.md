@@ -1,5 +1,32 @@
 # Changelog
 
+## [0.91.0] - 2026-08-12
+
+### Added
+- **Flugvarianten sichtbar.** TUI liefert für denselben Zeitraum oft mehrere
+  Angebote, die sich nur im Flug unterscheiden — getrackt wurde davon immer der
+  günstigste, die anderen waren unsichtbar. Beispiel (Riu Turquoise, 05.11.2026,
+  ab STR): 4.133 € mit Lufthansa um 06:15 und **2 Zwischenstopps** gegen 4.184 €
+  mit Austrian um 15:20 und **1 Zwischenstopp** — 51 € Unterschied, den man
+  vorher nicht gesehen hat. Die Angebotskarte zeigt jetzt „✈ N Flugvarianten"
+  zum Aufklappen, mit Preis, Aufpreis gegenüber dem verfolgten Flug und beiden
+  Flugzeiten.
+- **Flug fixieren.** Per „📌 verfolgen" wird eine Variante festgehalten; ab dann
+  verfolgt TUIWatch deren Preis statt des günstigsten Fluges. Die getrackte URL
+  bleibt unverändert (Kalender, Zimmerauswahl und Preisverlauf laufen weiter) —
+  die Auswahl passiert beim Auswerten der Angebots-API über einen Schlüssel aus
+  Airline, Stopps, Abflugzeit und Anreisetag. Fällt der fixierte Flug aus dem
+  Angebot, löst TUIWatch die Fixierung, meldet das im Verlauf und verfolgt
+  wieder den günstigsten Flug.
+
+### Notes
+- Bestehende Angebote brauchen nichts: die Varianten füllen sich beim nächsten
+  regulären Preis-Check, der Preisverlauf bleibt unangetastet.
+- Die Uhrzeit-Filter der TUI-API (`departureMinTime`/`departureMaxTime`) wurden
+  geprüft und **wirken nicht** — die API ignoriert sie (live gegengeprüft).
+  Wirksam sind nur `maxStopOvers` und `airlines`; das Fixieren läuft deshalb
+  über den Variantenschlüssel statt über URL-Filter.
+
 ## [0.90.1] - 2026-08-11
 
 ### Added

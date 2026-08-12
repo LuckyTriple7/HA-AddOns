@@ -34,6 +34,19 @@ der Browser-Scraper ist nur noch **Fallback**. Code: `fetch_price_api()` in
   `duration`→`durations`, `departureAirports`→`airports`); der **eingegebene
   Reisezeitraum** (`startDate`/`endDate`/`duration`) wird dabei übernommen.
 - `cheapest: true` markiert die günstigste Karte direkt — kein Heuristik-Raten.
+- **Flugvarianten (v0.91.0):** Die `offers[]` desselben Abrufs unterscheiden sich oft
+  nur im Flug (Airline, Uhrzeit, Zwischenstopps, teils Anreisetag) — verfolgt wird
+  weiterhin genau eine Variante, alle werden aber als `flight_options` mitgeliefert
+  (`_flight_options()`, Aufpreis `delta` gegenüber der verfolgten Variante) und am
+  Angebot als JSON gespeichert. Eine Variante lässt sich **fixieren**: `flight_pin`
+  enthält den Schlüssel `_flight_key()` = `Airline-Code|Stopps|HH:MM|Anreisedatum`;
+  `fetch_price_api(..., flight_pin=…)` nimmt dann das günstigste Offer mit diesem
+  Schlüssel. Kein Treffer → `flight_pin_missed=True`, Fallback auf den günstigsten
+  Flug (`check_offer()` löst dann die Fixierung und schreibt ein Angebots-Ereignis).
+  Bewusst **nicht** über URL-Filter gelöst: `departureMinTime`/`departureMaxTime`/
+  `returnMinTime`/`returnMaxTime` werden von der Angebots-API **ignoriert** (live
+  gegengeprüft, `HH:MM` und Minuten) — wirksam sind nur `maxStopOvers` und
+  `airlines`, die den Anreisetag aber nicht unterscheiden können.
 - **Zimmerauswahl:** ohne `roomTypeOpCodes` liefert der Offer-Endpoint alle Zimmer; wir
   gruppieren die `offers[]` nach `rooms[0].code` (z. B. `DZM1`/`DZM3`) und nehmen je
   Zimmer den günstigsten `calculatedPricePerPerson` (Name = `rooms[0].description`). Ein

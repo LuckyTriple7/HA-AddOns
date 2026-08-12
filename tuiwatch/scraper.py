@@ -285,6 +285,7 @@ def _empty_result() -> dict:
             "price_flight_ret": None, "last_booked": "",
             "errata": None, "flight_segments": None, "hotel_supplier": None,
             "flight_flags": None,
+            "flight_options": None, "flight_pin_missed": False,
             "luggage": None, "deposit_pct": None, "final_payment_date": "",
             "source": "", "note": "", "detail": ""}
 
@@ -1363,6 +1364,57 @@ def _fmt_flight(leg: dict) -> str:
     return " · ".join(x for x in (dt, route, airline_part, stops) if x)
 
 
+def _flight_key(offer: dict) -> str:
+    """Stabiler Schlüssel einer Flugvariante: Airline|Stopps|Abflugzeit|Anreisetag.
+
+    Die Angebots-API liefert für denselben Zeitraum mehrere Offers, die sich nur in
+    den Flügen unterscheiden. Der Schlüssel identifiziert eine davon wieder, ohne
+    die getrackte URL umzuschreiben (Preis/Datum ändern sich, die Flugkombi nicht).
+    """
+    dep = offer.get("departure") or {}
+    code = ((dep.get("airline") or {}).get("code") or "").strip()
+    so = dep.get("stopOver")
+    t = (dep.get("departureDateTime") or "")[11:16]
+    return f"{code}|{'' if so is None else so}|{t}|{offer.get('arrivalDate', '') or ''}"
+
+
+def _flight_options(offers: list, chosen: dict, limit: int = 12) -> list:
+    """Alle Flugvarianten des Abrufs als kompakte Liste (aufsteigend nach Preis).
+
+    Getrackt wird weiter nur eine Variante — die Liste macht sichtbar, was ein
+    späterer/direkterer Flug kosten würde (`delta` = Aufpreis gegenüber der
+    getrackten Variante)."""
+    base = chosen.get("calculatedPricePerPerson")
+    out = []
+    for o in offers:
+        dep = o.get("departure") or {}
+        ret = o.get("return") or {}
+        p = o.get("calculatedPricePerPerson")
+        out.append({
+            "key": _flight_key(o),
+            "price": float(p) if p is not None else None,
+            "delta": (round(float(p) - float(base), 2)
+                      if p is not None and base is not None else None),
+            "out": _fmt_flight(dep),
+            "ret": _fmt_flight(ret),
+            "airline": ((dep.get("airline") or {}).get("value") or ""),
+            "stops_out": dep.get("stopOver"),
+            "stops_ret": ret.get("stopOver"),
+            "arrival_date": o.get("arrivalDate", "") or "",
+            "nights": o.get("lengthOfStay"),
+            "selected": o is chosen,
+        })
+    out.sort(key=lambda x: (x["price"] is None, x["price"] or 0))
+    top = out[:limit]
+    # Die verfolgte Variante muss immer dabei sein — bei einer fixierten teuren
+    # Variante könnte sie sonst hinter der Kappungsgrenze liegen.
+    if not any(v["selected"] for v in top):
+        sel = next((v for v in out if v["selected"]), None)
+        if sel:
+            top = top[:limit - 1] + [sel]
+    return top
+
+
 def _fetch_rating(giata: str, verbose: bool = False) -> dict:
     """Sterne + HolidayCheck-Bewertung aus dem TUI-Content-Endpoint (optional)."""
     out: dict = {}
@@ -1662,7 +1714,7 @@ def fetch_payment_terms(offer: dict, giata: str, verbose: bool = False) -> dict:
 
 
 def fetch_price_api(url: str, *, vacancy: bool = True, extras: bool = False,
-                    verbose: bool = False) -> dict | None:
+                    flight_pin: str = "", verbose: bool = False) -> dict | None:
     """Liest Preis/Details direkt aus der JSON-API. Rückgabe:
        - dict mit ok=True bei Treffer,
        - dict mit ok=False + Note bei *gültiger* Leermenge (kein Angebot im Zeitraum),
@@ -1723,8 +1775,22 @@ def fetch_price_api(url: str, *, vacancy: bool = True, extras: bool = False,
         r["note"] = "Kein Angebot im gewählten Zeitraum"
         return r
 
-    offer = next((o for o in offers if o.get("cheapest")), None) or \
+    cheapest = next((o for o in offers if o.get("cheapest")), None) or \
         min(offers, key=lambda o: o.get("calculatedPricePerPerson") or float("inf"))
+    offer = cheapest
+    if flight_pin:
+        # Fixierte Flugvariante: günstigstes Offer mit passendem Schlüssel. Fällt der
+        # Flug aus dem Angebot (Airline/Zeit weg), wieder günstigster + Hinweis.
+        match = [o for o in offers if _flight_key(o) == flight_pin]
+        if match:
+            offer = min(match, key=lambda o: o.get("calculatedPricePerPerson")
+                        or float("inf"))
+        else:
+            r["flight_pin_missed"] = True
+            if verbose:
+                log.info("Offer-API: fixierte Flugvariante %s nicht mehr im Angebot "
+                         "→ günstigster Flug", flight_pin)
+    r["flight_options"] = _flight_options(offers, offer)
 
     price = offer.get("calculatedPricePerPerson")
     old = offer.get("calculatedOriginalPricePerPerson")
@@ -1832,7 +1898,8 @@ def fetch_price_api(url: str, *, vacancy: bool = True, extras: bool = False,
 
 
 def fetch_price(url: str, *, timeout_ms: int = 60000, check_availability: bool = True,
-                extras: bool = False, verbose: bool = False) -> dict:
+                extras: bool = False, flight_pin: str = "",
+                verbose: bool = False) -> dict:
     """Liest den konkreten 'Günstigster Preis' einer TUI-Angebots-URL.
 
     Bevorzugt die JSON-API (schnell, robust); bei technischem Fehler automatischer
@@ -1847,7 +1914,7 @@ def fetch_price(url: str, *, timeout_ms: int = 60000, check_availability: bool =
     # check_availability steuert im API-Pfad den vacancy-check (Live-Bestätigung
     # + Preis-Split) — Massen-Abrufe (Vergleiche, Nächte-Matrix) sparen ihn aus.
     api = fetch_price_api(url, vacancy=check_availability, extras=extras,
-                          verbose=verbose)
+                          flight_pin=flight_pin, verbose=verbose)
     if api is not None:
         return api  # API hat gültig geantwortet (Treffer oder echte Leermenge)
     # API technisch fehlgeschlagen → Browser-Fallback (immer sichtbar, gelb)
