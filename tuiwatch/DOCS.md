@@ -671,6 +671,28 @@ tui.com (`/aktionscode/`) — **ohne Login** — und benachrichtigt dich bei **n
 - **Optionen:** `notify_aktionscodes` (Alarm an/aus), `aktionscode_min` (nur ab diesem
   Wert melden, Standard 0 = alle), `aktionscode_interval` (Prüfintervall in Sekunden).
 
+## Flugplan (✈️)
+
+Eigenständige Flugplan-Suche ohne Bezug zu deinen getrackten Angeboten — Daten
+kommen direkt von den Flughäfen, es sind **keine** Pauschalreise-Preise. Zwei
+Flughäfen, je ein eigener Schalter:
+
+| | **Stuttgart (STR)**, `enable_str_flights` | **Frankfurt (FRA)**, `enable_fra_flights` |
+|---|---|---|
+| Datenmodell | **Saisonstrecken**: Verbindung mit Wochentagen und Gültigkeit von–bis | **Einzelflüge je Datum** |
+| Gut für | „Fliegt da überhaupt wer hin, und an welchen Tagen?" | „Wie sieht mein konkreter Reisetag aus?" |
+| Zeigt | Airline + Flugnummer, Wochentage, Zeiten, Saisonzeitraum, Zwischenstopp | Datum, Zeiten, Flugdauer, Airline + Flugnummer, Terminal/Halle/Gate, Check-in-Schalter, Flugzeugtyp + Kennzeichen, Codeshares |
+| Zeilenklick | Flugdetails über adsbdb.com (Standardroute) | Detailfenster aus den Flugdaten selbst |
+
+Sind **beide** aktiv, fragt der ✈️-Knopf zuerst nach dem Flughafen; ist nur einer
+freigeschaltet, öffnet er direkt dessen Fenster. Gesucht wird per IATA-Code
+(`PMI`), Ort oder Land, der Zeitraum als Monat–Monat.
+
+> Frankfurt hat kein Datumsfilter im Backend und liefert feste 25 Treffer je
+> Seite; TUIWatch sucht die passende Seite deshalb per Binärsuche und begrenzt
+> auf 300 Flüge je Abfrage. Steht „weitere vorhanden", grenze den Zeitraum ein.
+> Technische Details: [SCRAPING_STR.md](SCRAPING_STR.md) / [SCRAPING_FRA.md](SCRAPING_FRA.md).
+
 ## Home-Assistant-Sensoren
 
 Bei aktiver Option `ha_sensors` legt TUIWatch je Angebot einen Sensor

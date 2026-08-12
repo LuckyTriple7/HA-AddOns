@@ -1824,6 +1824,100 @@
     function closePriceSplit(){ $('#split-bg').classList.remove('show'); }
     $('#split-bg').addEventListener('click', e=>{ if(e.target.id==='split-bg') closePriceSplit(); });
 
+    // ── Flugplan-Einstieg (✈️) ────────────────────────────────────────────────
+    // Zwei getrennte Flugpläne mit unterschiedlichen Datenquellen und -modellen
+    // (STR: Saisonstrecken, FRA: Einzelflüge je Datum). Sind beide freigeschaltet,
+    // fragt der Knopf zuerst nach dem Flughafen; ist nur einer aktiv, geht es
+    // ohne Zwischenschritt direkt dorthin.
+    function openFlightPlan(){
+      if(G.strFlights && G.fraFlights){ $('#fpick-bg').classList.add('show'); return; }
+      if(G.fraFlights) openFraFlights(); else openStrFlights();
+    }
+    function closeFlightPick(){ $('#fpick-bg').classList.remove('show'); }
+    $('#fpick-bg').addEventListener('click', e=>{ if(e.target.id==='fpick-bg') closeFlightPick(); });
+
+    // ── FRA-Flugplan (Einzelflüge ab/nach Frankfurt) ───────────────────────────
+    let frafTimer = null, frafLastRows = [];
+    function openFraFlights(){ $('#fraf-bg').classList.add('show'); $('#fraf-q').focus(); }
+    function closeFraFlights(){ $('#fraf-bg').classList.remove('show'); }
+    $('#fraf-bg').addEventListener('click', e=>{ if(e.target.id==='fraf-bg') closeFraFlights(); });
+    $('#fraf-q').addEventListener('input', ()=>{ clearTimeout(frafTimer); frafTimer = setTimeout(fraFlightsSearch, 350); });
+    $('#fraf-von').addEventListener('change', fraFlightsSearch);
+    $('#fraf-bis').addEventListener('change', fraFlightsSearch);
+    async function fraFlightsSearch(){
+      const q = $('#fraf-q').value.trim();
+      const type = $('#fraf-type').value;
+      const von = $('#fraf-von').value, bis = $('#fraf-bis').value;   // 'YYYY-MM'
+      if(q.length < 2){
+        $('#fraf-body').innerHTML = '<div class="hint">Suchbegriff eingeben, z. B. „Palma", „PMI" oder „Mauritius".</div>';
+        return;
+      }
+      $('#fraf-body').innerHTML = progBar('Suche…');
+      let data;
+      try {
+        data = await fetch(api('/api/fraflights?q='+encodeURIComponent(q)+'&type='+encodeURIComponent(type)
+          +'&from='+encodeURIComponent(von)+'&till='+encodeURIComponent(bis))).then(r=>r.json());
+      } catch(e){ data = {error:'fetch_failed'}; }
+      if(data.error){
+        $('#fraf-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Flugplan nicht erreichbar. Bitte später erneut versuchen.</div>';
+        return;
+      }
+      renderFraFlights(data);
+    }
+    function frafDate(iso){ const p=(iso||'').split('-'); return p.length===3?(p[2]+'.'+p[1]+'.'+p[0]):(iso||''); }
+    function frafDur(min){ if(!min) return ''; return Math.floor(min/60)+' h '+String(min%60).padStart(2,'0'); }
+    function renderFraFlights(data){
+      const rows = data.rows || [];
+      const dep = $('#fraf-type').value !== 'arrivals';
+      if(!rows.length){ $('#fraf-body').innerHTML = '<div class="hint">Kein Flug gefunden — evtl. anderen Zeitraum wählen.</div>'; return; }
+      const rowsHtml = rows.map((r,i) => `<tr class="fraf-row" onclick="fraFlightDetail(${i})" title="Klicken für Details (Terminal, Gate, Check-in, Flugzeug)">
+        <td>${esc(frafDate(r.date))}</td>
+        <td>${esc(r.time)}${r.arrival?'<span class="hint">–'+esc(r.arrival)+'</span>':''}</td>
+        <td>${esc(r.airport_name)} <span class="hint">(${esc(r.airport_code)})</span></td>
+        <td>${esc(r.airline_name)} ${esc(r.flight_no)}</td>
+        <td class="hint">${esc(frafDur(r.duration_min))}</td>
+        <td class="hint">${esc([r.terminal?'T'+r.terminal:'', r.hall, r.gate].filter(Boolean).join(' · '))}</td>
+      </tr>`).join('');
+      // Die Flughafen-Suche liefert mehrere Treffer (z. B. „Palma" → SPC + PMI) —
+      // welche Codes tatsächlich abgefragt wurden, gehört sichtbar hin.
+      const aps = (data.airports || []).filter(a=>a.name).map(a=>esc(a.name)+' ('+esc(a.code)+')').join(', ');
+      const more = data.truncated ? ' · weitere vorhanden, Zeitraum eingrenzen' : '';
+      $('#fraf-body').innerHTML = `<div class="hint" style="margin-bottom:6px">${rows.length} ${rows.length===1?'Flug':'Flüge'}${aps?' — '+aps:''}${more} — Zeile anklicken für Details</div>
+        <div style="overflow-x:auto"><table class="hist"><tr><th>Datum</th><th>${dep?'Ab FRA':'An FRA'}</th><th>${dep?'Ziel':'Von'}</th><th>Flug</th><th>Dauer</th><th>Terminal</th></tr>${rowsHtml}</table></div>`;
+      frafLastRows = rows;
+    }
+    function closeFraFlightDetail(){ $('#fraf-detail-bg').classList.remove('show'); $('#fraf-detail-bg').style.zIndex = ''; }
+    $('#fraf-detail-bg').addEventListener('click', e=>{ if(e.target.id==='fraf-detail-bg') closeFraFlightDetail(); });
+    // Anders als beim STR-Detail ist hier kein zusätzlicher Abruf nötig — das
+    // FRA-JSON liefert Terminal, Gate, Check-in, Flugzeugtyp und Codeshares
+    // bereits in der Trefferzeile mit.
+    function fraFlightDetail(i){
+      const r = frafLastRows[i];
+      if(!r) return;
+      const dep = $('#fraf-type').value !== 'arrivals';
+      $('#fraf-detail-title').textContent = '✈️ ' + (r.airline_name || r.airline_code) + ' ' + r.flight_no;
+      const pfCode = (r.flight_no||'').replace(/\s+/g,'');
+      $('#fraf-detail-live').innerHTML = pfCode
+        ? `<a href="https://planefinder.net/data/flight/${encodeURIComponent(pfCode)}" target="_blank" rel="noopener">🛰 Live-Position auf planefinder.net</a>`
+        : '';
+      const row = (k,v) => v ? `<tr><td>${k}</td><td>${esc(v)}</td></tr>` : '';
+      $('#fraf-detail-body').innerHTML = `<table class="hist">
+          ${row('Datum', frafDate(r.date))}
+          ${row(dep?'Abflug FRA':'Ankunft FRA', r.time + ' Uhr')}
+          ${row(dep?'Ankunft (Ortszeit Ziel)':'Abflug (Ortszeit Start)', r.arrival ? r.arrival+' Uhr' : '')}
+          ${row(dep?'Ziel':'Von', r.airport_name + ' (' + r.airport_code + ')')}
+          ${row('Flugdauer', frafDur(r.duration_min))}
+          ${row('Terminal', [r.terminal?'Terminal '+r.terminal:'', r.hall?'Halle '+r.hall:'', r.gate?'Gate '+r.gate:''].filter(Boolean).join(' · '))}
+          ${row('Check-in', r.checkin)}
+          ${row('Flugzeug', [r.aircraft, r.registration].filter(Boolean).join(' · '))}
+          ${row('Zwischenstopps', r.stops===0?'Direktflug':(r.stops?String(r.stops):''))}
+          ${row('Codeshare', (r.codeshares||[]).join(', '))}
+        </table>
+        <div class="hint" style="margin-top:10px">Quelle: Flughafen Frankfurt — Planung, Gate und Schalter können sich kurzfristig ändern.</div>`;
+      $('#fraf-detail-bg').style.zIndex = 60;
+      $('#fraf-detail-bg').classList.add('show');
+    }
+
     // ── STR-Flugplan (Direktverbindungen Stuttgart Airport, unabhängig von Reisen) ──
     let strfTimer = null;
     function openStrFlights(){ $('#strf-bg').classList.add('show'); $('#strf-q').focus(); }

@@ -92,7 +92,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.91.0"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.92.0"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -2929,6 +2929,7 @@ def index():
         is_ingress=_is_ingress(),
         check24_enabled=bool(cfg.get('enable_check24_compare', False)),
         str_flights_enabled=bool(cfg.get('enable_str_flights', False)),
+        fra_flights_enabled=bool(cfg.get('enable_fra_flights', False)),
         share_enabled=bool(cfg.get('enable_public_share', False)),
         app_version=APP_VERSION))
 
@@ -3662,6 +3663,7 @@ import trips_routes  # noqa: E402
 import backup_routes  # noqa: E402
 import check24_routes  # noqa: E402
 import str_flights_routes  # noqa: E402
+import fra_flights_routes  # noqa: E402
 import market_basket  # noqa: E402
 import stats_routes  # noqa: E402
 import share_routes  # noqa: E402
@@ -3670,6 +3672,7 @@ app.register_blueprint(trips_routes.bp)
 app.register_blueprint(backup_routes.bp)
 app.register_blueprint(check24_routes.bp)
 app.register_blueprint(str_flights_routes.bp)
+app.register_blueprint(fra_flights_routes.bp)
 app.register_blueprint(market_basket.bp)
 # Nur die Admin-Routen (/api/shares…) hängen an der geschützten App. Die
 # öffentliche Seite lebt in share_routes.share_app auf einem eigenen Port, siehe

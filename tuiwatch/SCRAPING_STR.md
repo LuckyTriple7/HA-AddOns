@@ -2,6 +2,8 @@
 
 Pendant zu [SCRAPING.md](SCRAPING.md) und [SCRAPING_CHECK24.md](SCRAPING_CHECK24.md),
 aber für den optionalen Flugplan ab Stuttgart Airport (`enable_str_flights`).
+Frankfurt hat seit v0.92.0 ein eigenes, bewusst getrenntes Gegenstück mit
+anderem Datenmodell: [SCRAPING_FRA.md](SCRAPING_FRA.md).
 
 ## Herkunft
 

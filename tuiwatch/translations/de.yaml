@@ -164,6 +164,9 @@ configuration:
   enable_str_flights:
     name: Flugplan ab Stuttgart Airport (STR)
     description: "Schaltet den ✈️-Knopf in der Kopfzeile frei: eigenständige Suche nach Linienflug-Verbindungen ab/nach STR (Fluggesellschaft, Wochentage, Zeiten, Saisonzeitraum) über Zielflughafen oder Land. Nutzt das offene JSON-API des Flughafen-Betreibers, unabhängig von TUI-/Check24-Angeboten. Standard aus."
+  enable_fra_flights:
+    name: Flugplan ab Frankfurt Airport (FRA)
+    description: "Ergänzt den ✈️-Knopf um den Flugplan ab/nach Frankfurt. Anders als beim Stuttgarter Flugplan liefert Frankfurt Einzelflüge je Datum (statt Saisonstrecken mit Wochentagen) — dafür mit Terminal, Halle, Gate, Check-in-Schaltern, Flugzeugtyp und Codeshare-Nummern. Sind beide Flughäfen aktiv, fragt der ✈️-Knopf zuerst nach dem Flughafen. Nutzt das offene JSON der Flughafen-Website, unabhängig von TUI-/Check24-Angeboten. Standard aus."
   enable_public_share:
     name: Öffentliche Angebots-Links
     description: "Schaltet Links frei, mit denen sich ausgewählte Angebote ohne Login anschauen lassen (wie die Angebotsseite eines Reisebüros) — inklusive gespeicherter Klimatabelle, Reiseführer und Reiseberater-Ergebnis. Die Seite läuft auf einem eigenen Port (siehe „Port für öffentliche Links“), zeigt nur einen beim Erzeugen eingefrorenen Stand und erlaubt keinerlei Abfragen. Nur diesen zweiten Port im Reverse-Proxy nach außen geben, niemals 17794. Standard aus."

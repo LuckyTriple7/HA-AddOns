@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.92.0] - 2026-08-12
+
+### Added
+- **Flugplan ab Frankfurt (FRA)**, neuer Schalter `enable_fra_flights`. Der
+  ✈️-Knopf fragt jetzt zuerst nach dem Flughafen, wenn **beide** Flugpläne aktiv
+  sind — ist nur einer freigeschaltet, öffnet er wie bisher direkt dessen
+  Fenster. Frankfurt liefert **Einzelflüge je Datum** (nicht Saisonstrecken wie
+  Stuttgart): Datum, Abflug- und Ankunftszeit, Flugdauer, Airline + Flugnummer,
+  Terminal/Halle/Gate, Check-in-Schalter, Flugzeugtyp und Kennzeichen,
+  Zwischenstopps und Codeshare-Nummern. Suche nach IATA-Code („PMI"), Ort oder
+  Land; Zeitraum wie beim STR-Flugplan über Monat–Monat.
+- Bewusst **getrennt** vom Stuttgarter Flugplan gebaut (eigener Client, eigene
+  Routen, eigener Schalter) — die Datenmodelle beider Flughäfen sind zu
+  verschieden für eine gemeinsame Tabelle. Gemeinsam ist nur der ✈️-Einstieg.
+
+### Notes
+- Quelle ist das offene JSON der Frankfurter Flughafen-Website (kein Key, kein
+  Referer). Dokumentiert in [SCRAPING_FRA.md](SCRAPING_FRA.md), inkl. der drei
+  Fallstricke: `schedArr` trägt einen **falschen Zeitzonen-Offset** (der Wert ist
+  Ortszeit am Ziel), es gibt **keinen Datumsfilter** (die Startseite eines
+  Zeitraums wird per Binärsuche über die Seiten gefunden) und die Seitengröße
+  ist fix bei 25 Einträgen — die Gesamtliste (123.289 Abflüge) ist deshalb
+  nicht abholbar, es wird immer nach Ziel gefiltert.
+
 ## [0.91.0] - 2026-08-12
 
 ### Added
