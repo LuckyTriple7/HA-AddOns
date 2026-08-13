@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.93.4] - 2026-08-13
+
+### Changed
+- **Flugziel-Tabelle klarer beschriftet**: Spalte „Ab" heißt jetzt „Ab
+  (STR/MUC) ⓘ" mit Tooltip — sonst wirkte es wie ein Fehler, dass Frankfurt
+  nie in der Spalte steht, obwohl eine Suche zum selben Ziel FRA-Treffer
+  zeigt (Frankfurt fehlt dort bewusst, siehe 0.93.3).
+
 ## [0.93.3] - 2026-08-13
 
 ### Added

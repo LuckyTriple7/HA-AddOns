@@ -1913,7 +1913,7 @@
         <td class="hint">${(d.airports||[]).map(a=>ALLF_AP_SHORT[a]||a).join(', ')}</td>
       </tr>`).join('');
       $('#allf-dest-body').innerHTML = `<div class="hint" style="margin-bottom:6px">${dest.length} Ziele — Stuttgart + München vollständig erfasst; Frankfurt hat als Drehkreuz keine abrufbare Gesamtliste, wird bei Klick aber mitgesucht. Zeile anklicken für Verbindungen.</div>
-        <div style="overflow-x:auto;max-height:340px;overflow-y:auto"><table class="hist"><tr><th>Ziel</th><th>Code</th><th>Land</th><th>Ab</th></tr>${rowsHtml}</table></div>`;
+        <div style="overflow-x:auto;max-height:340px;overflow-y:auto"><table class="hist"><tr><th>Ziel</th><th>Code</th><th>Land</th><th title="Nur Stuttgart/München — Frankfurt fehlt hier immer (keine Gesamtliste möglich), wird bei Klick aber trotzdem mitgesucht">Ab (STR/MUC) ⓘ</th></tr>${rowsHtml}</table></div>`;
     }
     function allfPickDestination(code){
       $('#allf-q').value = code;
