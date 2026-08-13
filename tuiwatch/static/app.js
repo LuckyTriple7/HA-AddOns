@@ -1844,8 +1844,11 @@
     }
 
     // ── Flugziel-Suche über alle freigeschalteten Flughäfen ────────────────────
-    let allfTimer = null;
-    function openAllFlights(){ $('#allf-bg').classList.add('show'); $('#allf-q').focus(); }
+    let allfTimer = null, allfDestLoaded = false;
+    function openAllFlights(){
+      $('#allf-bg').classList.add('show'); $('#allf-q').focus();
+      if(!allfDestLoaded){ allfDestLoaded = true; loadAllfDestinations(); }
+    }
     function closeAllFlights(){ $('#allf-bg').classList.remove('show'); }
     $('#allf-bg').addEventListener('click', e=>{ if(e.target.id==='allf-bg') closeAllFlights(); });
     $('#allf-q').addEventListener('input', ()=>{ clearTimeout(allfTimer); allfTimer = setTimeout(allFlightsSearch, 350); });
@@ -1884,6 +1887,38 @@
         else if(k==='fra') renderFraFlights(res, sel, true);
         else renderMucFlights(res, sel);
       });
+    }
+
+    // Gesamtliste aller tatsächlich angeflogenen Ziele (nur STR + MUC — siehe
+    // api_flights_destinations()). Einmal geladen, danach aus dem Cache des
+    // Servers — kein erneuter Abruf bei jedem Modal-Öffnen.
+    async function loadAllfDestinations(){
+      $('#allf-dest-body').innerHTML = progBar('Lade Flugzielliste…');
+      let data;
+      try { data = await fetch(api('/api/flights/destinations')).then(r=>r.json()); }
+      catch(e){ data = {error:'fetch_failed'}; }
+      if(data.error){
+        $('#allf-dest-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Flugzielliste nicht abrufbar.</div>';
+        return;
+      }
+      renderAllfDestinations(data.destinations || []);
+    }
+    const ALLF_AP_SHORT = {str:'STR', fra:'FRA', muc:'MUC'};
+    function renderAllfDestinations(dest){
+      if(!dest.length){ $('#allf-dest-body').innerHTML = '<div class="hint">Keine Ziele gefunden.</div>'; return; }
+      const rowsHtml = dest.map(d => `<tr class="allf-dest-row" style="cursor:pointer" onclick="allfPickDestination('${esc(d.code)}')" title="Klicken, um nach ${esc(d.name)} zu suchen">
+        <td>${esc(d.name)}</td>
+        <td class="hint">${esc(d.code)}</td>
+        <td class="hint">${esc(d.country)}</td>
+        <td class="hint">${(d.airports||[]).map(a=>ALLF_AP_SHORT[a]||a).join(', ')}</td>
+      </tr>`).join('');
+      $('#allf-dest-body').innerHTML = `<div class="hint" style="margin-bottom:6px">${dest.length} Ziele — Stuttgart + München vollständig erfasst; Frankfurt hat als Drehkreuz keine abrufbare Gesamtliste, wird bei Klick aber mitgesucht. Zeile anklicken für Verbindungen.</div>
+        <div style="overflow-x:auto;max-height:340px;overflow-y:auto"><table class="hist"><tr><th>Ziel</th><th>Code</th><th>Land</th><th>Ab</th></tr>${rowsHtml}</table></div>`;
+    }
+    function allfPickDestination(code){
+      $('#allf-q').value = code;
+      allFlightsSearch();
+      $('#allf-body').scrollIntoView({block:'nearest'});
     }
     function closeFlightPick(){ $('#fpick-bg').classList.remove('show'); }
     $('#fpick-bg').addEventListener('click', e=>{ if(e.target.id==='fpick-bg') closeFlightPick(); });

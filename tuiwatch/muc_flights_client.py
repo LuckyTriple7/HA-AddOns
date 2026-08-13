@@ -245,6 +245,26 @@ def status() -> dict:
                 "parsed_ts": _state["parsed_ts"], "url": _state["url"]}
 
 
+def list_destinations(*, verbose: bool = False) -> list[dict] | None:
+    """Alle Zielflughäfen, die tatsächlich ab MUC angeflogen werden — nur
+    Departure-Zeilen, über den Code dedupliziert, alphabetisch nach Name.
+    Pendant zu str_flights_client.list_destinations(). None, wenn (noch)
+    keine Daten geladen werden konnten."""
+    if not ensure_plan(verbose=verbose):
+        return None
+    with _lock:
+        rows = list(_state["rows"])
+    seen: dict[str, dict] = {}
+    for r in rows:
+        if r["direction"] != "departure":
+            continue
+        code = r["airport_code"]
+        if not code or code in seen:
+            continue
+        seen[code] = {"code": code, "name": r["airport_name"], "country": r["country"]}
+    return sorted(seen.values(), key=lambda d: d["name"])
+
+
 def search(query: str = "", direction: str = "", date_from: str = "",
            date_till: str = "", limit: int = 400, verbose: bool = False) -> dict | None:
     """Verbindungen filtern. None, wenn (noch) keine Daten geladen werden konnten.

@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.93.3] - 2026-08-13
+
+### Added
+- **Flugziel-Tabelle** im „Alle durchsuchen"-Dialog: Gesamtliste aller
+  tatsächlich angeflogenen Ziele (Ziel, IATA-Code als eigene Spalte, Land,
+  Flughäfen) — Zeile anklicken übernimmt den Code ins Suchfeld und sucht
+  sofort über alle drei Flughäfen. Neue `list_destinations()` in
+  `str_flights_client.py`/`muc_flights_client.py` (dedupliziert über den
+  Cache, nur Departure-Zeilen), neue Route `/api/flights/destinations`.
+  **Nur Stuttgart + München** in der Liste — Frankfurt ist als Drehkreuz zu
+  groß für eine abrufbare Gesamtliste (123.289 Abflüge auf 4.854 Seiten ohne
+  Zielfilter, siehe SCRAPING_FRA.md), wird aber bei Klick auf eine Zeile ganz
+  normal mitgesucht.
+
 ## [0.93.2] - 2026-08-13
 
 ### Added

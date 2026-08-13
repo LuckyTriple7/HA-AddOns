@@ -75,3 +75,51 @@ def api_flights_search():
         else:
             out[k] = res            # search_flights/search liefern schon dict
     return jsonify(out)
+
+
+@bp.route('/api/flights/destinations', methods=['GET'])
+def api_flights_destinations():
+    """Gesamtliste aller tatsächlich angeflogenen Ziele — für die
+    Flugziel-Tabelle im Auswahldialog (Zeile anklicken = Suche).
+
+    **Nur STR + MUC**: beide halten die komplette Saison im Speicher-Cache
+    (Azure-API bzw. PDF), eine Gesamtliste ist da ein billiger Cache-Scan.
+    Frankfurt (Drehkreuz) hat **keine** vergleichbare Quelle — die Flug-API
+    liefert nur gezielt gefilterte Ergebnisse, eine ungefilterte Abfrage hat
+    123.289 Abflüge auf 4.854 Seiten (siehe SCRAPING_FRA.md) und lässt sich
+    nicht sinnvoll zu einer Zielliste einsammeln. FRA bleibt trotzdem
+    **mitgesucht**, sobald eine Zeile angeklickt wird — nur eben nicht in
+    dieser Übersichtsliste enthalten."""
+    if (err := A._require_api()):
+        return err
+    cfg = A.load_config()
+    enabled_str = bool(cfg.get('enable_str_flights', False))
+    enabled_muc = bool(cfg.get('enable_muc_flights', False))
+    if not (enabled_str or enabled_muc):
+        return jsonify({'error': 'disabled'}), 404
+    verbose = A._verbose()
+
+    with ThreadPoolExecutor(max_workers=2) as ex:
+        jobs = {}
+        if enabled_str:
+            jobs['str'] = ex.submit(str_flights_client.list_destinations, verbose=verbose)
+        if enabled_muc:
+            jobs['muc'] = ex.submit(muc_flights_client.list_destinations, verbose=verbose)
+        results = {k: f.result() for k, f in jobs.items()}
+
+    # Über den IATA-Code zusammenführen (global eindeutig) — ein Ziel, das
+    # sowohl ab STR als auch ab MUC angeflogen wird, taucht nur einmal auf,
+    # mit beiden Flughäfen in `airports`.
+    merged: dict[str, dict] = {}
+    for src, rows in results.items():
+        if rows is None:
+            continue
+        for d in rows:
+            entry = merged.setdefault(d['code'], {'code': d['code'], 'name': d['name'],
+                                                   'country': d['country'], 'airports': []})
+            if not entry['name']:
+                entry['name'] = d['name']
+            if not entry['country']:
+                entry['country'] = d['country']
+            entry['airports'].append(src)
+    return jsonify({'destinations': sorted(merged.values(), key=lambda d: d['name'])})

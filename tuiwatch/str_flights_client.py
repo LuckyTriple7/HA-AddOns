@@ -84,6 +84,28 @@ def _weekdays_short(weekdays: dict) -> str:
     return "".join(_WEEKDAY_SHORT[k] for k in _WEEKDAY_KEYS if weekdays.get(k)) or "–"
 
 
+def list_destinations(*, verbose: bool = False) -> list[dict] | None:
+    """Alle Zielflughäfen, die tatsächlich ab STR angeflogen werden — nur
+    Departure-Zeilen, über den Code dedupliziert, alphabetisch nach Name.
+    Für eine Gesamtübersicht ohne Sucheingabe (kombinierte Flugziel-Suche,
+    siehe all_flights_routes.py). None bei technischem Fehler (kein
+    Cache-Stand vorhanden)."""
+    items = _cached_items(verbose=verbose)
+    if items is None:
+        return None
+    seen: dict[str, dict] = {}
+    for it in items:
+        if it.get("Type") != "Departure":
+            continue
+        ap = it.get("Airport") or {}
+        code = str(ap.get("Code") or "").strip()
+        if not code or code in seen:
+            continue
+        seen[code] = {"code": code, "name": str(ap.get("Name") or ""),
+                      "country": str(ap.get("Country") or "")}
+    return sorted(seen.values(), key=lambda d: d["name"])
+
+
 def search_connections(query: str = "", *, flight_type: str = "", date_from: str = "",
                        date_till: str = "", verbose: bool = False) -> list[dict] | None:
     """Verbindungen nach Zielflughafen (Code/Name) oder Land filtern.
