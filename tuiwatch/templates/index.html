@@ -280,6 +280,9 @@
     .offer-actions .icon-btn { flex:0 0 auto; }
     .err-note { color:var(--amber); font-size:.78rem; margin-top:6px; }
     .empty { text-align:center; color:var(--muted); padding:50px 16px; }
+    .boot { text-align:center; padding:44px 16px; }
+    .boot-title { color:var(--muted); font-size:.95rem; }
+    .boot-note { margin-top:10px; }
     .badge-checking { font-size:.72rem; color:var(--accent); }
     /* Modal */
     .modal-bg { position:fixed; inset:0; background:rgba(0,0,0,.6); display:none; align-items:center; justify-content:center; padding:16px; z-index:50; overscroll-behavior:contain; }
@@ -853,7 +856,18 @@
       <button class="btn sec" onclick="bulkForeign()" title="In eine „Für andere"-Liste legen (Name frei wählbar): eingeklappt ans Listenende, keine Benachrichtigungen">👥 Für andere</button>
       </div>
     </div>
-    <div id="offers"></div>
+    <!-- Startzustand: steht bewusst direkt im HTML und nicht erst im JS. Die erste
+         /api/offers-Antwort kann direkt nach dem Add-on-Start ein paar Sekunden
+         dauern (der Poller hält währenddessen die SQLite-Datei) — ohne diesen Block
+         sähe die Oberfläche in dieser Zeit einfach leer aus. Wird durch die erste
+         gerenderte Angebotsliste ersetzt. -->
+    <div id="offers">
+      <div class="boot" id="boot-state">
+        <div class="boot-title">TUIWatch wird gestartet…</div>
+        <div class="twprog indet"><i></i></div>
+        <div class="boot-note hint" id="boot-note">Angebote werden geladen.</div>
+      </div>
+    </div>
     <footer>
       <div>TUIWatch v{{ app_version }} · Prüfintervall: <span id="iv"></span>
         · DB: <span id="db-size">…</span>

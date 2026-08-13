@@ -340,6 +340,35 @@
       } catch(e){ _offlineFails++; if(_offlineFails>=3) showOfflineBanner(); }
     }
 
+    // ── Startzustand ───────────────────────────────────────────────────────────
+    // Direkt nach dem Add-on-Start läuft der Poller sofort los und hält dabei die
+    // SQLite-Datei; die erste /api/offers-Antwort kann deshalb einige Sekunden
+    // brauchen. Der Startblock aus dem HTML bleibt so lange stehen und sagt, worauf
+    // gewartet wird — abgefragt über /api/busy, das ohne DB-Zugriff auskommt und
+    // deshalb auch bei gesperrter Datenbank sofort antwortet.
+    let bootDone = false, bootTimer = null, bootStart = Date.now();
+    function bootFinish(){
+      bootDone = true;
+      if(bootTimer){ clearInterval(bootTimer); bootTimer = null; }
+    }
+    async function bootTick(){
+      const note = document.getElementById('boot-note');
+      if(bootDone || !note){ bootFinish(); return; }
+      let busy = [];
+      try { busy = (await fetch(api('/api/busy')).then(r=>r.json())).busy || []; } catch(e){ return; }
+      if(bootDone) return;
+      const secs = Math.round((Date.now()-bootStart)/1000);
+      note.textContent = busy.length
+        ? 'Läuft gerade: ' + busy.join(' · ')
+        : (secs >= 6 ? 'Die Datenbank ist noch belegt — gleich geht es weiter.'
+                     : 'Angebote werden geladen.');
+    }
+    function startBootWatch(){
+      if(!document.getElementById('boot-note')) return;
+      bootTimer = setInterval(bootTick, 1500);
+      bootTick();
+    }
+
     // ── Verbindungsabbruch-Erkennung ───────────────────────────────────────────
     let _offlineFails = 0;
     function showOfflineBanner(){ $('#offline-banner').style.display = 'flex'; }
@@ -405,6 +434,7 @@
     }
 
     function renderAll(offers){
+      bootFinish();          // erste echte Liste ersetzt den Startblock
       renderOverview(offers);
       renderTagPills(offers);
       // Nicht neu rendern, während der Nutzer einen Wunschpreis eingibt
@@ -6689,6 +6719,7 @@
     if('serviceWorker' in navigator){ try{ navigator.serviceWorker.register((G.base||'')+'/sw.js', {scope:(G.base||'')+'/'}); }catch(e){} }
 
     loadOffers();
+    startBootWatch();
     setInterval(loadOffers, 5000);
     loadHealth();
     updateAktionBtn();

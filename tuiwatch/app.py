@@ -3171,6 +3171,20 @@ def _collect_offers() -> list[dict]:
     return out
 
 
+@app.route('/api/busy', methods=['GET'])
+def api_busy():
+    """Nur die laufenden Hintergrund-Aufgaben — **ohne jeden Datenbankzugriff**.
+
+    Genau das ist der Zweck: direkt nach dem Start hält der Poller die SQLite-Datei,
+    und `/api/offers` wartet dann mehrere Sekunden auf seine erste Antwort. Die
+    Oberfläche stünde so lange leer da. Dieser Endpunkt liest ausschließlich
+    In-Memory-Zustand und antwortet auch dann sofort, wenn die DB gerade gesperrt
+    ist — damit der Startbildschirm sagen kann, WORAUF gewartet wird."""
+    if (err := _require_api()):
+        return err
+    return jsonify({'busy': busy_labels()})
+
+
 @app.route('/api/healthcheck', methods=['GET', 'POST'])
 def api_healthcheck_route():
     """GET: letztes Selbsttest-Ergebnis (oder noch leer). POST: neuen Selbsttest
