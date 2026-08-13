@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.10.30
+- 🎯 **Die Sprungleiste markierte nach dem Sprung den falschen Bereich.** Ein Klick auf „Bild-Studio" scrollte richtig hin, die Hervorhebung blieb aber einen Chip weiter links stehen. Die Höhe der Leiste war fest angenommen statt gemessen — der angesprungene Bereich kam damit ein paar Pixel unterhalb der Linie zu stehen, an der die Leiste den aktuellen Abschnitt ablieste.
+- 🔲 **Kein greller Kasten mehr um den geklickten Knopf.** Der Fokusring des Browsers blieb nach dem Sprung liegen. Bei Bedienung per Tastatur ist er weiterhin da, jetzt in den Farben der Oberfläche.
+- ⬇️ Der letzte Bereich („Übersetzen") lässt sich jetzt auch markieren — am Seitenende kann er nicht mehr bis unter die Leiste geschoben werden, das gilt nun trotzdem als angekommen.
+
 ## 0.10.29
 - 🧭 **Der KI-Reiter hat eine Sprungleiste bekommen.** Sechs Bereiche untereinander — Einstellungen, Verbrauch, Bild-Studio, Logo-Designer, Text-Studio, Übersetzen — hießen bisher: scrollen und suchen. Oben im Reiter steht jetzt eine Leiste mit allen sechs, ein Klick springt hin.
 - 📌 Die Leiste klebt beim Scrollen unter der Kopfzeile, ist also auch mitten im Bild-Studio noch da. Der Bereich, in dem man gerade steht, hebt sich hervor.

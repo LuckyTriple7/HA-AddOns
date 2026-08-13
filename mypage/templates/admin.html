@@ -41,8 +41,15 @@
     .jump-chip { background: var(--surf); border: 1px solid var(--border); color: var(--muted); padding: 5px 12px; border-radius: 999px; font-size: 0.8rem; cursor: pointer; white-space: nowrap; flex: 0 0 auto; }
     .jump-chip:hover { color: var(--text); border-color: var(--accent); }
     .jump-chip.active { color: var(--accent); border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); font-weight: 600; }
-    /* Anspringen soll unter Kopfzeile und Sprungleiste landen, nicht dahinter */
-    #tab-ai [data-ai-panel] { scroll-margin-top: calc(var(--hdr-h, 52px) + 62px); }
+    /* Der Klick-Fokusring des Browsers stand hier als greller Kasten um den
+       Chip und blieb nach dem Sprung liegen. Bei Tastaturbedienung braucht es
+       ihn aber -- deshalb nur :focus-visible, und in den eigenen Farben. */
+    .jump-chip:focus { outline: none; }
+    .jump-chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    /* Anspringen soll unter Kopfzeile und Sprungleiste landen, nicht dahinter.
+       Beide Hoehen kommen gemessen aus JS: geraten waere der Abstand mal zu
+       klein (Bereich verschwindet hinter der Leiste) und mal zu gross. */
+    #tab-ai [data-ai-panel] { scroll-margin-top: calc(var(--hdr-h, 52px) + var(--jump-h, 50px) + 8px); }
     .header-actions { display: flex; align-items: center; gap: 6px; }
     .icon-btn, .lang-btn { background: none; border: 1px solid var(--border); color: var(--muted); padding: 3px 8px; border-radius: 5px; font-size: 0.75rem; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 4px; }
     .lang-btn.active { border-color: var(--accent); color: var(--accent); }
@@ -6701,6 +6708,10 @@
     function syncHeaderHeight() {
       const h = document.querySelector('header');
       if (h) document.documentElement.style.setProperty('--hdr-h', h.offsetHeight + 'px');
+      const bar = el('ai-jump');
+      if (bar && bar.offsetHeight) {
+        document.documentElement.style.setProperty('--jump-h', bar.offsetHeight + 'px');
+      }
     }
     function buildAiJumpbar() {
       const bar = el('ai-jump');
@@ -6713,11 +6724,15 @@
         b.type = 'button';
         b.className = 'jump-chip';
         b.textContent = h.textContent.trim();
-        b.onclick = () => panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        b.onclick = () => {
+          syncHeaderHeight();   // Umbruch der Kopfzeile vor dem Sprung nachmessen
+          panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        };
         bar._panels.push([b, panel]);
         bar.appendChild(b);
       });
       syncAiJumpbar();
+      syncHeaderHeight();   // erst mit Chips drin hat die Leiste ihre Hoehe
     }
     // Ohne Gemini-Schluessel sind einzelne Bereiche ausgeblendet (initAiVisibility).
     // Ein Sprungziel, das es nicht gibt, gehoert dann auch nicht in die Leiste.
@@ -6731,11 +6746,20 @@
     function aiJumpSpy() {
       const bar = el('ai-jump');
       if (!el('tab-ai').classList.contains('active') || !bar._panels) return;
-      const line = bar.getBoundingClientRect().bottom + 8;
+      // Ein angesprungener Bereich kommt per scroll-margin-top genau 8 px unter
+      // der Leiste zu stehen. Die Linie muss darunter liegen, sonst gilt nach
+      // dem Sprung noch der Vorgaenger als aktiv und die Markierung sitzt einen
+      // Chip zu weit links. Etwas Luft fuer Subpixel und Zoomstufen.
+      const line = bar.getBoundingClientRect().bottom + 20;
       let cur = null;
-      bar._panels.forEach(([chip, panel]) => {
-        if (chip.style.display !== 'none' && panel.getBoundingClientRect().top <= line) cur = chip;
+      const shown = bar._panels.filter(([chip]) => chip.style.display !== 'none');
+      shown.forEach(([chip, panel]) => {
+        if (panel.getBoundingClientRect().top <= line) cur = chip;
       });
+      // Am Seitenende laesst sich der letzte Bereich nicht mehr bis unter die
+      // Leiste schieben. Ohne diesen Fall waere sein Chip nie zu markieren.
+      if (shown.length && window.innerHeight + window.scrollY
+          >= document.documentElement.scrollHeight - 2) cur = shown[shown.length - 1][0];
       bar._panels.forEach(([chip]) => chip.classList.toggle('active', chip === cur));
       // Bei schmalem Fenster scrollt die Leiste selbst — den aktiven Chip
       // nachziehen, aber ueber scrollLeft statt scrollIntoView: letzteres
