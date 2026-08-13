@@ -92,7 +92,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.94.0"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.94.1"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -2650,6 +2650,56 @@ def _push_market_trend_sensor() -> None:
         log.warning("HA-Markttrend-Sensor aktualisieren fehlgeschlagen: %s", e)
 
 
+def _flight_healthchecks() -> list[dict]:
+    """Nicht-kritische Zusatz-Checks für die aktivierten Flugpläne — bewusst
+    getrennt von api_healthcheck() (scraper.py): die dortigen Endpunkte
+    gehören alle zum Kern-Tracking (Preis/Suche/Reiseziele), Flugpläne sind
+    Opt-in-Zusatzfeatures und sollen den Gesamtstatus nicht auf 'kritisch
+    kaputt' ziehen, wenn z. B. nur die Drittseiten-Zielliste mal ausfällt."""
+    cfg = load_config()
+    checks: list[dict] = []
+
+    def add(name, ok, detail):
+        checks.append({'name': name, 'ok': bool(ok), 'detail': detail, 'critical': False})
+
+    if cfg.get('enable_str_flights', False):
+        import str_flights_client
+        try:
+            rows = str_flights_client.list_destinations(verbose=_verbose())
+            add('STR-Flugplan-API', rows is not None,
+                f'{len(rows)} Ziele' if rows is not None else 'kein Ergebnis')
+        except Exception as e:
+            add('STR-Flugplan-API', False, type(e).__name__)
+
+    if cfg.get('enable_fra_flights', False):
+        import fra_flights_client
+        try:
+            res = fra_flights_client.search_flights('PMI', verbose=_verbose())
+            n = len((res or {}).get('rows') or [])
+            add('FRA-Flugplan-API', res is not None,
+                f'{n} Flüge (PMI)' if res is not None else 'kein Ergebnis')
+        except Exception as e:
+            add('FRA-Flugplan-API', False, type(e).__name__)
+        import fra_board_client
+        try:
+            dest = fra_board_client.list_destinations(verbose=_verbose())
+            add('FRA-Zielliste (Drittseite)', dest is not None,
+                f'{len(dest)} Ziele' if dest is not None else 'kein Ergebnis')
+        except Exception as e:
+            add('FRA-Zielliste (Drittseite)', False, type(e).__name__)
+
+    if cfg.get('enable_muc_flights', False):
+        import muc_flights_client
+        try:
+            rows = muc_flights_client.list_destinations(verbose=_verbose())
+            add('MUC-Flugplan-PDF', rows is not None,
+                f'{len(rows)} Ziele' if rows is not None else 'kein Ergebnis')
+        except Exception as e:
+            add('MUC-Flugplan-PDF', False, type(e).__name__)
+
+    return checks
+
+
 def _run_healthcheck() -> dict:
     """Führt den API-Selbsttest aus und legt das Ergebnis in _health_state ab."""
     with _health_lock:
@@ -2662,6 +2712,7 @@ def _run_healthcheck() -> dict:
         log.error("API-Selbsttest fehlgeschlagen: %s", e)
         res = {'ok': False, 'ts': int(time.time()), 'checks': [],
                'note': 'Selbsttest fehlgeschlagen'}
+    res['checks'] = list(res.get('checks') or []) + _flight_healthchecks()
     with _health_lock:
         _health_state.clear()
         _health_state.update(res)
@@ -3254,6 +3305,30 @@ def _schedule_overview() -> dict:
                   'next': _sched_next(ak_last + ak_interval, now),
                   'note': f'alle {_dur(ak_interval)}'})
 
+    # Flugpläne — STR/FRA-Zielliste/MUC, je eigener Warm-Poller mit eigenem
+    # Takt (_str_flights_worker/_fra_board_worker/_muc_flights_worker), nur
+    # aktive Flughäfen zählen mit.
+    import str_flights_client
+    import fra_board_client
+    import muc_flights_client
+    flight_srcs = []
+    if cfg.get('enable_str_flights', False):
+        flight_srcs.append(('STR', str_flights_client.last_fetch_ts(), str_flights_client.CACHE_TTL))
+    if cfg.get('enable_fra_flights', False):
+        flight_srcs.append(('FRA-Zielliste', fra_board_client.last_fetch_ts(),
+                            fra_board_client.REFRESH_INTERVAL))
+    if cfg.get('enable_muc_flights', False):
+        muc_last = muc_flights_client.status().get('checked_ts') or 0
+        flight_srcs.append(('MUC', muc_last, muc_flights_client.CHECK_INTERVAL))
+    if flight_srcs:
+        soonest = min((last or 0) + interval for _, last, interval in flight_srcs)
+        note = '/'.join(name for name, _, _ in flight_srcs) + ' aktiv'
+        tasks.append({'key': 'flights', 'label': 'Flugpläne', 'next': _sched_next(soonest, now),
+                      'note': note})
+    else:
+        tasks.append({'key': 'flights', 'label': 'Flugpläne', 'next': None, 'disabled': True,
+                      'note': 'kein Flughafen aktiviert'})
+
     # API-Selbsttest — 1×/Tag
     with _health_lock:
         hc_last = int(_health_state.get('ts') or 0)
@@ -3775,6 +3850,38 @@ def _muc_flights_worker() -> None:
         time.sleep(muc_flights_client.CHECK_INTERVAL)
 
 
+def _str_flights_worker() -> None:
+    """Hält den Stuttgarter Flugplan-Cache warm (nur bei `enable_str_flights`) —
+    analog zu `_muc_flights_worker`, damit die erste Suche im Fenster nicht auf
+    den Erstabruf wartet und die Zeitplan-Übersicht einen echten Termin zeigt
+    (vorher lief der Cache rein lazy beim ersten Request an, ohne eigenen
+    Poller — tauchte deshalb auch nicht unter „Nächste Läufe" auf)."""
+    import str_flights_client
+    while True:
+        try:
+            if bool(load_config().get('enable_str_flights', False)):
+                str_flights_client.list_destinations(verbose=_verbose())
+        except Exception as e:
+            log.warning("STR-Flugplan-Aktualisierung fehlgeschlagen: %s", e)
+        time.sleep(str_flights_client.CACHE_TTL)
+
+
+def _fra_board_worker() -> None:
+    """Hält die genäherte FRA-Zielliste warm (nur bei `enable_fra_flights`) —
+    analog zu `_muc_flights_worker`. Betrifft nur die Übersichtstabelle
+    (fra_board_client.py); die gezielte FRA-Suche läuft weiter direkt über
+    fra_flights_client.py, ohne eigenen Warm-Poller (Anfragen sind dort immer
+    ziel-gefiltert, kein teurer Gesamtabruf zum Vorwärmen)."""
+    import fra_board_client
+    while True:
+        try:
+            if bool(load_config().get('enable_fra_flights', False)):
+                fra_board_client.refresh(verbose=_verbose())
+        except Exception as e:
+            log.warning("FRA-Board-Aktualisierung fehlgeschlagen: %s", e)
+        time.sleep(fra_board_client.REFRESH_INTERVAL)
+
+
 def _handle_sigterm(signum, frame) -> None:
     """Sauberer Exit bei SIGTERM (HA-Supervisor-Stop/Update) — ohne eigenen Handler
     würde Python den Default-Handler laufen lassen (exit 143), worüber sich der
@@ -3829,6 +3936,8 @@ def main() -> None:
     threading.Thread(target=_cooldown_sensor_worker, daemon=True).start()
     threading.Thread(target=_market_trend_sensor_worker, daemon=True).start()
     threading.Thread(target=_muc_flights_worker, daemon=True).start()
+    threading.Thread(target=_str_flights_worker, daemon=True).start()
+    threading.Thread(target=_fra_board_worker, daemon=True).start()
     _start_public_server()
     port = int(os.environ.get('TUIWATCH_PORT', '17794'))
     log.info("TUIWatch startet auf Port %d", port)

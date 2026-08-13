@@ -49,6 +49,7 @@ _HEADERS = {
 _DEST_RE = re.compile(r"^(.*)\s\(([A-Z]{3})\)$")
 
 _REFRESH_INTERVAL = 6 * 3600   # wie oft neu abgerufen wird
+REFRESH_INTERVAL = _REFRESH_INTERVAL  # oeffentlicher Alias fuer den Warm-Worker/Zeitplan (app.py)
 ROLLING_DAYS = 9                # >= 7, damit auch woechentliche Verbindungen
                                  # sicher mindestens einmal auftauchen
 
@@ -127,6 +128,13 @@ def refresh(*, verbose: bool = False) -> bool:
         log.info("FRA-Board: %d Ziele im %d-Tage-Fenster (heute %d Zeilen gesehen)",
                  len(_seen), ROLLING_DAYS, len(rows))
     return True
+
+
+def last_fetch_ts() -> float:
+    """Zeitpunkt des letzten erfolgreichen Board-Abrufs (0 = noch nie) — für
+    die Zeitplan-Übersicht (app.py `_schedule_overview`)."""
+    with _lock:
+        return _last_fetch_ts
 
 
 def ensure_fresh(*, verbose: bool = False) -> bool:

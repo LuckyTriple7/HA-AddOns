@@ -29,8 +29,16 @@ _HEADERS = {"User-Agent": USER_AGENT, "Accept": "application/json"}
 # jedem Tastenanschlag in der Suche erneut die komplette Liste (~2000 Einträge)
 # vom Flughafen-Backend zu holen.
 _CACHE_TTL = 6 * 3600
+CACHE_TTL = _CACHE_TTL  # oeffentlicher Alias fuer den Warm-Worker/Zeitplan (app.py)
 _cache_lock = threading.Lock()
 _cache: dict = {"items": None, "fetched_at": 0.0}
+
+
+def last_fetch_ts() -> float:
+    """Zeitpunkt des letzten erfolgreichen Cache-Refreshs (0 = noch nie) — für
+    die Zeitplan-Übersicht (app.py `_schedule_overview`)."""
+    with _cache_lock:
+        return _cache["fetched_at"]
 
 
 def _fetch_all(*, verbose: bool = False) -> list[dict] | None:

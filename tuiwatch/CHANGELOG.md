@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.94.1] - 2026-08-13
+
+### Added
+- **Flugpläne in „Nächste Läufe" + API-Selbsttest**: STR und die FRA-Zielliste
+  liefen bisher rein lazy beim ersten Request (kein Warm-Poller wie MUC) und
+  tauchten deshalb weder im Zeitplan-Dialog noch im Selbsttest auf. Neue
+  `_str_flights_worker()`/`_fra_board_worker()` (analog zu
+  `_muc_flights_worker`) halten die Caches jetzt aktiv warm; „Flugpläne"
+  erscheint als eigene Zeile im Zeitplan (nächster Warm-Lauf über die drei
+  aktivierten Flughäfen). Selbsttest prüft je aktiviertem Flughafen live
+  (STR-/FRA-Flugplan-API, FRA-Zielliste, MUC-PDF) — nicht-kritisch, zieht den
+  Gesamtstatus nicht runter, wenn nur ein Opt-in-Flugplan mal ausfällt.
+
 ## [0.94.0] - 2026-08-13
 
 ### Added

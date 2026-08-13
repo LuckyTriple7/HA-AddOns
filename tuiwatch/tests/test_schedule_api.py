@@ -34,7 +34,7 @@ def _tasks(m):
 def test_schedule_liefert_alle_aufgaben(m):
     d, by_key = _tasks(m)
     assert set(by_key) == {"prices", "watches", "calendar", "basket", "aktion",
-                           "health", "backup", "digest"}
+                           "health", "backup", "digest", "flights"}
     assert d["poll_interval"] >= m.MIN_POLL_INTERVAL
     assert d["poll_gap"] == m.POLL_GAP_DEFAULT
 
@@ -69,9 +69,18 @@ def test_abgeschaltete_aufgaben_werden_markiert(m, monkeypatch):
                                                    "calendar_daily_refresh": False,
                                                    "digest_enabled": False})
     _, by_key = _tasks(m)
-    for key in ("backup", "calendar", "digest"):
+    for key in ("backup", "calendar", "digest", "flights"):
         assert by_key[key]["disabled"] is True
         assert by_key[key]["next"] is None
+
+
+def test_flugplaene_zeigen_aktive_flughaefen(m, monkeypatch):
+    monkeypatch.setattr(m, "load_config", lambda: {"enable_str_flights": True,
+                                                   "enable_muc_flights": True})
+    _, by_key = _tasks(m)
+    assert by_key["flights"].get("disabled") is not True
+    assert by_key["flights"]["note"] == "STR/MUC aktiv"
+    assert by_key["flights"]["next"] is not None
 
 
 def test_sortierung_faellige_zuerst_ungeplante_zuletzt(m):
