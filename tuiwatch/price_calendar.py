@@ -300,6 +300,42 @@ def _check_calendar_trend_alert(offer_id: int, changed_dates: list[str]) -> None
     A._notify_telegram(f"📅 <b>Kalenderpreise geändert</b>\n{name}\n{month_str}\n{offer['url']}", muted=muted)
 
 
+CALENDAR_MAX_FAILS = 5     # Fehlschläge in Folge, ab denen der Kalender pausiert
+
+
+def _calendar_failed(offer_id: int) -> None:
+    """Fehlschlag zählen und den Kalender dieses Angebots ggf. pausieren.
+
+    Gezählt wird nur in Folge — ein einziger erfolgreicher Abruf setzt zurück
+    (`_calendar_succeeded`). Bei täglichem Refresh bedeutet die Schwelle also rund
+    eine Woche durchgängiger Fehlschläge; eine vorübergehende API-Störung pausiert
+    damit nichts. Die Pause ist kein Endzustand: „Neu abfragen" im Kalender-Fenster
+    hebt sie wieder auf, sobald ein Abruf gelingt."""
+    with A.db() as con:
+        row = con.execute('SELECT COALESCE(calendar_fails,0) f, COALESCE(calendar_paused,0) p, '
+                          "COALESCE(label,'') l, COALESCE(hotel,'') h "
+                          'FROM offers WHERE id=?', (offer_id,)).fetchone()
+        if not row or row['p']:
+            return
+        fails = row['f'] + 1
+        paused = 1 if fails >= CALENDAR_MAX_FAILS else 0
+        con.execute('UPDATE offers SET calendar_fails=?, calendar_paused=? WHERE id=?',
+                    (fails, paused, offer_id))
+    if paused:
+        A.log.warning("Preiskalender #%d (%s) pausiert: %d Abrufe in Folge fehlgeschlagen "
+                      "— vermutlich ist das Hotel nicht mehr im TUI-Inventar. Über "
+                      "„Neu abfragen“ im Kalender-Fenster wieder aktivierbar.",
+                      offer_id, row['l'] or row['h'] or f"#{offer_id}", fails)
+
+
+def _calendar_succeeded(offer_id: int) -> None:
+    """Nach einem erfolgreichen Abruf Zähler und Pause zurücksetzen."""
+    with A.db() as con:
+        con.execute('UPDATE offers SET calendar_fails=0, calendar_paused=0 WHERE id=? '
+                    'AND (COALESCE(calendar_fails,0)!=0 OR COALESCE(calendar_paused,0)!=0)',
+                    (offer_id,))
+
+
 def _run_calendar(offer_id: int) -> None:
     """Liest den Preiskalender (Preis je Abreisetag) und speichert ihn in der DB."""
     try:
@@ -312,11 +348,13 @@ def _run_calendar(offer_id: int) -> None:
         res = A.fetch_calendar(offer['url'], verbose=A._verbose())
         if not res or not res.get('ok'):
             A.log.warning("Preiskalender #%d: keine Daten/nicht abrufbar", offer_id)
+            _calendar_failed(offer_id)
             with A._calendar_lock:
                 A._calendar_state[offer_id] = {'status': 'error', 'note': 'Preiskalender nicht abrufbar'}
             return
         with A.db() as con:
             changed = _store_calendar_snapshot(con, offer_id, res)
+        _calendar_succeeded(offer_id)
         _check_calendar_trend_alert(offer_id, changed)
         with A._calendar_lock:
             A._calendar_state.pop(offer_id, None)
@@ -324,6 +362,7 @@ def _run_calendar(offer_id: int) -> None:
                  len(res.get('days', [])), res.get('cheapest_date'), res.get('cheapest_price'))
     except Exception as e:
         A.log.error("Preiskalender #%d Fehler: %s", offer_id, e)
+        _calendar_failed(offer_id)
         with A._calendar_lock:
             A._calendar_state[offer_id] = {'status': 'error', 'note': 'Preiskalender fehlgeschlagen'}
 
@@ -391,6 +430,14 @@ def _calendar_payload(offer_id: int) -> dict:
         row = con.execute('SELECT ts, data FROM calendar_cache WHERE offer_id=?',
                           (offer_id,)).fetchone()
         moves = _calendar_moves(con, offer_id) if row else {}
+        # Pausenzustand immer mitliefern, auch ohne Snapshot — sonst könnte die UI
+        # bei einem Angebot, dessen allererster Abruf schon scheiterte, nicht sagen,
+        # warum nichts mehr passiert.
+        st_row = con.execute('SELECT COALESCE(calendar_paused,0) p, COALESCE(calendar_fails,0) f, '
+                             'COALESCE(archived,0) a FROM offers WHERE id=?', (offer_id,)).fetchone()
+    paused = bool(st_row['p']) if st_row else False
+    fails = (st_row['f'] if st_row else 0)
+    archived = bool(st_row['a']) if st_row else False
     if row:
         out = A._json_loads_safe(row['data'], {})
         out['status'] = 'done'
@@ -410,6 +457,9 @@ def _calendar_payload(offer_id: int) -> dict:
         out = {'status': 'idle'}
     if st.get('status') == 'error':
         out['error'] = st.get('note', 'Preiskalender fehlgeschlagen')
+    out.update(paused=paused, fails=fails, archived=archived,
+               max_fails=CALENDAR_MAX_FAILS,
+               archived_days=A.CALENDAR_ARCHIVED_INTERVAL // 86400)
     return out
 
 
@@ -561,6 +611,22 @@ def api_calendar_get(offer_id: int):
             con.execute('UPDATE offers SET calendar_seen_ts=? WHERE id=?',
                         (int(time.time()), offer_id))
     return jsonify(payload)
+
+
+@bp.route('/api/calendar/<int:offer_id>/resume', methods=['POST'])
+def api_calendar_resume(offer_id: int):
+    """Pausierten Kalender wieder aufnehmen (Zähler zurück auf 0). Der eigentliche
+    Abruf wird davon nicht angestoßen — dafür gibt es „Neu abfragen"; gelingt der,
+    setzt `_calendar_succeeded` ohnehin zurück."""
+    if (err := A._require_api()):
+        return err
+    with A.db() as con:
+        if not con.execute('SELECT 1 FROM offers WHERE id=?', (offer_id,)).fetchone():
+            return jsonify({'error': 'not_found'}), 404
+        con.execute('UPDATE offers SET calendar_fails=0, calendar_paused=0 WHERE id=?',
+                    (offer_id,))
+    A.log.info("Preiskalender #%d wieder aktiviert", offer_id)
+    return jsonify({'resumed': True})
 
 
 @bp.route('/api/calendar/<int:offer_id>/day/<travel_date>', methods=['GET'])

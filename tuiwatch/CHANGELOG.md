@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.97.0] - 2026-08-13
+
+### Added
+- **Preiskalender läuft bei archivierten Angeboten weiter**
+  (`calendar_archived_refresh`, Standard an). Der Preis der abgelaufenen Reise wird
+  weiterhin zu Recht nicht mehr abgefragt — der Kalender beschreibt aber Hotel,
+  Zimmer, Verpflegung und Dauer und schaut ohnehin immer **ab heute** nach vorn
+  (`fetch_calendar` setzt sein Suchfenster selbst, das alte Reisedatum der URL geht
+  in die Abfrage gar nicht ein). Damit wächst der Preisverlauf desselben Hotels über
+  Jahre weiter, statt mit dem Archivieren abzureißen — die Grundlage für Monatstrend
+  und Langzeitkurve.
+- Archivierte laufen **alle 3 Tage** statt täglich und werden in einer **eigenen
+  Abfrage nach** den aktiven geholt: sie sammeln sich über die Jahre an und würden
+  bei einem gemeinsamen `LIMIT 10` sonst irgendwann die aktiven Angebote verdrängen.
+- **Automatische Kalender-Pause nach 5 Fehlschlägen in Folge** (neu
+  `offers.calendar_fails`/`calendar_paused`): fällt ein Hotel aus dem TUI-Inventar,
+  läuft der Abruf sonst täglich ins Leere. Gezählt wird nur in Folge — ein einziger
+  erfolgreicher Abruf setzt zurück, eine vorübergehende API-Störung pausiert also
+  nichts. Sichtbar im Kalender-Fenster samt Knopf „Wieder aktivieren"
+  (`POST /api/calendar/<id>/resume`); auch „Neu abfragen" hebt die Pause auf, sobald
+  ein Abruf gelingt.
+- Archivierte Angebotskarten haben dafür jetzt einen eigenen **„Kalender"**-Knopf —
+  ohne ihn wäre der Langzeitverlauf gar nicht aufrufbar gewesen. Bei pausiertem
+  Kalender ist er gedimmt.
+
 ## [0.96.0] - 2026-08-13
 
 ### Added

@@ -59,6 +59,9 @@ configuration:
   calendar_daily_refresh:
     name: Täglicher Kalender-Refresh
     description: "Hält den Preiskalender aktiver Angebote 1×/Tag aktuell (macht Trend-Ansicht und Buchungsscore-Signal aussagekräftiger). Standard an."
+  calendar_archived_refresh:
+    name: Kalender bei archivierten Angeboten weiterführen
+    description: "Ruft den Preiskalender auch für archivierte (abgelaufene) Angebote weiter ab — alle 3 Tage statt täglich, und immer erst nachdem die aktiven Angebote dran waren. Der Preis des abgelaufenen Angebots wird weiterhin NICHT geprüft; der Kalender beschreibt aber Hotel, Zimmer, Verpflegung und Dauer und schaut immer ab heute nach vorn. So wächst über Jahre ein Preisverlauf für dasselbe Hotel weiter. Fällt ein Hotel aus dem TUI-Inventar, pausiert der Kalender nach 5 Fehlschlägen in Folge von selbst. Standard an."
   notify_errors:
     name: Ausverkauft-/Fehler-Alarm
     description: "Benachrichtigen, wenn ein Angebot mehrmals hintereinander kein Ergebnis liefert (Kontingent ausgebucht oder URL veraltet). Standard an."

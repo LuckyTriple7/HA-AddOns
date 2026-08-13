@@ -59,6 +59,9 @@ configuration:
   calendar_daily_refresh:
     name: Daily calendar refresh
     description: "Keeps active offers' price calendars fresh 1x/day (sharpens the trend view and booking-score calendar signal). Default on."
+  calendar_archived_refresh:
+    name: Keep calendars running for archived offers
+    description: "Also refreshes price calendars for archived (expired) offers — every 3 days instead of daily, and always after the active offers have had their turn. The expired offer's price is still NOT checked; the calendar describes the hotel, room, board and duration and always looks forward from today. This keeps a long-term price history growing for the same hotel. If a hotel leaves the TUI inventory, the calendar pauses itself after 5 consecutive failures. Default on."
   notify_errors:
     name: Sold-out / error alert
     description: "Notify when an offer returns no result several times in a row (sold out or outdated URL). Default on."

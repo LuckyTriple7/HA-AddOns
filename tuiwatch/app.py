@@ -92,7 +92,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.96.0"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.97.0"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -745,6 +745,14 @@ def init_db() -> None:
                 con.execute(f"ALTER TABLE offers ADD COLUMN {col} INTEGER")
         if 'calendar_seen_ts' not in ocols:
             con.execute("ALTER TABLE offers ADD COLUMN calendar_seen_ts INTEGER NOT NULL DEFAULT 0")
+        # Kalender-Fehlerzähler: der Preiskalender läuft auch für archivierte Angebote
+        # weiter (Langzeitkurve je Hotel/Zimmer). Fällt ein Hotel aus dem TUI-Inventar,
+        # scheitert der Abruf dauerhaft — nach CALENDAR_MAX_FAILS Fehlschlägen in Folge
+        # wird er für dieses Angebot pausiert, statt täglich ins Leere zu laufen.
+        if 'calendar_fails' not in ocols:
+            con.execute("ALTER TABLE offers ADD COLUMN calendar_fails INTEGER NOT NULL DEFAULT 0")
+        if 'calendar_paused' not in ocols:
+            con.execute("ALTER TABLE offers ADD COLUMN calendar_paused INTEGER NOT NULL DEFAULT 0")
         if 'notify_muted' not in ocols:
             con.execute("ALTER TABLE offers ADD COLUMN notify_muted INTEGER NOT NULL DEFAULT 0")
         if 'notify_calendar_muted' not in ocols:
@@ -2525,6 +2533,9 @@ def _poll_worker() -> None:
         time.sleep(max(30, min(next_in, interval)))
 
 
+CALENDAR_ARCHIVED_INTERVAL = 3 * 86400   # Kalender-Takt für archivierte Angebote
+
+
 def _maybe_refresh_calendars() -> None:
     """Hält Preiskalender aktuell: 1×/Tag je aktivem Angebot. Da beim Tracken der
     Kalender ohnehin sofort mitabgerufen wird (Erstabruf in _check_cheaper_date),
@@ -2533,17 +2544,41 @@ def _maybe_refresh_calendars() -> None:
     calendar_history dichter → Trend-Ansicht und das Kalender-Bewegungs-Signal
     im Buchungsscore werden aussagekräftiger; ergänzt den Sofort-Refresh bei
     Preisänderung. Max. 10 je Poll-Zyklus (je ~3 HTTP-Requests), älteste zuerst.
-    Abschaltbar über calendar_daily_refresh."""
+    Abschaltbar über calendar_daily_refresh.
+
+    **Archivierte Angebote laufen weiter** (`calendar_archived_refresh`): Der Preis
+    des abgelaufenen Angebots wird zwar zu Recht nicht mehr abgefragt, der Kalender
+    beschreibt aber Hotel, Zimmer, Verpflegung und Dauer — und der Abruf schaut
+    ohnehin immer ab HEUTE nach vorn (`fetch_calendar` setzt das Suchfenster selbst,
+    das alte Reisedatum der URL geht nicht ein). Damit entsteht über Jahre eine
+    Preisreihe für dasselbe Produkt, die mit dem Archivieren sonst abrisse.
+
+    Zwei getrennte Abfragen statt einer: aktive Angebote haben immer Vorrang und
+    bekommen das volle Kontingent. Archivierte sammeln sich über die Jahre an und
+    würden bei einem gemeinsamen `LIMIT` sonst irgendwann die aktiven verdrängen.
+    Sie laufen zudem in größerem Abstand — für eine Langzeitkurve reicht das
+    reichlich und spart die Hälfte der Abrufe."""
     if not load_config().get('calendar_daily_refresh', True):
         return
-    cutoff = int(time.time()) - 86400
+    now = int(time.time())
     with db() as con:
         rows = con.execute(
             'SELECT c.offer_id FROM calendar_cache c JOIN offers o ON o.id = c.offer_id '
-            'WHERE COALESCE(o.paused,0)=0 AND COALESCE(o.archived,0)=0 AND c.ts<=? '
-            'ORDER BY c.ts LIMIT 10', (cutoff,)).fetchall()
+            'WHERE COALESCE(o.paused,0)=0 AND COALESCE(o.archived,0)=0 '
+            'AND COALESCE(o.calendar_paused,0)=0 AND c.ts<=? '
+            'ORDER BY c.ts LIMIT 10', (now - 86400,)).fetchall()
+        rest = 10 - len(rows)
+        arch = con.execute(
+            'SELECT c.offer_id FROM calendar_cache c JOIN offers o ON o.id = c.offer_id '
+            'WHERE COALESCE(o.archived,0)=1 AND COALESCE(o.calendar_paused,0)=0 AND c.ts<=? '
+            'ORDER BY c.ts LIMIT ?',
+            (now - CALENDAR_ARCHIVED_INTERVAL, max(0, rest))).fetchall() \
+            if rest > 0 and load_config().get('calendar_archived_refresh', True) else []
     for r in rows:
         log.info("Täglicher Kalender-Refresh: Angebot #%d", r['offer_id'])
+        _run_calendar(r['offer_id'])
+    for r in arch:
+        log.info("Kalender-Refresh (archiviert, Langzeitverlauf): Angebot #%d", r['offer_id'])
         _run_calendar(r['offer_id'])
 
 
@@ -3157,6 +3192,7 @@ def _collect_offers() -> list[dict]:
                 'trend': trend,
                 'checking': checking,
                 'calendar_alert': calendar_alert,
+                'calendar_paused': bool(o['calendar_paused']),
                 'comparable': not is_single_room(f"{o['room']} {o['details']}"),
                 'board': o['board'] or '',
                 'check24_linked': bool(o['check24_hotel_id']),

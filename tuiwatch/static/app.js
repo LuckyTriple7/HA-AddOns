@@ -754,6 +754,9 @@
             <div class="offer-actions">
             ${o.archived
               ? `<button class="btn sec" onclick="openHistory(${o.id})">Verlauf</button>
+                 <button class="btn sec${o.calendar_paused?' cal-paused':''}" onclick="openCalendar(${o.id})" title="${o.calendar_paused
+                    ? 'Kalender pausiert (Abrufe schlugen wiederholt fehl) — Fenster öffnen zum Reaktivieren'
+                    : 'Preis je Abreisetag — läuft für archivierte Angebote weiter und baut den Langzeitverlauf dieses Hotels auf'}">Kalender</button>
                  <button class="btn sec" onclick="unarchiveOffer(${o.id})" title="Wieder aktiv verfolgen">Reaktivieren</button>
                  <button class="icon-btn" onclick="resetOffer(${o.id})" title="Zurücksetzen: Verlauf löschen und neu bei null beginnen">
                    <svg viewBox="0 0 24 24"><path d="M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
@@ -6147,10 +6150,30 @@
     function calFooter(job){
       const when = job.ts ? ('Abgefragt: '+new Date(job.ts*1000).toLocaleString('de-DE')) : '';
       const err = job.error ? '<div class="hint" style="color:var(--amber);margin-top:6px">⚠ Letzte Aktualisierung fehlgeschlagen.</div>' : '';
+      // Archivierte Angebote werden preislich nicht mehr geprüft, der Kalender läuft
+      // aber weiter — das muss dastehen, sonst wirkt ein aktueller Zeitstempel bei
+      // einer abgelaufenen Reise wie ein Fehler.
+      const arch = (job.archived && !job.paused)
+        ? `<div class="hint" style="margin-top:6px">📦 Archiviert — der Preis wird nicht mehr abgefragt, `
+          + `der Kalender aber alle ${job.archived_days||3} Tage weiter. So wächst der `
+          + `Langzeitverlauf dieses Hotels, auch wenn die Reise vorbei ist.</div>` : '';
+      const paused = job.paused
+        ? `<div class="hint" style="color:var(--amber);margin-top:6px">⏸ Kalender pausiert — `
+          + `${job.fails||0} Abrufe in Folge fehlgeschlagen (Grenze ${job.max_fails||5}). `
+          + `Vermutlich ist das Hotel nicht mehr im TUI-Inventar. `
+          + `<button class="btn sec" style="margin-left:6px" onclick="resumeCalendar()">Wieder aktivieren</button></div>` : '';
       const aiBtn = (job.days && job.days.length)
         ? '<button class="btn sec ai-feature" onclick="openCalendarOutlook()" title="KI fasst die Kalenderpreise zusammen und empfiehlt günstige/teure Monate">🤖 KI-Analyse</button>' : '';
       return `<div class="cmp-foot"><span class="hint" style="flex:1;min-width:180px">${esc(when)}</span>
-        ${aiBtn}<button class="btn sec" onclick="refreshCalendar()">Neu abfragen</button></div>${err}`;
+        ${aiBtn}<button class="btn sec" onclick="refreshCalendar()">Neu abfragen</button></div>${err}${paused}${arch}`;
+    }
+    async function resumeCalendar(){
+      if(calId==null) return;
+      try { await fetch(api('/api/calendar/'+calId+'/resume'), {method:'POST'}); }
+      catch(e){ toast('Reaktivieren fehlgeschlagen'); return; }
+      toast('Kalender wieder aktiv — wird jetzt abgefragt');
+      refreshCalendar();
+      loadOffers();
     }
 
     function renderCalendar(job){

@@ -507,6 +507,9 @@
     .btn.aktion-active { animation: aktionPulse 1.6s ease-in-out infinite; border-color:var(--green); }
     @keyframes aktionPulse { 0%,100% { box-shadow:0 0 0 0 rgba(46,160,67,.55); } 50% { box-shadow:0 0 0 7px rgba(46,160,67,0); } }
     .btn.cal-alert { animation: calAlertPulse 1.6s ease-in-out infinite; border-color:var(--amber); color:var(--amber); }
+    /* Pausierter Kalender: gedimmt statt pulsierend — es ist kein Alarm, sondern ein
+       Ruhezustand, den der Nutzer nur bemerken soll, wenn er hinsieht. */
+    .btn.cal-paused { opacity:.55; }
     @keyframes calAlertPulse { 0%,100% { box-shadow:0 0 0 0 rgba(210,153,34,.55); } 50% { box-shadow:0 0 0 7px rgba(210,153,34,0); } }
     .btn.trend-active-up { border-color:var(--red); }
     .btn.trend-active-down { border-color:var(--green); }
