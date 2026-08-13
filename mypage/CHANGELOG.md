@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.10.28
+- 💸 **„Für dieses Modell ist kein Preis hinterlegt" stand da, obwohl Preise gepflegt waren.** Die Kostenschätzung im Bild-Studio und beim Text lief los, bevor die Modell-Auswahlfelder gefüllt waren — die Modellliste kommt von Google und braucht länger als der Verbrauch aus der eigenen Datei. Ohne gewähltes Modell fand die Schätzung erwartungsgemäß keinen Preis und meldete das auch. Erst „Speichern" in den Preisen ließ sie erneut rechnen, deshalb erschien der Betrag genau dann.
+- ✅ Die Schätzung rechnet jetzt zusätzlich, sobald die Modelle stehen, und schreibt gar nichts, solange noch kein Modell gewählt ist.
+
 ## 0.10.27
 - 📐 **Die Bibliothek auf der Startseite lässt sich jetzt schmaler stellen.** Die großen Bildkarten nahmen bislang gut die halbe Bildschirmhöhe ein, ohne Alternative. Im Tab *Bibliothek* steht nun **Darstellung auf der Startseite** mit fünf Möglichkeiten:
   - **Große Karten (Karussell)** — wie bisher, bleibt eingestellt.

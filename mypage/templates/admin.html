@@ -6715,6 +6715,9 @@
       aiFillSelect('ai-img-ratio', s.ratios || [], s.image_ratio);
       el('ai-translate-provider').value = s.translate_provider || 'mymemory';
       el('ai-instructions').value = s.instructions || '';
+      // Erst jetzt steht fest, welches Modell gewählt ist. Die Schätzung aus
+      // loadAiUsage() lief womöglich schon vorher ins Leere.
+      aiEstimates();
     }
     // Ein in den Add-on-Optionen eingetragenes Modell kann fehlen, wenn Google es
     // nicht (mehr) auflistet. Trotzdem anbieten, sonst überschreibt das Speichern
@@ -6755,6 +6758,11 @@
     }
     function aiEstimates() {
       if (!AI_USAGE) return;
+      // Die Modell-Auswahlfelder werden erst gefüllt, wenn die Modellliste da
+      // ist — die kommt von Google und braucht länger als der Verbrauch aus der
+      // eigenen Datei. Solange sie leer sind, gibt es kein Modell, zu dem ein
+      // Preis gehören könnte; „kein Preis hinterlegt" wäre hier schlicht falsch.
+      if (!el('ai-text-model').value && !el('ai-image-model').value) return;
       const txt = aiPriceFor(el('ai-text-model').value);
       const words = (AI_EST_WORDS[el('ai-txt-length').value] || 400)
                   * (el('ai-txt-langs').value === 'both' ? 2 : 1);
