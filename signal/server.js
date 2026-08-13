@@ -1059,6 +1059,10 @@ html.dark .unread-dot { background: #3cdb7c; }
 .bubble-row.out { justify-content: flex-end; }
 .bubble-row.in { justify-content: flex-start; }
 .bubble-row.out .del-btn { order: -1; }
+/* Optimistisch gerenderte Bubble: sofort sichtbar, ausgegraut bis der Server bestätigt */
+.bubble-row.pending .bubble { opacity: 0.55; }
+.bubble-row.pending:hover .del-btn, .bubble-row.pending:hover .fwd-btn, .bubble-row.pending:hover .reply-btn { display: none; }
+.msg-pending { font-size: 11px; margin-left: 3px; vertical-align: middle; opacity: 0.8; }
 .del-btn { display: none; background: none; border: none; cursor: pointer; display: none; align-items: center; justify-content: center; padding: 4px 6px; border-radius: 6px; flex-shrink: 0; }
 .bubble-row:hover .del-btn { display: inline-flex; }
 html.dark .del-btn { color: rgba(233,237,239,0.6); }
@@ -1877,14 +1881,29 @@ async function updateChatStats(chatId) {
   } catch(e) {}
 }
 
+// Optimistisches Senden: eigene, noch nicht vom Server bestätigte Nachrichten
+// je Chat. Werden ausgegraut ans Ende gehängt und nach der Server-Antwort
+// entfernt (dann kommt die echte Nachricht aus dem Poll).
+const _pendingSend = {};
+let _pendingSeq = 0;
+
+function dropPending(chatId, tmpId) {
+  const arr = _pendingSend[chatId];
+  if (!arr) return;
+  const i = arr.findIndex(p => p.tmpId === tmpId);
+  if (i >= 0) arr.splice(i, 1);
+}
+
 function renderMessages(msgs, opts) {
   const el = document.getElementById('messages');
-  if (!msgs.length) { el.innerHTML = '<div id="no-chat">' + t('noMessages') + '</div>'; return; }
+  msgs = msgs || [];
+  const _pend = _pendingSend[selectedChatId] || [];
+  if (!msgs.length && !_pend.length) { el.innerHTML = '<div id="no-chat">' + t('noMessages') + '</div>'; return; }
   const preserve = opts && opts.preserveScroll; // beim Vorne-Anfügen (Hochscrollen) Position halten
   const _prevH = el.scrollHeight, _prevT = el.scrollTop;
   const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 60;
   let lastDate = '';
-  el.innerHTML = msgs.map(m => {
+  const _rowsHtml = msgs.map(m => {
     const tsNum = Number(m.timestamp);
     const tsMs = tsNum > 1e12 ? tsNum : tsNum * 1000;
     const d = new Date(Number.isFinite(tsMs) && tsMs > 0 ? tsMs : Date.now());
@@ -1929,8 +1948,22 @@ function renderMessages(msgs, opts) {
     const isMediaBubble = !!m.mediaFile && m.type !== 'voice' && m.type !== 'document';
     return sep + \`<div class="bubble-row \${m.fromMe ? 'out' : 'in'}" data-msgid="\${escHtml(m.id)}" data-chatid="\${escHtml(selectedChatId)}"><div class="bubble \${m.fromMe ? 'out' : 'in'}\${isMediaBubble ? ' photo-bubble' : ''}">\${quotedHtml}\${content}<div class="bubble-time">\${time}\${ack}</div></div><button class="del-btn" title="\${t('btnDelete')}">${_SVG.x}</button><button class="fwd-btn" data-msgid="\${escHtml(m.id)}" title="\${t('ttForward')}">${_SVG.fwd}</button><button class="reply-btn" data-msgid="\${escHtml(m.id)}" data-contact="\${escHtml(replyContact)}" data-preview="\${replyPreview}" data-from="\${escHtml(m.from||'')}" data-ts="\${m.timestamp}" title="\${t('ttReply')}">${_SVG.reply}</button></div>\`;
   }).join('');
+  // Noch nicht bestätigte eigene Nachrichten ausgegraut ans Ende hängen
+  let _pendHtml = '';
+  _pend.forEach(p => {
+    const pd = new Date(p.timestamp);
+    const pDateStr = pd.toLocaleDateString(locale(), { day: '2-digit', month: '2-digit', year: 'numeric' });
+    let pSep = '';
+    if (pDateStr !== lastDate) { pSep = \`<div class="day-sep"><span>\${pDateStr}</span></div>\`; lastDate = pDateStr; }
+    const pTime = pd.toLocaleTimeString(locale(), { hour: '2-digit', minute: '2-digit' });
+    const pQuoted = p.quoted
+      ? \`<div class="quoted-block"><div class="quoted-sender">\${escHtml(p.quoted.contact||'')}</div><div class="quoted-text">\${escHtml(p.quoted.preview||'')}</div></div>\`
+      : '';
+    _pendHtml += pSep + \`<div class="bubble-row out pending" data-pendingid="\${escHtml(p.tmpId)}"><div class="bubble out">\${pQuoted}\${formatText(p.body)}<div class="bubble-time">\${pTime}<span class="msg-pending">🕓</span></div></div></div>\`;
+  });
+  el.innerHTML = _rowsHtml + _pendHtml;
   if (preserve) el.scrollTop = _prevT + (el.scrollHeight - _prevH);
-  else if (atBottom) el.scrollTop = el.scrollHeight;
+  else if (atBottom || _pend.length) el.scrollTop = el.scrollHeight;
 }
 
 let _attachFile = null;
@@ -2048,21 +2081,40 @@ async function sendMsg() {
   }
   if (!text) return;
   const replyId = _replyMsgId, replyFrom = _replyFrom, replyTs = _replyTs, replyBody = _replyBody;
+  const replyQuoted = replyId
+    ? { contact: document.getElementById('reply-bar-sender').textContent, preview: replyBody }
+    : null;
   clearReply();
   inp.value = '';
   inp.style.height = '';
+  // Bubble sofort ausgegraut anzeigen, statt auf den Roundtrip zu warten
+  const chatId = selectedChatId;
+  const tmpId = 'p' + (++_pendingSeq);
+  (_pendingSend[chatId] = _pendingSend[chatId] || []).push({ tmpId, body: text, timestamp: Date.now(), quoted: replyQuoted });
+  renderMessages(_view[chatId] || []);
   try {
     const endpoint = replyId ? api('/api/reply') : api('/api/send');
     const payload = replyId
-      ? { to: selectedChatId, message: text, quoteTimestamp: Number(replyTs), quoteAuthor: replyFrom, quoteBody: replyBody }
-      : { to: selectedChatId, message: text };
-    await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-    lastSeenTime[selectedChatId] = Date.now();
+      ? { to: chatId, message: text, quoteTimestamp: Number(replyTs), quoteAuthor: replyFrom, quoteBody: replyBody }
+      : { to: chatId, message: text };
+    const r = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }).then(r => r.json()).catch(() => null);
+    dropPending(chatId, tmpId);
+    if (!r || !r.success) {
+      // Fehlgeschlagen: Platzhalter weg, Text zurück ins Eingabefeld
+      if (chatId === selectedChatId) { inp.value = text; renderMessages(_view[chatId] || []); }
+      alert(tf('errSend', (r && typeof r.error === 'string') ? r.error : ''));
+      return;
+    }
+    lastSeenTime[chatId] = Date.now();
     localStorage.setItem('signal_last_seen', JSON.stringify(lastSeenTime));
     fetch(api('/api/poll'), { method: 'POST' });
-    await loadMessages(selectedChatId);
+    await loadMessages(chatId, true);
     await loadChats();
-  } catch (e) { alert(tf('errSend', e.message)); }
+  } catch (e) {
+    dropPending(chatId, tmpId);
+    if (chatId === selectedChatId) { inp.value = text; renderMessages(_view[chatId] || []); }
+    alert(tf('errSend', e.message));
+  }
 }
 
 function confirmLogout() {
