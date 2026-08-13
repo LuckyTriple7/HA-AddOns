@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.94.0] - 2026-08-13
+
+### Added
+- **Frankfurt jetzt in der Flugziel-Tabelle** (genähert, gekennzeichnet
+  „FRA*"): neuer `fra_board_client.py` liest das Tagesbord einer Drittseite
+  (`airport-frankfurt-am-main.de`, **nicht** Fraport) und akkumuliert über ein
+  rollierendes 9-Tage-Fenster auf Platte, weil die offizielle FRA-API keine
+  Gesamtliste hergibt (siehe SCRAPING_FRA.md). Filtert Lufthansas
+  AIRail-Bahnzubringer (Aachen/Berlin/Basel/Hamburg) über den Namen raus —
+  die stehen sonst mit im Board, sind aber keine Flüge. **Nur für die
+  Übersichtstabelle** — die gezielte Suche nutzt weiter unverändert die
+  offizielle FRA-API. 5 neue Tests in `test_fra_board.py`.
+
 ## [0.93.4] - 2026-08-13
 
 ### Changed

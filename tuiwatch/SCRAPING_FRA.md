@@ -71,3 +71,34 @@ Flug-Eintrag (gekürzt, live):
 (`/de/_jcr_content.flights.json/…`). Zieht Fraport die Seite um, findet man den
 neuen Pfad wieder, indem man das HTML der Fluginformations-Seite nach
 `flights.json` durchsucht — dort stehen die URLs im Klartext.
+
+## Zielliste (Übersichtstabelle) — separate Drittseiten-Quelle
+
+Wie oben beschrieben liefert die offizielle API **keine** Gesamtliste. Für die
+Flugziel-Übersichtstabelle (siehe all_flights_routes.py) wird deshalb eine
+**andere, nicht amtliche** Quelle genutzt: `fra_board_client.py` liest das
+Tagesbord von `airport-frankfurt-am-main.de` (Fußzeile „© by FraHub", **nicht**
+Fraport):
+
+```
+GET https://www.airport-frankfurt-am-main.de/flugzeiten/abflug-fra.json
+```
+
+Live per HTML-Quelltext der Seite `/abflug-flughafen-frankfurt-airport`
+gefunden (DataTable-Init mit `ajax.url`). Liefert nur den **heutigen** Tag
+(kein Datumsparameter gefunden) — `fra_board_client.py` akkumuliert deshalb
+über ein rollierendes 9-Tage-Fenster auf Platte (`TUIWATCH_DATA/
+fra_board_destinations.json`), damit auch nur wöchentlich fliegende Ziele
+auftauchen. Bleibt eine **Näherung**, kein amtlicher Fahrplan — Frontend
+kennzeichnet FRA-Einträge in der Tabelle entsprechend (`FRA*`).
+
+**Stolperfalle: AIRail-Bahnzubringer.** Das Board mischt Lufthansas
+Bahn-Ersatzverbindungen (Aachen, Berlin, Basel, Hamburg — live gesehen) unter
+eigenem IATA-artigem Code (`XHJ`, `QPP`, `ZBA`, `ZMB`, …) in dieselbe Spalte
+wie echte Flüge. Kein Muster im Code selbst erkennbar, aber der Name verrät
+es zuverlässig (`"… Hauptbahnhof"`, `"… Bad Bahnhof"`) — Filter auf
+`"bahnhof" in name.lower()`.
+
+Diese Quelle wird **nur** für die Übersichtstabelle verwendet, **nicht** für
+die gezielte Suche (`/api/flights/search`) — die bleibt bei der offiziellen
+API oben.

@@ -20,9 +20,15 @@ from flask import Blueprint, jsonify, request
 import app as A
 import str_flights_client
 import fra_flights_client
+import fra_board_client
 import muc_flights_client
 
 bp = Blueprint('all_flights_routes', __name__)
+
+# `/api/flights/destinations` (Übersichtstabelle) mischt eine vierte, andere
+# Quelle mit ein: fra_board_client.py (Drittseiten-Tagesbord, nur genähert).
+# `/api/flights/search` (gezielte Suche) bleibt bei den drei offiziellen
+# Quellen — fra_board_client wird dort bewusst NICHT verwendet.
 
 
 @bp.route('/api/flights/search', methods=['GET'])
@@ -82,27 +88,31 @@ def api_flights_destinations():
     """Gesamtliste aller tatsächlich angeflogenen Ziele — für die
     Flugziel-Tabelle im Auswahldialog (Zeile anklicken = Suche).
 
-    **Nur STR + MUC**: beide halten die komplette Saison im Speicher-Cache
-    (Azure-API bzw. PDF), eine Gesamtliste ist da ein billiger Cache-Scan.
-    Frankfurt (Drehkreuz) hat **keine** vergleichbare Quelle — die Flug-API
-    liefert nur gezielt gefilterte Ergebnisse, eine ungefilterte Abfrage hat
-    123.289 Abflüge auf 4.854 Seiten (siehe SCRAPING_FRA.md) und lässt sich
-    nicht sinnvoll zu einer Zielliste einsammeln. FRA bleibt trotzdem
-    **mitgesucht**, sobald eine Zeile angeklickt wird — nur eben nicht in
-    dieser Übersichtsliste enthalten."""
+    **STR + MUC vollständig**: beide halten die komplette Saison im
+    Speicher-Cache (Azure-API bzw. PDF), eine Gesamtliste ist da ein billiger
+    Cache-Scan. **FRA nur genähert**: die offizielle Flug-API liefert keine
+    Gesamtliste (123.289 Abflüge auf 4.854 Seiten ohne Zielfilter, siehe
+    SCRAPING_FRA.md) — stattdessen liest fra_board_client.py das Tagesbord
+    einer Drittseite und akkumuliert über ein rollierendes Fenster (siehe
+    dortige Kommentare zu den Grenzen). Für die gezielte Suche
+    (`/api/flights/search`) bleibt weiter die offizielle FRA-API zuständig,
+    unverändert."""
     if (err := A._require_api()):
         return err
     cfg = A.load_config()
     enabled_str = bool(cfg.get('enable_str_flights', False))
+    enabled_fra = bool(cfg.get('enable_fra_flights', False))
     enabled_muc = bool(cfg.get('enable_muc_flights', False))
-    if not (enabled_str or enabled_muc):
+    if not (enabled_str or enabled_fra or enabled_muc):
         return jsonify({'error': 'disabled'}), 404
     verbose = A._verbose()
 
-    with ThreadPoolExecutor(max_workers=2) as ex:
+    with ThreadPoolExecutor(max_workers=3) as ex:
         jobs = {}
         if enabled_str:
             jobs['str'] = ex.submit(str_flights_client.list_destinations, verbose=verbose)
+        if enabled_fra:
+            jobs['fra'] = ex.submit(fra_board_client.list_destinations, verbose=verbose)
         if enabled_muc:
             jobs['muc'] = ex.submit(muc_flights_client.list_destinations, verbose=verbose)
         results = {k: f.result() for k, f in jobs.items()}

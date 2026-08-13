@@ -1903,17 +1903,18 @@
       }
       renderAllfDestinations(data.destinations || []);
     }
-    const ALLF_AP_SHORT = {str:'STR', fra:'FRA', muc:'MUC'};
+    const ALLF_AP_SHORT = {str:'STR', muc:'MUC'};
+    const ALLF_FRA_TITLE = 'Näherung: Frankfurt hat keine amtliche Gesamtliste (Drehkreuz), dieses Ziel stammt aus einem rollierend gesammelten Tagesbord einer Drittseite — kann bei sehr seltenen Verbindungen fehlen oder veraltet sein.';
     function renderAllfDestinations(dest){
       if(!dest.length){ $('#allf-dest-body').innerHTML = '<div class="hint">Keine Ziele gefunden.</div>'; return; }
       const rowsHtml = dest.map(d => `<tr class="allf-dest-row" style="cursor:pointer" onclick="allfPickDestination('${esc(d.code)}')" title="Klicken, um nach ${esc(d.name)} zu suchen">
         <td>${esc(d.name)}</td>
         <td class="hint">${esc(d.code)}</td>
         <td class="hint">${esc(d.country)}</td>
-        <td class="hint">${(d.airports||[]).map(a=>ALLF_AP_SHORT[a]||a).join(', ')}</td>
+        <td class="hint">${(d.airports||[]).map(a=>a==='fra'?`<span title="${ALLF_FRA_TITLE}">FRA*</span>`:(ALLF_AP_SHORT[a]||a)).join(', ')}</td>
       </tr>`).join('');
-      $('#allf-dest-body').innerHTML = `<div class="hint" style="margin-bottom:6px">${dest.length} Ziele — Stuttgart + München vollständig erfasst; Frankfurt hat als Drehkreuz keine abrufbare Gesamtliste, wird bei Klick aber mitgesucht. Zeile anklicken für Verbindungen.</div>
-        <div style="overflow-x:auto;max-height:340px;overflow-y:auto"><table class="hist"><tr><th>Ziel</th><th>Code</th><th>Land</th><th title="Nur Stuttgart/München — Frankfurt fehlt hier immer (keine Gesamtliste möglich), wird bei Klick aber trotzdem mitgesucht">Ab (STR/MUC) ⓘ</th></tr>${rowsHtml}</table></div>`;
+      $('#allf-dest-body').innerHTML = `<div class="hint" style="margin-bottom:6px">${dest.length} Ziele — Stuttgart + München vollständig erfasst. Frankfurt (FRA*) nur genähert aus einem Drittseiten-Tagesbord, siehe Spalten-Tooltip. Zeile anklicken für Verbindungen.</div>
+        <div style="overflow-x:auto;max-height:340px;overflow-y:auto"><table class="hist"><tr><th>Ziel</th><th>Code</th><th>Land</th><th title="STR/MUC: vollständiger Saison-Fahrplan. FRA*: Näherung aus einem Drittseiten-Tagesbord, kein amtlicher Fahrplan — kann einzelne selten fliegende Ziele verpassen.">Ab ⓘ</th></tr>${rowsHtml}</table></div>`;
     }
     function allfPickDestination(code){
       $('#allf-q').value = code;
