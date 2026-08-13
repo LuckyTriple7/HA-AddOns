@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.93.1] - 2026-08-13
+
+### Changed
+- **Flughafen-Auswahldialog schlanker**: Karten (STR/FRA/MUC) zeigen nur noch
+  den Flughafennamen, kein Beschreibungstext mehr drunter. Nebenbei Text
+  „die beiden Flughäfen" korrigiert (waren seit MUC-Erweiterung schon drei).
+
 ## [0.93.0] - 2026-08-12
 
 ### Added
