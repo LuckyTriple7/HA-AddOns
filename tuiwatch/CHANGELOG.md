@@ -1,5 +1,39 @@
 # Changelog
 
+## [0.95.0] - 2026-08-13
+
+### Added
+- **Booking-Kurve und Buchungszeitpunkt-Ampel** (`booking_window_enabled`, Standard
+  an): Das Preisbarometer beantwortete bisher nur „was passiert gerade mit den
+  Preisen?". Jede Tagesbewegung schreibt jetzt zusätzlich ihre **Vorlaufzeit** mit
+  (`basket_moves.days_to_dep`, Median über die verglichenen Hotels). Sortiert man alle
+  Tagesbewegungen aller Messreihen nach Vorlauf statt nach Kalendertag, entsteht die
+  typische Preiskurve des Marktes — sieben Fenster von „ab 181 Tage" bis „unter 8
+  Tage", je Fenster der Median der Tagesraten (`pct_median / gap_days`, also Prozent
+  **pro Tag**; ohne diese Normierung zählte eine Bewegung über eine 4-Tage-Lücke wie
+  ein echter Tagesschritt). Gepoolt wird global über alle Messreihen — Prozentwerte
+  sind dimensionslos, und eine einzelne Messreihe durchläuft die Kurve nur einmal.
+  Fenster unter 8 Messpunkten bleiben leer, Fenster aus einer einzigen Messreihe
+  werden als „⚠ dünn" markiert.
+- Daraus die **Ampel** je Messreihe (🟢 buchen / 🟡 neutral / 🔴 warten), deterministisch
+  ohne KI: `S = (0,25·Trend + 0,35·Position + 0,40·Restbewegung) / Σ verfügbarer
+  Gewichte`. Die **erwartete Restbewegung** verkettet die Kurvenraten über die
+  verbleibenden Tage bis zur Abreise (positiv = Preise steigen noch, also jetzt
+  buchen); die **Position** ist der Perzentilrang auf dem verketteten Index, nicht auf
+  rohen Medianpreisen — rohe Preise würden wieder die wechselnde Hotelauswahl messen.
+  Fehlende Komponenten fallen heraus und renormieren die Gewichte; bleibt weniger als
+  die Hälfte übrig, gibt es bewusst keine Ampel. Unter 14 Tagen Vorlauf nie 🔴.
+- Sichtbar als Spalte **Buchen?** samt Kurventabelle im 🌡️-Fenster, als Ampel-Icon auf
+  jeder Angebotskachel (Tooltip zeigt alle Komponenten), in den Attributen von
+  `sensor.tuiwatch_markttrend` (`booking_ampel`, `booking_score`, `booking_curve`,
+  `booking_green`, …) und als Fakten im KI-Buchungsscore — dort ohne zusätzliche
+  API-Aufrufe, die KI muss die Saisonkurve nicht mehr selbst schätzen.
+- Neue Tabelle `basket_levels` (P25/Median/P75 je Messreihe und Tag): Euro-Kontext, der
+  anders als die Roh-Snapshots die 120-Tage-Grenze überlebt. Bestandsdaten werden beim
+  ersten Start einmalig nachgerechnet — Vorlaufzeit und Preisniveaus entstehen
+  rückwirkend aus den noch vorhandenen Snapshots.
+- Neuer Endpunkt `GET /api/booking-window`. 34 neue Tests in `test_booking_window.py`.
+
 ## [0.94.1] - 2026-08-13
 
 ### Added

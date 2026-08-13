@@ -92,7 +92,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.94.1"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.95.0"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -2639,6 +2639,10 @@ def _push_market_trend_sensor() -> None:
             attrs.update(index=src_index['index'], index_pct=src_index['pct'],
                          index_since=datetime.fromtimestamp(src_index['since']).isoformat())
         state = src_trend['pct'] if src_trend else 'unknown'
+        # Buchungszeitpunkt-Ampel (Booking-Kurve). Der State bleibt bewusst die
+        # 14-Tage-Bewegung — die Ampel ist eine ANDERE Aussage („jetzt buchen?")
+        # und gehört deshalb in die Attribute, nicht in den Zustandswert.
+        _booking_attrs(attrs, basket)
     except Exception as e:
         log.warning("Markttrend-Berechnung fehlgeschlagen (poste trotzdem 'unknown'): %s: %s",
                      type(e).__name__, e)
@@ -2648,6 +2652,33 @@ def _push_market_trend_sensor() -> None:
                   json={'state': state, 'attributes': attrs})
     except Exception as e:
         log.warning("HA-Markttrend-Sensor aktualisieren fehlgeschlagen: %s", e)
+
+
+def _booking_attrs(attrs: dict, basket: dict) -> None:
+    """Ampel-Attribute für den Markttrend-Sensor aus dem Barometer-Stand.
+
+    Als Kopfzahl dient die Messreihe mit dem KLEINSTEN Vorlauf — das ist die
+    Entscheidung, die am dringendsten ansteht. Alle übrigen stehen vollständig unter
+    `booking`, damit eine Automatisierung („melde, wenn ein Ziel auf grün springt")
+    sich nicht auf die Kopfzahl beschränken muss."""
+    b = basket.get('booking') or {}
+    if not b.get('enabled'):
+        return
+    attrs['booking_curve'] = [
+        {'window': x['label'], 'pct_per_day': x['rate'], 'pct': x['pct'],
+         'samples': x['n'], 'series': x['n_series'], 'thin': x['thin']}
+        for x in b.get('curve', [])]
+    sigs = [dict(r['signal'], region=r['region'])
+            for r in basket.get('by_region', []) if (r.get('signal') or {}).get('ampel')]
+    attrs['booking'] = sigs
+    attrs['booking_green'] = [s['region'] for s in sigs if s['ampel'] == 'green']
+    if not sigs:
+        return
+    lead = min(sigs, key=lambda s: (s['days_to_dep'] is None, s['days_to_dep']))
+    exp = (lead.get('components') or {}).get('expected') or {}
+    attrs.update(booking_ampel=lead['ampel'], booking_score=lead['score'],
+                 booking_region=lead['region'], booking_days_to_dep=lead['days_to_dep'],
+                 booking_expected_pct=exp.get('pct'))
 
 
 def _flight_healthchecks() -> list[dict]:
@@ -3128,6 +3159,13 @@ def _collect_offers() -> list[dict]:
                 'board': o['board'] or '',
                 'check24_linked': bool(o['check24_hotel_id']),
             })
+        # Buchungszeitpunkt-Ampel aus dem Preisbarometer (Booking-Kurve). Bewusst
+        # EIN Aufruf für die ganze Liste statt je Angebot: die Liste wird alle 5 s
+        # gepollt, `market_basket` cacht Kurve und Signale entsprechend und geht für
+        # die Region-Zuordnung nur an den `meta`-Cache, nie ins Netz.
+        signals = market_basket.offer_signals(con, offers)
+    for row in out:
+        row['booking'] = signals.get(row['id'])
     return out
 
 

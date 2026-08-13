@@ -27,6 +27,7 @@ digest_weekday: 1        # Versandtag (1 = Mo … 7 = So)
 market_basket_enabled: true   # Markttrend aus den täglich neu ausgeführten Suchen
 market_basket_lead_days: 91   # Ersatz-Abreise, nur wenn kein echtes Datum vorliegt
 market_basket_max_regions: 20 # Obergrenze für die täglich abgefragten Messreihen (1…50)
+booking_window_enabled: true   # Buchungszeitpunkt-Ampel aus der Booking-Kurve
 anthropic_api_key: ""    # Anthropic API-Key, aktiviert das KI-Fazit (leer = aus)
 anthropic_model: claude-opus-5  # oder claude-sonnet-5 / claude-haiku-4-5 / claude-fable-5
 ai_provider: anthropic   # oder gemini / perplexity (gilt fuer ALLE KI-Features)
@@ -738,7 +739,11 @@ eigenen Angeboten — welche gerade greift, sagt das Attribut `source`
 Tagen die Richtung anhält), `samples` (Datenpunkte bzw. Barometer-Tage), `hotels`
 (Breite die Messreihe-Basis), `index`/`index_pct`/`index_since` (Index seit
 Aufzeichnungsbeginn), `by_region` (Aufschlüsselung je Destination aus den eigenen
-Angeboten) sowie die vollständigen Zweige `offers` und `basket`. Siehe unten
+Angeboten) sowie die vollständigen Zweige `offers` und `basket`. Ist die
+Buchungszeitpunkt-Ampel aktiv, kommen `booking_ampel`/`booking_score`/`booking_region`/
+`booking_days_to_dep`/`booking_expected_pct` (jeweils für die Messreihe mit dem
+kürzesten Vorlauf — die dringendste Entscheidung), `booking_green` (alle Messreihen
+auf grün) sowie `booking` und `booking_curve` in voller Länge dazu. Siehe unten
 „Markttrend".
 
 ## Markttrend
@@ -849,6 +854,55 @@ Woche 3 % gefallen" — die Zahl, die bei der Buchungsentscheidung hilft.
   Preisbewegung missverstanden. Reißleine bei 1000 Hotels (dann steht eine Warnung
   im Log).
 - **Abschaltbar** über `market_basket_enabled`.
+
+### Booking-Kurve und Buchungszeitpunkt-Ampel
+
+Der Trend oben beantwortet „**was passiert gerade** mit den Preisen?". Die Ampel
+beantwortet die andere Frage: „**ist jetzt ein guter Zeitpunkt zu buchen?**" — zu
+finden als Spalte **Buchen?** im Preisbarometer-Fenster, als kleines Ampel-Icon auf
+jeder Angebotskachel und in den Attributen des Markttrend-Sensors.
+
+Möglich wird das dadurch, dass jede Tagesbewegung zusätzlich ihre **Vorlaufzeit**
+mitschreibt (Tage bis Abreise, aus dem Abreisedatum der verglichenen Hotels). Sortiert
+man alle Tagesbewegungen **aller** Messreihen nach Vorlauf statt nach Kalendertag,
+entsteht die typische Preiskurve des Marktes.
+
+- **Booking-Kurve** (Fenster: ab 181 / 180–121 / 120–91 / 90–61 / 60–31 / 30–8 /
+  unter 8 Tage). Je Fenster der **Median der Tagesraten**: `pct_median / gap_days`,
+  also Prozent **pro Tag**. Ohne diese Normierung zählte eine Bewegung über eine
+  4-Tage-Lücke (Add-on war aus) wie ein echter Tagesschritt. Angezeigt wird zusätzlich,
+  was das über das ganze Fenster ergibt: `((1 + r/100)^Breite − 1) · 100`.
+- **Gepoolt über alle Messreihen.** Prozentwerte sind dimensionslos — eine 900-€-Woche
+  Mallorca und eine 3000-€-Fernreise sind in „% pro Tag" direkt vergleichbar. Nötig ist
+  das Poolen auch: eine einzelne Messreihe durchläuft die Kurve nur ein einziges Mal.
+- **Nichts wird erfunden.** Ein Fenster braucht mindestens 8 Messpunkte, sonst steht
+  dort „noch keine Daten". Fenster aus nur einer Messreihe werden als **⚠ dünn**
+  markiert statt stillschweigend als Marktaussage verkauft.
+- **Erwartete Restbewegung bis zur Abreise:** die verbleibenden Tage werden auf die
+  Fenster verteilt und deren Tagesraten verkettet — `E = (Π (1 + r_b/100)^{d_b} − 1)
+  · 100`. Positiv heißt „Preise steigen voraussichtlich noch" → eher jetzt buchen.
+  Deckt die Kurve weniger als die Hälfte der Resttage ab, gibt es keine Aussage.
+- **Position im eigenen Verlauf:** der Perzentilrang läuft auf dem **verketteten
+  Index** (`100 · Π(1 + Tagesbewegung)`), nicht auf rohen Medianpreisen. Rohe Preise
+  würden wieder die wechselnde Hotelauswahl messen — genau der Fehler, den die Matched
+  Pairs oben vermeiden. 0 = so günstig wie noch nie beobachtet, 100 = Höchststand.
+  Braucht mindestens 7 aufgezeichnete Tage.
+- **Ampel** aus drei Komponenten, deterministisch und ohne KI:
+  `S = (0,25·Trend + 0,35·Position + 0,40·Restbewegung) / Σ verfügbarer Gewichte`,
+  jede Komponente auf −1…+1 begrenzt. `S ≥ +0,35` → 🟢 guter Zeitpunkt,
+  `S ≤ −0,35` → 🔴 eher warten, sonst 🟡. Fehlende Komponenten fallen heraus und die
+  übrigen Gewichte werden renormiert; bleibt weniger als die Hälfte übrig, gibt es
+  bewusst gar keine Ampel. Mit der Maus über die Ampel stehen alle Rohwerte.
+- **Unter 14 Tagen Vorlauf nie 🔴** — es gibt nichts mehr zu warten, und das Risiko ist
+  dort einseitig (ausgebucht statt teurer).
+- **Preisniveau:** je Messreihe und Tag werden zusätzlich P25/Median/P75 in Euro
+  abgelegt. Rein informativ („was kostet dieser Markt gerade") und bewusst **nicht**
+  die Trendbasis; überlebt anders als die Roh-Snapshots die 120-Tage-Grenze.
+- **Bestandsdaten** werden beim ersten Start einmalig nachgerechnet: Vorlaufzeit und
+  Preisniveaus entstehen rückwirkend aus den noch vorhandenen Snapshots. Tage, deren
+  Snapshots schon verworfen sind, bleiben ohne Vorlauf und fallen aus der Kurve.
+- **Abschaltbar** über `booking_window_enabled`; braucht das Preisbarometer.
+- Eigener Endpunkt: `GET /api/booking-window` (Kurve + Ampel je Messreihe).
 
 ## KI-Buchungsscore ("Orakel")
 

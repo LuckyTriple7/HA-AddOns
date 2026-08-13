@@ -26,6 +26,9 @@ configuration:
   market_basket_max_regions:
     name: Maximale Messreihen
     description: "Obergrenze für die täglich abgefragten Messreihen (1…50), also für die Zahl der gespeicherten Suchen, die neu ausgeführt werden. Reiner Lastschutz: je 50 Hotels ein API-Aufruf pro Tag (typisch 1–6 je Suche). Werden mehr gefunden als erlaubt, nennt das Add-on-Log die weggelassenen. Standard 20."
+  booking_window_enabled:
+    name: Buchungszeitpunkt-Ampel
+    description: "Wertet die Tagesbewegungen des Preisbarometers zusätzlich nach Vorlaufzeit aus (Booking-Kurve) und leitet daraus eine Ampel ab: grün = guter Buchungszeitpunkt, rot = eher warten. Verrechnet den 14-Tage-Trend, die Lage im bisherigen Verlauf und die bis zur Abreise erwartete Preisbewegung. Braucht das Preisbarometer und einige Wochen Daten. Standard an."
   trippilot_home_location:
     name: TripPilot Heimatort (PLZ/Ort)
     description: "Vorbelegung für die TripPilot-Frage 'Von wo geht's los?' (bei Anreise mit Auto/Bus/Bahn oder Tagesausflug). Leer lassen, wenn nicht gewünscht — im Fragebogen jederzeit änderbar."

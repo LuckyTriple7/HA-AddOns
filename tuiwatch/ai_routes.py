@@ -764,11 +764,45 @@ def _offer_booking_facts(con, offer_id: int) -> dict | None:
         'region_trend': A._market_trend(con, region=region) if region else None,
         'region_index': A._market_index(con, region=region) if region else None,
         'seasonal': seasonal,
+        # Booking-Kurve des Preisbarometers: wie sich Preise über die Vorlaufzeit
+        # bewegen, plus die daraus hochgerechnete Restbewegung bis zur Abreise. Als
+        # fertige Zahl im Prompt, damit die KI nicht selbst eine Saisonkurve schätzt —
+        # dieselbe Linie wie bei allen anderen Fakten hier.
+        'booking_window': _booking_window_facts(con, o),
         # Größte Kalender-Bewegungen (calendar_history) wie bei der KI-Kalenderanalyse:
         # breite Anstiege über viele Reisetermine = Warten riskant, breite Rückgänge =
         # Warten kann sich lohnen — direktes Signal für "jetzt buchen oder warten?".
         'calendar_moves': A._calendar_top_moves(A._calendar_moves(con, offer_id), limit=8),
     }
+
+
+def _booking_window_facts(con, o) -> dict | None:
+    """Booking-Kurve und Ampel der Messreihe, zu der dieses Angebot gehört.
+
+    Zieht bewusst nur schon Berechnetes aus `market_basket` — kein zusätzlicher
+    Netzabruf, keine zweite Rechnung. None, wenn das Preisbarometer für dieses
+    Reiseziel noch keine belastbare Kurve hat."""
+    import market_basket as MB
+    if not MB._booking_enabled():
+        return None
+    try:
+        key = MB.basket_key_for_offer(con, o['url'], o['region'], o['return_date'])
+        if not key:
+            return None
+        sig = MB.booking_signal(con, key)
+    except Exception as e:
+        A.log.debug("Booking-Kurve für Angebot %s nicht ermittelbar: %s", o['id'], e)
+        return None
+    if not sig or not sig.get('ampel'):
+        return None
+    curve = [{'window': b['label'], 'pct': b['pct']}
+             for b in MB.booking_curve(con) if b['rate'] is not None]
+    comps = sig.get('components') or {}
+    return {'basket': key, 'ampel': sig['ampel'], 'score': sig['score'],
+            'days_to_dep': sig['days_to_dep'], 'curve': curve,
+            'expected_pct': (comps.get('expected') or {}).get('pct'),
+            'rank': (comps.get('position') or {}).get('rank'),
+            'rank_days': (comps.get('position') or {}).get('n')}
 
 
 def _calendar_outlook_facts(con, offer_id: int) -> dict | None:
@@ -925,6 +959,30 @@ def _booking_score_prompt(facts: dict) -> str:
             arrow = "gestiegen" if m['delta'] > 0 else "gefallen"
             lines.append(f"- Abreise {m['date']}: {m['prev_price']} € -> {m['price']} € "
                          f"({arrow} um {abs(m['delta'])} €)")
+    bw = facts.get('booking_window')
+    if bw:
+        ampel_de = {'green': 'günstiger Zeitpunkt', 'yellow': 'neutral',
+                    'red': 'eher warten'}
+        lines.append(
+            f"Booking-Kurve des Preisbarometers für die Messreihe „{bw['basket']}“ "
+            f"(aus täglich neu ausgeführten Suchen, gemessen über die Vorlaufzeit): "
+            f"Ampel {ampel_de.get(bw['ampel'], bw['ampel'])} (Score {bw['score']:+.2f} "
+            f"auf einer Skala von -1 bis +1), noch {bw['days_to_dep']} Tage bis Abreise.")
+        if bw.get('expected_pct') is not None:
+            lines.append(
+                f"Aus dieser Kurve hochgerechnete Preisbewegung von heute bis zur "
+                f"Abreise: {bw['expected_pct']:+.1f} % (positiv = Preise steigen "
+                f"voraussichtlich noch, also eher jetzt buchen).")
+        if bw.get('rank') is not None:
+            lines.append(
+                f"Der heutige Marktpreis liegt im Perzentil {bw['rank']:.0f} des bisher "
+                f"beobachteten Verlaufs dieser Messreihe ({bw['rank_days']} Tage; "
+                f"0 = so günstig wie noch nie, 100 = Höchststand).")
+        if bw.get('curve'):
+            lines.append("Typische Marktbewegung je Vorlauf-Fenster (Prozent über das "
+                          "gesamte Fenster, gepoolt über alle Messreihen):")
+            for b in bw['curve']:
+                lines.append(f"- {b['window']} vor Abreise: {b['pct']:+.1f} %")
     return ("Du bist ein Reisepreis-Analyst. Bewerte den aktuellen Preis dieser "
             "Pauschalreise und berechne einen Buchungsscore.\n\n" + "\n".join(lines)
             + "\n\n" + _BOOKING_SCORE_INSTRUCTIONS)
