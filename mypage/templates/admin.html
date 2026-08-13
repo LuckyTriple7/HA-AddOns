@@ -32,6 +32,17 @@
     .tab-btn { background: none; border: none; color: var(--muted); padding: 7px 13px; border-radius: 6px; font-size: 0.86rem; cursor: pointer; white-space: nowrap; flex: 0 0 auto; }
     .tab-btn:hover { color: var(--text); background: var(--surf2); }
     .tab-btn.active { color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); font-weight: 600; }
+    /* Sprungleiste innerhalb eines langen Reiters. Klebt unter der Kopfzeile,
+       deren Hoehe umbruchbedingt schwankt und deshalb aus JS als --hdr-h
+       kommt. Der Rueckfallwert gilt nur fuer den Sekundenbruchteil vor dem
+       ersten Messen. */
+    .jumpbar { position: sticky; top: var(--hdr-h, 52px); z-index: 15; display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; -ms-overflow-style: none; padding: 10px 0; margin-bottom: 6px; background: var(--bg); border-bottom: 1px solid var(--border); }
+    .jumpbar::-webkit-scrollbar { display: none; }
+    .jump-chip { background: var(--surf); border: 1px solid var(--border); color: var(--muted); padding: 5px 12px; border-radius: 999px; font-size: 0.8rem; cursor: pointer; white-space: nowrap; flex: 0 0 auto; }
+    .jump-chip:hover { color: var(--text); border-color: var(--accent); }
+    .jump-chip.active { color: var(--accent); border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); font-weight: 600; }
+    /* Anspringen soll unter Kopfzeile und Sprungleiste landen, nicht dahinter */
+    #tab-ai [data-ai-panel] { scroll-margin-top: calc(var(--hdr-h, 52px) + 62px); }
     .header-actions { display: flex; align-items: center; gap: 6px; }
     .icon-btn, .lang-btn { background: none; border: 1px solid var(--border); color: var(--muted); padding: 3px 8px; border-radius: 5px; font-size: 0.75rem; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 4px; }
     .lang-btn.active { border-color: var(--accent); color: var(--accent); }
@@ -839,6 +850,7 @@
 
     <!-- KI-Studio -->
     <section class="tab" id="tab-ai">
+      <div class="jumpbar" id="ai-jump"></div>
       <div class="panel" data-ai-panel="gemini">
         <h3>⚙️ {{ t.ai_settings_heading }}</h3>
         <p class="hint">{{ t.ai_settings_hint }}</p>
@@ -6680,12 +6692,77 @@
       // Der KI-Teil des Logo-Panels hängt am Bildmodell, der Rest nicht
       if (!AI_STATUS.image) el('logo-ai-box').style.display = 'none';
     }
+    // ── Sprungleiste ──
+    // Der KI-Reiter ist der laengste im Haus: sechs Bereiche untereinander, vom
+    // Bild-Studio bis zum Uebersetzen. Statt zu scrollen springt man ueber die
+    // Leiste, die unter der Kopfzeile klebt. Beschriftungen kommen aus den
+    // Ueberschriften der Bereiche selbst — so stimmen sie in beiden Sprachen und
+    // ein spaeter dazukommender Bereich steht ohne Zutun mit drin.
+    function syncHeaderHeight() {
+      const h = document.querySelector('header');
+      if (h) document.documentElement.style.setProperty('--hdr-h', h.offsetHeight + 'px');
+    }
+    function buildAiJumpbar() {
+      const bar = el('ai-jump');
+      bar.innerHTML = '';
+      bar._panels = [];
+      document.querySelectorAll('#tab-ai [data-ai-panel]').forEach(panel => {
+        const h = panel.querySelector('h3');
+        if (!h) return;
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'jump-chip';
+        b.textContent = h.textContent.trim();
+        b.onclick = () => panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        bar._panels.push([b, panel]);
+        bar.appendChild(b);
+      });
+      syncAiJumpbar();
+    }
+    // Ohne Gemini-Schluessel sind einzelne Bereiche ausgeblendet (initAiVisibility).
+    // Ein Sprungziel, das es nicht gibt, gehoert dann auch nicht in die Leiste.
+    function syncAiJumpbar() {
+      const bar = el('ai-jump');
+      (bar._panels || []).forEach(([chip, panel]) => {
+        chip.style.display = panel.style.display === 'none' ? 'none' : '';
+      });
+    }
+    // Aktiv ist der unterste Bereich, dessen Oberkante schon durchgelaufen ist.
+    function aiJumpSpy() {
+      const bar = el('ai-jump');
+      if (!el('tab-ai').classList.contains('active') || !bar._panels) return;
+      const line = bar.getBoundingClientRect().bottom + 8;
+      let cur = null;
+      bar._panels.forEach(([chip, panel]) => {
+        if (chip.style.display !== 'none' && panel.getBoundingClientRect().top <= line) cur = chip;
+      });
+      bar._panels.forEach(([chip]) => chip.classList.toggle('active', chip === cur));
+      // Bei schmalem Fenster scrollt die Leiste selbst — den aktiven Chip
+      // nachziehen, aber ueber scrollLeft statt scrollIntoView: letzteres
+      // wuerde die ganze Seite mitbewegen und gegen das eigene Scrollen kaempfen.
+      if (cur && bar.scrollWidth > bar.clientWidth) {
+        const c = cur.offsetLeft, w = cur.offsetWidth;
+        if (c < bar.scrollLeft) bar.scrollLeft = c - 12;
+        else if (c + w > bar.scrollLeft + bar.clientWidth) bar.scrollLeft = c + w - bar.clientWidth + 12;
+      }
+    }
     async function initAiTab() {
       refreshAiStatus();   // Kontingent und Verbrauch bei jedem Tabwechsel frisch
       aiFillImportSelect();
       trFillEntries();
+      syncHeaderHeight();
+      syncAiJumpbar();     // Bereiche koennen seit dem letzten Besuch weggefallen sein
+      aiJumpSpy();
       if (aiTabReady) return;
       aiTabReady = true;
+      buildAiJumpbar();
+      aiJumpSpy();
+      let spyPending = false;
+      window.addEventListener('scroll', () => {
+        if (spyPending) return;
+        spyPending = true;
+        requestAnimationFrame(() => { spyPending = false; aiJumpSpy(); });
+      }, { passive: true });
       buildAiStyleChips();
       buildLogoChips();
       logoCutoutChanged();
@@ -6704,7 +6781,11 @@
       if (AI_STATUS && AI_STATUS.image) loadAiPrompts();
       el('ai-img-results').addEventListener('scroll', updateAiArrows, { passive: true });
       el('logo-results').addEventListener('scroll', updateLogoArrows, { passive: true });
-      window.addEventListener('resize', () => { updateAiArrows(); updateLogoArrows(); });
+      window.addEventListener('resize', () => {
+        updateAiArrows(); updateLogoArrows();
+        syncHeaderHeight();   // die Kopfzeile bricht je nach Breite um
+        aiJumpSpy();
+      });
       renderAiQuota();
       const r = await api('api/ai/models');
       const m = r.ok ? await r.json() : { image: [], text: [] };

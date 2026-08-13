@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.10.29
+- 🧭 **Der KI-Reiter hat eine Sprungleiste bekommen.** Sechs Bereiche untereinander — Einstellungen, Verbrauch, Bild-Studio, Logo-Designer, Text-Studio, Übersetzen — hießen bisher: scrollen und suchen. Oben im Reiter steht jetzt eine Leiste mit allen sechs, ein Klick springt hin.
+- 📌 Die Leiste klebt beim Scrollen unter der Kopfzeile, ist also auch mitten im Bild-Studio noch da. Der Bereich, in dem man gerade steht, hebt sich hervor.
+- 📱 Funktioniert per Fingertipp genauso wie mit der Maus. Bereiche, die ohne Gemini-Schlüssel ausgeblendet sind, fehlen auch in der Leiste; die Beschriftungen stammen aus den Überschriften und sind damit automatisch in beiden Sprachen richtig.
+
 ## 0.10.28
 - 💸 **„Für dieses Modell ist kein Preis hinterlegt" stand da, obwohl Preise gepflegt waren.** Die Kostenschätzung im Bild-Studio und beim Text lief los, bevor die Modell-Auswahlfelder gefüllt waren — die Modellliste kommt von Google und braucht länger als der Verbrauch aus der eigenen Datei. Ohne gewähltes Modell fand die Schätzung erwartungsgemäß keinen Preis und meldete das auch. Erst „Speichern" in den Preisen ließ sie erneut rechnen, deshalb erschien der Betrag genau dann.
 - ✅ Die Schätzung rechnet jetzt zusätzlich, sobald die Modelle stehen, und schreibt gar nichts, solange noch kein Modell gewählt ist.
