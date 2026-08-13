@@ -1,5 +1,36 @@
 # Changelog
 
+## [0.96.0] - 2026-08-13
+
+### Added
+- **Monatstrend im Preiskalender**: Der Kalender holt ohnehin 400–700 Reisetage über
+  ~18 Monate ab, ausgewertet wurde bisher aber nur der aktuelle Stand. Neu ist je
+  **Reisemonat** die Bewegung über die Zeit — Trend über 14 Tage und Index seit
+  Aufzeichnungsbeginn, in einer aufklappbaren **Monatsübersicht** im Kalender-Fenster
+  neben dem Ø-Preis, der Preisspanne und der Zahl der Termine.
+- Gerechnet wird ein **wertgewichteter Monatsindex**, nicht der Median wie beim
+  Preisbarometer: `(Σ p_neu − Σ p_alt) / Σ p_alt · 100` über alle Reisetage des Monats,
+  die in beiden Snapshots einen Preis hatten. Das Zusammensetzungsproblem, das im
+  Barometer die Matched Pairs erzwingt, gibt es hier nicht — dieselbe Menge Reisetage,
+  dasselbe Hotel, dasselbe Zimmer.
+- **Der entscheidende Punkt steckt im Nenner:** `calendar_history` ist delta-codiert
+  (eine Zeile nur bei Änderung). Ein Reisetag ohne Zeile ist ein *unveränderter*, kein
+  unbeobachteter Tag. Er zählt deshalb mit seinem Preis in den Nenner und mit 0 in den
+  Zähler. Wertete man nur die Änderungszeilen aus, bestünde die Kette ausschließlich
+  aus Tagen mit Bewegung und der Index liefe massiv davon: ein Tag von zehn mit +100 €
+  sind ~1 % Monatsbewegung, nicht 10 %.
+- Weitere Absicherungen: Einzelsprünge über 60 % fliegen als Artefakt raus
+  (Zimmerkategorie/Verfügbarkeit, kein Preissignal); neu ins Fenster gerutschte und
+  herausgefallene Reisetage zählen nicht (sonst misst man die Fensterwanderung);
+  Reisetage in der Vergangenheit ebenfalls nicht. Zwei Abrufe am selben Tag werden
+  **innerhalb** des Tages verkettet statt überschrieben. Die „seit X Tagen"-Angabe
+  zählt hier ruhige Tage mit — im Kalender ist 0 % der Normalfall, mit der strengen
+  Zählweise des Barometers stünde dort fast immer „seit 1 Tag".
+- Neue Tabelle `calendar_month_moves` (eine Zeile je Angebot, Beobachtungstag und
+  Reisemonat) und `GET /api/calendar/<id>/months`. Bestandsdaten werden beim ersten
+  Start einmalig aus `calendar_history` per Carry-Forward nachgerechnet — der Trend
+  startet also nicht bei null. 15 neue Tests in `test_calendar_month_trend.py`.
+
 ## [0.95.0] - 2026-08-13
 
 ### Added

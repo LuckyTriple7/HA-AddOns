@@ -92,7 +92,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.95.0"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.96.0"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -863,6 +863,8 @@ def init_db() -> None:
         # Preisbarometer (tägliche Regionssuche) — Schema liegt im eigenen Modul,
         # das erst am Dateiende importiert wird; zur Laufzeit von init_db() ist es da.
         market_basket.init_basket_db(con)
+        # Kalender-Monatstrend — dito, Schema liegt im price_calendar-Modul.
+        price_calendar.init_month_db(con)
     Path(TRIPS_DIR).mkdir(parents=True, exist_ok=True)
     log.info("Datenbank bereit: %s", DB_PATH)
 

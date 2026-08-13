@@ -576,6 +576,10 @@
     .cal-moves[open] summary { margin-bottom:4px; }
     .cal-move-row { display:flex; align-items:center; gap:10px; padding:4px 0; font-size:.8rem; cursor:pointer; }
     .cal-move-row:hover { color:var(--accent); }
+    /* Monatsname in der Monatsübersicht: klickbar, aber KEIN <a> — die Link-Farbe
+       ist auf dem Modal-Hintergrund kaum lesbar. */
+    .cal-month-link { cursor:pointer; text-decoration:underline; text-underline-offset:2px; }
+    .cal-month-link:hover { color:var(--accent); }
     .cal-day-chart { display:none; margin:10px 0; border:1px solid var(--border); border-radius:8px; padding:8px 10px; }
     .cal-day-chart.show { display:block; }
     .cal-day-hd { display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; font-size:.85rem; }

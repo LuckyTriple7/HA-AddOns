@@ -632,6 +632,33 @@ unveränderten Tagen). Darauf aufbauend:
   Reisedatums über alle bisherigen Abrufe als Mini-Diagramm.
 - **„Größte Bewegungen seit letztem Abruf“** listet die Tage mit den stärksten
   Preissprüngen auf einen Blick auf.
+- **Monatsübersicht** (aufklappbar über dem Raster): je Reisemonat der aktuelle
+  Ø-Preis, die Preisspanne und die Zahl der Termine — und daneben die **Bewegung
+  dieses Reisemonats über die Zeit** (Trend über 14 Tage, Index seit
+  Aufzeichnungsbeginn, gleiche Darstellung wie beim Markttrend). Damit ist sichtbar,
+  ob z. B. „Mai wird teurer, September fällt", statt nur zu wissen, welcher Monat
+  gerade günstig ist. Ein Klick auf einen Monat springt ins Raster.
+  - **Andere Frage als der Markttrend.** Der beschreibt einen Markt (viele Hotels,
+    ein Termin), diese Zahl ein einzelnes Hotel/Zimmer über alle seine Reisetermine.
+    Weicht ein Monat vom Markt ab, wird dort typischerweise das Kontingent knapp —
+    ein Signal, das keine der beiden Quellen allein liefert.
+  - **Rechnung:** wertgewichteter Monatsindex `(Σ p_neu − Σ p_alt) / Σ p_alt · 100`
+    über alle Reisetage des Monats mit Preis in beiden Snapshots, anschließend über
+    die Beobachtungstage zinseszins-verkettet. Kein Median wie beim Preisbarometer —
+    die Menge der Reisetage ist hier fest, das Zusammensetzungsproblem gibt es nicht.
+  - **Ruhige Tage zählen als 0 %, nicht als fehlender Wert.** Die Historie ist
+    delta-codiert; ein Reisetag ohne Zeile ist unverändert, nicht unbeobachtet. Er
+    geht mit seinem Preis in den Nenner ein. Ein Tag von zehn mit +100 € ergibt so
+    ~1 % Monatsbewegung — wertete man nur die Änderungszeilen aus, wären es 10 %.
+  - Einzelsprünge über 60 % gelten als Artefakt (Zimmerkategorie, Verfügbarkeit) und
+    fließen nicht ein; neu ins Fenster gerutschte, herausgefallene und bereits
+    vergangene Reisetage ebenfalls nicht.
+  - **Bestandsdaten** werden beim ersten Start einmalig aus der vorhandenen
+    Kalenderhistorie nachgerechnet — der Trend beginnt nicht bei null. Nur Abrufe,
+    bei denen sich gar nichts geändert hat, fehlen dabei (sie hätten 0 %
+    beigetragen); die Kurve stimmt, nur die Zahl der Beobachtungstage fällt für die
+    Altdaten etwas niedriger aus.
+  - Eigener Endpunkt: `GET /api/calendar/<offer_id>/months`.
 - Der **„Kalender“-Button** in der Angebotsliste pulsiert (amber), sobald sich seit
   dem letzten Öffnen ein Preis im Kalender geändert hat — Öffnen markiert als
   gesehen, das Pulsieren erlischt bis zur nächsten echten Bewegung.

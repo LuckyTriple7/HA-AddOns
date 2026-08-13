@@ -5917,6 +5917,7 @@
     // ── Preiskalender (Monats-Grid, gespeichert) ──────────────────────────────
     let calTimer = null, calId = null, calData = null, calMonth = null, calTrendView = false;
     let calMovesOpen = false;   // "Größte Bewegungen"-Liste: default eingeklappt, Zustand überlebt Monatswechsel
+    let calMonths = null, calMonthsOpen = false;   // Monatsübersicht (Preisniveau + Trend je Reisemonat)
     function toggleCalTrend(){ calTrendView = !calTrendView; drawCalMonth(); }
     async function openCalDayChart(iso){
       const box = $('#cal-day-chart');
@@ -5940,7 +5941,7 @@
     function startCalPolling(){ clearInterval(calTimer); calPoll(); calTimer = setInterval(calPoll, 2000); }
 
     async function openCalendar(id){
-      calId = id; calMonth = null; calData = null; calMovesOpen = false;
+      calId = id; calMonth = null; calData = null; calMovesOpen = false; calMonths = null;
       const o = (curOffers||[]).find(x=>x.id===id) || {};
       $('#cal-sub').textContent = o.label || o.hotel || ('TUI-Angebot #'+id);
       updateCalNotifyBell();
@@ -5952,6 +5953,15 @@
       if(job.status==='running'){ calSpinner(); startCalPolling(); }
       else if(job.status==='done' && job.days && job.days.length){ renderCalendar(job); }  // gespeichert → anzeigen
       else { refreshCalendar(); }                                                          // noch nie abgefragt → einmal starten
+      loadCalMonths(id);
+    }
+    // Monatsuebersicht (Preisniveau + Bewegung je Reisemonat). Bewusst ein eigener,
+    // nachgelagerter Request: der Kalender selbst soll nicht darauf warten, und beim
+    // Monatswechsel wird nur neu gezeichnet, nicht neu geladen.
+    async function loadCalMonths(id){
+      try { const d = await fetch(api('/api/calendar/'+id+'/months')).then(r=>r.json());
+            if(calId===id){ calMonths = d; if(calData) drawCalMonth(); } }
+      catch(e){}
     }
     async function refreshCalendar(){
       if(calId==null) return;
@@ -6130,6 +6140,58 @@
       drawCalMonth();
     }
 
+    // Monatsübersicht: Preisniveau je Reisemonat (Momentaufnahme aus dem Snapshot)
+    // neben dessen Bewegung über die Zeit (verkettet aus calendar_month_moves).
+    // Zwei verschiedene Quellen, deshalb bewusst zwei getrennte Spaltengruppen.
+    //
+    // Eigene Badges statt marketTrendBadge/marketIndexLine: hier stehen ~19 Monate
+    // untereinander, von denen die meisten sich kaum bewegen. Die Markttrend-Badges
+    // färben schon +0,1 % rot ein — bei einer Zeile im Barometer harmlos, hier eine
+    // Wand aus Farbe ohne Aussage. Deshalb dieselbe Totband-Schwelle wie beim Trend.
+    const CAL_MONTH_DEADBAND = 0.5;
+    function calPct(v){
+      return (v>0?'+':(v<0?'−':'')) + Math.abs(v).toLocaleString('de-DE',{maximumFractionDigits:1}) + ' %';
+    }
+    function calTrendBadge(t, obs){
+      if(!t) return `<span class="hint">${obs>=2?'noch keine Bewegung':'sammelt noch'}</span>`;
+      // Bei "stabil" die Tageszahl weglassen: der Streak zählt ruhige Tage mit und
+      // entspricht dann fast immer der Fensterlänge — "stabil seit 15 Tagen" in
+      // jeder zweiten Zeile ist reines Rauschen.
+      const days = (t.dir!=='flat' && t.days>=2) ? ` seit ${t.days} Tagen` : '';
+      if(t.dir==='down') return `<span class="trend down">↘ fällt ${calPct(t.pct)}${days}</span>`;
+      if(t.dir==='up')   return `<span class="trend up">↗ steigt ${calPct(t.pct)}${days}</span>`;
+      return '<span class="trend flat">→ stabil</span>';
+    }
+    function calIndexLine(i){
+      if(!i) return '';
+      const cls = i.pct>=CAL_MONTH_DEADBAND ? 'up' : (i.pct<=-CAL_MONTH_DEADBAND ? 'down' : 'flat');
+      const since = new Date(i.since*1000).toLocaleDateString('de-DE');
+      return ` <span class="trend ${cls}" title="Index seit Aufzeichnungsbeginn (${i.n} Beobachtungstage), unabhängig vom 14-Tage-Fenster">`
+        + `Index ${i.index.toLocaleString('de-DE',{maximumFractionDigits:1})} (${calPct(i.pct)} seit ${since})</span>`;
+    }
+    function calMonthsHtml(){
+      const d = calMonths;
+      if(!d || !(d.months||[]).length) return '';
+      const eurShort = v => Math.round(v).toLocaleString('de-DE') + ' €';
+      const moving = d.months.filter(m=>m.trend && m.trend.dir!=='flat').length;
+      const rows = d.months.map(m=>{
+        const cur = m.month===calMonth ? ' style="font-weight:600"' : '';
+        return `<tr${cur}><td><span class="cal-month-link" onclick="calGo('${m.month}')">${esc(m.label)}</span>`
+          + `<div class="hint">${m.dates} Termine · ${eurShort(m.min)}–${eurShort(m.max)}</div></td>`
+          + `<td style="white-space:nowrap">${eurShort(m.avg)}</td>`
+          + `<td>${calTrendBadge(m.trend, d.observations)}${calIndexLine(m.index)}</td></tr>`;
+      }).join('');
+      return `<details class="cal-moves" ${calMonthsOpen?'open':''} ontoggle="calMonthsOpen=this.open">
+        <summary class="hint"><b>Monatsübersicht</b> (${d.months.length} Reisemonate`
+        + (d.observations>=2 ? `, ${d.observations} Beobachtungstage, ${moving} in Bewegung` : ', sammelt noch') + `)</summary>
+        <div class="hint" style="margin:4px 0 6px">Ø-Preis ist der aktuelle Stand, der Trend die
+        Bewegung dieses Reisemonats über die Zeit — nur dieses Hotel/Zimmer, nicht der Markt.
+        Ruhige Tage zählen als 0 %, nicht als fehlender Wert.</div>
+        <table class="hist"><tr><th>Reisemonat</th><th>Ø-Preis</th>
+        <th>Trend (${d.window_days} Tage) / Index (gesamt)</th></tr>${rows}</table>
+      </details>`;
+    }
+
     function drawCalMonth(){
       const job = calData; if(!job) return;
       const pm = {}; job.days.forEach(d=>pm[d.date]=d.price);
@@ -6223,6 +6285,7 @@
         </details>` : '';
       $('#cal-body').innerHTML = `
         <div class="cal-sum">${sum}</div>
+        ${calMonthsHtml()}
         ${topMovesHtml}
         <div class="cal-nav">
           <button class="btn sec" onclick="calGo('${prev}')" ${prev?'':'disabled'}>‹</button>
