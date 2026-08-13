@@ -2355,6 +2355,7 @@
     }
     function ampelBadge(s){
       if(!s) return '';
+      if(s.closed) return '<span class="hint">–</span>';
       if(!s.ampel) return `<span class="hint">${esc(s.note||'sammelt noch Daten')}</span>`;
       const c = s.components || {};
       const bits = [];
@@ -2399,12 +2400,22 @@
         return;
       }
       const bk = b.booking || {enabled:false};
-      const rows = (b.by_region||[]).map(r=>
-        `<tr><td>${esc(r.region)}<div class="hint">${esc(r.period||'')}</div></td>`
+      // Abgeschlossene Messreihen (Reisezeitraum vorbei, Suche gelöscht oder
+      // umbenannt) bleiben stehen — ihr Index und ihr Beitrag zur Booking-Kurve sind
+      // weiter wertvoll. Ohne Kennzeichnung sähen sie aber wie eine kaputte aktive
+      // Reihe aus: leerer Zeitraum, „keine Daten" beim Trend, und niemand wüsste warum.
+      const rows = (b.by_region||[]).map(r=>{
+        const when = r.closed
+          ? `<div class="hint">📁 abgeschlossen${r.last_day?` · zuletzt ${fmtD(r.last_day)}`:''}</div>`
+          : `<div class="hint">${esc(r.period||'')}</div>`;
+        return `<tr${r.closed?' style="opacity:.7"':''}><td>${esc(r.region)}${when}</td>`
         + `<td>${marketTrendBadge(r.trend)}${marketIndexLine(r.index)}</td>`
         + (bk.enabled ? `<td>${ampelBadge(r.signal)}</td>` : '')
         + `<td>${(r.trend||{}).hotels||''}</td>`
-        + `<td><button class="btn sec" onclick="resetBasketRegion(${esc(JSON.stringify(r.region))})" title="Barometer-Daten dieser Suche löschen und neu beginnen">🗑</button></td></tr>`).join('');
+        + `<td><button class="btn sec" onclick="resetBasketRegion(${esc(JSON.stringify(r.region))})" title="${r.closed
+            ? 'Diese abgeschlossene Messreihe endgültig entfernen'
+            : 'Barometer-Daten dieser Suche löschen und neu beginnen'}">🗑</button></td></tr>`;
+      }).join('');
       // Messreihen ohne zwei vergleichbare Tage stehen nicht in der Tabelle — ohne
       // diese Liste sähe es so aus, als würden sie gar nicht erfasst.
       const waiting = (b.baskets||[]).filter(x => !(b.by_region||[]).some(r=>r.region===x.key));

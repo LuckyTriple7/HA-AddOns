@@ -941,7 +941,8 @@ def _clip(v: float) -> float:
     return max(-1.0, min(1.0, v))
 
 
-def booking_signal(con, basket: str, curve: list | None = None) -> dict | None:
+def booking_signal(con, basket: str, curve: list | None = None,
+                   active: set | None = None) -> dict | None:
     """Die Ampel einer Messreihe: 🟢 buchen / 🟡 neutral / 🔴 warten.
 
     Bewusst deterministisch und aufschlüsselbar (kein LLM) — jede Komponente wird mit
@@ -959,7 +960,15 @@ def booking_signal(con, basket: str, curve: list | None = None) -> dict | None:
     zu warten, und das Risiko ist dort einseitig (ausgebucht statt teurer)."""
     if curve is None:
         curve = booking_curve(con)
+    if active is None:
+        active = _active_keys(con)
     dte = _current_dte(con, basket)
+    if basket not in active:
+        # Abgeschlossene Messreihe: Empfehlung sofort aus, nicht erst wenn der Trend
+        # nach 14 Tagen aus dem Fenster fällt.
+        return {'basket': basket, 'days_to_dep': dte, 'components': {}, 'closed': True,
+                'ampel': None, 'score': None,
+                'note': 'Messreihe abgeschlossen — kein laufender Reisezeitraum mehr'}
     trend = basket_trend(con, basket=basket)
     pos = basket_position(con, basket)
     exp = expected_remaining(curve, dte)
@@ -984,7 +993,7 @@ def booking_signal(con, basket: str, curve: list | None = None) -> dict | None:
                              'weight': BOOKING_WEIGHTS['expected']}
         score += v * BOOKING_WEIGHTS['expected']
         total += BOOKING_WEIGHTS['expected']
-    out = {'basket': basket, 'days_to_dep': dte, 'components': comps,
+    out = {'basket': basket, 'days_to_dep': dte, 'components': comps, 'closed': False,
            'ampel': None, 'score': None, 'note': ''}
     if total < BOOKING_MIN_WEIGHT:
         out['note'] = ('zu wenig Daten für eine Empfehlung'
@@ -1006,9 +1015,10 @@ def booking_payload() -> dict:
         return {'enabled': False, 'curve': [], 'signals': []}
     with A.db() as con:
         curve = booking_curve(con)
+        active = _active_keys(con)
         keys = [r['basket'] for r in con.execute(
             "SELECT DISTINCT basket FROM basket_moves WHERE basket!=''").fetchall()]
-        signals = [s for s in (booking_signal(con, k, curve) for k in sorted(keys)) if s]
+        signals = [s for s in (booking_signal(con, k, curve, active) for k in sorted(keys)) if s]
     covered = sum(1 for b in curve if b['rate'] is not None)
     return {'enabled': True, 'curve': curve, 'signals': signals,
             'buckets_ready': covered, 'buckets_total': len(curve)}
@@ -1022,11 +1032,12 @@ def _signal_map(con) -> dict:
     if _signal_cache['data'] is not None and now - _signal_cache['ts'] < BOOKING_CURVE_TTL:
         return _signal_cache['data']
     curve = booking_curve(con)
+    active = _active_keys(con)
     keys = [r['basket'] for r in con.execute(
         "SELECT DISTINCT basket FROM basket_moves WHERE basket!=''").fetchall()]
     data = {}
     for k in keys:
-        s = booking_signal(con, k, curve)
+        s = booking_signal(con, k, curve, active)
         if s and s.get('ampel'):
             data[k] = s
     _signal_cache.update(ts=now, data=data)
@@ -1073,6 +1084,44 @@ def basket_key_for_offer(con, url: str, region: str, return_date: str) -> str | 
     return f"{label} ({_MONTHS_DE[dep.month - 1]} {dep.year}, {nights} Nächte)"
 
 
+def _active_keys(con) -> set:
+    """Schlüssel der Messreihen, die noch eine lebende Quelle haben.
+
+    Alles andere ist **abgeschlossen**: der Reisezeitraum ist vorbei, oder die
+    gespeicherte Suche wurde gelöscht bzw. umbenannt (der Schlüssel ist ihr Name).
+    Solche Reihen bekommen keine Ampel mehr — sonst stünde bis zu 14 Tage nach
+    Ablauf noch „guter Buchungszeitpunkt" an einer Reise, die niemand mehr buchen
+    kann. Ihr Index und ihr Beitrag zur Booking-Kurve bleiben dagegen erhalten:
+    abgelaufene Reisen sind genau die, die ein Vorlauf-Fenster komplett durchlaufen
+    haben.
+
+    Bewusst OHNE Netzzugriff, denn diese Funktion hängt über `_signal_map` am
+    5-Sekunden-Poll der Angebotsliste: die gespeicherten Suchen kommen aus der DB,
+    die Angebots-Messreihen über `basket_key_for_offer` (nur `meta`-Cache). Deshalb
+    hier eine eigene, schlanke Ermittlung statt `_basket_targets()`, das für
+    unbekannte Hotels Breadcrumb-Abrufe auslösen würde. Dass beide Wege denselben
+    Schlüssel bilden, sichert `test_active_keys_match_targets` ab."""
+    keys = set()
+    for r in con.execute('SELECT name, payload FROM saved_searches ORDER BY id').fetchall():
+        try:
+            payload = json.loads(r['payload']) or {}
+            giata = int((payload.get('dest') or {}).get('giata'))
+        except (TypeError, ValueError, json.JSONDecodeError):
+            continue
+        if _expired(payload):
+            continue
+        keys.add((r['name'] or '').strip() or f"Suche {giata}")
+    for o in con.execute('SELECT url, region, return_date FROM offers '
+                         'WHERE COALESCE(archived,0)=0').fetchall():
+        try:
+            k = basket_key_for_offer(con, o['url'], o['region'], o['return_date'])
+        except Exception:
+            continue
+        if k:
+            keys.add(k)
+    return keys
+
+
 def offer_signals(con, offers: list) -> dict:
     """Ampel je Angebots-ID für die Kachelansicht. `offers` sind die Zeilen aus
     `offers`; zurück kommt nur, wofür es auch wirklich eine Ampel gibt."""
@@ -1113,13 +1162,21 @@ def basket_payload() -> dict:
         glob = {'trend': basket_trend(con), 'index': basket_index(con)}
         # Kurve EINMAL für alle Messreihen (gepoolt und gecacht) statt je Zeile neu.
         curve = booking_curve(con) if booking else []
+        # `_basket_targets()` kennt nur die aktiven Reihen — für die Kennzeichnung der
+        # abgeschlossenen wird daraus direkt die Schlüsselmenge gebildet, statt
+        # `_active_keys` ein zweites Mal zu rechnen.
+        active = {t['key'] for t in targets}
         by_region = []
         for k in sorted(keys):
             t, i = basket_trend(con, basket=k), basket_index(con, basket=k)
             if t or i:
+                last = con.execute('SELECT MAX(day) d FROM basket_moves WHERE basket=?',
+                                   (k,)).fetchone()
                 by_region.append({'region': k, 'period': periods.get(k, ''),
                                   'trend': t, 'index': i,
-                                  'signal': booking_signal(con, k, curve) if booking else None,
+                                  'closed': k not in active,
+                                  'last_day': (last['d'] if last else '') or '',
+                                  'signal': booking_signal(con, k, curve, active) if booking else None,
                                   'level': _last_level(con, k)})
         last = con.execute('SELECT MAX(day) d FROM basket_snapshots').fetchone()
         pending = [r['basket'] for r in con.execute(

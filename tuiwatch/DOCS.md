@@ -838,7 +838,14 @@ Woche 3 % gefallen" — die Zahl, die bei der Buchungsentscheidung hilft.
   7. und 14. Juni ergeben zwei Messreihen („Mai 2027, 11 Nächte" und „Juni 2027,
   11 Nächte"), nicht fünf. Gesucht wird der ganze Monat; die Suche liefert je Hotel
   den günstigsten Termin darin, was für einen Markttrend genau die richtige Zahl ist.
-- **Abgelaufene Reisezeiträume** fallen automatisch raus.
+- **Abgelaufene Reisezeiträume** fallen automatisch raus: die Messreihe wird nicht mehr
+  abgefragt und in der Tabelle als **„📁 abgeschlossen"** samt letztem Beobachtungstag
+  gekennzeichnet. Eine Buchungszeitpunkt-Ampel bekommt sie ab diesem Moment nicht mehr —
+  eine Empfehlung für eine nicht mehr buchbare Reise wäre sinnlos. **Index und Beitrag
+  zur Booking-Kurve bleiben erhalten**, denn abgelaufene Reisen haben ein Vorlauf-Fenster
+  komplett durchlaufen und sind für die Kurve besonders wertvoll. Dasselbe gilt für
+  gespeicherte Suchen, die du **löschst oder umbenennst** — der Schlüssel einer Messreihe
+  ist der Name der Suche. Endgültig wegräumen kannst du sie über das 🗑 in ihrer Zeile.
 - Die Obergrenze steht in `market_basket_max_regions` (Standard 20, erlaubt 1…50) und
   ist reiner Lastschutz — je 50 Hotels ein API-Aufruf pro Tag (typisch 1–6 je Suche).
   Werden mehr Messreihen gefunden als erlaubt, nennt das Add-on-Log die weggelassenen;

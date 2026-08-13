@@ -1,5 +1,32 @@
 # Changelog
 
+## [0.98.0] - 2026-08-13
+
+### Fixed
+- **Abgelaufene Messreihen zeigten bis zu 14 Tage lang weiter eine
+  Buchungszeitpunkt-Ampel** — im Zweifel ein 🟢 „guter Buchungszeitpunkt" an einer
+  Reise, die niemand mehr buchen kann. Ursache: nach dem Ablauf lief zwar die
+  Datensammlung sofort aus (`_expired`), Trend (Gewicht 0,25) und Position (0,35)
+  ergaben zusammen aber 0,60 und damit mehr als das Mindestgewicht von 0,5. Erst
+  wenn der Trend nach 14 Tagen aus seinem Fenster fiel, verschwand die Ampel.
+  Jetzt erlischt sie sofort, sobald die Messreihe keine laufende Quelle mehr hat.
+
+### Added
+- **Abgeschlossene Messreihen sind als solche gekennzeichnet.** Bisher blieb so eine
+  Zeile mit leerem Zeitraum und „→ keine Daten" in der Barometer-Tabelle stehen, ohne
+  dass irgendwo stand, warum. Sie zeigt jetzt „📁 abgeschlossen · zuletzt TT.MM.JJJJ"
+  und ist leicht abgedimmt. Betrifft auch gespeicherte Suchen, die **gelöscht oder
+  umbenannt** wurden — der Schlüssel einer Messreihe ist der Name der Suche, ihre
+  Daten blieben sonst unerklärt liegen.
+- Index und Beitrag zur **Booking-Kurve bleiben erhalten**: abgelaufene Reisen sind
+  genau die, die ein Vorlauf-Fenster komplett durchlaufen haben, und damit für die
+  Kurve besonders wertvoll. Wegräumen geht weiter über das 🗑 je Zeile.
+- Neu `_active_keys()`: ermittelt die Messreihen mit lebender Quelle **ohne
+  Netzzugriff** (gespeicherte Suchen aus der DB, Angebots-Messreihen über den
+  `meta`-Cache). Nötig, weil die Prüfung über `_signal_map` am 5-Sekunden-Poll der
+  Angebotsliste hängt, wo `_basket_targets()` Breadcrumb-Abrufe auslösen würde. Ein
+  Test sichert ab, dass beide Wege denselben Schlüssel bilden.
+
 ## [0.97.0] - 2026-08-13
 
 ### Added

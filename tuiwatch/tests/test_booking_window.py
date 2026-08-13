@@ -234,6 +234,7 @@ def _series(m, basket, *, pct, days, dte):
 def test_signal_green_when_prices_will_rise(m, mb):
     """Fallender Trend, günstige Position und ein erwarteter Anstieg bis zur
     Abreise ergeben zusammen 🟢."""
+    _saved_search(m, "Kanaren", _day(-5), _day(40))     # laufende Quelle
     _series(m, "Kanaren", pct=-0.5, days=12, dte=25)
     for other in ("Mallorca", "Kreta"):
         for i in range(12):
@@ -247,6 +248,7 @@ def test_signal_green_when_prices_will_rise(m, mb):
 def test_signal_renormalises_missing_components(m, mb):
     """Ohne Kurve und ohne Historie bleibt nur der Trend (Gewicht 0.25) — das ist
     unter BOOKING_MIN_WEIGHT, also gibt es bewusst keine Ampel."""
+    _saved_search(m, "Kanaren", _day(-5), _day(40))     # laufende Quelle
     for i in range(3):
         _move_row(m, "Kanaren", _day(-2 + i), -3.0, None)
     with m.db() as con:
@@ -258,6 +260,7 @@ def test_signal_renormalises_missing_components(m, mb):
 
 def test_signal_never_red_in_last_minute_window(m, mb):
     """Unter 14 Tagen Vorlauf gibt es nichts mehr zu warten — höchstens 🟡."""
+    _saved_search(m, "Kanaren", _day(-5), _day(20))     # laufende Quelle
     _series(m, "Kanaren", pct=2.0, days=12, dte=8)
     for i in range(12):
         _move_row(m, "Mallorca", _day(-11 + i), -2.0, 5)
@@ -324,3 +327,90 @@ def test_offer_key_prefers_matching_saved_search(m, mb):
     with m.db() as con:
         key = mb.basket_key_for_offer(con, url, "Gran Canaria", _day(37))
     assert key == "Mai auf Gran Canaria"
+
+
+# ── Abgeschlossene Messreihen ──────────────────────────────────────────────────
+
+def _saved_search(m, name, vom, bis, giata=777):
+    with m.db() as con:
+        con.execute("INSERT INTO saved_searches (name, payload, ts) VALUES (?,?,?)",
+                    (name, json.dumps({"dest": {"giata": giata, "label": "Ziel"},
+                                       "vom": vom, "bis": bis, "dur": 7}), int(time.time())))
+
+
+def test_expired_search_gets_no_signal(m, mb):
+    """Der Fehler, den das behebt: nach Ablauf blieb der 14-Tage-Trend noch stehen
+    und ergab zusammen mit der Position eine Ampel — „guter Buchungszeitpunkt" fuer
+    eine Reise, die niemand mehr buchen kann."""
+    _saved_search(m, "Vorbei", _day(-40), _day(-3))
+    _series(m, "Vorbei", pct=-0.5, days=12, dte=0)
+    with m.db() as con:
+        sig = mb.booking_signal(con, "Vorbei", mb.booking_curve(con))
+    assert sig["closed"] is True
+    assert sig["ampel"] is None and sig["components"] == {}
+    assert "abgeschlossen" in sig["note"]
+
+
+def test_running_search_still_gets_its_signal(m, mb):
+    """Gegenprobe: an einer laufenden Suche aendert sich nichts."""
+    _saved_search(m, "Laeuft", _day(-5), _day(40))
+    _series(m, "Laeuft", pct=-0.5, days=12, dte=30)
+    with m.db() as con:
+        sig = mb.booking_signal(con, "Laeuft", mb.booking_curve(con))
+    assert sig["closed"] is False and sig["components"]
+
+
+def test_deleted_or_renamed_search_counts_as_closed(m, mb):
+    """Der Schluessel ist der Name der Suche — nach Umbenennen (oder Loeschen) hat
+    die alte Messreihe keine Quelle mehr."""
+    _series(m, "Alter Name", pct=-0.5, days=12, dte=30)
+    _saved_search(m, "Neuer Name", _day(-5), _day(40))
+    with m.db() as con:
+        assert mb.booking_signal(con, "Alter Name", [])["closed"] is True
+        assert "Neuer Name" in mb._active_keys(con)
+
+
+def test_active_keys_match_targets(m, mb):
+    """`_active_keys` ist die netzfreie Zweitfassung von `_basket_targets` — beide
+    muessen denselben Schluessel bilden, sonst gaelte eine laufende Suche
+    faelschlich als abgeschlossen."""
+    _saved_search(m, "Kreta September", _day(10), _day(50))
+    _saved_search(m, "Schon vorbei", _day(-50), _day(-10))
+    with m.db() as con:
+        active = mb._active_keys(con)
+    assert active == {t["key"] for t in mb._basket_targets()}
+    assert active == {"Kreta September"}
+
+
+def test_active_keys_does_not_hit_the_network(m, mb, monkeypatch):
+    """Haengt ueber `_signal_map` am 5-Sekunden-Poll der Angebotsliste."""
+    def _boom(*a, **kw):
+        raise AssertionError("Breadcrumb-Abruf im Angebots-Poll")
+    monkeypatch.setattr(m, "region_giata_from_breadcrumb", _boom)
+    _saved_search(m, "Kreta September", _day(10), _day(50))
+    with m.db() as con:
+        con.execute("INSERT INTO offers (url, label, created) VALUES (?,?,?)",
+                    ("https://www.tui.com/pauschalreisen/angebote/h/999/?duration=7",
+                     "Ohne Region-Cache", int(time.time())))
+        assert mb._active_keys(con) == {"Kreta September"}
+
+
+def test_payload_marks_closed_rows(m, mb):
+    _saved_search(m, "Laeuft", _day(-5), _day(40))
+    _series(m, "Laeuft", pct=-0.5, days=12, dte=30)
+    _series(m, "Vorbei", pct=-0.5, days=12, dte=0)
+    rows = {r["region"]: r for r in mb.basket_payload()["by_region"]}
+    assert rows["Laeuft"]["closed"] is False
+    assert rows["Vorbei"]["closed"] is True
+    assert rows["Vorbei"]["last_day"] == _day(0)
+    # Index und damit die Historie bleiben erhalten
+    assert rows["Vorbei"]["index"] is not None
+
+
+def test_closed_series_still_feeds_the_curve(m, mb):
+    """Abgelaufene Reisen sind fuer die Booking-Kurve besonders wertvoll — sie haben
+    ein Vorlauf-Fenster komplett durchlaufen."""
+    _series(m, "Vorbei A", pct=-0.3, days=12, dte=100)
+    _series(m, "Vorbei B", pct=-0.3, days=12, dte=100)
+    b = _bucket(_curve(m, mb), "120–91")
+    assert b["rate"] is not None and b["n_series"] == 2
