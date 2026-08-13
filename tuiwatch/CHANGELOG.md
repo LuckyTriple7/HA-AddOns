@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.93.2] - 2026-08-13
+
+### Added
+- **Flugziel überall suchen**: neue Kachel im ✈️-Auswahldialog (nur sichtbar,
+  wenn mindestens zwei Flugpläne aktiv sind) fragt STR/FRA/MUC **parallel** ab
+  (`/api/flights/search`, `all_flights_routes.py`, `ThreadPoolExecutor`) und
+  zeigt die Treffer je Flughafen in eigener Sektion — nur Abflüge, die drei
+  Datenmodelle bleiben unangetastet (Saisonstrecken bei STR/MUC, Einzelflüge
+  bei FRA), keine erzwungene gemeinsame Tabellenform.
+
 ## [0.93.1] - 2026-08-13
 
 ### Changed

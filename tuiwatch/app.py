@@ -3666,6 +3666,7 @@ import check24_routes  # noqa: E402
 import str_flights_routes  # noqa: E402
 import fra_flights_routes  # noqa: E402
 import muc_flights_routes  # noqa: E402
+import all_flights_routes  # noqa: E402
 import market_basket  # noqa: E402
 import stats_routes  # noqa: E402
 import share_routes  # noqa: E402
@@ -3676,6 +3677,7 @@ app.register_blueprint(check24_routes.bp)
 app.register_blueprint(str_flights_routes.bp)
 app.register_blueprint(fra_flights_routes.bp)
 app.register_blueprint(muc_flights_routes.bp)
+app.register_blueprint(all_flights_routes.bp)
 app.register_blueprint(market_basket.bp)
 # Nur die Admin-Routen (/api/shares…) hängen an der geschützten App. Die
 # öffentliche Seite lebt in share_routes.share_app auf einem eigenen Port, siehe

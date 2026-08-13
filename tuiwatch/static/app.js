@@ -1842,6 +1842,49 @@
       }
       if(on.length === 1) on[0]();
     }
+
+    // ── Flugziel-Suche über alle freigeschalteten Flughäfen ────────────────────
+    let allfTimer = null;
+    function openAllFlights(){ $('#allf-bg').classList.add('show'); $('#allf-q').focus(); }
+    function closeAllFlights(){ $('#allf-bg').classList.remove('show'); }
+    $('#allf-bg').addEventListener('click', e=>{ if(e.target.id==='allf-bg') closeAllFlights(); });
+    $('#allf-q').addEventListener('input', ()=>{ clearTimeout(allfTimer); allfTimer = setTimeout(allFlightsSearch, 350); });
+    $('#allf-von').addEventListener('change', allFlightsSearch);
+    $('#allf-bis').addEventListener('change', allFlightsSearch);
+    async function allFlightsSearch(){
+      const q = $('#allf-q').value.trim();
+      const von = $('#allf-von').value, bis = $('#allf-bis').value;
+      if(q.length < 2){
+        $('#allf-body').innerHTML = '<div class="hint">Suchbegriff eingeben, z. B. „Palma", „PMI" oder „Spanien".</div>';
+        return;
+      }
+      $('#allf-body').innerHTML = progBar('Suche über alle Flughäfen…');
+      let data;
+      try {
+        data = await fetch(api('/api/flights/search?q='+encodeURIComponent(q)
+          +'&from='+encodeURIComponent(von)+'&till='+encodeURIComponent(bis))).then(r=>r.json());
+      } catch(e){ data = {error:'fetch_failed'}; }
+      if(data.error){
+        $('#allf-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Suche nicht möglich. Bitte später erneut versuchen.</div>';
+        return;
+      }
+      renderAllFlights(data);
+    }
+    const ALLF_LABEL = {str:'Stuttgart (STR)', fra:'Frankfurt (FRA)', muc:'München (MUC)'};
+    function renderAllFlights(data){
+      const present = ['str','fra','muc'].filter(k => data[k]);
+      if(!present.length){ $('#allf-body').innerHTML = '<div class="hint">Kein Flughafen freigeschaltet.</div>'; return; }
+      $('#allf-body').innerHTML = present.map(k =>
+        `<div style="margin-top:14px"><h3 style="margin:0 0 4px">${ALLF_LABEL[k]}</h3>
+          <div id="allf-${k}-body">${progBar('Lade…')}</div></div>`).join('');
+      present.forEach(k => {
+        const res = data[k], sel = '#allf-'+k+'-body';
+        if(res.error){ $(sel).innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Nicht erreichbar.</div>'; return; }
+        if(k==='str') renderStrFlights(res.rows||[], sel);
+        else if(k==='fra') renderFraFlights(res, sel, true);
+        else renderMucFlights(res, sel);
+      });
+    }
     function closeFlightPick(){ $('#fpick-bg').classList.remove('show'); }
     $('#fpick-bg').addEventListener('click', e=>{ if(e.target.id==='fpick-bg') closeFlightPick(); });
 
@@ -1875,10 +1918,11 @@
     }
     function frafDate(iso){ const p=(iso||'').split('-'); return p.length===3?(p[2]+'.'+p[1]+'.'+p[0]):(iso||''); }
     function frafDur(min){ if(!min) return ''; return Math.floor(min/60)+' h '+String(min%60).padStart(2,'0'); }
-    function renderFraFlights(data){
+    function renderFraFlights(data, bodySel, depOverride){
+      bodySel = bodySel || '#fraf-body';
       const rows = data.rows || [];
-      const dep = $('#fraf-type').value !== 'arrivals';
-      if(!rows.length){ $('#fraf-body').innerHTML = '<div class="hint">Kein Flug gefunden — evtl. anderen Zeitraum wählen.</div>'; return; }
+      const dep = depOverride !== undefined ? depOverride : ($('#fraf-type').value !== 'arrivals');
+      if(!rows.length){ $(bodySel).innerHTML = '<div class="hint">Kein Flug gefunden — evtl. anderen Zeitraum wählen.</div>'; return; }
       const rowsHtml = rows.map((r,i) => `<tr class="fraf-row" onclick="fraFlightDetail(${i})" title="Klicken für Details (Terminal, Gate, Check-in, Flugzeug)">
         <td>${esc(frafDate(r.date))}</td>
         <td>${esc(r.time)}${r.arrival?'<span class="hint">–'+esc(r.arrival)+'</span>':''}</td>
@@ -1891,7 +1935,7 @@
       // welche Codes tatsächlich abgefragt wurden, gehört sichtbar hin.
       const aps = (data.airports || []).filter(a=>a.name).map(a=>esc(a.name)+' ('+esc(a.code)+')').join(', ');
       const more = data.truncated ? ' · weitere vorhanden, Zeitraum eingrenzen' : '';
-      $('#fraf-body').innerHTML = `<div class="hint" style="margin-bottom:6px">${rows.length} ${rows.length===1?'Flug':'Flüge'}${aps?' — '+aps:''}${more} — Zeile anklicken für Details</div>
+      $(bodySel).innerHTML = `<div class="hint" style="margin-bottom:6px">${rows.length} ${rows.length===1?'Flug':'Flüge'}${aps?' — '+aps:''}${more} — Zeile anklicken für Details</div>
         <div style="overflow-x:auto"><table class="hist"><tr><th>Datum</th><th>${dep?'Ab FRA':'An FRA'}</th><th>${dep?'Ziel':'Von'}</th><th>Flug</th><th>Dauer</th><th>Terminal</th></tr>${rowsHtml}</table></div>`;
       frafLastRows = rows;
     }
@@ -1957,10 +2001,11 @@
       }
       renderMucFlights(data);
     }
-    function renderMucFlights(data){
+    function renderMucFlights(data, bodySel){
+      bodySel = bodySel || '#mucf-body';
       const rows = data.rows || [];
       const foot = `<div class="hint" style="margin-top:8px">Datenstand ${esc(data.datenstand||'?')} · Saison ${esc(data.season||'?')} · ${(data.count||0).toLocaleString('de-DE')} Verbindungen im Plan</div>`;
-      if(!rows.length){ $('#mucf-body').innerHTML = '<div class="hint">Keine Verbindung gefunden.</div>'+foot; return; }
+      if(!rows.length){ $(bodySel).innerHTML = '<div class="hint">Keine Verbindung gefunden.</div>'+foot; return; }
       const rowsHtml = rows.map(r => {
         // Zeiten immer aus MUC-Sicht: bei Abflug ist die erste Zeit ab MUC, bei
         // Ankunft die zweite in MUC (±Tag über die Marker des PDF).
@@ -1977,7 +2022,7 @@
         </tr>`;
       }).join('');
       const more = data.total > rows.length ? ` (von ${data.total}, Zeitraum oder Suchbegriff eingrenzen)` : '';
-      $('#mucf-body').innerHTML = `<div class="hint" style="margin-bottom:6px">${rows.length} Verbindung${rows.length===1?'':'en'}${more}</div>
+      $(bodySel).innerHTML = `<div class="hint" style="margin-bottom:6px">${rows.length} Verbindung${rows.length===1?'':'en'}${more}</div>
         <div style="overflow-x:auto"><table class="hist"><tr><th></th><th>Ziel</th><th>Land</th><th>Flug</th><th>Tage</th><th>Zeiten</th><th>Zeitraum</th><th>Term.</th></tr>${rowsHtml}</table></div>${foot}`;
     }
     async function mucFlightsRefresh(){
@@ -2030,8 +2075,9 @@
       const m = parseInt(p[1], 10);
       return (STRF_MONTHS[m-1] || p[1]) + ' ' + p[0];
     }
-    function renderStrFlights(rows){
-      if(!rows.length){ $('#strf-body').innerHTML = '<div class="hint">Keine Verbindung gefunden.</div>'; return; }
+    function renderStrFlights(rows, bodySel){
+      bodySel = bodySel || '#strf-body';
+      if(!rows.length){ $(bodySel).innerHTML = '<div class="hint">Keine Verbindung gefunden.</div>'; return; }
       const rowsHtml = rows.map((r,i) => `<tr class="strf-row" onclick="strFlightDetail(${i})" title="Klicken für Flugdetails (Airline, Strecke)">
         <td title="${r.type==='Departure'?'Abflug ab STR':'Ankunft in STR'}">${r.type==='Departure'?'🛫':'🛬'}</td>
         <td>${esc(r.airport_name)} <span class="hint">(${esc(r.airport_code)})</span></td>
@@ -2041,7 +2087,7 @@
         <td>${esc(r.departure)}–${esc(r.arrival)}${r.via?' <span class="hint">via '+esc(r.via)+'</span>':''}</td>
         <td class="hint">${strfMonYear(r.date_from)}–${strfMonYear(r.date_till)}</td>
       </tr>`).join('');
-      $('#strf-body').innerHTML = `<div class="hint" style="margin-bottom:6px">${rows.length} Verbindung${rows.length===1?'':'en'} gefunden — Zeile anklicken für Flugdetails</div>
+      $(bodySel).innerHTML = `<div class="hint" style="margin-bottom:6px">${rows.length} Verbindung${rows.length===1?'':'en'} gefunden — Zeile anklicken für Flugdetails</div>
         <div style="overflow-x:auto"><table class="hist"><tr><th></th><th>Ziel</th><th>Land</th><th>Flug</th><th>Tage</th><th>Zeiten</th><th>Zeitraum</th></tr>${rowsHtml}</table></div>`;
       strfLastRows = rows;
     }
