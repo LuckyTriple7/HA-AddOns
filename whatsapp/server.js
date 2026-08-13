@@ -2093,6 +2093,12 @@ app.get('/', (req, res) => {
     .ack-3 { color: #53bdeb; }
     html.light .ack-1, html.light .ack-2 { color: rgba(0,0,0,0.4); }
     html.light .ack-3 { color: #0a84ff; }
+    /* Optimistisch eingefügte Bubble: sofort sichtbar, aber ausgegraut, bis der
+       Server den Versand bestätigt hat */
+    .bubble-wrap.pending .bubble { opacity: 0.55; }
+    .bubble-wrap.pending .react-btn, .bubble-wrap.pending .fwd-btn,
+    .bubble-wrap.pending .reply-btn { display: none; }
+    .msg-pending { font-size: 11px; margin-left: 3px; vertical-align: middle; opacity: 0.8; }
     .date-sep {
       align-self: center; font-size: 12px; color: #8696a0;
       background: rgba(17,27,33,0.9); border-radius: 8px;
@@ -3159,6 +3165,67 @@ app.get('/', (req, res) => {
       const timeEl = document.createElement('span'); timeEl.className = 'time'; timeEl.innerHTML = fmtTime(m.timestamp) + ack; bub.appendChild(timeEl);
     }
 
+    // ── Optimistische Bubble ────────────────────────────────────────────────────
+    // Eigene Nachricht sofort (ausgegraut) anzeigen, ohne auf die Server-Antwort
+    // zu warten. Nach Erfolg bekommt der Wrap die echte Message-ID — ab dann
+    // greift die Dedupe-Prüfung in renderMessages und der Poll erzeugt keine
+    // zweite Bubble. Bei Fehler wird der Platzhalter wieder entfernt.
+    function addPendingBubble(text, quoted) {
+      const now = Date.now();
+      const noMsg = msgList.querySelector('.empty-msg');
+      if (noMsg) noMsg.remove();
+      const date = fmtDate(now);
+      const lastDate = msgList.querySelector('.date-sep:last-of-type')?.textContent || null;
+      if (date !== lastDate) {
+        const sep = document.createElement('div');
+        sep.className = 'date-sep';
+        sep.textContent = date;
+        msgList.appendChild(sep);
+      }
+      const wrap = document.createElement('div');
+      wrap.className = 'bubble-wrap out pending';
+      wrap.dataset.ts = String(now);
+      const bub = document.createElement('div');
+      bub.className = 'bubble';
+      bub.innerHTML = (quoted ? renderQuotedBlock(quoted) : '')
+        + formatText(text)
+        + '<span class="time">' + fmtTime(now) + '<span class="msg-pending">🕓</span></span>';
+      const bri = document.createElement('div');
+      bri.className = 'bubble-row-inner';
+      bri.appendChild(bub);
+      const reactBtn = document.createElement('button');
+      reactBtn.className = 'react-btn'; reactBtn.title = t('ttReact'); reactBtn.textContent = '😊';
+      bri.appendChild(reactBtn);
+      const fwdBtn = document.createElement('button');
+      fwdBtn.className = 'fwd-btn'; fwdBtn.title = t('ttForward'); fwdBtn.textContent = '↪';
+      bri.appendChild(fwdBtn);
+      const replyBtn = document.createElement('button');
+      replyBtn.className = 'reply-btn'; replyBtn.title = t('ttReply'); replyBtn.textContent = '↩';
+      replyBtn.dataset.contact = t('me');
+      replyBtn.dataset.preview = text.slice(0, 60);
+      bri.appendChild(replyBtn);
+      wrap.appendChild(bri);
+      msgList.appendChild(wrap);
+      atBottom = true;
+      msgList.scrollTop = msgList.scrollHeight;
+      return wrap;
+    }
+
+    function confirmPendingBubble(wrap, msgId) {
+      if (!wrap || !wrap.isConnected) return;
+      // Poll war schneller als die Antwort: echte Bubble ist schon da
+      if (msgList.querySelector('.bubble-wrap[data-msgid="' + msgId + '"]')) { wrap.remove(); return; }
+      wrap.dataset.msgid = msgId;
+      wrap.classList.remove('pending');
+      wrap.querySelectorAll('.react-btn,.fwd-btn,.reply-btn').forEach(b => { b.dataset.msgid = msgId; });
+      const timeEl = wrap.querySelector('.time');
+      if (timeEl) timeEl.innerHTML = fmtTime(Number(wrap.dataset.ts) || Date.now()) + ackMark(1);
+    }
+
+    function dropPendingBubble(wrap) {
+      if (wrap && wrap.isConnected) wrap.remove();
+    }
+
     function renderMessages(msgs, chatId) {
       if (chatId !== selectedChatId) return;
       if (!msgs.length) return;
@@ -3884,25 +3951,42 @@ app.get('/', (req, res) => {
         if (!txt) return;
         hideMentionDropdown();
         const quotedMsgId = _replyMsgId;
+        const quotedPreview = quotedMsgId
+          ? { contact: document.getElementById('reply-bar-sender').textContent,
+              body: document.getElementById('reply-bar-text').textContent }
+          : null;
         clearReply();
         const built = buildMentions(txt);
         _pendingMentions = [];
+        // Eingabefeld sofort leeren + ausgegraute Bubble zeigen; bei Fehler wird
+        // beides zurückgerollt
+        const input = document.getElementById('msg-input');
+        input.value = '';
+        input.style.height = 'auto';
+        const pendingWrap = addPendingBubble(built.text, quotedPreview);
         const endpoint = quotedMsgId ? 'api/reply' : 'api/send';
         const payload = quotedMsgId
           ? { quotedMsgId, chatId: selectedChatId, message: built.text, mentions: built.mentions, displayBody: txt }
           : { to: selectedChatId, message: built.text, mentions: built.mentions, displayBody: txt };
-        const r = await fetch(endpoint, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        }).then(r => r.json());
-        if (r.success) {
-          document.getElementById('msg-input').value = '';
-          document.getElementById('msg-input').style.height = 'auto';
-          atBottom = true;
-          await pollMessages();
-        } else {
-          alert(tf('errSend', r.error));
+        try {
+          const r = await fetch(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          }).then(r => r.json());
+          if (r.success) {
+            confirmPendingBubble(pendingWrap, r.id);
+            atBottom = true;
+            await pollMessages();
+          } else {
+            dropPendingBubble(pendingWrap);
+            input.value = txt;
+            alert(tf('errSend', r.error));
+          }
+        } catch(e) {
+          dropPendingBubble(pendingWrap);
+          input.value = txt;
+          throw e;
         }
       } catch(e) { alert(t('errNetwork')); }
       finally { _sending = false; }

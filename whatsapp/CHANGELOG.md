@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.7.48] - 2026-08-13
+- Neu: **Gesendete Nachrichten erscheinen sofort in der Chat-Ansicht** (optimistisches Rendern). Bisher wurde die Bubble erst gezeichnet, nachdem `client.sendMessage()` den WhatsApp-Web-Roundtrip abgeschlossen hatte und der nächste Poll lief — je nach Verbindung mehrere Sekunden Verzögerung. Jetzt legt `sendMsg()` die Bubble direkt beim Absenden an: ausgegraut (`.bubble-wrap.pending`, 55 % Deckkraft) mit 🕓 statt Häkchen, Eingabefeld wird sofort geleert. Sobald der Server den Versand bestätigt, bekommt der Wrap die echte Message-ID, die Ausgrauung verschwindet und das ✓ erscheint — die Dedupe-Prüfung in `renderMessages()` verhindert dabei eine zweite Bubble aus dem Poll. Schlägt der Versand fehl oder bricht das Netz weg, wird der Platzhalter entfernt und der Text zurück ins Eingabefeld geschrieben. Gilt für normale Nachrichten und Antworten (inkl. Zitat-Block); Medienversand bleibt unverändert
+
 ## [1.7.47.1] - 2026-08-09
 
 chore(deps): bump js-yaml from 4.3.0 to 4.3.1 in /whatsapp
