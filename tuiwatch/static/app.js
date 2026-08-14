@@ -5358,7 +5358,7 @@
         const resp = await fetch(api('/api/ai/prompt-settings'));
         promptCfgData = await resp.json();
       } catch(e){ toast('Laden fehlgeschlagen'); closePromptCfg(); return; }
-      for (const f of ['advisor','compare','summary','daytrip']){
+      for (const f of ['advisor','compare','summary','daytrip','region_compare']){
         const d = promptCfgData[f];
         $(`#promptcfg-${f}-enabled`).checked = d.enabled;
         $(`#promptcfg-${f}-text`).value = (d.enabled && d.text) ? d.text : d.default;
@@ -5372,11 +5372,11 @@
       promptcfgCount(f);
     }
     function promptcfgCount(f){
-      $(`#promptcfg-${f}-count`).textContent = $(`#promptcfg-${f}-text`).value.length + ' / 4000 Zeichen';
+      $(`#promptcfg-${f}-count`).textContent = $(`#promptcfg-${f}-text`).value.length + ' / 6000 Zeichen';
     }
     async function savePromptCfg(){
       const body = {};
-      for (const f of ['advisor','compare','summary','daytrip']){
+      for (const f of ['advisor','compare','summary','daytrip','region_compare']){
         body[f] = { enabled: $(`#promptcfg-${f}-enabled`).checked, text: $(`#promptcfg-${f}-text`).value };
       }
       try {

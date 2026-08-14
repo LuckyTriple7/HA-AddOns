@@ -287,14 +287,21 @@ versteckt, `ai_provider` wird ignoriert).
   bestehende Mehrfachauswahl (Sammelaktionsleiste → „🤖 Vergleichen").
 - **📊 Regionen vergleichen** (Button oben) — bis zu 5 Reiseziele (per Drilldown
   oder Suche, wie beim Ziel-Picker in der Hotelsuche) plus ein Reisemonat
-  auswählen; die KI vergleicht sie in einem Aufruf zu **Wetter** (für den
-  gewählten Monat), **Sicherheit**, **Preisniveau**, **bester Reisezeit**,
-  **Strand/Natur** und **Familien-/Nightlife-Eignung**, mit Vergleichstabelle und
-  kurzem Fazit, für wen welches Ziel im gewählten Monat am besten passt. Die
-  TUI-API liefert für Regionen nur Namen/IDs, keine Wetter-/Sicherheits-/
-  Preisdaten — die recherchiert die KI selbst per Websuche, wie bei
-  Klimatabellen und Reiseführer. Landet im KI-Verlauf als
-  „📊 Regionen-Vergleich", wiederholbar und mit Folgefragen vertiefbar.
+  auswählen; die KI vergleicht sie in einem Aufruf zu **Wetter** (Tages-/
+  Nachttemperaturen, Regentage, Sonnenstunden, Wassertemperatur — für den
+  gewählten Monat, bei klimatisch heterogenen Zielen wie Thailand mit Hinweis
+  auf regionale Unterschiede), **Sicherheit**, **Preisniveau** (Urlaubskosten
+  vor Ort plus aktuelle Pauschalreise-/Hotelpreis-Richtwerte), **bester
+  Reisezeit**, **Strand & Natur**, **Familienfreundlichkeit** und
+  **Nightlife/Party** — jeweils mit 1–5-Punkte-Bewertung, kompakter
+  Vergleichstabelle samt Gesamtbewertung und einem Fazit, welches Ziel für
+  welchen Urlaubstyp am besten passt. Die TUI-API liefert für Regionen nur
+  Namen/IDs, keine Wetter-/Sicherheits-/Preisdaten — die recherchiert die KI
+  selbst per Websuche, wie bei Klimatabellen und Reiseführer, mit Quellen-
+  verweisen zu den Aussagen. Landet im KI-Verlauf als „📊 Regionen-Vergleich",
+  wiederholbar und mit Folgefragen vertiefbar. Der Kriterienkatalog ist wie
+  bei TripPilot/Hotelvergleich über „⚙ KI-Prompts" im Footer editierbar (siehe
+  [Eigene KI-Prompts](#eigene-ki-prompts)).
 - **❓ Frage** (Button oben) — Freitext-Frage, mit **zwei Knöpfen** im Fenster,
   die dieselbe Frage mit unterschiedlichem Kontext verschicken:
   - **📌 Portfolio fragen** — die KI bekommt deine aktuell getrackten Angebote
@@ -475,10 +482,10 @@ Drei Dinge sind wichtig:
 ## Eigene KI-Prompts
 
 Über **⚙ KI-Prompts** im Footer lässt sich der Standard-Instruktionstext für
-**TripPilot**, **Hotelvergleich**, **KI-Fazit** und **Tagesausflug**
-einsehen und über die Checkbox „Eigenen Prompt verwenden" durch einen
-eigenen Text ersetzen (max. 4000 Zeichen, „Zurücksetzen auf Standard"
-jederzeit möglich).
+**TripPilot**, **Hotelvergleich**, **KI-Fazit**, **Tagesausflug** und
+**Regionen-Vergleich** einsehen und über die Checkbox „Eigenen Prompt
+verwenden" durch einen eigenen Text ersetzen (max. 6000 Zeichen,
+„Zurücksetzen auf Standard" jederzeit möglich).
 
 - Bei TripPilot bleiben sicherheitskritische Klauseln (Länder-Ausschluss,
   Reisewarnungs-Check, TUI-Verfügbarkeit, Reise-DNA-Kontext) immer fix

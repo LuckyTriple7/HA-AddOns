@@ -132,3 +132,39 @@ def test_region_compare_supports_followup_questions(m):
     _AI_FOLLOWUP_UNSUPPORTED_KINDS stehen."""
     ai_routes = importlib.import_module("ai_routes")
     assert "region_compare" not in ai_routes._AI_FOLLOWUP_UNSUPPORTED_KINDS
+
+
+# — Editierbarer Prompt (Fußzeile „⚙ KI-Prompts“, wie bei Reiseberater/Hotelvergleich) —
+
+def test_region_compare_is_a_registered_prompt_feature(m):
+    ai_routes = importlib.import_module("ai_routes")
+    assert "region_compare" in ai_routes._PROMPT_FEATURES
+    assert ai_routes._PROMPT_FEATURES["region_compare"] == ai_routes._DEFAULT_REGION_COMPARE_INSTRUCTIONS
+
+
+def test_prompt_settings_lists_region_compare(m, client):
+    d = client.get("/api/ai/prompt-settings").get_json()
+    assert "region_compare" in d
+    assert d["region_compare"]["enabled"] is False
+    assert "Wetter im gewählten Monat" in d["region_compare"]["default"]
+
+
+def test_custom_instructions_are_used_when_enabled(m, client, calls):
+    client.post("/api/ai/prompt-settings", json={
+        "region_compare": {"enabled": True, "text": "Nur diese eine Anweisung."}})
+    _cmp(client, [_ROME, _PALMA], month=6)
+    prompt = calls[-1]["prompt"]
+    assert "Nur diese eine Anweisung." in prompt
+    assert "Wetter im gewählten Monat" not in prompt  # Standardtext wurde ersetzt
+
+
+def test_custom_instructions_use_their_own_cache_bucket(m, client, calls):
+    """Unterschiedlicher Prompt-Text darf nicht denselben Cache-Treffer liefern —
+    sonst bekäme man nach einem Speichern eine veraltete Antwort serviert."""
+    _cmp(client, [_ROME, _PALMA], month=6)
+    assert len(calls) == 1
+    client.post("/api/ai/prompt-settings", json={
+        "region_compare": {"enabled": True, "text": "Andere Anweisung."}})
+    r2 = _cmp(client, [_ROME, _PALMA], month=6)
+    assert r2.get_json()["cached"] is False
+    assert len(calls) == 2

@@ -92,7 +92,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.98.1"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.99.0"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -3612,6 +3612,7 @@ _DAYTRIP_REGION_VALUE = ai_routes._DAYTRIP_REGION_VALUE
 _is_daytrip = ai_routes._is_daytrip
 _region_values = ai_routes._region_values
 _DEFAULT_DAYTRIP_INSTRUCTIONS = ai_routes._DEFAULT_DAYTRIP_INSTRUCTIONS
+_DEFAULT_REGION_COMPARE_INSTRUCTIONS = ai_routes._DEFAULT_REGION_COMPARE_INSTRUCTIONS
 _PROMPT_FEATURES = ai_routes._PROMPT_FEATURES
 _hotel_fact_lines = ai_routes._hotel_fact_lines
 _AI_PRICING = ai_routes._AI_PRICING

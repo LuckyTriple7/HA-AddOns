@@ -882,7 +882,7 @@
         · <span class="hc-foot share-feature" onclick="openShareList()" title="Öffentliche Links verwalten: Aufrufe, Gültigkeit, widerrufen">🔗 Geteilte Links</span>
         · <span class="hc-foot" onclick="backupOffers()" title="Komplettes Backup (Angebote mit Preisverlauf, Meine Reisen inkl. PDF, gespeicherte Suchen) als ZIP">⬇ Backup</span>
         · <span class="hc-foot" onclick="document.getElementById('restore-file').click()" title="Backup wiederherstellen (ZIP oder altes JSON) – ergänzt Fehlendes, überschreibt nichts">⬆ Restore</span></div>
-      <div class="ai-feature"><span class="hc-foot" onclick="openPromptCfg()" title="Eigene KI-Prompt-Vorlagen für TripPilot &amp; Hotelvergleich bearbeiten">⚙ KI-Prompts</span>
+      <div class="ai-feature"><span class="hc-foot" onclick="openPromptCfg()" title="Eigene KI-Prompt-Vorlagen für TripPilot, Hotelvergleich, KI-Fazit, Tagesausflug &amp; Regionen-Vergleich bearbeiten">⚙ KI-Prompts</span>
         <span class="hc-foot ai-feature" id="ai-provider-foot" onclick="toggleAiProvider()" style="display:none" title="Aktiven KI-Anbieter umschalten"></span>
         · <span class="hc-foot ai-feature" id="ai-usage-foot" onclick="openAiHistory()" title="Geschätzte KI-Kosten — kein echtes Guthaben, dauerhaft in der DB gespeichert">…</span></div></footer>
   </div>
@@ -1390,27 +1390,33 @@
 
       <h3 style="margin:14px 0 6px">🗺️ TripPilot</h3>
       <label style="display:flex;align-items:center;gap:6px;font-size:.85rem"><input type="checkbox" id="promptcfg-advisor-enabled"> Eigenen Prompt verwenden</label>
-      <textarea id="promptcfg-advisor-text" class="promptcfg-text" rows="10" maxlength="4000" oninput="promptcfgCount('advisor')" style="margin-top:6px"></textarea>
+      <textarea id="promptcfg-advisor-text" class="promptcfg-text" rows="10" maxlength="6000" oninput="promptcfgCount('advisor')" style="margin-top:6px"></textarea>
       <div class="hint" id="promptcfg-advisor-count" style="text-align:right"></div>
       <button class="btn sec" onclick="promptcfgReset('advisor')" style="margin-top:4px">Zurücksetzen auf Standard</button>
 
       <h3 style="margin:20px 0 6px">🏨 Hotelvergleich</h3>
       <label style="display:flex;align-items:center;gap:6px;font-size:.85rem"><input type="checkbox" id="promptcfg-compare-enabled"> Eigenen Prompt verwenden</label>
-      <textarea id="promptcfg-compare-text" class="promptcfg-text" rows="10" maxlength="4000" oninput="promptcfgCount('compare')" style="margin-top:6px"></textarea>
+      <textarea id="promptcfg-compare-text" class="promptcfg-text" rows="10" maxlength="6000" oninput="promptcfgCount('compare')" style="margin-top:6px"></textarea>
       <div class="hint" id="promptcfg-compare-count" style="text-align:right"></div>
       <button class="btn sec" onclick="promptcfgReset('compare')" style="margin-top:4px">Zurücksetzen auf Standard</button>
 
       <h3 style="margin:20px 0 6px">🤖 KI-Fazit</h3>
       <label style="display:flex;align-items:center;gap:6px;font-size:.85rem"><input type="checkbox" id="promptcfg-summary-enabled"> Eigenen Prompt verwenden</label>
-      <textarea id="promptcfg-summary-text" class="promptcfg-text" rows="10" maxlength="4000" oninput="promptcfgCount('summary')" style="margin-top:6px"></textarea>
+      <textarea id="promptcfg-summary-text" class="promptcfg-text" rows="10" maxlength="6000" oninput="promptcfgCount('summary')" style="margin-top:6px"></textarea>
       <div class="hint" id="promptcfg-summary-count" style="text-align:right"></div>
       <button class="btn sec" onclick="promptcfgReset('summary')" style="margin-top:4px">Zurücksetzen auf Standard</button>
 
       <h3 style="margin:20px 0 6px">🚗 Tagesausflug</h3>
       <label style="display:flex;align-items:center;gap:6px;font-size:.85rem"><input type="checkbox" id="promptcfg-daytrip-enabled"> Eigenen Prompt verwenden</label>
-      <textarea id="promptcfg-daytrip-text" class="promptcfg-text" rows="10" maxlength="4000" oninput="promptcfgCount('daytrip')" style="margin-top:6px"></textarea>
+      <textarea id="promptcfg-daytrip-text" class="promptcfg-text" rows="10" maxlength="6000" oninput="promptcfgCount('daytrip')" style="margin-top:6px"></textarea>
       <div class="hint" id="promptcfg-daytrip-count" style="text-align:right"></div>
       <button class="btn sec" onclick="promptcfgReset('daytrip')" style="margin-top:4px">Zurücksetzen auf Standard</button>
+
+      <h3 style="margin:20px 0 6px">📊 Regionen-Vergleich</h3>
+      <label style="display:flex;align-items:center;gap:6px;font-size:.85rem"><input type="checkbox" id="promptcfg-region_compare-enabled"> Eigenen Prompt verwenden</label>
+      <textarea id="promptcfg-region_compare-text" class="promptcfg-text" rows="10" maxlength="6000" oninput="promptcfgCount('region_compare')" style="margin-top:6px"></textarea>
+      <div class="hint" id="promptcfg-region_compare-count" style="text-align:right"></div>
+      <button class="btn sec" onclick="promptcfgReset('region_compare')" style="margin-top:4px">Zurücksetzen auf Standard</button>
 
       <div style="margin-top:16px;text-align:right">
         <button class="btn" onclick="savePromptCfg()">Speichern</button>

@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.99.0] - 2026-08-14
+
+### Added
+- **Regionen-Vergleich-Prompt überarbeitet und editierbar**: der Kriterienkatalog
+  ist deutlich ausführlicher (Tages-/Nachttemperaturen, Regentage, Sonnenstunden,
+  Wassertemperatur, Hinweis auf klimatisch heterogene Ziele wie Thailand,
+  differenziertere Sicherheits-/Preis-/Familien-/Nightlife-Kriterien, 1–5-Punkte-
+  Skala je Kriterium samt Gesamtbewertung ohne reinen Zahlen-Durchschnitt,
+  Quellenverweise, strukturiertes Fazit). Wie bei TripPilot/Hotelvergleich/
+  KI-Fazit/Tagesausflug jetzt über „⚙ KI-Prompts“ im Footer als eigener Abschnitt
+  editierbar (`region_compare` in `_PROMPT_FEATURES`) — Zielliste und Monat
+  bleiben feste Fakten, der Kriterienteil ist der anpassbare Instruktionsblock,
+  eigener Cache-Bucket je Instruktions-Hash. Zeichenlimit für eigene Prompt-Texte
+  dafür von 4000 auf 6000 angehoben (der neue Standardtext allein braucht schon
+  knapp 4000). `max_tokens` der Route auf 8192 erhöht für die ausführlichere
+  Antwort.
+
 ## [0.98.1] - 2026-08-14
 
 ### Added
