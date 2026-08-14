@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.94.2] - 2026-08-14
+
+### Added
+- **Regionen vergleichen**: neuer 📊-Button im Header neben Frage/Klimatabellen/
+  Reiseführer — bis zu 5 Reiseziele (per Drilldown oder Suche, wie im bestehenden
+  Ziel-Picker) plus ein Reisemonat auswählen, die KI vergleicht sie dann in einem
+  Aufruf zu Wetter (fürs gewählte Monat), Sicherheit, Preisniveau, bester
+  Reisezeit, Strand/Natur und Familien-/Nightlife-Eignung, mit Fazit und
+  Vergleichstabelle — analog zum bestehenden Hotel-Vergleich, neue Route
+  `POST /api/ai/region-compare`, im KI-Verlauf als „📊 Regionen-Vergleich"
+  gespeichert (`kind='region_compare'`), inkl. Wiederholen/Follow-up-Fragen.
+
 ## [0.94.1] - 2026-08-13
 
 ### Added

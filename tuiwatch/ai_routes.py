@@ -2239,6 +2239,90 @@ def api_ai_hotel_compare():
     return jsonify({'summary': text, 'usage': usage, 'totals': totals, 'id': aid, 'cached': False})
 
 
+# Kein gemeinsames Util fürs Add-on vorhanden — jedes Modul, das Monatsnamen braucht,
+# definiert sie separat (email_search.py, price_calendar.py, market_basket.py).
+_MONTHS_DE = ('Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August',
+              'September', 'Oktober', 'November', 'Dezember')
+
+
+def _region_compare_prompt(regions: list[dict], month: str) -> str:
+    """Baut den Regionen-Vergleichs-Prompt: Zielliste + fester Kriterienkatalog für
+    den gewählten Reisemonat."""
+    names = "\n".join(f"{i}. {r['label']}" for i, r in enumerate(regions, 1))
+    return (
+        f"Vergleiche die folgenden Reiseziele für eine Reise im {month} — als "
+        "Reiseentscheidungshilfe:\n\n" + names + "\n\n"
+        "Bewerte jedes Ziel zu folgenden Kriterien und fasse das Ergebnis am Ende "
+        "in einer Markdown-Vergleichstabelle zusammen (eine Spalte je Ziel):\n\n"
+        f"- **Wetter im {month}**: typische Temperaturen, Niederschlag/Regenwahrscheinlichkeit, "
+        "Wassertemperatur (falls relevant) — Klima-Normalwerte, keine Einzelvorhersage\n"
+        "- **Sicherheit**: aktuelle Reise-/Sicherheitshinweise, allgemeines Sicherheitsniveau "
+        "für Touristen\n"
+        "- **Preisniveau**: geschätztes allgemeines Preisniveau vor Ort (Essen, Nahverkehr, "
+        "Aktivitäten) UND aktuelle Pauschalreise-/Hotelpreise für diese Region — recherchiere "
+        "im Web nach aktuellen Richtwerten\n"
+        f"- **Beste Reisezeit**: die klimatisch/saisonal beste Reisezeit fürs Ziel insgesamt, "
+        f"und wie gut der {month} im Vergleich dazu abschneidet\n"
+        "- **Strand/Natur**: Qualität von Strand, Natur, Landschaft\n"
+        "- **Familien-/Nightlife-Eignung**: getrennt bewerten — wie gut geeignet für Familien "
+        "mit Kindern, wie gut für Nachtleben/Party\n\n"
+        "Am Ende: ein kurzes Fazit/Empfehlung (2-4 Sätze) — für wen welches Ziel im "
+        f"{month} am besten passt."
+    )
+
+
+@bp.route('/api/ai/region-compare', methods=['POST'])
+def api_ai_region_compare():
+    """Vergleicht 2–5 Reiseziele/Regionen für einen gewählten Monat: Wetter,
+    Sicherheit, Preisniveau, beste Reisezeit, Strand/Natur, Familien-/
+    Nightlife-Eignung, kurzes Fazit — als Markdown inkl. Vergleichstabelle, wie
+    beim Hotelvergleich (api_ai_hotel_compare), aber mit Websuche für aktuelle
+    Preis-/Sicherheitsinfos statt neuer TUI-Hotelsuche (Regionen liefert die
+    TUI-API nur als {giata, label, level} ohne Wetter-/Sicherheits-/Preisdaten)."""
+    if (err := A._require_api()):
+        return err
+    api_key, model = _ai_config()
+    if not api_key:
+        return jsonify({'error': 'no_api_key',
+                        'note': 'Kein Anthropic API-Key in den Add-on-Einstellungen hinterlegt'}), 400
+    data = request.get_json(silent=True) or {}
+    regions = [r for r in (data.get('regions') or [])
+               if isinstance(r, dict) and (r.get('label') or '').strip()][:5]
+    if len(regions) < 2:
+        return jsonify({'error': 'invalid'}), 400
+    try:
+        month_num = int(data.get('month'))
+        assert 1 <= month_num <= 12
+    except (TypeError, ValueError, AssertionError):
+        return jsonify({'error': 'invalid'}), 400
+    month_label = _MONTHS_DE[month_num - 1]
+
+    cache_key = ('regcmp:' + str(month_num) + ':'
+                 + '|'.join(sorted(str(r.get('giata') or (r.get('label') or '').lower())
+                                    for r in regions)))
+    with A._ai_cache_lock:
+        cached = A._ai_summary_cache.get(cache_key)
+    if cached and time.time() - cached['ts'] < A._AI_SUMMARY_TTL:
+        return jsonify({'summary': cached['summary'], 'usage': cached.get('usage'),
+                        'totals': _ai_usage_totals(), 'id': cached.get('id'), 'cached': True})
+
+    prompt = _region_compare_prompt(regions, month_label)
+    if (preview := _prompt_preview_response(data, prompt)):
+        return preview
+    prompt = _resolve_prompt(data, prompt)
+    text, usage, err = A._ai_call(api_key, model, prompt, max_tokens=6144,
+                                log_ctx=f"Regionen-Vergleich {len(regions)} Ziele ({month_label})")
+    if err:
+        return err
+    usage['estimated_usd'] = _ai_call_cost(model, usage)
+    totals = _record_ai_usage(model, usage)
+    title = ' · '.join(r.get('label', '') for r in regions) + ' · ' + month_label
+    aid = _save_ai_analysis('region_compare', title, model, text, usage, prompt)
+    with A._ai_cache_lock:
+        A._ai_summary_cache[cache_key] = {'summary': text, 'usage': usage, 'id': aid, 'ts': time.time()}
+    return jsonify({'summary': text, 'usage': usage, 'totals': totals, 'id': aid, 'cached': False})
+
+
 def _ai_md_to_html(text: str) -> str:
     """Sehr einfacher Markdown→HTML-Renderer fürs E-Mail-Layout (Überschriften,
     Listen, Tabellen, **fett**) — spiegelt die JS-Variante `aiMdLite` im Frontend."""
@@ -2407,6 +2491,7 @@ _AI_RETRY_MARKDOWN_CONFIG = {
     'search_advice': {'max_tokens': 2500, 'use_web_search': True},
     'advisor': {'max_tokens': 3072, 'use_web_search': True},
     'compare': {'max_tokens': 6144, 'use_web_search': True},
+    'region_compare': {'max_tokens': 6144, 'use_web_search': True},
 }
 
 

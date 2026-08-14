@@ -2456,6 +2456,7 @@
       ['syslog-bg', closeSyslog],
       ['aihist-bg', closeAiHistory],
       ['aiask-bg', closeAiAsk],
+      ['regcmp-bg', closeRegionCompare],
       ['reiseb-bg', closeAdvisor],
       ['hc-bg', () => $('#hc-bg').classList.remove('show')],
       ['promptcfg-bg', closePromptCfg],
@@ -4945,6 +4946,137 @@
     function closeAiSummary(){ $('#ai-bg').classList.remove('show'); _aiRetryFn = null; }
     $('#ai-bg').addEventListener('click', e=>{ if(e.target.id==='ai-bg') closeAiSummary(); });
 
+    // ── Regionen vergleichen (KI) ──────────────────────────────────────────
+    // Eigener Drilldown-Zustand, getrennt von destStack/destData/destNode (Suchmaske)
+    let regcmpSelected = [];   // [{giata,label}, …] max. 5, Reihenfolge = Auswahlreihenfolge
+    let regcmpStack = [], regcmpNode = null, regcmpData = null;
+
+    function openRegionCompare(){
+      regcmpSelected = [];
+      $('#regcmp-panel').style.display = 'none';
+      if(!$('#regcmp-month').options.length){
+        $('#regcmp-month').innerHTML = MONTHS_DE.map((m,i)=>`<option value="${i+1}">${m}</option>`).join('');
+        $('#regcmp-month').value = new Date().getMonth()+1;  // aktueller Monat vorausgewählt
+      }
+      renderRegcmpChosen();
+      $('#regcmp-bg').classList.add('show');
+    }
+    function closeRegionCompare(){ $('#regcmp-bg').classList.remove('show'); }
+    $('#regcmp-bg').addEventListener('click', e=>{ if(e.target.id==='regcmp-bg') closeRegionCompare(); });
+
+    async function regcmpOpenPicker(){
+      const p = $('#regcmp-panel'); p.style.display = 'block';
+      p.innerHTML = '<div class="cmp-load">Lade Reiseziele…</div>';
+      regcmpStack = []; regcmpNode = null;
+      regcmpData = await loadDest(null);
+      if(!regcmpData){ p.innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Reiseziele nicht abrufbar.</div>'; return; }
+      renderRegcmpPicker();
+    }
+    function renderRegcmpPicker(){
+      const p = $('#regcmp-panel');
+      const back = regcmpStack.length?'<button class="btn sec" onclick="regcmpBack()">‹ zurück</button>':'';
+      const title = regcmpNode?('<b>'+esc(regcmpNode.label)+'</b>'):'<b>Ziel wählen</b>';
+      const whole = regcmpNode?(`<button class="btn" onclick="regcmpPick(${regcmpNode.giata}, '${jsArg(regcmpNode.label)}')">✓ Ganze Region wählen</button>`):'';
+      p.innerHTML = `<div class="dest-head">${back}${title}${whole}
+          <span style="flex:1"></span><button class="btn sec" onclick="$('#regcmp-panel').style.display='none'">schließen</button></div>
+        <input type="text" id="regcmp-search" class="dest-search" placeholder="Reiseziel suchen…" autocomplete="off" oninput="regcmpSearch()">
+        <div id="regcmp-rows"></div>`;
+      regcmpRenderRows();
+      const si = $('#regcmp-search'); if(si) si.focus();
+    }
+    function regcmpRenderRows(){
+      const q = ($('#regcmp-search')?$('#regcmp-search').value:'').trim().toLowerCase();
+      const items = (regcmpData.items||[]).filter(it => !q || (it.label||'').toLowerCase().includes(q));
+      const rows = items.map(it=>
+        `<div class="dest-row" onclick="regcmpDrill(${it.giata}, '${jsArg(it.label)}')">
+           <span>${esc(it.label)}</span>
+           <span><button class="btn sec" onclick="event.stopPropagation();regcmpPick(${it.giata}, '${jsArg(it.label)}')">wählen</button> <span class="chev">›</span></span>
+         </div>`).join('');
+      const box = $('#regcmp-rows'); if(box) box.innerHTML = rows ||
+        `<div class="cmp-load">${q?'Kein Treffer für „'+esc(q)+'".':'Keine Unterregionen.'}</div>`;
+    }
+    let regcmpSearchTimer = null, regcmpSearchToken = 0;
+    function regcmpSearch(){
+      const q = ($('#regcmp-search')?$('#regcmp-search').value:'').trim();
+      clearTimeout(regcmpSearchTimer);
+      if(q.length < 2){ regcmpRenderRows(); return; }
+      regcmpSearchTimer = setTimeout(async ()=>{
+        const token = ++regcmpSearchToken;
+        const box = $('#regcmp-rows'); if(box) box.innerHTML = '<div class="cmp-load">Suche…</div>';
+        let d=null;
+        try { d = await fetch(api('/api/destinations/search?q='+encodeURIComponent(q))).then(r=>r.json()); } catch(e){}
+        if(token !== regcmpSearchToken || !box) return;
+        if(!d){ box.innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Suche fehlgeschlagen.</div>'; return; }
+        if(!d.ready && d.building){ box.innerHTML = '<div class="cmp-load">Reiseziel-Index wird aufgebaut – einen Moment…</div>'; return; }
+        const items = d.items||[];
+        box.innerHTML = items.map(it=>
+          `<div class="dest-row" onclick="regcmpPick(${it.giata}, '${jsArg(it.label)}')">
+             <span>${esc(it.label)}${it.path?(' <span class="chev" style="font-weight:400;font-size:.82em">— '+esc(it.path)+'</span>'):''}</span>
+             <span><button class="btn sec" onclick="event.stopPropagation();regcmpPick(${it.giata}, '${jsArg(it.label)}')">wählen</button></span>
+           </div>`).join('') || `<div class="cmp-load">Kein Treffer für „${esc(q)}".</div>`;
+      }, 250);
+    }
+    async function regcmpDrill(giata, label){
+      const sub = await loadDest(giata);
+      if(!sub || !(sub.items&&sub.items.length)){ regcmpPick(giata, label); return; }
+      regcmpStack.push({node:regcmpNode, data:regcmpData});
+      regcmpNode = {giata, label}; regcmpData = sub; renderRegcmpPicker();
+    }
+    function regcmpBack(){ const prev=regcmpStack.pop(); if(!prev) return; regcmpNode=prev.node; regcmpData=prev.data; renderRegcmpPicker(); }
+    function regcmpPick(giata, label){
+      if(regcmpSelected.some(r=>r.giata===giata)){ toast('Bereits ausgewählt'); return; }
+      if(regcmpSelected.length >= 5){ toast('Maximal 5 Ziele für den Vergleich'); return; }
+      regcmpSelected.push({giata, label});
+      $('#regcmp-panel').style.display = 'none';
+      renderRegcmpChosen();
+    }
+    function regcmpRemove(giata){
+      regcmpSelected = regcmpSelected.filter(r=>r.giata!==giata);
+      renderRegcmpChosen();
+    }
+    function renderRegcmpChosen(){
+      $('#regcmp-chosen').innerHTML = regcmpSelected.map(r=>
+        `<span class="tag-pill" onclick="regcmpRemove(${r.giata})" title="Entfernen">${esc(r.label)} ×</span>`).join('');
+      $('#regcmp-add-btn').disabled = regcmpSelected.length >= 5;
+      $('#regcmp-hint').textContent = regcmpSelected.length < 2
+        ? 'Mindestens 2 Ziele wählen.' : regcmpSelected.length + ' von 5 Zielen gewählt.';
+      $('#regcmp-submit').disabled = regcmpSelected.length < 2;
+    }
+    async function submitRegionCompare(){
+      if(regcmpSelected.length < 2){ toast('Bitte mindestens 2 Ziele auswählen'); return; }
+      const regions = regcmpSelected.slice();
+      const month = parseInt($('#regcmp-month').value, 10);
+      const monthLabel = MONTHS_DE[month-1];
+      closeRegionCompare();
+      $('#ai-title').textContent = '📊 Regionen-Vergleich';
+      $('#ai-sub').textContent = regions.map(r=>r.label).join(' · ') + ' · ' + monthLabel;
+      $('#ai-foot').style.display = 'none';
+      $('#ai-bg').classList.add('show');
+      const cacheKey = 'regcmp:' + month + ':' + regions.map(r=>r.giata).sort((a,b)=>a-b).join('|');
+      if(_aiCompareCache[cacheKey]){ renderAiResult('#ai-body', _aiCompareCache[cacheKey]); return; }
+      const attempt = async () => {
+        await ensureAiProviderLoaded();
+        const busy = aiProviderName()+' vergleicht '+regions.length+' Ziele für '+monthLabel+' und durchsucht das Web…';
+        $('#ai-body').innerHTML = progBar(busy);
+        let resp, d;
+        try {
+          const r = await aiFetchPreviewable(api('/api/ai/region-compare'), {method:'POST', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({regions, month})}, busy);
+          if(r.cancelled) return;
+          resp = r.resp; d = r.d;
+        } catch(e){ _aiRetryFn = attempt; $('#ai-body').innerHTML = aiErrorBlock('Regionen-Vergleich fehlgeschlagen.', true); return; }
+        if(!resp.ok){
+          const retryable = aiRetryable(d.error);
+          _aiRetryFn = retryable ? attempt : null;
+          $('#ai-body').innerHTML = aiErrorBlock(aiErrorMsg(d.error), retryable);
+          return;
+        }
+        _aiCompareCache[cacheKey] = d;
+        renderAiResult('#ai-body', d);
+      };
+      attempt();
+    }
+
     // ── KI-Verlauf (dauerhaft gespeicherte Fazits/Vergleiche) ─────────────────
     let _aiHistItems = [];
     // ── Meldungen & Fehler (Footer „🔔 Meldungen") ─────────────────────────────
@@ -5148,6 +5280,7 @@
         : kind==='search_advice' ? '🤖 Reisezeit-Check'
         : kind==='advisor' ? '🗺️ TripPilot' : kind==='booking_score' ? '🔮 Buchungsscore'
         : kind==='region_outlook' ? '🔮 Region-Ausblick'
+        : kind==='region_compare' ? '📊 Regionen-Vergleich'
         : kind==='calendar_outlook' ? '📅 Kalender-Analyse' : '🤖 Fazit';
     }
     function renderAiHistory(items){

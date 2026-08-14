@@ -284,6 +284,16 @@ versteckt, `ai_provider` wird ignoriert).
   Empfehlung, welches Hotel für wen (Familie, Paar, Party, Ruhe …) am besten passt.
   Genau dieselbe Funktion gibt es auch in der **Angebotsübersicht** über die
   bestehende Mehrfachauswahl (Sammelaktionsleiste → „🤖 Vergleichen").
+- **📊 Regionen vergleichen** (Button oben) — bis zu 5 Reiseziele (per Drilldown
+  oder Suche, wie beim Ziel-Picker in der Hotelsuche) plus ein Reisemonat
+  auswählen; die KI vergleicht sie in einem Aufruf zu **Wetter** (für den
+  gewählten Monat), **Sicherheit**, **Preisniveau**, **bester Reisezeit**,
+  **Strand/Natur** und **Familien-/Nightlife-Eignung**, mit Vergleichstabelle und
+  kurzem Fazit, für wen welches Ziel im gewählten Monat am besten passt. Die
+  TUI-API liefert für Regionen nur Namen/IDs, keine Wetter-/Sicherheits-/
+  Preisdaten — die recherchiert die KI selbst per Websuche, wie bei
+  Klimatabellen und Reiseführer. Landet im KI-Verlauf als
+  „📊 Regionen-Vergleich", wiederholbar und mit Folgefragen vertiefbar.
 - **❓ Frage** (Button oben) — Freitext-Frage, mit **zwei Knöpfen** im Fenster,
   die dieselbe Frage mit unterschiedlichem Kontext verschicken:
   - **📌 Portfolio fragen** — die KI bekommt deine aktuell getrackten Angebote
