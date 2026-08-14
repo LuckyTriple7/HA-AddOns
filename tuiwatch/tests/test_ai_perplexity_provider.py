@@ -343,3 +343,55 @@ def test_history_repeat_accepts_perplexity_provider(app_mod, monkeypatch):
     r = c.post("/api/ai/history/1/repeat", headers=ING, json={"provider": "perplexity"})
     assert r.status_code == 200
     assert r.get_json()["summary"] == "Neue Antwort"
+
+
+def test_perplexity_prefers_the_longer_source_list(app_mod, monkeypatch):
+    """Welche der beiden Listen vollständiger ist, schwankt je nach Modell und
+    Anfrage. Ist `citations` länger, muss sie gewinnen — sonst bliebe alles über
+    der Länge von `search_results` unverlinkt, obwohl die URL vorliegt."""
+    _patch_requests(monkeypatch, _FakeResponse(payload=_chat_payload(
+        text="Vergleich.[1][3]",
+        search_results=[{"url": "https://kurz.example/1"}],
+        citations=["https://lang.example/1", "https://lang.example/2",
+                   "https://lang.example/3"])))
+    text, _usage, _err = app_mod._ai_request("p-key", "sonar-pro", "Prompt",
+                                             max_tokens=200, log_ctx="Test")
+    assert text == "Vergleich.[1](https://lang.example/1)[3](https://lang.example/3)"
+
+
+def test_perplexity_keeps_the_richer_list_when_equally_long(app_mod, monkeypatch):
+    """Bei Gleichstand bleibt `search_results` die Quelle — sonst würde eine
+    identisch lange `citations`-Liste die reichere Struktur grundlos verdrängen."""
+    _patch_requests(monkeypatch, _FakeResponse(payload=_chat_payload(
+        text="Text.[1]",
+        search_results=[{"url": "https://reich.example/1"}],
+        citations=["https://nackt.example/1"])))
+    text, _usage, _err = app_mod._ai_request("p-key", "sonar-pro", "Prompt",
+                                             max_tokens=200, log_ctx="Test")
+    assert text == "Text.[1](https://reich.example/1)"
+
+
+def test_perplexity_logs_how_many_markers_stayed_unlinked(app_mod, monkeypatch, caplog):
+    """Ohne diese Zeile im Log wäre nicht zu unterscheiden, ob die Verlinkung
+    kaputt ist oder die gelieferte Quellenliste schlicht zu kurz war."""
+    _patch_requests(monkeypatch, _FakeResponse(payload=_chat_payload(
+        text="Nightlife.[9][58][74]", citations=["https://x.example"] * 10)))
+    with caplog.at_level("INFO"):
+        text, _usage, _err = app_mod._ai_request("p-key", "sonar", "Prompt",
+                                                 max_tokens=200, log_ctx="Regionen-Vergleich")
+    assert "[58]" in text and "[74]" in text, "unauflösbare Marker bleiben unverändert"
+    msg = " ".join(r.getMessage() for r in caplog.records)
+    assert "2 Zitat-Nummern ohne Quelle" in msg and "höchste: 74" in msg
+
+
+def test_perplexity_structured_output_passes_the_longer_list(app_mod, monkeypatch):
+    """Bei Structured Output werden die URLs nur durchgereicht (verlinkt wird erst
+    nach dem Parsen) — dieselbe Auswahlregel muss auch dort gelten."""
+    schema = {"type": "object", "properties": {"score": {"type": "integer"}},
+              "required": ["score"], "additionalProperties": False}
+    _patch_requests(monkeypatch, _FakeResponse(payload=_chat_payload(
+        text='{"score": 1}', search_results=[{"url": "https://kurz.example/1"}],
+        citations=["https://a.example", "https://b.example"])))
+    _text, usage, _err = app_mod._ai_request("p-key", "sonar", "Prompt", max_tokens=200,
+                                             log_ctx="Test", output_schema=schema)
+    assert usage["citation_urls"] == ["https://a.example", "https://b.example"]

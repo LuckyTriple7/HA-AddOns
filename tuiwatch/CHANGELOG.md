@@ -1,5 +1,47 @@
 # Changelog
 
+## [0.100.2] - 2026-08-14
+
+### Changed
+- **Markttrend-Sensor: Attribute drastisch verschlankt.** Je Region und Messreihe
+  standen dort die vollständigen `trend`- und `index`-Objekte, seit dem Tiefpunkt-
+  Archiv zusätzlich `signal` (mit allen Ampel-Komponenten), `level` und `trough` —
+  bei einem Dutzend Messreihen sprengte das Home Assistants Grenze von 16384 Bytes
+  für State-Attribute. Der Sensor wäre dabei nicht sichtbar kaputtgegangen, sondern
+  kommentarlos auf dem alten Wert eingefroren. Jetzt je Zeile nur noch `region`,
+  `pct`, `dir`, `days`, `index` und ggf. `ampel`/`days_to_dep`; `attrs.basket.by_region`
+  heißt jetzt schlicht `baskets`, das Attribut `booking` (volle Signal-Objekte) ist
+  entfallen, `booking_curve` auf Fenster + Prozent gekürzt und um Fenster ohne Daten
+  bereinigt. Die vollständigen Daten liefern unverändert `/api/market-trend`,
+  `/api/market-basket`, `/api/booking-window` und `/api/booking-troughs`.
+- Zusätzlich eine Notbremse: passt es trotzdem nicht, werden `baskets`, `by_region`
+  und zuletzt `booking_curve` weggelassen, im Attribut `truncated` benannt und im Log
+  gemeldet — statt den State stillschweigend verfallen zu lassen.
+
+### Fixed
+- **Späte KI-Antwort überschrieb das offene Fenster.** Wer eine langlaufende Anfrage
+  (Regionen-Vergleich mit Websuche: gern 30–60 s) mit dem ✕ schloss und danach eine
+  andere KI-Funktion öffnete, bekam beim Eintreffen der ersten Antwort deren Ergebnis
+  ins offene Fenster geschrieben. Schwerer als die Optik wog `aiCurrentId`, das dabei
+  mitgesetzt wurde: „per E-Mail senden" hätte eine andere Analyse verschickt als die
+  angezeigte. Jetzt hat jedes geöffnete KI-Fenster eine Generationsnummer; Antworten
+  einer älteren Generation werden verworfen. Betrifft alle elf KI-Aufrufe samt
+  Folgefrage und Verlaufs-Ansicht.
+  - Die Anfrage wird bewusst **nicht** abgebrochen: sie ist ohnehin bezahlt, läuft
+    serverseitig zu Ende und landet im KI-Verlauf und im 24-Stunden-Zwischenspeicher.
+    Derselbe Vergleich kommt danach sofort und kostenlos zurück. Beim Regionen- und
+    Hotel-Vergleich wird das Ergebnis auch dann noch im Browser zwischengespeichert,
+    wenn das Fenster längst zu ist.
+- **Nicht anklickbare Quellen-Nummern im Regionen-Vergleich.** Perplexity nummeriert
+  bei vielen Suchanfragen gegen eine größere interne Quellenmenge, als es in der
+  Antwort zurückgibt — `[9]` war verlinkt, `[58]` blieb toter Text. Zwei Änderungen:
+  von `search_results` und `citations` wird jetzt die **längere** Liste benutzt (welche
+  vollständiger ist, schwankt je nach Modell), und Nummern ohne Quelle stehen nicht
+  mehr wie ein kaputter Link da, sondern gedämpft mit Tooltip („Quellenangabe ohne
+  Link — die KI hat dazu keine URL mitgeliefert"). Geraten wird nichts: ein Link auf
+  die falsche Quelle wäre schlimmer als gar keiner. Wie viele Marker unverlinkt
+  blieben, steht jetzt im Log.
+
 ## [0.100.1] - 2026-08-14
 
 ### Fixed

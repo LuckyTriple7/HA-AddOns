@@ -9,6 +9,14 @@
   // ai_client.py::_perplexity_linkify_citations); läuft vor **bold**, damit ein
   // Fettdruck rund um eine Zitat-Klammer die Link-Erkennung nicht stört.
   function aiInline(s){
+    // Reihenfolge zählt: zuerst die NACKTEN Marker (die ohne URL) abfangen, sonst
+    // träfe das zweite Muster gleich wieder die Zahl innerhalb des eben gebauten
+    // <a>-Elements und legte die Ausgegraut-Optik über einen funktionierenden Link.
+    // Nackt bleiben sie, wenn die KI mehr Quellen durchnummeriert hat, als sie in
+    // der Antwort mitliefert (Perplexity bei vielen Suchanfragen) — dann sind sie
+    // eben kein Link, sollen aber auch nicht wie kaputter Text dastehen.
+    s = s.replace(/\[(\d+)\](?!\()/g,
+      '<span class="ai-cite-dead" title="Quellenangabe ohne Link — die KI hat dazu keine URL mitgeliefert">[$1]</span>');
     s = s.replace(/\[(\d+)\]\((https?:\/\/[^\s")]+)\)/g,
       '<a href="$2" target="_blank" rel="noopener" class="ai-cite">[$1]</a>');
     return s.replace(/\*\*(.+?)\*\*/g,'<b>$1</b>');

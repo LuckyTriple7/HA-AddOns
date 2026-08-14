@@ -787,11 +787,23 @@ Angeboten) sowie die vollständigen Zweige `offers` und `basket`. Ist die
 Buchungszeitpunkt-Ampel aktiv, kommen `booking_ampel`/`booking_score`/`booking_region`/
 `booking_days_to_dep`/`booking_expected_pct` (jeweils für die Messreihe mit dem
 kürzesten Vorlauf — die dringendste Entscheidung), `booking_green` (alle Messreihen
-auf grün) sowie `booking` und `booking_curve` in voller Länge dazu. Gibt es genug
+auf grün) sowie `booking_curve` (Fenster + Prozent) dazu. Gibt es genug
 abgeschlossene Messreihen, kommen zusätzlich `trough_median_days`, `trough_p25_days`,
 `trough_p75_days`, `trough_samples` und `trough_median_gain` — der beobachtete
 Tiefpunkt, unabhängig davon, ob gerade eine Ampel leuchtet. Siehe unten
 „Markttrend".
+
+**Die Attribute sind bewusst flach.** Je Region bzw. Messreihe stehen dort nur
+`region`, `pct`, `dir`, `days`, `index` und — falls vorhanden — `ampel` und
+`days_to_dep` (`by_region` für die eigenen Angebote, `baskets` für das
+Preisbarometer). Home Assistant verwirft einen State, dessen Attribute serialisiert
+16384 Bytes überschreiten: der Sensor friert dann kommentarlos auf dem alten Wert
+ein. Die vollständigen Trend-, Index-, Ampel- und Tiefpunkt-Objekte je Messreihe
+stehen deshalb nicht im Sensor, sondern unter `/api/market-trend`,
+`/api/market-basket`, `/api/booking-window` und `/api/booking-troughs`. Reicht der
+Platz trotzdem nicht (sehr viele Messreihen), lässt das Add-on `baskets`,
+`by_region` und zuletzt `booking_curve` weg, nennt das Weggelassene im Attribut
+`truncated` und schreibt eine Warnung ins Log — statt still zu scheitern.
 
 ## Markttrend
 

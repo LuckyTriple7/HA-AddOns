@@ -23,26 +23,51 @@ _PERPLEXITY_API_URL = "https://api.perplexity.ai/chat/completions"
 _PERPLEXITY_CITATION_RE = re.compile(r'\[(\d+)\](?!\()')
 
 
-def _perplexity_linkify_citations(text: str, data: dict) -> str:
+def _perplexity_citation_urls(data: dict) -> list:
+    """Quellenliste einer Perplexity-Antwort, 1-basiert indiziert.
+
+    `search_results` ist die reichere Struktur (mit Titel/Datum), `citations` die
+    nackte URL-Liste — welche von beiden die **längere** ist, schwankt je nach
+    Modell und Anfrage. Genommen wird deshalb die längere: die Zitat-Nummern im
+    Text zählen gegen die vollständige Quellenmenge, und mit der kürzeren Liste
+    bliebe alles darüber unverlinkt."""
+    urls = [r.get('url') for r in (data.get('search_results') or [])
+            if isinstance(r, dict) and r.get('url')]
+    cites = [u for u in (data.get('citations') or []) if u]
+    return cites if len(cites) > len(urls) else urls
+
+
+def _perplexity_linkify_citations(text: str, data: dict, *, log_ctx: str = '') -> str:
     """Ersetzt Perplexitys nackte Zitat-Marker `[1]`/`[5]` im Fließtext durch
-    Markdown-Links `[1](url)` auf die zugehörige Quelle aus `search_results`
-    (bevorzugt) bzw. `citations` — macht sie im Frontend (aiMdLite/aiInline)
-    anklickbar statt als toter Text stehen zu bleiben. Nummerierung ist
-    1-basiert wie im Original; Zahlen ohne passende Quelle (außerhalb der
-    Liste) bleiben unverändert. `(?!\\()` verhindert Doppel-Verlinkung, falls
-    im Text ausnahmsweise schon `[n](url)` steht."""
-    search_results = data.get('search_results') or []
-    urls = [r.get('url') for r in search_results if isinstance(r, dict) and r.get('url')]
-    if not urls:
-        urls = [u for u in (data.get('citations') or []) if u]
+    Markdown-Links `[1](url)` auf die zugehörige Quelle — macht sie im Frontend
+    (aiMdLite/aiInline) anklickbar statt als toter Text stehen zu bleiben.
+    Nummerierung ist 1-basiert wie im Original. `(?!\\()` verhindert
+    Doppel-Verlinkung, falls im Text ausnahmsweise schon `[n](url)` steht.
+
+    Zahlen ohne passende Quelle bleiben unverändert stehen — Perplexity nummeriert
+    bei vielen Suchanfragen gegen eine größere interne Quellenmenge, als es in der
+    Antwort zurückgibt (typisch bei Vergleichen über mehrere Ziele: `[9]` ist
+    verlinkt, `[58]` nicht). Geraten wird dort nichts; ein Link auf die falsche
+    Quelle wäre schlimmer als gar keiner. Das Ausmaß landet im Log, sonst wäre
+    nicht zu unterscheiden, ob die Verlinkung ausfällt oder die Liste zu kurz ist."""
+    urls = _perplexity_citation_urls(data)
     if not urls:
         return text
+    missing = set()
 
     def _sub(m):
         n = int(m.group(1))
-        return f'[{n}]({urls[n - 1]})' if 1 <= n <= len(urls) else m.group(0)
+        if 1 <= n <= len(urls):
+            return f'[{n}]({urls[n - 1]})'
+        missing.add(n)
+        return m.group(0)
 
-    return _PERPLEXITY_CITATION_RE.sub(_sub, text)
+    out = _PERPLEXITY_CITATION_RE.sub(_sub, text)
+    if missing:
+        A.log.info("Perplexity (%s): %d Zitat-Nummern ohne Quelle (höchste: %d, "
+                   "geliefert wurden %d) — bleiben unverlinkt",
+                   log_ctx or 'KI-Antwort', len(missing), max(missing), len(urls))
+    return out
 
 
 def _ai_request(api_key: str, model: str, prompt: str, *, max_tokens: int,
@@ -160,7 +185,7 @@ def _ai_request_perplexity_messages(api_key: str, model: str, messages: list[dic
     if output_schema is None:
         # Nur bei Freitext verlinken — bei Structured Output ist `text` ein
         # JSON-String, den ein Aufrufer parst; Markdown-Syntax würde ihn zerstören.
-        text = _perplexity_linkify_citations(text, data)
+        text = _perplexity_linkify_citations(text, data, log_ctx=log_ctx)
     usage = {'input_tokens': u.get('prompt_tokens', 0) or 0,
              'output_tokens': u.get('completion_tokens', 0) or 0,
              'cache_creation_input_tokens': 0, 'cache_read_input_tokens': 0,
@@ -169,9 +194,7 @@ def _ai_request_perplexity_messages(api_key: str, model: str, messages: list[dic
     # Marker („[7][11]") in den JSON-Strings und lassen sich erst nach dem Parsen
     # verlinken — ohne die Liste bliebe dort toter Text stehen.
     if output_schema is not None:
-        srcs = [r.get('url') for r in (data.get('search_results') or [])
-                if isinstance(r, dict) and r.get('url')] \
-            or [u2 for u2 in (data.get('citations') or []) if u2]
+        srcs = _perplexity_citation_urls(data)
         if srcs:
             usage['citation_urls'] = srcs
     return text, usage, None

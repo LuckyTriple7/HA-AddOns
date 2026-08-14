@@ -4450,7 +4450,7 @@
       $('#ai-sub').textContent = srchDest.label
         + (body.start && body.end ? ` · ${body.start} – ${body.end}` : '');
       $('#ai-foot').style.display = 'none';
-      $('#ai-bg').classList.add('show');
+      const aiGen = aiOpenPanel();
       const attempt = async () => {
         await ensureAiProviderLoaded();
         const busy = aiProviderName()+' prüft Reisezeit und Alternativen…';
@@ -4461,14 +4461,16 @@
             {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)}, busy);
           if(r.cancelled) return;
           resp = r.resp; d = r.d;
-        } catch(e){ _aiRetryFn = attempt; $('#ai-body').innerHTML = aiErrorBlock('Reisezeit-Check fehlgeschlagen.', true); return; }
+        } catch(e){ if(aiStale(aiGen)) return; _aiRetryFn = attempt; $('#ai-body').innerHTML = aiErrorBlock('Reisezeit-Check fehlgeschlagen.', true); return; }
         if(!resp.ok){
           const retryable = aiRetryable(d.error);
           const msg = d.error==='no_dest' ? 'Kein Reiseziel gewählt.' : aiErrorMsg(d.error);
+          if(aiStale(aiGen)) return;
           _aiRetryFn = retryable ? attempt : null;
           $('#ai-body').innerHTML = aiErrorBlock(msg, retryable);
           return;
         }
+        if(aiStale(aiGen)) return;
         renderAiResult('#ai-body', d);
       };
       attempt();
@@ -4882,6 +4884,7 @@
       if(aiCurrentId == null){ toast('Folgefrage hier nicht möglich'); return; }
       const thread = $('#ai-thread'), status = $('#ai-followup-status');
       if(!thread || !status) return;
+      const aiGen = _aiGen;
       input.disabled = true;
       const bubble = document.createElement('div');
       bubble.className = 'hint';
@@ -4897,10 +4900,12 @@
         if(r.cancelled){ bubble.remove(); status.innerHTML = ''; input.disabled = false; input.value = q; return; }
         resp = r.resp; d = r.d;
       } catch(e){
+        if(aiStale(aiGen)) return;
         status.innerHTML = aiErrorBlock('Folgefrage fehlgeschlagen.', false);
         input.disabled = false;
         return;
       }
+      if(aiStale(aiGen)) return;
       if(!resp.ok){
         status.innerHTML = aiErrorBlock(d.error==='unsupported_kind' ? 'Für dieses Ergebnis sind keine Folgefragen möglich.'
           : d.error==='no_prompt' ? (d.note||'Keine Konversation gespeichert.') : aiErrorMsg(d.error), false);
@@ -4962,7 +4967,7 @@
       $('#ai-title').textContent = '🔮 Buchungsscore';
       $('#ai-sub').textContent = o.label || o.hotel || ('Angebot #'+id);
       $('#ai-foot').style.display = 'none';
-      $('#ai-bg').classList.add('show');
+      const aiGen = aiOpenPanel();
       const attempt = async () => {
         await ensureAiProviderLoaded();
         $('#ai-body').innerHTML = progBar(aiProviderName()+' berechnet den Buchungsscore…');
@@ -4971,14 +4976,16 @@
           const r = await aiFetchPreviewable(api('/api/ai/booking-score/'+id), {method:'POST'}, aiProviderName()+' berechnet den Buchungsscore…');
           if(r.cancelled) return;
           resp = r.resp; d = r.d;
-        } catch(e){ _aiRetryFn = attempt; $('#ai-body').innerHTML = aiErrorBlock('Buchungsscore fehlgeschlagen.', true); return; }
+        } catch(e){ if(aiStale(aiGen)) return; _aiRetryFn = attempt; $('#ai-body').innerHTML = aiErrorBlock('Buchungsscore fehlgeschlagen.', true); return; }
         if(!resp.ok){
           const retryable = aiRetryable(d.error);
           const msg = d.error==='no_price' ? 'Noch kein Preis für dieses Angebot vorhanden.' : aiErrorMsg(d.error);
+          if(aiStale(aiGen)) return;
           _aiRetryFn = retryable ? attempt : null;
           $('#ai-body').innerHTML = aiErrorBlock(msg, retryable);
           return;
         }
+        if(aiStale(aiGen)) return;
         renderBookingScore('#ai-body', d);
       };
       attempt();
@@ -4989,7 +4996,7 @@
       $('#ai-title').textContent = '🔮 Region-Ausblick';
       $('#ai-sub').textContent = r.region;
       $('#ai-foot').style.display = 'none';
-      $('#ai-bg').classList.add('show');
+      const aiGen = aiOpenPanel();
       const attempt = async () => {
         await ensureAiProviderLoaded();
         $('#ai-body').innerHTML = progBar(aiProviderName()+' schätzt die Destination ein…');
@@ -4999,14 +5006,16 @@
             body: JSON.stringify({region: r.region})}, aiProviderName()+' schätzt die Destination ein…');
           if(rp.cancelled) return;
           resp = rp.resp; d = rp.d;
-        } catch(e){ _aiRetryFn = attempt; $('#ai-body').innerHTML = aiErrorBlock('Region-Ausblick fehlgeschlagen.', true); return; }
+        } catch(e){ if(aiStale(aiGen)) return; _aiRetryFn = attempt; $('#ai-body').innerHTML = aiErrorBlock('Region-Ausblick fehlgeschlagen.', true); return; }
         if(!resp.ok){
           const retryable = aiRetryable(d.error);
           const msg = d.error==='no_data' ? 'Noch zu wenig Markttrend-Daten für diese Destination.' : aiErrorMsg(d.error);
+          if(aiStale(aiGen)) return;
           _aiRetryFn = retryable ? attempt : null;
           $('#ai-body').innerHTML = aiErrorBlock(msg, retryable);
           return;
         }
+        if(aiStale(aiGen)) return;
         renderBookingScore('#ai-body', d);
       };
       attempt();
@@ -5019,7 +5028,7 @@
       $('#ai-title').textContent = '📅 Kalender-Analyse';
       $('#ai-sub').textContent = offer.label || offer.hotel || ('Angebot #'+id);
       $('#ai-foot').style.display = 'none';
-      $('#ai-bg').classList.add('show');
+      const aiGen = aiOpenPanel();
       const attempt = async () => {
         await ensureAiProviderLoaded();
         $('#ai-body').innerHTML = progBar(aiProviderName()+' fasst die Kalenderpreise zusammen…');
@@ -5028,14 +5037,16 @@
           const r = await aiFetchPreviewable(api('/api/ai/calendar-outlook/'+id), {method:'POST'}, aiProviderName()+' fasst die Kalenderpreise zusammen…');
           if(r.cancelled) return;
           resp = r.resp; d = r.d;
-        } catch(e){ _aiRetryFn = attempt; $('#ai-body').innerHTML = aiErrorBlock('Kalender-Analyse fehlgeschlagen.', true); return; }
+        } catch(e){ if(aiStale(aiGen)) return; _aiRetryFn = attempt; $('#ai-body').innerHTML = aiErrorBlock('Kalender-Analyse fehlgeschlagen.', true); return; }
         if(!resp.ok){
           const retryable = aiRetryable(d.error);
           const msg = d.error==='no_data' ? 'Noch keine Kalenderdaten für dieses Angebot vorhanden.' : aiErrorMsg(d.error);
+          if(aiStale(aiGen)) return;
           _aiRetryFn = retryable ? attempt : null;
           $('#ai-body').innerHTML = aiErrorBlock(msg, retryable);
           return;
         }
+        if(aiStale(aiGen)) return;
         renderAiResult('#ai-body', d);
       };
       attempt();
@@ -5070,7 +5081,7 @@
       $('#ai-title').textContent = '🤖 KI-Fazit';
       $('#ai-sub').textContent = r.name || '';
       $('#ai-foot').style.display = 'none';
-      $('#ai-bg').classList.add('show');
+      const aiGen = aiOpenPanel();
       if(r._ai){ renderAiResult('#ai-body', r._ai); return; }
       const attempt = async () => {
         await ensureAiProviderLoaded();
@@ -5081,14 +5092,16 @@
             body: JSON.stringify(hotelFacts(r))}, aiProviderName()+' durchsucht das Web nach Bewertungen…');
           if(rp.cancelled) return;
           resp = rp.resp; d = rp.d;
-        } catch(e){ _aiRetryFn = attempt; $('#ai-body').innerHTML = aiErrorBlock('KI-Zusammenfassung fehlgeschlagen.', true); return; }
+        } catch(e){ if(aiStale(aiGen)) return; _aiRetryFn = attempt; $('#ai-body').innerHTML = aiErrorBlock('KI-Zusammenfassung fehlgeschlagen.', true); return; }
         if(!resp.ok){
           const retryable = aiRetryable(d.error);
+          if(aiStale(aiGen)) return;
           _aiRetryFn = retryable ? attempt : null;
           $('#ai-body').innerHTML = aiErrorBlock(aiErrorMsg(d.error), retryable);
           return;
         }
         r._ai = d;
+        if(aiStale(aiGen)) return;
         renderAiResult('#ai-body', d);
       };
       attempt();
@@ -5127,7 +5140,7 @@
       $('#ai-title').textContent = '🤖 KI-Vergleich';
       $('#ai-sub').textContent = names.join(' · ');
       $('#ai-foot').style.display = 'none';
-      $('#ai-bg').classList.add('show');
+      const aiGen = aiOpenPanel();
       if(_aiCompareCache[cacheKey]){ renderAiResult('#ai-body', _aiCompareCache[cacheKey]); return; }
       const attempt = async () => {
         await ensureAiProviderLoaded();
@@ -5138,20 +5151,33 @@
             body: JSON.stringify({hotels: facts})}, aiProviderName()+' vergleicht '+facts.length+' Hotels und durchsucht das Web…');
           if(r.cancelled) return;
           resp = r.resp; d = r.d;
-        } catch(e){ _aiRetryFn = attempt; $('#ai-body').innerHTML = aiErrorBlock('KI-Vergleich fehlgeschlagen.', true); return; }
+        } catch(e){ if(aiStale(aiGen)) return; _aiRetryFn = attempt; $('#ai-body').innerHTML = aiErrorBlock('KI-Vergleich fehlgeschlagen.', true); return; }
         if(!resp.ok){
           const retryable = aiRetryable(d.error);
+          if(aiStale(aiGen)) return;
           _aiRetryFn = retryable ? attempt : null;
           $('#ai-body').innerHTML = aiErrorBlock(aiErrorMsg(d.error), retryable);
           return;
         }
         _aiCompareCache[cacheKey] = d;
+        if(aiStale(aiGen)) return;
         renderAiResult('#ai-body', d);
       };
       attempt();
     }
     const _aiCompareCache = {};  // Session-Cache: Präfix+sortierter Schlüssel-String → {summary, usage}
-    function closeAiSummary(){ $('#ai-bg').classList.remove('show'); _aiRetryFn = null; }
+    // Eine KI-Antwort darf nur noch in das Fenster schreiben, für das sie gestartet
+    // wurde. Ohne diese Sperre klobberte eine spät eintreffende Antwort das, was
+    // inzwischen im Fenster steht: Regionen-Vergleich starten, X drücken, Buchungsscore
+    // öffnen — und der Vergleich überschreibt ihn beim Eintreffen. Schlimmer als die
+    // Optik ist `aiCurrentId`, das renderAiResult mitsetzt: der „per E-Mail senden"-
+    // Knopf verschickte dann eine andere Analyse als die angezeigte.
+    // Abgebrochen wird die Anfrage bewusst NICHT — sie ist ohnehin bezahlt, läuft
+    // serverseitig zu Ende und landet im KI-Verlauf und im Zwischenspeicher.
+    let _aiGen = 0;
+    function aiOpenPanel(){ $('#ai-bg').classList.add('show'); return ++_aiGen; }
+    function aiStale(gen){ return gen !== _aiGen; }
+    function closeAiSummary(){ $('#ai-bg').classList.remove('show'); _aiRetryFn = null; _aiGen++; }
     $('#ai-bg').addEventListener('click', e=>{ if(e.target.id==='ai-bg') closeAiSummary(); });
 
     // ── Regionen vergleichen (KI) ──────────────────────────────────────────
@@ -5259,7 +5285,7 @@
       $('#ai-title').textContent = '📊 Regionen-Vergleich';
       $('#ai-sub').textContent = regions.map(r=>r.label).join(' · ') + ' · ' + monthLabel;
       $('#ai-foot').style.display = 'none';
-      $('#ai-bg').classList.add('show');
+      const aiGen = aiOpenPanel();
       const cacheKey = 'regcmp:' + month + ':' + regions.map(r=>r.giata).sort((a,b)=>a-b).join('|');
       if(_aiCompareCache[cacheKey]){ renderAiResult('#ai-body', _aiCompareCache[cacheKey]); return; }
       const attempt = async () => {
@@ -5272,14 +5298,16 @@
             body: JSON.stringify({regions, month})}, busy);
           if(r.cancelled) return;
           resp = r.resp; d = r.d;
-        } catch(e){ _aiRetryFn = attempt; $('#ai-body').innerHTML = aiErrorBlock('Regionen-Vergleich fehlgeschlagen.', true); return; }
+        } catch(e){ if(aiStale(aiGen)) return; _aiRetryFn = attempt; $('#ai-body').innerHTML = aiErrorBlock('Regionen-Vergleich fehlgeschlagen.', true); return; }
         if(!resp.ok){
           const retryable = aiRetryable(d.error);
+          if(aiStale(aiGen)) return;
           _aiRetryFn = retryable ? attempt : null;
           $('#ai-body').innerHTML = aiErrorBlock(aiErrorMsg(d.error), retryable);
           return;
         }
         _aiCompareCache[cacheKey] = d;
+        if(aiStale(aiGen)) return;
         renderAiResult('#ai-body', d);
       };
       attempt();
@@ -5511,11 +5539,12 @@
       $('#ai-title').textContent = '🤖 KI-Verlauf';
       $('#ai-sub').textContent = 'Lädt…';
       $('#ai-foot').style.display = 'none';
-      $('#ai-bg').classList.add('show');
+      const aiGen = aiOpenPanel();
       $('#ai-body').innerHTML = progBar('Lädt…');
       let d;
       try { d = await fetch(api('/api/ai/history/'+id)).then(r=>r.json()); }
-      catch(e){ $('#ai-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Eintrag konnte nicht geladen werden.</div>'; return; }
+      catch(e){ if(aiStale(aiGen)) return; $('#ai-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Eintrag konnte nicht geladen werden.</div>'; return; }
+      if(aiStale(aiGen)) return;
       if(d.error){ $('#ai-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Eintrag nicht gefunden (evtl. gelöscht).</div>'; return; }
       $('#ai-title').textContent = aiKindLabel(d.kind) + ' (Verlauf)';
       $('#ai-sub').textContent = d.title + ' · ' + new Date(d.ts*1000).toLocaleString('de-DE');
@@ -5538,7 +5567,7 @@
       $('#ai-title').textContent = '🔁 Wiederholen';
       $('#ai-sub').textContent = aiKindLabel(it.kind) + ' · ' + it.title;
       $('#ai-foot').style.display = 'none';
-      $('#ai-bg').classList.add('show');
+      const aiGen = aiOpenPanel();
       let avail = {};
       try { avail = await fetch(api('/api/ai/provider')).then(r=>r.json()); } catch(e){}
       const mkBtn = p => {
@@ -5549,6 +5578,10 @@
         <div style="display:flex;gap:10px;flex-wrap:wrap">${Object.keys(AI_PROVIDER_LABEL).map(mkBtn).join('')}</div>`;
     }
     async function runAiHistoryRepeat(id, provider){
+      // Das Fenster steht schon offen (`repeatAiHistoryItem` hat es geöffnet und die
+      // Provider-Auswahl hineingerendert) — daher die laufende Generation übernehmen
+      // statt eine neue zu vergeben.
+      const aiGen = _aiGen;
       const attempt = async () => {
         $('#ai-body').innerHTML = progBar('Wird mit '+(AI_PROVIDER_NAME[provider]||provider)+' wiederholt…');
         let resp, d;
@@ -5557,14 +5590,16 @@
             headers:{'Content-Type':'application/json'}, body: JSON.stringify({provider})}, 'Wird wiederholt…');
           if(r.cancelled) return;
           resp = r.resp; d = r.d;
-        } catch(e){ _aiRetryFn = attempt; $('#ai-body').innerHTML = aiErrorBlock('Wiederholen fehlgeschlagen.', true); return; }
+        } catch(e){ if(aiStale(aiGen)) return; _aiRetryFn = attempt; $('#ai-body').innerHTML = aiErrorBlock('Wiederholen fehlgeschlagen.', true); return; }
         if(!resp.ok){
           const retryable = aiRetryable(d.error);
           const msg = d.error==='no_prompt' ? (d.note||'Kein Prompt gespeichert.') : aiErrorMsg(d.error);
+          if(aiStale(aiGen)) return;
           _aiRetryFn = retryable ? attempt : null;
           $('#ai-body').innerHTML = aiErrorBlock(msg, retryable);
           return;
         }
+        if(aiStale(aiGen)) return;
         if(d.result){ renderBookingScore('#ai-body', d); } else { renderAiResult('#ai-body', d); }
       };
       attempt();
@@ -5613,7 +5648,7 @@
       $('#ai-title').textContent = c.title;
       $('#ai-sub').textContent = q;
       $('#ai-foot').style.display = 'none';
-      $('#ai-bg').classList.add('show');
+      const aiGen = aiOpenPanel();
       const attempt = async () => {
         await ensureAiProviderLoaded();
         const busy = aiProviderName()+c.busy;
@@ -5623,16 +5658,18 @@
           const r = await aiFetchPreviewable(api('/api/ai/ask'), {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({question:q, scope})}, busy);
           if(r.cancelled) return;
           resp = r.resp; d = r.d;
-        } catch(e){ _aiRetryFn = attempt; $('#ai-body').innerHTML = aiErrorBlock('Frage fehlgeschlagen.', true); return; }
+        } catch(e){ if(aiStale(aiGen)) return; _aiRetryFn = attempt; $('#ai-body').innerHTML = aiErrorBlock('Frage fehlgeschlagen.', true); return; }
         if(!resp.ok){
           const retryable = aiRetryable(d.error);
           const msg = d.error==='no_offers'
             ? 'Keine aktiven Angebote vorhanden — für eine allgemeine Reisefrage nimm „🌍 Reisefrage".'
             : aiErrorMsg(d.error);
+          if(aiStale(aiGen)) return;
           _aiRetryFn = retryable ? attempt : null;
           $('#ai-body').innerHTML = aiErrorBlock(msg, retryable);
           return;
         }
+        if(aiStale(aiGen)) return;
         renderAiResult('#ai-body', d);
       };
       attempt();
@@ -5785,7 +5822,7 @@
       $('#ai-sub').textContent = [(advState.region||[]).join(', '), advState.arrival_mode,
         (advState.interests||[]).join(', ')].filter(Boolean).join(' · ');
       $('#ai-foot').style.display = 'none';
-      $('#ai-bg').classList.add('show');
+      const aiGen = aiOpenPanel();
       const attempt = async () => {
         await ensureAiProviderLoaded();
         $('#ai-body').innerHTML = progBar(aiProviderName()+' sucht passende Ziele…');
@@ -5795,14 +5832,16 @@
             headers:{'Content-Type':'application/json'}, body: JSON.stringify(advState)}, aiProviderName()+' sucht passende Ziele…');
           if(r.cancelled) return;
           resp = r.resp; d = r.d;
-        } catch(e){ _aiRetryFn = attempt; $('#ai-body').innerHTML = aiErrorBlock('Anfrage fehlgeschlagen.', true); return; }
+        } catch(e){ if(aiStale(aiGen)) return; _aiRetryFn = attempt; $('#ai-body').innerHTML = aiErrorBlock('Anfrage fehlgeschlagen.', true); return; }
         if(!resp.ok){
           const retryable = aiRetryable(d.error);
           const msg = d.error==='invalid' ? 'Bitte mindestens eine Angabe auswählen.' : aiErrorMsg(d.error);
+          if(aiStale(aiGen)) return;
           _aiRetryFn = retryable ? attempt : null;
           $('#ai-body').innerHTML = aiErrorBlock(msg, retryable);
           return;
         }
+        if(aiStale(aiGen)) return;
         renderAiResult('#ai-body', d);
       };
       attempt();
