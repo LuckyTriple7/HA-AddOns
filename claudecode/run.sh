@@ -266,16 +266,23 @@ echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] protect_internal_config: $PROTECT_IN
 # of context. Rewritten on every start so toggling the option takes effect at once.
 # Only the add-on's own entries are added or removed — user entries stay.
 SETTINGS_FILE="$PERSIST_DIR/settings.json"
+# Edit(...) is the rule form file permission checks actually match, and it covers
+# every file-editing tool including Write. Write(...) rules are ignored for paths
+# and only produce a startup warning.
 PROTECT_RULES='[
   "Edit(/homeassistant/.storage/**)",
-  "Write(/homeassistant/.storage/**)",
   "Edit(/homeassistant/.cloud/**)",
-  "Write(/homeassistant/.cloud/**)",
   "Edit(/homeassistant/deps/**)",
-  "Write(/homeassistant/deps/**)",
   "Edit(/homeassistant/tts/**)",
+  "Edit(/homeassistant/home-assistant_v2.db)"
+]'
+# Written by 1.3.12, which used the wrong rule form. Removed on every start
+# regardless of the option, otherwise they keep warning on installs that had it.
+OBSOLETE_RULES='[
+  "Write(/homeassistant/.storage/**)",
+  "Write(/homeassistant/.cloud/**)",
+  "Write(/homeassistant/deps/**)",
   "Write(/homeassistant/tts/**)",
-  "Edit(/homeassistant/home-assistant_v2.db)",
   "Write(/homeassistant/home-assistant_v2.db)"
 ]'
 [ -f "$SETTINGS_FILE" ] || echo '{}' > "$SETTINGS_FILE"
@@ -283,13 +290,14 @@ if ! jq -e . "$SETTINGS_FILE" > /dev/null 2>&1; then
     # Hand-edited into invalid JSON — rewriting it would destroy whatever is in there
     echo "[WARN] [$(date '+%Y-%m-%d %H:%M:%S')] $SETTINGS_FILE is not valid JSON — leaving it alone, write protection not applied"
 elif [ "$PROTECT_INTERNAL" = "true" ]; then
-    jq --argjson rules "$PROTECT_RULES" \
-       '.permissions.deny = ((.permissions.deny // []) + ($rules - (.permissions.deny // [])))' \
+    jq --argjson rules "$PROTECT_RULES" --argjson obsolete "$OBSOLETE_RULES" \
+       '(((.permissions.deny // []) - $obsolete)) as $kept
+        | .permissions.deny = ($kept + ($rules - $kept))' \
        "$SETTINGS_FILE" > /tmp/settings.tmp && mv /tmp/settings.tmp "$SETTINGS_FILE"
     echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Write protection active — .storage/, .cloud/, deps/, tts/ and the recorder database are read-only for Claude"
 else
-    jq --argjson rules "$PROTECT_RULES" \
-       '.permissions.deny = ((.permissions.deny // []) - $rules)
+    jq --argjson rules "$PROTECT_RULES" --argjson obsolete "$OBSOLETE_RULES" \
+       '.permissions.deny = ((.permissions.deny // []) - $rules - $obsolete)
         | if (.permissions.deny | length) == 0 then del(.permissions.deny) else . end
         | if (.permissions | length) == 0 then del(.permissions) else . end' \
        "$SETTINGS_FILE" > /tmp/settings.tmp && mv /tmp/settings.tmp "$SETTINGS_FILE"

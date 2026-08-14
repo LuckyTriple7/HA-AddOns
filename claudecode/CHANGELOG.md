@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.3.13] - 2026-08-14
+
+### Fixed
+- Der Schreibschutz aus 1.3.12 schrieb je Pfad zwei Regeln, `Edit(...)` und `Write(...)`. Bei Datei-Prüfungen greifen aber nur `Edit`-Regeln — die decken bereits alle datei-ändernden Werkzeuge ab, `Write` inklusive. Die `Write`-Regeln blieben wirkungslos und Claude Code meldete beim Start für jede von ihnen eine Warnung. Sie werden jetzt bei jedem Start entfernt, unabhängig davon, ob die Option an oder aus ist, damit auch bereits geschriebene `settings.json` sauber werden. Die Schutzwirkung ändert sich dadurch nicht.
+
+
 ## [1.3.12] - 2026-08-14
 
 ### Added
