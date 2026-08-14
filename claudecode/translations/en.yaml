@@ -99,6 +99,15 @@
       /caveman-review, /caveman-compress, /caveman-help, /caveman-stats and
       /cavecrew together with the three cavecrew subagents. Can be toggled at any
       time; re-synced on every startup. Default: disabled.
+  protect_internal_config:
+    name: Protect Internal HA Directories
+    description: >-
+      Denies Claude write access to Home Assistant's internal directories
+      (.storage/, .cloud/, deps/, tts/ and the recorder database). Those hold
+      everything created through the user interface plus the entity and device
+      registries; hand-edited, they can leave Home Assistant unable to start.
+      Reading stays allowed. Only turn this off if you know exactly why you need
+      to write there. Default: enabled.
 
 network:
   7681/tcp: Web Terminal (ttyd)

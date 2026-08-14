@@ -1,5 +1,144 @@
 # Changelog
 
+## [0.100.2] - 2026-08-14
+
+### Changed
+- **Markttrend-Sensor: Attribute drastisch verschlankt.** Je Region und Messreihe
+  standen dort die vollständigen `trend`- und `index`-Objekte, seit dem Tiefpunkt-
+  Archiv zusätzlich `signal` (mit allen Ampel-Komponenten), `level` und `trough` —
+  bei einem Dutzend Messreihen sprengte das Home Assistants Grenze von 16384 Bytes
+  für State-Attribute. Der Sensor wäre dabei nicht sichtbar kaputtgegangen, sondern
+  kommentarlos auf dem alten Wert eingefroren. Jetzt je Zeile nur noch `region`,
+  `pct`, `dir`, `days`, `index` und ggf. `ampel`/`days_to_dep`; `attrs.basket.by_region`
+  heißt jetzt schlicht `baskets`, das Attribut `booking` (volle Signal-Objekte) ist
+  entfallen, `booking_curve` auf Fenster + Prozent gekürzt und um Fenster ohne Daten
+  bereinigt. Die vollständigen Daten liefern unverändert `/api/market-trend`,
+  `/api/market-basket`, `/api/booking-window` und `/api/booking-troughs`.
+- Zusätzlich eine Notbremse: passt es trotzdem nicht, werden `baskets`, `by_region`
+  und zuletzt `booking_curve` weggelassen, im Attribut `truncated` benannt und im Log
+  gemeldet — statt den State stillschweigend verfallen zu lassen.
+
+### Fixed
+- **Späte KI-Antwort überschrieb das offene Fenster.** Wer eine langlaufende Anfrage
+  (Regionen-Vergleich mit Websuche: gern 30–60 s) mit dem ✕ schloss und danach eine
+  andere KI-Funktion öffnete, bekam beim Eintreffen der ersten Antwort deren Ergebnis
+  ins offene Fenster geschrieben. Schwerer als die Optik wog `aiCurrentId`, das dabei
+  mitgesetzt wurde: „per E-Mail senden" hätte eine andere Analyse verschickt als die
+  angezeigte. Jetzt hat jedes geöffnete KI-Fenster eine Generationsnummer; Antworten
+  einer älteren Generation werden verworfen. Betrifft alle elf KI-Aufrufe samt
+  Folgefrage und Verlaufs-Ansicht.
+  - Die Anfrage wird bewusst **nicht** abgebrochen: sie ist ohnehin bezahlt, läuft
+    serverseitig zu Ende und landet im KI-Verlauf und im 24-Stunden-Zwischenspeicher.
+    Derselbe Vergleich kommt danach sofort und kostenlos zurück. Beim Regionen- und
+    Hotel-Vergleich wird das Ergebnis auch dann noch im Browser zwischengespeichert,
+    wenn das Fenster längst zu ist.
+- **Nicht anklickbare Quellen-Nummern im Regionen-Vergleich.** Perplexity nummeriert
+  bei vielen Suchanfragen gegen eine größere interne Quellenmenge, als es in der
+  Antwort zurückgibt — `[9]` war verlinkt, `[58]` blieb toter Text. Zwei Änderungen:
+  von `search_results` und `citations` wird jetzt die **längere** Liste benutzt (welche
+  vollständiger ist, schwankt je nach Modell), und Nummern ohne Quelle stehen nicht
+  mehr wie ein kaputter Link da, sondern gedämpft mit Tooltip („Quellenangabe ohne
+  Link — die KI hat dazu keine URL mitgeliefert"). Geraten wird nichts: ein Link auf
+  die falsche Quelle wäre schlimmer als gar keiner. Wie viele Marker unverlinkt
+  blieben, steht jetzt im Log.
+
+## [0.100.1] - 2026-08-14
+
+### Fixed
+- **Tiefpunkt-Archiv: „⟨ angeschnitten" war unlesbar.** Das Zeichen (U+27E8) sollte
+  eine links abgeschnittene Beobachtung markieren, rendert aber als halbe Klammer und
+  las sich wie ein Tippfehler. Stattdessen steht dort jetzt im Klartext, warum eine
+  Zeile nicht zählt — „Tiefpunkt am ersten Messtag" bzw. „Beobachtung endet zu früh",
+  beide mit ausführlicher Erklärung im Tooltip, unter der Spaltenüberschrift
+  „zählt nicht, weil…".
+- Darunter eine Einordnung („4 von 6 Reihen zählen noch nicht in die Statistik — das
+  ist am Anfang normal"). Beim Start sind zwangsläufig **alle** Zeilen angeschnitten:
+  solange die Preise nur fallen, ist der erste Messtag automatisch das Minimum. Ohne
+  diesen Hinweis sah die leere Statistik daneben nach einem Fehler aus.
+
+## [0.100.0] - 2026-08-14
+
+### Added
+- **Tiefpunkt-Archiv im Preisbarometer**: je Messreihe wird festgehalten, an welchem
+  Tag und bei welchem Vorlauf („X Tage vor Abreise") der verkettete Index sein
+  Minimum hatte, und um wie viel Prozent er von dort bis zum letzten Beobachtungstag
+  gestiegen ist — also was Warten gekostet hätte. Neue Tabelle `basket_troughs`
+  (eine Zeile je Messreihe und Aufzeichnungsbeginn), neue Route
+  `GET /api/booking-troughs`, neue Spalte „Tiefpunkt" in der Barometer-Tabelle plus
+  ein aufklappbares Archiv darunter.
+- Die Zeile **überlebt das Löschen der Messreihe**: beim Löschen wird der Tiefpunkt
+  vorher fortgeschrieben und dann behalten — Snapshots und Bewegungen waren nur das
+  Mittel, die Erkenntnis bleibt. `purge_troughs: true` im Rumpf des DELETE löscht sie
+  ausdrücklich mit. Eine unter demselben Namen neu gestartete Aufzeichnung legt eine
+  eigene Zeile an (Schlüssel enthält den ersten Beobachtungstag), statt die alte zu
+  überschreiben.
+- **Statistik über die Tiefpunkte** (global und je Region): Median-Vorlauf,
+  mittlere Hälfte, Spanne und der mediane Aufschlag nach dem Tiefpunkt — ab
+  5 auswertbaren Messreihen. Zugleich die einzige Gegenprobe, ob die gepoolte
+  Booking-Kurve den echten Tiefpunkt trifft.
+- Neue Sensor-Attribute am Markttrend-Sensor: `trough_median_days`,
+  `trough_p25_days`, `trough_p75_days`, `trough_samples`, `trough_median_gain`.
+- Der KI-Buchungsscore bekommt den beobachteten Tiefpunkt als vorgerechnete Zahl
+  mit — die einzige Angabe im Prompt, die aus echten Ausgängen stammt statt aus
+  einer Hochrechnung.
+
+### Notes
+- Gerechnet wird auf dem **verketteten Index**, nicht auf den rohen Medianpreisen:
+  sonst wäre der „Tiefpunkt" oft nur der Tag, an dem zufällig besonders viele
+  günstige Hotels im Suchergebnis standen.
+- Zwei Zensierungen werden markiert und aus der Statistik ausgeschlossen, sonst
+  verschöbe sich der typische Buchungszeitpunkt systematisch: **links**, wenn das
+  Minimum am ersten Beobachtungstag liegt (der echte Tiefpunkt kann davor gelegen
+  haben), **rechts**, wenn die Beobachtung mehr als 21 Tage vor der Abreise endet
+  (der Tiefpunkt kann noch kommen). Laufende Messreihen sind über die
+  Rechtszensierung automatisch ausgeschlossen. Die Zeilen bleiben sichtbar, sie
+  zählen nur nicht mit.
+- Der Tiefpunkt fließt **nicht** in den Ampel-Score ein — er überschneidet sich
+  inhaltlich mit der erwarteten Restbewegung, und dieselbe Information zweimal zu
+  gewichten hätte den Score verzerrt.
+- Bestehende Messreihen werden beim ersten Start einmalig ausgewertet
+  (`meta`-Flag `basket_trough_backfill`).
+
+## [0.99.1] - 2026-08-14
+
+### Added
+- **TUI-API-Zähler im Footer**: „📡 TUI-Aufrufe heute" zeigt, wie oft TUIWatch
+  seit Mitternacht bei TUI angefragt hat (Angebote, Preiskalender, Suche,
+  Reiseziele, …) — Reset automatisch um 0 Uhr über einen Datums-Schlüssel,
+  kein Cronjob nötig. Neue Route `GET /api/tui-calls`. Gezählt wird zentral in
+  `scraper._get`/`_post` (Ersatz für alle `requests.get`/`.post`-Aufrufe dort)
+  über `app._record_tui_call()` — jeder TUI-Aufruf im Code läuft durch diese
+  eine Stelle, kein einzelner API-Aufrufort musste angefasst werden.
+
+## [0.99.0] - 2026-08-14
+
+### Added
+- **Regionen-Vergleich-Prompt überarbeitet und editierbar**: der Kriterienkatalog
+  ist deutlich ausführlicher (Tages-/Nachttemperaturen, Regentage, Sonnenstunden,
+  Wassertemperatur, Hinweis auf klimatisch heterogene Ziele wie Thailand,
+  differenziertere Sicherheits-/Preis-/Familien-/Nightlife-Kriterien, 1–5-Punkte-
+  Skala je Kriterium samt Gesamtbewertung ohne reinen Zahlen-Durchschnitt,
+  Quellenverweise, strukturiertes Fazit). Wie bei TripPilot/Hotelvergleich/
+  KI-Fazit/Tagesausflug jetzt über „⚙ KI-Prompts“ im Footer als eigener Abschnitt
+  editierbar (`region_compare` in `_PROMPT_FEATURES`) — Zielliste und Monat
+  bleiben feste Fakten, der Kriterienteil ist der anpassbare Instruktionsblock,
+  eigener Cache-Bucket je Instruktions-Hash. Zeichenlimit für eigene Prompt-Texte
+  dafür von 4000 auf 6000 angehoben (der neue Standardtext allein braucht schon
+  knapp 4000). `max_tokens` der Route auf 8192 erhöht für die ausführlichere
+  Antwort.
+
+## [0.98.1] - 2026-08-14
+
+### Added
+- **Regionen vergleichen**: neuer 📊-Button im Header neben Frage/Klimatabellen/
+  Reiseführer — bis zu 5 Reiseziele (per Drilldown oder Suche, wie im bestehenden
+  Ziel-Picker) plus ein Reisemonat auswählen, die KI vergleicht sie dann in einem
+  Aufruf zu Wetter (fürs gewählte Monat), Sicherheit, Preisniveau, bester
+  Reisezeit, Strand/Natur und Familien-/Nightlife-Eignung, mit Fazit und
+  Vergleichstabelle — analog zum bestehenden Hotel-Vergleich, neue Route
+  `POST /api/ai/region-compare`, im KI-Verlauf als „📊 Regionen-Vergleich"
+  gespeichert (`kind='region_compare'`), inkl. Wiederholen/Follow-up-Fragen.
+
 ## [0.98.0] - 2026-08-13
 
 ### Fixed

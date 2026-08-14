@@ -316,6 +316,9 @@
     table.ai-table th { color:var(--muted); font-weight:600; }
     .ai-cite { color:var(--accent); text-decoration:none; font-size:.78em; vertical-align:super; }
     .ai-cite:hover { text-decoration:underline; }
+    /* Quellen-Nummer ohne URL: gleiche Position wie ein Zitat-Link, aber sichtbar
+       stumm — sonst sieht sie aus wie ein Link, der nicht funktioniert. */
+    .ai-cite-dead { color:var(--muted); font-size:.78em; vertical-align:super; cursor:help; }
     .aihist-item { display:flex; align-items:center; gap:8px; padding:10px 2px; border-bottom:1px solid var(--border); }
     .aihist-main { flex:1; min-width:0; cursor:pointer; }
     .aihist-main:hover .aihist-title { color:var(--accent); }
@@ -789,6 +792,8 @@
                 title="Klimatabellen: Temperaturen, Wassertemperatur, Sonnenstunden und Regentage über zwölf Monate — für alle Ziele, zu denen bereits eine Tabelle gespeichert ist">🌤</button>
         <button class="btn sec ai-feature" onclick="openGuide()"
                 title="Reiseführer: Einreise, Gesundheit, Geld, Mobilität, Sicherheit, Kultur, Don't Dos und Insider-Tipps — für alle Ziele, zu denen bereits ein Reiseführer gespeichert ist">🧭</button>
+        <button class="btn sec ai-feature" onclick="openRegionCompare()"
+                title="Regionen vergleichen: bis zu 5 Ziele + ein Reisemonat — KI vergleicht Wetter, Sicherheit, Preisniveau, beste Reisezeit, Strand/Natur, Familien-/Nightlife-Eignung">📊</button>
         <button class="btn sec flights-feature" onclick="openFlightPlan()"
                 title="Flugplan: Verbindungen ab Stuttgart (STR) bzw. Frankfurt (FRA) nach Zielflughafen durchsuchen">✈️</button>
         <button class="icon-btn" onclick="toggleTheme()" title="Design wechseln">
@@ -874,13 +879,14 @@
     <footer>
       <div>TUIWatch v{{ app_version }} · Prüfintervall: <span id="iv"></span>
         · DB: <span id="db-size">…</span>
+        · <span id="tui-calls-foot" title="TUI-API-Aufrufe heute — Zähler setzt sich um 0 Uhr zurück">📡 TUI-Aufrufe heute: <span id="tui-calls">…</span></span>
         · <span id="hc-foot" class="hc-foot" title="API-Status — klicken für Details &amp; neuen Test" onclick="openHealth()">API: <span id="hc-dot">…</span></span>
         · <span class="hc-foot" onclick="openSyslog('notify')" title="Verlauf gesendeter Benachrichtigungen + letzte Warnungen/Fehler">🔔 Meldungen</span>
         · <span class="hc-foot" onclick="openStats()" title="Tracking-Statistik: Ersparnis, größte Preisbewegungen, Wochentags-Muster, Tiefstpreis-Rückschau">📊 Statistik</span>
         · <span class="hc-foot share-feature" onclick="openShareList()" title="Öffentliche Links verwalten: Aufrufe, Gültigkeit, widerrufen">🔗 Geteilte Links</span>
         · <span class="hc-foot" onclick="backupOffers()" title="Komplettes Backup (Angebote mit Preisverlauf, Meine Reisen inkl. PDF, gespeicherte Suchen) als ZIP">⬇ Backup</span>
         · <span class="hc-foot" onclick="document.getElementById('restore-file').click()" title="Backup wiederherstellen (ZIP oder altes JSON) – ergänzt Fehlendes, überschreibt nichts">⬆ Restore</span></div>
-      <div class="ai-feature"><span class="hc-foot" onclick="openPromptCfg()" title="Eigene KI-Prompt-Vorlagen für TripPilot &amp; Hotelvergleich bearbeiten">⚙ KI-Prompts</span>
+      <div class="ai-feature"><span class="hc-foot" onclick="openPromptCfg()" title="Eigene KI-Prompt-Vorlagen für TripPilot, Hotelvergleich, KI-Fazit, Tagesausflug &amp; Regionen-Vergleich bearbeiten">⚙ KI-Prompts</span>
         <span class="hc-foot ai-feature" id="ai-provider-foot" onclick="toggleAiProvider()" style="display:none" title="Aktiven KI-Anbieter umschalten"></span>
         · <span class="hc-foot ai-feature" id="ai-usage-foot" onclick="openAiHistory()" title="Geschätzte KI-Kosten — kein echtes Guthaben, dauerhaft in der DB gespeichert">…</span></div></footer>
   </div>
@@ -1259,6 +1265,33 @@
       </div>
     </div>
   </div>
+  <!-- Regionen vergleichen -->
+  <div class="modal-bg" id="regcmp-bg">
+    <div class="modal">
+      <button class="icon-btn modal-close" onclick="closeRegionCompare()">
+        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+      </button>
+      <h2>📊 Regionen vergleichen</h2>
+      <div class="sub">Bis zu 5 Ziele + ein Reisemonat — Wetter, Sicherheit, Preisniveau,
+        beste Reisezeit, Strand/Natur, Familien-/Nightlife-Eignung und ein kurzes Fazit.</div>
+
+      <div class="tag-row" id="regcmp-chosen" style="margin:12px 0 6px"></div>
+
+      <div id="regcmp-panel" class="dest-panel" style="display:none"></div>
+      <button class="btn sec" id="regcmp-add-btn" onclick="regcmpOpenPicker()">＋ Ziel hinzufügen</button>
+
+      <div style="margin-top:14px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <label for="regcmp-month" style="font-size:.86rem;color:var(--muted)">Reisemonat:</label>
+        <select id="regcmp-month" style="flex:0 0 auto"></select>
+      </div>
+
+      <div style="margin-top:16px;display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap">
+        <span class="hint" style="flex:1;min-width:180px" id="regcmp-hint">Mindestens 2 Ziele wählen.</span>
+        <button class="btn sec" onclick="closeRegionCompare()">Abbrechen</button>
+        <button class="btn" id="regcmp-submit" onclick="submitRegionCompare()">🤖 Vergleichen</button>
+      </div>
+    </div>
+  </div>
   <!-- KI-Reiseberater -->
   <div class="modal-bg" id="reiseb-bg">
     <div class="modal" style="max-width:640px">
@@ -1361,27 +1394,33 @@
 
       <h3 style="margin:14px 0 6px">🗺️ TripPilot</h3>
       <label style="display:flex;align-items:center;gap:6px;font-size:.85rem"><input type="checkbox" id="promptcfg-advisor-enabled"> Eigenen Prompt verwenden</label>
-      <textarea id="promptcfg-advisor-text" class="promptcfg-text" rows="10" maxlength="4000" oninput="promptcfgCount('advisor')" style="margin-top:6px"></textarea>
+      <textarea id="promptcfg-advisor-text" class="promptcfg-text" rows="10" maxlength="6000" oninput="promptcfgCount('advisor')" style="margin-top:6px"></textarea>
       <div class="hint" id="promptcfg-advisor-count" style="text-align:right"></div>
       <button class="btn sec" onclick="promptcfgReset('advisor')" style="margin-top:4px">Zurücksetzen auf Standard</button>
 
       <h3 style="margin:20px 0 6px">🏨 Hotelvergleich</h3>
       <label style="display:flex;align-items:center;gap:6px;font-size:.85rem"><input type="checkbox" id="promptcfg-compare-enabled"> Eigenen Prompt verwenden</label>
-      <textarea id="promptcfg-compare-text" class="promptcfg-text" rows="10" maxlength="4000" oninput="promptcfgCount('compare')" style="margin-top:6px"></textarea>
+      <textarea id="promptcfg-compare-text" class="promptcfg-text" rows="10" maxlength="6000" oninput="promptcfgCount('compare')" style="margin-top:6px"></textarea>
       <div class="hint" id="promptcfg-compare-count" style="text-align:right"></div>
       <button class="btn sec" onclick="promptcfgReset('compare')" style="margin-top:4px">Zurücksetzen auf Standard</button>
 
       <h3 style="margin:20px 0 6px">🤖 KI-Fazit</h3>
       <label style="display:flex;align-items:center;gap:6px;font-size:.85rem"><input type="checkbox" id="promptcfg-summary-enabled"> Eigenen Prompt verwenden</label>
-      <textarea id="promptcfg-summary-text" class="promptcfg-text" rows="10" maxlength="4000" oninput="promptcfgCount('summary')" style="margin-top:6px"></textarea>
+      <textarea id="promptcfg-summary-text" class="promptcfg-text" rows="10" maxlength="6000" oninput="promptcfgCount('summary')" style="margin-top:6px"></textarea>
       <div class="hint" id="promptcfg-summary-count" style="text-align:right"></div>
       <button class="btn sec" onclick="promptcfgReset('summary')" style="margin-top:4px">Zurücksetzen auf Standard</button>
 
       <h3 style="margin:20px 0 6px">🚗 Tagesausflug</h3>
       <label style="display:flex;align-items:center;gap:6px;font-size:.85rem"><input type="checkbox" id="promptcfg-daytrip-enabled"> Eigenen Prompt verwenden</label>
-      <textarea id="promptcfg-daytrip-text" class="promptcfg-text" rows="10" maxlength="4000" oninput="promptcfgCount('daytrip')" style="margin-top:6px"></textarea>
+      <textarea id="promptcfg-daytrip-text" class="promptcfg-text" rows="10" maxlength="6000" oninput="promptcfgCount('daytrip')" style="margin-top:6px"></textarea>
       <div class="hint" id="promptcfg-daytrip-count" style="text-align:right"></div>
       <button class="btn sec" onclick="promptcfgReset('daytrip')" style="margin-top:4px">Zurücksetzen auf Standard</button>
+
+      <h3 style="margin:20px 0 6px">📊 Regionen-Vergleich</h3>
+      <label style="display:flex;align-items:center;gap:6px;font-size:.85rem"><input type="checkbox" id="promptcfg-region_compare-enabled"> Eigenen Prompt verwenden</label>
+      <textarea id="promptcfg-region_compare-text" class="promptcfg-text" rows="10" maxlength="6000" oninput="promptcfgCount('region_compare')" style="margin-top:6px"></textarea>
+      <div class="hint" id="promptcfg-region_compare-count" style="text-align:right"></div>
+      <button class="btn sec" onclick="promptcfgReset('region_compare')" style="margin-top:4px">Zurücksetzen auf Standard</button>
 
       <div style="margin-top:16px;text-align:right">
         <button class="btn" onclick="savePromptCfg()">Speichern</button>
@@ -1445,7 +1484,13 @@
         gerade", sondern „ist jetzt ein guter Moment". Sie verrechnet den aktuellen 14-Tage-Trend,
         die Lage im bisherigen Verlauf dieser Messreihe und vor allem die aus der
         <b>Booking-Kurve</b> hochgerechnete Preisbewegung bis zur Abreise. Mit der Maus über die
-        Ampel: dort steht jede Komponente einzeln.</div>
+        Ampel: dort steht jede Komponente einzeln.<br><br>
+        Die Spalte <b>Tiefpunkt</b> schaut in die andere Richtung: nicht was der Markt üblicherweise
+        tut, sondern wann es in dieser Messreihe tatsächlich am günstigsten war („74 T" = 74 Tage vor
+        Abreise), und in Klammern was Warten bis zum letzten Beobachtungstag gekostet hätte. Ein „≈"
+        heißt, der Tiefpunkt liegt am Rand der Beobachtung — dann kann der echte davor oder danach
+        liegen, und die Zeile zählt nicht in die Statistik. Diese Aufzeichnung bleibt erhalten, auch
+        wenn die Messreihe gelöscht wird.</div>
       <div id="basket-body"></div>
       <div id="basket-progress" style="display:none;margin-top:10px"></div>
       <div class="cmp-foot" style="margin-top:12px">

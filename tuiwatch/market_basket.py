@@ -151,6 +151,33 @@ def init_basket_db(con) -> None:
     )''')
     con.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_basket_level '
                 'ON basket_levels(basket, day)')
+    # Tiefpunkt-Archiv: eine Zeile je Messreihe und Aufzeichnungsbeginn. Bewusst die
+    # EINZIGE Barometer-Tabelle, die das Löschen einer Messreihe überlebt — hier steht
+    # die Erkenntnis, die Rohdaten waren nur das Mittel dazu. Der Schlüssel enthält
+    # `first_day`, damit eine neu gestartete Aufzeichnung unter demselben Namen die
+    # alte Zeile daneben stellt statt sie zu überschreiben.
+    con.execute('''CREATE TABLE IF NOT EXISTS basket_troughs (
+        id           INTEGER PRIMARY KEY AUTOINCREMENT,
+        ts           INTEGER NOT NULL,
+        basket       TEXT NOT NULL,
+        region_giata INTEGER,
+        region       TEXT NOT NULL DEFAULT '',
+        first_day    TEXT NOT NULL,
+        last_day     TEXT NOT NULL,
+        n_days       INTEGER NOT NULL,
+        first_dte    INTEGER,
+        last_dte     INTEGER,
+        trough_day   TEXT NOT NULL,
+        trough_dte   INTEGER,
+        trough_index REAL,
+        end_index    REAL,
+        gain_pct     REAL,
+        trough_p50   REAL,
+        edge_start   INTEGER NOT NULL DEFAULT 0,
+        censored     INTEGER NOT NULL DEFAULT 0
+    )''')
+    con.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_basket_trough '
+                'ON basket_troughs(basket, first_day)')
     # Angebots-Messreihen hießen kurzzeitig „<Region> (Abreise TT.MM.JJJJ)" — ein
     # Preisbarometer je Einzeltermin. Seit der Monatsbündelung gibt es zu diesen
     # Schlüsseln keine Messreihe mehr; ihre Snapshots blieben sonst als
@@ -167,6 +194,7 @@ def init_basket_db(con) -> None:
             A.log.info("Preisbarometer: %d Snapshots der Einzeltermin-Fassung verworfen "
                        "(Angebots-Messreihen laufen jetzt je Monat)", n)
     _backfill_booking(con)
+    _backfill_troughs(con)
 
 
 def _backfill_booking(con) -> None:
@@ -598,6 +626,10 @@ def run_basket(target: dict) -> dict:
         _store_snapshot(con, key, target.get('giata'), day, ts, rows)
         _store_levels(con, key, day, ts, rows)
         move = _compute_move(con, key, day)
+        # Direkt hier, nicht erst beim Abschluss der Messreihe: Region und
+        # Beschriftung sind nur solange bekannt, wie die Messreihe lebt.
+        _update_trough(con, key, target.get('giata'),
+                       ((target.get('payload') or {}).get('dest') or {}).get('label') or '')
         _prune(con)
     _invalidate_curve()
     A.log.info("Messreihe „%s“ (%s): %d Hotels erfasst%s", key,
@@ -916,6 +948,181 @@ def basket_position(con, basket: str) -> dict | None:
             'min': round(min(idx), 1), 'max': round(max(idx), 1)}
 
 
+# ── Tiefpunkte: wann war es am günstigsten? ───────────────────────────────────
+# Die Booking-Kurve sagt, wie sich Preise über die Vorlaufzeit IM MITTEL bewegen.
+# Sie sagt nicht, wo der Tiefpunkt einer konkreten Reise lag — und genau das ist die
+# Erkenntnis, die eine abgelaufene Messreihe hinterlässt.
+#
+# Festgehalten wird deshalb je Messreihe eine Zeile: an welchem Tag und bei welchem
+# Vorlauf der verkettete Index sein Minimum hatte, und was Warten bis zum Ende der
+# Beobachtung gekostet hätte. Diese Zeile ist die einzige Barometer-Angabe, die das
+# Löschen der Messreihe überlebt. Gerechnet wird auf dem verketteten Index, nicht auf
+# den rohen Medianpreisen — sonst wäre der „Tiefpunkt" oft nur der Tag, an dem
+# zufällig besonders viele günstige Hotels im Suchergebnis standen.
+#
+# Zwei Zensierungen müssen markiert werden, sonst ist die Statistik systematisch falsch:
+#
+# * **links** (`edge_start`): liegt das Minimum am ERSTEN beobachteten Tag, kann der
+#   echte Tiefpunkt davor gelegen haben. „Tiefpunkt bei 120 Tagen" hieße dann in
+#   Wahrheit nur „so früh habe ich angefangen zu messen".
+# * **rechts** (`censored`): endet die Beobachtung lange vor der Abreise (Suche
+#   gelöscht, Add-on aus, Reihe läuft noch), kann der Tiefpunkt noch kommen. Solche
+#   Reihen würden den typischen Tiefpunkt nach vorn ziehen.
+#
+# Beide Fälle bleiben als Zeile erhalten — sie sind für den Rückblick auf die eigene
+# Reise nützlich —, gehen aber nicht in die Statistik ein. Eine noch laufende Reihe
+# ist über die Rechtszensierung automatisch ausgeschlossen: ihr letzter Beobachtungstag
+# liegt zwangsläufig weit vor der Abreise.
+
+TROUGH_MIN_DAYS = 10        # kürzere Beobachtung → kein verwertbarer Tiefpunkt
+TROUGH_MAX_LAST_DTE = 21    # bis so nah an die Abreise muss die Beobachtung reichen
+TROUGH_MIN_SAMPLES = 5      # weniger auswertbare Reihen → keine Statistik
+
+
+def trough_of(con, basket: str) -> dict | None:
+    """Tiefpunkt einer Messreihe im verketteten Index, mit Zensierungs-Kennzeichnung.
+
+    `gain_pct` ist die eigentliche Lehre: um wie viel Prozent der Index vom Tiefpunkt
+    bis zum letzten Beobachtungstag gestiegen ist — also was Warten gekostet hätte.
+    Negativ heißt, dass der Tiefpunkt der letzte Tag war (Preise fielen bis zuletzt)."""
+    rows = con.execute(
+        'SELECT day, pct_median, days_to_dep FROM basket_moves WHERE basket=? '
+        'ORDER BY day ASC', (basket,)).fetchall()
+    if len(rows) < BASKET_MIN_DAYS:
+        return None
+    # Vorlauf je Tag: bevorzugt aus `basket_moves`, ersatzweise aus `basket_levels`
+    # (dort steht er auch für Tage ohne verwertbare Tagesbewegung).
+    dtes = {r['day']: r['days_to_dep'] for r in rows if r['days_to_dep'] is not None}
+    for r in con.execute('SELECT day, days_to_dep FROM basket_levels WHERE basket=? '
+                         'AND days_to_dep IS NOT NULL', (basket,)).fetchall():
+        dtes.setdefault(r['day'], r['days_to_dep'])
+    idx, level = [], 100.0
+    for r in rows:
+        level *= (1 + r['pct_median'] / 100)
+        idx.append((r['day'], level))
+    # `min` nimmt bei Gleichstand den frühesten Tag — die erste Gelegenheit zählt.
+    t_day, t_level = min(idx, key=lambda x: x[1])
+    first_day, last_day = idx[0][0], idx[-1][0]
+    e_level = idx[-1][1]
+    lv = con.execute('SELECT p50 FROM basket_levels WHERE basket=? AND day=?',
+                     (basket, t_day)).fetchone()
+    last_dte = dtes.get(last_day)
+    edge_start = t_day == first_day
+    censored = last_dte is None or last_dte > TROUGH_MAX_LAST_DTE
+    return {
+        'basket': basket, 'first_day': first_day, 'last_day': last_day,
+        'n_days': len(idx), 'first_dte': dtes.get(first_day), 'last_dte': last_dte,
+        'trough_day': t_day, 'trough_dte': dtes.get(t_day),
+        'trough_index': round(t_level, 1), 'end_index': round(e_level, 1),
+        'gain_pct': round((e_level / t_level - 1) * 100, 1) if t_level else None,
+        'trough_p50': lv['p50'] if lv else None,
+        'edge_start': edge_start, 'censored': censored,
+        'usable': bool(not edge_start and not censored
+                       and len(idx) >= TROUGH_MIN_DAYS and dtes.get(t_day) is not None),
+    }
+
+
+def _update_trough(con, basket: str, region_giata: int | None = None,
+                   region_label: str = '') -> bool:
+    """Tiefpunkt-Zeile fortschreiben — läuft nach jedem Barometer-Lauf mit.
+
+    Bewusst laufend statt erst beim Abschluss der Messreihe: Region und Beschriftung
+    sind nur solange bekannt, wie die Messreihe lebt, und eine gelöschte Reihe käme
+    nie zu ihrem Abschluss. `INSERT OR REPLACE` würde die einmal ermittelte Region bei
+    einem späteren Lauf ohne Region wieder ausnullen — deshalb wird der Altbestand
+    vorher gelesen und gemischt."""
+    t = trough_of(con, basket)
+    if not t:
+        return False
+    old = con.execute('SELECT region_giata, region FROM basket_troughs '
+                      'WHERE basket=? AND first_day=?', (basket, t['first_day'])).fetchone()
+    if old:
+        region_giata = region_giata or old['region_giata']
+        region_label = (region_label or '').strip() or (old['region'] or '')
+    con.execute(
+        'INSERT OR REPLACE INTO basket_troughs (ts, basket, region_giata, region, '
+        'first_day, last_day, n_days, first_dte, last_dte, trough_day, trough_dte, '
+        'trough_index, end_index, gain_pct, trough_p50, edge_start, censored) '
+        'VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+        (int(time.time()), basket, region_giata, (region_label or '').strip(),
+         t['first_day'], t['last_day'], t['n_days'], t['first_dte'], t['last_dte'],
+         t['trough_day'], t['trough_dte'], t['trough_index'], t['end_index'],
+         t['gain_pct'], t['trough_p50'], int(t['edge_start']), int(t['censored'])))
+    return True
+
+
+def _backfill_troughs(con) -> None:
+    """Tiefpunkte der bereits vorhandenen Messreihen einmalig nachtragen — sonst
+    stünde das Archiv leer da, obwohl die Bewegungen längst auf Platte liegen."""
+    if con.execute("SELECT 1 FROM meta WHERE key='basket_trough_backfill'").fetchone():
+        return
+    keys = [r['basket'] for r in con.execute(
+        "SELECT DISTINCT basket FROM basket_moves WHERE basket!=''").fetchall()]
+    n = 0
+    for k in keys:
+        rg = con.execute('SELECT region_giata FROM basket_snapshots WHERE basket=? '
+                         'AND region_giata IS NOT NULL LIMIT 1', (k,)).fetchone()
+        if _update_trough(con, k, rg['region_giata'] if rg else None):
+            n += 1
+    con.execute("INSERT OR REPLACE INTO meta (key, value) "
+                "VALUES ('basket_trough_backfill','1')")
+    if n:
+        A.log.info("Tiefpunkt-Archiv: %d Messreihen ausgewertet", n)
+
+
+def _trough_stats_query() -> str:
+    """Fester Query-Text mit `(? IS NULL OR …)` statt zusammengebautem SQL — gleiche
+    Begründung wie bei `_moves_query`."""
+    return ('SELECT trough_dte, gain_pct FROM basket_troughs '
+            'WHERE edge_start=0 AND censored=0 AND trough_dte IS NOT NULL '
+            'AND n_days>=? AND (? IS NULL OR region_giata=?)')
+
+
+def trough_stats(con, region_giata: int | None = None) -> dict:
+    """Verteilung der Tiefpunkte über die auswertbaren Messreihen.
+
+    Die Antwort auf „X Tage vor Abreise war es am günstigsten" — und zugleich die
+    einzige Kontrolle, ob die gepoolte Booking-Kurve den echten Tiefpunkt trifft.
+    Unter `TROUGH_MIN_SAMPLES` Reihen kommt bewusst keine Zahl, nur der Zählerstand."""
+    rows = con.execute(_trough_stats_query(),
+                       (TROUGH_MIN_DAYS, region_giata, region_giata)).fetchall()
+    n = len(rows)
+    if n < TROUGH_MIN_SAMPLES:
+        return {'n': n, 'need': TROUGH_MIN_SAMPLES, 'ready': False}
+    dtes = sorted(int(r['trough_dte']) for r in rows)
+    gains = [r['gain_pct'] for r in rows if r['gain_pct'] is not None]
+    q1, med, q3 = statistics.quantiles(dtes, n=4, method='inclusive')
+    return {'n': n, 'need': TROUGH_MIN_SAMPLES, 'ready': True,
+            'median_dte': int(round(med)), 'p25_dte': int(round(q1)),
+            'p75_dte': int(round(q3)), 'min_dte': dtes[0], 'max_dte': dtes[-1],
+            'median_gain': round(statistics.median(gains), 1) if gains else None}
+
+
+def trough_payload() -> dict:
+    """Tiefpunkt-Archiv für Route und UI: Gesamtstatistik, je Region und alle Zeilen."""
+    with A.db() as con:
+        rows = [dict(r) for r in con.execute(
+            'SELECT * FROM basket_troughs ORDER BY last_day DESC, basket ASC').fetchall()]
+        glob = trough_stats(con)
+        regions, seen = [], set()
+        for r in rows:
+            rg = r['region_giata']
+            if not rg or rg in seen:
+                continue
+            seen.add(rg)
+            regions.append(dict(trough_stats(con, int(rg)),
+                                region=r['region'] or str(rg), giata=int(rg)))
+    for r in rows:
+        r['edge_start'] = bool(r['edge_start'])
+        r['censored'] = bool(r['censored'])
+        r['usable'] = bool(not r['edge_start'] and not r['censored']
+                           and r['trough_dte'] is not None
+                           and r['n_days'] >= TROUGH_MIN_DAYS)
+    return {'stats': glob, 'by_region': sorted(regions, key=lambda x: -x['n']),
+            'rows': rows, 'min_days': TROUGH_MIN_DAYS,
+            'max_last_dte': TROUGH_MAX_LAST_DTE, 'min_samples': TROUGH_MIN_SAMPLES}
+
+
 def _current_dte(con, basket: str) -> int | None:
     """Heutiger Vorlauf einer Messreihe: der zuletzt erfasste Wert, um die seither
     vergangenen Tage verringert. Ohne diese Korrektur zeigte eine Messreihe, deren
@@ -1019,8 +1226,9 @@ def booking_payload() -> dict:
         keys = [r['basket'] for r in con.execute(
             "SELECT DISTINCT basket FROM basket_moves WHERE basket!=''").fetchall()]
         signals = [s for s in (booking_signal(con, k, curve, active) for k in sorted(keys)) if s]
+        troughs = trough_stats(con)
     covered = sum(1 for b in curve if b['rate'] is not None)
-    return {'enabled': True, 'curve': curve, 'signals': signals,
+    return {'enabled': True, 'curve': curve, 'signals': signals, 'troughs': troughs,
             'buckets_ready': covered, 'buckets_total': len(curve)}
 
 
@@ -1160,6 +1368,7 @@ def basket_payload() -> dict:
         keys = [r['basket'] for r in con.execute(
             "SELECT DISTINCT basket FROM basket_moves WHERE basket!=''").fetchall()]
         glob = {'trend': basket_trend(con), 'index': basket_index(con)}
+        troughs = trough_stats(con)
         # Kurve EINMAL für alle Messreihen (gepoolt und gecacht) statt je Zeile neu.
         curve = booking_curve(con) if booking else []
         # `_basket_targets()` kennt nur die aktiven Reihen — für die Kennzeichnung der
@@ -1177,7 +1386,8 @@ def basket_payload() -> dict:
                                   'closed': k not in active,
                                   'last_day': (last['d'] if last else '') or '',
                                   'signal': booking_signal(con, k, curve, active) if booking else None,
-                                  'level': _last_level(con, k)})
+                                  'level': _last_level(con, k),
+                                  'trough': trough_of(con, k)})
         last = con.execute('SELECT MAX(day) d FROM basket_snapshots').fetchone()
         pending = [r['basket'] for r in con.execute(
             "SELECT DISTINCT basket FROM basket_snapshots WHERE basket NOT IN "
@@ -1190,7 +1400,8 @@ def basket_payload() -> dict:
             'progress': dict(_progress),
             'booking': {'enabled': booking, 'curve': curve,
                         'ready': sum(1 for b in curve if b['rate'] is not None),
-                        'total': len(curve)}}
+                        'total': len(curve)},
+            'troughs': troughs}
 
 
 def _last_level(con, basket: str) -> dict | None:
@@ -1220,6 +1431,16 @@ def api_booking_window():
     if (err := A._require_api()):
         return err
     return jsonify(booking_payload())
+
+
+@bp.route('/api/booking-troughs')
+def api_booking_troughs():
+    """Tiefpunkt-Archiv: wann war es je Messreihe am günstigsten, und was ist daraus
+    über den typischen Buchungszeitpunkt zu lernen. Überlebt das Löschen der
+    zugehörigen Messreihen."""
+    if (err := A._require_api()):
+        return err
+    return jsonify(trough_payload())
 
 
 @bp.route('/api/market-basket/progress')
@@ -1252,17 +1473,35 @@ def api_market_basket_run():
 @bp.route('/api/market-basket/region', methods=['DELETE'])
 def api_market_basket_region_delete():
     """Daten EINER Messreihe löschen (Snapshots und Bewegungen) — Neustart der
-    Aufzeichnung, z. B. nachdem sich die Suchparameter geändert haben."""
+    Aufzeichnung, z. B. nachdem sich die Suchparameter geändert haben.
+
+    Der Tiefpunkt dieser Reihe bleibt im Archiv stehen: er ist die verdichtete
+    Erkenntnis („günstigster Zeitpunkt war X Tage vor Abreise") und für künftige
+    Buchungen genau das, was von einer abgeschlossenen Beobachtung übrig bleiben
+    soll. `purge_troughs: true` im Rumpf löscht ihn ausdrücklich mit — dann ist die
+    Messreihe wirklich spurlos weg."""
     if (err := A._require_api()):
         return err
-    region = ((request.get_json(silent=True) or {}).get('region') or '').strip()
+    body = request.get_json(silent=True) or {}
+    region = (body.get('region') or '').strip()
     if not region:
         return jsonify({'error': 'invalid'}), 400
+    purge = bool(body.get('purge_troughs'))
     with A.db() as con:
+        # Vor dem Löschen fortschreiben — sonst ginge ein Tiefpunkt verloren, der seit
+        # dem letzten Barometer-Lauf entstanden ist.
+        if not purge:
+            _update_trough(con, region)
         snaps = con.execute('DELETE FROM basket_snapshots WHERE basket=?', (region,)).rowcount
         moves = con.execute('DELETE FROM basket_moves WHERE basket=?', (region,)).rowcount
         levels = con.execute('DELETE FROM basket_levels WHERE basket=?', (region,)).rowcount
+        troughs = con.execute('DELETE FROM basket_troughs WHERE basket=?',
+                              (region,)).rowcount if purge else 0
+        kept = con.execute('SELECT COUNT(*) c FROM basket_troughs WHERE basket=?',
+                           (region,)).fetchone()['c']
     _invalidate_curve()
     A.log.info("Barometer-Daten für „%s“ gelöscht: %d Snapshots, %d Tagesbewegungen, "
-               "%d Preisniveaus", region, snaps, moves, levels)
-    return jsonify({'region': region, 'snapshots': snaps, 'moves': moves, 'levels': levels})
+               "%d Preisniveaus, %d Tiefpunkte behalten%s", region, snaps, moves, levels,
+               kept, f", {troughs} verworfen" if purge else "")
+    return jsonify({'region': region, 'snapshots': snaps, 'moves': moves,
+                    'levels': levels, 'troughs_deleted': troughs, 'troughs_kept': kept})

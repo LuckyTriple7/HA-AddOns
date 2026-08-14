@@ -167,7 +167,7 @@ def test_summary_prompt_contains_facts_and_instructions(app_mod):
 def test_prompt_settings_includes_summary_feature(app_mod):
     c = app_mod.app.test_client()
     data = c.get("/api/ai/prompt-settings", headers=ING).get_json()
-    assert set(data.keys()) == {"advisor", "compare", "summary", "daytrip"}
+    assert set(data.keys()) == {"advisor", "compare", "summary", "daytrip", "region_compare"}
     assert "Fazit" in data["summary"]["default"]
 
 
@@ -176,7 +176,7 @@ def test_prompt_settings_get_default(app_mod):
     r = c.get("/api/ai/prompt-settings", headers=ING)
     assert r.status_code == 200
     data = r.get_json()
-    assert set(data.keys()) == {"advisor", "compare", "summary", "daytrip"}
+    assert set(data.keys()) == {"advisor", "compare", "summary", "daytrip", "region_compare"}
     assert data["advisor"]["enabled"] is False
     assert data["advisor"]["text"] == ""
     assert "Windverhältnisse" in data["advisor"]["default"]
@@ -198,7 +198,7 @@ def test_prompt_settings_post_and_get_roundtrip(app_mod):
 
 def test_prompt_settings_text_capped_at_max_len(app_mod):
     c = app_mod.app.test_client()
-    long_text = "x" * 5000
+    long_text = "x" * (app_mod._CUSTOM_PROMPT_MAX_LEN + 1000)
     c.post("/api/ai/prompt-settings", headers=ING, json={
         "advisor": {"enabled": True, "text": long_text},
     })

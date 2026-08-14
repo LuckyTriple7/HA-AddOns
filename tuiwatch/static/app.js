@@ -2394,6 +2394,94 @@
         + `Prozentwerte sind dimensionslos, deshalb dürfen verschiedene Ziele zusammen in einen Topf.</div>`
         + `<table class="hist"><tr><th>Vorlauf</th><th>über das Fenster</th><th>pro Tag</th><th>Punkte / Messreihen</th></tr>${rows}</table>`;
     }
+    // ── Tiefpunkte ────────────────────────────────────────────────────────────────
+    // Die Booking-Kurve schaut nach vorn („wie bewegt sich der Markt üblicherweise"),
+    // die Tiefpunkte schauen zurück („wann war es tatsächlich am günstigsten"). Nur
+    // die zweite Zahl stammt aus echten Ausgängen — deshalb steht sie getrennt da und
+    // fließt bewusst NICHT in den Ampel-Score ein, sonst zählte dieselbe Information
+    // doppelt.
+    function troughCell(t){
+      if(!t) return '<span class="hint">–</span>';
+      if(t.trough_dte===null || t.trough_dte===undefined)
+        return '<span class="hint">Vorlauf unbekannt</span>';
+      const warn = t.edge_start
+        ? 'Tiefpunkt liegt am ersten Beobachtungstag — der echte Tiefpunkt kann davor gelegen haben'
+        : (t.censored ? 'Beobachtung endet weit vor der Abreise — der Tiefpunkt kann noch kommen' : '');
+      const title = `Günstigster Stand am ${fmtD(t.trough_day)} bei Index ${t.trough_index}`
+        + (t.trough_p50 ? `, Median-Preis damals ${Math.round(t.trough_p50).toLocaleString('de-DE')} €` : '')
+        + ` · zuletzt ${fmtD(t.last_day)} bei Index ${t.end_index}`
+        + ` · ${t.n_days} Beobachtungstage` + (warn ? ` · ${warn}` : '');
+      return `<span title="${esc(title)}" style="white-space:nowrap">${t.trough_dte} T`
+        + (warn ? ' <span class="hint">≈</span>' : '') + '</span>'
+        + (t.gain_pct===null || t.gain_pct===undefined ? ''
+            : ` <span class="hint" style="white-space:nowrap">(${pctStr(t.gain_pct)})</span>`);
+    }
+    let _troughData = null, _troughOpen = false;
+    function troughSection(b){
+      const s = b.troughs || {};
+      const head = `<h3 style="margin:16px 0 4px;font-size:15px">Tiefpunkte</h3>`
+        + `<div class="hint" style="margin-bottom:6px">Rückblick statt Prognose: wann war eine `
+        + `abgeschlossene Messreihe tatsächlich am günstigsten. Zeilen, deren Tiefpunkt am `
+        + `Rand der Beobachtung liegt, bleiben stehen, zählen aber nicht mit — sonst zeigte `
+        + `die Statistik den Beginn der Messung statt den Tiefpunkt. Diese Auswertung `
+        + `überlebt das Löschen einer Messreihe.</div>`;
+      if(!s.ready){
+        return head + `<div class="hint">Noch ${Math.max(0,(s.need||5)-(s.n||0))} auswertbare `
+          + `Messreihen bis zur ersten Aussage (${s.n||0} von ${s.need||5}). Auswertbar ist eine `
+          + `Reihe, die bis nah an die Abreise beobachtet wurde.</div>`
+          + troughArchive();
+      }
+      return head
+        + `<div class="trend-global">Am günstigsten war es im Median <b>${s.median_dte} Tage vor Abreise</b>`
+        + ` <span class="hint">(mittlere Hälfte: ${s.p25_dte}–${s.p75_dte} Tage, Spanne ${s.min_dte}–${s.max_dte}, `
+        + `${s.n} Messreihen)</span></div>`
+        + (s.median_gain===null || s.median_gain===undefined ? ''
+            : `<div class="hint" style="margin-top:4px">Wer den Tiefpunkt verpasste, zahlte bis zum `
+              + `Ende der Beobachtung im Median ${pctStr(s.median_gain)}.</div>`)
+        + troughArchive();
+    }
+    function troughArchive(){
+      if(!_troughOpen)
+        return `<div style="margin-top:6px"><span class="cal-month-link" onclick="toggleTroughs()">`
+          + `Alle aufgezeichneten Tiefpunkte anzeigen ▾</span></div>`;
+      const d = _troughData;
+      if(!d) return '<div class="hint" style="margin-top:6px">Lade…</div>';
+      // Warum eine Zeile nicht zählt, im Klartext statt als Symbol — beim Start sind
+      // zwangsläufig ALLE Zeilen angeschnitten (der erste Messtag ist bei fallenden
+      // Preisen automatisch das Minimum), und ohne Erklärung sähe die leere Statistik
+      // daneben nach einem Fehler aus.
+      const MARK = {
+        edge: ['Tiefpunkt am ersten Messtag',
+               'Der bisher günstigste Stand ist zugleich der Beginn der Aufzeichnung — ob es davor '
+               + 'günstiger war, ist unbekannt. Sobald die Preise einmal drehen, zählt die Reihe mit.'],
+        open: ['Beobachtung endet zu früh',
+               'Zwischen letztem Messtag und Abreise liegen noch mehr als '
+               + (d.max_last_dte||21) + ' Tage — der Tiefpunkt kann noch kommen. Laufende Messreihen '
+               + 'stehen immer hier.'],
+      };
+      const rows = (d.rows||[]).map(r=>{
+        const mk = r.usable ? null : MARK[r.edge_start ? 'edge' : 'open'];
+        return `<tr${r.usable?'':' style="opacity:.6"'}><td>${esc(r.basket)}`
+          + `<div class="hint">${fmtD(r.first_day)} – ${fmtD(r.last_day)} · ${r.n_days} Tage</div></td>`
+          + `<td>${troughCell(r)}</td>`
+          + `<td>${r.trough_p50 ? Math.round(r.trough_p50).toLocaleString('de-DE')+' €' : '<span class="hint">–</span>'}</td>`
+          + `<td class="hint">${mk ? `<span title="${esc(mk[1])}">${esc(mk[0])}</span>` : ''}</td></tr>`;
+      }).join('');
+      const open = (d.rows||[]).filter(r=>!r.usable).length;
+      return `<div style="margin-top:6px"><span class="cal-month-link" onclick="toggleTroughs()">Tiefpunkte ausblenden ▴</span></div>`
+        + (rows ? `<table class="hist"><tr><th>Messreihe</th><th>Tiefpunkt (danach)</th><th>Preis dort</th><th>zählt nicht, weil…</th></tr>${rows}</table>`
+                  + (open ? `<div class="hint" style="margin-top:6px">${open} von ${d.rows.length} `
+                      + `Reihen zählen noch nicht in die Statistik — das ist am Anfang normal.</div>` : '')
+                : '<div class="hint">Noch keine aufgezeichneten Tiefpunkte.</div>');
+    }
+    async function toggleTroughs(){
+      _troughOpen = !_troughOpen;
+      if(_troughOpen && !_troughData){
+        try { _troughData = await fetch(api('/api/booking-troughs')).then(r=>r.json()); }
+        catch(e){ _troughData = {rows:[]}; }
+      }
+      loadBasket();
+    }
     function renderBasket(b){
       if(!b || !b.enabled){
         $('#basket-body').innerHTML = '<div class="cmp-load">Das Preisbarometer ist in den Add-on-Einstellungen abgeschaltet.</div>';
@@ -2411,6 +2499,7 @@
         return `<tr${r.closed?' style="opacity:.7"':''}><td>${esc(r.region)}${when}</td>`
         + `<td>${marketTrendBadge(r.trend)}${marketIndexLine(r.index)}</td>`
         + (bk.enabled ? `<td>${ampelBadge(r.signal)}</td>` : '')
+        + `<td>${troughCell(r.trough)}</td>`
         + `<td>${(r.trend||{}).hotels||''}</td>`
         + `<td><button class="btn sec" onclick="resetBasketRegion(${esc(JSON.stringify(r.region))})" title="${r.closed
             ? 'Diese abgeschlossene Messreihe endgültig entfernen'
@@ -2424,9 +2513,12 @@
       $('#basket-body').innerHTML =
         `<div class="trend-global"><b>Gesamt:</b> ${marketTrendBadge(b.global.trend)}${marketIndexLine(b.global.index)}</div>`
         + (rows ? `<table class="hist"><tr><th>Gespeicherte Suche / Reisezeitraum</th><th>Trend (14 Tage) / Index (gesamt)</th>`
-                + (bk.enabled ? '<th>Buchen?</th>' : '') + `<th>Hotels</th><th></th></tr>${rows}</table>`
+                + (bk.enabled ? '<th>Buchen?</th>' : '')
+                + `<th title="Vorlauf beim bisher günstigsten Stand, in Klammern die Bewegung seither">Tiefpunkt</th>`
+                + `<th>Hotels</th><th></th></tr>${rows}</table>`
                 : '<div class="cmp-load">Noch keine Suche mit zwei vergleichbaren Barometer-Tagen.</div>')
         + bookingCurveTable(bk)
+        + troughSection(b)
         + (waitRows ? `<h3 style="margin:16px 0 4px;font-size:15px">Sammelt noch</h3>`
             + `<ul style="margin:0;padding-left:18px;font-size:14px">${waitRows}</ul>` : '')
         + (b.last_day
@@ -2493,12 +2585,15 @@
     }
     async function resetBasketRegion(region){
       if(!confirm(`Barometer-Daten für „${region}" löschen und neu beginnen?\n`
-        + `Die Messreihe wird beim nächsten Lauf neu erfasst, Trend und Index beginnen von vorn.`)) return;
+        + `Die Messreihe wird beim nächsten Lauf neu erfasst, Trend und Index beginnen von vorn.\n`
+        + `Der aufgezeichnete Tiefpunkt bleibt erhalten.`)) return;
       try {
         const d = await fetch(api('/api/market-basket/region'), {method:'DELETE',
           headers:{'Content-Type':'application/json'}, body:JSON.stringify({region})}).then(x=>x.json());
-        toast(`${d.snapshots} Snapshots und ${d.moves} Tagesbewegungen gelöscht`);
+        toast(`${d.snapshots} Snapshots und ${d.moves} Tagesbewegungen gelöscht`
+          + (d.troughs_kept ? `, Tiefpunkt behalten` : ''));
       } catch(e){ toast('Löschen fehlgeschlagen'); }
+      _troughData = null;
       loadBasket();
       updateTrendBtn();
     }
@@ -2569,6 +2664,7 @@
       ['syslog-bg', closeSyslog],
       ['aihist-bg', closeAiHistory],
       ['aiask-bg', closeAiAsk],
+      ['regcmp-bg', closeRegionCompare],
       ['reiseb-bg', closeAdvisor],
       ['hc-bg', () => $('#hc-bg').classList.remove('show')],
       ['promptcfg-bg', closePromptCfg],
@@ -4354,7 +4450,7 @@
       $('#ai-sub').textContent = srchDest.label
         + (body.start && body.end ? ` · ${body.start} – ${body.end}` : '');
       $('#ai-foot').style.display = 'none';
-      $('#ai-bg').classList.add('show');
+      const aiGen = aiOpenPanel();
       const attempt = async () => {
         await ensureAiProviderLoaded();
         const busy = aiProviderName()+' prüft Reisezeit und Alternativen…';
@@ -4365,14 +4461,16 @@
             {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)}, busy);
           if(r.cancelled) return;
           resp = r.resp; d = r.d;
-        } catch(e){ _aiRetryFn = attempt; $('#ai-body').innerHTML = aiErrorBlock('Reisezeit-Check fehlgeschlagen.', true); return; }
+        } catch(e){ if(aiStale(aiGen)) return; _aiRetryFn = attempt; $('#ai-body').innerHTML = aiErrorBlock('Reisezeit-Check fehlgeschlagen.', true); return; }
         if(!resp.ok){
           const retryable = aiRetryable(d.error);
           const msg = d.error==='no_dest' ? 'Kein Reiseziel gewählt.' : aiErrorMsg(d.error);
+          if(aiStale(aiGen)) return;
           _aiRetryFn = retryable ? attempt : null;
           $('#ai-body').innerHTML = aiErrorBlock(msg, retryable);
           return;
         }
+        if(aiStale(aiGen)) return;
         renderAiResult('#ai-body', d);
       };
       attempt();
@@ -4786,6 +4884,7 @@
       if(aiCurrentId == null){ toast('Folgefrage hier nicht möglich'); return; }
       const thread = $('#ai-thread'), status = $('#ai-followup-status');
       if(!thread || !status) return;
+      const aiGen = _aiGen;
       input.disabled = true;
       const bubble = document.createElement('div');
       bubble.className = 'hint';
@@ -4801,10 +4900,12 @@
         if(r.cancelled){ bubble.remove(); status.innerHTML = ''; input.disabled = false; input.value = q; return; }
         resp = r.resp; d = r.d;
       } catch(e){
+        if(aiStale(aiGen)) return;
         status.innerHTML = aiErrorBlock('Folgefrage fehlgeschlagen.', false);
         input.disabled = false;
         return;
       }
+      if(aiStale(aiGen)) return;
       if(!resp.ok){
         status.innerHTML = aiErrorBlock(d.error==='unsupported_kind' ? 'Für dieses Ergebnis sind keine Folgefragen möglich.'
           : d.error==='no_prompt' ? (d.note||'Keine Konversation gespeichert.') : aiErrorMsg(d.error), false);
@@ -4866,7 +4967,7 @@
       $('#ai-title').textContent = '🔮 Buchungsscore';
       $('#ai-sub').textContent = o.label || o.hotel || ('Angebot #'+id);
       $('#ai-foot').style.display = 'none';
-      $('#ai-bg').classList.add('show');
+      const aiGen = aiOpenPanel();
       const attempt = async () => {
         await ensureAiProviderLoaded();
         $('#ai-body').innerHTML = progBar(aiProviderName()+' berechnet den Buchungsscore…');
@@ -4875,14 +4976,16 @@
           const r = await aiFetchPreviewable(api('/api/ai/booking-score/'+id), {method:'POST'}, aiProviderName()+' berechnet den Buchungsscore…');
           if(r.cancelled) return;
           resp = r.resp; d = r.d;
-        } catch(e){ _aiRetryFn = attempt; $('#ai-body').innerHTML = aiErrorBlock('Buchungsscore fehlgeschlagen.', true); return; }
+        } catch(e){ if(aiStale(aiGen)) return; _aiRetryFn = attempt; $('#ai-body').innerHTML = aiErrorBlock('Buchungsscore fehlgeschlagen.', true); return; }
         if(!resp.ok){
           const retryable = aiRetryable(d.error);
           const msg = d.error==='no_price' ? 'Noch kein Preis für dieses Angebot vorhanden.' : aiErrorMsg(d.error);
+          if(aiStale(aiGen)) return;
           _aiRetryFn = retryable ? attempt : null;
           $('#ai-body').innerHTML = aiErrorBlock(msg, retryable);
           return;
         }
+        if(aiStale(aiGen)) return;
         renderBookingScore('#ai-body', d);
       };
       attempt();
@@ -4893,7 +4996,7 @@
       $('#ai-title').textContent = '🔮 Region-Ausblick';
       $('#ai-sub').textContent = r.region;
       $('#ai-foot').style.display = 'none';
-      $('#ai-bg').classList.add('show');
+      const aiGen = aiOpenPanel();
       const attempt = async () => {
         await ensureAiProviderLoaded();
         $('#ai-body').innerHTML = progBar(aiProviderName()+' schätzt die Destination ein…');
@@ -4903,14 +5006,16 @@
             body: JSON.stringify({region: r.region})}, aiProviderName()+' schätzt die Destination ein…');
           if(rp.cancelled) return;
           resp = rp.resp; d = rp.d;
-        } catch(e){ _aiRetryFn = attempt; $('#ai-body').innerHTML = aiErrorBlock('Region-Ausblick fehlgeschlagen.', true); return; }
+        } catch(e){ if(aiStale(aiGen)) return; _aiRetryFn = attempt; $('#ai-body').innerHTML = aiErrorBlock('Region-Ausblick fehlgeschlagen.', true); return; }
         if(!resp.ok){
           const retryable = aiRetryable(d.error);
           const msg = d.error==='no_data' ? 'Noch zu wenig Markttrend-Daten für diese Destination.' : aiErrorMsg(d.error);
+          if(aiStale(aiGen)) return;
           _aiRetryFn = retryable ? attempt : null;
           $('#ai-body').innerHTML = aiErrorBlock(msg, retryable);
           return;
         }
+        if(aiStale(aiGen)) return;
         renderBookingScore('#ai-body', d);
       };
       attempt();
@@ -4923,7 +5028,7 @@
       $('#ai-title').textContent = '📅 Kalender-Analyse';
       $('#ai-sub').textContent = offer.label || offer.hotel || ('Angebot #'+id);
       $('#ai-foot').style.display = 'none';
-      $('#ai-bg').classList.add('show');
+      const aiGen = aiOpenPanel();
       const attempt = async () => {
         await ensureAiProviderLoaded();
         $('#ai-body').innerHTML = progBar(aiProviderName()+' fasst die Kalenderpreise zusammen…');
@@ -4932,14 +5037,16 @@
           const r = await aiFetchPreviewable(api('/api/ai/calendar-outlook/'+id), {method:'POST'}, aiProviderName()+' fasst die Kalenderpreise zusammen…');
           if(r.cancelled) return;
           resp = r.resp; d = r.d;
-        } catch(e){ _aiRetryFn = attempt; $('#ai-body').innerHTML = aiErrorBlock('Kalender-Analyse fehlgeschlagen.', true); return; }
+        } catch(e){ if(aiStale(aiGen)) return; _aiRetryFn = attempt; $('#ai-body').innerHTML = aiErrorBlock('Kalender-Analyse fehlgeschlagen.', true); return; }
         if(!resp.ok){
           const retryable = aiRetryable(d.error);
           const msg = d.error==='no_data' ? 'Noch keine Kalenderdaten für dieses Angebot vorhanden.' : aiErrorMsg(d.error);
+          if(aiStale(aiGen)) return;
           _aiRetryFn = retryable ? attempt : null;
           $('#ai-body').innerHTML = aiErrorBlock(msg, retryable);
           return;
         }
+        if(aiStale(aiGen)) return;
         renderAiResult('#ai-body', d);
       };
       attempt();
@@ -4974,7 +5081,7 @@
       $('#ai-title').textContent = '🤖 KI-Fazit';
       $('#ai-sub').textContent = r.name || '';
       $('#ai-foot').style.display = 'none';
-      $('#ai-bg').classList.add('show');
+      const aiGen = aiOpenPanel();
       if(r._ai){ renderAiResult('#ai-body', r._ai); return; }
       const attempt = async () => {
         await ensureAiProviderLoaded();
@@ -4985,14 +5092,16 @@
             body: JSON.stringify(hotelFacts(r))}, aiProviderName()+' durchsucht das Web nach Bewertungen…');
           if(rp.cancelled) return;
           resp = rp.resp; d = rp.d;
-        } catch(e){ _aiRetryFn = attempt; $('#ai-body').innerHTML = aiErrorBlock('KI-Zusammenfassung fehlgeschlagen.', true); return; }
+        } catch(e){ if(aiStale(aiGen)) return; _aiRetryFn = attempt; $('#ai-body').innerHTML = aiErrorBlock('KI-Zusammenfassung fehlgeschlagen.', true); return; }
         if(!resp.ok){
           const retryable = aiRetryable(d.error);
+          if(aiStale(aiGen)) return;
           _aiRetryFn = retryable ? attempt : null;
           $('#ai-body').innerHTML = aiErrorBlock(aiErrorMsg(d.error), retryable);
           return;
         }
         r._ai = d;
+        if(aiStale(aiGen)) return;
         renderAiResult('#ai-body', d);
       };
       attempt();
@@ -5031,7 +5140,7 @@
       $('#ai-title').textContent = '🤖 KI-Vergleich';
       $('#ai-sub').textContent = names.join(' · ');
       $('#ai-foot').style.display = 'none';
-      $('#ai-bg').classList.add('show');
+      const aiGen = aiOpenPanel();
       if(_aiCompareCache[cacheKey]){ renderAiResult('#ai-body', _aiCompareCache[cacheKey]); return; }
       const attempt = async () => {
         await ensureAiProviderLoaded();
@@ -5042,21 +5151,167 @@
             body: JSON.stringify({hotels: facts})}, aiProviderName()+' vergleicht '+facts.length+' Hotels und durchsucht das Web…');
           if(r.cancelled) return;
           resp = r.resp; d = r.d;
-        } catch(e){ _aiRetryFn = attempt; $('#ai-body').innerHTML = aiErrorBlock('KI-Vergleich fehlgeschlagen.', true); return; }
+        } catch(e){ if(aiStale(aiGen)) return; _aiRetryFn = attempt; $('#ai-body').innerHTML = aiErrorBlock('KI-Vergleich fehlgeschlagen.', true); return; }
         if(!resp.ok){
           const retryable = aiRetryable(d.error);
+          if(aiStale(aiGen)) return;
           _aiRetryFn = retryable ? attempt : null;
           $('#ai-body').innerHTML = aiErrorBlock(aiErrorMsg(d.error), retryable);
           return;
         }
         _aiCompareCache[cacheKey] = d;
+        if(aiStale(aiGen)) return;
         renderAiResult('#ai-body', d);
       };
       attempt();
     }
     const _aiCompareCache = {};  // Session-Cache: Präfix+sortierter Schlüssel-String → {summary, usage}
-    function closeAiSummary(){ $('#ai-bg').classList.remove('show'); _aiRetryFn = null; }
+    // Eine KI-Antwort darf nur noch in das Fenster schreiben, für das sie gestartet
+    // wurde. Ohne diese Sperre klobberte eine spät eintreffende Antwort das, was
+    // inzwischen im Fenster steht: Regionen-Vergleich starten, X drücken, Buchungsscore
+    // öffnen — und der Vergleich überschreibt ihn beim Eintreffen. Schlimmer als die
+    // Optik ist `aiCurrentId`, das renderAiResult mitsetzt: der „per E-Mail senden"-
+    // Knopf verschickte dann eine andere Analyse als die angezeigte.
+    // Abgebrochen wird die Anfrage bewusst NICHT — sie ist ohnehin bezahlt, läuft
+    // serverseitig zu Ende und landet im KI-Verlauf und im Zwischenspeicher.
+    let _aiGen = 0;
+    function aiOpenPanel(){ $('#ai-bg').classList.add('show'); return ++_aiGen; }
+    function aiStale(gen){ return gen !== _aiGen; }
+    function closeAiSummary(){ $('#ai-bg').classList.remove('show'); _aiRetryFn = null; _aiGen++; }
     $('#ai-bg').addEventListener('click', e=>{ if(e.target.id==='ai-bg') closeAiSummary(); });
+
+    // ── Regionen vergleichen (KI) ──────────────────────────────────────────
+    // Eigener Drilldown-Zustand, getrennt von destStack/destData/destNode (Suchmaske)
+    let regcmpSelected = [];   // [{giata,label}, …] max. 5, Reihenfolge = Auswahlreihenfolge
+    let regcmpStack = [], regcmpNode = null, regcmpData = null;
+
+    function openRegionCompare(){
+      regcmpSelected = [];
+      $('#regcmp-panel').style.display = 'none';
+      if(!$('#regcmp-month').options.length){
+        $('#regcmp-month').innerHTML = MONTHS_DE.map((m,i)=>`<option value="${i+1}">${m}</option>`).join('');
+        $('#regcmp-month').value = new Date().getMonth()+1;  // aktueller Monat vorausgewählt
+      }
+      renderRegcmpChosen();
+      $('#regcmp-bg').classList.add('show');
+    }
+    function closeRegionCompare(){ $('#regcmp-bg').classList.remove('show'); }
+    $('#regcmp-bg').addEventListener('click', e=>{ if(e.target.id==='regcmp-bg') closeRegionCompare(); });
+
+    async function regcmpOpenPicker(){
+      const p = $('#regcmp-panel'); p.style.display = 'block';
+      p.innerHTML = '<div class="cmp-load">Lade Reiseziele…</div>';
+      regcmpStack = []; regcmpNode = null;
+      regcmpData = await loadDest(null);
+      if(!regcmpData){ p.innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Reiseziele nicht abrufbar.</div>'; return; }
+      renderRegcmpPicker();
+    }
+    function renderRegcmpPicker(){
+      const p = $('#regcmp-panel');
+      const back = regcmpStack.length?'<button class="btn sec" onclick="regcmpBack()">‹ zurück</button>':'';
+      const title = regcmpNode?('<b>'+esc(regcmpNode.label)+'</b>'):'<b>Ziel wählen</b>';
+      const whole = regcmpNode?(`<button class="btn" onclick="regcmpPick(${regcmpNode.giata}, '${jsArg(regcmpNode.label)}')">✓ Ganze Region wählen</button>`):'';
+      p.innerHTML = `<div class="dest-head">${back}${title}${whole}
+          <span style="flex:1"></span><button class="btn sec" onclick="$('#regcmp-panel').style.display='none'">schließen</button></div>
+        <input type="text" id="regcmp-search" class="dest-search" placeholder="Reiseziel suchen…" autocomplete="off" oninput="regcmpSearch()">
+        <div id="regcmp-rows"></div>`;
+      regcmpRenderRows();
+      const si = $('#regcmp-search'); if(si) si.focus();
+    }
+    function regcmpRenderRows(){
+      const q = ($('#regcmp-search')?$('#regcmp-search').value:'').trim().toLowerCase();
+      const items = (regcmpData.items||[]).filter(it => !q || (it.label||'').toLowerCase().includes(q));
+      const rows = items.map(it=>
+        `<div class="dest-row" onclick="regcmpDrill(${it.giata}, '${jsArg(it.label)}')">
+           <span>${esc(it.label)}</span>
+           <span><button class="btn sec" onclick="event.stopPropagation();regcmpPick(${it.giata}, '${jsArg(it.label)}')">wählen</button> <span class="chev">›</span></span>
+         </div>`).join('');
+      const box = $('#regcmp-rows'); if(box) box.innerHTML = rows ||
+        `<div class="cmp-load">${q?'Kein Treffer für „'+esc(q)+'".':'Keine Unterregionen.'}</div>`;
+    }
+    let regcmpSearchTimer = null, regcmpSearchToken = 0;
+    function regcmpSearch(){
+      const q = ($('#regcmp-search')?$('#regcmp-search').value:'').trim();
+      clearTimeout(regcmpSearchTimer);
+      if(q.length < 2){ regcmpRenderRows(); return; }
+      regcmpSearchTimer = setTimeout(async ()=>{
+        const token = ++regcmpSearchToken;
+        const box = $('#regcmp-rows'); if(box) box.innerHTML = '<div class="cmp-load">Suche…</div>';
+        let d=null;
+        try { d = await fetch(api('/api/destinations/search?q='+encodeURIComponent(q))).then(r=>r.json()); } catch(e){}
+        if(token !== regcmpSearchToken || !box) return;
+        if(!d){ box.innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Suche fehlgeschlagen.</div>'; return; }
+        if(!d.ready && d.building){ box.innerHTML = '<div class="cmp-load">Reiseziel-Index wird aufgebaut – einen Moment…</div>'; return; }
+        const items = d.items||[];
+        box.innerHTML = items.map(it=>
+          `<div class="dest-row" onclick="regcmpPick(${it.giata}, '${jsArg(it.label)}')">
+             <span>${esc(it.label)}${it.path?(' <span class="chev" style="font-weight:400;font-size:.82em">— '+esc(it.path)+'</span>'):''}</span>
+             <span><button class="btn sec" onclick="event.stopPropagation();regcmpPick(${it.giata}, '${jsArg(it.label)}')">wählen</button></span>
+           </div>`).join('') || `<div class="cmp-load">Kein Treffer für „${esc(q)}".</div>`;
+      }, 250);
+    }
+    async function regcmpDrill(giata, label){
+      const sub = await loadDest(giata);
+      if(!sub || !(sub.items&&sub.items.length)){ regcmpPick(giata, label); return; }
+      regcmpStack.push({node:regcmpNode, data:regcmpData});
+      regcmpNode = {giata, label}; regcmpData = sub; renderRegcmpPicker();
+    }
+    function regcmpBack(){ const prev=regcmpStack.pop(); if(!prev) return; regcmpNode=prev.node; regcmpData=prev.data; renderRegcmpPicker(); }
+    function regcmpPick(giata, label){
+      if(regcmpSelected.some(r=>r.giata===giata)){ toast('Bereits ausgewählt'); return; }
+      if(regcmpSelected.length >= 5){ toast('Maximal 5 Ziele für den Vergleich'); return; }
+      regcmpSelected.push({giata, label});
+      $('#regcmp-panel').style.display = 'none';
+      renderRegcmpChosen();
+    }
+    function regcmpRemove(giata){
+      regcmpSelected = regcmpSelected.filter(r=>r.giata!==giata);
+      renderRegcmpChosen();
+    }
+    function renderRegcmpChosen(){
+      $('#regcmp-chosen').innerHTML = regcmpSelected.map(r=>
+        `<span class="tag-pill" onclick="regcmpRemove(${r.giata})" title="Entfernen">${esc(r.label)} ×</span>`).join('');
+      $('#regcmp-add-btn').disabled = regcmpSelected.length >= 5;
+      $('#regcmp-hint').textContent = regcmpSelected.length < 2
+        ? 'Mindestens 2 Ziele wählen.' : regcmpSelected.length + ' von 5 Zielen gewählt.';
+      $('#regcmp-submit').disabled = regcmpSelected.length < 2;
+    }
+    async function submitRegionCompare(){
+      if(regcmpSelected.length < 2){ toast('Bitte mindestens 2 Ziele auswählen'); return; }
+      const regions = regcmpSelected.slice();
+      const month = parseInt($('#regcmp-month').value, 10);
+      const monthLabel = MONTHS_DE[month-1];
+      closeRegionCompare();
+      $('#ai-title').textContent = '📊 Regionen-Vergleich';
+      $('#ai-sub').textContent = regions.map(r=>r.label).join(' · ') + ' · ' + monthLabel;
+      $('#ai-foot').style.display = 'none';
+      const aiGen = aiOpenPanel();
+      const cacheKey = 'regcmp:' + month + ':' + regions.map(r=>r.giata).sort((a,b)=>a-b).join('|');
+      if(_aiCompareCache[cacheKey]){ renderAiResult('#ai-body', _aiCompareCache[cacheKey]); return; }
+      const attempt = async () => {
+        await ensureAiProviderLoaded();
+        const busy = aiProviderName()+' vergleicht '+regions.length+' Ziele für '+monthLabel+' und durchsucht das Web…';
+        $('#ai-body').innerHTML = progBar(busy);
+        let resp, d;
+        try {
+          const r = await aiFetchPreviewable(api('/api/ai/region-compare'), {method:'POST', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({regions, month})}, busy);
+          if(r.cancelled) return;
+          resp = r.resp; d = r.d;
+        } catch(e){ if(aiStale(aiGen)) return; _aiRetryFn = attempt; $('#ai-body').innerHTML = aiErrorBlock('Regionen-Vergleich fehlgeschlagen.', true); return; }
+        if(!resp.ok){
+          const retryable = aiRetryable(d.error);
+          if(aiStale(aiGen)) return;
+          _aiRetryFn = retryable ? attempt : null;
+          $('#ai-body').innerHTML = aiErrorBlock(aiErrorMsg(d.error), retryable);
+          return;
+        }
+        _aiCompareCache[cacheKey] = d;
+        if(aiStale(aiGen)) return;
+        renderAiResult('#ai-body', d);
+      };
+      attempt();
+    }
 
     // ── KI-Verlauf (dauerhaft gespeicherte Fazits/Vergleiche) ─────────────────
     let _aiHistItems = [];
@@ -5226,7 +5481,7 @@
         const resp = await fetch(api('/api/ai/prompt-settings'));
         promptCfgData = await resp.json();
       } catch(e){ toast('Laden fehlgeschlagen'); closePromptCfg(); return; }
-      for (const f of ['advisor','compare','summary','daytrip']){
+      for (const f of ['advisor','compare','summary','daytrip','region_compare']){
         const d = promptCfgData[f];
         $(`#promptcfg-${f}-enabled`).checked = d.enabled;
         $(`#promptcfg-${f}-text`).value = (d.enabled && d.text) ? d.text : d.default;
@@ -5240,11 +5495,11 @@
       promptcfgCount(f);
     }
     function promptcfgCount(f){
-      $(`#promptcfg-${f}-count`).textContent = $(`#promptcfg-${f}-text`).value.length + ' / 4000 Zeichen';
+      $(`#promptcfg-${f}-count`).textContent = $(`#promptcfg-${f}-text`).value.length + ' / 6000 Zeichen';
     }
     async function savePromptCfg(){
       const body = {};
-      for (const f of ['advisor','compare','summary','daytrip']){
+      for (const f of ['advisor','compare','summary','daytrip','region_compare']){
         body[f] = { enabled: $(`#promptcfg-${f}-enabled`).checked, text: $(`#promptcfg-${f}-text`).value };
       }
       try {
@@ -5261,6 +5516,7 @@
         : kind==='search_advice' ? '🤖 Reisezeit-Check'
         : kind==='advisor' ? '🗺️ TripPilot' : kind==='booking_score' ? '🔮 Buchungsscore'
         : kind==='region_outlook' ? '🔮 Region-Ausblick'
+        : kind==='region_compare' ? '📊 Regionen-Vergleich'
         : kind==='calendar_outlook' ? '📅 Kalender-Analyse' : '🤖 Fazit';
     }
     function renderAiHistory(items){
@@ -5283,11 +5539,12 @@
       $('#ai-title').textContent = '🤖 KI-Verlauf';
       $('#ai-sub').textContent = 'Lädt…';
       $('#ai-foot').style.display = 'none';
-      $('#ai-bg').classList.add('show');
+      const aiGen = aiOpenPanel();
       $('#ai-body').innerHTML = progBar('Lädt…');
       let d;
       try { d = await fetch(api('/api/ai/history/'+id)).then(r=>r.json()); }
-      catch(e){ $('#ai-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Eintrag konnte nicht geladen werden.</div>'; return; }
+      catch(e){ if(aiStale(aiGen)) return; $('#ai-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Eintrag konnte nicht geladen werden.</div>'; return; }
+      if(aiStale(aiGen)) return;
       if(d.error){ $('#ai-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Eintrag nicht gefunden (evtl. gelöscht).</div>'; return; }
       $('#ai-title').textContent = aiKindLabel(d.kind) + ' (Verlauf)';
       $('#ai-sub').textContent = d.title + ' · ' + new Date(d.ts*1000).toLocaleString('de-DE');
@@ -5310,7 +5567,7 @@
       $('#ai-title').textContent = '🔁 Wiederholen';
       $('#ai-sub').textContent = aiKindLabel(it.kind) + ' · ' + it.title;
       $('#ai-foot').style.display = 'none';
-      $('#ai-bg').classList.add('show');
+      const aiGen = aiOpenPanel();
       let avail = {};
       try { avail = await fetch(api('/api/ai/provider')).then(r=>r.json()); } catch(e){}
       const mkBtn = p => {
@@ -5321,6 +5578,10 @@
         <div style="display:flex;gap:10px;flex-wrap:wrap">${Object.keys(AI_PROVIDER_LABEL).map(mkBtn).join('')}</div>`;
     }
     async function runAiHistoryRepeat(id, provider){
+      // Das Fenster steht schon offen (`repeatAiHistoryItem` hat es geöffnet und die
+      // Provider-Auswahl hineingerendert) — daher die laufende Generation übernehmen
+      // statt eine neue zu vergeben.
+      const aiGen = _aiGen;
       const attempt = async () => {
         $('#ai-body').innerHTML = progBar('Wird mit '+(AI_PROVIDER_NAME[provider]||provider)+' wiederholt…');
         let resp, d;
@@ -5329,14 +5590,16 @@
             headers:{'Content-Type':'application/json'}, body: JSON.stringify({provider})}, 'Wird wiederholt…');
           if(r.cancelled) return;
           resp = r.resp; d = r.d;
-        } catch(e){ _aiRetryFn = attempt; $('#ai-body').innerHTML = aiErrorBlock('Wiederholen fehlgeschlagen.', true); return; }
+        } catch(e){ if(aiStale(aiGen)) return; _aiRetryFn = attempt; $('#ai-body').innerHTML = aiErrorBlock('Wiederholen fehlgeschlagen.', true); return; }
         if(!resp.ok){
           const retryable = aiRetryable(d.error);
           const msg = d.error==='no_prompt' ? (d.note||'Kein Prompt gespeichert.') : aiErrorMsg(d.error);
+          if(aiStale(aiGen)) return;
           _aiRetryFn = retryable ? attempt : null;
           $('#ai-body').innerHTML = aiErrorBlock(msg, retryable);
           return;
         }
+        if(aiStale(aiGen)) return;
         if(d.result){ renderBookingScore('#ai-body', d); } else { renderAiResult('#ai-body', d); }
       };
       attempt();
@@ -5385,7 +5648,7 @@
       $('#ai-title').textContent = c.title;
       $('#ai-sub').textContent = q;
       $('#ai-foot').style.display = 'none';
-      $('#ai-bg').classList.add('show');
+      const aiGen = aiOpenPanel();
       const attempt = async () => {
         await ensureAiProviderLoaded();
         const busy = aiProviderName()+c.busy;
@@ -5395,16 +5658,18 @@
           const r = await aiFetchPreviewable(api('/api/ai/ask'), {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({question:q, scope})}, busy);
           if(r.cancelled) return;
           resp = r.resp; d = r.d;
-        } catch(e){ _aiRetryFn = attempt; $('#ai-body').innerHTML = aiErrorBlock('Frage fehlgeschlagen.', true); return; }
+        } catch(e){ if(aiStale(aiGen)) return; _aiRetryFn = attempt; $('#ai-body').innerHTML = aiErrorBlock('Frage fehlgeschlagen.', true); return; }
         if(!resp.ok){
           const retryable = aiRetryable(d.error);
           const msg = d.error==='no_offers'
             ? 'Keine aktiven Angebote vorhanden — für eine allgemeine Reisefrage nimm „🌍 Reisefrage".'
             : aiErrorMsg(d.error);
+          if(aiStale(aiGen)) return;
           _aiRetryFn = retryable ? attempt : null;
           $('#ai-body').innerHTML = aiErrorBlock(msg, retryable);
           return;
         }
+        if(aiStale(aiGen)) return;
         renderAiResult('#ai-body', d);
       };
       attempt();
@@ -5557,7 +5822,7 @@
       $('#ai-sub').textContent = [(advState.region||[]).join(', '), advState.arrival_mode,
         (advState.interests||[]).join(', ')].filter(Boolean).join(' · ');
       $('#ai-foot').style.display = 'none';
-      $('#ai-bg').classList.add('show');
+      const aiGen = aiOpenPanel();
       const attempt = async () => {
         await ensureAiProviderLoaded();
         $('#ai-body').innerHTML = progBar(aiProviderName()+' sucht passende Ziele…');
@@ -5567,14 +5832,16 @@
             headers:{'Content-Type':'application/json'}, body: JSON.stringify(advState)}, aiProviderName()+' sucht passende Ziele…');
           if(r.cancelled) return;
           resp = r.resp; d = r.d;
-        } catch(e){ _aiRetryFn = attempt; $('#ai-body').innerHTML = aiErrorBlock('Anfrage fehlgeschlagen.', true); return; }
+        } catch(e){ if(aiStale(aiGen)) return; _aiRetryFn = attempt; $('#ai-body').innerHTML = aiErrorBlock('Anfrage fehlgeschlagen.', true); return; }
         if(!resp.ok){
           const retryable = aiRetryable(d.error);
           const msg = d.error==='invalid' ? 'Bitte mindestens eine Angabe auswählen.' : aiErrorMsg(d.error);
+          if(aiStale(aiGen)) return;
           _aiRetryFn = retryable ? attempt : null;
           $('#ai-body').innerHTML = aiErrorBlock(msg, retryable);
           return;
         }
+        if(aiStale(aiGen)) return;
         renderAiResult('#ai-body', d);
       };
       attempt();
@@ -6799,6 +7066,13 @@
     }
     loadDbSize();
     setInterval(loadDbSize, 300000);
+
+    async function loadTuiCalls(){
+      try { const d = await fetch(api('/api/tui-calls')).then(r=>r.json()); $('#tui-calls').textContent = d.count; }
+      catch(e){}
+    }
+    loadTuiCalls();
+    setInterval(loadTuiCalls, 60000);
 
     async function loadAiUsageFooter(){
       if(!G.ai) return;

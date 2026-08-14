@@ -103,6 +103,15 @@ configuration:
       /caveman-review, /caveman-compress, /caveman-help, /caveman-stats und
       /cavecrew samt der drei cavecrew-Subagenten. Aktivierbar/deaktivierbar
       jederzeit, wird bei jedem Start neu synchronisiert. Standard: deaktiviert.
+  protect_internal_config:
+    name: Interne HA-Verzeichnisse schreibgeschützt
+    description: >-
+      Verbietet Claude das Schreiben in die internen Verzeichnisse von Home
+      Assistant (.storage/, .cloud/, deps/, tts/ und die Recorder-Datenbank).
+      Dort liegt alles über die Oberfläche Erstellte samt Entity- und
+      Device-Registry; von Hand geändert kann Home Assistant nicht mehr starten.
+      Lesen bleibt erlaubt. Abschalten nur, wenn du genau weißt, warum du dort
+      schreiben willst. Standard: aktiviert.
 
 network:
   7681/tcp: Web-Terminal (ttyd)

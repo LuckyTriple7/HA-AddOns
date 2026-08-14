@@ -92,7 +92,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.98.0"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.100.2"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -170,6 +170,7 @@ _vac_notified: set[int] = set()         # offer_ids mit aktivem Nicht-bestätigt
 ERROR_ALARM_STREAK = 3                   # ab so vielen Fehlversuchen in Folge melden
 _health_state: dict = {}                 # letzter API-Selbsttest {ok, ts, checks, running}
 _health_lock = threading.Lock()
+_tui_call_lock = threading.Lock()        # schützt den TUI-API-Zähler (meta-Key 'tui_call_count')
 _ai_summary_cache: dict = {}              # giata/Name → {summary, ts} — spart wiederholte API-Calls
 _AI_SUMMARY_TTL = 24 * 3600
 _booking_score_cache: dict = {}           # offer_id → {result, usage, ts}
@@ -1770,6 +1771,37 @@ def _meta_set(key: str, value: str) -> None:
         con.execute('INSERT OR REPLACE INTO meta (key, value) VALUES (?,?)', (key, str(value)))
 
 
+def _record_tui_call() -> int:
+    """Zählt einen TUI-API-Aufruf für den Footer-Zähler. Aufgerufen aus
+    scraper._count_call() bei jedem requests.get/post gegen die TUI-APIs (per
+    Lazy-Import, um den Modul-Zyklus mit app.py zu vermeiden — siehe dort).
+    Tages-Reset ohne eigenen Cronjob: der Bucket trägt den heutigen Datums-
+    Schlüssel, ein Aufruf an einem neuen Tag verwirft den alten Stand einfach
+    (gleiches Muster wie `_record_ai_usage_bucket` in ai_routes.py)."""
+    today = time.strftime('%Y-%m-%d')
+    with _tui_call_lock:
+        try:
+            stored = json.loads(_meta_get('tui_call_count') or '{}')
+        except (TypeError, ValueError):
+            stored = {}
+        if stored.get('date') != today:
+            stored = {'date': today, 'count': 0}
+        stored['count'] += 1
+        _meta_set('tui_call_count', json.dumps(stored))
+        return stored['count']
+
+
+def _tui_call_count_today() -> int:
+    """Heutiger Stand des TUI-API-Zählers, 0 nach Datumswechsel (siehe
+    `_record_tui_call`) — auch wenn seit Mitternacht noch kein neuer Aufruf
+    den Bucket zurückgesetzt hat."""
+    try:
+        stored = json.loads(_meta_get('tui_call_count') or '{}')
+    except (TypeError, ValueError):
+        stored = {}
+    return stored.get('count', 0) if stored.get('date') == time.strftime('%Y-%m-%d') else 0
+
+
 def _prompt_instructions(feature: str, default: str) -> str:
     """Effektiver Instruktions-Textblock für ein anpassbares KI-Feature
     ('advisor'/'compare'): Custom-Text aus `meta`, falls Checkbox aktiv UND
@@ -2627,6 +2659,57 @@ def _push_health_sensor_from_cache() -> None:
     _push_health_sensor(res)
 
 
+# Home Assistant verwirft einen State, dessen Attribute serialisiert 16384 Bytes
+# überschreiten — der Sensor stünde dann still auf dem alten Wert, ohne dass im
+# Add-on etwas schiefliefe. Mit Reserve für den POST-Rahmen deshalb 14000.
+_HA_ATTR_LIMIT = 14000
+# Reihenfolge, in der bei Platznot geopfert wird: zuerst die Listen, die mit der
+# Zahl der Messreihen/Regionen wachsen, zuletzt die feste Kurve (7 Einträge).
+_HA_ATTR_DROP_ORDER = ('baskets', 'by_region', 'booking_curve')
+
+
+def _compact_region(r: dict) -> dict:
+    """Eine Region bzw. Messreihe auf wenige Skalare eindampfen.
+
+    Der Attributbaum enthielt früher je Zeile die vollständigen `trend`- und
+    `index`-Objekte (und seit dem Tiefpunkt-Archiv zusätzlich `signal`, `level` und
+    `trough`) — bei einem Dutzend Messreihen sprengte das HAs Größengrenze. Für
+    Automatisierungen und Vorlagen zählen ohnehin nur Richtung, Prozent und Index;
+    die vollständigen Daten stehen unter `/api/market-trend` und
+    `/api/market-basket`."""
+    t, i, s = r.get('trend') or {}, r.get('index') or {}, r.get('signal') or {}
+    out = {'region': r.get('region')}
+    if t:
+        out.update(pct=t.get('pct'), dir=t.get('dir'), days=t.get('days'))
+    if i:
+        out['index'] = i.get('index')
+    if s.get('ampel'):
+        out.update(ampel=s['ampel'], days_to_dep=s.get('days_to_dep'))
+    return out
+
+
+def _fit_ha_attrs(attrs: dict) -> None:
+    """Attribute unter HAs Größengrenze bringen, notfalls durch Weglassen.
+
+    Lieber eine gemeldete Lücke als ein Sensor, der ohne Fehlermeldung auf einem
+    alten Stand einfriert. Was weggelassen wurde, steht in `truncated` und im Log —
+    sonst suchte man das fehlende Attribut in der falschen Ecke."""
+    def size():
+        return len(json.dumps(attrs, default=str, ensure_ascii=False).encode('utf-8'))
+
+    dropped = []
+    for key in _HA_ATTR_DROP_ORDER:
+        if size() <= _HA_ATTR_LIMIT:
+            break
+        if attrs.pop(key, None) is not None:
+            dropped.append(key)
+    if dropped:
+        attrs['truncated'] = dropped
+        log.warning("Markttrend-Sensor: Attribute zu groß für Home Assistant "
+                    "(Grenze %d Bytes) — weggelassen: %s", _HA_ATTR_LIMIT,
+                    ", ".join(dropped))
+
+
 def _push_market_trend_sensor() -> None:
     """Meldet HA einen Sensor mit dem marktweiten Preistrend — State = kumulierte
     %-Bewegung der letzten 14 Tage, oder 'unknown' bei zu wenigen Daten (NIE
@@ -2661,10 +2744,10 @@ def _push_market_trend_sensor() -> None:
                     by_region.append({'region': r, 'trend': t, 'index': i})
         basket = market_basket.basket_payload()
         bt, bi = basket['global']['trend'], basket['global']['index']
-        attrs['by_region'] = by_region
+        attrs['by_region'] = [_compact_region(r) for r in by_region]
         attrs['offers'] = {'trend': glob_trend, 'index': glob_index}
-        attrs['basket'] = {'trend': bt, 'index': bi, 'by_region': basket['by_region'],
-                           'last_day': basket['last_day']}
+        attrs['basket'] = {'trend': bt, 'index': bi, 'last_day': basket['last_day']}
+        attrs['baskets'] = [_compact_region(r) for r in basket['by_region']]
         src_trend, src_index = (bt, bi) if bt else (glob_trend, glob_index)
         attrs['source'] = 'basket' if bt else 'offers'
         if src_trend:
@@ -2680,6 +2763,7 @@ def _push_market_trend_sensor() -> None:
         # 14-Tage-Bewegung — die Ampel ist eine ANDERE Aussage („jetzt buchen?")
         # und gehört deshalb in die Attribute, nicht in den Zustandswert.
         _booking_attrs(attrs, basket)
+        _fit_ha_attrs(attrs)
     except Exception as e:
         log.warning("Markttrend-Berechnung fehlgeschlagen (poste trotzdem 'unknown'): %s: %s",
                      type(e).__name__, e)
@@ -2695,19 +2779,26 @@ def _booking_attrs(attrs: dict, basket: dict) -> None:
     """Ampel-Attribute für den Markttrend-Sensor aus dem Barometer-Stand.
 
     Als Kopfzahl dient die Messreihe mit dem KLEINSTEN Vorlauf — das ist die
-    Entscheidung, die am dringendsten ansteht. Alle übrigen stehen vollständig unter
-    `booking`, damit eine Automatisierung („melde, wenn ein Ziel auf grün springt")
-    sich nicht auf die Kopfzahl beschränken muss."""
+    Entscheidung, die am dringendsten ansteht. Für „melde, wenn ein Ziel auf grün
+    springt" reicht `booking_green`; die Ampel je Messreihe steht kompakt in
+    `baskets`. Die vollständigen Komponenten (Rohwerte, Gewichte, Datenbasis) sind
+    absichtlich NICHT im Sensor — sie sprengten HAs Attributgrenze und gehören in
+    die Oberfläche bzw. an `/api/booking-window`."""
     b = basket.get('booking') or {}
+    # Der typische Tiefpunkt hängt nicht an der Ampel: er kommt aus abgeschlossenen
+    # Messreihen und steht auch dann zur Verfügung, wenn gerade keine laufende Reihe
+    # eine Empfehlung hergibt.
+    tr = basket.get('troughs') or {}
+    if tr.get('ready'):
+        attrs.update(trough_median_days=tr['median_dte'], trough_p25_days=tr['p25_dte'],
+                     trough_p75_days=tr['p75_dte'], trough_samples=tr['n'],
+                     trough_median_gain=tr['median_gain'])
     if not b.get('enabled'):
         return
-    attrs['booking_curve'] = [
-        {'window': x['label'], 'pct_per_day': x['rate'], 'pct': x['pct'],
-         'samples': x['n'], 'series': x['n_series'], 'thin': x['thin']}
-        for x in b.get('curve', [])]
+    attrs['booking_curve'] = [{'window': x['label'], 'pct': x['pct']}
+                              for x in b.get('curve', []) if x.get('rate') is not None]
     sigs = [dict(r['signal'], region=r['region'])
             for r in basket.get('by_region', []) if (r.get('signal') or {}).get('ampel')]
-    attrs['booking'] = sigs
     attrs['booking_green'] = [s['region'] for s in sigs if s['ampel'] == 'green']
     if not sigs:
         return
@@ -2918,6 +3009,15 @@ def api_dbsize():
     except OSError:
         size = 0
     return jsonify({'bytes': size})
+
+
+@app.route('/api/tui-calls', methods=['GET'])
+def api_tui_calls():
+    """Heutige TUI-API-Aufrufe für die Footer-Anzeige — Reset um 0 Uhr
+    (siehe _tui_call_count_today)."""
+    if (err := _require_api()):
+        return err
+    return jsonify({'count': _tui_call_count_today(), 'date': time.strftime('%Y-%m-%d')})
 
 
 _giata_images_cache: dict = {}  # giata → {'ts': float, 'images': [...]}
@@ -3612,6 +3712,7 @@ _DAYTRIP_REGION_VALUE = ai_routes._DAYTRIP_REGION_VALUE
 _is_daytrip = ai_routes._is_daytrip
 _region_values = ai_routes._region_values
 _DEFAULT_DAYTRIP_INSTRUCTIONS = ai_routes._DEFAULT_DAYTRIP_INSTRUCTIONS
+_DEFAULT_REGION_COMPARE_INSTRUCTIONS = ai_routes._DEFAULT_REGION_COMPARE_INSTRUCTIONS
 _PROMPT_FEATURES = ai_routes._PROMPT_FEATURES
 _hotel_fact_lines = ai_routes._hotel_fact_lines
 _AI_PRICING = ai_routes._AI_PRICING

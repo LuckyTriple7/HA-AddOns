@@ -38,8 +38,11 @@ _AI_SECTIONS = (
 )
 
 
-_CUSTOM_PROMPT_MAX_LEN = 4000  # Zeichen — ganzer Instruktionsblock, großzügiger als
-                               # die 500-Zeichen-Freitextfelder im Reiseberater-Fragebogen
+_CUSTOM_PROMPT_MAX_LEN = 6000  # Zeichen — ganzer Instruktionsblock, großzügiger als
+                               # die 500-Zeichen-Freitextfelder im Reiseberater-Fragebogen.
+                               # 6000 statt 4000: der Regionen-Vergleich-Standardtext
+                               # allein braucht schon knapp 4000, sonst bliebe beim
+                               # Bearbeiten kein Spielraum mehr.
 
 _PROMPT_OVERRIDE_MAX_LEN = 20000  # Zeichen — kompletter Prompt (Fakten+Instruktionen),
                                   # großzügiger als _CUSTOM_PROMPT_MAX_LEN (nur Instruktionen)
@@ -212,9 +215,70 @@ _DEFAULT_DAYTRIP_INSTRUCTIONS = (
     "mich noch prüfen“."
 )
 
+_DEFAULT_REGION_COMPARE_INSTRUCTIONS = (
+    "Recherchiere für die Bewertung aktuelle und verlässliche Informationen im Web. "
+    "Verwende für Klimadaten möglichst langjährige Klima-Normalwerte, für Preise "
+    "aktuelle Richtwerte des laufenden bzw. kommenden Jahres — und kennzeichne sie "
+    "klar als Richtwerte, die je nach Abflughafen, Reisedauer, Hotelstandard und "
+    "Buchungszeitpunkt schwanken. Einzelne Wettervorhersagen sind ausdrücklich "
+    "nicht gewünscht.\n\n"
+    "Bewerte jedes Reiseziel entlang dieser Kriterien, gerne ausführlich:\n\n"
+    "1. **Wetter im gewählten Monat**: typische Tages- und Nachttemperaturen, "
+    "durchschnittliche Niederschlagsmenge bzw. Regentage/Regenwahrscheinlichkeit, "
+    "typische Sonnenscheindauer (sofern verfügbar), Wassertemperatur, sowie eine "
+    "kurze Einschätzung, wie gut sich der Monat klimatisch für eine Reise eignet. "
+    "Hat ein Ziel klimatisch deutlich unterschiedliche Teilregionen (z. B. Thailand: "
+    "Andamanensee vs. Golf von Thailand), weise auf die relevanten Unterschiede hin.\n"
+    "2. **Sicherheit**: aktuelle Reise- und Sicherheitshinweise für Touristen, "
+    "allgemeines Sicherheitsniveau, typische Risiken (Kriminalität, Naturgefahren, "
+    "Verkehr, politische Situation) — keine pauschalen Aussagen, sondern eine kurze, "
+    "realistische Einschätzung.\n"
+    "3. **Preisniveau**: typische Urlaubskosten vor Ort (Essen in einfachen und "
+    "mittleren Restaurants, Getränke, Nahverkehr/Transfers, Aktivitäten/Ausflüge, "
+    "sonstige relevante Kosten) sowie aktuelle Preisrichtwerte für Pauschalreisen im "
+    "gewählten Monat und für eine Unterkunft der mittleren Kategorie — wenn sinnvoll "
+    "mit Preisunterschieden zwischen günstigem, mittlerem und gehobenem Niveau.\n"
+    "4. **Beste Reisezeit**: die insgesamt beste Reisezeit fürs Ziel und warum, wie "
+    "gut der gewählte Monat im Vergleich dazu abschneidet, mit Einstufung sehr "
+    "gut/gut/mittel/eher ungünstig.\n"
+    "5. **Strand & Natur**: Qualität und Vielfalt der Strände, Landschaft und Natur, "
+    "Schnorcheln/Tauchen (falls relevant), besondere Naturerlebnisse, Vielfalt der "
+    "Landschaften und Ausflugsmöglichkeiten.\n"
+    "6. **Familienfreundlichkeit**: Strände und Badebedingungen, Aktivitäten, "
+    "Infrastruktur, Transfers/Entfernungen, allgemeine Eignung für Familien mit "
+    "Kindern.\n"
+    "7. **Nightlife/Party**: Bars und Restaurants am Abend, Clubs/Partyszene, "
+    "Vielfalt des Nachtlebens, ob eher ruhiger Abendurlaub oder lebhaftes "
+    "Nachtleben.\n\n"
+    "Bewerte jedes Ziel bei den qualitativen Kriterien (alles außer Preisniveau) "
+    "zusätzlich auf einer Skala von 1–5 Punkten (5 = hervorragend, 4 = sehr gut, "
+    "3 = gut/durchschnittlich, 2 = eher schwach, 1 = schlecht).\n\n"
+    "Schließe mit einer kompakten Markdown-Vergleichstabelle ab: eine Zeile je "
+    "Kriterium (inkl. einer abschließenden Zeile „Gesamtbewertung“) und eine Spalte "
+    "je Reiseziel, jeweils mit Punktzahl und einer sehr kurzen Begründung. Bilde die "
+    "Gesamtbewertung nicht rein mathematisch als Durchschnitt, wenn dadurch wichtige "
+    "Unterschiede verloren gehen — berücksichtige insbesondere die Bedeutung des "
+    "Wetters im gewählten Monat und das Preis-Leistungs-Verhältnis.\n\n"
+    "Verwende für die Recherche möglichst offizielle Reise-/Sicherheitshinweise "
+    "staatlicher Stellen, seriöse Klimadatenquellen, aktuelle Reiseveranstalter-/"
+    "Hotelpreise sowie seriöse Reiseportale, und verlinke die wichtigsten Quellen "
+    "direkt bei den jeweiligen Aussagen.\n\n"
+    "Schließe mit einem Fazit von 2–4 Sätzen: welches Ziel insgesamt am "
+    "empfehlenswertesten ist, welches das beste Preis-Leistungs-Verhältnis bietet, "
+    "welches sich am besten für Familien eignet und welches am besten für Strand/"
+    "Erholung bzw. Nightlife passt — mit klarer Aussage, für welchen Urlaubstyp "
+    "welches Ziel am besten geeignet ist. Schreibe auf Deutsch, sprich den Nutzer "
+    "dabei durchgehend mit „Du“ an (informell, nicht „Sie“), sachlich und "
+    "ausschließlich basierend auf dem, was du in den Quellen findest. Wenn zu einem "
+    "Punkt nichts Verlässliches auffindbar ist, sag das kurz statt zu spekulieren. "
+    "Gib direkt die fertige Antwort aus — keine Zwischenkommentare wie „Ich werde "
+    "jetzt recherchieren“ oder „Lassen Sie mich noch prüfen“."
+)
+
 _PROMPT_FEATURES = {'advisor': _DEFAULT_ADVISOR_INSTRUCTIONS, 'compare': _DEFAULT_COMPARE_INSTRUCTIONS,
                     'summary': _DEFAULT_SUMMARY_INSTRUCTIONS,
-                    'daytrip': _DEFAULT_DAYTRIP_INSTRUCTIONS}
+                    'daytrip': _DEFAULT_DAYTRIP_INSTRUCTIONS,
+                    'region_compare': _DEFAULT_REGION_COMPARE_INSTRUCTIONS}
 
 
 def _hotel_fact_lines(h: dict, *, label: str = "Hotel") -> list[str]:
@@ -798,11 +862,18 @@ def _booking_window_facts(con, o) -> dict | None:
     curve = [{'window': b['label'], 'pct': b['pct']}
              for b in MB.booking_curve(con) if b['rate'] is not None]
     comps = sig.get('components') or {}
+    # Beobachteter Tiefpunkt aus abgeschlossenen Messreihen — die Gegenprobe zur
+    # gepoolten Kurve, und die einzige Zahl hier, die aus echten Ausgängen stammt.
+    try:
+        tr = MB.trough_stats(con)
+    except Exception:
+        tr = {}
     return {'basket': key, 'ampel': sig['ampel'], 'score': sig['score'],
             'days_to_dep': sig['days_to_dep'], 'curve': curve,
             'expected_pct': (comps.get('expected') or {}).get('pct'),
             'rank': (comps.get('position') or {}).get('rank'),
-            'rank_days': (comps.get('position') or {}).get('n')}
+            'rank_days': (comps.get('position') or {}).get('n'),
+            'trough': tr if tr.get('ready') else None}
 
 
 def _calendar_outlook_facts(con, offer_id: int) -> dict | None:
@@ -983,6 +1054,17 @@ def _booking_score_prompt(facts: dict) -> str:
                           "gesamte Fenster, gepoolt über alle Messreihen):")
             for b in bw['curve']:
                 lines.append(f"- {b['window']} vor Abreise: {b['pct']:+.1f} %")
+        tr = bw.get('trough')
+        if tr:
+            lines.append(
+                f"Beobachtete Tiefpunkte aus {tr['n']} abgeschlossenen Messreihen "
+                f"(rueckblickend ausgewertet, nicht prognostiziert): am guenstigsten war "
+                f"es im Median {tr['median_dte']} Tage vor Abreise, die mittlere Haelfte "
+                f"der Faelle lag zwischen {tr['p25_dte']} und {tr['p75_dte']} Tagen vor "
+                f"Abreise."
+                + (f" Wer den Tiefpunkt verpasst hat, zahlte bis zum Ende der Beobachtung "
+                   f"im Median {tr['median_gain']:+.1f} % mehr."
+                   if tr.get('median_gain') is not None else ""))
     return ("Du bist ein Reisepreis-Analyst. Bewerte den aktuellen Preis dieser "
             "Pauschalreise und berechne einen Buchungsscore.\n\n" + "\n".join(lines)
             + "\n\n" + _BOOKING_SCORE_INSTRUCTIONS)
@@ -2297,6 +2379,75 @@ def api_ai_hotel_compare():
     return jsonify({'summary': text, 'usage': usage, 'totals': totals, 'id': aid, 'cached': False})
 
 
+# Kein gemeinsames Util fürs Add-on vorhanden — jedes Modul, das Monatsnamen braucht,
+# definiert sie separat (email_search.py, price_calendar.py, market_basket.py).
+_MONTHS_DE = ('Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August',
+              'September', 'Oktober', 'November', 'Dezember')
+
+
+def _region_compare_prompt(regions: list[dict], month: str, instructions: str) -> str:
+    """Baut den Regionen-Vergleichs-Prompt: feste Zielliste (Fakten, wie bei
+    `_compare_prompt`) + editierbarer Kriterienkatalog (`instructions`)."""
+    names = "\n".join(f"{i}. {r['label']}" for i, r in enumerate(regions, 1))
+    facts = (f"Vergleiche die folgenden Reiseziele als Entscheidungshilfe für eine "
+             f"Reise im {month}:\n\n" + names)
+    return facts + "\n\n" + instructions
+
+
+@bp.route('/api/ai/region-compare', methods=['POST'])
+def api_ai_region_compare():
+    """Vergleicht 2–5 Reiseziele/Regionen für einen gewählten Monat: Wetter,
+    Sicherheit, Preisniveau, beste Reisezeit, Strand/Natur, Familien-/
+    Nightlife-Eignung, kurzes Fazit — als Markdown inkl. Vergleichstabelle, wie
+    beim Hotelvergleich (api_ai_hotel_compare), aber mit Websuche für aktuelle
+    Preis-/Sicherheitsinfos statt neuer TUI-Hotelsuche (Regionen liefert die
+    TUI-API nur als {giata, label, level} ohne Wetter-/Sicherheits-/Preisdaten)."""
+    if (err := A._require_api()):
+        return err
+    api_key, model = _ai_config()
+    if not api_key:
+        return jsonify({'error': 'no_api_key',
+                        'note': 'Kein Anthropic API-Key in den Add-on-Einstellungen hinterlegt'}), 400
+    data = request.get_json(silent=True) or {}
+    regions = [r for r in (data.get('regions') or [])
+               if isinstance(r, dict) and (r.get('label') or '').strip()][:5]
+    if len(regions) < 2:
+        return jsonify({'error': 'invalid'}), 400
+    try:
+        month_num = int(data.get('month'))
+        assert 1 <= month_num <= 12
+    except (TypeError, ValueError, AssertionError):
+        return jsonify({'error': 'invalid'}), 400
+    month_label = _MONTHS_DE[month_num - 1]
+
+    instructions = A._prompt_instructions('region_compare', _DEFAULT_REGION_COMPARE_INSTRUCTIONS)
+    instr_hash = hashlib.sha1(instructions.encode('utf-8')).hexdigest()[:10]
+    cache_key = (f'regcmp:{instr_hash}:' + str(month_num) + ':'
+                 + '|'.join(sorted(str(r.get('giata') or (r.get('label') or '').lower())
+                                    for r in regions)))
+    with A._ai_cache_lock:
+        cached = A._ai_summary_cache.get(cache_key)
+    if cached and time.time() - cached['ts'] < A._AI_SUMMARY_TTL:
+        return jsonify({'summary': cached['summary'], 'usage': cached.get('usage'),
+                        'totals': _ai_usage_totals(), 'id': cached.get('id'), 'cached': True})
+
+    prompt = _region_compare_prompt(regions, month_label, instructions)
+    if (preview := _prompt_preview_response(data, prompt)):
+        return preview
+    prompt = _resolve_prompt(data, prompt)
+    text, usage, err = A._ai_call(api_key, model, prompt, max_tokens=8192,
+                                log_ctx=f"Regionen-Vergleich {len(regions)} Ziele ({month_label})")
+    if err:
+        return err
+    usage['estimated_usd'] = _ai_call_cost(model, usage)
+    totals = _record_ai_usage(model, usage)
+    title = ' · '.join(r.get('label', '') for r in regions) + ' · ' + month_label
+    aid = _save_ai_analysis('region_compare', title, model, text, usage, prompt)
+    with A._ai_cache_lock:
+        A._ai_summary_cache[cache_key] = {'summary': text, 'usage': usage, 'id': aid, 'ts': time.time()}
+    return jsonify({'summary': text, 'usage': usage, 'totals': totals, 'id': aid, 'cached': False})
+
+
 def _ai_md_to_html(text: str) -> str:
     """Sehr einfacher Markdown→HTML-Renderer fürs E-Mail-Layout (Überschriften,
     Listen, Tabellen, **fett**) — spiegelt die JS-Variante `aiMdLite` im Frontend."""
@@ -2465,6 +2616,7 @@ _AI_RETRY_MARKDOWN_CONFIG = {
     'search_advice': {'max_tokens': 2500, 'use_web_search': True},
     'advisor': {'max_tokens': 3072, 'use_web_search': True},
     'compare': {'max_tokens': 6144, 'use_web_search': True},
+    'region_compare': {'max_tokens': 8192, 'use_web_search': True},
 }
 
 

@@ -43,15 +43,21 @@ RUN apk add --no-cache \
     gcompat \
     && update-ca-certificates
 
-# Install ttyd static binary (avoids libwebsockets issues)
+# Install ttyd static binary (avoids libwebsockets issues).
+# The binary is pinned by SHA256 — it lands in a temp path, gets verified, and only
+# then becomes an executable in /usr/bin. Checksums are the upstream release's own
+# SHA256SUMS values for 1.7.7; bumping TTYD_VERSION means updating them too.
 ARG TARGETARCH=amd64
+ARG TTYD_VERSION=1.7.7
 RUN case "${TARGETARCH}" in \
-        amd64) TTYD_ARCH="x86_64" ;; \
-        arm64) TTYD_ARCH="aarch64" ;; \
-        *) TTYD_ARCH="x86_64" ;; \
+        amd64) TTYD_ARCH="x86_64"; TTYD_SHA256="8a217c968aba172e0dbf3f34447218dc015bc4d5e59bf51db2f2cd12b7be4f55" ;; \
+        arm64) TTYD_ARCH="aarch64"; TTYD_SHA256="b38acadd89d1d396a0f5649aa52c539edbad07f4bc7348b27b4f4b7219dd4165" ;; \
+        *) echo "Unsupported TARGETARCH: ${TARGETARCH}" >&2; exit 1 ;; \
     esac && \
-    curl -fsSL "https://github.com/tsl0922/ttyd/releases/download/1.7.7/ttyd.${TTYD_ARCH}" -o /usr/bin/ttyd && \
-    chmod +x /usr/bin/ttyd
+    curl -fsSL "https://github.com/tsl0922/ttyd/releases/download/${TTYD_VERSION}/ttyd.${TTYD_ARCH}" -o /tmp/ttyd && \
+    echo "${TTYD_SHA256}  /tmp/ttyd" | sha256sum -c - && \
+    install -m 0755 /tmp/ttyd /usr/bin/ttyd && \
+    rm -f /tmp/ttyd
 
 # Provide a passthrough sudo so Claude Code's postinstall script doesn't fail
 # (container runs as root so sudo is unnecessary, but HA's security profile blocks the real binary)
@@ -118,6 +124,21 @@ RUN cat > /root/.tmux.conf << 'EOF'
 set -g history-limit 20000
 # Use primary screen (not alternate) so xterm.js owns the scrollback buffer
 set -ga terminal-overrides ',xterm*:smcup@:rmcup@'
+# Don't wait 500ms after ESC to see whether a key sequence follows — makes arrow
+# keys and Alt combos respond immediately over high-latency links (Nabu Casa relay)
+set -s escape-time 10
+# Disable tmux's paste heuristic: over a slow link the browser's keystrokes arrive
+# TCP-batched within the 1ms default, so tmux mistook plain typing for a paste and
+# forwarded it as one block. xterm.js still emits real bracketed-paste sequences,
+# which tmux passes through, so actual pasting is unaffected.
+set -g assume-paste-time 0
+# Clipboard: copying inside tmux travels app → tmux → ttyd/xterm.js → browser as an
+# OSC 52 sequence. Claude Code wraps its OSC 52 in a DCS passthrough envelope, which
+# tmux drops unless allow-passthrough is on (default off since tmux 3.3); set-clipboard
+# defaults to "external" and ignores clipboard writes from inner applications.
+set -g allow-passthrough on
+set -s set-clipboard on
+set -as terminal-features ',xterm*:clipboard'
 # Mouse/status settings are written by run.sh based on the tmux_scroll_mode option
 source-file -q /root/.tmux-runtime.conf
 EOF

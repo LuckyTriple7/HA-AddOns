@@ -1,5 +1,53 @@
 # Changelog
 
+## [1.3.14] - 2026-08-14
+
+### Changed
+- Rebuild für Claude Code 2.1.223
+
+
+## [1.3.13] - 2026-08-14
+
+### Fixed
+- Der Schreibschutz aus 1.3.12 schrieb je Pfad zwei Regeln, `Edit(...)` und `Write(...)`. Bei Datei-Prüfungen greifen aber nur `Edit`-Regeln — die decken bereits alle datei-ändernden Werkzeuge ab, `Write` inklusive. Die `Write`-Regeln blieben wirkungslos und Claude Code meldete beim Start für jede von ihnen eine Warnung. Sie werden jetzt bei jedem Start entfernt, unabhängig davon, ob die Option an oder aus ist, damit auch bereits geschriebene `settings.json` sauber werden. Die Schutzwirkung ändert sich dadurch nicht.
+
+
+## [1.3.12] - 2026-08-14
+
+### Added
+- Neue Option `protect_internal_config` (Standard: aktiviert). Trägt Sperrregeln in die `settings.json` ein, mit denen Claude Code Schreibzugriffe auf `.storage/`, `.cloud/`, `deps/`, `tts/` und die Recorder-Datenbank selbst ablehnt — anders als die Hinweise in der CLAUDE.md wirkt das unabhängig davon, was gerade im Kontext steht. Lesen bleibt erlaubt, Fehlersuche in diesen Verzeichnissen funktioniert also weiter.
+
+  Wer dort bewusst eingreifen will, schaltet die Option ab; die Regeln werden bei jedem Start neu geschrieben, das Umschalten wirkt also sofort. Eigene Einträge unter `permissions.deny` bleiben in beide Richtungen erhalten, und eine von Hand kaputt editierte `settings.json` wird nicht angefasst, sondern nur als Warnung ins Log geschrieben.
+
+  Nicht abgedeckt: Umwege über die Shell — `Bash`-Aufrufe wie `sed -i` auf denselben Pfaden erfasst die Sperre nicht.
+
+
+## [1.3.11] - 2026-08-14
+
+### Added
+- **Schutzregeln in der CLAUDE.md.** Die Datei enthielt bisher nur Pfad-Mapping, Werkzeug-Hinweise und Log-Rezepte — keine einzige Regel darüber, was Claude *nicht* anfassen darf. Neu ist ein Abschnitt ganz oben mit einer Sperrliste für die internen HA-Verzeichnisse (`.storage/`, `.cloud/`, `deps/`, `tts/`, `home-assistant_v2.db`) samt der Erklärung, warum: dort liegt alles UI-Erstellte inklusive Entity- und Device-Registry, das Format ist nicht stabil, und eine von Hand geänderte Datei in `.storage/` kann Home Assistant am Starten hindern. Jede Zeile der Tabelle nennt das Werkzeug, das stattdessen zu benutzen ist. Dazu: `secrets.yaml` wird nie ausgegeben, Dateiänderungen erst nach ausdrücklicher Zustimmung, keine ungefragten Aufräumarbeiten, `ha core check` nach YAML-Änderungen und ein Hinweis auf Reload- vs. Neustart-Bedarf.
+- **`CLAUDE.local.md` für eigene Anweisungen.** Die CLAUDE.md wird bei jedem Start überschrieben, eigene Ergänzungen waren also nach dem nächsten Neustart weg. Das Add-on legt jetzt `CLAUDE.local.md.example` in `/homeassistant/.claudecode/` ab; nach dem Umbenennen in `CLAUDE.local.md` wird die Datei in jeder Session mitgeladen und vom Add-on nie wieder angefasst — auch Updates schreiben nicht hinein. Bei Widersprüchen gewinnt die CLAUDE.md, die Schutzregeln bleiben unangetastet.
+
+### Changed
+- Kopieren aus dem Web-Terminal in die Browser-Zwischenablage funktioniert jetzt auch für Text, den Claude Code selbst kopiert. tmux verwarf die dafür nötigen OSC-52-Sequenzen bisher gleich zweifach: die DCS-Hülle, in die Claude Code sie packt, braucht `allow-passthrough on` (seit tmux 3.3 standardmäßig aus), und `set-clipboard` ignoriert in der Voreinstellung Clipboard-Schreibzugriffe aus inneren Anwendungen.
+
+
+## [1.3.10] - 2026-08-14
+
+### Fixed
+- Tippen im Web-Terminal wirkte über langsame Verbindungen (Nabu Casa Cloud, Zugriff von unterwegs) ruckelig — Zeichen erschienen schubweise statt einzeln. Ursache: tmux' Paste-Erkennung (`assume-paste-time`, Standard 1 ms) hielt normal getippten Text für einen Einfügevorgang, weil die Tastendrücke über eine Verbindung mit hoher Latenz gebündelt ankommen, und reichte sie als Block weiter. Die Erkennung ist jetzt aus; echtes Einfügen funktioniert unverändert, weil der Browser dafür eigene Bracketed-Paste-Sequenzen schickt, die tmux durchreicht.
+- Pfeiltasten und Alt-Kombinationen reagieren schneller: tmux wartete nach jedem ESC 500 ms auf eine mögliche Folgetaste (`escape-time`), jetzt 10 ms.
+
+Hinweis: Der größere Teil der spürbaren Verzögerung liegt außerhalb des Add-ons. Ein Terminal hat kein lokales Echo, jeder Tastendruck läuft komplett zum Server und zurück, bevor das Zeichen erscheint. Über Nabu Casa Cloud geht dieser Weg zusätzlich über das Relay. Wer zuhause ist, tippt über die lokale HA-Adresse spürbar flüssiger.
+
+
+## [1.3.9] - 2026-08-14
+
+### Changed
+- Das ttyd-Binary wird beim Image-Build jetzt per SHA256 geprüft, bevor es ausführbar wird. Bisher lud der Build die Datei aus dem Netz und setzte direkt das Execute-Bit — ein manipulierter Download wäre unbemerkt als Prozess mit vollem Host-Zugriff gestartet (`full_access`, `docker_api`). Der Download landet nun in `/tmp`, wird gegen die Prüfsumme aus dem Upstream-Release verglichen und erst danach nach `/usr/bin/ttyd` installiert. Die ttyd-Version steht als `ARG TTYD_VERSION` oben im Dockerfile; wer sie ändert, muss die Prüfsummen mitziehen.
+- Unbekannte Ziel-Architekturen brechen den Build jetzt mit klarer Meldung ab, statt still das x86_64-Binary zu installieren.
+
+
 ## [1.3.8] - 2026-08-09
 
 ### Added

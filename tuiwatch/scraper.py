@@ -29,6 +29,32 @@ import requests
 # Eigener Logger; hängt über den Root-Handler in der UI-Konsole (siehe app.py).
 log = logging.getLogger("tuiwatch.scraper")
 
+
+def _count_call() -> None:
+    """Zählt einen TUI-API-Aufruf für den Footer-Zähler (`_get`/`_post` unten).
+    Lazy-Import von app.py statt eines Moduls-Zyklus (app.py importiert scraper.py
+    selbst) — sicher, weil er erst beim tatsächlichen Aufruf greift, also lange
+    nachdem beide Module fertig geladen sind. In den reinen Parsing-Tests (ohne
+    konfigurierte DB) schlägt der DB-Zugriff fehl und wird hier bewusst
+    verschluckt — ein nicht gezählter Aufruf ist unkritisch."""
+    try:
+        import app as A
+        A._record_tui_call()
+    except Exception:
+        pass
+
+
+def _get(*a, **kw):
+    """`requests.get` mit Zähler — Ersatz für alle TUI-API-Aufrufe unten."""
+    _count_call()
+    return requests.get(*a, **kw)
+
+
+def _post(*a, **kw):
+    """`requests.post` mit Zähler — Ersatz für alle TUI-API-Aufrufe unten."""
+    _count_call()
+    return requests.post(*a, **kw)
+
 USER_AGENT = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
               "(KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36")
 
@@ -529,7 +555,7 @@ def fetch_calendar(url: str, *, verbose: bool = False) -> dict | None:
         if verbose:
             log.info("Kalender-API GET %s", cal_url)
         try:
-            resp = requests.get(cal_url, headers=_API_HEADERS, timeout=25)
+            resp = _get(cal_url, headers=_API_HEADERS, timeout=25)
             if resp.status_code != 200:
                 if verbose:
                     log.warning(f"Kalender HTTP {resp.status_code}")
@@ -606,7 +632,7 @@ def fetch_rooms(url: str, *, verbose: bool = False) -> dict | None:
         api = build_offer_api_url(without_room_code(url))
         if verbose:
             log.info("Zimmer-API GET %s", api)
-        resp = requests.get(api, headers=_API_HEADERS, timeout=25)
+        resp = _get(api, headers=_API_HEADERS, timeout=25)
         if resp.status_code != 200:
             if resp.status_code in (400, 404, 422):
                 return {"ok": False, "rooms": [], "note": "Keine Zimmer im gewählten Zeitraum"}
@@ -622,7 +648,7 @@ def fetch_rooms(url: str, *, verbose: bool = False) -> dict | None:
         # transferIncluded=true (Default) 0 Zimmer, obwohl auf tui.com welche buchbar sind.
         try:
             api2 = build_offer_api_url(with_transfer_included(without_room_code(url), False))
-            resp2 = requests.get(api2, headers=_API_HEADERS, timeout=25)
+            resp2 = _get(api2, headers=_API_HEADERS, timeout=25)
             data2 = resp2.json() if resp2.status_code == 200 else {}
             if data2.get("offers"):
                 data = data2
@@ -694,7 +720,7 @@ def fetch_giata_image_urls(giata: str, limit: int = 24, max_pages: int = 8) -> l
     while page <= total_pages and page <= max_pages and len(out) < limit:
         page_url = base if page == 1 else f"{base}&site={page}"
         try:
-            resp = requests.get(page_url, headers={"User-Agent": USER_AGENT}, timeout=15)
+            resp = _get(page_url, headers={"User-Agent": USER_AGENT}, timeout=15)
             resp.raise_for_status()
         except requests.RequestException as e:
             log.warning("GIATA-Bilder giataId %s (Seite %d) nicht abrufbar: %s", giata, page, e)
@@ -729,7 +755,7 @@ def region_giata_from_breadcrumb(giata: str) -> int | None:
     if not giata:
         return None
     try:
-        resp = requests.get(f"{BREADCRUMB_API}{giata}", headers=_API_HEADERS, timeout=15)
+        resp = _get(f"{BREADCRUMB_API}{giata}", headers=_API_HEADERS, timeout=15)
         if resp.status_code != 200:
             return None
         bc = resp.json()
@@ -923,7 +949,7 @@ def _run_search(params: dict, *, offset: int = 0, verbose: bool = False) -> dict
                 params.get("endDate"), params.get("duration"), params.get("travellers"),
                 params.get("boards"), params.get("location"), params.get("airports"),
                 params.get("airlines"), params.get("operators"), params.get("direct"), offset)
-        resp = requests.post(SEARCH_API, json=payload, headers=_SEARCH_HEADERS, timeout=30)
+        resp = _post(SEARCH_API, json=payload, headers=_SEARCH_HEADERS, timeout=30)
         if resp.status_code != 200:
             if verbose:
                 log.warning("Such-API HTTP %s", resp.status_code)
@@ -1068,7 +1094,7 @@ def fetch_destinations(parent=None) -> dict | None:
     base = f"{DEST_API}/de/package/TUICOM/giata"
     url = f"{base}/regions" if not parent else f"{base}/subregions/{parent}"
     try:
-        resp = requests.get(url, headers=_API_HEADERS, timeout=15)
+        resp = _get(url, headers=_API_HEADERS, timeout=15)
         if resp.status_code != 200:
             return None
         data = resp.json()
@@ -1157,7 +1183,7 @@ def fetch_airlines() -> list:
 def fetch_airports() -> list:
     """Abflughäfen aus der TUI-API: [{code,name,preselected}]."""
     try:
-        resp = requests.get(f"{AIRPORTS_API}/departureAirports/TUICOM/de-DE",
+        resp = _get(f"{AIRPORTS_API}/departureAirports/TUICOM/de-DE",
                             headers=_API_HEADERS, timeout=15)
         if resp.status_code != 200:
             return []
@@ -1198,7 +1224,7 @@ def api_healthcheck(*, verbose: bool = False) -> dict:
         q = {"giataId": _HC_GIATA, "locale": "de_DE", "tenant": "TUICOM",
              "startDate": sd, "endDate": ed, "durations": "7",
              "searchScope": "PACKAGE", "travellers": "2"}
-        r = requests.get(f"{OFFER_API}?{urlencode(q)}", headers=_API_HEADERS, timeout=20)
+        r = _get(f"{OFFER_API}?{urlencode(q)}", headers=_API_HEADERS, timeout=20)
         body = r.json() if r.status_code == 200 else None
         ok = r.status_code == 200 and isinstance(body, (dict, list))
         if isinstance(body, dict):
@@ -1239,7 +1265,7 @@ def api_healthcheck(*, verbose: bool = False) -> dict:
              "startDate": sd, "endDate": (today + timedelta(days=300)).isoformat(),
              "startSearchRange": sd,
              "endSearchRange": (today + timedelta(days=300)).isoformat()}
-        r = requests.get(f"{CALENDAR_API}?{urlencode(q)}", headers=_API_HEADERS, timeout=20)
+        r = _get(f"{CALENDAR_API}?{urlencode(q)}", headers=_API_HEADERS, timeout=20)
         ok = r.status_code == 200 and isinstance(r.json(), dict)
         add("Preiskalender-API", ok, f"HTTP {r.status_code}")
     except Exception as e:
@@ -1247,7 +1273,7 @@ def api_healthcheck(*, verbose: bool = False) -> dict:
 
     # 6) Bewertung/Sterne (CONTENT_API)
     try:
-        r = requests.get(f"{CONTENT_API}?giataId={_HC_GIATA}&locale=de_DE",
+        r = _get(f"{CONTENT_API}?giataId={_HC_GIATA}&locale=de_DE",
                          headers=_API_HEADERS, timeout=20)
         ok = r.status_code == 200 and isinstance(r.json(), dict)
         add("Bewertungs-API", ok, f"HTTP {r.status_code}")
@@ -1256,7 +1282,7 @@ def api_healthcheck(*, verbose: bool = False) -> dict:
 
     # 7) Ort/Region (BREADCRUMB_API)
     try:
-        r = requests.get(f"{BREADCRUMB_API}{_HC_GIATA}", headers=_API_HEADERS, timeout=20)
+        r = _get(f"{BREADCRUMB_API}{_HC_GIATA}", headers=_API_HEADERS, timeout=20)
         ok = r.status_code == 200 and isinstance(r.json(), list)
         add("Breadcrumb-API", ok, f"HTTP {r.status_code}")
     except Exception as e:
@@ -1282,7 +1308,7 @@ def api_healthcheck(*, verbose: bool = False) -> dict:
 
     # 9) Inklusiv-Gepäck (LUGGAGE_API) — HTTP/Struktur reicht (state je Route variiert)
     try:
-        r = requests.post(LUGGAGE_API,
+        r = _post(LUGGAGE_API,
                           json=[{"airline": "X3", "route": "DUS-SID", "organizer": "TUID"}],
                           headers=_API_HEADERS, timeout=20)
         ok = r.status_code == 200 and isinstance(r.json(), list)
@@ -1304,7 +1330,7 @@ def api_healthcheck(*, verbose: bool = False) -> dict:
 
     # 11) Zuletzt gebucht (LAST_BOOKED_API)
     try:
-        r = requests.get(f"{LAST_BOOKED_API}{_HC_GIATA}", headers=_API_HEADERS, timeout=20)
+        r = _get(f"{LAST_BOOKED_API}{_HC_GIATA}", headers=_API_HEADERS, timeout=20)
         ok = r.status_code == 200 and isinstance(r.json(), dict)
         add("Zuletzt-gebucht-API", ok, f"HTTP {r.status_code}")
     except Exception as e:
@@ -1421,7 +1447,7 @@ def _fetch_rating(giata: str, verbose: bool = False) -> dict:
     if not giata:
         return out
     try:
-        resp = requests.get(f"{CONTENT_API}?giataId={giata}&locale=de_DE",
+        resp = _get(f"{CONTENT_API}?giataId={giata}&locale=de_DE",
                             headers=_API_HEADERS, timeout=15)
         if resp.status_code != 200:
             return out
@@ -1447,7 +1473,7 @@ def _fetch_location(giata: str, region_giata=None, verbose: bool = False) -> dic
     if not giata:
         return out
     try:
-        resp = requests.get(f"{BREADCRUMB_API}{giata}", headers=_API_HEADERS, timeout=15)
+        resp = _get(f"{BREADCRUMB_API}{giata}", headers=_API_HEADERS, timeout=15)
         if resp.status_code != 200:
             return out
         bc = resp.json()
@@ -1547,7 +1573,7 @@ def _fetch_vacancy(data: dict, offer: dict, verbose: bool = False) -> dict:
     unbekannter Status ist KEIN Nichtverfügbar-Signal)."""
     out: dict = {}
     try:
-        resp = requests.post(VACANCY_API, json=_build_vacancy_payload(data, offer),
+        resp = _post(VACANCY_API, json=_build_vacancy_payload(data, offer),
                              headers=_API_HEADERS, timeout=30)
         if resp.status_code != 200:
             if verbose:
@@ -1618,7 +1644,7 @@ def _fetch_last_booked(giata: str, verbose: bool = False) -> str:
     if not giata:
         return ""
     try:
-        resp = requests.get(f"{LAST_BOOKED_API}{giata}", headers=_API_HEADERS, timeout=15)
+        resp = _get(f"{LAST_BOOKED_API}{giata}", headers=_API_HEADERS, timeout=15)
         if resp.status_code == 200:
             return (resp.json().get("date") or "")[:10]
     except Exception as e:
@@ -1642,7 +1668,7 @@ def fetch_luggage(offer: dict, verbose: bool = False) -> dict:
                 return {}
             legs.append({"airline": al, "route": f"{dep}-{arr}",
                          "organizer": offer.get("tourOperator", "")})
-        resp = requests.post(LUGGAGE_API, json=legs, headers=_API_HEADERS, timeout=15)
+        resp = _post(LUGGAGE_API, json=legs, headers=_API_HEADERS, timeout=15)
         if resp.status_code != 200:
             return {}
         parts = []
@@ -1668,7 +1694,7 @@ def _fetch_country_code(giata: str) -> str:
     """ISO-Ländercode des Hotels (z. B. 'GR') aus dem Hotel-Content-Endpoint —
     der Breadcrumb kennt nur Ländernamen, paymentService will den Code."""
     try:
-        resp = requests.get(f"{HOTEL_CONTENT_API}?giataId={giata}&locale=de_DE&tenant=TUICOM",
+        resp = _get(f"{HOTEL_CONTENT_API}?giataId={giata}&locale=de_DE&tenant=TUICOM",
                             headers=_API_HEADERS, timeout=15)
         if resp.status_code == 200:
             return ((resp.json().get("contact") or {}).get("address") or {}) \
@@ -1696,7 +1722,7 @@ def fetch_payment_terms(offer: dict, giata: str, verbose: bool = False) -> dict:
                               "productCodes": [(offer.get("hotel") or {}).get("product", "")]}]}
         headers = dict(_API_HEADERS)
         headers["X-Agency"] = _BOOKING_AGENCY   # ohne: HTTP 400 "insufficient headers"
-        resp = requests.post(PAYMENT_API, json=body, headers=headers, timeout=20)
+        resp = _post(PAYMENT_API, json=body, headers=headers, timeout=20)
         if resp.status_code != 200:
             return out
         j = resp.json()
@@ -1723,7 +1749,7 @@ def fetch_price_api(url: str, *, vacancy: bool = True, extras: bool = False,
         api = build_offer_api_url(url)
         if verbose:
             log.info("Offer-API GET %s", api)
-        resp = requests.get(api, headers=_API_HEADERS, timeout=25)
+        resp = _get(api, headers=_API_HEADERS, timeout=25)
         if resp.status_code != 200:
             if verbose:
                 log.warning(f"API HTTP {resp.status_code}")
@@ -1752,7 +1778,7 @@ def fetch_price_api(url: str, *, vacancy: bool = True, extras: bool = False,
         # Treffer). Fallback nur, wenn der Nutzer die URL nicht bereits per Checkbox
         # explizit festgelegt hat.
         try:
-            resp2 = requests.get(build_offer_api_url(with_transfer_included(url, False)),
+            resp2 = _get(build_offer_api_url(with_transfer_included(url, False)),
                                   headers=_API_HEADERS, timeout=25)
             data2 = resp2.json() if resp2.status_code == 200 else {}
             if data2.get("offers"):
