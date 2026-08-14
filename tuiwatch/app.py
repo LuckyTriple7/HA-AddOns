@@ -92,7 +92,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.99.1"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.100.0"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -2731,6 +2731,14 @@ def _booking_attrs(attrs: dict, basket: dict) -> None:
     `booking`, damit eine Automatisierung („melde, wenn ein Ziel auf grün springt")
     sich nicht auf die Kopfzahl beschränken muss."""
     b = basket.get('booking') or {}
+    # Der typische Tiefpunkt hängt nicht an der Ampel: er kommt aus abgeschlossenen
+    # Messreihen und steht auch dann zur Verfügung, wenn gerade keine laufende Reihe
+    # eine Empfehlung hergibt.
+    tr = basket.get('troughs') or {}
+    if tr.get('ready'):
+        attrs.update(trough_median_days=tr['median_dte'], trough_p25_days=tr['p25_dte'],
+                     trough_p75_days=tr['p75_dte'], trough_samples=tr['n'],
+                     trough_median_gain=tr['median_gain'])
     if not b.get('enabled'):
         return
     attrs['booking_curve'] = [

@@ -787,7 +787,10 @@ Angeboten) sowie die vollständigen Zweige `offers` und `basket`. Ist die
 Buchungszeitpunkt-Ampel aktiv, kommen `booking_ampel`/`booking_score`/`booking_region`/
 `booking_days_to_dep`/`booking_expected_pct` (jeweils für die Messreihe mit dem
 kürzesten Vorlauf — die dringendste Entscheidung), `booking_green` (alle Messreihen
-auf grün) sowie `booking` und `booking_curve` in voller Länge dazu. Siehe unten
+auf grün) sowie `booking` und `booking_curve` in voller Länge dazu. Gibt es genug
+abgeschlossene Messreihen, kommen zusätzlich `trough_median_days`, `trough_p25_days`,
+`trough_p75_days`, `trough_samples` und `trough_median_gain` — der beobachtete
+Tiefpunkt, unabhängig davon, ob gerade eine Ampel leuchtet. Siehe unten
 „Markttrend".
 
 ## Markttrend
@@ -954,6 +957,51 @@ entsteht die typische Preiskurve des Marktes.
   Snapshots schon verworfen sind, bleiben ohne Vorlauf und fallen aus der Kurve.
 - **Abschaltbar** über `booking_window_enabled`; braucht das Preisbarometer.
 - Eigener Endpunkt: `GET /api/booking-window` (Kurve + Ampel je Messreihe).
+
+### Tiefpunkte — wann war es tatsächlich am günstigsten?
+
+Die Booking-Kurve schaut nach vorn und beschreibt den Markt im Mittel. Die Tiefpunkte
+schauen zurück und beschreiben, was bei **dieser** Reise wirklich passiert ist. Nur
+diese Zahl stammt aus echten Ausgängen — sie ist damit zugleich die einzige Kontrolle,
+ob die gepoolte Kurve überhaupt richtig liegt.
+
+Je Messreihe wird eine Zeile geführt (Tabelle `basket_troughs`, Spalte **Tiefpunkt** im
+Preisbarometer-Fenster, Archiv zum Aufklappen darunter):
+
+- **Tiefpunkt** = Minimum des **verketteten Index**, nicht des rohen Medianpreises.
+  Sonst wäre der „günstigste Tag" oft nur der Tag, an dem zufällig besonders viele
+  billige Hotels im Suchergebnis standen. Festgehalten werden Tag, Vorlauf
+  („74 Tage vor Abreise"), Indexstand und der Median-Preis in Euro von damals.
+- **Aufschlag danach** (`gain_pct`): um wie viel Prozent der Index vom Tiefpunkt bis
+  zum letzten Beobachtungstag gestiegen ist — was Warten gekostet hätte. Negativ heißt,
+  die Preise fielen bis zuletzt.
+- **Überlebt das Löschen der Messreihe.** Beim Löschen einer Messreihe wird der
+  Tiefpunkt vorher fortgeschrieben und dann behalten; Snapshots, Bewegungen und
+  Preisniveaus verschwinden. Wer auch die Erkenntnis loswerden will, schickt
+  `{"region": "...", "purge_troughs": true}` an `DELETE /api/market-basket/region`.
+  Eine unter demselben Namen neu gestartete Aufzeichnung bekommt eine eigene Zeile
+  (der Schlüssel enthält den ersten Beobachtungstag).
+- **Zwei Zensierungen** werden markiert und aus der Statistik ausgeschlossen — ohne das
+  verschöbe sich der „typische Buchungszeitpunkt" systematisch:
+  - *links*: das Minimum liegt am **ersten** Beobachtungstag. Dann sagt „Tiefpunkt bei
+    120 Tagen" in Wahrheit nur „so früh habe ich angefangen zu messen".
+  - *rechts*: die Beobachtung endet mehr als **21 Tage** vor der Abreise (Suche
+    gelöscht, Add-on längere Zeit aus). Der Tiefpunkt kann dann noch kommen. Laufende
+    Messreihen fallen hierüber automatisch heraus — ihr letzter Beobachtungstag liegt
+    zwangsläufig weit vor der Abreise.
+
+  In der Oberfläche stehen solche Zeilen abgedimmt mit einem `≈` da; sie bleiben
+  sichtbar, weil sie für den Rückblick auf die eigene Reise nützlich sind.
+- **Statistik** ab 5 auswertbaren Messreihen (mindestens 10 Beobachtungstage je Reihe),
+  global und je Region: Median-Vorlauf des Tiefpunkts, mittlere Hälfte (P25/P75),
+  Spanne und der mediane Aufschlag danach.
+- **Kein Bestandteil des Ampel-Scores.** Der Tiefpunkt überschneidet sich inhaltlich
+  mit der erwarteten Restbewegung; dieselbe Information zweimal zu gewichten hätte den
+  Score verzerrt. Er steht daher als eigene Angabe daneben — und geht als vorgerechnete
+  Zahl in den KI-Buchungsscore ein.
+- **Bestandsdaten** werden beim ersten Start einmalig ausgewertet.
+- Eigener Endpunkt: `GET /api/booking-troughs` (Statistik global und je Region plus
+  alle aufgezeichneten Zeilen).
 
 ## KI-Buchungsscore ("Orakel")
 

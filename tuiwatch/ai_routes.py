@@ -862,11 +862,18 @@ def _booking_window_facts(con, o) -> dict | None:
     curve = [{'window': b['label'], 'pct': b['pct']}
              for b in MB.booking_curve(con) if b['rate'] is not None]
     comps = sig.get('components') or {}
+    # Beobachteter Tiefpunkt aus abgeschlossenen Messreihen — die Gegenprobe zur
+    # gepoolten Kurve, und die einzige Zahl hier, die aus echten Ausgängen stammt.
+    try:
+        tr = MB.trough_stats(con)
+    except Exception:
+        tr = {}
     return {'basket': key, 'ampel': sig['ampel'], 'score': sig['score'],
             'days_to_dep': sig['days_to_dep'], 'curve': curve,
             'expected_pct': (comps.get('expected') or {}).get('pct'),
             'rank': (comps.get('position') or {}).get('rank'),
-            'rank_days': (comps.get('position') or {}).get('n')}
+            'rank_days': (comps.get('position') or {}).get('n'),
+            'trough': tr if tr.get('ready') else None}
 
 
 def _calendar_outlook_facts(con, offer_id: int) -> dict | None:
@@ -1047,6 +1054,17 @@ def _booking_score_prompt(facts: dict) -> str:
                           "gesamte Fenster, gepoolt über alle Messreihen):")
             for b in bw['curve']:
                 lines.append(f"- {b['window']} vor Abreise: {b['pct']:+.1f} %")
+        tr = bw.get('trough')
+        if tr:
+            lines.append(
+                f"Beobachtete Tiefpunkte aus {tr['n']} abgeschlossenen Messreihen "
+                f"(rueckblickend ausgewertet, nicht prognostiziert): am guenstigsten war "
+                f"es im Median {tr['median_dte']} Tage vor Abreise, die mittlere Haelfte "
+                f"der Faelle lag zwischen {tr['p25_dte']} und {tr['p75_dte']} Tagen vor "
+                f"Abreise."
+                + (f" Wer den Tiefpunkt verpasst hat, zahlte bis zum Ende der Beobachtung "
+                   f"im Median {tr['median_gain']:+.1f} % mehr."
+                   if tr.get('median_gain') is not None else ""))
     return ("Du bist ein Reisepreis-Analyst. Bewerte den aktuellen Preis dieser "
             "Pauschalreise und berechne einen Buchungsscore.\n\n" + "\n".join(lines)
             + "\n\n" + _BOOKING_SCORE_INSTRUCTIONS)

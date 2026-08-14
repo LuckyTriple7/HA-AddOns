@@ -2394,6 +2394,78 @@
         + `Prozentwerte sind dimensionslos, deshalb dürfen verschiedene Ziele zusammen in einen Topf.</div>`
         + `<table class="hist"><tr><th>Vorlauf</th><th>über das Fenster</th><th>pro Tag</th><th>Punkte / Messreihen</th></tr>${rows}</table>`;
     }
+    // ── Tiefpunkte ────────────────────────────────────────────────────────────────
+    // Die Booking-Kurve schaut nach vorn („wie bewegt sich der Markt üblicherweise"),
+    // die Tiefpunkte schauen zurück („wann war es tatsächlich am günstigsten"). Nur
+    // die zweite Zahl stammt aus echten Ausgängen — deshalb steht sie getrennt da und
+    // fließt bewusst NICHT in den Ampel-Score ein, sonst zählte dieselbe Information
+    // doppelt.
+    function troughCell(t){
+      if(!t) return '<span class="hint">–</span>';
+      if(t.trough_dte===null || t.trough_dte===undefined)
+        return '<span class="hint">Vorlauf unbekannt</span>';
+      const warn = t.edge_start
+        ? 'Tiefpunkt liegt am ersten Beobachtungstag — der echte Tiefpunkt kann davor gelegen haben'
+        : (t.censored ? 'Beobachtung endet weit vor der Abreise — der Tiefpunkt kann noch kommen' : '');
+      const title = `Günstigster Stand am ${fmtD(t.trough_day)} bei Index ${t.trough_index}`
+        + (t.trough_p50 ? `, Median-Preis damals ${Math.round(t.trough_p50).toLocaleString('de-DE')} €` : '')
+        + ` · zuletzt ${fmtD(t.last_day)} bei Index ${t.end_index}`
+        + ` · ${t.n_days} Beobachtungstage` + (warn ? ` · ${warn}` : '');
+      return `<span title="${esc(title)}" style="white-space:nowrap">${t.trough_dte} T`
+        + (warn ? ' <span class="hint">≈</span>' : '') + '</span>'
+        + (t.gain_pct===null || t.gain_pct===undefined ? ''
+            : ` <span class="hint" style="white-space:nowrap">(${pctStr(t.gain_pct)})</span>`);
+    }
+    let _troughData = null, _troughOpen = false;
+    function troughSection(b){
+      const s = b.troughs || {};
+      const head = `<h3 style="margin:16px 0 4px;font-size:15px">Tiefpunkte</h3>`
+        + `<div class="hint" style="margin-bottom:6px">Rückblick statt Prognose: wann war eine `
+        + `abgeschlossene Messreihe tatsächlich am günstigsten. Zeilen, deren Tiefpunkt am `
+        + `Rand der Beobachtung liegt, bleiben stehen, zählen aber nicht mit — sonst zeigte `
+        + `die Statistik den Beginn der Messung statt den Tiefpunkt. Diese Auswertung `
+        + `überlebt das Löschen einer Messreihe.</div>`;
+      if(!s.ready){
+        return head + `<div class="hint">Noch ${Math.max(0,(s.need||5)-(s.n||0))} auswertbare `
+          + `Messreihen bis zur ersten Aussage (${s.n||0} von ${s.need||5}). Auswertbar ist eine `
+          + `Reihe, die bis nah an die Abreise beobachtet wurde.</div>`
+          + troughArchive();
+      }
+      return head
+        + `<div class="trend-global">Am günstigsten war es im Median <b>${s.median_dte} Tage vor Abreise</b>`
+        + ` <span class="hint">(mittlere Hälfte: ${s.p25_dte}–${s.p75_dte} Tage, Spanne ${s.min_dte}–${s.max_dte}, `
+        + `${s.n} Messreihen)</span></div>`
+        + (s.median_gain===null || s.median_gain===undefined ? ''
+            : `<div class="hint" style="margin-top:4px">Wer den Tiefpunkt verpasste, zahlte bis zum `
+              + `Ende der Beobachtung im Median ${pctStr(s.median_gain)}.</div>`)
+        + troughArchive();
+    }
+    function troughArchive(){
+      if(!_troughOpen)
+        return `<div style="margin-top:6px"><span class="cal-month-link" onclick="toggleTroughs()">`
+          + `Alle aufgezeichneten Tiefpunkte anzeigen ▾</span></div>`;
+      const d = _troughData;
+      if(!d) return '<div class="hint" style="margin-top:6px">Lade…</div>';
+      const rows = (d.rows||[]).map(r=>{
+        const mark = r.usable ? '' : (r.edge_start ? '⟨ angeschnitten' : 'läuft noch / früh abgebrochen');
+        return `<tr${r.usable?'':' style="opacity:.6"'}><td>${esc(r.basket)}`
+          + `<div class="hint">${fmtD(r.first_day)} – ${fmtD(r.last_day)} · ${r.n_days} Tage</div></td>`
+          + `<td>${troughCell(r)}</td>`
+          + `<td>${r.trough_p50 ? Math.round(r.trough_p50).toLocaleString('de-DE')+' €' : '<span class="hint">–</span>'}</td>`
+          + `<td class="hint">${esc(mark)}</td></tr>`;
+      }).join('');
+      return `<div style="margin-top:6px"><span class="cal-month-link" onclick="toggleTroughs()">Tiefpunkte ausblenden ▴</span></div>`
+        + (rows ? `<table class="hist"><tr><th>Messreihe</th><th>Tiefpunkt (danach)</th><th>Preis dort</th><th></th></tr>${rows}</table>`
+                : '<div class="hint">Noch keine aufgezeichneten Tiefpunkte.</div>');
+    }
+    async function toggleTroughs(){
+      _troughOpen = !_troughOpen;
+      if(_troughOpen && !_troughData){
+        try { _troughData = await fetch(api('/api/booking-troughs')).then(r=>r.json()); }
+        catch(e){ _troughData = {rows:[]}; }
+      }
+      loadBasket();
+    }
     function renderBasket(b){
       if(!b || !b.enabled){
         $('#basket-body').innerHTML = '<div class="cmp-load">Das Preisbarometer ist in den Add-on-Einstellungen abgeschaltet.</div>';
@@ -2411,6 +2483,7 @@
         return `<tr${r.closed?' style="opacity:.7"':''}><td>${esc(r.region)}${when}</td>`
         + `<td>${marketTrendBadge(r.trend)}${marketIndexLine(r.index)}</td>`
         + (bk.enabled ? `<td>${ampelBadge(r.signal)}</td>` : '')
+        + `<td>${troughCell(r.trough)}</td>`
         + `<td>${(r.trend||{}).hotels||''}</td>`
         + `<td><button class="btn sec" onclick="resetBasketRegion(${esc(JSON.stringify(r.region))})" title="${r.closed
             ? 'Diese abgeschlossene Messreihe endgültig entfernen'
@@ -2424,9 +2497,12 @@
       $('#basket-body').innerHTML =
         `<div class="trend-global"><b>Gesamt:</b> ${marketTrendBadge(b.global.trend)}${marketIndexLine(b.global.index)}</div>`
         + (rows ? `<table class="hist"><tr><th>Gespeicherte Suche / Reisezeitraum</th><th>Trend (14 Tage) / Index (gesamt)</th>`
-                + (bk.enabled ? '<th>Buchen?</th>' : '') + `<th>Hotels</th><th></th></tr>${rows}</table>`
+                + (bk.enabled ? '<th>Buchen?</th>' : '')
+                + `<th title="Vorlauf beim bisher günstigsten Stand, in Klammern die Bewegung seither">Tiefpunkt</th>`
+                + `<th>Hotels</th><th></th></tr>${rows}</table>`
                 : '<div class="cmp-load">Noch keine Suche mit zwei vergleichbaren Barometer-Tagen.</div>')
         + bookingCurveTable(bk)
+        + troughSection(b)
         + (waitRows ? `<h3 style="margin:16px 0 4px;font-size:15px">Sammelt noch</h3>`
             + `<ul style="margin:0;padding-left:18px;font-size:14px">${waitRows}</ul>` : '')
         + (b.last_day
@@ -2493,12 +2569,15 @@
     }
     async function resetBasketRegion(region){
       if(!confirm(`Barometer-Daten für „${region}" löschen und neu beginnen?\n`
-        + `Die Messreihe wird beim nächsten Lauf neu erfasst, Trend und Index beginnen von vorn.`)) return;
+        + `Die Messreihe wird beim nächsten Lauf neu erfasst, Trend und Index beginnen von vorn.\n`
+        + `Der aufgezeichnete Tiefpunkt bleibt erhalten.`)) return;
       try {
         const d = await fetch(api('/api/market-basket/region'), {method:'DELETE',
           headers:{'Content-Type':'application/json'}, body:JSON.stringify({region})}).then(x=>x.json());
-        toast(`${d.snapshots} Snapshots und ${d.moves} Tagesbewegungen gelöscht`);
+        toast(`${d.snapshots} Snapshots und ${d.moves} Tagesbewegungen gelöscht`
+          + (d.troughs_kept ? `, Tiefpunkt behalten` : ''));
       } catch(e){ toast('Löschen fehlgeschlagen'); }
+      _troughData = null;
       loadBasket();
       updateTrendBtn();
     }

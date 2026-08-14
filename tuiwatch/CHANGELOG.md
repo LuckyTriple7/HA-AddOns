@@ -1,5 +1,48 @@
 # Changelog
 
+## [0.100.0] - 2026-08-14
+
+### Added
+- **Tiefpunkt-Archiv im Preisbarometer**: je Messreihe wird festgehalten, an welchem
+  Tag und bei welchem Vorlauf („X Tage vor Abreise") der verkettete Index sein
+  Minimum hatte, und um wie viel Prozent er von dort bis zum letzten Beobachtungstag
+  gestiegen ist — also was Warten gekostet hätte. Neue Tabelle `basket_troughs`
+  (eine Zeile je Messreihe und Aufzeichnungsbeginn), neue Route
+  `GET /api/booking-troughs`, neue Spalte „Tiefpunkt" in der Barometer-Tabelle plus
+  ein aufklappbares Archiv darunter.
+- Die Zeile **überlebt das Löschen der Messreihe**: beim Löschen wird der Tiefpunkt
+  vorher fortgeschrieben und dann behalten — Snapshots und Bewegungen waren nur das
+  Mittel, die Erkenntnis bleibt. `purge_troughs: true` im Rumpf des DELETE löscht sie
+  ausdrücklich mit. Eine unter demselben Namen neu gestartete Aufzeichnung legt eine
+  eigene Zeile an (Schlüssel enthält den ersten Beobachtungstag), statt die alte zu
+  überschreiben.
+- **Statistik über die Tiefpunkte** (global und je Region): Median-Vorlauf,
+  mittlere Hälfte, Spanne und der mediane Aufschlag nach dem Tiefpunkt — ab
+  5 auswertbaren Messreihen. Zugleich die einzige Gegenprobe, ob die gepoolte
+  Booking-Kurve den echten Tiefpunkt trifft.
+- Neue Sensor-Attribute am Markttrend-Sensor: `trough_median_days`,
+  `trough_p25_days`, `trough_p75_days`, `trough_samples`, `trough_median_gain`.
+- Der KI-Buchungsscore bekommt den beobachteten Tiefpunkt als vorgerechnete Zahl
+  mit — die einzige Angabe im Prompt, die aus echten Ausgängen stammt statt aus
+  einer Hochrechnung.
+
+### Notes
+- Gerechnet wird auf dem **verketteten Index**, nicht auf den rohen Medianpreisen:
+  sonst wäre der „Tiefpunkt" oft nur der Tag, an dem zufällig besonders viele
+  günstige Hotels im Suchergebnis standen.
+- Zwei Zensierungen werden markiert und aus der Statistik ausgeschlossen, sonst
+  verschöbe sich der typische Buchungszeitpunkt systematisch: **links**, wenn das
+  Minimum am ersten Beobachtungstag liegt (der echte Tiefpunkt kann davor gelegen
+  haben), **rechts**, wenn die Beobachtung mehr als 21 Tage vor der Abreise endet
+  (der Tiefpunkt kann noch kommen). Laufende Messreihen sind über die
+  Rechtszensierung automatisch ausgeschlossen. Die Zeilen bleiben sichtbar, sie
+  zählen nur nicht mit.
+- Der Tiefpunkt fließt **nicht** in den Ampel-Score ein — er überschneidet sich
+  inhaltlich mit der erwarteten Restbewegung, und dieselbe Information zweimal zu
+  gewichten hätte den Score verzerrt.
+- Bestehende Messreihen werden beim ersten Start einmalig ausgewertet
+  (`meta`-Flag `basket_trough_backfill`).
+
 ## [0.99.1] - 2026-08-14
 
 ### Added
