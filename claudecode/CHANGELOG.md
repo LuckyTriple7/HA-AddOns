@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.9] - 2026-08-14
+
+### Changed
+- Das ttyd-Binary wird beim Image-Build jetzt per SHA256 geprüft, bevor es ausführbar wird. Bisher lud der Build die Datei aus dem Netz und setzte direkt das Execute-Bit — ein manipulierter Download wäre unbemerkt als Prozess mit vollem Host-Zugriff gestartet (`full_access`, `docker_api`). Der Download landet nun in `/tmp`, wird gegen die Prüfsumme aus dem Upstream-Release verglichen und erst danach nach `/usr/bin/ttyd` installiert. Die ttyd-Version steht als `ARG TTYD_VERSION` oben im Dockerfile; wer sie ändert, muss die Prüfsummen mitziehen.
+- Unbekannte Ziel-Architekturen brechen den Build jetzt mit klarer Meldung ab, statt still das x86_64-Binary zu installieren.
+
+
 ## [1.3.8] - 2026-08-09
 
 ### Added
