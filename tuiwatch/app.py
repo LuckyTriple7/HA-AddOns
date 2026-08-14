@@ -92,7 +92,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.99.0"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.99.1"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -170,6 +170,7 @@ _vac_notified: set[int] = set()         # offer_ids mit aktivem Nicht-bestätigt
 ERROR_ALARM_STREAK = 3                   # ab so vielen Fehlversuchen in Folge melden
 _health_state: dict = {}                 # letzter API-Selbsttest {ok, ts, checks, running}
 _health_lock = threading.Lock()
+_tui_call_lock = threading.Lock()        # schützt den TUI-API-Zähler (meta-Key 'tui_call_count')
 _ai_summary_cache: dict = {}              # giata/Name → {summary, ts} — spart wiederholte API-Calls
 _AI_SUMMARY_TTL = 24 * 3600
 _booking_score_cache: dict = {}           # offer_id → {result, usage, ts}
@@ -1770,6 +1771,37 @@ def _meta_set(key: str, value: str) -> None:
         con.execute('INSERT OR REPLACE INTO meta (key, value) VALUES (?,?)', (key, str(value)))
 
 
+def _record_tui_call() -> int:
+    """Zählt einen TUI-API-Aufruf für den Footer-Zähler. Aufgerufen aus
+    scraper._count_call() bei jedem requests.get/post gegen die TUI-APIs (per
+    Lazy-Import, um den Modul-Zyklus mit app.py zu vermeiden — siehe dort).
+    Tages-Reset ohne eigenen Cronjob: der Bucket trägt den heutigen Datums-
+    Schlüssel, ein Aufruf an einem neuen Tag verwirft den alten Stand einfach
+    (gleiches Muster wie `_record_ai_usage_bucket` in ai_routes.py)."""
+    today = time.strftime('%Y-%m-%d')
+    with _tui_call_lock:
+        try:
+            stored = json.loads(_meta_get('tui_call_count') or '{}')
+        except (TypeError, ValueError):
+            stored = {}
+        if stored.get('date') != today:
+            stored = {'date': today, 'count': 0}
+        stored['count'] += 1
+        _meta_set('tui_call_count', json.dumps(stored))
+        return stored['count']
+
+
+def _tui_call_count_today() -> int:
+    """Heutiger Stand des TUI-API-Zählers, 0 nach Datumswechsel (siehe
+    `_record_tui_call`) — auch wenn seit Mitternacht noch kein neuer Aufruf
+    den Bucket zurückgesetzt hat."""
+    try:
+        stored = json.loads(_meta_get('tui_call_count') or '{}')
+    except (TypeError, ValueError):
+        stored = {}
+    return stored.get('count', 0) if stored.get('date') == time.strftime('%Y-%m-%d') else 0
+
+
 def _prompt_instructions(feature: str, default: str) -> str:
     """Effektiver Instruktions-Textblock für ein anpassbares KI-Feature
     ('advisor'/'compare'): Custom-Text aus `meta`, falls Checkbox aktiv UND
@@ -2918,6 +2950,15 @@ def api_dbsize():
     except OSError:
         size = 0
     return jsonify({'bytes': size})
+
+
+@app.route('/api/tui-calls', methods=['GET'])
+def api_tui_calls():
+    """Heutige TUI-API-Aufrufe für die Footer-Anzeige — Reset um 0 Uhr
+    (siehe _tui_call_count_today)."""
+    if (err := _require_api()):
+        return err
+    return jsonify({'count': _tui_call_count_today(), 'date': time.strftime('%Y-%m-%d')})
 
 
 _giata_images_cache: dict = {}  # giata → {'ts': float, 'images': [...]}

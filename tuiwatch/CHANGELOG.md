@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.99.1] - 2026-08-14
+
+### Added
+- **TUI-API-Zähler im Footer**: „📡 TUI-Aufrufe heute" zeigt, wie oft TUIWatch
+  seit Mitternacht bei TUI angefragt hat (Angebote, Preiskalender, Suche,
+  Reiseziele, …) — Reset automatisch um 0 Uhr über einen Datums-Schlüssel,
+  kein Cronjob nötig. Neue Route `GET /api/tui-calls`. Gezählt wird zentral in
+  `scraper._get`/`_post` (Ersatz für alle `requests.get`/`.post`-Aufrufe dort)
+  über `app._record_tui_call()` — jeder TUI-Aufruf im Code läuft durch diese
+  eine Stelle, kein einzelner API-Aufrufort musste angefasst werden.
+
 ## [0.99.0] - 2026-08-14
 
 ### Added

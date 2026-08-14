@@ -6933,6 +6933,13 @@
     loadDbSize();
     setInterval(loadDbSize, 300000);
 
+    async function loadTuiCalls(){
+      try { const d = await fetch(api('/api/tui-calls')).then(r=>r.json()); $('#tui-calls').textContent = d.count; }
+      catch(e){}
+    }
+    loadTuiCalls();
+    setInterval(loadTuiCalls, 60000);
+
     async function loadAiUsageFooter(){
       if(!G.ai) return;
       try {

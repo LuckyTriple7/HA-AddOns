@@ -1094,6 +1094,10 @@ ein kritischer Endpunkt antwortet nicht. Ein Klick öffnet die Detailliste mit �
 prüfen". So lässt sich schnell unterscheiden, ob ein fehlender Preis am Angebot liegt
 oder TUI eine API geändert hat.
 
+Daneben steht **„📡 TUI-Aufrufe heute"**: ein einfacher Zähler, wie oft TUIWatch seit
+Mitternacht bei TUI angefragt hat (Angebote, Preiskalender, Suche, Reiseziele, …).
+Setzt sich automatisch um 0 Uhr zurück.
+
 ## Preisprognose (🔮)
 
 Im **Verlauf-Fenster** aktiver Angebote setzt eine gestrichelte Kurve den
