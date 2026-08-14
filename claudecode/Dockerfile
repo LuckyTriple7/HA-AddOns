@@ -124,6 +124,14 @@ RUN cat > /root/.tmux.conf << 'EOF'
 set -g history-limit 20000
 # Use primary screen (not alternate) so xterm.js owns the scrollback buffer
 set -ga terminal-overrides ',xterm*:smcup@:rmcup@'
+# Don't wait 500ms after ESC to see whether a key sequence follows — makes arrow
+# keys and Alt combos respond immediately over high-latency links (Nabu Casa relay)
+set -s escape-time 10
+# Disable tmux's paste heuristic: over a slow link the browser's keystrokes arrive
+# TCP-batched within the 1ms default, so tmux mistook plain typing for a paste and
+# forwarded it as one block. xterm.js still emits real bracketed-paste sequences,
+# which tmux passes through, so actual pasting is unaffected.
+set -g assume-paste-time 0
 # Mouse/status settings are written by run.sh based on the tmux_scroll_mode option
 source-file -q /root/.tmux-runtime.conf
 EOF

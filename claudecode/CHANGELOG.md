@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.3.10] - 2026-08-14
+
+### Fixed
+- Tippen im Web-Terminal wirkte über langsame Verbindungen (Nabu Casa Cloud, Zugriff von unterwegs) ruckelig — Zeichen erschienen schubweise statt einzeln. Ursache: tmux' Paste-Erkennung (`assume-paste-time`, Standard 1 ms) hielt normal getippten Text für einen Einfügevorgang, weil die Tastendrücke über eine Verbindung mit hoher Latenz gebündelt ankommen, und reichte sie als Block weiter. Die Erkennung ist jetzt aus; echtes Einfügen funktioniert unverändert, weil der Browser dafür eigene Bracketed-Paste-Sequenzen schickt, die tmux durchreicht.
+- Pfeiltasten und Alt-Kombinationen reagieren schneller: tmux wartete nach jedem ESC 500 ms auf eine mögliche Folgetaste (`escape-time`), jetzt 10 ms.
+
+Hinweis: Der größere Teil der spürbaren Verzögerung liegt außerhalb des Add-ons. Ein Terminal hat kein lokales Echo, jeder Tastendruck läuft komplett zum Server und zurück, bevor das Zeichen erscheint. Über Nabu Casa Cloud geht dieser Weg zusätzlich über das Relay. Wer zuhause ist, tippt über die lokale HA-Adresse spürbar flüssiger.
+
+
 ## [1.3.9] - 2026-08-14
 
 ### Changed
