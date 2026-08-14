@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.10.31
+- 🧭 **Der System-Reiter hat jetzt auch eine Sprungleiste.** Elf Bereiche untereinander — von der Zwei-Faktor-Anmeldung über Backups und Dateien bis zu den Sensoren — hießen bisher: scrollen und suchen. Oben im Reiter steht jetzt dieselbe Leiste wie im KI-Reiter, ein Klick springt hin.
+- 📌 Sie klebt beim Scrollen unter der Kopfzeile, der Bereich, in dem man gerade steht, hebt sich hervor. Bei aufklappbaren Bereichen („Dateien", „Alt-Texte") steht die reine Überschrift im Chip, ohne Pfeil und Zähler.
+- ♻️ Unter der Haube gibt es die Leiste nur noch einmal statt zweimal: Ein Reiter bekommt sie, indem seine Bereiche mit `data-jump-panel` markiert werden.
+
 ## 0.10.30
 - 🎯 **Die Sprungleiste markierte nach dem Sprung den falschen Bereich.** Ein Klick auf „Bild-Studio" scrollte richtig hin, die Hervorhebung blieb aber einen Chip weiter links stehen. Die Höhe der Leiste war fest angenommen statt gemessen — der angesprungene Bereich kam damit ein paar Pixel unterhalb der Linie zu stehen, an der die Leiste den aktuellen Abschnitt ablieste.
 - 🔲 **Kein greller Kasten mehr um den geklickten Knopf.** Der Fokusring des Browsers blieb nach dem Sprung liegen. Bei Bedienung per Tastatur ist er weiterhin da, jetzt in den Farben der Oberfläche.

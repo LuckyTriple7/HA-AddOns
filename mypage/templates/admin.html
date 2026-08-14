@@ -49,7 +49,7 @@
     /* Anspringen soll unter Kopfzeile und Sprungleiste landen, nicht dahinter.
        Beide Hoehen kommen gemessen aus JS: geraten waere der Abstand mal zu
        klein (Bereich verschwindet hinter der Leiste) und mal zu gross. */
-    #tab-ai [data-ai-panel] { scroll-margin-top: calc(var(--hdr-h, 52px) + var(--jump-h, 50px) + 8px); }
+    [data-jump-panel] { scroll-margin-top: calc(var(--hdr-h, 52px) + var(--jump-h, 50px) + 8px); }
     .header-actions { display: flex; align-items: center; gap: 6px; }
     .icon-btn, .lang-btn { background: none; border: 1px solid var(--border); color: var(--muted); padding: 3px 8px; border-radius: 5px; font-size: 0.75rem; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 4px; }
     .lang-btn.active { border-color: var(--accent); color: var(--accent); }
@@ -858,7 +858,7 @@
     <!-- KI-Studio -->
     <section class="tab" id="tab-ai">
       <div class="jumpbar" id="ai-jump"></div>
-      <div class="panel" data-ai-panel="gemini">
+      <div class="panel" data-jump-panel data-ai-panel="gemini">
         <h3>⚙️ {{ t.ai_settings_heading }}</h3>
         <p class="hint">{{ t.ai_settings_hint }}</p>
         <div class="row">
@@ -892,7 +892,7 @@
         <p class="hint" id="ai-quota" style="margin-top:12px"></p>
       </div>
 
-      <div class="panel" data-ai-panel="gemini">
+      <div class="panel" data-jump-panel data-ai-panel="gemini">
         <h3>💶 {{ t.ai_usage_heading }}</h3>
         <p class="hint">{{ t.ai_usage_hint }} <a href="https://console.cloud.google.com/billing" target="_blank" rel="noopener">{{ t.ai_usage_billing_link }}</a></p>
         <div class="row">
@@ -917,7 +917,7 @@
         </div>
       </div>
 
-      <div class="panel" data-ai-panel="image">
+      <div class="panel" data-jump-panel data-ai-panel="image">
         <h3>🖼️ {{ t.ai_img_heading }}</h3>
         <p class="hint">{{ t.ai_img_hint }}</p>
         <label>{{ t.ai_img_prompt }}</label>
@@ -973,7 +973,7 @@
         <div class="proj-list" id="ai-prompts-list" style="margin-top:10px"></div>
       </div>
 
-      <div class="panel" data-ai-panel="logo" id="ai-panel-logo">
+      <div class="panel" data-jump-panel data-ai-panel="logo" id="ai-panel-logo">
         <h3>🏷️ {{ t.logo_heading }}</h3>
         <p class="hint">{{ t.logo_hint }}</p>
 
@@ -1053,7 +1053,7 @@
         <div id="logo-sets" style="margin-top:12px"></div>
       </div>
 
-      <div class="panel" data-ai-panel="text">
+      <div class="panel" data-jump-panel data-ai-panel="text">
         <h3>📝 {{ t.ai_txt_heading }}</h3>
         <p class="hint">{{ t.ai_txt_hint }}</p>
         <label>{{ t.ai_import }}</label>
@@ -1194,7 +1194,7 @@
         <div class="proj-list" id="ai-drafts-list" style="margin-top:12px"></div>
       </div>
 
-      <div class="panel" data-ai-panel="translate">
+      <div class="panel" data-jump-panel data-ai-panel="translate">
         <h3>🌐 {{ t.tr_heading }}</h3>
         <p class="hint">{{ t.tr_hint }}</p>
         <p class="hint">{{ t.tr_source }}</p>
@@ -1783,7 +1783,8 @@
 
     <!-- System -->
     <section class="tab" id="tab-system">
-      <div class="panel" id="twofa-panel">
+      <div class="jumpbar" id="system-jump"></div>
+      <div class="panel" data-jump-panel id="twofa-panel">
         <h3>🔐 {{ t.twofa_heading }}</h3>
         <p class="hint">{{ t.twofa_hint }}</p>
         <div id="twofa-status" class="hint" style="margin-bottom:12px">…</div>
@@ -1812,7 +1813,7 @@
           <button class="btn secondary small" onclick="el('twofa-codes').style.display='none'">{{ t.twofa_codes_done }}</button>
         </div>
       </div>
-      <div class="panel">
+      <div class="panel" data-jump-panel>
         <h3>{{ t.maintenance_heading }} <span id="maint-state"></span></h3>
         <p class="hint">{{ t.maintenance_hint }}</p>
         <div class="row">
@@ -1827,13 +1828,13 @@
         </div>
         <button class="btn" id="maint-btn" onclick="toggleMaintenance()"></button>
       </div>
-      <div class="panel">
+      <div class="panel" data-jump-panel>
         <h3>{{ t.audit_heading }}</h3>
         <p class="hint">{{ t.audit_hint }}</p>
         <div id="audit-log" class="collapsible"></div>
         <button class="btn secondary small collapse-btn" id="audit-log-btn" onclick="toggleCollapse('audit-log')"></button>
       </div>
-      <div class="panel">
+      <div class="panel" data-jump-panel>
         <h3>{{ t.backup_heading }}</h3>
         <p class="hint">{{ t.backup_hint }}</p>
         <button class="btn secondary" onclick="downloadBackup()">⬇ {{ t.backup_download }}</button>
@@ -1841,20 +1842,20 @@
         <input type="file" id="restore-input" accept=".zip" style="display:none">
         <p class="hint">{{ t.restore_hint }}</p>
       </div>
-      <div class="panel">
+      <div class="panel" data-jump-panel>
         <h3>{{ t.autobackup_heading }}</h3>
         <p class="hint">{{ t.autobackup_hint }}</p>
         <div id="autobackup-list"></div>
         <button class="btn secondary" id="autobackup-run" onclick="runAutoBackup()">💾 {{ t.autobackup_run }}</button>
       </div>
-      <div class="panel">
+      <div class="panel" data-jump-panel>
         <h3>{{ t.cleanup_heading }}</h3>
         <p class="hint">{{ t.cleanup_hint }}</p>
         <button class="btn secondary" id="cleanup-btn" onclick="cleanupUploads()">🧹 {{ t.cleanup_btn }}</button>
         <p class="hint">{{ t.cleanup_pdf_hint }}</p>
         <button class="btn secondary" id="cleanup-pdf-btn" onclick="cleanupDocs()">🧹 {{ t.cleanup_pdf_btn }}</button>
       </div>
-      <div class="panel">
+      <div class="panel" data-jump-panel>
         <h3 style="margin:0">
           <button type="button" class="set-toggle" id="files-toggle" aria-expanded="false" onclick="toggleFiles()">
             <span class="caret">▶</span>
@@ -1871,7 +1872,7 @@
           <div class="uploads-grid" id="files-doc-grid"></div>
         </div>
       </div>
-      <div class="panel">
+      <div class="panel" data-jump-panel>
         <h3 style="margin:0">
           <button type="button" class="set-toggle" id="alts-toggle" aria-expanded="false" onclick="toggleAlts()">
             <span class="caret">▶</span>
@@ -1892,7 +1893,7 @@
           </div>
         </div>
       </div>
-      <div class="panel">
+      <div class="panel" data-jump-panel>
         <h3>{{ t.redirects_heading }}</h3>
         <p class="hint">{{ t.redirects_hint }}</p>
         <div id="redirect-list"></div>
@@ -1901,12 +1902,12 @@
           <button class="btn" style="margin-left:8px" onclick="saveRedirects()">{{ t.save }}</button>
         </div>
       </div>
-      <div class="panel">
+      <div class="panel" data-jump-panel>
         <h3>{{ t.export_heading }}</h3>
         <p class="hint">{{ t.export_hint }}</p>
         <button class="btn secondary" onclick="window.location.href='api/export'">⬇ {{ t.export_download }}</button>
       </div>
-      <div class="panel">
+      <div class="panel" data-jump-panel>
         <h3>{{ t.sensors_heading }}</h3>
         <p class="hint">{{ t.sensors_hint }}</p>
       </div>
@@ -2965,7 +2966,7 @@
         if (btn.dataset.tab === 'messages') { loadMessages(); loadComments(); }
         if (btn.dataset.tab === 'users') { loadUsers(); initStorageBrowser(); startUsersPolling(); }
         if (btn.dataset.tab === 'design') { initPreview(); setTimeout(updatePresetArrows, 50); }
-        if (btn.dataset.tab === 'system') { loadAudit(); loadTwofa(); loadAutoBackups(); loadFileBrowser(); }
+        if (btn.dataset.tab === 'system') { loadAudit(); loadTwofa(); loadAutoBackups(); loadFileBrowser(); initSystemJump(); }
         if (btn.dataset.tab === 'blog') loadSubscribers();
         if (btn.dataset.tab === 'ai') initAiTab();
         if (btn.dataset.tab === 'travel') loadTravel();
@@ -6700,30 +6701,47 @@
       if (!AI_STATUS.image) el('logo-ai-box').style.display = 'none';
     }
     // ── Sprungleiste ──
-    // Der KI-Reiter ist der laengste im Haus: sechs Bereiche untereinander, vom
-    // Bild-Studio bis zum Uebersetzen. Statt zu scrollen springt man ueber die
-    // Leiste, die unter der Kopfzeile klebt. Beschriftungen kommen aus den
-    // Ueberschriften der Bereiche selbst — so stimmen sie in beiden Sprachen und
-    // ein spaeter dazukommender Bereich steht ohne Zutun mit drin.
+    // KI- und System-Reiter sind die laengsten im Haus: ein Dutzend Bereiche
+    // untereinander. Statt zu scrollen springt man ueber die Leiste, die unter
+    // der Kopfzeile klebt. Beschriftungen kommen aus den Ueberschriften der
+    // Bereiche selbst — so stimmen sie in beiden Sprachen und ein spaeter
+    // dazukommender Bereich steht ohne Zutun mit drin. Sprungziel ist jedes
+    // Panel mit data-jump-panel.
+    const JUMPBARS = { ai: 'ai-jump', system: 'system-jump' };
+    // Sichtbar ist immer hoechstens eine Leiste — die des aktiven Reiters.
+    function activeJumpbar() {
+      for (const [tab, id] of Object.entries(JUMPBARS)) {
+        if (el('tab-' + tab).classList.contains('active')) return el(id);
+      }
+      return null;
+    }
     function syncHeaderHeight() {
       const h = document.querySelector('header');
       if (h) document.documentElement.style.setProperty('--hdr-h', h.offsetHeight + 'px');
-      const bar = el('ai-jump');
+      const bar = activeJumpbar();
       if (bar && bar.offsetHeight) {
         document.documentElement.style.setProperty('--jump-h', bar.offsetHeight + 'px');
       }
     }
-    function buildAiJumpbar() {
-      const bar = el('ai-jump');
+    // Aufklappbare Bereiche tragen im h3 einen Knopf mit Pfeil und Zaehler.
+    // Deren Beschriftung steht im mittleren Span — sonst stuende "▶ … 12" im Chip.
+    function jumpLabel(panel) {
+      const h = panel.querySelector('h3');
+      if (!h) return '';
+      const inner = h.querySelector('.set-toggle > span:nth-child(2)');
+      return (inner || h).textContent.trim();
+    }
+    function buildJumpbar(tab) {
+      const bar = el(JUMPBARS[tab]);
       bar.innerHTML = '';
       bar._panels = [];
-      document.querySelectorAll('#tab-ai [data-ai-panel]').forEach(panel => {
-        const h = panel.querySelector('h3');
-        if (!h) return;
+      document.querySelectorAll('#tab-' + tab + ' [data-jump-panel]').forEach(panel => {
+        const label = jumpLabel(panel);
+        if (!label) return;
         const b = document.createElement('button');
         b.type = 'button';
         b.className = 'jump-chip';
-        b.textContent = h.textContent.trim();
+        b.textContent = label;
         b.onclick = () => {
           syncHeaderHeight();   // Umbruch der Kopfzeile vor dem Sprung nachmessen
           panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -6731,21 +6749,21 @@
         bar._panels.push([b, panel]);
         bar.appendChild(b);
       });
-      syncAiJumpbar();
+      syncJumpbar(tab);
       syncHeaderHeight();   // erst mit Chips drin hat die Leiste ihre Hoehe
     }
     // Ohne Gemini-Schluessel sind einzelne Bereiche ausgeblendet (initAiVisibility).
     // Ein Sprungziel, das es nicht gibt, gehoert dann auch nicht in die Leiste.
-    function syncAiJumpbar() {
-      const bar = el('ai-jump');
+    function syncJumpbar(tab) {
+      const bar = el(JUMPBARS[tab]);
       (bar._panels || []).forEach(([chip, panel]) => {
         chip.style.display = panel.style.display === 'none' ? 'none' : '';
       });
     }
     // Aktiv ist der unterste Bereich, dessen Oberkante schon durchgelaufen ist.
-    function aiJumpSpy() {
-      const bar = el('ai-jump');
-      if (!el('tab-ai').classList.contains('active') || !bar._panels) return;
+    function jumpSpy() {
+      const bar = activeJumpbar();
+      if (!bar || !bar._panels) return;
       // Ein angesprungener Bereich kommt per scroll-margin-top genau 8 px unter
       // der Leiste zu stehen. Die Linie muss darunter liegen, sonst gilt nach
       // dem Sprung noch der Vorgaenger als aktiv und die Markierung sitzt einen
@@ -6770,23 +6788,32 @@
         else if (c + w > bar.scrollLeft + bar.clientWidth) bar.scrollLeft = c + w - bar.clientWidth + 12;
       }
     }
+    let systemJumpReady = false;
+    function initSystemJump() {
+      syncHeaderHeight();
+      if (!systemJumpReady) { systemJumpReady = true; buildJumpbar('system'); }
+      jumpSpy();
+    }
+    // Ein Beobachter fuer alle Leisten: welche gemeint ist, entscheidet der
+    // aktive Reiter (activeJumpbar).
+    let jumpSpyPending = false;
+    window.addEventListener('scroll', () => {
+      if (jumpSpyPending) return;
+      jumpSpyPending = true;
+      requestAnimationFrame(() => { jumpSpyPending = false; jumpSpy(); });
+    }, { passive: true });
+    window.addEventListener('resize', () => { syncHeaderHeight(); jumpSpy(); });
     async function initAiTab() {
       refreshAiStatus();   // Kontingent und Verbrauch bei jedem Tabwechsel frisch
       aiFillImportSelect();
       trFillEntries();
       syncHeaderHeight();
-      syncAiJumpbar();     // Bereiche koennen seit dem letzten Besuch weggefallen sein
-      aiJumpSpy();
+      syncJumpbar('ai');   // Bereiche koennen seit dem letzten Besuch weggefallen sein
+      jumpSpy();
       if (aiTabReady) return;
       aiTabReady = true;
-      buildAiJumpbar();
-      aiJumpSpy();
-      let spyPending = false;
-      window.addEventListener('scroll', () => {
-        if (spyPending) return;
-        spyPending = true;
-        requestAnimationFrame(() => { spyPending = false; aiJumpSpy(); });
-      }, { passive: true });
+      buildJumpbar('ai');
+      jumpSpy();
       buildAiStyleChips();
       buildLogoChips();
       logoCutoutChanged();
@@ -6808,7 +6835,7 @@
       window.addEventListener('resize', () => {
         updateAiArrows(); updateLogoArrows();
         syncHeaderHeight();   // die Kopfzeile bricht je nach Breite um
-        aiJumpSpy();
+        jumpSpy();
       });
       renderAiQuota();
       const r = await api('api/ai/models');
