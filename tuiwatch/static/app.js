@@ -2446,16 +2446,32 @@
           + `Alle aufgezeichneten Tiefpunkte anzeigen ▾</span></div>`;
       const d = _troughData;
       if(!d) return '<div class="hint" style="margin-top:6px">Lade…</div>';
+      // Warum eine Zeile nicht zählt, im Klartext statt als Symbol — beim Start sind
+      // zwangsläufig ALLE Zeilen angeschnitten (der erste Messtag ist bei fallenden
+      // Preisen automatisch das Minimum), und ohne Erklärung sähe die leere Statistik
+      // daneben nach einem Fehler aus.
+      const MARK = {
+        edge: ['Tiefpunkt am ersten Messtag',
+               'Der bisher günstigste Stand ist zugleich der Beginn der Aufzeichnung — ob es davor '
+               + 'günstiger war, ist unbekannt. Sobald die Preise einmal drehen, zählt die Reihe mit.'],
+        open: ['Beobachtung endet zu früh',
+               'Zwischen letztem Messtag und Abreise liegen noch mehr als '
+               + (d.max_last_dte||21) + ' Tage — der Tiefpunkt kann noch kommen. Laufende Messreihen '
+               + 'stehen immer hier.'],
+      };
       const rows = (d.rows||[]).map(r=>{
-        const mark = r.usable ? '' : (r.edge_start ? '⟨ angeschnitten' : 'läuft noch / früh abgebrochen');
+        const mk = r.usable ? null : MARK[r.edge_start ? 'edge' : 'open'];
         return `<tr${r.usable?'':' style="opacity:.6"'}><td>${esc(r.basket)}`
           + `<div class="hint">${fmtD(r.first_day)} – ${fmtD(r.last_day)} · ${r.n_days} Tage</div></td>`
           + `<td>${troughCell(r)}</td>`
           + `<td>${r.trough_p50 ? Math.round(r.trough_p50).toLocaleString('de-DE')+' €' : '<span class="hint">–</span>'}</td>`
-          + `<td class="hint">${esc(mark)}</td></tr>`;
+          + `<td class="hint">${mk ? `<span title="${esc(mk[1])}">${esc(mk[0])}</span>` : ''}</td></tr>`;
       }).join('');
+      const open = (d.rows||[]).filter(r=>!r.usable).length;
       return `<div style="margin-top:6px"><span class="cal-month-link" onclick="toggleTroughs()">Tiefpunkte ausblenden ▴</span></div>`
-        + (rows ? `<table class="hist"><tr><th>Messreihe</th><th>Tiefpunkt (danach)</th><th>Preis dort</th><th></th></tr>${rows}</table>`
+        + (rows ? `<table class="hist"><tr><th>Messreihe</th><th>Tiefpunkt (danach)</th><th>Preis dort</th><th>zählt nicht, weil…</th></tr>${rows}</table>`
+                  + (open ? `<div class="hint" style="margin-top:6px">${open} von ${d.rows.length} `
+                      + `Reihen zählen noch nicht in die Statistik — das ist am Anfang normal.</div>` : '')
                 : '<div class="hint">Noch keine aufgezeichneten Tiefpunkte.</div>');
     }
     async function toggleTroughs(){

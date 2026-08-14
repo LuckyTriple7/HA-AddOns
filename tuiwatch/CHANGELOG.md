@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.100.1] - 2026-08-14
+
+### Fixed
+- **Tiefpunkt-Archiv: „⟨ angeschnitten" war unlesbar.** Das Zeichen (U+27E8) sollte
+  eine links abgeschnittene Beobachtung markieren, rendert aber als halbe Klammer und
+  las sich wie ein Tippfehler. Stattdessen steht dort jetzt im Klartext, warum eine
+  Zeile nicht zählt — „Tiefpunkt am ersten Messtag" bzw. „Beobachtung endet zu früh",
+  beide mit ausführlicher Erklärung im Tooltip, unter der Spaltenüberschrift
+  „zählt nicht, weil…".
+- Darunter eine Einordnung („4 von 6 Reihen zählen noch nicht in die Statistik — das
+  ist am Anfang normal"). Beim Start sind zwangsläufig **alle** Zeilen angeschnitten:
+  solange die Preise nur fallen, ist der erste Messtag automatisch das Minimum. Ohne
+  diesen Hinweis sah die leere Statistik daneben nach einem Fehler aus.
+
 ## [0.100.0] - 2026-08-14
 
 ### Added
