@@ -280,6 +280,9 @@
     .offer-actions .icon-btn { flex:0 0 auto; }
     .err-note { color:var(--amber); font-size:.78rem; margin-top:6px; }
     .empty { text-align:center; color:var(--muted); padding:50px 16px; }
+    .boot { text-align:center; padding:44px 16px; }
+    .boot-title { color:var(--muted); font-size:.95rem; }
+    .boot-note { margin-top:10px; }
     .badge-checking { font-size:.72rem; color:var(--accent); }
     /* Modal */
     .modal-bg { position:fixed; inset:0; background:rgba(0,0,0,.6); display:none; align-items:center; justify-content:center; padding:16px; z-index:50; overscroll-behavior:contain; }
@@ -504,6 +507,9 @@
     .btn.aktion-active { animation: aktionPulse 1.6s ease-in-out infinite; border-color:var(--green); }
     @keyframes aktionPulse { 0%,100% { box-shadow:0 0 0 0 rgba(46,160,67,.55); } 50% { box-shadow:0 0 0 7px rgba(46,160,67,0); } }
     .btn.cal-alert { animation: calAlertPulse 1.6s ease-in-out infinite; border-color:var(--amber); color:var(--amber); }
+    /* Pausierter Kalender: gedimmt statt pulsierend — es ist kein Alarm, sondern ein
+       Ruhezustand, den der Nutzer nur bemerken soll, wenn er hinsieht. */
+    .btn.cal-paused { opacity:.55; }
     @keyframes calAlertPulse { 0%,100% { box-shadow:0 0 0 0 rgba(210,153,34,.55); } 50% { box-shadow:0 0 0 7px rgba(210,153,34,0); } }
     .btn.trend-active-up { border-color:var(--red); }
     .btn.trend-active-down { border-color:var(--green); }
@@ -576,6 +582,10 @@
     .cal-moves[open] summary { margin-bottom:4px; }
     .cal-move-row { display:flex; align-items:center; gap:10px; padding:4px 0; font-size:.8rem; cursor:pointer; }
     .cal-move-row:hover { color:var(--accent); }
+    /* Monatsname in der Monatsübersicht: klickbar, aber KEIN <a> — die Link-Farbe
+       ist auf dem Modal-Hintergrund kaum lesbar. */
+    .cal-month-link { cursor:pointer; text-decoration:underline; text-underline-offset:2px; }
+    .cal-month-link:hover { color:var(--accent); }
     .cal-day-chart { display:none; margin:10px 0; border:1px solid var(--border); border-radius:8px; padding:8px 10px; }
     .cal-day-chart.show { display:block; }
     .cal-day-hd { display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; font-size:.85rem; }
@@ -851,7 +861,18 @@
       <button class="btn sec" onclick="bulkForeign()" title="In eine „Für andere"-Liste legen (Name frei wählbar): eingeklappt ans Listenende, keine Benachrichtigungen">👥 Für andere</button>
       </div>
     </div>
-    <div id="offers"></div>
+    <!-- Startzustand: steht bewusst direkt im HTML und nicht erst im JS. Die erste
+         /api/offers-Antwort kann direkt nach dem Add-on-Start ein paar Sekunden
+         dauern (der Poller hält währenddessen die SQLite-Datei) — ohne diesen Block
+         sähe die Oberfläche in dieser Zeit einfach leer aus. Wird durch die erste
+         gerenderte Angebotsliste ersetzt. -->
+    <div id="offers">
+      <div class="boot" id="boot-state">
+        <div class="boot-title">TUIWatch wird gestartet…</div>
+        <div class="twprog indet"><i></i></div>
+        <div class="boot-note hint" id="boot-note">Angebote werden geladen.</div>
+      </div>
+    </div>
     <footer>
       <div>TUIWatch v{{ app_version }} · Prüfintervall: <span id="iv"></span>
         · DB: <span id="db-size">…</span>
@@ -1448,7 +1469,12 @@
         mit sich selbst vom Vortag, der <b>Median</b> über alle Hotels ergibt die Tagesbewegung.
         Deutlich breitere Basis als die eigenen Angebote, und der Trend gilt für genau deinen
         Reisetermin. Getrackte Angebote ohne gespeicherte Suche bekommen eine Messreihe je
-        Region und Abreisemonat.</div>
+        Region und Abreisemonat.<br><br>
+        Die Spalte <b>Buchen?</b> beantwortet eine andere Frage als der Trend: nicht „was passiert
+        gerade", sondern „ist jetzt ein guter Moment". Sie verrechnet den aktuellen 14-Tage-Trend,
+        die Lage im bisherigen Verlauf dieser Messreihe und vor allem die aus der
+        <b>Booking-Kurve</b> hochgerechnete Preisbewegung bis zur Abreise. Mit der Maus über die
+        Ampel: dort steht jede Komponente einzeln.</div>
       <div id="basket-body"></div>
       <div id="basket-progress" style="display:none;margin-top:10px"></div>
       <div class="cmp-foot" style="margin-top:12px">

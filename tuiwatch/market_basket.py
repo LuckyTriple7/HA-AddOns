@@ -127,6 +127,30 @@ def init_basket_db(con) -> None:
     )''')
     con.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_basket_move '
                 'ON basket_moves(basket, day)')
+    # Vorlaufzeit (Tage bis Abreise) je Tagesbewegung — zweite Dimension neben der
+    # Zeitachse, Grundlage der Booking-Kurve. Bewusst auf `basket_moves` und nicht
+    # nur in `basket_snapshots`: die Snapshots werden nach BASKET_RETENTION_DAYS
+    # geworfen, die Kurve reicht aber bis 180+ Tage Vorlauf zurück.
+    mcols = {r['name'] for r in con.execute('PRAGMA table_info(basket_moves)').fetchall()}
+    if 'days_to_dep' not in mcols:
+        con.execute('ALTER TABLE basket_moves ADD COLUMN days_to_dep INTEGER')
+    # Preisniveau je Messreihe und Tag, verdichtet auf fünf Zahlen. Rein informativ
+    # („was kostet dieser Markt gerade") — die Trendrechnung läuft weiter über die
+    # Matched Pairs, weil rohe Perzentile die wechselnde Hotel-Zusammensetzung
+    # messen würden, nicht den Preis. Überlebt den Snapshot-Prune.
+    con.execute('''CREATE TABLE IF NOT EXISTS basket_levels (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        ts          INTEGER NOT NULL,
+        day         TEXT NOT NULL,
+        basket      TEXT NOT NULL DEFAULT '',
+        days_to_dep INTEGER,
+        n_hotels    INTEGER NOT NULL,
+        p25         REAL,
+        p50         REAL,
+        p75         REAL
+    )''')
+    con.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_basket_level '
+                'ON basket_levels(basket, day)')
     # Angebots-Messreihen hießen kurzzeitig „<Region> (Abreise TT.MM.JJJJ)" — ein
     # Preisbarometer je Einzeltermin. Seit der Monatsbündelung gibt es zu diesen
     # Schlüsseln keine Messreihe mehr; ihre Snapshots blieben sonst als
@@ -142,6 +166,50 @@ def init_basket_db(con) -> None:
         if n:
             A.log.info("Preisbarometer: %d Snapshots der Einzeltermin-Fassung verworfen "
                        "(Angebots-Messreihen laufen jetzt je Monat)", n)
+    _backfill_booking(con)
+
+
+def _backfill_booking(con) -> None:
+    """Einmalig `days_to_dep` und `basket_levels` aus den noch vorhandenen Snapshots
+    nachtragen — sonst startet die Booking-Kurve bei null, obwohl die Rohdaten der
+    letzten `BASKET_RETENTION_DAYS` Tage schon auf Platte liegen.
+
+    Der Vorlauf wird hier über ALLE Hotels des Tages gemittelt, nicht nur über die
+    gematchten Paare wie im Live-Pfad (`_compute_move`) — der Vorgänger-Snapshot kann
+    längst geprunt sein. Der Unterschied ist praktisch null: `dep_date` ist eine
+    Eigenschaft des Suchfensters, nicht des einzelnen Hotels.
+
+    Läuft genau einmal (`meta`-Flag). Tage, deren Snapshots bereits weg sind, bleiben
+    dauerhaft ohne Vorlauf und fallen aus der Kurve — richtig so, geraten wird nicht."""
+    if con.execute("SELECT 1 FROM meta WHERE key='basket_booking_backfill'").fetchone():
+        return
+    moves = con.execute(
+        'SELECT basket, day FROM basket_moves WHERE days_to_dep IS NULL').fetchall()
+    n_moves = 0
+    for r in moves:
+        dte = _median_dte(con, r['basket'], r['day'])
+        if dte is None:
+            continue
+        con.execute('UPDATE basket_moves SET days_to_dep=? WHERE basket=? AND day=?',
+                    (dte, r['basket'], r['day']))
+        n_moves += 1
+    days = con.execute(
+        'SELECT DISTINCT basket, day FROM basket_snapshots WHERE basket!=\'\'').fetchall()
+    n_lv = 0
+    for r in days:
+        rows = con.execute(
+            'SELECT price, dep_date FROM basket_snapshots WHERE basket=? AND day=?',
+            (r['basket'], r['day'])).fetchall()
+        ts = con.execute('SELECT MIN(ts) t FROM basket_snapshots WHERE basket=? AND day=?',
+                         (r['basket'], r['day'])).fetchone()['t'] or int(time.time())
+        if _store_levels(con, r['basket'], r['day'], int(ts),
+                         [{'price': x['price'], 'date': x['dep_date']} for x in rows]):
+            n_lv += 1
+    con.execute("INSERT OR REPLACE INTO meta (key, value) "
+                "VALUES ('basket_booking_backfill','1')")
+    if n_moves or n_lv:
+        A.log.info("Booking-Kurve: %d Tagesbewegungen mit Vorlaufzeit ergänzt, "
+                   "%d Preisniveaus nachgetragen", n_moves, n_lv)
 
 
 # ── Konfiguration ──────────────────────────────────────────────────────────────
@@ -385,6 +453,55 @@ def _store_snapshot(con, basket: str, region_giata: int, day: str, ts: int, rows
           r.get('board') or '', r.get('nights'), r.get('date') or '') for r in rows])
 
 
+def _days_to_dep(dep_date: str, day: str) -> int | None:
+    """Vorlaufzeit in Tagen: Abreisetag minus Snapshot-Tag. None bei fehlendem oder
+    unlesbarem Datum. Negative Werte (Abreise liegt hinter dem Snapshot) gibt es nur
+    bei kaputten Daten und werden verworfen."""
+    try:
+        d = (date.fromisoformat((dep_date or '')[:10]) - date.fromisoformat(day)).days
+    except ValueError:
+        return None
+    return d if d >= 0 else None
+
+
+def _median_dte(con, basket: str, day: str) -> int | None:
+    """Repräsentative Vorlaufzeit einer Messreihe an einem Tag: Median über die
+    Abreisedaten des Snapshots. Median, weil Monatsfenster-Suchen (`_month_window`)
+    je Hotel den günstigsten Termin im ganzen Monat liefern — die Einzelwerte
+    streuen also über bis zu 30 Tage."""
+    rows = con.execute('SELECT dep_date FROM basket_snapshots WHERE basket=? AND day=?',
+                       (basket, day)).fetchall()
+    vals = [d for d in (_days_to_dep(r['dep_date'], day) for r in rows) if d is not None]
+    return int(round(statistics.median(vals))) if vals else None
+
+
+def _store_levels(con, basket: str, day: str, ts: int, rows: list) -> bool:
+    """Preisniveau des Tages verdichten (P25/Median/P75 über alle Hotelpreise des
+    Snapshots) und in `basket_levels` ablegen. Fünf Zahlen je Messreihe und Tag,
+    die den Snapshot-Prune überleben — Grundlage der €-Kontextanzeige.
+
+    Ausdrücklich NICHT die Trendbasis: über die Tage wechselt die Hotelauswahl, rohe
+    Perzentile würden diese Zusammensetzung messen. Dafür bleiben die Matched Pairs
+    in `_compute_move` zuständig. Rückgabe True, wenn eine Zeile geschrieben wurde."""
+    prices = sorted(float(r['price']) for r in rows if r.get('price') is not None)
+    if not prices:
+        return False
+    # `statistics.quantiles` braucht mindestens zwei Werte; bei einem einzigen Hotel
+    # sind alle drei Perzentile schlicht dieser Preis.
+    if len(prices) >= 2:
+        q = statistics.quantiles(prices, n=4, method='inclusive')
+        p25, p50, p75 = q[0], q[1], q[2]
+    else:
+        p25 = p50 = p75 = prices[0]
+    dtes = [d for d in (_days_to_dep(r.get('date') or '', day) for r in rows) if d is not None]
+    con.execute(
+        'INSERT OR REPLACE INTO basket_levels (ts, day, basket, days_to_dep, n_hotels, '
+        'p25, p50, p75) VALUES (?,?,?,?,?,?,?,?)',
+        (ts, day, basket, int(round(statistics.median(dtes))) if dtes else None,
+         len(prices), round(p25, 2), round(p50, 2), round(p75, 2)))
+    return True
+
+
 def _compute_move(con, basket: str, day: str) -> dict | None:
     """Tagesbewegung einer Messreihe aus dem Vergleich mit dem letzten vorhandenen
     Snapshot. Rückgabe None, wenn es keinen Vorgänger gibt, die Lücke zu groß ist
@@ -406,11 +523,11 @@ def _compute_move(con, basket: str, day: str) -> dict | None:
 
     def _snap(d):
         return {r['giata']: r for r in con.execute(
-            'SELECT giata, price, board, nights FROM basket_snapshots '
+            'SELECT giata, price, board, nights, dep_date FROM basket_snapshots '
             'WHERE basket=? AND day=?', (basket, d)).fetchall()}
 
     cur, old = _snap(day), _snap(prev_day)
-    pcts = []
+    pcts, dtes = [], []
     for g, c in cur.items():
         o = old.get(g)
         if not o or not o['price']:
@@ -422,6 +539,11 @@ def _compute_move(con, basket: str, day: str) -> dict | None:
         if (o['board'] or '') != (c['board'] or '') or o['nights'] != c['nights']:
             continue
         pcts.append((c['price'] - o['price']) / o['price'] * 100)
+        # Vorlaufzeit derselben Grundgesamtheit, aus der auch der Median stammt —
+        # so beschreibt sie genau die Hotels, die diese Bewegung erzeugt haben.
+        dte = _days_to_dep(c['dep_date'], day)
+        if dte is not None:
+            dtes.append(dte)
     # Mindestbreite an der KLEINEREN der beiden Snapshot-Größen messen: schrumpft der
     # Preisbarometer (Saisonende, Hotels ausgebucht), soll die Schwelle mitschrumpfen und
     # nicht am größeren Vortag hängen bleiben.
@@ -431,12 +553,14 @@ def _compute_move(con, basket: str, day: str) -> dict | None:
                    "Tag verworfen", basket, len(pcts), min(len(cur), len(old)), need)
         return None
     med = statistics.median(pcts)
+    dte = int(round(statistics.median(dtes))) if dtes else None
     con.execute(
         'INSERT OR REPLACE INTO basket_moves (ts, day, basket, prev_day, gap_days, '
-        'pct_median, n_matched, n_total) VALUES (?,?,?,?,?,?,?,?)',
-        (int(time.time()), day, basket, prev_day, gap, med, len(pcts), len(cur)))
+        'pct_median, n_matched, n_total, days_to_dep) VALUES (?,?,?,?,?,?,?,?,?)',
+        (int(time.time()), day, basket, prev_day, gap, med, len(pcts), len(cur), dte))
     return {'day': day, 'prev_day': prev_day, 'gap_days': gap,
-            'pct_median': round(med, 2), 'n_matched': len(pcts), 'n_total': len(cur)}
+            'pct_median': round(med, 2), 'n_matched': len(pcts), 'n_total': len(cur),
+            'days_to_dep': dte}
 
 
 def _min_matched(basket_size: int) -> int:
@@ -472,8 +596,10 @@ def run_basket(target: dict) -> dict:
     day = datetime.fromtimestamp(ts).strftime('%Y-%m-%d')
     with A.db() as con:
         _store_snapshot(con, key, target.get('giata'), day, ts, rows)
+        _store_levels(con, key, day, ts, rows)
         move = _compute_move(con, key, day)
         _prune(con)
+    _invalidate_curve()
     A.log.info("Messreihe „%s“ (%s): %d Hotels erfasst%s", key,
                target.get('period') or '?', len(rows),
                (f", Tagesbewegung {move['pct_median']:+.2f} % aus {move['n_matched']} Hotels"
@@ -613,22 +739,445 @@ def basket_index(con, *, basket: str | None = None) -> dict | None:
             'since': since, 'n': len(series)}
 
 
+# ── Booking-Kurve: wie sich Preise über die Vorlaufzeit bewegen ────────────────
+# Der Trend oben beantwortet „was passiert gerade?". Dieser Abschnitt beantwortet
+# „ist jetzt ein guter Zeitpunkt zu buchen?" — eine andere Frage mit anderer Mathematik.
+#
+# Grundgedanke: jede Tagesbewegung trägt seit dieser Fassung ihre Vorlaufzeit
+# (`days_to_dep`). Sortiert man alle Bewegungen ALLER Messreihen nach Vorlauf statt
+# nach Kalendertag, entsteht die typische Preiskurve des Marktes: wie viel Prozent
+# pro Tag bewegen sich Preise, wenn noch 120 Tage bis zur Abreise sind, und wie viel
+# in der letzten Woche davor.
+#
+# Gepoolt wird global über alle Messreihen. Das ist zulässig, weil Prozentwerte
+# dimensionslos sind — eine 900-€-Woche Mallorca und eine 3000-€-Fernreise sind in
+# „% pro Tag" direkt vergleichbar, in Euro wären sie es nicht. Und es ist nötig:
+# eine einzelne Messreihe durchläuft die Kurve nur einmal und liefert je Bucket
+# eine Handvoll Punkte.
+
+# (lo, hi, Beschriftung) — hi None = offen nach oben. Grenzen bewusst wie in der
+# Reisebranche üblich: der Abstand wird kürzer, je näher die Abreise rückt, weil
+# dort auch die Preisbewegung schneller wird.
+BOOKING_BUCKETS = (
+    (181, None, 'ab 181 Tage'),
+    (121, 180, '180–121 Tage'),
+    (91, 120, '120–91 Tage'),
+    (61, 90, '90–61 Tage'),
+    (31, 60, '60–31 Tage'),
+    (8, 30, '30–8 Tage'),
+    (0, 7, 'unter 8 Tage'),
+)
+BOOKING_OPEN_WIDTH = 60          # Rechenbreite des offenen Buckets (nur für die Anzeige)
+BOOKING_CURVE_MIN_SAMPLES = 8    # weniger Punkte → kein Bucket-Wert, es wird nichts geraten
+BOOKING_CURVE_MIN_SERIES = 2     # aus einer einzigen Messreihe ist es keine Marktkurve
+BOOKING_POSITION_MIN_DAYS = 7    # Perzentilrang braucht eine Mindesthistorie
+BOOKING_MIN_COVERAGE = 0.5       # Anteil der Resttage, den die Kurve abdecken muss
+BOOKING_CURVE_TTL = 300          # s; die Kurve ändert sich höchstens 1×/Tag
+BOOKING_LASTMINUTE_DAYS = 14     # darunter nie „warten" empfehlen
+BOOKING_GREEN = 0.35             # Score-Schwellen der Ampel
+BOOKING_RED = -0.35
+# Gewichte der drei Ampel-Komponenten. Die erwartete Restbewegung wiegt am
+# schwersten, weil sie als Einzige nach vorn schaut; der aktuelle 14-Tage-Trend am
+# leichtesten, weil eine ruhige Woche wenig über die kommenden Monate sagt.
+BOOKING_WEIGHTS = {'expected': 0.40, 'position': 0.35, 'trend': 0.25}
+BOOKING_MIN_WEIGHT = 0.5         # weniger verfügbares Gewicht → gar keine Ampel
+
+_curve_cache: dict = {'ts': 0.0, 'data': None}
+_signal_cache: dict = {'ts': 0.0, 'data': None}
+
+
+def _invalidate_curve() -> None:
+    """Cache nach einem Barometer-Lauf verwerfen — sonst zeigte die UI direkt nach
+    dem manuellen Anstoß bis zu `BOOKING_CURVE_TTL` Sekunden die alte Kurve."""
+    _curve_cache.update(ts=0.0, data=None)
+    _signal_cache.update(ts=0.0, data=None)
+
+
+def _booking_enabled() -> bool:
+    return _enabled() and bool(A.load_config().get('booking_window_enabled', True))
+
+
+def _bucket_index(dte: int) -> int | None:
+    for i, (lo, hi, _label) in enumerate(BOOKING_BUCKETS):
+        if dte >= lo and (hi is None or dte <= hi):
+            return i
+    return None
+
+
+def _bucket_width(lo: int, hi: int | None) -> int:
+    return BOOKING_OPEN_WIDTH if hi is None else (hi - lo + 1)
+
+
+def booking_curve(con) -> list:
+    """Die Preiskurve über die Vorlaufzeit, ein Eintrag je Bucket.
+
+    Je Tagesbewegung wird auf **Prozent pro Tag** normiert (`pct_median / gap_days`).
+    Ohne diese Normierung wäre ein Wert aus einer 4-Tage-Lücke (Add-on war aus) mit
+    einem echten Tagesschritt gleichgewichtet und würde die Kurve nach außen ziehen.
+    Die Verkettung in `_daily_series` braucht diese Korrektur nicht — dort ist die
+    Lücke als ein Kettenglied ja korrekt —, hier schon, weil eine Rate entsteht.
+
+    Je Bucket der **Median** der Tagesraten, nicht ein gewichtetes Mittel: gepoolt
+    stehen hier Messreihen sehr verschiedener Größe nebeneinander, und einzelne
+    Ausreißertage (Aktionscode-Woche, Kontingentwechsel) würden ein Mittel
+    dominieren. Die Tageswerte selbst sind bereits Mediane.
+
+    Buckets unter `BOOKING_CURVE_MIN_SAMPLES` Punkten liefern `rate=None` — eine
+    Kurve wird nicht erfunden. `thin` markiert Buckets, die zwar genug Punkte haben,
+    aber aus weniger als `BOOKING_CURVE_MIN_SERIES` Messreihen stammen; die stehen
+    in der UI mit Warnhinweis da statt stillschweigend als Marktaussage."""
+    now = time.time()
+    if _curve_cache['data'] is not None and now - _curve_cache['ts'] < BOOKING_CURVE_TTL:
+        return _curve_cache['data']
+    rows = con.execute(
+        'SELECT basket, pct_median, gap_days, days_to_dep FROM basket_moves '
+        'WHERE days_to_dep IS NOT NULL').fetchall()
+    rates: dict[int, list] = defaultdict(list)
+    series: dict[int, set] = defaultdict(set)
+    for r in rows:
+        i = _bucket_index(int(r['days_to_dep']))
+        if i is None:
+            continue
+        rates[i].append(r['pct_median'] / max(1, r['gap_days'] or 1))
+        series[i].add(r['basket'])
+    out = []
+    for i, (lo, hi, label) in enumerate(BOOKING_BUCKETS):
+        vals, n_series = rates.get(i, []), len(series.get(i, ()))
+        enough = len(vals) >= BOOKING_CURVE_MIN_SAMPLES
+        rate = statistics.median(vals) if enough else None
+        width = _bucket_width(lo, hi)
+        out.append({
+            'lo': lo, 'hi': hi, 'label': label, 'width': width,
+            'rate': round(rate, 4) if rate is not None else None,
+            # Was der ganze Bucket bewegt, wenn man ihn durchläuft — die Zahl, die
+            # man in Reise-Ratgebern liest („90–61 Tage vor Abreise: −7 %").
+            'pct': round(((1 + rate / 100) ** width - 1) * 100, 1) if rate is not None else None,
+            'n': len(vals), 'n_series': n_series,
+            'thin': bool(enough and n_series < BOOKING_CURVE_MIN_SERIES),
+        })
+    _curve_cache.update(ts=now, data=out)
+    return out
+
+
+def expected_remaining(curve: list, days_to_dep: int | None) -> dict | None:
+    """Erwartete Preisbewegung von heute bis zur Abreise, aus der Kurve hochgerechnet.
+
+    Die verbleibenden `D` Tage werden auf die Buckets aufgeteilt (an Tag mit Vorlauf
+    ℓ gilt die Rate des Buckets, in dem ℓ liegt) und deren Tagesraten
+    zinseszins-verkettet:
+
+        E = (Π_b (1 + r_b/100)^{d_b} − 1) · 100
+
+    Buckets ohne Datenlage zählen als Faktor 1 (neutral), gehen aber nicht als
+    abgedeckt in `coverage` ein. Deckt die Kurve weniger als `BOOKING_MIN_COVERAGE`
+    der Resttage ab, gibt es keine Aussage — lieber nichts sagen als eine Prognose,
+    die zur Hälfte aus Annahmen besteht.
+
+    Vorzeichen: E > 0 heißt „Preise steigen voraussichtlich" → jetzt buchen."""
+    if not days_to_dep or days_to_dep <= 0:
+        return None
+    factor, covered = 1.0, 0
+    for b in curve:
+        # Resttage, deren Vorlauf in diesen Bucket fällt: ℓ läuft von D bis 1 herunter.
+        hi = min(b['hi'] if b['hi'] is not None else days_to_dep, days_to_dep)
+        overlap = max(0, hi - max(b['lo'], 1) + 1)
+        if not overlap or b['rate'] is None:
+            continue
+        factor *= (1 + b['rate'] / 100) ** overlap
+        covered += overlap
+    coverage = covered / days_to_dep
+    if coverage < BOOKING_MIN_COVERAGE:
+        return None
+    return {'pct': round((factor - 1) * 100, 1), 'coverage': round(coverage, 2),
+            'days': days_to_dep}
+
+
+def basket_position(con, basket: str) -> dict | None:
+    """Wo steht der heutige Preis im bisher beobachteten Verlauf dieser Messreihe?
+
+    Gerechnet wird auf dem **verketteten Index** `L_d = 100 · Π(1 + m_k/100)`, nicht
+    auf den rohen Medianpreisen aus `basket_levels`. Grund ist derselbe, aus dem die
+    Tagesbewegung Matched Pairs benutzt: die Hotelauswahl wechselt täglich, ein roher
+    Medianpreis misst deshalb zu einem guten Teil die Zusammensetzung. Der verkettete
+    Index ist davon per Konstruktion frei.
+
+    `rank` = Anteil der bisherigen Tage, an denen es gleich teuer oder günstiger war.
+    0 heißt „so günstig wie noch nie beobachtet", 100 „Höchststand"."""
+    series = _daily_series(con, basket, None)
+    if len(series) < BOOKING_POSITION_MIN_DAYS:
+        return None
+    idx, level = [], 100.0
+    for _day, pct, _n in series:
+        level *= (1 + pct / 100)
+        idx.append(level)
+    cur = idx[-1]
+    rank = sum(1 for v in idx if v <= cur) / len(idx) * 100
+    return {'rank': round(rank, 1), 'n': len(idx), 'index': round(cur, 1),
+            'min': round(min(idx), 1), 'max': round(max(idx), 1)}
+
+
+def _current_dte(con, basket: str) -> int | None:
+    """Heutiger Vorlauf einer Messreihe: der zuletzt erfasste Wert, um die seither
+    vergangenen Tage verringert. Ohne diese Korrektur zeigte eine Messreihe, deren
+    letzter Lauf drei Tage her ist, einen zu großen Vorlauf — und damit eine zu
+    optimistische Restbewegung."""
+    r = con.execute(
+        'SELECT day, days_to_dep FROM basket_moves WHERE basket=? AND days_to_dep IS NOT NULL '
+        'ORDER BY day DESC LIMIT 1', (basket,)).fetchone()
+    if not r:
+        r = con.execute(
+            'SELECT day, days_to_dep FROM basket_levels WHERE basket=? AND days_to_dep IS NOT NULL '
+            'ORDER BY day DESC LIMIT 1', (basket,)).fetchone()
+    if not r:
+        return None
+    try:
+        elapsed = (date.today() - date.fromisoformat(r['day'])).days
+    except ValueError:
+        return None
+    return max(0, int(r['days_to_dep']) - max(0, elapsed))
+
+
+def _clip(v: float) -> float:
+    return max(-1.0, min(1.0, v))
+
+
+def booking_signal(con, basket: str, curve: list | None = None,
+                   active: set | None = None) -> dict | None:
+    """Die Ampel einer Messreihe: 🟢 buchen / 🟡 neutral / 🔴 warten.
+
+    Bewusst deterministisch und aufschlüsselbar (kein LLM) — jede Komponente wird mit
+    Rohwert und Datenbasis zurückgegeben, sonst wäre der Score eine Blackbox, der man
+    eine Buchungsentscheidung nicht anvertrauen will.
+
+        T = clip(−pct14 / 5)      fallende Preise = guter Moment
+        P = clip((50 − rank)/50)  günstig im eigenen Verlauf = guter Moment
+        E = clip(exp_pct / 10)    erwarteter Anstieg = jetzt buchen
+        S = (0.25·T + 0.35·P + 0.40·E) / Σ verfügbarer Gewichte
+
+    Fehlende Komponenten fallen heraus und die übrigen Gewichte werden renormiert;
+    bleibt weniger als `BOOKING_MIN_WEIGHT` übrig, gibt es keine Ampel. Unter
+    `BOOKING_LASTMINUTE_DAYS` Tagen Vorlauf wird nie 🔴 gezeigt — es gibt nichts mehr
+    zu warten, und das Risiko ist dort einseitig (ausgebucht statt teurer)."""
+    if curve is None:
+        curve = booking_curve(con)
+    if active is None:
+        active = _active_keys(con)
+    dte = _current_dte(con, basket)
+    if basket not in active:
+        # Abgeschlossene Messreihe: Empfehlung sofort aus, nicht erst wenn der Trend
+        # nach 14 Tagen aus dem Fenster fällt.
+        return {'basket': basket, 'days_to_dep': dte, 'components': {}, 'closed': True,
+                'ampel': None, 'score': None,
+                'note': 'Messreihe abgeschlossen — kein laufender Reisezeitraum mehr'}
+    trend = basket_trend(con, basket=basket)
+    pos = basket_position(con, basket)
+    exp = expected_remaining(curve, dte)
+    comps, total = {}, 0.0
+    score = 0.0
+    if trend:
+        v = _clip(-trend['pct'] / 5)
+        comps['trend'] = {'value': round(v, 2), 'pct': trend['pct'], 'dir': trend['dir'],
+                          'weight': BOOKING_WEIGHTS['trend'], 'n': trend['n']}
+        score += v * BOOKING_WEIGHTS['trend']
+        total += BOOKING_WEIGHTS['trend']
+    if pos:
+        v = _clip((50 - pos['rank']) / 50)
+        comps['position'] = {'value': round(v, 2), 'rank': pos['rank'], 'n': pos['n'],
+                             'index': pos['index'], 'weight': BOOKING_WEIGHTS['position']}
+        score += v * BOOKING_WEIGHTS['position']
+        total += BOOKING_WEIGHTS['position']
+    if exp:
+        v = _clip(exp['pct'] / 10)
+        comps['expected'] = {'value': round(v, 2), 'pct': exp['pct'],
+                             'coverage': exp['coverage'],
+                             'weight': BOOKING_WEIGHTS['expected']}
+        score += v * BOOKING_WEIGHTS['expected']
+        total += BOOKING_WEIGHTS['expected']
+    out = {'basket': basket, 'days_to_dep': dte, 'components': comps, 'closed': False,
+           'ampel': None, 'score': None, 'note': ''}
+    if total < BOOKING_MIN_WEIGHT:
+        out['note'] = ('zu wenig Daten für eine Empfehlung'
+                       if comps else 'sammelt noch Daten')
+        return out
+    s = score / total
+    ampel = 'green' if s >= BOOKING_GREEN else ('red' if s <= BOOKING_RED else 'yellow')
+    if ampel == 'red' and dte is not None and dte < BOOKING_LASTMINUTE_DAYS:
+        ampel = 'yellow'
+        out['note'] = (f'weniger als {BOOKING_LASTMINUTE_DAYS} Tage bis zur Abreise — '
+                       'Warten bringt hier nichts mehr')
+    out.update(ampel=ampel, score=round(s, 2))
+    return out
+
+
+def booking_payload() -> dict:
+    """Kurve plus Ampel je Messreihe — für die Route, das UI und den HA-Sensor."""
+    if not _booking_enabled():
+        return {'enabled': False, 'curve': [], 'signals': []}
+    with A.db() as con:
+        curve = booking_curve(con)
+        active = _active_keys(con)
+        keys = [r['basket'] for r in con.execute(
+            "SELECT DISTINCT basket FROM basket_moves WHERE basket!=''").fetchall()]
+        signals = [s for s in (booking_signal(con, k, curve, active) for k in sorted(keys)) if s]
+    covered = sum(1 for b in curve if b['rate'] is not None)
+    return {'enabled': True, 'curve': curve, 'signals': signals,
+            'buckets_ready': covered, 'buckets_total': len(curve)}
+
+
+def _signal_map(con) -> dict:
+    """Ampeln je Messreihen-Schlüssel, gecacht. `_collect_offers` wird alle 5 s
+    gepollt — ohne Cache liefe je Angebot und Poll die komplette Trend-/Positions-
+    Rechnung. Der TTL ist unkritisch: die Zahlen ändern sich 1×/Tag."""
+    now = time.time()
+    if _signal_cache['data'] is not None and now - _signal_cache['ts'] < BOOKING_CURVE_TTL:
+        return _signal_cache['data']
+    curve = booking_curve(con)
+    active = _active_keys(con)
+    keys = [r['basket'] for r in con.execute(
+        "SELECT DISTINCT basket FROM basket_moves WHERE basket!=''").fetchall()]
+    data = {}
+    for k in keys:
+        s = booking_signal(con, k, curve, active)
+        if s and s.get('ampel'):
+            data[k] = s
+    _signal_cache.update(ts=now, data=data)
+    return data
+
+
+def basket_key_for_offer(con, url: str, region: str, return_date: str) -> str | None:
+    """Zu welcher Messreihe gehört ein getracktes Angebot?
+
+    Läuft ausdrücklich **ohne Netz**: die Region kommt nur aus dem bereits
+    aufgebauten `meta`-Cache `basket_region_map`, nie über einen Breadcrumb-Abruf.
+    Diese Funktion hängt an `_collect_offers` und damit am 5-Sekunden-Poll der
+    Oberfläche — ein HTTP-Aufruf pro Angebot und Poll wäre dort fatal. Hotels, die
+    noch nicht im Cache stehen, bekommen beim nächsten Barometer-Lauf einen Eintrag
+    und danach auch eine Ampel.
+
+    Zuerst wird eine gespeicherte Suche gesucht, deren Ziel und Reisezeitraum zum
+    Angebot passen (deren Messreihe ist die genauere), sonst greift der
+    Angebots-Schlüssel aus `_offer_targets`."""
+    hotel_giata = A._giata_from_url(url)
+    if not hotel_giata:
+        return None
+    try:
+        cache = json.loads(A._meta_get('basket_region_map') or '{}')
+    except (TypeError, json.JSONDecodeError):
+        return None
+    rg = cache.get(hotel_giata)
+    if not rg:
+        return None
+    nights = A.duration_from_url(url) or BASKET_NIGHTS
+    dep = _offer_departure(return_date, nights)
+    for r in con.execute('SELECT name, payload FROM saved_searches ORDER BY id').fetchall():
+        try:
+            payload = json.loads(r['payload']) or {}
+            if int((payload.get('dest') or {}).get('giata')) != int(rg):
+                continue
+            vom = date.fromisoformat((payload.get('vom') or '')[:10])
+            bis = date.fromisoformat((payload.get('bis') or payload.get('vom') or '')[:10])
+        except (TypeError, ValueError, json.JSONDecodeError):
+            continue
+        if vom <= dep <= bis:
+            return (r['name'] or '').strip() or f"Suche {int(rg)}"
+    label = (region or '').strip() or str(rg)
+    return f"{label} ({_MONTHS_DE[dep.month - 1]} {dep.year}, {nights} Nächte)"
+
+
+def _active_keys(con) -> set:
+    """Schlüssel der Messreihen, die noch eine lebende Quelle haben.
+
+    Alles andere ist **abgeschlossen**: der Reisezeitraum ist vorbei, oder die
+    gespeicherte Suche wurde gelöscht bzw. umbenannt (der Schlüssel ist ihr Name).
+    Solche Reihen bekommen keine Ampel mehr — sonst stünde bis zu 14 Tage nach
+    Ablauf noch „guter Buchungszeitpunkt" an einer Reise, die niemand mehr buchen
+    kann. Ihr Index und ihr Beitrag zur Booking-Kurve bleiben dagegen erhalten:
+    abgelaufene Reisen sind genau die, die ein Vorlauf-Fenster komplett durchlaufen
+    haben.
+
+    Bewusst OHNE Netzzugriff, denn diese Funktion hängt über `_signal_map` am
+    5-Sekunden-Poll der Angebotsliste: die gespeicherten Suchen kommen aus der DB,
+    die Angebots-Messreihen über `basket_key_for_offer` (nur `meta`-Cache). Deshalb
+    hier eine eigene, schlanke Ermittlung statt `_basket_targets()`, das für
+    unbekannte Hotels Breadcrumb-Abrufe auslösen würde. Dass beide Wege denselben
+    Schlüssel bilden, sichert `test_active_keys_match_targets` ab."""
+    keys = set()
+    for r in con.execute('SELECT name, payload FROM saved_searches ORDER BY id').fetchall():
+        try:
+            payload = json.loads(r['payload']) or {}
+            giata = int((payload.get('dest') or {}).get('giata'))
+        except (TypeError, ValueError, json.JSONDecodeError):
+            continue
+        if _expired(payload):
+            continue
+        keys.add((r['name'] or '').strip() or f"Suche {giata}")
+    for o in con.execute('SELECT url, region, return_date FROM offers '
+                         'WHERE COALESCE(archived,0)=0').fetchall():
+        try:
+            k = basket_key_for_offer(con, o['url'], o['region'], o['return_date'])
+        except Exception:
+            continue
+        if k:
+            keys.add(k)
+    return keys
+
+
+def offer_signals(con, offers: list) -> dict:
+    """Ampel je Angebots-ID für die Kachelansicht. `offers` sind die Zeilen aus
+    `offers`; zurück kommt nur, wofür es auch wirklich eine Ampel gibt."""
+    if not _booking_enabled():
+        return {}
+    try:
+        signals = _signal_map(con)
+    except Exception as e:      # eine kaputte Messreihe darf die Angebotsliste nicht kippen
+        A.log.debug("Booking-Ampel für die Angebotsliste nicht ermittelbar: %s", e)
+        return {}
+    if not signals:
+        return {}
+    out = {}
+    for o in offers:
+        try:
+            key = basket_key_for_offer(con, o['url'], o['region'], o['return_date'])
+        except Exception:
+            continue
+        s = signals.get(key or '')
+        if s:
+            out[o['id']] = {'ampel': s['ampel'], 'score': s['score'],
+                            'days_to_dep': s['days_to_dep'], 'basket': key,
+                            'expected_pct': (s['components'].get('expected') or {}).get('pct'),
+                            'rank': (s['components'].get('position') or {}).get('rank')}
+    return out
+
+
 def basket_payload() -> dict:
     """Kompletter Barometer-Stand für API und HA-Sensor. `by_region` heißt aus
     Kompatibilitätsgründen weiter so (UI und Sensor-Attribute), enthält aber je einen
     Preisbarometer — also eine gespeicherte Suche samt Reisezeitraum."""
     targets = _basket_targets()   # nur EINMAL — kann Breadcrumb-Abrufe auslösen
     periods = {t['key']: t.get('period') or '' for t in targets}
+    booking = _booking_enabled()
     with A.db() as con:
         keys = [r['basket'] for r in con.execute(
             "SELECT DISTINCT basket FROM basket_moves WHERE basket!=''").fetchall()]
         glob = {'trend': basket_trend(con), 'index': basket_index(con)}
+        # Kurve EINMAL für alle Messreihen (gepoolt und gecacht) statt je Zeile neu.
+        curve = booking_curve(con) if booking else []
+        # `_basket_targets()` kennt nur die aktiven Reihen — für die Kennzeichnung der
+        # abgeschlossenen wird daraus direkt die Schlüsselmenge gebildet, statt
+        # `_active_keys` ein zweites Mal zu rechnen.
+        active = {t['key'] for t in targets}
         by_region = []
         for k in sorted(keys):
             t, i = basket_trend(con, basket=k), basket_index(con, basket=k)
             if t or i:
+                last = con.execute('SELECT MAX(day) d FROM basket_moves WHERE basket=?',
+                                   (k,)).fetchone()
                 by_region.append({'region': k, 'period': periods.get(k, ''),
-                                  'trend': t, 'index': i})
+                                  'trend': t, 'index': i,
+                                  'closed': k not in active,
+                                  'last_day': (last['d'] if last else '') or '',
+                                  'signal': booking_signal(con, k, curve, active) if booking else None,
+                                  'level': _last_level(con, k)})
         last = con.execute('SELECT MAX(day) d FROM basket_snapshots').fetchone()
         pending = [r['basket'] for r in con.execute(
             "SELECT DISTINCT basket FROM basket_snapshots WHERE basket NOT IN "
@@ -638,7 +1187,18 @@ def basket_payload() -> dict:
             'baskets': [{'key': t['key'], 'period': t.get('period') or '',
                          'source': t.get('source')} for t in targets],
             'pending': sorted(pending), 'running': _running,
-            'progress': dict(_progress)}
+            'progress': dict(_progress),
+            'booking': {'enabled': booking, 'curve': curve,
+                        'ready': sum(1 for b in curve if b['rate'] is not None),
+                        'total': len(curve)}}
+
+
+def _last_level(con, basket: str) -> dict | None:
+    """Letztes bekanntes Preisniveau einer Messreihe (€-Kontext neben dem Index).
+    Aus `basket_levels`, überlebt daher den Snapshot-Prune."""
+    r = con.execute('SELECT day, n_hotels, p25, p50, p75 FROM basket_levels '
+                    'WHERE basket=? ORDER BY day DESC LIMIT 1', (basket,)).fetchone()
+    return dict(r) if r else None
 
 
 # ── Routen ─────────────────────────────────────────────────────────────────────
@@ -650,6 +1210,16 @@ def api_market_basket():
     if (err := A._require_api()):
         return err
     return jsonify(basket_payload())
+
+
+@bp.route('/api/booking-window')
+def api_booking_window():
+    """Booking-Kurve (global über alle Messreihen) plus Ampel je Messreihe — die
+    Antwort auf „ist jetzt ein guter Zeitpunkt zu buchen?", im Unterschied zum
+    Markttrend („was passiert gerade?")."""
+    if (err := A._require_api()):
+        return err
+    return jsonify(booking_payload())
 
 
 @bp.route('/api/market-basket/progress')
@@ -691,6 +1261,8 @@ def api_market_basket_region_delete():
     with A.db() as con:
         snaps = con.execute('DELETE FROM basket_snapshots WHERE basket=?', (region,)).rowcount
         moves = con.execute('DELETE FROM basket_moves WHERE basket=?', (region,)).rowcount
-    A.log.info("Barometer-Daten für „%s“ gelöscht: %d Snapshots, %d Tagesbewegungen",
-               region, snaps, moves)
-    return jsonify({'region': region, 'snapshots': snaps, 'moves': moves})
+        levels = con.execute('DELETE FROM basket_levels WHERE basket=?', (region,)).rowcount
+    _invalidate_curve()
+    A.log.info("Barometer-Daten für „%s“ gelöscht: %d Snapshots, %d Tagesbewegungen, "
+               "%d Preisniveaus", region, snaps, moves, levels)
+    return jsonify({'region': region, 'snapshots': snaps, 'moves': moves, 'levels': levels})

@@ -26,6 +26,9 @@ configuration:
   market_basket_max_regions:
     name: Maximum measurement series
     description: "Upper limit for the series measured each day (1…50), i.e. the number of saved searches re-run. Purely a load guard: one API call per 50 hotels per day (typically 1–6 per search). If more are found than allowed, the add-on log names the ones left out. Default 20."
+  booking_window_enabled:
+    name: Booking timing indicator
+    description: "Additionally analyses the barometer daily moves by lead time (booking curve) and derives a traffic light from it: green = good time to book, red = better to wait. Combines the 14-day trend, the position within the recorded history and the price move expected until departure. Requires the price barometer and a few weeks of data. Default on."
   trippilot_home_location:
     name: TripPilot home location (ZIP/city)
     description: "Pre-fills the TripPilot question 'Where are you starting from?' (for car/bus/train arrival or day trips). Leave empty to disable — can always be changed in the questionnaire itself."
@@ -56,6 +59,9 @@ configuration:
   calendar_daily_refresh:
     name: Daily calendar refresh
     description: "Keeps active offers' price calendars fresh 1x/day (sharpens the trend view and booking-score calendar signal). Default on."
+  calendar_archived_refresh:
+    name: Keep calendars running for archived offers
+    description: "Also refreshes price calendars for archived (expired) offers — every 3 days instead of daily, and always after the active offers have had their turn. The expired offer's price is still NOT checked; the calendar describes the hotel, room, board and duration and always looks forward from today. This keeps a long-term price history growing for the same hotel. If a hotel leaves the TUI inventory, the calendar pauses itself after 5 consecutive failures. Default on."
   notify_errors:
     name: Sold-out / error alert
     description: "Notify when an offer returns no result several times in a row (sold out or outdated URL). Default on."

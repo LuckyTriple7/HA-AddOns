@@ -92,7 +92,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.94.2"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.98.1"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -745,6 +745,14 @@ def init_db() -> None:
                 con.execute(f"ALTER TABLE offers ADD COLUMN {col} INTEGER")
         if 'calendar_seen_ts' not in ocols:
             con.execute("ALTER TABLE offers ADD COLUMN calendar_seen_ts INTEGER NOT NULL DEFAULT 0")
+        # Kalender-Fehlerzähler: der Preiskalender läuft auch für archivierte Angebote
+        # weiter (Langzeitkurve je Hotel/Zimmer). Fällt ein Hotel aus dem TUI-Inventar,
+        # scheitert der Abruf dauerhaft — nach CALENDAR_MAX_FAILS Fehlschlägen in Folge
+        # wird er für dieses Angebot pausiert, statt täglich ins Leere zu laufen.
+        if 'calendar_fails' not in ocols:
+            con.execute("ALTER TABLE offers ADD COLUMN calendar_fails INTEGER NOT NULL DEFAULT 0")
+        if 'calendar_paused' not in ocols:
+            con.execute("ALTER TABLE offers ADD COLUMN calendar_paused INTEGER NOT NULL DEFAULT 0")
         if 'notify_muted' not in ocols:
             con.execute("ALTER TABLE offers ADD COLUMN notify_muted INTEGER NOT NULL DEFAULT 0")
         if 'notify_calendar_muted' not in ocols:
@@ -863,6 +871,8 @@ def init_db() -> None:
         # Preisbarometer (tägliche Regionssuche) — Schema liegt im eigenen Modul,
         # das erst am Dateiende importiert wird; zur Laufzeit von init_db() ist es da.
         market_basket.init_basket_db(con)
+        # Kalender-Monatstrend — dito, Schema liegt im price_calendar-Modul.
+        price_calendar.init_month_db(con)
     Path(TRIPS_DIR).mkdir(parents=True, exist_ok=True)
     log.info("Datenbank bereit: %s", DB_PATH)
 
@@ -2523,6 +2533,9 @@ def _poll_worker() -> None:
         time.sleep(max(30, min(next_in, interval)))
 
 
+CALENDAR_ARCHIVED_INTERVAL = 3 * 86400   # Kalender-Takt für archivierte Angebote
+
+
 def _maybe_refresh_calendars() -> None:
     """Hält Preiskalender aktuell: 1×/Tag je aktivem Angebot. Da beim Tracken der
     Kalender ohnehin sofort mitabgerufen wird (Erstabruf in _check_cheaper_date),
@@ -2531,17 +2544,41 @@ def _maybe_refresh_calendars() -> None:
     calendar_history dichter → Trend-Ansicht und das Kalender-Bewegungs-Signal
     im Buchungsscore werden aussagekräftiger; ergänzt den Sofort-Refresh bei
     Preisänderung. Max. 10 je Poll-Zyklus (je ~3 HTTP-Requests), älteste zuerst.
-    Abschaltbar über calendar_daily_refresh."""
+    Abschaltbar über calendar_daily_refresh.
+
+    **Archivierte Angebote laufen weiter** (`calendar_archived_refresh`): Der Preis
+    des abgelaufenen Angebots wird zwar zu Recht nicht mehr abgefragt, der Kalender
+    beschreibt aber Hotel, Zimmer, Verpflegung und Dauer — und der Abruf schaut
+    ohnehin immer ab HEUTE nach vorn (`fetch_calendar` setzt das Suchfenster selbst,
+    das alte Reisedatum der URL geht nicht ein). Damit entsteht über Jahre eine
+    Preisreihe für dasselbe Produkt, die mit dem Archivieren sonst abrisse.
+
+    Zwei getrennte Abfragen statt einer: aktive Angebote haben immer Vorrang und
+    bekommen das volle Kontingent. Archivierte sammeln sich über die Jahre an und
+    würden bei einem gemeinsamen `LIMIT` sonst irgendwann die aktiven verdrängen.
+    Sie laufen zudem in größerem Abstand — für eine Langzeitkurve reicht das
+    reichlich und spart die Hälfte der Abrufe."""
     if not load_config().get('calendar_daily_refresh', True):
         return
-    cutoff = int(time.time()) - 86400
+    now = int(time.time())
     with db() as con:
         rows = con.execute(
             'SELECT c.offer_id FROM calendar_cache c JOIN offers o ON o.id = c.offer_id '
-            'WHERE COALESCE(o.paused,0)=0 AND COALESCE(o.archived,0)=0 AND c.ts<=? '
-            'ORDER BY c.ts LIMIT 10', (cutoff,)).fetchall()
+            'WHERE COALESCE(o.paused,0)=0 AND COALESCE(o.archived,0)=0 '
+            'AND COALESCE(o.calendar_paused,0)=0 AND c.ts<=? '
+            'ORDER BY c.ts LIMIT 10', (now - 86400,)).fetchall()
+        rest = 10 - len(rows)
+        arch = con.execute(
+            'SELECT c.offer_id FROM calendar_cache c JOIN offers o ON o.id = c.offer_id '
+            'WHERE COALESCE(o.archived,0)=1 AND COALESCE(o.calendar_paused,0)=0 AND c.ts<=? '
+            'ORDER BY c.ts LIMIT ?',
+            (now - CALENDAR_ARCHIVED_INTERVAL, max(0, rest))).fetchall() \
+            if rest > 0 and load_config().get('calendar_archived_refresh', True) else []
     for r in rows:
         log.info("Täglicher Kalender-Refresh: Angebot #%d", r['offer_id'])
+        _run_calendar(r['offer_id'])
+    for r in arch:
+        log.info("Kalender-Refresh (archiviert, Langzeitverlauf): Angebot #%d", r['offer_id'])
         _run_calendar(r['offer_id'])
 
 
@@ -2639,6 +2676,10 @@ def _push_market_trend_sensor() -> None:
             attrs.update(index=src_index['index'], index_pct=src_index['pct'],
                          index_since=datetime.fromtimestamp(src_index['since']).isoformat())
         state = src_trend['pct'] if src_trend else 'unknown'
+        # Buchungszeitpunkt-Ampel (Booking-Kurve). Der State bleibt bewusst die
+        # 14-Tage-Bewegung — die Ampel ist eine ANDERE Aussage („jetzt buchen?")
+        # und gehört deshalb in die Attribute, nicht in den Zustandswert.
+        _booking_attrs(attrs, basket)
     except Exception as e:
         log.warning("Markttrend-Berechnung fehlgeschlagen (poste trotzdem 'unknown'): %s: %s",
                      type(e).__name__, e)
@@ -2648,6 +2689,33 @@ def _push_market_trend_sensor() -> None:
                   json={'state': state, 'attributes': attrs})
     except Exception as e:
         log.warning("HA-Markttrend-Sensor aktualisieren fehlgeschlagen: %s", e)
+
+
+def _booking_attrs(attrs: dict, basket: dict) -> None:
+    """Ampel-Attribute für den Markttrend-Sensor aus dem Barometer-Stand.
+
+    Als Kopfzahl dient die Messreihe mit dem KLEINSTEN Vorlauf — das ist die
+    Entscheidung, die am dringendsten ansteht. Alle übrigen stehen vollständig unter
+    `booking`, damit eine Automatisierung („melde, wenn ein Ziel auf grün springt")
+    sich nicht auf die Kopfzahl beschränken muss."""
+    b = basket.get('booking') or {}
+    if not b.get('enabled'):
+        return
+    attrs['booking_curve'] = [
+        {'window': x['label'], 'pct_per_day': x['rate'], 'pct': x['pct'],
+         'samples': x['n'], 'series': x['n_series'], 'thin': x['thin']}
+        for x in b.get('curve', [])]
+    sigs = [dict(r['signal'], region=r['region'])
+            for r in basket.get('by_region', []) if (r.get('signal') or {}).get('ampel')]
+    attrs['booking'] = sigs
+    attrs['booking_green'] = [s['region'] for s in sigs if s['ampel'] == 'green']
+    if not sigs:
+        return
+    lead = min(sigs, key=lambda s: (s['days_to_dep'] is None, s['days_to_dep']))
+    exp = (lead.get('components') or {}).get('expected') or {}
+    attrs.update(booking_ampel=lead['ampel'], booking_score=lead['score'],
+                 booking_region=lead['region'], booking_days_to_dep=lead['days_to_dep'],
+                 booking_expected_pct=exp.get('pct'))
 
 
 def _flight_healthchecks() -> list[dict]:
@@ -3124,11 +3192,33 @@ def _collect_offers() -> list[dict]:
                 'trend': trend,
                 'checking': checking,
                 'calendar_alert': calendar_alert,
+                'calendar_paused': bool(o['calendar_paused']),
                 'comparable': not is_single_room(f"{o['room']} {o['details']}"),
                 'board': o['board'] or '',
                 'check24_linked': bool(o['check24_hotel_id']),
             })
+        # Buchungszeitpunkt-Ampel aus dem Preisbarometer (Booking-Kurve). Bewusst
+        # EIN Aufruf für die ganze Liste statt je Angebot: die Liste wird alle 5 s
+        # gepollt, `market_basket` cacht Kurve und Signale entsprechend und geht für
+        # die Region-Zuordnung nur an den `meta`-Cache, nie ins Netz.
+        signals = market_basket.offer_signals(con, offers)
+    for row in out:
+        row['booking'] = signals.get(row['id'])
     return out
+
+
+@app.route('/api/busy', methods=['GET'])
+def api_busy():
+    """Nur die laufenden Hintergrund-Aufgaben — **ohne jeden Datenbankzugriff**.
+
+    Genau das ist der Zweck: direkt nach dem Start hält der Poller die SQLite-Datei,
+    und `/api/offers` wartet dann mehrere Sekunden auf seine erste Antwort. Die
+    Oberfläche stünde so lange leer da. Dieser Endpunkt liest ausschließlich
+    In-Memory-Zustand und antwortet auch dann sofort, wenn die DB gerade gesperrt
+    ist — damit der Startbildschirm sagen kann, WORAUF gewartet wird."""
+    if (err := _require_api()):
+        return err
+    return jsonify({'busy': busy_labels()})
 
 
 @app.route('/api/healthcheck', methods=['GET', 'POST'])

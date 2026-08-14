@@ -340,6 +340,35 @@
       } catch(e){ _offlineFails++; if(_offlineFails>=3) showOfflineBanner(); }
     }
 
+    // ── Startzustand ───────────────────────────────────────────────────────────
+    // Direkt nach dem Add-on-Start läuft der Poller sofort los und hält dabei die
+    // SQLite-Datei; die erste /api/offers-Antwort kann deshalb einige Sekunden
+    // brauchen. Der Startblock aus dem HTML bleibt so lange stehen und sagt, worauf
+    // gewartet wird — abgefragt über /api/busy, das ohne DB-Zugriff auskommt und
+    // deshalb auch bei gesperrter Datenbank sofort antwortet.
+    let bootDone = false, bootTimer = null, bootStart = Date.now();
+    function bootFinish(){
+      bootDone = true;
+      if(bootTimer){ clearInterval(bootTimer); bootTimer = null; }
+    }
+    async function bootTick(){
+      const note = document.getElementById('boot-note');
+      if(bootDone || !note){ bootFinish(); return; }
+      let busy = [];
+      try { busy = (await fetch(api('/api/busy')).then(r=>r.json())).busy || []; } catch(e){ return; }
+      if(bootDone) return;
+      const secs = Math.round((Date.now()-bootStart)/1000);
+      note.textContent = busy.length
+        ? 'Läuft gerade: ' + busy.join(' · ')
+        : (secs >= 6 ? 'Die Datenbank ist noch belegt — gleich geht es weiter.'
+                     : 'Angebote werden geladen.');
+    }
+    function startBootWatch(){
+      if(!document.getElementById('boot-note')) return;
+      bootTimer = setInterval(bootTick, 1500);
+      bootTick();
+    }
+
     // ── Verbindungsabbruch-Erkennung ───────────────────────────────────────────
     let _offlineFails = 0;
     function showOfflineBanner(){ $('#offline-banner').style.display = 'flex'; }
@@ -363,6 +392,21 @@
       if(t.dir==='down') return '<span class="trend down" title="Tendenz aus dem bisherigen Verlauf">↘ fällt'+pct+'</span>';
       if(t.dir==='up')   return '<span class="trend up" title="Tendenz aus dem bisherigen Verlauf">↗ steigt'+pct+'</span>';
       return '<span class="trend flat" title="Tendenz aus dem bisherigen Verlauf">→ stabil</span>';
+    }
+    // Buchungszeitpunkt-Ampel aus der Booking-Kurve des Preisbarometers. Nur ein Icon
+    // auf der Kachel — die Herleitung steht im Barometer-Fenster; hier soll die Kachel
+    // nicht mit einer dritten Prozentzahl zugestellt werden.
+    function bookingBadge(o){
+      const b = o.booking; if(!b || !b.ampel) return '';
+      const icon = {green:'🟢', yellow:'🟡', red:'🔴'}[b.ampel];
+      const txt = {green:'guter Buchungszeitpunkt', yellow:'neutraler Buchungszeitpunkt',
+                   red:'eher noch warten'}[b.ampel];
+      const bits = [`${txt} (Score ${b.score>0?'+':''}${b.score})`];
+      if(b.days_to_dep!=null) bits.push(`noch ${b.days_to_dep} Tage bis Abreise`);
+      if(b.expected_pct!=null) bits.push(`bis dahin erwartet: ${b.expected_pct>0?'+':'−'}${Math.abs(b.expected_pct).toLocaleString('de-DE',{maximumFractionDigits:1})} %`);
+      if(b.rank!=null) bits.push(`Perzentil ${b.rank} im bisherigen Verlauf`);
+      bits.push(`Messreihe: ${b.basket}`);
+      return `<span class="trend flat" title="${esc(bits.join(' · '))}">${icon}</span>`;
     }
 
     function renderTagPills(offers){
@@ -390,6 +434,7 @@
     }
 
     function renderAll(offers){
+      bootFinish();          // erste echte Liste ersetzt den Startblock
       renderOverview(offers);
       renderTagPills(offers);
       // Nicht neu rendern, während der Nutzer einen Wunschpreis eingibt
@@ -521,7 +566,7 @@
             <div class="price-box">
               <div class="price-now"${o.checking&&hasPrice?' style="opacity:.5"':''}>${priceNow}</div>
               <div class="price-pp">pro Person</div>
-              <div>${deltaBadge(o)} ${trendBadge(o)}</div>
+              <div>${deltaBadge(o)} ${trendBadge(o)} ${bookingBadge(o)}</div>
               ${o.image_url?`<img class="offer-img" src="${esc(o.image_url)}" loading="lazy" alt="" onerror="this.remove()">`:''}
             </div>
           </div>
@@ -694,7 +739,7 @@
               ${priceSub?`<div class="price-sub">${priceSub}</div>`:''}
               ${perNight!=null?`<div class="price-sub">${eur(perNight)}/Nacht</div>`:''}
               ${(o.travellers_count>1 && o.total_price!=null)?`<div class="price-total">Gesamt ${eur(o.total_price)} · ${o.travellers_count} Reisende</div>`:''}
-              <div>${deltaBadge(o)} ${o.archived?'':trendBadge(o)}</div>
+              <div>${deltaBadge(o)} ${o.archived?'':trendBadge(o)} ${o.archived?'':bookingBadge(o)}</div>
               ${bookedSince?`<div>${bookedSince}</div>`:''}
               ${availBadge}
               ${o.image_url?`<img class="offer-img" src="${esc(o.image_url)}" loading="lazy" alt="" onerror="this.remove()">`:''}
@@ -709,6 +754,9 @@
             <div class="offer-actions">
             ${o.archived
               ? `<button class="btn sec" onclick="openHistory(${o.id})">Verlauf</button>
+                 <button class="btn sec${o.calendar_paused?' cal-paused':''}" onclick="openCalendar(${o.id})" title="${o.calendar_paused
+                    ? 'Kalender pausiert (Abrufe schlugen wiederholt fehl) — Fenster öffnen zum Reaktivieren'
+                    : 'Preis je Abreisetag — läuft für archivierte Angebote weiter und baut den Langzeitverlauf dieses Hotels auf'}">Kalender</button>
                  <button class="btn sec" onclick="unarchiveOffer(${o.id})" title="Wieder aktiv verfolgen">Reaktivieren</button>
                  <button class="icon-btn" onclick="resetOffer(${o.id})" title="Zurücksetzen: Verlauf löschen und neu bei null beginnen">
                    <svg viewBox="0 0 24 24"><path d="M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
@@ -2295,16 +2343,79 @@
       catch(e){ $('#basket-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Laden fehlgeschlagen</div>'; return; }
       renderBasket(b);
     }
+    // ── Buchungszeitpunkt: Ampel + Booking-Kurve ───────────────────────────────────
+    // Zwei verschiedene Fragen, deshalb zwei getrennte Anzeigen: der Trend oben sagt
+    // „was passiert gerade", die Ampel „ist jetzt ein guter Moment zu buchen".
+    const AMPEL_ICON = {green:'🟢', yellow:'🟡', red:'🔴'};
+    const AMPEL_TEXT = {green:'guter Zeitpunkt', yellow:'neutral', red:'eher warten'};
+    function pctStr(v, digits){
+      if(v===null || v===undefined) return '–';
+      const s = v>0 ? '+' : (v<0 ? '−' : '');
+      return s + Math.abs(v).toLocaleString('de-DE',{maximumFractionDigits:digits===undefined?1:digits}) + ' %';
+    }
+    function ampelBadge(s){
+      if(!s) return '';
+      if(s.closed) return '<span class="hint">–</span>';
+      if(!s.ampel) return `<span class="hint">${esc(s.note||'sammelt noch Daten')}</span>`;
+      const c = s.components || {};
+      const bits = [];
+      if(c.trend) bits.push(`Trend 14 T: ${pctStr(c.trend.pct)}`);
+      if(c.position) bits.push(`Position: Perzentil ${c.position.rank} von ${c.position.n} Tagen`);
+      if(c.expected) bits.push(`bis Abreise erwartet: ${pctStr(c.expected.pct)} (Kurve deckt ${Math.round(c.expected.coverage*100)} % der Resttage)`);
+      const title = `Score ${s.score>0?'+':''}${s.score} · ` + (bits.join(' · ') || 'keine Komponenten')
+        + (s.note ? ` · ${s.note}` : '');
+      return `<span class="trend ${s.ampel==='green'?'down':(s.ampel==='red'?'up':'flat')}" title="${esc(title)}">`
+        + `${AMPEL_ICON[s.ampel]} ${AMPEL_TEXT[s.ampel]}</span>`
+        + (s.days_to_dep!==null && s.days_to_dep!==undefined
+            ? ` <span class="hint" style="white-space:nowrap">noch ${s.days_to_dep} T</span>` : '');
+    }
+    function bookingCurveTable(bk){
+      if(!bk || !bk.enabled) return '';
+      const curve = bk.curve || [];
+      const ready = curve.filter(x=>x.rate!==null && x.rate!==undefined).length;
+      if(!ready){
+        return `<h3 style="margin:16px 0 4px;font-size:15px">Booking-Kurve</h3>`
+          + `<div class="hint">Sammelt noch. Die Kurve entsteht aus den Tagesbewegungen aller `
+          + `Messreihen, sortiert nach Vorlaufzeit — je Fenster braucht sie mindestens `
+          + `8 Messpunkte aus 2 Messreihen.</div>`;
+      }
+      const rows = curve.map(x=>{
+        if(x.rate===null || x.rate===undefined)
+          return `<tr style="opacity:.55"><td>${esc(x.label)}</td>`
+            + `<td colspan="2" class="hint">noch keine Daten</td><td>${x.n} <span class="hint">/ ${x.n_series}</span></td></tr>`;
+        const cls = x.pct>0 ? 'up' : (x.pct<0 ? 'down' : 'flat');
+        return `<tr><td>${esc(x.label)}</td>`
+          + `<td><span class="trend ${cls}">${pctStr(x.pct)}</span>${x.thin?' <span class="hint" title="Stammt aus nur einer Messreihe — noch keine belastbare Marktaussage">⚠ dünn</span>':''}</td>`
+          + `<td>${pctStr(x.rate, 3)}</td><td>${x.n} <span class="hint">/ ${x.n_series}</span></td></tr>`;
+      }).join('');
+      return `<h3 style="margin:16px 0 4px;font-size:15px">Booking-Kurve <span class="hint" style="font-weight:400">(${ready} von ${curve.length} Fenstern)</span></h3>`
+        + `<div class="hint" style="margin-bottom:6px">Wie sich Preise typischerweise über die Vorlaufzeit `
+        + `bewegen — alle Tagesbewegungen aller Messreihen nach „Tage bis Abreise" sortiert statt nach Kalendertag. `
+        + `Prozentwerte sind dimensionslos, deshalb dürfen verschiedene Ziele zusammen in einen Topf.</div>`
+        + `<table class="hist"><tr><th>Vorlauf</th><th>über das Fenster</th><th>pro Tag</th><th>Punkte / Messreihen</th></tr>${rows}</table>`;
+    }
     function renderBasket(b){
       if(!b || !b.enabled){
         $('#basket-body').innerHTML = '<div class="cmp-load">Das Preisbarometer ist in den Add-on-Einstellungen abgeschaltet.</div>';
         return;
       }
-      const rows = (b.by_region||[]).map(r=>
-        `<tr><td>${esc(r.region)}<div class="hint">${esc(r.period||'')}</div></td>`
+      const bk = b.booking || {enabled:false};
+      // Abgeschlossene Messreihen (Reisezeitraum vorbei, Suche gelöscht oder
+      // umbenannt) bleiben stehen — ihr Index und ihr Beitrag zur Booking-Kurve sind
+      // weiter wertvoll. Ohne Kennzeichnung sähen sie aber wie eine kaputte aktive
+      // Reihe aus: leerer Zeitraum, „keine Daten" beim Trend, und niemand wüsste warum.
+      const rows = (b.by_region||[]).map(r=>{
+        const when = r.closed
+          ? `<div class="hint">📁 abgeschlossen${r.last_day?` · zuletzt ${fmtD(r.last_day)}`:''}</div>`
+          : `<div class="hint">${esc(r.period||'')}</div>`;
+        return `<tr${r.closed?' style="opacity:.7"':''}><td>${esc(r.region)}${when}</td>`
         + `<td>${marketTrendBadge(r.trend)}${marketIndexLine(r.index)}</td>`
+        + (bk.enabled ? `<td>${ampelBadge(r.signal)}</td>` : '')
         + `<td>${(r.trend||{}).hotels||''}</td>`
-        + `<td><button class="btn sec" onclick="resetBasketRegion(${esc(JSON.stringify(r.region))})" title="Barometer-Daten dieser Suche löschen und neu beginnen">🗑</button></td></tr>`).join('');
+        + `<td><button class="btn sec" onclick="resetBasketRegion(${esc(JSON.stringify(r.region))})" title="${r.closed
+            ? 'Diese abgeschlossene Messreihe endgültig entfernen'
+            : 'Barometer-Daten dieser Suche löschen und neu beginnen'}">🗑</button></td></tr>`;
+      }).join('');
       // Messreihen ohne zwei vergleichbare Tage stehen nicht in der Tabelle — ohne
       // diese Liste sähe es so aus, als würden sie gar nicht erfasst.
       const waiting = (b.baskets||[]).filter(x => !(b.by_region||[]).some(r=>r.region===x.key));
@@ -2312,8 +2423,10 @@
         `<li>${esc(x.key)}${x.period ? ` <span class="hint">(${esc(x.period)})</span>` : ''}</li>`).join('');
       $('#basket-body').innerHTML =
         `<div class="trend-global"><b>Gesamt:</b> ${marketTrendBadge(b.global.trend)}${marketIndexLine(b.global.index)}</div>`
-        + (rows ? `<table class="hist"><tr><th>Gespeicherte Suche / Reisezeitraum</th><th>Trend (14 Tage) / Index (gesamt)</th><th>Hotels</th><th></th></tr>${rows}</table>`
+        + (rows ? `<table class="hist"><tr><th>Gespeicherte Suche / Reisezeitraum</th><th>Trend (14 Tage) / Index (gesamt)</th>`
+                + (bk.enabled ? '<th>Buchen?</th>' : '') + `<th>Hotels</th><th></th></tr>${rows}</table>`
                 : '<div class="cmp-load">Noch keine Suche mit zwei vergleichbaren Barometer-Tagen.</div>')
+        + bookingCurveTable(bk)
         + (waitRows ? `<h3 style="margin:16px 0 4px;font-size:15px">Sammelt noch</h3>`
             + `<ul style="margin:0;padding-left:18px;font-size:14px">${waitRows}</ul>` : '')
         + (b.last_day
@@ -5981,6 +6094,7 @@
     // ── Preiskalender (Monats-Grid, gespeichert) ──────────────────────────────
     let calTimer = null, calId = null, calData = null, calMonth = null, calTrendView = false;
     let calMovesOpen = false;   // "Größte Bewegungen"-Liste: default eingeklappt, Zustand überlebt Monatswechsel
+    let calMonths = null, calMonthsOpen = false;   // Monatsübersicht (Preisniveau + Trend je Reisemonat)
     function toggleCalTrend(){ calTrendView = !calTrendView; drawCalMonth(); }
     async function openCalDayChart(iso){
       const box = $('#cal-day-chart');
@@ -6004,7 +6118,7 @@
     function startCalPolling(){ clearInterval(calTimer); calPoll(); calTimer = setInterval(calPoll, 2000); }
 
     async function openCalendar(id){
-      calId = id; calMonth = null; calData = null; calMovesOpen = false;
+      calId = id; calMonth = null; calData = null; calMovesOpen = false; calMonths = null;
       const o = (curOffers||[]).find(x=>x.id===id) || {};
       $('#cal-sub').textContent = o.label || o.hotel || ('TUI-Angebot #'+id);
       updateCalNotifyBell();
@@ -6016,6 +6130,15 @@
       if(job.status==='running'){ calSpinner(); startCalPolling(); }
       else if(job.status==='done' && job.days && job.days.length){ renderCalendar(job); }  // gespeichert → anzeigen
       else { refreshCalendar(); }                                                          // noch nie abgefragt → einmal starten
+      loadCalMonths(id);
+    }
+    // Monatsuebersicht (Preisniveau + Bewegung je Reisemonat). Bewusst ein eigener,
+    // nachgelagerter Request: der Kalender selbst soll nicht darauf warten, und beim
+    // Monatswechsel wird nur neu gezeichnet, nicht neu geladen.
+    async function loadCalMonths(id){
+      try { const d = await fetch(api('/api/calendar/'+id+'/months')).then(r=>r.json());
+            if(calId===id){ calMonths = d; if(calData) drawCalMonth(); } }
+      catch(e){}
     }
     async function refreshCalendar(){
       if(calId==null) return;
@@ -6171,10 +6294,30 @@
     function calFooter(job){
       const when = job.ts ? ('Abgefragt: '+new Date(job.ts*1000).toLocaleString('de-DE')) : '';
       const err = job.error ? '<div class="hint" style="color:var(--amber);margin-top:6px">⚠ Letzte Aktualisierung fehlgeschlagen.</div>' : '';
+      // Archivierte Angebote werden preislich nicht mehr geprüft, der Kalender läuft
+      // aber weiter — das muss dastehen, sonst wirkt ein aktueller Zeitstempel bei
+      // einer abgelaufenen Reise wie ein Fehler.
+      const arch = (job.archived && !job.paused)
+        ? `<div class="hint" style="margin-top:6px">📦 Archiviert — der Preis wird nicht mehr abgefragt, `
+          + `der Kalender aber alle ${job.archived_days||3} Tage weiter. So wächst der `
+          + `Langzeitverlauf dieses Hotels, auch wenn die Reise vorbei ist.</div>` : '';
+      const paused = job.paused
+        ? `<div class="hint" style="color:var(--amber);margin-top:6px">⏸ Kalender pausiert — `
+          + `${job.fails||0} Abrufe in Folge fehlgeschlagen (Grenze ${job.max_fails||5}). `
+          + `Vermutlich ist das Hotel nicht mehr im TUI-Inventar. `
+          + `<button class="btn sec" style="margin-left:6px" onclick="resumeCalendar()">Wieder aktivieren</button></div>` : '';
       const aiBtn = (job.days && job.days.length)
         ? '<button class="btn sec ai-feature" onclick="openCalendarOutlook()" title="KI fasst die Kalenderpreise zusammen und empfiehlt günstige/teure Monate">🤖 KI-Analyse</button>' : '';
       return `<div class="cmp-foot"><span class="hint" style="flex:1;min-width:180px">${esc(when)}</span>
-        ${aiBtn}<button class="btn sec" onclick="refreshCalendar()">Neu abfragen</button></div>${err}`;
+        ${aiBtn}<button class="btn sec" onclick="refreshCalendar()">Neu abfragen</button></div>${err}${paused}${arch}`;
+    }
+    async function resumeCalendar(){
+      if(calId==null) return;
+      try { await fetch(api('/api/calendar/'+calId+'/resume'), {method:'POST'}); }
+      catch(e){ toast('Reaktivieren fehlgeschlagen'); return; }
+      toast('Kalender wieder aktiv — wird jetzt abgefragt');
+      refreshCalendar();
+      loadOffers();
     }
 
     function renderCalendar(job){
@@ -6192,6 +6335,58 @@
         calMonth = (wm && has) ? wm : (job.tracked_date || job.cheapest_date || job.days[0].date).slice(0,7);
       }
       drawCalMonth();
+    }
+
+    // Monatsübersicht: Preisniveau je Reisemonat (Momentaufnahme aus dem Snapshot)
+    // neben dessen Bewegung über die Zeit (verkettet aus calendar_month_moves).
+    // Zwei verschiedene Quellen, deshalb bewusst zwei getrennte Spaltengruppen.
+    //
+    // Eigene Badges statt marketTrendBadge/marketIndexLine: hier stehen ~19 Monate
+    // untereinander, von denen die meisten sich kaum bewegen. Die Markttrend-Badges
+    // färben schon +0,1 % rot ein — bei einer Zeile im Barometer harmlos, hier eine
+    // Wand aus Farbe ohne Aussage. Deshalb dieselbe Totband-Schwelle wie beim Trend.
+    const CAL_MONTH_DEADBAND = 0.5;
+    function calPct(v){
+      return (v>0?'+':(v<0?'−':'')) + Math.abs(v).toLocaleString('de-DE',{maximumFractionDigits:1}) + ' %';
+    }
+    function calTrendBadge(t, obs){
+      if(!t) return `<span class="hint">${obs>=2?'noch keine Bewegung':'sammelt noch'}</span>`;
+      // Bei "stabil" die Tageszahl weglassen: der Streak zählt ruhige Tage mit und
+      // entspricht dann fast immer der Fensterlänge — "stabil seit 15 Tagen" in
+      // jeder zweiten Zeile ist reines Rauschen.
+      const days = (t.dir!=='flat' && t.days>=2) ? ` seit ${t.days} Tagen` : '';
+      if(t.dir==='down') return `<span class="trend down">↘ fällt ${calPct(t.pct)}${days}</span>`;
+      if(t.dir==='up')   return `<span class="trend up">↗ steigt ${calPct(t.pct)}${days}</span>`;
+      return '<span class="trend flat">→ stabil</span>';
+    }
+    function calIndexLine(i){
+      if(!i) return '';
+      const cls = i.pct>=CAL_MONTH_DEADBAND ? 'up' : (i.pct<=-CAL_MONTH_DEADBAND ? 'down' : 'flat');
+      const since = new Date(i.since*1000).toLocaleDateString('de-DE');
+      return ` <span class="trend ${cls}" title="Index seit Aufzeichnungsbeginn (${i.n} Beobachtungstage), unabhängig vom 14-Tage-Fenster">`
+        + `Index ${i.index.toLocaleString('de-DE',{maximumFractionDigits:1})} (${calPct(i.pct)} seit ${since})</span>`;
+    }
+    function calMonthsHtml(){
+      const d = calMonths;
+      if(!d || !(d.months||[]).length) return '';
+      const eurShort = v => Math.round(v).toLocaleString('de-DE') + ' €';
+      const moving = d.months.filter(m=>m.trend && m.trend.dir!=='flat').length;
+      const rows = d.months.map(m=>{
+        const cur = m.month===calMonth ? ' style="font-weight:600"' : '';
+        return `<tr${cur}><td><span class="cal-month-link" onclick="calGo('${m.month}')">${esc(m.label)}</span>`
+          + `<div class="hint">${m.dates} Termine · ${eurShort(m.min)}–${eurShort(m.max)}</div></td>`
+          + `<td style="white-space:nowrap">${eurShort(m.avg)}</td>`
+          + `<td>${calTrendBadge(m.trend, d.observations)}${calIndexLine(m.index)}</td></tr>`;
+      }).join('');
+      return `<details class="cal-moves" ${calMonthsOpen?'open':''} ontoggle="calMonthsOpen=this.open">
+        <summary class="hint"><b>Monatsübersicht</b> (${d.months.length} Reisemonate`
+        + (d.observations>=2 ? `, ${d.observations} Beobachtungstage, ${moving} in Bewegung` : ', sammelt noch') + `)</summary>
+        <div class="hint" style="margin:4px 0 6px">Ø-Preis ist der aktuelle Stand, der Trend die
+        Bewegung dieses Reisemonats über die Zeit — nur dieses Hotel/Zimmer, nicht der Markt.
+        Ruhige Tage zählen als 0 %, nicht als fehlender Wert.</div>
+        <table class="hist"><tr><th>Reisemonat</th><th>Ø-Preis</th>
+        <th>Trend (${d.window_days} Tage) / Index (gesamt)</th></tr>${rows}</table>
+      </details>`;
     }
 
     function drawCalMonth(){
@@ -6287,6 +6482,7 @@
         </details>` : '';
       $('#cal-body').innerHTML = `
         <div class="cal-sum">${sum}</div>
+        ${calMonthsHtml()}
         ${topMovesHtml}
         <div class="cal-nav">
           <button class="btn sec" onclick="calGo('${prev}')" ${prev?'':'disabled'}>‹</button>
@@ -6690,6 +6886,7 @@
     if('serviceWorker' in navigator){ try{ navigator.serviceWorker.register((G.base||'')+'/sw.js', {scope:(G.base||'')+'/'}); }catch(e){} }
 
     loadOffers();
+    startBootWatch();
     setInterval(loadOffers, 5000);
     loadHealth();
     updateAktionBtn();

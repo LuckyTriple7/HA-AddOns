@@ -27,6 +27,7 @@ digest_weekday: 1        # Versandtag (1 = Mo … 7 = So)
 market_basket_enabled: true   # Markttrend aus den täglich neu ausgeführten Suchen
 market_basket_lead_days: 91   # Ersatz-Abreise, nur wenn kein echtes Datum vorliegt
 market_basket_max_regions: 20 # Obergrenze für die täglich abgefragten Messreihen (1…50)
+booking_window_enabled: true   # Buchungszeitpunkt-Ampel aus der Booking-Kurve
 anthropic_api_key: ""    # Anthropic API-Key, aktiviert das KI-Fazit (leer = aus)
 anthropic_model: claude-opus-5  # oder claude-sonnet-5 / claude-haiku-4-5 / claude-fable-5
 ai_provider: anthropic   # oder gemini / perplexity (gilt fuer ALLE KI-Features)
@@ -641,6 +642,33 @@ unveränderten Tagen). Darauf aufbauend:
   Reisedatums über alle bisherigen Abrufe als Mini-Diagramm.
 - **„Größte Bewegungen seit letztem Abruf“** listet die Tage mit den stärksten
   Preissprüngen auf einen Blick auf.
+- **Monatsübersicht** (aufklappbar über dem Raster): je Reisemonat der aktuelle
+  Ø-Preis, die Preisspanne und die Zahl der Termine — und daneben die **Bewegung
+  dieses Reisemonats über die Zeit** (Trend über 14 Tage, Index seit
+  Aufzeichnungsbeginn, gleiche Darstellung wie beim Markttrend). Damit ist sichtbar,
+  ob z. B. „Mai wird teurer, September fällt", statt nur zu wissen, welcher Monat
+  gerade günstig ist. Ein Klick auf einen Monat springt ins Raster.
+  - **Andere Frage als der Markttrend.** Der beschreibt einen Markt (viele Hotels,
+    ein Termin), diese Zahl ein einzelnes Hotel/Zimmer über alle seine Reisetermine.
+    Weicht ein Monat vom Markt ab, wird dort typischerweise das Kontingent knapp —
+    ein Signal, das keine der beiden Quellen allein liefert.
+  - **Rechnung:** wertgewichteter Monatsindex `(Σ p_neu − Σ p_alt) / Σ p_alt · 100`
+    über alle Reisetage des Monats mit Preis in beiden Snapshots, anschließend über
+    die Beobachtungstage zinseszins-verkettet. Kein Median wie beim Preisbarometer —
+    die Menge der Reisetage ist hier fest, das Zusammensetzungsproblem gibt es nicht.
+  - **Ruhige Tage zählen als 0 %, nicht als fehlender Wert.** Die Historie ist
+    delta-codiert; ein Reisetag ohne Zeile ist unverändert, nicht unbeobachtet. Er
+    geht mit seinem Preis in den Nenner ein. Ein Tag von zehn mit +100 € ergibt so
+    ~1 % Monatsbewegung — wertete man nur die Änderungszeilen aus, wären es 10 %.
+  - Einzelsprünge über 60 % gelten als Artefakt (Zimmerkategorie, Verfügbarkeit) und
+    fließen nicht ein; neu ins Fenster gerutschte, herausgefallene und bereits
+    vergangene Reisetage ebenfalls nicht.
+  - **Bestandsdaten** werden beim ersten Start einmalig aus der vorhandenen
+    Kalenderhistorie nachgerechnet — der Trend beginnt nicht bei null. Nur Abrufe,
+    bei denen sich gar nichts geändert hat, fehlen dabei (sie hätten 0 %
+    beigetragen); die Kurve stimmt, nur die Zahl der Beobachtungstage fällt für die
+    Altdaten etwas niedriger aus.
+  - Eigener Endpunkt: `GET /api/calendar/<offer_id>/months`.
 - Der **„Kalender“-Button** in der Angebotsliste pulsiert (amber), sobald sich seit
   dem letzten Öffnen ein Preis im Kalender geändert hat — Öffnen markiert als
   gesehen, das Pulsieren erlischt bis zur nächsten echten Bewegung.
@@ -748,7 +776,11 @@ eigenen Angeboten — welche gerade greift, sagt das Attribut `source`
 Tagen die Richtung anhält), `samples` (Datenpunkte bzw. Barometer-Tage), `hotels`
 (Breite die Messreihe-Basis), `index`/`index_pct`/`index_since` (Index seit
 Aufzeichnungsbeginn), `by_region` (Aufschlüsselung je Destination aus den eigenen
-Angeboten) sowie die vollständigen Zweige `offers` und `basket`. Siehe unten
+Angeboten) sowie die vollständigen Zweige `offers` und `basket`. Ist die
+Buchungszeitpunkt-Ampel aktiv, kommen `booking_ampel`/`booking_score`/`booking_region`/
+`booking_days_to_dep`/`booking_expected_pct` (jeweils für die Messreihe mit dem
+kürzesten Vorlauf — die dringendste Entscheidung), `booking_green` (alle Messreihen
+auf grün) sowie `booking` und `booking_curve` in voller Länge dazu. Siehe unten
 „Markttrend".
 
 ## Markttrend
@@ -816,7 +848,14 @@ Woche 3 % gefallen" — die Zahl, die bei der Buchungsentscheidung hilft.
   7. und 14. Juni ergeben zwei Messreihen („Mai 2027, 11 Nächte" und „Juni 2027,
   11 Nächte"), nicht fünf. Gesucht wird der ganze Monat; die Suche liefert je Hotel
   den günstigsten Termin darin, was für einen Markttrend genau die richtige Zahl ist.
-- **Abgelaufene Reisezeiträume** fallen automatisch raus.
+- **Abgelaufene Reisezeiträume** fallen automatisch raus: die Messreihe wird nicht mehr
+  abgefragt und in der Tabelle als **„📁 abgeschlossen"** samt letztem Beobachtungstag
+  gekennzeichnet. Eine Buchungszeitpunkt-Ampel bekommt sie ab diesem Moment nicht mehr —
+  eine Empfehlung für eine nicht mehr buchbare Reise wäre sinnlos. **Index und Beitrag
+  zur Booking-Kurve bleiben erhalten**, denn abgelaufene Reisen haben ein Vorlauf-Fenster
+  komplett durchlaufen und sind für die Kurve besonders wertvoll. Dasselbe gilt für
+  gespeicherte Suchen, die du **löschst oder umbenennst** — der Schlüssel einer Messreihe
+  ist der Name der Suche. Endgültig wegräumen kannst du sie über das 🗑 in ihrer Zeile.
 - Die Obergrenze steht in `market_basket_max_regions` (Standard 20, erlaubt 1…50) und
   ist reiner Lastschutz — je 50 Hotels ein API-Aufruf pro Tag (typisch 1–6 je Suche).
   Werden mehr Messreihen gefunden als erlaubt, nennt das Add-on-Log die weggelassenen;
@@ -859,6 +898,55 @@ Woche 3 % gefallen" — die Zahl, die bei der Buchungsentscheidung hilft.
   Preisbewegung missverstanden. Reißleine bei 1000 Hotels (dann steht eine Warnung
   im Log).
 - **Abschaltbar** über `market_basket_enabled`.
+
+### Booking-Kurve und Buchungszeitpunkt-Ampel
+
+Der Trend oben beantwortet „**was passiert gerade** mit den Preisen?". Die Ampel
+beantwortet die andere Frage: „**ist jetzt ein guter Zeitpunkt zu buchen?**" — zu
+finden als Spalte **Buchen?** im Preisbarometer-Fenster, als kleines Ampel-Icon auf
+jeder Angebotskachel und in den Attributen des Markttrend-Sensors.
+
+Möglich wird das dadurch, dass jede Tagesbewegung zusätzlich ihre **Vorlaufzeit**
+mitschreibt (Tage bis Abreise, aus dem Abreisedatum der verglichenen Hotels). Sortiert
+man alle Tagesbewegungen **aller** Messreihen nach Vorlauf statt nach Kalendertag,
+entsteht die typische Preiskurve des Marktes.
+
+- **Booking-Kurve** (Fenster: ab 181 / 180–121 / 120–91 / 90–61 / 60–31 / 30–8 /
+  unter 8 Tage). Je Fenster der **Median der Tagesraten**: `pct_median / gap_days`,
+  also Prozent **pro Tag**. Ohne diese Normierung zählte eine Bewegung über eine
+  4-Tage-Lücke (Add-on war aus) wie ein echter Tagesschritt. Angezeigt wird zusätzlich,
+  was das über das ganze Fenster ergibt: `((1 + r/100)^Breite − 1) · 100`.
+- **Gepoolt über alle Messreihen.** Prozentwerte sind dimensionslos — eine 900-€-Woche
+  Mallorca und eine 3000-€-Fernreise sind in „% pro Tag" direkt vergleichbar. Nötig ist
+  das Poolen auch: eine einzelne Messreihe durchläuft die Kurve nur ein einziges Mal.
+- **Nichts wird erfunden.** Ein Fenster braucht mindestens 8 Messpunkte, sonst steht
+  dort „noch keine Daten". Fenster aus nur einer Messreihe werden als **⚠ dünn**
+  markiert statt stillschweigend als Marktaussage verkauft.
+- **Erwartete Restbewegung bis zur Abreise:** die verbleibenden Tage werden auf die
+  Fenster verteilt und deren Tagesraten verkettet — `E = (Π (1 + r_b/100)^{d_b} − 1)
+  · 100`. Positiv heißt „Preise steigen voraussichtlich noch" → eher jetzt buchen.
+  Deckt die Kurve weniger als die Hälfte der Resttage ab, gibt es keine Aussage.
+- **Position im eigenen Verlauf:** der Perzentilrang läuft auf dem **verketteten
+  Index** (`100 · Π(1 + Tagesbewegung)`), nicht auf rohen Medianpreisen. Rohe Preise
+  würden wieder die wechselnde Hotelauswahl messen — genau der Fehler, den die Matched
+  Pairs oben vermeiden. 0 = so günstig wie noch nie beobachtet, 100 = Höchststand.
+  Braucht mindestens 7 aufgezeichnete Tage.
+- **Ampel** aus drei Komponenten, deterministisch und ohne KI:
+  `S = (0,25·Trend + 0,35·Position + 0,40·Restbewegung) / Σ verfügbarer Gewichte`,
+  jede Komponente auf −1…+1 begrenzt. `S ≥ +0,35` → 🟢 guter Zeitpunkt,
+  `S ≤ −0,35` → 🔴 eher warten, sonst 🟡. Fehlende Komponenten fallen heraus und die
+  übrigen Gewichte werden renormiert; bleibt weniger als die Hälfte übrig, gibt es
+  bewusst gar keine Ampel. Mit der Maus über die Ampel stehen alle Rohwerte.
+- **Unter 14 Tagen Vorlauf nie 🔴** — es gibt nichts mehr zu warten, und das Risiko ist
+  dort einseitig (ausgebucht statt teurer).
+- **Preisniveau:** je Messreihe und Tag werden zusätzlich P25/Median/P75 in Euro
+  abgelegt. Rein informativ („was kostet dieser Markt gerade") und bewusst **nicht**
+  die Trendbasis; überlebt anders als die Roh-Snapshots die 120-Tage-Grenze.
+- **Bestandsdaten** werden beim ersten Start einmalig nachgerechnet: Vorlaufzeit und
+  Preisniveaus entstehen rückwirkend aus den noch vorhandenen Snapshots. Tage, deren
+  Snapshots schon verworfen sind, bleiben ohne Vorlauf und fallen aus der Kurve.
+- **Abschaltbar** über `booking_window_enabled`; braucht das Preisbarometer.
+- Eigener Endpunkt: `GET /api/booking-window` (Kurve + Ampel je Messreihe).
 
 ## KI-Buchungsscore ("Orakel")
 
@@ -967,6 +1055,8 @@ landen dauerhaft im **KI-Verlauf**.
 - **Pausieren / Fortsetzen** — setzt die automatische Prüfung für ein Angebot aus, ohne es zu löschen.
 - **Zurücksetzen** — löscht den Preisverlauf (und Vergleichs-/Kalender-Cache samt Kalender-Trend-Historie) und beginnt nach einer frischen Abfrage wieder bei „null". Angebot, Name und Wunschpreis bleiben.
 - **Archivieren / Reaktivieren** — legt ein Angebot ins Archiv (keine Live-Abfragen mehr) bzw. holt es zurück. Reisen werden **automatisch archiviert**, sobald ihr Rückreisedatum vergangen ist; manuell z. B. wenn ein Angebot ausgebucht/nicht mehr verfügbar ist. Der Schalter **„Archiv"** oben zeigt **nur** die archivierten Angebote (wie „Preisverlauf" für die Verlaufs-Hotels; beide Schalter schließen sich gegenseitig aus). Bei Prüfungen, Übersicht und E-Mail-Versand bleiben archivierte Angebote außen vor.
+  **Ausnahme Preiskalender:** der läuft weiter (`calendar_archived_refresh`, Standard an) - alle 3 Tage statt täglich und immer erst, nachdem die aktiven Angebote dran waren. Grund: der Preis der abgelaufenen Reise ist zwar tot, der Kalender beschreibt aber Hotel, Zimmer, Verpflegung und Dauer und schaut immer **ab heute** nach vorn (das alte Reisedatum der URL geht in die Abfrage gar nicht ein). So wächst der Preisverlauf desselben Hotels über Jahre weiter, statt mit dem Archivieren abzureißen. Archivierte Karten haben dafür einen eigenen **Kalender**-Knopf.
+  Fällt ein Hotel aus dem TUI-Inventar, schlägt der Abruf dauerhaft fehl - nach **5 Fehlschlägen in Folge** pausiert der Kalender dieses Angebots von selbst (sichtbar im Kalender-Fenster, Knopf „Wieder aktivieren“; ein erfolgreicher Abruf setzt den Zähler ohnehin zurück). Ein einzelner Ausfall pausiert also nichts.
 
 Bei mehreren Reisenden wird zusätzlich zum **Preis pro Person** der **Gesamtpreis**
 angezeigt. TUIWatch ist außerdem als **PWA installierbar** (Manifest + Service Worker;

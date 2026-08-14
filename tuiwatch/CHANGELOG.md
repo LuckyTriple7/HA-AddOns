@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.94.2] - 2026-08-14
+## [0.98.1] - 2026-08-14
 
 ### Added
 - **Regionen vergleichen**: neuer 📊-Button im Header neben Frage/Klimatabellen/
@@ -11,6 +11,123 @@
   Vergleichstabelle — analog zum bestehenden Hotel-Vergleich, neue Route
   `POST /api/ai/region-compare`, im KI-Verlauf als „📊 Regionen-Vergleich"
   gespeichert (`kind='region_compare'`), inkl. Wiederholen/Follow-up-Fragen.
+
+## [0.98.0] - 2026-08-13
+
+### Fixed
+- **Abgelaufene Messreihen zeigten bis zu 14 Tage lang weiter eine
+  Buchungszeitpunkt-Ampel** — im Zweifel ein 🟢 „guter Buchungszeitpunkt" an einer
+  Reise, die niemand mehr buchen kann. Ursache: nach dem Ablauf lief zwar die
+  Datensammlung sofort aus (`_expired`), Trend (Gewicht 0,25) und Position (0,35)
+  ergaben zusammen aber 0,60 und damit mehr als das Mindestgewicht von 0,5. Erst
+  wenn der Trend nach 14 Tagen aus seinem Fenster fiel, verschwand die Ampel.
+  Jetzt erlischt sie sofort, sobald die Messreihe keine laufende Quelle mehr hat.
+
+### Added
+- **Abgeschlossene Messreihen sind als solche gekennzeichnet.** Bisher blieb so eine
+  Zeile mit leerem Zeitraum und „→ keine Daten" in der Barometer-Tabelle stehen, ohne
+  dass irgendwo stand, warum. Sie zeigt jetzt „📁 abgeschlossen · zuletzt TT.MM.JJJJ"
+  und ist leicht abgedimmt. Betrifft auch gespeicherte Suchen, die **gelöscht oder
+  umbenannt** wurden — der Schlüssel einer Messreihe ist der Name der Suche, ihre
+  Daten blieben sonst unerklärt liegen.
+- Index und Beitrag zur **Booking-Kurve bleiben erhalten**: abgelaufene Reisen sind
+  genau die, die ein Vorlauf-Fenster komplett durchlaufen haben, und damit für die
+  Kurve besonders wertvoll. Wegräumen geht weiter über das 🗑 je Zeile.
+- Neu `_active_keys()`: ermittelt die Messreihen mit lebender Quelle **ohne
+  Netzzugriff** (gespeicherte Suchen aus der DB, Angebots-Messreihen über den
+  `meta`-Cache). Nötig, weil die Prüfung über `_signal_map` am 5-Sekunden-Poll der
+  Angebotsliste hängt, wo `_basket_targets()` Breadcrumb-Abrufe auslösen würde. Ein
+  Test sichert ab, dass beide Wege denselben Schlüssel bilden.
+
+## [0.97.0] - 2026-08-13
+
+### Added
+- **Preiskalender läuft bei archivierten Angeboten weiter**
+  (`calendar_archived_refresh`, Standard an). Der Preis der abgelaufenen Reise wird
+  weiterhin zu Recht nicht mehr abgefragt — der Kalender beschreibt aber Hotel,
+  Zimmer, Verpflegung und Dauer und schaut ohnehin immer **ab heute** nach vorn
+  (`fetch_calendar` setzt sein Suchfenster selbst, das alte Reisedatum der URL geht
+  in die Abfrage gar nicht ein). Damit wächst der Preisverlauf desselben Hotels über
+  Jahre weiter, statt mit dem Archivieren abzureißen — die Grundlage für Monatstrend
+  und Langzeitkurve.
+- Archivierte laufen **alle 3 Tage** statt täglich und werden in einer **eigenen
+  Abfrage nach** den aktiven geholt: sie sammeln sich über die Jahre an und würden
+  bei einem gemeinsamen `LIMIT 10` sonst irgendwann die aktiven Angebote verdrängen.
+- **Automatische Kalender-Pause nach 5 Fehlschlägen in Folge** (neu
+  `offers.calendar_fails`/`calendar_paused`): fällt ein Hotel aus dem TUI-Inventar,
+  läuft der Abruf sonst täglich ins Leere. Gezählt wird nur in Folge — ein einziger
+  erfolgreicher Abruf setzt zurück, eine vorübergehende API-Störung pausiert also
+  nichts. Sichtbar im Kalender-Fenster samt Knopf „Wieder aktivieren"
+  (`POST /api/calendar/<id>/resume`); auch „Neu abfragen" hebt die Pause auf, sobald
+  ein Abruf gelingt.
+- Archivierte Angebotskarten haben dafür jetzt einen eigenen **„Kalender"**-Knopf —
+  ohne ihn wäre der Langzeitverlauf gar nicht aufrufbar gewesen. Bei pausiertem
+  Kalender ist er gedimmt.
+
+## [0.96.0] - 2026-08-13
+
+### Added
+- **Monatstrend im Preiskalender**: Der Kalender holt ohnehin 400–700 Reisetage über
+  ~18 Monate ab, ausgewertet wurde bisher aber nur der aktuelle Stand. Neu ist je
+  **Reisemonat** die Bewegung über die Zeit — Trend über 14 Tage und Index seit
+  Aufzeichnungsbeginn, in einer aufklappbaren **Monatsübersicht** im Kalender-Fenster
+  neben dem Ø-Preis, der Preisspanne und der Zahl der Termine.
+- Gerechnet wird ein **wertgewichteter Monatsindex**, nicht der Median wie beim
+  Preisbarometer: `(Σ p_neu − Σ p_alt) / Σ p_alt · 100` über alle Reisetage des Monats,
+  die in beiden Snapshots einen Preis hatten. Das Zusammensetzungsproblem, das im
+  Barometer die Matched Pairs erzwingt, gibt es hier nicht — dieselbe Menge Reisetage,
+  dasselbe Hotel, dasselbe Zimmer.
+- **Der entscheidende Punkt steckt im Nenner:** `calendar_history` ist delta-codiert
+  (eine Zeile nur bei Änderung). Ein Reisetag ohne Zeile ist ein *unveränderter*, kein
+  unbeobachteter Tag. Er zählt deshalb mit seinem Preis in den Nenner und mit 0 in den
+  Zähler. Wertete man nur die Änderungszeilen aus, bestünde die Kette ausschließlich
+  aus Tagen mit Bewegung und der Index liefe massiv davon: ein Tag von zehn mit +100 €
+  sind ~1 % Monatsbewegung, nicht 10 %.
+- Weitere Absicherungen: Einzelsprünge über 60 % fliegen als Artefakt raus
+  (Zimmerkategorie/Verfügbarkeit, kein Preissignal); neu ins Fenster gerutschte und
+  herausgefallene Reisetage zählen nicht (sonst misst man die Fensterwanderung);
+  Reisetage in der Vergangenheit ebenfalls nicht. Zwei Abrufe am selben Tag werden
+  **innerhalb** des Tages verkettet statt überschrieben. Die „seit X Tagen"-Angabe
+  zählt hier ruhige Tage mit — im Kalender ist 0 % der Normalfall, mit der strengen
+  Zählweise des Barometers stünde dort fast immer „seit 1 Tag".
+- Neue Tabelle `calendar_month_moves` (eine Zeile je Angebot, Beobachtungstag und
+  Reisemonat) und `GET /api/calendar/<id>/months`. Bestandsdaten werden beim ersten
+  Start einmalig aus `calendar_history` per Carry-Forward nachgerechnet — der Trend
+  startet also nicht bei null. 15 neue Tests in `test_calendar_month_trend.py`.
+
+## [0.95.0] - 2026-08-13
+
+### Added
+- **Booking-Kurve und Buchungszeitpunkt-Ampel** (`booking_window_enabled`, Standard
+  an): Das Preisbarometer beantwortete bisher nur „was passiert gerade mit den
+  Preisen?". Jede Tagesbewegung schreibt jetzt zusätzlich ihre **Vorlaufzeit** mit
+  (`basket_moves.days_to_dep`, Median über die verglichenen Hotels). Sortiert man alle
+  Tagesbewegungen aller Messreihen nach Vorlauf statt nach Kalendertag, entsteht die
+  typische Preiskurve des Marktes — sieben Fenster von „ab 181 Tage" bis „unter 8
+  Tage", je Fenster der Median der Tagesraten (`pct_median / gap_days`, also Prozent
+  **pro Tag**; ohne diese Normierung zählte eine Bewegung über eine 4-Tage-Lücke wie
+  ein echter Tagesschritt). Gepoolt wird global über alle Messreihen — Prozentwerte
+  sind dimensionslos, und eine einzelne Messreihe durchläuft die Kurve nur einmal.
+  Fenster unter 8 Messpunkten bleiben leer, Fenster aus einer einzigen Messreihe
+  werden als „⚠ dünn" markiert.
+- Daraus die **Ampel** je Messreihe (🟢 buchen / 🟡 neutral / 🔴 warten), deterministisch
+  ohne KI: `S = (0,25·Trend + 0,35·Position + 0,40·Restbewegung) / Σ verfügbarer
+  Gewichte`. Die **erwartete Restbewegung** verkettet die Kurvenraten über die
+  verbleibenden Tage bis zur Abreise (positiv = Preise steigen noch, also jetzt
+  buchen); die **Position** ist der Perzentilrang auf dem verketteten Index, nicht auf
+  rohen Medianpreisen — rohe Preise würden wieder die wechselnde Hotelauswahl messen.
+  Fehlende Komponenten fallen heraus und renormieren die Gewichte; bleibt weniger als
+  die Hälfte übrig, gibt es bewusst keine Ampel. Unter 14 Tagen Vorlauf nie 🔴.
+- Sichtbar als Spalte **Buchen?** samt Kurventabelle im 🌡️-Fenster, als Ampel-Icon auf
+  jeder Angebotskachel (Tooltip zeigt alle Komponenten), in den Attributen von
+  `sensor.tuiwatch_markttrend` (`booking_ampel`, `booking_score`, `booking_curve`,
+  `booking_green`, …) und als Fakten im KI-Buchungsscore — dort ohne zusätzliche
+  API-Aufrufe, die KI muss die Saisonkurve nicht mehr selbst schätzen.
+- Neue Tabelle `basket_levels` (P25/Median/P75 je Messreihe und Tag): Euro-Kontext, der
+  anders als die Roh-Snapshots die 120-Tage-Grenze überlebt. Bestandsdaten werden beim
+  ersten Start einmalig nachgerechnet — Vorlaufzeit und Preisniveaus entstehen
+  rückwirkend aus den noch vorhandenen Snapshots.
+- Neuer Endpunkt `GET /api/booking-window`. 34 neue Tests in `test_booking_window.py`.
 
 ## [0.94.1] - 2026-08-13
 
