@@ -86,6 +86,15 @@
       /caveman-stats y /cavecrew junto con los tres subagentes cavecrew. Se
       puede activar o desactivar en cualquier momento; se resincroniza en cada
       inicio. Predeterminado: desactivado.
+  protect_internal_config:
+    name: Proteger directorios internos de HA
+    description: >-
+      Impide que Claude escriba en los directorios internos de Home Assistant
+      (.storage/, .cloud/, deps/, tts/ y la base de datos del recorder). Ahí
+      está todo lo creado desde la interfaz, además de los registros de
+      entidades y dispositivos; editados a mano, pueden impedir que Home
+      Assistant arranque. La lectura sigue permitida. Desactívalo solo si sabes
+      exactamente por qué necesitas escribir ahí. Predeterminado: activado.
 
 network:
   7681/tcp: Terminal Web (ttyd)

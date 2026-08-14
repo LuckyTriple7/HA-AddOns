@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.3.12] - 2026-08-14
+
+### Added
+- Neue Option `protect_internal_config` (Standard: aktiviert). Trägt Sperrregeln in die `settings.json` ein, mit denen Claude Code Schreibzugriffe auf `.storage/`, `.cloud/`, `deps/`, `tts/` und die Recorder-Datenbank selbst ablehnt — anders als die Hinweise in der CLAUDE.md wirkt das unabhängig davon, was gerade im Kontext steht. Lesen bleibt erlaubt, Fehlersuche in diesen Verzeichnissen funktioniert also weiter.
+
+  Wer dort bewusst eingreifen will, schaltet die Option ab; die Regeln werden bei jedem Start neu geschrieben, das Umschalten wirkt also sofort. Eigene Einträge unter `permissions.deny` bleiben in beide Richtungen erhalten, und eine von Hand kaputt editierte `settings.json` wird nicht angefasst, sondern nur als Warnung ins Log geschrieben.
+
+  Nicht abgedeckt: Umwege über die Shell — `Bash`-Aufrufe wie `sed -i` auf denselben Pfaden erfasst die Sperre nicht.
+
+
 ## [1.3.11] - 2026-08-14
 
 ### Added

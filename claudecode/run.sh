@@ -239,6 +239,7 @@ MODEL=$(jq -r --arg d claude-sonnet-5 '.model // $d' /data/options.json)
 EXPORT_MEMORY=$(jq -r '.export_memory // false' /data/options.json)
 EXPORT_MEMORY_INTERVAL=$(jq -r '.export_memory_interval // 60' /data/options.json)
 ENABLE_CAVEMAN=$(jq -r '.enable_caveman_skill // false' /data/options.json)
+PROTECT_INTERNAL=$(jq -r 'if .protect_internal_config == false then "false" else "true" end' /data/options.json)
 
 # Log configuration
 echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Configuration:"
@@ -257,6 +258,43 @@ echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] notify_on_update       : $NOTIFY_ON_
 echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] export_memory          : $EXPORT_MEMORY"
 echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] export_memory_interval : ${EXPORT_MEMORY_INTERVAL} min"
 echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] enable_caveman_skill   : $ENABLE_CAVEMAN"
+echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] protect_internal_config: $PROTECT_INTERNAL"
+
+# Write protection for Home Assistant's internal state. The CLAUDE.md rules ask
+# Claude not to touch these paths; these deny rules make Claude Code refuse the
+# write itself, which also holds when the guidance gets ignored or compressed out
+# of context. Rewritten on every start so toggling the option takes effect at once.
+# Only the add-on's own entries are added or removed — user entries stay.
+SETTINGS_FILE="$PERSIST_DIR/settings.json"
+PROTECT_RULES='[
+  "Edit(/homeassistant/.storage/**)",
+  "Write(/homeassistant/.storage/**)",
+  "Edit(/homeassistant/.cloud/**)",
+  "Write(/homeassistant/.cloud/**)",
+  "Edit(/homeassistant/deps/**)",
+  "Write(/homeassistant/deps/**)",
+  "Edit(/homeassistant/tts/**)",
+  "Write(/homeassistant/tts/**)",
+  "Edit(/homeassistant/home-assistant_v2.db)",
+  "Write(/homeassistant/home-assistant_v2.db)"
+]'
+[ -f "$SETTINGS_FILE" ] || echo '{}' > "$SETTINGS_FILE"
+if ! jq -e . "$SETTINGS_FILE" > /dev/null 2>&1; then
+    # Hand-edited into invalid JSON — rewriting it would destroy whatever is in there
+    echo "[WARN] [$(date '+%Y-%m-%d %H:%M:%S')] $SETTINGS_FILE is not valid JSON — leaving it alone, write protection not applied"
+elif [ "$PROTECT_INTERNAL" = "true" ]; then
+    jq --argjson rules "$PROTECT_RULES" \
+       '.permissions.deny = ((.permissions.deny // []) + ($rules - (.permissions.deny // [])))' \
+       "$SETTINGS_FILE" > /tmp/settings.tmp && mv /tmp/settings.tmp "$SETTINGS_FILE"
+    echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Write protection active — .storage/, .cloud/, deps/, tts/ and the recorder database are read-only for Claude"
+else
+    jq --argjson rules "$PROTECT_RULES" \
+       '.permissions.deny = ((.permissions.deny // []) - $rules)
+        | if (.permissions.deny | length) == 0 then del(.permissions.deny) else . end
+        | if (.permissions | length) == 0 then del(.permissions) else . end' \
+       "$SETTINGS_FILE" > /tmp/settings.tmp && mv /tmp/settings.tmp "$SETTINGS_FILE"
+    echo "[WARN] [$(date '+%Y-%m-%d %H:%M:%S')] Write protection disabled — Claude may write to Home Assistant's internal directories, including .storage/"
+fi
 
 # Caveman skills: opt-in, copied/removed on every start so toggling the option takes
 # effect immediately. Only the bundled names are touched — own skills/agents stay put.
