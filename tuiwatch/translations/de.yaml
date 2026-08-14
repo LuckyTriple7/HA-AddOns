@@ -11,6 +11,9 @@ configuration:
   poll_interval:
     name: Prüfintervall (Sekunden)
     description: "Pause zwischen zwei automatischen Preisprüfungen. Reisepreise ändern sich langsam — Standard 21600 (6 Stunden), Minimum 600 (10 Minuten). Bitte fair wählen, nicht im Minutentakt."
+  poll_gap:
+    name: Abstand zwischen Abrufen (Sekunden)
+    description: "Pause zwischen zwei aufeinanderfolgenden Hintergrund-Abrufen (Angebote und Suchabos werden nacheinander geprüft). Verhindert einen Abruf-Burst, wenn viele Angebote gleichzeitig fällig sind. Standard 10, dazu 0–5 Sekunden Zufall; 0 schaltet die Pause ab."
   market_trend_threshold:
     name: Schwelle für Markttrend (%)
     description: "Kumulierte Preisbewegung über 14 Tage, ab der der Markttrend als steigend/fallend statt stabil gilt. Standard 1.0 — kleinerer Wert reagiert empfindlicher auf kleine Bewegungen."
@@ -23,6 +26,9 @@ configuration:
   market_basket_max_regions:
     name: Maximale Messreihen
     description: "Obergrenze für die täglich abgefragten Messreihen (1…50), also für die Zahl der gespeicherten Suchen, die neu ausgeführt werden. Reiner Lastschutz: je 50 Hotels ein API-Aufruf pro Tag (typisch 1–6 je Suche). Werden mehr gefunden als erlaubt, nennt das Add-on-Log die weggelassenen. Standard 20."
+  booking_window_enabled:
+    name: Buchungszeitpunkt-Ampel
+    description: "Wertet die Tagesbewegungen des Preisbarometers zusätzlich nach Vorlaufzeit aus (Booking-Kurve) und leitet daraus eine Ampel ab: grün = guter Buchungszeitpunkt, rot = eher warten. Verrechnet den 14-Tage-Trend, die Lage im bisherigen Verlauf und die bis zur Abreise erwartete Preisbewegung. Braucht das Preisbarometer und einige Wochen Daten. Standard an."
   trippilot_home_location:
     name: TripPilot Heimatort (PLZ/Ort)
     description: "Vorbelegung für die TripPilot-Frage 'Von wo geht's los?' (bei Anreise mit Auto/Bus/Bahn oder Tagesausflug). Leer lassen, wenn nicht gewünscht — im Fragebogen jederzeit änderbar."
@@ -53,6 +59,9 @@ configuration:
   calendar_daily_refresh:
     name: Täglicher Kalender-Refresh
     description: "Hält den Preiskalender aktiver Angebote 1×/Tag aktuell (macht Trend-Ansicht und Buchungsscore-Signal aussagekräftiger). Standard an."
+  calendar_archived_refresh:
+    name: Kalender bei archivierten Angeboten weiterführen
+    description: "Ruft den Preiskalender auch für archivierte (abgelaufene) Angebote weiter ab — alle 3 Tage statt täglich, und immer erst nachdem die aktiven Angebote dran waren. Der Preis des abgelaufenen Angebots wird weiterhin NICHT geprüft; der Kalender beschreibt aber Hotel, Zimmer, Verpflegung und Dauer und schaut immer ab heute nach vorn. So wächst über Jahre ein Preisverlauf für dasselbe Hotel weiter. Fällt ein Hotel aus dem TUI-Inventar, pausiert der Kalender nach 5 Fehlschlägen in Folge von selbst. Standard an."
   notify_errors:
     name: Ausverkauft-/Fehler-Alarm
     description: "Benachrichtigen, wenn ein Angebot mehrmals hintereinander kein Ergebnis liefert (Kontingent ausgebucht oder URL veraltet). Standard an."
@@ -158,6 +167,15 @@ configuration:
   enable_check24_compare:
     name: Check24-Preisvergleich (Beta)
     description: "Erlaubt, ein Angebot mit einem manuell verknüpften Check24-Hotel zu vergleichen (andere Reiseveranstalter, gleiche Reisedaten). Nutzt Headless-Chromium gegen Check24 (kein offenes API), daher fragiler als der TUI-Abruf und ein zusätzliches externes ToS-Risiko. Standard aus — bewusst opt-in."
+  enable_str_flights:
+    name: Flugplan ab Stuttgart Airport (STR)
+    description: "Schaltet den ✈️-Knopf in der Kopfzeile frei: eigenständige Suche nach Linienflug-Verbindungen ab/nach STR (Fluggesellschaft, Wochentage, Zeiten, Saisonzeitraum) über Zielflughafen oder Land. Nutzt das offene JSON-API des Flughafen-Betreibers, unabhängig von TUI-/Check24-Angeboten. Standard aus."
+  enable_fra_flights:
+    name: Flugplan ab Frankfurt Airport (FRA)
+    description: "Ergänzt den ✈️-Knopf um den Flugplan ab/nach Frankfurt. Anders als beim Stuttgarter Flugplan liefert Frankfurt Einzelflüge je Datum (statt Saisonstrecken mit Wochentagen) — dafür mit Terminal, Halle, Gate, Check-in-Schaltern, Flugzeugtyp und Codeshare-Nummern. Sind beide Flughäfen aktiv, fragt der ✈️-Knopf zuerst nach dem Flughafen. Nutzt das offene JSON der Flughafen-Website, unabhängig von TUI-/Check24-Angeboten. Standard aus."
+  enable_muc_flights:
+    name: Flugplan ab München Airport (MUC)
+    description: "Ergänzt den ✈️-Knopf um den Flugplan ab/nach München. München bietet kein Flugplan-API — die Daten stammen aus dem offiziellen Saison-Flugplan-PDF des Flughafens (rund 3.300 Verbindungen mit Wochentagen, Zeiten, Terminal und Gültigkeitszeitraum, wie beim Stuttgarter Plan). Das PDF wird täglich neu erzeugt; das Add-on prüft alle drei Stunden, ob eine neue Fassung hängt, und liest sie nur dann neu ein. Achtung: Das PDF deckt immer nur die laufende Saison ab (Sommer bzw. Winter), nicht 12 Monate im Voraus. Standard aus."
   enable_public_share:
     name: Öffentliche Angebots-Links
     description: "Schaltet Links frei, mit denen sich ausgewählte Angebote ohne Login anschauen lassen (wie die Angebotsseite eines Reisebüros) — inklusive gespeicherter Klimatabelle, Reiseführer und Reiseberater-Ergebnis. Die Seite läuft auf einem eigenen Port (siehe „Port für öffentliche Links“), zeigt nur einen beim Erzeugen eingefrorenen Stand und erlaubt keinerlei Abfragen. Nur diesen zweiten Port im Reverse-Proxy nach außen geben, niemals 17794. Standard aus."

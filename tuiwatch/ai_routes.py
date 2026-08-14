@@ -13,6 +13,7 @@ from datetime import date, datetime, timedelta
 from flask import Blueprint, jsonify, request
 
 import app as A
+import trippilot_questions as TQ
 
 bp = Blueprint('ai_routes', __name__)
 
@@ -108,8 +109,8 @@ _DEFAULT_ADVISOR_INSTRUCTIONS = (
     "keine Unterkünfte mit auffallend vielen schlechten Bewertungen, auch nicht in "
     "der Budget-Kategorie. Weise darauf hin, dass Verfügbarkeit/Preis/Buchbarkeit "
     "der Nutzer selbst live prüfen muss (die Websuche liefert nur einen "
-    "Anhaltspunkt) — bei „Pauschalreise (TUI)“ zusätzlich, dass die genaue "
-    "Hotelverfügbarkeit separat im TUI-Katalog zu prüfen ist. Ergänze danach einen "
+    "Anhaltspunkt) — bei „Pauschalreise“ zusätzlich, dass die genaue "
+    "Hotelverfügbarkeit separat beim Veranstalter zu prüfen ist. Ergänze danach einen "
     "Abschnitt „#### 🔀 Alternative“ mit einem Ziel, das vom genannten Profil bewusst "
     "etwas abweicht (z. B. eine weniger bekannte Nachbarregion), aber ähnlich gut "
     "passen könnte. Ergänze außerdem einen Abschnitt „#### 🎲 Überraschung“ mit einem "
@@ -164,7 +165,17 @@ _DEFAULT_SUMMARY_INSTRUCTIONS = (
     "prüfen“."
 )
 
-_DAYTRIP_REGION_VALUE = 'Tagesausflug in der Nähe'
+_DAYTRIP_REGION_VALUE = 'Tagesausflug in der Nähe'  # Fallback, wenn die JSON keinen nennt
+
+
+def _daytrip_value() -> str:
+    """Antwortwert, der den Tagesausflug-Modus auslöst — aus dem Fragebogen, damit
+    ein umbenannter Wert in der JSON auch hier greift."""
+    return TQ.daytrip_value() or _DAYTRIP_REGION_VALUE
+
+
+def _is_daytrip(p: dict) -> bool:
+    return _daytrip_value() in _region_values(p)
 
 
 def _region_values(p: dict) -> list:
@@ -753,11 +764,45 @@ def _offer_booking_facts(con, offer_id: int) -> dict | None:
         'region_trend': A._market_trend(con, region=region) if region else None,
         'region_index': A._market_index(con, region=region) if region else None,
         'seasonal': seasonal,
+        # Booking-Kurve des Preisbarometers: wie sich Preise über die Vorlaufzeit
+        # bewegen, plus die daraus hochgerechnete Restbewegung bis zur Abreise. Als
+        # fertige Zahl im Prompt, damit die KI nicht selbst eine Saisonkurve schätzt —
+        # dieselbe Linie wie bei allen anderen Fakten hier.
+        'booking_window': _booking_window_facts(con, o),
         # Größte Kalender-Bewegungen (calendar_history) wie bei der KI-Kalenderanalyse:
         # breite Anstiege über viele Reisetermine = Warten riskant, breite Rückgänge =
         # Warten kann sich lohnen — direktes Signal für "jetzt buchen oder warten?".
         'calendar_moves': A._calendar_top_moves(A._calendar_moves(con, offer_id), limit=8),
     }
+
+
+def _booking_window_facts(con, o) -> dict | None:
+    """Booking-Kurve und Ampel der Messreihe, zu der dieses Angebot gehört.
+
+    Zieht bewusst nur schon Berechnetes aus `market_basket` — kein zusätzlicher
+    Netzabruf, keine zweite Rechnung. None, wenn das Preisbarometer für dieses
+    Reiseziel noch keine belastbare Kurve hat."""
+    import market_basket as MB
+    if not MB._booking_enabled():
+        return None
+    try:
+        key = MB.basket_key_for_offer(con, o['url'], o['region'], o['return_date'])
+        if not key:
+            return None
+        sig = MB.booking_signal(con, key)
+    except Exception as e:
+        A.log.debug("Booking-Kurve für Angebot %s nicht ermittelbar: %s", o['id'], e)
+        return None
+    if not sig or not sig.get('ampel'):
+        return None
+    curve = [{'window': b['label'], 'pct': b['pct']}
+             for b in MB.booking_curve(con) if b['rate'] is not None]
+    comps = sig.get('components') or {}
+    return {'basket': key, 'ampel': sig['ampel'], 'score': sig['score'],
+            'days_to_dep': sig['days_to_dep'], 'curve': curve,
+            'expected_pct': (comps.get('expected') or {}).get('pct'),
+            'rank': (comps.get('position') or {}).get('rank'),
+            'rank_days': (comps.get('position') or {}).get('n')}
 
 
 def _calendar_outlook_facts(con, offer_id: int) -> dict | None:
@@ -914,6 +959,30 @@ def _booking_score_prompt(facts: dict) -> str:
             arrow = "gestiegen" if m['delta'] > 0 else "gefallen"
             lines.append(f"- Abreise {m['date']}: {m['prev_price']} € -> {m['price']} € "
                          f"({arrow} um {abs(m['delta'])} €)")
+    bw = facts.get('booking_window')
+    if bw:
+        ampel_de = {'green': 'günstiger Zeitpunkt', 'yellow': 'neutral',
+                    'red': 'eher warten'}
+        lines.append(
+            f"Booking-Kurve des Preisbarometers für die Messreihe „{bw['basket']}“ "
+            f"(aus täglich neu ausgeführten Suchen, gemessen über die Vorlaufzeit): "
+            f"Ampel {ampel_de.get(bw['ampel'], bw['ampel'])} (Score {bw['score']:+.2f} "
+            f"auf einer Skala von -1 bis +1), noch {bw['days_to_dep']} Tage bis Abreise.")
+        if bw.get('expected_pct') is not None:
+            lines.append(
+                f"Aus dieser Kurve hochgerechnete Preisbewegung von heute bis zur "
+                f"Abreise: {bw['expected_pct']:+.1f} % (positiv = Preise steigen "
+                f"voraussichtlich noch, also eher jetzt buchen).")
+        if bw.get('rank') is not None:
+            lines.append(
+                f"Der heutige Marktpreis liegt im Perzentil {bw['rank']:.0f} des bisher "
+                f"beobachteten Verlaufs dieser Messreihe ({bw['rank_days']} Tage; "
+                f"0 = so günstig wie noch nie, 100 = Höchststand).")
+        if bw.get('curve'):
+            lines.append("Typische Marktbewegung je Vorlauf-Fenster (Prozent über das "
+                          "gesamte Fenster, gepoolt über alle Messreihen):")
+            for b in bw['curve']:
+                lines.append(f"- {b['window']} vor Abreise: {b['pct']:+.1f} %")
     return ("Du bist ein Reisepreis-Analyst. Bewerte den aktuellen Preis dieser "
             "Pauschalreise und berechne einen Buchungsscore.\n\n" + "\n".join(lines)
             + "\n\n" + _BOOKING_SCORE_INSTRUCTIONS)
@@ -1899,35 +1968,20 @@ def api_ai_provider():
                     'perplexity_configured': 'perplexity' in configured})
 
 
-_ADVISOR_FIELDS = ('region', 'excluded_countries', 'excluded_countries_other', 'interests',
-                   'beach_detail', 'berge_detail', 'travel_type', 'companions', 'budget',
-                   'duration', 'duration_daytrip', 'month', 'temp', 'water_type', 'sea', 'rain',
-                   'activities', 'accommodation', 'accommodation_size', 'hotel_wishes',
-                   'arrival_mode', 'home_location', 'max_distance', 'flight_time', 'airports',
-                   'dislikes', 'perfect_holiday', 'past_trips', 'perfect_daytrip')
-_ADVISOR_LIST_FIELDS = {'interests', 'beach_detail', 'berge_detail', 'travel_type', 'activities',
-                        'hotel_wishes', 'airports', 'dislikes', 'excluded_countries', 'water_type',
-                        'region'}
-_ADVISOR_TEXT_FIELDS = {'perfect_holiday', 'past_trips', 'excluded_countries_other',
-                        'home_location', 'perfect_daytrip'}
-_ADVISOR_LABELS = {
-    'region': 'Ziel-Region', 'excluded_countries': 'Kommt nicht in Frage',
-    'excluded_countries_other': 'Weitere ausgeschlossene Länder',
-    'interests': 'Wichtig im Urlaub', 'beach_detail': 'Strand-Details',
-    'berge_detail': 'Berge-Details', 'travel_type': 'Reiseart',
-    'companions': 'Reist mit', 'budget': 'Budget pro Person', 'duration': 'Reisedauer',
-    'duration_daytrip': 'Verfügbare Zeit',
-    'month': 'Reisezeit', 'temp': 'Gewünschte Temperatur', 'water_type': 'Gewässer',
-    'sea': 'Wassertemperatur',
-    'rain': 'Niederschlag', 'activities': 'Gewünschte Aktivitäten',
-    'accommodation': 'Unterkunftsart', 'accommodation_size': 'Hotelgröße',
-    'hotel_wishes': 'Hotelwünsche', 'arrival_mode': 'Anreise',
-    'home_location': 'Startort eigene Anreise', 'max_distance': 'Max. Entfernung eigene Anreise',
-    'flight_time': 'Flugzeit', 'airports': 'Abflughafen',
-    'dislikes': 'Nervt im Urlaub', 'perfect_holiday': 'Perfekter Urlaub laut Nutzer (Freitext)',
-    'past_trips': 'Frühere Urlaubserfahrungen (Freitext)',
-    'perfect_daytrip': 'Perfekter Ausflug laut Nutzer (Freitext)',
-}
+# Felder/Labels/Typen kommen aus derselben JSON wie der Wizard im Frontend
+# (trippilot_questions) — sonst würde eine dort ergänzte Frage beim Absenden
+# still verworfen. Absichtlich Funktionen statt Modul-Konstanten: die Datei ist
+# zur Laufzeit editierbar, ein einmal gelesenes Tupel wäre sofort veraltet.
+# Reihenfolge der Fragen = Reihenfolge der Profilzeilen im Prompt.
+_advisor_fields = TQ.fields              # Mehrfachauswahl -> Liste (max. 15 x 40 Zeichen)
+_advisor_list_fields = TQ.list_fields    # Freitext        -> max. 500 Zeichen
+_advisor_text_fields = TQ.text_fields    # Einfachauswahl  -> max. 60 Zeichen
+_advisor_labels = TQ.labels
+
+_ADVISOR_VALUE_MAXLEN = 40
+_ADVISOR_LIST_MAXLEN = 15
+_ADVISOR_TEXT_MAXLEN = 500
+_ADVISOR_CHOICE_MAXLEN = 60
 
 
 def _advisor_prompt(p: dict, prev_dna: dict | None = None) -> str:
@@ -1936,25 +1990,26 @@ def _advisor_prompt(p: dict, prev_dna: dict | None = None) -> str:
     Abneigungen/Freitext) — freie KI-Empfehlung, nicht auf eigene Angebote
     beschränkt, mit Websuche für reale/aktuelle Klimadaten. `prev_dna` (optional)
     ist das aus früheren Anfragen gespeicherte Reise-DNA-Profil (Zusatzkontext).
-    Ist `region` == `_DAYTRIP_REGION_VALUE`, wird stattdessen ein Tagesausflug
-    ohne Übernachtung geplant (eigener Instruktionstext, keine TUI/Unterkunfts-
-    Klauseln, keine Reise-DNA)."""
-    is_daytrip = _DAYTRIP_REGION_VALUE in _region_values(p)
+    Ist `region` der Tagesausflug-Wert des Fragebogens, wird stattdessen ein
+    Tagesausflug ohne Übernachtung geplant (eigener Instruktionstext, keine
+    TUI/Unterkunfts-Klauseln, keine Reise-DNA)."""
+    is_daytrip = _is_daytrip(p)
+    labels = _advisor_labels()
     lines = ["Ein Nutzer sucht per Reiseberater-Fragebogen sein nächstes Urlaubsziel. "
              "Sein Profil:\n"]
-    for key in _ADVISOR_FIELDS:
+    for key in _advisor_fields():
         val = p.get(key)
         if isinstance(val, list):
             val = ", ".join(str(v).strip() for v in val if str(v).strip())
         if val:
-            lines.append(f"- {_ADVISOR_LABELS[key]}: {val}")
-    if not is_daytrip and 'Pauschalreise (TUI)' in (p.get('travel_type') or []):
+            lines.append(f"- {labels.get(key, key)}: {val}")
+    if not is_daytrip and _profile_has(p, 'travel_type',
+                                       _semantic('package_tour', _DEFAULT_PACKAGE_TOUR)):
         lines.append(
-            "\nWichtig: Der Nutzer will eine Pauschalreise (Flug + Hotel) über TUI "
-            "buchen. Empfehle ausschließlich Ziele/Regionen, die TUI tatsächlich im "
-            "Programm hat — prüfe das per Websuche (z. B. auf tui.com oder aktuellen "
-            "TUI-Katalogseiten für das Zielland). Kein Ziel vorschlagen, das TUI "
-            "nachweislich nicht anbietet."
+            "\nWichtig: Der Nutzer will eine Pauschalreise (Flug + Hotel) buchen. "
+            "Empfehle Ziele/Regionen, die gängige Veranstalter (z. B. TUI, DER "
+            "Touristik, FTI) im Programm haben — grob per Websuche plausibilisieren, "
+            "aber keine übertrieben strikte Einzelprüfung verlangen."
         )
     if not is_daytrip and (p.get('excluded_countries') or p.get('excluded_countries_other')):
         lines.append(
@@ -1962,7 +2017,8 @@ def _advisor_prompt(p: dict, prev_dna: dict | None = None) -> str:
             "„Kommt nicht in Frage“/„Weitere ausgeschlossene Länder“ genannten "
             "Ländern/Regionen vor — auch nicht als Alternative."
         )
-    if not is_daytrip and p.get('arrival_mode') in ('Auto', 'Bus', 'Bahn'):
+    if not is_daytrip and _profile_has(p, 'arrival_mode',
+                                       _semantic('self_arrival', _DEFAULT_SELF_ARRIVAL)):
         transport = p.get('arrival_mode')
         lines.append(
             "\nWichtig: Der Nutzer reist eigenständig mit "
@@ -1975,8 +2031,8 @@ def _advisor_prompt(p: dict, prev_dna: dict | None = None) -> str:
             "anderen Kontinent vorschlagen, sondern muss ebenfalls innerhalb "
             "der Fahrdistanz bleiben — wähle stattdessen ein Ziel in "
             "Reichweite, an das der Nutzer wahrscheinlich nicht selbst gedacht "
-            "hätte. Bei „Pauschalreise (TUI)“ gemeinsam mit eigener Anreise "
-            "weise darauf hin, dass viele TUI-Pauschalreisen einen Flug "
+            "hätte. Bei „Pauschalreise“ gemeinsam mit eigener Anreise "
+            "weise darauf hin, dass viele Pauschalreisen einen Flug "
             "beinhalten und das Angebot an reinen Fahr-Pauschalreisen "
             "eingeschränkter sein kann."
         )
@@ -2002,35 +2058,57 @@ def _advisor_prompt(p: dict, prev_dna: dict | None = None) -> str:
     return "\n".join(lines)
 
 
+# Welche Antwortwerte welche Bedeutung tragen, steht im `semantics`-Block der
+# Fragen-JSON — sonst wäre jede Umbenennung einer Option ein stiller Ausfall
+# (Reise-DNA auf Sockelwert, Prompt-Klauseln futsch). Diese Vorgaben greifen
+# nur, solange eine Datei ohne `semantics`-Block im Einsatz ist.
+_DEFAULT_PACKAGE_TOUR = ('Pauschalreise',)
+_DEFAULT_SELF_ARRIVAL = ('Auto', 'Bus', 'Bahn')
+_DEFAULT_DNA = {
+    '🌴 Strand': {'interests': ['🌴 Strand'],
+                 'hotel_wishes': ['direkte Strandlage', 'Sandstrand', 'Hausriff'],
+                 'sea': ['28°C+ (tropisch warm)', '24–27°C (angenehm warm)'],
+                 'beach_detail': ['Feinsandig', 'Weitläufig, kilometerlang', 'Direkt am Hotel']},
+    '🏛️ Kultur': {'interests': ['🏛️ Kultur'], 'activities': ['Museen', 'Fotografieren']},
+    '🎉 Nachtleben': {'interests': ['🎉 Nachtleben']},
+    '⛰️ Aktiv': {'interests': ['🚶 Wandern', '🚴 Radfahren', '⛰️ Berge'],
+                'activities': ['Wandern', 'Mountainbike', 'Skifahren', 'Surfen', 'Golf',
+                               'Reiten', 'Segeln', 'Klettern', 'Tennis', 'Kajak/SUP'],
+                'berge_detail': ['Anspruchsvolle Gipfeltouren', 'Skigebiet (Winter)']},
+    '🍹 Entspannung': {'interests': ['🍹 Entspannung'], 'hotel_wishes': ['Spa', 'Ruhe']},
+    '🍽️ Kulinarik': {'interests': ['🍽️ Essen'], 'activities': ['Kulinarik', 'Wein']},
+    '👨‍👩‍👧 Familie': {'interests': ['👨‍👩‍👧 Familie'], 'companions': ['Familie'],
+                    'hotel_wishes': ['Familienhotel', 'Kinderpool', 'Rutschen']},
+    '💰 Preisbewusst': {'budget': ['bis 500 €', '500–1000 €']},
+}
+
+
+def _semantic(name: str, default):
+    val = TQ.semantics().get(name)
+    return val if val else default
+
+
+def _profile_has(p: dict, key: str, vals) -> bool:
+    """Trifft einer der Werte auf die (Einzel- oder Mehrfach-)Antwort zu?"""
+    v = p.get(key)
+    if isinstance(v, list):
+        return any(x in v for x in vals)
+    return v in vals
+
+
 def _advisor_dna_scores(p: dict) -> dict:
     """Deterministisches Reise-DNA-Profil aus den Fragebogen-Antworten (kein
-    zusätzlicher KI-Call) — je Kategorie ein grober 0-100-Score aus passenden
-    Signalen über mehrere Fragen hinweg."""
-    def has(key, *vals):
-        v = p.get(key)
-        if isinstance(v, list):
-            return any(x in v for x in vals)
-        return v in vals
-
-    checks = {
-        '🌴 Strand': [has('interests', '🌴 Strand'),
-                     has('hotel_wishes', 'direkte Strandlage', 'Sandstrand', 'Hausriff'),
-                     has('sea', '28°C+ (tropisch warm)', '24–27°C (angenehm warm)'),
-                     has('beach_detail', 'Feinsandig', 'Weitläufig, kilometerlang', 'Direkt am Hotel')],
-        '🏛️ Kultur': [has('interests', '🏛️ Kultur'), has('activities', 'Museen', 'Fotografieren')],
-        '🎉 Nachtleben': [has('interests', '🎉 Nachtleben')],
-        '⛰️ Aktiv': [has('interests', '🚶 Wandern', '🚴 Radfahren', '⛰️ Berge'),
-                    has('activities', 'Wandern', 'Mountainbike', 'Skifahren', 'Surfen', 'Golf',
-                        'Reiten', 'Segeln', 'Klettern', 'Tennis', 'Kajak/SUP'),
-                    has('berge_detail', 'Anspruchsvolle Gipfeltouren', 'Skigebiet (Winter)')],
-        '🍹 Entspannung': [has('interests', '🍹 Entspannung'), has('hotel_wishes', 'Spa', 'Ruhe')],
-        '🍽️ Kulinarik': [has('interests', '🍽️ Essen'), has('activities', 'Kulinarik', 'Wein')],
-        '👨‍👩‍👧 Familie': [has('interests', '👨‍👩‍👧 Familie'), has('companions', 'Familie'),
-                        has('hotel_wishes', 'Familienhotel', 'Kinderpool', 'Rutschen')],
-        '💰 Preisbewusst': [has('budget', 'bis 500 €'), has('budget', '500–1000 €')],
-    }
-    return {label: min(100, 15 + 35 * sum(1 for s in signals if s))
-            for label, signals in checks.items()}
+    zusätzlicher KI-Call) — je Kategorie ein grober 0-100-Score. Jede Frage
+    liefert höchstens ein Signal, egal wie viele ihrer Werte passen."""
+    dna = _semantic('dna', None) or _DEFAULT_DNA
+    scores = {}
+    for label, groups in dna.items():
+        if not isinstance(groups, dict):
+            continue
+        hits = sum(1 for key, vals in groups.items()
+                   if isinstance(vals, list) and _profile_has(p, key, vals))
+        scores[label] = min(100, 15 + 35 * hits)
+    return scores
 
 
 def _advisor_dna_update(new_scores: dict) -> dict:
@@ -2056,6 +2134,57 @@ def _advisor_dna_table(scores: dict) -> str:
     return f"\n\n#### 🧬 Deine Reise-DNA\n| Kategorie | Ausprägung |\n|---|---|\n{rows}\n"
 
 
+@bp.route('/api/trippilot/questions')
+def api_trippilot_questions():
+    """Fragebogen für den TripPilot-Wizard. `source` sagt, ob die Nutzerdatei
+    unter /config/trippilot greift oder die Auslieferungsversion; `errors` sind
+    Probleme in einer fehlerhaften Nutzerdatei, damit die Oberfläche sie
+    anzeigen kann statt sie nur ins Log zu schreiben."""
+    if (err := A._require_api()):
+        return err
+    q = TQ.load()
+    return jsonify({'steps': q['steps'], 'daytrip_value': _daytrip_value(),
+                    'source': q['source'], 'errors': q['errors'],
+                    'path': TQ.QUESTIONS_PATH})
+
+
+@bp.route('/api/trippilot/editor', methods=['GET', 'POST'])
+def api_trippilot_editor():
+    """GUI-Editor für den Fragebogen (Rechtsklick auf den TripPilot-Knopf).
+
+    GET liefert das Dokument so, wie es in `questions.json` steht — bewusst
+    auch mit Validierungsfehlern, denn wer eine kaputte Datei reparieren will,
+    muss sie sehen; würde der Editor stattdessen die Auslieferungsversion
+    zeigen, ersetzte ein Speichern die eigenen Fragen unbemerkt. Dazu kommt der
+    Auslieferungsstand für den Zurücksetzen-Knopf.
+
+    POST validiert und schreibt nur bei null Fehlern: eine über die Oberfläche
+    erzeugte Datei kann den Wizard also nie auf die Notversion zurückwerfen."""
+    if (err := A._require_api()):
+        return err
+    if request.method == 'POST':
+        data = (request.get_json(silent=True) or {}).get('data')
+        if not isinstance(data, dict):
+            return jsonify({'errors': ['Es wurde kein JSON-Objekt übergeben']}), 400
+        if (errors := TQ.save(data)):
+            return jsonify({'errors': errors}), 400
+        return jsonify({'saved': True, 'errors': []})
+
+    raw = TQ.user_raw()
+    resp = {'bundled': TQ.bundled(), 'path': TQ.QUESTIONS_PATH}
+    if raw is None:
+        # Datei fehlt (dann ist das kein Fehler, sie wird beim Speichern
+        # angelegt) oder ist nicht mal gültiges JSON — dann kann nur der
+        # Auslieferungsstand als Startpunkt dienen, und das muss dranstehen.
+        resp.update({'data': resp['bundled'], 'source': 'bundled',
+                     'errors': (['questions.json ist kein gültiges JSON — angezeigt wird der '
+                                 'Auslieferungsstand. Speichern überschreibt die Datei.']
+                                if TQ.user_exists() else [])})
+    else:
+        resp.update({'data': raw, 'source': 'user', 'errors': TQ.validate(raw)})
+    return jsonify(resp)
+
+
 @bp.route('/api/ai/travel-advisor', methods=['POST'])
 def api_ai_travel_advisor():
     """KI-Reiseberater: aus einem kurzen Profil (Region, Interessen, Reiseart,
@@ -2071,16 +2200,18 @@ def api_ai_travel_advisor():
     if not isinstance(data, dict):
         return jsonify({'error': 'invalid'}), 400
     profile = {}
-    for key in _ADVISOR_FIELDS:
+    list_fields, text_fields = _advisor_list_fields(), _advisor_text_fields()
+    for key in _advisor_fields():
         val = data.get(key)
-        if key in _ADVISOR_LIST_FIELDS:
+        if key in list_fields:
             if isinstance(val, list):
-                profile[key] = [str(v).strip()[:40] for v in val if str(v).strip()][:15]
-        elif key in _ADVISOR_TEXT_FIELDS:
+                profile[key] = [str(v).strip()[:_ADVISOR_VALUE_MAXLEN]
+                                for v in val if str(v).strip()][:_ADVISOR_LIST_MAXLEN]
+        elif key in text_fields:
             if isinstance(val, str) and val.strip():
-                profile[key] = val.strip()[:500]
+                profile[key] = val.strip()[:_ADVISOR_TEXT_MAXLEN]
         elif isinstance(val, str) and val.strip():
-            profile[key] = val.strip()[:60]
+            profile[key] = val.strip()[:_ADVISOR_CHOICE_MAXLEN]
     if not any(profile.values()):
         return jsonify({'error': 'invalid'}), 400
 
@@ -2101,7 +2232,7 @@ def api_ai_travel_advisor():
     if err:
         return err
     dna = {}
-    if _DAYTRIP_REGION_VALUE not in _region_values(profile):
+    if not _is_daytrip(profile):
         dna = _advisor_dna_update(_advisor_dna_scores(profile))
         text += _advisor_dna_table(dna)
     usage['estimated_usd'] = _ai_call_cost(model, usage)

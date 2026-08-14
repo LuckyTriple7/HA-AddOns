@@ -68,7 +68,11 @@ Tagesausflug-Modus) — Claude schlägt danach 3 passende Reiseziele plus eine
 Alternative und eine Überraschung außerhalb der gewählten Region vor.
 Berechnet nebenbei ein persönliches Präferenzprofil („Reise-DNA"), ganz ohne
 Zusatzkosten. Prompts für TripPilot, Hotelvergleich und KI-Fazit lassen sich
-über **⚙ KI-Prompts** im Footer auch selbst anpassen.
+über **⚙ KI-Prompts** im Footer auch selbst anpassen. Die Fragen selbst sind
+frei editierbar — Fragetext, Reihenfolge, Antwortmöglichkeiten und wann eine
+Frage erscheint: **Rechtsklick auf „🗺️ TripPilot"** öffnet den Editor, wer
+lieber in der Datei arbeitet, nimmt `/config/trippilot/questions.json`. Ein
+Add-on-Update überschreibt die Datei nicht.
 Details: [DOCS.md](DOCS.md#-trippilot).
 
 ## Preiskalender
@@ -105,4 +109,4 @@ Saisonalität berechnet, mit klarer Kennzeichnung Daten vs. Annahme. Details:
   hilft die Neukalibrierung in [SCRAPING.md](SCRAPING.md).
 - Bitte ein faires Prüfintervall lassen (nicht im Minutentakt).
 - Tipp: Doppelklick auf das **TUIWatch**-Logo öffnet eine Konsole mit den
-  Hintergrund-Logs.
+  Hintergrund-Logs, Rechtsklick zeigt die nächsten Läufe der Hintergrund-Aufgaben.

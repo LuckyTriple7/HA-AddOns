@@ -369,6 +369,66 @@
     .lib-tag:hover { border-color: var(--accent); color: var(--text); }
     .lib-tag.active { border-color: var(--accent); color: var(--accent); }
     .lib-card[hidden] { display: none; }
+    /* Layout-Varianten der Bibliothek (Admin → Sammlung → Darstellung).
+       Alle Varianten teilen dasselbe Karten-Markup, nur die Klasse am Rail
+       entscheidet — so bleibt der Schlagwort-Filter für alle gleich. */
+    /* overlay: Titel liegt auf dem Bild, Karte gut halb so hoch */
+    .lib-lay-overlay .lib-card { flex-basis: 220px; position: relative; min-height: 150px; }
+    .lib-lay-overlay .lib-thumb { aspect-ratio: 3 / 2; }
+    .lib-lay-overlay .lib-body {
+      position: absolute; left: 0; right: 0; bottom: 0; padding: 28px 12px 10px; color: #fff;
+      background: linear-gradient(to top, rgba(0,0,0,.85) 40%, rgba(0,0,0,0));
+    }
+    .lib-lay-overlay .lib-cat { color: rgba(255,255,255,.8); }
+    .lib-lay-overlay .lib-sum { display: none; }
+    .lib-lay-overlay .lib-name { margin: 2px 0 0; font-size: .95rem; }
+    .lib-lay-overlay .lib-flags { margin-top: 6px; color: rgba(255,255,255,.85); }
+    .lib-lay-overlay .lib-flag { border-color: rgba(255,255,255,.45); }
+    /* mini: Karte quer, Bild links — Rail bleibt, Höhe sinkt auf ~110px */
+    .lib-lay-mini .lib-card { flex-basis: 300px; flex-direction: row; }
+    .lib-lay-mini .lib-thumb { flex: 0 0 92px; width: 92px; height: auto; aspect-ratio: auto; }
+    .lib-lay-mini .lib-body { padding: 10px 14px; min-width: 0; }
+    .lib-lay-mini .lib-cat { font-size: .72rem; }
+    .lib-lay-mini .lib-name { font-size: .95rem; margin: 2px 0 0; }
+    .lib-lay-mini .lib-sum { display: none; }
+    .lib-lay-mini .lib-flags { margin-top: 8px; }
+    /* list: kein Karussell, eine Zeile je Eintrag, alle auf einen Blick */
+    .lib-lay-list .lib-rail {
+      flex-direction: column; gap: 8px; overflow: visible;
+      scroll-snap-type: none; padding-bottom: 0;
+    }
+    .lib-lay-list .lib-arrow { display: none !important; }
+    .lib-lay-list .lib-card { flex: 0 0 auto; flex-direction: row; align-items: center; border-radius: 10px; }
+    .lib-lay-list .lib-card:hover { transform: none; }
+    .lib-lay-list .lib-thumb {
+      flex: 0 0 56px; width: 56px; height: 56px; aspect-ratio: 1;
+      border-radius: 8px; margin: 8px 0 8px 8px;
+    }
+    .lib-lay-list .lib-body {
+      flex: 1; min-width: 0; padding: 10px 14px;
+      display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px;
+    }
+    .lib-lay-list .lib-name { margin: 0; }
+    .lib-lay-list .lib-sum {
+      flex: 1 1 140px; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .lib-lay-list .lib-flags { margin: 0 0 0 auto; }
+    @media (max-width: 640px) { .lib-lay-list .lib-sum { display: none; } }
+    /* collapsed: eine Zeile, das Karussell steckt dahinter */
+    .lib-collapse {
+      background: var(--surf); border: 1px solid var(--border); border-radius: 12px;
+      padding: 0 18px; margin: 24px 0 20px; scroll-margin-top: 120px;
+    }
+    .lib-collapse > summary {
+      cursor: pointer; list-style: none; padding: 14px 0;
+      font-size: 1.05rem; font-weight: 700; display: flex; align-items: center; gap: 8px;
+    }
+    .lib-collapse > summary::-webkit-details-marker { display: none; }
+    .lib-collapse > summary::after { content: '▾'; margin-left: auto; color: var(--muted); transition: transform .15s; }
+    .lib-collapse[open] > summary::after { transform: rotate(180deg); }
+    .lib-count { color: var(--muted); font-weight: 400; font-size: .85rem; }
+    .lib-collapse-body { padding-bottom: 18px; }
+    .lib-collapse-body .lib-tagbar { margin-top: 0; }
     /* Reiseblog — dieselben Karten wie die Bibliothek, nur im Raster statt im
        Karussell: es sind wenige Reisen, die alle auf einen Blick passen sollen.
        `flex` aus `.lib-card` greift im Raster nicht, die Breite kommt von der Spalte. */
@@ -723,7 +783,17 @@
 
     {% elif _sec == 'library' %}
     {% if library_entries %}
+    {# Darstellung aus dem Admin: carousel | overlay | mini | list | collapsed.
+       Bis auf „collapsed" (Klapp-Zeile statt Überschrift) unterscheiden sich die
+       Varianten nur in der Klasse am Rail — das Markup der Karten bleibt gleich. #}
+    {% set _lay = library_layout|default('carousel') %}
+    {% if _lay == 'collapsed' %}
+    <details class="lib-collapse" id="library">
+      <summary>📚 {{ library_heading }} <span class="lib-count">({{ library_total }})</span></summary>
+      <div class="lib-collapse-body">
+    {% else %}
     <h2 class="section-title" id="library">{{ library_heading }}</h2>
+    {% endif %}
     {% if library_tags %}
     <div class="lib-tagbar" id="lib-tagbar">
       <button type="button" class="lib-tag active" data-tag="">{{ t.library_all }}</button>
@@ -732,12 +802,12 @@
       {% endfor %}
     </div>
     {% endif %}
-    <div class="lib-rail-wrap">
+    <div class="lib-rail-wrap lib-lay-{{ _lay }}">
       <button class="lib-arrow lib-prev" onclick="libRailScroll(-1)" aria-label="{{ t.aria_back }}">‹</button>
       <div class="lib-rail" id="lib-rail">
         {% for le in library_entries %}
         <a class="lib-card" href="/bibliothek/{{ le.slug }}" data-tags="{{ le.tags|map('lower')|join('|') }}">
-          {% if le.image %}<img class="lib-thumb" src="{{ le.image }}" alt="" loading="lazy">{% endif %}
+          {% if le.image %}<img class="lib-thumb" src="{{ le.image }}" alt="{{ alt_for(le.image) }}" loading="lazy">{% endif %}
           <div class="lib-body">
             {% if le.cat_name %}<div class="lib-cat">{% if le.cat_icon %}{{ le.cat_icon }} {% endif %}{{ le.cat_name }}</div>{% endif %}
             <div class="lib-name">{{ le.title }}</div>
@@ -755,6 +825,10 @@
     <div class="lib-more">
       <a href="/bibliothek" id="lib-more-link">{{ t.library_open }} →</a>
     </div>
+    {% if _lay == 'collapsed' %}
+      </div>
+    </details>
+    {% endif %}
     {% endif %}
 
     {% elif _sec == 'travel' %}
@@ -763,7 +837,7 @@
     <div class="trav-grid">
       {% for tr in travel_trips %}
       <a class="lib-card" href="/reiseblog/{{ tr.slug }}">
-        {% if tr.image %}<img class="lib-thumb" src="{{ tr.image }}" alt="" loading="lazy">{% endif %}
+        {% if tr.image %}<img class="lib-thumb" src="{{ tr.image }}" alt="{{ alt_for(tr.image) }}" loading="lazy">{% endif %}
         <div class="lib-body">
           {% if tr.destination %}<div class="lib-cat">📍 {{ tr.destination }}</div>{% endif %}
           <div class="lib-name">{{ tr.name }}</div>
@@ -835,8 +909,8 @@
       {% for p in projects %}
       <article class="row-item">
         {% if p.image %}
-          {% if p.has_detail %}<a href="/p/{{ p.id }}"><img class="row-img" src="{{ p.image }}" alt="{{ p.title }}" loading="lazy"></a>
-          {% else %}<img class="row-img" src="{{ p.image }}" alt="{{ p.title }}" loading="lazy">{% endif %}
+          {% if p.has_detail %}<a href="/p/{{ p.id }}"><img class="row-img" src="{{ p.image }}" alt="{{ alt_for(p.image, '', p.title) }}" loading="lazy"></a>
+          {% else %}<img class="row-img" src="{{ p.image }}" alt="{{ alt_for(p.image, '', p.title) }}" loading="lazy">{% endif %}
         {% endif %}
         <div class="card-body" style="padding:0">
           <div class="card-title">
@@ -861,8 +935,8 @@
       {% for p in projects %}
       <article class="card">
         {% if p.image %}
-          {% if p.has_detail %}<a href="/p/{{ p.id }}"><img class="card-img" src="{{ p.image }}" alt="{{ p.title }}" loading="lazy"></a>
-          {% else %}<img class="card-img" src="{{ p.image }}" alt="{{ p.title }}" loading="lazy">{% endif %}
+          {% if p.has_detail %}<a href="/p/{{ p.id }}"><img class="card-img" src="{{ p.image }}" alt="{{ alt_for(p.image, '', p.title) }}" loading="lazy"></a>
+          {% else %}<img class="card-img" src="{{ p.image }}" alt="{{ alt_for(p.image, '', p.title) }}" loading="lazy">{% endif %}
         {% endif %}
         <div class="card-body">
           <div class="card-title">
@@ -939,7 +1013,7 @@
         {% else %}
         <article class="album-card" onclick="openAlbum({{ loop.index0 }})">
           <div class="album-cover">
-            <img src="{{ a.images[0] }}" alt="{{ loc(a, 'title') }}" loading="lazy">
+            <img src="{{ a.images[0] }}" alt="{{ alt_for(a.images[0], '', loc(a, 'title')) }}" loading="lazy">
             <span class="album-count">{{ a.images|length }} 📷</span>
           </div>
           <div class="album-body">
@@ -1256,7 +1330,12 @@
     // Bibliothek-Karussell (gleiches Muster wie die Fotoalben, eigener Zustand)
     const libRail = document.getElementById('lib-rail');
     function libRailScroll(dir) {
-      if (libRail) libRail.scrollBy({ left: dir * 274, behavior: 'smooth' });
+      if (!libRail) return;
+      // Schrittweite aus der ersten Karte, weil die Kartenbreite je nach
+      // gewählter Darstellung (Karussell, Overlay, Mini) unterschiedlich ist.
+      const card = libRail.querySelector('.lib-card:not([hidden])');
+      const step = card ? card.getBoundingClientRect().width + 14 : 274;
+      libRail.scrollBy({ left: dir * step, behavior: 'smooth' });
     }
     function updateLibArrows() {
       if (!libRail) return;
@@ -1270,6 +1349,10 @@
       window.addEventListener('resize', updateLibArrows);
       window.addEventListener('load', updateLibArrows);
       updateLibArrows();
+      // In der Klapp-Variante steckt das Rail beim Laden in einem geschlossenen
+      // <details> und hat Breite 0 — die Pfeile erst beim Aufklappen berechnen.
+      const libDet = document.querySelector('.lib-collapse');
+      if (libDet) libDet.addEventListener('toggle', updateLibArrows);
     }
 
     // Schlagwort-Filter im Karussell — im Browser, ohne Neuladen der Startseite.

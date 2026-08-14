@@ -51,7 +51,7 @@ def test_advisor_prompt_keeps_safety_clauses_with_custom_instructions(app_mod):
     app_mod._meta_set("custom_prompt_advisor_enabled", "1")
     app_mod._meta_set("custom_prompt_advisor_text", "Nur diese eine Anweisung.")
     profile = {"region": "Europa", "excluded_countries": ["Türkei"],
-               "travel_type": ["Pauschalreise (TUI)"]}
+               "travel_type": ["Pauschalreise"]}
     prompt = app_mod._advisor_prompt(profile)
     assert "Ziel-Region: Europa" in prompt
     assert "Türkei" in prompt  # Länder-Ausschluss-Klausel weiterhin drin

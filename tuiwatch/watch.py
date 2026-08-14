@@ -4,6 +4,7 @@ ausgelagert aus app.py (Backlog #12, 2. Tranche). Geteilte Primitiven über
 auch intern über A. aufgerufen, damit Test-Patches auf dem app-Namespace greifen.
 """
 import json
+import secrets
 import time
 
 from flask import Blueprint, jsonify, request
@@ -168,11 +169,15 @@ def _maybe_check_watches() -> None:
             'SELECT id FROM saved_searches WHERE COALESCE(watch,0)=1 '
             'AND COALESCE(max_price,0)>0 AND COALESCE(last_checked,0)<=? ORDER BY id',
             (now - interval,)).fetchall()]
-    for sid in due:
+    gap = A._poll_gap()
+    for i, sid in enumerate(due):
         try:
             A._check_search_watch(sid)
         except Exception as e:
             A.log.error("Suchabo #%d fehlgeschlagen: %s", sid, e)
+        # wie im Poller: Abstand zwischen zwei Abos, nicht nach dem letzten
+        if gap and i < len(due) - 1:
+            time.sleep(gap + secrets.randbelow(A.POLL_GAP_JITTER + 1))
 
 
 @bp.route('/api/searches', methods=['GET', 'POST'])

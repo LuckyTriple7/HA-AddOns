@@ -18,8 +18,14 @@
     body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; background:var(--bg); color:var(--text); min-height:100vh; transition:background .2s,color .2s; }
     .wrap { max-width: 1000px; margin: 0 auto; padding: 16px; }
     header { display:grid; grid-template-columns:minmax(0,auto) minmax(0,1fr) minmax(0,auto); align-items:center; gap:10px; margin-bottom:18px; }
-    .logo { display:flex; align-items:center; gap:8px; font-size:1.3rem; font-weight:700; color:var(--accent); }
-    .logo svg { width:26px; height:26px; fill:var(--accent); }
+    .logo { display:flex; align-items:center; gap:8px; font-size:1.3rem; font-weight:700; color:var(--accent); transition:color .3s; }
+    .logo svg { width:26px; height:26px; fill:var(--accent); transition:fill .3s; }
+    /* Hintergrund-Signal: setBusy() (app.js) schaltet .busy, solange laufende
+       Aufgaben gemeldet sind (/api/offers → busy). Puls nur auf dem Flieger. */
+    .logo.busy { color:var(--amber); }
+    .logo.busy svg { fill:var(--amber); animation:logo-busy 1.6s ease-in-out infinite; }
+    @keyframes logo-busy { 0%,100%{opacity:1} 50%{opacity:.35} }
+    @media (prefers-reduced-motion:reduce) { .logo.busy svg { animation:none; } }
     .header-actions { display:flex; align-items:center; justify-content:flex-end; gap:8px; flex-wrap:wrap; min-width:0; }
     .header-actions .btn { flex:0 1 auto; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     .header-actions .icon-btn { flex:0 0 auto; }
@@ -120,6 +126,24 @@
     .flight { font-size:.78rem; color:var(--text); display:flex; align-items:center; gap:6px; }
     .flight svg { width:13px; height:13px; fill:var(--muted); flex-shrink:0; }
     .flight .fdir { color:var(--muted); }
+    /* Flugvarianten: gleicher Zeitraum, anderer Flug (später/weniger Stopps kostet
+       meist Aufpreis). Aufklappbar, damit die Karte kompakt bleibt. */
+    .flight-vars { margin:4px 0 2px; font-size:.78rem; }
+    .flight-vars > summary { cursor:pointer; color:var(--muted); list-style:none; }
+    .flight-vars > summary::-webkit-details-marker { display:none; }
+    .flight-vars > summary:hover { color:var(--text); }
+    .flight-vars .fv-pin { color:var(--amber); }
+    .fv-row { display:flex; align-items:center; gap:10px; padding:6px 0;
+      border-top:1px solid var(--border); }
+    .fv-row.cur { background:rgba(88,166,255,.07); }
+    .fv-price { min-width:120px; font-weight:600; }
+    .fv-price .fv-d { font-weight:400; font-size:.74rem; color:var(--muted); }
+    .fv-price .fv-d.up { color:var(--red); }
+    .fv-price .fv-d.down { color:var(--green); }
+    .fv-legs { flex:1; color:var(--text); line-height:1.5; font-size:.74rem; }
+    .fv-legs svg { width:11px; height:11px; fill:var(--muted); margin-right:4px; }
+    .fv-cur { color:var(--green); font-size:.74rem; white-space:nowrap; }
+    .fv-act { white-space:nowrap; }
     .meta { display:flex; flex-wrap:wrap; gap:6px 12px; align-items:center; margin:7px 0 2px; font-size:.76rem; color:var(--muted); }
     .meta .stars { color:var(--amber); letter-spacing:1px; }
     .meta .rating { color:var(--text); }
@@ -218,6 +242,30 @@
     .reiseb-text { display:block; box-sizing:border-box; width:100%; resize:vertical; background:var(--bg); border:1px solid var(--border); color:var(--text); border-radius:6px; padding:8px; font:inherit; }
     .reiseb-text::placeholder { color:var(--muted); }
     .promptcfg-text { display:block; box-sizing:border-box; width:100%; resize:vertical; background:var(--bg); border:1px solid var(--border); color:var(--text); border-radius:6px; padding:8px; font:inherit; font-size:.82rem; }
+    /* Fragebogen-Editor (Rechtsklick auf den TripPilot-Knopf) */
+    .tpe-grid { display:grid; grid-template-columns:220px 1fr; gap:12px; margin-top:10px; }
+    @media (max-width:640px) { .tpe-grid { grid-template-columns:1fr; } }
+    .tpe-list { max-height:46vh; overflow-y:auto; border:1px solid var(--border); border-radius:6px; background:var(--bg); }
+    .tpe-item { display:flex; align-items:center; gap:6px; padding:5px 8px; font-size:.78rem; cursor:pointer; border-bottom:1px solid var(--border); }
+    .tpe-item:last-child { border-bottom:0; }
+    .tpe-item:hover { background:var(--surf2); }
+    .tpe-item.active { background:var(--accent); color:#fff; }
+    .tpe-item .tpe-num { color:var(--muted); font-variant-numeric:tabular-nums; min-width:1.4em; }
+    .tpe-item.active .tpe-num { color:#fff; }
+    .tpe-item .tpe-txt { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .tpe-detail { border:1px solid var(--border); border-radius:6px; background:var(--bg); padding:10px; max-height:46vh; overflow-y:auto; }
+    .tpe-detail label { display:block; font-size:.72rem; color:var(--muted); margin:8px 0 2px; }
+    .tpe-detail input[type=text], .tpe-detail select, .tpe-detail textarea {
+      box-sizing:border-box; width:100%; background:var(--surf); border:1px solid var(--border);
+      color:var(--text); border-radius:5px; padding:5px 7px; font:inherit; font-size:.8rem; }
+    .tpe-opt { display:flex; align-items:center; gap:5px; margin-bottom:4px; }
+    .tpe-opt input[type=text] { flex:1; }
+    .tpe-mini { background:var(--surf); border:1px solid var(--border); color:var(--muted); border-radius:4px; cursor:pointer; font-size:.72rem; line-height:1; padding:4px 6px; }
+    .tpe-mini:hover { border-color:var(--accent); color:var(--accent); }
+    .tpe-mini.danger:hover { border-color:var(--red); color:var(--red); }
+    .tpe-row { display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+    .tpe-err { border:1px solid var(--red); background:rgba(248,81,73,.08); color:var(--red); border-radius:6px; padding:8px 10px; font-size:.78rem; margin-top:8px; }
+    .tpe-err ul { margin:4px 0 0; padding-left:18px; }
     .tag-pill { display:inline-flex; align-items:center; gap:4px; font-size:.74rem; padding:3px 9px; border-radius:12px; background:var(--surf); border:1px solid var(--border); color:var(--text); cursor:pointer; user-select:none; }
     .tag-pill:hover { border-color:var(--accent); color:var(--accent); }
     .tag-pill.active { background:var(--accent); border-color:var(--accent); color:#fff; }
@@ -232,6 +280,9 @@
     .offer-actions .icon-btn { flex:0 0 auto; }
     .err-note { color:var(--amber); font-size:.78rem; margin-top:6px; }
     .empty { text-align:center; color:var(--muted); padding:50px 16px; }
+    .boot { text-align:center; padding:44px 16px; }
+    .boot-title { color:var(--muted); font-size:.95rem; }
+    .boot-note { margin-top:10px; }
     .badge-checking { font-size:.72rem; color:var(--accent); }
     /* Modal */
     .modal-bg { position:fixed; inset:0; background:rgba(0,0,0,.6); display:none; align-items:center; justify-content:center; padding:16px; z-index:50; overscroll-behavior:contain; }
@@ -271,6 +322,19 @@
     .aihist-title { font-weight:600; font-size:.88rem; }
     body.ai-disabled .ai-feature { display:none !important; }
     body.check24-disabled .check24-feature { display:none !important; }
+    /* Der Flugplan-Knopf verschwindet erst, wenn BEIDE Flughaefen aus sind —
+       ist nur einer aktiv, oeffnet er direkt dessen Fenster (ohne Auswahl). */
+    body.flights-disabled .flights-feature { display:none !important; }
+    .strf-row { cursor:pointer; }
+    .strf-row:hover td { background:var(--surf); }
+    .fraf-row { cursor:pointer; }
+    .fraf-row:hover td { background:var(--surf); }
+    .mucf-row:hover td { background:var(--surf); }
+    .fpick-opts { display:flex; gap:12px; flex-wrap:wrap; margin:14px 0 4px; }
+    .fpick-opt { flex:1 1 160px; text-align:center; padding:16px 14px; border-radius:8px; cursor:pointer;
+      background:var(--surf2); border:1px solid var(--border); color:var(--text); font-size:.9rem; }
+    .fpick-opt:hover { border-color:var(--accent); }
+    .fpick-opt b { display:block; font-size:1rem; }
     body.share-disabled .share-feature { display:none !important; }
     .shr-row { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:8px 0; }
     .shr-row label { font-size:.85rem; }
@@ -443,6 +507,9 @@
     .btn.aktion-active { animation: aktionPulse 1.6s ease-in-out infinite; border-color:var(--green); }
     @keyframes aktionPulse { 0%,100% { box-shadow:0 0 0 0 rgba(46,160,67,.55); } 50% { box-shadow:0 0 0 7px rgba(46,160,67,0); } }
     .btn.cal-alert { animation: calAlertPulse 1.6s ease-in-out infinite; border-color:var(--amber); color:var(--amber); }
+    /* Pausierter Kalender: gedimmt statt pulsierend — es ist kein Alarm, sondern ein
+       Ruhezustand, den der Nutzer nur bemerken soll, wenn er hinsieht. */
+    .btn.cal-paused { opacity:.55; }
     @keyframes calAlertPulse { 0%,100% { box-shadow:0 0 0 0 rgba(210,153,34,.55); } 50% { box-shadow:0 0 0 7px rgba(210,153,34,0); } }
     .btn.trend-active-up { border-color:var(--red); }
     .btn.trend-active-down { border-color:var(--green); }
@@ -515,18 +582,31 @@
     .cal-moves[open] summary { margin-bottom:4px; }
     .cal-move-row { display:flex; align-items:center; gap:10px; padding:4px 0; font-size:.8rem; cursor:pointer; }
     .cal-move-row:hover { color:var(--accent); }
+    /* Monatsname in der Monatsübersicht: klickbar, aber KEIN <a> — die Link-Farbe
+       ist auf dem Modal-Hintergrund kaum lesbar. */
+    .cal-month-link { cursor:pointer; text-decoration:underline; text-underline-offset:2px; }
+    .cal-month-link:hover { color:var(--accent); }
     .cal-day-chart { display:none; margin:10px 0; border:1px solid var(--border); border-radius:8px; padding:8px 10px; }
     .cal-day-chart.show { display:block; }
     .cal-day-hd { display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; font-size:.85rem; }
     .modal-close { float:right; }
     footer { text-align:center; margin:24px 0 8px; font-size:.72rem; color:var(--muted); }
     .hc-foot { cursor:pointer; }
+    /* Als <a> (Download-Links, z. B. „Als Kalender (.ics)") sonst im Browser-Blau
+       mit Unterstreichung — auf dunklem Grund kaum lesbar. Wie die <span>-Varianten
+       in Textfarbe, Unterstreichung erst beim Hover als Klick-Hinweis. */
+    a.hc-foot { color:inherit; text-decoration:none; }
+    a.hc-foot:hover { color:var(--accent); text-decoration:underline; }
     #hc-dot { font-weight:600; }
     #hc-dot::before { content:'●'; margin-right:3px; }
     #hc-dot.ok { color:#22c55e; }
     #hc-dot.warn { color:#f59e0b; }
     #hc-dot.bad { color:#ef4444; }
     #hc-dot.wait { color:var(--muted); }
+    .sched-note { color:var(--muted); font-size:.76rem; margin-top:2px; }
+    .sched-at { color:var(--muted); font-size:.76rem; }
+    .sched-off { color:var(--muted); }
+    .sched-due { color:var(--amber); font-weight:600; }
     .hc-row { display:flex; justify-content:space-between; gap:10px; padding:7px 2px; border-bottom:1px solid var(--border); font-size:.88rem; }
     .hc-row:last-child { border-bottom:none; }
     .hc-row .hc-name::before { content:'●'; margin-right:7px; }
@@ -693,7 +773,7 @@
   </div>
   <div class="wrap">
     <header>
-      <div class="logo" ondblclick="consoleToggle()" style="cursor:default;user-select:none;" title="Doppelklick: Konsole">
+      <div class="logo" ondblclick="consoleToggle()" oncontextmenu="return openSchedule()" style="cursor:default;user-select:none;" title="Doppelklick: Konsole · Rechtsklick: nächste Läufe">
         <svg viewBox="0 0 24 24"><path d="M21 16v-2l-8-5V3.5A1.5 1.5 0 0 0 11.5 2 1.5 1.5 0 0 0 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/></svg>
         TUIWatch
       </div>
@@ -709,6 +789,8 @@
                 title="Klimatabellen: Temperaturen, Wassertemperatur, Sonnenstunden und Regentage über zwölf Monate — für alle Ziele, zu denen bereits eine Tabelle gespeichert ist">🌤</button>
         <button class="btn sec ai-feature" onclick="openGuide()"
                 title="Reiseführer: Einreise, Gesundheit, Geld, Mobilität, Sicherheit, Kultur, Don't Dos und Insider-Tipps — für alle Ziele, zu denen bereits ein Reiseführer gespeichert ist">🧭</button>
+        <button class="btn sec flights-feature" onclick="openFlightPlan()"
+                title="Flugplan: Verbindungen ab Stuttgart (STR) bzw. Frankfurt (FRA) nach Zielflughafen durchsuchen">✈️</button>
         <button class="icon-btn" onclick="toggleTheme()" title="Design wechseln">
           <svg class="icon-moon" viewBox="0 0 24 24"><path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c0-.46-.04-.92-.1-1.36-.98 1.37-2.58 2.26-4.4 2.26-2.98 0-5.4-2.42-5.4-5.4 0-1.81.89-3.42 2.26-4.4-.44-.06-.9-.1-1.36-.1z"/></svg>
           <svg class="icon-sun"  viewBox="0 0 24 24"><path d="M12 7c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zM2 13h2v-2H2v2zm18 0h2v-2h-2v2zM11 2v2h2V2h-2zm0 18v2h2v-2h-2zM5.99 4.58 4.58 5.99l1.41 1.41 1.41-1.41L5.99 4.58zm12.03 12.03-1.41 1.41 1.41 1.41 1.41-1.41-1.41-1.41zm1.41-12.44-1.41-1.41-1.41 1.41 1.41 1.41 1.41-1.41zM5.99 19.42l1.41 1.41 1.41-1.41-1.41-1.41-1.41 1.41z"/></svg>
@@ -733,7 +815,7 @@
     <div class="toolbar">
       <button class="btn" onclick="openSearch()" title="Hotels einer Region suchen (TUI-Such-URL einfügen)">🔍 Suche</button>
       <button class="btn sec" onclick="openTrips()" title="Gebuchte Reisen verwalten (TUI-PDF importieren)">🧳 Meine Reisen</button>
-      <button class="btn sec ai-feature" onclick="openAdvisor()" title="TripPilot: passende Ziele nach Vorlieben finden">🗺️ TripPilot</button>
+      <button class="btn sec ai-feature" onclick="openAdvisor()" oncontextmenu="return openTpEdit()" title="TripPilot: passende Ziele nach Vorlieben finden · Rechtsklick: Fragebogen bearbeiten">🗺️ TripPilot</button>
       <button class="btn sec" id="aktion-btn" onclick="openAktion()" title="Aktuelle öffentliche TUI-Aktionscodes anzeigen und bei neuen benachrichtigt werden">🎟 Aktionscodes</button>
       <button class="btn sec" id="trend-btn" onclick="openMarketTrend()" title="Marktweiter Preistrend über alle geprüften Angebote, optional nach Destination">📈 Markttrend</button>
       <button class="btn sec" onclick="sendEmail()" title="Alle Angebote als E-Mail senden">✉ Als E-Mail senden</button>
@@ -777,7 +859,18 @@
       <button class="btn sec" onclick="bulkForeign()" title="In eine „Für andere"-Liste legen (Name frei wählbar): eingeklappt ans Listenende, keine Benachrichtigungen">👥 Für andere</button>
       </div>
     </div>
-    <div id="offers"></div>
+    <!-- Startzustand: steht bewusst direkt im HTML und nicht erst im JS. Die erste
+         /api/offers-Antwort kann direkt nach dem Add-on-Start ein paar Sekunden
+         dauern (der Poller hält währenddessen die SQLite-Datei) — ohne diesen Block
+         sähe die Oberfläche in dieser Zeit einfach leer aus. Wird durch die erste
+         gerenderte Angebotsliste ersetzt. -->
+    <div id="offers">
+      <div class="boot" id="boot-state">
+        <div class="boot-title">TUIWatch wird gestartet…</div>
+        <div class="twprog indet"><i></i></div>
+        <div class="boot-note hint" id="boot-note">Angebote werden geladen.</div>
+      </div>
+    </div>
     <footer>
       <div>TUIWatch v{{ app_version }} · Prüfintervall: <span id="iv"></span>
         · DB: <span id="db-size">…</span>
@@ -1213,6 +1306,50 @@
     </div>
   </div>
 
+  <!-- Zeitplan der Hintergrund-Aufgaben (Rechtsklick aufs Logo) -->
+  <div class="modal-bg" id="sched-bg">
+    <div class="modal" style="max-width:620px">
+      <button class="icon-btn modal-close" onclick="$('#sched-bg').classList.remove('show')">
+        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+      </button>
+      <h2>Nächste Läufe</h2>
+      <div class="sub" id="sched-sub"></div>
+      <div id="sched-body"></div>
+    </div>
+  </div>
+
+  <!-- TripPilot-Fragebogen bearbeiten (Rechtsklick auf den TripPilot-Knopf) -->
+  <div class="modal-bg" id="tpedit-bg">
+    <div class="modal" style="max-width:900px">
+      <button class="icon-btn modal-close" onclick="closeTpEdit()">
+        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+      </button>
+      <h2>🗺️ Fragebogen bearbeiten</h2>
+      <div class="sub" id="tpedit-sub"></div>
+      <div id="tpedit-msg"></div>
+      <div id="tpedit-daytrip" class="tpe-row" style="margin-top:10px"></div>
+      <div class="tpe-grid">
+        <div>
+          <div class="tpe-list" id="tpedit-list"></div>
+          <button class="tpe-mini" style="margin-top:6px" onclick="tpAddStep()">+ Frage</button>
+        </div>
+        <div class="tpe-detail" id="tpedit-detail"></div>
+      </div>
+      <details style="margin-top:12px">
+        <summary class="hint" style="cursor:pointer">Bedeutungen (<code>semantics</code>) als JSON bearbeiten</summary>
+        <div class="hint" style="margin:6px 0">Welche Antwortwerte Logik auslösen: Eigenanreise, Pauschalreise, Reise-DNA. Beim Umbenennen einer Option wird das hier automatisch mitgezogen — Handarbeit ist nur für neue Einträge nötig.</div>
+        <textarea id="tpedit-sem" class="promptcfg-text" rows="10" spellcheck="false"></textarea>
+      </details>
+      <div style="margin-top:14px;display:flex;gap:8px;justify-content:space-between;flex-wrap:wrap">
+        <button class="btn sec" onclick="tpLoadBundled()" title="Verwirft die Änderungen im Editor und lädt die mit dem Add-on ausgelieferten Fragen — gespeichert wird erst mit „Speichern“.">Auslieferungsstand laden</button>
+        <span style="display:flex;gap:8px">
+          <button class="btn sec" onclick="closeTpEdit()">Abbrechen</button>
+          <button class="btn" id="tpedit-save" onclick="tpSave()">Speichern</button>
+        </span>
+      </div>
+    </div>
+  </div>
+
   <!-- KI-Prompt-Einstellungen -->
   <div class="modal-bg" id="promptcfg-bg">
     <div class="modal" style="max-width:720px">
@@ -1303,7 +1440,12 @@
         mit sich selbst vom Vortag, der <b>Median</b> über alle Hotels ergibt die Tagesbewegung.
         Deutlich breitere Basis als die eigenen Angebote, und der Trend gilt für genau deinen
         Reisetermin. Getrackte Angebote ohne gespeicherte Suche bekommen eine Messreihe je
-        Region und Abreisemonat.</div>
+        Region und Abreisemonat.<br><br>
+        Die Spalte <b>Buchen?</b> beantwortet eine andere Frage als der Trend: nicht „was passiert
+        gerade", sondern „ist jetzt ein guter Moment". Sie verrechnet den aktuellen 14-Tage-Trend,
+        die Lage im bisherigen Verlauf dieser Messreihe und vor allem die aus der
+        <b>Booking-Kurve</b> hochgerechnete Preisbewegung bis zur Abreise. Mit der Maus über die
+        Ampel: dort steht jede Komponente einzeln.</div>
       <div id="basket-body"></div>
       <div id="basket-progress" style="display:none;margin-top:10px"></div>
       <div class="cmp-foot" style="margin-top:12px">
@@ -1357,6 +1499,172 @@
         <button class="btn sec" onclick="refreshGuide()"
                 title="Reiseführer verwerfen und neu von der KI erstellen lassen (kostet einen KI-Aufruf)">🔄 Neu abrufen</button>
       </div>
+    </div>
+  </div>
+
+  <!-- Flughafen-Auswahl — erscheint nur, wenn mindestens zwei Flugpläne aktiv
+       sind; sonst öffnet der ✈️-Knopf direkt den einzigen freigeschalteten
+       Flughafen. Bei ≥2 aktiven Flughäfen zusätzlich die Kachel „Alle
+       durchsuchen" (openAllFlights, siehe all_flights_routes.py). -->
+  <div class="modal-bg" id="fpick-bg">
+    <div class="modal" style="max-width:560px">
+      <button class="icon-btn modal-close" onclick="closeFlightPick()">
+        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+      </button>
+      <h2>✈️ Flugplan</h2>
+      <div class="sub">Von welchem Flughafen? Die Flughäfen liefern unterschiedliche Daten.</div>
+      <div class="fpick-opts">
+        <button class="fpick-opt" id="fpick-str" onclick="closeFlightPick(); openStrFlights()">
+          <b>Stuttgart (STR)</b>
+        </button>
+        <button class="fpick-opt" id="fpick-fra" onclick="closeFlightPick(); openFraFlights()">
+          <b>Frankfurt (FRA)</b>
+        </button>
+        <button class="fpick-opt" id="fpick-muc" onclick="closeFlightPick(); openMucFlights()">
+          <b>München (MUC)</b>
+        </button>
+        <button class="fpick-opt" id="fpick-all" style="flex:1 1 100%" onclick="closeFlightPick(); openAllFlights()">
+          <b>🔍 Alle durchsuchen</b>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Flugziel-Suche über alle freigeschalteten Flughäfen gleichzeitig — nur
+       Abflüge, Datenmodelle bleiben getrennt (eigene Sektion je Flughafen,
+       gerendert mit denselben render*Flights()-Funktionen wie die
+       Einzelpläne), siehe all_flights_routes.py. -->
+  <div class="modal-bg" id="allf-bg">
+    <div class="modal" style="max-width:1100px">
+      <button class="icon-btn modal-close" onclick="closeAllFlights()">
+        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+      </button>
+      <h2>✈️ Flugziel überall suchen</h2>
+      <div class="sub">Sucht gleichzeitig in allen freigeschalteten Flugplänen — nur Abflüge.</div>
+      <div class="shr-row" style="margin:10px 0">
+        <input type="text" id="allf-q" placeholder="Ziel suchen… (Code, Ort, Land)" autocomplete="off" style="flex:1 1 180px;min-width:140px">
+        <label class="hint" style="display:flex;align-items:center;gap:5px">Zeitraum
+          <input type="month" id="allf-von" title="Verbindung frühestens ab diesem Monat" style="width:150px">
+          <span>–</span>
+          <input type="month" id="allf-bis" title="Verbindung spätestens bis zu diesem Monat" style="width:150px">
+        </label>
+      </div>
+      <div id="allf-body"><div class="hint">Suchbegriff eingeben, z. B. „Palma", „PMI" oder „Spanien".</div></div>
+
+      <!-- Gesamtliste aller tatsächlich angeflogenen Ziele (nur STR + MUC —
+           Frankfurt hat als Drehkreuz keine abrufbare Gesamtliste, siehe
+           api_flights_destinations()). Zeile anklicken übernimmt den Code
+           ins Suchfeld oben und sucht über alle drei Flughäfen (FRA also
+           mit, nur eben nicht in dieser Liste). -->
+      <h3 style="margin:18px 0 4px">📋 Alle Flugziele</h3>
+      <div id="allf-dest-body"><div class="hint">Lädt…</div></div>
+    </div>
+  </div>
+
+  <!-- FRA-Flugplan-Modal — eigenständig neben dem STR-Fenster (anderes
+       Datenmodell: Einzelflüge je Datum statt Saisonstrecken), Daten aus dem
+       offenen JSON der Flughafen-Website, siehe SCRAPING_FRA.md. -->
+  <div class="modal-bg" id="fraf-bg">
+    <div class="modal" style="max-width:980px">
+      <button class="icon-btn modal-close" onclick="closeFraFlights()">
+        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+      </button>
+      <h2>✈️ Flugplan ab Frankfurt Airport (FRA)</h2>
+      <div class="sub">Geplante Flüge nach Zielflughafen — Daten des Flughafenbetreibers, keine Pauschalreise-Angebote.</div>
+      <div class="shr-row" style="margin:10px 0">
+        <input type="text" id="fraf-q" placeholder="Ziel suchen… (Code, Ort, Land)" autocomplete="off" style="flex:1 1 180px;min-width:140px">
+        <select id="fraf-type" onchange="fraFlightsSearch()">
+          <option value="departures">Abflug ab FRA</option>
+          <option value="arrivals">Ankunft in FRA</option>
+        </select>
+        <label class="hint" style="display:flex;align-items:center;gap:5px">Zeitraum
+          <input type="month" id="fraf-von" title="Flüge frühestens ab diesem Monat" style="width:150px">
+          <span>–</span>
+          <input type="month" id="fraf-bis" title="Flüge spätestens bis zu diesem Monat" style="width:150px">
+        </label>
+      </div>
+      <div id="fraf-body"><div class="hint">Suchbegriff eingeben, z. B. „Palma", „PMI" oder „Mauritius".</div></div>
+    </div>
+  </div>
+
+  <!-- FRA-Flugdetail-Modal — auf Zeilenklick, über fraf-bg gestapelt (wie beim
+       STR-Detail: z-index hier explizit höher, siehe fraFlightDetail()). -->
+  <div class="modal-bg" id="fraf-detail-bg">
+    <div class="modal" style="max-width:520px">
+      <button class="icon-btn modal-close" onclick="closeFraFlightDetail()">
+        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+      </button>
+      <h2 id="fraf-detail-title">✈️ Flugdetails</h2>
+      <div class="sub" id="fraf-detail-live"></div>
+      <div id="fraf-detail-body"></div>
+    </div>
+  </div>
+
+  <!-- MUC-Flugplan-Modal — Daten aus dem Saison-Flugplan-PDF des Flughafens
+       München (kein API vorhanden), siehe SCRAPING_MUC.md. -->
+  <div class="modal-bg" id="mucf-bg">
+    <div class="modal" style="max-width:980px">
+      <button class="icon-btn modal-close" onclick="closeMucFlights()">
+        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+      </button>
+      <h2>✈️ Flugplan ab München Airport (MUC)</h2>
+      <div class="sub">Linienflug-Verbindungen der laufenden Saison — aus dem offiziellen Flugplan-PDF des Flughafens, keine Pauschalreise-Angebote.</div>
+      <div class="shr-row" style="margin:10px 0">
+        <input type="text" id="mucf-q" placeholder="Ziel suchen… (Code, Ort, Land)" autocomplete="off" style="flex:1 1 180px;min-width:140px">
+        <select id="mucf-type" onchange="mucFlightsSearch()">
+          <option value="">Abflug &amp; Ankunft</option>
+          <option value="departure">Nur Abflug ab MUC</option>
+          <option value="arrival">Nur Ankunft in MUC</option>
+        </select>
+        <label class="hint" style="display:flex;align-items:center;gap:5px">Zeitraum
+          <input type="month" id="mucf-von" title="Verbindung frühestens ab diesem Monat" style="width:150px">
+          <span>–</span>
+          <input type="month" id="mucf-bis" title="Verbindung spätestens bis zu diesem Monat" style="width:150px">
+        </label>
+      </div>
+      <div id="mucf-body"><div class="hint">Suchbegriff eingeben, z. B. „Palma", „PMI" oder „Spanien".</div></div>
+      <div class="hc-foot" style="margin-top:8px" onclick="mucFlightsRefresh()" title="Flugplan-PDF sofort neu einlesen (passiert sonst automatisch alle drei Stunden, sobald eine neue Fassung hängt)">🔄 Flugplan neu einlesen</div>
+    </div>
+  </div>
+
+  <!-- STR-Flugplan-Modal — eigenständige Übersicht (kein Bezug zu einzelnen
+       Reisen), Daten vom offenen JSON-API des Flughafen-Betreibers
+       (fsg-datahub.azure-api.net), siehe SCRAPING_STR.md. -->
+  <div class="modal-bg" id="strf-bg">
+    <div class="modal" style="max-width:860px">
+      <button class="icon-btn modal-close" onclick="closeStrFlights()">
+        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+      </button>
+      <h2>✈️ Flugplan ab Stuttgart Airport (STR)</h2>
+      <div class="sub">Linienflug-Verbindungen nach Zielflughafen oder Land — Daten des Flughafen-Betreibers, keine Pauschalreise-Angebote.</div>
+      <div class="shr-row" style="margin:10px 0">
+        <input type="text" id="strf-q" placeholder="Ziel suchen… (Code, Ort, Land)" autocomplete="off" style="flex:1 1 180px;min-width:140px">
+        <select id="strf-type" onchange="strFlightsSearch()">
+          <option value="">Abflug &amp; Ankunft</option>
+          <option value="Departure">Nur Abflug ab STR</option>
+          <option value="Arrival">Nur Ankunft in STR</option>
+        </select>
+        <label class="hint" style="display:flex;align-items:center;gap:5px">Zeitraum
+          <input type="month" id="strf-von" title="Verbindung frühestens ab diesem Monat" style="width:150px">
+          <span>–</span>
+          <input type="month" id="strf-bis" title="Verbindung spätestens bis zu diesem Monat" style="width:150px">
+        </label>
+      </div>
+      <div id="strf-body"><div class="hint">Suchbegriff eingeben, z. B. „Palma", „PMI" oder „Spanien".</div></div>
+    </div>
+  </div>
+
+  <!-- STR-Flugdetail-Modal — auf Zeilenklick, über strf-bg gestapelt (wie
+       email-bg über climate-bg: gleicher .modal-bg-z-index, deshalb hier
+       explizit höher gesetzt, siehe strFlightDetail()). -->
+  <div class="modal-bg" id="strf-detail-bg">
+    <div class="modal" style="max-width:480px">
+      <button class="icon-btn modal-close" onclick="closeStrFlightDetail()">
+        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+      </button>
+      <h2 id="strf-detail-title">✈️ Flugdetails</h2>
+      <div class="sub" id="strf-detail-live"></div>
+      <div id="strf-detail-body"></div>
     </div>
   </div>
 
@@ -1417,9 +1725,12 @@
   <script>
     const G = { base: {{ (script_root or '')|tojson }}, iv: {{ poll_interval|tojson }}, ai: {{ ai_enabled|tojson }},
                 homeLoc: {{ trippilot_home_location|tojson }}, check24: {{ check24_enabled|tojson }},
-                share: {{ share_enabled|tojson }} };
+                strFlights: {{ str_flights_enabled|tojson }}, share: {{ share_enabled|tojson }},
+                fraFlights: {{ fra_flights_enabled|tojson }},
+                mucFlights: {{ muc_flights_enabled|tojson }} };
     document.body.classList.toggle('ai-disabled', !G.ai);
     document.body.classList.toggle('check24-disabled', !G.check24);
+    document.body.classList.toggle('flights-disabled', !G.strFlights && !G.fraFlights && !G.mucFlights);
     document.body.classList.toggle('share-disabled', !G.share);
     window.G = G;  // auch für den Konsolen-Script-Block (Ingress-Pfad) erreichbar
   </script>

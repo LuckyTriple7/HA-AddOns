@@ -1,5 +1,501 @@
 # Changelog
 
+## [0.98.0] - 2026-08-13
+
+### Fixed
+- **Abgelaufene Messreihen zeigten bis zu 14 Tage lang weiter eine
+  Buchungszeitpunkt-Ampel** — im Zweifel ein 🟢 „guter Buchungszeitpunkt" an einer
+  Reise, die niemand mehr buchen kann. Ursache: nach dem Ablauf lief zwar die
+  Datensammlung sofort aus (`_expired`), Trend (Gewicht 0,25) und Position (0,35)
+  ergaben zusammen aber 0,60 und damit mehr als das Mindestgewicht von 0,5. Erst
+  wenn der Trend nach 14 Tagen aus seinem Fenster fiel, verschwand die Ampel.
+  Jetzt erlischt sie sofort, sobald die Messreihe keine laufende Quelle mehr hat.
+
+### Added
+- **Abgeschlossene Messreihen sind als solche gekennzeichnet.** Bisher blieb so eine
+  Zeile mit leerem Zeitraum und „→ keine Daten" in der Barometer-Tabelle stehen, ohne
+  dass irgendwo stand, warum. Sie zeigt jetzt „📁 abgeschlossen · zuletzt TT.MM.JJJJ"
+  und ist leicht abgedimmt. Betrifft auch gespeicherte Suchen, die **gelöscht oder
+  umbenannt** wurden — der Schlüssel einer Messreihe ist der Name der Suche, ihre
+  Daten blieben sonst unerklärt liegen.
+- Index und Beitrag zur **Booking-Kurve bleiben erhalten**: abgelaufene Reisen sind
+  genau die, die ein Vorlauf-Fenster komplett durchlaufen haben, und damit für die
+  Kurve besonders wertvoll. Wegräumen geht weiter über das 🗑 je Zeile.
+- Neu `_active_keys()`: ermittelt die Messreihen mit lebender Quelle **ohne
+  Netzzugriff** (gespeicherte Suchen aus der DB, Angebots-Messreihen über den
+  `meta`-Cache). Nötig, weil die Prüfung über `_signal_map` am 5-Sekunden-Poll der
+  Angebotsliste hängt, wo `_basket_targets()` Breadcrumb-Abrufe auslösen würde. Ein
+  Test sichert ab, dass beide Wege denselben Schlüssel bilden.
+
+## [0.97.0] - 2026-08-13
+
+### Added
+- **Preiskalender läuft bei archivierten Angeboten weiter**
+  (`calendar_archived_refresh`, Standard an). Der Preis der abgelaufenen Reise wird
+  weiterhin zu Recht nicht mehr abgefragt — der Kalender beschreibt aber Hotel,
+  Zimmer, Verpflegung und Dauer und schaut ohnehin immer **ab heute** nach vorn
+  (`fetch_calendar` setzt sein Suchfenster selbst, das alte Reisedatum der URL geht
+  in die Abfrage gar nicht ein). Damit wächst der Preisverlauf desselben Hotels über
+  Jahre weiter, statt mit dem Archivieren abzureißen — die Grundlage für Monatstrend
+  und Langzeitkurve.
+- Archivierte laufen **alle 3 Tage** statt täglich und werden in einer **eigenen
+  Abfrage nach** den aktiven geholt: sie sammeln sich über die Jahre an und würden
+  bei einem gemeinsamen `LIMIT 10` sonst irgendwann die aktiven Angebote verdrängen.
+- **Automatische Kalender-Pause nach 5 Fehlschlägen in Folge** (neu
+  `offers.calendar_fails`/`calendar_paused`): fällt ein Hotel aus dem TUI-Inventar,
+  läuft der Abruf sonst täglich ins Leere. Gezählt wird nur in Folge — ein einziger
+  erfolgreicher Abruf setzt zurück, eine vorübergehende API-Störung pausiert also
+  nichts. Sichtbar im Kalender-Fenster samt Knopf „Wieder aktivieren"
+  (`POST /api/calendar/<id>/resume`); auch „Neu abfragen" hebt die Pause auf, sobald
+  ein Abruf gelingt.
+- Archivierte Angebotskarten haben dafür jetzt einen eigenen **„Kalender"**-Knopf —
+  ohne ihn wäre der Langzeitverlauf gar nicht aufrufbar gewesen. Bei pausiertem
+  Kalender ist er gedimmt.
+
+## [0.96.0] - 2026-08-13
+
+### Added
+- **Monatstrend im Preiskalender**: Der Kalender holt ohnehin 400–700 Reisetage über
+  ~18 Monate ab, ausgewertet wurde bisher aber nur der aktuelle Stand. Neu ist je
+  **Reisemonat** die Bewegung über die Zeit — Trend über 14 Tage und Index seit
+  Aufzeichnungsbeginn, in einer aufklappbaren **Monatsübersicht** im Kalender-Fenster
+  neben dem Ø-Preis, der Preisspanne und der Zahl der Termine.
+- Gerechnet wird ein **wertgewichteter Monatsindex**, nicht der Median wie beim
+  Preisbarometer: `(Σ p_neu − Σ p_alt) / Σ p_alt · 100` über alle Reisetage des Monats,
+  die in beiden Snapshots einen Preis hatten. Das Zusammensetzungsproblem, das im
+  Barometer die Matched Pairs erzwingt, gibt es hier nicht — dieselbe Menge Reisetage,
+  dasselbe Hotel, dasselbe Zimmer.
+- **Der entscheidende Punkt steckt im Nenner:** `calendar_history` ist delta-codiert
+  (eine Zeile nur bei Änderung). Ein Reisetag ohne Zeile ist ein *unveränderter*, kein
+  unbeobachteter Tag. Er zählt deshalb mit seinem Preis in den Nenner und mit 0 in den
+  Zähler. Wertete man nur die Änderungszeilen aus, bestünde die Kette ausschließlich
+  aus Tagen mit Bewegung und der Index liefe massiv davon: ein Tag von zehn mit +100 €
+  sind ~1 % Monatsbewegung, nicht 10 %.
+- Weitere Absicherungen: Einzelsprünge über 60 % fliegen als Artefakt raus
+  (Zimmerkategorie/Verfügbarkeit, kein Preissignal); neu ins Fenster gerutschte und
+  herausgefallene Reisetage zählen nicht (sonst misst man die Fensterwanderung);
+  Reisetage in der Vergangenheit ebenfalls nicht. Zwei Abrufe am selben Tag werden
+  **innerhalb** des Tages verkettet statt überschrieben. Die „seit X Tagen"-Angabe
+  zählt hier ruhige Tage mit — im Kalender ist 0 % der Normalfall, mit der strengen
+  Zählweise des Barometers stünde dort fast immer „seit 1 Tag".
+- Neue Tabelle `calendar_month_moves` (eine Zeile je Angebot, Beobachtungstag und
+  Reisemonat) und `GET /api/calendar/<id>/months`. Bestandsdaten werden beim ersten
+  Start einmalig aus `calendar_history` per Carry-Forward nachgerechnet — der Trend
+  startet also nicht bei null. 15 neue Tests in `test_calendar_month_trend.py`.
+
+## [0.95.0] - 2026-08-13
+
+### Added
+- **Booking-Kurve und Buchungszeitpunkt-Ampel** (`booking_window_enabled`, Standard
+  an): Das Preisbarometer beantwortete bisher nur „was passiert gerade mit den
+  Preisen?". Jede Tagesbewegung schreibt jetzt zusätzlich ihre **Vorlaufzeit** mit
+  (`basket_moves.days_to_dep`, Median über die verglichenen Hotels). Sortiert man alle
+  Tagesbewegungen aller Messreihen nach Vorlauf statt nach Kalendertag, entsteht die
+  typische Preiskurve des Marktes — sieben Fenster von „ab 181 Tage" bis „unter 8
+  Tage", je Fenster der Median der Tagesraten (`pct_median / gap_days`, also Prozent
+  **pro Tag**; ohne diese Normierung zählte eine Bewegung über eine 4-Tage-Lücke wie
+  ein echter Tagesschritt). Gepoolt wird global über alle Messreihen — Prozentwerte
+  sind dimensionslos, und eine einzelne Messreihe durchläuft die Kurve nur einmal.
+  Fenster unter 8 Messpunkten bleiben leer, Fenster aus einer einzigen Messreihe
+  werden als „⚠ dünn" markiert.
+- Daraus die **Ampel** je Messreihe (🟢 buchen / 🟡 neutral / 🔴 warten), deterministisch
+  ohne KI: `S = (0,25·Trend + 0,35·Position + 0,40·Restbewegung) / Σ verfügbarer
+  Gewichte`. Die **erwartete Restbewegung** verkettet die Kurvenraten über die
+  verbleibenden Tage bis zur Abreise (positiv = Preise steigen noch, also jetzt
+  buchen); die **Position** ist der Perzentilrang auf dem verketteten Index, nicht auf
+  rohen Medianpreisen — rohe Preise würden wieder die wechselnde Hotelauswahl messen.
+  Fehlende Komponenten fallen heraus und renormieren die Gewichte; bleibt weniger als
+  die Hälfte übrig, gibt es bewusst keine Ampel. Unter 14 Tagen Vorlauf nie 🔴.
+- Sichtbar als Spalte **Buchen?** samt Kurventabelle im 🌡️-Fenster, als Ampel-Icon auf
+  jeder Angebotskachel (Tooltip zeigt alle Komponenten), in den Attributen von
+  `sensor.tuiwatch_markttrend` (`booking_ampel`, `booking_score`, `booking_curve`,
+  `booking_green`, …) und als Fakten im KI-Buchungsscore — dort ohne zusätzliche
+  API-Aufrufe, die KI muss die Saisonkurve nicht mehr selbst schätzen.
+- Neue Tabelle `basket_levels` (P25/Median/P75 je Messreihe und Tag): Euro-Kontext, der
+  anders als die Roh-Snapshots die 120-Tage-Grenze überlebt. Bestandsdaten werden beim
+  ersten Start einmalig nachgerechnet — Vorlaufzeit und Preisniveaus entstehen
+  rückwirkend aus den noch vorhandenen Snapshots.
+- Neuer Endpunkt `GET /api/booking-window`. 34 neue Tests in `test_booking_window.py`.
+
+## [0.94.1] - 2026-08-13
+
+### Added
+- **Flugpläne in „Nächste Läufe" + API-Selbsttest**: STR und die FRA-Zielliste
+  liefen bisher rein lazy beim ersten Request (kein Warm-Poller wie MUC) und
+  tauchten deshalb weder im Zeitplan-Dialog noch im Selbsttest auf. Neue
+  `_str_flights_worker()`/`_fra_board_worker()` (analog zu
+  `_muc_flights_worker`) halten die Caches jetzt aktiv warm; „Flugpläne"
+  erscheint als eigene Zeile im Zeitplan (nächster Warm-Lauf über die drei
+  aktivierten Flughäfen). Selbsttest prüft je aktiviertem Flughafen live
+  (STR-/FRA-Flugplan-API, FRA-Zielliste, MUC-PDF) — nicht-kritisch, zieht den
+  Gesamtstatus nicht runter, wenn nur ein Opt-in-Flugplan mal ausfällt.
+
+## [0.94.0] - 2026-08-13
+
+### Added
+- **Frankfurt jetzt in der Flugziel-Tabelle** (genähert, gekennzeichnet
+  „FRA*"): neuer `fra_board_client.py` liest das Tagesbord einer Drittseite
+  (`airport-frankfurt-am-main.de`, **nicht** Fraport) und akkumuliert über ein
+  rollierendes 9-Tage-Fenster auf Platte, weil die offizielle FRA-API keine
+  Gesamtliste hergibt (siehe SCRAPING_FRA.md). Filtert Lufthansas
+  AIRail-Bahnzubringer (Aachen/Berlin/Basel/Hamburg) über den Namen raus —
+  die stehen sonst mit im Board, sind aber keine Flüge. **Nur für die
+  Übersichtstabelle** — die gezielte Suche nutzt weiter unverändert die
+  offizielle FRA-API. 5 neue Tests in `test_fra_board.py`.
+
+## [0.93.4] - 2026-08-13
+
+### Changed
+- **Flugziel-Tabelle klarer beschriftet**: Spalte „Ab" heißt jetzt „Ab
+  (STR/MUC) ⓘ" mit Tooltip — sonst wirkte es wie ein Fehler, dass Frankfurt
+  nie in der Spalte steht, obwohl eine Suche zum selben Ziel FRA-Treffer
+  zeigt (Frankfurt fehlt dort bewusst, siehe 0.93.3).
+
+## [0.93.3] - 2026-08-13
+
+### Added
+- **Flugziel-Tabelle** im „Alle durchsuchen"-Dialog: Gesamtliste aller
+  tatsächlich angeflogenen Ziele (Ziel, IATA-Code als eigene Spalte, Land,
+  Flughäfen) — Zeile anklicken übernimmt den Code ins Suchfeld und sucht
+  sofort über alle drei Flughäfen. Neue `list_destinations()` in
+  `str_flights_client.py`/`muc_flights_client.py` (dedupliziert über den
+  Cache, nur Departure-Zeilen), neue Route `/api/flights/destinations`.
+  **Nur Stuttgart + München** in der Liste — Frankfurt ist als Drehkreuz zu
+  groß für eine abrufbare Gesamtliste (123.289 Abflüge auf 4.854 Seiten ohne
+  Zielfilter, siehe SCRAPING_FRA.md), wird aber bei Klick auf eine Zeile ganz
+  normal mitgesucht.
+
+## [0.93.2] - 2026-08-13
+
+### Added
+- **Flugziel überall suchen**: neue Kachel im ✈️-Auswahldialog (nur sichtbar,
+  wenn mindestens zwei Flugpläne aktiv sind) fragt STR/FRA/MUC **parallel** ab
+  (`/api/flights/search`, `all_flights_routes.py`, `ThreadPoolExecutor`) und
+  zeigt die Treffer je Flughafen in eigener Sektion — nur Abflüge, die drei
+  Datenmodelle bleiben unangetastet (Saisonstrecken bei STR/MUC, Einzelflüge
+  bei FRA), keine erzwungene gemeinsame Tabellenform.
+
+## [0.93.1] - 2026-08-13
+
+### Changed
+- **Flughafen-Auswahldialog schlanker**: Karten (STR/FRA/MUC) zeigen nur noch
+  den Flughafennamen, kein Beschreibungstext mehr drunter. Nebenbei Text
+  „die beiden Flughäfen" korrigiert (waren seit MUC-Erweiterung schon drei).
+
+## [0.93.0] - 2026-08-12
+
+### Added
+- **Flugplan ab München (MUC)**, neuer Schalter `enable_muc_flights` — dritter
+  Flughafen im ✈️-Auswahldialog. München bietet **kein** Flugplan-API: die
+  Flugtafel der Website deckt nur rund ±2 Tage ab (live geprüft). Genutzt wird
+  deshalb der offizielle **Saison-Flugplan als PDF**, der dasselbe Datenmodell
+  hat wie der Stuttgarter Plan — Verbindung mit Wochentagen, Zeiten, Terminal
+  und Gültigkeit von–bis. Aktuell 3.337 Verbindungen aus dem Sommerplan 2026,
+  Suche über Zielcode, Ort oder Land, Zeitraum als Monat–Monat.
+- **Automatische Aktualisierung:** Das PDF wird täglich neu erzeugt und hängt
+  unter einer Adresse mit wechselndem Hash. Das Add-on löst die Adresse deshalb
+  jedes Mal von der Seite auf und prüft **alle drei Stunden**, ob Adresse oder
+  Dateigröße abweichen; heruntergeladen und geparst (~15 s) wird nur dann. Der
+  erste Lauf beim Start wärmt den Speicher vor, damit die erste Suche schnell
+  ist. Im Fenster gibt es zusätzlich **„🔄 Flugplan neu einlesen"**, die Fußzeile
+  zeigt Datenstand und Saisonzeitraum.
+
+### Notes
+- **Einschränkung:** Das PDF deckt immer nur die **laufende Saison** ab (Sommer
+  2026: 29.03.–24.10.). Flüge im Folgezeitraum stehen erst im nächsten PDF —
+  MUC ist damit eher wie STR und nicht so weitreichend wie FRA.
+- Dokumentiert in [SCRAPING_MUC.md](SCRAPING_MUC.md), inklusive Zeilenformat
+  (`S` = Start ab MUC, `L` = Landung in MUC, `+`/`-` für Folge-/Vortag), der
+  Ableitung von Stadt und Land über die x-Position im PDF und der Stolperfalle,
+  dass das Inhaltsverzeichnis die Spalten vertauscht.
+
+## [0.92.0] - 2026-08-12
+
+### Added
+- **Flugplan ab Frankfurt (FRA)**, neuer Schalter `enable_fra_flights`. Der
+  ✈️-Knopf fragt jetzt zuerst nach dem Flughafen, wenn **beide** Flugpläne aktiv
+  sind — ist nur einer freigeschaltet, öffnet er wie bisher direkt dessen
+  Fenster. Frankfurt liefert **Einzelflüge je Datum** (nicht Saisonstrecken wie
+  Stuttgart): Datum, Abflug- und Ankunftszeit, Flugdauer, Airline + Flugnummer,
+  Terminal/Halle/Gate, Check-in-Schalter, Flugzeugtyp und Kennzeichen,
+  Zwischenstopps und Codeshare-Nummern. Suche nach IATA-Code („PMI"), Ort oder
+  Land; Zeitraum wie beim STR-Flugplan über Monat–Monat.
+- Bewusst **getrennt** vom Stuttgarter Flugplan gebaut (eigener Client, eigene
+  Routen, eigener Schalter) — die Datenmodelle beider Flughäfen sind zu
+  verschieden für eine gemeinsame Tabelle. Gemeinsam ist nur der ✈️-Einstieg.
+
+### Notes
+- Quelle ist das offene JSON der Frankfurter Flughafen-Website (kein Key, kein
+  Referer). Dokumentiert in [SCRAPING_FRA.md](SCRAPING_FRA.md), inkl. der drei
+  Fallstricke: `schedArr` trägt einen **falschen Zeitzonen-Offset** (der Wert ist
+  Ortszeit am Ziel), es gibt **keinen Datumsfilter** (die Startseite eines
+  Zeitraums wird per Binärsuche über die Seiten gefunden) und die Seitengröße
+  ist fix bei 25 Einträgen — die Gesamtliste (123.289 Abflüge) ist deshalb
+  nicht abholbar, es wird immer nach Ziel gefiltert.
+
+## [0.91.0] - 2026-08-12
+
+### Added
+- **Flugvarianten sichtbar.** TUI liefert für denselben Zeitraum oft mehrere
+  Angebote, die sich nur im Flug unterscheiden — getrackt wurde davon immer der
+  günstigste, die anderen waren unsichtbar. Beispiel (Riu Turquoise, 05.11.2026,
+  ab STR): 4.133 € mit Lufthansa um 06:15 und **2 Zwischenstopps** gegen 4.184 €
+  mit Austrian um 15:20 und **1 Zwischenstopp** — 51 € Unterschied, den man
+  vorher nicht gesehen hat. Die Angebotskarte zeigt jetzt „✈ N Flugvarianten"
+  zum Aufklappen, mit Preis, Aufpreis gegenüber dem verfolgten Flug und beiden
+  Flugzeiten.
+- **Flug fixieren.** Per „📌 verfolgen" wird eine Variante festgehalten; ab dann
+  verfolgt TUIWatch deren Preis statt des günstigsten Fluges. Die getrackte URL
+  bleibt unverändert (Kalender, Zimmerauswahl und Preisverlauf laufen weiter) —
+  die Auswahl passiert beim Auswerten der Angebots-API über einen Schlüssel aus
+  Airline, Stopps, Abflugzeit und Anreisetag. Fällt der fixierte Flug aus dem
+  Angebot, löst TUIWatch die Fixierung, meldet das im Verlauf und verfolgt
+  wieder den günstigsten Flug.
+
+### Notes
+- Bestehende Angebote brauchen nichts: die Varianten füllen sich beim nächsten
+  regulären Preis-Check, der Preisverlauf bleibt unangetastet.
+- Die Uhrzeit-Filter der TUI-API (`departureMinTime`/`departureMaxTime`) wurden
+  geprüft und **wirken nicht** — die API ignoriert sie (live gegengeprüft).
+  Wirksam sind nur `maxStopOvers` und `airlines`; das Fixieren läuft deshalb
+  über den Variantenschlüssel statt über URL-Filter.
+
+## [0.90.1] - 2026-08-11
+
+### Added
+- **Fragebogen-Editor in der Oberfläche.** Ein **Rechtsklick auf „🗺️ TripPilot"**
+  öffnet einen Editor für den Fragebogen — kein Umweg mehr über Dateimanager,
+  Samba oder Studio Code Server. Bearbeitet wird dieselbe Datei
+  (`/config/trippilot/questions.json`); beide Wege bleiben also nutzbar.
+  Möglich sind: Fragen anlegen, umsortieren und löschen, Titel, Prompt-Label,
+  Feldname und Typ ändern, Antwortmöglichkeiten pflegen (inkl. „exklusiv" bei
+  Mehrfachauswahl), Pflichtfrage setzen, die Bedingung `show_if` als JSON
+  bearbeiten, den Tagesausflug-Wert auswählen und den `semantics`-Block
+  bearbeiten. „Auslieferungsstand laden" holt die mitgelieferten Fragen in den
+  Editor, gespeichert wird erst auf Knopfdruck.
+- **Umbenennen zieht alle Nennungen mit.** Ein Antwortwert steht oft nicht nur
+  in `options`, sondern auch in `exclusive`, in `show_if` anderer Fragen, im
+  `semantics`-Block und bei `daytrip_value`. Der Editor ändert beim Umbenennen
+  oder Löschen einer Option alle diese Stellen mit — genau der Handgriff, den
+  zu vergessen in 0.90.0 vier Kopplungen stillgelegt hätte. Werte, die in
+  mehreren Fragen gleich heißen (z. B. „Keine Präferenz"), bleiben dabei
+  bewusst unangetastet, weil sich nicht entscheiden lässt, welche gemeint war.
+
+### Changed
+- **Gespeichert wird nur ein fehlerfreier Fragebogen.** Der Editor schickt das
+  Dokument zur Prüfung an das Add-on; bei Problemen wird nichts geschrieben und
+  die Fehler stehen mit Fragen-Nummer im Editor. Eine über die Oberfläche
+  erzeugte Datei kann den Wizard also nie auf die Auslieferungsversion
+  zurückwerfen. Geschrieben wird über eine Temp-Datei plus `os.replace`, damit
+  ein Abbruch keine halbe Datei hinterlässt.
+- Eine fehlerhafte eigene `questions.json` zeigt der Editor **so, wie sie auf
+  der Platte liegt** — nur wenn sie nicht einmal gültiges JSON ist, tritt der
+  Auslieferungsstand an ihre Stelle (mit Hinweis). Sonst würde man im Editor
+  etwas anderes reparieren als das, was gespeichert ist.
+- Nach dem Speichern lädt der Wizard den Fragebogen beim nächsten Öffnen neu —
+  ohne Seiten-Reload und ohne Add-on-Neustart.
+
+## [0.90.0] - 2026-08-11
+
+### Added
+- **Überarbeiteter TripPilot-Fragebogen.** 31 statt 29 Fragen, durchgehend
+  ausformulierte Antworten mit Symbolen. Neu: **Reisetempo** (wie voll darf
+  der Tag sein) und **Transferdauer** (wie lange vom Flughafen zum Hotel).
+  Deutlich mehr Auswahl bei Hotelwünschen, Aktivitäten und besonders bei
+  „Was möchtest du vermeiden?" (u. a. Luftfeuchtigkeit, Stechmücken,
+  Seegras, Baustellen, sehr touristische Orte). Feinere Abstufungen bei
+  Temperatur, Regen und Budget.
+- **`semantics`-Block in der Fragen-JSON.** Einige Antwortwerte lösen nicht
+  nur Prompt-Text aus, sondern Logik — Tagesausflug-Modus, die
+  Eigenanreise-Klausel, der Veranstalter-Hinweis bei Pauschalreisen und die
+  Signale der Reise-DNA. Bisher standen diese Werte fest in `ai_routes.py`;
+  jetzt stehen sie in derselben Datei wie die Fragen. Damit lassen sich
+  Antworten frei umbenennen, ohne dass Funktionen still ausfallen. Fehlt der
+  Block, gelten weiter die eingebauten Standardwerte.
+
+### Fixed
+- **Validierung prüft jetzt auch Antwortwerte.** Ein Wert in `show_if`, in
+  `semantics` oder bei `daytrip_value`, den es als Option gar nicht gibt,
+  galt bisher als gültig — die betroffene Frage wäre dann stumm nie wieder
+  erschienen und der Tagesausflug-Modus nicht auswählbar gewesen. Solche
+  Abweichungen sind jetzt ein gemeldeter Fehler mit Angabe des Werts. Genau
+  diese Klasse Fehler entsteht beim Umbenennen von Optionen.
+
+### Changed
+- **Reise-DNA wertet mehr Fragen aus.** „Aktiv" und „Entspannung" beziehen
+  jetzt auch das neue Reisetempo ein, „Kulinarik" die Hotelwünsche, „Kultur"
+  die Sehenswürdigkeiten-Antworten. Die Zählweise bleibt: 15 % Sockel, je
+  zutreffender Frage +35 %, mehrere Treffer in derselben Frage zählen einmal.
+
+## [0.89.12] - 2026-08-11
+
+### Changed
+- **TripPilot-Fragen stehen jetzt in einer editierbaren JSON-Datei.** Bis
+  hierher waren sie an zwei Stellen fest im Code hinterlegt — im Frontend
+  (`ADV_STEPS`) für Anzeige und Sichtbarkeit, im Backend
+  (`_ADVISOR_FIELDS`/`_ADVISOR_LABELS`) für den KI-Prompt. Beides kommt nun
+  aus **einer** Datei: `/config/trippilot/questions.json`, im Dateimanager
+  oder per Samba direkt neben `/config/backups` bearbeitbar. Änderungen
+  greifen beim nächsten Öffnen des Fragebogens, ohne Add-on-Neustart.
+  Bearbeitbar sind Fragetext, Reihenfolge, Antwortmöglichkeiten, Frage-Art
+  (Mehrfachauswahl/Einzelauswahl/Freitext) und die Bedingung, wann eine
+  Frage überhaupt erscheint. Weil auch das Backend diese Datei liest, landet
+  eine neu ergänzte Frage wirklich im KI-Prompt statt beim Absenden still
+  verworfen zu werden.
+- **Bedingungen ohne Code.** Die bisherigen JavaScript-Ausdrücke hinter
+  `showIf` sind durch ein deklaratives `show_if` ersetzt — `contains`,
+  `contains_any`, `equals`, `in`, `answered`, verknüpfbar mit `all`, `any`
+  und `not`. Der ausgelieferte Fragebogen verhält sich unverändert.
+- **Updatesicher.** Eine einmal angelegte `questions.json` wird von
+  Add-on-Updates nie überschrieben. Der jeweils aktuelle Auslieferungsstand
+  liegt zum Vergleichen als `questions.default.json` daneben und wird bei
+  jedem Start erneuert, dazu eine `README.md` mit dem vollständigen Schema.
+- **Kaputte Datei legt nichts lahm.** Unlesbares JSON oder ein Schemafehler
+  führen nicht zum leeren Fragebogen: es gelten weiter die mitgelieferten
+  Fragen, und der erste Fehler steht mit Dateipfad direkt auf Schritt 1 des
+  Wizards sowie im Add-on-Log.
+- Neuer Endpunkt `GET /api/trippilot/questions` (liefert Fragen, Quelle und
+  etwaige Fehler). Ein GUI-Editor dafür ist noch nicht enthalten.
+
+## [0.89.11] - 2026-08-11
+
+### Added
+- **Rechtsklick aufs Logo → „Nächste Läufe".** Zeigt für jede
+  Hintergrund-Aufgabe (Preis-Checks, Suchabos, Preiskalender,
+  Preisbarometer, Aktionscodes, API-Selbsttest, Backup, wöchentliche
+  Zusammenfassung), wann sie das nächste Mal ansteht — als Restzeit plus
+  Uhrzeit, fällige zuerst, abgeschaltete als solche markiert. Dazu je
+  Zeile eine Notiz mit dem Warum (z. B. „12 aktiv · als Nächstes: Hotel
+  Riu", „3 von 8 Messreihen heute offen", „wöchentlich, Montag"). Alle
+  Zeiten sind Frühestens-Angaben: der Poller startet Fälliges erst beim
+  nächsten Aufwachen, der Kopf der Ansicht nennt seinen Takt. Neuer
+  Endpunkt `GET /api/schedule`; der Doppelklick (Konsole) bleibt
+  unverändert.
+
+## [0.89.10] - 2026-08-11
+
+### Fixed
+- **„Meine Reisen" → „📅 Als Kalender (.ics)" war kaum lesbar.** Der Link
+  war der einzige `.hc-foot` als `<a>` und bekam damit die
+  Browser-Standardfarbe (Blau, unterstrichen) — auf dunklem Grund
+  schlecht lesbar. Steht jetzt wie die übrigen Einträge in Textfarbe,
+  Unterstreichung und Akzentfarbe erst beim Hover.
+
+## [0.89.9] - 2026-08-11
+
+### Added
+- **Logo signalisiert Hintergrund-Aktivität.** Läuft im Hintergrund etwas
+  (Preis-Checks, Suchabos, Preiskalender, Preisbarometer, Aktionscodes,
+  Selbsttest, Backup, wöchentliche Zusammenfassung), färbt sich der
+  Schriftzug „TUIWatch" samt Flieger bernsteinfarben, der Flieger pulst
+  dezent. Der Tooltip nennt die laufenden Aufgaben im Klartext
+  („Läuft gerade: Preis-Checks (10), Preiskalender"), sonst steht dort
+  wie bisher der Konsolen-Hinweis. `prefers-reduced-motion` schaltet die
+  Animation ab, die Farbe bleibt. Die Labels kommen über `/api/offers`
+  mit (kein zweiter Poll-Timer), Aktualisierung damit alle 5 Sekunden.
+
+## [0.89.8] - 2026-08-11
+
+### Added
+- **Pause zwischen Hintergrund-Abrufen (`poll_gap`, Standard 10 s).** Der
+  Poller arbeitet alle fälligen Angebote seriell in einem Block ab; bei
+  vielen Angeboten entstand so ein Burst von Abrufen innerhalb weniger
+  Sekunden. Zwischen zwei Angeboten (und zwischen zwei Suchabos) liegt
+  jetzt eine Pause von `poll_gap` Sekunden plus 0–5 s Zufall, damit die
+  Abrufe kein exaktes Taktmuster ergeben. Die Pause greift nur im
+  Hintergrund — „Jetzt prüfen" aus der UI bleibt unverändert sofortig.
+  `poll_gap: 0` schaltet sie ab.
+
+## [0.89.7] - 2026-08-11
+
+### Changed
+- **Trip Pilot, Reiseart „Pauschalreise (TUI)" → „Pauschalreise"**
+  entschärft. KI-Prompt verlangte bislang eine strikte Einzelprüfung, ob
+  TUI das Ziel nachweislich im Katalog führt — daran scheiterten
+  Websuchen (z. B. Perplexity) mangels belastbarer Treffer. Prompt
+  plausibilisiert jetzt grob über gängige Veranstalter (TUI, DER
+  Touristik, FTI) statt eine einzelne Quelle hart zu verifizieren.
+
+## [0.89.6] - 2026-08-10
+
+### Added
+- **STR-Flugdetails: Link „Live-Position auf planefinder.net"** im
+  Detail-Popup — direkt neben den adsbdb-Infos, unabhängig von deren
+  Ladezustand nutzbar. (Live-Lookup über OpenSky wurde geprüft: kein
+  `callsign`-Filter im API, TUIfly sendet als Charter-Airline zudem
+  Rotations-Callsigns ohne erkennbaren Bezug zur Flugnummer — für einen
+  Fahrplan-Browser nicht sinnvoll konstruierbar, siehe Konsolen-Diskussion.)
+
+## [0.89.5] - 2026-08-10
+
+### Fixed
+- **STR-Flugplan-Modal komplett kaputt** — beim Einfügen des Blocks in
+  `index.html` waren HTML-Attribut-Anführungszeichen (`id="…"`, `class="…"`,
+  `viewBox="…"`) durch typografische Zeichen (`"…"`) ersetzt worden. Browser
+  erkannten die Attribute nicht mehr, `getElementById()` lieferte `null`,
+  app.js crashte beim Start und SVG-Icons rendern kaputt. Zurück auf gerade
+  Anführungszeichen.
+
+### Added
+- **Regressionstest `test_template_quotes.py`** — prüft alle `templates/*.html`
+  auf typografische Anführungszeichen an Attribut-Delimiter-Position, damit
+  dieser Fehler künftig vor dem Commit auffliegt statt live.
+
+## [0.89.4] - 2026-08-10
+
+### Added
+- **STR-Flugplan: Flugdetails per Klick** — jede Zeile ist jetzt anklickbar
+  und zeigt Airline, Callsign sowie die planmäßige Standardstrecke (Start-/
+  Zielflughafen mit Ort). Nutzt das offene Community-API adsbdb.com (Callsign
+  aus Fluggesellschaftscode + Flugnummer), server-seitig geproxied und 12h
+  gecacht. Reine Zusatzinfo — nicht jeder Callsign hat dort hinterlegte Daten.
+
+## [0.89.3] - 2026-08-10
+
+### Added
+- **STR-Flugplan: Zeitraum-Filter** (von/bis, Monatsauswahl) — grenzt die
+  Suche auf Verbindungen ein, deren Saisonzeitraum das gewählte Fenster
+  überschneidet.
+
+### Changed
+- **STR-Flugplan-Suchfeld schmaler**, Zeitraum-Filter passt in dieselbe Zeile.
+- **Zeitraum-Spalte zeigt nur noch Monat + Jahr** (z. B. „Okt 2026–Mär 2027“
+  statt „31.10.2026–27.03.2027“) — Tagesgenauigkeit war für die Saisonspanne
+  einer Fahrplanzeile keine nützliche Information.
+
+## [0.89.2] - 2026-08-10
+
+### Fixed
+- **STR-Flugplan-Suche fand scheinbar nichts** (z. B. Suche nach „LPA“):
+  `Via` (Zwischenstopp-Flughafen) liefert das API entgegen der ursprünglichen
+  Annahme kein Code-String, sondern ein volles Airport-Objekt — ungeprüft ans
+  Frontend durchgereicht crashte `esc()` dort (`(s||"").replace is not a
+  function`), das Rendering brach vor dem Anzeigen ab. `str_flights_client.py`
+  extrahiert jetzt nur `Via.Code`; alle übrigen Felder zusätzlich hart auf
+  `str()` abgesichert. `esc()` selbst stringt jetzt defensiv (`String(s||'')`
+  statt `(s||'')`) gegen künftige Typüberraschungen aus JSON-APIs.
+
+## [0.89.1] - 2026-08-10
+
+### Fixed
+- **Add-on startete nicht** (`ModuleNotFoundError: No module named 'str_flights_routes'`):
+  Dockerfile kopierte die neuen Module aus 0.89.0 nicht ins Image (Fix kam erst
+  nach dem Image-Build). Reiner Dockerfile-Commit hatte zudem den Image-Build-
+  Workflow gar nicht getriggert (Pfad-Filter reagiert nur auf `config.yaml`) —
+  dieser Versionsbump erzwingt den Rebuild.
+- **Fehlende Übersetzung**: `enable_str_flights` zeigte im Add-on-Konfigurations-
+  formular nur den rohen Options-Key statt Name/Beschreibung (DE+EN nachgetragen).
+
+## [0.89.0] - 2026-08-10
+
+### Added
+- **Flugplan ab Stuttgart Airport (STR)** (neuer ✈️-Knopf in der Kopfzeile,
+  Opt-in `enable_str_flights`): eigenständige Suche nach Linienflug-
+  Verbindungen (Abflug/Ankunft, Fluggesellschaft, Wochentage, Zeiten,
+  Saisonzeitraum) über Zielflughafen oder Land. Nutzt das offene JSON-API des
+  Flughafen-Betreibers (`fsg-datahub.azure-api.net`), keine Anmeldung nötig,
+  komplett unabhängig von TUI-/Check24-Angeboten. Details: SCRAPING_STR.md.
+
 ## [0.88.0] - 2026-08-07
 
 ### Added

@@ -3,6 +3,10 @@
 Zurückgestellte Vorhaben, die konkret genug sind, um später ohne Neuentwurf
 weiterzugehen. Kein Ideen-Brainstorming — dafür ist `Ideas.md` da (Kartenspiele).
 
+Recherchen zu einzelnen Themen liegen in eigenen Dateien:
+`INSTAGRAM.md` (Beiträge automatisch auf Instagram veröffentlichen — Wege,
+Meta-Voraussetzungen, Rezept über den RSS-Feed).
+
 ---
 
 ## Reiseblog — nichts mehr offen, aber Fallstricke merken
@@ -83,3 +87,33 @@ bestehenden:
 `ai_usage.json` — die Summe je Monat vorher bilden, nicht je Sensor neu einlesen.
 Sensoren nur melden, wenn überhaupt ein `gemini_api_key` gesetzt ist; sonst stehen
 in jeder HA-Instanz ohne KI drei Sensoren mit 0 herum.
+
+---
+
+## KI-Studio — nichts mehr offen, aber Fallstricke merken
+
+**Stand:** alle acht Punkte der Durchsicht vom 2026-08-10 sind umgesetzt —
+Übernahme passend zur Textart, Überarbeiten, Dauervorgaben (v0.10.16),
+Seitenverhältnis im Studio, Variation, „Vorherige Fassung", Entwurfssuche
+(v0.10.17), Kostenschätzung (v0.10.18), Prompt-Bibliothek (v0.10.19),
+vorhandene Texte laden (v0.10.20), Alternativtexte (v0.10.21). Hier stehen nur
+noch die Stolperstellen für spätere Arbeit.
+
+**Fallstricke, die schon bekannt sind:**
+
+- `_reference_blob()` entscheidet, was „Speicher aufräumen" für benutzt hält.
+  `ai_prompts.json` **gehört hinein** (ein gespeichertes Vorlagenbild ist eine
+  echte Verwendung), `uploads_meta.json` **auf keinen Fall** — sonst gälte jede
+  Datei mit Alternativtext als benutzt und es gäbe nie wieder eine Waise.
+- Alternativtexte hängen am Dateinamen. Wer einen weiteren Weg zum Löschen von
+  Uploads baut, muss `_uploads_meta_forget()` mit aufrufen, sonst bleiben
+  Einträge für Dateien zurück, die es nicht mehr gibt.
+- `render_md()` füllt **nur leere** `alt=""`. Ein selbst geschriebener Text in
+  `![…](…)` bleibt unangetastet — das ist Absicht und keine Lücke.
+- Das Seitenverhältnis steht an zwei Stellen (Einstellungen und Bild-Studio).
+  `aiRatioChanged()` hält sie gleich; gespeichert wird nur die obere. Wer eine
+  dritte Stelle baut, muss sie dort eintragen.
+- Die Kostenschätzung für Text ist bewusst eine Schätzung mit genannter Annahme.
+  Wer sie „genauer" macht, ohne die Tokens zu kennen, macht sie nur falscher.
+- Neue Ablagen im Add-on-Konfigurationsordner gehören in **beide** Listen des
+  Backups (Sichern und Wiederherstellen) — sonst fehlen sie beim Zurückspielen.

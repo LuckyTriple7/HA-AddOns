@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.6.25] - 2026-08-13
+- Neu: **Gesendete Nachrichten erscheinen sofort in der Chat-Ansicht** (optimistisches Rendern). Bisher wurde die Bubble erst nach dem Roundtrip über `signal-cli-rest-api` und dem folgenden `loadMessages()` gezeichnet — je nach Verbindung mehrere Sekunden Verzögerung. Jetzt legt `sendMsg()` die Nachricht direkt in eine chatbezogene Pending-Liste (`_pendingSend`), die `renderMessages()` ausgegraut (55 % Deckkraft, 🕓 statt Häkchen, keine Löschen-/Antworten-/Weiterleiten-Buttons) ans Ende der Liste hängt; das Eingabefeld wird sofort geleert. Nach der Server-Antwort wird der Eintrag entfernt und die echte Nachricht per `loadMessages(chatId, true)` nachgeladen. Schlägt der Versand fehl, verschwindet der Platzhalter, der Text landet wieder im Eingabefeld und es kommt weiterhin die Fehlermeldung. Gilt für normale Nachrichten und Antworten (inkl. Zitat-Block); Medienversand unverändert
+
 ## [1.6.24] - 2026-07-31
 - map: `addon_config` → `app_config` (Home-Assistant-Supervisor hat `addon_config` seit 2026.07 als Legacy-Name markiert, neuer Name ist `app_config`).
 

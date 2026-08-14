@@ -1,6 +1,6 @@
 name: TUIWatch
 description: Reisepreis-Tracker — verfolgt TUI-Angebotspreise und zeigt den Verlauf
-version: "0.88.0"
+version: "0.98.0"
 slug: tuiwatch
 url: https://github.com/LuckyTriple7/HA-AddOns
 image: "ghcr.io/luckytriple7/tuiwatch"
@@ -41,10 +41,12 @@ options:
   password: "secret"
   session_hours: 24
   poll_interval: 21600
+  poll_gap: 10
   market_trend_threshold: 1.0
   market_basket_enabled: true
   market_basket_lead_days: 91
   market_basket_max_regions: 20
+  booking_window_enabled: true
   trippilot_home_location: ""
   ha_sensors: true
   notify_ha: true
@@ -55,6 +57,7 @@ options:
   notify_calendar_trend: true
   calendar_trend_min_diff: 20
   calendar_daily_refresh: true
+  calendar_archived_refresh: true
   notify_errors: true
   notify_api_errors: true
   notify_unavailable: true
@@ -90,6 +93,9 @@ options:
   ai_max_web_searches: 12
   ai_prompt_preview: false
   enable_check24_compare: false
+  enable_str_flights: false
+  enable_fra_flights: false
+  enable_muc_flights: false
   enable_public_share: false
   public_port: 17796
   public_base_url: ""
@@ -102,10 +108,12 @@ schema:
   password: str
   session_hours: int
   poll_interval: int?
+  poll_gap: int?
   market_trend_threshold: float?
   market_basket_enabled: bool?
   market_basket_lead_days: int?
   market_basket_max_regions: int?
+  booking_window_enabled: bool?
   trippilot_home_location: str?
   ha_sensors: bool?
   notify_ha: bool?
@@ -116,6 +124,7 @@ schema:
   notify_calendar_trend: bool?
   calendar_trend_min_diff: int?
   calendar_daily_refresh: bool?
+  calendar_archived_refresh: bool?
   notify_errors: bool?
   notify_api_errors: bool?
   notify_unavailable: bool?
@@ -151,6 +160,9 @@ schema:
   ai_max_web_searches: int?
   ai_prompt_preview: bool?
   enable_check24_compare: bool?
+  enable_str_flights: bool?
+  enable_fra_flights: bool?
+  enable_muc_flights: bool?
   enable_public_share: bool?
   public_port: port?
   public_base_url: str?

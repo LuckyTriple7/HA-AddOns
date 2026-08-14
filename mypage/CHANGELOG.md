@@ -1,5 +1,99 @@
 # Changelog
 
+## 0.10.30
+- 🎯 **Die Sprungleiste markierte nach dem Sprung den falschen Bereich.** Ein Klick auf „Bild-Studio" scrollte richtig hin, die Hervorhebung blieb aber einen Chip weiter links stehen. Die Höhe der Leiste war fest angenommen statt gemessen — der angesprungene Bereich kam damit ein paar Pixel unterhalb der Linie zu stehen, an der die Leiste den aktuellen Abschnitt ablieste.
+- 🔲 **Kein greller Kasten mehr um den geklickten Knopf.** Der Fokusring des Browsers blieb nach dem Sprung liegen. Bei Bedienung per Tastatur ist er weiterhin da, jetzt in den Farben der Oberfläche.
+- ⬇️ Der letzte Bereich („Übersetzen") lässt sich jetzt auch markieren — am Seitenende kann er nicht mehr bis unter die Leiste geschoben werden, das gilt nun trotzdem als angekommen.
+
+## 0.10.29
+- 🧭 **Der KI-Reiter hat eine Sprungleiste bekommen.** Sechs Bereiche untereinander — Einstellungen, Verbrauch, Bild-Studio, Logo-Designer, Text-Studio, Übersetzen — hießen bisher: scrollen und suchen. Oben im Reiter steht jetzt eine Leiste mit allen sechs, ein Klick springt hin.
+- 📌 Die Leiste klebt beim Scrollen unter der Kopfzeile, ist also auch mitten im Bild-Studio noch da. Der Bereich, in dem man gerade steht, hebt sich hervor.
+- 📱 Funktioniert per Fingertipp genauso wie mit der Maus. Bereiche, die ohne Gemini-Schlüssel ausgeblendet sind, fehlen auch in der Leiste; die Beschriftungen stammen aus den Überschriften und sind damit automatisch in beiden Sprachen richtig.
+
+## 0.10.28
+- 💸 **„Für dieses Modell ist kein Preis hinterlegt" stand da, obwohl Preise gepflegt waren.** Die Kostenschätzung im Bild-Studio und beim Text lief los, bevor die Modell-Auswahlfelder gefüllt waren — die Modellliste kommt von Google und braucht länger als der Verbrauch aus der eigenen Datei. Ohne gewähltes Modell fand die Schätzung erwartungsgemäß keinen Preis und meldete das auch. Erst „Speichern" in den Preisen ließ sie erneut rechnen, deshalb erschien der Betrag genau dann.
+- ✅ Die Schätzung rechnet jetzt zusätzlich, sobald die Modelle stehen, und schreibt gar nichts, solange noch kein Modell gewählt ist.
+
+## 0.10.27
+- 📐 **Die Bibliothek auf der Startseite lässt sich jetzt schmaler stellen.** Die großen Bildkarten nahmen bislang gut die halbe Bildschirmhöhe ein, ohne Alternative. Im Tab *Bibliothek* steht nun **Darstellung auf der Startseite** mit fünf Möglichkeiten:
+  - **Große Karten (Karussell)** — wie bisher, bleibt eingestellt.
+  - **Bildkacheln mit Titel im Bild** — der Titel liegt auf dem Bild statt darunter; halbe Höhe, das Bild bleibt groß.
+  - **Kleine Karten mit Bild links** — Karte quer, Vorschaubild neben dem Titel.
+  - **Liste** — kein Karussell mehr: eine Zeile je Eintrag, alle auf einen Blick, ohne seitliches Scrollen.
+  - **Klappzeile** — nur noch eine Zeile mit Name und Anzahl; das Karussell öffnet sich auf Klick.
+- 🔎 Schlagwort-Leiste, „Zur Übersicht →" und der Mitglieder-Schutz arbeiten in allen fünf Varianten gleich. Die Einstellung gilt **nur für den Anriss auf der Startseite**, die Übersicht unter `/bibliothek` bleibt unverändert.
+
+## 0.10.26
+- 📏 **Auswahlfelder und Knöpfe stehen wieder auf einer Linie.** Ein Knopf bringt 16 px Abstand nach oben mit — gedacht für Knöpfe **unter** einem Formular. Steht er neben einem Feld, schob dieser Abstand die ganze Zeile nach unten, und die Nachbarspalte lag höher. Am deutlichsten im neuen Übersetzen-Bereich („Eintrag" und „Feld" versetzt), aber dieselbe Schieflage steckte in jeder Zeile mit einem großen Knopf — Prompt speichern, Entwurf speichern, Überarbeiten, Text ins Studio holen.
+- ↔️ Auswahlfelder in solchen Zeilen füllen jetzt die freie Breite, statt sich auf ihren Inhalt zu schrumpfen, und der Knopf daneben bricht nicht mehr in zwei Zeilen um.
+
+## 0.10.25
+- 🩹 **Übersetzen lud nur die Überschrift.** Die Feldauswahl stand nach dem Wählen eines Eintrags auf „Titel" — der ersten Option — und „Laden" holte folgerichtig nur die Überschrift. Vorbelegt ist jetzt der **Fließtext**; Titel und SEO-Beschreibung bleiben in derselben Auswahl.
+- 👀 **Eintrag und Feld stehen jetzt nebeneinander, jedes mit eigener Beschriftung.** Vorher hingen beide Auswahlfelder ohne Unterscheidung in einer Zeile, und dass es überhaupt eine Feldauswahl gibt, war leicht zu übersehen. Bei „freie Eingabe" verschwindet sie ganz.
+
+## 0.10.24
+- 🌐 **Eigener Übersetzen-Bereich im KI-Tab.** Die 🌐-Knöpfe in den Formularen konnten immer nur DE→EN und immer nur ihr eigenes Formular. Neu: **freier Text** oder ein **vorhandener Eintrag** als Quelle — Blogbeitrag, Projekt, Bibliothek-Eintrag oder Seite, dazu das Feld (Titel, SEO-Beschreibung, Text …). „Laden" holt die Fassung in der Ausgangssprache, also bei „Englisch → Deutsch" die englische.
+- ↔️ **Beide Richtungen**, DE→EN und EN→DE, und **„⇅ Richtung tauschen"** dreht Richtung und Texte gleich mit — praktisch für die Gegenprobe.
+- 🔒 **Zurückgeschrieben wird nichts**: das Ergebnis steht zum Kopieren da, das Original bleibt unangetastet. Für das direkte Füllen im Beitrag gibt es weiterhin den 🌐-Knopf im jeweiligen Formular.
+- 🆓 Der Bereich ist **auch ohne Gemini-Schlüssel sichtbar** — MyMemory braucht keinen. Welcher Anbieter gerade übersetzt, steht dabei; mit Gemini zählt jeder Durchgang aufs Textkontingent. Höchstens 20.000 Zeichen am Stück.
+
+## 0.10.23
+- 📂 **Auch „Dateien" im Tab System klappt jetzt zusammen.** Bei 91 Bildern war der Abschnitt der mit Abstand längste des Tabs. Stehen bleibt eine Zeile mit der Bilanz — „91 Bilder, 4 PDFs" —, ein Klick auf die Überschrift öffnet ihn.
+- ⚡ Die Kacheln werden **erst beim Aufklappen gebaut**. Vorher lud jeder Besuch des Tabs alle Vorschaubilder mit, auch wenn man wegen etwas ganz anderem dort war.
+
+## 0.10.22
+- 📂 **Der Alternativtext-Bereich klappt zusammen.** Bei vielen Bildern schob er den Tab System endlos in die Länge. Stehen bleibt eine Zeile mit Überschrift und Zähler — „34 Bilder, davon 12 ohne Text" —, ein Klick öffnet den Editor. Zugeklappt werden die Zeilen samt Vorschaubildern gar nicht erst gebaut.
+- 🔔 **Rückmeldung im Banner wie im KI-Tab.** Der KI-Knopf war bisher stumm: klicken, warten, hoffen. Jetzt meldet das Banner oben „Alternativtext wird erzeugt …", danach „steht im Feld — noch speichern", und beim Sammellauf den Fortschritt „Bild 3 von 12 …". Fehler stehen ebenfalls dort statt in einer kurzen Einblendung — mit Grund und länger lesbar.
+- 🧯 Bricht der Sammellauf ab (etwa am Stundenlimit), bleibt die Fehlermeldung stehen und **das bis dahin Erzeugte wird trotzdem gespeichert**.
+
+## 0.10.21
+- 🏷️ **Alternativtexte für Bilder — bisher hatte MyPage gar keine.** Jedes hochgeladene Bild ging ohne `alt` nach draußen: für Screenreader nicht vorhanden, für Suchmaschinen stumm. Im Tab **System** steht unter dem Datei-Browser jetzt je Bild ein Feld für Deutsch und Englisch; standardmäßig sind nur die Bilder ohne Text eingeblendet.
+- 🔗 **Der Text hängt an der Datei, nicht am Beitrag** — dasselbe Bild zeigt in Beitrag, Projekt und Bibliothek dasselbe. Er wirkt bei Titelbildern und Galerien in Beiträgen, Projekten, Bibliothek, Reiseblog und auf der Startseite. In Markdown füllt er nur leere Klammern: `![](…)` bekommt ihn, `![eigener Text](…)` behält deinen. Fehlt die gewünschte Sprache, gilt die andere.
+- ✦ **Mit Gemini erzeugen:** je Bild ein KI-Knopf, dazu „Alle fehlenden erzeugen" (der Reihe nach, wegen des Stundenlimits). Der Vorschlag landet erst im Feld und wird mit „Speichern" übernommen — ein danebengegangener lässt sich vorher ändern. Der Prompt hält die Texte kurz und sachlich: keine Einleitung wie „Bild von", keine Vermutungen über Namen oder Orte.
+- 🗄️ Gespeichert in `uploads_meta.json`, **im Backup und in der Wiederherstellung enthalten**. Wird ein Bild gelöscht oder weggeräumt, verschwindet sein Alternativtext mit. Umgekehrt schützt ein Alternativtext eine Datei **nicht** vor dem Aufräumen — sonst fände „Ungenutzte Bilder aufräumen" nie wieder eine Waise.
+
+## 0.10.20
+- 📥 **Vorhandene Texte lassen sich ins Studio holen.** Bisher ging es nur in eine Richtung: erzeugen und übernehmen. Wer einen alten Beitrag überarbeiten, ihm die englische Fassung nachziehen oder eine SEO-Beschreibung nachtragen wollte, musste kopieren. Die Auswahl oben im Text-Studio listet **alle Blogbeiträge, Projekte und Bibliothek-Einträge**; „Laden" füllt die Ergebnisfelder, Textart und Sprachwahl stellen sich passend ein.
+- 🔒 **Das Original bleibt unangetastet.** Zurückgeschrieben wird erst über „Übernehmen", und dabei entsteht ein neuer Eintrag — der alte wird nicht ersetzt. Ein geöffneter Entwurf wird beim Laden gelöst, damit Speichern nichts Fremdes überschreibt; „↶ Vorherige Fassung" macht das Laden rückgängig.
+- ⚠️ Nicht ganz verlustfrei: ein **Projekt hat nur einen Titel** für beide Sprachen, der steht danach in beiden Titelfeldern.
+
+## 0.10.19
+- 💾 **Prompt-Bibliothek im Bild-Studio.** Das Text-Studio kann Entwürfe speichern, das Bild-Studio konnte es nicht — ein mühsam zurechtgefeilter Prompt war nach dem Neuladen weg. **„Prompt speichern"** legt Beschreibung, Anzahl, Seitenverhältnis und Vorlagenbild unter einem Namen ab, **„📂 Übernehmen"** holt alles zurück ins Studio. Ohne Namen werden die ersten Wörter genommen; derselbe Name überschreibt den Eintrag, statt eine zweite Zeile anzulegen.
+- 🗄️ Gespeichert wird in einer eigenen Datei `ai_prompts.json` im Add-on-Konfigurationsordner, höchstens 100 Einträge, **im Backup und in der Wiederherstellung enthalten**.
+- 🧹 **Ein in der Bibliothek hinterlegtes Vorlagenbild gilt als benutzt** und wird von „Speicher aufräumen" nicht mehr als verwaist gelöscht.
+
+## 0.10.18
+- 💰 **Was der nächste Lauf kostet, steht jetzt unter dem Knopf.** Bisher sah man den Preis erst hinterher im Verbrauchs-Bereich. Bild-Studio und Logo-Designer zeigen „≈ 0,16 $ für 4 Bilder", das Text-Studio eine Schätzung samt genannter Annahme („bei rund 800 Wörtern Ausgabe") — abgerechnet wird nach Tokens, die vorher niemand kennt, und eine nackte Zahl wäre hier eine erfundene.
+- 🔁 Die Anzeige rechnet **live** mit: Länge, Sprachen, Thema, Modellwechsel und Bildanzahl schlagen sofort durch. Gerechnet wird mit denselben Preisen wie im Verbrauchs-Bereich, eigene Werte schlagen die Vorgaben. Ist für ein Modell kein Preis hinterlegt, steht dort der Hinweis statt einer Zahl.
+
+## 0.10.17
+- 📐 **Seitenverhältnis steht jetzt im Bild-Studio**, direkt neben „Anzahl". Bisher lag es nur oben in den Einstellungen: zum Wechseln musste man hochscrollen und speichern, obwohl es bei jedem Lauf einzeln mitgeschickt wird. Beide Felder zeigen denselben Wert und ziehen einander nach; dauerhaft gespeichert wird er weiterhin nur oben.
+- ↻ **„Variation" an gespeicherten Bildern.** Ein Klick setzt das Bild als Vorlage und startet sofort einen neuen Lauf mit derselben Beschreibung — statt „Als Vorlage", hochscrollen, „Erzeugen". Nur an gespeicherten Bildern, ein Entwurf hat noch keine taugliche Adresse.
+- ↶ **„Vorherige Fassung" im Text-Studio.** Ein zweiter Lauf, eine Überarbeitung oder ein geöffneter Entwurf haben die Felder bisher still überschrieben. Der Knopf holt den Stand davor zurück und führt mit demselben Klick wieder vorwärts. Eine Stufe, nur in der geöffneten Seite — nichts wird gespeichert.
+- 🔎 **Suche und Sortierung in der Entwurfsliste.** Ab fünf Entwürfen erscheinen ein Suchfeld (Name und Textart) und die Sortierung nach neueste / älteste / Name A–Z. Reine Anzeige, ohne weiteren Aufruf.
+
+## 0.10.16
+- 🗂️ **Übernehmen richtet sich jetzt nach der Textart.** Das Studio kennt fünf Textarten, konnte das Ergebnis aber nur an den Blog weiterreichen — eine Projektbeschreibung musste man von Hand hinüberkopieren. Neu: **„Als Projekt übernehmen"** (SEO-Beschreibung wird Kurzbeschreibung, Fließtext die lange, unveröffentlicht), **„Als Bibliothek-Eintrag übernehmen"** (unsichtbar geschaltet) und bei „nur SEO" **„In die Website-SEO übernehmen"**, das die Beschreibung in beide Felder im Design-Tab einträgt und dorthin springt — gespeichert wird sie dort mit „Speichern". Der Weg zum Blogbeitrag bleibt immer offen, veröffentlicht wird auf keinem Weg automatisch.
+- ✂️ **Überarbeiten statt neu erzeugen.** Bisher gab es nur „nochmal", und das warf jede Handarbeit im Formular weg. Unter dem Ergebnis stehen jetzt **„Kürzer"**, **„Länger"**, **„Feinschliff"** und ein freies Feld für einen eigenen Änderungswunsch. Der vorhandene Text geht mit in die Anfrage und kommt vollständig überarbeitet zurück.
+- 🇩🇪 **Eine einzelne Sprache überarbeiten.** Die Auswahl „Beide / Nur Deutsch / Nur Englisch" erzeugt nur die gewählte Fassung neu; die andere bleibt unangetastet — ein Korrekturlauf kostet damit die Hälfte. Maßgeblich ist, was wirklich in den Feldern steht: ohne englischen Text gibt es auch nichts auf Englisch zu kürzen.
+- 📌 **„Immer beachten" — Dauervorgaben für jeden Text.** Ein Feld in den KI-Einstellungen (bis 800 Zeichen), dessen Inhalt bei jedem Textlauf mitgeht, auch beim Überarbeiten: „Leser duzen", „keine Emojis", „Produktname immer als MyPage schreiben". Leer lassen schaltet es ab.
+
+## 0.10.15
+- 📁 **Vorhandene Logo-Sätze klappen jetzt zusammen.** Jeder Satz zeigte alle Vorschaubilder auf einmal — bei mehreren Sätzen war der Logo-Designer damit endlos lang. Zu sehen ist nun je Satz eine Zeile mit Name, Dateizahl und den Knöpfen „Alle als ZIP", „Größen neu rechnen" und „Löschen"; ein Klick auf den Namen zeigt die Dateien, ein zweiter versteckt sie wieder.
+- 🔓 **Frisch gespeicherte, eingelesene und neu gerechnete Sätze klappen von selbst auf** — das Ergebnis will man sofort sehen. Welche Sätze offen sind, bleibt auch dann erhalten, wenn sich die Liste zwischendurch neu aufbaut.
+
+## 0.10.14
+- ↺ **„Zurücksetzen" im KI-Tab — in allen drei Studios.** Wer einen gespeicherten Entwurf geöffnet hatte und danach etwas Neues anfangen wollte, kam bisher nur über das Neuladen der Seite (Strg+R) zu leeren Feldern zurück. Der neue Knopf steht jeweils direkt neben „Erzeugen".
+- 📝 **Text-Studio:** leert Thema, Titel, SEO-Beschreibung, beide Textfassungen, Schlagwörter und den Entwurfsnamen und stellt Textart, Tonfall, Länge, Sprachen und Schreibweise auf die Vorgaben zurück. Ein geöffneter Entwurf wird gelöst, damit das nächste Speichern nicht den alten Eintrag überschreibt.
+- 🖼️ **Bild-Studio:** leert Beschreibung, Anzahl und Vorlagenbild. 🏷️ **Logo-Designer:** zusätzlich Name, freies Maß, Zielformate und Freistellen zurück auf den Ausgangszustand.
+- 🔒 **Gelöscht wird dabei nichts** — gespeicherte Entwürfe, die erzeugten Bilder im Ergebnis-Streifen und fertige Logo-Sätze bleiben stehen. Stehen noch Eingaben im Formular, fragt der Knopf vorher nach.
+
+## 0.10.13
+- 💾 **Das Text-Studio kann Entwürfe speichern.** Bisher lebte ein erzeugter Text nur im Formular: ein zweiter Durchgang, ein Tabwechsel oder das Neuladen der Seite haben ihn ersatzlos verworfen — bezahlt war der Aufruf trotzdem. Neu unter dem Ergebnis: **„💾 Entwurf speichern"** mit Namensfeld (leer = der Titel wird genommen) und darunter die Liste **„Gespeicherte Entwürfe"** mit Textart, Sprachen, Zeichenzahl und Datum. **„Öffnen"** holt alles zurück ins Studio, **„Löschen"** entfernt den Eintrag.
+- 🔁 **Mitgespeichert werden auch die Eingaben** — Thema, Textart, Tonfall, Länge, Sprachen und die Wahl „eigenständig schreiben / übersetzen". Ein geöffneter Entwurf lässt sich damit ohne Abtippen neu erzeugen, etwa mit einem anderen Modell oder Tonfall.
+- ♻️ Solange ein Entwurf geöffnet ist, **überschreibt** Speichern genau diesen Eintrag, statt bei jedem Klick eine weitere Kopie anzulegen; der Merker „geöffnet" steht in der Liste. **„✕ Lösen"** beendet die Verbindung — danach entsteht beim nächsten Speichern ein neuer Eintrag.
+- 🗄️ Entwürfe liegen in einer **eigenen Datei** `ai_drafts.json` im Add-on-Konfigurationsordner (nicht in `site.json`, die bei jedem Admin-Speichern komplett neu geschrieben wird) und sind **im Backup und in der Wiederherstellung enthalten**. Höchstens 200 Entwürfe, danach fällt der jeweils älteste heraus. Öffentlich wird davon nichts: ein Entwurf erscheint weder im Blog noch in Suche oder Feed, bis er über „Als Blogbeitrag übernehmen" ein Beitrag wird und dort veröffentlicht wird.
+
 ## 0.10.12
 - 🛡️ **Dieselbe CodeQL-Meldung, dritter Anlauf — jetzt ohne Umweg.** Der Fehlercode des Preiskatalogs gilt als aus Googles Antwort stammend, und die Markierung überlebt jede Weiterverarbeitung: weder das Nachschlagen im Wörterbuch (0.10.10) noch das Holen aus einer Konstantenliste (0.10.11) hat sie abgestreift. Jetzt wird gar kein Wert mehr übergeben, sondern die Meldung ausgewählt — im Log steht nur noch fester Text („Abrechnung im Google-Projekt nicht aktiviert", „Schlüssel zurückgewiesen", „kein passender Dienst im Katalog"). Aussagekräftiger als der Code ist es obendrein. Code und Klartextgrund bekommt der Admin unverändert in der Antwort.
 

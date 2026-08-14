@@ -1,5 +1,8 @@
 # Changelog — Nextcloud
 
+## 1.0.26
+- Nextcloud Base-Image aktualisiert auf linuxserver/nextcloud 34.0.3 (34.0.3-ls446)
+
 ## 1.0.25
 - map: `addon_config` → `app_config` (Home-Assistant-Supervisor hat `addon_config` seit 2026.07 als Legacy-Name markiert, neuer Name ist `app_config`).
 

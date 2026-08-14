@@ -1,5 +1,13 @@
 # Changelog — HA SysWatch
 
+## [1.3.0] - 2026-08-12
+
+### Added
+- 24h-CPU-Verlauf pro Container: Klick auf die Mini-Sparkline in der Tabelle öffnet den bestehenden Chart-Modal (wie bei SYS CPU/RAM) mit dem Minuten-Verlauf der letzten 24h. Backend speichert dafür pro Container minütliche CPU-Durchschnitte in einer neuen SQLite-Tabelle (`container_history`), neue Route `/api/containers/<name>/history`.
+
+### Fixed
+- `_supervisor_addon_slug()` erkannte HA-Add-on-Container nur am Präfix `addon_`. HA Supervisor benennt Add-on-Container inzwischen teils mit `app_`-Präfix — Slug-Matching strippt jetzt beide Präfixe.
+
 ## [1.2.13] - 2026-07-31
 - map: `addon_config` → `app_config` (Home-Assistant-Supervisor hat `addon_config` seit 2026.07 als Legacy-Name markiert, neuer Name ist `app_config`).
 

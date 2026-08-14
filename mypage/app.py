@@ -114,6 +114,9 @@ SUBSCRIBERS_PATH = _DATA + '/subscribers.json'
 SESSIONS_PATH = _DATA + '/sessions.json'
 USERS_PATH    = _DATA + '/users.json'
 AI_USAGE_PATH = _DATA + '/ai_usage.json'   # Gemini-Verbrauch je Monat und Modell
+AI_DRAFTS_PATH = _DATA + '/ai_drafts.json'  # gespeicherte Entwürfe des Text-Studios
+AI_PROMPTS_PATH = _DATA + '/ai_prompts.json'  # Prompt-Bibliothek des Bild-Studios
+UPLOADS_META_PATH = _DATA + '/uploads_meta.json'  # Alternativtexte je Bilddatei
 USESSIONS_PATH = _DATA + '/user_sessions.json'
 DM_PATH       = _DATA + '/dm.json'          # Mitglieder-Direktnachrichten (Text verschlüsselt)
 DMKEY_PATH    = _DATA + '/dm.key'           # Fernet-Schlüssel für die DM-Verschlüsselung
@@ -262,6 +265,9 @@ _slot_lock  = threading.Lock()
 _game_lock  = threading.Lock()
 _polls_lock = threading.Lock()
 _travel_lock = threading.Lock()
+_ai_drafts_lock = threading.Lock()
+_ai_prompts_lock = threading.Lock()
+_uploads_meta_lock = threading.Lock()
 
 # Mitglieder-Sessions (getrennt vom Admin)
 user_sessions: dict[str, list] = {}  # token → [user_id, expires]
@@ -473,9 +479,99 @@ DEFAULT_SITE = {
 SECTION_KEYS = list(DEFAULT_SITE['section_order'])
 
 
-def render_md(text: str) -> str:
+# ── Alternativtexte der Bilder ────────────────────────────────────────────────
+#
+# Ein Bild ohne Alternativtext ist für Screenreader und Suchmaschinen nicht da.
+# Die Texte hängen an der Datei, nicht am Beitrag: dasselbe Bild kann in Beitrag,
+# Projekt und Bibliothek stecken und beschreibt dabei immer dasselbe.
+#
+# WICHTIG: `uploads_meta.json` gehört NICHT in `_reference_blob()`. Sonst gälte
+# jede Datei mit Alternativtext als benutzt und „Speicher aufräumen" fände nie
+# wieder eine Waise.
+
+def _uploads_meta_load() -> dict:
+    with _uploads_meta_lock:
+        try:
+            with open(UPLOADS_META_PATH, encoding='utf-8') as f:
+                data = json.load(f)
+        except FileNotFoundError:
+            return {}
+        except Exception as e:
+            _quarantine_corrupt(UPLOADS_META_PATH, e)
+            return {}
+    alts = data.get('alts') if isinstance(data, dict) else None
+    return {k: v for k, v in alts.items() if isinstance(v, dict)} if isinstance(alts, dict) else {}
+
+
+def _uploads_meta_save(alts: dict) -> bool:
+    with _uploads_meta_lock:
+        try:
+            _atomic_write_json(UPLOADS_META_PATH, {'alts': alts}, indent=2)
+            return True
+        except Exception as e:
+            log.error("uploads_meta.json konnte nicht gespeichert werden: %s", e)
+            return False
+
+
+def _uploads_meta_forget(names) -> None:
+    """Einträge gelöschter Dateien mitnehmen — sonst wächst die Ablage ewig."""
+    names = {n for n in names if n}
+    if not names:
+        return
+    alts = _uploads_meta_load()
+    rest = {k: v for k, v in alts.items() if k not in names}
+    if len(rest) != len(alts):
+        _uploads_meta_save(rest)
+
+
+def _req_lang() -> str:
+    """Sprache der laufenden Anfrage, leer außerhalb eines Anfragekontexts
+    (statischer Export, Hintergrundaufgaben)."""
+    try:
+        return detect_language(request)
+    except Exception:
+        return ''
+
+
+def alt_for(url: str, lang: str = '', fallback: str = '') -> str:
+    """Alternativtext zu einer Upload-Adresse.
+
+    Fehlt die gewünschte Sprache, gilt die andere: ein deutscher Text ist für
+    einen Screenreader immer noch besser als gar keiner. Erst danach greift der
+    Rückfall, den die Vorlage mitgibt (meist der Titel).
+    """
+    name = (url or '').strip().rsplit('/', 1)[-1]
+    entry = _uploads_meta_load().get(name) or {}
+    lang = lang or _req_lang() or 'de'
+    other = 'en' if lang == 'de' else 'de'
+    return (entry.get(lang) or entry.get(other) or fallback or '').strip()
+
+
+# Markdown erzeugt für `![](…)` ein leeres alt. Genau die werden nachgefüllt —
+# ein selbst geschriebener Text bleibt unangetastet.
+_IMG_TAG_RE = re.compile(r'<img\b[^>]*>', re.I)
+_IMG_SRC_RE = re.compile(r'src="([^"]*)"', re.I)
+
+
+def _fill_img_alts(html: str, lang: str) -> str:
+    if 'alt=""' not in html:
+        return html
+
+    def one(m):
+        tag = m.group(0)
+        src = _IMG_SRC_RE.search(tag)
+        if 'alt=""' not in tag or not src:
+            return tag
+        alt = alt_for(src.group(1), lang)
+        return tag.replace('alt=""', 'alt="' + html_mod.escape(alt, quote=True) + '"', 1) if alt else tag
+
+    return _IMG_TAG_RE.sub(one, html)
+
+
+def render_md(text: str, lang: str = '') -> str:
     """Markdown → HTML (Inhalte stammen ausschließlich vom Admin)."""
-    return md_lib.markdown(text or '', extensions=['nl2br', 'sane_lists', 'tables', 'fenced_code'])
+    out = md_lib.markdown(text or '', extensions=['nl2br', 'sane_lists', 'tables', 'fenced_code'])
+    return _fill_img_alts(out, lang or _req_lang())
 
 
 # Tags, die `render_md` erzeugen kann. Bewusst eine Liste statt `<[^>]+>`: der
@@ -625,8 +721,10 @@ def parse_video(url: str) -> tuple[str, str]:
 
 public_app.jinja_env.globals['parse_video'] = parse_video
 public_app.jinja_env.globals['render_md'] = render_md
+public_app.jinja_env.globals['alt_for'] = alt_for
 
 # Admin-App rendert öffentliche Templates (z. B. Blog-Vorschau) — dieselben Globals bereitstellen
+admin_app.jinja_env.globals['alt_for'] = alt_for
 admin_app.jinja_env.globals['parse_video'] = parse_video
 admin_app.jinja_env.globals['render_md'] = render_md
 admin_app.jinja_env.globals['link_platform'] = link_platform
@@ -3392,6 +3490,11 @@ def _nav_pages(site: dict, loc) -> list:
 
 LIB_PDF_MODES = {'none', 'upload', 'generated'}
 
+# Darstellung des Bibliothek-Anrisses auf der Startseite. Alle Varianten nutzen
+# dasselbe Karten-Markup, nur die CSS-Klasse am Rail unterscheidet sich —
+# siehe „Layout-Varianten der Bibliothek" in templates/public.html.
+LIB_LAYOUTS = {'carousel', 'overlay', 'list', 'mini', 'collapsed'}
+
 
 def _library(site: dict) -> dict:
     """Bibliothek-Block inkl. fehlender Schlüssel (alte site.json)."""
@@ -3404,6 +3507,8 @@ def _library(site: dict) -> dict:
     lib.setdefault('intro_de', '')
     lib.setdefault('intro_en', '')
     lib.setdefault('nav', True)
+    if lib.get('layout') not in LIB_LAYOUTS:
+        lib['layout'] = 'carousel'
     if not isinstance(lib.get('categories'), list):
         lib['categories'] = []
     if not isinstance(lib.get('entries'), list):
@@ -4569,7 +4674,8 @@ def write_backup_zip(fp) -> None:
         for name in ('site.json', 'stats.json', 'messages.json', 'users.json',
                      'comments.json', 'audit.json', 'subscribers.json',
                      'dm.json', 'dm.key', 'admin_2fa.json', 'secret.key',
-                     'ai_usage.json', 'travel.json'):
+                     'ai_usage.json', 'travel.json', 'ai_drafts.json',
+                     'ai_prompts.json', 'uploads_meta.json'):
             p = Path(_DATA) / name
             if p.is_file():
                 z.write(p, name)
@@ -4766,7 +4872,9 @@ def api_restore():
                 # gegen Zip-Slip absichern
                 if member in ('site.json', 'stats.json', 'messages.json', 'users.json',
                               'comments.json', 'audit.json', 'subscribers.json', 'dm.json',
-                              'admin_2fa.json', 'ai_usage.json', 'travel.json'):
+                              'admin_2fa.json', 'ai_usage.json', 'travel.json',
+                              'ai_drafts.json', 'ai_prompts.json',
+                              'uploads_meta.json'):
                     target = safe_under(Path(_DATA), member)
                 elif member in ('dm.key', 'secret.key'):  # Binär-/Text-Schlüssel, kein JSON
                     target = safe_under(Path(_DATA), member)
@@ -5027,6 +5135,18 @@ _AI_TMP_RE = re.compile(r'^[a-f0-9]{32}$')
 AI_TEXT_KINDS = ('blog', 'news', 'project', 'library', 'seo')
 AI_TEXT_TONES = ('sachlich', 'locker', 'technisch', 'werblich', 'persoenlich')
 AI_TEXT_LENGTHS = {'kurz': 150, 'mittel': 400, 'lang': 800}
+# Überarbeiten statt neu schreiben: der vorhandene Text geht mit in die Anfrage
+# zurück. Sonst bliebe nur „nochmal erzeugen", und das wirft die Handarbeit weg.
+AI_TEXT_ACTIONS = ('shorter', 'longer', 'polish', 'custom')
+AI_TEXT_NOTE_MAX = 500
+AI_INSTRUCTIONS_MAX = 800           # Dauervorgaben, hängen an jedem Textlauf
+AI_DRAFTS_MAX = 200                 # ältester Entwurf fliegt raus, wenn voll
+AI_PROMPTS_MAX = 100                # dasselbe für die Prompt-Bibliothek
+UPLOAD_ALT_MAX = 300                # Alternativtext je Sprache; 125 sind empfohlen
+# Ein gespeichertes Vorlagenbild ist eine eigene Upload-Adresse und nichts
+# anderes — der Wert landet im Browser in einem <img src> und in einer Anfrage.
+_UPLOAD_PATH_RE = re.compile(r'^/uploads/[A-Za-z0-9._-]+$')
+AI_DRAFT_TEXT_MAX = 60_000          # ein „langer" Artikel liegt bei ~6 kB
 AI_TRANSLATE_PROVIDERS = ('mymemory', 'gemini')
 # Interner Fehlercode -> Code fuer das Frontend. `model_missing` ist der Fall,
 # der eine eigene Meldung braucht: nicht kaputt, sondern falsch eingestellt.
@@ -5120,6 +5240,13 @@ def _gemini_image_ratio() -> str:
     default = cfg if cfg in GEMINI_IMAGE_RATIOS else GEMINI_IMAGE_RATIOS[0]
     r = (_ai_settings().get('image_ratio') or '').strip()
     return r if r in GEMINI_IMAGE_RATIOS else default
+
+
+# Dauervorgaben des Admins („duzen", „keine Emojis", Eigennamen). Sie gehören in
+# die Systemanweisung, nicht in den Auftrag: dort gelten sie für jeden Lauf und
+# überleben auch das Überarbeiten.
+def _ai_instructions() -> str:
+    return _clean_str(_ai_settings().get('instructions'), AI_INSTRUCTIONS_MAX)
 
 
 def _ai_translate_provider() -> str:
@@ -5376,6 +5503,7 @@ def api_ai_status():
         'image_model': _gemini_image_model(), 'text_model': _gemini_text_model(),
         'image_ratio': _gemini_image_ratio(), 'ratios': list(GEMINI_IMAGE_RATIOS),
         'translate_provider': _ai_translate_provider(),
+        'instructions': _ai_instructions(),
         'image_used': img_used, 'image_max': AI_IMAGE_MAX_PER_HOUR,
         'text_used': txt_used, 'text_max': AI_TEXT_MAX_PER_HOUR,
         'max_images': AI_STUDIO_MAX_IMAGES,
@@ -5411,6 +5539,9 @@ def api_ai_settings():
     prov = _clean_str(raw.get('translate_provider'), 20)
     if prov in AI_TRANSLATE_PROVIDERS:
         ai['translate_provider'] = prov
+    # Leerer Text ist eine gültige Angabe: er löscht die Dauervorgaben wieder
+    if 'instructions' in raw:
+        ai['instructions'] = _clean_str(raw.get('instructions'), AI_INSTRUCTIONS_MAX)
     site['ai'] = ai
     save_site(site)
     return jsonify({'ok': True, 'translate_provider': _ai_translate_provider()})
@@ -6075,6 +6206,116 @@ _AI_TEXT_TONE_DE = {
 }
 
 
+_AI_TEXT_ACTION_DE = {
+    'shorter': ('Kürze den Text deutlich — etwa auf die Hälfte — ohne eine Kernaussage '
+                'zu verlieren. Lieber ganze Nebenschauplätze streichen als überall Wörter.'),
+    'longer':  ('Baue den Text aus — etwa auf das Anderthalbfache — mit Beispielen, '
+                'Begründungen und Details. Keine Wiederholungen, keine Füllsätze.'),
+    'polish':  ('Feinschliff: Stil, Rhythmus und Übergänge verbessern, Wiederholungen '
+                'und Floskeln entfernen. Inhalt und Umfang bleiben, wie sie sind.'),
+    'custom':  'Setze den folgenden Änderungswunsch um, sonst bleibt alles erhalten.',
+}
+_AI_LANG_DE = {'de': 'Deutsch', 'en': 'Englisch'}
+
+
+def _ai_lang_line(langs: list[str], mode: str) -> str:
+    """Sprachanweisung — bei zwei Sprachen entscheidet `mode` über den Weg."""
+    if len(langs) < 2:
+        return "Sprache der Ausgabe: " + ("Deutsch." if langs[0] == 'de' else "Englisch.")
+    if mode == 'translate':
+        return ("Schreibe zuerst die deutsche Fassung. Die englische Fassung ist deren "
+                "treue Übersetzung mit gleicher Gliederung und gleicher Länge.")
+    return ("Schreibe die deutsche und die englische Fassung jeweils eigenständig "
+            "und idiomatisch — die englische ist keine Wort-für-Wort-Übersetzung.")
+
+
+def _ai_revise_parts(*, kind: str, tone: str, topic: str, action: str, note: str,
+                     source: dict, langs: list[str], lang_line: str) -> list[str]:
+    """Auftrag fürs Überarbeiten — der vorhandene Text geht vollständig mit.
+
+    Zurück kommt trotzdem die volle Fassung je Sprache, kein Änderungsprotokoll:
+    das Formular ersetzt seine Felder damit, und ein Diff könnte es nicht.
+    """
+    parts = [
+        "Überarbeite den vorhandenen Text. Gib je Sprache die vollständige neue "
+        "Fassung zurück — Titel, SEO-Beschreibung, Fließtext und Schlagwörter. "
+        "Keine Auflistung der Änderungen, kein Kommentar dazu.",
+        f"Gewünscht ist {_AI_TEXT_KIND_DE.get(kind, _AI_TEXT_KIND_DE['blog'])}.",
+        _AI_TEXT_ACTION_DE.get(action, _AI_TEXT_ACTION_DE['polish']),
+    ]
+    if note:
+        parts.append(f"Änderungswunsch:\n{note}")
+    parts.append(f"Tonfall: {_AI_TEXT_TONE_DE.get(tone, _AI_TEXT_TONE_DE['sachlich'])}.")
+    parts.append(lang_line)
+    if topic:
+        parts.append(f"Ursprüngliches Thema und Stichpunkte:\n{topic}")
+    for lg in langs:
+        d = source.get(lg) or {}
+        parts.append(
+            f"Vorhandene Fassung ({_AI_LANG_DE.get(lg, lg)}):\n"
+            f"Titel: {d.get('title', '')}\n"
+            f"SEO-Beschreibung: {d.get('meta', '')}\n"
+            f"Text:\n{d.get('text', '')}"
+        )
+    return parts
+
+
+def _gemini_image_alt(ref: tuple[bytes, str], *, model: str
+                      ) -> tuple[dict | None, str, str]:
+    """Alternativtext zu einem Bild — deutsch und englisch in einem Aufruf.
+
+    Bewusst knapp gehalten: ein Alternativtext beschreibt, was zu sehen ist, und
+    ist keine Bildunterschrift. Zu lange Texte sind für Screenreader schlimmer
+    als zu kurze.
+    """
+    sys = ("Du schreibst Alternativtexte (alt-Attribute) für Bilder einer Website. "
+           "Beschreibe sachlich, was zu sehen ist — höchstens 125 Zeichen je Sprache, "
+           "ein Satz ohne Punkt am Ende. Keine Einleitung wie 'Bild von' oder 'Foto zeigt', "
+           "keine Vermutungen über Namen, Orte oder Marken, keine Deutung der Stimmung. "
+           "Steht Text im Bild und trägt er die Aussage, gib ihn wieder.")
+    schema = genai_types.Schema(
+        type=genai_types.Type.OBJECT,
+        properties={'de': genai_types.Schema(type=genai_types.Type.STRING),
+                    'en': genai_types.Schema(type=genai_types.Type.STRING)},
+        required=['de', 'en'],
+    )
+    try:
+        client = _gemini_client()
+        resp = client.models.generate_content(
+            model=model,
+            contents=[genai_types.Part.from_bytes(data=ref[0], mime_type=ref[1]),
+                      'Schreibe den Alternativtext auf Deutsch (de) und auf Englisch (en).'],
+            config=genai_types.GenerateContentConfig(
+                system_instruction=sys,
+                response_mime_type='application/json',
+                response_schema=schema,
+                http_options=genai_types.HttpOptions(timeout=GEMINI_TEXT_TIMEOUT_MS),
+            ),
+        )
+        _ai_usage_record(model, resp)
+        cands = resp.candidates or []
+        finish = cands[0].finish_reason if cands else None
+        reason = getattr(finish, 'name', None) or (str(finish) if finish else '')
+        if finish in _GEMINI_TEXT_REFUSALS:
+            log.info("Gemini hat den Alternativtext abgelehnt: %s", finish)
+            return None, 'refused', reason
+        data = json.loads(resp.text or '')
+        if not isinstance(data, dict):
+            return None, 'empty', reason
+    except genai_errors.APIError as e:
+        code = getattr(e, 'code', None)
+        log.warning("Alternativtext fehlgeschlagen (%s): Status %s", model, code or type(e).__name__)
+        return (None, ('model_missing' if code == 404 else 'failed'),
+                f'HTTP {code}' if code else '')
+    except Exception as e:
+        log.error("Alternativtext (%s) unerwartet fehlgeschlagen: %s", model, type(e).__name__)
+        return None, 'failed', type(e).__name__
+    out = {lg: _clean_str(data.get(lg), UPLOAD_ALT_MAX) for lg in ('de', 'en')}
+    if not (out['de'] or out['en']):
+        return None, 'empty', reason
+    return out, '', ''
+
+
 def _ai_text_schema(langs: list[str]):
     """JSON-Schema für die Antwort — erzwingt beide Sprachen in einem Aufruf.
 
@@ -6100,9 +6341,15 @@ def _ai_text_schema(langs: list[str]):
 
 
 def _gemini_generate_text(*, topic: str, kind: str, tone: str, length: str,
-                          langs: list[str], mode: str, model: str
+                          langs: list[str], mode: str, model: str,
+                          action: str = '', note: str = '',
+                          source: dict | None = None
                           ) -> tuple[dict | None, str, str]:
     """Erzeugt Titel, SEO-Beschreibung, Fließtext und Schlagwörter je Sprache.
+
+    Mit `action` (und dem vorhandenen Text in `source`) wird stattdessen
+    überarbeitet — dieselbe Antwortform, damit das Formular beide Wege gleich
+    behandeln kann.
 
     Zurück: (Ergebnis, Fehlercode, Erläuterung) — dieselben Codes wie bei den
     Bildern. Die Erläuterung ist Googles Abbruchgrund im Klartext; ohne sie
@@ -6118,23 +6365,22 @@ def _gemini_generate_text(*, topic: str, kind: str, tone: str, length: str,
         "'text' = Fließtext in Markdown, Zwischenüberschriften ab '##', keine H1; "
         "'tags' = drei bis sechs kurze Schlagwörter, klein geschrieben."
     )
-    parts = [
-        f"Gewünscht ist {_AI_TEXT_KIND_DE.get(kind, _AI_TEXT_KIND_DE['blog'])}.",
-        f"Thema und Stichpunkte:\n{topic}",
-        f"Tonfall: {_AI_TEXT_TONE_DE.get(tone, _AI_TEXT_TONE_DE['sachlich'])}.",
-        f"Zielumfang: rund {words} Wörter je Sprache.",
-    ]
-    if len(langs) > 1:
-        parts.append(
-            "Schreibe die deutsche und die englische Fassung jeweils eigenständig "
-            "und idiomatisch — die englische ist keine Wort-für-Wort-Übersetzung."
-            if mode != 'translate' else
-            "Schreibe zuerst die deutsche Fassung. Die englische Fassung ist deren "
-            "treue Übersetzung mit gleicher Gliederung und gleicher Länge."
-        )
+    extra = _ai_instructions()
+    if extra:
+        sys += ("\n\nZusätzliche Vorgaben für diese Website, die immer gelten "
+                "(sie ändern nichts an der Antwortform):\n" + extra)
+    if action:
+        parts = _ai_revise_parts(kind=kind, tone=tone, topic=topic, action=action,
+                                 note=note, source=source or {}, langs=langs,
+                                 lang_line=_ai_lang_line(langs, mode))
     else:
-        parts.append("Sprache der Ausgabe: "
-                     + ("Deutsch." if langs[0] == 'de' else "Englisch."))
+        parts = [
+            f"Gewünscht ist {_AI_TEXT_KIND_DE.get(kind, _AI_TEXT_KIND_DE['blog'])}.",
+            f"Thema und Stichpunkte:\n{topic}",
+            f"Tonfall: {_AI_TEXT_TONE_DE.get(tone, _AI_TEXT_TONE_DE['sachlich'])}.",
+            f"Zielumfang: rund {words} Wörter je Sprache.",
+            _ai_lang_line(langs, mode),
+        ]
     try:
         client = _gemini_client()
         resp = client.models.generate_content(
@@ -6196,7 +6442,13 @@ def api_ai_text():
         return jsonify({'error': 'no_api_key'}), 400
     raw = request.get_json(silent=True) or {}
     topic = _clean_str(raw.get('topic'), AI_TEXT_TOPIC_MAX)
-    if len(topic) < 3:
+    action = raw.get('action') if raw.get('action') in AI_TEXT_ACTIONS else ''
+    note = _clean_str(raw.get('note'), AI_TEXT_NOTE_MAX)
+    # Beim Überarbeiten ist der vorhandene Text der Auftrag; ein Thema darf dann
+    # fehlen. Ohne beides gäbe es nichts zu tun.
+    if not action and len(topic) < 3:
+        return jsonify({'error': 'invalid'}), 400
+    if action == 'custom' and not note:
         return jsonify({'error': 'invalid'}), 400
     kind = raw.get('kind') if raw.get('kind') in AI_TEXT_KINDS else 'blog'
     tone = raw.get('tone') if raw.get('tone') in AI_TEXT_TONES else 'sachlich'
@@ -6207,16 +6459,254 @@ def api_ai_text():
     if not langs:
         langs = ['de']
     model = _ai_model_or(raw.get('model'), _gemini_text_model())
+    source = {}
+    if action:
+        raw_src = raw.get('source') if isinstance(raw.get('source'), dict) else {}
+        for lg in langs:
+            source[lg] = _ai_draft_lang(raw_src.get(lg))
+        if not any(d['text'] or d['title'] for d in source.values()):
+            return jsonify({'error': 'invalid'}), 400
     if not _ai_rate_take(_ai_text_times, AI_TEXT_MAX_PER_HOUR):
         return jsonify({'error': 'rate_limited'}), 429
     data, code, detail = _gemini_generate_text(topic=topic, kind=kind, tone=tone,
                                                length=length, langs=langs, mode=mode,
-                                               model=model)
+                                               model=model, action=action, note=note,
+                                               source=source)
     if code:
         return jsonify({'error': _AI_ERRORS.get(code, 'ai_failed'),
                         'detail': detail, 'model': model}), 502
-    log.info("KI-Text erzeugt (%s, %s, %s)", model, kind, '+'.join(langs))
+    log.info("KI-Text %s (%s, %s, %s)", 'überarbeitet' if action else 'erzeugt',
+             model, kind, '+'.join(langs))
     return jsonify({'ok': True, 'result': data})
+
+
+# ── Entwürfe des Text-Studios ─────────────────────────────────────────────────
+#
+# Ein erzeugter Text lebte bisher nur im Formular: Tabwechsel, Neuladen oder ein
+# zweiter Durchgang haben ihn verworfen. Entwürfe liegen deshalb in einer eigenen
+# Datei — nicht in site.json, die bei jedem Admin-Speichern komplett neu
+# geschrieben wird, und nicht als unveröffentlichter Blogbeitrag, denn ein
+# Entwurf kann auch für ein Projekt oder eine SEO-Beschreibung gedacht sein.
+# Mitgespeichert werden auch die Eingaben (Thema, Textart, Tonfall …), damit ein
+# geladener Entwurf ohne Abtippen neu erzeugt werden kann.
+
+def _ai_drafts_load() -> list[dict]:
+    with _ai_drafts_lock:
+        try:
+            with open(AI_DRAFTS_PATH, encoding='utf-8') as f:
+                data = json.load(f)
+        except FileNotFoundError:
+            return []
+        except Exception as e:
+            _quarantine_corrupt(AI_DRAFTS_PATH, e)
+            return []
+    drafts = data.get('drafts') if isinstance(data, dict) else None
+    return [d for d in drafts if isinstance(d, dict)] if isinstance(drafts, list) else []
+
+
+def _ai_drafts_save(drafts: list[dict]) -> bool:
+    with _ai_drafts_lock:
+        try:
+            _atomic_write_json(AI_DRAFTS_PATH, {'drafts': drafts}, indent=2)
+            return True
+        except Exception as e:
+            log.error("ai_drafts.json konnte nicht gespeichert werden: %s", e)
+            return False
+
+
+def _ai_draft_lang(raw) -> dict:
+    raw = raw if isinstance(raw, dict) else {}
+    return {'title': _clean_str(raw.get('title'), 300),
+            'meta':  _clean_str(raw.get('meta'), 300),
+            'text':  _clean_str(raw.get('text'), AI_DRAFT_TEXT_MAX)}
+
+
+def _ai_draft_from(raw: dict, existing: dict | None = None) -> dict:
+    now = int(datetime.now(timezone.utc).timestamp())
+    d = existing or {'id': uuid.uuid4().hex[:12], 'ts': now}
+    wanted = raw.get('langs')
+    langs = [lg for lg in ('de', 'en') if isinstance(wanted, list) and lg in wanted] or ['de']
+    d['updated'] = now
+    d['name']   = _clean_str(raw.get('name'), 120)
+    d['topic']  = _clean_str(raw.get('topic'), AI_TEXT_TOPIC_MAX)
+    d['kind']   = raw.get('kind') if raw.get('kind') in AI_TEXT_KINDS else 'blog'
+    d['tone']   = raw.get('tone') if raw.get('tone') in AI_TEXT_TONES else 'sachlich'
+    d['length'] = raw.get('length') if raw.get('length') in AI_TEXT_LENGTHS else 'mittel'
+    d['mode']   = 'translate' if raw.get('mode') == 'translate' else 'native'
+    d['langs']  = langs
+    d['tags']   = _clean_str(raw.get('tags'), 500)
+    d['de'] = _ai_draft_lang(raw.get('de'))
+    d['en'] = _ai_draft_lang(raw.get('en'))
+    # Ohne Namen wäre die Liste eine Reihe leerer Zeilen — Titel, sonst Thema
+    if not d['name']:
+        d['name'] = (d['de']['title'] or d['en']['title'] or d['topic']
+                     or datetime.now().strftime('%Y-%m-%d %H:%M'))[:120]
+    return d
+
+
+def _ai_draft_row(d: dict) -> dict:
+    """Zeile für die Liste — ohne Fließtext, der kann sechsstellig sein."""
+    return {'id': d.get('id', ''), 'name': d.get('name', ''),
+            'kind': d.get('kind', 'blog'), 'langs': d.get('langs', ['de']),
+            'ts': d.get('ts', 0), 'updated': d.get('updated', 0),
+            'chars': len(d.get('de', {}).get('text', '')) + len(d.get('en', {}).get('text', ''))}
+
+
+@admin_app.route('/api/ai/drafts')
+def api_ai_drafts():
+    err = _api_auth()
+    if err:
+        return err
+    drafts = sorted(_ai_drafts_load(), key=lambda d: d.get('updated', 0), reverse=True)
+    return jsonify({'drafts': [_ai_draft_row(d) for d in drafts], 'max': AI_DRAFTS_MAX})
+
+
+@admin_app.route('/api/ai/drafts/<did>')
+def api_ai_draft_get(did):
+    err = _api_auth()
+    if err:
+        return err
+    d = next((x for x in _ai_drafts_load() if x.get('id') == did), None)
+    if not d:
+        return jsonify({'error': 'not_found'}), 404
+    return jsonify({'ok': True, 'draft': d})
+
+
+@admin_app.route('/api/ai/drafts', methods=['POST'])
+def api_ai_draft_save():
+    err = _api_auth()
+    if err:
+        return err
+    raw = request.get_json(silent=True) or {}
+    drafts = _ai_drafts_load()
+    did = _clean_str(raw.get('id'), 32)
+    existing = next((x for x in drafts if x.get('id') == did), None) if did else None
+    d = _ai_draft_from(raw, existing)
+    if not (d['de']['text'] or d['en']['text'] or d['de']['title'] or d['en']['title']):
+        return jsonify({'error': 'empty'}), 400
+    if existing is None:
+        drafts.append(d)
+        # Ältestes zuerst weg. Die Grenze schützt die Datei davor, mit jedem
+        # Durchgang ungebremst zu wachsen — gespeichert wird ja per Knopfdruck.
+        if len(drafts) > AI_DRAFTS_MAX:
+            drafts = sorted(drafts, key=lambda x: x.get('updated', 0),
+                            reverse=True)[:AI_DRAFTS_MAX]
+    if not _ai_drafts_save(drafts):
+        return jsonify({'error': 'save_failed'}), 500
+    log.info("KI-Entwurf gespeichert (%s)", d['id'])
+    return jsonify({'ok': True, 'id': d['id'], 'name': d['name']})
+
+
+@admin_app.route('/api/ai/drafts/<did>', methods=['DELETE'])
+def api_ai_draft_delete(did):
+    err = _api_auth()
+    if err:
+        return err
+    drafts = _ai_drafts_load()
+    rest = [d for d in drafts if d.get('id') != did]
+    if len(rest) == len(drafts):
+        return jsonify({'error': 'not_found'}), 404
+    if not _ai_drafts_save(rest):
+        return jsonify({'error': 'save_failed'}), 500
+    return jsonify({'ok': True})
+
+
+# ── Prompt-Bibliothek des Bild-Studios ────────────────────────────────────────
+#
+# Dasselbe Muster wie die Text-Entwürfe, nur kleiner: ein guter Prompt ist Arbeit
+# und war nach dem Neuladen weg. Die Einträge bleiben klein genug, dass die Liste
+# sie vollständig ausliefert — es gibt also keinen zweiten Aufruf zum Laden.
+# Achtung: das Vorlagenbild ist eine Upload-Adresse, deshalb liest
+# `_reference_blob()` diese Datei mit, sonst räumt „Speicher aufräumen" sie weg.
+
+def _ai_prompts_load() -> list[dict]:
+    with _ai_prompts_lock:
+        try:
+            with open(AI_PROMPTS_PATH, encoding='utf-8') as f:
+                data = json.load(f)
+        except FileNotFoundError:
+            return []
+        except Exception as e:
+            _quarantine_corrupt(AI_PROMPTS_PATH, e)
+            return []
+    items = data.get('prompts') if isinstance(data, dict) else None
+    return [p for p in items if isinstance(p, dict)] if isinstance(items, list) else []
+
+
+def _ai_prompts_save(items: list[dict]) -> bool:
+    with _ai_prompts_lock:
+        try:
+            _atomic_write_json(AI_PROMPTS_PATH, {'prompts': items}, indent=2)
+            return True
+        except Exception as e:
+            log.error("ai_prompts.json konnte nicht gespeichert werden: %s", e)
+            return False
+
+
+def _ai_prompt_from(raw: dict, existing: dict | None = None) -> dict:
+    now = int(datetime.now(timezone.utc).timestamp())
+    p = existing or {'id': uuid.uuid4().hex[:12], 'ts': now}
+    p['updated'] = now
+    p['name']   = _clean_str(raw.get('name'), 120)
+    p['prompt'] = _clean_str(raw.get('prompt'), AI_IMAGE_PROMPT_MAX)
+    p['ratio']  = raw.get('ratio') if raw.get('ratio') in GEMINI_IMAGE_RATIOS else ''
+    try:
+        p['count'] = max(1, min(AI_STUDIO_MAX_IMAGES, int(raw.get('count') or 1)))
+    except (TypeError, ValueError):
+        p['count'] = 1
+    # Nur eigene Uploads, gleiche Form wie im Studio — der Wert landet später in
+    # einem <img src> und in einer Anfrage
+    ref = _clean_str(raw.get('ref'), 200)
+    p['ref'] = ref if _UPLOAD_PATH_RE.match(ref) else ''
+    if not p['name']:
+        p['name'] = p['prompt'][:60] or datetime.now().strftime('%Y-%m-%d %H:%M')
+    return p
+
+
+@admin_app.route('/api/ai/prompts')
+def api_ai_prompts():
+    err = _api_auth()
+    if err:
+        return err
+    items = sorted(_ai_prompts_load(), key=lambda p: p.get('updated', 0), reverse=True)
+    return jsonify({'prompts': items, 'max': AI_PROMPTS_MAX})
+
+
+@admin_app.route('/api/ai/prompts', methods=['POST'])
+def api_ai_prompt_save():
+    err = _api_auth()
+    if err:
+        return err
+    raw = request.get_json(silent=True) or {}
+    items = _ai_prompts_load()
+    pid = _clean_str(raw.get('id'), 32)
+    existing = next((x for x in items if x.get('id') == pid), None) if pid else None
+    p = _ai_prompt_from(raw, existing)
+    if len(p['prompt']) < 3:
+        return jsonify({'error': 'empty'}), 400
+    if existing is None:
+        items.append(p)
+        if len(items) > AI_PROMPTS_MAX:
+            items = sorted(items, key=lambda x: x.get('updated', 0),
+                           reverse=True)[:AI_PROMPTS_MAX]
+    if not _ai_prompts_save(items):
+        return jsonify({'error': 'save_failed'}), 500
+    log.info("Bild-Prompt gespeichert (%s)", p['id'])
+    return jsonify({'ok': True, 'id': p['id'], 'name': p['name']})
+
+
+@admin_app.route('/api/ai/prompts/<pid>', methods=['DELETE'])
+def api_ai_prompt_delete(pid):
+    err = _api_auth()
+    if err:
+        return err
+    items = _ai_prompts_load()
+    rest = [p for p in items if p.get('id') != pid]
+    if len(rest) == len(items):
+        return jsonify({'error': 'not_found'}), 404
+    if not _ai_prompts_save(rest):
+        return jsonify({'error': 'save_failed'}), 500
+    return jsonify({'ok': True})
 
 
 # ── Reiseblog ─────────────────────────────────────────────────────────────────
@@ -6967,6 +7457,8 @@ def api_library_settings():
     lib['intro_de'] = _clean_str(raw.get('intro_de'), 2000)
     lib['intro_en'] = _clean_str(raw.get('intro_en'), 2000)
     lib['nav'] = bool(raw.get('nav', True))
+    lay = _clean_str(raw.get('layout'), 20)
+    lib['layout'] = lay if lay in LIB_LAYOUTS else 'carousel'
     save_site(site)
     return jsonify({'ok': True})
 
@@ -7766,6 +8258,7 @@ def api_uploads_list():
     if err:
         return err
     blob = _reference_blob(load_site())
+    alts = _uploads_meta_load()
     files = []
     for f in UPLOADS_DIR.iterdir():
         if not f.is_file() or f.suffix.lower() not in ALLOWED_UPLOAD_EXT:
@@ -7776,8 +8269,10 @@ def api_uploads_list():
             continue
         if st.st_size <= 0:
             continue    # abgebrochener Upload — gäbe nur eine kaputte Kachel
+        a = alts.get(f.name) or {}
         files.append({'url': '/uploads/' + f.name, 'size': st.st_size,
                       'mtime': int(st.st_mtime), 'used': f.name in blob,
+                      'alt_de': a.get('de', ''), 'alt_en': a.get('en', ''),
                       # Marker steckt im Dateinamen (siehe _store_upload_image) —
                       # damit lässt sich die Galerie auf KI-Bilder eingrenzen
                       'ai': f.stem.endswith(AI_IMAGE_SUFFIX)})
@@ -7858,12 +8353,15 @@ def api_docs_delete():
 def _reference_blob(site: dict) -> str:
     """Der Text, in dem nach Dateinamen gesucht wird.
 
-    Enthält site.json UND travel.json. Ohne den Reiseblog-Teil hielte das
-    Aufräumen jedes Reisefoto für verwaist und löschte es beim nächsten Klick —
-    derselbe Grund, aus dem der Löschschutz im Datei-Browser hier mitliest.
+    Enthält site.json, travel.json UND die Prompt-Bibliothek. Ohne den
+    Reiseblog-Teil hielte das Aufräumen jedes Reisefoto für verwaist und löschte
+    es beim nächsten Klick — derselbe Grund, aus dem der Löschschutz im
+    Datei-Browser hier mitliest. Dieselbe Falle gilt für das Vorlagenbild eines
+    gespeicherten Prompts.
     """
     return (json.dumps(site, ensure_ascii=False)
-            + json.dumps(load_travel(), ensure_ascii=False))
+            + json.dumps(load_travel(), ensure_ascii=False)
+            + json.dumps(_ai_prompts_load(), ensure_ascii=False))
 
 
 def _unused_in(directory: Path, site: dict):
@@ -7903,13 +8401,15 @@ def _unused_docs(site: dict):
 
 def _cleanup_dir(orphans, total, audit_tag: str):
     """Waisen löschen und das Ergebnis als JSON-Antwort zurückgeben."""
-    removed = 0
+    removed, gone = 0, []
     for f in orphans:
         try:
             f.unlink()
             removed += 1
+            gone.append(f.name)
         except OSError as e:
             log.warning("Aufräumen: %s konnte nicht gelöscht werden: %s", f.name, e)
+    _uploads_meta_forget(gone)
     if removed:
         log_audit(audit_tag, f'{removed} Datei(en)')
     return jsonify({'ok': True, 'removed': removed, 'freed_mb': round(total / 1048576, 1)})
@@ -7949,8 +8449,61 @@ def api_uploads_delete():
     except OSError as e:
         log.warning("Bild '%s' konnte nicht gelöscht werden: %s", name, e)
         return jsonify({'error': 'delete_failed'}), 500
+    _uploads_meta_forget([name])
     log_audit('upload_delete', name)
     return jsonify({'ok': True})
+
+
+@admin_app.route('/api/uploads/alts', methods=['POST'])
+def api_uploads_alts():
+    """Alternativtexte in einem Rutsch speichern.
+
+    Der Editor schickt nur die geänderten Zeilen; ein leerer Text löscht den
+    Eintrag, damit die Ablage nicht mit leeren Feldern zuwächst.
+    """
+    err = _api_auth()
+    if err:
+        return err
+    raw = (request.get_json(silent=True) or {}).get('alts')
+    if not isinstance(raw, dict):
+        return jsonify({'error': 'invalid'}), 400
+    alts = _uploads_meta_load()
+    for key, val in list(raw.items())[:UPLOADS_LIST_MAX]:
+        name = Path(_clean_str(key, 120)).name
+        if not name or Path(name).suffix.lower() not in ALLOWED_UPLOAD_EXT:
+            continue
+        val = val if isinstance(val, dict) else {}
+        entry = {lg: _clean_str(val.get(lg), UPLOAD_ALT_MAX) for lg in ('de', 'en')}
+        if entry['de'] or entry['en']:
+            alts[name] = entry
+        else:
+            alts.pop(name, None)
+    if not _uploads_meta_save(alts):
+        return jsonify({'error': 'save_failed'}), 500
+    return jsonify({'ok': True, 'count': len(alts)})
+
+
+@admin_app.route('/api/ai/alt', methods=['POST'])
+def api_ai_alt():
+    """Alternativtext aus dem Bild selbst — dieselbe Anfrage liefert DE und EN."""
+    err = _api_auth()
+    if err:
+        return err
+    if not gemini_text_enabled():
+        return jsonify({'error': 'no_api_key'}), 400
+    name = Path(_clean_str((request.get_json(silent=True) or {}).get('name'), 120)).name
+    ref = _ai_ref_image('/uploads/' + name) if name else None
+    if ref is None:
+        return jsonify({'error': 'bad_ref'}), 400
+    model = _ai_model_or((request.get_json(silent=True) or {}).get('model'), _gemini_text_model())
+    if not _ai_rate_take(_ai_text_times, AI_TEXT_MAX_PER_HOUR):
+        return jsonify({'error': 'rate_limited'}), 429
+    data, code, detail = _gemini_image_alt(ref, model=model)
+    if code:
+        return jsonify({'error': _AI_ERRORS.get(code, 'ai_failed'),
+                        'detail': detail, 'model': model}), 502
+    log.info("Alternativtext erzeugt (%s)", model)
+    return jsonify({'ok': True, 'alt': data})
 
 
 @admin_app.route('/api/uploads/cleanup', methods=['POST'])
@@ -11087,6 +11640,7 @@ def public_index():
                            library_total=library_total,
                            library_tags=library_tags,
                            library_heading=library_heading,
+                           library_layout=_library(site).get('layout', 'carousel'),
                            travel_trips=travel_trips,
                            form_cards=form_cards,
                            countdown_title=countdown_title,

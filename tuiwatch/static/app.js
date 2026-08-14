@@ -254,6 +254,68 @@
       return arr;
     }
 
+    // Logo-Signal: färbt Schrift + Flieger bernsteinfarben, solange im Hintergrund
+    // etwas läuft (Preis-Checks, Suchabos, Kalender, Backup …). Der Tooltip nennt
+    // die laufenden Aufgaben im Klartext, sonst steht dort wieder der Konsolen-Hinweis.
+    const LOGO_TITLE = 'Doppelklick: Konsole · Rechtsklick: nächste Läufe';
+    function setBusy(labels){
+      const el = document.querySelector('header .logo');
+      if(!el) return;
+      const on = labels.length > 0;
+      el.classList.toggle('busy', on);
+      el.title = on ? ('Läuft gerade: ' + labels.join(', ')) : LOGO_TITLE;
+    }
+
+    // ── Zeitplan der Hintergrund-Aufgaben (Rechtsklick aufs Logo) ──────────────
+    function inWords(sec){
+      if(sec < 60) return 'unter 1 Min';
+      if(sec < 3600) return Math.round(sec/60) + ' Min';
+      if(sec < 86400){ const h=Math.floor(sec/3600), m=Math.round((sec%3600)/60);
+                       return h + ' Std' + (m ? ' ' + m + ' Min' : ''); }
+      const d=Math.floor(sec/86400), h=Math.round((sec%86400)/3600);
+      return d + ' Tg' + (h ? ' ' + h + ' Std' : '');
+    }
+    function schedWhen(t, now){
+      if(t.disabled) return '<span class="sched-off">abgeschaltet</span>';
+      if(t.next === null || t.next === undefined) return '<span class="sched-off">nichts geplant</span>';
+      if(t.next <= now) return '<span class="sched-due">beim nächsten Durchlauf</span>';
+      const at = new Date(t.next*1000);
+      const day = at.toDateString()===new Date(now*1000).toDateString() ? ''
+                : (' · ' + at.toLocaleDateString('de-DE', {weekday:'short', day:'2-digit', month:'2-digit'}));
+      return 'in ' + inWords(t.next-now) + '<span class="sched-at"> (' +
+             at.toLocaleTimeString('de-DE', {hour:'2-digit', minute:'2-digit'}) + day + ')</span>';
+    }
+    function renderSchedule(d){
+      const now = d.now;
+      $('#sched-sub').innerHTML = 'Alle Angaben sind Frühestens-Zeiten: der Poller wacht in seinem Takt auf ('
+        + inWords(d.poll_interval) + ') und startet dann, was fällig ist.'
+        + (d.busy.length ? ' <b>Läuft gerade:</b> ' + esc(d.busy.join(', ')) + '.' : '');
+      $('#sched-body').innerHTML = d.tasks.map(t => `
+        <div class="hc-row">
+          <div><b>${esc(t.label)}</b>${t.note?`<div class="sched-note">${esc(t.note)}</div>`:''}</div>
+          <div style="text-align:right;white-space:nowrap">${schedWhen(t, now)}</div>
+        </div>`).join('');
+    }
+    async function loadSchedule(){
+      try {
+        const r = await fetch(api('/api/schedule'));
+        if(!r.ok) throw new Error(r.status);
+        renderSchedule(await r.json());
+      } catch(e) {
+        $('#sched-body').innerHTML = '<div class="sched-note">Zeitplan nicht abrufbar.</div>';
+      }
+    }
+    // bewusst synchron: der Rechtsklick-Handler braucht sofort `false` zurück, sonst
+    // käme mit dem Promise einer async-Funktion das Kontextmenü des Browsers durch.
+    function openSchedule(){
+      $('#sched-bg').classList.add('show');
+      $('#sched-body').innerHTML = '<div class="sched-note">lädt…</div>';
+      $('#sched-sub').textContent = '';
+      loadSchedule();
+      return false;
+    }
+    window.openSchedule = openSchedule;
+
     async function loadOffers(){
       try {
         const r = await fetch(api('/api/offers'));
@@ -264,6 +326,9 @@
         const d = await r.json();
         _offlineFails = 0; hideOfflineBanner();
         curOffers = d.offers;
+        // vor dem Signatur-Vergleich: das Busy-Signal muss auch dann aktuell bleiben,
+        // wenn sich an den Angeboten selbst nichts geändert hat (früher Ausstieg unten).
+        setBusy(d.busy || []);
         // Nur neu rendern, wenn sich wirklich etwas geändert hat — verhindert das
         // periodische Neuzeichnen (Flackern) der Preisdiagramme alle 5 s.
         const sig = JSON.stringify(d.offers);
@@ -273,6 +338,35 @@
         lastSig = sig;
         renderAll(d.offers);
       } catch(e){ _offlineFails++; if(_offlineFails>=3) showOfflineBanner(); }
+    }
+
+    // ── Startzustand ───────────────────────────────────────────────────────────
+    // Direkt nach dem Add-on-Start läuft der Poller sofort los und hält dabei die
+    // SQLite-Datei; die erste /api/offers-Antwort kann deshalb einige Sekunden
+    // brauchen. Der Startblock aus dem HTML bleibt so lange stehen und sagt, worauf
+    // gewartet wird — abgefragt über /api/busy, das ohne DB-Zugriff auskommt und
+    // deshalb auch bei gesperrter Datenbank sofort antwortet.
+    let bootDone = false, bootTimer = null, bootStart = Date.now();
+    function bootFinish(){
+      bootDone = true;
+      if(bootTimer){ clearInterval(bootTimer); bootTimer = null; }
+    }
+    async function bootTick(){
+      const note = document.getElementById('boot-note');
+      if(bootDone || !note){ bootFinish(); return; }
+      let busy = [];
+      try { busy = (await fetch(api('/api/busy')).then(r=>r.json())).busy || []; } catch(e){ return; }
+      if(bootDone) return;
+      const secs = Math.round((Date.now()-bootStart)/1000);
+      note.textContent = busy.length
+        ? 'Läuft gerade: ' + busy.join(' · ')
+        : (secs >= 6 ? 'Die Datenbank ist noch belegt — gleich geht es weiter.'
+                     : 'Angebote werden geladen.');
+    }
+    function startBootWatch(){
+      if(!document.getElementById('boot-note')) return;
+      bootTimer = setInterval(bootTick, 1500);
+      bootTick();
     }
 
     // ── Verbindungsabbruch-Erkennung ───────────────────────────────────────────
@@ -298,6 +392,21 @@
       if(t.dir==='down') return '<span class="trend down" title="Tendenz aus dem bisherigen Verlauf">↘ fällt'+pct+'</span>';
       if(t.dir==='up')   return '<span class="trend up" title="Tendenz aus dem bisherigen Verlauf">↗ steigt'+pct+'</span>';
       return '<span class="trend flat" title="Tendenz aus dem bisherigen Verlauf">→ stabil</span>';
+    }
+    // Buchungszeitpunkt-Ampel aus der Booking-Kurve des Preisbarometers. Nur ein Icon
+    // auf der Kachel — die Herleitung steht im Barometer-Fenster; hier soll die Kachel
+    // nicht mit einer dritten Prozentzahl zugestellt werden.
+    function bookingBadge(o){
+      const b = o.booking; if(!b || !b.ampel) return '';
+      const icon = {green:'🟢', yellow:'🟡', red:'🔴'}[b.ampel];
+      const txt = {green:'guter Buchungszeitpunkt', yellow:'neutraler Buchungszeitpunkt',
+                   red:'eher noch warten'}[b.ampel];
+      const bits = [`${txt} (Score ${b.score>0?'+':''}${b.score})`];
+      if(b.days_to_dep!=null) bits.push(`noch ${b.days_to_dep} Tage bis Abreise`);
+      if(b.expected_pct!=null) bits.push(`bis dahin erwartet: ${b.expected_pct>0?'+':'−'}${Math.abs(b.expected_pct).toLocaleString('de-DE',{maximumFractionDigits:1})} %`);
+      if(b.rank!=null) bits.push(`Perzentil ${b.rank} im bisherigen Verlauf`);
+      bits.push(`Messreihe: ${b.basket}`);
+      return `<span class="trend flat" title="${esc(bits.join(' · '))}">${icon}</span>`;
     }
 
     function renderTagPills(offers){
@@ -325,6 +434,7 @@
     }
 
     function renderAll(offers){
+      bootFinish();          // erste echte Liste ersetzt den Startblock
       renderOverview(offers);
       renderTagPills(offers);
       // Nicht neu rendern, während der Nutzer einen Wunschpreis eingibt
@@ -456,7 +566,7 @@
             <div class="price-box">
               <div class="price-now"${o.checking&&hasPrice?' style="opacity:.5"':''}>${priceNow}</div>
               <div class="price-pp">pro Person</div>
-              <div>${deltaBadge(o)} ${trendBadge(o)}</div>
+              <div>${deltaBadge(o)} ${trendBadge(o)} ${bookingBadge(o)}</div>
               ${o.image_url?`<img class="offer-img" src="${esc(o.image_url)}" loading="lazy" alt="" onerror="this.remove()">`:''}
             </div>
           </div>
@@ -494,6 +604,30 @@
         if(o.flight_out || o.flight_ret){
           const fl = (label, v) => v?`<div class="flight">${plane}<span><span class="fdir">${label}:</span> ${esc(v)}</span></div>`:'';
           flights = `<div class="flights">${fl('Hin',o.flight_out)}${fl('Rück',o.flight_ret)}</div>`;
+        }
+        // Flugvarianten: TUI liefert für denselben Zeitraum oft mehrere Angebote, die
+        // sich nur im Flug unterscheiden (früher/mehr Stopps = billiger). Getrackt wird
+        // der günstigste — hier steht, was die anderen kosten würden.
+        let flightAlts = '';
+        const fopts = o.flight_options || [];
+        if(fopts.length > 1){
+          const rows = fopts.map(v => {
+            const cur = o.flight_pin ? (v.key===o.flight_pin) : !!v.selected;
+            const d = v.delta;
+            const dTxt = (d==null || Math.abs(d)<0.5) ? '<span class="fv-d">±0 €</span>'
+              : `<span class="fv-d ${d>0?'up':'down'}">${d>0?'+':'−'}${eur(Math.abs(d))}</span>`;
+            const btn = cur
+              ? (o.flight_pin?`<button class="btn sec" onclick="pinFlight(${o.id},'')" title="Fixierung lösen – wieder günstigster Flug">📌 fixiert ✕</button>`
+                             :'<span class="fv-cur" title="Dieser Flug wird aktuell verfolgt">✓ verfolgt</span>')
+              : `<button class="btn sec" onclick="pinFlight(${o.id},'${esc(v.key)}')" title="Diesen Flug verfolgen statt des günstigsten">📌 verfolgen</button>`;
+            return `<div class="fv-row${cur?' cur':''}">
+              <div class="fv-price">${eur(v.price)} ${dTxt}</div>
+              <div class="fv-legs">${plane}<span>${esc(v.out)}</span><br>${plane}<span>${esc(v.ret)}</span></div>
+              <div class="fv-act">${btn}</div>
+            </div>`;
+          }).join('');
+          const pinNote = o.flight_pin ? ' · <span class="fv-pin">📌 Flug fixiert</span>' : '';
+          flightAlts = `<details class="flight-vars"><summary>✈ ${fopts.length} Flugvarianten${pinNote}</summary>${rows}</details>`;
         }
         let availBadge = '';
         if(o.available===true){
@@ -592,6 +726,7 @@
               ${sub?`<div class="offer-details">${esc(sub)}</div>`:''}
               ${metaLine}
               ${flights}
+              ${flightAlts}
               ${codesLine}
               <a class="offer-url" href="${esc(o.url)}" target="_blank" rel="noopener">Angebot auf tui.com öffnen ↗</a>
               ${o.pdf_url?`<a class="offer-url pdf" href="${esc(o.pdf_url)}" target="_blank" rel="noopener">📄 Hotelbeschreibung (PDF)</a>`:''}
@@ -604,7 +739,7 @@
               ${priceSub?`<div class="price-sub">${priceSub}</div>`:''}
               ${perNight!=null?`<div class="price-sub">${eur(perNight)}/Nacht</div>`:''}
               ${(o.travellers_count>1 && o.total_price!=null)?`<div class="price-total">Gesamt ${eur(o.total_price)} · ${o.travellers_count} Reisende</div>`:''}
-              <div>${deltaBadge(o)} ${o.archived?'':trendBadge(o)}</div>
+              <div>${deltaBadge(o)} ${o.archived?'':trendBadge(o)} ${o.archived?'':bookingBadge(o)}</div>
               ${bookedSince?`<div>${bookedSince}</div>`:''}
               ${availBadge}
               ${o.image_url?`<img class="offer-img" src="${esc(o.image_url)}" loading="lazy" alt="" onerror="this.remove()">`:''}
@@ -619,6 +754,9 @@
             <div class="offer-actions">
             ${o.archived
               ? `<button class="btn sec" onclick="openHistory(${o.id})">Verlauf</button>
+                 <button class="btn sec${o.calendar_paused?' cal-paused':''}" onclick="openCalendar(${o.id})" title="${o.calendar_paused
+                    ? 'Kalender pausiert (Abrufe schlugen wiederholt fehl) — Fenster öffnen zum Reaktivieren'
+                    : 'Preis je Abreisetag — läuft für archivierte Angebote weiter und baut den Langzeitverlauf dieses Hotels auf'}">Kalender</button>
                  <button class="btn sec" onclick="unarchiveOffer(${o.id})" title="Wieder aktiv verfolgen">Reaktivieren</button>
                  <button class="icon-btn" onclick="resetOffer(${o.id})" title="Zurücksetzen: Verlauf löschen und neu bei null beginnen">
                    <svg viewBox="0 0 24 24"><path d="M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
@@ -667,7 +805,11 @@
         </div>`;
     }
 
-    function esc(s){ return (s||'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+    // String(s||'') statt (s||'') -- Werte aus JSON-APIs sind nicht immer schon
+    // String (z. B. rein numerische Flugnummern kommen als JS-Number an, siehe
+    // str_flights_client.py) -- (s||'').replace crasht dann mit "not a function",
+    // String(...) macht daraus zuerst zuverlässig einen String.
+    function esc(s){ return String(s||'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 
     function drawChart(cv, pts, full, opts){
       opts = opts || {};
@@ -1730,6 +1872,352 @@
     function closePriceSplit(){ $('#split-bg').classList.remove('show'); }
     $('#split-bg').addEventListener('click', e=>{ if(e.target.id==='split-bg') closePriceSplit(); });
 
+    // ── Flugplan-Einstieg (✈️) ────────────────────────────────────────────────
+    // Zwei getrennte Flugpläne mit unterschiedlichen Datenquellen und -modellen
+    // (STR: Saisonstrecken, FRA: Einzelflüge je Datum). Sind beide freigeschaltet,
+    // fragt der Knopf zuerst nach dem Flughafen; ist nur einer aktiv, geht es
+    // ohne Zwischenschritt direkt dorthin.
+    function openFlightPlan(){
+      const on = [G.strFlights && openStrFlights, G.fraFlights && openFraFlights,
+                  G.mucFlights && openMucFlights].filter(Boolean);
+      if(on.length > 1){
+        // Nur die freigeschalteten Flughäfen zur Wahl stellen
+        $('#fpick-str').style.display = G.strFlights ? '' : 'none';
+        $('#fpick-fra').style.display = G.fraFlights ? '' : 'none';
+        $('#fpick-muc').style.display = G.mucFlights ? '' : 'none';
+        $('#fpick-bg').classList.add('show');
+        return;
+      }
+      if(on.length === 1) on[0]();
+    }
+
+    // ── Flugziel-Suche über alle freigeschalteten Flughäfen ────────────────────
+    let allfTimer = null, allfDestLoaded = false;
+    function openAllFlights(){
+      $('#allf-bg').classList.add('show'); $('#allf-q').focus();
+      if(!allfDestLoaded){ allfDestLoaded = true; loadAllfDestinations(); }
+    }
+    function closeAllFlights(){ $('#allf-bg').classList.remove('show'); }
+    $('#allf-bg').addEventListener('click', e=>{ if(e.target.id==='allf-bg') closeAllFlights(); });
+    $('#allf-q').addEventListener('input', ()=>{ clearTimeout(allfTimer); allfTimer = setTimeout(allFlightsSearch, 350); });
+    $('#allf-von').addEventListener('change', allFlightsSearch);
+    $('#allf-bis').addEventListener('change', allFlightsSearch);
+    async function allFlightsSearch(){
+      const q = $('#allf-q').value.trim();
+      const von = $('#allf-von').value, bis = $('#allf-bis').value;
+      if(q.length < 2){
+        $('#allf-body').innerHTML = '<div class="hint">Suchbegriff eingeben, z. B. „Palma", „PMI" oder „Spanien".</div>';
+        return;
+      }
+      $('#allf-body').innerHTML = progBar('Suche über alle Flughäfen…');
+      let data;
+      try {
+        data = await fetch(api('/api/flights/search?q='+encodeURIComponent(q)
+          +'&from='+encodeURIComponent(von)+'&till='+encodeURIComponent(bis))).then(r=>r.json());
+      } catch(e){ data = {error:'fetch_failed'}; }
+      if(data.error){
+        $('#allf-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Suche nicht möglich. Bitte später erneut versuchen.</div>';
+        return;
+      }
+      renderAllFlights(data);
+    }
+    const ALLF_LABEL = {str:'Stuttgart (STR)', fra:'Frankfurt (FRA)', muc:'München (MUC)'};
+    function renderAllFlights(data){
+      const present = ['str','fra','muc'].filter(k => data[k]);
+      if(!present.length){ $('#allf-body').innerHTML = '<div class="hint">Kein Flughafen freigeschaltet.</div>'; return; }
+      $('#allf-body').innerHTML = present.map(k =>
+        `<div style="margin-top:14px"><h3 style="margin:0 0 4px">${ALLF_LABEL[k]}</h3>
+          <div id="allf-${k}-body">${progBar('Lade…')}</div></div>`).join('');
+      present.forEach(k => {
+        const res = data[k], sel = '#allf-'+k+'-body';
+        if(res.error){ $(sel).innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Nicht erreichbar.</div>'; return; }
+        if(k==='str') renderStrFlights(res.rows||[], sel);
+        else if(k==='fra') renderFraFlights(res, sel, true);
+        else renderMucFlights(res, sel);
+      });
+    }
+
+    // Gesamtliste aller tatsächlich angeflogenen Ziele (nur STR + MUC — siehe
+    // api_flights_destinations()). Einmal geladen, danach aus dem Cache des
+    // Servers — kein erneuter Abruf bei jedem Modal-Öffnen.
+    async function loadAllfDestinations(){
+      $('#allf-dest-body').innerHTML = progBar('Lade Flugzielliste…');
+      let data;
+      try { data = await fetch(api('/api/flights/destinations')).then(r=>r.json()); }
+      catch(e){ data = {error:'fetch_failed'}; }
+      if(data.error){
+        $('#allf-dest-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Flugzielliste nicht abrufbar.</div>';
+        return;
+      }
+      renderAllfDestinations(data.destinations || []);
+    }
+    const ALLF_AP_SHORT = {str:'STR', muc:'MUC'};
+    const ALLF_FRA_TITLE = 'Näherung: Frankfurt hat keine amtliche Gesamtliste (Drehkreuz), dieses Ziel stammt aus einem rollierend gesammelten Tagesbord einer Drittseite — kann bei sehr seltenen Verbindungen fehlen oder veraltet sein.';
+    function renderAllfDestinations(dest){
+      if(!dest.length){ $('#allf-dest-body').innerHTML = '<div class="hint">Keine Ziele gefunden.</div>'; return; }
+      const rowsHtml = dest.map(d => `<tr class="allf-dest-row" style="cursor:pointer" onclick="allfPickDestination('${esc(d.code)}')" title="Klicken, um nach ${esc(d.name)} zu suchen">
+        <td>${esc(d.name)}</td>
+        <td class="hint">${esc(d.code)}</td>
+        <td class="hint">${esc(d.country)}</td>
+        <td class="hint">${(d.airports||[]).map(a=>a==='fra'?`<span title="${ALLF_FRA_TITLE}">FRA*</span>`:(ALLF_AP_SHORT[a]||a)).join(', ')}</td>
+      </tr>`).join('');
+      $('#allf-dest-body').innerHTML = `<div class="hint" style="margin-bottom:6px">${dest.length} Ziele — Stuttgart + München vollständig erfasst. Frankfurt (FRA*) nur genähert aus einem Drittseiten-Tagesbord, siehe Spalten-Tooltip. Zeile anklicken für Verbindungen.</div>
+        <div style="overflow-x:auto;max-height:340px;overflow-y:auto"><table class="hist"><tr><th>Ziel</th><th>Code</th><th>Land</th><th title="STR/MUC: vollständiger Saison-Fahrplan. FRA*: Näherung aus einem Drittseiten-Tagesbord, kein amtlicher Fahrplan — kann einzelne selten fliegende Ziele verpassen.">Ab ⓘ</th></tr>${rowsHtml}</table></div>`;
+    }
+    function allfPickDestination(code){
+      $('#allf-q').value = code;
+      allFlightsSearch();
+      $('#allf-body').scrollIntoView({block:'nearest'});
+    }
+    function closeFlightPick(){ $('#fpick-bg').classList.remove('show'); }
+    $('#fpick-bg').addEventListener('click', e=>{ if(e.target.id==='fpick-bg') closeFlightPick(); });
+
+    // ── FRA-Flugplan (Einzelflüge ab/nach Frankfurt) ───────────────────────────
+    let frafTimer = null, frafLastRows = [];
+    function openFraFlights(){ $('#fraf-bg').classList.add('show'); $('#fraf-q').focus(); }
+    function closeFraFlights(){ $('#fraf-bg').classList.remove('show'); }
+    $('#fraf-bg').addEventListener('click', e=>{ if(e.target.id==='fraf-bg') closeFraFlights(); });
+    $('#fraf-q').addEventListener('input', ()=>{ clearTimeout(frafTimer); frafTimer = setTimeout(fraFlightsSearch, 350); });
+    $('#fraf-von').addEventListener('change', fraFlightsSearch);
+    $('#fraf-bis').addEventListener('change', fraFlightsSearch);
+    async function fraFlightsSearch(){
+      const q = $('#fraf-q').value.trim();
+      const type = $('#fraf-type').value;
+      const von = $('#fraf-von').value, bis = $('#fraf-bis').value;   // 'YYYY-MM'
+      if(q.length < 2){
+        $('#fraf-body').innerHTML = '<div class="hint">Suchbegriff eingeben, z. B. „Palma", „PMI" oder „Mauritius".</div>';
+        return;
+      }
+      $('#fraf-body').innerHTML = progBar('Suche…');
+      let data;
+      try {
+        data = await fetch(api('/api/fraflights?q='+encodeURIComponent(q)+'&type='+encodeURIComponent(type)
+          +'&from='+encodeURIComponent(von)+'&till='+encodeURIComponent(bis))).then(r=>r.json());
+      } catch(e){ data = {error:'fetch_failed'}; }
+      if(data.error){
+        $('#fraf-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Flugplan nicht erreichbar. Bitte später erneut versuchen.</div>';
+        return;
+      }
+      renderFraFlights(data);
+    }
+    function frafDate(iso){ const p=(iso||'').split('-'); return p.length===3?(p[2]+'.'+p[1]+'.'+p[0]):(iso||''); }
+    function frafDur(min){ if(!min) return ''; return Math.floor(min/60)+' h '+String(min%60).padStart(2,'0'); }
+    function renderFraFlights(data, bodySel, depOverride){
+      bodySel = bodySel || '#fraf-body';
+      const rows = data.rows || [];
+      const dep = depOverride !== undefined ? depOverride : ($('#fraf-type').value !== 'arrivals');
+      if(!rows.length){ $(bodySel).innerHTML = '<div class="hint">Kein Flug gefunden — evtl. anderen Zeitraum wählen.</div>'; return; }
+      const rowsHtml = rows.map((r,i) => `<tr class="fraf-row" onclick="fraFlightDetail(${i})" title="Klicken für Details (Terminal, Gate, Check-in, Flugzeug)">
+        <td>${esc(frafDate(r.date))}</td>
+        <td>${esc(r.time)}${r.arrival?'<span class="hint">–'+esc(r.arrival)+'</span>':''}</td>
+        <td>${esc(r.airport_name)} <span class="hint">(${esc(r.airport_code)})</span></td>
+        <td>${esc(r.airline_name)} ${esc(r.flight_no)}</td>
+        <td class="hint">${esc(frafDur(r.duration_min))}</td>
+        <td class="hint">${esc([r.terminal?'T'+r.terminal:'', r.hall, r.gate].filter(Boolean).join(' · '))}</td>
+      </tr>`).join('');
+      // Die Flughafen-Suche liefert mehrere Treffer (z. B. „Palma" → SPC + PMI) —
+      // welche Codes tatsächlich abgefragt wurden, gehört sichtbar hin.
+      const aps = (data.airports || []).filter(a=>a.name).map(a=>esc(a.name)+' ('+esc(a.code)+')').join(', ');
+      const more = data.truncated ? ' · weitere vorhanden, Zeitraum eingrenzen' : '';
+      $(bodySel).innerHTML = `<div class="hint" style="margin-bottom:6px">${rows.length} ${rows.length===1?'Flug':'Flüge'}${aps?' — '+aps:''}${more} — Zeile anklicken für Details</div>
+        <div style="overflow-x:auto"><table class="hist"><tr><th>Datum</th><th>${dep?'Ab FRA':'An FRA'}</th><th>${dep?'Ziel':'Von'}</th><th>Flug</th><th>Dauer</th><th>Terminal</th></tr>${rowsHtml}</table></div>`;
+      frafLastRows = rows;
+    }
+    function closeFraFlightDetail(){ $('#fraf-detail-bg').classList.remove('show'); $('#fraf-detail-bg').style.zIndex = ''; }
+    $('#fraf-detail-bg').addEventListener('click', e=>{ if(e.target.id==='fraf-detail-bg') closeFraFlightDetail(); });
+    // Anders als beim STR-Detail ist hier kein zusätzlicher Abruf nötig — das
+    // FRA-JSON liefert Terminal, Gate, Check-in, Flugzeugtyp und Codeshares
+    // bereits in der Trefferzeile mit.
+    function fraFlightDetail(i){
+      const r = frafLastRows[i];
+      if(!r) return;
+      const dep = $('#fraf-type').value !== 'arrivals';
+      $('#fraf-detail-title').textContent = '✈️ ' + (r.airline_name || r.airline_code) + ' ' + r.flight_no;
+      const pfCode = (r.flight_no||'').replace(/\s+/g,'');
+      $('#fraf-detail-live').innerHTML = pfCode
+        ? `<a href="https://planefinder.net/data/flight/${encodeURIComponent(pfCode)}" target="_blank" rel="noopener">🛰 Live-Position auf planefinder.net</a>`
+        : '';
+      const row = (k,v) => v ? `<tr><td>${k}</td><td>${esc(v)}</td></tr>` : '';
+      $('#fraf-detail-body').innerHTML = `<table class="hist">
+          ${row('Datum', frafDate(r.date))}
+          ${row(dep?'Abflug FRA':'Ankunft FRA', r.time + ' Uhr')}
+          ${row(dep?'Ankunft (Ortszeit Ziel)':'Abflug (Ortszeit Start)', r.arrival ? r.arrival+' Uhr' : '')}
+          ${row(dep?'Ziel':'Von', r.airport_name + ' (' + r.airport_code + ')')}
+          ${row('Flugdauer', frafDur(r.duration_min))}
+          ${row('Terminal', [r.terminal?'Terminal '+r.terminal:'', r.hall?'Halle '+r.hall:'', r.gate?'Gate '+r.gate:''].filter(Boolean).join(' · '))}
+          ${row('Check-in', r.checkin)}
+          ${row('Flugzeug', [r.aircraft, r.registration].filter(Boolean).join(' · '))}
+          ${row('Zwischenstopps', r.stops===0?'Direktflug':(r.stops?String(r.stops):''))}
+          ${row('Codeshare', (r.codeshares||[]).join(', '))}
+        </table>
+        <div class="hint" style="margin-top:10px">Quelle: Flughafen Frankfurt — Planung, Gate und Schalter können sich kurzfristig ändern.</div>`;
+      $('#fraf-detail-bg').style.zIndex = 60;
+      $('#fraf-detail-bg').classList.add('show');
+    }
+
+    // ── MUC-Flugplan (Saisonstrecken aus dem Flugplan-PDF des Flughafens) ──────
+    let mucfTimer = null;
+    function openMucFlights(){ $('#mucf-bg').classList.add('show'); $('#mucf-q').focus(); }
+    function closeMucFlights(){ $('#mucf-bg').classList.remove('show'); }
+    $('#mucf-bg').addEventListener('click', e=>{ if(e.target.id==='mucf-bg') closeMucFlights(); });
+    $('#mucf-q').addEventListener('input', ()=>{ clearTimeout(mucfTimer); mucfTimer = setTimeout(mucFlightsSearch, 350); });
+    $('#mucf-von').addEventListener('change', mucFlightsSearch);
+    $('#mucf-bis').addEventListener('change', mucFlightsSearch);
+    async function mucFlightsSearch(){
+      const q = $('#mucf-q').value.trim();
+      const type = $('#mucf-type').value;
+      const von = $('#mucf-von').value, bis = $('#mucf-bis').value;
+      if(q.length < 2){
+        $('#mucf-body').innerHTML = '<div class="hint">Suchbegriff eingeben, z. B. „Palma", „PMI" oder „Spanien".</div>';
+        return;
+      }
+      // Beim allerersten Aufruf liest der Server das PDF ein (~15 s) — deshalb
+      // hier ein Hinweis statt eines stillen Spinners.
+      $('#mucf-body').innerHTML = progBar('Suche… (beim ersten Mal wird der Flugplan eingelesen)');
+      let data;
+      try {
+        data = await fetch(api('/api/mucflights?q='+encodeURIComponent(q)+'&type='+encodeURIComponent(type)
+          +'&from='+encodeURIComponent(von)+'&till='+encodeURIComponent(bis))).then(r=>r.json());
+      } catch(e){ data = {error:'fetch_failed'}; }
+      if(data.error){
+        $('#mucf-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Flugplan nicht erreichbar. Bitte später erneut versuchen.</div>';
+        return;
+      }
+      renderMucFlights(data);
+    }
+    function renderMucFlights(data, bodySel){
+      bodySel = bodySel || '#mucf-body';
+      const rows = data.rows || [];
+      const foot = `<div class="hint" style="margin-top:8px">Datenstand ${esc(data.datenstand||'?')} · Saison ${esc(data.season||'?')} · ${(data.count||0).toLocaleString('de-DE')} Verbindungen im Plan</div>`;
+      if(!rows.length){ $(bodySel).innerHTML = '<div class="hint">Keine Verbindung gefunden.</div>'+foot; return; }
+      const rowsHtml = rows.map(r => {
+        // Zeiten immer aus MUC-Sicht: bei Abflug ist die erste Zeit ab MUC, bei
+        // Ankunft die zweite in MUC (±Tag über die Marker des PDF).
+        const t = `${esc(r.departure)}${r.prev_day?'<span class="hint" title="Abflug am Vortag">⁻¹</span>':''}–${esc(r.arrival)}${r.next_day?'<span class="hint" title="Ankunft am Folgetag">⁺¹</span>':''}`;
+        return `<tr class="mucf-row">
+          <td title="${r.direction==='departure'?'Abflug ab MUC':'Ankunft in MUC'}">${r.direction==='departure'?'🛫':'🛬'}</td>
+          <td>${esc(r.airport_name)} <span class="hint">(${esc(r.airport_code)})</span></td>
+          <td>${esc(r.country)}</td>
+          <td>${esc(r.airline_name||r.airline_code)} ${esc(r.flight_no)}</td>
+          <td>${esc(r.weekdays_short)}</td>
+          <td>${t}${r.stop?' <span class="hint">via '+esc(r.stop)+'</span>':''}</td>
+          <td class="hint">${esc(deDate(r.date_from))}–${esc(deDate(r.date_till))}</td>
+          <td class="hint">T${esc(r.terminal)}</td>
+        </tr>`;
+      }).join('');
+      const more = data.total > rows.length ? ` (von ${data.total}, Zeitraum oder Suchbegriff eingrenzen)` : '';
+      $(bodySel).innerHTML = `<div class="hint" style="margin-bottom:6px">${rows.length} Verbindung${rows.length===1?'':'en'}${more}</div>
+        <div style="overflow-x:auto"><table class="hist"><tr><th></th><th>Ziel</th><th>Land</th><th>Flug</th><th>Tage</th><th>Zeiten</th><th>Zeitraum</th><th>Term.</th></tr>${rowsHtml}</table></div>${foot}`;
+    }
+    async function mucFlightsRefresh(){
+      $('#mucf-body').innerHTML = progBar('Flugplan-PDF wird neu eingelesen…');
+      try {
+        const r = await fetch(api('/api/mucflights/refresh'), {method:'POST'}).then(x=>x.json());
+        if(r.error){ toast('Flugplan nicht abrufbar'); }
+        else toast('Flugplan neu eingelesen (Datenstand '+(r.datenstand||'?')+')');
+      } catch(e){ toast('Flugplan nicht abrufbar'); }
+      mucFlightsSearch();
+    }
+
+    // ── STR-Flugplan (Direktverbindungen Stuttgart Airport, unabhängig von Reisen) ──
+    let strfTimer = null;
+    function openStrFlights(){ $('#strf-bg').classList.add('show'); $('#strf-q').focus(); }
+    function closeStrFlights(){ $('#strf-bg').classList.remove('show'); }
+    $('#strf-bg').addEventListener('click', e=>{ if(e.target.id==='strf-bg') closeStrFlights(); });
+    $('#strf-q').addEventListener('input', ()=>{ clearTimeout(strfTimer); strfTimer = setTimeout(strFlightsSearch, 350); });
+    $('#strf-von').addEventListener('change', strFlightsSearch);
+    $('#strf-bis').addEventListener('change', strFlightsSearch);
+    async function strFlightsSearch(){
+      const q = $('#strf-q').value.trim();
+      const type = $('#strf-type').value;
+      const von = $('#strf-von').value;   // 'YYYY-MM' oder leer (input type=month)
+      const bis = $('#strf-bis').value;
+      if(q.length < 2){
+        $('#strf-body').innerHTML = '<div class="hint">Suchbegriff eingeben, z. B. „Palma", „PMI" oder „Spanien".</div>';
+        return;
+      }
+      $('#strf-body').innerHTML = progBar('Suche…');
+      let data;
+      try {
+        data = await fetch(api('/api/strflights?q='+encodeURIComponent(q)+'&type='+encodeURIComponent(type)
+          +'&from='+encodeURIComponent(von)+'&till='+encodeURIComponent(bis))).then(r=>r.json());
+      }
+      catch(e){ data = {error:'fetch_failed'}; }
+      if(data.error){
+        $('#strf-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Flugplan nicht erreichbar. Bitte später erneut versuchen.</div>';
+        return;
+      }
+      renderStrFlights(data.rows || []);
+    }
+    const STRF_MONTHS = ['Jan','Feb','Mär','Apr','Mai','Jun','Jul','Aug','Sep','Okt','Nov','Dez'];
+    // Zeitraum reicht auf Monat+Jahr verkürzt (Tagesgenauigkeit ist für die
+    // Saisonspanne einer Fahrplanzeile keine nützliche Information) — z. B.
+    // "Okt 2026–Mär 2027" statt "31.10.2026–27.03.2027".
+    function strfMonYear(iso){
+      const p = (iso||'').split('-');
+      if(p.length < 2) return iso || '';
+      const m = parseInt(p[1], 10);
+      return (STRF_MONTHS[m-1] || p[1]) + ' ' + p[0];
+    }
+    function renderStrFlights(rows, bodySel){
+      bodySel = bodySel || '#strf-body';
+      if(!rows.length){ $(bodySel).innerHTML = '<div class="hint">Keine Verbindung gefunden.</div>'; return; }
+      const rowsHtml = rows.map((r,i) => `<tr class="strf-row" onclick="strFlightDetail(${i})" title="Klicken für Flugdetails (Airline, Strecke)">
+        <td title="${r.type==='Departure'?'Abflug ab STR':'Ankunft in STR'}">${r.type==='Departure'?'🛫':'🛬'}</td>
+        <td>${esc(r.airport_name)} <span class="hint">(${esc(r.airport_code)})</span></td>
+        <td>${esc(r.country)}</td>
+        <td>${esc(r.airline_name)} ${esc(r.flight_no)}</td>
+        <td>${esc(r.weekdays_short)}</td>
+        <td>${esc(r.departure)}–${esc(r.arrival)}${r.via?' <span class="hint">via '+esc(r.via)+'</span>':''}</td>
+        <td class="hint">${strfMonYear(r.date_from)}–${strfMonYear(r.date_till)}</td>
+      </tr>`).join('');
+      $(bodySel).innerHTML = `<div class="hint" style="margin-bottom:6px">${rows.length} Verbindung${rows.length===1?'':'en'} gefunden — Zeile anklicken für Flugdetails</div>
+        <div style="overflow-x:auto"><table class="hist"><tr><th></th><th>Ziel</th><th>Land</th><th>Flug</th><th>Tage</th><th>Zeiten</th><th>Zeitraum</th></tr>${rowsHtml}</table></div>`;
+      strfLastRows = rows;
+    }
+    let strfLastRows = [];
+    function closeStrFlightDetail(){ $('#strf-detail-bg').classList.remove('show'); $('#strf-detail-bg').style.zIndex = ''; }
+    $('#strf-detail-bg').addEventListener('click', e=>{ if(e.target.id==='strf-detail-bg') closeStrFlightDetail(); });
+    // Details (Airline, Standardstrecke) zu einer angeklickten Zeile — über ein
+    // offenes Drittanbieter-API (adsbdb.com), server-seitig geproxied
+    // (str_flights_client.lookup_callsign). Reine Zusatzinfo, kein Bezug zu
+    // TUI/Check24 — kann für exotischere Callsigns auch "nichts gefunden" sein.
+    async function strFlightDetail(i){
+      const r = strfLastRows[i];
+      if(!r) return;
+      $('#strf-detail-title').textContent = '✈️ ' + (r.airline_name || r.airline_code) + ' ' + r.flight_no;
+      // Live-Link steht sofort, unabhängig vom adsbdb-Ladezustand — planefinder
+      // erwartet IATA-Airline-Code + Flugnummer ohne Trennzeichen (z. B. "X34715").
+      const pfCode = (r.airline_code||'') + (r.flight_no||'');
+      $('#strf-detail-live').innerHTML = pfCode
+        ? `<a href="https://planefinder.net/data/flight/${encodeURIComponent(pfCode)}" target="_blank" rel="noopener">🛰 Live-Position auf planefinder.net</a>`
+        : '';
+      $('#strf-detail-body').innerHTML = progBar('Lade Flugdetails…');
+      $('#strf-detail-bg').style.zIndex = 60;
+      $('#strf-detail-bg').classList.add('show');
+      let data;
+      try {
+        data = await fetch(api('/api/strflights/callsign?airline='+encodeURIComponent(r.airline_code)
+          +'&no='+encodeURIComponent(r.flight_no))).then(x=>x.json());
+      } catch(e){ data = {error:'fetch_failed'}; }
+      if(data.error){
+        $('#strf-detail-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Details nicht abrufbar. Bitte später erneut versuchen.</div>';
+        return;
+      }
+      if(!data.found){
+        $('#strf-detail-body').innerHTML = '<div class="hint">Keine zusätzlichen Daten zu diesem Flug gefunden (externe Quelle kennt diesen Callsign nicht).</div>';
+        return;
+      }
+      $('#strf-detail-body').innerHTML = `
+        <div class="hint" style="margin-bottom:10px">${esc(data.airline_name)} · Callsign ${esc(data.callsign_icao)} (${esc(data.callsign_iata)})</div>
+        <table class="hist">
+          <tr><th></th><th>Flughafen</th><th>Ort</th></tr>
+          <tr><td>Start</td><td>${esc(data.origin_name)} <span class="hint">(${esc(data.origin_iata)})</span></td><td>${esc(data.origin_city)}, ${esc(data.origin_country)}</td></tr>
+          <tr><td>Ziel</td><td>${esc(data.dest_name)} <span class="hint">(${esc(data.dest_iata)})</span></td><td>${esc(data.dest_city)}, ${esc(data.dest_country)}</td></tr>
+        </table>
+        <div class="hint" style="margin-top:10px">Quelle: adsbdb.com — planmäßige Standardroute, kann bei Ad-hoc-Umleitungen abweichen.</div>`;
+    }
+
     // ── Reisen-Datenbank (PDF-Import gebuchter Reisen) ──────────────────────────
     let tripsData = [];
     function eur(v){ return (v==null||v==='')?'–':Number(v).toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2})+' €'; }
@@ -1855,16 +2343,79 @@
       catch(e){ $('#basket-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Laden fehlgeschlagen</div>'; return; }
       renderBasket(b);
     }
+    // ── Buchungszeitpunkt: Ampel + Booking-Kurve ───────────────────────────────────
+    // Zwei verschiedene Fragen, deshalb zwei getrennte Anzeigen: der Trend oben sagt
+    // „was passiert gerade", die Ampel „ist jetzt ein guter Moment zu buchen".
+    const AMPEL_ICON = {green:'🟢', yellow:'🟡', red:'🔴'};
+    const AMPEL_TEXT = {green:'guter Zeitpunkt', yellow:'neutral', red:'eher warten'};
+    function pctStr(v, digits){
+      if(v===null || v===undefined) return '–';
+      const s = v>0 ? '+' : (v<0 ? '−' : '');
+      return s + Math.abs(v).toLocaleString('de-DE',{maximumFractionDigits:digits===undefined?1:digits}) + ' %';
+    }
+    function ampelBadge(s){
+      if(!s) return '';
+      if(s.closed) return '<span class="hint">–</span>';
+      if(!s.ampel) return `<span class="hint">${esc(s.note||'sammelt noch Daten')}</span>`;
+      const c = s.components || {};
+      const bits = [];
+      if(c.trend) bits.push(`Trend 14 T: ${pctStr(c.trend.pct)}`);
+      if(c.position) bits.push(`Position: Perzentil ${c.position.rank} von ${c.position.n} Tagen`);
+      if(c.expected) bits.push(`bis Abreise erwartet: ${pctStr(c.expected.pct)} (Kurve deckt ${Math.round(c.expected.coverage*100)} % der Resttage)`);
+      const title = `Score ${s.score>0?'+':''}${s.score} · ` + (bits.join(' · ') || 'keine Komponenten')
+        + (s.note ? ` · ${s.note}` : '');
+      return `<span class="trend ${s.ampel==='green'?'down':(s.ampel==='red'?'up':'flat')}" title="${esc(title)}">`
+        + `${AMPEL_ICON[s.ampel]} ${AMPEL_TEXT[s.ampel]}</span>`
+        + (s.days_to_dep!==null && s.days_to_dep!==undefined
+            ? ` <span class="hint" style="white-space:nowrap">noch ${s.days_to_dep} T</span>` : '');
+    }
+    function bookingCurveTable(bk){
+      if(!bk || !bk.enabled) return '';
+      const curve = bk.curve || [];
+      const ready = curve.filter(x=>x.rate!==null && x.rate!==undefined).length;
+      if(!ready){
+        return `<h3 style="margin:16px 0 4px;font-size:15px">Booking-Kurve</h3>`
+          + `<div class="hint">Sammelt noch. Die Kurve entsteht aus den Tagesbewegungen aller `
+          + `Messreihen, sortiert nach Vorlaufzeit — je Fenster braucht sie mindestens `
+          + `8 Messpunkte aus 2 Messreihen.</div>`;
+      }
+      const rows = curve.map(x=>{
+        if(x.rate===null || x.rate===undefined)
+          return `<tr style="opacity:.55"><td>${esc(x.label)}</td>`
+            + `<td colspan="2" class="hint">noch keine Daten</td><td>${x.n} <span class="hint">/ ${x.n_series}</span></td></tr>`;
+        const cls = x.pct>0 ? 'up' : (x.pct<0 ? 'down' : 'flat');
+        return `<tr><td>${esc(x.label)}</td>`
+          + `<td><span class="trend ${cls}">${pctStr(x.pct)}</span>${x.thin?' <span class="hint" title="Stammt aus nur einer Messreihe — noch keine belastbare Marktaussage">⚠ dünn</span>':''}</td>`
+          + `<td>${pctStr(x.rate, 3)}</td><td>${x.n} <span class="hint">/ ${x.n_series}</span></td></tr>`;
+      }).join('');
+      return `<h3 style="margin:16px 0 4px;font-size:15px">Booking-Kurve <span class="hint" style="font-weight:400">(${ready} von ${curve.length} Fenstern)</span></h3>`
+        + `<div class="hint" style="margin-bottom:6px">Wie sich Preise typischerweise über die Vorlaufzeit `
+        + `bewegen — alle Tagesbewegungen aller Messreihen nach „Tage bis Abreise" sortiert statt nach Kalendertag. `
+        + `Prozentwerte sind dimensionslos, deshalb dürfen verschiedene Ziele zusammen in einen Topf.</div>`
+        + `<table class="hist"><tr><th>Vorlauf</th><th>über das Fenster</th><th>pro Tag</th><th>Punkte / Messreihen</th></tr>${rows}</table>`;
+    }
     function renderBasket(b){
       if(!b || !b.enabled){
         $('#basket-body').innerHTML = '<div class="cmp-load">Das Preisbarometer ist in den Add-on-Einstellungen abgeschaltet.</div>';
         return;
       }
-      const rows = (b.by_region||[]).map(r=>
-        `<tr><td>${esc(r.region)}<div class="hint">${esc(r.period||'')}</div></td>`
+      const bk = b.booking || {enabled:false};
+      // Abgeschlossene Messreihen (Reisezeitraum vorbei, Suche gelöscht oder
+      // umbenannt) bleiben stehen — ihr Index und ihr Beitrag zur Booking-Kurve sind
+      // weiter wertvoll. Ohne Kennzeichnung sähen sie aber wie eine kaputte aktive
+      // Reihe aus: leerer Zeitraum, „keine Daten" beim Trend, und niemand wüsste warum.
+      const rows = (b.by_region||[]).map(r=>{
+        const when = r.closed
+          ? `<div class="hint">📁 abgeschlossen${r.last_day?` · zuletzt ${fmtD(r.last_day)}`:''}</div>`
+          : `<div class="hint">${esc(r.period||'')}</div>`;
+        return `<tr${r.closed?' style="opacity:.7"':''}><td>${esc(r.region)}${when}</td>`
         + `<td>${marketTrendBadge(r.trend)}${marketIndexLine(r.index)}</td>`
+        + (bk.enabled ? `<td>${ampelBadge(r.signal)}</td>` : '')
         + `<td>${(r.trend||{}).hotels||''}</td>`
-        + `<td><button class="btn sec" onclick="resetBasketRegion(${esc(JSON.stringify(r.region))})" title="Barometer-Daten dieser Suche löschen und neu beginnen">🗑</button></td></tr>`).join('');
+        + `<td><button class="btn sec" onclick="resetBasketRegion(${esc(JSON.stringify(r.region))})" title="${r.closed
+            ? 'Diese abgeschlossene Messreihe endgültig entfernen'
+            : 'Barometer-Daten dieser Suche löschen und neu beginnen'}">🗑</button></td></tr>`;
+      }).join('');
       // Messreihen ohne zwei vergleichbare Tage stehen nicht in der Tabelle — ohne
       // diese Liste sähe es so aus, als würden sie gar nicht erfasst.
       const waiting = (b.baskets||[]).filter(x => !(b.by_region||[]).some(r=>r.region===x.key));
@@ -1872,8 +2423,10 @@
         `<li>${esc(x.key)}${x.period ? ` <span class="hint">(${esc(x.period)})</span>` : ''}</li>`).join('');
       $('#basket-body').innerHTML =
         `<div class="trend-global"><b>Gesamt:</b> ${marketTrendBadge(b.global.trend)}${marketIndexLine(b.global.index)}</div>`
-        + (rows ? `<table class="hist"><tr><th>Gespeicherte Suche / Reisezeitraum</th><th>Trend (14 Tage) / Index (gesamt)</th><th>Hotels</th><th></th></tr>${rows}</table>`
+        + (rows ? `<table class="hist"><tr><th>Gespeicherte Suche / Reisezeitraum</th><th>Trend (14 Tage) / Index (gesamt)</th>`
+                + (bk.enabled ? '<th>Buchen?</th>' : '') + `<th>Hotels</th><th></th></tr>${rows}</table>`
                 : '<div class="cmp-load">Noch keine Suche mit zwei vergleichbaren Barometer-Tagen.</div>')
+        + bookingCurveTable(bk)
         + (waitRows ? `<h3 style="margin:16px 0 4px;font-size:15px">Sammelt noch</h3>`
             + `<ul style="margin:0;padding-left:18px;font-size:14px">${waitRows}</ul>` : '')
         + (b.last_day
@@ -4858,143 +5411,94 @@
     }
 
     // ── KI-Reiseberater (geführter Fragebogen → 3 Zielvorschläge) ─────────────
-    const DAYTRIP = 'Tagesausflug in der Nähe';
+    // Fragen, Reihenfolge und Sichtbarkeit stehen seit 0.89.12 nicht mehr hier,
+    // sondern in /config/trippilot/questions.json (editierbar, überlebt Updates).
+    // Dieselbe Datei liefert dem Backend die Feldnamen/Labels für den Prompt —
+    // eine dort ergänzte Frage kommt also auch wirklich bei der KI an.
+    let DAYTRIP = 'Tagesausflug in der Nähe';   // aus der JSON, bis dahin Fallback
+    let ADV_STEPS = [];
+    let advQuestionsSource = null, advQuestionsErrors = [], advQuestionsPath = '';
     const isDaytrip = state => (state.region||[]).includes(DAYTRIP);
-    const ADV_STEPS = [
-      {title:'Wohin soll die Reise ungefähr gehen?', key:'region', multi:true,
-       exclusive:[DAYTRIP],
-       options:['Deutschland','Europa','Makaronesien','Griechische Inseln','Balearen','Italien',
-                'Frankreich','Adriaküste','Algarve','Zypern','Kanaren','Mittelmeer','Karibik',
-                'Südostasien','Indischer Ozean','Weltweit','Egal',DAYTRIP]},
-      {title:'Welche Länder kommen für dich nicht in Frage?', key:'excluded_countries', multi:true,
-       showIf: state => !(state.region||[]).includes(DAYTRIP) &&
-         ((state.region||[]).includes('Weltweit') || (state.region||[]).includes('Egal')),
-       options:['Türkei','Ägypten','Tunesien','Marokko','Kenia','Thailand','Sri Lanka',
-                'Dominikanische Republik','Mexiko','Malediven']},
-      {title:'Weitere Länder ausschließen? (optional)', key:'excluded_countries_other', type:'text',
-       showIf: state => !(state.region||[]).includes(DAYTRIP) &&
-         ((state.region||[]).includes('Weltweit') || (state.region||[]).includes('Egal')),
-       placeholder:'z. B. weitere Länder, kommagetrennt'},
-      {title:'Was ist dir im Urlaub wichtig?', key:'interests', multi:true,
-       showIf: state => !isDaytrip(state),
-       options:['🌴 Strand','⛰️ Berge','🏛️ Kultur','🍹 Entspannung','🎉 Nachtleben','🚶 Wandern',
-                '🚴 Radfahren','🍽️ Essen','🛍️ Shopping','👨‍👩‍👧 Familie','❤️ Romantik']},
-      {title:'Wie soll dein Strand sein?', key:'beach_detail', multi:true,
-       showIf: state => (state.interests||[]).includes('🌴 Strand'),
-       options:['Feinsandig','Kies/Felsen','Naturstrand, unberührt','Weitläufig, kilometerlang',
-                'Kleine, ruhige Bucht','Belebt mit Beach-Bars','Flach abfallend (familienfreundlich)',
-                'Schattenplätze/Palmen','Gut zum Schnorcheln','Direkt am Hotel',
-                'Fußweg/Promenade OK']},
-      {title:'Wie sollen die Berge sein?', key:'berge_detail', multi:true,
-       showIf: state => (state.interests||[]).includes('⛰️ Berge'),
-       options:['Sanfte Wanderwege','Anspruchsvolle Gipfeltouren','Skigebiet (Winter)',
-                'Aussicht/Panorama','Alm-/Hüttenromantik','Seilbahn/Gondel vorhanden',
-                'Ruhig, wenig Tourismus']},
-      {title:'Welche Reiseart?', key:'travel_type', multi:true,
-       showIf: state => !isDaytrip(state),
-       options:['Pauschalreise (TUI)','Badeurlaub','Rundreise','Städtereise','Kreuzfahrt','Wellness',
-                'Aktivurlaub','Abenteuer','Luxus','Camping','All Inclusive','Ferienwohnung']},
-      {title:'Mit wem reist du?', key:'companions', multi:false,
-       showIf: state => !isDaytrip(state),
-       options:['Alleine','Partner','Familie','Freunde','Senioren','Mit Hund']},
-      {title:'Budget pro Person?', key:'budget', multi:false,
-       showIf: state => !isDaytrip(state),
-       options:['bis 500 €','500–1000 €','1000–2000 €','2000–3000 €','egal']},
-      {title:'Reisedauer?', key:'duration', multi:false,
-       showIf: state => !isDaytrip(state),
-       options:['Wochenende','5 Tage','1 Woche','9–12 Tage','2 Wochen','3+ Wochen']},
-      {title:'Wie viel Zeit hast du?', key:'duration_daytrip', multi:false,
-       showIf: state => isDaytrip(state),
-       options:['Vormittag','Nachmittag','Ganzer Tag','Ganzer Tag inkl. Abend']},
-      {title:'Wann soll es losgehen?', key:'month', multi:false,
-       options:['Januar','Februar','März','April','Mai','Juni','Juli','August','September',
-                'Oktober','November','Dezember','Egal']},
-      {title:'Wie warm soll es sein?', key:'temp', multi:false,
-       showIf: state => !isDaytrip(state),
-       options:['unter 20°C','20–25°C','25–30°C','20–30°C','möglichst heiß','egal']},
-      {title:'Meer oder See?', key:'water_type', multi:true,
-       exclusive:['Kein Gewässer nötig'],
-       options:['Meer','See','Kein Gewässer nötig']},
-      {title:'Wie warm soll das Wasser sein?', key:'sea', multi:false,
-       showIf: state => (state.water_type||[]).length > 0 && !state.water_type.includes('Kein Gewässer nötig'),
-       options:['28°C+ (tropisch warm)','24–27°C (angenehm warm)','20–24°C ist ok','egal']},
-      {title:'Regen?', key:'rain', multi:false,
-       options:['möglichst trocken','egal']},
-      {title:'Welche Aktivitäten interessieren dich?', key:'activities', multi:true,
-       options:['Tauchen','Schnorcheln','Wandern','Skifahren','Golf','Mountainbike','Surfen',
-                'Safari','Fotografieren','Museen','Freizeitparks','Wein','Kulinarik',
-                'Reiten','Segeln','Angeln','Klettern','Yoga','Tennis','Kajak/SUP','Bootsausflüge',
-                'Zoo/Tierpark','Therme/Wellness-Tag','Sehenswürdigkeit/Schloss','Kletterpark',
-                'Escape Room','Minigolf','Flohmarkt/Markt','Natur','FKK']},
-      {title:'Welche Unterkunftsart?', key:'accommodation', multi:false,
-       showIf: state => !isDaytrip(state),
-       options:['Hotel','Apartment','Ferienwohnung','Airbnb','Villa','Camping','Hostel','egal']},
-      {title:'Wie groß darf das Hotel sein?', key:'accommodation_size', multi:false,
-       showIf: state => !isDaytrip(state) && state.accommodation === 'Hotel',
-       options:['klein','Boutique','mittelgroß','riesige Clubanlage','egal']},
-      {title:'Was ist dir beim Hotel besonders wichtig?', key:'hotel_wishes', multi:true,
-       showIf: state => !isDaytrip(state),
-       options:['Erwachsenenhotel','Familienhotel','Kinderpool','Rutschen','Animation','Ruhe',
-                'All Inclusive','Frühstück','Halbpension','Swim-Up','Privatpool','Spa',
-                'Fitnessstudio','direkte Strandlage','Sandstrand','flach abfallend','Hausriff',
-                'WLAN','Homeoffice geeignet']},
-      {title:'Wie möchtest du anreisen?', key:'arrival_mode', multi:false,
-       showIf: state => !isDaytrip(state),
-       options:['Flugzeug','Auto','Bus','Bahn','Ist mir egal']},
-      {title:'Von wo geht\'s los?', key:'home_location', type:'text', required:true,
-       showIf: state => ['Auto','Bus','Bahn'].includes(state.arrival_mode) || isDaytrip(state),
-       placeholder:'PLZ oder Ort'},
-      {title:'Wie weit darf es maximal sein?', key:'max_distance', multi:false,
-       showIf: state => ['Auto','Bus','Bahn'].includes(state.arrival_mode) || isDaytrip(state),
-       options:['bis 50 km','bis 100 km','bis 200 km','bis 400 km','bis 600 km','egal']},
-      {title:'Flugzeit?', key:'flight_time', multi:false,
-       showIf: state => !isDaytrip(state) &&
-         (!state.arrival_mode || ['Flugzeug','Ist mir egal'].includes(state.arrival_mode)),
-       options:['Direktflug','max. 4 Stunden','max. 6 Stunden','egal']},
-      {title:'Abflughafen?', key:'airports', multi:true,
-       showIf: state => !isDaytrip(state) &&
-         (!state.arrival_mode || ['Flugzeug','Ist mir egal'].includes(state.arrival_mode)),
-       options:['Frankfurt','Stuttgart','München','Hamburg','Düsseldorf','Berlin']},
-      {title:'Was nervt dich im Urlaub?', key:'dislikes', multi:true,
-       showIf: state => !isDaytrip(state),
-       options:['überfüllte Strände','Kinder','Animation','Wind','Hitze','lange Transfers',
-                'frühes Aufstehen','Starker Wellengang']},
-      {title:'Was macht für dich einen perfekten Urlaub aus?', key:'perfect_holiday', type:'text',
-       showIf: state => !isDaytrip(state),
-       placeholder:'Freitext, optional'},
-      {title:'Welche Hotels/Urlaube haben dir gefallen – welche nicht? Warum?',
-       key:'past_trips', type:'text',
-       showIf: state => !isDaytrip(state),
-       placeholder:'z. B. "RIU Papayas war super, viel Auswahl beim Essen, ruhige Lage"'},
-      {title:'Was macht für dich einen perfekten Ausflug aus?', key:'perfect_daytrip', type:'text',
-       showIf: state => isDaytrip(state),
-       placeholder:'Freitext, optional'},
-    ];
+
+    // `show_if` ist deklarativ (kein Code in der JSON) — hier die Auswertung.
+    // Unbekannte Operatoren gelten als nicht erfüllt, damit eine vertippte
+    // Bedingung die Frage versteckt statt den Wizard abstürzen zu lassen.
+    function advCondMet(cond, state){
+      if(!cond || typeof cond !== 'object') return true;
+      if(Array.isArray(cond.all)) return cond.all.every(c => advCondMet(c, state));
+      if(Array.isArray(cond.any)) return cond.any.some(c => advCondMet(c, state));
+      if(cond.not) return !advCondMet(cond.not, state);
+      const v = state[cond.key];
+      const arr = Array.isArray(v) ? v : (v == null || v === '' ? [] : [v]);
+      if('contains' in cond) return arr.includes(cond.contains);
+      if('contains_any' in cond) return (cond.contains_any||[]).some(x => arr.includes(x));
+      if('equals' in cond) return v === cond.equals;
+      if('in' in cond) return (cond.in||[]).includes(v);
+      if('answered' in cond) return (arr.length > 0) === !!cond.answered;
+      return false;
+    }
+
+    async function loadAdvQuestions(){
+      if(ADV_STEPS.length) return true;
+      let d;
+      try { d = await fetch(api('/api/trippilot/questions')).then(r=>r.json()); }
+      catch(e){ return false; }
+      if(!d || !Array.isArray(d.steps) || !d.steps.length) return false;
+      ADV_STEPS = d.steps;
+      if(d.daytrip_value) DAYTRIP = d.daytrip_value;
+      advQuestionsSource = d.source || null;
+      advQuestionsErrors = d.errors || [];
+      advQuestionsPath = d.path || '';
+      return true;
+    }
     let advIdx = 0, advState = {};
-    function openAdvisor(){
+    async function openAdvisor(){
       advIdx = 0; advState = {};
       if(G.homeLoc) advState.home_location = G.homeLoc;
       $('#reiseb-bg').classList.add('show');
+      $('#reiseb-sub').textContent = '';
+      $('#reiseb-body').innerHTML = '<div class="cmp-load">Fragebogen wird geladen…</div>';
+      $('#reiseb-back').style.visibility = 'hidden';
+      $('#reiseb-next').disabled = true;
+      if(!await loadAdvQuestions()){
+        $('#reiseb-body').innerHTML = '<div class="hint" style="color:var(--amber)">'
+          + '⚠ Der Fragebogen konnte nicht geladen werden. Bitte Seite neu laden.</div>';
+        return;
+      }
+      $('#reiseb-next').disabled = false;
       advRender();
     }
     function closeAdvisor(){ $('#reiseb-bg').classList.remove('show'); }
     $('#reiseb-bg').addEventListener('click', e=>{ if(e.target.id==='reiseb-bg') closeAdvisor(); });
-    function advVisibleSteps(){ return ADV_STEPS.filter(s => !s.showIf || s.showIf(advState)); }
+    function advVisibleSteps(){ return ADV_STEPS.filter(s => advCondMet(s.show_if, advState)); }
+    // Eine fehlerhafte eigene questions.json versteckt das Add-on nicht im Log:
+    // der Wizard läuft mit den mitgelieferten Fragen und sagt das auf Schritt 1.
+    function advQuestionsWarning(){
+      if(advIdx !== 0 || advQuestionsSource !== 'bundled' || !advQuestionsErrors.length) return '';
+      return '<div class="hint" style="color:var(--amber);margin-bottom:10px">⚠ '
+        + esc(advQuestionsPath || 'questions.json') + ' ist fehlerhaft — es gelten die '
+        + 'mitgelieferten Fragen. ' + esc(advQuestionsErrors[0])
+        + (advQuestionsErrors.length > 1
+            ? ' (und ' + (advQuestionsErrors.length - 1) + ' weitere)' : '') + '</div>';
+    }
     function advRender(){
       const steps = advVisibleSteps();
       const s = steps[advIdx];
+      const multi = s.type === 'multi';
       $('#reiseb-sub').textContent = 'Schritt '+(advIdx+1)+' von '+steps.length
-        + (s.multi ? ' · Mehrfachauswahl möglich' : '');
+        + (multi ? ' · Mehrfachauswahl möglich' : '');
       if(s.type === 'text'){
         const val = advState[s.key] || '';
-        $('#reiseb-body').innerHTML = '<h3 style="margin:4px 0 12px">'+esc(s.title)+'</h3>'
+        $('#reiseb-body').innerHTML = advQuestionsWarning()
+          + '<h3 style="margin:4px 0 12px">'+esc(s.title)+'</h3>'
           + `<textarea id="reiseb-text" class="reiseb-text" rows="4" oninput="advUpdateNextState()" `
           + `placeholder="${esc(s.placeholder||'Optional')}">${esc(val)}</textarea>`;
       } else {
-        const sel = advState[s.key] != null ? advState[s.key] : (s.multi ? [] : null);
-        $('#reiseb-body').innerHTML = '<h3 style="margin:4px 0 12px">'+esc(s.title)+'</h3>'
-          + '<div class="tag-row">' + s.options.map((o, oi) => {
-              const active = s.multi ? sel.includes(o) : sel === o;
+        const sel = advState[s.key] != null ? advState[s.key] : (multi ? [] : null);
+        $('#reiseb-body').innerHTML = advQuestionsWarning()
+          + '<h3 style="margin:4px 0 12px">'+esc(s.title)+'</h3>'
+          + '<div class="tag-row">' + (s.options||[]).map((o, oi) => {
+              const active = multi ? sel.includes(o) : sel === o;
               return `<span class="tag-pill${active?' active':''}" onclick="advPick(${oi})">${esc(o)}</span>`;
             }).join('') + '</div>';
       }
@@ -5010,8 +5514,8 @@
       $('#reiseb-next').disabled = !!s.required && !filled;
     }
     function advPick(oi){
-      const s = advVisibleSteps()[advIdx], o = s.options[oi];
-      if(s.multi){
+      const s = advVisibleSteps()[advIdx], o = (s.options||[])[oi];
+      if(s.type === 'multi'){
         const arr = advState[s.key] || (advState[s.key] = []);
         const excl = s.exclusive || [];
         if(excl.includes(o)){
@@ -5076,9 +5580,388 @@
       attempt();
     }
 
+
+    // ── Fragebogen-Editor (Rechtsklick auf den TripPilot-Knopf) ───────────────
+    // Bearbeitet dieselbe /config/trippilot/questions.json, die auch im
+    // Dateimanager offensteht. Der Mehrwert gegenüber dem Texteditor: ein
+    // Antwortwert steht nicht nur in `options`, sondern ggf. auch in `show_if`,
+    // `exclusive`, `semantics` und `daytrip_value` — der Editor zieht beim
+    // Umbenennen alle Nennungen mit. Genau das von Hand zu vergessen war der
+    // Grund, warum der überarbeitete Fragebogen in 0.90.0 vier Kopplungen
+    // stillgelegt hat.
+    let tpDoc = null, tpBundled = null, tpSel = 0, tpPath = '';
+
+    function openTpEdit(){ tpLoad(); return false; }   // false = kein Browser-Kontextmenü
+
+    async function tpLoad(){
+      $('#tpedit-bg').classList.add('show');
+      $('#tpedit-msg').innerHTML = '';
+      $('#tpedit-daytrip').innerHTML = '';
+      $('#tpedit-sub').textContent = 'Wird geladen…';
+      $('#tpedit-list').innerHTML = '';
+      $('#tpedit-detail').innerHTML = '';
+      let d;
+      try { d = await fetch(api('/api/trippilot/editor')).then(r=>r.json()); }
+      catch(e){ toast('Laden fehlgeschlagen'); closeTpEdit(); return; }
+      tpDoc = d.data || {};
+      tpBundled = d.bundled || {};
+      tpPath = d.path || 'questions.json';
+      tpSel = 0;
+      if(!Array.isArray(tpDoc.steps)) tpDoc.steps = [];
+      tpSemPush();
+      tpRender(d.errors || []);
+    }
+    function closeTpEdit(){ $('#tpedit-bg').classList.remove('show'); }
+    $('#tpedit-bg').addEventListener('click', e=>{ if(e.target.id==='tpedit-bg') closeTpEdit(); });
+
+    // ── Umbenennen: alle Nennungen eines Wertes mitziehen ─────────────────────
+    function tpCondWalk(cond, fn){
+      if(!cond || typeof cond !== 'object') return;
+      for(const combi of ['all','any']){
+        if(Array.isArray(cond[combi])){ cond[combi].forEach(c => tpCondWalk(c, fn)); return; }
+      }
+      if(cond.not){ tpCondWalk(cond.not, fn); return; }
+      fn(cond);
+    }
+    function tpValueExists(v){ return tpDoc.steps.some(s => (s.options||[]).includes(v)); }
+    function tpDna(){ const d = (tpDoc.semantics||{}).dna; return (d && typeof d === 'object') ? d : {}; }
+
+    function tpRenameValue(stepKey, oldVal, newVal){
+      if(!oldVal || oldVal === newVal) return;
+      const swap = a => (a||[]).map(v => v === oldVal ? newVal : v);
+      const st = tpDoc.steps.find(s => s.key === stepKey);
+      if(st){
+        if(Array.isArray(st.options)) st.options = swap(st.options);
+        if(Array.isArray(st.exclusive)) st.exclusive = swap(st.exclusive);
+      }
+      // show_if und semantics.dna nennen den Fragen-Key, hier ist die Zuordnung
+      // eindeutig.
+      for(const s of tpDoc.steps) tpCondWalk(s.show_if, c => {
+        if(c.key !== stepKey) return;
+        for(const op of ['contains','equals']) if(c[op] === oldVal) c[op] = newVal;
+        for(const op of ['contains_any','in']) if(Array.isArray(c[op])) c[op] = swap(c[op]);
+      });
+      const dna = tpDna();
+      for(const label of Object.keys(dna)){
+        if(Array.isArray(dna[label][stepKey])) dna[label][stepKey] = swap(dna[label][stepKey]);
+      }
+      // package_tour/self_arrival und daytrip_value nennen keinen Fragen-Key.
+      // Nur mitziehen, wenn der alte Wert danach nirgends mehr als Option
+      // existiert — sonst könnte die Nennung die gleichnamige Option einer
+      // anderen Frage meinen („Keine Präferenz" gibt es mehrfach).
+      if(tpValueExists(oldVal)) return;
+      for(const n of ['package_tour','self_arrival']){
+        if(Array.isArray((tpDoc.semantics||{})[n])) tpDoc.semantics[n] = swap(tpDoc.semantics[n]);
+      }
+      if(tpDoc.daytrip_value === oldVal) tpDoc.daytrip_value = newVal;
+    }
+
+    function tpDropValue(stepKey, val){
+      if(!val) return;
+      const drop = a => (a||[]).filter(v => v !== val);
+      const st = tpDoc.steps.find(s => s.key === stepKey);
+      if(st){
+        if(Array.isArray(st.options)) st.options = drop(st.options);
+        if(Array.isArray(st.exclusive)){
+          st.exclusive = drop(st.exclusive);
+          if(!st.exclusive.length) delete st.exclusive;
+        }
+      }
+      for(const s of tpDoc.steps) tpCondWalk(s.show_if, c => {
+        if(c.key !== stepKey) return;
+        for(const op of ['contains_any','in']) if(Array.isArray(c[op])) c[op] = drop(c[op]);
+      });
+      const dna = tpDna();
+      for(const label of Object.keys(dna)){
+        if(Array.isArray(dna[label][stepKey])){
+          dna[label][stepKey] = drop(dna[label][stepKey]);
+          if(!dna[label][stepKey].length) delete dna[label][stepKey];
+        }
+      }
+      if(tpValueExists(val)) return;
+      for(const n of ['package_tour','self_arrival']){
+        if(Array.isArray((tpDoc.semantics||{})[n])) tpDoc.semantics[n] = drop(tpDoc.semantics[n]);
+      }
+      if(tpDoc.daytrip_value === val) delete tpDoc.daytrip_value;
+    }
+
+    function tpRenameKey(oldKey, newKey){
+      if(!oldKey || oldKey === newKey) return;
+      for(const s of tpDoc.steps) tpCondWalk(s.show_if, c => { if(c.key === oldKey) c.key = newKey; });
+      const dna = tpDna();
+      for(const label of Object.keys(dna)){
+        if(!(oldKey in dna[label])) continue;
+        // Neu aufbauen statt löschen+anhängen: sonst rutscht der Eintrag beim
+        // Speichern ans Ende und die Datei zeigt einen Diff, den niemand wollte.
+        const rebuilt = {};
+        for(const k of Object.keys(dna[label])) rebuilt[k === oldKey ? newKey : k] = dna[label][k];
+        dna[label] = rebuilt;
+      }
+    }
+    function tpKeyRefs(key){
+      const hits = [];
+      for(const s of tpDoc.steps){
+        if(s.key === key) continue;
+        let used = false;
+        tpCondWalk(s.show_if, c => { if(c.key === key) used = true; });
+        if(used) hits.push('„' + (s.title || s.key) + '"');
+      }
+      const dna = tpDna();
+      for(const label of Object.keys(dna)) if(key in dna[label]) hits.push('semantics.dna.' + label);
+      return hits;
+    }
+
+    // Der semantics-Block wird als Text bearbeitet, Umbenennungen ändern ihn
+    // aber im Dokument. Vor jeder Umbenennung den Textstand übernehmen und
+    // danach zurückschreiben — sonst gewänne mal die eine, mal die andere Seite.
+    function tpSemPull(){
+      const raw = ($('#tpedit-sem').value || '').trim();
+      if(!raw){ delete tpDoc.semantics; return true; }
+      try {
+        const sem = JSON.parse(raw);
+        if(sem && typeof sem === 'object' && !Array.isArray(sem)){ tpDoc.semantics = sem; return true; }
+      } catch(e){ /* unten als Fehler gemeldet */ }
+      return false;   // kaputtes JSON unangetastet lassen, statt es zu verwerfen
+    }
+    function tpSemPush(){
+      $('#tpedit-sem').value = tpDoc.semantics ? JSON.stringify(tpDoc.semantics, null, 2) : '';
+    }
+
+    // ── Anzeige ───────────────────────────────────────────────────────────────
+    function tpErrBox(errors){
+      if(!errors || !errors.length) return '';
+      return '<div class="tpe-err"><b>' + errors.length + (errors.length === 1 ? ' Problem' : ' Probleme')
+        + ':</b><ul>' + errors.slice(0, 12).map(e => '<li>' + esc(e) + '</li>').join('')
+        + (errors.length > 12 ? '<li>… und ' + (errors.length - 12) + ' weitere</li>' : '')
+        + '</ul></div>';
+    }
+    function tpRender(errors){
+      const steps = tpDoc.steps;
+      if(tpSel >= steps.length) tpSel = Math.max(0, steps.length - 1);
+      $('#tpedit-sub').textContent = steps.length + (steps.length === 1 ? ' Frage · ' : ' Fragen · ') + tpPath;
+      if(errors !== undefined) $('#tpedit-msg').innerHTML = tpErrBox(errors);
+      $('#tpedit-list').innerHTML = steps.map((s, i) =>
+        `<div class="tpe-item${i === tpSel ? ' active' : ''}" onclick="tpSelect(${i})" title="${esc(s.key||'')}">`
+        + `<span class="tpe-num">${i + 1}</span>`
+        + `<span class="tpe-txt">${esc(s.title || s.key || '(ohne Titel)')}</span></div>`).join('')
+        || '<div class="tpe-item">Noch keine Frage</div>';
+      tpRenderDaytrip();
+      tpRenderDetail();
+    }
+    function tpRenderDaytrip(){
+      const all = [];
+      for(const s of tpDoc.steps) for(const o of (s.options||[])) if(!all.includes(o)) all.push(o);
+      $('#tpedit-daytrip').innerHTML =
+        '<span class="hint">Tagesausflug-Modus (eigener KI-Prompt, keine Reise-DNA) auslösen mit:</span>'
+        + '<select onchange="tpDocField(\'daytrip_value\', this.value)" '
+        + 'style="background:var(--surf);border:1px solid var(--border);color:var(--text);'
+        + 'border-radius:5px;padding:4px 6px;font:inherit;font-size:.78rem;max-width:60%">'
+        + '<option value="">— keiner —</option>'
+        + all.map(o => `<option value="${esc(o)}"${tpDoc.daytrip_value === o ? ' selected' : ''}>${esc(o)}</option>`).join('')
+        + '</select>';
+    }
+    function tpSelect(i){ tpSel = i; tpRender(); }
+    function tpRenderDetail(){
+      const s = tpDoc.steps[tpSel], box = $('#tpedit-detail');
+      if(!s){ box.innerHTML = '<div class="hint">Keine Frage ausgewählt.</div>'; return; }
+      let h = '<div class="tpe-row" style="justify-content:space-between">'
+        + '<span class="tpe-row"><button class="tpe-mini" onclick="tpMoveStep(-1)" title="Frage nach oben">▲</button>'
+        + '<button class="tpe-mini" onclick="tpMoveStep(1)" title="Frage nach unten">▼</button></span>'
+        + '<button class="tpe-mini danger" onclick="tpDelStep()">Frage löschen</button></div>'
+        + '<label>Frage, wie sie im Fragebogen steht</label>'
+        + `<input type="text" value="${esc(s.title||'')}" oninput="tpField('title', this.value)" onchange="tpRender()">`
+        + '<label>Bezeichnung dieser Angabe im KI-Prompt</label>'
+        + `<input type="text" value="${esc(s.label||'')}" oninput="tpField('label', this.value)">`
+        + '<div class="tpe-row" style="align-items:flex-end;gap:8px">'
+        + '<span style="flex:1"><label>Feldname (<code>key</code>)</label>'
+        + `<input type="text" value="${esc(s.key||'')}" onchange="tpKeyChange(this.value)"></span>`
+        + '<span style="flex:1"><label>Typ</label><select onchange="tpTypeChange(this.value)">'
+        + [['multi','Mehrfachauswahl'],['single','Eine Antwort'],['text','Freitext']]
+            .map(([v, t]) => `<option value="${v}"${s.type === v ? ' selected' : ''}>${t}</option>`).join('')
+        + '</select></span></div>'
+        + '<label style="display:flex;align-items:center;gap:6px;margin-top:10px;color:var(--text);font-size:.78rem">'
+        + `<input type="checkbox"${s.required ? ' checked' : ''} style="width:auto" `
+        + 'onchange="tpField(\'required\', this.checked)"> Pflichtfrage (ohne Antwort geht es nicht weiter)</label>';
+      if(s.type === 'text'){
+        h += '<label>Hinweistext im Eingabefeld</label>'
+          + `<input type="text" value="${esc(s.placeholder||'')}" oninput="tpField('placeholder', this.value)">`;
+      } else {
+        h += '<label>Antwortmöglichkeiten</label>'
+          + (s.options||[]).map((o, oi) => '<div class="tpe-opt">'
+              + `<input type="text" value="${esc(o)}" onchange="tpOptRename(${oi}, this.value)">`
+              + (s.type === 'multi'
+                  ? '<label style="margin:0;white-space:nowrap" title="Wählt beim Anklicken alle anderen Optionen dieser Frage ab">'
+                    + `<input type="checkbox"${(s.exclusive||[]).includes(o) ? ' checked' : ''} `
+                    + `style="width:auto" onchange="tpOptExcl(${oi}, this.checked)"> exkl.</label>`
+                  : '')
+              + `<button class="tpe-mini" onclick="tpOptMove(${oi}, -1)" title="Nach oben">▲</button>`
+              + `<button class="tpe-mini" onclick="tpOptMove(${oi}, 1)" title="Nach unten">▼</button>`
+              + `<button class="tpe-mini danger" onclick="tpOptDel(${oi})" title="Option löschen">✕</button>`
+              + '</div>').join('')
+          + '<button class="tpe-mini" onclick="tpOptAdd()">+ Option</button>'
+          + '<div class="hint" style="margin-top:6px">Ein geänderter Text wird überall mitgezogen, wo dieser Wert sonst noch genannt wird.</div>';
+      }
+      h += '<label>Wann wird die Frage gestellt? (<code>show_if</code>, leer = immer)</label>'
+        + '<textarea rows="5" spellcheck="false" onchange="tpShowIf(this.value)">'
+        + esc(s.show_if ? JSON.stringify(s.show_if, null, 2) : '') + '</textarea>'
+        + '<div class="hint" id="tpe-cond-msg"></div>';
+      box.innerHTML = h;
+    }
+
+    // ── Änderungen ────────────────────────────────────────────────────────────
+    function tpField(f, v){
+      const s = tpDoc.steps[tpSel];
+      if(!s) return;
+      if(v === '' || v === false || v == null) delete s[f]; else s[f] = v;
+    }
+    function tpDocField(f, v){ if(v === '') delete tpDoc[f]; else tpDoc[f] = v; }
+    function tpKeyChange(val){
+      const s = tpDoc.steps[tpSel], nk = (val||'').trim();
+      if(!s || !nk || nk === s.key){ tpRenderDetail(); return; }
+      if(!tpSemPull()){ tpSemErr(); return; }
+      tpRenameKey(s.key, nk);
+      s.key = nk;
+      tpSemPush();
+      tpRender();
+    }
+    function tpTypeChange(t){
+      const s = tpDoc.steps[tpSel];
+      if(!s) return;
+      s.type = t;
+      // Die Validierung verbietet options/exclusive bei Freitext und verlangt
+      // options bei Auswahl — beim Umschalten also gleich mit aufräumen.
+      if(t === 'text'){ delete s.options; delete s.exclusive; }
+      else {
+        delete s.placeholder;
+        if(!Array.isArray(s.options) || !s.options.length) s.options = ['Option 1'];
+        if(t === 'single') delete s.exclusive;
+      }
+      tpRender();
+    }
+    function tpMoveStep(dir){
+      const i = tpSel, j = i + dir;
+      if(j < 0 || j >= tpDoc.steps.length) return;
+      [tpDoc.steps[i], tpDoc.steps[j]] = [tpDoc.steps[j], tpDoc.steps[i]];
+      tpSel = j;
+      tpRender();
+    }
+    function tpAddStep(){
+      let n = 1, key;
+      do { key = 'frage_' + n++; } while(tpDoc.steps.some(s => s.key === key));
+      tpDoc.steps.push({key, title:'Neue Frage', label:'Neue Angabe', type:'single', options:['Option 1']});
+      tpSel = tpDoc.steps.length - 1;
+      tpRender();
+    }
+    function tpDelStep(){
+      const s = tpDoc.steps[tpSel];
+      if(!s) return;
+      const refs = tpKeyRefs(s.key);
+      const warn = refs.length
+        ? '\n\nAchtung: Auf den Feldnamen „' + s.key + '" verweisen noch ' + refs.join(', ')
+          + '. Das muss vor dem Speichern weg.' : '';
+      if(!confirm('Frage „' + (s.title || s.key) + '" löschen?' + warn)) return;
+      tpDoc.steps.splice(tpSel, 1);
+      tpRender();
+    }
+    function tpOptRename(oi, val){
+      const s = tpDoc.steps[tpSel];
+      if(!s) return;
+      const old = (s.options||[])[oi], nv = (val||'').trim();
+      if(old === undefined || !nv || nv === old){ tpRenderDetail(); return; }
+      if(!tpSemPull()){ tpSemErr(); return; }
+      tpRenameValue(s.key, old, nv);
+      tpSemPush();
+      tpRender();
+    }
+    function tpOptAdd(){
+      const s = tpDoc.steps[tpSel];
+      if(!s) return;
+      (s.options = s.options || []).push('Neue Option');
+      tpRenderDetail();
+    }
+    function tpOptDel(oi){
+      const s = tpDoc.steps[tpSel];
+      if(!s || !Array.isArray(s.options)) return;
+      const val = s.options[oi];
+      if(!tpSemPull()){ tpSemErr(); return; }
+      tpDropValue(s.key, val);
+      tpSemPush();
+      tpRender();
+    }
+    function tpOptMove(oi, dir){
+      const s = tpDoc.steps[tpSel], opts = s && s.options;
+      if(!opts) return;
+      const j = oi + dir;
+      if(j < 0 || j >= opts.length) return;
+      [opts[oi], opts[j]] = [opts[j], opts[oi]];
+      tpRenderDetail();
+    }
+    function tpOptExcl(oi, on){
+      const s = tpDoc.steps[tpSel];
+      if(!s) return;
+      const o = (s.options||[])[oi], arr = s.exclusive = s.exclusive || [];
+      const i = arr.indexOf(o);
+      if(on && i < 0) arr.push(o);
+      if(!on && i >= 0) arr.splice(i, 1);
+      if(!arr.length) delete s.exclusive;
+    }
+    function tpShowIf(txt){
+      const s = tpDoc.steps[tpSel];
+      if(!s) return;
+      const t = (txt||'').trim(), msg = $('#tpe-cond-msg');
+      if(!t){ delete s.show_if; msg.textContent = 'Die Frage wird jetzt immer gestellt.'; return; }
+      let obj;
+      try { obj = JSON.parse(t); }
+      catch(e){
+        msg.innerHTML = '<span style="color:var(--red)">Kein gültiges JSON — die bisherige Bedingung bleibt stehen.</span>';
+        return;
+      }
+      if(!obj || typeof obj !== 'object' || Array.isArray(obj)){
+        msg.innerHTML = '<span style="color:var(--red)">Die Bedingung muss ein JSON-Objekt sein.</span>';
+        return;
+      }
+      s.show_if = obj;
+      msg.textContent = 'Übernommen.';
+    }
+    function tpSemErr(){
+      $('#tpedit-msg').innerHTML = tpErrBox(['Bedeutungen (semantics): kein gültiges JSON — '
+        + 'erst dort reparieren, sonst ginge der Block beim Umbenennen verloren.']);
+    }
+
+    function tpLoadBundled(){
+      if(!confirm('Die Fragen im Editor durch den Auslieferungsstand des Add-ons ersetzen?\n\n'
+        + 'Gespeichert wird erst mit „Speichern" — bis dahin bleibt die Datei unverändert.')) return;
+      tpDoc = JSON.parse(JSON.stringify(tpBundled || {}));
+      if(!Array.isArray(tpDoc.steps)) tpDoc.steps = [];
+      tpSel = 0;
+      tpSemPush();
+      tpRender([]);
+    }
+    async function tpSave(){
+      if(!tpSemPull()){ tpSemErr(); return; }
+      $('#tpedit-save').disabled = true;
+      let resp, d;
+      try {
+        resp = await fetch(api('/api/trippilot/editor'), {method:'POST',
+          headers:{'Content-Type':'application/json'}, body: JSON.stringify({data: tpDoc})});
+        d = await resp.json();
+      } catch(e){ $('#tpedit-save').disabled = false; toast('Speichern fehlgeschlagen'); return; }
+      $('#tpedit-save').disabled = false;
+      if(!resp.ok || (d.errors||[]).length){
+        // Serverseitig validiert: eine über den Editor erzeugte Datei kann den
+        // Wizard nie auf die Auslieferungsversion zurückwerfen.
+        $('#tpedit-msg').innerHTML = tpErrBox((d.errors||[]).length ? d.errors : ['Speichern fehlgeschlagen']);
+        return;
+      }
+      ADV_STEPS = [];   // Wizard lädt den Fragebogen beim nächsten Öffnen neu
+      toast('Fragebogen gespeichert');
+      closeTpEdit();
+    }
+
     // ── Preiskalender (Monats-Grid, gespeichert) ──────────────────────────────
     let calTimer = null, calId = null, calData = null, calMonth = null, calTrendView = false;
     let calMovesOpen = false;   // "Größte Bewegungen"-Liste: default eingeklappt, Zustand überlebt Monatswechsel
+    let calMonths = null, calMonthsOpen = false;   // Monatsübersicht (Preisniveau + Trend je Reisemonat)
     function toggleCalTrend(){ calTrendView = !calTrendView; drawCalMonth(); }
     async function openCalDayChart(iso){
       const box = $('#cal-day-chart');
@@ -5102,7 +5985,7 @@
     function startCalPolling(){ clearInterval(calTimer); calPoll(); calTimer = setInterval(calPoll, 2000); }
 
     async function openCalendar(id){
-      calId = id; calMonth = null; calData = null; calMovesOpen = false;
+      calId = id; calMonth = null; calData = null; calMovesOpen = false; calMonths = null;
       const o = (curOffers||[]).find(x=>x.id===id) || {};
       $('#cal-sub').textContent = o.label || o.hotel || ('TUI-Angebot #'+id);
       updateCalNotifyBell();
@@ -5114,6 +5997,15 @@
       if(job.status==='running'){ calSpinner(); startCalPolling(); }
       else if(job.status==='done' && job.days && job.days.length){ renderCalendar(job); }  // gespeichert → anzeigen
       else { refreshCalendar(); }                                                          // noch nie abgefragt → einmal starten
+      loadCalMonths(id);
+    }
+    // Monatsuebersicht (Preisniveau + Bewegung je Reisemonat). Bewusst ein eigener,
+    // nachgelagerter Request: der Kalender selbst soll nicht darauf warten, und beim
+    // Monatswechsel wird nur neu gezeichnet, nicht neu geladen.
+    async function loadCalMonths(id){
+      try { const d = await fetch(api('/api/calendar/'+id+'/months')).then(r=>r.json());
+            if(calId===id){ calMonths = d; if(calData) drawCalMonth(); } }
+      catch(e){}
     }
     async function refreshCalendar(){
       if(calId==null) return;
@@ -5211,6 +6103,17 @@
       pendingStartId = null;   // Prüfung läuft bereits über POST /api/rooms/<id> — closeRooms soll nicht nochmal starten
       closeRooms(); lastSig=null; loadOffers();
     }
+    // Flugvariante fixieren (leerer key = wieder günstigster Flug). Ändert die
+    // getrackte URL nicht — der Scraper wählt beim nächsten Abruf per Schlüssel.
+    async function pinFlight(id, key){
+      try {
+        const r = await fetch(api('/api/flights/'+id), {method:'POST',
+          headers:{'Content-Type':'application/json'}, body: JSON.stringify({key: key||''})});
+        if(!r.ok){ toast('Flugauswahl fehlgeschlagen'); return; }
+      } catch(e){ toast('Flugauswahl fehlgeschlagen'); return; }
+      toast(key?'Flug fixiert – wird geprüft…':'Günstigster Flug – wird geprüft…');
+      lastSig=null; loadOffers();
+    }
     function closeRooms(){
       // Zimmerauswahl für ein neu angelegtes (start:false) Angebot wurde OHNE
       // explizite Wahl geschlossen (X/Klick daneben) — Prüfung jetzt mit dem
@@ -5258,10 +6161,30 @@
     function calFooter(job){
       const when = job.ts ? ('Abgefragt: '+new Date(job.ts*1000).toLocaleString('de-DE')) : '';
       const err = job.error ? '<div class="hint" style="color:var(--amber);margin-top:6px">⚠ Letzte Aktualisierung fehlgeschlagen.</div>' : '';
+      // Archivierte Angebote werden preislich nicht mehr geprüft, der Kalender läuft
+      // aber weiter — das muss dastehen, sonst wirkt ein aktueller Zeitstempel bei
+      // einer abgelaufenen Reise wie ein Fehler.
+      const arch = (job.archived && !job.paused)
+        ? `<div class="hint" style="margin-top:6px">📦 Archiviert — der Preis wird nicht mehr abgefragt, `
+          + `der Kalender aber alle ${job.archived_days||3} Tage weiter. So wächst der `
+          + `Langzeitverlauf dieses Hotels, auch wenn die Reise vorbei ist.</div>` : '';
+      const paused = job.paused
+        ? `<div class="hint" style="color:var(--amber);margin-top:6px">⏸ Kalender pausiert — `
+          + `${job.fails||0} Abrufe in Folge fehlgeschlagen (Grenze ${job.max_fails||5}). `
+          + `Vermutlich ist das Hotel nicht mehr im TUI-Inventar. `
+          + `<button class="btn sec" style="margin-left:6px" onclick="resumeCalendar()">Wieder aktivieren</button></div>` : '';
       const aiBtn = (job.days && job.days.length)
         ? '<button class="btn sec ai-feature" onclick="openCalendarOutlook()" title="KI fasst die Kalenderpreise zusammen und empfiehlt günstige/teure Monate">🤖 KI-Analyse</button>' : '';
       return `<div class="cmp-foot"><span class="hint" style="flex:1;min-width:180px">${esc(when)}</span>
-        ${aiBtn}<button class="btn sec" onclick="refreshCalendar()">Neu abfragen</button></div>${err}`;
+        ${aiBtn}<button class="btn sec" onclick="refreshCalendar()">Neu abfragen</button></div>${err}${paused}${arch}`;
+    }
+    async function resumeCalendar(){
+      if(calId==null) return;
+      try { await fetch(api('/api/calendar/'+calId+'/resume'), {method:'POST'}); }
+      catch(e){ toast('Reaktivieren fehlgeschlagen'); return; }
+      toast('Kalender wieder aktiv — wird jetzt abgefragt');
+      refreshCalendar();
+      loadOffers();
     }
 
     function renderCalendar(job){
@@ -5279,6 +6202,58 @@
         calMonth = (wm && has) ? wm : (job.tracked_date || job.cheapest_date || job.days[0].date).slice(0,7);
       }
       drawCalMonth();
+    }
+
+    // Monatsübersicht: Preisniveau je Reisemonat (Momentaufnahme aus dem Snapshot)
+    // neben dessen Bewegung über die Zeit (verkettet aus calendar_month_moves).
+    // Zwei verschiedene Quellen, deshalb bewusst zwei getrennte Spaltengruppen.
+    //
+    // Eigene Badges statt marketTrendBadge/marketIndexLine: hier stehen ~19 Monate
+    // untereinander, von denen die meisten sich kaum bewegen. Die Markttrend-Badges
+    // färben schon +0,1 % rot ein — bei einer Zeile im Barometer harmlos, hier eine
+    // Wand aus Farbe ohne Aussage. Deshalb dieselbe Totband-Schwelle wie beim Trend.
+    const CAL_MONTH_DEADBAND = 0.5;
+    function calPct(v){
+      return (v>0?'+':(v<0?'−':'')) + Math.abs(v).toLocaleString('de-DE',{maximumFractionDigits:1}) + ' %';
+    }
+    function calTrendBadge(t, obs){
+      if(!t) return `<span class="hint">${obs>=2?'noch keine Bewegung':'sammelt noch'}</span>`;
+      // Bei "stabil" die Tageszahl weglassen: der Streak zählt ruhige Tage mit und
+      // entspricht dann fast immer der Fensterlänge — "stabil seit 15 Tagen" in
+      // jeder zweiten Zeile ist reines Rauschen.
+      const days = (t.dir!=='flat' && t.days>=2) ? ` seit ${t.days} Tagen` : '';
+      if(t.dir==='down') return `<span class="trend down">↘ fällt ${calPct(t.pct)}${days}</span>`;
+      if(t.dir==='up')   return `<span class="trend up">↗ steigt ${calPct(t.pct)}${days}</span>`;
+      return '<span class="trend flat">→ stabil</span>';
+    }
+    function calIndexLine(i){
+      if(!i) return '';
+      const cls = i.pct>=CAL_MONTH_DEADBAND ? 'up' : (i.pct<=-CAL_MONTH_DEADBAND ? 'down' : 'flat');
+      const since = new Date(i.since*1000).toLocaleDateString('de-DE');
+      return ` <span class="trend ${cls}" title="Index seit Aufzeichnungsbeginn (${i.n} Beobachtungstage), unabhängig vom 14-Tage-Fenster">`
+        + `Index ${i.index.toLocaleString('de-DE',{maximumFractionDigits:1})} (${calPct(i.pct)} seit ${since})</span>`;
+    }
+    function calMonthsHtml(){
+      const d = calMonths;
+      if(!d || !(d.months||[]).length) return '';
+      const eurShort = v => Math.round(v).toLocaleString('de-DE') + ' €';
+      const moving = d.months.filter(m=>m.trend && m.trend.dir!=='flat').length;
+      const rows = d.months.map(m=>{
+        const cur = m.month===calMonth ? ' style="font-weight:600"' : '';
+        return `<tr${cur}><td><span class="cal-month-link" onclick="calGo('${m.month}')">${esc(m.label)}</span>`
+          + `<div class="hint">${m.dates} Termine · ${eurShort(m.min)}–${eurShort(m.max)}</div></td>`
+          + `<td style="white-space:nowrap">${eurShort(m.avg)}</td>`
+          + `<td>${calTrendBadge(m.trend, d.observations)}${calIndexLine(m.index)}</td></tr>`;
+      }).join('');
+      return `<details class="cal-moves" ${calMonthsOpen?'open':''} ontoggle="calMonthsOpen=this.open">
+        <summary class="hint"><b>Monatsübersicht</b> (${d.months.length} Reisemonate`
+        + (d.observations>=2 ? `, ${d.observations} Beobachtungstage, ${moving} in Bewegung` : ', sammelt noch') + `)</summary>
+        <div class="hint" style="margin:4px 0 6px">Ø-Preis ist der aktuelle Stand, der Trend die
+        Bewegung dieses Reisemonats über die Zeit — nur dieses Hotel/Zimmer, nicht der Markt.
+        Ruhige Tage zählen als 0 %, nicht als fehlender Wert.</div>
+        <table class="hist"><tr><th>Reisemonat</th><th>Ø-Preis</th>
+        <th>Trend (${d.window_days} Tage) / Index (gesamt)</th></tr>${rows}</table>
+      </details>`;
     }
 
     function drawCalMonth(){
@@ -5374,6 +6349,7 @@
         </details>` : '';
       $('#cal-body').innerHTML = `
         <div class="cal-sum">${sum}</div>
+        ${calMonthsHtml()}
         ${topMovesHtml}
         <div class="cal-nav">
           <button class="btn sec" onclick="calGo('${prev}')" ${prev?'':'disabled'}>‹</button>
@@ -5777,6 +6753,7 @@
     if('serviceWorker' in navigator){ try{ navigator.serviceWorker.register((G.base||'')+'/sw.js', {scope:(G.base||'')+'/'}); }catch(e){} }
 
     loadOffers();
+    startBootWatch();
     setInterval(loadOffers, 5000);
     loadHealth();
     updateAktionBtn();

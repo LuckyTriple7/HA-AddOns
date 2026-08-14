@@ -21,6 +21,7 @@ import threading
 import time
 import zipfile
 from collections import defaultdict, deque
+from contextlib import contextmanager
 from datetime import date, datetime, timedelta
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -49,6 +50,7 @@ from scraper import (_giata_from_url, _valid_img_url, api_healthcheck,
                      with_duration, with_room_code, with_transfer_included, with_travellers,
                      without_room_code)
 import check24_client
+import trippilot_questions
 from aktionscodes import fetch_aktionscodes
 from nextcloud import fetch_contacts
 from packliste import PACKING_TEMPLATE, default_packing_rows
@@ -90,7 +92,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.87.4"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.98.0"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -104,6 +106,8 @@ POLL_INTERVAL_DEFAULT = 21600  # 6h — Reisepreise ändern sich langsam
 MIN_POLL_INTERVAL = 600        # nie öfter als alle 10 min (Bot-Schutz/Fairness)
 HISTORY_ONLY_HOUR = 9   # fixer Tages-Slot für Preisverlauf-Angebote (lokale Zeit)
 HISTORY_ONLY_SPREAD_MIN = 60  # Streuung in Minuten ab HISTORY_ONLY_HOUR (kein Burst um Punkt 9)
+POLL_GAP_DEFAULT = 10   # s Pause zwischen zwei Angebots-Checks im Poller (Bot-Schutz/Fairness)
+POLL_GAP_JITTER = 5     # + 0..5 s Zufall, damit die Abrufe kein exaktes Taktmuster ergeben
 MAX_PDF_BYTES = 16 * 1024 * 1024  # 16 MB Upload-Limit für Reise-PDFs
 
 # „Für andere"-Listen: frei benannte Sammlungen für Angebote, die nicht für den
@@ -147,6 +151,8 @@ sessions: dict[str, float] = {}
 _scrape_lock = threading.Lock()      # nur ein Chromium gleichzeitig
 _checking: set[int] = set()          # offer_ids, die gerade geprüft werden
 _checking_lock = threading.Lock()
+_busy: dict[str, int] = {}           # laufende Hintergrund-Aufgaben: Label → Zähler
+_busy_lock = threading.Lock()
 _compare_state: dict[int, dict] = {}  # offer_id → transienter Status {running|error}
 _compare_lock = threading.Lock()
 _calendar_state: dict[int, dict] = {}  # offer_id → transienter Status {running|error}
@@ -188,6 +194,41 @@ RATE_LIMIT_MAX, RATE_LIMIT_WINDOW, RATE_LIMIT_BLOCK = 5, 600, 900
 # TUIs Server vor wiederholtem Klicken/Skript-Aufrufen, die die eigene IP dort blocken
 # könnten. Kein Fehlversuchs-Zähler wie oben, nur ein simpler Zeitstempel pro Key.
 _route_cooldowns: dict[str, float] = {}
+
+
+@contextmanager
+def busy(label: str):
+    """Markiert eine laufende Hintergrund-Aufgabe. Das UI färbt das Logo, solange
+    mindestens ein Label offen ist (siehe `busy_labels`, /api/offers). Zähler statt
+    Set, weil dieselbe Aufgabe doppelt laufen kann — etwa ein Preis-Check aus dem
+    Poller und gleichzeitig einer aus der Oberfläche."""
+    with _busy_lock:
+        _busy[label] = _busy.get(label, 0) + 1
+    try:
+        yield
+    finally:
+        with _busy_lock:
+            if _busy.get(label, 0) > 1:
+                _busy[label] -= 1
+            else:
+                _busy.pop(label, None)
+
+
+def busy_labels() -> list[str]:
+    """Klartext-Labels der gerade laufenden Hintergrund-Aufgaben (für den Tooltip).
+
+    Einzelne Preis-Checks kommen aus `_checking` statt aus einem eigenen `busy`-Label
+    in check_offer: so sind alle Aufrufwege (Poller, „Jetzt prüfen", „Alle prüfen",
+    Erstabfrage nach dem Tracken) ohne Zusatzcode abgedeckt. Läuft gerade der
+    Poller-Block, hat der bereits sein eigenes „Preis-Checks (n)"-Label — dann wird
+    nichts doppelt gemeldet."""
+    with _busy_lock:
+        labels = set(_busy)
+    with _checking_lock:
+        n = len(_checking)
+    if n and not any(x.startswith('Preis-Check') for x in labels):
+        labels.add('Preis-Check' if n == 1 else f'Preis-Checks ({n})')
+    return sorted(labels)
 
 
 def _cooldown_remaining(key: str, seconds: int) -> int:
@@ -704,6 +745,14 @@ def init_db() -> None:
                 con.execute(f"ALTER TABLE offers ADD COLUMN {col} INTEGER")
         if 'calendar_seen_ts' not in ocols:
             con.execute("ALTER TABLE offers ADD COLUMN calendar_seen_ts INTEGER NOT NULL DEFAULT 0")
+        # Kalender-Fehlerzähler: der Preiskalender läuft auch für archivierte Angebote
+        # weiter (Langzeitkurve je Hotel/Zimmer). Fällt ein Hotel aus dem TUI-Inventar,
+        # scheitert der Abruf dauerhaft — nach CALENDAR_MAX_FAILS Fehlschlägen in Folge
+        # wird er für dieses Angebot pausiert, statt täglich ins Leere zu laufen.
+        if 'calendar_fails' not in ocols:
+            con.execute("ALTER TABLE offers ADD COLUMN calendar_fails INTEGER NOT NULL DEFAULT 0")
+        if 'calendar_paused' not in ocols:
+            con.execute("ALTER TABLE offers ADD COLUMN calendar_paused INTEGER NOT NULL DEFAULT 0")
         if 'notify_muted' not in ocols:
             con.execute("ALTER TABLE offers ADD COLUMN notify_muted INTEGER NOT NULL DEFAULT 0")
         if 'notify_calendar_muted' not in ocols:
@@ -720,8 +769,11 @@ def init_db() -> None:
             con.execute("ALTER TABLE offers ADD COLUMN foreign_icon TEXT NOT NULL DEFAULT ''")
         # vacancy-check (v0.69.0): Gepäck/Zahlungskonditionen einmalig je Angebot,
         # "zuletzt gebucht" je Poll aktualisiert
+        # Flugvarianten (v0.91.0): alle Offers eines Abrufs als JSON + optional
+        # fixierte Variante (Schlüssel aus scraper._flight_key)
         for col in ('luggage', 'last_booked', 'final_payment_date',
-                    'errata', 'flight_segments', 'hotel_supplier', 'flight_flags'):
+                    'errata', 'flight_segments', 'hotel_supplier', 'flight_flags',
+                    'flight_options', 'flight_pin'):
             if col not in ocols:
                 con.execute(f"ALTER TABLE offers ADD COLUMN {col} TEXT DEFAULT ''")
         if 'deposit_pct' not in ocols:
@@ -819,6 +871,8 @@ def init_db() -> None:
         # Preisbarometer (tägliche Regionssuche) — Schema liegt im eigenen Modul,
         # das erst am Dateiende importiert wird; zur Laufzeit von init_db() ist es da.
         market_basket.init_basket_db(con)
+        # Kalender-Monatstrend — dito, Schema liegt im price_calendar-Modul.
+        price_calendar.init_month_db(con)
     Path(TRIPS_DIR).mkdir(parents=True, exist_ok=True)
     log.info("Datenbank bereit: %s", DB_PATH)
 
@@ -1806,7 +1860,9 @@ def check_offer(offer_id: int) -> None:
         res = {}
         for attempt in (1, 2):
             with _scrape_lock:
-                res = fetch_price(url, extras=need_extras, verbose=_verbose())
+                res = fetch_price(url, extras=need_extras,
+                                  flight_pin=offer.get('flight_pin') or '',
+                                  verbose=_verbose())
             if res.get('ok'):
                 break
             if res.get('detail'):
@@ -1840,6 +1896,12 @@ def check_offer(offer_id: int) -> None:
             if res.get('luggage'):
                 con.execute('UPDATE offers SET luggage=? WHERE id=?',
                             (json.dumps(res['luggage'], ensure_ascii=False), offer_id))
+            # Flugvarianten je Abruf ersetzen (nicht mergen) — verschwundene Varianten
+            # sollen auch aus der Anzeige verschwinden. Nur der API-Pfad liefert sie;
+            # beim Browser-Fallback bleibt der letzte Stand stehen.
+            if res.get('flight_options') is not None:
+                con.execute('UPDATE offers SET flight_options=? WHERE id=?',
+                            (json.dumps(res['flight_options'], ensure_ascii=False), offer_id))
             if res.get('ok') and res.get('price') is not None and prev_price and not room_changed:
                 pct = (res['price'] - prev_price) / prev_price * 100
                 region = res.get('region') or offer.get('region') or ''
@@ -1849,6 +1911,16 @@ def check_offer(offer_id: int) -> None:
                 con.execute(
                     'INSERT INTO price_moves (ts, region, country, months_out, pct_change) '
                     'VALUES (?,?,?,?,?)', (ts, region, country, months_out, pct))
+
+        if res.get('ok') and res.get('flight_pin_missed') and offer.get('flight_pin'):
+            # Fixierte Flugvariante ist aus dem Angebot verschwunden → Fixierung lösen
+            # (sonst würde bei jedem Poll erneut gemeldet) und wieder günstigster Flug.
+            with db() as con:
+                con.execute("UPDATE offers SET flight_pin='' WHERE id=?", (offer_id,))
+            _log_event(offer_id, 'flight',
+                       'Fixierter Flug nicht mehr im Angebot → wieder günstigster Flug')
+            log.warning("Angebot #%d (%s): fixierte Flugvariante entfallen → "
+                        "Fixierung gelöst", offer_id, name)
 
         if res.get('ok'):
             # Bestätigte Buchungsdetails speichern + Änderungen melden (Flugzeiten,
@@ -2379,6 +2451,18 @@ def _history_only_wait_seconds(oid: int, last_ts: int, now: int) -> int:
     return slot_ts - now
 
 
+def _poll_gap() -> int:
+    """Sekunden Pause zwischen zwei aufeinanderfolgenden Hintergrund-Abrufen
+    (Angebote im Poller, Suchabos). `poll_gap: 0` schaltet die Pause ab."""
+    raw = load_config().get('poll_gap')
+    if raw is None or raw == '':
+        return POLL_GAP_DEFAULT
+    try:
+        return max(0, int(raw))
+    except (TypeError, ValueError):
+        return POLL_GAP_DEFAULT
+
+
 def _poll_worker() -> None:
     """Prüft Angebote fälligkeitsbasiert: ein Angebot wird erst wieder abgefragt,
     wenn seit seinem letzten Check (auch über Neustarts hinweg) das Intervall
@@ -2393,13 +2477,20 @@ def _poll_worker() -> None:
         next_in = interval
         try:
             now = int(time.time())
-            _maybe_periodic_health()  # API-Selbsttest 1×/Tag — VOR den Preisprüfungen
-            _maybe_send_digest()      # wöchentliche Zusammenfassung (falls aktiviert)
-            _maybe_check_aktionscodes()   # öffentliche TUI-Aktionscodes
-            _maybe_auto_backup()      # wöchentliches Backup nach /addon_config
-            _maybe_check_watches()    # Suchabos (gespeicherte Suchen mit Schwellenpreis)
-            _maybe_refresh_calendars()  # Preiskalender 1×/Tag je Angebot auffrischen
-            market_basket.maybe_run_baskets()  # Preisbarometer je gespeicherter Suche, 1×/Tag
+            # Reihenfolge wie gehabt (Selbsttest zuerst, VOR den Preisprüfungen); die
+            # Labels landen über busy_labels()/api_offers im Logo-Tooltip. Die Funktionen
+            # werden hier bei jedem Durchlauf frisch aus den Globals geholt, damit
+            # spätere Neubindungen (watch/backup/digest) und Test-Patches greifen.
+            for _label, _step in (
+                    ('Selbsttest', _maybe_periodic_health),
+                    ('Zusammenfassung', _maybe_send_digest),
+                    ('Aktionscodes', _maybe_check_aktionscodes),
+                    ('Backup', _maybe_auto_backup),
+                    ('Suchabos', _maybe_check_watches),
+                    ('Preiskalender', _maybe_refresh_calendars),
+                    ('Preisbarometer', market_basket.maybe_run_baskets)):
+                with busy(_label):
+                    _step()
             _auto_archive_expired()
             share_routes.cleanup_expired()  # abgelaufene öffentliche Links entsorgen
             with db() as con:
@@ -2424,14 +2515,25 @@ def _poll_worker() -> None:
                 else:
                     next_in = min(next_in, interval - age)
             if due:
-                log.info("Prüfe %d fällige(s) Angebot(e)", len(due))
-                for oid in due:
-                    check_offer(oid)
+                gap = _poll_gap()
+                log.info("Prüfe %d fällige(s) Angebot(e), %d s Abstand", len(due), gap)
+                # busy um den ganzen Block, nicht je Angebot: sonst blinkt das
+                # Logo-Signal während der poll_gap-Pausen im Sekundentakt an/aus.
+                with busy(f'Preis-Checks ({len(due)})'):
+                    for i, oid in enumerate(due):
+                        check_offer(oid)
+                        # Pause nur zwischen zwei Angeboten (nicht nach dem letzten) und
+                        # nur hier im Poller — „Jetzt prüfen" aus der UI bleibt sofortig.
+                        if gap and i < len(due) - 1:
+                            time.sleep(gap + secrets.randbelow(POLL_GAP_JITTER + 1))
                 continue  # danach sofort neu bewerten, was als Nächstes fällig ist
         except Exception as e:
             log.error("Poll-Fehler: %s", e)
             next_in = interval
         time.sleep(max(30, min(next_in, interval)))
+
+
+CALENDAR_ARCHIVED_INTERVAL = 3 * 86400   # Kalender-Takt für archivierte Angebote
 
 
 def _maybe_refresh_calendars() -> None:
@@ -2442,17 +2544,41 @@ def _maybe_refresh_calendars() -> None:
     calendar_history dichter → Trend-Ansicht und das Kalender-Bewegungs-Signal
     im Buchungsscore werden aussagekräftiger; ergänzt den Sofort-Refresh bei
     Preisänderung. Max. 10 je Poll-Zyklus (je ~3 HTTP-Requests), älteste zuerst.
-    Abschaltbar über calendar_daily_refresh."""
+    Abschaltbar über calendar_daily_refresh.
+
+    **Archivierte Angebote laufen weiter** (`calendar_archived_refresh`): Der Preis
+    des abgelaufenen Angebots wird zwar zu Recht nicht mehr abgefragt, der Kalender
+    beschreibt aber Hotel, Zimmer, Verpflegung und Dauer — und der Abruf schaut
+    ohnehin immer ab HEUTE nach vorn (`fetch_calendar` setzt das Suchfenster selbst,
+    das alte Reisedatum der URL geht nicht ein). Damit entsteht über Jahre eine
+    Preisreihe für dasselbe Produkt, die mit dem Archivieren sonst abrisse.
+
+    Zwei getrennte Abfragen statt einer: aktive Angebote haben immer Vorrang und
+    bekommen das volle Kontingent. Archivierte sammeln sich über die Jahre an und
+    würden bei einem gemeinsamen `LIMIT` sonst irgendwann die aktiven verdrängen.
+    Sie laufen zudem in größerem Abstand — für eine Langzeitkurve reicht das
+    reichlich und spart die Hälfte der Abrufe."""
     if not load_config().get('calendar_daily_refresh', True):
         return
-    cutoff = int(time.time()) - 86400
+    now = int(time.time())
     with db() as con:
         rows = con.execute(
             'SELECT c.offer_id FROM calendar_cache c JOIN offers o ON o.id = c.offer_id '
-            'WHERE COALESCE(o.paused,0)=0 AND COALESCE(o.archived,0)=0 AND c.ts<=? '
-            'ORDER BY c.ts LIMIT 10', (cutoff,)).fetchall()
+            'WHERE COALESCE(o.paused,0)=0 AND COALESCE(o.archived,0)=0 '
+            'AND COALESCE(o.calendar_paused,0)=0 AND c.ts<=? '
+            'ORDER BY c.ts LIMIT 10', (now - 86400,)).fetchall()
+        rest = 10 - len(rows)
+        arch = con.execute(
+            'SELECT c.offer_id FROM calendar_cache c JOIN offers o ON o.id = c.offer_id '
+            'WHERE COALESCE(o.archived,0)=1 AND COALESCE(o.calendar_paused,0)=0 AND c.ts<=? '
+            'ORDER BY c.ts LIMIT ?',
+            (now - CALENDAR_ARCHIVED_INTERVAL, max(0, rest))).fetchall() \
+            if rest > 0 and load_config().get('calendar_archived_refresh', True) else []
     for r in rows:
         log.info("Täglicher Kalender-Refresh: Angebot #%d", r['offer_id'])
+        _run_calendar(r['offer_id'])
+    for r in arch:
+        log.info("Kalender-Refresh (archiviert, Langzeitverlauf): Angebot #%d", r['offer_id'])
         _run_calendar(r['offer_id'])
 
 
@@ -2550,6 +2676,10 @@ def _push_market_trend_sensor() -> None:
             attrs.update(index=src_index['index'], index_pct=src_index['pct'],
                          index_since=datetime.fromtimestamp(src_index['since']).isoformat())
         state = src_trend['pct'] if src_trend else 'unknown'
+        # Buchungszeitpunkt-Ampel (Booking-Kurve). Der State bleibt bewusst die
+        # 14-Tage-Bewegung — die Ampel ist eine ANDERE Aussage („jetzt buchen?")
+        # und gehört deshalb in die Attribute, nicht in den Zustandswert.
+        _booking_attrs(attrs, basket)
     except Exception as e:
         log.warning("Markttrend-Berechnung fehlgeschlagen (poste trotzdem 'unknown'): %s: %s",
                      type(e).__name__, e)
@@ -2559,6 +2689,83 @@ def _push_market_trend_sensor() -> None:
                   json={'state': state, 'attributes': attrs})
     except Exception as e:
         log.warning("HA-Markttrend-Sensor aktualisieren fehlgeschlagen: %s", e)
+
+
+def _booking_attrs(attrs: dict, basket: dict) -> None:
+    """Ampel-Attribute für den Markttrend-Sensor aus dem Barometer-Stand.
+
+    Als Kopfzahl dient die Messreihe mit dem KLEINSTEN Vorlauf — das ist die
+    Entscheidung, die am dringendsten ansteht. Alle übrigen stehen vollständig unter
+    `booking`, damit eine Automatisierung („melde, wenn ein Ziel auf grün springt")
+    sich nicht auf die Kopfzahl beschränken muss."""
+    b = basket.get('booking') or {}
+    if not b.get('enabled'):
+        return
+    attrs['booking_curve'] = [
+        {'window': x['label'], 'pct_per_day': x['rate'], 'pct': x['pct'],
+         'samples': x['n'], 'series': x['n_series'], 'thin': x['thin']}
+        for x in b.get('curve', [])]
+    sigs = [dict(r['signal'], region=r['region'])
+            for r in basket.get('by_region', []) if (r.get('signal') or {}).get('ampel')]
+    attrs['booking'] = sigs
+    attrs['booking_green'] = [s['region'] for s in sigs if s['ampel'] == 'green']
+    if not sigs:
+        return
+    lead = min(sigs, key=lambda s: (s['days_to_dep'] is None, s['days_to_dep']))
+    exp = (lead.get('components') or {}).get('expected') or {}
+    attrs.update(booking_ampel=lead['ampel'], booking_score=lead['score'],
+                 booking_region=lead['region'], booking_days_to_dep=lead['days_to_dep'],
+                 booking_expected_pct=exp.get('pct'))
+
+
+def _flight_healthchecks() -> list[dict]:
+    """Nicht-kritische Zusatz-Checks für die aktivierten Flugpläne — bewusst
+    getrennt von api_healthcheck() (scraper.py): die dortigen Endpunkte
+    gehören alle zum Kern-Tracking (Preis/Suche/Reiseziele), Flugpläne sind
+    Opt-in-Zusatzfeatures und sollen den Gesamtstatus nicht auf 'kritisch
+    kaputt' ziehen, wenn z. B. nur die Drittseiten-Zielliste mal ausfällt."""
+    cfg = load_config()
+    checks: list[dict] = []
+
+    def add(name, ok, detail):
+        checks.append({'name': name, 'ok': bool(ok), 'detail': detail, 'critical': False})
+
+    if cfg.get('enable_str_flights', False):
+        import str_flights_client
+        try:
+            rows = str_flights_client.list_destinations(verbose=_verbose())
+            add('STR-Flugplan-API', rows is not None,
+                f'{len(rows)} Ziele' if rows is not None else 'kein Ergebnis')
+        except Exception as e:
+            add('STR-Flugplan-API', False, type(e).__name__)
+
+    if cfg.get('enable_fra_flights', False):
+        import fra_flights_client
+        try:
+            res = fra_flights_client.search_flights('PMI', verbose=_verbose())
+            n = len((res or {}).get('rows') or [])
+            add('FRA-Flugplan-API', res is not None,
+                f'{n} Flüge (PMI)' if res is not None else 'kein Ergebnis')
+        except Exception as e:
+            add('FRA-Flugplan-API', False, type(e).__name__)
+        import fra_board_client
+        try:
+            dest = fra_board_client.list_destinations(verbose=_verbose())
+            add('FRA-Zielliste (Drittseite)', dest is not None,
+                f'{len(dest)} Ziele' if dest is not None else 'kein Ergebnis')
+        except Exception as e:
+            add('FRA-Zielliste (Drittseite)', False, type(e).__name__)
+
+    if cfg.get('enable_muc_flights', False):
+        import muc_flights_client
+        try:
+            rows = muc_flights_client.list_destinations(verbose=_verbose())
+            add('MUC-Flugplan-PDF', rows is not None,
+                f'{len(rows)} Ziele' if rows is not None else 'kein Ergebnis')
+        except Exception as e:
+            add('MUC-Flugplan-PDF', False, type(e).__name__)
+
+    return checks
 
 
 def _run_healthcheck() -> dict:
@@ -2573,6 +2780,7 @@ def _run_healthcheck() -> dict:
         log.error("API-Selbsttest fehlgeschlagen: %s", e)
         res = {'ok': False, 'ts': int(time.time()), 'checks': [],
                'note': 'Selbsttest fehlgeschlagen'}
+    res['checks'] = list(res.get('checks') or []) + _flight_healthchecks()
     with _health_lock:
         _health_state.clear()
         _health_state.update(res)
@@ -2839,6 +3047,9 @@ def index():
         trippilot_home_location=(cfg.get('trippilot_home_location') or '').strip(),
         is_ingress=_is_ingress(),
         check24_enabled=bool(cfg.get('enable_check24_compare', False)),
+        str_flights_enabled=bool(cfg.get('enable_str_flights', False)),
+        fra_flights_enabled=bool(cfg.get('enable_fra_flights', False)),
+        muc_flights_enabled=bool(cfg.get('enable_muc_flights', False)),
         share_enabled=bool(cfg.get('enable_public_share', False)),
         app_version=APP_VERSION))
 
@@ -2958,6 +3169,9 @@ def _collect_offers() -> list[dict]:
                 'price_flight_out': last['price_flight_out'] if last else None,
                 'price_flight_ret': last['price_flight_ret'] if last else None,
                 'luggage': (_json_loads_safe(o['luggage'], None) if o['luggage'] else None),
+                'flight_options': (_json_loads_safe(o['flight_options'], [])
+                                   if o['flight_options'] else []),
+                'flight_pin': o['flight_pin'] or '',
                 'last_booked': o['last_booked'] or '',
                 'deposit_pct': o['deposit_pct'],
                 'final_payment_date': o['final_payment_date'] or '',
@@ -2978,11 +3192,33 @@ def _collect_offers() -> list[dict]:
                 'trend': trend,
                 'checking': checking,
                 'calendar_alert': calendar_alert,
+                'calendar_paused': bool(o['calendar_paused']),
                 'comparable': not is_single_room(f"{o['room']} {o['details']}"),
                 'board': o['board'] or '',
                 'check24_linked': bool(o['check24_hotel_id']),
             })
+        # Buchungszeitpunkt-Ampel aus dem Preisbarometer (Booking-Kurve). Bewusst
+        # EIN Aufruf für die ganze Liste statt je Angebot: die Liste wird alle 5 s
+        # gepollt, `market_basket` cacht Kurve und Signale entsprechend und geht für
+        # die Region-Zuordnung nur an den `meta`-Cache, nie ins Netz.
+        signals = market_basket.offer_signals(con, offers)
+    for row in out:
+        row['booking'] = signals.get(row['id'])
     return out
+
+
+@app.route('/api/busy', methods=['GET'])
+def api_busy():
+    """Nur die laufenden Hintergrund-Aufgaben — **ohne jeden Datenbankzugriff**.
+
+    Genau das ist der Zweck: direkt nach dem Start hält der Poller die SQLite-Datei,
+    und `/api/offers` wartet dann mehrere Sekunden auf seine erste Antwort. Die
+    Oberfläche stünde so lange leer da. Dieser Endpunkt liest ausschließlich
+    In-Memory-Zustand und antwortet auch dann sofort, wenn die DB gerade gesperrt
+    ist — damit der Startbildschirm sagen kann, WORAUF gewartet wird."""
+    if (err := _require_api()):
+        return err
+    return jsonify({'busy': busy_labels()})
 
 
 @app.route('/api/healthcheck', methods=['GET', 'POST'])
@@ -3065,6 +3301,189 @@ def api_digest():
         return jsonify({'sent': True})
     return jsonify({'sent': False, 'note': 'Nichts zu berichten oder kein Kanal '
                     '(Telegram/SMTP) konfiguriert.'})
+
+
+def _sched_next(ts: int, now: int) -> int:
+    """Normiert einen errechneten Fälligkeitszeitpunkt für den Zeitplan: alles, was
+    bereits erreicht ist, wird zu 0 („beim nächsten Durchlauf"). Ohne das stünde für
+    nie gelaufene Aufgaben (letzter Lauf = 0) ein Zeitstempel von 1970 im Payload."""
+    return 0 if ts <= now else int(ts)
+
+
+def _next_prices_task(now: int, interval: int) -> dict:
+    """Nächster fälliger Preis-Check über alle aktiven Angebote (inkl. der festen
+    Tages-Slots der Preisverlauf-Angebote)."""
+    with db() as con:
+        offers = [(r['id'], bool(r['history_only']),
+                   r['label'] or r['hotel'] or f"#{r['id']}") for r in con.execute(
+            'SELECT id, history_only, label, hotel FROM offers '
+            'WHERE COALESCE(paused,0)=0 AND COALESCE(archived,0)=0 ORDER BY id').fetchall()]
+        last_map = {r['offer_id']: r['m'] for r in con.execute(
+            'SELECT offer_id, MAX(ts) m FROM price_history GROUP BY offer_id').fetchall()}
+    if not offers:
+        return {'next': None, 'note': 'keine aktiven Angebote'}
+    nxt, nxt_name, due_now = None, '', 0
+    for oid, history_only, name in offers:
+        last_ts = last_map.get(oid) or 0
+        if history_only:
+            ts = now + max(0, _history_only_wait_seconds(oid, last_ts, now))
+        else:
+            ts = last_ts + interval
+        if ts <= now:
+            due_now += 1
+        if nxt is None or ts < nxt:
+            nxt, nxt_name = ts, name
+    note = f'{len(offers)} aktiv'
+    note += f' · {due_now} fällig' if due_now else f' · als Nächstes: {nxt_name}'
+    return {'next': _sched_next(nxt, now), 'note': note}
+
+
+def _schedule_overview() -> dict:
+    """Wann laufen die Hintergrund-Aufgaben das nächste Mal? Alle Zeiten sind
+    Frühestens-Angaben: der Poll-Worker schläft zwischen zwei Durchläufen und startet
+    fällige Aufgaben erst beim nächsten Aufwachen (siehe `_poll_worker`).
+
+    Konvention je Eintrag: `next` = Zeitstempel, 0 = beim nächsten Durchlauf fällig,
+    None = nichts geplant; `disabled` = in den Optionen abgeschaltet."""
+    now = int(time.time())
+    cfg = load_config()
+    try:
+        interval = max(MIN_POLL_INTERVAL, int(cfg.get('poll_interval', POLL_INTERVAL_DEFAULT)
+                                              or POLL_INTERVAL_DEFAULT))
+    except (TypeError, ValueError):
+        interval = POLL_INTERVAL_DEFAULT
+    tasks = [dict(key='prices', label='Preis-Checks', **_next_prices_task(now, interval))]
+
+    # Suchabos — je Abo 1×/Intervall, mindestens stündlich (siehe watch._maybe_check_watches)
+    watch_interval = max(3600, interval)
+    with db() as con:
+        row = con.execute(
+            'SELECT COUNT(*) n, MIN(COALESCE(last_checked,0)) m FROM saved_searches '
+            'WHERE COALESCE(watch,0)=1 AND COALESCE(max_price,0)>0').fetchone()
+    tasks.append({'key': 'watches', 'label': 'Suchabos',
+                  'next': _sched_next((row['m'] or 0) + watch_interval, now) if row['n'] else None,
+                  'note': f"{row['n']} beobachtete Suche(n)" if row['n']
+                          else 'keine beobachtete Suche'})
+
+    # Preiskalender — 1×/Tag je Angebot, max. 10 Angebote je Durchlauf
+    if cfg.get('calendar_daily_refresh', True):
+        with db() as con:
+            row = con.execute(
+                'SELECT COUNT(*) n, MIN(c.ts) m FROM calendar_cache c JOIN offers o '
+                'ON o.id = c.offer_id WHERE COALESCE(o.paused,0)=0 '
+                'AND COALESCE(o.archived,0)=0').fetchone()
+        tasks.append({'key': 'calendar', 'label': 'Preiskalender',
+                      'next': _sched_next((row['m'] or 0) + 86400, now) if row['n'] else None,
+                      'note': f"{row['n']} Kalender · max. 10 je Durchlauf" if row['n']
+                              else 'noch kein Kalender abgerufen'})
+    else:
+        tasks.append({'key': 'calendar', 'label': 'Preiskalender', 'next': None,
+                      'disabled': True, 'note': 'täglicher Refresh abgeschaltet'})
+
+    tasks.append(dict(key='basket', label='Preisbarometer', **market_basket.schedule_info()))
+
+    # Aktionscodes — eigener Takt (aktionscode_interval), mindestens 30 min
+    try:
+        ak_interval = max(1800, int(cfg.get('aktionscode_interval', 21600) or 21600))
+    except (TypeError, ValueError):
+        ak_interval = 21600
+    try:
+        ak_last = int(_meta_get('aktion_checked', 0) or 0)
+    except (TypeError, ValueError):
+        ak_last = 0
+    tasks.append({'key': 'aktion', 'label': 'Aktionscodes', 'last': ak_last or None,
+                  'next': _sched_next(ak_last + ak_interval, now),
+                  'note': f'alle {_dur(ak_interval)}'})
+
+    # Flugpläne — STR/FRA-Zielliste/MUC, je eigener Warm-Poller mit eigenem
+    # Takt (_str_flights_worker/_fra_board_worker/_muc_flights_worker), nur
+    # aktive Flughäfen zählen mit.
+    import str_flights_client
+    import fra_board_client
+    import muc_flights_client
+    flight_srcs = []
+    if cfg.get('enable_str_flights', False):
+        flight_srcs.append(('STR', str_flights_client.last_fetch_ts(), str_flights_client.CACHE_TTL))
+    if cfg.get('enable_fra_flights', False):
+        flight_srcs.append(('FRA-Zielliste', fra_board_client.last_fetch_ts(),
+                            fra_board_client.REFRESH_INTERVAL))
+    if cfg.get('enable_muc_flights', False):
+        muc_last = muc_flights_client.status().get('checked_ts') or 0
+        flight_srcs.append(('MUC', muc_last, muc_flights_client.CHECK_INTERVAL))
+    if flight_srcs:
+        soonest = min((last or 0) + interval for _, last, interval in flight_srcs)
+        note = '/'.join(name for name, _, _ in flight_srcs) + ' aktiv'
+        tasks.append({'key': 'flights', 'label': 'Flugpläne', 'next': _sched_next(soonest, now),
+                      'note': note})
+    else:
+        tasks.append({'key': 'flights', 'label': 'Flugpläne', 'next': None, 'disabled': True,
+                      'note': 'kein Flughafen aktiviert'})
+
+    # API-Selbsttest — 1×/Tag
+    with _health_lock:
+        hc_last = int(_health_state.get('ts') or 0)
+    tasks.append({'key': 'health', 'label': 'API-Selbsttest', 'last': hc_last or None,
+                  'next': _sched_next(hc_last + 86400, now), 'note': 'täglich'})
+
+    # Auto-Backup — wöchentlich nach /addon_config
+    if cfg.get('auto_backup', True):
+        try:
+            bk_last = int(_meta_get('last_auto_backup', 0) or 0)
+        except (TypeError, ValueError):
+            bk_last = 0
+        tasks.append({'key': 'backup', 'label': 'Backup', 'last': bk_last or None,
+                      'next': _sched_next(bk_last + backup_routes.AUTO_BACKUP_INTERVAL, now),
+                      'note': 'wöchentlich'})
+    else:
+        tasks.append({'key': 'backup', 'label': 'Backup', 'next': None, 'disabled': True,
+                      'note': 'Auto-Backup abgeschaltet'})
+
+    tasks.append(dict(key='digest', label='Zusammenfassung', **_digest_schedule(cfg)))
+
+    # 0 (= sofort fällig) vor allen datierten Einträgen, „nichts geplant" ans Ende
+    tasks.sort(key=lambda t: (t.get('next') is None, t.get('next') or 0))
+    return {'now': now, 'poll_interval': interval, 'poll_gap': _poll_gap(),
+            'busy': busy_labels(), 'tasks': tasks}
+
+
+def _digest_schedule(cfg: dict) -> dict:
+    """Nächster Wochenüberblick (siehe digest._maybe_send_digest): fester Wochentag,
+    höchstens 1×/ISO-Woche, verpasste Wochen werden noch in derselben Woche nachgeholt."""
+    if not cfg.get('digest_enabled'):
+        return {'next': None, 'disabled': True, 'note': 'nicht aktiviert'}
+    try:
+        target = min(7, max(1, int(cfg.get('digest_weekday', 1) or 1)))
+    except (TypeError, ValueError):
+        target = 1
+    today = date.today()
+    y, w, _ = today.isocalendar()
+    days = ('Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag')
+    note = f'wöchentlich, {days[target - 1]}'
+    if _meta_get('last_digest') == f'{y}-W{w:02d}':   # diese Woche schon raus
+        d = today + timedelta(days=(7 - today.isoweekday()) + target)
+    elif today.isoweekday() >= target:                # überfällig oder heute dran
+        return {'next': 0, 'note': note}
+    else:
+        d = today + timedelta(days=target - today.isoweekday())
+    return {'next': int(datetime(d.year, d.month, d.day).timestamp()), 'note': note}
+
+
+def _dur(seconds: int) -> str:
+    """Kurze Dauer in Klartext („6 h", „45 min") für die Zeitplan-Notizen."""
+    if seconds >= 86400:
+        return f'{round(seconds / 86400)} Tage' if seconds >= 172800 else '1 Tag'
+    if seconds >= 3600:
+        h = seconds / 3600
+        return f'{h:.0f} h' if abs(h - round(h)) < 0.05 else f'{h:.1f} h'
+    return f'{max(1, round(seconds / 60))} min'
+
+
+@app.route('/api/schedule', methods=['GET'])
+def api_schedule():
+    """Zeitplan der Hintergrund-Aufgaben (Rechtsklick aufs Logo)."""
+    if (err := _require_api()):
+        return err
+    return jsonify(_schedule_overview())
 
 
 @app.route('/api/console')
@@ -3190,6 +3609,7 @@ _ADVISOR_SAFETY_TRAILER = ai_routes._ADVISOR_SAFETY_TRAILER
 _DEFAULT_COMPARE_INSTRUCTIONS = ai_routes._DEFAULT_COMPARE_INSTRUCTIONS
 _DEFAULT_SUMMARY_INSTRUCTIONS = ai_routes._DEFAULT_SUMMARY_INSTRUCTIONS
 _DAYTRIP_REGION_VALUE = ai_routes._DAYTRIP_REGION_VALUE
+_is_daytrip = ai_routes._is_daytrip
 _region_values = ai_routes._region_values
 _DEFAULT_DAYTRIP_INSTRUCTIONS = ai_routes._DEFAULT_DAYTRIP_INSTRUCTIONS
 _PROMPT_FEATURES = ai_routes._PROMPT_FEATURES
@@ -3228,10 +3648,10 @@ api_ai_region_outlook = ai_routes.api_ai_region_outlook
 api_ai_ask = ai_routes.api_ai_ask
 api_ai_prompt_settings = ai_routes.api_ai_prompt_settings
 api_ai_provider = ai_routes.api_ai_provider
-_ADVISOR_FIELDS = ai_routes._ADVISOR_FIELDS
-_ADVISOR_LIST_FIELDS = ai_routes._ADVISOR_LIST_FIELDS
-_ADVISOR_TEXT_FIELDS = ai_routes._ADVISOR_TEXT_FIELDS
-_ADVISOR_LABELS = ai_routes._ADVISOR_LABELS
+_advisor_fields = ai_routes._advisor_fields
+_advisor_list_fields = ai_routes._advisor_list_fields
+_advisor_text_fields = ai_routes._advisor_text_fields
+_advisor_labels = ai_routes._advisor_labels
 _advisor_prompt = ai_routes._advisor_prompt
 _advisor_dna_scores = ai_routes._advisor_dna_scores
 _advisor_dna_update = ai_routes._advisor_dna_update
@@ -3408,6 +3828,10 @@ api_rooms_set = offers_routes.api_rooms_set
 import trips_routes  # noqa: E402
 import backup_routes  # noqa: E402
 import check24_routes  # noqa: E402
+import str_flights_routes  # noqa: E402
+import fra_flights_routes  # noqa: E402
+import muc_flights_routes  # noqa: E402
+import all_flights_routes  # noqa: E402
 import market_basket  # noqa: E402
 import stats_routes  # noqa: E402
 import share_routes  # noqa: E402
@@ -3415,6 +3839,10 @@ app.register_blueprint(stats_routes.bp)
 app.register_blueprint(trips_routes.bp)
 app.register_blueprint(backup_routes.bp)
 app.register_blueprint(check24_routes.bp)
+app.register_blueprint(str_flights_routes.bp)
+app.register_blueprint(fra_flights_routes.bp)
+app.register_blueprint(muc_flights_routes.bp)
+app.register_blueprint(all_flights_routes.bp)
 app.register_blueprint(market_basket.bp)
 # Nur die Admin-Routen (/api/shares…) hängen an der geschützten App. Die
 # öffentliche Seite lebt in share_routes.share_app auf einem eigenen Port, siehe
@@ -3494,6 +3922,56 @@ def _market_trend_sensor_worker() -> None:
         time.sleep(120)
 
 
+def _muc_flights_worker() -> None:
+    """Hält den Münchner Saison-Flugplan aktuell (nur bei `enable_muc_flights`).
+
+    Das PDF wird täglich neu erzeugt (Feld „Datenstand"), die Adresse enthält
+    einen Hash und kann sich dabei ändern. Geprüft wird deshalb mehrmals täglich,
+    ob Adresse oder Dateigröße abweichen — heruntergeladen und geparst (~15 s)
+    wird nur dann. Der erste Lauf direkt nach dem Start wärmt den Speicher vor,
+    damit die erste Suche im Fenster nicht auf das Parsen warten muss."""
+    import muc_flights_client
+    while True:
+        try:
+            if bool(load_config().get('enable_muc_flights', False)):
+                muc_flights_client.refresh(verbose=_verbose())
+        except Exception as e:
+            log.warning("MUC-Flugplan-Aktualisierung fehlgeschlagen: %s", e)
+        time.sleep(muc_flights_client.CHECK_INTERVAL)
+
+
+def _str_flights_worker() -> None:
+    """Hält den Stuttgarter Flugplan-Cache warm (nur bei `enable_str_flights`) —
+    analog zu `_muc_flights_worker`, damit die erste Suche im Fenster nicht auf
+    den Erstabruf wartet und die Zeitplan-Übersicht einen echten Termin zeigt
+    (vorher lief der Cache rein lazy beim ersten Request an, ohne eigenen
+    Poller — tauchte deshalb auch nicht unter „Nächste Läufe" auf)."""
+    import str_flights_client
+    while True:
+        try:
+            if bool(load_config().get('enable_str_flights', False)):
+                str_flights_client.list_destinations(verbose=_verbose())
+        except Exception as e:
+            log.warning("STR-Flugplan-Aktualisierung fehlgeschlagen: %s", e)
+        time.sleep(str_flights_client.CACHE_TTL)
+
+
+def _fra_board_worker() -> None:
+    """Hält die genäherte FRA-Zielliste warm (nur bei `enable_fra_flights`) —
+    analog zu `_muc_flights_worker`. Betrifft nur die Übersichtstabelle
+    (fra_board_client.py); die gezielte FRA-Suche läuft weiter direkt über
+    fra_flights_client.py, ohne eigenen Warm-Poller (Anfragen sind dort immer
+    ziel-gefiltert, kein teurer Gesamtabruf zum Vorwärmen)."""
+    import fra_board_client
+    while True:
+        try:
+            if bool(load_config().get('enable_fra_flights', False)):
+                fra_board_client.refresh(verbose=_verbose())
+        except Exception as e:
+            log.warning("FRA-Board-Aktualisierung fehlgeschlagen: %s", e)
+        time.sleep(fra_board_client.REFRESH_INTERVAL)
+
+
 def _handle_sigterm(signum, frame) -> None:
     """Sauberer Exit bei SIGTERM (HA-Supervisor-Stop/Update) — ohne eigenen Handler
     würde Python den Default-Handler laufen lassen (exit 143), worüber sich der
@@ -3535,6 +4013,9 @@ def main() -> None:
     signal.signal(signal.SIGTERM, _handle_sigterm)
     init_db()
     load_sessions()
+    # /config/trippilot einrichten: eigene questions.json bleibt unangetastet,
+    # questions.default.json/README werden auf den Auslieferungsstand gebracht
+    trippilot_questions.ensure_user_copy()
     _spawn(push_ha_sensors)  # vorhandene Preise sofort als Sensoren melden
     _spawn(_notify_startup)  # kurze Telegram-Statusmeldung (falls konfiguriert)
     _spawn(_run_healthcheck)  # API-Erreichbarkeit beim Start prüfen
@@ -3544,6 +4025,9 @@ def main() -> None:
     threading.Thread(target=_health_sensor_worker, daemon=True).start()
     threading.Thread(target=_cooldown_sensor_worker, daemon=True).start()
     threading.Thread(target=_market_trend_sensor_worker, daemon=True).start()
+    threading.Thread(target=_muc_flights_worker, daemon=True).start()
+    threading.Thread(target=_str_flights_worker, daemon=True).start()
+    threading.Thread(target=_fra_board_worker, daemon=True).start()
     _start_public_server()
     port = int(os.environ.get('TUIWATCH_PORT', '17794'))
     log.info("TUIWatch startet auf Port %d", port)

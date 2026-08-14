@@ -8,12 +8,57 @@ import json
 import re
 import time
 from collections import defaultdict
+from datetime import date, datetime, timedelta
 
 from flask import Blueprint, jsonify
 
 import app as A
 
 bp = Blueprint('price_calendar', __name__)
+
+
+# ── Monatstrend: Schema ────────────────────────────────────────────────────────
+# Der Preiskalender liefert eine ganz andere Grundgesamtheit als das Preisbarometer:
+# dort viele Hotels für EINEN Termin, hier EIN Hotel/Zimmer für 400–700 Reisetage.
+# Das Zusammensetzungsproblem, das im Barometer die Matched Pairs erzwingt, gibt es
+# hier nicht — die Menge der Reisetage ist fest. Deshalb darf (und soll) hier ein
+# echter wertgewichteter Monatsindex gerechnet werden statt eines Medians:
+#
+#     pct_Monat = (Σ p_neu − Σ p_alt) / Σ p_alt · 100
+#
+# summiert über alle Reisetage des Monats, die in BEIDEN Snapshots einen Preis hatten.
+# Der entscheidende Punkt steckt im Nenner: `calendar_history` ist delta-codiert
+# (eine Zeile nur bei Änderung, siehe `_store_calendar_snapshot`). Wer nur die
+# geänderten Tage betrachtet, misst deshalb ausschließlich Tage, an denen sich etwas
+# bewegt hat, und der Index läuft massiv davon. Unveränderte Tage zählen hier mit
+# ihrem Preis in den Nenner und mit 0 in den Zähler — genau die richtige Dämpfung.
+
+CAL_MONTH_MAX_PCT = 60.0    # Tagessprünge darüber sind Artefakte (Zimmerkategorie/
+                            # Verfügbarkeit), kein Marktsignal — fliegen raus
+CAL_MONTH_MIN_DAYS = 2      # weniger Beobachtungstage → kein Trend
+CAL_MONTH_WINDOW = 14       # Tage im rollierenden Trendfenster, wie beim Markttrend
+
+
+def init_month_db(con) -> None:
+    """Tabelle für die verdichtete Monatsbewegung — wird aus `app.init_db` gerufen.
+    Eine Zeile je (Angebot, Beobachtungstag, Reisemonat); bei ~18 Monaten also rund
+    18 Zeilen pro Kalenderabruf. Bleibt dauerhaft: sie ist winzig gegenüber
+    `calendar_history` und trägt den Index seit Aufzeichnungsbeginn."""
+    con.execute('''CREATE TABLE IF NOT EXISTS calendar_month_moves (
+        id        INTEGER PRIMARY KEY AUTOINCREMENT,
+        offer_id  INTEGER NOT NULL,
+        ts        INTEGER NOT NULL,
+        day       TEXT NOT NULL,
+        month     TEXT NOT NULL,
+        pct       REAL NOT NULL,
+        n_days    INTEGER NOT NULL,
+        n_changed INTEGER NOT NULL,
+        sum_prev  REAL NOT NULL,
+        FOREIGN KEY (offer_id) REFERENCES offers(id) ON DELETE CASCADE
+    )''')
+    con.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_calmonth '
+                'ON calendar_month_moves(offer_id, day, month)')
+    _backfill_month_moves(con)
 
 
 # ── Preiskalender (on-demand, gespeichert) ──────────────────────────────────────
@@ -71,7 +116,117 @@ def _store_calendar_snapshot(con, offer_id: int, cal: dict) -> list[str]:
         con.executemany(
             'INSERT INTO calendar_history (offer_id, travel_date, ts, price) VALUES (?,?,?,?)',
             changed)
+    # Monatsbewegung mitschreiben, solange beide Preistabellen noch hier vorliegen.
+    _store_month_moves(con, offer_id, ts,
+                       prev_prices, {d['date']: d['price'] for d in days})
     return real_changed
+
+
+def _month_aggregate(prev_prices: dict, new_prices: dict, obs_day: str) -> dict:
+    """Wertgewichtete Preisbewegung je Reisemonat zwischen zwei Snapshots.
+
+    `prev_prices`/`new_prices`: {Reisedatum: Preis}. Gezählt werden nur Reisetage mit
+    Preis in BEIDEN Snapshots (neu hinzugekommene haben keinen Vergleichswert,
+    herausgefallene keinen aktuellen) und die am Beobachtungstag noch in der Zukunft
+    liegen. Einzelsprünge über `CAL_MONTH_MAX_PCT` werden verworfen — solche Sprünge
+    sind ein anderer Zimmertyp oder eine Verfügbarkeitslücke, kein Preissignal.
+
+    Rückgabe {Monat: (pct, n_days, n_changed, sum_prev)}. `n_days` ist die Zahl der
+    verglichenen Reisetage — der Nenner, nicht die Zahl der Änderungen."""
+    agg: dict[str, list] = defaultdict(lambda: [0.0, 0, 0, 0.0])   # num, n, changed, den
+    for d, new in new_prices.items():
+        old = prev_prices.get(d)
+        if old is None or not old or new is None or d < obs_day:
+            continue
+        if abs((new - old) / old * 100) > CAL_MONTH_MAX_PCT:
+            continue
+        a = agg[d[:7]]
+        a[0] += new - old
+        a[1] += 1
+        a[2] += 1 if new != old else 0
+        a[3] += old
+    return {m: (round(num / den * 100, 4), n, ch, round(den, 2))
+            for m, (num, n, ch, den) in agg.items() if den}
+
+
+def _store_month_moves(con, offer_id: int, ts: int, prev_prices: dict,
+                       new_prices: dict) -> int:
+    """Monatsbewegungen eines Kalenderabrufs ablegen. Wird direkt aus
+    `_store_calendar_snapshot` gefüttert, das beide Preistabellen ohnehin schon in
+    der Hand hat — kein zusätzlicher Read der großen `calendar_history`.
+
+    Ein zweiter Abruf am selben Tag ERSETZT den Tageswert nicht, sondern verkettet
+    ihn mit dem vorhandenen: die Gesamtbewegung des Tages ist das Produkt seiner
+    Einzelschritte. Würde die zweite Zeile die erste überschreiben, ginge der erste
+    Schritt verloren und die Kette meldete zu wenig Bewegung. Ein identisch
+    wiederholter Abruf ist dabei unschädlich — er liefert 0 % und ändert nichts."""
+    if not prev_prices:
+        return 0                     # Erstabruf ist reine Baseline, keine Bewegung
+    day = datetime.fromtimestamp(ts).strftime('%Y-%m-%d')
+    agg = _month_aggregate(prev_prices, new_prices, day)
+    if not agg:
+        return 0
+    have = {r['month']: r for r in con.execute(
+        'SELECT month, pct, n_changed FROM calendar_month_moves '
+        'WHERE offer_id=? AND day=?', (offer_id, day)).fetchall()}
+    rows = []
+    for mth, (pct, n, ch, den) in agg.items():
+        old = have.get(mth)
+        if old:
+            pct = round(((1 + old['pct'] / 100) * (1 + pct / 100) - 1) * 100, 4)
+            ch += old['n_changed']
+        rows.append((offer_id, ts, day, mth, pct, n, ch, den))
+    con.executemany(
+        'INSERT OR REPLACE INTO calendar_month_moves (offer_id, ts, day, month, '
+        'pct, n_days, n_changed, sum_prev) VALUES (?,?,?,?,?,?,?,?)', rows)
+    return len(rows)
+
+
+def _backfill_month_moves(con) -> None:
+    """Monatsbewegungen einmalig aus der vorhandenen `calendar_history` nachrechnen.
+
+    Die Historie ist delta-codiert, enthält aber durch Fortschreiben (carry-forward)
+    die vollständige Preismatrix: der zuletzt bekannte Preis eines Reisetages gilt bis
+    zur nächsten Änderungszeile. Damit lässt sich jeder frühere Abruf rekonstruieren.
+
+    Eine Unschärfe bleibt: Abrufe, bei denen sich KEIN einziger Reisetag geändert hat,
+    hinterlassen keine Zeile und sind darum unsichtbar. Sie hätten 0 % beigetragen,
+    verändern die verkettete Kurve also nicht — nur die gezählte Zahl der
+    Beobachtungstage fällt etwas zu niedrig aus.
+
+    Läuft genau einmal (`meta`-Flag)."""
+    if con.execute("SELECT 1 FROM meta WHERE key='calendar_month_backfill'").fetchone():
+        return
+    offers = [r['offer_id'] for r in con.execute(
+        'SELECT DISTINCT offer_id FROM calendar_history').fetchall()]
+    n_rows = 0
+    for offer_id in offers:
+        by_ts: dict[int, dict] = defaultdict(dict)
+        for r in con.execute('SELECT travel_date, ts, price FROM calendar_history '
+                             'WHERE offer_id=? ORDER BY ts', (offer_id,)).fetchall():
+            by_ts[r['ts']][r['travel_date']] = r['price']
+        state: dict = {}
+        for ts in sorted(by_ts):
+            changed = by_ts[ts]
+            day = datetime.fromtimestamp(ts).strftime('%Y-%m-%d')
+            # Der Snapshot dieses Abrufs: fortgeschriebener Stand plus die Änderungen.
+            # Reisetage, die inzwischen in der Vergangenheit liegen, fallen in
+            # `_month_aggregate` über den `d < obs_day`-Filter heraus.
+            new_prices = {**state, **changed}
+            rows = [(offer_id, ts, day, m, pct, n, ch, den) for m, (pct, n, ch, den)
+                    in _month_aggregate(state, new_prices, day).items()]
+            if rows:
+                con.executemany(
+                    'INSERT OR REPLACE INTO calendar_month_moves (offer_id, ts, day, '
+                    'month, pct, n_days, n_changed, sum_prev) VALUES (?,?,?,?,?,?,?,?)',
+                    rows)
+                n_rows += len(rows)
+            state = new_prices
+    con.execute("INSERT OR REPLACE INTO meta (key, value) "
+                "VALUES ('calendar_month_backfill','1')")
+    if n_rows:
+        A.log.info("Kalender-Monatstrend: %d Monatsbewegungen aus der vorhandenen "
+                   "Kalenderhistorie nachgerechnet (%d Angebote)", n_rows, len(offers))
 
 
 _MONTH_NAMES_DE = ('Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August',
@@ -145,6 +300,42 @@ def _check_calendar_trend_alert(offer_id: int, changed_dates: list[str]) -> None
     A._notify_telegram(f"📅 <b>Kalenderpreise geändert</b>\n{name}\n{month_str}\n{offer['url']}", muted=muted)
 
 
+CALENDAR_MAX_FAILS = 5     # Fehlschläge in Folge, ab denen der Kalender pausiert
+
+
+def _calendar_failed(offer_id: int) -> None:
+    """Fehlschlag zählen und den Kalender dieses Angebots ggf. pausieren.
+
+    Gezählt wird nur in Folge — ein einziger erfolgreicher Abruf setzt zurück
+    (`_calendar_succeeded`). Bei täglichem Refresh bedeutet die Schwelle also rund
+    eine Woche durchgängiger Fehlschläge; eine vorübergehende API-Störung pausiert
+    damit nichts. Die Pause ist kein Endzustand: „Neu abfragen" im Kalender-Fenster
+    hebt sie wieder auf, sobald ein Abruf gelingt."""
+    with A.db() as con:
+        row = con.execute('SELECT COALESCE(calendar_fails,0) f, COALESCE(calendar_paused,0) p, '
+                          "COALESCE(label,'') l, COALESCE(hotel,'') h "
+                          'FROM offers WHERE id=?', (offer_id,)).fetchone()
+        if not row or row['p']:
+            return
+        fails = row['f'] + 1
+        paused = 1 if fails >= CALENDAR_MAX_FAILS else 0
+        con.execute('UPDATE offers SET calendar_fails=?, calendar_paused=? WHERE id=?',
+                    (fails, paused, offer_id))
+    if paused:
+        A.log.warning("Preiskalender #%d (%s) pausiert: %d Abrufe in Folge fehlgeschlagen "
+                      "— vermutlich ist das Hotel nicht mehr im TUI-Inventar. Über "
+                      "„Neu abfragen“ im Kalender-Fenster wieder aktivierbar.",
+                      offer_id, row['l'] or row['h'] or f"#{offer_id}", fails)
+
+
+def _calendar_succeeded(offer_id: int) -> None:
+    """Nach einem erfolgreichen Abruf Zähler und Pause zurücksetzen."""
+    with A.db() as con:
+        con.execute('UPDATE offers SET calendar_fails=0, calendar_paused=0 WHERE id=? '
+                    'AND (COALESCE(calendar_fails,0)!=0 OR COALESCE(calendar_paused,0)!=0)',
+                    (offer_id,))
+
+
 def _run_calendar(offer_id: int) -> None:
     """Liest den Preiskalender (Preis je Abreisetag) und speichert ihn in der DB."""
     try:
@@ -157,11 +348,13 @@ def _run_calendar(offer_id: int) -> None:
         res = A.fetch_calendar(offer['url'], verbose=A._verbose())
         if not res or not res.get('ok'):
             A.log.warning("Preiskalender #%d: keine Daten/nicht abrufbar", offer_id)
+            _calendar_failed(offer_id)
             with A._calendar_lock:
                 A._calendar_state[offer_id] = {'status': 'error', 'note': 'Preiskalender nicht abrufbar'}
             return
         with A.db() as con:
             changed = _store_calendar_snapshot(con, offer_id, res)
+        _calendar_succeeded(offer_id)
         _check_calendar_trend_alert(offer_id, changed)
         with A._calendar_lock:
             A._calendar_state.pop(offer_id, None)
@@ -169,6 +362,7 @@ def _run_calendar(offer_id: int) -> None:
                  len(res.get('days', [])), res.get('cheapest_date'), res.get('cheapest_price'))
     except Exception as e:
         A.log.error("Preiskalender #%d Fehler: %s", offer_id, e)
+        _calendar_failed(offer_id)
         with A._calendar_lock:
             A._calendar_state[offer_id] = {'status': 'error', 'note': 'Preiskalender fehlgeschlagen'}
 
@@ -236,6 +430,14 @@ def _calendar_payload(offer_id: int) -> dict:
         row = con.execute('SELECT ts, data FROM calendar_cache WHERE offer_id=?',
                           (offer_id,)).fetchone()
         moves = _calendar_moves(con, offer_id) if row else {}
+        # Pausenzustand immer mitliefern, auch ohne Snapshot — sonst könnte die UI
+        # bei einem Angebot, dessen allererster Abruf schon scheiterte, nicht sagen,
+        # warum nichts mehr passiert.
+        st_row = con.execute('SELECT COALESCE(calendar_paused,0) p, COALESCE(calendar_fails,0) f, '
+                             'COALESCE(archived,0) a FROM offers WHERE id=?', (offer_id,)).fetchone()
+    paused = bool(st_row['p']) if st_row else False
+    fails = (st_row['f'] if st_row else 0)
+    archived = bool(st_row['a']) if st_row else False
     if row:
         out = A._json_loads_safe(row['data'], {})
         out['status'] = 'done'
@@ -255,7 +457,128 @@ def _calendar_payload(offer_id: int) -> dict:
         out = {'status': 'idle'}
     if st.get('status') == 'error':
         out['error'] = st.get('note', 'Preiskalender fehlgeschlagen')
+    out.update(paused=paused, fails=fails, archived=archived,
+               max_fails=CALENDAR_MAX_FAILS,
+               archived_days=A.CALENDAR_ARCHIVED_INTERVAL // 86400)
     return out
+
+
+# ── Monatstrend: Auswertung ────────────────────────────────────────────────────
+
+def _month_moves_query(offer_id: int, month: str | None,
+                       cutoff_day: str | None) -> tuple[str, list]:
+    """Fester Query-Text mit `(? IS NULL OR …)`-Paaren statt laufzeitabhängiger
+    String-Verkettung — gleiche Begründung wie bei `A._market_moves_query`."""
+    q = ('SELECT day, month, pct, n_days, n_changed FROM calendar_month_moves '
+         'WHERE offer_id=? AND (? IS NULL OR month=?) AND (? IS NULL OR day>=?) '
+         'ORDER BY day ASC')
+    return q, [offer_id, month, month, cutoff_day, cutoff_day]
+
+
+def _month_series(con, offer_id: int, month: str,
+                  cutoff_day: str | None = None) -> list:
+    """Tageswerte eines Reisemonats als [(Beobachtungstag, Prozent, Reisetage)].
+    Enthält bewusst auch die 0-%-Tage: ein Tag ohne Preisänderung ist ein
+    beobachteter, ruhiger Tag — kein fehlender."""
+    q, params = _month_moves_query(offer_id, month, cutoff_day)
+    return [(r['day'], r['pct'], r['n_days']) for r in con.execute(q, params).fetchall()]
+
+
+def month_trend(con, offer_id: int, month: str,
+                window_days: int = CAL_MONTH_WINDOW) -> dict | None:
+    """Rollierender Trend eines Reisemonats — gleiche Rückgabeform wie
+    `A._market_trend` (dir/pct/days/n), damit die UI dieselben Badges nutzen kann."""
+    cutoff = (date.today() - timedelta(days=window_days)).isoformat()
+    series = _month_series(con, offer_id, month, cutoff)
+    if len(series) < CAL_MONTH_MIN_DAYS:
+        return None
+    deadband = A._market_trend_threshold()
+    cum = A._compound_pct([p for _, p, _ in series])
+    direction = 'down' if cum <= -deadband else ('up' if cum >= deadband else 'flat')
+    # Streak: seit wie vielen Tagen nichts GEGENLÄUFIGES passiert ist. Anders als beim
+    # Markttrend zählen ruhige Tage (0 %) hier mit, statt die Serie zu beenden — im
+    # Kalender ist 0 % der Normalfall (die meisten Reisetage ändern sich an den
+    # meisten Tagen nicht). Mit der strengen Zählweise des Barometers stünde hier fast
+    # immer „seit 1 Tag", was nichts aussagt.
+    streak = 0
+    for _, p, _n in reversed(series):
+        same = ((direction == 'up' and p >= 0) or (direction == 'down' and p <= 0)
+                or (direction == 'flat' and abs(p) < deadband))
+        if not same:
+            break
+        streak += 1
+    return {'dir': direction, 'pct': round(cum, 1), 'days': streak,
+            'n': len(series), 'hotels': series[-1][2]}
+
+
+def month_index(con, offer_id: int, month: str) -> dict | None:
+    """Index eines Reisemonats seit Aufzeichnungsbeginn (Basis 100), analog
+    `A._market_index` — fängt langsame Bewegungen außerhalb des 14-Tage-Fensters."""
+    series = _month_series(con, offer_id, month)
+    if len(series) < CAL_MONTH_MIN_DAYS:
+        return None
+    pct = A._compound_pct([p for _, p, _ in series])
+    try:
+        since = int(datetime.fromisoformat(series[0][0]).timestamp())
+    except ValueError:
+        since = int(time.time())
+    return {'index': round(100 + pct, 1), 'pct': round(pct, 1),
+            'since': since, 'n': len(series)}
+
+
+def month_payload(offer_id: int) -> dict:
+    """Monatsübersicht eines Angebots: je Reisemonat der aktuelle Durchschnittspreis
+    aus dem gespeicherten Snapshot plus Trend und Index aus der Bewegungshistorie.
+
+    Preisniveau und Bewegung kommen bewusst aus verschiedenen Quellen: das Niveau ist
+    eine Momentaufnahme (`calendar_cache`), die Bewegung die verkettete Historie
+    (`calendar_month_moves`)."""
+    with A.db() as con:
+        row = con.execute('SELECT ts, data FROM calendar_cache WHERE offer_id=?',
+                          (offer_id,)).fetchone()
+        if not row:
+            return {'offer_id': offer_id, 'months': [], 'note': 'kein Kalender abgerufen'}
+        try:
+            days = json.loads(row['data']).get('days', [])
+        except (ValueError, TypeError):
+            days = []
+        by_month: dict[str, list] = defaultdict(list)
+        today = date.today().isoformat()
+        for d in days:
+            if d.get('price') is not None and (d.get('date') or '') >= today:
+                by_month[d['date'][:7]].append(d['price'])
+        obs = con.execute(
+            'SELECT COUNT(DISTINCT day) c FROM calendar_month_moves WHERE offer_id=?',
+            (offer_id,)).fetchone()['c']
+        out = []
+        for m in sorted(by_month):
+            prices = by_month[m]
+            out.append({
+                'month': m, 'label': _month_name_de(m),
+                'avg': round(sum(prices) / len(prices)), 'min': min(prices),
+                'max': max(prices), 'dates': len(prices),
+                'trend': month_trend(con, offer_id, m),
+                'index': month_index(con, offer_id, m),
+            })
+    return {'offer_id': offer_id, 'months': out, 'observations': obs,
+            'ts': row['ts'], 'min_days': CAL_MONTH_MIN_DAYS,
+            'window_days': CAL_MONTH_WINDOW}
+
+
+@bp.route('/api/calendar/<int:offer_id>/months', methods=['GET'])
+def api_calendar_months(offer_id: int):
+    """Monatsübersicht: Preisniveau je Reisemonat plus dessen Bewegung über die Zeit.
+
+    Andere Frage als der Markttrend: der beschreibt den Markt (viele Hotels, ein
+    Termin), dieser hier ein einzelnes Hotel/Zimmer über alle seine Reisetermine.
+    Weicht ein Monat vom Markttrend ab, wird dort typischerweise das Kontingent
+    knapp — ein Signal, das keine der beiden Quellen allein liefert."""
+    if (err := A._require_api()):
+        return err
+    with A.db() as con:
+        if not con.execute('SELECT 1 FROM offers WHERE id=?', (offer_id,)).fetchone():
+            return jsonify({'error': 'not_found'}), 404
+    return jsonify(month_payload(offer_id))
 
 
 @bp.route('/api/calendar/<int:offer_id>', methods=['POST'])
@@ -288,6 +611,22 @@ def api_calendar_get(offer_id: int):
             con.execute('UPDATE offers SET calendar_seen_ts=? WHERE id=?',
                         (int(time.time()), offer_id))
     return jsonify(payload)
+
+
+@bp.route('/api/calendar/<int:offer_id>/resume', methods=['POST'])
+def api_calendar_resume(offer_id: int):
+    """Pausierten Kalender wieder aufnehmen (Zähler zurück auf 0). Der eigentliche
+    Abruf wird davon nicht angestoßen — dafür gibt es „Neu abfragen"; gelingt der,
+    setzt `_calendar_succeeded` ohnehin zurück."""
+    if (err := A._require_api()):
+        return err
+    with A.db() as con:
+        if not con.execute('SELECT 1 FROM offers WHERE id=?', (offer_id,)).fetchone():
+            return jsonify({'error': 'not_found'}), 404
+        con.execute('UPDATE offers SET calendar_fails=0, calendar_paused=0 WHERE id=?',
+                    (offer_id,))
+    A.log.info("Preiskalender #%d wieder aktiviert", offer_id)
+    return jsonify({'resumed': True})
 
 
 @bp.route('/api/calendar/<int:offer_id>/day/<travel_date>', methods=['GET'])

@@ -1524,6 +1524,16 @@
     return map[state] || '';
   }
 
+  // Offene Review-Anfragen: wer soll noch reviewen. Ergänzt reviewBadge — ein PR
+  // kann "Changes requested" sein und trotzdem auf ein erneutes Review warten.
+  function reviewerChip(reviewers) {
+    const rs = (reviewers || []).filter(Boolean);
+    if (!rs.length) return '';
+    const names = rs.map(r => '@' + r).join(', ');
+    return `<span class="label-chip" style="color:#a371f7;border-color:#a371f740"`
+         + ` title="${escHtml(T.review_pending + ': ' + names)}">👁 ${escHtml(names)}</span>`;
+  }
+
   // ── Chip-Blink Tracking ───────────────────────────────────────────
   let _chipCounts = null; // null = erster Render, noch kein Vergleich
 
@@ -1800,7 +1810,7 @@
               ${!closed ? reviewBadge(pr.review_state) : ''}
               ${cmtBadge(pr, repo.repo)}
               ${hasBody ? `<button class="act-btn" style="padding:1px 7px;font-size:.7rem" id="bodybtn-${bdomId}" onclick="toggleBody(${safeJsArg(bkey)},this)">${bodyOpen ? T.pr_body_hide : T.pr_body_show}</button>` : ''}
-              ${pr.comments > 0 ? `<button class="act-btn act-btn-dispatch${cmtBtnClass(pr, repo.repo)}" style="padding:1px 7px;font-size:.7rem" onclick="loadComments(${safeJsArg(repo.repo)},${pr.number},'cmts-${bdomId}')">{{ t.comments_load }}${cmtNew ? ` +${cmtNew}` : ''}</button>` : ''}
+              ${pr.comments > 0 ? `<button class="act-btn act-btn-dispatch${cmtBtnClass(pr, repo.repo)}" style="padding:1px 7px;font-size:.7rem" onclick="loadComments(${safeJsArg(repo.repo)},${pr.number},'cmts-${bdomId}','pr')">{{ t.comments_load }}${cmtNew ? ` +${cmtNew}` : ''}</button>` : ''}
               ${(pr.labels||[]).filter(Boolean).map(l=>`<span class="label-chip" style="color:${labelColor(l)};border-color:${labelColor(l)}40">${escHtml(l)}</span>`).join('')}
             </div>
           </div>
@@ -1866,7 +1876,7 @@
               <span>${relTime(closed && iss.closed_at ? iss.closed_at : iss.updated)}</span>
               ${cmtBadge(iss, repo.repo)}
               ${hasBody ? `<button class="act-btn" style="padding:1px 7px;font-size:.7rem" id="bodybtn-${bdomId}" onclick="toggleBody(${safeJsArg(bkey)},this)">${bodyOpen ? T.pr_body_hide : T.pr_body_show}</button>` : ''}
-              ${iss.comments > 0 ? `<button class="act-btn act-btn-dispatch${cmtBtnClass(iss, repo.repo)}" style="padding:1px 7px;font-size:.7rem" onclick="loadComments(${safeJsArg(repo.repo)},${iss.number},'cmts-${bdomId}')">{{ t.comments_load }}${cmtNew ? ` +${cmtNew}` : ''}</button>` : ''}
+              ${iss.comments > 0 ? `<button class="act-btn act-btn-dispatch${cmtBtnClass(iss, repo.repo)}" style="padding:1px 7px;font-size:.7rem" onclick="loadComments(${safeJsArg(repo.repo)},${iss.number},'cmts-${bdomId}','issue')">{{ t.comments_load }}${cmtNew ? ` +${cmtNew}` : ''}</button>` : ''}
               ${(iss.labels||[]).filter(Boolean).map(l=>`<span class="label-chip" style="color:${labelColor(l)};border-color:${labelColor(l)}40">${escHtml(l)}</span>`).join('')}
             </div>
           </div>
@@ -2225,7 +2235,7 @@
     _restoreOpenComments();
   }
 
-  function loadComments(repo, number, containerId) {
+  function loadComments(repo, number, containerId, type) {
     const ckey = repo + '#' + number;
     const el = document.getElementById(containerId);
     if (!el) return;
@@ -2234,7 +2244,8 @@
     if (_commentsCache[ckey]) { _renderComments(el, _commentsCache[ckey]); return; }
     el.innerHTML = `<div style="font-size:.78rem;color:var(--muted);padding:6px 0">{{ t.comments_loading }}</div>`;
     const shown = _cmtShownCount(repo, number);
-    fetch(u('/api/comments?repo=' + encodeURIComponent(repo) + '&number=' + number + '&shown=' + shown))
+    fetch(u('/api/comments?repo=' + encodeURIComponent(repo) + '&number=' + number
+            + '&shown=' + shown + '&type=' + (type === 'issue' ? 'issue' : 'pr')))
       .then(r => r.json())
       .then(d => {
         _commentsCache[ckey] = d;
@@ -2262,6 +2273,24 @@
     }, 0);
   }
 
+  // Herkunft eines Kommentars: normaler Kommentar, Review-Text oder Inline-Kommentar
+  // an einer Codestelle. Ohne die Kennzeichnung wirkt ein Review wie ein Kommentar.
+  function cmtKindChip(c) {
+    const chip = (color, txt, title) =>
+      ` <span class="label-chip" style="color:${color};border-color:${color}40;font-weight:600"`
+      + ` title="${escHtml(title || txt)}">${escHtml(txt)}</span>`;
+    if (c.kind === 'review') {
+      if (c.state === 'APPROVED')          return chip('var(--green)', '✓ ' + T.review_approved);
+      if (c.state === 'CHANGES_REQUESTED') return chip('var(--red)',   '✗ ' + T.review_changes);
+      return chip('#a371f7', '👁 Review');
+    }
+    if (c.kind === 'review_comment') {
+      const p = (c.path || '').split('/').pop() || 'Code';
+      return chip('#a371f7', '⌗ ' + p, c.path || '');
+    }
+    return '';
+  }
+
   function _renderComments(el, data) {
     const cs = data.comments || [];
     if (!cs.length) {
@@ -2277,7 +2306,7 @@
       <div style="display:flex;gap:8px;padding:6px 0;border-top:1px solid var(--border)">
         <img src="${escHtml(c.avatar)}" alt="${escHtml(c.user)}" style="width:22px;height:22px;border-radius:50%;flex-shrink:0">
         <div style="flex:1;min-width:0">
-          <div style="font-size:.72rem;font-weight:600;color:var(--accent)">@${escHtml(c.user)} <span style="font-weight:400;color:var(--muted)">${relTime(c.created)}</span></div>
+          <div style="font-size:.72rem;font-weight:600;color:var(--accent)">@${escHtml(c.user)} <span style="font-weight:400;color:var(--muted)">${relTime(c.created)}</span>${cmtKindChip(c)}</div>
           <div style="font-size:.78rem;color:var(--text);line-height:1.5;margin-top:2px">${renderMd((c.body||'').trim())}</div>
         </div>
       </div>`).join('');
@@ -2318,9 +2347,12 @@
                   ? `<span class="pr-state-open">⇄ PR</span>`
                   : `<span style="color:var(--yellow)">● Issue</span>`}
               <span>${relTime(item.updated)}</span>
+              ${type !== 'issue' ? reviewBadge(item.review_state) : ''}
+              ${type !== 'issue' ? reviewerChip(item.reviewers) : ''}
+              ${type !== 'issue' && item.mergeable === 'dirty' ? `<span style="color:var(--red)" title="${T.pr_conflict_hint}">⚠ ${T.pr_conflict}</span>` : ''}
               ${cmtBadge(item)}
               ${hasBody ? `<button class="act-btn" style="padding:1px 7px;font-size:.7rem;margin-left:4px" id="bodybtn-${bdomId}" onclick="toggleBody(${safeJsArg(item.repo+'#'+item.number)},this)">${bodyOpen ? T.pr_body_hide : T.pr_body_show}</button>` : ''}
-              ${item.comments > 0 ? `<button class="act-btn act-btn-dispatch${cmtBtnClass(item)}" style="padding:1px 7px;font-size:.7rem" onclick="loadComments(${safeJsArg(item.repo)},${item.number},'cmts-${bdomId}')">💬 {{ t.comments_load }}${cmtNew ? ` +${cmtNew}` : ''}</button>` : ''}
+              ${item.comments > 0 ? `<button class="act-btn act-btn-dispatch${cmtBtnClass(item)}" style="padding:1px 7px;font-size:.7rem" onclick="loadComments(${safeJsArg(item.repo)},${item.number},'cmts-${bdomId}',${safeJsArg(type === 'issue' ? 'issue' : 'pr')})">💬 {{ t.comments_load }}${cmtNew ? ` +${cmtNew}` : ''}</button>` : ''}
               ${(item.labels||[]).filter(Boolean).map(l=>`<span class="label-chip" style="color:${labelColor(l)};border-color:${labelColor(l)}40">${escHtml(l)}</span>`).join('')}
             </div>
           </div>

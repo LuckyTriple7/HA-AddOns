@@ -1,0 +1,881 @@
+{
+  "version": 1,
+  "daytrip_value": "🚗 Tagesausflug in der Nähe",
+  "semantics": {
+    "package_tour": [
+      "✈️ Pauschalreise"
+    ],
+    "self_arrival": [
+      "🚗 Auto",
+      "🚆 Bahn",
+      "🚌 Bus"
+    ],
+    "dna": {
+      "🌴 Strand": {
+        "interests": [
+          "🌴 Strand und Meer"
+        ],
+        "hotel_wishes": [
+          "🏖️ Direkte Strandlage",
+          "🏝️ Sandstrand",
+          "🤿 Hausriff"
+        ],
+        "sea": [
+          "🌴 28 °C+ – tropisch warm",
+          "☀️ 24–27 °C – angenehm warm"
+        ],
+        "beach_detail": [
+          "🏖️ Feiner Sand",
+          "🏝️ Weitläufig und kilometerlang",
+          "🏨 Direkt am Hotel"
+        ]
+      },
+      "🏛️ Kultur": {
+        "interests": [
+          "🏛️ Kultur und Geschichte",
+          "📸 Sehenswürdigkeiten und Fotografie"
+        ],
+        "activities": [
+          "🏛️ Museen",
+          "📸 Fotografieren",
+          "🏰 Sehenswürdigkeiten / Schlösser"
+        ]
+      },
+      "🎉 Nachtleben": {
+        "interests": [
+          "🎉 Nachtleben und Unterhaltung"
+        ]
+      },
+      "⛰️ Aktiv": {
+        "interests": [
+          "🥾 Wandern und Natur",
+          "🚴 Radfahren",
+          "⛰️ Berge und Landschaft"
+        ],
+        "activities": [
+          "🥾 Wandern",
+          "🚵 Mountainbike",
+          "⛷️ Skifahren",
+          "🏄 Surfen",
+          "⛳ Golf",
+          "🐎 Reiten",
+          "⛵ Segeln",
+          "🧗 Klettern",
+          "🎾 Tennis",
+          "🛶 Kajak / SUP"
+        ],
+        "berge_detail": [
+          "🥾 Anspruchsvolle Wanderungen",
+          "🏔️ Hohe Gipfel"
+        ],
+        "travel_pace": [
+          "🗺️ Möglichst viel sehen und unternehmen",
+          "🏃 Aktiv – jeder Tag darf voll sein"
+        ]
+      },
+      "🍹 Entspannung": {
+        "interests": [
+          "🍹 Ruhe und Entspannung"
+        ],
+        "hotel_wishes": [
+          "🧖 Spa / Wellness",
+          "🤫 Ruhige Atmosphäre"
+        ],
+        "travel_pace": [
+          "🧘 Ganz entspannt – möglichst wenig Programm",
+          "🌴 Entspannt mit gelegentlichen Ausflügen"
+        ]
+      },
+      "🍽️ Kulinarik": {
+        "interests": [
+          "🍽️ Essen und Kulinarik"
+        ],
+        "activities": [
+          "🍽️ Kulinarik",
+          "🍷 Wein"
+        ],
+        "hotel_wishes": [
+          "🍴 Gute Restaurants in der Umgebung"
+        ]
+      },
+      "👨‍👩‍👧 Familie": {
+        "interests": [
+          "👨‍👩‍👧 Familienurlaub"
+        ],
+        "companions": [
+          "👨‍👩‍👧 Familie mit Kindern"
+        ],
+        "hotel_wishes": [
+          "👨‍👩‍👧 Familienhotel",
+          "🏊 Kinderpool",
+          "🛝 Wasserrutschen"
+        ]
+      },
+      "💰 Preisbewusst": {
+        "budget": [
+          "💶 bis 500 €",
+          "💶 500–1000 €"
+        ]
+      }
+    }
+  },
+  "steps": [
+    {
+      "key": "region",
+      "title": "Wohin soll die Reise ungefähr gehen?",
+      "label": "Ziel-Region",
+      "type": "multi",
+      "exclusive": [
+        "🌍 Weltweit",
+        "🤷 Keine Präferenz",
+        "🚗 Tagesausflug in der Nähe"
+      ],
+      "options": [
+        "🇩🇪 Deutschland",
+        "🇪🇺 Europa",
+        "🌋 Makaronesien",
+        "🇬🇷 Griechische Inseln",
+        "🇪🇸 Balearen",
+        "🇮🇹 Italien",
+        "🇫🇷 Frankreich",
+        "🌊 Adriaküste",
+        "🇵🇹 Algarve",
+        "🇨🇾 Zypern",
+        "🏝️ Kanaren",
+        "🌊 Mittelmeer",
+        "🌴 Karibik",
+        "🌏 Südostasien",
+        "🌺 Indischer Ozean",
+        "🌍 Weltweit",
+        "🤷 Keine Präferenz",
+        "🚗 Tagesausflug in der Nähe"
+      ]
+    },
+    {
+      "key": "excluded_countries",
+      "title": "Welche Länder kommen für dich nicht in Frage?",
+      "label": "Kommt nicht in Frage",
+      "type": "multi",
+      "show_if": {
+        "all": [
+          {
+            "not": {
+              "key": "region",
+              "contains": "🚗 Tagesausflug in der Nähe"
+            }
+          },
+          {
+            "key": "region",
+            "contains_any": [
+              "🌍 Weltweit",
+              "🤷 Keine Präferenz"
+            ]
+          }
+        ]
+      },
+      "options": [
+        "🇹🇷 Türkei",
+        "🇪🇬 Ägypten",
+        "🇹🇳 Tunesien",
+        "🇲🇦 Marokko",
+        "🇰🇪 Kenia",
+        "🇹🇭 Thailand",
+        "🇱🇰 Sri Lanka",
+        "🇩🇴 Dominikanische Republik",
+        "🇲🇽 Mexiko",
+        "🇲🇻 Malediven"
+      ]
+    },
+    {
+      "key": "excluded_countries_other",
+      "title": "Möchtest du weitere Länder ausschließen?",
+      "label": "Weitere ausgeschlossene Länder",
+      "type": "text",
+      "placeholder": "Optional, z. B. weitere Länder",
+      "show_if": {
+        "all": [
+          {
+            "not": {
+              "key": "region",
+              "contains": "🚗 Tagesausflug in der Nähe"
+            }
+          },
+          {
+            "key": "region",
+            "contains_any": [
+              "🌍 Weltweit",
+              "🤷 Keine Präferenz"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "key": "interests",
+      "title": "Was ist dir im Urlaub besonders wichtig?",
+      "label": "Wichtig im Urlaub",
+      "type": "multi",
+      "show_if": {
+        "not": {
+          "key": "region",
+          "contains": "🚗 Tagesausflug in der Nähe"
+        }
+      },
+      "options": [
+        "🌴 Strand und Meer",
+        "⛰️ Berge und Landschaft",
+        "🏛️ Kultur und Geschichte",
+        "🍹 Ruhe und Entspannung",
+        "🎉 Nachtleben und Unterhaltung",
+        "🥾 Wandern und Natur",
+        "🚴 Radfahren",
+        "🍽️ Essen und Kulinarik",
+        "🛍️ Shopping",
+        "👨‍👩‍👧 Familienurlaub",
+        "❤️ Romantik",
+        "📸 Sehenswürdigkeiten und Fotografie"
+      ]
+    },
+    {
+      "key": "beach_detail",
+      "title": "Wie soll dein idealer Strand sein?",
+      "label": "Strand-Details",
+      "type": "multi",
+      "show_if": {
+        "key": "interests",
+        "contains": "🌴 Strand und Meer"
+      },
+      "options": [
+        "🏖️ Feiner Sand",
+        "🪨 Kies oder Felsen sind okay",
+        "🌿 Naturstrand und möglichst unberührt",
+        "🏝️ Weitläufig und kilometerlang",
+        "🌊 Kleine, ruhige Bucht",
+        "🍹 Belebt mit Beach-Bars und Gastronomie",
+        "👨‍👩‍👧 Flach abfallend",
+        "🌴 Schattenplätze oder Palmen",
+        "🤿 Gut zum Schnorcheln",
+        "🏨 Direkt am Hotel",
+        "🚶 Fußweg oder Promenade zum Strand ist okay"
+      ]
+    },
+    {
+      "key": "berge_detail",
+      "title": "Was erwartest du von einer Bergregion?",
+      "label": "Berge-Details",
+      "type": "multi",
+      "show_if": {
+        "key": "interests",
+        "contains": "⛰️ Berge und Landschaft"
+      },
+      "options": [
+        "🥾 Leichte Wanderwege",
+        "🥾 Anspruchsvolle Wanderungen",
+        "🏔️ Hohe Gipfel",
+        "🌄 Aussicht und Panorama",
+        "🏡 Alm- und Hüttenromantik",
+        "🚠 Seilbahn oder Gondel",
+        "🤫 Ruhige, wenig touristische Umgebung",
+        "🌲 Spektakuläre Natur"
+      ]
+    },
+    {
+      "key": "travel_type",
+      "title": "Welche Art von Urlaub suchst du?",
+      "label": "Reiseart",
+      "type": "multi",
+      "show_if": {
+        "not": {
+          "key": "region",
+          "contains": "🚗 Tagesausflug in der Nähe"
+        }
+      },
+      "options": [
+        "✈️ Pauschalreise",
+        "🏖️ Badeurlaub",
+        "🗺️ Rundreise",
+        "🏙️ Städtereise",
+        "🚢 Kreuzfahrt",
+        "🧖 Wellnessurlaub",
+        "🥾 Aktivurlaub",
+        "🧭 Abenteuerurlaub",
+        "💎 Luxusurlaub",
+        "⛺ Camping",
+        "🍹 All Inclusive",
+        "🏠 Ferienwohnung"
+      ]
+    },
+    {
+      "key": "companions",
+      "title": "Mit wem reist du?",
+      "label": "Reist mit",
+      "type": "single",
+      "show_if": {
+        "not": {
+          "key": "region",
+          "contains": "🚗 Tagesausflug in der Nähe"
+        }
+      },
+      "options": [
+        "🧍 Alleine",
+        "❤️ Partner",
+        "👨‍👩‍👧 Familie mit Kindern",
+        "👥 Freunde",
+        "👨‍👩‍👧‍👦 Mehrere Generationen",
+        "🐕 Mit Hund"
+      ]
+    },
+    {
+      "key": "budget",
+      "title": "Welches Budget steht ungefähr pro Person zur Verfügung?",
+      "label": "Budget pro Person",
+      "type": "single",
+      "show_if": {
+        "not": {
+          "key": "region",
+          "contains": "🚗 Tagesausflug in der Nähe"
+        }
+      },
+      "options": [
+        "💶 bis 500 €",
+        "💶 500–1000 €",
+        "💶 1000–2000 €",
+        "💶 2000–3000 €",
+        "💎 über 3000 €",
+        "🤷 Keine feste Budgetgrenze"
+      ]
+    },
+    {
+      "key": "duration",
+      "title": "Wie lange möchtest du verreisen?",
+      "label": "Reisedauer",
+      "type": "single",
+      "show_if": {
+        "not": {
+          "key": "region",
+          "contains": "🚗 Tagesausflug in der Nähe"
+        }
+      },
+      "options": [
+        "📅 Wochenende",
+        "📅 4–5 Tage",
+        "📅 1 Woche",
+        "📅 9–12 Tage",
+        "📅 2 Wochen",
+        "📅 3 Wochen oder länger"
+      ]
+    },
+    {
+      "key": "duration_daytrip",
+      "title": "Wie viel Zeit hast du für den Ausflug?",
+      "label": "Verfügbare Zeit",
+      "type": "single",
+      "show_if": {
+        "key": "region",
+        "contains": "🚗 Tagesausflug in der Nähe"
+      },
+      "options": [
+        "🌅 Vormittag",
+        "☀️ Nachmittag",
+        "🌞 Ganzer Tag",
+        "🌙 Ganzer Tag inklusive Abend"
+      ]
+    },
+    {
+      "key": "month",
+      "title": "Wann möchtest du reisen?",
+      "label": "Reisezeit",
+      "type": "single",
+      "options": [
+        "❄️ Januar",
+        "❄️ Februar",
+        "🌱 März",
+        "🌷 April",
+        "🌷 Mai",
+        "☀️ Juni",
+        "☀️ Juli",
+        "☀️ August",
+        "🍂 September",
+        "🍂 Oktober",
+        "🍁 November",
+        "🎄 Dezember",
+        "🤷 Reisezeit ist flexibel"
+      ]
+    },
+    {
+      "key": "temp",
+      "title": "Welche Temperaturen fühlen sich für dich im Urlaub am besten an?",
+      "label": "Gewünschte Temperatur",
+      "type": "single",
+      "show_if": {
+        "not": {
+          "key": "region",
+          "contains": "🚗 Tagesausflug in der Nähe"
+        }
+      },
+      "options": [
+        "🧥 Bis 20 °C – lieber mild bis kühl",
+        "🌤️ 20–25 °C – angenehm warm",
+        "☀️ 25–30 °C – richtig warm",
+        "🔥 30–35 °C – gerne heiß",
+        "🥵 Über 35 °C – je heißer, desto besser",
+        "🤷 Temperatur ist nicht entscheidend"
+      ]
+    },
+    {
+      "key": "water_type",
+      "title": "Was ist dir beim Wasser wichtig?",
+      "label": "Gewässer",
+      "type": "multi",
+      "exclusive": [
+        "🚫 Kein Gewässer nötig"
+      ],
+      "options": [
+        "🌊 Meer",
+        "🏞️ See",
+        "🚫 Kein Gewässer nötig"
+      ]
+    },
+    {
+      "key": "sea",
+      "title": "Wie warm soll das Wasser idealerweise sein?",
+      "label": "Wassertemperatur",
+      "type": "single",
+      "show_if": {
+        "all": [
+          {
+            "key": "water_type",
+            "answered": true
+          },
+          {
+            "not": {
+              "key": "water_type",
+              "contains": "🚫 Kein Gewässer nötig"
+            }
+          }
+        ]
+      },
+      "options": [
+        "🌴 28 °C+ – tropisch warm",
+        "☀️ 24–27 °C – angenehm warm",
+        "🌊 20–24 °C – erfrischend ist okay",
+        "🤷 Wassertemperatur ist nicht entscheidend"
+      ]
+    },
+    {
+      "key": "rain",
+      "title": "Wie wichtig ist dir trockenes Wetter?",
+      "label": "Niederschlag",
+      "type": "single",
+      "show_if": {
+        "not": {
+          "key": "region",
+          "contains": "🚗 Tagesausflug in der Nähe"
+        }
+      },
+      "options": [
+        "☀️ Möglichst trocken – Regen möchte ich vermeiden",
+        "🌤️ Überwiegend trocken – kurze Schauer sind okay",
+        "🌦️ Gelegentliche Schauer sind kein Problem",
+        "🌧️ Wechselhaftes Wetter ist völlig okay",
+        "🌧️ Regen stört mich kaum"
+      ]
+    },
+    {
+      "key": "activities",
+      "title": "Welche Aktivitäten interessieren dich?",
+      "label": "Gewünschte Aktivitäten",
+      "type": "multi",
+      "options": [
+        "🤿 Tauchen",
+        "🤿 Schnorcheln",
+        "🥾 Wandern",
+        "⛷️ Skifahren",
+        "⛳ Golf",
+        "🚵 Mountainbike",
+        "🏄 Surfen",
+        "🦁 Safari",
+        "📸 Fotografieren",
+        "🏛️ Museen",
+        "🎢 Freizeitparks",
+        "🍷 Wein",
+        "🍽️ Kulinarik",
+        "🐎 Reiten",
+        "⛵ Segeln",
+        "🎣 Angeln",
+        "🧗 Klettern",
+        "🧘 Yoga",
+        "🎾 Tennis",
+        "🛶 Kajak / SUP",
+        "🚤 Bootsausflüge",
+        "🦁 Zoo / Tierpark",
+        "♨️ Therme / Wellness",
+        "🏰 Sehenswürdigkeiten / Schlösser",
+        "🌲 Kletterpark",
+        "🔐 Escape Room",
+        "⛳ Minigolf",
+        "🛍️ Flohmarkt / Markt",
+        "🌿 Natur erleben",
+        "🏖️ FKK"
+      ]
+    },
+    {
+      "key": "accommodation",
+      "title": "Welche Unterkunft passt am besten zu dir?",
+      "label": "Unterkunftsart",
+      "type": "single",
+      "show_if": {
+        "not": {
+          "key": "region",
+          "contains": "🚗 Tagesausflug in der Nähe"
+        }
+      },
+      "options": [
+        "🏨 Hotel",
+        "🏢 Apartment",
+        "🏠 Ferienwohnung",
+        "🏡 Villa",
+        "⛺ Camping",
+        "🛏️ Hostel",
+        "🤷 Keine Präferenz"
+      ]
+    },
+    {
+      "key": "accommodation_size",
+      "title": "Wie groß darf die Hotelanlage sein?",
+      "label": "Hotelgröße",
+      "type": "single",
+      "show_if": {
+        "all": [
+          {
+            "not": {
+              "key": "region",
+              "contains": "🚗 Tagesausflug in der Nähe"
+            }
+          },
+          {
+            "key": "accommodation",
+            "equals": "🏨 Hotel"
+          }
+        ]
+      },
+      "options": [
+        "🏡 Kleines, persönliches Hotel",
+        "✨ Boutique-Hotel",
+        "🏨 Mittelgroßes Hotel",
+        "🏨 Große Hotelanlage",
+        "🎉 Große Clubanlage mit vielen Einrichtungen",
+        "🤷 Hotelgröße ist nicht entscheidend"
+      ]
+    },
+    {
+      "key": "hotel_wishes",
+      "title": "Was ist dir beim Hotel besonders wichtig?",
+      "label": "Hotelwünsche",
+      "type": "multi",
+      "show_if": {
+        "not": {
+          "key": "region",
+          "contains": "🚗 Tagesausflug in der Nähe"
+        }
+      },
+      "options": [
+        "🔞 Adults Only / Erwachsenenhotel",
+        "👨‍👩‍👧 Familienhotel",
+        "🏊 Kinderpool",
+        "🛝 Wasserrutschen",
+        "🎤 Animation",
+        "🤫 Ruhige Atmosphäre",
+        "🍹 All Inclusive",
+        "🥐 Frühstück",
+        "🍽️ Halbpension",
+        "🏊 Swim-Up-Zimmer",
+        "💦 Privatpool",
+        "🧖 Spa / Wellness",
+        "🏋️ Fitnessstudio",
+        "🏖️ Direkte Strandlage",
+        "🏝️ Sandstrand",
+        "👣 Flach abfallender Strand",
+        "🤿 Hausriff",
+        "📶 Gutes WLAN",
+        "💻 Für Homeoffice geeignet",
+        "🍴 Gute Restaurants in der Umgebung"
+      ]
+    },
+    {
+      "key": "travel_pace",
+      "title": "Wie möchtest du deinen Urlaub verbringen?",
+      "label": "Reisetempo",
+      "type": "single",
+      "show_if": {
+        "not": {
+          "key": "region",
+          "contains": "🚗 Tagesausflug in der Nähe"
+        }
+      },
+      "options": [
+        "🧘 Ganz entspannt – möglichst wenig Programm",
+        "🌴 Entspannt mit gelegentlichen Ausflügen",
+        "⚖️ Gute Mischung aus Erholung und Erlebnissen",
+        "🗺️ Möglichst viel sehen und unternehmen",
+        "🏃 Aktiv – jeder Tag darf voll sein"
+      ]
+    },
+    {
+      "key": "arrival_mode",
+      "title": "Wie möchtest du anreisen?",
+      "label": "Anreise",
+      "type": "single",
+      "show_if": {
+        "not": {
+          "key": "region",
+          "contains": "🚗 Tagesausflug in der Nähe"
+        }
+      },
+      "options": [
+        "✈️ Flugzeug",
+        "🚗 Auto",
+        "🚆 Bahn",
+        "🚌 Bus",
+        "🤷 Keine Präferenz"
+      ]
+    },
+    {
+      "key": "home_location",
+      "title": "Von wo möchtest du starten?",
+      "label": "Startort",
+      "type": "text",
+      "required": true,
+      "placeholder": "PLZ oder Ort",
+      "show_if": {
+        "any": [
+          {
+            "key": "arrival_mode",
+            "in": [
+              "🚗 Auto",
+              "🚌 Bus",
+              "🚆 Bahn"
+            ]
+          },
+          {
+            "key": "region",
+            "contains": "🚗 Tagesausflug in der Nähe"
+          }
+        ]
+      }
+    },
+    {
+      "key": "max_distance",
+      "title": "Wie weit darf das Ziel maximal entfernt sein?",
+      "label": "Max. Entfernung",
+      "type": "single",
+      "show_if": {
+        "any": [
+          {
+            "key": "arrival_mode",
+            "in": [
+              "🚗 Auto",
+              "🚌 Bus",
+              "🚆 Bahn"
+            ]
+          },
+          {
+            "key": "region",
+            "contains": "🚗 Tagesausflug in der Nähe"
+          }
+        ]
+      },
+      "options": [
+        "📍 bis 50 km",
+        "📍 bis 100 km",
+        "📍 bis 200 km",
+        "📍 bis 400 km",
+        "📍 bis 600 km",
+        "🤷 Entfernung ist nicht entscheidend"
+      ]
+    },
+    {
+      "key": "flight_time",
+      "title": "Wie wichtig ist dir eine kurze Flugzeit?",
+      "label": "Flugzeit",
+      "type": "single",
+      "show_if": {
+        "all": [
+          {
+            "not": {
+              "key": "region",
+              "contains": "🚗 Tagesausflug in der Nähe"
+            }
+          },
+          {
+            "any": [
+              {
+                "key": "arrival_mode",
+                "answered": false
+              },
+              {
+                "key": "arrival_mode",
+                "in": [
+                  "✈️ Flugzeug",
+                  "🤷 Keine Präferenz"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "options": [
+        "✈️ Möglichst Direktflug",
+        "⏱️ Maximal 4 Stunden",
+        "⏱️ Maximal 6 Stunden",
+        "🌍 Längere Flüge sind okay"
+      ]
+    },
+    {
+      "key": "airports",
+      "title": "Von welchem Flughafen möchtest du abfliegen?",
+      "label": "Abflughafen",
+      "type": "multi",
+      "show_if": {
+        "all": [
+          {
+            "not": {
+              "key": "region",
+              "contains": "🚗 Tagesausflug in der Nähe"
+            }
+          },
+          {
+            "any": [
+              {
+                "key": "arrival_mode",
+                "answered": false
+              },
+              {
+                "key": "arrival_mode",
+                "in": [
+                  "✈️ Flugzeug",
+                  "🤷 Keine Präferenz"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "options": [
+        "✈️ Frankfurt",
+        "✈️ Stuttgart",
+        "✈️ München",
+        "✈️ Hamburg",
+        "✈️ Düsseldorf",
+        "✈️ Berlin"
+      ]
+    },
+    {
+      "key": "transfer_time",
+      "title": "Wie lange darf der Transfer vom Flughafen zum Urlaubsort dauern?",
+      "label": "Transferdauer",
+      "type": "single",
+      "show_if": {
+        "all": [
+          {
+            "not": {
+              "key": "region",
+              "contains": "🚗 Tagesausflug in der Nähe"
+            }
+          },
+          {
+            "any": [
+              {
+                "key": "arrival_mode",
+                "answered": false
+              },
+              {
+                "key": "arrival_mode",
+                "in": [
+                  "✈️ Flugzeug",
+                  "🤷 Keine Präferenz"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "options": [
+        "🚕 Maximal 30 Minuten",
+        "🚕 Maximal 60 Minuten",
+        "🚌 Maximal 90 Minuten",
+        "🚌 Bis 2 Stunden sind okay",
+        "🌍 Länger ist auch okay"
+      ]
+    },
+    {
+      "key": "dislikes",
+      "title": "Was möchtest du im Urlaub möglichst vermeiden?",
+      "label": "Was im Urlaub vermieden werden soll",
+      "type": "multi",
+      "show_if": {
+        "not": {
+          "key": "region",
+          "contains": "🚗 Tagesausflug in der Nähe"
+        }
+      },
+      "options": [
+        "🏖️ Überfüllte Strände",
+        "👨‍👩‍👧 Viele Familien / Kinder",
+        "🎤 Laute Animation",
+        "🔊 Lärm und Trubel",
+        "💨 Starker Wind",
+        "🔥 Große Hitze",
+        "💧 Hohe Luftfeuchtigkeit",
+        "🌊 Starker Wellengang",
+        "🌊 Starke Strömungen",
+        "🦟 Stechmücken und andere Insekten",
+        "🌿 Seegras / Algen am Strand",
+        "🪨 Steinige oder kieselige Strände",
+        "🌧️ Häufiger Regen",
+        "🚌 Lange Transfers",
+        "⏰ Frühes Aufstehen",
+        "👥 Überlaufene / sehr touristische Orte",
+        "🏨 Große Hotelanlagen",
+        "🏗️ Baustellen / Bauarbeiten"
+      ]
+    },
+    {
+      "key": "perfect_holiday",
+      "title": "Was macht für dich einen perfekten Urlaub aus?",
+      "label": "Perfekter Urlaub laut Nutzer",
+      "type": "text",
+      "placeholder": "Beschreibe kurz, wie dein idealer Urlaub aussieht – optional",
+      "show_if": {
+        "not": {
+          "key": "region",
+          "contains": "🚗 Tagesausflug in der Nähe"
+        }
+      }
+    },
+    {
+      "key": "past_trips",
+      "title": "Welche Urlaube oder Hotels haben dir besonders gut oder gar nicht gefallen – und warum?",
+      "label": "Frühere Urlaubserfahrungen",
+      "type": "text",
+      "placeholder": "Optional, z. B. „RIU Papayas war super, viel Auswahl beim Essen und ruhige Lage“",
+      "show_if": {
+        "not": {
+          "key": "region",
+          "contains": "🚗 Tagesausflug in der Nähe"
+        }
+      }
+    },
+    {
+      "key": "perfect_daytrip",
+      "title": "Was macht für dich einen perfekten Ausflug aus?",
+      "label": "Perfekter Ausflug laut Nutzer",
+      "type": "text",
+      "placeholder": "Beschreibe kurz deinen idealen Tagesausflug – optional",
+      "show_if": {
+        "key": "region",
+        "contains": "🚗 Tagesausflug in der Nähe"
+      }
+    }
+  ]
+}

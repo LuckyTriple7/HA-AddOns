@@ -110,13 +110,13 @@
       {% if totals %}<span class="trav-flag">{{ t.trav_expenses_total }}: {{ totals|join(' · ') }}</span>{% endif %}
     </div>
 
-    {% if trip.image %}<img class="trip-hero" src="{{ trip.image }}" alt="">{% endif %}
+    {% if trip.image %}<img class="trip-hero" src="{{ trip.image }}" alt="{{ alt_for(trip.image) }}">{% endif %}
     {% if locked %}{% include '_locked.html' %}{% endif %}
 
     <div class="day-list">
       {% for d in days %}
       <a class="day-item" href="/reiseblog/{{ trip.slug }}/{{ d.slug }}">
-        {% if d.image %}<img class="day-thumb" src="{{ d.image }}" alt="" loading="lazy">{% endif %}
+        {% if d.image %}<img class="day-thumb" src="{{ d.image }}" alt="{{ alt_for(d.image) }}" loading="lazy">{% endif %}
         <div class="day-body">
           <div class="day-num">{{ t.trav_day }} {{ d.number }}{% if d.date %} · {{ d.date }}{% endif %}{% if d.location %} · {{ d.location }}{% endif %}</div>
           <div class="day-title">{{ d.title }}</div>

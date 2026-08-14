@@ -167,6 +167,8 @@ _hist_last_min:  int   = 0   # letzter geschriebener Minuten-Bucket (Unix-Timest
 _hist_cpu_acc:   list  = []  # Akkumulator bis zum nächsten Minuten-Flush
 _hist_ram_acc:   list  = []
 _hist_temp_acc:  list  = []
+_ctr_hist_last_min: int             = 0   # letzter geschriebener Minuten-Bucket (Container)
+_ctr_hist_acc:      dict[str, list] = {}   # Containername → CPU-Samples seit letztem Flush
 
 # Hardware-Sensoren (Temp + Lüfter), gecacht
 _hw_cache:  dict  = {'cpu_temp': None, 'fans': []}
@@ -448,6 +450,9 @@ def _get_ha_status() -> dict:
     return result
 
 
+_ADDON_CONTAINER_PREFIXES = ('addon_', 'app_')  # HA hat 2026 von addon_ auf app_ umgestellt
+
+
 def _supervisor_addon_slug(name: str) -> str | None:
     """Sucht den Slug eines HA Add-ons anhand seines Namens oder Slugs."""
     import urllib.request
@@ -459,8 +464,12 @@ def _supervisor_addon_slug(name: str) -> str | None:
         req = urllib.request.Request(f'{SUPERVISOR_API}/addons', headers=headers)
         with urllib.request.urlopen(req, timeout=3) as resp:
             data = json.loads(resp.read())
-        # Docker-Containernamen beginnen mit 'addon_', Supervisor-Slugs nicht
-        name_as_slug = name.removeprefix('addon_')
+        # Docker-Containernamen beginnen mit 'addon_' oder 'app_', Supervisor-Slugs nicht
+        name_as_slug = name
+        for prefix in _ADDON_CONTAINER_PREFIXES:
+            if name_as_slug.startswith(prefix):
+                name_as_slug = name_as_slug[len(prefix):]
+                break
         for addon in data.get('data', {}).get('addons', []):
             slug = addon.get('slug', '')
             if (addon.get('name', '').lower() == name.lower()
@@ -538,6 +547,7 @@ def _update_history_and_cache(results: list, warning: str | None = None) -> None
             _history[n].append({'ts': ts, 'cpu': r['cpu_pct'], 'mem': r['mem_pct']})
     for r in results:
         r['history'] = list(_history.get(r['name'], []))
+    _tick_container_history(results)
     with _stats_lock:
         _stats_cache['containers'] = results
         _stats_cache['sysinfo']    = sysinfo
@@ -1099,8 +1109,16 @@ def _init_history_db() -> None:
             con.execute('ALTER TABLE sys_history ADD COLUMN temp REAL')
         except _sqlite3.OperationalError:
             pass
+        con.execute('''CREATE TABLE IF NOT EXISTS container_history (
+            ts   INTEGER,
+            name TEXT,
+            cpu  REAL,
+            PRIMARY KEY (ts, name)
+        )''')
+        con.execute('CREATE INDEX IF NOT EXISTS idx_ctr_hist_name ON container_history(name, ts)')
         cutoff = int(time.time()) - 86400
         con.execute('DELETE FROM sys_history WHERE ts < ?', (cutoff,))
+        con.execute('DELETE FROM container_history WHERE ts < ?', (cutoff,))
         con.commit()
         con.close()
     log.info("History-DB initialisiert: %s", _DB_PATH)
@@ -1142,6 +1160,37 @@ def _tick_history(cpu_pct: float, ram_pct: float, cpu_temp: float | None = None)
         _hist_temp_acc  = []
         threading.Thread(target=_flush_history_minute,
                          args=(cur_min, cpu_avg, ram_avg, temp_avg), daemon=True).start()
+
+
+def _flush_container_history_minute(ts_min: int, avgs: dict[str, float]) -> None:
+    """Schreibt Minuten-Durchschnitte der Container-CPU in die DB."""
+    cutoff = ts_min - 86400
+    with _db_lock:
+        try:
+            con = _sqlite3.connect(_DB_PATH, check_same_thread=False)
+            con.executemany(
+                'INSERT OR REPLACE INTO container_history (ts, name, cpu) VALUES (?,?,?)',
+                [(ts_min, name, round(cpu, 1)) for name, cpu in avgs.items()])
+            con.execute('DELETE FROM container_history WHERE ts < ?', (cutoff,))
+            con.commit()
+            con.close()
+        except Exception as e:
+            log.warning("Container-History-DB Schreibfehler: %s", e)
+
+
+def _tick_container_history(results: list) -> None:
+    """Akkumuliert Container-CPU-Werte und flusht einmal pro Minute in die DB."""
+    global _ctr_hist_last_min
+    for r in results:
+        if r['status'] == 'running':
+            _ctr_hist_acc.setdefault(r['name'], []).append(r['cpu_pct'])
+    cur_min = int(time.time() // 60) * 60
+    if cur_min > _ctr_hist_last_min and _ctr_hist_acc:
+        avgs = {n: sum(v) / len(v) for n, v in _ctr_hist_acc.items()}
+        _ctr_hist_last_min = cur_min
+        _ctr_hist_acc.clear()
+        threading.Thread(target=_flush_container_history_minute,
+                         args=(cur_min, avgs), daemon=True).start()
 
 
 _CORETEMP_NAMES = ('coretemp', 'k10temp', 'zenpower', 'nct6775', 'it87')
@@ -1427,6 +1476,24 @@ def api_sysinfo_history():
         data = [{'ts': r[0], 'c': r[1], 'r': r[2], 't': r[3]} for r in rows]
     except Exception as e:
         log.warning("History-DB Lesefehler: %s", e)
+        data = []
+    return jsonify({'data': data})
+
+
+@app.route('/api/containers/<path:name>/history')
+def api_container_history(name):
+    if not is_valid_session(request.cookies.get('sw_session')):
+        return '', 401
+    try:
+        with _db_lock:
+            con  = _sqlite3.connect(_DB_PATH, check_same_thread=False)
+            rows = con.execute(
+                'SELECT ts, cpu FROM container_history WHERE name = ? ORDER BY ts', (name,)
+            ).fetchall()
+            con.close()
+        data = [{'ts': r[0], 'c': r[1]} for r in rows]
+    except Exception as e:
+        log.warning("Container-History-DB Lesefehler: %s", e)
         data = []
     return jsonify({'data': data})
 

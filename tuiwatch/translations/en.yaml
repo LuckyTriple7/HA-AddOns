@@ -11,6 +11,9 @@ configuration:
   poll_interval:
     name: Check interval (seconds)
     description: "Delay between two automatic price checks. Travel prices change slowly — default 21600 (6 hours), minimum 600 (10 minutes). Please keep it fair, not every minute."
+  poll_gap:
+    name: Gap between requests (seconds)
+    description: "Pause between two consecutive background requests (offers and saved-search watches are checked one after another). Prevents a burst of requests when many offers fall due at once. Default 10, plus 0–5 seconds of jitter; 0 disables the pause."
   market_trend_threshold:
     name: Market trend threshold (%)
     description: "Cumulative price movement over 14 days above which the market trend counts as rising/falling instead of stable. Default 1.0 — a smaller value reacts to smaller moves."
@@ -23,6 +26,9 @@ configuration:
   market_basket_max_regions:
     name: Maximum measurement series
     description: "Upper limit for the series measured each day (1…50), i.e. the number of saved searches re-run. Purely a load guard: one API call per 50 hotels per day (typically 1–6 per search). If more are found than allowed, the add-on log names the ones left out. Default 20."
+  booking_window_enabled:
+    name: Booking timing indicator
+    description: "Additionally analyses the barometer daily moves by lead time (booking curve) and derives a traffic light from it: green = good time to book, red = better to wait. Combines the 14-day trend, the position within the recorded history and the price move expected until departure. Requires the price barometer and a few weeks of data. Default on."
   trippilot_home_location:
     name: TripPilot home location (ZIP/city)
     description: "Pre-fills the TripPilot question 'Where are you starting from?' (for car/bus/train arrival or day trips). Leave empty to disable — can always be changed in the questionnaire itself."
@@ -53,6 +59,9 @@ configuration:
   calendar_daily_refresh:
     name: Daily calendar refresh
     description: "Keeps active offers' price calendars fresh 1x/day (sharpens the trend view and booking-score calendar signal). Default on."
+  calendar_archived_refresh:
+    name: Keep calendars running for archived offers
+    description: "Also refreshes price calendars for archived (expired) offers — every 3 days instead of daily, and always after the active offers have had their turn. The expired offer's price is still NOT checked; the calendar describes the hotel, room, board and duration and always looks forward from today. This keeps a long-term price history growing for the same hotel. If a hotel leaves the TUI inventory, the calendar pauses itself after 5 consecutive failures. Default on."
   notify_errors:
     name: Sold-out / error alert
     description: "Notify when an offer returns no result several times in a row (sold out or outdated URL). Default on."
@@ -158,6 +167,15 @@ configuration:
   enable_check24_compare:
     name: Check24 price comparison (beta)
     description: "Allows comparing an offer against a manually linked Check24 hotel (other tour operators, same travel dates). Uses headless Chromium against Check24 (no open API), so it's more fragile than the TUI fetch and adds a second external ToS risk. Default off — deliberately opt-in."
+  enable_str_flights:
+    name: Stuttgart Airport (STR) flight schedule
+    description: "Enables the ✈️ button in the header: a standalone search for scheduled flight connections to/from STR (airline, weekdays, times, seasonal date range) by destination airport or country. Uses the airport operator's open JSON API, independent of TUI/Check24 offers. Default off."
+  enable_fra_flights:
+    name: Frankfurt Airport (FRA) flight schedule
+    description: "Adds the Frankfurt flight schedule to the ✈️ button. Unlike the Stuttgart schedule, Frankfurt returns individual flights per date (instead of seasonal routes with weekdays) — but with terminal, hall, gate, check-in counters, aircraft type and codeshare numbers. With both airports enabled, the ✈️ button asks which airport first. Uses the airport website's open JSON, independent of TUI/Check24 offers. Default off."
+  enable_muc_flights:
+    name: Munich Airport (MUC) flight schedule
+    description: "Adds the Munich flight schedule to the ✈️ button. Munich offers no flight schedule API — the data comes from the airport's official seasonal timetable PDF (around 3,300 connections with weekdays, times, terminal and validity range, like the Stuttgart plan). The PDF is regenerated daily; the add-on checks every three hours whether a new edition is up and only then re-reads it. Note: the PDF only ever covers the current season (summer or winter), not 12 months ahead. Default off."
   enable_public_share:
     name: Public offer links
     description: "Enables links that let others view selected offers without logging in (like a travel agency's offer page) — including the stored climate table, travel guide and travel advisor result. The page runs on its own port (see \"Public link port\"), shows only a snapshot frozen at creation time and allows no queries at all. Expose only this second port through your reverse proxy, never 17794. Default off."
