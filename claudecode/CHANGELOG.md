@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.3.11] - 2026-08-14
+
+### Added
+- **Schutzregeln in der CLAUDE.md.** Die Datei enthielt bisher nur Pfad-Mapping, Werkzeug-Hinweise und Log-Rezepte — keine einzige Regel darüber, was Claude *nicht* anfassen darf. Neu ist ein Abschnitt ganz oben mit einer Sperrliste für die internen HA-Verzeichnisse (`.storage/`, `.cloud/`, `deps/`, `tts/`, `home-assistant_v2.db`) samt der Erklärung, warum: dort liegt alles UI-Erstellte inklusive Entity- und Device-Registry, das Format ist nicht stabil, und eine von Hand geänderte Datei in `.storage/` kann Home Assistant am Starten hindern. Jede Zeile der Tabelle nennt das Werkzeug, das stattdessen zu benutzen ist. Dazu: `secrets.yaml` wird nie ausgegeben, Dateiänderungen erst nach ausdrücklicher Zustimmung, keine ungefragten Aufräumarbeiten, `ha core check` nach YAML-Änderungen und ein Hinweis auf Reload- vs. Neustart-Bedarf.
+- **`CLAUDE.local.md` für eigene Anweisungen.** Die CLAUDE.md wird bei jedem Start überschrieben, eigene Ergänzungen waren also nach dem nächsten Neustart weg. Das Add-on legt jetzt `CLAUDE.local.md.example` in `/homeassistant/.claudecode/` ab; nach dem Umbenennen in `CLAUDE.local.md` wird die Datei in jeder Session mitgeladen und vom Add-on nie wieder angefasst — auch Updates schreiben nicht hinein. Bei Widersprüchen gewinnt die CLAUDE.md, die Schutzregeln bleiben unangetastet.
+
+### Changed
+- Kopieren aus dem Web-Terminal in die Browser-Zwischenablage funktioniert jetzt auch für Text, den Claude Code selbst kopiert. tmux verwarf die dafür nötigen OSC-52-Sequenzen bisher gleich zweifach: die DCS-Hülle, in die Claude Code sie packt, braucht `allow-passthrough on` (seit tmux 3.3 standardmäßig aus), und `set-clipboard` ignoriert in der Voreinstellung Clipboard-Schreibzugriffe aus inneren Anwendungen.
+
+
 ## [1.3.10] - 2026-08-14
 
 ### Fixed

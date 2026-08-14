@@ -77,6 +77,18 @@ hab <command> --plan --json   # Mutation vorab als Vorschau prüfen
 
 Beim Start des Add-ons wird zusätzlich ein Home-Context-Snapshot (`hab overview`) in die CLAUDE.md geschrieben — Claude kennt so von Anfang an Anzahl der Areas, Entities, Automationen etc., ohne erst danach fragen zu müssen.
 
+## Schutzregeln
+
+Die CLAUDE.md enthält verbindliche Regeln für den Umgang mit deiner Installation. Die wichtigste: **niemals in die internen Verzeichnisse von Home Assistant schreiben** — `.storage/`, `.cloud/`, `deps/`, `tts/` und die Recorder-Datenbank. Dort liegt alles, was du über die HA-Oberfläche angelegt hast: UI-Automationen, Skripte, Szenen, Helper, Dashboards, Areas, Labels sowie die Entity- und Device-Registries. Diese Dateien verwaltet HA Core allein, sie haben kein stabiles Format — eine von Hand geänderte Datei in `.storage/` kann dazu führen, dass Home Assistant nicht mehr startet.
+
+Claude soll solche Dinge stattdessen über den `homeassistant`-MCP-Server oder `hab` ändern. Geht beides nicht, sagt Claude das und überlässt dir den Weg über die Oberfläche. Dazu kommen: Inhalte aus `secrets.yaml` werden nie ausgegeben, vor jeder Dateiänderung wird die geplante Änderung gezeigt und deine Zustimmung abgewartet, und nach YAML-Änderungen wird auf Reload- bzw. Neustart-Bedarf hingewiesen.
+
+## Eigene Anweisungen (`CLAUDE.local.md`)
+
+Die CLAUDE.md wird bei **jedem** Add-on-Start neu geschrieben — eigene Ergänzungen darin sind danach weg. Für dauerhafte eigene Anweisungen liegt in `/homeassistant/.claudecode/` die Datei `CLAUDE.local.md.example`. Benenne sie in `CLAUDE.local.md` um (`.example` entfernen), und Claude lädt sie ab dem nächsten Start in jeder Session mit.
+
+An diese Datei rührt das Add-on nie, auch Updates nicht. Löschen genügt, um sie wieder loszuwerden — es gibt keine Option dafür. Bei Widersprüchen gewinnt die CLAUDE.md; die Schutzregeln oben lassen sich damit nicht aushebeln. Der Inhalt geht bei **jeder** Anfrage mit, also kurz halten: dauerhafte Vorlieben ja, Notizbuch nein. Keine Passwörter oder Tokens hineinschreiben — dafür ist `!secret` da.
+
 ## tmux — Scrollen, Kopieren & Einfügen
 
 Das Terminal verwendet tmux für persistente Sessions. Das Scroll-Verhalten steuert die Option `tmux_scroll_mode`:
@@ -209,6 +221,18 @@ hab <command> --plan --json   # preview a mutation before applying it
 ```
 
 On startup, the add-on also writes a Home Context snapshot (`hab overview`) into CLAUDE.md — so Claude starts each session already knowing the number of areas, entities, automations, etc. instead of having to ask first.
+
+## Safety Rules
+
+CLAUDE.md carries binding rules for how your installation may be touched. The most important one: **never write to Home Assistant's internal directories** — `.storage/`, `.cloud/`, `deps/`, `tts/` and the recorder database. That is where everything you created through the HA user interface lives: UI automations, scripts, scenes, helpers, dashboards, areas, labels, plus the entity and device registries. Those files are managed by HA Core alone and have no stable format — a hand-edited file in `.storage/` can leave Home Assistant unable to start.
+
+Claude is told to change such things through the `homeassistant` MCP server or `hab` instead. If neither can do it, Claude says so and leaves the UI route to you. On top of that: the contents of `secrets.yaml` are never displayed, every file change is shown and confirmed before it is written, and YAML changes come with a note on whether a reload or a full restart is required.
+
+## Your Own Instructions (`CLAUDE.local.md`)
+
+CLAUDE.md is rewritten on **every** add-on start, so anything you add there is gone afterwards. For permanent instructions of your own, `/homeassistant/.claudecode/` contains `CLAUDE.local.md.example`. Rename it to `CLAUDE.local.md` (drop the `.example`) and Claude loads it in every session from the next start on.
+
+The add-on never touches that file, updates included. Delete it to stop loading it — there is no option to toggle. CLAUDE.md wins where the two conflict; the safety rules above cannot be overridden from here. The content is sent with **every** request, so keep it short: standing preferences yes, diary no. Never put passwords or tokens in it — that is what `!secret` is for.
 
 ## tmux — Scrolling, Copy & Paste
 

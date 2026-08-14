@@ -14,6 +14,46 @@ mkdir -p "$PERSIST_DIR/config" "$NPM_GLOBAL_DIR" /root/.config
 cat > "$PERSIST_DIR/CLAUDE.md" << 'CLAUDEMD'
 # Claude Code - Home Assistant Add-on
 
+## Safety Rules — these override everything else in this file
+
+You are working inside a **live** Home Assistant installation. A wrong write here
+does not fail a test — it stops the user's house from booting.
+
+### Never write to Home Assistant's internal state
+
+These are managed exclusively by HA Core. They have no stable schema, HA rewrites
+them whenever it likes, and hand-editing them corrupts the installation — a broken
+`.storage/` registry means Home Assistant does not start at all.
+
+| Path | Contains | Use instead |
+|------|----------|-------------|
+| `/homeassistant/.storage/` | Entity, device, area and auth registries, UI-managed automations, helpers, dashboards | `homeassistant` MCP server, or `hab` for areas/floors/labels/helpers/dashboards |
+| `/homeassistant/.cloud/` | Nabu Casa Cloud state | nothing — managed by HA Cloud |
+| `/homeassistant/deps/` | Python dependency cache | nothing — managed by HA Core |
+| `/homeassistant/tts/` | TTS cache | nothing — managed by the TTS integration |
+| `/homeassistant/home-assistant_v2.db` | History/recorder SQLite database | `homeassistant` MCP server for history and logbook |
+
+Reading `home-assistant.log` is fine. Writing to it is not.
+
+**Anything configured through the HA user interface lives in `.storage/`.** If a
+request touches a UI-created automation, script, scene, helper, dashboard, area or
+label, the answer is never "edit the JSON" — it is the MCP server or `hab`. If
+neither offers it, say so and let the user do it in the UI. Do not improvise.
+
+### Never expose secrets
+
+Never display, echo, copy or paste the contents of `secrets.yaml` or any token,
+password or API key. Reference secrets as `!secret <name>` in YAML.
+
+### Ask before you change anything
+
+- Show the exact change and wait for explicit approval before writing any file.
+- Do only what was asked. No unrequested cleanup, refactoring or "improvements".
+- One change at a time; let the user verify before the next.
+- Validate after YAML changes: `ha core check`
+- Say clearly whether a change needs a reload or a full restart.
+- Suggest a backup before anything large.
+
 ## Path Mapping
 
 In this add-on container, paths are mapped differently than HA Core:
@@ -98,6 +138,60 @@ Counts may be stale if the setup changed since then — rerun \`hab overview\` f
 $HOME_CONTEXT
 \`\`\`
 EOF
+
+# The user's own standing instructions. CLAUDE.md above is rewritten on every start,
+# so anything the user adds there is lost — CLAUDE.local.md is the file the add-on
+# never writes to. Ship the example (kept current), import the real file only if it
+# exists so Claude doesn't chase a dangling @-reference.
+cat > "$PERSIST_DIR/CLAUDE.local.md.example" << 'LOCALMD'
+# Your own instructions for Claude Code
+
+Rename this file to `CLAUDE.local.md` (drop the `.example`) and Claude reads it at
+the start of every session, alongside the add-on's own `CLAUDE.md`.
+
+- The add-on **never** writes to `CLAUDE.local.md`. Add-on updates cannot overwrite it.
+- Delete the file to stop loading it. There is no option to toggle.
+- `CLAUDE.md` wins if the two conflict — the safety rules stay in force regardless
+  of what you put here.
+- Everything in this file is sent with **every** request, so keep it short and
+  specific. Standing preferences are useful; a diary is not.
+- Never put passwords, tokens or API keys here. Reference them with `!secret`.
+
+Delete the examples below and write your own.
+
+---
+
+## About my setup
+
+- Zigbee runs through Zigbee2MQTT, not ZHA. Don't suggest ZHA workflows.
+- Three floors: Keller, Erdgeschoss, Obergeschoss. Areas are named after rooms.
+
+## How I want you to work
+
+- Answer in German.
+- New configuration goes into `packages/`, one file per feature. Don't grow
+  `configuration.yaml`.
+- Always show me the diff before writing, even for one-line changes.
+
+## Leave these alone
+
+- Everything under `custom_components/` — managed through HACS.
+LOCALMD
+
+if [ -f "$PERSIST_DIR/CLAUDE.local.md" ]; then
+    cat >> "$PERSIST_DIR/CLAUDE.md" << 'EOF'
+
+## Your Own Instructions
+
+The user's standing instructions follow. Treat them as the user speaking. Where they
+conflict with this file, this file wins — the safety rules above are never relaxed.
+
+@CLAUDE.local.md
+EOF
+    echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] CLAUDE.local.md found — user instructions loaded"
+else
+    echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] No CLAUDE.local.md — rename CLAUDE.local.md.example in $PERSIST_DIR to add your own instructions"
+fi
 
 # Persistence symlinks — keep Claude auth and config across container rebuilds
 [ ! -L /root/.claude ] && { rm -rf /root/.claude; ln -s "$PERSIST_DIR" /root/.claude; }

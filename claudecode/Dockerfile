@@ -132,6 +132,13 @@ set -s escape-time 10
 # forwarded it as one block. xterm.js still emits real bracketed-paste sequences,
 # which tmux passes through, so actual pasting is unaffected.
 set -g assume-paste-time 0
+# Clipboard: copying inside tmux travels app → tmux → ttyd/xterm.js → browser as an
+# OSC 52 sequence. Claude Code wraps its OSC 52 in a DCS passthrough envelope, which
+# tmux drops unless allow-passthrough is on (default off since tmux 3.3); set-clipboard
+# defaults to "external" and ignores clipboard writes from inner applications.
+set -g allow-passthrough on
+set -s set-clipboard on
+set -as terminal-features ',xterm*:clipboard'
 # Mouse/status settings are written by run.sh based on the tmux_scroll_mode option
 source-file -q /root/.tmux-runtime.conf
 EOF
