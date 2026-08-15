@@ -1,6 +1,6 @@
 # Changelog
 
-## [1.0.13] - 2026-08-15
+## [1.1.0] - 2026-08-15
 - Image-Aufbau grundlegend umgestellt: `collabora/code` ist nicht mehr die Basis des Add-ons,
   sondern nur noch Bezugsquelle. Der Build holt die Collabora-Nutzlast (`coolwsd`,
   `coolforkit-*`, `coolmount`, `/usr/share/coolwsd`, `/etc/coolwsd`, `/opt/collaboraoffice`,
