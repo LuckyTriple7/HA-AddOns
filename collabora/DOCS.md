@@ -51,7 +51,7 @@ Das Add-on enthält ein Web-Terminal, erreichbar über den **„Collabora Termin
 
 Nützlich um z.B. die Konfiguration direkt zu prüfen:
 ```sh
-coolconfig get-admin-password
+ps aux | grep coolwsd
 cat /config/coolwsd.xml
 ```
 
@@ -117,7 +117,7 @@ The add-on includes a web terminal, accessible via the **"Collabora Terminal" en
 
 Useful for inspecting the configuration directly:
 ```sh
-coolconfig get-admin-password
+ps aux | grep coolwsd
 cat /config/coolwsd.xml
 ```
 

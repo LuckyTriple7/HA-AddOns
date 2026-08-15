@@ -21,7 +21,7 @@ Collabora Online Office-Server für Nextcloud — bearbeite `.docx`, `.xlsx`, `.
 - **Nextcloud-Integration**: Dokumente direkt in Nextcloud öffnen und bearbeiten
 - **Domain-Beschränkung**: Nur deine Nextcloud-Instanz darf den Server nutzen
 - **Persistente Konfiguration**: `coolwsd.xml` wird in `/config` gespeichert und überlebt Rebuilds
-- **Admin-Panel**: Passwort wird korrekt gehasht via `coolconfig`
+- **Admin-Panel**: Zugangsdaten werden coolwsd per `--use-env-vars` übergeben
 - **Web-Terminal**: coolwsd-Konfiguration direkt im Browser einsehbar (HA Ingress)
 
 ## Konfiguration
@@ -55,8 +55,8 @@ Collabora Online Office-Server für Nextcloud — bearbeite `.docx`, `.xlsx`, `.
 # Konfiguration prüfen
 cat /config/coolwsd.xml
 
-# Admin-Passwort manuell setzen
-coolconfig set-admin-password admin
+# Laufende coolwsd-Parameter ansehen
+ps aux | grep coolwsd
 ```
 
 ## Hinweise
@@ -90,7 +90,7 @@ Collabora Online office server for Nextcloud — edit `.docx`, `.xlsx`, `.pptx` 
 - **Nextcloud integration**: Open and edit documents directly in Nextcloud
 - **Domain restriction**: Only your Nextcloud instance can use the server
 - **Persistent configuration**: `coolwsd.xml` is stored in `/config` and survives rebuilds
-- **Admin panel**: Password is correctly hashed via `coolconfig`
+- **Admin panel**: Credentials are handed to coolwsd via `--use-env-vars`
 - **Web terminal**: Inspect coolwsd configuration directly in the browser (HA Ingress)
 
 ## Configuration
@@ -124,8 +124,8 @@ Accessible via the HA sidebar. Useful commands:
 # Check configuration
 cat /config/coolwsd.xml
 
-# Set admin password manually
-coolconfig set-admin-password admin
+# Inspect the running coolwsd parameters
+ps aux | grep coolwsd
 ```
 
 ## Notes

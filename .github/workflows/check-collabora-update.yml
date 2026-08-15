@@ -1,13 +1,12 @@
 name: Check Collabora Update
 
+# Verfolgt den Versions-Tag von collabora/code (nicht mehr den latest-Digest).
+# Das Add-on baut seit 1.0.13 nicht mehr auf collabora/code auf, sondern kopiert
+# nur die Nutzlast heraus — ein neues Upstream-Image kann den Build also nicht
+# mehr kaputtmachen, ohne dass die ldd-/getcap-Gates im Dockerfile anschlagen.
 on:
-  # Schedule bewusst deaktiviert: collabora/code ist seit 26.04.2.2 (Nix-Rootfs,
-  # 2026-07-18) für unser Setup kaputt (siehe collabora/CHANGELOG.md v1.0.11),
-  # Dockerfile ist auf letzten funktionierenden Digest gepinnt. Solange öffnet
-  # dieser Workflow sonst wöchentlich ein PR auf denselben kaputten Digest.
-  # Wieder aktivieren, sobald ein neuerer Digest manuell verifiziert wurde.
-  # schedule:
-  #   - cron: '0 5 * * *'
+  schedule:
+    - cron: '0 5 * * *'
   workflow_dispatch:
 
 permissions:
@@ -24,38 +23,40 @@ jobs:
         with:
           ref: dev
 
-      - name: Hole aktuellen collabora/code Digest
+      - name: Hole neuesten collabora/code Versions-Tag
         id: remote
         run: |
-          DIGEST=$(curl -s "https://hub.docker.com/v2/repositories/collabora/code/tags/latest" \
-            | jq -r '.digest')
-          if [ -z "$DIGEST" ] || [ "$DIGEST" = "null" ]; then
-            echo "Konnte Digest nicht ermitteln — API-Fehler?"
+          VERSION=$(curl -s "https://hub.docker.com/v2/repositories/collabora/code/tags?page_size=100&ordering=last_updated" \
+            | jq -r '.results[].name' \
+            | grep -E '^[0-9]+(\.[0-9]+)+$' \
+            | head -1)
+          if [ -z "$VERSION" ]; then
+            echo "Konnte Versions-Tag nicht ermitteln — API-Fehler?"
             exit 1
           fi
-          echo "digest=${DIGEST}" >> $GITHUB_OUTPUT
-          echo "Aktueller collabora/code Digest: ${DIGEST}"
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "Aktueller collabora/code Tag: ${VERSION}"
 
-      - name: Hole gespeicherten Digest
+      - name: Hole gespeicherte Version
         id: local
         run: |
-          if [ -f .collabora-digest ]; then
-            echo "digest=$(cat .collabora-digest)" >> $GITHUB_OUTPUT
-            echo "Gespeicherter Digest: $(cat .collabora-digest)"
+          if [ -f .collabora-version ]; then
+            echo "version=$(cat .collabora-version)" >> $GITHUB_OUTPUT
+            echo "Gespeicherte Version: $(cat .collabora-version)"
           else
-            echo "digest=unknown" >> $GITHUB_OUTPUT
-            echo "Noch keine Digest-Datei vorhanden — erster Lauf"
+            echo "version=unknown" >> $GITHUB_OUTPUT
+            echo "Noch keine Versions-Datei vorhanden — erster Lauf"
           fi
 
-      - name: Vergleiche Digests
+      - name: Vergleiche Versionen
         id: compare
         run: |
-          REMOTE="${{ steps.remote.outputs.digest }}"
-          LOCAL="${{ steps.local.outputs.digest }}"
+          REMOTE="${{ steps.remote.outputs.version }}"
+          LOCAL="${{ steps.local.outputs.version }}"
           echo "Remote: ${REMOTE} | Lokal: ${LOCAL}"
           if [ "$REMOTE" != "$LOCAL" ]; then
             echo "rebuild=true" >> $GITHUB_OUTPUT
-            echo "Neues Image verfügbar"
+            echo "Neue Collabora-Version verfügbar"
           else
             echo "rebuild=false" >> $GITHUB_OUTPUT
             echo "Kein Update notwendig"
@@ -73,17 +74,18 @@ jobs:
           echo "new_version=${NEW_VERSION}" >> $GITHUB_OUTPUT
           echo "Add-on Version: ${CURRENT} → ${NEW_VERSION}"
 
-      - name: Digest-Datei, config.yaml und CHANGELOG aktualisieren
+      - name: Versions-Datei, config.yaml und CHANGELOG aktualisieren
         if: steps.compare.outputs.rebuild == 'true'
         run: |
           NEW_VERSION="${{ steps.newversion.outputs.new_version }}"
+          UPSTREAM="${{ steps.remote.outputs.version }}"
           CURRENT=$(grep '^version:' collabora/config.yaml | sed 's/version: *"\(.*\)"/\1/')
           TODAY=$(date -u '+%Y-%m-%d')
 
-          echo "${{ steps.remote.outputs.digest }}" > .collabora-digest
+          echo "${UPSTREAM}" > .collabora-version
           sed -i "s/^version: \"${CURRENT}\"/version: \"${NEW_VERSION}\"/" collabora/config.yaml
 
-          CHANGELOG_ENTRY="## [${NEW_VERSION}] - ${TODAY}\n- Collabora Base-Image aktualisiert (neuer collabora/code Digest)"
+          CHANGELOG_ENTRY="## [${NEW_VERSION}] - ${TODAY}\n- Collabora auf Upstream-Version ${UPSTREAM} aktualisiert"
           sed -i "s|# Changelog|# Changelog\n\n${CHANGELOG_ENTRY}|" collabora/CHANGELOG.md
 
       - name: Pull Request erstellen
@@ -92,17 +94,23 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           base: dev
-          commit-message: "Collabora: Update auf neues collabora/code Image (v${{ steps.newversion.outputs.new_version }})"
+          commit-message: "Collabora: Update auf Upstream ${{ steps.remote.outputs.version }} (v${{ steps.newversion.outputs.new_version }})"
           branch: "collabora-update/${{ steps.newversion.outputs.new_version }}"
           delete-branch: true
-          title: "Collabora Update: neues collabora/code Image (v${{ steps.newversion.outputs.new_version }})"
+          title: "Collabora Update: Upstream ${{ steps.remote.outputs.version }} (v${{ steps.newversion.outputs.new_version }})"
           body: |
-            ## Collabora Base-Image Update
+            ## Collabora Upstream-Update
 
             | | |
             |---|---|
-            | Neuer Digest | `${{ steps.remote.outputs.digest }}` |
+            | Upstream-Version | `${{ steps.remote.outputs.version }}` |
+            | Bisher | `${{ steps.local.outputs.version }}` |
             | Add-on Version | `${{ steps.newversion.outputs.new_version }}` |
 
             Nach dem Merge wird das Image automatisch via `build-collabora.yml` gebaut.
+            Der Build prüft selbst per `getcap` und `ldd`, ob die Nutzlast aus dem neuen
+            Upstream-Image vollständig und lauffähig ist, und schlägt sonst fehl.
+
+            Trotzdem nach dem Deploy einmal ein Dokument öffnen — ein Packaging-Wechsel
+            im Upstream-Image kann Pfade verschieben, ohne dass die Gates anschlagen.
           labels: "auto-update"
