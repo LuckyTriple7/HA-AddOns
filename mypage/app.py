@@ -8840,6 +8840,21 @@ def _base_url() -> str:
     return (site['design'].get('public_url') or request.url_root.rstrip('/')).rstrip('/')
 
 
+@public_app.template_filter('abs_url')
+def _abs_url(u: str) -> str:
+    """Pfad zur vollen Adresse machen — für alles, was außerhalb der Seite gelesen wird.
+
+    Open Graph landet bei WhatsApp, Discord, Slack und X, und die holen das Bild
+    von ihren eigenen Servern. Ein Pfad wie „/uploads/foo.webp" hat dort keinen
+    Bezugspunkt mehr: die Vorschau bleibt leer. Bereits vollständige Adressen und
+    eingebettete Daten bleiben unangetastet.
+    """
+    u = (u or '').strip()
+    if not u or u.startswith(('http://', 'https://', '//', 'data:')):
+        return u
+    return _base_url() + ('' if u.startswith('/') else '/') + u
+
+
 def _public_url_list(site: dict, base: str) -> list:
     """Alle öffentlich indexierbaren URLs (Startseite, Projekte, Blog, Bibliothek).
 
@@ -11072,13 +11087,30 @@ def sitemap():
         entries.append((base + '/blog', newest))
         entries += [(f"{base}/blog/{p['id']}", p['date'] if _valid_date(p.get('date')) else '')
                     for p in posts]
+    # Sprachvarianten mitmelden. Jede Adresse liefert beide Fassungen, die
+    # englische unter `?lang=en` — in der Sitemap stand davon bisher nichts, und
+    # eine Adresse, die nirgends genannt wird, findet ein Roboter allenfalls
+    # zufällig. `xhtml:link` benennt die Fassungen an derselben Stelle, an der
+    # die Seite ohnehin gemeldet wird.
+    default = site_default_lang(site)
+
+    def _alts(loc: str) -> str:
+        out = ''
+        for lg in SITE_LANGS:
+            href = loc if lg == default else f'{loc}?lang={lg}'
+            out += f'    <xhtml:link rel="alternate" hreflang="{lg}" href="{html_mod.escape(href)}"/>\n'
+        out += f'    <xhtml:link rel="alternate" hreflang="x-default" href="{html_mod.escape(loc)}"/>\n'
+        return out
+
     xml = '<?xml version="1.0" encoding="UTF-8"?>\n'
-    xml += '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+    xml += ('<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"'
+            ' xmlns:xhtml="http://www.w3.org/1999/xhtml">\n')
     for loc, lastmod in entries:
-        xml += f'  <url><loc>{loc}</loc>'
+        xml += f'  <url>\n    <loc>{html_mod.escape(loc)}</loc>\n'
         if lastmod:
-            xml += f'<lastmod>{lastmod}</lastmod>'
-        xml += '</url>\n'
+            xml += f'    <lastmod>{lastmod}</lastmod>\n'
+        xml += _alts(loc)
+        xml += '  </url>\n'
     xml += '</urlset>\n'
     return xml, 200, {'Content-Type': 'application/xml'}
 

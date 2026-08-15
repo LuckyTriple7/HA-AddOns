@@ -5,9 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{{ heading }} – {{ site.design.site_title or site.profile.name or 'MyPage' }}</title>
   <meta name="description" content="{{ meta_desc }}">
-  <meta property="og:title" content="{{ heading }} – {{ site.design.site_title or site.profile.name or 'MyPage' }}">
-  <meta property="og:description" content="{{ meta_desc }}">
-  {% if trips and trips[0].image %}<meta property="og:image" content="{{ trips[0].image }}">{% endif %}
+  {% set og_title = heading ~ ' – ' ~ (site.design.site_title or site.profile.name or 'MyPage') %}
+  {% set og_image = trips[0].image if trips else '' %}
+  {% include '_og.html' %}
   {% if site.design.favicon %}<link rel="icon" href="{{ site.design.favicon }}">
   {% elif site.profile.avatar %}<link rel="icon" href="{{ site.profile.avatar }}">{% endif %}
   {% if not site.design.allow_indexing %}<meta name="robots" content="noindex, nofollow">{% endif %}

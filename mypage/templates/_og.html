@@ -1,0 +1,30 @@
+{# Vorschaukarte für geteilte Links (Open Graph + Twitter).
+
+   Erwartet aus der einbindenden Vorlage: `og_title`, `meta_desc`, optional
+   `og_image` und `og_type` (Vorgabe „website"). Bildadressen laufen durch
+   `abs_url`, weil die Dienste, die diese Karte lesen, sie von außen abholen —
+   ein Pfad ohne Domain ergibt dort eine leere Vorschau.
+
+   `og:url` kommt aus `canonical_url`: geteilt werden soll die Adresse, die auch
+   im Suchindex steht, nicht die zufällige Variante mit `?lang=` oder `?tag=`,
+   über die jemand gerade gestolpert ist. #}
+<meta property="og:site_name" content="{{ site.design.site_title or site.profile.name or 'MyPage' }}">
+<meta property="og:type" content="{{ og_type|default('website') }}">
+<meta property="og:title" content="{{ og_title }}">
+<meta property="og:description" content="{{ meta_desc }}">
+{%- if canonical_url %}
+<meta property="og:url" content="{{ canonical_url }}">
+{%- endif %}
+<meta property="og:locale" content="{{ 'en_US' if lang == 'en' else 'de_DE' }}">
+{# Ohne eigenes Bild greift das Profilbild: eine Karte mit Absender ist immer noch
+   besser als der graue Kasten, den die Dienste sonst zeigen. #}
+{%- set og_img = (og_image or site.profile.avatar or '')|abs_url %}
+{%- if og_img %}
+<meta property="og:image" content="{{ og_img }}">
+{%- endif %}
+<meta name="twitter:card" content="{{ 'summary_large_image' if og_img else 'summary' }}">
+<meta name="twitter:title" content="{{ og_title }}">
+<meta name="twitter:description" content="{{ meta_desc }}">
+{%- if og_img %}
+<meta name="twitter:image" content="{{ og_img }}">
+{%- endif %}
