@@ -1,6 +1,6 @@
 name: Collabora Online
 description: Collabora Online Office-Server für Nextcloud — Dokumente direkt im Browser bearbeiten
-version: "1.1.1"
+version: "1.1.2"
 slug: collabora
 url: https://github.com/LuckyTriple7/HA-AddOns
 
@@ -28,11 +28,6 @@ ports:
 ports_description:
   9980/tcp: Collabora Online
   7682/tcp: Web-Terminal
-
-# Button "Web-UI öffnen" auf der Add-on-Seite. Collabora hat kein eigenes
-# Frontend außer der Administratorenkonsole; /browser/dist/ lädt Nextcloud
-# per WOPI ein. https ist fest verdrahtet, weil coolwsd per Default TLS liefert.
-webui: "https://[HOST]:[PORT:9980]/browser/dist/admin/admin.html"
 
 options:
   TZ: "Europe/Berlin"

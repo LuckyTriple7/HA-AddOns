@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.1.2] - 2026-08-15
+- `webui` aus 1.1.1 wieder entfernt: Home Assistant wertet den Schlüssel nur aus, wenn
+  `ingress` aus ist (`_computeShowWebUI = !addon.ingress && addon.webui`). Da das Add-on
+  Ingress für das Web-Terminal nutzt, war die Zeile wirkungslos — der Button auf der
+  Add-on-Seite öffnet weiterhin das Terminal. Beide Ziele gleichzeitig kann HA nicht,
+  es wird genau ein Button gerendert.
+- Doku: Web-Terminal ist auch direkt unter  erreichbar, mit Hinweis,
+  dass dieser Weg im Gegensatz zum Ingress-Zugang ohne HA-Anmeldung offen steht.
+
 ## [1.1.1] - 2026-08-15
 - `webui` ergänzt: Die Add-on-Seite in Home Assistant zeigt jetzt einen Button auf die
   Administratorenkonsole, statt dass man sich `https://<HA-IP>:9980/browser/dist/admin/admin.html`

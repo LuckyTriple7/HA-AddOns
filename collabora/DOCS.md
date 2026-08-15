@@ -49,7 +49,9 @@ Benutzername und Passwort wie in der Konfiguration gesetzt.
 
 ## Web-Terminal
 
-Das Add-on enthält ein Web-Terminal, erreichbar über den **„Collabora Terminal"-Eintrag in der HA-Seitenleiste**.
+Das Add-on enthält ein Web-Terminal (ttyd), erreichbar über den **„Collabora Terminal"-Eintrag in der HA-Seitenleiste** oder direkt unter `http://<HA-IP>:7682`.
+
+> Der direkte Port-Zugang ist nicht durch die Home-Assistant-Anmeldung geschützt: Wer im Netzwerk `http://<HA-IP>:7682` aufruft, bekommt ohne Passwort eine schreibfähige Root-Shell im Container. Nur der Weg über die Seitenleiste (Ingress) läuft hinter der HA-Authentifizierung. Wenn du den Direktzugang nicht brauchst, entferne `7682/tcp` aus `ports` in der Add-on-Konfiguration.
 
 Nützlich um z.B. die Konfiguration direkt zu prüfen:
 ```sh
@@ -117,7 +119,9 @@ Username and password as configured.
 
 ## Web Terminal
 
-The add-on includes a web terminal, accessible via the **"Collabora Terminal" entry in the HA sidebar**.
+The add-on includes a web terminal (ttyd), accessible via the **"Collabora Terminal" entry in the HA sidebar** or directly at `http://<HA-IP>:7682`.
+
+> The direct port is not protected by the Home Assistant login: anyone on the network who opens `http://<HA-IP>:7682` gets a writable root shell inside the container, without a password. Only the sidebar route (ingress) sits behind HA authentication. If you do not need the direct access, remove `7682/tcp` from `ports` in the add-on configuration.
 
 Useful for inspecting the configuration directly:
 ```sh

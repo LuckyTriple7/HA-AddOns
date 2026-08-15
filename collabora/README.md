@@ -13,7 +13,7 @@ Collabora Online Office-Server für Nextcloud — bearbeite `.docx`, `.xlsx`, `.
 |--------|-----|
 | Collabora Online | `https://<HA-IP>:9980` |
 | Admin-Panel | `https://<HA-IP>:9980/browser/dist/admin/admin.html` |
-| Web-Terminal | HA-Seitenleiste → „Collabora Terminal" |
+| Web-Terminal | HA-Seitenleiste → „Collabora Terminal" oder direkt `http://<HA-IP>:7682` |
 
 ## Funktionen
 
@@ -82,7 +82,7 @@ Collabora Online office server for Nextcloud — edit `.docx`, `.xlsx`, `.pptx` 
 |---------|-----|
 | Collabora Online | `https://<HA-IP>:9980` |
 | Admin Panel | `https://<HA-IP>:9980/browser/dist/admin/admin.html` |
-| Web Terminal | HA sidebar → "Collabora Terminal" |
+| Web Terminal | HA sidebar → "Collabora Terminal", or directly at `http://<HA-IP>:7682` |
 
 ## Features
 
