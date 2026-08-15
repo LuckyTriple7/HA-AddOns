@@ -13,7 +13,7 @@ Collabora Online Office-Server für Nextcloud — bearbeite `.docx`, `.xlsx`, `.
 |--------|-----|
 | Collabora Online | `https://<HA-IP>:9980` |
 | Admin-Panel | `https://<HA-IP>:9980/browser/dist/admin/admin.html` |
-| Web-Terminal | HA-Seitenleiste → „Collabora Terminal" oder direkt `http://<HA-IP>:7682` |
+| Web-Terminal | `http://<HA-IP>:7682` |
 
 ## Funktionen
 
@@ -22,7 +22,7 @@ Collabora Online Office-Server für Nextcloud — bearbeite `.docx`, `.xlsx`, `.
 - **Domain-Beschränkung**: Nur deine Nextcloud-Instanz darf den Server nutzen
 - **Persistente Konfiguration**: `coolwsd.xml` wird in `/config` gespeichert und überlebt Rebuilds
 - **Admin-Panel**: Zugangsdaten werden coolwsd per `--use-env-vars` übergeben
-- **Web-Terminal**: coolwsd-Konfiguration direkt im Browser einsehbar (HA Ingress)
+- **Web-Terminal**: coolwsd-Konfiguration direkt im Browser einsehbar (ttyd auf Port 7682)
 
 ## Konfiguration
 
@@ -49,7 +49,7 @@ Collabora Online Office-Server für Nextcloud — bearbeite `.docx`, `.xlsx`, `.
 
 ## Web-Terminal
 
-Über die HA-Seitenleiste erreichbar. Nützliche Befehle:
+Erreichbar unter `http://<HA-IP>:7682` (ohne HA-Anmeldung, siehe DOCS.md). Nützliche Befehle:
 
 ```sh
 # Konfiguration prüfen
@@ -82,7 +82,7 @@ Collabora Online office server for Nextcloud — edit `.docx`, `.xlsx`, `.pptx` 
 |---------|-----|
 | Collabora Online | `https://<HA-IP>:9980` |
 | Admin Panel | `https://<HA-IP>:9980/browser/dist/admin/admin.html` |
-| Web Terminal | HA sidebar → "Collabora Terminal", or directly at `http://<HA-IP>:7682` |
+| Web Terminal | `http://<HA-IP>:7682` |
 
 ## Features
 
@@ -91,7 +91,7 @@ Collabora Online office server for Nextcloud — edit `.docx`, `.xlsx`, `.pptx` 
 - **Domain restriction**: Only your Nextcloud instance can use the server
 - **Persistent configuration**: `coolwsd.xml` is stored in `/config` and survives rebuilds
 - **Admin panel**: Credentials are handed to coolwsd via `--use-env-vars`
-- **Web terminal**: Inspect coolwsd configuration directly in the browser (HA Ingress)
+- **Web terminal**: Inspect coolwsd configuration directly in the browser (ttyd on port 7682)
 
 ## Configuration
 
@@ -118,7 +118,7 @@ Collabora Online office server for Nextcloud — edit `.docx`, `.xlsx`, `.pptx` 
 
 ## Web Terminal
 
-Accessible via the HA sidebar. Useful commands:
+Available at `http://<HA-IP>:7682` (no HA login required, see DOCS.md). Useful commands:
 
 ```sh
 # Check configuration

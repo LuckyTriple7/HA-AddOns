@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.1.3] - 2026-08-15
+- Der Button auf der Add-on-Seite öffnet jetzt die Administratorenkonsole statt des
+  Web-Terminals. Dafür musste `ingress` weichen: Home Assistant wertet `webui` nur aus,
+  wenn Ingress aus ist, und rendert immer nur einen der beiden Buttons.
+- Damit entfällt der Seitenleisten-Eintrag „Collabora Terminal". ttyd läuft unverändert
+  weiter und ist unter `http://<HA-IP>:7682` erreichbar — dieser Weg liegt allerdings
+  nicht mehr hinter der Home-Assistant-Anmeldung. Wer das Terminal nicht braucht, nimmt
+  `7682/tcp` aus `ports`.
+
 ## [1.1.2] - 2026-08-15
 - `webui` aus 1.1.1 wieder entfernt: Home Assistant wertet den Schlüssel nur aus, wenn
   `ingress` aus ist (`_computeShowWebUI = !addon.ingress && addon.webui`). Da das Add-on
