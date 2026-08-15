@@ -1,3 +1,10 @@
+## [1.8.52] - 2026-08-15
+
+### Aktualisiert
+
+- Claude Desktop: 3.2.2+claude1.28929.0 → 3.2.2+claude1.30096.1
+- OpenCode: 1.18.16 → 1.18.18
+
 ## [1.8.51] - 2026-08-13
 
 ### Aktualisiert
