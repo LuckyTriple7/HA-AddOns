@@ -20,7 +20,7 @@ Collabora Online Office-Server für Nextcloud — öffne und bearbeite `.docx`, 
 1. In Nextcloud: **Apps → Office & Text → Nextcloud Office** installieren
 2. **Einstellungen → Verwaltung → Nextcloud Office** öffnen
 3. **„Eigenen Server verwenden"** wählen
-4. URL eintragen: `http://<HA-IP>:9980`
+4. URL eintragen: `https://<HA-IP>:9980`
 5. Speichern — der grüne Haken bestätigt die Verbindung
 
 ### 3. WOPI-Allowlist setzen (empfohlen)
@@ -41,7 +41,9 @@ ALLOW_ROOT=1 php /app/www/public/occ config:app:set richdocuments wopi_allowlist
 
 ## Admin-Panel
 
-Erreichbar unter: `http://<HA-IP>:9980/browser/dist/admin/admin.html`
+Erreichbar unter: `https://<HA-IP>:9980/browser/dist/admin/admin.html`
+
+coolwsd liefert https mit einem selbst erzeugten Zertifikat aus, die Browser-Warnung ist also normal. Nur wenn `extra_params` ein `--o:ssl.enable=false` enthält, ist es stattdessen `http://`.
 
 Benutzername und Passwort wie in der Konfiguration gesetzt.
 
@@ -86,7 +88,7 @@ Collabora Online office server for Nextcloud — open and edit `.docx`, `.xlsx`,
 1. In Nextcloud: **Apps → Office & Text → Nextcloud Office** install
 2. Open **Settings → Administration → Nextcloud Office**
 3. Select **"Use your own server"**
-4. Enter URL: `http://<HA-IP>:9980`
+4. Enter URL: `https://<HA-IP>:9980`
 5. Save — a green checkmark confirms the connection
 
 ### 3. Set WOPI Allowlist (recommended)
@@ -107,7 +109,9 @@ ALLOW_ROOT=1 php /app/www/public/occ config:app:set richdocuments wopi_allowlist
 
 ## Admin Panel
 
-Available at: `http://<HA-IP>:9980/browser/dist/admin/admin.html`
+Available at: `https://<HA-IP>:9980/browser/dist/admin/admin.html`
+
+coolwsd serves https with a self-generated certificate, so the browser warning is expected. Only if `extra_params` contains `--o:ssl.enable=false` is it `http://` instead.
 
 Username and password as configured.
 

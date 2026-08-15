@@ -11,8 +11,8 @@ Collabora Online Office-Server für Nextcloud — bearbeite `.docx`, `.xlsx`, `.
 
 | Dienst | URL |
 |--------|-----|
-| Collabora Online | `http://<HA-IP>:9980` |
-| Admin-Panel | `http://<HA-IP>:9980/browser/dist/admin/admin.html` |
+| Collabora Online | `https://<HA-IP>:9980` |
+| Admin-Panel | `https://<HA-IP>:9980/browser/dist/admin/admin.html` |
 | Web-Terminal | HA-Seitenleiste → „Collabora Terminal" |
 
 ## Funktionen
@@ -41,7 +41,7 @@ Collabora Online Office-Server für Nextcloud — bearbeite `.docx`, `.xlsx`, `.
 2. Add-on starten
 3. In Nextcloud: **Apps → Office & Text → Nextcloud Office** installieren
 4. **Einstellungen → Verwaltung → Nextcloud Office → Eigenen Server verwenden**
-5. URL eintragen: `http://<HA-IP>:9980` — grüner Haken bestätigt die Verbindung
+5. URL eintragen: `https://<HA-IP>:9980` — grüner Haken bestätigt die Verbindung
 6. WOPI-Allowlist im Nextcloud-Terminal setzen:
    ```sh
    ALLOW_ROOT=1 php /app/www/public/occ config:app:set richdocuments wopi_allowlist --value="172.30.0.0/16"
@@ -80,8 +80,8 @@ Collabora Online office server for Nextcloud — edit `.docx`, `.xlsx`, `.pptx` 
 
 | Service | URL |
 |---------|-----|
-| Collabora Online | `http://<HA-IP>:9980` |
-| Admin Panel | `http://<HA-IP>:9980/browser/dist/admin/admin.html` |
+| Collabora Online | `https://<HA-IP>:9980` |
+| Admin Panel | `https://<HA-IP>:9980/browser/dist/admin/admin.html` |
 | Web Terminal | HA sidebar → "Collabora Terminal" |
 
 ## Features
@@ -110,7 +110,7 @@ Collabora Online office server for Nextcloud — edit `.docx`, `.xlsx`, `.pptx` 
 2. Start the add-on
 3. In Nextcloud: **Apps → Office & Text → Nextcloud Office** install
 4. **Settings → Administration → Nextcloud Office → Use your own server**
-5. Enter URL: `http://<HA-IP>:9980` — green checkmark confirms the connection
+5. Enter URL: `https://<HA-IP>:9980` — green checkmark confirms the connection
 6. Set the WOPI allowlist in the Nextcloud Terminal:
    ```sh
    ALLOW_ROOT=1 php /app/www/public/occ config:app:set richdocuments wopi_allowlist --value="172.30.0.0/16"
