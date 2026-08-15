@@ -6,7 +6,7 @@
   Ingress für das Web-Terminal nutzt, war die Zeile wirkungslos — der Button auf der
   Add-on-Seite öffnet weiterhin das Terminal. Beide Ziele gleichzeitig kann HA nicht,
   es wird genau ein Button gerendert.
-- Doku: Web-Terminal ist auch direkt unter  erreichbar, mit Hinweis,
+- Doku: Web-Terminal ist auch direkt unter `http://<HA-IP>:7682` erreichbar, mit Hinweis,
   dass dieser Weg im Gegensatz zum Ingress-Zugang ohne HA-Anmeldung offen steht.
 
 ## [1.1.1] - 2026-08-15
