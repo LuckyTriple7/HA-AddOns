@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.100.3] - 2026-08-15
+
+### Changed
+- **Hotel-Vergleich: Wind ohne Zahlenwert wird nicht mehr zum Störtext.** Der Prompt
+  verlangte pro Hotel „eine konkrete Zahl (km/h oder Beaufort)“ — findet die KI für
+  einen Ort keine belastbare Quelle, füllte sie die Tabellenzelle stattdessen fett mit
+  „Kein belastbarer km/h-Wert auffindbar“, teils dazu noch beim Klima („Langzeitwerte
+  nicht sauber belegbar“). Jetzt gilt: Zahl nennen, wenn belastbar auffindbar, sonst
+  eine kurze qualitative Einordnung („meist ruhig“, „regelmäßig böig“) — erfundene
+  Zahlen bleiben weiterhin verboten, der direkte Vergleich der Orte untereinander
+  ebenfalls Pflicht.
+- Zusätzlich für die Abschlusstabelle: In den Zellen steht nur die Einschätzung selbst,
+  Vorbehalte zur Quellenlage höchstens als ein kurzer Satz im Fließtext darunter statt
+  in jeder Zeile.
+
+> Hinweis: Wer unter *Einstellungen → KI* einen **eigenen Vergleichs-Prompt** aktiviert
+> hat, behält seinen Text — die Standardvorlage dort einmal neu laden, um die Änderung
+> zu übernehmen.
+
 ## [0.100.2] - 2026-08-14
 
 ### Changed
