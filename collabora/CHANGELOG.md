@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.1] - 2026-08-15
+- `webui` ergänzt: Die Add-on-Seite in Home Assistant zeigt jetzt einen Button auf die
+  Administratorenkonsole, statt dass man sich `https://<HA-IP>:9980/browser/dist/admin/admin.html`
+  merken muss. Der Ingress-Eintrag in der Seitenleiste bleibt das Web-Terminal.
+
 ## [1.1.0] - 2026-08-15
 - Image-Aufbau grundlegend umgestellt: `collabora/code` ist nicht mehr die Basis des Add-ons,
   sondern nur noch Bezugsquelle. Der Build holt die Collabora-Nutzlast (`coolwsd`,
