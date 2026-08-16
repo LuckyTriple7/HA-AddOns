@@ -39,6 +39,7 @@ from urllib.parse import urlencode, urlparse, urlsplit, urlunsplit
 import markdown as md_lib
 from markupsafe import Markup, escape
 
+import pdfimport
 import travelblog as tb
 import visitexplorer as vx
 try:
@@ -5032,6 +5033,44 @@ def api_legal():
     save_site(site)
     log_audit('settings_legal')
     return jsonify({'ok': True})
+
+
+# Rechtstexte kommen von Generatoren wie e-Recht24 als PDF. Abtippen ist mühsam
+# und verliert jede Auszeichnung — deshalb hier der Weg über die Datei. Gespeichert
+# wird nichts: die Antwort geht in die Vorschau, übernommen wird erst mit „Speichern".
+LEGAL_PDF_MAX_BYTES = 20 * 1024 * 1024
+
+
+@admin_app.route('/api/legal/import-pdf', methods=['POST'])
+def api_legal_import_pdf():
+    err = _api_auth()
+    if err:
+        return err
+    f = request.files.get('file')
+    if f is None or not f.filename:
+        return jsonify({'error': 'no_file'}), 400
+    if not f.filename.lower().endswith('.pdf'):
+        return jsonify({'error': 'not_pdf'}), 400
+    data = f.read(LEGAL_PDF_MAX_BYTES + 1)
+    if len(data) > LEGAL_PDF_MAX_BYTES:
+        return jsonify({'error': 'too_large'}), 413
+    if not data.startswith(b'%PDF'):
+        return jsonify({'error': 'not_pdf'}), 400
+    try:
+        res = pdfimport.extract(data)
+    except ValueError as e:
+        # Nur die eigenen, bekannten Kennungen zurückgeben — nie den Text einer
+        # Ausnahme, der könnte Pfade oder Dateiinhalte enthalten.
+        code = str(e) if str(e) in ('no_text', 'too_many_pages') else 'unreadable'
+        return jsonify({'error': code}), 400
+    except Exception:
+        log.warning("PDF-Import fehlgeschlagen (%s)", f.filename[:80], exc_info=True)
+        return jsonify({'error': 'unreadable'}), 400
+    # Vorschau mit derselben Funktion rendern, die auch die öffentliche Seite
+    # benutzt — was hier steht, steht später genauso auf der Website.
+    res['html'] = render_md(res['markdown'])
+    log_audit('legal_import_pdf')
+    return jsonify(res)
 
 
 @admin_app.route('/api/projects', methods=['POST'])

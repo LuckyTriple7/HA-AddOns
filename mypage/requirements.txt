@@ -5,6 +5,9 @@ markdown==3.10.2
 pillow==12.3.0
 cryptography==50.0.0
 qrcode==7.4.2
+# PDF-Import der Rechtstexte (Impressum/Datenschutz aus einem Generator-PDF).
+# Reines Python, bringt pdfminer.six mit — keine zusätzlichen Systempakete.
+pdfplumber==0.11.7
 # PDF-Erzeugung für Bibliothek-Einträge. Braucht pango (siehe Dockerfile);
 # fehlt das Paket, läuft das Add-on ohne PDF-Button weiter (siehe _HAS_WEASY).
 weasyprint==69.0

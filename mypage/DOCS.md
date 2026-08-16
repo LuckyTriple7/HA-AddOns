@@ -435,7 +435,16 @@ Einzeln einstellbar: Seitentitel, Akzentfarbe (Farbwähler), Standard-Theme (hel
 - **Navigationsleiste**: Sprungmarken im Kopf zu den vorhandenen Bereichen; folgt der im Inhalt-Tab gewählten Reihenfolge und blendet ausgeblendete/leere Bereiche aus.
 
 ### Rechtliches
-Impressum und Datenschutzerklärung als Freitext (DE/EN). Sobald Text eingetragen ist, werden `/impressum` und `/datenschutz` im Footer der öffentlichen Seite verlinkt. Vorlagen liefern z. B. der [Impressum-Generator von e-recht24](https://www.e-recht24.de/impressum-generator.html) und der [Datenschutz-Generator von Dr. Schwenke](https://datenschutz-generator.de) (für Privatpersonen kostenlos). Ein Cookie-Banner ist nicht nötig: MyPage setzt nur technisch notwendige Cookies (Sprachwahl nach Klick, Admin-Session) und keinerlei Tracking.
+Impressum und Datenschutzerklärung als Freitext (DE/EN, Markdown). Sobald Text eingetragen ist, werden `/impressum` und `/datenschutz` im Footer der öffentlichen Seite verlinkt. Vorlagen liefern z. B. der [Impressum-Generator von e-recht24](https://www.e-recht24.de/impressum-generator.html) und der [Datenschutz-Generator von Dr. Schwenke](https://datenschutz-generator.de) (für Privatpersonen kostenlos). Ein Cookie-Banner ist nicht nötig: MyPage setzt nur technisch notwendige Cookies (Sprachwahl nach Klick, Anmeldung, Umfrage-Kennung) und keinerlei Tracking.
+
+**Aus PDF übernehmen.** Über jedem Textfeld sitzt ein Knopf „📄 Aus PDF". Damit lässt sich das PDF eines Generators direkt einlesen, statt es abzutippen:
+
+- Viele Generatoren (e-Recht24 zum Beispiel) legen den fertigen HTML-Quelltext unsichtbar als Formularfeld ins PDF. Genau der wird bevorzugt gelesen — Überschriftenebenen, Aufzählungen und Links kommen dadurch **exakt** an und werden in Markdown umgesetzt.
+- Fehlt so ein Feld, wird die Struktur aus dem Seitenlayout geschätzt: die häufigste Schriftgröße gilt als Fließtext, größere Zeilen werden Überschriften, fette Zeilen werden hervorgehoben. Das steht dann auch so im Fenster, damit klar ist, dass man die Vorschau prüfen sollte.
+- Vor dem Übernehmen zeigt ein Fenster links den Text und rechts die gerenderte Fassung — gerendert mit derselben Funktion, die auch die öffentliche Seite benutzt. Der Text ist schon dort bearbeitbar, danach im Feld ohnehin.
+- **Ersetzen** überschreibt das Feld, **Anhängen** hängt an vorhandenen Text an. Gespeichert wird beides erst mit „Speichern".
+- Passt das PDF nicht zum gewählten Feld (Datenschutz-PDF im Impressum-Feld, englisches PDF im deutschen Feld), erscheint ein Hinweis — verboten wird es nicht.
+- Grenzen: höchstens 20 MB und 200 Seiten. Reine Scans ohne Texterkennung enthalten keinen Text und werden abgewiesen.
 
 ### Statistik
 Aufrufe gesamt, Aufrufe und eindeutige Besucher heute, Verlauf der letzten 30 Tage. Eindeutige Besucher werden über gesalzene Tages-Hashes erkannt; bekannte Bots und Monitoring-Tools zählen nicht in die Statistik.

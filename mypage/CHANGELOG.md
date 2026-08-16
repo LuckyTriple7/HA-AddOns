@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.10.36
+- 📄 **Impressum und Datenschutz lassen sich jetzt aus einem PDF übernehmen.** Wer seine Rechtstexte bei einem Generator wie e-Recht24 erstellt, bekommt sie als PDF — und musste sie bisher abtippen. Dabei ging jede Auszeichnung verloren: Überschriften wurden zu normalen Zeilen, Fettschrift und Aufzählungen verschwanden. Über jedem Textfeld sitzt jetzt ein Knopf „Aus PDF".
+- 🎯 **Die Struktur kommt exakt an, nicht geraten.** Viele Generatoren legen den fertigen Quelltext unsichtbar ins PDF hinein — genau der wird gelesen. Überschriftenebenen, Aufzählungen und Links landen dadurch punktgenau im Text. Nur wenn ein PDF das nicht mitbringt, wird die Gliederung aus Schriftgröße und -schnitt geschätzt; dann sagt das Fenster das auch dazu.
+- 👀 **Vorschau vor dem Übernehmen.** Links steht der Text, rechts die Fassung, wie sie später auf der Seite aussieht — gerendert mit derselben Funktion wie die echte Seite. Korrigieren kann man schon dort, danach im Feld sowieso. „Ersetzen" überschreibt, „Anhängen" ergänzt, gespeichert wird erst mit „Speichern".
+- 🧭 Wer das Datenschutz-PDF versehentlich ins Impressum-Feld lädt oder ein englisches PDF ins deutsche Feld, bekommt einen Hinweis — aufgehalten wird er nicht.
+
 ## 0.10.35
 - 🗓️ **Das Besucher-Archiv behält jetzt standardmäßig einen Monat statt zwölf.** Wer länger auswerten will, stellt `visit_file_keep` einfach höher — bestehende Einstellungen bleiben unverändert.
 

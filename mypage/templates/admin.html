@@ -150,7 +150,29 @@
     .modal-bg.open { display: flex; }
     .modal { background: var(--surf); border: 1px solid var(--border); border-radius: 10px; padding: 22px; width: 100%; max-width: min(760px, 94vw); }
     .modal h3 { margin-bottom: 4px; }
+    .modal.wide { max-width: min(1180px, 96vw); }
     .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
+
+    /* ── PDF-Import der Rechtstexte ── */
+    /* Beschriftung und Import-Knopf in einer Zeile über dem Textfeld */
+    .lbl-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    .pdfimp-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .pdfimp-cols textarea { font-family: ui-monospace, Consolas, monospace; font-size: 0.76rem;
+                            height: 420px; resize: vertical; }
+    /* Gleiche Höhe wie das Textfeld daneben — sonst steht die Vorschau kurz und
+       der Eindruck entsteht, es fehle etwas. */
+    .pdfimp-preview { border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px;
+                      background: var(--surf2); height: 420px; overflow-y: auto; font-size: 0.82rem; }
+    .pdfimp-warn { color: var(--yellow); background: color-mix(in srgb, var(--yellow) 10%, transparent);
+                   border-left: 3px solid var(--yellow); border-radius: 4px; padding: 7px 10px; margin: 0 0 10px; }
+    .pdfimp-preview h1 { font-size: 1.15rem; margin: 0 0 8px; }
+    .pdfimp-preview h2 { font-size: 1rem; margin: 14px 0 6px; }
+    .pdfimp-preview h3 { font-size: 0.9rem; margin: 12px 0 4px; }
+    .pdfimp-preview h4 { font-size: 0.84rem; margin: 10px 0 4px; color: var(--muted); }
+    .pdfimp-preview p, .pdfimp-preview li { margin: 0 0 8px; line-height: 1.5; }
+    .pdfimp-preview ul, .pdfimp-preview ol { padding-left: 20px; margin: 0 0 8px; }
+    .pdfimp-preview a { color: var(--accent); word-break: break-all; }
+    @media (max-width: 760px) { .pdfimp-cols { grid-template-columns: 1fr; } }
 
     .gh-repo { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-bottom: 1px solid var(--border); font-size: 0.85rem; }
     .gh-repo:last-child { border-bottom: none; }
@@ -1720,11 +1742,15 @@
         <p class="hint">{{ t.legal_hint_impressum }}</p>
         <div class="row">
           <div>
-            <label>DE</label>
+            <label class="lbl-row">DE
+              <button type="button" class="btn secondary small" onclick="pickLegalPdf('impressum_de')">{{ t.pdf_import }}</button>
+            </label>
             <textarea id="l-impressum_de" rows="10"></textarea>
           </div>
           <div>
-            <label>EN ({{ t.optional }})</label>
+            <label class="lbl-row">EN ({{ t.optional }})
+              <button type="button" class="btn secondary small" onclick="pickLegalPdf('impressum_en')">{{ t.pdf_import }}</button>
+            </label>
             <textarea id="l-impressum_en" rows="10"></textarea>
           </div>
         </div>
@@ -1734,14 +1760,19 @@
         <p class="hint">{{ t.legal_hint_privacy }}</p>
         <div class="row">
           <div>
-            <label>DE</label>
+            <label class="lbl-row">DE
+              <button type="button" class="btn secondary small" onclick="pickLegalPdf('privacy_de')">{{ t.pdf_import }}</button>
+            </label>
             <textarea id="l-privacy_de" rows="14"></textarea>
           </div>
           <div>
-            <label>EN ({{ t.optional }})</label>
+            <label class="lbl-row">EN ({{ t.optional }})
+              <button type="button" class="btn secondary small" onclick="pickLegalPdf('privacy_en')">{{ t.pdf_import }}</button>
+            </label>
             <textarea id="l-privacy_en" rows="14"></textarea>
           </div>
         </div>
+        <p class="hint">{{ t.pdf_import_hint }}</p>
         <button class="btn" onclick="saveLegal()">{{ t.save }}</button>
         <p class="hint">{{ t.legal_footer_hint }}</p>
       </div>
@@ -2117,6 +2148,31 @@
       </div>
     </section>
   </main>
+
+  <!-- PDF-Import: Vorschau vor dem Übernehmen -->
+  <input type="file" id="legal-pdf-file" accept="application/pdf,.pdf" style="display:none" onchange="uploadLegalPdf(this)">
+  <div class="modal-bg" id="pdfimp-modal">
+    <div class="modal wide">
+      <h3>{{ t.pdf_import_title }}</h3>
+      <p class="hint" id="pdfimp-meta"></p>
+      <p class="hint pdfimp-warn" id="pdfimp-warn" style="display:none"></p>
+      <div class="pdfimp-cols">
+        <div>
+          <label>{{ t.pdf_import_md }}</label>
+          <textarea id="pdfimp-md" spellcheck="false"></textarea>
+        </div>
+        <div>
+          <label>{{ t.pdf_import_preview }}</label>
+          <div id="pdfimp-html" class="pdfimp-preview"></div>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn secondary" onclick="el('pdfimp-modal').classList.remove('open')">{{ t.cancel }}</button>
+        <button class="btn secondary" onclick="applyLegalPdf(true)">{{ t.pdf_import_append }}</button>
+        <button class="btn" onclick="applyLegalPdf(false)">{{ t.pdf_import_replace }}</button>
+      </div>
+    </div>
+  </div>
 
   <!-- Weg eines Besuchers durch die Seite -->
   <div class="modal-bg" id="journey-modal">
@@ -5226,6 +5282,73 @@
       if (r.ok) loadSite();
     }
 
+    // ── Rechtstext aus einem PDF übernehmen ──
+    //
+    // Generatoren wie e-Recht24 liefern ein PDF; abtippen verliert jede
+    // Auszeichnung. Der Server holt den Text heraus und schickt Markdown plus
+    // die gerenderte Fassung zurück. Gespeichert wird nichts — erst „Ersetzen"
+    // oder „Anhängen" schreibt ins Textfeld, und dort ist alles bearbeitbar.
+    let PDFIMP = { target: '', md: '' };
+
+    function pickLegalPdf(key) {
+      PDFIMP.target = key;
+      const inp = el('legal-pdf-file');
+      inp.value = '';          // gleiche Datei zweimal wählen soll wieder auslösen
+      inp.click();
+    }
+    async function uploadLegalPdf(input) {
+      const file = input.files && input.files[0];
+      if (!file) return;
+      const fd = new FormData();
+      fd.append('file', file);
+      busyShow(T.pdf_import_running);
+      let r;
+      try {
+        r = await fetch('api/legal/import-pdf', { method: 'POST', credentials: 'same-origin', body: fd });
+      } finally {
+        busyDone();
+      }
+      if (r.status === 401) { location.href = 'login'; return; }
+      if (!r.ok) {
+        const d = await r.json().catch(() => ({}));
+        toast(T['pdf_err_' + (d.error || '')] || T.pdf_err_unreadable, true);
+        return;
+      }
+      const d = await r.json();
+      PDFIMP.md = d.markdown;
+      el('pdfimp-md').value = d.markdown;
+      el('pdfimp-html').innerHTML = d.html;
+      const parts = [
+        file.name,
+        T.pdf_import_pages.replace('{n}', d.pages),
+        T.pdf_import_chars.replace('{n}', d.chars),
+        d.source === 'html' ? T.pdf_src_html : T.pdf_src_layout,
+      ];
+      el('pdfimp-meta').textContent = parts.join(' · ');
+      // Warnen, wenn das Ziel nicht zu dem passt, was im PDF steht — ein
+      // Datenschutz-PDF ins Impressum-Feld ist ein häufiger Fehlgriff.
+      const warn = [];
+      if (d.warnings.includes('truncated')) warn.push(T.pdf_warn_truncated);
+      if (d.warnings.includes('layout')) warn.push(T.pdf_warn_layout);
+      if (d.kind && PDFIMP.target.indexOf(d.kind) !== 0) warn.push(T.pdf_warn_kind);
+      if (d.lang && PDFIMP.target.slice(-2) !== d.lang) warn.push(T.pdf_warn_lang);
+      const w = el('pdfimp-warn');
+      w.textContent = warn.join(' ');
+      w.style.display = warn.length ? '' : 'none';
+      el('pdfimp-modal').classList.add('open');
+    }
+    function applyLegalPdf(append) {
+      // Was im Vorschaufeld steht, zählt — dort darf vor dem Übernehmen
+      // schon korrigiert werden.
+      const text = el('pdfimp-md').value;
+      const box = el('l-' + PDFIMP.target);
+      if (!box) return;
+      box.value = append && box.value.trim() ? box.value.replace(/\s*$/, '') + '\n\n' + text : text;
+      el('pdfimp-modal').classList.remove('open');
+      box.focus();
+      toast(T.pdf_import_done);
+    }
+
     // ── Profil ──
     function fillProfile() {
       const p = SITE.profile;
@@ -6008,6 +6131,7 @@
         user_games: T.audit_user_games, user_password: T.audit_user_password,
         user_resend: T.audit_user_resend, restore: T.audit_restore,
         newsletter_send: T.audit_newsletter,
+        legal_import_pdf: T.audit_legal_import,
       };
       box.innerHTML = '';
       data.audit.forEach(a => {
