@@ -182,6 +182,10 @@
     .vtable .mono { font-family: ui-monospace, Consolas, monospace; font-size: 0.74rem; }
     .badge-bot { font-size: 0.66rem; padding: 1px 7px; border-radius: 999px; background: color-mix(in srgb, var(--yellow) 18%, transparent); color: var(--yellow); }
     .badge-new { font-size: 0.66rem; padding: 1px 7px; border-radius: 999px; background: color-mix(in srgb, var(--green-h) 18%, transparent); color: var(--green-h); }
+    /* Filterleiste über dem Besucher-Log */
+    .vfilter { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin: 0 0 10px; }
+    .vfilter .btn.active { border-color: var(--accent); color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); font-weight: 600; }
+    .vfilter .hint { margin: 0; }
     .msg-badge { font-size: 0.66rem; padding: 1px 7px; border-radius: 999px; background: var(--red); color: #fff; margin-left: 4px; }
 
     .entry-row { background: var(--surf2); border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 10px; }
@@ -1949,6 +1953,12 @@
       <div class="panel">
         <h3>{{ t.visitor_log }}</h3>
         <p id="s-crawler" class="hint" style="margin:2px 0 10px"></p>
+        <div class="vfilter">
+          <button type="button" class="btn secondary small active" data-vfilter="all" onclick="setVisitorFilter('all')">{{ t.vlog_filter_all }}</button>
+          <button type="button" class="btn secondary small" data-vfilter="new" onclick="setVisitorFilter('new')">{{ t.vlog_filter_new }}</button>
+          <button type="button" class="btn secondary small" data-vfilter="bot" onclick="setVisitorFilter('bot')">{{ t.vlog_filter_bot }}</button>
+          <span id="s-log-count" class="hint"></span>
+        </div>
         <div id="s-log-wrap" class="collapsible">
           <div style="overflow-x:auto">
             <table class="vtable">
@@ -5989,9 +5999,21 @@
       else if (/linux/i.test(ua)) os = 'Linux';
       return os ? `${b} · ${os}` : b;
     }
+    // Besucher-Log: Rohdaten merken, damit der Filter ohne Neuladen umschalten kann
+    let _visitorLog = [], _visitorFilter = 'all';
+    function visitorMatches(v) {
+      if (_visitorFilter === 'bot') return !!v.bot;
+      if (_visitorFilter === 'new') return !v.bot && !!v.new;  // wie das „Neu"-Abzeichen
+      return true;
+    }
+    function setVisitorFilter(f) {
+      _visitorFilter = f;
+      document.querySelectorAll('.vfilter .btn').forEach(b => b.classList.toggle('active', b.dataset.vfilter === f));
+      renderVisitorRows();
+      refreshCollapse('s-log-wrap');
+    }
     function renderVisitorLog(log) {
-      const tbody = el('s-log');
-      tbody.innerHTML = '';
+      _visitorLog = log;
       // Zusammenfassung: wann waren Suchmaschinen-Crawler zuletzt da?
       const last = {};
       log.forEach(v => {
@@ -6005,11 +6027,20 @@
       el('s-crawler').textContent = names.length
         ? T.crawler_last + ': ' + names.map(n => `${n} (${new Date(last[n] * 1000).toLocaleString()})`).join(' · ')
         : T.crawler_none;
-      if (!log.length) {
-        tbody.innerHTML = `<tr><td colspan="6" class="hint">${T.no_data}</td></tr>`;
+      renderVisitorRows();
+    }
+    function renderVisitorRows() {
+      const tbody = el('s-log');
+      tbody.innerHTML = '';
+      const rows = _visitorLog.filter(visitorMatches);
+      el('s-log-count').textContent = _visitorLog.length
+        ? `${rows.length} / ${_visitorLog.length}`
+        : '';
+      if (!rows.length) {
+        tbody.innerHTML = `<tr><td colspan="6" class="hint">${_visitorLog.length ? T.vlog_filter_none : T.no_data}</td></tr>`;
         return;
       }
-      log.forEach(v => {
+      rows.forEach(v => {
         const tr = document.createElement('tr');
         const time = new Date(v.ts * 1000).toLocaleString();
         const lang = (v.lang || '').split(',')[0];

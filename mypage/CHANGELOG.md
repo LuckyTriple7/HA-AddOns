@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.10.33
+- 🔎 **Die Besucherliste lässt sich jetzt filtern.** Bisher standen echte Besucher und Suchmaschinen-Crawler bunt gemischt untereinander, und wer nur wissen wollte „wer war heute neu da?", musste die Abzeichen von Hand durchsuchen. Über der Tabelle sitzen jetzt drei Knöpfe: „Alle", „Nur Neu" und „Nur Bots".
+- 🔢 Daneben steht, wie viele Zeilen der Filter übrig lässt (z. B. `7 / 50`); passt keine, sagt die Tabelle das statt leer zu bleiben. Der Filter arbeitet rein im Browser — kein Neuladen, keine zusätzliche Abfrage.
+
 ## 0.10.32
 - 🖼️ **Geteilte Links zeigen jetzt wieder ein Bild.** In WhatsApp, Discord, Slack oder X kam nur ein grauer Kasten mit Text an: die Vorschaubild-Adresse war ein Pfad ohne Domain, und diese Dienste holen das Bild von außen — dort gibt es nichts, woran ein `/uploads/…` hängen könnte. Alle Vorschaubilder werden jetzt mit voller Adresse gemeldet.
 - 🔗 Dazu kommen die bisher ganz fehlenden Angaben: die Adresse der Seite selbst, der Seitentyp, der Seitenname, die Sprache und eine eigene Karte für X. Ohne eigenes Bild springt das Profilbild ein — eine Karte mit Absender ist besser als keine.
