@@ -243,9 +243,24 @@ ENV_FILE="$PERSIST_DIR/.env"
 cat > "$PERSIST_DIR/.env.example" << 'ENVEXAMPLE'
 # Environment variables for Claude Code
 #
-# Rename this file to `.env` (drop the `.example`) and every KEY=VALUE below is
-# exported before Claude Code starts — MCP servers that authenticate through
-# ${VAR} substitution then see their token, and it survives add-on restarts.
+# What to do:
+#   1. Rename this file to `.env` (drop the `.example`).
+#   2. Go to the last line, DELETE THE LEADING `#` and put your token in.
+#      A line still starting with `#` is a comment and is ignored.
+#   3. Restart the add-on. The log then says:
+#        Loaded 1 variable(s) from .env: GITHUB_PERSONAL_ACCESS_TOKEN
+#
+# Everything here is exported before Claude Code starts, so MCP servers that
+# authenticate through ${VAR} substitution see their token — across restarts.
+#
+# The token alone does not create a server. GitHub's MCP server has to be
+# registered once, and it is what reads GITHUB_PERSONAL_ACCESS_TOKEN:
+#
+#   claude mcp add-json github '{"type":"http","url":"https://api.githubcopilot.com/mcp/","headers":{"Authorization":"Bearer ${GITHUB_PERSONAL_ACCESS_TOKEN}"}}' -s user
+#
+# Leave ${GITHUB_PERSONAL_ACCESS_TOKEN} in that command exactly as written — it
+# is a placeholder Claude Code fills in from the environment, so your token
+# never ends up in a config file.
 #
 # Format: one KEY=VALUE per line. `#` starts a comment. Quotes around the value
 # are optional and get stripped. A leading `export ` is allowed and ignored.
@@ -257,7 +272,6 @@ cat > "$PERSIST_DIR/.env.example" << 'ENVEXAMPLE'
 # HA_URL are ignored — overwriting them breaks the add-on.
 
 # GITHUB_PERSONAL_ACCESS_TOKEN=ghp_...
-# GITHUB_TOKEN=ghp_...
 ENVEXAMPLE
 
 if [ -f "$ENV_FILE" ]; then
@@ -269,6 +283,7 @@ if [ -f "$ENV_FILE" ]; then
     # which breaks an Authorization header in a way that is very hard to see.
     while IFS= read -r RAW || [ -n "$RAW" ]; do
         LINE=${RAW%$'\r'}
+        LINE=${LINE#$'\xef\xbb\xbf'}   # UTF-8 BOM, written by some Windows editors
         LINE=${LINE#"${LINE%%[![:space:]]*}"}
         case "$LINE" in
             ''|'#'*) continue ;;
@@ -297,8 +312,15 @@ if [ -f "$ENV_FILE" ]; then
         ENV_NAMES="$ENV_NAMES $KEY"
         ENV_COUNT=$((ENV_COUNT + 1))
     done < "$ENV_FILE"
-    # Names only — the values are secrets and add-on logs are shown in the HA UI
-    echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Loaded $ENV_COUNT variable(s) from .env:$ENV_NAMES"
+    if [ "$ENV_COUNT" -eq 0 ]; then
+        # A .env in which every line is commented out is nearly always the example
+        # file with the `#` still in front of the token — say so instead of just
+        # reporting zero.
+        echo "[WARN] [$(date '+%Y-%m-%d %H:%M:%S')] .env contains no active variable — every line is a comment or empty. Remove the leading '#' from the line holding your token."
+    else
+        # Names only — the values are secrets and add-on logs are shown in the HA UI
+        echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Loaded $ENV_COUNT variable(s) from .env:$ENV_NAMES"
+    fi
 else
     echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] No .env — rename .env.example in $PERSIST_DIR to pass tokens to MCP servers"
 fi

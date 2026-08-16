@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.3.16] - 2026-08-16
+
+### Changed
+- **`.env.example` sagt jetzt, was zu tun ist.** Die Beispieldatei listete zwei auskommentierte Variablen (`GITHUB_PERSONAL_ACCESS_TOKEN` und `GITHUB_TOKEN`), ohne zu sagen, welche gebraucht wird — und die Raute davor blieb beim Ausfüllen leicht stehen, womit der Token stumm ignoriert wurde. Übrig bleibt jetzt nur `GITHUB_PERSONAL_ACCESS_TOKEN`, mit nummerierter Anleitung, ausdrücklichem Hinweis auf die zu löschende Raute und der Logzeile, an der sich der Erfolg ablesen lässt.
+- **Der Befehl zum Anlegen des GitHub-MCP-Servers steht jetzt in der Doku** — in `.env.example` und in DOCS.md, DE wie EN. Ein Token allein legt keinen Server an, er füllt nur den Platzhalter in dessen Konfiguration; dieser Zwischenschritt fehlte bisher komplett und ohne ihn bleibt es bei den zwei Servern, die das Add-on selbst einrichtet.
+
+### Fixed
+- Enthält die `.env` keine einzige aktive Zeile, steht im Log nicht mehr nur `Loaded 0 variable(s)`, sondern eine Warnung samt Ursache: alle Zeilen sind Kommentare, die Raute vor dem Token muss weg.
+- Ein UTF-8-BOM am Dateianfang wird abgeschnitten. Manche Windows-Editoren schreiben es ungefragt; der erste Schlüssel wäre sonst als ungültiger Variablenname verworfen worden.
+
+
 ## [1.3.15] - 2026-08-16
 
 ### Added

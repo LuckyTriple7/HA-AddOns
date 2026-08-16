@@ -107,7 +107,21 @@ Dafür liegt in `/homeassistant/.claudecode/` die Datei `.env.example`. In `.env
 GITHUB_PERSONAL_ACCESS_TOKEN=ghp_...
 ```
 
-Format: eine Variable pro Zeile, `#` leitet einen Kommentar ein, Anführungszeichen um den Wert sind erlaubt und werden entfernt, ein vorangestelltes `export ` wird ignoriert. Zeilenumbrüche im Windows-Format (CRLF) sind unproblematisch. Die Datei wird nicht ausgeführt, sondern Zeile für Zeile gelesen — `$(…)` darin bleibt Text.
+**Die Raute muss weg.** In der Beispieldatei ist die Zeile auskommentiert; bleibt das `#` stehen, ist es ein Kommentar und der Token wird nicht geladen. Das Log sagt dann `.env contains no active variable`.
+
+Format: eine Variable pro Zeile, `#` leitet einen Kommentar ein, Anführungszeichen um den Wert sind erlaubt und werden entfernt, ein vorangestelltes `export ` wird ignoriert. Zeilenumbrüche im Windows-Format (CRLF) und ein UTF-8-BOM werden abgeschnitten. Die Datei wird nicht ausgeführt, sondern Zeile für Zeile gelesen — `$(…)` darin bleibt Text.
+
+### GitHub-MCP-Server einrichten
+
+Der Token allein legt keinen Server an — er füllt nur den Platzhalter in dessen Konfiguration. Die Verbindung zu GitHub muss einmalig registriert werden:
+
+```bash
+claude mcp add-json github '{"type":"http","url":"https://api.githubcopilot.com/mcp/","headers":{"Authorization":"Bearer ${GITHUB_PERSONAL_ACCESS_TOKEN}"}}' -s user
+```
+
+`${GITHUB_PERSONAL_ACCESS_TOKEN}` bleibt dabei **genau so stehen**. Claude Code setzt den Wert beim Verbinden aus der Umgebung ein — Dein Token landet dadurch in keiner Konfigurationsdatei. Danach `claude` neu starten, `/mcp` zeigt `github` als verbundenen Server.
+
+Der Eintrag liegt in `/root/.claude.json` und bleibt erhalten; das Add-on setzt beim Start nur `homeassistant` und `playwright` neu. Alternativ geht auch der Weg über `/plugin` → Marketplace → GitHub-Plugin; dessen `.mcp.json` verwendet dieselbe Variable.
 
 Ignoriert werden `PATH`, `HOME`, `IFS`, `LD_PRELOAD`, `LD_LIBRARY_PATH`, `SUPERVISOR_TOKEN`, `HA_TOKEN` und `HA_URL`; sie zu überschreiben würde das Add-on lahmlegen. Im Log erscheinen nur die Namen der geladenen Variablen, nie deren Werte.
 
@@ -295,7 +309,21 @@ That is what `.env.example` in `/homeassistant/.claudecode/` is for. Rename it t
 GITHUB_PERSONAL_ACCESS_TOKEN=ghp_...
 ```
 
-Format: one variable per line, `#` starts a comment, quotes around the value are allowed and get stripped, a leading `export ` is ignored. Windows-style line endings (CRLF) are handled. The file is not executed but read line by line — `$(…)` inside it stays text.
+**Delete the leading `#`.** The line is commented out in the example file; leave the `#` in place and it stays a comment, so the token is never loaded. The log then says `.env contains no active variable`.
+
+Format: one variable per line, `#` starts a comment, quotes around the value are allowed and get stripped, a leading `export ` is ignored. Windows-style line endings (CRLF) and a UTF-8 BOM are stripped. The file is not executed but read line by line — `$(…)` inside it stays text.
+
+### Setting up the GitHub MCP server
+
+The token alone does not create a server — it only fills the placeholder in that server's configuration. The connection to GitHub has to be registered once:
+
+```bash
+claude mcp add-json github '{"type":"http","url":"https://api.githubcopilot.com/mcp/","headers":{"Authorization":"Bearer ${GITHUB_PERSONAL_ACCESS_TOKEN}"}}' -s user
+```
+
+Leave `${GITHUB_PERSONAL_ACCESS_TOKEN}` in there **exactly as written**. Claude Code substitutes the value from the environment when connecting, so your token never ends up in a config file. Then restart `claude` and `/mcp` lists `github` as connected.
+
+The entry lives in `/root/.claude.json` and persists; the add-on only re-creates `homeassistant` and `playwright` on start. The `/plugin` → marketplace → GitHub plugin route works as well; its `.mcp.json` uses the same variable.
 
 Ignored are `PATH`, `HOME`, `IFS`, `LD_PRELOAD`, `LD_LIBRARY_PATH`, `SUPERVISOR_TOKEN`, `HA_TOKEN` and `HA_URL`; overwriting those would break the add-on. The log lists only the names of the loaded variables, never their values.
 
