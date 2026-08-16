@@ -20,7 +20,7 @@ Collabora Online Office-Server für Nextcloud — öffne und bearbeite `.docx`, 
 1. In Nextcloud: **Apps → Office & Text → Nextcloud Office** installieren
 2. **Einstellungen → Verwaltung → Nextcloud Office** öffnen
 3. **„Eigenen Server verwenden"** wählen
-4. URL eintragen: `http://<HA-IP>:9980`
+4. URL eintragen: `https://<HA-IP>:9980`
 5. Speichern — der grüne Haken bestätigt die Verbindung
 
 ### 3. WOPI-Allowlist setzen (empfohlen)
@@ -41,17 +41,21 @@ ALLOW_ROOT=1 php /app/www/public/occ config:app:set richdocuments wopi_allowlist
 
 ## Admin-Panel
 
-Erreichbar unter: `http://<HA-IP>:9980/browser/dist/admin/admin.html`
+Erreichbar unter: `https://<HA-IP>:9980/browser/dist/admin/admin.html`
+
+coolwsd liefert https mit einem selbst erzeugten Zertifikat aus, die Browser-Warnung ist also normal. Nur wenn `extra_params` ein `--o:ssl.enable=false` enthält, ist es stattdessen `http://`.
 
 Benutzername und Passwort wie in der Konfiguration gesetzt.
 
 ## Web-Terminal
 
-Das Add-on enthält ein Web-Terminal, erreichbar über den **„Collabora Terminal"-Eintrag in der HA-Seitenleiste**.
+Das Add-on enthält ein Web-Terminal (ttyd), erreichbar unter `http://<HA-IP>:7682`.
+
+> Dieser Zugang ist **nicht** durch die Home-Assistant-Anmeldung geschützt: Wer im Netzwerk `http://<HA-IP>:7682` aufruft, bekommt ohne Passwort eine schreibfähige Root-Shell im Container. Wenn du das Terminal nicht brauchst, entferne `7682/tcp` aus `ports` in der Add-on-Konfiguration — dann ist es gar nicht mehr erreichbar.
 
 Nützlich um z.B. die Konfiguration direkt zu prüfen:
 ```sh
-coolconfig get-admin-password
+ps aux | grep coolwsd
 cat /config/coolwsd.xml
 ```
 
@@ -86,7 +90,7 @@ Collabora Online office server for Nextcloud — open and edit `.docx`, `.xlsx`,
 1. In Nextcloud: **Apps → Office & Text → Nextcloud Office** install
 2. Open **Settings → Administration → Nextcloud Office**
 3. Select **"Use your own server"**
-4. Enter URL: `http://<HA-IP>:9980`
+4. Enter URL: `https://<HA-IP>:9980`
 5. Save — a green checkmark confirms the connection
 
 ### 3. Set WOPI Allowlist (recommended)
@@ -107,17 +111,21 @@ ALLOW_ROOT=1 php /app/www/public/occ config:app:set richdocuments wopi_allowlist
 
 ## Admin Panel
 
-Available at: `http://<HA-IP>:9980/browser/dist/admin/admin.html`
+Available at: `https://<HA-IP>:9980/browser/dist/admin/admin.html`
+
+coolwsd serves https with a self-generated certificate, so the browser warning is expected. Only if `extra_params` contains `--o:ssl.enable=false` is it `http://` instead.
 
 Username and password as configured.
 
 ## Web Terminal
 
-The add-on includes a web terminal, accessible via the **"Collabora Terminal" entry in the HA sidebar**.
+The add-on includes a web terminal (ttyd), available at `http://<HA-IP>:7682`.
+
+> This access is **not** protected by the Home Assistant login: anyone on the network who opens `http://<HA-IP>:7682` gets a writable root shell inside the container, without a password. If you do not need the terminal, remove `7682/tcp` from `ports` in the add-on configuration to make it unreachable.
 
 Useful for inspecting the configuration directly:
 ```sh
-coolconfig get-admin-password
+ps aux | grep coolwsd
 cat /config/coolwsd.xml
 ```
 

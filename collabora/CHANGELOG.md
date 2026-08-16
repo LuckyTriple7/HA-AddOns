@@ -1,5 +1,65 @@
 # Changelog
 
+## [1.1.3] - 2026-08-15
+- Der Button auf der Add-on-Seite öffnet jetzt die Administratorenkonsole statt des
+  Web-Terminals. Dafür musste `ingress` weichen: Home Assistant wertet `webui` nur aus,
+  wenn Ingress aus ist, und rendert immer nur einen der beiden Buttons.
+- Damit entfällt der Seitenleisten-Eintrag „Collabora Terminal". ttyd läuft unverändert
+  weiter und ist unter `http://<HA-IP>:7682` erreichbar — dieser Weg liegt allerdings
+  nicht mehr hinter der Home-Assistant-Anmeldung. Wer das Terminal nicht braucht, nimmt
+  `7682/tcp` aus `ports`.
+
+## [1.1.2] - 2026-08-15
+- `webui` aus 1.1.1 wieder entfernt: Home Assistant wertet den Schlüssel nur aus, wenn
+  `ingress` aus ist (`_computeShowWebUI = !addon.ingress && addon.webui`). Da das Add-on
+  Ingress für das Web-Terminal nutzt, war die Zeile wirkungslos — der Button auf der
+  Add-on-Seite öffnet weiterhin das Terminal. Beide Ziele gleichzeitig kann HA nicht,
+  es wird genau ein Button gerendert.
+- Doku: Web-Terminal ist auch direkt unter `http://<HA-IP>:7682` erreichbar, mit Hinweis,
+  dass dieser Weg im Gegensatz zum Ingress-Zugang ohne HA-Anmeldung offen steht.
+
+## [1.1.1] - 2026-08-15
+- `webui` ergänzt: Die Add-on-Seite in Home Assistant zeigt jetzt einen Button auf die
+  Administratorenkonsole, statt dass man sich `https://<HA-IP>:9980/browser/dist/admin/admin.html`
+  merken muss. Der Ingress-Eintrag in der Seitenleiste bleibt das Web-Terminal.
+
+## [1.1.0] - 2026-08-15
+- Image-Aufbau grundlegend umgestellt: `collabora/code` ist nicht mehr die Basis des Add-ons,
+  sondern nur noch Bezugsquelle. Der Build holt die Collabora-Nutzlast (`coolwsd`,
+  `coolforkit-*`, `coolmount`, `/usr/share/coolwsd`, `/etc/coolwsd`, `/opt/collaboraoffice`,
+  `/opt/cool`) per Multi-Stage-`COPY --from` aus dem offiziellen Image und legt sie auf ein
+  `debian:13-slim`-Runtime. Damit ist das Nix-/Distroless-Rootfs ohne Shell, apt und su
+  kein Problem mehr — die Werkzeuge kommen von Debian, Collabora vom Upstream.
+- Ursache für „type detection failed" gefunden: `COPY --from` überträgt keine Extended
+  Attributes, dadurch verlieren `coolforkit-caps` (`cap_chown,cap_fowner,cap_sys_chroot=ep`)
+  und `coolmount` (`cap_sys_admin=ep`) ihre File-Capabilities. coolwsd startet dann normal
+  und liefert die Admin-Konsole, aber kein Kit-Prozess kann mehr chrooten, also scheitert
+  jedes Dokument. Beide Capabilities werden jetzt per `setcap` neu gesetzt und per `getcap`
+  verifiziert — fehlen sie, bricht der Build ab, statt ein scheinbar heiles Image zu bauen.
+- `/etc` und `/nix` werden bewusst nicht mitkopiert: dort sind `resolv.conf`, `hosts`,
+  `passwd`, `group` und `nsswitch.conf` Symlinks in den Nix-Store, mitkopiert killt das
+  DNS-Auflösung und Base-User.
+- Neuer Build-Gate: jede übernommene Binary wird per `ldd` gegen das Debian-Runtime geprüft,
+  der Build failt bei unaufgelösten Libraries. (coolwsd selbst taugt nicht als Smoke-Test:
+  verweigert Root-Betrieb, und `--version` beendet sich nicht.)
+- Digest-Pin entfernt, `FROM collabora/code:latest-amd64` (arch-spezifischer Tag statt
+  Multi-Arch, damit die Runner-Architektur nicht still über den Image-Inhalt entscheidet).
+- `/start-collabora-online.sh` existiert im neuen Upstream-Image nicht mehr; das Add-on
+  bringt mit `collabora-run.sh` einen eigenen Launcher mit (Self-Signed-Zertifikat,
+  `--use-env-vars`, sys_template/child_root/cache-Pfade, `extra_params` zuletzt).
+- Admin-Zugangsdaten laufen wieder über die offiziellen Env-Vars (`username`/`password` mit
+  `--use-env-vars`); der `coolconfig set-admin-password`-Umweg entfällt, `coolconfig` gibt es
+  im neuen Image ohnehin nicht mehr. Der WOPI-Proof-Key wird von coolwsd selbst erzeugt.
+- `aliasgroup1`/`nextcloud_url` werden jetzt normalisiert: Punkte werden genau einmal
+  escaped, egal ob gar nicht, einfach oder doppelt eingetippt. Werte mit Regex-Metazeichen
+  bleiben unangetastet. Vorher matchte ein falsch escapetes Muster stillschweigend nie.
+- Persistierte `/config/coolwsd.xml` wird per Prüfsumme gegen die Referenz-Config aus dem
+  Image verfolgt. Bringt ein Update eine neue coolwsd.xml mit, wird die alte nach
+  `coolwsd.xml.bak-<Zeitstempel>` gesichert und frisch aufgesetzt, statt eine zum neuen
+  coolwsd unpassende Config weiterzuschleppen.
+- Update-Workflow wieder aktiv, verfolgt jetzt den Upstream-Versions-Tag statt des
+  `latest`-Digests (`.collabora-digest` → `.collabora-version`).
+
 ## [1.0.12] - 2026-07-31
 - map: `addon_config` → `app_config` (Home-Assistant-Supervisor hat `addon_config` seit 2026.07 als Legacy-Name markiert, neuer Name ist `app_config`).
 

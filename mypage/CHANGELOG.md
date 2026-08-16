@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.10.32
+- 🖼️ **Geteilte Links zeigen jetzt wieder ein Bild.** In WhatsApp, Discord, Slack oder X kam nur ein grauer Kasten mit Text an: die Vorschaubild-Adresse war ein Pfad ohne Domain, und diese Dienste holen das Bild von außen — dort gibt es nichts, woran ein `/uploads/…` hängen könnte. Alle Vorschaubilder werden jetzt mit voller Adresse gemeldet.
+- 🔗 Dazu kommen die bisher ganz fehlenden Angaben: die Adresse der Seite selbst, der Seitentyp, der Seitenname, die Sprache und eine eigene Karte für X. Ohne eigenes Bild springt das Profilbild ein — eine Karte mit Absender ist besser als keine.
+- 🌍 **Die Sitemap nennt jetzt beide Sprachfassungen.** Die englische Fassung unter `?lang=en` stand nirgends in der Sitemap und wurde entsprechend selten gefunden. Jede gemeldete Adresse führt jetzt ihre Sprachvarianten mit auf.
+- 📇 **Ausführlichere strukturierte Daten.** Blog-Beiträge, Bibliothek und Reisetage melden zusätzlich Bild, Beschreibung, Sprache und die zugehörige Adresse; Projektseiten hatten bisher gar keine und beschreiben sich jetzt als Quellcode-Projekt samt Repository und Programmiersprache.
+
 ## 0.10.31
 - 🧭 **Der System-Reiter hat jetzt auch eine Sprungleiste.** Elf Bereiche untereinander — von der Zwei-Faktor-Anmeldung über Backups und Dateien bis zu den Sensoren — hießen bisher: scrollen und suchen. Oben im Reiter steht jetzt dieselbe Leiste wie im KI-Reiter, ein Klick springt hin.
 - 📌 Sie klebt beim Scrollen unter der Kopfzeile, der Bereich, in dem man gerade steht, hebt sich hervor. Bei aufklappbaren Bereichen („Dateien", „Alt-Texte") steht die reine Überschrift im Chip, ohne Pfeil und Zähler.

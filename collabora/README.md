@@ -11,9 +11,9 @@ Collabora Online Office-Server für Nextcloud — bearbeite `.docx`, `.xlsx`, `.
 
 | Dienst | URL |
 |--------|-----|
-| Collabora Online | `http://<HA-IP>:9980` |
-| Admin-Panel | `http://<HA-IP>:9980/browser/dist/admin/admin.html` |
-| Web-Terminal | HA-Seitenleiste → „Collabora Terminal" |
+| Collabora Online | `https://<HA-IP>:9980` |
+| Admin-Panel | `https://<HA-IP>:9980/browser/dist/admin/admin.html` |
+| Web-Terminal | `http://<HA-IP>:7682` |
 
 ## Funktionen
 
@@ -21,8 +21,8 @@ Collabora Online Office-Server für Nextcloud — bearbeite `.docx`, `.xlsx`, `.
 - **Nextcloud-Integration**: Dokumente direkt in Nextcloud öffnen und bearbeiten
 - **Domain-Beschränkung**: Nur deine Nextcloud-Instanz darf den Server nutzen
 - **Persistente Konfiguration**: `coolwsd.xml` wird in `/config` gespeichert und überlebt Rebuilds
-- **Admin-Panel**: Passwort wird korrekt gehasht via `coolconfig`
-- **Web-Terminal**: coolwsd-Konfiguration direkt im Browser einsehbar (HA Ingress)
+- **Admin-Panel**: Zugangsdaten werden coolwsd per `--use-env-vars` übergeben
+- **Web-Terminal**: coolwsd-Konfiguration direkt im Browser einsehbar (ttyd auf Port 7682)
 
 ## Konfiguration
 
@@ -41,7 +41,7 @@ Collabora Online Office-Server für Nextcloud — bearbeite `.docx`, `.xlsx`, `.
 2. Add-on starten
 3. In Nextcloud: **Apps → Office & Text → Nextcloud Office** installieren
 4. **Einstellungen → Verwaltung → Nextcloud Office → Eigenen Server verwenden**
-5. URL eintragen: `http://<HA-IP>:9980` — grüner Haken bestätigt die Verbindung
+5. URL eintragen: `https://<HA-IP>:9980` — grüner Haken bestätigt die Verbindung
 6. WOPI-Allowlist im Nextcloud-Terminal setzen:
    ```sh
    ALLOW_ROOT=1 php /app/www/public/occ config:app:set richdocuments wopi_allowlist --value="172.30.0.0/16"
@@ -49,14 +49,14 @@ Collabora Online Office-Server für Nextcloud — bearbeite `.docx`, `.xlsx`, `.
 
 ## Web-Terminal
 
-Über die HA-Seitenleiste erreichbar. Nützliche Befehle:
+Erreichbar unter `http://<HA-IP>:7682` (ohne HA-Anmeldung, siehe DOCS.md). Nützliche Befehle:
 
 ```sh
 # Konfiguration prüfen
 cat /config/coolwsd.xml
 
-# Admin-Passwort manuell setzen
-coolconfig set-admin-password admin
+# Laufende coolwsd-Parameter ansehen
+ps aux | grep coolwsd
 ```
 
 ## Hinweise
@@ -80,9 +80,9 @@ Collabora Online office server for Nextcloud — edit `.docx`, `.xlsx`, `.pptx` 
 
 | Service | URL |
 |---------|-----|
-| Collabora Online | `http://<HA-IP>:9980` |
-| Admin Panel | `http://<HA-IP>:9980/browser/dist/admin/admin.html` |
-| Web Terminal | HA sidebar → "Collabora Terminal" |
+| Collabora Online | `https://<HA-IP>:9980` |
+| Admin Panel | `https://<HA-IP>:9980/browser/dist/admin/admin.html` |
+| Web Terminal | `http://<HA-IP>:7682` |
 
 ## Features
 
@@ -90,8 +90,8 @@ Collabora Online office server for Nextcloud — edit `.docx`, `.xlsx`, `.pptx` 
 - **Nextcloud integration**: Open and edit documents directly in Nextcloud
 - **Domain restriction**: Only your Nextcloud instance can use the server
 - **Persistent configuration**: `coolwsd.xml` is stored in `/config` and survives rebuilds
-- **Admin panel**: Password is correctly hashed via `coolconfig`
-- **Web terminal**: Inspect coolwsd configuration directly in the browser (HA Ingress)
+- **Admin panel**: Credentials are handed to coolwsd via `--use-env-vars`
+- **Web terminal**: Inspect coolwsd configuration directly in the browser (ttyd on port 7682)
 
 ## Configuration
 
@@ -110,7 +110,7 @@ Collabora Online office server for Nextcloud — edit `.docx`, `.xlsx`, `.pptx` 
 2. Start the add-on
 3. In Nextcloud: **Apps → Office & Text → Nextcloud Office** install
 4. **Settings → Administration → Nextcloud Office → Use your own server**
-5. Enter URL: `http://<HA-IP>:9980` — green checkmark confirms the connection
+5. Enter URL: `https://<HA-IP>:9980` — green checkmark confirms the connection
 6. Set the WOPI allowlist in the Nextcloud Terminal:
    ```sh
    ALLOW_ROOT=1 php /app/www/public/occ config:app:set richdocuments wopi_allowlist --value="172.30.0.0/16"
@@ -118,14 +118,14 @@ Collabora Online office server for Nextcloud — edit `.docx`, `.xlsx`, `.pptx` 
 
 ## Web Terminal
 
-Accessible via the HA sidebar. Useful commands:
+Available at `http://<HA-IP>:7682` (no HA login required, see DOCS.md). Useful commands:
 
 ```sh
 # Check configuration
 cat /config/coolwsd.xml
 
-# Set admin password manually
-coolconfig set-admin-password admin
+# Inspect the running coolwsd parameters
+ps aux | grep coolwsd
 ```
 
 ## Notes

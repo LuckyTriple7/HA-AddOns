@@ -5,6 +5,8 @@ on:
     branches: [dev]
     paths:
       - 'collabora/config.yaml'
+      - 'collabora/Dockerfile'
+      - 'collabora/*.sh'
   workflow_dispatch:
 
 permissions:

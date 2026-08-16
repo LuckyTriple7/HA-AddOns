@@ -1,5 +1,34 @@
 # Changelog
 
+English version from 1.3.0 onwards: [Changelog (English)](#changelog-english)
+
+## [1.3.16] - 2026-08-16
+
+### Changed
+- **`.env.example` sagt jetzt, was zu tun ist.** Die Beispieldatei listete zwei auskommentierte Variablen (`GITHUB_PERSONAL_ACCESS_TOKEN` und `GITHUB_TOKEN`), ohne zu sagen, welche gebraucht wird — und die Raute davor blieb beim Ausfüllen leicht stehen, womit der Token stumm ignoriert wurde. Übrig bleibt jetzt nur `GITHUB_PERSONAL_ACCESS_TOKEN`, mit nummerierter Anleitung, ausdrücklichem Hinweis auf die zu löschende Raute und der Logzeile, an der sich der Erfolg ablesen lässt.
+- **Der Befehl zum Anlegen des GitHub-MCP-Servers steht jetzt in der Doku** — in `.env.example` und in DOCS.md, DE wie EN. Ein Token allein legt keinen Server an, er füllt nur den Platzhalter in dessen Konfiguration; dieser Zwischenschritt fehlte bisher komplett und ohne ihn bleibt es bei den zwei Servern, die das Add-on selbst einrichtet.
+
+### Fixed
+- Enthält die `.env` keine einzige aktive Zeile, steht im Log nicht mehr nur `Loaded 0 variable(s)`, sondern eine Warnung samt Ursache: alle Zeilen sind Kommentare, die Raute vor dem Token muss weg.
+- Ein UTF-8-BOM am Dateianfang wird abgeschnitten. Manche Windows-Editoren schreiben es ungefragt; der erste Schlüssel wäre sonst als ungültiger Variablenname verworfen worden.
+
+
+## [1.3.15] - 2026-08-16
+
+### Added
+- **Eigene Umgebungsvariablen über `/homeassistant/.claudecode/.env`.** MCP-Server, die sich mit einem Token anmelden, lesen ihn aus der Umgebung des laufenden `claude`-Prozesses — das offizielle GitHub-Plugin etwa als `${GITHUB_PERSONAL_ACCESS_TOKEN}`. Bisher gab es keinen Weg, so einen Wert dorthin zu bekommen: Das Add-on hatte kein Feld dafür, und ein `export` im Terminal wirkt nur auf die eigene Shell, nie zurück auf den bereits gestarteten Elternprozess. Der Server meldete `Header values reference unset environment variables` und HTTP 400 (Issue #251).
+
+  Neu legt das Add-on `.env.example` in `/homeassistant/.claudecode/` ab. Nach dem Umbenennen in `.env` wird jede `KEY=VALUE`-Zeile exportiert, bevor das Terminal startet — Claude Code und alle MCP-Server sehen die Werte damit ab dem nächsten Start. Anführungszeichen und ein vorangestelltes `export ` sind erlaubt, `#` leitet einen Kommentar ein, Windows-Zeilenenden (CRLF) werden abgeschnitten. Die Datei wird nicht ausgeführt, sondern Zeile für Zeile gelesen; `$(…)` darin bleibt Text. `PATH`, `HOME`, `IFS`, `LD_PRELOAD`, `LD_LIBRARY_PATH`, `SUPERVISOR_TOKEN`, `HA_TOKEN` und `HA_URL` werden ignoriert, weil ein Überschreiben das Add-on lahmlegen würde. Ins Log gehen nur die Namen der geladenen Variablen, nie die Werte.
+
+  Zu beachten: `/homeassistant` liegt in jedem HA-Backup, das Token damit auch — entsprechend knappe Rechte vergeben.
+
+### Fixed
+- **Git-Konfiguration und Zugangsdaten überleben jetzt einen Rebuild.** `~/.gitconfig` und `~/.git-credentials` liegen unter `/root` und damit im Container-Image, das bei jedem Update neu entsteht — Name, E-Mail und hinterlegte Zugangsdaten waren danach weg, `git push` scheiterte mit `could not read Username for 'https://github.com'`. Beides liegt jetzt in `/homeassistant/.claudecode/` (`gitconfig` und `.git-credentials`) und wird nach `/root` verlinkt; eine bereits vorhandene `~/.gitconfig` wird beim ersten Start übernommen, nicht überschrieben. Als Credential-Helper ist `store` mit Ziel in diesem Verzeichnis voreingestellt — aber nur, wenn keiner konfiguriert ist, ein eigener Helper bleibt unangetastet.
+
+### Changed
+- `protect_internal_config` sperrt zusätzlich das **Lesen** von `.claudecode/.env` und `.claudecode/.git-credentials`. Die Token stehen dort, wo Claude sie braucht, nämlich in der Umgebung; sie von der Platte zu lesen bringt nichts und kann sie in einer Sitzung sichtbar machen. Wie bisher gilt: Die Sperre greift bei den Datei-Werkzeugen, nicht bei Umwegen über die Shell, und wer sie nicht will, schaltet die Option ab.
+
+
 ## [1.3.14] - 2026-08-14
 
 ### Changed
@@ -508,3 +537,143 @@ Forked from [apbb2/robsonfelix-hass-addons](https://github.com/apbb2/robsonfelix
 ### Fixed
 - Playwright MCP: socat forwards port 80 → Playwright Browser add-on port 9222,
   so the CDP endpoint is reliably reachable without manual workarounds.
+
+# Changelog (English)
+
+Covers 1.3.0 onwards. Older entries are available in German only.
+
+## [1.3.16] - 2026-08-16
+
+### Changed
+- **`.env.example` now says what to do.** The example file listed two commented-out variables (`GITHUB_PERSONAL_ACCESS_TOKEN` and `GITHUB_TOKEN`) without saying which one is needed — and the `#` in front was easy to leave in place when filling it in, which made the token be ignored silently. Only `GITHUB_PERSONAL_ACCESS_TOKEN` remains, with numbered instructions, an explicit note about deleting the `#`, and the log line that confirms success.
+- **The command that creates the GitHub MCP server is now documented** — in `.env.example` and in DOCS.md, German and English. A token alone does not create a server, it only fills the placeholder in that server's configuration; this intermediate step was missing entirely, and without it you are left with the two servers the add-on sets up itself.
+
+### Fixed
+- If the `.env` holds no active line at all, the log no longer just reports `Loaded 0 variable(s)` but warns with the cause: every line is a comment, the `#` in front of the token has to go.
+- A UTF-8 BOM at the start of the file is stripped. Some Windows editors write it unasked; the first key would otherwise have been discarded as an invalid variable name.
+
+
+## [1.3.15] - 2026-08-16
+
+### Added
+- **Your own environment variables through `/homeassistant/.claudecode/.env`.** MCP servers that authenticate with a token read it from the environment of the running `claude` process — the official GitHub plugin, for instance, as `${GITHUB_PERSONAL_ACCESS_TOKEN}`. Until now there was no way to get such a value in there: the add-on had no field for it, and an `export` in the terminal only affects that shell, never the already-running parent process. The server reported `Header values reference unset environment variables` and HTTP 400 (issue #251).
+
+  The add-on now places `.env.example` in `/homeassistant/.claudecode/`. After renaming it to `.env`, every `KEY=VALUE` line is exported before the terminal starts — Claude Code and all MCP servers see the values from the next start on. Quotes and a leading `export ` are allowed, `#` starts a comment, Windows line endings (CRLF) are stripped. The file is not executed but read line by line; `$(…)` inside it stays text. `PATH`, `HOME`, `IFS`, `LD_PRELOAD`, `LD_LIBRARY_PATH`, `SUPERVISOR_TOKEN`, `HA_TOKEN` and `HA_URL` are ignored, because overwriting them would cripple the add-on. Only the names of the loaded variables go into the log, never the values.
+
+  Worth noting: `/homeassistant` is part of every HA backup, and so is the token — grant permissions accordingly.
+
+### Fixed
+- **Git configuration and credentials now survive a rebuild.** `~/.gitconfig` and `~/.git-credentials` live under `/root` and therefore in the container image, which is re-created on every update — name, email and stored credentials were gone afterwards, and `git push` failed with `could not read Username for 'https://github.com'`. Both now live in `/homeassistant/.claudecode/` (`gitconfig` and `.git-credentials`) and are linked into `/root`; an existing `~/.gitconfig` is carried over on first start rather than overwritten. The credential helper defaults to `store` pointing into that directory — but only when none is configured, an own helper is left untouched.
+
+### Changed
+- `protect_internal_config` additionally blocks **reading** `.claudecode/.env` and `.claudecode/.git-credentials`. The tokens are already where Claude needs them, namely in the environment; reading them off disk gains nothing and can expose them in a session. As before: the block applies to the file tools, not to detours through the shell, and anyone who does not want it turns the option off.
+
+
+## [1.3.14] - 2026-08-14
+
+### Changed
+- Rebuild for Claude Code 2.1.223
+
+
+## [1.3.13] - 2026-08-14
+
+### Fixed
+- The write protection from 1.3.12 wrote two rules per path, `Edit(...)` and `Write(...)`. File permission checks only match `Edit` rules, though — and those already cover every file-modifying tool, `Write` included. The `Write` rules had no effect and Claude Code printed a warning for each of them at startup. They are now removed on every start, regardless of whether the option is on or off, so that already-written `settings.json` files become clean too. The protection itself is unchanged.
+
+
+## [1.3.12] - 2026-08-14
+
+### Added
+- New option `protect_internal_config` (default: enabled). Writes deny rules into `settings.json` with which Claude Code refuses writes to `.storage/`, `.cloud/`, `deps/`, `tts/` and the recorder database itself — unlike the guidance in CLAUDE.md, this works regardless of what is currently in context. Reading stays allowed, so troubleshooting in those directories still works.
+
+  Anyone who wants to intervene there deliberately turns the option off; the rules are rewritten on every start, so toggling takes effect immediately. Your own entries under `permissions.deny` are preserved in both directions, and a `settings.json` hand-edited into invalid JSON is not touched but reported as a warning in the log.
+
+  Not covered: detours through the shell — `Bash` calls such as `sed -i` on the same paths are not caught by the block.
+
+
+## [1.3.11] - 2026-08-14
+
+### Added
+- **Safety rules in CLAUDE.md.** The file previously held only path mapping, tool hints and log recipes — not a single rule about what Claude must *not* touch. New is a section at the very top with a block list for the internal HA directories (`.storage/`, `.cloud/`, `deps/`, `tts/`, `home-assistant_v2.db`) plus the reason why: everything created through the UI lives there, including the entity and device registries, the format is not stable, and a hand-edited file in `.storage/` can keep Home Assistant from starting. Every row of the table names the tool to use instead. On top of that: `secrets.yaml` is never displayed, file changes only after explicit approval, no unrequested cleanup, `ha core check` after YAML changes, and a note on reload vs. restart.
+- **`CLAUDE.local.md` for your own instructions.** CLAUDE.md is overwritten on every start, so additions of your own were gone after the next restart. The add-on now places `CLAUDE.local.md.example` in `/homeassistant/.claudecode/`; after renaming it to `CLAUDE.local.md` the file is loaded in every session and never touched by the add-on again — updates do not write into it either. CLAUDE.md wins where the two conflict, the safety rules stay in force.
+
+### Changed
+- Copying from the web terminal into the browser clipboard now works for text Claude Code copies itself. tmux discarded the necessary OSC 52 sequences in two ways: the DCS wrapper Claude Code puts them in needs `allow-passthrough on` (off by default since tmux 3.3), and `set-clipboard` ignores clipboard writes from inner applications by default.
+
+
+## [1.3.10] - 2026-08-14
+
+### Fixed
+- Typing in the web terminal felt jerky over slow connections (Nabu Casa Cloud, access from the road) — characters appeared in bursts instead of one by one. Cause: tmux' paste detection (`assume-paste-time`, default 1 ms) mistook normally typed text for a paste, because keystrokes arrive bundled over a high-latency connection, and passed them on as a block. The detection is now off; real pasting works unchanged, because the browser sends its own bracketed-paste sequences for that, which tmux passes through.
+- Arrow keys and Alt combinations react faster: tmux waited 500 ms after every ESC for a possible follow-up key (`escape-time`), now 10 ms.
+
+Note: the larger part of the noticeable delay lies outside the add-on. A terminal has no local echo, every keystroke travels to the server and back before the character appears. Over Nabu Casa Cloud that path additionally goes through the relay. At home, typing over the local HA address is noticeably smoother.
+
+
+## [1.3.9] - 2026-08-14
+
+### Changed
+- The ttyd binary is now verified by SHA256 during the image build before it becomes executable. Previously the build downloaded the file and set the execute bit straight away — a tampered download would have started unnoticed as a process with full host access (`full_access`, `docker_api`). The download now lands in `/tmp`, is compared against the checksum from the upstream release and only then installed to `/usr/bin/ttyd`. The ttyd version sits as `ARG TTYD_VERSION` at the top of the Dockerfile; whoever changes it has to update the checksums as well.
+- Unknown target architectures now abort the build with a clear message instead of silently installing the x86_64 binary.
+
+
+## [1.3.8] - 2026-08-09
+
+### Added
+- `enable_caveman_skill` now installs all seven skills of the upstream project instead of just `caveman`: `/caveman-commit`, `/caveman-review`, `/caveman-compress`, `/caveman-help`, `/caveman-stats` and `/cavecrew` are added, along with the three `cavecrew-*` subagents into `/root/.claude/agents/`. When switched off, the add-on removes exactly those names again — your own skills and agents stay untouched.
+
+### Changed
+- Bundled caveman skills updated from the 2026-07-03 state to upstream tag `v1.10.0`. Includes the "never drop negations" fix (dropped `not`/`never` inverted instructions), hardening against language drift, and the rule that lasting text (docs, issues, PR text, memory files) is written normally. Origin and update recipe are now in `skills/UPSTREAM.md`, the upstream `LICENSE` (MIT) is included.
+- Docs: dedicated section on the caveman skills (DE/EN) and a note that Claude Code updates now follow the npm tag `stable` only — image build, hourly check, `claude-update` and the GitHub workflow alike.
+
+
+## [1.3.7] - 2026-08-09
+
+### Added
+- Swipe scrolling and two scroll buttons in the web terminal on touch devices (phone, tablet, HA Companion App) — new option `mobile_scroll_ui` (default: enabled), desktop browsers are unchanged. Background: xterm.js does have its own touch scrolling, but bails out of `touchstart`/`touchmove` as soon as an application enables mouse capture (`coreMouseService.areMouseEventsActive`) — that is, always in scroll mode `tmux` (`set -g mouse on`). The new gesture detection works in the capture phase (no double scrolling) and feeds the movement back to xterm as a synthetic `wheel` event, which then either scrolls the browser scrollback or sends wheel reports to tmux, depending on the mode.
+
+### Changed
+- ttyd serves the client side as a single inline `index.html`; it is now fetched from a throwaway ttyd instance during the image build, extended with the script and served via `ttyd --index`. If ttyd changes its page layout, the build fails audibly instead of quietly serving a broken page.
+
+
+## [1.3.6] - 2026-08-06
+
+### Changed
+- Rebuild for Claude Code 2.1.220
+
+
+## [1.3.5] - 2026-08-05
+
+### Changed
+- Rebuild for Claude Code 2.1.222
+
+
+## [1.3.4] - 2026-08-05
+
+### Changed
+- Claude Code is now installed and updated via the npm tag `stable` instead of `latest`/`next` (build, `auto_update_claude`, `claude update`, `claude-update`) — far fewer updates, since `stable` is only set after additional vetting by Anthropic. The installed version can therefore be lower than before (currently 2.1.220 instead of 2.1.222).
+- The update check workflow (`check-claude-update.yml`) follows `dist-tags.stable` as well instead of `version` (= `latest`).
+
+
+## [1.3.3] - 2026-08-05
+
+### Security
+- The live Supervisor token was written into `settings.json` as `HASS_TOKEN` on every `c`/`cc` and during MCP setup — a persisted copy in the HA config directory that ends up in every HA backup. A dead field: `hass-mcp` reads only `HA_TOKEN` from the environment (already set via `export`), never `HASS_TOKEN` from the config. `update_mcp_token()` removed, the write during MCP setup removed, and already-persisted tokens are deleted from `settings.json` on the first start after the update.
+
+
+## [1.3.2] - 2026-08-05
+
+### Changed
+- Rebuild for Claude Code 2.1.222
+
+
+## [1.3.1] - 2026-08-04
+
+### Changed
+- Rebuild for Claude Code 2.1.221
+
+
+## [1.3.0] - 2026-07-31
+
+### Added
+- Home context briefing: CLAUDE.md automatically gets a section with `hab overview` at startup — floors/areas/devices/entities/automations etc. of the running HA installation, instead of only static path mapping. Best-effort with a 10 s timeout in case HA Core is still starting.

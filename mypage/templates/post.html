@@ -5,21 +5,31 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{{ loc(p, 'title') }} – {{ site.design.site_title or site.profile.name or 'MyPage' }}</title>
   <meta name="description" content="{{ meta_desc }}">
-  <meta property="og:title" content="{{ loc(p, 'title') }}">
-  <meta property="og:description" content="{{ meta_desc }}">
-  {% if p.image %}<meta property="og:image" content="{{ p.image }}">{% endif %}
+  {% set og_title = loc(p, 'title') %}{% set og_type = 'article' %}{% set og_image = p.image %}
+  {% include '_og.html' %}
   {% if site.design.favicon %}<link rel="icon" href="{{ site.design.favicon }}">
   {% elif site.profile.avatar %}<link rel="icon" href="{{ site.profile.avatar }}">{% endif %}
   {% if not site.design.allow_indexing %}<meta name="robots" content="noindex, nofollow">{% endif %}
   {% include '_seo.html' %}
   <meta name="theme-color" content="#0d1117">
-  <script type="application/ld+json">{{ {
+  {# Strukturierte Daten. `mainEntityOfPage` bindet den Eintrag an genau eine
+     Adresse — ohne das steht dieselbe Beschreibung unter der deutschen und der
+     englischen Fassung, und die Suchmaschine muss raten, welche gemeint ist. #}
+  {%- set ld = {
     '@context': 'https://schema.org',
     '@type': 'BlogPosting',
     'headline': loc(p, 'title'),
+    'description': meta_desc,
     'datePublished': p.date,
-    'author': {'@type': 'Person', 'name': site.profile.name}
-  }|tojson }}</script>
+    'inLanguage': lang,
+    'author': {'@type': 'Person', 'name': site.profile.name},
+    'publisher': {'@type': 'Person', 'name': site.profile.name}
+  } %}
+  {%- if canonical_url %}{% set _ = ld.update({'mainEntityOfPage': {'@type': 'WebPage', '@id': canonical_url}}) %}{% endif %}
+  {%- set ld_image = (p.image or site.profile.avatar or '')|abs_url %}
+  {%- if ld_image %}{% set _ = ld.update({'image': [ld_image]}) %}{% endif %}
+  {%- if p.tags %}{% set _ = ld.update({'keywords': p.tags|join(', ')}) %}{% endif %}
+  <script type="application/ld+json">{{ ld|tojson }}</script>
   <style>
     :root {
       --bg:#0d1117; --surf:#161b22; --border:#30363d;
