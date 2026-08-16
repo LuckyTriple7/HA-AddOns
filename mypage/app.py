@@ -1985,11 +1985,20 @@ def visit_log_max() -> int:
 
 
 def visit_file_keep_months() -> int:
-    """Wie viele Monatsdateien das Besucher-Archiv behält (0 = unbegrenzt)."""
+    """Wie viele Monatsdateien das Besucher-Archiv behält (0 = unbegrenzt).
+
+    Standard 1: das Archiv enthält ungekürzte IP-Adressen, und die meisten
+    Datenschutzerklärungen sagen für Zugriffsdaten eine Frist von 30 Tagen zu.
+    Ein Monat trifft das am ehesten. Wer länger auswerten will, dreht die
+    Option bewusst hoch — verboten wird es nicht.
+    """
+    raw = load_config().get('visit_file_keep')
+    if raw is None or raw == '':
+        return 1
     try:
-        return max(0, min(120, int(load_config().get('visit_file_keep') or 12)))
+        return max(0, min(120, int(raw)))
     except (TypeError, ValueError):
-        return 12
+        return 1
 
 
 def visit_archive_on() -> bool:
@@ -13697,6 +13706,12 @@ if __name__ == '__main__':
                         "Watchdog versucht es jede Minute erneut")
     log.info("Mitglieder-Bereich: Speicher unter %s, Upload-Limit %d MB",
              userfiles_root(), upload_max)
+
+    # Aufbewahrung des Besucher-Archivs auch beim Start durchsetzen, nicht erst
+    # beim nächsten Monatswechsel. Wer die Frist herunterdreht, will die alten
+    # Dateien loswerden — und Home Assistant startet das Add-on nach jeder
+    # Optionsänderung ohnehin neu, also greift die neue Frist sofort.
+    _prune_visit_files()
 
     threading.Thread(target=_run_public, daemon=True).start()
     threading.Thread(target=refresh_project_stars, daemon=True).start()

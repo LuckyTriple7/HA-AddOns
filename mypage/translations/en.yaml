@@ -26,8 +26,12 @@ configuration:
   visit_file_keep:
     name: Keep visitor archive (months)
     description: >-
-      How many monthly files of the visitor archive are kept (0-120, default 12).
-      0 = keep indefinitely. Cleanup runs when a new monthly file is created.
+      How many monthly files of the visitor archive are kept (0-120, default 1).
+      The archive holds full, untruncated IP addresses; many privacy policies promise
+      a maximum of 30 days for access data - 1 matches that most closely. Higher values
+      are allowed but should match your own privacy policy. 0 = keep indefinitely
+      (nothing is ever deleted). Cleanup runs at add-on start and when a new monthly
+      file is created.
   user_journal_max:
     name: Journal size per user
     description: How many events the journal keeps per user (20–1000, default 100).

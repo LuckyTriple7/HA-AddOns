@@ -26,8 +26,12 @@ configuration:
   visit_file_keep:
     name: Besucher-Archiv aufbewahren (Monate)
     description: >-
-      Wie viele Monatsdateien des Besucher-Archivs behalten werden (0-120, Standard 12).
-      0 = unbegrenzt aufbewahren. Aufgeräumt wird beim Anlegen einer neuen Monatsdatei.
+      Wie viele Monatsdateien des Besucher-Archivs behalten werden (0-120, Standard 1).
+      Das Archiv enthält ungekürzte IP-Adressen; viele Datenschutzerklärungen sagen für
+      Zugriffsdaten höchstens 30 Tage zu — 1 trifft das am ehesten. Höhere Werte sind
+      erlaubt, sollten aber zur eigenen Datenschutzerklärung passen. 0 = unbegrenzt
+      aufbewahren (nichts wird je gelöscht). Aufgeräumt wird beim Start des Add-ons und
+      beim Anlegen einer neuen Monatsdatei.
   user_journal_max:
     name: Journal-Größe pro Benutzer
     description: Wie viele Ereignisse das Journal je Benutzer behält (20–1000, Standard 100).

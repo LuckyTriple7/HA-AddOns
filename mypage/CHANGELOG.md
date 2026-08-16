@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.10.35
+- 🗓️ **Das Besucher-Archiv behält jetzt standardmäßig einen Monat statt zwölf.** Wer länger auswerten will, stellt `visit_file_keep` einfach höher — bestehende Einstellungen bleiben unverändert.
+
 ## 0.10.34
 - 🧭 **Neuer Reiter „Explorer": das Besucher-Archiv wird lesbar.** Jeder Aufruf wandert bisher in eine CSV-Datei je Monat — vollständig, aber als Tabellenblatt mit tausenden Zeilen praktisch nicht zu gebrauchen. Der Explorer liest dieselben Dateien und macht daraus vier Ansichten, ohne dass jemand die CSV noch öffnen muss.
 - 👣 **Man sieht jetzt den Weg, nicht nur den Klick.** Aufrufe derselben Adresse mit derselben Browserkennung, höchstens 30 Minuten auseinander, gelten als eine Sitzung. Ein Klick auf „Weg ansehen" öffnet die Zeitleiste: Startseite → Blog → welcher Beitrag → wie lange dort, Schritt für Schritt. Statt `/blog/cdef03b01404` steht der Beitragstitel da.
