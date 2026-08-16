@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.10.34
+- 🧭 **Neuer Reiter „Explorer": das Besucher-Archiv wird lesbar.** Jeder Aufruf wandert bisher in eine CSV-Datei je Monat — vollständig, aber als Tabellenblatt mit tausenden Zeilen praktisch nicht zu gebrauchen. Der Explorer liest dieselben Dateien und macht daraus vier Ansichten, ohne dass jemand die CSV noch öffnen muss.
+- 👣 **Man sieht jetzt den Weg, nicht nur den Klick.** Aufrufe derselben Adresse mit derselben Browserkennung, höchstens 30 Minuten auseinander, gelten als eine Sitzung. Ein Klick auf „Weg ansehen" öffnet die Zeitleiste: Startseite → Blog → welcher Beitrag → wie lange dort, Schritt für Schritt. Statt `/blog/cdef03b01404` steht der Beitragstitel da.
+- 🚪 **Wo Besucher ankommen und wo sie abspringen.** Häufigste Einstiegs- und Ausstiegsseiten, die häufigsten Seitenfolgen und die Absprungrate — also der Anteil der Besuche, die nach einer einzigen Seite endeten.
+- 🕓 **Wann sie kommen**, als Raster aus Wochentag und Stunde, und **wer wiederkommt**: gleiche Adresse und gleicher Browser an mindestens zwei verschiedenen Tagen, mit der Zahl der Besuche und der meistbesuchten Seite.
+- 🤖 Suchmaschinen-Bots bleiben standardmäßig draußen — ein einziger Googlebot-Durchlauf würde sonst die Wege-Tabelle und die Absprungrate übernehmen. Ein Knopf schaltet sie dazu.
+- 🔌 **Das Archiv lässt sich jetzt aus dem Admin einschalten.** Bisher ging das nur über die Add-on-Option `visit_file_log`; wer sie nicht kannte, hatte einen leeren Reiter und keinen Hinweis. Der Explorer erklärt den Zustand jetzt und bietet einen Knopf. Die Add-on-Option funktioniert unverändert weiter und hat Vorrang. Wird das Archiv wieder ausgeschaltet, bleiben die bereits aufgezeichneten Monate durchsuchbar — mit einem Hinweis, dass nichts mehr dazukommt.
+- ⚙️ Unter der Haube: das Auswerten steckt in einem eigenen Modul (`visitexplorer.py`) mit 58 Tests. Große Dateien werden zeilensparsam gelesen und je Monat zwischengespeichert, damit der Reiter auch bei sechsstelligen Zeilenzahlen zügig aufgeht.
+
 ## 0.10.33
 - 🔎 **Die Besucherliste lässt sich jetzt filtern.** Bisher standen echte Besucher und Suchmaschinen-Crawler bunt gemischt untereinander, und wer nur wissen wollte „wer war heute neu da?", musste die Abzeichen von Hand durchsuchen. Über der Tabelle sitzen jetzt drei Knöpfe: „Alle", „Nur Neu" und „Nur Bots".
 - 🔢 Daneben steht, wie viele Zeilen der Filter übrig lässt (z. B. `7 / 50`); passt keine, sagt die Tabelle das statt leer zu bleiben. Der Filter arbeitet rein im Browser — kein Neuladen, keine zusätzliche Abfrage.

@@ -10,7 +10,7 @@
 | `github_token` | Optional: GitHub-Token (erhöht das API-Limit für Import und Sterne-Updates) |
 | `translate_email` | Optional: E-Mail für die DE↔EN-Auto-Übersetzung (MyMemory) — erhöht das kostenlose Tageslimit |
 | `visit_log_max` | Größe des Besucher-Logs (50–10000, Standard 500) — Referrer/Browser/Länder/Top-Seiten werden daraus berechnet. Die **Liste im Admin zeigt immer höchstens die neuesten 500 Einträge**, auch bei größerem Wert; die übrigen fließen weiter in die Auswertungen |
-| `visit_file_log` | Schreibt jeden Aufruf zusätzlich dauerhaft als CSV nach `addon_configs/XXX_mypage/visits/` (Standard: aus) |
+| `visit_file_log` | Schreibt jeden Aufruf zusätzlich dauerhaft als CSV nach `addon_configs/XXX_mypage/visits/` (Standard: aus). Lässt sich alternativ im Admin-Reiter **Explorer** einschalten |
 | `visit_file_keep` | Wie viele Monatsdateien des Besucher-Archivs behalten werden (0–120, Standard 12; `0` = unbegrenzt) |
 | `user_journal_max` | Journal-Einträge pro Benutzer (20–1000, Standard 100) |
 | `geoip_lookup` | Exakte Länder-Erkennung über ipapi.is (Standard: aus — Besucher-IPs werden an den Dienst übertragen) |
@@ -483,13 +483,29 @@ Im Tunnel nur `http://<host>:17760` als Ziel eintragen. Das Admin-Panel auf 1776
 
 ### Besucher-Archiv (Datei)
 
-Das Besucher-Log im Admin ist ein **Ringpuffer** — es zeigt die neuesten 500 Aufrufe, ältere fallen heraus. Wer die vollständige Historie behalten will, schaltet die Option **`visit_file_log`** ein (Standard: aus).
+Das Besucher-Log im Admin ist ein **Ringpuffer** — es zeigt die neuesten 500 Aufrufe, ältere fallen heraus. Wer die vollständige Historie behalten will, schaltet das Archiv ein. Dafür gibt es zwei gleichwertige Wege (Standard: beide aus):
+
+- die Add-on-Option **`visit_file_log`**, oder
+- den Knopf **„Archiv jetzt einschalten"** im Admin-Reiter **Explorer**. Der Schalter gehört der Seite selbst und lässt sich dort auch wieder umlegen; die Add-on-Option hat Vorrang, solange sie an ist.
 
 - **Ablage**: `addon_configs/XXX_mypage/visits/visits-JJJJ-MM.csv` — eine Datei je Monat, über den Share direkt erreichbar.
 - **Format**: CSV mit Semikolon als Trennzeichen und UTF-8-BOM, also **per Doppelklick in Excel/LibreOffice** korrekt in Spalten und mit richtigen Umlauten. Spalten: `datum`, `ip`, `land`, `browser`, `system`, `pfad`, `referrer`, `sprache`, `bot`, `neuer_besucher`, `user_agent`. Semikolons und Anführungszeichen in Referrer/User-Agent werden maskiert.
 - **Aufbewahrung**: `visit_file_keep` (Standard 12 Monate, `0` = unbegrenzt). Aufgeräumt wird beim Anlegen einer neuen Monatsdatei.
 - Es werden — wie im Admin-Log — nur **öffentliche IPs** geschrieben; Bots stehen mit `bot=1` drin.
 - **Datenschutz**: IP-Adressen sind personenbezogene Daten. Deshalb ist die Option bewusst standardmäßig aus, und die Aufbewahrungsdauer ist begrenzbar. Das Archiv ist **nicht** Teil des Backups (es würde jedes Backup mit der Zeit aufblähen) — sichere den Ordner bei Bedarf selbst.
+
+### Besucher-Explorer
+
+Der Reiter **Explorer** im Admin liest dieses Archiv und macht daraus lesbare Auswertungen — die CSV selbst muss niemand mehr öffnen. Oben wird der Monat gewählt, wahlweise ein einzelner Tag, und ob Suchmaschinen-Bots mitzählen (Standard: nicht).
+
+- **Sitzungen**: eine Zeile je Besuch mit Beginn, Adresse, Browser, Land, Seitenzahl, Dauer und Einstieg → Ausstieg. Ein Klick auf **„Weg ansehen"** öffnet die Zeitleiste: welche Seite in welcher Reihenfolge, mit Verweildauer je Schritt. Zur letzten Seite gibt es keine Verweildauer — es ist nicht erfasst, wann jemand die Seite verlässt.
+- **Weg durch die Seite**: häufigste Einstiegs- und Ausstiegsseiten und die häufigsten Seitenfolgen.
+- **Wann kommen die Besucher**: Wochentag × Stunde als Raster.
+- **Wiederkehrende Besucher**: gleiche Adresse und gleiche Browserkennung an mindestens zwei verschiedenen Tagen.
+
+Eine **Sitzung** ist dabei geschätzt, nicht gemessen: Aufrufe derselben Adresse mit derselben Browserkennung, höchstens **30 Minuten** auseinander. Hinter einem gemeinsamen Anschluss (Mobilfunk, Firmennetz) können mehrere Personen zusammenfallen. Alle Zeiten sind Add-on-Zeit; die CSV speichert keine Zeitzone.
+
+Erfasst werden nur die öffentlichen Seiten (Start, Blog, Projekte, Seiten, Bibliothek, Reiseblog, Suche, Formulare) — keine Bilder, keine Admin-Aufrufe. Die Wege sind dadurch echte Seitenfolgen. Was aus dem Heimnetz kommt, steht ohnehin nicht im Archiv.
 
 ## Daten
 

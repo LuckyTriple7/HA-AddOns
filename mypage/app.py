@@ -40,6 +40,7 @@ import markdown as md_lib
 from markupsafe import Markup, escape
 
 import travelblog as tb
+import visitexplorer as vx
 try:
     from PIL import (Image, ImageChops, ImageDraw, ImageFilter, ImageFont,
                      ImageOps, PngImagePlugin)
@@ -403,6 +404,7 @@ DEFAULT_SITE = {
         'registration_quota_mb': 500,
         'newsletter_enabled': False,
         'weekly_review': False,
+        'visit_archive': False,
         'maintenance': False,
         'maintenance_text_de': '', 'maintenance_text_en': '',
         'banner_enabled': False, 'banner_dismissible': True,
@@ -1990,6 +1992,19 @@ def visit_file_keep_months() -> int:
         return 12
 
 
+def visit_archive_on() -> bool:
+    """Ist das dauerhafte Besucher-Archiv aktiv?
+
+    Zwei Wege führen dahin: die Add-on-Option `visit_file_log` und der Schalter
+    im Explorer-Reiter. Die Option gehört Home Assistant und lässt sich aus der
+    App heraus nicht setzen — deshalb der zweite, app-eigene Schalter in
+    site.json. Wer die Option gesetzt hat, merkt vom zweiten nichts.
+    """
+    if load_config().get('visit_file_log'):
+        return True
+    return bool(load_site()['design'].get('visit_archive'))
+
+
 def _prune_visit_files() -> None:
     """Zu alte Monatsdateien entfernen (nach Dateiname, nicht nach Zeitstempel)."""
     keep = visit_file_keep_months()
@@ -2011,7 +2026,7 @@ def append_visit_file(entry: dict) -> None:
     Aufrufe, hier bleibt die vollständige Historie erhalten und ist über den
     Add-on-Konfigurations-Share direkt in Excel/LibreOffice zu öffnen.
     """
-    if not load_config().get('visit_file_log'):
+    if not visit_archive_on():
         return
     stamp = datetime.fromtimestamp(entry['ts'], timezone.utc).astimezone()
     target = VISITS_DIR / f'visits-{stamp:%Y-%m}.csv'
@@ -2322,6 +2337,60 @@ def top_pages(site: dict, visit_log: list, limit: int = 12) -> list:
             title = pr.get('title') if pr else ''
         out.append({'path': path, 'title': title, 'count': n})
     return out
+
+
+def _visit_path_labels(site: dict, paths) -> dict:
+    """Sprechende Titel für die Pfade aus dem Besucher-Archiv.
+
+    Im Explorer steht sonst überall `/blog/a1b2c3` statt des Beitragstitels.
+    Nachgeschlagen wird nur, was in der Antwort auch vorkommt — bei ein paar
+    hundert Pfaden je Abruf ist das billiger als eine Tabelle über alles.
+    Pfade ohne eigenen Titel (Startseite, Übersichten) fehlen bewusst in der
+    Antwort; die Oberfläche zeigt dann den Pfad.
+    """
+    labels = {}
+    posts = projects = pages = lib = None
+    trips = None
+    for path in paths:
+        title = ''
+        if path.startswith('/blog/'):
+            if posts is None:
+                posts = {p.get('id'): p for p in site.get('posts', [])}
+            po = posts.get(path.split('/blog/', 1)[1].split('/')[0])
+            title = (po.get('title_de') or po.get('title_en')) if po else ''
+        elif path.startswith('/p/'):
+            if projects is None:
+                projects = {p.get('id'): p for p in site.get('projects', [])}
+            pr = projects.get(path.split('/p/', 1)[1].split('/')[0])
+            title = pr.get('title') if pr else ''
+        elif path.startswith('/seite/'):
+            if pages is None:
+                pages = {p.get('slug'): p for p in site.get('pages', [])}
+            pg = pages.get(path.split('/seite/', 1)[1].split('/')[0])
+            title = (pg.get('title_de') or pg.get('title_en')) if pg else ''
+        elif path.startswith('/bibliothek/'):
+            if lib is None:
+                lib = {e.get('slug'): e for e in _lib_public_entries(site)}
+            en = lib.get(path.split('/bibliothek/', 1)[1].split('/')[0])
+            title = (en.get('title_de') or en.get('title_en')) if en else ''
+        elif path.startswith('/reiseblog/'):
+            if trips is None:
+                trips = _trav_public_trips(site)
+            parts = path.split('/reiseblog/', 1)[1].split('/')
+            trip = next((x for x in trips if x['slug'] == parts[0]), None)
+            tname = (trip.get('name') or trip.get('destination') or '') if trip else ''
+            if trip and len(parts) > 1 and parts[1]:
+                day = next((d for d in _trav_public_days(trip)
+                            if d.get('slug') == parts[1]), None)
+                art = (day.get('article') or {}) if day else {}
+                dtitle = ((art.get('de') or {}).get('title')
+                          or (art.get('en') or {}).get('title') or '')
+                title = f'{tname} — {dtitle}' if dtitle else ''
+            elif trip:
+                title = tname
+        if title:
+            labels[path] = title
+    return labels
 
 
 # ── Mitglieder (geheimer Bereich) ─────────────────────────────────────────────
@@ -4254,7 +4323,8 @@ def api_design():
                  'allow_indexing', 'easter_eggs', 'mini_games', 'reveal_stagger',
                  'banner_enabled', 'banner_dismissible', 'share_enabled', 'dm_enabled',
                  'dm_ha_notify', 'directory_enabled', 'search_enabled', 'weekly_review',
-                 'travel_enabled', 'forms_enabled', 'feed_projects', 'feed_library'):
+                 'travel_enabled', 'forms_enabled', 'feed_projects', 'feed_library',
+                 'visit_archive'):
         if flag in raw:
             d[flag] = bool(raw[flag])
     if 'default_lang' in raw:
@@ -8603,6 +8673,148 @@ def api_stats():
         'countries': countries,
         'pages':     top_pages(load_site(), stats.get('log', [])),
     })
+
+
+# ── Besucher-Explorer ─────────────────────────────────────────────────────────
+#
+# Wertet das dauerhafte CSV-Archiv aus (`visits/visits-JJJJ-MM.csv`). Die Logik
+# steckt in visitexplorer.py, hier steht nur das Drumherum: Rechte prüfen,
+# Monat auf Gültigkeit prüfen, Ergebnis deckeln.
+#
+# Nie Rohzeilen ausliefern — ein Monat kann sechsstellig viele haben. Raus
+# gehen Auswertungen, höchstens VISIT_SESSIONS_MAX Sitzungs-Kurzfassungen und
+# die Schrittliste genau der Sitzung, die der Admin öffnet.
+
+VISIT_SESSIONS_MAX = 300
+_VISIT_MONTH_RE = re.compile(r'^\d{4}-(?:0[1-9]|1[0-2])$')
+
+
+def _visit_month_path(month: str):
+    """Pfad zur Monatsdatei — None, wenn der Monat nicht stimmt oder sie fehlt.
+
+    Der Dateiname wird hier selbst gebaut; aus der Anfrage kommt nur das
+    Monatskürzel, und das muss vorher durch den regulären Ausdruck.
+    """
+    if not _VISIT_MONTH_RE.match(month or ''):
+        return None
+    p = safe_under(VISITS_DIR, f'visits-{month}.csv')
+    return p if p is not None and p.is_file() else None
+
+
+def _visit_months() -> list:
+    """Vorhandene Monate, neueste zuerst."""
+    try:
+        names = [f.name for f in VISITS_DIR.iterdir()
+                 if f.is_file() and _VISIT_FILE_RE.match(f.name)]
+    except OSError:
+        return []
+    return sorted((n[7:14] for n in names), reverse=True)
+
+
+def _visit_rows(month: str, with_bots: bool):
+    """Geparste Zeilen eines Monats, wahlweise ohne Bots. `(rows, meta)`."""
+    path = _visit_month_path(month)
+    if path is None:
+        return None, None
+    try:
+        rows, meta = vx.cache_get(path, month)
+    except OSError:
+        return None, None
+    if not with_bots:
+        rows = [r for r in rows if not r[vx.BOT]]
+    return rows, meta
+
+
+def _visit_args():
+    """Monat und Bot-Schalter aus der Anfrage."""
+    month = _clean_str(request.args.get('month'), 7)
+    return month, request.args.get('bots') == '1'
+
+
+@admin_app.route('/api/visits/months')
+def api_visits_months():
+    err = _api_auth()
+    if err:
+        return err
+    by_option = bool(load_config().get('visit_file_log'))
+    by_site = bool(load_site()['design'].get('visit_archive'))
+    months = _visit_months()
+    return jsonify({
+        'enabled': by_option or by_site,
+        # Woher der Schalter kommt — nur bei 'site' darf der Admin ihn umlegen,
+        # die Add-on-Option gehört Home Assistant.
+        'source':  'option' if by_option else ('site' if by_site else 'off'),
+        'months':  months,
+        'current': months[0] if months else '',
+    })
+
+
+@admin_app.route('/api/visits/overview')
+def api_visits_overview():
+    err = _api_auth()
+    if err:
+        return err
+    month, with_bots = _visit_args()
+    rows, meta = _visit_rows(month, with_bots)
+    if rows is None:
+        return jsonify({'error': 'not_found'}), 404
+    sessions = vx.build_sessions(rows)
+    site = load_site()
+    paths = vx.all_paths(sessions)
+    return jsonify({
+        'month':     month,
+        'rows':      meta['rows'],
+        'skipped':   meta['skipped'],
+        'truncated': meta['truncated'],
+        'cards':     vx.summary(sessions),
+        **vx.path_analytics(sessions),
+        'heatmap':   vx.heatmap(rows),
+        'daily':     vx.daily(sessions),
+        'returning': vx.returning(sessions),
+        'labels':    _visit_path_labels(site, paths),
+    })
+
+
+@admin_app.route('/api/visits/sessions')
+def api_visits_sessions():
+    err = _api_auth()
+    if err:
+        return err
+    month, with_bots = _visit_args()
+    rows, meta = _visit_rows(month, with_bots)
+    if rows is None:
+        return jsonify({'error': 'not_found'}), 404
+    sessions = vx.build_sessions(rows)
+    day = _clean_str(request.args.get('day'), 10)
+    if re.fullmatch(r'\d{4}-\d{2}-\d{2}', day or ''):
+        sessions = [s for s in sessions
+                    if datetime.fromtimestamp(s['start']).strftime('%Y-%m-%d') == day]
+    total = len(sessions)
+    shown = sessions[:VISIT_SESSIONS_MAX]
+    return jsonify({
+        'sessions':  vx.strip_steps(shown),
+        'total':     total,
+        'truncated': total > len(shown),
+        'labels':    _visit_path_labels(load_site(), vx.all_paths(shown)),
+    })
+
+
+@admin_app.route('/api/visits/session/<sid>')
+def api_visits_session(sid: str):
+    err = _api_auth()
+    if err:
+        return err
+    month, with_bots = _visit_args()
+    rows, _meta = _visit_rows(month, with_bots)
+    if rows is None:
+        return jsonify({'error': 'not_found'}), 404
+    hit = next((s for s in vx.build_sessions(rows) if s['id'] == sid), None)
+    if hit is None:
+        return jsonify({'error': 'not_found'}), 404
+    hit = dict(hit)
+    hit['steps'] = hit['steps'][:500]
+    hit['labels'] = _visit_path_labels(load_site(), {s['path'] for s in hit['steps']})
+    return jsonify(hit)
 
 
 @admin_app.route('/uploads/<path:filename>')
