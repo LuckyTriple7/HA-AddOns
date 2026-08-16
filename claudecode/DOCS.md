@@ -35,9 +35,9 @@ claude --continue   # letzte Unterhaltung fortsetzen
 | `export_memory` | `false` | Claude-Speicher in `/config/memory/` exportieren |
 | `export_memory_interval` | `60` | Export-Intervall in Minuten |
 | `enable_caveman_skill` | `false` | Optionale "Caveman"-Skills (knappe Antworten) installieren — 7 Skills + 3 Subagenten |
-| `enable_direct_access` | `false` | Terminal zusätzlich auf Port 7682 anbieten, am Ingress vorbei ([Details](#direkter-browser-zugriff-port-7682)) |
-| `direct_username` | `admin` | Benutzername für Port 7682 |
-| `direct_password` | — | Passwort für Port 7682 — leer heißt: Port startet nicht |
+| `enable_direct_access` | `false` | Terminal zusätzlich auf Port 7683 anbieten, am Ingress vorbei ([Details](#direkter-browser-zugriff-port-7683)) |
+| `direct_username` | `admin` | Benutzername für Port 7683 |
+| `direct_password` | — | Passwort für Port 7683 — leer heißt: Port startet nicht |
 
 ## Modellauswahl
 
@@ -94,7 +94,7 @@ Abschalten kannst du das jederzeit. Manchmal ist ein gezielter Eingriff in `.sto
 
 Was die Sperre **nicht** abdeckt: Umwege über die Shell. `Bash`-Befehle wie `sed -i` oder `cp` auf denselben Pfaden werden davon nicht erfasst. Die Sperre fängt den häufigsten Fall ab, nicht jeden denkbaren.
 
-## Direkter Browser-Zugriff (Port 7682)
+## Direkter Browser-Zugriff (Port 7683)
 
 Normalerweise läuft der Zugriff über das Ingress-Panel in Home Assistant — dort bist du bereits angemeldet, der Supervisor reicht die Verbindung durch. Wer das Terminal lieber in einem eigenen Browser-Tab hätte, ohne den Umweg über die HA-Oberfläche, schaltet `enable_direct_access` ein und setzt ein Passwort:
 
@@ -104,15 +104,15 @@ direct_username: admin
 direct_password: <langes, zufälliges Passwort>
 ```
 
-Danach ist das Terminal unter `http://<HA-IP>:7682` erreichbar. Es ist **dieselbe** Sitzung wie im Ingress-Panel (beide hängen über `tmux` an der Session `claude`), nur ein zweiter Zugang — was du hier tippst, siehst du dort ebenfalls.
+Danach ist das Terminal unter `http://<HA-IP>:7683` erreichbar. Es ist **dieselbe** Sitzung wie im Ingress-Panel (beide hängen über `tmux` an der Session `claude`), nur ein zweiter Zugang — was du hier tippst, siehst du dort ebenfalls.
 
 ### Bevor du das einschaltest
 
-Das Terminal ist eine **Root-Shell** auf einem Container mit `full_access`, Docker-Socket und Schreibrechten auf deine HA-Konfiguration. Über den Ingress schützt das der Home-Assistant-Login. Auf Port 7682 gibt es diesen Schutz nicht — dort steht nur das Passwort, das du hier setzt.
+Das Terminal ist eine **Root-Shell** auf einem Container mit `full_access`, Docker-Socket und Schreibrechten auf deine HA-Konfiguration. Über den Ingress schützt das der Home-Assistant-Login. Auf Port 7683 gibt es diesen Schutz nicht — dort steht nur das Passwort, das du hier setzt.
 
 Deshalb gilt:
 
-- **Ohne Passwort startet der Port nicht.** Lässt du `direct_password` leer, schreibt das Add-on einen Fehler ins Log und lässt 7682 zu — auch wenn `enable_direct_access` auf `true` steht. Das ist Absicht, ein offener Port wäre hier zu teuer.
+- **Ohne Passwort startet der Port nicht.** Lässt du `direct_password` leer, schreibt das Add-on einen Fehler ins Log und lässt 7683 zu — auch wenn `enable_direct_access` auf `true` steht. Das ist Absicht, ein offener Port wäre hier zu teuer.
 - **Nimm ein langes, zufälliges Passwort.** Es ist das Einzige zwischen deinem Netz und einer Root-Shell.
 - **Niemals im Router ins Internet weiterleiten.** Die Anmeldung läuft über HTTP Basic Auth, also unverschlüsselt — Passwort im Klartext auf der Leitung. Im eigenen LAN vertretbar, im Internet nicht. Willst du von außen ran, dann ausschließlich über VPN oder einen Reverse-Proxy mit TLS davor.
 - Vergisst du das Passwort, kommst du weiterhin über das Ingress-Panel rein und kannst es dort neu setzen.
@@ -120,7 +120,7 @@ Deshalb gilt:
 Zum Abschalten `enable_direct_access` auf `false` setzen und das Add-on neu starten. Ob der Port läuft, steht im Log:
 
 ```
-[INFO] Direct access on port 7682, user 'admin' (HTTP Basic Auth — LAN only, never forward this port)
+[INFO] Direct access on port 7683, user 'admin' (HTTP Basic Auth — LAN only, never forward this port)
 ```
 
 ## Eigene Anweisungen (`CLAUDE.local.md`)
@@ -269,9 +269,9 @@ claude --continue   # continue last conversation
 | `export_memory` | `false` | Export Claude memory to `/config/memory/` |
 | `export_memory_interval` | `60` | Export interval in minutes |
 | `enable_caveman_skill` | `false` | Install the optional "Caveman" skills (terse responses) — 7 skills + 3 subagents |
-| `enable_direct_access` | `false` | Also serve the terminal on port 7682, bypassing ingress ([details](#direct-browser-access-port-7682)) |
-| `direct_username` | `admin` | Username for port 7682 |
-| `direct_password` | — | Password for port 7682 — empty means the port does not start |
+| `enable_direct_access` | `false` | Also serve the terminal on port 7683, bypassing ingress ([details](#direct-browser-access-port-7683)) |
+| `direct_username` | `admin` | Username for port 7683 |
+| `direct_password` | — | Password for port 7683 — empty means the port does not start |
 
 ## Model Selection
 
@@ -328,7 +328,7 @@ You can turn it off at any time. Sometimes a deliberate edit in `.storage/` is e
 
 What the block does **not** cover: detours through the shell. `Bash` commands such as `sed -i` or `cp` on the same paths are not caught by it. This closes the common case, not every conceivable one.
 
-## Direct Browser Access (port 7682)
+## Direct Browser Access (port 7683)
 
 Normally you reach the terminal through the ingress panel in Home Assistant — you are already logged in there and the Supervisor forwards the connection. If you would rather have the terminal in its own browser tab, without going through the HA interface, switch on `enable_direct_access` and set a password:
 
@@ -338,15 +338,15 @@ direct_username: admin
 direct_password: <long random password>
 ```
 
-The terminal is then reachable at `http://<HA-IP>:7682`. It is the **same** session as the ingress panel (both attach to the `claude` tmux session), just a second way in — what you type here shows up there too.
+The terminal is then reachable at `http://<HA-IP>:7683`. It is the **same** session as the ingress panel (both attach to the `claude` tmux session), just a second way in — what you type here shows up there too.
 
 ### Before you switch this on
 
-The terminal is a **root shell** on a container with `full_access`, the Docker socket, and write access to your HA configuration. Through ingress, the Home Assistant login protects it. On port 7682 that protection is gone — all that stands there is the password you set here.
+The terminal is a **root shell** on a container with `full_access`, the Docker socket, and write access to your HA configuration. Through ingress, the Home Assistant login protects it. On port 7683 that protection is gone — all that stands there is the password you set here.
 
 So:
 
-- **Without a password the port does not start.** Leave `direct_password` empty and the add-on logs an error and keeps 7682 closed, even with `enable_direct_access` set to `true`. That is deliberate; an open port here is too expensive to get wrong.
+- **Without a password the port does not start.** Leave `direct_password` empty and the add-on logs an error and keeps 7683 closed, even with `enable_direct_access` set to `true`. That is deliberate; an open port here is too expensive to get wrong.
 - **Use a long, random password.** It is the only thing between your network and a root shell.
 - **Never forward it to the internet in your router.** Login uses HTTP Basic Auth, unencrypted — the password travels in clear text. Acceptable on your own LAN, not on the internet. To reach it from outside, use a VPN or put a TLS reverse proxy in front.
 - If you forget the password, you can still get in through the ingress panel and set a new one there.
@@ -354,7 +354,7 @@ So:
 To turn it off, set `enable_direct_access` to `false` and restart the add-on. The log tells you whether the port is up:
 
 ```
-[INFO] Direct access on port 7682, user 'admin' (HTTP Basic Auth — LAN only, never forward this port)
+[INFO] Direct access on port 7683, user 'admin' (HTTP Basic Auth — LAN only, never forward this port)
 ```
 
 ## Your Own Instructions (`CLAUDE.local.md`)

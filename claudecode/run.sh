@@ -640,7 +640,7 @@ fi
 
 cd /homeassistant
 
-# Optional second ttyd on 7682 for direct browser access, bypassing the Supervisor
+# Optional second ttyd on 7683 for direct browser access, bypassing the Supervisor
 # ingress proxy and its Home Assistant login. Both instances run `tmux new-session -A`
 # against the same session name, so the direct port shows the very same terminal.
 #
@@ -649,13 +649,13 @@ cd /homeassistant
 # is set — a warning in the log would be too easy to miss for what it opens up.
 if [ "$DIRECT_ACCESS" = "true" ]; then
     if [ -z "$DIRECT_PASS" ]; then
-        echo "[ERROR] [$(date '+%Y-%m-%d %H:%M:%S')] enable_direct_access is on but direct_password is empty — port 7682 NOT started"
+        echo "[ERROR] [$(date '+%Y-%m-%d %H:%M:%S')] enable_direct_access is on but direct_password is empty — port 7683 NOT started"
         echo "[ERROR] [$(date '+%Y-%m-%d %H:%M:%S')] Set a password in the add-on configuration, or turn enable_direct_access off"
     elif [ -z "$DIRECT_USER" ]; then
-        echo "[ERROR] [$(date '+%Y-%m-%d %H:%M:%S')] enable_direct_access is on but direct_username is empty — port 7682 NOT started"
+        echo "[ERROR] [$(date '+%Y-%m-%d %H:%M:%S')] enable_direct_access is on but direct_username is empty — port 7683 NOT started"
     else
-        echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Direct access on port 7682, user '$DIRECT_USER' (HTTP Basic Auth — LAN only, never forward this port)"
-        ttyd --port 7682 --writable --ping-interval 30 --max-clients 5 \
+        echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Direct access on port 7683, user '$DIRECT_USER' (HTTP Basic Auth — LAN only, never forward this port)"
+        ttyd --port 7683 --writable --ping-interval 30 --max-clients 5 \
             --credential "$DIRECT_USER:$DIRECT_PASS" \
             -t fontSize="$FONT_SIZE" \
             -t fontFamily=Monaco,Consolas,monospace \

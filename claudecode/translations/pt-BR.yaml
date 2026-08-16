@@ -98,10 +98,10 @@
       Padrão: ativado.
 
   enable_direct_access:
-    name: Acesso direto pelo navegador (porta 7682)
+    name: Acesso direto pelo navegador (porta 7683)
     description: >-
-      Publica o terminal também na porta 7682, acessível em
-      http://<IP-do-HA>:7682 — sem passar pelo ingress e, portanto, sem o login
+      Publica o terminal também na porta 7683, acessível em
+      http://<IP-do-HA>:7683 — sem passar pelo ingress e, portanto, sem o login
       do Home Assistant. É a mesma sessão do painel de ingress, apenas outra
       forma de entrar.
       ATENÇÃO - o terminal é um shell root com acesso total ao sistema
@@ -112,16 +112,16 @@
   direct_username:
     name: Usuário para o acesso direto
     description: >-
-      Usuário para a solicitação de senha na porta 7682.
+      Usuário para a solicitação de senha na porta 7683.
       Só tem efeito com o acesso direto ativado. Padrão - admin.
   direct_password:
     name: Senha para o acesso direto
     description: >-
-      Senha pedida na porta 7682. Enquanto este campo estiver vazio a porta não
+      Senha pedida na porta 7683. Enquanto este campo estiver vazio a porta não
       sobe, nem mesmo com o acesso direto ativado. Use uma senha longa e
       aleatória - ela protege um shell root.
 
 network:
   7681/tcp: Terminal Web (ttyd)
-  7682/tcp: Acesso direto pelo navegador (exige senha, não encaminhar para a internet)
+  7683/tcp: Acesso direto pelo navegador (exige senha, não encaminhar para a internet)
 

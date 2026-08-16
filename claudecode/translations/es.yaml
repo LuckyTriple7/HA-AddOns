@@ -99,10 +99,10 @@
       qué necesitas escribir ahí. Predeterminado: activado.
 
   enable_direct_access:
-    name: Acceso directo desde el navegador (puerto 7682)
+    name: Acceso directo desde el navegador (puerto 7683)
     description: >-
-      Publica el terminal también en el puerto 7682, accesible en
-      http://<IP-de-HA>:7682 — sin pasar por el ingress ni, por tanto, por el
+      Publica el terminal también en el puerto 7683, accesible en
+      http://<IP-de-HA>:7683 — sin pasar por el ingress ni, por tanto, por el
       inicio de sesión de Home Assistant. Es la misma sesión que la del panel
       de ingress, solo otra vía de entrada.
       ATENCIÓN - el terminal es una shell de root con acceso completo al
@@ -113,16 +113,16 @@
   direct_username:
     name: Usuario para el acceso directo
     description: >-
-      Usuario para la solicitud de contraseña en el puerto 7682.
+      Usuario para la solicitud de contraseña en el puerto 7683.
       Solo tiene efecto con el acceso directo activado. Por defecto - admin.
   direct_password:
     name: Contraseña para el acceso directo
     description: >-
-      Contraseña que se pide en el puerto 7682. Mientras este campo esté vacío
+      Contraseña que se pide en el puerto 7683. Mientras este campo esté vacío
       el puerto no arranca, ni siquiera con el acceso directo activado. Usa una
       contraseña larga y aleatoria - protege una shell de root.
 
 network:
   7681/tcp: Terminal Web (ttyd)
-  7682/tcp: Acceso directo desde el navegador (requiere contraseña, no redirigir a internet)
+  7683/tcp: Acceso directo desde el navegador (requiere contraseña, no redirigir a internet)
 

@@ -111,9 +111,9 @@
       you know exactly why you need to write there. Default: enabled.
 
   enable_direct_access:
-    name: Direct browser access (port 7682)
+    name: Direct browser access (port 7683)
     description: >-
-      Also serves the terminal on port 7682, reachable at http://<HA-IP>:7682 —
+      Also serves the terminal on port 7683, reachable at http://<HA-IP>:7683 —
       bypassing ingress and with it the Home Assistant login. It is the same
       session as the ingress panel, just a second way in.
       WARNING - the terminal is a root shell with full access to the host
@@ -124,16 +124,16 @@
   direct_username:
     name: Username for direct access
     description: >-
-      Username for the password prompt on port 7682.
+      Username for the password prompt on port 7683.
       Only takes effect when direct access is on. Default - admin.
   direct_password:
     name: Password for direct access
     description: >-
-      Password for the prompt on port 7682. While this field is empty the port
+      Password for the prompt on port 7683. While this field is empty the port
       does not start, even with direct access switched on. Use a long random
       password - it guards a root shell.
 
 network:
   7681/tcp: Web Terminal (ttyd)
-  7682/tcp: Direct browser access (password required, do not forward to the internet)
+  7683/tcp: Direct browser access (password required, do not forward to the internet)
 

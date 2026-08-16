@@ -16,9 +16,9 @@ ingress_stream: true
 panel_icon: mdi:brain
 panel_title: Claude Code
 ports:
-  7682/tcp: null
+  7683/tcp: null
 ports_description:
-  7682/tcp: >-
+  7683/tcp: >-
     Direkter Browser-Zugriff auf das Terminal, am Ingress vorbei. Nur wirksam,
     wenn enable_direct_access aktiviert und direct_password gesetzt ist. Ohne
     Passwort startet der Port nicht. Niemals ins Internet weiterleiten —
