@@ -2,12 +2,18 @@
 
 English version from 1.3.0 onwards: [Changelog (English)](#changelog-english)
 
+## [1.3.18] - 2026-08-16
+
+### Changed
+- Der Direktzugriff aus 1.3.17 liegt jetzt auf **Port 7683** statt 7682. 7682 ist auf manchen Installationen bereits belegt. Wer 1.3.17 schon eingerichtet hat, ändert die URL entsprechend; an den Optionen selbst ändert sich nichts.
+
+
 ## [1.3.17] - 2026-08-16
 
 ### Added
-- **Direkter Browser-Zugriff auf Port 7683, am Ingress vorbei.** Bisher führte der einzige Weg zum Terminal über das Ingress-Panel in Home Assistant; ein eigener Browser-Tab auf `http://<HA-IP>:7683` war nicht möglich, weil das Add-on gar keinen Port veröffentlicht hat. Neu gibt es dafür `enable_direct_access` samt `direct_username` und `direct_password`. Beide ttyd-Instanzen hängen über `tmux new-session -A -s claude` an derselben Sitzung — der Direktport zeigt also exakt das Terminal aus dem Ingress-Panel, kein zweites daneben.
+- **Direkter Browser-Zugriff auf Port 7682, am Ingress vorbei.** Bisher führte der einzige Weg zum Terminal über das Ingress-Panel in Home Assistant; ein eigener Browser-Tab auf `http://<HA-IP>:7682` war nicht möglich, weil das Add-on gar keinen Port veröffentlicht hat. Neu gibt es dafür `enable_direct_access` samt `direct_username` und `direct_password`. Beide ttyd-Instanzen hängen über `tmux new-session -A -s claude` an derselben Sitzung — der Direktport zeigt also exakt das Terminal aus dem Ingress-Panel, kein zweites daneben.
 
-  Das Terminal ist eine Root-Shell auf einem Container mit `full_access` und Docker-Socket. Über den Ingress schützt sie der Home-Assistant-Login, auf 7683 gibt es den nicht. Der Port läuft deshalb nur mit HTTP Basic Auth, und **ohne gesetztes Passwort startet er gar nicht** — statt einer Warnung im Log, die zu leicht zu übersehen wäre, bleibt der Port zu und der Grund steht als `[ERROR]` in den Logs. Basic Auth geht unverschlüsselt über die Leitung, der Port gehört also ins eigene Netz und nie in eine Router-Weiterleitung; für Zugriff von außen VPN oder ein Reverse-Proxy mit TLS. Standard ist aus, am Ingress-Weg ändert sich nichts.
+  Das Terminal ist eine Root-Shell auf einem Container mit `full_access` und Docker-Socket. Über den Ingress schützt sie der Home-Assistant-Login, auf dem Direktport gibt es den nicht. Der Port läuft deshalb nur mit HTTP Basic Auth, und **ohne gesetztes Passwort startet er gar nicht** — statt einer Warnung im Log, die zu leicht zu übersehen wäre, bleibt der Port zu und der Grund steht als `[ERROR]` in den Logs. Basic Auth geht unverschlüsselt über die Leitung, der Port gehört also ins eigene Netz und nie in eine Router-Weiterleitung; für Zugriff von außen VPN oder ein Reverse-Proxy mit TLS. Standard ist aus, am Ingress-Weg ändert sich nichts.
 
 
 ## [1.3.16] - 2026-08-16
@@ -550,12 +556,18 @@ Forked from [apbb2/robsonfelix-hass-addons](https://github.com/apbb2/robsonfelix
 
 Covers 1.3.0 onwards. Older entries are available in German only.
 
+## [1.3.18] - 2026-08-16
+
+### Changed
+- Direct access from 1.3.17 now lives on **port 7683** instead of 7682. 7682 is already taken on some installations. If you set up 1.3.17 already, change the URL accordingly; the options themselves are unchanged.
+
+
 ## [1.3.17] - 2026-08-16
 
 ### Added
-- **Direct browser access on port 7683, bypassing ingress.** Until now the only way to the terminal was the ingress panel in Home Assistant; a separate browser tab on `http://<HA-IP>:7683` was impossible because the add-on published no port at all. There is now `enable_direct_access` for that, along with `direct_username` and `direct_password`. Both ttyd instances attach to the same session via `tmux new-session -A -s claude`, so the direct port shows exactly the terminal from the ingress panel, not a second one beside it.
+- **Direct browser access on port 7682, bypassing ingress.** Until now the only way to the terminal was the ingress panel in Home Assistant; a separate browser tab on `http://<HA-IP>:7682` was impossible because the add-on published no port at all. There is now `enable_direct_access` for that, along with `direct_username` and `direct_password`. Both ttyd instances attach to the same session via `tmux new-session -A -s claude`, so the direct port shows exactly the terminal from the ingress panel, not a second one beside it.
 
-  The terminal is a root shell on a container with `full_access` and the Docker socket. Through ingress the Home Assistant login guards it; on 7683 it does not. The port therefore runs with HTTP Basic Auth only, and **without a password set it does not start at all** — instead of a log warning that would be too easy to miss, the port stays closed and the reason is logged as `[ERROR]`. Basic Auth travels unencrypted, so the port belongs on your own network and never in a router forward; use a VPN or a TLS reverse proxy to reach it from outside. Off by default, and the ingress route is unchanged.
+  The terminal is a root shell on a container with `full_access` and the Docker socket. Through ingress the Home Assistant login guards it; on the direct port it does not. The port therefore runs with HTTP Basic Auth only, and **without a password set it does not start at all** — instead of a log warning that would be too easy to miss, the port stays closed and the reason is logged as `[ERROR]`. Basic Auth travels unencrypted, so the port belongs on your own network and never in a router forward; use a VPN or a TLS reverse proxy to reach it from outside. Off by default, and the ingress route is unchanged.
 
 
 ## [1.3.16] - 2026-08-16
