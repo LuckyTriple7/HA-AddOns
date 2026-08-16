@@ -1506,6 +1506,7 @@
   "tab_explorer": "Explorer",
   "pdf_import": "📄 Aus PDF",
   "pdf_import_hint": "Rechtstexte von Generatoren wie e-Recht24 lassen sich direkt aus dem PDF übernehmen — Überschriften, Aufzählungen und Links bleiben erhalten. Vor dem Übernehmen gibt es eine Vorschau, danach ist der Text ganz normal bearbeitbar. Gespeichert wird erst mit „Speichern“.",
+  "legal_too_long": "Der Text war länger als {n} Zeichen und wurde gekürzt gespeichert. Bitte einkürzen und erneut speichern.",
   "pdf_import_title": "Aus PDF übernehmen",
   "pdf_import_md": "Text (bearbeitbar)",
   "pdf_import_preview": "So sieht es auf der Seite aus",

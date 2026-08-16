@@ -1506,6 +1506,7 @@
   "tab_explorer": "Explorer",
   "pdf_import": "📄 From PDF",
   "pdf_import_hint": "Legal texts from generators such as e-Recht24 can be taken straight from the PDF — headings, lists and links are preserved. You get a preview before anything is applied, and the text stays fully editable afterwards. Nothing is stored until you press Save.",
+  "legal_too_long": "The text was longer than {n} characters and was stored shortened. Please shorten it and save again.",
   "pdf_import_title": "Take over from PDF",
   "pdf_import_md": "Text (editable)",
   "pdf_import_preview": "How it will look on the page",

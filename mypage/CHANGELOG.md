@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.10.37
+- 🔤 **Impressum und Datenschutz werden jetzt richtig dargestellt.** Beide Seiten gaben den Text als reinen Fließtext aus — alles in einer Größe, ohne Überschriften, ohne Fettschrift, und Zeichen wie `##` standen wörtlich auf der Seite. Sie laufen jetzt durch dieselbe Aufbereitung wie Beiträge und eigene Seiten: Überschriften in vier Ebenen, Aufzählungen, Fettschrift und Links. Reiner Fließtext bleibt dabei unverändert stehen.
+- ✂️ **Lange Rechtstexte wurden beim Speichern stillschweigend abgeschnitten.** Die Grenze lag bei 20 000 Zeichen; eine ausführliche Datenschutzerklärung ist schnell doppelt so lang und brach dann mitten im Satz ab, ohne dass es irgendwo stand. Die Grenze liegt jetzt bei 150 000 Zeichen, und wird sie doch erreicht, sagt es das Speichern deutlich.
+- 🅰️ Die eingestellte Schriftart gilt jetzt auch auf den Rechtsseiten — sie waren die einzigen der Website, die in der Systemschrift standen.
+- 🏷️ Bringt der Text eine eigene Hauptüberschrift mit (aus einem Generator-PDF etwa), erscheint sie nicht mehr doppelt.
+
 ## 0.10.36
 - 📄 **Impressum und Datenschutz lassen sich jetzt aus einem PDF übernehmen.** Wer seine Rechtstexte bei einem Generator wie e-Recht24 erstellt, bekommt sie als PDF — und musste sie bisher abtippen. Dabei ging jede Auszeichnung verloren: Überschriften wurden zu normalen Zeilen, Fettschrift und Aufzählungen verschwanden. Über jedem Textfeld sitzt jetzt ein Knopf „Aus PDF".
 - 🎯 **Die Struktur kommt exakt an, nicht geraten.** Viele Generatoren legen den fertigen Quelltext unsichtbar ins PDF hinein — genau der wird gelesen. Überschriftenebenen, Aufzählungen und Links landen dadurch punktgenau im Text. Nur wenn ein PDF das nicht mitbringt, wird die Gliederung aus Schriftgröße und -schnitt geschätzt; dann sagt das Fenster das auch dazu.

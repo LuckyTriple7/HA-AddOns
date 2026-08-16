@@ -435,7 +435,7 @@ Einzeln einstellbar: Seitentitel, Akzentfarbe (Farbwähler), Standard-Theme (hel
 - **Navigationsleiste**: Sprungmarken im Kopf zu den vorhandenen Bereichen; folgt der im Inhalt-Tab gewählten Reihenfolge und blendet ausgeblendete/leere Bereiche aus.
 
 ### Rechtliches
-Impressum und Datenschutzerklärung als Freitext (DE/EN, Markdown). Sobald Text eingetragen ist, werden `/impressum` und `/datenschutz` im Footer der öffentlichen Seite verlinkt. Vorlagen liefern z. B. der [Impressum-Generator von e-recht24](https://www.e-recht24.de/impressum-generator.html) und der [Datenschutz-Generator von Dr. Schwenke](https://datenschutz-generator.de) (für Privatpersonen kostenlos). Ein Cookie-Banner ist nicht nötig: MyPage setzt nur technisch notwendige Cookies (Sprachwahl nach Klick, Anmeldung, Umfrage-Kennung) und keinerlei Tracking.
+Impressum und Datenschutzerklärung als Freitext (DE/EN). Der Text wird als **Markdown** ausgegeben: `##` wird eine Überschrift, `**Text**` fett, `- ` eine Aufzählung. Wer einfach nur Zeilen tippt, bekommt sie unverändert wie bisher. Bis zu 150 000 Zeichen je Feld. Sobald Text eingetragen ist, werden `/impressum` und `/datenschutz` im Footer der öffentlichen Seite verlinkt. Vorlagen liefern z. B. der [Impressum-Generator von e-recht24](https://www.e-recht24.de/impressum-generator.html) und der [Datenschutz-Generator von Dr. Schwenke](https://datenschutz-generator.de) (für Privatpersonen kostenlos). Ein Cookie-Banner ist nicht nötig: MyPage setzt nur technisch notwendige Cookies (Sprachwahl nach Klick, Anmeldung, Umfrage-Kennung) und keinerlei Tracking.
 
 **Aus PDF übernehmen.** Über jedem Textfeld sitzt ein Knopf „📄 Aus PDF". Damit lässt sich das PDF eines Generators direkt einlesen, statt es abzutippen:
 

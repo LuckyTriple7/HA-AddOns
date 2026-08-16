@@ -5019,6 +5019,12 @@ def api_restore():
     return jsonify({'ok': True, 'restored': restored})
 
 
+# Obergrenze je Rechtstext. Eine ausführliche Datenschutzerklärung aus einem
+# Generator liegt schnell bei 30 000–60 000 Zeichen; die frühere Grenze von
+# 20 000 hat solche Texte mitten im Satz abgeschnitten, ohne es zu sagen.
+LEGAL_TEXT_MAX = 150_000
+
+
 @admin_app.route('/api/legal', methods=['POST'])
 def api_legal():
     err = _api_auth()
@@ -5027,12 +5033,16 @@ def api_legal():
     raw = request.get_json(silent=True) or {}
     site = load_site()
     legal = site['legal']
+    cut = False
     for k in ('impressum_de', 'impressum_en', 'privacy_de', 'privacy_en'):
         if k in raw:
-            legal[k] = _clean_str(raw[k], 20000)
+            legal[k] = _clean_str(raw[k], LEGAL_TEXT_MAX)
+            cut = cut or len(str(raw[k] or '')) > LEGAL_TEXT_MAX
     save_site(site)
     log_audit('settings_legal')
-    return jsonify({'ok': True})
+    # Stilles Abschneiden wäre hier besonders unangenehm: eine gekürzte
+    # Datenschutzerklärung sieht vollständig aus und ist es nicht.
+    return jsonify({'ok': True, 'truncated': cut, 'max': LEGAL_TEXT_MAX})
 
 
 # Rechtstexte kommen von Generatoren wie e-Recht24 als PDF. Abtippen ist mühsam
@@ -13117,9 +13127,20 @@ def _legal_page(kind: str):
     text = _loc_factory(lang)(site.get('legal', {}), kind)
     if not text.strip():
         abort(404)
+    # Rechtstexte durchlaufen dieselbe Markdown-Ausgabe wie Seiten und Beiträge.
+    # Reiner Fließtext bleibt dabei unverändert stehen (`nl2br` erhält die
+    # Umbrüche), gegliederter Text bekommt endlich seine Überschriften.
+    body_html = render_md(text, lang)
+    # Bringt der Text seine eigene Hauptüberschrift mit — etwa aus einem
+    # Generator-PDF —, würde die Überschrift des Templates sie doppeln.
+    own_title = body_html.lstrip().startswith('<h1')
     title = t.get('legal_' + kind, kind)
+    # Das Template erwartet Schriftangaben — ohne sie standen die Rechtsseiten
+    # als einzige der Website in der Systemschrift statt in der eingestellten.
+    font_family, font_faces = font_css(site['design'])
     return render_template('legal.html', t=t, lang=lang, site=site,
-                           title=title, text=text,
+                           title=title, body_html=body_html, own_title=own_title,
+                           font_family=font_family, font_faces=font_faces,
                            year=datetime.now(timezone.utc).year)
 
 

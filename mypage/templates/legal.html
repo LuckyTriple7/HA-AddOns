@@ -29,7 +29,24 @@
     .brand:hover { text-decoration: none; }
     main { padding: 40px 0 60px; }
     h1 { font-size: 1.6rem; margin-bottom: 24px; }
-    .legal-text { white-space: pre-line; color: var(--text); font-size: 0.92rem; }
+    /* Rechtstexte sind Markdown. Ohne eigene Abstände klebt in der Ausgabe
+       alles aneinander, und ein Dokument mit vier Gliederungsebenen wird
+       unlesbar — deshalb hier für jede Ebene eine eigene Größe. */
+    .legal-text { color: var(--text); font-size: 0.92rem; }
+    .legal-text h1 { font-size: 1.6rem; margin: 0 0 24px; }
+    .legal-text h2 { font-size: 1.25rem; margin: 34px 0 12px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+    .legal-text h3 { font-size: 1.05rem; margin: 26px 0 8px; }
+    .legal-text h4 { font-size: 0.95rem; margin: 18px 0 6px; color: var(--muted); }
+    .legal-text p { margin: 0 0 14px; }
+    .legal-text ul, .legal-text ol { margin: 0 0 14px; padding-left: 22px; }
+    .legal-text li { margin-bottom: 7px; }
+    .legal-text strong, .legal-text b { font-weight: 700; color: var(--text); }
+    .legal-text a { word-break: break-word; }
+    .legal-text hr { border: none; border-top: 1px solid var(--border); margin: 26px 0; }
+    .legal-text table { border-collapse: collapse; width: 100%; margin: 0 0 14px; font-size: 0.86rem; }
+    .legal-text th, .legal-text td { border: 1px solid var(--border); padding: 6px 9px; text-align: left; }
+    .legal-text code { font-family: ui-monospace, Consolas, monospace; font-size: 0.86em; }
+    .legal-text > :first-child { margin-top: 0; }
     footer { border-top: 1px solid var(--border); padding: 20px 0; text-align: center; font-size: 0.78rem; color: var(--muted); }
   </style>
 </head>
@@ -40,8 +57,8 @@
     </div>
   </header>
   <main class="wrap">
-    <h1>{{ title }}</h1>
-    <div class="legal-text">{{ text }}</div>
+    {% if not own_title %}<h1>{{ title }}</h1>{% endif %}
+    <div class="legal-text">{{ body_html|safe }}</div>
   </main>
   <footer>
     <div class="wrap">&copy; {{ year }} {{ site.profile.name or 'MyPage' }}</div>

@@ -25,10 +25,9 @@ from html.parser import HTMLParser
 import pdfplumber
 from pdfminer.pdftypes import resolve1
 
-# Obergrenze für die erzeugte Textmenge. Die Rechtstexte werden in site.json mit
-# 20 000 Zeichen begrenzt; etwas Luft nach oben, damit die Vorschau zeigt, dass
-# es zu viel ist, statt vorher abzuschneiden.
-MAX_CHARS = 60_000
+# Obergrenze für die erzeugte Textmenge. Muss zu LEGAL_TEXT_MAX in app.py
+# passen, sonst importiert man Text, den das Speichern anschließend kappt.
+MAX_CHARS = 150_000
 MAX_PAGES = 200
 
 # Nur diese Schemata werden als Link übernommen — `javascript:` und Konsorten

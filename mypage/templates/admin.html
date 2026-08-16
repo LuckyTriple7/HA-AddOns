@@ -5278,8 +5278,13 @@
         body[k] = el('l-' + k).value;
       });
       const r = await apiJson('api/legal', 'POST', body);
-      toast(r.ok ? T.saved : T.error_save, !r.ok);
-      if (r.ok) loadSite();
+      if (!r.ok) { toast(T.error_save, true); return; }
+      const d = await r.json().catch(() => ({}));
+      // Ein gekürzter Rechtstext sieht vollständig aus und ist es nicht —
+      // das muss auffallen, statt nur „Gespeichert" zu melden.
+      if (d.truncated) toast(T.legal_too_long.replace('{n}', d.max), true);
+      else toast(T.saved);
+      loadSite();
     }
 
     // ── Rechtstext aus einem PDF übernehmen ──
