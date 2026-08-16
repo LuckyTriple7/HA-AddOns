@@ -1,6 +1,6 @@
 ﻿name: Claude Code
 description: KI-Coding-Assistent Claude Code direkt in Home Assistant – Automationen erstellen, Konfiguration verwalten und Fehler beheben
-version: "1.3.16"
+version: "1.3.17"
 image: "ghcr.io/luckytriple7/claudecode"
 slug: claudecode
 url: https://github.com/LuckyTriple7/HA-AddOns
@@ -15,6 +15,14 @@ ingress_port: 7681
 ingress_stream: true
 panel_icon: mdi:brain
 panel_title: Claude Code
+ports:
+  7682/tcp: null
+ports_description:
+  7682/tcp: >-
+    Direkter Browser-Zugriff auf das Terminal, am Ingress vorbei. Nur wirksam,
+    wenn enable_direct_access aktiviert und direct_password gesetzt ist. Ohne
+    Passwort startet der Port nicht. Niemals ins Internet weiterleiten —
+    Basic Auth geht unverschlüsselt über HTTP.
 homeassistant_api: true
 auth_api: true
 hassio_api: true
@@ -47,6 +55,9 @@ options:
   export_memory_interval: 60
   enable_caveman_skill: false
   protect_internal_config: true
+  enable_direct_access: false
+  direct_username: admin
+  direct_password: ""
 schema:
   enable_mcp: bool
   enable_playwright_mcp: bool
@@ -65,6 +76,9 @@ schema:
   export_memory_interval: int(0,1440)
   enable_caveman_skill: bool
   protect_internal_config: bool
+  enable_direct_access: bool
+  direct_username: str
+  direct_password: password?
 environment:
   TERM: xterm-256color
 

@@ -115,5 +115,30 @@ configuration:
       nur, wenn du genau weißt, warum du dort schreiben willst.
       Standard: aktiviert.
 
+  enable_direct_access:
+    name: Direkter Browser-Zugriff (Port 7682)
+    description: >-
+      Öffnet das Terminal zusätzlich auf Port 7682, erreichbar unter
+      http://<HA-IP>:7682 — am Ingress und damit am Home-Assistant-Login vorbei.
+      Es ist dieselbe Sitzung wie im Ingress-Panel, nur ein zweiter Zugang.
+      ACHTUNG - Das Terminal ist eine Root-Shell mit vollem Zugriff auf das
+      Host-System. Der Port startet deshalb nur, wenn ein Passwort gesetzt ist,
+      und schützt sich mit HTTP Basic Auth. Die geht unverschlüsselt über die
+      Leitung, taugt also nur im eigenen Netz - diesen Port niemals im Router
+      ins Internet weiterleiten. Standard - deaktiviert.
+  direct_username:
+    name: Benutzername für Direktzugriff
+    description: >-
+      Benutzername für die Passwortabfrage auf Port 7682.
+      Nur wirksam bei aktiviertem Direktzugriff. Standard - admin.
+  direct_password:
+    name: Passwort für Direktzugriff
+    description: >-
+      Passwort für die Abfrage auf Port 7682. Solange dieses Feld leer ist,
+      startet der Port nicht - auch dann nicht, wenn der Direktzugriff
+      aktiviert ist. Ein langes, zufälliges Passwort verwenden, es schützt
+      eine Root-Shell.
+
 network:
   7681/tcp: Web-Terminal (ttyd)
+  7682/tcp: Direkter Browser-Zugriff (nur mit Passwort, nicht ins Internet weiterleiten)
