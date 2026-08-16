@@ -106,8 +106,9 @@
       (.storage/, .cloud/, deps/, tts/ and the recorder database). Those hold
       everything created through the user interface plus the entity and device
       registries; hand-edited, they can leave Home Assistant unable to start.
-      Reading stays allowed. Only turn this off if you know exactly why you need
-      to write there. Default: enabled.
+      Reading stays allowed. It also stops Claude from reading the token files
+      .claudecode/.env and .claudecode/.git-credentials. Only turn this off if
+      you know exactly why you need to write there. Default: enabled.
 
 network:
   7681/tcp: Web Terminal (ttyd)

@@ -218,6 +218,91 @@ rm -f "$PERSIST_DIR/local-bin/claude" 2>/dev/null || true
 mkdir -p "$PERSIST_DIR/local-share-claude" /root/.local/share
 [ ! -L /root/.local/share/claude ] && { rm -rf /root/.local/share/claude; ln -s "$PERSIST_DIR/local-share-claude" /root/.local/share/claude; }
 
+# Persist git configuration and credentials. /root is part of the container image,
+# so ~/.gitconfig and ~/.git-credentials are gone after every rebuild — identity and
+# push credentials had to be set up again each time (issue #251).
+touch "$PERSIST_DIR/gitconfig"
+if [ ! -L /root/.gitconfig ]; then
+    [ -f /root/.gitconfig ] && cat /root/.gitconfig >> "$PERSIST_DIR/gitconfig"
+    rm -f /root/.gitconfig
+    ln -s "$PERSIST_DIR/gitconfig" /root/.gitconfig
+fi
+# Default the credential store into the persisted directory. Only when nothing is
+# configured yet — an own credential.helper stays untouched.
+if ! git config --global --get credential.helper > /dev/null 2>&1; then
+    git config --global credential.helper "store --file=$PERSIST_DIR/.git-credentials"
+    echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] git credential store → $PERSIST_DIR/.git-credentials"
+fi
+[ -f "$PERSIST_DIR/.git-credentials" ] && chmod 600 "$PERSIST_DIR/.git-credentials" 2>/dev/null
+
+# Environment variables for MCP servers and CLI tools. Claude Code substitutes
+# ${VAR} in .mcp.json from its own process environment, and `export` inside a
+# terminal session can never reach that already-running process — so the values
+# have to be in place before ttyd starts (issue #251).
+ENV_FILE="$PERSIST_DIR/.env"
+cat > "$PERSIST_DIR/.env.example" << 'ENVEXAMPLE'
+# Environment variables for Claude Code
+#
+# Rename this file to `.env` (drop the `.example`) and every KEY=VALUE below is
+# exported before Claude Code starts — MCP servers that authenticate through
+# ${VAR} substitution then see their token, and it survives add-on restarts.
+#
+# Format: one KEY=VALUE per line. `#` starts a comment. Quotes around the value
+# are optional and get stripped. A leading `export ` is allowed and ignored.
+#
+# This file lives under /homeassistant and is therefore part of every Home
+# Assistant backup. Treat those backups accordingly.
+#
+# PATH, HOME, IFS, LD_PRELOAD, LD_LIBRARY_PATH, SUPERVISOR_TOKEN, HA_TOKEN and
+# HA_URL are ignored — overwriting them breaks the add-on.
+
+# GITHUB_PERSONAL_ACCESS_TOKEN=ghp_...
+# GITHUB_TOKEN=ghp_...
+ENVEXAMPLE
+
+if [ -f "$ENV_FILE" ]; then
+    chmod 600 "$ENV_FILE" 2>/dev/null
+    ENV_NAMES=""
+    ENV_COUNT=0
+    # Parsed line by line instead of sourced: a sourced file would execute whatever
+    # is in it, and a stray \r from a Windows editor would end up inside the value,
+    # which breaks an Authorization header in a way that is very hard to see.
+    while IFS= read -r RAW || [ -n "$RAW" ]; do
+        LINE=${RAW%$'\r'}
+        LINE=${LINE#"${LINE%%[![:space:]]*}"}
+        case "$LINE" in
+            ''|'#'*) continue ;;
+            *=*) ;;
+            *) echo "[WARN] [$(date '+%Y-%m-%d %H:%M:%S')] .env: line without '=' ignored"; continue ;;
+        esac
+        LINE=${LINE#export }
+        KEY=${LINE%%=*}
+        VAL=${LINE#*=}
+        KEY=${KEY%"${KEY##*[![:space:]]}"}
+        case "$KEY" in
+            ''|[0-9]*|*[!A-Za-z0-9_]*)
+                echo "[WARN] [$(date '+%Y-%m-%d %H:%M:%S')] .env: invalid variable name ignored"
+                continue ;;
+            PATH|HOME|IFS|LD_PRELOAD|LD_LIBRARY_PATH|SUPERVISOR_TOKEN|HA_TOKEN|HA_URL)
+                echo "[WARN] [$(date '+%Y-%m-%d %H:%M:%S')] .env: $KEY is reserved by the add-on — ignored"
+                continue ;;
+        esac
+        # Strip one layer of matching quotes, then trailing whitespace on bare values
+        case "$VAL" in
+            \"*\") VAL=${VAL#\"}; VAL=${VAL%\"} ;;
+            \'*\') VAL=${VAL#\'}; VAL=${VAL%\'} ;;
+            *) VAL=${VAL%"${VAL##*[![:space:]]}"} ;;
+        esac
+        export "$KEY=$VAL"
+        ENV_NAMES="$ENV_NAMES $KEY"
+        ENV_COUNT=$((ENV_COUNT + 1))
+    done < "$ENV_FILE"
+    # Names only — the values are secrets and add-on logs are shown in the HA UI
+    echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Loaded $ENV_COUNT variable(s) from .env:$ENV_NAMES"
+else
+    echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] No .env — rename .env.example in $PERSIST_DIR to pass tokens to MCP servers"
+fi
+
 # Report active version (npm-global/bin is first in PATH, so updated version is used automatically)
 if [ -f "$NPM_GLOBAL_DIR/bin/claude" ]; then
     echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Using npm-updated Claude Code: $(claude --version 2>/dev/null)"
@@ -269,12 +354,17 @@ SETTINGS_FILE="$PERSIST_DIR/settings.json"
 # Edit(...) is the rule form file permission checks actually match, and it covers
 # every file-editing tool including Write. Write(...) rules are ignored for paths
 # and only produce a startup warning.
+# The two Read rules cover the files holding the user's tokens — they are already
+# in Claude's environment where it needs them, there is no reason to read them off
+# disk and every reason not to paste them into a session.
 PROTECT_RULES='[
   "Edit(/homeassistant/.storage/**)",
   "Edit(/homeassistant/.cloud/**)",
   "Edit(/homeassistant/deps/**)",
   "Edit(/homeassistant/tts/**)",
-  "Edit(/homeassistant/home-assistant_v2.db)"
+  "Edit(/homeassistant/home-assistant_v2.db)",
+  "Read(/homeassistant/.claudecode/.env)",
+  "Read(/homeassistant/.claudecode/.git-credentials)"
 ]'
 # Written by 1.3.12, which used the wrong rule form. Removed on every start
 # regardless of the option, otherwise they keep warning on installs that had it.
@@ -294,14 +384,14 @@ elif [ "$PROTECT_INTERNAL" = "true" ]; then
        '(((.permissions.deny // []) - $obsolete)) as $kept
         | .permissions.deny = ($kept + ($rules - $kept))' \
        "$SETTINGS_FILE" > /tmp/settings.tmp && mv /tmp/settings.tmp "$SETTINGS_FILE"
-    echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Write protection active — .storage/, .cloud/, deps/, tts/ and the recorder database are read-only for Claude"
+    echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Write protection active — .storage/, .cloud/, deps/, tts/ and the recorder database are read-only for Claude, .env and .git-credentials unreadable"
 else
     jq --argjson rules "$PROTECT_RULES" --argjson obsolete "$OBSOLETE_RULES" \
        '.permissions.deny = ((.permissions.deny // []) - $rules - $obsolete)
         | if (.permissions.deny | length) == 0 then del(.permissions.deny) else . end
         | if (.permissions | length) == 0 then del(.permissions) else . end' \
        "$SETTINGS_FILE" > /tmp/settings.tmp && mv /tmp/settings.tmp "$SETTINGS_FILE"
-    echo "[WARN] [$(date '+%Y-%m-%d %H:%M:%S')] Write protection disabled — Claude may write to Home Assistant's internal directories, including .storage/"
+    echo "[WARN] [$(date '+%Y-%m-%d %H:%M:%S')] Write protection disabled — Claude may write to Home Assistant's internal directories, including .storage/, and may read .env and .git-credentials"
 fi
 
 # Caveman skills: opt-in, copied/removed on every start so toggling the option takes

@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.3.15] - 2026-08-16
+
+### Added
+- **Eigene Umgebungsvariablen über `/homeassistant/.claudecode/.env`.** MCP-Server, die sich mit einem Token anmelden, lesen ihn aus der Umgebung des laufenden `claude`-Prozesses — das offizielle GitHub-Plugin etwa als `${GITHUB_PERSONAL_ACCESS_TOKEN}`. Bisher gab es keinen Weg, so einen Wert dorthin zu bekommen: Das Add-on hatte kein Feld dafür, und ein `export` im Terminal wirkt nur auf die eigene Shell, nie zurück auf den bereits gestarteten Elternprozess. Der Server meldete `Header values reference unset environment variables` und HTTP 400 (Issue #251).
+
+  Neu legt das Add-on `.env.example` in `/homeassistant/.claudecode/` ab. Nach dem Umbenennen in `.env` wird jede `KEY=VALUE`-Zeile exportiert, bevor das Terminal startet — Claude Code und alle MCP-Server sehen die Werte damit ab dem nächsten Start. Anführungszeichen und ein vorangestelltes `export ` sind erlaubt, `#` leitet einen Kommentar ein, Windows-Zeilenenden (CRLF) werden abgeschnitten. Die Datei wird nicht ausgeführt, sondern Zeile für Zeile gelesen; `$(…)` darin bleibt Text. `PATH`, `HOME`, `IFS`, `LD_PRELOAD`, `LD_LIBRARY_PATH`, `SUPERVISOR_TOKEN`, `HA_TOKEN` und `HA_URL` werden ignoriert, weil ein Überschreiben das Add-on lahmlegen würde. Ins Log gehen nur die Namen der geladenen Variablen, nie die Werte.
+
+  Zu beachten: `/homeassistant` liegt in jedem HA-Backup, das Token damit auch — entsprechend knappe Rechte vergeben.
+
+### Fixed
+- **Git-Konfiguration und Zugangsdaten überleben jetzt einen Rebuild.** `~/.gitconfig` und `~/.git-credentials` liegen unter `/root` und damit im Container-Image, das bei jedem Update neu entsteht — Name, E-Mail und hinterlegte Zugangsdaten waren danach weg, `git push` scheiterte mit `could not read Username for 'https://github.com'`. Beides liegt jetzt in `/homeassistant/.claudecode/` (`gitconfig` und `.git-credentials`) und wird nach `/root` verlinkt; eine bereits vorhandene `~/.gitconfig` wird beim ersten Start übernommen, nicht überschrieben. Als Credential-Helper ist `store` mit Ziel in diesem Verzeichnis voreingestellt — aber nur, wenn keiner konfiguriert ist, ein eigener Helper bleibt unangetastet.
+
+### Changed
+- `protect_internal_config` sperrt zusätzlich das **Lesen** von `.claudecode/.env` und `.claudecode/.git-credentials`. Die Token stehen dort, wo Claude sie braucht, nämlich in der Umgebung; sie von der Platte zu lesen bringt nichts und kann sie in einer Sitzung sichtbar machen. Wie bisher gilt: Die Sperre greift bei den Datei-Werkzeugen, nicht bei Umwegen über die Shell, und wer sie nicht will, schaltet die Option ab.
+
+
 ## [1.3.14] - 2026-08-14
 
 ### Changed

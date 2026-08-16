@@ -93,8 +93,10 @@
       (.storage/, .cloud/, deps/, tts/ y la base de datos del recorder). Ahí
       está todo lo creado desde la interfaz, además de los registros de
       entidades y dispositivos; editados a mano, pueden impedir que Home
-      Assistant arranque. La lectura sigue permitida. Desactívalo solo si sabes
-      exactamente por qué necesitas escribir ahí. Predeterminado: activado.
+      Assistant arranque. La lectura sigue permitida. Además, Claude no puede
+      leer los archivos de tokens .claudecode/.env y
+      .claudecode/.git-credentials. Desactívalo solo si sabes exactamente por
+      qué necesitas escribir ahí. Predeterminado: activado.
 
 network:
   7681/tcp: Terminal Web (ttyd)

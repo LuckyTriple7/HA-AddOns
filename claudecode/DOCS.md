@@ -97,6 +97,41 @@ Die CLAUDE.md wird bei **jedem** Add-on-Start neu geschrieben — eigene Ergänz
 
 An diese Datei rührt das Add-on nie, auch Updates nicht. Löschen genügt, um sie wieder loszuwerden — es gibt keine Option dafür. Bei Widersprüchen gewinnt die CLAUDE.md; die Schutzregeln oben lassen sich damit nicht aushebeln. Der Inhalt geht bei **jeder** Anfrage mit, also kurz halten: dauerhafte Vorlieben ja, Notizbuch nein. Keine Passwörter oder Tokens hineinschreiben — dafür ist `!secret` da.
 
+## Tokens für MCP-Server (`.env`)
+
+MCP-Server, die sich mit einem Token anmelden — etwa das offizielle GitHub-Plugin mit `${GITHUB_PERSONAL_ACCESS_TOKEN}` in der `.mcp.json` — lesen diesen Wert aus der Umgebung des laufenden `claude`-Prozesses. Ein `export` im Terminal hilft dabei nicht: es wirkt nur auf die aktuelle Shell und deren Kindprozesse, nie zurück auf den bereits gestarteten Elternprozess. Der Wert muss also stehen, **bevor** das Terminal startet.
+
+Dafür liegt in `/homeassistant/.claudecode/` die Datei `.env.example`. In `.env` umbenennen (`.example` entfernen), Zeilen der Form `KEY=VALUE` eintragen, Add-on neu starten:
+
+```
+GITHUB_PERSONAL_ACCESS_TOKEN=ghp_...
+```
+
+Format: eine Variable pro Zeile, `#` leitet einen Kommentar ein, Anführungszeichen um den Wert sind erlaubt und werden entfernt, ein vorangestelltes `export ` wird ignoriert. Zeilenumbrüche im Windows-Format (CRLF) sind unproblematisch. Die Datei wird nicht ausgeführt, sondern Zeile für Zeile gelesen — `$(…)` darin bleibt Text.
+
+Ignoriert werden `PATH`, `HOME`, `IFS`, `LD_PRELOAD`, `LD_LIBRARY_PATH`, `SUPERVISOR_TOKEN`, `HA_TOKEN` und `HA_URL`; sie zu überschreiben würde das Add-on lahmlegen. Im Log erscheinen nur die Namen der geladenen Variablen, nie deren Werte.
+
+**Wo die Datei liegt, ist relevant:** `/homeassistant` steckt in jedem Home-Assistant-Backup, das Token damit auch. Vergib nur die nötigen Rechte (bei GitHub: fine-grained Token, minimaler Scope) und widerrufe es, wenn du es nicht mehr brauchst. Solange `protect_internal_config` aktiv ist, kann Claude die `.env` selbst nicht lesen — die Werte stehen ohnehin schon in seiner Umgebung.
+
+## Git — Identität und Zugangsdaten
+
+`/root` gehört zum Container-Image und ist nach jedem Rebuild leer. Deshalb liegen `~/.gitconfig` und die gespeicherten Zugangsdaten in `/homeassistant/.claudecode/` (`gitconfig` bzw. `.git-credentials`) und überstehen Neustarts wie Updates. Eine bereits vorhandene `~/.gitconfig` wird beim ersten Start übernommen, nicht überschrieben.
+
+Einmalig einrichten:
+
+```bash
+git config --global user.name  "Dein Name"
+git config --global user.email "du@example.com"
+```
+
+Als Credential-Helper ist `store` mit Ziel `/homeassistant/.claudecode/.git-credentials` voreingestellt — aber nur, wenn keiner konfiguriert ist. Ein eigener Helper bleibt unangetastet. Zugangsdaten hinterlegen, ohne sie in die History zu schreiben:
+
+```bash
+printf 'protocol=https\nhost=github.com\nusername=x-access-token\npassword=<PAT>\n' | git credential approve
+```
+
+Danach funktioniert `git push` auch nach einem Add-on-Neustart. Für die Datei gilt dasselbe wie für die `.env`: sie liegt im HA-Backup.
+
 ## tmux — Scrollen, Kopieren & Einfügen
 
 Das Terminal verwendet tmux für persistente Sessions. Das Scroll-Verhalten steuert die Option `tmux_scroll_mode`:
@@ -249,6 +284,41 @@ What the block does **not** cover: detours through the shell. `Bash` commands su
 CLAUDE.md is rewritten on **every** add-on start, so anything you add there is gone afterwards. For permanent instructions of your own, `/homeassistant/.claudecode/` contains `CLAUDE.local.md.example`. Rename it to `CLAUDE.local.md` (drop the `.example`) and Claude loads it in every session from the next start on.
 
 The add-on never touches that file, updates included. Delete it to stop loading it — there is no option to toggle. CLAUDE.md wins where the two conflict; the safety rules above cannot be overridden from here. The content is sent with **every** request, so keep it short: standing preferences yes, diary no. Never put passwords or tokens in it — that is what `!secret` is for.
+
+## Tokens for MCP Servers (`.env`)
+
+MCP servers that authenticate with a token — the official GitHub plugin, for instance, with `${GITHUB_PERSONAL_ACCESS_TOKEN}` in its `.mcp.json` — read that value from the environment of the running `claude` process. An `export` in the terminal does not help: it only affects the current shell and its children, never the already-running parent. The value has to be in place **before** the terminal starts.
+
+That is what `.env.example` in `/homeassistant/.claudecode/` is for. Rename it to `.env` (drop the `.example`), add `KEY=VALUE` lines, restart the add-on:
+
+```
+GITHUB_PERSONAL_ACCESS_TOKEN=ghp_...
+```
+
+Format: one variable per line, `#` starts a comment, quotes around the value are allowed and get stripped, a leading `export ` is ignored. Windows-style line endings (CRLF) are handled. The file is not executed but read line by line — `$(…)` inside it stays text.
+
+Ignored are `PATH`, `HOME`, `IFS`, `LD_PRELOAD`, `LD_LIBRARY_PATH`, `SUPERVISOR_TOKEN`, `HA_TOKEN` and `HA_URL`; overwriting those would break the add-on. The log lists only the names of the loaded variables, never their values.
+
+**Where the file lives matters:** `/homeassistant` is part of every Home Assistant backup, and so is the token. Grant only the permissions you need (on GitHub: a fine-grained token with minimal scope) and revoke it once you are done. While `protect_internal_config` is on, Claude cannot read the `.env` itself — the values are already in its environment anyway.
+
+## Git — Identity and Credentials
+
+`/root` belongs to the container image and is empty after every rebuild. That is why `~/.gitconfig` and the stored credentials live in `/homeassistant/.claudecode/` (`gitconfig` and `.git-credentials`) and survive restarts as well as updates. An existing `~/.gitconfig` is carried over on first start, not overwritten.
+
+One-time setup:
+
+```bash
+git config --global user.name  "Your Name"
+git config --global user.email "you@example.com"
+```
+
+The credential helper defaults to `store` pointing at `/homeassistant/.claudecode/.git-credentials` — but only when none is configured. Your own helper is left alone. Store credentials without putting them in the shell history:
+
+```bash
+printf 'protocol=https\nhost=github.com\nusername=x-access-token\npassword=<PAT>\n' | git credential approve
+```
+
+After that `git push` keeps working across add-on restarts. The same caveat as for `.env` applies: the file is included in HA backups.
 
 ## tmux — Scrolling, Copy & Paste
 

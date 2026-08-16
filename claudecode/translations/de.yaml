@@ -110,8 +110,10 @@ configuration:
       Assistant (.storage/, .cloud/, deps/, tts/ und die Recorder-Datenbank).
       Dort liegt alles über die Oberfläche Erstellte samt Entity- und
       Device-Registry; von Hand geändert kann Home Assistant nicht mehr starten.
-      Lesen bleibt erlaubt. Abschalten nur, wenn du genau weißt, warum du dort
-      schreiben willst. Standard: aktiviert.
+      Lesen bleibt erlaubt. Zusätzlich kann Claude die eigenen Token-Dateien
+      .claudecode/.env und .claudecode/.git-credentials nicht lesen. Abschalten
+      nur, wenn du genau weißt, warum du dort schreiben willst.
+      Standard: aktiviert.
 
 network:
   7681/tcp: Web-Terminal (ttyd)

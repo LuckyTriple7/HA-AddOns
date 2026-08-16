@@ -92,8 +92,10 @@
       (.storage/, .cloud/, deps/, tts/ e o banco de dados do recorder). Neles
       fica tudo o que foi criado pela interface, além dos registros de entidades
       e dispositivos; editados à mão, podem fazer o Home Assistant não iniciar.
-      A leitura continua permitida. Desative apenas se souber exatamente por que
-      precisa escrever ali. Padrão: ativado.
+      A leitura continua permitida. Além disso, o Claude não consegue ler os
+      arquivos de tokens .claudecode/.env e .claudecode/.git-credentials.
+      Desative apenas se souber exatamente por que precisa escrever ali.
+      Padrão: ativado.
 
 network:
   7681/tcp: Terminal Web (ttyd)
