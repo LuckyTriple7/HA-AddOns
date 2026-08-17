@@ -271,7 +271,9 @@ cat > "$PERSIST_DIR/.env.example" << 'ENVEXAMPLE'
 # PATH, HOME, IFS, LD_PRELOAD, LD_LIBRARY_PATH, SUPERVISOR_TOKEN, HA_TOKEN and
 # HA_URL are ignored — overwriting them breaks the add-on.
 
-# GITHUB_PERSONAL_ACCESS_TOKEN=ghp_...
+# Paste the token exactly as GitHub shows it. Its prefix (ghp_, github_pat_, …)
+# is part of the token — replace this whole placeholder, do not type in front of it.
+# GITHUB_PERSONAL_ACCESS_TOKEN=paste-your-token-here
 ENVEXAMPLE
 
 if [ -f "$ENV_FILE" ]; then
@@ -307,6 +309,20 @@ if [ -f "$ENV_FILE" ]; then
             \"*\") VAL=${VAL#\"}; VAL=${VAL%\"} ;;
             \'*\') VAL=${VAL#\'}; VAL=${VAL%\'} ;;
             *) VAL=${VAL%"${VAL##*[![:space:]]}"} ;;
+        esac
+        # A value that kept the example's prefix, a piece of placeholder text or a
+        # stray space makes the MCP server answer 401 "Authorization header
+        # rejected", which reads like an account or permission problem and sends
+        # people looking in the wrong place. Warn here instead — names only, the
+        # value itself is never printed. The variable is exported either way; this
+        # only guesses, it does not decide.
+        case "$VAL" in
+            ghp_ghp_*|ghp_github_pat_*|github_pat_github_pat_*|github_pat_ghp_*)
+                echo "[WARN] [$(date '+%Y-%m-%d %H:%M:%S')] .env: $KEY starts with a doubled token prefix — the prefix belongs to the token, replace the placeholder instead of typing in front of it" ;;
+            *...*|*your-token*|*your_token*|*paste-your-token*|*DEIN*|*dein-token*)
+                echo "[WARN] [$(date '+%Y-%m-%d %H:%M:%S')] .env: $KEY still contains placeholder text" ;;
+            *[[:space:]]*)
+                echo "[WARN] [$(date '+%Y-%m-%d %H:%M:%S')] .env: $KEY contains a space — a token normally has none" ;;
         esac
         export "$KEY=$VAL"
         ENV_NAMES="$ENV_NAMES $KEY"
@@ -347,6 +363,9 @@ EXPORT_MEMORY=$(jq -r '.export_memory // false' /data/options.json)
 EXPORT_MEMORY_INTERVAL=$(jq -r '.export_memory_interval // 60' /data/options.json)
 ENABLE_CAVEMAN=$(jq -r '.enable_caveman_skill // false' /data/options.json)
 PROTECT_INTERNAL=$(jq -r 'if .protect_internal_config == false then "false" else "true" end' /data/options.json)
+DIRECT_ACCESS=$(jq -r '.enable_direct_access // false' /data/options.json)
+DIRECT_USER=$(jq -r --arg d admin '.direct_username // $d' /data/options.json)
+DIRECT_PASS=$(jq -r --arg d '' '.direct_password // $d' /data/options.json)
 
 # Log configuration
 echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Configuration:"
@@ -366,6 +385,7 @@ echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] export_memory          : $EXPORT_MEM
 echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] export_memory_interval : ${EXPORT_MEMORY_INTERVAL} min"
 echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] enable_caveman_skill   : $ENABLE_CAVEMAN"
 echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] protect_internal_config: $PROTECT_INTERNAL"
+echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] enable_direct_access   : $DIRECT_ACCESS"
 
 # Write protection for Home Assistant's internal state. The CLAUDE.md rules ask
 # Claude not to touch these paths; these deny rules make Claude Code refuse the
@@ -634,8 +654,35 @@ else
     echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Mobile scroll UI off — serving ttyd's built-in page"
 fi
 
-# Start web terminal
 cd /homeassistant
+
+# Optional second ttyd on 7683 for direct browser access, bypassing the Supervisor
+# ingress proxy and its Home Assistant login. Both instances run `tmux new-session -A`
+# against the same session name, so the direct port shows the very same terminal.
+#
+# The ingress port is protected by HA's own auth; this one is not, and the terminal is
+# a root shell on a container with full_access. So the port stays shut unless a password
+# is set — a warning in the log would be too easy to miss for what it opens up.
+if [ "$DIRECT_ACCESS" = "true" ]; then
+    if [ -z "$DIRECT_PASS" ]; then
+        echo "[ERROR] [$(date '+%Y-%m-%d %H:%M:%S')] enable_direct_access is on but direct_password is empty — port 7683 NOT started"
+        echo "[ERROR] [$(date '+%Y-%m-%d %H:%M:%S')] Set a password in the add-on configuration, or turn enable_direct_access off"
+    elif [ -z "$DIRECT_USER" ]; then
+        echo "[ERROR] [$(date '+%Y-%m-%d %H:%M:%S')] enable_direct_access is on but direct_username is empty — port 7683 NOT started"
+    else
+        echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Direct access on port 7683, user '$DIRECT_USER' (HTTP Basic Auth — LAN only, never forward this port)"
+        ttyd --port 7683 --writable --ping-interval 30 --max-clients 5 \
+            --credential "$DIRECT_USER:$DIRECT_PASS" \
+            -t fontSize="$FONT_SIZE" \
+            -t fontFamily=Monaco,Consolas,monospace \
+            -t scrollback=20000 \
+            -t "theme=$COLORS" \
+            $TTYD_INDEX \
+            $SHELL_CMD &
+    fi
+fi
+
+# Start web terminal
 exec ttyd --port 7681 --writable --ping-interval 30 --max-clients 5 \
     -t fontSize="$FONT_SIZE" \
     -t fontFamily=Monaco,Consolas,monospace \

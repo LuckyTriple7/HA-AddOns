@@ -150,7 +150,29 @@
     .modal-bg.open { display: flex; }
     .modal { background: var(--surf); border: 1px solid var(--border); border-radius: 10px; padding: 22px; width: 100%; max-width: min(760px, 94vw); }
     .modal h3 { margin-bottom: 4px; }
+    .modal.wide { max-width: min(1180px, 96vw); }
     .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
+
+    /* ── PDF-Import der Rechtstexte ── */
+    /* Beschriftung und Import-Knopf in einer Zeile über dem Textfeld */
+    .lbl-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    .pdfimp-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .pdfimp-cols textarea { font-family: ui-monospace, Consolas, monospace; font-size: 0.76rem;
+                            height: 420px; resize: vertical; }
+    /* Gleiche Höhe wie das Textfeld daneben — sonst steht die Vorschau kurz und
+       der Eindruck entsteht, es fehle etwas. */
+    .pdfimp-preview { border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px;
+                      background: var(--surf2); height: 420px; overflow-y: auto; font-size: 0.82rem; }
+    .pdfimp-warn { color: var(--yellow); background: color-mix(in srgb, var(--yellow) 10%, transparent);
+                   border-left: 3px solid var(--yellow); border-radius: 4px; padding: 7px 10px; margin: 0 0 10px; }
+    .pdfimp-preview h1 { font-size: 1.15rem; margin: 0 0 8px; }
+    .pdfimp-preview h2 { font-size: 1rem; margin: 14px 0 6px; }
+    .pdfimp-preview h3 { font-size: 0.9rem; margin: 12px 0 4px; }
+    .pdfimp-preview h4 { font-size: 0.84rem; margin: 10px 0 4px; color: var(--muted); }
+    .pdfimp-preview p, .pdfimp-preview li { margin: 0 0 8px; line-height: 1.5; }
+    .pdfimp-preview ul, .pdfimp-preview ol { padding-left: 20px; margin: 0 0 8px; }
+    .pdfimp-preview a { color: var(--accent); word-break: break-all; }
+    @media (max-width: 760px) { .pdfimp-cols { grid-template-columns: 1fr; } }
 
     .gh-repo { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-bottom: 1px solid var(--border); font-size: 0.85rem; }
     .gh-repo:last-child { border-bottom: none; }
@@ -182,7 +204,46 @@
     .vtable .mono { font-family: ui-monospace, Consolas, monospace; font-size: 0.74rem; }
     .badge-bot { font-size: 0.66rem; padding: 1px 7px; border-radius: 999px; background: color-mix(in srgb, var(--yellow) 18%, transparent); color: var(--yellow); }
     .badge-new { font-size: 0.66rem; padding: 1px 7px; border-radius: 999px; background: color-mix(in srgb, var(--green-h) 18%, transparent); color: var(--green-h); }
+    /* Filterleiste über dem Besucher-Log */
+    .vfilter { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin: 0 0 10px; }
+    .vfilter .btn.active { border-color: var(--accent); color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); font-weight: 600; }
+    .vfilter .hint { margin: 0; }
     .msg-badge { font-size: 0.66rem; padding: 1px 7px; border-radius: 999px; background: var(--red); color: #fff; margin-left: 4px; }
+
+    /* ── Besucher-Explorer ── */
+    .ex-bar { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 14px; }
+    .ex-bar label { display: block; font-size: 0.72rem; color: var(--muted); margin-bottom: 3px; }
+    .ex-bar select { min-width: 150px; }
+    .ex-flags { display: flex; gap: 4px; align-items: center; }
+    .ex-route { color: var(--muted); }
+    .ex-route b { color: var(--text); font-weight: 500; }
+    /* Häufige Wege: Seitenfolge als Kette */
+    .seq-row { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; padding: 5px 0; border-bottom: 1px solid var(--border); font-size: 0.78rem; }
+    .seq-row:last-child { border-bottom: none; }
+    .seq-step { background: var(--surf2); border: 1px solid var(--border); border-radius: 5px; padding: 2px 7px; max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .seq-arrow { color: var(--muted); }
+    .seq-count { margin-left: auto; color: var(--muted); padding-left: 10px; }
+    /* Heatmap Wochentag × Stunde */
+    .heat { display: grid; grid-template-columns: 34px repeat(24, minmax(10px, 1fr)); gap: 2px; }
+    .heat-lbl { font-size: 0.68rem; color: var(--muted); align-self: center; white-space: nowrap; }
+    .heat-hour { font-size: 0.62rem; color: var(--muted); text-align: center; }
+    .heat-cell { aspect-ratio: 1; border-radius: 3px; background: var(--surf2); }
+    .heat-legend { display: flex; align-items: center; gap: 5px; margin-top: 10px; font-size: 0.7rem; color: var(--muted); }
+    .heat-legend i { width: 15px; height: 15px; border-radius: 3px; display: inline-block; }
+    @media (max-width: 700px) { .heat { grid-template-columns: 26px repeat(24, minmax(5px, 1fr)); } .heat-hour { display: none; } }
+    /* Zeitleiste im Weg-Fenster */
+    .jrn { list-style: none; padding: 0; margin: 0; position: relative; }
+    /* Senkrechte Linie genau unter den Punkten: 54px Zeitspalte + 8px Abstand
+       + halbe 16px-Punktspalte. */
+    .jrn::before { content: ''; position: absolute; left: 70px; top: 12px; bottom: 12px; width: 1px; background: var(--border); }
+    .jrn-step { display: grid; grid-template-columns: 54px 16px 1fr auto; align-items: center; gap: 8px; padding: 5px 0; font-size: 0.8rem; }
+    .jrn-time { color: var(--muted); font-size: 0.72rem; font-family: ui-monospace, Consolas, monospace; }
+    .jrn-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--accent); justify-self: center; position: relative; z-index: 1; }
+    .jrn-step:first-child .jrn-dot { background: var(--green-h); }
+    .jrn-step:last-child .jrn-dot { background: var(--yellow); }
+    .jrn-path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .jrn-path small { display: block; color: var(--muted); font-size: 0.68rem; }
+    .jrn-dwell { color: var(--muted); font-size: 0.72rem; white-space: nowrap; }
 
     .entry-row { background: var(--surf2); border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 10px; }
     .entry-grid { display: grid; grid-template-columns: 110px 1fr 1fr auto; gap: 10px; align-items: start; }
@@ -381,6 +442,7 @@
         <button class="tab-btn" data-tab="messages">{{ t.tab_messages }} <span class="msg-badge" id="msg-badge" style="display:none"></span></button>
         <button class="tab-btn" data-tab="users">{{ t.tab_users }}</button>
         <button class="tab-btn" data-tab="stats">{{ t.tab_stats }}</button>
+        <button class="tab-btn" data-tab="explorer">{{ t.tab_explorer }}</button>
         <button class="tab-btn" data-tab="system">{{ t.tab_system }}</button>
       </nav>
       <button type="button" class="nav-arrow nav-right" aria-label="►" onclick="navScroll(1)">›</button>
@@ -1680,11 +1742,15 @@
         <p class="hint">{{ t.legal_hint_impressum }}</p>
         <div class="row">
           <div>
-            <label>DE</label>
+            <label class="lbl-row">DE
+              <button type="button" class="btn secondary small" onclick="pickLegalPdf('impressum_de')">{{ t.pdf_import }}</button>
+            </label>
             <textarea id="l-impressum_de" rows="10"></textarea>
           </div>
           <div>
-            <label>EN ({{ t.optional }})</label>
+            <label class="lbl-row">EN ({{ t.optional }})
+              <button type="button" class="btn secondary small" onclick="pickLegalPdf('impressum_en')">{{ t.pdf_import }}</button>
+            </label>
             <textarea id="l-impressum_en" rows="10"></textarea>
           </div>
         </div>
@@ -1694,14 +1760,19 @@
         <p class="hint">{{ t.legal_hint_privacy }}</p>
         <div class="row">
           <div>
-            <label>DE</label>
+            <label class="lbl-row">DE
+              <button type="button" class="btn secondary small" onclick="pickLegalPdf('privacy_de')">{{ t.pdf_import }}</button>
+            </label>
             <textarea id="l-privacy_de" rows="14"></textarea>
           </div>
           <div>
-            <label>EN ({{ t.optional }})</label>
+            <label class="lbl-row">EN ({{ t.optional }})
+              <button type="button" class="btn secondary small" onclick="pickLegalPdf('privacy_en')">{{ t.pdf_import }}</button>
+            </label>
             <textarea id="l-privacy_en" rows="14"></textarea>
           </div>
         </div>
+        <p class="hint">{{ t.pdf_import_hint }}</p>
         <button class="btn" onclick="saveLegal()">{{ t.save }}</button>
         <p class="hint">{{ t.legal_footer_hint }}</p>
       </div>
@@ -1949,6 +2020,12 @@
       <div class="panel">
         <h3>{{ t.visitor_log }}</h3>
         <p id="s-crawler" class="hint" style="margin:2px 0 10px"></p>
+        <div class="vfilter">
+          <button type="button" class="btn secondary small active" data-vfilter="all" onclick="setVisitorFilter('all')">{{ t.vlog_filter_all }}</button>
+          <button type="button" class="btn secondary small" data-vfilter="new" onclick="setVisitorFilter('new')">{{ t.vlog_filter_new }}</button>
+          <button type="button" class="btn secondary small" data-vfilter="bot" onclick="setVisitorFilter('bot')">{{ t.vlog_filter_bot }}</button>
+          <span id="s-log-count" class="hint"></span>
+        </div>
         <div id="s-log-wrap" class="collapsible">
           <div style="overflow-x:auto">
             <table class="vtable">
@@ -1962,7 +2039,153 @@
         <button class="btn secondary small collapse-btn" id="s-log-wrap-btn" onclick="toggleCollapse('s-log-wrap')"></button>
       </div>
     </section>
+
+    <!-- ── Besucher-Explorer ── -->
+    <section class="tab" id="tab-explorer">
+      <div class="jumpbar" id="explorer-jump"></div>
+
+      <!-- Leerer Zustand: Archiv aus oder Monat ohne Daten -->
+      <div class="panel" id="ex-off" style="display:none">
+        <div class="empty-note">
+          <h3 style="margin-top:0" id="ex-off-title">{{ t.ex_off_title }}</h3>
+          <p class="hint" id="ex-off-text">{{ t.ex_off_text }}</p>
+          <button class="btn" id="ex-off-btn" onclick="enableVisitArchive()">{{ t.ex_off_btn }}</button>
+        </div>
+      </div>
+
+      <div id="ex-body" style="display:none">
+        <div class="ex-bar">
+          <div>
+            <label for="ex-month">{{ t.ex_month }}</label>
+            <select id="ex-month" onchange="loadExplorer()"></select>
+          </div>
+          <div>
+            <label for="ex-day">{{ t.ex_day }}</label>
+            <select id="ex-day" onchange="loadExplorerSessions()"></select>
+          </div>
+          <div class="ex-flags">
+            <button type="button" class="btn secondary small active" id="ex-bots-off" onclick="setExplorerBots(0)">{{ t.ex_bots_off }}</button>
+            <button type="button" class="btn secondary small" id="ex-bots-on" onclick="setExplorerBots(1)">{{ t.ex_bots_on }}</button>
+          </div>
+          <button type="button" class="btn secondary small" onclick="loadExplorer()">{{ t.ex_reload }}</button>
+        </div>
+        <p class="hint" id="ex-meta"></p>
+
+        <div class="stat-cards" id="ex-cards"></div>
+
+        <div class="panel" data-jump-panel>
+          <h3>{{ t.ex_sessions }}</h3>
+          <p class="hint">{{ t.ex_intro }}</p>
+          <div class="vfilter">
+            <input type="text" id="ex-q" placeholder="{{ t.ex_search_ph }}" oninput="renderExplorerSessions()" style="max-width:280px;margin:0">
+            <span id="ex-count" class="hint"></span>
+          </div>
+          <div id="ex-list" class="collapsible">
+            <div style="overflow-x:auto">
+              <table class="vtable">
+                <thead>
+                  <tr><th>{{ t.ex_col_start }}</th><th>IP</th><th>{{ t.ex_col_client }}</th>
+                      <th>{{ t.ex_col_country }}</th><th>{{ t.ex_col_views }}</th>
+                      <th>{{ t.ex_col_dur }}</th><th>{{ t.ex_col_route }}</th><th></th><th></th></tr>
+                </thead>
+                <tbody id="ex-rows"></tbody>
+              </table>
+            </div>
+          </div>
+          <button class="btn secondary small collapse-btn" id="ex-list-btn" onclick="toggleCollapse('ex-list')"></button>
+          <p class="hint" style="margin-top:10px">{{ t.ex_privacy }}</p>
+        </div>
+
+        <div class="panel" data-jump-panel>
+          <h3>{{ t.ex_paths }}</h3>
+          <div class="row">
+            <div>
+              <label>{{ t.ex_entry }}</label>
+              <div id="ex-entry"></div>
+            </div>
+            <div>
+              <label>{{ t.ex_exit }}</label>
+              <div id="ex-exit"></div>
+            </div>
+          </div>
+          <label style="margin-top:14px;display:block">{{ t.ex_sequences }}</label>
+          <div id="ex-seq" class="collapsible"></div>
+          <button class="btn secondary small collapse-btn" id="ex-seq-btn" onclick="toggleCollapse('ex-seq')"></button>
+        </div>
+
+        <div class="panel" data-jump-panel>
+          <h3>{{ t.ex_when }}</h3>
+          <div style="overflow-x:auto"><div class="heat" id="ex-heat"></div></div>
+          <div class="heat-legend">
+            <span>{{ t.ex_heat_less }}</span>
+            <i style="background:var(--surf2)"></i>
+            <i style="background:color-mix(in srgb, var(--accent) 25%, var(--surf2))"></i>
+            <i style="background:color-mix(in srgb, var(--accent) 50%, var(--surf2))"></i>
+            <i style="background:color-mix(in srgb, var(--accent) 75%, var(--surf2))"></i>
+            <i style="background:var(--accent)"></i>
+            <span>{{ t.ex_heat_more }}</span>
+          </div>
+        </div>
+
+        <div class="panel" data-jump-panel>
+          <h3>{{ t.ex_returning }}</h3>
+          <p class="hint">{{ t.ex_returning_hint }}</p>
+          <div id="ex-ret" class="collapsible">
+            <div style="overflow-x:auto">
+              <table class="vtable">
+                <thead>
+                  <tr><th>IP</th><th>{{ t.ex_col_client }}</th><th>{{ t.ex_col_country }}</th>
+                      <th>{{ t.ex_col_days }}</th><th>{{ t.ex_card_sessions }}</th>
+                      <th>{{ t.ex_col_views }}</th><th>{{ t.ex_col_top }}</th>
+                      <th>{{ t.ex_col_first }}</th><th>{{ t.ex_col_last }}</th><th></th></tr>
+                </thead>
+                <tbody id="ex-ret-rows"></tbody>
+              </table>
+            </div>
+          </div>
+          <button class="btn secondary small collapse-btn" id="ex-ret-btn" onclick="toggleCollapse('ex-ret')"></button>
+        </div>
+      </div>
+    </section>
   </main>
+
+  <!-- PDF-Import: Vorschau vor dem Übernehmen -->
+  <input type="file" id="legal-pdf-file" accept="application/pdf,.pdf" style="display:none" onchange="uploadLegalPdf(this)">
+  <div class="modal-bg" id="pdfimp-modal">
+    <div class="modal wide">
+      <h3>{{ t.pdf_import_title }}</h3>
+      <p class="hint" id="pdfimp-meta"></p>
+      <p class="hint pdfimp-warn" id="pdfimp-warn" style="display:none"></p>
+      <div class="pdfimp-cols">
+        <div>
+          <label>{{ t.pdf_import_md }}</label>
+          <textarea id="pdfimp-md" spellcheck="false"></textarea>
+        </div>
+        <div>
+          <label>{{ t.pdf_import_preview }}</label>
+          <div id="pdfimp-html" class="pdfimp-preview"></div>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn secondary" onclick="el('pdfimp-modal').classList.remove('open')">{{ t.cancel }}</button>
+        <button class="btn secondary" onclick="applyLegalPdf(true)">{{ t.pdf_import_append }}</button>
+        <button class="btn" onclick="applyLegalPdf(false)">{{ t.pdf_import_replace }}</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Weg eines Besuchers durch die Seite -->
+  <div class="modal-bg" id="journey-modal">
+    <div class="modal">
+      <h3 id="jr-title">{{ t.ex_journey_title }}</h3>
+      <p class="hint" id="jr-meta"></p>
+      <div style="max-height:420px;overflow-y:auto"><ol class="jrn" id="jr-steps"></ol></div>
+      <p class="hint" id="jr-note">{{ t.ex_journey_last }}</p>
+      <div class="modal-actions">
+        <button class="btn secondary" onclick="el('journey-modal').classList.remove('open')">{{ t.ex_close }}</button>
+      </div>
+    </div>
+  </div>
 
   <!-- Projekt-Modal -->
   <div class="modal-bg" id="proj-modal">
@@ -2963,6 +3186,7 @@
         el('tab-' + btn.dataset.tab).classList.add('active');
         stopUsersPolling();  // beim Verlassen des Benutzer-Tabs Polling stoppen
         if (btn.dataset.tab === 'stats') loadStats();
+        if (btn.dataset.tab === 'explorer') initExplorerTab();
         if (btn.dataset.tab === 'messages') { loadMessages(); loadComments(); }
         if (btn.dataset.tab === 'users') { loadUsers(); initStorageBrowser(); startUsersPolling(); }
         if (btn.dataset.tab === 'design') { initPreview(); setTimeout(updatePresetArrows, 50); }
@@ -5054,8 +5278,80 @@
         body[k] = el('l-' + k).value;
       });
       const r = await apiJson('api/legal', 'POST', body);
-      toast(r.ok ? T.saved : T.error_save, !r.ok);
-      if (r.ok) loadSite();
+      if (!r.ok) { toast(T.error_save, true); return; }
+      const d = await r.json().catch(() => ({}));
+      // Ein gekürzter Rechtstext sieht vollständig aus und ist es nicht —
+      // das muss auffallen, statt nur „Gespeichert" zu melden.
+      if (d.truncated) toast(T.legal_too_long.replace('{n}', d.max), true);
+      else toast(T.saved);
+      loadSite();
+    }
+
+    // ── Rechtstext aus einem PDF übernehmen ──
+    //
+    // Generatoren wie e-Recht24 liefern ein PDF; abtippen verliert jede
+    // Auszeichnung. Der Server holt den Text heraus und schickt Markdown plus
+    // die gerenderte Fassung zurück. Gespeichert wird nichts — erst „Ersetzen"
+    // oder „Anhängen" schreibt ins Textfeld, und dort ist alles bearbeitbar.
+    let PDFIMP = { target: '', md: '' };
+
+    function pickLegalPdf(key) {
+      PDFIMP.target = key;
+      const inp = el('legal-pdf-file');
+      inp.value = '';          // gleiche Datei zweimal wählen soll wieder auslösen
+      inp.click();
+    }
+    async function uploadLegalPdf(input) {
+      const file = input.files && input.files[0];
+      if (!file) return;
+      const fd = new FormData();
+      fd.append('file', file);
+      busyShow(T.pdf_import_running);
+      let r;
+      try {
+        r = await fetch('api/legal/import-pdf', { method: 'POST', credentials: 'same-origin', body: fd });
+      } finally {
+        busyDone();
+      }
+      if (r.status === 401) { location.href = 'login'; return; }
+      if (!r.ok) {
+        const d = await r.json().catch(() => ({}));
+        toast(T['pdf_err_' + (d.error || '')] || T.pdf_err_unreadable, true);
+        return;
+      }
+      const d = await r.json();
+      PDFIMP.md = d.markdown;
+      el('pdfimp-md').value = d.markdown;
+      el('pdfimp-html').innerHTML = d.html;
+      const parts = [
+        file.name,
+        T.pdf_import_pages.replace('{n}', d.pages),
+        T.pdf_import_chars.replace('{n}', d.chars),
+        d.source === 'html' ? T.pdf_src_html : T.pdf_src_layout,
+      ];
+      el('pdfimp-meta').textContent = parts.join(' · ');
+      // Warnen, wenn das Ziel nicht zu dem passt, was im PDF steht — ein
+      // Datenschutz-PDF ins Impressum-Feld ist ein häufiger Fehlgriff.
+      const warn = [];
+      if (d.warnings.includes('truncated')) warn.push(T.pdf_warn_truncated);
+      if (d.warnings.includes('layout')) warn.push(T.pdf_warn_layout);
+      if (d.kind && PDFIMP.target.indexOf(d.kind) !== 0) warn.push(T.pdf_warn_kind);
+      if (d.lang && PDFIMP.target.slice(-2) !== d.lang) warn.push(T.pdf_warn_lang);
+      const w = el('pdfimp-warn');
+      w.textContent = warn.join(' ');
+      w.style.display = warn.length ? '' : 'none';
+      el('pdfimp-modal').classList.add('open');
+    }
+    function applyLegalPdf(append) {
+      // Was im Vorschaufeld steht, zählt — dort darf vor dem Übernehmen
+      // schon korrigiert werden.
+      const text = el('pdfimp-md').value;
+      const box = el('l-' + PDFIMP.target);
+      if (!box) return;
+      box.value = append && box.value.trim() ? box.value.replace(/\s*$/, '') + '\n\n' + text : text;
+      el('pdfimp-modal').classList.remove('open');
+      box.focus();
+      toast(T.pdf_import_done);
     }
 
     // ── Profil ──
@@ -5840,6 +6136,7 @@
         user_games: T.audit_user_games, user_password: T.audit_user_password,
         user_resend: T.audit_user_resend, restore: T.audit_restore,
         newsletter_send: T.audit_newsletter,
+        legal_import_pdf: T.audit_legal_import,
       };
       box.innerHTML = '';
       data.audit.forEach(a => {
@@ -5989,9 +6286,21 @@
       else if (/linux/i.test(ua)) os = 'Linux';
       return os ? `${b} · ${os}` : b;
     }
+    // Besucher-Log: Rohdaten merken, damit der Filter ohne Neuladen umschalten kann
+    let _visitorLog = [], _visitorFilter = 'all';
+    function visitorMatches(v) {
+      if (_visitorFilter === 'bot') return !!v.bot;
+      if (_visitorFilter === 'new') return !v.bot && !!v.new;  // wie das „Neu"-Abzeichen
+      return true;
+    }
+    function setVisitorFilter(f) {
+      _visitorFilter = f;
+      document.querySelectorAll('.vfilter .btn').forEach(b => b.classList.toggle('active', b.dataset.vfilter === f));
+      renderVisitorRows();
+      refreshCollapse('s-log-wrap');
+    }
     function renderVisitorLog(log) {
-      const tbody = el('s-log');
-      tbody.innerHTML = '';
+      _visitorLog = log;
       // Zusammenfassung: wann waren Suchmaschinen-Crawler zuletzt da?
       const last = {};
       log.forEach(v => {
@@ -6005,11 +6314,20 @@
       el('s-crawler').textContent = names.length
         ? T.crawler_last + ': ' + names.map(n => `${n} (${new Date(last[n] * 1000).toLocaleString()})`).join(' · ')
         : T.crawler_none;
-      if (!log.length) {
-        tbody.innerHTML = `<tr><td colspan="6" class="hint">${T.no_data}</td></tr>`;
+      renderVisitorRows();
+    }
+    function renderVisitorRows() {
+      const tbody = el('s-log');
+      tbody.innerHTML = '';
+      const rows = _visitorLog.filter(visitorMatches);
+      el('s-log-count').textContent = _visitorLog.length
+        ? `${rows.length} / ${_visitorLog.length}`
+        : '';
+      if (!rows.length) {
+        tbody.innerHTML = `<tr><td colspan="6" class="hint">${_visitorLog.length ? T.vlog_filter_none : T.no_data}</td></tr>`;
         return;
       }
-      log.forEach(v => {
+      rows.forEach(v => {
         const tr = document.createElement('tr');
         const time = new Date(v.ts * 1000).toLocaleString();
         const lang = (v.lang || '').split(',')[0];
@@ -6024,6 +6342,334 @@
         tr.children[4].title = v.ref || '';
         tr.children[5].innerHTML = v.bot ? `<span class="badge-bot">Bot</span>` : (v.new ? `<span class="badge-new">${T.badge_new}</span>` : '');
         tbody.appendChild(tr);
+      });
+    }
+
+    // ── Besucher-Explorer ──
+    //
+    // Wertet das dauerhafte CSV-Archiv aus. Der Server liefert fertige
+    // Auswertungen und hoechstens 300 Sitzungs-Kurzfassungen; die Schritte
+    // einer einzelnen Sitzung werden erst beim Oeffnen nachgeladen.
+    //
+    // Monat, Tag und der Bot-Schalter aendern, was der Server rechnet — die
+    // gehen also als Anfrage raus. Die Freitextsuche verengt nur die schon
+    // geladene Liste und bleibt im Browser.
+    let EX = { month: '', bots: 0, sessions: [], labels: {}, total: 0, truncated: false };
+    let explorerJumpReady = false;
+
+    function exLabel(path) {
+      return EX.labels[path] || path;
+    }
+    function initExplorerTab() {
+      syncHeaderHeight();
+      if (!explorerJumpReady) { explorerJumpReady = true; buildJumpbar('explorer'); }
+      jumpSpy();
+      loadExplorerMonths();
+    }
+    async function loadExplorerMonths() {
+      const r = await api('api/visits/months');
+      if (r.status === 401) { location.href = 'login'; return; }
+      if (!r.ok) { toast(T.error_load, true); return; }
+      const d = await r.json();
+      const hasData = d.months.length > 0;
+      // Der Hinweiskasten oben und die Auswertung darunter haengen an zwei
+      // verschiedenen Fragen: "wird noch mitgeschrieben?" und "gibt es schon
+      // etwas zu sehen?". Wer das Archiv abschaltet, soll die alten Monate
+      // weiter durchsehen koennen — und trotzdem erfahren, dass nichts mehr
+      // dazukommt.
+      el('ex-off').style.display = (d.enabled && hasData) ? 'none' : '';
+      el('ex-body').style.display = hasData ? '' : 'none';
+      // Ohne Auswertung gibt es nichts anzuspringen. Die Leiste prueft sonst nur
+      // die Panels selbst, nicht ob deren Umschlag ausgeblendet ist.
+      el('explorer-jump').style.display = hasData ? '' : 'none';
+      if (!d.enabled) {
+        el('ex-off-title').textContent = hasData ? T.ex_stale_title : T.ex_off_title;
+        el('ex-off-text').textContent = hasData ? T.ex_stale_text : T.ex_off_text;
+        el('ex-off-btn').style.display = '';
+      } else if (!hasData) {
+        el('ex-off-title').textContent = T.ex_off_title;
+        el('ex-off-text').textContent = d.source === 'option'
+          ? T.ex_off_option + ' ' + T.ex_empty_month
+          : T.ex_off_done;
+        el('ex-off-btn').style.display = 'none';
+      }
+      if (!hasData) return;
+      const sel = el('ex-month'), keep = sel.value;
+      sel.innerHTML = '';
+      d.months.forEach(m => {
+        const o = document.createElement('option');
+        o.value = m; o.textContent = m;
+        sel.appendChild(o);
+      });
+      sel.value = d.months.includes(keep) ? keep : d.months[0];
+      loadExplorer();
+    }
+    async function enableVisitArchive() {
+      const r = await apiJson('api/design', 'POST', { visit_archive: true });
+      if (!r.ok) { toast(T.error_save, true); return; }
+      toast(T.saved);
+      loadExplorerMonths();
+    }
+    function setExplorerBots(on) {
+      EX.bots = on;
+      el('ex-bots-off').classList.toggle('active', !on);
+      el('ex-bots-on').classList.toggle('active', !!on);
+      loadExplorer();
+    }
+    async function loadExplorer() {
+      const month = el('ex-month').value;
+      if (!month) return;
+      EX.month = month;
+      const q = `month=${encodeURIComponent(month)}&bots=${EX.bots}`;
+      const r = await api('api/visits/overview?' + q);
+      if (r.status === 404) { loadExplorerMonths(); return; }
+      if (!r.ok) { toast(T.error_load, true); return; }
+      const d = await r.json();
+      EX.labels = d.labels || {};
+      renderExplorerCards(d.cards);
+      renderExplorerMeta(d);
+      renderExplorerDays(d.daily || []);
+      renderDistribution('ex-entry', d.entry || [], exLabel);
+      renderDistribution('ex-exit', d.exit || [], exLabel);
+      renderSequences(d.sequences || []);
+      renderHeatmap(d.heatmap || { cells: [], max: 0 });
+      renderReturning(d.returning || []);
+      await loadExplorerSessions();
+      // Erst jetzt stehen die Panels an ihrer endgueltigen Hoehe — vorher misst
+      // der Scroll-Beobachter leere Kaesten und markiert den falschen Chip.
+      syncHeaderHeight();
+      jumpSpy();
+    }
+    function renderExplorerMeta(d) {
+      const parts = [];
+      if (d.skipped) parts.push(T.ex_skipped.replace('{n}', d.skipped));
+      if (d.truncated) parts.push(T.ex_truncated);
+      el('ex-meta').textContent = parts.join(' ');
+      el('ex-meta').style.display = parts.length ? '' : 'none';
+    }
+    function renderExplorerCards(c) {
+      const cards = [
+        [c.sessions, T.ex_card_sessions],
+        [c.visitors, T.ex_card_visitors],
+        [c.views, T.ex_card_views],
+        [c.bounce_rate + ' %', T.ex_card_bounce],
+        [c.avg_views, T.ex_card_avg_views],
+        [fmtDur(c.avg_duration), T.ex_card_avg_dur],
+      ];
+      const box = el('ex-cards');
+      box.innerHTML = '';
+      cards.forEach(([v, l]) => {
+        const d = document.createElement('div');
+        d.className = 'stat-card';
+        d.innerHTML = '<div class="num"></div><div class="lbl"></div>';
+        d.querySelector('.num').textContent = v;
+        d.querySelector('.lbl').textContent = l;
+        box.appendChild(d);
+      });
+    }
+    function renderExplorerDays(days) {
+      const sel = el('ex-day'), keep = sel.value;
+      sel.innerHTML = '';
+      const all = document.createElement('option');
+      all.value = ''; all.textContent = T.ex_day_all;
+      sel.appendChild(all);
+      days.forEach(d => {
+        const o = document.createElement('option');
+        o.value = d.date;
+        o.textContent = `${d.date} (${d.sessions})`;
+        sel.appendChild(o);
+      });
+      sel.value = days.some(d => d.date === keep) ? keep : '';
+    }
+    async function loadExplorerSessions() {
+      if (!EX.month) return;
+      let q = `month=${encodeURIComponent(EX.month)}&bots=${EX.bots}`;
+      const day = el('ex-day').value;
+      if (day) q += '&day=' + encodeURIComponent(day);
+      const r = await api('api/visits/sessions?' + q);
+      if (!r.ok) { toast(T.error_load, true); return; }
+      const d = await r.json();
+      EX.sessions = d.sessions || [];
+      EX.total = d.total || 0;
+      EX.truncated = !!d.truncated;
+      Object.assign(EX.labels, d.labels || {});
+      renderExplorerSessions();
+    }
+    function renderExplorerSessions() {
+      const q = (el('ex-q').value || '').toLowerCase().trim();
+      const rows = !q ? EX.sessions : EX.sessions.filter(s =>
+        (s.ip + ' ' + s.browser + ' ' + s.system + ' ' + s.country + ' ' +
+         s.entry + ' ' + s.exit + ' ' + exLabel(s.entry) + ' ' + exLabel(s.exit)
+        ).toLowerCase().includes(q));
+      el('ex-count').textContent = EX.total ? `${rows.length} / ${EX.total}` : '';
+      const tbody = el('ex-rows');
+      tbody.innerHTML = '';
+      if (!rows.length) {
+        tbody.innerHTML = `<tr><td colspan="9" class="hint">${EX.total ? T.ex_empty_filter : T.ex_empty_month}</td></tr>`;
+        refreshCollapse('ex-list');
+        return;
+      }
+      rows.forEach(s => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td></td><td class="mono"></td><td></td><td></td><td></td><td></td>
+                        <td class="ex-route"><b></b> → <b></b></td><td></td><td></td>`;
+        tr.children[0].textContent = new Date(s.start * 1000).toLocaleString();
+        tr.children[1].textContent = s.ip;
+        tr.children[1].title = s.ua || '';
+        tr.children[2].textContent = s.system ? `${s.browser} · ${s.system}` : s.browser;
+        tr.children[3].textContent = s.country ? countryLabel(s.country) : '–';
+        tr.children[4].textContent = s.views;
+        tr.children[5].textContent = fmtDur(s.duration);
+        const [from, to] = tr.children[6].querySelectorAll('b');
+        from.textContent = exLabel(s.entry);
+        to.textContent = exLabel(s.exit);
+        tr.children[6].title = s.entry + ' → ' + s.exit;
+        const flags = [];
+        if (s.bot) flags.push(`<span class="badge-bot">Bot</span>`);
+        if (s.new) flags.push(`<span class="badge-new">${T.badge_new}</span>`);
+        tr.children[7].innerHTML = flags.join(' ');
+        if (s.partial) tr.children[7].title = T.ex_partial;
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'btn secondary small';
+        btn.textContent = T.ex_journey_btn;
+        btn.onclick = () => openJourney(s.id);
+        tr.children[8].appendChild(btn);
+        tbody.appendChild(tr);
+      });
+      refreshCollapse('ex-list');
+    }
+    function renderSequences(seqs) {
+      const box = el('ex-seq');
+      box.innerHTML = '';
+      if (!seqs.length) {
+        box.innerHTML = `<p class="hint">${T.ex_seq_none}</p>`;
+        refreshCollapse('ex-seq');
+        return;
+      }
+      seqs.forEach(s => {
+        const row = document.createElement('div');
+        row.className = 'seq-row';
+        s.steps.forEach((p, i) => {
+          if (i) {
+            const a = document.createElement('span');
+            a.className = 'seq-arrow';
+            a.textContent = '›';
+            row.appendChild(a);
+          }
+          const c = document.createElement('span');
+          c.className = 'seq-step';
+          c.textContent = exLabel(p);
+          c.title = p;
+          row.appendChild(c);
+        });
+        const n = document.createElement('span');
+        n.className = 'seq-count';
+        n.textContent = '× ' + s.count;
+        row.appendChild(n);
+        box.appendChild(row);
+      });
+      refreshCollapse('ex-seq');
+    }
+    function renderHeatmap(h) {
+      const box = el('ex-heat');
+      box.innerHTML = '';
+      const lang = document.documentElement.lang || 'de';
+      let names = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
+      try {
+        // 2024-01-01 war ein Montag — sieben Tage ab da ergeben die Kuerzel
+        // in der Sprache des Admins, ohne eigene Uebersetzungsschluessel.
+        const f = new Intl.DateTimeFormat(lang, { weekday: 'short' });
+        names = Array.from({ length: 7 }, (_, i) => f.format(new Date(2024, 0, 1 + i)));
+      } catch {}
+      const cell = (cls, text) => {
+        const d = document.createElement('div');
+        d.className = cls;
+        if (text !== undefined) d.textContent = text;
+        return d;
+      };
+      box.appendChild(cell('heat-lbl', ''));
+      for (let hh = 0; hh < 24; hh++) box.appendChild(cell('heat-hour', hh % 3 ? '' : hh));
+      const max = Math.max(1, h.max || 0);
+      (h.cells || []).forEach((row, d) => {
+        box.appendChild(cell('heat-lbl', names[d]));
+        row.forEach((v, hh) => {
+          const c = cell('heat-cell');
+          if (v) c.style.background = `color-mix(in srgb, var(--accent) ${Math.max(8, Math.round(v / max * 100))}%, var(--surf2))`;
+          c.title = T.ex_heat_cell.replace('{day}', names[d]).replace('{h}', hh).replace('{n}', v);
+          box.appendChild(c);
+        });
+      });
+    }
+    function renderReturning(items) {
+      const tbody = el('ex-ret-rows');
+      tbody.innerHTML = '';
+      if (!items.length) {
+        tbody.innerHTML = `<tr><td colspan="10" class="hint">${T.no_data}</td></tr>`;
+        refreshCollapse('ex-ret');
+        return;
+      }
+      items.forEach(e => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td class="mono"></td><td></td><td></td><td></td><td></td>
+                        <td></td><td></td><td></td><td></td><td></td>`;
+        tr.children[0].textContent = e.ip;
+        tr.children[1].textContent = e.system ? `${e.browser} · ${e.system}` : e.browser;
+        tr.children[2].textContent = e.country ? countryLabel(e.country) : '–';
+        tr.children[3].textContent = e.days;
+        tr.children[4].textContent = e.sessions;
+        tr.children[5].textContent = e.views;
+        tr.children[6].textContent = exLabel(e.top_path);
+        tr.children[6].title = e.top_path;
+        tr.children[7].textContent = new Date(e.first * 1000).toLocaleDateString();
+        tr.children[8].textContent = new Date(e.last * 1000).toLocaleDateString();
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'btn secondary small';
+        btn.textContent = T.ex_journey_btn;
+        btn.onclick = () => openJourney(e.sid);
+        tr.children[9].appendChild(btn);
+        tbody.appendChild(tr);
+      });
+      refreshCollapse('ex-ret');
+    }
+    async function openJourney(sid) {
+      const modal = el('journey-modal');
+      const list = el('jr-steps');
+      list.innerHTML = '';
+      el('jr-meta').textContent = '';
+      modal.classList.add('open');
+      const q = `month=${encodeURIComponent(EX.month)}&bots=${EX.bots}`;
+      const r = await api(`api/visits/session/${encodeURIComponent(sid)}?` + q);
+      if (!r.ok) { el('jr-meta').textContent = T.error_load; return; }
+      const s = await r.json();
+      const labels = s.labels || {};
+      const meta = [
+        s.ip,
+        s.system ? `${s.browser} · ${s.system}` : s.browser,
+        s.country ? countryLabel(s.country) : '',
+        new Date(s.start * 1000).toLocaleString(),
+        fmtDur(s.duration),
+        `${s.views} ${T.ex_card_views}`,
+      ].filter(Boolean);
+      if (s.ref) meta.push(s.ref);
+      if (s.partial) meta.push(T.ex_partial);
+      el('jr-meta').textContent = meta.join(' · ');
+      s.steps.forEach(st => {
+        const li = document.createElement('li');
+        li.className = 'jrn-step';
+        li.innerHTML = `<span class="jrn-time"></span><span class="jrn-dot"></span>
+                        <span class="jrn-path"><span></span><small></small></span>
+                        <span class="jrn-dwell"></span>`;
+        li.querySelector('.jrn-time').textContent =
+          new Date(st.ts * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const title = labels[st.path] || '';
+        const path = li.querySelector('.jrn-path');
+        path.children[0].textContent = (title || st.path) + (st.repeat > 1 ? ` ×${st.repeat}` : '');
+        path.children[1].textContent = title ? st.path : '';
+        path.title = st.path;
+        li.querySelector('.jrn-dwell').textContent = st.dwell === null ? '–' : fmtDur(st.dwell);
+        list.appendChild(li);
       });
     }
 
@@ -6707,7 +7353,7 @@
     // Bereiche selbst — so stimmen sie in beiden Sprachen und ein spaeter
     // dazukommender Bereich steht ohne Zutun mit drin. Sprungziel ist jedes
     // Panel mit data-jump-panel.
-    const JUMPBARS = { ai: 'ai-jump', system: 'system-jump' };
+    const JUMPBARS = { ai: 'ai-jump', system: 'system-jump', explorer: 'explorer-jump' };
     // Sichtbar ist immer hoechstens eine Leiste — die des aktiven Reiters.
     function activeJumpbar() {
       for (const [tab, id] of Object.entries(JUMPBARS)) {

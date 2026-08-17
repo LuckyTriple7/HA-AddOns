@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.10.37
+- 🔤 **Impressum und Datenschutz werden jetzt richtig dargestellt.** Beide Seiten gaben den Text als reinen Fließtext aus — alles in einer Größe, ohne Überschriften, ohne Fettschrift, und Zeichen wie `##` standen wörtlich auf der Seite. Sie laufen jetzt durch dieselbe Aufbereitung wie Beiträge und eigene Seiten: Überschriften in vier Ebenen, Aufzählungen, Fettschrift und Links. Reiner Fließtext bleibt dabei unverändert stehen.
+- ✂️ **Lange Rechtstexte wurden beim Speichern stillschweigend abgeschnitten.** Die Grenze lag bei 20 000 Zeichen; eine ausführliche Datenschutzerklärung ist schnell doppelt so lang und brach dann mitten im Satz ab, ohne dass es irgendwo stand. Die Grenze liegt jetzt bei 150 000 Zeichen, und wird sie doch erreicht, sagt es das Speichern deutlich.
+- 🅰️ Die eingestellte Schriftart gilt jetzt auch auf den Rechtsseiten — sie waren die einzigen der Website, die in der Systemschrift standen.
+- 🏷️ Bringt der Text eine eigene Hauptüberschrift mit (aus einem Generator-PDF etwa), erscheint sie nicht mehr doppelt.
+
+## 0.10.36
+- 📄 **Impressum und Datenschutz lassen sich jetzt aus einem PDF übernehmen.** Wer seine Rechtstexte bei einem Generator wie e-Recht24 erstellt, bekommt sie als PDF — und musste sie bisher abtippen. Dabei ging jede Auszeichnung verloren: Überschriften wurden zu normalen Zeilen, Fettschrift und Aufzählungen verschwanden. Über jedem Textfeld sitzt jetzt ein Knopf „Aus PDF".
+- 🎯 **Die Struktur kommt exakt an, nicht geraten.** Viele Generatoren legen den fertigen Quelltext unsichtbar ins PDF hinein — genau der wird gelesen. Überschriftenebenen, Aufzählungen und Links landen dadurch punktgenau im Text. Nur wenn ein PDF das nicht mitbringt, wird die Gliederung aus Schriftgröße und -schnitt geschätzt; dann sagt das Fenster das auch dazu.
+- 👀 **Vorschau vor dem Übernehmen.** Links steht der Text, rechts die Fassung, wie sie später auf der Seite aussieht — gerendert mit derselben Funktion wie die echte Seite. Korrigieren kann man schon dort, danach im Feld sowieso. „Ersetzen" überschreibt, „Anhängen" ergänzt, gespeichert wird erst mit „Speichern".
+- 🧭 Wer das Datenschutz-PDF versehentlich ins Impressum-Feld lädt oder ein englisches PDF ins deutsche Feld, bekommt einen Hinweis — aufgehalten wird er nicht.
+
+## 0.10.35
+- 🗓️ **Das Besucher-Archiv behält jetzt standardmäßig einen Monat statt zwölf.** Wer länger auswerten will, stellt `visit_file_keep` einfach höher — bestehende Einstellungen bleiben unverändert.
+
+## 0.10.34
+- 🧭 **Neuer Reiter „Explorer": das Besucher-Archiv wird lesbar.** Jeder Aufruf wandert bisher in eine CSV-Datei je Monat — vollständig, aber als Tabellenblatt mit tausenden Zeilen praktisch nicht zu gebrauchen. Der Explorer liest dieselben Dateien und macht daraus vier Ansichten, ohne dass jemand die CSV noch öffnen muss.
+- 👣 **Man sieht jetzt den Weg, nicht nur den Klick.** Aufrufe derselben Adresse mit derselben Browserkennung, höchstens 30 Minuten auseinander, gelten als eine Sitzung. Ein Klick auf „Weg ansehen" öffnet die Zeitleiste: Startseite → Blog → welcher Beitrag → wie lange dort, Schritt für Schritt. Statt `/blog/cdef03b01404` steht der Beitragstitel da.
+- 🚪 **Wo Besucher ankommen und wo sie abspringen.** Häufigste Einstiegs- und Ausstiegsseiten, die häufigsten Seitenfolgen und die Absprungrate — also der Anteil der Besuche, die nach einer einzigen Seite endeten.
+- 🕓 **Wann sie kommen**, als Raster aus Wochentag und Stunde, und **wer wiederkommt**: gleiche Adresse und gleicher Browser an mindestens zwei verschiedenen Tagen, mit der Zahl der Besuche und der meistbesuchten Seite.
+- 🤖 Suchmaschinen-Bots bleiben standardmäßig draußen — ein einziger Googlebot-Durchlauf würde sonst die Wege-Tabelle und die Absprungrate übernehmen. Ein Knopf schaltet sie dazu.
+- 🔌 **Das Archiv lässt sich jetzt aus dem Admin einschalten.** Bisher ging das nur über die Add-on-Option `visit_file_log`; wer sie nicht kannte, hatte einen leeren Reiter und keinen Hinweis. Der Explorer erklärt den Zustand jetzt und bietet einen Knopf. Die Add-on-Option funktioniert unverändert weiter und hat Vorrang. Wird das Archiv wieder ausgeschaltet, bleiben die bereits aufgezeichneten Monate durchsuchbar — mit einem Hinweis, dass nichts mehr dazukommt.
+- ⚙️ Unter der Haube: das Auswerten steckt in einem eigenen Modul (`visitexplorer.py`) mit 58 Tests. Große Dateien werden zeilensparsam gelesen und je Monat zwischengespeichert, damit der Reiter auch bei sechsstelligen Zeilenzahlen zügig aufgeht.
+
+## 0.10.33
+- 🔎 **Die Besucherliste lässt sich jetzt filtern.** Bisher standen echte Besucher und Suchmaschinen-Crawler bunt gemischt untereinander, und wer nur wissen wollte „wer war heute neu da?", musste die Abzeichen von Hand durchsuchen. Über der Tabelle sitzen jetzt drei Knöpfe: „Alle", „Nur Neu" und „Nur Bots".
+- 🔢 Daneben steht, wie viele Zeilen der Filter übrig lässt (z. B. `7 / 50`); passt keine, sagt die Tabelle das statt leer zu bleiben. Der Filter arbeitet rein im Browser — kein Neuladen, keine zusätzliche Abfrage.
+
 ## 0.10.32
 - 🖼️ **Geteilte Links zeigen jetzt wieder ein Bild.** In WhatsApp, Discord, Slack oder X kam nur ein grauer Kasten mit Text an: die Vorschaubild-Adresse war ein Pfad ohne Domain, und diese Dienste holen das Bild von außen — dort gibt es nichts, woran ein `/uploads/…` hängen könnte. Alle Vorschaubilder werden jetzt mit voller Adresse gemeldet.
 - 🔗 Dazu kommen die bisher ganz fehlenden Angaben: die Adresse der Seite selbst, der Seitentyp, der Seitenname, die Sprache und eine eigene Karte für X. Ohne eigenes Bild springt das Profilbild ein — eine Karte mit Absender ist besser als keine.

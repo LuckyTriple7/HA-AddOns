@@ -16,6 +16,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app.py .
 COPY travelblog.py .
+COPY visitexplorer.py .
+COPY pdfimport.py .
 COPY game_66.py .
 COPY game_20ab.py .
 COPY game_schwimmen.py .

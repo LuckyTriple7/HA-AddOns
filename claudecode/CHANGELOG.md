@@ -2,6 +2,36 @@
 
 English version from 1.3.0 onwards: [Changelog (English)](#changelog-english)
 
+## [1.3.20] - 2026-08-17
+
+### Changed
+- **Der Token-Platzhalter in `.env.example` war eine Falle.** Die Zeile lautete `# GITHUB_PERSONAL_ACCESS_TOKEN=ghp_...`, und `ghp_` sah nach einem festen Präfix aus, das stehen bleiben muss. Wer seinen fine-grained Token dahinter schrieb, bekam `ghp_github_pat_11ABC…` — GitHub antwortet darauf mit einem nackten 401 (`Server rejected the configured Authorization header`), der nach fehlenden Rechten oder gesperrtem MCP-Zugang aussieht und mit keinem Wort auf das Token-Format zeigt. Der Platzhalter ist jetzt `paste-your-token-here`, mit dem Hinweis daneben, dass das Präfix zum Token gehört und der Platzhalter komplett ersetzt wird. Danke an @jdobbsclt für die genaue Fehlersuche (#251).
+
+### Added
+- **Das Add-on prüft die Werte aus der `.env` beim Start auf drei typische Tippfehler** und schreibt eine `[WARN]`-Zeile, wenn ein Wert ein doppeltes Token-Präfix (`ghp_github_pat_…`), ein Leerzeichen oder übrig gebliebenen Platzhaltertext enthält. Damit steht der Grund im Log, statt später als 401 aus einem MCP-Server zurückzukommen. Geladen wird der Wert trotzdem — die Prüfung rät, sie entscheidet nicht. Im Log stehen weiterhin nur die Namen der Variablen, nie deren Werte.
+- Der Hinweis zum Token-Format steht auch in DOCS.md, DE wie EN.
+
+
+## [1.3.19] - 2026-08-17
+
+### Changed
+- Rebuild für Claude Code 2.1.224
+
+
+## [1.3.18] - 2026-08-16
+
+### Changed
+- Der Direktzugriff aus 1.3.17 liegt jetzt auf **Port 7683** statt 7682. 7682 ist auf manchen Installationen bereits belegt. Wer 1.3.17 schon eingerichtet hat, ändert die URL entsprechend; an den Optionen selbst ändert sich nichts.
+
+
+## [1.3.17] - 2026-08-16
+
+### Added
+- **Direkter Browser-Zugriff auf Port 7682, am Ingress vorbei.** Bisher führte der einzige Weg zum Terminal über das Ingress-Panel in Home Assistant; ein eigener Browser-Tab auf `http://<HA-IP>:7682` war nicht möglich, weil das Add-on gar keinen Port veröffentlicht hat. Neu gibt es dafür `enable_direct_access` samt `direct_username` und `direct_password`. Beide ttyd-Instanzen hängen über `tmux new-session -A -s claude` an derselben Sitzung — der Direktport zeigt also exakt das Terminal aus dem Ingress-Panel, kein zweites daneben.
+
+  Das Terminal ist eine Root-Shell auf einem Container mit `full_access` und Docker-Socket. Über den Ingress schützt sie der Home-Assistant-Login, auf dem Direktport gibt es den nicht. Der Port läuft deshalb nur mit HTTP Basic Auth, und **ohne gesetztes Passwort startet er gar nicht** — statt einer Warnung im Log, die zu leicht zu übersehen wäre, bleibt der Port zu und der Grund steht als `[ERROR]` in den Logs. Basic Auth geht unverschlüsselt über die Leitung, der Port gehört also ins eigene Netz und nie in eine Router-Weiterleitung; für Zugriff von außen VPN oder ein Reverse-Proxy mit TLS. Standard ist aus, am Ingress-Weg ändert sich nichts.
+
+
 ## [1.3.16] - 2026-08-16
 
 ### Changed
@@ -541,6 +571,30 @@ Forked from [apbb2/robsonfelix-hass-addons](https://github.com/apbb2/robsonfelix
 # Changelog (English)
 
 Covers 1.3.0 onwards. Older entries are available in German only.
+
+## [1.3.20] - 2026-08-17
+
+### Changed
+- **The token placeholder in `.env.example` was a trap.** The line read `# GITHUB_PERSONAL_ACCESS_TOKEN=ghp_...`, and `ghp_` looked like a fixed prefix meant to stay. Anyone appending a fine-grained token after it ended up with `ghp_github_pat_11ABC…` — GitHub answers that with a bare 401 (`Server rejected the configured Authorization header`) that reads like missing permissions or blocked MCP access and says nothing about the token format. The placeholder is now `paste-your-token-here`, with a note next to it that the prefix belongs to the token and the placeholder is replaced whole. Thanks to @jdobbsclt for tracking this down precisely (#251).
+
+### Added
+- **The add-on now checks the values from `.env` on start for three common typos** and logs a `[WARN]` line when a value carries a doubled token prefix (`ghp_github_pat_…`), a space, or leftover placeholder text. The reason shows up in the log instead of coming back later as a 401 from an MCP server. The value is exported regardless — the check guesses, it does not decide. The log still lists variable names only, never their values.
+- The note on token format is in DOCS.md as well, German and English.
+
+
+## [1.3.18] - 2026-08-16
+
+### Changed
+- Direct access from 1.3.17 now lives on **port 7683** instead of 7682. 7682 is already taken on some installations. If you set up 1.3.17 already, change the URL accordingly; the options themselves are unchanged.
+
+
+## [1.3.17] - 2026-08-16
+
+### Added
+- **Direct browser access on port 7682, bypassing ingress.** Until now the only way to the terminal was the ingress panel in Home Assistant; a separate browser tab on `http://<HA-IP>:7682` was impossible because the add-on published no port at all. There is now `enable_direct_access` for that, along with `direct_username` and `direct_password`. Both ttyd instances attach to the same session via `tmux new-session -A -s claude`, so the direct port shows exactly the terminal from the ingress panel, not a second one beside it.
+
+  The terminal is a root shell on a container with `full_access` and the Docker socket. Through ingress the Home Assistant login guards it; on the direct port it does not. The port therefore runs with HTTP Basic Auth only, and **without a password set it does not start at all** — instead of a log warning that would be too easy to miss, the port stays closed and the reason is logged as `[ERROR]`. Basic Auth travels unencrypted, so the port belongs on your own network and never in a router forward; use a VPN or a TLS reverse proxy to reach it from outside. Off by default, and the ingress route is unchanged.
+
 
 ## [1.3.16] - 2026-08-16
 

@@ -39,18 +39,31 @@ class _Resp:
 
 
 def test_dedup_and_filters_airail(monkeypatch):
-    """Mehrfachnennungen (Codeshares) dedupliziert; Bahnzubringer (Name
-    enthält 'Bahnhof') fliegt nicht wirklich, raus."""
+    """Mehrfachnennungen (Codeshares) dedupliziert; Bahnzubringer fliegen
+    nicht wirklich, raus — in beiden Schreibweisen des Boards
+    ('Hauptbahnhof'/'Bad Bahnhof' ausgeschrieben, 'Hbf'/'HBF' abgekürzt)."""
     data = _board(
         ("Palma de Mallorca", "PMI"), ("Palma de Mallorca", "PMI"),
         ("Aachen Hauptbahnhof", "XHJ"), ("Mauritius", "MRU"),
+        ("Freiburg Hbf", "QFB"), ("Münster HBF", "MKF"),
+        ("Basel Bad Bahnhof", "ZBA"),
     )
     monkeypatch.setattr(fb.requests, "get", lambda *a, **kw: _Resp(data))
     assert fb.refresh() is True
     dest = fb.list_destinations()
     codes = {d["code"] for d in dest}
     assert codes == {"PMI", "MRU"}
-    assert "XHJ" not in codes
+    assert not ({"XHJ", "QFB", "MKF", "ZBA"} & codes)
+
+
+def test_purges_rail_from_persisted_state(monkeypatch, tmp_path):
+    """Zustand von der Platte kann Bahnhöfe aus einer früheren Filterversion
+    enthalten — beim Laden raus, ohne auf den Fensterablauf zu warten."""
+    with open(fb._STATE_PATH, "w", encoding="utf-8") as f:
+        json.dump({"QFB": {"name": "Freiburg Hbf", "last_seen": "2999-01-01"},
+                   "MRU": {"name": "Mauritius", "last_seen": "2999-01-01"}}, f)
+    fb._ensure_loaded()
+    assert set(fb._seen) == {"MRU"}
 
 
 def test_rolling_window_keeps_and_expires(monkeypatch):
