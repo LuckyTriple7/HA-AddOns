@@ -251,6 +251,9 @@ Then **restart** Home Assistant — `http:` is only evaluated at startup.
 
 Alternatively point the proxy host at the internal address `http://172.30.32.1:8123`; the source IP then stays inside the Docker network and the existing list already covers it.
 
+> The same applies to **every other service behind NPMplus** that validates trusted proxies — Nextcloud, Vaultwarden, Uptime Kuma and the like. They all need the Home Assistant machine's LAN IP in their proxy list instead of a `172.30.x.x` address. Left out, the service either rejects the request outright or logs every access with the proxy IP — at which point its brute-force protection may lock you out of your own instance.
+
+
 ## Per-host settings
 
 ### "Options" tab

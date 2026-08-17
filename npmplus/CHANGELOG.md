@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.1.14] - 2026-08-17
+
+- Doku: Hinweis ergänzt, dass nicht nur Home Assistant, sondern jeder Dienst hinter NPMplus mit Proxy-Prüfung die LAN-IP der Maschine in seiner Liste vertrauenswürdiger Proxys braucht — betrifft z.B. Nextcloud
+
 ## [0.1.13] - 2026-08-17
 
 - Doku: Abschnitt „Prüfbefehle auf einen Blick" — Registrierung, Logfluss, aktive Sperren, Collections, Container-IP, Erreichbarkeit von LAPI und AppSec, direkter Schlüsseltest an der LAPI sowie eine Testsperre der eigenen IP zum Nachweis, dass der Bouncer wirklich blockt
