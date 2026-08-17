@@ -10,10 +10,10 @@ configuration:
     description: Zeitzone des Containers, z.B. Europe/Berlin.
   trusted_domains:
     name: Vertrauenswürdige Domains
-    description: Leerzeichen-getrennte Liste zusätzlicher erlaubter Domains/IPs, z.B. 192.168.1.100 mein-server.local. Leer lassen für automatische Erkennung.
+    description: Kommagetrennte Liste zusätzlicher erlaubter Domains/IPs, z.B. 192.168.1.100,mein-server.local. Leer lassen für automatische Erkennung.
   trusted_proxies:
     name: Vertrauenswürdige Proxies
-    description: IP-Bereich des Reverse-Proxys. Standard 172.30.32.0/23 (HA-internes Netz).
+    description: Kommagetrennte IPs/Subnetze des Reverse-Proxys. Standard 172.30.32.0/23 (HA-internes Netz). Läuft der Proxy im Host-Netz statt als Add-on, zusätzlich die IP des Home-Assistant-Hosts eintragen.
   default_phone_region:
     name: Standard-Telefonregion
     description: ISO 3166-1 Alpha-2 Ländercode für Telefonnummern, z.B. DE. Standard DE.
