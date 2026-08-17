@@ -1,6 +1,6 @@
 name: NPMplus
 description: Reverse Proxy mit Web-Oberfläche auf Basis von NPMplus — HTTP/3, Let's Encrypt, CrowdSec-Bouncer und AppSec/WAF
-version: "0.1.11"
+version: "0.1.12"
 slug: npmplus
 url: https://github.com/LuckyTriple7/HA-AddOns
 
@@ -45,6 +45,7 @@ map:
 options:
   TZ: "Europe/Berlin"
   acme_email: ""
+  acme_profile: "shortlived"
   initial_admin_email: ""
   initial_admin_password: ""
   http_port: 80
@@ -73,6 +74,7 @@ options:
 schema:
   TZ: str
   acme_email: str?
+  acme_profile: list(shortlived|tlsserver|classic)
   initial_admin_email: str?
   initial_admin_password: password?
   http_port: int(1,65535)

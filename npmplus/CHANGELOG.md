@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.1.12] - 2026-08-17
+
+- Neue Option `acme_profile`: steuert die Laufzeit der Let's-Encrypt-Zertifikate. Standard bleibt `shortlived` (≈ 6 Tage, so wie NPMplus es vorgibt), `classic` liefert die gewohnten 90 Tage
+- Doku: eigener Abschnitt zur Laufzeit samt Abwägung — kurze Laufzeiten sind sicherer, verzeihen aber keinen längeren Ausfall der Erneuerung
+
 ## [0.1.11] - 2026-08-17
 
 - Protokollausgabe des Add-ons durchgehend auf Englisch umgestellt — passend zur Ausgabe von NPMplus selbst, die ebenfalls englisch ist. Die Konfigurationsoberfläche und die Dokumentation bleiben zweisprachig

@@ -240,6 +240,7 @@ Alternatively point the proxy host at the internal address `http://172.30.32.1:8
 |---|---|---|
 | `TZ` | `Europe/Berlin` | Container timezone |
 | `acme_email` | – | Email for Let's Encrypt |
+| `acme_profile` | `shortlived` | Certificate lifetime: `shortlived` ≈ 6 days, `classic` = 90 days |
 | `initial_admin_email` | – | First user, only on the very first start |
 | `initial_admin_password` | – | Its password; empty = random password in the log |
 | `http_port` | `80` | HTTP port; changing it breaks the HTTP challenge |
@@ -272,6 +273,20 @@ extra_env:
   - "ACME_SERVER=https://acme.zerossl.com/v2/DV90"
   - "NGINX_LOG_NOT_FOUND=true"
 ```
+
+## Certificate lifetime
+
+By default NPMplus requests the `shortlived` profile from Let's Encrypt — certificates last about **6 days**. Certbot renews every few hours, so in normal operation you never notice.
+
+Upside: a leaked key becomes worthless within a week, and revocation lists stop mattering.
+
+Downside: if renewal fails for longer — machine down, port 80 closed, DNS wrong — the certificates expire quickly. `classic` gives you the familiar 90 days and more headroom:
+
+```yaml
+acme_profile: classic
+```
+
+The change applies to the next issuance; it does not alter existing certificates.
 
 ## Data and backup
 

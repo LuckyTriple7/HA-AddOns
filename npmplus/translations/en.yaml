@@ -5,6 +5,9 @@ configuration:
   acme_email:
     name: ACME email
     description: Email address for Let's Encrypt. Expiry warnings go there. Optional for Let's Encrypt, required for ZeroSSL and Google Public CA.
+  acme_profile:
+    name: ACME profile
+    description: Lifetime of the Let's Encrypt certificates. "shortlived" is about 6 days (the NPMplus default), "classic" the familiar 90 days. Short lifetimes are safer but tolerate no lengthy renewal outage.
   initial_admin_email:
     name: Initial admin email
     description: Only used on the very first start to create the first user. Leave empty for admin@example.org.

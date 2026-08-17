@@ -5,6 +5,9 @@ configuration:
   acme_email:
     name: ACME E-Mail
     description: E-Mail-Adresse für Let's Encrypt. Dorthin gehen Warnungen zu ablaufenden Zertifikaten. Für Let's Encrypt optional, für ZeroSSL und Google Public CA Pflicht.
+  acme_profile:
+    name: ACME-Profil
+    description: Laufzeit der Let's-Encrypt-Zertifikate. "shortlived" rund 6 Tage (Standard von NPMplus), "classic" die gewohnten 90 Tage. Kurze Laufzeiten sind sicherer, verzeihen aber keinen längeren Ausfall der Erneuerung.
   initial_admin_email:
     name: Erste Admin-E-Mail
     description: Nur beim allerersten Start relevant. Legt den ersten Benutzer an. Leer lassen für admin@example.org.

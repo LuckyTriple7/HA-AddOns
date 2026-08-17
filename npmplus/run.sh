@@ -39,6 +39,7 @@ export_if_set() {
 ###############################################################################
 TZ_OPT=$(opt TZ "Europe/Berlin")
 ACME_EMAIL_OPT=$(opt acme_email "")
+ACME_PROFILE_OPT=$(opt_trim acme_profile "shortlived")
 INITIAL_ADMIN_EMAIL_OPT=$(opt initial_admin_email "")
 INITIAL_ADMIN_PASSWORD_OPT=$(opt initial_admin_password "")
 HTTP_PORT_OPT=$(opt http_port "80")
@@ -80,6 +81,7 @@ export NGINX_WORKER_CONNECTIONS="$WORKER_CONNECTIONS_OPT"
 export LOGROTATIONS="$LOGROTATIONS_OPT"
 
 export_if_set ACME_EMAIL "$ACME_EMAIL_OPT"
+export_if_set ACME_PROFILE "$ACME_PROFILE_OPT"
 export_if_set INITIAL_ADMIN_EMAIL "$INITIAL_ADMIN_EMAIL_OPT"
 export_if_set INITIAL_ADMIN_PASSWORD "$INITIAL_ADMIN_PASSWORD_OPT"
 export_if_set TRUST_IP "$TRUST_IP_OPT"

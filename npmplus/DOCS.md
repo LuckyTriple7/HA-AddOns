@@ -242,6 +242,7 @@ Alternativ im Proxy Host als Ziel die interne Adresse `http://172.30.32.1:8123` 
 |---|---|---|
 | `TZ` | `Europe/Berlin` | Zeitzone des Containers |
 | `acme_email` | – | E-Mail für Let's Encrypt |
+| `acme_profile` | `shortlived` | Laufzeit der Zertifikate: `shortlived` ≈ 6 Tage, `classic` = 90 Tage |
 | `initial_admin_email` | – | Erster Benutzer, nur beim allerersten Start |
 | `initial_admin_password` | – | Passwort dazu; leer = Zufallspasswort im Protokoll |
 | `http_port` | `80` | HTTP-Port; Änderung bricht die HTTP-Challenge |
@@ -274,6 +275,20 @@ extra_env:
   - "ACME_SERVER=https://acme.zerossl.com/v2/DV90"
   - "NGINX_LOG_NOT_FOUND=true"
 ```
+
+## Laufzeit der Zertifikate
+
+NPMplus fordert bei Let's Encrypt standardmäßig das Profil `shortlived` an — die Zertifikate laufen rund **6 Tage**. Certbot erneuert stündlich bis dreistündlich, im Normalbetrieb merkst du davon nichts.
+
+Vorteil: ein abhandengekommener Schlüssel ist binnen einer Woche wertlos, Sperrlisten spielen keine Rolle mehr.
+
+Nachteil: Fällt die Erneuerung länger aus — Ausfall der Maschine, Port 80 zu, DNS falsch — sind die Zertifikate schnell abgelaufen. Mit `classic` bekommst du die gewohnten 90 Tage und damit mehr Luft:
+
+```yaml
+acme_profile: classic
+```
+
+Die Umstellung wirkt erst bei der nächsten Ausstellung, nicht rückwirkend auf vorhandene Zertifikate.
 
 ## Daten und Backup
 
