@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.1.6] - 2026-08-17
+
+- Doku: Abschnitt „Daten und Backup" erweitert — vollständige Pfadtabelle (Datenbank, Zertifikate, Schlüssel, CrowdSec-Konfiguration), Klarstellung dass Add-on-Daten **nicht** über Samba erreichbar sind, und `docker exec`/`docker cp`-Beispiele zum Ansehen und Herauskopieren
+
 ## [0.1.5] - 2026-08-17
 
 - Doku überarbeitet, nachdem die Ersteinrichtung mehrere unbeschriebene Fallen hatte:

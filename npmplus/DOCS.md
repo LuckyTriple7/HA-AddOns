@@ -229,9 +229,42 @@ extra_env:
 
 ## Daten und Backup
 
-Alles liegt im Add-on-Verzeichnis `/data`: SQLite-Datenbank, Zertifikate unter `/data/tls`, nginx-Konfiguration, CrowdSec-Bouncer-Konfiguration unter `/data/crowdsec/crowdsec.conf`.
+Alles liegt im privaten Add-on-Verzeichnis `/data`:
 
-Ein Home-Assistant-Backup dieses Add-ons enthält damit **auch die privaten Schlüssel deiner Zertifikate**. Backups entsprechend behandeln.
+| Was | Pfad |
+|---|---|
+| Datenbank | `/data/npmplus/database.sqlite` |
+| Verschlüsselungsschlüssel | `/data/npmplus/keys.json` |
+| Let's-Encrypt-Zertifikate | `/data/tls/certbot/live/npm-<id>/` |
+| Eigene Zertifikate | `/data/tls/custom/` |
+| CrowdSec-Bouncer-Konfiguration | `/data/crowdsec/crowdsec.conf` |
+| nginx-Konfigurationen | `/data/nginx/` |
+| Logs | `/data/nginx/logs/` bzw. `/share/npmplus/logs` |
+
+### Über Samba erreichbar?
+
+Nein. Der Samba-Share zeigt `config`, `share`, `media`, `backup`, `ssl` und `addons` — Datenverzeichnisse von Add-ons gehören nicht dazu. Einzige Ausnahme sind die Logs, wenn `share_logs` aktiv ist: die liegen unter `/share/npmplus/logs` und sind damit sichtbar.
+
+Alles andere erreichst du über ein Terminal-Add-on mit Docker-Zugriff. Ansehen:
+
+```sh
+docker exec <npmplus-container> ls -la /data/tls/certbot/live/
+```
+
+Herauskopieren:
+
+```sh
+docker cp <npmplus-container>:/data/npmplus/database.sqlite /share/npmplus-db.sqlite
+docker cp <npmplus-container>:/data/tls /share/npmplus-tls
+```
+
+Danach liegen die Kopien in `/share` und sind über Samba sichtbar.
+
+> In `/data/tls` liegen die **privaten Schlüssel deiner Zertifikate**. Eine Kopie in `/share` kann jeder lesen, der Zugriff auf die Freigabe hat — nach dem Sichern also wieder löschen.
+
+### Reguläre Sicherung
+
+Ein Home-Assistant-Backup des Add-ons enthält `/data` vollständig, inklusive Datenbank und Zertifikaten. Für Sicherungen brauchst du also nichts von Hand zu kopieren — dieselbe Warnung gilt aber auch hier: das Backup enthält private Schlüssel.
 
 ## Problembehandlung
 

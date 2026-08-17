@@ -229,9 +229,42 @@ extra_env:
 
 ## Data and backup
 
-Everything lives in the add-on's `/data`: SQLite database, certificates under `/data/tls`, nginx configuration, and the CrowdSec bouncer configuration at `/data/crowdsec/crowdsec.conf`.
+Everything lives in the add-on's private `/data` directory:
 
-A Home Assistant backup of this add-on therefore also contains **the private keys of your certificates**. Treat those backups accordingly.
+| What | Path |
+|---|---|
+| Database | `/data/npmplus/database.sqlite` |
+| Encryption keys | `/data/npmplus/keys.json` |
+| Let's Encrypt certificates | `/data/tls/certbot/live/npm-<id>/` |
+| Custom certificates | `/data/tls/custom/` |
+| CrowdSec bouncer configuration | `/data/crowdsec/crowdsec.conf` |
+| nginx configurations | `/data/nginx/` |
+| Logs | `/data/nginx/logs/` or `/share/npmplus/logs` |
+
+### Reachable over Samba?
+
+No. The Samba share exposes `config`, `share`, `media`, `backup`, `ssl` and `addons` — add-on data directories are not among them. The only exception is the logs: with `share_logs` enabled they live in `/share/npmplus/logs` and are visible there.
+
+Everything else is reachable through a terminal add-on with Docker access. To look:
+
+```sh
+docker exec <npmplus-container> ls -la /data/tls/certbot/live/
+```
+
+To copy out:
+
+```sh
+docker cp <npmplus-container>:/data/npmplus/database.sqlite /share/npmplus-db.sqlite
+docker cp <npmplus-container>:/data/tls /share/npmplus-tls
+```
+
+The copies then sit in `/share` and are visible over Samba.
+
+> `/data/tls` holds the **private keys of your certificates**. A copy in `/share` can be read by anyone with access to the share — delete it once you are done.
+
+### Regular backups
+
+A Home Assistant backup of the add-on contains all of `/data`, database and certificates included, so there is nothing to copy by hand. The same warning applies though: that backup contains private keys.
 
 ## Troubleshooting
 
