@@ -188,6 +188,51 @@ docker exec <crowdsec-container> cscli -c /config/.storage/crowdsec/config/confi
 
 Unter **Acquisition Metrics** muss die npmplus-Quelle stehen und `lines read` steigen.
 
+### Prüfbefehle auf einen Blick
+
+Alle Befehle im Terminal-Add-on mit Docker-Zugriff. `CS` ist der CrowdSec-Container, `NP` der von NPMplus.
+
+```sh
+CS=$(docker ps --format '{{.Names}}' | grep -i crowdsec | head -1)
+NP=$(docker ps --format '{{.Names}}' | grep -i npmplus | head -1)
+CFG=/config/.storage/crowdsec/config/config.yaml
+```
+
+| Frage | Befehl |
+|---|---|
+| Welche Konfiguration nutzt die laufende Engine? | `docker exec $CS ps aux \| grep crowdsec` |
+| Ist der Bouncer registriert und holt er ab? | `docker exec $CS cscli -c $CFG bouncers list` |
+| Kommen Logzeilen an? | `docker exec $CS cscli -c $CFG metrics` |
+| Wer ist gerade gesperrt? | `docker exec $CS cscli -c $CFG decisions list` |
+| Welche Szenarien und Parser sind installiert? | `docker exec $CS cscli -c $CFG collections list` |
+| Welche IP hat der CrowdSec-Container? | `docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}' $CS` |
+| Sind LAPI und AppSec von außen erreichbar? | `nc -z -v <crowdsec-ip> 8080 && nc -z -v <crowdsec-ip> 7422` |
+| Was steht in der Bouncer-Konfiguration von NPMplus? | `docker exec $NP grep -E '^(ENABLED\|API_URL\|APPSEC_URL)=' /data/crowdsec/crowdsec.conf` |
+| Akzeptiert die LAPI genau diesen Schlüssel? | siehe unten |
+
+Schlüssel direkt testen — nimmt den Wert aus der Datei und fragt die LAPI daran vorbei am Add-on:
+
+```sh
+KEY=$(docker exec $NP sh -c "grep '^API_KEY=' /data/crowdsec/crowdsec.conf | cut -d= -f2-")
+echo "Länge: ${#KEY}"   # cscli erzeugt 44 Zeichen
+docker exec $CS curl -s -o /dev/null -w '%{http_code}\n' \
+  -H "X-Api-Key: $KEY" "http://127.0.0.1:8080/v1/decisions?ip=1.2.3.4"
+```
+
+`200` heißt: Schlüssel gültig. `403` heißt: die laufende Instanz kennt ihn nicht — fast immer, weil er mit `cscli` ohne `-c` in der falschen Datenbank gelandet ist.
+
+Ob der Bouncer tatsächlich blockt, siehst du am schnellsten an einer Testsperre der eigenen IP:
+
+```sh
+docker exec $CS cscli -c $CFG decisions add --ip <deine-ip> --duration 2m --type ban
+```
+
+Danach eine Domain aufrufen: es muss die Sperrseite kommen. Wieder freigeben:
+
+```sh
+docker exec $CS cscli -c $CFG decisions delete --ip <deine-ip>
+```
+
 ## Home Assistant hinter NPMplus
 
 Home Assistant beantwortet Anfragen von einem unbekannten Proxy mit **400 Bad Request**. NPMplus läuft im Host-Netz und hat damit keine eigene Container-Adresse — die Anfragen kommen mit der LAN-IP der Maschine an, nicht aus dem `172.30.x.x`-Netz. Ein Eintrag, der für ein Add-on im Bridge-Netz gepasst hat, greift hier also nicht.

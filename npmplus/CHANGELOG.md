@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.1.13] - 2026-08-17
+
+- Doku: Abschnitt „Prüfbefehle auf einen Blick" — Registrierung, Logfluss, aktive Sperren, Collections, Container-IP, Erreichbarkeit von LAPI und AppSec, direkter Schlüsseltest an der LAPI sowie eine Testsperre der eigenen IP zum Nachweis, dass der Bouncer wirklich blockt
+
 ## [0.1.12] - 2026-08-17
 
 - Neue Option `acme_profile`: steuert die Laufzeit der Let's-Encrypt-Zertifikate. Standard bleibt `shortlived` (≈ 6 Tage, so wie NPMplus es vorgibt), `classic` liefert die gewohnten 90 Tage

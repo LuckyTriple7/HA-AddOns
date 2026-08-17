@@ -186,6 +186,51 @@ docker exec <crowdsec-container> cscli -c /config/.storage/crowdsec/config/confi
 
 Under **Acquisition Metrics** the npmplus source must appear with a rising `lines read`.
 
+### Diagnostics at a glance
+
+Run everything in a terminal add-on with Docker access. `CS` is the CrowdSec container, `NP` the NPMplus one.
+
+```sh
+CS=$(docker ps --format '{{.Names}}' | grep -i crowdsec | head -1)
+NP=$(docker ps --format '{{.Names}}' | grep -i npmplus | head -1)
+CFG=/config/.storage/crowdsec/config/config.yaml
+```
+
+| Question | Command |
+|---|---|
+| Which configuration does the running engine use? | `docker exec $CS ps aux \| grep crowdsec` |
+| Is the bouncer registered and pulling? | `docker exec $CS cscli -c $CFG bouncers list` |
+| Do log lines arrive? | `docker exec $CS cscli -c $CFG metrics` |
+| Who is currently banned? | `docker exec $CS cscli -c $CFG decisions list` |
+| Which collections are installed? | `docker exec $CS cscli -c $CFG collections list` |
+| What is the CrowdSec container's IP? | `docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}' $CS` |
+| Are LAPI and AppSec reachable? | `nc -z -v <crowdsec-ip> 8080 && nc -z -v <crowdsec-ip> 7422` |
+| What is in the NPMplus bouncer configuration? | `docker exec $NP grep -E '^(ENABLED\|API_URL\|APPSEC_URL)=' /data/crowdsec/crowdsec.conf` |
+| Does the LAPI accept this exact key? | see below |
+
+Test the key directly — takes the value from the file and queries the LAPI, bypassing the add-on:
+
+```sh
+KEY=$(docker exec $NP sh -c "grep '^API_KEY=' /data/crowdsec/crowdsec.conf | cut -d= -f2-")
+echo "length: ${#KEY}"   # cscli generates 44 characters
+docker exec $CS curl -s -o /dev/null -w '%{http_code}\n' \
+  -H "X-Api-Key: $KEY" "http://127.0.0.1:8080/v1/decisions?ip=1.2.3.4"
+```
+
+`200` means the key is valid. `403` means the running instance does not know it — almost always because it was created with `cscli` without `-c` and landed in the wrong database.
+
+The fastest way to prove the bouncer really blocks is a temporary ban on your own IP:
+
+```sh
+docker exec $CS cscli -c $CFG decisions add --ip <your-ip> --duration 2m --type ban
+```
+
+Then open one of your domains: the block page must appear. Undo it with:
+
+```sh
+docker exec $CS cscli -c $CFG decisions delete --ip <your-ip>
+```
+
 ## Home Assistant behind NPMplus
 
 Home Assistant answers requests from an unknown proxy with **400 Bad Request**. NPMplus runs on the host network and therefore has no container address of its own — requests arrive with the machine's LAN IP, not from the `172.30.x.x` network. An entry that worked for a bridged add-on does not apply here.
