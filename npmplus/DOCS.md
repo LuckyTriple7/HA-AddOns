@@ -1,5 +1,7 @@
 # NPMplus
 
+🇬🇧 [English version](https://github.com/LuckyTriple7/HA-AddOns/blob/dev/npmplus/DOCS.en.md)
+
 Reverse Proxy mit Weboberfläche auf Basis von [NPMplus](https://github.com/ZoeyVid/NPMplus) — einem aktiv gepflegten Fork von NGINX Proxy Manager mit HTTP/3, gehärtetem TLS, CrowdSec-Bouncer und AppSec/WAF.
 
 ## Voraussetzungen

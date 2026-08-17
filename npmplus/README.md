@@ -5,7 +5,7 @@
 ![Last Commit](https://img.shields.io/github/last-commit/LuckyTriple7/HA-AddOns?path=npmplus&style=flat-square)
 [![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-ffdd00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black)](https://buymeacoffee.com/luckytriple7)
 
-🇬🇧 [English version](README.en.md)
+🇬🇧 [English version](https://github.com/LuckyTriple7/HA-AddOns/blob/dev/npmplus/README.en.md)
 
 Reverse Proxy mit Weboberfläche auf Basis von [NPMplus](https://github.com/ZoeyVid/NPMplus) — dem aktiv gepflegten Fork von NGINX Proxy Manager.
 
@@ -46,7 +46,7 @@ Das Zertifikat der Oberfläche ist selbstsigniert — die Browserwarnung beim er
 | `crowdsec_api_key` | – | Schlüssel aus `cscli bouncers add npmplus` |
 | `extra_env` | `[]` | Weitere NPMplus-Variablen als `KEY=VALUE` |
 
-Vollständige Optionsliste, CrowdSec-Einrichtung und Umstieg vom alten NGINX-Proxy-Manager-Add-on: **[Dokumentation](DOCS.md)**
+Vollständige Optionsliste, CrowdSec-Einrichtung und Umstieg vom alten NGINX-Proxy-Manager-Add-on: **[Dokumentation](https://github.com/LuckyTriple7/HA-AddOns/blob/dev/npmplus/DOCS.md)**
 
 ## Hinweise
 
@@ -57,7 +57,7 @@ Vollständige Optionsliste, CrowdSec-Einrichtung und Umstieg vom alten NGINX-Pro
 
 ## Changelog
 
-Siehe [CHANGELOG.md](CHANGELOG.md)
+Siehe [CHANGELOG.md](https://github.com/LuckyTriple7/HA-AddOns/blob/dev/npmplus/CHANGELOG.md)
 
 ## Lizenz
 

@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.1.1] - 2026-08-17
+
+- Fix: Sprachumschalter und Verweise auf DOCS/CHANGELOG waren relative Links und damit in der Home-Assistant-Oberfläche tot — HA rendert Markdown ohne Repo-Bezug. Jetzt absolute GitHub-URLs
+- Sprachumschalter DE/EN auch in DOCS.md und DOCS.en.md
+
 ## [0.1.0] - 2026-08-17
 
 - Erste Version: NPMplus `2026-07-24-r1` als Home-Assistant-Add-on
