@@ -112,13 +112,31 @@ Containernamen ermitteln (im Terminal-Add-on mit Docker-Zugriff):
 docker ps --format '{{.Names}}' | grep -iE 'crowdsec|npmplus'
 ```
 
-Schlüssel erzeugen:
+> **Wichtigste Stolperfalle:** `cscli` benutzt per Voreinstellung `/etc/crowdsec/config.yaml` — das CrowdSec-**Add-on** startet die Engine aber mit einer eigenen Konfiguration, typischerweise unter `/config/.storage/crowdsec/config/config.yaml`. Ohne `-c` legst du den Bouncer in einer Datenbank an, die die laufende Instanz gar nicht liest. `cscli bouncers list` zeigt ihn dann brav an, die LAPI antwortet trotzdem mit **403**.
+>
+> Welche Konfiguration wirklich läuft, verrät der Prozess:
+> ```sh
+> docker exec <crowdsec-container> ps aux | grep crowdsec
+> ```
+> Hinter `-c` steht der richtige Pfad. Den bei **jedem** `cscli`-Aufruf mitgeben.
+
+Schlüssel erzeugen — mit `-k` einen eigenen, rein hexadezimalen Schlüssel vorgeben, dann können beim Kopieren keine Sonderzeichen wie `+`, `/` oder `=` verlorengehen:
 
 ```sh
-docker exec <crowdsec-container> cscli bouncers add npmplus
+KEY=$(openssl rand -hex 22)
+echo "$KEY"
+
+docker exec <crowdsec-container> cscli -c /config/.storage/crowdsec/config/config.yaml \
+  bouncers add npmplus -k "$KEY"
 ```
 
-Der Schlüssel wird **einmalig** angezeigt und ist danach nicht mehr abrufbar. Existiert der Name schon, vorher `cscli bouncers delete npmplus`.
+Kontrolle — hier muss `npmplus` erscheinen:
+
+```sh
+docker exec <crowdsec-container> cscli -c /config/.storage/crowdsec/config/config.yaml bouncers list
+```
+
+Ohne `-k` erzeugt `cscli` den Schlüssel selbst; er wird dann **einmalig** angezeigt und ist danach nicht mehr abrufbar. Existiert der Name schon, vorher `cscli … bouncers delete npmplus`.
 
 ### 5. Adresse von CrowdSec bestimmen
 
@@ -155,7 +173,7 @@ NPMplus neu starten. Im Protokoll steht genau eine der beiden Zeilen:
 Auf der CrowdSec-Seite prüfen, ob der Bouncer registriert ist und Entscheidungen abholt:
 
 ```sh
-docker exec <crowdsec-container> cscli bouncers list
+docker exec <crowdsec-container> cscli -c /config/.storage/crowdsec/config/config.yaml bouncers list
 ```
 
 `npmplus` muss dort stehen und unter „Last API pull" einen aktuellen Zeitstempel haben. Ist die Liste leer, wurde der Schlüssel nie angelegt — dann Schritt 4 wiederholen.
@@ -163,7 +181,7 @@ docker exec <crowdsec-container> cscli bouncers list
 Ob Logzeilen ankommen:
 
 ```sh
-docker exec <crowdsec-container> cscli metrics
+docker exec <crowdsec-container> cscli -c /config/.storage/crowdsec/config/config.yaml metrics
 ```
 
 Unter **Acquisition Metrics** muss die npmplus-Quelle stehen und `lines read` steigen.
@@ -311,6 +329,8 @@ Ein Home-Assistant-Backup des Add-ons enthält `/data` vollständig, inklusive D
 **CrowdSec sieht keine Angriffe** — Reihenfolge prüfen: `logrotate` an, Logs kommen an (Variante A oder B), Collection `ZoeyVid/npmplus` installiert, `cscli metrics` zeigt die Acquisition.
 
 **400 Bad Request bei Home Assistant** — siehe Abschnitt „Home Assistant hinter NPMplus".
+
+**Protokoll meldet „CrowdSec lehnt den Bouncer-Key ab (HTTP 403)", obwohl der Schlüssel stimmt** — der Bouncer steckt in der falschen Datenbank. `cscli` ohne `-c` schreibt nach `/etc/crowdsec/`, die Add-on-Instanz liest aber ihre eigene Konfiguration. Bouncer mit `-c <pfad-aus-ps-aux>` neu anlegen.
 
 **Anmeldung nach jedem Neustart weg** — `cookie_secret` auf einen festen Zufallswert setzen.
 

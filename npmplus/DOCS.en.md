@@ -112,13 +112,31 @@ Find the container names (in a terminal add-on with Docker access):
 docker ps --format '{{.Names}}' | grep -iE 'crowdsec|npmplus'
 ```
 
-Create the key:
+> **The biggest pitfall:** by default `cscli` uses `/etc/crowdsec/config.yaml` — but the CrowdSec **add-on** starts the engine with its own configuration, typically under `/config/.storage/crowdsec/config/config.yaml`. Without `-c` you register the bouncer in a database the running instance never reads. `cscli bouncers list` happily shows it, yet the LAPI still answers **403**.
+>
+> The running process reveals the real configuration:
+> ```sh
+> docker exec <crowdsec-container> ps aux | grep crowdsec
+> ```
+> The path after `-c` is the right one. Pass it to **every** `cscli` call.
+
+Create the key — use `-k` to supply your own hex-only key so no `+`, `/` or `=` can get lost while copying:
 
 ```sh
-docker exec <crowdsec-container> cscli bouncers add npmplus
+KEY=$(openssl rand -hex 22)
+echo "$KEY"
+
+docker exec <crowdsec-container> cscli -c /config/.storage/crowdsec/config/config.yaml \
+  bouncers add npmplus -k "$KEY"
 ```
 
-The key is shown **once** and cannot be retrieved later. If the name already exists, run `cscli bouncers delete npmplus` first.
+Verify — `npmplus` must show up here:
+
+```sh
+docker exec <crowdsec-container> cscli -c /config/.storage/crowdsec/config/config.yaml bouncers list
+```
+
+Without `-k`, `cscli` generates the key itself; it is shown **once** and cannot be retrieved later. If the name already exists, run `cscli … bouncers delete npmplus` first.
 
 ### 5. Determine the CrowdSec address
 
@@ -155,7 +173,7 @@ Restart NPMplus. The log contains exactly one of these lines:
 On the CrowdSec side, check that the bouncer is registered and pulling decisions:
 
 ```sh
-docker exec <crowdsec-container> cscli bouncers list
+docker exec <crowdsec-container> cscli -c /config/.storage/crowdsec/config/config.yaml bouncers list
 ```
 
 `npmplus` must be listed with a recent "Last API pull" timestamp. An empty list means the key was never created — repeat step 4.
@@ -163,7 +181,7 @@ docker exec <crowdsec-container> cscli bouncers list
 To check that log lines arrive:
 
 ```sh
-docker exec <crowdsec-container> cscli metrics
+docker exec <crowdsec-container> cscli -c /config/.storage/crowdsec/config/config.yaml metrics
 ```
 
 Under **Acquisition Metrics** the npmplus source must appear with a rising `lines read`.
@@ -311,6 +329,8 @@ A Home Assistant backup of the add-on contains all of `/data`, database and cert
 **CrowdSec sees no attacks** — check in order: `logrotate` on, logs arriving (option A or B), collection `ZoeyVid/npmplus` installed, `cscli metrics` shows the acquisition.
 
 **400 Bad Request from Home Assistant** — see the section "Home Assistant behind NPMplus".
+
+**The log says "CrowdSec lehnt den Bouncer-Key ab (HTTP 403)" although the key is correct** — the bouncer sits in the wrong database. Without `-c`, `cscli` writes to `/etc/crowdsec/` while the add-on instance reads its own configuration. Re-create the bouncer with `-c <path from ps aux>`.
 
 **Logged out after every restart** — set `cookie_secret` to a fixed random value.
 

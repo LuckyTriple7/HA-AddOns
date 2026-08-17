@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.1.10] - 2026-08-17
+
+- Doku: `cscli`-Falle beschrieben — ohne `-c` schreibt `cscli` in `/etc/crowdsec/`, während das CrowdSec-Add-on seine Engine mit einer eigenen Konfiguration startet. Der Bouncer landet dann in einer Datenbank, die die laufende Instanz nie liest: `bouncers list` zeigt ihn an, die LAPI antwortet trotzdem mit 403
+- Doku: Schlüssel per `cscli bouncers add … -k $(openssl rand -hex 22)` selbst vorgeben, damit beim Kopieren keine Sonderzeichen verlorengehen
+
 ## [0.1.9] - 2026-08-17
 
 - Fix: Bouncer-Key, LAPI- und AppSec-URL werden jetzt von Leerraum und Zeilenenden befreit. Ein aus Datei oder Terminal kopierter Wert schleppt leicht ein `\r` oder ein abschließendes Leerzeichen mit — im HTTP-Header macht das den Schlüssel ungültig, ohne dass man es sehen kann
