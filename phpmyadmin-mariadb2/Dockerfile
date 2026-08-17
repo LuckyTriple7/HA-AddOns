@@ -66,7 +66,7 @@ LABEL \
     org.opencontainers.image.title="${BUILD_NAME}" \
     org.opencontainers.image.description="${BUILD_DESCRIPTION}" \
     org.opencontainers.image.authors="LuckyTriple7" \
-    org.opencontainers.image.licenses="MIT" \
+    org.opencontainers.image.licenses="GPL-2.0-only AND MIT" \
     org.opencontainers.image.source="https://github.com/${BUILD_REPOSITORY}" \
     org.opencontainers.image.documentation="https://github.com/${BUILD_REPOSITORY}/blob/main/README.md" \
     org.opencontainers.image.created=${BUILD_DATE} \

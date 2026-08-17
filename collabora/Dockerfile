@@ -22,7 +22,7 @@ FROM debian:13-slim
 LABEL org.opencontainers.image.title="Collabora Online for Home Assistant"
 LABEL org.opencontainers.image.description="Collabora Online office server for Nextcloud"
 LABEL org.opencontainers.image.source="https://github.com/LuckyTriple7/HA-AddOns"
-LABEL org.opencontainers.image.licenses="MIT"
+LABEL org.opencontainers.image.licenses="MPL-2.0 AND MIT"
 
 ENV DEBIAN_FRONTEND=noninteractive LANG=C.UTF-8
 

@@ -1,5 +1,9 @@
 # Changelog — MediaGrab
 
+## [1.1.8] - 2026-08-17
+
+- Doku: `org.opencontainers.image.licenses` im Dockerfile stand auf MIT, obwohl das Image ffmpeg und mutagen unter GPL enthält — korrigiert
+
 ## [1.1.7] - 2026-08-17
 
 - Doku: Das Image enthält mit ffmpeg und mutagen Software unter GPL, das Add-on gab bisher keine Lizenz an. Neue `LICENSE.md` listet alle mitgelieferten Bestandteile mit Lizenz und Quelltext-Bezugsquelle

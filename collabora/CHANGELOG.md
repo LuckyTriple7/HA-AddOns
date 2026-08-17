@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.1.5] - 2026-08-17
+
+- Doku: `org.opencontainers.image.licenses` im Dockerfile stand auf MIT, obwohl das Image Collabora Online unter der MPL-2.0 enthält — auf `MPL-2.0 AND MIT` korrigiert
+
 ## [1.1.4] - 2026-08-17
 
 - Doku: Collabora Online steht unter der MPL-2.0, das Add-on gab bisher keine Lizenz an. Neue `LICENSE.md` nennt die mitgelieferten Bestandteile, ihre Lizenzen und die Bezugsquellen des Quelltextes und grenzt die eigenen MIT-Dateien davon ab

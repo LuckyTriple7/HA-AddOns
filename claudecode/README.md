@@ -516,3 +516,7 @@ After changing configuration:
 
 - [GitHub Issues](https://github.com/LuckyTriple7/HA-AddOns/issues)
 - [Home Assistant Community](https://community.home-assistant.io/)
+
+## Lizenz
+
+Claude Code selbst ist proprietär (© Anthropic PBC, Nutzung nach Anthropics Commercial Terms of Service); die eigenen Dateien des Add-ons stehen unter der MIT-Lizenz, dazu kommen Bestandteile unter GPL, LGPL und Apache-2.0. Einzelheiten und Quellenangaben: [LICENSE.md](LICENSE.md).

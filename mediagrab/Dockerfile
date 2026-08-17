@@ -3,7 +3,7 @@ FROM python:3.14-alpine
 LABEL org.opencontainers.image.title="MediaGrab"
 LABEL org.opencontainers.image.description="yt-dlp Web-GUI for Home Assistant"
 LABEL org.opencontainers.image.source="https://github.com/LuckyTriple7/HA-AddOns"
-LABEL org.opencontainers.image.licenses="MIT"
+LABEL org.opencontainers.image.licenses="GPL-2.0-or-later AND LGPL-2.1-or-later AND MIT"
 
 RUN apk add --no-cache ffmpeg curl
 

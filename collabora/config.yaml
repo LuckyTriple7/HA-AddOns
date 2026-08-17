@@ -1,6 +1,6 @@
 name: Collabora Online
 description: Collabora Online Office-Server für Nextcloud — Dokumente direkt im Browser bearbeiten
-version: "1.1.4"
+version: "1.1.5"
 slug: collabora
 url: https://github.com/LuckyTriple7/HA-AddOns
 
