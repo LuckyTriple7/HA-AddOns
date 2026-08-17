@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.0.5] - 2026-08-17
+
+- Doku: Firefox und die noVNC-Kernbibliothek stehen unter der MPL-2.0, das Add-on gab bisher keine Lizenz an. Neue `LICENSE.md` nennt die mitgelieferten Bestandteile, ihre Lizenzen und Bezugsquellen, hält fest, dass das offizielle Mozilla-Build unverändert ausgeliefert wird, und weist auf die Markenrichtlinie hin
+
 ## [1.0.4.1] - 2026-08-17
 
 chore(deps): Bump jlesage/baseimage-gui from debian-12-v4.13.0 to debian-12-v4.13.1 in /firefox
