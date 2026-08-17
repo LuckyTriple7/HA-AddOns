@@ -271,7 +271,9 @@ cat > "$PERSIST_DIR/.env.example" << 'ENVEXAMPLE'
 # PATH, HOME, IFS, LD_PRELOAD, LD_LIBRARY_PATH, SUPERVISOR_TOKEN, HA_TOKEN and
 # HA_URL are ignored — overwriting them breaks the add-on.
 
-# GITHUB_PERSONAL_ACCESS_TOKEN=ghp_...
+# Paste the token exactly as GitHub shows it. Its prefix (ghp_, github_pat_, …)
+# is part of the token — replace this whole placeholder, do not type in front of it.
+# GITHUB_PERSONAL_ACCESS_TOKEN=paste-your-token-here
 ENVEXAMPLE
 
 if [ -f "$ENV_FILE" ]; then
@@ -307,6 +309,20 @@ if [ -f "$ENV_FILE" ]; then
             \"*\") VAL=${VAL#\"}; VAL=${VAL%\"} ;;
             \'*\') VAL=${VAL#\'}; VAL=${VAL%\'} ;;
             *) VAL=${VAL%"${VAL##*[![:space:]]}"} ;;
+        esac
+        # A value that kept the example's prefix, a piece of placeholder text or a
+        # stray space makes the MCP server answer 401 "Authorization header
+        # rejected", which reads like an account or permission problem and sends
+        # people looking in the wrong place. Warn here instead — names only, the
+        # value itself is never printed. The variable is exported either way; this
+        # only guesses, it does not decide.
+        case "$VAL" in
+            ghp_ghp_*|ghp_github_pat_*|github_pat_github_pat_*|github_pat_ghp_*)
+                echo "[WARN] [$(date '+%Y-%m-%d %H:%M:%S')] .env: $KEY starts with a doubled token prefix — the prefix belongs to the token, replace the placeholder instead of typing in front of it" ;;
+            *...*|*your-token*|*your_token*|*paste-your-token*|*DEIN*|*dein-token*)
+                echo "[WARN] [$(date '+%Y-%m-%d %H:%M:%S')] .env: $KEY still contains placeholder text" ;;
+            *[[:space:]]*)
+                echo "[WARN] [$(date '+%Y-%m-%d %H:%M:%S')] .env: $KEY contains a space — a token normally has none" ;;
         esac
         export "$KEY=$VAL"
         ENV_NAMES="$ENV_NAMES $KEY"

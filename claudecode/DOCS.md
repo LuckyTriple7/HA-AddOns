@@ -136,10 +136,12 @@ MCP-Server, die sich mit einem Token anmelden — etwa das offizielle GitHub-Plu
 Dafür liegt in `/homeassistant/.claudecode/` die Datei `.env.example`. In `.env` umbenennen (`.example` entfernen), Zeilen der Form `KEY=VALUE` eintragen, Add-on neu starten:
 
 ```
-GITHUB_PERSONAL_ACCESS_TOKEN=ghp_...
+GITHUB_PERSONAL_ACCESS_TOKEN=github_pat_11ABCDEFG0abcdefghijkl_...
 ```
 
 **Die Raute muss weg.** In der Beispieldatei ist die Zeile auskommentiert; bleibt das `#` stehen, ist es ein Kommentar und der Token wird nicht geladen. Das Log sagt dann `.env contains no active variable`.
+
+**Den Token unverändert einfügen.** Sein Präfix — `github_pat_` bei fine-grained Tokens, `ghp_` bei klassischen — gehört zum Token selbst. Der Platzhalter in der Beispieldatei ist vollständig zu ersetzen; wird stattdessen davor geschrieben, entsteht ein Wert wie `ghp_github_pat_11ABC…`, und GitHub antwortet mit einem nackten 401 (`Server rejected the configured Authorization header`), der nach fehlenden Rechten aussieht, nicht nach einem Tippfehler. Das Add-on warnt beim Start, wenn es ein doppeltes Präfix, ein Leerzeichen oder übrig gebliebenen Platzhaltertext im Wert sieht.
 
 Format: eine Variable pro Zeile, `#` leitet einen Kommentar ein, Anführungszeichen um den Wert sind erlaubt und werden entfernt, ein vorangestelltes `export ` wird ignoriert. Zeilenumbrüche im Windows-Format (CRLF) und ein UTF-8-BOM werden abgeschnitten. Die Datei wird nicht ausgeführt, sondern Zeile für Zeile gelesen — `$(…)` darin bleibt Text.
 
@@ -370,10 +372,12 @@ MCP servers that authenticate with a token — the official GitHub plugin, for i
 That is what `.env.example` in `/homeassistant/.claudecode/` is for. Rename it to `.env` (drop the `.example`), add `KEY=VALUE` lines, restart the add-on:
 
 ```
-GITHUB_PERSONAL_ACCESS_TOKEN=ghp_...
+GITHUB_PERSONAL_ACCESS_TOKEN=github_pat_11ABCDEFG0abcdefghijkl_...
 ```
 
 **Delete the leading `#`.** The line is commented out in the example file; leave the `#` in place and it stays a comment, so the token is never loaded. The log then says `.env contains no active variable`.
+
+**Paste the token unchanged.** Its prefix — `github_pat_` for fine-grained tokens, `ghp_` for classic ones — is part of the token itself. Replace the placeholder in the example file completely; typing in front of it instead produces a value like `ghp_github_pat_11ABC…`, and GitHub answers with a bare 401 (`Server rejected the configured Authorization header`) that reads like missing permissions rather than a typo. The add-on warns on start when it sees a doubled prefix, a space or leftover placeholder text in a value.
 
 Format: one variable per line, `#` starts a comment, quotes around the value are allowed and get stripped, a leading `export ` is ignored. Windows-style line endings (CRLF) and a UTF-8 BOM are stripped. The file is not executed but read line by line — `$(…)` inside it stays text.
 

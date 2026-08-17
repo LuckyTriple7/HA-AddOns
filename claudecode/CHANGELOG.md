@@ -2,6 +2,16 @@
 
 English version from 1.3.0 onwards: [Changelog (English)](#changelog-english)
 
+## [1.3.20] - 2026-08-17
+
+### Changed
+- **Der Token-Platzhalter in `.env.example` war eine Falle.** Die Zeile lautete `# GITHUB_PERSONAL_ACCESS_TOKEN=ghp_...`, und `ghp_` sah nach einem festen Präfix aus, das stehen bleiben muss. Wer seinen fine-grained Token dahinter schrieb, bekam `ghp_github_pat_11ABC…` — GitHub antwortet darauf mit einem nackten 401 (`Server rejected the configured Authorization header`), der nach fehlenden Rechten oder gesperrtem MCP-Zugang aussieht und mit keinem Wort auf das Token-Format zeigt. Der Platzhalter ist jetzt `paste-your-token-here`, mit dem Hinweis daneben, dass das Präfix zum Token gehört und der Platzhalter komplett ersetzt wird. Danke an @jdobbsclt für die genaue Fehlersuche (#251).
+
+### Added
+- **Das Add-on prüft die Werte aus der `.env` beim Start auf drei typische Tippfehler** und schreibt eine `[WARN]`-Zeile, wenn ein Wert ein doppeltes Token-Präfix (`ghp_github_pat_…`), ein Leerzeichen oder übrig gebliebenen Platzhaltertext enthält. Damit steht der Grund im Log, statt später als 401 aus einem MCP-Server zurückzukommen. Geladen wird der Wert trotzdem — die Prüfung rät, sie entscheidet nicht. Im Log stehen weiterhin nur die Namen der Variablen, nie deren Werte.
+- Der Hinweis zum Token-Format steht auch in DOCS.md, DE wie EN.
+
+
 ## [1.3.19] - 2026-08-17
 
 ### Changed
@@ -561,6 +571,16 @@ Forked from [apbb2/robsonfelix-hass-addons](https://github.com/apbb2/robsonfelix
 # Changelog (English)
 
 Covers 1.3.0 onwards. Older entries are available in German only.
+
+## [1.3.20] - 2026-08-17
+
+### Changed
+- **The token placeholder in `.env.example` was a trap.** The line read `# GITHUB_PERSONAL_ACCESS_TOKEN=ghp_...`, and `ghp_` looked like a fixed prefix meant to stay. Anyone appending a fine-grained token after it ended up with `ghp_github_pat_11ABC…` — GitHub answers that with a bare 401 (`Server rejected the configured Authorization header`) that reads like missing permissions or blocked MCP access and says nothing about the token format. The placeholder is now `paste-your-token-here`, with a note next to it that the prefix belongs to the token and the placeholder is replaced whole. Thanks to @jdobbsclt for tracking this down precisely (#251).
+
+### Added
+- **The add-on now checks the values from `.env` on start for three common typos** and logs a `[WARN]` line when a value carries a doubled token prefix (`ghp_github_pat_…`), a space, or leftover placeholder text. The reason shows up in the log instead of coming back later as a 401 from an MCP server. The value is exported regardless — the check guesses, it does not decide. The log still lists variable names only, never their values.
+- The note on token format is in DOCS.md as well, German and English.
+
 
 ## [1.3.18] - 2026-08-16
 
