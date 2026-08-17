@@ -121,7 +121,9 @@ crowdsec_appsec_url: "http://127.0.0.1:7422"
 
 NPMplus neu starten. Im Protokoll erscheint `CrowdSec-Bouncer aktiv gegen …`.
 
-> Läuft CrowdSec in einem eigenen Container ohne Host-Netzwerk, ist `127.0.0.1` falsch — dann die IP des Hosts oder des CrowdSec-Containers eintragen und dort die Ports 8080 und 7422 freigeben.
+> Läuft CrowdSec in einem eigenen Container ohne Host-Netzwerk, ist `127.0.0.1` falsch — dann die IP des Hosts oder des CrowdSec-Containers eintragen und dort die Ports 8080 und 7422 freigeben. Die Container-IP findest du mit `docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}' <crowdsec-container>`.
+
+> Das Add-on prüft den Schlüssel beim Start. Wird er abgelehnt oder ist CrowdSec nicht erreichbar, startet NPMplus ohne Bouncer und schreibt eine Warnung ins Protokoll — sonst würde AppSec jede Anfrage mit 403 beantworten und damit alle Dienste sperren.
 
 > Mit aktivem CrowdSec puffert nginx alle Anfragen. `proxy_request_buffering off` wirkt dann nicht mehr.
 

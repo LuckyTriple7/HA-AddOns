@@ -188,16 +188,53 @@ if [ ! -s "$CS_CONF" ]; then
     cp -n /etc/crowdsec.conf.example "$CS_CONF"
 fi
 
+# Vorflugkontrolle: LAPI mit dem konfigurierten Schlüssel abfragen.
+#
+# Ohne diese Prüfung ist ein Tippfehler im Schlüssel fatal: die LAPI antwortet
+# mit 403, AppSec ebenso — und ein 403 bedeutet im AppSec-Protokoll "sperren".
+# Der Bouncer würde also jede einzelne Anfrage blockieren und sämtliche Dienste
+# hinter dem Proxy unerreichbar machen. Deshalb lieber ungeschützt starten und
+# laut warnen, als alles auszusperren.
+check_lapi() {
+    local url="$1" key="$2" code
+    # curl schreibt bei Verbindungsfehlern selbst "000" — kein zusätzliches
+    # echo im Fehlerfall, sonst stünde dort "000000".
+    code=$(curl -s -o /dev/null -m 5 -w '%{http_code}' \
+        -H "X-Api-Key: ${key}" \
+        "${url%/}/v1/decisions?ip=127.0.0.1" 2>/dev/null || true)
+    printf '%s' "${code:-000}"
+}
+
 if [ "$CS_ENABLED_OPT" = "true" ]; then
     if [ -z "$CS_KEY_OPT" ]; then
         warn "crowdsec_enabled ist an, aber crowdsec_api_key ist leer — Bouncer bleibt aus"
         set_conf ENABLED false
     else
-        set_conf ENABLED true
-        set_conf API_URL "$CS_LAPI_OPT"
-        set_conf API_KEY "$CS_KEY_OPT"
-        set_conf APPSEC_URL "$CS_APPSEC_OPT"
-        log "CrowdSec-Bouncer aktiv gegen ${CS_LAPI_OPT} (AppSec: ${CS_APPSEC_OPT:-aus})"
+        CS_CODE=$(check_lapi "$CS_LAPI_OPT" "$CS_KEY_OPT")
+        case "$CS_CODE" in
+            200|404)
+                set_conf ENABLED true
+                set_conf API_URL "$CS_LAPI_OPT"
+                set_conf API_KEY "$CS_KEY_OPT"
+                set_conf APPSEC_URL "$CS_APPSEC_OPT"
+                log "CrowdSec-Bouncer aktiv gegen ${CS_LAPI_OPT} (AppSec: ${CS_APPSEC_OPT:-aus})"
+                ;;
+            403|401)
+                set_conf ENABLED false
+                warn "CrowdSec lehnt den Bouncer-Key ab (HTTP ${CS_CODE}) — Bouncer bleibt AUS."
+                warn "Neuen Schlüssel erzeugen: cscli bouncers add npmplus"
+                ;;
+            000)
+                set_conf ENABLED false
+                warn "CrowdSec unter ${CS_LAPI_OPT} nicht erreichbar — Bouncer bleibt AUS."
+                warn "Läuft CrowdSec in einem eigenen Container, ist 127.0.0.1 falsch:"
+                warn "dann dessen Container-IP oder eine auf den Host veröffentlichte Adresse eintragen."
+                ;;
+            *)
+                set_conf ENABLED false
+                warn "Unerwartete Antwort von CrowdSec (HTTP ${CS_CODE}) — Bouncer bleibt AUS."
+                ;;
+        esac
     fi
 else
     set_conf ENABLED false

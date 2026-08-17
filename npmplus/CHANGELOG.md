@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.1.4] - 2026-08-17
+
+- Sicherheitsnetz: Der Bouncer-Key wird beim Start gegen die CrowdSec-LAPI geprüft. Antwortet sie mit 401/403 oder ist gar nicht erreichbar, bleibt der Bouncer AUS statt jede Anfrage zu sperren
+- Hintergrund: AppSec beantwortet eine unauthentifizierte Anfrage mit 403, und 403 bedeutet im AppSec-Protokoll „blockieren" — ein Tippfehler im Schlüssel legte damit sämtliche Dienste hinter dem Proxy lahm
+- Die Warnung im Protokoll nennt jetzt auch den häufigsten Fall: CrowdSec läuft in einem eigenen Container, dann ist 127.0.0.1 die falsche Adresse
+
 ## [0.1.3] - 2026-08-17
 
 - Fix: Add-on-Protokoll wurde von nginx-`[notice]`-Zeilen geflutet. Mit `logrotate: true` aktiviert NPMplus sein Error-Log auf Stufe `info`, das protokolliert jeden Worker-Wechsel und jedes SIGCHLD. Neue Option `error_log_level`, Standard `warn`
