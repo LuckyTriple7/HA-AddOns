@@ -47,6 +47,17 @@ _HEADERS = {
     "Referer": "https://www.airport-frankfurt-am-main.de/abflug-flughafen-frankfurt-airport",
 }
 _DEST_RE = re.compile(r"^(.*)\s\(([A-Z]{3})\)$")
+# AIRail: Lufthansa verkauft Bahn-Zubringer unter eigenem IATA-artigem Code im
+# selben Board wie echte Flüge. Das Board schreibt sie mal ausgeschrieben
+# ("Aachen Hauptbahnhof", "Basel Bad Bahnhof"), mal abgekürzt ("Dortmund Hbf",
+# "Münster HBF") — beide Schreibweisen müssen raus. Wortgrenze, damit ein
+# echter Zielname, der die Buchstabenfolge zufällig enthält, bleibt.
+_RAIL_RE = re.compile(r"\b(hbf|hauptbahnhof|bahnhof|bf|railway station)\b", re.I)
+
+
+def _is_rail(name: str) -> bool:
+    """True, wenn der Board-Eintrag ein Bahnhof statt eines Flugziels ist."""
+    return bool(_RAIL_RE.search(name or ""))
 
 _REFRESH_INTERVAL = 6 * 3600   # wie oft neu abgerufen wird
 REFRESH_INTERVAL = _REFRESH_INTERVAL  # oeffentlicher Alias fuer den Warm-Worker/Zeitplan (app.py)
@@ -77,6 +88,14 @@ def _ensure_loaded():
     except Exception as e:
         log.warning("FRA-Board-Zustand nicht lesbar (%s): %s", _STATE_PATH, e)
         _seen = {}
+    # Alter Zustand kann Bahnhöfe enthalten, die eine frühere Filterversion
+    # noch durchgelassen hat (nur "Bahnhof", nicht "Hbf") — beim Laden
+    # nachträglich rauswerfen statt bis zum Ablauf des Fensters zu warten.
+    stale = [c for c, e in _seen.items() if _is_rail(e.get("name", ""))]
+    for c in stale:
+        del _seen[c]
+    if stale:
+        log.info("FRA-Board: %d Bahnhof-Altlasten aus dem Zustand entfernt", len(stale))
 
 
 def _save():
@@ -110,10 +129,7 @@ def refresh(*, verbose: bool = False) -> bool:
             if not m:
                 continue
             name, code = m.group(1).strip(), m.group(2)
-            # AIRail: Lufthansa verkauft Bahn-Zubringer (Aachen, Berlin, Basel,
-            # Hamburg — live im Board gesehen) unter eigenem IATA-artigem Code
-            # im selben Board wie echte Flüge. Keine "Flugziele", raus.
-            if "bahnhof" in name.lower():
+            if _is_rail(name):
                 continue
             _seen[code] = {"name": name or _seen.get(code, {}).get("name", code),
                           "last_seen": today}

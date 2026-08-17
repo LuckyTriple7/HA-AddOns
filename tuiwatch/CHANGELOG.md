@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.100.4] - 2026-08-17
+
+### Fixed
+- **Flugplan / Alle Flugziele: Bahnhöfe fliegen aus der Zielliste.** Die FRA-Zielliste
+  stammt aus dem Tagesbord einer Drittseite, das Lufthansas AIRail-Bahnzubringer in
+  derselben Spalte führt wie echte Flüge. Der bisherige Filter erkannte nur die
+  ausgeschriebene Form („Aachen Hauptbahnhof“), nicht die abgekürzte — so landeten
+  „Freiburg Hbf“, „Köln Hbf“, „Münster HBF“ & Co. als vermeintliche Flugziele in der
+  Tabelle. Jetzt greift ein Filter auf beide Schreibweisen (15 Bahnhöfe im aktuellen
+  Board), und er räumt auch das bereits gespeicherte 9-Tage-Fenster auf, statt auf
+  dessen Ablauf zu warten. Echte Flughäfen mit gleichnamiger Stadt (Dresden DRS,
+  Düsseldorf DUS, München MUC) bleiben unangetastet.
+
 ## [0.100.3] - 2026-08-15
 
 ### Changed

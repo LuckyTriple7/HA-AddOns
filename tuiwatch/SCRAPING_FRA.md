@@ -93,11 +93,17 @@ auftauchen. Bleibt eine **Näherung**, kein amtlicher Fahrplan — Frontend
 kennzeichnet FRA-Einträge in der Tabelle entsprechend (`FRA*`).
 
 **Stolperfalle: AIRail-Bahnzubringer.** Das Board mischt Lufthansas
-Bahn-Ersatzverbindungen (Aachen, Berlin, Basel, Hamburg — live gesehen) unter
-eigenem IATA-artigem Code (`XHJ`, `QPP`, `ZBA`, `ZMB`, …) in dieselbe Spalte
-wie echte Flüge. Kein Muster im Code selbst erkennbar, aber der Name verrät
-es zuverlässig (`"… Hauptbahnhof"`, `"… Bad Bahnhof"`) — Filter auf
-`"bahnhof" in name.lower()`.
+Bahn-Ersatzverbindungen (15 Stück im Board vom 17.08.2026) unter eigenem
+IATA-artigem Code (`XHJ`, `QPP`, `ZBA`, `ZMB`, `ZWS`, `QKL`, `QFB`, …) in
+dieselbe Spalte wie echte Flüge. Kein Muster im Code selbst erkennbar, aber
+der Name verrät es — allerdings in **zwei** Schreibweisen: ausgeschrieben
+(`"Aachen Hauptbahnhof"`, `"Basel Bad Bahnhof"`) *und* abgekürzt
+(`"Dortmund Hbf"`, `"Münster HBF"`). Ein Filter nur auf `"bahnhof"` lässt die
+abgekürzte Hälfte durch (so kam „Freiburg Hbf“ in die Zieltabelle); deshalb
+Regex `\b(hbf|hauptbahnhof|bahnhof|bf|railway station)\b` (`_is_rail()`),
+Wortgrenze gegen Fehltreffer in echten Zielnamen. Der Filter greift auch beim
+Laden des persistierten Fensters, sonst blieben Altlasten bis zum Ablauf der
+9 Tage stehen.
 
 Diese Quelle wird **nur** für die Übersichtstabelle verwendet, **nicht** für
 die gezielte Suche (`/api/flights/search`) — die bleibt bei der offiziellen
