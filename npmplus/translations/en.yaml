@@ -49,7 +49,10 @@ configuration:
     description: Also mirrors the access log to the container output. Required if CrowdSec reads the logs through journald.
   goaccess:
     name: GoAccess statistics
-    description: Enables the GoAccess dashboard under /goaccess of the NPMplus interface. Visible to logged-in admins only.
+    description: Enables the GoAccess dashboard on its own HTTPS port (91), not under /goaccess of the interface. That port has no authentication.
+  goaccess_listen_localhost:
+    name: GoAccess on localhost only
+    description: Binds the dashboard to 127.0.0.1 instead of all addresses. Recommended, because port 91 is unprotected and shows visitor IPs and every requested URL. To reach it, create a proxy host with an access list pointing at 127.0.0.1:91. Turning this off makes it readable from the whole LAN at https://HA-IP:91.
   trust_ip:
     name: Trusted IPs
     description: Space separated list of IPs or subnets of upstream proxies whose X-Forwarded-For header nginx may trust.
@@ -94,3 +97,4 @@ network:
   443/tcp: HTTPS
   443/udp: HTTP/3 (QUIC)
   81/tcp: NPMplus web interface (HTTPS)
+  91/tcp: GoAccess statistics (HTTPS, no authentication)

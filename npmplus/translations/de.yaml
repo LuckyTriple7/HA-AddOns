@@ -49,7 +49,10 @@ configuration:
     description: Spiegelt das Access-Log zusätzlich in die Container-Ausgabe. Nötig, wenn CrowdSec die Logs über journald einliest.
   goaccess:
     name: GoAccess-Statistik
-    description: Aktiviert das GoAccess-Dashboard unter /goaccess der NPMplus-Oberfläche. Nur für angemeldete Admins sichtbar.
+    description: Aktiviert das GoAccess-Dashboard auf einem eigenen HTTPS-Port (91), nicht unter /goaccess der Oberfläche. Dieser Port kennt keine Anmeldung.
+  goaccess_listen_localhost:
+    name: GoAccess nur auf localhost
+    description: Bindet das Dashboard an 127.0.0.1 statt an alle Adressen. Empfohlen, denn Port 91 ist ungeschützt und zeigt Besucher-IPs und alle angefragten URLs. Zum Zugriff einen Proxy Host mit Access-Liste auf 127.0.0.1:91 anlegen. Ausschalten macht es unter https://HA-IP:91 im ganzen LAN lesbar.
   trust_ip:
     name: Vertrauenswürdige IPs
     description: Durch Leerzeichen getrennte Liste von IPs oder Subnetzen vorgelagerter Proxys, deren X-Forwarded-For-Header nginx glauben darf.
@@ -94,3 +97,4 @@ network:
   443/tcp: HTTPS
   443/udp: HTTP/3 (QUIC)
   81/tcp: NPMplus Weboberfläche (HTTPS)
+  91/tcp: GoAccess-Statistik (HTTPS, ohne Anmeldung)

@@ -14,7 +14,7 @@ Reverse Proxy mit Weboberfläche auf Basis von [NPMplus](https://github.com/Zoey
 | Dienst | URL |
 |--------|-----|
 | Weboberfläche | `https://<HA-IP>:81` |
-| GoAccess-Statistik (optional) | `https://<HA-IP>:81/goaccess` |
+| GoAccess-Statistik (optional) | `https://<HA-IP>:91` — eigener Port, standardmäßig nur auf `127.0.0.1` |
 
 Das Zertifikat der Oberfläche ist selbstsigniert — die Browserwarnung beim ersten Aufruf ist normal.
 
@@ -26,7 +26,7 @@ Das Zertifikat der Oberfläche ist selbstsigniert — die Browserwarnung beim er
 - **CrowdSec-Bouncer und AppSec/WAF** direkt aus den Add-on-Optionen konfigurierbar
 - **mTLS**: Client-Zertifikate und eigene CAs hochladbar
 - **Access-Listen** pro Host und pro Location, mehrere Listen kombinierbar
-- **GoAccess-Dashboard** in der Oberfläche, nur für angemeldete Admins
+- **GoAccess-Dashboard** auf Port 91, ohne eigene Anmeldung — daher ab Werk nur auf `127.0.0.1`, Zugriff über einen Proxy Host mit Zugriffsliste
 - **zstd- und brotli-Kompression**, Datei- und PHP-Server mit fancyindex
 - Logs wahlweise nach `/share/npmplus/logs` und/oder ins Add-on-Protokoll — passend zu beiden CrowdSec-Acquisition-Varianten
 
@@ -40,6 +40,8 @@ Das Zertifikat der Oberfläche ist selbstsigniert — die Browserwarnung beim er
 | `initial_admin_password` | – | Passwort dazu; leer = Zufallspasswort im Protokoll |
 | `admin_port` | `81` | Port der Weboberfläche |
 | `logrotate` | `true` | Access-Logs schreiben und rotieren |
+| `goaccess` | `false` | GoAccess-Dashboard auf Port 91 |
+| `goaccess_listen_localhost` | `true` | Dashboard nur an `127.0.0.1` binden |
 | `share_logs` | `true` | Logs nach `/share/npmplus/logs` spiegeln |
 | `log_to_stdout` | `true` | Access-Log zusätzlich ins Add-on-Protokoll (journald) |
 | `crowdsec_enabled` | `false` | nginx-Bouncer aktivieren |

@@ -1,6 +1,6 @@
 name: NPMplus
 description: Reverse Proxy mit Web-Oberfläche auf Basis von NPMplus — HTTP/3, Let's Encrypt, CrowdSec-Bouncer und AppSec/WAF
-version: "0.1.15"
+version: "0.1.16"
 slug: npmplus
 url: https://github.com/LuckyTriple7/HA-AddOns
 
@@ -32,12 +32,14 @@ ports:
   443/tcp: 443
   443/udp: 443
   81/tcp: 81
+  91/tcp: 91
 
 ports_description:
   80/tcp: HTTP (ACME-Challenge, Weiterleitung auf HTTPS)
   443/tcp: HTTPS
   443/udp: HTTP/3 (QUIC)
   81/tcp: NPMplus Web-Oberfläche (HTTPS)
+  91/tcp: GoAccess-Statistik (HTTPS, ohne Anmeldung — nur bei goaccess_listen_localhost = false erreichbar)
 
 map:
   - share:rw
@@ -60,6 +62,7 @@ options:
   share_logs: true
   log_to_stdout: true
   goaccess: false
+  goaccess_listen_localhost: true
   trust_ip: ""
   trust_cloudflare: false
   crowdsec_enabled: false
@@ -92,6 +95,7 @@ schema:
   share_logs: bool
   log_to_stdout: bool
   goaccess: bool
+  goaccess_listen_localhost: bool
   trust_ip: str?
   trust_cloudflare: bool
   crowdsec_enabled: bool

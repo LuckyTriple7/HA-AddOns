@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.16] - 2026-08-17
+
+- Fix: Die GoAccess-Statistik war unter der dokumentierten Adresse `https://<HA-IP>:81/goaccess` nicht erreichbar, dort kam die Fehlerseite von NPMplus. In der eingesetzten Version läuft GoAccess als eigener HTTPS-Server auf **Port 91**; der Unterpfad in der Oberfläche existiert bisher nur im Entwicklungszweig von NPMplus. Doku, Übersetzungen und Portliste korrigiert
+- Sicherheit: Dieser Server auf Port 91 kennt **keine Anmeldung** und zeigt Besucher-IPs sowie jede angefragte URL — die bisherige Beschreibung „Nur für angemeldete Admins sichtbar" war falsch. Neue Option `goaccess_listen_localhost` (Standard `true`) bindet ihn deshalb nur an `127.0.0.1`. Für den Zugriff einen Proxy Host mit Zugriffsliste auf `https://127.0.0.1:91` anlegen, Websockets zulassen nicht vergessen. Wer es wie bisher offen im LAN haben will, setzt die Option auf `false`
+- Protokoll nennt beim Start die tatsächliche Adresse des Dashboards und warnt, wenn es ungeschützt im LAN hängt
+- Doku: eigener Abschnitt „GoAccess-Statistik" samt Länderauswertung über MaxMind, drei neue Einträge in der Problembehandlung
+- Backlog: was beim nächsten Versionssprung von NPMplus rückgebaut werden muss, sobald GoAccess dort unter `/goaccess` mit Admin-Prüfung liegt
+
 ## [0.1.15] - 2026-08-17
 
 - Neue Optionen `crowdsec_captcha_provider`, `crowdsec_captcha_site_key` und `crowdsec_captcha_secret_key`: der Bouncer kann verdächtige Besucher ein Captcha lösen lassen statt sie auszusperren (Turnstile, hCaptcha, reCAPTCHA). Ohne Schlüssel bleibt Captcha aus — das erklärt auch die bisherige Logzeile „error loading captcha plugin"

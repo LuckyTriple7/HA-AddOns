@@ -287,6 +287,33 @@ Alternativ im Proxy Host als Ziel die interne Adresse `http://172.30.32.1:8123` 
 > Dasselbe gilt für **jeden anderen Dienst hinter NPMplus**, der vertrauenswürdige Proxys prüft — Nextcloud, Vaultwarden, Uptime Kuma und ähnliche. Überall gehört die LAN-IP der Home-Assistant-Maschine in die jeweilige Proxy-Liste, nicht mehr eine `172.30.x.x`-Adresse. Bleibt sie außen vor, sieht der Dienst entweder gar keine Anfrage mehr oder protokolliert alle Zugriffe mit der Proxy-IP — womit ein Brute-Force-Schutz im Zweifel dich selbst aussperrt.
 
 
+## GoAccess-Statistik
+
+GoAccess wertet das Access-Log aus und zeigt Besucher, Top-Hosts, angefragte URLs, Statuscodes, Traffic, Browser und Referrer — live, per WebSocket aktualisiert.
+
+Einschalten mit `goaccess: true`. `logrotate` wird dabei automatisch mitgesetzt, ohne Access-Log hätte GoAccess nichts zu lesen. Der Dienst startet erst, wenn tatsächlich Zeilen im Log stehen, direkt nach dem Start bleibt die Seite also kurz leer.
+
+> **Nicht unter `/goaccess`.** In der eingesetzten NPMplus-Version läuft GoAccess als eigener HTTPS-Server auf **Port 91**, nicht als Unterpfad der Oberfläche. `https://<HA-IP>:81/goaccess` liefert deshalb die Fehlerseite von NPMplus. Der Umbau auf einen Unterpfad samt Admin-Prüfung steckt zwar im Entwicklungszweig von NPMplus, ist aber in noch keiner Veröffentlichung enthalten.
+
+### Zugriff absichern
+
+Der Server auf Port 91 hat **keine Anmeldung**. Wer ihn erreicht, sieht alle Besucher-IPs und jede angefragte URL deiner Dienste. Das Add-on bindet ihn deshalb standardmäßig nur an `127.0.0.1` (`goaccess_listen_localhost: true`).
+
+Empfohlener Weg zum Dashboard — Proxy Host mit Access-Liste davor:
+
+1. In NPMplus eine **Zugriffsliste** anlegen (Benutzername und Passwort, optional zusätzlich auf dein Subnetz beschränken).
+2. Einen **Proxy Host** anlegen, z.B. `stats.deine-domain.tld`, Ziel `https://127.0.0.1:91`.
+3. Im Reiter „Optionen" die eben angelegte Zugriffsliste auswählen, im Reiter „TLS" ein Zertifikat ausstellen und HTTPS erzwingen.
+4. **Websockets zulassen** einschalten — ohne das bleibt die Live-Aktualisierung stehen.
+
+Nur schnell hineinschauen, ohne Proxy Host: `goaccess_listen_localhost: false` setzen und `https://<HA-IP>:91` aufrufen. Dann liest allerdings jedes Gerät im LAN mit. **Port 91 gehört unter keinen Umständen in eine Portweiterleitung im Router.**
+
+Die Auswertung enthält personenbezogene Daten (IP-Adressen). Wer die Dienste dahinter öffentlich betreibt, gehört mit einem Hinweis in die eigene Datenschutzerklärung.
+
+### Länderauswertung
+
+Fehlt ab Werk. Dafür müssen die MaxMind-Datenbanken (kostenloses Konto) nach `/data/goaccess/geoip` gelegt werden — `GeoLite2-City.mmdb`, `GeoLite2-Country.mmdb` oder `GeoLite2-ASN.mmdb`. NPMplus bindet gefundene Dateien beim Start selbst ein.
+
 ## Einstellungen je Proxy Host
 
 ### Reiter „Optionen"
@@ -335,7 +362,8 @@ Alternativ im Proxy Host als Ziel die interne Adresse `http://172.30.32.1:8123` 
 | `error_log_level` | `warn` | Ab welcher Stufe nginx ins Error-Log schreibt |
 | `share_logs` | `true` | Logs nach `/share/npmplus/logs` spiegeln |
 | `log_to_stdout` | `true` | Access-Log zusätzlich ins Add-on-Protokoll (journald) |
-| `goaccess` | `false` | GoAccess-Dashboard unter `/goaccess` |
+| `goaccess` | `false` | GoAccess-Dashboard auf Port 91 |
+| `goaccess_listen_localhost` | `true` | Dashboard nur an `127.0.0.1` binden |
 | `trust_ip` | – | Vertrauenswürdige Proxy-IPs für X-Forwarded-For |
 | `trust_cloudflare` | `false` | Cloudflare-IP-Bereiche laden und vertrauen |
 | `crowdsec_enabled` | `false` | nginx-Bouncer aktivieren |
@@ -432,6 +460,12 @@ Ein Home-Assistant-Backup des Add-ons enthält `/data` vollständig, inklusive D
 **Protokoll meldet „CrowdSec rejected the bouncer key (HTTP 403)", obwohl der Schlüssel stimmt** — der Bouncer steckt in der falschen Datenbank. `cscli` ohne `-c` schreibt nach `/etc/crowdsec/`, die Add-on-Instanz liest aber ihre eigene Konfiguration. Bouncer mit `-c <pfad-aus-ps-aux>` neu anlegen.
 
 **Anmeldung nach jedem Neustart weg** — `cookie_secret` auf einen festen Zufallswert setzen.
+
+**`https://<HA-IP>:81/goaccess` zeigt „Ups… Sie haben eine Fehlerseite gefunden"** — den Pfad gibt es nicht. GoAccess läuft auf Port 91, siehe Abschnitt „GoAccess-Statistik".
+
+**GoAccess-Dashboard bleibt leer** — der Dienst startet erst, wenn `/data/nginx/logs/access.log` Zeilen enthält, und prüft das alle 10 Sekunden. Eine Seite über den Proxy aufrufen und kurz warten.
+
+**Port 91 antwortet nicht** — Standard ist `goaccess_listen_localhost: true`, damit lauscht der Dienst nur auf `127.0.0.1` und ist aus dem LAN absichtlich nicht erreichbar.
 
 ## Lizenz
 

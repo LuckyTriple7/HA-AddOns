@@ -285,6 +285,33 @@ Alternatively point the proxy host at the internal address `http://172.30.32.1:8
 > The same applies to **every other service behind NPMplus** that validates trusted proxies — Nextcloud, Vaultwarden, Uptime Kuma and the like. They all need the Home Assistant machine's LAN IP in their proxy list instead of a `172.30.x.x` address. Left out, the service either rejects the request outright or logs every access with the proxy IP — at which point its brute-force protection may lock you out of your own instance.
 
 
+## GoAccess statistics
+
+GoAccess parses the access log and shows visitors, top hosts, requested URLs, status codes, traffic, browsers and referrers — live, updated over a WebSocket.
+
+Turn it on with `goaccess: true`. `logrotate` is enabled along with it, without an access log GoAccess would have nothing to read. The service only starts once the log actually has lines in it, so right after a start the page stays empty for a moment.
+
+> **Not under `/goaccess`.** In the NPMplus version used here GoAccess runs as its own HTTPS server on **port 91**, not as a sub-path of the interface. `https://<HA-IP>:81/goaccess` therefore returns the NPMplus error page. The move to a sub-path with an admin check does exist in the NPMplus development branch, but is not part of any release yet.
+
+### Securing access
+
+The server on port 91 has **no authentication**. Whoever reaches it sees every visitor IP and every URL requested from your services. The add-on therefore binds it to `127.0.0.1` by default (`goaccess_listen_localhost: true`).
+
+Recommended route to the dashboard — a proxy host with an access list in front:
+
+1. Create an **access list** in NPMplus (username and password, optionally restricted to your subnet as well).
+2. Create a **proxy host**, e.g. `stats.your-domain.tld`, target `https://127.0.0.1:91`.
+3. Pick that access list on the "Options" tab, issue a certificate on the "TLS" tab and force HTTPS.
+4. Enable **Websockets support** — without it the live refresh stalls.
+
+For a quick look without a proxy host: set `goaccess_listen_localhost: false` and open `https://<HA-IP>:91`. Every device on the LAN can then read along. **Never put port 91 into a router port forward.**
+
+The report contains personal data (IP addresses). If the services behind it are public, mention it in your privacy policy.
+
+### Country breakdown
+
+Not included out of the box. Put the MaxMind databases (free account) into `/data/goaccess/geoip` — `GeoLite2-City.mmdb`, `GeoLite2-Country.mmdb` or `GeoLite2-ASN.mmdb`. NPMplus picks up whatever it finds at startup.
+
 ## Per-host settings
 
 ### "Options" tab
@@ -333,7 +360,8 @@ Alternatively point the proxy host at the internal address `http://172.30.32.1:8
 | `error_log_level` | `warn` | From which level nginx writes to the error log |
 | `share_logs` | `true` | Mirror logs to `/share/npmplus/logs` |
 | `log_to_stdout` | `true` | Also send the access log to the add-on log (journald) |
-| `goaccess` | `false` | GoAccess dashboard under `/goaccess` |
+| `goaccess` | `false` | GoAccess dashboard on port 91 |
+| `goaccess_listen_localhost` | `true` | Bind the dashboard to `127.0.0.1` only |
 | `trust_ip` | – | Trusted proxy IPs for X-Forwarded-For |
 | `trust_cloudflare` | `false` | Fetch and trust Cloudflare IP ranges |
 | `crowdsec_enabled` | `false` | Enable the nginx bouncer |
@@ -430,6 +458,12 @@ A Home Assistant backup of the add-on contains all of `/data`, database and cert
 **The log says "CrowdSec rejected the bouncer key (HTTP 403)" although the key is correct** — the bouncer sits in the wrong database. Without `-c`, `cscli` writes to `/etc/crowdsec/` while the add-on instance reads its own configuration. Re-create the bouncer with `-c <path from ps aux>`.
 
 **Logged out after every restart** — set `cookie_secret` to a fixed random value.
+
+**`https://<HA-IP>:81/goaccess` shows "Oops… you found an error page"** — that path does not exist. GoAccess runs on port 91, see the "GoAccess statistics" section.
+
+**GoAccess dashboard stays empty** — the service only starts once `/data/nginx/logs/access.log` has lines in it, and it re-checks every 10 seconds. Load a page through the proxy and wait a moment.
+
+**Port 91 does not answer** — the default is `goaccess_listen_localhost: true`, so the service listens on `127.0.0.1` only and is deliberately unreachable from the LAN.
 
 ## License
 

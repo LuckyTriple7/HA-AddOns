@@ -14,7 +14,7 @@ Reverse proxy with a web interface, based on [NPMplus](https://github.com/ZoeyVi
 | Service | URL |
 |--------|-----|
 | Web interface | `https://<HA-IP>:81` |
-| GoAccess statistics (optional) | `https://<HA-IP>:81/goaccess` |
+| GoAccess statistics (optional) | `https://<HA-IP>:91` — separate port, bound to `127.0.0.1` by default |
 
 The interface certificate is self-signed — the browser warning on first access is expected.
 
@@ -26,7 +26,7 @@ The interface certificate is self-signed — the browser warning on first access
 - **CrowdSec bouncer and AppSec/WAF** configurable straight from the add-on options
 - **mTLS**: client certificates and custom CAs can be uploaded
 - **Access lists** per host and per location, multiple lists combinable
-- **GoAccess dashboard** inside the interface, for logged-in admins only
+- **GoAccess dashboard** on port 91, without its own login — bound to `127.0.0.1` by default, reached through a proxy host with an access list
 - **zstd and brotli compression**, file and PHP server with fancyindex
 - Logs to `/share/npmplus/logs` and/or the add-on log — matching both CrowdSec acquisition styles
 
@@ -40,6 +40,8 @@ The interface certificate is self-signed — the browser warning on first access
 | `initial_admin_password` | – | Its password; empty = random password in the log |
 | `admin_port` | `81` | Web interface port |
 | `logrotate` | `true` | Write and rotate access logs |
+| `goaccess` | `false` | GoAccess dashboard on port 91 |
+| `goaccess_listen_localhost` | `true` | Bind the dashboard to `127.0.0.1` only |
 | `share_logs` | `true` | Mirror logs to `/share/npmplus/logs` |
 | `log_to_stdout` | `true` | Also send the access log to the add-on log (journald) |
 | `crowdsec_enabled` | `false` | Enable the nginx bouncer |

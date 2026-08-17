@@ -54,6 +54,7 @@ ERROR_LOG_LEVEL_OPT=$(opt error_log_level "warn")
 SHARE_LOGS_OPT=$(opt share_logs "true")
 LOG_TO_STDOUT_OPT=$(opt log_to_stdout "true")
 GOA_OPT=$(opt goaccess "false")
+GOA_LOCALHOST_OPT=$(opt goaccess_listen_localhost "true")
 TRUST_IP_OPT=$(opt trust_ip "")
 TRUST_CLOUDFLARE_OPT=$(opt trust_cloudflare "false")
 CS_ENABLED_OPT=$(opt crowdsec_enabled "false")
@@ -79,6 +80,7 @@ export DISABLE_H3_QUIC="$DISABLE_H3_QUIC_OPT"
 export ENABLE_MPTCP="$ENABLE_MPTCP_OPT"
 export TRUST_CLOUDFLARE="$TRUST_CLOUDFLARE_OPT"
 export GOA="$GOA_OPT"
+export GOA_LISTEN_LOCALHOST="$GOA_LOCALHOST_OPT"
 export NGINX_WORKER_PROCESSES="$WORKER_PROCESSES_OPT"
 export NGINX_WORKER_CONNECTIONS="$WORKER_CONNECTIONS_OPT"
 export LOGROTATIONS="$LOGROTATIONS_OPT"
@@ -118,6 +120,21 @@ while IFS= read -r entry; do
             ;;
     esac
 done < <(jq -r '.extra_env // [] | .[]' "$OPTIONS")
+
+# Hinweis erst nach extra_env: wer GOA_LISTEN_LOCALHOST dort selbst setzt, soll
+# auch die passende Adresse genannt bekommen.
+#
+# GoAccess läuft in dieser NPMplus-Version auf einem eigenen HTTPS-Port (91) und
+# nicht unter /goaccess der Oberfläche — und dieser Port kennt keine Anmeldung.
+# Das Dashboard zeigt Besucher-IPs und alle angefragten URLs, deshalb bindet das
+# Add-on es standardmäßig nur an localhost.
+if [ "$GOA" = "true" ]; then
+    if [ "$GOA_LISTEN_LOCALHOST" = "true" ]; then
+        log "GoAccess enabled on 127.0.0.1:91 (HTTPS). Not reachable from the LAN — put a NPMplus proxy host with an access list in front of it, or set goaccess_listen_localhost to false."
+    else
+        warn "GoAccess enabled on 0.0.0.0:91 (HTTPS) WITHOUT authentication — everyone on the LAN can read visitor IPs and requested URLs. Never forward port 91 in your router."
+    fi
+fi
 
 ###############################################################################
 # Logs
