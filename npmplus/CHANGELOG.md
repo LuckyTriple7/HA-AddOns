@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.1.7] - 2026-08-17
+
+- Doku: neuer Abschnitt „Einstellungen je Proxy Host" — alle Schalter des Optionen-Reiters (noindex, AppSec, Buffering, URI-Sanitisation, Host-Header, X-Frame-Options, Auth Request) und des TLS-Reiters (HTTPS erzwingen, HTTP/3, HSTS, Preload-Warnung, Schlüssel beibehalten, DNS-Challenge) mit Empfehlung
+
 ## [0.1.6] - 2026-08-17
 
 - Doku: Abschnitt „Daten und Backup" erweitert — vollständige Pfadtabelle (Datenbank, Zertifikate, Schlüssel, CrowdSec-Konfiguration), Klarstellung dass Add-on-Daten **nicht** über Samba erreichbar sind, und `docker exec`/`docker cp`-Beispiele zum Ansehen und Herauskopieren

@@ -188,6 +188,34 @@ Then **restart** Home Assistant — `http:` is only evaluated at startup.
 
 Alternatively point the proxy host at the internal address `http://172.30.32.1:8123`; the source IP then stays inside the Docker network and the existing list already covers it.
 
+## Per-host settings
+
+### "Options" tab
+
+| Option | Meaning | Recommendation |
+|---|---|---|
+| Send noindex header and block some user agents | Sends `X-Robots-Tag: noindex` and blocks known crawlers | On for private services, off for public websites — otherwise the site disappears from search engines |
+| Disable Crowdsec Appsec | Turns the WAF check off for this host only | Off. Enable only on false positives (e.g. large uploads, WebDAV) |
+| Disable Request Buffering | nginx normally buffers the request body before forwarding it | Off. Useful for very large uploads — with CrowdSec enabled everything is buffered anyway |
+| Disable Response Buffering | The response is passed through immediately instead of collected | Off. Only needed for live streams (server-sent events, running log output) |
+| Enable compression by upstream | Lets the backend compress | Off. NPMplus compresses better with brotli/zstd |
+| Disable URI Sanitisation | nginx no longer normalises the URL | Off. Only if an app needs encoded special characters in the path |
+| Spoof Host Header | Sends the target IP as `Host` instead of the requested domain | Off. Breaks redirects and absolute links in most applications |
+| Enable fancyindex | Directory listing — only relevant when NPMplus serves files itself | No effect on a proxied target |
+| X-Frame-Options | Controls whether the page may be framed | Keep `SAMEORIGIN`; use `none` only if you want to embed the service elsewhere |
+| Auth Request | Login enforced by Authelia, Authentik, tinyauth, oauth2-proxy or Anubis | `none` unless one of those runs. Otherwise also set the matching `AUTH_REQUEST_*_UPSTREAM` variable via `extra_env` |
+
+### "TLS certificates" tab
+
+| Switch | Meaning |
+|---|---|
+| Force HTTPS | Redirects HTTP to HTTPS. The ACME challenge on port 80 is unaffected |
+| HTTP/3 support | Enables QUIC. Only effective if the router forwards 443/UDP — otherwise browsers silently fall back to HTTP/2 |
+| HSTS enabled | Browsers remember: this domain over HTTPS only |
+| HSTS subdomains+preload | **Enable with care.** `includeSubDomains` forces *every* subdomain onto valid HTTPS — a device that only speaks HTTP becomes unreachable in browsers. `preload` aims at inclusion in the browsers' built-in list; removal takes months |
+| Keep key | Reuses the same private key on renewal. Required for DANE/TLSA records, otherwise a matter of taste |
+| Use DNS challenge | Validation via a TXT record instead of port 80. Required behind CGNAT/DS-Lite and for wildcard certificates |
+
 ## Options
 
 | Option | Default | Meaning |

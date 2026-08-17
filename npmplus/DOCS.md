@@ -188,6 +188,34 @@ Danach Home Assistant **neu starten** — `http:` wird nur beim Start ausgewerte
 
 Alternativ im Proxy Host als Ziel die interne Adresse `http://172.30.32.1:8123` eintragen; dann bleibt die Quell-IP im Docker-Netz und die vorhandene Liste passt schon.
 
+## Einstellungen je Proxy Host
+
+### Reiter „Optionen"
+
+| Option | Bedeutung | Empfehlung |
+|---|---|---|
+| Send noindex header and block some user agents | Setzt `X-Robots-Tag: noindex` und blockt bekannte Crawler | Für private Dienste an, für öffentliche Webseiten aus — sonst verschwindet die Seite aus Suchmaschinen |
+| Disable Crowdsec Appsec | Schaltet die WAF-Prüfung nur für diesen Host ab | Aus. Nur bei Fehlalarmen einschalten (z.B. große Uploads, WebDAV) |
+| Disable Request Buffering | nginx puffert den Anfrage-Body normalerweise, bevor er ihn weiterreicht | Aus. Bei sehr großen Uploads sinnvoll — mit aktivem CrowdSec wird ohnehin immer gepuffert |
+| Disable Response Buffering | Antwort wird sofort durchgereicht statt gesammelt | Aus. Nur für Live-Streams nötig (Server-Sent Events, laufende Logausgaben) |
+| Enable compression by upstream | Das Backend darf selbst komprimieren | Aus. NPMplus komprimiert mit brotli/zstd besser |
+| Disable URI Sanitisation | nginx normalisiert die URL nicht mehr | Aus. Nur wenn eine App kodierte Sonderzeichen im Pfad braucht |
+| Spoof Host Header | Schickt die Ziel-IP als `Host` statt der angefragten Domain | Aus. Bricht bei den meisten Anwendungen Weiterleitungen und absolute Links |
+| Enable fancyindex | Verzeichnisauflistung — nur relevant, wenn NPMplus selbst Dateien ausliefert | Bei einem Proxy-Ziel ohne Wirkung |
+| X-Frame-Options | Steuert, ob die Seite in einen iframe darf | `SAMEORIGIN` belassen; auf `none` nur, wenn du den Dienst woanders einbetten willst |
+| Auth Request | Vorgeschalteter Login über Authelia, Authentik, tinyauth, oauth2-proxy oder Anubis | `none`, solange keiner dieser Dienste läuft. Sonst zusätzlich die passende `AUTH_REQUEST_*_UPSTREAM`-Variable über `extra_env` setzen |
+
+### Reiter „TLS-Zertifikate"
+
+| Schalter | Bedeutung |
+|---|---|
+| Erzwinge HTTPS | Leitet HTTP auf HTTPS um. Die ACME-Challenge auf Port 80 bleibt davon unberührt |
+| HTTP/3 Support | Aktiviert QUIC. Wirkt nur, wenn im Router 443/UDP freigegeben ist — sonst fällt der Browser still auf HTTP/2 zurück |
+| HSTS aktiviert | Browser merken sich: diese Domain nur noch über HTTPS |
+| HSTS Subdomains+Preload | **Mit Bedacht einschalten.** `includeSubDomains` zwingt *jede* Subdomain auf gültiges HTTPS — ein Gerät, das nur HTTP kann, ist im Browser dann unerreichbar. `preload` zielt auf die Aufnahme in die fest eingebaute Browser-Liste; die Rücknahme dauert Monate |
+| Schlüssel beibehalten | Bei der Erneuerung bleibt derselbe private Schlüssel. Nötig für DANE/TLSA-Einträge, sonst Geschmackssache |
+| Nutze DNS Challenge | Prüfung über einen TXT-Record statt über Port 80. Nötig hinter CGNAT/DS-Lite, Voraussetzung für Wildcard-Zertifikate |
+
 ## Optionen
 
 | Option | Standard | Bedeutung |
