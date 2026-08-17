@@ -147,6 +147,7 @@
   "tg_star_fork":          "⭐ Stars & forks",
   "tg_security":           "🔴 Security alerts",
   "tg_my_activity":        "👤 My activity (own PRs & issues)",
+  "tg_new_comment":        "💬 New comments (excluding your own)",
   "tg_review_request":     "🔍 Review requested",
   "tg_digest":             "📋 Daily digest (once per day)",
 
@@ -165,6 +166,9 @@
   "comments_new_hint":     "unread comments — opening the panel marks them read",
   "comments_unread_all":   "unread",
   "comments_mark_all_read": "Mark all read",
+  "notif_comment_mine":    "New comment on your {type}",
+  "notif_comment_other":   "New comment on {type}",
+  "notif_comment_count":   "new comments",
 
   "insights_license":      "License",
   "insights_no_license":   "No license",
