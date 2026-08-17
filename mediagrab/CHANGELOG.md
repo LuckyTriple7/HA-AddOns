@@ -1,5 +1,9 @@
 # Changelog — MediaGrab
 
+## [1.1.7] - 2026-08-17
+
+- Doku: Das Image enthält mit ffmpeg und mutagen Software unter GPL, das Add-on gab bisher keine Lizenz an. Neue `LICENSE.md` listet alle mitgelieferten Bestandteile mit Lizenz und Quelltext-Bezugsquelle
+
 ## [1.1.6] — 2026-07-09
 
 ### Fixed

@@ -136,3 +136,7 @@ ps aux | grep coolwsd
 - Reverse proxy must forward WebSocket connections
 
 → [Changelog](CHANGELOG.md)
+
+## Lizenz
+
+Collabora Online steht unter der MPL-2.0, die eigenen Dateien des Add-ons unter der MIT-Lizenz. Einzelheiten und Quellenangaben: [LICENSE.md](LICENSE.md).

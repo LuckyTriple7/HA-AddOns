@@ -344,3 +344,7 @@ That's all it takes to pull the current library version.
 - To log out: use the "Log out" button in the UI, then also remove the device in Signal under Linked Devices
 - "Delete for everyone" requires a recent version of signal-cli-rest-api; older versions only delete locally
 - The sidebar icon (`phu:signal`) requires [custom-brand-icons](https://github.com/elax46/custom-brand-icons)
+
+## Lizenz
+
+signal-cli steht unter der GPL-3.0 und libsignal unter der AGPL-3.0; die Chat-Oberfläche und die übrigen eigenen Dateien stehen unter der MIT-Lizenz. Einzelheiten und Quellenangaben: [LICENSE.md](LICENSE.md).

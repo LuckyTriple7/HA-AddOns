@@ -1,5 +1,9 @@
 # Changelog — phpMyAdmin Maria DB 2
 
+## [1.0.5] - 2026-08-17
+
+- Doku: phpMyAdmin steht unter der GPL-2.0, das Add-on gab bisher keine Lizenz an. Neue `LICENSE.md` nennt Lizenz und Bezugsquelle des Quelltextes und grenzt die eigenen MIT-Dateien davon ab
+
 ## [1.0.4] - 2026-06-04
 
 ### Fixed
