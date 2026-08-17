@@ -2,6 +2,12 @@
 
 English version from 1.3.0 onwards: [Changelog (English)](#changelog-english)
 
+## [1.3.19] - 2026-08-17
+
+### Changed
+- Rebuild für Claude Code 2.1.224
+
+
 ## [1.3.18] - 2026-08-16
 
 ### Changed
