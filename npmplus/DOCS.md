@@ -188,6 +188,37 @@ docker exec <crowdsec-container> cscli -c /config/.storage/crowdsec/config/confi
 
 Unter **Acquisition Metrics** muss die npmplus-Quelle stehen und `lines read` steigen.
 
+### 7. Captcha statt harter Sperre (optional)
+
+Der Bouncer kann verdächtige Besucher ein Rätsel lösen lassen, statt sie auszusperren. Nützlich bei Verdachtsfällen, die auch echte Nutzer treffen können.
+
+Unterstützt werden **Turnstile** (Cloudflare, kostenlos, ohne Nutzerprofilbildung — empfohlen), **hCaptcha** und **reCAPTCHA**. Schlüsselpaar beim jeweiligen Anbieter erzeugen und eintragen:
+
+```yaml
+crowdsec_captcha_provider: turnstile
+crowdsec_captcha_site_key: "0x4AAA…"
+crowdsec_captcha_secret_key: "0x4AAA…"
+```
+
+> **Wichtig:** Damit überhaupt ein Captcha erscheint, muss CrowdSec Entscheidungen vom Typ `captcha` ausstellen. Standardmäßig erzeugt es `ban`. Das steuert die `profiles.yaml` in der CrowdSec-Konfiguration, z.B.:
+> ```yaml
+> name: captcha_remediation
+> filters:
+>   - Alert.Remediation == true && Alert.GetScenario() contains "http-crawl"
+> decisions:
+>   - type: captcha
+>     duration: 4h
+> ```
+> Ohne diese Anpassung bleibt jede Sperre eine harte Sperre, egal welche Schlüssel eingetragen sind.
+
+Zum Testen eine Captcha-Entscheidung für die eigene IP setzen:
+
+```sh
+docker exec $CS cscli -c $CFG decisions add --ip <deine-ip> --duration 5m --type captcha
+```
+
+Das Aussehen der Seite lässt sich über `/data/crowdsec/captcha.html` anpassen; die unveränderte Vorlage liegt daneben als `captcha.html.example`.
+
 ### Prüfbefehle auf einen Blick
 
 Alle Befehle im Terminal-Add-on mit Docker-Zugriff. `CS` ist der CrowdSec-Container, `NP` der von NPMplus.
@@ -311,6 +342,9 @@ Alternativ im Proxy Host als Ziel die interne Adresse `http://172.30.32.1:8123` 
 | `crowdsec_lapi_url` | `http://127.0.0.1:8080` | CrowdSec Local API |
 | `crowdsec_api_key` | – | Bouncer-Schlüssel aus `cscli bouncers add` |
 | `crowdsec_appsec_url` | `http://127.0.0.1:7422` | AppSec/WAF-Endpunkt |
+| `crowdsec_captcha_provider` | – | `turnstile`, `hcaptcha` oder `recaptcha`; leer = aus |
+| `crowdsec_captcha_site_key` | – | Öffentlicher Schlüssel des Anbieters |
+| `crowdsec_captcha_secret_key` | – | Geheimer Schlüssel des Anbieters |
 | `nginx_worker_processes` | `auto` | Anzahl nginx-Worker |
 | `nginx_worker_connections` | `512` | Verbindungen je Worker |
 | `cookie_secret` | – | Fester Schlüssel für Anmelde-Cookies |

@@ -68,6 +68,15 @@ configuration:
   crowdsec_appsec_url:
     name: CrowdSec AppSec-URL
     description: Adresse des AppSec/WAF-Endpunkts, z.B. http://127.0.0.1:7422. Leer lassen, wenn AppSec nicht läuft.
+  crowdsec_captcha_provider:
+    name: Captcha-Anbieter
+    description: Zeigt bei Entscheidungen vom Typ "captcha" eine Rätselseite statt einer harten Sperre. Leer lassen schaltet Captcha ab. Turnstile von Cloudflare ist kostenlos und ohne Nutzerprofilbildung.
+  crowdsec_captcha_site_key:
+    name: Captcha Site-Key
+    description: Öffentlicher Schlüssel des gewählten Anbieters.
+  crowdsec_captcha_secret_key:
+    name: Captcha Secret-Key
+    description: Geheimer Schlüssel des gewählten Anbieters.
   nginx_worker_processes:
     name: nginx Worker-Prozesse
     description: Anzahl der nginx-Worker. Standard "auto" entspricht der Anzahl CPU-Kerne.

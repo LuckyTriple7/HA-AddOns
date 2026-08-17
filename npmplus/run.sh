@@ -60,6 +60,9 @@ CS_ENABLED_OPT=$(opt crowdsec_enabled "false")
 CS_LAPI_OPT=$(opt_trim crowdsec_lapi_url "http://127.0.0.1:8080")
 CS_KEY_OPT=$(opt_trim crowdsec_api_key "")
 CS_APPSEC_OPT=$(opt_trim crowdsec_appsec_url "http://127.0.0.1:7422")
+CS_CAPTCHA_PROVIDER_OPT=$(opt_trim crowdsec_captcha_provider "")
+CS_CAPTCHA_SITE_OPT=$(opt_trim crowdsec_captcha_site_key "")
+CS_CAPTCHA_SECRET_OPT=$(opt_trim crowdsec_captcha_secret_key "")
 WORKER_PROCESSES_OPT=$(opt nginx_worker_processes "auto")
 WORKER_CONNECTIONS_OPT=$(opt nginx_worker_connections "512")
 COOKIE_SECRET_OPT=$(opt cookie_secret "")
@@ -238,6 +241,22 @@ if [ "$CS_ENABLED_OPT" = "true" ]; then
                 set_conf API_URL "$CS_LAPI_OPT"
                 set_conf API_KEY "$CS_KEY_OPT"
                 set_conf APPSEC_URL "$CS_APPSEC_OPT"
+                # Captcha statt harter Sperre. Wirkt nur bei Entscheidungen vom
+                # Typ "captcha" — die muss CrowdSec über seine profiles.yaml
+                # ausstellen, sonst bleibt ein Ban ein Ban.
+                if [ -n "$CS_CAPTCHA_PROVIDER_OPT" ]; then
+                    if [ -n "$CS_CAPTCHA_SITE_OPT" ] && [ -n "$CS_CAPTCHA_SECRET_OPT" ]; then
+                        set_conf CAPTCHA_PROVIDER "$CS_CAPTCHA_PROVIDER_OPT"
+                        set_conf SITE_KEY "$CS_CAPTCHA_SITE_OPT"
+                        set_conf SECRET_KEY "$CS_CAPTCHA_SECRET_OPT"
+                        log "Captcha enabled (${CS_CAPTCHA_PROVIDER_OPT})"
+                    else
+                        set_conf CAPTCHA_PROVIDER ""
+                        warn "crowdsec_captcha_provider is set but site key or secret key is missing — captcha disabled"
+                    fi
+                else
+                    set_conf CAPTCHA_PROVIDER ""
+                fi
                 log "CrowdSec bouncer active against ${CS_LAPI_OPT} (AppSec: ${CS_APPSEC_OPT:-off})"
                 ;;
             403|401)

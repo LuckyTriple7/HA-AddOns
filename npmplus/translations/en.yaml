@@ -68,6 +68,15 @@ configuration:
   crowdsec_appsec_url:
     name: CrowdSec AppSec URL
     description: Address of the AppSec/WAF endpoint, e.g. http://127.0.0.1:7422. Leave empty if AppSec is not running.
+  crowdsec_captcha_provider:
+    name: Captcha provider
+    description: Shows a challenge page instead of a hard block for decisions of type "captcha". Leave empty to disable. Cloudflare Turnstile is free and does not profile users.
+  crowdsec_captcha_site_key:
+    name: Captcha site key
+    description: Public key of the chosen provider.
+  crowdsec_captcha_secret_key:
+    name: Captcha secret key
+    description: Secret key of the chosen provider.
   nginx_worker_processes:
     name: nginx worker processes
     description: Number of nginx workers. Default "auto" matches the CPU core count.

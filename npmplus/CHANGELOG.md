@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.1.15] - 2026-08-17
+
+- Neue Optionen `crowdsec_captcha_provider`, `crowdsec_captcha_site_key` und `crowdsec_captcha_secret_key`: der Bouncer kann verdächtige Besucher ein Captcha lösen lassen statt sie auszusperren (Turnstile, hCaptcha, reCAPTCHA). Ohne Schlüssel bleibt Captcha aus — das erklärt auch die bisherige Logzeile „error loading captcha plugin"
+- Doku: eigener Abschnitt dazu, samt Hinweis, dass CrowdSec über seine `profiles.yaml` erst Entscheidungen vom Typ `captcha` ausstellen muss
+
 ## [0.1.14] - 2026-08-17
 
 - Doku: Hinweis ergänzt, dass nicht nur Home Assistant, sondern jeder Dienst hinter NPMplus mit Proxy-Prüfung die LAN-IP der Maschine in seiner Liste vertrauenswürdiger Proxys braucht — betrifft z.B. Nextcloud

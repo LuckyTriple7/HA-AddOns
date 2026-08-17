@@ -186,6 +186,37 @@ docker exec <crowdsec-container> cscli -c /config/.storage/crowdsec/config/confi
 
 Under **Acquisition Metrics** the npmplus source must appear with a rising `lines read`.
 
+### 7. Captcha instead of a hard block (optional)
+
+The bouncer can make suspicious visitors solve a challenge instead of locking them out — useful for borderline cases that may also hit real users.
+
+Supported providers are **Turnstile** (Cloudflare, free, no user profiling — recommended), **hCaptcha** and **reCAPTCHA**. Create a key pair at the provider and fill in:
+
+```yaml
+crowdsec_captcha_provider: turnstile
+crowdsec_captcha_site_key: "0x4AAA…"
+crowdsec_captcha_secret_key: "0x4AAA…"
+```
+
+> **Important:** a captcha only appears if CrowdSec issues decisions of type `captcha`. By default it issues `ban`. That is controlled by `profiles.yaml` in the CrowdSec configuration, for example:
+> ```yaml
+> name: captcha_remediation
+> filters:
+>   - Alert.Remediation == true && Alert.GetScenario() contains "http-crawl"
+> decisions:
+>   - type: captcha
+>     duration: 4h
+> ```
+> Without that change every decision stays a hard block, no matter which keys are configured.
+
+To test, issue a captcha decision for your own IP:
+
+```sh
+docker exec $CS cscli -c $CFG decisions add --ip <your-ip> --duration 5m --type captcha
+```
+
+The page itself can be customised in `/data/crowdsec/captcha.html`; the untouched template sits next to it as `captcha.html.example`.
+
 ### Diagnostics at a glance
 
 Run everything in a terminal add-on with Docker access. `CS` is the CrowdSec container, `NP` the NPMplus one.
@@ -309,6 +340,9 @@ Alternatively point the proxy host at the internal address `http://172.30.32.1:8
 | `crowdsec_lapi_url` | `http://127.0.0.1:8080` | CrowdSec Local API |
 | `crowdsec_api_key` | – | Bouncer key from `cscli bouncers add` |
 | `crowdsec_appsec_url` | `http://127.0.0.1:7422` | AppSec/WAF endpoint |
+| `crowdsec_captcha_provider` | – | `turnstile`, `hcaptcha` or `recaptcha`; empty = off |
+| `crowdsec_captcha_site_key` | – | Public key of the provider |
+| `crowdsec_captcha_secret_key` | – | Secret key of the provider |
 | `nginx_worker_processes` | `auto` | Number of nginx workers |
 | `nginx_worker_connections` | `512` | Connections per worker |
 | `cookie_secret` | – | Static key for login cookies |
