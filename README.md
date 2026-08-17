@@ -18,6 +18,12 @@ Oder manuell in Home Assistant:
 https://github.com/LuckyTriple7/HA-AddOns
 ```
 
+## Lizenzen
+
+Die Dateien dieses Repositories — Manifeste, Dockerfiles, Entrypoints, Übersetzungen, Symbole und Dokumentation — stehen unter der [MIT-Lizenz](LICENSE).
+
+Die veröffentlichten Container-Images enthalten darüber hinaus fremde Software, die ihre eigenen Lizenzen behält, teilweise mit Copyleft. Bringt eine App solche Bestandteile mit, liegt in ihrem Verzeichnis eine `LICENSE.md` mit den Einzelheiten — für diese Images gilt dann die Lizenz der enthaltenen Anwendung, nicht die MIT-Lizenz.
+
 ## Architektur
 
 | Add-on | amd64 | aarch64 | Linux |

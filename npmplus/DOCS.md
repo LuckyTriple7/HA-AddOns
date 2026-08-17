@@ -469,4 +469,10 @@ Ein Home-Assistant-Backup des Add-ons enthält `/data` vollständig, inklusive D
 
 ## Lizenz
 
-NPMplus steht unter der [AGPL-3.0-or-later](https://github.com/ZoeyVid/NPMplus/blob/develop/LICENSE) und basiert auf dem MIT-lizenzierten nginx-proxy-manager. Dieses Add-on ist nur eine Verpackung des offiziellen Images `zoeyvid/npmplus` — es verändert die Anwendung nicht.
+NPMplus steht unter der [AGPL-3.0-or-later](https://github.com/ZoeyVid/NPMplus/blob/develop/COPYING) und basiert auf dem MIT-lizenzierten nginx-proxy-manager.
+
+Dieses Add-on baut auf dem offiziellen Image `zoeyvid/npmplus` auf (gepinnt in [Dockerfile](https://github.com/LuckyTriple7/HA-AddOns/blob/dev/npmplus/Dockerfile)) und **ersetzt dessen Entrypoint** durch `run.sh`, damit die Add-on-Optionen als Umgebungsvariablen ankommen. Die Anwendung selbst wird nicht verändert, es kommt kein RUN-Layer hinzu.
+
+Das veröffentlichte Image `ghcr.io/luckytriple7/npmplus` enthält damit eine geänderte AGPL-Arbeit und steht als Ganzes unter der **AGPL-3.0-or-later**. Die eigenen Dateien des Add-ons stehen unter der MIT-Lizenz. Einzelheiten und Quellenangaben: [LICENSE.md](https://github.com/LuckyTriple7/HA-AddOns/blob/dev/npmplus/LICENSE.md).
+
+Fehlerberichte: alles rund um `run.sh`, Optionen und Doku gehört in [dieses Repository](https://github.com/LuckyTriple7/HA-AddOns/issues); Fehler in NPMplus selbst bittet das Projekt zuerst [dort](https://github.com/ZoeyVid/NPMplus/issues) zu melden, nicht beim ursprünglichen nginx-proxy-manager.

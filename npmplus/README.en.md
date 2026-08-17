@@ -63,4 +63,4 @@ See [CHANGELOG.md](https://github.com/LuckyTriple7/HA-AddOns/blob/dev/npmplus/CH
 
 ## License
 
-NPMplus is licensed under AGPL-3.0-or-later and is based on the MIT-licensed nginx-proxy-manager. This add-on only packages the official `zoeyvid/npmplus` image.
+NPMplus is licensed under [AGPL-3.0-or-later](https://github.com/ZoeyVid/NPMplus/blob/develop/COPYING) and is based on the MIT-licensed nginx-proxy-manager. This add-on builds on the official `zoeyvid/npmplus` image and replaces its entrypoint; the application itself is unchanged. Details in [LICENSE.md](https://github.com/LuckyTriple7/HA-AddOns/blob/dev/npmplus/LICENSE.md).
