@@ -138,6 +138,7 @@ if [ "$LOG_TO_STDOUT_OPT" = "true" ]; then
     # -F statt -f: die Dateien werden von logrotate ersetzt, tail muss dem
     # Namen folgen und nicht dem alten Filedeskriptor.
     tail -qn0 -F "$LOG_DIR/access.log" "$LOG_DIR/error.log" 2>/dev/null &
+    TAIL_PID=$!
     log "Access-/Error-Log wird zusätzlich nach stdout gespiegelt (journald)"
 fi
 
@@ -184,12 +185,47 @@ fi
 
 ###############################################################################
 # An das Original-Init übergeben
+#
+# Bewusst kein exec: dieses Skript bleibt PID 1 und fängt SIGTERM selbst ab.
+# Mit exec wäre tini PID 1 und stürbe am Signal — der Container endete dann mit
+# Exit-Code 143, was der Supervisor als "App hat SIGTERM nicht behandelt"
+# meldet. Außerdem bekäme der tail-Prozess für die Log-Spiegelung so nie ein
+# Signal, weil tini nur an sein eigenes Kind weiterreicht.
+#
+# tini läuft mit -g, damit das Signal an die ganze Prozessgruppe von NPMplus
+# geht und nicht nur an entrypoint.sh.
 ###############################################################################
 log "NPMplus startet — UI auf https://<HA-IP>:${ADMIN_PORT_OPT}"
 
 TINI=$(command -v tini || true)
 if [ -n "$TINI" ]; then
-    exec "$TINI" -- entrypoint.sh
+    "$TINI" -g -- entrypoint.sh &
+else
+    warn "tini nicht gefunden — starte entrypoint.sh direkt"
+    entrypoint.sh &
 fi
-warn "tini nicht gefunden — starte entrypoint.sh direkt"
-exec entrypoint.sh
+APP_PID=$!
+
+_term() {
+    log "SIGTERM empfangen, stoppe NPMplus..."
+    kill -TERM "$APP_PID" 2>/dev/null || true
+    [ -n "${TAIL_PID:-}" ] && kill -TERM "$TAIL_PID" 2>/dev/null || true
+    # nginx braucht einen Moment, um offene Verbindungen zu schließen.
+    wait "$APP_PID" 2>/dev/null || true
+    log "NPMplus beendet"
+    exit 0
+}
+trap _term SIGTERM SIGINT
+
+# errexit hier aus: ein Exit-Code ungleich 0 soll ausgewertet und nicht
+# stillschweigend durchgereicht werden, bevor die Warnung im Log steht.
+set +e
+wait "$APP_PID"
+APP_EXIT=$?
+set -e
+
+# Ohne Signal hierher zu kommen heißt: NPMplus ist von sich aus gestorben.
+# Den Exit-Code durchreichen, damit der Watchdog des Supervisors greift.
+warn "NPMplus wurde ohne Stopp-Anforderung beendet (Exit-Code ${APP_EXIT})"
+[ -n "${TAIL_PID:-}" ] && kill -TERM "$TAIL_PID" 2>/dev/null || true
+exit "$APP_EXIT"

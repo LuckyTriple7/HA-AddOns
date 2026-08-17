@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.2] - 2026-08-17
+
+- Fix: Add-on beendete sich mit Exit-Code 143, Supervisor meldete „did not handle SIGTERM". `run.sh` übergab per `exec` an tini, damit war tini PID 1 und starb am Signal statt sauber mit 0 zu enden. Jetzt bleibt `run.sh` PID 1, fängt SIGTERM/SIGINT ab, reicht ihn weiter, wartet auf das Ende von NPMplus und beendet sich mit 0
+- Fix: der `tail`-Prozess der Log-Spiegelung war verwaist und bekam nie ein Signal — wird jetzt beim Stoppen mit beendet
+- tini läuft mit `-g`, das Signal geht damit an die gesamte Prozessgruppe statt nur an `entrypoint.sh`
+- Stirbt NPMplus von sich aus, wird der Exit-Code jetzt durchgereicht statt verschluckt
+
 ## [0.1.1] - 2026-08-17
 
 - Fix: Sprachumschalter und Verweise auf DOCS/CHANGELOG waren relative Links und damit in der Home-Assistant-Oberfläche tot — HA rendert Markdown ohne Repo-Bezug. Jetzt absolute GitHub-URLs
