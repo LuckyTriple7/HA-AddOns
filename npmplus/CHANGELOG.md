@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.1.9] - 2026-08-17
+
+- Fix: Bouncer-Key, LAPI- und AppSec-URL werden jetzt von Leerraum und Zeilenenden befreit. Ein aus Datei oder Terminal kopierter Wert schleppt leicht ein `\r` oder ein abschließendes Leerzeichen mit — im HTTP-Header macht das den Schlüssel ungültig, ohne dass man es sehen kann
+- Startprüfung fragt zusätzlich `/v1/decisions/stream` ab und schickt einen eigenen User-Agent mit, damit sie nicht an einer einzelnen Endpunkt-Eigenheit scheitert
+- Wird der Schlüssel abgelehnt, nennt die Warnung jetzt seine Länge (cscli erzeugt 44 Zeichen) — damit fällt ein abgeschnittener Wert sofort auf
+
 ## [0.1.8] - 2026-08-17
 
 - Fix: tini warnte beim Start „Tini is not running as PID 1 and isn't registered as a child subreaper". Da run.sh seit 0.1.2 PID 1 bleibt, läuft tini jetzt mit `-s` und registriert sich als child subreaper — verwaiste Prozesse werden damit wieder abgeräumt

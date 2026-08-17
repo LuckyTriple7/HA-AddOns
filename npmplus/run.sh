@@ -13,6 +13,19 @@ warn() { echo "[WARN] [$(date '+%Y-%m-%d %H:%M:%S')] $*"; }
 # false gesetzter Schalter käme damit als sein eigener Standardwert zurück.
 opt() { jq -r --arg k "$1" --arg d "$2" 'if has($k) and (.[$k] != null) then .[$k] else $d end' "$OPTIONS"; }
 
+# Zeilenenden und Leerraum entfernen. Wer einen Schlüssel oder eine URL aus
+# einer Datei oder einem Terminal kopiert, hat schnell ein \r oder ein
+# abschließendes Leerzeichen mit im Wert — im HTTP-Header macht das den
+# Schlüssel ungültig, ohne dass man es irgendwo sehen könnte.
+trim() {
+    local v="${1//$'\r'/}"
+    v="${v//$'\n'/}"
+    v="${v#"${v%%[![:space:]]*}"}"
+    v="${v%"${v##*[![:space:]]}"}"
+    printf '%s' "$v"
+}
+opt_trim() { trim "$(opt "$1" "$2")"; }
+
 # Nur exportieren, wenn der Wert nicht leer ist. NPMplus prüft viele Envs auf
 # "gesetzt oder nicht" und nicht auf den Inhalt — ein leerer String ist dort
 # etwas anderes als eine fehlende Variable.
@@ -43,9 +56,9 @@ GOA_OPT=$(opt goaccess "false")
 TRUST_IP_OPT=$(opt trust_ip "")
 TRUST_CLOUDFLARE_OPT=$(opt trust_cloudflare "false")
 CS_ENABLED_OPT=$(opt crowdsec_enabled "false")
-CS_LAPI_OPT=$(opt crowdsec_lapi_url "http://127.0.0.1:8080")
-CS_KEY_OPT=$(opt crowdsec_api_key "")
-CS_APPSEC_OPT=$(opt crowdsec_appsec_url "http://127.0.0.1:7422")
+CS_LAPI_OPT=$(opt_trim crowdsec_lapi_url "http://127.0.0.1:8080")
+CS_KEY_OPT=$(opt_trim crowdsec_api_key "")
+CS_APPSEC_OPT=$(opt_trim crowdsec_appsec_url "http://127.0.0.1:7422")
 WORKER_PROCESSES_OPT=$(opt nginx_worker_processes "auto")
 WORKER_CONNECTIONS_OPT=$(opt nginx_worker_connections "512")
 COOKIE_SECRET_OPT=$(opt cookie_secret "")
@@ -197,11 +210,17 @@ fi
 # laut warnen, als alles auszusperren.
 check_lapi() {
     local url="$1" key="$2" code
-    # curl schreibt bei Verbindungsfehlern selbst "000" — kein zusätzliches
-    # echo im Fehlerfall, sonst stünde dort "000000".
-    code=$(curl -s -o /dev/null -m 5 -w '%{http_code}' \
-        -H "X-Api-Key: ${key}" \
-        "${url%/}/v1/decisions?ip=127.0.0.1" 2>/dev/null || true)
+    for path in "/v1/decisions?ip=127.0.0.1" "/v1/decisions/stream?startup=true"; do
+        # curl schreibt bei Verbindungsfehlern selbst "000" — kein zusätzliches
+        # echo im Fehlerfall, sonst stünde dort "000000".
+        code=$(curl -s -o /dev/null -m 5 -w '%{http_code}' \
+            -H "X-Api-Key: ${key}" \
+            -A "npmplus-addon/1.0" \
+            "${url%/}${path}" 2>/dev/null || true)
+        case "${code:-000}" in
+            200|404) printf '%s' "$code"; return 0 ;;
+        esac
+    done
     printf '%s' "${code:-000}"
 }
 
@@ -222,7 +241,8 @@ if [ "$CS_ENABLED_OPT" = "true" ]; then
             403|401)
                 set_conf ENABLED false
                 warn "CrowdSec lehnt den Bouncer-Key ab (HTTP ${CS_CODE}) — Bouncer bleibt AUS."
-                warn "Neuen Schlüssel erzeugen: cscli bouncers add npmplus"
+                warn "Eingetragener Schlüssel: ${#CS_KEY_OPT} Zeichen (cscli erzeugt 44)."
+                warn "Neuen Schlüssel erzeugen: cscli bouncers add npmplus -o raw"
                 ;;
             000)
                 set_conf ENABLED false
