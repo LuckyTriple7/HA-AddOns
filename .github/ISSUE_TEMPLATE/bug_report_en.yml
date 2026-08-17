@@ -26,6 +26,8 @@ body:
         - GitPulse
         - MyPage
         - TUIWatch
+        - LogPulse
+        - NPMplus
         - Other
     validations:
       required: true
