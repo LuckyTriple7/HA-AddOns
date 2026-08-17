@@ -104,28 +104,89 @@ labels:
 
 ### 4. Bouncer registrieren
 
-Im CrowdSec-Add-on:
+Der Bouncer braucht einen Schlüssel aus **deiner** CrowdSec-Instanz. Ohne gültigen Schlüssel antwortet AppSec mit HTTP 403 — und 403 heißt im AppSec-Protokoll „sperren". Ein falscher Schlüssel würde also jede Anfrage blockieren. Das Add-on prüft ihn deshalb beim Start und startet im Zweifel ohne Bouncer.
+
+Containernamen ermitteln (im Terminal-Add-on mit Docker-Zugriff):
 
 ```sh
-cscli bouncers add npmplus
+docker ps --format '{{.Names}}' | grep -iE 'crowdsec|npmplus'
 ```
 
-Den ausgegebenen Schlüssel in die Add-on-Optionen eintragen:
+Schlüssel erzeugen:
+
+```sh
+docker exec <crowdsec-container> cscli bouncers add npmplus
+```
+
+Der Schlüssel wird **einmalig** angezeigt und ist danach nicht mehr abrufbar. Existiert der Name schon, vorher `cscli bouncers delete npmplus`.
+
+### 5. Adresse von CrowdSec bestimmen
+
+`http://127.0.0.1:8080` stimmt nur, wenn CrowdSec seine Ports auf den Host legt. Läuft es als gewöhnliches Add-on im Docker-Netz, ist `127.0.0.1` aus Sicht von NPMplus der Host — und dort lauscht niemand. Ergebnis: `connection refused`.
+
+Container-IP ermitteln:
+
+```sh
+docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}' <crowdsec-container>
+```
+
+Damit dann in den Add-on-Optionen:
 
 ```yaml
 crowdsec_enabled: true
 crowdsec_api_key: "<Schlüssel aus cscli>"
-crowdsec_lapi_url: "http://127.0.0.1:8080"
-crowdsec_appsec_url: "http://127.0.0.1:7422"
+crowdsec_lapi_url: "http://172.30.33.22:8080"
+crowdsec_appsec_url: "http://172.30.33.22:7422"
 ```
 
-NPMplus neu starten. Im Protokoll erscheint `CrowdSec-Bouncer aktiv gegen …`.
+> Container-IPs können sich nach einem Update des CrowdSec-Add-ons ändern. Bietet dessen Konfiguration ein Port-Mapping auf den Host an, ist das die stabilere Wahl — dann passt `127.0.0.1`.
 
-> Läuft CrowdSec in einem eigenen Container ohne Host-Netzwerk, ist `127.0.0.1` falsch — dann die IP des Hosts oder des CrowdSec-Containers eintragen und dort die Ports 8080 und 7422 freigeben. Die Container-IP findest du mit `docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}' <crowdsec-container>`.
+> Läuft AppSec nicht (kein `appsec`-Block in der Acquisition), muss `crowdsec_appsec_url` **leer** bleiben.
 
-> Das Add-on prüft den Schlüssel beim Start. Wird er abgelehnt oder ist CrowdSec nicht erreichbar, startet NPMplus ohne Bouncer und schreibt eine Warnung ins Protokoll — sonst würde AppSec jede Anfrage mit 403 beantworten und damit alle Dienste sperren.
+### 6. Kontrollieren
 
-> Mit aktivem CrowdSec puffert nginx alle Anfragen. `proxy_request_buffering off` wirkt dann nicht mehr.
+NPMplus neu starten. Im Protokoll steht genau eine der beiden Zeilen:
+
+```
+[INFO] CrowdSec-Bouncer aktiv gegen http://…
+[WARN] CrowdSec lehnt den Bouncer-Key ab (HTTP 403) — Bouncer bleibt AUS.
+```
+
+Auf der CrowdSec-Seite prüfen, ob der Bouncer registriert ist und Entscheidungen abholt:
+
+```sh
+docker exec <crowdsec-container> cscli bouncers list
+```
+
+`npmplus` muss dort stehen und unter „Last API pull" einen aktuellen Zeitstempel haben. Ist die Liste leer, wurde der Schlüssel nie angelegt — dann Schritt 4 wiederholen.
+
+Ob Logzeilen ankommen:
+
+```sh
+docker exec <crowdsec-container> cscli metrics
+```
+
+Unter **Acquisition Metrics** muss die npmplus-Quelle stehen und `lines read` steigen.
+
+## Home Assistant hinter NPMplus
+
+Home Assistant beantwortet Anfragen von einem unbekannten Proxy mit **400 Bad Request**. NPMplus läuft im Host-Netz und hat damit keine eigene Container-Adresse — die Anfragen kommen mit der LAN-IP der Maschine an, nicht aus dem `172.30.x.x`-Netz. Ein Eintrag, der für ein Add-on im Bridge-Netz gepasst hat, greift hier also nicht.
+
+In **Einstellungen → System → Netzwerk** unter „X-Forwarded-For vertrauen" oder in der `configuration.yaml`:
+
+```yaml
+http:
+  use_x_forwarded_for: true
+  trusted_proxies:
+    - 127.0.0.1
+    - ::1
+    - 192.168.178.200   # LAN-IP der Home-Assistant-Maschine
+    - 172.30.32.0/23
+```
+
+Danach Home Assistant **neu starten** — `http:` wird nur beim Start ausgewertet.
+
+Alternativ im Proxy Host als Ziel die interne Adresse `http://172.30.32.1:8123` eintragen; dann bleibt die Quell-IP im Docker-Netz und die vorhandene Liste passt schon.
 
 ## Optionen
 
@@ -176,11 +237,19 @@ Ein Home-Assistant-Backup dieses Add-ons enthält damit **auch die privaten Schl
 
 **Add-on startet nicht, Port belegt** — es läuft noch ein anderer Proxy (altes NGINX-Add-on, Caddy, Traefik). Erst stoppen.
 
+**Zertifikat lässt sich nicht ausstellen, Fehler nennt eine IPv6-Adresse** — existiert für die Domain ein AAAA-Record, versucht Let's Encrypt zuerst IPv6. Zeigt der Record auf ein Gerät, das nicht antwortet, scheitert die Prüfung, egal wie gut IPv4 eingerichtet ist. Prüfen mit `dig +short AAAA <domain>`; wenn du IPv6 nicht betreibst, den Record beim DNS-Anbieter löschen. Achtung: Subdomains haben eigene Records, nur CNAMEs erben. Und der DynDNS-Updater darf keine IPv6 mehr melden, sonst steht der Record beim nächsten Lauf wieder da.
+
+> IPv6 im Router oder im Add-on abzuschalten hilft **nicht** — entscheidend ist allein der DNS-Eintrag.
+
 **Zertifikat lässt sich nicht ausstellen** — Port 80 muss aus dem Internet erreichbar sein und die Domain per DNS auf deine öffentliche IP zeigen. Bei CGNAT oder blockiertem Port 80 hilft nur die DNS-Challenge.
+
+**Alle Seiten liefern die CrowdSec-Sperrseite** — der Bouncer erreicht CrowdSec nicht oder der Schlüssel wird abgelehnt. Ab Version 0.1.4 verhindert die Startprüfung das; bei älteren Ständen `crowdsec_enabled` ausschalten und neu starten.
 
 **Falsche Client-IPs in den Logs** — steht ein weiterer Proxy oder Cloudflare davor, dessen IPs in `trust_ip` eintragen bzw. `trust_cloudflare` aktivieren.
 
 **CrowdSec sieht keine Angriffe** — Reihenfolge prüfen: `logrotate` an, Logs kommen an (Variante A oder B), Collection `ZoeyVid/npmplus` installiert, `cscli metrics` zeigt die Acquisition.
+
+**400 Bad Request bei Home Assistant** — siehe Abschnitt „Home Assistant hinter NPMplus".
 
 **Anmeldung nach jedem Neustart weg** — `cookie_secret` auf einen festen Zufallswert setzen.
 

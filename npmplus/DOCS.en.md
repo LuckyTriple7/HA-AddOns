@@ -104,28 +104,89 @@ labels:
 
 ### 4. Register the bouncer
 
-In the CrowdSec add-on:
+The bouncer needs a key from **your** CrowdSec instance. Without a valid key AppSec answers with HTTP 403 — and 403 means "block" in the AppSec protocol. A wrong key would therefore block every single request. The add-on verifies the key at startup and starts without the bouncer if anything is off.
+
+Find the container names (in a terminal add-on with Docker access):
 
 ```sh
-cscli bouncers add npmplus
+docker ps --format '{{.Names}}' | grep -iE 'crowdsec|npmplus'
 ```
 
-Put the returned key into the add-on options:
+Create the key:
+
+```sh
+docker exec <crowdsec-container> cscli bouncers add npmplus
+```
+
+The key is shown **once** and cannot be retrieved later. If the name already exists, run `cscli bouncers delete npmplus` first.
+
+### 5. Determine the CrowdSec address
+
+`http://127.0.0.1:8080` is only correct if CrowdSec publishes its ports on the host. If it runs as a regular add-on inside the Docker network, `127.0.0.1` is the host from NPMplus' point of view — and nothing listens there. Result: `connection refused`.
+
+Find the container IP:
+
+```sh
+docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}' <crowdsec-container>
+```
+
+Then in the add-on options:
 
 ```yaml
 crowdsec_enabled: true
 crowdsec_api_key: "<key from cscli>"
-crowdsec_lapi_url: "http://127.0.0.1:8080"
-crowdsec_appsec_url: "http://127.0.0.1:7422"
+crowdsec_lapi_url: "http://172.30.33.22:8080"
+crowdsec_appsec_url: "http://172.30.33.22:7422"
 ```
 
-Restart NPMplus. The log then shows `CrowdSec-Bouncer aktiv gegen …`.
+> Container IPs can change when the CrowdSec add-on is updated. If its configuration offers a port mapping to the host, that is the more stable choice — then `127.0.0.1` is correct.
 
-> If CrowdSec runs in its own container without host networking, `127.0.0.1` is wrong — use the host or container IP and expose ports 8080 and 7422 there. Find the container IP with `docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}' <crowdsec-container>`.
+> If AppSec is not running (no `appsec` block in the acquisition), `crowdsec_appsec_url` must be left **empty**.
 
-> The add-on verifies the key at startup. If it is rejected or CrowdSec is unreachable, NPMplus starts without the bouncer and logs a warning — otherwise AppSec would answer every request with 403 and block all services.
+### 6. Verify
 
-> With CrowdSec enabled nginx always buffers requests. `proxy_request_buffering off` no longer takes effect.
+Restart NPMplus. The log contains exactly one of these lines:
+
+```
+[INFO] CrowdSec-Bouncer aktiv gegen http://…
+[WARN] CrowdSec lehnt den Bouncer-Key ab (HTTP 403) — Bouncer bleibt AUS.
+```
+
+On the CrowdSec side, check that the bouncer is registered and pulling decisions:
+
+```sh
+docker exec <crowdsec-container> cscli bouncers list
+```
+
+`npmplus` must be listed with a recent "Last API pull" timestamp. An empty list means the key was never created — repeat step 4.
+
+To check that log lines arrive:
+
+```sh
+docker exec <crowdsec-container> cscli metrics
+```
+
+Under **Acquisition Metrics** the npmplus source must appear with a rising `lines read`.
+
+## Home Assistant behind NPMplus
+
+Home Assistant answers requests from an unknown proxy with **400 Bad Request**. NPMplus runs on the host network and therefore has no container address of its own — requests arrive with the machine's LAN IP, not from the `172.30.x.x` network. An entry that worked for a bridged add-on does not apply here.
+
+In **Settings → System → Network** under "Trust X-Forwarded-For", or in `configuration.yaml`:
+
+```yaml
+http:
+  use_x_forwarded_for: true
+  trusted_proxies:
+    - 127.0.0.1
+    - ::1
+    - 192.168.178.200   # LAN IP of the Home Assistant machine
+    - 172.30.32.0/23
+```
+
+Then **restart** Home Assistant — `http:` is only evaluated at startup.
+
+Alternatively point the proxy host at the internal address `http://172.30.32.1:8123`; the source IP then stays inside the Docker network and the existing list already covers it.
 
 ## Options
 
@@ -176,11 +237,19 @@ A Home Assistant backup of this add-on therefore also contains **the private key
 
 **Add-on will not start, port in use** — another proxy is still running (old NGINX add-on, Caddy, Traefik). Stop it first.
 
+**Certificate cannot be issued, the error names an IPv6 address** — if the domain has an AAAA record, Let's Encrypt tries IPv6 first. If that record points at a device that does not answer, validation fails no matter how well IPv4 is set up. Check with `dig +short AAAA <domain>`; if you do not run IPv6, delete the record at your DNS provider. Note that subdomains have their own records — only CNAMEs inherit. And the DynDNS updater must stop reporting IPv6, otherwise the record reappears on its next run.
+
+> Disabling IPv6 in the router or in the add-on does **not** help — only the DNS record matters.
+
 **Certificate cannot be issued** — port 80 must be reachable from the internet and the domain must resolve to your public IP. Behind CGNAT or with port 80 blocked, only the DNS challenge works.
+
+**Every site serves the CrowdSec block page** — the bouncer cannot reach CrowdSec or the key is rejected. Version 0.1.4 and later prevent this at startup; on older versions turn `crowdsec_enabled` off and restart.
 
 **Wrong client IPs in the logs** — if another proxy or Cloudflare sits in front, add its IPs to `trust_ip` or enable `trust_cloudflare`.
 
 **CrowdSec sees no attacks** — check in order: `logrotate` on, logs arriving (option A or B), collection `ZoeyVid/npmplus` installed, `cscli metrics` shows the acquisition.
+
+**400 Bad Request from Home Assistant** — see the section "Home Assistant behind NPMplus".
 
 **Logged out after every restart** — set `cookie_secret` to a fixed random value.
 

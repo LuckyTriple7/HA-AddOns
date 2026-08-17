@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.1.5] - 2026-08-17
+
+- Doku überarbeitet, nachdem die Ersteinrichtung mehrere unbeschriebene Fallen hatte:
+  - CrowdSec-Adresse: `127.0.0.1` stimmt nur bei Port-Mapping auf den Host; sonst Container-IP ermitteln
+  - Bouncer-Registrierung prüfen (`cscli bouncers list`) — eine leere Liste heißt, der Schlüssel wurde nie angelegt
+  - `crowdsec_appsec_url` muss leer bleiben, wenn kein `appsec`-Block in der Acquisition steht
+  - Neuer Abschnitt „Home Assistant hinter NPMplus": 400 Bad Request wegen `trusted_proxies`, da Host-Netz eine andere Quell-IP liefert als ein Add-on im Bridge-Netz
+  - Problembehandlung: AAAA-Record als Ursache fehlschlagender Zertifikate, inklusive Hinweis, dass IPv6 im Router abzuschalten nichts hilft
+
 ## [0.1.4] - 2026-08-17
 
 - Sicherheitsnetz: Der Bouncer-Key wird beim Start gegen die CrowdSec-LAPI geprüft. Antwortet sie mit 401/403 oder ist gar nicht erreichbar, bleibt der Bouncer AUS statt jede Anfrage zu sperren
