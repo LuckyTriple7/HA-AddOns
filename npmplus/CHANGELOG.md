@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.1.8] - 2026-08-17
+
+- Fix: tini warnte beim Start „Tini is not running as PID 1 and isn't registered as a child subreaper". Da run.sh seit 0.1.2 PID 1 bleibt, läuft tini jetzt mit `-s` und registriert sich als child subreaper — verwaiste Prozesse werden damit wieder abgeräumt
+
 ## [0.1.7] - 2026-08-17
 
 - Doku: neuer Abschnitt „Einstellungen je Proxy Host" — alle Schalter des Optionen-Reiters (noindex, AppSec, Buffering, URI-Sanitisation, Host-Header, X-Frame-Options, Auth Request) und des TLS-Reiters (HTTPS erzwingen, HTTP/3, HSTS, Preload-Warnung, Schlüssel beibehalten, DNS-Challenge) mit Empfehlung

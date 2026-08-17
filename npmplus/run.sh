@@ -250,13 +250,15 @@ fi
 # Signal, weil tini nur an sein eigenes Kind weiterreicht.
 #
 # tini läuft mit -g, damit das Signal an die ganze Prozessgruppe von NPMplus
-# geht und nicht nur an entrypoint.sh.
+# geht und nicht nur an entrypoint.sh. Dazu -s: da tini hier nicht PID 1 ist,
+# muss es sich als child subreaper registrieren, sonst landen verwaiste
+# Prozesse bei diesem Skript und werden nicht abgeräumt.
 ###############################################################################
 log "NPMplus startet — UI auf https://<HA-IP>:${ADMIN_PORT_OPT}"
 
 TINI=$(command -v tini || true)
 if [ -n "$TINI" ]; then
-    "$TINI" -g -- entrypoint.sh &
+    "$TINI" -s -g -- entrypoint.sh &
 else
     warn "tini nicht gefunden — starte entrypoint.sh direkt"
     entrypoint.sh &
