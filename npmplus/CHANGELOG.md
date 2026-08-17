@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.1.17] - 2026-08-17
+
+- Doku: Der Link auf die NPMplus-Lizenz lief ins Leere — die Datei heißt dort `COPYING`, nicht `LICENSE`
+- Doku: Die Aussage „verpackt nur das Image, verändert die Anwendung nicht" war ungenau, der Entrypoint wird ersetzt. Neue `LICENSE.md` beschreibt Art und Umfang der Änderung, trennt die MIT-lizenzierten Add-on-Dateien vom AGPL-Gesamtwerk im veröffentlichten Image und nennt die verwendete NPMplus-Fassung als Quellenangabe
+- Doku: Hinweis, wohin Fehlerberichte gehören — Add-on-Eigenheiten in dieses Repository, NPMplus-Fehler zuerst zum NPMplus-Projekt
+
 ## [0.1.16] - 2026-08-17
 
 - Fix: Die GoAccess-Statistik war unter der dokumentierten Adresse `https://<HA-IP>:81/goaccess` nicht erreichbar, dort kam die Fehlerseite von NPMplus. In der eingesetzten Version läuft GoAccess als eigener HTTPS-Server auf **Port 91**; der Unterpfad in der Oberfläche existiert bisher nur im Entwicklungszweig von NPMplus. Doku, Übersetzungen und Portliste korrigiert
