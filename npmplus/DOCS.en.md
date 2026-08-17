@@ -141,8 +141,9 @@ Restart NPMplus. The log then shows `CrowdSec-Bouncer aktiv gegen …`.
 | `enable_mptcp` | `false` | Multipath TCP |
 | `logrotate` | `true` | Write and rotate access logs |
 | `logrotations` | `3` | How many rotated logs are kept |
+| `error_log_level` | `warn` | From which level nginx writes to the error log |
 | `share_logs` | `true` | Mirror logs to `/share/npmplus/logs` |
-| `log_to_stdout` | `true` | Also send logs to the add-on log (journald) |
+| `log_to_stdout` | `true` | Also send the access log to the add-on log (journald) |
 | `goaccess` | `false` | GoAccess dashboard under `/goaccess` |
 | `trust_ip` | – | Trusted proxy IPs for X-Forwarded-For |
 | `trust_cloudflare` | `false` | Fetch and trust Cloudflare IP ranges |

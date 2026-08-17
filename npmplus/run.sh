@@ -36,6 +36,7 @@ DISABLE_H3_QUIC_OPT=$(opt disable_h3_quic "false")
 ENABLE_MPTCP_OPT=$(opt enable_mptcp "false")
 LOGROTATE_OPT=$(opt logrotate "true")
 LOGROTATIONS_OPT=$(opt logrotations "3")
+ERROR_LOG_LEVEL_OPT=$(opt error_log_level "warn")
 SHARE_LOGS_OPT=$(opt share_logs "true")
 LOG_TO_STDOUT_OPT=$(opt log_to_stdout "true")
 GOA_OPT=$(opt goaccess "false")
@@ -134,12 +135,31 @@ else
 fi
 
 if [ "$LOG_TO_STDOUT_OPT" = "true" ]; then
-    touch "$LOG_DIR/access.log" "$LOG_DIR/error.log" 2>/dev/null || true
+    touch "$LOG_DIR/access.log" 2>/dev/null || true
+    # Bewusst nur das Access-Log: das Error-Log ist die Quelle für CrowdSec
+    # nicht nötig und flutet das Add-on-Protokoll (siehe error_log_level).
     # -F statt -f: die Dateien werden von logrotate ersetzt, tail muss dem
     # Namen folgen und nicht dem alten Filedeskriptor.
-    tail -qn0 -F "$LOG_DIR/access.log" "$LOG_DIR/error.log" 2>/dev/null &
+    tail -qn0 -F "$LOG_DIR/access.log" 2>/dev/null &
     TAIL_PID=$!
-    log "Access-/Error-Log wird zusätzlich nach stdout gespiegelt (journald)"
+    log "Access-Log wird zusätzlich nach stdout gespiegelt (journald)"
+fi
+
+###############################################################################
+# Ausführlichkeit des Error-Logs
+#
+# Mit LOGROTATE=true kommentiert das Upstream-Init die Zeile
+# "#error_log /data/nginx/logs/error.log info;" in seiner nginx.conf ein.
+# Level "info" protokolliert jeden Worker-Wechsel und jedes SIGCHLD — das
+# füllt Protokoll und Datenträger. Deshalb die noch auskommentierte Vorlage
+# hier vorab auf das gewünschte Level setzen, bevor das Init sie aktiviert.
+###############################################################################
+NGINX_CONF=/usr/local/nginx/conf/nginx.conf
+if [ -f "$NGINX_CONF" ]; then
+    sed -i "s|^#error_log /data/nginx/logs/error.log .*;|#error_log /data/nginx/logs/error.log ${ERROR_LOG_LEVEL_OPT};|" "$NGINX_CONF"
+    log "Error-Log-Level: ${ERROR_LOG_LEVEL_OPT}"
+else
+    warn "${NGINX_CONF} nicht gefunden — Error-Log-Level bleibt auf dem Standard des Images"
 fi
 
 ###############################################################################

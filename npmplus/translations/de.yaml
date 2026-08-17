@@ -35,12 +35,15 @@ configuration:
   logrotations:
     name: Aufbewahrte Logtage
     description: Wie viele rotierte Logdateien behalten werden, bevor sie gelöscht werden.
+  error_log_level:
+    name: Ausführlichkeit des Error-Logs
+    description: Ab welcher Stufe nginx ins Error-Log schreibt. "warn" ist der sinnvolle Standard; "info" protokolliert jeden Worker-Wechsel und flutet Protokoll und Datenträger.
   share_logs:
     name: Logs nach /share spiegeln
     description: Legt die Logs unter /share/npmplus/logs ab, damit andere Add-ons (z.B. CrowdSec) sie per Datei-Acquisition lesen können.
   log_to_stdout:
     name: Logs ins Add-on-Protokoll
-    description: Spiegelt Access- und Error-Log zusätzlich in die Container-Ausgabe. Nötig, wenn CrowdSec die Logs über journald einliest.
+    description: Spiegelt das Access-Log zusätzlich in die Container-Ausgabe. Nötig, wenn CrowdSec die Logs über journald einliest.
   goaccess:
     name: GoAccess-Statistik
     description: Aktiviert das GoAccess-Dashboard unter /goaccess der NPMplus-Oberfläche. Nur für angemeldete Admins sichtbar.

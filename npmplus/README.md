@@ -41,7 +41,7 @@ Das Zertifikat der Oberfläche ist selbstsigniert — die Browserwarnung beim er
 | `admin_port` | `81` | Port der Weboberfläche |
 | `logrotate` | `true` | Access-Logs schreiben und rotieren |
 | `share_logs` | `true` | Logs nach `/share/npmplus/logs` spiegeln |
-| `log_to_stdout` | `true` | Logs zusätzlich ins Add-on-Protokoll (journald) |
+| `log_to_stdout` | `true` | Access-Log zusätzlich ins Add-on-Protokoll (journald) |
 | `crowdsec_enabled` | `false` | nginx-Bouncer aktivieren |
 | `crowdsec_api_key` | – | Schlüssel aus `cscli bouncers add npmplus` |
 | `extra_env` | `[]` | Weitere NPMplus-Variablen als `KEY=VALUE` |

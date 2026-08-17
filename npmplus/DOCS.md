@@ -141,8 +141,9 @@ NPMplus neu starten. Im Protokoll erscheint `CrowdSec-Bouncer aktiv gegen …`.
 | `enable_mptcp` | `false` | Multipath-TCP |
 | `logrotate` | `true` | Access-Logs schreiben und rotieren |
 | `logrotations` | `3` | Wie viele rotierte Logs bleiben |
+| `error_log_level` | `warn` | Ab welcher Stufe nginx ins Error-Log schreibt |
 | `share_logs` | `true` | Logs nach `/share/npmplus/logs` spiegeln |
-| `log_to_stdout` | `true` | Logs zusätzlich ins Add-on-Protokoll (journald) |
+| `log_to_stdout` | `true` | Access-Log zusätzlich ins Add-on-Protokoll (journald) |
 | `goaccess` | `false` | GoAccess-Dashboard unter `/goaccess` |
 | `trust_ip` | – | Vertrauenswürdige Proxy-IPs für X-Forwarded-For |
 | `trust_cloudflare` | `false` | Cloudflare-IP-Bereiche laden und vertrauen |

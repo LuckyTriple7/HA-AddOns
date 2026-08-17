@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.1.3] - 2026-08-17
+
+- Fix: Add-on-Protokoll wurde von nginx-`[notice]`-Zeilen geflutet. Mit `logrotate: true` aktiviert NPMplus sein Error-Log auf Stufe `info`, das protokolliert jeden Worker-Wechsel und jedes SIGCHLD. Neue Option `error_log_level`, Standard `warn`
+- `log_to_stdout` spiegelt jetzt nur noch das Access-Log ins Protokoll; das Error-Log bleibt in der Datei
+
 ## [0.1.2] - 2026-08-17
 
 - Fix: Add-on beendete sich mit Exit-Code 143, Supervisor meldete „did not handle SIGTERM". `run.sh` übergab per `exec` an tini, damit war tini PID 1 und starb am Signal statt sauber mit 0 zu enden. Jetzt bleibt `run.sh` PID 1, fängt SIGTERM/SIGINT ab, reicht ihn weiter, wartet auf das Ende von NPMplus und beendet sich mit 0

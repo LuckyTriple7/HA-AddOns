@@ -41,7 +41,7 @@ The interface certificate is self-signed — the browser warning on first access
 | `admin_port` | `81` | Web interface port |
 | `logrotate` | `true` | Write and rotate access logs |
 | `share_logs` | `true` | Mirror logs to `/share/npmplus/logs` |
-| `log_to_stdout` | `true` | Also send logs to the add-on log (journald) |
+| `log_to_stdout` | `true` | Also send the access log to the add-on log (journald) |
 | `crowdsec_enabled` | `false` | Enable the nginx bouncer |
 | `crowdsec_api_key` | – | Key from `cscli bouncers add npmplus` |
 | `extra_env` | `[]` | Additional NPMplus variables as `KEY=VALUE` |
