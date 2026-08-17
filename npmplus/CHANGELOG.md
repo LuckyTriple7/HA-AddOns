@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.1.11] - 2026-08-17
+
+- Protokollausgabe des Add-ons durchgehend auf Englisch umgestellt — passend zur Ausgabe von NPMplus selbst, die ebenfalls englisch ist. Die Konfigurationsoberfläche und die Dokumentation bleiben zweisprachig
+
 ## [0.1.10] - 2026-08-17
 
 - Doku: `cscli`-Falle beschrieben — ohne `-c` schreibt `cscli` in `/etc/crowdsec/`, während das CrowdSec-Add-on seine Engine mit einer eigenen Konfiguration startet. Der Bouncer landet dann in einer Datenbank, die die laufende Instanz nie liest: `bouncers list` zeigt ihn an, die LAPI antwortet trotzdem mit 403

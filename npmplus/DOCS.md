@@ -166,9 +166,11 @@ crowdsec_appsec_url: "http://172.30.33.22:7422"
 NPMplus neu starten. Im Protokoll steht genau eine der beiden Zeilen:
 
 ```
-[INFO] CrowdSec-Bouncer aktiv gegen http://…
-[WARN] CrowdSec lehnt den Bouncer-Key ab (HTTP 403) — Bouncer bleibt AUS.
+[INFO] CrowdSec bouncer active against http://…
+[WARN] CrowdSec rejected the bouncer key (HTTP 403) — bouncer stays OFF.
 ```
+
+> Die Protokollausgabe des Add-ons ist durchgehend englisch, unabhängig von der Sprache dieser Anleitung.
 
 Auf der CrowdSec-Seite prüfen, ob der Bouncer registriert ist und Entscheidungen abholt:
 
@@ -330,7 +332,7 @@ Ein Home-Assistant-Backup des Add-ons enthält `/data` vollständig, inklusive D
 
 **400 Bad Request bei Home Assistant** — siehe Abschnitt „Home Assistant hinter NPMplus".
 
-**Protokoll meldet „CrowdSec lehnt den Bouncer-Key ab (HTTP 403)", obwohl der Schlüssel stimmt** — der Bouncer steckt in der falschen Datenbank. `cscli` ohne `-c` schreibt nach `/etc/crowdsec/`, die Add-on-Instanz liest aber ihre eigene Konfiguration. Bouncer mit `-c <pfad-aus-ps-aux>` neu anlegen.
+**Protokoll meldet „CrowdSec rejected the bouncer key (HTTP 403)", obwohl der Schlüssel stimmt** — der Bouncer steckt in der falschen Datenbank. `cscli` ohne `-c` schreibt nach `/etc/crowdsec/`, die Add-on-Instanz liest aber ihre eigene Konfiguration. Bouncer mit `-c <pfad-aus-ps-aux>` neu anlegen.
 
 **Anmeldung nach jedem Neustart weg** — `cookie_secret` auf einen festen Zufallswert setzen.
 

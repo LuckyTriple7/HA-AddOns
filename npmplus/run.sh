@@ -88,11 +88,11 @@ export_if_set COOKIE_SECRET "$COOKIE_SECRET_OPT"
 # GoAccess und die Weitergabe an CrowdSec brauchen beide geschriebene Access-Logs.
 LOGROTATE_EFFECTIVE="$LOGROTATE_OPT"
 if [ "$LOG_TO_STDOUT_OPT" = "true" ] && [ "$LOGROTATE_EFFECTIVE" != "true" ]; then
-    warn "log_to_stdout ist aktiv — logrotate wird mit eingeschaltet, sonst schreibt nginx keine Access-Logs"
+    warn "log_to_stdout is on — enabling logrotate as well, otherwise nginx writes no access logs"
     LOGROTATE_EFFECTIVE="true"
 fi
 if [ "$CS_ENABLED_OPT" = "true" ] && [ "$LOGROTATE_EFFECTIVE" != "true" ]; then
-    warn "CrowdSec ist aktiv — logrotate wird mit eingeschaltet, sonst hat CrowdSec keine Logs zum Auswerten"
+    warn "CrowdSec is on — enabling logrotate as well, otherwise CrowdSec has no logs to read"
     LOGROTATE_EFFECTIVE="true"
 fi
 export LOGROTATE="$LOGROTATE_EFFECTIVE"
@@ -106,10 +106,10 @@ while IFS= read -r entry; do
             key="${entry%%=*}"
             value="${entry#*=}"
             export "$key=$value"
-            log "extra_env: ${key} gesetzt"
+            log "extra_env: ${key} set"
             ;;
         *)
-            warn "extra_env-Eintrag ohne '=' ignoriert: ${entry}"
+            warn "ignoring extra_env entry without '=': ${entry}"
             ;;
     esac
 done < <(jq -r '.extra_env // [] | .[]' "$OPTIONS")
@@ -138,11 +138,11 @@ if [ "$SHARE_LOGS_OPT" = "true" ]; then
     fi
     mkdir -p /data/nginx
     ln -sfn "$SHARED_LOG_DIR" "$LOG_DIR"
-    log "Logs unter ${SHARED_LOG_DIR} (für andere Add-ons lesbar)"
+    log "Logs in ${SHARED_LOG_DIR} (readable by other add-ons)"
 else
     if [ -L "$LOG_DIR" ]; then
         rm -f "$LOG_DIR"
-        log "Log-Freigabe nach /share abgeschaltet — Logs bleiben in /data"
+        log "Log sharing to /share disabled — logs stay in /data"
     fi
     mkdir -p "$LOG_DIR"
 fi
@@ -155,7 +155,7 @@ if [ "$LOG_TO_STDOUT_OPT" = "true" ]; then
     # Namen folgen und nicht dem alten Filedeskriptor.
     tail -qn0 -F "$LOG_DIR/access.log" 2>/dev/null &
     TAIL_PID=$!
-    log "Access-Log wird zusätzlich nach stdout gespiegelt (journald)"
+    log "Mirroring access log to stdout as well (journald)"
 fi
 
 ###############################################################################
@@ -170,9 +170,9 @@ fi
 NGINX_CONF=/usr/local/nginx/conf/nginx.conf
 if [ -f "$NGINX_CONF" ]; then
     sed -i "s|^#error_log /data/nginx/logs/error.log .*;|#error_log /data/nginx/logs/error.log ${ERROR_LOG_LEVEL_OPT};|" "$NGINX_CONF"
-    log "Error-Log-Level: ${ERROR_LOG_LEVEL_OPT}"
+    log "Error log level: ${ERROR_LOG_LEVEL_OPT}"
 else
-    warn "${NGINX_CONF} nicht gefunden — Error-Log-Level bleibt auf dem Standard des Images"
+    warn "${NGINX_CONF} not found — keeping the image default for the error log level"
 fi
 
 ###############################################################################
@@ -226,7 +226,7 @@ check_lapi() {
 
 if [ "$CS_ENABLED_OPT" = "true" ]; then
     if [ -z "$CS_KEY_OPT" ]; then
-        warn "crowdsec_enabled ist an, aber crowdsec_api_key ist leer — Bouncer bleibt aus"
+        warn "crowdsec_enabled is on but crowdsec_api_key is empty — bouncer stays OFF"
         set_conf ENABLED false
     else
         CS_CODE=$(check_lapi "$CS_LAPI_OPT" "$CS_KEY_OPT")
@@ -236,23 +236,23 @@ if [ "$CS_ENABLED_OPT" = "true" ]; then
                 set_conf API_URL "$CS_LAPI_OPT"
                 set_conf API_KEY "$CS_KEY_OPT"
                 set_conf APPSEC_URL "$CS_APPSEC_OPT"
-                log "CrowdSec-Bouncer aktiv gegen ${CS_LAPI_OPT} (AppSec: ${CS_APPSEC_OPT:-aus})"
+                log "CrowdSec bouncer active against ${CS_LAPI_OPT} (AppSec: ${CS_APPSEC_OPT:-off})"
                 ;;
             403|401)
                 set_conf ENABLED false
-                warn "CrowdSec lehnt den Bouncer-Key ab (HTTP ${CS_CODE}) — Bouncer bleibt AUS."
-                warn "Eingetragener Schlüssel: ${#CS_KEY_OPT} Zeichen (cscli erzeugt 44)."
-                warn "Neuen Schlüssel erzeugen: cscli bouncers add npmplus -o raw"
+                warn "CrowdSec rejected the bouncer key (HTTP ${CS_CODE}) — bouncer stays OFF."
+                warn "Configured key is ${#CS_KEY_OPT} characters long (cscli generates 44)."
+                warn "Create a new key: cscli -c <addon-config> bouncers add npmplus -o raw"
                 ;;
             000)
                 set_conf ENABLED false
-                warn "CrowdSec unter ${CS_LAPI_OPT} nicht erreichbar — Bouncer bleibt AUS."
-                warn "Läuft CrowdSec in einem eigenen Container, ist 127.0.0.1 falsch:"
-                warn "dann dessen Container-IP oder eine auf den Host veröffentlichte Adresse eintragen."
+                warn "CrowdSec unreachable at ${CS_LAPI_OPT} — bouncer stays OFF."
+                warn "If CrowdSec runs in its own container, 127.0.0.1 is wrong:"
+                warn "use its container IP or an address published on the host instead."
                 ;;
             *)
                 set_conf ENABLED false
-                warn "Unerwartete Antwort von CrowdSec (HTTP ${CS_CODE}) — Bouncer bleibt AUS."
+                warn "Unexpected reply from CrowdSec (HTTP ${CS_CODE}) — bouncer stays OFF."
                 ;;
         esac
     fi
@@ -274,24 +274,24 @@ fi
 # muss es sich als child subreaper registrieren, sonst landen verwaiste
 # Prozesse bei diesem Skript und werden nicht abgeräumt.
 ###############################################################################
-log "NPMplus startet — UI auf https://<HA-IP>:${ADMIN_PORT_OPT}"
+log "Starting NPMplus — UI at https://<HA-IP>:${ADMIN_PORT_OPT}"
 
 TINI=$(command -v tini || true)
 if [ -n "$TINI" ]; then
     "$TINI" -s -g -- entrypoint.sh &
 else
-    warn "tini nicht gefunden — starte entrypoint.sh direkt"
+    warn "tini not found — starting entrypoint.sh directly"
     entrypoint.sh &
 fi
 APP_PID=$!
 
 _term() {
-    log "SIGTERM empfangen, stoppe NPMplus..."
+    log "SIGTERM received, stopping NPMplus..."
     kill -TERM "$APP_PID" 2>/dev/null || true
     [ -n "${TAIL_PID:-}" ] && kill -TERM "$TAIL_PID" 2>/dev/null || true
     # nginx braucht einen Moment, um offene Verbindungen zu schließen.
     wait "$APP_PID" 2>/dev/null || true
-    log "NPMplus beendet"
+    log "NPMplus stopped"
     exit 0
 }
 trap _term SIGTERM SIGINT
@@ -305,6 +305,6 @@ set -e
 
 # Ohne Signal hierher zu kommen heißt: NPMplus ist von sich aus gestorben.
 # Den Exit-Code durchreichen, damit der Watchdog des Supervisors greift.
-warn "NPMplus wurde ohne Stopp-Anforderung beendet (Exit-Code ${APP_EXIT})"
+warn "NPMplus exited without a stop request (exit code ${APP_EXIT})"
 [ -n "${TAIL_PID:-}" ] && kill -TERM "$TAIL_PID" 2>/dev/null || true
 exit "$APP_EXIT"

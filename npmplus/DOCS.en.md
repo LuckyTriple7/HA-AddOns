@@ -166,8 +166,8 @@ crowdsec_appsec_url: "http://172.30.33.22:7422"
 Restart NPMplus. The log contains exactly one of these lines:
 
 ```
-[INFO] CrowdSec-Bouncer aktiv gegen http://…
-[WARN] CrowdSec lehnt den Bouncer-Key ab (HTTP 403) — Bouncer bleibt AUS.
+[INFO] CrowdSec bouncer active against http://…
+[WARN] CrowdSec rejected the bouncer key (HTTP 403) — bouncer stays OFF.
 ```
 
 On the CrowdSec side, check that the bouncer is registered and pulling decisions:
@@ -330,7 +330,7 @@ A Home Assistant backup of the add-on contains all of `/data`, database and cert
 
 **400 Bad Request from Home Assistant** — see the section "Home Assistant behind NPMplus".
 
-**The log says "CrowdSec lehnt den Bouncer-Key ab (HTTP 403)" although the key is correct** — the bouncer sits in the wrong database. Without `-c`, `cscli` writes to `/etc/crowdsec/` while the add-on instance reads its own configuration. Re-create the bouncer with `-c <path from ps aux>`.
+**The log says "CrowdSec rejected the bouncer key (HTTP 403)" although the key is correct** — the bouncer sits in the wrong database. Without `-c`, `cscli` writes to `/etc/crowdsec/` while the add-on instance reads its own configuration. Re-create the bouncer with `-c <path from ps aux>`.
 
 **Logged out after every restart** — set `cookie_secret` to a fixed random value.
 
