@@ -42,6 +42,7 @@ https://github.com/LuckyTriple7/HA-AddOns
 | MyPage | ✅ | ✅ | Alpine |
 | TUIWatch | ✅ | ✅ | Debian 12 |
 | LogPulse | ✅ | ✅ | Debian 12 |
+| NPMplus | ✅ | ✅ | Alpine |
 
 ## Apps
 
@@ -299,6 +300,18 @@ Zentrale, durchsuchbare Log-Historie aus journald — Home Assistant Core, Super
 
 → [Dokumentation & Changelog](logpulse/README.md)
 
+### [NPMplus](npmplus/)
+
+Reverse Proxy mit Weboberfläche auf Basis von [NPMplus](https://github.com/ZoeyVid/NPMplus), dem aktiv gepflegten Fork von NGINX Proxy Manager.
+
+- HTTP/3 (QUIC), eigener nginx-Build mit aws-lc, gehärtetes TLS (ML-KEM, Encrypted Client Hello)
+- Let's Encrypt inklusive automatischer Erneuerung, weitere ACME-Server über `extra_env`
+- CrowdSec-Bouncer und AppSec/WAF direkt aus den Add-on-Optionen konfigurierbar
+- Access-Listen pro Host und Location, mTLS, GoAccess-Statistik in der Oberfläche
+- Logs wahlweise nach `/share/npmplus/logs` und/oder ins Add-on-Protokoll — passend zu beiden CrowdSec-Acquisition-Varianten
+
+→ [Dokumentation & Changelog](npmplus/README.md)
+
 ---
 
 # HA-AddOns (English)
@@ -345,6 +358,7 @@ https://github.com/LuckyTriple7/HA-AddOns
 | MyPage | ✅ | ✅ | Alpine |
 | TUIWatch | ✅ | ✅ | Debian 12 |
 | LogPulse | ✅ | ✅ | Debian 12 |
+| NPMplus | ✅ | ✅ | Alpine |
 
 ## Apps
 
@@ -601,3 +615,15 @@ Centralized, searchable log history from journald — Home Assistant Core, Super
 - Automatic cleanup (retention period + size cap), password protection, PWA, dark/light mode, DE/EN
 
 → [Documentation & Changelog](logpulse/README.md)
+
+### [NPMplus](npmplus/)
+
+Reverse proxy with a web interface, based on [NPMplus](https://github.com/ZoeyVid/NPMplus), the actively maintained fork of NGINX Proxy Manager.
+
+- HTTP/3 (QUIC), custom nginx build with aws-lc, hardened TLS (ML-KEM, Encrypted Client Hello)
+- Let's Encrypt including automatic renewal, other ACME servers via `extra_env`
+- CrowdSec bouncer and AppSec/WAF configurable straight from the add-on options
+- Access lists per host and location, mTLS, GoAccess statistics inside the interface
+- Logs to `/share/npmplus/logs` and/or the add-on log — matching both CrowdSec acquisition styles
+
+→ [Documentation & Changelog](npmplus/README.en.md)

@@ -1,0 +1,81 @@
+configuration:
+  TZ:
+    name: Zeitzone
+    description: Zeitzone des Containers, z.B. Europe/Berlin. Wird für Logs, Zertifikats-Erneuerung und Logrotation gebraucht.
+  acme_email:
+    name: ACME E-Mail
+    description: E-Mail-Adresse für Let's Encrypt. Dorthin gehen Warnungen zu ablaufenden Zertifikaten. Für Let's Encrypt optional, für ZeroSSL und Google Public CA Pflicht.
+  initial_admin_email:
+    name: Erste Admin-E-Mail
+    description: Nur beim allerersten Start relevant. Legt den ersten Benutzer an. Leer lassen für admin@example.org.
+  initial_admin_password:
+    name: Erstes Admin-Passwort
+    description: Nur beim allerersten Start relevant. Leer lassen — dann erzeugt NPMplus ein Zufallspasswort und schreibt es ins Add-on-Protokoll.
+  http_port:
+    name: HTTP-Port
+    description: Port für unverschlüsselten Verkehr. Standard 80. Ändern bricht die HTTP-Challenge von Let's Encrypt.
+  https_port:
+    name: HTTPS-Port
+    description: Port für verschlüsselten Verkehr, TCP und UDP (HTTP/3). Standard 443.
+  admin_port:
+    name: Port der Weboberfläche
+    description: Port der NPMplus-Oberfläche. Standard 81. Immer HTTPS mit selbstsigniertem Zertifikat.
+  disable_ipv6:
+    name: IPv6 abschalten
+    description: Verhindert, dass nginx auf IPv6 lauscht. Nur einschalten, wenn dein Netz kein IPv6 hat.
+  disable_h3_quic:
+    name: HTTP/3 abschalten
+    description: Schaltet QUIC auf UDP 443 ab. Nur nötig, wenn dein Router UDP 443 nicht weiterleiten kann.
+  enable_mptcp:
+    name: Multipath-TCP aktivieren
+    description: Aktiviert MPTCP. Braucht einen Kernel mit MPTCP-Unterstützung.
+  logrotate:
+    name: Access-Logs schreiben
+    description: Schreibt Access- und Error-Logs nach /data/nginx/logs und rotiert sie täglich. Nötig für CrowdSec und GoAccess.
+  logrotations:
+    name: Aufbewahrte Logtage
+    description: Wie viele rotierte Logdateien behalten werden, bevor sie gelöscht werden.
+  share_logs:
+    name: Logs nach /share spiegeln
+    description: Legt die Logs unter /share/npmplus/logs ab, damit andere Add-ons (z.B. CrowdSec) sie per Datei-Acquisition lesen können.
+  log_to_stdout:
+    name: Logs ins Add-on-Protokoll
+    description: Spiegelt Access- und Error-Log zusätzlich in die Container-Ausgabe. Nötig, wenn CrowdSec die Logs über journald einliest.
+  goaccess:
+    name: GoAccess-Statistik
+    description: Aktiviert das GoAccess-Dashboard unter /goaccess der NPMplus-Oberfläche. Nur für angemeldete Admins sichtbar.
+  trust_ip:
+    name: Vertrauenswürdige IPs
+    description: Durch Leerzeichen getrennte Liste von IPs oder Subnetzen vorgelagerter Proxys, deren X-Forwarded-For-Header nginx glauben darf.
+  trust_cloudflare:
+    name: Cloudflare vertrauen
+    description: Lädt die Cloudflare-IP-Bereiche und vertraut deren X-Forwarded-For-Header. Nur einschalten, wenn wirklich Cloudflare davor steht.
+  crowdsec_enabled:
+    name: CrowdSec-Bouncer aktivieren
+    description: Aktiviert den nginx-Bouncer. Blockt Anfragen von IPs, die deine CrowdSec-Instanz gebannt hat.
+  crowdsec_lapi_url:
+    name: CrowdSec LAPI-URL
+    description: Adresse der lokalen CrowdSec-API, z.B. http://127.0.0.1:8080.
+  crowdsec_api_key:
+    name: CrowdSec Bouncer-Key
+    description: Ausgabe von "cscli bouncers add npmplus" in deiner CrowdSec-Instanz.
+  crowdsec_appsec_url:
+    name: CrowdSec AppSec-URL
+    description: Adresse des AppSec/WAF-Endpunkts, z.B. http://127.0.0.1:7422. Leer lassen, wenn AppSec nicht läuft.
+  nginx_worker_processes:
+    name: nginx Worker-Prozesse
+    description: Anzahl der nginx-Worker. Standard "auto" entspricht der Anzahl CPU-Kerne.
+  nginx_worker_connections:
+    name: Verbindungen pro Worker
+    description: Maximale gleichzeitige Verbindungen je Worker-Prozess.
+  cookie_secret:
+    name: Cookie-Secret
+    description: Fester Schlüssel für Anmelde-Cookies. Leer lassen erzeugt bei jedem Neustart einen neuen — dann muss man sich nach jedem Neustart neu anmelden.
+  extra_env:
+    name: Zusätzliche Umgebungsvariablen
+    description: Weitere NPMplus-Variablen im Format KEY=VALUE, eine je Zeile. Alle Namen stehen in der compose.yaml des NPMplus-Projekts.
+network:
+  80/tcp: HTTP (ACME-Challenge, Weiterleitung auf HTTPS)
+  443/tcp: HTTPS
+  443/udp: HTTP/3 (QUIC)
+  81/tcp: NPMplus Weboberfläche (HTTPS)

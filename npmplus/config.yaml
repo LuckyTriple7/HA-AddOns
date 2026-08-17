@@ -1,0 +1,98 @@
+name: NPMplus
+description: Reverse Proxy mit Web-Oberfläche auf Basis von NPMplus — HTTP/3, Let's Encrypt, CrowdSec-Bouncer und AppSec/WAF
+version: "0.1.0"
+slug: npmplus
+url: https://github.com/LuckyTriple7/HA-AddOns
+
+image: "ghcr.io/luckytriple7/npmplus"
+
+arch:
+  - amd64
+  - aarch64
+
+startup: services
+boot: auto
+
+# Das Upstream-Image bringt tini als eigenes Init mit — HA darf kein zweites davorsetzen.
+init: false
+
+panel_icon: mdi:shield-lock-outline
+
+# Kein Ingress: die NPMplus-Oberfläche spricht ausschließlich HTTPS mit einem
+# selbstsignierten Zertifikat, Ingress erwartet aber einfaches HTTP hinter dem
+# Supervisor-Proxy. Die UI läuft deshalb direkt auf admin_port.
+webui: "https://[HOST]:[PORT:81]"
+
+# Reverse Proxy braucht die echten Client-IPs und bindet 80/443 selbst —
+# im Bridge-Netz sähe nginx nur die Docker-Gateway-IP.
+host_network: true
+
+ports:
+  80/tcp: 80
+  443/tcp: 443
+  443/udp: 443
+  81/tcp: 81
+
+ports_description:
+  80/tcp: HTTP (ACME-Challenge, Weiterleitung auf HTTPS)
+  443/tcp: HTTPS
+  443/udp: HTTP/3 (QUIC)
+  81/tcp: NPMplus Web-Oberfläche (HTTPS)
+
+map:
+  - share:rw
+
+options:
+  TZ: "Europe/Berlin"
+  acme_email: ""
+  initial_admin_email: ""
+  initial_admin_password: ""
+  http_port: 80
+  https_port: 443
+  admin_port: 81
+  disable_ipv6: false
+  disable_h3_quic: false
+  enable_mptcp: false
+  logrotate: true
+  logrotations: 3
+  share_logs: true
+  log_to_stdout: true
+  goaccess: false
+  trust_ip: ""
+  trust_cloudflare: false
+  crowdsec_enabled: false
+  crowdsec_lapi_url: "http://127.0.0.1:8080"
+  crowdsec_api_key: ""
+  crowdsec_appsec_url: "http://127.0.0.1:7422"
+  nginx_worker_processes: "auto"
+  nginx_worker_connections: 512
+  cookie_secret: ""
+  extra_env: []
+
+schema:
+  TZ: str
+  acme_email: str?
+  initial_admin_email: str?
+  initial_admin_password: password?
+  http_port: int(1,65535)
+  https_port: int(1,65535)
+  admin_port: int(1,65535)
+  disable_ipv6: bool
+  disable_h3_quic: bool
+  enable_mptcp: bool
+  logrotate: bool
+  logrotations: int(1,365)
+  share_logs: bool
+  log_to_stdout: bool
+  goaccess: bool
+  trust_ip: str?
+  trust_cloudflare: bool
+  crowdsec_enabled: bool
+  crowdsec_lapi_url: str?
+  crowdsec_api_key: password?
+  crowdsec_appsec_url: str?
+  nginx_worker_processes: str
+  nginx_worker_connections: int(1,65535)
+  cookie_secret: password?
+  extra_env:
+    - str

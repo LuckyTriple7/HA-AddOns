@@ -1,0 +1,133 @@
+name: Check NPMplus Update
+
+# NPMplus taggt datumsbasiert (z.B. 2026-07-24-r1) statt semantisch, deshalb
+# lässt sich das nicht über Dependabot abbilden. Verfolgt werden nur echte
+# Releases — die "-b"-Tags sind Betas und werden von der GitHub-API als
+# prerelease markiert.
+on:
+  schedule:
+    - cron: '0 5 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: dev
+
+      - name: Hole neuesten NPMplus-Release
+        id: remote
+        run: |
+          VERSION=$(curl -sf "https://api.github.com/repos/ZoeyVid/NPMplus/releases?per_page=30" \
+            | jq -r 'map(select(.prerelease == false and .draft == false)) | .[0].tag_name')
+          if [ -z "$VERSION" ] || [ "$VERSION" = "null" ]; then
+            echo "Konnte Release-Tag nicht ermitteln — API-Fehler?"
+            exit 1
+          fi
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "Aktueller NPMplus-Release: ${VERSION}"
+
+      - name: Hole gespeicherte Version
+        id: local
+        run: |
+          if [ -f .npmplus-version ]; then
+            echo "version=$(cat .npmplus-version)" >> $GITHUB_OUTPUT
+            echo "Gespeicherte Version: $(cat .npmplus-version)"
+          else
+            echo "version=unknown" >> $GITHUB_OUTPUT
+            echo "Noch keine Versions-Datei vorhanden — erster Lauf"
+          fi
+
+      - name: Vergleiche Versionen
+        id: compare
+        run: |
+          REMOTE="${{ steps.remote.outputs.version }}"
+          LOCAL="${{ steps.local.outputs.version }}"
+          echo "Remote: ${REMOTE} | Lokal: ${LOCAL}"
+          if [ "$REMOTE" != "$LOCAL" ]; then
+            echo "rebuild=true" >> $GITHUB_OUTPUT
+          else
+            echo "rebuild=false" >> $GITHUB_OUTPUT
+            echo "Kein Update notwendig"
+          fi
+
+      - name: Prüfe, ob das Image für beide Architekturen existiert
+        if: steps.compare.outputs.rebuild == 'true'
+        run: |
+          TAG="${{ steps.remote.outputs.version }}"
+          TOKEN=$(curl -sf "https://auth.docker.io/token?service=registry.docker.io&scope=repository:zoeyvid/npmplus:pull" | jq -r .token)
+          MANIFEST=$(curl -sf -H "Authorization: Bearer ${TOKEN}" \
+            -H "Accept: application/vnd.oci.image.index.v1+json" \
+            -H "Accept: application/vnd.docker.distribution.manifest.list.v2+json" \
+            "https://registry-1.docker.io/v2/zoeyvid/npmplus/manifests/${TAG}")
+          echo "$MANIFEST" | jq -r '.manifests[]?.platform | "\(.os)/\(.architecture)"' | sort -u
+          for want in linux/amd64 linux/arm64; do
+            if ! echo "$MANIFEST" | jq -e --arg w "$want" '.manifests[]? | select("\(.platform.os)/\(.platform.architecture)" == $w)' > /dev/null; then
+              echo "Tag ${TAG} hat kein ${want}-Image — Build würde scheitern"
+              exit 1
+            fi
+          done
+
+      - name: Berechne neue Add-on-Version
+        id: newversion
+        if: steps.compare.outputs.rebuild == 'true'
+        run: |
+          CURRENT=$(grep '^version:' npmplus/config.yaml | sed 's/version: *"\(.*\)"/\1/')
+          MAJOR=$(echo "$CURRENT" | cut -d. -f1)
+          MINOR=$(echo "$CURRENT" | cut -d. -f2)
+          PATCH=$(echo "$CURRENT" | cut -d. -f3)
+          NEW_VERSION="${MAJOR}.${MINOR}.$((PATCH + 1))"
+          echo "new_version=${NEW_VERSION}" >> $GITHUB_OUTPUT
+          echo "Add-on Version: ${CURRENT} → ${NEW_VERSION}"
+
+      - name: Versions-Datei, config.yaml und CHANGELOG aktualisieren
+        if: steps.compare.outputs.rebuild == 'true'
+        run: |
+          NEW_VERSION="${{ steps.newversion.outputs.new_version }}"
+          UPSTREAM="${{ steps.remote.outputs.version }}"
+          CURRENT=$(grep '^version:' npmplus/config.yaml | sed 's/version: *"\(.*\)"/\1/')
+          TODAY=$(date -u '+%Y-%m-%d')
+
+          echo "${UPSTREAM}" > .npmplus-version
+          sed -i "s/^version: \"${CURRENT}\"/version: \"${NEW_VERSION}\"/" npmplus/config.yaml
+          sed -i "s|^ARG NPMPLUS_VERSION=.*|ARG NPMPLUS_VERSION=${UPSTREAM}|" npmplus/Dockerfile
+
+          CHANGELOG_ENTRY="## [${NEW_VERSION}] - ${TODAY}\n\n- NPMplus auf Upstream-Version ${UPSTREAM} aktualisiert"
+          sed -i "s|# Changelog|# Changelog\n\n${CHANGELOG_ENTRY}|" npmplus/CHANGELOG.md
+
+      - name: Pull Request erstellen
+        if: steps.compare.outputs.rebuild == 'true'
+        uses: peter-evans/create-pull-request@v8
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          base: dev
+          commit-message: "NPMplus: Update auf Upstream ${{ steps.remote.outputs.version }} (v${{ steps.newversion.outputs.new_version }})"
+          branch: "npmplus-update/${{ steps.newversion.outputs.new_version }}"
+          delete-branch: true
+          title: "NPMplus Update: Upstream ${{ steps.remote.outputs.version }} (v${{ steps.newversion.outputs.new_version }})"
+          body: |
+            ## NPMplus Upstream-Update
+
+            | | |
+            |---|---|
+            | Upstream-Release | `${{ steps.remote.outputs.version }}` |
+            | Bisher | `${{ steps.local.outputs.version }}` |
+            | Add-on Version | `${{ steps.newversion.outputs.new_version }}` |
+
+            Nach dem Merge baut `build-npmplus.yml` das Image automatisch.
+
+            NPMplus ändert gelegentlich Environment-Namen und nginx-Templates.
+            Nach dem Deploy einmal prüfen: Oberfläche auf Port 81 erreichbar,
+            ein Proxy Host liefert aus, und bei aktivem CrowdSec zeigt
+            `cscli metrics` weiter Zeilen für die npmplus-Acquisition.
+
+            Changelog: https://github.com/ZoeyVid/NPMplus/releases/tag/${{ steps.remote.outputs.version }}
+          labels: "auto-update"
