@@ -5368,8 +5368,11 @@ def api_legal_import_pdf():
         res = pdfimport.extract(data)
     except ValueError as e:
         # Nur die eigenen, bekannten Kennungen zurückgeben — nie den Text einer
-        # Ausnahme, der könnte Pfade oder Dateiinhalte enthalten.
-        code = str(e) if str(e) in ('no_text', 'too_many_pages') else 'unreadable'
+        # Ausnahme, der könnte Pfade oder Dateiinhalte enthalten. Der Ausnahme-
+        # text dient dabei ausschließlich als Schlüssel; hinausgegeben wird der
+        # feste Wert aus dieser Zuordnung, nie die Zeichenkette selbst.
+        code = {'no_text': 'no_text',
+                'too_many_pages': 'too_many_pages'}.get(str(e), 'unreadable')
         return jsonify({'error': code}), 400
     except Exception:
         log.warning("PDF-Import fehlgeschlagen (%s)", f.filename[:80], exc_info=True)

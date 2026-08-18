@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.10.39
+
+- 🛡️ **PDF-Import: Fehlerkennung kommt jetzt aus einer festen Zuordnung.** Die Antwort enthielt schon vorher nur eigene Kennungen (`no_text`, `too_many_pages`, sonst `unreadable`), der Ausnahmetext konnte also nie nach außen gelangen. Die Prüfung lief aber über den Text selbst, und die Code-Analyse konnte das nicht erkennen (CodeQL `py/stack-trace-exposure`). Der Text dient nun ausschließlich als Schlüssel, hinausgegeben wird ein fester Wert.
+
 ## 0.10.38
 
 - 🌍 **Länder-Erkennung läuft jetzt lokal** — statt jede Besucher-IP bei ipapi.is nachzuschlagen (Tageslimit, „Free Tier limit exceeded“, Besucher-IPs beim Dienst), hält das Add-on eine eigene Tabelle „IP-Bereich → Land“. Quelle ist **DB-IP Lite** (*IP Geolocation by DB-IP*, CC BY 4.0), Rückfallebene sind die Delegationsdateien der fünf Regional Internet Registries. **Keine Besucher-IP verlässt das Add-on mehr**, kein Konto, kein Schlüssel, kein Limit.
