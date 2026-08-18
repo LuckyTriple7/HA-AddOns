@@ -82,7 +82,7 @@ configuration:
     description: Geheimer Schlüssel des gewählten Anbieters.
   geo_mode:
     name: Ländersperre
-    description: '"block" sperrt die unten genannten Länder, "allow" lässt nur sie durch, "off" schaltet die Sperre ab. Greift direkt in nginx und damit schon bei der ersten Anfrage.'
+    description: '"block" sperrt die unten genannten Länder, "allow" lässt nur sie durch, "off" schaltet die Sperre ab. Greift direkt in nginx und damit schon bei der ersten Anfrage. Änderungen an den Geo-Optionen wirken erst nach einem Neustart des Add-ons.'
   geo_countries:
     name: Länder
     description: Zweibuchstabige Ländercodes, einer je Zeile, zum Beispiel cn oder ru. Die IP-Bereiche stammen aus dem Projekt ipverse/country-ip-blocks und brauchen kein MaxMind-Konto.

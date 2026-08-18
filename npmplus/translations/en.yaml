@@ -82,7 +82,7 @@ configuration:
     description: Secret key of the chosen provider.
   geo_mode:
     name: Country filter
-    description: '"block" denies the countries listed below, "allow" admits only them, "off" disables the filter. Runs inside nginx and therefore applies to the very first request.'
+    description: '"block" denies the countries listed below, "allow" admits only them, "off" disables the filter. Runs inside nginx and therefore applies to the very first request. Changes to the geo options only take effect after restarting the add-on.'
   geo_countries:
     name: Countries
     description: Two-letter country codes, one per line, for example cn or ru. The IP ranges come from the ipverse/country-ip-blocks project and need no MaxMind account.

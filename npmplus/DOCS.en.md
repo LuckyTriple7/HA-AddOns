@@ -355,6 +355,12 @@ docker exec $CT sh -c 'wc -l /data/geoip/ranges.conf; cat /data/geoip/http.conf'
 
 At startup the add-on log prints one line with the mode, the countries and the number of ranges.
 
+### Applying changes
+
+The nginx configuration for the filter is built when the add-on starts. After every change to `geo_mode`, `geo_countries`, `geo_exempt_hosts`, `geo_deny_ips` or `geo_allow_ips`, **restart the add-on** — saving alone is not enough, and neither is `nginx -s reload`, because the files still hold the old state at that point.
+
+The only exception is the list refresh driven by `geo_refresh_hours`: it runs while the add-on is up and reloads nginx by itself when something changed.
+
 ### Relation to CrowdSec
 
 Running both makes sense and causes no conflict. The country filter is coarse and immediate, CrowdSec is fine-grained and keeps learning. If you have been doing country blocking through CrowdSec scenarios, you can switch that off there.

@@ -9,6 +9,7 @@
 - Neue Listen `geo_deny_ips` und `geo_allow_ips` für einzelne Adressen und CIDR-Bereiche. `geo_deny_ips` wirkt unabhängig vom Land, auch bei `geo_mode: off` und auch auf ausgenommenen Hostnamen; `geo_allow_ips` nimmt einzelne Adressen von der Ländersperre aus. Werte, die keine Adresse sind, werden verworfen und nicht in die nginx-Konfiguration geschrieben
 - Die Listen werden im Abstand von `geo_refresh_hours` neu geladen, nginx aber nur bei echter Änderung durchgestartet. Schlägt der Download fehl, bleiben die zuletzt geladenen Listen in Kraft; gibt es noch keine, bleibt die Sperre aus — ein Netzausfall darf niemanden aussperren
 - Eigene Einträge in `/data/custom_nginx/http_top.conf` und `server_http.conf` bleiben erhalten, das Add-on schreibt nur zwischen seine eigenen Marker und räumt sie beim Umstellen auf `off` wieder ab
+- Doku: Hinweis, dass Änderungen an den Geo-Optionen erst nach einem Neustart des Add-ons wirken — die nginx-Konfiguration dafür entsteht beim Start. Nur das Auffrischen der Länderlisten läuft im Betrieb
 - Doku: neuer Abschnitt „Ländersperre" in beiden Sprachen, samt Hinweis auf die geringere Trefferquote von Registerdaten gegenüber MaxMind und der Empfehlung, im Zweifel eine Sperr- statt einer Erlaubnisliste zu benutzen
 
 ## [0.1.17] - 2026-08-17

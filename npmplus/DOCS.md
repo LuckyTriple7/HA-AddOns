@@ -357,6 +357,12 @@ docker exec $CT sh -c 'wc -l /data/geoip/ranges.conf; cat /data/geoip/http.conf'
 
 Das Add-on-Protokoll meldet beim Start eine Zeile mit Modus, Ländern und Anzahl der Bereiche.
 
+### Änderungen wirksam machen
+
+Die nginx-Konfiguration für die Sperre wird beim Start des Add-ons gebaut. Nach jeder Änderung an `geo_mode`, `geo_countries`, `geo_exempt_hosts`, `geo_deny_ips` oder `geo_allow_ips` das **Add-on neu starten** — Speichern allein genügt nicht, und ein `nginx -s reload` auch nicht, weil die Dateien dann noch den alten Stand haben.
+
+Einzige Ausnahme ist das Auffrischen der Länderlisten über `geo_refresh_hours`: das läuft im Betrieb und startet nginx bei einer Änderung selbst durch.
+
 ### Verhältnis zu CrowdSec
 
 Beides parallel zu betreiben ist sinnvoll und stört sich nicht. Die Ländersperre ist grob und sofort, CrowdSec ist fein und lernt dazu. Wer Ländersperren bisher über CrowdSec-Szenarien gelöst hat, kann sie dort abschalten.
