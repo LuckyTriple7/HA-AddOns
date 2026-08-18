@@ -422,13 +422,38 @@ Schreibt jede gesperrte Anfrage nach `/data/nginx/logs/blocked.log`, mit Länder
 2026-08-18T11:04:12+02:00 www.gizmonet.de 1.2.3.4 cn "GET /wp-login.php HTTP/1.1" 403 "python-requests/2.31"
 ```
 
-Damit lässt sich nach ein paar Wochen auswerten, welche Länder überhaupt etwas beitragen:
+Die Spalten:
+
+| Spalte | Inhalt | Beispiel |
+|---|---|---|
+| 1 | Zeitstempel | `2026-08-18T11:04:12+02:00` |
+| 2 | Angefragter Host | `www.gizmonet.de` |
+| 3 | Quell-IP | `49.232.104.223` |
+| 4 | Land | `cn` |
+| 5–7 | Anfrage in Anführungszeichen | `"GET /wp-login.php HTTP/1.1"` |
+| 8 | Statuscode | `403` |
+| 9+ | User-Agent in Anführungszeichen | `"python-requests/2.31"` |
+
+Drei Auswertungen, die sich lohnen:
 
 ```sh
-awk '{print $4}' /share/npmplus/logs/blocked.log | sort | uniq -c | sort -rn
+L=/share/npmplus/logs/blocked.log
+
+# Welche Länder tragen überhaupt etwas bei?
+awk '{print $4}' $L | sort | uniq -c | sort -rn
+
+# Hartnäckigste Einzeladressen
+awk '{print $3, $4}' $L | sort | uniq -c | sort -rn | head -20
+
+# Was wollten sie eigentlich?
+awk -F'"' '{print $2}' $L | sort | uniq -c | sort -rn | head -20
 ```
 
+Die dritte ist die aufschlussreichste. Stehen dort massenhaft `/wp-login.php`, `/.env` oder `/phpmyadmin`, sind es reine Scanner und die Sperre tut genau, was sie soll. Tauchen dagegen gewöhnliche Seitenaufrufe auf, hast du womöglich echte Besucher erwischt — dann lohnt der Blick, aus welchem Land sie kamen.
+
 Länder, die dort mit einer Handvoll Treffern auftauchen, kannst du wieder aus der Liste nehmen — jedes gesperrte Land kostet echte Besucher.
+
+> Zeilen aus Versionen vor 0.1.24 haben ein Feld mehr, weil der Zeitstempel damals ein Leerzeichen enthielt. Für die ist `$5` die Landesspalte. Nach der nächsten Logrotation erledigt sich das.
 
 Kosten: eine zweite Nachschlagetabelle im Arbeitsspeicher, rund 4 MB bei 38 000 Bereichen. Im Erlaubnismodus steht in der Spalte `-`, weil dort nur die freigegebenen Länder geladen wurden und die Herkunft der übrigen unbekannt bleibt.
 

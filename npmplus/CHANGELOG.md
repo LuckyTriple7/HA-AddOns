@@ -4,6 +4,7 @@
 
 - Fix: Im Protokoll der gesperrten Anfragen stand der Zeitstempel als `[$time_local]` und enthielt damit ein Leerzeichen vor der Zeitzone. Jede Spaltennummer in `awk` verschob sich dadurch um eins — die dokumentierte Auswertung `$4` lieferte die IP statt des Landes. Jetzt `$time_iso8601`, ein einziges Feld, das Land steht verlässlich in Spalte 4
 - Bestehende `blocked.log` behalten das alte Format bis zur nächsten Rotation; für ältere Zeilen ist `$5` die richtige Spalte
+- Doku: Spaltenaufbau von `blocked.log` als Tabelle, dazu drei Auswertungen — häufigste Länder, hartnäckigste Einzeladressen und die tatsächlich angefragten Pfade. Letztere zeigt am schnellsten, ob die Sperre Scanner oder echte Besucher trifft
 
 ## [0.1.23] - 2026-08-18
 

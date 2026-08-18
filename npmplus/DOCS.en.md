@@ -420,13 +420,38 @@ Writes every blocked request to `/data/nginx/logs/blocked.log`, with the country
 2026-08-18T11:04:12+02:00 www.example.com 1.2.3.4 cn "GET /wp-login.php HTTP/1.1" 403 "python-requests/2.31"
 ```
 
-After a few weeks that lets you work out which countries actually contribute:
+The columns:
+
+| Column | Content | Example |
+|---|---|---|
+| 1 | Timestamp | `2026-08-18T11:04:12+02:00` |
+| 2 | Requested host | `www.example.com` |
+| 3 | Source IP | `49.232.104.223` |
+| 4 | Country | `cn` |
+| 5–7 | Request, in quotes | `"GET /wp-login.php HTTP/1.1"` |
+| 8 | Status code | `403` |
+| 9+ | User agent, in quotes | `"python-requests/2.31"` |
+
+Three evaluations worth running:
 
 ```sh
-awk '{print $4}' /share/npmplus/logs/blocked.log | sort | uniq -c | sort -rn
+L=/share/npmplus/logs/blocked.log
+
+# Which countries actually contribute?
+awk '{print $4}' $L | sort | uniq -c | sort -rn
+
+# Most persistent individual addresses
+awk '{print $3, $4}' $L | sort | uniq -c | sort -rn | head -20
+
+# What were they after?
+awk -F'"' '{print $2}' $L | sort | uniq -c | sort -rn | head -20
 ```
 
+The third one is the most revealing. If it is full of `/wp-login.php`, `/.env` or `/phpmyadmin`, those are plain scanners and the filter is doing its job. If ordinary page requests show up instead, you may have caught real visitors — then it is worth looking at which country they came from.
+
 Countries that show up with a handful of hits can be dropped from the list again — every blocked country costs you real visitors.
+
+> Lines written before 0.1.24 have one field more, because the timestamp contained a space back then. For those, `$5` is the country column. The next log rotation sorts it out.
 
 Cost: a second lookup table in memory, around 4 MB for 38,000 ranges. In allow mode the column shows `-`, because only the permitted countries were downloaded and the origin of the rest stays unknown.
 
