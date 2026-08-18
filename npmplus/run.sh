@@ -486,15 +486,15 @@ mkdir -p "$GEO_DIR" "$CUSTOM_NGINX"
 # Fertige Länderauswahl. Nur eine Abkürzung für geo_countries — was hier
 # herauskommt, landet in derselben Liste und lässt sich dort ergänzen.
 #
-# high_risk: Herkunftsländer, aus denen im Betrieb eines privaten Servers
-# nahezu ausschließlich automatisierte Angriffe kommen, plus die großen
-# Bot-Netz-Regionen. Die Auswahl ist grob und trifft auch echte Besucher —
-# wer Bekannte oder Dienste in einem dieser Länder hat, nimmt sie besser
-# einzeln über geo_countries.
+# high_risk: Herkunftsländer, aus denen bei einem privaten Server praktisch
+# nur automatisierte Zugriffe kommen. Bewusst NICHT enthalten sind die großen
+# Internetländer mit vielen echten Nutzern (IN, BR, MX, ID, TR) — der Schaden
+# durch ausgesperrte Besucher wiegt dort schwerer als der Gewinn. Wer sie
+# trotzdem will, trägt sie zusätzlich in geo_countries ein.
 geo_preset_countries() {
     case "$1" in
         high_risk)
-            printf '%s' "cn ru kp ir in pk bd vn id my th ph ng gh za br ar co mx tr eg" ;;
+            printf '%s' "cn ru kp ir pk bd vn my th ph ng gh za ar co eg" ;;
         *)
             printf '' ;;
     esac

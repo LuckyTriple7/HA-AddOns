@@ -287,11 +287,11 @@ geo_mode: block
 geo_preset: high_risk
 ```
 
-Adds 21 countries in one go:
+Adds 16 countries in one go:
 
-`CN` `RU` `KP` `IR` `IN` `PK` `BD` `VN` `ID` `MY` `TH` `PH` `NG` `GH` `ZA` `BR` `AR` `CO` `MX` `TR` `EG`
+`CN` `RU` `KP` `IR` `PK` `BD` `VN` `MY` `TH` `PH` `NG` `GH` `ZA` `AR` `CO` `EG`
 
-Around **73,000 address ranges** in total. The download takes a few seconds at startup, after that everything sits inside the container.
+Around **38,000 address ranges** in total. The download takes a few seconds at startup, after that everything sits inside the container.
 
 `geo_countries` still works alongside it — both lists are merged and duplicates are dropped:
 
@@ -304,7 +304,18 @@ geo_countries:
 
 The preset only applies to `geo_mode: block`. Combined with `allow` it is skipped with a warning, since a block list would suddenly have become an allow list.
 
-**What the selection means:** it is coarse. Those countries are on the list because traffic from them to a private server is almost entirely automated — not because no real visitors live there. `IN`, `BR`, `MX`, `ID` and `TR` are large internet countries. If you have friends there, expect someone on holiday, or run a service that must be reachable from there, drop the country by writing the codes you want into `geo_countries` individually instead of using `high_risk`. Single addresses can be exempted through `geo_allow_ips`.
+**What is missing and why:** `IN`, `BR`, `MX`, `ID` and `TR` are deliberately left out. They are large internet countries with many real users — blocking them costs more in shut-out visitors than it saves in attacks. If you want them anyway, add them in `geo_countries`:
+
+```yaml
+geo_preset: high_risk
+geo_countries:
+  - in
+  - br
+```
+
+The other way round: the selection stays coarse. Real people live in those 16 countries too. If you have friends there or expect someone on holiday, leave the country out and type the codes you want into `geo_countries` individually instead of using `high_risk`. Single addresses can be exempted through `geo_allow_ips`.
+
+**Limits of the approach:** most automated attacks today come from data centres, not from residential lines — rented servers in the Netherlands, Germany or the US. Those are exactly the ones you cannot block, because that is where you are yourself. A country filter noticeably lowers the background noise in the log, but it does not replace CrowdSec.
 
 ```yaml
 geo_mode: allow

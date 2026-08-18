@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.1.20] - 2026-08-18
+
+- `geo_preset: high_risk` umfasst jetzt 16 statt 21 Länder, rund 38000 statt 73000 Adressbereiche. Herausgenommen: IN, BR, MX, ID und TR. Das sind große Internetländer mit vielen echten Nutzern — sie zu sperren kostet mehr an ausgesperrten Besuchern, als es an Angriffen erspart. Wer sie trotzdem will, trägt sie zusätzlich in `geo_countries` ein
+- Doku: Abschnitt dazu, was bewusst nicht in der Vorauswahl steht und warum, samt Hinweis auf die Grenzen der Methode — der überwiegende Teil automatisierter Angriffe kommt aus Rechenzentren in Ländern, die man nicht sperren kann, weil man selbst dort steht. Eine Ländersperre senkt das Grundrauschen, ersetzt CrowdSec aber nicht
+
 ## [0.1.19] - 2026-08-18
 
 - Neue Option `geo_preset`: `high_risk` trägt 21 Länder auf einen Schlag ein (CN, RU, KP, IR, IN, PK, BD, VN, ID, MY, TH, PH, NG, GH, ZA, BR, AR, CO, MX, TR, EG), rund 73000 Adressbereiche. `geo_countries` bleibt daneben nutzbar, beide Listen werden zusammengeführt und Doppelte fallen weg

@@ -48,7 +48,7 @@ The interface certificate is self-signed — the browser warning on first access
 | `crowdsec_enabled` | `false` | Enable the nginx bouncer |
 | `crowdsec_api_key` | – | Key from `cscli bouncers add npmplus` |
 | `geo_mode` | `off` | Country filter: `block`, `allow` or `off` |
-| `geo_preset` | `none` | Ready-made selection: `high_risk` (21 countries) |
+| `geo_preset` | `none` | Ready-made selection: `high_risk` (16 countries) |
 | `geo_countries` | `[]` | Two-letter country codes, e.g. `cn` |
 | `geo_deny_ips` | `[]` | Always-blocked addresses or CIDR ranges |
 | `extra_env` | `[]` | Additional NPMplus variables as `KEY=VALUE` |

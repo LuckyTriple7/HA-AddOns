@@ -289,11 +289,11 @@ geo_mode: block
 geo_preset: high_risk
 ```
 
-Trägt 21 Länder auf einen Schlag ein:
+Trägt 16 Länder auf einen Schlag ein:
 
-`CN` `RU` `KP` `IR` `IN` `PK` `BD` `VN` `ID` `MY` `TH` `PH` `NG` `GH` `ZA` `BR` `AR` `CO` `MX` `TR` `EG`
+`CN` `RU` `KP` `IR` `PK` `BD` `VN` `MY` `TH` `PH` `NG` `GH` `ZA` `AR` `CO` `EG`
 
-Zusammen rund **73 000 Adressbereiche**. Der Download dauert beim Start ein paar Sekunden, danach liegt alles im Container.
+Zusammen rund **38 000 Adressbereiche**. Der Download dauert beim Start ein paar Sekunden, danach liegt alles im Container.
 
 `geo_countries` bleibt daneben nutzbar — beide Listen werden zusammengeführt, Doppelte fallen weg:
 
@@ -306,7 +306,18 @@ geo_countries:
 
 Die Vorauswahl gilt nur für `geo_mode: block`. In Verbindung mit `allow` wird sie mit einer Warnung übergangen, sonst wäre aus der Sperrliste plötzlich eine Erlaubnisliste geworden.
 
-**Was die Auswahl bedeutet:** Sie ist grob. Die Länder stehen dort, weil aus ihnen bei einem privaten Server fast nur automatisierte Zugriffe kommen — nicht, weil dort keine echten Besucher wohnen. `IN`, `BR`, `MX`, `ID` und `TR` sind große Internetländer. Wer dort Bekannte hat, jemanden im Urlaub erwartet oder einen Dienst betreibt, der von dort erreichbar sein muss, nimmt das jeweilige Land aus der Vorauswahl heraus, indem er statt `high_risk` die gewünschten Codes einzeln in `geo_countries` schreibt. Einzelne Adressen lassen sich über `geo_allow_ips` freistellen.
+**Was nicht drin ist und warum:** `IN`, `BR`, `MX`, `ID` und `TR` fehlen bewusst. Das sind große Internetländer mit vielen echten Nutzern — sie zu sperren kostet mehr an ausgesperrten Besuchern, als es an Angriffen erspart. Wer sie trotzdem will, schreibt sie zusätzlich in `geo_countries`:
+
+```yaml
+geo_preset: high_risk
+geo_countries:
+  - in
+  - br
+```
+
+Umgekehrt gilt: Die Auswahl bleibt grob. Auch in den 16 Ländern wohnen echte Menschen. Wer dort Bekannte hat oder jemanden im Urlaub erwartet, lässt das Land weg und tippt die gewünschten Codes einzeln in `geo_countries`, statt `high_risk` zu benutzen. Einzelne Adressen lassen sich über `geo_allow_ips` freistellen.
+
+**Grenzen der Methode:** Der überwiegende Teil automatisierter Angriffe kommt heute aus Rechenzentren, nicht aus Wohnanschlüssen — gemietete Server in den Niederlanden, Deutschland oder den USA. Genau die kann man nicht sperren, dort steht man selbst. Eine Ländersperre senkt also das Grundrauschen im Protokoll spürbar, ersetzt aber CrowdSec nicht.
 
 ```yaml
 geo_mode: allow

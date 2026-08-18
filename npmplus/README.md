@@ -48,7 +48,7 @@ Das Zertifikat der Oberfläche ist selbstsigniert — die Browserwarnung beim er
 | `crowdsec_enabled` | `false` | nginx-Bouncer aktivieren |
 | `crowdsec_api_key` | – | Schlüssel aus `cscli bouncers add npmplus` |
 | `geo_mode` | `off` | Ländersperre: `block`, `allow` oder `off` |
-| `geo_preset` | `none` | Fertige Länderauswahl: `high_risk` (21 Länder) |
+| `geo_preset` | `none` | Fertige Länderauswahl: `high_risk` (16 Länder) |
 | `geo_countries` | `[]` | Ländercodes mit zwei Buchstaben, z. B. `cn` |
 | `geo_deny_ips` | `[]` | Immer gesperrte Adressen oder CIDR-Bereiche |
 | `extra_env` | `[]` | Weitere NPMplus-Variablen als `KEY=VALUE` |
