@@ -394,6 +394,56 @@ CT=$(docker ps --format '{{.Names}}' | grep npmplus)
 docker exec $CT sh -c 'wc -l /data/geoip/ranges.conf; cat /data/geoip/http.conf'
 ```
 
+### Was gesperrte Besucher bekommen
+
+```yaml
+geo_deny_action: 403
+```
+
+Standard. nginx liefert eine kurze Sperrseite in Deutsch und Englisch. Sie liegt als `/data/geoip/blocked.html` und lässt sich frei bearbeiten — das Add-on legt sie nur an, wenn sie fehlt, und überschreibt sie nie. Sinnvoll, um einen Kontaktweg für Fehlsperrungen hineinzuschreiben.
+
+```yaml
+geo_deny_action: 444
+```
+
+nginx schließt die Verbindung, ohne eine einzige Zeile zu antworten. Ein Scanner erfährt so nicht einmal, dass an der Adresse ein Server steht. Nachteil: ein versehentlich gesperrter echter Besucher sieht nur einen Verbindungsabbruch und meldet dir „die Seite geht nicht" statt einer klaren Fehlermeldung.
+
+Die Sperrseite ersetzt nicht die Seite von CrowdSec. Beide bleiben getrennt: das Add-on antwortet intern mit dem eigenen Code 460 und wandelt ihn erst danach in 403 um. Ein `error_page 403` hätte auch die Sperrseiten von CrowdSec und von Zugriffslisten verschluckt.
+
+### Wer gesperrt wurde, und aus welchem Land
+
+```yaml
+geo_log_country: true
+```
+
+Schreibt jede gesperrte Anfrage nach `/data/nginx/logs/blocked.log`, mit Ländercode:
+
+```
+[18/Aug/2026:11:04:12 +0200] www.gizmonet.de 1.2.3.4 cn "GET /wp-login.php HTTP/1.1" 403 "python-requests/2.31"
+```
+
+Damit lässt sich nach ein paar Wochen auswerten, welche Länder überhaupt etwas beitragen:
+
+```sh
+awk '{print $4}' /share/npmplus/logs/blocked.log | sort | uniq -c | sort -rn
+```
+
+Länder, die dort mit einer Handvoll Treffern auftauchen, kannst du wieder aus der Liste nehmen — jedes gesperrte Land kostet echte Besucher.
+
+Kosten: eine zweite Nachschlagetabelle im Arbeitsspeicher, rund 4 MB bei 38 000 Bereichen. Im Erlaubnismodus steht in der Spalte `-`, weil dort nur die freigegebenen Länder geladen wurden und die Herkunft der übrigen unbekannt bleibt.
+
+Das reguläre Access-Log von NPMplus bleibt daneben unverändert.
+
+### Startzeit
+
+Beim Start prüft das Add-on, ob die vorhandenen Listen noch zur Konfiguration passen und jünger als `geo_refresh_hours` sind. Ist das der Fall, entfällt der Download und der Proxy steht sofort:
+
+```
+[INFO] Country lists on disk are still current (38034 ranges) — skipping download
+```
+
+Sobald du Länder änderst, die Betriebsart wechselst oder `geo_log_country` umstellst, passt der Fingerabdruck nicht mehr und die Listen werden neu geholt.
+
 Im Add-on-Protokoll steht der ganze Vorgang:
 
 ```
@@ -412,7 +462,7 @@ Fehlt ein Land, steht dort `Country list xx/ipv4-aggregated could not be downloa
 
 ### Änderungen wirksam machen
 
-Die nginx-Konfiguration für die Sperre wird beim Start des Add-ons gebaut. Nach jeder Änderung an `geo_mode`, `geo_preset`, `geo_countries`, `geo_exempt_hosts`, `geo_deny_ips` oder `geo_allow_ips` das **Add-on neu starten** — Speichern allein genügt nicht, und ein `nginx -s reload` auch nicht, weil die Dateien dann noch den alten Stand haben.
+Die nginx-Konfiguration für die Sperre wird beim Start des Add-ons gebaut. Nach jeder Änderung an `geo_mode`, `geo_preset`, `geo_countries`, `geo_exempt_hosts`, `geo_deny_ips`, `geo_allow_ips`, `geo_deny_action` oder `geo_log_country` das **Add-on neu starten** — Speichern allein genügt nicht, und ein `nginx -s reload` auch nicht, weil die Dateien dann noch den alten Stand haben.
 
 Einzige Ausnahme ist das Auffrischen der Länderlisten über `geo_refresh_hours`: das läuft im Betrieb und startet nginx bei einer Änderung selbst durch.
 
@@ -536,6 +586,8 @@ Fehlt ab Werk. Dafür müssen die MaxMind-Datenbanken (kostenloses Konto) nach `
 | `geo_deny_ips` | `[]` | Immer gesperrte Adressen oder CIDR-Bereiche |
 | `geo_allow_ips` | `[]` | Adressen, die die Ländersperre nie trifft |
 | `geo_refresh_hours` | `24` | Abstand für das Neuladen der Listen; `0` = aus |
+| `geo_deny_action` | `403` | Antwort bei Sperre: `403` mit Seite oder `444` wortlos |
+| `geo_log_country` | `true` | Gesperrte Anfragen mit Land nach `blocked.log` |
 | `nginx_worker_processes` | `auto` | Anzahl nginx-Worker |
 | `nginx_worker_connections` | `512` | Verbindungen je Worker |
 | `cookie_secret` | – | Fester Schlüssel für Anmelde-Cookies |

@@ -101,6 +101,12 @@ configuration:
   geo_refresh_hours:
     name: Listen auffrischen (Stunden)
     description: Abstand, in dem die Länderlisten neu geladen werden. 0 schaltet das Auffrischen ab. Ohne Auffrischung sperrt die Liste mit der Zeit die Falschen aus.
+  geo_deny_action:
+    name: Antwort bei Sperre
+    description: '"403" liefert eine Sperrseite, die sich unter /data/geoip/blocked.html bearbeiten lässt. "444" schließt die Verbindung wortlos — der Angreifer erfährt nicht einmal, dass dort ein Server steht, ein versehentlich Gesperrter sieht aber nur einen Verbindungsabbruch.'
+  geo_log_country:
+    name: Land mitprotokollieren
+    description: Schreibt gesperrte Anfragen mit Herkunftsland nach /data/nginx/logs/blocked.log. So siehst du nach ein paar Wochen, welche Länder etwas beitragen. Kostet rund 4 MB Arbeitsspeicher für eine zweite Nachschlagetabelle.
   nginx_worker_processes:
     name: nginx Worker-Prozesse
     description: Anzahl der nginx-Worker. Standard "auto" entspricht der Anzahl CPU-Kerne.

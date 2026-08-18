@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.1.23] - 2026-08-18
+
+- Start ohne Wartezeit: passen die vorhandenen Länderlisten noch zur Konfiguration und sind sie jünger als `geo_refresh_hours`, entfällt der Download. Bisher kostete jeder Neustart 14 Sekunden, auch wenn sich nichts geändert hatte. Ein Fingerabdruck aus Betriebsart, Ländern und Protokollschalter entscheidet darüber; sobald du etwas davon änderst, werden die Listen neu geholt
+- Neue Option `geo_deny_action`: `403` liefert wie bisher eine Sperrseite, `444` schließt die Verbindung wortlos — ein Scanner erfährt so nicht einmal, dass an der Adresse ein Server steht
+- Eigene Sperrseite unter `/data/geoip/blocked.html`, zweisprachig und ohne externe Ressourcen. Sie wird nur angelegt, wenn sie fehlt, und nie überschrieben — eigener Text und Kontaktweg bleiben über Updates hinweg erhalten
+- Die Sperrseite ersetzt bewusst nicht die von CrowdSec: intern antwortet das Add-on mit dem eigenen Code 460 und wandelt ihn erst danach in 403 um. Ein `error_page 403` hätte auch die Seiten von CrowdSec und von Zugriffslisten verschluckt
+- Neue Option `geo_log_country` (Standard `true`): gesperrte Anfragen landen mit Herkunftsland in `/data/nginx/logs/blocked.log`. Damit lässt sich nach ein paar Wochen auswerten, welche Länder überhaupt etwas beitragen und welche nur echte Besucher kosten. Preis ist eine zweite Nachschlagetabelle, rund 4 MB Arbeitsspeicher. Im Erlaubnismodus bleibt die Spalte `-`, weil dort nur die freigegebenen Länder geladen werden
+- Das reguläre Access-Log von NPMplus bleibt daneben unverändert
+
 ## [0.1.22] - 2026-08-18
 
 - Fix: Das Protokoll nannte zwei verschiedene Zahlen für dieselbe Sache — `38189 ranges` beim Download, `38034 ranges` beim Aktivieren. Gezählt wurden die Rohzeilen der heruntergeladenen Dateien, in der fertigen Liste fallen Leerzeilen aber weg. Jetzt wird gezählt, was tatsächlich in der Datei landet

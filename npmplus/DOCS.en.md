@@ -392,6 +392,56 @@ CT=$(docker ps --format '{{.Names}}' | grep npmplus)
 docker exec $CT sh -c 'wc -l /data/geoip/ranges.conf; cat /data/geoip/http.conf'
 ```
 
+### What blocked visitors get
+
+```yaml
+geo_deny_action: 403
+```
+
+The default. nginx serves a short block page in German and English. It lives at `/data/geoip/blocked.html` and can be edited freely — the add-on only creates it when it is missing and never overwrites it. Useful for adding a contact route for false positives.
+
+```yaml
+geo_deny_action: 444
+```
+
+nginx closes the connection without a single line of response. A scanner does not even learn that a server is listening on that address. The downside: a real visitor blocked by mistake only sees a dropped connection and reports "the site is down" instead of a clear error.
+
+The block page does not replace CrowdSec's page. Both stay separate: internally the add-on answers with its own code 460 and only then converts it to 403. An `error_page 403` would also have swallowed the pages from CrowdSec and from access lists.
+
+### Who was blocked, and from where
+
+```yaml
+geo_log_country: true
+```
+
+Writes every blocked request to `/data/nginx/logs/blocked.log`, with the country code:
+
+```
+[18/Aug/2026:11:04:12 +0200] www.example.com 1.2.3.4 cn "GET /wp-login.php HTTP/1.1" 403 "python-requests/2.31"
+```
+
+After a few weeks that lets you work out which countries actually contribute:
+
+```sh
+awk '{print $4}' /share/npmplus/logs/blocked.log | sort | uniq -c | sort -rn
+```
+
+Countries that show up with a handful of hits can be dropped from the list again — every blocked country costs you real visitors.
+
+Cost: a second lookup table in memory, around 4 MB for 38,000 ranges. In allow mode the column shows `-`, because only the permitted countries were downloaded and the origin of the rest stays unknown.
+
+The regular NPMplus access log is untouched alongside it.
+
+### Startup time
+
+At startup the add-on checks whether the lists on disk still match the configuration and are younger than `geo_refresh_hours`. If so the download is skipped and the proxy comes up immediately:
+
+```
+[INFO] Country lists on disk are still current (38034 ranges) — skipping download
+```
+
+As soon as you change countries, switch mode or toggle `geo_log_country`, the fingerprint no longer matches and the lists are fetched again.
+
 The add-on log covers the whole process:
 
 ```
@@ -410,7 +460,7 @@ If a country is missing you get `Country list xx/ipv4-aggregated could not be do
 
 ### Applying changes
 
-The nginx configuration for the filter is built when the add-on starts. After every change to `geo_mode`, `geo_preset`, `geo_countries`, `geo_exempt_hosts`, `geo_deny_ips` or `geo_allow_ips`, **restart the add-on** — saving alone is not enough, and neither is `nginx -s reload`, because the files still hold the old state at that point.
+The nginx configuration for the filter is built when the add-on starts. After every change to `geo_mode`, `geo_preset`, `geo_countries`, `geo_exempt_hosts`, `geo_deny_ips`, `geo_allow_ips`, `geo_deny_action` or `geo_log_country`, **restart the add-on** — saving alone is not enough, and neither is `nginx -s reload`, because the files still hold the old state at that point.
 
 The only exception is the list refresh driven by `geo_refresh_hours`: it runs while the add-on is up and reloads nginx by itself when something changed.
 
@@ -534,6 +584,8 @@ Not included out of the box. Put the MaxMind databases (free account) into `/dat
 | `geo_deny_ips` | `[]` | Always-blocked addresses or CIDR ranges |
 | `geo_allow_ips` | `[]` | Addresses the country filter never applies to |
 | `geo_refresh_hours` | `24` | Interval for reloading the lists; `0` = off |
+| `geo_deny_action` | `403` | Response when blocked: `403` with page or `444` silent |
+| `geo_log_country` | `true` | Log blocked requests with country to `blocked.log` |
 | `nginx_worker_processes` | `auto` | Number of nginx workers |
 | `nginx_worker_connections` | `512` | Connections per worker |
 | `cookie_secret` | – | Static key for login cookies |

@@ -67,6 +67,8 @@ CS_CAPTCHA_SECRET_OPT=$(opt_trim crowdsec_captcha_secret_key "")
 GEO_MODE_OPT=$(opt_trim geo_mode "off")
 GEO_PRESET_OPT=$(opt_trim geo_preset "none")
 GEO_REFRESH_OPT=$(opt geo_refresh_hours "24")
+GEO_DENY_ACTION_OPT=$(opt_trim geo_deny_action "403")
+GEO_LOG_COUNTRY_OPT=$(opt geo_log_country "true")
 WORKER_PROCESSES_OPT=$(opt nginx_worker_processes "auto")
 WORKER_CONNECTIONS_OPT=$(opt nginx_worker_connections "512")
 COOKIE_SECRET_OPT=$(opt cookie_secret "")
@@ -320,7 +322,11 @@ fi
 ###############################################################################
 GEO_DIR=/data/geoip
 GEO_RANGES="$GEO_DIR/ranges.conf"
+GEO_COUNTRY_CONF="$GEO_DIR/countries.conf"
 GEO_HTTP="$GEO_DIR/http.conf"
+GEO_META="$GEO_DIR/lists.meta"
+GEO_PAGE="$GEO_DIR/blocked.html"
+GEO_BLOCK_LOG=/data/nginx/logs/blocked.log
 CUSTOM_NGINX=/data/custom_nginx
 GEO_MARK_BEGIN="# >>> npmplus-addon geoip >>>"
 GEO_MARK_END="# <<< npmplus-addon geoip <<<"
@@ -352,8 +358,8 @@ geo_include() {
 # fehlendes Land fiele niemandem auf.
 geo_fetch() {
     local mark="$1" target="$2"; shift 2
-    local tmp raw cc file url code total=0 failed=0 count before start
-    tmp=$(mktemp); raw=$(mktemp)
+    local tmp tmpc raw cc file url code total=0 failed=0 count before start
+    tmp=$(mktemp); tmpc=$(mktemp); raw=$(mktemp)
     start=$(date +%s)
     log "Downloading country lists for $# countries from ipverse..."
     for cc in "$@"; do
@@ -369,6 +375,11 @@ geo_fetch() {
                     before=$(wc -l < "$tmp")
                     awk -v m="$mark" 'NF && $1 !~ /^#/ { print "    " $1 " " m ";" }' "$raw" >> "$tmp"
                     count=$((count + $(wc -l < "$tmp") - before))
+                    # Dieselben Bereiche ein zweites Mal, diesmal mit dem
+                    # Ländercode als Wert. Nur für die Protokollspalte.
+                    if [ "$GEO_LOG_COUNTRY_OPT" = "true" ]; then
+                        awk -v c="$cc" 'NF && $1 !~ /^#/ { print "    " $1 " " c ";" }' "$raw" >> "$tmpc"
+                    fi
                     ;;
                 404)
                     # Kein Fehler: Nordkorea etwa hat gar keine IPv6-Zuteilung,
@@ -386,12 +397,21 @@ geo_fetch() {
     done
     rm -f "$raw"
     if [ ! -s "$tmp" ]; then
-        rm -f "$tmp"
+        rm -f "$tmp" "$tmpc"
         warn "No country list could be downloaded"
         return 1
     fi
     mv "$tmp" "$target"
     chmod 644 "$target"
+    if [ "$GEO_LOG_COUNTRY_OPT" = "true" ]; then
+        mv "$tmpc" "$GEO_COUNTRY_CONF"
+        chmod 644 "$GEO_COUNTRY_CONF"
+    else
+        rm -f "$tmpc" "$GEO_COUNTRY_CONF"
+    fi
+    # Fingerabdruck der Auswahl mitschreiben. Beim nächsten Start entscheidet
+    # er darüber, ob die vorhandenen Dateien noch zur Konfiguration passen.
+    printf '%s' "$GEO_SIG" > "$GEO_META"
     log "Country lists ready: ${total} ranges in $(( $(date +%s) - start ))s"
     [ "$failed" = "0" ] || warn "${failed} country list(s) could not be downloaded — the filter works, but is incomplete"
     return 0
@@ -474,15 +494,107 @@ geo_write_conf() {
             printf 'map "$npmplus_geo_hit$npmplus_geo_exempt$npmplus_geo_acme" $npmplus_geo_deny {\n'
             printf '    default 0;\n'
             printf '    "100" 1;\n'
-            printf '}\n'
+            printf '}\n\n'
         else
             # Ohne Ländersperre muss die Variable trotzdem existieren, damit
             # server_http.conf in beiden Fällen gleich aussehen kann.
             printf 'map $npmplus_geo_ban $npmplus_geo_deny {\n'
             printf '    default 0;\n'
-            printf '}\n'
+            printf '}\n\n'
         fi
+
+        # Zweiter Baum, diesmal mit dem Ländercode als Wert. Kostet denselben
+        # Speicher noch einmal und dient allein der Protokollspalte.
+        #
+        # Im Erlaubnismodus stehen dort nur die freigegebenen Länder — für eine
+        # gesperrte Anfrage bleibt deshalb "-" übrig. Das ist keine Panne: die
+        # Listen der übrigen 200 Länder wurden nie geladen.
+        if [ "$GEO_LOG_COUNTRY_OPT" = "true" ] && [ -s "$GEO_COUNTRY_CONF" ]; then
+            printf 'geo $npmplus_geo_country {\n'
+            printf '    default "-";\n'
+            printf '    include %s;\n' "$GEO_COUNTRY_CONF"
+            printf '}\n\n'
+        else
+            printf 'map $npmplus_geo_ban $npmplus_geo_country {\n'
+            printf '    default "-";\n'
+            printf '}\n\n'
+        fi
+
+        printf 'map "$npmplus_geo_ban$npmplus_geo_deny" $npmplus_geo_blocked {\n'
+        printf '    default 1;\n'
+        printf '    "00" 0;\n'
+        printf '}\n\n'
+        printf 'log_format npmplus_geo '"'"'[$time_local] $host $remote_addr $npmplus_geo_country "$request" $status "$http_user_agent"'"'"';\n'
     } > "$GEO_HTTP"
+}
+
+# Vorlage für die Sperrseite. Wird nur angelegt, wenn es noch keine gibt —
+# eigene Änderungen an der Datei bleiben damit über Updates hinweg erhalten.
+geo_write_page() {
+    [ -s "$GEO_PAGE" ] && return 0
+    cat > "$GEO_PAGE" <<'HTML'
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Zugriff gesperrt / Access denied</title>
+<style>
+  :root { color-scheme: light dark; }
+  body {
+    margin: 0; min-height: 100vh; display: flex; align-items: center;
+    justify-content: center; padding: 2rem;
+    font: 16px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: #f4f4f5; color: #18181b;
+  }
+  @media (prefers-color-scheme: dark) {
+    body { background: #18181b; color: #e4e4e7; }
+    .card { background: #27272a !important; border-color: #3f3f46 !important; }
+    .hint { color: #a1a1aa !important; }
+  }
+  .card {
+    max-width: 34rem; background: #fff; border: 1px solid #e4e4e7;
+    border-radius: .75rem; padding: 2rem;
+  }
+  h1 { margin: 0 0 .25rem; font-size: 1.35rem; }
+  h2 { margin: 1.75rem 0 .25rem; font-size: 1.1rem; font-weight: 600; }
+  p { margin: .5rem 0; }
+  .hint { color: #52525b; font-size: .9rem; margin-top: 1.75rem; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <h1>Zugriff gesperrt</h1>
+    <p>Diese Seite nimmt derzeit keine Anfragen aus deiner Region entgegen.</p>
+    <p>Wenn du meinst, dass das ein Versehen ist, wende dich bitte an den Betreiber der Seite und nenne ihm den Zeitpunkt sowie deine IP-Adresse.</p>
+
+    <h2>Access denied</h2>
+    <p>This site currently does not accept requests from your region.</p>
+    <p>If you believe this is a mistake, please contact the site owner and mention the time of your visit and your IP address.</p>
+
+    <p class="hint">HTTP 403</p>
+  </div>
+</body>
+</html>
+HTML
+    chmod 644 "$GEO_PAGE"
+    log "Block page created at ${GEO_PAGE} — edit it to your liking, it is never overwritten"
+}
+
+# Passen die vorhandenen Listen noch zur Konfiguration und sind sie jung genug?
+# Dann sparen wir den Download und starten sofort. Der Hintergrundlauf holt
+# frische Listen ohnehin.
+geo_cache_valid() {
+    [ -s "$GEO_RANGES" ] || return 1
+    [ -f "$GEO_META" ] || return 1
+    [ "$(cat "$GEO_META" 2>/dev/null)" = "$GEO_SIG" ] || return 1
+    if [ "$GEO_LOG_COUNTRY_OPT" = "true" ] && [ ! -s "$GEO_COUNTRY_CONF" ]; then
+        return 1
+    fi
+    # Auffrischen abgeschaltet: dann gilt die vorhandene Liste ohne Altersgrenze.
+    [ "${GEO_REFRESH_OPT:-0}" -gt 0 ] 2>/dev/null || return 0
+    find "$GEO_RANGES" -mmin "-$((GEO_REFRESH_OPT * 60))" 2>/dev/null | grep -q . || return 1
+    return 0
 }
 
 mkdir -p "$GEO_DIR" "$CUSTOM_NGINX"
@@ -565,8 +677,12 @@ case "$GEO_MODE_OPT" in
             else
                 GEO_DEFAULT=1; GEO_MARK=0
             fi
+            GEO_SIG="mode=${GEO_MODE_OPT} mark=${GEO_MARK} country_log=${GEO_LOG_COUNTRY_OPT} countries=${GEO_COUNTRIES}"
             # shellcheck disable=SC2086
-            if geo_fetch "$GEO_MARK" "$GEO_RANGES" $GEO_COUNTRIES; then
+            if geo_cache_valid; then
+                log "Country lists on disk are still current ($(grep -c ';' "$GEO_RANGES") ranges) — skipping download"
+                GEO_ACTIVE=true
+            elif geo_fetch "$GEO_MARK" "$GEO_RANGES" $GEO_COUNTRIES; then
                 GEO_ACTIVE=true
             elif [ -s "$GEO_RANGES" ]; then
                 warn "Country lists could not be downloaded — keeping the previous lists"
@@ -595,10 +711,32 @@ if [ "$GEO_ACTIVE" = "true" ] || [ "$GEO_DENY_COUNT" -gt 0 ]; then
         geo_write_conf ""
     fi
     [ "$GEO_DENY_COUNT" -gt 0 ] && log "IP deny list active: ${GEO_DENY_COUNT} entries"
+
+    # Gesperrte Anfragen in eine eigene Datei protokollieren. Das reguläre
+    # Access-Log von NPMplus bleibt daneben unangetastet.
+    GEO_SERVER_CONF="access_log ${GEO_BLOCK_LOG} npmplus_geo if=\$npmplus_geo_blocked;"
+
+    if [ "$GEO_DENY_ACTION_OPT" = "444" ]; then
+        # 444 ist nginx-eigen: Verbindung schließen, ohne eine einzige Zeile zu
+        # antworten. Eine Seite gibt es dann naturgemäß nicht.
+        GEO_SERVER_CONF="${GEO_SERVER_CONF}
+if (\$npmplus_geo_ban) { return 444; }
+if (\$npmplus_geo_deny) { return 444; }"
+    else
+        geo_write_page
+        # Umweg über einen eigenen Code statt direkt 403: ein "error_page 403"
+        # würde auch die 403 von CrowdSec und von Zugriffslisten abfangen und
+        # deren Seiten durch unsere ersetzen. 460 gehört dagegen nur uns.
+        GEO_SERVER_CONF="${GEO_SERVER_CONF}
+if (\$npmplus_geo_ban) { return 460; }
+if (\$npmplus_geo_deny) { return 460; }
+error_page 460 =403 /npmplus-geo-blocked.html;
+location = /npmplus-geo-blocked.html { internal; alias ${GEO_PAGE}; }"
+    fi
+
     geo_include "$CUSTOM_NGINX/http_top.conf" "include ${GEO_HTTP};"
-    geo_include "$CUSTOM_NGINX/server_http.conf" \
-        'if ($npmplus_geo_ban) { return 403; }
-if ($npmplus_geo_deny) { return 403; }'
+    geo_include "$CUSTOM_NGINX/server_http.conf" "$GEO_SERVER_CONF"
+    log "Blocked requests are logged to ${GEO_BLOCK_LOG} (response: ${GEO_DENY_ACTION_OPT})"
 else
     # Auch im ausgeschalteten Zustand aufräumen, sonst bliebe eine einmal
     # gesetzte Sperre nach dem Umstellen auf "off" weiter aktiv.

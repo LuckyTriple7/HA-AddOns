@@ -1,6 +1,6 @@
 name: NPMplus
 description: Reverse Proxy mit Web-Oberfläche auf Basis von NPMplus — HTTP/3, Let's Encrypt, CrowdSec-Bouncer und AppSec/WAF
-version: "0.1.22"
+version: "0.1.23"
 slug: npmplus
 url: https://github.com/LuckyTriple7/HA-AddOns
 
@@ -79,6 +79,8 @@ options:
   geo_deny_ips: []
   geo_allow_ips: []
   geo_refresh_hours: 24
+  geo_deny_action: "403"
+  geo_log_country: true
   nginx_worker_processes: "auto"
   nginx_worker_connections: 512
   cookie_secret: ""
@@ -123,6 +125,8 @@ schema:
   geo_allow_ips:
     - str
   geo_refresh_hours: int(0,720)
+  geo_deny_action: list(403|444)
+  geo_log_country: bool
   nginx_worker_processes: str
   nginx_worker_connections: int(1,65535)
   cookie_secret: password?
