@@ -417,7 +417,7 @@ geo_log_country: true
 Writes every blocked request to `/data/nginx/logs/blocked.log`, with the country code:
 
 ```
-[18/Aug/2026:11:04:12 +0200] www.example.com 1.2.3.4 cn "GET /wp-login.php HTTP/1.1" 403 "python-requests/2.31"
+2026-08-18T11:04:12+02:00 www.example.com 1.2.3.4 cn "GET /wp-login.php HTTP/1.1" 403 "python-requests/2.31"
 ```
 
 After a few weeks that lets you work out which countries actually contribute:

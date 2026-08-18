@@ -524,7 +524,10 @@ geo_write_conf() {
         printf '    default 1;\n'
         printf '    "00" 0;\n'
         printf '}\n\n'
-        printf 'log_format npmplus_geo '"'"'[$time_local] $host $remote_addr $npmplus_geo_country "$request" $status "$http_user_agent"'"'"';\n'
+        # Bewusst $time_iso8601 statt $time_local: letzteres enthält ein
+        # Leerzeichen vor der Zeitzone und verschiebt damit jede Spaltennummer
+        # in awk um eins. So steht das Land verlässlich in Spalte 4.
+        printf 'log_format npmplus_geo '"'"'$time_iso8601 $host $remote_addr $npmplus_geo_country "$request" $status "$http_user_agent"'"'"';\n'
     } > "$GEO_HTTP"
 }
 

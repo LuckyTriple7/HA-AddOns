@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.1.24] - 2026-08-18
+
+- Fix: Im Protokoll der gesperrten Anfragen stand der Zeitstempel als `[$time_local]` und enthielt damit ein Leerzeichen vor der Zeitzone. Jede Spaltennummer in `awk` verschob sich dadurch um eins — die dokumentierte Auswertung `$4` lieferte die IP statt des Landes. Jetzt `$time_iso8601`, ein einziges Feld, das Land steht verlässlich in Spalte 4
+- Bestehende `blocked.log` behalten das alte Format bis zur nächsten Rotation; für ältere Zeilen ist `$5` die richtige Spalte
+
 ## [0.1.23] - 2026-08-18
 
 - Start ohne Wartezeit: passen die vorhandenen Länderlisten noch zur Konfiguration und sind sie jünger als `geo_refresh_hours`, entfällt der Download. Bisher kostete jeder Neustart 14 Sekunden, auch wenn sich nichts geändert hatte. Ein Fingerabdruck aus Betriebsart, Ländern und Protokollschalter entscheidet darüber; sobald du etwas davon änderst, werden die Listen neu geholt

@@ -419,7 +419,7 @@ geo_log_country: true
 Schreibt jede gesperrte Anfrage nach `/data/nginx/logs/blocked.log`, mit Ländercode:
 
 ```
-[18/Aug/2026:11:04:12 +0200] www.gizmonet.de 1.2.3.4 cn "GET /wp-login.php HTTP/1.1" 403 "python-requests/2.31"
+2026-08-18T11:04:12+02:00 www.gizmonet.de 1.2.3.4 cn "GET /wp-login.php HTTP/1.1" 403 "python-requests/2.31"
 ```
 
 Damit lässt sich nach ein paar Wochen auswerten, welche Länder überhaupt etwas beitragen:
