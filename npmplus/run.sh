@@ -64,6 +64,8 @@ CS_APPSEC_OPT=$(opt_trim crowdsec_appsec_url "http://127.0.0.1:7422")
 CS_CAPTCHA_PROVIDER_OPT=$(opt_trim crowdsec_captcha_provider "")
 CS_CAPTCHA_SITE_OPT=$(opt_trim crowdsec_captcha_site_key "")
 CS_CAPTCHA_SECRET_OPT=$(opt_trim crowdsec_captcha_secret_key "")
+GEO_MODE_OPT=$(opt_trim geo_mode "off")
+GEO_REFRESH_OPT=$(opt geo_refresh_hours "24")
 WORKER_PROCESSES_OPT=$(opt nginx_worker_processes "auto")
 WORKER_CONNECTIONS_OPT=$(opt nginx_worker_connections "512")
 COOKIE_SECRET_OPT=$(opt cookie_secret "")
@@ -299,6 +301,231 @@ else
 fi
 
 ###############################################################################
+# Ländersperre
+#
+# Ohne MaxMind: die CIDR-Listen von ipverse/country-ip-blocks stammen aus den
+# Delegationsdateien der Regional Internet Registries und lassen sich direkt in
+# das eingebaute geo-Modul von nginx laden — kein Konto, kein Lizenzschlüssel,
+# kein zusätzliches Modul.
+#
+# Die Prüfung greift damit schon beim ersten Paket, während CrowdSec erst nach
+# der Auswertung der ersten Anfrage entscheidet. Beides schließt sich nicht aus.
+#
+# Eingehängt wird über /data/custom_nginx: http_top.conf gilt einmal für den
+# gesamten http-Block, server_http.conf bindet NPMplus in jeden Proxy-, Weiter-
+# leitungs- und Dead-Host ein. Beide Dateien können eigene Einträge des Nutzers
+# enthalten, deshalb schreibt das Add-on nur zwischen seine Marker und lässt
+# alles andere unberührt.
+###############################################################################
+GEO_DIR=/data/geoip
+GEO_RANGES="$GEO_DIR/ranges.conf"
+GEO_HTTP="$GEO_DIR/http.conf"
+CUSTOM_NGINX=/data/custom_nginx
+GEO_MARK_BEGIN="# >>> npmplus-addon geoip >>>"
+GEO_MARK_END="# <<< npmplus-addon geoip <<<"
+GEO_IPVERSE_BASE="https://raw.githubusercontent.com/ipverse/country-ip-blocks/master/country"
+
+# Nur den eigenen Abschnitt aus einer Datei entfernen. Ohne diesen Schritt
+# würden sich die Blöcke bei jedem Start stapeln.
+geo_strip() {
+    local file="$1"
+    [ -f "$file" ] || return 0
+    awk -v b="$GEO_MARK_BEGIN" -v e="$GEO_MARK_END" '
+        $0 == b { skip = 1 }
+        skip == 0 { print }
+        $0 == e { skip = 0 }
+    ' "$file" > "${file}.tmp" && mv "${file}.tmp" "$file"
+}
+
+geo_include() {
+    local file="$1" line="$2"
+    geo_strip "$file"
+    printf '%s\n%s\n%s\n' "$GEO_MARK_BEGIN" "$line" "$GEO_MARK_END" >> "$file"
+}
+
+# Listen holen und in geo-Syntax umschreiben. Rückgabe 1, wenn kein einziges
+# Land geladen werden konnte — dann bleibt die alte Datei stehen.
+geo_fetch() {
+    local mark="$1" target="$2"; shift 2
+    local tmp cc file url loaded=0
+    tmp=$(mktemp)
+    for cc in "$@"; do
+        for file in ipv4-aggregated ipv6-aggregated; do
+            url="${GEO_IPVERSE_BASE}/${cc}/${file}.txt"
+            if curl -sfL -m 30 "$url" \
+                | awk -v m="$mark" 'NF && $1 !~ /^#/ { print "    " $1 " " m ";" }' \
+                >> "$tmp"; then
+                loaded=1
+            else
+                warn "Country list ${cc}/${file} could not be downloaded"
+            fi
+        done
+    done
+    if [ "$loaded" = "0" ] || [ ! -s "$tmp" ]; then
+        rm -f "$tmp"
+        return 1
+    fi
+    mv "$tmp" "$target"
+    chmod 644 "$target"
+    return 0
+}
+
+# Einzeladressen aus einer Options-Liste in geo-Zeilen umschreiben. Die Werte
+# landen unverändert in einer nginx-Konfiguration, deshalb hier eine strenge
+# Prüfung: nur Ziffern, Punkte, Doppelpunkte, Hex und ein optionales Präfix.
+# Alles andere wird verworfen statt eingebaut — ein Anführungszeichen oder
+# Semikolon in der Option würde sonst die Konfiguration zerlegen.
+geo_ip_lines() {
+    local key="$1" mark="$2" entry
+    while IFS= read -r entry; do
+        entry=$(trim "$entry")
+        [ -n "$entry" ] || continue
+        case "$entry" in
+            *[!0-9a-fA-F.:/]*)
+                warn "Ignoring ${key} entry '${entry}' — not an IP address or CIDR range"
+                continue ;;
+        esac
+        printf '    %s %s;\n' "$entry" "$mark"
+    done < <(jq -r --arg k "$key" '.[$k] // [] | .[]' "$OPTIONS")
+}
+
+# Hostnamen ebenso prüfen, gleiche Begründung.
+geo_host_lines() {
+    local host
+    while IFS= read -r host; do
+        host=$(trim "$host")
+        [ -n "$host" ] || continue
+        case "$host" in
+            *[!0-9a-zA-Z.*_-]*)
+                warn "Ignoring geo_exempt_hosts entry '${host}' — not a hostname"
+                continue ;;
+        esac
+        printf '    "%s" 1;\n' "$host"
+    done < <(jq -r '.geo_exempt_hosts // [] | .[]' "$OPTIONS")
+}
+
+# geo/map-Block bauen.
+#
+#   $npmplus_geo_ban    1 = Adresse steht auf der eigenen Sperrliste
+#   $npmplus_geo_hit    1 = Land soll gesperrt werden
+#   $npmplus_geo_exempt 1 = dieser Hostname ist von der Ländersperre ausgenommen
+#   $npmplus_geo_acme   1 = ACME-Challenge, nie sperren
+#
+# Der letzte map fasst die Ländersperre zu einer Entscheidung zusammen: nur die
+# Kombination "gesperrtes Land, kein Ausnahme-Host, keine Challenge" führt zu
+# 403. Die Sperrliste einzelner Adressen läuft bewusst daran vorbei und gilt
+# auch auf ausgenommenen Hostnamen.
+#
+# $1 leer = keine Ländersperre, nur die Sperrliste einzelner Adressen.
+geo_write_conf() {
+    local default_hit="$1"
+    {
+        printf 'geo $npmplus_geo_ban {\n'
+        printf '    default 0;\n'
+        geo_ip_lines geo_deny_ips 1
+        printf '}\n\n'
+
+        if [ -n "$default_hit" ]; then
+            # Reihenfolge egal: im geo-Modul gewinnt immer der genauere
+            # Eintrag. Eine einzelne Adresse schlägt damit den Länderblock,
+            # in dem sie liegt.
+            printf 'geo $npmplus_geo_hit {\n'
+            printf '    default %s;\n' "$default_hit"
+            printf '    include %s;\n' "$GEO_RANGES"
+            geo_ip_lines geo_allow_ips 0
+            printf '}\n\n'
+            printf 'map $host $npmplus_geo_exempt {\n'
+            printf '    default 0;\n'
+            geo_host_lines
+            printf '}\n\n'
+            # Let's Encrypt validiert aus den USA. Ohne diese Ausnahme wären
+            # Erstausstellung und Verlängerung im Erlaubnismodus tot.
+            printf 'map $uri $npmplus_geo_acme {\n'
+            printf '    default 0;\n'
+            printf '    "~^/\\.well-known/acme-challenge/" 1;\n'
+            printf '}\n\n'
+            printf 'map "$npmplus_geo_hit$npmplus_geo_exempt$npmplus_geo_acme" $npmplus_geo_deny {\n'
+            printf '    default 0;\n'
+            printf '    "100" 1;\n'
+            printf '}\n'
+        else
+            # Ohne Ländersperre muss die Variable trotzdem existieren, damit
+            # server_http.conf in beiden Fällen gleich aussehen kann.
+            printf 'map $npmplus_geo_ban $npmplus_geo_deny {\n'
+            printf '    default 0;\n'
+            printf '}\n'
+        fi
+    } > "$GEO_HTTP"
+}
+
+mkdir -p "$GEO_DIR" "$CUSTOM_NGINX"
+
+GEO_COUNTRIES=""
+while IFS= read -r cc; do
+    cc=$(trim "$cc" | tr 'A-Z' 'a-z')
+    [ -n "$cc" ] || continue
+    case "$cc" in
+        [a-z][a-z]) GEO_COUNTRIES="${GEO_COUNTRIES}${cc} " ;;
+        *) warn "Ignoring geo_countries entry '${cc}' — expected a two-letter country code like 'cn'" ;;
+    esac
+done < <(jq -r '.geo_countries // [] | .[]' "$OPTIONS")
+
+GEO_ACTIVE=false
+case "$GEO_MODE_OPT" in
+    block|allow)
+        if [ -z "$GEO_COUNTRIES" ]; then
+            warn "geo_mode is '${GEO_MODE_OPT}' but geo_countries is empty — country filter stays OFF"
+        else
+            # block: alles erlaubt, gelistete Länder sperren.
+            # allow: alles gesperrt, gelistete Länder freigeben.
+            if [ "$GEO_MODE_OPT" = "block" ]; then
+                GEO_DEFAULT=0; GEO_MARK=1
+            else
+                GEO_DEFAULT=1; GEO_MARK=0
+            fi
+            # shellcheck disable=SC2086
+            if geo_fetch "$GEO_MARK" "$GEO_RANGES" $GEO_COUNTRIES; then
+                GEO_ACTIVE=true
+            elif [ -s "$GEO_RANGES" ]; then
+                warn "Country lists could not be downloaded — keeping the previous lists"
+                GEO_ACTIVE=true
+            else
+                warn "Country lists could not be downloaded and none are cached — country filter stays OFF"
+            fi
+        fi
+        ;;
+    off)
+        ;;
+    *)
+        warn "Unknown geo_mode '${GEO_MODE_OPT}' — country filter stays OFF"
+        ;;
+esac
+
+# Die Sperrliste einzelner Adressen ist von der Ländersperre unabhängig und
+# funktioniert auch bei geo_mode "off".
+GEO_DENY_COUNT=$(jq -r '[.geo_deny_ips // [] | .[] | select(. != "")] | length' "$OPTIONS")
+
+if [ "$GEO_ACTIVE" = "true" ] || [ "$GEO_DENY_COUNT" -gt 0 ]; then
+    if [ "$GEO_ACTIVE" = "true" ]; then
+        geo_write_conf "$GEO_DEFAULT"
+        log "Country filter active (${GEO_MODE_OPT}): $(printf '%s' "$GEO_COUNTRIES" | tr ' ' ',' | sed 's/,$//'), $(grep -c ';' "$GEO_RANGES") ranges"
+    else
+        geo_write_conf ""
+    fi
+    [ "$GEO_DENY_COUNT" -gt 0 ] && log "IP deny list active: ${GEO_DENY_COUNT} entries"
+    geo_include "$CUSTOM_NGINX/http_top.conf" "include ${GEO_HTTP};"
+    geo_include "$CUSTOM_NGINX/server_http.conf" \
+        'if ($npmplus_geo_ban) { return 403; }
+if ($npmplus_geo_deny) { return 403; }'
+else
+    # Auch im ausgeschalteten Zustand aufräumen, sonst bliebe eine einmal
+    # gesetzte Sperre nach dem Umstellen auf "off" weiter aktiv.
+    geo_strip "$CUSTOM_NGINX/http_top.conf"
+    geo_strip "$CUSTOM_NGINX/server_http.conf"
+    rm -f "$GEO_HTTP"
+fi
+
+###############################################################################
 # An das Original-Init übergeben
 #
 # Bewusst kein exec: dieses Skript bleibt PID 1 und fängt SIGTERM selbst ab.
@@ -323,10 +550,33 @@ else
 fi
 APP_PID=$!
 
+# Die Registries verschieben laufend Adressblöcke. Ohne Auffrischung sperrt die
+# Liste nach einigen Monaten die Falschen aus. Erst nach dem Start, damit ein
+# hängender Download den Start des Proxys nicht verzögert.
+if [ "$GEO_ACTIVE" = "true" ] && [ "${GEO_REFRESH_OPT:-0}" -gt 0 ] 2>/dev/null; then
+    (
+        while sleep "$((GEO_REFRESH_OPT * 3600))"; do
+            before=$(md5sum "$GEO_RANGES" 2>/dev/null | cut -d' ' -f1)
+            # shellcheck disable=SC2086
+            geo_fetch "$GEO_MARK" "$GEO_RANGES" $GEO_COUNTRIES || continue
+            after=$(md5sum "$GEO_RANGES" 2>/dev/null | cut -d' ' -f1)
+            # Ein Reload wirft alle Worker neu an — nur bei echter Änderung.
+            if [ "$before" != "$after" ]; then
+                nginx -s reload 2>/dev/null \
+                    && log "Country lists updated, nginx reloaded" \
+                    || warn "Country lists updated, but nginx reload failed"
+            fi
+        done
+    ) &
+    GEO_PID=$!
+    log "Country lists are refreshed every ${GEO_REFRESH_OPT} h"
+fi
+
 _term() {
     log "SIGTERM received, stopping NPMplus..."
     kill -TERM "$APP_PID" 2>/dev/null || true
     [ -n "${TAIL_PID:-}" ] && kill -TERM "$TAIL_PID" 2>/dev/null || true
+    [ -n "${GEO_PID:-}" ] && kill -TERM "$GEO_PID" 2>/dev/null || true
     # nginx braucht einen Moment, um offene Verbindungen zu schließen.
     wait "$APP_PID" 2>/dev/null || true
     log "NPMplus stopped"
@@ -345,4 +595,5 @@ set -e
 # Den Exit-Code durchreichen, damit der Watchdog des Supervisors greift.
 warn "NPMplus exited without a stop request (exit code ${APP_EXIT})"
 [ -n "${TAIL_PID:-}" ] && kill -TERM "$TAIL_PID" 2>/dev/null || true
+[ -n "${GEO_PID:-}" ] && kill -TERM "$GEO_PID" 2>/dev/null || true
 exit "$APP_EXIT"

@@ -262,6 +262,103 @@ Then open one of your domains: the block page must appear. Undo it with:
 docker exec $CS cscli -c $CFG decisions delete --ip <your-ip>
 ```
 
+## Country filter
+
+Blocks whole countries inside nginx — no MaxMind account, no extra module, no CrowdSec. The decision is made on the very first packet, whereas CrowdSec only reacts after the first request has been parsed.
+
+The address ranges come from [ipverse/country-ip-blocks](https://github.com/ipverse/country-ip-blocks), which turns the delegation files of the Regional Internet Registries (RIPE, ARIN, APNIC …) into ready-made CIDR lists every day. The add-on downloads them at startup and feeds them into nginx's built-in `geo` module.
+
+### Two modes
+
+```yaml
+geo_mode: block
+geo_countries:
+  - cn
+  - ru
+  - kp
+```
+
+`block` lets everyone in and denies the listed countries. Recommended to start with.
+
+```yaml
+geo_mode: allow
+geo_countries:
+  - de
+  - at
+  - ch
+```
+
+`allow` turns it around: only the listed countries get through, everything else receives **403**.
+
+### Exceptions
+
+```yaml
+geo_exempt_hosts:
+  - home.example.com
+```
+
+The filter does not apply to these hostnames. That entry saves you when you are on holiday in a blocked country and need to reach Home Assistant.
+
+Two exceptions are always applied by the add-on itself:
+
+- **`/.well-known/acme-challenge/`** is never blocked. Let's Encrypt validates from the US — without this exception, issuance and renewal would be dead in `allow` mode.
+- The **web interface on port 81** is unaffected, it runs in its own server block.
+
+### Blocking or allowing single addresses
+
+Independent of any country:
+
+```yaml
+geo_deny_ips:
+  - 203.0.113.7
+  - 198.51.100.0/24
+  - 2001:db8::/32
+```
+
+These addresses always get **403** — even with `geo_mode: off` and even on the hostnames listed in `geo_exempt_hosts`. This is the hard block list for individual offenders.
+
+The other way round:
+
+```yaml
+geo_allow_ips:
+  - 203.0.113.7
+```
+
+The country filter never applies to these addresses, even if they sit in a blocked country. Meant for your own address while abroad or a monitoring service in another country. It has no effect on `geo_deny_ips` — whatever is listed there stays blocked.
+
+Both lists take single addresses and CIDR ranges, IPv4 as well as IPv6. In the `geo` module the more specific entry always wins, so a single address beats the country block it sits in. Entries that are not an address are dropped with a warning in the log instead of being written into the configuration.
+
+For lasting blocks against attackers CrowdSec is still the better tool — it finds them by itself and forgets them again. `geo_deny_ips` is for cases you decided on by hand.
+
+### Refreshing
+
+```yaml
+geo_refresh_hours: 24
+```
+
+The registries move address blocks around all the time. After a few months without refreshing, the lists start blocking the wrong people. The add-on therefore downloads them again at the configured interval and reloads nginx only when something actually changed. `0` disables refreshing.
+
+If the network is down at startup, the previously downloaded lists stay in effect. If there are none yet, the filter stays **off** — a failed download must never lock anyone out.
+
+### Accuracy
+
+Registry data says who an address block is *allocated to*, not where it is used. MaxMind measures on top of that and is closer to the truth in individual cases.
+
+For `block` the difference is irrelevant. With `allow` and only `de`, however, real visitors get dropped as soon as their provider hands out addresses from a block registered abroad — common with mobile networks and large hosters. When in doubt, a block list is the healthier choice.
+
+### Checking what is active
+
+```sh
+CT=$(docker ps --format '{{.Names}}' | grep npmplus)
+docker exec $CT sh -c 'wc -l /data/geoip/ranges.conf; cat /data/geoip/http.conf'
+```
+
+At startup the add-on log prints one line with the mode, the countries and the number of ranges.
+
+### Relation to CrowdSec
+
+Running both makes sense and causes no conflict. The country filter is coarse and immediate, CrowdSec is fine-grained and keeps learning. If you have been doing country blocking through CrowdSec scenarios, you can switch that off there.
+
 ## Home Assistant behind NPMplus
 
 Home Assistant answers requests from an unknown proxy with **400 Bad Request**. NPMplus runs on the host network and therefore has no container address of its own — requests arrive with the machine's LAN IP, not from the `172.30.x.x` network. An entry that worked for a bridged add-on does not apply here.
@@ -371,6 +468,12 @@ Not included out of the box. Put the MaxMind databases (free account) into `/dat
 | `crowdsec_captcha_provider` | – | `turnstile`, `hcaptcha` or `recaptcha`; empty = off |
 | `crowdsec_captcha_site_key` | – | Public key of the provider |
 | `crowdsec_captcha_secret_key` | – | Secret key of the provider |
+| `geo_mode` | `off` | Country filter: `block`, `allow` or `off` |
+| `geo_countries` | `[]` | Two-letter country codes, e.g. `cn` |
+| `geo_exempt_hosts` | `[]` | Hostnames the filter does not apply to |
+| `geo_deny_ips` | `[]` | Always-blocked addresses or CIDR ranges |
+| `geo_allow_ips` | `[]` | Addresses the country filter never applies to |
+| `geo_refresh_hours` | `24` | Interval for reloading the lists; `0` = off |
 | `nginx_worker_processes` | `auto` | Number of nginx workers |
 | `nginx_worker_connections` | `512` | Connections per worker |
 | `cookie_secret` | – | Static key for login cookies |

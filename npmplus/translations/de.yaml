@@ -80,6 +80,24 @@ configuration:
   crowdsec_captcha_secret_key:
     name: Captcha Secret-Key
     description: Geheimer Schlüssel des gewählten Anbieters.
+  geo_mode:
+    name: Ländersperre
+    description: '"block" sperrt die unten genannten Länder, "allow" lässt nur sie durch, "off" schaltet die Sperre ab. Greift direkt in nginx und damit schon bei der ersten Anfrage.'
+  geo_countries:
+    name: Länder
+    description: Zweibuchstabige Ländercodes, einer je Zeile, zum Beispiel cn oder ru. Die IP-Bereiche stammen aus dem Projekt ipverse/country-ip-blocks und brauchen kein MaxMind-Konto.
+  geo_exempt_hosts:
+    name: Ausgenommene Hostnamen
+    description: Hostnamen, für die die Sperre nicht gilt, einer je Zeile. Sinnvoll für Dienste, die man aus dem Ausland erreichen muss, etwa home.example.com.
+  geo_deny_ips:
+    name: Gesperrte IP-Adressen
+    description: Einzelne Adressen oder Bereiche in CIDR-Schreibweise, einer je Zeile, zum Beispiel 203.0.113.7 oder 203.0.113.0/24. Gilt unabhängig vom Land, auch bei ausgeschalteter Ländersperre, und auch auf ausgenommenen Hostnamen.
+  geo_allow_ips:
+    name: Freigegebene IP-Adressen
+    description: Adressen oder Bereiche, die die Ländersperre nie trifft, einer je Zeile. Nützlich für die eigene Anschrift oder einen Überwachungsdienst in einem gesperrten Land.
+  geo_refresh_hours:
+    name: Listen auffrischen (Stunden)
+    description: Abstand, in dem die Länderlisten neu geladen werden. 0 schaltet das Auffrischen ab. Ohne Auffrischung sperrt die Liste mit der Zeit die Falschen aus.
   nginx_worker_processes:
     name: nginx Worker-Prozesse
     description: Anzahl der nginx-Worker. Standard "auto" entspricht der Anzahl CPU-Kerne.

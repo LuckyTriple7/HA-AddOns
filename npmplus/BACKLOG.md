@@ -29,15 +29,12 @@ Sobald ein Tag nach `2026-07-24-r1` das enthält, ist beim Anheben von `NPMPLUS_
 - Port 91 aus `ports` und `ports_description` streichen
 - GoAccess-Abschnitt in DOCS/README auf `https://<HA-IP>:81/goaccess` umstellen, Warnung zur fehlenden Anmeldung entfernen
 
-## GeoIP im nginx (statt nur über CrowdSec)
+## MaxMind-Datenbanken für die GoAccess-Länderauswertung
 
-Ländersperren laufen derzeit über CrowdSec, greifen also erst ab der zweiten Anfrage. Nativ ginge es sofort:
+Die Ländersperre selbst ist seit 0.1.18 erledigt — sie läuft über das eingebaute `geo`-Modul und die CIDR-Listen von ipverse, ganz ohne MaxMind.
 
-```yaml
-extra_env:
-  - "NGINX_LOAD_GEOIP2_MODULE=true"
-```
+Offen bleibt nur die Länderauswertung in GoAccess. Die braucht die MaxMind-Datenbanken unter `/data/goaccess/geoip` (kostenloses Konto, Lizenzschlüssel). NPMplus bindet gefundene Dateien beim Start selbst ein, das Add-on müsste sie nur holen und aktuell halten — MaxMind aktualisiert wöchentlich, ohne den `geoipupdate`-Container müsste das ein Skript übernehmen.
 
-Voraussetzung sind die MaxMind-Datenbanken unter `/data/goaccess/geoip` (kostenloses Konto) und eigene Konfigurationsschnipsel pro Host, die `$geoip2_data_country_code` auswerten. Dieselben Datenbanken würden auch die GoAccess-Statistik um eine Länderauswertung erweitern — dafür braucht es keine Regeln, nur die Dateien.
+Denkbar wären zwei Optionen `maxmind_account_id` und `maxmind_license_key`, mit demselben Auffrisch-Mechanismus wie die Länderlisten. Nur für eine Statistik allerdings viel Maschinerie.
 
-Offen bleibt die Pflege: MaxMind aktualisiert wöchentlich, ohne den `geoipupdate`-Container müsste das ein Skript übernehmen.
+Das nginx-Modul `NGINX_LOAD_GEOIP2_MODULE=true` und `$geoip2_data_country_code` bräuchte es nur, wenn die Sperre irgendwann genauer werden soll als Registerdaten — bei einer Sperrliste ist der Unterschied belanglos.

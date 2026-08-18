@@ -264,6 +264,103 @@ Danach eine Domain aufrufen: es muss die Sperrseite kommen. Wieder freigeben:
 docker exec $CS cscli -c $CFG decisions delete --ip <deine-ip>
 ```
 
+## Ländersperre
+
+Sperrt ganze Länder direkt in nginx — ohne MaxMind-Konto, ohne Zusatzmodul, ohne CrowdSec. Die Entscheidung fällt beim ersten Paket, während CrowdSec erst nach der Auswertung der ersten Anfrage reagiert.
+
+Die Adressbereiche kommen vom Projekt [ipverse/country-ip-blocks](https://github.com/ipverse/country-ip-blocks), das die Delegationsdateien der Regional Internet Registries (RIPE, ARIN, APNIC …) täglich zu fertigen CIDR-Listen aufbereitet. Das Add-on lädt sie beim Start und schreibt sie in das eingebaute `geo`-Modul von nginx.
+
+### Zwei Betriebsarten
+
+```yaml
+geo_mode: block
+geo_countries:
+  - cn
+  - ru
+  - kp
+```
+
+`block` lässt alle durch und sperrt die genannten Länder. Empfohlen für den Anfang.
+
+```yaml
+geo_mode: allow
+geo_countries:
+  - de
+  - at
+  - ch
+```
+
+`allow` dreht es um: nur die genannten Länder kommen durch, alles andere bekommt **403**.
+
+### Ausnahmen
+
+```yaml
+geo_exempt_hosts:
+  - home.gizmonet.de
+```
+
+Für diese Hostnamen gilt die Sperre nicht. Der Eintrag rettet dich, wenn du im Urlaub in einem gesperrten Land stehst und an Home Assistant musst.
+
+Zwei Ausnahmen setzt das Add-on immer selbst:
+
+- **`/.well-known/acme-challenge/`** ist grundsätzlich frei. Let's Encrypt validiert aus den USA — ohne diese Ausnahme wären im `allow`-Modus Erstausstellung und Verlängerung tot.
+- Die **Weboberfläche auf Port 81** ist nicht betroffen, sie läuft in einem eigenen Server-Block.
+
+### Einzelne Adressen sperren oder freigeben
+
+Unabhängig vom Land:
+
+```yaml
+geo_deny_ips:
+  - 203.0.113.7
+  - 198.51.100.0/24
+  - 2001:db8::/32
+```
+
+Diese Adressen bekommen immer **403** — auch bei `geo_mode: off` und auch auf den Hostnamen aus `geo_exempt_hosts`. Das ist die harte Sperrliste für einzelne Störer.
+
+Umgekehrt:
+
+```yaml
+geo_allow_ips:
+  - 203.0.113.7
+```
+
+Diese Adressen trifft die Ländersperre nie, selbst wenn sie in einem gesperrten Land liegen. Gedacht für die eigene Anschrift im Urlaub oder einen Überwachungsdienst im Ausland. Auf `geo_deny_ips` hat das keinen Einfluss — was dort steht, bleibt gesperrt.
+
+Beide Listen nehmen einzelne Adressen und CIDR-Bereiche, IPv4 wie IPv6. Im `geo`-Modul gewinnt immer der genauere Eintrag, eine einzelne Adresse schlägt also den Länderblock, in dem sie liegt. Einträge, die keine Adresse sind, werden mit einer Warnung im Protokoll verworfen statt in die Konfiguration übernommen.
+
+Für dauerhafte Sperren gegen Angreifer ist CrowdSec trotzdem der bessere Weg — es findet sie selbst und vergisst sie wieder. `geo_deny_ips` ist für Fälle gedacht, die man von Hand entschieden hat.
+
+### Auffrischen
+
+```yaml
+geo_refresh_hours: 24
+```
+
+Die Registries verschieben laufend Adressblöcke. Nach einigen Monaten ohne Auffrischung sperrt die Liste die Falschen aus. Das Add-on lädt sie deshalb im eingestellten Abstand neu und startet nginx nur dann durch, wenn sich tatsächlich etwas geändert hat. `0` schaltet das Auffrischen ab.
+
+Ist das Netz beim Start gestört, bleiben die zuletzt geladenen Listen in Kraft. Gibt es noch gar keine, bleibt die Sperre **aus** — ein Downloadfehler soll niemanden aussperren.
+
+### Genauigkeit
+
+Registerdaten sagen, wem ein Adressblock *zugeteilt* ist, nicht, wo er benutzt wird. MaxMind misst zusätzlich und liegt deshalb im Einzelfall näher dran.
+
+Für `block` ist der Unterschied belanglos. Bei `allow` mit nur `de` fliegen dagegen echte Besucher raus, sobald ihr Anbieter Adressen aus einem im Register ausländisch geführten Block vergibt — bei Mobilfunk und großen Hostern keine Seltenheit. Sperrliste ist im Zweifel die gesündere Wahl.
+
+### Nachsehen, was aktiv ist
+
+```sh
+CT=$(docker ps --format '{{.Names}}' | grep npmplus)
+docker exec $CT sh -c 'wc -l /data/geoip/ranges.conf; cat /data/geoip/http.conf'
+```
+
+Das Add-on-Protokoll meldet beim Start eine Zeile mit Modus, Ländern und Anzahl der Bereiche.
+
+### Verhältnis zu CrowdSec
+
+Beides parallel zu betreiben ist sinnvoll und stört sich nicht. Die Ländersperre ist grob und sofort, CrowdSec ist fein und lernt dazu. Wer Ländersperren bisher über CrowdSec-Szenarien gelöst hat, kann sie dort abschalten.
+
 ## Home Assistant hinter NPMplus
 
 Home Assistant beantwortet Anfragen von einem unbekannten Proxy mit **400 Bad Request**. NPMplus läuft im Host-Netz und hat damit keine eigene Container-Adresse — die Anfragen kommen mit der LAN-IP der Maschine an, nicht aus dem `172.30.x.x`-Netz. Ein Eintrag, der für ein Add-on im Bridge-Netz gepasst hat, greift hier also nicht.
@@ -373,6 +470,12 @@ Fehlt ab Werk. Dafür müssen die MaxMind-Datenbanken (kostenloses Konto) nach `
 | `crowdsec_captcha_provider` | – | `turnstile`, `hcaptcha` oder `recaptcha`; leer = aus |
 | `crowdsec_captcha_site_key` | – | Öffentlicher Schlüssel des Anbieters |
 | `crowdsec_captcha_secret_key` | – | Geheimer Schlüssel des Anbieters |
+| `geo_mode` | `off` | Ländersperre: `block`, `allow` oder `off` |
+| `geo_countries` | `[]` | Ländercodes mit zwei Buchstaben, z. B. `cn` |
+| `geo_exempt_hosts` | `[]` | Hostnamen, für die die Sperre nicht gilt |
+| `geo_deny_ips` | `[]` | Immer gesperrte Adressen oder CIDR-Bereiche |
+| `geo_allow_ips` | `[]` | Adressen, die die Ländersperre nie trifft |
+| `geo_refresh_hours` | `24` | Abstand für das Neuladen der Listen; `0` = aus |
 | `nginx_worker_processes` | `auto` | Anzahl nginx-Worker |
 | `nginx_worker_connections` | `512` | Verbindungen je Worker |
 | `cookie_secret` | – | Fester Schlüssel für Anmelde-Cookies |

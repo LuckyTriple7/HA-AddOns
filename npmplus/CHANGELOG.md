@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.1.18] - 2026-08-18
+
+- Neue Ländersperre über die Optionen `geo_mode`, `geo_countries`, `geo_exempt_hosts` und `geo_refresh_hours`. Sie arbeitet mit dem eingebauten `geo`-Modul von nginx und greift damit schon bei der ersten Anfrage, während CrowdSec erst nach deren Auswertung entscheidet
+- Die Adressbereiche kommen von [ipverse/country-ip-blocks](https://github.com/ipverse/country-ip-blocks) und damit aus den Delegationsdateien der Regional Internet Registries — kein MaxMind-Konto, kein Lizenzschlüssel, kein zusätzliches nginx-Modul nötig
+- Zwei Betriebsarten: `block` sperrt die genannten Länder, `allow` lässt nur sie durch. `geo_exempt_hosts` nimmt einzelne Hostnamen aus, damit erreichbar bleibt, was man aus dem Ausland braucht
+- `/.well-known/acme-challenge/` ist immer frei, sonst wären im `allow`-Modus Ausstellung und Verlängerung der Let's-Encrypt-Zertifikate tot. Die Weboberfläche auf Port 81 ist nicht betroffen
+- Neue Listen `geo_deny_ips` und `geo_allow_ips` für einzelne Adressen und CIDR-Bereiche. `geo_deny_ips` wirkt unabhängig vom Land, auch bei `geo_mode: off` und auch auf ausgenommenen Hostnamen; `geo_allow_ips` nimmt einzelne Adressen von der Ländersperre aus. Werte, die keine Adresse sind, werden verworfen und nicht in die nginx-Konfiguration geschrieben
+- Die Listen werden im Abstand von `geo_refresh_hours` neu geladen, nginx aber nur bei echter Änderung durchgestartet. Schlägt der Download fehl, bleiben die zuletzt geladenen Listen in Kraft; gibt es noch keine, bleibt die Sperre aus — ein Netzausfall darf niemanden aussperren
+- Eigene Einträge in `/data/custom_nginx/http_top.conf` und `server_http.conf` bleiben erhalten, das Add-on schreibt nur zwischen seine eigenen Marker und räumt sie beim Umstellen auf `off` wieder ab
+- Doku: neuer Abschnitt „Ländersperre" in beiden Sprachen, samt Hinweis auf die geringere Trefferquote von Registerdaten gegenüber MaxMind und der Empfehlung, im Zweifel eine Sperr- statt einer Erlaubnisliste zu benutzen
+
 ## [0.1.17] - 2026-08-17
 
 - Doku: Der Link auf die NPMplus-Lizenz lief ins Leere — die Datei heißt dort `COPYING`, nicht `LICENSE`

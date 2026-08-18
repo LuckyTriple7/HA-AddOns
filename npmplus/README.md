@@ -24,6 +24,7 @@ Das Zertifikat der Oberfläche ist selbstsigniert — die Browserwarnung beim er
 - **Let's Encrypt** inklusive automatischer Erneuerung, weitere ACME-Server (ZeroSSL, Google Public CA) über `extra_env`
 - **Gehärtetes TLS**: ML-KEM, Encrypted Client Hello, moderne Cipher-Auswahl ab Werk
 - **CrowdSec-Bouncer und AppSec/WAF** direkt aus den Add-on-Optionen konfigurierbar
+- **Ländersperre** direkt in nginx, ohne MaxMind-Konto — Sperr- oder Erlaubnisliste, mit Ausnahmen je Hostname
 - **mTLS**: Client-Zertifikate und eigene CAs hochladbar
 - **Access-Listen** pro Host und pro Location, mehrere Listen kombinierbar
 - **GoAccess-Dashboard** auf Port 91, ohne eigene Anmeldung — daher ab Werk nur auf `127.0.0.1`, Zugriff über einen Proxy Host mit Zugriffsliste
@@ -46,6 +47,8 @@ Das Zertifikat der Oberfläche ist selbstsigniert — die Browserwarnung beim er
 | `log_to_stdout` | `true` | Access-Log zusätzlich ins Add-on-Protokoll (journald) |
 | `crowdsec_enabled` | `false` | nginx-Bouncer aktivieren |
 | `crowdsec_api_key` | – | Schlüssel aus `cscli bouncers add npmplus` |
+| `geo_mode` | `off` | Ländersperre: `block`, `allow` oder `off` |
+| `geo_countries` | `[]` | Ländercodes mit zwei Buchstaben, z. B. `cn` |
 | `extra_env` | `[]` | Weitere NPMplus-Variablen als `KEY=VALUE` |
 
 Vollständige Optionsliste, CrowdSec-Einrichtung und Umstieg vom alten NGINX-Proxy-Manager-Add-on: **[Dokumentation](https://github.com/LuckyTriple7/HA-AddOns/blob/dev/npmplus/DOCS.md)**

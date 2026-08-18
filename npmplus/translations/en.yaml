@@ -80,6 +80,24 @@ configuration:
   crowdsec_captcha_secret_key:
     name: Captcha secret key
     description: Secret key of the chosen provider.
+  geo_mode:
+    name: Country filter
+    description: '"block" denies the countries listed below, "allow" admits only them, "off" disables the filter. Runs inside nginx and therefore applies to the very first request.'
+  geo_countries:
+    name: Countries
+    description: Two-letter country codes, one per line, for example cn or ru. The IP ranges come from the ipverse/country-ip-blocks project and need no MaxMind account.
+  geo_exempt_hosts:
+    name: Exempt hostnames
+    description: Hostnames the filter does not apply to, one per line. Useful for services you need to reach while abroad, e.g. home.example.com.
+  geo_deny_ips:
+    name: Blocked IP addresses
+    description: Single addresses or CIDR ranges, one per line, e.g. 203.0.113.7 or 203.0.113.0/24. Applies regardless of country, even with the country filter off, and also on exempt hostnames.
+  geo_allow_ips:
+    name: Allowed IP addresses
+    description: Addresses or ranges the country filter never applies to, one per line. Useful for your own address or a monitoring service located in a blocked country.
+  geo_refresh_hours:
+    name: Refresh lists (hours)
+    description: How often the country lists are downloaded again. 0 disables refreshing. Without refreshing the lists start blocking the wrong people over time.
   nginx_worker_processes:
     name: nginx worker processes
     description: Number of nginx workers. Default "auto" matches the CPU core count.

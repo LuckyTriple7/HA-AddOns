@@ -1,6 +1,6 @@
 name: NPMplus
 description: Reverse Proxy mit Web-Oberfläche auf Basis von NPMplus — HTTP/3, Let's Encrypt, CrowdSec-Bouncer und AppSec/WAF
-version: "0.1.17"
+version: "0.1.18"
 slug: npmplus
 url: https://github.com/LuckyTriple7/HA-AddOns
 
@@ -72,6 +72,12 @@ options:
   crowdsec_captcha_provider: ""
   crowdsec_captcha_site_key: ""
   crowdsec_captcha_secret_key: ""
+  geo_mode: "off"
+  geo_countries: []
+  geo_exempt_hosts: []
+  geo_deny_ips: []
+  geo_allow_ips: []
+  geo_refresh_hours: 24
   nginx_worker_processes: "auto"
   nginx_worker_connections: 512
   cookie_secret: ""
@@ -105,6 +111,16 @@ schema:
   crowdsec_captcha_provider: list(|turnstile|hcaptcha|recaptcha)?
   crowdsec_captcha_site_key: str?
   crowdsec_captcha_secret_key: password?
+  geo_mode: list(off|block|allow)
+  geo_countries:
+    - str
+  geo_exempt_hosts:
+    - str
+  geo_deny_ips:
+    - str
+  geo_allow_ips:
+    - str
+  geo_refresh_hours: int(0,720)
   nginx_worker_processes: str
   nginx_worker_connections: int(1,65535)
   cookie_secret: password?
