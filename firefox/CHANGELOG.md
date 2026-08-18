@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.0.6] - 2026-08-18
+
+### Geändert
+- Rebuild für Firefox ESR 140.14.0esr
+
+
 ## [1.0.5] - 2026-08-17
 
 - Doku: Firefox und die noVNC-Kernbibliothek stehen unter der MPL-2.0, das Add-on gab bisher keine Lizenz an. Neue `LICENSE.md` nennt die mitgelieferten Bestandteile, ihre Lizenzen und Bezugsquellen, hält fest, dass das offizielle Mozilla-Build unverändert ausgeliefert wird, und weist auf die Markenrichtlinie hin
