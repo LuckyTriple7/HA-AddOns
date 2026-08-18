@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.1.22] - 2026-08-18
+
+- Fix: Das Protokoll nannte zwei verschiedene Zahlen für dieselbe Sache — `38189 ranges` beim Download, `38034 ranges` beim Aktivieren. Gezählt wurden die Rohzeilen der heruntergeladenen Dateien, in der fertigen Liste fallen Leerzeilen aber weg. Jetzt wird gezählt, was tatsächlich in der Datei landet
+
 ## [0.1.21] - 2026-08-18
 
 - Fix: Wer `geo_preset` oder `geo_countries` ausfüllt, aber `geo_mode` auf `off` stehen lässt, bekam keinerlei Rückmeldung — die Sperre blieb still aus. Das Protokoll warnt jetzt in beiden Fällen und nennt den fehlenden Schritt

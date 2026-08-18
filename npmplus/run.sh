@@ -352,7 +352,7 @@ geo_include() {
 # fehlendes Land fiele niemandem auf.
 geo_fetch() {
     local mark="$1" target="$2"; shift 2
-    local tmp raw cc file url code total=0 failed=0 count start
+    local tmp raw cc file url code total=0 failed=0 count before start
     tmp=$(mktemp); raw=$(mktemp)
     start=$(date +%s)
     log "Downloading country lists for $# countries from ipverse..."
@@ -363,8 +363,12 @@ geo_fetch() {
             code=$(curl -sL -m 30 -o "$raw" -w '%{http_code}' "$url" 2>/dev/null || true)
             case "${code:-000}" in
                 200)
+                    # Vor und nach dem Anhängen zählen. Die Rohdatei zu zählen
+                    # wäre daneben: Leerzeilen fallen im awk-Filter weg, und die
+                    # Zahl im Protokoll passte dann nicht zur fertigen Datei.
+                    before=$(wc -l < "$tmp")
                     awk -v m="$mark" 'NF && $1 !~ /^#/ { print "    " $1 " " m ";" }' "$raw" >> "$tmp"
-                    count=$((count + $(wc -l < "$raw")))
+                    count=$((count + $(wc -l < "$tmp") - before))
                     ;;
                 404)
                     # Kein Fehler: Nordkorea etwa hat gar keine IPv6-Zuteilung,
