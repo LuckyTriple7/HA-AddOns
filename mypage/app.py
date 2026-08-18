@@ -6,9 +6,11 @@ Zwei Server in einem Prozess:
   - Port 17761: Admin-Panel (Login + Brute-Force-Schutz, auch via HA Ingress)
 """
 import base64
+import bisect
 import copy
 import csv
 import errno
+import gzip
 import hashlib
 import hmac
 import html as html_mod
@@ -29,6 +31,7 @@ import threading
 import time
 import uuid
 import zipfile
+from array import array
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from collections import defaultdict
@@ -2079,14 +2082,58 @@ def total_uniques(stats: dict) -> int:
     return sum(d.get('uniques', 0) for d in stats.get('days', {}).values())
 
 
-# GeoIP-Lookup über ipapi.is (Opt-in, IPs werden nur bei aktivierter Option gesendet)
-_geo_cache: dict[str, str] = {}  # ip → Ländercode ('' = abgefragt, kein Ergebnis)
-GEO_CACHE_MAX       = 5000
-GEO_LOOKUPS_PER_RUN = 20
+# ---------------------------------------------------------------------------
+# Länder-Zuordnung ohne Fremd-API
+#
+# Statt jede Besucher-IP bei einem Dienst nachzufragen (Tageslimit, Datenschutz)
+# hält das Add-on eine eigene Tabelle: IP-Bereich → Ländercode. Erste Wahl ist
+# die frei herunterladbare DB-IP-Lite-Liste, Rückfallebene sind die Delegations-
+# dateien der fünf Regional Internet Registries — dieselben Rohdaten, aus denen
+# NPMplus seine Ländersperre baut.
+#
+# Der Unterschied ist die Genauigkeit: die Registries führen das Land der
+# Zuteilung (Telekom-Bereiche stehen dort auch mal auf GB), DB-IP führt den
+# tatsächlichen Standort. Deshalb erst DB-IP, und die Registries nur, wenn der
+# Download ausfällt.
+#
+# Die Tabelle liegt unter /config/geoip und wird wöchentlich erneuert; ein
+# Neustart lädt nichts nach. Es verlässt keine Besucher-IP das Add-on.
+# ---------------------------------------------------------------------------
+GEOIP_DIR     = Path(_DATA) / 'geoip'
+GEOIP_CACHE   = GEOIP_DIR / 'ranges.tsv.gz'
+GEOIP_STAMP   = GEOIP_DIR / 'archive.stamp'
+GEOIP_MAX_AGE = 7 * 86400
+GEOIP_DBIP    = 'https://download.db-ip.com/free/dbip-country-lite-{:%Y-%m}.csv.gz'
+GEOIP_RIR = (
+    'https://ftp.apnic.net/stats/apnic/delegated-apnic-extended-latest',
+    'https://ftp.ripe.net/pub/stats/ripencc/delegated-ripencc-extended-latest',
+    'https://ftp.arin.net/pub/stats/arin/delegated-arin-extended-latest',
+    'https://ftp.lacnic.net/pub/stats/lacnic/delegated-lacnic-extended-latest',
+    'https://ftp.afrinic.net/pub/stats/afrinic/delegated-afrinic-extended-latest',
+)
+
+
+def _geo_empty() -> dict:
+    """Leere Nachschlagetabellen, getrennt nach Adressfamilie.
+
+    IPv4-Adressen passen in 64-Bit-Zahlen und liegen als `array` im Speicher,
+    ein Achtel dessen, was eine Liste bräuchte. IPv6-Adressen sind dafür zu
+    groß, stehen aber als 16-Byte-Blöcke in Netzreihenfolge in einem einzigen
+    Puffer — und der vergleicht sich Byte für Byte genauso wie die Zahlen.
+    """
+    return {
+        4: {'starts': array('Q'),  'ends': array('Q'),  'codes': [], 'pool': {}},
+        6: {'starts': bytearray(), 'ends': bytearray(), 'codes': [], 'pool': {}},
+    }
+
+
+# Wird beim Aktualisieren komplett ersetzt und nie an Ort und Stelle geändert —
+# deshalb brauchen die Leser kein Lock.
+_geo_tables: dict = _geo_empty()
 
 
 def _geo_enabled() -> bool:
-    return bool(load_config().get('geoip_lookup'))
+    return bool(load_config().get('geoip_offline', True))
 
 
 def _cf_country(req) -> str:
@@ -2100,70 +2147,465 @@ def _lang_country(req) -> str:
 
 
 def _guess_country(req) -> str:
-    """Besucherland: Cloudflare-Header > GeoIP-Cache > Accept-Language-Näherung."""
-    ip = get_client_ip(req)
-    return _cf_country(req) or _geo_cache.get(ip, '') or _lang_country(req)
+    """Besucherland: Cloudflare-Header > lokale Tabelle > Accept-Language-Näherung."""
+    return (_cf_country(req)
+            or (_geo_country(get_client_ip(req)) if _geo_enabled() else '')
+            or _lang_country(req))
 
 
-def _lookup_ip(ip: str) -> str:
-    """Land einer IP über ipapi.is — private/ungültige IPs werden nie gesendet."""
+def _blob_bisect(blob: bytes, key: bytes) -> int:
+    """`bisect_right` über einen Puffer aus aneinandergereihten 16-Byte-Schlüsseln."""
+    lo, hi = 0, len(blob) >> 4
+    while lo < hi:
+        mid = (lo + hi) >> 1
+        if blob[mid << 4:(mid + 1) << 4] <= key:
+            lo = mid + 1
+        else:
+            hi = mid
+    return lo
+
+
+def _geo_country(ip: str) -> str:
+    """Ländercode einer IP aus der lokalen Tabelle ('' = privat oder unbekannt)."""
     try:
         addr = ipaddress.ip_address(ip)
-        if addr.is_private or addr.is_loopback or addr.is_link_local or addr.is_reserved:
-            return ''
     except ValueError:
         return ''
+    if addr.is_private or addr.is_loopback or addr.is_link_local or addr.is_reserved:
+        return ''
+    fam = _geo_tables[addr.version]
+    codes = fam['codes']
+    if not codes:
+        return ''
+    # Letzter Bereich, der nicht hinter der IP anfängt. Passt sein Ende nicht,
+    # liegt die IP in einer Lücke (nicht zugeteilt oder nicht zugeordnet).
+    if addr.version == 4:
+        num = int(addr)
+        i = bisect.bisect_right(fam['starts'], num) - 1
+        return codes[i] if i >= 0 and num <= fam['ends'][i] else ''
+    key = addr.packed
+    i = _blob_bisect(fam['starts'], key) - 1
+    return codes[i] if i >= 0 and key <= bytes(fam['ends'][i << 4:(i + 1) << 4]) else ''
+
+
+def _geo_append(tables: dict, version: int, start: int, end: int, cc: str) -> None:
+    """Einen Bereich anhängen. Die Quelle muss je Familie aufsteigend liefern."""
+    fam = tables[version]
+    if version == 4:
+        fam['starts'].append(start)
+        fam['ends'].append(end)
+    else:
+        fam['starts'] += start.to_bytes(16, 'big')
+        fam['ends'] += end.to_bytes(16, 'big')
+    fam['codes'].append(fam['pool'].setdefault(cc, cc))   # jeden Code nur einmal halten
+
+
+def _geo_rows(tables: dict):
+    """Alle Bereiche wieder als (version, start, ende, code) ausgeben."""
+    for version in (4, 6):
+        fam = tables[version]
+        for i, cc in enumerate(fam['codes']):
+            if version == 4:
+                yield 4, fam['starts'][i], fam['ends'][i], cc
+            else:
+                yield (6,
+                       int.from_bytes(fam['starts'][i << 4:(i + 1) << 4], 'big'),
+                       int.from_bytes(fam['ends'][i << 4:(i + 1) << 4], 'big'), cc)
+
+
+def _geo_count(tables: dict) -> tuple[int, int]:
+    return len(tables[4]['codes']), len(tables[6]['codes'])
+
+
+def _geo_fetch_dbip(tables: dict) -> str:
+    """DB-IP-Lite einlesen (CSV: start,ende,land — je Familie bereits sortiert).
+
+    Am Monatsanfang steht die neue Datei nicht immer sofort bereit, deshalb der
+    Griff zum Vormonat.
+    """
+    today = date.today()
+    months = [today.replace(day=1)]
+    months.append((months[0] - timedelta(days=1)).replace(day=1))
+    last_err: Exception | None = None
+    for month in months:
+        url = GEOIP_DBIP.format(month)
+        try:
+            with http.get(url, timeout=180, stream=True) as r:
+                r.raise_for_status()
+                r.raw.decode_content = True
+                prev = {4: -1, 6: -1}
+                with gzip.open(r.raw, 'rt', encoding='utf-8', errors='replace') as fh:
+                    for line in fh:
+                        f = line.rstrip('\n').split(',')
+                        if len(f) != 3:
+                            continue
+                        cc = f[2].strip().upper()
+                        # 'ZZ' ist DB-IPs Platzhalter für unbekannt/reserviert
+                        if len(cc) != 2 or not cc.isalpha() or cc == 'ZZ':
+                            continue
+                        try:
+                            start = ipaddress.ip_address(f[0])
+                            end   = ipaddress.ip_address(f[1])
+                        except ValueError:
+                            continue
+                        v = start.version
+                        if v != end.version or int(start) <= prev[v]:
+                            raise ValueError('Datei ist nicht aufsteigend sortiert')
+                        prev[v] = int(end)
+                        _geo_append(tables, v, int(start), int(end), cc)
+            return f'dbip {month:%Y-%m}'
+        except Exception as e:
+            last_err = e
+            log.warning("GeoIP: DB-IP %s nicht nutzbar (%s)", f'{month:%Y-%m}', e)
+            tables.update(_geo_empty())   # Halbe Datei nicht stehen lassen
+    raise RuntimeError(f'DB-IP nicht verfügbar ({last_err})')
+
+
+def _geo_fetch_rir(tables: dict) -> str:
+    """Rückfallebene: Delegationsdateien registry|cc|typ|start|wert|datum|status|…"""
+    rows: list[tuple[int, int, int, str]] = []
+    ok = 0
+    for url in GEOIP_RIR:
+        host = urlsplit(url).netloc
+        before = len(rows)
+        try:
+            with http.get(url, timeout=180, stream=True) as r:
+                r.raise_for_status()
+                # Die Registries schicken text/plain ohne Zeichensatz — ohne diese
+                # Zeile gibt iter_lines() Bytes zurück und der Parser läuft ins Leere.
+                r.encoding = 'utf-8'
+                for line in r.iter_lines(decode_unicode=True):
+                    if not line or line[0] == '#':
+                        continue
+                    f = line.split('|')
+                    if len(f) < 7 or f[2] not in ('ipv4', 'ipv6'):
+                        continue
+                    cc = f[1].strip().upper()
+                    # '*' steht in den Summenzeilen am Dateianfang; 'available'
+                    # und 'reserved' gehören keinem Land.
+                    if len(cc) != 2 or not cc.isalpha() or f[6] not in ('allocated', 'assigned'):
+                        continue
+                    try:
+                        if f[2] == 'ipv4':
+                            # Bei IPv4 zählt das Feld Adressen statt Präfixlängen —
+                            # und die Zahl ist nicht immer eine Zweierpotenz.
+                            start, size = int(ipaddress.IPv4Address(f[3])), int(f[4])
+                            if size <= 0:
+                                continue
+                            rows.append((4, start, start + size - 1, cc))
+                        else:
+                            prefix = int(f[4])
+                            if not 0 <= prefix <= 128:
+                                continue
+                            start = int(ipaddress.IPv6Address(f[3]))
+                            rows.append((6, start, start + (1 << (128 - prefix)) - 1, cc))
+                    except ValueError:
+                        continue
+            ok += 1
+            log.info("GeoIP: %s → %d Bereiche", host, len(rows) - before)
+        except Exception as e:
+            log.warning("GeoIP: %s nicht erreichbar (%s)", host, e)
+    # Eine fehlende Registry würde einen ganzen Kontinent unsichtbar machen und
+    # dessen Besucher stillschweigend als unbekannt festschreiben.
+    if ok < len(GEOIP_RIR):
+        raise RuntimeError(f'nur {ok} von {len(GEOIP_RIR)} Registries erreichbar')
+    rows.sort()
+    for version, start, end, cc in rows:
+        _geo_append(tables, version, start, end, cc)
+    return 'rir'
+
+
+def _geo_download() -> tuple[dict, str]:
+    tables = _geo_empty()
     try:
-        params = {'q': ip}
-        key = (load_config().get('geoip_api_key') or '').strip()
-        if key:
-            params['key'] = key
-        r = http.get('https://api.ipapi.is/', params=params, timeout=10)
-        if r.status_code == 200:
-            code = ((r.json().get('location') or {}).get('country_code') or '').strip().upper()
-            if len(code) == 2 and code.isalpha():
-                return code
+        return tables, _geo_fetch_dbip(tables)
     except Exception as e:
-        log.warning("GeoIP-Lookup fehlgeschlagen: %s", e)
-    return ''
+        log.warning("GeoIP: DB-IP fällt aus (%s) — weiche auf die Registries aus", e)
+    tables = _geo_empty()
+    return tables, _geo_fetch_rir(tables)
+
+
+def _geo_save(tables: dict, source: str) -> None:
+    GEOIP_DIR.mkdir(parents=True, exist_ok=True)
+    tmp = GEOIP_CACHE.with_suffix('.tmp')
+    with gzip.open(tmp, 'wt', encoding='ascii') as fh:
+        fh.write(f'#{source}\n')
+        for version, start, end, cc in _geo_rows(tables):
+            fh.write(f'{version}\t{start}\t{end}\t{cc}\n')
+    tmp.replace(GEOIP_CACHE)
+
+
+def _geo_load_cache() -> tuple[dict, str]:
+    tables = _geo_empty()
+    source = 'unbekannt'
+    with gzip.open(GEOIP_CACHE, 'rt', encoding='ascii') as fh:
+        for line in fh:
+            if line[:1] == '#':
+                source = line[1:].strip()
+                continue
+            f = line.rstrip('\n').split('\t')
+            if len(f) == 4:
+                _geo_append(tables, int(f[0]), int(f[1]), int(f[2]), f[3])
+    return tables, source
+
+
+def _geo_refresh() -> bool:
+    """Tabelle bereitstellen: Zwischenspeicher benutzen, wöchentlich erneuern."""
+    global _geo_tables
+    loaded = bool(_geo_tables[4]['codes'])
+    try:
+        age = time.time() - GEOIP_CACHE.stat().st_mtime
+    except OSError:
+        age = None
+    if not loaded and age is not None:
+        try:
+            tables, source = _geo_load_cache()
+            _geo_tables = tables
+            loaded = True
+            log.info("GeoIP: %d IPv4- und %d IPv6-Bereiche aus %s geladen (%d Tage alt)",
+                     *_geo_count(tables), source, int(age // 86400))
+        except Exception as e:
+            log.warning("GeoIP: Zwischenspeicher unlesbar (%s) — wird neu geholt", e)
+            age = None
+    if age is None or age >= GEOIP_MAX_AGE:
+        try:
+            tables, source = _geo_download()
+            _geo_save(tables, source)
+            _geo_tables = tables
+            loaded = True
+            log.info("GeoIP: Tabelle aus %s erneuert — %d IPv4- und %d IPv6-Bereiche",
+                     source, *_geo_count(tables))
+        except Exception as e:
+            # Die alte Tabelle bleibt in Betrieb, der nächste Durchlauf probiert es erneut.
+            log.warning("GeoIP: Aktualisierung fehlgeschlagen (%s)", e)
+    return loaded
+
+
+def _geo_backfill_log() -> int:
+    """Fehlende Länder im Besucher-Log nachtragen — offline, also ohne Limit."""
+    stats = load_stats()
+    filled = 0
+    for v in stats.get('log', []):
+        if v.get('country'):
+            continue
+        code = _geo_country(v.get('ip') or '')
+        if code:
+            v['country'] = code
+            filled += 1
+    if filled:
+        save_stats(stats)
+    return filled
+
+
+def _geo_backfill_archive() -> int:
+    """Dasselbe für die Monatsdateien des Besucher-Archivs.
+
+    Läuft nur, wenn die Tabelle seit dem letzten Durchlauf erneuert wurde — die
+    CSVs jede Stunde durchzugehen wäre reine Plattenarbeit ohne neues Ergebnis.
+    """
+    if not VISITS_DIR.is_dir():
+        return 0
+    try:
+        current = str(int(GEOIP_CACHE.stat().st_mtime))
+    except OSError:
+        return 0
+    try:
+        if GEOIP_STAMP.read_text(encoding='ascii').strip() == current:
+            return 0
+    except OSError:
+        pass
+    filled = 0
+    with _visit_file_lock:
+        for path in sorted(VISITS_DIR.glob('visits-*.csv')):
+            try:
+                with path.open('r', encoding='utf-8-sig', newline='') as fh:
+                    rows = list(csv.DictReader(fh, delimiter=';'))
+                hits = 0
+                for row in rows:
+                    if row.get('land'):
+                        continue
+                    code = _geo_country((row.get('ip') or '').strip())
+                    if code:
+                        row['land'] = code
+                        hits += 1
+                if not hits:
+                    continue
+                tmp = path.with_suffix('.tmp')
+                with tmp.open('w', encoding='utf-8-sig', newline='') as fh:
+                    w = csv.DictWriter(fh, fieldnames=VISIT_CSV_COLUMNS, delimiter=';',
+                                       extrasaction='ignore')
+                    w.writeheader()
+                    for row in rows:
+                        w.writerow({k: (row.get(k) or '') for k in VISIT_CSV_COLUMNS})
+                tmp.replace(path)
+                filled += hits
+            except (OSError, csv.Error) as e:
+                log.warning("GeoIP: Archivdatei %s nicht ergänzt (%s)", path.name, e)
+    try:
+        GEOIP_DIR.mkdir(parents=True, exist_ok=True)
+        GEOIP_STAMP.write_text(current, encoding='ascii')
+    except OSError:
+        pass
+    return filled
 
 
 def _geoip_worker() -> None:
-    """Trägt Länder für Log-Einträge ohne Land nach (max. 20 Lookups/Minute)."""
+    """Tabelle aktuell halten und fehlende Länder nachtragen (stündlich)."""
     while True:
-        time.sleep(60)
-        if not _geo_enabled():
-            continue
         try:
-            stats = load_stats()
-            pending: list[str] = []
-            for v in reversed(stats.get('log', [])):
-                ip = v.get('ip') or ''
-                if not v.get('country') and not v.get('bot') and ip and ip not in _geo_cache:
-                    if ip not in pending:
-                        pending.append(ip)
-                if len(pending) >= GEO_LOOKUPS_PER_RUN:
-                    break
-            for ip in pending:
-                if len(_geo_cache) >= GEO_CACHE_MAX:
-                    _geo_cache.clear()
-                _geo_cache[ip] = _lookup_ip(ip)
-                time.sleep(1.5)
-            if not pending:
-                continue
-            # Frisch laden und Cache anwenden, damit parallele Besuche nicht verloren gehen
-            stats = load_stats()
-            changed = False
-            for v in stats.get('log', []):
-                code = _geo_cache.get(v.get('ip') or '')
-                if not v.get('country') and code:
-                    v['country'] = code
-                    changed = True
-            if changed:
-                save_stats(stats)
-                log.info("GeoIP: %d IP(s) nachgeschlagen", len(pending))
+            if _geo_enabled() and _geo_refresh():
+                filled = _geo_backfill_log()
+                archived = _geo_backfill_archive()
+                if filled or archived:
+                    log.info("GeoIP: %d Log-Einträge und %d Archivzeilen ergänzt",
+                             filled, archived)
         except Exception as e:
             log.warning("GeoIP-Worker-Fehler: %s", e)
+        time.sleep(3600)
+
+
+# ── Datenvolumen ──────────────────────────────────────────────────────────────
+#
+# Waitress liefert jedes Byte selbst aus, also lässt es sich an der WSGI-Schnitt-
+# stelle mitzählen: eine Hülle um die öffentliche App zählt mit, was hinausgeht,
+# und schreibt die Tagessumme einmal pro Minute nach stats.json. Pro Anfrage zu
+# schreiben hieße ein Schreibzugriff je Bild.
+#
+# Gezählt wird, was MyPage ausliefert — nicht, was auf der Leitung liegt: ein
+# vorgelagerter Reverse Proxy packt selbst (gzip) und legt TLS obendrauf. Für
+# die echte Leitungslast sind dessen Protokolle die richtige Quelle.
+TRAFFIC_FLUSH_SECONDS = 60
+_traffic_lock = threading.Lock()
+_traffic_pending: dict = {}          # Tag → {'out': n, 'in': n, 'out_bot': n, 'in_bot': n}
+
+
+def human_size(n: int) -> str:
+    """Bytes lesbar machen — 1024er-Schritte, wie im Dateibereich."""
+    value = float(n or 0)
+    for unit in ('B', 'KB', 'MB', 'GB'):
+        if value < 1024 or unit == 'GB':
+            return f'{value:.1f} {unit}' if unit != 'B' else f'{int(value)} B'
+        value /= 1024
+    return f'{value:.1f} GB'
+
+
+def _traffic_add(day: str, field: str, value: int) -> None:
+    if value <= 0:
+        return
+    with _traffic_lock:
+        fields = _traffic_pending.setdefault(day, {})
+        fields[field] = fields.get(field, 0) + value
+
+
+class _TrafficStream:
+    """Zählt Antworten ohne angekündigte Länge erst beim Ausliefern.
+
+    Gebucht wird im `close()`, das der Server auch bei abgebrochener Verbindung
+    aufruft — ein zur Hälfte geladenes Video zählt damit zur Hälfte.
+    """
+
+    def __init__(self, inner, day: str, field: str, head: int):
+        self.inner, self.day, self.field, self.sent = inner, day, field, head
+
+    def __iter__(self):
+        for chunk in self.inner:
+            self.sent += len(chunk)
+            yield chunk
+
+    def close(self) -> None:
+        _traffic_add(self.day, self.field, self.sent)
+        self.sent = 0
+        close = getattr(self.inner, 'close', None)
+        if close is not None:
+            close()
+
+
+class TrafficMeter:
+    """WSGI-Hülle um die öffentliche App, die das Datenvolumen mitzählt."""
+
+    def __init__(self, app):
+        self.app = app
+        self.config = app.config      # `_serve` liest daraus das Upload-Limit
+
+    def __call__(self, environ, start_response):
+        ua = environ.get('HTTP_USER_AGENT') or ''
+        # Dieselbe Erkennung wie im Besucher-Log, damit sich die Zahlen decken.
+        field = '_bot' if (not ua) or any(b in ua.lower() for b in _BOT_UA) else ''
+        day = date.today().isoformat()
+        try:
+            _traffic_add(day, 'in' + field, int(environ.get('CONTENT_LENGTH') or 0))
+        except ValueError:
+            pass
+        info = {'head': 0, 'len': None, 'body': True}
+
+        def _start(status, headers, exc_info=None):
+            # Die Kopfzeilen zählen mit: bei kleinen Antworten machen sie den
+            # Löwenanteil aus, und auf der Leitung stehen sie ebenfalls.
+            head = len('HTTP/1.1 ') + len(status) + 4      # Statuszeile + Leerzeile
+            length = None
+            for name, value in headers:
+                head += len(name) + len(value) + 4         # ": " und Zeilenende
+                if name.lower() == 'content-length':
+                    try:
+                        length = int(value)
+                    except ValueError:
+                        length = None
+            info.update(head=head, len=length,
+                        # HEAD und "nicht verändert" kündigen eine Länge an,
+                        # schicken aber keinen Rumpf.
+                        body=(environ.get('REQUEST_METHOD') != 'HEAD'
+                              and not status.startswith('304')))
+            return start_response(status, headers, exc_info)
+
+        result = self.app(environ, _start)
+        if not info['body']:
+            _traffic_add(day, 'out' + field, info['head'])
+            return result
+        if info['len'] is not None:
+            # Länge steht fest — sofort buchen und die Antwort unangetastet
+            # weiterreichen, damit Waitress große Dateien direkt ausliefern kann.
+            _traffic_add(day, 'out' + field, info['head'] + info['len'])
+            return result
+        return _TrafficStream(result, day, 'out' + field, info['head'])
+
+
+def _traffic_flush() -> None:
+    """Gesammelte Bytes in die Tagesstatistik übernehmen."""
+    with _traffic_lock:
+        if not _traffic_pending:
+            return
+        pending = dict(_traffic_pending)
+        _traffic_pending.clear()
+    stats = load_stats()
+    days = stats.setdefault('days', {})
+    for day, fields in pending.items():
+        entry = days.setdefault(day, {'views': 0, 'uniques': 0})
+        for name, value in fields.items():
+            entry['traffic_' + name] = entry.get('traffic_' + name, 0) + value
+            stats['traffic_' + name] = stats.get('traffic_' + name, 0) + value
+    save_stats(stats)
+
+
+def _traffic_worker() -> None:
+    while True:
+        time.sleep(TRAFFIC_FLUSH_SECONDS)
+        try:
+            _traffic_flush()
+        except Exception as e:
+            log.warning("Datenvolumen konnte nicht gespeichert werden: %s", e)
+
+
+def traffic_totals(stats: dict) -> dict:
+    """Volumen gesamt, heute und über die letzten 30 Tage (Bytes)."""
+    today = stats.get('days', {}).get(date.today().isoformat(), {})
+    last30 = sorted(stats.get('days', {}).items(), reverse=True)[:30]
+    out = {'total_out': stats.get('traffic_out', 0),
+           'total_in':  stats.get('traffic_in', 0),
+           'today_out': today.get('traffic_out', 0),
+           'today_bot': today.get('traffic_out_bot', 0),
+           'days_out':  sum(d.get('traffic_out', 0) for _, d in last30),
+           'days_bot':  sum(d.get('traffic_out_bot', 0) for _, d in last30)}
+    return out
 
 
 def bump_post_view(pid: str, req) -> int:
@@ -2916,11 +3358,14 @@ def push_ha_sensors() -> None:
         except OSError:
             user_mb = 0.0
     pending = _pending_approvals()
+    vol = traffic_totals(stats)
     sensors = [
         ('mypage_views_total',    stats.get('total', 0), 'MyPage Aufrufe gesamt',  'mdi:counter',       'Aufrufe'),
         ('mypage_visitors_total', total_uniques(stats),  'MyPage Besucher gesamt', 'mdi:account-group', 'Besucher'),
         ('mypage_views_today',    today['views'],        'MyPage Aufrufe heute',   'mdi:eye',           'Aufrufe'),
         ('mypage_visitors_today', today['uniques'],      'MyPage Besucher heute',  'mdi:account',       'Besucher'),
+        ('mypage_traffic_today',  round(vol['today_out'] / 1048576, 1), 'MyPage Datenvolumen heute', 'mdi:swap-vertical', 'MB'),
+        ('mypage_traffic_total',  round(vol['total_out'] / 1048576, 1), 'MyPage Datenvolumen gesamt', 'mdi:database-arrow-up', 'MB'),
         ('mypage_user_storage',   user_mb,               'MyPage Speicher Benutzerdateien', 'mdi:harddisk', 'MB'),
         ('mypage_failed_logins',  failed_logins_24h(),   'MyPage Fehllogins (24h)', 'mdi:lock-alert',   'Versuche'),
         ('mypage_messages',       len(load_messages()),  'MyPage Kontaktnachrichten', 'mdi:email',      'Nachrichten'),
@@ -3069,17 +3514,19 @@ def _weekly_summary() -> dict:
     days = stats.get('days', {})
     today = date.today()
 
-    def _sum(a: int, b: int) -> tuple[int, int]:
-        v = u = 0
+    def _sum(a: int, b: int) -> tuple[int, int, int]:
+        v = u = vol = 0
         for i in range(a, b):
             d = days.get((today - timedelta(days=i)).isoformat())
             if d:
                 v += d.get('views', 0)
                 u += d.get('uniques', 0)
-        return v, u
+                # Bots zählen beim Volumen mit — sie belasten die Leitung genauso
+                vol += d.get('traffic_out', 0) + d.get('traffic_out_bot', 0)
+        return v, u, vol
 
-    views, uniques = _sum(0, 7)          # letzte 7 Tage (heute … −6)
-    prev_views, _ = _sum(7, 14)          # Vorwoche
+    views, uniques, traffic = _sum(0, 7)        # letzte 7 Tage (heute … −6)
+    prev_views, _, prev_traffic = _sum(7, 14)   # Vorwoche
     cutoff = int(time.time()) - 7 * 86400
     log_week = [v for v in stats.get('log', []) if v.get('ts', 0) >= cutoff]
     pages = top_pages(load_site(), log_week, limit=1)
@@ -3087,7 +3534,9 @@ def _weekly_summary() -> dict:
     new_members = sum(1 for u in load_users() if (u.get('created') or '') >= cutoff_day)
     new_messages = sum(1 for m in load_messages() if m.get('ts', 0) >= cutoff)
     trend = round((views - prev_views) / prev_views * 100) if prev_views else None
+    vol_trend = round((traffic - prev_traffic) / prev_traffic * 100) if prev_traffic else None
     return {'views': views, 'uniques': uniques, 'trend': trend,
+            'traffic': traffic, 'traffic_trend': vol_trend,
             'top_page': (pages[0] if pages else None),
             'new_members': new_members, 'new_messages': new_messages}
 
@@ -3097,16 +3546,20 @@ def _send_weekly_review() -> None:
     konfiguriert) als E-Mail an die Admin-Adresse. Texte bewusst auf Deutsch —
     konsistent zu den übrigen HA-Benachrichtigungen."""
     s = _weekly_summary()
-    if s['trend'] is None:
-        trend_txt = '—'
-    else:
-        arrow = '▲' if s['trend'] > 0 else ('▼' if s['trend'] < 0 else '■')
-        trend_txt = f"{arrow} {abs(s['trend'])} % ggü. Vorwoche"
+
+    def _trend(value) -> str:
+        if value is None:
+            return '—'
+        arrow = '▲' if value > 0 else ('▼' if value < 0 else '■')
+        return f'{arrow} {abs(value)} % ggü. Vorwoche'
+
+    trend_txt = _trend(s['trend'])
     tp = s['top_page']
     top_txt = (f"{tp.get('title') or tp.get('path')} ({tp['count']})") if tp else '—'
     lines = [
         f"Aufrufe: {s['views']}  ({trend_txt})",
         f"Eindeutige Besucher: {s['uniques']}",
+        f"Datenvolumen: {human_size(s['traffic'])}  ({_trend(s['traffic_trend'])})",
         f"Top-Seite: {top_txt}",
         f"Neue Mitglieder: {s['new_members']}",
         f"Neue Nachrichten: {s['new_messages']}",
@@ -3117,7 +3570,8 @@ def _send_weekly_review() -> None:
         title = (load_site()['design'].get('site_title') or 'MyPage')
         html = _email_html(f'📊 Wochenrückblick — {title}', lines)
         send_email(f'📊 Wochenrückblick — {title}', html)
-    log.info("Wochenrückblick verschickt (Aufrufe %d, Besucher %d)", s['views'], s['uniques'])
+    log.info("Wochenrückblick verschickt (Aufrufe %d, Besucher %d, Volumen %s)",
+             s['views'], s['uniques'], human_size(s['traffic']))
 
 
 def _weekly_review_worker() -> None:
@@ -5070,8 +5524,11 @@ def api_legal_import_pdf():
         res = pdfimport.extract(data)
     except ValueError as e:
         # Nur die eigenen, bekannten Kennungen zurückgeben — nie den Text einer
-        # Ausnahme, der könnte Pfade oder Dateiinhalte enthalten.
-        code = str(e) if str(e) in ('no_text', 'too_many_pages') else 'unreadable'
+        # Ausnahme, der könnte Pfade oder Dateiinhalte enthalten. Der Ausnahme-
+        # text dient dabei ausschließlich als Schlüssel; hinausgegeben wird der
+        # feste Wert aus dieser Zuordnung, nie die Zeichenkette selbst.
+        code = {'no_text': 'no_text',
+                'too_many_pages': 'too_many_pages'}.get(str(e), 'unreadable')
         return jsonify({'error': code}), 400
     except Exception:
         log.warning("PDF-Import fehlgeschlagen (%s)", f.filename[:80], exc_info=True)
@@ -8730,6 +9187,7 @@ def api_stats():
         'browsers':  browsers,
         'countries': countries,
         'pages':     top_pages(load_site(), stats.get('log', [])),
+        'traffic':   traffic_totals(stats),
     })
 
 
@@ -13733,7 +14191,7 @@ def _serve(app, port: int, threads: int) -> None:
 
 
 def _run_public():
-    _serve(public_app, PUBLIC_PORT, threads=8)
+    _serve(TrafficMeter(public_app), PUBLIC_PORT, threads=8)
 
 
 def _handle_sigterm(signum, frame) -> None:
@@ -13778,6 +14236,7 @@ if __name__ == '__main__':
     threading.Thread(target=_sensor_worker, daemon=True).start()
     threading.Thread(target=_ha_games_worker, daemon=True).start()
     threading.Thread(target=_geoip_worker, daemon=True).start()
+    threading.Thread(target=_traffic_worker, daemon=True).start()
     threading.Thread(target=_smb_watchdog, daemon=True).start()
     threading.Thread(target=_dm_reminder_worker, daemon=True).start()
     threading.Thread(target=_weekly_review_worker, daemon=True).start()

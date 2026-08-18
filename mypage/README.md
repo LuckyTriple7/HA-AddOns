@@ -108,3 +108,9 @@ das Aussehen an, ohne das Grunddesign zu zerstören. Aufbau: `Auswahl { Eigensch
 
 Aus Sicherheitsgründen werden `<`-Zeichen aus dem Feld entfernt — es ist also
 ausschließlich CSS möglich, kein HTML/Script.
+
+## Lizenz
+
+Der Quelltext dieses Add-ons steht unter der MIT-Lizenz. Die Länder-Erkennung in der
+Statistik nutzt zusätzlich die Liste **DB-IP Lite** (CC BY 4.0):
+*IP Geolocation by DB-IP — <https://db-ip.com>*. Einzelheiten in [LICENSE.md](LICENSE.md).

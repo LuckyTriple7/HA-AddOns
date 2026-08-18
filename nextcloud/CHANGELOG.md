@@ -1,5 +1,15 @@
 # Changelog — Nextcloud
 
+## [1.0.28] - 2026-08-17
+
+- Doku: Nextcloud steht unter der AGPL-3.0 und der LinuxServer.io-Imagebau unter der GPL-3.0, das Add-on gab bisher keine Lizenz an. Neue `LICENSE.md` nennt die Bestandteile, ihre Lizenzen und Bezugsquellen, beschreibt die Änderungen gegenüber dem Basisimage und grenzt die eigenen MIT-Dateien ab
+
+## 1.0.27
+- `update_wopi_ip` schreibt jetzt die externe IP **und** die Netze aus `trusted_proxies` in die WOPI-Allowlist. Bisher nur die externe IP — bei lokalem Reverse-Proxy (NPMplus, NGINX Proxy Manager) erreicht Collabora Nextcloud intern, die Quelle ist dann nie die externe IP und Nextcloud antwortete mit 403 („Unauthorized WOPI host").
+- Hilfetext bei `trusted_domains` korrigiert: Liste ist kommagetrennt, nicht leerzeichengetrennt (Verhalten war schon immer Komma).
+- `trusted_proxies`: Hinweis ergänzt, dass bei einem Reverse-Proxy im Host-Netz zusätzlich die IP des Home-Assistant-Hosts eingetragen werden muss.
+- DOCS: neuer Abschnitt „Reverse-Proxy im Host-Netz" mit Beispiel und Fehlerbild.
+
 ## 1.0.26
 - Nextcloud Base-Image aktualisiert auf linuxserver/nextcloud 34.0.3 (34.0.3-ls446)
 

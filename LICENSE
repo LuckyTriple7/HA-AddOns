@@ -1,3 +1,16 @@
+The MIT license below covers the files written for this repository: the
+add-on manifests, Dockerfiles, entrypoint scripts, translations, icons and
+documentation.
+
+It does NOT cover the third-party software that the published container
+images are built from — base images, applications and libraries keep their
+own licenses, some of them copyleft. Where an add-on ships such software,
+its directory contains a LICENSE.md naming the components and their terms.
+For those add-ons the published image as a whole follows the license of the
+bundled application, not the MIT license below.
+
+-------------------------------------------------------------------------
+
 MIT License
 
 Copyright (c) 2026 Andreas Waidele (LuckyTriple7)

@@ -52,3 +52,7 @@ Mit `memory_limit_mb` werden folgende Firefox-Einstellungen gesetzt:
 ## Automatische Updates
 
 GitHub Actions prüft täglich die aktuelle Firefox ESR Version. Bei einer neuen Version wird automatisch ein neues Docker-Image gebaut und zu GHCR gepusht.
+
+## Lizenz
+
+Firefox und die noVNC-Kernbibliothek stehen unter der MPL-2.0, die eigenen Dateien des Add-ons unter der MIT-Lizenz. Das Add-on liefert das unveränderte offizielle Mozilla-Build aus. Einzelheiten und Quellenangaben: [LICENSE.md](LICENSE.md).

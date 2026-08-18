@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.4.11] - 2026-08-17
+
+### Added
+- Neuer Benachrichtigungstyp **💬 Neue Kommentare** (Telegram, E-Mail, Browser,
+  einzeln abschaltbar). Meldet neue Kommentare an PRs und Issues aller
+  konfigurierten Repos — bisher gab es die Meldung nur für eigene PRs/Issues
+  über "Meine Aktivität".
+- Webhook-Events `issue_comment` und `pull_request_review_comment` werden
+  verarbeitet: Kommentare melden sich sofort statt erst beim nächsten Poll.
+
+### Changed
+- **Eigene Kommentare lösen nichts mehr aus.** Bei geänderter Kommentarzahl
+  lädt GitPulse die Autoren nach; Kommentare mit dem eigenen GitHub-Login
+  werden still als gelesen verbucht — kein Bubble, keine Benachrichtigung.
+  Fremde ungelesene Kommentare bleiben dabei erhalten. Der Abgleich läuft nur
+  für Items mit geänderter Zahl und ist auf 25 Items pro Poll gedeckelt.
+- Die Kommentar-Meldung aus "Meine Aktivität" ist in den neuen Typ
+  umgezogen (keine doppelten Benachrichtigungen). Der Zustand liegt jetzt in
+  `comment_state.json` (Kommentarzahl + Zeitstempel statt nur Zahl);
+  `activity_comments.json` wird nicht mehr verwendet.
+
 ## [0.4.10] - 2026-08-10
 
 ### Security

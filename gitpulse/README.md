@@ -17,7 +17,7 @@ GitHub-Übersicht direkt im HA-Dashboard: Pull Requests, Issues, CI-Läufe, Secu
 - **Add-on Manager** *(optional)* — Versionen bumpen, Changelog-Einträge schreiben und direkt aus der UI pushen
 - **Console** — Internes Live-Log mit Auto-Scroll
 - **Branch-Sync Kachel** — Zeigt pro Repo wie viele Commits dev vor/hinter main liegt (↑/↓) mit Farbkodierung
-- **Benachrichtigungen** — Telegram · E-Mail (SMTP) · Browser-Benachrichtigungen — je Ereignistyp einzeln aktivierbar (inkl. Review-Anfragen)
+- **Benachrichtigungen** — Telegram · E-Mail (SMTP) · Browser-Benachrichtigungen — je Ereignistyp einzeln aktivierbar (inkl. Review-Anfragen und neuer Kommentare; selbst verfasste Kommentare lösen nichts aus)
 - **Tages-Digest** — Optionale tägliche Zusammenfassung aller offenen PRs, Issues und Security-Alerts zu einer konfigurierbaren Uhrzeit (`digest_hour 0–23`)
 - **Webhooks** — Optionaler Echtzeit-GitHub-Empfänger (< 1 s statt bis zu 5 Min. Polling)
 - **PWA** — Installierbar, funktioniert hinter Cloudflare Tunnel und HA Cloud

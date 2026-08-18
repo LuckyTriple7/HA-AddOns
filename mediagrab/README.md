@@ -21,3 +21,7 @@ Benutzername, Passwort und weitere Optionen werden in der Add-on-Konfiguration g
 ## Unterstützte Seiten
 
 Alle von [yt-dlp](https://github.com/yt-dlp/yt-dlp) unterstützten Seiten (YouTube, Vimeo, SoundCloud, TikTok, Twitch, u.v.m.).
+
+## Lizenz
+
+Der eigene Code steht unter der MIT-Lizenz; mitgeliefert werden unter anderem ffmpeg (GPL) und yt-dlp (Unlicense). Einzelheiten und Quellenangaben: [LICENSE.md](LICENSE.md).

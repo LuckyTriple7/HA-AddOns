@@ -24,6 +24,9 @@
 - [ ] MediaGrab
 - [ ] GitPulse
 - [ ] MyPage
+- [ ] TUIWatch
+- [ ] LogPulse
+- [ ] NPMplus
 - [ ] Anderes / Other: ___
 
 ## Art der Änderung / Type of Change

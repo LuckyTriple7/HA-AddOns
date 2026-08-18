@@ -268,3 +268,7 @@ This add-on was inspired by [alexbelgium/hassio-addons](https://github.com/alexb
 - **Automatic updates**: GitHub Actions workflow checks daily for new Nextcloud versions and rebuilds the image automatically
 - **MariaDB auto-discovery**: Automatically detects the HA MariaDB add-on
 - **Simplified first setup**: Web installer approach without manual database configuration
+
+## Lizenz
+
+Nextcloud steht unter der AGPL-3.0, der LinuxServer.io-Imagebau unter der GPL-3.0, die eigenen Dateien des Add-ons unter der MIT-Lizenz. Einzelheiten und Quellenangaben: [LICENSE.md](LICENSE.md).

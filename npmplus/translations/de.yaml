@@ -1,0 +1,127 @@
+configuration:
+  TZ:
+    name: Zeitzone
+    description: Zeitzone des Containers, z.B. Europe/Berlin. Wird für Logs, Zertifikats-Erneuerung und Logrotation gebraucht.
+  acme_email:
+    name: ACME E-Mail
+    description: E-Mail-Adresse für Let's Encrypt. Dorthin gehen Warnungen zu ablaufenden Zertifikaten. Für Let's Encrypt optional, für ZeroSSL und Google Public CA Pflicht.
+  acme_profile:
+    name: ACME-Profil
+    description: Laufzeit der Let's-Encrypt-Zertifikate. "shortlived" rund 6 Tage (Standard von NPMplus), "classic" die gewohnten 90 Tage. Kurze Laufzeiten sind sicherer, verzeihen aber keinen längeren Ausfall der Erneuerung.
+  initial_admin_email:
+    name: Erste Admin-E-Mail
+    description: Nur beim allerersten Start relevant. Legt den ersten Benutzer an. Leer lassen für admin@example.org.
+  initial_admin_password:
+    name: Erstes Admin-Passwort
+    description: Nur beim allerersten Start relevant. Leer lassen — dann erzeugt NPMplus ein Zufallspasswort und schreibt es ins Add-on-Protokoll.
+  http_port:
+    name: HTTP-Port
+    description: Port für unverschlüsselten Verkehr. Standard 80. Ändern bricht die HTTP-Challenge von Let's Encrypt.
+  https_port:
+    name: HTTPS-Port
+    description: Port für verschlüsselten Verkehr, TCP und UDP (HTTP/3). Standard 443.
+  admin_port:
+    name: Port der Weboberfläche
+    description: Port der NPMplus-Oberfläche. Standard 81. Immer HTTPS mit selbstsigniertem Zertifikat.
+  disable_ipv6:
+    name: IPv6 abschalten
+    description: Verhindert, dass nginx auf IPv6 lauscht. Nur einschalten, wenn dein Netz kein IPv6 hat.
+  disable_h3_quic:
+    name: HTTP/3 abschalten
+    description: Schaltet QUIC auf UDP 443 ab. Nur nötig, wenn dein Router UDP 443 nicht weiterleiten kann.
+  enable_mptcp:
+    name: Multipath-TCP aktivieren
+    description: Aktiviert MPTCP. Braucht einen Kernel mit MPTCP-Unterstützung.
+  logrotate:
+    name: Access-Logs schreiben
+    description: Schreibt Access- und Error-Logs nach /data/nginx/logs und rotiert sie täglich. Nötig für CrowdSec und GoAccess.
+  logrotations:
+    name: Aufbewahrte Logtage
+    description: Wie viele rotierte Logdateien behalten werden, bevor sie gelöscht werden.
+  error_log_level:
+    name: Ausführlichkeit des Error-Logs
+    description: Ab welcher Stufe nginx ins Error-Log schreibt. "warn" ist der sinnvolle Standard; "info" protokolliert jeden Worker-Wechsel und flutet Protokoll und Datenträger.
+  share_logs:
+    name: Logs nach /share spiegeln
+    description: Legt die Logs unter /share/npmplus/logs ab, damit andere Add-ons (z.B. CrowdSec) sie per Datei-Acquisition lesen können.
+  log_to_stdout:
+    name: Logs ins Add-on-Protokoll
+    description: Spiegelt das Access-Log zusätzlich in die Container-Ausgabe. Nötig, wenn CrowdSec die Logs über journald einliest.
+  goaccess:
+    name: GoAccess-Statistik
+    description: Aktiviert das GoAccess-Dashboard auf einem eigenen HTTPS-Port (91), nicht unter /goaccess der Oberfläche. Dieser Port kennt keine Anmeldung.
+  goaccess_listen_localhost:
+    name: GoAccess nur auf localhost
+    description: Bindet das Dashboard an 127.0.0.1 statt an alle Adressen. Empfohlen, denn Port 91 ist ungeschützt und zeigt Besucher-IPs und alle angefragten URLs. Zum Zugriff einen Proxy Host mit Access-Liste auf 127.0.0.1:91 anlegen. Ausschalten macht es unter https://HA-IP:91 im ganzen LAN lesbar.
+  trust_ip:
+    name: Vertrauenswürdige IPs
+    description: Durch Leerzeichen getrennte Liste von IPs oder Subnetzen vorgelagerter Proxys, deren X-Forwarded-For-Header nginx glauben darf.
+  trust_cloudflare:
+    name: Cloudflare vertrauen
+    description: Lädt die Cloudflare-IP-Bereiche und vertraut deren X-Forwarded-For-Header. Nur einschalten, wenn wirklich Cloudflare davor steht.
+  crowdsec_enabled:
+    name: CrowdSec-Bouncer aktivieren
+    description: Aktiviert den nginx-Bouncer. Blockt Anfragen von IPs, die deine CrowdSec-Instanz gebannt hat.
+  crowdsec_lapi_url:
+    name: CrowdSec LAPI-URL
+    description: Adresse der lokalen CrowdSec-API, z.B. http://127.0.0.1:8080.
+  crowdsec_api_key:
+    name: CrowdSec Bouncer-Key
+    description: Ausgabe von "cscli bouncers add npmplus" in deiner CrowdSec-Instanz.
+  crowdsec_appsec_url:
+    name: CrowdSec AppSec-URL
+    description: Adresse des AppSec/WAF-Endpunkts, z.B. http://127.0.0.1:7422. Leer lassen, wenn AppSec nicht läuft.
+  crowdsec_captcha_provider:
+    name: Captcha-Anbieter
+    description: Zeigt bei Entscheidungen vom Typ "captcha" eine Rätselseite statt einer harten Sperre. Leer lassen schaltet Captcha ab. Turnstile von Cloudflare ist kostenlos und ohne Nutzerprofilbildung.
+  crowdsec_captcha_site_key:
+    name: Captcha Site-Key
+    description: Öffentlicher Schlüssel des gewählten Anbieters.
+  crowdsec_captcha_secret_key:
+    name: Captcha Secret-Key
+    description: Geheimer Schlüssel des gewählten Anbieters.
+  geo_mode:
+    name: Ländersperre
+    description: 'Hauptschalter. "block" sperrt die unten genannten Länder, "allow" lässt nur sie durch, "off" schaltet alles ab — dann bleiben auch Vorauswahl und Länderliste wirkungslos. Greift direkt in nginx und damit schon bei der ersten Anfrage. Änderungen an den Geo-Optionen wirken erst nach einem Neustart des Add-ons.'
+  geo_preset:
+    name: Vorauswahl
+    description: '"high_risk" trägt 16 Länder auf einen Schlag ein (CN, RU, KP, IR, PK, BD, VN, MY, TH, PH, NG, GH, ZA, AR, CO, EG), rund 38000 Adressbereiche. Große Internetländer mit vielen echten Nutzern sind bewusst nicht dabei. Nur für "block" gedacht. Eigene Länder darunter kommen zusätzlich dazu.'
+  geo_countries:
+    name: Länder
+    description: Zweibuchstabige Ländercodes, einer je Zeile, zum Beispiel cn oder ru. Wird mit der Vorauswahl zusammengeführt, Doppelte fallen weg. Die IP-Bereiche stammen aus dem Projekt ipverse/country-ip-blocks und brauchen kein MaxMind-Konto.
+  geo_exempt_hosts:
+    name: Ausgenommene Hostnamen
+    description: Hostnamen, für die die Sperre nicht gilt, einer je Zeile. Sinnvoll für Dienste, die man aus dem Ausland erreichen muss, etwa home.example.com.
+  geo_deny_ips:
+    name: Gesperrte IP-Adressen
+    description: Einzelne Adressen oder Bereiche in CIDR-Schreibweise, einer je Zeile, zum Beispiel 203.0.113.7 oder 203.0.113.0/24. Gilt unabhängig vom Land, auch bei ausgeschalteter Ländersperre, und auch auf ausgenommenen Hostnamen.
+  geo_allow_ips:
+    name: Freigegebene IP-Adressen
+    description: Adressen oder Bereiche, die die Ländersperre nie trifft, einer je Zeile. Nützlich für die eigene Anschrift oder einen Überwachungsdienst in einem gesperrten Land.
+  geo_refresh_hours:
+    name: Listen auffrischen (Stunden)
+    description: Abstand, in dem die Länderlisten neu geladen werden. 0 schaltet das Auffrischen ab. Ohne Auffrischung sperrt die Liste mit der Zeit die Falschen aus.
+  geo_deny_action:
+    name: Antwort bei Sperre
+    description: '"403" liefert eine Sperrseite, die sich unter /data/geoip/blocked.html bearbeiten lässt. "444" schließt die Verbindung wortlos — der Angreifer erfährt nicht einmal, dass dort ein Server steht, ein versehentlich Gesperrter sieht aber nur einen Verbindungsabbruch.'
+  geo_log_country:
+    name: Land mitprotokollieren
+    description: Schreibt gesperrte Anfragen mit Herkunftsland nach /data/nginx/logs/blocked.log. So siehst du nach ein paar Wochen, welche Länder etwas beitragen. Kostet rund 4 MB Arbeitsspeicher für eine zweite Nachschlagetabelle.
+  nginx_worker_processes:
+    name: nginx Worker-Prozesse
+    description: Anzahl der nginx-Worker. Standard "auto" entspricht der Anzahl CPU-Kerne.
+  nginx_worker_connections:
+    name: Verbindungen pro Worker
+    description: Maximale gleichzeitige Verbindungen je Worker-Prozess.
+  cookie_secret:
+    name: Cookie-Secret
+    description: Fester Schlüssel für Anmelde-Cookies. Leer lassen erzeugt bei jedem Neustart einen neuen — dann muss man sich nach jedem Neustart neu anmelden.
+  extra_env:
+    name: Zusätzliche Umgebungsvariablen
+    description: Weitere NPMplus-Variablen im Format KEY=VALUE, eine je Zeile. Alle Namen stehen in der compose.yaml des NPMplus-Projekts.
+network:
+  80/tcp: HTTP (ACME-Challenge, Weiterleitung auf HTTPS)
+  443/tcp: HTTPS
+  443/udp: HTTP/3 (QUIC)
+  81/tcp: NPMplus Weboberfläche (HTTPS)
+  91/tcp: GoAccess-Statistik (HTTPS, ohne Anmeldung)

@@ -1,0 +1,127 @@
+configuration:
+  TZ:
+    name: Timezone
+    description: Container timezone, e.g. Europe/Berlin. Used for logs, certificate renewal and log rotation.
+  acme_email:
+    name: ACME email
+    description: Email address for Let's Encrypt. Expiry warnings go there. Optional for Let's Encrypt, required for ZeroSSL and Google Public CA.
+  acme_profile:
+    name: ACME profile
+    description: Lifetime of the Let's Encrypt certificates. "shortlived" is about 6 days (the NPMplus default), "classic" the familiar 90 days. Short lifetimes are safer but tolerate no lengthy renewal outage.
+  initial_admin_email:
+    name: Initial admin email
+    description: Only used on the very first start to create the first user. Leave empty for admin@example.org.
+  initial_admin_password:
+    name: Initial admin password
+    description: Only used on the very first start. Leave empty and NPMplus generates a random password, printed to the add-on log.
+  http_port:
+    name: HTTP port
+    description: Port for unencrypted traffic. Default 80. Changing it breaks the Let's Encrypt HTTP challenge.
+  https_port:
+    name: HTTPS port
+    description: Port for encrypted traffic, TCP and UDP (HTTP/3). Default 443.
+  admin_port:
+    name: Web interface port
+    description: Port of the NPMplus interface. Default 81. Always HTTPS with a self-signed certificate.
+  disable_ipv6:
+    name: Disable IPv6
+    description: Stops nginx from listening on IPv6. Only enable if your network has no IPv6.
+  disable_h3_quic:
+    name: Disable HTTP/3
+    description: Turns off QUIC on UDP 443. Only needed if your router cannot forward UDP 443.
+  enable_mptcp:
+    name: Enable Multipath TCP
+    description: Enables MPTCP. Requires a kernel with MPTCP support.
+  logrotate:
+    name: Write access logs
+    description: Writes access and error logs to /data/nginx/logs and rotates them daily. Required for CrowdSec and GoAccess.
+  logrotations:
+    name: Log files to keep
+    description: How many rotated log files are kept before they are deleted.
+  error_log_level:
+    name: Error log verbosity
+    description: From which level nginx writes to the error log. "warn" is the sensible default; "info" logs every worker change and floods both the log view and the disk.
+  share_logs:
+    name: Mirror logs to /share
+    description: Stores the logs under /share/npmplus/logs so other add-ons (e.g. CrowdSec) can read them via file acquisition.
+  log_to_stdout:
+    name: Logs to add-on log
+    description: Also mirrors the access log to the container output. Required if CrowdSec reads the logs through journald.
+  goaccess:
+    name: GoAccess statistics
+    description: Enables the GoAccess dashboard on its own HTTPS port (91), not under /goaccess of the interface. That port has no authentication.
+  goaccess_listen_localhost:
+    name: GoAccess on localhost only
+    description: Binds the dashboard to 127.0.0.1 instead of all addresses. Recommended, because port 91 is unprotected and shows visitor IPs and every requested URL. To reach it, create a proxy host with an access list pointing at 127.0.0.1:91. Turning this off makes it readable from the whole LAN at https://HA-IP:91.
+  trust_ip:
+    name: Trusted IPs
+    description: Space separated list of IPs or subnets of upstream proxies whose X-Forwarded-For header nginx may trust.
+  trust_cloudflare:
+    name: Trust Cloudflare
+    description: Fetches the Cloudflare IP ranges and trusts their X-Forwarded-For header. Only enable if Cloudflare really sits in front.
+  crowdsec_enabled:
+    name: Enable CrowdSec bouncer
+    description: Enables the nginx bouncer. Blocks requests from IPs banned by your CrowdSec instance.
+  crowdsec_lapi_url:
+    name: CrowdSec LAPI URL
+    description: Address of the local CrowdSec API, e.g. http://127.0.0.1:8080.
+  crowdsec_api_key:
+    name: CrowdSec bouncer key
+    description: Output of "cscli bouncers add npmplus" in your CrowdSec instance.
+  crowdsec_appsec_url:
+    name: CrowdSec AppSec URL
+    description: Address of the AppSec/WAF endpoint, e.g. http://127.0.0.1:7422. Leave empty if AppSec is not running.
+  crowdsec_captcha_provider:
+    name: Captcha provider
+    description: Shows a challenge page instead of a hard block for decisions of type "captcha". Leave empty to disable. Cloudflare Turnstile is free and does not profile users.
+  crowdsec_captcha_site_key:
+    name: Captcha site key
+    description: Public key of the chosen provider.
+  crowdsec_captcha_secret_key:
+    name: Captcha secret key
+    description: Secret key of the chosen provider.
+  geo_mode:
+    name: Country filter
+    description: 'Master switch. "block" denies the countries listed below, "allow" admits only them, "off" disables everything — the preset and the country list then have no effect. Runs inside nginx and therefore applies to the very first request. Changes to the geo options only take effect after restarting the add-on.'
+  geo_preset:
+    name: Preset
+    description: '"high_risk" adds 16 countries in one go (CN, RU, KP, IR, PK, BD, VN, MY, TH, PH, NG, GH, ZA, AR, CO, EG), around 38000 address ranges. Large internet countries with many real users are deliberately left out. Meant for "block" only. Countries listed below are added on top.'
+  geo_countries:
+    name: Countries
+    description: Two-letter country codes, one per line, for example cn or ru. Merged with the preset, duplicates are dropped. The IP ranges come from the ipverse/country-ip-blocks project and need no MaxMind account.
+  geo_exempt_hosts:
+    name: Exempt hostnames
+    description: Hostnames the filter does not apply to, one per line. Useful for services you need to reach while abroad, e.g. home.example.com.
+  geo_deny_ips:
+    name: Blocked IP addresses
+    description: Single addresses or CIDR ranges, one per line, e.g. 203.0.113.7 or 203.0.113.0/24. Applies regardless of country, even with the country filter off, and also on exempt hostnames.
+  geo_allow_ips:
+    name: Allowed IP addresses
+    description: Addresses or ranges the country filter never applies to, one per line. Useful for your own address or a monitoring service located in a blocked country.
+  geo_refresh_hours:
+    name: Refresh lists (hours)
+    description: How often the country lists are downloaded again. 0 disables refreshing. Without refreshing the lists start blocking the wrong people over time.
+  geo_deny_action:
+    name: Response when blocked
+    description: '"403" serves a block page you can edit at /data/geoip/blocked.html. "444" closes the connection without a single line of response — an attacker does not even learn that a server is there, but someone blocked by mistake only sees a dropped connection.'
+  geo_log_country:
+    name: Log the country
+    description: Writes blocked requests with their country of origin to /data/nginx/logs/blocked.log, so after a few weeks you can see which countries actually contribute. Costs around 4 MB of memory for a second lookup table.
+  nginx_worker_processes:
+    name: nginx worker processes
+    description: Number of nginx workers. Default "auto" matches the CPU core count.
+  nginx_worker_connections:
+    name: Connections per worker
+    description: Maximum concurrent connections per worker process.
+  cookie_secret:
+    name: Cookie secret
+    description: Static key for login cookies. Left empty a new one is generated on every restart, forcing a new login each time.
+  extra_env:
+    name: Extra environment variables
+    description: Additional NPMplus variables as KEY=VALUE, one per line. All names are listed in the NPMplus project's compose.yaml.
+network:
+  80/tcp: HTTP (ACME challenge, redirect to HTTPS)
+  443/tcp: HTTPS
+  443/udp: HTTP/3 (QUIC)
+  81/tcp: NPMplus web interface (HTTPS)
+  91/tcp: GoAccess statistics (HTTPS, no authentication)

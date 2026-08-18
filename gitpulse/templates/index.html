@@ -914,6 +914,7 @@
     { key:'star_fork',           label:'{{ t.tg_star_fork }}' },
     { key:'security',            label:'{{ t.tg_security }}' },
     { key:'my_activity',         label:'{{ t.tg_my_activity }}' },
+    { key:'new_comment',         label:'{{ t.tg_new_comment }}' },
     { key:'review_request',      label:'{{ t.tg_review_request }}' },
     { key:'digest',              label:'{{ t.tg_digest }}' },
   ];
@@ -1412,6 +1413,9 @@
     btn_dependabot_rebase:      '{{ t.btn_dependabot_rebase }}',
     btn_dependabot_rebase_hint: '{{ t.btn_dependabot_rebase_hint }}',
     confirm_dependabot_rebase:  '{{ t.confirm_dependabot_rebase }}',
+    notif_comment_mine:     {{ t.notif_comment_mine|tojson }},
+    notif_comment_other:    {{ t.notif_comment_other|tojson }},
+    notif_comment_count:    {{ t.notif_comment_count|tojson }},
     comments_new_hint:      {{ t.comments_new_hint|tojson }},
     comments_unread_all:    {{ t.comments_unread_all|tojson }},
     comments_mark_all_read: {{ t.comments_mark_all_read|tojson }},
@@ -2905,11 +2909,17 @@
           _fireBN(`🐛 Eigenes Issue offen: ${iss.repo.split('/')[1]}`, `#${iss.number} ${iss.title}`, iss.url, `act-iss-${k}`);
         _bn_act_iss.add(k);
       }
-      for (const c of (data.new_activity_comments || [])) {
-        const label = c.kind === 'pr' ? 'PR' : 'Issue';
-        _fireBN(`💬 Neuer Kommentar auf deinem ${label}: ${c.item.repo.split('/')[1]}`,
-          `#${c.item.number} ${c.item.title} · ${c.new_cnt} neuer Kommentar${c.new_cnt > 1 ? 'e' : ''}`,
-          c.item.url, `act-comment-${c.item.repo}-${c.item.number}`);
+    }
+
+    // Neue Kommentare (eigene filtert der Server bereits raus)
+    if (bn.new_comment !== false) {
+      for (const c of (data.new_comments || [])) {
+        const label = c.is_pr ? 'PR' : 'Issue';
+        const head  = (c.mine ? T.notif_comment_mine : T.notif_comment_other).replace('{type}', label);
+        const cnt   = c.count > 1 ? ` · ${c.count} ${T.notif_comment_count}` : '';
+        _fireBN(`💬 ${head}: ${c.repo.split('/')[1]}`,
+          `#${c.number} ${c.title} · @${c.author}${cnt}`,
+          c.url, `comment-${c.repo}-${c.number}-${c.count}`);
       }
     }
 

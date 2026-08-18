@@ -1991,10 +1991,17 @@
         <div class="stat-card"><div class="num" id="s-total-uniques">–</div><div class="lbl">{{ t.stat_total_uniques }}</div></div>
         <div class="stat-card"><div class="num" id="s-today-views">–</div><div class="lbl">{{ t.stat_today_views }}</div></div>
         <div class="stat-card"><div class="num" id="s-today-uniques">–</div><div class="lbl">{{ t.stat_today_uniques }}</div></div>
+        <div class="stat-card"><div class="num" id="s-traffic-today">–</div><div class="lbl">{{ t.stat_traffic_today }}</div></div>
+        <div class="stat-card"><div class="num" id="s-traffic-30">–</div><div class="lbl">{{ t.stat_traffic_30 }}</div></div>
       </div>
       <div class="panel">
         <h3>{{ t.stat_last30 }}</h3>
         <div id="s-bars"></div>
+      </div>
+      <div class="panel">
+        <h3>{{ t.stat_traffic_heading }}</h3>
+        <p class="hint" style="margin:2px 0 10px">{{ t.stat_traffic_hint }}</p>
+        <div id="s-traffic-bars"></div>
       </div>
       <div class="panel">
         <h3>{{ t.stat_top_pages }}</h3>
@@ -2015,6 +2022,8 @@
           <h3>{{ t.stat_countries }}</h3>
           <div id="s-countries" class="collapsible"></div>
           <button class="btn secondary small collapse-btn" id="s-countries-btn" onclick="toggleCollapse('s-countries')"></button>
+          <p class="hint" style="margin:8px 0 0">{{ t.stat_geo_source }}
+            <a href="https://db-ip.com" target="_blank" rel="noopener">DB-IP</a> (CC BY 4.0)</p>
         </div>
       </div>
       <div class="panel">
@@ -6170,6 +6179,7 @@
            <div class="bar-track"><div class="bar-fill" style="width:${Math.round(d.views / max * 100)}%"></div></div>
            <span class="bar-num">${d.views} / ${d.uniques}</span>
          </div>`).join('') || `<p class="hint">${T.no_data}</p>`;
+      renderTraffic(s.traffic || {}, s.days);
       renderTopPages('s-pages', s.pages || []);
       renderDistribution('s-referrers', s.referrers || []);
       renderDistribution('s-browsers', s.browsers || []);
@@ -6178,6 +6188,29 @@
       refreshCollapse('s-pages');
       refreshCollapse('s-countries');
       refreshCollapse('s-log-wrap');
+    }
+    // Datenvolumen: Bytes lesbar machen (1024er-Schritte wie im Dateibereich)
+    function fmtBytes(n) {
+      n = Number(n) || 0;
+      const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+      let i = 0;
+      while (n >= 1024 && i < units.length - 1) { n /= 1024; i++; }
+      return `${n < 10 && i > 0 ? n.toFixed(1) : Math.round(n)} ${units[i]}`;
+    }
+    function renderTraffic(vol, days) {
+      el('s-traffic-today').textContent = fmtBytes(vol.today_out);
+      el('s-traffic-30').textContent = fmtBytes(vol.days_out);
+      const rows = (days || []).filter(d => d.traffic_out || d.traffic_out_bot);
+      if (!rows.length) { el('s-traffic-bars').innerHTML = `<p class="hint">${T.no_data}</p>`; return; }
+      const max = Math.max(1, ...rows.map(d => (d.traffic_out || 0) + (d.traffic_out_bot || 0)));
+      el('s-traffic-bars').innerHTML = rows.map(d => {
+        const human = d.traffic_out || 0, bot = d.traffic_out_bot || 0;
+        return `<div class="bar-row">
+           <span class="bar-date">${d.date}</span>
+           <div class="bar-track"><div class="bar-fill" style="width:${Math.round((human + bot) / max * 100)}%"></div></div>
+           <span class="bar-num" style="width:130px">${fmtBytes(human)} + ${fmtBytes(bot)} ${T.stat_traffic_bots}</span>
+         </div>`;
+      }).join('');
     }
     // Top-Seiten: Titel (falls bekannt) groß, Pfad klein darunter
     function renderTopPages(target, items) {

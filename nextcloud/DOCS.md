@@ -23,7 +23,7 @@ Nach dem Start erreichbar unter: **`https://<HA-IP>:7443`**
 | `PGID` | `1000` | Group-ID für Dateiberechtigungen |
 | `TZ` | `Europe/Berlin` | Zeitzone |
 | `trusted_domains` | — | Zusätzliche Domains/IPs (kommagetrennt, z.B. `192.168.1.100,meinserver.de`) |
-| `trusted_proxies` | `172.30.32.0/23` | IP/Subnetz des Reverse-Proxys (z.B. NGINX Proxy Manager) |
+| `trusted_proxies` | `172.30.32.0/23` | IP/Subnetz des Reverse-Proxys, kommagetrennt (z.B. NPMplus, NGINX Proxy Manager) |
 | `default_phone_region` | `DE` | Standard-Telefonregion (ISO 3166-1) |
 | `enable_thumbnails` | `true` | Vorschaubilder für Fotos und Videos generieren |
 | `memory_limit` | `512M` | PHP-Speicherlimit |
@@ -42,7 +42,17 @@ Nach dem Start erreichbar unter: **`https://<HA-IP>:7443`**
 
 ## Collabora Online Integration
 
-Wenn du das **Collabora Add-on** mit einem Reverse-Proxy nutzt und deine ISP-IP dynamisch ist, aktiviere `update_wopi_ip: true`. Das Add-on prüft dann alle 150 Sekunden die externe IP und trägt sie automatisch in die WOPI-Allowlist ein — kein manuelles `occ`-Kommando nötig.
+Wenn du das **Collabora Add-on** mit einem Reverse-Proxy nutzt und deine ISP-IP dynamisch ist, aktiviere `update_wopi_ip: true`. Das Add-on prüft dann alle 150 Sekunden die externe IP und trägt sie zusammen mit den Netzen aus `trusted_proxies` in die WOPI-Allowlist ein — kein manuelles `occ`-Kommando nötig.
+
+### Reverse-Proxy im Host-Netz
+
+Läuft der Proxy nicht als HA-Add-on, sondern direkt auf dem Host (z.B. NPMplus mit `host_network`), kommen die Anfragen mit der **IP des Home-Assistant-Hosts** an, nicht aus `172.30.32.0/23`. Diese IP muss zusätzlich in `trusted_proxies` stehen:
+
+```yaml
+trusted_proxies: "172.30.32.0/23,192.168.178.200"
+```
+
+Fehlt sie, wertet Nextcloud den `X-Forwarded-For`-Header nicht aus und sieht als Absender die Proxy-IP statt der echten. Collabora bekommt dann **403 Forbidden** auf `CheckFileInfo` und zeigt im Browser „Unauthorized WOPI host".
 
 ## Web-Terminal (occ-Befehle)
 
@@ -101,7 +111,7 @@ After startup, available at: **`https://<HA-IP>:7443`**
 | `PGID` | `1000` | Group ID for file permissions |
 | `TZ` | `Europe/Berlin` | Timezone |
 | `trusted_domains` | — | Additional domains/IPs (comma-separated, e.g. `192.168.1.100,myserver.de`) |
-| `trusted_proxies` | `172.30.32.0/23` | IP/subnet of reverse proxy (e.g. NGINX Proxy Manager) |
+| `trusted_proxies` | `172.30.32.0/23` | IP/subnet of the reverse proxy, comma-separated (e.g. NPMplus, NGINX Proxy Manager) |
 | `default_phone_region` | `DE` | Default phone region (ISO 3166-1) |
 | `enable_thumbnails` | `true` | Generate preview images for photos and videos |
 | `memory_limit` | `512M` | PHP memory limit |
@@ -120,7 +130,17 @@ After startup, available at: **`https://<HA-IP>:7443`**
 
 ## Collabora Online Integration
 
-If you use the **Collabora add-on** with a reverse proxy and your ISP IP is dynamic, enable `update_wopi_ip: true`. The add-on then checks the external IP every 150 seconds and automatically updates the WOPI allowlist — no manual `occ` command needed.
+If you use the **Collabora add-on** with a reverse proxy and your ISP IP is dynamic, enable `update_wopi_ip: true`. The add-on then checks the external IP every 150 seconds and writes it, together with the networks from `trusted_proxies`, into the WOPI allowlist — no manual `occ` command needed.
+
+### Reverse proxy on the host network
+
+If the proxy does not run as an HA add-on but directly on the host (e.g. NPMplus with `host_network`), requests arrive with the **Home Assistant host IP**, not from `172.30.32.0/23`. That IP must be added to `trusted_proxies`:
+
+```yaml
+trusted_proxies: "172.30.32.0/23,192.168.178.200"
+```
+
+Without it, Nextcloud ignores the `X-Forwarded-For` header and sees the proxy IP as the sender. Collabora then gets **403 Forbidden** on `CheckFileInfo` and shows "Unauthorized WOPI host" in the browser.
 
 ## Web Terminal (occ Commands)
 

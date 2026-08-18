@@ -155,7 +155,7 @@ Zeigt alle offenen PRs und Issues, die du selbst erstellt hast, sowie PRs bei de
 - **Zur Review angefragt** — PRs bei denen du als Reviewer eingetragen bist (`review-requested:@me`)
 - **Meine offenen Issues** — alle eigenen offenen Issues in allen Repos
 - **▼ Beschreibung** + **💬 Kommentarvorschau** — wie in PRs/Issues-Tab
-- **💬 Kommentar-Zähler** je Eintrag — neue Kommentare werden erkannt und lösen Benachrichtigungen aus
+- **💬 Kommentar-Zähler** je Eintrag — neue Kommentare werden erkannt und lösen Benachrichtigungen aus; selbst verfasste Kommentare zählen nicht als ungelesen
 - **Schließen-Button** — sichtbar nur für Repos in denen du Schreibzugriff hast (`my_repos`); mit Sicherheitsabfrage im Browser
 - **Filter-Persistenz**: aktiver Repo-Wechsler und Suchtext werden in localStorage gespeichert und nach Reload wiederhergestellt
 - Benachrichtigungen (Telegram, E-Mail, Browser) für neue eigene PRs/Issues, neue Kommentare und Review-Requests — separat abschaltbar
@@ -224,7 +224,8 @@ Benachrichtigungen werden direkt im Browser angezeigt (Desktop-Benachrichtigunge
 | 🚨 Secret Scanning Alert | Typ, Alert-Nr., Aktion, Link |
 | 🔴 Code Scanning Alert | Schweregrad, Tool, Regel, Datei:Zeile, Link |
 | 🟠 Dependabot Alert | Schweregrad, Paket, Ecosystem, Summary, Fix-Version, Link |
-| 👤 Meine Aktivität | Neuer eigener PR oder Issue · neuer Kommentar auf eigenem PR/Issue |
+| 👤 Meine Aktivität | Neuer eigener PR oder Issue |
+| 💬 Neue Kommentare | Neuer Kommentar an PR/Issue — eigene Kommentare lösen nichts aus |
 | 🔍 Review-Request | Du wurdest als Reviewer für einen PR angefragt |
 | 📋 Tages-Digest | Tägliche Zusammenfassung (konfigurierbar via `digest_hour`) |
 
@@ -302,6 +303,8 @@ Empfohlene Events:
 
 - Pull requests
 - Issues
+- Issue comments
+- Pull request review comments
 - Workflow runs
 - Pushes
 - Branch or tag creation / deletion
@@ -331,6 +334,7 @@ Nach dem Speichern sendet GitHub automatisch ein `ping`-Event. Im GitPulse-Log (
 |---|---|
 | `pull_request` | Cache aktualisieren, Benachrichtigung bei neuem PR |
 | `issues` | Cache aktualisieren, Benachrichtigung bei neuem Issue |
+| `issue_comment` / `pull_request_review_comment` | Sofortige Benachrichtigung bei fremdem Kommentar (eigene bleiben stumm) |
 | `workflow_run` | Cache aktualisieren, Benachrichtigung bei Start/Ende |
 | `push` | Cache aktualisieren |
 | `create` / `delete` | Cache aktualisieren (Branches/Tags) |

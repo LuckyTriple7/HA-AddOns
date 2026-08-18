@@ -64,3 +64,7 @@ Ein GitHub-Actions-Workflow prüft täglich, ob eine neue FileBrowser-Version ve
 ## Changelog
 
 Siehe [CHANGELOG.md](CHANGELOG.md).
+
+## Lizenz
+
+File Browser steht unter der Apache-2.0, die mitgelieferten Samba-Werkzeuge unter der GPL-3.0, die eigenen Dateien des Add-ons unter der MIT-Lizenz. Einzelheiten und Quellenangaben: [LICENSE.md](LICENSE.md).

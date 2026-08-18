@@ -35,12 +35,9 @@ configuration:
   user_journal_max:
     name: Journal size per user
     description: How many events the journal keeps per user (20–1000, default 100).
-  geoip_lookup:
-    name: GeoIP lookup (ipapi.is)
-    description: Resolves the visitor country precisely via ipapi.is. Note — visitor IPs are sent to that service (update your privacy policy!).
-  geoip_api_key:
-    name: ipapi.is API key
-    description: Optional — about 1,000 lookups/day are free without a key. Get a free key at ipapi.is for more traffic.
+  geoip_offline:
+    name: Country lookup (local database)
+    description: Resolves the visitor country from a local IP table (DB-IP Lite, falling back to the internet registries). No visitor IP leaves the add-on, no account and no quota. The table is refreshed weekly — about 30 MB download, roughly 10 MB on disk and 20 MB of memory.
   translate_email:
     name: Translation email (MyMemory)
     description: Optional — your own email raises the free daily limit of the DE↔EN translation (5,000 → 50,000 words). If invalid, the anonymous limit is used automatically.

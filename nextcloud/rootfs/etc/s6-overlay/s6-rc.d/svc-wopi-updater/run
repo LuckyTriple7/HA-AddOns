@@ -14,7 +14,14 @@ until grep -q "'installed' => true" "$CONFIG_PHP" 2>/dev/null; do
 done
 echo "[wopi-updater] Nextcloud ready"
 
-LAST_IP=""
+# Proxy-Netze aus den Optionen — bei lokalem Reverse-Proxy (NPMplus, NGINX Proxy
+# Manager) erreicht Collabora Nextcloud intern, die Quelle ist dann nie die
+# externe IP. Ohne diese Netze in der Allowlist antwortet Nextcloud mit 403.
+PROXIES=$(jq -r '.trusted_proxies // "172.30.32.0/23"' "$OPTIONS" 2>/dev/null || echo "172.30.32.0/23")
+PROXIES=$(echo "$PROXIES" | tr -d ' \r' | sed 's/,*$//')
+[ -z "$PROXIES" ] && PROXIES="172.30.32.0/23"
+
+LAST_ALLOW=""
 while true; do
     IP=$(curl -sf --max-time 10 "https://checkip.dyndns.org" 2>/dev/null \
         | grep -oE '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' | head -1)
@@ -25,11 +32,16 @@ while true; do
 
     if [ -z "$IP" ]; then
         echo "[wopi-updater] WARN: could not determine external IP"
-    elif [ "$IP" != "$LAST_IP" ]; then
-        echo "[wopi-updater] external IP changed: ${LAST_IP:-none} → ${IP}"
-        if ALLOW_ROOT=1 php "$OCC" config:app:set richdocuments wopi_allowlist --value="$IP" 2>&1; then
-            echo "[wopi-updater] OK: wopi_allowlist=${IP}"
-            LAST_IP="$IP"
+        ALLOW="$PROXIES"
+    else
+        ALLOW="${IP},${PROXIES}"
+    fi
+
+    if [ "$ALLOW" != "$LAST_ALLOW" ]; then
+        echo "[wopi-updater] allowlist changed: ${LAST_ALLOW:-none} → ${ALLOW}"
+        if ALLOW_ROOT=1 php "$OCC" config:app:set richdocuments wopi_allowlist --value="$ALLOW" 2>&1; then
+            echo "[wopi-updater] OK: wopi_allowlist=${ALLOW}"
+            LAST_ALLOW="$ALLOW"
         else
             echo "[wopi-updater] WARN: occ failed — will retry next cycle"
         fi

@@ -5,7 +5,7 @@ LABEL maintainer="LuckyTriple7"
 LABEL org.opencontainers.image.title="Claude Code for Home Assistant"
 LABEL org.opencontainers.image.description="Claude Code CLI with web terminal and HA integration"
 LABEL org.opencontainers.image.source="https://github.com/LuckyTriple7/HA-AddOns"
-LABEL org.opencontainers.image.licenses="MIT"
+LABEL org.opencontainers.image.licenses="MIT AND LicenseRef-Proprietary-Anthropic AND GPL-3.0-or-later"
 
 # Environment setup
 ENV \

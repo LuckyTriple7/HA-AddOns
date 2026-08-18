@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.2.22] - 2026-08-17
+
+- Doku: File Browser steht unter der Apache-2.0 und die mitgelieferten Samba-Werkzeuge unter der GPL-3.0, das Add-on gab bisher keine Lizenz an. Neue `LICENSE.md` nennt die Bestandteile, ihre Lizenzen und Bezugsquellen und grenzt die eigenen MIT-Dateien davon ab
+
 ## [1.2.21] - 2026-07-28
 
 ### Geändert

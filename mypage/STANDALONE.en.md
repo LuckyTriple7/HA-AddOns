@@ -43,7 +43,7 @@ The file is mounted to `/data/options.json` in the container (read-only) and rea
 | `translate_email` | E-mail for the free MyMemory translation quota | – |
 | `user_upload_max_mb` | Max upload size per file (member area) | `200` |
 | `visit_log_max` | Length of the visitor log | `500` |
-| `geoip_lookup` / `geoip_api_key` | Country lookup in the stats (optional) | `false` |
+| `geoip_offline` | Country lookup in the stats via the local IP table | `true` |
 | `smb_server` / `smb_share` / `smb_user` / `smb_password` | Optional SMB storage for member files | – |
 | `gemini_api_key` | Google Gemini key — enables “Generate image” in the library editor (billed) | – |
 | `gemini_image_model` | Model used for image generation | `gemini-3.1-flash-image` |

@@ -24,8 +24,7 @@
   "user_upload_max_mb": 200,
   "visit_log_max": 500,
   "user_journal_max": 100,
-  "geoip_lookup": false,
-  "geoip_api_key": "",
+  "geoip_offline": true,
 
   "smb_server": "",
   "smb_share": "",

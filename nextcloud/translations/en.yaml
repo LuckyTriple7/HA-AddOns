@@ -10,10 +10,10 @@ configuration:
     description: Container timezone, e.g. Europe/Berlin.
   trusted_domains:
     name: Trusted Domains
-    description: Space-separated list of additional allowed domains/IPs, e.g. 192.168.1.100 my-server.local. Leave empty for automatic detection.
+    description: Comma-separated list of additional allowed domains/IPs, e.g. 192.168.1.100,my-server.local. Leave empty for automatic detection.
   trusted_proxies:
     name: Trusted Proxies
-    description: IP range of the reverse proxy. Default 172.30.32.0/23 (HA internal network).
+    description: Comma-separated IPs/subnets of the reverse proxy. Default 172.30.32.0/23 (HA internal network). If the proxy runs on the host network instead of as an add-on, also add the Home Assistant host IP.
   default_phone_region:
     name: Default Phone Region
     description: ISO 3166-1 Alpha-2 country code for phone numbers, e.g. DE. Default DE.
