@@ -24,7 +24,7 @@ The interface certificate is self-signed — the browser warning on first access
 - **Let's Encrypt** including automatic renewal; other ACME servers (ZeroSSL, Google Public CA) via `extra_env`
 - **Hardened TLS**: ML-KEM, Encrypted Client Hello, modern cipher selection out of the box
 - **CrowdSec bouncer and AppSec/WAF** configurable straight from the add-on options
-- **Country filter** inside nginx, no MaxMind account — block or allow list, with per-hostname exceptions
+- **Country filter** inside nginx, no MaxMind account — block or allow list, a ready-made preset, per-hostname exceptions and your own IP block list
 - **mTLS**: client certificates and custom CAs can be uploaded
 - **Access lists** per host and per location, multiple lists combinable
 - **GoAccess dashboard** on port 91, without its own login — bound to `127.0.0.1` by default, reached through a proxy host with an access list
@@ -48,7 +48,9 @@ The interface certificate is self-signed — the browser warning on first access
 | `crowdsec_enabled` | `false` | Enable the nginx bouncer |
 | `crowdsec_api_key` | – | Key from `cscli bouncers add npmplus` |
 | `geo_mode` | `off` | Country filter: `block`, `allow` or `off` |
+| `geo_preset` | `none` | Ready-made selection: `high_risk` (21 countries) |
 | `geo_countries` | `[]` | Two-letter country codes, e.g. `cn` |
+| `geo_deny_ips` | `[]` | Always-blocked addresses or CIDR ranges |
 | `extra_env` | `[]` | Additional NPMplus variables as `KEY=VALUE` |
 
 Full option list, CrowdSec setup and migration from the old NGINX Proxy Manager add-on: **[documentation](https://github.com/LuckyTriple7/HA-AddOns/blob/dev/npmplus/DOCS.en.md)**

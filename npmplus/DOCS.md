@@ -282,6 +282,32 @@ geo_countries:
 
 `block` lässt alle durch und sperrt die genannten Länder. Empfohlen für den Anfang.
 
+### Vorauswahl statt Tipparbeit
+
+```yaml
+geo_mode: block
+geo_preset: high_risk
+```
+
+Trägt 21 Länder auf einen Schlag ein:
+
+`CN` `RU` `KP` `IR` `IN` `PK` `BD` `VN` `ID` `MY` `TH` `PH` `NG` `GH` `ZA` `BR` `AR` `CO` `MX` `TR` `EG`
+
+Zusammen rund **73 000 Adressbereiche**. Der Download dauert beim Start ein paar Sekunden, danach liegt alles im Container.
+
+`geo_countries` bleibt daneben nutzbar — beide Listen werden zusammengeführt, Doppelte fallen weg:
+
+```yaml
+geo_preset: high_risk
+geo_countries:
+  - ua
+  - by
+```
+
+Die Vorauswahl gilt nur für `geo_mode: block`. In Verbindung mit `allow` wird sie mit einer Warnung übergangen, sonst wäre aus der Sperrliste plötzlich eine Erlaubnisliste geworden.
+
+**Was die Auswahl bedeutet:** Sie ist grob. Die Länder stehen dort, weil aus ihnen bei einem privaten Server fast nur automatisierte Zugriffe kommen — nicht, weil dort keine echten Besucher wohnen. `IN`, `BR`, `MX`, `ID` und `TR` sind große Internetländer. Wer dort Bekannte hat, jemanden im Urlaub erwartet oder einen Dienst betreibt, der von dort erreichbar sein muss, nimmt das jeweilige Land aus der Vorauswahl heraus, indem er statt `high_risk` die gewünschten Codes einzeln in `geo_countries` schreibt. Einzelne Adressen lassen sich über `geo_allow_ips` freistellen.
+
 ```yaml
 geo_mode: allow
 geo_countries:
@@ -355,11 +381,25 @@ CT=$(docker ps --format '{{.Names}}' | grep npmplus)
 docker exec $CT sh -c 'wc -l /data/geoip/ranges.conf; cat /data/geoip/http.conf'
 ```
 
-Das Add-on-Protokoll meldet beim Start eine Zeile mit Modus, Ländern und Anzahl der Bereiche.
+Im Add-on-Protokoll steht der ganze Vorgang:
+
+```
+[INFO] Country preset 'high_risk' adds 21 countries
+[INFO] Downloading country lists for 21 countries from ipverse...
+[INFO]   cn: 7551 ranges
+[INFO]   ru: 10830 ranges
+...
+[INFO] Country lists ready: 72820 ranges in 9s
+[INFO] Country filter active (block): cn,ru,kp,..., 72820 ranges
+[INFO] IP deny list active: 3 entries
+[INFO] Country lists are refreshed every 24 h
+```
+
+Fehlt ein Land, steht dort `Country list xx/ipv4-aggregated could not be downloaded` und am Ende eine Warnung, wie viele Listen fehlen. Die Sperre arbeitet dann trotzdem, nur unvollständig.
 
 ### Änderungen wirksam machen
 
-Die nginx-Konfiguration für die Sperre wird beim Start des Add-ons gebaut. Nach jeder Änderung an `geo_mode`, `geo_countries`, `geo_exempt_hosts`, `geo_deny_ips` oder `geo_allow_ips` das **Add-on neu starten** — Speichern allein genügt nicht, und ein `nginx -s reload` auch nicht, weil die Dateien dann noch den alten Stand haben.
+Die nginx-Konfiguration für die Sperre wird beim Start des Add-ons gebaut. Nach jeder Änderung an `geo_mode`, `geo_preset`, `geo_countries`, `geo_exempt_hosts`, `geo_deny_ips` oder `geo_allow_ips` das **Add-on neu starten** — Speichern allein genügt nicht, und ein `nginx -s reload` auch nicht, weil die Dateien dann noch den alten Stand haben.
 
 Einzige Ausnahme ist das Auffrischen der Länderlisten über `geo_refresh_hours`: das läuft im Betrieb und startet nginx bei einer Änderung selbst durch.
 
@@ -477,6 +517,7 @@ Fehlt ab Werk. Dafür müssen die MaxMind-Datenbanken (kostenloses Konto) nach `
 | `crowdsec_captcha_site_key` | – | Öffentlicher Schlüssel des Anbieters |
 | `crowdsec_captcha_secret_key` | – | Geheimer Schlüssel des Anbieters |
 | `geo_mode` | `off` | Ländersperre: `block`, `allow` oder `off` |
+| `geo_preset` | `none` | Fertige Länderauswahl: `high_risk` oder `none` |
 | `geo_countries` | `[]` | Ländercodes mit zwei Buchstaben, z. B. `cn` |
 | `geo_exempt_hosts` | `[]` | Hostnamen, für die die Sperre nicht gilt |
 | `geo_deny_ips` | `[]` | Immer gesperrte Adressen oder CIDR-Bereiche |

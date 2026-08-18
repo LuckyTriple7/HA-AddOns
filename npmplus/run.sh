@@ -65,6 +65,7 @@ CS_CAPTCHA_PROVIDER_OPT=$(opt_trim crowdsec_captcha_provider "")
 CS_CAPTCHA_SITE_OPT=$(opt_trim crowdsec_captcha_site_key "")
 CS_CAPTCHA_SECRET_OPT=$(opt_trim crowdsec_captcha_secret_key "")
 GEO_MODE_OPT=$(opt_trim geo_mode "off")
+GEO_PRESET_OPT=$(opt_trim geo_preset "none")
 GEO_REFRESH_OPT=$(opt geo_refresh_hours "24")
 WORKER_PROCESSES_OPT=$(opt nginx_worker_processes "auto")
 WORKER_CONNECTIONS_OPT=$(opt nginx_worker_connections "512")
@@ -345,28 +346,50 @@ geo_include() {
 
 # Listen holen und in geo-Syntax umschreiben. Rückgabe 1, wenn kein einziges
 # Land geladen werden konnte — dann bleibt die alte Datei stehen.
+#
+# Bewusst kein "curl | awk" in einem Rutsch: der Rückgabewert einer Pipeline ist
+# der des letzten Glieds, awk wäre also auch nach einem 404 zufrieden und ein
+# fehlendes Land fiele niemandem auf.
 geo_fetch() {
     local mark="$1" target="$2"; shift 2
-    local tmp cc file url loaded=0
-    tmp=$(mktemp)
+    local tmp raw cc file url code total=0 failed=0 count start
+    tmp=$(mktemp); raw=$(mktemp)
+    start=$(date +%s)
+    log "Downloading country lists for $# countries from ipverse..."
     for cc in "$@"; do
+        count=0
         for file in ipv4-aggregated ipv6-aggregated; do
             url="${GEO_IPVERSE_BASE}/${cc}/${file}.txt"
-            if curl -sfL -m 30 "$url" \
-                | awk -v m="$mark" 'NF && $1 !~ /^#/ { print "    " $1 " " m ";" }' \
-                >> "$tmp"; then
-                loaded=1
-            else
-                warn "Country list ${cc}/${file} could not be downloaded"
-            fi
+            code=$(curl -sL -m 30 -o "$raw" -w '%{http_code}' "$url" 2>/dev/null || true)
+            case "${code:-000}" in
+                200)
+                    awk -v m="$mark" 'NF && $1 !~ /^#/ { print "    " $1 " " m ";" }' "$raw" >> "$tmp"
+                    count=$((count + $(wc -l < "$raw")))
+                    ;;
+                404)
+                    # Kein Fehler: Nordkorea etwa hat gar keine IPv6-Zuteilung,
+                    # ipverse veröffentlicht dann keine Datei.
+                    log "  ${cc}/${file}: not published by ipverse, skipped"
+                    ;;
+                *)
+                    failed=$((failed + 1))
+                    warn "Country list ${cc}/${file} could not be downloaded (HTTP ${code:-000})"
+                    ;;
+            esac
         done
+        total=$((total + count))
+        log "  ${cc}: ${count} ranges"
     done
-    if [ "$loaded" = "0" ] || [ ! -s "$tmp" ]; then
+    rm -f "$raw"
+    if [ ! -s "$tmp" ]; then
         rm -f "$tmp"
+        warn "No country list could be downloaded"
         return 1
     fi
     mv "$tmp" "$target"
     chmod 644 "$target"
+    log "Country lists ready: ${total} ranges in $(( $(date +%s) - start ))s"
+    [ "$failed" = "0" ] || warn "${failed} country list(s) could not be downloaded — the filter works, but is incomplete"
     return 0
 }
 
@@ -460,21 +483,65 @@ geo_write_conf() {
 
 mkdir -p "$GEO_DIR" "$CUSTOM_NGINX"
 
-GEO_COUNTRIES=""
-while IFS= read -r cc; do
-    cc=$(trim "$cc" | tr 'A-Z' 'a-z')
-    [ -n "$cc" ] || continue
-    case "$cc" in
-        [a-z][a-z]) GEO_COUNTRIES="${GEO_COUNTRIES}${cc} " ;;
-        *) warn "Ignoring geo_countries entry '${cc}' — expected a two-letter country code like 'cn'" ;;
+# Fertige Länderauswahl. Nur eine Abkürzung für geo_countries — was hier
+# herauskommt, landet in derselben Liste und lässt sich dort ergänzen.
+#
+# high_risk: Herkunftsländer, aus denen im Betrieb eines privaten Servers
+# nahezu ausschließlich automatisierte Angriffe kommen, plus die großen
+# Bot-Netz-Regionen. Die Auswahl ist grob und trifft auch echte Besucher —
+# wer Bekannte oder Dienste in einem dieser Länder hat, nimmt sie besser
+# einzeln über geo_countries.
+geo_preset_countries() {
+    case "$1" in
+        high_risk)
+            printf '%s' "cn ru kp ir in pk bd vn id my th ph ng gh za br ar co mx tr eg" ;;
+        *)
+            printf '' ;;
     esac
+}
+
+GEO_COUNTRIES=""
+geo_add_country() {
+    local cc
+    cc=$(trim "$1" | tr 'A-Z' 'a-z')
+    [ -n "$cc" ] || return 0
+    case "$cc" in
+        [a-z][a-z]) ;;
+        *) warn "Ignoring country entry '${cc}' — expected a two-letter country code like 'cn'"; return 0 ;;
+    esac
+    # Doppelte vermeiden: Vorauswahl und eigene Liste überschneiden sich leicht,
+    # ein Land zweimal im geo-Block wäre nur unnötige Arbeit für nginx.
+    case " ${GEO_COUNTRIES}" in
+        *" ${cc} "*) return 0 ;;
+    esac
+    GEO_COUNTRIES="${GEO_COUNTRIES}${cc} "
+}
+
+case "$GEO_PRESET_OPT" in
+    none|"") ;;
+    high_risk)
+        if [ "$GEO_MODE_OPT" = "allow" ]; then
+            warn "geo_preset '${GEO_PRESET_OPT}' is meant for geo_mode 'block' — ignoring it, otherwise it would be an allow list"
+        else
+            for cc in $(geo_preset_countries "$GEO_PRESET_OPT"); do
+                geo_add_country "$cc"
+            done
+            log "Country preset '${GEO_PRESET_OPT}' adds $(printf '%s' "$GEO_COUNTRIES" | wc -w) countries"
+        fi
+        ;;
+    *)
+        warn "Unknown geo_preset '${GEO_PRESET_OPT}' — ignoring it" ;;
+esac
+
+while IFS= read -r cc; do
+    geo_add_country "$cc"
 done < <(jq -r '.geo_countries // [] | .[]' "$OPTIONS")
 
 GEO_ACTIVE=false
 case "$GEO_MODE_OPT" in
     block|allow)
         if [ -z "$GEO_COUNTRIES" ]; then
-            warn "geo_mode is '${GEO_MODE_OPT}' but geo_countries is empty — country filter stays OFF"
+            warn "geo_mode is '${GEO_MODE_OPT}' but no country is selected — set geo_preset or geo_countries. Country filter stays OFF"
         else
             # block: alles erlaubt, gelistete Länder sperren.
             # allow: alles gesperrt, gelistete Länder freigeben.

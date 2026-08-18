@@ -83,9 +83,12 @@ configuration:
   geo_mode:
     name: Country filter
     description: '"block" denies the countries listed below, "allow" admits only them, "off" disables the filter. Runs inside nginx and therefore applies to the very first request. Changes to the geo options only take effect after restarting the add-on.'
+  geo_preset:
+    name: Preset
+    description: '"high_risk" adds 21 countries in one go (CN, RU, KP, IR, IN, PK, BD, VN, ID, MY, TH, PH, NG, GH, ZA, BR, AR, CO, MX, TR, EG), around 73000 address ranges. Meant for "block" only. Countries listed below are added on top.'
   geo_countries:
     name: Countries
-    description: Two-letter country codes, one per line, for example cn or ru. The IP ranges come from the ipverse/country-ip-blocks project and need no MaxMind account.
+    description: Two-letter country codes, one per line, for example cn or ru. Merged with the preset, duplicates are dropped. The IP ranges come from the ipverse/country-ip-blocks project and need no MaxMind account.
   geo_exempt_hosts:
     name: Exempt hostnames
     description: Hostnames the filter does not apply to, one per line. Useful for services you need to reach while abroad, e.g. home.example.com.

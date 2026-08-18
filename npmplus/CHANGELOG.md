@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.19] - 2026-08-18
+
+- Neue Option `geo_preset`: `high_risk` trägt 21 Länder auf einen Schlag ein (CN, RU, KP, IR, IN, PK, BD, VN, ID, MY, TH, PH, NG, GH, ZA, BR, AR, CO, MX, TR, EG), rund 73000 Adressbereiche. `geo_countries` bleibt daneben nutzbar, beide Listen werden zusammengeführt und Doppelte fallen weg
+- Die Vorauswahl gilt nur für `geo_mode: block`. Zusammen mit `allow` wird sie mit einer Warnung übergangen, sonst wäre aus einer Sperrliste unbemerkt eine Erlaubnisliste geworden
+- Protokoll zeigt den Download jetzt nachvollziehbar: Anzahl der Länder, eine Zeile je Land mit der Anzahl Bereiche, Gesamtzahl und Dauer. Fehlende Listen stehen als Warnung darin, samt Hinweis am Ende, wie viele fehlen
+- Fix: Ein fehlgeschlagener Download blieb unbemerkt. Der Rückgabewert einer Pipeline ist der ihres letzten Glieds — `awk` war auch nach einem 404 zufrieden, das Land fehlte still in der Sperre. Jetzt wird der HTTP-Code selbst ausgewertet
+- Nicht jede fehlende Datei ist ein Fehler: Nordkorea hat keine IPv6-Zuteilung, ipverse veröffentlicht dafür also nichts. Ein 404 gilt deshalb als übersprungen und nicht als Ausfall
+
 ## [0.1.18] - 2026-08-18
 
 - Neue Ländersperre über die Optionen `geo_mode`, `geo_countries`, `geo_exempt_hosts` und `geo_refresh_hours`. Sie arbeitet mit dem eingebauten `geo`-Modul von nginx und greift damit schon bei der ersten Anfrage, während CrowdSec erst nach deren Auswertung entscheidet

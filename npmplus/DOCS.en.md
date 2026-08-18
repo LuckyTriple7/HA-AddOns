@@ -280,6 +280,32 @@ geo_countries:
 
 `block` lets everyone in and denies the listed countries. Recommended to start with.
 
+### A preset instead of typing
+
+```yaml
+geo_mode: block
+geo_preset: high_risk
+```
+
+Adds 21 countries in one go:
+
+`CN` `RU` `KP` `IR` `IN` `PK` `BD` `VN` `ID` `MY` `TH` `PH` `NG` `GH` `ZA` `BR` `AR` `CO` `MX` `TR` `EG`
+
+Around **73,000 address ranges** in total. The download takes a few seconds at startup, after that everything sits inside the container.
+
+`geo_countries` still works alongside it — both lists are merged and duplicates are dropped:
+
+```yaml
+geo_preset: high_risk
+geo_countries:
+  - ua
+  - by
+```
+
+The preset only applies to `geo_mode: block`. Combined with `allow` it is skipped with a warning, since a block list would suddenly have become an allow list.
+
+**What the selection means:** it is coarse. Those countries are on the list because traffic from them to a private server is almost entirely automated — not because no real visitors live there. `IN`, `BR`, `MX`, `ID` and `TR` are large internet countries. If you have friends there, expect someone on holiday, or run a service that must be reachable from there, drop the country by writing the codes you want into `geo_countries` individually instead of using `high_risk`. Single addresses can be exempted through `geo_allow_ips`.
+
 ```yaml
 geo_mode: allow
 geo_countries:
@@ -353,11 +379,25 @@ CT=$(docker ps --format '{{.Names}}' | grep npmplus)
 docker exec $CT sh -c 'wc -l /data/geoip/ranges.conf; cat /data/geoip/http.conf'
 ```
 
-At startup the add-on log prints one line with the mode, the countries and the number of ranges.
+The add-on log covers the whole process:
+
+```
+[INFO] Country preset 'high_risk' adds 21 countries
+[INFO] Downloading country lists for 21 countries from ipverse...
+[INFO]   cn: 7551 ranges
+[INFO]   ru: 10830 ranges
+...
+[INFO] Country lists ready: 72820 ranges in 9s
+[INFO] Country filter active (block): cn,ru,kp,..., 72820 ranges
+[INFO] IP deny list active: 3 entries
+[INFO] Country lists are refreshed every 24 h
+```
+
+If a country is missing you get `Country list xx/ipv4-aggregated could not be downloaded` plus a closing warning about how many lists are missing. The filter still works, it is just incomplete.
 
 ### Applying changes
 
-The nginx configuration for the filter is built when the add-on starts. After every change to `geo_mode`, `geo_countries`, `geo_exempt_hosts`, `geo_deny_ips` or `geo_allow_ips`, **restart the add-on** — saving alone is not enough, and neither is `nginx -s reload`, because the files still hold the old state at that point.
+The nginx configuration for the filter is built when the add-on starts. After every change to `geo_mode`, `geo_preset`, `geo_countries`, `geo_exempt_hosts`, `geo_deny_ips` or `geo_allow_ips`, **restart the add-on** — saving alone is not enough, and neither is `nginx -s reload`, because the files still hold the old state at that point.
 
 The only exception is the list refresh driven by `geo_refresh_hours`: it runs while the add-on is up and reloads nginx by itself when something changed.
 
@@ -475,6 +515,7 @@ Not included out of the box. Put the MaxMind databases (free account) into `/dat
 | `crowdsec_captcha_site_key` | – | Public key of the provider |
 | `crowdsec_captcha_secret_key` | – | Secret key of the provider |
 | `geo_mode` | `off` | Country filter: `block`, `allow` or `off` |
+| `geo_preset` | `none` | Ready-made selection: `high_risk` or `none` |
 | `geo_countries` | `[]` | Two-letter country codes, e.g. `cn` |
 | `geo_exempt_hosts` | `[]` | Hostnames the filter does not apply to |
 | `geo_deny_ips` | `[]` | Always-blocked addresses or CIDR ranges |

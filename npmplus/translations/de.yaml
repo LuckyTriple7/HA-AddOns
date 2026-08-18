@@ -83,9 +83,12 @@ configuration:
   geo_mode:
     name: Ländersperre
     description: '"block" sperrt die unten genannten Länder, "allow" lässt nur sie durch, "off" schaltet die Sperre ab. Greift direkt in nginx und damit schon bei der ersten Anfrage. Änderungen an den Geo-Optionen wirken erst nach einem Neustart des Add-ons.'
+  geo_preset:
+    name: Vorauswahl
+    description: '"high_risk" trägt 21 Länder auf einen Schlag ein (CN, RU, KP, IR, IN, PK, BD, VN, ID, MY, TH, PH, NG, GH, ZA, BR, AR, CO, MX, TR, EG), rund 73000 Adressbereiche. Nur für "block" gedacht. Eigene Länder darunter kommen zusätzlich dazu.'
   geo_countries:
     name: Länder
-    description: Zweibuchstabige Ländercodes, einer je Zeile, zum Beispiel cn oder ru. Die IP-Bereiche stammen aus dem Projekt ipverse/country-ip-blocks und brauchen kein MaxMind-Konto.
+    description: Zweibuchstabige Ländercodes, einer je Zeile, zum Beispiel cn oder ru. Wird mit der Vorauswahl zusammengeführt, Doppelte fallen weg. Die IP-Bereiche stammen aus dem Projekt ipverse/country-ip-blocks und brauchen kein MaxMind-Konto.
   geo_exempt_hosts:
     name: Ausgenommene Hostnamen
     description: Hostnamen, für die die Sperre nicht gilt, einer je Zeile. Sinnvoll für Dienste, die man aus dem Ausland erreichen muss, etwa home.example.com.
