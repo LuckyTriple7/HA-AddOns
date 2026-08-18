@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.10.40
+
+- 📊 **Datenvolumen wird jetzt mitgezählt.** Neue Kacheln „Volumen heute“ und „Volumen 30 Tage“ in der Statistik, dazu ein Tagesbalken mit getrennten Werten für Besucher und Bots. Gezählt wird an der Server-Schnittstelle — jede Antwort samt Kopfzeilen, Uploads getrennt als Eingang, abgebrochene Downloads nur mit dem tatsächlich ausgelieferten Teil.
+- 🏠 Zwei neue Sensoren: `sensor.mypage_traffic_today` und `sensor.mypage_traffic_total` (jeweils MB).
+- 📬 **Der wöchentliche Rückblick nennt das Volumen der Woche** samt Trend gegenüber der Vorwoche — wie schon bei den Aufrufen.
+- ℹ️ Zur Einordnung: Das ist das, was MyPage ausliefert, nicht die Last auf der Leitung. Ein vorgelagerter Reverse Proxy komprimiert selbst und legt TLS obendrauf. Geschrieben wird einmal pro Minute, nicht bei jeder Anfrage.
+
 ## 0.10.39
 
 - 🛡️ **PDF-Import: Fehlerkennung kommt jetzt aus einer festen Zuordnung.** Die Antwort enthielt schon vorher nur eigene Kennungen (`no_text`, `too_many_pages`, sonst `unreadable`), der Ausnahmetext konnte also nie nach außen gelangen. Die Prüfung lief aber über den Text selbst, und die Code-Analyse konnte das nicht erkennen (CodeQL `py/stack-trace-exposure`). Der Text dient nun ausschließlich als Schlüssel, hinausgegeben wird ein fester Wert.

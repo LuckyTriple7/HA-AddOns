@@ -2464,6 +2464,150 @@ def _geoip_worker() -> None:
         time.sleep(3600)
 
 
+# ── Datenvolumen ──────────────────────────────────────────────────────────────
+#
+# Waitress liefert jedes Byte selbst aus, also lässt es sich an der WSGI-Schnitt-
+# stelle mitzählen: eine Hülle um die öffentliche App zählt mit, was hinausgeht,
+# und schreibt die Tagessumme einmal pro Minute nach stats.json. Pro Anfrage zu
+# schreiben hieße ein Schreibzugriff je Bild.
+#
+# Gezählt wird, was MyPage ausliefert — nicht, was auf der Leitung liegt: ein
+# vorgelagerter Reverse Proxy packt selbst (gzip) und legt TLS obendrauf. Für
+# die echte Leitungslast sind dessen Protokolle die richtige Quelle.
+TRAFFIC_FLUSH_SECONDS = 60
+_traffic_lock = threading.Lock()
+_traffic_pending: dict = {}          # Tag → {'out': n, 'in': n, 'out_bot': n, 'in_bot': n}
+
+
+def human_size(n: int) -> str:
+    """Bytes lesbar machen — 1024er-Schritte, wie im Dateibereich."""
+    value = float(n or 0)
+    for unit in ('B', 'KB', 'MB', 'GB'):
+        if value < 1024 or unit == 'GB':
+            return f'{value:.1f} {unit}' if unit != 'B' else f'{int(value)} B'
+        value /= 1024
+    return f'{value:.1f} GB'
+
+
+def _traffic_add(day: str, field: str, value: int) -> None:
+    if value <= 0:
+        return
+    with _traffic_lock:
+        fields = _traffic_pending.setdefault(day, {})
+        fields[field] = fields.get(field, 0) + value
+
+
+class _TrafficStream:
+    """Zählt Antworten ohne angekündigte Länge erst beim Ausliefern.
+
+    Gebucht wird im `close()`, das der Server auch bei abgebrochener Verbindung
+    aufruft — ein zur Hälfte geladenes Video zählt damit zur Hälfte.
+    """
+
+    def __init__(self, inner, day: str, field: str, head: int):
+        self.inner, self.day, self.field, self.sent = inner, day, field, head
+
+    def __iter__(self):
+        for chunk in self.inner:
+            self.sent += len(chunk)
+            yield chunk
+
+    def close(self) -> None:
+        _traffic_add(self.day, self.field, self.sent)
+        self.sent = 0
+        close = getattr(self.inner, 'close', None)
+        if close is not None:
+            close()
+
+
+class TrafficMeter:
+    """WSGI-Hülle um die öffentliche App, die das Datenvolumen mitzählt."""
+
+    def __init__(self, app):
+        self.app = app
+        self.config = app.config      # `_serve` liest daraus das Upload-Limit
+
+    def __call__(self, environ, start_response):
+        ua = environ.get('HTTP_USER_AGENT') or ''
+        # Dieselbe Erkennung wie im Besucher-Log, damit sich die Zahlen decken.
+        field = '_bot' if (not ua) or any(b in ua.lower() for b in _BOT_UA) else ''
+        day = date.today().isoformat()
+        try:
+            _traffic_add(day, 'in' + field, int(environ.get('CONTENT_LENGTH') or 0))
+        except ValueError:
+            pass
+        info = {'head': 0, 'len': None, 'body': True}
+
+        def _start(status, headers, exc_info=None):
+            # Die Kopfzeilen zählen mit: bei kleinen Antworten machen sie den
+            # Löwenanteil aus, und auf der Leitung stehen sie ebenfalls.
+            head = len('HTTP/1.1 ') + len(status) + 4      # Statuszeile + Leerzeile
+            length = None
+            for name, value in headers:
+                head += len(name) + len(value) + 4         # ": " und Zeilenende
+                if name.lower() == 'content-length':
+                    try:
+                        length = int(value)
+                    except ValueError:
+                        length = None
+            info.update(head=head, len=length,
+                        # HEAD und "nicht verändert" kündigen eine Länge an,
+                        # schicken aber keinen Rumpf.
+                        body=(environ.get('REQUEST_METHOD') != 'HEAD'
+                              and not status.startswith('304')))
+            return start_response(status, headers, exc_info)
+
+        result = self.app(environ, _start)
+        if not info['body']:
+            _traffic_add(day, 'out' + field, info['head'])
+            return result
+        if info['len'] is not None:
+            # Länge steht fest — sofort buchen und die Antwort unangetastet
+            # weiterreichen, damit Waitress große Dateien direkt ausliefern kann.
+            _traffic_add(day, 'out' + field, info['head'] + info['len'])
+            return result
+        return _TrafficStream(result, day, 'out' + field, info['head'])
+
+
+def _traffic_flush() -> None:
+    """Gesammelte Bytes in die Tagesstatistik übernehmen."""
+    with _traffic_lock:
+        if not _traffic_pending:
+            return
+        pending = dict(_traffic_pending)
+        _traffic_pending.clear()
+    stats = load_stats()
+    days = stats.setdefault('days', {})
+    for day, fields in pending.items():
+        entry = days.setdefault(day, {'views': 0, 'uniques': 0})
+        for name, value in fields.items():
+            entry['traffic_' + name] = entry.get('traffic_' + name, 0) + value
+            stats['traffic_' + name] = stats.get('traffic_' + name, 0) + value
+    save_stats(stats)
+
+
+def _traffic_worker() -> None:
+    while True:
+        time.sleep(TRAFFIC_FLUSH_SECONDS)
+        try:
+            _traffic_flush()
+        except Exception as e:
+            log.warning("Datenvolumen konnte nicht gespeichert werden: %s", e)
+
+
+def traffic_totals(stats: dict) -> dict:
+    """Volumen gesamt, heute und über die letzten 30 Tage (Bytes)."""
+    today = stats.get('days', {}).get(date.today().isoformat(), {})
+    last30 = sorted(stats.get('days', {}).items(), reverse=True)[:30]
+    out = {'total_out': stats.get('traffic_out', 0),
+           'total_in':  stats.get('traffic_in', 0),
+           'today_out': today.get('traffic_out', 0),
+           'today_bot': today.get('traffic_out_bot', 0),
+           'days_out':  sum(d.get('traffic_out', 0) for _, d in last30),
+           'days_bot':  sum(d.get('traffic_out_bot', 0) for _, d in last30)}
+    return out
+
+
 def bump_post_view(pid: str, req) -> int:
     """Zählt einen Aufruf eines Blog-Beitrags (ohne Bots/Export); liefert den neuen Stand."""
     cur = load_stats().get('posts', {}).get(pid, 0)
@@ -3214,11 +3358,14 @@ def push_ha_sensors() -> None:
         except OSError:
             user_mb = 0.0
     pending = _pending_approvals()
+    vol = traffic_totals(stats)
     sensors = [
         ('mypage_views_total',    stats.get('total', 0), 'MyPage Aufrufe gesamt',  'mdi:counter',       'Aufrufe'),
         ('mypage_visitors_total', total_uniques(stats),  'MyPage Besucher gesamt', 'mdi:account-group', 'Besucher'),
         ('mypage_views_today',    today['views'],        'MyPage Aufrufe heute',   'mdi:eye',           'Aufrufe'),
         ('mypage_visitors_today', today['uniques'],      'MyPage Besucher heute',  'mdi:account',       'Besucher'),
+        ('mypage_traffic_today',  round(vol['today_out'] / 1048576, 1), 'MyPage Datenvolumen heute', 'mdi:swap-vertical', 'MB'),
+        ('mypage_traffic_total',  round(vol['total_out'] / 1048576, 1), 'MyPage Datenvolumen gesamt', 'mdi:database-arrow-up', 'MB'),
         ('mypage_user_storage',   user_mb,               'MyPage Speicher Benutzerdateien', 'mdi:harddisk', 'MB'),
         ('mypage_failed_logins',  failed_logins_24h(),   'MyPage Fehllogins (24h)', 'mdi:lock-alert',   'Versuche'),
         ('mypage_messages',       len(load_messages()),  'MyPage Kontaktnachrichten', 'mdi:email',      'Nachrichten'),
@@ -3367,17 +3514,19 @@ def _weekly_summary() -> dict:
     days = stats.get('days', {})
     today = date.today()
 
-    def _sum(a: int, b: int) -> tuple[int, int]:
-        v = u = 0
+    def _sum(a: int, b: int) -> tuple[int, int, int]:
+        v = u = vol = 0
         for i in range(a, b):
             d = days.get((today - timedelta(days=i)).isoformat())
             if d:
                 v += d.get('views', 0)
                 u += d.get('uniques', 0)
-        return v, u
+                # Bots zählen beim Volumen mit — sie belasten die Leitung genauso
+                vol += d.get('traffic_out', 0) + d.get('traffic_out_bot', 0)
+        return v, u, vol
 
-    views, uniques = _sum(0, 7)          # letzte 7 Tage (heute … −6)
-    prev_views, _ = _sum(7, 14)          # Vorwoche
+    views, uniques, traffic = _sum(0, 7)        # letzte 7 Tage (heute … −6)
+    prev_views, _, prev_traffic = _sum(7, 14)   # Vorwoche
     cutoff = int(time.time()) - 7 * 86400
     log_week = [v for v in stats.get('log', []) if v.get('ts', 0) >= cutoff]
     pages = top_pages(load_site(), log_week, limit=1)
@@ -3385,7 +3534,9 @@ def _weekly_summary() -> dict:
     new_members = sum(1 for u in load_users() if (u.get('created') or '') >= cutoff_day)
     new_messages = sum(1 for m in load_messages() if m.get('ts', 0) >= cutoff)
     trend = round((views - prev_views) / prev_views * 100) if prev_views else None
+    vol_trend = round((traffic - prev_traffic) / prev_traffic * 100) if prev_traffic else None
     return {'views': views, 'uniques': uniques, 'trend': trend,
+            'traffic': traffic, 'traffic_trend': vol_trend,
             'top_page': (pages[0] if pages else None),
             'new_members': new_members, 'new_messages': new_messages}
 
@@ -3395,16 +3546,20 @@ def _send_weekly_review() -> None:
     konfiguriert) als E-Mail an die Admin-Adresse. Texte bewusst auf Deutsch —
     konsistent zu den übrigen HA-Benachrichtigungen."""
     s = _weekly_summary()
-    if s['trend'] is None:
-        trend_txt = '—'
-    else:
-        arrow = '▲' if s['trend'] > 0 else ('▼' if s['trend'] < 0 else '■')
-        trend_txt = f"{arrow} {abs(s['trend'])} % ggü. Vorwoche"
+
+    def _trend(value) -> str:
+        if value is None:
+            return '—'
+        arrow = '▲' if value > 0 else ('▼' if value < 0 else '■')
+        return f'{arrow} {abs(value)} % ggü. Vorwoche'
+
+    trend_txt = _trend(s['trend'])
     tp = s['top_page']
     top_txt = (f"{tp.get('title') or tp.get('path')} ({tp['count']})") if tp else '—'
     lines = [
         f"Aufrufe: {s['views']}  ({trend_txt})",
         f"Eindeutige Besucher: {s['uniques']}",
+        f"Datenvolumen: {human_size(s['traffic'])}  ({_trend(s['traffic_trend'])})",
         f"Top-Seite: {top_txt}",
         f"Neue Mitglieder: {s['new_members']}",
         f"Neue Nachrichten: {s['new_messages']}",
@@ -3415,7 +3570,8 @@ def _send_weekly_review() -> None:
         title = (load_site()['design'].get('site_title') or 'MyPage')
         html = _email_html(f'📊 Wochenrückblick — {title}', lines)
         send_email(f'📊 Wochenrückblick — {title}', html)
-    log.info("Wochenrückblick verschickt (Aufrufe %d, Besucher %d)", s['views'], s['uniques'])
+    log.info("Wochenrückblick verschickt (Aufrufe %d, Besucher %d, Volumen %s)",
+             s['views'], s['uniques'], human_size(s['traffic']))
 
 
 def _weekly_review_worker() -> None:
@@ -9031,6 +9187,7 @@ def api_stats():
         'browsers':  browsers,
         'countries': countries,
         'pages':     top_pages(load_site(), stats.get('log', [])),
+        'traffic':   traffic_totals(stats),
     })
 
 
@@ -14034,7 +14191,7 @@ def _serve(app, port: int, threads: int) -> None:
 
 
 def _run_public():
-    _serve(public_app, PUBLIC_PORT, threads=8)
+    _serve(TrafficMeter(public_app), PUBLIC_PORT, threads=8)
 
 
 def _handle_sigterm(signum, frame) -> None:
@@ -14079,6 +14236,7 @@ if __name__ == '__main__':
     threading.Thread(target=_sensor_worker, daemon=True).start()
     threading.Thread(target=_ha_games_worker, daemon=True).start()
     threading.Thread(target=_geoip_worker, daemon=True).start()
+    threading.Thread(target=_traffic_worker, daemon=True).start()
     threading.Thread(target=_smb_watchdog, daemon=True).start()
     threading.Thread(target=_dm_reminder_worker, daemon=True).start()
     threading.Thread(target=_weekly_review_worker, daemon=True).start()

@@ -340,6 +340,8 @@ Das Add-on meldet alle 2 Minuten vier Sensoren an Home Assistant:
 | `sensor.mypage_visitors_total` | Eindeutige Besucher gesamt |
 | `sensor.mypage_views_today` | Aufrufe heute |
 | `sensor.mypage_visitors_today` | Eindeutige Besucher heute |
+| `sensor.mypage_traffic_today` | Ausgeliefertes Datenvolumen heute (MB) |
+| `sensor.mypage_traffic_total` | Ausgeliefertes Datenvolumen gesamt (MB) |
 | `sensor.mypage_user_storage` | Belegter Speicher aller Mitglieder-Dateien (MB) |
 | `sensor.mypage_failed_logins` | Fehlgeschlagene Logins der letzten 24 h (Admin + Mitglieder) |
 | `sensor.mypage_messages` | Anzahl gespeicherter Kontaktnachrichten |
@@ -450,9 +452,15 @@ Aufrufe gesamt, Aufrufe und eindeutige Besucher heute, Verlauf der letzten 30 Ta
 
 Zusätzlich gibt es **Top-Seiten** (meistbesuchte Seiten aus den letzten Aufrufen, ohne Bots — für Blog-Beiträge und Projekt-Detailseiten mit Titel statt nur Pfad) sowie Verteilungen nach **Referrern, Browsern und Ländern**.
 
-**Wöchentlicher Rückblick** (im Design-Tab aktivierbar, Standard aus): Montags ab 8 Uhr verschickt MyPage eine Zusammenfassung der Vorwoche — Aufrufe (inkl. Trend gegenüber der Vorwoche), eindeutige Besucher, Top-Seite, neue Mitglieder und neue Nachrichten — als **Home-Assistant-Benachrichtigung** und, falls SMTP eingerichtet ist, zusätzlich **per E-Mail** an die Admin-Adresse (`smtp_to`). Pro Kalenderwoche wird höchstens einmal gesendet.
+**Wöchentlicher Rückblick** (im Design-Tab aktivierbar, Standard aus): Montags ab 8 Uhr verschickt MyPage eine Zusammenfassung der Vorwoche — Aufrufe (inkl. Trend gegenüber der Vorwoche), eindeutige Besucher, Datenvolumen (ebenfalls mit Trend), Top-Seite, neue Mitglieder und neue Nachrichten — als **Home-Assistant-Benachrichtigung** und, falls SMTP eingerichtet ist, zusätzlich **per E-Mail** an die Admin-Adresse (`smtp_to`). Pro Kalenderwoche wird höchstens einmal gesendet.
 
 Zusätzlich zeigt das **Besucher-Log** die letzten 500 Aufrufe mit Zeit, Land, IP-Adresse, Browser/User-Agent, Sprache und Referrer (Bots werden markiert). Hinweis: Wer die Seite öffentlich betreibt, sollte die IP-Speicherung ggf. in seiner Datenschutzerklärung erwähnen.
+
+**Datenvolumen:** Die Statistik zeigt, wie viele Daten MyPage ausgeliefert hat — als Kachel für heute und die letzten 30 Tage, dazu ein Tagesbalken mit getrennten Werten für Besucher und Bots. Gezählt wird an der Server-Schnittstelle: jede Antwort samt Kopfzeilen, Uploads getrennt als Eingang. Abgebrochene Downloads zählen nur mit dem, was wirklich hinausging.
+
+Wichtig für die Einordnung: Das ist **nicht die Leitungslast**. Ein vorgelagerter Reverse Proxy (NGINX, NPMplus, Cloudflare) komprimiert selbst und legt TLS obendrauf — bei HTML/CSS/JS liegen die echten Werte deutlich darunter, bei Bildern und PDFs etwa gleichauf. Wer die tatsächliche Last am Anschluss braucht, wertet die Protokolle des Proxys aus. Antwortet der Proxy aus seinem Zwischenspeicher, sieht MyPage die Anfrage gar nicht.
+
+Die Tageswerte stehen in `stats.json` neben Aufrufen und Besuchern und werden einmal pro Minute geschrieben, nicht bei jeder Anfrage. Zusätzlich gibt es `sensor.mypage_traffic_today` und `sensor.mypage_traffic_total`, und der wöchentliche Rückblick nennt das Volumen der Woche samt Trend gegenüber der Vorwoche.
 
 **Länder-Erkennung** (in dieser Reihenfolge):
 1. **Cloudflare-Header** `CF-IPCountry` — exakt, falls die Seite hinter Cloudflare läuft
