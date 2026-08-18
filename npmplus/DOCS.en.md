@@ -302,7 +302,9 @@ geo_countries:
   - by
 ```
 
-The preset only applies to `geo_mode: block`. Combined with `allow` it is skipped with a warning, since a block list would suddenly have become an allow list.
+**`geo_mode` is the master switch.** With it set to `off` nothing happens, no matter what the preset and the country list contain — the log warns about it. Combined with `allow` the preset is skipped with a warning, since a block list would suddenly have become an allow list.
+
+You can tell the filter is really running by the log lines `Downloading country lists for … countries` and `Country filter active`. If they are missing, it is off.
 
 **What is missing and why:** `IN`, `BR`, `MX`, `ID` and `TR` are deliberately left out. They are large internet countries with many real users — blocking them costs more in shut-out visitors than it saves in attacks. If you want them anyway, add them in `geo_countries`:
 

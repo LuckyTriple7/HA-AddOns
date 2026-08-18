@@ -82,7 +82,7 @@ configuration:
     description: Secret key of the chosen provider.
   geo_mode:
     name: Country filter
-    description: '"block" denies the countries listed below, "allow" admits only them, "off" disables the filter. Runs inside nginx and therefore applies to the very first request. Changes to the geo options only take effect after restarting the add-on.'
+    description: 'Master switch. "block" denies the countries listed below, "allow" admits only them, "off" disables everything — the preset and the country list then have no effect. Runs inside nginx and therefore applies to the very first request. Changes to the geo options only take effect after restarting the add-on.'
   geo_preset:
     name: Preset
     description: '"high_risk" adds 16 countries in one go (CN, RU, KP, IR, PK, BD, VN, MY, TH, PH, NG, GH, ZA, AR, CO, EG), around 38000 address ranges. Large internet countries with many real users are deliberately left out. Meant for "block" only. Countries listed below are added on top.'

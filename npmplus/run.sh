@@ -520,14 +520,21 @@ geo_add_country() {
 case "$GEO_PRESET_OPT" in
     none|"") ;;
     high_risk)
-        if [ "$GEO_MODE_OPT" = "allow" ]; then
-            warn "geo_preset '${GEO_PRESET_OPT}' is meant for geo_mode 'block' — ignoring it, otherwise it would be an allow list"
-        else
-            for cc in $(geo_preset_countries "$GEO_PRESET_OPT"); do
-                geo_add_country "$cc"
-            done
-            log "Country preset '${GEO_PRESET_OPT}' adds $(printf '%s' "$GEO_COUNTRIES" | wc -w) countries"
-        fi
+        case "$GEO_MODE_OPT" in
+            allow)
+                warn "geo_preset '${GEO_PRESET_OPT}' is meant for geo_mode 'block' — ignoring it, otherwise it would be an allow list"
+                ;;
+            off)
+                # Häufigster Bedienfehler: Vorauswahl gesetzt, Schalter vergessen.
+                warn "geo_preset '${GEO_PRESET_OPT}' is set, but geo_mode is 'off' — nothing is blocked. Set geo_mode to 'block' to activate it"
+                ;;
+            *)
+                for cc in $(geo_preset_countries "$GEO_PRESET_OPT"); do
+                    geo_add_country "$cc"
+                done
+                log "Country preset '${GEO_PRESET_OPT}' adds $(printf '%s' "$GEO_COUNTRIES" | wc -w) countries"
+                ;;
+        esac
         ;;
     *)
         warn "Unknown geo_preset '${GEO_PRESET_OPT}' — ignoring it" ;;
@@ -536,6 +543,10 @@ esac
 while IFS= read -r cc; do
     geo_add_country "$cc"
 done < <(jq -r '.geo_countries // [] | .[]' "$OPTIONS")
+
+if [ "$GEO_MODE_OPT" = "off" ] && [ -n "$GEO_COUNTRIES" ]; then
+    warn "geo_countries is filled, but geo_mode is 'off' — nothing is blocked. Set geo_mode to 'block' to activate it"
+fi
 
 GEO_ACTIVE=false
 case "$GEO_MODE_OPT" in

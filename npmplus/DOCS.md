@@ -304,7 +304,9 @@ geo_countries:
   - by
 ```
 
-Die Vorauswahl gilt nur für `geo_mode: block`. In Verbindung mit `allow` wird sie mit einer Warnung übergangen, sonst wäre aus der Sperrliste plötzlich eine Erlaubnisliste geworden.
+**`geo_mode` ist der Hauptschalter.** Steht er auf `off`, passiert nichts, egal was in Vorauswahl und Länderliste steht — das Protokoll warnt dann darüber. In Verbindung mit `allow` wird die Vorauswahl mit einer Warnung übergangen, sonst wäre aus der Sperrliste plötzlich eine Erlaubnisliste geworden.
+
+Ob die Sperre tatsächlich läuft, erkennst du im Protokoll an der Zeile `Downloading country lists for … countries` und der Meldung `Country filter active`. Fehlen die, ist sie aus.
 
 **Was nicht drin ist und warum:** `IN`, `BR`, `MX`, `ID` und `TR` fehlen bewusst. Das sind große Internetländer mit vielen echten Nutzern — sie zu sperren kostet mehr an ausgesperrten Besuchern, als es an Angriffen erspart. Wer sie trotzdem will, schreibt sie zusätzlich in `geo_countries`:
 

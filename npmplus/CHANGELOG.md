@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.1.21] - 2026-08-18
+
+- Fix: Wer `geo_preset` oder `geo_countries` ausfüllt, aber `geo_mode` auf `off` stehen lässt, bekam keinerlei Rückmeldung — die Sperre blieb still aus. Das Protokoll warnt jetzt in beiden Fällen und nennt den fehlenden Schritt
+- Doku und Optionsbeschreibung nennen `geo_mode` deutlich als Hauptschalter und sagen, an welchen Protokollzeilen man erkennt, dass die Sperre wirklich läuft
+
 ## [0.1.20] - 2026-08-18
 
 - `geo_preset: high_risk` umfasst jetzt 16 statt 21 Länder, rund 38000 statt 73000 Adressbereiche. Herausgenommen: IN, BR, MX, ID und TR. Das sind große Internetländer mit vielen echten Nutzern — sie zu sperren kostet mehr an ausgesperrten Besuchern, als es an Angriffen erspart. Wer sie trotzdem will, trägt sie zusätzlich in `geo_countries` ein

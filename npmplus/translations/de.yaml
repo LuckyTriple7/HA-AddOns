@@ -82,7 +82,7 @@ configuration:
     description: Geheimer Schlüssel des gewählten Anbieters.
   geo_mode:
     name: Ländersperre
-    description: '"block" sperrt die unten genannten Länder, "allow" lässt nur sie durch, "off" schaltet die Sperre ab. Greift direkt in nginx und damit schon bei der ersten Anfrage. Änderungen an den Geo-Optionen wirken erst nach einem Neustart des Add-ons.'
+    description: 'Hauptschalter. "block" sperrt die unten genannten Länder, "allow" lässt nur sie durch, "off" schaltet alles ab — dann bleiben auch Vorauswahl und Länderliste wirkungslos. Greift direkt in nginx und damit schon bei der ersten Anfrage. Änderungen an den Geo-Optionen wirken erst nach einem Neustart des Add-ons.'
   geo_preset:
     name: Vorauswahl
     description: '"high_risk" trägt 16 Länder auf einen Schlag ein (CN, RU, KP, IR, PK, BD, VN, MY, TH, PH, NG, GH, ZA, AR, CO, EG), rund 38000 Adressbereiche. Große Internetländer mit vielen echten Nutzern sind bewusst nicht dabei. Nur für "block" gedacht. Eigene Länder darunter kommen zusätzlich dazu.'
