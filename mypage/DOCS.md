@@ -13,8 +13,7 @@
 | `visit_file_log` | Schreibt jeden Aufruf zusätzlich dauerhaft als CSV nach `addon_configs/XXX_mypage/visits/` (Standard: aus). Lässt sich alternativ im Admin-Reiter **Explorer** einschalten |
 | `visit_file_keep` | Wie viele Monatsdateien des Besucher-Archivs behalten werden (0–120, Standard **1**; `0` = unbegrenzt). Das Archiv enthält ungekürzte IP-Adressen — höhere Werte sollten zur eigenen Datenschutzerklärung passen |
 | `user_journal_max` | Journal-Einträge pro Benutzer (20–1000, Standard 100) |
-| `geoip_lookup` | Exakte Länder-Erkennung über ipapi.is (Standard: aus — Besucher-IPs werden an den Dienst übertragen) |
-| `geoip_api_key` | Optional: ipapi.is-Key — ohne Key ca. 1.000 Lookups/Tag frei |
+| `geoip_offline` | Länder-Erkennung über eine lokale IP-Tabelle (Standard: an, keine Besucher-IP verlässt das Add-on) |
 | `telegram_bot_token` | Optional: Bot-Token — neue Kontaktnachrichten werden per Telegram gemeldet |
 | `telegram_chat_id` | Chat-ID für die Telegram-Benachrichtigungen |
 | `ha_notify` | Persistente Home-Assistant-Benachrichtigungen bei neuer Kontaktnachricht, neuem Blog-Kommentar und gesperrter IP (Brute-Force). Standard: an |
@@ -457,7 +456,11 @@ Zusätzlich zeigt das **Besucher-Log** die letzten 500 Aufrufe mit Zeit, Land, I
 
 **Länder-Erkennung** (in dieser Reihenfolge):
 1. **Cloudflare-Header** `CF-IPCountry` — exakt, falls die Seite hinter Cloudflare läuft
-2. **GeoIP-Lookup über [ipapi.is](https://ipapi.is)** — exakt, wenn die Option `geoip_lookup` aktiviert ist. Ein Hintergrund-Worker schlägt maximal 20 neue IPs pro Minute nach, jede IP nur einmal (Cache); private IPs werden nie übertragen. **Datenschutz:** Besucher-IPs werden dabei an ipapi.is gesendet — das gehört in die Datenschutzerklärung. Ohne API-Key sind ~1.000 Lookups/Tag frei, dank Cache reicht das für die meisten Seiten locker.
+2. **Lokale IP-Tabelle** — Standard, solange die Option `geoip_offline` aktiv ist. Das Add-on hält eine eigene Tabelle „IP-Bereich → Land“ und fragt **keinen Dienst** mehr an: Es verlässt keine Besucher-IP das Add-on, es gibt kein Tageslimit und keinen API-Schlüssel.
+   - Quelle ist **[DB-IP Lite](https://db-ip.com)** (*IP Geolocation by DB-IP*, CC BY 4.0). Fällt der Download aus, greift das Add-on auf die Delegationsdateien der fünf Regional Internet Registries zurück (APNIC, RIPE NCC, ARIN, LACNIC, AFRINIC) — dieselben Rohdaten, aus denen NPMplus seine Ländersperre baut. Die Registries führen allerdings das Land der *Zuteilung*: Telekom-Bereiche stehen dort auch mal auf `GB`, Wikimedia-Server in Amsterdam auf `US`. Deshalb ist DB-IP erste Wahl.
+   - Die Tabelle liegt unter `/config/geoip/ranges.tsv.gz` (rund 10 MB) und wird wöchentlich erneuert; ein Neustart lädt nichts nach. Im Betrieb kostet sie gut 20 MB Arbeitsspeicher, ein Lookup wenige Mikrosekunden.
+   - Fehlende Länder werden **nachträglich ergänzt**: stündlich im Besucher-Log, und nach jeder Tabellen-Erneuerung auch in den Monatsdateien des Besucher-Archivs. Alte Einträge ohne Land füllen sich damit von selbst auf.
+   - Genauigkeit: Land, keine Stadt. VPN, Proxy und Anycast-Adressen (z. B. `8.8.8.8`) zeigen den Ort des Dienstes, nicht den des Besuchers.
 3. **Browser-Sprache** als Näherung (`de-DE` → Deutschland) — Fallback, wenn beides nicht greift
 
 **Reverse-Proxy (NGINX):** Damit Besucher-IPs, Brute-Force-Schutz und Rate-Limit korrekt arbeiten, muss der Proxy die Original-IP weiterreichen: `proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;`

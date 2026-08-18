@@ -1297,6 +1297,7 @@
   "stat_referrers": "Top referrers",
   "stat_browsers": "Browsers",
   "stat_countries": "Countries",
+  "stat_geo_source": "IP country data by",
   "stat_top_pages": "Top pages",
   "stat_top_pages_hint": "Most visited pages from recent visits (bots excluded).",
   "stat_homepage": "Homepage",

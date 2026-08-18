@@ -1297,6 +1297,7 @@
   "stat_referrers": "Top-Referrer",
   "stat_browsers": "Browser",
   "stat_countries": "Länder",
+  "stat_geo_source": "IP-Länderdaten von",
   "stat_top_pages": "Top-Seiten",
   "stat_top_pages_hint": "Meistbesuchte Seiten der letzten Aufrufe (ohne Bots).",
   "stat_homepage": "Startseite",

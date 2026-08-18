@@ -6,9 +6,11 @@ Zwei Server in einem Prozess:
   - Port 17761: Admin-Panel (Login + Brute-Force-Schutz, auch via HA Ingress)
 """
 import base64
+import bisect
 import copy
 import csv
 import errno
+import gzip
 import hashlib
 import hmac
 import html as html_mod
@@ -29,6 +31,7 @@ import threading
 import time
 import uuid
 import zipfile
+from array import array
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from collections import defaultdict
@@ -2079,14 +2082,58 @@ def total_uniques(stats: dict) -> int:
     return sum(d.get('uniques', 0) for d in stats.get('days', {}).values())
 
 
-# GeoIP-Lookup über ipapi.is (Opt-in, IPs werden nur bei aktivierter Option gesendet)
-_geo_cache: dict[str, str] = {}  # ip → Ländercode ('' = abgefragt, kein Ergebnis)
-GEO_CACHE_MAX       = 5000
-GEO_LOOKUPS_PER_RUN = 20
+# ---------------------------------------------------------------------------
+# Länder-Zuordnung ohne Fremd-API
+#
+# Statt jede Besucher-IP bei einem Dienst nachzufragen (Tageslimit, Datenschutz)
+# hält das Add-on eine eigene Tabelle: IP-Bereich → Ländercode. Erste Wahl ist
+# die frei herunterladbare DB-IP-Lite-Liste, Rückfallebene sind die Delegations-
+# dateien der fünf Regional Internet Registries — dieselben Rohdaten, aus denen
+# NPMplus seine Ländersperre baut.
+#
+# Der Unterschied ist die Genauigkeit: die Registries führen das Land der
+# Zuteilung (Telekom-Bereiche stehen dort auch mal auf GB), DB-IP führt den
+# tatsächlichen Standort. Deshalb erst DB-IP, und die Registries nur, wenn der
+# Download ausfällt.
+#
+# Die Tabelle liegt unter /config/geoip und wird wöchentlich erneuert; ein
+# Neustart lädt nichts nach. Es verlässt keine Besucher-IP das Add-on.
+# ---------------------------------------------------------------------------
+GEOIP_DIR     = Path(_DATA) / 'geoip'
+GEOIP_CACHE   = GEOIP_DIR / 'ranges.tsv.gz'
+GEOIP_STAMP   = GEOIP_DIR / 'archive.stamp'
+GEOIP_MAX_AGE = 7 * 86400
+GEOIP_DBIP    = 'https://download.db-ip.com/free/dbip-country-lite-{:%Y-%m}.csv.gz'
+GEOIP_RIR = (
+    'https://ftp.apnic.net/stats/apnic/delegated-apnic-extended-latest',
+    'https://ftp.ripe.net/pub/stats/ripencc/delegated-ripencc-extended-latest',
+    'https://ftp.arin.net/pub/stats/arin/delegated-arin-extended-latest',
+    'https://ftp.lacnic.net/pub/stats/lacnic/delegated-lacnic-extended-latest',
+    'https://ftp.afrinic.net/pub/stats/afrinic/delegated-afrinic-extended-latest',
+)
+
+
+def _geo_empty() -> dict:
+    """Leere Nachschlagetabellen, getrennt nach Adressfamilie.
+
+    IPv4-Adressen passen in 64-Bit-Zahlen und liegen als `array` im Speicher,
+    ein Achtel dessen, was eine Liste bräuchte. IPv6-Adressen sind dafür zu
+    groß, stehen aber als 16-Byte-Blöcke in Netzreihenfolge in einem einzigen
+    Puffer — und der vergleicht sich Byte für Byte genauso wie die Zahlen.
+    """
+    return {
+        4: {'starts': array('Q'),  'ends': array('Q'),  'codes': [], 'pool': {}},
+        6: {'starts': bytearray(), 'ends': bytearray(), 'codes': [], 'pool': {}},
+    }
+
+
+# Wird beim Aktualisieren komplett ersetzt und nie an Ort und Stelle geändert —
+# deshalb brauchen die Leser kein Lock.
+_geo_tables: dict = _geo_empty()
 
 
 def _geo_enabled() -> bool:
-    return bool(load_config().get('geoip_lookup'))
+    return bool(load_config().get('geoip_offline', True))
 
 
 def _cf_country(req) -> str:
@@ -2100,70 +2147,321 @@ def _lang_country(req) -> str:
 
 
 def _guess_country(req) -> str:
-    """Besucherland: Cloudflare-Header > GeoIP-Cache > Accept-Language-Näherung."""
-    ip = get_client_ip(req)
-    return _cf_country(req) or _geo_cache.get(ip, '') or _lang_country(req)
+    """Besucherland: Cloudflare-Header > lokale Tabelle > Accept-Language-Näherung."""
+    return (_cf_country(req)
+            or (_geo_country(get_client_ip(req)) if _geo_enabled() else '')
+            or _lang_country(req))
 
 
-def _lookup_ip(ip: str) -> str:
-    """Land einer IP über ipapi.is — private/ungültige IPs werden nie gesendet."""
+def _blob_bisect(blob: bytes, key: bytes) -> int:
+    """`bisect_right` über einen Puffer aus aneinandergereihten 16-Byte-Schlüsseln."""
+    lo, hi = 0, len(blob) >> 4
+    while lo < hi:
+        mid = (lo + hi) >> 1
+        if blob[mid << 4:(mid + 1) << 4] <= key:
+            lo = mid + 1
+        else:
+            hi = mid
+    return lo
+
+
+def _geo_country(ip: str) -> str:
+    """Ländercode einer IP aus der lokalen Tabelle ('' = privat oder unbekannt)."""
     try:
         addr = ipaddress.ip_address(ip)
-        if addr.is_private or addr.is_loopback or addr.is_link_local or addr.is_reserved:
-            return ''
     except ValueError:
         return ''
+    if addr.is_private or addr.is_loopback or addr.is_link_local or addr.is_reserved:
+        return ''
+    fam = _geo_tables[addr.version]
+    codes = fam['codes']
+    if not codes:
+        return ''
+    # Letzter Bereich, der nicht hinter der IP anfängt. Passt sein Ende nicht,
+    # liegt die IP in einer Lücke (nicht zugeteilt oder nicht zugeordnet).
+    if addr.version == 4:
+        num = int(addr)
+        i = bisect.bisect_right(fam['starts'], num) - 1
+        return codes[i] if i >= 0 and num <= fam['ends'][i] else ''
+    key = addr.packed
+    i = _blob_bisect(fam['starts'], key) - 1
+    return codes[i] if i >= 0 and key <= bytes(fam['ends'][i << 4:(i + 1) << 4]) else ''
+
+
+def _geo_append(tables: dict, version: int, start: int, end: int, cc: str) -> None:
+    """Einen Bereich anhängen. Die Quelle muss je Familie aufsteigend liefern."""
+    fam = tables[version]
+    if version == 4:
+        fam['starts'].append(start)
+        fam['ends'].append(end)
+    else:
+        fam['starts'] += start.to_bytes(16, 'big')
+        fam['ends'] += end.to_bytes(16, 'big')
+    fam['codes'].append(fam['pool'].setdefault(cc, cc))   # jeden Code nur einmal halten
+
+
+def _geo_rows(tables: dict):
+    """Alle Bereiche wieder als (version, start, ende, code) ausgeben."""
+    for version in (4, 6):
+        fam = tables[version]
+        for i, cc in enumerate(fam['codes']):
+            if version == 4:
+                yield 4, fam['starts'][i], fam['ends'][i], cc
+            else:
+                yield (6,
+                       int.from_bytes(fam['starts'][i << 4:(i + 1) << 4], 'big'),
+                       int.from_bytes(fam['ends'][i << 4:(i + 1) << 4], 'big'), cc)
+
+
+def _geo_count(tables: dict) -> tuple[int, int]:
+    return len(tables[4]['codes']), len(tables[6]['codes'])
+
+
+def _geo_fetch_dbip(tables: dict) -> str:
+    """DB-IP-Lite einlesen (CSV: start,ende,land — je Familie bereits sortiert).
+
+    Am Monatsanfang steht die neue Datei nicht immer sofort bereit, deshalb der
+    Griff zum Vormonat.
+    """
+    today = date.today()
+    months = [today.replace(day=1)]
+    months.append((months[0] - timedelta(days=1)).replace(day=1))
+    last_err: Exception | None = None
+    for month in months:
+        url = GEOIP_DBIP.format(month)
+        try:
+            with http.get(url, timeout=180, stream=True) as r:
+                r.raise_for_status()
+                r.raw.decode_content = True
+                prev = {4: -1, 6: -1}
+                with gzip.open(r.raw, 'rt', encoding='utf-8', errors='replace') as fh:
+                    for line in fh:
+                        f = line.rstrip('\n').split(',')
+                        if len(f) != 3:
+                            continue
+                        cc = f[2].strip().upper()
+                        # 'ZZ' ist DB-IPs Platzhalter für unbekannt/reserviert
+                        if len(cc) != 2 or not cc.isalpha() or cc == 'ZZ':
+                            continue
+                        try:
+                            start = ipaddress.ip_address(f[0])
+                            end   = ipaddress.ip_address(f[1])
+                        except ValueError:
+                            continue
+                        v = start.version
+                        if v != end.version or int(start) <= prev[v]:
+                            raise ValueError('Datei ist nicht aufsteigend sortiert')
+                        prev[v] = int(end)
+                        _geo_append(tables, v, int(start), int(end), cc)
+            return f'dbip {month:%Y-%m}'
+        except Exception as e:
+            last_err = e
+            log.warning("GeoIP: DB-IP %s nicht nutzbar (%s)", f'{month:%Y-%m}', e)
+            tables.update(_geo_empty())   # Halbe Datei nicht stehen lassen
+    raise RuntimeError(f'DB-IP nicht verfügbar ({last_err})')
+
+
+def _geo_fetch_rir(tables: dict) -> str:
+    """Rückfallebene: Delegationsdateien registry|cc|typ|start|wert|datum|status|…"""
+    rows: list[tuple[int, int, int, str]] = []
+    ok = 0
+    for url in GEOIP_RIR:
+        host = urlsplit(url).netloc
+        before = len(rows)
+        try:
+            with http.get(url, timeout=180, stream=True) as r:
+                r.raise_for_status()
+                # Die Registries schicken text/plain ohne Zeichensatz — ohne diese
+                # Zeile gibt iter_lines() Bytes zurück und der Parser läuft ins Leere.
+                r.encoding = 'utf-8'
+                for line in r.iter_lines(decode_unicode=True):
+                    if not line or line[0] == '#':
+                        continue
+                    f = line.split('|')
+                    if len(f) < 7 or f[2] not in ('ipv4', 'ipv6'):
+                        continue
+                    cc = f[1].strip().upper()
+                    # '*' steht in den Summenzeilen am Dateianfang; 'available'
+                    # und 'reserved' gehören keinem Land.
+                    if len(cc) != 2 or not cc.isalpha() or f[6] not in ('allocated', 'assigned'):
+                        continue
+                    try:
+                        if f[2] == 'ipv4':
+                            # Bei IPv4 zählt das Feld Adressen statt Präfixlängen —
+                            # und die Zahl ist nicht immer eine Zweierpotenz.
+                            start, size = int(ipaddress.IPv4Address(f[3])), int(f[4])
+                            if size <= 0:
+                                continue
+                            rows.append((4, start, start + size - 1, cc))
+                        else:
+                            prefix = int(f[4])
+                            if not 0 <= prefix <= 128:
+                                continue
+                            start = int(ipaddress.IPv6Address(f[3]))
+                            rows.append((6, start, start + (1 << (128 - prefix)) - 1, cc))
+                    except ValueError:
+                        continue
+            ok += 1
+            log.info("GeoIP: %s → %d Bereiche", host, len(rows) - before)
+        except Exception as e:
+            log.warning("GeoIP: %s nicht erreichbar (%s)", host, e)
+    # Eine fehlende Registry würde einen ganzen Kontinent unsichtbar machen und
+    # dessen Besucher stillschweigend als unbekannt festschreiben.
+    if ok < len(GEOIP_RIR):
+        raise RuntimeError(f'nur {ok} von {len(GEOIP_RIR)} Registries erreichbar')
+    rows.sort()
+    for version, start, end, cc in rows:
+        _geo_append(tables, version, start, end, cc)
+    return 'rir'
+
+
+def _geo_download() -> tuple[dict, str]:
+    tables = _geo_empty()
     try:
-        params = {'q': ip}
-        key = (load_config().get('geoip_api_key') or '').strip()
-        if key:
-            params['key'] = key
-        r = http.get('https://api.ipapi.is/', params=params, timeout=10)
-        if r.status_code == 200:
-            code = ((r.json().get('location') or {}).get('country_code') or '').strip().upper()
-            if len(code) == 2 and code.isalpha():
-                return code
+        return tables, _geo_fetch_dbip(tables)
     except Exception as e:
-        log.warning("GeoIP-Lookup fehlgeschlagen: %s", e)
-    return ''
+        log.warning("GeoIP: DB-IP fällt aus (%s) — weiche auf die Registries aus", e)
+    tables = _geo_empty()
+    return tables, _geo_fetch_rir(tables)
+
+
+def _geo_save(tables: dict, source: str) -> None:
+    GEOIP_DIR.mkdir(parents=True, exist_ok=True)
+    tmp = GEOIP_CACHE.with_suffix('.tmp')
+    with gzip.open(tmp, 'wt', encoding='ascii') as fh:
+        fh.write(f'#{source}\n')
+        for version, start, end, cc in _geo_rows(tables):
+            fh.write(f'{version}\t{start}\t{end}\t{cc}\n')
+    tmp.replace(GEOIP_CACHE)
+
+
+def _geo_load_cache() -> tuple[dict, str]:
+    tables = _geo_empty()
+    source = 'unbekannt'
+    with gzip.open(GEOIP_CACHE, 'rt', encoding='ascii') as fh:
+        for line in fh:
+            if line[:1] == '#':
+                source = line[1:].strip()
+                continue
+            f = line.rstrip('\n').split('\t')
+            if len(f) == 4:
+                _geo_append(tables, int(f[0]), int(f[1]), int(f[2]), f[3])
+    return tables, source
+
+
+def _geo_refresh() -> bool:
+    """Tabelle bereitstellen: Zwischenspeicher benutzen, wöchentlich erneuern."""
+    global _geo_tables
+    loaded = bool(_geo_tables[4]['codes'])
+    try:
+        age = time.time() - GEOIP_CACHE.stat().st_mtime
+    except OSError:
+        age = None
+    if not loaded and age is not None:
+        try:
+            tables, source = _geo_load_cache()
+            _geo_tables = tables
+            loaded = True
+            log.info("GeoIP: %d IPv4- und %d IPv6-Bereiche aus %s geladen (%d Tage alt)",
+                     *_geo_count(tables), source, int(age // 86400))
+        except Exception as e:
+            log.warning("GeoIP: Zwischenspeicher unlesbar (%s) — wird neu geholt", e)
+            age = None
+    if age is None or age >= GEOIP_MAX_AGE:
+        try:
+            tables, source = _geo_download()
+            _geo_save(tables, source)
+            _geo_tables = tables
+            loaded = True
+            log.info("GeoIP: Tabelle aus %s erneuert — %d IPv4- und %d IPv6-Bereiche",
+                     source, *_geo_count(tables))
+        except Exception as e:
+            # Die alte Tabelle bleibt in Betrieb, der nächste Durchlauf probiert es erneut.
+            log.warning("GeoIP: Aktualisierung fehlgeschlagen (%s)", e)
+    return loaded
+
+
+def _geo_backfill_log() -> int:
+    """Fehlende Länder im Besucher-Log nachtragen — offline, also ohne Limit."""
+    stats = load_stats()
+    filled = 0
+    for v in stats.get('log', []):
+        if v.get('country'):
+            continue
+        code = _geo_country(v.get('ip') or '')
+        if code:
+            v['country'] = code
+            filled += 1
+    if filled:
+        save_stats(stats)
+    return filled
+
+
+def _geo_backfill_archive() -> int:
+    """Dasselbe für die Monatsdateien des Besucher-Archivs.
+
+    Läuft nur, wenn die Tabelle seit dem letzten Durchlauf erneuert wurde — die
+    CSVs jede Stunde durchzugehen wäre reine Plattenarbeit ohne neues Ergebnis.
+    """
+    if not VISITS_DIR.is_dir():
+        return 0
+    try:
+        current = str(int(GEOIP_CACHE.stat().st_mtime))
+    except OSError:
+        return 0
+    try:
+        if GEOIP_STAMP.read_text(encoding='ascii').strip() == current:
+            return 0
+    except OSError:
+        pass
+    filled = 0
+    with _visit_file_lock:
+        for path in sorted(VISITS_DIR.glob('visits-*.csv')):
+            try:
+                with path.open('r', encoding='utf-8-sig', newline='') as fh:
+                    rows = list(csv.DictReader(fh, delimiter=';'))
+                hits = 0
+                for row in rows:
+                    if row.get('land'):
+                        continue
+                    code = _geo_country((row.get('ip') or '').strip())
+                    if code:
+                        row['land'] = code
+                        hits += 1
+                if not hits:
+                    continue
+                tmp = path.with_suffix('.tmp')
+                with tmp.open('w', encoding='utf-8-sig', newline='') as fh:
+                    w = csv.DictWriter(fh, fieldnames=VISIT_CSV_COLUMNS, delimiter=';',
+                                       extrasaction='ignore')
+                    w.writeheader()
+                    for row in rows:
+                        w.writerow({k: (row.get(k) or '') for k in VISIT_CSV_COLUMNS})
+                tmp.replace(path)
+                filled += hits
+            except (OSError, csv.Error) as e:
+                log.warning("GeoIP: Archivdatei %s nicht ergänzt (%s)", path.name, e)
+    try:
+        GEOIP_DIR.mkdir(parents=True, exist_ok=True)
+        GEOIP_STAMP.write_text(current, encoding='ascii')
+    except OSError:
+        pass
+    return filled
 
 
 def _geoip_worker() -> None:
-    """Trägt Länder für Log-Einträge ohne Land nach (max. 20 Lookups/Minute)."""
+    """Tabelle aktuell halten und fehlende Länder nachtragen (stündlich)."""
     while True:
-        time.sleep(60)
-        if not _geo_enabled():
-            continue
         try:
-            stats = load_stats()
-            pending: list[str] = []
-            for v in reversed(stats.get('log', [])):
-                ip = v.get('ip') or ''
-                if not v.get('country') and not v.get('bot') and ip and ip not in _geo_cache:
-                    if ip not in pending:
-                        pending.append(ip)
-                if len(pending) >= GEO_LOOKUPS_PER_RUN:
-                    break
-            for ip in pending:
-                if len(_geo_cache) >= GEO_CACHE_MAX:
-                    _geo_cache.clear()
-                _geo_cache[ip] = _lookup_ip(ip)
-                time.sleep(1.5)
-            if not pending:
-                continue
-            # Frisch laden und Cache anwenden, damit parallele Besuche nicht verloren gehen
-            stats = load_stats()
-            changed = False
-            for v in stats.get('log', []):
-                code = _geo_cache.get(v.get('ip') or '')
-                if not v.get('country') and code:
-                    v['country'] = code
-                    changed = True
-            if changed:
-                save_stats(stats)
-                log.info("GeoIP: %d IP(s) nachgeschlagen", len(pending))
+            if _geo_enabled() and _geo_refresh():
+                filled = _geo_backfill_log()
+                archived = _geo_backfill_archive()
+                if filled or archived:
+                    log.info("GeoIP: %d Log-Einträge und %d Archivzeilen ergänzt",
+                             filled, archived)
         except Exception as e:
             log.warning("GeoIP-Worker-Fehler: %s", e)
+        time.sleep(3600)
 
 
 def bump_post_view(pid: str, req) -> int:

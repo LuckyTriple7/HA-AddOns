@@ -107,3 +107,9 @@ You can use **design variables** (they adapt to light/dark automatically):
 `var(--bg)` (page background), `var(--border)`.
 
 For security, `<` characters are stripped from the field — so only CSS is possible, no HTML/script.
+
+## License
+
+The source of this add-on is MIT-licensed. Country lookup in the stats additionally uses
+the **DB-IP Lite** database (CC BY 4.0): *IP Geolocation by DB-IP — <https://db-ip.com>*.
+Details in [LICENSE.md](LICENSE.md).

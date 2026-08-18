@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.10.38
+
+- 🌍 **Länder-Erkennung läuft jetzt lokal** — statt jede Besucher-IP bei ipapi.is nachzuschlagen (Tageslimit, „Free Tier limit exceeded“, Besucher-IPs beim Dienst), hält das Add-on eine eigene Tabelle „IP-Bereich → Land“. Quelle ist **DB-IP Lite** (*IP Geolocation by DB-IP*, CC BY 4.0), Rückfallebene sind die Delegationsdateien der fünf Regional Internet Registries. **Keine Besucher-IP verlässt das Add-on mehr**, kein Konto, kein Schlüssel, kein Limit.
+- 🧮 **Fehlende Länder werden nachgetragen** — stündlich im Besucher-Log und nach jeder Tabellen-Erneuerung auch in den Monatsdateien des Besucher-Archivs. Einträge, die während der alten Limit-Ausfälle leer blieben, füllen sich damit von selbst.
+- ⚙️ **Optionen:** `geoip_lookup` und `geoip_api_key` entfallen, neu ist `geoip_offline` (**Standard: an**). Die Tabelle liegt unter `/config/geoip/ranges.tsv.gz` (rund 10 MB), wird wöchentlich erneuert und überlebt Neustarts; im Betrieb kostet sie gut 20 MB Arbeitsspeicher, ein Lookup wenige Mikrosekunden.
+- 📄 Neue `LICENSE.md` mit der von DB-IP verlangten Namensnennung; der Hinweis steht zusätzlich in der Admin-Statistik unter der Länder-Verteilung.
+
 ## 0.10.37
 - 🔤 **Impressum und Datenschutz werden jetzt richtig dargestellt.** Beide Seiten gaben den Text als reinen Fließtext aus — alles in einer Größe, ohne Überschriften, ohne Fettschrift, und Zeichen wie `##` standen wörtlich auf der Seite. Sie laufen jetzt durch dieselbe Aufbereitung wie Beiträge und eigene Seiten: Überschriften in vier Ebenen, Aufzählungen, Fettschrift und Links. Reiner Fließtext bleibt dabei unverändert stehen.
 - ✂️ **Lange Rechtstexte wurden beim Speichern stillschweigend abgeschnitten.** Die Grenze lag bei 20 000 Zeichen; eine ausführliche Datenschutzerklärung ist schnell doppelt so lang und brach dann mitten im Satz ab, ohne dass es irgendwo stand. Die Grenze liegt jetzt bei 150 000 Zeichen, und wird sie doch erreicht, sagt es das Speichern deutlich.
