@@ -376,15 +376,34 @@
     }
 
     // ── tabs ──────────────────────────────────────────────────────────────────
-    const loaders = {};
+    const TABS = ['overview', 'decisions', 'new', 'alerts', 'check', 'allowlists', 'settings'];
+
+    // Null-prototype: a tab name arrives from location.hash, and on a plain
+    // object a name like "toString" would resolve through the prototype chain
+    // and dispatch to something that is not a loader at all.
+    const loaders = Object.create(null);
     // Last answer per tab. Switching tabs repaints from this at once and only
     // then refetches, so the panel never sits empty while the LAPI answers.
-    const cache = {};
-    function showTab(name) {
+    const cache = Object.create(null);
+
+    function tabName(raw) {
+      return TABS.indexOf(raw) >= 0 ? raw : 'overview';
+    }
+
+    // Single place where a tab name turns into a call. Only names from the
+    // fixed list get here, and only own properties are dispatched.
+    function runLoader(raw) {
+      const name = tabName(raw);
+      if (!Object.prototype.hasOwnProperty.call(loaders, name)) return;
+      const load = loaders[name];
+      if (typeof load === 'function') load();
+    }
+    function showTab(raw) {
+      const name = tabName(raw);
       document.querySelectorAll('nav button').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
       document.querySelectorAll('main section').forEach(s => s.classList.toggle('active', s.id === 'tab-' + name));
       location.hash = name;
-      if (loaders[name]) loaders[name]();
+      runLoader(name);
     }
     document.querySelectorAll('nav button').forEach(b => b.addEventListener('click', () => showTab(b.dataset.tab)));
 
@@ -1037,9 +1056,7 @@
     $('nScope').addEventListener('change', updateHint);
     updateHint();
 
-    const TABS = ['overview', 'decisions', 'new', 'alerts', 'check', 'allowlists', 'settings'];
-    const wanted = (location.hash || '').slice(1);
-    showTab(TABS.indexOf(wanted) >= 0 ? wanted : 'overview');
+    showTab((location.hash || '').slice(1));
     loadStatus();
     // Only off the Ingress path: its prefix carries a session token and changes,
     // so a worker registered under it is useless and just 404s on the next visit.
@@ -1050,8 +1067,7 @@
       setInterval(() => {
         loadStatus();
         const active = document.querySelector('main section.active');
-        const name = active ? active.id.replace('tab-', '') : '';
-        if (loaders[name]) loaders[name]();
+        runLoader(active ? active.id.replace('tab-', '') : '');
       }, G.refresh * 1000);
     }
   </script>

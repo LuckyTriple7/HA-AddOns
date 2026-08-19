@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.2.1] - 2026-08-19
+
+### Security
+- **Reitername aus der Adresszeile wurde ungeprüft als Schlüssel benutzt**
+  (CodeQL, `js/unvalidated-dynamic-method-call`). `location.hash` landete direkt
+  in `loaders[name]()`; ein Fragment wie `#toString` oder `#constructor` hätte
+  über die Prototypenkette auf etwas dispatcht, das kein Loader ist. Der Name
+  wird jetzt an einer Stelle gegen die feste Liste der Reiter geprüft, `loaders`
+  und der Zwischenspeicher sind ohne Prototyp angelegt, und aufgerufen wird nur
+  eine eigene Eigenschaft, die auch wirklich eine Funktion ist. Im Browser
+  gegengeprüft: `#toString`, `#constructor`, `#__proto__` und `#hasOwnProperty`
+  landen auf der Übersicht, `#alerts`, `#settings` und `#decisions` weiterhin
+  auf ihrem Reiter.
+
 ## [0.2.0] - 2026-08-19
 
 ### Added
