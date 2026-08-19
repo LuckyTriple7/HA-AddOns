@@ -1,0 +1,54 @@
+name: CrowdPanel
+description: CrowdSec-Bedienpanel — Sperren ansehen, anlegen und aufheben
+version: "0.1.0"
+slug: crowdpanel
+url: https://github.com/LuckyTriple7/HA-AddOns
+
+image: "ghcr.io/luckytriple7/crowdpanel"
+
+arch:
+  - amd64
+  - aarch64
+
+startup: application
+boot: manual
+init: true
+
+panel_icon: mdi:shield-search
+panel_title: CrowdPanel
+
+ingress: true
+ingress_port: 17797
+ingress_stream: true
+
+ports:
+  17797/tcp: 17797
+
+ports_description:
+  17797/tcp: CrowdPanel Web-UI (direkt, Anmeldung erforderlich)
+
+options:
+  username: "admin"
+  password: "changeme123"
+  session_hours: 24
+  lapi_url: "http://127.0.0.1:8080"
+  machine_id: ""
+  machine_password: ""
+  lapi_tls_verify: true
+  default_ban_duration: "4h"
+  refresh_interval: 30
+  page_size: 100
+  verbose_log: false
+
+schema:
+  username: str
+  password: password
+  session_hours: int(1,720)
+  lapi_url: str
+  machine_id: str?
+  machine_password: password?
+  lapi_tls_verify: bool?
+  default_ban_duration: str?
+  refresh_interval: int(0,3600)?
+  page_size: int(10,1000)?
+  verbose_log: bool?

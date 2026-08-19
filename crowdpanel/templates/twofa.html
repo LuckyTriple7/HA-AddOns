@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ t.app_title }} – {{ t.twofa_title }}</title>
+  <meta name="theme-color" content="#0d1117">
+  {% include '_auth_style.html' %}
+</head>
+<body>
+  <div class="card">
+    {% include '_auth_head.html' %}
+    {% if error %}<div class="error">{{ error }}</div>{% endif %}
+    <p class="hint">{{ t.twofa_hint }}</p>
+    <form method="post" autocomplete="off">
+      <input type="hidden" name="_csrf" value="{{ csrf }}">
+      <label for="code">{{ t.twofa_code }}</label>
+      <input type="text" id="code" name="code" inputmode="numeric" autocomplete="one-time-code" autofocus required>
+      <div class="check">
+        <input type="checkbox" id="trust" name="trust">
+        <label for="trust" style="margin:0">{{ t.twofa_trust }}</label>
+      </div>
+      <button type="submit">{{ t.twofa_submit }}</button>
+    </form>
+    <footer>{{ t.app_title }} &mdash; {{ t.app_subtitle }}</footer>
+  </div>
+  {% include '_auth_script.html' %}
+</body>
+</html>

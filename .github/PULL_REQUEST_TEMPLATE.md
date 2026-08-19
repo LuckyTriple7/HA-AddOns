@@ -27,6 +27,7 @@
 - [ ] TUIWatch
 - [ ] LogPulse
 - [ ] NPMplus
+- [ ] CrowdPanel
 - [ ] Anderes / Other: ___
 
 ## Art der Änderung / Type of Change

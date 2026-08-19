@@ -1,0 +1,791 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ t.app_title }}</title>
+  <meta name="theme-color" content="#0d1117">
+  <link rel="manifest" href="{{ url_for('manifest') }}" crossorigin="use-credentials">
+  <link rel="icon" href="{{ url_for('static', filename='icon-192.png') }}">
+  <style>
+    :root { --bg:#0d1117; --surf:#161b22; --surf2:#1c2128; --border:#30363d; --text:#c9d1d9; --muted:#8b949e; --accent:#58a6ff; --green:#238636; --green-h:#2ea043; --red:#f85149; --amber:#d29922; }
+    [data-theme="light"] { --bg:#f0f2f5; --surf:#ffffff; --surf2:#f6f8fa; --border:#d0d7de; --text:#1f2328; --muted:#636c76; --accent:#0969da; --green:#1a7f37; --green-h:#2da44e; --red:#cf222e; --amber:#9a6700; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+           background: var(--bg); color: var(--text); font-size: 0.9rem; min-height: 100vh; }
+    a { color: var(--accent); }
+    header { background: var(--surf); border-bottom: 1px solid var(--border);
+             padding: 10px 16px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; position: sticky; top: 0; z-index: 20; }
+    .logo-row { display: flex; align-items: center; gap: 8px; margin-right: auto; }
+    .logo { font-size: 1.1rem; font-weight: 700; color: var(--accent); }
+    .pill { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--border);
+            border-radius: 999px; padding: 3px 10px; font-size: 0.75rem; color: var(--muted); }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+    .pill.ok .dot { background: var(--green-h); } .pill.ok { color: var(--green-h); border-color: var(--green-h); }
+    .pill.bad .dot { background: var(--red); } .pill.bad { color: var(--red); border-color: var(--red); }
+    .btn { background: var(--surf2); border: 1px solid var(--border); color: var(--text);
+           padding: 5px 10px; border-radius: 6px; font-size: 0.82rem; cursor: pointer; }
+    .btn:hover { border-color: var(--accent); }
+    .btn.primary { background: var(--green); border-color: var(--green-h); color: #fff; font-weight: 600; }
+    .btn.primary:hover { background: var(--green-h); }
+    .btn.danger { color: var(--red); border-color: var(--border); }
+    .btn.danger:hover { border-color: var(--red); }
+    .btn:disabled { opacity: .5; cursor: default; }
+    .lang-btn { background: none; border: 1px solid var(--border); color: var(--muted); padding: 2px 8px;
+                border-radius: 4px; font-size: 0.75rem; text-decoration: none; }
+    .lang-btn.active { border-color: var(--accent); color: var(--accent); }
+    nav { display: flex; gap: 2px; padding: 0 16px; background: var(--surf); border-bottom: 1px solid var(--border);
+          overflow-x: auto; position: sticky; top: 51px; z-index: 19; }
+    nav button { background: none; border: none; border-bottom: 2px solid transparent; color: var(--muted);
+                 padding: 10px 12px; font-size: 0.85rem; cursor: pointer; white-space: nowrap; }
+    nav button.active { color: var(--text); border-bottom-color: var(--accent); }
+    main { padding: 16px; max-width: 1400px; margin: 0 auto; }
+    section { display: none; }
+    section.active { display: block; }
+    h2 { font-size: 1rem; margin-bottom: 12px; font-weight: 600; }
+    h3 { font-size: 0.85rem; color: var(--muted); margin-bottom: 8px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+    .grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+    .card { background: var(--surf); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; }
+    .stat { font-size: 2rem; font-weight: 700; line-height: 1.1; }
+    .stat-label { font-size: 0.78rem; color: var(--muted); margin-top: 2px; }
+    .kv { display: flex; justify-content: space-between; gap: 12px; padding: 4px 0; border-bottom: 1px solid var(--border); font-size: 0.83rem; }
+    .kv:last-child { border-bottom: none; }
+    .kv span:last-child { color: var(--muted); font-variant-numeric: tabular-nums; }
+    .bar { display: flex; flex-direction: column; gap: 6px; }
+    .toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 12px; }
+    .field { display: flex; flex-direction: column; gap: 4px; }
+    .field label { font-size: 0.75rem; color: var(--muted); }
+    input, select, textarea { background: var(--bg); border: 1px solid var(--border); color: var(--text);
+            padding: 6px 9px; border-radius: 6px; font-size: 0.85rem; font-family: inherit; }
+    input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); }
+    .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 8px; background: var(--surf); }
+    table { width: 100%; border-collapse: collapse; font-size: 0.83rem; }
+    th { text-align: left; padding: 8px 10px; color: var(--muted); font-weight: 600; border-bottom: 1px solid var(--border);
+         white-space: nowrap; font-size: 0.75rem; text-transform: uppercase; letter-spacing: .03em; }
+    td { padding: 7px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    tr:last-child td { border-bottom: none; }
+    tbody tr:hover { background: var(--surf2); }
+    td.mono, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-variant-numeric: tabular-nums; }
+    .tag { display: inline-block; border: 1px solid var(--border); border-radius: 4px; padding: 1px 6px; font-size: 0.72rem; color: var(--muted); }
+    .tag.ban { color: var(--red); border-color: var(--red); }
+    .tag.captcha { color: var(--amber); border-color: var(--amber); }
+    .muted { color: var(--muted); }
+    .note { font-size: 0.78rem; color: var(--muted); margin-top: 8px; line-height: 1.5; }
+    .empty { padding: 24px; text-align: center; color: var(--muted); font-size: 0.85rem; }
+    .banner { border: 1px solid var(--amber); background: rgba(210,153,34,.1); color: var(--amber);
+              border-radius: 8px; padding: 10px 14px; margin-bottom: 14px; font-size: 0.83rem; line-height: 1.5; }
+    .banner.bad { border-color: var(--red); background: rgba(248,81,73,.1); color: var(--red); }
+    .form-grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+    .toast-wrap { position: fixed; right: 16px; bottom: 16px; display: flex; flex-direction: column; gap: 8px; z-index: 50; }
+    .toast { background: var(--surf); border: 1px solid var(--border); border-left: 3px solid var(--green-h);
+             border-radius: 6px; padding: 10px 14px; font-size: 0.83rem; max-width: 360px; box-shadow: 0 4px 14px rgba(0,0,0,.3); }
+    .toast.bad { border-left-color: var(--red); }
+    .drawer { margin-top: 12px; }
+    pre { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 10px;
+          overflow-x: auto; font-size: 0.78rem; line-height: 1.45; }
+    .codes { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 6px; margin: 10px 0; }
+    .codes span { font-family: ui-monospace, monospace; background: var(--bg); border: 1px solid var(--border);
+                  border-radius: 4px; padding: 5px 8px; text-align: center; }
+    .qr { background: #fff; padding: 10px; border-radius: 8px; display: inline-block; margin: 10px 0; }
+    .qr svg { width: 190px; height: 190px; display: block; }
+    .theme-btn { background: none; border: 1px solid var(--border); color: var(--muted); padding: 4px 7px;
+                 border-radius: 4px; cursor: pointer; display: inline-flex; align-items: center; }
+    .theme-btn svg { width: 13px; height: 13px; fill: currentColor; }
+    .icon-moon { display: block; } .icon-sun { display: none; }
+    [data-theme="light"] .icon-moon { display: none; } [data-theme="light"] .icon-sun { display: block; }
+    @media (max-width: 640px) { nav { top: 47px; } .stat { font-size: 1.6rem; } }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="logo-row">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="var(--accent)"><path d="M12 1 3 5v6c0 5.05 3.84 9.77 9 11 5.16-1.23 9-5.95 9-11V5l-9-4zm0 4.6a3.4 3.4 0 1 1 0 6.8 3.4 3.4 0 0 1 0-6.8zm0 8.4c2.34 0 4.6 1.1 4.6 2.6v1.2H7.4V16.6c0-1.5 2.26-2.6 4.6-2.6z"/></svg>
+      <span class="logo">{{ t.app_title }}</span>
+    </div>
+    <span class="pill" id="statusPill"><span class="dot"></span><span id="statusText">{{ t.status_checking }}</span></span>
+    <a href="{{ url_for('set_lang', lang='de', next='/') }}" class="lang-btn {% if lang == 'de' %}active{% endif %}">DE</a>
+    <a href="{{ url_for('set_lang', lang='en', next='/') }}" class="lang-btn {% if lang == 'en' %}active{% endif %}">EN</a>
+    <button class="theme-btn" onclick="toggleTheme()" type="button" aria-label="theme">
+      <svg class="icon-moon" viewBox="0 0 24 24"><path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c0-.46-.04-.92-.1-1.36-.98 1.37-2.58 2.26-4.4 2.26-2.98 0-5.4-2.42-5.4-5.4 0-1.81.89-3.42 2.26-4.4-.44-.06-.9-.1-1.36-.1z"/></svg>
+      <svg class="icon-sun" viewBox="0 0 24 24"><path d="M12 7c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zM2 13h2v-2H2v2zm18 0h2v-2h-2v2zM11 2v2h2V2h-2zm0 18v2h2v-2h-2zM5.99 4.58 4.58 5.99l1.41 1.41 1.41-1.41L5.99 4.58zm12.03 12.03-1.41 1.41 1.41 1.41 1.41-1.41-1.41-1.41zm1.41-12.44-1.41-1.41-1.41 1.41 1.41 1.41 1.41-1.41zM5.99 19.42l1.41 1.41 1.41-1.41-1.41-1.41-1.41 1.41z"/></svg>
+    </button>
+    {% if not ingress %}<a class="btn" href="{{ url_for('logout') }}">{{ t.logout }}</a>{% endif %}
+  </header>
+
+  <nav id="tabs">
+    <button data-tab="overview" class="active">{{ t.nav_overview }}</button>
+    <button data-tab="decisions">{{ t.nav_decisions }}</button>
+    <button data-tab="new">{{ t.nav_new }}</button>
+    <button data-tab="alerts">{{ t.nav_alerts }}</button>
+    <button data-tab="check">{{ t.nav_check }}</button>
+    <button data-tab="allowlists">{{ t.nav_allowlists }}</button>
+    <button data-tab="settings">{{ t.nav_settings }}</button>
+  </nav>
+
+  <main>
+    <div id="setupBanner" class="banner" hidden></div>
+
+    <section id="tab-overview" class="active">
+      <div class="grid">
+        <div class="card"><div class="stat" id="ovDecisions">–</div><div class="stat-label">{{ t.ov_decisions_total }}</div></div>
+        <div class="card"><div class="stat" id="ovAlerts">–</div><div class="stat-label">{{ t.ov_alerts_24h }}</div></div>
+        <div class="card"><h3>{{ t.ov_by_type }}</h3><div class="bar" id="ovByType"></div></div>
+        <div class="card"><h3>{{ t.ov_by_origin }}</h3><div class="bar" id="ovByOrigin"></div></div>
+      </div>
+      <div class="grid" style="margin-top:12px">
+        <div class="card"><h3>{{ t.ov_top_countries }}</h3><div class="bar" id="ovCountries"></div></div>
+        <div class="card"><h3>{{ t.ov_top_scenarios }}</h3><div class="bar" id="ovScenarios"></div></div>
+        <div class="card"><h3>{{ t.ov_alert_scenarios }}</h3><div class="bar" id="ovAlertScenarios"></div></div>
+      </div>
+    </section>
+
+    <section id="tab-decisions">
+      <div class="toolbar">
+        <div class="field"><label for="dQ">{{ t.f_search }}</label>
+          <input id="dQ" type="text" placeholder="{{ t.f_search_hint }}"></div>
+        <div class="field"><label for="dScope">{{ t.f_scope }}</label><select id="dScope"></select></div>
+        <div class="field"><label for="dType">{{ t.f_type }}</label><select id="dType"></select></div>
+        <div class="field"><label for="dOrigin">{{ t.f_origin }}</label><input id="dOrigin" type="text" size="12"></div>
+        <button class="btn" id="dApply">{{ t.f_apply }}</button>
+        <button class="btn" id="dReset">{{ t.f_reset }}</button>
+        <button class="btn danger" id="dUnbanAll">{{ t.act_unban_all }}</button>
+        <span class="muted" id="dCount"></span>
+      </div>
+      <div class="table-wrap"><table>
+        <thead><tr>
+          <th>{{ t.col_value }}</th><th>{{ t.col_scope }}</th><th>{{ t.col_type }}</th>
+          <th>{{ t.col_scenario }}</th><th>{{ t.col_origin }}</th><th>{{ t.col_country }}</th>
+          <th>{{ t.col_as }}</th><th>{{ t.col_expires }}</th><th>{{ t.col_actions }}</th>
+        </tr></thead>
+        <tbody id="dBody"></tbody>
+      </table></div>
+    </section>
+
+    <section id="tab-new">
+      <div class="card" style="max-width:760px">
+        <h2>{{ t.nb_title }}</h2>
+        <div class="form-grid">
+          <div class="field"><label for="nScope">{{ t.nb_scope }}</label><select id="nScope"></select></div>
+          <div class="field"><label for="nValue">{{ t.nb_value }}</label>
+            <input id="nValue" type="text" autocomplete="off"><span class="note" id="nHint"></span></div>
+          <div class="field"><label for="nType">{{ t.nb_type }}</label><select id="nType"></select></div>
+          <div class="field"><label for="nDuration">{{ t.nb_duration }}</label><select id="nDuration"></select></div>
+          <div class="field" id="nCustomWrap" hidden><label for="nCustom">{{ t.nb_duration_custom }}</label>
+            <input id="nCustom" type="text" placeholder="1h30m"></div>
+          <div class="field"><label for="nReason">{{ t.nb_reason }}</label>
+            <input id="nReason" type="text" maxlength="200"><span class="note">{{ t.nb_reason_hint }}</span></div>
+        </div>
+        <div style="margin-top:14px"><button class="btn primary" id="nSubmit">{{ t.nb_submit }}</button></div>
+        <p class="note">{{ t.nb_origin_note }}</p>
+      </div>
+    </section>
+
+    <section id="tab-alerts">
+      <div class="toolbar">
+        <div class="field"><label for="aQ">{{ t.f_search }}</label>
+          <input id="aQ" type="text" placeholder="{{ t.f_search_hint }}"></div>
+        <div class="field"><label for="aSince">{{ t.f_since }}</label><select id="aSince"></select></div>
+        <button class="btn" id="aApply">{{ t.f_apply }}</button>
+        <span class="muted" id="aCount"></span>
+      </div>
+      <div class="table-wrap"><table>
+        <thead><tr>
+          <th>{{ t.col_value }}</th><th>{{ t.col_scenario }}</th><th>{{ t.col_country }}</th>
+          <th>{{ t.col_as }}</th><th>{{ t.col_events }}</th><th>{{ t.col_created }}</th><th>{{ t.col_actions }}</th>
+        </tr></thead>
+        <tbody id="aBody"></tbody>
+      </table></div>
+      <div class="drawer" id="aDetail"></div>
+    </section>
+
+    <section id="tab-check">
+      <div class="toolbar">
+        <div class="field"><label for="cValue">{{ t.chk_title }}</label>
+          <input id="cValue" type="text" size="28" placeholder="{{ t.chk_placeholder }}"></div>
+        <button class="btn primary" id="cSubmit">{{ t.chk_submit }}</button>
+      </div>
+      <div id="cResult"></div>
+    </section>
+
+    <section id="tab-allowlists">
+      <div id="wBody"></div>
+    </section>
+
+    <section id="tab-settings">
+      <div class="card" style="max-width:760px">
+        <h2>{{ t.set_connection }}</h2>
+        <div class="kv"><span>LAPI</span><span class="mono" id="sUrl">–</span></div>
+        <div class="kv"><span>{{ t.status_machine }}</span><span class="mono" id="sMachine">–</span></div>
+        <div class="kv"><span>Status</span><span id="sStatus">–</span></div>
+      </div>
+      <div class="card" style="max-width:760px; margin-top:12px">
+        <h2>{{ t.set_2fa }}</h2>
+        <p class="note" style="margin-top:0">{{ t.set_2fa_ingress_note }}</p>
+        <div class="kv"><span>{{ t.set_2fa }}</span><span id="sTwofaState">–</span></div>
+        <div style="margin-top:12px" id="sTwofaActions"></div>
+        <div id="sTwofaFlow"></div>
+      </div>
+    </section>
+  </main>
+
+  <div class="toast-wrap" id="toasts"></div>
+
+  <script>
+    const T = {{ t|tojson }};
+    const G = {
+      base: {{ request.script_root|tojson }},
+      csrf: {{ csrf|tojson }},
+      scopes: {{ scopes|tojson }},
+      types: {{ decision_types|tojson }},
+      durations: {{ durations|tojson }},
+      defaultDuration: {{ default_duration|tojson }},
+      refresh: {{ refresh_interval|tojson }},
+      pageSize: {{ page_size|tojson }},
+      hasQr: {{ has_qr|tojson }},
+      ingress: {{ ingress|tojson }}
+    };
+
+    (function(){ document.documentElement.setAttribute('data-theme', localStorage.getItem('cp-theme') || 'dark'); })();
+    function toggleTheme(){
+      const n = (document.documentElement.getAttribute('data-theme') === 'dark') ? 'light' : 'dark';
+      document.documentElement.setAttribute('data-theme', n);
+      localStorage.setItem('cp-theme', n);
+    }
+
+    // ── helpers ───────────────────────────────────────────────────────────────
+    const $ = id => document.getElementById(id);
+
+    function el(tag, cls, text) {
+      const n = document.createElement(tag);
+      if (cls) n.className = cls;
+      if (text !== undefined && text !== null) n.textContent = String(text);
+      return n;
+    }
+
+    function fmt(key, vars) {
+      let s = T[key] || key;
+      for (const k in (vars || {})) s = s.split('{' + k + '}').join(String(vars[k]));
+      return s;
+    }
+
+    function errText(code) {
+      const key = 'err_' + String(code || '').replace(/[^a-z_]/gi, '_');
+      return T[key] || T.err_internal || code;
+    }
+
+    function toast(msg, bad) {
+      const n = el('div', 'toast' + (bad ? ' bad' : ''), msg);
+      $('toasts').appendChild(n);
+      setTimeout(() => n.remove(), 6000);
+    }
+
+    async function api(path, opts) {
+      opts = opts || {};
+      const res = await fetch(G.base + path, {
+        method: opts.method || 'GET',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': G.csrf },
+        body: opts.body ? JSON.stringify(opts.body) : undefined
+      });
+      let data = null;
+      try { data = await res.json(); } catch (e) { data = null; }
+      if (!res.ok) {
+        const e = new Error('api');
+        e.code = (data && data.error) || 'internal';
+        throw e;
+      }
+      return data || {};
+    }
+
+    function relTime(iso) {
+      if (!iso) return T.none;
+      const ts = Date.parse(iso);
+      if (isNaN(ts)) return iso;
+      return new Date(ts).toLocaleString();
+    }
+
+    function shortDuration(row) {
+      // The LAPI returns the remaining duration on "duration"; "until" is absolute.
+      if (row.duration) {
+        const m = String(row.duration).match(/^(-?)(\d+)h(\d+)m/);
+        if (m) return (m[1] ? T.expired : m[2] + 'h ' + m[3] + 'm');
+        return String(row.duration).split('.')[0];
+      }
+      return row.until ? relTime(row.until) : T.none;
+    }
+
+    function fillSelect(sel, values, labelFn, includeAll, allLabel) {
+      sel.textContent = '';
+      if (includeAll) sel.appendChild(new Option(allLabel || T.f_all, ''));
+      values.forEach(v => sel.appendChild(new Option(labelFn ? labelFn(v) : v, v)));
+    }
+
+    function bars(container, pairs) {
+      container.textContent = '';
+      if (!pairs || !pairs.length) { container.appendChild(el('div', 'muted', T.empty)); return; }
+      const max = Math.max.apply(null, pairs.map(p => p[1])) || 1;
+      pairs.forEach(p => {
+        const row = el('div', 'kv');
+        row.appendChild(el('span', null, p[0] || T.none));
+        row.appendChild(el('span', null, p[1]));
+        row.style.background = 'linear-gradient(to right, rgba(88,166,255,.13) '
+          + Math.round(p[1] / max * 100) + '%, transparent 0)';
+        container.appendChild(row);
+      });
+    }
+
+    // ── tabs ──────────────────────────────────────────────────────────────────
+    const loaders = {};
+    function showTab(name) {
+      document.querySelectorAll('nav button').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+      document.querySelectorAll('main section').forEach(s => s.classList.toggle('active', s.id === 'tab-' + name));
+      location.hash = name;
+      if (loaders[name]) loaders[name]();
+    }
+    document.querySelectorAll('nav button').forEach(b => b.addEventListener('click', () => showTab(b.dataset.tab)));
+
+    // ── status ────────────────────────────────────────────────────────────────
+    async function loadStatus() {
+      const pill = $('statusPill'), text = $('statusText'), banner = $('setupBanner');
+      try {
+        const d = await api('/api/status');
+        const ok = d.lapi && d.lapi.ok;
+        pill.className = 'pill ' + (ok ? 'ok' : 'bad');
+        text.textContent = ok ? T.status_connected : T.status_disconnected;
+        $('sUrl').textContent = d.url || T.none;
+        $('sMachine').textContent = d.machine_id || T.none;
+        $('sStatus').textContent = ok ? T.status_connected : errText(d.lapi && d.lapi.code);
+        $('sTwofaState').textContent = d.twofa ? T.set_2fa_state_on : T.set_2fa_state_off;
+        renderTwofaActions(d.twofa);
+        if (ok) { banner.hidden = true; }
+        else {
+          banner.hidden = false;
+          banner.className = 'banner' + (d.lapi && d.lapi.code === 'not_configured' ? '' : ' bad');
+          banner.textContent = '';
+          banner.appendChild(el('strong', null,
+            (d.lapi && d.lapi.code === 'not_configured') ? T.setup_needed : T.status_disconnected));
+          banner.appendChild(el('div', null, errText(d.lapi && d.lapi.code)));
+          if (d.lapi && d.lapi.code === 'not_configured') banner.appendChild(el('div', null, T.setup_hint));
+        }
+        return ok;
+      } catch (e) {
+        pill.className = 'pill bad';
+        text.textContent = T.status_disconnected;
+        return false;
+      }
+    }
+
+    // ── overview ──────────────────────────────────────────────────────────────
+    loaders.overview = async function () {
+      try {
+        const d = await api('/api/overview');
+        $('ovDecisions').textContent = d.decisions_total;
+        $('ovAlerts').textContent = d.alerts_24h;
+        bars($('ovByType'), d.by_type);
+        bars($('ovByOrigin'), d.by_origin);
+        bars($('ovCountries'), d.top_countries);
+        bars($('ovScenarios'), d.top_scenarios);
+        bars($('ovAlertScenarios'), d.top_alert_scenarios);
+      } catch (e) {
+        [ 'ovByType','ovByOrigin','ovCountries','ovScenarios','ovAlertScenarios' ]
+          .forEach(id => { const n = $(id); n.textContent = ''; n.appendChild(el('div','muted',errText(e.code))); });
+      }
+    };
+
+    // ── decisions ─────────────────────────────────────────────────────────────
+    let decisionRows = [];
+
+    function decisionQuery() {
+      const p = new URLSearchParams();
+      if ($('dQ').value.trim()) p.set('q', $('dQ').value.trim());
+      if ($('dScope').value) p.set('scope', $('dScope').value);
+      if ($('dType').value) p.set('type', $('dType').value);
+      if ($('dOrigin').value.trim()) p.set('origin', $('dOrigin').value.trim());
+      const q = p.toString();
+      return '/api/decisions' + (q ? '?' + q : '');
+    }
+
+    loaders.decisions = async function () {
+      const body = $('dBody');
+      body.textContent = '';
+      body.appendChild(rowMessage(9, T.loading));
+      try {
+        const d = await api(decisionQuery());
+        decisionRows = d.decisions || [];
+        renderDecisions(decisionRows);
+        $('dCount').textContent = fmt('rows', { n: d.count });
+      } catch (e) {
+        body.textContent = '';
+        body.appendChild(rowMessage(9, errText(e.code)));
+        $('dCount').textContent = '';
+      }
+    };
+
+    function rowMessage(cols, text) {
+      const tr = el('tr');
+      const td = el('td', 'empty', text);
+      td.colSpan = cols;
+      tr.appendChild(td);
+      return tr;
+    }
+
+    function renderDecisions(rows) {
+      const body = $('dBody');
+      body.textContent = '';
+      if (!rows.length) { body.appendChild(rowMessage(9, T.empty)); return; }
+      rows.forEach(r => {
+        const tr = el('tr');
+        tr.appendChild(el('td', 'mono', r.value));
+        tr.appendChild(el('td', null, r.scope));
+        const tdType = el('td');
+        tdType.appendChild(el('span', 'tag ' + (r.type === 'ban' ? 'ban' : 'captcha'), r.type));
+        tr.appendChild(tdType);
+        tr.appendChild(el('td', null, r.scenario));
+        tr.appendChild(el('td', null, r.origin));
+        tr.appendChild(el('td', null, r.country || T.none));
+        tr.appendChild(el('td', null, r.as_name || (r.as_number ? 'AS' + r.as_number : T.none)));
+        tr.appendChild(el('td', 'mono', shortDuration(r)));
+        const tdAct = el('td');
+        const btn = el('button', 'btn danger', T.act_unban);
+        btn.addEventListener('click', () => unban(r, btn));
+        tdAct.appendChild(btn);
+        tr.appendChild(tdAct);
+        body.appendChild(tr);
+      });
+    }
+
+    async function unban(row, btn) {
+      if (!confirm(fmt('act_unban_confirm', { v: row.value }))) return;
+      if (btn) btn.disabled = true;
+      // Prefer the decision id; some origins arrive without one, then fall back
+      // to scope + value, which lifts every decision for that exact target.
+      const body = row.id ? { id: row.id } : { scope: row.scope, value: row.value };
+      try {
+        await api('/api/decisions', { method: 'DELETE', body: body });
+        toast(T.act_unban + ': ' + row.value);
+        loaders.decisions();
+      } catch (e) {
+        toast(errText(e.code), true);
+        if (btn) btn.disabled = false;
+      }
+    }
+
+    $('dApply').addEventListener('click', () => loaders.decisions());
+    $('dQ').addEventListener('keydown', e => { if (e.key === 'Enter') loaders.decisions(); });
+    $('dReset').addEventListener('click', () => {
+      $('dQ').value = ''; $('dScope').value = ''; $('dType').value = ''; $('dOrigin').value = '';
+      loaders.decisions();
+    });
+
+    $('dUnbanAll').addEventListener('click', async () => {
+      // Deletes exactly the rows on screen, one by one — never more than shown.
+      if (!decisionRows.length) return;
+      if (!confirm(fmt('act_unban_all_confirm', { n: decisionRows.length }))) return;
+      const btn = $('dUnbanAll');
+      btn.disabled = true;
+      let done = 0, failed = 0;
+      for (const r of decisionRows) {
+        const body = r.id ? { id: r.id } : { scope: r.scope, value: r.value };
+        try { await api('/api/decisions', { method: 'DELETE', body: body }); done++; }
+        catch (e) { failed++; }
+      }
+      btn.disabled = false;
+      toast(T.act_unban + ': ' + done + (failed ? ' / ' + failed + ' ✗' : ''), failed > 0);
+      loaders.decisions();
+    });
+
+    // ── new ban ───────────────────────────────────────────────────────────────
+    function updateHint() {
+      $('nHint').textContent = T['nb_value_hint_' + $('nScope').value] || '';
+    }
+
+    $('nSubmit').addEventListener('click', async () => {
+      const duration = $('nDuration').value === 'custom' ? $('nCustom').value.trim() : $('nDuration').value;
+      const btn = $('nSubmit');
+      btn.disabled = true;
+      try {
+        const d = await api('/api/decisions', { method: 'POST', body: {
+          scope: $('nScope').value,
+          value: $('nValue').value.trim(),
+          type: $('nType').value,
+          duration: duration,
+          reason: $('nReason').value.trim()
+        } });
+        toast(fmt('nb_ok', { v: d.value }));
+        $('nValue').value = ''; $('nReason').value = '';
+        decisionRows = [];
+      } catch (e) {
+        toast(errText(e.code), true);
+      }
+      btn.disabled = false;
+    });
+
+    // ── alerts ────────────────────────────────────────────────────────────────
+    loaders.alerts = async function () {
+      const body = $('aBody');
+      body.textContent = '';
+      body.appendChild(rowMessage(7, T.loading));
+      const p = new URLSearchParams();
+      if ($('aQ').value.trim()) p.set('q', $('aQ').value.trim());
+      if ($('aSince').value) p.set('since', $('aSince').value);
+      try {
+        const d = await api('/api/alerts' + (p.toString() ? '?' + p.toString() : ''));
+        body.textContent = '';
+        $('aCount').textContent = fmt('rows', { n: d.count });
+        if (!d.alerts.length) { body.appendChild(rowMessage(7, T.al_none)); return; }
+        d.alerts.forEach(a => {
+          const tr = el('tr');
+          tr.appendChild(el('td', 'mono', a.value || T.none));
+          tr.appendChild(el('td', null, a.scenario));
+          tr.appendChild(el('td', null, a.country || T.none));
+          tr.appendChild(el('td', null, a.as_name || T.none));
+          tr.appendChild(el('td', 'mono', a.events_count));
+          tr.appendChild(el('td', 'mono', relTime(a.created_at)));
+          const td = el('td');
+          const btn = el('button', 'btn', T.act_details);
+          btn.addEventListener('click', () => alertDetail(a.id));
+          td.appendChild(btn);
+          tr.appendChild(td);
+          body.appendChild(tr);
+        });
+      } catch (e) {
+        body.textContent = '';
+        body.appendChild(rowMessage(7, errText(e.code)));
+      }
+    };
+
+    async function alertDetail(id) {
+      const box = $('aDetail');
+      box.textContent = '';
+      const card = el('div', 'card');
+      card.appendChild(el('h2', null, fmt('al_detail', { id: id })));
+      box.appendChild(card);
+      try {
+        const d = await api('/api/alerts/' + encodeURIComponent(id));
+        const a = d.alert || {};
+        const src = a.source || {};
+        [['col_scenario', a.scenario], ['col_message', a.message],
+         ['col_created', relTime(a.created_at || a.start_at)],
+         ['col_events', a.events_count], ['al_source', src.value || src.ip || ''],
+         ['col_country', src.cn || ''], ['col_as', src.as_name || ''],
+         ['al_decisions', (a.decisions || []).length]].forEach(pair => {
+          const row = el('div', 'kv');
+          row.appendChild(el('span', null, T[pair[0]] || pair[0]));
+          row.appendChild(el('span', null, pair[1] === '' || pair[1] === undefined ? T.none : pair[1]));
+          card.appendChild(row);
+        });
+        (a.events || []).slice(0, 20).forEach(ev => {
+          const pre = el('pre', null, (ev.meta || []).map(m => m.key + '=' + m.value).join('\n'));
+          card.appendChild(pre);
+        });
+        const close = el('button', 'btn', T.act_close);
+        close.addEventListener('click', () => { box.textContent = ''; });
+        card.appendChild(close);
+      } catch (e) {
+        card.appendChild(el('div', 'muted', errText(e.code)));
+      }
+    }
+
+    $('aApply').addEventListener('click', () => loaders.alerts());
+    $('aQ').addEventListener('keydown', e => { if (e.key === 'Enter') loaders.alerts(); });
+
+    // ── check ─────────────────────────────────────────────────────────────────
+    async function runCheck() {
+      const box = $('cResult');
+      box.textContent = '';
+      const value = $('cValue').value.trim();
+      if (!value) return;
+      box.appendChild(el('div', 'muted', T.loading));
+      try {
+        const d = await api('/api/check?value=' + encodeURIComponent(value));
+        box.textContent = '';
+
+        const head = el('div', 'card');
+        head.appendChild(el('h2', null, d.value));
+        if (d.allowlist) {
+          const raw = ('allowed' in d.allowlist) ? d.allowlist.allowed : d.allowlist.Allowed;
+          if (typeof raw === 'boolean') {
+            head.appendChild(el('div', raw ? 'banner' : 'note',
+              raw ? T.chk_allowed : T.chk_not_allowed));
+          }
+        }
+        box.appendChild(head);
+
+        const act = el('div', 'card');
+        act.style.marginTop = '12px';
+        act.appendChild(el('h3', null, T.chk_active));
+        if (!d.active.length) act.appendChild(el('div', 'muted', T.chk_none));
+        d.active.forEach(r => {
+          const row = el('div', 'kv');
+          row.appendChild(el('span', null, r.type + ' · ' + r.scenario));
+          row.appendChild(el('span', null, shortDuration(r)));
+          const btn = el('button', 'btn danger', T.act_unban);
+          btn.addEventListener('click', () => unban(r, btn).then(runCheck));
+          row.appendChild(btn);
+          act.appendChild(row);
+        });
+        box.appendChild(act);
+
+        const hist = el('div', 'card');
+        hist.style.marginTop = '12px';
+        hist.appendChild(el('h3', null, T.chk_history));
+        if (!d.history.length) hist.appendChild(el('div', 'muted', T.chk_no_history));
+        d.history.forEach(h => {
+          const row = el('div', 'kv');
+          row.appendChild(el('span', null, h.scenario));
+          row.appendChild(el('span', null, relTime(h.created_at)));
+          hist.appendChild(row);
+        });
+        box.appendChild(hist);
+      } catch (e) {
+        box.textContent = '';
+        box.appendChild(el('div', 'banner bad', errText(e.code)));
+      }
+    }
+    $('cSubmit').addEventListener('click', runCheck);
+    $('cValue').addEventListener('keydown', e => { if (e.key === 'Enter') runCheck(); });
+
+    // ── allowlists ────────────────────────────────────────────────────────────
+    loaders.allowlists = async function () {
+      const box = $('wBody');
+      box.textContent = '';
+      box.appendChild(el('div', 'muted', T.loading));
+      try {
+        const d = await api('/api/allowlists');
+        box.textContent = '';
+        const lists = d.allowlists || [];
+        if (!lists.length) { box.appendChild(el('div', 'empty', T.aw_none)); return; }
+        lists.forEach(w => {
+          const card = el('div', 'card');
+          card.style.marginBottom = '12px';
+          card.appendChild(el('h2', null, w.name || T.none));
+          if (w.description) card.appendChild(el('p', 'note', w.description));
+          const items = w.items || w.Items || [];
+          card.appendChild(el('h3', null, T.aw_items + ' (' + items.length + ')'));
+          items.slice(0, 200).forEach(i => {
+            const row = el('div', 'kv');
+            row.appendChild(el('span', 'mono', i.value || i));
+            row.appendChild(el('span', null, i.description || ''));
+            card.appendChild(row);
+          });
+          box.appendChild(card);
+        });
+      } catch (e) {
+        box.textContent = '';
+        box.appendChild(el('div', 'banner bad', errText(e.code)));
+      }
+    };
+
+    // ── settings / 2FA ────────────────────────────────────────────────────────
+    function renderTwofaActions(enabled) {
+      const box = $('sTwofaActions');
+      box.textContent = '';
+      const btn = el('button', 'btn' + (enabled ? ' danger' : ' primary'),
+                     enabled ? T.set_2fa_disable : T.set_2fa_enable);
+      btn.addEventListener('click', enabled ? twofaDisable : twofaSetup);
+      box.appendChild(btn);
+    }
+
+    async function twofaSetup() {
+      const flow = $('sTwofaFlow');
+      flow.textContent = '';
+      try {
+        const d = await api('/api/2fa/setup', { method: 'POST' });
+        flow.appendChild(el('p', 'note', T.set_2fa_scan));
+        if (d.qr) {
+          const wrap = el('div', 'qr');
+          // Server-generated SVG from our own data — no external input involved.
+          wrap.innerHTML = d.qr;
+          flow.appendChild(wrap);
+        } else {
+          flow.appendChild(el('div', 'banner', T.set_2fa_no_qr));
+        }
+        const secret = el('div', 'kv');
+        secret.appendChild(el('span', null, T.set_2fa_secret));
+        secret.appendChild(el('span', 'mono', d.secret));
+        flow.appendChild(secret);
+
+        const field = el('div', 'field');
+        field.appendChild(el('label', null, T.set_2fa_code));
+        const input = el('input');
+        input.type = 'text';
+        input.inputMode = 'numeric';
+        field.appendChild(input);
+        flow.appendChild(field);
+
+        const ok = el('button', 'btn primary', T.set_2fa_confirm);
+        ok.style.marginTop = '10px';
+        ok.addEventListener('click', async () => {
+          try {
+            const r = await api('/api/2fa/enable', { method: 'POST', body: { code: input.value.trim() } });
+            flow.textContent = '';
+            flow.appendChild(el('div', 'banner', T.set_2fa_done));
+            flow.appendChild(el('h3', null, T.set_2fa_backup));
+            flow.appendChild(el('p', 'note', T.set_2fa_backup_hint));
+            const codes = el('div', 'codes');
+            (r.backup_codes || []).forEach(c => codes.appendChild(el('span', null, c)));
+            flow.appendChild(codes);
+            loadStatus();
+          } catch (e) { toast(errText(e.code), true); }
+        });
+        flow.appendChild(ok);
+      } catch (e) { toast(errText(e.code), true); }
+    }
+
+    async function twofaDisable() {
+      const flow = $('sTwofaFlow');
+      flow.textContent = '';
+      const field = el('div', 'field');
+      field.appendChild(el('label', null, T.set_2fa_password));
+      const input = el('input');
+      input.type = 'password';
+      field.appendChild(input);
+      flow.appendChild(field);
+      const ok = el('button', 'btn danger', T.set_2fa_disable);
+      ok.style.marginTop = '10px';
+      ok.addEventListener('click', async () => {
+        try {
+          await api('/api/2fa/disable', { method: 'POST', body: { password: input.value } });
+          flow.textContent = '';
+          flow.appendChild(el('div', 'banner', T.set_2fa_removed));
+          loadStatus();
+        } catch (e) { toast(errText(e.code), true); }
+      });
+      flow.appendChild(ok);
+    }
+
+    // ── init ──────────────────────────────────────────────────────────────────
+    const scopeLabel = s => s;
+    fillSelect($('dScope'), G.scopes, scopeLabel, true);
+    fillSelect($('dType'), G.types, s => s, true);
+    fillSelect($('nScope'), G.scopes, scopeLabel, false);
+    fillSelect($('nType'), G.types, s => s, false);
+    fillSelect($('nDuration'), G.durations.concat(['custom']),
+               v => v === 'custom' ? T.dur_custom : (T['dur_' + v] || v), false);
+    fillSelect($('aSince'), ['1h', '24h', '168h', '720h'], v => T['since_' + v] || v, true);
+    $('aSince').value = '24h';
+    $('nDuration').value = G.durations.indexOf(G.defaultDuration) >= 0 ? G.defaultDuration : '4h';
+    $('nDuration').addEventListener('change', () => {
+      $('nCustomWrap').hidden = $('nDuration').value !== 'custom';
+    });
+    $('nScope').addEventListener('change', updateHint);
+    updateHint();
+
+    const TABS = ['overview', 'decisions', 'new', 'alerts', 'check', 'allowlists', 'settings'];
+    const wanted = (location.hash || '').slice(1);
+    showTab(TABS.indexOf(wanted) >= 0 ? wanted : 'overview');
+    loadStatus();
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register(G.base + '/sw.js').catch(() => {});
+    }
+    if (G.refresh > 0) {
+      setInterval(() => {
+        loadStatus();
+        const active = document.querySelector('main section.active');
+        const name = active ? active.id.replace('tab-', '') : '';
+        if (loaders[name]) loaders[name]();
+      }, G.refresh * 1000);
+    }
+  </script>
+</body>
+</html>

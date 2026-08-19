@@ -1,0 +1,41 @@
+configuration:
+  username:
+    name: Benutzername
+    description: Benutzername für die Anmeldung über den direkten Port. Über die Home-Assistant-Seitenleiste wird nicht nach einer Anmeldung gefragt.
+  password:
+    name: Passwort
+    description: Passwort für die Anmeldung über den direkten Port. Unbedingt ändern — die Vorgabe changeme123 ist öffentlich bekannt.
+  session_hours:
+    name: Sitzungsdauer (Stunden)
+    description: Wie lange eine Anmeldung gültig bleibt, bevor erneut angemeldet werden muss.
+  lapi_url:
+    name: CrowdSec-LAPI-Adresse
+    description: >-
+      Adresse der lokalen CrowdSec-API, zum Beispiel http://172.30.33.22:8080.
+      127.0.0.1 funktioniert nur, wenn CrowdSec seine Ports auf dem Host veröffentlicht —
+      sonst die Container-Adresse eintragen.
+  machine_id:
+    name: Maschinen-Name
+    description: >-
+      Name des Maschinen-Zugangs, den CrowdPanel benutzt. Anlegen mit
+      cscli -c <Konfigurationsdatei> machines add crowdpanel --password <Geheimnis>.
+  machine_password:
+    name: Maschinen-Passwort
+    description: Passwort des Maschinen-Zugangs. Damit liest CrowdPanel Sperren und legt sie an oder hebt sie auf.
+  lapi_tls_verify:
+    name: TLS-Zertifikat prüfen
+    description: Nur bei einer https-Adresse mit selbstsigniertem Zertifikat abschalten.
+  default_ban_duration:
+    name: Standard-Sperrdauer
+    description: Voreingestellte Dauer im Formular für neue Sperren, zum Beispiel 4h, 24h oder 168h.
+  refresh_interval:
+    name: Aktualisierungsintervall (Sekunden)
+    description: Wie oft die Oberfläche von selbst neu lädt. 0 schaltet die automatische Aktualisierung ab.
+  page_size:
+    name: Zeilen je Ansicht
+    description: Wie viele Alarme höchstens abgefragt werden. Höhere Werte zeigen mehr, brauchen aber länger.
+  verbose_log:
+    name: Ausführliches Protokoll
+    description: Schreibt zusätzliche Zeilen ins Add-on-Protokoll. Nur zur Fehlersuche.
+network:
+  17797/tcp: CrowdPanel Web-UI (direkt, Anmeldung erforderlich)

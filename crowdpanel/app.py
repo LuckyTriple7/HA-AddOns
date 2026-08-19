@@ -1,0 +1,1007 @@
+#!/usr/bin/env python3
+"""CrowdPanel — web front-end for a CrowdSec Local API.
+
+Behind the Home Assistant Ingress proxy the Supervisor has already
+authenticated the user, so no login is asked for. On the direct port the
+add-on authenticates on its own: username, password and optional TOTP.
+"""
+
+import base64
+import functools
+import hashlib
+import hmac
+import io
+import json
+import logging
+import os
+import re
+import secrets
+import signal
+import threading
+import time
+from collections import Counter, defaultdict
+from datetime import datetime, timezone
+from urllib.parse import urlsplit, urlunsplit, quote
+
+from flask import (Flask, g, jsonify, make_response, redirect, render_template,
+                   request, url_for)
+from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
+from werkzeug.middleware.proxy_fix import ProxyFix
+from werkzeug.security import check_password_hash, generate_password_hash
+
+from lapi import (DECISION_TYPES, DURATION_PRESETS, SCOPES, LapiClient,
+                  LapiError, ValidationError, is_ip_or_range, normalize_duration,
+                  normalize_scope, normalize_type, normalize_value)
+
+logging.basicConfig(format='[%(levelname)s] [%(asctime)s] %(message)s',
+                    level=logging.INFO, datefmt='%Y-%m-%d %H:%M:%S', force=True)
+log = logging.getLogger(__name__)
+logging.getLogger('werkzeug').setLevel(logging.ERROR)
+
+try:
+    import qrcode
+    import qrcode.image.svg as qrsvg
+    _HAS_QR = True
+except ImportError:  # optional — without it the secret is shown as text
+    _HAS_QR = False
+
+# ── Paths ─────────────────────────────────────────────────────────────────────
+
+_BASE = os.environ.get('CROWDPANEL_BASE', '/app')
+_DATA = os.environ.get('CROWDPANEL_DATA', '/data')
+_OPTS = os.environ.get('CROWDPANEL_OPTIONS', '/data')
+
+CONFIG_PATH = _OPTS + '/options.json'
+SESSIONS_PATH = _DATA + '/sessions.json'
+TWOFA_PATH = _DATA + '/twofa.json'
+SECRET_PATH = _DATA + '/secret.key'
+LOCALES_PATH = _BASE + '/locales'
+
+PORT = 17797
+
+app = Flask(__name__, template_folder=_BASE + '/templates',
+            static_folder=_BASE + '/static')
+app.config['MAX_CONTENT_LENGTH'] = 256 * 1024
+
+
+class _IngressMiddleware:
+    """Reads the Supervisor's X-Ingress-Path and sets WSGI SCRIPT_NAME so that
+    url_for() produces correct URLs behind the Ingress proxy."""
+
+    def __init__(self, wsgi_app):
+        self._app = wsgi_app
+
+    def __call__(self, environ, start_response):
+        prefix = environ.get('HTTP_X_INGRESS_PATH', '').rstrip('/')
+        if prefix:
+            environ['SCRIPT_NAME'] = prefix
+            path = environ.get('PATH_INFO', '')
+            if path.startswith(prefix):
+                environ['PATH_INFO'] = path[len(prefix):] or '/'
+        return self._app(environ, start_response)
+
+
+app.wsgi_app = _IngressMiddleware(ProxyFix(app.wsgi_app, x_for=1, x_proto=1,
+                                           x_host=1))
+
+# ── Configuration ─────────────────────────────────────────────────────────────
+
+_config_cache: dict = {}
+_config_mtime: float = 0.0
+
+
+def load_config() -> dict:
+    global _config_cache, _config_mtime
+    try:
+        mtime = os.path.getmtime(CONFIG_PATH)
+        if mtime != _config_mtime:
+            with open(CONFIG_PATH, 'r', encoding='utf-8') as f:
+                _config_cache = json.load(f)
+            _config_mtime = mtime
+    except Exception:
+        pass
+    return _config_cache or {}
+
+
+def _cfg_int(key: str, default: int, low: int, high: int) -> int:
+    try:
+        return max(low, min(int(load_config().get(key, default)), high))
+    except (TypeError, ValueError):
+        return default
+
+
+def _verbose() -> bool:
+    return bool(load_config().get('verbose_log'))
+
+
+def _load_or_create_secret_key() -> str:
+    try:
+        with open(SECRET_PATH, 'r', encoding='utf-8') as f:
+            key = f.read().strip()
+        if key:
+            return key
+    except FileNotFoundError:
+        pass
+    except Exception:
+        log.warning("secret.key could not be read — generating a new one")
+    key = secrets.token_hex(32)
+    try:
+        os.makedirs(os.path.dirname(SECRET_PATH), exist_ok=True)
+        fd = os.open(SECRET_PATH, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, 'w', encoding='utf-8') as f:
+            f.write(key)
+    except Exception:
+        log.warning("secret.key could not be written — sessions reset on restart")
+    return key
+
+
+app.config['SECRET_KEY'] = _load_or_create_secret_key()
+
+
+def _serializer(salt: str) -> URLSafeTimedSerializer:
+    return URLSafeTimedSerializer(str(app.config['SECRET_KEY']), salt=salt)
+
+
+# ── Sessions ──────────────────────────────────────────────────────────────────
+
+sessions: dict = {}
+_sessions_lock = threading.Lock()
+
+
+def save_sessions() -> None:
+    try:
+        now = time.time()
+        with open(SESSIONS_PATH, 'w', encoding='utf-8') as f:
+            json.dump({k: v for k, v in sessions.items() if v > now}, f)
+    except Exception:
+        log.warning("sessions could not be saved")
+
+
+def load_sessions() -> None:
+    global sessions
+    try:
+        with open(SESSIONS_PATH, encoding='utf-8') as f:
+            data = json.load(f)
+        now = time.time()
+        sessions = {k: v for k, v in data.items() if v > now}
+        if sessions:
+            log.info("sessions restored: %d active", len(sessions))
+    except FileNotFoundError:
+        pass
+    except Exception:
+        log.warning("sessions could not be loaded")
+
+
+def create_session(hours: int) -> str:
+    token = secrets.token_hex(32)
+    with _sessions_lock:
+        sessions[token] = time.time() + hours * 3600
+        save_sessions()
+    return token
+
+
+def is_valid_session(token) -> bool:
+    if not token or token not in sessions:
+        return False
+    if time.time() > sessions[token]:
+        with _sessions_lock:
+            sessions.pop(token, None)
+        return False
+    return True
+
+
+# ── Rate limiting ─────────────────────────────────────────────────────────────
+
+RATE_LIMIT_MAX = 5
+RATE_LIMIT_WINDOW = 600
+RATE_LIMIT_BLOCK = 900
+
+_failed_attempts: dict = defaultdict(list)
+_blocked_ips: dict = {}
+
+
+def get_client_ip(req) -> str:
+    return req.remote_addr or 'unknown'
+
+
+def is_rate_limited(ip: str) -> bool:
+    now = time.time()
+    if ip in _blocked_ips:
+        if now < _blocked_ips[ip]:
+            return True
+        del _blocked_ips[ip]
+    _failed_attempts[ip] = [t for t in _failed_attempts[ip] if now - t < RATE_LIMIT_WINDOW]
+    return False
+
+
+def record_failed_attempt(ip: str) -> None:
+    now = time.time()
+    recent = [t for t in _failed_attempts[ip] if now - t < RATE_LIMIT_WINDOW]
+    recent.append(now)
+    _failed_attempts[ip] = recent
+    if len(recent) >= RATE_LIMIT_MAX:
+        _blocked_ips[ip] = now + RATE_LIMIT_BLOCK
+        log.warning("login blocked for %d minutes after too many failures",
+                    RATE_LIMIT_BLOCK // 60)
+
+
+def clear_failed_attempts(ip: str) -> None:
+    _failed_attempts.pop(ip, None)
+    _blocked_ips.pop(ip, None)
+
+
+# ── TOTP (RFC 6238, standard library only) ────────────────────────────────────
+# Only relevant on the direct port; behind Ingress HA does the authentication.
+
+TOTP_STEP = 30
+TOTP_DIGITS = 6
+TOTP_WINDOW = 1
+BACKUP_CODE_COUNT = 10
+PENDING_2FA_TTL = 300
+TRUSTED_DEVICE_DAYS = 30
+TOTP_ISSUER = 'CrowdPanel'
+
+_pending_2fa: dict = {}
+_2fa_lock = threading.Lock()
+
+
+def load_2fa() -> dict:
+    with _2fa_lock:
+        try:
+            with open(TWOFA_PATH, encoding='utf-8') as f:
+                d = json.load(f)
+            return d if isinstance(d, dict) else {}
+        except FileNotFoundError:
+            return {}
+        except Exception:
+            # Security relevant: an unreadable file means 2FA counts as off.
+            log.warning("twofa.json is unreadable — two-factor treated as disabled")
+            return {}
+
+
+def save_2fa(data: dict) -> None:
+    with _2fa_lock:
+        try:
+            tmp = TWOFA_PATH + '.tmp'
+            fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+            with os.fdopen(fd, 'w', encoding='utf-8') as f:
+                json.dump(data, f, indent=2)
+            os.replace(tmp, TWOFA_PATH)
+        except Exception:
+            log.warning("twofa.json could not be saved")
+
+
+def twofa_enabled() -> bool:
+    d = load_2fa()
+    return bool(d.get('enabled') and d.get('secret'))
+
+
+def _new_totp_secret() -> str:
+    return base64.b32encode(secrets.token_bytes(20)).decode('ascii').rstrip('=')
+
+
+def _totp_at(secret_b32: str, t: float) -> str:
+    key = base64.b32decode(secret_b32 + '=' * (-len(secret_b32) % 8), casefold=True)
+    counter = int(t // TOTP_STEP).to_bytes(8, 'big')
+    h = hmac.new(key, counter, hashlib.sha1).digest()
+    o = h[-1] & 0x0F
+    num = int.from_bytes(h[o:o + 4], 'big') & 0x7FFFFFFF
+    return str(num % (10 ** TOTP_DIGITS)).zfill(TOTP_DIGITS)
+
+
+def totp_verify(secret_b32: str, code: str) -> bool:
+    code = (code or '').strip().replace(' ', '')
+    if not (secret_b32 and code.isdigit() and len(code) == TOTP_DIGITS):
+        return False
+    now = time.time()
+    for w in range(-TOTP_WINDOW, TOTP_WINDOW + 1):
+        if secrets.compare_digest(_totp_at(secret_b32, now + w * TOTP_STEP), code):
+            return True
+    return False
+
+
+def _otpauth_uri(secret_b32: str, account: str) -> str:
+    label = quote(f'{TOTP_ISSUER}:{account}')
+    return (f'otpauth://totp/{label}?secret={secret_b32}'
+            f'&issuer={quote(TOTP_ISSUER)}&digits={TOTP_DIGITS}&period={TOTP_STEP}')
+
+
+def _qr_svg(data: str) -> str:
+    """QR code as inline SVG — generated locally, the secret never leaves here."""
+    if not _HAS_QR:
+        return ''
+    try:
+        img = qrcode.make(data, image_factory=qrsvg.SvgPathImage, box_size=9, border=2)
+        buf = io.BytesIO()
+        img.save(buf)
+        return buf.getvalue().decode('utf-8')
+    except Exception:
+        log.warning("QR code could not be generated")
+        return ''
+
+
+def _gen_backup_codes() -> tuple[list, list]:
+    plain = ['-'.join(secrets.token_hex(2) for _ in range(2))
+             for _ in range(BACKUP_CODE_COUNT)]
+    return plain, [generate_password_hash(c) for c in plain]
+
+
+def backup_code_consume(code: str) -> bool:
+    code = (code or '').strip().lower()
+    if not code:
+        return False
+    d = load_2fa()
+    hashes = d.get('backup') or []
+    for i, h in enumerate(hashes):
+        if check_password_hash(h, code):
+            hashes.pop(i)
+            d['backup'] = hashes
+            save_2fa(d)
+            return True
+    return False
+
+
+def _pending_2fa_new() -> str:
+    now = time.time()
+    for k in [k for k, exp in _pending_2fa.items() if exp < now]:
+        _pending_2fa.pop(k, None)
+    token = secrets.token_hex(32)
+    _pending_2fa[token] = now + PENDING_2FA_TTL
+    return token
+
+
+def _pending_2fa_valid(token) -> bool:
+    if not token or token not in _pending_2fa:
+        return False
+    if time.time() > _pending_2fa[token]:
+        _pending_2fa.pop(token, None)
+        return False
+    return True
+
+
+def _trusted_prune(entries: dict) -> dict:
+    now = time.time()
+    return {k: v for k, v in (entries or {}).items() if v > now}
+
+
+def create_trusted_session() -> str:
+    token = secrets.token_hex(32)
+    d = load_2fa()
+    trusted = _trusted_prune(d.get('trusted'))
+    trusted[token] = time.time() + TRUSTED_DEVICE_DAYS * 86400
+    d['trusted'] = trusted
+    save_2fa(d)
+    return token
+
+
+def is_trusted_session_valid(cookie_value) -> bool:
+    if not cookie_value:
+        return False
+    try:
+        token = _serializer('trust2fa').loads(
+            cookie_value, max_age=TRUSTED_DEVICE_DAYS * 86400)
+    except (BadSignature, SignatureExpired):
+        return False
+    d = load_2fa()
+    trusted = _trusted_prune(d.get('trusted'))
+    if len(trusted) != len(d.get('trusted') or {}):
+        d['trusted'] = trusted
+        save_2fa(d)
+    return token in trusted
+
+
+# ── i18n ──────────────────────────────────────────────────────────────────────
+
+def load_translations(lang: str) -> dict:
+    lang = lang if lang in ('de', 'en') else 'en'
+    try:
+        with open(f'{LOCALES_PATH}/{lang}.json', 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+def detect_language(req) -> str:
+    lang = req.cookies.get('lang')
+    if lang in ('de', 'en'):
+        return lang
+    accept = (req.headers.get('Accept-Language') or '').lower()
+    return 'de' if accept.startswith('de') else 'en'
+
+
+def _safe_next(raw: str) -> str:
+    """Only local paths may be redirect targets (open-redirect protection)."""
+    nxt = (raw or '/').replace('\\', '')
+    parts = urlsplit(nxt)
+    if parts.scheme or parts.netloc or not nxt.startswith('/'):
+        return '/'
+    return urlunsplit(('', '', parts.path or '/', parts.query, parts.fragment))
+
+
+# ── Auth / CSRF ───────────────────────────────────────────────────────────────
+
+CSRF_TTL = 12 * 3600
+
+
+def _is_ingress() -> bool:
+    """True when the request came through the HA Supervisor Ingress proxy."""
+    return bool(request.script_root)
+
+
+def _logged_in() -> bool:
+    return _is_ingress() or is_valid_session(request.cookies.get('session'))
+
+
+def _auth_required():
+    if _logged_in():
+        return None
+    return redirect(url_for('login'))
+
+
+@app.before_request
+def _csrf_prepare():
+    raw = ''
+    cookie = request.cookies.get('csrf')
+    if cookie:
+        try:
+            raw = _serializer('csrf').loads(cookie, max_age=CSRF_TTL)
+        except (BadSignature, SignatureExpired):
+            raw = ''
+    g.csrf_new = not raw
+    g.csrf = raw or secrets.token_hex(16)
+
+
+@app.after_request
+def _csrf_emit(resp):
+    if getattr(g, 'csrf_new', False):
+        resp.set_cookie('csrf', _serializer('csrf').dumps(g.csrf),
+                        httponly=True, samesite='Lax', max_age=CSRF_TTL)
+    return resp
+
+
+def _origin_ok() -> bool:
+    """Reject cross-site form posts. Ingress and direct port both report the
+    browser-visible host here, so a same-host comparison holds in both."""
+    host = request.host or ''
+    for header in ('Origin', 'Referer'):
+        value = request.headers.get(header) or ''
+        if value:
+            return urlsplit(value).netloc == host
+    return True
+
+
+def _csrf_ok() -> bool:
+    sent = request.headers.get('X-CSRF-Token', '') or request.form.get('_csrf', '')
+    return bool(sent) and secrets.compare_digest(sent, getattr(g, 'csrf', ''))
+
+
+_LAPI_STATUS = {
+    'not_configured': 503, 'no_url': 503, 'bad_url': 503,
+    'auth_failed': 502, 'unreachable': 502,
+    'http_error': 502, 'bad_response': 502,
+}
+
+
+def api(rule: str, methods=('GET',)):
+    """Route decorator: auth, CSRF and uniform error mapping in one place."""
+    def deco(fn):
+        @app.route(rule, methods=list(methods), endpoint='api_' + fn.__name__)
+        @functools.wraps(fn)
+        def wrapper(*args, **kwargs):
+            if not _logged_in():
+                return jsonify({'error': 'unauthorized'}), 401
+            if request.method not in ('GET', 'HEAD'):
+                if not _origin_ok() or not _csrf_ok():
+                    return jsonify({'error': 'csrf'}), 403
+            try:
+                return fn(*args, **kwargs)
+            except ValidationError as e:
+                return jsonify({'error': e.code}), 400
+            except LapiError as e:
+                return (jsonify({'error': e.code, 'status': e.status}),
+                        _LAPI_STATUS.get(e.code, 502))
+            except Exception:
+                log.exception("unhandled error in %s", rule)
+                return jsonify({'error': 'internal error'}), 500
+        return wrapper
+    return deco
+
+
+# ── LAPI client ───────────────────────────────────────────────────────────────
+
+_client = None
+_client_lock = threading.Lock()
+
+
+def get_client() -> LapiClient:
+    global _client
+    cfg = load_config()
+    url = str(cfg.get('lapi_url') or '').strip()
+    machine_id = str(cfg.get('machine_id') or '').strip()
+    password = str(cfg.get('machine_password') or '')
+    verify = bool(cfg.get('lapi_tls_verify', True))
+    with _client_lock:
+        if _client is None or not _client.same_as(url, machine_id, password, verify):
+            _client = LapiClient(url, machine_id, password, verify=verify)
+            if _verbose():
+                log.info("LAPI client rebuilt for %s", url or '(unset)')
+        return _client
+
+
+def _page_size() -> int:
+    return _cfg_int('page_size', 100, 10, 1000)
+
+
+def _body() -> dict:
+    data = request.get_json(silent=True)
+    return data if isinstance(data, dict) else {}
+
+
+def _arg(name: str, limit: int = 64) -> str:
+    return (request.args.get(name) or '').strip()[:limit]
+
+
+def _since_arg() -> str:
+    raw = _arg('since', 16)
+    return normalize_duration(raw) if raw else ''
+
+
+def _server_filters() -> dict:
+    """Filters the LAPI itself understands."""
+    out = {}
+    scope = _arg('scope')
+    if scope:
+        out['scope'] = normalize_scope(scope)
+    dtype = _arg('type', 16)
+    if dtype:
+        out['decision_type'] = normalize_type(dtype)
+    origin = _arg('origin', 32)
+    if origin:
+        if not re.fullmatch(r'[A-Za-z0-9_.-]{1,32}', origin):
+            raise ValidationError('bad_origin')
+        out['origin'] = origin
+    term = _arg('ip') or _arg('range')
+    if term:
+        kind = is_ip_or_range(term)
+        if not kind:
+            raise ValidationError('bad_ip')
+        out[kind[0]] = kind[1]
+    since = _since_arg()
+    if since:
+        out['since'] = since
+    return out
+
+
+def _text_match(row: dict, needle: str) -> bool:
+    if not needle:
+        return True
+    needle = needle.lower()
+    for key in ('value', 'scenario', 'country', 'as_name', 'origin', 'type'):
+        if needle in str(row.get(key, '')).lower():
+            return True
+    return False
+
+
+# ── Routes without authentication ─────────────────────────────────────────────
+
+@app.route('/health')
+def health():
+    return 'OK', 200
+
+
+@app.route('/manifest.json')
+def manifest():
+    base = request.script_root.rstrip('/')
+    data = {
+        'name': 'CrowdPanel',
+        'short_name': 'CrowdPanel',
+        'description': 'CrowdSec control panel for Home Assistant',
+        'start_url': base + '/',
+        'scope': base + '/',
+        'display': 'standalone',
+        'orientation': 'portrait-primary',
+        'background_color': '#0d1117',
+        'theme_color': '#161b22',
+        'icons': [
+            {'src': url_for('static', filename='icon-192.png'), 'sizes': '192x192',
+             'type': 'image/png', 'purpose': 'any maskable'},
+            {'src': url_for('static', filename='icon-512.png'), 'sizes': '512x512',
+             'type': 'image/png', 'purpose': 'any maskable'},
+        ],
+        'categories': ['utilities', 'security'],
+        'lang': 'de',
+    }
+    resp = make_response(jsonify(data))
+    resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate'
+    resp.headers['Content-Type'] = 'application/manifest+json'
+    return resp
+
+
+@app.route('/sw.js')
+def service_worker():
+    base = request.script_root.rstrip('/')
+    resp = make_response(render_template('sw.js', base=base))
+    resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate'
+    resp.headers['Content-Type'] = 'application/javascript'
+    return resp
+
+
+@app.route('/set-lang/<lang>')
+def set_lang(lang: str):
+    cookie_lang = 'en' if lang == 'en' else 'de'
+    resp = make_response(redirect(_safe_next(request.args.get('next', '/'))))
+    resp.set_cookie('lang', cookie_lang, max_age=365 * 86400, samesite='Lax')
+    return resp
+
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    lang = detect_language(request)
+    t = load_translations(lang)
+    cfg = load_config()
+
+    if _logged_in():
+        return redirect(url_for('index'))
+
+    error = None
+    if request.method == 'POST':
+        ip = get_client_ip(request)
+        if not _origin_ok() or not _csrf_ok():
+            error = t.get('error_expired')
+        elif is_rate_limited(ip):
+            error = t.get('error_locked')
+        else:
+            username = request.form.get('username', '')
+            password = request.form.get('password', '')
+            ok = (secrets.compare_digest(username, str(cfg.get('username', 'admin')))
+                  and secrets.compare_digest(password,
+                                             str(cfg.get('password', 'changeme123'))))
+            if ok:
+                clear_failed_attempts(ip)
+                hours = _cfg_int('session_hours', 24, 1, 720)
+                if twofa_enabled() and not is_trusted_session_valid(
+                        request.cookies.get('trust2fa')):
+                    pending = _pending_2fa_new()
+                    resp = make_response(redirect(url_for('twofa')))
+                    resp.set_cookie('pre2fa', pending, httponly=True,
+                                    samesite='Lax', max_age=PENDING_2FA_TTL)
+                    return resp
+                token = create_session(hours)
+                resp = make_response(redirect(url_for('index')))
+                resp.set_cookie('session', token, httponly=True, samesite='Lax',
+                                max_age=hours * 3600)
+                return resp
+            record_failed_attempt(ip)
+            error = t.get('error_credentials')
+
+    return make_response(render_template('login.html', t=t, lang=lang, error=error,
+                                         csrf=g.csrf))
+
+
+@app.route('/2fa', methods=['GET', 'POST'])
+def twofa():
+    lang = detect_language(request)
+    t = load_translations(lang)
+
+    if _logged_in():
+        return redirect(url_for('index'))
+    if not _pending_2fa_valid(request.cookies.get('pre2fa')):
+        return redirect(url_for('login'))
+
+    error = None
+    if request.method == 'POST':
+        ip = get_client_ip(request)
+        if not _origin_ok() or not _csrf_ok():
+            error = t.get('error_expired')
+        elif is_rate_limited(ip):
+            error = t.get('error_locked')
+        else:
+            code = request.form.get('code', '')
+            data = load_2fa()
+            if totp_verify(str(data.get('secret') or ''), code) or backup_code_consume(code):
+                clear_failed_attempts(ip)
+                _pending_2fa.pop(request.cookies.get('pre2fa'), None)
+                hours = _cfg_int('session_hours', 24, 1, 720)
+                token = create_session(hours)
+                resp = make_response(redirect(url_for('index')))
+                resp.set_cookie('session', token, httponly=True, samesite='Lax',
+                                max_age=hours * 3600)
+                resp.delete_cookie('pre2fa')
+                if request.form.get('trust') == 'on':
+                    trusted = create_trusted_session()
+                    resp.set_cookie('trust2fa',
+                                    _serializer('trust2fa').dumps(trusted),
+                                    httponly=True, samesite='Lax',
+                                    max_age=TRUSTED_DEVICE_DAYS * 86400)
+                return resp
+            record_failed_attempt(ip)
+            error = t.get('error_totp')
+
+    return make_response(render_template('twofa.html', t=t, lang=lang, error=error,
+                                         csrf=g.csrf))
+
+
+@app.route('/logout')
+def logout():
+    token = request.cookies.get('session')
+    if token:
+        with _sessions_lock:
+            if sessions.pop(token, None) is not None:
+                save_sessions()
+    resp = make_response(redirect(url_for('login')))
+    resp.delete_cookie('session')
+    return resp
+
+
+# ── Page ──────────────────────────────────────────────────────────────────────
+
+@app.route('/')
+def index():
+    redir = _auth_required()
+    if redir:
+        return redir
+    lang = detect_language(request)
+    t = load_translations(lang)
+    cfg = load_config()
+    return make_response(render_template(
+        'index.html', t=t, lang=lang, csrf=g.csrf,
+        ingress=_is_ingress(),
+        scopes=SCOPES,
+        decision_types=DECISION_TYPES,
+        durations=DURATION_PRESETS,
+        default_duration=str(cfg.get('default_ban_duration') or '4h'),
+        refresh_interval=_cfg_int('refresh_interval', 30, 0, 3600),
+        page_size=_page_size(),
+        has_qr=_HAS_QR,
+    ))
+
+
+# ── API ───────────────────────────────────────────────────────────────────────
+
+@api('/api/status')
+def status():
+    client = get_client()
+    return jsonify({
+        'lapi': client.ping(),
+        'url': client.url,
+        'machine_id': client.machine_id,
+        'twofa': twofa_enabled(),
+        'ingress': _is_ingress(),
+    })
+
+
+@api('/api/overview')
+def overview():
+    client = get_client()
+    rows = client.list_decisions(limit=1000)
+    alerts = client.list_alerts(limit=1000, since='24h')
+    by_type = Counter(r['type'] for r in rows if r['type'])
+    by_country = Counter(r['country'] for r in rows if r['country'])
+    by_scenario = Counter(r['scenario'] for r in rows if r['scenario'])
+    by_origin = Counter(r['origin'] for r in rows if r['origin'])
+    alert_scenarios = Counter((a.get('scenario') or '') for a in alerts
+                              if isinstance(a, dict) and a.get('scenario'))
+    return jsonify({
+        'decisions_total': len(rows),
+        'alerts_24h': len(alerts),
+        'by_type': by_type.most_common(),
+        'top_countries': by_country.most_common(10),
+        'top_scenarios': by_scenario.most_common(10),
+        'by_origin': by_origin.most_common(10),
+        'top_alert_scenarios': alert_scenarios.most_common(10),
+    })
+
+
+@api('/api/decisions', methods=('GET', 'POST', 'DELETE'))
+def decisions():
+    client = get_client()
+
+    if request.method == 'GET':
+        rows = client.list_decisions(limit=_page_size(), **_server_filters())
+        needle = _arg('q', 64)
+        if needle:
+            rows = [r for r in rows if _text_match(r, needle)]
+        return jsonify({'decisions': rows, 'count': len(rows)})
+
+    if request.method == 'POST':
+        body = _body()
+        cfg = load_config()
+        result = client.add_decision(
+            scope=body.get('scope') or 'Ip',
+            value=body.get('value') or '',
+            dtype=body.get('type') or 'ban',
+            duration=body.get('duration') or str(cfg.get('default_ban_duration') or '4h'),
+            reason=body.get('reason') or '',
+        )
+        return jsonify({'status': 'added', **result})
+
+    body = _body()
+    if body.get('id') not in (None, ''):
+        return jsonify({'status': 'deleted',
+                        'deleted': client.delete_decision(body.get('id'))})
+
+    filters = {}
+    scope = (body.get('scope') or '').strip()
+    value = (body.get('value') or '').strip()
+    if scope and value:
+        scope = normalize_scope(scope)
+        filters['scope'] = scope
+        filters['value'] = normalize_value(scope, value)
+    for key in ('ip', 'range'):
+        term = (body.get(key) or '').strip()
+        if term:
+            kind = is_ip_or_range(term)
+            if not kind:
+                raise ValidationError('bad_ip')
+            filters[kind[0]] = kind[1]
+    dtype = (body.get('type') or '').strip()
+    if dtype:
+        filters['type'] = normalize_type(dtype)
+    origin = (body.get('origin') or '').strip()
+    if origin:
+        if not re.fullmatch(r'[A-Za-z0-9_.-]{1,32}', origin):
+            raise ValidationError('bad_origin')
+        filters['origin'] = origin
+    return jsonify({'status': 'deleted',
+                    'deleted': client.delete_decisions(**filters)})
+
+
+@api('/api/alerts')
+def alerts():
+    client = get_client()
+    filters = _server_filters()
+    filters.pop('decision_type', None)
+    rows = client.list_alerts(limit=_page_size(), **filters)
+    needle = _arg('q', 64)
+    out = []
+    for a in rows:
+        if not isinstance(a, dict):
+            continue
+        src = a.get('source') or {}
+        item = {
+            'id': a.get('id'),
+            'scenario': a.get('scenario') or '',
+            'message': a.get('message') or '',
+            'created_at': a.get('created_at') or a.get('start_at') or '',
+            'events_count': a.get('events_count') or 0,
+            'simulated': bool(a.get('simulated')),
+            'value': src.get('value') or src.get('ip') or '',
+            'country': src.get('cn') or '',
+            'as_name': src.get('as_name') or '',
+            'decisions': len(a.get('decisions') or []),
+        }
+        if needle and not _text_match(
+                {'value': item['value'], 'scenario': item['scenario'],
+                 'country': item['country'], 'as_name': item['as_name']}, needle):
+            continue
+        out.append(item)
+    return jsonify({'alerts': out, 'count': len(out)})
+
+
+@api('/api/alerts/<int:alert_id>')
+def alert_detail(alert_id: int):
+    data = get_client().get_alert(alert_id)
+    if data is None:
+        return jsonify({'error': 'not_found'}), 404
+    return jsonify({'alert': data})
+
+
+@api('/api/check')
+def check():
+    term = _arg('value', 64)
+    kind = is_ip_or_range(term)
+    if not kind:
+        raise ValidationError('bad_ip')
+    client = get_client()
+    lookup = {kind[0]: kind[1]}
+    active = client.list_decisions(limit=200, **lookup)
+    history = client.list_alerts(limit=50, **lookup)
+    allow = None
+    if kind[0] == 'ip':
+        try:
+            allow = client.allowlist_check(kind[1])
+        except (LapiError, ValidationError):
+            allow = None
+    return jsonify({
+        'value': kind[1],
+        'kind': kind[0],
+        'active': active,
+        'history': [{
+            'id': a.get('id'),
+            'scenario': a.get('scenario') or '',
+            'created_at': a.get('created_at') or a.get('start_at') or '',
+            'events_count': a.get('events_count') or 0,
+        } for a in history if isinstance(a, dict)],
+        'allowlist': allow,
+    })
+
+
+@api('/api/allowlists')
+def allowlists():
+    return jsonify({'allowlists': get_client().allowlists()})
+
+
+# ── 2FA management ────────────────────────────────────────────────────────────
+
+_2fa_setup: dict = {}
+
+
+@api('/api/2fa')
+def twofa_state():
+    return jsonify({'enabled': twofa_enabled(), 'ingress': _is_ingress(),
+                    'has_qr': _HAS_QR})
+
+
+@api('/api/2fa/setup', methods=('POST',))
+def twofa_setup():
+    secret = _new_totp_secret()
+    _2fa_setup['secret'] = secret
+    _2fa_setup['expires'] = time.time() + PENDING_2FA_TTL
+    account = str(load_config().get('username', 'admin'))
+    uri = _otpauth_uri(secret, account)
+    return jsonify({'secret': secret, 'uri': uri, 'qr': _qr_svg(uri),
+                    'has_qr': _HAS_QR})
+
+
+@api('/api/2fa/enable', methods=('POST',))
+def twofa_enable():
+    secret = str(_2fa_setup.get('secret') or '')
+    if not secret or time.time() > float(_2fa_setup.get('expires') or 0):
+        _2fa_setup.clear()
+        return jsonify({'error': 'setup_expired'}), 400
+    if not totp_verify(secret, str(_body().get('code') or '')):
+        return jsonify({'error': 'bad_code'}), 400
+    plain, hashes = _gen_backup_codes()
+    save_2fa({'enabled': True, 'secret': secret, 'backup': hashes, 'trusted': {}})
+    _2fa_setup.clear()
+    log.info("two-factor authentication enabled")
+    return jsonify({'status': 'enabled', 'backup_codes': plain})
+
+
+@api('/api/2fa/disable', methods=('POST',))
+def twofa_disable():
+    password = str(_body().get('password') or '')
+    if not secrets.compare_digest(password,
+                                  str(load_config().get('password', 'changeme123'))):
+        return jsonify({'error': 'bad_password'}), 403
+    save_2fa({'enabled': False, 'secret': '', 'backup': [], 'trusted': {}})
+    log.info("two-factor authentication disabled")
+    return jsonify({'status': 'disabled'})
+
+
+# ── Startup ───────────────────────────────────────────────────────────────────
+
+def _startup_checks() -> None:
+    cfg = load_config()
+    if str(cfg.get('password', '')) == 'changeme123':
+        log.warning("The default password is still set — change it in the add-on options")
+    url = str(cfg.get('lapi_url') or '').strip()
+    if not url:
+        log.warning("lapi_url is empty — set the CrowdSec Local API address")
+    elif urlsplit(url).scheme not in ('http', 'https'):
+        log.warning("lapi_url is not an http(s) address — CrowdPanel stays disconnected")
+    if not str(cfg.get('machine_id') or '').strip() or not str(cfg.get('machine_password') or ''):
+        log.warning("machine_id/machine_password are empty — run "
+                    "'cscli -c <config> machines add crowdpanel --password <secret>' "
+                    "and copy the credentials into the add-on options")
+        return
+    state = get_client().ping()
+    if state.get('ok'):
+        log.info("CrowdSec LAPI reachable at %s (%d ms)", url, state.get('ms', 0))
+    else:
+        log.warning("CrowdSec LAPI not usable yet: %s", state.get('code'))
+
+
+if __name__ == '__main__':
+    load_sessions()
+    _startup_checks()
+
+    def _shutdown(signum, frame):
+        log.info("signal %s received — CrowdPanel is shutting down", signum)
+        raise SystemExit(0)
+
+    signal.signal(signal.SIGTERM, _shutdown)
+    signal.signal(signal.SIGINT, _shutdown)
+
+    log.info("CrowdPanel ready on port %d", PORT)
+    app.run(host='0.0.0.0', port=PORT, debug=False, threaded=True)
