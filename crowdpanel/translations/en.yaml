@@ -33,7 +33,9 @@ configuration:
     description: How often the panel reloads on its own. 0 turns automatic refreshing off.
   page_size:
     name: Rows per view
-    description: How many alerts are fetched at most. Higher values show more but take longer.
+    description: >-
+      How many rows the tables show at most. The full count is shown next to it —
+      with more hits, a narrower filter helps.
   verbose_log:
     name: Verbose log
     description: Writes extra lines to the add-on log. For troubleshooting only.

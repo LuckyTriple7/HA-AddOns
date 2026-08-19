@@ -51,6 +51,13 @@ ACTOR = 'crowdpanel'
 _LOGIN_LEEWAY = 60      # renew the token this many seconds before it expires
 _FALLBACK_TTL = 3300    # CrowdSec hands out 1h tokens; stay below that
 
+# One alert can carry thousands of decisions, so a full read is a multi-megabyte
+# payload — on a busy installation that is a second per request. Overview and
+# decisions ask for the same thing, so the answer is held briefly and shared;
+# every write drops the cache so a lifted ban never lingers on screen.
+ALERT_CACHE_TTL = 15
+ALERT_FETCH_LIMIT = 1000
+
 
 # ── Errors ────────────────────────────────────────────────────────────────────
 
@@ -174,8 +181,10 @@ def _parse_expire(raw: str) -> float:
 # ── Client ────────────────────────────────────────────────────────────────────
 
 class LapiClient:
+    # 30s, not 15: right after a burst of writes CrowdSec re-evaluates its
+    # decisions and a full read can take noticeably longer than usual.
     def __init__(self, url: str, machine_id: str, password: str,
-                 verify: bool = True, timeout: int = 15):
+                 verify: bool = True, timeout: int = 30):
         self.url = (url or '').strip().rstrip('/')
         self.machine_id = (machine_id or '').strip()
         self.password = password or ''
@@ -184,6 +193,8 @@ class LapiClient:
         self._lock = threading.Lock()
         self._jwt = ''
         self._jwt_exp = 0.0
+        self._cache: dict = {}
+        self._cache_lock = threading.Lock()
 
     # -- state ---------------------------------------------------------------
 
@@ -283,8 +294,13 @@ class LapiClient:
 
     # -- reads ---------------------------------------------------------------
 
-    _ALERT_FILTERS = ('scope', 'value', 'scenario', 'ip', 'range', 'since',
-                      'until', 'simulated', 'decision_type', 'origin',
+    # The two endpoints filter asymmetrically, verified against a live LAPI:
+    #   GET    /v1/alerts     honours scope+value and origin; ip= and range=
+    #                         are ignored and quietly return everything.
+    #   DELETE /v1/decisions  honours ip= and range=; scope+value answers 500.
+    # Hence reads go through scope+value, deletes through ip/range or an id.
+    _ALERT_FILTERS = ('scope', 'value', 'scenario', 'since', 'until',
+                      'simulated', 'decision_type', 'origin',
                       'has_active_decision')
 
     def _alert_params(self, filters: dict, limit: int) -> dict:
@@ -295,9 +311,34 @@ class LapiClient:
                 params[key] = val
         return params
 
+    def _cache_get(self, key: str):
+        with self._cache_lock:
+            entry = self._cache.get(key)
+            if entry and time.time() - entry[0] < ALERT_CACHE_TTL:
+                return entry[1]
+            self._cache.pop(key, None)
+        return None
+
+    def _cache_put(self, key: str, value) -> None:
+        with self._cache_lock:
+            if len(self._cache) > 16:
+                self._cache.clear()
+            self._cache[key] = (time.time(), value)
+
+    def drop_cache(self) -> None:
+        with self._cache_lock:
+            self._cache.clear()
+
     def list_alerts(self, limit: int = 100, **filters) -> list:
-        data = self._call('GET', '/alerts', params=self._alert_params(filters, limit))
-        return data if isinstance(data, list) else []
+        params = self._alert_params(filters, limit)
+        key = repr(sorted(params.items()))
+        cached = self._cache_get(key)
+        if cached is not None:
+            return cached
+        data = self._call('GET', '/alerts', params=params)
+        rows = data if isinstance(data, list) else []
+        self._cache_put(key, rows)
+        return rows
 
     def get_alert(self, alert_id) -> dict | None:
         try:
@@ -338,9 +379,69 @@ class LapiClient:
                 })
         return rows
 
+    def decisions_for(self, term: str, limit: int = 1000) -> tuple[tuple, list]:
+        """Every active decision that applies to an address or range.
+
+        The LAPI matches scope+value literally and runs no containment test, so
+        a covering range has to be found here — the same result cscli shows for
+        `decisions list --ip`.
+        """
+        kind = is_ip_or_range(term)
+        if not kind:
+            raise ValidationError('bad_ip')
+        scope = 'Ip' if kind[0] == 'ip' else 'Range'
+        rows = self.list_decisions(limit=limit, scope=scope, value=kind[1])
+        seen = {r.get('id') for r in rows}
+
+        net = ipaddress.ip_network(kind[1], strict=False)
+        for row in self.list_decisions(limit=limit, scope='Range'):
+            if row.get('id') in seen:
+                continue
+            try:
+                covering = ipaddress.ip_network(row['value'], strict=False)
+            except ValueError:
+                continue
+            if covering.version == net.version and net.subnet_of(covering):
+                rows.append(row)
+                seen.add(row.get('id'))
+        return kind, rows
+
+    # The swagger marks the allowlist routes as unauthenticated, but a running
+    # CrowdSec answers 401 without a token — so they get the JWT like the rest.
+    def decision_stats(self, limit: int = ALERT_FETCH_LIMIT) -> dict:
+        """Counts over every active decision, without building a row per entry."""
+        from collections import Counter
+        by_type, by_country = Counter(), Counter()
+        by_scenario, by_origin = Counter(), Counter()
+        total = 0
+        for alert in self.list_alerts(limit=limit, has_active_decision='true'):
+            if not isinstance(alert, dict):
+                continue
+            country = (alert.get('source') or {}).get('cn') or ''
+            fallback = alert.get('scenario') or ''
+            for dec in (alert.get('decisions') or []):
+                if not isinstance(dec, dict):
+                    continue
+                total += 1
+                if dec.get('type'):
+                    by_type[dec['type']] += 1
+                if dec.get('origin'):
+                    by_origin[dec['origin']] += 1
+                scenario = dec.get('scenario') or fallback
+                if scenario:
+                    by_scenario[scenario] += 1
+                if country:
+                    by_country[country] += 1
+        return {
+            'total': total,
+            'by_type': by_type.most_common(),
+            'by_origin': by_origin.most_common(10),
+            'top_countries': by_country.most_common(10),
+            'top_scenarios': by_scenario.most_common(10),
+        }
+
     def allowlists(self) -> list:
-        data = self._call('GET', '/allowlists', params={'with_content': 'true'},
-                          auth=False)
+        data = self._call('GET', '/allowlists', params={'with_content': 'true'})
         if isinstance(data, dict):
             data = data.get('items') or data.get('allowlists') or []
         return data if isinstance(data, list) else []
@@ -349,9 +450,41 @@ class LapiClient:
         kind = is_ip_or_range(ip)
         if not kind:
             raise ValidationError('bad_ip')
-        data = self._call('GET', '/allowlists/check/' + quote(kind[1], safe=''),
-                          auth=False)
+        data = self._call('GET', '/allowlists/check/' + quote(kind[1], safe=''))
         return data if isinstance(data, dict) else None
+
+    def allowlist_status(self, term: str) -> dict:
+        """Is this address exempt from decisions, and through which list?
+
+        /allowlists/check answers an empty object on some versions, which says
+        nothing. Then the lists are walked directly, so the answer is always a
+        real yes or no instead of a shrug.
+        """
+        kind = is_ip_or_range(term)
+        if not kind:
+            raise ValidationError('bad_ip')
+        raw = self.allowlist_check(kind[1])
+        if isinstance(raw, dict):
+            for key in ('allowed', 'Allowed'):
+                if isinstance(raw.get(key), bool):
+                    return {'allowed': raw[key], 'lists': []}
+
+        net = ipaddress.ip_network(kind[1], strict=False)
+        hits = []
+        for entry in self.allowlists():
+            if not isinstance(entry, dict):
+                continue
+            name = entry.get('name') or entry.get('Name') or ''
+            for item in (entry.get('items') or entry.get('Items') or []):
+                value = item.get('value') if isinstance(item, dict) else item
+                try:
+                    allowed = ipaddress.ip_network(str(value), strict=False)
+                except (ValueError, TypeError):
+                    continue
+                if allowed.version == net.version and net.subnet_of(allowed):
+                    hits.append(name or str(value))
+                    break
+        return {'allowed': bool(hits), 'lists': hits}
 
     def ping(self) -> dict:
         """Status for the header pill. Never raises."""
@@ -404,11 +537,14 @@ class LapiClient:
             }],
         }
         result = self._call('POST', '/alerts', body=[alert])
+        self.drop_cache()
         log.info("decision added: %s %s %s for %s", dtype, scope, value, duration)
         return {'scope': scope, 'value': value, 'type': dtype,
                 'duration': duration, 'result': result}
 
-    _DELETE_FILTERS = ('scope', 'value', 'type', 'ip', 'range', 'scenario', 'origin')
+    # scope+value is deliberately absent: the LAPI answers 500 for it on every
+    # scope. Use ip/range, or delete the decision by its id.
+    _DELETE_FILTERS = ('type', 'ip', 'range', 'scenario', 'origin')
 
     def delete_decisions(self, **filters) -> int:
         params = {k: v for k, v in filters.items()
@@ -416,10 +552,24 @@ class LapiClient:
         if not params:
             raise ValidationError('no_filter')
         data = self._call('DELETE', '/decisions', params=params)
+        self.drop_cache()
         count = _deleted_count(data)
         log.info("decisions deleted: %d (%s)", count,
                  ', '.join(f'{k}={v}' for k, v in sorted(params.items())))
         return count
+
+    def delete_by_target(self, scope: str, value: str) -> int:
+        """Lift every decision for one exact target, translated to the filters
+        the delete endpoint actually accepts."""
+        scope = normalize_scope(scope)
+        value = normalize_value(scope, value)
+        if scope == 'Ip':
+            return self.delete_decisions(ip=value)
+        if scope == 'Range':
+            return self.delete_decisions(range=value)
+        # Country and AS have no working filter — the caller must pass a
+        # decision id, which every listed row carries.
+        raise ValidationError('unsupported_filter')
 
     def delete_decision(self, decision_id) -> int:
         try:
@@ -427,6 +577,7 @@ class LapiClient:
         except (TypeError, ValueError):
             raise ValidationError('bad_id') from None
         data = self._call('DELETE', f'/decisions/{ident}')
+        self.drop_cache()
         count = _deleted_count(data)
         log.info("decision %d deleted (%d)", ident, count)
         return count

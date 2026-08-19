@@ -161,7 +161,23 @@ country, network and remaining time.
 - **Unban** lifts exactly that one decision.
 - **Lift all filtered** lifts exactly the listed rows, one after another. It never
   deletes more than what is on screen — on purpose, so a filter cannot
-  accidentally take half the ban list with it.
+  accidentally take half the ban list with it. Above 200 entries CrowdPanel
+  declines and asks for a narrower filter.
+
+The table shows at most as many rows as `page_size` allows, with the full count
+next to it. That is not pedantry: subscribe to the community blocklists and you
+quickly reach 30,000 active decisions, which do not all belong in one table.
+**Origin** sorts that out at once — `crowdsec` are the attacks this instance
+detected itself, `cscli` the ones created by hand, `CAPI` and `lists` come from
+outside.
+
+> Unbanning has two routes with different reach. The button in the row uses the
+> decision id and hits exactly that one entry. Unbanning by IP instead also lifts
+> a covering range — that is CrowdSec's own behaviour, identical to
+> `cscli decisions delete --ip`.
+>
+> For **country** and **network (AS)** there is no bulk filter; the LAPI offers
+> none. Those decisions can only be lifted from the row.
 
 ### New ban
 
@@ -197,6 +213,10 @@ you see which log line triggered the alert.
 
 One field for an address or a range. The result: every active decision for it, the
 alert history, and whether the address is on an allowlist.
+
+That includes decisions which merely cover the address — a banned range it falls
+inside. The LAPI only matches literally, so CrowdPanel runs the containment test
+itself; the result matches what `cscli decisions list --ip` shows.
 
 The allowlist part matters: if an address is on an allowlist, **no** decision
 applies to it — not even one just created by hand.
@@ -243,7 +263,7 @@ effect everywhere the CrowdPanel route is better.
 | `lapi_tls_verify` | `true` | verify the TLS certificate; only turn off for self-signed `https` |
 | `default_ban_duration` | `4h` | preselected duration in the form |
 | `refresh_interval` | `30` | seconds between automatic refreshes, `0` turns it off |
-| `page_size` | `100` | how many alerts are fetched at most |
+| `page_size` | `100` | how many rows the tables show at most |
 | `verbose_log` | `false` | extra lines in the log |
 
 ---
@@ -275,6 +295,15 @@ two-factor sign-in, delete `twofa.json` and restart the add-on.
 
 More detail is in the add-on log. With `verbose_log: true` lines about setting up
 and tearing down the LAPI connection are added.
+
+### About speed
+
+On an instance with community blocklists, the LAPI's answer to "all active
+decisions" is several megabytes. CrowdPanel therefore holds it for 15 seconds and
+shares it between Overview and Decisions; every change drops the cache at once, so
+a lifted ban disappears without delay. On a tab switch the browser first paints the
+data it already has and reloads afterwards — which is why switching feels instant
+even though the fresh numbers arrive a moment later.
 
 ---
 

@@ -145,12 +145,13 @@
           <input id="dQ" type="text" placeholder="{{ t.f_search_hint }}"></div>
         <div class="field"><label for="dScope">{{ t.f_scope }}</label><select id="dScope"></select></div>
         <div class="field"><label for="dType">{{ t.f_type }}</label><select id="dType"></select></div>
-        <div class="field"><label for="dOrigin">{{ t.f_origin }}</label><input id="dOrigin" type="text" size="12"></div>
+        <div class="field"><label for="dOrigin">{{ t.f_origin }}</label><select id="dOrigin"></select></div>
         <button class="btn" id="dApply">{{ t.f_apply }}</button>
         <button class="btn" id="dReset">{{ t.f_reset }}</button>
         <button class="btn danger" id="dUnbanAll">{{ t.act_unban_all }}</button>
         <span class="muted" id="dCount"></span>
       </div>
+      <div class="banner" id="dTruncated" hidden></div>
       <div class="table-wrap"><table>
         <thead><tr>
           <th>{{ t.col_value }}</th><th>{{ t.col_scope }}</th><th>{{ t.col_type }}</th>
@@ -307,9 +308,11 @@
     function shortDuration(row) {
       // The LAPI returns the remaining duration on "duration"; "until" is absolute.
       if (row.duration) {
-        const m = String(row.duration).match(/^(-?)(\d+)h(\d+)m/);
-        if (m) return (m[1] ? T.expired : m[2] + 'h ' + m[3] + 'm');
-        return String(row.duration).split('.')[0];
+        const raw = String(row.duration);
+        if (raw.startsWith('-')) return T.expired;   // negative = already over
+        const m = raw.match(/^(\d+)h(\d+)m/);
+        if (m) return m[1] + 'h ' + m[2] + 'm';
+        return raw.split('.')[0];
       }
       return row.until ? relTime(row.until) : T.none;
     }
@@ -336,6 +339,9 @@
 
     // ── tabs ──────────────────────────────────────────────────────────────────
     const loaders = {};
+    // Last answer per tab. Switching tabs repaints from this at once and only
+    // then refetches, so the panel never sits empty while the LAPI answers.
+    const cache = {};
     function showTab(name) {
       document.querySelectorAll('nav button').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
       document.querySelectorAll('main section').forEach(s => s.classList.toggle('active', s.id === 'tab-' + name));
@@ -376,16 +382,23 @@
     }
 
     // ── overview ──────────────────────────────────────────────────────────────
+    function renderOverview(d) {
+      fillOrigins((d.by_origin || []).map(p => p[0]));
+      $('ovDecisions').textContent = d.decisions_total;
+      $('ovAlerts').textContent = d.alerts_24h;
+      bars($('ovByType'), d.by_type);
+      bars($('ovByOrigin'), d.by_origin);
+      bars($('ovCountries'), d.top_countries);
+      bars($('ovScenarios'), d.top_scenarios);
+      bars($('ovAlertScenarios'), d.top_alert_scenarios);
+    }
+
     loaders.overview = async function () {
+      if (cache.overview) renderOverview(cache.overview);
       try {
         const d = await api('/api/overview');
-        $('ovDecisions').textContent = d.decisions_total;
-        $('ovAlerts').textContent = d.alerts_24h;
-        bars($('ovByType'), d.by_type);
-        bars($('ovByOrigin'), d.by_origin);
-        bars($('ovCountries'), d.top_countries);
-        bars($('ovScenarios'), d.top_scenarios);
-        bars($('ovAlertScenarios'), d.top_alert_scenarios);
+        cache.overview = d;
+        renderOverview(d);
       } catch (e) {
         [ 'ovByType','ovByOrigin','ovCountries','ovScenarios','ovAlertScenarios' ]
           .forEach(id => { const n = $(id); n.textContent = ''; n.appendChild(el('div','muted',errText(e.code))); });
@@ -394,6 +407,13 @@
 
     // ── decisions ─────────────────────────────────────────────────────────────
     let decisionRows = [];
+    const UNBAN_MAX = 200;
+
+    function fillOrigins(origins) {
+      const sel = $('dOrigin'), keep = sel.value;
+      fillSelect(sel, origins, null, true);
+      if (origins.indexOf(keep) >= 0) sel.value = keep;
+    }
 
     function decisionQuery() {
       const p = new URLSearchParams();
@@ -405,19 +425,32 @@
       return '/api/decisions' + (q ? '?' + q : '');
     }
 
+    function renderDecisionPayload(d) {
+      decisionRows = d.decisions || [];
+      renderDecisions(decisionRows);
+      $('dCount').textContent = fmt('rows_of', { n: d.count, total: d.total });
+      const banner = $('dTruncated');
+      banner.hidden = !d.truncated;
+      if (d.truncated) banner.textContent = fmt('truncated_hint', { n: d.count });
+    }
+
     loaders.decisions = async function () {
       const body = $('dBody');
-      body.textContent = '';
-      body.appendChild(rowMessage(9, T.loading));
+      if (cache.decisions) {
+        renderDecisionPayload(cache.decisions);
+      } else {
+        body.textContent = '';
+        body.appendChild(rowMessage(9, T.loading));
+      }
       try {
         const d = await api(decisionQuery());
-        decisionRows = d.decisions || [];
-        renderDecisions(decisionRows);
-        $('dCount').textContent = fmt('rows', { n: d.count });
+        cache.decisions = d;
+        renderDecisionPayload(d);
       } catch (e) {
         body.textContent = '';
         body.appendChild(rowMessage(9, errText(e.code)));
         $('dCount').textContent = '';
+        $('dTruncated').hidden = true;
       }
     };
 
@@ -463,6 +496,7 @@
       try {
         await api('/api/decisions', { method: 'DELETE', body: body });
         toast(T.act_unban + ': ' + row.value);
+        delete cache.decisions; delete cache.overview;
         loaders.decisions();
       } catch (e) {
         toast(errText(e.code), true);
@@ -470,16 +504,24 @@
       }
     }
 
-    $('dApply').addEventListener('click', () => loaders.decisions());
-    $('dQ').addEventListener('keydown', e => { if (e.key === 'Enter') loaders.decisions(); });
+    function reloadDecisions() { delete cache.decisions; loaders.decisions(); }
+    $('dApply').addEventListener('click', reloadDecisions);
+    $('dQ').addEventListener('keydown', e => { if (e.key === 'Enter') reloadDecisions(); });
+    $('dOrigin').addEventListener('change', reloadDecisions);
+    $('dScope').addEventListener('change', reloadDecisions);
+    $('dType').addEventListener('change', reloadDecisions);
     $('dReset').addEventListener('click', () => {
       $('dQ').value = ''; $('dScope').value = ''; $('dType').value = ''; $('dOrigin').value = '';
-      loaders.decisions();
+      reloadDecisions();
     });
 
     $('dUnbanAll').addEventListener('click', async () => {
       // Deletes exactly the rows on screen, one by one — never more than shown.
       if (!decisionRows.length) return;
+      if (decisionRows.length > UNBAN_MAX) {
+        toast(fmt('too_many', { max: UNBAN_MAX }), true);
+        return;
+      }
       if (!confirm(fmt('act_unban_all_confirm', { n: decisionRows.length }))) return;
       const btn = $('dUnbanAll');
       btn.disabled = true;
@@ -491,6 +533,7 @@
       }
       btn.disabled = false;
       toast(T.act_unban + ': ' + done + (failed ? ' / ' + failed + ' ✗' : ''), failed > 0);
+      delete cache.decisions; delete cache.overview;
       loaders.decisions();
     });
 
@@ -514,6 +557,7 @@
         toast(fmt('nb_ok', { v: d.value }));
         $('nValue').value = ''; $('nReason').value = '';
         decisionRows = [];
+        delete cache.decisions; delete cache.overview;
       } catch (e) {
         toast(errText(e.code), true);
       }
@@ -602,12 +646,11 @@
 
         const head = el('div', 'card');
         head.appendChild(el('h2', null, d.value));
-        if (d.allowlist) {
-          const raw = ('allowed' in d.allowlist) ? d.allowlist.allowed : d.allowlist.Allowed;
-          if (typeof raw === 'boolean') {
-            head.appendChild(el('div', raw ? 'banner' : 'note',
-              raw ? T.chk_allowed : T.chk_not_allowed));
-          }
+        if (d.allowlist && typeof d.allowlist.allowed === 'boolean') {
+          const lists = (d.allowlist.lists || []).join(', ');
+          let msg = T.chk_not_allowed;
+          if (d.allowlist.allowed) msg = T.chk_allowed + (lists ? ' (' + lists + ')' : '');
+          head.appendChild(el('div', d.allowlist.allowed ? 'banner' : 'note', msg));
         }
         box.appendChild(head);
 

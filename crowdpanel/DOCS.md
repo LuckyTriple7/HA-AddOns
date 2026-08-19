@@ -162,6 +162,23 @@ Herkunft, Land, Netz und Restlaufzeit.
 - **Alle gefilterten aufheben** hebt genau die angezeigten Zeilen auf, einzeln und
   nacheinander. Es wird nie mehr gelöscht als auf dem Bildschirm steht — das ist
   Absicht, damit ein Filter nicht versehentlich die halbe Sperrliste mitnimmt.
+  Über 200 Einträge lehnt CrowdPanel ab und bittet um einen engeren Filter.
+
+Die Tabelle zeigt höchstens so viele Zeilen, wie `page_size` erlaubt; daneben
+steht immer die Gesamtzahl. Das ist keine Schikane: Wer die Community-Blocklisten
+abonniert hat, kommt schnell auf 30.000 aktive Entscheidungen, und die gehören
+nicht alle gleichzeitig in eine Tabelle. Mit **Herkunft** lässt sich das sofort
+sortieren — `crowdsec` sind die von dieser Instanz selbst erkannten Angriffe,
+`cscli` die von Hand angelegten, `CAPI` und `lists` kommen von außen.
+
+> Zum Entsperren gibt es zwei Wege mit unterschiedlicher Reichweite. Die
+> Schaltfläche in der Zeile benutzt die Entscheidungs-Kennung und trifft genau
+> diesen einen Eintrag. Wird stattdessen über eine IP entsperrt, hebt CrowdSec
+> auch einen abdeckenden Bereich mit auf — das ist dessen eigenes Verhalten,
+> identisch zu `cscli decisions delete --ip`.
+>
+> Für **Land** und **Netz (AS)** gibt es keinen Sammel-Filter; die LAPI bietet
+> dafür keinen. Diese Sperren lassen sich nur über die Zeile aufheben.
 
 ### Neue Sperre
 
@@ -199,6 +216,11 @@ Feldern — daraus wird ersichtlich, welche Log-Zeile den Alarm ausgelöst hat.
 
 Ein Feld für eine Adresse oder einen Bereich. Ergebnis: alle aktiven
 Entscheidungen dazu, der Alarmverlauf und ob die Adresse auf einer Allowlist steht.
+
+Gefunden werden dabei auch Sperren, die die Adresse nur mit abdecken — also ein
+gesperrter Bereich, in dem sie liegt. Die LAPI vergleicht nur exakt, den
+Abdeckungstest macht CrowdPanel selbst; das Ergebnis entspricht dem von
+`cscli decisions list --ip`.
 
 Der Allowlist-Teil ist wichtig: Steht eine Adresse auf einer Allowlist, greift
 **keine** Sperre für sie — auch keine, die man gerade von Hand angelegt hat.
@@ -247,7 +269,7 @@ für eine schnelle, überall wirkende Sperre der Weg über CrowdPanel.
 | `lapi_tls_verify` | `true` | TLS-Zertifikat prüfen; nur bei selbstsigniertem `https` abschalten |
 | `default_ban_duration` | `4h` | Voreingestellte Dauer im Formular |
 | `refresh_interval` | `30` | Sekunden bis zur automatischen Aktualisierung, `0` schaltet sie ab |
-| `page_size` | `100` | wie viele Alarme höchstens abgefragt werden |
+| `page_size` | `100` | wie viele Zeilen die Tabellen höchstens anzeigen |
 | `verbose_log` | `false` | zusätzliche Zeilen im Protokoll |
 
 ---
@@ -280,6 +302,16 @@ das Add-on neu.
 
 Weitere Hinweise stehen im Protokoll des Add-ons. Bei `verbose_log: true` kommen
 Zeilen über den Auf- und Abbau der LAPI-Verbindung dazu.
+
+### Zum Tempo
+
+Die Antwort der LAPI auf „alle aktiven Entscheidungen" ist auf einer Instanz mit
+Community-Blocklisten mehrere Megabyte groß. CrowdPanel hält sie deshalb 15
+Sekunden lang vor und teilt sie zwischen Übersicht und Sperren; jede Änderung
+verwirft den Zwischenspeicher sofort, eine aufgehobene Sperre verschwindet also
+ohne Verzögerung. Beim Reiterwechsel zeichnet der Browser zuerst die zuletzt
+geladenen Daten und lädt erst danach nach — deshalb wirkt der Wechsel sofort,
+auch wenn die frischen Zahlen einen Moment später eintreffen.
 
 ---
 

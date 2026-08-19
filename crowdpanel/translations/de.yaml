@@ -33,7 +33,9 @@ configuration:
     description: Wie oft die Oberfläche von selbst neu lädt. 0 schaltet die automatische Aktualisierung ab.
   page_size:
     name: Zeilen je Ansicht
-    description: Wie viele Alarme höchstens abgefragt werden. Höhere Werte zeigen mehr, brauchen aber länger.
+    description: >-
+      Wie viele Zeilen die Tabellen höchstens anzeigen. Die Gesamtzahl steht
+      trotzdem daneben — bei mehr Treffern hilft ein engerer Filter.
   verbose_log:
     name: Ausführliches Protokoll
     description: Schreibt zusätzliche Zeilen ins Add-on-Protokoll. Nur zur Fehlersuche.

@@ -29,9 +29,10 @@ from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.security import check_password_hash, generate_password_hash
 
-from lapi import (DECISION_TYPES, DURATION_PRESETS, SCOPES, LapiClient,
-                  LapiError, ValidationError, is_ip_or_range, normalize_duration,
-                  normalize_scope, normalize_type, normalize_value)
+from lapi import (ALERT_FETCH_LIMIT, DECISION_TYPES, DURATION_PRESETS, SCOPES,
+                  LapiClient, LapiError, ValidationError, is_ip_or_range,
+                  normalize_duration, normalize_scope, normalize_type,
+                  normalize_value)
 
 logging.basicConfig(format='[%(levelname)s] [%(asctime)s] %(message)s',
                     level=logging.INFO, datefmt='%Y-%m-%d %H:%M:%S', force=True)
@@ -546,26 +547,27 @@ def _since_arg() -> str:
     return normalize_duration(raw) if raw else ''
 
 
+def _origin_arg(raw: str) -> str:
+    if raw and not re.fullmatch(r'[A-Za-z0-9_.-]{1,32}', raw):
+        raise ValidationError('bad_origin')
+    return raw
+
+
 def _server_filters() -> dict:
-    """Filters the LAPI itself understands."""
+    """Filters the alert endpoint really honours — see lapi._ALERT_FILTERS."""
     out = {}
     scope = _arg('scope')
     if scope:
         out['scope'] = normalize_scope(scope)
+        value = _arg('value')
+        if value:
+            out['value'] = normalize_value(out['scope'], value)
     dtype = _arg('type', 16)
     if dtype:
         out['decision_type'] = normalize_type(dtype)
-    origin = _arg('origin', 32)
+    origin = _origin_arg(_arg('origin', 32))
     if origin:
-        if not re.fullmatch(r'[A-Za-z0-9_.-]{1,32}', origin):
-            raise ValidationError('bad_origin')
         out['origin'] = origin
-    term = _arg('ip') or _arg('range')
-    if term:
-        kind = is_ip_or_range(term)
-        if not kind:
-            raise ValidationError('bad_ip')
-        out[kind[0]] = kind[1]
     since = _since_arg()
     if since:
         out['since'] = since
@@ -773,21 +775,17 @@ def status():
 @api('/api/overview')
 def overview():
     client = get_client()
-    rows = client.list_decisions(limit=1000)
-    alerts = client.list_alerts(limit=1000, since='24h')
-    by_type = Counter(r['type'] for r in rows if r['type'])
-    by_country = Counter(r['country'] for r in rows if r['country'])
-    by_scenario = Counter(r['scenario'] for r in rows if r['scenario'])
-    by_origin = Counter(r['origin'] for r in rows if r['origin'])
+    stats = client.decision_stats()
+    alerts = client.list_alerts(limit=ALERT_FETCH_LIMIT, since='24h')
     alert_scenarios = Counter((a.get('scenario') or '') for a in alerts
                               if isinstance(a, dict) and a.get('scenario'))
     return jsonify({
-        'decisions_total': len(rows),
+        'decisions_total': stats['total'],
         'alerts_24h': len(alerts),
-        'by_type': by_type.most_common(),
-        'top_countries': by_country.most_common(10),
-        'top_scenarios': by_scenario.most_common(10),
-        'by_origin': by_origin.most_common(10),
+        'by_type': stats['by_type'],
+        'top_countries': stats['top_countries'],
+        'top_scenarios': stats['top_scenarios'],
+        'by_origin': stats['by_origin'],
         'top_alert_scenarios': alert_scenarios.most_common(10),
     })
 
@@ -797,11 +795,17 @@ def decisions():
     client = get_client()
 
     if request.method == 'GET':
-        rows = client.list_decisions(limit=_page_size(), **_server_filters())
+        # One alert can carry thousands of decisions — a community blocklist
+        # update is a single alert with 15000 of them. Fetching stays cheap,
+        # but the answer has to be capped or the table drowns the browser.
+        rows = client.list_decisions(limit=ALERT_FETCH_LIMIT, **_server_filters())
         needle = _arg('q', 64)
         if needle:
             rows = [r for r in rows if _text_match(r, needle)]
-        return jsonify({'decisions': rows, 'count': len(rows)})
+        total = len(rows)
+        cap = _page_size()
+        return jsonify({'decisions': rows[:cap], 'count': min(total, cap),
+                        'total': total, 'truncated': total > cap})
 
     if request.method == 'POST':
         body = _body()
@@ -820,13 +824,13 @@ def decisions():
         return jsonify({'status': 'deleted',
                         'deleted': client.delete_decision(body.get('id'))})
 
-    filters = {}
     scope = (body.get('scope') or '').strip()
     value = (body.get('value') or '').strip()
     if scope and value:
-        scope = normalize_scope(scope)
-        filters['scope'] = scope
-        filters['value'] = normalize_value(scope, value)
+        return jsonify({'status': 'deleted',
+                        'deleted': client.delete_by_target(scope, value)})
+
+    filters = {}
     for key in ('ip', 'range'):
         term = (body.get(key) or '').strip()
         if term:
@@ -837,10 +841,8 @@ def decisions():
     dtype = (body.get('type') or '').strip()
     if dtype:
         filters['type'] = normalize_type(dtype)
-    origin = (body.get('origin') or '').strip()
+    origin = _origin_arg((body.get('origin') or '').strip())
     if origin:
-        if not re.fullmatch(r'[A-Za-z0-9_.-]{1,32}', origin):
-            raise ValidationError('bad_origin')
         filters['origin'] = origin
     return jsonify({'status': 'deleted',
                     'deleted': client.delete_decisions(**filters)})
@@ -888,20 +890,14 @@ def alert_detail(alert_id: int):
 
 @api('/api/check')
 def check():
-    term = _arg('value', 64)
-    kind = is_ip_or_range(term)
-    if not kind:
-        raise ValidationError('bad_ip')
     client = get_client()
-    lookup = {kind[0]: kind[1]}
-    active = client.list_decisions(limit=200, **lookup)
-    history = client.list_alerts(limit=50, **lookup)
-    allow = None
-    if kind[0] == 'ip':
-        try:
-            allow = client.allowlist_check(kind[1])
-        except (LapiError, ValidationError):
-            allow = None
+    kind, active = client.decisions_for(_arg('value', 64))
+    scope = 'Ip' if kind[0] == 'ip' else 'Range'
+    history = client.list_alerts(limit=50, scope=scope, value=kind[1])
+    try:
+        allow = client.allowlist_status(kind[1])
+    except (LapiError, ValidationError):
+        allow = None
     return jsonify({
         'value': kind[1],
         'kind': kind[0],

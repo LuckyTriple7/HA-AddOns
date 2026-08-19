@@ -1,7 +1,6 @@
 {
   "app_title": "CrowdPanel",
   "app_subtitle": "CrowdSec-Bedienpanel",
-
   "nav_overview": "Übersicht",
   "nav_decisions": "Sperren",
   "nav_new": "Neue Sperre",
@@ -9,7 +8,6 @@
   "nav_check": "IP prüfen",
   "nav_allowlists": "Allowlists",
   "nav_settings": "Einstellungen",
-
   "login_title": "Anmeldung",
   "login_user": "Benutzername",
   "login_pass": "Passwort",
@@ -19,18 +17,15 @@
   "error_locked": "Zu viele Fehlversuche. Bitte 15 Minuten warten.",
   "error_expired": "Formular abgelaufen. Bitte Seite neu laden.",
   "error_totp": "Code stimmt nicht.",
-
   "twofa_title": "Zwei-Faktor-Bestätigung",
   "twofa_hint": "Code aus der Authenticator-App oder ein Backup-Code.",
   "twofa_code": "Code",
   "twofa_trust": "Diesem Gerät 30 Tage vertrauen",
   "twofa_submit": "Bestätigen",
-
   "status_connected": "Verbunden",
   "status_disconnected": "Nicht verbunden",
   "status_checking": "Prüfe …",
   "status_machine": "Maschine",
-
   "err_not_configured": "Maschinen-Zugangsdaten fehlen in den Add-on-Optionen.",
   "err_no_url": "Keine LAPI-Adresse eingetragen.",
   "err_bad_url": "LAPI-Adresse ist keine http(s)-Adresse.",
@@ -56,7 +51,6 @@
   "err_bad_code": "Code stimmt nicht.",
   "err_bad_password": "Passwort stimmt nicht.",
   "err_setup_expired": "Einrichtung abgelaufen. Bitte neu starten.",
-
   "ov_decisions_total": "Aktive Sperren",
   "ov_alerts_24h": "Alarme (24 h)",
   "ov_by_type": "Nach Art",
@@ -64,7 +58,6 @@
   "ov_top_countries": "Häufigste Länder",
   "ov_top_scenarios": "Häufigste Szenarien",
   "ov_alert_scenarios": "Auslöser der letzten 24 h",
-
   "col_value": "Wert",
   "col_scope": "Bereich",
   "col_type": "Art",
@@ -78,7 +71,6 @@
   "col_events": "Ereignisse",
   "col_message": "Meldung",
   "col_count": "Anzahl",
-
   "act_unban": "Entsperren",
   "act_unban_confirm": "Sperre für {v} wirklich aufheben?",
   "act_unban_all": "Alle gefilterten aufheben",
@@ -87,7 +79,6 @@
   "act_details": "Details",
   "act_close": "Schließen",
   "act_copy": "Kopieren",
-
   "nb_title": "Neue Sperre anlegen",
   "nb_scope": "Bereich",
   "nb_value": "Wert",
@@ -103,7 +94,6 @@
   "nb_submit": "Sperren",
   "nb_ok": "Sperre angelegt: {v}",
   "nb_origin_note": "Sperren werden mit der Herkunft cscli angelegt, damit jeder Bouncer sie annimmt. CrowdPanel steht im Szenariotext.",
-
   "f_search": "Suchen",
   "f_search_hint": "Wert, Szenario, Land oder Netz",
   "f_scope": "Bereich",
@@ -113,7 +103,6 @@
   "f_all": "Alle",
   "f_apply": "Anwenden",
   "f_reset": "Zurücksetzen",
-
   "al_title": "Alarme",
   "al_none": "Keine Alarme im gewählten Zeitraum.",
   "al_detail": "Alarm {id}",
@@ -121,7 +110,6 @@
   "al_source": "Quelle",
   "al_decisions": "Entscheidungen",
   "al_simulated": "nur simuliert",
-
   "chk_title": "IP oder Bereich prüfen",
   "chk_placeholder": "198.51.100.7 oder 198.51.100.0/24",
   "chk_submit": "Prüfen",
@@ -132,13 +120,11 @@
   "chk_not_allowed": "Steht auf keiner Allowlist.",
   "chk_none": "Keine aktive Sperre.",
   "chk_no_history": "Kein Alarmverlauf.",
-
   "aw_title": "Allowlists",
   "aw_none": "Keine Allowlists vorhanden.",
   "aw_name": "Name",
   "aw_description": "Beschreibung",
   "aw_items": "Einträge",
-
   "set_title": "Einstellungen",
   "set_connection": "Verbindung",
   "set_2fa": "Zwei-Faktor-Anmeldung",
@@ -157,7 +143,6 @@
   "set_2fa_ingress_note": "Gilt nur für die Anmeldung über den direkten Port. Über die Home-Assistant-Seitenleiste meldet Home Assistant selbst an.",
   "set_2fa_done": "Zwei-Faktor-Anmeldung ist eingeschaltet.",
   "set_2fa_removed": "Zwei-Faktor-Anmeldung ist ausgeschaltet.",
-
   "dur_1h": "1 Stunde",
   "dur_4h": "4 Stunden",
   "dur_12h": "12 Stunden",
@@ -166,12 +151,10 @@
   "dur_720h": "30 Tage",
   "dur_8760h": "1 Jahr",
   "dur_custom": "Eigene Angabe",
-
   "since_1h": "letzte Stunde",
   "since_24h": "letzte 24 Stunden",
   "since_168h": "letzte 7 Tage",
   "since_720h": "letzte 30 Tage",
-
   "loading": "Lade …",
   "empty": "Nichts gefunden.",
   "none": "—",
@@ -180,5 +163,9 @@
   "off": "aus",
   "setup_needed": "Noch nicht eingerichtet",
   "setup_hint": "Maschinen-Zugang in CrowdSec anlegen und in die Add-on-Optionen eintragen. Die genauen Befehle stehen in der Dokumentation des Add-ons.",
-  "rows": "{n} Einträge"
+  "rows": "{n} Einträge",
+  "rows_of": "{n} von {total} Einträgen",
+  "truncated_hint": "Nur die ersten {n} Zeilen werden angezeigt — bitte enger filtern.",
+  "too_many": "Zu viele Einträge zum Aufheben. Höchstens {max} auf einmal — bitte enger filtern.",
+  "err_unsupported_filter": "Für Land und Netz gibt es keinen Sammel-Filter — über die Zeile entsperren."
 }
