@@ -210,21 +210,6 @@ längste Vorschlag ist ein Jahr (`8760h`).
 
 Was CrowdSec erkannt hat, unabhängig davon, ob daraus eine Sperre wurde.
 
-Der Filter **Ansicht** entscheidet, wie die Liste aufgebaut wird:
-
-- **einzeln** — jeder Alarm eine Zeile, chronologisch
-- **nach Adresse** — eine Zeile je Quell-IP, mit Trefferzahl, allen dort gesehenen
-  Szenarien, Land, Netz und dem letzten Auftreten
-- **nach Szenario** — eine Zeile je Muster, mit der Zahl der beteiligten Adressen
-
-Die Gruppierung ist meist das, was du willst. Aus hundert Einzelzeilen wird sichtbar,
-dass achtundvierzig davon von derselben Adresse stammen und drei verschiedene
-Angriffsmuster auslösen — genau daran erkennt man einen echten Angreifer und
-unterscheidet ihn von einem Fehlalarm, der immer dasselbe Szenario meldet.
-
-Jede Zeile mit einer Quelladresse hat einen Knopf **Sperren**. Der fragt nur noch
-nach Dauer und Grund und legt die Sperre an, ohne dass du die Adresse abtippen musst.
-
 Der Filter **Art** steht auf „nur Erkennungen". Der Grund: CrowdSec meldet auch
 jede Aktualisierung einer abonnierten Blockliste als Alarm — Szenario
 `update : +15000/-0 IPs`, null Ereignisse, 15.000 Entscheidungen daran. Das ist
@@ -321,29 +306,6 @@ für eine schnelle, überall wirkende Sperre der Weg über CrowdPanel.
 
 ---
 
-## Sensoren in Home Assistant
-
-Ist `ha_sensors` an (Vorgabe), meldet CrowdPanel drei Sensoren und einen
-Binärsensor an Home Assistant:
-
-| Entität | Bedeutung |
-|---|---|
-| `sensor.crowdpanel_decisions` | alle aktiven Sperren, inklusive der abonnierten Blocklisten |
-| `sensor.crowdpanel_decisions_local` | nur die aus Herkunft `crowdsec` und `cscli` — was diese Instanz selbst erkannt oder was du von Hand angelegt hast |
-| `sensor.crowdpanel_alerts_24h` | Erkennungen der letzten 24 Stunden, ohne Blocklisten-Aktualisierungen |
-| `binary_sensor.crowdpanel_lapi` | ob die LAPI erreichbar ist |
-
-Der interessante ist der zweite. Die Gesamtzahl schwankt mit jeder
-Blocklisten-Aktualisierung um Tausende und sagt über deine Lage nichts aus; die
-eigenen Sperren sind eine kleine, aussagekräftige Zahl. Eine Automatisierung, die
-bei einem sprunghaften Anstieg meldet, gehört an diesen Sensor.
-
-Das Intervall steuert `ha_sensor_interval` (Vorgabe 300 Sekunden). Jede
-Aktualisierung fragt die LAPI ab, bei sehr vielen Sperren lohnt ein größerer Wert.
-
-Lehnt Home Assistant die Sensoren ab, steht das **einmal** im Protokoll des Add-ons
-— danach nicht mehr, damit eine Fehlkonfiguration das Log nicht flutet.
-
 ## Optionen
 
 | Option | Vorgabe | Bedeutung |
@@ -359,8 +321,6 @@ Lehnt Home Assistant die Sensoren ab, steht das **einmal** im Protokoll des Add-
 | `refresh_interval` | `30` | Sekunden bis zur automatischen Aktualisierung, `0` schaltet sie ab |
 | `page_size` | `100` | wie viele Zeilen die Tabellen höchstens anzeigen |
 | `whitelist_dir` | leer | Verzeichnis der Whitelist-Parser, nur falls die Suche fehlschlägt |
-| `ha_sensors` | `true` | Sensoren an Home Assistant melden |
-| `ha_sensor_interval` | `300` | Sekunden zwischen zwei Sensor-Aktualisierungen |
 | `verbose_log` | `false` | zusätzliche Zeilen im Protokoll |
 
 ---

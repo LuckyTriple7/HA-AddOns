@@ -1,6 +1,6 @@
 name: CrowdPanel
 description: CrowdSec-Bedienpanel — Sperren ansehen, anlegen und aufheben
-version: "0.2.1"
+version: "0.1.4"
 slug: crowdpanel
 url: https://github.com/LuckyTriple7/HA-AddOns
 
@@ -20,9 +20,6 @@ panel_title: CrowdPanel
 ingress: true
 ingress_port: 17797
 ingress_stream: true
-
-# Nur fuer die Sensoren, die CrowdPanel nach Home Assistant meldet.
-homeassistant_api: true
 
 # Nur lesend, allein für die Anzeige der Whitelist-Parser von CrowdSec.
 # Diese liegen unter /homeassistant/.storage/… und sind über die LAPI nicht
@@ -48,8 +45,6 @@ options:
   refresh_interval: 30
   page_size: 100
   whitelist_dir: ""
-  ha_sensors: true
-  ha_sensor_interval: 300
   verbose_log: false
 
 schema:
@@ -64,6 +59,4 @@ schema:
   refresh_interval: int(0,3600)?
   page_size: int(10,1000)?
   whitelist_dir: str?
-  ha_sensors: bool?
-  ha_sensor_interval: int(60,86400)?
   verbose_log: bool?

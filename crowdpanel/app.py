@@ -30,8 +30,6 @@ from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.security import check_password_hash, generate_password_hash
 
-import requests as http
-
 from lapi import (ALERT_FETCH_LIMIT, DECISION_TYPES, DURATION_PRESETS, SCOPES,
                   LapiClient, LapiError, ValidationError, is_ip_or_range,
                   normalize_duration, normalize_scope, normalize_type,
@@ -599,63 +597,6 @@ def _kind_arg() -> str:
     return kind
 
 
-def _group_arg() -> str:
-    group = _arg('group', 16) or 'none'
-    if group not in ('none', 'source', 'scenario'):
-        raise ValidationError('bad_group')
-    return group
-
-
-def _group_alerts(rows: list, group: str) -> list:
-    """Fold the alert list into one row per source or per scenario.
-
-    A flat list of a hundred alerts hides the thing that matters — that ninety
-    of them are the same address. Counting them is what turns the list into an
-    answer.
-    """
-    key_field = 'value' if group == 'source' else 'scenario'
-    other_field = 'scenario' if group == 'source' else 'value'
-    buckets: dict = {}
-    for row in rows:
-        key = row.get(key_field) or '-'
-        bucket = buckets.get(key)
-        if bucket is None:
-            bucket = buckets[key] = {
-                'key': key, 'count': 0,
-                'country': row.get('country') or '',
-                'as_name': row.get('as_name') or '',
-                'first': row.get('created_at') or '',
-                'last': row.get('created_at') or '',
-                'events': 0, 'list_sync': bool(row.get('list_sync')),
-                '_others': set(), 'ids': [],
-            }
-        bucket['count'] += 1
-        bucket['events'] += int(row.get('events_count') or 0)
-        stamp = row.get('created_at') or ''
-        if stamp and stamp < bucket['first']:
-            bucket['first'] = stamp
-        if stamp and stamp > bucket['last']:
-            bucket['last'] = stamp
-        other = row.get(other_field)
-        if other:
-            bucket['_others'].add(other)
-        if len(bucket['ids']) < 5 and row.get('id') is not None:
-            bucket['ids'].append(row['id'])
-        if not bucket['country']:
-            bucket['country'] = row.get('country') or ''
-        if not bucket['as_name']:
-            bucket['as_name'] = row.get('as_name') or ''
-
-    out = []
-    for bucket in buckets.values():
-        others = sorted(bucket.pop('_others'))
-        bucket['others'] = others[:5]
-        bucket['others_total'] = len(others)
-        out.append(bucket)
-    out.sort(key=lambda b: (-b['count'], b['key']))
-    return out
-
-
 def _text_match(row: dict, needle: str) -> bool:
     if not needle:
         return True
@@ -913,7 +854,6 @@ def status():
         'machine_id': client.machine_id,
         'twofa': twofa_enabled(),
         'ingress': _is_ingress(),
-        'sensors': ha_sensors_enabled(),
     })
 
 
@@ -1002,7 +942,6 @@ def alerts():
     filters = _server_filters()
     filters.pop('decision_type', None)
     kind = _kind_arg()
-    group = _group_arg()
     rows = client.list_alerts(limit=ALERT_FETCH_LIMIT, **filters)
     needle = _arg('q', 64)
     cap = _page_size()
@@ -1032,16 +971,8 @@ def alerts():
                  'country': item['country'], 'as_name': item['as_name']}, needle):
             continue
         out.append(item)
-
-    if group != 'none':
-        groups = _group_alerts(out, group)
-        total = len(groups)
-        return jsonify({'group': group, 'groups': groups[:cap],
-                        'count': min(total, cap), 'total': total,
-                        'alerts_total': len(out), 'truncated': total > cap})
-
     total = len(out)
-    return jsonify({'group': 'none', 'alerts': out[:cap], 'count': min(total, cap),
+    return jsonify({'alerts': out[:cap], 'count': min(total, cap),
                     'total': total, 'truncated': total > cap})
 
 
@@ -1130,94 +1061,6 @@ def twofa_disable():
     return jsonify({'status': 'disabled'})
 
 
-# ── Home Assistant sensors ────────────────────────────────────────────────────
-
-SUPERVISOR_TOKEN = os.environ.get('SUPERVISOR_TOKEN', '')
-_sensor_warned = False
-
-
-def ha_sensors_enabled() -> bool:
-    return bool(SUPERVISOR_TOKEN) and bool(load_config().get('ha_sensors', True))
-
-
-def push_ha_sensors() -> None:
-    """Report the numbers to Home Assistant so they can drive automations.
-
-    Nothing here is worth failing a request over — every error is logged and
-    swallowed.
-    """
-    if not ha_sensors_enabled():
-        return
-    client = get_client()
-    state = client.ping()
-    online = bool(state.get('ok'))
-    decisions = local = alerts_24h = 0
-    if online:
-        try:
-            stats = client.decision_stats()
-            decisions = stats['total']
-            local = sum(count for origin, count in stats['by_origin']
-                        if origin in ('crowdsec', 'cscli'))
-            alerts = [a for a in client.list_alerts(limit=ALERT_FETCH_LIMIT, since='24h')
-                      if isinstance(a, dict)]
-            alerts_24h = sum(1 for a in alerts if not _is_list_sync(a))
-        except (LapiError, ValidationError) as e:
-            log.warning("sensor update skipped: %s", e.code)
-            online = False
-
-    headers = {'Authorization': 'Bearer ' + SUPERVISOR_TOKEN}
-
-    def _put(entity: str, payload: dict) -> bool:
-        # requests does not raise on 4xx, and a silently rejected sensor is
-        # worse than none — the answer code is checked and reported once.
-        try:
-            r = http.post(f'http://supervisor/core/api/states/{entity}',
-                          headers=headers, json=payload, timeout=10)
-        except http.RequestException:
-            return False
-        if r.status_code >= 300:
-            global _sensor_warned
-            if not _sensor_warned:
-                _sensor_warned = True
-                log.warning("Home Assistant rejected sensor %s (HTTP %d) — "
-                            "further failures are not repeated", entity, r.status_code)
-            return False
-        return True
-
-    sensors = [
-        ('crowdpanel_decisions', decisions, 'CrowdPanel active decisions',
-         'mdi:shield-lock', 'decisions'),
-        ('crowdpanel_decisions_local', local, 'CrowdPanel own decisions',
-         'mdi:shield-search', 'decisions'),
-        ('crowdpanel_alerts_24h', alerts_24h, 'CrowdPanel detections (24h)',
-         'mdi:alert', 'alerts'),
-    ]
-    ok = 0
-    for sid, value, name, icon, unit in sensors:
-        ok += _put(f'sensor.{sid}',
-                   {'state': value,
-                    'attributes': {'friendly_name': name, 'icon': icon,
-                                   'unit_of_measurement': unit,
-                                   'state_class': 'measurement'}})
-    ok += _put('binary_sensor.crowdpanel_lapi',
-               {'state': 'on' if online else 'off',
-                'attributes': {'friendly_name': 'CrowdPanel LAPI reachable',
-                               'icon': 'mdi:lan-connect',
-                               'device_class': 'connectivity'}})
-    if ok and _verbose():
-        log.info("Home Assistant sensors updated (%d of %d)", ok, len(sensors) + 1)
-
-
-def _sensor_worker() -> None:
-    while True:
-        interval = _cfg_int('ha_sensor_interval', 300, 60, 86400)
-        try:
-            push_ha_sensors()
-        except Exception:
-            log.exception("sensor worker")
-        time.sleep(interval)
-
-
 # ── Startup ───────────────────────────────────────────────────────────────────
 
 def _startup_checks() -> None:
@@ -1244,12 +1087,6 @@ def _startup_checks() -> None:
 if __name__ == '__main__':
     load_sessions()
     _startup_checks()
-
-    if ha_sensors_enabled():
-        threading.Thread(target=_sensor_worker, daemon=True).start()
-        log.info("Home Assistant sensors enabled")
-    elif not SUPERVISOR_TOKEN:
-        log.info("no Supervisor token — Home Assistant sensors unavailable")
 
     def _shutdown(signum, frame):
         log.info("signal %s received — CrowdPanel is shutting down", signum)

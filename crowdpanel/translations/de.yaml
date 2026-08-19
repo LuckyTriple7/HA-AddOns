@@ -43,17 +43,6 @@ configuration:
       dann sucht CrowdPanel selbst unter
       /homeassistant/.storage/crowdsec/config/parsers/s02-enrich. Wird
       ausschließlich gelesen.
-  ha_sensors:
-    name: Sensoren an Home Assistant melden
-    description: >-
-      Meldet aktive Sperren, davon selbst erkannte, und die Erkennungen der
-      letzten 24 Stunden als Sensoren. Damit lassen sich Automatisierungen und
-      Dashboard-Karten bauen.
-  ha_sensor_interval:
-    name: Sensor-Intervall (Sekunden)
-    description: >-
-      Wie oft die Sensoren aktualisiert werden. Jede Aktualisierung fragt die
-      LAPI ab — bei vielen Sperren lohnt ein größerer Wert.
   verbose_log:
     name: Ausführliches Protokoll
     description: Schreibt zusätzliche Zeilen ins Add-on-Protokoll. Nur zur Fehlersuche.

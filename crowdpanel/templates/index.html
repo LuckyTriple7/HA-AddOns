@@ -76,7 +76,6 @@
               border-radius: 8px; padding: 10px 14px; margin-bottom: 14px; font-size: 0.83rem; line-height: 1.5; }
     .banner.bad { border-color: var(--red); background: rgba(248,81,73,.1); color: var(--red); }
     .form-grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
-    .actions { display: flex; gap: 6px; flex-wrap: wrap; }
     .toast-wrap { position: fixed; right: 16px; bottom: 16px; display: flex; flex-direction: column; gap: 8px; z-index: 50; }
     .toast { background: var(--surf); border: 1px solid var(--border); border-left: 3px solid var(--green-h);
              border-radius: 6px; padding: 10px 14px; font-size: 0.83rem; max-width: 360px; box-shadow: 0 4px 14px rgba(0,0,0,.3); }
@@ -196,13 +195,14 @@
           <input id="aQ" type="text" placeholder="{{ t.f_search_hint }}"></div>
         <div class="field"><label for="aSince">{{ t.f_since }}</label><select id="aSince"></select></div>
         <div class="field"><label for="aKind">{{ t.f_kind }}</label><select id="aKind"></select></div>
-        <div class="field"><label for="aGroup">{{ t.f_group }}</label><select id="aGroup"></select></div>
         <button class="btn" id="aApply">{{ t.f_apply }}</button>
         <span class="muted" id="aCount"></span>
       </div>
-      <div class="banner" id="aTruncated" hidden></div>
       <div class="table-wrap"><table>
-        <thead id="aHead"></thead>
+        <thead><tr>
+          <th>{{ t.col_value }}</th><th>{{ t.col_scenario }}</th><th>{{ t.col_country }}</th>
+          <th>{{ t.col_as }}</th><th>{{ t.col_events }}</th><th>{{ t.col_created }}</th><th>{{ t.col_actions }}</th>
+        </tr></thead>
         <tbody id="aBody"></tbody>
       </table></div>
     </section>
@@ -226,8 +226,6 @@
         <div class="kv"><span>LAPI</span><span class="mono" id="sUrl">–</span></div>
         <div class="kv"><span>{{ t.status_machine }}</span><span class="mono" id="sMachine">–</span></div>
         <div class="kv"><span>Status</span><span id="sStatus">–</span></div>
-        <div class="kv"><span>{{ t.set_sensors }}</span><span id="sSensors">–</span></div>
-        <p class="note">{{ t.set_sensors_hint }}</p>
       </div>
       <div class="card" style="max-width:760px; margin-top:12px">
         <h2>{{ t.set_2fa }}</h2>
@@ -376,34 +374,15 @@
     }
 
     // ── tabs ──────────────────────────────────────────────────────────────────
-    const TABS = ['overview', 'decisions', 'new', 'alerts', 'check', 'allowlists', 'settings'];
-
-    // Null-prototype: a tab name arrives from location.hash, and on a plain
-    // object a name like "toString" would resolve through the prototype chain
-    // and dispatch to something that is not a loader at all.
-    const loaders = Object.create(null);
+    const loaders = {};
     // Last answer per tab. Switching tabs repaints from this at once and only
     // then refetches, so the panel never sits empty while the LAPI answers.
-    const cache = Object.create(null);
-
-    function tabName(raw) {
-      return TABS.indexOf(raw) >= 0 ? raw : 'overview';
-    }
-
-    // Single place where a tab name turns into a call. Only names from the
-    // fixed list get here, and only own properties are dispatched.
-    function runLoader(raw) {
-      const name = tabName(raw);
-      if (!Object.prototype.hasOwnProperty.call(loaders, name)) return;
-      const load = loaders[name];
-      if (typeof load === 'function') load();
-    }
-    function showTab(raw) {
-      const name = tabName(raw);
+    const cache = {};
+    function showTab(name) {
       document.querySelectorAll('nav button').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
       document.querySelectorAll('main section').forEach(s => s.classList.toggle('active', s.id === 'tab-' + name));
       location.hash = name;
-      runLoader(name);
+      if (loaders[name]) loaders[name]();
     }
     document.querySelectorAll('nav button').forEach(b => b.addEventListener('click', () => showTab(b.dataset.tab)));
 
@@ -419,7 +398,6 @@
         $('sMachine').textContent = d.machine_id || T.none;
         $('sStatus').textContent = ok ? T.status_connected : errText(d.lapi && d.lapi.code);
         $('sTwofaState').textContent = d.twofa ? T.set_2fa_state_on : T.set_2fa_state_off;
-        $('sSensors').textContent = d.sensors ? T.set_sensors_on : T.set_sensors_off;
         renderTwofaActions(d.twofa);
         if (ok) { banner.hidden = true; }
         else {
@@ -624,121 +602,45 @@
     });
 
     // ── alerts ────────────────────────────────────────────────────────────────
-    function setHead(cols) {
-      const tr = el('tr');
-      cols.forEach(c => tr.appendChild(el('th', null, c)));
-      const head = $('aHead');
-      head.textContent = '';
-      head.appendChild(tr);
-    }
-
-    function banButton(value) {
-      const btn = el('button', 'btn', T.act_ban);
-      btn.addEventListener('click', () => openBanDialog(value));
-      return btn;
-    }
-
-    function detailButton(id) {
-      const btn = el('button', 'btn', T.act_details);
-      btn.addEventListener('click', () => alertDetail(id));
-      return btn;
-    }
-
-    function renderAlertsSingle(d) {
-      setHead([T.col_value, T.col_scenario, T.col_country, T.col_as,
-               T.col_events, T.col_created, T.col_actions]);
-      const body = $('aBody');
-      body.textContent = '';
-      if (!d.alerts.length) { body.appendChild(rowMessage(7, T.al_none)); return; }
-      d.alerts.forEach(a => {
-        const tr = el('tr');
-        tr.appendChild(el('td', 'mono', a.value || T.none));
-        const tdScen = el('td');
-        tdScen.appendChild(document.createTextNode(a.scenario));
-        if (a.list_sync) {
-          tdScen.appendChild(document.createTextNode(' '));
-          tdScen.appendChild(el('span', 'tag', T.tag_list_sync));
-        }
-        tr.appendChild(tdScen);
-        tr.appendChild(el('td', null, a.country || T.none));
-        tr.appendChild(el('td', null, a.as_name || T.none));
-        tr.appendChild(el('td', 'mono', a.events_count));
-        tr.appendChild(el('td', 'mono', relTime(a.created_at)));
-        const td = el('td');
-        const acts = el('div', 'actions');
-        acts.appendChild(detailButton(a.id));
-        if (a.value && !a.list_sync) acts.appendChild(banButton(a.value));
-        td.appendChild(acts);
-        tr.appendChild(td);
-        body.appendChild(tr);
-      });
-    }
-
-    function renderAlertsGrouped(d) {
-      const bySource = d.group === 'source';
-      setHead([bySource ? T.col_value : T.col_scenario, T.col_hits,
-               bySource ? T.col_scenarios : T.col_sources,
-               T.col_country, T.col_as, T.col_last, T.col_actions]);
-      const body = $('aBody');
-      body.textContent = '';
-      if (!d.groups.length) { body.appendChild(rowMessage(7, T.al_none)); return; }
-      d.groups.forEach(g => {
-        const tr = el('tr');
-        tr.appendChild(el('td', bySource ? 'mono' : null, g.key));
-        tr.appendChild(el('td', 'mono', g.count));
-        const tdOther = el('td');
-        tdOther.appendChild(document.createTextNode(g.others.join(', ')));
-        if (g.others_total > g.others.length) {
-          tdOther.appendChild(el('div', 'muted',
-            fmt('more_n', { n: g.others_total - g.others.length })));
-        }
-        tr.appendChild(tdOther);
-        tr.appendChild(el('td', null, g.country || T.none));
-        tr.appendChild(el('td', null, g.as_name || T.none));
-        tr.appendChild(el('td', 'mono', relTime(g.last)));
-        const td = el('td');
-        const acts = el('div', 'actions');
-        if (g.ids.length) acts.appendChild(detailButton(g.ids[0]));
-        if (bySource && g.key && !g.list_sync) acts.appendChild(banButton(g.key));
-        td.appendChild(acts);
-        tr.appendChild(td);
-        body.appendChild(tr);
-      });
-    }
-
     loaders.alerts = async function () {
       const body = $('aBody');
-      if (cache.alerts) {
-        renderAlertPayload(cache.alerts);
-      } else {
-        body.textContent = '';
-        body.appendChild(rowMessage(7, T.loading));
-      }
+      body.textContent = '';
+      body.appendChild(rowMessage(7, T.loading));
       const p = new URLSearchParams();
       if ($('aQ').value.trim()) p.set('q', $('aQ').value.trim());
       if ($('aSince').value) p.set('since', $('aSince').value);
       p.set('kind', $('aKind').value);
-      p.set('group', $('aGroup').value);
       try {
-        const d = await api('/api/alerts?' + p.toString());
-        cache.alerts = d;
-        renderAlertPayload(d);
+        const d = await api('/api/alerts' + (p.toString() ? '?' + p.toString() : ''));
+        body.textContent = '';
+        $('aCount').textContent = fmt('rows_of', { n: d.count, total: d.total });
+        if (!d.alerts.length) { body.appendChild(rowMessage(7, T.al_none)); return; }
+        d.alerts.forEach(a => {
+          const tr = el('tr');
+          tr.appendChild(el('td', 'mono', a.value || T.none));
+          const tdScen = el('td');
+          tdScen.appendChild(document.createTextNode(a.scenario));
+          if (a.list_sync) {
+            tdScen.appendChild(document.createTextNode(' '));
+            tdScen.appendChild(el('span', 'tag', T.tag_list_sync));
+          }
+          tr.appendChild(tdScen);
+          tr.appendChild(el('td', null, a.country || T.none));
+          tr.appendChild(el('td', null, a.as_name || T.none));
+          tr.appendChild(el('td', 'mono', a.events_count));
+          tr.appendChild(el('td', 'mono', relTime(a.created_at)));
+          const td = el('td');
+          const btn = el('button', 'btn', T.act_details);
+          btn.addEventListener('click', () => alertDetail(a.id));
+          td.appendChild(btn);
+          tr.appendChild(td);
+          body.appendChild(tr);
+        });
       } catch (e) {
         body.textContent = '';
         body.appendChild(rowMessage(7, errText(e.code)));
-        $('aCount').textContent = '';
-        $('aTruncated').hidden = true;
       }
     };
-
-    function renderAlertPayload(d) {
-      if (d.group && d.group !== 'none') renderAlertsGrouped(d);
-      else renderAlertsSingle(d);
-      $('aCount').textContent = fmt('rows_of', { n: d.count, total: d.total });
-      const banner = $('aTruncated');
-      banner.hidden = !d.truncated;
-      if (d.truncated) banner.textContent = fmt('truncated_hint', { n: d.count });
-    }
 
     async function alertDetail(id) {
       const box = openModal(fmt('al_detail', { id: id }));
@@ -785,50 +687,8 @@
       }
     }
 
-    function openBanDialog(value) {
-      const box = openModal(T.ban_title);
-      box.appendChild(el('p', 'note', fmt('ban_for', { v: value })));
-
-      const durField = el('div', 'field');
-      durField.appendChild(el('label', null, T.nb_duration));
-      const dur = document.createElement('select');
-      fillSelect(dur, G.durations, v => T['dur_' + v] || v, false);
-      dur.value = G.durations.indexOf(G.defaultDuration) >= 0 ? G.defaultDuration : '4h';
-      durField.appendChild(dur);
-      box.appendChild(durField);
-
-      const reasonField = el('div', 'field');
-      reasonField.appendChild(el('label', null, T.nb_reason));
-      const reason = el('input');
-      reason.type = 'text';
-      reason.maxLength = 200;
-      reasonField.appendChild(reason);
-      box.appendChild(reasonField);
-
-      const go = el('button', 'btn primary', T.act_ban);
-      go.style.marginTop = '12px';
-      go.addEventListener('click', async () => {
-        go.disabled = true;
-        try {
-          const d = await api('/api/decisions', { method: 'POST', body: {
-            scope: value.indexOf('/') >= 0 ? 'Range' : 'Ip',
-            value: value, type: 'ban',
-            duration: dur.value, reason: reason.value.trim()
-          } });
-          closeModal();
-          toast(fmt('nb_ok', { v: d.value }));
-          delete cache.decisions; delete cache.overview;
-        } catch (e) {
-          toast(errText(e.code), true);
-          go.disabled = false;
-        }
-      });
-      box.appendChild(go);
-    }
-
-    function reloadAlerts() { delete cache.alerts; loaders.alerts(); }
-    $('aApply').addEventListener('click', reloadAlerts);
-    $('aQ').addEventListener('keydown', e => { if (e.key === 'Enter') reloadAlerts(); });
+    $('aApply').addEventListener('click', () => loaders.alerts());
+    $('aQ').addEventListener('keydown', e => { if (e.key === 'Enter') loaders.alerts(); });
 
     // ── check ─────────────────────────────────────────────────────────────────
     async function runCheck() {
@@ -1045,10 +905,7 @@
     fillSelect($('aSince'), ['1h', '24h', '168h', '720h'], v => T['since_' + v] || v, true);
     $('aSince').value = '24h';
     fillSelect($('aKind'), ['detections', 'lists', 'all'], v => T['kind_' + v] || v, false);
-    $('aKind').addEventListener('change', reloadAlerts);
-    fillSelect($('aGroup'), ['none', 'source', 'scenario'], v => T['group_' + v] || v, false);
-    $('aGroup').addEventListener('change', reloadAlerts);
-    $('aSince').addEventListener('change', reloadAlerts);
+    $('aKind').addEventListener('change', () => loaders.alerts());
     $('nDuration').value = G.durations.indexOf(G.defaultDuration) >= 0 ? G.defaultDuration : '4h';
     $('nDuration').addEventListener('change', () => {
       $('nCustomWrap').hidden = $('nDuration').value !== 'custom';
@@ -1056,7 +913,9 @@
     $('nScope').addEventListener('change', updateHint);
     updateHint();
 
-    showTab((location.hash || '').slice(1));
+    const TABS = ['overview', 'decisions', 'new', 'alerts', 'check', 'allowlists', 'settings'];
+    const wanted = (location.hash || '').slice(1);
+    showTab(TABS.indexOf(wanted) >= 0 ? wanted : 'overview');
     loadStatus();
     // Only off the Ingress path: its prefix carries a session token and changes,
     // so a worker registered under it is useless and just 404s on the next visit.
@@ -1067,7 +926,8 @@
       setInterval(() => {
         loadStatus();
         const active = document.querySelector('main section.active');
-        runLoader(active ? active.id.replace('tab-', '') : '');
+        const name = active ? active.id.replace('tab-', '') : '';
+        if (loaders[name]) loaders[name]();
       }, G.refresh * 1000);
     }
   </script>
