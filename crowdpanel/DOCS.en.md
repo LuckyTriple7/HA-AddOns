@@ -207,6 +207,21 @@ something if the bouncer has a captcha configured — in NPMplus for example thr
 
 What CrowdSec detected, whether or not it turned into a decision.
 
+The **view** filter decides how the list is built:
+
+- **single** — one row per alert, in chronological order
+- **by address** — one row per source IP, with a hit count, every scenario seen
+  there, country, network and the last occurrence
+- **by scenario** — one row per pattern, with the number of addresses involved
+
+Grouping is usually what you want. Out of a hundred single rows it becomes visible
+that forty-eight of them come from the same address and trigger three different
+attack patterns — that is how a real attacker is told apart from a false positive,
+which keeps reporting the same one scenario.
+
+Every row with a source address carries a **Ban** button. It only asks for duration
+and reason, so the address never has to be typed out.
+
 The **kind** filter starts on "detections only". The reason: CrowdSec also
 reports every refresh of a subscribed blocklist as an alert — scenario
 `update : +15000/-0 IPs`, no events, 15,000 decisions attached. That is not an
@@ -298,6 +313,29 @@ effect everywhere the CrowdPanel route is better.
 
 ---
 
+## Home Assistant sensors
+
+With `ha_sensors` on (the default), CrowdPanel reports three sensors and one binary
+sensor to Home Assistant:
+
+| Entity | Meaning |
+|---|---|
+| `sensor.crowdpanel_decisions` | all active decisions, subscribed blocklists included |
+| `sensor.crowdpanel_decisions_local` | only origins `crowdsec` and `cscli` — what this instance detected itself, plus what you created by hand |
+| `sensor.crowdpanel_alerts_24h` | detections of the last 24 hours, blocklist refreshes excluded |
+| `binary_sensor.crowdpanel_lapi` | whether the LAPI is reachable |
+
+The second one is the interesting one. The total swings by thousands with every
+blocklist refresh and says nothing about your situation; the local decisions are a
+small, meaningful number. An automation that reports a sudden rise belongs on that
+sensor.
+
+`ha_sensor_interval` controls the period (default 300 seconds). Every update queries
+the LAPI, so with very many decisions a larger value is worth it.
+
+If Home Assistant rejects the sensors, it is logged **once** in the add-on log — not
+again after that, so a misconfiguration cannot flood the log.
+
 ## Options
 
 | Option | Default | Meaning |
@@ -313,6 +351,8 @@ effect everywhere the CrowdPanel route is better.
 | `refresh_interval` | `30` | seconds between automatic refreshes, `0` turns it off |
 | `page_size` | `100` | how many rows the tables show at most |
 | `whitelist_dir` | empty | whitelist parser directory, only if auto-detection fails |
+| `ha_sensors` | `true` | report sensors to Home Assistant |
+| `ha_sensor_interval` | `300` | seconds between two sensor updates |
 | `verbose_log` | `false` | extra lines in the log |
 
 ---

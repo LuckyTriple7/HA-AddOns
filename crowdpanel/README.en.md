@@ -11,10 +11,11 @@ it into a web interface.
 - **Overview** — active decisions, alerts from the last 24 hours, top countries and scenarios
 - **Decisions** — filter by scope, type and origin; lift them one by one or all at once
 - **New ban** — single IP, CIDR range, whole country or whole network (AS), with a free duration and reason
-- **Alerts** — what CrowdSec detected, with its events and the triggering log line
+- **Alerts** — groupable by address or scenario with hit counts, with events and the triggering log line; ban straight from the row
 - **Check IP** — active decisions, alert history and allowlist hits for an address
 - **Exemptions** — allowlists from the CrowdSec database and whitelist parsers in full, with the difference explained
 - **Two-factor sign-in** — TOTP for the direct port, QR code generated locally, backup codes
+- **Home Assistant sensors** — active decisions, the locally detected ones, and detections of the last 24 hours
 - Dark / light · DE / EN · HA Ingress · PWA
 
 ## Quick start

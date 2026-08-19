@@ -1,16 +1,66 @@
 # Changelog
 
+## [0.2.2] - 2026-08-19
+
+- Inhaltlich identisch mit 0.2.1. Home Assistant hatte 0.2.0 und 0.2.1 nicht
+  als Aktualisierung angeboten, obwohl der Klon des Supervisors sie enthielt,
+  die Validierung keine Warnung erzeugte und die Images für beide
+  Architekturen vorlagen. Mit dem inhaltsgleichen Teststand 0.1.4 kam das
+  Update sofort an — der Store arbeitet also. Die Funktionen kehren deshalb
+  unter einer frischen Nummer zurück statt unter der bereits vergebenen 0.2.1,
+  weil der Supervisor Versionen vergleicht und ein zweites Image unter
+  derselben Nummer die Sache nur wieder unklar machen würde.
+
+## [0.2.1] - 2026-08-19
+
+### Security
+- **Reitername aus der Adresszeile wurde ungeprüft als Schlüssel benutzt**
+  (CodeQL, `js/unvalidated-dynamic-method-call`). `location.hash` landete direkt
+  in `loaders[name]()`; ein Fragment wie `#toString` oder `#constructor` hätte
+  über die Prototypenkette auf etwas dispatcht, das kein Loader ist. Der Name
+  wird jetzt an einer Stelle gegen die feste Liste der Reiter geprüft, `loaders`
+  und der Zwischenspeicher sind ohne Prototyp angelegt, und aufgerufen wird nur
+  eine eigene Eigenschaft, die auch wirklich eine Funktion ist. Im Browser
+  gegengeprüft: `#toString`, `#constructor`, `#__proto__` und `#hasOwnProperty`
+  landen auf der Übersicht, `#alerts`, `#settings` und `#decisions` weiterhin
+  auf ihrem Reiter.
+
+## [0.2.0] - 2026-08-19
+
+### Added
+- **Alarme lassen sich verdichten.** Neben der Einzelansicht gibt es jetzt
+  „nach Adresse" und „nach Szenario". Die Gruppierung zeigt Trefferzahl, alle
+  dort gesehenen Szenarien beziehungsweise Adressen, Land, Netz und das letzte
+  Auftreten. Aus hundert Einzelzeilen wird damit auf einen Blick sichtbar, dass
+  achtundvierzig davon von derselben Adresse stammen und drei verschiedene
+  Angriffsmuster auslösen — der Unterschied zwischen einem echten Angreifer und
+  einem Fehlalarm, der stur dasselbe Szenario meldet.
+- **Sperren direkt aus einem Alarm.** Jede Zeile mit einer Quelladresse hat einen
+  Knopf, der nur noch nach Dauer und Grund fragt. Kein Abtippen der Adresse in
+  den Reiter „Neue Sperre" mehr.
+- **Sensoren in Home Assistant.** `sensor.crowdpanel_decisions`,
+  `sensor.crowdpanel_decisions_local`, `sensor.crowdpanel_alerts_24h` und
+  `binary_sensor.crowdpanel_lapi`. Der zweite ist der aussagekräftige: Die
+  Gesamtzahl schwankt mit jeder Blocklisten-Aktualisierung um Tausende, die
+  selbst erkannten Sperren sind eine kleine, verwertbare Zahl. Intervall über
+  `ha_sensor_interval`, abschaltbar über `ha_sensors`.
+
+### Changed
+- Der Alarm-Reiter nennt jetzt wie die Sperren-Tabelle die Gesamtzahl neben den
+  angezeigten Zeilen und weist auf eine Kürzung hin.
+- Filteränderungen im Alarm-Reiter laden sofort neu, statt auf „Anwenden" zu
+  warten.
+
+### Notes
+- Lehnt Home Assistant die Sensoren ab, steht das genau einmal im Protokoll —
+  danach nicht mehr, damit eine Fehlkonfiguration das Log nicht flutet. Das
+  Add-on deklariert dafür `homeassistant_api: true`.
+
 ## [0.1.4] - 2026-08-19
 
-- Inhaltlich identisch mit 0.1.3, nur die Versionsnummer ist angehoben. Home
-  Assistant hat die Versionen 0.2.0 und 0.2.1 nicht als Aktualisierung
-  angeboten, obwohl der Klon des Supervisors sie enthielt, die Validierung
-  keine Warnung erzeugte und die Images für beide Architekturen vorlagen.
-  Dieser Stand prüft, ob der Store überhaupt eine neue Version übernimmt.
-- Die Funktionen aus 0.2.0 — Alarme gruppieren, aus dem Alarm sperren,
-  Home-Assistant-Sensoren — und die Absicherung des Reiter-Aufrufs aus 0.2.1
-  liegen unverändert in der Historie und kommen zurück, sobald die Ursache
-  geklärt ist: `git checkout 15dd332e -- crowdpanel/`.
+- Diagnose-Stand, inhaltlich identisch mit 0.1.3 und zeitlich nach 0.2.1
+  veröffentlicht. Dient nur der Eingrenzung, warum Home Assistant 0.2.x nicht
+  als Aktualisierung angeboten hat.
 
 ## [0.1.3] - 2026-08-19
 
