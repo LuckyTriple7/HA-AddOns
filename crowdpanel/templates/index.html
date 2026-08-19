@@ -177,6 +177,7 @@
           <input id="dQ" type="text" placeholder="{{ t.f_search_hint }}"></div>
         <div class="field"><label for="dScope">{{ t.f_scope }}</label><select id="dScope"></select></div>
         <div class="field"><label for="dType">{{ t.f_type }}</label><select id="dType"></select></div>
+        <div class="field"><label for="dKind">{{ t.f_kind }}</label><select id="dKind"></select></div>
         <div class="field"><label for="dOrigin">{{ t.f_origin }}</label><select id="dOrigin"></select></div>
         <button class="btn" id="dApply">{{ t.f_apply }}</button>
         <button class="btn" id="dReset">{{ t.f_reset }}</button>
@@ -605,7 +606,20 @@
         const left = el('span', 'mono', m.machine_id || T.none);
         left.title = [m.version, m.ip_address].filter(Boolean).join(' · ');
         row.appendChild(left);
-        row.appendChild(el('span', null, T.b_heartbeat + ': ' + ageLabel(m.last_heartbeat)));
+        if (m.self) {
+          left.appendChild(document.createTextNode(' '));
+          left.appendChild(el('span', 'tag', T.b_self));
+        }
+        // Lebenszeichen schicken nur Agenten. Ein Zugang, der die API bloss
+        // benutzt, hat hier dauerhaft nichts stehen — das ist kein Ausfall.
+        const right = el('span', null,
+          m.last_heartbeat ? T.b_heartbeat + ': ' + ageLabel(m.last_heartbeat)
+                           : T.b_no_agent);
+        if (!m.last_heartbeat) {
+          right.style.color = 'var(--muted)';
+          right.title = T.b_no_agent_hint;
+        }
+        row.appendChild(right);
         box.appendChild(row);
       });
     }
@@ -652,6 +666,7 @@
       if ($('dScope').value) p.set('scope', $('dScope').value);
       if ($('dType').value) p.set('type', $('dType').value);
       if ($('dOrigin').value.trim()) p.set('origin', $('dOrigin').value.trim());
+      p.set('kind', $('dKind').value);
       const q = p.toString();
       return '/api/decisions' + (q ? '?' + q : '');
     }
@@ -671,7 +686,7 @@
         renderDecisionPayload(cache.decisions);
       } else {
         body.textContent = '';
-        body.appendChild(rowMessage(9, T.loading));
+        body.appendChild(rowMessage(10, T.loading));
       }
       try {
         const d = await api(decisionQuery());
@@ -679,7 +694,7 @@
         renderDecisionPayload(d);
       } catch (e) {
         body.textContent = '';
-        body.appendChild(rowMessage(9, errText(e.code)));
+        body.appendChild(rowMessage(10, errText(e.code)));
         $('dCount').textContent = '';
         $('dTruncated').hidden = true;
       }
@@ -701,7 +716,8 @@
       { label: () => T.col_origin,   key: 'origin',   narrow: true },
       { label: () => T.col_country,  key: 'country' },
       { label: () => T.col_as,       key: 'as_name',  narrow: true },
-      { label: () => T.col_expires,  key: 'until' },
+      { label: () => T.col_expires,  key: 'duration' },
+      { label: () => T.col_created,  key: 'created_at', narrow: true },
       { label: () => T.col_actions },
     ];
 
@@ -711,7 +727,7 @@
                 () => renderDecisions(decisionRows));
       const body = $('dBody');
       body.textContent = '';
-      if (!rows.length) { body.appendChild(rowMessage(9, T.empty)); return; }
+      if (!rows.length) { body.appendChild(rowMessage(10, T.empty)); return; }
       sortRows('decisions', rows).forEach(r => {
         const tr = el('tr');
         tr.appendChild(el('td', 'mono', r.value));
@@ -726,6 +742,7 @@
         tr.appendChild(el('td', 'hide-narrow',
                           r.as_name || (r.as_number ? 'AS' + r.as_number : T.none)));
         tr.appendChild(el('td', 'mono', shortDuration(r)));
+        tr.appendChild(el('td', 'mono hide-narrow', relTime(r.created_at)));
         const tdAct = el('td');
         const btn = el('button', 'btn danger', T.act_unban);
         btn.addEventListener('click', () => unban(r, btn));
@@ -759,7 +776,8 @@
     $('dScope').addEventListener('change', reloadDecisions);
     $('dType').addEventListener('change', reloadDecisions);
     $('dReset').addEventListener('click', () => {
-      $('dQ').value = ''; $('dScope').value = ''; $('dType').value = ''; $('dOrigin').value = '';
+      $('dQ').value = ''; $('dScope').value = ''; $('dType').value = '';
+      $('dOrigin').value = ''; $('dKind').value = 'local';
       reloadDecisions();
     });
 
@@ -1345,6 +1363,8 @@
 
     // ── init ──────────────────────────────────────────────────────────────────
     const scopeLabel = s => s;
+    fillSelect($('dKind'), ['local', 'lists', 'all'], v => T['dkind_' + v] || v, false);
+    $('dKind').addEventListener('change', reloadDecisions);
     fillSelect($('dScope'), G.scopes, scopeLabel, true);
     fillSelect($('dType'), G.types, s => s, true);
     fillSelect($('nScope'), G.scopes, scopeLabel, false);

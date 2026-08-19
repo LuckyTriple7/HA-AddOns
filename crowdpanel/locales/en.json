@@ -241,5 +241,11 @@
   "h_none": "No history available.",
   "sort_hint": "Click to sort",
   "b_auto": "derived",
-  "b_auto_hint": "Created automatically because the same key was used from another address. Pulls nothing itself and can only be deleted together with its parent bouncer."
+  "b_auto_hint": "Created automatically because the same key was used from another address. Pulls nothing itself and can only be deleted together with its parent bouncer.",
+  "b_self": "this panel",
+  "b_no_agent": "not an agent",
+  "b_no_agent_hint": "Only agents send heartbeats — the part of CrowdSec that processes logs. An account that merely uses the API leaves this empty for good.",
+  "dkind_local": "own decisions",
+  "dkind_lists": "blocklists only",
+  "dkind_all": "all"
 }

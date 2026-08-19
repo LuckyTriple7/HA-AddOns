@@ -1,5 +1,32 @@
 # Changelog
 
+## [0.4.2] - 2026-08-19
+
+### Fixed
+- **Die Sperren-Tabelle zeigte nicht die neuesten Einträge.** Die Deckelung auf
+  `page_size` griff, bevor sortiert wurde — und weil eine einzelne
+  Blocklisten-Aktualisierung 15.000 Entscheidungen an einem Alarm mitbringt,
+  bestand die ganze erste Seite aus genau diesem einen Alarm. Alle Zeilen
+  `CAPI`, alle `http:scan`, und die selbst angelegten oder erkannten Sperren
+  waren nie zu sehen.
+
+  Jetzt wird nach Alter sortiert und danach gedeckelt: Oben stehen die
+  neuesten. Die Spalte **Angelegt** ist dazugekommen, sortierbar wie die
+  übrigen; auf schmalen Bildschirmen fällt sie weg.
+
+  Sortieren allein reichte allerdings nicht — die neuesten Einträge *sind* die
+  Blockliste. Der neue Filter **Art** trennt deshalb wie im Alarm-Reiter
+  zwischen „eigene Sperren" (Herkunft `crowdsec` und `cscli`, Vorgabe), „nur
+  Blocklisten" und „alle".
+- **„Letztes Lebenszeichen: noch nie" sah bei CrowdPanel nach einem Ausfall
+  aus.** Lebenszeichen schicken nur Agenten — der Teil von CrowdSec, der Logs
+  auswertet. Ein Maschinen-Zugang, der die API bloß benutzt, hat dort
+  dauerhaft nichts stehen. Statt einer Altersangabe steht jetzt „kein Agent" in
+  Grau, mit Erklärung im Tooltip, und der eigene Zugang ist als *dieses Panel*
+  gekennzeichnet.
+- Die Spalte „Läuft ab" sortiert nach der Restlaufzeit statt nach einem Feld,
+  das die LAPI leer lässt.
+
 ## [0.4.1] - 2026-08-19
 
 ### Fixed

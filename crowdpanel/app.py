@@ -593,6 +593,18 @@ def _is_list_sync(alert: dict) -> bool:
     return False
 
 
+# Herkünfte, die aus dieser Instanz stammen — im Gegensatz zu den abonnierten
+# Listen und der Community-Blockliste, die zusammen 99 % der Einträge stellen.
+LOCAL_ORIGINS = ('crowdsec', 'cscli')
+
+
+def _decision_kind_arg() -> str:
+    kind = _arg('kind', 16) or 'local'
+    if kind not in ('local', 'lists', 'all'):
+        raise ValidationError('bad_kind')
+    return kind
+
+
 def _kind_arg() -> str:
     kind = _arg('kind', 16) or 'detections'
     if kind not in ('detections', 'lists', 'all'):
@@ -838,6 +850,9 @@ def bouncers():
         row['auto_created'] = bool(row.get('auto_created'))
     for row in machines:
         row['is_validated'] = bool(row.get('is_validated'))
+    own = str(load_config().get('machine_id') or '').strip()
+    for row in machines:
+        row['self'] = bool(own) and row.get('machine_id') == own
     return jsonify({'available': True, 'db': str(path),
                     'bouncers': rows, 'machines': machines})
 
@@ -1158,13 +1173,23 @@ def decisions():
         # update is a single alert with 15000 of them. Fetching stays cheap,
         # but the answer has to be capped or the table drowns the browser.
         rows = client.list_decisions(limit=ALERT_FETCH_LIMIT, **_server_filters())
+        kind = _decision_kind_arg()
+        if kind == 'local':
+            rows = [r for r in rows if r.get('origin') in LOCAL_ORIGINS]
+        elif kind == 'lists':
+            rows = [r for r in rows if r.get('origin') not in LOCAL_ORIGINS]
         needle = _arg('q', 64)
         if needle:
             rows = [r for r in rows if _text_match(r, needle)]
+        # Neueste zuerst, und zwar *vor* der Deckelung. Sonst bestimmt ein
+        # einzelner Alarm die ganze Seite: Eine Blocklisten-Aktualisierung
+        # bringt 15000 Entscheidungen mit demselben Zeitstempel mit, und die
+        # eigenen Sperren wären nie zu sehen.
+        rows.sort(key=lambda r: str(r.get('created_at') or ''), reverse=True)
         total = len(rows)
         cap = _page_size()
         return jsonify({'decisions': rows[:cap], 'count': min(total, cap),
-                        'total': total, 'truncated': total > cap})
+                        'total': total, 'truncated': total > cap, 'kind': kind})
 
     if request.method == 'POST':
         body = _body()

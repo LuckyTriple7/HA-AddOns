@@ -241,5 +241,11 @@
   "h_none": "Kein Verlauf verfügbar.",
   "sort_hint": "Zum Sortieren klicken",
   "b_auto": "abgeleitet",
-  "b_auto_hint": "Automatisch angelegt, weil derselbe Schlüssel von einer anderen Adresse benutzt wurde. Holt selbst nichts ab und lässt sich nur zusammen mit dem übergeordneten Bouncer löschen."
+  "b_auto_hint": "Automatisch angelegt, weil derselbe Schlüssel von einer anderen Adresse benutzt wurde. Holt selbst nichts ab und lässt sich nur zusammen mit dem übergeordneten Bouncer löschen.",
+  "b_self": "dieses Panel",
+  "b_no_agent": "kein Agent",
+  "b_no_agent_hint": "Lebenszeichen schicken nur Agenten, also der Teil von CrowdSec, der Logs auswertet. Ein Zugang, der die API nur benutzt, hat hier dauerhaft nichts stehen.",
+  "dkind_local": "eigene Sperren",
+  "dkind_lists": "nur Blocklisten",
+  "dkind_all": "alle"
 }
