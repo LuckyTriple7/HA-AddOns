@@ -2,6 +2,10 @@
 # Läuft als cont-init.d (root, vor nginx) — SMB-Mounts + PHP-Limits
 OPTIONS=/data/options.json
 
+# Nur fuer die SMB-Einhaengungen weiter unten (uid=/gid= in OPTS). Den Benutzer,
+# unter dem Nextcloud laeuft, aendern diese Werte NICHT — das Basisimage von
+# LinuxServer.io bleibt bei abc (911). Ein echtes Durchreichen wuerde beim naechsten
+# Start das gesamte /config umchownen, deshalb bewusst nicht.
 PUID=$(jq -r '.PUID // 1000' "$OPTIONS" 2>/dev/null || echo 1000)
 PGID=$(jq -r '.PGID // 1000' "$OPTIONS" 2>/dev/null || echo 1000)
 MEMORY_LIMIT=$(jq -r '.memory_limit // "512M"' "$OPTIONS" 2>/dev/null || echo "512M")
