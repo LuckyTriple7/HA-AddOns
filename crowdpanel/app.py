@@ -895,6 +895,7 @@ def index():
         scopes=SCOPES,
         decision_types=DECISION_TYPES,
         durations=DURATION_PRESETS,
+        version=APP_VERSION,
         default_duration=str(cfg.get('default_ban_duration') or '4h'),
         refresh_interval=_cfg_int('refresh_interval', 30, 0, 3600),
         page_size=_page_size(),
@@ -914,6 +915,8 @@ def status():
         'twofa': twofa_enabled(),
         'ingress': _is_ingress(),
         'sensors': ha_sensors_enabled(),
+        'version': APP_VERSION,
+        'supervisor': _supervisor_versions(),
     })
 
 
@@ -1130,9 +1133,48 @@ def twofa_disable():
     return jsonify({'status': 'disabled'})
 
 
+SUPERVISOR_TOKEN = os.environ.get('SUPERVISOR_TOKEN', '')
+
+# ── Version ───────────────────────────────────────────────────────────────────
+# Welche Fassung läuft gerade? Diese Frage war über Store, Update-Entitäten und
+# Portainer hinweg nicht verlässlich zu beantworten — die drei widersprachen
+# sich. Deshalb nennt das Panel seine eigene Version selbst, gelesen aus der
+# config.yaml im Image, und daneben das, was der Supervisor für neu hält.
+
+def _own_version() -> str:
+    try:
+        with open(_BASE + '/config.yaml', encoding='utf-8') as f:
+            for line in f:
+                if line.startswith('version:'):
+                    return line.split(':', 1)[1].strip().strip('"\'')
+    except OSError:
+        pass
+    return ''
+
+
+APP_VERSION = _own_version()
+
+
+def _supervisor_versions() -> dict:
+    """installed/latest straight from the Supervisor, bypassing every cache."""
+    if not SUPERVISOR_TOKEN:
+        return {}
+    try:
+        r = http.get('http://supervisor/addons/self/info',
+                     headers={'Authorization': 'Bearer ' + SUPERVISOR_TOKEN},
+                     timeout=10)
+        if r.status_code != 200:
+            return {}
+        data = (r.json() or {}).get('data') or {}
+    except (http.RequestException, ValueError):
+        return {}
+    return {'installed': data.get('version') or '',
+            'latest': data.get('version_latest') or '',
+            'update_available': bool(data.get('update_available'))}
+
+
 # ── Home Assistant sensors ────────────────────────────────────────────────────
 
-SUPERVISOR_TOKEN = os.environ.get('SUPERVISOR_TOKEN', '')
 _sensor_warned = False
 
 

@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.2.3] - 2026-08-19
+
+### Added
+- **Das Panel nennt seine eigene Version.** In der Kopfzeile steht, welcher
+  Stand tatsächlich läuft, unter Einstellungen zusätzlich, was der Supervisor
+  als neueste Fassung führt. Weicht beides voneinander ab, färbt sich die
+  Anzeige.
+
+  Anlass: Heute widersprachen sich drei Quellen — der Add-on-Store, die
+  Update-Entität und eine Portainer-Integration, die dieselbe Zahl aus dem
+  Container-Digest ableitet. Zwei Stunden gingen dafür drauf, überhaupt
+  festzustellen, welcher Code läuft. Die Versionszeile kommt jetzt aus der
+  `config.yaml` im Image selbst und geht an jedem Zwischenspeicher vorbei; die
+  Store-Zahl daneben holt sich das Panel über `/addons/self/info` direkt beim
+  Supervisor.
+
 ## [0.2.2] - 2026-08-19
 
 - Inhaltlich identisch mit 0.2.1. Home Assistant hatte 0.2.0 und 0.2.1 nicht

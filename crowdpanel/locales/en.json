@@ -201,5 +201,10 @@
   "set_sensors": "Home Assistant sensors",
   "set_sensors_on": "Being reported",
   "set_sensors_off": "Not available",
-  "set_sensors_hint": "CrowdPanel reports active decisions, its own decisions and detections of the last 24 hours as sensors to Home Assistant. Switch off with the ha_sensors option."
+  "set_sensors_hint": "CrowdPanel reports active decisions, its own decisions and detections of the last 24 hours as sensors to Home Assistant. Switch off with the ha_sensors option.",
+  "ver_running": "Running",
+  "ver_latest": "In store",
+  "ver_unknown": "unknown",
+  "ver_update": "Update available",
+  "set_version": "Version"
 }

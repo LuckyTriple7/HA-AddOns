@@ -201,5 +201,10 @@
   "set_sensors": "Home-Assistant-Sensoren",
   "set_sensors_on": "Werden gemeldet",
   "set_sensors_off": "Nicht verfügbar",
-  "set_sensors_hint": "CrowdPanel meldet aktive Sperren, eigene Sperren und Erkennungen der letzten 24 Stunden als Sensoren an Home Assistant. Abschaltbar über die Option ha_sensors."
+  "set_sensors_hint": "CrowdPanel meldet aktive Sperren, eigene Sperren und Erkennungen der letzten 24 Stunden als Sensoren an Home Assistant. Abschaltbar über die Option ha_sensors.",
+  "ver_running": "Läuft",
+  "ver_latest": "Im Store",
+  "ver_unknown": "unbekannt",
+  "ver_update": "Aktualisierung verfügbar",
+  "set_version": "Version"
 }

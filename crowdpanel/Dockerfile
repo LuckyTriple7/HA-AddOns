@@ -16,6 +16,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 # mit ins Image.
 COPY app.py .
 COPY lapi.py .
+# Nur wegen der Versionszeile — damit das Panel zeigen kann, welcher Stand laeuft.
+COPY config.yaml .
 COPY templates/ templates/
 COPY static/ static/
 COPY icon*.png static/
