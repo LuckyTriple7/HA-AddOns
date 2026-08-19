@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.3.1] - 2026-08-19
+
+### Added
+- **Ländercodes zeigen beim Überfahren den vollen Namen** — in der Übersicht
+  unter „Häufigste Länder", in der Sperren-Tabelle und im Alarm-Reiter, auch in
+  der gruppierten Ansicht. `PL` wird zu Polen, und zwar in der Sprache der
+  Oberfläche.
+
+  Die Namen kommen über `Intl.DisplayNames` aus dem Browser. Sie in die
+  Sprachdateien zu schreiben hätte rund 250 Einträge je Sprache bedeutet, die
+  gepflegt werden wollen und bei denen die Oberfläche trotzdem nur die zwei
+  Sprachen könnte, die dort stehen. Kennt ein Browser die Funktion nicht,
+  bleibt es beim Code wie bisher.
+
 ## [0.3.0] - 2026-08-19
 
 ### Added

@@ -265,7 +265,8 @@
       refresh: {{ refresh_interval|tojson }},
       pageSize: {{ page_size|tojson }},
       hasQr: {{ has_qr|tojson }},
-      ingress: {{ ingress|tojson }}
+      ingress: {{ ingress|tojson }},
+      lang: {{ lang|tojson }}
     };
 
     (function(){ document.documentElement.setAttribute('data-theme', localStorage.getItem('cp-theme') || 'dark'); })();
@@ -283,6 +284,30 @@
       if (cls) n.className = cls;
       if (text !== undefined && text !== null) n.textContent = String(text);
       return n;
+    }
+
+    // Laendernamen kommen aus dem Browser, nicht aus den Sprachdateien — sonst
+    // laegen hier 250 Namen je Sprache, die niemand pflegt.
+    const REGION_NAMES = (function () {
+      try { return new Intl.DisplayNames([G.lang || 'de'], { type: 'region' }); }
+      catch (e) { return null; }
+    })();
+
+    function countryName(code) {
+      const cc = String(code || '').trim().toUpperCase();
+      if (!REGION_NAMES || !/^[A-Z]{2}$/.test(cc)) return '';
+      try {
+        const name = REGION_NAMES.of(cc);
+        return (name && name !== cc) ? name : '';
+      } catch (e) { return ''; }
+    }
+
+    // Zelle mit Laendercode; der volle Name steht im Tooltip.
+    function countryCell(code) {
+      const td = el('td', null, code || T.none);
+      const name = countryName(code);
+      if (name) td.title = name;
+      return td;
     }
 
     function fmt(key, vars) {
@@ -345,13 +370,16 @@
       values.forEach(v => sel.appendChild(new Option(labelFn ? labelFn(v) : v, v)));
     }
 
-    function bars(container, pairs) {
+    function bars(container, pairs, titleFn) {
       container.textContent = '';
       if (!pairs || !pairs.length) { container.appendChild(el('div', 'muted', T.empty)); return; }
       const max = Math.max.apply(null, pairs.map(p => p[1])) || 1;
       pairs.forEach(p => {
         const row = el('div', 'kv');
-        row.appendChild(el('span', null, p[0] || T.none));
+        const label = el('span', null, p[0] || T.none);
+        const hint = titleFn ? titleFn(p[0]) : '';
+        if (hint) { label.title = hint; row.title = hint; }
+        row.appendChild(label);
         row.appendChild(el('span', null, p[1]));
         row.style.background = 'linear-gradient(to right, rgba(88,166,255,.13) '
           + Math.round(p[1] / max * 100) + '%, transparent 0)';
@@ -471,7 +499,7 @@
       $('ovLists').textContent = d.list_updates_24h;
       bars($('ovByType'), d.by_type);
       bars($('ovByOrigin'), d.by_origin);
-      bars($('ovCountries'), d.top_countries);
+      bars($('ovCountries'), d.top_countries, countryName);
       bars($('ovScenarios'), d.top_scenarios);
       bars($('ovAlertScenarios'), d.top_alert_scenarios);
     }
@@ -558,7 +586,7 @@
         tr.appendChild(tdType);
         tr.appendChild(el('td', null, r.scenario));
         tr.appendChild(el('td', null, r.origin));
-        tr.appendChild(el('td', null, r.country || T.none));
+        tr.appendChild(countryCell(r.country));
         tr.appendChild(el('td', null, r.as_name || (r.as_number ? 'AS' + r.as_number : T.none)));
         tr.appendChild(el('td', 'mono', shortDuration(r)));
         const tdAct = el('td');
@@ -684,7 +712,7 @@
           tdScen.appendChild(el('span', 'tag', T.tag_list_sync));
         }
         tr.appendChild(tdScen);
-        tr.appendChild(el('td', null, a.country || T.none));
+        tr.appendChild(countryCell(a.country));
         tr.appendChild(el('td', null, a.as_name || T.none));
         tr.appendChild(el('td', 'mono', a.events_count));
         tr.appendChild(el('td', 'mono', relTime(a.created_at)));
@@ -717,7 +745,7 @@
             fmt('more_n', { n: g.others_total - g.others.length })));
         }
         tr.appendChild(tdOther);
-        tr.appendChild(el('td', null, g.country || T.none));
+        tr.appendChild(countryCell(g.country));
         tr.appendChild(el('td', null, g.as_name || T.none));
         tr.appendChild(el('td', 'mono', relTime(g.last)));
         const td = el('td');
