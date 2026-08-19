@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.100.5] - 2026-08-19
+
+### Fixed
+- **API-Selbsttest: „Buchbarkeits-API" meldete Fehler, obwohl der Endpunkt lief.**
+  Der Test hing an einem einzigen Referenz-Angebot (festes Hotel, festes Anreise-
+  Fenster). War genau dieses Angebot ausgebucht, antwortete der vacancy-check mit
+  `FAILED` — der Selbsttest wertete das als API-Ausfall, und „Erneut prüfen" lieferte
+  beliebig oft dasselbe Ergebnis. Jetzt probiert der Test mehrere Anreise-Fenster,
+  fällt notfalls auf ein Hotel aus der Hotelsuche zurück und prüft bis zu drei
+  Angebote; erst wenn keines bestätigt wird, gilt der Endpunkt als auffällig. Der
+  Zahlungs-Check nutzt dasselbe Ersatz-Hotel statt weiter das Referenz-Hotel.
+- **„Erneut prüfen" prüft jetzt wirklich alles.** Lief parallel der tägliche
+  Selbsttest, gab der Knopf sofort den alten Stand zurück, ohne neu zu prüfen — er
+  wartet nun auf dessen vollständiges Ergebnis. Zusätzlich wird die interne
+  „läuft gerade"-Markierung jetzt auch nach einem Fehler wieder freigegeben (vorher
+  konnte ein Fehler im Flugplan-Teil den Selbsttest dauerhaft blockieren).
+- **Versionsangaben wieder synchron:** `APP_VERSION` in `app.py` hing auf 0.100.2,
+  während `config.yaml` bereits 0.100.4 auswies.
+
 ## [0.100.4] - 2026-08-17
 
 ### Fixed

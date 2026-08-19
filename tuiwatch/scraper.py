@@ -1201,6 +1201,32 @@ def fetch_airports() -> list:
 # Gran Canaria. Nur lesende Abfragen; dient ausschließlich der Erreichbarkeitsprüfung.
 _HC_GIATA = "259516"
 _HC_REGION = 128
+# Mehrere Anreise-Fenster (Tage ab heute, je 7 Nächte): das Referenz-Hotel kann in
+# einem einzelnen Zeitraum ausgebucht sein. Früher hing daran alles Weitere — ohne
+# Angebot meldeten Buchbarkeits- und Zahlungs-Check „kein Testangebot", obwohl beide
+# Endpunkte einwandfrei liefen.
+_HC_WINDOWS = (30, 60, 90, 150)
+# So viele Angebote werden beim Buchbarkeits-Check höchstens durchprobiert: ein
+# einzelnes Angebot kann schlicht ausgebucht sein (FAILED), ohne dass der Endpunkt
+# defekt ist. Erst wenn keines bestätigt wird, ist das ein echter Hinweis auf Drift.
+_HC_VACANCY_TRIES = 3
+
+
+def _hc_windows() -> list[tuple[str, str]]:
+    """Anreise-/Rückreise-Datumspaare für den Selbsttest (ISO)."""
+    today = date.today()
+    return [((today + timedelta(days=d)).isoformat(),
+             (today + timedelta(days=d + 7)).isoformat()) for d in _HC_WINDOWS]
+
+
+def _hc_fetch_offers(giata: str, sd: str, ed: str) -> tuple[dict | None, str]:
+    """Eine Offer-API-Abfrage für den Selbsttest. Rückgabe (Body oder None, Detailtext)."""
+    q = {"giataId": giata, "locale": "de_DE", "tenant": "TUICOM",
+         "startDate": sd, "endDate": ed, "durations": "7",
+         "searchScope": "PACKAGE", "travellers": "2"}
+    r = _get(f"{OFFER_API}?{urlencode(q)}", headers=_API_HEADERS, timeout=20)
+    body = r.json() if r.status_code == 200 else None
+    return (body if isinstance(body, (dict, list)) else None), f"HTTP {r.status_code}"
 
 
 def api_healthcheck(*, verbose: bool = False) -> dict:
@@ -1208,9 +1234,8 @@ def api_healthcheck(*, verbose: bool = False) -> dict:
     ob sie noch erwartungsgemäß antworten. Rückgabe:
     {ok: bool, ts: int, checks: [{name, ok, detail}]}. `ok` ist True, wenn alle
     *kritischen* Endpunkte (Preis, Suche, Reiseziele) funktionieren."""
-    today = date.today()
-    sd = (today + timedelta(days=30)).isoformat()
-    ed = (today + timedelta(days=37)).isoformat()
+    windows = _hc_windows()
+    sd, ed = windows[0]
     checks: list[dict] = []
 
     def add(name, ok, detail, critical=False):
@@ -1219,26 +1244,39 @@ def api_healthcheck(*, verbose: bool = False) -> dict:
 
     # 1) Preis/Angebot (OFFER_API) — kritisch (Kern des Trackings). Die Antwort
     #    wird für die vacancy-/payment-Checks unten weiterverwendet (Testangebot).
+    #    Der Endpunkt gilt als in Ordnung, sobald er sauber antwortet; ob das
+    #    Referenz-Hotel im jeweiligen Fenster buchbar ist, ist davon unabhängig.
+    #    Deshalb werden mehrere Fenster durchprobiert, bis eines Angebote liefert.
     offer_data: dict = {}
-    try:
-        q = {"giataId": _HC_GIATA, "locale": "de_DE", "tenant": "TUICOM",
-             "startDate": sd, "endDate": ed, "durations": "7",
-             "searchScope": "PACKAGE", "travellers": "2"}
-        r = _get(f"{OFFER_API}?{urlencode(q)}", headers=_API_HEADERS, timeout=20)
-        body = r.json() if r.status_code == 200 else None
-        ok = r.status_code == 200 and isinstance(body, (dict, list))
-        if isinstance(body, dict):
-            offer_data = body
-        add("Preis/Angebot-API", ok, f"HTTP {r.status_code}", critical=True)
-    except Exception as e:
-        add("Preis/Angebot-API", False, type(e).__name__, critical=True)
+    offer_ok = False
+    offer_detail = "keine Antwort"
+    for w_sd, w_ed in windows:
+        try:
+            body, detail = _hc_fetch_offers(_HC_GIATA, w_sd, w_ed)
+            if not offer_ok:
+                offer_detail = detail
+            offer_ok = offer_ok or body is not None
+            if isinstance(body, dict) and (body.get("offers") or []):
+                offer_data, sd, ed = body, w_sd, w_ed
+                break
+            if isinstance(body, dict) and not offer_data:
+                offer_data = body
+        except Exception as e:
+            if not offer_ok:
+                offer_detail = type(e).__name__
+    if offer_ok and not (offer_data.get("offers") or []):
+        offer_detail += " (ohne Angebot im Testzeitraum)"
+    add("Preis/Angebot-API", offer_ok, offer_detail, critical=True)
 
-    # 2) Hotelsuche (SEARCH_API) — kritisch
+    # 2) Hotelsuche (SEARCH_API) — kritisch. Das Ergebnis dient zugleich als
+    #    Reserve-Quelle für ein Testangebot, falls das Referenz-Hotel in keinem
+    #    Fenster buchbar ist.
+    search_res = None
     try:
-        res = fetch_search_params(region=_HC_REGION, start=sd, end=ed, duration=7,
-                                  travellers=2, verbose=verbose)
-        ok = bool(res and res.get("ok"))
-        detail = f"{res.get('total', 0)} Treffer" if ok else "kein Ergebnis"
+        search_res = fetch_search_params(region=_HC_REGION, start=sd, end=ed, duration=7,
+                                         travellers=2, verbose=verbose)
+        ok = bool(search_res and search_res.get("ok"))
+        detail = f"{search_res.get('total', 0)} Treffer" if ok else "kein Ergebnis"
         add("Hotelsuche-API", ok, detail, critical=True)
     except Exception as e:
         add("Hotelsuche-API", False, type(e).__name__, critical=True)
@@ -1292,19 +1330,50 @@ def api_healthcheck(*, verbose: bool = False) -> dict:
     #    und Nicht-mehr-buchbar-Alarm. Wichtig als Drift-Wächter: ändert TUI das
     #    Payload-Format (wie beim travelType-Objekt), bleibt der Status dauerhaft
     #    FAILED und der Alarm wäre sonst still tot.
+    #    Ein einzelnes FAILED sagt aber noch nichts über den Endpunkt aus — das
+    #    Angebot kann schlicht ausgebucht sein. Deshalb mehrere Angebote testen
+    #    und, wenn das Referenz-Hotel gar nichts liefert, ein Hotel aus der Suche.
+    hc_giata = _HC_GIATA
+    if not (offer_data.get("offers") or []):
+        for hit in (search_res or {}).get("results", [])[:3]:
+            giata = str(hit.get("giata") or "")
+            if not giata:
+                continue
+            try:
+                body, _ = _hc_fetch_offers(giata, sd, ed)
+            except Exception:
+                continue
+            if isinstance(body, dict) and (body.get("offers") or []):
+                offer_data, hc_giata = body, giata
+                break
+
     hc_offers = offer_data.get("offers") or []
-    hc_offer = next((o for o in hc_offers if o.get("cheapest")),
-                    hc_offers[0] if hc_offers else None)
-    try:
-        if hc_offer:
-            v = _fetch_vacancy(offer_data, hc_offer, verbose=verbose)
-            st = v.get("vac_status") or ""
-            add("Buchbarkeits-API", st == "OK",
-                st or "keine Antwort")
+    # günstigstes Angebot zuerst, danach die übrigen als Ausweichkandidaten
+    cands = sorted(hc_offers, key=lambda o: 0 if o.get("cheapest") else 1)[:_HC_VACANCY_TRIES]
+    hc_offer = cands[0] if cands else None
+    if not cands:
+        add("Buchbarkeits-API", False, "kein Testangebot")
+    else:
+        st, tried = "", 0
+        for cand in cands:
+            tried += 1
+            try:
+                v = _fetch_vacancy(offer_data, cand, verbose=verbose)
+                st = v.get("vac_status") or ""
+            except Exception as e:
+                st = type(e).__name__
+                continue
+            if st == "OK":
+                hc_offer = cand
+                break
+        if st == "OK":
+            add("Buchbarkeits-API", True,
+                "OK" if tried == 1 else f"OK (Angebot {tried}/{len(cands)})")
+        elif st:
+            add("Buchbarkeits-API", False,
+                f"{st}" if tried == 1 else f"{st} bei {tried} Testangeboten")
         else:
-            add("Buchbarkeits-API", False, "kein Testangebot")
-    except Exception as e:
-        add("Buchbarkeits-API", False, type(e).__name__)
+            add("Buchbarkeits-API", False, "keine Antwort")
 
     # 9) Inklusiv-Gepäck (LUGGAGE_API) — HTTP/Struktur reicht (state je Route variiert)
     try:
@@ -1320,7 +1389,7 @@ def api_healthcheck(*, verbose: bool = False) -> dict:
     #     Endpoint für den Ländercode)
     try:
         if hc_offer:
-            p = fetch_payment_terms(hc_offer, _HC_GIATA, verbose=verbose)
+            p = fetch_payment_terms(hc_offer, hc_giata, verbose=verbose)
             add("Zahlungs-API", bool(p),
                 (f"{p.get('deposit_pct')}% Anzahlung" if p else "keine Konditionen"))
         else:

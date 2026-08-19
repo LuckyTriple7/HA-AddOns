@@ -92,7 +92,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.100.2"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.100.5"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -170,6 +170,7 @@ _vac_notified: set[int] = set()         # offer_ids mit aktivem Nicht-bestätigt
 ERROR_ALARM_STREAK = 3                   # ab so vielen Fehlversuchen in Folge melden
 _health_state: dict = {}                 # letzter API-Selbsttest {ok, ts, checks, running}
 _health_lock = threading.Lock()
+_health_done = threading.Event()         # signalisiert das Ende eines laufenden Selbsttests
 _tui_call_lock = threading.Lock()        # schützt den TUI-API-Zähler (meta-Key 'tui_call_count')
 _ai_summary_cache: dict = {}              # giata/Name → {summary, ts} — spart wiederholte API-Calls
 _AI_SUMMARY_TTL = 24 * 3600
@@ -2859,22 +2860,42 @@ def _flight_healthchecks() -> list[dict]:
     return checks
 
 
-def _run_healthcheck() -> dict:
-    """Führt den API-Selbsttest aus und legt das Ergebnis in _health_state ab."""
+def _run_healthcheck(wait: bool = False) -> dict:
+    """Führt den API-Selbsttest aus und legt das Ergebnis in _health_state ab.
+    Läuft bereits einer, liefert `wait=False` sofort den alten Stand; `wait=True`
+    (Knopf „Erneut prüfen") wartet dessen Ergebnis ab, damit der Benutzer nie ein
+    veraltetes Teilergebnis als Antwort auf einen ausdrücklichen Test bekommt."""
     with _health_lock:
-        if _health_state.get('running'):
+        busy = bool(_health_state.get('running'))
+        if not busy:
+            _health_state['running'] = True
+            _health_done.clear()
+    if busy:
+        if wait:
+            _health_done.wait(timeout=300)
+        with _health_lock:
             return dict(_health_state)
-        _health_state['running'] = True
     try:
-        res = api_healthcheck(verbose=_verbose())
-    except Exception as e:
-        log.error("API-Selbsttest fehlgeschlagen: %s", e)
-        res = {'ok': False, 'ts': int(time.time()), 'checks': [],
-               'note': 'Selbsttest fehlgeschlagen'}
-    res['checks'] = list(res.get('checks') or []) + _flight_healthchecks()
-    with _health_lock:
-        _health_state.clear()
-        _health_state.update(res)
+        try:
+            res = api_healthcheck(verbose=_verbose())
+        except Exception as e:
+            log.error("API-Selbsttest fehlgeschlagen: %s", e)
+            res = {'ok': False, 'ts': int(time.time()), 'checks': [],
+                   'note': 'Selbsttest fehlgeschlagen'}
+        try:
+            res['checks'] = list(res.get('checks') or []) + _flight_healthchecks()
+        except Exception as e:
+            log.error("Flugplan-Selbsttest fehlgeschlagen: %s", e)
+        with _health_lock:
+            _health_state.clear()
+            _health_state.update(res)
+    finally:
+        # ohne dieses finally bliebe nach einem Fehler `running` stehen — jeder
+        # weitere Selbsttest (auch der Knopf) hätte dann nur noch den alten Stand
+        # zurückgegeben, ohne je wieder zu prüfen
+        with _health_lock:
+            _health_state.pop('running', None)
+        _health_done.set()
     bad = [c['name'] for c in res.get('checks', []) if not c['ok']]
     if bad:
         log.warning("API-Selbsttest: Probleme bei %s", ', '.join(bad))
@@ -3328,7 +3349,7 @@ def api_healthcheck_route():
     if (err := _require_api()):
         return err
     if request.method == 'POST':
-        return jsonify(_run_healthcheck())
+        return jsonify(_run_healthcheck(wait=True))
     with _health_lock:
         st = dict(_health_state)
     return jsonify(st)
