@@ -54,6 +54,12 @@ configuration:
     description: >-
       Wie oft die Sensoren aktualisiert werden. Jede Aktualisierung fragt die
       LAPI ab — bei vielen Sperren lohnt ein größerer Wert.
+  crowdsec_dir:
+    name: Konfigurationsverzeichnis von CrowdSec
+    description: >-
+      Nur nötig, wenn die Suche fehlschlägt. Leer lassen, dann sucht CrowdPanel
+      selbst unter /homeassistant/.storage/crowdsec/config. Wird ausschließlich
+      gelesen und liefert die Hub- und Whitelist-Ansicht.
   verbose_log:
     name: Ausführliches Protokoll
     description: Schreibt zusätzliche Zeilen ins Add-on-Protokoll. Nur zur Fehlersuche.

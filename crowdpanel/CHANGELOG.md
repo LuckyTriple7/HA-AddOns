@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.3.0] - 2026-08-19
+
+### Added
+- **Reiter „Hub".** Zeigt, was CrowdSec geladen hat — Collections, Parser,
+  Postoverflows, Szenarien, AppSec-Konfigurationen und -Regeln, jeweils getrennt
+  danach, ob das Element aus dem Hub stammt oder selbst angelegt wurde. Parser
+  und Postoverflows nach Stufe aufgeschlüsselt. Gelesen aus dem
+  Konfigurationsverzeichnis von CrowdSec, das seit 0.1.3 ohnehin nur lesend
+  eingehängt ist; abweichende Pfade über die neue Option `crowdsec_dir`.
+
+  Hub-Elemente liegen dort als symbolische Verweise in ein Verzeichnis
+  innerhalb des CrowdSec-Containers. CrowdPanel kommt an das Ziel nicht heran
+  und liest den Namen deshalb aus dem Verweis — `crowdsecurity/appsec-crs`
+  bleibt so lesbar, obwohl die Datei selbst nicht geöffnet werden kann.
+
+### Notes
+- Versionen und `update-available` fehlen bewusst. `cscli` ermittelt sie über
+  den Hub-Index, und der liegt ebenfalls im Container — das Supervisor-Protokoll
+  sagt es ausdrücklich: `Skipping hub update, index file is not in a volume`.
+  Dafür bleibt `cscli hub list` das richtige Werkzeug.
+- Die Whitelist-Ansicht findet ihr Verzeichnis jetzt über dieselbe Wurzel;
+  `whitelist_dir` wirkt weiterhin, wird aber nur noch gebraucht, wenn die
+  Struktur von der üblichen abweicht.
+
 ## [0.2.3] - 2026-08-19
 
 ### Added

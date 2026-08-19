@@ -672,16 +672,32 @@ def _text_match(row: dict, needle: str) -> bool:
 # while the log line is being read — the LAPI never sees them. They are shown
 # here by reading the files; changing them stays with cscli and an editor.
 
-WHITELIST_CANDIDATES = (
-    '/homeassistant/.storage/crowdsec/config/parsers/s02-enrich',
-    '/config/.storage/crowdsec/config/parsers/s02-enrich',
+# Wurzel der CrowdSec-Konfiguration. Von hier hängen sowohl die
+# Whitelist-Parser als auch alles ab, was aus dem Hub installiert wurde.
+CROWDSEC_DIR_CANDIDATES = (
+    '/homeassistant/.storage/crowdsec/config',
+    '/config/.storage/crowdsec/config',
 )
+WHITELIST_CANDIDATES = tuple(
+    base + '/parsers/s02-enrich' for base in CROWDSEC_DIR_CANDIDATES)
+
+# Die Typen, die cscli unter "hub list" zusammenfasst. Parser und
+# Postoverflows liegen eine Ebene tiefer in Stufenverzeichnissen.
+HUB_TYPES = ('collections', 'parsers', 'postoverflows', 'scenarios',
+             'appsec-configs', 'appsec-rules', 'contexts')
+HUB_STAGED = ('parsers', 'postoverflows')
 WHITELIST_MAX_BYTES = 256 * 1024
 WHITELIST_SUFFIXES = ('.yaml', '.yml')
 
 
 def _whitelist_dir() -> Path | None:
     configured = str(load_config().get('whitelist_dir') or '').strip()
+    if not configured:
+        base = _crowdsec_dir()
+        if base is not None:
+            staged = base / 'parsers' / 's02-enrich'
+            if staged.is_dir():
+                return staged
     for candidate in ([configured] if configured else list(WHITELIST_CANDIDATES)):
         try:
             path = Path(candidate).resolve()
@@ -690,6 +706,91 @@ def _whitelist_dir() -> Path | None:
         if path.is_dir():
             return path
     return None
+
+
+def _crowdsec_dir() -> Path | None:
+    configured = str(load_config().get('crowdsec_dir') or '').strip()
+    for candidate in ([configured] if configured else list(CROWDSEC_DIR_CANDIDATES)):
+        try:
+            path = Path(candidate).resolve()
+        except (OSError, RuntimeError, ValueError):
+            continue
+        if path.is_dir():
+            return path
+    return None
+
+
+def _hub_item_name(entry: Path, kind: str) -> tuple[str, bool]:
+    """Name of an installed item and whether it came from the hub.
+
+    Hub items are symlinks into the hub directory; that directory lives inside
+    the CrowdSec container and may not be readable from here. The author/name
+    pair is then taken from the link target, which still carries it.
+    """
+    is_link = entry.is_symlink()
+    try:
+        with open(entry, encoding='utf-8', errors='replace') as f:
+            for line in f:
+                if line.startswith('name:'):
+                    got = line.split(':', 1)[1].strip().strip('"\'')
+                    if got:
+                        return got, is_link
+                if line.startswith(('filter:', 'description:', 'nodes:')):
+                    break
+    except OSError:
+        pass
+
+    if is_link:
+        try:
+            parts = os.readlink(entry).replace('\\', '/').split('/')
+            if len(parts) >= 2 and parts[-2] not in ('', '.', '..'):
+                return f'{parts[-2]}/{entry.stem}', True
+        except OSError:
+            pass
+    return entry.stem, is_link
+
+
+def _hub_scan_dir(folder: Path, kind: str, stage: str = '') -> list:
+    items = []
+    try:
+        entries = sorted(folder.iterdir())
+    except OSError:
+        return items
+    for entry in entries:
+        if entry.suffix.lower() not in ('.yaml', '.yml'):
+            continue
+        name, from_hub = _hub_item_name(entry, kind)
+        items.append({'name': name, 'file': entry.name, 'stage': stage,
+                      'source': 'hub' if from_hub else 'local'})
+    return items
+
+
+@api('/api/hub')
+def hub():
+    """What is installed, read from the files — the same ground truth that
+    `cscli hub list` reports. Versions are deliberately absent: cscli derives
+    them from the hub index, and that index lives inside the CrowdSec
+    container, not in the shared configuration directory."""
+    base = _crowdsec_dir()
+    if base is None:
+        return jsonify({'available': False, 'dir': '', 'types': []})
+
+    types = []
+    for kind in HUB_TYPES:
+        folder = base / kind
+        if not folder.is_dir():
+            continue
+        items = []
+        if kind in HUB_STAGED:
+            for stage in sorted(p.name for p in folder.iterdir() if p.is_dir()):
+                items.extend(_hub_scan_dir(folder / stage, kind, stage))
+            items.extend(_hub_scan_dir(folder, kind))
+        else:
+            items = _hub_scan_dir(folder, kind)
+        if items:
+            items.sort(key=lambda i: (i['source'] != 'local', i['name']))
+            types.append({'type': kind, 'count': len(items), 'items': items})
+    return jsonify({'available': True, 'dir': str(base), 'types': types})
 
 
 @api('/api/whitelists')

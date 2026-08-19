@@ -206,5 +206,23 @@
   "ver_latest": "In store",
   "ver_unknown": "unknown",
   "ver_update": "Update available",
-  "set_version": "Version"
+  "set_version": "Version",
+  "nav_hub": "Hub",
+  "hub_title": "Installed items",
+  "hub_hint": "What CrowdSec has loaded, read from the configuration directory — the same list cscli hub list reports. Versions and update hints are deliberately absent: cscli derives those from the hub index, which lives inside the CrowdSec container, not in the shared directory.",
+  "hub_none": "No installed items found.",
+  "hub_unavailable": "CrowdSec configuration directory not found. Set the path in the crowdsec_dir option.",
+  "hub_source": "Source",
+  "hub_from_hub": "hub",
+  "hub_local": "local",
+  "hub_stage": "Stage",
+  "hub_types": {
+    "collections": "Collections",
+    "parsers": "Parsers",
+    "postoverflows": "Postoverflows",
+    "scenarios": "Scenarios",
+    "appsec-configs": "AppSec configs",
+    "appsec-rules": "AppSec rules",
+    "contexts": "Contexts"
+  }
 }

@@ -206,5 +206,23 @@
   "ver_latest": "Im Store",
   "ver_unknown": "unbekannt",
   "ver_update": "Aktualisierung verfügbar",
-  "set_version": "Version"
+  "set_version": "Version",
+  "nav_hub": "Hub",
+  "hub_title": "Installierte Elemente",
+  "hub_hint": "Was CrowdSec geladen hat, gelesen aus dem Konfigurationsverzeichnis — dasselbe, was cscli hub list auflistet. Versionen und Aktualisierungshinweise fehlen bewusst: Die ermittelt cscli über den Hub-Index, und der liegt im CrowdSec-Container, nicht im geteilten Verzeichnis.",
+  "hub_none": "Keine installierten Elemente gefunden.",
+  "hub_unavailable": "Konfigurationsverzeichnis von CrowdSec nicht gefunden. Pfad in der Option crowdsec_dir eintragen.",
+  "hub_source": "Herkunft",
+  "hub_from_hub": "Hub",
+  "hub_local": "eigen",
+  "hub_stage": "Stufe",
+  "hub_types": {
+    "collections": "Collections",
+    "parsers": "Parser",
+    "postoverflows": "Postoverflows",
+    "scenarios": "Szenarien",
+    "appsec-configs": "AppSec-Konfigurationen",
+    "appsec-rules": "AppSec-Regeln",
+    "contexts": "Kontexte"
+  }
 }

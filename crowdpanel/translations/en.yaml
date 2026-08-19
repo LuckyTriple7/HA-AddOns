@@ -53,6 +53,12 @@ configuration:
     description: >-
       How often the sensors are updated. Every update queries the LAPI — with
       many decisions a larger value is worth it.
+  crowdsec_dir:
+    name: CrowdSec configuration directory
+    description: >-
+      Only needed when auto-detection fails. Leave empty and CrowdPanel looks
+      under /homeassistant/.storage/crowdsec/config itself. Read only; it feeds
+      the hub and whitelist views.
   verbose_log:
     name: Verbose log
     description: Writes extra lines to the add-on log. For troubleshooting only.

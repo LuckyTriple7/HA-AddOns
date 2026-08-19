@@ -313,6 +313,27 @@ effect everywhere the CrowdPanel route is better.
 
 ---
 
+### Hub
+
+Shows what CrowdSec has loaded: collections, parsers, postoverflows, scenarios,
+AppSec configs and rules, each marked as coming from the hub or from you. Parsers
+and postoverflows are broken down by stage.
+
+This is read from the CrowdSec configuration directory, by default
+`/homeassistant/.storage/crowdsec/config`; if it lives elsewhere, the
+`crowdsec_dir` option points at it. Hub items there are symlinks into a directory
+inside the CrowdSec container — CrowdPanel cannot reach the target and therefore
+takes the name from the link itself.
+
+**Versions and update hints are deliberately absent.** `cscli` derives them by
+hashing each file and looking it up in the hub index, and that index also lives
+inside the container. For the green ticks and `update-available`, keep using:
+
+```sh
+docker exec $CS cscli -c $CFG hub list
+docker exec $CS cscli -c $CFG hub upgrade
+```
+
 ## Home Assistant sensors
 
 With `ha_sensors` on (the default), CrowdPanel reports three sensors and one binary
@@ -351,6 +372,7 @@ again after that, so a misconfiguration cannot flood the log.
 | `refresh_interval` | `30` | seconds between automatic refreshes, `0` turns it off |
 | `page_size` | `100` | how many rows the tables show at most |
 | `whitelist_dir` | empty | whitelist parser directory, only if auto-detection fails |
+| `crowdsec_dir` | empty | CrowdSec configuration directory, only if auto-detection fails |
 | `ha_sensors` | `true` | report sensors to Home Assistant |
 | `ha_sensor_interval` | `300` | seconds between two sensor updates |
 | `verbose_log` | `false` | extra lines in the log |

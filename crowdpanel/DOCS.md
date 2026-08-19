@@ -321,6 +321,29 @@ für eine schnelle, überall wirkende Sperre der Weg über CrowdPanel.
 
 ---
 
+### Hub
+
+Zeigt, was CrowdSec geladen hat: Collections, Parser, Postoverflows, Szenarien,
+AppSec-Konfigurationen und -Regeln, jeweils mit der Angabe, ob das Element aus
+dem Hub stammt oder von dir selbst kommt. Parser und Postoverflows sind nach
+Stufe aufgeschlüsselt.
+
+Gelesen wird das aus dem Konfigurationsverzeichnis von CrowdSec, standardmäßig
+`/homeassistant/.storage/crowdsec/config`; liegt es woanders, hilft die Option
+`crowdsec_dir`. Hub-Elemente sind dort symbolische Verweise in ein Verzeichnis
+innerhalb des CrowdSec-Containers — CrowdPanel kommt an das Ziel nicht heran und
+liest den Namen deshalb aus dem Verweis selbst.
+
+**Versionen und Aktualisierungshinweise fehlen bewusst.** `cscli` ermittelt sie,
+indem es den Inhalt jeder Datei hasht und im Hub-Index nachschlägt, und dieser
+Index liegt ebenfalls im Container. Wer die grünen Haken und das
+`update-available` braucht, nimmt weiterhin:
+
+```sh
+docker exec $CS cscli -c $CFG hub list
+docker exec $CS cscli -c $CFG hub upgrade
+```
+
 ## Sensoren in Home Assistant
 
 Ist `ha_sensors` an (Vorgabe), meldet CrowdPanel drei Sensoren und einen
@@ -359,6 +382,7 @@ Lehnt Home Assistant die Sensoren ab, steht das **einmal** im Protokoll des Add-
 | `refresh_interval` | `30` | Sekunden bis zur automatischen Aktualisierung, `0` schaltet sie ab |
 | `page_size` | `100` | wie viele Zeilen die Tabellen höchstens anzeigen |
 | `whitelist_dir` | leer | Verzeichnis der Whitelist-Parser, nur falls die Suche fehlschlägt |
+| `crowdsec_dir` | leer | Konfigurationsverzeichnis von CrowdSec, nur falls die Suche fehlschlägt |
 | `ha_sensors` | `true` | Sensoren an Home Assistant melden |
 | `ha_sensor_interval` | `300` | Sekunden zwischen zwei Sensor-Aktualisierungen |
 | `verbose_log` | `false` | zusätzliche Zeilen im Protokoll |

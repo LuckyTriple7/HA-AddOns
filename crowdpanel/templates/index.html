@@ -131,6 +131,7 @@
     <button data-tab="alerts">{{ t.nav_alerts }}</button>
     <button data-tab="check">{{ t.nav_check }}</button>
     <button data-tab="allowlists">{{ t.nav_allowlists }}</button>
+    <button data-tab="hub">{{ t.nav_hub }}</button>
     <button data-tab="settings">{{ t.nav_settings }}</button>
   </nav>
 
@@ -222,6 +223,10 @@
 
     <section id="tab-allowlists">
       <div id="wBody"></div>
+    </section>
+
+    <section id="tab-hub">
+      <div id="hubBody"></div>
     </section>
 
     <section id="tab-settings">
@@ -382,7 +387,7 @@
     }
 
     // ── tabs ──────────────────────────────────────────────────────────────────
-    const TABS = ['overview', 'decisions', 'new', 'alerts', 'check', 'allowlists', 'settings'];
+    const TABS = ['overview', 'decisions', 'new', 'alerts', 'check', 'allowlists', 'hub', 'settings'];
 
     // Null-prototype: a tab name arrives from location.hash, and on a plain
     // object a name like "toString" would resolve through the prototype chain
@@ -974,6 +979,72 @@
       if (white.error) box.appendChild(el('div', 'banner bad', errText(white.error)));
       else renderWhitelists(box, white);
     };
+
+    // ── hub ───────────────────────────────────────────────────────────────────
+    loaders.hub = async function () {
+      const box = $('hubBody');
+      if (cache.hub) { renderHub(box, cache.hub); }
+      else { box.textContent = ''; box.appendChild(el('div', 'muted', T.loading)); }
+      try {
+        const d = await api('/api/hub');
+        cache.hub = d;
+        renderHub(box, d);
+      } catch (e) {
+        box.textContent = '';
+        box.appendChild(el('div', 'banner bad', errText(e.code)));
+      }
+    };
+
+    function renderHub(box, d) {
+      box.textContent = '';
+      const head = el('div', 'card');
+      head.appendChild(el('h2', null, T.hub_title));
+      head.appendChild(el('p', 'note', T.hub_hint));
+      if (d.available) {
+        const row = el('div', 'kv');
+        row.appendChild(el('span', null, T.wl_dir));
+        row.appendChild(el('span', 'mono', d.dir));
+        head.appendChild(row);
+      } else {
+        head.appendChild(el('div', 'banner', T.hub_unavailable));
+      }
+      box.appendChild(head);
+
+      const types = d.types || [];
+      if (d.available && !types.length) {
+        box.appendChild(el('div', 'empty', T.hub_none));
+        return;
+      }
+      const labels = T.hub_types || {};
+      types.forEach(group => {
+        const card = el('div', 'card');
+        card.style.marginTop = '12px';
+        card.appendChild(el('h2', null,
+          (labels[group.type] || group.type) + ' (' + group.count + ')'));
+        const wrap = el('div', 'table-wrap');
+        const table = document.createElement('table');
+        const thead = document.createElement('thead');
+        const hr = el('tr');
+        [T.aw_name, T.hub_source, T.hub_stage].forEach(c => hr.appendChild(el('th', null, c)));
+        thead.appendChild(hr);
+        table.appendChild(thead);
+        const body = document.createElement('tbody');
+        group.items.forEach(item => {
+          const tr = el('tr');
+          tr.appendChild(el('td', 'mono', item.name));
+          const td = el('td');
+          td.appendChild(el('span', 'tag' + (item.source === 'local' ? ' captcha' : ''),
+                            item.source === 'local' ? T.hub_local : T.hub_from_hub));
+          tr.appendChild(td);
+          tr.appendChild(el('td', 'muted', item.stage || T.none));
+          body.appendChild(tr);
+        });
+        table.appendChild(body);
+        wrap.appendChild(table);
+        card.appendChild(wrap);
+        box.appendChild(card);
+      });
+    }
 
     // ── settings / 2FA ────────────────────────────────────────────────────────
     function renderTwofaActions(enabled) {
