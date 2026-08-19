@@ -60,6 +60,15 @@ configuration:
       Nur nötig, wenn die Suche fehlschlägt. Leer lassen, dann sucht CrowdPanel
       selbst unter /homeassistant/.storage/crowdsec/config. Wird ausschließlich
       gelesen und liefert die Hub- und Whitelist-Ansicht.
+  crowdsec_db:
+    name: Datenbank von CrowdSec
+    description: >-
+      Nur nötig, wenn die Suche fehlschlägt. Leer lassen, dann sucht CrowdPanel
+      neben dem Konfigurationsverzeichnis nach data/crowdsec.db. Wird
+      ausschließlich lesend geöffnet und liefert die Bouncer-Übersicht.
+  history_days:
+    name: Verlauf (Tage)
+    description: Über wie viele Tage der Verlauf in der Übersicht reicht.
   verbose_log:
     name: Ausführliches Protokoll
     description: Schreibt zusätzliche Zeilen ins Add-on-Protokoll. Nur zur Fehlersuche.

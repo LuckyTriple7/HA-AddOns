@@ -224,5 +224,20 @@
     "appsec-configs": "AppSec configs",
     "appsec-rules": "AppSec rules",
     "contexts": "Contexts"
-  }
+  },
+  "b_title": "Bouncers",
+  "b_machines": "Machines",
+  "b_none": "No bouncers registered.",
+  "b_unavailable": "CrowdSec database not found — set the path with the crowdsec_db option.",
+  "b_lastpull": "last pull",
+  "b_never": "never",
+  "b_revoked": "revoked",
+  "b_heartbeat": "last heartbeat",
+  "b_validated": "validated",
+  "b_stale": "not reporting any more",
+  "h_title": "History",
+  "h_detections": "Detections",
+  "h_list_updates": "Blocklist updates",
+  "h_none": "No history available.",
+  "sort_hint": "Click to sort"
 }

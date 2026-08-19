@@ -151,6 +151,33 @@ signiert.
 Zahl der aktiven Sperren, Alarme der letzten 24 Stunden, Verteilung nach Art und
 Herkunft, häufigste Länder und Szenarien.
 
+### Übersicht
+
+Zahl der aktiven Sperren, Erkennungen der letzten 24 Stunden, Blocklisten-Updates,
+Verteilung nach Art, Herkunft, Land und Szenario.
+
+Dazu zwei Anzeigen, die den Zustand statt einer Momentaufnahme zeigen:
+
+**Verlauf** — ein Balken je Tag über den Zeitraum aus `history_days` (Vorgabe
+sieben). Der helle Anteil sind Erkennungen, der graue die Blocklisten-Updates.
+„134 Erkennungen in 24 Stunden" sagt für sich genommen nichts; erst neben den
+Vortagen wird sichtbar, ob gerade etwas anrollt.
+
+**Bouncer** — wer die Entscheidungen abholt und wann zuletzt. Das ist die
+wichtigste Betriebsfrage überhaupt: Ein Bouncer, der seit Minuten nichts mehr
+geholt hat, setzt auch nichts mehr durch. Liegt der letzte Abruf über zehn
+Minuten zurück oder ist der Zugang gesperrt, färbt sich die Zeile rot. Die
+Maschinen stehen aus Platzgründen unter *Einstellungen*.
+
+Beides liest CrowdPanel aus der SQLite-Datei von CrowdSec, standardmäßig
+`data/crowdsec.db` neben dem Konfigurationsverzeichnis; abweichende Pfade über
+`crowdsec_db`. Geöffnet wird sie ausschließlich lesend, und ausgeliefert werden
+nur Name, Art, Version, Adresse und Zeitstempel — **Schlüssel und Passwörter
+verlassen den Server nicht**, die Spalten werden gar nicht erst gelesen.
+
+Wird die Datenbank nicht gefunden, bleibt der Rest der Übersicht davon
+unberührt.
+
 ### Sperren
 
 Die Tabelle zeigt jede aktive Entscheidung mit Wert, Bereich, Art, Szenario,
@@ -163,6 +190,11 @@ Herkunft, Land, Netz und Restlaufzeit.
   nacheinander. Es wird nie mehr gelöscht als auf dem Bildschirm steht — das ist
   Absicht, damit ein Filter nicht versehentlich die halbe Sperrliste mitnimmt.
   Über 200 Einträge lehnt CrowdPanel ab und bittet um einen engeren Filter.
+
+Ein Klick auf eine Spaltenüberschrift sortiert, ein zweiter dreht die Richtung
+um. Auf schmalen Bildschirmen fallen Bereich, Szenario, Herkunft und Netz weg,
+damit Wert, Art, Land, Restlaufzeit und die Schaltfläche ohne seitliches Scrollen
+lesbar bleiben.
 
 Die Tabelle zeigt höchstens so viele Zeilen, wie `page_size` erlaubt; daneben
 steht immer die Gesamtzahl. Das ist keine Schikane: Wer die Community-Blocklisten
@@ -383,6 +415,8 @@ Lehnt Home Assistant die Sensoren ab, steht das **einmal** im Protokoll des Add-
 | `page_size` | `100` | wie viele Zeilen die Tabellen höchstens anzeigen |
 | `whitelist_dir` | leer | Verzeichnis der Whitelist-Parser, nur falls die Suche fehlschlägt |
 | `crowdsec_dir` | leer | Konfigurationsverzeichnis von CrowdSec, nur falls die Suche fehlschlägt |
+| `crowdsec_db` | leer | Datenbank von CrowdSec, nur falls die Suche fehlschlägt |
+| `history_days` | `7` | über wie viele Tage der Verlauf reicht |
 | `ha_sensors` | `true` | Sensoren an Home Assistant melden |
 | `ha_sensor_interval` | `300` | Sekunden zwischen zwei Sensor-Aktualisierungen |
 | `verbose_log` | `false` | zusätzliche Zeilen im Protokoll |

@@ -19,8 +19,9 @@ import secrets
 import signal
 import threading
 import time
+import sqlite3
 from collections import Counter, defaultdict
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from urllib.parse import urlsplit, urlunsplit, quote
 
@@ -763,6 +764,108 @@ def _hub_scan_dir(folder: Path, kind: str, stage: str = '') -> list:
         items.append({'name': name, 'file': entry.name, 'stage': stage,
                       'source': 'hub' if from_hub else 'local'})
     return items
+
+
+# ── Bouncers and machines (read-only, straight from CrowdSec's database) ──────
+# The LAPI does not expose either — cscli reads them from the local database.
+# Since the configuration directory is mounted read-only anyway, the same file
+# answers the question that matters most in daily use: is the bouncer still
+# pulling?
+
+DB_CANDIDATES = (
+    '/homeassistant/.storage/crowdsec/data/crowdsec.db',
+    '/config/.storage/crowdsec/data/crowdsec.db',
+)
+
+
+def _crowdsec_db() -> Path | None:
+    configured = str(load_config().get('crowdsec_db') or '').strip()
+    candidates = [configured] if configured else []
+    if not configured:
+        base = _crowdsec_dir()
+        if base is not None:
+            candidates.append(str(base.parent / 'data' / 'crowdsec.db'))
+        candidates.extend(DB_CANDIDATES)
+    for candidate in candidates:
+        try:
+            path = Path(candidate).resolve()
+        except (OSError, RuntimeError, ValueError):
+            continue
+        if path.is_file():
+            return path
+    return None
+
+
+def _db_rows(path: Path, table: str, wanted: tuple) -> list:
+    """Read a table, but only the columns this CrowdSec version actually has."""
+    uri = 'file:' + quote(str(path)) + '?mode=ro&immutable=0'
+    try:
+        con = sqlite3.connect(uri, uri=True, timeout=5)
+    except sqlite3.Error:
+        return []
+    try:
+        con.row_factory = sqlite3.Row
+        have = {r[1] for r in con.execute(f'PRAGMA table_info({table})')}
+        if not have:
+            return []
+        cols = [c for c in wanted if c in have]
+        if not cols:
+            return []
+        sql = 'SELECT ' + ', '.join(f'"{c}"' for c in cols) + f' FROM "{table}"'
+        return [{c: row[c] for c in cols} for row in con.execute(sql)]
+    except sqlite3.Error:
+        return []
+    finally:
+        con.close()
+
+
+@api('/api/bouncers')
+def bouncers():
+    path = _crowdsec_db()
+    if path is None:
+        return jsonify({'available': False, 'db': '', 'bouncers': [], 'machines': []})
+    rows = _db_rows(path, 'bouncers',
+                    ('name', 'type', 'version', 'ip_address', 'last_pull',
+                     'revoked', 'auth_type', 'created_at'))
+    machines = _db_rows(path, 'machines',
+                        ('machine_id', 'version', 'ip_address', 'last_heartbeat',
+                         'is_validated', 'auth_type', 'created_at'))
+    for row in rows:
+        row['revoked'] = bool(row.get('revoked'))
+    for row in machines:
+        row['is_validated'] = bool(row.get('is_validated'))
+    return jsonify({'available': True, 'db': str(path),
+                    'bouncers': rows, 'machines': machines})
+
+
+# ── History ───────────────────────────────────────────────────────────────────
+
+@api('/api/history')
+def history():
+    """Detections per day for the last week. A single number for 24 hours says
+    nothing about whether something is building up."""
+    days = _cfg_int('history_days', 7, 1, 30)
+    client = get_client()
+    alerts = [a for a in client.list_alerts(limit=ALERT_FETCH_LIMIT,
+                                            since=f'{days * 24}h')
+              if isinstance(a, dict)]
+    detections: Counter = Counter()
+    syncs: Counter = Counter()
+    for alert in alerts:
+        stamp = str(alert.get('created_at') or alert.get('start_at') or '')[:10]
+        if len(stamp) != 10:
+            continue
+        (syncs if _is_list_sync(alert) else detections)[stamp] += 1
+
+    today = datetime.now(timezone.utc).date()
+    series = []
+    for back in range(days - 1, -1, -1):
+        day = (today - timedelta(days=back)).isoformat()
+        series.append({'day': day,
+                       'detections': detections.get(day, 0),
+                       'list_updates': syncs.get(day, 0)})
+    return jsonify({'days': days, 'series': series,
+                    'total': sum(s['detections'] for s in series)})
 
 
 @api('/api/hub')

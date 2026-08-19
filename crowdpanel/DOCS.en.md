@@ -151,6 +151,31 @@ Through Ingress the second factor has no effect — there Home Assistant signs y
 Number of active decisions, alerts from the last 24 hours, the split by type and
 origin, the most frequent countries and scenarios.
 
+### Overview
+
+Number of active decisions, detections of the last 24 hours, blocklist updates,
+the split by type, origin, country and scenario.
+
+Plus two displays that show a trend instead of a snapshot:
+
+**History** — one bar per day over the period from `history_days` (seven by
+default). The bright part is detections, the grey one blocklist updates. "134
+detections in 24 hours" says nothing on its own; only next to the previous days
+does it become visible whether something is building up.
+
+**Bouncers** — who fetches the decisions and when they last did. That is the most
+important operational question there is: a bouncer that has not pulled for
+minutes is not enforcing anything either. If the last pull is more than ten
+minutes ago, or the account is revoked, the row turns red. Machines live under
+*Settings* for space reasons.
+
+Both are read from CrowdSec's SQLite file, by default `data/crowdsec.db` next to
+the configuration directory; other paths via `crowdsec_db`. It is opened
+read-only, and only name, type, version, address and timestamps are served —
+**keys and passwords never leave the server**, those columns are not even read.
+
+If the database is not found, the rest of the overview is unaffected.
+
 ### Decisions
 
 The table shows every active decision with value, scope, type, scenario, origin,
@@ -163,6 +188,10 @@ country, network and remaining time.
   deletes more than what is on screen — on purpose, so a filter cannot
   accidentally take half the ban list with it. Above 200 entries CrowdPanel
   declines and asks for a narrower filter.
+
+Clicking a column heading sorts; a second click reverses it. On narrow screens
+scope, scenario, origin and network drop out so that value, type, country,
+remaining time and the button stay readable without sideways scrolling.
 
 The table shows at most as many rows as `page_size` allows, with the full count
 next to it. That is not pedantry: subscribe to the community blocklists and you
@@ -373,6 +402,8 @@ again after that, so a misconfiguration cannot flood the log.
 | `page_size` | `100` | how many rows the tables show at most |
 | `whitelist_dir` | empty | whitelist parser directory, only if auto-detection fails |
 | `crowdsec_dir` | empty | CrowdSec configuration directory, only if auto-detection fails |
+| `crowdsec_db` | empty | CrowdSec database, only if auto-detection fails |
+| `history_days` | `7` | how many days the history covers |
 | `ha_sensors` | `true` | report sensors to Home Assistant |
 | `ha_sensor_interval` | `300` | seconds between two sensor updates |
 | `verbose_log` | `false` | extra lines in the log |

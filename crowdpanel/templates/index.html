@@ -104,7 +104,20 @@
     .theme-btn svg { width: 13px; height: 13px; fill: currentColor; }
     .icon-moon { display: block; } .icon-sun { display: none; }
     [data-theme="light"] .icon-moon { display: none; } [data-theme="light"] .icon-sun { display: block; }
+    .spark { display: flex; align-items: flex-end; gap: 4px; height: 90px; margin-top: 6px; }
+    .spark > div { flex: 1; display: flex; flex-direction: column; justify-content: flex-end;
+                   gap: 2px; min-width: 0; }
+    .spark i { display: block; background: var(--accent); border-radius: 2px 2px 0 0; }
+    .spark i.lists { background: var(--border); }
+    .spark span { font-size: 0.62rem; color: var(--muted); text-align: center;
+                  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    th.sortable { cursor: pointer; user-select: none; }
+    th.sortable:hover { color: var(--text); }
+    th.sortable::after { content: ''; }
+    th.sortable.asc::after { content: ' ▲'; }
+    th.sortable.desc::after { content: ' ▼'; }
     @media (max-width: 640px) { nav { top: 47px; } .stat { font-size: 1.6rem; } }
+    @media (max-width: 820px) { .hide-narrow { display: none; } }
   </style>
 </head>
 <body>
@@ -147,6 +160,11 @@
         <div class="card"><h3>{{ t.ov_by_origin }}</h3><div class="bar" id="ovByOrigin"></div></div>
       </div>
       <div class="grid" style="margin-top:12px">
+        <div class="card" style="grid-column: span 2; min-width: 0">
+          <h3>{{ t.h_title }}</h3><div id="ovHistory"></div></div>
+        <div class="card"><h3>{{ t.b_title }}</h3><div class="bar" id="ovBouncers"></div></div>
+      </div>
+      <div class="grid" style="margin-top:12px">
         <div class="card"><h3>{{ t.ov_top_countries }}</h3><div class="bar" id="ovCountries"></div></div>
         <div class="card"><h3>{{ t.ov_top_scenarios }}</h3><div class="bar" id="ovScenarios"></div></div>
         <div class="card"><h3>{{ t.ov_alert_scenarios }}</h3><div class="bar" id="ovAlertScenarios"></div></div>
@@ -167,11 +185,7 @@
       </div>
       <div class="banner" id="dTruncated" hidden></div>
       <div class="table-wrap"><table>
-        <thead><tr>
-          <th>{{ t.col_value }}</th><th>{{ t.col_scope }}</th><th>{{ t.col_type }}</th>
-          <th>{{ t.col_scenario }}</th><th>{{ t.col_origin }}</th><th>{{ t.col_country }}</th>
-          <th>{{ t.col_as }}</th><th>{{ t.col_expires }}</th><th>{{ t.col_actions }}</th>
-        </tr></thead>
+        <thead id="dHead"></thead>
         <tbody id="dBody"></tbody>
       </table></div>
     </section>
@@ -241,6 +255,10 @@
         <p class="note">{{ t.set_sensors_hint }}</p>
       </div>
       <div class="card" style="max-width:760px; margin-top:12px">
+        <h2>{{ t.b_machines }}</h2>
+        <div id="sMachines"></div>
+      </div>
+      <div class="card" style="max-width:760px; margin-top:12px">
         <h2>{{ t.set_2fa }}</h2>
         <p class="note" style="margin-top:0">{{ t.set_2fa_ingress_note }}</p>
         <div class="kv"><span>{{ t.set_2fa }}</span><span id="sTwofaState">–</span></div>
@@ -269,7 +287,15 @@
       lang: {{ lang|tojson }}
     };
 
-    (function(){ document.documentElement.setAttribute('data-theme', localStorage.getItem('cp-theme') || 'dark'); })();
+    (function () {
+      // Ohne eigene Wahl dem System folgen statt stur dunkel zu starten.
+      let theme = localStorage.getItem('cp-theme');
+      if (!theme) {
+        theme = (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches)
+          ? 'light' : 'dark';
+      }
+      document.documentElement.setAttribute('data-theme', theme);
+    })();
     function toggleTheme(){
       const n = (document.documentElement.getAttribute('data-theme') === 'dark') ? 'light' : 'dark';
       document.documentElement.setAttribute('data-theme', n);
@@ -504,8 +530,94 @@
       bars($('ovAlertScenarios'), d.top_alert_scenarios);
     }
 
+    function renderHistory(d) {
+      const box = $('ovHistory');
+      box.textContent = '';
+      const series = d.series || [];
+      if (!series.length) { box.appendChild(el('div', 'muted', T.h_none)); return; }
+      const max = Math.max.apply(null, series.map(s => s.detections + s.list_updates)) || 1;
+      const chart = el('div', 'spark');
+      series.forEach(s => {
+        const col = el('div');
+        const lists = el('i', 'lists');
+        lists.style.height = Math.round(s.list_updates / max * 70) + 'px';
+        const det = el('i');
+        det.style.height = Math.max(2, Math.round(s.detections / max * 70)) + 'px';
+        col.title = s.day + ' · ' + T.h_detections + ': ' + s.detections
+                  + ' · ' + T.h_list_updates + ': ' + s.list_updates;
+        col.appendChild(lists);
+        col.appendChild(det);
+        col.appendChild(el('span', null, s.day.slice(5)));
+        chart.appendChild(col);
+      });
+      box.appendChild(chart);
+    }
+
+    function ageLabel(stamp) {
+      if (!stamp) return T.b_never;
+      const ts = Date.parse(stamp);
+      if (isNaN(ts)) return stamp;
+      const secs = Math.max(0, Math.round((Date.now() - ts) / 1000));
+      if (secs < 90) return secs + ' s';
+      if (secs < 5400) return Math.round(secs / 60) + ' min';
+      if (secs < 172800) return Math.round(secs / 3600) + ' h';
+      return Math.round(secs / 86400) + ' d';
+    }
+
+    function renderBouncers(d) {
+      const box = $('ovBouncers');
+      box.textContent = '';
+      if (!d.available) { box.appendChild(el('div', 'muted', T.b_unavailable)); return; }
+      const rows = d.bouncers || [];
+      if (!rows.length) { box.appendChild(el('div', 'muted', T.b_none)); return; }
+      rows.forEach(b => {
+        const row = el('div', 'kv');
+        const left = el('span', null, b.name || T.none);
+        left.title = [b.type, b.version, b.ip_address].filter(Boolean).join(' · ');
+        row.appendChild(left);
+        // Ein Bouncer, der seit Minuten nicht abgeholt hat, setzt keine Sperren
+        // mehr durch — deshalb steht genau diese Zahl hier.
+        const stale = b.revoked || !b.last_pull
+                   || (Date.now() - Date.parse(b.last_pull)) > 600000;
+        const right = el('span', null,
+          b.revoked ? T.b_revoked : (T.b_lastpull + ': ' + ageLabel(b.last_pull)));
+        if (stale) right.style.color = 'var(--red)';
+        row.appendChild(right);
+        box.appendChild(row);
+      });
+    }
+
+    function renderMachines(d) {
+      const box = $('sMachines');
+      if (!box) return;
+      box.textContent = '';
+      if (!d.available) { box.appendChild(el('div', 'muted', T.b_unavailable)); return; }
+      (d.machines || []).forEach(m => {
+        const row = el('div', 'kv');
+        const left = el('span', 'mono', m.machine_id || T.none);
+        left.title = [m.version, m.ip_address].filter(Boolean).join(' · ');
+        row.appendChild(left);
+        row.appendChild(el('span', null, T.b_heartbeat + ': ' + ageLabel(m.last_heartbeat)));
+        box.appendChild(row);
+      });
+    }
+
+    async function loadSidecars() {
+      try {
+        const [hist, bnc] = await Promise.all([
+          api('/api/history').catch(() => null),
+          api('/api/bouncers').catch(() => null),
+        ]);
+        if (hist) { cache.history = hist; renderHistory(hist); }
+        if (bnc) { cache.bouncers = bnc; renderBouncers(bnc); renderMachines(bnc); }
+      } catch (e) { /* Nebeninformationen — kein Grund, die Übersicht zu stören */ }
+    }
+
     loaders.overview = async function () {
       if (cache.overview) renderOverview(cache.overview);
+      if (cache.history) renderHistory(cache.history);
+      if (cache.bouncers) { renderBouncers(cache.bouncers); renderMachines(cache.bouncers); }
+      loadSidecars();
       try {
         const d = await api('/api/overview');
         cache.overview = d;
@@ -573,21 +685,38 @@
       return tr;
     }
 
+    const DECISION_COLS = [
+      { label: () => T.col_value,    key: 'value' },
+      { label: () => T.col_scope,    key: 'scope',    narrow: true },
+      { label: () => T.col_type,     key: 'type' },
+      { label: () => T.col_scenario, key: 'scenario', narrow: true },
+      { label: () => T.col_origin,   key: 'origin',   narrow: true },
+      { label: () => T.col_country,  key: 'country' },
+      { label: () => T.col_as,       key: 'as_name',  narrow: true },
+      { label: () => T.col_expires,  key: 'until' },
+      { label: () => T.col_actions },
+    ];
+
     function renderDecisions(rows) {
+      buildHead('dHead', 'decisions',
+                DECISION_COLS.map(c => ({ label: c.label(), key: c.key, narrow: c.narrow })),
+                () => renderDecisions(decisionRows));
       const body = $('dBody');
       body.textContent = '';
       if (!rows.length) { body.appendChild(rowMessage(9, T.empty)); return; }
-      rows.forEach(r => {
+      sortRows('decisions', rows).forEach(r => {
         const tr = el('tr');
         tr.appendChild(el('td', 'mono', r.value));
-        tr.appendChild(el('td', null, r.scope));
+        tr.appendChild(el('td', 'hide-narrow', r.scope));
         const tdType = el('td');
         tdType.appendChild(el('span', 'tag ' + (r.type === 'ban' ? 'ban' : 'captcha'), r.type));
         tr.appendChild(tdType);
-        tr.appendChild(el('td', null, r.scenario));
-        tr.appendChild(el('td', null, r.origin));
-        tr.appendChild(countryCell(r.country));
-        tr.appendChild(el('td', null, r.as_name || (r.as_number ? 'AS' + r.as_number : T.none)));
+        tr.appendChild(el('td', 'hide-narrow', r.scenario));
+        tr.appendChild(el('td', 'hide-narrow', r.origin));
+        const tdCountry = countryCell(r.country);
+        tr.appendChild(tdCountry);
+        tr.appendChild(el('td', 'hide-narrow',
+                          r.as_name || (r.as_number ? 'AS' + r.as_number : T.none)));
         tr.appendChild(el('td', 'mono', shortDuration(r)));
         const tdAct = el('td');
         const btn = el('button', 'btn danger', T.act_unban);
@@ -676,10 +805,44 @@
     });
 
     // ── alerts ────────────────────────────────────────────────────────────────
-    function setHead(cols) {
+    // Eine Tabelle wird über ihre Spalten beschrieben: Beschriftung, Feld zum
+    // Sortieren, und ob sie auf schmalen Bildschirmen wegfallen darf.
+    const sortState = Object.create(null);
+
+    function cmpValues(a, b) {
+      if (a === null || a === undefined) a = '';
+      if (b === null || b === undefined) b = '';
+      if (typeof a === 'number' && typeof b === 'number') return a - b;
+      return String(a).localeCompare(String(b), undefined,
+                                     { numeric: true, sensitivity: 'base' });
+    }
+
+    function sortRows(tableId, rows) {
+      const st = sortState[tableId];
+      if (!st || !st.key) return rows;
+      const dir = st.dir === 'desc' ? -1 : 1;
+      return rows.slice().sort((a, b) => cmpValues(a[st.key], b[st.key]) * dir);
+    }
+
+    function buildHead(headId, tableId, cols, rerender) {
       const tr = el('tr');
-      cols.forEach(c => tr.appendChild(el('th', null, c)));
-      const head = $('aHead');
+      cols.forEach(c => {
+        const th = el('th', c.narrow ? 'hide-narrow' : null, c.label);
+        if (c.key) {
+          th.classList.add('sortable');
+          th.title = T.sort_hint;
+          const st = sortState[tableId];
+          if (st && st.key === c.key) th.classList.add(st.dir);
+          th.addEventListener('click', () => {
+            const cur = sortState[tableId];
+            sortState[tableId] = (cur && cur.key === c.key && cur.dir === 'asc')
+              ? { key: c.key, dir: 'desc' } : { key: c.key, dir: 'asc' };
+            rerender();
+          });
+        }
+        tr.appendChild(th);
+      });
+      const head = $(headId);
       head.textContent = '';
       head.appendChild(tr);
     }
@@ -697,8 +860,16 @@
     }
 
     function renderAlertsSingle(d) {
-      setHead([T.col_value, T.col_scenario, T.col_country, T.col_as,
-               T.col_events, T.col_created, T.col_actions]);
+      buildHead('aHead', 'alerts', [
+        { label: T.col_value, key: 'value' },
+        { label: T.col_scenario, key: 'scenario' },
+        { label: T.col_country, key: 'country' },
+        { label: T.col_as, key: 'as_name', narrow: true },
+        { label: T.col_events, key: 'events_count', narrow: true },
+        { label: T.col_created, key: 'created_at' },
+        { label: T.col_actions },
+      ], () => renderAlertsSingle(d));
+      d = Object.assign({}, d, { alerts: sortRows('alerts', d.alerts || []) });
       const body = $('aBody');
       body.textContent = '';
       if (!d.alerts.length) { body.appendChild(rowMessage(7, T.al_none)); return; }
@@ -713,8 +884,8 @@
         }
         tr.appendChild(tdScen);
         tr.appendChild(countryCell(a.country));
-        tr.appendChild(el('td', null, a.as_name || T.none));
-        tr.appendChild(el('td', 'mono', a.events_count));
+        tr.appendChild(el('td', 'hide-narrow', a.as_name || T.none));
+        tr.appendChild(el('td', 'mono hide-narrow', a.events_count));
         tr.appendChild(el('td', 'mono', relTime(a.created_at)));
         const td = el('td');
         const acts = el('div', 'actions');
@@ -728,9 +899,16 @@
 
     function renderAlertsGrouped(d) {
       const bySource = d.group === 'source';
-      setHead([bySource ? T.col_value : T.col_scenario, T.col_hits,
-               bySource ? T.col_scenarios : T.col_sources,
-               T.col_country, T.col_as, T.col_last, T.col_actions]);
+      buildHead('aHead', 'groups', [
+        { label: bySource ? T.col_value : T.col_scenario, key: 'key' },
+        { label: T.col_hits, key: 'count' },
+        { label: bySource ? T.col_scenarios : T.col_sources, narrow: true },
+        { label: T.col_country, key: 'country' },
+        { label: T.col_as, key: 'as_name', narrow: true },
+        { label: T.col_last, key: 'last' },
+        { label: T.col_actions },
+      ], () => renderAlertsGrouped(d));
+      d = Object.assign({}, d, { groups: sortRows('groups', d.groups || []) });
       const body = $('aBody');
       body.textContent = '';
       if (!d.groups.length) { body.appendChild(rowMessage(7, T.al_none)); return; }
@@ -738,7 +916,7 @@
         const tr = el('tr');
         tr.appendChild(el('td', bySource ? 'mono' : null, g.key));
         tr.appendChild(el('td', 'mono', g.count));
-        const tdOther = el('td');
+        const tdOther = el('td', 'hide-narrow');
         tdOther.appendChild(document.createTextNode(g.others.join(', ')));
         if (g.others_total > g.others.length) {
           tdOther.appendChild(el('div', 'muted',
@@ -746,7 +924,7 @@
         }
         tr.appendChild(tdOther);
         tr.appendChild(countryCell(g.country));
-        tr.appendChild(el('td', null, g.as_name || T.none));
+        tr.appendChild(el('td', 'hide-narrow', g.as_name || T.none));
         tr.appendChild(el('td', 'mono', relTime(g.last)));
         const td = el('td');
         const acts = el('div', 'actions');
@@ -1009,6 +1187,11 @@
     };
 
     // ── hub ───────────────────────────────────────────────────────────────────
+    loaders.settings = function () {
+      if (cache.bouncers) renderMachines(cache.bouncers);
+      else loadSidecars();
+    };
+
     loaders.hub = async function () {
       const box = $('hubBody');
       if (cache.hub) { renderHub(box, cache.hub); }

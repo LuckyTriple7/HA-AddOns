@@ -224,5 +224,20 @@
     "appsec-configs": "AppSec-Konfigurationen",
     "appsec-rules": "AppSec-Regeln",
     "contexts": "Kontexte"
-  }
+  },
+  "b_title": "Bouncer",
+  "b_machines": "Maschinen",
+  "b_none": "Keine Bouncer eingetragen.",
+  "b_unavailable": "Datenbank von CrowdSec nicht gefunden — Pfad über die Option crowdsec_db setzen.",
+  "b_lastpull": "letzter Abruf",
+  "b_never": "noch nie",
+  "b_revoked": "gesperrt",
+  "b_heartbeat": "letztes Lebenszeichen",
+  "b_validated": "bestätigt",
+  "b_stale": "meldet sich nicht mehr",
+  "h_title": "Verlauf",
+  "h_detections": "Erkennungen",
+  "h_list_updates": "Blocklisten-Updates",
+  "h_none": "Kein Verlauf verfügbar.",
+  "sort_hint": "Zum Sortieren klicken"
 }

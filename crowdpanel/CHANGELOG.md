@@ -1,5 +1,37 @@
 # Changelog
 
+## [0.4.0] - 2026-08-19
+
+### Added
+- **Bouncer-Übersicht.** Wer holt die Entscheidungen ab, und wann zuletzt — die
+  wichtigste Betriebsfrage, denn ein Bouncer, der seit Minuten nichts geholt
+  hat, setzt auch nichts mehr durch. Liegt der letzte Abruf über zehn Minuten
+  zurück oder ist der Zugang gesperrt, färbt sich die Zeile rot. Maschinen
+  stehen unter Einstellungen.
+
+  Das hatte ich zweimal als unmöglich abgetan, weil die LAPI beides nicht
+  hergibt. Seit das Konfigurationsverzeichnis ohnehin lesend eingehängt ist,
+  liegt die SQLite-Datei von CrowdSec daneben. Sie wird schreibgeschützt
+  geöffnet, und es werden ausschließlich Name, Art, Version, Adresse und
+  Zeitstempel ausgelesen — die Spalten mit Schlüsseln und Passwörtern rührt
+  CrowdPanel nicht an, gegen eine nachgebaute Datenbank überprüft.
+- **Verlauf über mehrere Tage** in der Übersicht, Zeitraum über `history_days`.
+  Erkennungen und Blocklisten-Updates getrennt, Tageswerte im Tooltip.
+- **Sortierbare Spalten** in Sperren, Alarmen und der gruppierten Ansicht.
+  Erster Klick aufsteigend, zweiter absteigend.
+
+### Changed
+- **Schmale Bildschirme** zeigen nur noch die tragenden Spalten; Bereich,
+  Szenario, Herkunft und Netz fallen unter 820 Pixel weg. Aus neun Spalten
+  werden fünf, ohne seitliches Scrollen.
+- **Ohne eigene Wahl folgt das Thema dem System** statt stur dunkel zu starten.
+  Der Umschalter überschreibt das weiterhin dauerhaft.
+
+### Notes
+- Benachrichtigungen bleiben bewusst außen vor: Das kann CrowdSec über
+  `cscli notifications` und `profiles.yaml` selbst, und zwar dort, wo die
+  Entscheidung entsteht — auch dann, wenn CrowdPanel gar nicht läuft.
+
 ## [0.3.1] - 2026-08-19
 
 ### Added
