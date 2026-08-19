@@ -24,10 +24,10 @@ it into a web interface.
    CS=$(docker ps --format '{{.Names}}' | grep -i crowdsec)
    CFG=/config/.storage/crowdsec/config/config.yaml
    PW=$(openssl rand -hex 22)
-   docker exec $CS cscli -c $CFG machines add crowdpanel --password "$PW"
+   docker exec $CS cscli -c $CFG machines add crowdpanel --password "$PW" -f -
    echo "$PW"
    ```
-   The `-c $CFG` is mandatory → [DOCS.en.md](DOCS.en.md#step-1--create-a-machine-account-in-crowdsec)
+   Both `-c $CFG` and `-f -` are mandatory, `--force` would be wrong → [DOCS.en.md](DOCS.en.md#step-1--create-a-machine-account-in-crowdsec)
 2. Put `lapi_url`, `machine_id` and `machine_password` into the add-on options
 3. Change `password` and start the add-on
 

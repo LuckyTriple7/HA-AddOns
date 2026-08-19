@@ -50,7 +50,7 @@ Dann den Zugang anlegen. `CFG` zeigt auf die Konfigurationsdatei des CrowdSec-Ad
 CS=app_xxxxxxxx_crowdsec
 CFG=/config/.storage/crowdsec/config/config.yaml
 PW=$(openssl rand -hex 22)
-docker exec $CS cscli -c $CFG machines add crowdpanel --password "$PW"
+docker exec $CS cscli -c $CFG machines add crowdpanel --password "$PW" -f -
 echo "$PW"
 ```
 
@@ -58,6 +58,14 @@ echo "$PW"
 > `/etc/crowdsec` — das ist eine andere, leere Datenbank. Der Zugang würde dort
 > angelegt, die laufende LAPI kennt ihn nicht, und CrowdPanel bekommt trotz
 > korrektem Passwort ein „auth_failed".
+
+> **Das `-f -` ist ebenso Pflicht, und `--force` ist die falsche Antwort.**
+> Ohne `-f` will `cscli` die neuen Zugangsdaten nach
+> `local_api_credentials.yaml` schreiben und bricht ab, weil es die Datei schon
+> gibt. Diese Datei ist die Anmeldung, mit der CrowdSec selbst an seiner eigenen
+> LAPI hängt — sie mit `--force` zu überschreiben hängt den lokalen Agenten an
+> den neuen Zugang und bricht die Log-Verarbeitung. `-f -` schreibt die
+> Zugangsdaten stattdessen auf die Standardausgabe und lässt die Datei in Ruhe.
 
 `openssl rand -hex 22` liefert 44 Zeichen ohne `+`, `/` oder `=`, damit beim
 Kopieren nichts verlorengeht.

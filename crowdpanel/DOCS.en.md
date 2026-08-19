@@ -51,7 +51,7 @@ Then create the account. `CFG` points at the CrowdSec add-on's config file:
 CS=app_xxxxxxxx_crowdsec
 CFG=/config/.storage/crowdsec/config/config.yaml
 PW=$(openssl rand -hex 22)
-docker exec $CS cscli -c $CFG machines add crowdpanel --password "$PW"
+docker exec $CS cscli -c $CFG machines add crowdpanel --password "$PW" -f -
 echo "$PW"
 ```
 
@@ -59,6 +59,14 @@ echo "$PW"
 > which is a different, empty database. The account would be created there, the
 > running LAPI would never know about it, and CrowdPanel would get an
 > "auth_failed" despite a correct password.
+
+> **The `-f -` is mandatory too, and `--force` is the wrong answer.** Without
+> `-f`, `cscli` wants to write the new credentials to
+> `local_api_credentials.yaml` and stops because that file already exists. That
+> file is how CrowdSec itself signs in to its own LAPI — overwriting it with
+> `--force` points the local agent at the new account and breaks log processing.
+> `-f -` prints the credentials to standard output instead and leaves the file
+> alone.
 
 `openssl rand -hex 22` produces 44 characters without `+`, `/` or `=`, so nothing
 gets lost when copying.
