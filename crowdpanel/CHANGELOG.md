@@ -1,5 +1,36 @@
 # Changelog
 
+## [0.2.0] - 2026-08-19
+
+### Added
+- **Alarme lassen sich verdichten.** Neben der Einzelansicht gibt es jetzt
+  „nach Adresse" und „nach Szenario". Die Gruppierung zeigt Trefferzahl, alle
+  dort gesehenen Szenarien beziehungsweise Adressen, Land, Netz und das letzte
+  Auftreten. Aus hundert Einzelzeilen wird damit auf einen Blick sichtbar, dass
+  achtundvierzig davon von derselben Adresse stammen und drei verschiedene
+  Angriffsmuster auslösen — der Unterschied zwischen einem echten Angreifer und
+  einem Fehlalarm, der stur dasselbe Szenario meldet.
+- **Sperren direkt aus einem Alarm.** Jede Zeile mit einer Quelladresse hat einen
+  Knopf, der nur noch nach Dauer und Grund fragt. Kein Abtippen der Adresse in
+  den Reiter „Neue Sperre" mehr.
+- **Sensoren in Home Assistant.** `sensor.crowdpanel_decisions`,
+  `sensor.crowdpanel_decisions_local`, `sensor.crowdpanel_alerts_24h` und
+  `binary_sensor.crowdpanel_lapi`. Der zweite ist der aussagekräftige: Die
+  Gesamtzahl schwankt mit jeder Blocklisten-Aktualisierung um Tausende, die
+  selbst erkannten Sperren sind eine kleine, verwertbare Zahl. Intervall über
+  `ha_sensor_interval`, abschaltbar über `ha_sensors`.
+
+### Changed
+- Der Alarm-Reiter nennt jetzt wie die Sperren-Tabelle die Gesamtzahl neben den
+  angezeigten Zeilen und weist auf eine Kürzung hin.
+- Filteränderungen im Alarm-Reiter laden sofort neu, statt auf „Anwenden" zu
+  warten.
+
+### Notes
+- Lehnt Home Assistant die Sensoren ab, steht das genau einmal im Protokoll —
+  danach nicht mehr, damit eine Fehlkonfiguration das Log nicht flutet. Das
+  Add-on deklariert dafür `homeassistant_api: true`.
+
 ## [0.1.3] - 2026-08-19
 
 ### Added

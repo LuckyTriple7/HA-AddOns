@@ -11,10 +11,11 @@ und macht daraus eine Weboberfläche.
 - **Übersicht** — aktive Sperren, Alarme der letzten 24 Stunden, häufigste Länder und Szenarien
 - **Sperren** — filtern nach Bereich, Art und Herkunft; einzeln oder gesammelt aufheben
 - **Neue Sperre** — einzelne IP, CIDR-Bereich, ganzes Land oder ganzes Netz (AS), mit frei wählbarer Dauer und Grund
-- **Alarme** — was CrowdSec erkannt hat, mit Ereignissen und auslösender Log-Zeile
+- **Alarme** — gruppierbar nach Adresse oder Szenario mit Trefferzahl, mit Ereignissen und auslösender Log-Zeile; Sperren direkt aus der Zeile
 - **IP prüfen** — aktive Sperren, Alarmverlauf und Allowlist-Treffer zu einer Adresse
 - **Ausnahmen** — Allowlists aus der CrowdSec-Datenbank und Whitelist-Parser im Klartext, mit Erklärung des Unterschieds
 - **Zwei-Faktor-Anmeldung** — TOTP für den direkten Port, QR-Code lokal erzeugt, Backup-Codes
+- **Home-Assistant-Sensoren** — aktive Sperren, davon selbst erkannte, und Erkennungen der letzten 24 Stunden
 - Dark / Light · DE / EN · HA Ingress · PWA
 
 ## Schnellstart
