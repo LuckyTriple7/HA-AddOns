@@ -209,6 +209,14 @@ längste Vorschlag ist ein Jahr (`8760h`).
 ### Alarme
 
 Was CrowdSec erkannt hat, unabhängig davon, ob daraus eine Sperre wurde.
+
+Der Filter **Art** steht auf „nur Erkennungen". Der Grund: CrowdSec meldet auch
+jede Aktualisierung einer abonnierten Blockliste als Alarm — Szenario
+`update : +15000/-0 IPs`, null Ereignisse, 15.000 Entscheidungen daran. Das ist
+kein Angriff, sondern ein Abgleich, und zwischen echten Erkennungen wäre es nur
+Rauschen. Über „nur Blocklisten-Updates" oder „alles" sind sie trotzdem
+erreichbar; in der Tabelle tragen sie die Marke *Blockliste*. Die Übersicht zählt
+beides getrennt.
 *Details* holt den vollständigen Alarm samt der ersten 20 Ereignisse und deren
 Feldern — daraus wird ersichtlich, welche Log-Zeile den Alarm ausgelöst hat.
 
@@ -242,8 +250,35 @@ Der Allowlist-Teil ist wichtig: Steht eine Adresse auf einer Allowlist, greift
 
 ### Allowlists
 
-Nur zum Ansehen. Angelegt und gepflegt werden Allowlists mit
-`cscli allowlists`.
+Der Reiter zeigt zwei Dinge, die in CrowdSec leicht verwechselt werden.
+
+**Allowlists** liegen in der CrowdSec-Datenbank und verhindern die Sperre: Ein
+Alarm entsteht, aber keine Entscheidung greift. Sie gelten sofort für alle
+Bouncer. Die LAPI gibt sie nur heraus — anlegen und ändern geht ausschließlich
+mit `cscli allowlists`, dafür bietet die API keine Schnittstelle.
+
+**Whitelists** sind Parser-Dateien und greifen eine Stufe früher, beim Lesen der
+Logzeile. Eine Zeile von einer eingetragenen Adresse erzeugt gar keinen Alarm.
+CrowdPanel liest die YAML-Dateien direkt aus
+`/homeassistant/.storage/crowdsec/config/parsers/s02-enrich` und zeigt sie im
+Klartext samt Änderungsdatum. Liegen sie woanders, hilft die Option
+`whitelist_dir`.
+
+Beides ist reine Anzeige. Für die Whitelists ist das Konfigurationsverzeichnis
+von Home Assistant **nur lesend** ins Add-on gemappt; CrowdPanel schreibt dort
+nichts und kann es auch nicht. Symbolische Verweise, die aus dem Verzeichnis
+herausführen, werden übersprungen, und Dateien über 256 KB werden nicht
+angezeigt.
+
+Wie oft eine Whitelist tatsächlich gegriffen hat, steht nicht in den Dateien,
+sondern in der Statistik:
+
+```sh
+docker exec $CS cscli -c $CFG metrics | grep -A15 -i whitelist
+```
+
+Die Spalte „Whitelisted" ist die interessante: Sie zählt, wie viele Zeilen
+wirklich verworfen wurden — nicht, wie oft die Regel nur geprüft wurde.
 
 ---
 
@@ -285,6 +320,7 @@ für eine schnelle, überall wirkende Sperre der Weg über CrowdPanel.
 | `default_ban_duration` | `4h` | Voreingestellte Dauer im Formular |
 | `refresh_interval` | `30` | Sekunden bis zur automatischen Aktualisierung, `0` schaltet sie ab |
 | `page_size` | `100` | wie viele Zeilen die Tabellen höchstens anzeigen |
+| `whitelist_dir` | leer | Verzeichnis der Whitelist-Parser, nur falls die Suche fehlschlägt |
 | `verbose_log` | `false` | zusätzliche Zeilen im Protokoll |
 
 ---

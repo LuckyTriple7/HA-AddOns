@@ -136,6 +136,7 @@
       <div class="grid">
         <div class="card"><div class="stat" id="ovDecisions">–</div><div class="stat-label">{{ t.ov_decisions_total }}</div></div>
         <div class="card"><div class="stat" id="ovAlerts">–</div><div class="stat-label">{{ t.ov_alerts_24h }}</div></div>
+        <div class="card"><div class="stat" id="ovLists">–</div><div class="stat-label">{{ t.ov_list_updates }}</div></div>
         <div class="card"><h3>{{ t.ov_by_type }}</h3><div class="bar" id="ovByType"></div></div>
         <div class="card"><h3>{{ t.ov_by_origin }}</h3><div class="bar" id="ovByOrigin"></div></div>
       </div>
@@ -193,6 +194,7 @@
         <div class="field"><label for="aQ">{{ t.f_search }}</label>
           <input id="aQ" type="text" placeholder="{{ t.f_search_hint }}"></div>
         <div class="field"><label for="aSince">{{ t.f_since }}</label><select id="aSince"></select></div>
+        <div class="field"><label for="aKind">{{ t.f_kind }}</label><select id="aKind"></select></div>
         <button class="btn" id="aApply">{{ t.f_apply }}</button>
         <span class="muted" id="aCount"></span>
       </div>
@@ -420,6 +422,7 @@
       fillOrigins((d.by_origin || []).map(p => p[0]));
       $('ovDecisions').textContent = d.decisions_total;
       $('ovAlerts').textContent = d.alerts_24h;
+      $('ovLists').textContent = d.list_updates_24h;
       bars($('ovByType'), d.by_type);
       bars($('ovByOrigin'), d.by_origin);
       bars($('ovCountries'), d.top_countries);
@@ -606,15 +609,22 @@
       const p = new URLSearchParams();
       if ($('aQ').value.trim()) p.set('q', $('aQ').value.trim());
       if ($('aSince').value) p.set('since', $('aSince').value);
+      p.set('kind', $('aKind').value);
       try {
         const d = await api('/api/alerts' + (p.toString() ? '?' + p.toString() : ''));
         body.textContent = '';
-        $('aCount').textContent = fmt('rows', { n: d.count });
+        $('aCount').textContent = fmt('rows_of', { n: d.count, total: d.total });
         if (!d.alerts.length) { body.appendChild(rowMessage(7, T.al_none)); return; }
         d.alerts.forEach(a => {
           const tr = el('tr');
           tr.appendChild(el('td', 'mono', a.value || T.none));
-          tr.appendChild(el('td', null, a.scenario));
+          const tdScen = el('td');
+          tdScen.appendChild(document.createTextNode(a.scenario));
+          if (a.list_sync) {
+            tdScen.appendChild(document.createTextNode(' '));
+            tdScen.appendChild(el('span', 'tag', T.tag_list_sync));
+          }
+          tr.appendChild(tdScen);
           tr.appendChild(el('td', null, a.country || T.none));
           tr.appendChild(el('td', null, a.as_name || T.none));
           tr.appendChild(el('td', 'mono', a.events_count));
@@ -736,34 +746,74 @@
     $('cValue').addEventListener('keydown', e => { if (e.key === 'Enter') runCheck(); });
 
     // ── allowlists ────────────────────────────────────────────────────────────
+    function renderAllowlists(box, d) {
+      const card = el('div', 'card');
+      card.style.marginBottom = '12px';
+      card.appendChild(el('h2', null, T.aw_title));
+      card.appendChild(el('p', 'note', T.aw_hint));
+      const lists = d.allowlists || [];
+      if (!lists.length) {
+        card.appendChild(el('div', 'empty', T.aw_none));
+      } else {
+        lists.forEach(w => {
+          card.appendChild(el('h3', null, w.name || T.none));
+          if (w.description) card.appendChild(el('p', 'note', w.description));
+          const items = w.items || w.Items || [];
+          items.slice(0, 200).forEach(i => {
+            const row = el('div', 'kv');
+            row.appendChild(el('span', 'mono', (i && i.value) || i));
+            row.appendChild(el('span', null, (i && i.description) || ''));
+            card.appendChild(row);
+          });
+        });
+      }
+      box.appendChild(card);
+    }
+
+    function renderWhitelists(box, d) {
+      const card = el('div', 'card');
+      card.appendChild(el('h2', null, T.wl_title));
+      card.appendChild(el('p', 'note', T.wl_hint));
+      if (!d.available) {
+        card.appendChild(el('div', 'banner', T.wl_unavailable));
+        box.appendChild(card);
+        return;
+      }
+      const dir = el('div', 'kv');
+      dir.appendChild(el('span', null, T.wl_dir));
+      dir.appendChild(el('span', 'mono', d.dir));
+      card.appendChild(dir);
+      const files = d.files || [];
+      if (!files.length) {
+        card.appendChild(el('div', 'empty', T.wl_none));
+      } else {
+        files.forEach(f => {
+          const head = el('h3', 'mono', f.name);
+          head.style.textTransform = 'none';   // a filename is not a label
+          card.appendChild(head);
+          const meta = el('div', 'kv');
+          meta.appendChild(el('span', null, T.wl_modified));
+          meta.appendChild(el('span', 'mono', relTime(f.modified)));
+          card.appendChild(meta);
+          card.appendChild(el('pre', null, f.too_large ? T.wl_too_large : f.content));
+        });
+      }
+      box.appendChild(card);
+    }
+
     loaders.allowlists = async function () {
       const box = $('wBody');
       box.textContent = '';
       box.appendChild(el('div', 'muted', T.loading));
-      try {
-        const d = await api('/api/allowlists');
-        box.textContent = '';
-        const lists = d.allowlists || [];
-        if (!lists.length) { box.appendChild(el('div', 'empty', T.aw_none)); return; }
-        lists.forEach(w => {
-          const card = el('div', 'card');
-          card.style.marginBottom = '12px';
-          card.appendChild(el('h2', null, w.name || T.none));
-          if (w.description) card.appendChild(el('p', 'note', w.description));
-          const items = w.items || w.Items || [];
-          card.appendChild(el('h3', null, T.aw_items + ' (' + items.length + ')'));
-          items.slice(0, 200).forEach(i => {
-            const row = el('div', 'kv');
-            row.appendChild(el('span', 'mono', i.value || i));
-            row.appendChild(el('span', null, i.description || ''));
-            card.appendChild(row);
-          });
-          box.appendChild(card);
-        });
-      } catch (e) {
-        box.textContent = '';
-        box.appendChild(el('div', 'banner bad', errText(e.code)));
-      }
+      const [allow, white] = await Promise.all([
+        api('/api/allowlists').catch(e => ({ error: e.code })),
+        api('/api/whitelists').catch(e => ({ error: e.code })),
+      ]);
+      box.textContent = '';
+      if (allow.error) box.appendChild(el('div', 'banner bad', errText(allow.error)));
+      else renderAllowlists(box, allow);
+      if (white.error) box.appendChild(el('div', 'banner bad', errText(white.error)));
+      else renderWhitelists(box, white);
     };
 
     // ── settings / 2FA ────────────────────────────────────────────────────────
@@ -854,6 +904,8 @@
                v => v === 'custom' ? T.dur_custom : (T['dur_' + v] || v), false);
     fillSelect($('aSince'), ['1h', '24h', '168h', '720h'], v => T['since_' + v] || v, true);
     $('aSince').value = '24h';
+    fillSelect($('aKind'), ['detections', 'lists', 'all'], v => T['kind_' + v] || v, false);
+    $('aKind').addEventListener('change', () => loaders.alerts());
     $('nDuration').value = G.durations.indexOf(G.defaultDuration) >= 0 ? G.defaultDuration : '4h';
     $('nDuration').addEventListener('change', () => {
       $('nCustomWrap').hidden = $('nDuration').value !== 'custom';

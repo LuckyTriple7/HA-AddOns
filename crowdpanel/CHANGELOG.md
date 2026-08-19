@@ -1,5 +1,36 @@
 # Changelog
 
+## [0.1.3] - 2026-08-19
+
+### Added
+- **Whitelists werden angezeigt.** CrowdSec kennt zwei Arten von Ausnahme, die
+  sich leicht verwechseln lassen: Allowlists liegen in der Datenbank und
+  verhindern die Sperre, Whitelists sind Parser-Dateien und greifen schon beim
+  Lesen der Logzeile — die LAPI sieht sie nie. Der Reiter zeigt jetzt beide,
+  mit einer Erklärung des Unterschieds. Die YAML-Dateien werden aus
+  `/homeassistant/.storage/crowdsec/config/parsers/s02-enrich` gelesen; liegen
+  sie woanders, hilft die neue Option `whitelist_dir`.
+
+### Changed
+- Neues Mapping `homeassistant_config:ro` — **nur lesend**, ausschließlich für
+  diese Anzeige. Symbolische Verweise aus dem Verzeichnis heraus werden
+  übersprungen, Dateien über 256 KB nicht angezeigt. Home Assistant stuft das
+  Add-on wegen des Mappings sicherheitstechnisch herunter.
+
+- **Blocklisten-Updates zählen nicht mehr als Erkennung.** CrowdSec meldet jede
+  Aktualisierung einer abonnierten Blockliste als Alarm — „update : +15000/-0
+  IPs", ohne Ereignisse, mit 15.000 Entscheidungen daran. In der Auslöser-Liste
+  stand das gleichberechtigt neben echten Angriffen. Die Übersicht zählt sie
+  jetzt getrennt in einer eigenen Kachel, und der Alarm-Reiter hat einen Filter
+  „nur Erkennungen" (Vorgabe), „nur Blocklisten-Updates" oder „alles"; in der
+  Tabelle sind sie zusätzlich als solche gekennzeichnet.
+- Der Alarm-Reiter nennt jetzt wie die Sperren-Tabelle die Gesamtzahl neben den
+  angezeigten Zeilen.
+
+### Notes
+- Ändern lassen sich Whitelists weiterhin nur mit einem Editor, Allowlists nur
+  mit `cscli allowlists` — die LAPI bietet für beides keine Schreibschnittstelle.
+
 ## [0.1.2] - 2026-08-19
 
 ### Fixed

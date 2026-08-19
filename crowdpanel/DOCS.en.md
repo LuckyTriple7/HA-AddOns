@@ -205,7 +205,14 @@ something if the bouncer has a captcha configured — in NPMplus for example thr
 
 ### Alerts
 
-What CrowdSec detected, whether or not it turned into a decision. *Details*
+What CrowdSec detected, whether or not it turned into a decision.
+
+The **kind** filter starts on "detections only". The reason: CrowdSec also
+reports every refresh of a subscribed blocklist as an alert — scenario
+`update : +15000/-0 IPs`, no events, 15,000 decisions attached. That is not an
+attack but a sync, and among real detections it is only noise. They stay
+reachable through "blocklist updates only" or "everything", and carry a
+*blocklist* tag in the table. The overview counts the two separately. *Details*
 fetches the full alert with its first 20 events and their fields — that is where
 you see which log line triggered the alert.
 
@@ -238,7 +245,33 @@ applies to it — not even one just created by hand.
 
 ### Allowlists
 
-Read-only. Allowlists are created and maintained with `cscli allowlists`.
+This tab shows two things that are easily confused in CrowdSec.
+
+**Allowlists** live in the CrowdSec database and prevent the decision: an alert
+is raised, but no decision applies. They take effect at once for every bouncer.
+The LAPI only hands them out — creating and changing them is `cscli allowlists`
+only, the API offers no route for it.
+
+**Whitelists** are parser files and act one step earlier, while the log line is
+being read. A line from a listed address raises no alert at all. CrowdPanel reads
+the YAML files straight from
+`/homeassistant/.storage/crowdsec/config/parsers/s02-enrich` and shows them in
+full, with their modification date. If they live elsewhere, the `whitelist_dir`
+option points at them.
+
+Both are display only. For the whitelists, the Home Assistant configuration
+directory is mapped into the add-on **read-only**; CrowdPanel writes nothing
+there and could not. Symlinks leading out of the directory are skipped, and files
+over 256 KB are not shown.
+
+How often a whitelist actually applied is not in the files but in the metrics:
+
+```sh
+docker exec $CS cscli -c $CFG metrics | grep -A15 -i whitelist
+```
+
+The "Whitelisted" column is the interesting one: it counts the lines really
+dropped, not how often the rule was merely evaluated.
 
 ---
 
@@ -279,6 +312,7 @@ effect everywhere the CrowdPanel route is better.
 | `default_ban_duration` | `4h` | preselected duration in the form |
 | `refresh_interval` | `30` | seconds between automatic refreshes, `0` turns it off |
 | `page_size` | `100` | how many rows the tables show at most |
+| `whitelist_dir` | empty | whitelist parser directory, only if auto-detection fails |
 | `verbose_log` | `false` | extra lines in the log |
 
 ---

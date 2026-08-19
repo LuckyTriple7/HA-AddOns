@@ -13,7 +13,7 @@ und macht daraus eine Weboberfläche.
 - **Neue Sperre** — einzelne IP, CIDR-Bereich, ganzes Land oder ganzes Netz (AS), mit frei wählbarer Dauer und Grund
 - **Alarme** — was CrowdSec erkannt hat, mit Ereignissen und auslösender Log-Zeile
 - **IP prüfen** — aktive Sperren, Alarmverlauf und Allowlist-Treffer zu einer Adresse
-- **Allowlists** — ansehen, welche Adressen von Sperren ausgenommen sind
+- **Ausnahmen** — Allowlists aus der CrowdSec-Datenbank und Whitelist-Parser im Klartext, mit Erklärung des Unterschieds
 - **Zwei-Faktor-Anmeldung** — TOTP für den direkten Port, QR-Code lokal erzeugt, Backup-Codes
 - Dark / Light · DE / EN · HA Ingress · PWA
 

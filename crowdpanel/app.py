@@ -21,6 +21,7 @@ import threading
 import time
 from collections import Counter, defaultdict
 from datetime import datetime, timezone
+from pathlib import Path
 from urllib.parse import urlsplit, urlunsplit, quote
 
 from flask import (Flask, g, jsonify, make_response, redirect, render_template,
@@ -574,6 +575,28 @@ def _server_filters() -> dict:
     return out
 
 
+def _is_list_sync(alert: dict) -> bool:
+    """A blocklist refresh, not a detection.
+
+    CrowdSec reports every subscription update as one alert — "update: +15000/-0
+    IPs", no events, thousands of decisions attached. Counted among the triggers
+    it drowns out what actually happened.
+    """
+    if str(alert.get('kind') or '').lower() == 'capi':
+        return True
+    for dec in (alert.get('decisions') or [])[:1]:
+        if str(dec.get('origin') or '') in ('CAPI', 'lists'):
+            return True
+    return False
+
+
+def _kind_arg() -> str:
+    kind = _arg('kind', 16) or 'detections'
+    if kind not in ('detections', 'lists', 'all'):
+        raise ValidationError('bad_kind')
+    return kind
+
+
 def _text_match(row: dict, needle: str) -> bool:
     if not needle:
         return True
@@ -582,6 +605,68 @@ def _text_match(row: dict, needle: str) -> bool:
         if needle in str(row.get(key, '')).lower():
             return True
     return False
+
+
+# ── Whitelist parsers (read-only view) ────────────────────────────────────────
+# CrowdSec knows two kinds of exemption. Allowlists live in its database and are
+# served by the LAPI. Whitelists are parser YAML files that act one step earlier,
+# while the log line is being read — the LAPI never sees them. They are shown
+# here by reading the files; changing them stays with cscli and an editor.
+
+WHITELIST_CANDIDATES = (
+    '/homeassistant/.storage/crowdsec/config/parsers/s02-enrich',
+    '/config/.storage/crowdsec/config/parsers/s02-enrich',
+)
+WHITELIST_MAX_BYTES = 256 * 1024
+WHITELIST_SUFFIXES = ('.yaml', '.yml')
+
+
+def _whitelist_dir() -> Path | None:
+    configured = str(load_config().get('whitelist_dir') or '').strip()
+    for candidate in ([configured] if configured else list(WHITELIST_CANDIDATES)):
+        try:
+            path = Path(candidate).resolve()
+        except (OSError, RuntimeError, ValueError):
+            continue
+        if path.is_dir():
+            return path
+    return None
+
+
+@api('/api/whitelists')
+def whitelist_files():
+    base = _whitelist_dir()
+    if base is None:
+        return jsonify({'available': False, 'dir': '', 'files': []})
+
+    files = []
+    try:
+        entries = sorted(base.iterdir())
+    except OSError:
+        return jsonify({'available': False, 'dir': str(base), 'files': []})
+
+    for entry in entries:
+        if entry.suffix.lower() not in WHITELIST_SUFFIXES:
+            continue
+        try:
+            resolved = entry.resolve()
+            # A symlink must not lead out of the directory we were pointed at.
+            if not resolved.is_relative_to(base) or not resolved.is_file():
+                continue
+            info = resolved.stat()
+            item = {'name': entry.name, 'size': info.st_size,
+                    'modified': datetime.fromtimestamp(info.st_mtime,
+                                                       timezone.utc).isoformat()}
+            if info.st_size > WHITELIST_MAX_BYTES:
+                item['too_large'] = True
+                item['content'] = ''
+            else:
+                item['content'] = resolved.read_text(encoding='utf-8',
+                                                     errors='replace')
+        except OSError:
+            continue
+        files.append(item)
+    return jsonify({'available': True, 'dir': str(base), 'files': files})
 
 
 # ── Routes without authentication ─────────────────────────────────────────────
@@ -776,12 +861,15 @@ def status():
 def overview():
     client = get_client()
     stats = client.decision_stats()
-    alerts = client.list_alerts(limit=ALERT_FETCH_LIMIT, since='24h')
-    alert_scenarios = Counter((a.get('scenario') or '') for a in alerts
-                              if isinstance(a, dict) and a.get('scenario'))
+    alerts = [a for a in client.list_alerts(limit=ALERT_FETCH_LIMIT, since='24h')
+              if isinstance(a, dict)]
+    detections = [a for a in alerts if not _is_list_sync(a)]
+    alert_scenarios = Counter(a.get('scenario') for a in detections
+                              if a.get('scenario'))
     return jsonify({
         'decisions_total': stats['total'],
-        'alerts_24h': len(alerts),
+        'alerts_24h': len(detections),
+        'list_updates_24h': len(alerts) - len(detections),
         'by_type': stats['by_type'],
         'top_countries': stats['top_countries'],
         'top_scenarios': stats['top_scenarios'],
@@ -853,11 +941,16 @@ def alerts():
     client = get_client()
     filters = _server_filters()
     filters.pop('decision_type', None)
-    rows = client.list_alerts(limit=_page_size(), **filters)
+    kind = _kind_arg()
+    rows = client.list_alerts(limit=ALERT_FETCH_LIMIT, **filters)
     needle = _arg('q', 64)
+    cap = _page_size()
     out = []
     for a in rows:
         if not isinstance(a, dict):
+            continue
+        sync = _is_list_sync(a)
+        if (kind == 'detections' and sync) or (kind == 'lists' and not sync):
             continue
         src = a.get('source') or {}
         item = {
@@ -871,13 +964,16 @@ def alerts():
             'country': src.get('cn') or '',
             'as_name': src.get('as_name') or '',
             'decisions': len(a.get('decisions') or []),
+            'list_sync': sync,
         }
         if needle and not _text_match(
                 {'value': item['value'], 'scenario': item['scenario'],
                  'country': item['country'], 'as_name': item['as_name']}, needle):
             continue
         out.append(item)
-    return jsonify({'alerts': out, 'count': len(out)})
+    total = len(out)
+    return jsonify({'alerts': out[:cap], 'count': min(total, cap),
+                    'total': total, 'truncated': total > cap})
 
 
 @api('/api/alerts/<int:alert_id>')

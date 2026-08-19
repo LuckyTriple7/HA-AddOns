@@ -36,6 +36,13 @@ configuration:
     description: >-
       Wie viele Zeilen die Tabellen höchstens anzeigen. Die Gesamtzahl steht
       trotzdem daneben — bei mehr Treffern hilft ein engerer Filter.
+  whitelist_dir:
+    name: Verzeichnis der Whitelist-Parser
+    description: >-
+      Nur nötig, wenn die Whitelist-Dateien nicht gefunden werden. Leer lassen,
+      dann sucht CrowdPanel selbst unter
+      /homeassistant/.storage/crowdsec/config/parsers/s02-enrich. Wird
+      ausschließlich gelesen.
   verbose_log:
     name: Ausführliches Protokoll
     description: Schreibt zusätzliche Zeilen ins Add-on-Protokoll. Nur zur Fehlersuche.

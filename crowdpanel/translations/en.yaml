@@ -36,6 +36,13 @@ configuration:
     description: >-
       How many rows the tables show at most. The full count is shown next to it —
       with more hits, a narrower filter helps.
+  whitelist_dir:
+    name: Whitelist parser directory
+    description: >-
+      Only needed when the whitelist files are not found. Leave empty and
+      CrowdPanel looks under
+      /homeassistant/.storage/crowdsec/config/parsers/s02-enrich itself. Read
+      only, never written to.
   verbose_log:
     name: Verbose log
     description: Writes extra lines to the add-on log. For troubleshooting only.

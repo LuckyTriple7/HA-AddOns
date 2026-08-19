@@ -13,7 +13,7 @@ it into a web interface.
 - **New ban** — single IP, CIDR range, whole country or whole network (AS), with a free duration and reason
 - **Alerts** — what CrowdSec detected, with its events and the triggering log line
 - **Check IP** — active decisions, alert history and allowlist hits for an address
-- **Allowlists** — see which addresses are exempt from decisions
+- **Exemptions** — allowlists from the CrowdSec database and whitelist parsers in full, with the difference explained
 - **Two-factor sign-in** — TOTP for the direct port, QR code generated locally, backup codes
 - Dark / light · DE / EN · HA Ingress · PWA
 
