@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.1.2] - 2026-08-19
+
+### Fixed
+- **„Details" bei den Alarmen schien nichts zu tun.** Die Detailansicht wurde
+  unter die Tabelle gehängt und lag bei einer vollen Alarmliste weit außerhalb
+  des sichtbaren Bereichs. Sie öffnet sich jetzt als Fenster über der Seite,
+  schließbar über die Schaltfläche, Esc oder einen Klick daneben.
+
+### Changed
+- Das Detailfenster zeigt zusätzlich die Entscheidungen des Alarms und stellt
+  jedem Ereignis die eigentliche Anfrage voran (Methode, Pfad, Ziel-Hostname);
+  die vollständige Feldliste steht weiterhin darunter.
+- Der Service Worker wird nur noch außerhalb von Ingress registriert. Der
+  Ingress-Pfad enthält ein Sitzungsmerkmal und ändert sich, ein darunter
+  registrierter Worker läuft beim nächsten Aufruf ins Leere — in der Konsole
+  stand dafür eine 404-Meldung.
+
 ## [0.1.1] - 2026-08-19
 
 ### Fixed

@@ -209,6 +209,21 @@ What CrowdSec detected, whether or not it turned into a decision. *Details*
 fetches the full alert with its first 20 events and their fields — that is where
 you see which log line triggered the alert.
 
+### Alerts cannot be deleted
+
+CrowdSec only allows deleting alerts from a trusted address — by default
+`127.0.0.1`, meaning from inside the CrowdSec container. Over the LAPI it answers
+"access forbidden from this IP". CrowdPanel therefore does not offer it. To clean
+up, do it where it is allowed:
+
+```sh
+docker exec $CS cscli -c $CFG alerts list --origin cscli
+docker exec $CS cscli -c $CFG alerts delete --origin cscli
+```
+
+Lifting a decision never deletes its alert, by the way — the alert is the record
+that something happened, the decision is only what followed from it.
+
 ### Check IP
 
 One field for an address or a range. The result: every active decision for it, the

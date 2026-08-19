@@ -212,6 +212,21 @@ Was CrowdSec erkannt hat, unabhängig davon, ob daraus eine Sperre wurde.
 *Details* holt den vollständigen Alarm samt der ersten 20 Ereignisse und deren
 Feldern — daraus wird ersichtlich, welche Log-Zeile den Alarm ausgelöst hat.
 
+### Alarme lassen sich nicht löschen
+
+CrowdSec erlaubt das Löschen von Alarmen nur von einer vertrauenswürdigen Adresse
+aus — in der Voreinstellung `127.0.0.1`, also aus dem CrowdSec-Container heraus.
+Über die LAPI antwortet es mit „access forbidden from this IP". CrowdPanel bietet
+das deshalb bewusst nicht an. Wer aufräumen will, macht es dort, wo es erlaubt ist:
+
+```sh
+docker exec $CS cscli -c $CFG alerts list --origin cscli
+docker exec $CS cscli -c $CFG alerts delete --origin cscli
+```
+
+Das Aufheben einer Sperre löscht den zugehörigen Alarm übrigens nie — der Alarm
+ist der Nachweis, dass etwas passiert ist, die Sperre nur die Folge daraus.
+
 ### IP prüfen
 
 Ein Feld für eine Adresse oder einen Bereich. Ergebnis: alle aktiven
