@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.4.1] - 2026-08-19
+
+### Fixed
+- **Abgeleitete Bouncer wurden fälschlich als tot markiert.** CrowdSec legt
+  automatisch einen Kindeintrag `<name>@<adresse>` an, wenn derselbe
+  API-Schlüssel von einer anderen Adresse benutzt wird — etwa bei einem
+  `curl`-Test während der Fehlersuche. Solche Einträge holen selbst nichts ab,
+  ihr letzter Abruf liegt also naturgemäß weit zurück, und CrowdPanel färbte
+  sie rot wie einen ausgefallenen Bouncer.
+
+  Sie sind jetzt als *abgeleitet* gekennzeichnet und von der Alterswarnung
+  ausgenommen. Der Tooltip erklärt, dass sie sich nur zusammen mit dem
+  übergeordneten Bouncer löschen lassen — was man nicht tun sollte, weil das
+  den Schlüssel des funktionierenden Bouncers entwertet.
+
 ## [0.4.0] - 2026-08-19
 
 ### Added

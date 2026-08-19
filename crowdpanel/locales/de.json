@@ -239,5 +239,7 @@
   "h_detections": "Erkennungen",
   "h_list_updates": "Blocklisten-Updates",
   "h_none": "Kein Verlauf verfügbar.",
-  "sort_hint": "Zum Sortieren klicken"
+  "sort_hint": "Zum Sortieren klicken",
+  "b_auto": "abgeleitet",
+  "b_auto_hint": "Automatisch angelegt, weil derselbe Schlüssel von einer anderen Adresse benutzt wurde. Holt selbst nichts ab und lässt sich nur zusammen mit dem übergeordneten Bouncer löschen."
 }

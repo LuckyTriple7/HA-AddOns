@@ -826,12 +826,16 @@ def bouncers():
         return jsonify({'available': False, 'db': '', 'bouncers': [], 'machines': []})
     rows = _db_rows(path, 'bouncers',
                     ('name', 'type', 'version', 'ip_address', 'last_pull',
-                     'revoked', 'auth_type', 'created_at'))
+                     'revoked', 'auth_type', 'created_at', 'auto_created'))
     machines = _db_rows(path, 'machines',
                         ('machine_id', 'version', 'ip_address', 'last_heartbeat',
                          'is_validated', 'auth_type', 'created_at'))
     for row in rows:
         row['revoked'] = bool(row.get('revoked'))
+        # Kindeinträge entstehen, wenn derselbe Schlüssel von einer anderen
+        # Adresse benutzt wird. Sie holen nichts ab und lassen sich auch nicht
+        # einzeln löschen — ein alter Zeitstempel ist bei ihnen normal.
+        row['auto_created'] = bool(row.get('auto_created'))
     for row in machines:
         row['is_validated'] = bool(row.get('is_validated'))
     return jsonify({'available': True, 'db': str(path),

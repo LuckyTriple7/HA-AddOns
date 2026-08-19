@@ -575,13 +575,21 @@
         const left = el('span', null, b.name || T.none);
         left.title = [b.type, b.version, b.ip_address].filter(Boolean).join(' · ');
         row.appendChild(left);
+        if (b.auto_created) {
+          left.appendChild(document.createTextNode(' '));
+          left.appendChild(el('span', 'tag', T.b_auto));
+          left.title = T.b_auto_hint + (left.title ? ' · ' + left.title : '');
+        }
         // Ein Bouncer, der seit Minuten nicht abgeholt hat, setzt keine Sperren
-        // mehr durch — deshalb steht genau diese Zahl hier.
-        const stale = b.revoked || !b.last_pull
-                   || (Date.now() - Date.parse(b.last_pull)) > 600000;
+        // mehr durch — deshalb steht genau diese Zahl hier. Kindeinträge sind
+        // davon ausgenommen, bei ihnen ist ein alter Zeitstempel der Normalfall.
+        const stale = !b.auto_created
+                   && (b.revoked || !b.last_pull
+                       || (Date.now() - Date.parse(b.last_pull)) > 600000);
         const right = el('span', null,
           b.revoked ? T.b_revoked : (T.b_lastpull + ': ' + ageLabel(b.last_pull)));
         if (stale) right.style.color = 'var(--red)';
+        if (b.auto_created) right.style.color = 'var(--muted)';
         row.appendChild(right);
         box.appendChild(row);
       });

@@ -239,5 +239,7 @@
   "h_detections": "Detections",
   "h_list_updates": "Blocklist updates",
   "h_none": "No history available.",
-  "sort_hint": "Click to sort"
+  "sort_hint": "Click to sort",
+  "b_auto": "derived",
+  "b_auto_hint": "Created automatically because the same key was used from another address. Pulls nothing itself and can only be deleted together with its parent bouncer."
 }
