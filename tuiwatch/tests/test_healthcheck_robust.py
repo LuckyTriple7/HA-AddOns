@@ -143,3 +143,20 @@ def test_healthcheck_can_be_restarted_after_a_crash(monkeypatch, tmp_path):
                                          "critical": True}]})
     res = m._run_healthcheck(wait=True)
     assert res["checks"] and res["ts"] == 2
+
+# Programmierfehler im Selbsttest selbst (NameError & Co.) landen sonst still als
+# „Fehler: NameError" in der Detailliste — jeder Check fängt Exception breit ab.
+_CODE_BUGS = {"NameError", "UnboundLocalError", "AttributeError", "TypeError",
+              "KeyError", "IndexError"}
+
+
+def test_no_check_fails_with_a_python_error(sc, monkeypatch):
+    _stub_endpoints(sc, monkeypatch)
+    monkeypatch.setattr(sc, "_hc_fetch_offers", lambda *a: (
+        {"offers": [_offer("a", cheapest=True)]}, "HTTP 200"))
+    monkeypatch.setattr(sc, "_fetch_vacancy", lambda *a, **k: {"vac_status": "OK"})
+
+    res = sc.api_healthcheck()
+
+    broken = [c["name"] for c in res["checks"] if c["detail"] in _CODE_BUGS]
+    assert not broken, f"Selbsttest-Code selbst defekt: {broken}"

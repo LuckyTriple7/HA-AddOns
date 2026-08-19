@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.100.6] - 2026-08-19
+
+### Fixed
+- **API-Selbsttest: „Preiskalender-API — Fehler: NameError".** Beim Umbau in 0.100.5
+  fiel die Variable `today` weg, die der Preiskalender-Check noch für sein
+  Suchfenster (heute + 300 Tage) nutzt. Der Endpunkt selbst war nie betroffen —
+  manuelles Abrufen eines Kalenders funktionierte durchgehend. Ein neuer Test schlägt
+  jetzt an, sobald ein Check mit einem Python-Fehlernamen (NameError, TypeError, …)
+  statt eines echten API-Ergebnisses fehlschlägt.
+
 ## [0.100.5] - 2026-08-19
 
 ### Fixed

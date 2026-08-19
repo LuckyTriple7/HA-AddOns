@@ -1234,6 +1234,7 @@ def api_healthcheck(*, verbose: bool = False) -> dict:
     ob sie noch erwartungsgemäß antworten. Rückgabe:
     {ok: bool, ts: int, checks: [{name, ok, detail}]}. `ok` ist True, wenn alle
     *kritischen* Endpunkte (Preis, Suche, Reiseziele) funktionieren."""
+    today = date.today()
     windows = _hc_windows()
     sd, ed = windows[0]
     checks: list[dict] = []
