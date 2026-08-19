@@ -78,7 +78,7 @@ labels:
 
 **Option B — files** (the way documented by the NPMplus project):
 
-Set the add-on option `share_logs: true`, then the logs live in `/share/npmplus/logs`. The CrowdSec add-on needs access to `/share` for this.
+Set the add-on option `share_logs: true`, then the logs live in `/share/npmplus/logs`.
 
 ```yaml
 ---
@@ -87,6 +87,15 @@ filenames:
 labels:
   type: npmplus
 ```
+
+> **This does not work with the CrowdSec add-on.** Its container only gets `/config`
+> and `/data` mounted, no `/share` — check with
+> `docker exec <crowdsec-container> ls -la /`. Option B is therefore only viable when
+> CrowdSec runs directly on the host, or in its own container with access to the
+> share. With the add-on, stay on **option A**.
+>
+> `share_logs` is still useful: it makes the logs visible over Samba and available
+> for analysis by hand (see [Who was blocked](#who-was-blocked-and-from-where)).
 
 ### 3. Enable AppSec/WAF (optional)
 

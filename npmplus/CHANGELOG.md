@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.1.25] - 2026-08-19
+
+### Fixed
+- **Dokumentation:** Variante B der CrowdSec-Anbindung (Datei-Acquisition über
+  `/share/npmplus/logs/*.log`) war als gleichwertige Möglichkeit beschrieben. Sie
+  funktioniert mit dem CrowdSec-Add-on nicht — dessen Container bekommt nur
+  `/config` und `/data` eingehängt, kein `/share`. Wer der Anleitung folgte,
+  bekam eine Acquisition, die stillschweigend nichts liest. Der Abschnitt weist
+  jetzt darauf hin, nennt den Prüfbefehl und verweist für diesen Fall auf
+  Variante A (journald). `share_logs` bleibt sinnvoll, um die Logs über Samba
+  einzusehen.
+
 ## [0.1.24] - 2026-08-18
 
 - Fix: Im Protokoll der gesperrten Anfragen stand der Zeitstempel als `[$time_local]` und enthielt damit ein Leerzeichen vor der Zeitzone. Jede Spaltennummer in `awk` verschob sich dadurch um eins — die dokumentierte Auswertung `$4` lieferte die IP statt des Landes. Jetzt `$time_iso8601`, ein einziges Feld, das Land steht verlässlich in Spalte 4
