@@ -1,3 +1,11 @@
+## [1.8.53] - 2026-08-19
+
+### Aktualisiert
+
+- Firefox: 153.0.4 → 154.0
+- Thunderbird: 153.0.3 → 154.0
+- Claude Desktop: 3.2.2+claude1.30096.1 → 3.2.2+claude1.30096.5
+
 ## [1.8.52] - 2026-08-15
 
 ### Aktualisiert
