@@ -9,7 +9,9 @@
   Bouncer (Zustand ist der letzte Abruf, `device_class: timestamp`),
   `sensor.crowdpanel_bouncers` mit der Anzahl der echten Bouncer und
   `sensor.crowdpanel_bouncers_stale` mit denen, die seit über 10 Minuten nichts
-  mehr abholen.
+  mehr abholen. Dazu je Bouncer ein `binary_sensor.crowdpanel_bouncer_<name>`
+  mit `device_class: problem` — `on`, sobald er nicht mehr abholt — und
+  `binary_sensor.crowdpanel_bouncers` als Sammelmeldung über alle.
 
   Damit lässt sich das Ausbleiben eines Abrufs automatisieren: Ein Bouncer, der
   nicht mehr abholt, setzt keine Sperre mehr durch, meldet das aber von sich aus

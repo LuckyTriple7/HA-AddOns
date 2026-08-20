@@ -1584,7 +1584,29 @@ def push_ha_sensors() -> None:
                     'derived': bool(b.get('auto_created')),
                     'stale': is_stale,
                 }})
-            total += 1
+            # Derselbe Zustand noch einmal als Problem-Binärsensor: „an" heißt,
+            # dieser Bouncer setzt gerade nichts durch. Automatisierungen und die
+            # Problem-Anzeige in Home Assistant brauchen genau diese Form, ein
+            # Zeitstempel taugt dafür nicht.
+            problem = f'binary_sensor.crowdpanel_bouncer_{slug}'
+            current.add(problem)
+            ok += _put(problem, {
+                'state': 'on' if is_stale else 'off',
+                'attributes': {
+                    'friendly_name': 'CrowdPanel bouncer ' + str(b.get('name') or slug),
+                    'icon': 'mdi:shield-off-outline' if is_stale else 'mdi:shield-check',
+                    'device_class': 'problem',
+                    'bouncer_name': b.get('name') or '',
+                    'bouncer_type': b.get('type') or '',
+                    'version': b.get('version') or '',
+                    'ip_address': b.get('ip_address') or '',
+                    'auth_type': b.get('auth_type') or '',
+                    'last_pull': iso,
+                    'revoked': bool(b.get('revoked')),
+                    'derived': bool(b.get('auto_created')),
+                    'stale_seconds': BOUNCER_STALE_SECONDS,
+                }})
+            total += 2
         for gone in _bouncer_entities - current:
             _drop(gone)
         _bouncer_entities.clear()
@@ -1612,7 +1634,14 @@ def push_ha_sensors() -> None:
                                    'state_class': 'measurement',
                                    'stale_seconds': BOUNCER_STALE_SECONDS,
                                    'bouncers': [b['name'] for b in listed if b['stale']]}})
-        total += 2
+        ok += _put('binary_sensor.crowdpanel_bouncers',
+                   {'state': 'on' if stale_rows else 'off',
+                    'attributes': {'friendly_name': 'CrowdPanel bouncer problem',
+                                   'icon': 'mdi:shield-alert',
+                                   'device_class': 'problem',
+                                   'stale_seconds': BOUNCER_STALE_SECONDS,
+                                   'bouncers': [b['name'] for b in listed if b['stale']]}})
+        total += 3
 
     if ok and _verbose():
         log.info("Home Assistant sensors updated (%d of %d)", ok, total)

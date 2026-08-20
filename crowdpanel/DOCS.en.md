@@ -377,6 +377,14 @@ Assistant:
 | `sensor.crowdpanel_bouncers` | number of real bouncers (derived child entries and revoked ones excluded) |
 | `sensor.crowdpanel_bouncers_stale` | how many of them stopped pulling; the `bouncers` attribute names them |
 | `sensor.crowdpanel_bouncer_<name>` | one per bouncer, the state is the time of its last pull (`device_class: timestamp`) |
+| `binary_sensor.crowdpanel_bouncer_<name>` | the same bouncer as a problem entity: `on` when it stopped pulling (`device_class: problem`) |
+| `binary_sensor.crowdpanel_bouncers` | `on` as soon as any bouncer stopped pulling |
+
+Every bouncer appears twice: once as a timestamp for display ("8 seconds ago")
+and once as a binary sensor with `device_class: problem`. The second one is the
+one for automations — Home Assistant surfaces it as a problem on its own, and a
+trigger on `to: 'on'` needs no date arithmetic in a template.
+`binary_sensor.crowdpanel_bouncers` folds them all into one alert.
 
 The bouncer sensors answer whether the decisions are still being enforced at all.
 A bouncer that has not pulled for more than 10 minutes counts as silently gone:

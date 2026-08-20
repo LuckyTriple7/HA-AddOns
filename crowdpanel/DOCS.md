@@ -390,6 +390,15 @@ Assistant:
 | `sensor.crowdpanel_bouncers` | Anzahl der echten Bouncer (ohne abgeleitete Kindeinträge, ohne zurückgezogene) |
 | `sensor.crowdpanel_bouncers_stale` | wie viele davon gerade nicht mehr abholen; Attribut `bouncers` nennt sie namentlich |
 | `sensor.crowdpanel_bouncer_<name>` | je Bouncer einer, Zustand ist der Zeitpunkt des letzten Abrufs (`device_class: timestamp`) |
+| `binary_sensor.crowdpanel_bouncer_<name>` | derselbe Bouncer als Problemmelder: `on`, wenn er nicht mehr abholt (`device_class: problem`) |
+| `binary_sensor.crowdpanel_bouncers` | `on`, sobald irgendein Bouncer nicht mehr abholt |
+
+Jeder Bouncer erscheint doppelt: einmal als Zeitstempel für die Anzeige („vor
+8 Sekunden") und einmal als Binärsensor mit `device_class: problem`. Der zweite
+ist der für Automatisierungen — Home Assistant zeigt ihn von sich aus als
+Problem an, und ein Auslöser auf `to: 'on'` braucht keine Zeitrechnung in der
+Vorlage. `binary_sensor.crowdpanel_bouncers` fasst alle zu einer Meldung
+zusammen.
 
 Die Bouncer-Sensoren beantworten die Frage, ob die Sperren überhaupt noch
 durchgesetzt werden. Holt ein Bouncer länger als 10 Minuten nichts mehr ab, gilt
