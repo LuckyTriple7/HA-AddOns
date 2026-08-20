@@ -18,10 +18,11 @@
   Jinja-Templates oder `sched` in `schedule` lösen reihenweise Fehlalarme aus.
 - README (DE/EN) und die Optionsbeschreibung von `crowdsec_enabled` weisen auf die nötige
   Engine hin.
-- Der Weg über `/share` steht nicht mehr als gleichwertige Variante neben journald. Mit dem
-  CrowdSec-Add-on scheitert er immer (kein `/share` im Container) und liest still nichts.
-  Der Abschnitt beschreibt jetzt journald als den Weg und nennt die Datei-Acquisition nur noch
-  als Sonderfall für CrowdSec-Instanzen außerhalb des Add-ons. `share_logs` bleibt für Samba.
+- Die Datei-Acquisition über `/share/npmplus/logs` ist aus der Doku raus. Sie kann mit dem
+  CrowdSec-Add-on nicht funktionieren — dessen Container bekommt nur `/config` und `/data`
+  eingehängt — und stand trotzdem als gleichwertige Variante neben journald. Es bleibt ein
+  Weg: journald. `share_logs` ist damit nur noch das, was es ist — Logs über Samba lesbar
+  machen.
 
 ## [0.1.25] - 2026-08-19
 

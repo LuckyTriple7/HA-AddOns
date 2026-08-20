@@ -67,7 +67,7 @@ collections:
 
 ### 2. Get the logs to CrowdSec
 
-**Through journald.** With the CrowdSec add-on this is the only way that works.
+Through journald. One way, no second one.
 
 Set the add-on option `log_to_stdout: true`. Then find the syslog identifier, for example in the terminal add-on:
 
@@ -87,19 +87,6 @@ journalctl_filter:
 labels:
   type: npmplus
 ```
-
-> **Do not go through `/share`.** The NPMplus project documents a file acquisition on
-> `/share/npmplus/logs/*.log`. But the CrowdSec add-on container only gets `/config` and
-> `/data` mounted — no `/share`. Check with `docker exec <crowdsec-container> ls -la /`.
-> Such an acquisition then reads nothing without ever complaining: `cscli metrics` shows no
-> lines read, and no decision is ever created.
->
-> The file route only makes sense when CrowdSec does **not** run as an add-on, but directly on
-> the host or in its own container with access to the share. In that case set
-> `share_logs: true` and use `filenames: [/share/npmplus/logs/*.log]` as the acquisition.
->
-> Either way `share_logs` stays useful for reading the logs over Samba and analysing them by
-> hand (see [Who was blocked](#who-was-blocked-and-from-where)).
 
 ### 3. Enable AppSec/WAF (optional)
 

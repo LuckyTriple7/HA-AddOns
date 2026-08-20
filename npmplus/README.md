@@ -29,7 +29,7 @@ Das Zertifikat der Oberfläche ist selbstsigniert — die Browserwarnung beim er
 - **Access-Listen** pro Host und pro Location, mehrere Listen kombinierbar
 - **GoAccess-Dashboard** auf Port 91, ohne eigene Anmeldung — daher ab Werk nur auf `127.0.0.1`, Zugriff über einen Proxy Host mit Zugriffsliste
 - **zstd- und brotli-Kompression**, Datei- und PHP-Server mit fancyindex
-- Logs ins Add-on-Protokoll (journald — der Weg zu CrowdSec) und/oder nach `/share/npmplus/logs` zum Nachlesen über Samba
+- Logs ins Add-on-Protokoll (journald, daraus liest CrowdSec) und/oder nach `/share/npmplus/logs` zum Nachlesen über Samba
 
 ## Konfiguration
 
