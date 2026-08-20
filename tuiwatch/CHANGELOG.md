@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.100.11] - 2026-08-20
+
+### Fixed
+- **In der Fußzeile stand `<svg class="i"><use href="#i-hash"/></svg>` als
+  sichtbarer Text vor den KI-Kosten.** Beim Umstellen auf den Symbolsatz (0.100.8)
+  wurde dort ein Symbol eingesetzt, obwohl die Zeile über `textContent` gesetzt
+  wird — Markup erscheint da als Text, nicht als Bild. Die Zuweisung stand eine
+  Zeile über der Zeichenkette, weshalb die damalige Prüfung sie übersehen hat.
+  Das Symbol entfällt ersatzlos; die übrigen Einträge der Fußzeile kommen seit
+  0.100.9 ohnehin ohne aus. Ein Durchlauf über alle Zuweisungen an `textContent`,
+  `title`, `placeholder`, `value` und `alt` fand keine weitere betroffene Stelle.
+- **Beim Umbruch der Fußzeile hing ein „·" am Zeilenanfang.** Die Trennzeichen
+  kamen aus einem `::before` je Eintrag; sobald die Zeile umbrach, stand das
+  Zeichen des ersten Eintrags der neuen Zeile ohne Bezug davor. Getrennt wird
+  jetzt über den Abstand statt über ein Zeichen — das kann nicht umbrechen.
+
 ## [0.100.10] - 2026-08-20
 
 ### Changed

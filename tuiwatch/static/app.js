@@ -7113,8 +7113,10 @@
       if(!G.ai) return;
       try {
         const d = await fetch(api('/api/ai/usage')).then(r=>r.json());
+        // Kein Symbol davor: textContent gibt Markup als sichtbaren Text aus, und
+        // die übrigen Einträge der Fußzeile kommen seit 0.100.9 ohnehin ohne aus.
         $('#ai-usage-foot').textContent =
-          '<svg class="i"><use href="#i-hash"/></svg> KI heute ' + fmtUsd(d.today && d.today.estimated_usd) +
+          'KI heute ' + fmtUsd(d.today && d.today.estimated_usd) +
           ' · Monat ' + fmtUsd(d.month && d.month.estimated_usd) +
           ' · gesamt ' + fmtUsd(d.estimated_usd);
       } catch(e){}

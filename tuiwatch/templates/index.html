@@ -688,9 +688,9 @@
     footer { margin:28px 0 8px; padding-top:12px; border-top:1px solid var(--border);
              font-size:var(--fs-xs); color:var(--muted); display:flex; flex-wrap:wrap;
              gap:8px 20px; justify-content:space-between; align-items:baseline; }
-    .foot-status, .foot-tools { display:flex; flex-wrap:wrap; gap:4px 14px; min-width:0; }
-    .foot-status > span + span::before,
-    .foot-tools > span + span::before { content:'·'; margin-right:14px; color:var(--border); }
+    /* Trennzeichen per ::before wären beim Umbruch am Zeilenanfang hängen
+       geblieben (ein „·" ohne Bezug). Getrennt wird deshalb über den Abstand. */
+    .foot-status, .foot-tools { display:flex; flex-wrap:wrap; gap:4px 20px; min-width:0; }
     .foot-status span span { color:var(--text); }
     .hc-foot { cursor:pointer; }
     .foot-tools .hc-foot:hover { color:var(--accent); }
