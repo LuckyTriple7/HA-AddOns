@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.4.4] - 2026-08-20
+
+### Added
+- **Die Bouncer melden sich jetzt auch als Problem.** Je Bouncer gibt es
+  zusätzlich ein `binary_sensor.crowdpanel_bouncer_<name>` mit
+  `device_class: problem`: `on`, sobald er nicht mehr abholt oder zurückgezogen
+  wurde. `binary_sensor.crowdpanel_bouncers` fasst alle zu einer Meldung
+  zusammen.
+
+  Der Zeitstempel-Sensor aus 0.4.3 bleibt für die Anzeige („vor 8 Sekunden"), für
+  Automatisierungen taugt er schlecht — ein Auslöser müsste das Alter selbst
+  ausrechnen. Der Binärsensor braucht nur `to: "on"`, und Home Assistant zeigt
+  ihn von sich aus als Problem an.
+
 ## [0.4.3] - 2026-08-20
 
 ### Added
@@ -9,9 +23,7 @@
   Bouncer (Zustand ist der letzte Abruf, `device_class: timestamp`),
   `sensor.crowdpanel_bouncers` mit der Anzahl der echten Bouncer und
   `sensor.crowdpanel_bouncers_stale` mit denen, die seit über 10 Minuten nichts
-  mehr abholen. Dazu je Bouncer ein `binary_sensor.crowdpanel_bouncer_<name>`
-  mit `device_class: problem` — `on`, sobald er nicht mehr abholt — und
-  `binary_sensor.crowdpanel_bouncers` als Sammelmeldung über alle.
+  mehr abholen.
 
   Damit lässt sich das Ausbleiben eines Abrufs automatisieren: Ein Bouncer, der
   nicht mehr abholt, setzt keine Sperre mehr durch, meldet das aber von sich aus
