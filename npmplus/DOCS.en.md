@@ -38,6 +38,20 @@ Let's Encrypt allows 50 certificates per week and domain, so reissuing a dozen d
 
 NPMplus ships the **bouncer** (nginx/Lua, blocks individual requests) and can talk to the **AppSec/WAF** endpoint. The CrowdSec engine itself keeps running in your CrowdSec add-on. An existing firewall bouncer stays useful and does not conflict — it blocks at IP level, the nginx bouncer at HTTP level.
 
+> **Prerequisite: CrowdSec is not part of this repository.** Everything described here requires a
+> running CrowdSec engine (LAPI). Home Assistant has official add-ons for that:
+> <https://github.com/crowdsecurity/home-assistant-addons> — `crowdsec` is the engine/LAPI,
+> `crowdsec-firewall-bouncer` is optional and blocks at host firewall level.
+>
+> The bouncer for NPMplus itself is already built into NPMplus (OpenResty/Lua) — nothing extra to
+> install. All it needs is an API key from the engine (`cscli bouncers add npmplus`, see step 4).
+> Put it into the add-on options as `crowdsec_api_key` together with `crowdsec_enabled: true`. The
+> add-on fills `/data/crowdsec/crowdsec.conf` from those options on every start — setting
+> `ENABLED`, `API_URL`, `API_KEY`, `APPSEC_URL` or the captcha keys there by hand has no effect,
+> while every other value in that file is left alone.
+>
+> Without an installed engine all CrowdSec options do nothing.
+
 ### 1. Add the collection to CrowdSec
 
 NPMplus writes a different log format than NGINX Proxy Manager. The `crowdsecurity/nginx-proxy-manager` collection does **not** parse it. Add to your CrowdSec configuration:
@@ -169,6 +183,78 @@ crowdsec_appsec_url: "http://172.30.33.22:7422"
 > Container IPs can change when the CrowdSec add-on is updated. If its configuration offers a port mapping to the host, that is the more stable choice — then `127.0.0.1` is correct.
 
 > If AppSec is not running (no `appsec` block in the acquisition), `crowdsec_appsec_url` must be left **empty**.
+
+### Example CrowdSec add-on configuration
+
+For comparison, a complete configuration of the official `crowdsec` add-on that works with
+NPMplus. The syslog identifier is a placeholder — look up your own as shown in step 2.
+
+```yaml
+acquisition: |
+  ---
+  # Home Assistant Core - login attempts.
+  # type: syslog is deliberate: syslog-logs derives the program from the
+  # SYSLOG_IDENTIFIER, and home-assistant-logs filters on exactly that.
+  source: journalctl
+  journalctl_filter:
+    - "--directory=/var/log/journal/"
+    - "SYSLOG_IDENTIFIER=homeassistant"
+  labels:
+    type: syslog
+  ---
+  # NPMplus - reverse proxy access log.
+  # type: npmplus is required: non-syslog derives the program from it, and
+  # ZoeyVid/npmplus-logs filters on program startsWith 'npmplus'.
+  source: journalctl
+  journalctl_filter:
+    - "--directory=/var/log/journal/"
+    - "SYSLOG_IDENTIFIER=app_<repo-hash>_npmplus"
+  labels:
+    type: npmplus
+  ---
+  # AppSec/WAF - virtual patching and generic rules only.
+  listen_addr: 0.0.0.0:7422
+  appsec_config: crowdsecurity/appsec-default
+  name: appsec
+  source: appsec
+  labels:
+    type: appsec
+disable_lapi: false
+remote_lapi_url: ''
+agent_username: ''
+agent_password: ''
+collections:
+  - crowdsecurity/home-assistant
+  - ZoeyVid/npmplus
+  - crowdsecurity/http-cve
+  - crowdsecurity/appsec-virtual-patching
+  - crowdsecurity/appsec-generic-rules
+  - crowdsecurity/http-dos
+  - crowdsecurity/whitelist-good-actors
+parsers: []
+scenarios: []
+postoverflows: []
+parsers_to_disable:
+  - crowdsecurity/whitelists
+scenarios_to_disable: []
+disable_online_api: false
+```
+
+Notes on it:
+
+- **The `type:` of each source** decides which parser runs. `syslog` for Home Assistant (that
+  parser takes the program from `SYSLOG_IDENTIFIER`), `npmplus` for NPMplus —
+  `ZoeyVid/npmplus-logs` filters on a program whose name starts with `npmplus`.
+- **`crowdsecurity/appsec-crs`** (OWASP Core Rule Set) is deliberately absent. On a typical Home
+  Assistant install it fires false positives in bulk because it matches substrings — `elif`
+  inside Jinja templates posted to `/api/template`, `sched` inside `schedule` in GitHub webhooks.
+  Virtual patching plus the generic rules are enough to start with; CRS can be added later if you
+  are willing to maintain exclusion lists.
+- **`parsers_to_disable: crowdsecurity/whitelists`** turns off the whitelist for private address
+  ranges. Useful if traffic from your own LAN should be judged too — remove the line again if it
+  locks you out.
+- **`disable_online_api: false`** reports attacks to the CrowdSec community and pulls the
+  community blocklist in return. Set it to `true` to report nothing, at the cost of that blocklist.
 
 ### 6. Verify
 

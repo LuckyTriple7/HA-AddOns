@@ -61,6 +61,7 @@ Vollständige Optionsliste, CrowdSec-Einrichtung und Umstieg vom alten NGINX-Pro
 - Im Router zusätzlich **443/UDP** weiterleiten, sonst bleibt HTTP/3 ungenutzt.
 - **Kein Ingress**: die Oberfläche läuft direkt auf Port 81 und damit an der HA-Anmeldung vorbei. Starkes Admin-Passwort setzen.
 - Architektur: amd64 (x86-64-v2 oder neuer) und aarch64.
+- **CrowdSec ist nicht Teil dieses Add-ons**: der Bouncer steckt in NPMplus, die Engine (LAPI) muss separat laufen — z.B. über die [offiziellen CrowdSec-Add-ons](https://github.com/crowdsecurity/home-assistant-addons). Ohne Engine bleiben alle `crowdsec_*`-Optionen wirkungslos.
 
 ## Changelog
 

@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.1.26] - 2026-08-20
+
+### Dokumentation
+- **CrowdSec ist nicht Teil dieses Repos** — der Abschnitt sagt das jetzt zu Beginn und
+  verweist auf die offiziellen Add-ons unter
+  https://github.com/crowdsecurity/home-assistant-addons (`crowdsec` = Engine/LAPI,
+  `crowdsec-firewall-bouncer` = optional). Der Bouncer selbst steckt in NPMplus; nötig ist
+  nur der Schlüssel aus `cscli bouncers add npmplus`. Ohne Engine bleiben alle
+  `crowdsec_*`-Optionen wirkungslos.
+- Klargestellt, dass `/data/crowdsec/crowdsec.conf` für `ENABLED`, `API_URL`, `API_KEY`,
+  `APPSEC_URL` und die Captcha-Schlüssel bei jedem Start aus den Add-on-Optionen
+  überschrieben wird — Handarbeit an diesen Zeilen ist wirkungslos, der Rest der Datei bleibt.
+- Beispielkonfiguration des CrowdSec-Add-ons ergänzt (Acquisition für Home Assistant, NPMplus
+  und AppSec, Collections, `parsers_to_disable`), samt Begründung, warum
+  `crowdsecurity/appsec-crs` nicht enthalten ist — Teilzeichenketten wie `elif` in
+  Jinja-Templates oder `sched` in `schedule` lösen reihenweise Fehlalarme aus.
+- README (DE/EN) und die Optionsbeschreibung von `crowdsec_enabled` weisen auf die nötige
+  Engine hin.
+
 ## [0.1.25] - 2026-08-19
 
 ### Fixed

@@ -38,6 +38,21 @@ Let's Encrypt erlaubt 50 Zertifikate pro Woche und Domain — ein Dutzend Domain
 
 NPMplus bringt den **Bouncer** mit (nginx/Lua, blockt einzelne Anfragen) und kann den **AppSec/WAF**-Endpunkt ansprechen. Die CrowdSec-Engine selbst läuft weiter in deinem CrowdSec-Add-on. Ein zusätzlich vorhandener Firewall-Bouncer bleibt sinnvoll und stört nicht — er blockt auf IP-Ebene, der nginx-Bouncer auf HTTP-Ebene.
 
+> **Voraussetzung: CrowdSec ist nicht Teil dieses Repos.** Alles hier Beschriebene setzt eine
+> laufende CrowdSec-Engine (LAPI) voraus. Für Home Assistant gibt es dazu offizielle Add-ons:
+> <https://github.com/crowdsecurity/home-assistant-addons> — `crowdsec` ist die Engine/LAPI,
+> `crowdsec-firewall-bouncer` ist optional und sperrt auf Ebene der Host-Firewall.
+>
+> Der Bouncer für NPMplus selbst steckt bereits in NPMplus (OpenResty/Lua) — es muss also nichts
+> zusätzlich installiert werden. Nötig ist nur ein API-Schlüssel aus der Engine
+> (`cscli bouncers add npmplus`, siehe Schritt 4). Eingetragen wird er in den Add-on-Optionen
+> unter `crowdsec_api_key`, zusammen mit `crowdsec_enabled: true`. Die Datei
+> `/data/crowdsec/crowdsec.conf` füllt das Add-on daraus bei jedem Start selbst — `ENABLED`,
+> `API_URL`, `API_KEY`, `APPSEC_URL` und die Captcha-Schlüssel dort von Hand zu setzen bringt
+> also nichts; alle übrigen Werte der Datei bleiben unangetastet.
+>
+> Ohne installierte Engine bleiben alle CrowdSec-Optionen wirkungslos.
+
 ### 1. Collection in CrowdSec ergänzen
 
 NPMplus schreibt ein anderes Logformat als NGINX Proxy Manager. Die Collection `crowdsecurity/nginx-proxy-manager` greift dort **nicht**. In der CrowdSec-Konfiguration ergänzen:
@@ -169,6 +184,80 @@ crowdsec_appsec_url: "http://172.30.33.22:7422"
 > Container-IPs können sich nach einem Update des CrowdSec-Add-ons ändern. Bietet dessen Konfiguration ein Port-Mapping auf den Host an, ist das die stabilere Wahl — dann passt `127.0.0.1`.
 
 > Läuft AppSec nicht (kein `appsec`-Block in der Acquisition), muss `crowdsec_appsec_url` **leer** bleiben.
+
+### Beispielkonfiguration des CrowdSec-Add-ons
+
+Zum Abgleich eine vollständige Konfiguration des offiziellen `crowdsec`-Add-ons, die mit
+NPMplus zusammenspielt. Der Syslog-Identifier ist ein Platzhalter — den eigenen wie in
+Schritt 2 ermitteln und einsetzen.
+
+```yaml
+acquisition: |
+  ---
+  # Home Assistant Core - Anmeldeversuche.
+  # type: syslog ist Absicht: syslog-logs setzt das program aus dem
+  # SYSLOG_IDENTIFIER, und genau darauf filtert home-assistant-logs.
+  source: journalctl
+  journalctl_filter:
+    - "--directory=/var/log/journal/"
+    - "SYSLOG_IDENTIFIER=homeassistant"
+  labels:
+    type: syslog
+  ---
+  # NPMplus - Zugriffslog des Reverse Proxy.
+  # type: npmplus ist Pflicht: non-syslog setzt daraus das program, und
+  # ZoeyVid/npmplus-logs filtert auf program startsWith 'npmplus'.
+  source: journalctl
+  journalctl_filter:
+    - "--directory=/var/log/journal/"
+    - "SYSLOG_IDENTIFIER=app_<repo-hash>_npmplus"
+  labels:
+    type: npmplus
+  ---
+  # AppSec/WAF - nur virtuelle Patches und generische Regeln.
+  listen_addr: 0.0.0.0:7422
+  appsec_config: crowdsecurity/appsec-default
+  name: appsec
+  source: appsec
+  labels:
+    type: appsec
+disable_lapi: false
+remote_lapi_url: ''
+agent_username: ''
+agent_password: ''
+collections:
+  - crowdsecurity/home-assistant
+  - ZoeyVid/npmplus
+  - crowdsecurity/http-cve
+  - crowdsecurity/appsec-virtual-patching
+  - crowdsecurity/appsec-generic-rules
+  - crowdsecurity/http-dos
+  - crowdsecurity/whitelist-good-actors
+parsers: []
+scenarios: []
+postoverflows: []
+parsers_to_disable:
+  - crowdsecurity/whitelists
+scenarios_to_disable: []
+disable_online_api: false
+```
+
+Anmerkungen dazu:
+
+- **`type:` je Quelle** entscheidet, welcher Parser greift. Für Home Assistant `syslog` (der
+  Parser liest das Programm aus dem `SYSLOG_IDENTIFIER`), für NPMplus `npmplus` —
+  `ZoeyVid/npmplus-logs` filtert auf ein Programm, dessen Name mit `npmplus` beginnt.
+- **`crowdsecurity/appsec-crs`** (OWASP Core Rule Set) ist bewusst nicht dabei. Er schlägt in
+  einer typischen Home-Assistant-Installation reihenweise falsch an, weil er auf
+  Teilzeichenketten prüft — `elif` in Jinja-Templates auf `/api/template`, `sched` innerhalb
+  von `schedule` in GitHub-Webhooks. Virtual Patching und die generischen Regeln reichen für
+  den Anfang; CRS lässt sich später ergänzen, wenn man Ausnahmelisten pflegen mag.
+- **`parsers_to_disable: crowdsecurity/whitelists`** schaltet die Freigabe privater
+  Adressbereiche ab. Sinnvoll, wenn auch Zugriffe aus dem eigenen LAN bewertet werden sollen —
+  wer sich dabei selbst aussperrt, nimmt die Zeile wieder raus.
+- **`disable_online_api: false`** meldet Angriffe an die CrowdSec-Community und holt dafür die
+  Community-Blocklist. Wer nichts nach außen melden will, setzt `true` und verzichtet auf die
+  Blocklist.
 
 ### 6. Kontrollieren
 

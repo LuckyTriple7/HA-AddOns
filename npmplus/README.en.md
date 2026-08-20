@@ -61,6 +61,7 @@ Full option list, CrowdSec setup and migration from the old NGINX Proxy Manager 
 - Forward **443/UDP** on the router as well, otherwise HTTP/3 stays unused.
 - **No Ingress**: the interface runs directly on port 81, bypassing the Home Assistant login. Set a strong admin password.
 - Architecture: amd64 (x86-64-v2 or newer) and aarch64.
+- **CrowdSec is not part of this add-on**: the bouncer ships inside NPMplus, but the engine (LAPI) has to run separately — e.g. via the [official CrowdSec add-ons](https://github.com/crowdsecurity/home-assistant-addons). Without an engine every `crowdsec_*` option does nothing.
 
 ## Changelog
 
