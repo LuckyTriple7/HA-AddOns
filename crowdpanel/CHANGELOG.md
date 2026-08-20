@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.4.5] - 2026-08-20
+
+### Changed
+- **Die Anleitung nennt jetzt den Container-Hostname statt der Container-IP.**
+  Schritt 2 der Einrichtung empfahl bisher, die IP des CrowdSec-Containers
+  (`172.30.33.x`) in `lapi_url` einzutragen. Docker vergibt diese IP bei jedem
+  Start neu, und ein Neustart von Home Assistant startet alle Add-on-Container
+  neu — danach zeigte `lapi_url` ins Leere und CrowdPanel meldete „LAPI nicht
+  erreichbar", ohne dass jemand etwas geändert hätte.
+
+  Richtig ist der Hostname aus `docker inspect -f '{{.Config.Hostname}}' $CS`,
+  also z. B. `http://424ccef4-crowdsec:8080`. Der bleibt über Neustarts hinweg
+  gleich. Die Fehlersuche-Tabelle hat dazu eine eigene Zeile bekommen.
+
 ## [0.4.4] - 2026-08-20
 
 ### Added

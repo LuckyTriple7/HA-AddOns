@@ -81,21 +81,30 @@ docker exec $CS cscli -c $CFG machines list
 ### Schritt 2 — LAPI-Adresse herausfinden
 
 `http://127.0.0.1:8080` funktioniert nur, wenn CrowdSec seine Ports auf dem Host
-veröffentlicht. Läuft CrowdSec als Add-on im eigenen Container, ist die
-Container-Adresse nötig:
+veröffentlicht. Läuft CrowdSec als Add-on im eigenen Container, ist dessen
+**Hostname** die richtige Adresse:
 
 ```sh
-docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}' $CS
+docker inspect -f '{{.Config.Hostname}}' $CS
 ```
 
-Ergebnis ist typischerweise etwas wie `172.30.33.22`, die LAPI also
-`http://172.30.33.22:8080`.
+Ergebnis ist etwas wie `424ccef4-crowdsec`, die LAPI also
+`http://424ccef4-crowdsec:8080`. Der vordere Teil ist die Kennung des
+Add-on-Repositorys und unterscheidet sich von Installation zu Installation —
+den Wert also wirklich auslesen und nicht abschreiben.
+
+> **Keine IP-Adresse eintragen.** Die Container-IP (`172.30.33.x`, zu finden mit
+> `docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}' $CS`)
+> funktioniert nur bis zum nächsten Neustart. Docker vergibt sie bei jedem Start
+> neu, und ein Neustart von Home Assistant startet alle Add-on-Container neu.
+> Danach zeigt `lapi_url` ins Leere und CrowdPanel meldet „LAPI nicht erreichbar".
+> Der Hostname bleibt dagegen stabil.
 
 ### Schritt 3 — Optionen setzen
 
 | Option | Wert |
 |---|---|
-| `lapi_url` | `http://172.30.33.22:8080` |
+| `lapi_url` | `http://424ccef4-crowdsec:8080` |
 | `machine_id` | `crowdpanel` |
 | `machine_password` | das Passwort aus Schritt 1 |
 | `password` | ein eigenes Passwort statt `changeme123` |
@@ -103,7 +112,7 @@ Ergebnis ist typischerweise etwas wie `172.30.33.22`, die LAPI also
 Add-on starten. Im Protokoll steht dann:
 
 ```
-[INFO] CrowdSec LAPI reachable at http://172.30.33.22:8080 (7 ms)
+[INFO] CrowdSec LAPI reachable at http://424ccef4-crowdsec:8080 (7 ms)
 ```
 
 Steht dort stattdessen eine Warnung, hilft die Tabelle unter [Fehlersuche](#fehlersuche).
@@ -470,7 +479,8 @@ das Add-on neu.
 | Anzeige | Ursache | Abhilfe |
 |---|---|---|
 | Maschinen-Zugangsdaten fehlen | `machine_id` oder `machine_password` leer | Schritt 1 der Einrichtung nachholen |
-| LAPI nicht erreichbar | falsche Adresse oder falscher Port | Container-Adresse mit `docker inspect` prüfen, nicht `127.0.0.1` raten |
+| LAPI nicht erreichbar | falsche Adresse oder falscher Port | Hostname mit `docker inspect -f '{{.Config.Hostname}}' $CS` prüfen, nicht `127.0.0.1` raten |
+| LAPI nicht erreichbar, lief vorher | `lapi_url` enthält eine Container-IP (`172.30.33.x`), die sich beim Neustart geändert hat | `lapi_url` auf den Hostname umstellen, z. B. `http://424ccef4-crowdsec:8080` |
 | Maschinen-Zugangsdaten werden abgelehnt | Maschine in der falschen Datenbank angelegt | `cscli` mit `-c $CFG` erneut ausführen; mit `machines list` gegenprüfen |
 | LAPI-Adresse ist keine http(s)-Adresse | Tippfehler, fehlendes `http://` | `lapi_url` korrigieren |
 | Sperre angelegt, Bouncer sperrt nicht | Bouncer holt noch ab, oder Adresse steht auf einer Allowlist | *IP prüfen* öffnen und den Allowlist-Hinweis lesen |
