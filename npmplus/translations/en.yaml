@@ -43,7 +43,7 @@ configuration:
     description: From which level nginx writes to the error log. "warn" is the sensible default; "info" logs every worker change and floods both the log view and the disk.
   share_logs:
     name: Mirror logs to /share
-    description: Stores the logs under /share/npmplus/logs so other add-ons (e.g. CrowdSec) can read them via file acquisition.
+    description: Stores the logs under /share/npmplus/logs for reading over Samba. Not usable for CrowdSec - its add-on container cannot see /share, use journald there (logs to add-on log).
   log_to_stdout:
     name: Logs to add-on log
     description: Also mirrors the access log to the container output. Required if CrowdSec reads the logs through journald.

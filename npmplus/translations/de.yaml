@@ -43,7 +43,7 @@ configuration:
     description: Ab welcher Stufe nginx ins Error-Log schreibt. "warn" ist der sinnvolle Standard; "info" protokolliert jeden Worker-Wechsel und flutet Protokoll und Datenträger.
   share_logs:
     name: Logs nach /share spiegeln
-    description: Legt die Logs unter /share/npmplus/logs ab, damit andere Add-ons (z.B. CrowdSec) sie per Datei-Acquisition lesen können.
+    description: Legt die Logs unter /share/npmplus/logs ab, um sie über Samba zu lesen. Für CrowdSec taugt das nicht - dessen Add-on-Container sieht /share nicht, dort journald nutzen (Logs ins Add-on-Protokoll).
   log_to_stdout:
     name: Logs ins Add-on-Protokoll
     description: Spiegelt das Access-Log zusätzlich in die Container-Ausgabe. Nötig, wenn CrowdSec die Logs über journald einliest.

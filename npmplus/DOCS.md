@@ -68,9 +68,7 @@ collections:
 
 ### 2. Logs zu CrowdSec bringen
 
-Zwei Wege, je nachdem wie dein CrowdSec liest. Beide sind im Add-on einzeln schaltbar.
-
-**Variante A — journald** (passt zu einer bestehenden journald-Acquisition):
+**Über journald.** Mit dem CrowdSec-Add-on ist das der einzige Weg, der funktioniert.
 
 Add-on-Option `log_to_stdout: true` setzen. Danach den Syslog-Identifier ermitteln, zum Beispiel im Terminal-Add-on:
 
@@ -91,26 +89,18 @@ labels:
   type: npmplus
 ```
 
-**Variante B — Dateien** (der vom NPMplus-Projekt dokumentierte Weg):
-
-Add-on-Option `share_logs: true` setzen, dann liegen die Logs unter `/share/npmplus/logs`.
-
-```yaml
----
-filenames:
-  - /share/npmplus/logs/*.log
-labels:
-  type: npmplus
-```
-
-> **Das funktioniert nicht mit dem CrowdSec-Add-on.** Dessen Container bekommt nur
-> `/config` und `/data` eingehängt, kein `/share` — nachprüfbar mit
-> `docker exec <crowdsec-container> ls -la /`. Variante B kommt also nur in Frage,
-> wenn CrowdSec direkt auf dem Host oder in einem eigenen Container mit
-> Zugriff auf die Freigabe läuft. Mit dem Add-on bleibt **Variante A**.
+> **Nicht über `/share` gehen.** Das NPMplus-Projekt dokumentiert eine Datei-Acquisition auf
+> `/share/npmplus/logs/*.log`. Der Container des CrowdSec-Add-ons bekommt aber nur `/config`
+> und `/data` eingehängt — kein `/share`. Nachprüfbar mit
+> `docker exec <crowdsec-container> ls -la /`. Die Acquisition läuft dann ohne Fehlermeldung
+> ins Leere: `cscli metrics` zeigt keine gelesenen Zeilen, und es entstehen nie Entscheidungen.
 >
-> `share_logs` ist trotzdem nützlich: Die Logs werden dadurch über Samba sichtbar
-> und lassen sich von Hand auswerten (siehe [Wer gesperrt wurde](#wer-gesperrt-wurde-und-aus-welchem-land)).
+> Sinnvoll ist der Dateiweg nur, wenn CrowdSec **nicht** als Add-on läuft, sondern direkt auf
+> dem Host oder in einem eigenen Container mit Zugriff auf die Freigabe. Dann `share_logs: true`
+> setzen und `filenames: [/share/npmplus/logs/*.log]` als Acquisition eintragen.
+>
+> Unabhängig davon ist `share_logs` nützlich, um die Logs über Samba zu lesen und von Hand
+> auszuwerten (siehe [Wer gesperrt wurde](#wer-gesperrt-wurde-und-aus-welchem-land)).
 
 ### 3. AppSec/WAF aktivieren (optional)
 
@@ -791,7 +781,7 @@ Ein Home-Assistant-Backup des Add-ons enthält `/data` vollständig, inklusive D
 
 **Falsche Client-IPs in den Logs** — steht ein weiterer Proxy oder Cloudflare davor, dessen IPs in `trust_ip` eintragen bzw. `trust_cloudflare` aktivieren.
 
-**CrowdSec sieht keine Angriffe** — Reihenfolge prüfen: `logrotate` an, Logs kommen an (Variante A oder B), Collection `ZoeyVid/npmplus` installiert, `cscli metrics` zeigt die Acquisition.
+**CrowdSec sieht keine Angriffe** — Reihenfolge prüfen: `logrotate` an, Logs kommen über journald an (`log_to_stdout` an, Identifier stimmt), Collection `ZoeyVid/npmplus` installiert, `cscli metrics` zeigt die Acquisition.
 
 **400 Bad Request bei Home Assistant** — siehe Abschnitt „Home Assistant hinter NPMplus".
 

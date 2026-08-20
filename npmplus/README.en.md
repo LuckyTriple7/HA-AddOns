@@ -29,7 +29,7 @@ The interface certificate is self-signed — the browser warning on first access
 - **Access lists** per host and per location, multiple lists combinable
 - **GoAccess dashboard** on port 91, without its own login — bound to `127.0.0.1` by default, reached through a proxy host with an access list
 - **zstd and brotli compression**, file and PHP server with fancyindex
-- Logs to `/share/npmplus/logs` and/or the add-on log — matching both CrowdSec acquisition styles
+- Logs to the add-on log (journald — the route to CrowdSec) and/or to `/share/npmplus/logs` for reading over Samba
 
 ## Configuration
 
