@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.4.12] - 2026-08-20
+
+### Added
+- **Releases anlegen** im Reiter „Releases". Custom Integrations (HACS) brauchen
+  für jede Version ein GitHub-Release mit Tag — bisher ging das nur direkt auf
+  GitHub. Jedes eigene Repo hat jetzt einen `Release`-Knopf (plus Repo-Auswahl
+  über der Liste). Der Dialog setzt auf Wunsch die Version in
+  `custom_components/<domain>/manifest.json`, schreibt einen CHANGELOG-Eintrag
+  und legt beides in **einem** Commit an; das Release entsteht danach direkt auf
+  diesem Commit. Tag und Titel ziehen automatisch mit der Version mit
+  (`v`-Präfix, falls das letzte Release eines hatte), doppelte Tags werden
+  vorher gemeldet. `Auto-Notes` holt die von GitHub generierten Release-Notes.
+  Entwurf und Pre-Release sind wählbar; bei Pre-Release wird das Release nicht
+  als „latest" markiert.
+- Eigene Repos **ohne** Release stehen jetzt ebenfalls in der Liste (Hinweis
+  „noch kein Release") — genau dort fehlt das erste ja noch.
+
+
 ## [0.4.11] - 2026-08-17
 
 ### Added

@@ -130,6 +130,32 @@ GitPulse benötigt einen GitHub **Fine-Grained Personal Access Token (PAT)** mit
 - HA Beta/RC-Releases optional einblenden (`include_ha_betas`)
 - Benachrichtigungen bei neuen Releases (Telegram, E-Mail, Browser)
 
+**Releases anlegen** — für Custom Integrations (HACS), die für jede Version ein
+GitHub-Release mit Tag brauchen. HA-Add-ons brauchen das nicht; dort reicht der
+Commit aus dem Add-on Manager.
+
+Jedes eigene Repo hat in der Liste einen Knopf `Release`; über der Liste lässt
+sich zusätzlich ein Repo auswählen. Der Dialog:
+
+| Feld | Bedeutung |
+|------|-----------|
+| Ziel-Branch | Branch, auf dem committet und getaggt wird (Standard: Default-Branch) |
+| Version setzen in `custom_components/<domain>/manifest.json` | Erscheint nur, wenn das Repo eine Integration ist. Setzt `version` in der manifest.json. Abschaltbar. |
+| `+Major` / `+Minor` / `+Patch` | Vorschlag für die neue Version |
+| CHANGELOG.md-Eintrag anlegen | Schreibt `## [Version] - JJJJ-MM-TT` mit den Release-Notes an den Anfang der CHANGELOG.md |
+| Tag | Tag-Name, zieht automatisch mit der Version mit (`v`-Präfix, falls das letzte Release eines hatte). Warnung, wenn der Tag schon existiert |
+| Titel | Release-Titel (Standard: Tag) |
+| Release-Notes | Text des Releases — und zugleich der CHANGELOG-Eintrag. `Auto-Notes` holt die von GitHub generierten Notizen (gemergte PRs seit dem letzten Tag) |
+| Entwurf / Pre-Release | Draft-Release bzw. Pre-Release. Bei Pre-Release wird das Release **nicht** als „latest" markiert |
+
+Ablauf: manifest.json und CHANGELOG.md werden in **einem** Commit
+(`chore: release vX.Y.Z`) auf den Ziel-Branch geschrieben, danach entsteht das
+Release direkt auf diesem Commit. Ohne beide Häkchen wird nur das Release
+angelegt, ohne den Branch anzufassen.
+
+> Bei „Entwurf" legt GitHub den Tag erst beim Veröffentlichen an — der
+> Versions-Commit ist trotzdem schon gepusht.
+
 ### Security
 
 Alle offenen Security-Alerts aller eigenen Repos auf einen Blick:
