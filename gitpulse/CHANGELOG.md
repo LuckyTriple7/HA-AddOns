@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.4.14] - 2026-08-20
+
+### Fixed
+- Das rote Banner „Verbindung unterbrochen" erschien vor allem in Firefox
+  (Webtop, hinter dem Ingress-Proxy) schon bei jedem einzelnen Abbruch der
+  SSE-Dauerverbindung — auch wenn der Neuaufbau eine Sekunde später klappte.
+  Es meldet sich jetzt erst, wenn drei Verbindungsversuche in Folge scheitern,
+  und verschwindet wieder von allein, sobald die Verbindung steht.
+
+### Changed
+- SSE-Neuaufbau mit Backoff (1 s, 2 s, 4 s … max. 30 s) statt starr alle 5 s.
+  Beim Wiederverbinden werden die verpassten Daten einmal nachgeladen; kehrt
+  der Tab in den Vordergrund zurück oder meldet der Browser wieder Netz, wird
+  sofort neu verbunden statt auf den Backoff zu warten.
+- Solange die Verbindung wirklich weg ist, holt ein Poll im Minutentakt die
+  Daten — die Oberfläche steht damit nicht mehr still.
+- Server-seitig Ping alle 15 s statt 30 s und ein `retry:`-Hinweis an den
+  Browser, damit Proxys die Verbindung nicht als tot einstufen.
+
+
 ## [0.4.13] - 2026-08-20
 
 ### Fixed

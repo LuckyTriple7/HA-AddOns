@@ -2934,8 +2934,25 @@
   }
 
   // ── SSE ───────────────────────────────────────────────────────────
+  // Firefox (vor allem im Webtop hinter dem Ingress-Proxy) trennt die
+  // Dauerverbindung regelmäßig von selbst. Ein einzelner Neuaufbau ist normal
+  // und darf noch kein Banner auslösen — erst wenn mehrere Versuche in Folge
+  // scheitern, ist die Verbindung wirklich weg.
+  const SSE_BANNER_AFTER = 3;
+  let _sseFails = 0, _sseRetry = null, _sseEs = null, _ssePoll = null;
+
+  // Solange die Dauerverbindung weg ist, holt ein langsamer Poll die Daten —
+  // sonst steht die Oberfläche still.
+  function _sseFallbackPoll(on) {
+    if (on && !_ssePoll)  _ssePoll = setInterval(loadData, 60000);
+    if (!on && _ssePoll) { clearInterval(_ssePoll); _ssePoll = null; }
+  }
+
   function connectSSE() {
+    clearTimeout(_sseRetry);
+    if (_sseEs) { try { _sseEs.close(); } catch (e) {} }
     const es = new EventSource(u('/events'));
+    _sseEs = es;
     es.onmessage = e => {
       if (e.data !== 'update') return;
       if (_refreshTimer) {
@@ -2947,12 +2964,31 @@
       loadData();
     };
     es.onerror = () => {
-      document.getElementById('offline-banner').classList.add('show');
+      if (es !== _sseEs) return;
       es.close();
-      setTimeout(connectSSE, 5000);
+      _sseFails++;
+      if (_sseFails >= SSE_BANNER_AFTER) {
+        document.getElementById('offline-banner').classList.add('show');
+        _sseFallbackPoll(true);
+      }
+      const delay = Math.min(30000, 1000 * Math.pow(2, _sseFails - 1));
+      _sseRetry = setTimeout(connectSSE, delay);
     };
-    es.onopen = () => document.getElementById('offline-banner').classList.remove('show');
+    es.onopen = () => {
+      document.getElementById('offline-banner').classList.remove('show');
+      _sseFallbackPoll(false);
+      // Während der Trennung verpasste Ereignisse einmal nachholen
+      if (_sseFails) loadData();
+      _sseFails = 0;
+    };
   }
+
+  // Zurück im Vordergrund oder Netz wieder da: sofort neu verbinden statt auf
+  // den Backoff zu warten.
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden && _sseEs && _sseEs.readyState === 2) connectSSE();
+  });
+  window.addEventListener('online', connectSSE);
 
   // ── Console ───────────────────────────────────────────────────────
   let conSince = 0;

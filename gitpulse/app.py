@@ -3465,10 +3465,14 @@ def events():
         with _sse_lock:
             _sse_queues.append(q)
         try:
+            # retry: sagt dem Browser, wie lange er vor einem eigenen
+            # Neuaufbau warten soll. Ping alle 15 s, damit Proxys die
+            # Verbindung nicht als tot ansehen (Ingress, NPMplus & Co.).
+            yield 'retry: 3000\n\n'
             yield 'data: connected\n\n'
             while True:
                 try:
-                    q.get(timeout=30)
+                    q.get(timeout=15)
                     yield 'data: update\n\n'
                 except queue.Empty:
                     yield ': ping\n\n'
