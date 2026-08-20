@@ -1,5 +1,41 @@
 # Changelog
 
+## [0.1.26] - 2026-08-20
+
+### Dokumentation
+- **CrowdSec ist nicht Teil dieses Repos** — der Abschnitt sagt das jetzt zu Beginn und
+  verweist auf die offiziellen Add-ons unter
+  https://github.com/crowdsecurity/home-assistant-addons (`crowdsec` = Engine/LAPI,
+  `crowdsec-firewall-bouncer` = optional). Der Bouncer selbst steckt in NPMplus; nötig ist
+  nur der Schlüssel aus `cscli bouncers add npmplus`. Ohne Engine bleiben alle
+  `crowdsec_*`-Optionen wirkungslos.
+- Klargestellt, dass `/data/crowdsec/crowdsec.conf` für `ENABLED`, `API_URL`, `API_KEY`,
+  `APPSEC_URL` und die Captcha-Schlüssel bei jedem Start aus den Add-on-Optionen
+  überschrieben wird — Handarbeit an diesen Zeilen ist wirkungslos, der Rest der Datei bleibt.
+- Beispielkonfiguration des CrowdSec-Add-ons ergänzt (Acquisition für Home Assistant, NPMplus
+  und AppSec, Collections, `parsers_to_disable`), samt Begründung, warum
+  `crowdsecurity/appsec-crs` nicht enthalten ist — Teilzeichenketten wie `elif` in
+  Jinja-Templates oder `sched` in `schedule` lösen reihenweise Fehlalarme aus.
+- README (DE/EN) und die Optionsbeschreibung von `crowdsec_enabled` weisen auf die nötige
+  Engine hin.
+- Die Datei-Acquisition über `/share/npmplus/logs` ist aus der Doku raus. Sie kann mit dem
+  CrowdSec-Add-on nicht funktionieren — dessen Container bekommt nur `/config` und `/data`
+  eingehängt — und stand trotzdem als gleichwertige Variante neben journald. Es bleibt ein
+  Weg: journald. `share_logs` ist damit nur noch das, was es ist — Logs über Samba lesbar
+  machen.
+
+## [0.1.25] - 2026-08-19
+
+### Fixed
+- **Dokumentation:** Variante B der CrowdSec-Anbindung (Datei-Acquisition über
+  `/share/npmplus/logs/*.log`) war als gleichwertige Möglichkeit beschrieben. Sie
+  funktioniert mit dem CrowdSec-Add-on nicht — dessen Container bekommt nur
+  `/config` und `/data` eingehängt, kein `/share`. Wer der Anleitung folgte,
+  bekam eine Acquisition, die stillschweigend nichts liest. Der Abschnitt weist
+  jetzt darauf hin, nennt den Prüfbefehl und verweist für diesen Fall auf
+  Variante A (journald). `share_logs` bleibt sinnvoll, um die Logs über Samba
+  einzusehen.
+
 ## [0.1.24] - 2026-08-18
 
 - Fix: Im Protokoll der gesperrten Anfragen stand der Zeitstempel als `[$time_local]` und enthielt damit ein Leerzeichen vor der Zeitzone. Jede Spaltennummer in `awk` verschob sich dadurch um eins — die dokumentierte Auswertung `$4` lieferte die IP statt des Landes. Jetzt `$time_iso8601`, ein einziges Feld, das Land steht verlässlich in Spalte 4

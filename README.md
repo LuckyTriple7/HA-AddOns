@@ -49,6 +49,7 @@ Die veröffentlichten Container-Images enthalten darüber hinaus fremde Software
 | TUIWatch | ✅ | ✅ | Debian 12 |
 | LogPulse | ✅ | ✅ | Debian 12 |
 | NPMplus | ✅ | ✅ | Alpine |
+| CrowdPanel | ✅ | ✅ | Alpine |
 
 ## Apps
 
@@ -318,6 +319,18 @@ Reverse Proxy mit Weboberfläche auf Basis von [NPMplus](https://github.com/Zoey
 
 → [Dokumentation & Changelog](npmplus/README.md)
 
+### [CrowdPanel](crowdpanel/)
+
+Weboberfläche für eine bestehende CrowdSec-Installation — die `cscli`-Befehle als Bedienpanel.
+
+- Aktive Sperren ansehen, filtern und aufheben — einzeln oder gesammelt
+- Neue Sperren für einzelne IP, CIDR-Bereich, ganzes Land oder ganzes Netz (AS), mit frei wählbarer Dauer
+- Alarme mit Ereignissen und auslösender Log-Zeile, IP-Nachschlagen samt Allowlist-Treffer
+- Spricht ausschließlich die lokale CrowdSec-API an, mit einem Maschinen-Zugang statt Bouncer-Schlüssel
+- Über Ingress ohne Anmeldung, über Port 17797 mit Passwort und optional TOTP
+
+→ [Dokumentation & Changelog](crowdpanel/README.md)
+
 ---
 
 # HA-AddOns (English)
@@ -365,6 +378,7 @@ https://github.com/LuckyTriple7/HA-AddOns
 | TUIWatch | ✅ | ✅ | Debian 12 |
 | LogPulse | ✅ | ✅ | Debian 12 |
 | NPMplus | ✅ | ✅ | Alpine |
+| CrowdPanel | ✅ | ✅ | Alpine |
 
 ## Apps
 
@@ -633,3 +647,15 @@ Reverse proxy with a web interface, based on [NPMplus](https://github.com/ZoeyVi
 - Logs to `/share/npmplus/logs` and/or the add-on log — matching both CrowdSec acquisition styles
 
 → [Documentation & Changelog](npmplus/README.en.md)
+
+### [CrowdPanel](crowdpanel/)
+
+A web interface for an existing CrowdSec installation — the `cscli` commands as a control panel.
+
+- View, filter and lift active decisions — one by one or all at once
+- New decisions for a single IP, CIDR range, whole country or whole network (AS), with a free duration
+- Alerts with their events and the triggering log line, IP lookup including allowlist hits
+- Talks to the CrowdSec Local API only, using a machine account instead of a bouncer key
+- No sign-in through Ingress, password and optional TOTP on port 17797
+
+→ [Documentation & Changelog](crowdpanel/README.en.md)

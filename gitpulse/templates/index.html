@@ -43,6 +43,16 @@
     .token-badge { font-size:0.7rem; padding:2px 7px; border-radius:10px; font-weight:600; }
     .token-ok   { background:rgba(63,185,80,.15); color:var(--green); border:1px solid rgba(63,185,80,.3); }
     .token-err  { background:rgba(248,81,73,.15); color:var(--red);   border:1px solid rgba(248,81,73,.3); }
+    .gh-status-badge { font-size:0.7rem; padding:2px 8px; border-radius:10px; font-weight:600; cursor:pointer; border:1px solid; display:inline-flex; align-items:center; gap:5px; }
+    .gh-status-badge .dot { width:7px; height:7px; border-radius:50%; background:currentColor; }
+    .ghs-ok    { background:rgba(63,185,80,.12);  color:var(--green);  border-color:rgba(63,185,80,.25); }
+    .ghs-warn  { background:rgba(210,153,34,.12); color:var(--yellow); border-color:rgba(210,153,34,.3); }
+    .ghs-crit  { background:rgba(248,81,73,.15);  color:var(--red);    border-color:rgba(248,81,73,.3); }
+    .ghs-unk   { background:rgba(139,148,158,.12); color:var(--muted); border-color:var(--border); }
+    .ghs-row   { display:flex; align-items:center; gap:8px; padding:6px 0; border-bottom:1px solid var(--border); font-size:.82rem; }
+    .ghs-row:last-child { border-bottom:none; }
+    .ghs-row .name { flex:1; }
+    .ghs-state { font-size:.72rem; font-weight:600; }
     .rl-badge   { font-size:0.7rem; padding:2px 8px; border-radius:10px; font-weight:600; font-family:monospace; cursor:default; }
     .rl-ok      { background:rgba(63,185,80,.12);  color:var(--green);  border:1px solid rgba(63,185,80,.25); }
     .rl-warn    { background:rgba(210,153,34,.12); color:var(--yellow); border:1px solid rgba(210,153,34,.25); }
@@ -265,6 +275,8 @@
     </div>
     <span id="token-badge" class="token-badge" style="display:none"></span>
     <span id="rl-badge" style="font-size:.7rem;color:var(--muted);display:none"></span>
+    <span id="gh-status-badge" class="gh-status-badge ghs-unk" style="display:none"
+          onclick="openStatusModal()"></span>
     <div id="refresh-badge"><div class="rb-dot"></div><span id="refresh-countdown"></span></div>
     <div class="hdr-spacer"></div>
     <button class="hdr-btn" onclick="pollNow()" title="{{ t.btn_refresh }}">
@@ -518,6 +530,88 @@
       <div class="modal-footer">
         <button class="modal-btn modal-btn-cancel" onclick="closeModal('comment-modal')">{{ t.btn_cancel }}</button>
         <button class="modal-btn modal-btn-confirm" onclick="confirmComment()">{{ t.btn_comment }}</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Release Modal ─────────────────────────────────────────────── -->
+  <div id="release-modal" class="modal-backdrop">
+    <div class="modal" style="max-width:560px">
+      <h3>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="var(--purple)"><path d="M21 5c-1.11-.35-2.33-.5-3.5-.5-1.95 0-4.05.4-5.5 1.5-1.45-1.1-3.55-1.5-5.5-1.5S2.45 4.9 1 6v14.65c0 .25.25.5.5.5.1 0 .15-.05.25-.05C3.1 20.45 5.05 20 6.5 20c1.95 0 4.05.4 5.5 1.5 1.35-.85 3.8-1.5 5.5-1.5 1.65 0 3.35.3 4.75 1.05.1.05.15.05.25.05.25 0 .5-.25.5-.5V6c-.6-.45-1.25-.75-2-1zm0 13.5c-1.1-.35-2.3-.5-3.5-.5-1.7 0-4.15.65-5.5 1.5V8c1.35-.85 3.8-1.5 5.5-1.5 1.2 0 2.4.15 3.5.5v11.5z"/></svg>
+        {{ t.rel_title }}
+      </h3>
+      <p id="rel-repo-label" style="font-size:.85rem;color:var(--muted);margin-bottom:4px"></p>
+      <div id="rel-loading" style="font-size:.82rem;color:var(--muted);padding:12px 0">{{ t.rel_loading }}</div>
+
+      <div id="rel-form" style="display:none">
+        <label>{{ t.rel_branch }}</label>
+        <select id="rel-branch" onchange="relReload()"></select>
+
+        <div id="rel-manifest-box" style="display:none;margin-top:12px;padding:10px;border:1px solid var(--border);border-radius:5px;background:var(--bg)">
+          <label style="margin-top:0;display:flex;align-items:center;gap:8px;color:var(--text);font-size:.83rem">
+            <input type="checkbox" id="rel-bump" checked style="width:auto">
+            <span>{{ t.rel_bump_manifest }} <code id="rel-manifest-path" style="font-size:.75rem;color:var(--muted)"></code></span>
+          </label>
+          <div style="display:flex;align-items:center;gap:6px;margin-top:8px;flex-wrap:wrap">
+            <span style="font-size:.8rem;color:var(--muted)" id="rel-cur-version"></span>
+            <span style="color:var(--muted)">→</span>
+            <input id="rel-version" style="width:auto;flex:1;min-width:110px;font-family:monospace" oninput="relSyncTag()">
+            <button class="hdr-btn" style="font-size:.78rem;padding:3px 8px;color:var(--muted)" onclick="relBump('major')">{{ t.am_btn_major }}</button>
+            <button class="hdr-btn" style="font-size:.78rem;padding:3px 8px;color:var(--muted)" onclick="relBump('minor')">{{ t.am_btn_minor }}</button>
+            <button class="hdr-btn" style="font-size:.78rem;padding:3px 8px" onclick="relBump('patch')">{{ t.am_btn_patch }}</button>
+          </div>
+          <label style="margin-top:10px;display:flex;align-items:center;gap:8px;color:var(--text);font-size:.83rem">
+            <input type="checkbox" id="rel-changelog" checked style="width:auto">
+            <span>{{ t.rel_update_changelog }}</span>
+          </label>
+        </div>
+
+        <label>{{ t.rel_tag }}</label>
+        <input id="rel-tag" style="font-family:monospace" oninput="relCheckTag()">
+        <div id="rel-tag-warn" style="display:none;font-size:.75rem;color:var(--yellow);margin-top:4px"></div>
+
+        <label>{{ t.rel_name }}</label>
+        <input id="rel-name">
+
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-top:12px">
+          <label style="margin:0">{{ t.rel_notes }}</label>
+          <button class="hdr-btn" style="font-size:.72rem;padding:3px 8px" onclick="relGenerateNotes(this)">{{ t.rel_auto_notes }}</button>
+        </div>
+        <textarea id="rel-notes" rows="7" placeholder="{{ t.rel_notes_placeholder }}"
+          style="width:100%;box-sizing:border-box;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:7px 10px;border-radius:5px;font-size:.83rem;font-family:monospace;resize:vertical"></textarea>
+
+        <div style="display:flex;gap:18px;margin-top:12px">
+          <label style="margin:0;display:flex;align-items:center;gap:6px;color:var(--text);font-size:.83rem">
+            <input type="checkbox" id="rel-draft" style="width:auto"> {{ t.rel_draft }}
+          </label>
+          <label style="margin:0;display:flex;align-items:center;gap:6px;color:var(--text);font-size:.83rem">
+            <input type="checkbox" id="rel-prerelease" style="width:auto"> {{ t.rel_prerelease }}
+          </label>
+        </div>
+      </div>
+
+      <div id="rel-err" class="modal-err" style="display:none"></div>
+      <div id="rel-ok" style="display:none;font-size:.8rem;color:var(--green);margin-top:8px"></div>
+      <div class="modal-footer">
+        <button class="modal-btn modal-btn-cancel" onclick="closeModal('release-modal')">{{ t.btn_cancel }}</button>
+        <button class="modal-btn modal-btn-confirm" id="rel-submit" onclick="confirmRelease(this)">{{ t.rel_create }}</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── GitHub-Status Modal ───────────────────────────────────────── -->
+  <div id="status-modal" class="modal-backdrop">
+    <div class="modal" style="max-width:520px">
+      <h3>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.3 3.44 9.8 8.21 11.39.6.11.82-.26.82-.58 0-.28-.01-1.03-.02-2.03-3.34.72-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.09-.74.08-.73.08-.73 1.2.09 1.84 1.24 1.84 1.24 1.07 1.83 2.81 1.3 3.5.99.11-.78.42-1.3.76-1.6-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.12-.3-.54-1.52.12-3.18 0 0 1.01-.32 3.3 1.23a11.5 11.5 0 0 1 3-.4c1.02 0 2.04.14 3 .4 2.28-1.55 3.29-1.23 3.29-1.23.66 1.66.24 2.88.12 3.18.77.84 1.24 1.91 1.24 3.22 0 4.61-2.81 5.63-5.48 5.92.43.37.81 1.1.81 2.22 0 1.6-.01 2.9-.01 3.29 0 .32.21.7.82.58C20.56 21.8 24 17.3 24 12c0-6.63-5.37-12-12-12z"/></svg>
+        {{ t.ghs_title }}
+      </h3>
+      <div id="status-body" style="font-size:.85rem"></div>
+      <div class="modal-footer">
+        <a href="https://www.githubstatus.com" target="_blank" rel="noopener noreferrer"
+           class="modal-btn modal-btn-cancel" style="text-decoration:none">{{ t.ghs_open_page }}</a>
+        <button class="modal-btn modal-btn-confirm" onclick="closeModal('status-modal')">{{ t.ghs_close }}</button>
       </div>
     </div>
   </div>
@@ -1189,6 +1283,184 @@
     .catch(e => { errEl.textContent = String(e); errEl.style.display = 'block'; });
   }
 
+  // ── Release Modal ─────────────────────────────────────────────────
+  let _relRepo = null, _relPrep = null, _relTagAuto = '', _relNameAuto = '', _relPickRepo = '';
+
+  function relErr(msg) {
+    const el = document.getElementById('rel-err');
+    el.textContent = msg; el.style.display = 'block';
+  }
+
+  function openReleaseModal(repo) {
+    _relRepo = repo; _relPrep = null;
+    document.getElementById('rel-repo-label').textContent = repo;
+    document.getElementById('rel-err').style.display = 'none';
+    document.getElementById('rel-ok').style.display  = 'none';
+    document.getElementById('rel-notes').value = '';
+    document.getElementById('rel-draft').checked      = false;
+    document.getElementById('rel-prerelease').checked = false;
+    document.getElementById('release-modal').classList.add('show');
+    relLoad('');
+  }
+
+  function relLoad(branch) {
+    document.getElementById('rel-loading').style.display = 'block';
+    document.getElementById('rel-form').style.display    = 'none';
+    document.getElementById('rel-tag-warn').style.display = 'none';
+    let url = '/api/release/prepare?repo=' + encodeURIComponent(_relRepo);
+    if (branch) url += '&branch=' + encodeURIComponent(branch);
+    fetch(u(url))
+      .then(r => r.json().then(d => ({ok: r.ok, data: d})))
+      .then(({ok, data}) => {
+        document.getElementById('rel-loading').style.display = 'none';
+        if (!ok) { relErr(data.error || T.error_unknown); return; }
+        _relPrep = data;
+        relFill(data);
+      })
+      .catch(e => {
+        document.getElementById('rel-loading').style.display = 'none';
+        relErr(String(e));
+      });
+  }
+
+  function relReload() {
+    relLoad(document.getElementById('rel-branch').value);
+  }
+
+  function relFill(d) {
+    const brSel = document.getElementById('rel-branch');
+    brSel.innerHTML = (d.branches || [d.branch]).map(b =>
+      `<option value="${escHtml(b)}"${b === d.branch ? ' selected' : ''}>${escHtml(b)}</option>`).join('');
+    const box = document.getElementById('rel-manifest-box');
+    if (d.manifest && d.manifest.path) {
+      box.style.display = 'block';
+      document.getElementById('rel-manifest-path').textContent = d.manifest.path;
+      document.getElementById('rel-cur-version').textContent   = d.manifest.version || '—';
+      document.getElementById('rel-bump').checked      = true;
+      document.getElementById('rel-changelog').checked = !!d.has_changelog;
+    } else {
+      box.style.display = 'none';
+      document.getElementById('rel-bump').checked      = false;
+      document.getElementById('rel-changelog').checked = false;
+    }
+    document.getElementById('rel-version').value = d.next_version || '';
+    _relTagAuto  = d.suggested_tag || '';
+    _relNameAuto = d.suggested_tag || '';
+    document.getElementById('rel-tag').value   = _relTagAuto;
+    document.getElementById('rel-name').value  = _relNameAuto;
+    document.getElementById('rel-form').style.display = 'block';
+    relCheckTag();
+  }
+
+  function relPrefix() {
+    const t = (_relPrep && _relPrep.latest_release && _relPrep.latest_release.tag) || '';
+    return t.startsWith('v') ? 'v' : '';
+  }
+
+  // Tag/Titel ziehen automatisch mit der Version mit — außer der Nutzer hat sie selbst angefasst.
+  function relSyncTag() {
+    const ver  = document.getElementById('rel-version').value.trim();
+    const tagI = document.getElementById('rel-tag');
+    const nmI  = document.getElementById('rel-name');
+    const next = relPrefix() + ver;
+    if (tagI.value.trim() === _relTagAuto)  { tagI.value = next; _relTagAuto  = next; }
+    if (nmI.value.trim()  === _relNameAuto) { nmI.value  = next; _relNameAuto = next; }
+    relCheckTag();
+  }
+
+  function relBump(kind) {
+    const inp   = document.getElementById('rel-version');
+    const parts = inp.value.trim().split('.');
+    const major = parseInt(parts[0], 10) || 0;
+    const minor = parseInt(parts[1], 10) || 0;
+    const patch = parseInt(parts[2], 10) || 0;
+    if (kind === 'major')      inp.value = `${major + 1}.0.0`;
+    else if (kind === 'minor') inp.value = `${major}.${minor + 1}.0`;
+    else                       inp.value = `${major}.${minor}.${patch + 1}`;
+    relSyncTag();
+  }
+
+  function relCheckTag() {
+    const tag  = document.getElementById('rel-tag').value.trim();
+    const warn = document.getElementById('rel-tag-warn');
+    if (tag && _relPrep && (_relPrep.tags || []).includes(tag)) {
+      warn.textContent = T.rel_tag_exists; warn.style.display = 'block';
+    } else {
+      warn.style.display = 'none';
+    }
+  }
+
+  function relGenerateNotes(btn) {
+    const tag = document.getElementById('rel-tag').value.trim();
+    if (!tag) { relErr(T.rel_err_no_tag); return; }
+    _btnWait(btn);
+    fetch(u('/api/release/notes'), {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        repo: _relRepo,
+        tag,
+        target: document.getElementById('rel-branch').value,
+        previous_tag: (_relPrep && _relPrep.latest_release && _relPrep.latest_release.tag) || '',
+      }),
+    })
+    .then(r => r.json().then(d => ({ok: r.ok, data: d})))
+    .then(({ok, data}) => {
+      _btnRestore(btn);
+      if (!ok) { relErr(data.error || T.error_unknown); return; }
+      const ta  = document.getElementById('rel-notes');
+      const cur = ta.value.trim();
+      ta.value = cur ? cur + '\n\n' + (data.body || '') : (data.body || '');
+    })
+    .catch(e => { _btnRestore(btn); relErr(String(e)); });
+  }
+
+  function confirmRelease(btn) {
+    const errEl = document.getElementById('rel-err');
+    const okEl  = document.getElementById('rel-ok');
+    errEl.style.display = 'none'; okEl.style.display = 'none';
+    const bump      = document.getElementById('rel-bump').checked;
+    const changelog = document.getElementById('rel-changelog').checked;
+    const tag       = document.getElementById('rel-tag').value.trim();
+    const notes     = document.getElementById('rel-notes').value.trim();
+    const version   = document.getElementById('rel-version').value.trim();
+    if (!tag) { relErr(T.rel_err_no_tag); return; }
+    if (changelog && !notes) { relErr(T.rel_err_no_notes); return; }
+    const payload = {
+      repo:             _relRepo,
+      branch:           document.getElementById('rel-branch').value,
+      tag,
+      name:             document.getElementById('rel-name').value.trim() || tag,
+      body:             notes,
+      draft:            document.getElementById('rel-draft').checked,
+      prerelease:       document.getElementById('rel-prerelease').checked,
+      bump_manifest:    bump,
+      update_changelog: changelog,
+      manifest_path:    (_relPrep && _relPrep.manifest && _relPrep.manifest.path) || '',
+      new_version:      version,
+    };
+    if (!confirm(T.rel_confirm.replace('{tag}', tag).replace('{repo}', _relRepo))) return;
+    _btnWait(btn);
+    fetch(u('/api/release/create'), {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(payload),
+    })
+    .then(r => r.json().then(d => ({ok: r.ok, data: d})))
+    .then(({ok, data}) => {
+      _btnRestore(btn);
+      if (!ok) {
+        relErr((data.error || T.error_unknown) + (data.commit_sha ? ` (${T.rel_commit_done}: ${data.commit_sha})` : ''));
+        return;
+      }
+      okEl.innerHTML = `✓ ${escHtml(data.tag)} — <a href="${escHtml(data.url)}" target="_blank" rel="noopener noreferrer" style="color:var(--accent)">${T.link_view}</a>`;
+      okEl.style.display = 'block';
+      triggerRefresh(3);
+      setTimeout(() => closeModal('release-modal'), 2500);
+    })
+    .catch(e => { _btnRestore(btn); relErr(String(e)); });
+  }
+
   // ── Cancel Workflow ───────────────────────────────────────────────
   function cancelWorkflow(btn, repo, runId) {
     if (!confirm('Workflow-Run #' + runId + ' abbrechen?')) return;
@@ -1392,6 +1664,37 @@
     run_failure:  '{{ t.run_failure }}',
     run_running:  '{{ t.run_running }}',
     pre_release:  '{{ t.pre_release }}',
+    rel_new:          {{ t.rel_new|tojson }},
+    rel_none_yet:     {{ t.rel_none_yet|tojson }},
+    rel_tag_exists:   {{ t.rel_tag_exists|tojson }},
+    rel_err_no_tag:   {{ t.rel_err_no_tag|tojson }},
+    rel_err_no_notes: {{ t.rel_err_no_notes|tojson }},
+    rel_confirm:      {{ t.rel_confirm|tojson }},
+    rel_commit_done:  {{ t.rel_commit_done|tojson }},
+    link_view:        {{ t.link_view|tojson }},
+    ghs_badge_ok:          {{ t.ghs_badge_ok|tojson }},
+    ghs_badge_minor:       {{ t.ghs_badge_minor|tojson }},
+    ghs_badge_major:       {{ t.ghs_badge_major|tojson }},
+    ghs_badge_critical:    {{ t.ghs_badge_critical|tojson }},
+    ghs_badge_maintenance: {{ t.ghs_badge_maintenance|tojson }},
+    ghs_badge_unknown:     {{ t.ghs_badge_unknown|tojson }},
+    ghs_unreachable:       {{ t.ghs_unreachable|tojson }},
+    ghs_all_ok:            {{ t.ghs_all_ok|tojson }},
+    ghs_components:        {{ t.ghs_components|tojson }},
+    ghs_updated:           {{ t.ghs_updated|tojson }},
+    ghs_comp_operational:  {{ t.ghs_comp_operational|tojson }},
+    ghs_comp_degraded:     {{ t.ghs_comp_degraded|tojson }},
+    ghs_comp_partial:      {{ t.ghs_comp_partial|tojson }},
+    ghs_comp_major:        {{ t.ghs_comp_major|tojson }},
+    ghs_comp_maintenance:  {{ t.ghs_comp_maintenance|tojson }},
+    ghs_inc_investigating: {{ t.ghs_inc_investigating|tojson }},
+    ghs_inc_identified:    {{ t.ghs_inc_identified|tojson }},
+    ghs_inc_monitoring:    {{ t.ghs_inc_monitoring|tojson }},
+    ghs_inc_resolved:      {{ t.ghs_inc_resolved|tojson }},
+    ghs_inc_postmortem:    {{ t.ghs_inc_postmortem|tojson }},
+    ghs_inc_scheduled:     {{ t.ghs_inc_scheduled|tojson }},
+    ghs_inc_in_progress:   {{ t.ghs_inc_in_progress|tojson }},
+    ghs_inc_verifying:     {{ t.ghs_inc_verifying|tojson }},
     token_missing:     '{{ t.token_missing }}',
     token_invalid:     '{{ t.token_invalid }}',
     token_expires:     '{{ t.token_expires }}',
@@ -1499,6 +1802,113 @@
     const lc = name.toLowerCase();
     for (const [k,v] of Object.entries(colors)) if (lc.includes(k)) return v;
     return '#8b949e';
+  }
+
+  // ── GitHub-Status ─────────────────────────────────────────────────
+  // Wenn GitHub selbst gestört ist, sind Fehler in GitPulse keine eigenen.
+  const GHS_COMPONENT = {
+    operational:         { label: () => T.ghs_comp_operational, color: 'var(--green)'  },
+    degraded_performance:{ label: () => T.ghs_comp_degraded,    color: 'var(--yellow)' },
+    partial_outage:      { label: () => T.ghs_comp_partial,     color: 'var(--yellow)' },
+    major_outage:        { label: () => T.ghs_comp_major,       color: 'var(--red)'    },
+    under_maintenance:   { label: () => T.ghs_comp_maintenance, color: 'var(--accent)' },
+  };
+  const GHS_INCIDENT = () => ({
+    investigating: T.ghs_inc_investigating, identified: T.ghs_inc_identified,
+    monitoring:    T.ghs_inc_monitoring,    resolved:   T.ghs_inc_resolved,
+    postmortem:    T.ghs_inc_postmortem,    scheduled:  T.ghs_inc_scheduled,
+    in_progress:   T.ghs_inc_in_progress,   verifying:  T.ghs_inc_verifying,
+  });
+
+  function ghsComp(status) {
+    return GHS_COMPONENT[status] || { label: () => status, color: 'var(--muted)' };
+  }
+
+  function renderGithubStatus(data) {
+    const st = data.github_status;
+    const el = document.getElementById('gh-status-badge');
+    if (!el) return;
+    if (!st) { el.style.display = 'none'; return; }   // noch nichts abgefragt
+    if (!st.ok) {
+      el.className = 'gh-status-badge ghs-unk';
+      el.innerHTML = `<span class="dot"></span>${T.ghs_badge_unknown}`;
+      el.title = T.ghs_unreachable;
+      el.style.display = '';
+      return;
+    }
+    const ind = st.indicator || 'none';
+    const map = {
+      none:     ['ghs-ok',   T.ghs_badge_ok],
+      minor:    ['ghs-warn', T.ghs_badge_minor],
+      major:    ['ghs-crit', T.ghs_badge_major],
+      critical: ['ghs-crit', T.ghs_badge_critical],
+      maintenance: ['ghs-warn', T.ghs_badge_maintenance],
+    };
+    const [cls, label] = map[ind] || ['ghs-unk', T.ghs_badge_unknown];
+    el.className = 'gh-status-badge ' + cls;
+    el.innerHTML = `<span class="dot"></span>${label}`;
+    const degraded = (st.degraded || []).map(c => c.name).join(', ');
+    el.title = (st.description || '') + (degraded ? ' — ' + degraded : '');
+    el.style.display = '';
+    // Modal live mitziehen, solange es offen ist
+    if (document.getElementById('status-modal').classList.contains('show')) renderStatusBody(st);
+  }
+
+  function openStatusModal() {
+    document.getElementById('status-modal').classList.add('show');
+    renderStatusBody((ghData && ghData.github_status) || null);
+    fetch(u('/api/github-status'))
+      .then(r => r.json())
+      .then(st => {
+        if (ghData) ghData.github_status = st;
+        renderStatusBody(st);
+        renderGithubStatus({ github_status: st });
+      })
+      .catch(() => {});
+  }
+
+  function renderStatusBody(st) {
+    const el = document.getElementById('status-body');
+    if (!st || !st.ok) {
+      el.innerHTML = `<div style="color:var(--muted);padding:8px 0">${T.ghs_unreachable}</div>`;
+      return;
+    }
+    const incLabel = GHS_INCIDENT();
+    let html = `<div style="margin-bottom:10px;font-weight:600">${escHtml(st.description || '')}</div>`;
+    for (const inc of (st.incidents || [])) {
+      html += `
+        <div style="border:1px solid rgba(248,81,73,.3);background:rgba(248,81,73,.08);border-radius:6px;padding:8px 10px;margin-bottom:8px">
+          <div style="font-weight:600">${escHtml(inc.name)}</div>
+          <div style="font-size:.76rem;color:var(--muted);margin:2px 0 6px">
+            ${escHtml(incLabel[inc.status] || inc.status)} · ${relTime(inc.updated)}
+          </div>
+          ${inc.body ? `<div style="font-size:.78rem;white-space:pre-wrap">${escHtml(inc.body)}</div>` : ''}
+          ${inc.url ? `<a href="${escHtml(inc.url)}" target="_blank" rel="noopener noreferrer" style="font-size:.75rem;color:var(--accent)">${T.link_view}</a>` : ''}
+        </div>`;
+    }
+    for (const m of (st.maintenances || [])) {
+      html += `
+        <div style="border:1px solid rgba(88,166,255,.3);background:rgba(88,166,255,.08);border-radius:6px;padding:8px 10px;margin-bottom:8px">
+          <div style="font-weight:600">🔧 ${escHtml(m.name)}</div>
+          <div style="font-size:.76rem;color:var(--muted)">${escHtml(incLabel[m.status] || m.status)}${m.scheduled ? ' · ' + new Date(m.scheduled).toLocaleString() : ''}</div>
+          ${m.url ? `<a href="${escHtml(m.url)}" target="_blank" rel="noopener noreferrer" style="font-size:.75rem;color:var(--accent)">${T.link_view}</a>` : ''}
+        </div>`;
+    }
+    if (!(st.incidents || []).length && !(st.degraded || []).length) {
+      html += `<div style="color:var(--green);font-size:.82rem;margin-bottom:8px">✓ ${T.ghs_all_ok}</div>`;
+    }
+    html += `<div style="font-size:.76rem;color:var(--muted);margin:10px 0 4px">${T.ghs_components}</div>`;
+    html += (st.components || []).map(c => {
+      const cs = ghsComp(c.status);
+      return `<div class="ghs-row">
+        <span class="name">${escHtml(c.name)}</span>
+        <span class="ghs-state" style="color:${cs.color}">${escHtml(cs.label())}</span>
+      </div>`;
+    }).join('');
+    if (st.updated) {
+      html += `<div style="font-size:.72rem;color:var(--muted);margin-top:10px">${T.ghs_updated} ${relTime(st.updated)}</div>`;
+    }
+    el.innerHTML = html;
   }
 
   // ── Render: Rate-Limit Badge ──────────────────────────────────────
@@ -2129,11 +2539,10 @@
   // ── Render: Releases ──────────────────────────────────────────────
   function renderReleases(data) {
     const watchReleases = data.releases || [];
-    const myReleases = (data.my_repos || [])
-      .filter(r => r.latest_release)
-      .map(r => ({ ...r.latest_release, repo: r.repo }));
+    const myRepos = data.my_repos || [];
+    if (!myRepos.some(r => r.repo === _relPickRepo)) _relPickRepo = (myRepos[0] || {}).repo || '';
     const el = document.getElementById('release-list');
-    if (!watchReleases.length && !myReleases.length) {
+    if (!watchReleases.length && !myRepos.length) {
       el.innerHTML = `<div class="empty"><svg viewBox="0 0 24 24"><path d="M17 12h-5v5h5v-5zM16 1v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2h-1V1h-2zm3 18H5V8h14v11z"/></svg><div>${T.no_releases}</div></div>`;
       return;
     }
@@ -2146,10 +2555,44 @@
         <a href="${rel.url}" target="_blank" rel="noopener noreferrer" style="font-size:.72rem;color:var(--accent)">{{ t.link_view }}</a>
         <span class="release-date">${relTime(rel.date)}</span>
       </div>`;
+    // Eigene Repos: auch ohne Release listen — genau dort fehlt das erste noch.
+    const myRow = r => {
+      const rel = r.latest_release;
+      const btn = `<button class="hdr-btn" style="font-size:.72rem;padding:3px 8px;white-space:nowrap"
+        onclick="openReleaseModal(${safeJsArg(r.repo)})" title="{{ t.rel_btn_title }}">${T.rel_new}</button>`;
+      if (!rel) return `
+        <div class="release-row">
+          <div style="width:8px"></div>
+          <span class="release-tag" style="color:var(--muted);background:none;border-color:var(--border)">—</span>
+          <span class="release-repo">${escHtml(r.repo)}</span>
+          <span style="font-size:.72rem;color:var(--muted)">${T.rel_none_yet}</span>
+          ${btn}
+        </div>`;
+      return `
+        <div class="release-row">
+          ${newKeys.has(r.repo+'@'+rel.tag)?'<div class="new-dot" title="{{ t.badge_new }}"></div>':'<div style="width:8px"></div>'}
+          <span class="release-tag ${rel.prerelease?'release-pre':''}">${escHtml(rel.tag)}</span>
+          <span class="release-repo">${escHtml(r.repo)}</span>
+          <a href="${rel.url}" target="_blank" rel="noopener noreferrer" style="font-size:.72rem;color:var(--accent)">{{ t.link_view }}</a>
+          <span class="release-date">${relTime(rel.date)}</span>
+          ${btn}
+        </div>`;
+    };
     let html = '';
-    if (myReleases.length) {
-      html += `<div class="card" style="margin-bottom:10px"><div class="card-header" style="font-size:.78rem;color:var(--muted)">{{ t.releases_my_repos }}</div><div class="card-body">` +
-        myReleases.map(relRow).join('') + '</div></div>';
+    if (myRepos.length) {
+      html += `<div class="card" style="margin-bottom:10px">
+        <div class="card-header" style="font-size:.78rem;color:var(--muted);display:flex;align-items:center;justify-content:space-between;gap:8px">
+          <span>{{ t.releases_my_repos }}</span>
+          <span style="display:flex;align-items:center;gap:6px">
+            <select id="rel-repo-pick" onchange="_relPickRepo = this.value"
+              style="background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:5px;padding:3px 6px;font-size:.75rem;max-width:200px">
+              ${myRepos.map(r => `<option value="${escHtml(r.repo)}"${r.repo === _relPickRepo ? ' selected' : ''}>${escHtml(r.repo)}</option>`).join('')}
+            </select>
+            <button class="hdr-btn" style="font-size:.72rem;padding:3px 8px;white-space:nowrap"
+              onclick="openReleaseModal(document.getElementById('rel-repo-pick').value)">+ ${T.rel_new}</button>
+          </span>
+        </div><div class="card-body">` +
+        myRepos.map(myRow).join('') + '</div></div>';
     }
     if (watchReleases.length) {
       html += `<div class="card"><div class="card-header" style="font-size:.78rem;color:var(--muted)">{{ t.releases_watch_repos }}</div><div class="card-body">` +
@@ -2592,6 +3035,7 @@
     renderSummary(data);
     renderTokenAlert(data);
     renderRateLimit(data);
+    renderGithubStatus(data);
     renderReposOverview(data);
     renderRepoSelector(data.my_repos || []);
     renderPRs(data);
@@ -2649,8 +3093,25 @@
   }
 
   // ── SSE ───────────────────────────────────────────────────────────
+  // Firefox (vor allem im Webtop hinter dem Ingress-Proxy) trennt die
+  // Dauerverbindung regelmäßig von selbst. Ein einzelner Neuaufbau ist normal
+  // und darf noch kein Banner auslösen — erst wenn mehrere Versuche in Folge
+  // scheitern, ist die Verbindung wirklich weg.
+  const SSE_BANNER_AFTER = 3;
+  let _sseFails = 0, _sseRetry = null, _sseEs = null, _ssePoll = null;
+
+  // Solange die Dauerverbindung weg ist, holt ein langsamer Poll die Daten —
+  // sonst steht die Oberfläche still.
+  function _sseFallbackPoll(on) {
+    if (on && !_ssePoll)  _ssePoll = setInterval(loadData, 60000);
+    if (!on && _ssePoll) { clearInterval(_ssePoll); _ssePoll = null; }
+  }
+
   function connectSSE() {
+    clearTimeout(_sseRetry);
+    if (_sseEs) { try { _sseEs.close(); } catch (e) {} }
     const es = new EventSource(u('/events'));
+    _sseEs = es;
     es.onmessage = e => {
       if (e.data !== 'update') return;
       if (_refreshTimer) {
@@ -2662,12 +3123,31 @@
       loadData();
     };
     es.onerror = () => {
-      document.getElementById('offline-banner').classList.add('show');
+      if (es !== _sseEs) return;
       es.close();
-      setTimeout(connectSSE, 5000);
+      _sseFails++;
+      if (_sseFails >= SSE_BANNER_AFTER) {
+        document.getElementById('offline-banner').classList.add('show');
+        _sseFallbackPoll(true);
+      }
+      const delay = Math.min(30000, 1000 * Math.pow(2, _sseFails - 1));
+      _sseRetry = setTimeout(connectSSE, delay);
     };
-    es.onopen = () => document.getElementById('offline-banner').classList.remove('show');
+    es.onopen = () => {
+      document.getElementById('offline-banner').classList.remove('show');
+      _sseFallbackPoll(false);
+      // Während der Trennung verpasste Ereignisse einmal nachholen
+      if (_sseFails) loadData();
+      _sseFails = 0;
+    };
   }
+
+  // Zurück im Vordergrund oder Netz wieder da: sofort neu verbinden statt auf
+  // den Backoff zu warten.
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden && _sseEs && _sseEs.readyState === 2) connectSSE();
+  });
+  window.addEventListener('online', connectSSE);
 
   // ── Console ───────────────────────────────────────────────────────
   let conSince = 0;

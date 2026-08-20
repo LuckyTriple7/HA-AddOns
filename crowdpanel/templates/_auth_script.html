@@ -1,0 +1,12 @@
+<script>
+  (function(){
+    const t = localStorage.getItem('cp-theme') || 'dark';
+    document.documentElement.setAttribute('data-theme', t);
+  })();
+  function toggleTheme(){
+    const c = document.documentElement.getAttribute('data-theme') || 'dark';
+    const n = c === 'dark' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', n);
+    localStorage.setItem('cp-theme', n);
+  }
+</script>

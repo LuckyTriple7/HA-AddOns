@@ -19,8 +19,8 @@ Nach dem Start erreichbar unter: **`https://<HA-IP>:7443`**
 
 | Option | Standard | Beschreibung |
 |--------|----------|--------------|
-| `PUID` | `1000` | User-ID für Dateiberechtigungen |
-| `PGID` | `1000` | Group-ID für Dateiberechtigungen |
+| `PUID` | `1000` | `uid=` der SMB-Einhängungen — **nicht** der Benutzer, unter dem Nextcloud läuft |
+| `PGID` | `1000` | `gid=` der SMB-Einhängungen |
 | `TZ` | `Europe/Berlin` | Zeitzone |
 | `trusted_domains` | — | Zusätzliche Domains/IPs (kommagetrennt, z.B. `192.168.1.100,meinserver.de`) |
 | `trusted_proxies` | `172.30.32.0/23` | IP/Subnetz des Reverse-Proxys, kommagetrennt (z.B. NPMplus, NGINX Proxy Manager) |
@@ -107,8 +107,8 @@ After startup, available at: **`https://<HA-IP>:7443`**
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `PUID` | `1000` | User ID for file permissions |
-| `PGID` | `1000` | Group ID for file permissions |
+| `PUID` | `1000` | `uid=` of the SMB mounts — **not** the user Nextcloud runs as |
+| `PGID` | `1000` | `gid=` of the SMB mounts |
 | `TZ` | `Europe/Berlin` | Timezone |
 | `trusted_domains` | — | Additional domains/IPs (comma-separated, e.g. `192.168.1.100,myserver.de`) |
 | `trusted_proxies` | `172.30.32.0/23` | IP/subnet of the reverse proxy, comma-separated (e.g. NPMplus, NGINX Proxy Manager) |

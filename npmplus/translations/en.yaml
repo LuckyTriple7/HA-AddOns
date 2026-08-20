@@ -43,7 +43,7 @@ configuration:
     description: From which level nginx writes to the error log. "warn" is the sensible default; "info" logs every worker change and floods both the log view and the disk.
   share_logs:
     name: Mirror logs to /share
-    description: Stores the logs under /share/npmplus/logs so other add-ons (e.g. CrowdSec) can read them via file acquisition.
+    description: Stores the logs under /share/npmplus/logs so they can be read over Samba.
   log_to_stdout:
     name: Logs to add-on log
     description: Also mirrors the access log to the container output. Required if CrowdSec reads the logs through journald.
@@ -61,7 +61,7 @@ configuration:
     description: Fetches the Cloudflare IP ranges and trusts their X-Forwarded-For header. Only enable if Cloudflare really sits in front.
   crowdsec_enabled:
     name: Enable CrowdSec bouncer
-    description: Enables the nginx bouncer. Blocks requests from IPs banned by your CrowdSec instance.
+    description: Enables the nginx bouncer. Blocks requests from IPs banned by your CrowdSec instance. Requires your own running CrowdSec engine (e.g. the official CrowdSec add-on) - without one this option does nothing.
   crowdsec_lapi_url:
     name: CrowdSec LAPI URL
     description: Address of the local CrowdSec API, e.g. http://127.0.0.1:8080.

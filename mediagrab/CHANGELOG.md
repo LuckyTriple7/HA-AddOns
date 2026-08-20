@@ -1,5 +1,11 @@
 # Changelog — MediaGrab
 
+## [1.1.9] — 2026-08-20
+
+### Geändert
+- Rebuild für yt-dlp 2026.08.19
+
+
 ## [1.1.8] - 2026-08-17
 
 - Doku: `org.opencontainers.image.licenses` im Dockerfile stand auf MIT, obwohl das Image ffmpeg und mutagen unter GPL enthält — korrigiert

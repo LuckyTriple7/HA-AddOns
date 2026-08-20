@@ -88,6 +88,9 @@ GP_SETTINGS_PATH = _DATA + '/gitpulse_settings.json'
 LOCALES_PATH   = _BASE + '/locales'
 
 GITHUB_API    = 'https://api.github.com'
+# Öffentliche Statuspage von GitHub — ohne Token, zählt nicht aufs Rate-Limit
+GITHUB_STATUS_API = 'https://www.githubstatus.com/api/v2/summary.json'
+GITHUB_STATUS_INTERVAL = 60  # seconds
 POLL_INTERVAL_DEFAULT = 300  # seconds
 
 # ── State ─────────────────────────────────────────────────────────────────────
@@ -112,6 +115,7 @@ _gh_cache: dict = {
     'last_poll':   0,
     'error':       None,
     'rate_limit':  {'remaining': 5000, 'limit': 5000, 'reset': 0},
+    'github_status': None,
 }
 _gh_lock = threading.Lock()
 
@@ -1490,6 +1494,102 @@ def _send_daily_digest(cfg: dict, tg_token: str, tg_chat: str,
 
 
 # ── Poll worker ───────────────────────────────────────────────────────────────
+
+# ── GitHub-Statuspage ─────────────────────────────────────────────────────────
+# Wenn GitHub selbst hustet, sehen Fehler in GitPulse wie eigene Fehler aus.
+# Die öffentliche Statuspage braucht keinen Token und zählt nicht aufs Rate-Limit.
+
+_STATUS_SKIP_COMPONENT = 'githubstatus.com'   # reine Hinweiszeile, keine Komponente
+
+
+def _fetch_github_status() -> dict:
+    """Aktuellen Zustand der GitHub-Statuspage holen."""
+    try:
+        r = http.get(GITHUB_STATUS_API, timeout=10,
+                     headers={'User-Agent': 'GitPulse-HA-AddOn/1.0',
+                              'Accept': 'application/json'})
+        if r.status_code != 200:
+            log.warning("GitHub-Statuspage → HTTP %d", r.status_code)
+            return {'ok': False, 'fetched': int(time.time())}
+        d  = r.json()
+        st = d.get('status') or {}
+        components = [
+            {'name': c.get('name', ''), 'status': c.get('status', '')}
+            for c in (d.get('components') or [])
+            if not c.get('group') and _STATUS_SKIP_COMPONENT not in (c.get('name') or '')
+        ]
+        incidents = [{
+            'name':    i.get('name', ''),
+            'status':  i.get('status', ''),
+            'impact':  i.get('impact', ''),
+            'url':     i.get('shortlink', ''),
+            'updated': i.get('updated_at', ''),
+            'body':    ((i.get('incident_updates') or [{}])[0].get('body') or '')[:400],
+        } for i in (d.get('incidents') or [])]
+        maintenances = [{
+            'name':      m.get('name', ''),
+            'status':    m.get('status', ''),
+            'url':       m.get('shortlink', ''),
+            'scheduled': m.get('scheduled_for', ''),
+        } for m in (d.get('scheduled_maintenances') or [])
+            if m.get('status') in ('scheduled', 'in_progress', 'verifying')]
+        return {
+            'ok':           True,
+            'indicator':    st.get('indicator', 'none'),
+            'description':  st.get('description', ''),
+            'components':   components,
+            'degraded':     [c for c in components if c['status'] != 'operational'],
+            'incidents':    incidents,
+            'maintenances': maintenances,
+            'updated':      (d.get('page') or {}).get('updated_at', ''),
+            'fetched':      int(time.time()),
+        }
+    except Exception as e:
+        log.error("GitHub-Statuspage nicht erreichbar: %s", e)
+        return {'ok': False, 'fetched': int(time.time())}
+
+
+def _status_signature(data: dict) -> str:
+    """Kennung des Zustands — nur bei echter Änderung neu rendern lassen."""
+    return '{}|{}|{}|{}'.format(
+        data.get('ok'), data.get('indicator'),
+        len(data.get('incidents') or []),
+        ','.join(sorted(c['name'] + ':' + c['status'] for c in (data.get('degraded') or []))),
+    )
+
+
+def _status_worker() -> None:
+    log.info("GitHub-Status-Poller gestartet (alle %ds)", GITHUB_STATUS_INTERVAL)
+    last_sig = None
+    while True:
+        data = _fetch_github_status()
+        sig  = _status_signature(data)
+        with _gh_lock:
+            _gh_cache['github_status'] = data
+        if sig != last_sig:
+            if data.get('ok') and data.get('indicator') != 'none':
+                log.warning("GitHub-Status: %s (%s)", data.get('description'),
+                            ', '.join(c['name'] for c in data.get('degraded', [])) or 'ohne Komponente')
+            elif last_sig is not None and data.get('ok'):
+                log.info("GitHub-Status: %s", data.get('description'))
+            last_sig = sig
+            _notify_sse()
+        time.sleep(GITHUB_STATUS_INTERVAL)
+
+
+@app.route('/api/github-status')
+def api_github_status():
+    redir = _auth_required(request)
+    if redir:
+        return jsonify({'error': 'unauthorized'}), 401
+    with _gh_lock:
+        cached = _gh_cache.get('github_status')
+    if not cached or time.time() - cached.get('fetched', 0) > 30:
+        cached = _fetch_github_status()
+        with _gh_lock:
+            _gh_cache['github_status'] = cached
+    return jsonify(cached)
+
 
 def _poll_worker() -> None:
     log.info("GitHub-Poller gestartet")
@@ -3465,10 +3565,14 @@ def events():
         with _sse_lock:
             _sse_queues.append(q)
         try:
+            # retry: sagt dem Browser, wie lange er vor einem eigenen
+            # Neuaufbau warten soll. Ping alle 15 s, damit Proxys die
+            # Verbindung nicht als tot ansehen (Ingress, NPMplus & Co.).
+            yield 'retry: 3000\n\n'
             yield 'data: connected\n\n'
             while True:
                 try:
-                    q.get(timeout=30)
+                    q.get(timeout=15)
                     yield 'data: update\n\n'
                 except queue.Empty:
                     yield ': ping\n\n'
@@ -3859,6 +3963,306 @@ def api_addon_manager_revert():
         return jsonify({'error': 'internal error'}), 500
 
 
+# ── Release-Manager ───────────────────────────────────────────────────────────
+# Custom Integrations (HACS) brauchen für jede Version ein GitHub-Release mit Tag.
+# Add-ons brauchen das nicht — dort reicht der Commit aus dem Add-on-Manager.
+
+_MANIFEST_PATH_RE = re.compile(r'^custom_components/[A-Za-z0-9_][A-Za-z0-9_\-]*/manifest\.json$')
+_VERSION_RE       = re.compile(r'^\d+(\.\d+){0,3}([.\-+][0-9A-Za-z.\-]+)?$')
+_TAG_RE           = re.compile(r'^[A-Za-z0-9][A-Za-z0-9._\-+]{0,99}$')
+
+
+def _gh_commit_files(owner: str, repo: str, branch: str, files: list[tuple[str, str]],
+                     message: str, token: str) -> tuple[str | None, str | None]:
+    """Mehrere Dateien in einem Commit über die Git-Trees-API. → (commit_sha, fehler)."""
+    ref_r = http.get(f'{GITHUB_API}/repos/{owner}/{repo}/git/ref/heads/{branch}',
+                     headers=_gh_headers(token), timeout=15)
+    if ref_r.status_code != 200:
+        return None, 'branch_not_found'
+    head_sha = ref_r.json()['object']['sha']
+    commit_r = http.get(f'{GITHUB_API}/repos/{owner}/{repo}/git/commits/{head_sha}',
+                        headers=_gh_headers(token), timeout=15)
+    if commit_r.status_code != 200:
+        return None, 'commit_lookup_failed'
+    base_tree_sha = commit_r.json()['tree']['sha']
+    tree_r = http.post(
+        f'{GITHUB_API}/repos/{owner}/{repo}/git/trees',
+        headers=_gh_headers(token),
+        json={'base_tree': base_tree_sha, 'tree': [
+            {'path': path, 'mode': '100644', 'type': 'blob', 'content': content}
+            for path, content in files
+        ]}, timeout=15
+    )
+    if tree_r.status_code != 201:
+        return None, 'tree_failed'
+    commit_r2 = http.post(
+        f'{GITHUB_API}/repos/{owner}/{repo}/git/commits',
+        headers=_gh_headers(token),
+        json={'message': message, 'tree': tree_r.json()['sha'], 'parents': [head_sha]},
+        timeout=15
+    )
+    if commit_r2.status_code != 201:
+        return None, 'commit_failed'
+    new_sha = commit_r2.json()['sha']
+    upd_r = http.patch(
+        f'{GITHUB_API}/repos/{owner}/{repo}/git/refs/heads/{branch}',
+        headers=_gh_headers(token), json={'sha': new_sha}, timeout=15
+    )
+    if upd_r.status_code not in (200, 201):
+        return None, 'ref_update_failed'
+    return new_sha, None
+
+
+def _find_integration_manifest(owner: str, repo: str, token: str, branch: str) -> dict | None:
+    """Sucht custom_components/<domain>/manifest.json und liest Domain + Version."""
+    try:
+        r = http.get(f'{GITHUB_API}/repos/{owner}/{repo}/contents/custom_components',
+                     headers=_gh_headers(token), params={'ref': branch}, timeout=15)
+        if r.status_code != 200:
+            return None
+        entries = r.json()
+        if not isinstance(entries, list):
+            return None
+        for entry in sorted((e for e in entries if e.get('type') == 'dir'),
+                            key=lambda e: e.get('name', '')):
+            path = f"custom_components/{entry['name']}/manifest.json"
+            mf = _gh_get_file_content(owner, repo, path, token, branch)
+            if not mf:
+                continue
+            try:
+                data = json.loads(base64.b64decode(mf['content']).decode('utf-8'))
+            except Exception:
+                continue
+            version = str(data.get('version', '')).strip()
+            return {
+                'path':         path,
+                'domain':       data.get('domain') or entry['name'],
+                'name':         data.get('name') or entry['name'],
+                'version':      version,
+                'next_version': _next_version_manual(version) if version else '',
+            }
+    except Exception:
+        log.exception("release: manifest.json konnte nicht gelesen werden")
+    return None
+
+
+def _changelog_section(text: str, version: str) -> str:
+    """Abschnitt `## [version] …` bis zur nächsten `## `-Überschrift."""
+    if not text or not version:
+        return ''
+    lines = text.split('\n')
+    start = None
+    for i, line in enumerate(lines):
+        if line.startswith('## ') and version in line:
+            start = i + 1
+            break
+    if start is None:
+        return ''
+    out = []
+    for line in lines[start:]:
+        if line.startswith('## '):
+            break
+        out.append(line)
+    return '\n'.join(out).strip()
+
+
+@app.route('/api/release/prepare')
+def api_release_prepare():
+    redir = _auth_required(request)
+    if redir:
+        return jsonify({'error': 'unauthorized'}), 401
+    token = load_config().get('github_token', '').strip()
+    if not token:
+        return jsonify({'error': 'no_token'}), 400
+    repo_full = request.args.get('repo', '').strip()
+    if not repo_full or '/' not in repo_full:
+        return jsonify({'error': 'invalid_repo'}), 400
+    owner, repo = repo_full.split('/', 1)
+    try:
+        meta = _gh_get(f'/repos/{repo_full}', token) or {}
+        default_branch = meta.get('default_branch', 'main')
+        branch = request.args.get('branch', '').strip() or default_branch
+        branches = [b['name'] for b in (_gh_get_paginated(f'/repos/{repo_full}/branches',
+                                                          token, max_pages=2) or [])]
+        if branch not in branches:
+            branch = default_branch
+        releases = _gh_get(f'/repos/{repo_full}/releases', token, {'per_page': 20}) or []
+        tags = [r.get('tag_name', '') for r in releases if r.get('tag_name')]
+        latest = None
+        for rel in releases:
+            if rel.get('draft'):
+                continue
+            latest = {
+                'tag':        rel.get('tag_name', ''),
+                'name':       rel.get('name') or rel.get('tag_name', ''),
+                'url':        rel.get('html_url', ''),
+                'date':       rel.get('published_at') or rel.get('created_at'),
+                'prerelease': rel.get('prerelease', False),
+            }
+            break
+        manifest = _find_integration_manifest(owner, repo, token, branch)
+        prefix = 'v' if (latest and latest['tag'].startswith('v')) else ''
+        if manifest and manifest.get('next_version'):
+            next_version = manifest['next_version']
+        elif latest and latest['tag']:
+            next_version = _next_version_manual(latest['tag'].lstrip('vV'))
+        else:
+            next_version = '1.0.0'
+        changelog = _gh_get_file_content(owner, repo, 'CHANGELOG.md', token, branch)
+        return jsonify({
+            'repo':           repo_full,
+            'branch':         branch,
+            'default_branch': default_branch,
+            'branches':       branches,
+            'latest_release': latest,
+            'tags':           tags,
+            'manifest':       manifest,
+            'next_version':   next_version,
+            'suggested_tag':  f'{prefix}{next_version}',
+            'has_changelog':  bool(changelog),
+        })
+    except Exception:
+        log.exception("release: prepare fehlgeschlagen")
+        return jsonify({'error': 'internal error'}), 500
+
+
+@app.route('/api/release/notes', methods=['POST'])
+def api_release_notes():
+    """Release-Notes von GitHub generieren lassen (gemergte PRs seit letztem Tag)."""
+    redir = _auth_required(request)
+    if redir:
+        return jsonify({'error': 'unauthorized'}), 401
+    token = load_config().get('github_token', '').strip()
+    if not token:
+        return jsonify({'error': 'no_token'}), 400
+    body      = request.get_json(silent=True) or {}
+    repo_full = body.get('repo', '').strip()
+    tag       = body.get('tag', '').strip()
+    target    = body.get('target', '').strip()
+    prev_tag  = body.get('previous_tag', '').strip()
+    if not repo_full or '/' not in repo_full or not tag:
+        return jsonify({'error': 'missing_fields'}), 400
+    if not _TAG_RE.fullmatch(tag):
+        return jsonify({'error': 'invalid_tag'}), 400
+    payload = {'tag_name': tag}
+    if target:
+        payload['target_commitish'] = target
+    if prev_tag and _TAG_RE.fullmatch(prev_tag):
+        payload['previous_tag_name'] = prev_tag
+    try:
+        r = http.post(f'{GITHUB_API}/repos/{repo_full}/releases/generate-notes',
+                      headers=_gh_headers(token), json=payload, timeout=20)
+        if r.status_code != 200:
+            return jsonify({'error': r.json().get('message', f'HTTP {r.status_code}')}), r.status_code
+        data = r.json()
+        return jsonify({'name': data.get('name', ''), 'body': data.get('body', '')})
+    except Exception:
+        log.exception("release: generate-notes fehlgeschlagen")
+        return jsonify({'error': 'internal error'}), 500
+
+
+@app.route('/api/release/create', methods=['POST'])
+def api_release_create():
+    """Optional Version in manifest.json + CHANGELOG.md bumpen, danach Release anlegen."""
+    redir = _auth_required(request)
+    if redir:
+        return jsonify({'error': 'unauthorized'}), 401
+    token = load_config().get('github_token', '').strip()
+    if not token:
+        return jsonify({'error': 'no_token'}), 400
+    body       = request.get_json(silent=True) or {}
+    repo_full  = body.get('repo', '').strip()
+    branch     = body.get('branch', '').strip()
+    tag        = body.get('tag', '').strip()
+    rel_name   = body.get('name', '').strip()
+    notes      = body.get('body', '').strip()
+    draft      = bool(body.get('draft'))
+    prerelease = bool(body.get('prerelease'))
+    do_bump    = bool(body.get('bump_manifest'))
+    do_changelog  = bool(body.get('update_changelog'))
+    manifest_path = body.get('manifest_path', '').strip()
+    new_version   = body.get('new_version', '').strip()
+
+    if not repo_full or '/' not in repo_full or not branch or not tag:
+        return jsonify({'error': 'missing_fields'}), 400
+    if not _TAG_RE.fullmatch(tag):
+        return jsonify({'error': 'invalid_tag'}), 400
+    if not re.fullmatch(r'[A-Za-z0-9._/\-]{1,255}', branch) or '..' in branch:
+        return jsonify({'error': 'invalid_branch'}), 400
+    if (do_bump or do_changelog) and not _VERSION_RE.fullmatch(new_version):
+        return jsonify({'error': 'invalid_version'}), 400
+    if do_bump and not _MANIFEST_PATH_RE.fullmatch(manifest_path):
+        return jsonify({'error': 'invalid_manifest_path'}), 400
+    if do_changelog and not notes:
+        return jsonify({'error': 'missing_changelog'}), 400
+
+    owner, repo = repo_full.split('/', 1)
+    commit_sha  = None
+    try:
+        # 1) Version + Changelog committen
+        if do_bump or do_changelog:
+            files = []
+            if do_bump:
+                mf = _gh_get_file_content(owner, repo, manifest_path, token, branch)
+                if not mf:
+                    return jsonify({'error': 'manifest_not_found'}), 404
+                mf_text = base64.b64decode(mf['content']).decode('utf-8')
+                new_text, hits = re.subn(r'("version"\s*:\s*")[^"]*(")',
+                                         lambda m: m.group(1) + new_version + m.group(2),
+                                         mf_text, count=1)
+                if not hits:
+                    return jsonify({'error': 'manifest_version_not_found'}), 400
+                files.append((manifest_path, new_text))
+            if do_changelog:
+                clf = _gh_get_file_content(owner, repo, 'CHANGELOG.md', token, branch)
+                cl_text = base64.b64decode(clf['content']).decode('utf-8') if clf else '# Changelog\n'
+                date_str = datetime.now(timezone.utc).strftime('%Y-%m-%d')
+                entry = f'\n## [{new_version}] - {date_str}\n\n{notes}\n'
+                lines = cl_text.split('\n')
+                lines.insert(1, entry)
+                files.append(('CHANGELOG.md', '\n'.join(lines)))
+            commit_sha, err = _gh_commit_files(
+                owner, repo, branch, files, f'chore: release v{new_version}', token)
+            if err:
+                log.warning("release: Commit fehlgeschlagen (%s)", err)
+                return jsonify({'error': err}), 502
+
+        # 2) Release anlegen — Tag entsteht dabei auf dem frischen Commit
+        payload = {
+            'tag_name':         tag,
+            'target_commitish': commit_sha or branch,
+            'name':             rel_name or tag,
+            'body':             notes,
+            'draft':            draft,
+            'prerelease':       prerelease,
+            'make_latest':      'false' if prerelease else 'true',
+        }
+        r = http.post(f'{GITHUB_API}/repos/{repo_full}/releases',
+                      headers=_gh_headers(token), json=payload, timeout=20)
+        if r.status_code != 201:
+            msg = r.json().get('message', f'HTTP {r.status_code}')
+            errs = r.json().get('errors') or []
+            if errs:
+                msg += ' — ' + '; '.join(str(e.get('code', '')) for e in errs if isinstance(e, dict))
+            log.warning("release: Anlegen fehlgeschlagen: %s", msg)
+            return jsonify({'error': msg, 'commit_sha': (commit_sha or '')[:7]}), 502
+        data = r.json()
+        log.info("release: %s %s angelegt (draft=%s, pre=%s)", repo_full, tag, draft, prerelease)
+        _no_release_repos.pop(repo_full, None)
+        threading.Thread(target=_trigger_repo_poll, args=(repo_full,), daemon=True).start()
+        return jsonify({
+            'status':      'created',
+            'tag':         data.get('tag_name', tag),
+            'url':         data.get('html_url', ''),
+            'draft':       data.get('draft', draft),
+            'commit_sha':  (commit_sha or '')[:7],
+            'commit_url':  f'https://github.com/{owner}/{repo}/commit/{commit_sha}' if commit_sha else '',
+        })
+    except Exception:
+        log.exception("release: Anlegen fehlgeschlagen")
+        return jsonify({'error': 'internal error', 'commit_sha': (commit_sha or '')[:7]}), 500
+
+
 # ── Startup ───────────────────────────────────────────────────────────────────
 
 if __name__ == '__main__':
@@ -3885,6 +4289,10 @@ if __name__ == '__main__':
     # Poller-Thread
     t = threading.Thread(target=_poll_worker, daemon=True)
     t.start()
+
+    # Statuspage-Poller — läuft auch ohne Token
+    ts = threading.Thread(target=_status_worker, daemon=True)
+    ts.start()
 
     # Webhook-Server auf Port 17793 — nur wenn Secret konfiguriert
     if cfg.get('webhook_secret', '').strip():

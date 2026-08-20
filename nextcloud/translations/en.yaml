@@ -1,10 +1,15 @@
 configuration:
   PUID:
-    name: User ID (PUID)
-    description: Linux user ID Nextcloud runs as. Default 1000.
+    name: User ID for SMB mounts
+    description: >-
+      Used solely as uid= for the SMB mounts further down. It does NOT change the
+      user Nextcloud itself runs as — the LinuxServer.io base image uses abc (911)
+      for that, fixed.
   PGID:
-    name: Group ID (PGID)
-    description: Linux group ID Nextcloud runs as. Default 1000.
+    name: Group ID for SMB mounts
+    description: >-
+      Used solely as gid= for the SMB mounts further down. Does not change the
+      group Nextcloud runs as.
   TZ:
     name: Timezone
     description: Container timezone, e.g. Europe/Berlin.

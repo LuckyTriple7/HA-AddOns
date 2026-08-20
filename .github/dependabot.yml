@@ -32,6 +32,14 @@ updates:
     open-pull-requests-limit: 5
 
   - package-ecosystem: "pip"
+    directory: "/crowdpanel"
+    target-branch: "dev"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: "pip"
     directory: "/syswatch"
     target-branch: "dev"
     schedule:
@@ -192,6 +200,14 @@ updates:
 
   - package-ecosystem: "docker"
     directory: "/ubuntu-webtop"
+    target-branch: "dev"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 3
+
+  - package-ecosystem: "docker"
+    directory: "/crowdpanel"
     target-branch: "dev"
     schedule:
       interval: "weekly"

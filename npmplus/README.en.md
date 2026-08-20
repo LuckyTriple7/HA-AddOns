@@ -29,7 +29,7 @@ The interface certificate is self-signed — the browser warning on first access
 - **Access lists** per host and per location, multiple lists combinable
 - **GoAccess dashboard** on port 91, without its own login — bound to `127.0.0.1` by default, reached through a proxy host with an access list
 - **zstd and brotli compression**, file and PHP server with fancyindex
-- Logs to `/share/npmplus/logs` and/or the add-on log — matching both CrowdSec acquisition styles
+- Logs to the add-on log (journald, that is what CrowdSec reads) and/or to `/share/npmplus/logs` for reading over Samba
 
 ## Configuration
 
@@ -61,6 +61,7 @@ Full option list, CrowdSec setup and migration from the old NGINX Proxy Manager 
 - Forward **443/UDP** on the router as well, otherwise HTTP/3 stays unused.
 - **No Ingress**: the interface runs directly on port 81, bypassing the Home Assistant login. Set a strong admin password.
 - Architecture: amd64 (x86-64-v2 or newer) and aarch64.
+- **CrowdSec is not part of this add-on**: the bouncer ships inside NPMplus, but the engine (LAPI) has to run separately — e.g. via the [official CrowdSec add-ons](https://github.com/crowdsecurity/home-assistant-addons). Without an engine every `crowdsec_*` option does nothing.
 
 ## Changelog
 

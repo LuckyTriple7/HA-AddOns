@@ -1,10 +1,15 @@
 configuration:
   PUID:
-    name: User ID (PUID)
-    description: Linux-User-ID unter der Nextcloud läuft. Standard 1000.
+    name: User-ID für SMB-Einhängungen
+    description: >-
+      Wird ausschließlich als uid= für die SMB-Einhängungen weiter unten benutzt.
+      Der Benutzer, unter dem Nextcloud selbst läuft, lässt sich damit NICHT
+      ändern — das Basisimage von LinuxServer.io verwendet dafür fest abc (911).
   PGID:
-    name: Group ID (PGID)
-    description: Linux-Group-ID unter der Nextcloud läuft. Standard 1000.
+    name: Group-ID für SMB-Einhängungen
+    description: >-
+      Wird ausschließlich als gid= für die SMB-Einhängungen weiter unten benutzt.
+      Ändert nicht die Gruppe, unter der Nextcloud läuft.
   TZ:
     name: Zeitzone
     description: Zeitzone des Containers, z.B. Europe/Berlin.

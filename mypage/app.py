@@ -9583,6 +9583,18 @@ def _abs_url(u: str) -> str:
     return _base_url() + ('' if u.startswith('/') else '/') + u
 
 
+# ── Öffentliche Vorlagen im Admin ─────────────────────────────────────────────
+# Die Vorschau-Routen (/preview/blog, /preview/page, …) rendern dieselben
+# Vorlagen wie die öffentliche Seite. Filter und Kontext hängen aber an
+# `public_app`; die eigene Jinja-Umgebung von `admin_app` kennt sie nicht. Ohne
+# diese Übernahme bricht jede Vorschau mit „no filter named 'abs_url'" ab
+# (Fehler 500), und die gewählte Schrift fehlt, weil `font_family` leer bleibt.
+admin_app.jinja_env.filters['abs_url'] = _abs_url
+admin_app.context_processor(_inject_font)
+admin_app.context_processor(_inject_banner)
+admin_app.context_processor(_inject_seo)
+
+
 def _public_url_list(site: dict, base: str) -> list:
     """Alle öffentlich indexierbaren URLs (Startseite, Projekte, Blog, Bibliothek).
 

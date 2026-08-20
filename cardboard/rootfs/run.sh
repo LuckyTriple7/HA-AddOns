@@ -26,9 +26,9 @@ else
     echo "[WARN] [$(date '+%Y-%m-%d %H:%M:%S')] SUPERVISOR_TOKEN nicht verfügbar — läuft 'homeassistant_api: true' und das Add-on im Supervisor?"
 fi
 
-mkdir -p /config/addons_config/cardboard
+mkdir -p /homeassistant/addons_config/cardboard
 
-USERS_FILE=/config/addons_config/cardboard/users.yaml
+USERS_FILE=/homeassistant/addons_config/cardboard/users.yaml
 if [ ! -f "$USERS_FILE" ]; then
     echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Keine users.yaml gefunden — Demo-Konfiguration wird angelegt ..."
     cat > "$USERS_FILE" <<'YAML'
@@ -55,7 +55,7 @@ YAML
     echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] users.yaml angelegt unter ${USERS_FILE}"
 fi
 
-DEMO_DIR=/config/addons_config/cardboard/demo
+DEMO_DIR=/homeassistant/addons_config/cardboard/demo
 if [ ! -d "$DEMO_DIR" ]; then
     echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Demo-Templates werden angelegt ..."
     mkdir -p "$DEMO_DIR"

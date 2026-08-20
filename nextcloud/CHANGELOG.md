@@ -1,5 +1,19 @@
 # Changelog — Nextcloud
 
+## [1.0.29] - 2026-08-19
+
+- Doku: Die Optionen `PUID` und `PGID` versprachen, den Benutzer festzulegen,
+  unter dem Nextcloud läuft. Das tun sie nicht — sie landen ausschließlich als
+  `uid=` und `gid=` in den Optionen der SMB-Einhängungen
+  ([rootfs/etc/cont-init.d/30-ha-init.sh](rootfs/etc/cont-init.d/30-ha-init.sh)).
+  Nextcloud selbst läuft weiterhin als `abc` mit UID 911, der Vorgabe des
+  LinuxServer.io-Basisimages. Aufgefallen ist das, weil ein Verzeichnis mit
+  `chown 1000:1000` für Nextcloud unbeschreibbar blieb.
+- Verhalten unverändert: Ein tatsächliches Durchreichen von `PUID` würde beim
+  nächsten Start das komplette `/config` umchownen — also alle Nutzerdaten. Das
+  Risiko steht in keinem Verhältnis zum Nutzen, deshalb bleibt es bei 911. Wer
+  Eigentümerrechte von Dateien prüft, nimmt `abc` als Namen statt der Nummer.
+
 ## [1.0.28] - 2026-08-17
 
 - Doku: Nextcloud steht unter der AGPL-3.0 und der LinuxServer.io-Imagebau unter der GPL-3.0, das Add-on gab bisher keine Lizenz an. Neue `LICENSE.md` nennt die Bestandteile, ihre Lizenzen und Bezugsquellen, beschreibt die Änderungen gegenüber dem Basisimage und grenzt die eigenen MIT-Dateien ab

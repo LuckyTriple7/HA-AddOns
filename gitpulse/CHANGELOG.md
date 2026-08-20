@@ -1,5 +1,69 @@
 # Changelog
 
+## [0.4.15] - 2026-08-20
+
+### Added
+- **GitHub-Status im Header.** Ein Badge zeigt den Zustand von GitHub selbst:
+  grün „GitHub OK", gelb bei Beeinträchtigung, rot bei Störung oder Ausfall.
+  Klick öffnet die Details — laufende Vorfälle samt Kurzbeschreibung und Link,
+  geplante Wartungen und der Zustand jeder Komponente (Git Operations, API
+  Requests, Actions, Webhooks, Pages …). Damit ist sofort klar, ob ein Fehler
+  am Add-on liegt oder an GitHub, statt ihn erst zu suchen.
+- Quelle ist die öffentliche Statuspage
+  (`https://www.githubstatus.com/api/v2/summary.json`): kein Token nötig, zählt
+  nicht aufs Rate-Limit. Ein eigener Poller fragt sie alle 60 s ab — auch ohne
+  konfiguriertes Token — und meldet Änderungen sofort an die Oberfläche.
+  Störungen und Entwarnungen landen zusätzlich im Console-Log. Ist die
+  Statuspage selbst nicht erreichbar, zeigt das Badge „GitHub ?".
+
+
+## [0.4.14] - 2026-08-20
+
+### Fixed
+- Das rote Banner „Verbindung unterbrochen" erschien vor allem in Firefox
+  (Webtop, hinter dem Ingress-Proxy) schon bei jedem einzelnen Abbruch der
+  SSE-Dauerverbindung — auch wenn der Neuaufbau eine Sekunde später klappte.
+  Es meldet sich jetzt erst, wenn drei Verbindungsversuche in Folge scheitern,
+  und verschwindet wieder von allein, sobald die Verbindung steht.
+
+### Changed
+- SSE-Neuaufbau mit Backoff (1 s, 2 s, 4 s … max. 30 s) statt starr alle 5 s.
+  Beim Wiederverbinden werden die verpassten Daten einmal nachgeladen; kehrt
+  der Tab in den Vordergrund zurück oder meldet der Browser wieder Netz, wird
+  sofort neu verbunden statt auf den Backoff zu warten.
+- Solange die Verbindung wirklich weg ist, holt ein Poll im Minutentakt die
+  Daten — die Oberfläche steht damit nicht mehr still.
+- Server-seitig Ping alle 15 s statt 30 s und ein `retry:`-Hinweis an den
+  Browser, damit Proxys die Verbindung nicht als tot einstufen.
+
+
+## [0.4.13] - 2026-08-20
+
+### Fixed
+- Die Repo-Auswahl über der Release-Liste sprang bei jedem Neu-Laden der Daten
+  (Poll oder Webhook-Ereignis) zurück auf den ersten Eintrag. Die Karte wird
+  komplett neu gebaut, die getroffene Auswahl war danach weg. Sie wird jetzt
+  gemerkt und beim Neu-Rendern wiederhergestellt.
+
+
+## [0.4.12] - 2026-08-20
+
+### Added
+- **Releases anlegen** im Reiter „Releases". Custom Integrations (HACS) brauchen
+  für jede Version ein GitHub-Release mit Tag — bisher ging das nur direkt auf
+  GitHub. Jedes eigene Repo hat jetzt einen `Release`-Knopf (plus Repo-Auswahl
+  über der Liste). Der Dialog setzt auf Wunsch die Version in
+  `custom_components/<domain>/manifest.json`, schreibt einen CHANGELOG-Eintrag
+  und legt beides in **einem** Commit an; das Release entsteht danach direkt auf
+  diesem Commit. Tag und Titel ziehen automatisch mit der Version mit
+  (`v`-Präfix, falls das letzte Release eines hatte), doppelte Tags werden
+  vorher gemeldet. `Auto-Notes` holt die von GitHub generierten Release-Notes.
+  Entwurf und Pre-Release sind wählbar; bei Pre-Release wird das Release nicht
+  als „latest" markiert.
+- Eigene Repos **ohne** Release stehen jetzt ebenfalls in der Liste (Hinweis
+  „noch kein Release") — genau dort fehlt das erste ja noch.
+
+
 ## [0.4.11] - 2026-08-17
 
 ### Added

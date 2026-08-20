@@ -1,0 +1,75 @@
+configuration:
+  username:
+    name: Username
+    description: Username for signing in on the direct port. Through the Home Assistant sidebar no sign-in is asked for.
+  password:
+    name: Password
+    description: Password for signing in on the direct port. Change it — the default changeme123 is public knowledge.
+  session_hours:
+    name: Session length (hours)
+    description: How long a sign-in stays valid before it has to be repeated.
+  lapi_url:
+    name: CrowdSec LAPI address
+    description: >-
+      Address of the CrowdSec Local API, for example http://172.30.33.22:8080.
+      127.0.0.1 only works if CrowdSec publishes its ports on the host —
+      otherwise use the container address.
+  machine_id:
+    name: Machine name
+    description: >-
+      Name of the machine account CrowdPanel uses. Create it with
+      cscli -c <config file> machines add crowdpanel --password <secret>.
+  machine_password:
+    name: Machine password
+    description: Password of the machine account. CrowdPanel uses it to read decisions and to add or lift them.
+  lapi_tls_verify:
+    name: Verify TLS certificate
+    description: Only turn this off for an https address with a self-signed certificate.
+  default_ban_duration:
+    name: Default ban duration
+    description: Preselected duration in the new-ban form, for example 4h, 24h or 168h.
+  refresh_interval:
+    name: Refresh interval (seconds)
+    description: How often the panel reloads on its own. 0 turns automatic refreshing off.
+  page_size:
+    name: Rows per view
+    description: >-
+      How many rows the tables show at most. The full count is shown next to it —
+      with more hits, a narrower filter helps.
+  whitelist_dir:
+    name: Whitelist parser directory
+    description: >-
+      Only needed when the whitelist files are not found. Leave empty and
+      CrowdPanel looks under
+      /homeassistant/.storage/crowdsec/config/parsers/s02-enrich itself. Read
+      only, never written to.
+  ha_sensors:
+    name: Report sensors to Home Assistant
+    description: >-
+      Reports active decisions, the locally detected ones, and the detections of
+      the last 24 hours as sensors. Useful for automations and dashboard cards.
+  ha_sensor_interval:
+    name: Sensor interval (seconds)
+    description: >-
+      How often the sensors are updated. Every update queries the LAPI — with
+      many decisions a larger value is worth it.
+  crowdsec_dir:
+    name: CrowdSec configuration directory
+    description: >-
+      Only needed when auto-detection fails. Leave empty and CrowdPanel looks
+      under /homeassistant/.storage/crowdsec/config itself. Read only; it feeds
+      the hub and whitelist views.
+  crowdsec_db:
+    name: CrowdSec database
+    description: >-
+      Only needed when auto-detection fails. Leave empty and CrowdPanel looks
+      for data/crowdsec.db next to the configuration directory. Opened read-only;
+      it feeds the bouncer overview.
+  history_days:
+    name: History (days)
+    description: How many days the history in the overview covers.
+  verbose_log:
+    name: Verbose log
+    description: Writes extra lines to the add-on log. For troubleshooting only.
+network:
+  17797/tcp: CrowdPanel Web-UI (direct, sign-in required)
