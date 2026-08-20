@@ -378,8 +378,8 @@ docker exec $CS cscli -c $CFG hub upgrade
 
 ## Sensoren in Home Assistant
 
-Ist `ha_sensors` an (Vorgabe), meldet CrowdPanel drei Sensoren und einen
-Binärsensor an Home Assistant:
+Ist `ha_sensors` an (Vorgabe), meldet CrowdPanel folgende Entitäten an Home
+Assistant:
 
 | Entität | Bedeutung |
 |---|---|
@@ -387,6 +387,24 @@ Binärsensor an Home Assistant:
 | `sensor.crowdpanel_decisions_local` | nur die aus Herkunft `crowdsec` und `cscli` — was diese Instanz selbst erkannt oder was du von Hand angelegt hast |
 | `sensor.crowdpanel_alerts_24h` | Erkennungen der letzten 24 Stunden, ohne Blocklisten-Aktualisierungen |
 | `binary_sensor.crowdpanel_lapi` | ob die LAPI erreichbar ist |
+| `sensor.crowdpanel_bouncers` | Anzahl der echten Bouncer (ohne abgeleitete Kindeinträge, ohne zurückgezogene) |
+| `sensor.crowdpanel_bouncers_stale` | wie viele davon gerade nicht mehr abholen; Attribut `bouncers` nennt sie namentlich |
+| `sensor.crowdpanel_bouncer_<name>` | je Bouncer einer, Zustand ist der Zeitpunkt des letzten Abrufs (`device_class: timestamp`) |
+
+Die Bouncer-Sensoren beantworten die Frage, ob die Sperren überhaupt noch
+durchgesetzt werden. Holt ein Bouncer länger als 10 Minuten nichts mehr ab, gilt
+er als still gefallen: `stale` im Attribut wird `true`, und er zählt in
+`sensor.crowdpanel_bouncers_stale` mit. Ein Bouncer ohne Abruf meldet nichts —
+ohne Sensor fällt genau das niemandem auf. Der Entitätsname entsteht aus dem
+Bouncer-Namen, `firewall-bouncer` wird also zu
+`sensor.crowdpanel_bouncer_firewall_bouncer`. Abgeleitete Kindeinträge
+(`derived: true`) bekommen ebenfalls eine Entität, gelten aber nie als gefallen —
+bei ihnen ist ein alter Zeitstempel der Normalfall. Verschwindet ein Bouncer aus
+CrowdSec, entfernt CrowdPanel seine Entität beim nächsten Durchlauf.
+
+Weil die Bouncer aus der CrowdSec-Datenbank kommen, brauchen diese Sensoren einen
+lesbaren Pfad zu `crowdsec.db` — derselbe, den auch die Übersicht benutzt (siehe
+`crowdsec_db`). Ist keiner erreichbar, entfallen sie stillschweigend.
 
 Der interessante ist der zweite. Die Gesamtzahl schwankt mit jeder
 Blocklisten-Aktualisierung um Tausende und sagt über deine Lage nichts aus; die

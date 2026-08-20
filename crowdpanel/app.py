@@ -415,12 +415,21 @@ def detect_language(req) -> str:
 
 
 def _safe_next(raw: str) -> str:
-    """Only local paths may be redirect targets (open-redirect protection)."""
+    """Only local paths may be redirect targets (open-redirect protection).
+
+    Behind Ingress the add-on lives under a proxy prefix. A bare "/" would send
+    the browser to Home Assistant itself, which then loads a second, complete
+    Home Assistant inside the Ingress frame — so the prefix is put back on.
+    """
+    root = request.script_root or ''
     nxt = (raw or '/').replace('\\', '')
     parts = urlsplit(nxt)
     if parts.scheme or parts.netloc or not nxt.startswith('/'):
-        return '/'
-    return urlunsplit(('', '', parts.path or '/', parts.query, parts.fragment))
+        return (root + '/') if root else '/'
+    path = parts.path or '/'
+    if root and path != root and not path.startswith(root + '/'):
+        path = root + path
+    return urlunsplit(('', '', path, parts.query, parts.fragment))
 
 
 # ── Auth / CSRF ───────────────────────────────────────────────────────────────
@@ -831,11 +840,47 @@ def _db_rows(path: Path, table: str, wanted: tuple) -> list:
         con.close()
 
 
-@api('/api/bouncers')
-def bouncers():
+def _iso_utc(stamp) -> str:
+    """CrowdSec writes timestamps in a few shapes; Home Assistant wants RFC 3339
+    with a time zone. An unparsable value returns empty rather than guessing."""
+    text = str(stamp or '').strip()
+    if not text:
+        return ''
+    text = text.replace('Z', '+00:00').replace('z', '+00:00')
+    if 'T' not in text and ' ' in text:
+        text = text.replace(' ', 'T', 1)
+    try:
+        dt = datetime.fromisoformat(text)
+    except ValueError:
+        return ''
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc).isoformat()
+
+
+def _stamp_age(stamp) -> float | None:
+    """Seconds since the timestamp, or None when there is none to read."""
+    iso = _iso_utc(stamp)
+    if not iso:
+        return None
+    return (datetime.now(timezone.utc) - datetime.fromisoformat(iso)).total_seconds()
+
+
+def _entity_slug(name: str) -> str:
+    slug = re.sub(r'[^a-z0-9]+', '_', str(name or '').lower()).strip('_')
+    return slug or 'unknown'
+
+
+# Ein Bouncer, der seit dieser Zeitspanne nicht mehr abgeholt hat, setzt keine
+# Sperren mehr durch. Oberfläche und Sensoren benutzen dieselbe Grenze.
+BOUNCER_STALE_SECONDS = 600
+
+
+def _bouncer_state() -> dict:
+    """Bouncers and machines, in the shape both the UI and the sensors need."""
     path = _crowdsec_db()
     if path is None:
-        return jsonify({'available': False, 'db': '', 'bouncers': [], 'machines': []})
+        return {'available': False, 'db': '', 'bouncers': [], 'machines': []}
     rows = _db_rows(path, 'bouncers',
                     ('name', 'type', 'version', 'ip_address', 'last_pull',
                      'revoked', 'auth_type', 'created_at', 'auto_created'))
@@ -853,8 +898,24 @@ def bouncers():
     own = str(load_config().get('machine_id') or '').strip()
     for row in machines:
         row['self'] = bool(own) and row.get('machine_id') == own
-    return jsonify({'available': True, 'db': str(path),
-                    'bouncers': rows, 'machines': machines})
+    return {'available': True, 'db': str(path),
+            'bouncers': rows, 'machines': machines}
+
+
+def _bouncer_stale(row: dict) -> bool:
+    """Kindeinträge sind ausgenommen — bei ihnen ist ein alter Zeitstempel der
+    Normalfall, sie holen grundsätzlich nichts ab."""
+    if row.get('auto_created'):
+        return False
+    if row.get('revoked'):
+        return True
+    age = _stamp_age(row.get('last_pull'))
+    return age is None or age > BOUNCER_STALE_SECONDS
+
+
+@api('/api/bouncers')
+def bouncers():
+    return jsonify(_bouncer_state())
 
 
 # ── History ───────────────────────────────────────────────────────────────────
@@ -1409,6 +1470,9 @@ def _supervisor_versions() -> dict:
 # ── Home Assistant sensors ────────────────────────────────────────────────────
 
 _sensor_warned = False
+# Welche Bouncer-Entitäten zuletzt gemeldet wurden — verschwindet ein Bouncer,
+# wird seine Entität entfernt statt auf dem letzten Wert stehenzubleiben.
+_bouncer_entities: set = set()
 
 
 def ha_sensors_enabled() -> bool:
@@ -1459,6 +1523,13 @@ def push_ha_sensors() -> None:
             return False
         return True
 
+    def _drop(entity: str) -> None:
+        try:
+            http.delete(f'http://supervisor/core/api/states/{entity}',
+                        headers=headers, timeout=10)
+        except http.RequestException:
+            pass
+
     sensors = [
         ('crowdpanel_decisions', decisions, 'CrowdPanel active decisions',
          'mdi:shield-lock', 'decisions'),
@@ -1479,8 +1550,72 @@ def push_ha_sensors() -> None:
                 'attributes': {'friendly_name': 'CrowdPanel LAPI reachable',
                                'icon': 'mdi:lan-connect',
                                'device_class': 'connectivity'}})
+    total = len(sensors) + 1
+
+    # Bouncer: je einer eine eigene Entität, dazu zwei Summen. Ein Bouncer, der
+    # nicht mehr abholt, setzt keine Sperre mehr durch — ohne Sensor fällt genau
+    # das niemandem auf.
+    bstate = _bouncer_state()
+    if bstate.get('available'):
+        rows = bstate.get('bouncers') or []
+        current = set()
+        taken: dict = {}
+        for b in rows:
+            slug = _entity_slug(b.get('name'))
+            taken[slug] = taken.get(slug, 0) + 1
+            if taken[slug] > 1:
+                slug = f'{slug}_{taken[slug]}'
+            entity = f'sensor.crowdpanel_bouncer_{slug}'
+            current.add(entity)
+            is_stale = _bouncer_stale(b)
+            iso = _iso_utc(b.get('last_pull'))
+            ok += _put(entity, {
+                'state': iso or 'unknown',
+                'attributes': {
+                    'friendly_name': 'CrowdPanel bouncer ' + str(b.get('name') or slug),
+                    'icon': 'mdi:shield-off-outline' if is_stale else 'mdi:shield-check',
+                    'device_class': 'timestamp',
+                    'bouncer_name': b.get('name') or '',
+                    'bouncer_type': b.get('type') or '',
+                    'version': b.get('version') or '',
+                    'ip_address': b.get('ip_address') or '',
+                    'auth_type': b.get('auth_type') or '',
+                    'revoked': bool(b.get('revoked')),
+                    'derived': bool(b.get('auto_created')),
+                    'stale': is_stale,
+                }})
+            total += 1
+        for gone in _bouncer_entities - current:
+            _drop(gone)
+        _bouncer_entities.clear()
+        _bouncer_entities.update(current)
+
+        stale_rows = [b for b in rows if _bouncer_stale(b)]
+        listed = [{'name': b.get('name') or '',
+                   'last_pull': _iso_utc(b.get('last_pull')),
+                   'revoked': bool(b.get('revoked')),
+                   'derived': bool(b.get('auto_created')),
+                   'stale': _bouncer_stale(b)} for b in rows]
+        ok += _put('sensor.crowdpanel_bouncers',
+                   {'state': sum(1 for b in rows
+                                 if not b.get('auto_created') and not b.get('revoked')),
+                    'attributes': {'friendly_name': 'CrowdPanel bouncers',
+                                   'icon': 'mdi:shield-account',
+                                   'unit_of_measurement': 'bouncers',
+                                   'state_class': 'measurement',
+                                   'bouncers': listed}})
+        ok += _put('sensor.crowdpanel_bouncers_stale',
+                   {'state': len(stale_rows),
+                    'attributes': {'friendly_name': 'CrowdPanel bouncers not pulling',
+                                   'icon': 'mdi:shield-alert',
+                                   'unit_of_measurement': 'bouncers',
+                                   'state_class': 'measurement',
+                                   'stale_seconds': BOUNCER_STALE_SECONDS,
+                                   'bouncers': [b['name'] for b in listed if b['stale']]}})
+        total += 2
+
     if ok and _verbose():
-        log.info("Home Assistant sensors updated (%d of %d)", ok, len(sensors) + 1)
+        log.info("Home Assistant sensors updated (%d of %d)", ok, total)
 
 
 def _sensor_worker() -> None:

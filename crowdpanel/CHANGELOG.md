@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.4.3] - 2026-08-20
+
+### Added
+- **Die Bouncer gibt es jetzt auch als Sensoren in Home Assistant.** Bisher stand
+  in der Übersicht, welcher Bouncer wann zuletzt abgeholt hat — sehen konnte man
+  es nur, wenn man hinschaut. Neu sind `sensor.crowdpanel_bouncer_<name>` je
+  Bouncer (Zustand ist der letzte Abruf, `device_class: timestamp`),
+  `sensor.crowdpanel_bouncers` mit der Anzahl der echten Bouncer und
+  `sensor.crowdpanel_bouncers_stale` mit denen, die seit über 10 Minuten nichts
+  mehr abholen.
+
+  Damit lässt sich das Ausbleiben eines Abrufs automatisieren: Ein Bouncer, der
+  nicht mehr abholt, setzt keine Sperre mehr durch, meldet das aber von sich aus
+  nirgends. Abgeleitete Kindeinträge bekommen eine eigene Entität, gelten aber nie
+  als gefallen. Verschwindet ein Bouncer aus CrowdSec, wird seine Entität beim
+  nächsten Durchlauf entfernt.
+
+### Fixed
+- **Der Sprachwechsel im Ingress lud Home Assistant ein zweites Mal in den Tab.**
+  Die Schaltflächen DE/EN sprangen nach dem Umstellen auf `/` — also auf die
+  Startseite von Home Assistant statt zurück ins Add-on, das hinter dem
+  Ingress-Pfad liegt. Sichtbar wurde ein komplettes zweites Home Assistant im
+  Rahmen; erst Zurück und erneut Öffnen zeigte CrowdPanel in der neuen Sprache.
+  Das Weiterleitungsziel behält den Ingress-Pfad jetzt bei.
+
 ## [0.4.2] - 2026-08-19
 
 ### Fixed

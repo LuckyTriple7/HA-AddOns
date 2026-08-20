@@ -365,8 +365,8 @@ docker exec $CS cscli -c $CFG hub upgrade
 
 ## Home Assistant sensors
 
-With `ha_sensors` on (the default), CrowdPanel reports three sensors and one binary
-sensor to Home Assistant:
+With `ha_sensors` on (the default), CrowdPanel reports these entities to Home
+Assistant:
 
 | Entity | Meaning |
 |---|---|
@@ -374,6 +374,24 @@ sensor to Home Assistant:
 | `sensor.crowdpanel_decisions_local` | only origins `crowdsec` and `cscli` — what this instance detected itself, plus what you created by hand |
 | `sensor.crowdpanel_alerts_24h` | detections of the last 24 hours, blocklist refreshes excluded |
 | `binary_sensor.crowdpanel_lapi` | whether the LAPI is reachable |
+| `sensor.crowdpanel_bouncers` | number of real bouncers (derived child entries and revoked ones excluded) |
+| `sensor.crowdpanel_bouncers_stale` | how many of them stopped pulling; the `bouncers` attribute names them |
+| `sensor.crowdpanel_bouncer_<name>` | one per bouncer, the state is the time of its last pull (`device_class: timestamp`) |
+
+The bouncer sensors answer whether the decisions are still being enforced at all.
+A bouncer that has not pulled for more than 10 minutes counts as silently gone:
+its `stale` attribute turns `true` and it is counted in
+`sensor.crowdpanel_bouncers_stale`. A bouncer that stops pulling reports nothing
+by itself — without a sensor nobody notices. The entity name comes from the
+bouncer name, so `firewall-bouncer` becomes
+`sensor.crowdpanel_bouncer_firewall_bouncer`. Derived child entries
+(`derived: true`) get an entity too, but never count as gone — for them an old
+timestamp is normal. When a bouncer disappears from CrowdSec, CrowdPanel removes
+its entity on the next round.
+
+Since the bouncers come from the CrowdSec database, these sensors need a readable
+path to `crowdsec.db` — the same one the overview uses (see `crowdsec_db`). With
+none reachable they are quietly skipped.
 
 The second one is the interesting one. The total swings by thousands with every
 blocklist refresh and says nothing about your situation; the local decisions are a
