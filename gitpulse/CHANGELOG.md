@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.4.13] - 2026-08-20
+
+### Fixed
+- Die Repo-Auswahl über der Release-Liste sprang bei jedem Neu-Laden der Daten
+  (Poll oder Webhook-Ereignis) zurück auf den ersten Eintrag. Die Karte wird
+  komplett neu gebaut, die getroffene Auswahl war danach weg. Sie wird jetzt
+  gemerkt und beim Neu-Rendern wiederhergestellt.
+
+
 ## [0.4.12] - 2026-08-20
 
 ### Added

@@ -1256,7 +1256,7 @@
   }
 
   // ── Release Modal ─────────────────────────────────────────────────
-  let _relRepo = null, _relPrep = null, _relTagAuto = '', _relNameAuto = '';
+  let _relRepo = null, _relPrep = null, _relTagAuto = '', _relNameAuto = '', _relPickRepo = '';
 
   function relErr(msg) {
     const el = document.getElementById('rel-err');
@@ -2382,6 +2382,7 @@
   function renderReleases(data) {
     const watchReleases = data.releases || [];
     const myRepos = data.my_repos || [];
+    if (!myRepos.some(r => r.repo === _relPickRepo)) _relPickRepo = (myRepos[0] || {}).repo || '';
     const el = document.getElementById('release-list');
     if (!watchReleases.length && !myRepos.length) {
       el.innerHTML = `<div class="empty"><svg viewBox="0 0 24 24"><path d="M17 12h-5v5h5v-5zM16 1v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2h-1V1h-2zm3 18H5V8h14v11z"/></svg><div>${T.no_releases}</div></div>`;
@@ -2425,8 +2426,9 @@
         <div class="card-header" style="font-size:.78rem;color:var(--muted);display:flex;align-items:center;justify-content:space-between;gap:8px">
           <span>{{ t.releases_my_repos }}</span>
           <span style="display:flex;align-items:center;gap:6px">
-            <select id="rel-repo-pick" style="background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:5px;padding:3px 6px;font-size:.75rem;max-width:200px">
-              ${myRepos.map(r => `<option value="${escHtml(r.repo)}">${escHtml(r.repo)}</option>`).join('')}
+            <select id="rel-repo-pick" onchange="_relPickRepo = this.value"
+              style="background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:5px;padding:3px 6px;font-size:.75rem;max-width:200px">
+              ${myRepos.map(r => `<option value="${escHtml(r.repo)}"${r.repo === _relPickRepo ? ' selected' : ''}>${escHtml(r.repo)}</option>`).join('')}
             </select>
             <button class="hdr-btn" style="font-size:.72rem;padding:3px 8px;white-space:nowrap"
               onclick="openReleaseModal(document.getElementById('rel-repo-pick').value)">+ ${T.rel_new}</button>
