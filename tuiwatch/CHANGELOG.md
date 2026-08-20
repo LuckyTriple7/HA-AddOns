@@ -1,5 +1,34 @@
 # Changelog
 
+## [0.100.10] - 2026-08-20
+
+### Changed
+- **Ruhigeres Design (Stufe 4 von 4): die Angebotskarte.** Die Karte ist rund 15 %
+  flacher (447 → 380 px) und kommt mit deutlich weniger Farbe aus, ohne dass eine
+  einzige Angabe verschwindet:
+  - **Kein leeres Feld mehr neben dem Preis.** Kennzahlen (Tief/Hoch/Ø) sowie
+    Wunsch- und Buchungspreis lagen als eigene Zeilen quer unter der Karte,
+    während der höhere Preisblock daneben rund 80 px Leerraum stehen ließ. Beide
+    Blöcke stehen jetzt in derselben Spalte wie die Angebotsdaten, der Preisblock
+    reicht über beide Zeilen — der Leerraum ist damit auf null.
+  - **Der Preis ist die eine große Zahl der Karte** (30 px, tabellarische Ziffern,
+    damit Beträge in der Liste untereinander stehen).
+  - **Abzeichen ohne Farbfläche:** „verfügbar · bestätigt", „kostenlos
+    stornierbar", Preisänderung, Tendenz und „seit Buchung" tragen ihre Bedeutung
+    im Wort — statt einer farbigen Pille steht jetzt ein Punkt in der Signalfarbe
+    davor. In den Tabellen von Statistik und Verlauf bleiben die gefüllten
+    Abzeichen: dort wirkt die Fläche als Verlaufsanzeige über mehrere Zeilen.
+  - **Aktionszeile:** Archivieren, In Liste verschieben, Zurücksetzen und Löschen
+    liegen hinter den drei Punkten am Zeilenende. Das sind die selten gebrauchten
+    und die unwiderruflichen Aktionen — „Löschen" stand vorher direkt neben
+    „Prüfen". Sichtbar bleiben alle beschrifteten Knöpfe sowie Prüfen und Pause.
+  - **Schriftskala:** aus 33 frei gewählten Größen werden sieben Stufen
+    (11/12/13/15/17/22/30 px). Sieben statt der angekündigten sechs — die
+    Oberfläche lebt von dichten Kleinstbeschriftungen (Kalenderzellen,
+    „PRO PERSON"), die auf 12 px zu heben hätte die Karten wieder aufgebläht.
+  - **Unverändert:** die Flugzeilen (Hin/Rück mit Datum, Uhrzeit, Strecke,
+    Airline, Stopps) und das Hotelbild.
+
 ## [0.100.9] - 2026-08-20
 
 ### Changed

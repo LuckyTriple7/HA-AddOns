@@ -634,13 +634,13 @@
           // vac_ok = Live-Bestätigung aus dem Buchungssystem (vacancy-check);
           // FAILED überschreibt available nicht, wird aber als Warnung gezeigt
           if(o.vac_ok===true)
-            availBadge = '<div><span class="avail yes" title="Vom TUI-Buchungssystem live bestätigt (letzte Prüfung)"><svg class="i"><use href="#i-zap"/></svg> verfügbar · bestätigt</span></div>';
+            availBadge = '<div><span class="avail yes dotted" title="Vom TUI-Buchungssystem live bestätigt (letzte Prüfung)">verfügbar · bestätigt</span></div>';
           else if(o.vac_ok===false)
-            availBadge = '<div><span class="avail yes">✓ verfügbar</span> <span class="avail warn" title="Das Buchungssystem bestätigt dieses Angebot aktuell nicht — evtl. vorübergehend oder ausgebucht"><svg class="i"><use href="#i-warn"/></svg> nicht bestätigt</span></div>';
+            availBadge = '<div><span class="avail yes dotted">verfügbar</span> <span class="avail warn dotted" title="Das Buchungssystem bestätigt dieses Angebot aktuell nicht — evtl. vorübergehend oder ausgebucht">nicht bestätigt</span></div>';
           else
-            availBadge = '<div><span class="avail yes">✓ verfügbar</span></div>';
+            availBadge = '<div><span class="avail yes dotted">verfügbar</span></div>';
         }
-        else if(o.available===false) availBadge = '<div><span class="avail no">✗ nicht verfügbar</span></div>';
+        else if(o.available===false) availBadge = '<div><span class="avail no dotted">nicht verfügbar</span></div>';
         // Sterne + HolidayCheck-Bewertung + kostenlose Stornierung
         const metaParts = [];
         if(o.stars) metaParts.push(`<span class="stars">${'★'.repeat(Math.round(o.stars))}</span>`);
@@ -655,7 +655,7 @@
           const hc = 'https://www.google.com/search?q='+encodeURIComponent(hcq);
           metaParts.push('<a class="rating" href="'+esc(hc)+'" target="_blank" rel="noopener" title="HolidayCheck-Bewertungen suchen (über Google)">'+esc(rt)+recIcon+' ↗</a>');
         }
-        if(o.cancellation) metaParts.push('<span class="canc">✓ '+esc(o.cancellation)+'</span>');
+        if(o.cancellation) metaParts.push('<span class="canc dotted">'+esc(o.cancellation)+'</span>');
         const metaLine = metaParts.length?`<div class="meta">${metaParts.join('')}</div>`:'';
         // Buchungscodes (zum Buchen/Anrufen bei TUI)
         const codeParts = [];
@@ -747,9 +747,11 @@
               ${availBadge}
               ${o.image_url?`<img class="offer-img" src="${esc(o.image_url)}" loading="lazy" alt="" onerror="this.remove()">`:''}
             </div>
+            <div class="offer-extra">
+              ${statsLine}
+              ${o.archived?'':`<div class="price-rows">${targetRow}${bookedRow}</div>`}
+            </div>
           </div>
-          ${statsLine}
-          ${o.archived?'':`<div class="price-rows">${targetRow}${bookedRow}</div>`}
           <div class="offer-foot">
             <div class="when">${o.archived
               ? `<span class="archived-badge"><svg class="i"><use href="#i-archive"/></svg> archiviert</span>${o.return_date?(' · Reise bis '+fmtD(o.return_date)):''}${o.price!=null?(' · letzter Preis '+eur(o.price)):''}`
@@ -761,12 +763,13 @@
                     ? 'Kalender pausiert (Abrufe schlugen wiederholt fehl) — Fenster öffnen zum Reaktivieren'
                     : 'Preis je Abreisetag — läuft für archivierte Angebote weiter und baut den Langzeitverlauf dieses Hotels auf'}">Kalender</button>
                  <button class="btn sec" onclick="unarchiveOffer(${o.id})" title="Wieder aktiv verfolgen">Reaktivieren</button>
-                 <button class="icon-btn" onclick="resetOffer(${o.id})" title="Zurücksetzen: Verlauf löschen und neu bei null beginnen">
-                   <svg class="i"><use href="#i-reset"/></svg>
-                 </button>
-                 <button class="icon-btn" style="color:var(--red)" onclick="delOffer(${o.id})" title="Löschen">
-                   <svg class="i"><use href="#i-trash"/></svg>
-                 </button>`
+                 <details class="row-more">
+                   <summary class="icon-btn" title="Weitere Aktionen"><svg class="i"><use href="#i-dots"/></svg></summary>
+                   <div class="row-menu">
+                     <button class="mm-item" onclick="resetOffer(${o.id})" title="Verlauf löschen und neu bei null beginnen"><svg class="i"><use href="#i-reset"/></svg> Zurücksetzen</button>
+                     <button class="mm-item danger" onclick="delOffer(${o.id})"><svg class="i"><use href="#i-trash"/></svg> Löschen</button>
+                   </div>
+                 </details>`
               : `<button class="btn sec" onclick="openHistory(${o.id})">Verlauf</button>
                  <button class="btn sec${o.calendar_alert?' cal-alert':''}" onclick="openCalendar(${o.id})" title="${o.calendar_alert?'Preisänderung im Kalender seit letztem Öffnen! · ':''}Preis je Abreisetag (Preiskalender)">Kalender</button>
                  <button class="btn sec" onclick="pendingStartId=null;openRooms(${o.id})" title="Zimmerkategorie wählen (Standard = günstigstes)">Zimmer</button>
@@ -791,18 +794,20 @@
                      ? '<svg class="i"><use href="#i-play"/></svg>'
                      : '<svg class="i"><use href="#i-pause"/></svg>'}
                  </button>
-                 <button class="icon-btn" onclick="archiveOffer(${o.id})" title="Archivieren: ins Archiv legen — keine Live-Abfragen mehr">
-                   <svg class="i"><use href="#i-archive"/></svg>
-                 </button>
-                 <button class="icon-btn${o.is_foreign?' foreign-on':''}" onclick="openForeignPicker([${o.id}])" title="${o.is_foreign
-                    ? esc('In Liste „'+foreignListOf(o)+'“ — klicken zum Wechseln oder Entfernen')
-                    : 'In eine Liste verschieben (rutscht eingeklappt ans Listenende, Benachrichtigungen und Kalender-Meldungen werden stummgeschaltet)'}"><svg class="i"><use href="#i-list"/></svg></button>
-                 <button class="icon-btn" onclick="resetOffer(${o.id})" title="Zurücksetzen: Verlauf löschen und neu bei null beginnen">
-                   <svg class="i"><use href="#i-reset"/></svg>
-                 </button>
-                 <button class="icon-btn" style="color:var(--red)" onclick="delOffer(${o.id})" title="Löschen">
-                   <svg class="i"><use href="#i-trash"/></svg>
-                 </button>`}
+                 <!-- Verwaltendes und Unwiderrufliches liegt hinter den drei Punkten:
+                      Archivieren, Verschieben, Zurücksetzen und Löschen braucht man
+                      selten, und Löschen sollte nicht direkt neben „Prüfen" liegen. -->
+                 <details class="row-more">
+                   <summary class="icon-btn" title="Weitere Aktionen"><svg class="i"><use href="#i-dots"/></svg></summary>
+                   <div class="row-menu">
+                     <button class="mm-item" onclick="archiveOffer(${o.id})" title="Ins Archiv legen — keine Live-Abfragen mehr"><svg class="i"><use href="#i-archive"/></svg> Archivieren</button>
+                     <button class="mm-item${o.is_foreign?' foreign-on':''}" onclick="openForeignPicker([${o.id}])" title="${o.is_foreign
+                        ? esc('In Liste „'+foreignListOf(o)+'“ — klicken zum Wechseln oder Entfernen')
+                        : 'Rutscht eingeklappt ans Listenende, Benachrichtigungen und Kalender-Meldungen werden stummgeschaltet'}"><svg class="i"><use href="#i-list"/></svg> ${o.is_foreign?esc('Liste: '+foreignListOf(o)):'In Liste verschieben'}</button>
+                     <button class="mm-item" onclick="resetOffer(${o.id})" title="Verlauf löschen und neu bei null beginnen"><svg class="i"><use href="#i-reset"/></svg> Zurücksetzen</button>
+                     <button class="mm-item danger" onclick="delOffer(${o.id})"><svg class="i"><use href="#i-trash"/></svg> Löschen</button>
+                   </div>
+                 </details>`}
             </div>
           </div>
         </div>`;
@@ -6977,20 +6982,25 @@
     $('#new-label').addEventListener('keydown', e=>{ if(e.key==='Enter') addOffer(); });
     $('#check-all').addEventListener('click', checkAll);
 
-    // „Mehr"-Menü: <details> klappt selbst auf und zu, schließt sich aber nicht
-    // von allein. Diese drei Zeilen erledigen genau das — nach einer Auswahl,
-    // bei einem Klick daneben und mit Escape.
+    // Aufklappmenüs: <details> klappt selbst auf und zu, schließt sich aber nicht
+    // von allein. Über Delegation, weil die Zeilenmenüs der Angebotskarten bei
+    // jedem Neuzeichnen der Liste neu entstehen — einzeln gebundene Zuhörer
+    // wären danach verwaist.
     (function(){
-      const more = document.getElementById('more');
-      if(!more) return;
-      more.querySelector('.more-menu').addEventListener('click', e => {
-        if(e.target.closest('.mm-item')) more.open = false;
-      });
+      const alle = () => document.querySelectorAll('details.more[open], details.row-more[open]');
+      const zu = außer => alle().forEach(d => { if(d !== außer) d.open = false; });
       document.addEventListener('click', e => {
-        if(more.open && !more.contains(e.target)) more.open = false;
+        const auf = e.target.closest('details.more > summary, details.row-more > summary');
+        if(auf){ zu(auf.parentElement); return; }          // nur eines offen halten
+        if(e.target.closest('.mm-item')){ zu(null); return; }  // nach der Auswahl schließen
+        alle().forEach(d => { if(!d.contains(e.target)) d.open = false; });
       });
       document.addEventListener('keydown', e => {
-        if(e.key === 'Escape' && more.open){ more.open = false; more.querySelector('summary').focus(); }
+        if(e.key !== 'Escape') return;
+        const offen = alle();
+        if(!offen.length) return;
+        offen.forEach(d => { d.open = false; });
+        const s = offen[0].querySelector('summary'); if(s) s.focus();
       });
     })();
     $('#search').addEventListener('input', e=>{ searchTerm = e.target.value; renderAll(curOffers||[]); });
