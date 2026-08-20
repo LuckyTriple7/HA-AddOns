@@ -4351,7 +4351,7 @@
       if(!guideData){ toast('Noch kein Reiseführer geladen'); return; }
       const css = `body{font:13px/1.5 -apple-system,Segoe UI,Roboto,sans-serif;color:#111;margin:24px}
         h1{font-size:19px;margin:0 0 2px} .st{color:#666;font-size:12px;margin-bottom:16px}
-        .gd-sec{margin-top:16px;break-inside:avoid} .gd-sec h3{font-size:14px;color:#0b65d8;margin:0 0 4px}
+        .gd-sec{margin-top:16px;break-inside:avoid} .gd-sec h3{font-size:14px;color:#12689b;margin:0 0 4px}
         .gd-intro{color:#555;margin-bottom:5px}
         ul.gd-list{list-style:none;margin:0;padding:0}
         ul.gd-list li{display:flex;gap:10px;padding:3px 0;border-top:1px solid #e2e6ea}
@@ -4360,7 +4360,7 @@
         .gd-sum ul{margin:5px 0 0;padding-left:18px}
         table{width:100%;border-collapse:collapse;font-size:12px;margin-top:6px}
         th,td{text-align:left;padding:3px 6px;border-bottom:1px solid #e2e6ea}
-        a{color:#0b65d8;text-decoration:none} .foot{margin-top:20px;font-size:11px;color:#888}`;
+        a{color:#12689b;text-decoration:none} .foot{margin-top:20px;font-size:11px;color:#888}`;
       let clim = '';
       const cm = (guideData.climate||{}).months || [];
       if(cm.length){
@@ -5065,8 +5065,8 @@
       w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>'+esc(title+' – '+sub)+'</title><style>'
         + 'body{font-family:system-ui,"Segoe UI",Arial,sans-serif;color:#111;max-width:760px;margin:0 auto;padding:32px;line-height:1.5}'
         + 'h1{font-size:1.3rem;margin:0 0 4px}.sub{color:#555;font-size:.9rem;margin-bottom:20px}'
-        + '.ai-h{color:#0b65d8;font-size:1rem;margin:18px 0 6px}.ai-list{margin:0 0 12px;padding-left:20px}'
-        + '.ai-cite{color:#0b65d8;text-decoration:none;font-size:.78em;vertical-align:super}'
+        + '.ai-h{color:#12689b;font-size:1rem;margin:18px 0 6px}.ai-list{margin:0 0 12px;padding-left:20px}'
+        + '.ai-cite{color:#12689b;text-decoration:none;font-size:.78em;vertical-align:super}'
         + 'table{width:100%;border-collapse:collapse;margin:8px 0 16px;font-size:.85rem}'
         + 'th,td{text-align:left;padding:6px 8px;border-bottom:1px solid #ddd}'
         + '.hint{color:#888;font-size:.78rem;margin-top:16px;padding-top:8px;border-top:1px solid #ddd}'
@@ -5403,7 +5403,7 @@
         // wissen, an welcher Stelle der Liste sie startet.
         + giataImages.map((im,i)=>(
             '<a href="#" onclick="event.preventDefault();openGiataLightbox('+i+')">'
-            +'<img src="'+esc(im.thumb)+'" loading="lazy" style="width:100%;height:110px;object-fit:cover;border-radius:6px;border:1px solid var(--border)">'
+            +'<img src="'+esc(im.thumb)+'" loading="lazy" style="width:100%;height:110px;object-fit:cover;border-radius:var(--r-ui);border:1px solid var(--border)">'
             +'</a>'
           )).join('')
         + '</div>'
@@ -6022,7 +6022,7 @@
         '<span class="hint">Tagesausflug-Modus (eigener KI-Prompt, keine Reise-DNA) auslösen mit:</span>'
         + '<select onchange="tpDocField(\'daytrip_value\', this.value)" '
         + 'style="background:var(--surf);border:1px solid var(--border);color:var(--text);'
-        + 'border-radius:5px;padding:4px 6px;font:inherit;font-size:.78rem;max-width:60%">'
+        + 'border-radius:var(--r-ui);padding:4px 6px;font:inherit;font-size:.78rem;max-width:60%">'
         + '<option value="">— keiner —</option>'
         + all.map(o => `<option value="${esc(o)}"${tpDoc.daytrip_value === o ? ' selected' : ''}>${esc(o)}</option>`).join('')
         + '</select>';

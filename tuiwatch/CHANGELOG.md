@@ -1,5 +1,32 @@
 # Changelog
 
+## [0.100.7] - 2026-08-20
+
+### Changed
+- **Ruhigeres Design (Stufe 1 von 4): Farben, Formen, Abstände.** Die Oberfläche
+  wirkte durch viele nah beieinander liegende Werte unruhig — 33 verschiedene
+  Schriftgrößen, 11 verschiedene Eckenradien zwischen 1 und 20 Pixeln, ein Rahmen
+  um praktisch jedes Element. Dieser Schritt vereinheitlicht die Grundwerte, ohne
+  eine einzige Funktion oder Beschriftung anzufassen:
+  - **Farben:** neutrale Töne mit leichter Blaugrün-Neigung statt der bisherigen
+    GitHub-Grautöne, ruhigerer Akzent (`#3b9cd9` statt `#3b82f6`), weichere
+    Signalfarben für Preisänderungen. Hell- und Dunkeldesign getrennt abgestimmt.
+    Die passenden `rgba()`-Hinterlegungen der Abzeichen wurden mitgezogen.
+  - **Ecken:** aus 11 Werten werden drei Token — `--r-card` (14px) für Karten,
+    Panels und Dialoge, `--r-ui` (10px) für Knöpfe und Eingabefelder, `--r-pill`
+    für Abzeichen und Fortschrittsbalken. Anmeldeseite und die im `app.js`
+    erzeugten Kartenbausteine nutzen dieselben Token.
+  - **Abstände:** Angebots- und Eingabekarten auf ein 4er-Raster gebracht
+    (Innenabstand 14 → 18px), damit die Karten weniger gedrängt wirken.
+  - Die Klimadiagramm-Farbe `--viz-1` und die Sternebewertung in Suchergebnissen
+    laufen jetzt über die Design-Token statt über eigene Festwerte.
+
+### Fixed
+- **GIATA- und „Fotos"-Verweis im Angebot waren im dunklen Design unlesbar.** Die
+  Zeile mit den Buchungscodes hatte keine eigene Linkfarbe und erbte das
+  Browser-Blau, das auf dunklem Grund praktisch verschwand. Beide nutzen jetzt die
+  Akzentfarbe (gleicher Fall wie zuvor schon bei den Reiseziel-Zeilen).
+
 ## [0.100.6] - 2026-08-19
 
 ### Fixed
