@@ -207,6 +207,14 @@ Ermöglicht es, Versions-Bumps für HA Add-ons direkt aus der GitPulse-UI vorzun
 
 - **Token-Badge**: grün (gültig) / gelb (<14 Tage bis Ablauf) / rot (<5 Tage); Mouseover zeigt Ablaufdatum
 - **Rate-Limit-Badge**: verbleibende GitHub API-Aufrufe; grün (>500) / gelb (<500) / rot (<200); Mouseover zeigt Reset-Zeit
+- **GitHub-Status-Badge**: Zustand von GitHub selbst — grün „GitHub OK", gelb bei
+  Beeinträchtigung, rot bei Störung/Ausfall. Klick öffnet die Details: laufende
+  Vorfälle mit Kurzbeschreibung, geplante Wartungen und der Zustand jeder
+  Komponente (Git Operations, API Requests, Actions, Webhooks, Pages …).
+  Damit ist auf einen Blick klar, ob ein Fehler an GitPulse liegt oder an GitHub.
+  Quelle ist die öffentliche Statuspage `https://www.githubstatus.com/api/v2/summary.json`
+  — kein Token nötig, zählt nicht aufs Rate-Limit, Abfrage alle 60 Sekunden.
+  Ist die Statuspage selbst nicht erreichbar, zeigt das Badge „GitHub ?".
 - **↻ Jetzt abfragen**: manueller Poll aller Repos
 - **⚙ Repos verwalten**: Repos direkt in der UI hinzufügen/entfernen (persistent)
 - **Dark / Light Mode** · **DE / EN Sprachwechsel**

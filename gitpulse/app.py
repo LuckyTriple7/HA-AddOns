@@ -88,6 +88,9 @@ GP_SETTINGS_PATH = _DATA + '/gitpulse_settings.json'
 LOCALES_PATH   = _BASE + '/locales'
 
 GITHUB_API    = 'https://api.github.com'
+# Öffentliche Statuspage von GitHub — ohne Token, zählt nicht aufs Rate-Limit
+GITHUB_STATUS_API = 'https://www.githubstatus.com/api/v2/summary.json'
+GITHUB_STATUS_INTERVAL = 60  # seconds
 POLL_INTERVAL_DEFAULT = 300  # seconds
 
 # ── State ─────────────────────────────────────────────────────────────────────
@@ -112,6 +115,7 @@ _gh_cache: dict = {
     'last_poll':   0,
     'error':       None,
     'rate_limit':  {'remaining': 5000, 'limit': 5000, 'reset': 0},
+    'github_status': None,
 }
 _gh_lock = threading.Lock()
 
@@ -1490,6 +1494,102 @@ def _send_daily_digest(cfg: dict, tg_token: str, tg_chat: str,
 
 
 # ── Poll worker ───────────────────────────────────────────────────────────────
+
+# ── GitHub-Statuspage ─────────────────────────────────────────────────────────
+# Wenn GitHub selbst hustet, sehen Fehler in GitPulse wie eigene Fehler aus.
+# Die öffentliche Statuspage braucht keinen Token und zählt nicht aufs Rate-Limit.
+
+_STATUS_SKIP_COMPONENT = 'githubstatus.com'   # reine Hinweiszeile, keine Komponente
+
+
+def _fetch_github_status() -> dict:
+    """Aktuellen Zustand der GitHub-Statuspage holen."""
+    try:
+        r = http.get(GITHUB_STATUS_API, timeout=10,
+                     headers={'User-Agent': 'GitPulse-HA-AddOn/1.0',
+                              'Accept': 'application/json'})
+        if r.status_code != 200:
+            log.warning("GitHub-Statuspage → HTTP %d", r.status_code)
+            return {'ok': False, 'fetched': int(time.time())}
+        d  = r.json()
+        st = d.get('status') or {}
+        components = [
+            {'name': c.get('name', ''), 'status': c.get('status', '')}
+            for c in (d.get('components') or [])
+            if not c.get('group') and _STATUS_SKIP_COMPONENT not in (c.get('name') or '')
+        ]
+        incidents = [{
+            'name':    i.get('name', ''),
+            'status':  i.get('status', ''),
+            'impact':  i.get('impact', ''),
+            'url':     i.get('shortlink', ''),
+            'updated': i.get('updated_at', ''),
+            'body':    ((i.get('incident_updates') or [{}])[0].get('body') or '')[:400],
+        } for i in (d.get('incidents') or [])]
+        maintenances = [{
+            'name':      m.get('name', ''),
+            'status':    m.get('status', ''),
+            'url':       m.get('shortlink', ''),
+            'scheduled': m.get('scheduled_for', ''),
+        } for m in (d.get('scheduled_maintenances') or [])
+            if m.get('status') in ('scheduled', 'in_progress', 'verifying')]
+        return {
+            'ok':           True,
+            'indicator':    st.get('indicator', 'none'),
+            'description':  st.get('description', ''),
+            'components':   components,
+            'degraded':     [c for c in components if c['status'] != 'operational'],
+            'incidents':    incidents,
+            'maintenances': maintenances,
+            'updated':      (d.get('page') or {}).get('updated_at', ''),
+            'fetched':      int(time.time()),
+        }
+    except Exception as e:
+        log.error("GitHub-Statuspage nicht erreichbar: %s", e)
+        return {'ok': False, 'fetched': int(time.time())}
+
+
+def _status_signature(data: dict) -> str:
+    """Kennung des Zustands — nur bei echter Änderung neu rendern lassen."""
+    return '{}|{}|{}|{}'.format(
+        data.get('ok'), data.get('indicator'),
+        len(data.get('incidents') or []),
+        ','.join(sorted(c['name'] + ':' + c['status'] for c in (data.get('degraded') or []))),
+    )
+
+
+def _status_worker() -> None:
+    log.info("GitHub-Status-Poller gestartet (alle %ds)", GITHUB_STATUS_INTERVAL)
+    last_sig = None
+    while True:
+        data = _fetch_github_status()
+        sig  = _status_signature(data)
+        with _gh_lock:
+            _gh_cache['github_status'] = data
+        if sig != last_sig:
+            if data.get('ok') and data.get('indicator') != 'none':
+                log.warning("GitHub-Status: %s (%s)", data.get('description'),
+                            ', '.join(c['name'] for c in data.get('degraded', [])) or 'ohne Komponente')
+            elif last_sig is not None and data.get('ok'):
+                log.info("GitHub-Status: %s", data.get('description'))
+            last_sig = sig
+            _notify_sse()
+        time.sleep(GITHUB_STATUS_INTERVAL)
+
+
+@app.route('/api/github-status')
+def api_github_status():
+    redir = _auth_required(request)
+    if redir:
+        return jsonify({'error': 'unauthorized'}), 401
+    with _gh_lock:
+        cached = _gh_cache.get('github_status')
+    if not cached or time.time() - cached.get('fetched', 0) > 30:
+        cached = _fetch_github_status()
+        with _gh_lock:
+            _gh_cache['github_status'] = cached
+    return jsonify(cached)
+
 
 def _poll_worker() -> None:
     log.info("GitHub-Poller gestartet")
@@ -4189,6 +4289,10 @@ if __name__ == '__main__':
     # Poller-Thread
     t = threading.Thread(target=_poll_worker, daemon=True)
     t.start()
+
+    # Statuspage-Poller — läuft auch ohne Token
+    ts = threading.Thread(target=_status_worker, daemon=True)
+    ts.start()
 
     # Webhook-Server auf Port 17793 — nur wenn Secret konfiguriert
     if cfg.get('webhook_secret', '').strip():

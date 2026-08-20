@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.4.15] - 2026-08-20
+
+### Added
+- **GitHub-Status im Header.** Ein Badge zeigt den Zustand von GitHub selbst:
+  grün „GitHub OK", gelb bei Beeinträchtigung, rot bei Störung oder Ausfall.
+  Klick öffnet die Details — laufende Vorfälle samt Kurzbeschreibung und Link,
+  geplante Wartungen und der Zustand jeder Komponente (Git Operations, API
+  Requests, Actions, Webhooks, Pages …). Damit ist sofort klar, ob ein Fehler
+  am Add-on liegt oder an GitHub, statt ihn erst zu suchen.
+- Quelle ist die öffentliche Statuspage
+  (`https://www.githubstatus.com/api/v2/summary.json`): kein Token nötig, zählt
+  nicht aufs Rate-Limit. Ein eigener Poller fragt sie alle 60 s ab — auch ohne
+  konfiguriertes Token — und meldet Änderungen sofort an die Oberfläche.
+  Störungen und Entwarnungen landen zusätzlich im Console-Log. Ist die
+  Statuspage selbst nicht erreichbar, zeigt das Badge „GitHub ?".
+
+
 ## [0.4.14] - 2026-08-20
 
 ### Fixed
