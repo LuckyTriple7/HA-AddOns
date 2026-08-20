@@ -1,5 +1,39 @@
 # Changelog
 
+## [0.100.8] - 2026-08-20
+
+### Changed
+- **Ruhigeres Design (Stufe 2 von 4): ein Symbolsatz statt bunter Emoji.** Die
+  Oberfläche benutzte über hundert Emoji als Symbolsprache — in der Kopfleiste, der
+  Werkzeugleiste, den Dialogtiteln, der Fußzeile und mitten in den Angebotskarten.
+  Jedes Emoji bringt eigene Farben und eine eigene Strichstärke mit, und Windows,
+  iOS und Android zeichnen dasselbe Zeichen jeweils anders. Ersetzt durch **66
+  eigene Strichsymbole** auf einheitlichem 24er-Raster (rund 12 KB, direkt im HTML
+  — das Add-on muss auch ohne Internet sofort vollständig aussehen).
+  - Die Symbole erben ihre Farbe über `currentColor`: sie werden mit deaktivierten
+    Knöpfen blass, beim Überfahren heller und im hellen Design dunkler. Genau das
+    konnte ein Emoji nie.
+  - Auch die noch verbliebenen Vollflächen-Symbole (Schließen-Kreuz in allen
+    Dialogen, Prüfen/Pause/Archiv/Zurücksetzen/Löschen in der Angebotskarte,
+    Design- und Abmelde-Knopf) laufen jetzt über denselben Satz.
+  - Die Ampel des Buchungszeitpunkts und des Preisbarometers zeigt statt 🟢🟡🔴
+    einen Punkt in den Signalfarben — passt sich damit hellem und dunklem Design an.
+  - **Emoji bleiben, wo sie Nutzerdaten sind:** die Symbolwahl der
+    „Für andere"-Listen ist unverändert. Ebenso bleiben reine Textzeichen
+    (★ Sterne, ✓, ✕, ⏱) — die tragen schon immer die Textfarbe.
+  - Dialogtitel, die per JavaScript gesetzt werden (KI-Fazit, Buchungsscore,
+    TripPilot …), haben ihr vorangestelltes Emoji ersatzlos verloren; dort lässt
+    sich kein Symbol einsetzen, und der Titel steht ohnehin im Dialograhmen.
+
+### Fixed
+- **Tooltip des Knopfes „Für andere" war abgeschnitten.** Im `title`-Text stand ein
+  gerades Anführungszeichen mitten im Attributwert (`„Für andere"`), wodurch der
+  Browser das Attribut vorzeitig beendete — angezeigt wurde nur „In eine „Für
+  andere". Ersetzt durch das typografische Schlusszeichen.
+- **Versionsnummer in der Fußzeile blieb bei 0.100.6 stehen.** Beim Bump auf 0.100.7
+  wurde `APP_VERSION` in `app.py` nicht mitgezogen, nur `config.yaml`. Beide stehen
+  jetzt wieder auf demselben Wert.
+
 ## [0.100.7] - 2026-08-20
 
 ### Changed

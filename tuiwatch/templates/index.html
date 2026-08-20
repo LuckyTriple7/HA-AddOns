@@ -51,7 +51,8 @@
     .btn.sec { background:transparent; border:1px solid var(--border); color:var(--text); }
     .btn.danger { background:transparent; border:1px solid var(--border); color:var(--red); }
     .icon-btn { background:transparent; border:1px solid var(--border); color:var(--muted); border-radius:var(--r-ui); padding:6px 8px; cursor:pointer; display:inline-flex; }
-    .icon-btn svg { width:15px; height:15px; fill:currentColor; }
+    .icon-btn svg:not(.i) { width:15px; height:15px; fill:currentColor; }
+    .icon-btn .i { width:15px; height:15px; }
     .icon-moon{display:block}.icon-sun{display:none}
     [data-theme="light"] .icon-moon{display:none}[data-theme="light"] .icon-sun{display:block}
     .add-card { background:var(--surf); border:1px solid var(--border); border-radius:var(--r-card); padding:18px; margin-bottom:16px; }
@@ -129,7 +130,8 @@
       color:var(--amber); background:rgba(210,160,58,.12); border:1px solid rgba(210,160,58,.4); }
     .flights { margin:8px 0 2px; display:flex; flex-direction:column; gap:3px; }
     .flight { font-size:.78rem; color:var(--text); display:flex; align-items:center; gap:6px; }
-    .flight svg { width:13px; height:13px; fill:var(--muted); flex-shrink:0; }
+    .flight svg:not(.i) { width:13px; height:13px; fill:var(--muted); flex-shrink:0; }
+    .flight .i { width:13px; height:13px; stroke:var(--muted); }
     .flight .fdir { color:var(--muted); }
     /* Flugvarianten: gleicher Zeitraum, anderer Flug (später/weniger Stopps kostet
        meist Aufpreis). Aufklappbar, damit die Karte kompakt bleibt. */
@@ -146,7 +148,8 @@
     .fv-price .fv-d.up { color:var(--red); }
     .fv-price .fv-d.down { color:var(--green); }
     .fv-legs { flex:1; color:var(--text); line-height:1.5; font-size:.74rem; }
-    .fv-legs svg { width:11px; height:11px; fill:var(--muted); margin-right:4px; }
+    .fv-legs svg:not(.i) { width:11px; height:11px; fill:var(--muted); margin-right:4px; }
+    .fv-legs .i { width:11px; height:11px; stroke:var(--muted); margin-right:4px; }
     .fv-cur { color:var(--green); font-size:.74rem; white-space:nowrap; }
     .fv-act { white-space:nowrap; }
     .meta { display:flex; flex-wrap:wrap; gap:6px 12px; align-items:center; margin:7px 0 2px; font-size:.76rem; color:var(--muted); }
@@ -774,11 +777,99 @@
     .ob-reload { background:var(--surf); border:1px solid var(--border); color:var(--text); border-radius:var(--r-ui); padding:8px 22px; font-size:13px; cursor:pointer; margin-top:4px; }
     .ob-reload:hover { border-color:var(--accent); }
     @keyframes ob-pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+    /* Symbole (Redesign Stufe 2): einheitliches Strichbild, Farbe und Deckkraft
+       kommen über currentColor vom umgebenden Knopf bzw. Text. Der Abstand zum
+       Beschriftungstext ist das Leerzeichen im Markup — wie zuvor beim Emoji. */
+    .i { width:1.05em; height:1.05em; vertical-align:-.17em; fill:none; stroke:currentColor;
+         stroke-width:1.75; stroke-linecap:round; stroke-linejoin:round; flex:none; }
+    h2 .i, h3 .i { vertical-align:-.12em; }
+    /* Ampel-Punkt (Buchungszeitpunkt, Preisbarometer) — ersetzt die Emoji-Kreise.
+       Nimmt die Signalfarben der Design-Token, passt sich also beiden Designs an. */
+    .ampel { display:inline-block; width:8px; height:8px; border-radius:50%; vertical-align:.04em; }
+    .ampel.g { background:var(--green); }
+    .ampel.y { background:var(--amber); }
+    .ampel.r { background:var(--red); }
   </style>
 </head>
 <body>
+  <!-- Symbolsatz (Redesign Stufe 2). Ersetzt die farbigen Emoji in Kopfleiste,
+       Werkzeugleiste, Dialogtiteln und Fußzeile. Einheitliches 24er-Raster,
+       Strichstärke aus .i — die Symbole erben über currentColor die Textfarbe und
+       werden dadurch mit deaktivierten Knöpfen blass und im hellen Design dunkel.
+       Bewusst inline und nicht als eigene Datei: das Add-on muss auch ohne
+       Internet und ohne zweiten Abruf sofort vollständig aussehen.
+       Emoji bleiben nur dort, wo sie Nutzerdaten sind (Symbolwahl der
+       „Für andere"-Listen) oder Teil eines Meldungstextes. -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs>
+    <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10"/><path d="M1 14l4.64 4.64A9 9 0 0 0 20.49 15"/></symbol>
+    <symbol id="i-ai" viewBox="0 0 24 24"><path d="M12 3l1.7 4.6L18.3 9.3l-4.6 1.7L12 15.6l-1.7-4.6L5.7 9.3l4.6-1.7z"/><path d="M18.6 15.4l.7 1.9 1.9.7-1.9.7-.7 1.9-.7-1.9-1.9-.7 1.9-.7z"/></symbol>
+    <symbol id="i-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></symbol>
+    <symbol id="i-climate" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4.5"/><path d="M12 1.5v2.5M12 20v2.5M3.9 3.9l1.8 1.8M18.3 18.3l1.8 1.8M1.5 12H4M20 12h2.5M3.9 20.1l1.8-1.8M18.3 5.7l1.8-1.8"/></symbol>
+    <symbol id="i-compass" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M16.24 7.76l-2.12 6.36-6.36 2.12 2.12-6.36z"/></symbol>
+    <symbol id="i-chart" viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></symbol>
+    <symbol id="i-plane" viewBox="0 0 24 24"><path d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5z"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></symbol>
+    <symbol id="i-luggage" viewBox="0 0 24 24"><rect x="4" y="7" width="16" height="14" rx="2"/><path d="M9 7V4.5A1.5 1.5 0 0 1 10.5 3h3A1.5 1.5 0 0 1 15 4.5V7"/><line x1="9.5" y1="11" x2="9.5" y2="17"/><line x1="14.5" y1="11" x2="14.5" y2="17"/></symbol>
+    <symbol id="i-map" viewBox="0 0 24 24"><path d="M1 6l7-4 8 4 7-4v16l-7 4-8-4-7 4z"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></symbol>
+    <symbol id="i-ticket" viewBox="0 0 24 24"><path d="M3 8V6a1 1 0 0 1 1-1h16a1 1 0 0 1 1 1v2a2.5 2.5 0 0 0 0 5v3a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-3a2.5 2.5 0 0 0 0-5z"/><line x1="14" y1="7" x2="14" y2="17" stroke-dasharray="2 2.6"/></symbol>
+    <symbol id="i-trend" viewBox="0 0 24 24"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></symbol>
+    <symbol id="i-mail" viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2"/><polyline points="22 6.5 12 13.5 2 6.5"/></symbol>
+    <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></symbol>
+    <symbol id="i-users" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
+    <symbol id="i-signal" viewBox="0 0 24 24"><path d="M2.5 8.5a15 15 0 0 1 19 0"/><path d="M6 12.5a10 10 0 0 1 12 0"/><path d="M9.5 16.5a5 5 0 0 1 5 0"/><circle cx="12" cy="20" r="1"/></symbol>
+    <symbol id="i-bell" viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></symbol>
+    <symbol id="i-download" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></symbol>
+    <symbol id="i-upload" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></symbol>
+    <symbol id="i-settings" viewBox="0 0 24 24"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></symbol>
+    <symbol id="i-star" viewBox="0 0 24 24"><path d="M12 2.5l3.1 6.4 6.9 1-5 4.9 1.2 6.9-6.2-3.3-6.2 3.3L7 14.8l-5-4.9 6.9-1z"/></symbol>
+    <symbol id="i-save" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></symbol>
+    <symbol id="i-comment" viewBox="0 0 24 24"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 8.4 8.4 0 0 1-3.8-.9L3 20.5l1.5-4.7A8.4 8.4 0 0 1 12 3.1a8.4 8.4 0 0 1 9 8.4z"/></symbol>
+    <symbol id="i-warn" viewBox="0 0 24 24"><path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></symbol>
+    <symbol id="i-terminal" viewBox="0 0 24 24"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></symbol>
+    <symbol id="i-image" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></symbol>
+    <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></symbol>
+    <symbol id="i-pin" viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></symbol>
+    <symbol id="i-hotel" viewBox="0 0 24 24"><path d="M4 21V5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v16"/><line x1="2" y1="21" x2="22" y2="21"/><path d="M10 21v-4h4v4"/><line x1="8" y1="7" x2="8.01" y2="7"/><line x1="12" y1="7" x2="12.01" y2="7"/><line x1="16" y1="7" x2="16.01" y2="7"/><line x1="8" y1="11" x2="8.01" y2="11"/><line x1="12" y1="11" x2="12.01" y2="11"/><line x1="16" y1="11" x2="16.01" y2="11"/></symbol>
+    <symbol id="i-car" viewBox="0 0 24 24"><path d="M5 17.5H3.5a1 1 0 0 1-1-1v-3.3a2 2 0 0 1 .4-1.2l2.3-3A2 2 0 0 1 6.8 8h8.9a2 2 0 0 1 1.5.7l3 3.4a2 2 0 0 1 .5 1.3v3.1a1 1 0 0 1-1 1H19"/><circle cx="7" cy="17.5" r="2"/><circle cx="17" cy="17.5" r="2"/><line x1="9" y1="17.5" x2="15" y2="17.5"/></symbol>
+    <symbol id="i-print" viewBox="0 0 24 24"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8" rx="1"/></symbol>
+    <symbol id="i-doc" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></symbol>
+    <symbol id="i-share" viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.6" y1="13.5" x2="15.4" y2="17.5"/><line x1="15.4" y1="6.5" x2="8.6" y2="10.5"/></symbol>
+    <symbol id="i-clipboard" viewBox="0 0 24 24"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></symbol>
+    <symbol id="i-thermo" viewBox="0 0 24 24"><path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"/></symbol>
+    <symbol id="i-calendar" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></symbol>
+    <symbol id="i-pause" viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/></symbol>
+    <symbol id="i-archive" viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="5" rx="1"/><path d="M4 9v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9"/><line x1="10" y1="13" x2="14" y2="13"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></symbol>
+    <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4.5"/><path d="M12 1.5v2.5M12 20v2.5M3.9 3.9l1.8 1.8M18.3 18.3l1.8 1.8M1.5 12H4M20 12h2.5M3.9 20.1l1.8-1.8M18.3 5.7l1.8-1.8"/></symbol>
+    <symbol id="i-logout" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4.5l12 7.5-12 7.5z"/></symbol>
+    <symbol id="i-reset" viewBox="0 0 24 24"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></symbol>
+    <symbol id="i-repeat" viewBox="0 0 24 24"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></symbol>
+    <symbol id="i-euro" viewBox="0 0 24 24"><path d="M18 6.5A7 7 0 0 0 7.5 12 7 7 0 0 0 18 17.5"/><line x1="3.5" y1="10.3" x2="12.5" y2="10.3"/><line x1="3.5" y1="13.7" x2="12.5" y2="13.7"/></symbol>
+    <symbol id="i-send" viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></symbol>
+    <symbol id="i-pencil" viewBox="0 0 24 24"><path d="M17 3a2.85 2.85 0 0 1 4 4L7.5 20.5 2 22l1.5-5.5z"/></symbol>
+    <symbol id="i-bell-off" viewBox="0 0 24 24"><path d="M13.73 21a2 2 0 0 1-3.46 0"/><path d="M18.63 13A17.9 17.9 0 0 1 18 8"/><path d="M6.26 6.26A5.9 5.9 0 0 0 6 8c0 7-3 9-3 9h14"/><path d="M18 8a6 6 0 0 0-9.33-5"/><line x1="1" y1="1" x2="23" y2="23"/></symbol>
+    <symbol id="i-thumbup" viewBox="0 0 24 24"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.3a2 2 0 0 0 2-1.7l1.4-9a2 2 0 0 0-2-2.3z"/><path d="M7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></symbol>
+    <symbol id="i-target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.5"/><circle cx="12" cy="12" r="5.5"/><circle cx="12" cy="12" r="1.5"/></symbol>
+    <symbol id="i-bookmark" viewBox="0 0 24 24"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></symbol>
+    <symbol id="i-receipt" viewBox="0 0 24 24"><path d="M5 2l1.6 1.5L8.2 2l1.6 1.5L11.4 2 13 3.5 14.6 2l1.6 1.5L17.8 2 19 3v18l-1.2-1-1.6 1.5L14.6 20 13 21.5 11.4 20 9.8 21.5 8.2 20l-1.6 1.5L5 21z"/><line x1="8.5" y1="8" x2="15.5" y2="8"/><line x1="8.5" y1="12" x2="15.5" y2="12"/><line x1="8.5" y1="16" x2="13" y2="16"/></symbol>
+    <symbol id="i-zap" viewBox="0 0 24 24"><path d="M13 2L4 14h7l-1 8 9-12h-7z"/></symbol>
+    <symbol id="i-seat" viewBox="0 0 24 24"><path d="M6 3h3a2 2 0 0 1 2 1.8l.7 7.2H16a3 3 0 0 1 3 3v6"/><path d="M5 3v11a4 4 0 0 0 4 4h10"/></symbol>
+    <symbol id="i-card" viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.5"/><polyline points="12 6.5 12 12 15.8 14"/></symbol>
+    <symbol id="i-trend-down" viewBox="0 0 24 24"><polyline points="23 18 13.5 8.5 8.5 13.5 1 6"/><polyline points="17 18 23 18 23 12"/></symbol>
+    <symbol id="i-paperclip" viewBox="0 0 24 24"><path d="M21.4 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></symbol>
+    <symbol id="i-eye" viewBox="0 0 24 24"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></symbol>
+    <symbol id="i-check-circle" viewBox="0 0 24 24"><path d="M21.8 10.9V12a10 10 0 1 1-5.9-9.1"/><polyline points="22 4 12 14.01 9 11.01"/></symbol>
+    <symbol id="i-home" viewBox="0 0 24 24"><path d="M3 9.5l9-7 9 7V20a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></symbol>
+    <symbol id="i-hash" viewBox="0 0 24 24"><line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="20" y2="15"/><line x1="10" y1="3" x2="8" y2="21"/><line x1="16" y1="3" x2="14" y2="21"/></symbol>
+    <symbol id="i-takeoff" viewBox="0 0 24 24"><path d="M2.5 19.5h19"/><path d="M21.2 9.6a1.6 1.6 0 0 0-2-1.1l-4.7 1.3-6.1-5.7-2.3.6 3.7 6.4-4.4 1.2-1.7-1.4-1.7.5 2.2 3.9 16.9-4.6a1.6 1.6 0 0 0 1.1-2z"/></symbol>
+    <symbol id="i-landing" viewBox="0 0 24 24"><path d="M2.5 19.5h19"/><path d="M20.8 15.6a1.6 1.6 0 0 0 1-2.1l-3.4-3.5-1.6-8.3-2.2-.8-.4 7.4-4.4-1.2-.9-2.1-1.7-.5v4.5l16.9 4.6a1.6 1.6 0 0 0 2-.9z"/></symbol>
+  </defs></svg>
   <div id="offline-banner">
-    <div class="ob-icon">📡</div>
+    <div class="ob-icon"><svg class="i"><use href="#i-signal"/></svg></div>
     <div class="ob-title">Verbindung unterbrochen</div>
     <div class="ob-sub">Stelle Verbindung wieder her…</div>
     <button class="ob-reload" onclick="window.location.reload()">Neu laden</button>
@@ -790,28 +881,28 @@
         TUIWatch
       </div>
       <div class="trip-countdown" id="trip-countdown" onclick="openTrips()" title="Nächste Reise – zu „Meine Reisen“">
-        ✈ <span class="tc-dest" id="tc-dest"></span> <b id="tc-time"></b>
+        <svg class="i"><use href="#i-plane"/></svg> <span class="tc-dest" id="tc-dest"></span> <b id="tc-time"></b>
       </div>
       <div class="header-actions">
-        <button class="btn sec" id="check-all" title="Alle prüfen">🔄</button>
-        <button class="btn sec ai-feature" onclick="openAiHistory()" title="KI-Verlauf: bisherige KI-Fazits/-Vergleiche einsehen">🤖</button>
+        <button class="btn sec" id="check-all" title="Alle prüfen"><svg class="i"><use href="#i-refresh"/></svg></button>
+        <button class="btn sec ai-feature" onclick="openAiHistory()" title="KI-Verlauf: bisherige KI-Fazits/-Vergleiche einsehen"><svg class="i"><use href="#i-ai"/></svg></button>
         <button class="btn sec ai-feature" onclick="openAiAsk()"
-                title="Frage stellen — zu deinen getrackten Angeboten (Preis, Bewertung, Trend, Wunschpreis) oder allgemein zum Reisen (Region, Reisezeit, Einreise, Anreise)">❓</button>
+                title="Frage stellen — zu deinen getrackten Angeboten (Preis, Bewertung, Trend, Wunschpreis) oder allgemein zum Reisen (Region, Reisezeit, Einreise, Anreise)"><svg class="i"><use href="#i-help"/></svg></button>
         <button class="btn sec ai-feature" onclick="openClimate()"
-                title="Klimatabellen: Temperaturen, Wassertemperatur, Sonnenstunden und Regentage über zwölf Monate — für alle Ziele, zu denen bereits eine Tabelle gespeichert ist">🌤</button>
+                title="Klimatabellen: Temperaturen, Wassertemperatur, Sonnenstunden und Regentage über zwölf Monate — für alle Ziele, zu denen bereits eine Tabelle gespeichert ist"><svg class="i"><use href="#i-climate"/></svg></button>
         <button class="btn sec ai-feature" onclick="openGuide()"
-                title="Reiseführer: Einreise, Gesundheit, Geld, Mobilität, Sicherheit, Kultur, Don't Dos und Insider-Tipps — für alle Ziele, zu denen bereits ein Reiseführer gespeichert ist">🧭</button>
+                title="Reiseführer: Einreise, Gesundheit, Geld, Mobilität, Sicherheit, Kultur, Don't Dos und Insider-Tipps — für alle Ziele, zu denen bereits ein Reiseführer gespeichert ist"><svg class="i"><use href="#i-compass"/></svg></button>
         <button class="btn sec ai-feature" onclick="openRegionCompare()"
-                title="Regionen vergleichen: bis zu 5 Ziele + ein Reisemonat — KI vergleicht Wetter, Sicherheit, Preisniveau, beste Reisezeit, Strand/Natur, Familien-/Nightlife-Eignung">📊</button>
+                title="Regionen vergleichen: bis zu 5 Ziele + ein Reisemonat — KI vergleicht Wetter, Sicherheit, Preisniveau, beste Reisezeit, Strand/Natur, Familien-/Nightlife-Eignung"><svg class="i"><use href="#i-chart"/></svg></button>
         <button class="btn sec flights-feature" onclick="openFlightPlan()"
-                title="Flugplan: Verbindungen ab Stuttgart (STR) bzw. Frankfurt (FRA) nach Zielflughafen durchsuchen">✈️</button>
+                title="Flugplan: Verbindungen ab Stuttgart (STR) bzw. Frankfurt (FRA) nach Zielflughafen durchsuchen"><svg class="i"><use href="#i-plane"/></svg></button>
         <button class="icon-btn" onclick="toggleTheme()" title="Design wechseln">
-          <svg class="icon-moon" viewBox="0 0 24 24"><path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c0-.46-.04-.92-.1-1.36-.98 1.37-2.58 2.26-4.4 2.26-2.98 0-5.4-2.42-5.4-5.4 0-1.81.89-3.42 2.26-4.4-.44-.06-.9-.1-1.36-.1z"/></svg>
-          <svg class="icon-sun"  viewBox="0 0 24 24"><path d="M12 7c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zM2 13h2v-2H2v2zm18 0h2v-2h-2v2zM11 2v2h2V2h-2zm0 18v2h2v-2h-2zM5.99 4.58 4.58 5.99l1.41 1.41 1.41-1.41L5.99 4.58zm12.03 12.03-1.41 1.41 1.41 1.41 1.41-1.41-1.41-1.41zm1.41-12.44-1.41-1.41-1.41 1.41 1.41 1.41 1.41-1.41zM5.99 19.42l1.41 1.41 1.41-1.41-1.41-1.41-1.41 1.41z"/></svg>
+          <svg class="i icon-moon"><use href="#i-moon"/></svg>
+          <svg class="i icon-sun"><use href="#i-sun"/></svg>
         </button>
         {% if not is_ingress %}
         <button class="icon-btn" onclick="logout()" title="Abmelden">
-          <svg viewBox="0 0 24 24"><path d="M16 17v-3H9v-4h7V7l5 5-5 5M14 2a2 2 0 0 1 2 2v2h-2V4H5v16h9v-2h2v2a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9z"/></svg>
+          <svg class="i"><use href="#i-logout"/></svg>
         </button>
         {% endif %}
       </div>
@@ -827,13 +918,13 @@
     </div>
 
     <div class="toolbar">
-      <button class="btn" onclick="openSearch()" title="Hotels einer Region suchen (TUI-Such-URL einfügen)">🔍 Suche</button>
-      <button class="btn sec" onclick="openTrips()" title="Gebuchte Reisen verwalten (TUI-PDF importieren)">🧳 Meine Reisen</button>
-      <button class="btn sec ai-feature" onclick="openAdvisor()" oncontextmenu="return openTpEdit()" title="TripPilot: passende Ziele nach Vorlieben finden · Rechtsklick: Fragebogen bearbeiten">🗺️ TripPilot</button>
-      <button class="btn sec" id="aktion-btn" onclick="openAktion()" title="Aktuelle öffentliche TUI-Aktionscodes anzeigen und bei neuen benachrichtigt werden">🎟 Aktionscodes</button>
-      <button class="btn sec" id="trend-btn" onclick="openMarketTrend()" title="Marktweiter Preistrend über alle geprüften Angebote, optional nach Destination">📈 Markttrend</button>
-      <button class="btn sec" onclick="sendEmail()" title="Alle Angebote als E-Mail senden">✉ Als E-Mail senden</button>
-      <button class="btn sec" onclick="sendDigest()" title="Wochenüberblick jetzt senden (Telegram/E-Mail)">📊 Wochenüberblick</button>
+      <button class="btn" onclick="openSearch()" title="Hotels einer Region suchen (TUI-Such-URL einfügen)"><svg class="i"><use href="#i-search"/></svg> Suche</button>
+      <button class="btn sec" onclick="openTrips()" title="Gebuchte Reisen verwalten (TUI-PDF importieren)"><svg class="i"><use href="#i-luggage"/></svg> Meine Reisen</button>
+      <button class="btn sec ai-feature" onclick="openAdvisor()" oncontextmenu="return openTpEdit()" title="TripPilot: passende Ziele nach Vorlieben finden · Rechtsklick: Fragebogen bearbeiten"><svg class="i"><use href="#i-map"/></svg> TripPilot</button>
+      <button class="btn sec" id="aktion-btn" onclick="openAktion()" title="Aktuelle öffentliche TUI-Aktionscodes anzeigen und bei neuen benachrichtigt werden"><svg class="i"><use href="#i-ticket"/></svg> Aktionscodes</button>
+      <button class="btn sec" id="trend-btn" onclick="openMarketTrend()" title="Marktweiter Preistrend über alle geprüften Angebote, optional nach Destination"><svg class="i"><use href="#i-trend"/></svg> Markttrend</button>
+      <button class="btn sec" onclick="sendEmail()" title="Alle Angebote als E-Mail senden"><svg class="i"><use href="#i-mail"/></svg> Als E-Mail senden</button>
+      <button class="btn sec" onclick="sendDigest()" title="Wochenüberblick jetzt senden (Telegram/E-Mail)"><svg class="i"><use href="#i-chart"/></svg> Wochenüberblick</button>
       <input type="file" id="restore-file" accept=".zip,application/zip,.json,application/json" style="display:none" onchange="restoreOffers(this)">
     </div>
     <div id="overview" class="overview" style="display:none"></div>
@@ -864,13 +955,13 @@
       </div>
       <div class="bulk-actions">
       <button class="btn sec" onclick="bulkCheck()">Prüfen</button>
-      <button class="btn sec" onclick="bulkEmail()" title="Markierte als E-Mail senden">✉ E-Mail</button>
+      <button class="btn sec" onclick="bulkEmail()" title="Markierte als E-Mail senden"><svg class="i"><use href="#i-mail"/></svg> E-Mail</button>
       <button class="btn sec" onclick="bulkArchive()">Archivieren</button>
       <button class="btn danger" onclick="bulkDelete()">Löschen</button>
-      <button class="btn sec ai-feature" onclick="openAiCompareOffers()" title="Ausgewählte Angebote per KI vergleichen (max. 5)">🤖 Vergleichen</button>
-      <button class="btn sec ai-feature" onclick="autoTagSelected()" title="Passende Tags automatisch per KI vergeben (ergänzt bestehende Tags)">🤖 Auto-Tag</button>
-      <button class="btn sec share-feature" onclick="openShareCreate()" title="Öffentlichen Link zum Anschauen erzeugen (ohne Login, nur Ansicht)">🔗 Teilen</button>
-      <button class="btn sec" onclick="bulkForeign()" title="In eine „Für andere"-Liste legen (Name frei wählbar): eingeklappt ans Listenende, keine Benachrichtigungen">👥 Für andere</button>
+      <button class="btn sec ai-feature" onclick="openAiCompareOffers()" title="Ausgewählte Angebote per KI vergleichen (max. 5)"><svg class="i"><use href="#i-ai"/></svg> Vergleichen</button>
+      <button class="btn sec ai-feature" onclick="autoTagSelected()" title="Passende Tags automatisch per KI vergeben (ergänzt bestehende Tags)"><svg class="i"><use href="#i-ai"/></svg> Auto-Tag</button>
+      <button class="btn sec share-feature" onclick="openShareCreate()" title="Öffentlichen Link zum Anschauen erzeugen (ohne Login, nur Ansicht)"><svg class="i"><use href="#i-link"/></svg> Teilen</button>
+      <button class="btn sec" onclick="bulkForeign()" title="In eine „Für andere“-Liste legen (Name frei wählbar): eingeklappt ans Listenende, keine Benachrichtigungen"><svg class="i"><use href="#i-users"/></svg> Für andere</button>
       </div>
     </div>
     <!-- Startzustand: steht bewusst direkt im HTML und nicht erst im JS. Die erste
@@ -888,14 +979,14 @@
     <footer>
       <div>TUIWatch v{{ app_version }} · Prüfintervall: <span id="iv"></span>
         · DB: <span id="db-size">…</span>
-        · <span id="tui-calls-foot" title="TUI-API-Aufrufe heute — Zähler setzt sich um 0 Uhr zurück">📡 TUI-Aufrufe heute: <span id="tui-calls">…</span></span>
+        · <span id="tui-calls-foot" title="TUI-API-Aufrufe heute — Zähler setzt sich um 0 Uhr zurück"><svg class="i"><use href="#i-signal"/></svg> TUI-Aufrufe heute: <span id="tui-calls">…</span></span>
         · <span id="hc-foot" class="hc-foot" title="API-Status — klicken für Details &amp; neuen Test" onclick="openHealth()">API: <span id="hc-dot">…</span></span>
-        · <span class="hc-foot" onclick="openSyslog('notify')" title="Verlauf gesendeter Benachrichtigungen + letzte Warnungen/Fehler">🔔 Meldungen</span>
-        · <span class="hc-foot" onclick="openStats()" title="Tracking-Statistik: Ersparnis, größte Preisbewegungen, Wochentags-Muster, Tiefstpreis-Rückschau">📊 Statistik</span>
-        · <span class="hc-foot share-feature" onclick="openShareList()" title="Öffentliche Links verwalten: Aufrufe, Gültigkeit, widerrufen">🔗 Geteilte Links</span>
-        · <span class="hc-foot" onclick="backupOffers()" title="Komplettes Backup (Angebote mit Preisverlauf, Meine Reisen inkl. PDF, gespeicherte Suchen) als ZIP">⬇ Backup</span>
-        · <span class="hc-foot" onclick="document.getElementById('restore-file').click()" title="Backup wiederherstellen (ZIP oder altes JSON) – ergänzt Fehlendes, überschreibt nichts">⬆ Restore</span></div>
-      <div class="ai-feature"><span class="hc-foot" onclick="openPromptCfg()" title="Eigene KI-Prompt-Vorlagen für TripPilot, Hotelvergleich, KI-Fazit, Tagesausflug &amp; Regionen-Vergleich bearbeiten">⚙ KI-Prompts</span>
+        · <span class="hc-foot" onclick="openSyslog('notify')" title="Verlauf gesendeter Benachrichtigungen + letzte Warnungen/Fehler"><svg class="i"><use href="#i-bell"/></svg> Meldungen</span>
+        · <span class="hc-foot" onclick="openStats()" title="Tracking-Statistik: Ersparnis, größte Preisbewegungen, Wochentags-Muster, Tiefstpreis-Rückschau"><svg class="i"><use href="#i-chart"/></svg> Statistik</span>
+        · <span class="hc-foot share-feature" onclick="openShareList()" title="Öffentliche Links verwalten: Aufrufe, Gültigkeit, widerrufen"><svg class="i"><use href="#i-link"/></svg> Geteilte Links</span>
+        · <span class="hc-foot" onclick="backupOffers()" title="Komplettes Backup (Angebote mit Preisverlauf, Meine Reisen inkl. PDF, gespeicherte Suchen) als ZIP"><svg class="i"><use href="#i-download"/></svg> Backup</span>
+        · <span class="hc-foot" onclick="document.getElementById('restore-file').click()" title="Backup wiederherstellen (ZIP oder altes JSON) – ergänzt Fehlendes, überschreibt nichts"><svg class="i"><use href="#i-upload"/></svg> Restore</span></div>
+      <div class="ai-feature"><span class="hc-foot" onclick="openPromptCfg()" title="Eigene KI-Prompt-Vorlagen für TripPilot, Hotelvergleich, KI-Fazit, Tagesausflug &amp; Regionen-Vergleich bearbeiten"><svg class="i"><use href="#i-settings"/></svg> KI-Prompts</span>
         <span class="hc-foot ai-feature" id="ai-provider-foot" onclick="toggleAiProvider()" style="display:none" title="Aktiven KI-Anbieter umschalten"></span>
         · <span class="hc-foot ai-feature" id="ai-usage-foot" onclick="openAiHistory()" title="Geschätzte KI-Kosten — kein echtes Guthaben, dauerhaft in der DB gespeichert">…</span></div></footer>
   </div>
@@ -904,11 +995,11 @@
   <div class="modal-bg" id="modal-bg">
     <div class="modal">
       <button class="icon-btn modal-close" onclick="closeModal()">
-        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        <svg class="i"><use href="#i-close"/></svg>
       </button>
       <h2 id="modal-title">Preisverlauf</h2>
       <div class="sub" id="modal-sub"></div>
-      <div style="margin-bottom:10px"><button class="btn sec" onclick="exportCsv()">⬇ CSV-Export</button></div>
+      <div style="margin-bottom:10px"><button class="btn sec" onclick="exportCsv()"><svg class="i"><use href="#i-download"/></svg> CSV-Export</button></div>
       <div id="hist-wrap" style="position:relative">
         <canvas id="hist-canvas"></canvas>
         <div id="hist-tip" class="chart-tip" style="display:none"></div>
@@ -921,7 +1012,7 @@
   <div class="modal-bg" id="cmp-bg">
     <div class="modal">
       <button class="icon-btn modal-close" onclick="closeCompare()">
-        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        <svg class="i"><use href="#i-close"/></svg>
       </button>
       <h2>Pro-Person-Vergleich</h2>
       <div class="sub" id="cmp-sub"></div>
@@ -933,21 +1024,21 @@
   <div class="modal-bg" id="srch-bg">
     <div class="modal" style="max-width:960px">
       <button class="icon-btn modal-close" onclick="closeSearch()">
-        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        <svg class="i"><use href="#i-close"/></svg>
       </button>
       <h2>Hotels suchen</h2>
       <div class="sub">Reiseziel wählen, Eckdaten setzen, suchen — oder bei einem Angebot auf <b>„Region"</b> klicken bzw. unten eine TUI-URL einfügen.</div>
 
       <div class="srch-fav" id="srch-favbar">
-        <span>★ Gespeicherte Suche</span>
+        <span><svg class="i"><use href="#i-star"/></svg> Gespeicherte Suche</span>
         <select id="srch-favsel" onchange="loadFav()"><option value="">– gespeicherte Suche wählen –</option></select>
-        <button class="btn sec" onclick="saveFav()" title="Aktuelle Eingaben als neue Suche speichern (Name abfragen)">★ Speichern</button>
-        <button class="btn sec" id="srch-favupd" onclick="updateFav()" disabled title="Die gewählte gespeicherte Suche mit den aktuellen Eingaben überschreiben">💾 Änderungen speichern</button>
+        <button class="btn sec" onclick="saveFav()" title="Aktuelle Eingaben als neue Suche speichern (Name abfragen)"><svg class="i"><use href="#i-star"/></svg> Speichern</button>
+        <button class="btn sec" id="srch-favupd" onclick="updateFav()" disabled title="Die gewählte gespeicherte Suche mit den aktuellen Eingaben überschreiben"><svg class="i"><use href="#i-save"/></svg> Änderungen speichern</button>
         <button class="btn sec" onclick="delFav()" title="Gewählte Suche löschen">Löschen</button>
       </div>
 
       <div class="srch-watch" id="srch-watchrow" style="display:none">
-        <label class="srch-chk" title="Diese gespeicherte Suche regelmäßig ausführen und melden, wenn ein Hotel unter den Schwellenpreis fällt oder neu darunter auftaucht (Telegram/HA)"><input type="checkbox" id="watch-on"> 🔔 Beobachten</label>
+        <label class="srch-chk" title="Diese gespeicherte Suche regelmäßig ausführen und melden, wenn ein Hotel unter den Schwellenpreis fällt oder neu darunter auftaucht (Telegram/HA)"><input type="checkbox" id="watch-on"> <svg class="i"><use href="#i-bell"/></svg> Beobachten</label>
         <span>melden bei Preis p. P. unter</span>
         <input type="number" id="watch-max" min="1" placeholder="z. B. 800" onkeydown="if(event.key==='Enter')watchSave()"> €
         <button class="btn sec" onclick="watchSave()">Übernehmen</button>
@@ -1024,11 +1115,11 @@
         <label class="srch-chk" title="Sterne- und Weiterempfehlungs-Filter ignorieren"><input type="checkbox" id="srch-qual-off" onchange="toggleQualFilter()"> Egal</label>
         <button class="btn sec" onclick="resetSearch()" style="margin-left:auto" title="Eingaben auf Standard zurücksetzen">Reset</button>
         <button class="btn sec ai-feature" onclick="openClimate()"
-                title="Klimatabelle des Reiseziels: Temperaturen, Wassertemperatur, Sonnenstunden und Regentage für alle zwölf Monate">🌤 Klima</button>
+                title="Klimatabelle des Reiseziels: Temperaturen, Wassertemperatur, Sonnenstunden und Regentage für alle zwölf Monate"><svg class="i"><use href="#i-climate"/></svg> Klima</button>
         <button class="btn sec ai-feature" onclick="openGuide()"
-                title="Reiseführer zum Reiseziel: Einreise, Gesundheit, Geld, Mobilität, Sicherheit, Kultur, Don't Dos und Insider-Tipps — inklusive Klimatabelle">🧭 Reiseführer</button>
+                title="Reiseführer zum Reiseziel: Einreise, Gesundheit, Geld, Mobilität, Sicherheit, Kultur, Don't Dos und Insider-Tipps — inklusive Klimatabelle"><svg class="i"><use href="#i-compass"/></svg> Reiseführer</button>
         <button class="btn sec ai-feature" onclick="askSearchAdvice()"
-                title="KI prüft den gewählten Reisezeitraum (Regenzeit, Temperaturen, Haupt-/Nebensaison, Schnäppchenmonate) und schlägt ähnliche Ziele vor">🤖 Reisezeit-Check</button>
+                title="KI prüft den gewählten Reisezeitraum (Regenzeit, Temperaturen, Haupt-/Nebensaison, Schnäppchenmonate) und schlägt ähnliche Ziele vor"><svg class="i"><use href="#i-ai"/></svg> Reisezeit-Check</button>
         <button class="btn" onclick="runSearch()">Suchen</button>
       </div>
       <div id="srch-nights-warn" class="srch-warn" style="display:none"></div>
@@ -1048,7 +1139,7 @@
   <div class="modal-bg" id="nig-bg">
     <div class="modal">
       <button class="icon-btn modal-close" onclick="closeNights()">
-        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        <svg class="i"><use href="#i-close"/></svg>
       </button>
       <h2>Nächte-Vergleich</h2>
       <div class="sub" id="nig-sub"></div>
@@ -1070,7 +1161,7 @@
   <div class="modal-bg" id="c24-bg">
     <div class="modal">
       <button class="icon-btn modal-close" onclick="closeCheck24()">
-        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        <svg class="i"><use href="#i-close"/></svg>
       </button>
       <h2>Check24-Vergleich</h2>
       <div class="sub" id="c24-sub"></div>
@@ -1082,7 +1173,7 @@
   <div class="modal-bg" id="split-bg">
     <div class="modal" style="max-width:440px">
       <button class="icon-btn modal-close" onclick="closePriceSplit()">
-        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        <svg class="i"><use href="#i-close"/></svg>
       </button>
       <h2>Preis-Aufschlüsselung</h2>
       <div class="sub" id="split-sub"></div>
@@ -1094,9 +1185,9 @@
   <div class="modal-bg" id="fl-bg">
     <div class="modal" style="max-width:480px">
       <button class="icon-btn modal-close" onclick="closeForeignPicker()">
-        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        <svg class="i"><use href="#i-close"/></svg>
       </button>
-      <h2>👥 Für andere</h2>
+      <h2><svg class="i"><use href="#i-users"/></svg> Für andere</h2>
       <div class="sub" id="fl-sub"></div>
       <div id="fl-body"></div>
     </div>
@@ -1106,9 +1197,9 @@
   <div class="modal-bg" id="shc-bg" style="z-index:55">
     <div class="modal" style="max-width:700px">
       <button class="icon-btn modal-close" onclick="closeShareComments()">
-        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        <svg class="i"><use href="#i-close"/></svg>
       </button>
-      <h2>💬 Kommentare</h2>
+      <h2><svg class="i"><use href="#i-comment"/></svg> Kommentare</h2>
       <div class="sub" id="shc-sub"></div>
       <div id="shc-body"></div>
     </div>
@@ -1118,7 +1209,7 @@
   <div class="modal-bg" id="fli-bg" style="z-index:55">
     <div class="modal" style="max-width:460px">
       <button class="icon-btn modal-close" onclick="closeIconPicker()">
-        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        <svg class="i"><use href="#i-close"/></svg>
       </button>
       <h2>Symbol wählen</h2>
       <div class="sub" id="fli-sub"></div>
@@ -1130,9 +1221,9 @@
   <div class="modal-bg" id="shr-bg">
     <div class="modal" style="max-width:1150px">
       <button class="icon-btn modal-close" onclick="closeShare()">
-        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        <svg class="i"><use href="#i-close"/></svg>
       </button>
-      <h2>🔗 Öffentlich teilen</h2>
+      <h2><svg class="i"><use href="#i-link"/></svg> Öffentlich teilen</h2>
       <div class="sub">Erzeugt eine Seite zum reinen Anschauen — ohne Login, ohne Bedienelemente.
         Preis und Verfügbarkeit sind dort immer aktuell; die Auswahl der Angebote und die
         Zusatztexte bleiben so, wie sie beim Erzeugen waren.</div>
@@ -1144,9 +1235,9 @@
   <div class="modal-bg" id="stats-bg">
     <div class="modal">
       <button class="icon-btn modal-close" onclick="closeStats()">
-        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        <svg class="i"><use href="#i-close"/></svg>
       </button>
-      <h2>📊 Tracking-Statistik</h2>
+      <h2><svg class="i"><use href="#i-chart"/></svg> Tracking-Statistik</h2>
       <div class="sub">Kennzahlen über alle Angebote und den gesamten Preisverlauf.</div>
       <div id="stats-body"></div>
     </div>
@@ -1156,9 +1247,9 @@
   <div class="modal-bg" id="cal-bg">
     <div class="modal">
       <button class="icon-btn modal-close" onclick="closeCalendar()">
-        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        <svg class="i"><use href="#i-close"/></svg>
       </button>
-      <h2>Preiskalender <button id="cal-notify-bell" class="icon-btn notify-bell" onclick="toggleCalendarMuted()" title="Kalender-Benachrichtigungen (HA/Telegram)">🔔</button></h2>
+      <h2>Preiskalender <button id="cal-notify-bell" class="icon-btn notify-bell" onclick="toggleCalendarMuted()" title="Kalender-Benachrichtigungen (HA/Telegram)"><svg class="i"><use href="#i-bell"/></svg></button></h2>
       <div class="sub" id="cal-sub"></div>
       <div id="cal-body"></div>
     </div>
@@ -1167,7 +1258,7 @@
   <div class="modal-bg" id="room-bg">
     <div class="modal">
       <button class="icon-btn modal-close" onclick="closeRooms()">
-        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        <svg class="i"><use href="#i-close"/></svg>
       </button>
       <h2>Zimmerauswahl</h2>
       <div class="sub" id="room-sub"></div>
@@ -1181,15 +1272,15 @@
   <div class="modal-bg" id="ai-bg">
     <div class="modal">
       <button class="icon-btn modal-close" onclick="closeAiSummary()">
-        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        <svg class="i"><use href="#i-close"/></svg>
       </button>
-      <h2 id="ai-title">🤖 KI-Fazit</h2>
+      <h2 id="ai-title"><svg class="i"><use href="#i-ai"/></svg> KI-Fazit</h2>
       <div class="sub" id="ai-sub"></div>
       <div id="ai-body"></div>
       <div id="ai-foot" class="cmp-foot" style="display:none">
         <span class="hint" style="flex:1;min-width:180px">Öffnet die Druckansicht — dort „Als PDF speichern" wählen.</span>
-        <button class="btn sec" onclick="openAiEmailModal()">✉ E-Mail senden</button>
-        <button class="btn sec" onclick="exportAiPdf()">📄 PDF exportieren</button>
+        <button class="btn sec" onclick="openAiEmailModal()"><svg class="i"><use href="#i-mail"/></svg> E-Mail senden</button>
+        <button class="btn sec" onclick="exportAiPdf()"><svg class="i"><use href="#i-doc"/></svg> PDF exportieren</button>
       </div>
     </div>
   </div>
@@ -1198,13 +1289,13 @@
   <div class="modal-bg" id="syslog-bg">
     <div class="modal">
       <button class="icon-btn modal-close" onclick="closeSyslog()">
-        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        <svg class="i"><use href="#i-close"/></svg>
       </button>
-      <h2>🔔 Meldungen &amp; Fehler</h2>
+      <h2><svg class="i"><use href="#i-bell"/></svg> Meldungen &amp; Fehler</h2>
       <div style="display:flex;gap:6px;margin:8px 0;flex-wrap:wrap">
-        <button class="btn sec" id="syslog-tab-notify" onclick="openSyslog('notify')">🔔 Benachrichtigungen</button>
-        <button class="btn sec" id="syslog-tab-errors" onclick="openSyslog('errors')">⚠ Warnungen/Fehler</button>
-        <button class="btn sec" id="syslog-tab-console" onclick="openSyslog('console')">📜 Konsole</button>
+        <button class="btn sec" id="syslog-tab-notify" onclick="openSyslog('notify')"><svg class="i"><use href="#i-bell"/></svg> Benachrichtigungen</button>
+        <button class="btn sec" id="syslog-tab-errors" onclick="openSyslog('errors')"><svg class="i"><use href="#i-warn"/></svg> Warnungen/Fehler</button>
+        <button class="btn sec" id="syslog-tab-console" onclick="openSyslog('console')"><svg class="i"><use href="#i-terminal"/></svg> Konsole</button>
       </div>
       <div class="sub" id="syslog-sub"></div>
       <div id="syslog-filter" style="display:none;gap:6px;margin-bottom:8px;flex-wrap:wrap">
@@ -1215,7 +1306,7 @@
           <option value="WARNING">ab WARNUNG</option>
           <option value="ERROR">nur FEHLER</option>
         </select>
-        <button class="btn sec" onclick="openSyslog('console')">🔄</button>
+        <button class="btn sec" onclick="openSyslog('console')"><svg class="i"><use href="#i-refresh"/></svg></button>
       </div>
       <div id="syslog-body"></div>
     </div>
@@ -1224,9 +1315,9 @@
   <div class="modal-bg" id="giata-gallery-bg">
     <div class="modal">
       <button class="icon-btn modal-close" onclick="closeGiataGallery()">
-        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        <svg class="i"><use href="#i-close"/></svg>
       </button>
-      <h2>🖼 Hotelfotos (GIATA)</h2>
+      <h2><svg class="i"><use href="#i-image"/></svg> Hotelfotos (GIATA)</h2>
       <div id="giata-gallery-body"></div>
     </div>
   </div>
@@ -1246,11 +1337,11 @@
   <div class="modal-bg" id="aihist-bg">
     <div class="modal">
       <button class="icon-btn modal-close" onclick="closeAiHistory()">
-        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        <svg class="i"><use href="#i-close"/></svg>
       </button>
-      <h2>🤖 KI-Verlauf</h2>
+      <h2><svg class="i"><use href="#i-ai"/></svg> KI-Verlauf</h2>
       <div class="sub">Bisherige KI-Fazits &amp; -Vergleiche — bleiben dauerhaft gespeichert, unabhängig vom 24h-Cache.</div>
-      <input type="text" id="aihist-search" oninput="filterAiHistory()" placeholder="🔍 Suchen (Titel, Art, Modell)…"
+      <input type="text" id="aihist-search" oninput="filterAiHistory()" placeholder="Suchen (Titel, Art, Modell)…"
         style="width:100%;margin-top:10px;background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:var(--r-ui);padding:8px;font:inherit">
       <div id="aihist-body"></div>
     </div>
@@ -1259,18 +1350,18 @@
   <div class="modal-bg" id="aiask-bg">
     <div class="modal">
       <button class="icon-btn modal-close" onclick="closeAiAsk()">
-        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        <svg class="i"><use href="#i-close"/></svg>
       </button>
-      <h2>❓ Frage</h2>
+      <h2><svg class="i"><use href="#i-help"/></svg> Frage</h2>
       <div class="sub" id="aiask-sub"></div>
       <textarea id="aiask-q" rows="3" style="width:100%;margin-top:10px;resize:vertical;background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:var(--r-ui);padding:8px;font:inherit"></textarea>
       <div style="margin-top:14px;display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap">
         <span class="hint" style="flex:1;min-width:180px" id="aiask-hint"></span>
         <button class="btn sec" onclick="closeAiAsk()">Abbrechen</button>
         <button class="btn sec" id="aiask-btn-general" onclick="submitAiAsk('general')"
-                title="Allgemeine Reisefrage — ohne Bezug zu deinen Angeboten, mit Websuche">🌍 Reisefrage</button>
+                title="Allgemeine Reisefrage — ohne Bezug zu deinen Angeboten, mit Websuche"><svg class="i"><use href="#i-globe"/></svg> Reisefrage</button>
         <button class="btn" id="aiask-btn-portfolio" onclick="submitAiAsk('portfolio')"
-                title="Frage zu deinen getrackten Angeboten">📌 Portfolio fragen</button>
+                title="Frage zu deinen getrackten Angeboten"><svg class="i"><use href="#i-pin"/></svg> Portfolio fragen</button>
       </div>
     </div>
   </div>
@@ -1278,9 +1369,9 @@
   <div class="modal-bg" id="regcmp-bg">
     <div class="modal">
       <button class="icon-btn modal-close" onclick="closeRegionCompare()">
-        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        <svg class="i"><use href="#i-close"/></svg>
       </button>
-      <h2>📊 Regionen vergleichen</h2>
+      <h2><svg class="i"><use href="#i-chart"/></svg> Regionen vergleichen</h2>
       <div class="sub">Bis zu 5 Ziele + ein Reisemonat — Wetter, Sicherheit, Preisniveau,
         beste Reisezeit, Strand/Natur, Familien-/Nightlife-Eignung und ein kurzes Fazit.</div>
 
@@ -1297,7 +1388,7 @@
       <div style="margin-top:16px;display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap">
         <span class="hint" style="flex:1;min-width:180px" id="regcmp-hint">Mindestens 2 Ziele wählen.</span>
         <button class="btn sec" onclick="closeRegionCompare()">Abbrechen</button>
-        <button class="btn" id="regcmp-submit" onclick="submitRegionCompare()">🤖 Vergleichen</button>
+        <button class="btn" id="regcmp-submit" onclick="submitRegionCompare()"><svg class="i"><use href="#i-ai"/></svg> Vergleichen</button>
       </div>
     </div>
   </div>
@@ -1305,9 +1396,9 @@
   <div class="modal-bg" id="reiseb-bg">
     <div class="modal" style="max-width:640px">
       <button class="icon-btn modal-close" onclick="closeAdvisor()">
-        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        <svg class="i"><use href="#i-close"/></svg>
       </button>
-      <h2>🗺️ TripPilot</h2>
+      <h2><svg class="i"><use href="#i-map"/></svg> TripPilot</h2>
       <div class="sub" id="reiseb-sub"></div>
       <div id="reiseb-body"></div>
       <div style="margin-top:16px;display:flex;gap:8px;justify-content:space-between">
@@ -1320,7 +1411,7 @@
   <div class="modal-bg" id="email-bg">
     <div class="modal">
       <button class="icon-btn modal-close" onclick="closeEmailModal()">
-        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        <svg class="i"><use href="#i-close"/></svg>
       </button>
       <h2>Als E-Mail senden</h2>
       <div class="sub">Adresse eingeben oder aus dem Nextcloud-Adressbuch wählen.</div>
@@ -1337,7 +1428,7 @@
   <div class="modal-bg" id="hc-bg">
     <div class="modal">
       <button class="icon-btn modal-close" onclick="$('#hc-bg').classList.remove('show')">
-        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        <svg class="i"><use href="#i-close"/></svg>
       </button>
       <h2>API-Status</h2>
       <div class="sub" id="hc-sub"></div>
@@ -1352,7 +1443,7 @@
   <div class="modal-bg" id="sched-bg">
     <div class="modal" style="max-width:620px">
       <button class="icon-btn modal-close" onclick="$('#sched-bg').classList.remove('show')">
-        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        <svg class="i"><use href="#i-close"/></svg>
       </button>
       <h2>Nächste Läufe</h2>
       <div class="sub" id="sched-sub"></div>
@@ -1364,9 +1455,9 @@
   <div class="modal-bg" id="tpedit-bg">
     <div class="modal" style="max-width:900px">
       <button class="icon-btn modal-close" onclick="closeTpEdit()">
-        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        <svg class="i"><use href="#i-close"/></svg>
       </button>
-      <h2>🗺️ Fragebogen bearbeiten</h2>
+      <h2><svg class="i"><use href="#i-map"/></svg> Fragebogen bearbeiten</h2>
       <div class="sub" id="tpedit-sub"></div>
       <div id="tpedit-msg"></div>
       <div id="tpedit-daytrip" class="tpe-row" style="margin-top:10px"></div>
@@ -1396,36 +1487,36 @@
   <div class="modal-bg" id="promptcfg-bg">
     <div class="modal" style="max-width:720px">
       <button class="icon-btn modal-close" onclick="closePromptCfg()">
-        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        <svg class="i"><use href="#i-close"/></svg>
       </button>
-      <h2>⚙ KI-Prompts</h2>
+      <h2><svg class="i"><use href="#i-settings"/></svg> KI-Prompts</h2>
       <div class="sub">Standard ist bereits ausgefüllt. Checkbox aktivieren, um ihn zu überschreiben. Die Websuche bleibt technisch immer aktiv, auch wenn der Hinweis dazu aus dem Text entfernt wird — die KI sucht dann ggf. weniger gezielt.</div>
 
-      <h3 style="margin:14px 0 6px">🗺️ TripPilot</h3>
+      <h3 style="margin:14px 0 6px"><svg class="i"><use href="#i-map"/></svg> TripPilot</h3>
       <label style="display:flex;align-items:center;gap:6px;font-size:.85rem"><input type="checkbox" id="promptcfg-advisor-enabled"> Eigenen Prompt verwenden</label>
       <textarea id="promptcfg-advisor-text" class="promptcfg-text" rows="10" maxlength="6000" oninput="promptcfgCount('advisor')" style="margin-top:6px"></textarea>
       <div class="hint" id="promptcfg-advisor-count" style="text-align:right"></div>
       <button class="btn sec" onclick="promptcfgReset('advisor')" style="margin-top:4px">Zurücksetzen auf Standard</button>
 
-      <h3 style="margin:20px 0 6px">🏨 Hotelvergleich</h3>
+      <h3 style="margin:20px 0 6px"><svg class="i"><use href="#i-hotel"/></svg> Hotelvergleich</h3>
       <label style="display:flex;align-items:center;gap:6px;font-size:.85rem"><input type="checkbox" id="promptcfg-compare-enabled"> Eigenen Prompt verwenden</label>
       <textarea id="promptcfg-compare-text" class="promptcfg-text" rows="10" maxlength="6000" oninput="promptcfgCount('compare')" style="margin-top:6px"></textarea>
       <div class="hint" id="promptcfg-compare-count" style="text-align:right"></div>
       <button class="btn sec" onclick="promptcfgReset('compare')" style="margin-top:4px">Zurücksetzen auf Standard</button>
 
-      <h3 style="margin:20px 0 6px">🤖 KI-Fazit</h3>
+      <h3 style="margin:20px 0 6px"><svg class="i"><use href="#i-ai"/></svg> KI-Fazit</h3>
       <label style="display:flex;align-items:center;gap:6px;font-size:.85rem"><input type="checkbox" id="promptcfg-summary-enabled"> Eigenen Prompt verwenden</label>
       <textarea id="promptcfg-summary-text" class="promptcfg-text" rows="10" maxlength="6000" oninput="promptcfgCount('summary')" style="margin-top:6px"></textarea>
       <div class="hint" id="promptcfg-summary-count" style="text-align:right"></div>
       <button class="btn sec" onclick="promptcfgReset('summary')" style="margin-top:4px">Zurücksetzen auf Standard</button>
 
-      <h3 style="margin:20px 0 6px">🚗 Tagesausflug</h3>
+      <h3 style="margin:20px 0 6px"><svg class="i"><use href="#i-car"/></svg> Tagesausflug</h3>
       <label style="display:flex;align-items:center;gap:6px;font-size:.85rem"><input type="checkbox" id="promptcfg-daytrip-enabled"> Eigenen Prompt verwenden</label>
       <textarea id="promptcfg-daytrip-text" class="promptcfg-text" rows="10" maxlength="6000" oninput="promptcfgCount('daytrip')" style="margin-top:6px"></textarea>
       <div class="hint" id="promptcfg-daytrip-count" style="text-align:right"></div>
       <button class="btn sec" onclick="promptcfgReset('daytrip')" style="margin-top:4px">Zurücksetzen auf Standard</button>
 
-      <h3 style="margin:20px 0 6px">📊 Regionen-Vergleich</h3>
+      <h3 style="margin:20px 0 6px"><svg class="i"><use href="#i-chart"/></svg> Regionen-Vergleich</h3>
       <label style="display:flex;align-items:center;gap:6px;font-size:.85rem"><input type="checkbox" id="promptcfg-region_compare-enabled"> Eigenen Prompt verwenden</label>
       <textarea id="promptcfg-region_compare-text" class="promptcfg-text" rows="10" maxlength="6000" oninput="promptcfgCount('region_compare')" style="margin-top:6px"></textarea>
       <div class="hint" id="promptcfg-region_compare-count" style="text-align:right"></div>
@@ -1441,7 +1532,7 @@
   <div class="modal-bg" id="aktion-bg">
     <div class="modal" style="max-width:820px">
       <button class="icon-btn modal-close" onclick="closeAktion()">
-        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        <svg class="i"><use href="#i-close"/></svg>
       </button>
       <h2>TUI-Aktionscodes</h2>
       <div class="sub">Aktuelle öffentliche Aktionscodes von tui.com — ohne Login. Bei neuen Codes wirst du benachrichtigt.</div>
@@ -1457,7 +1548,7 @@
   <div class="modal-bg" id="trend-bg">
     <div class="modal" style="max-width:640px">
       <button class="icon-btn modal-close" onclick="closeMarketTrend()">
-        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        <svg class="i"><use href="#i-close"/></svg>
       </button>
       <h2>Markttrend</h2>
       <div class="sub">Preistrend der letzten 14 Tage aus <b>deinen getrackten Angeboten</b> —
@@ -1468,8 +1559,8 @@
       <div class="cmp-foot" style="margin-top:12px">
         <span class="hint" style="flex:1;min-width:220px">Preissprung durch Zimmerwechsel dabei?
           Neu berechnen schließt ihn nachträglich aus.</span>
-        <button class="btn sec" onclick="openBasket()">🌡️ Preisbarometer</button>
-        <button class="btn sec" onclick="recomputeMarketTrend()">🔄 Neu berechnen</button>
+        <button class="btn sec" onclick="openBasket()"><svg class="i"><use href="#i-thermo"/></svg> Preisbarometer</button>
+        <button class="btn sec" onclick="recomputeMarketTrend()"><svg class="i"><use href="#i-refresh"/></svg> Neu berechnen</button>
       </div>
     </div>
   </div>
@@ -1480,9 +1571,9 @@
   <div class="modal-bg" id="basket-bg">
     <div class="modal" style="max-width:720px">
       <button class="icon-btn modal-close" onclick="closeBasket()">
-        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        <svg class="i"><use href="#i-close"/></svg>
       </button>
-      <h2>🌡️ Preisbarometer</h2>
+      <h2><svg class="i"><use href="#i-thermo"/></svg> Preisbarometer</h2>
       <div class="sub">Einmal pro Tag läuft jede deiner <b>gespeicherten Suchen</b> erneut —
         mit deinen Reiseterminen, deiner Dauer und deinen Filtern. Verglichen wird jedes Hotel
         mit sich selbst vom Vortag, der <b>Median</b> über alle Hotels ergibt die Tagesbewegung.
@@ -1505,7 +1596,7 @@
       <div class="cmp-foot" style="margin-top:12px">
         <span class="hint" style="flex:1;min-width:220px">Läuft automatisch 1×/Tag.
           Ein Trend braucht zwei Tage.</span>
-        <button class="btn sec" onclick="runMarketBasket()">🌡️ Jetzt messen</button>
+        <button class="btn sec" onclick="runMarketBasket()"><svg class="i"><use href="#i-thermo"/></svg> Jetzt messen</button>
       </div>
     </div>
   </div>
@@ -1515,19 +1606,19 @@
   <div class="modal-bg" id="climate-bg">
     <div class="modal" style="max-width:700px">
       <button class="icon-btn modal-close" onclick="closeClimate()">
-        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        <svg class="i"><use href="#i-close"/></svg>
       </button>
-      <h2>🌤 Klima</h2>
+      <h2><svg class="i"><use href="#i-climate"/></svg> Klima</h2>
       <div class="sub" id="climate-sub"></div>
       <div id="climate-body"></div>
       <div class="cmp-foot" style="margin-top:12px" id="climate-foot">
         <span class="hint" style="flex:1;min-width:220px" id="climate-stand"></span>
         <button class="btn sec" onclick="copyClimateMd()"
-                title="Klimatabelle als Markdown in die Zwischenablage — zum Einfügen in eine Notiz-/Wissenssammlung">📋 Markdown</button>
+                title="Klimatabelle als Markdown in die Zwischenablage — zum Einfügen in eine Notiz-/Wissenssammlung"><svg class="i"><use href="#i-clipboard"/></svg> Markdown</button>
         <button class="btn sec" onclick="openClimateEmailModal()"
-                title="Klimatabelle per E-Mail verschicken (kein KI-Aufruf)">✉ Als E-Mail</button>
+                title="Klimatabelle per E-Mail verschicken (kein KI-Aufruf)"><svg class="i"><use href="#i-mail"/></svg> Als E-Mail</button>
         <button class="btn sec" onclick="refreshClimate()"
-                title="Tabelle verwerfen und neu von der KI erstellen lassen (kostet einen KI-Aufruf)">🔄 Neu abrufen</button>
+                title="Tabelle verwerfen und neu von der KI erstellen lassen (kostet einen KI-Aufruf)"><svg class="i"><use href="#i-refresh"/></svg> Neu abrufen</button>
       </div>
     </div>
   </div>
@@ -1537,21 +1628,21 @@
   <div class="modal-bg" id="guide-bg">
     <div class="modal" style="max-width:760px">
       <button class="icon-btn modal-close" onclick="closeGuide()">
-        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        <svg class="i"><use href="#i-close"/></svg>
       </button>
-      <h2>🧭 Reiseführer</h2>
+      <h2><svg class="i"><use href="#i-compass"/></svg> Reiseführer</h2>
       <div class="sub" id="guide-sub"></div>
       <div id="guide-body"></div>
       <div class="cmp-foot" style="margin-top:12px" id="guide-foot">
         <span class="hint" style="flex:1;min-width:220px" id="guide-stand"></span>
         <button class="btn sec" onclick="printGuide()"
-                title="Reiseführer ausdrucken oder als PDF speichern">🖨 Drucken</button>
+                title="Reiseführer ausdrucken oder als PDF speichern"><svg class="i"><use href="#i-print"/></svg> Drucken</button>
         <button class="btn sec" onclick="copyGuideMd()"
-                title="Reiseführer als Markdown in die Zwischenablage — zum Einfügen in eine Notiz-/Wissenssammlung">📋 Markdown</button>
+                title="Reiseführer als Markdown in die Zwischenablage — zum Einfügen in eine Notiz-/Wissenssammlung"><svg class="i"><use href="#i-clipboard"/></svg> Markdown</button>
         <button class="btn sec" onclick="openGuideEmailModal()"
-                title="Reiseführer per E-Mail verschicken (kein KI-Aufruf)">✉ Als E-Mail</button>
+                title="Reiseführer per E-Mail verschicken (kein KI-Aufruf)"><svg class="i"><use href="#i-mail"/></svg> Als E-Mail</button>
         <button class="btn sec" onclick="refreshGuide()"
-                title="Reiseführer verwerfen und neu von der KI erstellen lassen (kostet einen KI-Aufruf)">🔄 Neu abrufen</button>
+                title="Reiseführer verwerfen und neu von der KI erstellen lassen (kostet einen KI-Aufruf)"><svg class="i"><use href="#i-refresh"/></svg> Neu abrufen</button>
       </div>
     </div>
   </div>
@@ -1563,9 +1654,9 @@
   <div class="modal-bg" id="fpick-bg">
     <div class="modal" style="max-width:560px">
       <button class="icon-btn modal-close" onclick="closeFlightPick()">
-        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        <svg class="i"><use href="#i-close"/></svg>
       </button>
-      <h2>✈️ Flugplan</h2>
+      <h2><svg class="i"><use href="#i-plane"/></svg> Flugplan</h2>
       <div class="sub">Von welchem Flughafen? Die Flughäfen liefern unterschiedliche Daten.</div>
       <div class="fpick-opts">
         <button class="fpick-opt" id="fpick-str" onclick="closeFlightPick(); openStrFlights()">
@@ -1578,7 +1669,7 @@
           <b>München (MUC)</b>
         </button>
         <button class="fpick-opt" id="fpick-all" style="flex:1 1 100%" onclick="closeFlightPick(); openAllFlights()">
-          <b>🔍 Alle durchsuchen</b>
+          <b><svg class="i"><use href="#i-search"/></svg> Alle durchsuchen</b>
         </button>
       </div>
     </div>
@@ -1591,9 +1682,9 @@
   <div class="modal-bg" id="allf-bg">
     <div class="modal" style="max-width:1100px">
       <button class="icon-btn modal-close" onclick="closeAllFlights()">
-        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        <svg class="i"><use href="#i-close"/></svg>
       </button>
-      <h2>✈️ Flugziel überall suchen</h2>
+      <h2><svg class="i"><use href="#i-plane"/></svg> Flugziel überall suchen</h2>
       <div class="sub">Sucht gleichzeitig in allen freigeschalteten Flugplänen — nur Abflüge.</div>
       <div class="shr-row" style="margin:10px 0">
         <input type="text" id="allf-q" placeholder="Ziel suchen… (Code, Ort, Land)" autocomplete="off" style="flex:1 1 180px;min-width:140px">
@@ -1610,7 +1701,7 @@
            api_flights_destinations()). Zeile anklicken übernimmt den Code
            ins Suchfeld oben und sucht über alle drei Flughäfen (FRA also
            mit, nur eben nicht in dieser Liste). -->
-      <h3 style="margin:18px 0 4px">📋 Alle Flugziele</h3>
+      <h3 style="margin:18px 0 4px"><svg class="i"><use href="#i-clipboard"/></svg> Alle Flugziele</h3>
       <div id="allf-dest-body"><div class="hint">Lädt…</div></div>
     </div>
   </div>
@@ -1621,9 +1712,9 @@
   <div class="modal-bg" id="fraf-bg">
     <div class="modal" style="max-width:980px">
       <button class="icon-btn modal-close" onclick="closeFraFlights()">
-        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        <svg class="i"><use href="#i-close"/></svg>
       </button>
-      <h2>✈️ Flugplan ab Frankfurt Airport (FRA)</h2>
+      <h2><svg class="i"><use href="#i-plane"/></svg> Flugplan ab Frankfurt Airport (FRA)</h2>
       <div class="sub">Geplante Flüge nach Zielflughafen — Daten des Flughafenbetreibers, keine Pauschalreise-Angebote.</div>
       <div class="shr-row" style="margin:10px 0">
         <input type="text" id="fraf-q" placeholder="Ziel suchen… (Code, Ort, Land)" autocomplete="off" style="flex:1 1 180px;min-width:140px">
@@ -1646,9 +1737,9 @@
   <div class="modal-bg" id="fraf-detail-bg">
     <div class="modal" style="max-width:520px">
       <button class="icon-btn modal-close" onclick="closeFraFlightDetail()">
-        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        <svg class="i"><use href="#i-close"/></svg>
       </button>
-      <h2 id="fraf-detail-title">✈️ Flugdetails</h2>
+      <h2 id="fraf-detail-title"><svg class="i"><use href="#i-plane"/></svg> Flugdetails</h2>
       <div class="sub" id="fraf-detail-live"></div>
       <div id="fraf-detail-body"></div>
     </div>
@@ -1659,9 +1750,9 @@
   <div class="modal-bg" id="mucf-bg">
     <div class="modal" style="max-width:980px">
       <button class="icon-btn modal-close" onclick="closeMucFlights()">
-        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        <svg class="i"><use href="#i-close"/></svg>
       </button>
-      <h2>✈️ Flugplan ab München Airport (MUC)</h2>
+      <h2><svg class="i"><use href="#i-plane"/></svg> Flugplan ab München Airport (MUC)</h2>
       <div class="sub">Linienflug-Verbindungen der laufenden Saison — aus dem offiziellen Flugplan-PDF des Flughafens, keine Pauschalreise-Angebote.</div>
       <div class="shr-row" style="margin:10px 0">
         <input type="text" id="mucf-q" placeholder="Ziel suchen… (Code, Ort, Land)" autocomplete="off" style="flex:1 1 180px;min-width:140px">
@@ -1677,7 +1768,7 @@
         </label>
       </div>
       <div id="mucf-body"><div class="hint">Suchbegriff eingeben, z. B. „Palma", „PMI" oder „Spanien".</div></div>
-      <div class="hc-foot" style="margin-top:8px" onclick="mucFlightsRefresh()" title="Flugplan-PDF sofort neu einlesen (passiert sonst automatisch alle drei Stunden, sobald eine neue Fassung hängt)">🔄 Flugplan neu einlesen</div>
+      <div class="hc-foot" style="margin-top:8px" onclick="mucFlightsRefresh()" title="Flugplan-PDF sofort neu einlesen (passiert sonst automatisch alle drei Stunden, sobald eine neue Fassung hängt)"><svg class="i"><use href="#i-refresh"/></svg> Flugplan neu einlesen</div>
     </div>
   </div>
 
@@ -1687,9 +1778,9 @@
   <div class="modal-bg" id="strf-bg">
     <div class="modal" style="max-width:860px">
       <button class="icon-btn modal-close" onclick="closeStrFlights()">
-        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        <svg class="i"><use href="#i-close"/></svg>
       </button>
-      <h2>✈️ Flugplan ab Stuttgart Airport (STR)</h2>
+      <h2><svg class="i"><use href="#i-plane"/></svg> Flugplan ab Stuttgart Airport (STR)</h2>
       <div class="sub">Linienflug-Verbindungen nach Zielflughafen oder Land — Daten des Flughafen-Betreibers, keine Pauschalreise-Angebote.</div>
       <div class="shr-row" style="margin:10px 0">
         <input type="text" id="strf-q" placeholder="Ziel suchen… (Code, Ort, Land)" autocomplete="off" style="flex:1 1 180px;min-width:140px">
@@ -1714,9 +1805,9 @@
   <div class="modal-bg" id="strf-detail-bg">
     <div class="modal" style="max-width:480px">
       <button class="icon-btn modal-close" onclick="closeStrFlightDetail()">
-        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        <svg class="i"><use href="#i-close"/></svg>
       </button>
-      <h2 id="strf-detail-title">✈️ Flugdetails</h2>
+      <h2 id="strf-detail-title"><svg class="i"><use href="#i-plane"/></svg> Flugdetails</h2>
       <div class="sub" id="strf-detail-live"></div>
       <div id="strf-detail-body"></div>
     </div>
@@ -1726,19 +1817,19 @@
   <div class="modal-bg" id="trips-bg">
     <div class="modal" style="max-width:960px">
       <button class="icon-btn modal-close" onclick="closeTrips()">
-        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        <svg class="i"><use href="#i-close"/></svg>
       </button>
       <h2>Meine Reisen</h2>
       <div class="sub">Gebuchte TUI-Reisen als Bestätigungs-PDF importieren — Eckdaten werden ausgelesen, die PDF bleibt dauerhaft gespeichert und abrufbar.</div>
-      <div class="hc-foot" style="margin-top:4px" onclick="openTripsSummary()" title="Alle zukünftigen Reisen mit Datum, Wochentag und Flugdaten zusammenfassen — zum Teilen oder per E-Mail versenden">📋 Zusammenfassung zukünftiger Reisen</div>
-      <a class="hc-foot" style="margin-top:4px;display:inline-block" id="trips-ics-link" href="#" title="Alle Reisen als Kalender-Datei (.ics) herunterladen — importierbar in HA-Kalender, Google Kalender, Outlook …">📅 Als Kalender (.ics)</a>
+      <div class="hc-foot" style="margin-top:4px" onclick="openTripsSummary()" title="Alle zukünftigen Reisen mit Datum, Wochentag und Flugdaten zusammenfassen — zum Teilen oder per E-Mail versenden"><svg class="i"><use href="#i-clipboard"/></svg> Zusammenfassung zukünftiger Reisen</div>
+      <a class="hc-foot" style="margin-top:4px;display:inline-block" id="trips-ics-link" href="#" title="Alle Reisen als Kalender-Datei (.ics) herunterladen — importierbar in HA-Kalender, Google Kalender, Outlook …"><svg class="i"><use href="#i-calendar"/></svg> Als Kalender (.ics)</a>
 
       <div id="trips-stats" class="trips-stats"></div>
       <div id="trips-years"></div>
 
       <div class="trips-import" id="trips-drop">
         <input type="file" id="trip-file" accept="application/pdf,.pdf" style="display:none" onchange="importTrip(this)">
-        <button class="btn" onclick="$('#trip-file').click()">📄 PDF importieren</button>
+        <button class="btn" onclick="$('#trip-file').click()"><svg class="i"><use href="#i-doc"/></svg> PDF importieren</button>
         <span class="trips-imp-hint">TUI-Reisebestätigung (.pdf) hierher ziehen oder auswählen</span>
         <span id="trip-imp-status" class="trips-imp-status"></span>
       </div>
@@ -1752,14 +1843,14 @@
   <div class="modal-bg" id="trips-summary-bg">
     <div class="modal" style="max-width:640px">
       <button class="icon-btn modal-close" onclick="closeTripsSummary()">
-        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        <svg class="i"><use href="#i-close"/></svg>
       </button>
       <h2>Zusammenfassung zukünftiger Reisen</h2>
       <div class="sub">Datum, Wochentag und Flugdaten aller bevorstehenden Reisen — zum Teilen oder per E-Mail versenden.</div>
       <div id="trips-summary-body" style="margin-top:12px"></div>
       <div class="cmp-foot" style="margin-top:16px">
-        <button class="btn sec" onclick="shareTripsSummary()">📤 Teilen</button>
-        <button class="btn" onclick="emailTripsSummary()">✉️ Per E-Mail senden</button>
+        <button class="btn sec" onclick="shareTripsSummary()"><svg class="i"><use href="#i-share"/></svg> Teilen</button>
+        <button class="btn" onclick="emailTripsSummary()"><svg class="i"><use href="#i-mail"/></svg> Per E-Mail senden</button>
       </div>
     </div>
   </div>
@@ -1770,7 +1861,7 @@
   <!-- Konsole (Doppelklick auf Logo) -->
   <div id="tw-console">
     <div id="tw-console-header">
-      <span id="tw-console-title">⬛ KONSOLE — TUIWatch · Hintergrund</span>
+      <span id="tw-console-title"><svg class="i"><use href="#i-terminal"/></svg> KONSOLE — TUIWatch · Hintergrund</span>
       <button id="tw-console-close" onclick="consoleToggle()">✕</button>
     </div>
     <div id="tw-console-body"></div>
