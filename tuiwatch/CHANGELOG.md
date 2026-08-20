@@ -1,5 +1,45 @@
 # Changelog
 
+## [0.100.9] - 2026-08-20
+
+### Changed
+- **Ruhigeres Design (Stufe 3 von 4): Rangfolge statt vierzehn gleich lauter
+  Knöpfe.** Bisher standen sieben Knöpfe in der Kopfleiste und sieben in der
+  Werkzeugleiste — alle in derselben Form, derselben Größe, derselben Farbfamilie.
+  Nichts davon war als Hauptaktion erkennbar. Neu in drei Ebenen:
+  - **Kopfleiste:** nur noch **Alle prüfen** (jetzt mit Beschriftung und als
+    Hauptaktion hervorgehoben), Design-Umschalter und Abmelden.
+  - **Werkzeugleiste:** die vier täglich gebrauchten Werkzeuge — Suche, Meine
+    Reisen, TripPilot, Markttrend. Die Knöpfe strecken sich nicht mehr über die
+    volle Breite, sondern sind so breit wie ihre Beschriftung.
+  - **„Mehr"-Menü:** Klimatabellen, Reiseführer, Regionen vergleichen, Flugplan,
+    KI-Verlauf, Frage stellen, Aktionscodes, Als E-Mail senden und Wochenüberblick
+    — gruppiert nach Reise-Wissen, KI sowie Versand &amp; Codes. Das Auf- und
+    Zuklappen macht `<details>` selbst, das Menü funktioniert also auch ohne
+    JavaScript; nachgerüstet ist nur das Schließen nach einer Auswahl, bei Klick
+    daneben und mit Escape.
+  - Ist die KI oder der Flugplan abgeschaltet, verschwindet die jeweilige
+    Menügruppe samt Überschrift — es bleibt keine leere Rubrik stehen.
+  - Ein neuer Aktionscode lag damit im zugeklappten Menü: der „Mehr"-Knopf
+    bekommt jetzt denselben grünen Hinweis wie der Aktionscode-Eintrag selbst.
+  - **Fußzeile:** zweigeteilt statt einer langen Kette — links der Zustand
+    (Version, Prüfintervall, DB-Größe, TUI-Aufrufe, API, KI-Kosten), rechts die
+    Werkzeuge (Meldungen, Statistik, Geteilte Links, Backup, Restore, KI-Prompts)
+    als reiner Text ohne Symbole.
+
+  Sämtliche Funktionen und Tooltips bleiben unverändert, nur ihr Platz ändert sich.
+
+- **„Für andere" heißt jetzt „In Liste verschieben".** Der Name beschrieb einen
+  Sonderfall, nicht die Tätigkeit — verschoben wird in eine frei benannte Liste,
+  für wen auch immer. Betrifft den Knopf in der Sammelaktion, den Dialogtitel und
+  den Tooltip in der Angebotskarte.
+  - Der Knopf in der Angebotskarte zeigt statt des Emoji der Liste ein
+    Listensymbol aus dem Symbolsatz. In welcher Liste ein Angebot steckt, sagen
+    weiterhin die Akzentfarbe des Knopfes und sein Tooltip; das selbstgewählte
+    Symbol steht unverändert an der Liste selbst.
+  - Der voreingestellte **Listenname** bleibt „Für andere" — er hängt an
+    bestehenden Einträgen in der Datenbank und lässt sich jederzeit umbenennen.
+
 ## [0.100.8] - 2026-08-20
 
 ### Changed

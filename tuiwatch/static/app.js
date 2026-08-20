@@ -795,8 +795,8 @@
                    <svg class="i"><use href="#i-archive"/></svg>
                  </button>
                  <button class="icon-btn${o.is_foreign?' foreign-on':''}" onclick="openForeignPicker([${o.id}])" title="${o.is_foreign
-                    ? esc('In Liste „'+foreignListOf(o)+'" — klicken zum Wechseln oder Entfernen')
-                    : 'Für andere: in eine Liste legen (rutscht eingeklappt ans Listenende, Benachrichtigungen und Kalender-Meldungen werden stummgeschaltet)'}">${o.is_foreign?esc(foreignIconOf(o)):'👥'}</button>
+                    ? esc('In Liste „'+foreignListOf(o)+'“ — klicken zum Wechseln oder Entfernen')
+                    : 'In eine Liste verschieben (rutscht eingeklappt ans Listenende, Benachrichtigungen und Kalender-Meldungen werden stummgeschaltet)'}"><svg class="i"><use href="#i-list"/></svg></button>
                  <button class="icon-btn" onclick="resetOffer(${o.id})" title="Zurücksetzen: Verlauf löschen und neu bei null beginnen">
                    <svg class="i"><use href="#i-reset"/></svg>
                  </button>
@@ -2268,7 +2268,12 @@
           ${c.kind?`<div class="aktion-kind">${esc(c.kind)}</div>`:''}
         </div>`).join('') + '</div>';
     }
-    function setAktionGlow(on){ const b=document.getElementById('aktion-btn'); if(b) b.classList.toggle('aktion-active', !!on); }
+    function setAktionGlow(on){
+      const b=document.getElementById('aktion-btn'); if(b) b.classList.toggle('aktion-active', !!on);
+      // Der Knopf steckt im zugeklappten „Mehr"-Menü, deshalb bekommt auch der
+      // Menü-Aufmacher einen Punkt — sonst bliebe ein neuer Aktionscode unsichtbar.
+      const m=document.getElementById('more-sum'); if(m) m.classList.toggle('has-news', !!on);
+    }
     // Button leuchten lassen, wenn aktuell Aktionscodes verfügbar sind (ohne Modal zu öffnen)
     async function updateAktionBtn(){
       try { const d = await fetch(api('/api/aktionscodes')).then(r=>r.json()); setAktionGlow((d.codes||[]).length>0); }
@@ -6971,6 +6976,23 @@
     $('#new-url').addEventListener('keydown', e=>{ if(e.key==='Enter') addOffer(); });
     $('#new-label').addEventListener('keydown', e=>{ if(e.key==='Enter') addOffer(); });
     $('#check-all').addEventListener('click', checkAll);
+
+    // „Mehr"-Menü: <details> klappt selbst auf und zu, schließt sich aber nicht
+    // von allein. Diese drei Zeilen erledigen genau das — nach einer Auswahl,
+    // bei einem Klick daneben und mit Escape.
+    (function(){
+      const more = document.getElementById('more');
+      if(!more) return;
+      more.querySelector('.more-menu').addEventListener('click', e => {
+        if(e.target.closest('.mm-item')) more.open = false;
+      });
+      document.addEventListener('click', e => {
+        if(more.open && !more.contains(e.target)) more.open = false;
+      });
+      document.addEventListener('keydown', e => {
+        if(e.key === 'Escape' && more.open){ more.open = false; more.querySelector('summary').focus(); }
+      });
+    })();
     $('#search').addEventListener('input', e=>{ searchTerm = e.target.value; renderAll(curOffers||[]); });
 
     // ── ✕ zum Leeren in Suchfeldern ────────────────────────────────────────────

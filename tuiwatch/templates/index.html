@@ -63,8 +63,45 @@
     /* Umbruch statt Ellipse: passt die Leiste nicht in eine Zeile (schmales
        Fenster, Tablet), sind zwei Zeilen lesbarer als „Aktionscod…". */
     .toolbar { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:14px; }
-    .toolbar .btn { flex:1 1 auto; min-width:0; padding:7px 8px; font-size:.8rem;
+    .toolbar .btn { flex:0 1 auto; min-width:0; padding:7px 12px; font-size:.8rem;
                     white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    /* ── „Mehr"-Menü ──────────────────────────────────────────────────────────
+       Auf- und Zuklappen übernimmt <details> selbst, deshalb funktioniert das
+       Menü auch ohne JavaScript. Die Gruppen tragen dieselben Feature-Klassen
+       wie ihre Einträge, damit bei abgeschalteter KI keine leere Überschrift
+       stehen bleibt. */
+    .more { position:relative; }
+    .more > summary { list-style:none; cursor:pointer; display:inline-flex; align-items:center;
+                      gap:6px; user-select:none; }
+    .more > summary::-webkit-details-marker { display:none; }
+    .more > summary:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+    .mm-chev { transition:transform .15s; }
+    .more[open] .mm-chev { transform:rotate(180deg); }
+    .more-menu { position:absolute; right:0; top:calc(100% + 6px); z-index:40; min-width:230px;
+                 background:var(--surf2); border:1px solid var(--border); border-radius:var(--r-card);
+                 padding:8px; box-shadow:0 12px 32px rgba(0,0,0,.35); text-align:left; }
+    .mm-group + .mm-group { margin-top:6px; padding-top:6px; border-top:1px solid var(--border); }
+    .mm-head { font-size:.66rem; letter-spacing:.09em; text-transform:uppercase;
+               color:var(--muted); padding:5px 9px 3px; }
+    .mm-item { display:flex; align-items:center; gap:9px; width:100%; text-align:left;
+               background:none; border:none; color:var(--text); font:inherit; font-size:.83rem;
+               padding:7px 9px; border-radius:var(--r-ui); cursor:pointer; }
+    .mm-item:hover, .mm-item:focus-visible { background:var(--surf); outline:none; }
+    .mm-item .i { color:var(--muted); }
+    .mm-item:hover .i { color:var(--accent); }
+    /* Ein Aktionscode-Hinweis liegt im zugeklappten Menü — der Punkt am „Mehr" holt
+       ihn nach vorn (setAktionGlow in app.js setzt beides). */
+    #more-sum.has-news { border-color:var(--green); }
+    #more-sum.has-news::after { content:''; width:6px; height:6px; border-radius:50%;
+                                background:var(--green); display:inline-block; }
+    /* Schmale Fenster: nicht am „Mehr"-Knopf ausrichten (der steht dann irgendwo
+       mitten in der umgebrochenen Leiste und das Menü liefe rechts aus dem Bild),
+       sondern über die ganze Breite unter die Leiste legen. */
+    @media (max-width:600px){
+      .toolbar { position:relative; }
+      .more { position:static; }
+      .more-menu { left:0; right:0; min-width:0; }
+    }
     /* Zwei Zeilen: oben Anzahl + „Auswahl aufheben" (rechts), darunter die Aktionen.
        Vorher stand alles in einer umbrechenden Zeile — „Auswahl aufheben" landete
        dann je nach Fensterbreite irgendwo zwischen den Aktionsknöpfen. */
@@ -340,6 +377,9 @@
     /* Der Flugplan-Knopf verschwindet erst, wenn BEIDE Flughaefen aus sind —
        ist nur einer aktiv, oeffnet er direkt dessen Fenster (ohne Auswahl). */
     body.flights-disabled .flights-feature { display:none !important; }
+    /* Ohne KI und ohne Flugplan bleibt in „Reise-Wissen" nichts übrig — dann muss
+       auch die Überschrift weg. */
+    body.ai-disabled.flights-disabled .mm-wissen { display:none !important; }
     .strf-row { cursor:pointer; }
     .strf-row:hover td { background:var(--surf); }
     .fraf-row { cursor:pointer; }
@@ -519,7 +559,8 @@
     .cal-cell { position:relative; }
     .cal-cell .cal-d, .cal-cell .cal-p { position:relative; z-index:1; }   /* Text über dem Sparschwein */
     .cal-cell .cal-pig { position:absolute; left:50%; top:38%; transform:translate(-50%,-50%); width:28px; height:28px; margin:0; opacity:.7; z-index:0; pointer-events:none; }  /* leicht oberhalb der Mitte, damit der Preis unten frei bleibt */
-    .btn.aktion-active { animation: aktionPulse 1.6s ease-in-out infinite; border-color:var(--green); }
+    .btn.aktion-active, .mm-item.aktion-active { animation: aktionPulse 1.6s ease-in-out infinite; }
+    .mm-item.aktion-active { color:var(--green); }
     @keyframes aktionPulse { 0%,100% { box-shadow:0 0 0 0 rgba(70,180,124,.55); } 50% { box-shadow:0 0 0 7px rgba(70,180,124,0); } }
     .btn.cal-alert { animation: calAlertPulse 1.6s ease-in-out infinite; border-color:var(--amber); color:var(--amber); }
     /* Pausierter Kalender: gedimmt statt pulsierend — es ist kein Alarm, sondern ein
@@ -605,8 +646,18 @@
     .cal-day-chart.show { display:block; }
     .cal-day-hd { display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; font-size:.85rem; }
     .modal-close { float:right; }
-    footer { text-align:center; margin:24px 0 8px; font-size:.72rem; color:var(--muted); }
+    /* Zwei Zeilen: oben der Zustand (Version, Intervall, DB, API), darunter die
+       Werkzeuge. Vorher stand beides in einer einzigen, mit „·" verketteten Zeile. */
+    footer { margin:28px 0 8px; padding-top:12px; border-top:1px solid var(--border);
+             font-size:.72rem; color:var(--muted); display:flex; flex-wrap:wrap;
+             gap:8px 20px; justify-content:space-between; align-items:baseline; }
+    .foot-status, .foot-tools { display:flex; flex-wrap:wrap; gap:4px 14px; min-width:0; }
+    .foot-status > span + span::before,
+    .foot-tools > span + span::before { content:'·'; margin-right:14px; color:var(--border); }
+    .foot-status span span { color:var(--text); }
     .hc-foot { cursor:pointer; }
+    .foot-tools .hc-foot:hover { color:var(--accent); }
+    @media (max-width:640px){ footer { justify-content:flex-start; } }
     /* Als <a> (Download-Links, z. B. „Als Kalender (.ics)") sonst im Browser-Blau
        mit Unterstreichung — auf dunklem Grund kaum lesbar. Wie die <span>-Varianten
        in Textfarbe, Unterstreichung erst beim Hover als Klick-Hinweis. */
@@ -815,11 +866,9 @@
     <symbol id="i-trend" viewBox="0 0 24 24"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></symbol>
     <symbol id="i-mail" viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2"/><polyline points="22 6.5 12 13.5 2 6.5"/></symbol>
     <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></symbol>
-    <symbol id="i-users" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
     <symbol id="i-signal" viewBox="0 0 24 24"><path d="M2.5 8.5a15 15 0 0 1 19 0"/><path d="M6 12.5a10 10 0 0 1 12 0"/><path d="M9.5 16.5a5 5 0 0 1 5 0"/><circle cx="12" cy="20" r="1"/></symbol>
     <symbol id="i-bell" viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></symbol>
     <symbol id="i-download" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></symbol>
-    <symbol id="i-upload" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></symbol>
     <symbol id="i-settings" viewBox="0 0 24 24"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></symbol>
     <symbol id="i-star" viewBox="0 0 24 24"><path d="M12 2.5l3.1 6.4 6.9 1-5 4.9 1.2 6.9-6.2-3.3-6.2 3.3L7 14.8l-5-4.9 6.9-1z"/></symbol>
     <symbol id="i-save" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></symbol>
@@ -867,6 +916,8 @@
     <symbol id="i-hash" viewBox="0 0 24 24"><line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="20" y2="15"/><line x1="10" y1="3" x2="8" y2="21"/><line x1="16" y1="3" x2="14" y2="21"/></symbol>
     <symbol id="i-takeoff" viewBox="0 0 24 24"><path d="M2.5 19.5h19"/><path d="M21.2 9.6a1.6 1.6 0 0 0-2-1.1l-4.7 1.3-6.1-5.7-2.3.6 3.7 6.4-4.4 1.2-1.7-1.4-1.7.5 2.2 3.9 16.9-4.6a1.6 1.6 0 0 0 1.1-2z"/></symbol>
     <symbol id="i-landing" viewBox="0 0 24 24"><path d="M2.5 19.5h19"/><path d="M20.8 15.6a1.6 1.6 0 0 0 1-2.1l-3.4-3.5-1.6-8.3-2.2-.8-.4 7.4-4.4-1.2-.9-2.1-1.7-.5v4.5l16.9 4.6a1.6 1.6 0 0 0 2-.9z"/></symbol>
+    <symbol id="i-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></symbol>
+    <symbol id="i-list" viewBox="0 0 24 24"><line x1="9" y1="6" x2="20" y2="6"/><line x1="9" y1="12" x2="20" y2="12"/><line x1="9" y1="18" x2="20" y2="18"/><circle cx="4.6" cy="6" r="1.3"/><circle cx="4.6" cy="12" r="1.3"/><circle cx="4.6" cy="18" r="1.3"/></symbol>
   </defs></svg>
   <div id="offline-banner">
     <div class="ob-icon"><svg class="i"><use href="#i-signal"/></svg></div>
@@ -884,18 +935,7 @@
         <svg class="i"><use href="#i-plane"/></svg> <span class="tc-dest" id="tc-dest"></span> <b id="tc-time"></b>
       </div>
       <div class="header-actions">
-        <button class="btn sec" id="check-all" title="Alle prüfen"><svg class="i"><use href="#i-refresh"/></svg></button>
-        <button class="btn sec ai-feature" onclick="openAiHistory()" title="KI-Verlauf: bisherige KI-Fazits/-Vergleiche einsehen"><svg class="i"><use href="#i-ai"/></svg></button>
-        <button class="btn sec ai-feature" onclick="openAiAsk()"
-                title="Frage stellen — zu deinen getrackten Angeboten (Preis, Bewertung, Trend, Wunschpreis) oder allgemein zum Reisen (Region, Reisezeit, Einreise, Anreise)"><svg class="i"><use href="#i-help"/></svg></button>
-        <button class="btn sec ai-feature" onclick="openClimate()"
-                title="Klimatabellen: Temperaturen, Wassertemperatur, Sonnenstunden und Regentage über zwölf Monate — für alle Ziele, zu denen bereits eine Tabelle gespeichert ist"><svg class="i"><use href="#i-climate"/></svg></button>
-        <button class="btn sec ai-feature" onclick="openGuide()"
-                title="Reiseführer: Einreise, Gesundheit, Geld, Mobilität, Sicherheit, Kultur, Don't Dos und Insider-Tipps — für alle Ziele, zu denen bereits ein Reiseführer gespeichert ist"><svg class="i"><use href="#i-compass"/></svg></button>
-        <button class="btn sec ai-feature" onclick="openRegionCompare()"
-                title="Regionen vergleichen: bis zu 5 Ziele + ein Reisemonat — KI vergleicht Wetter, Sicherheit, Preisniveau, beste Reisezeit, Strand/Natur, Familien-/Nightlife-Eignung"><svg class="i"><use href="#i-chart"/></svg></button>
-        <button class="btn sec flights-feature" onclick="openFlightPlan()"
-                title="Flugplan: Verbindungen ab Stuttgart (STR) bzw. Frankfurt (FRA) nach Zielflughafen durchsuchen"><svg class="i"><use href="#i-plane"/></svg></button>
+        <button class="btn" id="check-all" title="Alle Angebote jetzt prüfen"><svg class="i"><use href="#i-refresh"/></svg> <span class="btn-lbl">Alle prüfen</span></button>
         <button class="icon-btn" onclick="toggleTheme()" title="Design wechseln">
           <svg class="i icon-moon"><use href="#i-moon"/></svg>
           <svg class="i icon-sun"><use href="#i-sun"/></svg>
@@ -917,14 +957,48 @@
       <div class="hint">Tipp: Auf tui.com die gewünschte Reise mit Datum, Personen &amp; Abflughafen suchen und die Adresszeile (URL) hier einfügen. Getrackt wird genau dieses Angebot.</div>
     </div>
 
+    <!-- Werkzeugleiste: vorne die vier täglich gebrauchten Werkzeuge, alles
+         Weitere gruppiert unter „Mehr". Das Auf- und Zuklappen macht <details>
+         selbst; das JavaScript unten schließt das Menü nur nach einer Auswahl,
+         bei Klick daneben und bei Escape. -->
     <div class="toolbar">
       <button class="btn" onclick="openSearch()" title="Hotels einer Region suchen (TUI-Such-URL einfügen)"><svg class="i"><use href="#i-search"/></svg> Suche</button>
       <button class="btn sec" onclick="openTrips()" title="Gebuchte Reisen verwalten (TUI-PDF importieren)"><svg class="i"><use href="#i-luggage"/></svg> Meine Reisen</button>
       <button class="btn sec ai-feature" onclick="openAdvisor()" oncontextmenu="return openTpEdit()" title="TripPilot: passende Ziele nach Vorlieben finden · Rechtsklick: Fragebogen bearbeiten"><svg class="i"><use href="#i-map"/></svg> TripPilot</button>
-      <button class="btn sec" id="aktion-btn" onclick="openAktion()" title="Aktuelle öffentliche TUI-Aktionscodes anzeigen und bei neuen benachrichtigt werden"><svg class="i"><use href="#i-ticket"/></svg> Aktionscodes</button>
       <button class="btn sec" id="trend-btn" onclick="openMarketTrend()" title="Marktweiter Preistrend über alle geprüften Angebote, optional nach Destination"><svg class="i"><use href="#i-trend"/></svg> Markttrend</button>
-      <button class="btn sec" onclick="sendEmail()" title="Alle Angebote als E-Mail senden"><svg class="i"><use href="#i-mail"/></svg> Als E-Mail senden</button>
-      <button class="btn sec" onclick="sendDigest()" title="Wochenüberblick jetzt senden (Telegram/E-Mail)"><svg class="i"><use href="#i-chart"/></svg> Wochenüberblick</button>
+
+      <details class="more" id="more">
+        <summary class="btn sec" id="more-sum" title="Weitere Werkzeuge">Mehr <svg class="i mm-chev"><use href="#i-chevron"/></svg></summary>
+        <div class="more-menu">
+          <div class="mm-group mm-wissen">
+            <div class="mm-head">Reise-Wissen</div>
+            <button class="mm-item ai-feature" onclick="openClimate()"
+                    title="Klimatabellen: Temperaturen, Wassertemperatur, Sonnenstunden und Regentage über zwölf Monate — für alle Ziele, zu denen bereits eine Tabelle gespeichert ist"><svg class="i"><use href="#i-climate"/></svg> Klimatabellen</button>
+            <button class="mm-item ai-feature" onclick="openGuide()"
+                    title="Reiseführer: Einreise, Gesundheit, Geld, Mobilität, Sicherheit, Kultur, Don't Dos und Insider-Tipps — für alle Ziele, zu denen bereits ein Reiseführer gespeichert ist"><svg class="i"><use href="#i-compass"/></svg> Reiseführer</button>
+            <button class="mm-item ai-feature" onclick="openRegionCompare()"
+                    title="Regionen vergleichen: bis zu 5 Ziele + ein Reisemonat — KI vergleicht Wetter, Sicherheit, Preisniveau, beste Reisezeit, Strand/Natur, Familien-/Nightlife-Eignung"><svg class="i"><use href="#i-chart"/></svg> Regionen vergleichen</button>
+            <button class="mm-item flights-feature" onclick="openFlightPlan()"
+                    title="Flugplan: Verbindungen ab Stuttgart (STR) bzw. Frankfurt (FRA) nach Zielflughafen durchsuchen"><svg class="i"><use href="#i-plane"/></svg> Flugplan</button>
+          </div>
+          <div class="mm-group mm-ai ai-feature">
+            <div class="mm-head">KI</div>
+            <button class="mm-item" onclick="openAiHistory()"
+                    title="KI-Verlauf: bisherige KI-Fazits/-Vergleiche einsehen"><svg class="i"><use href="#i-ai"/></svg> KI-Verlauf</button>
+            <button class="mm-item" onclick="openAiAsk()"
+                    title="Frage stellen — zu deinen getrackten Angeboten (Preis, Bewertung, Trend, Wunschpreis) oder allgemein zum Reisen (Region, Reisezeit, Einreise, Anreise)"><svg class="i"><use href="#i-help"/></svg> Frage stellen</button>
+          </div>
+          <div class="mm-group">
+            <div class="mm-head">Versand &amp; Codes</div>
+            <button class="mm-item" id="aktion-btn" onclick="openAktion()"
+                    title="Aktuelle öffentliche TUI-Aktionscodes anzeigen und bei neuen benachrichtigt werden"><svg class="i"><use href="#i-ticket"/></svg> Aktionscodes</button>
+            <button class="mm-item" onclick="sendEmail()"
+                    title="Alle Angebote als E-Mail senden"><svg class="i"><use href="#i-mail"/></svg> Als E-Mail senden</button>
+            <button class="mm-item" onclick="sendDigest()"
+                    title="Wochenüberblick jetzt senden (Telegram/E-Mail)"><svg class="i"><use href="#i-chart"/></svg> Wochenüberblick</button>
+          </div>
+        </div>
+      </details>
       <input type="file" id="restore-file" accept=".zip,application/zip,.json,application/json" style="display:none" onchange="restoreOffers(this)">
     </div>
     <div id="overview" class="overview" style="display:none"></div>
@@ -961,7 +1035,7 @@
       <button class="btn sec ai-feature" onclick="openAiCompareOffers()" title="Ausgewählte Angebote per KI vergleichen (max. 5)"><svg class="i"><use href="#i-ai"/></svg> Vergleichen</button>
       <button class="btn sec ai-feature" onclick="autoTagSelected()" title="Passende Tags automatisch per KI vergeben (ergänzt bestehende Tags)"><svg class="i"><use href="#i-ai"/></svg> Auto-Tag</button>
       <button class="btn sec share-feature" onclick="openShareCreate()" title="Öffentlichen Link zum Anschauen erzeugen (ohne Login, nur Ansicht)"><svg class="i"><use href="#i-link"/></svg> Teilen</button>
-      <button class="btn sec" onclick="bulkForeign()" title="In eine „Für andere“-Liste legen (Name frei wählbar): eingeklappt ans Listenende, keine Benachrichtigungen"><svg class="i"><use href="#i-users"/></svg> Für andere</button>
+      <button class="btn sec" onclick="bulkForeign()" title="In eine Liste verschieben (Name frei wählbar): rutscht eingeklappt ans Listenende, keine Benachrichtigungen"><svg class="i"><use href="#i-list"/></svg> In Liste verschieben</button>
       </div>
     </div>
     <!-- Startzustand: steht bewusst direkt im HTML und nicht erst im JS. Die erste
@@ -977,18 +1051,24 @@
       </div>
     </div>
     <footer>
-      <div>TUIWatch v{{ app_version }} · Prüfintervall: <span id="iv"></span>
-        · DB: <span id="db-size">…</span>
-        · <span id="tui-calls-foot" title="TUI-API-Aufrufe heute — Zähler setzt sich um 0 Uhr zurück"><svg class="i"><use href="#i-signal"/></svg> TUI-Aufrufe heute: <span id="tui-calls">…</span></span>
-        · <span id="hc-foot" class="hc-foot" title="API-Status — klicken für Details &amp; neuen Test" onclick="openHealth()">API: <span id="hc-dot">…</span></span>
-        · <span class="hc-foot" onclick="openSyslog('notify')" title="Verlauf gesendeter Benachrichtigungen + letzte Warnungen/Fehler"><svg class="i"><use href="#i-bell"/></svg> Meldungen</span>
-        · <span class="hc-foot" onclick="openStats()" title="Tracking-Statistik: Ersparnis, größte Preisbewegungen, Wochentags-Muster, Tiefstpreis-Rückschau"><svg class="i"><use href="#i-chart"/></svg> Statistik</span>
-        · <span class="hc-foot share-feature" onclick="openShareList()" title="Öffentliche Links verwalten: Aufrufe, Gültigkeit, widerrufen"><svg class="i"><use href="#i-link"/></svg> Geteilte Links</span>
-        · <span class="hc-foot" onclick="backupOffers()" title="Komplettes Backup (Angebote mit Preisverlauf, Meine Reisen inkl. PDF, gespeicherte Suchen) als ZIP"><svg class="i"><use href="#i-download"/></svg> Backup</span>
-        · <span class="hc-foot" onclick="document.getElementById('restore-file').click()" title="Backup wiederherstellen (ZIP oder altes JSON) – ergänzt Fehlendes, überschreibt nichts"><svg class="i"><use href="#i-upload"/></svg> Restore</span></div>
-      <div class="ai-feature"><span class="hc-foot" onclick="openPromptCfg()" title="Eigene KI-Prompt-Vorlagen für TripPilot, Hotelvergleich, KI-Fazit, Tagesausflug &amp; Regionen-Vergleich bearbeiten"><svg class="i"><use href="#i-settings"/></svg> KI-Prompts</span>
+      <div class="foot-status">
+        <span>TUIWatch v{{ app_version }}</span>
+        <span>Prüfintervall <span id="iv"></span></span>
+        <span>DB <span id="db-size">…</span></span>
+        <span id="tui-calls-foot" title="TUI-API-Aufrufe heute — Zähler setzt sich um 0 Uhr zurück">TUI-Aufrufe heute <span id="tui-calls">…</span></span>
+        <span id="hc-foot" class="hc-foot" title="API-Status — klicken für Details &amp; neuen Test" onclick="openHealth()">API <span id="hc-dot">…</span></span>
+        <span class="hc-foot ai-feature" id="ai-usage-foot" onclick="openAiHistory()" title="Geschätzte KI-Kosten — kein echtes Guthaben, dauerhaft in der DB gespeichert">…</span>
         <span class="hc-foot ai-feature" id="ai-provider-foot" onclick="toggleAiProvider()" style="display:none" title="Aktiven KI-Anbieter umschalten"></span>
-        · <span class="hc-foot ai-feature" id="ai-usage-foot" onclick="openAiHistory()" title="Geschätzte KI-Kosten — kein echtes Guthaben, dauerhaft in der DB gespeichert">…</span></div></footer>
+      </div>
+      <div class="foot-tools">
+        <span class="hc-foot" onclick="openSyslog('notify')" title="Verlauf gesendeter Benachrichtigungen + letzte Warnungen/Fehler">Meldungen</span>
+        <span class="hc-foot" onclick="openStats()" title="Tracking-Statistik: Ersparnis, größte Preisbewegungen, Wochentags-Muster, Tiefstpreis-Rückschau">Statistik</span>
+        <span class="hc-foot share-feature" onclick="openShareList()" title="Öffentliche Links verwalten: Aufrufe, Gültigkeit, widerrufen">Geteilte Links</span>
+        <span class="hc-foot" onclick="backupOffers()" title="Komplettes Backup (Angebote mit Preisverlauf, Meine Reisen inkl. PDF, gespeicherte Suchen) als ZIP">Backup</span>
+        <span class="hc-foot" onclick="document.getElementById('restore-file').click()" title="Backup wiederherstellen (ZIP oder altes JSON) – ergänzt Fehlendes, überschreibt nichts">Restore</span>
+        <span class="hc-foot ai-feature" onclick="openPromptCfg()" title="Eigene KI-Prompt-Vorlagen für TripPilot, Hotelvergleich, KI-Fazit, Tagesausflug &amp; Regionen-Vergleich bearbeiten">KI-Prompts</span>
+      </div>
+    </footer>
   </div>
 
   <!-- Verlauf-Modal -->
@@ -1181,13 +1261,13 @@
     </div>
   </div>
 
-  <!-- „Für andere": Liste wählen/anlegen -->
+  <!-- Liste wählen/anlegen (Angebot in eine Liste verschieben) -->
   <div class="modal-bg" id="fl-bg">
     <div class="modal" style="max-width:480px">
       <button class="icon-btn modal-close" onclick="closeForeignPicker()">
         <svg class="i"><use href="#i-close"/></svg>
       </button>
-      <h2><svg class="i"><use href="#i-users"/></svg> Für andere</h2>
+      <h2><svg class="i"><use href="#i-list"/></svg> In Liste verschieben</h2>
       <div class="sub" id="fl-sub"></div>
       <div id="fl-body"></div>
     </div>
