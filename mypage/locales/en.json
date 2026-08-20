@@ -1592,6 +1592,8 @@
   "no_data": "No data yet.",
   "save": "Save",
   "cancel": "Cancel",
+  "modal_maximize": "Maximize window",
+  "modal_restore": "Restore window",
   "saved": "Saved",
   "upload": "Upload",
   "or_upload": "or upload",

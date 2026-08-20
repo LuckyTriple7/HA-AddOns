@@ -153,6 +153,21 @@
     .modal.wide { max-width: min(1180px, 96vw); }
     .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
 
+    /* ── Fenstergröße der Bearbeiten-Dialoge ── */
+    /* Lange Formulare (Beitrag, Bibliothek, Reisetag) sind im schmalen Fenster
+       mühsam auszufüllen. Der Knopf oben rechts schaltet wie in Windows auf die
+       volle Fläche und wieder zurück. */
+    .modal { position: relative; }
+    .modal > h3 { padding-right: 42px; }
+    .modal-size { position: absolute; top: 14px; right: 14px; display: flex; align-items: center; justify-content: center;
+                  width: 28px; height: 28px; padding: 0; background: var(--surf2, var(--bg));
+                  border: 1px solid var(--border); border-radius: 6px; color: var(--muted); cursor: pointer; }
+    .modal-size:hover { border-color: var(--accent); color: var(--accent); }
+    .modal-bg.max { padding: 12px; }
+    .modal.max { max-width: none; min-height: calc(100vh - 24px); }
+    .modal.max textarea { min-height: 34vh; }
+    .modal.max .md-preview { min-height: 34vh; max-height: none; }
+
     /* ── PDF-Import der Rechtstexte ── */
     /* Beschriftung und Import-Knopf in einer Zeile über dem Textfeld */
     .lbl-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
@@ -9043,7 +9058,45 @@
       toast(T.ai_copied);
     }
 
+    // ── Fenstergröße der Bearbeiten-Dialoge ──
+    // Maximieren/Verkleinern wie bei einem Fenster in Windows. Die Wahl bleibt
+    // pro Dialog im Browser stehen — wer den Beitrags-Dialog groß haben will,
+    // will das beim nächsten Beitrag auch wieder.
+    const MODAL_MAX_KEY = 'mp-modal-max:';
+    const MODAL_ICON_MAX = '<svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="2.5" y="2.5" width="11" height="11" rx="1.5"/></svg>';
+    const MODAL_ICON_RESTORE = '<svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="2.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M5.6 5.5V3.4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1h-2.1"/></svg>';
+
+    function setModalMax(box, btn, on) {
+      box.classList.toggle('max', on);
+      box.parentElement.classList.toggle('max', on);
+      btn.innerHTML = on ? MODAL_ICON_RESTORE : MODAL_ICON_MAX;
+      btn.title = on ? T.modal_restore : T.modal_maximize;
+      btn.setAttribute('aria-label', btn.title);
+    }
+    function initModalResize() {
+      document.querySelectorAll('.modal-bg > .modal').forEach(box => {
+        const id = box.parentElement.id || '';
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'modal-size';
+        btn.onclick = () => {
+          const on = !box.classList.contains('max');
+          setModalMax(box, btn, on);
+          if (!id) return;
+          try {
+            if (on) localStorage.setItem(MODAL_MAX_KEY + id, '1');
+            else localStorage.removeItem(MODAL_MAX_KEY + id);
+          } catch (e) { /* privater Modus: dann eben ohne Gedächtnis */ }
+        };
+        box.prepend(btn);
+        let saved = false;
+        try { saved = id && localStorage.getItem(MODAL_MAX_KEY + id) === '1'; } catch (e) {}
+        setModalMax(box, btn, !!saved);
+      });
+    }
+
     initAiVisibility();
+    initModalResize();
     loadSite();
   </script>
 </body>

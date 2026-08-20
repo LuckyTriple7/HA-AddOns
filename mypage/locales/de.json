@@ -1592,6 +1592,8 @@
   "no_data": "Noch keine Daten.",
   "save": "Speichern",
   "cancel": "Abbrechen",
+  "modal_maximize": "Fenster vergrößern",
+  "modal_restore": "Fenster verkleinern",
   "saved": "Gespeichert",
   "upload": "Hochladen",
   "or_upload": "oder hochladen",

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.10.41
+
+- 🗖 **Bearbeiten-Fenster lassen sich jetzt maximieren.** Oben rechts in jedem Dialog sitzt ein Knopf wie bei einem Fenster in Windows: einmal klicken macht das Fenster über den ganzen Bildschirm, noch einmal klicken stellt die alte Größe wieder her. Lange Formulare wie „Neuer Beitrag" oder ein Reisetag sind so deutlich angenehmer auszufüllen — die Textfelder werden dabei mitgezogen. Die Wahl merkt sich der Browser pro Dialog.
+- 🐛 **Vorschau von Beiträgen lief auf Fehler 500.** Die Vorschau-Adressen des Admin (`/preview/blog/…`, und ebenso Seite, Bibliothek und Reisetag) rendern dieselben Vorlagen wie die öffentliche Seite, hatten aber deren Jinja-Filter nicht — `abs_url` aus der Vorschaukarte für geteilte Links fehlte, und damit brach die ganze Seite ab.
+- 🅰️ **Die gewählte Schriftart gilt jetzt auch in der Vorschau.** Sie kam aus einem Kontext, den nur die öffentliche Anwendung kannte; die Vorschau stand deshalb immer in der Systemschrift.
+
 ## 0.10.40
 
 - 📊 **Datenvolumen wird jetzt mitgezählt.** Neue Kacheln „Volumen heute“ und „Volumen 30 Tage“ in der Statistik, dazu ein Tagesbalken mit getrennten Werten für Besucher und Bots. Gezählt wird an der Server-Schnittstelle — jede Antwort samt Kopfzeilen, Uploads getrennt als Eingang, abgebrochene Downloads nur mit dem tatsächlich ausgelieferten Teil.
