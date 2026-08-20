@@ -114,7 +114,7 @@ async def _admin_unblock_ip(request: Request):
     return JSONResponse({"success": True})
 
 DATA_DIR = Path("/data")
-CONFIG_DIR = Path("/config/addons_config/cardboard")
+CONFIG_DIR = Path("/homeassistant/addons_config/cardboard")
 OPTIONS_FILE = DATA_DIR / "options.json"
 STATIC_DIR = Path("/app/static")
 DB_PATH = DATA_DIR / "cardboard.db"
@@ -182,7 +182,7 @@ _session_secret_cache: str | None = None
 
 
 def get_session_secret() -> str:
-    """Stabiles Signing-Secret für Session-Cookies, persistiert in /config (überlebt
+    """Stabiles Signing-Secret für Session-Cookies, persistiert im HA-Config-Verzeichnis (überlebt
     Neustarts). Früher wurde dafür ha_token genutzt — seit der Umstellung auf den
     Supervisor-Token gibt es keinen manuellen Token mehr."""
     global _session_secret_cache
@@ -199,7 +199,7 @@ def get_session_secret() -> str:
             except OSError:
                 pass
     except OSError:
-        # /config nicht beschreibbar: prozesslokales Secret (Sessions überleben keinen Neustart)
+        # Verzeichnis nicht beschreibbar: prozesslokales Secret (Sessions überleben keinen Neustart)
         s = secrets.token_hex(32)
     _session_secret_cache = s
     return s

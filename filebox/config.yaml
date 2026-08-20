@@ -1,6 +1,6 @@
 name: FileBox
 description: Web-Oberfläche zum Hoch- und Herunterladen von Dateien in /share/filebox
-version: "1.2.22"
+version: "1.2.23"
 slug: filebox
 url: https://github.com/LuckyTriple7/HA-AddOns
 
@@ -30,7 +30,7 @@ ports_description:
 map:
   - share:rw
   - media:rw
-  - config:rw
+  - homeassistant_config:rw
   - backup:rw
 
 options:

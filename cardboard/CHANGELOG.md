@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.0.11] - 2026-08-20
+
+- map: `config` → `homeassistant_config` (der Home-Assistant-Supervisor meldet `config` seit 2026.08 als veraltet). Der Mountpunkt im Container heißt damit `/homeassistant` statt `/config`; die Pfade in `run.sh` und `server.py` wurden entsprechend angepasst. Auf dem Host bleibt es dasselbe Verzeichnis, `users.yaml`, die Templates und `.session_secret` liegen also unverändert unter `/config/addons_config/cardboard/`
+
 ## [1.0.10.6] - 2026-08-17
 
 chore(deps): Bump uvicorn from 0.52.1 to 0.52.3 in /cardboard/rootfs/app

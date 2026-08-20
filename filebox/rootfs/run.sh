@@ -43,7 +43,7 @@ if [ "$SHOW_CONFIG" = "true" ]; then
     [ -L "$ROOT/Config" ] && rm -f "$ROOT/Config"
     mkdir -p "$ROOT/Config"
     umount "$ROOT/Config" 2>/dev/null || true
-    mount --bind /config "$ROOT/Config"
+    mount --bind /homeassistant "$ROOT/Config"
 else
     umount "$ROOT/Config" 2>/dev/null || true
     [ -L "$ROOT/Config" ] && rm -f "$ROOT/Config"

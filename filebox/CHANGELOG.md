@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.2.23] - 2026-08-20
+
+- map: `config` → `homeassistant_config` (der Home-Assistant-Supervisor meldet `config` seit 2026.08 als veraltet). Der Bind-Mount für den eingeblendeten Ordner „Config" zeigt jetzt auf `/homeassistant` statt `/config`; für die Option `show_config` und den angezeigten Inhalt ändert sich nichts
+
 ## [1.2.22] - 2026-08-17
 
 - Doku: File Browser steht unter der Apache-2.0 und die mitgelieferten Samba-Werkzeuge unter der GPL-3.0, das Add-on gab bisher keine Lizenz an. Neue `LICENSE.md` nennt die Bestandteile, ihre Lizenzen und Bezugsquellen und grenzt die eigenen MIT-Dateien davon ab
