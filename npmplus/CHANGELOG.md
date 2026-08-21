@@ -1,5 +1,34 @@
 # Changelog
 
+## [0.1.30] - 2026-08-21
+
+### Neu
+- **Selbsttest im Container.** `docker exec <npmplus> /selftest.sh` prüft in einem Durchgang
+  Oberfläche, Logs, Bouncer-Konfiguration, LAPI, AppSec, Schlüssellänge und die Restlaufzeit
+  der Zertifikate. Ausgabe je Zeile `[ ok ]`, `[warn]` oder `[FAIL]`, Rückgabewert 0 solange
+  nichts fehlschlägt.
+- **`crowdsec_lapi_url: "auto"`** (und ebenso `crowdsec_appsec_url`): das Add-on fragt beim
+  Start den Supervisor nach den installierten Add-ons, sucht das mit einem auf `_crowdsec`
+  endenden Slug und baut daraus `http://<hostname>:8080` bzw. `:7422`. Damit ist der Eintrag
+  einer Container-IP nicht mehr nötig — und die Falle „IP wechselt beim Neustart" fällt weg.
+  Dafür fragt das Add-on die Supervisor-API nur lesend ab (`hassio_api: true`).
+- **Neue Option `crowdsec_fallback_remediation`** (`bypass`, `captcha`, `ban`): was der Bouncer
+  tut, wenn die LAPI im laufenden Betrieb ausfällt. Leer gelassen bleibt der Wert aus dem
+  Image unangetastet.
+- **Watchdog.** Der Supervisor prüft Port 81 und startet das Add-on neu, wenn die Oberfläche
+  nicht mehr antwortet. Bisher griff nur der Exit-Code — ein hängendes nginx fiel damit
+  niemandem auf.
+
+### Geändert
+- Die Startprüfung warnt jetzt, wenn in `crowdsec_lapi_url` oder `crowdsec_appsec_url` eine
+  Container-IP aus `172.16.0.0/12` steht, statt sie stillschweigend zu übernehmen.
+- Die Startprüfung testet zusätzlich den AppSec-Endpunkt. Eine tote Adresse dort blieb bisher
+  unbemerkt, weil der Bouncer die WAF-Prüfung im Betrieb einfach ausfallen lässt.
+- Mit `log_to_stdout: true` schreibt das Add-on den eigenen journald-Identifier ins Protokoll
+  (`SYSLOG_IDENTIFIER=app_<repo-hash>_npmplus`) — der Wert für die CrowdSec-Acquisition muss
+  nicht mehr über `journalctl` oder `docker inspect` gesucht werden.
+- Startet der Bouncer ohne bekannte LAPI-Adresse, bleibt er aus und sagt das auch.
+
 ## [0.1.29] - 2026-08-21
 
 ### Dokumentation

@@ -96,6 +96,12 @@ journalctl --directory=/var/log/journal/ -o json -n 200 \
   | jq -r .SYSLOG_IDENTIFIER | sort -u | grep -i npmplus
 ```
 
+Kürzer geht es über das Add-on selbst: mit `log_to_stdout: true` schreibt NPMplus den Wert beim Start ins eigene Protokoll —
+
+```
+[INFO] CrowdSec acquisition filter: SYSLOG_IDENTIFIER=app_xxxxxxxx_npmplus
+```
+
 Der Wert sieht aus wie `app_<8-stelliger-Repo-Hash>_npmplus`. Damit in die CrowdSec-Acquisition:
 
 ```yaml
@@ -183,7 +189,24 @@ crowdsec_appsec_url: "http://424ccef4-crowdsec:7422"
 
 > NPMplus läuft im Host-Netz, löst den Hostnamen anderer Add-ons aber trotzdem auf — der Supervisor gibt jedem Add-on-Container den HA-DNS-Dienst mit. Schlägt die Auflösung ausnahmsweise fehl, funktioniert die lange Form `424ccef4-crowdsec.local.hass.io`.
 
-> Läuft AppSec nicht (kein `appsec`-Block in der Acquisition), muss `crowdsec_appsec_url` **leer** bleiben.
+**Kürzer: `auto`.** Steht in `crowdsec_lapi_url` (und wahlweise `crowdsec_appsec_url`) das Wort `auto`, fragt das Add-on beim Start den Supervisor nach den installierten Add-ons, sucht das mit einem auf `_crowdsec` endenden Slug und baut die Adresse selbst:
+
+```yaml
+crowdsec_enabled: true
+crowdsec_api_key: "<Schlüssel aus cscli>"
+crowdsec_lapi_url: "auto"
+crowdsec_appsec_url: "auto"
+```
+
+Im Protokoll steht dann, was gefunden wurde:
+
+```
+[INFO] CrowdSec add-on found: 424ccef4-crowdsec
+```
+
+Das trifft den Standardfall — CrowdSec läuft als Add-on auf derselben Maschine, LAPI auf 8080, AppSec auf 7422. Bei abweichenden Ports, einer entfernten Engine oder mehreren CrowdSec-Add-ons die Adresse von Hand eintragen. Wird nichts gefunden, warnt das Add-on und der Bouncer bleibt aus.
+
+> Läuft AppSec nicht (kein `appsec`-Block in der Acquisition), muss `crowdsec_appsec_url` **leer** bleiben — `auto` würde dort eine Adresse eintragen, die niemand bedient.
 
 ### Beispielkonfiguration des CrowdSec-Add-ons
 
@@ -317,9 +340,19 @@ docker exec $CS cscli -c $CFG decisions add --ip <deine-ip> --duration 5m --type
 
 Das Aussehen der Seite lässt sich über `/data/crowdsec/captcha.html` anpassen; die unveränderte Vorlage liegt daneben als `captcha.html.example`.
 
+### Selbsttest
+
+Das Add-on bringt ein Skript mit, das die wichtigsten Prüfungen in einem Durchgang erledigt — Oberfläche, Logs, Bouncer-Konfiguration, LAPI, AppSec, Schlüssellänge, Zertifikatslaufzeiten. Im Terminal-Add-on mit Docker-Zugriff:
+
+```sh
+docker exec $(docker ps --format '{{.Names}}' | grep -i npmplus | head -1) /selftest.sh
+```
+
+Ausgabe je Zeile `[ ok ]`, `[warn]` oder `[FAIL]`; der Rückgabewert ist 0, solange nichts fehlschlägt. Warnungen beschreiben Zustände, die gewollt sein können (kein Captcha, kein AppSec, wenig Verkehr).
+
 ### Prüfbefehle auf einen Blick
 
-Alle Befehle im Terminal-Add-on mit Docker-Zugriff. `CS` ist der CrowdSec-Container, `NP` der von NPMplus.
+Wenn eine einzelne Frage offen bleibt. Alle Befehle im Terminal-Add-on mit Docker-Zugriff. `CS` ist der CrowdSec-Container, `NP` der von NPMplus.
 
 ```sh
 CS=$(docker ps --format '{{.Names}}' | grep -i crowdsec | head -1)
@@ -696,9 +729,10 @@ Fehlt ab Werk. Dafür müssen die MaxMind-Datenbanken (kostenloses Konto) nach `
 | `trust_ip` | – | Vertrauenswürdige Proxy-IPs für X-Forwarded-For |
 | `trust_cloudflare` | `false` | Cloudflare-IP-Bereiche laden und vertrauen |
 | `crowdsec_enabled` | `false` | nginx-Bouncer aktivieren |
-| `crowdsec_lapi_url` | `http://127.0.0.1:8080` | CrowdSec Local API |
+| `crowdsec_lapi_url` | `http://127.0.0.1:8080` | CrowdSec Local API; `auto` sucht das CrowdSec-Add-on selbst |
 | `crowdsec_api_key` | – | Bouncer-Schlüssel aus `cscli bouncers add` |
-| `crowdsec_appsec_url` | `http://127.0.0.1:7422` | AppSec/WAF-Endpunkt |
+| `crowdsec_appsec_url` | `http://127.0.0.1:7422` | AppSec/WAF-Endpunkt; `auto` wie oben, leer = aus |
+| `crowdsec_fallback_remediation` | – | Verhalten bei Ausfall der LAPI: `bypass`, `captcha`, `ban`; leer = Vorgabe des Images |
 | `crowdsec_captcha_provider` | – | `turnstile`, `hcaptcha` oder `recaptcha`; leer = aus |
 | `crowdsec_captcha_site_key` | – | Öffentlicher Schlüssel des Anbieters |
 | `crowdsec_captcha_secret_key` | – | Geheimer Schlüssel des Anbieters |
@@ -778,6 +812,8 @@ Danach liegen die Kopien in `/share` und sind über Samba sichtbar.
 Ein Home-Assistant-Backup des Add-ons enthält `/data` vollständig, inklusive Datenbank und Zertifikaten. Für Sicherungen brauchst du also nichts von Hand zu kopieren — dieselbe Warnung gilt aber auch hier: das Backup enthält private Schlüssel.
 
 ## Problembehandlung
+
+**Add-on startet immer wieder neu** — der Supervisor überwacht Port 81 (Watchdog). Antwortet die Oberfläche nicht mehr, startet er das Add-on neu. Steht in den Add-on-Einstellungen hinter *Watchdog* und lässt sich dort abschalten, wenn beim Aufräumen sonst ständig neu gestartet wird.
 
 **Add-on startet nicht, Port belegt** — es läuft noch ein anderer Proxy (altes NGINX-Add-on, Caddy, Traefik). Erst stoppen.
 

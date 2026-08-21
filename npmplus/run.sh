@@ -61,6 +61,7 @@ CS_ENABLED_OPT=$(opt crowdsec_enabled "false")
 CS_LAPI_OPT=$(opt_trim crowdsec_lapi_url "http://127.0.0.1:8080")
 CS_KEY_OPT=$(opt_trim crowdsec_api_key "")
 CS_APPSEC_OPT=$(opt_trim crowdsec_appsec_url "http://127.0.0.1:7422")
+CS_FALLBACK_OPT=$(opt_trim crowdsec_fallback_remediation "")
 CS_CAPTCHA_PROVIDER_OPT=$(opt_trim crowdsec_captcha_provider "")
 CS_CAPTCHA_SITE_OPT=$(opt_trim crowdsec_captcha_site_key "")
 CS_CAPTCHA_SECRET_OPT=$(opt_trim crowdsec_captcha_secret_key "")
@@ -183,6 +184,14 @@ if [ "$LOG_TO_STDOUT_OPT" = "true" ]; then
     tail -qn0 -F "$LOG_DIR/access.log" 2>/dev/null &
     TAIL_PID=$!
     log "Mirroring access log to stdout as well (journald)"
+    # Home Assistant benennt jeden Add-on-Container "app_<repo>_<slug>", der
+    # Hostname ist derselbe Name mit Bindestrichen. Genau dieser Wert gehört in
+    # den journalctl_filter der CrowdSec-Acquisition — hier ausgeben, damit ihn
+    # niemand per docker inspect suchen muss.
+    OWN_HOST=$(cat /etc/hostname 2>/dev/null | tr -d '\r\n')
+    if [ -n "$OWN_HOST" ]; then
+        log "CrowdSec acquisition filter: SYSLOG_IDENTIFIER=app_${OWN_HOST//-/_}"
+    fi
 fi
 
 ###############################################################################
@@ -200,6 +209,71 @@ if [ -f "$NGINX_CONF" ]; then
     log "Error log level: ${ERROR_LOG_LEVEL_OPT}"
 else
     warn "${NGINX_CONF} not found — keeping the image default for the error log level"
+fi
+
+###############################################################################
+# Adressen von CrowdSec bestimmen
+#
+# Container-IPs (172.16.0.0/12) vergibt Docker bei jedem Start neu — nach einem
+# Neustart von Home Assistant zeigt eine eingetragene IP ins Leere und der
+# Bouncer geht still aus. Der Container-Hostname bleibt dagegen gleich.
+###############################################################################
+
+# Host-Teil einer URL, ohne Schema, Port und Pfad.
+host_of_url() {
+    local u="${1#*://}"
+    u="${u%%/*}"
+    printf '%s' "${u%%:*}"
+}
+
+warn_if_container_ip() {
+    local name="$1" host
+    host=$(host_of_url "$2")
+    if [[ "$host" =~ ^172\.(1[6-9]|2[0-9]|3[01])\.[0-9]+\.[0-9]+$ ]]; then
+        warn "${name} points at the container IP ${host}. Docker hands out a new one on every"
+        warn "start — after a Home Assistant restart this address is dead. Use the container"
+        warn "hostname instead: docker inspect -f '{{.Config.Hostname}}' <crowdsec-container>"
+        warn "or set the option to \"auto\" and let the add-on look it up."
+    fi
+}
+
+# Den Hostnamen des CrowdSec-Add-ons beim Supervisor erfragen. Der Slug eines
+# Add-ons ist "<repo>_<slug>", der Container-Hostname derselbe Name mit
+# Bindestrich. Der Firewall-Bouncer endet auf "-firewall-bouncer" und wird von
+# der Suche nach "_crowdsec" am Ende deshalb nicht getroffen.
+discover_crowdsec_host() {
+    [ -n "${SUPERVISOR_TOKEN:-}" ] || return 1
+    local slug
+    slug=$(curl -s -m 5 -H "Authorization: Bearer ${SUPERVISOR_TOKEN}" \
+        "http://supervisor/addons" 2>/dev/null \
+        | jq -r '[.data.addons[]?.slug | select(test("_crowdsec$"))] | first // empty' 2>/dev/null)
+    [ -n "$slug" ] || return 1
+    printf '%s' "${slug//_/-}"
+}
+
+CS_AUTO_HOST=""
+if [ "$CS_LAPI_OPT" = "auto" ] || [ "$CS_APPSEC_OPT" = "auto" ]; then
+    CS_AUTO_HOST=$(discover_crowdsec_host || true)
+    if [ -n "$CS_AUTO_HOST" ]; then
+        log "CrowdSec add-on found: ${CS_AUTO_HOST}"
+    else
+        warn "crowdsec_lapi_url/crowdsec_appsec_url is set to \"auto\", but no installed add-on"
+        warn "whose slug ends in _crowdsec was found. Enter the address by hand."
+    fi
+fi
+if [ "$CS_LAPI_OPT" = "auto" ]; then
+    if [ -n "$CS_AUTO_HOST" ]; then
+        CS_LAPI_OPT="http://${CS_AUTO_HOST}:8080"
+    else
+        CS_LAPI_OPT=""
+    fi
+fi
+if [ "$CS_APPSEC_OPT" = "auto" ]; then
+    if [ -n "$CS_AUTO_HOST" ]; then
+        CS_APPSEC_OPT="http://${CS_AUTO_HOST}:7422"
+    else
+        CS_APPSEC_OPT=""
+    fi
 fi
 
 ###############################################################################
@@ -251,9 +325,27 @@ check_lapi() {
     printf '%s' "${code:-000}"
 }
 
+# AppSec antwortet ohne Bouncer-Schlüssel mit 401 — jede HTTP-Antwort beweist
+# also, dass der Endpunkt lebt. Nur "000" heißt: niemand da.
+check_appsec() {
+    local url="$1" code
+    code=$(curl -s -o /dev/null -m 5 -w '%{http_code}' \
+        -A "npmplus-addon/1.0" "${url%/}/" 2>/dev/null || true)
+    printf '%s' "${code:-000}"
+}
+
 if [ "$CS_ENABLED_OPT" = "true" ]; then
+    warn_if_container_ip "crowdsec_lapi_url" "$CS_LAPI_OPT"
+    # Kein "[ -n .. ] && ..": mit set -e beendet die fehlschlagende Prüfung das
+    # Skript, sobald crowdsec_appsec_url leer ist.
+    if [ -n "$CS_APPSEC_OPT" ]; then
+        warn_if_container_ip "crowdsec_appsec_url" "$CS_APPSEC_OPT"
+    fi
     if [ -z "$CS_KEY_OPT" ]; then
         warn "crowdsec_enabled is on but crowdsec_api_key is empty — bouncer stays OFF"
+        set_conf ENABLED false
+    elif [ -z "$CS_LAPI_OPT" ]; then
+        warn "crowdsec_enabled is on but no LAPI address is known — bouncer stays OFF"
         set_conf ENABLED false
     else
         CS_CODE=$(check_lapi "$CS_LAPI_OPT" "$CS_KEY_OPT")
@@ -278,6 +370,23 @@ if [ "$CS_ENABLED_OPT" = "true" ]; then
                     fi
                 else
                     set_conf CAPTCHA_PROVIDER ""
+                fi
+                # Der Bouncer meldet eine tote AppSec-Adresse im Betrieb nicht,
+                # er lässt die Prüfung dann einfach ausfallen. Deshalb hier.
+                if [ -n "$CS_APPSEC_OPT" ]; then
+                    APPSEC_CODE=$(check_appsec "$CS_APPSEC_OPT")
+                    if [ "$APPSEC_CODE" = "000" ]; then
+                        warn "AppSec at ${CS_APPSEC_OPT} does not answer — requests will not be"
+                        warn "checked by the WAF. Either the appsec source is missing from the"
+                        warn "CrowdSec acquisition, or the address is wrong. Leave"
+                        warn "crowdsec_appsec_url empty if AppSec is not in use."
+                    fi
+                fi
+                # Was der Bouncer tut, wenn die LAPI im Betrieb wegfällt. Leer
+                # gelassen bleibt der Wert aus crowdsec.conf unangetastet.
+                if [ -n "$CS_FALLBACK_OPT" ]; then
+                    set_conf FALLBACK_REMEDIATION "$CS_FALLBACK_OPT"
+                    log "Fallback remediation: ${CS_FALLBACK_OPT}"
                 fi
                 log "CrowdSec bouncer active against ${CS_LAPI_OPT} (AppSec: ${CS_APPSEC_OPT:-off})"
                 ;;

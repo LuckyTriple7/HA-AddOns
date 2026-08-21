@@ -95,6 +95,12 @@ journalctl --directory=/var/log/journal/ -o json -n 200 \
   | jq -r .SYSLOG_IDENTIFIER | sort -u | grep -i npmplus
 ```
 
+The add-on itself is quicker: with `log_to_stdout: true` NPMplus writes the value to its own log on every start —
+
+```
+[INFO] CrowdSec acquisition filter: SYSLOG_IDENTIFIER=app_xxxxxxxx_npmplus
+```
+
 The value looks like `app_<8-char-repo-hash>_npmplus`. Use it in the CrowdSec acquisition:
 
 ```yaml
@@ -182,7 +188,24 @@ crowdsec_appsec_url: "http://424ccef4-crowdsec:7422"
 
 > NPMplus runs on the host network but still resolves other add-ons' hostnames — the Supervisor hands the HA DNS service to every add-on container. Should resolution ever fail, the long form `424ccef4-crowdsec.local.hass.io` works.
 
-> If AppSec is not running (no `appsec` block in the acquisition), `crowdsec_appsec_url` must be left **empty**.
+**Shorter: `auto`.** With `auto` in `crowdsec_lapi_url` (and optionally `crowdsec_appsec_url`), the add-on asks the Supervisor for the installed add-ons on every start, picks the one whose slug ends in `_crowdsec` and builds the address itself:
+
+```yaml
+crowdsec_enabled: true
+crowdsec_api_key: "<key from cscli>"
+crowdsec_lapi_url: "auto"
+crowdsec_appsec_url: "auto"
+```
+
+The log then says what was found:
+
+```
+[INFO] CrowdSec add-on found: 424ccef4-crowdsec
+```
+
+That covers the standard case — CrowdSec running as an add-on on the same machine, LAPI on 8080, AppSec on 7422. With different ports, a remote engine or several CrowdSec add-ons, enter the address by hand. If nothing is found the add-on warns and the bouncer stays off.
+
+> If AppSec is not running (no `appsec` block in the acquisition), `crowdsec_appsec_url` must be left **empty** — `auto` would fill in an address nobody serves.
 
 ### Example CrowdSec add-on configuration
 
@@ -312,9 +335,19 @@ docker exec $CS cscli -c $CFG decisions add --ip <your-ip> --duration 5m --type 
 
 The page itself can be customised in `/data/crowdsec/captcha.html`; the untouched template sits next to it as `captcha.html.example`.
 
+### Self-test
+
+The add-on ships a script that runs the important checks in one go — web interface, logs, bouncer configuration, LAPI, AppSec, key length, certificate lifetimes. In a terminal add-on with Docker access:
+
+```sh
+docker exec $(docker ps --format '{{.Names}}' | grep -i npmplus | head -1) /selftest.sh
+```
+
+Every line is `[ ok ]`, `[warn]` or `[FAIL]`; the exit code stays 0 as long as nothing fails. Warnings describe states that may well be intended (no captcha, no AppSec, little traffic). Its output is German, like the rest of the add-on log.
+
 ### Diagnostics at a glance
 
-Run everything in a terminal add-on with Docker access. `CS` is the CrowdSec container, `NP` the NPMplus one.
+For the single question left open. Run everything in a terminal add-on with Docker access. `CS` is the CrowdSec container, `NP` the NPMplus one.
 
 ```sh
 CS=$(docker ps --format '{{.Names}}' | grep -i crowdsec | head -1)
@@ -691,9 +724,10 @@ Not included out of the box. Put the MaxMind databases (free account) into `/dat
 | `trust_ip` | – | Trusted proxy IPs for X-Forwarded-For |
 | `trust_cloudflare` | `false` | Fetch and trust Cloudflare IP ranges |
 | `crowdsec_enabled` | `false` | Enable the nginx bouncer |
-| `crowdsec_lapi_url` | `http://127.0.0.1:8080` | CrowdSec Local API |
+| `crowdsec_lapi_url` | `http://127.0.0.1:8080` | CrowdSec Local API; `auto` looks up the CrowdSec add-on |
 | `crowdsec_api_key` | – | Bouncer key from `cscli bouncers add` |
-| `crowdsec_appsec_url` | `http://127.0.0.1:7422` | AppSec/WAF endpoint |
+| `crowdsec_appsec_url` | `http://127.0.0.1:7422` | AppSec/WAF endpoint; `auto` as above, empty = off |
+| `crowdsec_fallback_remediation` | – | Behaviour when the LAPI fails: `bypass`, `captcha`, `ban`; empty = image default |
 | `crowdsec_captcha_provider` | – | `turnstile`, `hcaptcha` or `recaptcha`; empty = off |
 | `crowdsec_captcha_site_key` | – | Public key of the provider |
 | `crowdsec_captcha_secret_key` | – | Secret key of the provider |
@@ -773,6 +807,8 @@ The copies then sit in `/share` and are visible over Samba.
 A Home Assistant backup of the add-on contains all of `/data`, database and certificates included, so there is nothing to copy by hand. The same warning applies though: that backup contains private keys.
 
 ## Troubleshooting
+
+**The add-on keeps restarting** — the Supervisor watches port 81 (watchdog). If the web interface stops answering it restarts the add-on. The toggle sits in the add-on settings under *Watchdog* and can be turned off if maintenance work triggers constant restarts.
 
 **Add-on will not start, port in use** — another proxy is still running (old NGINX add-on, Caddy, Traefik). Stop it first.
 

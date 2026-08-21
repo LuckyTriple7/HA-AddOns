@@ -19,5 +19,6 @@ LABEL org.opencontainers.image.source="https://github.com/LuckyTriple7/HA-AddOns
 LABEL org.opencontainers.image.licenses="AGPL-3.0-or-later"
 
 COPY --chmod=755 run.sh /run.sh
+COPY --chmod=755 selftest.sh /selftest.sh
 
 ENTRYPOINT ["/run.sh"]
