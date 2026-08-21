@@ -47,6 +47,10 @@
     section.active { display: block; }
     h2 { font-size: 1rem; margin-bottom: 12px; font-weight: 600; }
     h3 { font-size: 0.85rem; color: var(--muted); margin-bottom: 8px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+    /* Mercator ist deutlich hoeher als Plate carree (1,47 statt 2,5 zu 1). Ohne
+       Deckel schiebt die Karte alles andere aus der Uebersicht. Begrenzt wird
+       am Rahmen, nicht am SVG — sonst entstuenden leere Raender im Kartenfeld. */
+    .map-wrap { max-width: calc(60vh * 1.473); margin: 0 auto; }
     .map-wrap svg { width: 100%; height: auto; display: block; border-radius: 6px; background: var(--bg); }
     .map-wrap .cc { fill: var(--surf2); stroke: var(--muted); stroke-opacity: .45; stroke-width: 1; vector-effect: non-scaling-stroke; }
     .map-pt { fill: var(--red); fill-opacity: .5; stroke: var(--red); stroke-width: 1;
@@ -54,6 +58,7 @@
     .map-pt:hover { fill-opacity: .95; }
     .map-foot { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 8px; }
     .grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+    .grid.tight { grid-template-columns: repeat(auto-fit, minmax(185px, 1fr)); }
     .card { background: var(--surf); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; }
     .stat { font-size: 2rem; font-weight: 700; line-height: 1.1; }
     .stat-label { font-size: 0.78rem; color: var(--muted); margin-top: 2px; }
@@ -159,7 +164,7 @@
     <div id="setupBanner" class="banner" hidden></div>
 
     <section id="tab-overview" class="active">
-      <div class="grid">
+      <div class="grid tight">
         <div class="card"><div class="stat" id="ovDecisions">–</div><div class="stat-label">{{ t.ov_decisions_total }}</div></div>
         <div class="card"><div class="stat" id="ovAlerts">–</div><div class="stat-label">{{ t.ov_alerts_24h }}</div></div>
         <div class="card"><div class="stat" id="ovLists">–</div><div class="stat-label">{{ t.ov_list_updates }}</div></div>
@@ -642,11 +647,15 @@
     }
 
     // ── map ───────────────────────────────────────────────────────────────────
-    // Plate carree: das SVG ist so projiziert, dass ein Laengengrad genau einer
-    // Einheit entspricht. Koordinaten aus CrowdSec brauchen deshalb keine
-    // Bibliothek, nur eine Verschiebung des Nullpunkts.
+    // Web Mercator, dieselbe Projektion wie das SVG (tools/make_world_svg.py).
+    // 360 Einheiten sind der volle Erdumfang, der Aequator liegt auf 180. Damit
+    // reicht eine Zeile Rechnung statt einer Kartenbibliothek.
+    const MAP_LAT_LIMIT = 85;
     const mapX = lon => lon + 180;
-    const mapY = lat => 90 - lat;
+    const mapY = function (lat) {
+      const clamped = Math.max(-MAP_LAT_LIMIT, Math.min(MAP_LAT_LIMIT, lat));
+      return 180 - (180 / Math.PI) * Math.log(Math.tan(Math.PI / 4 + clamped * Math.PI / 360));
+    };
 
     let worldText = null;
     async function worldSvg() {

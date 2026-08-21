@@ -217,8 +217,10 @@ What never reaches the map:
 
 The outlines ship as `static/world.svg`, generated from Natural Earth 1:110m
 (public domain, see [LICENSE.md](LICENSE.md)). Nothing is fetched from the
-internet. The projection is plate carrée, so one degree of longitude equals one
-unit — which is why the map needs no mapping library.
+internet. The projection is Web Mercator — the same one every online map uses,
+and therefore the one the eye expects. The conversion still fits on one line, so
+the map needs no mapping library; the same formula lives in the generator script
+and in the front-end.
 
 ### Decisions
 

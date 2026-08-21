@@ -220,8 +220,10 @@ Nicht auf der Karte landen:
 
 Die Umrisse liegen als `static/world.svg` im Image, erzeugt aus Natural Earth
 1:110m (Public Domain, siehe [LICENSE.md](LICENSE.md)). Nachgeladen wird nichts
-aus dem Internet. Die Projektion ist Plate carrée, ein Längengrad entspricht
-also genau einer Einheit — deshalb kommt die Karte ohne Kartenbibliothek aus.
+aus dem Internet. Projiziert wird in Web Mercator — dieselbe Projektion wie bei
+jeder Online-Karte und damit die, die das Auge erwartet. Die Umrechnung bleibt
+trotzdem eine Zeile, sodass die Karte ohne Kartenbibliothek auskommt; dieselbe
+Formel steht im Erzeugerskript und im Frontend.
 
 ### Sperren
 

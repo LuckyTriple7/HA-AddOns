@@ -7,11 +7,15 @@ liegt im Repository. Neu erzeugen nur, wenn die Umrisse veraltet sind:
     python tools/make_world_svg.py
 
 Quelle: https://github.com/nvkelso/natural-earth-vector (Public Domain).
-Projektion: Plate carrée, also x = Längengrad, y = Breitengrad — damit lassen
-sich Koordinaten aus CrowdSec ohne Bibliothek in Bildpunkte umrechnen.
+Projektion: Web Mercator — dieselbe wie bei jeder Online-Karte und damit die,
+die das Auge erwartet. Plate carrée wäre einfacher, drückt aber alles jenseits
+des 50. Breitengrads flach; Skandinavien und Russland sehen dann verbogen aus.
+Die Umrechnung bleibt eine Zeile und braucht keine Bibliothek — dieselbe Formel
+steht im Frontend in `mapY()`.
 """
 
 import json
+import math
 import pathlib
 import urllib.request
 
@@ -26,9 +30,21 @@ LAT_TOP = 84.0
 LAT_BOTTOM = -60.0
 DECIMALS = 1
 
+# Breitengrad, ab dem Mercator ins Unendliche läuft. Darüber wird gekappt, sonst
+# zerreißt es die Pfade an den Polkanten.
+LAT_LIMIT = 85.0
+
+
+def mercator_y(lat: float) -> float:
+    """Web Mercator in einem Gitter, in dem 360 Einheiten dem vollen Umfang der
+    Erde entsprechen. Der Äquator liegt damit auf 180."""
+    lat = max(-LAT_LIMIT, min(LAT_LIMIT, lat))
+    return 180.0 - (180.0 / math.pi) * math.log(
+        math.tan(math.pi / 4.0 + math.radians(lat) / 2.0))
+
 
 def project(lon: float, lat: float) -> tuple:
-    return round(lon + 180.0, DECIMALS), round(90.0 - lat, DECIMALS)
+    return round(lon + 180.0, DECIMALS), round(mercator_y(lat), DECIMALS)
 
 
 def ring_to_path(ring: list) -> str:
@@ -91,9 +107,9 @@ def main() -> None:
         parts.append(f'<path class="cc"{attr} data-name="{name}" '
                      f'd="{"".join(segments)}"/>')
 
-    top, bottom = 90.0 - LAT_TOP, 90.0 - LAT_BOTTOM
+    top, bottom = mercator_y(LAT_TOP), mercator_y(LAT_BOTTOM)
     svg = (f'<svg xmlns="http://www.w3.org/2000/svg" '
-           f'viewBox="0 {top:g} 360 {bottom - top:g}" '
+           f'viewBox="0 {top:.2f} 360 {bottom - top:.2f}" '
            f'preserveAspectRatio="xMidYMid meet">'
            + ''.join(parts) + '</svg>')
 

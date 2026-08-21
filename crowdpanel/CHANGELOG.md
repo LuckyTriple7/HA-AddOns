@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.5.2] - 2026-08-21
+
+### Changed
+- **Die Karte benutzt jetzt Web Mercator statt Plate carrée.** Plate carrée war
+  rechnerisch die einfachere Wahl, drückt aber alles jenseits des 50.
+  Breitengrads flach — Skandinavien und Russland sahen verbogen aus. Web
+  Mercator ist die Projektion jeder Online-Karte und damit die, die das Auge
+  erwartet. Gerechnet wird weiterhin ohne Kartenbibliothek, die Formel steht in
+  `tools/make_world_svg.py` und im Frontend in `mapY()`.
+
+  Das Seitenverhältnis geht damit von 2,5 auf 1,47, die Karte wird also
+  deutlich höher. Damit sie die Übersicht nicht erschlägt, ist ihre Breite auf
+  `60vh × Seitenverhältnis` gedeckelt — begrenzt wird der Rahmen, nicht das SVG,
+  sonst entstünden leere Ränder im Kartenfeld.
+
+- **Die Kennzahlen-Kacheln der Übersicht passen wieder in eine Zeile.** Die
+  Mindestbreite lag bei 240 px; im Ingress-Rahmen von Home Assistant reichte das
+  für vier der fünf Kacheln, die fünfte rutschte in die nächste Zeile. Nur diese
+  eine Reihe bekommt jetzt 185 px, alle übrigen Raster bleiben unverändert.
+
 ## [0.5.1] - 2026-08-21
 
 ### Fixed
