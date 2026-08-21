@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.1.31] - 2026-08-21
+
+### Geändert
+- Der Selbsttest gibt jetzt englisch aus, wie das Add-on-Protokoll auch. Vorher mischten sich
+  deutsche Prüfzeilen unter englische Logausgaben.
+
 ## [0.1.30] - 2026-08-21
 
 ### Neu

@@ -10,6 +10,9 @@
 #
 # Rückgabewert: 0 wenn nichts fehlschlägt, sonst 1. Warnungen allein ändern den
 # Rückgabewert nicht — sie beschreiben Zustände, die gewollt sein können.
+#
+# Die Ausgabe ist englisch, wie das Add-on-Protokoll auch. Kommentare im
+# Quelltext bleiben deutsch.
 ###############################################################################
 set -uo pipefail
 
@@ -54,56 +57,56 @@ head_ "Container"
 OWN_HOST=$(cat /etc/hostname 2>/dev/null | tr -d '\r\n')
 if [ -n "$OWN_HOST" ]; then
     ok "Hostname: ${OWN_HOST}"
-    ok "journald-Identifier für die CrowdSec-Acquisition: app_${OWN_HOST//-/_}"
+    ok "journald identifier for the CrowdSec acquisition: app_${OWN_HOST//-/_}"
 else
-    warn "Hostname nicht lesbar — Identifier für die Acquisition unbekannt"
+    warn "hostname not readable — identifier for the acquisition unknown"
 fi
 
 if [ -f "$OPTIONS" ]; then
-    ok "Optionen gelesen: ${OPTIONS}"
+    ok "options read: ${OPTIONS}"
 else
-    fail "${OPTIONS} fehlt — läuft das Skript im richtigen Container?"
+    fail "${OPTIONS} is missing — is this the right container?"
 fi
 
 ###############################################################################
-head_ "Ports und Oberfläche"
+head_ "Ports and web interface"
 ###############################################################################
 ADMIN_PORT=$(opt admin_port 81)
 UI_CODE=$(curl -sk -o /dev/null -m 5 -w '%{http_code}' "https://127.0.0.1:${ADMIN_PORT}/api/" 2>/dev/null || true)
 case "${UI_CODE:-000}" in
-    000) fail "Oberfläche auf Port ${ADMIN_PORT} antwortet nicht" ;;
-    200) ok "Oberfläche auf Port ${ADMIN_PORT} antwortet (HTTP 200)" ;;
-    *)   warn "Oberfläche auf Port ${ADMIN_PORT} antwortet mit HTTP ${UI_CODE}" ;;
+    000) fail "web interface on port ${ADMIN_PORT} does not answer" ;;
+    200) ok "web interface on port ${ADMIN_PORT} answers (HTTP 200)" ;;
+    *)   warn "web interface on port ${ADMIN_PORT} answers with HTTP ${UI_CODE}" ;;
 esac
 
 ###############################################################################
 head_ "Logs"
 ###############################################################################
 if [ -L "$LOG_DIR" ]; then
-    ok "Logs verlinkt nach $(readlink "$LOG_DIR") (share_logs an)"
+    ok "logs linked to $(readlink "$LOG_DIR") (share_logs on)"
 elif [ -d "$LOG_DIR" ]; then
-    ok "Logs liegen in ${LOG_DIR} (share_logs aus)"
+    ok "logs kept in ${LOG_DIR} (share_logs off)"
 else
-    fail "${LOG_DIR} existiert nicht"
+    fail "${LOG_DIR} does not exist"
 fi
 
 if [ -f "$LOG_DIR/access.log" ]; then
     AGE=$(( $(date +%s) - $(stat -c %Y "$LOG_DIR/access.log" 2>/dev/null || echo 0) ))
     if [ "$AGE" -lt 3600 ]; then
-        ok "access.log wurde vor ${AGE} s zuletzt beschrieben"
+        ok "access.log last written ${AGE} s ago"
     else
-        warn "access.log seit ${AGE} s unverändert — kommt überhaupt Verkehr an?"
+        warn "access.log unchanged for ${AGE} s — is any traffic arriving?"
     fi
 else
-    warn "access.log fehlt — ohne Zugriffslog sieht CrowdSec nichts"
+    warn "access.log is missing — without an access log CrowdSec sees nothing"
 fi
 
 ###############################################################################
-head_ "Vertrauenswürdige Proxys"
+head_ "Trusted proxies"
 ###############################################################################
 TRUST_IP=$(opt trust_ip "")
 TRUST_CF=$(opt trust_cloudflare false)
-[ -n "$TRUST_IP" ] && ok "trust_ip: ${TRUST_IP}" || ok "trust_ip: nicht gesetzt"
+[ -n "$TRUST_IP" ] && ok "trust_ip: ${TRUST_IP}" || ok "trust_ip: not set"
 ok "trust_cloudflare: ${TRUST_CF}"
 
 ###############################################################################
@@ -111,10 +114,10 @@ head_ "CrowdSec"
 ###############################################################################
 CS_ENABLED_OPT=$(opt crowdsec_enabled false)
 if [ "$CS_ENABLED_OPT" != "true" ]; then
-    ok "crowdsec_enabled ist aus — CrowdSec-Prüfungen übersprungen"
+    ok "crowdsec_enabled is off — CrowdSec checks skipped"
 else
     if [ ! -f "$CS_CONF" ]; then
-        fail "${CS_CONF} fehlt, obwohl crowdsec_enabled an ist"
+        fail "${CS_CONF} is missing although crowdsec_enabled is on"
     else
         CS_ON=$(conf ENABLED || echo "")
         CS_URL=$(conf API_URL || echo "")
@@ -124,17 +127,17 @@ else
         CS_CAPTCHA=$(conf CAPTCHA_PROVIDER || echo "")
 
         if [ "$CS_ON" = "true" ]; then
-            ok "Bouncer aktiv laut ${CS_CONF}"
+            ok "bouncer active according to ${CS_CONF}"
         else
-            fail "Bouncer steht in ${CS_CONF} auf ENABLED=${CS_ON:-<leer>} — die Startprüfung hat ihn abgeschaltet, siehe Add-on-Protokoll"
+            fail "${CS_CONF} says ENABLED=${CS_ON:-<empty>} — the startup check turned the bouncer off, see the add-on log"
         fi
 
         if [ "${#CS_KEY}" -eq 0 ]; then
-            fail "API_KEY ist leer"
+            fail "API_KEY is empty"
         elif [ "${#CS_KEY}" -eq 44 ]; then
-            ok "API_KEY hat 44 Zeichen (Länge von cscli)"
+            ok "API_KEY is 44 characters long (the length cscli generates)"
         else
-            warn "API_KEY hat ${#CS_KEY} Zeichen — cscli erzeugt 44. Eigene Schlüssel über 'bouncers add -k' sind kürzer und in Ordnung"
+            warn "API_KEY is ${#CS_KEY} characters long — cscli generates 44. Own keys via 'bouncers add -k' are shorter and fine"
         fi
 
         for pair in "API_URL:${CS_URL}" "APPSEC_URL:${CS_APPSEC}"; do
@@ -143,7 +146,7 @@ else
             [ -n "$url" ] || continue
             h=$(host_of_url "$url")
             if is_container_ip "$h"; then
-                warn "${name} zeigt auf die Container-IP ${h} — die wechselt beim nächsten Start. Container-Hostname eintragen oder die Option auf \"auto\" setzen"
+                warn "${name} points at the container IP ${h} — that changes on the next start. Use the container hostname or set the option to \"auto\""
             else
                 ok "${name}: ${url}"
             fi
@@ -154,34 +157,34 @@ else
                 -H "X-Api-Key: ${CS_KEY}" -A "npmplus-selftest/1.0" \
                 "${CS_URL%/}/v1/decisions?ip=127.0.0.1" 2>/dev/null || true)
             case "${LAPI_CODE:-000}" in
-                200|404) ok "LAPI antwortet und akzeptiert den Schlüssel (HTTP ${LAPI_CODE})" ;;
-                401|403) fail "LAPI lehnt den Schlüssel ab (HTTP ${LAPI_CODE}) — Bouncer steckt vermutlich in der falschen Datenbank, cscli braucht -c" ;;
-                000)     fail "LAPI unter ${CS_URL} nicht erreichbar" ;;
-                *)       warn "LAPI antwortet mit HTTP ${LAPI_CODE}" ;;
+                200|404) ok "LAPI answers and accepts the key (HTTP ${LAPI_CODE})" ;;
+                401|403) fail "LAPI rejects the key (HTTP ${LAPI_CODE}) — the bouncer is probably in the wrong database, cscli needs -c" ;;
+                000)     fail "LAPI at ${CS_URL} is unreachable" ;;
+                *)       warn "LAPI answers with HTTP ${LAPI_CODE}" ;;
             esac
         else
-            fail "API_URL ist leer"
+            fail "API_URL is empty"
         fi
 
         if [ -n "$CS_APPSEC" ]; then
             APPSEC_CODE=$(curl -s -o /dev/null -m 5 -w '%{http_code}' \
                 -A "npmplus-selftest/1.0" "${CS_APPSEC%/}/" 2>/dev/null || true)
             if [ "${APPSEC_CODE:-000}" = "000" ]; then
-                fail "AppSec unter ${CS_APPSEC} antwortet nicht — WAF-Prüfung fällt aus"
+                fail "AppSec at ${CS_APPSEC} does not answer — the WAF check is skipped"
             else
-                ok "AppSec antwortet (HTTP ${APPSEC_CODE}; ohne Schlüssel ist 401 normal)"
+                ok "AppSec answers (HTTP ${APPSEC_CODE}; 401 without a key is normal)"
             fi
         else
-            ok "AppSec nicht konfiguriert"
+            ok "AppSec not configured"
         fi
 
-        ok "CAPTCHA_PROVIDER: ${CS_CAPTCHA:-<leer, Captcha aus>}"
-        ok "FALLBACK_REMEDIATION: ${CS_FALLBACK:-<Vorgabe des Images>}"
+        ok "CAPTCHA_PROVIDER: ${CS_CAPTCHA:-<empty, captcha off>}"
+        ok "FALLBACK_REMEDIATION: ${CS_FALLBACK:-<image default>} (what the bouncer does if the LAPI fails)"
     fi
 fi
 
 ###############################################################################
-head_ "Zertifikate"
+head_ "Certificates"
 ###############################################################################
 if command -v openssl >/dev/null 2>&1; then
     FOUND=0
@@ -193,28 +196,29 @@ if command -v openssl >/dev/null 2>&1; then
         END_TS=$(date -d "$END" +%s 2>/dev/null || echo 0)
         NAME=$(basename "$(dirname "$cert")")
         if [ "$END_TS" -eq 0 ]; then
-            warn "${NAME}: Ablaufdatum nicht auswertbar (${END})"
+            warn "${NAME}: expiry date not parsable (${END})"
             continue
         fi
         DAYS=$(( (END_TS - $(date +%s)) / 86400 ))
         if [ "$DAYS" -lt 0 ]; then
-            fail "${NAME}: abgelaufen seit $(( -DAYS )) Tagen"
+            DAYS_ABS=$(( -DAYS ))
+            fail "${NAME}: expired ${DAYS_ABS} days ago"
         elif [ "$DAYS" -lt 3 ]; then
-            warn "${NAME}: läuft in ${DAYS} Tagen ab"
+            warn "${NAME}: expires in ${DAYS} days"
         else
-            ok "${NAME}: noch ${DAYS} Tage gültig"
+            ok "${NAME}: valid for another ${DAYS} days"
         fi
     done < <(find /data/tls -name fullchain.pem 2>/dev/null)
-    [ "$FOUND" -eq 1 ] || ok "keine Zertifikate unter /data/tls gefunden"
+    [ "$FOUND" -eq 1 ] || ok "no certificates found under /data/tls"
 else
-    warn "openssl nicht im Image — Zertifikatslaufzeiten nicht prüfbar"
+    warn "openssl not in the image — certificate lifetimes cannot be checked"
 fi
 
 ###############################################################################
 printf '\n'
 if [ "$FAILED" -eq 0 ]; then
-    printf 'Ergebnis: nichts fehlgeschlagen.\n'
+    printf 'Result: nothing failed.\n'
     exit 0
 fi
-printf 'Ergebnis: %s Prüfung(en) fehlgeschlagen.\n' "$FAILED"
+printf 'Result: %s check(s) failed.\n' "$FAILED"
 exit 1

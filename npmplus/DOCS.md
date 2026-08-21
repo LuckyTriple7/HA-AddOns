@@ -348,7 +348,7 @@ Das Add-on bringt ein Skript mit, das die wichtigsten Prüfungen in einem Durchg
 docker exec $(docker ps --format '{{.Names}}' | grep -i npmplus | head -1) /selftest.sh
 ```
 
-Ausgabe je Zeile `[ ok ]`, `[warn]` oder `[FAIL]`; der Rückgabewert ist 0, solange nichts fehlschlägt. Warnungen beschreiben Zustände, die gewollt sein können (kein Captcha, kein AppSec, wenig Verkehr).
+Ausgabe je Zeile `[ ok ]`, `[warn]` oder `[FAIL]`; der Rückgabewert ist 0, solange nichts fehlschlägt. Die Ausgabe ist englisch, wie das Add-on-Protokoll auch. Warnungen beschreiben Zustände, die gewollt sein können (kein Captcha, kein AppSec, wenig Verkehr).
 
 ### Prüfbefehle auf einen Blick
 

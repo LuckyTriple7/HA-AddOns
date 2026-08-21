@@ -343,7 +343,7 @@ The add-on ships a script that runs the important checks in one go — web inter
 docker exec $(docker ps --format '{{.Names}}' | grep -i npmplus | head -1) /selftest.sh
 ```
 
-Every line is `[ ok ]`, `[warn]` or `[FAIL]`; the exit code stays 0 as long as nothing fails. Warnings describe states that may well be intended (no captcha, no AppSec, little traffic). Its output is German, like the rest of the add-on log.
+Every line is `[ ok ]`, `[warn]` or `[FAIL]`; the exit code stays 0 as long as nothing fails. Warnings describe states that may well be intended (no captcha, no AppSec, little traffic).
 
 ### Diagnostics at a glance
 
