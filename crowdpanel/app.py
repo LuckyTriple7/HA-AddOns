@@ -37,6 +37,7 @@ from lapi import (ALERT_FETCH_LIMIT, DECISION_TYPES, DURATION_PRESETS, SCOPES,
                   LapiClient, LapiError, ValidationError, is_ip_or_range,
                   normalize_duration, normalize_scope, normalize_type,
                   normalize_value)
+from metrics import MetricsClient, DEFAULT_PORT as PROMETHEUS_PORT
 
 logging.basicConfig(format='[%(levelname)s] [%(asctime)s] %(message)s',
                     level=logging.INFO, datefmt='%Y-%m-%d %H:%M:%S', force=True)
@@ -542,6 +543,42 @@ def get_client() -> LapiClient:
         return _client
 
 
+# ── Prometheus client ─────────────────────────────────────────────────────────
+
+_metrics_client = None
+_metrics_lock = threading.Lock()
+
+
+def _prometheus_url() -> str:
+    """Configured endpoint, or the LAPI host on CrowdSec's default metrics port.
+
+    Both URLs come from the add-on options, so they are as trusted as the LAPI
+    URL itself — but only the host is carried over, never a path or credentials
+    that happened to be part of lapi_url.
+    """
+    raw = str(load_config().get('prometheus_url') or '').strip()
+    if raw:
+        return raw.rstrip('/')
+    parts = urlsplit(str(load_config().get('lapi_url') or '').strip())
+    if parts.scheme not in ('http', 'https') or not parts.hostname:
+        return ''
+    host = parts.hostname
+    netloc = f'[{host}]:{PROMETHEUS_PORT}' if ':' in host else f'{host}:{PROMETHEUS_PORT}'
+    return urlunsplit((parts.scheme, netloc, '', '', ''))
+
+
+def get_metrics_client() -> MetricsClient:
+    global _metrics_client
+    url = _prometheus_url()
+    verify = bool(load_config().get('lapi_tls_verify', True))
+    with _metrics_lock:
+        if _metrics_client is None or not _metrics_client.same_as(url, verify):
+            _metrics_client = MetricsClient(url, verify=verify)
+            if _verbose():
+                log.info("metrics client rebuilt for %s", url or '(unset)')
+        return _metrics_client
+
+
 def _page_size() -> int:
     return _cfg_int('page_size', 100, 10, 1000)
 
@@ -916,6 +953,21 @@ def _bouncer_stale(row: dict) -> bool:
 @api('/api/bouncers')
 def bouncers():
     return jsonify(_bouncer_state())
+
+
+@api('/api/metrics')
+def prometheus_metrics():
+    """CrowdSec's own counters. Unreachable is the normal case until someone
+    opens the listener, so that is reported as a state, not as a failure."""
+    client = get_metrics_client()
+    if not client.configured():
+        return jsonify({'available': False, 'url': client.url,
+                        'reason': 'not_configured'})
+    try:
+        return jsonify(client.snapshot(force=_arg('force', 8) == '1'))
+    except LapiError as e:
+        return jsonify({'available': False, 'url': client.endpoint(),
+                        'reason': e.code, 'status': e.status})
 
 
 # ── History ───────────────────────────────────────────────────────────────────

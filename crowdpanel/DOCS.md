@@ -385,6 +385,49 @@ docker exec $CS cscli -c $CFG hub list
 docker exec $CS cscli -c $CFG hub upgrade
 ```
 
+---
+
+### Metriken
+
+CrowdSec führt über alles, was durch es hindurchläuft, eigene Zähler. Ausgeliefert
+werden die im Prometheus-Textformat, und `cscli metrics` baut seine Tabellen aus
+genau dieser Quelle. Der Reiter zeigt dasselbe im Browser:
+
+| Tabelle | Beantwortet |
+|---|---|
+| Datenquellen | Kommen überhaupt Logzeilen an, und wie viele davon versteht CrowdSec nicht? |
+| Parser | Welcher Parser greift, welcher läuft leer? |
+| Szenarien | Welches Szenario löst tatsächlich aus, welches ist nur geladen? |
+| Whitelists | Wie oft hat eine Ausnahme gegriffen — und aus welchem Grund? |
+| LAPI-Aufrufe / je Maschine / je Bouncer | Wer fragt wie oft, und bekommt ein Bouncer überhaupt Sperren geliefert? |
+| AppSec | Anfragen und Blockaden je Engine, dazu die Regeln, die getroffen haben |
+| Aktive Sperren / Meldungen | CrowdSecs eigene Zählung, aufgeschlüsselt nach Grund, Herkunft und Aktion |
+| Laufzeiten | Durchschnitt je Parsing-, Bucket- und LAPI-Vorgang in Millisekunden |
+| Zwischenspeicher | Größe der internen Caches |
+
+Alle Zähler laufen seit dem Start von CrowdSec und beginnen bei einem Neustart
+wieder bei null. Es sind Summen, keine Raten.
+
+**Die Zähler müssen erst freigegeben werden.** CrowdSec hört damit standardmäßig
+nur auf `127.0.0.1`, also nur innerhalb seines eigenen Containers. In der
+`config.yaml` von CrowdSec:
+
+```yaml
+prometheus:
+  enabled: true
+  level: full
+  listen_addr: 0.0.0.0
+  listen_port: 6060
+```
+
+Danach CrowdSec neu starten. CrowdPanel nimmt ohne weitere Angabe denselben
+Rechner wie in `lapi_url` und Port 6060; steht der Endpunkt woanders, trägt man
+ihn vollständig in `prometheus_url` ein (`http://…:6060` oder direkt
+`http://…/metrics`).
+
+Solange nichts erreichbar ist, bleibt der Reiter sichtbar und erklärt genau
+diesen Schritt, statt einfach leer zu sein.
+
 ## Sensoren in Home Assistant
 
 Ist `ha_sensors` an (Vorgabe), meldet CrowdPanel folgende Entitäten an Home
@@ -446,6 +489,7 @@ Lehnt Home Assistant die Sensoren ab, steht das **einmal** im Protokoll des Add-
 | `machine_id` | leer | Name des Maschinen-Zugangs |
 | `machine_password` | leer | Passwort des Maschinen-Zugangs |
 | `lapi_tls_verify` | `true` | TLS-Zertifikat prüfen; nur bei selbstsigniertem `https` abschalten |
+| `prometheus_url` | leer | Adresse der CrowdSec-Metriken; leer heißt Rechner aus `lapi_url`, Port 6060 |
 | `default_ban_duration` | `4h` | Voreingestellte Dauer im Formular |
 | `refresh_interval` | `30` | Sekunden bis zur automatischen Aktualisierung, `0` schaltet sie ab |
 | `page_size` | `100` | wie viele Zeilen die Tabellen höchstens anzeigen |

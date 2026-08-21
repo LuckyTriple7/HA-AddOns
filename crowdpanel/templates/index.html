@@ -145,6 +145,7 @@
     <button data-tab="check">{{ t.nav_check }}</button>
     <button data-tab="allowlists">{{ t.nav_allowlists }}</button>
     <button data-tab="hub">{{ t.nav_hub }}</button>
+    <button data-tab="metrics">{{ t.nav_metrics }}</button>
     <button data-tab="settings">{{ t.nav_settings }}</button>
   </nav>
 
@@ -242,6 +243,10 @@
 
     <section id="tab-hub">
       <div id="hubBody"></div>
+    </section>
+
+    <section id="tab-metrics">
+      <div id="metricsBody"></div>
     </section>
 
     <section id="tab-settings">
@@ -442,7 +447,8 @@
     }
 
     // ── tabs ──────────────────────────────────────────────────────────────────
-    const TABS = ['overview', 'decisions', 'new', 'alerts', 'check', 'allowlists', 'hub', 'settings'];
+    const TABS = ['overview', 'decisions', 'new', 'alerts', 'check', 'allowlists',
+                  'hub', 'metrics', 'settings'];
 
     // Null-prototype: a tab name arrives from location.hash, and on a plain
     // object a name like "toString" would resolve through the prototype chain
@@ -1279,6 +1285,121 @@
         table.appendChild(body);
         wrap.appendChild(table);
         card.appendChild(wrap);
+        box.appendChild(card);
+      });
+    }
+
+    // ── metrics ───────────────────────────────────────────────────────────────
+    // Everything here is drawn from the column keys the server sends, so a
+    // CrowdSec version with different counters changes the tables, not this
+    // code. Only the labels come from the language files.
+    loaders.metrics = async function (force) {
+      const box = $('metricsBody');
+      if (cache.metrics) { renderMetrics(box, cache.metrics); }
+      else { box.textContent = ''; box.appendChild(el('div', 'muted', T.loading)); }
+      try {
+        const d = await api('/api/metrics' + (force ? '?force=1' : ''));
+        cache.metrics = d;
+        renderMetrics(box, d);
+      } catch (e) {
+        box.textContent = '';
+        box.appendChild(el('div', 'banner bad', errText(e.code)));
+      }
+    };
+
+    function num(v) {
+      const n = Number(v);
+      return isNaN(n) ? String(v == null ? '' : v) : n.toLocaleString();
+    }
+
+    function metricsHead(d) {
+      const card = el('div', 'card');
+      card.appendChild(el('h2', null, T.m_title));
+      card.appendChild(el('p', 'note', T.m_hint));
+      const kv = (label, value, mono) => {
+        const row = el('div', 'kv');
+        row.appendChild(el('span', null, label));
+        row.appendChild(el('span', mono ? 'mono' : null, value || T.none));
+        card.appendChild(row);
+      };
+      kv(T.m_endpoint, d.url, true);
+      if (d.available) {
+        if (d.version) kv(T.m_version, d.version, true);
+        kv(T.m_metrics_count, num(d.metrics));
+        kv(T.m_updated, d.fetched ? new Date(d.fetched * 1000).toLocaleString() : T.none);
+      }
+      const btn = el('button', 'btn', T.m_reload);
+      btn.style.marginTop = '10px';
+      btn.addEventListener('click', () => loaders.metrics(true));
+      card.appendChild(btn);
+      return card;
+    }
+
+    function renderMetrics(box, d) {
+      box.textContent = '';
+      box.appendChild(metricsHead(d));
+
+      if (!d.available) {
+        const warn = el('div', 'banner bad');
+        warn.style.marginTop = '12px';
+        warn.appendChild(el('div', null, T.m_unavailable + ' ' + errText(d.reason)));
+        box.appendChild(warn);
+        const help = el('div', 'card');
+        help.style.marginTop = '12px';
+        help.appendChild(el('p', 'note', T.m_enable_hint));
+        box.appendChild(help);
+        return;
+      }
+
+      const sums = d.summary || {};
+      const grid = el('div', 'grid');
+      grid.style.marginTop = '12px';
+      ['lines_read', 'lines_unparsed', 'overflows', 'active_decisions',
+       'lapi_requests', 'appsec_blocked'].forEach(key => {
+        const card = el('div', 'card');
+        card.appendChild(el('div', 'stat', num(sums[key] || 0)));
+        card.appendChild(el('div', 'stat-label', T['m_sum_' + key] || key));
+        grid.appendChild(card);
+      });
+      box.appendChild(grid);
+
+      const titles = T.m_tables || {}, cols = T.m_cols || {};
+      const tables = d.tables || [];
+      if (!tables.length) {
+        box.appendChild(el('div', 'empty', T.m_none));
+        return;
+      }
+      tables.forEach(tbl => {
+        const card = el('div', 'card');
+        card.style.marginTop = '12px';
+        card.appendChild(el('h2', null,
+          (titles[tbl.id] || tbl.id) + ' (' + num(tbl.total) + ')'));
+        const wrap = el('div', 'table-wrap');
+        const table = document.createElement('table');
+        const thead = document.createElement('thead');
+        const hr = el('tr');
+        tbl.cols.forEach(c => hr.appendChild(el('th', null, cols[c] || c)));
+        thead.appendChild(hr);
+        table.appendChild(thead);
+        const body = document.createElement('tbody');
+        (tbl.rows || []).forEach(row => {
+          const tr = el('tr');
+          tbl.cols.forEach((c, i) => {
+            const raw = row[c];
+            // First column is the name of the thing, the rest are numbers.
+            if (i === 0) tr.appendChild(el('td', 'mono', raw === '' || raw == null ? T.none : raw));
+            else if (typeof raw === 'number') tr.appendChild(el('td', null, num(raw)));
+            else tr.appendChild(el('td', 'muted', raw === '' || raw == null ? T.none : raw));
+          });
+          body.appendChild(tr);
+        });
+        table.appendChild(body);
+        wrap.appendChild(table);
+        card.appendChild(wrap);
+        if (tbl.truncated) {
+          card.appendChild(el('p', 'note',
+            fmt('m_truncated', { shown: num((tbl.rows || []).length), total: num(tbl.total) })));
+        }
         box.appendChild(card);
       });
     }

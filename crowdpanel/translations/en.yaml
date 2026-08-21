@@ -25,6 +25,12 @@ configuration:
   lapi_tls_verify:
     name: Verify TLS certificate
     description: Only turn this off for an https address with a self-signed certificate.
+  prometheus_url:
+    name: CrowdSec Prometheus address
+    description: >-
+      Leave empty to use the host of the LAPI address on port 6060. CrowdSec has
+      to allow the access — set listen_addr to 0.0.0.0 under prometheus in its
+      config.yaml, otherwise the counters only listen on 127.0.0.1.
   default_ban_duration:
     name: Default ban duration
     description: Preselected duration in the new-ban form, for example 4h, 24h or 168h.

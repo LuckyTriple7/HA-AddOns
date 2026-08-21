@@ -1,5 +1,35 @@
 # Changelog
 
+## [0.4.6] - 2026-08-21
+
+### Added
+- **Neuer Reiter „Metriken“.** CrowdSec zählt intern mit, wie viele Logzeilen
+  ankommen, welcher Parser greift, welches Szenario auslöst, wie oft eine
+  Whitelist gerettet hat und wer die LAPI wie oft anfragt. Bisher kam man an
+  diese Zahlen nur über `docker exec … cscli metrics`. CrowdPanel liest jetzt
+  denselben Prometheus-Endpunkt und baut daraus dreizehn Tabellen —
+  Datenquellen, Parser, Szenarien, Whitelists, LAPI je Pfad/Maschine/Bouncer,
+  AppSec samt Regeltreffern, aktive Sperren, Meldungen, Laufzeiten und
+  Zwischenspeicher — dazu sechs Kennzahlen als Übersicht.
+
+  Die Tabelle „LAPI je Bouncer“ beantwortet dabei eine Frage, die vorher
+  offen war: Ein Bouncer kann fleißig abholen und trotzdem nie eine Sperre
+  bekommen — hier steht, wie viele Antworten tatsächlich Entscheidungen
+  enthielten.
+
+  Gerendert wird ausschließlich aus den Spalten, die der Server mitschickt.
+  Eine CrowdSec-Version mit anderen Zählern ändert also die Tabellen, nicht
+  den Code, der sie zeichnet.
+
+  **Voraussetzung:** CrowdSec liefert die Zähler standardmäßig nur an
+  `127.0.0.1` aus. In seiner `config.yaml` unter `prometheus` muss
+  `listen_addr: 0.0.0.0` stehen, sonst kommt CrowdPanel als eigener Container
+  nicht heran. Solange das fehlt, bleibt der Reiter sichtbar und erklärt genau
+  diesen Schritt, statt leer zu sein.
+
+- **Option `prometheus_url`.** Leer heißt: derselbe Rechner wie in `lapi_url`,
+  Port 6060. Nur nötig, wenn der Endpunkt woanders liegt.
+
 ## [0.4.5] - 2026-08-20
 
 ### Changed

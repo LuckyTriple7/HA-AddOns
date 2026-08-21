@@ -14,6 +14,7 @@ it into a web interface.
 - **Alerts** — groupable by address or scenario with hit counts, with events and the triggering log line; ban straight from the row
 - **Check IP** — active decisions, alert history and allowlist hits for an address
 - **Exemptions** — allowlists from the CrowdSec database and whitelist parsers in full, with the difference explained
+- **Metrics** — CrowdSec's own counters for data sources, parsers, scenarios, whitelists, LAPI, bouncers and AppSec
 - **Two-factor sign-in** — TOTP for the direct port, QR code generated locally, backup codes
 - **Home Assistant sensors** — active decisions, the locally detected ones, and detections of the last 24 hours
 - Dark / light · DE / EN · HA Ingress · PWA
@@ -44,8 +45,10 @@ CrowdPanel replaces no bouncer and reads no logs. It only manages the decisions
 held by the CrowdSec engine; enforcing them stays with the bouncers, for example
 the one inside [NPMplus](../npmplus/).
 
-Not included: `cscli bouncers list`, `machines list`, `metrics` and `hub list` —
-those commands read the local CrowdSec database instead of the API.
+What `cscli bouncers list`, `machines list`, `hub list` and `metrics` show does
+not come from the API — there are no endpoints for it. Bouncers, machines and hub
+are read from the CrowdSec database and configuration directory, the metrics from
+CrowdSec's Prometheus endpoint.
 
 ## Documentation
 

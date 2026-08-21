@@ -372,6 +372,47 @@ docker exec $CS cscli -c $CFG hub list
 docker exec $CS cscli -c $CFG hub upgrade
 ```
 
+---
+
+### Metrics
+
+CrowdSec keeps its own counters on everything passing through it, served in the
+Prometheus text format — the very source `cscli metrics` builds its tables from.
+This tab shows the same in the browser:
+
+| Table | Answers |
+|---|---|
+| Data sources | Are log lines arriving at all, and how many does CrowdSec fail to parse? |
+| Parsers | Which parser fires, which one runs dry? |
+| Scenarios | Which scenario actually triggers, which one is merely loaded? |
+| Whitelists | How often did an exception apply — and for what reason? |
+| LAPI routes / per machine / per bouncer | Who asks how often, and does a bouncer receive any decisions at all? |
+| AppSec | Requests and blocks per engine, plus the rules that hit |
+| Active decisions / Alerts | CrowdSec's own count, broken down by reason, origin and action |
+| Timings | Average parsing, bucket and LAPI time in milliseconds |
+| Caches | Size of the internal caches |
+
+All counters run since CrowdSec started and reset to zero on a restart. They are
+totals, not rates.
+
+**The counters have to be opened up first.** By default CrowdSec listens on
+`127.0.0.1` only, so inside its own container. In CrowdSec's `config.yaml`:
+
+```yaml
+prometheus:
+  enabled: true
+  level: full
+  listen_addr: 0.0.0.0
+  listen_port: 6060
+```
+
+Then restart CrowdSec. Without further configuration CrowdPanel uses the host
+from `lapi_url` on port 6060; if the endpoint lives elsewhere, put the full
+address into `prometheus_url` (`http://…:6060` or `http://…/metrics` directly).
+
+While nothing is reachable the tab stays visible and explains exactly this step
+instead of just sitting empty.
+
 ## Home Assistant sensors
 
 With `ha_sensors` on (the default), CrowdPanel reports these entities to Home
@@ -432,6 +473,7 @@ again after that, so a misconfiguration cannot flood the log.
 | `machine_id` | empty | name of the machine account |
 | `machine_password` | empty | password of the machine account |
 | `lapi_tls_verify` | `true` | verify the TLS certificate; only turn off for self-signed `https` |
+| `prometheus_url` | empty | address of the CrowdSec metrics; empty means the host from `lapi_url` on port 6060 |
 | `default_ban_duration` | `4h` | preselected duration in the form |
 | `refresh_interval` | `30` | seconds between automatic refreshes, `0` turns it off |
 | `page_size` | `100` | how many rows the tables show at most |

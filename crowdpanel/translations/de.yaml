@@ -25,6 +25,12 @@ configuration:
   lapi_tls_verify:
     name: TLS-Zertifikat prüfen
     description: Nur bei einer https-Adresse mit selbstsigniertem Zertifikat abschalten.
+  prometheus_url:
+    name: Prometheus-Adresse von CrowdSec
+    description: >-
+      Leer lassen: CrowdPanel benutzt denselben Rechner wie die LAPI-Adresse, Port 6060.
+      CrowdSec muss den Zugriff erlauben — in seiner config.yaml unter prometheus
+      listen_addr auf 0.0.0.0 setzen, sonst hört der Zähler nur auf 127.0.0.1.
   default_ban_duration:
     name: Standard-Sperrdauer
     description: Voreingestellte Dauer im Formular für neue Sperren, zum Beispiel 4h, 24h oder 168h.
