@@ -49,8 +49,10 @@
     h3 { font-size: 0.85rem; color: var(--muted); margin-bottom: 8px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
     /* Mercator ist deutlich hoeher als Plate carree (1,47 statt 2,5 zu 1). Ohne
        Deckel schiebt die Karte alles andere aus der Uebersicht. Begrenzt wird
-       am Rahmen, nicht am SVG — sonst entstuenden leere Raender im Kartenfeld. */
-    .map-wrap { max-width: calc(60vh * 1.473); margin: 0 auto; }
+       am Rahmen, nicht am SVG — sonst entstuenden leere Raender im Kartenfeld.
+       --map-ratio ist das Seitenverhaeltnis der viewBox aus world.svg; wird die
+       Datei mit anderem Ausschnitt neu erzeugt, aendert sich hier eine Zahl. */
+    .map-wrap { --map-ratio: 1.473; max-width: calc(60vh * var(--map-ratio)); margin: 0 auto; }
     .map-wrap svg { width: 100%; height: auto; display: block; border-radius: 6px; background: var(--bg); }
     .map-wrap .cc { fill: var(--surf2); stroke: var(--muted); stroke-opacity: .45; stroke-width: 1; vector-effect: non-scaling-stroke; }
     .map-pt { fill: var(--red); fill-opacity: .5; stroke: var(--red); stroke-width: 1;
@@ -58,13 +60,36 @@
     .map-pt:hover { fill-opacity: .95; }
     .map-foot { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 8px; }
     .grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
-    .grid.tight { grid-template-columns: repeat(auto-fit, minmax(185px, 1fr)); }
-    .card { background: var(--surf); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; }
-    .stat { font-size: 2rem; font-weight: 700; line-height: 1.1; }
+
+    /* Kennzahlenreihen: feste Spaltenzahl statt einer geratenen Mindestbreite.
+       Die Kacheln teilen sich die verfuegbare Breite, werden auf einem kleinen
+       Bildschirm also kleiner statt umzubrechen. Erst wenn eine Kachel zu schmal
+       zum Lesen waere, greifen die Haltepunkte. Die Spaltenzahl steht als
+       --cols am Element, damit dieselbe Regel fuer fuenf wie fuer sechs Kacheln
+       gilt. Voraussetzung: --cols ist immer >= 3, sonst wuerden die Haltepunkte
+       die Spaltenzahl erhoehen statt senken. */
+    .row { display: grid; gap: 12px; --cols-now: var(--cols, 4);
+           grid-template-columns: repeat(var(--cols-now), minmax(0, 1fr)); }
+    @media (max-width: 900px) { .row { --cols-now: 3; } }
+    @media (max-width: 560px) { .row { --cols-now: 2; } }
+
+    /* minmax(0,1fr) allein reicht nicht: ein langes Wort ohne Trennstelle —
+       ein AS-Name, ein Szenarienpfad — waechst sonst ueber die Kachel hinaus. */
+    .card { background: var(--surf); border: 1px solid var(--border); border-radius: 8px;
+            padding: 14px 16px; min-width: 0; overflow-wrap: anywhere; }
+    /* white-space: nowrap ist Pflicht — .card erlaubt Umbrueche an jeder Stelle,
+       und eine mittendrin getrennte Zahl liest sich als zwei Zahlen. Dass sie
+       trotzdem passt, besorgt statNum(): ab sechs Stellen kompakte Schreibweise
+       mit dem vollen Wert im Tooltip. */
+    .stat { font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums;
+            font-size: clamp(1.25rem, 2.2vw + 0.5rem, 2rem); white-space: nowrap; }
     .stat-label { font-size: 0.78rem; color: var(--muted); margin-top: 2px; }
     .kv { display: flex; justify-content: space-between; gap: 12px; padding: 4px 0; border-bottom: 1px solid var(--border); font-size: 0.83rem; }
     .kv:last-child { border-bottom: none; }
-    .kv span:last-child { color: var(--muted); font-variant-numeric: tabular-nums; }
+    /* Der Wert rechts behaelt seine Breite, der Name links weicht — abgeschnitten
+       wird nur die Beschriftung, nie die Zahl, um die es geht. */
+    .kv span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .kv span:last-child { color: var(--muted); font-variant-numeric: tabular-nums; flex: none; }
     .bar { display: flex; flex-direction: column; gap: 6px; }
     .toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 12px; }
     .field { display: flex; flex-direction: column; gap: 4px; }
@@ -127,7 +152,7 @@
     th.sortable::after { content: ''; }
     th.sortable.asc::after { content: ' ▲'; }
     th.sortable.desc::after { content: ' ▼'; }
-    @media (max-width: 640px) { nav { top: 47px; } .stat { font-size: 1.6rem; } }
+    @media (max-width: 640px) { nav { top: 47px; } }
     @media (max-width: 820px) { .hide-narrow { display: none; } }
   </style>
 </head>
@@ -164,7 +189,7 @@
     <div id="setupBanner" class="banner" hidden></div>
 
     <section id="tab-overview" class="active">
-      <div class="grid tight">
+      <div class="row" style="--cols:5">
         <div class="card"><div class="stat" id="ovDecisions">–</div><div class="stat-label">{{ t.ov_decisions_total }}</div></div>
         <div class="card"><div class="stat" id="ovAlerts">–</div><div class="stat-label">{{ t.ov_alerts_24h }}</div></div>
         <div class="card"><div class="stat" id="ovLists">–</div><div class="stat-label">{{ t.ov_list_updates }}</div></div>
@@ -180,7 +205,7 @@
           <h3>{{ t.h_title }}</h3><div id="ovHistory"></div></div>
         <div class="card"><h3>{{ t.b_title }}</h3><div class="bar" id="ovBouncers"></div></div>
       </div>
-      <div class="grid" style="margin-top:12px">
+      <div class="row" style="--cols:3; margin-top:12px">
         <div class="card"><h3>{{ t.ov_top_countries }}</h3><div class="bar" id="ovCountries"></div></div>
         <div class="card"><h3>{{ t.ov_top_scenarios }}</h3><div class="bar" id="ovScenarios"></div></div>
         <div class="card"><h3>{{ t.ov_alert_scenarios }}</h3><div class="bar" id="ovAlertScenarios"></div></div>
@@ -364,6 +389,33 @@
       return s;
     }
 
+    // Zahlformat folgt der eingestellten Oberflaechensprache, nicht der des
+    // Browsers — sonst stehen deutsche Beschriftungen neben "8,123".
+    function num(v) {
+      const n = Number(v);
+      return isNaN(n) ? String(v == null ? '' : v) : n.toLocaleString(G.lang || 'de');
+    }
+
+    // Eine Kachel ist so breit wie ihr Fuenftel des Bildschirms — 29.422.111
+    // passt dort in keiner Schriftgroesse, die man noch lesen will. Ab sechs
+    // Stellen also "29,4 Mio."; der genaue Wert steht im Tooltip, damit nichts
+    // verloren geht. Tabellen bleiben unangetastet, dort zaehlt die Zahl selbst.
+    function statNum(v) {
+      const n = Number(v);
+      if (isNaN(n)) return String(v == null ? '' : v);
+      if (Math.abs(n) < 100000) return n.toLocaleString();
+      try {
+        return new Intl.NumberFormat(G.lang || 'de',
+          { notation: 'compact', maximumFractionDigits: 1 }).format(n);
+      } catch (e) { return n.toLocaleString(); }
+    }
+
+    // Setzt eine Kennzahl samt vollem Wert als Tooltip.
+    function setStat(node, value) {
+      node.textContent = statNum(value);
+      node.title = num(value);
+    }
+
     function errText(code) {
       const key = 'err_' + String(code || '').replace(/[^a-z_]/gi, '_');
       return T[key] || T.err_internal || code;
@@ -543,9 +595,9 @@
     // ── overview ──────────────────────────────────────────────────────────────
     function renderOverview(d) {
       fillOrigins((d.by_origin || []).map(p => p[0]));
-      $('ovDecisions').textContent = d.decisions_total;
-      $('ovAlerts').textContent = d.alerts_24h;
-      $('ovLists').textContent = d.list_updates_24h;
+      setStat($('ovDecisions'), d.decisions_total);
+      setStat($('ovAlerts'), d.alerts_24h);
+      setStat($('ovLists'), d.list_updates_24h);
       bars($('ovByType'), d.by_type);
       bars($('ovByOrigin'), d.by_origin);
       bars($('ovCountries'), d.top_countries, countryName);
@@ -1415,11 +1467,6 @@
       }
     };
 
-    function num(v) {
-      const n = Number(v);
-      return isNaN(n) ? String(v == null ? '' : v) : n.toLocaleString();
-    }
-
     function metricsHead(d) {
       const card = el('div', 'card');
       card.appendChild(el('h2', null, T.m_title));
@@ -1460,12 +1507,16 @@
       }
 
       const sums = d.summary || {};
-      const grid = el('div', 'grid');
+      const keys = ['lines_read', 'lines_unparsed', 'overflows', 'active_decisions',
+                    'lapi_requests', 'appsec_blocked'];
+      const grid = el('div', 'row');
+      grid.style.setProperty('--cols', String(keys.length));
       grid.style.marginTop = '12px';
-      ['lines_read', 'lines_unparsed', 'overflows', 'active_decisions',
-       'lapi_requests', 'appsec_blocked'].forEach(key => {
+      keys.forEach(key => {
         const card = el('div', 'card');
-        card.appendChild(el('div', 'stat', num(sums[key] || 0)));
+        const stat = el('div', 'stat');
+        setStat(stat, sums[key] || 0);
+        card.appendChild(stat);
         card.appendChild(el('div', 'stat-label', T['m_sum_' + key] || key));
         grid.appendChild(card);
       });

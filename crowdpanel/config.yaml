@@ -1,6 +1,6 @@
 name: CrowdPanel
 description: CrowdSec-Bedienpanel — Sperren ansehen, anlegen und aufheben
-version: "0.5.2"
+version: "0.5.3"
 slug: crowdpanel
 url: https://github.com/LuckyTriple7/HA-AddOns
 

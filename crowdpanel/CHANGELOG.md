@@ -1,5 +1,37 @@
 # Changelog
 
+## [0.5.3] - 2026-08-21
+
+### Changed
+- **Die Kennzahlen-Kacheln richten sich jetzt nach dem Bildschirm, nicht nach
+  einer geratenen Mindestbreite.** Bisher stand dort `minmax(240px, 1fr)`, in
+  0.5.2 auf 185 px gesenkt — beides Zahlen, die zufällig bei einer Fensterbreite
+  passen und bei der nächsten wieder umbrechen. Stattdessen steht die Spaltenzahl
+  jetzt als `--cols` am Element, die Kacheln teilen sich die Breite und werden
+  auf einem schmalen Bildschirm kleiner statt umzubrechen. Erst bei 900 px fällt
+  die Reihe auf drei Spalten, bei 560 px auf zwei.
+
+  Das gilt für beide Reihen: die fünf Kacheln der Übersicht und die sechs des
+  Metriken-Reiters.
+
+- **Inhalte laufen nicht mehr aus ihrer Kachel heraus.** Die Spalten haben
+  `minmax(0, 1fr)` statt `1fr` — ohne das wächst ein Rasterfeld mit dem längsten
+  Wort darin mit, etwa einem AS-Namen wie „PENTECH BILISIM TEKNOLOJILERI SANAYI
+  VE TICARET LIMITED SIRKETi". Lange Beschriftungen in Balkenlisten werden links
+  abgeschnitten, die Zahl rechts behält immer ihren Platz.
+
+- **Große Kennzahlen werden gekürzt statt umgebrochen.** `29.422.111` passte in
+  keine Kachel und wurde mitten in der Zahl getrennt — das liest sich als zwei
+  Zahlen. Ab sechs Stellen steht dort jetzt „29,4 Mio."; der genaue Wert steht im
+  Tooltip. Tabellen bleiben unangetastet, dort zählt die Zahl selbst.
+
+### Fixed
+- **Zahlen folgten der Browsersprache statt der eingestellten.** Neben deutschen
+  Beschriftungen konnte „8,123" stehen. Beide Formatierungen nehmen jetzt die
+  Sprache der Oberfläche.
+- **„1 Adressen verortet".** Die Fußzeile der Karte stand in einer Form, die nur
+  im Plural stimmte. Jetzt Doppelpunktform, damit sie für jede Zahl passt.
+
 ## [0.5.2] - 2026-08-21
 
 ### Changed

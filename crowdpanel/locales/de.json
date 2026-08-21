@@ -316,8 +316,8 @@
     "size": "Größe"
   },
   "map_title": "Angriffsquellen (24 h)",
-  "map_hits": "{n} Erkennungen",
-  "map_located": "{located} Adressen verortet, {alerts} Erkennungen insgesamt",
+  "map_hits": "Erkennungen: {n}",
+  "map_located": "Verortete Adressen: {located} · Erkennungen gesamt: {alerts}",
   "map_truncated": "gezeigt werden die {n} auffälligsten",
   "map_no_geoip": "Erkennungen sind da, aber keine einzige hat Koordinaten. Die liefert in CrowdSec der Parser crowdsecurity/geoip-enrich in der Stufe s02-enrich — nachinstallieren mit „cscli parsers install crowdsecurity/geoip-enrich“, danach CrowdSec neu starten. Ohne ihn bleibt nur die Länderauswertung.",
   "map_no_outline": "Die Weltkarte konnte nicht geladen werden."
