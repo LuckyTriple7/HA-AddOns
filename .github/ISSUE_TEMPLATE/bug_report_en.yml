@@ -28,6 +28,7 @@ body:
         - TUIWatch
         - LogPulse
         - NPMplus
+        - CrowdPanel
         - Other
     validations:
       required: true
