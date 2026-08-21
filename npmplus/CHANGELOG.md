@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.1.27] - 2026-08-21
+
+### Dokumentation
+- **Die Anleitung nennt jetzt den Container-Hostname von CrowdSec statt der Container-IP.**
+  Schritt 5 empfahl bisher, die IP des CrowdSec-Containers (`172.30.33.x`) in
+  `crowdsec_lapi_url` und `crowdsec_appsec_url` einzutragen. Docker vergibt diese IP bei
+  jedem Start neu, und ein Neustart von Home Assistant startet alle Add-on-Container neu —
+  danach zeigten beide URLs ins Leere und der Bouncer blieb aus, ohne dass jemand etwas
+  geändert hätte.
+
+  Richtig ist der Hostname aus `docker inspect -f '{{.Config.Hostname}}' <crowdsec-container>`,
+  also z.B. `http://424ccef4-crowdsec:8080`. Er bleibt über Neustarts hinweg gleich und wird
+  auch aus dem Host-Netz von NPMplus heraus aufgelöst.
+- Die Prüfbefehl-Tabelle fragt den Hostnamen statt der IP ab, und die Problembehandlung hat
+  eine eigene Zeile für „lief vorher, nach dem Neustart erreicht der Bouncer nichts mehr".
+- Die Optionsbeschreibungen in der Add-on-Konfiguration (DE/EN) zeigen den Hostnamen als
+  Beispiel und warnen vor der Container-IP.
+
 ## [0.1.26] - 2026-08-20
 
 ### Dokumentation

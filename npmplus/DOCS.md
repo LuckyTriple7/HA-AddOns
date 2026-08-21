@@ -143,22 +143,26 @@ Ohne `-k` erzeugt `cscli` den Schlüssel selbst; er wird dann **einmalig** angez
 
 `http://127.0.0.1:8080` stimmt nur, wenn CrowdSec seine Ports auf den Host legt. Läuft es als gewöhnliches Add-on im Docker-Netz, ist `127.0.0.1` aus Sicht von NPMplus der Host — und dort lauscht niemand. Ergebnis: `connection refused`.
 
-Container-IP ermitteln:
+Richtig ist der **Container-Hostname** von CrowdSec:
 
 ```sh
-docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}' <crowdsec-container>
+docker inspect -f '{{.Config.Hostname}}' <crowdsec-container>
 ```
+
+Das Ergebnis sieht aus wie `424ccef4-crowdsec`. Der vordere Teil ist die Kennung des Add-on-Repositorys und unterscheidet sich je nach Installation — den eigenen Wert auslesen, nicht diesen abschreiben.
 
 Damit dann in den Add-on-Optionen:
 
 ```yaml
 crowdsec_enabled: true
 crowdsec_api_key: "<Schlüssel aus cscli>"
-crowdsec_lapi_url: "http://172.30.33.22:8080"
-crowdsec_appsec_url: "http://172.30.33.22:7422"
+crowdsec_lapi_url: "http://424ccef4-crowdsec:8080"
+crowdsec_appsec_url: "http://424ccef4-crowdsec:7422"
 ```
 
-> Container-IPs können sich nach einem Update des CrowdSec-Add-ons ändern. Bietet dessen Konfiguration ein Port-Mapping auf den Host an, ist das die stabilere Wahl — dann passt `127.0.0.1`.
+> **Keine Container-IP eintragen.** Die IP (`172.30.33.x`, zu finden über `docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}' <crowdsec-container>`) gilt nur bis zum nächsten Start. Docker vergibt sie jedes Mal neu, und ein Neustart von Home Assistant startet alle Add-on-Container neu. Danach zeigen `crowdsec_lapi_url` und `crowdsec_appsec_url` ins Leere und der Bouncer bleibt aus, ohne dass jemand etwas geändert hätte. Der Hostname bleibt gleich.
+
+> NPMplus läuft im Host-Netz, löst den Hostnamen anderer Add-ons aber trotzdem auf — der Supervisor gibt jedem Add-on-Container den HA-DNS-Dienst mit. Schlägt die Auflösung ausnahmsweise fehl, funktioniert die lange Form `424ccef4-crowdsec.local.hass.io`.
 
 > Läuft AppSec nicht (kein `appsec`-Block in der Acquisition), muss `crowdsec_appsec_url` **leer** bleiben.
 
@@ -311,8 +315,8 @@ CFG=/config/.storage/crowdsec/config/config.yaml
 | Kommen Logzeilen an? | `docker exec $CS cscli -c $CFG metrics` |
 | Wer ist gerade gesperrt? | `docker exec $CS cscli -c $CFG decisions list` |
 | Welche Szenarien und Parser sind installiert? | `docker exec $CS cscli -c $CFG collections list` |
-| Welche IP hat der CrowdSec-Container? | `docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}' $CS` |
-| Sind LAPI und AppSec von außen erreichbar? | `nc -z -v <crowdsec-ip> 8080 && nc -z -v <crowdsec-ip> 7422` |
+| Wie heißt der CrowdSec-Container? | `docker inspect -f '{{.Config.Hostname}}' $CS` |
+| Sind LAPI und AppSec von außen erreichbar? | `nc -z -v <crowdsec-hostname> 8080 && nc -z -v <crowdsec-hostname> 7422` |
 | Was steht in der Bouncer-Konfiguration von NPMplus? | `docker exec $NP grep -E '^(ENABLED\|API_URL\|APPSEC_URL)=' /data/crowdsec/crowdsec.conf` |
 | Akzeptiert die LAPI genau diesen Schlüssel? | siehe unten |
 
@@ -765,6 +769,8 @@ Ein Home-Assistant-Backup des Add-ons enthält `/data` vollständig, inklusive D
 **Zertifikat lässt sich nicht ausstellen** — Port 80 muss aus dem Internet erreichbar sein und die Domain per DNS auf deine öffentliche IP zeigen. Bei CGNAT oder blockiertem Port 80 hilft nur die DNS-Challenge.
 
 **Alle Seiten liefern die CrowdSec-Sperrseite** — der Bouncer erreicht CrowdSec nicht oder der Schlüssel wird abgelehnt. Ab Version 0.1.4 verhindert die Startprüfung das; bei älteren Ständen `crowdsec_enabled` ausschalten und neu starten.
+
+**CrowdSec lief, nach einem Neustart erreicht der Bouncer nichts mehr** — in `crowdsec_lapi_url` steht eine Container-IP (`172.30.33.x`), die Docker beim Start neu vergeben hat. Beide URLs auf den Container-Hostnamen umstellen, z.B. `http://424ccef4-crowdsec:8080`.
 
 **Falsche Client-IPs in den Logs** — steht ein weiterer Proxy oder Cloudflare davor, dessen IPs in `trust_ip` eintragen bzw. `trust_cloudflare` aktivieren.
 

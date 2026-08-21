@@ -64,13 +64,13 @@ configuration:
     description: Enables the nginx bouncer. Blocks requests from IPs banned by your CrowdSec instance. Requires your own running CrowdSec engine (e.g. the official CrowdSec add-on) - without one this option does nothing.
   crowdsec_lapi_url:
     name: CrowdSec LAPI URL
-    description: Address of the local CrowdSec API, e.g. http://127.0.0.1:8080.
+    description: Address of the local CrowdSec API. If CrowdSec runs as an add-on, use its container hostname, e.g. http://424ccef4-crowdsec:8080 - not a container IP, that one changes on restart.
   crowdsec_api_key:
     name: CrowdSec bouncer key
     description: Output of "cscli bouncers add npmplus" in your CrowdSec instance.
   crowdsec_appsec_url:
     name: CrowdSec AppSec URL
-    description: Address of the AppSec/WAF endpoint, e.g. http://127.0.0.1:7422. Leave empty if AppSec is not running.
+    description: Address of the AppSec/WAF endpoint, e.g. http://424ccef4-crowdsec:7422 - same hostname as the LAPI. Leave empty if AppSec is not running.
   crowdsec_captcha_provider:
     name: Captcha provider
     description: Shows a challenge page instead of a hard block for decisions of type "captcha". Leave empty to disable. Cloudflare Turnstile is free and does not profile users.

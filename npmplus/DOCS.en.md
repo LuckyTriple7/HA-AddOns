@@ -142,22 +142,26 @@ Without `-k`, `cscli` generates the key itself; it is shown **once** and cannot 
 
 `http://127.0.0.1:8080` is only correct if CrowdSec publishes its ports on the host. If it runs as a regular add-on inside the Docker network, `127.0.0.1` is the host from NPMplus' point of view — and nothing listens there. Result: `connection refused`.
 
-Find the container IP:
+The right address is the CrowdSec container's **hostname**:
 
 ```sh
-docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}' <crowdsec-container>
+docker inspect -f '{{.Config.Hostname}}' <crowdsec-container>
 ```
+
+The result looks like `424ccef4-crowdsec`. The leading part is the add-on repository's id and differs between installations — read the real value instead of copying this one.
 
 Then in the add-on options:
 
 ```yaml
 crowdsec_enabled: true
 crowdsec_api_key: "<key from cscli>"
-crowdsec_lapi_url: "http://172.30.33.22:8080"
-crowdsec_appsec_url: "http://172.30.33.22:7422"
+crowdsec_lapi_url: "http://424ccef4-crowdsec:8080"
+crowdsec_appsec_url: "http://424ccef4-crowdsec:7422"
 ```
 
-> Container IPs can change when the CrowdSec add-on is updated. If its configuration offers a port mapping to the host, that is the more stable choice — then `127.0.0.1` is correct.
+> **Do not enter an IP address.** The container IP (`172.30.33.x`, found with `docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}' <crowdsec-container>`) only holds until the next restart. Docker hands out a new one on every start, and restarting Home Assistant restarts every add-on container. After that `crowdsec_lapi_url` and `crowdsec_appsec_url` point nowhere and the bouncer stays off, without anyone having changed a thing. The hostname stays stable.
+
+> NPMplus runs on the host network but still resolves other add-ons' hostnames — the Supervisor hands the HA DNS service to every add-on container. Should resolution ever fail, the long form `424ccef4-crowdsec.local.hass.io` works.
 
 > If AppSec is not running (no `appsec` block in the acquisition), `crowdsec_appsec_url` must be left **empty**.
 
@@ -306,8 +310,8 @@ CFG=/config/.storage/crowdsec/config/config.yaml
 | Do log lines arrive? | `docker exec $CS cscli -c $CFG metrics` |
 | Who is currently banned? | `docker exec $CS cscli -c $CFG decisions list` |
 | Which collections are installed? | `docker exec $CS cscli -c $CFG collections list` |
-| What is the CrowdSec container's IP? | `docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}' $CS` |
-| Are LAPI and AppSec reachable? | `nc -z -v <crowdsec-ip> 8080 && nc -z -v <crowdsec-ip> 7422` |
+| What is the CrowdSec container's hostname? | `docker inspect -f '{{.Config.Hostname}}' $CS` |
+| Are LAPI and AppSec reachable? | `nc -z -v <crowdsec-hostname> 8080 && nc -z -v <crowdsec-hostname> 7422` |
 | What is in the NPMplus bouncer configuration? | `docker exec $NP grep -E '^(ENABLED\|API_URL\|APPSEC_URL)=' /data/crowdsec/crowdsec.conf` |
 | Does the LAPI accept this exact key? | see below |
 
@@ -760,6 +764,8 @@ A Home Assistant backup of the add-on contains all of `/data`, database and cert
 **Certificate cannot be issued** — port 80 must be reachable from the internet and the domain must resolve to your public IP. Behind CGNAT or with port 80 blocked, only the DNS challenge works.
 
 **Every site serves the CrowdSec block page** — the bouncer cannot reach CrowdSec or the key is rejected. Version 0.1.4 and later prevent this at startup; on older versions turn `crowdsec_enabled` off and restart.
+
+**CrowdSec used to work, after a restart the bouncer reaches nothing** — `crowdsec_lapi_url` holds a container IP (`172.30.33.x`) that Docker reassigned on start. Switch both URLs to the container hostname, e.g. `http://424ccef4-crowdsec:8080`.
 
 **Wrong client IPs in the logs** — if another proxy or Cloudflare sits in front, add its IPs to `trust_ip` or enable `trust_cloudflare`.
 
