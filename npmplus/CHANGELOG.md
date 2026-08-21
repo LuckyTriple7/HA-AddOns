@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.1.32] - 2026-08-21
+
+### Geändert
+- **Die beiden Auswahllisten haben keinen leeren Eintrag mehr.** `crowdsec_captcha_provider`
+  und `crowdsec_fallback_remediation` boten „nicht gesetzt" als leeren Wert an — in der
+  Add-on-Konfiguration erschien das als Radiobutton ohne Beschriftung. Jetzt heißen die
+  Einträge `off` (Captcha aus) und `default` (Vorgabe des Images, derzeit `ban`). Intern
+  ändert sich nichts, run.sh übersetzt beide Werte zurück auf „nicht anfassen".
+
+  **Nach dem Update einmal nachsehen:** wer die Optionen bisher leer gelassen hat, bekommt
+  von Home Assistant eine Meldung über eine ungültige Konfiguration. In den Optionen einmal
+  `off` bzw. `default` auswählen und speichern, dann startet das Add-on wieder.
+
 ## [0.1.31] - 2026-08-21
 
 ### Geändert

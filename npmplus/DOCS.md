@@ -732,8 +732,8 @@ Fehlt ab Werk. Dafür müssen die MaxMind-Datenbanken (kostenloses Konto) nach `
 | `crowdsec_lapi_url` | `http://127.0.0.1:8080` | CrowdSec Local API; `auto` sucht das CrowdSec-Add-on selbst |
 | `crowdsec_api_key` | – | Bouncer-Schlüssel aus `cscli bouncers add` |
 | `crowdsec_appsec_url` | `http://127.0.0.1:7422` | AppSec/WAF-Endpunkt; `auto` wie oben, leer = aus |
-| `crowdsec_fallback_remediation` | – | Verhalten bei Ausfall der LAPI: `bypass`, `captcha`, `ban`; leer = Vorgabe des Images |
-| `crowdsec_captcha_provider` | – | `turnstile`, `hcaptcha` oder `recaptcha`; leer = aus |
+| `crowdsec_fallback_remediation` | `default` | Verhalten bei Ausfall der LAPI: `bypass`, `captcha`, `ban`; `default` = Vorgabe des Images (derzeit `ban`) |
+| `crowdsec_captcha_provider` | `off` | `turnstile`, `hcaptcha` oder `recaptcha`; `off` = aus |
 | `crowdsec_captcha_site_key` | – | Öffentlicher Schlüssel des Anbieters |
 | `crowdsec_captcha_secret_key` | – | Geheimer Schlüssel des Anbieters |
 | `geo_mode` | `off` | Ländersperre: `block`, `allow` oder `off` |
@@ -827,7 +827,7 @@ Ein Home-Assistant-Backup des Add-ons enthält `/data` vollständig, inklusive D
 
 **CrowdSec lief, nach einem Neustart erreicht der Bouncer nichts mehr** — in `crowdsec_lapi_url` steht eine Container-IP (`172.30.33.x`), die Docker beim Start neu vergeben hat. Beide URLs auf den Container-Hostnamen umstellen, z.B. `http://424ccef4-crowdsec:8080`.
 
-**Protokoll meldet „error loading captcha plugin: no recaptcha site key provided"** — kosmetisch. Ist `crowdsec_captcha_provider` leer, fällt der Bouncer intern auf `recaptcha` zurück, findet keinen Site-Key und schaltet Captcha ab. Der Bouncer selbst arbeitet normal weiter. Die Zeile verschwindet erst, wenn Captcha mit Anbieter und beiden Schlüsseln eingerichtet ist (siehe Schritt 7).
+**Protokoll meldet „error loading captcha plugin: no recaptcha site key provided"** — kosmetisch. Steht `crowdsec_captcha_provider` auf `off`, fällt der Bouncer intern auf `recaptcha` zurück, findet keinen Site-Key und schaltet Captcha ab. Der Bouncer selbst arbeitet normal weiter. Die Zeile verschwindet erst, wenn Captcha mit Anbieter und beiden Schlüsseln eingerichtet ist (siehe Schritt 7).
 
 **Protokoll meldet „Permission Denied" mit HTTP 403 auf `/api/nginx/...`** — diese Anfragen kommen nicht aus dem Add-on. Am User-Agent (`HomeAssistant/…`) und der IP erkennbar: eine Home-Assistant-Integration fragt die NPMplus-API ab, typischerweise „Nginx Proxy Manager" aus HACS. Die Anmeldung selbst klappt (sonst käme 401), aber der dort hinterlegte Benutzer darf die Listen nicht lesen. In NPMplus unter *Users* den Benutzer öffnen, *Edit Permissions* auf mindestens „View" stellen oder ihn zum Administrator machen — sonst die Integration entfernen. Der Proxy-Betrieb ist davon nicht betroffen, nur die Sensoren der Integration bleiben leer.
 

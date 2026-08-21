@@ -727,8 +727,8 @@ Not included out of the box. Put the MaxMind databases (free account) into `/dat
 | `crowdsec_lapi_url` | `http://127.0.0.1:8080` | CrowdSec Local API; `auto` looks up the CrowdSec add-on |
 | `crowdsec_api_key` | – | Bouncer key from `cscli bouncers add` |
 | `crowdsec_appsec_url` | `http://127.0.0.1:7422` | AppSec/WAF endpoint; `auto` as above, empty = off |
-| `crowdsec_fallback_remediation` | – | Behaviour when the LAPI fails: `bypass`, `captcha`, `ban`; empty = image default |
-| `crowdsec_captcha_provider` | – | `turnstile`, `hcaptcha` or `recaptcha`; empty = off |
+| `crowdsec_fallback_remediation` | `default` | Behaviour when the LAPI fails: `bypass`, `captcha`, `ban`; `default` = image default (currently `ban`) |
+| `crowdsec_captcha_provider` | `off` | `turnstile`, `hcaptcha` or `recaptcha`; `off` = disabled |
 | `crowdsec_captcha_site_key` | – | Public key of the provider |
 | `crowdsec_captcha_secret_key` | – | Secret key of the provider |
 | `geo_mode` | `off` | Country filter: `block`, `allow` or `off` |
@@ -822,7 +822,7 @@ A Home Assistant backup of the add-on contains all of `/data`, database and cert
 
 **CrowdSec used to work, after a restart the bouncer reaches nothing** — `crowdsec_lapi_url` holds a container IP (`172.30.33.x`) that Docker reassigned on start. Switch both URLs to the container hostname, e.g. `http://424ccef4-crowdsec:8080`.
 
-**The log says "error loading captcha plugin: no recaptcha site key provided"** — cosmetic. With `crowdsec_captcha_provider` empty the bouncer falls back to `recaptcha` internally, finds no site key and turns captcha off. The bouncer itself keeps working. The line only disappears once captcha is set up with a provider and both keys (see step 7).
+**The log says "error loading captcha plugin: no recaptcha site key provided"** — cosmetic. With `crowdsec_captcha_provider` set to `off` the bouncer falls back to `recaptcha` internally, finds no site key and turns captcha off. The bouncer itself keeps working. The line only disappears once captcha is set up with a provider and both keys (see step 7).
 
 **The log says "Permission Denied" with HTTP 403 on `/api/nginx/...`** — these requests do not come from the add-on. The user agent (`HomeAssistant/…`) and the IP give it away: a Home Assistant integration is querying the NPMplus API, typically "Nginx Proxy Manager" from HACS. Signing in works (otherwise it would be 401), but the user configured there is not allowed to read those lists. In NPMplus open *Users*, set *Edit Permissions* to at least "View" or make the user an administrator — otherwise remove the integration. Proxying is unaffected; only that integration's sensors stay empty.
 

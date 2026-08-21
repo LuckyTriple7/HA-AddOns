@@ -73,10 +73,10 @@ configuration:
     description: Address of the AppSec/WAF endpoint, e.g. http://424ccef4-crowdsec:7422 - same hostname as the LAPI. Leave empty if AppSec is not running.
   crowdsec_fallback_remediation:
     name: Behaviour when the LAPI fails
-    description: What the bouncer does when CrowdSec stops answering while running - "bypass" lets traffic through, "ban" blocks everything, "captcha" shows the challenge (only useful with captcha set up). Leave empty to keep the image default.
+    description: What the bouncer does when CrowdSec stops answering while running - "bypass" lets traffic through, "ban" blocks everything, "captcha" shows the challenge (only useful with captcha set up). "default" leaves the image default untouched, currently "ban".
   crowdsec_captcha_provider:
     name: Captcha provider
-    description: Shows a challenge page instead of a hard block for decisions of type "captcha". Leave empty to disable. Cloudflare Turnstile is free and does not profile users.
+    description: Shows a challenge page instead of a hard block for decisions of type "captcha". "off" disables captcha. Cloudflare Turnstile is free and does not profile users.
   crowdsec_captcha_site_key:
     name: Captcha site key
     description: Public key of the chosen provider.

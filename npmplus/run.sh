@@ -61,8 +61,19 @@ CS_ENABLED_OPT=$(opt crowdsec_enabled "false")
 CS_LAPI_OPT=$(opt_trim crowdsec_lapi_url "http://127.0.0.1:8080")
 CS_KEY_OPT=$(opt_trim crowdsec_api_key "")
 CS_APPSEC_OPT=$(opt_trim crowdsec_appsec_url "http://127.0.0.1:7422")
-CS_FALLBACK_OPT=$(opt_trim crowdsec_fallback_remediation "")
-CS_CAPTCHA_PROVIDER_OPT=$(opt_trim crowdsec_captcha_provider "")
+CS_FALLBACK_OPT=$(opt_trim crowdsec_fallback_remediation "default")
+CS_CAPTCHA_PROVIDER_OPT=$(opt_trim crowdsec_captcha_provider "off")
+
+# Die Auswahllisten in der Add-on-Konfiguration brauchen für "nichts tun" einen
+# sichtbaren Eintrag — ein leerer Wert erschiene dort als Radiobutton ohne
+# Beschriftung. Intern bleibt es beim leeren String.
+# Kein "[ .. ] && ..": schlägt die Prüfung fehl, beendet set -e das Skript.
+if [ "$CS_FALLBACK_OPT" = "default" ]; then
+    CS_FALLBACK_OPT=""
+fi
+if [ "$CS_CAPTCHA_PROVIDER_OPT" = "off" ]; then
+    CS_CAPTCHA_PROVIDER_OPT=""
+fi
 CS_CAPTCHA_SITE_OPT=$(opt_trim crowdsec_captcha_site_key "")
 CS_CAPTCHA_SECRET_OPT=$(opt_trim crowdsec_captcha_secret_key "")
 GEO_MODE_OPT=$(opt_trim geo_mode "off")
