@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.5.1] - 2026-08-21
+
+### Fixed
+- **Falscher Befehl im Kartenhinweis.** Der Hinweis auf der leeren Karte und die
+  Dokumentation nannten `cscli collections install crowdsecurity/geoip-enrich`.
+  Das quittiert CrowdSec mit „can't find 'crowdsecurity/geoip-enrich' in
+  collections" — es ist keine Collection, sondern ein Parser der Stufe
+  `s02-enrich`. Richtig ist `cscli parsers install crowdsecurity/geoip-enrich`.
+
 ## [0.5.0] - 2026-08-21
 
 ### Added
@@ -14,7 +23,7 @@
   GeoIP-Enrichment. Bisher hat CrowdPanel davon nur das Länderkürzel benutzt.
 
   Fehlt das Enrichment, bleiben die Felder leer. Dann sagt die Karte das auch
-  und nennt den Befehl (`cscli collections install crowdsecurity/geoip-enrich`),
+  und nennt den Befehl (`cscli parsers install crowdsecurity/geoip-enrich`),
   statt eine leere Welt zu zeigen. Ebenso werden Koordinaten `0/0` verworfen —
   die schreibt CrowdSec, wenn nichts gefunden wurde, und im Golf von Guinea
   sitzt niemand.

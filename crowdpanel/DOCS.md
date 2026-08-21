@@ -195,15 +195,18 @@ Mauszeiger zeigt Adresse, Land, Netz und das häufigste Szenario. Ein Klick
 springt in die Alarmliste, gefiltert auf genau diese Adresse.
 
 Gezeichnet wird aus echten Koordinaten. CrowdSec führt in jedem Alarm
-`latitude` und `longitude` — gefüllt vom **GeoIP-Enrichment**. Fehlt das, bleibt
-die Karte leer und sagt das auch:
+`latitude` und `longitude`, gefüllt vom Parser **`crowdsecurity/geoip-enrich`**
+in der Stufe `s02-enrich`. Fehlt der, bleibt die Karte leer und sagt das auch:
 
 ```sh
-docker exec $CS cscli -c $CFG collections install crowdsecurity/geoip-enrich
+docker exec $CS cscli -c $CFG parsers install crowdsecurity/geoip-enrich
 ```
 
-Danach CrowdSec neu starten. Bereits vorhandene Alarme bekommen dadurch keine
-Koordinaten mehr — die Karte füllt sich mit den Erkennungen, die danach
+Es ist ein **Parser**, keine Collection — `collections install` antwortet mit
+`can't find … in collections`.
+
+Danach CrowdSec neu starten. Bereits vorhandene Alarme bekommen rückwirkend
+keine Koordinaten; die Karte füllt sich mit den Erkennungen, die danach
 hinzukommen.
 
 Nicht auf der Karte landen:

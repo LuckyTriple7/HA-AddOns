@@ -319,6 +319,6 @@
   "map_hits": "{n} detections",
   "map_located": "{located} addresses located, {alerts} detections in total",
   "map_truncated": "showing the {n} most active",
-  "map_no_geoip": "Detections are coming in, but not one of them carries coordinates. In CrowdSec those come from the GeoIP enrichment — install it with “cscli collections install crowdsecurity/geoip-enrich” and restart CrowdSec. Without it only the country breakdown remains.",
+  "map_no_geoip": "Detections are coming in, but not one of them carries coordinates. In CrowdSec they come from the parser crowdsecurity/geoip-enrich in stage s02-enrich — install it with “cscli parsers install crowdsecurity/geoip-enrich” and restart CrowdSec. Without it only the country breakdown remains.",
   "map_no_outline": "The world map could not be loaded."
 }

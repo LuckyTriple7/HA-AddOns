@@ -193,12 +193,15 @@ country, network and the most frequent scenario. A click jumps to the alert list
 filtered on that address.
 
 The dots come from real coordinates. CrowdSec carries `latitude` and `longitude`
-in every alert — filled in by the **GeoIP enrichment**. Without it the map stays
-empty and says so:
+in every alert, filled in by the parser **`crowdsecurity/geoip-enrich`** in stage
+`s02-enrich`. Without it the map stays empty and says so:
 
 ```sh
-docker exec $CS cscli -c $CFG collections install crowdsecurity/geoip-enrich
+docker exec $CS cscli -c $CFG parsers install crowdsecurity/geoip-enrich
 ```
+
+It is a **parser**, not a collection — `collections install` answers with
+`can't find … in collections`.
 
 Then restart CrowdSec. Alerts that already exist do not gain coordinates
 retroactively — the map fills up with detections arriving afterwards.
