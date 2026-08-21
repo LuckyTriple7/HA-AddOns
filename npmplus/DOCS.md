@@ -53,6 +53,25 @@ NPMplus bringt den **Bouncer** mit (nginx/Lua, blockt einzelne Anfragen) und kan
 >
 > Ohne installierte Engine bleiben alle CrowdSec-Optionen wirkungslos.
 
+### Warum CrowdSec an zwei Stellen konfiguriert wird
+
+Die Einrichtung trägt CrowdSec zweimal ein: einmal in der Acquisition von CrowdSec (das Journal von NPMplus) und einmal in den Optionen von NPMplus (`crowdsec_lapi_url` und Schlüssel). Das ist keine Doppelung — es sind die zwei Hälften eines Kreislaufs, und sie laufen in entgegengesetzte Richtungen:
+
+```
+NPMplus schreibt sein Zugriffslog
+        ↓  journald, SYSLOG_IDENTIFIER=app_<repo-hash>_npmplus
+CrowdSec-Acquisition → Parser und Szenarien → Entscheidung „ban 1.2.3.4"
+        ↓  LAPI auf Port 8080, Bouncer-Schlüssel
+NPMplus-Bouncer holt die Entscheidungen ab → sperrt 1.2.3.4
+```
+
+- **Acquisition** (Schritt 2) ist die **Erkennung**: CrowdSec liest, *was passiert ist*. Fehlt sie, sieht CrowdSec keinen einzigen Angriff auf den Proxy.
+- **Die `crowdsec_*`-Optionen** (Schritte 4 und 5) sind die **Durchsetzung**: der Bouncer fragt die LAPI, *wer gerade gesperrt ist*, und weist die Anfrage ab. Fehlen sie, bannt CrowdSec zwar, nginx liefert aber weiter aus.
+
+**AppSec** auf Port 7422 ist ein dritter, eigener Weg und liest gar keine Logs: NPMplus schickt die Anfrage *vor* der Weiterleitung zur Bewertung. Deshalb stehen im Log zwei Arten von Treffern — `(by appsec)` heißt sofort an der laufenden Anfrage erkannt, `(by bouncer)` heißt wegen früherer Logzeilen gesperrt.
+
+Wirklich überschneiden würde sich nur das Add-on `crowdsec-firewall-bouncer`: es setzt dieselben Entscheidungen zusätzlich auf Firewall-Ebene um. Auch das ist kein Fehler — die Firewall sperrt alle Ports, der nginx-Bouncer nur HTTP, kann dafür aber Sperrseite und Captcha zeigen.
+
 ### 1. Collection in CrowdSec ergänzen
 
 NPMplus schreibt ein anderes Logformat als NGINX Proxy Manager. Die Collection `crowdsecurity/nginx-proxy-manager` greift dort **nicht**. In der CrowdSec-Konfiguration ergänzen:

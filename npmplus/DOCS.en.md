@@ -52,6 +52,25 @@ NPMplus ships the **bouncer** (nginx/Lua, blocks individual requests) and can ta
 >
 > Without an installed engine all CrowdSec options do nothing.
 
+### Why CrowdSec is configured in two places
+
+The setup enters CrowdSec twice: once in CrowdSec's acquisition (the NPMplus journal) and once in the NPMplus options (`crowdsec_lapi_url` plus the key). That is not a duplication — they are the two halves of one loop, running in opposite directions:
+
+```
+NPMplus writes its access log
+        ↓  journald, SYSLOG_IDENTIFIER=app_<repo-hash>_npmplus
+CrowdSec acquisition → parsers and scenarios → decision "ban 1.2.3.4"
+        ↓  LAPI on port 8080, bouncer key
+The NPMplus bouncer pulls the decisions → blocks 1.2.3.4
+```
+
+- **Acquisition** (step 2) is **detection**: CrowdSec reads *what happened*. Without it CrowdSec never sees a single attack against the proxy.
+- **The `crowdsec_*` options** (steps 4 and 5) are **enforcement**: the bouncer asks the LAPI *who is banned right now* and rejects the request. Without them CrowdSec bans, but nginx keeps serving.
+
+**AppSec** on port 7422 is a third, separate path and reads no logs at all: NPMplus sends the request for a verdict *before* forwarding it. That is why the log holds two kinds of hits — `(by appsec)` means caught on the live request, `(by bouncer)` means blocked because of earlier log lines.
+
+The only real overlap is the `crowdsec-firewall-bouncer` add-on: it enforces the same decisions at firewall level as well. That is not a mistake either — the firewall blocks every port, the nginx bouncer only HTTP, but in exchange it can show a block page or a captcha.
+
 ### 1. Add the collection to CrowdSec
 
 NPMplus writes a different log format than NGINX Proxy Manager. The `crowdsecurity/nginx-proxy-manager` collection does **not** parse it. Add to your CrowdSec configuration:

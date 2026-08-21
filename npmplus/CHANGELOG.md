@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.1.29] - 2026-08-21
+
+### Dokumentation
+- Neuer Abschnitt „Warum CrowdSec an zwei Stellen konfiguriert wird": Acquisition (CrowdSec
+  liest das Journal von NPMplus) ist die Erkennung, die `crowdsec_*`-Optionen sind die
+  Durchsetzung, AppSec auf 7422 ist ein dritter Weg ohne Logs. Mit Skizze des Kreislaufs und
+  der Einordnung, dass sich nur der zusätzliche `crowdsec-firewall-bouncer` überschneidet —
+  auf Firewall-Ebene statt HTTP-Ebene.
+
 ## [0.1.28] - 2026-08-21
 
 ### Dokumentation
