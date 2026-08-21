@@ -257,7 +257,7 @@
   "m_metrics_count": "Verschiedene Kennzahlen",
   "m_reload": "Neu abrufen",
   "m_unavailable": "Keine Metriken verfügbar.",
-  "m_enable_hint": "CrowdSec liefert die Zähler standardmäßig nur an 127.0.0.1 aus, also nicht an ein anderes Add-on. In der config.yaml von CrowdSec unter prometheus enabled auf true und listen_addr auf 0.0.0.0 setzen, dann CrowdSec neu starten. Eine abweichende Adresse trägt man in der Option „Prometheus-Adresse von CrowdSec“ ein.",
+  "m_enable_hint": "CrowdSec liefert die Zähler standardmäßig nur an 127.0.0.1 aus, also nicht an ein anderes Add-on. Das ist keine Add-on-Option — die Zeile steht in CrowdSecs eigener Datei /config/.storage/crowdsec/config/config.yaml, der Abschnitt prometheus ist dort schon vorhanden. Im Web-Terminal des CrowdSec-Add-ons: yq eval -i '.prometheus.listen_addr = \"0.0.0.0\"' /config/.storage/crowdsec/config/config.yaml — danach das CrowdSec-Add-on neu starten. Eine abweichende Adresse trägt man in der Option „Prometheus-Adresse von CrowdSec“ ein.",
   "m_none": "CrowdSec meldet zu diesem Bereich nichts.",
   "m_truncated": "Nur die ersten {shown} von {total} Zeilen.",
   "m_sum_lines_read": "Zeilen gelesen",

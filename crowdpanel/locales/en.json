@@ -257,7 +257,7 @@
   "m_metrics_count": "Distinct metrics",
   "m_reload": "Fetch again",
   "m_unavailable": "No metrics available.",
-  "m_enable_hint": "By default CrowdSec serves the counters on 127.0.0.1 only, so another add-on cannot reach them. In CrowdSec's config.yaml set enabled to true and listen_addr to 0.0.0.0 under prometheus, then restart CrowdSec. A different address goes into the option “CrowdSec Prometheus address”.",
+  "m_enable_hint": "By default CrowdSec serves the counters on 127.0.0.1 only, so another add-on cannot reach them. This is not an add-on option — the line lives in CrowdSec's own file /config/.storage/crowdsec/config/config.yaml, where the prometheus section already exists. From the CrowdSec add-on's web terminal: yq eval -i '.prometheus.listen_addr = \"0.0.0.0\"' /config/.storage/crowdsec/config/config.yaml — then restart the CrowdSec add-on. A different address goes into the option “CrowdSec Prometheus address”.",
   "m_none": "CrowdSec reports nothing for this section.",
   "m_truncated": "Showing the first {shown} of {total} rows.",
   "m_sum_lines_read": "lines read",

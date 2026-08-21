@@ -396,19 +396,46 @@ All counters run since CrowdSec started and reset to zero on a restart. They are
 totals, not rates.
 
 **The counters have to be opened up first.** By default CrowdSec listens on
-`127.0.0.1` only, so inside its own container. In CrowdSec's `config.yaml`:
+`127.0.0.1` only, so inside its own container. CrowdPanel runs in a different one
+and cannot reach it that way.
+
+This is **not an add-on option** — Prometheus does not appear in the CrowdSec
+add-on's options at all. The setting lives in CrowdSec's own `config.yaml` under
+`/config/.storage/crowdsec/config/config.yaml`. The section is already there;
+only one line changes:
 
 ```yaml
 prometheus:
   enabled: true
   level: full
-  listen_addr: 0.0.0.0
+  listen_addr: 0.0.0.0   # ← instead of 127.0.0.1
   listen_port: 6060
 ```
 
-Then restart CrowdSec. Without further configuration CrowdPanel uses the host
-from `lapi_url` on port 6060; if the endpoint lives elsewhere, put the full
-address into `prometheus_url` (`http://…:6060` or `http://…/metrics` directly).
+The easiest way is the **CrowdSec add-on's web terminal**, where `yq` is already
+installed:
+
+```sh
+yq eval -i '.prometheus.listen_addr = "0.0.0.0"'   /config/.storage/crowdsec/config/config.yaml
+```
+
+Then restart the CrowdSec add-on and check from the same terminal:
+
+```sh
+curl -s localhost:6060/metrics | head -5
+```
+
+The file survives: the add-on copies it into the configuration directory on the
+very first start only, later starts leave it alone. The single file rewritten on
+every start is `acquis.yaml`.
+
+Port 6060 does **not** have to be published to the host. CrowdPanel talks to the
+container over the Docker network, just like it does with the LAPI on 8080 — all
+that is needed is CrowdSec listening on every address.
+
+Without further configuration CrowdPanel uses the host from `lapi_url` on port
+6060; if the endpoint lives elsewhere, put the full address into
+`prometheus_url` (`http://…:6060` or `http://…/metrics` directly).
 
 While nothing is reachable the tab stays visible and explains exactly this step
 instead of just sitting empty.

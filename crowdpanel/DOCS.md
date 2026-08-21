@@ -408,22 +408,47 @@ genau dieser Quelle. Der Reiter zeigt dasselbe im Browser:
 Alle Zähler laufen seit dem Start von CrowdSec und beginnen bei einem Neustart
 wieder bei null. Es sind Summen, keine Raten.
 
-**Die Zähler müssen erst freigegeben werden.** CrowdSec hört damit standardmäßig
-nur auf `127.0.0.1`, also nur innerhalb seines eigenen Containers. In der
-`config.yaml` von CrowdSec:
+**Die Zähler müssen erst freigegeben werden.** CrowdSec hört damit
+standardmäßig nur auf `127.0.0.1`, also nur innerhalb seines eigenen Containers.
+CrowdPanel läuft in einem anderen und kommt so nicht heran.
+
+Das ist **keine Add-on-Option** — in den Optionen des CrowdSec-Add-ons taucht
+Prometheus nicht auf. Die Einstellung steht in der `config.yaml` von CrowdSec
+selbst, unter `/config/.storage/crowdsec/config/config.yaml`. Der Abschnitt ist
+dort bereits vorhanden; zu ändern ist nur eine Zeile:
 
 ```yaml
 prometheus:
   enabled: true
   level: full
-  listen_addr: 0.0.0.0
+  listen_addr: 0.0.0.0   # ← statt 127.0.0.1
   listen_port: 6060
 ```
 
-Danach CrowdSec neu starten. CrowdPanel nimmt ohne weitere Angabe denselben
-Rechner wie in `lapi_url` und Port 6060; steht der Endpunkt woanders, trägt man
-ihn vollständig in `prometheus_url` ein (`http://…:6060` oder direkt
-`http://…/metrics`).
+Am bequemsten geht das im **Web-Terminal des CrowdSec-Add-ons** — dort ist `yq`
+schon installiert:
+
+```sh
+yq eval -i '.prometheus.listen_addr = "0.0.0.0"'   /config/.storage/crowdsec/config/config.yaml
+```
+
+Danach das CrowdSec-Add-on neu starten und im selben Terminal prüfen:
+
+```sh
+curl -s localhost:6060/metrics | head -5
+```
+
+Die Datei bleibt erhalten: Das Add-on kopiert sie nur beim allerersten Start aus
+dem Image ins Konfigurationsverzeichnis, spätere Starts fassen sie nicht mehr an.
+Überschrieben wird bei jedem Start allein `acquis.yaml`.
+
+Port 6060 muss **nicht** nach außen veröffentlicht werden. CrowdPanel spricht den
+Container über das Docker-Netz an, genau wie die LAPI auf 8080 — nötig ist nur,
+dass CrowdSec überhaupt auf allen Adressen lauscht.
+
+CrowdPanel nimmt ohne weitere Angabe denselben Rechner wie in `lapi_url` und Port
+6060; steht der Endpunkt woanders, trägt man ihn vollständig in `prometheus_url`
+ein (`http://…:6060` oder direkt `http://…/metrics`).
 
 Solange nichts erreichbar ist, bleibt der Reiter sichtbar und erklärt genau
 diesen Schritt, statt einfach leer zu sein.

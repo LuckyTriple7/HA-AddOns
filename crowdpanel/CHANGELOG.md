@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.4.7] - 2026-08-21
+
+### Fixed
+- **Die Anleitung zum Freischalten der Metriken war irreführend.** Sie las sich
+  so, als müsste man den `prometheus`-Abschnitt in CrowdSecs `config.yaml` erst
+  anlegen — und als wäre das irgendwo in den Add-on-Optionen zu finden. Beides
+  stimmt nicht: In den Optionen des CrowdSec-Add-ons kommt Prometheus überhaupt
+  nicht vor, und der Abschnitt steht in der Datei bereits vollständig drin. Zu
+  ändern ist genau eine Zeile, `listen_addr`.
+
+  Der Reiter und die Dokumentation nennen jetzt den vollständigen Weg: Datei
+  unter `/config/.storage/crowdsec/config/config.yaml`, Änderung im
+  Web-Terminal des CrowdSec-Add-ons mit dem dort vorhandenen `yq`, danach
+  Neustart und Kontrolle mit `curl -s localhost:6060/metrics`.
+
+  Dazu zwei Punkte, die vorher offen blieben: Die Datei überlebt Neustarts (das
+  Add-on kopiert sie nur beim allerersten Start aus dem Image; überschrieben
+  wird laufend allein `acquis.yaml`), und Port 6060 muss nicht veröffentlicht
+  werden — CrowdPanel erreicht den Container über das Docker-Netz, genau wie
+  die LAPI auf 8080.
+
 ## [0.4.6] - 2026-08-21
 
 ### Added
