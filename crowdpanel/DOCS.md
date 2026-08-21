@@ -187,6 +187,39 @@ verlassen den Server nicht**, die Spalten werden gar nicht erst gelesen.
 Wird die Datenbank nicht gefunden, bleibt der Rest der Übersicht davon
 unberührt.
 
+### Angriffskarte
+
+Auf der Übersicht steht eine Weltkarte mit einem Punkt je Quelladresse der
+letzten 24 Stunden. Die Punktgröße folgt der Zahl der Erkennungen, der
+Mauszeiger zeigt Adresse, Land, Netz und das häufigste Szenario. Ein Klick
+springt in die Alarmliste, gefiltert auf genau diese Adresse.
+
+Gezeichnet wird aus echten Koordinaten. CrowdSec führt in jedem Alarm
+`latitude` und `longitude` — gefüllt vom **GeoIP-Enrichment**. Fehlt das, bleibt
+die Karte leer und sagt das auch:
+
+```sh
+docker exec $CS cscli -c $CFG collections install crowdsecurity/geoip-enrich
+```
+
+Danach CrowdSec neu starten. Bereits vorhandene Alarme bekommen dadurch keine
+Koordinaten mehr — die Karte füllt sich mit den Erkennungen, die danach
+hinzukommen.
+
+Nicht auf der Karte landen:
+
+- **Blocklisten-Synchronisierungen.** Ein einzelner Sync bringt Zehntausende
+  Einträge ohne Ortsbezug und würde alles andere erschlagen.
+- **Koordinaten `0/0`.** Die schreibt CrowdSec, wenn das Enrichment nichts
+  gefunden hat. Ein Punkt im Golf von Guinea wäre eine Erfindung.
+- **Mehr als 400 Adressen.** Darüber wird nach Zahl der Erkennungen gekürzt; die
+  Fußzeile nennt dann, wie viele gezeigt werden.
+
+Die Umrisse liegen als `static/world.svg` im Image, erzeugt aus Natural Earth
+1:110m (Public Domain, siehe [LICENSE.md](LICENSE.md)). Nachgeladen wird nichts
+aus dem Internet. Die Projektion ist Plate carrée, ein Längengrad entspricht
+also genau einer Einheit — deshalb kommt die Karte ohne Kartenbibliothek aus.
+
 ### Sperren
 
 Die Tabelle zeigt jede aktive Entscheidung mit Wert, Bereich, Art, Szenario,

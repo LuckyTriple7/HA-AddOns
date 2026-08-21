@@ -47,6 +47,12 @@
     section.active { display: block; }
     h2 { font-size: 1rem; margin-bottom: 12px; font-weight: 600; }
     h3 { font-size: 0.85rem; color: var(--muted); margin-bottom: 8px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+    .map-wrap svg { width: 100%; height: auto; display: block; border-radius: 6px; background: var(--bg); }
+    .map-wrap .cc { fill: var(--surf2); stroke: var(--muted); stroke-opacity: .45; stroke-width: 1; vector-effect: non-scaling-stroke; }
+    .map-pt { fill: var(--red); fill-opacity: .5; stroke: var(--red); stroke-width: 1;
+              vector-effect: non-scaling-stroke; cursor: pointer; }
+    .map-pt:hover { fill-opacity: .95; }
+    .map-foot { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 8px; }
     .grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
     .card { background: var(--surf); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; }
     .stat { font-size: 2rem; font-weight: 700; line-height: 1.1; }
@@ -159,6 +165,10 @@
         <div class="card"><div class="stat" id="ovLists">–</div><div class="stat-label">{{ t.ov_list_updates }}</div></div>
         <div class="card"><h3>{{ t.ov_by_type }}</h3><div class="bar" id="ovByType"></div></div>
         <div class="card"><h3>{{ t.ov_by_origin }}</h3><div class="bar" id="ovByOrigin"></div></div>
+      </div>
+      <div class="grid" style="margin-top:12px">
+        <div class="card" style="grid-column: 1 / -1; min-width: 0">
+          <h3>{{ t.map_title }}</h3><div id="ovMap"></div></div>
       </div>
       <div class="grid" style="margin-top:12px">
         <div class="card" style="grid-column: span 2; min-width: 0">
@@ -290,7 +300,8 @@
       pageSize: {{ page_size|tojson }},
       hasQr: {{ has_qr|tojson }},
       ingress: {{ ingress|tojson }},
-      lang: {{ lang|tojson }}
+      lang: {{ lang|tojson }},
+      mapUrl: {{ url_for('static', filename='world.svg')|tojson }}
     };
 
     (function () {
@@ -630,14 +641,101 @@
       });
     }
 
+    // ── map ───────────────────────────────────────────────────────────────────
+    // Plate carree: das SVG ist so projiziert, dass ein Laengengrad genau einer
+    // Einheit entspricht. Koordinaten aus CrowdSec brauchen deshalb keine
+    // Bibliothek, nur eine Verschiebung des Nullpunkts.
+    const mapX = lon => lon + 180;
+    const mapY = lat => 90 - lat;
+
+    let worldText = null;
+    async function worldSvg() {
+      if (worldText === null) {
+        try {
+          const res = await fetch(G.mapUrl, { credentials: 'same-origin' });
+          worldText = res.ok ? await res.text() : '';
+        } catch (e) { worldText = ''; }
+      }
+      return worldText;
+    }
+
+    function mapRadius(count) {
+      return Math.min(3.2, 0.7 + Math.sqrt(Math.max(1, count)) * 0.35);
+    }
+
+    async function renderMap(d) {
+      const box = $('ovMap');
+      const text = await worldSvg();
+      if (!text) {
+        box.textContent = '';
+        box.appendChild(el('div', 'muted', T.map_no_outline));
+        return;
+      }
+      const parsed = new DOMParser().parseFromString(text, 'image/svg+xml');
+      if (parsed.getElementsByTagName('parsererror').length) {
+        box.textContent = '';
+        box.appendChild(el('div', 'muted', T.map_no_outline));
+        return;
+      }
+      const svg = document.importNode(parsed.documentElement, true);
+      const NS = 'http://www.w3.org/2000/svg';
+
+      (d.points || []).forEach(pt => {
+        const c = document.createElementNS(NS, 'circle');
+        c.setAttribute('class', 'map-pt');
+        c.setAttribute('cx', mapX(pt.lon));
+        c.setAttribute('cy', mapY(pt.lat));
+        c.setAttribute('r', mapRadius(pt.count));
+        const title = document.createElementNS(NS, 'title');
+        const name = countryName(pt.country);
+        title.textContent = pt.value
+          + (pt.country ? ' · ' + (name || pt.country) : '')
+          + (pt.as_name ? ' · ' + pt.as_name : '')
+          + '\n' + fmt('map_hits', { n: pt.count })
+          + (pt.scenario ? ' · ' + pt.scenario : '');
+        c.appendChild(title);
+        // Ein Punkt fuehrt zur Alarmliste dieser Adresse — banned wird von dort
+        // aus bewusst, nicht durch einen Klick auf einen 3 Pixel grossen Kreis.
+        c.addEventListener('click', () => {
+          $('aQ').value = pt.value;
+          $('aSince').value = '24h';
+          showTab('alerts');
+          reloadAlerts();
+        });
+        svg.appendChild(c);
+      });
+
+      const wrap = el('div', 'map-wrap');
+      wrap.appendChild(svg);
+      box.textContent = '';
+      box.appendChild(wrap);
+
+      const foot = el('div', 'map-foot');
+      foot.appendChild(el('span', 'muted',
+        fmt('map_located', { located: d.located || 0, alerts: d.alerts || 0 })));
+      if (d.truncated) {
+        foot.appendChild(el('span', 'muted',
+          fmt('map_truncated', { n: (d.points || []).length })));
+      }
+      box.appendChild(foot);
+
+      // Alarme da, aber keiner mit Koordinaten: das ist kein leerer Tag, das
+      // ist ein fehlendes Enrichment. Sonst raetselt man vor einer leeren Welt.
+      if (!(d.located || 0) && (d.alerts || 0)) {
+        box.appendChild(el('div', 'banner', T.map_no_geoip));
+      }
+    }
+
     async function loadSidecars() {
       try {
-        const [hist, bnc] = await Promise.all([
+        const [hist, bnc, map] = await Promise.all([
           api('/api/history').catch(() => null),
           api('/api/bouncers').catch(() => null),
+          api('/api/map').catch(() => null),
         ]);
         if (hist) { cache.history = hist; renderHistory(hist); }
         if (bnc) { cache.bouncers = bnc; renderBouncers(bnc); renderMachines(bnc); }
+        if (map) { cache.map = map; renderMap(map); }
       } catch (e) { /* Nebeninformationen — kein Grund, die Übersicht zu stören */ }
     }
 
@@ -645,6 +743,7 @@
       if (cache.overview) renderOverview(cache.overview);
       if (cache.history) renderHistory(cache.history);
       if (cache.bouncers) { renderBouncers(cache.bouncers); renderMachines(cache.bouncers); }
+      if (cache.map) renderMap(cache.map);
       loadSidecars();
       try {
         const d = await api('/api/overview');

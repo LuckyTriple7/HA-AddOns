@@ -185,6 +185,38 @@ read-only, and only name, type, version, address and timestamps are served —
 
 If the database is not found, the rest of the overview is unaffected.
 
+### Attack map
+
+The overview carries a world map with one dot per source address of the last 24
+hours. Dot size follows the number of detections; hovering shows address,
+country, network and the most frequent scenario. A click jumps to the alert list
+filtered on that address.
+
+The dots come from real coordinates. CrowdSec carries `latitude` and `longitude`
+in every alert — filled in by the **GeoIP enrichment**. Without it the map stays
+empty and says so:
+
+```sh
+docker exec $CS cscli -c $CFG collections install crowdsecurity/geoip-enrich
+```
+
+Then restart CrowdSec. Alerts that already exist do not gain coordinates
+retroactively — the map fills up with detections arriving afterwards.
+
+What never reaches the map:
+
+- **Blocklist synchronisations.** A single sync brings tens of thousands of
+  entries with no location and would bury everything else.
+- **Coordinates `0/0`.** CrowdSec writes those when the enrichment found
+  nothing. A dot in the Gulf of Guinea would be an invention.
+- **More than 400 addresses.** Beyond that the list is cut by detection count;
+  the footer then states how many are shown.
+
+The outlines ship as `static/world.svg`, generated from Natural Earth 1:110m
+(public domain, see [LICENSE.md](LICENSE.md)). Nothing is fetched from the
+internet. The projection is plate carrée, so one degree of longitude equals one
+unit — which is why the map needs no mapping library.
+
 ### Decisions
 
 The table shows every active decision with value, scope, type, scenario, origin,

@@ -7,7 +7,9 @@ Die Liste entstand beim Vergleich mit [crowdsec-web-ui](https://github.com/TheDu
 Code lässt sich nicht übernehmen, CrowdPanel ist Flask mit reinem JavaScript;
 übernommen werden also allenfalls Ideen, und dann nachgebaut.
 
-Erledigt daraus: **Prometheus-Metriken** (0.4.6, Reiter „Metriken“).
+Erledigt daraus: **Prometheus-Metriken** (0.4.6, Reiter „Metriken“) und die
+**Angriffskarte** (0.5.0, Übersicht) — letztere als Punktkarte aus echten
+GeoIP-Koordinaten statt nur eingefärbter Länder.
 
 ## Lokale Alarm-Datenbank
 
@@ -57,12 +59,6 @@ Adresse „gesperrt“ aussieht und trotzdem durchkommt.
 `DECISION_COLS` und die Alarm-Tabelle sind fest verdrahtet. Wer regelmäßig auf
 AS oder Herkunft schaut, will andere Spalten sehen als jemand, der nur Länder
 prüft. Auswahl im Browser speichern (`localStorage`), nicht in den Optionen.
-
-## Angriffskarte
-
-Statt der Balkenliste „häufigste Länder“ eine Weltkarte. Hübsch, aber kein
-Erkenntnisgewinn gegenüber der Liste, und die Umrisse müssten als SVG mit ins
-Image — CrowdPanel lädt grundsätzlich nichts aus dem Internet nach.
 
 ## Bewusst nicht übernommen
 

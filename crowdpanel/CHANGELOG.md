@@ -1,5 +1,35 @@
 # Changelog
 
+## [0.5.0] - 2026-08-21
+
+### Added
+- **Angriffskarte auf der Übersicht.** Ein Punkt je Quelladresse, Größe nach
+  Zahl der Erkennungen, Mauszeiger darüber zeigt Adresse, Land, Netz und das
+  häufigste Szenario. Ein Klick springt in die Alarmliste, gefiltert auf genau
+  diese Adresse — gesperrt wird weiterhin bewusst von dort aus und nicht durch
+  einen Klick auf einen drei Pixel großen Kreis.
+
+  Gezeichnet wird aus echten Koordinaten, nicht aus Ländermittelpunkten:
+  CrowdSec führt in jedem Alarm `latitude` und `longitude`, gefüllt vom
+  GeoIP-Enrichment. Bisher hat CrowdPanel davon nur das Länderkürzel benutzt.
+
+  Fehlt das Enrichment, bleiben die Felder leer. Dann sagt die Karte das auch
+  und nennt den Befehl (`cscli collections install crowdsecurity/geoip-enrich`),
+  statt eine leere Welt zu zeigen. Ebenso werden Koordinaten `0/0` verworfen —
+  die schreibt CrowdSec, wenn nichts gefunden wurde, und im Golf von Guinea
+  sitzt niemand.
+
+  Blocklisten-Synchronisierungen zählen nicht mit; ein einzelner Sync bringt
+  Zehntausende Einträge ohne Ortsbezug.
+
+- **Weltkarte als eigene Datei.** `static/world.svg`, erzeugt aus Natural Earth
+  1:110m (Public Domain) mit `tools/make_world_svg.py`. 112 KB, Plate carrée —
+  damit entspricht ein Längengrad genau einer Einheit im Koordinatensystem und
+  die Umrechnung braucht keine Kartenbibliothek. Es wird nichts aus dem Internet
+  nachgeladen, die Datei liegt im Image.
+
+  Neue Datei `LICENSE.md` hält die Herkunft fest.
+
 ## [0.4.7] - 2026-08-21
 
 ### Fixed

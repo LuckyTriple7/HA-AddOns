@@ -955,6 +955,66 @@ def bouncers():
     return jsonify(_bouncer_state())
 
 
+# ── Map ───────────────────────────────────────────────────────────────────────
+# CrowdSec reicht im Alarm nicht nur das Land durch, sondern auch Breiten- und
+# Längengrad — gefüllt vom GeoIP-Enrichment. Ohne dieses Enrichment bleiben die
+# Felder leer; dann meldet der Endpunkt das offen, statt eine leere Karte zu
+# zeigen und den Grund zu verschweigen.
+
+MAP_MAX_POINTS = 400
+
+
+def _coord(raw) -> float | None:
+    """Nur echte Koordinaten zählen. CrowdSec schreibt 0/0 in den Alarm, wenn
+    das Enrichment nichts gefunden hat — und im Golf von Guinea sitzt niemand."""
+    try:
+        value = float(raw)
+    except (TypeError, ValueError):
+        return None
+    if value != value or abs(value) > 180:
+        return None
+    return value
+
+
+@api('/api/map')
+def attack_map():
+    client = get_client()
+    since = _since_arg() or '24h'
+    rows = client.list_alerts(limit=ALERT_FETCH_LIMIT, since=since)
+
+    points: dict = {}
+    total = 0
+    for alert in rows:
+        if not isinstance(alert, dict) or _is_list_sync(alert):
+            continue
+        total += 1
+        src = alert.get('source') or {}
+        value = src.get('value') or src.get('ip') or ''
+        lat, lon = _coord(src.get('latitude')), _coord(src.get('longitude'))
+        if not value or lat is None or lon is None or (lat == 0 and lon == 0):
+            continue
+        point = points.get(value)
+        if point is None:
+            point = {'value': value, 'lat': round(lat, 3), 'lon': round(lon, 3),
+                     'country': src.get('cn') or '', 'as_name': src.get('as_name') or '',
+                     'count': 0, 'scenarios': Counter()}
+            points[value] = point
+        point['count'] += 1
+        if alert.get('scenario'):
+            point['scenarios'][alert['scenario']] += 1
+
+    ranked = sorted(points.values(), key=lambda p: (-p['count'], p['value']))
+    out = []
+    for point in ranked[:MAP_MAX_POINTS]:
+        scenarios = point.pop('scenarios')
+        point['scenario'] = scenarios.most_common(1)[0][0] if scenarios else ''
+        out.append(point)
+
+    return jsonify({'since': since, 'points': out,
+                    'located': len(points), 'alerts': total,
+                    'truncated': len(points) > MAP_MAX_POINTS})
+
+
 @api('/api/metrics')
 def prometheus_metrics():
     """CrowdSec's own counters. Unreachable is the normal case until someone

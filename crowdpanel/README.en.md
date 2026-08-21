@@ -14,6 +14,7 @@ it into a web interface.
 - **Alerts** — groupable by address or scenario with hit counts, with events and the triggering log line; ban straight from the row
 - **Check IP** — active decisions, alert history and allowlist hits for an address
 - **Exemptions** — allowlists from the CrowdSec database and whitelist parsers in full, with the difference explained
+- **Attack map** — one dot per source address from the GeoIP coordinates in the alerts, click leads to the alert list
 - **Metrics** — CrowdSec's own counters for data sources, parsers, scenarios, whitelists, LAPI, bouncers and AppSec
 - **Two-factor sign-in** — TOTP for the direct port, QR code generated locally, backup codes
 - **Home Assistant sensors** — active decisions, the locally detected ones, and detections of the last 24 hours

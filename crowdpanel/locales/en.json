@@ -314,5 +314,11 @@
     "label": "Scope",
     "avg_ms": "avg ms",
     "size": "Size"
-  }
+  },
+  "map_title": "Attack sources (24 h)",
+  "map_hits": "{n} detections",
+  "map_located": "{located} addresses located, {alerts} detections in total",
+  "map_truncated": "showing the {n} most active",
+  "map_no_geoip": "Detections are coming in, but not one of them carries coordinates. In CrowdSec those come from the GeoIP enrichment — install it with “cscli collections install crowdsecurity/geoip-enrich” and restart CrowdSec. Without it only the country breakdown remains.",
+  "map_no_outline": "The world map could not be loaded."
 }
