@@ -783,29 +783,27 @@
                  <button class="btn sec ai-feature${offerHasGuide(o)?' has-guide':''}" onclick="openGuideFromOffer(${o.id})" title="${offerHasGuide(o)
                     ? 'Reiseführer zu diesem Ziel liegt gespeichert vor — Öffnen kostet nichts'
                     : 'Reiseführer zum Reiseziel: Einreise, Gesundheit, Geld, Mobilität, Sicherheit, Kultur, Don\'t Dos, Insider-Tipps — inklusive Klimatabelle. Wird beim ersten Öffnen von der KI erstellt.'}">Reiseführer</button>
-                 <!-- Ab hier nur noch Symbole: die Zeile war mit elf beschrifteten
-                      Knöpfen zu voll für einen weiteren. „Prüfen" steht deshalb
-                      seit v0.88.0 als Lupe bei den übrigen Symbolen rechts. -->
-                 <button class="icon-btn" onclick="checkOne(${o.id})" title="Preis jetzt prüfen">
-                   <svg class="i"><use href="#i-search"/></svg>
-                 </button>
-                 <button class="icon-btn" onclick="togglePause(${o.id}, ${o.paused})" title="${o.paused?'Automatische Prüfung fortsetzen':'Automatische Prüfung aussetzen'}">
-                   ${o.paused
-                     ? '<svg class="i"><use href="#i-play"/></svg>'
-                     : '<svg class="i"><use href="#i-pause"/></svg>'}
-                 </button>
-                 <!-- Verwaltendes und Unwiderrufliches liegt hinter den drei Punkten:
-                      Archivieren, Verschieben, Zurücksetzen und Löschen braucht man
-                      selten, und Löschen sollte nicht direkt neben „Prüfen" liegen. -->
+                 <!-- Alles Unbeschriftete liegt hinter den drei Punkten: oben die
+                      beiden Prüf-Aktionen, darunter Verwaltendes und Unwiderrufliches.
+                      So besteht die Zeile nur noch aus beschrifteten Knöpfen, und
+                      „Löschen" liegt nicht direkt neben „Prüfen". -->
                  <details class="row-more">
                    <summary class="icon-btn" title="Weitere Aktionen"><svg class="i"><use href="#i-dots"/></svg></summary>
                    <div class="row-menu">
+                     <div class="mm-group">
+                     <button class="mm-item" onclick="checkOne(${o.id})" title="Preis sofort abrufen, unabhängig vom Prüfrhythmus"><svg class="i"><use href="#i-search"/></svg> Jetzt prüfen</button>
+                     <button class="mm-item" onclick="togglePause(${o.id}, ${o.paused})" title="${o.paused?'Automatische Prüfung fortsetzen':'Automatische Prüfung aussetzen'}">${o.paused
+                        ? '<svg class="i"><use href="#i-play"/></svg> Fortsetzen'
+                        : '<svg class="i"><use href="#i-pause"/></svg> Pausieren'}</button>
+                     </div>
+                     <div class="mm-group">
                      <button class="mm-item" onclick="archiveOffer(${o.id})" title="Ins Archiv legen — keine Live-Abfragen mehr"><svg class="i"><use href="#i-archive"/></svg> Archivieren</button>
                      <button class="mm-item${o.is_foreign?' foreign-on':''}" onclick="openForeignPicker([${o.id}])" title="${o.is_foreign
                         ? esc('In Liste „'+foreignListOf(o)+'“ — klicken zum Wechseln oder Entfernen')
                         : 'Rutscht eingeklappt ans Listenende, Benachrichtigungen und Kalender-Meldungen werden stummgeschaltet'}"><svg class="i"><use href="#i-list"/></svg> ${o.is_foreign?esc('Liste: '+foreignListOf(o)):'In Liste verschieben'}</button>
                      <button class="mm-item" onclick="resetOffer(${o.id})" title="Verlauf löschen und neu bei null beginnen"><svg class="i"><use href="#i-reset"/></svg> Zurücksetzen</button>
                      <button class="mm-item danger" onclick="delOffer(${o.id})"><svg class="i"><use href="#i-trash"/></svg> Löschen</button>
+                     </div>
                    </div>
                  </details>`}
             </div>

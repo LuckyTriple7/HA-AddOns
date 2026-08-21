@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.100.12] - 2026-08-21
+
+### Changed
+- **„Jetzt prüfen" und „Pausieren" liegen jetzt ebenfalls im ⋯-Menü der
+  Angebotskarte.** Beide standen als einzige Symbolknöpfe zwischen den
+  beschrifteten Knöpfen und dem Menü — ohne Beschriftung war nicht ablesbar, was
+  Lupe und Pausenzeichen tun. Im Menü tragen sie ihren Namen („Jetzt prüfen",
+  „Pausieren"/„Fortsetzen") und stehen als eigene Gruppe über dem verwaltenden
+  Teil (Archivieren, In Liste verschieben, Zurücksetzen, Löschen), getrennt durch
+  die Trennlinie, die das „Mehr"-Menü der Werkzeugleiste schon nutzt. Die
+  Knopfzeile der Karte besteht damit nur noch aus beschrifteten Knöpfen plus dem
+  ⋯-Knopf.
+
 ## [0.100.11] - 2026-08-20
 
 ### Fixed
