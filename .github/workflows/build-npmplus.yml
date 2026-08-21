@@ -7,6 +7,7 @@ on:
       - 'npmplus/config.yaml'
       - 'npmplus/Dockerfile'
       - 'npmplus/run.sh'
+      - 'npmplus/selftest.sh'
       - '.npmplus-version'
   workflow_dispatch:
 
