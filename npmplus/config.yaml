@@ -1,6 +1,6 @@
 name: NPMplus
 description: Reverse Proxy mit Web-Oberfläche auf Basis von NPMplus — HTTP/3, Let's Encrypt, CrowdSec-Bouncer und AppSec/WAF
-version: "0.1.27"
+version: "0.1.28"
 slug: npmplus
 url: https://github.com/LuckyTriple7/HA-AddOns
 

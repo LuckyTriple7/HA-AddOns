@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.1.28] - 2026-08-21
+
+### Dokumentation
+- Zwei Logzeilen erklärt, die direkt nach dem Start auftauchen und wie Fehler aussehen:
+  „error loading captcha plugin: no recaptcha site key provided" ist kosmetisch (ohne
+  `crowdsec_captcha_provider` fällt der Bouncer intern auf `recaptcha` zurück und schaltet
+  Captcha ab), und die 403-Zeilen „Permission Denied" auf `/api/nginx/...` stammen nicht aus
+  dem Add-on, sondern von einer Home-Assistant-Integration, deren Benutzer in NPMplus keine
+  Leserechte hat.
+
+### Geändert
+- Der Startwarnhinweis bei unerreichbarer CrowdSec-LAPI nennt jetzt den Container-Hostnamen
+  statt der Container-IP.
+
 ## [0.1.27] - 2026-08-21
 
 ### Dokumentation

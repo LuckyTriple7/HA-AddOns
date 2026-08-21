@@ -291,7 +291,8 @@ if [ "$CS_ENABLED_OPT" = "true" ]; then
                 set_conf ENABLED false
                 warn "CrowdSec unreachable at ${CS_LAPI_OPT} — bouncer stays OFF."
                 warn "If CrowdSec runs in its own container, 127.0.0.1 is wrong:"
-                warn "use its container IP or an address published on the host instead."
+                warn "use its container hostname (docker inspect -f '{{.Config.Hostname}}')"
+                warn "or an address published on the host instead."
                 ;;
             *)
                 set_conf ENABLED false

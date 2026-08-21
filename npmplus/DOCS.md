@@ -772,6 +772,10 @@ Ein Home-Assistant-Backup des Add-ons enthält `/data` vollständig, inklusive D
 
 **CrowdSec lief, nach einem Neustart erreicht der Bouncer nichts mehr** — in `crowdsec_lapi_url` steht eine Container-IP (`172.30.33.x`), die Docker beim Start neu vergeben hat. Beide URLs auf den Container-Hostnamen umstellen, z.B. `http://424ccef4-crowdsec:8080`.
 
+**Protokoll meldet „error loading captcha plugin: no recaptcha site key provided"** — kosmetisch. Ist `crowdsec_captcha_provider` leer, fällt der Bouncer intern auf `recaptcha` zurück, findet keinen Site-Key und schaltet Captcha ab. Der Bouncer selbst arbeitet normal weiter. Die Zeile verschwindet erst, wenn Captcha mit Anbieter und beiden Schlüsseln eingerichtet ist (siehe Schritt 7).
+
+**Protokoll meldet „Permission Denied" mit HTTP 403 auf `/api/nginx/...`** — diese Anfragen kommen nicht aus dem Add-on. Am User-Agent (`HomeAssistant/…`) und der IP erkennbar: eine Home-Assistant-Integration fragt die NPMplus-API ab, typischerweise „Nginx Proxy Manager" aus HACS. Die Anmeldung selbst klappt (sonst käme 401), aber der dort hinterlegte Benutzer darf die Listen nicht lesen. In NPMplus unter *Users* den Benutzer öffnen, *Edit Permissions* auf mindestens „View" stellen oder ihn zum Administrator machen — sonst die Integration entfernen. Der Proxy-Betrieb ist davon nicht betroffen, nur die Sensoren der Integration bleiben leer.
+
 **Falsche Client-IPs in den Logs** — steht ein weiterer Proxy oder Cloudflare davor, dessen IPs in `trust_ip` eintragen bzw. `trust_cloudflare` aktivieren.
 
 **CrowdSec sieht keine Angriffe** — Reihenfolge prüfen: `logrotate` an, Logs kommen über journald an (`log_to_stdout` an, Identifier stimmt), Collection `ZoeyVid/npmplus` installiert, `cscli metrics` zeigt die Acquisition.
