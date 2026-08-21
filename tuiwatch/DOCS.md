@@ -1137,6 +1137,20 @@ am besten über Direktzugriff/Reverse-Proxy nutzen).
   Zeilen). Das komplette Log samt Filter steht unter **🔔 Meldungen & Fehler →
   📜 Konsole**: bis zu 2000 Zeilen seit dem Add-on-Start, durchsuchbar nach Text und
   Log-Stufe — Diagnose ohne Umweg über das HA-Log.
+- **Ausrufezeichen neben dem Logo** — **Störungen**: erscheint nur, wenn etwas
+  wiederholt ins Leere läuft und dabei täglich TUI-Aufrufe kostet — eine
+  Preisbarometer-Messreihe ohne Treffer (Ziel nicht mehr im Programm), ein Angebot,
+  das mehrfach keinen Preis mehr liefert, oder ein fehlschlagendes Suchabo. Gelb bei
+  einer einzelnen Warnung, rot ab drei Fehlversuchen in Folge. Ein Klick öffnet die
+  Liste mit Beschreibung, Serie, Gesamtzahl und Zeitpunkten; je Eintrag lässt sich
+  **genau diese Abfrage pausieren** (Messreihe fällt aus dem Preisbarometer, Angebot
+  wird pausiert, Suchabo abgeschaltet) — alles andere läuft weiter. Pausierte
+  Einträge bleiben ausgegraut stehen, damit nicht in Vergessenheit gerät, dass da
+  etwas stillgelegt wurde; „Ausblenden" entfernt nur den Eintrag — tritt der Leerlauf
+  wieder auf, kommt er zurück. Liefert die Quelle von selbst wieder etwas,
+  verschwindet die Störung ohne Zutun. Anders als **🔔 Meldungen → Warnungen/Fehler**
+  (jede Warnung seit dem Start) stehen hier nur die wiederkehrenden, abschaltbaren
+  Fälle.
 - **Rechtsklick auf das Logo** — **Nächste Läufe**: wann Preis-Checks, Suchabos,
   Preiskalender, Preisbarometer, Aktionscodes, Selbsttest, Backup und die
   wöchentliche Zusammenfassung das nächste Mal anstehen (Frühestens-Zeiten — der

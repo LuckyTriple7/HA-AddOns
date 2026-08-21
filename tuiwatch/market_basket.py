@@ -50,6 +50,7 @@ from datetime import date, datetime, timedelta
 from flask import Blueprint, jsonify, request
 
 import app as A
+import issues
 
 bp = Blueprint('market_basket', __name__)
 
@@ -326,6 +327,15 @@ def _basket_targets() -> list:
         out.append({'key': key, 'giata': giata, 'payload': payload,
                     'period': _period(payload), 'source': 'search'})
     out += _offer_targets(seen)
+    # Störungen zu Messreihen, die es nicht mehr gibt (Suche gelöscht, Angebot
+    # entfernt, Termin vorbei), verschwinden mit ihrem Bezugsobjekt.
+    issues.drop_missing('basket', [t['key'] for t in out])
+    muted = issues.muted_keys('basket')
+    if muted:
+        skipped = [t['key'] for t in out if t['key'] in muted]
+        out = [t for t in out if t['key'] not in muted]
+        A.log.info("Preisbarometer: %d Messreihe(n) pausiert (über die Störungsliste): %s",
+                   len(skipped), ", ".join(skipped))
     if len(out) > limit:
         A.log.warning("Preisbarometer: %d Messreihen gefunden, aber nur %d erlaubt — nicht "
                       "berücksichtigt: %s (Option market_basket_max_regions erhöhen)",
@@ -619,7 +629,14 @@ def run_basket(target: dict) -> dict:
     if not rows:
         A.log.warning("Messreihe „%s“ (%s): Suche lieferte keine Treffer",
                       key, target.get('period') or '?')
+        # Ab in die Störungsliste: eine Messreihe, die nichts mehr findet, kostet
+        # täglich Aufrufe und wird von allein nie wieder gut (Ziel aus dem Programm,
+        # Termin ausgebucht). Von dort lässt sie sich einzeln pausieren.
+        issues.report('basket', key, key,
+                      f"{target.get('period') or 'Zeitraum unbekannt'}: Suche lieferte "
+                      f"keine Treffer")
         return {'basket': key, 'hotels': 0, 'move': None}
+    issues.clear('basket', key)
     ts = int(time.time())
     day = datetime.fromtimestamp(ts).strftime('%Y-%m-%d')
     with A.db() as con:

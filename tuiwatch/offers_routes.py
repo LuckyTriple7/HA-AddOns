@@ -20,6 +20,7 @@ from flask import Blueprint, jsonify, make_response, request
 import app as A
 import check24_client
 import email_search
+import issues
 
 bp = Blueprint('offers_routes', __name__)
 
@@ -31,7 +32,11 @@ def api_offers():
     # `busy`: Klartext-Labels laufender Hintergrund-Aufgaben — das UI färbt damit das
     # Logo. Bewusst hier angehängt statt als eigener Endpunkt: die Liste wird ohnehin
     # alle 5 s geholt, das spart einen zweiten Poll-Timer.
-    return jsonify({'offers': A._collect_offers(), 'busy': A.busy_labels()})
+    return jsonify({'offers': A._collect_offers(), 'busy': A.busy_labels(),
+                    # `issues`: Zahl + Dringlichkeit der offenen Stoerungen fuer das
+                    # Ausrufezeichen neben dem Logo -- aus demselben Grund hier
+                    # angehaengt wie `busy`.
+                    'issues': issues.summary()})
 
 
 def _normalize_tags(raw) -> list[str]:
@@ -125,6 +130,7 @@ def api_delete_offer(offer_id: int):
     A._cheaper_notified.pop(offer_id, None)
     A._fail_notified.discard(offer_id)
     A._vac_notified.discard(offer_id)
+    issues.clear('offer', offer_id)
     A.log.info("Angebot #%d gelöscht", offer_id)
     A.push_ha_sensors()  # entfernt verwaisten Sensor + nummeriert ggf. neu
     return jsonify({'deleted': offer_id})

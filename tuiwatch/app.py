@@ -92,7 +92,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.100.12"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.101.0"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -875,6 +875,8 @@ def init_db() -> None:
         market_basket.init_basket_db(con)
         # Kalender-Monatstrend — dito, Schema liegt im price_calendar-Modul.
         price_calendar.init_month_db(con)
+        # Störungsliste (wiederkehrende Leerläufe) — dito, Schema im issues-Modul.
+        issues.init_issues_db(con)
     Path(TRIPS_DIR).mkdir(parents=True, exist_ok=True)
     log.info("Datenbank bereit: %s", DB_PATH)
 
@@ -1624,6 +1626,13 @@ def _check_error_alarm(offer: dict) -> None:
     oid = offer['id']
     streak = _error_streak(oid)
     _auto_pause_on_error_streak(offer, streak)
+    # In die Störungsliste (⚠ im Kopf) unabhängig von notify_errors: die Liste ist
+    # die Übersicht „was läuft hier ins Leere", nicht ein Benachrichtigungskanal.
+    if streak >= ERROR_ALARM_STREAK:
+        name = offer.get('label') or offer.get('hotel') or f"Angebot #{oid}"
+        issues.report('offer', oid, name,
+                      f"{streak}× in Folge kein Preis/Angebot — evtl. ausgebucht oder "
+                      f"die URL ist veraltet.")
     if not load_config().get('notify_errors', True):
         return
     if streak < ERROR_ALARM_STREAK or oid in _fail_notified:
@@ -1644,6 +1653,9 @@ def _check_error_alarm(offer: dict) -> None:
 def _clear_error_alarm(offer: dict) -> None:
     """Entwarnung, wenn ein zuvor gemeldetes Angebot wieder Ergebnisse liefert."""
     oid = offer['id']
+    # Der Eintrag in der Störungsliste geht immer weg — er entsteht auch dann, wenn
+    # gar nicht benachrichtigt wurde (notify_errors aus), `_fail_notified` also leer ist.
+    issues.clear('offer', oid)
     if oid not in _fail_notified:
         return
     _fail_notified.discard(oid)
@@ -3957,6 +3969,8 @@ import all_flights_routes  # noqa: E402
 import market_basket  # noqa: E402
 import stats_routes  # noqa: E402
 import share_routes  # noqa: E402
+import issues  # noqa: E402
+app.register_blueprint(issues.bp)
 app.register_blueprint(stats_routes.bp)
 app.register_blueprint(trips_routes.bp)
 app.register_blueprint(backup_routes.bp)

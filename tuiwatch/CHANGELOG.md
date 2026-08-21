@@ -1,5 +1,41 @@
 # Changelog
 
+## [0.101.0] - 2026-08-21
+
+### Added
+- **Störungsliste: ein Ausrufezeichen neben dem Logo, wenn etwas ins Leere läuft.**
+  Manche Fehlpfade wiederholen sich täglich, ohne je wieder ein Ergebnis zu liefern
+  — eine Preisbarometer-Messreihe zu einem Ziel, das nicht mehr im Programm ist
+  („Suche lieferte keine Treffer"), ein Angebot auf einer toten URL, ein Suchabo mit
+  kaputter Payload. Jeder dieser Fälle kostet täglich TUI-Aufrufe und stand bisher
+  nur als WARNING im Log, wo man ihn erst findet, wenn man danach sucht.
+  Neu sammelt `issues.py` sie in einer Tabelle (eine Zeile je Fall, mit Serie und
+  Gesamtzahl). Sobald etwas offen ist, erscheint neben „TUIWatch" ein
+  Ausrufezeichen — gelb bei einer einzelnen Warnung, rot (pulsierend) ab drei
+  Fehlversuchen in Folge. Ein Klick öffnet die Liste mit Beschreibung, Serie,
+  Gesamtzahl und Zeitpunkten.
+  Je Störung gibt es dort **Pausieren** — und zwar genau die betroffene Abfrage,
+  alles andere läuft weiter: eine Messreihe fällt aus dem Preisbarometer, ein
+  Angebot wird pausiert, ein Suchabo abgeschaltet. Pausierte Einträge bleiben
+  ausgegraut stehen (und zählen nicht mehr mit), damit nicht in Vergessenheit
+  gerät, dass da etwas stillgelegt wurde; „Wieder aktivieren" nimmt sie zurück und
+  setzt die Serie auf null. „Ausblenden" entfernt nur den Eintrag — tritt der
+  Leerlauf wieder auf, kommt er zurück.
+  Entwarnung passiert von selbst: liefert die Quelle wieder etwas, verschwindet die
+  Störung. Ebenso, wenn das Bezugsobjekt gelöscht wird (Angebot, gespeicherte
+  Suche) oder eine Messreihe gar nicht mehr ansteht.
+  Die Zahl fürs Ausrufezeichen hängt an `/api/offers` (wird ohnehin alle 5 s
+  geholt) — kein zusätzlicher Poll-Timer. Bewusst keine Kopie des Log-Puffers unter
+  „Meldungen → Warnungen/Fehler": der zeigt jede Warnung seit dem Start, die
+  Störungsliste nur die wiederkehrenden, abschaltbaren Fälle.
+
+### Fixed
+- **Die Fußzeile stand rechtsbündig statt mittig.** Seit der Aufteilung in Zustands-
+  und Werkzeugzeile hielt sie beide Blöcke mit `justify-content:space-between`
+  auseinander — bei breitem Fenster passten sie in eine Zeile, und der
+  Werkzeug-Block klebte dann am rechten Rand. Beide Blöcke sind jetzt gestapelt und
+  zentriert, wie vor der Designüberarbeitung.
+
 ## [0.100.12] - 2026-08-21
 
 ### Changed

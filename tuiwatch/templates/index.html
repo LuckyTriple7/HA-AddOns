@@ -29,6 +29,9 @@
     body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; background:var(--bg); color:var(--text); min-height:100vh; transition:background .2s,color .2s; }
     .wrap { max-width: 1000px; margin: 0 auto; padding: 16px; }
     header { display:grid; grid-template-columns:minmax(0,auto) minmax(0,1fr) minmax(0,auto); align-items:center; gap:10px; margin-bottom:18px; }
+    /* Logo und Warnzeichen sitzen als eine Einheit in der ersten Rasterspalte —
+       das Ausrufezeichen soll direkt am Namen kleben, nicht an den Kopfknöpfen. */
+    .brand { display:flex; align-items:center; gap:10px; min-width:0; }
     .logo { display:flex; align-items:center; gap:8px; font-size:var(--fs-xl); font-weight:700; color:var(--accent); transition:color .3s; }
     .logo svg { width:26px; height:26px; fill:var(--accent); transition:fill .3s; }
     /* Hintergrund-Signal: setBusy() (app.js) schaltet .busy, solange laufende
@@ -37,6 +40,26 @@
     .logo.busy svg { fill:var(--amber); animation:logo-busy 1.6s ease-in-out infinite; }
     @keyframes logo-busy { 0%,100%{opacity:1} 50%{opacity:.35} }
     @media (prefers-reduced-motion:reduce) { .logo.busy svg { animation:none; } }
+    /* Störungs-Anzeige: gelb, solange es nur Warnungen sind, rot ab drei Fehlversuchen
+       in Folge (issues.ISSUE_ERROR_STREAK). Der Puls holt sie ins Blickfeld, ohne dass
+       ein Fenster aufspringt — anklicken bleibt freiwillig. */
+    .issue-badge { display:inline-flex; align-items:center; gap:5px; cursor:pointer;
+                   border:1px solid var(--amber); background:transparent; color:var(--amber);
+                   border-radius:var(--r-pill); padding:3px 10px; font:inherit;
+                   font-size:var(--fs-xs); font-weight:700; line-height:1; }
+    .issue-badge:hover { background:color-mix(in srgb, var(--amber) 16%, transparent); }
+    .issue-badge.error { border-color:var(--red); color:var(--red);
+                         animation:issue-pulse 2s ease-in-out infinite; }
+    .issue-badge.error:hover { background:color-mix(in srgb, var(--red) 16%, transparent); }
+    @keyframes issue-pulse { 0%,100%{opacity:1} 50%{opacity:.45} }
+    @media (prefers-reduced-motion:reduce) { .issue-badge.error { animation:none; } }
+    .issue-row { padding:10px 0; border-bottom:1px solid var(--border); }
+    .issue-row.muted { opacity:.55; }
+    .issue-head { display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; }
+    .issue-head b { font-size:var(--fs-md); }
+    .issue-kind { border:1px solid var(--border); border-radius:var(--r-pill);
+                  padding:1px 8px; font-size:var(--fs-2xs); color:var(--muted); }
+    .issue-acts { display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; }
     .header-actions { display:flex; align-items:center; justify-content:flex-end; gap:8px; flex-wrap:wrap; min-width:0; }
     .header-actions .btn { flex:0 1 auto; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     .header-actions .icon-btn { flex:0 0 auto; }
@@ -684,17 +707,19 @@
     .cal-day-hd { display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; font-size:var(--fs-sm); }
     .modal-close { float:right; }
     /* Zwei Zeilen: oben der Zustand (Version, Intervall, DB, API), darunter die
-       Werkzeuge. Vorher stand beides in einer einzigen, mit „·" verketteten Zeile. */
+       Werkzeuge. Vorher stand beides in einer einzigen, mit „·" verketteten Zeile.
+       Gestapelt und zentriert statt space-between: bei breitem Fenster passten beide
+       Blöcke in eine Zeile und der Werkzeug-Block klebte dann am rechten Rand. */
     footer { margin:28px 0 8px; padding-top:12px; border-top:1px solid var(--border);
-             font-size:var(--fs-xs); color:var(--muted); display:flex; flex-wrap:wrap;
-             gap:8px 20px; justify-content:space-between; align-items:baseline; }
+             font-size:var(--fs-xs); color:var(--muted); display:flex;
+             flex-direction:column; align-items:center; gap:8px; text-align:center; }
     /* Trennzeichen per ::before wären beim Umbruch am Zeilenanfang hängen
        geblieben (ein „·" ohne Bezug). Getrennt wird deshalb über den Abstand. */
-    .foot-status, .foot-tools { display:flex; flex-wrap:wrap; gap:4px 20px; min-width:0; }
+    .foot-status, .foot-tools { display:flex; flex-wrap:wrap; justify-content:center;
+                                gap:4px 20px; min-width:0; }
     .foot-status span span { color:var(--text); }
     .hc-foot { cursor:pointer; }
     .foot-tools .hc-foot:hover { color:var(--accent); }
-    @media (max-width:640px){ footer { justify-content:flex-start; } }
     /* Als <a> (Download-Links, z. B. „Als Kalender (.ics)") sonst im Browser-Blau
        mit Unterstreichung — auf dunklem Grund kaum lesbar. Wie die <span>-Varianten
        in Textfarbe, Unterstreichung erst beim Hover als Klick-Hinweis. */
@@ -819,7 +844,7 @@
     @media (max-width:767px) {
       body { overflow-x:hidden; }
       header { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-bottom:14px; }
-      .logo { flex:1 1 auto; }
+      .brand { flex:1 1 auto; }
       .trip-countdown { order:3; flex:1 1 100%; justify-content:center; }
       .header-actions { order:2; flex:0 1 auto; flex-wrap:wrap; justify-content:flex-end; gap:6px; }
       .header-actions .btn { flex:0 0 auto; overflow:visible; text-overflow:clip; padding:8px 12px; }
@@ -965,9 +990,17 @@
   </div>
   <div class="wrap">
     <header>
-      <div class="logo" ondblclick="consoleToggle()" oncontextmenu="return openSchedule()" style="cursor:default;user-select:none;" title="Doppelklick: Konsole · Rechtsklick: nächste Läufe">
-        <svg viewBox="0 0 24 24"><path d="M21 16v-2l-8-5V3.5A1.5 1.5 0 0 0 11.5 2 1.5 1.5 0 0 0 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/></svg>
-        TUIWatch
+      <div class="brand">
+        <div class="logo" ondblclick="consoleToggle()" oncontextmenu="return openSchedule()" style="cursor:default;user-select:none;" title="Doppelklick: Konsole · Rechtsklick: nächste Läufe">
+          <svg viewBox="0 0 24 24"><path d="M21 16v-2l-8-5V3.5A1.5 1.5 0 0 0 11.5 2 1.5 1.5 0 0 0 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/></svg>
+          TUIWatch
+        </div>
+        <!-- Störungen: erscheint nur, wenn etwas wiederholt ins Leere läuft
+             (siehe issues.py). Zahl + Farbe kommen aus /api/offers → issues. -->
+        <button class="issue-badge" id="issue-badge" style="display:none"
+                onclick="openIssues()" title="Störungen — klicken für Details">
+          <svg class="i"><use href="#i-warn"/></svg><span id="issue-badge-n"></span>
+        </button>
       </div>
       <div class="trip-countdown" id="trip-countdown" onclick="openTrips()" title="Nächste Reise – zu „Meine Reisen“">
         <svg class="i"><use href="#i-plane"/></svg> <span class="tc-dest" id="tc-dest"></span> <b id="tc-time"></b>
@@ -1427,6 +1460,19 @@
         <button class="btn sec" onclick="openSyslog('console')"><svg class="i"><use href="#i-refresh"/></svg></button>
       </div>
       <div id="syslog-body"></div>
+    </div>
+  </div>
+
+  <!-- Störungen -->
+  <div class="modal-bg" id="issues-bg">
+    <div class="modal">
+      <button class="icon-btn modal-close" onclick="closeIssues()">
+        <svg class="i"><use href="#i-close"/></svg>
+      </button>
+      <h2><svg class="i"><use href="#i-warn"/></svg> Störungen</h2>
+      <div class="sub">Was wiederholt ins Leere läuft und dabei täglich TUI-Aufrufe kostet.
+        „Pausieren“ stoppt genau diese Abfrage — alles andere läuft weiter.</div>
+      <div id="issues-body"></div>
     </div>
   </div>
 

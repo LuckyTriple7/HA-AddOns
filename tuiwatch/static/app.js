@@ -329,6 +329,7 @@
         // vor dem Signatur-Vergleich: das Busy-Signal muss auch dann aktuell bleiben,
         // wenn sich an den Angeboten selbst nichts geändert hat (früher Ausstieg unten).
         setBusy(d.busy || []);
+        setIssues(d.issues);
         // Nur neu rendern, wenn sich wirklich etwas geändert hat — verhindert das
         // periodische Neuzeichnen (Flackern) der Preisdiagramme alle 5 s.
         const sig = JSON.stringify(d.offers);
@@ -2673,6 +2674,7 @@
       ['c24-bg', closeCheck24],
       ['room-bg', closeRooms],
       ['syslog-bg', closeSyslog],
+      ['issues-bg', closeIssues],
       ['aihist-bg', closeAiHistory],
       ['aiask-bg', closeAiAsk],
       ['regcmp-bg', closeRegionCompare],
@@ -5394,6 +5396,82 @@
       }
     }
     function closeSyslog(){ $('#syslog-bg').classList.remove('show'); }
+
+    // ── Störungen (Ausrufezeichen neben dem Logo) ─────────────────────────
+    // Die Zahl kommt bei jedem /api/offers mit (alle 5 s) — kein eigener Timer. Die
+    // Liste selbst wird erst beim Öffnen geholt; sie ändert sich nur im Stundentakt.
+    function setIssues(sum){
+      const badge = $('#issue-badge');
+      if(!badge) return;
+      const n = (sum && sum.n) || 0;
+      badge.style.display = n ? 'inline-flex' : 'none';
+      badge.classList.toggle('error', (sum && sum.severity) === 'error');
+      $('#issue-badge-n').textContent = n > 1 ? n : '';
+      badge.title = n
+        ? n + (n===1 ? ' Störung' : ' Störungen') + ' — klicken für Details'
+        : 'Störungen';
+    }
+
+    function openIssues(){
+      $('#issues-bg').classList.add('show');
+      loadIssues();
+    }
+    function closeIssues(){ $('#issues-bg').classList.remove('show'); }
+
+    async function loadIssues(){
+      const body = $('#issues-body');
+      body.innerHTML = progBar('Lädt…');
+      let d;
+      try {
+        const r = await fetch(api('/api/issues'));
+        if(!r.ok) throw 0; d = await r.json();
+      } catch(e){
+        body.innerHTML = '<div class="cmp-load" style="color:var(--amber)"><svg class="i"><use href="#i-warn"/></svg> Konnte nicht geladen werden.</div>';
+        return;
+      }
+      setIssues(d.summary);
+      const items = d.items || [];
+      if(!items.length){
+        body.innerHTML = '<div class="empty">Keine Störungen — alles läuft.</div>';
+        return;
+      }
+      body.innerHTML = items.map(it=>{
+        const col = it.severity==='error' ? 'var(--red)' : 'var(--amber)';
+        const seit = new Date((it.first_ts||0)*1000).toLocaleDateString('de-DE');
+        const zul  = new Date((it.last_ts||0)*1000).toLocaleString('de-DE');
+        return `<div class="issue-row${it.muted?' muted':''}">
+          <div class="issue-head">
+            <svg class="i" style="color:${col}"><use href="#i-warn"/></svg>
+            <b>${esc(it.title)}</b>
+            <span class="issue-kind">${esc(it.kind_label)}</span>
+            ${it.muted?'<span class="issue-kind">pausiert</span>':''}
+          </div>
+          <div class="hint" style="margin-top:3px">${esc(it.detail)}</div>
+          <div class="hint">${it.streak}× in Folge · ${it.total}× insgesamt · seit ${seit} · zuletzt ${zul}</div>
+          <div class="issue-acts">
+            ${it.muted
+              ? `<button class="btn sec" onclick="issueMute(${it.id},false)"><svg class="i"><use href="#i-play"/></svg> Wieder aktivieren</button>`
+              : `<button class="btn sec" onclick="issueMute(${it.id},true)"><svg class="i"><use href="#i-pause"/></svg> Pausieren</button>`}
+            <button class="btn sec" onclick="issueDismiss(${it.id})" title="Nur den Eintrag entfernen — tritt die Störung wieder auf, kommt sie zurück"><svg class="i"><use href="#i-close"/></svg> Ausblenden</button>
+          </div>
+        </div>`;
+      }).join('');
+    }
+
+    async function issueMute(id, on){
+      try {
+        await fetch(api('/api/issues/'+id+'/mute'), {method:'POST',
+          headers:{'Content-Type':'application/json'}, body:JSON.stringify({on:!!on})});
+      } catch(e){}
+      loadIssues();
+      // Pausieren kann ein Angebot stilllegen — die Kartenliste muss das sofort zeigen.
+      loadOffers();
+    }
+
+    async function issueDismiss(id){
+      try { await fetch(api('/api/issues/'+id), {method:'DELETE'}); } catch(e){}
+      loadIssues();
+    }
     // Enter im Filterfeld bzw. Wechsel der Stufe lädt die Konsole neu
     $('#syslog-q').addEventListener('keydown', e=>{ if(e.key==='Enter') openSyslog('console'); });
     $('#syslog-level').addEventListener('change', ()=> openSyslog('console'));
@@ -5462,6 +5540,7 @@
       $('#giata-lightbox-img').src = '';
     }
     $('#syslog-bg').addEventListener('click', e=>{ if(e.target.id==='syslog-bg') closeSyslog(); });
+    $('#issues-bg').addEventListener('click', e=>{ if(e.target.id==='issues-bg') closeIssues(); });
 
     async function openAiHistory(){
       $('#aihist-bg').classList.add('show');
