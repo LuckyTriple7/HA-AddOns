@@ -728,6 +728,7 @@ Not included out of the box. Put the MaxMind databases (free account) into `/dat
 | `crowdsec_api_key` | – | Bouncer key from `cscli bouncers add` |
 | `crowdsec_appsec_url` | `http://127.0.0.1:7422` | AppSec/WAF endpoint; `auto` as above, empty = off |
 | `crowdsec_fallback_remediation` | `default` | Behaviour when the LAPI fails: `bypass`, `captcha`, `ban`; `default` = image default (currently `ban`) |
+| `crowdsec_retry_minutes` | `15` | If the LAPI does not answer at start, keep asking every 30 s for this many minutes and enable the bouncer afterwards via an nginx reload. `0` = no retry |
 | `crowdsec_captcha_provider` | `off` | `turnstile`, `hcaptcha` or `recaptcha`; `off` = disabled |
 | `crowdsec_captcha_site_key` | – | Public key of the provider |
 | `crowdsec_captcha_secret_key` | – | Secret key of the provider |

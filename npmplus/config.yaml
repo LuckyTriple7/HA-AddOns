@@ -1,6 +1,6 @@
 name: NPMplus
 description: Reverse Proxy mit Web-Oberfläche auf Basis von NPMplus — HTTP/3, Let's Encrypt, CrowdSec-Bouncer und AppSec/WAF
-version: "0.1.32"
+version: "0.1.33"
 slug: npmplus
 url: https://github.com/LuckyTriple7/HA-AddOns
 
@@ -80,6 +80,7 @@ options:
   crowdsec_api_key: ""
   crowdsec_appsec_url: "http://127.0.0.1:7422"
   crowdsec_fallback_remediation: "default"
+  crowdsec_retry_minutes: 15
   crowdsec_captcha_provider: "off"
   crowdsec_captcha_site_key: ""
   crowdsec_captcha_secret_key: ""
@@ -123,6 +124,7 @@ schema:
   crowdsec_api_key: password?
   crowdsec_appsec_url: str?
   crowdsec_fallback_remediation: list(default|bypass|captcha|ban)
+  crowdsec_retry_minutes: int(0,120)
   crowdsec_captcha_provider: list(off|turnstile|hcaptcha|recaptcha)
   crowdsec_captcha_site_key: str?
   crowdsec_captcha_secret_key: password?

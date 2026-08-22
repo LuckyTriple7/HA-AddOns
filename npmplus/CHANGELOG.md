@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.1.33] - 2026-08-22
+
+### Behoben
+- **Der CrowdSec-Bouncer blieb nach einem Neustart von Home Assistant OS dauerhaft aus.**
+  Beim Start prüft das Add-on einmal, ob die LAPI antwortet. Home Assistant startet alle
+  Add-ons der Stufe `services` ohne feste Reihenfolge — kam NPMplus vor CrowdSec dran, war
+  die LAPI noch tot, das Add-on schrieb `ENABLED=false` in `crowdsec.conf` und fragte nie
+  wieder nach. Der Bouncer holte danach keine Entscheidungen mehr ab, bis jemand das Add-on
+  von Hand neu startete. Nichts im Protokoll wies später noch darauf hin.
+
+  Antwortet die LAPI beim Start nicht, fragt das Add-on jetzt im Hintergrund alle 30 Sekunden
+  nach und schaltet den Bouncer per `nginx -s reload` nachträglich scharf, sobald CrowdSec
+  läuft. Das Warten hält den Proxy nicht auf — nginx startet wie bisher sofort.
+
+### Neu
+- Option `crowdsec_retry_minutes` (Vorgabe 15): wie lange nach dem Start auf CrowdSec gewartet
+  wird. `0` schaltet das Nachfragen ab und stellt das alte Verhalten wieder her.
+
 ## [0.1.32] - 2026-08-21
 
 ### Geändert

@@ -74,6 +74,9 @@ configuration:
   crowdsec_fallback_remediation:
     name: Behaviour when the LAPI fails
     description: What the bouncer does when CrowdSec stops answering while running - "bypass" lets traffic through, "ban" blocks everything, "captcha" shows the challenge (only useful with captcha set up). "default" leaves the image default untouched, currently "ban".
+  crowdsec_retry_minutes:
+    name: Wait for CrowdSec after start
+    description: Home Assistant starts add-ons in no fixed order. If CrowdSec is not ready yet when NPMplus starts, the bouncer would stay off until the next restart. For this many minutes the add-on keeps asking every 30 seconds in the background and enables the bouncer afterwards. 0 turns the retry off.
   crowdsec_captcha_provider:
     name: Captcha provider
     description: Shows a challenge page instead of a hard block for decisions of type "captcha". "off" disables captcha. Cloudflare Turnstile is free and does not profile users.
