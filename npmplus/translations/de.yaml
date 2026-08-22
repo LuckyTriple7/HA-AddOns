@@ -72,8 +72,8 @@ configuration:
     name: CrowdSec AppSec-URL
     description: Adresse des AppSec/WAF-Endpunkts, z.B. http://424ccef4-crowdsec:7422 - selber Hostname wie bei der LAPI. Leer lassen, wenn AppSec nicht läuft.
   crowdsec_fallback_remediation:
-    name: Verhalten bei Ausfall der LAPI
-    description: Was der Bouncer tut, wenn CrowdSec im laufenden Betrieb nicht mehr antwortet - "bypass" laesst durch, "ban" sperrt alles, "captcha" zeigt das Raetsel (nur mit eingerichtetem Captcha sinnvoll). "default" laesst die Vorgabe des Images unangetastet, derzeit "ban".
+    name: Ersatz-Massnahme
+    description: Was der Bouncer tut, wenn er eine Entscheidung von CrowdSec nicht anwenden kann - etwa bei einem unbekannten Entscheidungstyp oder wenn "captcha" verlangt wird, ohne dass ein Captcha eingerichtet ist. "bypass" laesst durch, "ban" sperrt, "captcha" zeigt das Raetsel. "default" laesst die Vorgabe des Images unangetastet, derzeit "ban". Faellt CrowdSec dagegen ganz aus, greift diese Option nicht - der Bouncer laesst dann jede Anfrage ungeprueft durch und faengt sich von selbst wieder, sobald CrowdSec antwortet.
   crowdsec_retry_minutes:
     name: Wartezeit auf CrowdSec nach dem Start
     description: Home Assistant startet die Add-ons ohne feste Reihenfolge. Ist CrowdSec beim Start von NPMplus noch nicht bereit, bliebe der Bouncer bis zum naechsten Neustart aus. So lange fragt das Add-on danach im Hintergrund alle 30 Sekunden nach und schaltet den Bouncer nachtraeglich ein. 0 schaltet das Nachfragen ab.

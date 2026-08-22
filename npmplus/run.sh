@@ -381,8 +381,13 @@ cs_apply_conf() {
             warn "crowdsec_appsec_url empty if AppSec is not in use."
         fi
     fi
-    # Was der Bouncer tut, wenn die LAPI im Betrieb wegfällt. Leer gelassen
-    # bleibt der Wert aus crowdsec.conf unangetastet.
+    # Ersatz-Maßnahme, wenn der Bouncer eine Entscheidung nicht anwenden kann:
+    # unbekannter Entscheidungstyp, oder Captcha ist eingestellt aber nicht
+    # nutzbar. Greift außerdem bei einer gescheiterten AppSec-Anfrage, sofern
+    # APPSEC_FAILURE_ACTION auf "deny" steht (Vorgabe des Images: passthrough).
+    # NICHT das Verhalten bei Ausfall der LAPI — dort lässt der Bouncer im
+    # live-Modus jede Anfrage durch. Leer gelassen bleibt der Wert aus
+    # crowdsec.conf unangetastet.
     if [ -n "$CS_FALLBACK_OPT" ]; then
         set_conf FALLBACK_REMEDIATION "$CS_FALLBACK_OPT"
         log "Fallback remediation: ${CS_FALLBACK_OPT}"

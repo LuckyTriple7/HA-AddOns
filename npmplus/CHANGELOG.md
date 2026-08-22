@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.1.34] - 2026-08-22
+
+### Geändert
+- **`crowdsec_fallback_remediation` war falsch beschrieben.** Die Option galt hier als
+  „Verhalten bei Ausfall der LAPI". Das stimmt nicht: im Bouncer greift `FALLBACK_REMEDIATION`
+  nur, wenn eine Entscheidung nicht anwendbar ist — unbekannter Entscheidungstyp, oder
+  `captcha` verlangt, ohne dass ein Captcha eingerichtet ist — sowie bei einer gescheiterten
+  AppSec-Anfrage, sofern `APPSEC_FAILURE_ACTION` auf `deny` steht (Vorgabe des Images:
+  `passthrough`).
+
+  Fällt CrowdSec dagegen ganz aus, greift die Option gar nicht. NPMplus fährt den Bouncer im
+  Modus `live`, dort scheitert die Abfrage und die Anfrage geht ungeprüft durch. Der Bouncer
+  fängt sich von selbst wieder, sobald CrowdSec antwortet — ein Neustart des CrowdSec-Add-ons
+  legt den Proxy also weder lahm noch schaltet er den Bouncer dauerhaft ab.
+
+  Nur Text: Beschriftung, Beschreibung und Dokumentation. Am Verhalten ändert sich nichts.
+
 ## [0.1.33] - 2026-08-22
 
 ### Behoben
