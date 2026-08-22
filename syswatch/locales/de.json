@@ -22,6 +22,8 @@
   "col_mem_pct": "RAM %",
   "col_mem": "RAM",
   "col_net": "NET I/O",
+  "net_host_hint": "Host-Netzwerk (network_mode: host) – Docker liefert keine Netzstatistik pro Container",
+  "net_na_hint": "Keine Netzwerkstatistik verfügbar",
   "col_disk": "DISK I/O",
   "col_pids": "PIDs",
   "col_history": "Verlauf",

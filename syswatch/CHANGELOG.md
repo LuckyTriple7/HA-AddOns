@@ -1,5 +1,10 @@
 # Changelog — HA SysWatch
 
+## [1.3.1] - 2026-08-22
+
+### Fixed
+- NET I/O zeigte für Container im Host-Netzwerk (`network_mode: host`, z. B. `homeassistant`) dauerhaft `0 B / 0 B`. Solche Container haben keinen eigenen Netz-Namespace, Docker liefert im Stats-Endpoint gar keinen `networks`-Block. Statt einer irreführenden 0 zeigt die Tabelle jetzt `-` mit Tooltip-Erklärung (DE/EN).
+
 ## [1.3.0] - 2026-08-12
 
 ### Added
