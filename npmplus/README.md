@@ -29,6 +29,7 @@ Das Zertifikat der Oberfläche ist selbstsigniert — die Browserwarnung beim er
 - **Access-Listen** pro Host und pro Location, mehrere Listen kombinierbar
 - **GoAccess-Dashboard** auf Port 91, ohne eigene Anmeldung — daher ab Werk nur auf `127.0.0.1`, Zugriff über einen Proxy Host mit Zugriffsliste
 - **zstd- und brotli-Kompression**, Datei- und PHP-Server mit fancyindex
+- **Daten im Zugriff** (`expose_data_dir`): Datenbank, Zertifikate, `custom_nginx` und Zugriffslisten wahlweise unter `/app_configs/<slug>` statt im privaten `/data`
 - Logs ins Add-on-Protokoll (journald, daraus liest CrowdSec) und/oder nach `/share/npmplus/logs` zum Nachlesen über Samba
 
 ## Konfiguration
@@ -51,6 +52,7 @@ Das Zertifikat der Oberfläche ist selbstsigniert — die Browserwarnung beim er
 | `geo_preset` | `none` | Fertige Länderauswahl: `high_risk` (16 Länder) |
 | `geo_countries` | `[]` | Ländercodes mit zwei Buchstaben, z. B. `cn` |
 | `geo_deny_ips` | `[]` | Immer gesperrte Adressen oder CIDR-Bereiche |
+| `expose_data_dir` | `false` | Datenbank, Zertifikate und Konfiguration nach `/app_configs/<slug>` legen |
 | `extra_env` | `[]` | Weitere NPMplus-Variablen als `KEY=VALUE` |
 
 Vollständige Optionsliste, CrowdSec-Einrichtung und Umstieg vom alten NGINX-Proxy-Manager-Add-on: **[Dokumentation](https://github.com/LuckyTriple7/HA-AddOns/blob/dev/npmplus/DOCS.md)**

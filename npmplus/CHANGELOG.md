@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.2.0] - 2026-08-22
+
+### Neu
+- **`expose_data_dir`: Datenbank, Zertifikate und Konfiguration im Konfigurationsordner.**
+  Eingeschaltet wandern `tls/`, `npmplus/database.sqlite`, `custom_nginx/`, `access/`,
+  `crowdsec/` und `html/` nach `/app_configs/<slug>` und sind damit über Samba, den
+  Datei-Editor und jedes Terminal erreichbar — bisher kam man an ein kaputtes Zertifikat
+  oder eine verkorkste `custom_nginx`-Datei nur per `docker exec` heran. In `/data` bleibt
+  je ein Symlink zurück, NPMplus selbst merkt vom Umzug nichts.
+
+  Ab Werk aus, denn in `tls/` liegen die privaten Schlüssel aller Zertifikate. Wieder
+  ausschalten holt die Daten beim nächsten Start zurück nach `/data`. `keys.json` bleibt
+  bewusst im privaten Verzeichnis. Braucht Supervisor 2026.07 oder neuer.
+
+### Geändert
+- Die Doku zur DNS-Challenge war falsch: die fünf genannten Anbieter **fallen nicht weg**.
+  NPMplus hat genauso viele Plugins wie das Original (86), bei `he`, `dnspod`, `powerdns`,
+  `online` und `do` steckt nur ein anderes PyPI-Paket dahinter — bestehende Zertifikate
+  dieser Anbieter erneuern sich nicht und müssen einmal neu ausgestellt werden. Wirklich
+  nicht unterstützt wird allein Route53; dafür gibt es `dreamhost` und `scaleway` zusätzlich.
+
 ## [0.1.32] - 2026-08-21
 
 ### Geändert

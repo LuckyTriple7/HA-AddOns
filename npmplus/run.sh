@@ -84,6 +84,7 @@ GEO_LOG_COUNTRY_OPT=$(opt geo_log_country "true")
 WORKER_PROCESSES_OPT=$(opt nginx_worker_processes "auto")
 WORKER_CONNECTIONS_OPT=$(opt nginx_worker_connections "512")
 COOKIE_SECRET_OPT=$(opt cookie_secret "")
+EXPOSE_DATA_OPT=$(opt expose_data_dir "false")
 
 ###############################################################################
 # Environment für NPMplus setzen
@@ -151,6 +152,97 @@ if [ "$GOA" = "true" ]; then
     else
         warn "GoAccess enabled on 0.0.0.0:91 (HTTPS) WITHOUT authentication — everyone on the LAN can read visitor IPs and requested URLs. Never forward port 91 in your router."
     fi
+fi
+
+###############################################################################
+# Daten im App-Konfigurationsordner sichtbar machen
+#
+# NPMplus legt alles unter /data ab. Dieser Ordner gehoert der App allein und
+# ist weder ueber Samba noch ueber den Datei-Editor erreichbar — bei einem
+# kaputten Zertifikat oder einer verkorksten custom_nginx-Datei kommt man an
+# nichts heran. Mit expose_data_dir wandern die interessanten Pfade nach
+# /config (aussen /app_configs/<slug>) und bleiben an ihrer alten Stelle als
+# Symlink erreichbar.
+#
+# Bewusst reversibel: wird die Option wieder ausgeschaltet, holt der naechste
+# Start die Daten zurueck nach /data. Sonst haette ein Aus-Klick zur Folge,
+# dass NPMplus mit leeren Verzeichnissen startet.
+#
+# keys.json bleibt absichtlich aussen vor — das ist der Signierschluessel fuer
+# die Sitzungs-Token, der gehoert nicht in einen Ordner, den jede App mit
+# all_app_configs lesen kann.
+###############################################################################
+PUBLIC_CONFIG=/config
+
+# Absichtlich nicht dabei:
+#   /data/database.sqlite, /data/custom_ssl, /data/etc  — Altlasten-Pfade. Der
+#     Start des Images schiebt deren Inhalt an die heutige Stelle und loescht
+#     sie danach; ein Symlink dort wuerde als "noch nicht migriert" gelesen.
+#   /data/npmplus/keys.json — Signierschluessel der Sitzungs-Token. Der gehoert
+#     nicht in einen Ordner, den jede App mit all_app_configs lesen kann.
+EXPOSED_PATHS="tls npmplus/database.sqlite custom_nginx access crowdsec html"
+
+# Ein Verzeichnis oder eine Datei nach /config umziehen und an der alten Stelle
+# verlinken. mv statt cp: der Umzug soll keine zweite Kopie hinterlassen, die
+# spaeter jemand fuer die aktuelle haelt.
+expose_move() {
+    local name="$1" src="/data/$1" dst="${PUBLIC_CONFIG}/$1"
+    mkdir -p "$(dirname "$src")" "$(dirname "$dst")"
+
+    # Schon umgezogen: nur den Symlink nachziehen, falls er fehlt.
+    if [ -L "$src" ]; then
+        [ -e "$dst" ] && ln -sfn "$dst" "$src"
+        return 0
+    fi
+
+    if [ -e "$src" ] && [ ! -e "$dst" ]; then
+        mv "$src" "$dst" || { warn "could not move ${name} to ${PUBLIC_CONFIG}"; return 0; }
+    elif [ -e "$src" ] && [ -e "$dst" ]; then
+        # Beide Seiten belegt: das, was NPMplus zuletzt benutzt hat, steht in
+        # /data und gewinnt. Die andere Fassung bleibt als .bak liegen.
+        mv "$dst" "${dst}.bak.$(date +%Y%m%d%H%M%S)" || return 0
+        mv "$src" "$dst" || return 0
+        warn "${name} existed in both places — kept the copy from /data, renamed the other one to .bak"
+    elif [ ! -e "$dst" ]; then
+        # Noch gar nicht vorhanden: NPMplus legt es beim Start selbst an, dann
+        # aber im verlinkten Ziel. Nur Verzeichnisse vorbereiten, keine Dateien.
+        case "$name" in
+            *.sqlite|*.json) return 0 ;;
+            *) mkdir -p "$dst" ;;
+        esac
+    fi
+
+    rm -rf "$src"
+    ln -sfn "$dst" "$src"
+}
+
+# Rueckweg: Symlink aufloesen und die Daten wieder nach /data holen.
+expose_restore() {
+    local name="$1" src="/data/$1" dst="${PUBLIC_CONFIG}/$1"
+    [ -L "$src" ] || return 0
+    rm -f "$src"
+    if [ -e "$dst" ]; then
+        mv "$dst" "$src" || warn "could not move ${name} back to /data"
+    fi
+    # Leere Zwischenordner nicht stehen lassen — sonst bleibt nach dem
+    # Ausschalten ein /config/npmplus ohne Inhalt zurueck.
+    rmdir "$(dirname "$dst")" 2>/dev/null || true
+}
+
+if [ "$EXPOSE_DATA_OPT" = "true" ]; then
+    if [ -d "$PUBLIC_CONFIG" ]; then
+        for name in $EXPOSED_PATHS; do
+            expose_move "$name"
+        done
+        log "Database, certificates and config are in /app_configs/<slug> now (Samba, file editor); /data links to them"
+        warn "This includes the private keys of every certificate — anyone with access to that share can read them."
+    else
+        warn "expose_data_dir is on, but ${PUBLIC_CONFIG} is not mounted — needs Supervisor 2026.07 or newer. Data stays in /data."
+    fi
+elif [ -d "$PUBLIC_CONFIG" ]; then
+    for name in $EXPOSED_PATHS; do
+        expose_restore "$name"
+    done
 fi
 
 ###############################################################################

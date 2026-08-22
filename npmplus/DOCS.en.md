@@ -32,7 +32,7 @@ Existing hosts cannot be imported automatically, the databases are incompatible.
 
 Let's Encrypt allows 50 certificates per week and domain, so reissuing a dozen domains is harmless. Only repeated failed attempts with an identical domain set hit the limit of 5 duplicate certificates per week.
 
-**Important:** These DNS challenge providers are gone and need replacing: `certbot-dns-he`, `certbot-dns-dnspod`, `certbot-dns-online`, `certbot-dns-powerdns`, `certbot-dns-do`. Route53 is not supported either.
+**Important — DNS challenge:** The provider list is as long as upstream (86 plugins), but these providers are backed by a different PyPI package in NPMplus: `he` (now `certbot-dns-hurricane-electric`), `dnspod` (now `certbot-dnspod`), `powerdns` (now `certbot-dns-pdns`), plus `online` and `do`. Existing certificates from those providers **will not renew** and have to be issued once more. The only provider actually unsupported is **Route53** — Amazon CloudFront addresses cannot be trusted automatically in NPMplus. In exchange, `dreamhost` and `scaleway` are available on top.
 
 ## CrowdSec
 
@@ -743,6 +743,7 @@ Not included out of the box. Put the MaxMind databases (free account) into `/dat
 | `nginx_worker_processes` | `auto` | Number of nginx workers |
 | `nginx_worker_connections` | `512` | Connections per worker |
 | `cookie_secret` | – | Static key for login cookies |
+| `expose_data_dir` | `false` | Put database, certificates and config into `/app_configs/<slug>` |
 | `extra_env` | `[]` | Additional NPMplus variables as `KEY=VALUE` |
 
 Anything not listed here can be set through `extra_env`. The full list lives in the [NPMplus compose.yaml](https://github.com/ZoeyVid/NPMplus/blob/develop/compose.yaml):
@@ -781,9 +782,32 @@ Everything lives in the add-on's private `/data` directory:
 | nginx configurations | `/data/nginx/` |
 | Logs | `/data/nginx/logs/` or `/share/npmplus/logs` |
 
+### Data in the config folder (`expose_data_dir`)
+
+With `expose_data_dir: true`, database, certificates and configuration no longer live in the private `/data` but in the app's public config folder — reachable from outside as `/app_configs/<slug>` over Samba, the file editor or a terminal. A symlink stays behind at every old location in `/data`, so NPMplus never notices the move.
+
+What moves:
+
+| What | Ends up in |
+|---|---|
+| Certificates including private keys | `/app_configs/<slug>/tls/` |
+| Database | `/app_configs/<slug>/npmplus/database.sqlite` |
+| Custom nginx snippets | `/app_configs/<slug>/custom_nginx/` |
+| Access lists | `/app_configs/<slug>/access/` |
+| CrowdSec ban and captcha pages | `/app_configs/<slug>/crowdsec/` |
+| Default web page | `/app_configs/<slug>/html/` |
+
+Deliberately **not** moved: `keys.json`. That is the signing key for session tokens and stays in `/data`.
+
+> **Security note:** `tls/` holds the private keys of every certificate. Anyone with access to the Samba share can read them, and so can any other app mapping `all_app_configs`. That is why the option is off by default.
+
+Turning it off moves everything back: the next start resolves the symlinks and returns the data to `/data`. If both folders hold something under the same name when you turn it on, the copy from `/data` wins and the other one is kept with a timestamp as `.bak`.
+
+Requires **Supervisor 2026.07 or newer** (that is where `addon_config` became `app_config`). On older versions the folder is not mounted, the add-on logs a warning and leaves everything in `/data`.
+
 ### Reachable over Samba?
 
-No. The Samba share exposes `config`, `share`, `media`, `backup`, `ssl` and `addons` — add-on data directories are not among them. The only exception is the logs: with `share_logs` enabled they live in `/share/npmplus/logs` and are visible there.
+Only with `expose_data_dir` (see above). Without it: no — the Samba share exposes `config`, `share`, `media`, `backup`, `ssl` and `addons` — add-on data directories are not among them. The only exception is the logs: with `share_logs` enabled they live in `/share/npmplus/logs` and are visible there.
 
 Everything else is reachable through a terminal add-on with Docker access. To look:
 
