@@ -1,5 +1,154 @@
 # Changelog
 
+## [0.1.36] - 2026-08-22
+
+### Geändert
+- Fehlersuche um einen Eintrag ergänzt: **Sperre als Timeout statt 403**. Das kommt nicht vom
+  nginx-Bouncer in NPMplus, sondern vom Firewall-Bouncer von CrowdSec, der die Pakete auf
+  iptables-Ebene verwirft. Merkregel: `403` = nginx-Bouncer (HTTP-Ebene), Timeout =
+  Firewall-Bouncer (Paketebene). Aus demselben Grund ist bei einem Firewall-Ban auch
+  `geo_deny_action: 444` nie zu sehen — es kommt nichts bis zu nginx durch.
+
+## [0.1.35] - 2026-08-22
+
+### Geändert
+- **`geo_deny_action` hieß „Antwort bei Sperre" und klang damit global.** Die Option gilt aber
+  ausschließlich für die Ländersperre und `geo_deny_ips`. Sperren durch CrowdSec, AppSec,
+  Zugriffslisten oder das Backend hinter dem Proxy antworten unverändert mit `403` — wer hier
+  `444` einstellt und dann bei einem CrowdSec-Block trotzdem `403` sieht, hat keinen Fehler
+  gefunden, sondern die falsche Erwartung.
+
+  Das ist so gewollt und steht auch als Kommentar in `run.sh`: der Umweg über den eigenen Code
+  `460` existiert genau deshalb, damit ein `error_page 403` nicht die Sperrseiten von CrowdSec
+  und Zugriffslisten überschreibt.
+
+  Heißt jetzt „Antwort bei Ländersperre", die Beschreibung nennt den Geltungsbereich zuerst.
+  Nur Text, am Verhalten ändert sich nichts.
+
+## [0.1.34] - 2026-08-22
+
+### Geändert
+- **`crowdsec_fallback_remediation` war falsch beschrieben.** Die Option galt hier als
+  „Verhalten bei Ausfall der LAPI". Das stimmt nicht: im Bouncer greift `FALLBACK_REMEDIATION`
+  nur, wenn eine Entscheidung nicht anwendbar ist — unbekannter Entscheidungstyp, oder
+  `captcha` verlangt, ohne dass ein Captcha eingerichtet ist — sowie bei einer gescheiterten
+  AppSec-Anfrage, sofern `APPSEC_FAILURE_ACTION` auf `deny` steht (Vorgabe des Images:
+  `passthrough`).
+
+  Fällt CrowdSec dagegen ganz aus, greift die Option gar nicht. NPMplus fährt den Bouncer im
+  Modus `live`, dort scheitert die Abfrage und die Anfrage geht ungeprüft durch. Der Bouncer
+  fängt sich von selbst wieder, sobald CrowdSec antwortet — ein Neustart des CrowdSec-Add-ons
+  legt den Proxy also weder lahm noch schaltet er den Bouncer dauerhaft ab.
+
+  Nur Text: Beschriftung, Beschreibung und Dokumentation. Am Verhalten ändert sich nichts.
+
+## [0.1.33] - 2026-08-22
+
+### Behoben
+- **Der CrowdSec-Bouncer blieb nach einem Neustart von Home Assistant OS dauerhaft aus.**
+  Beim Start prüft das Add-on einmal, ob die LAPI antwortet. Home Assistant startet alle
+  Add-ons der Stufe `services` ohne feste Reihenfolge — kam NPMplus vor CrowdSec dran, war
+  die LAPI noch tot, das Add-on schrieb `ENABLED=false` in `crowdsec.conf` und fragte nie
+  wieder nach. Der Bouncer holte danach keine Entscheidungen mehr ab, bis jemand das Add-on
+  von Hand neu startete. Nichts im Protokoll wies später noch darauf hin.
+
+  Antwortet die LAPI beim Start nicht, fragt das Add-on jetzt im Hintergrund alle 30 Sekunden
+  nach und schaltet den Bouncer per `nginx -s reload` nachträglich scharf, sobald CrowdSec
+  läuft. Das Warten hält den Proxy nicht auf — nginx startet wie bisher sofort.
+
+### Neu
+- Option `crowdsec_retry_minutes` (Vorgabe 15): wie lange nach dem Start auf CrowdSec gewartet
+  wird. `0` schaltet das Nachfragen ab und stellt das alte Verhalten wieder her.
+
+## [0.1.32] - 2026-08-21
+
+### Geändert
+- **Die beiden Auswahllisten haben keinen leeren Eintrag mehr.** `crowdsec_captcha_provider`
+  und `crowdsec_fallback_remediation` boten „nicht gesetzt" als leeren Wert an — in der
+  Add-on-Konfiguration erschien das als Radiobutton ohne Beschriftung. Jetzt heißen die
+  Einträge `off` (Captcha aus) und `default` (Vorgabe des Images, derzeit `ban`). Intern
+  ändert sich nichts, run.sh übersetzt beide Werte zurück auf „nicht anfassen".
+
+  **Nach dem Update einmal nachsehen:** wer die Optionen bisher leer gelassen hat, bekommt
+  von Home Assistant eine Meldung über eine ungültige Konfiguration. In den Optionen einmal
+  `off` bzw. `default` auswählen und speichern, dann startet das Add-on wieder.
+
+## [0.1.31] - 2026-08-21
+
+### Geändert
+- Der Selbsttest gibt jetzt englisch aus, wie das Add-on-Protokoll auch. Vorher mischten sich
+  deutsche Prüfzeilen unter englische Logausgaben.
+
+## [0.1.30] - 2026-08-21
+
+### Neu
+- **Selbsttest im Container.** `docker exec <npmplus> /selftest.sh` prüft in einem Durchgang
+  Oberfläche, Logs, Bouncer-Konfiguration, LAPI, AppSec, Schlüssellänge und die Restlaufzeit
+  der Zertifikate. Ausgabe je Zeile `[ ok ]`, `[warn]` oder `[FAIL]`, Rückgabewert 0 solange
+  nichts fehlschlägt.
+- **`crowdsec_lapi_url: "auto"`** (und ebenso `crowdsec_appsec_url`): das Add-on fragt beim
+  Start den Supervisor nach den installierten Add-ons, sucht das mit einem auf `_crowdsec`
+  endenden Slug und baut daraus `http://<hostname>:8080` bzw. `:7422`. Damit ist der Eintrag
+  einer Container-IP nicht mehr nötig — und die Falle „IP wechselt beim Neustart" fällt weg.
+  Dafür fragt das Add-on die Supervisor-API nur lesend ab (`hassio_api: true`).
+- **Neue Option `crowdsec_fallback_remediation`** (`bypass`, `captcha`, `ban`): was der Bouncer
+  tut, wenn die LAPI im laufenden Betrieb ausfällt. Leer gelassen bleibt der Wert aus dem
+  Image unangetastet.
+- **Watchdog.** Der Supervisor prüft Port 81 und startet das Add-on neu, wenn die Oberfläche
+  nicht mehr antwortet. Bisher griff nur der Exit-Code — ein hängendes nginx fiel damit
+  niemandem auf.
+
+### Geändert
+- Die Startprüfung warnt jetzt, wenn in `crowdsec_lapi_url` oder `crowdsec_appsec_url` eine
+  Container-IP aus `172.16.0.0/12` steht, statt sie stillschweigend zu übernehmen.
+- Die Startprüfung testet zusätzlich den AppSec-Endpunkt. Eine tote Adresse dort blieb bisher
+  unbemerkt, weil der Bouncer die WAF-Prüfung im Betrieb einfach ausfallen lässt.
+- Mit `log_to_stdout: true` schreibt das Add-on den eigenen journald-Identifier ins Protokoll
+  (`SYSLOG_IDENTIFIER=app_<repo-hash>_npmplus`) — der Wert für die CrowdSec-Acquisition muss
+  nicht mehr über `journalctl` oder `docker inspect` gesucht werden.
+- Startet der Bouncer ohne bekannte LAPI-Adresse, bleibt er aus und sagt das auch.
+
+## [0.1.29] - 2026-08-21
+
+### Dokumentation
+- Neuer Abschnitt „Warum CrowdSec an zwei Stellen konfiguriert wird": Acquisition (CrowdSec
+  liest das Journal von NPMplus) ist die Erkennung, die `crowdsec_*`-Optionen sind die
+  Durchsetzung, AppSec auf 7422 ist ein dritter Weg ohne Logs. Mit Skizze des Kreislaufs und
+  der Einordnung, dass sich nur der zusätzliche `crowdsec-firewall-bouncer` überschneidet —
+  auf Firewall-Ebene statt HTTP-Ebene.
+
+## [0.1.28] - 2026-08-21
+
+### Dokumentation
+- Zwei Logzeilen erklärt, die direkt nach dem Start auftauchen und wie Fehler aussehen:
+  „error loading captcha plugin: no recaptcha site key provided" ist kosmetisch (ohne
+  `crowdsec_captcha_provider` fällt der Bouncer intern auf `recaptcha` zurück und schaltet
+  Captcha ab), und die 403-Zeilen „Permission Denied" auf `/api/nginx/...` stammen nicht aus
+  dem Add-on, sondern von einer Home-Assistant-Integration, deren Benutzer in NPMplus keine
+  Leserechte hat.
+
+### Geändert
+- Der Startwarnhinweis bei unerreichbarer CrowdSec-LAPI nennt jetzt den Container-Hostnamen
+  statt der Container-IP.
+
+## [0.1.27] - 2026-08-21
+
+### Dokumentation
+- **Die Anleitung nennt jetzt den Container-Hostname von CrowdSec statt der Container-IP.**
+  Schritt 5 empfahl bisher, die IP des CrowdSec-Containers (`172.30.33.x`) in
+  `crowdsec_lapi_url` und `crowdsec_appsec_url` einzutragen. Docker vergibt diese IP bei
+  jedem Start neu, und ein Neustart von Home Assistant startet alle Add-on-Container neu —
+  danach zeigten beide URLs ins Leere und der Bouncer blieb aus, ohne dass jemand etwas
+  geändert hätte.
+
+  Richtig ist der Hostname aus `docker inspect -f '{{.Config.Hostname}}' <crowdsec-container>`,
+  also z.B. `http://424ccef4-crowdsec:8080`. Er bleibt über Neustarts hinweg gleich und wird
+  auch aus dem Host-Netz von NPMplus heraus aufgelöst.
+- Die Prüfbefehl-Tabelle fragt den Hostnamen statt der IP ab, und die Problembehandlung hat
+  eine eigene Zeile für „lief vorher, nach dem Neustart erreicht der Bouncer nichts mehr".
+- Die Optionsbeschreibungen in der Add-on-Konfiguration (DE/EN) zeigen den Hostnamen als
+  Beispiel und warnen vor der Container-IP.
+
 ## [0.1.26] - 2026-08-20
 
 ### Dokumentation

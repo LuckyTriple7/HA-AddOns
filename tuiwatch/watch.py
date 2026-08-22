@@ -10,6 +10,7 @@ import time
 from flask import Blueprint, jsonify, request
 
 import app as A
+import issues
 
 bp = Blueprint('watch', __name__)
 
@@ -105,9 +106,12 @@ def _check_search_watch(sid: int) -> dict | None:
     if not res or not res.get('ok'):
         with A.db() as con:
             con.execute('UPDATE saved_searches SET last_checked=? WHERE id=?', (ts, sid))
-        A.log.warning("Suchabo „%s“: Suche fehlgeschlagen (%s)", row['name'],
-                    (res or {}).get('note') or 'API-Fehler')
+        note = (res or {}).get('note') or 'API-Fehler'
+        A.log.warning("Suchabo „%s“: Suche fehlgeschlagen (%s)", row['name'], note)
+        issues.report('search', sid, row['name'] or f"Suchabo #{sid}",
+                      f"Suche fehlgeschlagen ({note})")
         return None
+    issues.clear('search', sid)
     limit = float(row['max_price'])
     hits = [r for r in res['results'] if r.get('price') is not None and r['price'] <= limit]
     try:
@@ -232,6 +236,7 @@ def api_searches_delete(sid):
         return err
     with A.db() as con:
         con.execute('DELETE FROM saved_searches WHERE id=?', (sid,))
+    issues.clear('search', sid)
     return jsonify({'ok': True})
 
 

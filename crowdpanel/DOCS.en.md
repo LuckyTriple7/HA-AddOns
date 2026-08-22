@@ -82,21 +82,30 @@ docker exec $CS cscli -c $CFG machines list
 ### Step 2 — find the LAPI address
 
 `http://127.0.0.1:8080` only works if CrowdSec publishes its ports on the host.
-When CrowdSec runs as an add-on in its own container, the container address is
-needed:
+When CrowdSec runs as an add-on in its own container, its **hostname** is the
+right address:
 
 ```sh
-docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}' $CS
+docker inspect -f '{{.Config.Hostname}}' $CS
 ```
 
-The result is typically something like `172.30.33.22`, making the LAPI
-`http://172.30.33.22:8080`.
+The result looks like `424ccef4-crowdsec`, making the LAPI
+`http://424ccef4-crowdsec:8080`. The leading part is the add-on repository's id
+and differs between installations — read the real value instead of copying this
+one.
+
+> **Do not enter an IP address.** The container IP (`172.30.33.x`, found with
+> `docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}' $CS`)
+> only works until the next restart. Docker hands out a new one on every start,
+> and restarting Home Assistant restarts every add-on container. After that
+> `lapi_url` points nowhere and CrowdPanel reports "LAPI cannot be reached". The
+> hostname stays stable.
 
 ### Step 3 — set the options
 
 | Option | Value |
 |---|---|
-| `lapi_url` | `http://172.30.33.22:8080` |
+| `lapi_url` | `http://424ccef4-crowdsec:8080` |
 | `machine_id` | `crowdpanel` |
 | `machine_password` | the password from step 1 |
 | `password` | your own password instead of `changeme123` |
@@ -104,7 +113,7 @@ The result is typically something like `172.30.33.22`, making the LAPI
 Start the add-on. The log then says:
 
 ```
-[INFO] CrowdSec LAPI reachable at http://172.30.33.22:8080 (7 ms)
+[INFO] CrowdSec LAPI reachable at http://424ccef4-crowdsec:8080 (7 ms)
 ```
 
 If a warning shows up instead, the [troubleshooting](#troubleshooting) table helps.
@@ -161,7 +170,9 @@ Plus two displays that show a trend instead of a snapshot:
 **History** — one bar per day over the period from `history_days` (seven by
 default). The bright part is detections, the grey one blocklist updates. "134
 detections in 24 hours" says nothing on its own; only next to the previous days
-does it become visible whether something is building up.
+does it become visible whether something is building up. With the
+[alert archive](#alert-archive) the history reaches as far back as
+`history_days` allows — without it, only as far as CrowdSec keeps its alerts.
 
 **Bouncers** — who fetches the decisions and when they last did. That is the most
 important operational question there is: a bouncer that has not pulled for
@@ -175,6 +186,70 @@ read-only, and only name, type, version, address and timestamps are served —
 **keys and passwords never leave the server**, those columns are not even read.
 
 If the database is not found, the rest of the overview is unaffected.
+
+### Attack map
+
+The overview carries a world map with one dot per source address of the last 24
+hours. Dot size follows the number of detections; hovering shows address,
+country, network and the most frequent scenario. A click jumps to the alert list
+filtered on that address.
+
+The dots come from real coordinates. CrowdSec carries `latitude` and `longitude`
+in every alert, filled in by the parser **`crowdsecurity/geoip-enrich`** in stage
+`s02-enrich`. Without it the map stays empty and says so:
+
+```sh
+docker exec $CS cscli -c $CFG parsers install crowdsecurity/geoip-enrich
+```
+
+It is a **parser**, not a collection — `collections install` answers with
+`can't find … in collections`.
+
+Then restart CrowdSec. Alerts that already exist do not gain coordinates
+retroactively — the map fills up with detections arriving afterwards.
+
+What never reaches the map:
+
+- **Blocklist synchronisations.** A single sync brings tens of thousands of
+  entries with no location and would bury everything else.
+- **Coordinates `0/0`.** CrowdSec writes those when the enrichment found
+  nothing. A dot in the Gulf of Guinea would be an invention.
+- **More than 400 addresses.** Beyond that the list is cut by detection count;
+  the footer then states how many are shown.
+
+**Zoom and pan.** The mouse wheel or a two-finger gesture magnifies up to
+sixteen times, dragging moves the view, a double-click or the `⟲` button resets
+it. The dots keep their size while doing so — they stand for the number of
+detections, not for the zoom level. The chosen view survives the automatic
+refresh: whoever zoomed in on Sao Paulo does not get the whole world back every
+thirty seconds. Zooming happens around the mouse pointer, and dragging stops at
+the edge of the map.
+
+A dot measures three to six pixels depending on the number of detections. So it
+can still be hit, a transparent target of twenty-two pixels sits on top of it —
+measured in pixels, not in map units, so it is the same size on a phone as on a
+desktop and at every zoom level. The dot lights up as soon as the pointer is on
+it.
+
+**Your own location.** With `server_lat` and `server_lon` set, CrowdPanel draws
+a blue dot with a ring at that spot — the reference point all those red dots aim
+at. `server_label` names it in the tooltip and in the footer, for example `Home`
+or `Falkenstein data centre`. The coordinates come from the configuration and
+are never looked up: your public address does not travel to some third-party geo
+service just so a dot can sit on the map. Two decimal places locate a place to
+about a kilometre; anyone wanting to give away less rounds coarsely.
+
+Both fields default to `0`, and `0/0` counts — as it does for alerts — as “not
+filled in”: as long as nothing is entered there, the dot stays away. Coordinates
+for your own place come from any map on the web; in Home Assistant they sit
+under *Settings → System → General* next to the location.
+
+The outlines ship as `static/world.svg`, generated from Natural Earth 1:110m
+(public domain, see [LICENSE.md](LICENSE.md)). Nothing is fetched from the
+internet. The projection is Web Mercator — the same one every online map uses,
+and therefore the one the eye expects. The conversion still fits on one line, so
+the map needs no mapping library; the same formula lives in the generator script
+and in the front-end.
 
 ### Decisions
 
@@ -363,6 +438,74 @@ docker exec $CS cscli -c $CFG hub list
 docker exec $CS cscli -c $CFG hub upgrade
 ```
 
+---
+
+### Metrics
+
+CrowdSec keeps its own counters on everything passing through it, served in the
+Prometheus text format — the very source `cscli metrics` builds its tables from.
+This tab shows the same in the browser:
+
+| Table | Answers |
+|---|---|
+| Data sources | Are log lines arriving at all, and how many does CrowdSec fail to parse? |
+| Parsers | Which parser fires, which one runs dry? |
+| Scenarios | Which scenario actually triggers, which one is merely loaded? |
+| Whitelists | How often did an exception apply — and for what reason? |
+| LAPI routes / per machine / per bouncer | Who asks how often, and does a bouncer receive any decisions at all? |
+| AppSec | Requests and blocks per engine, plus the rules that hit |
+| Active decisions / Alerts | CrowdSec's own count, broken down by reason, origin and action |
+| Timings | Average parsing, bucket and LAPI time in milliseconds |
+| Caches | Size of the internal caches |
+
+All counters run since CrowdSec started and reset to zero on a restart. They are
+totals, not rates.
+
+**The counters have to be opened up first.** By default CrowdSec listens on
+`127.0.0.1` only, so inside its own container. CrowdPanel runs in a different one
+and cannot reach it that way.
+
+This is **not an add-on option** — Prometheus does not appear in the CrowdSec
+add-on's options at all. The setting lives in CrowdSec's own `config.yaml` under
+`/config/.storage/crowdsec/config/config.yaml`. The section is already there;
+only one line changes:
+
+```yaml
+prometheus:
+  enabled: true
+  level: full
+  listen_addr: 0.0.0.0   # ← instead of 127.0.0.1
+  listen_port: 6060
+```
+
+The easiest way is the **CrowdSec add-on's web terminal**, where `yq` is already
+installed:
+
+```sh
+yq eval -i '.prometheus.listen_addr = "0.0.0.0"'   /config/.storage/crowdsec/config/config.yaml
+```
+
+Then restart the CrowdSec add-on and check from the same terminal:
+
+```sh
+curl -s localhost:6060/metrics | head -5
+```
+
+The file survives: the add-on copies it into the configuration directory on the
+very first start only, later starts leave it alone. The single file rewritten on
+every start is `acquis.yaml`.
+
+Port 6060 does **not** have to be published to the host. CrowdPanel talks to the
+container over the Docker network, just like it does with the LAPI on 8080 — all
+that is needed is CrowdSec listening on every address.
+
+Without further configuration CrowdPanel uses the host from `lapi_url` on port
+6060; if the endpoint lives elsewhere, put the full address into
+`prometheus_url` (`http://…:6060` or `http://…/metrics` directly).
+
+While nothing is reachable the tab stays visible and explains exactly this step
+instead of just sitting empty.
+
 ## Home Assistant sensors
 
 With `ha_sensors` on (the default), CrowdPanel reports these entities to Home
@@ -423,16 +566,77 @@ again after that, so a misconfiguration cannot flood the log.
 | `machine_id` | empty | name of the machine account |
 | `machine_password` | empty | password of the machine account |
 | `lapi_tls_verify` | `true` | verify the TLS certificate; only turn off for self-signed `https` |
+| `prometheus_url` | empty | address of the CrowdSec metrics; empty means the host from `lapi_url` on port 6060 |
 | `default_ban_duration` | `4h` | preselected duration in the form |
 | `refresh_interval` | `30` | seconds between automatic refreshes, `0` turns it off |
 | `page_size` | `100` | how many rows the tables show at most |
 | `whitelist_dir` | empty | whitelist parser directory, only if auto-detection fails |
 | `crowdsec_dir` | empty | CrowdSec configuration directory, only if auto-detection fails |
 | `crowdsec_db` | empty | CrowdSec database, only if auto-detection fails |
-| `history_days` | `7` | how many days the history covers |
+| `history_days` | `7` | how many days the history covers (up to 3650 with the archive) |
+| `archive_enabled` | `true` | keep the alert archive at `/data/alerts.db` |
+| `archive_days` | `365` | how long the archive keeps detections, `0` = unlimited |
+| `archive_backfill_days` | `30` | how far back the very first sync reaches |
+| `archive_interval` | `300` | seconds between two syncs with the LAPI |
+| `server_lat` | `0` | latitude of your own location for the dot on the map, `0/0` means “not filled in” |
+| `server_lon` | `0` | longitude of your own location, only effective together with `server_lat` |
+| `server_label` | empty | label for that dot, otherwise "This server" |
 | `ha_sensors` | `true` | report sensors to Home Assistant |
 | `ha_sensor_interval` | `300` | seconds between two sensor updates |
 | `verbose_log` | `false` | extra lines in the log |
+
+---
+
+## Alert archive
+
+CrowdSec clears out its database after a few weeks. What disappears there cannot
+be fetched from the LAPI any more — up to version 0.5.6 it was gone from
+CrowdPanel as well. The archive therefore writes every detection once into its
+own SQLite file at `/data/alerts.db` and answers the questions about the past
+itself.
+
+**What comes from the archive:** history, attack map, the alert list (for
+“detections") and the history of an address under *Check IP*. Each of these
+answers names its origin in the JSON field `source` — `archive` or `lapi`.
+
+**What still comes live from the LAPI:** active decisions, the overview figures,
+bouncers, allowlists, hub and metrics. That is the current state, and it belongs
+where it is made.
+
+**What the archive stores:** one row per detection with timestamp, scenario,
+address, country, AS name, coordinates, event count. Of a blocklist
+synchronisation only the id and the timestamp remain — enough for the second bar
+in the history. Its ten thousand decisions would be the reason the file grows,
+and say nothing.
+
+A row is about 200 bytes. At fifty detections a day that is three megabytes a
+year; at a thousand a day, about seventy. `archive_days` caps the retention,
+one year by default, `0` removes the cap.
+
+**How it is filled:** a background thread asks the LAPI every
+`archive_interval` seconds (300 by default) for everything since the newest
+known alert, with two hours of overlap. Duplicates fall away over the alert id.
+
+On the very first run the query reaches back `archive_backfill_days` days (30 by
+default). The LAPI never returns more than a thousand alerts in one answer,
+though — so the first run picks up at most the thousand newest. Whatever
+CrowdSec has already forgotten by then cannot be recovered anyway. From then on
+nothing is lost as long as the add-on runs.
+
+**When it does not work:** if the file cannot be created — full disk, missing
+permissions — the add-on logs a warning and keeps answering from the LAPI. The
+same goes for `archive_enabled: false`. In both cases the interface looks like
+it did before, only the history does not reach further back than CrowdSec's own
+retention.
+
+The state of the archive is shown on the *Settings* tab: row count, oldest and
+newest entry, last sync, file size, retention.
+
+**Backup:** `/data/alerts.db` does not belong in a backup. Its content is
+observation, not configuration — if the file is lost the archive rebuilds
+itself, and what is gone is the past, not a feature. Anyone who wants to keep
+the history anyway backs up the three files `alerts.db`, `alerts.db-wal` and
+`alerts.db-shm` together and with the add-on stopped.
 
 ---
 
@@ -444,6 +648,7 @@ again after that, so a misconfiguration cannot flood the log.
 | `/data/sessions.json` | open sign-ins |
 | `/data/twofa.json` | 2FA secret, backup codes, trusted devices (mode 600) |
 | `/data/secret.key` | signing key for cookies (mode 600) |
+| `/data/alerts.db` | the alert archive, plus `-wal` and `-shm` while running |
 
 Everything lives in `/data` and therefore not in a browsable share folder. To reset
 two-factor sign-in, delete `twofa.json` and restart the add-on.
@@ -455,7 +660,8 @@ two-factor sign-in, delete `twofa.json` and restart the add-on.
 | Message | Cause | Fix |
 |---|---|---|
 | Machine credentials are missing | `machine_id` or `machine_password` empty | do step 1 of the setup |
-| LAPI cannot be reached | wrong address or port | check the container address with `docker inspect`, do not guess `127.0.0.1` |
+| LAPI cannot be reached | wrong address or port | check the hostname with `docker inspect -f '{{.Config.Hostname}}' $CS`, do not guess `127.0.0.1` |
+| LAPI cannot be reached, worked before | `lapi_url` holds a container IP (`172.30.33.x`) that changed on restart | switch `lapi_url` to the hostname, e.g. `http://424ccef4-crowdsec:8080` |
 | The machine credentials were rejected | machine created in the wrong database | run `cscli` again with `-c $CFG`; verify with `machines list` |
 | The LAPI address is not an http(s) address | typo, missing `http://` | fix `lapi_url` |
 | Decision created but the bouncer lets it through | bouncer has not pulled yet, or the address is on an allowlist | open *Check IP* and read the allowlist line |

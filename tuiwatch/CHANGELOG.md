@@ -1,5 +1,200 @@
 # Changelog
 
+## [0.101.0] - 2026-08-21
+
+### Added
+- **Störungsliste: ein Ausrufezeichen neben dem Logo, wenn etwas ins Leere läuft.**
+  Manche Fehlpfade wiederholen sich täglich, ohne je wieder ein Ergebnis zu liefern
+  — eine Preisbarometer-Messreihe zu einem Ziel, das nicht mehr im Programm ist
+  („Suche lieferte keine Treffer"), ein Angebot auf einer toten URL, ein Suchabo mit
+  kaputter Payload. Jeder dieser Fälle kostet täglich TUI-Aufrufe und stand bisher
+  nur als WARNING im Log, wo man ihn erst findet, wenn man danach sucht.
+  Neu sammelt `issues.py` sie in einer Tabelle (eine Zeile je Fall, mit Serie und
+  Gesamtzahl). Sobald etwas offen ist, erscheint neben „TUIWatch" ein
+  Ausrufezeichen — gelb bei einer einzelnen Warnung, rot (pulsierend) ab drei
+  Fehlversuchen in Folge. Ein Klick öffnet die Liste mit Beschreibung, Serie,
+  Gesamtzahl und Zeitpunkten.
+  Je Störung gibt es dort **Pausieren** — und zwar genau die betroffene Abfrage,
+  alles andere läuft weiter: eine Messreihe fällt aus dem Preisbarometer, ein
+  Angebot wird pausiert, ein Suchabo abgeschaltet. Pausierte Einträge bleiben
+  ausgegraut stehen (und zählen nicht mehr mit), damit nicht in Vergessenheit
+  gerät, dass da etwas stillgelegt wurde; „Wieder aktivieren" nimmt sie zurück und
+  setzt die Serie auf null. „Ausblenden" entfernt nur den Eintrag — tritt der
+  Leerlauf wieder auf, kommt er zurück.
+  Entwarnung passiert von selbst: liefert die Quelle wieder etwas, verschwindet die
+  Störung. Ebenso, wenn das Bezugsobjekt gelöscht wird (Angebot, gespeicherte
+  Suche) oder eine Messreihe gar nicht mehr ansteht.
+  Die Zahl fürs Ausrufezeichen hängt an `/api/offers` (wird ohnehin alle 5 s
+  geholt) — kein zusätzlicher Poll-Timer. Bewusst keine Kopie des Log-Puffers unter
+  „Meldungen → Warnungen/Fehler": der zeigt jede Warnung seit dem Start, die
+  Störungsliste nur die wiederkehrenden, abschaltbaren Fälle.
+
+### Fixed
+- **Die Fußzeile stand rechtsbündig statt mittig.** Seit der Aufteilung in Zustands-
+  und Werkzeugzeile hielt sie beide Blöcke mit `justify-content:space-between`
+  auseinander — bei breitem Fenster passten sie in eine Zeile, und der
+  Werkzeug-Block klebte dann am rechten Rand. Beide Blöcke sind jetzt gestapelt und
+  zentriert, wie vor der Designüberarbeitung.
+
+## [0.100.12] - 2026-08-21
+
+### Changed
+- **„Jetzt prüfen" und „Pausieren" liegen jetzt ebenfalls im ⋯-Menü der
+  Angebotskarte.** Beide standen als einzige Symbolknöpfe zwischen den
+  beschrifteten Knöpfen und dem Menü — ohne Beschriftung war nicht ablesbar, was
+  Lupe und Pausenzeichen tun. Im Menü tragen sie ihren Namen („Jetzt prüfen",
+  „Pausieren"/„Fortsetzen") und stehen als eigene Gruppe über dem verwaltenden
+  Teil (Archivieren, In Liste verschieben, Zurücksetzen, Löschen), getrennt durch
+  die Trennlinie, die das „Mehr"-Menü der Werkzeugleiste schon nutzt. Die
+  Knopfzeile der Karte besteht damit nur noch aus beschrifteten Knöpfen plus dem
+  ⋯-Knopf.
+
+## [0.100.11] - 2026-08-20
+
+### Fixed
+- **In der Fußzeile stand `<svg class="i"><use href="#i-hash"/></svg>` als
+  sichtbarer Text vor den KI-Kosten.** Beim Umstellen auf den Symbolsatz (0.100.8)
+  wurde dort ein Symbol eingesetzt, obwohl die Zeile über `textContent` gesetzt
+  wird — Markup erscheint da als Text, nicht als Bild. Die Zuweisung stand eine
+  Zeile über der Zeichenkette, weshalb die damalige Prüfung sie übersehen hat.
+  Das Symbol entfällt ersatzlos; die übrigen Einträge der Fußzeile kommen seit
+  0.100.9 ohnehin ohne aus. Ein Durchlauf über alle Zuweisungen an `textContent`,
+  `title`, `placeholder`, `value` und `alt` fand keine weitere betroffene Stelle.
+- **Beim Umbruch der Fußzeile hing ein „·" am Zeilenanfang.** Die Trennzeichen
+  kamen aus einem `::before` je Eintrag; sobald die Zeile umbrach, stand das
+  Zeichen des ersten Eintrags der neuen Zeile ohne Bezug davor. Getrennt wird
+  jetzt über den Abstand statt über ein Zeichen — das kann nicht umbrechen.
+
+## [0.100.10] - 2026-08-20
+
+### Changed
+- **Ruhigeres Design (Stufe 4 von 4): die Angebotskarte.** Die Karte ist rund 15 %
+  flacher (447 → 380 px) und kommt mit deutlich weniger Farbe aus, ohne dass eine
+  einzige Angabe verschwindet:
+  - **Kein leeres Feld mehr neben dem Preis.** Kennzahlen (Tief/Hoch/Ø) sowie
+    Wunsch- und Buchungspreis lagen als eigene Zeilen quer unter der Karte,
+    während der höhere Preisblock daneben rund 80 px Leerraum stehen ließ. Beide
+    Blöcke stehen jetzt in derselben Spalte wie die Angebotsdaten, der Preisblock
+    reicht über beide Zeilen — der Leerraum ist damit auf null.
+  - **Der Preis ist die eine große Zahl der Karte** (30 px, tabellarische Ziffern,
+    damit Beträge in der Liste untereinander stehen).
+  - **Abzeichen ohne Farbfläche:** „verfügbar · bestätigt", „kostenlos
+    stornierbar", Preisänderung, Tendenz und „seit Buchung" tragen ihre Bedeutung
+    im Wort — statt einer farbigen Pille steht jetzt ein Punkt in der Signalfarbe
+    davor. In den Tabellen von Statistik und Verlauf bleiben die gefüllten
+    Abzeichen: dort wirkt die Fläche als Verlaufsanzeige über mehrere Zeilen.
+  - **Aktionszeile:** Archivieren, In Liste verschieben, Zurücksetzen und Löschen
+    liegen hinter den drei Punkten am Zeilenende. Das sind die selten gebrauchten
+    und die unwiderruflichen Aktionen — „Löschen" stand vorher direkt neben
+    „Prüfen". Sichtbar bleiben alle beschrifteten Knöpfe sowie Prüfen und Pause.
+  - **Schriftskala:** aus 33 frei gewählten Größen werden sieben Stufen
+    (11/12/13/15/17/22/30 px). Sieben statt der angekündigten sechs — die
+    Oberfläche lebt von dichten Kleinstbeschriftungen (Kalenderzellen,
+    „PRO PERSON"), die auf 12 px zu heben hätte die Karten wieder aufgebläht.
+  - **Unverändert:** die Flugzeilen (Hin/Rück mit Datum, Uhrzeit, Strecke,
+    Airline, Stopps) und das Hotelbild.
+
+## [0.100.9] - 2026-08-20
+
+### Changed
+- **Ruhigeres Design (Stufe 3 von 4): Rangfolge statt vierzehn gleich lauter
+  Knöpfe.** Bisher standen sieben Knöpfe in der Kopfleiste und sieben in der
+  Werkzeugleiste — alle in derselben Form, derselben Größe, derselben Farbfamilie.
+  Nichts davon war als Hauptaktion erkennbar. Neu in drei Ebenen:
+  - **Kopfleiste:** nur noch **Alle prüfen** (jetzt mit Beschriftung und als
+    Hauptaktion hervorgehoben), Design-Umschalter und Abmelden.
+  - **Werkzeugleiste:** die vier täglich gebrauchten Werkzeuge — Suche, Meine
+    Reisen, TripPilot, Markttrend. Die Knöpfe strecken sich nicht mehr über die
+    volle Breite, sondern sind so breit wie ihre Beschriftung.
+  - **„Mehr"-Menü:** Klimatabellen, Reiseführer, Regionen vergleichen, Flugplan,
+    KI-Verlauf, Frage stellen, Aktionscodes, Als E-Mail senden und Wochenüberblick
+    — gruppiert nach Reise-Wissen, KI sowie Versand &amp; Codes. Das Auf- und
+    Zuklappen macht `<details>` selbst, das Menü funktioniert also auch ohne
+    JavaScript; nachgerüstet ist nur das Schließen nach einer Auswahl, bei Klick
+    daneben und mit Escape.
+  - Ist die KI oder der Flugplan abgeschaltet, verschwindet die jeweilige
+    Menügruppe samt Überschrift — es bleibt keine leere Rubrik stehen.
+  - Ein neuer Aktionscode lag damit im zugeklappten Menü: der „Mehr"-Knopf
+    bekommt jetzt denselben grünen Hinweis wie der Aktionscode-Eintrag selbst.
+  - **Fußzeile:** zweigeteilt statt einer langen Kette — links der Zustand
+    (Version, Prüfintervall, DB-Größe, TUI-Aufrufe, API, KI-Kosten), rechts die
+    Werkzeuge (Meldungen, Statistik, Geteilte Links, Backup, Restore, KI-Prompts)
+    als reiner Text ohne Symbole.
+
+  Sämtliche Funktionen und Tooltips bleiben unverändert, nur ihr Platz ändert sich.
+
+- **„Für andere" heißt jetzt „In Liste verschieben".** Der Name beschrieb einen
+  Sonderfall, nicht die Tätigkeit — verschoben wird in eine frei benannte Liste,
+  für wen auch immer. Betrifft den Knopf in der Sammelaktion, den Dialogtitel und
+  den Tooltip in der Angebotskarte.
+  - Der Knopf in der Angebotskarte zeigt statt des Emoji der Liste ein
+    Listensymbol aus dem Symbolsatz. In welcher Liste ein Angebot steckt, sagen
+    weiterhin die Akzentfarbe des Knopfes und sein Tooltip; das selbstgewählte
+    Symbol steht unverändert an der Liste selbst.
+  - Der voreingestellte **Listenname** bleibt „Für andere" — er hängt an
+    bestehenden Einträgen in der Datenbank und lässt sich jederzeit umbenennen.
+
+## [0.100.8] - 2026-08-20
+
+### Changed
+- **Ruhigeres Design (Stufe 2 von 4): ein Symbolsatz statt bunter Emoji.** Die
+  Oberfläche benutzte über hundert Emoji als Symbolsprache — in der Kopfleiste, der
+  Werkzeugleiste, den Dialogtiteln, der Fußzeile und mitten in den Angebotskarten.
+  Jedes Emoji bringt eigene Farben und eine eigene Strichstärke mit, und Windows,
+  iOS und Android zeichnen dasselbe Zeichen jeweils anders. Ersetzt durch **66
+  eigene Strichsymbole** auf einheitlichem 24er-Raster (rund 12 KB, direkt im HTML
+  — das Add-on muss auch ohne Internet sofort vollständig aussehen).
+  - Die Symbole erben ihre Farbe über `currentColor`: sie werden mit deaktivierten
+    Knöpfen blass, beim Überfahren heller und im hellen Design dunkler. Genau das
+    konnte ein Emoji nie.
+  - Auch die noch verbliebenen Vollflächen-Symbole (Schließen-Kreuz in allen
+    Dialogen, Prüfen/Pause/Archiv/Zurücksetzen/Löschen in der Angebotskarte,
+    Design- und Abmelde-Knopf) laufen jetzt über denselben Satz.
+  - Die Ampel des Buchungszeitpunkts und des Preisbarometers zeigt statt 🟢🟡🔴
+    einen Punkt in den Signalfarben — passt sich damit hellem und dunklem Design an.
+  - **Emoji bleiben, wo sie Nutzerdaten sind:** die Symbolwahl der
+    „Für andere"-Listen ist unverändert. Ebenso bleiben reine Textzeichen
+    (★ Sterne, ✓, ✕, ⏱) — die tragen schon immer die Textfarbe.
+  - Dialogtitel, die per JavaScript gesetzt werden (KI-Fazit, Buchungsscore,
+    TripPilot …), haben ihr vorangestelltes Emoji ersatzlos verloren; dort lässt
+    sich kein Symbol einsetzen, und der Titel steht ohnehin im Dialograhmen.
+
+### Fixed
+- **Tooltip des Knopfes „Für andere" war abgeschnitten.** Im `title`-Text stand ein
+  gerades Anführungszeichen mitten im Attributwert (`„Für andere"`), wodurch der
+  Browser das Attribut vorzeitig beendete — angezeigt wurde nur „In eine „Für
+  andere". Ersetzt durch das typografische Schlusszeichen.
+- **Versionsnummer in der Fußzeile blieb bei 0.100.6 stehen.** Beim Bump auf 0.100.7
+  wurde `APP_VERSION` in `app.py` nicht mitgezogen, nur `config.yaml`. Beide stehen
+  jetzt wieder auf demselben Wert.
+
+## [0.100.7] - 2026-08-20
+
+### Changed
+- **Ruhigeres Design (Stufe 1 von 4): Farben, Formen, Abstände.** Die Oberfläche
+  wirkte durch viele nah beieinander liegende Werte unruhig — 33 verschiedene
+  Schriftgrößen, 11 verschiedene Eckenradien zwischen 1 und 20 Pixeln, ein Rahmen
+  um praktisch jedes Element. Dieser Schritt vereinheitlicht die Grundwerte, ohne
+  eine einzige Funktion oder Beschriftung anzufassen:
+  - **Farben:** neutrale Töne mit leichter Blaugrün-Neigung statt der bisherigen
+    GitHub-Grautöne, ruhigerer Akzent (`#3b9cd9` statt `#3b82f6`), weichere
+    Signalfarben für Preisänderungen. Hell- und Dunkeldesign getrennt abgestimmt.
+    Die passenden `rgba()`-Hinterlegungen der Abzeichen wurden mitgezogen.
+  - **Ecken:** aus 11 Werten werden drei Token — `--r-card` (14px) für Karten,
+    Panels und Dialoge, `--r-ui` (10px) für Knöpfe und Eingabefelder, `--r-pill`
+    für Abzeichen und Fortschrittsbalken. Anmeldeseite und die im `app.js`
+    erzeugten Kartenbausteine nutzen dieselben Token.
+  - **Abstände:** Angebots- und Eingabekarten auf ein 4er-Raster gebracht
+    (Innenabstand 14 → 18px), damit die Karten weniger gedrängt wirken.
+  - Die Klimadiagramm-Farbe `--viz-1` und die Sternebewertung in Suchergebnissen
+    laufen jetzt über die Design-Token statt über eigene Festwerte.
+
+### Fixed
+- **GIATA- und „Fotos"-Verweis im Angebot waren im dunklen Design unlesbar.** Die
+  Zeile mit den Buchungscodes hatte keine eigene Linkfarbe und erbte das
+  Browser-Blau, das auf dunklem Grund praktisch verschwand. Beide nutzen jetzt die
+  Akzentfarbe (gleicher Fall wie zuvor schon bei den Reiseziel-Zeilen).
+
 ## [0.100.6] - 2026-08-19
 
 ### Fixed

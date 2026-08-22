@@ -4,21 +4,35 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>TUIWatch – Reisepreis-Tracker</title>
-  <meta name="theme-color" content="#0d1117">
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%233b82f6' d='M21 16v-2l-8-5V3.5A1.5 1.5 0 0 0 11.5 2 1.5 1.5 0 0 0 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z'/%3E%3C/svg%3E">
+  <meta name="theme-color" content="#0e1215">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%233b9cd9' d='M21 16v-2l-8-5V3.5A1.5 1.5 0 0 0 11.5 2 1.5 1.5 0 0 0 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z'/%3E%3C/svg%3E">
   <link rel="manifest" href="{{ (script_root or '') }}/manifest.json" crossorigin="use-credentials">
   <link rel="apple-touch-icon" href="{{ (script_root or '') }}/icon-192.png">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="TUIWatch">
   <style>
-    :root { --bg:#0d1117; --surf:#161b22; --surf2:#1c2230; --border:#30363d; --text:#c9d1d9; --muted:#8b949e; --accent:#3b82f6; --blue:#1f6feb; --blue-h:#388bfd; --green:#2ea043; --red:#f85149; --amber:#d29922; }
-    [data-theme="light"] { --bg:#eef2f8; --surf:#ffffff; --surf2:#f3f6fb; --border:#d0d7de; --text:#1f2328; --muted:#636c76; --accent:#0969da; --blue:#0b65d8; --blue-h:#1f7ce8; --green:#1a7f37; --red:#cf222e; --amber:#9a6700; }
+    /* Farb- und Formwerte (Redesign Stufe 1). Neutrale mit leichter Blaugrün-Neigung
+       statt der GitHub-Grautöne, ruhigerer Akzent, weichere Signalfarben.
+       Radien laufen nur noch über drei Token: Karte, Bedienelement, Pille — vorher
+       lagen elf Werte zwischen 1px und 20px nebeneinander. */
+    :root { --bg:#0e1215; --surf:#171d21; --surf2:#1f272b; --border:#263035; --text:#e4eaec; --muted:#8a9aa1; --accent:#3b9cd9; --blue:#2e8fd6; --blue-h:#4aa6e4; --green:#46b47c; --red:#e4685f; --amber:#d2a03a; }
+    [data-theme="light"] { --bg:#f1f4f6; --surf:#ffffff; --surf2:#e9eef1; --border:#d5dde1; --text:#161c1f; --muted:#5e6c72; --accent:#12689b; --blue:#12689b; --blue-h:#0f7bb8; --green:#1c7a52; --red:#c0392f; --amber:#8a6414; }
+    :root { --r-card:14px; --r-ui:10px; --r-pill:999px; }
+    /* Schriftskala: aus 33 frei gewählten Größen werden sieben Stufen. Sieben statt
+       der geplanten sechs, weil die Oberfläche dichte Kleinstbeschriftungen braucht
+       (Kalenderzellen, „PRO PERSON") — die auf 12px zu heben hätte die Karten
+       wieder aufgebläht. */
+    :root { --fs-2xs:11px; --fs-xs:12px; --fs-sm:13px; --fs-md:15px;
+            --fs-lg:17px; --fs-xl:22px; --fs-2xl:30px; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; background:var(--bg); color:var(--text); min-height:100vh; transition:background .2s,color .2s; }
     .wrap { max-width: 1000px; margin: 0 auto; padding: 16px; }
     header { display:grid; grid-template-columns:minmax(0,auto) minmax(0,1fr) minmax(0,auto); align-items:center; gap:10px; margin-bottom:18px; }
-    .logo { display:flex; align-items:center; gap:8px; font-size:1.3rem; font-weight:700; color:var(--accent); transition:color .3s; }
+    /* Logo und Warnzeichen sitzen als eine Einheit in der ersten Rasterspalte —
+       das Ausrufezeichen soll direkt am Namen kleben, nicht an den Kopfknöpfen. */
+    .brand { display:flex; align-items:center; gap:10px; min-width:0; }
+    .logo { display:flex; align-items:center; gap:8px; font-size:var(--fs-xl); font-weight:700; color:var(--accent); transition:color .3s; }
     .logo svg { width:26px; height:26px; fill:var(--accent); transition:fill .3s; }
     /* Hintergrund-Signal: setBusy() (app.js) schaltet .busy, solange laufende
        Aufgaben gemeldet sind (/api/offers → busy). Puls nur auf dem Flieger. */
@@ -26,125 +40,193 @@
     .logo.busy svg { fill:var(--amber); animation:logo-busy 1.6s ease-in-out infinite; }
     @keyframes logo-busy { 0%,100%{opacity:1} 50%{opacity:.35} }
     @media (prefers-reduced-motion:reduce) { .logo.busy svg { animation:none; } }
+    /* Störungs-Anzeige: gelb, solange es nur Warnungen sind, rot ab drei Fehlversuchen
+       in Folge (issues.ISSUE_ERROR_STREAK). Der Puls holt sie ins Blickfeld, ohne dass
+       ein Fenster aufspringt — anklicken bleibt freiwillig. */
+    .issue-badge { display:inline-flex; align-items:center; gap:5px; cursor:pointer;
+                   border:1px solid var(--amber); background:transparent; color:var(--amber);
+                   border-radius:var(--r-pill); padding:3px 10px; font:inherit;
+                   font-size:var(--fs-xs); font-weight:700; line-height:1; }
+    .issue-badge:hover { background:color-mix(in srgb, var(--amber) 16%, transparent); }
+    .issue-badge.error { border-color:var(--red); color:var(--red);
+                         animation:issue-pulse 2s ease-in-out infinite; }
+    .issue-badge.error:hover { background:color-mix(in srgb, var(--red) 16%, transparent); }
+    @keyframes issue-pulse { 0%,100%{opacity:1} 50%{opacity:.45} }
+    @media (prefers-reduced-motion:reduce) { .issue-badge.error { animation:none; } }
+    .issue-row { padding:10px 0; border-bottom:1px solid var(--border); }
+    .issue-row.muted { opacity:.55; }
+    .issue-head { display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; }
+    .issue-head b { font-size:var(--fs-md); }
+    .issue-kind { border:1px solid var(--border); border-radius:var(--r-pill);
+                  padding:1px 8px; font-size:var(--fs-2xs); color:var(--muted); }
+    .issue-acts { display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; }
     .header-actions { display:flex; align-items:center; justify-content:flex-end; gap:8px; flex-wrap:wrap; min-width:0; }
     .header-actions .btn { flex:0 1 auto; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     .header-actions .icon-btn { flex:0 0 auto; }
     /* max-width + Ellipse: ohne das wächst die Pille über ihre Rasterspalte
        hinaus und schiebt sich über Logo bzw. Kopfleisten-Knöpfe. */
-    .trip-countdown { justify-self:center; display:none; align-items:center; gap:7px; font-size:.8rem;
-      color:var(--muted); background:var(--surf); border:1px solid var(--border); border-radius:20px;
+    .trip-countdown { justify-self:center; display:none; align-items:center; gap:7px; font-size:var(--fs-sm);
+      color:var(--muted); background:var(--surf); border:1px solid var(--border); border-radius:var(--r-pill);
       padding:6px 14px; cursor:pointer; white-space:nowrap; min-width:0; max-width:100%;
       overflow:hidden; text-overflow:ellipsis; }
     .trip-countdown > * { overflow:hidden; text-overflow:ellipsis; }
     .trip-countdown:hover { border-color:var(--accent); color:var(--text); }
     .trip-countdown b { color:var(--text); font-weight:700; }
     @media(max-width:700px){ .trip-countdown span.tc-dest{ display:none; } }
-    .btn { background:var(--blue); border:1px solid var(--blue-h); color:#fff; padding:8px 14px; border-radius:6px; font-size:.85rem; font-weight:600; cursor:pointer; transition:background .15s; text-decoration:none; }
+    .btn { background:var(--blue); border:1px solid var(--blue-h); color:#fff; padding:8px 14px; border-radius:var(--r-ui); font-size:var(--fs-sm); font-weight:600; cursor:pointer; transition:background .15s; text-decoration:none; }
     a.btn { display:inline-block; }
     .btn:hover { background:var(--blue-h); }
     .btn:disabled { opacity:.45; cursor:not-allowed; }
     .btn.sec { background:transparent; border:1px solid var(--border); color:var(--text); }
     .btn.danger { background:transparent; border:1px solid var(--border); color:var(--red); }
-    .icon-btn { background:transparent; border:1px solid var(--border); color:var(--muted); border-radius:6px; padding:6px 8px; cursor:pointer; display:inline-flex; }
-    .icon-btn svg { width:15px; height:15px; fill:currentColor; }
+    .icon-btn { background:transparent; border:1px solid var(--border); color:var(--muted); border-radius:var(--r-ui); padding:6px 8px; cursor:pointer; display:inline-flex; }
+    .icon-btn svg:not(.i) { width:15px; height:15px; fill:currentColor; }
+    .icon-btn .i { width:15px; height:15px; }
     .icon-moon{display:block}.icon-sun{display:none}
     [data-theme="light"] .icon-moon{display:none}[data-theme="light"] .icon-sun{display:block}
-    .add-card { background:var(--surf); border:1px solid var(--border); border-radius:8px; padding:14px; margin-bottom:18px; }
+    .add-card { background:var(--surf); border:1px solid var(--border); border-radius:var(--r-card); padding:18px; margin-bottom:16px; }
     .add-row { display:flex; gap:8px; flex-wrap:wrap; }
-    .add-row input { flex:1 1 240px; background:var(--bg); border:1px solid var(--border); color:var(--text); padding:9px 12px; border-radius:6px; font-size:.85rem; }
+    .add-row input { flex:1 1 240px; background:var(--bg); border:1px solid var(--border); color:var(--text); padding:9px 12px; border-radius:var(--r-ui); font-size:var(--fs-sm); }
     .add-row input:focus { outline:none; border-color:var(--accent); }
-    .hint { font-size:.74rem; color:var(--muted); margin-top:8px; }
+    .hint { font-size:var(--fs-xs); color:var(--muted); margin-top:8px; }
     /* Umbruch statt Ellipse: passt die Leiste nicht in eine Zeile (schmales
        Fenster, Tablet), sind zwei Zeilen lesbarer als „Aktionscod…". */
     .toolbar { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:14px; }
-    .toolbar .btn { flex:1 1 auto; min-width:0; padding:7px 8px; font-size:.8rem;
+    .toolbar .btn { flex:0 1 auto; min-width:0; padding:7px 12px; font-size:var(--fs-sm);
                     white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    /* ── „Mehr"-Menü ──────────────────────────────────────────────────────────
+       Auf- und Zuklappen übernimmt <details> selbst, deshalb funktioniert das
+       Menü auch ohne JavaScript. Die Gruppen tragen dieselben Feature-Klassen
+       wie ihre Einträge, damit bei abgeschalteter KI keine leere Überschrift
+       stehen bleibt. */
+    .more { position:relative; }
+    .more > summary { list-style:none; cursor:pointer; display:inline-flex; align-items:center;
+                      gap:6px; user-select:none; }
+    .more > summary::-webkit-details-marker { display:none; }
+    .more > summary:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+    .mm-chev { transition:transform .15s; }
+    .more[open] .mm-chev { transform:rotate(180deg); }
+    .more-menu { position:absolute; right:0; top:calc(100% + 6px); z-index:40; min-width:230px;
+                 background:var(--surf2); border:1px solid var(--border); border-radius:var(--r-card);
+                 padding:8px; box-shadow:0 12px 32px rgba(0,0,0,.35); text-align:left; }
+    .mm-group + .mm-group { margin-top:6px; padding-top:6px; border-top:1px solid var(--border); }
+    .mm-head { font-size:var(--fs-2xs); letter-spacing:.09em; text-transform:uppercase;
+               color:var(--muted); padding:5px 9px 3px; }
+    .mm-item { display:flex; align-items:center; gap:9px; width:100%; text-align:left;
+               background:none; border:none; color:var(--text); font:inherit; font-size:var(--fs-sm);
+               padding:7px 9px; border-radius:var(--r-ui); cursor:pointer; }
+    .mm-item:hover, .mm-item:focus-visible { background:var(--surf); outline:none; }
+    .mm-item .i { color:var(--muted); }
+    .mm-item:hover .i { color:var(--accent); }
+    /* Ein Aktionscode-Hinweis liegt im zugeklappten Menü — der Punkt am „Mehr" holt
+       ihn nach vorn (setAktionGlow in app.js setzt beides). */
+    #more-sum.has-news { border-color:var(--green); }
+    #more-sum.has-news::after { content:''; width:6px; height:6px; border-radius:50%;
+                                background:var(--green); display:inline-block; }
+    /* Schmale Fenster: nicht am „Mehr"-Knopf ausrichten (der steht dann irgendwo
+       mitten in der umgebrochenen Leiste und das Menü liefe rechts aus dem Bild),
+       sondern über die ganze Breite unter die Leiste legen. */
+    @media (max-width:600px){
+      .toolbar { position:relative; }
+      .more { position:static; }
+      .more-menu { left:0; right:0; min-width:0; }
+    }
     /* Zwei Zeilen: oben Anzahl + „Auswahl aufheben" (rechts), darunter die Aktionen.
        Vorher stand alles in einer umbrechenden Zeile — „Auswahl aufheben" landete
        dann je nach Fensterbreite irgendwo zwischen den Aktionsknöpfen. */
-    .bulk-bar { display:flex; flex-direction:column; gap:8px; margin-bottom:12px; padding:8px 12px; background:var(--surf); border:1px solid var(--accent); border-radius:8px; }
+    .bulk-bar { display:flex; flex-direction:column; gap:8px; margin-bottom:12px; padding:8px 12px; background:var(--surf); border:1px solid var(--accent); border-radius:var(--r-card); }
     .bulk-head { display:flex; align-items:center; justify-content:space-between; gap:12px; }
     .bulk-actions { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
-    .bulk-bar #bulk-count { font-weight:600; font-size:.88rem; }
+    .bulk-bar #bulk-count { font-weight:600; font-size:var(--fs-md); }
     .bulk-check { width:16px; height:16px; vertical-align:middle; cursor:pointer; accent-color:var(--accent); }
-    .overview { background:var(--surf); border:1px solid var(--border); border-radius:8px; padding:9px 12px; margin-bottom:14px; font-size:.84rem; color:var(--muted); }
+    .overview { background:var(--surf); border:1px solid var(--border); border-radius:var(--r-card); padding:10px 14px; margin-bottom:16px; font-size:var(--fs-sm); color:var(--muted); }
     .overview b { color:var(--text); }
     .search-row { margin-bottom:14px; display:flex; gap:8px; flex-wrap:wrap; }
-    .search-row input { flex:1 1 240px; background:var(--surf); border:1px solid var(--border); color:var(--text); padding:9px 12px; border-radius:6px; font-size:.85rem; }
+    .search-row input { flex:1 1 240px; background:var(--surf); border:1px solid var(--border); color:var(--text); padding:9px 12px; border-radius:var(--r-ui); font-size:var(--fs-sm); }
     .search-row input:focus { outline:none; border-color:var(--accent); }
     /* ✕ zum Leeren in Suchfeldern (JS-Enhancer attachClearX) */
     .clearx-wrap { position:relative; display:inline-flex; flex:1 1 240px; width:100%; max-width:100%; min-width:0; }
     .clearx-wrap > input { width:100%; flex:1; padding-right:30px; box-sizing:border-box; }
     .clearx { position:absolute; right:9px; top:50%; transform:translateY(-50%); cursor:pointer;
-              color:var(--muted); font-size:.85rem; line-height:1; padding:3px; user-select:none; }
+              color:var(--muted); font-size:var(--fs-sm); line-height:1; padding:3px; user-select:none; }
     .clearx:hover { color:var(--text); }
-    .search-row select { background:var(--surf); border:1px solid var(--border); color:var(--text); padding:9px 10px; border-radius:6px; font-size:.85rem; cursor:pointer; }
-    .rename-btn { background:none; border:none; color:var(--muted); cursor:pointer; font-size:.85rem; padding:0 4px; line-height:1; }
+    .search-row select { background:var(--surf); border:1px solid var(--border); color:var(--text); padding:9px 10px; border-radius:var(--r-ui); font-size:var(--fs-sm); cursor:pointer; }
+    .rename-btn { background:none; border:none; color:var(--muted); cursor:pointer; font-size:var(--fs-sm); padding:0 4px; line-height:1; }
     .rename-btn:hover { color:var(--accent); }
-    .offer { background:var(--surf); border:1px solid var(--border); border-radius:8px; padding:14px 16px; margin-bottom:14px; }
+    .offer { background:var(--surf); border:1px solid var(--border); border-radius:var(--r-card); padding:18px; margin-bottom:16px; }
     .offer.paused { opacity:.65; }
     .offer.archived { opacity:.78; border-style:dashed; }
     /* „Für andere": eigener Block am Listenende, standardmäßig eingeklappt. Der
        Akzentstreifen macht die Gruppe auch beim Scrollen ohne Überschrift kenntlich. */
     .offer.foreign { border-left:3px solid var(--muted); }
-    .offer.collapsed { padding:10px 16px; margin-bottom:10px; }
+    .offer.collapsed { padding:12px 18px; margin-bottom:12px; }
     .offer.collapsed .offer-top { align-items:center; }
-    .offer.collapsed .price-now { font-size:1.35rem; }
-    .foreign-toggle { font-size:.95rem; }
+    .offer.collapsed .price-now { font-size:var(--fs-xl); }
+    .foreign-toggle { font-size:var(--fs-md); }
     .icon-btn.foreign-on { color:var(--accent); }
     .paused-badge { color:var(--amber); font-weight:700; }
     .archived-badge { color:var(--muted); font-weight:700; }
-    .arch-head { font-size:.95rem; font-weight:700; color:var(--muted); margin:22px 0 10px; padding-top:6px; border-top:1px solid var(--border); }
+    .arch-head { font-size:var(--fs-md); font-weight:700; color:var(--muted); margin:22px 0 10px; padding-top:6px; border-top:1px solid var(--border); }
     /* Listenauswahl „Für andere" */
     .fl-list { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:14px; }
     .fl-pick.active { border-color:var(--accent); color:var(--accent); }
     .fl-new { display:flex; gap:8px; align-items:center; }
-    .fl-new input { flex:1; min-width:0; background:var(--surf); border:1px solid var(--border); color:var(--text); padding:9px 10px; border-radius:6px; font-size:.9rem; }
+    .fl-new input { flex:1; min-width:0; background:var(--surf); border:1px solid var(--border); color:var(--text); padding:9px 10px; border-radius:var(--r-ui); font-size:var(--fs-md); }
     .fl-off { margin-top:14px; padding-top:12px; border-top:1px solid var(--border); }
-    .fl-icon-btn { background:var(--surf); border:1px solid var(--border); color:var(--text); border-radius:6px; cursor:pointer; font-size:1.15rem; line-height:1; padding:7px 9px; }
+    .fl-icon-btn { background:var(--surf); border:1px solid var(--border); color:var(--text); border-radius:var(--r-ui); cursor:pointer; font-size:var(--fs-lg); line-height:1; padding:7px 9px; }
     .fl-icon-btn:hover { border-color:var(--accent); }
-    .fl-head-icon { background:none; border:none; padding:0; cursor:pointer; font-size:1rem; line-height:1; }
+    .fl-head-icon { background:none; border:none; padding:0; cursor:pointer; font-size:var(--fs-lg); line-height:1; }
     .fl-head-icon:hover { filter:brightness(1.4); }
     .fl-emoji-grid { display:grid; grid-template-columns:repeat(10,minmax(0,1fr)); gap:6px; }
-    .fl-emoji { background:var(--surf); border:1px solid var(--border); border-radius:6px; cursor:pointer; font-size:1.25rem; line-height:1; padding:7px 0; }
+    .fl-emoji { background:var(--surf); border:1px solid var(--border); border-radius:var(--r-ui); cursor:pointer; font-size:var(--fs-xl); line-height:1; padding:7px 0; }
     .fl-emoji:hover { border-color:var(--accent); }
     .fl-emoji.active { border-color:var(--accent); background:var(--surf2); }
     @media (max-width:600px){ .fl-emoji-grid { grid-template-columns:repeat(6,minmax(0,1fr)); } }
-    .arch-toggle { display:inline-flex; align-items:center; gap:6px; font-size:.82rem; color:var(--muted); cursor:pointer; user-select:none; padding:9px 4px; white-space:nowrap; }
+    .arch-toggle { display:inline-flex; align-items:center; gap:6px; font-size:var(--fs-sm); color:var(--muted); cursor:pointer; user-select:none; padding:9px 4px; white-space:nowrap; }
     .arch-toggle input { accent-color:var(--accent); cursor:pointer; }
-    .offer-top { display:flex; align-items:flex-start; gap:12px; }
-    .offer-main { flex:1; min-width:0; }
-    .offer-label { font-weight:700; font-size:1.02rem; margin-bottom:2px; }
-    .offer-loc { display:inline-block; font-size:.8rem; color:var(--text); margin:1px 0 3px; text-decoration:none; }
+    /* Zwei Spalten als Raster: der Preisblock steht rechts und reicht über beide
+       Zeilen, links stehen oben die Angebotsdaten und darunter Kennzahlen und
+       Wunsch-/Buchungspreis. Vorher lagen die beiden unteren Blöcke quer unter
+       der Karte — dadurch blieb neben dem (höheren) Preisblock ein leeres Feld
+       von rund 80 px stehen. */
+    .offer-top { display:grid; grid-template-columns:minmax(0,1fr) auto;
+                 grid-template-areas:"main price" "extra price";
+                 align-items:start; gap:2px 16px; }
+    .offer-main { grid-area:main; min-width:0; }
+    .offer-extra { grid-area:extra; min-width:0; }
+    .offer-label { font-weight:700; font-size:var(--fs-lg); margin-bottom:2px; }
+    .offer-loc { display:inline-block; font-size:var(--fs-sm); color:var(--text); margin:1px 0 3px; text-decoration:none; }
     .offer-loc:hover { color:var(--accent); text-decoration:underline; }
-    .offer-details { font-size:.8rem; color:var(--muted); line-height:1.45; }
-    .offer-url { display:inline-block; font-size:.72rem; color:var(--accent); text-decoration:none; word-break:break-all; margin-right:14px; }
+    .offer-details { font-size:var(--fs-sm); color:var(--muted); line-height:1.45; }
+    .offer-url { display:inline-block; font-size:var(--fs-xs); color:var(--accent); text-decoration:none; word-break:break-all; margin-right:14px; }
     .offer-url.pdf { word-break:normal; }
-    .trip-warn { margin:4px 0 10px; padding:8px 10px; border-radius:6px; font-size:.82rem;
-      color:#d29922; background:rgba(210,153,34,.12); border:1px solid rgba(210,153,34,.4); }
+    .trip-warn { margin:4px 0 10px; padding:8px 10px; border-radius:var(--r-ui); font-size:var(--fs-sm);
+      color:var(--amber); background:rgba(210,160,58,.12); border:1px solid rgba(210,160,58,.4); }
     .flights { margin:8px 0 2px; display:flex; flex-direction:column; gap:3px; }
-    .flight { font-size:.78rem; color:var(--text); display:flex; align-items:center; gap:6px; }
-    .flight svg { width:13px; height:13px; fill:var(--muted); flex-shrink:0; }
+    .flight { font-size:var(--fs-sm); color:var(--text); display:flex; align-items:center; gap:6px; }
+    .flight svg:not(.i) { width:13px; height:13px; fill:var(--muted); flex-shrink:0; }
+    .flight .i { width:13px; height:13px; stroke:var(--muted); }
     .flight .fdir { color:var(--muted); }
     /* Flugvarianten: gleicher Zeitraum, anderer Flug (später/weniger Stopps kostet
        meist Aufpreis). Aufklappbar, damit die Karte kompakt bleibt. */
-    .flight-vars { margin:4px 0 2px; font-size:.78rem; }
+    .flight-vars { margin:4px 0 2px; font-size:var(--fs-sm); }
     .flight-vars > summary { cursor:pointer; color:var(--muted); list-style:none; }
     .flight-vars > summary::-webkit-details-marker { display:none; }
     .flight-vars > summary:hover { color:var(--text); }
     .flight-vars .fv-pin { color:var(--amber); }
     .fv-row { display:flex; align-items:center; gap:10px; padding:6px 0;
       border-top:1px solid var(--border); }
-    .fv-row.cur { background:rgba(88,166,255,.07); }
+    .fv-row.cur { background:rgba(59,156,217,.07); }
     .fv-price { min-width:120px; font-weight:600; }
-    .fv-price .fv-d { font-weight:400; font-size:.74rem; color:var(--muted); }
+    .fv-price .fv-d { font-weight:400; font-size:var(--fs-xs); color:var(--muted); }
     .fv-price .fv-d.up { color:var(--red); }
     .fv-price .fv-d.down { color:var(--green); }
-    .fv-legs { flex:1; color:var(--text); line-height:1.5; font-size:.74rem; }
-    .fv-legs svg { width:11px; height:11px; fill:var(--muted); margin-right:4px; }
-    .fv-cur { color:var(--green); font-size:.74rem; white-space:nowrap; }
+    .fv-legs { flex:1; color:var(--text); line-height:1.5; font-size:var(--fs-xs); }
+    .fv-legs svg:not(.i) { width:11px; height:11px; fill:var(--muted); margin-right:4px; }
+    .fv-legs .i { width:11px; height:11px; stroke:var(--muted); margin-right:4px; }
+    .fv-cur { color:var(--green); font-size:var(--fs-xs); white-space:nowrap; }
     .fv-act { white-space:nowrap; }
-    .meta { display:flex; flex-wrap:wrap; gap:6px 12px; align-items:center; margin:7px 0 2px; font-size:.76rem; color:var(--muted); }
+    .meta { display:flex; flex-wrap:wrap; gap:6px 12px; align-items:center; margin:7px 0 2px; font-size:var(--fs-xs); color:var(--muted); }
     .meta .stars { color:var(--amber); letter-spacing:1px; }
     .meta .rating { color:var(--text); }
     a.rating { text-decoration:none; }
@@ -155,18 +237,24 @@
     .dest-link, .dest-link:visited, .dest-link:active { color:var(--text); text-decoration:none;
       font-weight:600; cursor:pointer; }
     .dest-link:hover { color:var(--accent); }
-    .meta .canc { color:var(--green); font-weight:700; background:rgba(46,160,67,.12); padding:1px 7px; border-radius:10px; }
-    .avail { display:inline-block; font-size:.74rem; font-weight:700; padding:2px 7px; border-radius:10px; margin-top:6px; }
-    .avail.yes { color:var(--green); background:rgba(46,160,67,.14); }
-    .avail.no { color:var(--red); background:rgba(248,81,73,.13); }
-    .avail.warn { color:var(--amber); background:rgba(210,153,34,.14); }
+    /* Zustandsangaben tragen ihre Bedeutung im Wort — die farbige Fläche
+       dahinter war reine Lautstärke. Ein Punkt in der Signalfarbe reicht, und
+       die Karte kommt mit deutlich weniger Farbe aus. */
+    .dotted { display:inline-flex; align-items:center; gap:5px; }
+    .dotted::before { content:''; width:6px; height:6px; border-radius:50%;
+                      background:currentColor; flex:none; }
+    .meta .canc { color:var(--green); font-weight:600; }
+    .avail { font-size:var(--fs-xs); font-weight:600; margin-top:6px; }
+    .avail.yes { color:var(--green); }
+    .avail.no { color:var(--red); }
+    .avail.warn { color:var(--amber); }
     .sr-new { font-size:.8em; }
     .sr-drop { color:var(--green); font-size:.8em; font-weight:700; white-space:nowrap; }
     /* Tracking-Statistik */
     .stats-wk { display:flex; flex-direction:column; gap:4px; margin:8px 0; }
-    .stats-wk-row { display:flex; align-items:center; gap:8px; font-size:.85rem; }
+    .stats-wk-row { display:flex; align-items:center; gap:8px; font-size:var(--fs-sm); }
     .stats-wk-row .wkd { width:24px; color:var(--muted); font-weight:700; }
-    .stats-wk-row .wkbar { flex:0 0 140px; height:10px; background:var(--surf); border:1px solid var(--border); border-radius:5px; overflow:hidden; }
+    .stats-wk-row .wkbar { flex:0 0 140px; height:10px; background:var(--surf); border:1px solid var(--border); border-radius:var(--r-pill); overflow:hidden; }
     .stats-wk-row .wkbar i { display:block; height:100%; background:var(--muted); }
     .stats-wk-row .wkbar i.down { background:var(--green); }
     .stats-wk-row .wkbar i.up { background:var(--red); }
@@ -183,107 +271,128 @@
     .split-muted { color:var(--muted); font-size:.92em; }
     .split-extras { margin-top:10px; color:var(--muted); font-size:.92em; display:flex; flex-direction:column; gap:4px; }
     .split-badges { margin-top:10px; display:flex; flex-wrap:wrap; gap:6px; }
-    .split-badge { display:inline-block; font-size:.76rem; font-weight:600; padding:2px 8px; border-radius:10px; border:1px solid var(--border); color:var(--muted); background:var(--surf); }
-    .split-badge.ok { color:var(--green); border-color:rgba(46,160,67,.4); }
+    .split-badge { display:inline-block; font-size:var(--fs-xs); font-weight:600; padding:2px 8px; border-radius:var(--r-pill); border:1px solid var(--border); color:var(--muted); background:var(--surf); }
+    .split-badge.ok { color:var(--green); border-color:rgba(70,180,124,.4); }
     .split-errata { margin-top:10px; font-size:.88em; }
     .split-errata summary { cursor:pointer; color:var(--amber); font-weight:600; }
     .split-errata p { margin:8px 0; color:var(--muted); white-space:normal; }
-    .stats { font-size:.74rem; color:var(--muted); margin-top:8px; }
+    .stats { font-size:var(--fs-xs); color:var(--muted); margin-top:8px;
+             font-variant-numeric:tabular-nums; }
     .stats .best { color:var(--green); font-weight:700; }
     .stats .vs30.down { color:var(--green); font-weight:600; }
     .stats .vs30.up { color:var(--red); font-weight:600; }
-    .codes { font-size:.76rem; color:var(--muted); margin:6px 0 2px; user-select:text; }
+    .codes { font-size:var(--fs-xs); color:var(--muted); margin:6px 0 2px; user-select:text; }
     .codes b { color:var(--text); }
-    .target-row { display:flex; align-items:center; gap:6px; margin-top:10px; font-size:.78rem; color:var(--muted); flex-wrap:wrap; }
-    .target-row input { width:120px; background:var(--bg); border:1px solid var(--border); color:var(--text); padding:5px 8px; border-radius:5px; font-size:.78rem; }
+    /* Ohne eigene Regel erben GIATA- und Fotos-Verweis das Browser-Blau und sind
+       im dunklen Design praktisch unlesbar (gleicher Fall wie bei .dest-link). */
+    .codes a, .codes a:visited { color:var(--accent); text-decoration:none; }
+    .codes a:hover { text-decoration:underline; }
+    .target-row { display:flex; align-items:center; gap:6px; margin-top:10px; font-size:var(--fs-sm); color:var(--muted); flex-wrap:wrap; }
+    .target-row input { width:120px; background:var(--bg); border:1px solid var(--border); color:var(--text); padding:5px 8px; border-radius:var(--r-ui); font-size:var(--fs-sm); }
     .target-row input:focus { outline:none; border-color:var(--accent); }
     .target-set { color:var(--accent); font-weight:600; }
     .booked-set { color:#a371f7; font-weight:600; }
-    .booked-since { display:inline-block; font-size:.78rem; font-weight:600; padding:2px 7px; border-radius:10px; margin-top:6px; }
-    .booked-since.down { color:var(--green); background:rgba(46,160,67,.14); }
-    .booked-since.up { color:var(--muted); background:var(--surf2); }
-    .booked-since.flat { color:var(--muted); background:var(--surf2); }
-    .offer-img { display:block; width:170px; height:112px; object-fit:cover; border-radius:8px; margin-top:10px; margin-left:auto; background:var(--bg); }
+    .booked-since { font-size:var(--fs-sm); font-weight:600; margin-top:6px; }
+    .booked-since.down { color:var(--green); }
+    .booked-since.up { color:var(--muted); }
+    .booked-since.flat { color:var(--muted); }
+    .offer-img { display:block; width:170px; height:112px; object-fit:cover; border-radius:var(--r-ui); margin-top:10px; margin-left:auto; background:var(--bg); }
     @media(max-width:560px){ .offer-img { width:130px; height:88px; } }
     .price-rows { display:flex; gap:10px 22px; flex-wrap:wrap; }
-    .room-row { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 12px; border:1px solid var(--border); border-radius:8px; margin-bottom:8px; flex-wrap:wrap; }
+    .room-row { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 12px; border:1px solid var(--border); border-radius:var(--r-card); margin-bottom:8px; flex-wrap:wrap; }
     .room-row.active { border-color:var(--accent); background:var(--surf2); }
     .room-row.auto { background:var(--bg); }
     .room-info { min-width:0; flex:1 1 220px; }
-    .room-name { font-weight:600; font-size:.92rem; }
-    .room-code { color:var(--muted); font-weight:400; font-size:.78rem; }
-    .room-badge { color:var(--accent); font-weight:600; font-size:.72rem; border:1px solid var(--accent); border-radius:8px; padding:1px 6px; margin-left:4px; }
+    .room-name { font-weight:600; font-size:var(--fs-md); }
+    .room-code { color:var(--muted); font-weight:400; font-size:var(--fs-sm); }
+    .room-badge { color:var(--accent); font-weight:600; font-size:var(--fs-xs); border:1px solid var(--accent); border-radius:var(--r-pill); padding:1px 6px; margin-left:4px; }
     .room-actions { display:flex; align-items:center; gap:10px; }
     .room-price { font-weight:700; white-space:nowrap; }
-    .room-price .pp { font-weight:400; font-size:.72rem; color:var(--muted); }
-    .price-box { text-align:right; flex-shrink:0; }
-    .notify-bell { padding:2px 7px; font-size:.85rem; line-height:1; margin-bottom:4px; }
-    .price-now { font-size:1.5rem; font-weight:800; line-height:1; white-space:nowrap; }
+    .room-price .pp { font-weight:400; font-size:var(--fs-xs); color:var(--muted); }
+    .price-box { grid-area:price; text-align:right; }
+    .notify-bell { padding:2px 7px; font-size:var(--fs-sm); line-height:1; margin-bottom:4px; }
+    .price-now { font-size:var(--fs-2xl); font-weight:600; line-height:1.05; white-space:nowrap;
+                 letter-spacing:-.02em; font-variant-numeric:tabular-nums; }
     .price-now.check24-trigger { cursor:pointer; }
     .price-now.check24-trigger:hover { opacity:.7; }
-    .price-pp { font-size:.66rem; color:var(--muted); margin-top:2px; text-transform:uppercase; letter-spacing:.04em; }
-    .price-sub { font-size:.74rem; color:var(--muted); margin-top:4px; }
-    .price-total { font-size:.76rem; color:var(--text); font-weight:600; margin-top:3px; white-space:nowrap; }
+    .price-pp { font-size:var(--fs-2xs); color:var(--muted); margin-top:2px; text-transform:uppercase; letter-spacing:.04em; }
+    .price-sub { font-size:var(--fs-xs); color:var(--muted); margin-top:4px;
+                 font-variant-numeric:tabular-nums; }
+    .price-total { font-size:var(--fs-xs); color:var(--text); font-weight:600; margin-top:3px;
+                   white-space:nowrap; font-variant-numeric:tabular-nums; }
     .old { text-decoration:line-through; color:var(--muted); }
-    .hist-diff { display:inline-block; font-size:.78rem; font-weight:700; margin-left:6px; padding:2px 7px; border-radius:10px; }
-    .hist-diff.up { color:var(--red); background:rgba(248,81,73,.13); }
-    .hist-diff.down { color:var(--green); background:rgba(46,160,67,.14); }
+    .hist-diff { display:inline-block; font-size:var(--fs-sm); font-weight:700; margin-left:6px; padding:2px 7px; border-radius:var(--r-pill); }
+    .hist-diff.up { color:var(--red); background:rgba(228,104,95,.13); }
+    .hist-diff.down { color:var(--green); background:rgba(70,180,124,.14); }
     .disc { color:var(--green); font-weight:600; margin-left:4px; }
-    .delta { display:inline-block; font-size:.78rem; font-weight:700; padding:2px 7px; border-radius:10px; margin-top:6px; }
-    .delta.up { color:var(--red); background:rgba(248,81,73,.13); }
-    .delta.down { color:var(--green); background:rgba(46,160,67,.14); }
-    .delta.flat { color:var(--muted); background:var(--surf2); }
-    .delta.none { color:var(--amber); background:rgba(210,153,34,.13); }
-    .trend { display:inline-block; font-size:.72rem; font-weight:600; padding:2px 6px; border-radius:10px; margin-top:6px; }
-    .trend.up { color:var(--red); background:rgba(248,81,73,.10); }
-    .trend.down { color:var(--green); background:rgba(46,160,67,.11); }
-    .trend.flat { color:var(--muted); background:var(--surf2); }
+    .delta { font-size:var(--fs-sm); font-weight:700; margin-top:6px;
+             font-variant-numeric:tabular-nums; }
+    .delta.up { color:var(--red); }
+    .delta.down { color:var(--green); }
+    .delta.flat { color:var(--muted); }
+    .delta.none { color:var(--amber); }
+    .trend { font-size:var(--fs-xs); font-weight:600; margin-top:6px; }
+    .trend.up { color:var(--red); }
+    .trend.down { color:var(--green); }
+    .trend.flat { color:var(--muted); }
     .tag-row { display:flex; gap:6px; flex-wrap:wrap; margin:8px 0; }
-    .reiseb-text { display:block; box-sizing:border-box; width:100%; resize:vertical; background:var(--bg); border:1px solid var(--border); color:var(--text); border-radius:6px; padding:8px; font:inherit; }
+    .reiseb-text { display:block; box-sizing:border-box; width:100%; resize:vertical; background:var(--bg); border:1px solid var(--border); color:var(--text); border-radius:var(--r-ui); padding:8px; font:inherit; }
     .reiseb-text::placeholder { color:var(--muted); }
-    .promptcfg-text { display:block; box-sizing:border-box; width:100%; resize:vertical; background:var(--bg); border:1px solid var(--border); color:var(--text); border-radius:6px; padding:8px; font:inherit; font-size:.82rem; }
+    .promptcfg-text { display:block; box-sizing:border-box; width:100%; resize:vertical; background:var(--bg); border:1px solid var(--border); color:var(--text); border-radius:var(--r-ui); padding:8px; font:inherit; font-size:var(--fs-sm); }
     /* Fragebogen-Editor (Rechtsklick auf den TripPilot-Knopf) */
     .tpe-grid { display:grid; grid-template-columns:220px 1fr; gap:12px; margin-top:10px; }
     @media (max-width:640px) { .tpe-grid { grid-template-columns:1fr; } }
-    .tpe-list { max-height:46vh; overflow-y:auto; border:1px solid var(--border); border-radius:6px; background:var(--bg); }
-    .tpe-item { display:flex; align-items:center; gap:6px; padding:5px 8px; font-size:.78rem; cursor:pointer; border-bottom:1px solid var(--border); }
+    .tpe-list { max-height:46vh; overflow-y:auto; border:1px solid var(--border); border-radius:var(--r-card); background:var(--bg); }
+    .tpe-item { display:flex; align-items:center; gap:6px; padding:5px 8px; font-size:var(--fs-sm); cursor:pointer; border-bottom:1px solid var(--border); }
     .tpe-item:last-child { border-bottom:0; }
     .tpe-item:hover { background:var(--surf2); }
     .tpe-item.active { background:var(--accent); color:#fff; }
     .tpe-item .tpe-num { color:var(--muted); font-variant-numeric:tabular-nums; min-width:1.4em; }
     .tpe-item.active .tpe-num { color:#fff; }
     .tpe-item .tpe-txt { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-    .tpe-detail { border:1px solid var(--border); border-radius:6px; background:var(--bg); padding:10px; max-height:46vh; overflow-y:auto; }
-    .tpe-detail label { display:block; font-size:.72rem; color:var(--muted); margin:8px 0 2px; }
+    .tpe-detail { border:1px solid var(--border); border-radius:var(--r-card); background:var(--bg); padding:10px; max-height:46vh; overflow-y:auto; }
+    .tpe-detail label { display:block; font-size:var(--fs-xs); color:var(--muted); margin:8px 0 2px; }
     .tpe-detail input[type=text], .tpe-detail select, .tpe-detail textarea {
       box-sizing:border-box; width:100%; background:var(--surf); border:1px solid var(--border);
-      color:var(--text); border-radius:5px; padding:5px 7px; font:inherit; font-size:.8rem; }
+      color:var(--text); border-radius:var(--r-ui); padding:5px 7px; font:inherit; font-size:var(--fs-sm); }
     .tpe-opt { display:flex; align-items:center; gap:5px; margin-bottom:4px; }
     .tpe-opt input[type=text] { flex:1; }
-    .tpe-mini { background:var(--surf); border:1px solid var(--border); color:var(--muted); border-radius:4px; cursor:pointer; font-size:.72rem; line-height:1; padding:4px 6px; }
+    .tpe-mini { background:var(--surf); border:1px solid var(--border); color:var(--muted); border-radius:var(--r-ui); cursor:pointer; font-size:var(--fs-xs); line-height:1; padding:4px 6px; }
     .tpe-mini:hover { border-color:var(--accent); color:var(--accent); }
     .tpe-mini.danger:hover { border-color:var(--red); color:var(--red); }
     .tpe-row { display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
-    .tpe-err { border:1px solid var(--red); background:rgba(248,81,73,.08); color:var(--red); border-radius:6px; padding:8px 10px; font-size:.78rem; margin-top:8px; }
+    .tpe-err { border:1px solid var(--red); background:rgba(228,104,95,.08); color:var(--red); border-radius:var(--r-ui); padding:8px 10px; font-size:var(--fs-sm); margin-top:8px; }
     .tpe-err ul { margin:4px 0 0; padding-left:18px; }
-    .tag-pill { display:inline-flex; align-items:center; gap:4px; font-size:.74rem; padding:3px 9px; border-radius:12px; background:var(--surf); border:1px solid var(--border); color:var(--text); cursor:pointer; user-select:none; }
+    .tag-pill { display:inline-flex; align-items:center; gap:4px; font-size:var(--fs-xs); padding:3px 9px; border-radius:var(--r-pill); background:var(--surf); border:1px solid var(--border); color:var(--text); cursor:pointer; user-select:none; }
     .tag-pill:hover { border-color:var(--accent); color:var(--accent); }
     .tag-pill.active { background:var(--accent); border-color:var(--accent); color:#fff; }
     .tag-pill.add { color:var(--muted); border-style:dashed; }
     .card-tags .tag-pill:hover { border-color:var(--red); color:var(--red); }
     .tag-row.inline { display:inline-flex; margin:0 0 0 10px; vertical-align:middle; }
     .offer-foot { display:flex; flex-direction:column; gap:6px; margin-top:12px; }
-    .offer-foot .when { font-size:.74rem; color:var(--muted); }
+    .offer-foot .when { font-size:var(--fs-xs); color:var(--muted); }
     .offer-actions { display:flex; align-items:center; gap:6px; flex-wrap:wrap; min-width:0; }
-    .offer-actions .btn { flex:1 1 auto; min-width:0; padding:5px 9px; font-size:.76rem; font-weight:500;
+    .offer-actions .btn { flex:0 1 auto; min-width:0; padding:5px 9px; font-size:var(--fs-xs); font-weight:500;
                         overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     .offer-actions .icon-btn { flex:0 0 auto; }
-    .err-note { color:var(--amber); font-size:.78rem; margin-top:6px; }
+    /* Zeilenmenü der Angebotskarte: gleiche Bauart wie „Mehr" in der
+       Werkzeugleiste, nur nach oben geöffnet — die Karte endet direkt darunter. */
+    .row-more { position:relative; flex:0 0 auto; margin-left:auto; }
+    .row-more > summary { list-style:none; cursor:pointer; }
+    .row-more > summary::-webkit-details-marker { display:none; }
+    .row-more > summary:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+    .row-menu { position:absolute; right:0; bottom:calc(100% + 6px); z-index:30; min-width:200px;
+                background:var(--surf2); border:1px solid var(--border); border-radius:var(--r-card);
+                padding:8px; box-shadow:0 12px 32px rgba(0,0,0,.35); text-align:left; }
+    .row-menu .mm-item.danger { color:var(--red); }
+    .row-menu .mm-item.danger .i { color:var(--red); }
+    .row-menu .mm-item.foreign-on .i { color:var(--accent); }
+    .err-note { color:var(--amber); font-size:var(--fs-sm); margin-top:6px; }
     .empty { text-align:center; color:var(--muted); padding:50px 16px; }
     .boot { text-align:center; padding:44px 16px; }
-    .boot-title { color:var(--muted); font-size:.95rem; }
+    .boot-title { color:var(--muted); font-size:var(--fs-md); }
     .boot-note { margin-top:10px; }
-    .badge-checking { font-size:.72rem; color:var(--accent); }
+    .badge-checking { font-size:var(--fs-xs); color:var(--accent); }
     /* Modal */
     .modal-bg { position:fixed; inset:0; background:rgba(0,0,0,.6); display:none; align-items:center; justify-content:center; padding:16px; z-index:50; overscroll-behavior:contain; }
     .modal-bg.show { display:flex; }
@@ -291,27 +400,27 @@
        zentrierten Flex-Container mittig bleibt und nicht von den Pfeilen verschoben wird. */
     /* Aufgehellt statt abgedunkelt: der Lightbox-Hintergrund ist selbst schon dunkel,
        dunkle Flächen darauf wären als Schaltfläche nicht zu erkennen. */
-    .gl-nav { position:absolute; top:50%; transform:translateY(-50%); width:46px; height:70px; border:1px solid rgba(255,255,255,.25); border-radius:8px; background:rgba(255,255,255,.14); color:#fff; font-size:2.1rem; line-height:1; cursor:pointer; display:flex; align-items:center; justify-content:center; }
+    .gl-nav { position:absolute; top:50%; transform:translateY(-50%); width:46px; height:70px; border:1px solid rgba(255,255,255,.25); border-radius:var(--r-ui); background:rgba(255,255,255,.14); color:#fff; font-size:2.1rem; line-height:1; cursor:pointer; display:flex; align-items:center; justify-content:center; }
     .gl-nav:hover { background:rgba(255,255,255,.3); }
-    .gl-count { position:absolute; bottom:16px; left:50%; transform:translateX(-50%); background:rgba(255,255,255,.14); border:1px solid rgba(255,255,255,.25); color:#fff; font-size:.76rem; padding:3px 10px; border-radius:20px; pointer-events:none; }
-    .modal { background:var(--surf); border:1px solid var(--border); border-radius:10px; width:100%; max-width:680px; max-height:88vh; overflow:auto; overscroll-behavior:contain; padding:18px; }
+    .gl-count { position:absolute; bottom:16px; left:50%; transform:translateX(-50%); background:rgba(255,255,255,.14); border:1px solid rgba(255,255,255,.25); color:#fff; font-size:var(--fs-xs); padding:3px 10px; border-radius:var(--r-pill); pointer-events:none; }
+    .modal { background:var(--surf); border:1px solid var(--border); border-radius:var(--r-card); width:100%; max-width:680px; max-height:88vh; overflow:auto; overscroll-behavior:contain; padding:18px; }
     /* Flache Fenster (Laptop im Querformat): mehr Höhe fürs Modal, weniger Rand */
     @media (max-height:760px){ .modal-bg { padding:8px; } .modal { max-height:96vh; padding:14px; } }
-    .modal h2 { font-size:1.05rem; margin-bottom:4px; }
-    .modal .sub { font-size:.8rem; color:var(--muted); margin-bottom:14px; }
+    .modal h2 { font-size:var(--fs-lg); margin-bottom:4px; }
+    .modal .sub { font-size:var(--fs-sm); color:var(--muted); margin-bottom:14px; }
     #hist-canvas { width:100%; height:300px; display:block; }
-    .chart-tip { position:absolute; transform:translateX(-50%); top:6px; pointer-events:none; z-index:5; background:var(--surf2); border:1px solid var(--border); color:var(--text); border-radius:6px; padding:5px 8px; font-size:.74rem; max-width:240px; box-shadow:0 4px 12px rgba(0,0,0,.3); }
-    .chart-tip .tt-date { color:var(--muted); font-size:.68rem; }
-    table.hist { width:100%; border-collapse:collapse; margin-top:14px; font-size:.8rem; }
+    .chart-tip { position:absolute; transform:translateX(-50%); top:6px; pointer-events:none; z-index:5; background:var(--surf2); border:1px solid var(--border); color:var(--text); border-radius:var(--r-ui); padding:5px 8px; font-size:var(--fs-xs); max-width:240px; box-shadow:0 4px 12px rgba(0,0,0,.3); }
+    .chart-tip .tt-date { color:var(--muted); font-size:var(--fs-2xs); }
+    table.hist { width:100%; border-collapse:collapse; margin-top:14px; font-size:var(--fs-sm); }
     table.hist th, table.hist td { text-align:left; padding:6px 8px; border-bottom:1px solid var(--border); }
     table.hist th { color:var(--muted); font-weight:600; }
-    .cmp-load { color:var(--muted); font-size:.86rem; padding:18px 4px; text-align:center; }
-    .ai-h { font-size:.92rem; color:var(--accent); margin:16px 0 6px; }
+    .cmp-load { color:var(--muted); font-size:var(--fs-sm); padding:18px 4px; text-align:center; }
+    .ai-h { font-size:var(--fs-md); color:var(--accent); margin:16px 0 6px; }
     .ai-h:first-child { margin-top:0; }
     .ai-list { margin:0 0 10px; padding-left:20px; }
     .ai-list li { margin-bottom:4px; line-height:1.4; }
-    #ai-body p { margin:0 0 10px; line-height:1.45; font-size:.88rem; }
-    table.ai-table { width:100%; border-collapse:collapse; margin:6px 0 14px; font-size:.8rem; }
+    #ai-body p { margin:0 0 10px; line-height:1.45; font-size:var(--fs-md); }
+    table.ai-table { width:100%; border-collapse:collapse; margin:6px 0 14px; font-size:var(--fs-sm); }
     table.ai-table th, table.ai-table td { text-align:left; padding:6px 8px; border-bottom:1px solid var(--border); vertical-align:top; }
     table.ai-table th { color:var(--muted); font-weight:600; }
     .ai-cite { color:var(--accent); text-decoration:none; font-size:.78em; vertical-align:super; }
@@ -322,162 +431,165 @@
     .aihist-item { display:flex; align-items:center; gap:8px; padding:10px 2px; border-bottom:1px solid var(--border); }
     .aihist-main { flex:1; min-width:0; cursor:pointer; }
     .aihist-main:hover .aihist-title { color:var(--accent); }
-    .aihist-title { font-weight:600; font-size:.88rem; }
+    .aihist-title { font-weight:600; font-size:var(--fs-md); }
     body.ai-disabled .ai-feature { display:none !important; }
     body.check24-disabled .check24-feature { display:none !important; }
     /* Der Flugplan-Knopf verschwindet erst, wenn BEIDE Flughaefen aus sind —
        ist nur einer aktiv, oeffnet er direkt dessen Fenster (ohne Auswahl). */
     body.flights-disabled .flights-feature { display:none !important; }
+    /* Ohne KI und ohne Flugplan bleibt in „Reise-Wissen" nichts übrig — dann muss
+       auch die Überschrift weg. */
+    body.ai-disabled.flights-disabled .mm-wissen { display:none !important; }
     .strf-row { cursor:pointer; }
     .strf-row:hover td { background:var(--surf); }
     .fraf-row { cursor:pointer; }
     .fraf-row:hover td { background:var(--surf); }
     .mucf-row:hover td { background:var(--surf); }
     .fpick-opts { display:flex; gap:12px; flex-wrap:wrap; margin:14px 0 4px; }
-    .fpick-opt { flex:1 1 160px; text-align:center; padding:16px 14px; border-radius:8px; cursor:pointer;
-      background:var(--surf2); border:1px solid var(--border); color:var(--text); font-size:.9rem; }
+    .fpick-opt { flex:1 1 160px; text-align:center; padding:16px 14px; border-radius:var(--r-ui); cursor:pointer;
+      background:var(--surf2); border:1px solid var(--border); color:var(--text); font-size:var(--fs-md); }
     .fpick-opt:hover { border-color:var(--accent); }
-    .fpick-opt b { display:block; font-size:1rem; }
+    .fpick-opt b { display:block; font-size:var(--fs-lg); }
     body.share-disabled .share-feature { display:none !important; }
     .shr-row { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:8px 0; }
-    .shr-row label { font-size:.85rem; }
+    .shr-row label { font-size:var(--fs-sm); }
     .shr-link { display:flex; gap:8px; align-items:center; margin-top:12px; }
     .shr-link input { flex:1; min-width:0; }
-    .shr-list { width:100%; border-collapse:collapse; font-size:.85rem; margin-top:8px; }
+    .shr-list { width:100%; border-collapse:collapse; font-size:var(--fs-sm); margin-top:8px; }
     .shr-list th, .shr-list td { padding:6px 8px; border-bottom:1px solid var(--border); text-align:left; }
-    .shr-list th { color:var(--muted); font-weight:600; font-size:.75rem; text-transform:uppercase;
+    .shr-list th { color:var(--muted); font-weight:600; font-size:var(--fs-xs); text-transform:uppercase;
       white-space:nowrap; }
     /* Aktionsspalte in einer Zeile halten — umbrechende Knöpfe sahen aus wie zwei
        getrennte Reihen. Auf schmalen Displays scrollt stattdessen die Tabelle. */
     .shr-list td:last-child { white-space:nowrap; text-align:right; }
-    .shr-list td:last-child .btn { padding:5px 10px; font-size:.78rem; margin-left:4px; }
+    .shr-list td:last-child .btn { padding:5px 10px; font-size:var(--fs-sm); margin-left:4px; }
     .shr-list-wrap { overflow-x:auto; -webkit-overflow-scrolling:touch; }
     .shr-exp { color:var(--red); }
     /* Kommentare: der Knopf leuchtet grün, solange Neues ungelesen ist */
     .shr-cmt.has-new { border-color:var(--green); color:var(--green); box-shadow:0 0 0 1px var(--green) inset; }
     .shc-item { border-bottom:1px solid var(--border); padding:10px 0; }
     .shc-item:last-child { border-bottom:none; }
-    .shc-meta { color:var(--muted); font-size:.76rem; margin-bottom:3px; }
+    .shc-meta { color:var(--muted); font-size:var(--fs-xs); margin-bottom:3px; }
     .shc-ip { font-family:ui-monospace,Menlo,Consolas,monospace; }
-    .shc-toggle { display:flex; align-items:center; gap:8px; font-size:.86rem; cursor:pointer;
+    .shc-toggle { display:flex; align-items:center; gap:8px; font-size:var(--fs-sm); cursor:pointer;
       padding-bottom:12px; margin-bottom:6px; border-bottom:1px solid var(--border); }
     .shc-toggle input { accent-color:var(--accent); cursor:pointer; }
-    .shc-text { font-size:.92rem; white-space:pre-wrap; overflow-wrap:anywhere; margin-bottom:8px; }
+    .shc-text { font-size:var(--fs-md); white-space:pre-wrap; overflow-wrap:anywhere; margin-bottom:8px; }
     .shc-act { display:flex; gap:8px; }
     /* Die Angebotsliste bekommt einen Anteil der Fensterhöhe statt fester 230 px:
        auf flachen Bildschirmen (Laptop, ~600 px) passte der Dialog sonst nicht
        mehr in die 88vh des Modals und wurde unten abgeschnitten. */
     .shr-picks { max-height:clamp(110px, 30vh, 240px); overflow:auto; border:1px solid var(--border);
-      border-radius:8px; padding:6px 10px; margin-bottom:10px; }
+      border-radius:var(--r-card); padding:6px 10px; margin-bottom:10px; }
     /* Spalten: Haken · Angebot · „Für andere"-Liste · Ort/Preis. Feste Breiten statt
        Grid je Zeile, sonst richtet sich jede Zeile nach ihrem eigenen Inhalt aus. */
-    .shr-pick { display:flex; align-items:center; gap:10px; padding:4px 0; font-size:.88rem; cursor:pointer; }
+    .shr-pick { display:flex; align-items:center; gap:10px; padding:4px 0; font-size:var(--fs-md); cursor:pointer; }
     .shr-pick-head { position:sticky; top:-6px; z-index:1; background:var(--surf); color:var(--muted);
-      font-size:.72rem; letter-spacing:.04em; text-transform:uppercase; cursor:default;
+      font-size:var(--fs-xs); letter-spacing:.04em; text-transform:uppercase; cursor:default;
       padding:6px 0 4px; border-bottom:1px solid var(--border); }
     .shr-pick-head > :first-child { flex:0 0 13px; }   /* Platzhalter für die Checkbox */
-    .shr-pick-head > * { font-size:.72rem; color:var(--muted); }  /* Spaltenköpfe einheitlich */
+    .shr-pick-head > * { font-size:var(--fs-xs); color:var(--muted); }  /* Spaltenköpfe einheitlich */
     .shr-pick-name { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-    .shr-pick-list { flex:0 0 170px; color:var(--muted); font-size:.78rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-    .shr-pick-sub { flex:0 0 270px; color:var(--muted); font-size:.78rem; text-align:right; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .shr-pick-list { flex:0 0 170px; color:var(--muted); font-size:var(--fs-sm); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .shr-pick-sub { flex:0 0 270px; color:var(--muted); font-size:var(--fs-sm); text-align:right; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     @media (max-width:700px){
       .shr-pick { flex-wrap:wrap; }
       .shr-pick-list, .shr-pick-sub { flex:1 1 auto; text-align:left; }
       .shr-pick-head { display:none; }   /* Spaltenköpfe ergeben ohne Spalten keinen Sinn */
     }
-    .twprog { height:7px; background:var(--border); border-radius:5px; overflow:hidden; max-width:320px; margin:10px auto 0; }
-    .twprog > i { display:block; height:100%; background:var(--accent); border-radius:5px; transition:width .3s ease; }
+    .twprog { height:7px; background:var(--border); border-radius:var(--r-pill); overflow:hidden; max-width:320px; margin:10px auto 0; }
+    .twprog > i { display:block; height:100%; background:var(--accent); border-radius:var(--r-pill); transition:width .3s ease; }
     .twprog.indet > i { width:40%; animation:twindet 1.1s ease-in-out infinite; }
     @keyframes twindet { 0%{margin-left:-42%} 100%{margin-left:104%} }
     .score-head { display:flex; align-items:center; gap:14px; }
     .score-num { font-size:2.4rem; font-weight:700; line-height:1; }
-    .score-empf { font-size:1.05rem; font-weight:700; }
-    .cmp-base { color:var(--accent); font-size:.74rem; font-weight:600; }
-    .cmp-best td { background:rgba(46,160,67,.10); }
+    .score-empf { font-size:var(--fs-lg); font-weight:700; }
+    .cmp-base { color:var(--accent); font-size:var(--fs-xs); font-weight:600; }
+    .cmp-best td { background:rgba(70,180,124,.10); }
     .cmp-best .best { color:var(--green); font-weight:700; }
     .cmp-up { color:var(--red); font-weight:600; }
     .cmp-down { color:var(--green); font-weight:600; }
     .cmp-foot { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-top:12px; }
     .cmp-foot .hint { margin-top:0; }
-    .nig-ctrl { display:flex; align-items:center; gap:10px; flex-wrap:wrap; font-size:.85rem; color:var(--muted); margin-bottom:4px; }
+    .nig-ctrl { display:flex; align-items:center; gap:10px; flex-wrap:wrap; font-size:var(--fs-sm); color:var(--muted); margin-bottom:4px; }
     .stepper { display:inline-flex; align-items:center; gap:8px; }
-    .stepper button { min-width:34px; padding:4px 10px; font-size:1rem; line-height:1; }
-    .stepper #nig-span { min-width:18px; text-align:center; font-weight:700; color:var(--text); font-size:1rem; }
-    .srch-filters { display:flex; align-items:center; gap:14px; flex-wrap:wrap; margin-bottom:12px; font-size:.82rem; color:var(--muted); }
+    .stepper button { min-width:34px; padding:4px 10px; font-size:var(--fs-lg); line-height:1; }
+    .stepper #nig-span { min-width:18px; text-align:center; font-weight:700; color:var(--text); font-size:var(--fs-lg); }
+    .srch-filters { display:flex; align-items:center; gap:14px; flex-wrap:wrap; margin-bottom:12px; font-size:var(--fs-sm); color:var(--muted); }
     .srch-filters label { display:inline-flex; align-items:center; gap:5px; }
     .srch-boards label { margin-left:8px; }
     .srch-locs { flex-basis:100%; }
     .srch-locs label { margin-left:8px; }
     .srch-filters input[type=checkbox] { accent-color:var(--accent); cursor:pointer; }
-    .srch-filters input[type=number] { background:var(--bg); border:1px solid var(--border); color:var(--text); padding:5px 7px; border-radius:6px; }
-    .exact-chk { display:inline-flex; align-items:center; gap:3px; font-size:.72rem; font-weight:normal; color:var(--muted); cursor:pointer; white-space:nowrap; }
+    .srch-filters input[type=number] { background:var(--bg); border:1px solid var(--border); color:var(--text); padding:5px 7px; border-radius:var(--r-ui); }
+    .exact-chk { display:inline-flex; align-items:center; gap:3px; font-size:var(--fs-xs); font-weight:normal; color:var(--muted); cursor:pointer; white-space:nowrap; }
     .exact-chk input[type=checkbox] { accent-color:var(--accent); cursor:pointer; }
     .srch-lbl-row { display:flex; align-items:center; justify-content:space-between; gap:6px; }
-    .srch-warn { color:var(--amber); font-size:.82rem; margin:-4px 0 12px; }
+    .srch-warn { color:var(--amber); font-size:var(--fs-sm); margin:-4px 0 12px; }
     .sr-item { display:flex; gap:12px; padding:10px 2px; border-bottom:1px solid var(--border); align-items:center; }
-    .sr-img { width:86px; height:62px; object-fit:cover; border-radius:6px; flex:0 0 auto; background:var(--bg); }
+    .sr-img { width:86px; height:62px; object-fit:cover; border-radius:var(--r-ui); flex:0 0 auto; background:var(--bg); }
     .sr-main { flex:1; min-width:0; }
-    .sr-name { font-weight:700; font-size:.92rem; }
-    .sr-name .tracked { color:var(--green); font-size:.72rem; font-weight:600; margin-left:6px; }
-    .sr-meta { font-size:.77rem; color:var(--muted); line-height:1.5; }
-    .sr-meta .stars { color:#e3b341; }
+    .sr-name { font-weight:700; font-size:var(--fs-md); }
+    .sr-name .tracked { color:var(--green); font-size:var(--fs-xs); font-weight:600; margin-left:6px; }
+    .sr-meta { font-size:var(--fs-sm); color:var(--muted); line-height:1.5; }
+    .sr-meta .stars { color:var(--amber); }
     .sr-pricecol { text-align:right; white-space:nowrap; }
-    .sr-price { font-weight:700; font-size:.95rem; }
-    .sr-old { color:var(--muted); text-decoration:line-through; font-size:.72rem; }
-    .sr-disc { color:var(--green); font-size:.72rem; font-weight:600; margin-left:4px; }
-    .sr-coupon { font-size:.74rem; font-weight:600; color:var(--red); margin-top:2px; }
+    .sr-price { font-weight:700; font-size:var(--fs-md); }
+    .sr-old { color:var(--muted); text-decoration:line-through; font-size:var(--fs-xs); }
+    .sr-disc { color:var(--green); font-size:var(--fs-xs); font-weight:600; margin-left:4px; }
+    .sr-coupon { font-size:var(--fs-xs); font-weight:600; color:var(--red); margin-top:2px; }
     .sr-locs { display:flex; gap:5px; flex-wrap:wrap; margin-top:4px; }
-    .sr-locs .tag-pill { font-size:.7rem; padding:1px 7px; cursor:default; }
+    .sr-locs .tag-pill { font-size:var(--fs-2xs); padding:1px 7px; cursor:default; }
     .sr-acts { display:flex; gap:6px; margin-top:6px; justify-content:flex-end; }
     .sr-cmp { flex:0 0 auto; display:flex; align-items:center; align-self:stretch; cursor:pointer; }
     .sr-cmp input { width:18px; height:18px; accent-color:var(--accent); cursor:pointer; }
-    .srch-head { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:6px 0 4px; font-size:.82rem; color:var(--muted); }
-    .srch-listfilter { background:var(--bg); border:1px solid var(--border); color:var(--text); padding:6px 10px; border-radius:6px; font-size:.82rem; min-width:180px; }
+    .srch-head { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:6px 0 4px; font-size:var(--fs-sm); color:var(--muted); }
+    .srch-listfilter { background:var(--bg); border:1px solid var(--border); color:var(--text); padding:6px 10px; border-radius:var(--r-ui); font-size:var(--fs-sm); min-width:180px; }
     .srch-listfilter:focus { outline:none; border-color:var(--accent); }
     .srch-more { display:flex; justify-content:center; padding:14px 0 4px; }
-    .srch-from { background:var(--bg); border:1px solid var(--border); border-radius:6px; padding:8px 10px; margin-bottom:10px; font-size:.83rem; }
+    .srch-from { background:var(--bg); border:1px solid var(--border); border-radius:var(--r-card); padding:8px 10px; margin-bottom:10px; font-size:var(--fs-sm); }
     .srch-from b { color:var(--text); }
-    .srch-fav { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:10px; font-size:.82rem; color:var(--muted); }
-    .srch-watch { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin:-4px 0 10px; padding:8px 10px; font-size:.82rem; color:var(--muted); border:1px dashed var(--border); border-radius:8px; }
-    .srch-watch input[type=number] { width:90px; background:var(--surf); border:1px solid var(--border); color:var(--text); padding:6px 8px; border-radius:6px; font-size:.82rem; }
+    .srch-fav { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:10px; font-size:var(--fs-sm); color:var(--muted); }
+    .srch-watch { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin:-4px 0 10px; padding:8px 10px; font-size:var(--fs-sm); color:var(--muted); border:1px dashed var(--border); border-radius:var(--r-card); }
+    .srch-watch input[type=number] { width:90px; background:var(--surf); border:1px solid var(--border); color:var(--text); padding:6px 8px; border-radius:var(--r-ui); font-size:var(--fs-sm); }
     .srch-watch.active { border-color:var(--green); }
-    .srch-fav select { background:var(--surf); border:1px solid var(--border); color:var(--text); padding:7px 9px; border-radius:6px; font-size:.82rem; min-width:200px; }
+    .srch-fav select { background:var(--surf); border:1px solid var(--border); color:var(--text); padding:7px 9px; border-radius:var(--r-ui); font-size:var(--fs-sm); min-width:200px; }
     .srch-mask { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:10px; align-items:flex-end; }
     .srch-field { display:flex; flex-direction:column; gap:4px; }
     .srch-field.srch-grow { flex:1 1 200px; }
     .srch-field.srch-sm { flex:0 0 140px; }
     .srch-field.srch-xs { flex:0 0 90px; }
     .srch-field.srch-nights { flex:0 0 150px; }
-    .srch-field label { font-size:.72rem; color:var(--muted); }
-    .srch-field input, .srch-field select, .srch-dest { background:var(--bg); border:1px solid var(--border); color:var(--text); padding:8px 10px; border-radius:6px; font-size:.85rem; width:100%; }
+    .srch-field label { font-size:var(--fs-xs); color:var(--muted); }
+    .srch-field input, .srch-field select, .srch-dest { background:var(--bg); border:1px solid var(--border); color:var(--text); padding:8px 10px; border-radius:var(--r-ui); font-size:var(--fs-sm); width:100%; }
     input[type=date]::-webkit-calendar-picker-indicator { filter:invert(0.85); opacity:.9; cursor:pointer; }
     [data-theme="light"] input[type=date]::-webkit-calendar-picker-indicator { filter:none; }
     .srch-dest { cursor:pointer; text-align:left; }
     .srch-dest.set { border-color:var(--accent); color:var(--text); font-weight:600; }
     .srch-field .opt { color:var(--muted); font-weight:400; }
     .airline-dd { position:relative; }
-    .airline-dd > summary { list-style:none; cursor:pointer; background:var(--bg); border:1px solid var(--border); color:var(--text); padding:8px 10px; border-radius:6px; font-size:.85rem; min-width:180px; }
+    .airline-dd > summary { list-style:none; cursor:pointer; background:var(--bg); border:1px solid var(--border); color:var(--text); padding:8px 10px; border-radius:var(--r-ui); font-size:var(--fs-sm); min-width:180px; }
     .airline-dd > summary::-webkit-details-marker { display:none; }
     .airline-dd[open] > summary { border-color:var(--accent); }
     .airline-dd summary.set { border-color:var(--accent); font-weight:600; }
-    .airline-list { position:absolute; left:0; z-index:30; margin-top:4px; background:var(--surf); border:1px solid var(--border); border-radius:8px; padding:6px; max-height:240px; overflow:auto; min-width:220px; box-shadow:0 6px 18px rgba(0,0,0,.25); }
-    .airline-list label { display:flex; align-items:center; gap:8px; padding:5px 6px; font-size:.84rem; cursor:pointer; color:var(--text); white-space:nowrap; text-align:left; }
-    .airline-list label:hover { background:var(--surf2); border-radius:5px; }
+    .airline-list { position:absolute; left:0; z-index:30; margin-top:4px; background:var(--surf); border:1px solid var(--border); border-radius:var(--r-card); padding:6px; max-height:240px; overflow:auto; min-width:220px; box-shadow:0 6px 18px rgba(0,0,0,.25); }
+    .airline-list label { display:flex; align-items:center; gap:8px; padding:5px 6px; font-size:var(--fs-sm); cursor:pointer; color:var(--text); white-space:nowrap; text-align:left; }
+    .airline-list label:hover { background:var(--surf2); border-radius:var(--r-ui); }
     /* die globale .srch-field input-Regel (width:100%, padding) darf die Checkboxen nicht treffen */
     .airline-list input[type=checkbox] { width:16px; height:16px; flex:0 0 auto; padding:0; margin:0; border-radius:3px; accent-color:var(--accent); }
     .srch-adv { margin-bottom:10px; }
-    .srch-adv summary { cursor:pointer; font-size:.8rem; color:var(--muted); }
-    .dest-panel { border:1px solid var(--border); border-radius:8px; padding:8px; margin-bottom:12px; max-height:340px; overflow:auto; background:var(--bg); }
-    .dest-search { width:100%; box-sizing:border-box; background:var(--surf); border:1px solid var(--border); color:var(--text); padding:7px 10px; border-radius:6px; font-size:.85rem; margin:6px 0 8px; }
-    .dest-head { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:6px; font-size:.84rem; }
+    .srch-adv summary { cursor:pointer; font-size:var(--fs-sm); color:var(--muted); }
+    .dest-panel { border:1px solid var(--border); border-radius:var(--r-card); padding:8px; margin-bottom:12px; max-height:340px; overflow:auto; background:var(--bg); }
+    .dest-search { width:100%; box-sizing:border-box; background:var(--surf); border:1px solid var(--border); color:var(--text); padding:7px 10px; border-radius:var(--r-ui); font-size:var(--fs-sm); margin:6px 0 8px; }
+    .dest-head { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:6px; font-size:var(--fs-sm); }
     .dest-head b { color:var(--text); }
-    .dest-row { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:7px 8px; border-bottom:1px solid var(--border); cursor:pointer; font-size:.86rem; }
+    .dest-row { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:7px 8px; border-bottom:1px solid var(--border); cursor:pointer; font-size:var(--fs-sm); }
     .dest-row:hover { background:var(--surf); }
     .dest-row .chev { color:var(--muted); }
     /* Preiskalender */
     .cal-nav { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px; }
-    .cal-title { font-weight:700; font-size:1rem; }
-    .cal-sum { font-size:.78rem; color:var(--muted); margin-bottom:10px; }
+    .cal-title { font-weight:700; font-size:var(--fs-lg); }
+    .cal-sum { font-size:var(--fs-sm); color:var(--muted); margin-bottom:10px; }
     .cal-sum b { color:var(--text); }
     .cal-jump { color:inherit; text-decoration:none; border-bottom:1px dotted var(--border); cursor:pointer; }
     .cal-jump:hover { color:var(--text); border-bottom-color:var(--accent); }
@@ -485,14 +597,14 @@
     .cal-jump.up b { color:var(--red); }
     .cal-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:4px; }
     .cal-grid.head { margin-bottom:4px; gap:4px; }
-    .cal-wd { text-align:center; font-size:.72rem; color:var(--muted); font-weight:600; padding:2px 0; }
-    .cal-cell { min-height:52px; border:1px solid var(--border); border-radius:6px; padding:4px 5px; display:flex; flex-direction:column; justify-content:space-between; background:var(--surf2); }
+    .cal-wd { text-align:center; font-size:var(--fs-xs); color:var(--muted); font-weight:600; padding:2px 0; }
+    .cal-cell { min-height:52px; border:1px solid var(--border); border-radius:var(--r-ui); padding:4px 5px; display:flex; flex-direction:column; justify-content:space-between; background:var(--surf2); }
     .cal-cell.empty { border:none; background:transparent; }
-    .cal-cell .cal-d { font-size:.72rem; color:var(--muted); }
-    .cal-cell .cal-p { font-size:.8rem; font-weight:700; text-align:right; }
+    .cal-cell .cal-d { font-size:var(--fs-xs); color:var(--muted); }
+    .cal-cell .cal-p { font-size:var(--fs-sm); font-weight:700; text-align:right; }
     .cal-cell .cal-p.na { color:var(--muted); font-weight:400; }
     .cal-cell.out { opacity:.4; }
-    .cal-cell.cheapest { border-color:var(--green); background:rgba(46,160,67,.16); }
+    .cal-cell.cheapest { border-color:var(--green); background:rgba(70,180,124,.16); }
     .cal-cell.cheapest .cal-p { color:var(--green); }
     /* Teuerster Termin als Gegenstück zum günstigsten — die Heatmap färbt zwar
        schon grob ein, benennt den Extremwert aber nicht. */
@@ -507,13 +619,14 @@
     .cal-cell { position:relative; }
     .cal-cell .cal-d, .cal-cell .cal-p { position:relative; z-index:1; }   /* Text über dem Sparschwein */
     .cal-cell .cal-pig { position:absolute; left:50%; top:38%; transform:translate(-50%,-50%); width:28px; height:28px; margin:0; opacity:.7; z-index:0; pointer-events:none; }  /* leicht oberhalb der Mitte, damit der Preis unten frei bleibt */
-    .btn.aktion-active { animation: aktionPulse 1.6s ease-in-out infinite; border-color:var(--green); }
-    @keyframes aktionPulse { 0%,100% { box-shadow:0 0 0 0 rgba(46,160,67,.55); } 50% { box-shadow:0 0 0 7px rgba(46,160,67,0); } }
+    .btn.aktion-active, .mm-item.aktion-active { animation: aktionPulse 1.6s ease-in-out infinite; }
+    .mm-item.aktion-active { color:var(--green); }
+    @keyframes aktionPulse { 0%,100% { box-shadow:0 0 0 0 rgba(70,180,124,.55); } 50% { box-shadow:0 0 0 7px rgba(70,180,124,0); } }
     .btn.cal-alert { animation: calAlertPulse 1.6s ease-in-out infinite; border-color:var(--amber); color:var(--amber); }
     /* Pausierter Kalender: gedimmt statt pulsierend — es ist kein Alarm, sondern ein
        Ruhezustand, den der Nutzer nur bemerken soll, wenn er hinsieht. */
     .btn.cal-paused { opacity:.55; }
-    @keyframes calAlertPulse { 0%,100% { box-shadow:0 0 0 0 rgba(210,153,34,.55); } 50% { box-shadow:0 0 0 7px rgba(210,153,34,0); } }
+    @keyframes calAlertPulse { 0%,100% { box-shadow:0 0 0 0 rgba(210,160,58,.55); } 50% { box-shadow:0 0 0 7px rgba(210,160,58,0); } }
     .btn.trend-active-up { border-color:var(--red); }
     .btn.trend-active-down { border-color:var(--green); }
     .trend-global { margin-bottom:14px; }
@@ -521,8 +634,8 @@
        alle Paare in beiden Modi). Temperatur und Regentage haben verschiedene
        Einheiten und stehen deshalb in zwei Panels übereinander mit gemeinsamer
        Monatsachse, NICHT auf zwei y-Achsen in einem Bild. */
-    :root { --viz-1:#3987e5; --viz-2:#d95926; --viz-3:#199e70; }
-    [data-theme="light"] { --viz-1:#2a78d6; --viz-2:#eb6834; --viz-3:#1baf7a; }
+    :root { --viz-1:#3b9cd9; --viz-2:#d95926; --viz-3:#199e70; }
+    [data-theme="light"] { --viz-1:#12689b; --viz-2:#eb6834; --viz-3:#1baf7a; }
     .climchart { width:100%; height:auto; display:block; }
     .climchart .cc-grid { stroke:var(--border); stroke-width:1; }
     .climchart .cc-axis { fill:var(--muted); font-size:10px; }
@@ -531,17 +644,17 @@
     .climchart .cc-band:hover { fill:color-mix(in srgb, var(--text) 7%, transparent); }
     .climchart .cc-dot { stroke:var(--surf); stroke-width:2; }
     .climchart .cc-end { fill:var(--muted); font-size:10px; }
-    .clim-legend { display:flex; gap:14px; flex-wrap:wrap; margin:2px 0 6px; font-size:.8rem; color:var(--muted); }
+    .clim-legend { display:flex; gap:14px; flex-wrap:wrap; margin:2px 0 6px; font-size:var(--fs-sm); color:var(--muted); }
     .clim-legend span { display:inline-flex; align-items:center; gap:5px; }
     .clim-legend i { width:14px; height:2px; border-radius:1px; display:inline-block; }
-    .clim-tip { font-size:.78rem; color:var(--text); min-height:1.2em; margin-bottom:4px; }
+    .clim-tip { font-size:var(--fs-sm); color:var(--text); min-height:1.2em; margin-bottom:4px; }
     /* Klimatabelle: der gewählte Reisemonat wird hervorgehoben, damit man ihn in
        zwölf Zeilen sofort findet. Warm/kalt nur dezent über die Textfarbe. */
     .clim td, .clim th { text-align:right; }
     .clim td:first-child, .clim th:first-child { text-align:left; }
     .clim tr.clim-sel { background:color-mix(in srgb, var(--accent) 16%, transparent); }
     .clim tr.clim-sel td { font-weight:600; }
-    .clim .clim-note { color:var(--muted); font-size:.78rem; }
+    .clim .clim-note { color:var(--muted); font-size:var(--fs-sm); }
     .clim-best { color:var(--green); font-weight:600; }
     /* Reiseführer: dreizehn Abschnitte mit Label/Wert-Paaren. Sprungmarken oben,
        weil die Liste sonst nur noch gescrollt werden kann. */
@@ -549,52 +662,64 @@
        Klimatabelle bereit, das Öffnen kostet keinen KI-Aufruf. */
     .btn.sec.has-guide, .btn.sec.has-climate { border-color:var(--green); color:var(--green); }
     .gd-toc { display:flex; flex-wrap:wrap; gap:5px; margin:2px 0 4px; }
-    .gd-toc button { background:var(--surf2); border:1px solid var(--border); color:var(--muted); border-radius:14px; padding:2px 9px; font-size:.74rem; cursor:pointer; }
+    .gd-toc button { background:var(--surf2); border:1px solid var(--border); color:var(--muted); border-radius:var(--r-pill); padding:2px 9px; font-size:var(--fs-xs); cursor:pointer; }
     .gd-toc button:hover { color:var(--text); border-color:var(--accent); }
     .gd-sec { margin-top:18px; scroll-margin-top:8px; }
-    .gd-sec > h3 { font-size:.92rem; color:var(--accent); margin:0 0 5px; }
-    .gd-intro { font-size:.84rem; color:var(--muted); margin-bottom:7px; }
-    .gd-list { list-style:none; margin:0; padding:0; font-size:.86rem; }
+    .gd-sec > h3 { font-size:var(--fs-md); color:var(--accent); margin:0 0 5px; }
+    .gd-intro { font-size:var(--fs-sm); color:var(--muted); margin-bottom:7px; }
+    .gd-list { list-style:none; margin:0; padding:0; font-size:var(--fs-sm); }
     .gd-list li { display:flex; gap:10px; padding:5px 0; border-top:1px solid var(--border); }
     .gd-list li:first-child { border-top:0; }
     .gd-k { flex:0 0 32%; max-width:200px; color:var(--muted); }
     .gd-v { flex:1; min-width:0; }
     .gd-vol { color:var(--amber); cursor:help; }
-    .gd-sum { background:var(--surf2); border:1px solid var(--border); border-radius:8px; padding:10px 12px; }
-    .gd-sum ul { margin:6px 0 0; padding-left:18px; font-size:.86rem; }
+    .gd-sum { background:var(--surf2); border:1px solid var(--border); border-radius:var(--r-card); padding:10px 12px; }
+    .gd-sum ul { margin:6px 0 0; padding-left:18px; font-size:var(--fs-sm); }
     .gd-sum li { margin-bottom:3px; }
     @media (max-width:560px){ .gd-list li { flex-direction:column; gap:1px; } .gd-k { flex:none; max-width:none; } }
     /* Fortschritt des Barometer-Laufs (mehrere Suchen à mehrere Ergebnisseiten) */
-    .bkt-bar { height:8px; border-radius:4px; background:var(--surf2); border:1px solid var(--border); overflow:hidden; }
+    .bkt-bar { height:8px; border-radius:var(--r-pill); background:var(--surf2); border:1px solid var(--border); overflow:hidden; }
     .bkt-fill { height:100%; background:var(--accent); transition:width .4s ease; }
     .cal-cell.tracked { outline:2px solid var(--accent); outline-offset:-2px; }
     a.cal-cell.clk { text-decoration:none; color:inherit; cursor:pointer; transition:transform .08s; }
     a.cal-cell.clk:hover { border-color:var(--accent); transform:translateY(-1px); }
-    .cal-legend { display:flex; flex-wrap:wrap; gap:6px 14px; margin-top:12px; font-size:.74rem; color:var(--muted); }
+    .cal-legend { display:flex; flex-wrap:wrap; gap:6px 14px; margin-top:12px; font-size:var(--fs-xs); color:var(--muted); }
     .cal-legend i { width:11px; height:11px; border-radius:3px; display:inline-block; vertical-align:middle; margin-right:4px; }
-    .cal-legend .lg-cheap { background:rgba(46,160,67,.5); border:1px solid var(--green); }
+    .cal-legend .lg-cheap { background:rgba(70,180,124,.5); border:1px solid var(--green); }
     .cal-legend .lg-pricey { border:1px solid var(--red); }
     .cal-legend .lg-track { border:2px solid var(--accent); }
     .cal-legend .lg-out { background:var(--surf2); opacity:.4; }
-    @media(max-width:560px){ .cal-cell{ min-height:44px; padding:3px; } .cal-cell .cal-p{ font-size:.7rem; } }
+    @media(max-width:560px){ .cal-cell{ min-height:44px; padding:3px; } .cal-cell .cal-p{ font-size:var(--fs-2xs); } }
     .cal-info { position:absolute; top:2px; right:3px; font-size:10px; line-height:1; cursor:pointer; z-index:2; opacity:.5; }
     .cal-info:hover { opacity:1; }
-    .cal-moves { margin-bottom:10px; border:1px solid var(--border); border-radius:8px; padding:8px 10px; background:var(--surf2); }
+    .cal-moves { margin-bottom:10px; border:1px solid var(--border); border-radius:var(--r-card); padding:8px 10px; background:var(--surf2); }
     .cal-moves summary { cursor:pointer; user-select:none; }
     .cal-moves summary:hover { color:var(--accent); }
     .cal-moves[open] summary { margin-bottom:4px; }
-    .cal-move-row { display:flex; align-items:center; gap:10px; padding:4px 0; font-size:.8rem; cursor:pointer; }
+    .cal-move-row { display:flex; align-items:center; gap:10px; padding:4px 0; font-size:var(--fs-sm); cursor:pointer; }
     .cal-move-row:hover { color:var(--accent); }
     /* Monatsname in der Monatsübersicht: klickbar, aber KEIN <a> — die Link-Farbe
        ist auf dem Modal-Hintergrund kaum lesbar. */
     .cal-month-link { cursor:pointer; text-decoration:underline; text-underline-offset:2px; }
     .cal-month-link:hover { color:var(--accent); }
-    .cal-day-chart { display:none; margin:10px 0; border:1px solid var(--border); border-radius:8px; padding:8px 10px; }
+    .cal-day-chart { display:none; margin:10px 0; border:1px solid var(--border); border-radius:var(--r-card); padding:8px 10px; }
     .cal-day-chart.show { display:block; }
-    .cal-day-hd { display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; font-size:.85rem; }
+    .cal-day-hd { display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; font-size:var(--fs-sm); }
     .modal-close { float:right; }
-    footer { text-align:center; margin:24px 0 8px; font-size:.72rem; color:var(--muted); }
+    /* Zwei Zeilen: oben der Zustand (Version, Intervall, DB, API), darunter die
+       Werkzeuge. Vorher stand beides in einer einzigen, mit „·" verketteten Zeile.
+       Gestapelt und zentriert statt space-between: bei breitem Fenster passten beide
+       Blöcke in eine Zeile und der Werkzeug-Block klebte dann am rechten Rand. */
+    footer { margin:28px 0 8px; padding-top:12px; border-top:1px solid var(--border);
+             font-size:var(--fs-xs); color:var(--muted); display:flex;
+             flex-direction:column; align-items:center; gap:8px; text-align:center; }
+    /* Trennzeichen per ::before wären beim Umbruch am Zeilenanfang hängen
+       geblieben (ein „·" ohne Bezug). Getrennt wird deshalb über den Abstand. */
+    .foot-status, .foot-tools { display:flex; flex-wrap:wrap; justify-content:center;
+                                gap:4px 20px; min-width:0; }
+    .foot-status span span { color:var(--text); }
     .hc-foot { cursor:pointer; }
+    .foot-tools .hc-foot:hover { color:var(--accent); }
     /* Als <a> (Download-Links, z. B. „Als Kalender (.ics)") sonst im Browser-Blau
        mit Unterstreichung — auf dunklem Grund kaum lesbar. Wie die <span>-Varianten
        in Textfarbe, Unterstreichung erst beim Hover als Klick-Hinweis. */
@@ -606,23 +731,23 @@
     #hc-dot.warn { color:#f59e0b; }
     #hc-dot.bad { color:#ef4444; }
     #hc-dot.wait { color:var(--muted); }
-    .sched-note { color:var(--muted); font-size:.76rem; margin-top:2px; }
-    .sched-at { color:var(--muted); font-size:.76rem; }
+    .sched-note { color:var(--muted); font-size:var(--fs-xs); margin-top:2px; }
+    .sched-at { color:var(--muted); font-size:var(--fs-xs); }
     .sched-off { color:var(--muted); }
     .sched-due { color:var(--amber); font-weight:600; }
-    .hc-row { display:flex; justify-content:space-between; gap:10px; padding:7px 2px; border-bottom:1px solid var(--border); font-size:.88rem; }
+    .hc-row { display:flex; justify-content:space-between; gap:10px; padding:7px 2px; border-bottom:1px solid var(--border); font-size:var(--fs-md); }
     .hc-row:last-child { border-bottom:none; }
     .hc-row .hc-name::before { content:'●'; margin-right:7px; }
     .hc-row.ok .hc-name::before { color:#22c55e; }
     .hc-row.bad .hc-name::before { color:#ef4444; }
     .hc-row .hc-detail { color:var(--muted); }
     .hc-row.bad .hc-detail { color:#ef4444; }
-    .toast { position:fixed; bottom:18px; left:50%; transform:translateX(-50%); background:var(--surf); border:1px solid var(--border); color:var(--text); padding:10px 16px; border-radius:8px; font-size:.84rem; opacity:0; transition:opacity .2s; z-index:60; pointer-events:none; }
+    .toast { position:fixed; bottom:18px; left:50%; transform:translateX(-50%); background:var(--surf); border:1px solid var(--border); color:var(--text); padding:10px 16px; border-radius:var(--r-card); font-size:var(--fs-sm); opacity:0; transition:opacity .2s; z-index:60; pointer-events:none; }
     .toast.show { opacity:1; }
     /* Konsole */
-    #tw-console{ display:none; position:fixed; bottom:80px; right:20px; width:580px; height:340px; background:#0d1117; border:1px solid #30363d; border-radius:8px; z-index:9999; flex-direction:column; font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12px; box-shadow:0 8px 32px rgba(0,0,0,.6); resize:both; overflow:hidden; min-width:320px; min-height:180px; }
+    #tw-console{ display:none; position:fixed; bottom:80px; right:20px; width:580px; height:340px; background:#0d1117; border:1px solid #30363d; border-radius:var(--r-card); z-index:9999; flex-direction:column; font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12px; box-shadow:0 8px 32px rgba(0,0,0,.6); resize:both; overflow:hidden; min-width:320px; min-height:180px; }
     #tw-console.open{ display:flex; }
-    #tw-console-header{ display:flex; align-items:center; justify-content:space-between; padding:5px 10px; background:#161b22; border-bottom:1px solid #30363d; flex-shrink:0; cursor:move; user-select:none; border-radius:7px 7px 0 0; }
+    #tw-console-header{ display:flex; align-items:center; justify-content:space-between; padding:5px 10px; background:#161b22; border-bottom:1px solid #30363d; flex-shrink:0; cursor:move; user-select:none; border-radius:var(--r-card) var(--r-card) 0 0; }
     #tw-console-title{ color:#8b949e; font-size:11px; font-weight:600; letter-spacing:.05em; }
     #tw-console-close{ background:none; border:none; color:#8b949e; cursor:pointer; font-size:14px; padding:2px 6px; line-height:1; }
     #tw-console-close:hover{ color:#f85149; }
@@ -631,86 +756,86 @@
     .twc-info{color:#8b949e;} .twc-warn{color:#d29922;} .twc-error{color:#f85149;} .twc-debug{color:#6e7681;}
     /* Reisen-Datenbank */
     .trips-stats { display:flex; flex-wrap:wrap; gap:10px; margin:6px 0 14px; }
-    .trips-stats .tstat { flex:1 1 120px; background:var(--surf); border:1px solid var(--border); border-radius:8px; padding:8px 12px; }
+    .trips-stats .tstat { flex:1 1 120px; background:var(--surf); border:1px solid var(--border); border-radius:var(--r-card); padding:8px 12px; }
     .trips-stats .tstat.sm { flex:0 1 88px; }   /* kompakte Kacheln (Reisen/Nächte) */
     .aktion-list { display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:10px; }
-    .aktion-card { background:var(--surf); border:1px solid var(--border); border-left:3px solid var(--green); border-radius:8px; padding:10px 12px; }
-    .aktion-val { font-weight:700; font-size:1.05rem; color:var(--green); }
-    .aktion-code { font-family:monospace; font-size:.9rem; color:var(--text); margin-top:2px; }
-    .aktion-kind { font-size:.72rem; color:var(--muted); margin-top:2px; }
-    .aktion-ctx { font-size:.82rem; color:var(--muted); margin-bottom:10px; }
-    .trips-stats .tstat .v { font-size:1.1rem; font-weight:700; color:var(--text); }
-    .trips-stats .tstat .l { font-size:.74rem; color:var(--muted); }
-    .trips-import { display:flex; align-items:center; gap:12px; flex-wrap:wrap; border:1px dashed var(--border); border-radius:8px; padding:12px; margin-bottom:14px; background:var(--bg); transition:border-color .15s,background .15s; }
-    .trips-import.drag { border-color:var(--accent); background:rgba(59,130,246,.08); }
-    .trips-imp-hint { font-size:.8rem; color:var(--muted); }
-    .trips-imp-status { font-size:.8rem; color:var(--accent); margin-left:auto; }
-    table.tyears { width:100%; border-collapse:collapse; font-size:.8rem; margin:0 0 14px; }
+    .aktion-card { background:var(--surf); border:1px solid var(--border); border-left:3px solid var(--green); border-radius:var(--r-card); padding:10px 12px; }
+    .aktion-val { font-weight:700; font-size:var(--fs-lg); color:var(--green); }
+    .aktion-code { font-family:monospace; font-size:var(--fs-md); color:var(--text); margin-top:2px; }
+    .aktion-kind { font-size:var(--fs-xs); color:var(--muted); margin-top:2px; }
+    .aktion-ctx { font-size:var(--fs-sm); color:var(--muted); margin-bottom:10px; }
+    .trips-stats .tstat .v { font-size:var(--fs-lg); font-weight:700; color:var(--text); }
+    .trips-stats .tstat .l { font-size:var(--fs-xs); color:var(--muted); }
+    .trips-import { display:flex; align-items:center; gap:12px; flex-wrap:wrap; border:1px dashed var(--border); border-radius:var(--r-card); padding:12px; margin-bottom:14px; background:var(--bg); transition:border-color .15s,background .15s; }
+    .trips-import.drag { border-color:var(--accent); background:rgba(59,156,217,.08); }
+    .trips-imp-hint { font-size:var(--fs-sm); color:var(--muted); }
+    .trips-imp-status { font-size:var(--fs-sm); color:var(--accent); margin-left:auto; }
+    table.tyears { width:100%; border-collapse:collapse; font-size:var(--fs-sm); margin:0 0 14px; }
     table.tyears th, table.tyears td { text-align:left; padding:5px 8px; border-bottom:1px solid var(--border); }
     table.tyears th { color:var(--muted); font-weight:600; }
     table.tyears td:not(:first-child), table.tyears th:not(:first-child) { text-align:right; }
-    .trip-row { display:flex; align-items:center; gap:12px; padding:10px 12px; border:1px solid var(--border); border-radius:8px; margin-bottom:8px; background:var(--surf); }
+    .trip-row { display:flex; align-items:center; gap:12px; padding:10px 12px; border:1px solid var(--border); border-radius:var(--r-card); margin-bottom:8px; background:var(--surf); }
     .trip-row .ti { flex:1; min-width:0; }
     .trip-row .ti .t { font-weight:600; color:var(--text); }
-    .trip-row .ti .m { font-size:.8rem; color:var(--muted); }
+    .trip-row .ti .m { font-size:var(--fs-sm); color:var(--muted); }
     .trip-row .tp { font-weight:700; white-space:nowrap; }
     .trip-row .ta { display:flex; gap:6px; flex-wrap:wrap; }
-    .trips-empty { color:var(--muted); font-size:.86rem; padding:10px 2px; }
-    .trip-detail { border:1px solid var(--border); border-radius:8px; padding:14px; margin-top:12px; background:var(--bg); }
-    .trip-detail h3 { margin:0 0 4px; font-size:1.05rem; }
-    .trip-detail .dgrid { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:6px 16px; margin:10px 0; font-size:.84rem; }
+    .trips-empty { color:var(--muted); font-size:var(--fs-sm); padding:10px 2px; }
+    .trip-detail { border:1px solid var(--border); border-radius:var(--r-card); padding:14px; margin-top:12px; background:var(--bg); }
+    .trip-detail h3 { margin:0 0 4px; font-size:var(--fs-lg); }
+    .trip-detail .dgrid { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:6px 16px; margin:10px 0; font-size:var(--fs-sm); }
     .trip-detail .dgrid .k { color:var(--muted); }
-    .trip-detail table.tdt { width:100%; border-collapse:collapse; font-size:.8rem; margin:6px 0 12px; }
+    .trip-detail table.tdt { width:100%; border-collapse:collapse; font-size:var(--fs-sm); margin:6px 0 12px; }
     .trip-detail table.tdt th, .trip-detail table.tdt td { text-align:left; padding:5px 8px; border-bottom:1px solid var(--border); }
     .trip-detail table.tdt th { color:var(--muted); font-weight:600; }
     .trip-detail .dsec { font-weight:600; margin:10px 0 4px; }
     .pack-head { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:14px 0 4px; }
     .pack-toggle { cursor:pointer; color:var(--muted); user-select:none; flex:0 0 auto; }
     .pack-toggle:hover { color:var(--accent); }
-    .pack-head .cnt { font-size:.78rem; color:var(--muted); }
-    .pack-reset { font-size:.78rem; color:var(--muted); cursor:pointer; text-decoration:underline; background:none; border:none; }
+    .pack-head .cnt { font-size:var(--fs-sm); color:var(--muted); }
+    .pack-reset { font-size:var(--fs-sm); color:var(--muted); cursor:pointer; text-decoration:underline; background:none; border:none; }
     .pack-reset:hover { color:var(--red); }
     .pack-wrap { display:flex; gap:22px; align-items:flex-start; margin:6px 0 4px; }
     .pack-col { flex:1; min-width:0; }
     .pack-cat { margin-bottom:12px; }
     .pack-cat .dsec { margin:0 0 4px; }
-    .pack-item { display:flex; align-items:center; gap:6px; font-size:.82rem; padding:2px 0; }
+    .pack-item { display:flex; align-items:center; gap:6px; font-size:var(--fs-sm); padding:2px 0; }
     .pack-item input[type=checkbox] { accent-color:var(--accent); cursor:pointer; flex:0 0 auto; }
     .pack-item .lbl { flex:1; cursor:text; outline:none; word-break:break-word; }
     .pack-item .lbl.done { color:var(--muted); text-decoration:line-through; }
     .pack-item .del { cursor:pointer; color:var(--muted); flex:0 0 auto; }
     .pack-item .del:hover { color:var(--red); }
     .pack-add { display:flex; gap:4px; margin-top:2px; }
-    .pack-add input { flex:1; font-size:.8rem; padding:3px 6px; border:1px solid var(--border); border-radius:5px; background:var(--surf); color:var(--text); }
+    .pack-add input { flex:1; font-size:var(--fs-sm); padding:3px 6px; border:1px solid var(--border); border-radius:var(--r-ui); background:var(--surf); color:var(--text); }
     .pack-add.full { opacity:.5; pointer-events:none; }
     #pack-print-area { display:none; }
     @media print {
       body { background:#fff !important; }
       body > *:not(#pack-print-area) { display:none !important; }
       #pack-print-area { display:block !important; background:#fff; color:#111; }
-      #pack-print-area .pp-head { background:var(--accent); color:#fff; padding:14px 18px; border-radius:6px; margin-bottom:14px; }
-      #pack-print-area .pp-head h1 { margin:0 0 4px; font-size:1.4rem; }
-      #pack-print-area .pp-meta { font-size:.85rem; opacity:.92; }
-      #pack-print-area .pp-flights { font-size:.8rem; opacity:.92; margin-top:4px; }
+      #pack-print-area .pp-head { background:var(--accent); color:#fff; padding:14px 18px; border-radius:var(--r-ui); margin-bottom:14px; }
+      #pack-print-area .pp-head h1 { margin:0 0 4px; font-size:var(--fs-xl); }
+      #pack-print-area .pp-meta { font-size:var(--fs-sm); opacity:.92; }
+      #pack-print-area .pp-flights { font-size:var(--fs-sm); opacity:.92; margin-top:4px; }
       #pack-print-area .pp-wrap { display:flex; gap:26px; align-items:flex-start; }
       #pack-print-area .pp-col { flex:1; min-width:0; }
       #pack-print-area .pp-cat { break-inside:avoid; margin-bottom:10px; }
-      #pack-print-area .pp-cat h4 { background:var(--accent); color:#fff; padding:3px 8px; border-radius:3px; font-size:.85rem; margin:0 0 4px; }
-      #pack-print-area .pp-item { font-size:.8rem; padding:1px 0; }
+      #pack-print-area .pp-cat h4 { background:var(--accent); color:#fff; padding:3px 8px; border-radius:3px; font-size:var(--fs-sm); margin:0 0 4px; }
+      #pack-print-area .pp-item { font-size:var(--fs-sm); padding:1px 0; }
     }
     .dbg-fields { display:flex; flex-wrap:wrap; gap:6px; margin:8px 0; }
-    .dbg-f { font-size:.76rem; padding:2px 8px; border-radius:10px; border:1px solid var(--border); }
-    .dbg-f.ok { color:var(--green); background:rgba(46,160,67,.10); }
-    .dbg-f.miss { color:var(--amber); background:rgba(210,153,34,.12); font-weight:600; }
-    .dbg-f.manual { color:var(--accent); background:rgba(88,166,255,.12); font-weight:600; }
-    .dbg-edit { border:1px solid var(--border); border-radius:8px; padding:8px 10px; margin:8px 0; background:var(--surf2); }
+    .dbg-f { font-size:var(--fs-xs); padding:2px 8px; border-radius:var(--r-pill); border:1px solid var(--border); }
+    .dbg-f.ok { color:var(--green); background:rgba(70,180,124,.10); }
+    .dbg-f.miss { color:var(--amber); background:rgba(210,160,58,.12); font-weight:600; }
+    .dbg-f.manual { color:var(--accent); background:rgba(59,156,217,.12); font-weight:600; }
+    .dbg-edit { border:1px solid var(--border); border-radius:var(--r-card); padding:8px 10px; margin:8px 0; background:var(--surf2); }
     .dbg-row { display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin:4px 0; }
-    .dbg-lbl { flex:0 0 160px; font-size:.8rem; }
-    .dbg-cur { flex:0 0 130px; font-size:.76rem; color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-    .dbg-in { flex:1; min-width:130px; background:var(--surf); color:var(--text); border:1px solid var(--border); border-radius:6px; padding:4px 8px; font-size:.8rem; }
-    .dbg-ex-tbl input { background:var(--surf); color:var(--text); border:1px solid var(--border); border-radius:6px; padding:3px 6px; font-size:.78rem; width:100%; box-sizing:border-box; }
-    .dbg-pre { max-height:320px; overflow:auto; font-size:.72rem; line-height:1.35; background:var(--surf2); border:1px solid var(--border); border-radius:6px; padding:8px 10px; white-space:pre-wrap; word-break:break-word; }
-    .dbg-sec { margin-top:8px; } .dbg-sec summary { cursor:pointer; font-size:.82rem; color:var(--muted); }
+    .dbg-lbl { flex:0 0 160px; font-size:var(--fs-sm); }
+    .dbg-cur { flex:0 0 130px; font-size:var(--fs-xs); color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .dbg-in { flex:1; min-width:130px; background:var(--surf); color:var(--text); border:1px solid var(--border); border-radius:var(--r-ui); padding:4px 8px; font-size:var(--fs-sm); }
+    .dbg-ex-tbl input { background:var(--surf); color:var(--text); border:1px solid var(--border); border-radius:var(--r-ui); padding:3px 6px; font-size:var(--fs-sm); width:100%; box-sizing:border-box; }
+    .dbg-pre { max-height:320px; overflow:auto; font-size:var(--fs-xs); line-height:1.35; background:var(--surf2); border:1px solid var(--border); border-radius:var(--r-card); padding:8px 10px; white-space:pre-wrap; word-break:break-word; }
+    .dbg-sec { margin-top:8px; } .dbg-sec summary { cursor:pointer; font-size:var(--fs-sm); color:var(--muted); }
     @media(max-width:767px){ #tw-console{ display:none!important; } }
     /* ── Tablet & Handy: Leisten umbrechen statt zusammenquetschen ───
        Kopf-, Werkzeug- und Kartenleiste sind am Desktop bewusst
@@ -719,14 +844,14 @@
     @media (max-width:767px) {
       body { overflow-x:hidden; }
       header { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-bottom:14px; }
-      .logo { flex:1 1 auto; }
+      .brand { flex:1 1 auto; }
       .trip-countdown { order:3; flex:1 1 100%; justify-content:center; }
       .header-actions { order:2; flex:0 1 auto; flex-wrap:wrap; justify-content:flex-end; gap:6px; }
       .header-actions .btn { flex:0 0 auto; overflow:visible; text-overflow:clip; padding:8px 12px; }
       .toolbar { flex-wrap:wrap; gap:6px; }
       .toolbar .btn { flex:1 1 calc(50% - 3px); padding:9px 8px; overflow:visible; text-overflow:clip; }
       .offer-actions { flex-wrap:wrap; gap:6px; }
-      .offer-actions .btn { flex:1 1 calc(50% - 3px); padding:9px 8px; font-size:.8rem; overflow:visible; text-overflow:clip; }
+      .offer-actions .btn { flex:1 1 calc(50% - 3px); padding:9px 8px; font-size:var(--fs-sm); overflow:visible; text-overflow:clip; }
       .offer-actions .icon-btn { flex:1 1 auto; justify-content:center; padding:9px 8px; }
       .target-row { gap:6px 8px; }
       .target-row input { flex:1 1 90px; width:auto; min-width:0; padding:7px 8px; }
@@ -739,11 +864,11 @@
        Breite, Preiskalender-Zellen kompakt (siehe calPrice() in app.js). */
     @media (max-width:640px) {
       .wrap { padding:10px; }
-      .logo { font-size:1.15rem; }
+      .logo { font-size:var(--fs-lg); }
       .logo svg { width:22px; height:22px; }
       .search-row select { flex:1 1 100%; }
       .offer { padding:12px; }
-      .offer-top { flex-direction:column; gap:6px; }
+      .offer-top { grid-template-columns:1fr; grid-template-areas:"main" "price" "extra"; gap:6px; }
       .price-box { width:100%; text-align:left; display:flex; flex-wrap:wrap; align-items:center; gap:5px 10px; }
       .price-box > div, .price-box > span { margin-top:0; }
       .notify-bell { margin-bottom:0; }
@@ -752,57 +877,143 @@
       .modal { padding:14px; max-height:94vh; }
       .cal-grid { grid-template-columns:repeat(7,minmax(0,1fr)); gap:3px; }
       .cal-cell { padding:3px 4px; }
-      .cal-cell .cal-d { font-size:.62rem; }
-      .cal-cell .cal-p { font-size:.64rem; }
+      .cal-cell .cal-d { font-size:var(--fs-2xs); }
+      .cal-cell .cal-p { font-size:var(--fs-2xs); }
       .cal-cell .cal-pig { width:20px; height:20px; }
-      table.hist, .split-table { font-size:.74rem; }
+      table.hist, .split-table { font-size:var(--fs-xs); }
     }
     /* ── Offline Banner ── */
     #offline-banner { display:none; position:fixed; inset:0; z-index:9000; background:rgba(0,0,0,0.72); backdrop-filter:blur(4px); -webkit-backdrop-filter:blur(4px); flex-direction:column; align-items:center; justify-content:center; gap:14px; }
     .ob-icon { font-size:44px; animation:ob-pulse 1.8s ease-in-out infinite; }
     .ob-title { font-size:16px; font-weight:600; color:var(--text); }
     .ob-sub { font-size:13px; color:var(--muted); }
-    .ob-reload { background:var(--surf); border:1px solid var(--border); color:var(--text); border-radius:8px; padding:8px 22px; font-size:13px; cursor:pointer; margin-top:4px; }
+    .ob-reload { background:var(--surf); border:1px solid var(--border); color:var(--text); border-radius:var(--r-ui); padding:8px 22px; font-size:13px; cursor:pointer; margin-top:4px; }
     .ob-reload:hover { border-color:var(--accent); }
     @keyframes ob-pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+    /* Symbole (Redesign Stufe 2): einheitliches Strichbild, Farbe und Deckkraft
+       kommen über currentColor vom umgebenden Knopf bzw. Text. Der Abstand zum
+       Beschriftungstext ist das Leerzeichen im Markup — wie zuvor beim Emoji. */
+    .i { width:1.05em; height:1.05em; vertical-align:-.17em; fill:none; stroke:currentColor;
+         stroke-width:1.75; stroke-linecap:round; stroke-linejoin:round; flex:none; }
+    h2 .i, h3 .i { vertical-align:-.12em; }
+    /* Ampel-Punkt (Buchungszeitpunkt, Preisbarometer) — ersetzt die Emoji-Kreise.
+       Nimmt die Signalfarben der Design-Token, passt sich also beiden Designs an. */
+    .ampel { display:inline-block; width:8px; height:8px; border-radius:50%; vertical-align:.04em; }
+    .ampel.g { background:var(--green); }
+    .ampel.y { background:var(--amber); }
+    .ampel.r { background:var(--red); }
   </style>
 </head>
 <body>
+  <!-- Symbolsatz (Redesign Stufe 2). Ersetzt die farbigen Emoji in Kopfleiste,
+       Werkzeugleiste, Dialogtiteln und Fußzeile. Einheitliches 24er-Raster,
+       Strichstärke aus .i — die Symbole erben über currentColor die Textfarbe und
+       werden dadurch mit deaktivierten Knöpfen blass und im hellen Design dunkel.
+       Bewusst inline und nicht als eigene Datei: das Add-on muss auch ohne
+       Internet und ohne zweiten Abruf sofort vollständig aussehen.
+       Emoji bleiben nur dort, wo sie Nutzerdaten sind (Symbolwahl der
+       „Für andere"-Listen) oder Teil eines Meldungstextes. -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs>
+    <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10"/><path d="M1 14l4.64 4.64A9 9 0 0 0 20.49 15"/></symbol>
+    <symbol id="i-ai" viewBox="0 0 24 24"><path d="M12 3l1.7 4.6L18.3 9.3l-4.6 1.7L12 15.6l-1.7-4.6L5.7 9.3l4.6-1.7z"/><path d="M18.6 15.4l.7 1.9 1.9.7-1.9.7-.7 1.9-.7-1.9-1.9-.7 1.9-.7z"/></symbol>
+    <symbol id="i-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></symbol>
+    <symbol id="i-climate" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4.5"/><path d="M12 1.5v2.5M12 20v2.5M3.9 3.9l1.8 1.8M18.3 18.3l1.8 1.8M1.5 12H4M20 12h2.5M3.9 20.1l1.8-1.8M18.3 5.7l1.8-1.8"/></symbol>
+    <symbol id="i-compass" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M16.24 7.76l-2.12 6.36-6.36 2.12 2.12-6.36z"/></symbol>
+    <symbol id="i-chart" viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></symbol>
+    <symbol id="i-plane" viewBox="0 0 24 24"><path d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5z"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></symbol>
+    <symbol id="i-luggage" viewBox="0 0 24 24"><rect x="4" y="7" width="16" height="14" rx="2"/><path d="M9 7V4.5A1.5 1.5 0 0 1 10.5 3h3A1.5 1.5 0 0 1 15 4.5V7"/><line x1="9.5" y1="11" x2="9.5" y2="17"/><line x1="14.5" y1="11" x2="14.5" y2="17"/></symbol>
+    <symbol id="i-map" viewBox="0 0 24 24"><path d="M1 6l7-4 8 4 7-4v16l-7 4-8-4-7 4z"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></symbol>
+    <symbol id="i-ticket" viewBox="0 0 24 24"><path d="M3 8V6a1 1 0 0 1 1-1h16a1 1 0 0 1 1 1v2a2.5 2.5 0 0 0 0 5v3a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-3a2.5 2.5 0 0 0 0-5z"/><line x1="14" y1="7" x2="14" y2="17" stroke-dasharray="2 2.6"/></symbol>
+    <symbol id="i-trend" viewBox="0 0 24 24"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></symbol>
+    <symbol id="i-mail" viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2"/><polyline points="22 6.5 12 13.5 2 6.5"/></symbol>
+    <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></symbol>
+    <symbol id="i-signal" viewBox="0 0 24 24"><path d="M2.5 8.5a15 15 0 0 1 19 0"/><path d="M6 12.5a10 10 0 0 1 12 0"/><path d="M9.5 16.5a5 5 0 0 1 5 0"/><circle cx="12" cy="20" r="1"/></symbol>
+    <symbol id="i-bell" viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></symbol>
+    <symbol id="i-download" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></symbol>
+    <symbol id="i-settings" viewBox="0 0 24 24"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></symbol>
+    <symbol id="i-star" viewBox="0 0 24 24"><path d="M12 2.5l3.1 6.4 6.9 1-5 4.9 1.2 6.9-6.2-3.3-6.2 3.3L7 14.8l-5-4.9 6.9-1z"/></symbol>
+    <symbol id="i-save" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></symbol>
+    <symbol id="i-comment" viewBox="0 0 24 24"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 8.4 8.4 0 0 1-3.8-.9L3 20.5l1.5-4.7A8.4 8.4 0 0 1 12 3.1a8.4 8.4 0 0 1 9 8.4z"/></symbol>
+    <symbol id="i-warn" viewBox="0 0 24 24"><path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></symbol>
+    <symbol id="i-terminal" viewBox="0 0 24 24"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></symbol>
+    <symbol id="i-image" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></symbol>
+    <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></symbol>
+    <symbol id="i-pin" viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></symbol>
+    <symbol id="i-hotel" viewBox="0 0 24 24"><path d="M4 21V5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v16"/><line x1="2" y1="21" x2="22" y2="21"/><path d="M10 21v-4h4v4"/><line x1="8" y1="7" x2="8.01" y2="7"/><line x1="12" y1="7" x2="12.01" y2="7"/><line x1="16" y1="7" x2="16.01" y2="7"/><line x1="8" y1="11" x2="8.01" y2="11"/><line x1="12" y1="11" x2="12.01" y2="11"/><line x1="16" y1="11" x2="16.01" y2="11"/></symbol>
+    <symbol id="i-car" viewBox="0 0 24 24"><path d="M5 17.5H3.5a1 1 0 0 1-1-1v-3.3a2 2 0 0 1 .4-1.2l2.3-3A2 2 0 0 1 6.8 8h8.9a2 2 0 0 1 1.5.7l3 3.4a2 2 0 0 1 .5 1.3v3.1a1 1 0 0 1-1 1H19"/><circle cx="7" cy="17.5" r="2"/><circle cx="17" cy="17.5" r="2"/><line x1="9" y1="17.5" x2="15" y2="17.5"/></symbol>
+    <symbol id="i-print" viewBox="0 0 24 24"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8" rx="1"/></symbol>
+    <symbol id="i-doc" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></symbol>
+    <symbol id="i-share" viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.6" y1="13.5" x2="15.4" y2="17.5"/><line x1="15.4" y1="6.5" x2="8.6" y2="10.5"/></symbol>
+    <symbol id="i-clipboard" viewBox="0 0 24 24"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></symbol>
+    <symbol id="i-thermo" viewBox="0 0 24 24"><path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"/></symbol>
+    <symbol id="i-calendar" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></symbol>
+    <symbol id="i-pause" viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/></symbol>
+    <symbol id="i-archive" viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="5" rx="1"/><path d="M4 9v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9"/><line x1="10" y1="13" x2="14" y2="13"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></symbol>
+    <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4.5"/><path d="M12 1.5v2.5M12 20v2.5M3.9 3.9l1.8 1.8M18.3 18.3l1.8 1.8M1.5 12H4M20 12h2.5M3.9 20.1l1.8-1.8M18.3 5.7l1.8-1.8"/></symbol>
+    <symbol id="i-logout" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4.5l12 7.5-12 7.5z"/></symbol>
+    <symbol id="i-reset" viewBox="0 0 24 24"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></symbol>
+    <symbol id="i-repeat" viewBox="0 0 24 24"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></symbol>
+    <symbol id="i-euro" viewBox="0 0 24 24"><path d="M18 6.5A7 7 0 0 0 7.5 12 7 7 0 0 0 18 17.5"/><line x1="3.5" y1="10.3" x2="12.5" y2="10.3"/><line x1="3.5" y1="13.7" x2="12.5" y2="13.7"/></symbol>
+    <symbol id="i-send" viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></symbol>
+    <symbol id="i-pencil" viewBox="0 0 24 24"><path d="M17 3a2.85 2.85 0 0 1 4 4L7.5 20.5 2 22l1.5-5.5z"/></symbol>
+    <symbol id="i-bell-off" viewBox="0 0 24 24"><path d="M13.73 21a2 2 0 0 1-3.46 0"/><path d="M18.63 13A17.9 17.9 0 0 1 18 8"/><path d="M6.26 6.26A5.9 5.9 0 0 0 6 8c0 7-3 9-3 9h14"/><path d="M18 8a6 6 0 0 0-9.33-5"/><line x1="1" y1="1" x2="23" y2="23"/></symbol>
+    <symbol id="i-thumbup" viewBox="0 0 24 24"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.3a2 2 0 0 0 2-1.7l1.4-9a2 2 0 0 0-2-2.3z"/><path d="M7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></symbol>
+    <symbol id="i-target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.5"/><circle cx="12" cy="12" r="5.5"/><circle cx="12" cy="12" r="1.5"/></symbol>
+    <symbol id="i-bookmark" viewBox="0 0 24 24"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></symbol>
+    <symbol id="i-receipt" viewBox="0 0 24 24"><path d="M5 2l1.6 1.5L8.2 2l1.6 1.5L11.4 2 13 3.5 14.6 2l1.6 1.5L17.8 2 19 3v18l-1.2-1-1.6 1.5L14.6 20 13 21.5 11.4 20 9.8 21.5 8.2 20l-1.6 1.5L5 21z"/><line x1="8.5" y1="8" x2="15.5" y2="8"/><line x1="8.5" y1="12" x2="15.5" y2="12"/><line x1="8.5" y1="16" x2="13" y2="16"/></symbol>
+    <symbol id="i-zap" viewBox="0 0 24 24"><path d="M13 2L4 14h7l-1 8 9-12h-7z"/></symbol>
+    <symbol id="i-seat" viewBox="0 0 24 24"><path d="M6 3h3a2 2 0 0 1 2 1.8l.7 7.2H16a3 3 0 0 1 3 3v6"/><path d="M5 3v11a4 4 0 0 0 4 4h10"/></symbol>
+    <symbol id="i-card" viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.5"/><polyline points="12 6.5 12 12 15.8 14"/></symbol>
+    <symbol id="i-trend-down" viewBox="0 0 24 24"><polyline points="23 18 13.5 8.5 8.5 13.5 1 6"/><polyline points="17 18 23 18 23 12"/></symbol>
+    <symbol id="i-paperclip" viewBox="0 0 24 24"><path d="M21.4 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></symbol>
+    <symbol id="i-eye" viewBox="0 0 24 24"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></symbol>
+    <symbol id="i-check-circle" viewBox="0 0 24 24"><path d="M21.8 10.9V12a10 10 0 1 1-5.9-9.1"/><polyline points="22 4 12 14.01 9 11.01"/></symbol>
+    <symbol id="i-home" viewBox="0 0 24 24"><path d="M3 9.5l9-7 9 7V20a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></symbol>
+    <symbol id="i-hash" viewBox="0 0 24 24"><line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="20" y2="15"/><line x1="10" y1="3" x2="8" y2="21"/><line x1="16" y1="3" x2="14" y2="21"/></symbol>
+    <symbol id="i-takeoff" viewBox="0 0 24 24"><path d="M2.5 19.5h19"/><path d="M21.2 9.6a1.6 1.6 0 0 0-2-1.1l-4.7 1.3-6.1-5.7-2.3.6 3.7 6.4-4.4 1.2-1.7-1.4-1.7.5 2.2 3.9 16.9-4.6a1.6 1.6 0 0 0 1.1-2z"/></symbol>
+    <symbol id="i-landing" viewBox="0 0 24 24"><path d="M2.5 19.5h19"/><path d="M20.8 15.6a1.6 1.6 0 0 0 1-2.1l-3.4-3.5-1.6-8.3-2.2-.8-.4 7.4-4.4-1.2-.9-2.1-1.7-.5v4.5l16.9 4.6a1.6 1.6 0 0 0 2-.9z"/></symbol>
+    <symbol id="i-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></symbol>
+    <symbol id="i-list" viewBox="0 0 24 24"><line x1="9" y1="6" x2="20" y2="6"/><line x1="9" y1="12" x2="20" y2="12"/><line x1="9" y1="18" x2="20" y2="18"/><circle cx="4.6" cy="6" r="1.3"/><circle cx="4.6" cy="12" r="1.3"/><circle cx="4.6" cy="18" r="1.3"/></symbol>
+    <symbol id="i-dots" viewBox="0 0 24 24" fill="currentColor" stroke="none"><circle cx="12" cy="12" r="1.7"/><circle cx="18.5" cy="12" r="1.7"/><circle cx="5.5" cy="12" r="1.7"/></symbol>
+  </defs></svg>
   <div id="offline-banner">
-    <div class="ob-icon">📡</div>
+    <div class="ob-icon"><svg class="i"><use href="#i-signal"/></svg></div>
     <div class="ob-title">Verbindung unterbrochen</div>
     <div class="ob-sub">Stelle Verbindung wieder her…</div>
     <button class="ob-reload" onclick="window.location.reload()">Neu laden</button>
   </div>
   <div class="wrap">
     <header>
-      <div class="logo" ondblclick="consoleToggle()" oncontextmenu="return openSchedule()" style="cursor:default;user-select:none;" title="Doppelklick: Konsole · Rechtsklick: nächste Läufe">
-        <svg viewBox="0 0 24 24"><path d="M21 16v-2l-8-5V3.5A1.5 1.5 0 0 0 11.5 2 1.5 1.5 0 0 0 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/></svg>
-        TUIWatch
+      <div class="brand">
+        <div class="logo" ondblclick="consoleToggle()" oncontextmenu="return openSchedule()" style="cursor:default;user-select:none;" title="Doppelklick: Konsole · Rechtsklick: nächste Läufe">
+          <svg viewBox="0 0 24 24"><path d="M21 16v-2l-8-5V3.5A1.5 1.5 0 0 0 11.5 2 1.5 1.5 0 0 0 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/></svg>
+          TUIWatch
+        </div>
+        <!-- Störungen: erscheint nur, wenn etwas wiederholt ins Leere läuft
+             (siehe issues.py). Zahl + Farbe kommen aus /api/offers → issues. -->
+        <button class="issue-badge" id="issue-badge" style="display:none"
+                onclick="openIssues()" title="Störungen — klicken für Details">
+          <svg class="i"><use href="#i-warn"/></svg><span id="issue-badge-n"></span>
+        </button>
       </div>
       <div class="trip-countdown" id="trip-countdown" onclick="openTrips()" title="Nächste Reise – zu „Meine Reisen“">
-        ✈ <span class="tc-dest" id="tc-dest"></span> <b id="tc-time"></b>
+        <svg class="i"><use href="#i-plane"/></svg> <span class="tc-dest" id="tc-dest"></span> <b id="tc-time"></b>
       </div>
       <div class="header-actions">
-        <button class="btn sec" id="check-all" title="Alle prüfen">🔄</button>
-        <button class="btn sec ai-feature" onclick="openAiHistory()" title="KI-Verlauf: bisherige KI-Fazits/-Vergleiche einsehen">🤖</button>
-        <button class="btn sec ai-feature" onclick="openAiAsk()"
-                title="Frage stellen — zu deinen getrackten Angeboten (Preis, Bewertung, Trend, Wunschpreis) oder allgemein zum Reisen (Region, Reisezeit, Einreise, Anreise)">❓</button>
-        <button class="btn sec ai-feature" onclick="openClimate()"
-                title="Klimatabellen: Temperaturen, Wassertemperatur, Sonnenstunden und Regentage über zwölf Monate — für alle Ziele, zu denen bereits eine Tabelle gespeichert ist">🌤</button>
-        <button class="btn sec ai-feature" onclick="openGuide()"
-                title="Reiseführer: Einreise, Gesundheit, Geld, Mobilität, Sicherheit, Kultur, Don't Dos und Insider-Tipps — für alle Ziele, zu denen bereits ein Reiseführer gespeichert ist">🧭</button>
-        <button class="btn sec ai-feature" onclick="openRegionCompare()"
-                title="Regionen vergleichen: bis zu 5 Ziele + ein Reisemonat — KI vergleicht Wetter, Sicherheit, Preisniveau, beste Reisezeit, Strand/Natur, Familien-/Nightlife-Eignung">📊</button>
-        <button class="btn sec flights-feature" onclick="openFlightPlan()"
-                title="Flugplan: Verbindungen ab Stuttgart (STR) bzw. Frankfurt (FRA) nach Zielflughafen durchsuchen">✈️</button>
+        <button class="btn" id="check-all" title="Alle Angebote jetzt prüfen"><svg class="i"><use href="#i-refresh"/></svg> <span class="btn-lbl">Alle prüfen</span></button>
         <button class="icon-btn" onclick="toggleTheme()" title="Design wechseln">
-          <svg class="icon-moon" viewBox="0 0 24 24"><path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c0-.46-.04-.92-.1-1.36-.98 1.37-2.58 2.26-4.4 2.26-2.98 0-5.4-2.42-5.4-5.4 0-1.81.89-3.42 2.26-4.4-.44-.06-.9-.1-1.36-.1z"/></svg>
-          <svg class="icon-sun"  viewBox="0 0 24 24"><path d="M12 7c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zM2 13h2v-2H2v2zm18 0h2v-2h-2v2zM11 2v2h2V2h-2zm0 18v2h2v-2h-2zM5.99 4.58 4.58 5.99l1.41 1.41 1.41-1.41L5.99 4.58zm12.03 12.03-1.41 1.41 1.41 1.41 1.41-1.41-1.41-1.41zm1.41-12.44-1.41-1.41-1.41 1.41 1.41 1.41 1.41-1.41zM5.99 19.42l1.41 1.41 1.41-1.41-1.41-1.41-1.41 1.41z"/></svg>
+          <svg class="i icon-moon"><use href="#i-moon"/></svg>
+          <svg class="i icon-sun"><use href="#i-sun"/></svg>
         </button>
         {% if not is_ingress %}
         <button class="icon-btn" onclick="logout()" title="Abmelden">
-          <svg viewBox="0 0 24 24"><path d="M16 17v-3H9v-4h7V7l5 5-5 5M14 2a2 2 0 0 1 2 2v2h-2V4H5v16h9v-2h2v2a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9z"/></svg>
+          <svg class="i"><use href="#i-logout"/></svg>
         </button>
         {% endif %}
       </div>
@@ -817,14 +1028,48 @@
       <div class="hint">Tipp: Auf tui.com die gewünschte Reise mit Datum, Personen &amp; Abflughafen suchen und die Adresszeile (URL) hier einfügen. Getrackt wird genau dieses Angebot.</div>
     </div>
 
+    <!-- Werkzeugleiste: vorne die vier täglich gebrauchten Werkzeuge, alles
+         Weitere gruppiert unter „Mehr". Das Auf- und Zuklappen macht <details>
+         selbst; das JavaScript unten schließt das Menü nur nach einer Auswahl,
+         bei Klick daneben und bei Escape. -->
     <div class="toolbar">
-      <button class="btn" onclick="openSearch()" title="Hotels einer Region suchen (TUI-Such-URL einfügen)">🔍 Suche</button>
-      <button class="btn sec" onclick="openTrips()" title="Gebuchte Reisen verwalten (TUI-PDF importieren)">🧳 Meine Reisen</button>
-      <button class="btn sec ai-feature" onclick="openAdvisor()" oncontextmenu="return openTpEdit()" title="TripPilot: passende Ziele nach Vorlieben finden · Rechtsklick: Fragebogen bearbeiten">🗺️ TripPilot</button>
-      <button class="btn sec" id="aktion-btn" onclick="openAktion()" title="Aktuelle öffentliche TUI-Aktionscodes anzeigen und bei neuen benachrichtigt werden">🎟 Aktionscodes</button>
-      <button class="btn sec" id="trend-btn" onclick="openMarketTrend()" title="Marktweiter Preistrend über alle geprüften Angebote, optional nach Destination">📈 Markttrend</button>
-      <button class="btn sec" onclick="sendEmail()" title="Alle Angebote als E-Mail senden">✉ Als E-Mail senden</button>
-      <button class="btn sec" onclick="sendDigest()" title="Wochenüberblick jetzt senden (Telegram/E-Mail)">📊 Wochenüberblick</button>
+      <button class="btn" onclick="openSearch()" title="Hotels einer Region suchen (TUI-Such-URL einfügen)"><svg class="i"><use href="#i-search"/></svg> Suche</button>
+      <button class="btn sec" onclick="openTrips()" title="Gebuchte Reisen verwalten (TUI-PDF importieren)"><svg class="i"><use href="#i-luggage"/></svg> Meine Reisen</button>
+      <button class="btn sec ai-feature" onclick="openAdvisor()" oncontextmenu="return openTpEdit()" title="TripPilot: passende Ziele nach Vorlieben finden · Rechtsklick: Fragebogen bearbeiten"><svg class="i"><use href="#i-map"/></svg> TripPilot</button>
+      <button class="btn sec" id="trend-btn" onclick="openMarketTrend()" title="Marktweiter Preistrend über alle geprüften Angebote, optional nach Destination"><svg class="i"><use href="#i-trend"/></svg> Markttrend</button>
+
+      <details class="more" id="more">
+        <summary class="btn sec" id="more-sum" title="Weitere Werkzeuge">Mehr <svg class="i mm-chev"><use href="#i-chevron"/></svg></summary>
+        <div class="more-menu">
+          <div class="mm-group mm-wissen">
+            <div class="mm-head">Reise-Wissen</div>
+            <button class="mm-item ai-feature" onclick="openClimate()"
+                    title="Klimatabellen: Temperaturen, Wassertemperatur, Sonnenstunden und Regentage über zwölf Monate — für alle Ziele, zu denen bereits eine Tabelle gespeichert ist"><svg class="i"><use href="#i-climate"/></svg> Klimatabellen</button>
+            <button class="mm-item ai-feature" onclick="openGuide()"
+                    title="Reiseführer: Einreise, Gesundheit, Geld, Mobilität, Sicherheit, Kultur, Don't Dos und Insider-Tipps — für alle Ziele, zu denen bereits ein Reiseführer gespeichert ist"><svg class="i"><use href="#i-compass"/></svg> Reiseführer</button>
+            <button class="mm-item ai-feature" onclick="openRegionCompare()"
+                    title="Regionen vergleichen: bis zu 5 Ziele + ein Reisemonat — KI vergleicht Wetter, Sicherheit, Preisniveau, beste Reisezeit, Strand/Natur, Familien-/Nightlife-Eignung"><svg class="i"><use href="#i-chart"/></svg> Regionen vergleichen</button>
+            <button class="mm-item flights-feature" onclick="openFlightPlan()"
+                    title="Flugplan: Verbindungen ab Stuttgart (STR) bzw. Frankfurt (FRA) nach Zielflughafen durchsuchen"><svg class="i"><use href="#i-plane"/></svg> Flugplan</button>
+          </div>
+          <div class="mm-group mm-ai ai-feature">
+            <div class="mm-head">KI</div>
+            <button class="mm-item" onclick="openAiHistory()"
+                    title="KI-Verlauf: bisherige KI-Fazits/-Vergleiche einsehen"><svg class="i"><use href="#i-ai"/></svg> KI-Verlauf</button>
+            <button class="mm-item" onclick="openAiAsk()"
+                    title="Frage stellen — zu deinen getrackten Angeboten (Preis, Bewertung, Trend, Wunschpreis) oder allgemein zum Reisen (Region, Reisezeit, Einreise, Anreise)"><svg class="i"><use href="#i-help"/></svg> Frage stellen</button>
+          </div>
+          <div class="mm-group">
+            <div class="mm-head">Versand &amp; Codes</div>
+            <button class="mm-item" id="aktion-btn" onclick="openAktion()"
+                    title="Aktuelle öffentliche TUI-Aktionscodes anzeigen und bei neuen benachrichtigt werden"><svg class="i"><use href="#i-ticket"/></svg> Aktionscodes</button>
+            <button class="mm-item" onclick="sendEmail()"
+                    title="Alle Angebote als E-Mail senden"><svg class="i"><use href="#i-mail"/></svg> Als E-Mail senden</button>
+            <button class="mm-item" onclick="sendDigest()"
+                    title="Wochenüberblick jetzt senden (Telegram/E-Mail)"><svg class="i"><use href="#i-chart"/></svg> Wochenüberblick</button>
+          </div>
+        </div>
+      </details>
       <input type="file" id="restore-file" accept=".zip,application/zip,.json,application/json" style="display:none" onchange="restoreOffers(this)">
     </div>
     <div id="overview" class="overview" style="display:none"></div>
@@ -855,13 +1100,13 @@
       </div>
       <div class="bulk-actions">
       <button class="btn sec" onclick="bulkCheck()">Prüfen</button>
-      <button class="btn sec" onclick="bulkEmail()" title="Markierte als E-Mail senden">✉ E-Mail</button>
+      <button class="btn sec" onclick="bulkEmail()" title="Markierte als E-Mail senden"><svg class="i"><use href="#i-mail"/></svg> E-Mail</button>
       <button class="btn sec" onclick="bulkArchive()">Archivieren</button>
       <button class="btn danger" onclick="bulkDelete()">Löschen</button>
-      <button class="btn sec ai-feature" onclick="openAiCompareOffers()" title="Ausgewählte Angebote per KI vergleichen (max. 5)">🤖 Vergleichen</button>
-      <button class="btn sec ai-feature" onclick="autoTagSelected()" title="Passende Tags automatisch per KI vergeben (ergänzt bestehende Tags)">🤖 Auto-Tag</button>
-      <button class="btn sec share-feature" onclick="openShareCreate()" title="Öffentlichen Link zum Anschauen erzeugen (ohne Login, nur Ansicht)">🔗 Teilen</button>
-      <button class="btn sec" onclick="bulkForeign()" title="In eine „Für andere"-Liste legen (Name frei wählbar): eingeklappt ans Listenende, keine Benachrichtigungen">👥 Für andere</button>
+      <button class="btn sec ai-feature" onclick="openAiCompareOffers()" title="Ausgewählte Angebote per KI vergleichen (max. 5)"><svg class="i"><use href="#i-ai"/></svg> Vergleichen</button>
+      <button class="btn sec ai-feature" onclick="autoTagSelected()" title="Passende Tags automatisch per KI vergeben (ergänzt bestehende Tags)"><svg class="i"><use href="#i-ai"/></svg> Auto-Tag</button>
+      <button class="btn sec share-feature" onclick="openShareCreate()" title="Öffentlichen Link zum Anschauen erzeugen (ohne Login, nur Ansicht)"><svg class="i"><use href="#i-link"/></svg> Teilen</button>
+      <button class="btn sec" onclick="bulkForeign()" title="In eine Liste verschieben (Name frei wählbar): rutscht eingeklappt ans Listenende, keine Benachrichtigungen"><svg class="i"><use href="#i-list"/></svg> In Liste verschieben</button>
       </div>
     </div>
     <!-- Startzustand: steht bewusst direkt im HTML und nicht erst im JS. Die erste
@@ -877,29 +1122,35 @@
       </div>
     </div>
     <footer>
-      <div>TUIWatch v{{ app_version }} · Prüfintervall: <span id="iv"></span>
-        · DB: <span id="db-size">…</span>
-        · <span id="tui-calls-foot" title="TUI-API-Aufrufe heute — Zähler setzt sich um 0 Uhr zurück">📡 TUI-Aufrufe heute: <span id="tui-calls">…</span></span>
-        · <span id="hc-foot" class="hc-foot" title="API-Status — klicken für Details &amp; neuen Test" onclick="openHealth()">API: <span id="hc-dot">…</span></span>
-        · <span class="hc-foot" onclick="openSyslog('notify')" title="Verlauf gesendeter Benachrichtigungen + letzte Warnungen/Fehler">🔔 Meldungen</span>
-        · <span class="hc-foot" onclick="openStats()" title="Tracking-Statistik: Ersparnis, größte Preisbewegungen, Wochentags-Muster, Tiefstpreis-Rückschau">📊 Statistik</span>
-        · <span class="hc-foot share-feature" onclick="openShareList()" title="Öffentliche Links verwalten: Aufrufe, Gültigkeit, widerrufen">🔗 Geteilte Links</span>
-        · <span class="hc-foot" onclick="backupOffers()" title="Komplettes Backup (Angebote mit Preisverlauf, Meine Reisen inkl. PDF, gespeicherte Suchen) als ZIP">⬇ Backup</span>
-        · <span class="hc-foot" onclick="document.getElementById('restore-file').click()" title="Backup wiederherstellen (ZIP oder altes JSON) – ergänzt Fehlendes, überschreibt nichts">⬆ Restore</span></div>
-      <div class="ai-feature"><span class="hc-foot" onclick="openPromptCfg()" title="Eigene KI-Prompt-Vorlagen für TripPilot, Hotelvergleich, KI-Fazit, Tagesausflug &amp; Regionen-Vergleich bearbeiten">⚙ KI-Prompts</span>
+      <div class="foot-status">
+        <span>TUIWatch v{{ app_version }}</span>
+        <span>Prüfintervall <span id="iv"></span></span>
+        <span>DB <span id="db-size">…</span></span>
+        <span id="tui-calls-foot" title="TUI-API-Aufrufe heute — Zähler setzt sich um 0 Uhr zurück">TUI-Aufrufe heute <span id="tui-calls">…</span></span>
+        <span id="hc-foot" class="hc-foot" title="API-Status — klicken für Details &amp; neuen Test" onclick="openHealth()">API <span id="hc-dot">…</span></span>
+        <span class="hc-foot ai-feature" id="ai-usage-foot" onclick="openAiHistory()" title="Geschätzte KI-Kosten — kein echtes Guthaben, dauerhaft in der DB gespeichert">…</span>
         <span class="hc-foot ai-feature" id="ai-provider-foot" onclick="toggleAiProvider()" style="display:none" title="Aktiven KI-Anbieter umschalten"></span>
-        · <span class="hc-foot ai-feature" id="ai-usage-foot" onclick="openAiHistory()" title="Geschätzte KI-Kosten — kein echtes Guthaben, dauerhaft in der DB gespeichert">…</span></div></footer>
+      </div>
+      <div class="foot-tools">
+        <span class="hc-foot" onclick="openSyslog('notify')" title="Verlauf gesendeter Benachrichtigungen + letzte Warnungen/Fehler">Meldungen</span>
+        <span class="hc-foot" onclick="openStats()" title="Tracking-Statistik: Ersparnis, größte Preisbewegungen, Wochentags-Muster, Tiefstpreis-Rückschau">Statistik</span>
+        <span class="hc-foot share-feature" onclick="openShareList()" title="Öffentliche Links verwalten: Aufrufe, Gültigkeit, widerrufen">Geteilte Links</span>
+        <span class="hc-foot" onclick="backupOffers()" title="Komplettes Backup (Angebote mit Preisverlauf, Meine Reisen inkl. PDF, gespeicherte Suchen) als ZIP">Backup</span>
+        <span class="hc-foot" onclick="document.getElementById('restore-file').click()" title="Backup wiederherstellen (ZIP oder altes JSON) – ergänzt Fehlendes, überschreibt nichts">Restore</span>
+        <span class="hc-foot ai-feature" onclick="openPromptCfg()" title="Eigene KI-Prompt-Vorlagen für TripPilot, Hotelvergleich, KI-Fazit, Tagesausflug &amp; Regionen-Vergleich bearbeiten">KI-Prompts</span>
+      </div>
+    </footer>
   </div>
 
   <!-- Verlauf-Modal -->
   <div class="modal-bg" id="modal-bg">
     <div class="modal">
       <button class="icon-btn modal-close" onclick="closeModal()">
-        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        <svg class="i"><use href="#i-close"/></svg>
       </button>
       <h2 id="modal-title">Preisverlauf</h2>
       <div class="sub" id="modal-sub"></div>
-      <div style="margin-bottom:10px"><button class="btn sec" onclick="exportCsv()">⬇ CSV-Export</button></div>
+      <div style="margin-bottom:10px"><button class="btn sec" onclick="exportCsv()"><svg class="i"><use href="#i-download"/></svg> CSV-Export</button></div>
       <div id="hist-wrap" style="position:relative">
         <canvas id="hist-canvas"></canvas>
         <div id="hist-tip" class="chart-tip" style="display:none"></div>
@@ -912,7 +1163,7 @@
   <div class="modal-bg" id="cmp-bg">
     <div class="modal">
       <button class="icon-btn modal-close" onclick="closeCompare()">
-        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        <svg class="i"><use href="#i-close"/></svg>
       </button>
       <h2>Pro-Person-Vergleich</h2>
       <div class="sub" id="cmp-sub"></div>
@@ -924,21 +1175,21 @@
   <div class="modal-bg" id="srch-bg">
     <div class="modal" style="max-width:960px">
       <button class="icon-btn modal-close" onclick="closeSearch()">
-        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        <svg class="i"><use href="#i-close"/></svg>
       </button>
       <h2>Hotels suchen</h2>
       <div class="sub">Reiseziel wählen, Eckdaten setzen, suchen — oder bei einem Angebot auf <b>„Region"</b> klicken bzw. unten eine TUI-URL einfügen.</div>
 
       <div class="srch-fav" id="srch-favbar">
-        <span>★ Gespeicherte Suche</span>
+        <span><svg class="i"><use href="#i-star"/></svg> Gespeicherte Suche</span>
         <select id="srch-favsel" onchange="loadFav()"><option value="">– gespeicherte Suche wählen –</option></select>
-        <button class="btn sec" onclick="saveFav()" title="Aktuelle Eingaben als neue Suche speichern (Name abfragen)">★ Speichern</button>
-        <button class="btn sec" id="srch-favupd" onclick="updateFav()" disabled title="Die gewählte gespeicherte Suche mit den aktuellen Eingaben überschreiben">💾 Änderungen speichern</button>
+        <button class="btn sec" onclick="saveFav()" title="Aktuelle Eingaben als neue Suche speichern (Name abfragen)"><svg class="i"><use href="#i-star"/></svg> Speichern</button>
+        <button class="btn sec" id="srch-favupd" onclick="updateFav()" disabled title="Die gewählte gespeicherte Suche mit den aktuellen Eingaben überschreiben"><svg class="i"><use href="#i-save"/></svg> Änderungen speichern</button>
         <button class="btn sec" onclick="delFav()" title="Gewählte Suche löschen">Löschen</button>
       </div>
 
       <div class="srch-watch" id="srch-watchrow" style="display:none">
-        <label class="srch-chk" title="Diese gespeicherte Suche regelmäßig ausführen und melden, wenn ein Hotel unter den Schwellenpreis fällt oder neu darunter auftaucht (Telegram/HA)"><input type="checkbox" id="watch-on"> 🔔 Beobachten</label>
+        <label class="srch-chk" title="Diese gespeicherte Suche regelmäßig ausführen und melden, wenn ein Hotel unter den Schwellenpreis fällt oder neu darunter auftaucht (Telegram/HA)"><input type="checkbox" id="watch-on"> <svg class="i"><use href="#i-bell"/></svg> Beobachten</label>
         <span>melden bei Preis p. P. unter</span>
         <input type="number" id="watch-max" min="1" placeholder="z. B. 800" onkeydown="if(event.key==='Enter')watchSave()"> €
         <button class="btn sec" onclick="watchSave()">Übernehmen</button>
@@ -1015,11 +1266,11 @@
         <label class="srch-chk" title="Sterne- und Weiterempfehlungs-Filter ignorieren"><input type="checkbox" id="srch-qual-off" onchange="toggleQualFilter()"> Egal</label>
         <button class="btn sec" onclick="resetSearch()" style="margin-left:auto" title="Eingaben auf Standard zurücksetzen">Reset</button>
         <button class="btn sec ai-feature" onclick="openClimate()"
-                title="Klimatabelle des Reiseziels: Temperaturen, Wassertemperatur, Sonnenstunden und Regentage für alle zwölf Monate">🌤 Klima</button>
+                title="Klimatabelle des Reiseziels: Temperaturen, Wassertemperatur, Sonnenstunden und Regentage für alle zwölf Monate"><svg class="i"><use href="#i-climate"/></svg> Klima</button>
         <button class="btn sec ai-feature" onclick="openGuide()"
-                title="Reiseführer zum Reiseziel: Einreise, Gesundheit, Geld, Mobilität, Sicherheit, Kultur, Don't Dos und Insider-Tipps — inklusive Klimatabelle">🧭 Reiseführer</button>
+                title="Reiseführer zum Reiseziel: Einreise, Gesundheit, Geld, Mobilität, Sicherheit, Kultur, Don't Dos und Insider-Tipps — inklusive Klimatabelle"><svg class="i"><use href="#i-compass"/></svg> Reiseführer</button>
         <button class="btn sec ai-feature" onclick="askSearchAdvice()"
-                title="KI prüft den gewählten Reisezeitraum (Regenzeit, Temperaturen, Haupt-/Nebensaison, Schnäppchenmonate) und schlägt ähnliche Ziele vor">🤖 Reisezeit-Check</button>
+                title="KI prüft den gewählten Reisezeitraum (Regenzeit, Temperaturen, Haupt-/Nebensaison, Schnäppchenmonate) und schlägt ähnliche Ziele vor"><svg class="i"><use href="#i-ai"/></svg> Reisezeit-Check</button>
         <button class="btn" onclick="runSearch()">Suchen</button>
       </div>
       <div id="srch-nights-warn" class="srch-warn" style="display:none"></div>
@@ -1039,7 +1290,7 @@
   <div class="modal-bg" id="nig-bg">
     <div class="modal">
       <button class="icon-btn modal-close" onclick="closeNights()">
-        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        <svg class="i"><use href="#i-close"/></svg>
       </button>
       <h2>Nächte-Vergleich</h2>
       <div class="sub" id="nig-sub"></div>
@@ -1061,7 +1312,7 @@
   <div class="modal-bg" id="c24-bg">
     <div class="modal">
       <button class="icon-btn modal-close" onclick="closeCheck24()">
-        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        <svg class="i"><use href="#i-close"/></svg>
       </button>
       <h2>Check24-Vergleich</h2>
       <div class="sub" id="c24-sub"></div>
@@ -1073,7 +1324,7 @@
   <div class="modal-bg" id="split-bg">
     <div class="modal" style="max-width:440px">
       <button class="icon-btn modal-close" onclick="closePriceSplit()">
-        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        <svg class="i"><use href="#i-close"/></svg>
       </button>
       <h2>Preis-Aufschlüsselung</h2>
       <div class="sub" id="split-sub"></div>
@@ -1081,13 +1332,13 @@
     </div>
   </div>
 
-  <!-- „Für andere": Liste wählen/anlegen -->
+  <!-- Liste wählen/anlegen (Angebot in eine Liste verschieben) -->
   <div class="modal-bg" id="fl-bg">
     <div class="modal" style="max-width:480px">
       <button class="icon-btn modal-close" onclick="closeForeignPicker()">
-        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        <svg class="i"><use href="#i-close"/></svg>
       </button>
-      <h2>👥 Für andere</h2>
+      <h2><svg class="i"><use href="#i-list"/></svg> In Liste verschieben</h2>
       <div class="sub" id="fl-sub"></div>
       <div id="fl-body"></div>
     </div>
@@ -1097,9 +1348,9 @@
   <div class="modal-bg" id="shc-bg" style="z-index:55">
     <div class="modal" style="max-width:700px">
       <button class="icon-btn modal-close" onclick="closeShareComments()">
-        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        <svg class="i"><use href="#i-close"/></svg>
       </button>
-      <h2>💬 Kommentare</h2>
+      <h2><svg class="i"><use href="#i-comment"/></svg> Kommentare</h2>
       <div class="sub" id="shc-sub"></div>
       <div id="shc-body"></div>
     </div>
@@ -1109,7 +1360,7 @@
   <div class="modal-bg" id="fli-bg" style="z-index:55">
     <div class="modal" style="max-width:460px">
       <button class="icon-btn modal-close" onclick="closeIconPicker()">
-        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        <svg class="i"><use href="#i-close"/></svg>
       </button>
       <h2>Symbol wählen</h2>
       <div class="sub" id="fli-sub"></div>
@@ -1121,9 +1372,9 @@
   <div class="modal-bg" id="shr-bg">
     <div class="modal" style="max-width:1150px">
       <button class="icon-btn modal-close" onclick="closeShare()">
-        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        <svg class="i"><use href="#i-close"/></svg>
       </button>
-      <h2>🔗 Öffentlich teilen</h2>
+      <h2><svg class="i"><use href="#i-link"/></svg> Öffentlich teilen</h2>
       <div class="sub">Erzeugt eine Seite zum reinen Anschauen — ohne Login, ohne Bedienelemente.
         Preis und Verfügbarkeit sind dort immer aktuell; die Auswahl der Angebote und die
         Zusatztexte bleiben so, wie sie beim Erzeugen waren.</div>
@@ -1135,9 +1386,9 @@
   <div class="modal-bg" id="stats-bg">
     <div class="modal">
       <button class="icon-btn modal-close" onclick="closeStats()">
-        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        <svg class="i"><use href="#i-close"/></svg>
       </button>
-      <h2>📊 Tracking-Statistik</h2>
+      <h2><svg class="i"><use href="#i-chart"/></svg> Tracking-Statistik</h2>
       <div class="sub">Kennzahlen über alle Angebote und den gesamten Preisverlauf.</div>
       <div id="stats-body"></div>
     </div>
@@ -1147,9 +1398,9 @@
   <div class="modal-bg" id="cal-bg">
     <div class="modal">
       <button class="icon-btn modal-close" onclick="closeCalendar()">
-        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        <svg class="i"><use href="#i-close"/></svg>
       </button>
-      <h2>Preiskalender <button id="cal-notify-bell" class="icon-btn notify-bell" onclick="toggleCalendarMuted()" title="Kalender-Benachrichtigungen (HA/Telegram)">🔔</button></h2>
+      <h2>Preiskalender <button id="cal-notify-bell" class="icon-btn notify-bell" onclick="toggleCalendarMuted()" title="Kalender-Benachrichtigungen (HA/Telegram)"><svg class="i"><use href="#i-bell"/></svg></button></h2>
       <div class="sub" id="cal-sub"></div>
       <div id="cal-body"></div>
     </div>
@@ -1158,7 +1409,7 @@
   <div class="modal-bg" id="room-bg">
     <div class="modal">
       <button class="icon-btn modal-close" onclick="closeRooms()">
-        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        <svg class="i"><use href="#i-close"/></svg>
       </button>
       <h2>Zimmerauswahl</h2>
       <div class="sub" id="room-sub"></div>
@@ -1172,15 +1423,15 @@
   <div class="modal-bg" id="ai-bg">
     <div class="modal">
       <button class="icon-btn modal-close" onclick="closeAiSummary()">
-        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        <svg class="i"><use href="#i-close"/></svg>
       </button>
-      <h2 id="ai-title">🤖 KI-Fazit</h2>
+      <h2 id="ai-title"><svg class="i"><use href="#i-ai"/></svg> KI-Fazit</h2>
       <div class="sub" id="ai-sub"></div>
       <div id="ai-body"></div>
       <div id="ai-foot" class="cmp-foot" style="display:none">
         <span class="hint" style="flex:1;min-width:180px">Öffnet die Druckansicht — dort „Als PDF speichern" wählen.</span>
-        <button class="btn sec" onclick="openAiEmailModal()">✉ E-Mail senden</button>
-        <button class="btn sec" onclick="exportAiPdf()">📄 PDF exportieren</button>
+        <button class="btn sec" onclick="openAiEmailModal()"><svg class="i"><use href="#i-mail"/></svg> E-Mail senden</button>
+        <button class="btn sec" onclick="exportAiPdf()"><svg class="i"><use href="#i-doc"/></svg> PDF exportieren</button>
       </div>
     </div>
   </div>
@@ -1189,13 +1440,13 @@
   <div class="modal-bg" id="syslog-bg">
     <div class="modal">
       <button class="icon-btn modal-close" onclick="closeSyslog()">
-        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        <svg class="i"><use href="#i-close"/></svg>
       </button>
-      <h2>🔔 Meldungen &amp; Fehler</h2>
+      <h2><svg class="i"><use href="#i-bell"/></svg> Meldungen &amp; Fehler</h2>
       <div style="display:flex;gap:6px;margin:8px 0;flex-wrap:wrap">
-        <button class="btn sec" id="syslog-tab-notify" onclick="openSyslog('notify')">🔔 Benachrichtigungen</button>
-        <button class="btn sec" id="syslog-tab-errors" onclick="openSyslog('errors')">⚠ Warnungen/Fehler</button>
-        <button class="btn sec" id="syslog-tab-console" onclick="openSyslog('console')">📜 Konsole</button>
+        <button class="btn sec" id="syslog-tab-notify" onclick="openSyslog('notify')"><svg class="i"><use href="#i-bell"/></svg> Benachrichtigungen</button>
+        <button class="btn sec" id="syslog-tab-errors" onclick="openSyslog('errors')"><svg class="i"><use href="#i-warn"/></svg> Warnungen/Fehler</button>
+        <button class="btn sec" id="syslog-tab-console" onclick="openSyslog('console')"><svg class="i"><use href="#i-terminal"/></svg> Konsole</button>
       </div>
       <div class="sub" id="syslog-sub"></div>
       <div id="syslog-filter" style="display:none;gap:6px;margin-bottom:8px;flex-wrap:wrap">
@@ -1206,18 +1457,31 @@
           <option value="WARNING">ab WARNUNG</option>
           <option value="ERROR">nur FEHLER</option>
         </select>
-        <button class="btn sec" onclick="openSyslog('console')">🔄</button>
+        <button class="btn sec" onclick="openSyslog('console')"><svg class="i"><use href="#i-refresh"/></svg></button>
       </div>
       <div id="syslog-body"></div>
+    </div>
+  </div>
+
+  <!-- Störungen -->
+  <div class="modal-bg" id="issues-bg">
+    <div class="modal">
+      <button class="icon-btn modal-close" onclick="closeIssues()">
+        <svg class="i"><use href="#i-close"/></svg>
+      </button>
+      <h2><svg class="i"><use href="#i-warn"/></svg> Störungen</h2>
+      <div class="sub">Was wiederholt ins Leere läuft und dabei täglich TUI-Aufrufe kostet.
+        „Pausieren“ stoppt genau diese Abfrage — alles andere läuft weiter.</div>
+      <div id="issues-body"></div>
     </div>
   </div>
 
   <div class="modal-bg" id="giata-gallery-bg">
     <div class="modal">
       <button class="icon-btn modal-close" onclick="closeGiataGallery()">
-        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        <svg class="i"><use href="#i-close"/></svg>
       </button>
-      <h2>🖼 Hotelfotos (GIATA)</h2>
+      <h2><svg class="i"><use href="#i-image"/></svg> Hotelfotos (GIATA)</h2>
       <div id="giata-gallery-body"></div>
     </div>
   </div>
@@ -1228,7 +1492,7 @@
     <button class="gl-nav" id="giata-lightbox-prev" style="left:10px" aria-label="Vorheriges Foto"
             title="Vorheriges Foto (←)" onclick="event.stopPropagation();giataStep(-1)">&lsaquo;</button>
     <img id="giata-lightbox-img" src="" alt=""
-         style="max-width:100%;max-height:100%;border-radius:8px;object-fit:contain">
+         style="max-width:100%;max-height:100%;border-radius:var(--r-card);object-fit:contain">
     <button class="gl-nav" id="giata-lightbox-next" style="right:10px" aria-label="Nächstes Foto"
             title="Nächstes Foto (→)" onclick="event.stopPropagation();giataStep(1)">&rsaquo;</button>
     <div class="gl-count" id="giata-lightbox-count"></div>
@@ -1237,12 +1501,12 @@
   <div class="modal-bg" id="aihist-bg">
     <div class="modal">
       <button class="icon-btn modal-close" onclick="closeAiHistory()">
-        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        <svg class="i"><use href="#i-close"/></svg>
       </button>
-      <h2>🤖 KI-Verlauf</h2>
+      <h2><svg class="i"><use href="#i-ai"/></svg> KI-Verlauf</h2>
       <div class="sub">Bisherige KI-Fazits &amp; -Vergleiche — bleiben dauerhaft gespeichert, unabhängig vom 24h-Cache.</div>
-      <input type="text" id="aihist-search" oninput="filterAiHistory()" placeholder="🔍 Suchen (Titel, Art, Modell)…"
-        style="width:100%;margin-top:10px;background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:8px;font:inherit">
+      <input type="text" id="aihist-search" oninput="filterAiHistory()" placeholder="Suchen (Titel, Art, Modell)…"
+        style="width:100%;margin-top:10px;background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:var(--r-ui);padding:8px;font:inherit">
       <div id="aihist-body"></div>
     </div>
   </div>
@@ -1250,18 +1514,18 @@
   <div class="modal-bg" id="aiask-bg">
     <div class="modal">
       <button class="icon-btn modal-close" onclick="closeAiAsk()">
-        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        <svg class="i"><use href="#i-close"/></svg>
       </button>
-      <h2>❓ Frage</h2>
+      <h2><svg class="i"><use href="#i-help"/></svg> Frage</h2>
       <div class="sub" id="aiask-sub"></div>
-      <textarea id="aiask-q" rows="3" style="width:100%;margin-top:10px;resize:vertical;background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:8px;font:inherit"></textarea>
+      <textarea id="aiask-q" rows="3" style="width:100%;margin-top:10px;resize:vertical;background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:var(--r-ui);padding:8px;font:inherit"></textarea>
       <div style="margin-top:14px;display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap">
         <span class="hint" style="flex:1;min-width:180px" id="aiask-hint"></span>
         <button class="btn sec" onclick="closeAiAsk()">Abbrechen</button>
         <button class="btn sec" id="aiask-btn-general" onclick="submitAiAsk('general')"
-                title="Allgemeine Reisefrage — ohne Bezug zu deinen Angeboten, mit Websuche">🌍 Reisefrage</button>
+                title="Allgemeine Reisefrage — ohne Bezug zu deinen Angeboten, mit Websuche"><svg class="i"><use href="#i-globe"/></svg> Reisefrage</button>
         <button class="btn" id="aiask-btn-portfolio" onclick="submitAiAsk('portfolio')"
-                title="Frage zu deinen getrackten Angeboten">📌 Portfolio fragen</button>
+                title="Frage zu deinen getrackten Angeboten"><svg class="i"><use href="#i-pin"/></svg> Portfolio fragen</button>
       </div>
     </div>
   </div>
@@ -1269,9 +1533,9 @@
   <div class="modal-bg" id="regcmp-bg">
     <div class="modal">
       <button class="icon-btn modal-close" onclick="closeRegionCompare()">
-        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        <svg class="i"><use href="#i-close"/></svg>
       </button>
-      <h2>📊 Regionen vergleichen</h2>
+      <h2><svg class="i"><use href="#i-chart"/></svg> Regionen vergleichen</h2>
       <div class="sub">Bis zu 5 Ziele + ein Reisemonat — Wetter, Sicherheit, Preisniveau,
         beste Reisezeit, Strand/Natur, Familien-/Nightlife-Eignung und ein kurzes Fazit.</div>
 
@@ -1281,14 +1545,14 @@
       <button class="btn sec" id="regcmp-add-btn" onclick="regcmpOpenPicker()">＋ Ziel hinzufügen</button>
 
       <div style="margin-top:14px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-        <label for="regcmp-month" style="font-size:.86rem;color:var(--muted)">Reisemonat:</label>
+        <label for="regcmp-month" style="font-size:var(--fs-sm);color:var(--muted)">Reisemonat:</label>
         <select id="regcmp-month" style="flex:0 0 auto"></select>
       </div>
 
       <div style="margin-top:16px;display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap">
         <span class="hint" style="flex:1;min-width:180px" id="regcmp-hint">Mindestens 2 Ziele wählen.</span>
         <button class="btn sec" onclick="closeRegionCompare()">Abbrechen</button>
-        <button class="btn" id="regcmp-submit" onclick="submitRegionCompare()">🤖 Vergleichen</button>
+        <button class="btn" id="regcmp-submit" onclick="submitRegionCompare()"><svg class="i"><use href="#i-ai"/></svg> Vergleichen</button>
       </div>
     </div>
   </div>
@@ -1296,9 +1560,9 @@
   <div class="modal-bg" id="reiseb-bg">
     <div class="modal" style="max-width:640px">
       <button class="icon-btn modal-close" onclick="closeAdvisor()">
-        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        <svg class="i"><use href="#i-close"/></svg>
       </button>
-      <h2>🗺️ TripPilot</h2>
+      <h2><svg class="i"><use href="#i-map"/></svg> TripPilot</h2>
       <div class="sub" id="reiseb-sub"></div>
       <div id="reiseb-body"></div>
       <div style="margin-top:16px;display:flex;gap:8px;justify-content:space-between">
@@ -1311,7 +1575,7 @@
   <div class="modal-bg" id="email-bg">
     <div class="modal">
       <button class="icon-btn modal-close" onclick="closeEmailModal()">
-        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        <svg class="i"><use href="#i-close"/></svg>
       </button>
       <h2>Als E-Mail senden</h2>
       <div class="sub">Adresse eingeben oder aus dem Nextcloud-Adressbuch wählen.</div>
@@ -1328,7 +1592,7 @@
   <div class="modal-bg" id="hc-bg">
     <div class="modal">
       <button class="icon-btn modal-close" onclick="$('#hc-bg').classList.remove('show')">
-        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        <svg class="i"><use href="#i-close"/></svg>
       </button>
       <h2>API-Status</h2>
       <div class="sub" id="hc-sub"></div>
@@ -1343,7 +1607,7 @@
   <div class="modal-bg" id="sched-bg">
     <div class="modal" style="max-width:620px">
       <button class="icon-btn modal-close" onclick="$('#sched-bg').classList.remove('show')">
-        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        <svg class="i"><use href="#i-close"/></svg>
       </button>
       <h2>Nächste Läufe</h2>
       <div class="sub" id="sched-sub"></div>
@@ -1355,9 +1619,9 @@
   <div class="modal-bg" id="tpedit-bg">
     <div class="modal" style="max-width:900px">
       <button class="icon-btn modal-close" onclick="closeTpEdit()">
-        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        <svg class="i"><use href="#i-close"/></svg>
       </button>
-      <h2>🗺️ Fragebogen bearbeiten</h2>
+      <h2><svg class="i"><use href="#i-map"/></svg> Fragebogen bearbeiten</h2>
       <div class="sub" id="tpedit-sub"></div>
       <div id="tpedit-msg"></div>
       <div id="tpedit-daytrip" class="tpe-row" style="margin-top:10px"></div>
@@ -1387,37 +1651,37 @@
   <div class="modal-bg" id="promptcfg-bg">
     <div class="modal" style="max-width:720px">
       <button class="icon-btn modal-close" onclick="closePromptCfg()">
-        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        <svg class="i"><use href="#i-close"/></svg>
       </button>
-      <h2>⚙ KI-Prompts</h2>
+      <h2><svg class="i"><use href="#i-settings"/></svg> KI-Prompts</h2>
       <div class="sub">Standard ist bereits ausgefüllt. Checkbox aktivieren, um ihn zu überschreiben. Die Websuche bleibt technisch immer aktiv, auch wenn der Hinweis dazu aus dem Text entfernt wird — die KI sucht dann ggf. weniger gezielt.</div>
 
-      <h3 style="margin:14px 0 6px">🗺️ TripPilot</h3>
-      <label style="display:flex;align-items:center;gap:6px;font-size:.85rem"><input type="checkbox" id="promptcfg-advisor-enabled"> Eigenen Prompt verwenden</label>
+      <h3 style="margin:14px 0 6px"><svg class="i"><use href="#i-map"/></svg> TripPilot</h3>
+      <label style="display:flex;align-items:center;gap:6px;font-size:var(--fs-sm)"><input type="checkbox" id="promptcfg-advisor-enabled"> Eigenen Prompt verwenden</label>
       <textarea id="promptcfg-advisor-text" class="promptcfg-text" rows="10" maxlength="6000" oninput="promptcfgCount('advisor')" style="margin-top:6px"></textarea>
       <div class="hint" id="promptcfg-advisor-count" style="text-align:right"></div>
       <button class="btn sec" onclick="promptcfgReset('advisor')" style="margin-top:4px">Zurücksetzen auf Standard</button>
 
-      <h3 style="margin:20px 0 6px">🏨 Hotelvergleich</h3>
-      <label style="display:flex;align-items:center;gap:6px;font-size:.85rem"><input type="checkbox" id="promptcfg-compare-enabled"> Eigenen Prompt verwenden</label>
+      <h3 style="margin:20px 0 6px"><svg class="i"><use href="#i-hotel"/></svg> Hotelvergleich</h3>
+      <label style="display:flex;align-items:center;gap:6px;font-size:var(--fs-sm)"><input type="checkbox" id="promptcfg-compare-enabled"> Eigenen Prompt verwenden</label>
       <textarea id="promptcfg-compare-text" class="promptcfg-text" rows="10" maxlength="6000" oninput="promptcfgCount('compare')" style="margin-top:6px"></textarea>
       <div class="hint" id="promptcfg-compare-count" style="text-align:right"></div>
       <button class="btn sec" onclick="promptcfgReset('compare')" style="margin-top:4px">Zurücksetzen auf Standard</button>
 
-      <h3 style="margin:20px 0 6px">🤖 KI-Fazit</h3>
-      <label style="display:flex;align-items:center;gap:6px;font-size:.85rem"><input type="checkbox" id="promptcfg-summary-enabled"> Eigenen Prompt verwenden</label>
+      <h3 style="margin:20px 0 6px"><svg class="i"><use href="#i-ai"/></svg> KI-Fazit</h3>
+      <label style="display:flex;align-items:center;gap:6px;font-size:var(--fs-sm)"><input type="checkbox" id="promptcfg-summary-enabled"> Eigenen Prompt verwenden</label>
       <textarea id="promptcfg-summary-text" class="promptcfg-text" rows="10" maxlength="6000" oninput="promptcfgCount('summary')" style="margin-top:6px"></textarea>
       <div class="hint" id="promptcfg-summary-count" style="text-align:right"></div>
       <button class="btn sec" onclick="promptcfgReset('summary')" style="margin-top:4px">Zurücksetzen auf Standard</button>
 
-      <h3 style="margin:20px 0 6px">🚗 Tagesausflug</h3>
-      <label style="display:flex;align-items:center;gap:6px;font-size:.85rem"><input type="checkbox" id="promptcfg-daytrip-enabled"> Eigenen Prompt verwenden</label>
+      <h3 style="margin:20px 0 6px"><svg class="i"><use href="#i-car"/></svg> Tagesausflug</h3>
+      <label style="display:flex;align-items:center;gap:6px;font-size:var(--fs-sm)"><input type="checkbox" id="promptcfg-daytrip-enabled"> Eigenen Prompt verwenden</label>
       <textarea id="promptcfg-daytrip-text" class="promptcfg-text" rows="10" maxlength="6000" oninput="promptcfgCount('daytrip')" style="margin-top:6px"></textarea>
       <div class="hint" id="promptcfg-daytrip-count" style="text-align:right"></div>
       <button class="btn sec" onclick="promptcfgReset('daytrip')" style="margin-top:4px">Zurücksetzen auf Standard</button>
 
-      <h3 style="margin:20px 0 6px">📊 Regionen-Vergleich</h3>
-      <label style="display:flex;align-items:center;gap:6px;font-size:.85rem"><input type="checkbox" id="promptcfg-region_compare-enabled"> Eigenen Prompt verwenden</label>
+      <h3 style="margin:20px 0 6px"><svg class="i"><use href="#i-chart"/></svg> Regionen-Vergleich</h3>
+      <label style="display:flex;align-items:center;gap:6px;font-size:var(--fs-sm)"><input type="checkbox" id="promptcfg-region_compare-enabled"> Eigenen Prompt verwenden</label>
       <textarea id="promptcfg-region_compare-text" class="promptcfg-text" rows="10" maxlength="6000" oninput="promptcfgCount('region_compare')" style="margin-top:6px"></textarea>
       <div class="hint" id="promptcfg-region_compare-count" style="text-align:right"></div>
       <button class="btn sec" onclick="promptcfgReset('region_compare')" style="margin-top:4px">Zurücksetzen auf Standard</button>
@@ -1432,7 +1696,7 @@
   <div class="modal-bg" id="aktion-bg">
     <div class="modal" style="max-width:820px">
       <button class="icon-btn modal-close" onclick="closeAktion()">
-        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        <svg class="i"><use href="#i-close"/></svg>
       </button>
       <h2>TUI-Aktionscodes</h2>
       <div class="sub">Aktuelle öffentliche Aktionscodes von tui.com — ohne Login. Bei neuen Codes wirst du benachrichtigt.</div>
@@ -1448,7 +1712,7 @@
   <div class="modal-bg" id="trend-bg">
     <div class="modal" style="max-width:640px">
       <button class="icon-btn modal-close" onclick="closeMarketTrend()">
-        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        <svg class="i"><use href="#i-close"/></svg>
       </button>
       <h2>Markttrend</h2>
       <div class="sub">Preistrend der letzten 14 Tage aus <b>deinen getrackten Angeboten</b> —
@@ -1459,8 +1723,8 @@
       <div class="cmp-foot" style="margin-top:12px">
         <span class="hint" style="flex:1;min-width:220px">Preissprung durch Zimmerwechsel dabei?
           Neu berechnen schließt ihn nachträglich aus.</span>
-        <button class="btn sec" onclick="openBasket()">🌡️ Preisbarometer</button>
-        <button class="btn sec" onclick="recomputeMarketTrend()">🔄 Neu berechnen</button>
+        <button class="btn sec" onclick="openBasket()"><svg class="i"><use href="#i-thermo"/></svg> Preisbarometer</button>
+        <button class="btn sec" onclick="recomputeMarketTrend()"><svg class="i"><use href="#i-refresh"/></svg> Neu berechnen</button>
       </div>
     </div>
   </div>
@@ -1471,9 +1735,9 @@
   <div class="modal-bg" id="basket-bg">
     <div class="modal" style="max-width:720px">
       <button class="icon-btn modal-close" onclick="closeBasket()">
-        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        <svg class="i"><use href="#i-close"/></svg>
       </button>
-      <h2>🌡️ Preisbarometer</h2>
+      <h2><svg class="i"><use href="#i-thermo"/></svg> Preisbarometer</h2>
       <div class="sub">Einmal pro Tag läuft jede deiner <b>gespeicherten Suchen</b> erneut —
         mit deinen Reiseterminen, deiner Dauer und deinen Filtern. Verglichen wird jedes Hotel
         mit sich selbst vom Vortag, der <b>Median</b> über alle Hotels ergibt die Tagesbewegung.
@@ -1496,7 +1760,7 @@
       <div class="cmp-foot" style="margin-top:12px">
         <span class="hint" style="flex:1;min-width:220px">Läuft automatisch 1×/Tag.
           Ein Trend braucht zwei Tage.</span>
-        <button class="btn sec" onclick="runMarketBasket()">🌡️ Jetzt messen</button>
+        <button class="btn sec" onclick="runMarketBasket()"><svg class="i"><use href="#i-thermo"/></svg> Jetzt messen</button>
       </div>
     </div>
   </div>
@@ -1506,19 +1770,19 @@
   <div class="modal-bg" id="climate-bg">
     <div class="modal" style="max-width:700px">
       <button class="icon-btn modal-close" onclick="closeClimate()">
-        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        <svg class="i"><use href="#i-close"/></svg>
       </button>
-      <h2>🌤 Klima</h2>
+      <h2><svg class="i"><use href="#i-climate"/></svg> Klima</h2>
       <div class="sub" id="climate-sub"></div>
       <div id="climate-body"></div>
       <div class="cmp-foot" style="margin-top:12px" id="climate-foot">
         <span class="hint" style="flex:1;min-width:220px" id="climate-stand"></span>
         <button class="btn sec" onclick="copyClimateMd()"
-                title="Klimatabelle als Markdown in die Zwischenablage — zum Einfügen in eine Notiz-/Wissenssammlung">📋 Markdown</button>
+                title="Klimatabelle als Markdown in die Zwischenablage — zum Einfügen in eine Notiz-/Wissenssammlung"><svg class="i"><use href="#i-clipboard"/></svg> Markdown</button>
         <button class="btn sec" onclick="openClimateEmailModal()"
-                title="Klimatabelle per E-Mail verschicken (kein KI-Aufruf)">✉ Als E-Mail</button>
+                title="Klimatabelle per E-Mail verschicken (kein KI-Aufruf)"><svg class="i"><use href="#i-mail"/></svg> Als E-Mail</button>
         <button class="btn sec" onclick="refreshClimate()"
-                title="Tabelle verwerfen und neu von der KI erstellen lassen (kostet einen KI-Aufruf)">🔄 Neu abrufen</button>
+                title="Tabelle verwerfen und neu von der KI erstellen lassen (kostet einen KI-Aufruf)"><svg class="i"><use href="#i-refresh"/></svg> Neu abrufen</button>
       </div>
     </div>
   </div>
@@ -1528,21 +1792,21 @@
   <div class="modal-bg" id="guide-bg">
     <div class="modal" style="max-width:760px">
       <button class="icon-btn modal-close" onclick="closeGuide()">
-        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        <svg class="i"><use href="#i-close"/></svg>
       </button>
-      <h2>🧭 Reiseführer</h2>
+      <h2><svg class="i"><use href="#i-compass"/></svg> Reiseführer</h2>
       <div class="sub" id="guide-sub"></div>
       <div id="guide-body"></div>
       <div class="cmp-foot" style="margin-top:12px" id="guide-foot">
         <span class="hint" style="flex:1;min-width:220px" id="guide-stand"></span>
         <button class="btn sec" onclick="printGuide()"
-                title="Reiseführer ausdrucken oder als PDF speichern">🖨 Drucken</button>
+                title="Reiseführer ausdrucken oder als PDF speichern"><svg class="i"><use href="#i-print"/></svg> Drucken</button>
         <button class="btn sec" onclick="copyGuideMd()"
-                title="Reiseführer als Markdown in die Zwischenablage — zum Einfügen in eine Notiz-/Wissenssammlung">📋 Markdown</button>
+                title="Reiseführer als Markdown in die Zwischenablage — zum Einfügen in eine Notiz-/Wissenssammlung"><svg class="i"><use href="#i-clipboard"/></svg> Markdown</button>
         <button class="btn sec" onclick="openGuideEmailModal()"
-                title="Reiseführer per E-Mail verschicken (kein KI-Aufruf)">✉ Als E-Mail</button>
+                title="Reiseführer per E-Mail verschicken (kein KI-Aufruf)"><svg class="i"><use href="#i-mail"/></svg> Als E-Mail</button>
         <button class="btn sec" onclick="refreshGuide()"
-                title="Reiseführer verwerfen und neu von der KI erstellen lassen (kostet einen KI-Aufruf)">🔄 Neu abrufen</button>
+                title="Reiseführer verwerfen und neu von der KI erstellen lassen (kostet einen KI-Aufruf)"><svg class="i"><use href="#i-refresh"/></svg> Neu abrufen</button>
       </div>
     </div>
   </div>
@@ -1554,9 +1818,9 @@
   <div class="modal-bg" id="fpick-bg">
     <div class="modal" style="max-width:560px">
       <button class="icon-btn modal-close" onclick="closeFlightPick()">
-        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        <svg class="i"><use href="#i-close"/></svg>
       </button>
-      <h2>✈️ Flugplan</h2>
+      <h2><svg class="i"><use href="#i-plane"/></svg> Flugplan</h2>
       <div class="sub">Von welchem Flughafen? Die Flughäfen liefern unterschiedliche Daten.</div>
       <div class="fpick-opts">
         <button class="fpick-opt" id="fpick-str" onclick="closeFlightPick(); openStrFlights()">
@@ -1569,7 +1833,7 @@
           <b>München (MUC)</b>
         </button>
         <button class="fpick-opt" id="fpick-all" style="flex:1 1 100%" onclick="closeFlightPick(); openAllFlights()">
-          <b>🔍 Alle durchsuchen</b>
+          <b><svg class="i"><use href="#i-search"/></svg> Alle durchsuchen</b>
         </button>
       </div>
     </div>
@@ -1582,9 +1846,9 @@
   <div class="modal-bg" id="allf-bg">
     <div class="modal" style="max-width:1100px">
       <button class="icon-btn modal-close" onclick="closeAllFlights()">
-        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        <svg class="i"><use href="#i-close"/></svg>
       </button>
-      <h2>✈️ Flugziel überall suchen</h2>
+      <h2><svg class="i"><use href="#i-plane"/></svg> Flugziel überall suchen</h2>
       <div class="sub">Sucht gleichzeitig in allen freigeschalteten Flugplänen — nur Abflüge.</div>
       <div class="shr-row" style="margin:10px 0">
         <input type="text" id="allf-q" placeholder="Ziel suchen… (Code, Ort, Land)" autocomplete="off" style="flex:1 1 180px;min-width:140px">
@@ -1601,7 +1865,7 @@
            api_flights_destinations()). Zeile anklicken übernimmt den Code
            ins Suchfeld oben und sucht über alle drei Flughäfen (FRA also
            mit, nur eben nicht in dieser Liste). -->
-      <h3 style="margin:18px 0 4px">📋 Alle Flugziele</h3>
+      <h3 style="margin:18px 0 4px"><svg class="i"><use href="#i-clipboard"/></svg> Alle Flugziele</h3>
       <div id="allf-dest-body"><div class="hint">Lädt…</div></div>
     </div>
   </div>
@@ -1612,9 +1876,9 @@
   <div class="modal-bg" id="fraf-bg">
     <div class="modal" style="max-width:980px">
       <button class="icon-btn modal-close" onclick="closeFraFlights()">
-        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        <svg class="i"><use href="#i-close"/></svg>
       </button>
-      <h2>✈️ Flugplan ab Frankfurt Airport (FRA)</h2>
+      <h2><svg class="i"><use href="#i-plane"/></svg> Flugplan ab Frankfurt Airport (FRA)</h2>
       <div class="sub">Geplante Flüge nach Zielflughafen — Daten des Flughafenbetreibers, keine Pauschalreise-Angebote.</div>
       <div class="shr-row" style="margin:10px 0">
         <input type="text" id="fraf-q" placeholder="Ziel suchen… (Code, Ort, Land)" autocomplete="off" style="flex:1 1 180px;min-width:140px">
@@ -1637,9 +1901,9 @@
   <div class="modal-bg" id="fraf-detail-bg">
     <div class="modal" style="max-width:520px">
       <button class="icon-btn modal-close" onclick="closeFraFlightDetail()">
-        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        <svg class="i"><use href="#i-close"/></svg>
       </button>
-      <h2 id="fraf-detail-title">✈️ Flugdetails</h2>
+      <h2 id="fraf-detail-title"><svg class="i"><use href="#i-plane"/></svg> Flugdetails</h2>
       <div class="sub" id="fraf-detail-live"></div>
       <div id="fraf-detail-body"></div>
     </div>
@@ -1650,9 +1914,9 @@
   <div class="modal-bg" id="mucf-bg">
     <div class="modal" style="max-width:980px">
       <button class="icon-btn modal-close" onclick="closeMucFlights()">
-        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        <svg class="i"><use href="#i-close"/></svg>
       </button>
-      <h2>✈️ Flugplan ab München Airport (MUC)</h2>
+      <h2><svg class="i"><use href="#i-plane"/></svg> Flugplan ab München Airport (MUC)</h2>
       <div class="sub">Linienflug-Verbindungen der laufenden Saison — aus dem offiziellen Flugplan-PDF des Flughafens, keine Pauschalreise-Angebote.</div>
       <div class="shr-row" style="margin:10px 0">
         <input type="text" id="mucf-q" placeholder="Ziel suchen… (Code, Ort, Land)" autocomplete="off" style="flex:1 1 180px;min-width:140px">
@@ -1668,7 +1932,7 @@
         </label>
       </div>
       <div id="mucf-body"><div class="hint">Suchbegriff eingeben, z. B. „Palma", „PMI" oder „Spanien".</div></div>
-      <div class="hc-foot" style="margin-top:8px" onclick="mucFlightsRefresh()" title="Flugplan-PDF sofort neu einlesen (passiert sonst automatisch alle drei Stunden, sobald eine neue Fassung hängt)">🔄 Flugplan neu einlesen</div>
+      <div class="hc-foot" style="margin-top:8px" onclick="mucFlightsRefresh()" title="Flugplan-PDF sofort neu einlesen (passiert sonst automatisch alle drei Stunden, sobald eine neue Fassung hängt)"><svg class="i"><use href="#i-refresh"/></svg> Flugplan neu einlesen</div>
     </div>
   </div>
 
@@ -1678,9 +1942,9 @@
   <div class="modal-bg" id="strf-bg">
     <div class="modal" style="max-width:860px">
       <button class="icon-btn modal-close" onclick="closeStrFlights()">
-        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        <svg class="i"><use href="#i-close"/></svg>
       </button>
-      <h2>✈️ Flugplan ab Stuttgart Airport (STR)</h2>
+      <h2><svg class="i"><use href="#i-plane"/></svg> Flugplan ab Stuttgart Airport (STR)</h2>
       <div class="sub">Linienflug-Verbindungen nach Zielflughafen oder Land — Daten des Flughafen-Betreibers, keine Pauschalreise-Angebote.</div>
       <div class="shr-row" style="margin:10px 0">
         <input type="text" id="strf-q" placeholder="Ziel suchen… (Code, Ort, Land)" autocomplete="off" style="flex:1 1 180px;min-width:140px">
@@ -1705,9 +1969,9 @@
   <div class="modal-bg" id="strf-detail-bg">
     <div class="modal" style="max-width:480px">
       <button class="icon-btn modal-close" onclick="closeStrFlightDetail()">
-        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        <svg class="i"><use href="#i-close"/></svg>
       </button>
-      <h2 id="strf-detail-title">✈️ Flugdetails</h2>
+      <h2 id="strf-detail-title"><svg class="i"><use href="#i-plane"/></svg> Flugdetails</h2>
       <div class="sub" id="strf-detail-live"></div>
       <div id="strf-detail-body"></div>
     </div>
@@ -1717,19 +1981,19 @@
   <div class="modal-bg" id="trips-bg">
     <div class="modal" style="max-width:960px">
       <button class="icon-btn modal-close" onclick="closeTrips()">
-        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        <svg class="i"><use href="#i-close"/></svg>
       </button>
       <h2>Meine Reisen</h2>
       <div class="sub">Gebuchte TUI-Reisen als Bestätigungs-PDF importieren — Eckdaten werden ausgelesen, die PDF bleibt dauerhaft gespeichert und abrufbar.</div>
-      <div class="hc-foot" style="margin-top:4px" onclick="openTripsSummary()" title="Alle zukünftigen Reisen mit Datum, Wochentag und Flugdaten zusammenfassen — zum Teilen oder per E-Mail versenden">📋 Zusammenfassung zukünftiger Reisen</div>
-      <a class="hc-foot" style="margin-top:4px;display:inline-block" id="trips-ics-link" href="#" title="Alle Reisen als Kalender-Datei (.ics) herunterladen — importierbar in HA-Kalender, Google Kalender, Outlook …">📅 Als Kalender (.ics)</a>
+      <div class="hc-foot" style="margin-top:4px" onclick="openTripsSummary()" title="Alle zukünftigen Reisen mit Datum, Wochentag und Flugdaten zusammenfassen — zum Teilen oder per E-Mail versenden"><svg class="i"><use href="#i-clipboard"/></svg> Zusammenfassung zukünftiger Reisen</div>
+      <a class="hc-foot" style="margin-top:4px;display:inline-block" id="trips-ics-link" href="#" title="Alle Reisen als Kalender-Datei (.ics) herunterladen — importierbar in HA-Kalender, Google Kalender, Outlook …"><svg class="i"><use href="#i-calendar"/></svg> Als Kalender (.ics)</a>
 
       <div id="trips-stats" class="trips-stats"></div>
       <div id="trips-years"></div>
 
       <div class="trips-import" id="trips-drop">
         <input type="file" id="trip-file" accept="application/pdf,.pdf" style="display:none" onchange="importTrip(this)">
-        <button class="btn" onclick="$('#trip-file').click()">📄 PDF importieren</button>
+        <button class="btn" onclick="$('#trip-file').click()"><svg class="i"><use href="#i-doc"/></svg> PDF importieren</button>
         <span class="trips-imp-hint">TUI-Reisebestätigung (.pdf) hierher ziehen oder auswählen</span>
         <span id="trip-imp-status" class="trips-imp-status"></span>
       </div>
@@ -1743,14 +2007,14 @@
   <div class="modal-bg" id="trips-summary-bg">
     <div class="modal" style="max-width:640px">
       <button class="icon-btn modal-close" onclick="closeTripsSummary()">
-        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        <svg class="i"><use href="#i-close"/></svg>
       </button>
       <h2>Zusammenfassung zukünftiger Reisen</h2>
       <div class="sub">Datum, Wochentag und Flugdaten aller bevorstehenden Reisen — zum Teilen oder per E-Mail versenden.</div>
       <div id="trips-summary-body" style="margin-top:12px"></div>
       <div class="cmp-foot" style="margin-top:16px">
-        <button class="btn sec" onclick="shareTripsSummary()">📤 Teilen</button>
-        <button class="btn" onclick="emailTripsSummary()">✉️ Per E-Mail senden</button>
+        <button class="btn sec" onclick="shareTripsSummary()"><svg class="i"><use href="#i-share"/></svg> Teilen</button>
+        <button class="btn" onclick="emailTripsSummary()"><svg class="i"><use href="#i-mail"/></svg> Per E-Mail senden</button>
       </div>
     </div>
   </div>
@@ -1761,7 +2025,7 @@
   <!-- Konsole (Doppelklick auf Logo) -->
   <div id="tw-console">
     <div id="tw-console-header">
-      <span id="tw-console-title">⬛ KONSOLE — TUIWatch · Hintergrund</span>
+      <span id="tw-console-title"><svg class="i"><use href="#i-terminal"/></svg> KONSOLE — TUIWatch · Hintergrund</span>
       <button id="tw-console-close" onclick="consoleToggle()">✕</button>
     </div>
     <div id="tw-console-body"></div>

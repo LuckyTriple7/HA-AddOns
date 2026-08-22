@@ -326,6 +326,8 @@ Weboberfläche für eine bestehende CrowdSec-Installation — die `cscli`-Befehl
 - Aktive Sperren ansehen, filtern und aufheben — einzeln oder gesammelt
 - Neue Sperren für einzelne IP, CIDR-Bereich, ganzes Land oder ganzes Netz (AS), mit frei wählbarer Dauer
 - Alarme mit Ereignissen und auslösender Log-Zeile, IP-Nachschlagen samt Allowlist-Treffer
+- Angriffskarte aus den GeoIP-Koordinaten der Alarme — ein Punkt je Quelladresse
+- Metriken direkt aus CrowdSecs Prometheus-Endpunkt: Datenquellen, Parser, Szenarien, Whitelists, LAPI, Bouncer, AppSec
 - Spricht ausschließlich die lokale CrowdSec-API an, mit einem Maschinen-Zugang statt Bouncer-Schlüssel
 - Über Ingress ohne Anmeldung, über Port 17797 mit Passwort und optional TOTP
 
@@ -655,6 +657,8 @@ A web interface for an existing CrowdSec installation — the `cscli` commands a
 - View, filter and lift active decisions — one by one or all at once
 - New decisions for a single IP, CIDR range, whole country or whole network (AS), with a free duration
 - Alerts with their events and the triggering log line, IP lookup including allowlist hits
+- Attack map from the GeoIP coordinates in the alerts — one dot per source address
+- Metrics straight from CrowdSec's Prometheus endpoint: data sources, parsers, scenarios, whitelists, LAPI, bouncers, AppSec
 - Talks to the CrowdSec Local API only, using a machine account instead of a bouncer key
 - No sign-in through Ingress, password and optional TOTP on port 17797
 

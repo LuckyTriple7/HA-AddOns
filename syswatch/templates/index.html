@@ -1048,7 +1048,7 @@ function rowHtml(c) {
     <td>${run ? progBar(c.cpu_pct) : '<span style="color:var(--muted)">-</span>'}</td>
     <td>${run ? progBar(c.mem_pct) : '<span style="color:var(--muted)">-</span>'}</td>
     <td class="col-hide">${run ? fmtBytes(c.mem_usage) + ' / ' + fmtBytes(c.mem_limit) : '-'}</td>
-    <td class="col-hide">${run ? fmtBytes(c.net_rx) + ' / ' + fmtBytes(c.net_tx) : '-'}</td>
+    <td class="col-hide">${fmtNet(c, run)}</td>
     <td class="col-hide">${run ? fmtBytes(c.blk_r) + ' / ' + fmtBytes(c.blk_w) : '-'}</td>
     <td class="col-hide">${run ? (c.pids || 0) : '-'}</td>
     <td class="col-hide">${run
@@ -1085,6 +1085,17 @@ function esc(s) {
     .replace(/"/g, '&quot;');
 }
 function safeJsArg(v) { return JSON.stringify(String(v)).replace(/"/g, '&quot;'); }
+
+function fmtNet(c, run) {
+  if (!run) return '-';
+  if (c.net_rx === null || c.net_rx === undefined) {
+    const hint = (c.net_mode === 'host')
+      ? (T.net_host_hint || '')
+      : (T.net_na_hint || '');
+    return `<span style="color:var(--muted)" title="${esc(hint)}">-</span>`;
+  }
+  return fmtBytes(c.net_rx) + ' / ' + fmtBytes(c.net_tx);
+}
 
 function fmtBytes(n) {
   if (!n) return '0 B';

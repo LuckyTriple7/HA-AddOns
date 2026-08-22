@@ -32,7 +32,7 @@ Existing hosts cannot be imported automatically, the databases are incompatible.
 
 Let's Encrypt allows 50 certificates per week and domain, so reissuing a dozen domains is harmless. Only repeated failed attempts with an identical domain set hit the limit of 5 duplicate certificates per week.
 
-**Important:** These DNS challenge providers are gone and need replacing: `certbot-dns-he`, `certbot-dns-dnspod`, `certbot-dns-online`, `certbot-dns-powerdns`, `certbot-dns-do`. Route53 is not supported either.
+**Important — DNS challenge:** The provider list is as long as upstream (86 plugins), but these providers are backed by a different PyPI package in NPMplus: `he` (now `certbot-dns-hurricane-electric`), `dnspod` (now `certbot-dnspod`), `powerdns` (now `certbot-dns-pdns`), plus `online` and `do`. Existing certificates from those providers **will not renew** and have to be issued once more. The only provider actually unsupported is **Route53** — Amazon CloudFront addresses cannot be trusted automatically in NPMplus. In exchange, `dreamhost` and `scaleway` are available on top.
 
 ## CrowdSec
 
@@ -51,6 +51,25 @@ NPMplus ships the **bouncer** (nginx/Lua, blocks individual requests) and can ta
 > while every other value in that file is left alone.
 >
 > Without an installed engine all CrowdSec options do nothing.
+
+### Why CrowdSec is configured in two places
+
+The setup enters CrowdSec twice: once in CrowdSec's acquisition (the NPMplus journal) and once in the NPMplus options (`crowdsec_lapi_url` plus the key). That is not a duplication — they are the two halves of one loop, running in opposite directions:
+
+```
+NPMplus writes its access log
+        ↓  journald, SYSLOG_IDENTIFIER=app_<repo-hash>_npmplus
+CrowdSec acquisition → parsers and scenarios → decision "ban 1.2.3.4"
+        ↓  LAPI on port 8080, bouncer key
+The NPMplus bouncer pulls the decisions → blocks 1.2.3.4
+```
+
+- **Acquisition** (step 2) is **detection**: CrowdSec reads *what happened*. Without it CrowdSec never sees a single attack against the proxy.
+- **The `crowdsec_*` options** (steps 4 and 5) are **enforcement**: the bouncer asks the LAPI *who is banned right now* and rejects the request. Without them CrowdSec bans, but nginx keeps serving.
+
+**AppSec** on port 7422 is a third, separate path and reads no logs at all: NPMplus sends the request for a verdict *before* forwarding it. That is why the log holds two kinds of hits — `(by appsec)` means caught on the live request, `(by bouncer)` means blocked because of earlier log lines.
+
+The only real overlap is the `crowdsec-firewall-bouncer` add-on: it enforces the same decisions at firewall level as well. That is not a mistake either — the firewall blocks every port, the nginx bouncer only HTTP, but in exchange it can show a block page or a captcha.
 
 ### 1. Add the collection to CrowdSec
 
@@ -74,6 +93,12 @@ Set the add-on option `log_to_stdout: true`. Then find the syslog identifier, fo
 ```sh
 journalctl --directory=/var/log/journal/ -o json -n 200 \
   | jq -r .SYSLOG_IDENTIFIER | sort -u | grep -i npmplus
+```
+
+The add-on itself is quicker: with `log_to_stdout: true` NPMplus writes the value to its own log on every start —
+
+```
+[INFO] CrowdSec acquisition filter: SYSLOG_IDENTIFIER=app_xxxxxxxx_npmplus
 ```
 
 The value looks like `app_<8-char-repo-hash>_npmplus`. Use it in the CrowdSec acquisition:
@@ -142,24 +167,45 @@ Without `-k`, `cscli` generates the key itself; it is shown **once** and cannot 
 
 `http://127.0.0.1:8080` is only correct if CrowdSec publishes its ports on the host. If it runs as a regular add-on inside the Docker network, `127.0.0.1` is the host from NPMplus' point of view — and nothing listens there. Result: `connection refused`.
 
-Find the container IP:
+The right address is the CrowdSec container's **hostname**:
 
 ```sh
-docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}' <crowdsec-container>
+docker inspect -f '{{.Config.Hostname}}' <crowdsec-container>
 ```
+
+The result looks like `424ccef4-crowdsec`. The leading part is the add-on repository's id and differs between installations — read the real value instead of copying this one.
 
 Then in the add-on options:
 
 ```yaml
 crowdsec_enabled: true
 crowdsec_api_key: "<key from cscli>"
-crowdsec_lapi_url: "http://172.30.33.22:8080"
-crowdsec_appsec_url: "http://172.30.33.22:7422"
+crowdsec_lapi_url: "http://424ccef4-crowdsec:8080"
+crowdsec_appsec_url: "http://424ccef4-crowdsec:7422"
 ```
 
-> Container IPs can change when the CrowdSec add-on is updated. If its configuration offers a port mapping to the host, that is the more stable choice — then `127.0.0.1` is correct.
+> **Do not enter an IP address.** The container IP (`172.30.33.x`, found with `docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}' <crowdsec-container>`) only holds until the next restart. Docker hands out a new one on every start, and restarting Home Assistant restarts every add-on container. After that `crowdsec_lapi_url` and `crowdsec_appsec_url` point nowhere and the bouncer stays off, without anyone having changed a thing. The hostname stays stable.
 
-> If AppSec is not running (no `appsec` block in the acquisition), `crowdsec_appsec_url` must be left **empty**.
+> NPMplus runs on the host network but still resolves other add-ons' hostnames — the Supervisor hands the HA DNS service to every add-on container. Should resolution ever fail, the long form `424ccef4-crowdsec.local.hass.io` works.
+
+**Shorter: `auto`.** With `auto` in `crowdsec_lapi_url` (and optionally `crowdsec_appsec_url`), the add-on asks the Supervisor for the installed add-ons on every start, picks the one whose slug ends in `_crowdsec` and builds the address itself:
+
+```yaml
+crowdsec_enabled: true
+crowdsec_api_key: "<key from cscli>"
+crowdsec_lapi_url: "auto"
+crowdsec_appsec_url: "auto"
+```
+
+The log then says what was found:
+
+```
+[INFO] CrowdSec add-on found: 424ccef4-crowdsec
+```
+
+That covers the standard case — CrowdSec running as an add-on on the same machine, LAPI on 8080, AppSec on 7422. With different ports, a remote engine or several CrowdSec add-ons, enter the address by hand. If nothing is found the add-on warns and the bouncer stays off.
+
+> If AppSec is not running (no `appsec` block in the acquisition), `crowdsec_appsec_url` must be left **empty** — `auto` would fill in an address nobody serves.
 
 ### Example CrowdSec add-on configuration
 
@@ -289,9 +335,19 @@ docker exec $CS cscli -c $CFG decisions add --ip <your-ip> --duration 5m --type 
 
 The page itself can be customised in `/data/crowdsec/captcha.html`; the untouched template sits next to it as `captcha.html.example`.
 
+### Self-test
+
+The add-on ships a script that runs the important checks in one go — web interface, logs, bouncer configuration, LAPI, AppSec, key length, certificate lifetimes. In a terminal add-on with Docker access:
+
+```sh
+docker exec $(docker ps --format '{{.Names}}' | grep -i npmplus | head -1) /selftest.sh
+```
+
+Every line is `[ ok ]`, `[warn]` or `[FAIL]`; the exit code stays 0 as long as nothing fails. Warnings describe states that may well be intended (no captcha, no AppSec, little traffic).
+
 ### Diagnostics at a glance
 
-Run everything in a terminal add-on with Docker access. `CS` is the CrowdSec container, `NP` the NPMplus one.
+For the single question left open. Run everything in a terminal add-on with Docker access. `CS` is the CrowdSec container, `NP` the NPMplus one.
 
 ```sh
 CS=$(docker ps --format '{{.Names}}' | grep -i crowdsec | head -1)
@@ -306,8 +362,8 @@ CFG=/config/.storage/crowdsec/config/config.yaml
 | Do log lines arrive? | `docker exec $CS cscli -c $CFG metrics` |
 | Who is currently banned? | `docker exec $CS cscli -c $CFG decisions list` |
 | Which collections are installed? | `docker exec $CS cscli -c $CFG collections list` |
-| What is the CrowdSec container's IP? | `docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}' $CS` |
-| Are LAPI and AppSec reachable? | `nc -z -v <crowdsec-ip> 8080 && nc -z -v <crowdsec-ip> 7422` |
+| What is the CrowdSec container's hostname? | `docker inspect -f '{{.Config.Hostname}}' $CS` |
+| Are LAPI and AppSec reachable? | `nc -z -v <crowdsec-hostname> 8080 && nc -z -v <crowdsec-hostname> 7422` |
 | What is in the NPMplus bouncer configuration? | `docker exec $NP grep -E '^(ENABLED\|API_URL\|APPSEC_URL)=' /data/crowdsec/crowdsec.conf` |
 | Does the LAPI accept this exact key? | see below |
 
@@ -668,10 +724,12 @@ Not included out of the box. Put the MaxMind databases (free account) into `/dat
 | `trust_ip` | – | Trusted proxy IPs for X-Forwarded-For |
 | `trust_cloudflare` | `false` | Fetch and trust Cloudflare IP ranges |
 | `crowdsec_enabled` | `false` | Enable the nginx bouncer |
-| `crowdsec_lapi_url` | `http://127.0.0.1:8080` | CrowdSec Local API |
+| `crowdsec_lapi_url` | `http://127.0.0.1:8080` | CrowdSec Local API; `auto` looks up the CrowdSec add-on |
 | `crowdsec_api_key` | – | Bouncer key from `cscli bouncers add` |
-| `crowdsec_appsec_url` | `http://127.0.0.1:7422` | AppSec/WAF endpoint |
-| `crowdsec_captcha_provider` | – | `turnstile`, `hcaptcha` or `recaptcha`; empty = off |
+| `crowdsec_appsec_url` | `http://127.0.0.1:7422` | AppSec/WAF endpoint; `auto` as above, empty = off |
+| `crowdsec_fallback_remediation` | `default` | Remediation used when a decision cannot be applied (unknown type, captcha configured but unusable): `bypass`, `captcha`, `ban`; `default` = image default (currently `ban`). Does **not** apply when the LAPI fails |
+| `crowdsec_retry_minutes` | `15` | If the LAPI does not answer at start, keep asking every 30 s for this many minutes and enable the bouncer afterwards via an nginx reload. `0` = no retry |
+| `crowdsec_captcha_provider` | `off` | `turnstile`, `hcaptcha` or `recaptcha`; `off` = disabled |
 | `crowdsec_captcha_site_key` | – | Public key of the provider |
 | `crowdsec_captcha_secret_key` | – | Secret key of the provider |
 | `geo_mode` | `off` | Country filter: `block`, `allow` or `off` |
@@ -681,7 +739,7 @@ Not included out of the box. Put the MaxMind databases (free account) into `/dat
 | `geo_deny_ips` | `[]` | Always-blocked addresses or CIDR ranges |
 | `geo_allow_ips` | `[]` | Addresses the country filter never applies to |
 | `geo_refresh_hours` | `24` | Interval for reloading the lists; `0` = off |
-| `geo_deny_action` | `403` | Response when blocked: `403` with page or `444` silent |
+| `geo_deny_action` | `403` | **Country block and `geo_deny_ips` only** — CrowdSec, AppSec and access-list blocks stay 403. Response when blocked: `403` with page or `444` silent |
 | `geo_log_country` | `true` | Log blocked requests with country to `blocked.log` |
 | `nginx_worker_processes` | `auto` | Number of nginx workers |
 | `nginx_worker_connections` | `512` | Connections per worker |
@@ -751,6 +809,8 @@ A Home Assistant backup of the add-on contains all of `/data`, database and cert
 
 ## Troubleshooting
 
+**The add-on keeps restarting** — the Supervisor watches port 81 (watchdog). If the web interface stops answering it restarts the add-on. The toggle sits in the add-on settings under *Watchdog* and can be turned off if maintenance work triggers constant restarts.
+
 **Add-on will not start, port in use** — another proxy is still running (old NGINX add-on, Caddy, Traefik). Stop it first.
 
 **Certificate cannot be issued, the error names an IPv6 address** — if the domain has an AAAA record, Let's Encrypt tries IPv6 first. If that record points at a device that does not answer, validation fails no matter how well IPv4 is set up. Check with `dig +short AAAA <domain>`; if you do not run IPv6, delete the record at your DNS provider. Note that subdomains have their own records — only CNAMEs inherit. And the DynDNS updater must stop reporting IPv6, otherwise the record reappears on its next run.
@@ -760,6 +820,14 @@ A Home Assistant backup of the add-on contains all of `/data`, database and cert
 **Certificate cannot be issued** — port 80 must be reachable from the internet and the domain must resolve to your public IP. Behind CGNAT or with port 80 blocked, only the DNS challenge works.
 
 **Every site serves the CrowdSec block page** — the bouncer cannot reach CrowdSec or the key is rejected. Version 0.1.4 and later prevent this at startup; on older versions turn `crowdsec_enabled` off and restart.
+
+**CrowdSec used to work, after a restart the bouncer reaches nothing** — `crowdsec_lapi_url` holds a container IP (`172.30.33.x`) that Docker reassigned on start. Switch both URLs to the container hostname, e.g. `http://424ccef4-crowdsec:8080`.
+
+**The log says "error loading captcha plugin: no recaptcha site key provided"** — cosmetic. With `crowdsec_captcha_provider` set to `off` the bouncer falls back to `recaptcha` internally, finds no site key and turns captcha off. The bouncer itself keeps working. The line only disappears once captcha is set up with a provider and both keys (see step 7).
+
+**The log says "Permission Denied" with HTTP 403 on `/api/nginx/...`** — these requests do not come from the add-on. The user agent (`HomeAssistant/…`) and the IP give it away: a Home Assistant integration is querying the NPMplus API, typically "Nginx Proxy Manager" from HACS. Signing in works (otherwise it would be 401), but the user configured there is not allowed to read those lists. In NPMplus open *Users*, set *Edit Permissions* to at least "View" or make the user an administrator — otherwise remove the integration. Proxying is unaffected; only that integration's sensors stay empty.
+
+**Blocked with a timeout instead of 403** — then it is not the nginx bouncer inside NPMplus but CrowdSec's **firewall bouncer**. It drops the packets at the iptables level before nginx ever sees them: the connection runs into nothing instead of getting an answer. That affects every service on the host, not just NPMplus. Rule of thumb: **403 = nginx bouncer** (HTTP level, the connection is established), **timeout = firewall bouncer** (packet level). For the same reason `geo_deny_action: 444` is never visible during a firewall ban — nothing reaches nginx. Lift it either way with `cscli decisions delete --ip <IP>` or via CrowdPanel.
 
 **Wrong client IPs in the logs** — if another proxy or Cloudflare sits in front, add its IPs to `trust_ip` or enable `trust_cloudflare`.
 

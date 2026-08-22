@@ -7,6 +7,7 @@ on:
       - 'npmplus/config.yaml'
       - 'npmplus/Dockerfile'
       - 'npmplus/run.sh'
+      - 'npmplus/selftest.sh'
       - '.npmplus-version'
   workflow_dispatch:
 
@@ -41,7 +42,7 @@ jobs:
           echo "NPMplus Upstream-Tag: ${UPSTREAM}"
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@v4
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4

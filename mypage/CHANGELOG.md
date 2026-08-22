@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.10.42
+
+- 🔑 **GitHub-Token wird jetzt geprüft — im Admin unter System.** Neue Karte unter den Home-Assistant-Sensoren: sie zeigt, ob der in den Add-on-Einstellungen hinterlegte Token gültig ist, zu welchem Konto er gehört, wann er abläuft (mit Warnung ab 14 Tagen Restlaufzeit) und wie viel vom Stunden-Kontingent noch frei ist. Bisher fiel ein abgelaufener Token gar nicht auf: das stündliche Sterne-Update hat die Absage von GitHub still verschluckt, und der Repo-Import meldete nur ein allgemeines „GitHub nicht erreichbar“.
+- 📬 **Der Wochenrückblick nennt die Restlaufzeit des Tokens** — als zusätzliche Zeile in Benachrichtigung und E-Mail, damit ein anstehender Ablauf nicht übersehen wird. Ohne hinterlegten Token bleibt die Zeile weg.
+- 🐛 Wird das Sterne-Update von GitHub mit 401 oder 403 abgewiesen, steht das jetzt als Warnung im Protokoll, statt spurlos zu verschwinden.
+
 ## 0.10.41
 
 - 🗖 **Bearbeiten-Fenster lassen sich jetzt maximieren.** Oben rechts in jedem Dialog sitzt ein Knopf wie bei einem Fenster in Windows: einmal klicken macht das Fenster über den ganzen Bildschirm, noch einmal klicken stellt die alte Größe wieder her. Lange Formulare wie „Neuer Beitrag" oder ein Reisetag sind so deutlich angenehmer auszufüllen — die Textfelder werden dabei mitgezogen. Die Wahl merkt sich der Browser pro Dialog.

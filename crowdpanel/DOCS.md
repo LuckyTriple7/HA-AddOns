@@ -81,21 +81,30 @@ docker exec $CS cscli -c $CFG machines list
 ### Schritt 2 — LAPI-Adresse herausfinden
 
 `http://127.0.0.1:8080` funktioniert nur, wenn CrowdSec seine Ports auf dem Host
-veröffentlicht. Läuft CrowdSec als Add-on im eigenen Container, ist die
-Container-Adresse nötig:
+veröffentlicht. Läuft CrowdSec als Add-on im eigenen Container, ist dessen
+**Hostname** die richtige Adresse:
 
 ```sh
-docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}' $CS
+docker inspect -f '{{.Config.Hostname}}' $CS
 ```
 
-Ergebnis ist typischerweise etwas wie `172.30.33.22`, die LAPI also
-`http://172.30.33.22:8080`.
+Ergebnis ist etwas wie `424ccef4-crowdsec`, die LAPI also
+`http://424ccef4-crowdsec:8080`. Der vordere Teil ist die Kennung des
+Add-on-Repositorys und unterscheidet sich von Installation zu Installation —
+den Wert also wirklich auslesen und nicht abschreiben.
+
+> **Keine IP-Adresse eintragen.** Die Container-IP (`172.30.33.x`, zu finden mit
+> `docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}' $CS`)
+> funktioniert nur bis zum nächsten Neustart. Docker vergibt sie bei jedem Start
+> neu, und ein Neustart von Home Assistant startet alle Add-on-Container neu.
+> Danach zeigt `lapi_url` ins Leere und CrowdPanel meldet „LAPI nicht erreichbar".
+> Der Hostname bleibt dagegen stabil.
 
 ### Schritt 3 — Optionen setzen
 
 | Option | Wert |
 |---|---|
-| `lapi_url` | `http://172.30.33.22:8080` |
+| `lapi_url` | `http://424ccef4-crowdsec:8080` |
 | `machine_id` | `crowdpanel` |
 | `machine_password` | das Passwort aus Schritt 1 |
 | `password` | ein eigenes Passwort statt `changeme123` |
@@ -103,7 +112,7 @@ Ergebnis ist typischerweise etwas wie `172.30.33.22`, die LAPI also
 Add-on starten. Im Protokoll steht dann:
 
 ```
-[INFO] CrowdSec LAPI reachable at http://172.30.33.22:8080 (7 ms)
+[INFO] CrowdSec LAPI reachable at http://424ccef4-crowdsec:8080 (7 ms)
 ```
 
 Steht dort stattdessen eine Warnung, hilft die Tabelle unter [Fehlersuche](#fehlersuche).
@@ -161,7 +170,9 @@ Dazu zwei Anzeigen, die den Zustand statt einer Momentaufnahme zeigen:
 **Verlauf** — ein Balken je Tag über den Zeitraum aus `history_days` (Vorgabe
 sieben). Der helle Anteil sind Erkennungen, der graue die Blocklisten-Updates.
 „134 Erkennungen in 24 Stunden" sagt für sich genommen nichts; erst neben den
-Vortagen wird sichtbar, ob gerade etwas anrollt.
+Vortagen wird sichtbar, ob gerade etwas anrollt. Mit dem [Alarm-Archiv](#alarm-archiv)
+reicht der Verlauf so weit zurück, wie `history_days` erlaubt — ohne Archiv nur
+so weit, wie CrowdSec seine Alarme aufhebt.
 
 **Bouncer** — wer die Entscheidungen abholt und wann zuletzt. Das ist die
 wichtigste Betriebsfrage überhaupt: Ein Bouncer, der seit Minuten nichts mehr
@@ -177,6 +188,73 @@ verlassen den Server nicht**, die Spalten werden gar nicht erst gelesen.
 
 Wird die Datenbank nicht gefunden, bleibt der Rest der Übersicht davon
 unberührt.
+
+### Angriffskarte
+
+Auf der Übersicht steht eine Weltkarte mit einem Punkt je Quelladresse der
+letzten 24 Stunden. Die Punktgröße folgt der Zahl der Erkennungen, der
+Mauszeiger zeigt Adresse, Land, Netz und das häufigste Szenario. Ein Klick
+springt in die Alarmliste, gefiltert auf genau diese Adresse.
+
+Gezeichnet wird aus echten Koordinaten. CrowdSec führt in jedem Alarm
+`latitude` und `longitude`, gefüllt vom Parser **`crowdsecurity/geoip-enrich`**
+in der Stufe `s02-enrich`. Fehlt der, bleibt die Karte leer und sagt das auch:
+
+```sh
+docker exec $CS cscli -c $CFG parsers install crowdsecurity/geoip-enrich
+```
+
+Es ist ein **Parser**, keine Collection — `collections install` antwortet mit
+`can't find … in collections`.
+
+Danach CrowdSec neu starten. Bereits vorhandene Alarme bekommen rückwirkend
+keine Koordinaten; die Karte füllt sich mit den Erkennungen, die danach
+hinzukommen.
+
+Nicht auf der Karte landen:
+
+- **Blocklisten-Synchronisierungen.** Ein einzelner Sync bringt Zehntausende
+  Einträge ohne Ortsbezug und würde alles andere erschlagen.
+- **Koordinaten `0/0`.** Die schreibt CrowdSec, wenn das Enrichment nichts
+  gefunden hat. Ein Punkt im Golf von Guinea wäre eine Erfindung.
+- **Mehr als 400 Adressen.** Darüber wird nach Zahl der Erkennungen gekürzt; die
+  Fußzeile nennt dann, wie viele gezeigt werden.
+
+**Zoomen und Verschieben.** Mausrad oder Zwei-Finger-Geste vergrößert bis zum
+sechzehnfachen Maßstab, Ziehen verschiebt den Ausschnitt, ein Doppelklick oder
+der Knopf `⟲` setzt zurück. Die Punkte behalten dabei ihre Größe — sie stehen
+für die Zahl der Erkennungen, nicht für die Zoomstufe. Der gewählte Ausschnitt
+bleibt über die automatische Aktualisierung hinweg erhalten; wer nach Sao Paulo
+gezoomt hat, sieht nicht alle dreißig Sekunden wieder die ganze Welt.
+Vergrößert wird um den Mauszeiger herum, und über den Kartenrand hinaus lässt
+sich nicht ziehen.
+
+Ein Punkt misst je nach Zahl der Erkennungen drei bis sechs Bildpunkte. Damit
+er sich trotzdem treffen lässt, liegt über ihm eine durchsichtige Trefferfläche
+von zweiundzwanzig Bildpunkten — gerechnet in Bildpunkten, nicht in
+Karteneinheiten, also auf dem Telefon genauso groß wie am Schreibtisch und in
+jeder Zoomstufe gleich. Der Punkt wird hell, sobald der Zeiger darauf liegt.
+
+**Der eigene Standort.** Wird `server_lat` und `server_lon` gesetzt, zeichnet
+CrowdPanel einen blauen Punkt mit Ring an diese Stelle — der Bezugspunkt, auf
+den all die roten Punkte zielen. `server_label` benennt ihn im Mauszeigertext
+und in der Fußzeile, etwa `Zuhause` oder `Rechenzentrum Falkenstein`. Die
+Koordinaten stehen in der Konfiguration und werden nirgends abgefragt: die
+eigene öffentliche Adresse wandert nicht zu einem fremden Geo-Dienst, nur damit
+ein Punkt auf der Karte sitzt. Zwei Nachkommastellen genügen für einen Ort auf
+etwa einen Kilometer genau; wer nicht mehr preisgeben will, rundet grob.
+
+Die Vorgabe beider Felder ist `0`, und `0/0` gilt — wie bei den Alarmen — als
+„nicht eingetragen“: solange dort nichts steht, bleibt der Punkt weg. Die
+Koordinaten des eigenen Ortes findet man in jeder Karte im Netz, in Home
+Assistant stehen sie unter *Einstellungen → System → Allgemein* beim Standort.
+
+Die Umrisse liegen als `static/world.svg` im Image, erzeugt aus Natural Earth
+1:110m (Public Domain, siehe [LICENSE.md](LICENSE.md)). Nachgeladen wird nichts
+aus dem Internet. Projiziert wird in Web Mercator — dieselbe Projektion wie bei
+jeder Online-Karte und damit die, die das Auge erwartet. Die Umrechnung bleibt
+trotzdem eine Zeile, sodass die Karte ohne Kartenbibliothek auskommt; dieselbe
+Formel steht im Erzeugerskript und im Frontend.
 
 ### Sperren
 
@@ -376,6 +454,74 @@ docker exec $CS cscli -c $CFG hub list
 docker exec $CS cscli -c $CFG hub upgrade
 ```
 
+---
+
+### Metriken
+
+CrowdSec führt über alles, was durch es hindurchläuft, eigene Zähler. Ausgeliefert
+werden die im Prometheus-Textformat, und `cscli metrics` baut seine Tabellen aus
+genau dieser Quelle. Der Reiter zeigt dasselbe im Browser:
+
+| Tabelle | Beantwortet |
+|---|---|
+| Datenquellen | Kommen überhaupt Logzeilen an, und wie viele davon versteht CrowdSec nicht? |
+| Parser | Welcher Parser greift, welcher läuft leer? |
+| Szenarien | Welches Szenario löst tatsächlich aus, welches ist nur geladen? |
+| Whitelists | Wie oft hat eine Ausnahme gegriffen — und aus welchem Grund? |
+| LAPI-Aufrufe / je Maschine / je Bouncer | Wer fragt wie oft, und bekommt ein Bouncer überhaupt Sperren geliefert? |
+| AppSec | Anfragen und Blockaden je Engine, dazu die Regeln, die getroffen haben |
+| Aktive Sperren / Meldungen | CrowdSecs eigene Zählung, aufgeschlüsselt nach Grund, Herkunft und Aktion |
+| Laufzeiten | Durchschnitt je Parsing-, Bucket- und LAPI-Vorgang in Millisekunden |
+| Zwischenspeicher | Größe der internen Caches |
+
+Alle Zähler laufen seit dem Start von CrowdSec und beginnen bei einem Neustart
+wieder bei null. Es sind Summen, keine Raten.
+
+**Die Zähler müssen erst freigegeben werden.** CrowdSec hört damit
+standardmäßig nur auf `127.0.0.1`, also nur innerhalb seines eigenen Containers.
+CrowdPanel läuft in einem anderen und kommt so nicht heran.
+
+Das ist **keine Add-on-Option** — in den Optionen des CrowdSec-Add-ons taucht
+Prometheus nicht auf. Die Einstellung steht in der `config.yaml` von CrowdSec
+selbst, unter `/config/.storage/crowdsec/config/config.yaml`. Der Abschnitt ist
+dort bereits vorhanden; zu ändern ist nur eine Zeile:
+
+```yaml
+prometheus:
+  enabled: true
+  level: full
+  listen_addr: 0.0.0.0   # ← statt 127.0.0.1
+  listen_port: 6060
+```
+
+Am bequemsten geht das im **Web-Terminal des CrowdSec-Add-ons** — dort ist `yq`
+schon installiert:
+
+```sh
+yq eval -i '.prometheus.listen_addr = "0.0.0.0"'   /config/.storage/crowdsec/config/config.yaml
+```
+
+Danach das CrowdSec-Add-on neu starten und im selben Terminal prüfen:
+
+```sh
+curl -s localhost:6060/metrics | head -5
+```
+
+Die Datei bleibt erhalten: Das Add-on kopiert sie nur beim allerersten Start aus
+dem Image ins Konfigurationsverzeichnis, spätere Starts fassen sie nicht mehr an.
+Überschrieben wird bei jedem Start allein `acquis.yaml`.
+
+Port 6060 muss **nicht** nach außen veröffentlicht werden. CrowdPanel spricht den
+Container über das Docker-Netz an, genau wie die LAPI auf 8080 — nötig ist nur,
+dass CrowdSec überhaupt auf allen Adressen lauscht.
+
+CrowdPanel nimmt ohne weitere Angabe denselben Rechner wie in `lapi_url` und Port
+6060; steht der Endpunkt woanders, trägt man ihn vollständig in `prometheus_url`
+ein (`http://…:6060` oder direkt `http://…/metrics`).
+
+Solange nichts erreichbar ist, bleibt der Reiter sichtbar und erklärt genau
+diesen Schritt, statt einfach leer zu sein.
+
 ## Sensoren in Home Assistant
 
 Ist `ha_sensors` an (Vorgabe), meldet CrowdPanel folgende Entitäten an Home
@@ -437,16 +583,78 @@ Lehnt Home Assistant die Sensoren ab, steht das **einmal** im Protokoll des Add-
 | `machine_id` | leer | Name des Maschinen-Zugangs |
 | `machine_password` | leer | Passwort des Maschinen-Zugangs |
 | `lapi_tls_verify` | `true` | TLS-Zertifikat prüfen; nur bei selbstsigniertem `https` abschalten |
+| `prometheus_url` | leer | Adresse der CrowdSec-Metriken; leer heißt Rechner aus `lapi_url`, Port 6060 |
 | `default_ban_duration` | `4h` | Voreingestellte Dauer im Formular |
 | `refresh_interval` | `30` | Sekunden bis zur automatischen Aktualisierung, `0` schaltet sie ab |
 | `page_size` | `100` | wie viele Zeilen die Tabellen höchstens anzeigen |
 | `whitelist_dir` | leer | Verzeichnis der Whitelist-Parser, nur falls die Suche fehlschlägt |
 | `crowdsec_dir` | leer | Konfigurationsverzeichnis von CrowdSec, nur falls die Suche fehlschlägt |
 | `crowdsec_db` | leer | Datenbank von CrowdSec, nur falls die Suche fehlschlägt |
-| `history_days` | `7` | über wie viele Tage der Verlauf reicht |
+| `history_days` | `7` | über wie viele Tage der Verlauf reicht (mit Archiv bis 3650) |
+| `archive_enabled` | `true` | Alarm-Archiv unter `/data/alerts.db` führen |
+| `archive_days` | `365` | wie lange das Archiv Erkennungen aufhebt, `0` = unbegrenzt |
+| `archive_backfill_days` | `30` | wie weit der allererste Abgleich zurückreicht |
+| `archive_interval` | `300` | Sekunden zwischen zwei Abgleichen mit der LAPI |
+| `server_lat` | `0` | Breitengrad des eigenen Standorts für den Punkt auf der Karte, `0/0` heißt „nicht eingetragen“ |
+| `server_lon` | `0` | Längengrad des eigenen Standorts, nur zusammen mit `server_lat` wirksam |
+| `server_label` | leer | Beschriftung dieses Punktes, sonst „Dieser Server“ |
 | `ha_sensors` | `true` | Sensoren an Home Assistant melden |
 | `ha_sensor_interval` | `300` | Sekunden zwischen zwei Sensor-Aktualisierungen |
 | `verbose_log` | `false` | zusätzliche Zeilen im Protokoll |
+
+---
+
+## Alarm-Archiv
+
+CrowdSec räumt seine Datenbank nach einigen Wochen auf. Was dort verschwindet,
+ist über die LAPI nicht mehr zu holen — bis Version 0.5.6 war es damit auch in
+CrowdPanel weg. Das Archiv schreibt deshalb jede Erkennung einmal in eine eigene
+SQLite-Datei unter `/data/alerts.db` und beantwortet danach die Fragen nach der
+Vergangenheit selbst.
+
+**Was aus dem Archiv kommt:** Verlauf, Angriffskarte, die Alarmliste (bei
+„Erkennungen") und die Historie einer Adresse unter *IP prüfen*. Jede dieser
+Antworten nennt im JSON unter `source`, woher sie stammt — `archive` oder `lapi`.
+
+**Was weiterhin live aus der LAPI kommt:** aktive Sperren, die Kennzahlen der
+Übersicht, Bouncer, Allowlists, Hub und Metriken. Das ist der aktuelle Zustand,
+und der gehört dorthin, wo er entsteht.
+
+**Was das Archiv aufnimmt:** eine Zeile je Erkennung mit Zeitpunkt, Szenario,
+Adresse, Land, AS-Name, Koordinaten, Ereigniszahl. Von einer
+Blocklisten-Synchronisierung bleiben nur Kennung und Zeitpunkt — genug für den
+zweiten Balken im Verlauf. Ihre zehntausend Entscheidungen wären der Grund,
+warum die Datei wächst, und ohne jede Aussage.
+
+Eine Zeile ist rund 200 Bytes. Bei fünfzig Erkennungen am Tag sind das drei
+Megabyte im Jahr; wer täglich tausend sieht, kommt auf rund siebzig.
+`archive_days` begrenzt die Aufbewahrung, Vorgabe ein Jahr, `0` hebt die Grenze
+auf.
+
+**Wie es gefüllt wird:** ein Hintergrundfaden fragt alle `archive_interval`
+Sekunden (Vorgabe 300) die LAPI nach allem seit dem jüngsten bekannten Alarm,
+mit zwei Stunden Überlappung. Doppelte fallen über die Alarmkennung weg.
+
+Beim allerersten Lauf reicht die Abfrage `archive_backfill_days` Tage zurück
+(Vorgabe 30). Mehr als tausend Alarme gibt die LAPI aber in keiner Antwort
+heraus — der erste Lauf holt also höchstens die tausend jüngsten. Was CrowdSec
+zu diesem Zeitpunkt schon vergessen hat, ist ohnehin nicht mehr zu retten. Ab
+dann geht nichts mehr verloren, solange das Add-on läuft.
+
+**Wenn es nicht geht:** lässt sich die Datei nicht anlegen — volle Platte,
+fehlende Rechte — schreibt das Add-on eine Warnung ins Protokoll und antwortet
+weiter aus der LAPI. Dasselbe gilt für `archive_enabled: false`. Die Oberfläche
+sieht in beiden Fällen aus wie vorher, nur reicht der Verlauf dann nicht weiter
+zurück als CrowdSecs eigene Aufbewahrung.
+
+Der Zustand des Archivs steht im Reiter *Einstellungen*: Zeilenzahl, ältester
+und jüngster Eintrag, letzter Abgleich, Dateigröße, Aufbewahrung.
+
+**Sicherung:** `/data/alerts.db` gehört in kein Backup. Der Inhalt ist
+Beobachtung, keine Konfiguration — geht die Datei verloren, baut sich das Archiv
+von vorne wieder auf, und der Verlust ist Vergangenheit, keine Funktion. Wer die
+Historie trotzdem behalten will, sichert die drei Dateien `alerts.db`,
+`alerts.db-wal` und `alerts.db-shm` zusammen und bei gestopptem Add-on.
 
 ---
 
@@ -458,6 +666,7 @@ Lehnt Home Assistant die Sensoren ab, steht das **einmal** im Protokoll des Add-
 | `/data/sessions.json` | offene Anmeldungen |
 | `/data/twofa.json` | 2FA-Geheimnis, Backup-Codes, vertrauenswürdige Geräte (Rechte 600) |
 | `/data/secret.key` | Signaturschlüssel für Cookies (Rechte 600) |
+| `/data/alerts.db` | das Alarm-Archiv, dazu `-wal` und `-shm` im Betrieb |
 
 Alles liegt in `/data` und damit nicht in einem durchsuchbaren Freigabeordner.
 Wer die Zwei-Faktor-Anmeldung zurücksetzen muss, löscht `twofa.json` und startet
@@ -470,7 +679,8 @@ das Add-on neu.
 | Anzeige | Ursache | Abhilfe |
 |---|---|---|
 | Maschinen-Zugangsdaten fehlen | `machine_id` oder `machine_password` leer | Schritt 1 der Einrichtung nachholen |
-| LAPI nicht erreichbar | falsche Adresse oder falscher Port | Container-Adresse mit `docker inspect` prüfen, nicht `127.0.0.1` raten |
+| LAPI nicht erreichbar | falsche Adresse oder falscher Port | Hostname mit `docker inspect -f '{{.Config.Hostname}}' $CS` prüfen, nicht `127.0.0.1` raten |
+| LAPI nicht erreichbar, lief vorher | `lapi_url` enthält eine Container-IP (`172.30.33.x`), die sich beim Neustart geändert hat | `lapi_url` auf den Hostname umstellen, z. B. `http://424ccef4-crowdsec:8080` |
 | Maschinen-Zugangsdaten werden abgelehnt | Maschine in der falschen Datenbank angelegt | `cscli` mit `-c $CFG` erneut ausführen; mit `machines list` gegenprüfen |
 | LAPI-Adresse ist keine http(s)-Adresse | Tippfehler, fehlendes `http://` | `lapi_url` korrigieren |
 | Sperre angelegt, Bouncer sperrt nicht | Bouncer holt noch ab, oder Adresse steht auf einer Allowlist | *IP prüfen* öffnen und den Allowlist-Hinweis lesen |

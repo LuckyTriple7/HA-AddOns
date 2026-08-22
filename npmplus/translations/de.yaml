@@ -64,16 +64,22 @@ configuration:
     description: Aktiviert den nginx-Bouncer. Blockt Anfragen von IPs, die deine CrowdSec-Instanz gebannt hat. Setzt eine eigene, laufende CrowdSec-Engine voraus (z.B. das offizielle CrowdSec-Add-on) - ohne sie bleibt die Option wirkungslos.
   crowdsec_lapi_url:
     name: CrowdSec LAPI-URL
-    description: Adresse der lokalen CrowdSec-API, z.B. http://127.0.0.1:8080.
+    description: Adresse der lokalen CrowdSec-API. Läuft CrowdSec als Add-on, den Container-Hostnamen nehmen, z.B. http://424ccef4-crowdsec:8080 - keine Container-IP, die ändert sich beim Neustart.
   crowdsec_api_key:
     name: CrowdSec Bouncer-Key
     description: Ausgabe von "cscli bouncers add npmplus" in deiner CrowdSec-Instanz.
   crowdsec_appsec_url:
     name: CrowdSec AppSec-URL
-    description: Adresse des AppSec/WAF-Endpunkts, z.B. http://127.0.0.1:7422. Leer lassen, wenn AppSec nicht läuft.
+    description: Adresse des AppSec/WAF-Endpunkts, z.B. http://424ccef4-crowdsec:7422 - selber Hostname wie bei der LAPI. Leer lassen, wenn AppSec nicht läuft.
+  crowdsec_fallback_remediation:
+    name: Ersatz-Massnahme
+    description: Was der Bouncer tut, wenn er eine Entscheidung von CrowdSec nicht anwenden kann - etwa bei einem unbekannten Entscheidungstyp oder wenn "captcha" verlangt wird, ohne dass ein Captcha eingerichtet ist. "bypass" laesst durch, "ban" sperrt, "captcha" zeigt das Raetsel. "default" laesst die Vorgabe des Images unangetastet, derzeit "ban". Faellt CrowdSec dagegen ganz aus, greift diese Option nicht - der Bouncer laesst dann jede Anfrage ungeprueft durch und faengt sich von selbst wieder, sobald CrowdSec antwortet.
+  crowdsec_retry_minutes:
+    name: Wartezeit auf CrowdSec nach dem Start
+    description: Home Assistant startet die Add-ons ohne feste Reihenfolge. Ist CrowdSec beim Start von NPMplus noch nicht bereit, bliebe der Bouncer bis zum naechsten Neustart aus. So lange fragt das Add-on danach im Hintergrund alle 30 Sekunden nach und schaltet den Bouncer nachtraeglich ein. 0 schaltet das Nachfragen ab.
   crowdsec_captcha_provider:
     name: Captcha-Anbieter
-    description: Zeigt bei Entscheidungen vom Typ "captcha" eine Rätselseite statt einer harten Sperre. Leer lassen schaltet Captcha ab. Turnstile von Cloudflare ist kostenlos und ohne Nutzerprofilbildung.
+    description: Zeigt bei Entscheidungen vom Typ "captcha" eine Rätselseite statt einer harten Sperre. "off" schaltet Captcha ab. Turnstile von Cloudflare ist kostenlos und ohne Nutzerprofilbildung.
   crowdsec_captcha_site_key:
     name: Captcha Site-Key
     description: Öffentlicher Schlüssel des gewählten Anbieters.
@@ -102,8 +108,8 @@ configuration:
     name: Listen auffrischen (Stunden)
     description: Abstand, in dem die Länderlisten neu geladen werden. 0 schaltet das Auffrischen ab. Ohne Auffrischung sperrt die Liste mit der Zeit die Falschen aus.
   geo_deny_action:
-    name: Antwort bei Sperre
-    description: '"403" liefert eine Sperrseite, die sich unter /data/geoip/blocked.html bearbeiten lässt. "444" schließt die Verbindung wortlos — der Angreifer erfährt nicht einmal, dass dort ein Server steht, ein versehentlich Gesperrter sieht aber nur einen Verbindungsabbruch.'
+    name: Antwort bei Ländersperre
+    description: 'Gilt NUR für die Ländersperre und die IP-Sperrliste oben. Sperren durch CrowdSec, AppSec, Zugriffslisten oder das Backend dahinter antworten weiterhin mit 403 - diese Einstellung ändert daran nichts. "403" liefert eine Sperrseite, die sich unter /data/geoip/blocked.html bearbeiten lässt. "444" schließt die Verbindung wortlos - der Angreifer erfährt nicht einmal, dass dort ein Server steht, ein versehentlich Gesperrter sieht aber nur einen Verbindungsabbruch.'
   geo_log_country:
     name: Land mitprotokollieren
     description: Schreibt gesperrte Anfragen mit Herkunftsland nach /data/nginx/logs/blocked.log. So siehst du nach ein paar Wochen, welche Länder etwas beitragen. Kostet rund 4 MB Arbeitsspeicher für eine zweite Nachschlagetabelle.

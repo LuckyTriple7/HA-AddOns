@@ -329,6 +329,7 @@
         // vor dem Signatur-Vergleich: das Busy-Signal muss auch dann aktuell bleiben,
         // wenn sich an den Angeboten selbst nichts geändert hat (früher Ausstieg unten).
         setBusy(d.busy || []);
+        setIssues(d.issues);
         // Nur neu rendern, wenn sich wirklich etwas geändert hat — verhindert das
         // periodische Neuzeichnen (Flackern) der Preisdiagramme alle 5 s.
         const sig = JSON.stringify(d.offers);
@@ -379,7 +380,7 @@
     if(!navigator.onLine) showOfflineBanner();
 
     function deltaBadge(o){
-      if(o.ok===false) return '<span class="delta none">⚠ Abruf fehlgeschlagen</span>';
+      if(o.ok===false) return '<span class="delta none"><svg class="i"><use href="#i-warn"/></svg> Abruf fehlgeschlagen</span>';
       if(o.delta==null) return '<span class="delta flat">Basiswert</span>';
       if(o.delta>0) return '<span class="delta up">▲ +'+eur(o.delta)+'</span>';
       if(o.delta<0) return '<span class="delta down">▼ '+eur(o.delta)+'</span>';
@@ -398,7 +399,7 @@
     // nicht mit einer dritten Prozentzahl zugestellt werden.
     function bookingBadge(o){
       const b = o.booking; if(!b || !b.ampel) return '';
-      const icon = {green:'🟢', yellow:'🟡', red:'🔴'}[b.ampel];
+      const icon = {green:'<span class="ampel g"></span>', yellow:'<span class="ampel y"></span>', red:'<span class="ampel r"></span>'}[b.ampel];
       const txt = {green:'guter Buchungszeitpunkt', yellow:'neutraler Buchungszeitpunkt',
                    red:'eher noch warten'}[b.ampel];
       const bits = [`${txt} (Score ${b.score>0?'+':''}${b.score})`];
@@ -465,7 +466,7 @@
         // Archiv-Filter ebenso exklusiv: nur archivierte Angebote, sonst nichts.
         const arch = sortOffers(list2.filter(o=>o.archived));
         html = arch.length
-          ? `<div class="arch-head">📦 Archiv (${arch.length}) — abgelaufene oder manuell archivierte Reisen (keine Live-Abfragen)</div>`
+          ? `<div class="arch-head"><svg class="i"><use href="#i-archive"/></svg> Archiv (${arch.length}) — abgelaufene oder manuell archivierte Reisen (keine Live-Abfragen)</div>`
             + arch.map(offerCard).join('')
           : '<div class="empty">Keine archivierten Angebote.</div>';
       } else {
@@ -485,7 +486,7 @@
           html += `<div class="arch-head" title="Angebote in dieser Liste melden nicht — Benachrichtigungen und Kalender-Meldungen sind stumm">`
             + `<button class="fl-head-icon" data-fl-action="icon" data-list="${esc(name)}" title="Symbol der Liste ändern">${esc(foreignIconOf(g[0]))}</button>`
             + ` ${esc(name)} (${g.length})`
-            + `<button class="rename-btn" data-fl-action="rename" data-list="${esc(name)}" title="Liste umbenennen">✎</button>`
+            + `<button class="rename-btn" data-fl-action="rename" data-list="${esc(name)}" title="Liste umbenennen"><svg class="i"><use href="#i-pencil"/></svg></button>`
             + `<button class="rename-btn" data-fl-action="dissolve" data-list="${esc(name)}" title="Liste auflösen — Angebote zurück in die normale Liste">✖</button>`
             + `</div>` + g.map(offerCard).join('');
         });
@@ -555,13 +556,13 @@
         return `<div class="offer" data-id="${o.id}">
           <div class="offer-top">
             <div class="offer-main">
-              <div class="offer-label">${esc(title)} <button class="rename-btn" onclick="renameOffer(${o.id})" title="Umbenennen">✎</button><span class="tag-row card-tags inline">${(o.tags||[]).map(t =>
+              <div class="offer-label">${esc(title)} <button class="rename-btn" onclick="renameOffer(${o.id})" title="Umbenennen"><svg class="i"><use href="#i-pencil"/></svg></button><span class="tag-row card-tags inline">${(o.tags||[]).map(t =>
                 `<span class="tag-pill" onclick="removeTag(${o.id}, '${esc(t)}')" title="Entfernen">${esc(t)} ×</span>`
               ).join('')}<span class="tag-pill add" onclick="addTag(${o.id})" title="Tag hinzufügen">＋</span></span></div>
-              ${o.location?`<a class="offer-loc" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(((o.hotel||o.label||'')+' '+o.location).trim())}" target="_blank" rel="noopener" title="In Google Maps öffnen">📍 ${esc(o.location)} ↗</a>`:''}
+              ${o.location?`<a class="offer-loc" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(((o.hotel||o.label||'')+' '+o.location).trim())}" target="_blank" rel="noopener" title="In Google Maps öffnen"><svg class="i"><use href="#i-pin"/></svg> ${esc(o.location)} ↗</a>`:''}
               ${stars?`<div class="meta">${stars}</div>`:''}
               <a class="offer-url" href="${esc(o.url)}" target="_blank" rel="noopener">Angebot auf tui.com öffnen ↗</a>
-              ${o.ok===false?`<div class="err-note">⚠ ${esc(o.note||'Preis konnte nicht gelesen werden')}</div>`:''}
+              ${o.ok===false?`<div class="err-note"><svg class="i"><use href="#i-warn"/></svg> ${esc(o.note||'Preis konnte nicht gelesen werden')}</div>`:''}
             </div>
             <div class="price-box">
               <div class="price-now"${o.checking&&hasPrice?' style="opacity:.5"':''}>${priceNow}</div>
@@ -572,12 +573,12 @@
           </div>
           ${statsLine}
           <div class="offer-foot">
-            <div class="when"><span class="paused-badge" title="Nur Preisverlauf-Tracking, keine Benachrichtigungen">📊 Preisverlauf</span>${o.checking?' · wird geprüft…':(' · Zuletzt: '+ago(o.last_ts))}</div>
+            <div class="when"><span class="paused-badge" title="Nur Preisverlauf-Tracking, keine Benachrichtigungen"><svg class="i"><use href="#i-chart"/></svg> Preisverlauf</span>${o.checking?' · wird geprüft…':(' · Zuletzt: '+ago(o.last_ts))}</div>
             <div class="offer-actions">
               <button class="btn sec" onclick="openHistory(${o.id})">Verlauf</button>
               <button class="btn sec${o.calendar_alert?' cal-alert':''}" onclick="openCalendar(${o.id})" title="Preis je Abreisetag (Preiskalender)">Kalender</button>
               <button class="icon-btn" style="color:var(--red)" onclick="delOffer(${o.id})" title="Löschen">
-                <svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+                <svg class="i"><use href="#i-trash"/></svg>
               </button>
             </div>
           </div>
@@ -617,42 +618,45 @@
             const dTxt = (d==null || Math.abs(d)<0.5) ? '<span class="fv-d">±0 €</span>'
               : `<span class="fv-d ${d>0?'up':'down'}">${d>0?'+':'−'}${eur(Math.abs(d))}</span>`;
             const btn = cur
-              ? (o.flight_pin?`<button class="btn sec" onclick="pinFlight(${o.id},'')" title="Fixierung lösen – wieder günstigster Flug">📌 fixiert ✕</button>`
+              ? (o.flight_pin?`<button class="btn sec" onclick="pinFlight(${o.id},'')" title="Fixierung lösen – wieder günstigster Flug"><svg class="i"><use href="#i-pin"/></svg> fixiert ✕</button>`
                              :'<span class="fv-cur" title="Dieser Flug wird aktuell verfolgt">✓ verfolgt</span>')
-              : `<button class="btn sec" onclick="pinFlight(${o.id},'${esc(v.key)}')" title="Diesen Flug verfolgen statt des günstigsten">📌 verfolgen</button>`;
+              : `<button class="btn sec" onclick="pinFlight(${o.id},'${esc(v.key)}')" title="Diesen Flug verfolgen statt des günstigsten"><svg class="i"><use href="#i-pin"/></svg> verfolgen</button>`;
             return `<div class="fv-row${cur?' cur':''}">
               <div class="fv-price">${eur(v.price)} ${dTxt}</div>
               <div class="fv-legs">${plane}<span>${esc(v.out)}</span><br>${plane}<span>${esc(v.ret)}</span></div>
               <div class="fv-act">${btn}</div>
             </div>`;
           }).join('');
-          const pinNote = o.flight_pin ? ' · <span class="fv-pin">📌 Flug fixiert</span>' : '';
-          flightAlts = `<details class="flight-vars"><summary>✈ ${fopts.length} Flugvarianten${pinNote}</summary>${rows}</details>`;
+          const pinNote = o.flight_pin ? ' · <span class="fv-pin"><svg class="i"><use href="#i-bookmark"/></svg> Flug fixiert</span>' : '';
+          flightAlts = `<details class="flight-vars"><summary><svg class="i"><use href="#i-plane"/></svg> ${fopts.length} Flugvarianten${pinNote}</summary>${rows}</details>`;
         }
         let availBadge = '';
         if(o.available===true){
           // vac_ok = Live-Bestätigung aus dem Buchungssystem (vacancy-check);
           // FAILED überschreibt available nicht, wird aber als Warnung gezeigt
           if(o.vac_ok===true)
-            availBadge = '<div><span class="avail yes" title="Vom TUI-Buchungssystem live bestätigt (letzte Prüfung)">⚡ verfügbar · bestätigt</span></div>';
+            availBadge = '<div><span class="avail yes dotted" title="Vom TUI-Buchungssystem live bestätigt (letzte Prüfung)">verfügbar · bestätigt</span></div>';
           else if(o.vac_ok===false)
-            availBadge = '<div><span class="avail yes">✓ verfügbar</span> <span class="avail warn" title="Das Buchungssystem bestätigt dieses Angebot aktuell nicht — evtl. vorübergehend oder ausgebucht">⚠ nicht bestätigt</span></div>';
+            availBadge = '<div><span class="avail yes dotted">verfügbar</span> <span class="avail warn dotted" title="Das Buchungssystem bestätigt dieses Angebot aktuell nicht — evtl. vorübergehend oder ausgebucht">nicht bestätigt</span></div>';
           else
-            availBadge = '<div><span class="avail yes">✓ verfügbar</span></div>';
+            availBadge = '<div><span class="avail yes dotted">verfügbar</span></div>';
         }
-        else if(o.available===false) availBadge = '<div><span class="avail no">✗ nicht verfügbar</span></div>';
+        else if(o.available===false) availBadge = '<div><span class="avail no dotted">nicht verfügbar</span></div>';
         // Sterne + HolidayCheck-Bewertung + kostenlose Stornierung
         const metaParts = [];
         if(o.stars) metaParts.push(`<span class="stars">${'★'.repeat(Math.round(o.stars))}</span>`);
         if(o.rating!=null){
           let rt = 'HolidayCheck '+o.rating.toLocaleString('de-DE',{minimumFractionDigits:1,maximumFractionDigits:1})+'/6';
           if(o.rating_count) rt += ' · '+o.rating_count.toLocaleString('de-DE')+' Bew.';
-          if(o.recommendation!=null) rt += ' · '+o.recommendation+'% 👍';
+          // Das Symbol muss außerhalb von esc() bleiben, sonst landet das Markup
+          // als sichtbarer Text in der Zeile.
+          let recIcon = '';
+          if(o.recommendation!=null){ rt += ' · '+o.recommendation+'%'; recIcon = ' <svg class="i"><use href="#i-thumbup"/></svg>'; }
           const hcq = ('site:holidaycheck.de '+(o.hotel||o.label||'')+' '+(o.region||o.country||'')).trim();
           const hc = 'https://www.google.com/search?q='+encodeURIComponent(hcq);
-          metaParts.push('<a class="rating" href="'+esc(hc)+'" target="_blank" rel="noopener" title="HolidayCheck-Bewertungen suchen (über Google)">'+esc(rt)+' ↗</a>');
+          metaParts.push('<a class="rating" href="'+esc(hc)+'" target="_blank" rel="noopener" title="HolidayCheck-Bewertungen suchen (über Google)">'+esc(rt)+recIcon+' ↗</a>');
         }
-        if(o.cancellation) metaParts.push('<span class="canc">✓ '+esc(o.cancellation)+'</span>');
+        if(o.cancellation) metaParts.push('<span class="canc dotted">'+esc(o.cancellation)+'</span>');
         const metaLine = metaParts.length?`<div class="meta">${metaParts.join('')}</div>`:'';
         // Buchungscodes (zum Buchen/Anrufen bei TUI)
         const codeParts = [];
@@ -661,9 +665,9 @@
         if(o.giata){
           const giataUrl = 'https://hg15.giatamedia.com/index2.php?uid=782&com=sc&gid='+encodeURIComponent(o.giata)+'&frame=0&from=ks&catlang[]=de';
           codeParts.push('<a href="'+esc(giataUrl)+'" target="_blank" rel="noopener" title="GIATA-Hoteldetails öffnen">GIATA '+esc(o.giata)+' ↗</a>'
-            +' <a href="#" onclick="event.preventDefault();openGiataGallery(\''+esc(o.giata)+'\')" title="Hotelfotos (GIATA) anzeigen">🖼 Fotos</a>');
+            +' <a href="#" onclick="event.preventDefault();openGiataGallery(\''+esc(o.giata)+'\')" title="Hotelfotos (GIATA) anzeigen"><svg class="i"><use href="#i-image"/></svg> Fotos</a>');
         }
-        const codesLine = codeParts.length?`<div class="codes">🧾 ${codeParts.join(' · ')}</div>`:'';
+        const codesLine = codeParts.length?`<div class="codes"><svg class="i"><use href="#i-receipt"/></svg> ${codeParts.join(' · ')}</div>`:'';
         let statsLine = '';
         if(o.min_price!=null && o.samples>1){
           const best = (o.price!=null && o.price<=o.min_price);
@@ -676,7 +680,7 @@
           statsLine = `<div class="stats">Tief ${eur(o.min_price)} · Hoch ${eur(o.max_price)} · Ø ${eur(o.avg_price)}${vs30}${best?' · <span class="best">✓ Bestpreis</span>':''}</div>`;
         }
         const tgt = o.target_price!=null ? Math.round(o.target_price) : '';
-        const tgtLabel = o.target_price!=null ? `<span class="target-set">🎯 Wunschpreis ${eur(o.target_price)}</span>` : '🎯 Wunschpreis:';
+        const tgtLabel = o.target_price!=null ? `<span class="target-set"><svg class="i"><use href="#i-target"/></svg> Wunschpreis ${eur(o.target_price)}</span>` : '<svg class="i"><use href="#i-target"/></svg> Wunschpreis:';
         const targetRow = `<div class="target-row">${tgtLabel}
             <input type="number" id="tgt-${o.id}" placeholder="z. B. 1800" value="${tgt}" onkeydown="if(event.key==='Enter')setTarget(${o.id})">
             <button class="btn sec" onclick="setTarget(${o.id})">setzen</button></div>`;
@@ -684,12 +688,12 @@
         // Fremdes Angebot (nicht für mich): Kopf der Karte + Preis, sonst nichts.
         // Aufgebaut aus denselben Bausteinen wie die volle Karte, damit beide
         // Darstellungen nicht auseinanderlaufen.
-        const labelRow = `<div class="offer-label"><input type="checkbox" class="bulk-check" ${selected.has(o.id)?'checked':''} onclick="bulkToggle(${o.id}, this.checked)" title="Für Sammelaktion auswählen"> ${esc(title)} <button class="rename-btn" onclick="renameOffer(${o.id})" title="Umbenennen">✎</button>${
+        const labelRow = `<div class="offer-label"><input type="checkbox" class="bulk-check" ${selected.has(o.id)?'checked':''} onclick="bulkToggle(${o.id}, this.checked)" title="Für Sammelaktion auswählen"> ${esc(title)} <button class="rename-btn" onclick="renameOffer(${o.id})" title="Umbenennen"><svg class="i"><use href="#i-pencil"/></svg></button>${
           o.is_foreign?`<button class="rename-btn foreign-toggle" onclick="toggleForeignOpen(${o.id})" title="${foreignOpen(o)?'Einklappen':'Aufklappen'}">${foreignOpen(o)?'▴':'▾'}</button>`:''}<span class="tag-row card-tags inline">${(o.tags||[]).map(t =>
             `<span class="tag-pill" onclick="removeTag(${o.id}, '${esc(t)}')" title="Entfernen">${esc(t)} ×</span>`
           ).join('')}<span class="tag-pill add" onclick="addTag(${o.id})" title="Tag hinzufügen">＋</span></span></div>`;
-        const locRow = o.location?`<a class="offer-loc" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(((o.hotel||o.label||'')+' '+o.location).trim())}" target="_blank" rel="noopener" title="In Google Maps öffnen">📍 ${esc(o.location)} ↗</a>`:'';
-        const bellBtn = o.archived?'':`<button class="icon-btn notify-bell" onclick="toggleNotifyMuted(${o.id}, ${!!o.notify_muted})" title="${o.notify_muted?'Benachrichtigungen (HA/Telegram) stummgeschaltet – klicken zum Aktivieren':'Benachrichtigungen (HA/Telegram) aktiv – klicken zum Stummschalten'}">${o.notify_muted?'🔕':'🔔'}</button>`;
+        const locRow = o.location?`<a class="offer-loc" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(((o.hotel||o.label||'')+' '+o.location).trim())}" target="_blank" rel="noopener" title="In Google Maps öffnen"><svg class="i"><use href="#i-pin"/></svg> ${esc(o.location)} ↗</a>`:'';
+        const bellBtn = o.archived?'':`<button class="icon-btn notify-bell" onclick="toggleNotifyMuted(${o.id}, ${!!o.notify_muted})" title="${o.notify_muted?'Benachrichtigungen (HA/Telegram) stummgeschaltet – klicken zum Aktivieren':'Benachrichtigungen (HA/Telegram) aktiv – klicken zum Stummschalten'}">${o.notify_muted?'<svg class="i"><use href="#i-bell-off"/></svg>':'<svg class="i"><use href="#i-bell"/></svg>'}</button>`;
         if(o.is_foreign && !foreignOpen(o)){
           return `<div class="offer foreign collapsed${o.paused?' paused':''}${o.archived?' archived':''}" data-id="${o.id}">
             <div class="offer-top">
@@ -707,16 +711,16 @@
             </div>
           </div>`;
         }
-        const bkLabel = o.booked_price!=null ? `<span class="booked-set">📌 Gebucht für ${eur(o.booked_price)}</span>` : '📌 Gebuchter Preis:';
+        const bkLabel = o.booked_price!=null ? `<span class="booked-set"><svg class="i"><use href="#i-bookmark"/></svg> Gebucht für ${eur(o.booked_price)}</span>` : '<svg class="i"><use href="#i-bookmark"/></svg> Gebuchter Preis:';
         const bookedRow = `<div class="target-row booked-row">${bkLabel}
             <input type="number" id="book-${o.id}" placeholder="z. B. 1750" value="${bk}" onkeydown="if(event.key==='Enter')setBooked(${o.id})">
             <button class="btn sec" onclick="setBooked(${o.id})">setzen</button></div>`;
         let bookedSince = '';
         if(o.booked_price!=null && o.price!=null){
           const d = Math.round(o.price - o.booked_price);
-          if(d<0) bookedSince = `<span class="booked-since down" title="seit deiner Buchung">📌 ${eur(d)} seit Buchung</span>`;
-          else if(d>0) bookedSince = `<span class="booked-since up" title="seit deiner Buchung">📌 +${eur(d)} seit Buchung</span>`;
-          else bookedSince = `<span class="booked-since flat" title="seit deiner Buchung">📌 wie gebucht</span>`;
+          if(d<0) bookedSince = `<span class="booked-since down" title="seit deiner Buchung"><svg class="i"><use href="#i-bookmark"/></svg> ${eur(d)} seit Buchung</span>`;
+          else if(d>0) bookedSince = `<span class="booked-since up" title="seit deiner Buchung"><svg class="i"><use href="#i-bookmark"/></svg> +${eur(d)} seit Buchung</span>`;
+          else bookedSince = `<span class="booked-since flat" title="seit deiner Buchung"><svg class="i"><use href="#i-bookmark"/></svg> wie gebucht</span>`;
         }
         return `<div class="offer${o.is_foreign?' foreign':''}${o.paused?' paused':''}${o.archived?' archived':''}" data-id="${o.id}">
           <div class="offer-top">
@@ -729,8 +733,8 @@
               ${flightAlts}
               ${codesLine}
               <a class="offer-url" href="${esc(o.url)}" target="_blank" rel="noopener">Angebot auf tui.com öffnen ↗</a>
-              ${o.pdf_url?`<a class="offer-url pdf" href="${esc(o.pdf_url)}" target="_blank" rel="noopener">📄 Hotelbeschreibung (PDF)</a>`:''}
-              ${o.ok===false?`<div class="err-note">⚠ ${esc(o.note||'Preis konnte nicht gelesen werden')}</div>`:''}
+              ${o.pdf_url?`<a class="offer-url pdf" href="${esc(o.pdf_url)}" target="_blank" rel="noopener"><svg class="i"><use href="#i-doc"/></svg> Hotelbeschreibung (PDF)</a>`:''}
+              ${o.ok===false?`<div class="err-note"><svg class="i"><use href="#i-warn"/></svg> ${esc(o.note||'Preis konnte nicht gelesen werden')}</div>`:''}
             </div>
             <div class="price-box">
               ${bellBtn}
@@ -744,13 +748,15 @@
               ${availBadge}
               ${o.image_url?`<img class="offer-img" src="${esc(o.image_url)}" loading="lazy" alt="" onerror="this.remove()">`:''}
             </div>
+            <div class="offer-extra">
+              ${statsLine}
+              ${o.archived?'':`<div class="price-rows">${targetRow}${bookedRow}</div>`}
+            </div>
           </div>
-          ${statsLine}
-          ${o.archived?'':`<div class="price-rows">${targetRow}${bookedRow}</div>`}
           <div class="offer-foot">
             <div class="when">${o.archived
-              ? `<span class="archived-badge">📦 archiviert</span>${o.return_date?(' · Reise bis '+fmtD(o.return_date)):''}${o.price!=null?(' · letzter Preis '+eur(o.price)):''}`
-              : (o.paused?'<span class="paused-badge">⏸ pausiert</span>':(o.checking?'<span class="badge-checking">wird geprüft…</span>':('Zuletzt: '+ago(o.last_ts))))}</div>
+              ? `<span class="archived-badge"><svg class="i"><use href="#i-archive"/></svg> archiviert</span>${o.return_date?(' · Reise bis '+fmtD(o.return_date)):''}${o.price!=null?(' · letzter Preis '+eur(o.price)):''}`
+              : (o.paused?'<span class="paused-badge"><svg class="i"><use href="#i-pause"/></svg> pausiert</span>':(o.checking?'<span class="badge-checking">wird geprüft…</span>':('Zuletzt: '+ago(o.last_ts))))}</div>
             <div class="offer-actions">
             ${o.archived
               ? `<button class="btn sec" onclick="openHistory(${o.id})">Verlauf</button>
@@ -758,12 +764,13 @@
                     ? 'Kalender pausiert (Abrufe schlugen wiederholt fehl) — Fenster öffnen zum Reaktivieren'
                     : 'Preis je Abreisetag — läuft für archivierte Angebote weiter und baut den Langzeitverlauf dieses Hotels auf'}">Kalender</button>
                  <button class="btn sec" onclick="unarchiveOffer(${o.id})" title="Wieder aktiv verfolgen">Reaktivieren</button>
-                 <button class="icon-btn" onclick="resetOffer(${o.id})" title="Zurücksetzen: Verlauf löschen und neu bei null beginnen">
-                   <svg viewBox="0 0 24 24"><path d="M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
-                 </button>
-                 <button class="icon-btn" style="color:var(--red)" onclick="delOffer(${o.id})" title="Löschen">
-                   <svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
-                 </button>`
+                 <details class="row-more">
+                   <summary class="icon-btn" title="Weitere Aktionen"><svg class="i"><use href="#i-dots"/></svg></summary>
+                   <div class="row-menu">
+                     <button class="mm-item" onclick="resetOffer(${o.id})" title="Verlauf löschen und neu bei null beginnen"><svg class="i"><use href="#i-reset"/></svg> Zurücksetzen</button>
+                     <button class="mm-item danger" onclick="delOffer(${o.id})"><svg class="i"><use href="#i-trash"/></svg> Löschen</button>
+                   </div>
+                 </details>`
               : `<button class="btn sec" onclick="openHistory(${o.id})">Verlauf</button>
                  <button class="btn sec${o.calendar_alert?' cal-alert':''}" onclick="openCalendar(${o.id})" title="${o.calendar_alert?'Preisänderung im Kalender seit letztem Öffnen! · ':''}Preis je Abreisetag (Preiskalender)">Kalender</button>
                  <button class="btn sec" onclick="pendingStartId=null;openRooms(${o.id})" title="Zimmerkategorie wählen (Standard = günstigstes)">Zimmer</button>
@@ -777,29 +784,29 @@
                  <button class="btn sec ai-feature${offerHasGuide(o)?' has-guide':''}" onclick="openGuideFromOffer(${o.id})" title="${offerHasGuide(o)
                     ? 'Reiseführer zu diesem Ziel liegt gespeichert vor — Öffnen kostet nichts'
                     : 'Reiseführer zum Reiseziel: Einreise, Gesundheit, Geld, Mobilität, Sicherheit, Kultur, Don\'t Dos, Insider-Tipps — inklusive Klimatabelle. Wird beim ersten Öffnen von der KI erstellt.'}">Reiseführer</button>
-                 <!-- Ab hier nur noch Symbole: die Zeile war mit elf beschrifteten
-                      Knöpfen zu voll für einen weiteren. „Prüfen" steht deshalb
-                      seit v0.88.0 als Lupe bei den übrigen Symbolen rechts. -->
-                 <button class="icon-btn" onclick="checkOne(${o.id})" title="Preis jetzt prüfen">
-                   <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
-                 </button>
-                 <button class="icon-btn" onclick="togglePause(${o.id}, ${o.paused})" title="${o.paused?'Automatische Prüfung fortsetzen':'Automatische Prüfung aussetzen'}">
-                   ${o.paused
-                     ? '<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>'
-                     : '<svg viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>'}
-                 </button>
-                 <button class="icon-btn" onclick="archiveOffer(${o.id})" title="Archivieren: ins Archiv legen — keine Live-Abfragen mehr">
-                   <svg viewBox="0 0 24 24"><path d="M20.54 5.23l-1.39-1.68A1.45 1.45 0 0 0 18 3H6c-.47 0-.88.21-1.16.55L3.46 5.23A2 2 0 0 0 3 6.5V19a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6.5c0-.48-.17-.93-.46-1.27zM12 17.5L6.5 12H10v-2h4v2h3.5L12 17.5zM5.12 5l.81-1h12l.94 1H5.12z"/></svg>
-                 </button>
-                 <button class="icon-btn${o.is_foreign?' foreign-on':''}" onclick="openForeignPicker([${o.id}])" title="${o.is_foreign
-                    ? esc('In Liste „'+foreignListOf(o)+'" — klicken zum Wechseln oder Entfernen')
-                    : 'Für andere: in eine Liste legen (rutscht eingeklappt ans Listenende, Benachrichtigungen und Kalender-Meldungen werden stummgeschaltet)'}">${o.is_foreign?esc(foreignIconOf(o)):'👥'}</button>
-                 <button class="icon-btn" onclick="resetOffer(${o.id})" title="Zurücksetzen: Verlauf löschen und neu bei null beginnen">
-                   <svg viewBox="0 0 24 24"><path d="M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
-                 </button>
-                 <button class="icon-btn" style="color:var(--red)" onclick="delOffer(${o.id})" title="Löschen">
-                   <svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
-                 </button>`}
+                 <!-- Alles Unbeschriftete liegt hinter den drei Punkten: oben die
+                      beiden Prüf-Aktionen, darunter Verwaltendes und Unwiderrufliches.
+                      So besteht die Zeile nur noch aus beschrifteten Knöpfen, und
+                      „Löschen" liegt nicht direkt neben „Prüfen". -->
+                 <details class="row-more">
+                   <summary class="icon-btn" title="Weitere Aktionen"><svg class="i"><use href="#i-dots"/></svg></summary>
+                   <div class="row-menu">
+                     <div class="mm-group">
+                     <button class="mm-item" onclick="checkOne(${o.id})" title="Preis sofort abrufen, unabhängig vom Prüfrhythmus"><svg class="i"><use href="#i-search"/></svg> Jetzt prüfen</button>
+                     <button class="mm-item" onclick="togglePause(${o.id}, ${o.paused})" title="${o.paused?'Automatische Prüfung fortsetzen':'Automatische Prüfung aussetzen'}">${o.paused
+                        ? '<svg class="i"><use href="#i-play"/></svg> Fortsetzen'
+                        : '<svg class="i"><use href="#i-pause"/></svg> Pausieren'}</button>
+                     </div>
+                     <div class="mm-group">
+                     <button class="mm-item" onclick="archiveOffer(${o.id})" title="Ins Archiv legen — keine Live-Abfragen mehr"><svg class="i"><use href="#i-archive"/></svg> Archivieren</button>
+                     <button class="mm-item${o.is_foreign?' foreign-on':''}" onclick="openForeignPicker([${o.id}])" title="${o.is_foreign
+                        ? esc('In Liste „'+foreignListOf(o)+'“ — klicken zum Wechseln oder Entfernen')
+                        : 'Rutscht eingeklappt ans Listenende, Benachrichtigungen und Kalender-Meldungen werden stummgeschaltet'}"><svg class="i"><use href="#i-list"/></svg> ${o.is_foreign?esc('Liste: '+foreignListOf(o)):'In Liste verschieben'}</button>
+                     <button class="mm-item" onclick="resetOffer(${o.id})" title="Verlauf löschen und neu bei null beginnen"><svg class="i"><use href="#i-reset"/></svg> Zurücksetzen</button>
+                     <button class="mm-item danger" onclick="delOffer(${o.id})"><svg class="i"><use href="#i-trash"/></svg> Löschen</button>
+                     </div>
+                   </div>
+                 </details>`}
             </div>
           </div>
         </div>`;
@@ -869,14 +876,14 @@
         const ty=Y(opts.target);
         ctx.save(); ctx.strokeStyle=amber; ctx.setLineDash([5,4]); ctx.lineWidth=1.2;
         ctx.beginPath(); ctx.moveTo(padL,ty); ctx.lineTo(w-padR,ty); ctx.stroke(); ctx.restore();
-        if(full){ ctx.fillStyle=amber; ctx.font='10px sans-serif'; ctx.fillText('🎯 '+Math.round(opts.target).toLocaleString('de-DE')+' €', padL+3, ty-3); }
+        if(full){ ctx.fillStyle=amber; ctx.font='10px sans-serif'; ctx.fillText('<svg class="i"><use href="#i-target"/></svg> '+Math.round(opts.target).toLocaleString('de-DE')+' €', padL+3, ty-3); }
       }
       // Gebuchter-Preis-Linie (gezahlter Preis seit Buchung)
       if(opts.booked){
         const by=Y(opts.booked); const violet='#a371f7';
         ctx.save(); ctx.strokeStyle=violet; ctx.setLineDash([2,3]); ctx.lineWidth=1.4;
         ctx.beginPath(); ctx.moveTo(padL,by); ctx.lineTo(w-padR,by); ctx.stroke(); ctx.restore();
-        if(full){ ctx.fillStyle=violet; ctx.font='10px sans-serif'; ctx.fillText('📌 '+Math.round(opts.booked).toLocaleString('de-DE')+' €', padL+3, by+11); }
+        if(full){ ctx.fillStyle=violet; ctx.font='10px sans-serif'; ctx.fillText('<svg class="i"><use href="#i-bookmark"/></svg> '+Math.round(opts.booked).toLocaleString('de-DE')+' €', padL+3, by+11); }
       }
       // Änderungs-Marker (Events): senkrechte Linie + Fähnchen; Trefferflächen für Tooltip
       cv._events = [];
@@ -926,7 +933,7 @@
           const basis = [];
           if(fc.basis.calendar_dates) basis.push('Kalenderhistorie ('+fc.basis.calendar_dates+' Reisetermine)');
           if(fc.basis.market_pct!=null) basis.push('Markttrend '+(fc.basis.market_pct>0?'+':'')+fc.basis.market_pct.toLocaleString('de-DE')+' %/14 T');
-          fbox.innerHTML = `🔮 Prognose: in ${p.days} Tagen ≈ <b>${eur(p.price)}</b> `
+          fbox.innerHTML = `<svg class="i"><use href="#i-ai"/></svg> Prognose: in ${p.days} Tagen ≈ <b>${eur(p.price)}</b> `
             + `(<span class="hist-diff ${d<0?'down':'up'}">${d>0?'+':''}${eur(d)}</span>)`
             + ` · Abreise in ${fc.days_to_departure} Tagen · Basis: ${basis.join(' + ')}`
             + ` · <span title="Heuristik aus der bisherigen Preisentwicklung dieses Ziels — eine Annahme, keine Garantie">Annahme ⓘ</span>`;
@@ -935,7 +942,7 @@
       }
       const rows = hist.map((h,i)=>{
         const d = new Date(h.ts*1000).toLocaleString('de-DE');
-        if(!h.ok) return {keep:true, html:`<tr><td>${d}</td><td colspan="3" style="color:var(--amber)">⚠ ${esc(h.note||'fehlgeschlagen')}</td></tr>`};
+        if(!h.ok) return {keep:true, html:`<tr><td>${d}</td><td colspan="3" style="color:var(--amber)"><svg class="i"><use href="#i-warn"/></svg> ${esc(h.note||'fehlgeschlagen')}</td></tr>`};
         const prev = hist[i-1];
         let diff = '', unchanged = false;
         if(prev && prev.ok && prev.price!=null){
@@ -1014,7 +1021,7 @@
     function cmpFooter(job){
       const when = job.ts ? ('Abgefragt: '+new Date(job.ts*1000).toLocaleString('de-DE')+' — gespeichert.')
                           : 'Live abgefragt.';
-      const err = job.error ? '<div class="hint" style="color:var(--amber);margin-top:6px">⚠ Letzte Aktualisierung fehlgeschlagen — angezeigt wird das vorherige Ergebnis.</div>' : '';
+      const err = job.error ? '<div class="hint" style="color:var(--amber);margin-top:6px"><svg class="i"><use href="#i-warn"/></svg> Letzte Aktualisierung fehlgeschlagen — angezeigt wird das vorherige Ergebnis.</div>' : '';
       return `<div class="cmp-foot">
           <span class="hint" style="flex:1;min-width:180px">${esc(when)} „Gesamt" = Preis p. P. × Reisende.</span>
           <button class="btn sec" onclick="refreshCompare()">Neu abfragen</button>
@@ -1024,7 +1031,7 @@
     function renderCompare(job){
       if(!(job.rows && job.rows.length)){
         const msg = job.error || job.note || 'Vergleich fehlgeschlagen';
-        $('#cmp-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ '+esc(msg)+'</div>' + cmpFooter(job);
+        $('#cmp-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)"><svg class="i"><use href="#i-warn"/></svg> '+esc(msg)+'</div>' + cmpFooter(job);
         return;
       }
       const ok = job.rows.filter(r=>r.ok && r.price!=null);
@@ -1091,7 +1098,7 @@
     }
     function nigFooter(job){
       const when = job.ts ? ('Abgefragt: '+new Date(job.ts*1000).toLocaleString('de-DE')+' — gespeichert.') : 'Live abgefragt.';
-      const err = job.error ? '<div class="hint" style="color:var(--amber);margin-top:6px">⚠ Letzte Aktualisierung fehlgeschlagen — angezeigt wird das vorherige Ergebnis.</div>' : '';
+      const err = job.error ? '<div class="hint" style="color:var(--amber);margin-top:6px"><svg class="i"><use href="#i-warn"/></svg> Letzte Aktualisierung fehlgeschlagen — angezeigt wird das vorherige Ergebnis.</div>' : '';
       return `<div class="cmp-foot">
           <span class="hint" style="flex:1;min-width:180px">${esc(when)} „Gesamt" = Preis p. P. × Reisende. Nicht jede Dauer hat Flüge.</span>
           <button class="btn sec" onclick="runNights()">Neu abfragen</button>
@@ -1100,7 +1107,7 @@
     function renderNights(job){
       if(!(job.rows && job.rows.length)){
         const msg = job.error || job.note || 'Nächte-Vergleich fehlgeschlagen';
-        $('#nig-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ '+esc(msg)+'</div>' + nigFooter(job);
+        $('#nig-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)"><svg class="i"><use href="#i-warn"/></svg> '+esc(msg)+'</div>' + nigFooter(job);
         return;
       }
       const ok = job.rows.filter(r=>r.ok && r.price!=null);
@@ -1155,13 +1162,13 @@
       try { data = await fetch(api('/api/check24/search?q='+encodeURIComponent(name))).then(r=>r.json()); }
       catch(e){ data = {error:'search_failed'}; }
       if(data.error){
-        $('#c24-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Check24-Suche fehlgeschlagen. Bitte später erneut versuchen.</div>';
+        $('#c24-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)"><svg class="i"><use href="#i-warn"/></svg> Check24-Suche fehlgeschlagen. Bitte später erneut versuchen.</div>';
         return;
       }
       const cands = data.candidates || [];
       if(cands.length === 1){ pickCheck24Hotel(id, cands[0].hotel_id, cands[0].name); return; }
       if(cands.length === 0){
-        $('#c24-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Kein passendes Hotel bei Check24 gefunden.</div>';
+        $('#c24-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)"><svg class="i"><use href="#i-warn"/></svg> Kein passendes Hotel bei Check24 gefunden.</div>';
         return;
       }
       const rows = cands.map(c=>
@@ -1199,9 +1206,9 @@
       c24Spinner();
       let r;
       try { r = await fetch(api('/api/check24/'+c24Id), {method:'POST'}); } catch(e){ r=null; }
-      if(r && r.status===409){ $('#c24-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Dieses Angebot ist noch nicht mit Check24 verknüpft.</div>'; return; }
-      if(r && r.status===404){ $('#c24-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Check24-Vergleich ist deaktiviert.</div>'; return; }
-      if(r && r.status===429){ $('#c24-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Bitte kurz warten, bevor erneut abgefragt wird.</div>'; return; }
+      if(r && r.status===409){ $('#c24-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)"><svg class="i"><use href="#i-warn"/></svg> Dieses Angebot ist noch nicht mit Check24 verknüpft.</div>'; return; }
+      if(r && r.status===404){ $('#c24-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)"><svg class="i"><use href="#i-warn"/></svg> Check24-Vergleich ist deaktiviert.</div>'; return; }
+      if(r && r.status===429){ $('#c24-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)"><svg class="i"><use href="#i-warn"/></svg> Bitte kurz warten, bevor erneut abgefragt wird.</div>'; return; }
       startC24Polling();
     }
     function closeCheck24(){ clearInterval(c24Timer); c24Timer=null; c24Id=null; $('#c24-bg').classList.remove('show'); }
@@ -1218,7 +1225,7 @@
 
     function c24Footer(job){
       const when = job.ts ? ('Abgefragt: '+new Date(job.ts*1000).toLocaleString('de-DE')+' — gespeichert.') : 'Live abgefragt.';
-      const err = job.error ? '<div class="hint" style="color:var(--amber);margin-top:6px">⚠ Letzte Aktualisierung fehlgeschlagen — angezeigt wird das vorherige Ergebnis.</div>' : '';
+      const err = job.error ? '<div class="hint" style="color:var(--amber);margin-top:6px"><svg class="i"><use href="#i-warn"/></svg> Letzte Aktualisierung fehlgeschlagen — angezeigt wird das vorherige Ergebnis.</div>' : '';
       const link = job.offer_url ? `<a class="btn sec" href="${esc(job.offer_url)}" target="_blank" rel="noopener">Auf Check24 ansehen ↗</a>` : '';
       return `<div class="cmp-foot">
           <span class="hint" style="flex:1;min-width:180px">${esc(when)} Vergleich mit ähnlicher Zimmerkategorie/Verpflegung — nicht immer exakt identisch.</span>
@@ -1230,7 +1237,7 @@
     function renderCheck24(job){
       if(!(job.rows && job.rows.length)){
         const msg = job.error || C24_NOTES[job.note] || job.note || 'Kein Check24-Angebot gefunden.';
-        $('#c24-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ '+esc(msg)+'</div>' + c24Footer(job);
+        $('#c24-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)"><svg class="i"><use href="#i-warn"/></svg> '+esc(msg)+'</div>' + c24Footer(job);
         return;
       }
       const cheapest = Math.min(...job.rows.map(r=>r.price));
@@ -1308,7 +1315,7 @@
       const win = nightsBetween($('#srch-vom').value, $('#srch-bis').value);
       const dur = parseInt($('#srch-dur').value)||0;
       if(win!=null && dur>win){
-        el.textContent = `⚠ ${dur} Nächte passen nicht in den Zeitraum (${win} Tage) – evtl. keine Treffer.`;
+        el.textContent = `${dur} Nächte passen nicht in den Zeitraum (${win} Tage) – evtl. keine Treffer.`;
         el.style.display='';
       } else { el.style.display='none'; }
     }
@@ -1428,7 +1435,7 @@
       $('#srch-favsel').value=''; favBtnState();
     }
 
-    // ── Tracking-Statistik (📊 im Footer) ───────────────────────────────────────
+    // ── Tracking-Statistik (<svg class="i"><use href="#i-chart"/></svg> im Footer) ───────────────────────────────────────
     async function openStats(){
       $('#stats-bg').classList.add('show');
       $('#stats-body').innerHTML = '<div class="cmp-load">Lade…</div>';
@@ -1442,7 +1449,7 @@
         ['Aufzeichnung seit', since],
         ['Ersparnis ggü. Höchstpreis', eur(d.saved_total)],
       ].map(([l,v])=>`<div class="tstat"><div class="v">${v}</div><div class="l">${l}</div></div>`).join('');
-      const savedTbl = (d.saved_rows||[]).length ? `<h3>💰 Aktuell unter dem Höchstpreis</h3>
+      const savedTbl = (d.saved_rows||[]).length ? `<h3><svg class="i"><use href="#i-euro"/></svg> Aktuell unter dem Höchstpreis</h3>
         <table class="hist"><tr><th>Angebot</th><th>Hoch → jetzt</th><th>gespart</th></tr>${
         d.saved_rows.map(r=>`<tr><td>${esc(r.name)}</td><td>${eur(r.peak)} → ${eur(r.price)}</td><td class="hist-diff down">−${eur(r.saved)}</td></tr>`).join('')}</table>` : '';
       const mv = (rows, title, cls, sign) => rows && rows.length ? `<h3>${title}</h3>
@@ -1450,7 +1457,7 @@
         rows.map(r=>`<tr><td>${esc(r.name)}</td><td class="hist-diff ${cls}">${sign}${eur(Math.abs(r.delta))} → ${eur(r.price)}</td><td>${new Date(r.ts*1000).toLocaleDateString('de-DE')}</td></tr>`).join('')}</table>` : '';
       // Wochentags-Muster: Balkenbreite ∝ Anzahl Bewegungen, Farbe nach Ø-Richtung
       const maxN = Math.max(1, ...(d.weekday||[]).map(w=>w.n));
-      const wk = `<h3>📅 Preisänderungen nach Wochentag</h3>
+      const wk = `<h3><svg class="i"><use href="#i-calendar"/></svg> Preisänderungen nach Wochentag</h3>
         <div class="stats-wk">${(d.weekday||[]).map(w=>{
           const pct = w.avg_pct!=null ? (w.avg_pct>0?'+':'')+w.avg_pct.toLocaleString('de-DE')+' %' : '–';
           const dir = w.avg_pct==null ? '' : (w.avg_pct<0?'down':'up');
@@ -1459,14 +1466,14 @@
             <span class="wkn">${w.n}× · Ø <b class="hist-diff ${dir}">${pct}</b> · ↓${w.drops} ↑${w.rises}</span></div>`;
         }).join('')}</div>
         <div class="hint">Basis: alle echten Preisänderungen zwischen zwei Prüfungen (Markttrend-Datenbasis).</div>`;
-      const booked = (d.booked||[]).length ? `<h3>📌 Gebuchte Angebote vs. heute</h3>
+      const booked = (d.booked||[]).length ? `<h3><svg class="i"><use href="#i-bookmark"/></svg> Gebuchte Angebote vs. heute</h3>
         <table class="hist">${d.booked.map(b=>`<tr><td>${esc(b.name)}</td><td class="hist-diff ${b.diff<0?'down':'up'}">${b.diff>0?'+':''}${eur(b.diff)} seit Buchung</td></tr>`).join('')}</table>` : '';
       const low = d.low_days_median!=null
         ? `<h3>⏱ Tiefstpreis-Rückschau</h3><p>Bei ${d.low_days_n} abgeschlossenen Angeboten lag der Tiefstpreis im Median <b>${d.low_days_median} Tage vor Abreise</b>.</p>`
         : `<h3>⏱ Tiefstpreis-Rückschau</h3><p class="hint">Braucht abgeschlossene (archivierte) Angebote mit Preisverlauf — noch keine Daten.</p>`;
       $('#stats-body').innerHTML = `<div class="trips-stats">${tiles}</div>
-        ${savedTbl}${mv(d.top_drops,'📉 Größte Preisstürze (eine Prüfung → nächste)','down','−')}
-        ${mv(d.top_rises,'📈 Größte Anstiege','up','+')}${wk}${booked}${low}`;
+        ${savedTbl}${mv(d.top_drops,'<svg class="i"><use href="#i-trend-down"/></svg> Größte Preisstürze (eine Prüfung → nächste)','down','−')}
+        ${mv(d.top_rises,'<svg class="i"><use href="#i-trend"/></svg> Größte Anstiege','up','+')}${wk}${booked}${low}`;
     }
     function closeStats(){ $('#stats-bg').classList.remove('show'); }
     $('#stats-bg').addEventListener('click', e=>{ if(e.target.id==='stats-bg') closeStats(); });
@@ -1659,7 +1666,7 @@
       items.forEach(it=>{ _shrUrls[it.token] = it.url; });
       if(!items.length){
         $('#shr-body').innerHTML = `<p class="hint">Noch keine öffentlichen Links. Angebote in der Liste
-          markieren und dort „🔗 Teilen" wählen.</p>`;
+          markieren und dort „<svg class="i"><use href="#i-link"/></svg> Teilen" wählen.</p>`;
         return;
       }
       const rows = items.map(it=>{
@@ -1673,7 +1680,7 @@
           <td>
             <button class="btn sec shr-cmt${it.new_comments?' has-new':''}" onclick="openShareComments('${esc(it.token)}')"
               title="${it.new_comments ? it.new_comments+' neue(r) Kommentar(e) seit dem letzten Öffnen'
-                                       : 'Kommentare der Empfänger ansehen, bearbeiten oder löschen'}">💬 Kommentare${
+                                       : 'Kommentare der Empfänger ansehen, bearbeiten oder löschen'}"><svg class="i"><use href="#i-comment"/></svg> Kommentare${
               it.comments?` (${it.comments})`:''}</button>
             <button class="btn sec" onclick="copyShareUrl('${esc(it.token)}')">Kopieren</button>
             <button class="btn sec" onclick="openShareDialog('${esc(it.token)}')" title="Angebote hinzufügen oder entfernen — der Link bleibt derselbe">Bearbeiten</button>
@@ -1797,8 +1804,8 @@
       const o = (curOffers||[]).find(x=>x.id===id) || {};
       $('#split-sub').textContent = o.label || o.hotel || ('TUI-Angebot #'+id);
       let h = '';
-      if(o.vac_ok===true) h += '<div class="split-note ok">⚡ Live vom TUI-Buchungssystem bestätigt (letzte Prüfung)</div>';
-      else if(o.vac_ok===false) h += '<div class="split-note warn">⚠ Das Buchungssystem bestätigt dieses Angebot aktuell nicht — evtl. vorübergehend oder ausgebucht</div>';
+      if(o.vac_ok===true) h += '<div class="split-note ok"><svg class="i"><use href="#i-zap"/></svg> Live vom TUI-Buchungssystem bestätigt (letzte Prüfung)</div>';
+      else if(o.vac_ok===false) h += '<div class="split-note warn"><svg class="i"><use href="#i-warn"/></svg> Das Buchungssystem bestätigt dieses Angebot aktuell nicht — evtl. vorübergehend oder ausgebucht</div>';
       const hasSplit = o.price_hotel!=null || o.price_flight_out!=null || o.price_flight_ret!=null;
       if(hasSplit){
         const sum = (o.price_hotel||0)+(o.price_flight_out||0)+(o.price_flight_ret||0);
@@ -1809,13 +1816,13 @@
         const fo = o.price_flight_out, fr = o.price_flight_ret;
         let flightRows;
         if(fo!=null && fr!=null && (fo===0) !== (fr===0)){
-          flightRows = `<tr><td>✈ Flüge (Hin &amp; Rück) <span class="split-muted" title="Retour-Tarif: das Buchungssystem bepreist beide Flüge zusammen auf einem Leg">ⓘ</span></td><td>${eur(fo+fr)}</td></tr>`;
+          flightRows = `<tr><td><svg class="i"><use href="#i-plane"/></svg> Flüge (Hin &amp; Rück) <span class="split-muted" title="Retour-Tarif: das Buchungssystem bepreist beide Flüge zusammen auf einem Leg">ⓘ</span></td><td>${eur(fo+fr)}</td></tr>`;
         } else {
-          flightRows = `<tr><td>🛫 Hinflug</td><td>${eur(fo)}</td></tr>
-          <tr><td>🛬 Rückflug</td><td>${eur(fr)}</td></tr>`;
+          flightRows = `<tr><td><svg class="i"><use href="#i-takeoff"/></svg> Hinflug</td><td>${eur(fo)}</td></tr>
+          <tr><td><svg class="i"><use href="#i-landing"/></svg> Rückflug</td><td>${eur(fr)}</td></tr>`;
         }
         h += `<table class="split-table">
-          <tr><td>🏨 Hotel</td><td>${eur(o.price_hotel)}</td></tr>
+          <tr><td><svg class="i"><use href="#i-hotel"/></svg> Hotel</td><td>${eur(o.price_hotel)}</td></tr>
           ${flightRows}
           <tr class="sum"><td>Summe${n}</td><td>${eur(sum)}</td></tr></table>`;
       } else {
@@ -1823,31 +1830,31 @@
       }
       const extras = [];
       if(o.luggage && o.luggage.out){
-        extras.push('🧳 Gepäck inklusive: ' + (o.luggage.out===o.luggage.ret
+        extras.push('<svg class="i"><use href="#i-luggage"/></svg> Gepäck inklusive: ' + (o.luggage.out===o.luggage.ret
           ? o.luggage.out+' p. P.' : 'Hin '+o.luggage.out+' · Rück '+o.luggage.ret));
       }
       if(o.deposit_pct!=null){
-        let s = '💳 Anzahlung '+o.deposit_pct+' %';
+        let s = '<svg class="i"><use href="#i-card"/></svg> Anzahlung '+o.deposit_pct+' %';
         const base = o.total_price!=null ? o.total_price : o.price;
         if(base!=null) s += ' ('+eur(Math.round(base*o.deposit_pct/100))+')';
         if(o.final_payment_date) s += ' · Rest bis '+fmtD(o.final_payment_date);
         extras.push(s);
       }
-      if(o.last_booked) extras.push('🕑 Hotel zuletzt von anderen gebucht: '+fmtD(o.last_booked));
+      if(o.last_booked) extras.push('<svg class="i"><use href="#i-clock"/></svg> Hotel zuletzt von anderen gebucht: '+fmtD(o.last_booked));
       if(extras.length) h += '<div class="split-extras">'+extras.map(x=>`<div>${x}</div>`).join('')+'</div>';
       // Badges aus dem Buchungssystem: Charter/Linie, Sitzplatz, Sonderleistungen, Kontingent
       if(o.flight_flags){
         const fl = o.flight_flags;
         const badges = [fl.charter
-          ? '<span class="split-badge" title="TUI-interner Flug (z. B. TUIfly) — beide Richtungen einzeln bepreist">✈ Charterflug</span>'
-          : '<span class="split-badge" title="Linienflug über eine Airline-Buchungsklasse — Preis meist als Retour-Tarif auf einem Leg">✈ Linienflug</span>'];
+          ? '<span class="split-badge" title="TUI-interner Flug (z. B. TUIfly) — beide Richtungen einzeln bepreist"><svg class="i"><use href="#i-plane"/></svg> Charterflug</span>'
+          : '<span class="split-badge" title="Linienflug über eine Airline-Buchungsklasse — Preis meist als Retour-Tarif auf einem Leg"><svg class="i"><use href="#i-plane"/></svg> Linienflug</span>'];
         badges.push(fl.seat
-          ? '<span class="split-badge ok" title="Sitzplatzreservierung über TUI möglich">💺 Sitzplatz reservierbar</span>'
-          : '<span class="split-badge" title="Keine Sitzplatzreservierung über TUI">💺 keine Sitzplatzwahl</span>');
-        if(fl.svc) badges.push('<span class="split-badge ok" title="Sonderleistungen (z. B. Gepäck-Extras, Assistenz) über TUI buchbar">🛎 Sonderleistungen</span>');
+          ? '<span class="split-badge ok" title="Sitzplatzreservierung über TUI möglich"><svg class="i"><use href="#i-seat"/></svg> Sitzplatz reservierbar</span>'
+          : '<span class="split-badge" title="Keine Sitzplatzreservierung über TUI"><svg class="i"><use href="#i-seat"/></svg> keine Sitzplatzwahl</span>');
+        if(fl.svc) badges.push('<span class="split-badge ok" title="Sonderleistungen (z. B. Gepäck-Extras, Assistenz) über TUI buchbar"><svg class="i"><use href="#i-bell"/></svg> Sonderleistungen</span>');
         badges.push(o.hotel_supplier
-          ? `<span class="split-badge" title="Hotelkontingent kommt über eine Bettenbank (${esc(o.hotel_supplier)}) — Preis-/Stornoverhalten kann von TUI-eigenen Kontingenten abweichen">🏨 Bettenbank ${esc(o.hotel_supplier)}</span>`
-          : '<span class="split-badge" title="Hotelkontingent direkt von TUI">🏨 TUI-Kontingent</span>');
+          ? `<span class="split-badge" title="Hotelkontingent kommt über eine Bettenbank (${esc(o.hotel_supplier)}) — Preis-/Stornoverhalten kann von TUI-eigenen Kontingenten abweichen"><svg class="i"><use href="#i-hotel"/></svg> Bettenbank ${esc(o.hotel_supplier)}</span>`
+          : '<span class="split-badge" title="Hotelkontingent direkt von TUI"><svg class="i"><use href="#i-hotel"/></svg> TUI-Kontingent</span>');
         h += '<div class="split-badges">'+badges.join(' ')+'</div>';
       }
       // Bestätigte Flugverbindungen (Segmente mit Zeiten + Buchungsklasse)
@@ -1856,13 +1863,13 @@
         `${esc(s.dep)}→${esc(s.arr)} ${(s.start||'').slice(11,16)}–${(s.end||'').slice(11,16)} ${esc(s.airline)}${esc(s.number)}${s.cls?(' · Kl. '+esc(s.cls)):''}`).join('&nbsp; ✚ &nbsp;');
       if((seg.out||[]).length || (seg.ret||[]).length){
         h += '<div class="split-extras">'
-          + ((seg.out||[]).length?`<div>🛫 ${segLine(seg.out)}</div>`:'')
-          + ((seg.ret||[]).length?`<div>🛬 ${segLine(seg.ret)}</div>`:'')
+          + ((seg.out||[]).length?`<div><svg class="i"><use href="#i-takeoff"/></svg> ${segLine(seg.out)}</div>`:'')
+          + ((seg.ret||[]).length?`<div><svg class="i"><use href="#i-landing"/></svg> ${segLine(seg.ret)}</div>`:'')
           + '</div>';
       }
       // Veranstalter-Hinweise (Errata) — sonst erst im Checkout sichtbar
       if((o.errata||[]).length){
-        h += `<details class="split-errata"><summary>⚠ Veranstalter-Hinweise (${o.errata.length})</summary>`
+        h += `<details class="split-errata"><summary><svg class="i"><use href="#i-warn"/></svg> Veranstalter-Hinweise (${o.errata.length})</summary>`
           + o.errata.map(e=>`<p>${esc(e).replace(/\n/g,'<br>')}</p>`).join('') + '</details>';
       }
       $('#split-body').innerHTML = h;
@@ -1872,7 +1879,7 @@
     function closePriceSplit(){ $('#split-bg').classList.remove('show'); }
     $('#split-bg').addEventListener('click', e=>{ if(e.target.id==='split-bg') closePriceSplit(); });
 
-    // ── Flugplan-Einstieg (✈️) ────────────────────────────────────────────────
+    // ── Flugplan-Einstieg (<svg class="i"><use href="#i-plane"/></svg>) ────────────────────────────────────────────────
     // Zwei getrennte Flugpläne mit unterschiedlichen Datenquellen und -modellen
     // (STR: Saisonstrecken, FRA: Einzelflüge je Datum). Sind beide freigeschaltet,
     // fragt der Knopf zuerst nach dem Flughafen; ist nur einer aktiv, geht es
@@ -1916,7 +1923,7 @@
           +'&from='+encodeURIComponent(von)+'&till='+encodeURIComponent(bis))).then(r=>r.json());
       } catch(e){ data = {error:'fetch_failed'}; }
       if(data.error){
-        $('#allf-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Suche nicht möglich. Bitte später erneut versuchen.</div>';
+        $('#allf-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)"><svg class="i"><use href="#i-warn"/></svg> Suche nicht möglich. Bitte später erneut versuchen.</div>';
         return;
       }
       renderAllFlights(data);
@@ -1930,7 +1937,7 @@
           <div id="allf-${k}-body">${progBar('Lade…')}</div></div>`).join('');
       present.forEach(k => {
         const res = data[k], sel = '#allf-'+k+'-body';
-        if(res.error){ $(sel).innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Nicht erreichbar.</div>'; return; }
+        if(res.error){ $(sel).innerHTML = '<div class="cmp-load" style="color:var(--amber)"><svg class="i"><use href="#i-warn"/></svg> Nicht erreichbar.</div>'; return; }
         if(k==='str') renderStrFlights(res.rows||[], sel);
         else if(k==='fra') renderFraFlights(res, sel, true);
         else renderMucFlights(res, sel);
@@ -1946,7 +1953,7 @@
       try { data = await fetch(api('/api/flights/destinations')).then(r=>r.json()); }
       catch(e){ data = {error:'fetch_failed'}; }
       if(data.error){
-        $('#allf-dest-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Flugzielliste nicht abrufbar.</div>';
+        $('#allf-dest-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)"><svg class="i"><use href="#i-warn"/></svg> Flugzielliste nicht abrufbar.</div>';
         return;
       }
       renderAllfDestinations(data.destinations || []);
@@ -1995,7 +2002,7 @@
           +'&from='+encodeURIComponent(von)+'&till='+encodeURIComponent(bis))).then(r=>r.json());
       } catch(e){ data = {error:'fetch_failed'}; }
       if(data.error){
-        $('#fraf-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Flugplan nicht erreichbar. Bitte später erneut versuchen.</div>';
+        $('#fraf-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)"><svg class="i"><use href="#i-warn"/></svg> Flugplan nicht erreichbar. Bitte später erneut versuchen.</div>';
         return;
       }
       renderFraFlights(data);
@@ -2032,10 +2039,10 @@
       const r = frafLastRows[i];
       if(!r) return;
       const dep = $('#fraf-type').value !== 'arrivals';
-      $('#fraf-detail-title').textContent = '✈️ ' + (r.airline_name || r.airline_code) + ' ' + r.flight_no;
+      $('#fraf-detail-title').textContent = '' + (r.airline_name || r.airline_code) + ' ' + r.flight_no;
       const pfCode = (r.flight_no||'').replace(/\s+/g,'');
       $('#fraf-detail-live').innerHTML = pfCode
-        ? `<a href="https://planefinder.net/data/flight/${encodeURIComponent(pfCode)}" target="_blank" rel="noopener">🛰 Live-Position auf planefinder.net</a>`
+        ? `<a href="https://planefinder.net/data/flight/${encodeURIComponent(pfCode)}" target="_blank" rel="noopener"><svg class="i"><use href="#i-signal"/></svg> Live-Position auf planefinder.net</a>`
         : '';
       const row = (k,v) => v ? `<tr><td>${k}</td><td>${esc(v)}</td></tr>` : '';
       $('#fraf-detail-body').innerHTML = `<table class="hist">
@@ -2080,7 +2087,7 @@
           +'&from='+encodeURIComponent(von)+'&till='+encodeURIComponent(bis))).then(r=>r.json());
       } catch(e){ data = {error:'fetch_failed'}; }
       if(data.error){
-        $('#mucf-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Flugplan nicht erreichbar. Bitte später erneut versuchen.</div>';
+        $('#mucf-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)"><svg class="i"><use href="#i-warn"/></svg> Flugplan nicht erreichbar. Bitte später erneut versuchen.</div>';
         return;
       }
       renderMucFlights(data);
@@ -2095,7 +2102,7 @@
         // Ankunft die zweite in MUC (±Tag über die Marker des PDF).
         const t = `${esc(r.departure)}${r.prev_day?'<span class="hint" title="Abflug am Vortag">⁻¹</span>':''}–${esc(r.arrival)}${r.next_day?'<span class="hint" title="Ankunft am Folgetag">⁺¹</span>':''}`;
         return `<tr class="mucf-row">
-          <td title="${r.direction==='departure'?'Abflug ab MUC':'Ankunft in MUC'}">${r.direction==='departure'?'🛫':'🛬'}</td>
+          <td title="${r.direction==='departure'?'Abflug ab MUC':'Ankunft in MUC'}">${r.direction==='departure'?'<svg class="i"><use href="#i-takeoff"/></svg>':'<svg class="i"><use href="#i-landing"/></svg>'}</td>
           <td>${esc(r.airport_name)} <span class="hint">(${esc(r.airport_code)})</span></td>
           <td>${esc(r.country)}</td>
           <td>${esc(r.airline_name||r.airline_code)} ${esc(r.flight_no)}</td>
@@ -2144,7 +2151,7 @@
       }
       catch(e){ data = {error:'fetch_failed'}; }
       if(data.error){
-        $('#strf-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Flugplan nicht erreichbar. Bitte später erneut versuchen.</div>';
+        $('#strf-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)"><svg class="i"><use href="#i-warn"/></svg> Flugplan nicht erreichbar. Bitte später erneut versuchen.</div>';
         return;
       }
       renderStrFlights(data.rows || []);
@@ -2163,7 +2170,7 @@
       bodySel = bodySel || '#strf-body';
       if(!rows.length){ $(bodySel).innerHTML = '<div class="hint">Keine Verbindung gefunden.</div>'; return; }
       const rowsHtml = rows.map((r,i) => `<tr class="strf-row" onclick="strFlightDetail(${i})" title="Klicken für Flugdetails (Airline, Strecke)">
-        <td title="${r.type==='Departure'?'Abflug ab STR':'Ankunft in STR'}">${r.type==='Departure'?'🛫':'🛬'}</td>
+        <td title="${r.type==='Departure'?'Abflug ab STR':'Ankunft in STR'}">${r.type==='Departure'?'<svg class="i"><use href="#i-takeoff"/></svg>':'<svg class="i"><use href="#i-landing"/></svg>'}</td>
         <td>${esc(r.airport_name)} <span class="hint">(${esc(r.airport_code)})</span></td>
         <td>${esc(r.country)}</td>
         <td>${esc(r.airline_name)} ${esc(r.flight_no)}</td>
@@ -2185,12 +2192,12 @@
     async function strFlightDetail(i){
       const r = strfLastRows[i];
       if(!r) return;
-      $('#strf-detail-title').textContent = '✈️ ' + (r.airline_name || r.airline_code) + ' ' + r.flight_no;
+      $('#strf-detail-title').textContent = '' + (r.airline_name || r.airline_code) + ' ' + r.flight_no;
       // Live-Link steht sofort, unabhängig vom adsbdb-Ladezustand — planefinder
       // erwartet IATA-Airline-Code + Flugnummer ohne Trennzeichen (z. B. "X34715").
       const pfCode = (r.airline_code||'') + (r.flight_no||'');
       $('#strf-detail-live').innerHTML = pfCode
-        ? `<a href="https://planefinder.net/data/flight/${encodeURIComponent(pfCode)}" target="_blank" rel="noopener">🛰 Live-Position auf planefinder.net</a>`
+        ? `<a href="https://planefinder.net/data/flight/${encodeURIComponent(pfCode)}" target="_blank" rel="noopener"><svg class="i"><use href="#i-signal"/></svg> Live-Position auf planefinder.net</a>`
         : '';
       $('#strf-detail-body').innerHTML = progBar('Lade Flugdetails…');
       $('#strf-detail-bg').style.zIndex = 60;
@@ -2201,7 +2208,7 @@
           +'&no='+encodeURIComponent(r.flight_no))).then(x=>x.json());
       } catch(e){ data = {error:'fetch_failed'}; }
       if(data.error){
-        $('#strf-detail-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Details nicht abrufbar. Bitte später erneut versuchen.</div>';
+        $('#strf-detail-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)"><svg class="i"><use href="#i-warn"/></svg> Details nicht abrufbar. Bitte später erneut versuchen.</div>';
         return;
       }
       if(!data.found){
@@ -2250,7 +2257,7 @@
     function renderAktion(d){
       const when = $('#aktion-when');
       when.textContent = d.ts ? ('Abgefragt: '+new Date(d.ts*1000).toLocaleString('de-DE')) : '';
-      if(d.error){ $('#aktion-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ '+esc(d.error)+'</div>'; return; }
+      if(d.error){ $('#aktion-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)"><svg class="i"><use href="#i-warn"/></svg> '+esc(d.error)+'</div>'; return; }
       const cs = d.codes||[];
       setAktionGlow(cs.length>0);
       if(!cs.length){ $('#aktion-body').innerHTML = '<div class="cmp-load">Aktuell keine Aktionscodes gefunden.</div>'; return; }
@@ -2265,7 +2272,12 @@
           ${c.kind?`<div class="aktion-kind">${esc(c.kind)}</div>`:''}
         </div>`).join('') + '</div>';
     }
-    function setAktionGlow(on){ const b=document.getElementById('aktion-btn'); if(b) b.classList.toggle('aktion-active', !!on); }
+    function setAktionGlow(on){
+      const b=document.getElementById('aktion-btn'); if(b) b.classList.toggle('aktion-active', !!on);
+      // Der Knopf steckt im zugeklappten „Mehr"-Menü, deshalb bekommt auch der
+      // Menü-Aufmacher einen Punkt — sonst bliebe ein neuer Aktionscode unsichtbar.
+      const m=document.getElementById('more-sum'); if(m) m.classList.toggle('has-news', !!on);
+    }
     // Button leuchten lassen, wenn aktuell Aktionscodes verfügbar sind (ohne Modal zu öffnen)
     async function updateAktionBtn(){
       try { const d = await fetch(api('/api/aktionscodes')).then(r=>r.json()); setAktionGlow((d.codes||[]).length>0); }
@@ -2282,7 +2294,7 @@
     $('#trend-bg').addEventListener('click', e=>{ if(e.target.id==='trend-bg') closeMarketTrend(); });
     async function loadMarketTrend(){
       let d; try { d = await fetch(api('/api/market-trend')).then(r=>r.json()); }
-      catch(e){ $('#trend-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Laden fehlgeschlagen</div>'; return; }
+      catch(e){ $('#trend-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)"><svg class="i"><use href="#i-warn"/></svg> Laden fehlgeschlagen</div>'; return; }
       renderMarketTrend(d);
     }
     function marketTrendBadge(t){
@@ -2315,12 +2327,12 @@
       const rows = (d.by_region||[]).map((r,i)=>
         `<tr><td>${esc(r.region)}</td><td>${marketTrendBadge(r.trend)}${marketIndexLine(r.index)}</td>`
         + `<td>${(r.trend||r.index||{}).n||''}</td>`
-        + `<td class="ai-feature"><button class="btn sec" onclick="openRegionOutlook(${i})" title="KI-Einschätzung für diese Destination">🔮</button></td>`
-        + `<td><button class="btn sec" onclick="resetRegionTrend(${i})" title="Markttrend-Daten dieser Destination löschen und neu beginnen">🗑</button></td></tr>`).join('');
+        + `<td class="ai-feature"><button class="btn sec" onclick="openRegionOutlook(${i})" title="KI-Einschätzung für diese Destination"><svg class="i"><use href="#i-ai"/></svg></button></td>`
+        + `<td><button class="btn sec" onclick="resetRegionTrend(${i})" title="Markttrend-Daten dieser Destination löschen und neu beginnen"><svg class="i"><use href="#i-trash"/></svg></button></td></tr>`).join('');
       // Das Preisbarometer hat ein eigenes Fenster (andere Basis, andere Zählweise) — hier
       // nur eine Zeile als Wegweiser, damit die breitere Quelle nicht übersehen wird.
       const bLine = (b && b.enabled && b.global && b.global.trend)
-        ? `<div class="hint" style="margin-bottom:12px">🌡️ Preisbarometer (alle Hotels deiner `
+        ? `<div class="hint" style="margin-bottom:12px"><svg class="i"><use href="#i-thermo"/></svg> Preisbarometer (alle Hotels deiner `
           + `gespeicherten Suchen): ${marketTrendBadge(b.global.trend)} — Details über den `
           + `Knopf unten.</div>`
         : '';
@@ -2340,13 +2352,13 @@
     $('#basket-bg').addEventListener('click', e=>{ if(e.target.id==='basket-bg') closeBasket(); });
     async function loadBasket(){
       let b; try { b = await fetch(api('/api/market-basket')).then(r=>r.json()); }
-      catch(e){ $('#basket-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Laden fehlgeschlagen</div>'; return; }
+      catch(e){ $('#basket-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)"><svg class="i"><use href="#i-warn"/></svg> Laden fehlgeschlagen</div>'; return; }
       renderBasket(b);
     }
     // ── Buchungszeitpunkt: Ampel + Booking-Kurve ───────────────────────────────────
     // Zwei verschiedene Fragen, deshalb zwei getrennte Anzeigen: der Trend oben sagt
     // „was passiert gerade", die Ampel „ist jetzt ein guter Moment zu buchen".
-    const AMPEL_ICON = {green:'🟢', yellow:'🟡', red:'🔴'};
+    const AMPEL_ICON = {green:'<span class="ampel g"></span>', yellow:'<span class="ampel y"></span>', red:'<span class="ampel r"></span>'};
     const AMPEL_TEXT = {green:'guter Zeitpunkt', yellow:'neutral', red:'eher warten'};
     function pctStr(v, digits){
       if(v===null || v===undefined) return '–';
@@ -2385,7 +2397,7 @@
             + `<td colspan="2" class="hint">noch keine Daten</td><td>${x.n} <span class="hint">/ ${x.n_series}</span></td></tr>`;
         const cls = x.pct>0 ? 'up' : (x.pct<0 ? 'down' : 'flat');
         return `<tr><td>${esc(x.label)}</td>`
-          + `<td><span class="trend ${cls}">${pctStr(x.pct)}</span>${x.thin?' <span class="hint" title="Stammt aus nur einer Messreihe — noch keine belastbare Marktaussage">⚠ dünn</span>':''}</td>`
+          + `<td><span class="trend ${cls}">${pctStr(x.pct)}</span>${x.thin?' <span class="hint" title="Stammt aus nur einer Messreihe — noch keine belastbare Marktaussage"><svg class="i"><use href="#i-warn"/></svg> dünn</span>':''}</td>`
           + `<td>${pctStr(x.rate, 3)}</td><td>${x.n} <span class="hint">/ ${x.n_series}</span></td></tr>`;
       }).join('');
       return `<h3 style="margin:16px 0 4px;font-size:15px">Booking-Kurve <span class="hint" style="font-weight:400">(${ready} von ${curve.length} Fenstern)</span></h3>`
@@ -2494,7 +2506,7 @@
       // Reihe aus: leerer Zeitraum, „keine Daten" beim Trend, und niemand wüsste warum.
       const rows = (b.by_region||[]).map(r=>{
         const when = r.closed
-          ? `<div class="hint">📁 abgeschlossen${r.last_day?` · zuletzt ${fmtD(r.last_day)}`:''}</div>`
+          ? `<div class="hint"><svg class="i"><use href="#i-archive"/></svg> abgeschlossen${r.last_day?` · zuletzt ${fmtD(r.last_day)}`:''}</div>`
           : `<div class="hint">${esc(r.period||'')}</div>`;
         return `<tr${r.closed?' style="opacity:.7"':''}><td>${esc(r.region)}${when}</td>`
         + `<td>${marketTrendBadge(r.trend)}${marketIndexLine(r.index)}</td>`
@@ -2503,7 +2515,7 @@
         + `<td>${(r.trend||{}).hotels||''}</td>`
         + `<td><button class="btn sec" onclick="resetBasketRegion(${esc(JSON.stringify(r.region))})" title="${r.closed
             ? 'Diese abgeschlossene Messreihe endgültig entfernen'
-            : 'Barometer-Daten dieser Suche löschen und neu beginnen'}">🗑</button></td></tr>`;
+            : 'Barometer-Daten dieser Suche löschen und neu beginnen'}"><svg class="i"><use href="#i-trash"/></svg></button></td></tr>`;
       }).join('');
       // Messreihen ohne zwei vergleichbare Tage stehen nicht in der Tabelle — ohne
       // diese Liste sähe es so aus, als würden sie gar nicht erfasst.
@@ -2662,6 +2674,7 @@
       ['c24-bg', closeCheck24],
       ['room-bg', closeRooms],
       ['syslog-bg', closeSyslog],
+      ['issues-bg', closeIssues],
       ['aihist-bg', closeAiHistory],
       ['aiask-bg', closeAiAsk],
       ['regcmp-bg', closeRegionCompare],
@@ -2741,11 +2754,11 @@
         const bis = t.end_weekday ? `${t.end_weekday}, ${t.end_date_de}` : t.end_date_de;
         const zeit = t.start_date ? `${von} – ${bis}${t.nights?' ('+t.nights+' Nächte)':''}` : '';
         const flights = (t.flights||[]).map(f=>
-          `<div style="font-size:.84rem;color:#667">✈ <b>${esc(f.typ)}</b>: ${esc(f.datum)}${f.wochentag?' ('+esc(f.wochentag)+')':''} · ${esc(f.von)} → ${esc(f.nach)} · ${esc(f.abflug_zeit)}–${esc(f.ankunft_zeit)} Uhr${f.flugnummer?' · '+esc(f.flugnummer):''}</div>`
+          `<div style="font-size:.84rem;color:#667"><svg class="i"><use href="#i-plane"/></svg> <b>${esc(f.typ)}</b>: ${esc(f.datum)}${f.wochentag?' ('+esc(f.wochentag)+')':''} · ${esc(f.von)} → ${esc(f.nach)} · ${esc(f.abflug_zeit)}–${esc(f.ankunft_zeit)} Uhr${f.flugnummer?' · '+esc(f.flugnummer):''}</div>`
         ).join('');
-        const hotel = (t.hotel && t.hotel !== t.title) ? `<div class="m">🏨 ${esc(t.hotel)}</div>` : '';
+        const hotel = (t.hotel && t.hotel !== t.title) ? `<div class="m"><svg class="i"><use href="#i-hotel"/></svg> ${esc(t.hotel)}</div>` : '';
         return `<div class="trip-row" style="display:block;margin-bottom:10px">
-          <div class="ti"><div class="t">🧳 ${esc(t.title)}</div>${hotel}<div class="m">${esc(zeit)}</div></div>
+          <div class="ti"><div class="t"><svg class="i"><use href="#i-luggage"/></svg> ${esc(t.title)}</div>${hotel}<div class="m">${esc(zeit)}</div></div>
           ${flights}
         </div>`;
       }).join('');
@@ -2786,7 +2799,7 @@
       const warns = (d && d.warnings) || [];
       const aiFilled = (d && d.ai_filled) || [];
       if(warns.length){
-        $('#trip-imp-status').textContent = '⚠ importiert – mit Hinweisen';
+        $('#trip-imp-status').textContent = 'importiert – mit Hinweisen';
         toast('Hinweis: nicht erkannt – '+warns.join(', ')
           + (aiFilled.length ? ' (per KI ergänzt: '+aiFilled.join(', ')+')' : ''));
       } else if(aiFilled.length){
@@ -2835,20 +2848,20 @@
       const rabatte = (d.rabatte||[]).length?`<div class="dsec">Rabatte${d.rabatt_inklusive?' <span class="hint">(bereits im Reisepreis enthalten)</span>':''}</div><table class="tdt"><tr><th>Code</th><th>Betrag</th></tr>${
         d.rabatte.map(r=>`<tr><td>${esc(r.code||'')}</td><td>${esc(r.betrag||'')}</td></tr>`).join('')}</table>`:'';
       const wuensche = (d.sonderwuensche||[]).length?`<div class="dsec">Sonderwünsche</div><div style="font-size:.84rem">${d.sonderwuensche.map(w=>esc(w)).join('<br>')}</div>`:'';
-      const pdf = t.has_pdf?`<a class="btn" href="${api('/api/trips/'+id+'/pdf')}" target="_blank" rel="noopener">📄 PDF öffnen</a>`:'';
-      const dbg = t.has_pdf?`<button class="btn sec" onclick="showTripDebug(${id}, '${jsArg(t.title||('Reise #'+id))}')" title="Bereinigten PDF-Text und je Feld erkannt/leer anzeigen — hilfreich, wenn TUI das PDF-Layout ändert">🔍 Debug</button>`:'';
-      const rescan = t.has_pdf?`<button class="btn sec" onclick="rescanTrip(${id})" title="Gespeichertes PDF neu einlesen (z. B. nach Parser-Update) — ohne Löschen und Neu-Upload">🔁 Neu einlesen</button>`:'';
+      const pdf = t.has_pdf?`<a class="btn" href="${api('/api/trips/'+id+'/pdf')}" target="_blank" rel="noopener"><svg class="i"><use href="#i-doc"/></svg> PDF öffnen</a>`:'';
+      const dbg = t.has_pdf?`<button class="btn sec" onclick="showTripDebug(${id}, '${jsArg(t.title||('Reise #'+id))}')" title="Bereinigten PDF-Text und je Feld erkannt/leer anzeigen — hilfreich, wenn TUI das PDF-Layout ändert"><svg class="i"><use href="#i-search"/></svg> Debug</button>`:'';
+      const rescan = t.has_pdf?`<button class="btn sec" onclick="rescanTrip(${id})" title="Gespeichertes PDF neu einlesen (z. B. nach Parser-Update) — ohne Löschen und Neu-Upload"><svg class="i"><use href="#i-repeat"/></svg> Neu einlesen</button>`:'';
       const warns = t.warnings||[];
-      const warnBox = warns.length?`<div class="trip-warn">⚠ Diese Felder wurden nicht (vollständig) aus dem PDF erkannt: <b>${warns.map(w=>esc(w)).join(', ')}</b>. Bitte in der PDF prüfen.</div>`:'';
+      const warnBox = warns.length?`<div class="trip-warn"><svg class="i"><use href="#i-warn"/></svg> Diese Felder wurden nicht (vollständig) aus dem PDF erkannt: <b>${warns.map(w=>esc(w)).join(', ')}</b>. Bitte in der PDF prüfen.</div>`:'';
       const atts = (t.attachments||[]).map(a =>
-        `<span class="tag-pill">📎 <a href="${api('/api/trips/'+id+'/attachments/'+a.id)}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none">${esc(a.orig_name)}</a> <span onclick="deleteTripAttachment(${id},${a.id})" title="Anhang entfernen" style="cursor:pointer">×</span></span>`
+        `<span class="tag-pill"><svg class="i"><use href="#i-paperclip"/></svg> <a href="${api('/api/trips/'+id+'/attachments/'+a.id)}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none">${esc(a.orig_name)}</a> <span onclick="deleteTripAttachment(${id},${a.id})" title="Anhang entfernen" style="cursor:pointer">×</span></span>`
       ).join('');
       const attRow = `<div class="tag-row" style="margin:8px 0 2px">${atts}<span class="tag-pill add" onclick="$('#trip-att-input-${id}').click()" title="Weiteres PDF hinterlegen (nur Ablage, keine Auswertung)">＋ PDF</span>
         <input type="file" id="trip-att-input-${id}" accept="application/pdf" style="display:none" onchange="uploadTripAttachment(${id}, this.files[0])"></div>`;
       const packHtml = renderPackingSection(id, t, t.packing||[]);
       const box = $('#trip-detail');
       box.innerHTML = `<h3>${esc(t.title||('Reise #'+id))}</h3>
-        <div style="margin-bottom:6px">${pdf} ${dbg} ${rescan} <button class="btn sec" onclick="shareTripBanner(${id})" title="Reise als Bild teilen">📤 Teilen</button> <a class="btn sec" href="${api('/api/trips/'+id+'/ics')}" title="Diese Reise als Kalender-Termin (.ics) herunterladen">📅 Kalender</a> <button class="btn sec" onclick="$('#trip-detail').style.display='none'">schließen</button></div>
+        <div style="margin-bottom:6px">${pdf} ${dbg} ${rescan} <button class="btn sec" onclick="shareTripBanner(${id})" title="Reise als Bild teilen"><svg class="i"><use href="#i-share"/></svg> Teilen</button> <a class="btn sec" href="${api('/api/trips/'+id+'/ics')}" title="Diese Reise als Kalender-Termin (.ics) herunterladen"><svg class="i"><use href="#i-calendar"/></svg> Kalender</a> <button class="btn sec" onclick="$('#trip-detail').style.display='none'">schließen</button></div>
         ${attRow}
         ${warnBox}<div class="dgrid">${grid}</div>${reisende}${fluege}${extras}${rabatte}${wuensche}
         ${packHtml}`;
@@ -3045,10 +3058,10 @@
       _lastPack = {title: t.title||('Reise #'+id), meta: _packMeta(t), flights: _packFlights(t), items};
       return `<div class="pack-head">
           <span class="pack-toggle" id="pack-toggle-${id}" onclick="togglePackOpen(${id})" title="Ein-/ausklappen">${open?'▾':'▸'}</span>
-          <div class="dsec" style="margin:0">🎒 Packliste</div>
+          <div class="dsec" style="margin:0"><svg class="i"><use href="#i-luggage"/></svg> Packliste</div>
           <span class="cnt">${items.length}/${MAX_PACKING_ITEMS} · ${doneCount} erledigt · ${items.length-doneCount} offen</span>
-          <button class="btn sec" onclick="printPacking()">🖨️ Drucken</button>
-          <button class="btn sec" onclick="openPackTemplate(${id})" title="Die Vorlage bearbeiten, aus der neue Packlisten (und „Zurücksetzen") erzeugt werden">📝 Vorlage</button>
+          <button class="btn sec" onclick="printPacking()"><svg class="i"><use href="#i-print"/></svg> Drucken</button>
+          <button class="btn sec" onclick="openPackTemplate(${id})" title="Die Vorlage bearbeiten, aus der neue Packlisten (und „Zurücksetzen") erzeugt werden"><svg class="i"><use href="#i-pencil"/></svg> Vorlage</button>
           <span class="pack-reset" onclick="resetPacking(${id})">↺ Zurücksetzen</span>
         </div>
         <div class="pack-body" id="pack-body-${id}" style="${open?'':'display:none'}">
@@ -3066,11 +3079,11 @@
       catch(e){ toast('Vorlage konnte nicht geladen werden'); return; }
       const text = Object.entries(d.template||{}).map(([cat,items])=>'# '+cat+'\n'+items.join('\n')).join('\n\n');
       const box = $('#trip-detail');
-      box.innerHTML = `<h3>📝 Packlisten-Vorlage${d.custom?' <span class="hint">(angepasst)</span>':''}</h3>
+      box.innerHTML = `<h3><svg class="i"><use href="#i-pencil"/></svg> Packlisten-Vorlage${d.custom?' <span class="hint">(angepasst)</span>':''}</h3>
         <div class="hint" style="margin:4px 0 8px">Eine Kategorie beginnt mit <code># Name</code>, darunter je Zeile ein Item (max. 70 gesamt, damit der Ausdruck auf eine A4-Seite passt). Die Vorlage gilt für Packlisten neuer Reisen und beim „↺ Zurücksetzen" — bestehende Listen bleiben unverändert.</div>
         <textarea id="pack-tpl-text" class="reiseb-text" rows="18" spellcheck="false">${esc(text)}</textarea>
         <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">
-          <button class="btn" onclick="savePackTemplate(${tripId})">💾 Vorlage speichern</button>
+          <button class="btn" onclick="savePackTemplate(${tripId})"><svg class="i"><use href="#i-save"/></svg> Vorlage speichern</button>
           <button class="btn sec" onclick="resetPackTemplate(${tripId})">↺ Standard-Vorlage wiederherstellen</button>
           <button class="btn sec" onclick="showTripDetail(${tripId})">Zurück</button>
         </div>`;
@@ -3161,7 +3174,7 @@
       const catsHtml = _splitColumns(groups)
         .map(col=>`<div class="pp-col">${col.map(buildCat).join('')}</div>`).join('');
       const flightsHtml = (_lastPack.flights||[]).length
-        ? `<div class="pp-flights">${_lastPack.flights.map(f=>`<div>✈ ${esc(f)}</div>`).join('')}</div>` : '';
+        ? `<div class="pp-flights">${_lastPack.flights.map(f=>`<div><svg class="i"><use href="#i-plane"/></svg> ${esc(f)}</div>`).join('')}</div>` : '';
       $('#pack-print-area').innerHTML = `<div class="pp-head"><h1>TUIWatch — Packliste</h1>
           <div class="pp-meta">${esc(_lastPack.title)}${_lastPack.meta?' · '+esc(_lastPack.meta):''}</div>
           ${flightsHtml}</div>
@@ -3196,7 +3209,7 @@
       const cur = f.get(d.data||{});
       const ov = _dbgManual[f.key];
       return `<div class="dbg-row">
-        <span class="dbg-lbl">${ov!=null?'✍️ ':''}${esc(f.label)}${f.hint?` <span class="hint" title="${esc(f.hint)}">ⓘ</span>`:''}</span>
+        <span class="dbg-lbl">${ov!=null?'<svg class="i"><use href="#i-pencil"/></svg> ':''}${esc(f.label)}${f.hint?` <span class="hint" title="${esc(f.hint)}">ⓘ</span>`:''}</span>
         <span class="dbg-cur" title="Aktueller Wert">${cur!=null&&cur!==''?esc(String(cur)):'–'}</span>
         <input class="dbg-in" id="dbg-in-${f.key}" ${f.num?'type="number" min="1"':'type="text"'}
           placeholder="${esc(f.ph||'')}" value="${ov!=null?esc(String(ov)):''}">
@@ -3227,8 +3240,8 @@
     function renderTripDebug(d, title, tid){
       if(!d || !d.ok){ toast(d&&d.error==='text_failed'?'Debug: Text konnte nicht aus der PDF extrahiert werden':'Debug fehlgeschlagen'); return; }
       _dbgTid = tid!=null?tid:null; _dbgTitle = title; _dbgManual = d.manual||{};
-      const fields = (d.fields||[]).map(f=>`<span class="dbg-f ${f.manual?'manual':(f.ok?'ok':'miss')}">${f.manual?'✍️':(f.ok?'✓':'⚠')} ${esc(f.label)}</span>`).join('');
-      const err = d.parse_error?`<div class="trip-warn">⚠ Parser abgebrochen: ${esc(d.parse_error)}</div>`:'';
+      const fields = (d.fields||[]).map(f=>`<span class="dbg-f ${f.manual?'manual':(f.ok?'ok':'miss')}">${f.manual?'<svg class="i"><use href="#i-pencil"/></svg>':(f.ok?'✓':'<svg class="i"><use href="#i-warn"/></svg>')} ${esc(f.label)}</span>`).join('');
+      const err = d.parse_error?`<div class="trip-warn"><svg class="i"><use href="#i-warn"/></svg> Parser abgebrochen: ${esc(d.parse_error)}</div>`:'';
       const json = d.data?`<details class="dbg-sec"><summary>Geparstes JSON anzeigen</summary><pre class="dbg-pre">${esc(JSON.stringify(d.data,null,2))}</pre></details>`:'';
       let editor = '';
       if(tid!=null){
@@ -3239,30 +3252,30 @@
         const rabatte = (_dbgManual.rabatte) || (d.data&&d.data.rabatte) || [];
         editor = `<div class="dbg-edit">
           <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-            <div class="dsec" style="margin:0">✍️ Felder manuell zuordnen</div>
-            <button class="btn sec ai-feature" onclick="dbgAiSuggest()" title="KI liest das gespeicherte PDF und schlägt Werte für die leeren Felder vor — nichts wird automatisch gespeichert, du prüfst und speicherst selbst">🤖 KI-Vorschläge</button>
+            <div class="dsec" style="margin:0"><svg class="i"><use href="#i-pencil"/></svg> Felder manuell zuordnen</div>
+            <button class="btn sec ai-feature" onclick="dbgAiSuggest()" title="KI liest das gespeicherte PDF und schlägt Werte für die leeren Felder vor — nichts wird automatisch gespeichert, du prüfst und speicherst selbst"><svg class="i"><use href="#i-ai"/></svg> KI-Vorschläge</button>
           </div>
           <div class="hint" style="margin:2px 0 6px">Text im PDF-Auszug unten markieren und per „⇦ Auswahl" übernehmen — oder direkt eintippen. Leeres Feld speichern = Zuordnung löschen (Parser-Wert gilt wieder). Manuelle Werte überleben „Neu einlesen" und erneuten Import.</div>
           ${missing.map(f=>dbgFieldRow(f,d)).join('')}
           ${missing.length&&rest.length?`<details class="dbg-sec"><summary>Weitere Felder überschreiben (${rest.length})</summary>${rest.map(f=>dbgFieldRow(f,d)).join('')}</details>`:rest.map(f=>dbgFieldRow(f,d)).join('')}
-          <details class="dbg-sec" ${_dbgManual.extras?'open':''}><summary>Extras überschreiben${_dbgManual.extras?' ✍️ (manuell gesetzt)':''}</summary>
+          <details class="dbg-sec" ${_dbgManual.extras?'open':''}><summary>Extras überschreiben${_dbgManual.extras?' <svg class="i"><use href="#i-pencil"/></svg> (manuell gesetzt)':''}</summary>
             <label style="display:flex;gap:6px;align-items:center;font-size:.8rem;margin:6px 0"><input type="checkbox" id="dbg-ex-on" ${_dbgManual.extras?'checked':''}> Extras-Liste manuell festlegen (ersetzt die erkannten Extras komplett)</label>
             <table class="tdt dbg-ex-tbl"><tr><th>Typ</th><th>Details</th><th>Anz.</th><th>Preis €</th><th></th></tr>
               <tbody id="dbg-ex-rows">${extras.map(dbgExtraRow).join('')}</tbody></table>
             <button class="btn sec" onclick="dbgExtraAdd()" style="margin-top:4px">＋ Zeile</button>
           </details>
-          <details class="dbg-sec" ${_dbgManual.rabatte||_dbgManual.rabatt_inklusive?'open':''}><summary>Rabatte überschreiben${_dbgManual.rabatte||_dbgManual.rabatt_inklusive?' ✍️ (manuell gesetzt)':''}</summary>
+          <details class="dbg-sec" ${_dbgManual.rabatte||_dbgManual.rabatt_inklusive?'open':''}><summary>Rabatte überschreiben${_dbgManual.rabatte||_dbgManual.rabatt_inklusive?' <svg class="i"><use href="#i-pencil"/></svg> (manuell gesetzt)':''}</summary>
             <label style="display:flex;gap:6px;align-items:center;font-size:.8rem;margin:6px 0"><input type="checkbox" id="dbg-rb-ink" ${_dbgManual.rabatt_inklusive?'checked':''}> Rabatt ist bereits im Reisepreis enthalten <span class="hint" title="Manche TUI-PDFs weisen den Rabatt nur informativ aus — er steckt schon im ausgewiesenen Preis. Dann wird er NICHT zum Brutto-Paketpreis zurückgerechnet.">ⓘ</span></label>
             <label style="display:flex;gap:6px;align-items:center;font-size:.8rem;margin:6px 0"><input type="checkbox" id="dbg-rb-on" ${_dbgManual.rabatte?'checked':''}> Rabatt-Liste manuell festlegen (ersetzt die erkannten Rabatte komplett)</label>
             <table class="tdt dbg-ex-tbl"><tr><th>Code</th><th>Betrag €</th><th></th></tr>
               <tbody id="dbg-rb-rows">${rabatte.map(dbgRabattRow).join('')}</tbody></table>
             <button class="btn sec" onclick="dbgRabattAdd()" style="margin-top:4px">＋ Zeile</button>
           </details>
-          <div style="margin-top:8px"><button class="btn" onclick="dbgSaveFields()">💾 Zuordnung speichern</button></div>
+          <div style="margin-top:8px"><button class="btn" onclick="dbgSaveFields()"><svg class="i"><use href="#i-save"/></svg> Zuordnung speichern</button></div>
         </div>`;
       }
       const box = $('#trip-detail');
-      box.innerHTML = `<h3>🔍 Debug — ${esc(title)}</h3>
+      box.innerHTML = `<h3><svg class="i"><use href="#i-search"/></svg> Debug — ${esc(title)}</h3>
         <div style="margin-bottom:6px"><button class="btn sec" onclick="$('#trip-detail').style.display='none'">schließen</button></div>
         ${err}
         <div class="dbg-fields">${fields}</div>
@@ -3290,7 +3303,7 @@
         const inp = $('#dbg-in-'+k);
         if(inp && !inp.value.trim()){ inp.value = String(v); n++; }
       }
-      toast(n ? 'KI hat '+n+' Feld(er) vorgeschlagen — bitte prüfen, dann „💾 Zuordnung speichern"'
+      toast(n ? 'KI hat '+n+' Feld(er) vorgeschlagen — bitte prüfen, dann „Zuordnung speichern"'
               : 'Keine neuen Vorschläge (Felder schon gefüllt oder nichts gefunden)');
     }
     function dbgTakeSelection(key){
@@ -3383,7 +3396,7 @@
       p.innerHTML = '<div class="cmp-load">Lade Reiseziele…</div>';
       destStack = []; destNode = null;
       destData = await loadDest(null);
-      if(!destData){ p.innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Reiseziele nicht abrufbar.</div>'; return; }
+      if(!destData){ p.innerHTML = '<div class="cmp-load" style="color:var(--amber)"><svg class="i"><use href="#i-warn"/></svg> Reiseziele nicht abrufbar.</div>'; return; }
       renderDest();
     }
     function renderDestRows(){
@@ -3410,7 +3423,7 @@
         let d=null;
         try { d = await fetch(api('/api/destinations/search?q='+encodeURIComponent(q))).then(r=>r.json()); } catch(e){}
         if(token !== destSearchToken || !box) return;  // veraltete Antwort verwerfen
-        if(!d){ box.innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Suche fehlgeschlagen.</div>'; return; }
+        if(!d){ box.innerHTML = '<div class="cmp-load" style="color:var(--amber)"><svg class="i"><use href="#i-warn"/></svg> Suche fehlgeschlagen.</div>'; return; }
         if(!d.ready && d.building){ box.innerHTML = '<div class="cmp-load">Reiseziel-Index wird aufgebaut – einen Moment…</div>'; return; }
         const items = d.items||[];
         box.innerHTML = items.map(it=>
@@ -3652,7 +3665,7 @@
               headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)},
             promptText => new Promise(resolve => {
               $('#climate-body').innerHTML =
-                '<div class="hint" style="margin:4px 0 6px">📝 Prompt vor dem Senden prüfen/bearbeiten:</div>'
+                '<div class="hint" style="margin:4px 0 6px"><svg class="i"><use href="#i-pencil"/></svg> Prompt vor dem Senden prüfen/bearbeiten:</div>'
                 + promptPreviewBoxHtml(promptText);
               // Auch das Schließen des Fensters muss dieses Promise auflösen —
               // sonst bliebe climateBusy für immer true und jedes weitere Öffnen
@@ -3957,7 +3970,7 @@
       if(!(c.months || []).length){
         $('#climate-body').innerHTML =
           '<div class="cmp-load">Für dieses Ziel liegt keine Klimatabelle vor. '
-          + '„🔄 Neu abrufen" erstellt sie.</div>';
+          + '„Neu abrufen" erstellt sie.</div>';
         $('#climate-stand').textContent = '';
         return;
       }
@@ -4028,7 +4041,7 @@
       $('#climate-body').innerHTML = progBar('Lade…');
       let items = [];
       try { items = (await fetch(api('/api/climate')).then(r=>r.json())).items || []; }
-      catch(e){ $('#climate-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Laden fehlgeschlagen</div>'; return; }
+      catch(e){ $('#climate-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)"><svg class="i"><use href="#i-warn"/></svg> Laden fehlgeschlagen</div>'; return; }
       if(!items.length){
         $('#climate-body').innerHTML = '<div class="cmp-load">Noch keine Klimatabelle gespeichert. '
           + 'Sie entsteht automatisch, sobald du in der <b>Suche</b> ein Reiseziel wählst und suchst.</div>';
@@ -4040,7 +4053,7 @@
             + `openClimate(${it.giata},${esc(JSON.stringify(it.label))})">${esc(it.label)}</a></td>`
           + `<td class="hint">${new Date(it.ts*1000).toLocaleDateString('de-DE')}</td>`
           + `<td><button class="btn sec" onclick="deleteClimate(${it.giata},${esc(JSON.stringify(it.label))})" `
-          + `title="Gespeicherte Tabelle löschen">🗑</button></td></tr>`).join('')
+          + `title="Gespeicherte Tabelle löschen"><svg class="i"><use href="#i-trash"/></svg></button></td></tr>`).join('')
         + '</table>';
     }
     async function deleteClimate(giata, label){
@@ -4167,7 +4180,7 @@
             headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)},
           promptText => new Promise(resolve => {
             $('#guide-body').innerHTML =
-              '<div class="hint" style="margin:4px 0 6px">📝 Prompt vor dem Senden prüfen/bearbeiten:</div>'
+              '<div class="hint" style="margin:4px 0 6px"><svg class="i"><use href="#i-pencil"/></svg> Prompt vor dem Senden prüfen/bearbeiten:</div>'
               + promptPreviewBoxHtml(promptText);
             // Siehe fetchClimate: Schließen muss auflösen, sonst bleibt guideBusy hängen.
             const done = v => { _guidePreviewClose = null; resolve(v); };
@@ -4239,7 +4252,7 @@
       const c = (d && d.data) || {};
       if(!(c.sections||[]).length){
         $('#guide-body').innerHTML = '<div class="cmp-load">Für dieses Ziel liegt kein '
-          + 'Reiseführer vor. „🔄 Neu abrufen" erstellt ihn.</div>';
+          + 'Reiseführer vor. „Neu abrufen" erstellt ihn.</div>';
         $('#guide-stand').textContent = '';
         return;
       }
@@ -4282,7 +4295,7 @@
       $('#guide-body').innerHTML = progBar('Lade…');
       let items = [];
       try { items = (await fetch(api('/api/guide')).then(r=>r.json())).items || []; }
-      catch(e){ $('#guide-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Laden fehlgeschlagen</div>'; return; }
+      catch(e){ $('#guide-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)"><svg class="i"><use href="#i-warn"/></svg> Laden fehlgeschlagen</div>'; return; }
       if(!items.length){
         $('#guide-body').innerHTML = '<div class="cmp-load">Noch kein Reiseführer gespeichert. '
           + 'Er entsteht über den Knopf <b>Reiseführer</b> an einem Angebot oder in der <b>Suche</b>.</div>';
@@ -4294,7 +4307,7 @@
             + `openGuide(${it.giata},${esc(JSON.stringify(it.label))})">${esc(it.label)}</a></td>`
           + `<td class="hint">${new Date(it.ts*1000).toLocaleDateString('de-DE')}</td>`
           + `<td><button class="btn sec" onclick="deleteGuide(${it.giata},${esc(JSON.stringify(it.label))})" `
-          + `title="Gespeicherten Reiseführer löschen">🗑</button></td></tr>`).join('')
+          + `title="Gespeicherten Reiseführer löschen"><svg class="i"><use href="#i-trash"/></svg></button></td></tr>`).join('')
         + '</table>';
     }
     async function deleteGuide(giata, label){
@@ -4351,7 +4364,7 @@
       if(!guideData){ toast('Noch kein Reiseführer geladen'); return; }
       const css = `body{font:13px/1.5 -apple-system,Segoe UI,Roboto,sans-serif;color:#111;margin:24px}
         h1{font-size:19px;margin:0 0 2px} .st{color:#666;font-size:12px;margin-bottom:16px}
-        .gd-sec{margin-top:16px;break-inside:avoid} .gd-sec h3{font-size:14px;color:#0b65d8;margin:0 0 4px}
+        .gd-sec{margin-top:16px;break-inside:avoid} .gd-sec h3{font-size:14px;color:#12689b;margin:0 0 4px}
         .gd-intro{color:#555;margin-bottom:5px}
         ul.gd-list{list-style:none;margin:0;padding:0}
         ul.gd-list li{display:flex;gap:10px;padding:3px 0;border-top:1px solid #e2e6ea}
@@ -4360,7 +4373,7 @@
         .gd-sum ul{margin:5px 0 0;padding-left:18px}
         table{width:100%;border-collapse:collapse;font-size:12px;margin-top:6px}
         th,td{text-align:left;padding:3px 6px;border-bottom:1px solid #e2e6ea}
-        a{color:#0b65d8;text-decoration:none} .foot{margin-top:20px;font-size:11px;color:#888}`;
+        a{color:#12689b;text-decoration:none} .foot{margin-top:20px;font-size:11px;color:#888}`;
       let clim = '';
       const cm = (guideData.climate||{}).months || [];
       if(cm.length){
@@ -4446,7 +4459,7 @@
         min_recommend: $('#srch-qual-off').checked ? 0 : (parseFloat($('#srch-rec').value)||0),
         results: searchPriceStats() || undefined,
       };
-      $('#ai-title').textContent = '🤖 Reisezeit-Check';
+      $('#ai-title').textContent = 'Reisezeit-Check';
       $('#ai-sub').textContent = srchDest.label
         + (body.start && body.end ? ` · ${body.start} – ${body.end}` : '');
       $('#ai-foot').style.display = 'none';
@@ -4506,13 +4519,13 @@
       $('#srch-body').innerHTML = progBar('Suche läuft…');
       let r, d;
       try { r = await fetch(api('/api/search'), {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)}); d = await r.json(); }
-      catch(e){ $('#srch-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Suche fehlgeschlagen.</div>'; return; }
-      if(r.status===400 && d.error==='no_region'){ $('#srch-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ '+(srchOfferId!=null?'Region zu diesem Angebot nicht ermittelbar.':'Keine Region erkannt.')+'</div>'; return; }
-      if(r.status===429){ $('#srch-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Bitte kurz warten ('+(d.retry_after||3)+'s) und erneut suchen.</div>'; return; }
-      if(r.status===404){ $('#srch-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Angebot nicht gefunden.</div>'; return; }
-      if(r.status===400 && d.note){ $('#srch-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ '+esc(d.note)+'</div>'; return; }
-      if(r.status===400){ $('#srch-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Keine gültige Eingabe.</div>'; return; }
-      if(!r.ok){ $('#srch-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Suche fehlgeschlagen.</div>'; return; }
+      catch(e){ $('#srch-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)"><svg class="i"><use href="#i-warn"/></svg> Suche fehlgeschlagen.</div>'; return; }
+      if(r.status===400 && d.error==='no_region'){ $('#srch-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)"><svg class="i"><use href="#i-warn"/></svg> '+(srchOfferId!=null?'Region zu diesem Angebot nicht ermittelbar.':'Keine Region erkannt.')+'</div>'; return; }
+      if(r.status===429){ $('#srch-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)"><svg class="i"><use href="#i-warn"/></svg> Bitte kurz warten ('+(d.retry_after||3)+'s) und erneut suchen.</div>'; return; }
+      if(r.status===404){ $('#srch-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)"><svg class="i"><use href="#i-warn"/></svg> Angebot nicht gefunden.</div>'; return; }
+      if(r.status===400 && d.note){ $('#srch-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)"><svg class="i"><use href="#i-warn"/></svg> '+esc(d.note)+'</div>'; return; }
+      if(r.status===400){ $('#srch-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)"><svg class="i"><use href="#i-warn"/></svg> Keine gültige Eingabe.</div>'; return; }
+      if(!r.ok){ $('#srch-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)"><svg class="i"><use href="#i-warn"/></svg> Suche fehlgeschlagen.</div>'; return; }
       srchResults = d.results||[]; srchTotal = d.total||srchResults.length; srchFilter = '';
       srchFetched = (d.fetched!=null) ? d.fetched : srchResults.length;
       srchCriteria = d.criteria || null;
@@ -4590,7 +4603,7 @@
 
     function srItem(r,i){
       const stars = r.stars?('<span class="stars">'+'★'.repeat(r.stars)+'</span> '):'';
-      const rec = r.recommendation!=null?(' · '+r.recommendation+'% 👍'+(r.reviews?(' ('+r.reviews.toLocaleString('de-DE')+')'):'')):'';
+      const rec = r.recommendation!=null?(' · '+r.recommendation+'% <svg class="i"><use href="#i-thumbup"/></svg>'+(r.reviews?(' ('+r.reviews.toLocaleString('de-DE')+')'):'')):'';
       const old = (r.old_price&&r.old_price>r.price)?('<span class="sr-old">'+eur(r.old_price)+'</span>'+(r.discount?'<span class="sr-disc">-'+r.discount+'%</span>':'')):'';
       const perNight = (r.nights && r.price!=null) ? eur(r.price/r.nights)+'/Nacht' : '';
       const img = r.image?('<img class="sr-img" src="'+esc(r.image)+'" loading="lazy" alt="">'):'<div class="sr-img"></div>';
@@ -4600,8 +4613,8 @@
         </label>
         ${img}
         <div class="sr-main">
-          <div class="sr-name">${stars}${esc(r.name)}${r.tracked?'<span class="tracked">✓ getrackt</span>':''}${r.is_new?' <span class="sr-new" title="Seit dem letzten Suchabo-Lauf neu unter der Schwelle">🆕</span>':''}${r.prev!=null?` <span class="sr-drop" title="Seit dem letzten Suchabo-Lauf gefallen: vorher ${eur(r.prev)}">📉 −${eur(r.prev-r.price)}</span>`:''}</div>
-          <div class="sr-meta">📍 ${esc(r.location)}${r.country?(' · '+esc(r.country)):''}${rec}</div>
+          <div class="sr-name">${stars}${esc(r.name)}${r.tracked?'<span class="tracked">✓ getrackt</span>':''}${r.is_new?' <span class="sr-new" title="Seit dem letzten Suchabo-Lauf neu unter der Schwelle">NEU</span>':''}${r.prev!=null?` <span class="sr-drop" title="Seit dem letzten Suchabo-Lauf gefallen: vorher ${eur(r.prev)}"><svg class="i"><use href="#i-trend-down"/></svg> −${eur(r.prev-r.price)}</span>`:''}</div>
+          <div class="sr-meta"><svg class="i"><use href="#i-pin"/></svg> ${esc(r.location)}${r.country?(' · '+esc(r.country)):''}${rec}</div>
           <div class="sr-meta">${esc(r.board)} · ${r.nights} Nächte · ab ${fmtD(r.date)}</div>
           ${(r.locations&&r.locations.length)?'<div class="sr-locs">'+r.locations.map(l=>'<span class="tag-pill">'+esc(l)+'</span>').join('')+'</div>':''}
           ${r.coupon?'<div class="sr-coupon" title="TUI zeigt für dieses Hotel aktuell einen Aktionscode/Coupon an (Wert je nach Reisepreis, siehe tui.com)">% Aktionscode möglich</div>':''}
@@ -4612,7 +4625,7 @@
           ${perNight?`<div class="sr-meta">${perNight}</div>`:''}
           <div class="sr-acts">
             <a class="btn sec" href="${esc(r.offer_url)}" target="_blank" rel="noopener">Öffnen</a>
-            <button class="btn sec ai-feature" onclick="openAiSummary(${i})" title="Ausführliche KI-Einschätzung: Lage, Zimmer, Restaurants, Pool, Ausstattung">🤖 KI-Fazit</button>
+            <button class="btn sec ai-feature" onclick="openAiSummary(${i})" title="Ausführliche KI-Einschätzung: Lage, Zimmer, Restaurants, Pool, Ausstattung"><svg class="i"><use href="#i-ai"/></svg> KI-Fazit</button>
             <button class="btn" id="srt-${i}" onclick="trackResult(${i})" title="${r.tracked?'Bereits getrackt – mit den aktuellen Suchparametern (z. B. anderer Zeitraum) erneut hinzufügen':'Hotel ins Tracking übernehmen'}">${r.tracked?'+ Tracken':'Tracken'}</button>
           </div>
         </div>
@@ -4639,13 +4652,13 @@
       const head = `<div class="srch-head"><span><b id="srch-count">${srchResults.length}</b> Treffer${(srchTotal>srchFetched)?(' · '+srchFetched+' von '+srchTotal+' Angeboten durchsucht'):((srchTotal>srchResults.length)?(' (von '+srchTotal+' durchsuchten)'):'')}</span>
          <input type="text" id="srch-filter" class="srch-listfilter" placeholder="In Treffern suchen…" autocomplete="off" oninput="filterSearch(this.value)" value="${esc(srchFilter)}">
          <span style="flex:1"></span>Sortieren: ${sortSel}
-         <button class="btn sec" onclick="track3()" title="Günstigstes, mittleres und teuerstes Hotel aus den Treffern automatisch für den Preisverlauf tracken (keine Benachrichtigungen)">📊 3 tracken</button>
+         <button class="btn sec" onclick="track3()" title="Günstigstes, mittleres und teuerstes Hotel aus den Treffern automatisch für den Preisverlauf tracken (keine Benachrichtigungen)"><svg class="i"><use href="#i-chart"/></svg> 3 tracken</button>
          <button class="btn sec" onclick="trackAll()">Alle tracken</button>
-         <button class="btn sec" onclick="openSearchEmailModal()" title="Trefferliste per E-Mail versenden — nur markierte Auswahl, sonst die komplette Liste">✉ Email</button></div>
+         <button class="btn sec" onclick="openSearchEmailModal()" title="Trefferliste per E-Mail versenden — nur markierte Auswahl, sonst die komplette Liste"><svg class="i"><use href="#i-mail"/></svg> Email</button></div>
         <div id="cmp-bar" class="cmp-foot ai-feature" style="display:none">
           <span class="hint" style="flex:1;min-width:180px"><b id="cmp-count">0</b> Hotel(s) für KI-Vergleich ausgewählt (max. 5)</span>
           <button class="btn sec" onclick="clearCmp()">Auswahl leeren</button>
-          <button class="btn" onclick="openAiCompare()">🤖 Vergleichen</button>
+          <button class="btn" onclick="openAiCompare()"><svg class="i"><use href="#i-ai"/></svg> Vergleichen</button>
         </div>
         <div id="srch-rows"></div>
         ${(srchFetched<srchTotal)?`<div class="srch-more">
@@ -4745,8 +4758,8 @@
     let _aiRetryFn = null;
     function aiRetry(){ if(_aiRetryFn) _aiRetryFn(); }
     function aiErrorBlock(msg, retryable){
-      const btn = retryable ? ' <button class="btn sec" onclick="aiRetry()">🔄 Erneut versuchen</button>' : '';
-      return '<div class="cmp-load" style="color:var(--amber)">⚠ '+esc(msg)+btn+'</div>';
+      const btn = retryable ? ' <button class="btn sec" onclick="aiRetry()"><svg class="i"><use href="#i-refresh"/></svg> Erneut versuchen</button>' : '';
+      return '<div class="cmp-load" style="color:var(--amber)"><svg class="i"><use href="#i-warn"/></svg> '+esc(msg)+btn+'</div>';
     }
     // ── KI-Prompt-Vorschau (Option „KI-Prompt vor dem Senden anzeigen") ────────
     // Ist die Add-on-Option aktiv, antwortet der Server statt mit dem Ergebnis
@@ -4783,12 +4796,12 @@
       return `<textarea id="ai-pp-ta" style="width:100%;min-height:200px;font-family:monospace;font-size:.78rem;box-sizing:border-box;resize:vertical">${esc(promptText)}</textarea>
         <div style="display:flex;gap:8px;margin-top:8px;justify-content:flex-end">
           <button class="btn sec" id="ai-pp-cancel">Abbrechen</button>
-          <button class="btn" id="ai-pp-send">🚀 Senden</button>
+          <button class="btn" id="ai-pp-send"><svg class="i"><use href="#i-send"/></svg> Senden</button>
         </div>`;
     }
     function showPromptPreview(promptText){
       return new Promise(resolve=>{
-        $('#ai-body').innerHTML = '<div class="hint" style="margin-bottom:8px">📝 Prompt vor dem Senden prüfen/bearbeiten:</div>'
+        $('#ai-body').innerHTML = '<div class="hint" style="margin-bottom:8px"><svg class="i"><use href="#i-pencil"/></svg> Prompt vor dem Senden prüfen/bearbeiten:</div>'
           + promptPreviewBoxHtml(promptText);
         $('#ai-foot').style.display = 'none';
         $('#ai-pp-cancel').onclick = () => { closeAiSummary(); resolve(null); };
@@ -4805,7 +4818,7 @@
     function showFollowupPromptPreview(promptText){
       return new Promise(resolve=>{
         const status = $('#ai-followup-status');
-        status.innerHTML = '<div class="hint" style="margin:8px 0 6px">📝 Folgefrage vor dem Senden prüfen/bearbeiten:</div>'
+        status.innerHTML = '<div class="hint" style="margin:8px 0 6px"><svg class="i"><use href="#i-pencil"/></svg> Folgefrage vor dem Senden prüfen/bearbeiten:</div>'
           + promptPreviewBoxHtml(promptText);
         $('#ai-pp-cancel').onclick = () => resolve(null);
         $('#ai-pp-send').onclick = () => resolve($('#ai-pp-ta').value);
@@ -4821,9 +4834,9 @@
       if(usage){
         const parts = [(usage.input_tokens||0)+' Input-', (usage.output_tokens||0)+' Output-Tokens'];
         if(usage.cache_read_input_tokens) parts.push(usage.cache_read_input_tokens+' aus Prompt-Cache');
-        if(usage.web_search_requests) parts.push('🔍 '+usage.web_search_requests+' Websuchen');
+        if(usage.web_search_requests) parts.push('<svg class="i"><use href="#i-search"/></svg> '+usage.web_search_requests+' Websuchen');
         if(usage.estimated_usd != null) parts.push('≈ '+fmtUsd(usage.estimated_usd));
-        html += '<div class="hint" style="margin-top:14px;padding-top:10px;border-top:1px solid var(--border)">🔢 '
+        html += '<div class="hint" style="margin-top:14px;padding-top:10px;border-top:1px solid var(--border)"><svg class="i"><use href="#i-hash"/></svg> '
           + parts.join(' · ') + (cached?' · Ergebnis aus Zwischenspeicher (bis zu 24 Std. alt)':'') + '</div>';
       }
       if(totals && totals.calls){
@@ -4845,7 +4858,7 @@
       return '<div style="margin-top:14px;padding-top:10px;border-top:1px solid var(--border);display:flex;gap:8px">'
         + '<input id="ai-followup-q" type="text" placeholder="Folgefrage stellen…" style="flex:1;min-width:0" '
         + 'onkeydown="if(event.key===\'Enter\'){ event.preventDefault(); submitAiFollowup(); }">'
-        + '<button class="btn sec" onclick="submitAiFollowup()" title="Folgefrage senden">➤</button></div>';
+        + '<button class="btn sec" onclick="submitAiFollowup()" title="Folgefrage senden"><svg class="i"><use href="#i-send"/></svg></button></div>';
     }
     // Baut die sichtbare Konversation aus der gespeicherten `conversation`-Liste
     // ([{role,content}, ...], siehe ai_routes.py::_ai_followup_messages) für ein
@@ -4943,7 +4956,7 @@
     // eigene Darstellung mit Score-Balken + Daten-/Annahme-Kennzeichnung je Begründung.
     function renderBookingScore(box, payload){
       const r = payload.result;
-      const empfLabel = {jetzt_buchen:'✅ Jetzt buchen', beobachten:'👀 Beobachten', warten:'⏳ Warten'}[r.empfehlung] || r.empfehlung;
+      const empfLabel = {jetzt_buchen:'<svg class="i"><use href="#i-check-circle"/></svg> Jetzt buchen', beobachten:'<svg class="i"><use href="#i-eye"/></svg> Beobachten', warten:'<svg class="i"><use href="#i-clock"/></svg> Warten'}[r.empfehlung] || r.empfehlung;
       const begr = (r.begruendung||[]).map(b=>
         `<li><span class="hint" style="text-transform:uppercase;font-size:.68rem">[${b.typ==='daten'?'Daten':'Annahme'}]</span> ${esc(b.text)}</li>`).join('');
       $(box).innerHTML = `
@@ -4964,7 +4977,7 @@
     }
     async function openBookingScore(id){
       const o = (curOffers||[]).find(x=>x.id===id) || {};
-      $('#ai-title').textContent = '🔮 Buchungsscore';
+      $('#ai-title').textContent = 'Buchungsscore';
       $('#ai-sub').textContent = o.label || o.hotel || ('Angebot #'+id);
       $('#ai-foot').style.display = 'none';
       const aiGen = aiOpenPanel();
@@ -4993,7 +5006,7 @@
     async function openRegionOutlook(idx){
       const r = _marketTrendData && _marketTrendData.by_region[idx]; if(!r) return;
       closeMarketTrend();   // beide Modals teilen sich z-index — sonst liegt Markttrend obendrauf
-      $('#ai-title').textContent = '🔮 Region-Ausblick';
+      $('#ai-title').textContent = 'Region-Ausblick';
       $('#ai-sub').textContent = r.region;
       $('#ai-foot').style.display = 'none';
       const aiGen = aiOpenPanel();
@@ -5025,7 +5038,7 @@
       const id = calId;   // vor closeCalendar() sichern, das setzt calId=null
       const offer = (curOffers||[]).find(x=>x.id===id) || {};
       closeCalendar();   // gleicher z-index wie #ai-bg, siehe openRegionOutlook()
-      $('#ai-title').textContent = '📅 Kalender-Analyse';
+      $('#ai-title').textContent = 'Kalender-Analyse';
       $('#ai-sub').textContent = offer.label || offer.hotel || ('Angebot #'+id);
       $('#ai-foot').style.display = 'none';
       const aiGen = aiOpenPanel();
@@ -5065,8 +5078,8 @@
       w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>'+esc(title+' – '+sub)+'</title><style>'
         + 'body{font-family:system-ui,"Segoe UI",Arial,sans-serif;color:#111;max-width:760px;margin:0 auto;padding:32px;line-height:1.5}'
         + 'h1{font-size:1.3rem;margin:0 0 4px}.sub{color:#555;font-size:.9rem;margin-bottom:20px}'
-        + '.ai-h{color:#0b65d8;font-size:1rem;margin:18px 0 6px}.ai-list{margin:0 0 12px;padding-left:20px}'
-        + '.ai-cite{color:#0b65d8;text-decoration:none;font-size:.78em;vertical-align:super}'
+        + '.ai-h{color:#12689b;font-size:1rem;margin:18px 0 6px}.ai-list{margin:0 0 12px;padding-left:20px}'
+        + '.ai-cite{color:#12689b;text-decoration:none;font-size:.78em;vertical-align:super}'
         + 'table{width:100%;border-collapse:collapse;margin:8px 0 16px;font-size:.85rem}'
         + 'th,td{text-align:left;padding:6px 8px;border-bottom:1px solid #ddd}'
         + '.hint{color:#888;font-size:.78rem;margin-top:16px;padding-top:8px;border-top:1px solid #ddd}'
@@ -5078,7 +5091,7 @@
     }
     async function openAiSummary(i){
       const r = srchResults[i]; if(!r) return;
-      $('#ai-title').textContent = '🤖 KI-Fazit';
+      $('#ai-title').textContent = 'KI-Fazit';
       $('#ai-sub').textContent = r.name || '';
       $('#ai-foot').style.display = 'none';
       const aiGen = aiOpenPanel();
@@ -5137,7 +5150,7 @@
       bulkClear(); loadOffers();
     }
     async function runAiCompare(cacheKey, facts, names){
-      $('#ai-title').textContent = '🤖 KI-Vergleich';
+      $('#ai-title').textContent = 'KI-Vergleich';
       $('#ai-sub').textContent = names.join(' · ');
       $('#ai-foot').style.display = 'none';
       const aiGen = aiOpenPanel();
@@ -5203,7 +5216,7 @@
       p.innerHTML = '<div class="cmp-load">Lade Reiseziele…</div>';
       regcmpStack = []; regcmpNode = null;
       regcmpData = await loadDest(null);
-      if(!regcmpData){ p.innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Reiseziele nicht abrufbar.</div>'; return; }
+      if(!regcmpData){ p.innerHTML = '<div class="cmp-load" style="color:var(--amber)"><svg class="i"><use href="#i-warn"/></svg> Reiseziele nicht abrufbar.</div>'; return; }
       renderRegcmpPicker();
     }
     function renderRegcmpPicker(){
@@ -5240,7 +5253,7 @@
         let d=null;
         try { d = await fetch(api('/api/destinations/search?q='+encodeURIComponent(q))).then(r=>r.json()); } catch(e){}
         if(token !== regcmpSearchToken || !box) return;
-        if(!d){ box.innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Suche fehlgeschlagen.</div>'; return; }
+        if(!d){ box.innerHTML = '<div class="cmp-load" style="color:var(--amber)"><svg class="i"><use href="#i-warn"/></svg> Suche fehlgeschlagen.</div>'; return; }
         if(!d.ready && d.building){ box.innerHTML = '<div class="cmp-load">Reiseziel-Index wird aufgebaut – einen Moment…</div>'; return; }
         const items = d.items||[];
         box.innerHTML = items.map(it=>
@@ -5282,7 +5295,7 @@
       const month = parseInt($('#regcmp-month').value, 10);
       const monthLabel = MONTHS_DE[month-1];
       closeRegionCompare();
-      $('#ai-title').textContent = '📊 Regionen-Vergleich';
+      $('#ai-title').textContent = 'Regionen-Vergleich';
       $('#ai-sub').textContent = regions.map(r=>r.label).join(' · ') + ' · ' + monthLabel;
       $('#ai-foot').style.display = 'none';
       const aiGen = aiOpenPanel();
@@ -5348,7 +5361,7 @@
       try {
         const r = await fetch(api(url));
         if(!r.ok) throw 0; d = await r.json();
-      } catch(e){ body.innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Konnte nicht geladen werden.</div>'; return; }
+      } catch(e){ body.innerHTML = '<div class="cmp-load" style="color:var(--amber)"><svg class="i"><use href="#i-warn"/></svg> Konnte nicht geladen werden.</div>'; return; }
       const items = d.items||[];
       if(tab==='console'){
         $('#syslog-sub').textContent =
@@ -5368,12 +5381,12 @@
             <span style="color:${col};font-weight:600">${esc(it.level)}</span>
             <span class="hint"> · ${esc(t)}</span>
             <div style="word-break:break-word">${esc(it.msg)}</div></div>`;
-        }).join('') : '<div class="empty">Keine Warnungen/Fehler seit dem Start. 🎉</div>';
+        }).join('') : '<div class="empty">Keine Warnungen/Fehler seit dem Start.</div>';
       } else {
         $('#syslog-sub').textContent = 'Gesendete Benachrichtigungen (HA & Telegram), neueste zuerst — dauerhaft, letzte 500.';
         body.innerHTML = items.length ? items.map(it=>{
           const t = new Date(it.ts*1000).toLocaleString('de-DE');
-          const ch = it.channel==='telegram'?'✈️ Telegram':'🏠 HA';
+          const ch = it.channel==='telegram'?'<svg class="i"><use href="#i-plane"/></svg> Telegram':'<svg class="i"><use href="#i-home"/></svg> HA';
           const text = it.title ? (it.title+' — '+(it.message||'')) : (it.message||'');
           return `<div style="padding:6px 0;border-bottom:1px solid var(--border);font-size:.8rem">
             <b>${ch}</b>${it.ok?'':' <span style="color:var(--red);font-weight:600">✗ fehlgeschlagen</span>'}
@@ -5383,6 +5396,82 @@
       }
     }
     function closeSyslog(){ $('#syslog-bg').classList.remove('show'); }
+
+    // ── Störungen (Ausrufezeichen neben dem Logo) ─────────────────────────
+    // Die Zahl kommt bei jedem /api/offers mit (alle 5 s) — kein eigener Timer. Die
+    // Liste selbst wird erst beim Öffnen geholt; sie ändert sich nur im Stundentakt.
+    function setIssues(sum){
+      const badge = $('#issue-badge');
+      if(!badge) return;
+      const n = (sum && sum.n) || 0;
+      badge.style.display = n ? 'inline-flex' : 'none';
+      badge.classList.toggle('error', (sum && sum.severity) === 'error');
+      $('#issue-badge-n').textContent = n > 1 ? n : '';
+      badge.title = n
+        ? n + (n===1 ? ' Störung' : ' Störungen') + ' — klicken für Details'
+        : 'Störungen';
+    }
+
+    function openIssues(){
+      $('#issues-bg').classList.add('show');
+      loadIssues();
+    }
+    function closeIssues(){ $('#issues-bg').classList.remove('show'); }
+
+    async function loadIssues(){
+      const body = $('#issues-body');
+      body.innerHTML = progBar('Lädt…');
+      let d;
+      try {
+        const r = await fetch(api('/api/issues'));
+        if(!r.ok) throw 0; d = await r.json();
+      } catch(e){
+        body.innerHTML = '<div class="cmp-load" style="color:var(--amber)"><svg class="i"><use href="#i-warn"/></svg> Konnte nicht geladen werden.</div>';
+        return;
+      }
+      setIssues(d.summary);
+      const items = d.items || [];
+      if(!items.length){
+        body.innerHTML = '<div class="empty">Keine Störungen — alles läuft.</div>';
+        return;
+      }
+      body.innerHTML = items.map(it=>{
+        const col = it.severity==='error' ? 'var(--red)' : 'var(--amber)';
+        const seit = new Date((it.first_ts||0)*1000).toLocaleDateString('de-DE');
+        const zul  = new Date((it.last_ts||0)*1000).toLocaleString('de-DE');
+        return `<div class="issue-row${it.muted?' muted':''}">
+          <div class="issue-head">
+            <svg class="i" style="color:${col}"><use href="#i-warn"/></svg>
+            <b>${esc(it.title)}</b>
+            <span class="issue-kind">${esc(it.kind_label)}</span>
+            ${it.muted?'<span class="issue-kind">pausiert</span>':''}
+          </div>
+          <div class="hint" style="margin-top:3px">${esc(it.detail)}</div>
+          <div class="hint">${it.streak}× in Folge · ${it.total}× insgesamt · seit ${seit} · zuletzt ${zul}</div>
+          <div class="issue-acts">
+            ${it.muted
+              ? `<button class="btn sec" onclick="issueMute(${it.id},false)"><svg class="i"><use href="#i-play"/></svg> Wieder aktivieren</button>`
+              : `<button class="btn sec" onclick="issueMute(${it.id},true)"><svg class="i"><use href="#i-pause"/></svg> Pausieren</button>`}
+            <button class="btn sec" onclick="issueDismiss(${it.id})" title="Nur den Eintrag entfernen — tritt die Störung wieder auf, kommt sie zurück"><svg class="i"><use href="#i-close"/></svg> Ausblenden</button>
+          </div>
+        </div>`;
+      }).join('');
+    }
+
+    async function issueMute(id, on){
+      try {
+        await fetch(api('/api/issues/'+id+'/mute'), {method:'POST',
+          headers:{'Content-Type':'application/json'}, body:JSON.stringify({on:!!on})});
+      } catch(e){}
+      loadIssues();
+      // Pausieren kann ein Angebot stilllegen — die Kartenliste muss das sofort zeigen.
+      loadOffers();
+    }
+
+    async function issueDismiss(id){
+      try { await fetch(api('/api/issues/'+id), {method:'DELETE'}); } catch(e){}
+      loadIssues();
+    }
     // Enter im Filterfeld bzw. Wechsel der Stufe lädt die Konsole neu
     $('#syslog-q').addEventListener('keydown', e=>{ if(e.key==='Enter') openSyslog('console'); });
     $('#syslog-level').addEventListener('change', ()=> openSyslog('console'));
@@ -5395,7 +5484,7 @@
       try {
         const r = await fetch(api('/api/giata_images/'+encodeURIComponent(giata)));
         if(!r.ok) throw 0; d = await r.json();
-      } catch(e){ body.innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Konnte nicht geladen werden.</div>'; return; }
+      } catch(e){ body.innerHTML = '<div class="cmp-load" style="color:var(--amber)"><svg class="i"><use href="#i-warn"/></svg> Konnte nicht geladen werden.</div>'; return; }
       giataImages = d.images||[];
       body.innerHTML = giataImages.length ? (
         '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-top:10px">'
@@ -5403,7 +5492,7 @@
         // wissen, an welcher Stelle der Liste sie startet.
         + giataImages.map((im,i)=>(
             '<a href="#" onclick="event.preventDefault();openGiataLightbox('+i+')">'
-            +'<img src="'+esc(im.thumb)+'" loading="lazy" style="width:100%;height:110px;object-fit:cover;border-radius:6px;border:1px solid var(--border)">'
+            +'<img src="'+esc(im.thumb)+'" loading="lazy" style="width:100%;height:110px;object-fit:cover;border-radius:var(--r-ui);border:1px solid var(--border)">'
             +'</a>'
           )).join('')
         + '</div>'
@@ -5451,6 +5540,7 @@
       $('#giata-lightbox-img').src = '';
     }
     $('#syslog-bg').addEventListener('click', e=>{ if(e.target.id==='syslog-bg') closeSyslog(); });
+    $('#issues-bg').addEventListener('click', e=>{ if(e.target.id==='issues-bg') closeIssues(); });
 
     async function openAiHistory(){
       $('#aihist-bg').classList.add('show');
@@ -5458,7 +5548,7 @@
       $('#aihist-body').innerHTML = progBar('Lädt…');
       let d;
       try { d = await fetch(api('/api/ai/history')).then(r=>r.json()); }
-      catch(e){ $('#aihist-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Verlauf konnte nicht geladen werden.</div>'; return; }
+      catch(e){ $('#aihist-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)"><svg class="i"><use href="#i-warn"/></svg> Verlauf konnte nicht geladen werden.</div>'; return; }
       _aiHistItems = d.items||[];
       renderAiHistory(_aiHistItems);
     }
@@ -5511,13 +5601,13 @@
       } catch(e){ toast('Speichern fehlgeschlagen'); }
     }
     function aiKindLabel(kind){
-      return kind==='compare' ? '🤖 Vergleich' : kind==='ask' ? '📌 Portfolio-Frage'
-        : kind==='ask_general' ? '🌍 Reisefrage'
-        : kind==='search_advice' ? '🤖 Reisezeit-Check'
-        : kind==='advisor' ? '🗺️ TripPilot' : kind==='booking_score' ? '🔮 Buchungsscore'
-        : kind==='region_outlook' ? '🔮 Region-Ausblick'
-        : kind==='region_compare' ? '📊 Regionen-Vergleich'
-        : kind==='calendar_outlook' ? '📅 Kalender-Analyse' : '🤖 Fazit';
+      return kind==='compare' ? 'Vergleich' : kind==='ask' ? '<svg class="i"><use href="#i-bookmark"/></svg> Portfolio-Frage'
+        : kind==='ask_general' ? 'Reisefrage'
+        : kind==='search_advice' ? 'Reisezeit-Check'
+        : kind==='advisor' ? 'TripPilot' : kind==='booking_score' ? 'Buchungsscore'
+        : kind==='region_outlook' ? 'Region-Ausblick'
+        : kind==='region_compare' ? '<svg class="i"><use href="#i-chart"/></svg> Regionen-Vergleich'
+        : kind==='calendar_outlook' ? 'Kalender-Analyse' : 'Fazit';
     }
     function renderAiHistory(items){
       if(!items.length){
@@ -5530,22 +5620,22 @@
             <div class="aihist-title">${aiKindLabel(it.kind)} · ${esc(it.title)}</div>
             <div class="hint">${esc(new Date(it.ts*1000).toLocaleString('de-DE'))} · ${esc(it.model)}</div>
           </div>
-          ${it.has_prompt ? `<button class="icon-btn" onclick="repeatAiHistoryItem(${it.id}, event)" title="Mit anderer KI wiederholen">🔁</button>` : ''}
-          <button class="icon-btn" onclick="deleteAiHistoryItem(${it.id}, event)" title="Eintrag löschen">🗑</button>
+          ${it.has_prompt ? `<button class="icon-btn" onclick="repeatAiHistoryItem(${it.id}, event)" title="Mit anderer KI wiederholen"><svg class="i"><use href="#i-repeat"/></svg></button>` : ''}
+          <button class="icon-btn" onclick="deleteAiHistoryItem(${it.id}, event)" title="Eintrag löschen"><svg class="i"><use href="#i-trash"/></svg></button>
         </div>`).join('');
     }
     async function openAiHistoryItem(id){
       closeAiHistory();
-      $('#ai-title').textContent = '🤖 KI-Verlauf';
+      $('#ai-title').textContent = 'KI-Verlauf';
       $('#ai-sub').textContent = 'Lädt…';
       $('#ai-foot').style.display = 'none';
       const aiGen = aiOpenPanel();
       $('#ai-body').innerHTML = progBar('Lädt…');
       let d;
       try { d = await fetch(api('/api/ai/history/'+id)).then(r=>r.json()); }
-      catch(e){ if(aiStale(aiGen)) return; $('#ai-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Eintrag konnte nicht geladen werden.</div>'; return; }
+      catch(e){ if(aiStale(aiGen)) return; $('#ai-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)"><svg class="i"><use href="#i-warn"/></svg> Eintrag konnte nicht geladen werden.</div>'; return; }
       if(aiStale(aiGen)) return;
-      if(d.error){ $('#ai-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Eintrag nicht gefunden (evtl. gelöscht).</div>'; return; }
+      if(d.error){ $('#ai-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)"><svg class="i"><use href="#i-warn"/></svg> Eintrag nicht gefunden (evtl. gelöscht).</div>'; return; }
       $('#ai-title').textContent = aiKindLabel(d.kind) + ' (Verlauf)';
       $('#ai-sub').textContent = d.title + ' · ' + new Date(d.ts*1000).toLocaleString('de-DE');
       if(d.kind==='booking_score' || d.kind==='region_outlook'){
@@ -5564,7 +5654,7 @@
       ev.stopPropagation();
       const it = _aiHistItems.find(x=>x.id===id); if(!it) return;
       closeAiHistory();
-      $('#ai-title').textContent = '🔁 Wiederholen';
+      $('#ai-title').textContent = 'Wiederholen';
       $('#ai-sub').textContent = aiKindLabel(it.kind) + ' · ' + it.title;
       $('#ai-foot').style.display = 'none';
       const aiGen = aiOpenPanel();
@@ -5609,13 +5699,13 @@
     // Zwei Knöpfe statt eines Umschalters: die Frage selbst sieht in beiden Fällen
     // gleich aus, erst die Wahl des Knopfes entscheidet, welcher Prompt rausgeht.
     const AIASK_SCOPES = {
-      portfolio: {title:'📌 Frag dein Portfolio',
+      portfolio: {title:'<svg class="i"><use href="#i-bookmark"/></svg> Frag dein Portfolio',
                   busy:' durchsucht dein Portfolio…',
                   sub:'Frage zu deinen aktuell getrackten Angeboten — beantwortet anhand von Preis, '
                     + 'Bewertung, Trend, Wunschpreis & Tags, für alles darüber hinaus (z. B. Klima zur '
                     + 'Reisezeit) zusätzlich mit Websuche.',
                   ph:'z. B. Welches Hotel ist gerade das beste Schnäppchen?'},
-      general:   {title:'🌍 Allgemeine Reisefrage',
+      general:   {title:'Allgemeine Reisefrage',
                   busy:' recherchiert…',
                   sub:'Frage zu Regionen, Ländern, Reisezeiten, Einreise, Anreise — ohne Bezug zu deinen '
                     + 'Angeboten, dafür mit Websuche. Für alles, was (noch) nicht im Portfolio steckt.',
@@ -5662,7 +5752,7 @@
         if(!resp.ok){
           const retryable = aiRetryable(d.error);
           const msg = d.error==='no_offers'
-            ? 'Keine aktiven Angebote vorhanden — für eine allgemeine Reisefrage nimm „🌍 Reisefrage".'
+            ? 'Keine aktiven Angebote vorhanden — für eine allgemeine Reisefrage nimm „Reisefrage".'
             : aiErrorMsg(d.error);
           if(aiStale(aiGen)) return;
           _aiRetryFn = retryable ? attempt : null;
@@ -5727,7 +5817,7 @@
       $('#reiseb-next').disabled = true;
       if(!await loadAdvQuestions()){
         $('#reiseb-body').innerHTML = '<div class="hint" style="color:var(--amber)">'
-          + '⚠ Der Fragebogen konnte nicht geladen werden. Bitte Seite neu laden.</div>';
+          + '<svg class="i"><use href="#i-warn"/></svg> Der Fragebogen konnte nicht geladen werden. Bitte Seite neu laden.</div>';
         return;
       }
       $('#reiseb-next').disabled = false;
@@ -5740,7 +5830,7 @@
     // der Wizard läuft mit den mitgelieferten Fragen und sagt das auf Schritt 1.
     function advQuestionsWarning(){
       if(advIdx !== 0 || advQuestionsSource !== 'bundled' || !advQuestionsErrors.length) return '';
-      return '<div class="hint" style="color:var(--amber);margin-bottom:10px">⚠ '
+      return '<div class="hint" style="color:var(--amber);margin-bottom:10px"><svg class="i"><use href="#i-warn"/></svg> '
         + esc(advQuestionsPath || 'questions.json') + ' ist fehlerhaft — es gelten die '
         + 'mitgelieferten Fragen. ' + esc(advQuestionsErrors[0])
         + (advQuestionsErrors.length > 1
@@ -5768,7 +5858,7 @@
             }).join('') + '</div>';
       }
       $('#reiseb-back').style.visibility = advIdx === 0 ? 'hidden' : 'visible';
-      $('#reiseb-next').textContent = advIdx === steps.length - 1 ? '🔮 Empfehlung holen' : 'Weiter';
+      $('#reiseb-next').textContent = advIdx === steps.length - 1 ? 'Empfehlung holen' : 'Weiter';
       advUpdateNextState();
     }
     function advUpdateNextState(){
@@ -5818,7 +5908,7 @@
     }
     async function submitAdvisor(){
       closeAdvisor();
-      $('#ai-title').textContent = '🗺️ TripPilot';
+      $('#ai-title').textContent = 'TripPilot';
       $('#ai-sub').textContent = [(advState.region||[]).join(', '), advState.arrival_mode,
         (advState.interests||[]).join(', ')].filter(Boolean).join(' · ');
       $('#ai-foot').style.display = 'none';
@@ -6022,7 +6112,7 @@
         '<span class="hint">Tagesausflug-Modus (eigener KI-Prompt, keine Reise-DNA) auslösen mit:</span>'
         + '<select onchange="tpDocField(\'daytrip_value\', this.value)" '
         + 'style="background:var(--surf);border:1px solid var(--border);color:var(--text);'
-        + 'border-radius:5px;padding:4px 6px;font:inherit;font-size:.78rem;max-width:60%">'
+        + 'border-radius:var(--r-ui);padding:4px 6px;font:inherit;font-size:.78rem;max-width:60%">'
         + '<option value="">— keiner —</option>'
         + all.map(o => `<option value="${esc(o)}"${tpDoc.daytrip_value === o ? ' selected' : ''}>${esc(o)}</option>`).join('')
         + '</select>';
@@ -6236,7 +6326,7 @@
       box.innerHTML = `<div class="cmp-load">Lade Preisverlauf für ${fmtD(iso)}…</div>`;
       let d;
       try { d = await fetch(api('/api/calendar/'+calId+'/day/'+iso)).then(r=>r.json()); }
-      catch(e){ box.innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Preisverlauf konnte nicht geladen werden.</div>'; return; }
+      catch(e){ box.innerHTML = '<div class="cmp-load" style="color:var(--amber)"><svg class="i"><use href="#i-warn"/></svg> Preisverlauf konnte nicht geladen werden.</div>'; return; }
       const pts = (d.points||[]).map(p=>({ts:p.ts, price:p.price}));
       box.innerHTML = `<div class="cal-day-hd"><b>Preisverlauf: ${fmtD(iso)}</b>
           <button class="btn sec" onclick="closeCalDayChart()">✕</button></div>
@@ -6311,7 +6401,7 @@
       $('#room-bg').classList.add('show');
       let d;
       try { d = await fetch(api('/api/rooms/'+id)).then(r=>r.json()); }
-      catch(e){ $('#room-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ Zimmer konnten nicht geladen werden.</div>'; return; }
+      catch(e){ $('#room-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)"><svg class="i"><use href="#i-warn"/></svg> Zimmer konnten nicht geladen werden.</div>'; return; }
       $('#room-transfer').checked = d.transfer_included!==false;
       renderRooms(d);
     }
@@ -6427,21 +6517,21 @@
     }
     function calFooter(job){
       const when = job.ts ? ('Abgefragt: '+new Date(job.ts*1000).toLocaleString('de-DE')) : '';
-      const err = job.error ? '<div class="hint" style="color:var(--amber);margin-top:6px">⚠ Letzte Aktualisierung fehlgeschlagen.</div>' : '';
+      const err = job.error ? '<div class="hint" style="color:var(--amber);margin-top:6px"><svg class="i"><use href="#i-warn"/></svg> Letzte Aktualisierung fehlgeschlagen.</div>' : '';
       // Archivierte Angebote werden preislich nicht mehr geprüft, der Kalender läuft
       // aber weiter — das muss dastehen, sonst wirkt ein aktueller Zeitstempel bei
       // einer abgelaufenen Reise wie ein Fehler.
       const arch = (job.archived && !job.paused)
-        ? `<div class="hint" style="margin-top:6px">📦 Archiviert — der Preis wird nicht mehr abgefragt, `
+        ? `<div class="hint" style="margin-top:6px"><svg class="i"><use href="#i-archive"/></svg> Archiviert — der Preis wird nicht mehr abgefragt, `
           + `der Kalender aber alle ${job.archived_days||3} Tage weiter. So wächst der `
           + `Langzeitverlauf dieses Hotels, auch wenn die Reise vorbei ist.</div>` : '';
       const paused = job.paused
-        ? `<div class="hint" style="color:var(--amber);margin-top:6px">⏸ Kalender pausiert — `
+        ? `<div class="hint" style="color:var(--amber);margin-top:6px"><svg class="i"><use href="#i-pause"/></svg> Kalender pausiert — `
           + `${job.fails||0} Abrufe in Folge fehlgeschlagen (Grenze ${job.max_fails||5}). `
           + `Vermutlich ist das Hotel nicht mehr im TUI-Inventar. `
           + `<button class="btn sec" style="margin-left:6px" onclick="resumeCalendar()">Wieder aktivieren</button></div>` : '';
       const aiBtn = (job.days && job.days.length)
-        ? '<button class="btn sec ai-feature" onclick="openCalendarOutlook()" title="KI fasst die Kalenderpreise zusammen und empfiehlt günstige/teure Monate">🤖 KI-Analyse</button>' : '';
+        ? '<button class="btn sec ai-feature" onclick="openCalendarOutlook()" title="KI fasst die Kalenderpreise zusammen und empfiehlt günstige/teure Monate"><svg class="i"><use href="#i-ai"/></svg> KI-Analyse</button>' : '';
       return `<div class="cmp-foot"><span class="hint" style="flex:1;min-width:180px">${esc(when)}</span>
         ${aiBtn}<button class="btn sec" onclick="refreshCalendar()">Neu abfragen</button></div>${err}${paused}${arch}`;
     }
@@ -6458,7 +6548,7 @@
       calData = job;
       if(!(job.days && job.days.length)){
         const msg = job.error || job.note || 'Preiskalender nicht verfügbar';
-        $('#cal-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)">⚠ '+esc(msg)+'</div>' + calFooter(job);
+        $('#cal-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)"><svg class="i"><use href="#i-warn"/></svg> '+esc(msg)+'</div>' + calFooter(job);
         return;
       }
       if(!calMonth){
@@ -6568,7 +6658,7 @@
           style = ` style="background:hsla(${Math.round(120*(1-ratio))},65%,45%,.22)"`;
         }
         const deltaBadge = mv ? `<span class="hist-diff ${mv.delta>0?'up':'down'}" style="margin:0;font-size:.68rem;padding:1px 5px">${mv.delta>0?'▲ +':'▼ '}${eur(mv.delta)}</span>` : '';
-        const infoIcon = price!=null ? `<span class="cal-info" title="Preisverlauf für diesen Tag anzeigen" onclick="event.preventDefault();event.stopPropagation();openCalDayChart('${iso}')">📈</span>` : '';
+        const infoIcon = price!=null ? `<span class="cal-info" title="Preisverlauf für diesen Tag anzeigen" onclick="event.preventDefault();event.stopPropagation();openCalDayChart('${iso}')"><svg class="i"><use href="#i-trend"/></svg></span>` : '';
         const inner = `<span class="cal-d">${d}</span>${infoIcon}`
           + (iso===job.cheapest_date?PIG:'')   // Sparschwein als direktes Zellenkind → mittig
           + (calTrendView && mv ? deltaBadge
@@ -6622,7 +6712,7 @@
           <button class="btn sec" onclick="calGo('${prev}')" ${prev?'':'disabled'}>‹</button>
           <span class="cal-title">${monthName}</span>
           <div style="display:flex;gap:6px;align-items:center">
-            <button class="btn sec" onclick="toggleCalTrend()" title="Preis- oder Trend-Ansicht umschalten">${calTrendView?'💰 Preis':'📈 Trend'}</button>
+            <button class="btn sec" onclick="toggleCalTrend()" title="Preis- oder Trend-Ansicht umschalten">${calTrendView?'<svg class="i"><use href="#i-euro"/></svg> Preis':'<svg class="i"><use href="#i-trend"/></svg> Trend'}</button>
             <button class="btn sec" onclick="calGo('${next}')" ${next?'':'disabled'}>›</button>
           </div>
         </div>
@@ -6634,7 +6724,7 @@
           <span><i class="lg-pricey"></i>teuerster Termin</span>
           <span><i class="lg-track"></i>günstigster in deinem Zeitraum</span>
           <span><i class="lg-out"></i>außerhalb deines Zeitraums</span>
-          <span>🟩→🟥 günstig→teuer · Klick: auf tui.com öffnen · Rechtsklick: als neues Angebot tracken · 📈: Preisverlauf dieses Tages</span>
+          <span><span class="ampel g"></span>→<span class="ampel r"></span> günstig→teuer · Klick: auf tui.com öffnen · Rechtsklick: als neues Angebot tracken · <svg class="i"><use href="#i-trend"/></svg>: Preisverlauf dieses Tages</span>
         </div>${calFooter(job)}`;
     }
 
@@ -6713,7 +6803,7 @@
       const o = (curOffers||[]).find(x=>x.id===calId) || {};
       const bell = $('#cal-notify-bell');
       if(!bell) return;
-      bell.textContent = o.notify_calendar_muted ? '🔕' : '🔔';
+      bell.innerHTML = o.notify_calendar_muted ? '<svg class="i"><use href="#i-bell-off"/></svg>' : '<svg class="i"><use href="#i-bell"/></svg>';
       bell.title = o.notify_calendar_muted
         ? 'Kalender-Benachrichtigungen (HA/Telegram) stummgeschaltet – klicken zum Aktivieren'
         : 'Kalender-Benachrichtigungen (HA/Telegram) aktiv – klicken zum Stummschalten';
@@ -6968,6 +7058,28 @@
     $('#new-url').addEventListener('keydown', e=>{ if(e.key==='Enter') addOffer(); });
     $('#new-label').addEventListener('keydown', e=>{ if(e.key==='Enter') addOffer(); });
     $('#check-all').addEventListener('click', checkAll);
+
+    // Aufklappmenüs: <details> klappt selbst auf und zu, schließt sich aber nicht
+    // von allein. Über Delegation, weil die Zeilenmenüs der Angebotskarten bei
+    // jedem Neuzeichnen der Liste neu entstehen — einzeln gebundene Zuhörer
+    // wären danach verwaist.
+    (function(){
+      const alle = () => document.querySelectorAll('details.more[open], details.row-more[open]');
+      const zu = außer => alle().forEach(d => { if(d !== außer) d.open = false; });
+      document.addEventListener('click', e => {
+        const auf = e.target.closest('details.more > summary, details.row-more > summary');
+        if(auf){ zu(auf.parentElement); return; }          // nur eines offen halten
+        if(e.target.closest('.mm-item')){ zu(null); return; }  // nach der Auswahl schließen
+        alle().forEach(d => { if(!d.contains(e.target)) d.open = false; });
+      });
+      document.addEventListener('keydown', e => {
+        if(e.key !== 'Escape') return;
+        const offen = alle();
+        if(!offen.length) return;
+        offen.forEach(d => { d.open = false; });
+        const s = offen[0].querySelector('summary'); if(s) s.focus();
+      });
+    })();
     $('#search').addEventListener('input', e=>{ searchTerm = e.target.value; renderAll(curOffers||[]); });
 
     // ── ✕ zum Leeren in Suchfeldern ────────────────────────────────────────────
@@ -7078,8 +7190,10 @@
       if(!G.ai) return;
       try {
         const d = await fetch(api('/api/ai/usage')).then(r=>r.json());
+        // Kein Symbol davor: textContent gibt Markup als sichtbaren Text aus, und
+        // die übrigen Einträge der Fußzeile kommen seit 0.100.9 ohnehin ohne aus.
         $('#ai-usage-foot').textContent =
-          '🔢 KI heute ' + fmtUsd(d.today && d.today.estimated_usd) +
+          'KI heute ' + fmtUsd(d.today && d.today.estimated_usd) +
           ' · Monat ' + fmtUsd(d.month && d.month.estimated_usd) +
           ' · gesamt ' + fmtUsd(d.estimated_usd);
       } catch(e){}
@@ -7087,9 +7201,9 @@
     loadAiUsageFooter();
     setInterval(loadAiUsageFooter, 300000);
 
-    const AI_PROVIDER_LABEL = { anthropic: '🤖 Claude', gemini: '✨ Gemini', perplexity: '🔎 Perplexity' };
+    const AI_PROVIDER_LABEL = { anthropic: 'Claude', gemini: 'Gemini', perplexity: 'Perplexity' };
     const AI_PROVIDER_NAME = Object.fromEntries(
-      Object.entries(AI_PROVIDER_LABEL).map(([k,v]) => [k, v.replace(/^\S+\s/, '')]));
+      Object.entries(AI_PROVIDER_LABEL).map(([k,v]) => [k, v]));
     let _aiActiveProvider = null;  // zuletzt bekannter aktiver Provider, für "<Name> durchsucht…" in Ladetexten
     let _aiProviderLoadPromise = null;
     function aiProviderName(){ return AI_PROVIDER_NAME[_aiActiveProvider] || 'KI'; }

@@ -7,24 +7,24 @@
   <meta name="theme-color" content="#0d1117">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%233b82f6' d='M21 16v-2l-8-5V3.5A1.5 1.5 0 0 0 11.5 2 1.5 1.5 0 0 0 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z'/%3E%3C/svg%3E">
   <style>
-    :root { --bg:#0d1117; --surf:#161b22; --border:#30363d; --text:#c9d1d9; --muted:#8b949e; --accent:#3b82f6; --green:#1f6feb; --green-h:#388bfd; --red:#f85149; }
-    [data-theme="light"] { --bg:#eef2f8; --surf:#ffffff; --border:#d0d7de; --text:#1f2328; --muted:#636c76; --accent:#0969da; --green:#0b65d8; --green-h:#1f7ce8; --red:#cf222e; }
+    :root { --bg:#0e1215; --surf:#171d21; --border:#263035; --text:#e4eaec; --muted:#8a9aa1; --accent:#3b9cd9; --green:#2e8fd6; --green-h:#4aa6e4; --red:#e4685f; --r-card:14px; --r-ui:10px; }
+    [data-theme="light"] { --bg:#f1f4f6; --surf:#ffffff; --border:#d5dde1; --text:#161c1f; --muted:#5e6c72; --accent:#12689b; --green:#12689b; --green-h:#0f7bb8; --red:#c0392f; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 16px; transition: background .2s, color .2s; }
-    .card { background: var(--surf); border: 1px solid var(--border); border-radius: 8px; padding: 32px 28px; width: 100%; max-width: 360px; }
+    .card { background: var(--surf); border: 1px solid var(--border); border-radius: var(--r-card); padding: 32px 28px; width: 100%; max-width: 360px; }
     .logo-row { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
     .logo { font-size: 1.4rem; font-weight: 700; color: var(--accent); }
     .subtitle { font-size: 0.8rem; color: var(--muted); margin-bottom: 28px; }
     label { display: block; font-size: 0.8rem; color: var(--muted); margin-bottom: 4px; }
-    input[type="text"], input[type="password"] { width: 100%; background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 9px 12px; border-radius: 6px; font-size: 0.9rem; margin-bottom: 16px; }
+    input[type="text"], input[type="password"] { width: 100%; background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 9px 12px; border-radius: var(--r-ui); font-size: 0.9rem; margin-bottom: 16px; }
     input:focus { outline: none; border-color: var(--accent); }
-    button[type="submit"] { width: 100%; background: var(--green); border: 1px solid var(--green-h); color: #fff; padding: 9px; border-radius: 6px; font-size: 0.9rem; font-weight: 600; cursor: pointer; transition: background .15s; }
+    button[type="submit"] { width: 100%; background: var(--green); border: 1px solid var(--green-h); color: #fff; padding: 9px; border-radius: var(--r-ui); font-size: 0.9rem; font-weight: 600; cursor: pointer; transition: background .15s; }
     button[type="submit"]:hover { background: var(--green-h); }
-    .error { background: rgba(207,34,46,.12); border: 1px solid var(--red); color: var(--red); padding: 9px 12px; border-radius: 6px; font-size: 0.83rem; margin-bottom: 16px; }
+    .error { background: rgba(192,57,47,.12); border: 1px solid var(--red); color: var(--red); padding: 9px 12px; border-radius: var(--r-ui); font-size: 0.83rem; margin-bottom: 16px; }
     .top-bar { display: flex; justify-content: flex-end; align-items: center; gap: 6px; margin-bottom: 20px; }
-    .lang-btn { background: none; border: 1px solid var(--border); color: var(--muted); padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; cursor: pointer; text-decoration: none; }
+    .lang-btn { background: none; border: 1px solid var(--border); color: var(--muted); padding: 2px 8px; border-radius: var(--r-ui); font-size: 0.75rem; cursor: pointer; text-decoration: none; }
     .lang-btn.active { border-color: var(--accent); color: var(--accent); }
-    .theme-btn { background: none; border: 1px solid var(--border); color: var(--muted); padding: 3px 6px; border-radius: 4px; cursor: pointer; display: inline-flex; align-items: center; }
+    .theme-btn { background: none; border: 1px solid var(--border); color: var(--muted); padding: 3px 6px; border-radius: var(--r-ui); cursor: pointer; display: inline-flex; align-items: center; }
     .theme-btn svg { width: 13px; height: 13px; fill: currentColor; }
     .icon-moon { display: block; } .icon-sun { display: none; }
     [data-theme="light"] .icon-moon { display: none; } [data-theme="light"] .icon-sun { display: block; }

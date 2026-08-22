@@ -61,7 +61,20 @@ CS_ENABLED_OPT=$(opt crowdsec_enabled "false")
 CS_LAPI_OPT=$(opt_trim crowdsec_lapi_url "http://127.0.0.1:8080")
 CS_KEY_OPT=$(opt_trim crowdsec_api_key "")
 CS_APPSEC_OPT=$(opt_trim crowdsec_appsec_url "http://127.0.0.1:7422")
-CS_CAPTCHA_PROVIDER_OPT=$(opt_trim crowdsec_captcha_provider "")
+CS_FALLBACK_OPT=$(opt_trim crowdsec_fallback_remediation "default")
+CS_RETRY_OPT=$(opt crowdsec_retry_minutes "15")
+CS_CAPTCHA_PROVIDER_OPT=$(opt_trim crowdsec_captcha_provider "off")
+
+# Die Auswahllisten in der Add-on-Konfiguration brauchen für "nichts tun" einen
+# sichtbaren Eintrag — ein leerer Wert erschiene dort als Radiobutton ohne
+# Beschriftung. Intern bleibt es beim leeren String.
+# Kein "[ .. ] && ..": schlägt die Prüfung fehl, beendet set -e das Skript.
+if [ "$CS_FALLBACK_OPT" = "default" ]; then
+    CS_FALLBACK_OPT=""
+fi
+if [ "$CS_CAPTCHA_PROVIDER_OPT" = "off" ]; then
+    CS_CAPTCHA_PROVIDER_OPT=""
+fi
 CS_CAPTCHA_SITE_OPT=$(opt_trim crowdsec_captcha_site_key "")
 CS_CAPTCHA_SECRET_OPT=$(opt_trim crowdsec_captcha_secret_key "")
 GEO_MODE_OPT=$(opt_trim geo_mode "off")
@@ -183,6 +196,14 @@ if [ "$LOG_TO_STDOUT_OPT" = "true" ]; then
     tail -qn0 -F "$LOG_DIR/access.log" 2>/dev/null &
     TAIL_PID=$!
     log "Mirroring access log to stdout as well (journald)"
+    # Home Assistant benennt jeden Add-on-Container "app_<repo>_<slug>", der
+    # Hostname ist derselbe Name mit Bindestrichen. Genau dieser Wert gehört in
+    # den journalctl_filter der CrowdSec-Acquisition — hier ausgeben, damit ihn
+    # niemand per docker inspect suchen muss.
+    OWN_HOST=$(cat /etc/hostname 2>/dev/null | tr -d '\r\n')
+    if [ -n "$OWN_HOST" ]; then
+        log "CrowdSec acquisition filter: SYSLOG_IDENTIFIER=app_${OWN_HOST//-/_}"
+    fi
 fi
 
 ###############################################################################
@@ -200,6 +221,71 @@ if [ -f "$NGINX_CONF" ]; then
     log "Error log level: ${ERROR_LOG_LEVEL_OPT}"
 else
     warn "${NGINX_CONF} not found — keeping the image default for the error log level"
+fi
+
+###############################################################################
+# Adressen von CrowdSec bestimmen
+#
+# Container-IPs (172.16.0.0/12) vergibt Docker bei jedem Start neu — nach einem
+# Neustart von Home Assistant zeigt eine eingetragene IP ins Leere und der
+# Bouncer geht still aus. Der Container-Hostname bleibt dagegen gleich.
+###############################################################################
+
+# Host-Teil einer URL, ohne Schema, Port und Pfad.
+host_of_url() {
+    local u="${1#*://}"
+    u="${u%%/*}"
+    printf '%s' "${u%%:*}"
+}
+
+warn_if_container_ip() {
+    local name="$1" host
+    host=$(host_of_url "$2")
+    if [[ "$host" =~ ^172\.(1[6-9]|2[0-9]|3[01])\.[0-9]+\.[0-9]+$ ]]; then
+        warn "${name} points at the container IP ${host}. Docker hands out a new one on every"
+        warn "start — after a Home Assistant restart this address is dead. Use the container"
+        warn "hostname instead: docker inspect -f '{{.Config.Hostname}}' <crowdsec-container>"
+        warn "or set the option to \"auto\" and let the add-on look it up."
+    fi
+}
+
+# Den Hostnamen des CrowdSec-Add-ons beim Supervisor erfragen. Der Slug eines
+# Add-ons ist "<repo>_<slug>", der Container-Hostname derselbe Name mit
+# Bindestrich. Der Firewall-Bouncer endet auf "-firewall-bouncer" und wird von
+# der Suche nach "_crowdsec" am Ende deshalb nicht getroffen.
+discover_crowdsec_host() {
+    [ -n "${SUPERVISOR_TOKEN:-}" ] || return 1
+    local slug
+    slug=$(curl -s -m 5 -H "Authorization: Bearer ${SUPERVISOR_TOKEN}" \
+        "http://supervisor/addons" 2>/dev/null \
+        | jq -r '[.data.addons[]?.slug | select(test("_crowdsec$"))] | first // empty' 2>/dev/null)
+    [ -n "$slug" ] || return 1
+    printf '%s' "${slug//_/-}"
+}
+
+CS_AUTO_HOST=""
+if [ "$CS_LAPI_OPT" = "auto" ] || [ "$CS_APPSEC_OPT" = "auto" ]; then
+    CS_AUTO_HOST=$(discover_crowdsec_host || true)
+    if [ -n "$CS_AUTO_HOST" ]; then
+        log "CrowdSec add-on found: ${CS_AUTO_HOST}"
+    else
+        warn "crowdsec_lapi_url/crowdsec_appsec_url is set to \"auto\", but no installed add-on"
+        warn "whose slug ends in _crowdsec was found. Enter the address by hand."
+    fi
+fi
+if [ "$CS_LAPI_OPT" = "auto" ]; then
+    if [ -n "$CS_AUTO_HOST" ]; then
+        CS_LAPI_OPT="http://${CS_AUTO_HOST}:8080"
+    else
+        CS_LAPI_OPT=""
+    fi
+fi
+if [ "$CS_APPSEC_OPT" = "auto" ]; then
+    if [ -n "$CS_AUTO_HOST" ]; then
+        CS_APPSEC_OPT="http://${CS_AUTO_HOST}:7422"
+    else
+        CS_APPSEC_OPT=""
+    fi
 fi
 
 ###############################################################################
@@ -251,34 +337,85 @@ check_lapi() {
     printf '%s' "${code:-000}"
 }
 
+# AppSec antwortet ohne Bouncer-Schlüssel mit 401 — jede HTTP-Antwort beweist
+# also, dass der Endpunkt lebt. Nur "000" heißt: niemand da.
+check_appsec() {
+    local url="$1" code
+    code=$(curl -s -o /dev/null -m 5 -w '%{http_code}' \
+        -A "npmplus-addon/1.0" "${url%/}/" 2>/dev/null || true)
+    printf '%s' "${code:-000}"
+}
+
+# Alle Schlüssel schreiben, die dem Add-on gehören. Steht in einer eigenen
+# Funktion, weil derselbe Block zweimal gebraucht wird: einmal beim Start und
+# noch einmal aus dem Hintergrund-Wiederholer, wenn CrowdSec zum Startzeitpunkt
+# noch nicht lief.
+cs_apply_conf() {
+    set_conf ENABLED true
+    set_conf API_URL "$CS_LAPI_OPT"
+    set_conf API_KEY "$CS_KEY_OPT"
+    set_conf APPSEC_URL "$CS_APPSEC_OPT"
+    # Captcha statt harter Sperre. Wirkt nur bei Entscheidungen vom Typ
+    # "captcha" — die muss CrowdSec über seine profiles.yaml ausstellen, sonst
+    # bleibt ein Ban ein Ban.
+    if [ -n "$CS_CAPTCHA_PROVIDER_OPT" ]; then
+        if [ -n "$CS_CAPTCHA_SITE_OPT" ] && [ -n "$CS_CAPTCHA_SECRET_OPT" ]; then
+            set_conf CAPTCHA_PROVIDER "$CS_CAPTCHA_PROVIDER_OPT"
+            set_conf SITE_KEY "$CS_CAPTCHA_SITE_OPT"
+            set_conf SECRET_KEY "$CS_CAPTCHA_SECRET_OPT"
+            log "Captcha enabled (${CS_CAPTCHA_PROVIDER_OPT})"
+        else
+            set_conf CAPTCHA_PROVIDER ""
+            warn "crowdsec_captcha_provider is set but site key or secret key is missing — captcha disabled"
+        fi
+    else
+        set_conf CAPTCHA_PROVIDER ""
+    fi
+    # Der Bouncer meldet eine tote AppSec-Adresse im Betrieb nicht, er lässt die
+    # Prüfung dann einfach ausfallen. Deshalb hier.
+    if [ -n "$CS_APPSEC_OPT" ]; then
+        if [ "$(check_appsec "$CS_APPSEC_OPT")" = "000" ]; then
+            warn "AppSec at ${CS_APPSEC_OPT} does not answer — requests will not be"
+            warn "checked by the WAF. Either the appsec source is missing from the"
+            warn "CrowdSec acquisition, or the address is wrong. Leave"
+            warn "crowdsec_appsec_url empty if AppSec is not in use."
+        fi
+    fi
+    # Ersatz-Maßnahme, wenn der Bouncer eine Entscheidung nicht anwenden kann:
+    # unbekannter Entscheidungstyp, oder Captcha ist eingestellt aber nicht
+    # nutzbar. Greift außerdem bei einer gescheiterten AppSec-Anfrage, sofern
+    # APPSEC_FAILURE_ACTION auf "deny" steht (Vorgabe des Images: passthrough).
+    # NICHT das Verhalten bei Ausfall der LAPI — dort lässt der Bouncer im
+    # live-Modus jede Anfrage durch. Leer gelassen bleibt der Wert aus
+    # crowdsec.conf unangetastet.
+    if [ -n "$CS_FALLBACK_OPT" ]; then
+        set_conf FALLBACK_REMEDIATION "$CS_FALLBACK_OPT"
+        log "Fallback remediation: ${CS_FALLBACK_OPT}"
+    fi
+}
+
+# Wird auf true gesetzt, wenn der Bouncer nur deshalb aus bleibt, weil die LAPI
+# beim Start nicht antwortete — dann lohnt es sich, später noch einmal zu fragen.
+CS_RETRY_WANTED=false
+
 if [ "$CS_ENABLED_OPT" = "true" ]; then
+    warn_if_container_ip "crowdsec_lapi_url" "$CS_LAPI_OPT"
+    # Kein "[ -n .. ] && ..": mit set -e beendet die fehlschlagende Prüfung das
+    # Skript, sobald crowdsec_appsec_url leer ist.
+    if [ -n "$CS_APPSEC_OPT" ]; then
+        warn_if_container_ip "crowdsec_appsec_url" "$CS_APPSEC_OPT"
+    fi
     if [ -z "$CS_KEY_OPT" ]; then
         warn "crowdsec_enabled is on but crowdsec_api_key is empty — bouncer stays OFF"
+        set_conf ENABLED false
+    elif [ -z "$CS_LAPI_OPT" ]; then
+        warn "crowdsec_enabled is on but no LAPI address is known — bouncer stays OFF"
         set_conf ENABLED false
     else
         CS_CODE=$(check_lapi "$CS_LAPI_OPT" "$CS_KEY_OPT")
         case "$CS_CODE" in
             200|404)
-                set_conf ENABLED true
-                set_conf API_URL "$CS_LAPI_OPT"
-                set_conf API_KEY "$CS_KEY_OPT"
-                set_conf APPSEC_URL "$CS_APPSEC_OPT"
-                # Captcha statt harter Sperre. Wirkt nur bei Entscheidungen vom
-                # Typ "captcha" — die muss CrowdSec über seine profiles.yaml
-                # ausstellen, sonst bleibt ein Ban ein Ban.
-                if [ -n "$CS_CAPTCHA_PROVIDER_OPT" ]; then
-                    if [ -n "$CS_CAPTCHA_SITE_OPT" ] && [ -n "$CS_CAPTCHA_SECRET_OPT" ]; then
-                        set_conf CAPTCHA_PROVIDER "$CS_CAPTCHA_PROVIDER_OPT"
-                        set_conf SITE_KEY "$CS_CAPTCHA_SITE_OPT"
-                        set_conf SECRET_KEY "$CS_CAPTCHA_SECRET_OPT"
-                        log "Captcha enabled (${CS_CAPTCHA_PROVIDER_OPT})"
-                    else
-                        set_conf CAPTCHA_PROVIDER ""
-                        warn "crowdsec_captcha_provider is set but site key or secret key is missing — captcha disabled"
-                    fi
-                else
-                    set_conf CAPTCHA_PROVIDER ""
-                fi
+                cs_apply_conf
                 log "CrowdSec bouncer active against ${CS_LAPI_OPT} (AppSec: ${CS_APPSEC_OPT:-off})"
                 ;;
             403|401)
@@ -289,9 +426,11 @@ if [ "$CS_ENABLED_OPT" = "true" ]; then
                 ;;
             000)
                 set_conf ENABLED false
-                warn "CrowdSec unreachable at ${CS_LAPI_OPT} — bouncer stays OFF."
+                CS_RETRY_WANTED=true
+                warn "CrowdSec unreachable at ${CS_LAPI_OPT} — bouncer stays OFF for now."
                 warn "If CrowdSec runs in its own container, 127.0.0.1 is wrong:"
-                warn "use its container IP or an address published on the host instead."
+                warn "use its container hostname (docker inspect -f '{{.Config.Hostname}}')"
+                warn "or an address published on the host instead."
                 ;;
             *)
                 set_conf ENABLED false
@@ -795,11 +934,53 @@ if [ "$GEO_ACTIVE" = "true" ] && [ "${GEO_REFRESH_OPT:-0}" -gt 0 ] 2>/dev/null; 
     log "Country lists are refreshed every ${GEO_REFRESH_OPT} h"
 fi
 
+###############################################################################
+# CrowdSec-Nachzügler
+#
+# Der Supervisor startet alle Add-ons der Stufe "services" ohne feste
+# Reihenfolge. Kommt NPMplus vor CrowdSec dran, antwortet die LAPI bei der
+# Vorflugkontrolle noch nicht — der Bouncer bliebe dann bis zum nächsten
+# Add-on-Neustart aus, obwohl CrowdSec kurz darauf läuft. Genau das passiert
+# nach jedem Neustart von Home Assistant OS.
+#
+# Deshalb hier im Hintergrund weiterfragen und den Bouncer per nginx-Reload
+# nachträglich scharfschalten. Bewusst erst nach dem Start des Proxys: das
+# Warten darf nginx nicht aufhalten, sonst ist die gesamte Weiterleitung
+# minutenlang tot.
+###############################################################################
+if [ "$CS_RETRY_WANTED" = "true" ] && [ "${CS_RETRY_OPT:-0}" -gt 0 ] 2>/dev/null; then
+    (
+        CS_DEADLINE=$(( $(date +%s) + CS_RETRY_OPT * 60 ))
+        while [ "$(date +%s)" -lt "$CS_DEADLINE" ]; do
+            sleep 30
+            case "$(check_lapi "$CS_LAPI_OPT" "$CS_KEY_OPT")" in
+                200|404)
+                    cs_apply_conf
+                    # Der Bouncer liest crowdsec.conf in init_by_lua, also beim
+                    # Start von nginx. Ohne Reload bliebe die neue Datei liegen.
+                    if nginx -s reload 2>/dev/null; then
+                        log "CrowdSec is up now — bouncer enabled against ${CS_LAPI_OPT}, nginx reloaded"
+                    else
+                        warn "CrowdSec is up now and crowdsec.conf was written, but the nginx reload failed."
+                        warn "Restart the add-on to activate the bouncer."
+                    fi
+                    exit 0
+                    ;;
+            esac
+        done
+        warn "CrowdSec still unreachable after ${CS_RETRY_OPT} min — bouncer stays OFF."
+        warn "Check the address in crowdsec_lapi_url and whether the CrowdSec add-on is running."
+    ) &
+    CS_RETRY_PID=$!
+    log "CrowdSec was not reachable at start — retrying every 30 s for up to ${CS_RETRY_OPT} min"
+fi
+
 _term() {
     log "SIGTERM received, stopping NPMplus..."
     kill -TERM "$APP_PID" 2>/dev/null || true
     [ -n "${TAIL_PID:-}" ] && kill -TERM "$TAIL_PID" 2>/dev/null || true
     [ -n "${GEO_PID:-}" ] && kill -TERM "$GEO_PID" 2>/dev/null || true
+    [ -n "${CS_RETRY_PID:-}" ] && kill -TERM "$CS_RETRY_PID" 2>/dev/null || true
     # nginx braucht einen Moment, um offene Verbindungen zu schließen.
     wait "$APP_PID" 2>/dev/null || true
     log "NPMplus stopped"
@@ -819,4 +1000,5 @@ set -e
 warn "NPMplus exited without a stop request (exit code ${APP_EXIT})"
 [ -n "${TAIL_PID:-}" ] && kill -TERM "$TAIL_PID" 2>/dev/null || true
 [ -n "${GEO_PID:-}" ] && kill -TERM "$GEO_PID" 2>/dev/null || true
+[ -n "${CS_RETRY_PID:-}" ] && kill -TERM "$CS_RETRY_PID" 2>/dev/null || true
 exit "$APP_EXIT"

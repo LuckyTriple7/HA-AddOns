@@ -1,5 +1,270 @@
 # Changelog
 
+## [0.6.1] - 2026-08-22
+
+### Fixed
+- **Die vier Archiv-Optionen standen unter ihren technischen Namen in der
+  Add-on-Konfiguration.** `translations/de.yaml` und `translations/en.yaml`
+  kannten sie nicht, und was dort fehlt, zeigt Home Assistant als
+  `archive_enabled` statt als „Alarm-Archiv“ — ohne Beschreibung, was die
+  Option tut. Alle vier haben jetzt Namen und Erklärung in beiden Sprachen.
+
+## [0.6.0] - 2026-08-22
+
+### Added
+- **Alarm-Archiv — eine eigene SQLite-Datei unter `/data/alerts.db`.** CrowdSec
+  räumt seine Datenbank nach einigen Wochen auf; was dort verschwand, war bisher
+  auch in CrowdPanel weg, denn jede Ansicht las live über die LAPI. Ein
+  Hintergrundfaden schreibt jetzt alle fünf Minuten jede neue Erkennung einmal
+  mit, und Verlauf, Angriffskarte, Alarmliste und die Historie einer Adresse
+  unter *IP prüfen* werden daraus beantwortet. Jede dieser Antworten nennt im
+  JSON unter `source`, woher sie kommt.
+
+  Aktive Sperren, die Kennzahlen der Übersicht, Bouncer, Allowlists, Hub und
+  Metriken kommen weiterhin live aus der LAPI. Das ist der aktuelle Zustand, und
+  der gehört dorthin, wo er entsteht.
+
+  Von einer Blocklisten-Synchronisierung bleiben nur Kennung und Zeitpunkt —
+  genug für den zweiten Balken im Verlauf. Ihre zehntausend Entscheidungen wären
+  der Grund, warum die Datei wächst, und ohne jede Aussage. Eine Erkennung kostet
+  rund 200 Bytes; `archive_days` räumt auf, Vorgabe ein Jahr.
+
+  Neue Optionen: `archive_enabled` (Vorgabe an), `archive_days` (365, `0` =
+  unbegrenzt), `archive_backfill_days` (30) und `archive_interval` (300 s).
+  Lässt sich die Datei nicht anlegen oder wird das Archiv abgeschaltet,
+  antworten alle Endpunkte wie bisher aus der LAPI — die Oberfläche sieht
+  gleich aus, nur reicht der Verlauf dann nicht weiter zurück als CrowdSecs
+  eigene Aufbewahrung.
+
+  Der erste Abgleich holt höchstens die tausend jüngsten Alarme; mehr gibt die
+  LAPI in einer Antwort nicht heraus. Was CrowdSec bis dahin vergessen hat, ist
+  ohnehin verloren — ab dann geht nichts mehr weg, solange das Add-on läuft.
+
+- **Der Reiter *Einstellungen* zeigt den Zustand des Archivs**: Zeilenzahl,
+  ältester und jüngster Eintrag, letzter Abgleich, Dateigröße, Aufbewahrung.
+
+- **Längere Zeiträume in der Alarmliste** — 90 Tage und ein Jahr. Ohne Archiv
+  liefern sie das, was die LAPI noch hat; mit Archiv reichen sie wirklich so
+  weit.
+
+### Changed
+- `history_days` darf jetzt bis 3650 statt bis 30. Ohne Archiv bleibt der
+  Verlauf trotzdem an CrowdSecs Aufbewahrung gebunden.
+
+## [0.5.6] - 2026-08-22
+
+### Fixed
+- **Kartenpunkte ließen sich nicht treffen.** Der sichtbare Punkt ist je nach
+  Zahl der Erkennungen drei bis sechs Bildpunkte groß — zu wenig, um ihn mit
+  der Maus sicher zu treffen, und auf dem Telefon aussichtslos: dort waren es
+  keine drei Bildpunkte. Jeder Punkt hat jetzt eine durchsichtige Trefferfläche
+  von zweiundzwanzig Bildpunkten darüber, die Mauszeiger, Kurzinfo und Klick
+  annimmt. Sie wird in Bildpunkten gerechnet, nicht in Karteneinheiten, und
+  bleibt deshalb auf jedem Bildschirm und in jeder Zoomstufe gleich groß. Wer
+  einen Punkt berührt, sieht ihn hell werden — vorher gab es keine Rückmeldung,
+  ob man getroffen hat.
+
+- **Die Zoomknöpfe verdeckten die Punkte unter sich.** Ihr Rahmen liegt über
+  der Karte und fing Klicks ab, auch zwischen den Knöpfen. Er reicht Klicks
+  jetzt durch, nur die Knöpfe selbst nehmen noch welche an.
+
+## [0.5.5] - 2026-08-22
+
+### Fixed
+- **Punkte auf der Angriffskarte ließen sich nicht mehr anklicken.** Das
+  Verschieben hielt den Zeiger mit `setPointerCapture` fest, und eine
+  Zeigererfassung leitet auch das anschließende `click`-Ereignis auf die Karte
+  um — beim Punkt darunter kam nichts mehr an. Jetzt hört während des Ziehens
+  das Fenster mit statt den Zeiger festzuhalten; die Maus zieht damit weiterhin
+  auch außerhalb der Karte weiter. Als Tippen zählt alles unter acht Pixel
+  Bewegung, denn ein Finger steht nie ganz still.
+
+- **`server_lat` und `server_lon` fehlten in den Add-on-Optionen.** Sie standen
+  nur im Schema, und Home Assistant zeigt im Konfigurationsformular nur, was
+  auch unter `options` steht — sichtbar war deshalb allein `server_label`. Beide
+  Felder haben jetzt die Vorgabe `0`; `0/0` gilt wie bei den Alarmen als „nicht
+  eingetragen“ und lässt den Punkt weg.
+
+## [0.5.4] - 2026-08-22
+
+### Added
+- **Die Angriffskarte lässt sich zoomen und verschieben.** Mausrad oder
+  Zwei-Finger-Geste vergrößert bis zum sechzehnfachen Maßstab, Ziehen bewegt den
+  Ausschnitt, Doppelklick oder der Knopf `⟲` setzt zurück. Bisher lagen Punkte
+  in Mitteleuropa so dicht beieinander, dass sich nicht mehr sagen ließ, welcher
+  zu welcher Adresse gehört. Vergrößert wird um den Mauszeiger herum, über den
+  Kartenrand hinaus lässt sich nicht ziehen, und der gewählte Ausschnitt
+  überlebt die automatische Aktualisierung — sonst stünde man alle dreißig
+  Sekunden wieder vor der ganzen Welt.
+
+  Die Punkte behalten dabei ihre Größe. Sie stehen für die Zahl der
+  Erkennungen, nicht für die Zoomstufe.
+
+- **Der eigene Standort als Punkt auf der Karte.** Neue Optionen `server_lat`,
+  `server_lon` und `server_label` zeichnen einen blauen Punkt mit Ring an die
+  eigene Position — den Bezugspunkt, auf den all die roten Punkte zielen. Ohne
+  ihn ist die Karte eine Sammlung von Herkünften ohne Ziel.
+
+  Die Koordinaten stehen in der Konfiguration und werden nirgends abgefragt: die
+  eigene öffentliche Adresse wandert nicht zu einem fremden Geo-Dienst, nur
+  damit ein Punkt sitzt. Sind nicht beide Werte gesetzt, bleibt der Punkt weg.
+
+## [0.5.3] - 2026-08-21
+
+### Changed
+- **Die Kennzahlen-Kacheln richten sich jetzt nach dem Bildschirm, nicht nach
+  einer geratenen Mindestbreite.** Bisher stand dort `minmax(240px, 1fr)`, in
+  0.5.2 auf 185 px gesenkt — beides Zahlen, die zufällig bei einer Fensterbreite
+  passen und bei der nächsten wieder umbrechen. Stattdessen steht die Spaltenzahl
+  jetzt als `--cols` am Element, die Kacheln teilen sich die Breite und werden
+  auf einem schmalen Bildschirm kleiner statt umzubrechen. Erst bei 900 px fällt
+  die Reihe auf drei Spalten, bei 560 px auf zwei.
+
+  Das gilt für beide Reihen: die fünf Kacheln der Übersicht und die sechs des
+  Metriken-Reiters.
+
+- **Inhalte laufen nicht mehr aus ihrer Kachel heraus.** Die Spalten haben
+  `minmax(0, 1fr)` statt `1fr` — ohne das wächst ein Rasterfeld mit dem längsten
+  Wort darin mit, etwa einem AS-Namen wie „PENTECH BILISIM TEKNOLOJILERI SANAYI
+  VE TICARET LIMITED SIRKETi". Lange Beschriftungen in Balkenlisten werden links
+  abgeschnitten, die Zahl rechts behält immer ihren Platz.
+
+- **Große Kennzahlen werden gekürzt statt umgebrochen.** `29.422.111` passte in
+  keine Kachel und wurde mitten in der Zahl getrennt — das liest sich als zwei
+  Zahlen. Ab sechs Stellen steht dort jetzt „29,4 Mio."; der genaue Wert steht im
+  Tooltip. Tabellen bleiben unangetastet, dort zählt die Zahl selbst.
+
+### Fixed
+- **Zahlen folgten der Browsersprache statt der eingestellten.** Neben deutschen
+  Beschriftungen konnte „8,123" stehen. Beide Formatierungen nehmen jetzt die
+  Sprache der Oberfläche.
+- **„1 Adressen verortet".** Die Fußzeile der Karte stand in einer Form, die nur
+  im Plural stimmte. Jetzt Doppelpunktform, damit sie für jede Zahl passt.
+
+## [0.5.2] - 2026-08-21
+
+### Changed
+- **Die Karte benutzt jetzt Web Mercator statt Plate carrée.** Plate carrée war
+  rechnerisch die einfachere Wahl, drückt aber alles jenseits des 50.
+  Breitengrads flach — Skandinavien und Russland sahen verbogen aus. Web
+  Mercator ist die Projektion jeder Online-Karte und damit die, die das Auge
+  erwartet. Gerechnet wird weiterhin ohne Kartenbibliothek, die Formel steht in
+  `tools/make_world_svg.py` und im Frontend in `mapY()`.
+
+  Das Seitenverhältnis geht damit von 2,5 auf 1,47, die Karte wird also
+  deutlich höher. Damit sie die Übersicht nicht erschlägt, ist ihre Breite auf
+  `60vh × Seitenverhältnis` gedeckelt — begrenzt wird der Rahmen, nicht das SVG,
+  sonst entstünden leere Ränder im Kartenfeld.
+
+- **Die Kennzahlen-Kacheln der Übersicht passen wieder in eine Zeile.** Die
+  Mindestbreite lag bei 240 px; im Ingress-Rahmen von Home Assistant reichte das
+  für vier der fünf Kacheln, die fünfte rutschte in die nächste Zeile. Nur diese
+  eine Reihe bekommt jetzt 185 px, alle übrigen Raster bleiben unverändert.
+
+## [0.5.1] - 2026-08-21
+
+### Fixed
+- **Falscher Befehl im Kartenhinweis.** Der Hinweis auf der leeren Karte und die
+  Dokumentation nannten `cscli collections install crowdsecurity/geoip-enrich`.
+  Das quittiert CrowdSec mit „can't find 'crowdsecurity/geoip-enrich' in
+  collections" — es ist keine Collection, sondern ein Parser der Stufe
+  `s02-enrich`. Richtig ist `cscli parsers install crowdsecurity/geoip-enrich`.
+
+## [0.5.0] - 2026-08-21
+
+### Added
+- **Angriffskarte auf der Übersicht.** Ein Punkt je Quelladresse, Größe nach
+  Zahl der Erkennungen, Mauszeiger darüber zeigt Adresse, Land, Netz und das
+  häufigste Szenario. Ein Klick springt in die Alarmliste, gefiltert auf genau
+  diese Adresse — gesperrt wird weiterhin bewusst von dort aus und nicht durch
+  einen Klick auf einen drei Pixel großen Kreis.
+
+  Gezeichnet wird aus echten Koordinaten, nicht aus Ländermittelpunkten:
+  CrowdSec führt in jedem Alarm `latitude` und `longitude`, gefüllt vom
+  GeoIP-Enrichment. Bisher hat CrowdPanel davon nur das Länderkürzel benutzt.
+
+  Fehlt das Enrichment, bleiben die Felder leer. Dann sagt die Karte das auch
+  und nennt den Befehl (`cscli parsers install crowdsecurity/geoip-enrich`),
+  statt eine leere Welt zu zeigen. Ebenso werden Koordinaten `0/0` verworfen —
+  die schreibt CrowdSec, wenn nichts gefunden wurde, und im Golf von Guinea
+  sitzt niemand.
+
+  Blocklisten-Synchronisierungen zählen nicht mit; ein einzelner Sync bringt
+  Zehntausende Einträge ohne Ortsbezug.
+
+- **Weltkarte als eigene Datei.** `static/world.svg`, erzeugt aus Natural Earth
+  1:110m (Public Domain) mit `tools/make_world_svg.py`. 112 KB, Plate carrée —
+  damit entspricht ein Längengrad genau einer Einheit im Koordinatensystem und
+  die Umrechnung braucht keine Kartenbibliothek. Es wird nichts aus dem Internet
+  nachgeladen, die Datei liegt im Image.
+
+  Neue Datei `LICENSE.md` hält die Herkunft fest.
+
+## [0.4.7] - 2026-08-21
+
+### Fixed
+- **Die Anleitung zum Freischalten der Metriken war irreführend.** Sie las sich
+  so, als müsste man den `prometheus`-Abschnitt in CrowdSecs `config.yaml` erst
+  anlegen — und als wäre das irgendwo in den Add-on-Optionen zu finden. Beides
+  stimmt nicht: In den Optionen des CrowdSec-Add-ons kommt Prometheus überhaupt
+  nicht vor, und der Abschnitt steht in der Datei bereits vollständig drin. Zu
+  ändern ist genau eine Zeile, `listen_addr`.
+
+  Der Reiter und die Dokumentation nennen jetzt den vollständigen Weg: Datei
+  unter `/config/.storage/crowdsec/config/config.yaml`, Änderung im
+  Web-Terminal des CrowdSec-Add-ons mit dem dort vorhandenen `yq`, danach
+  Neustart und Kontrolle mit `curl -s localhost:6060/metrics`.
+
+  Dazu zwei Punkte, die vorher offen blieben: Die Datei überlebt Neustarts (das
+  Add-on kopiert sie nur beim allerersten Start aus dem Image; überschrieben
+  wird laufend allein `acquis.yaml`), und Port 6060 muss nicht veröffentlicht
+  werden — CrowdPanel erreicht den Container über das Docker-Netz, genau wie
+  die LAPI auf 8080.
+
+## [0.4.6] - 2026-08-21
+
+### Added
+- **Neuer Reiter „Metriken“.** CrowdSec zählt intern mit, wie viele Logzeilen
+  ankommen, welcher Parser greift, welches Szenario auslöst, wie oft eine
+  Whitelist gerettet hat und wer die LAPI wie oft anfragt. Bisher kam man an
+  diese Zahlen nur über `docker exec … cscli metrics`. CrowdPanel liest jetzt
+  denselben Prometheus-Endpunkt und baut daraus dreizehn Tabellen —
+  Datenquellen, Parser, Szenarien, Whitelists, LAPI je Pfad/Maschine/Bouncer,
+  AppSec samt Regeltreffern, aktive Sperren, Meldungen, Laufzeiten und
+  Zwischenspeicher — dazu sechs Kennzahlen als Übersicht.
+
+  Die Tabelle „LAPI je Bouncer“ beantwortet dabei eine Frage, die vorher
+  offen war: Ein Bouncer kann fleißig abholen und trotzdem nie eine Sperre
+  bekommen — hier steht, wie viele Antworten tatsächlich Entscheidungen
+  enthielten.
+
+  Gerendert wird ausschließlich aus den Spalten, die der Server mitschickt.
+  Eine CrowdSec-Version mit anderen Zählern ändert also die Tabellen, nicht
+  den Code, der sie zeichnet.
+
+  **Voraussetzung:** CrowdSec liefert die Zähler standardmäßig nur an
+  `127.0.0.1` aus. In seiner `config.yaml` unter `prometheus` muss
+  `listen_addr: 0.0.0.0` stehen, sonst kommt CrowdPanel als eigener Container
+  nicht heran. Solange das fehlt, bleibt der Reiter sichtbar und erklärt genau
+  diesen Schritt, statt leer zu sein.
+
+- **Option `prometheus_url`.** Leer heißt: derselbe Rechner wie in `lapi_url`,
+  Port 6060. Nur nötig, wenn der Endpunkt woanders liegt.
+
+## [0.4.5] - 2026-08-20
+
+### Changed
+- **Die Anleitung nennt jetzt den Container-Hostname statt der Container-IP.**
+  Schritt 2 der Einrichtung empfahl bisher, die IP des CrowdSec-Containers
+  (`172.30.33.x`) in `lapi_url` einzutragen. Docker vergibt diese IP bei jedem
+  Start neu, und ein Neustart von Home Assistant startet alle Add-on-Container
+  neu — danach zeigte `lapi_url` ins Leere und CrowdPanel meldete „LAPI nicht
+  erreichbar", ohne dass jemand etwas geändert hätte.
+
+  Richtig ist der Hostname aus `docker inspect -f '{{.Config.Hostname}}' $CS`,
+  also z. B. `http://424ccef4-crowdsec:8080`. Der bleibt über Neustarts hinweg
+  gleich. Die Fehlersuche-Tabelle hat dazu eine eigene Zeile bekommen.
+
 ## [0.4.4] - 2026-08-20
 
 ### Added

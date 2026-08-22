@@ -25,6 +25,12 @@ configuration:
   lapi_tls_verify:
     name: TLS-Zertifikat prüfen
     description: Nur bei einer https-Adresse mit selbstsigniertem Zertifikat abschalten.
+  prometheus_url:
+    name: Prometheus-Adresse von CrowdSec
+    description: >-
+      Leer lassen: CrowdPanel benutzt denselben Rechner wie die LAPI-Adresse, Port 6060.
+      CrowdSec muss den Zugriff erlauben — in seiner config.yaml unter prometheus
+      listen_addr auf 0.0.0.0 setzen, sonst hört der Zähler nur auf 127.0.0.1.
   default_ban_duration:
     name: Standard-Sperrdauer
     description: Voreingestellte Dauer im Formular für neue Sperren, zum Beispiel 4h, 24h oder 168h.
@@ -69,6 +75,43 @@ configuration:
   history_days:
     name: Verlauf (Tage)
     description: Über wie viele Tage der Verlauf in der Übersicht reicht.
+  archive_enabled:
+    name: Alarm-Archiv
+    description: >-
+      Schreibt jede Erkennung in eine eigene Datenbank unter /data/alerts.db,
+      damit Verlauf, Angriffskarte und Alarmliste weiter zurückreichen als
+      CrowdSecs eigene Aufbewahrung. Ausgeschaltet holt CrowdPanel alles wie
+      bisher live über die LAPI.
+  archive_days:
+    name: Archiv — Aufbewahrung (Tage)
+    description: >-
+      Wie lange das Archiv Erkennungen aufhebt. Eine Erkennung kostet rund 200
+      Bytes. 0 hebt die Grenze auf und wirft nichts mehr weg.
+  archive_backfill_days:
+    name: Archiv — erster Abgleich (Tage)
+    description: >-
+      Wie weit der allererste Abgleich zurückfragt. Mehr als tausend Alarme
+      gibt die LAPI in einer Antwort nicht heraus, mehr holt der erste Lauf
+      also nicht. Danach fällt nichts mehr weg, solange das Add-on läuft.
+  archive_interval:
+    name: Archiv — Abgleich (Sekunden)
+    description: Abstand zwischen zwei Abgleichen des Archivs mit der LAPI.
+  server_lat:
+    name: Standort — Breitengrad
+    description: >-
+      Breitengrad des eigenen Servers, etwa 48.14. Zeichnet zusammen mit dem
+      Längengrad einen Punkt auf die Angriffskarte. Leer lassen, wenn kein
+      eigener Standort angezeigt werden soll.
+  server_lon:
+    name: Standort — Längengrad
+    description: >-
+      Längengrad des eigenen Servers, etwa 11.58. Wirkt nur zusammen mit dem
+      Breitengrad.
+  server_label:
+    name: Standort — Beschriftung
+    description: >-
+      Name für diesen Punkt auf der Karte, etwa „Zuhause“. Leer heißt „Dieser
+      Server“.
   verbose_log:
     name: Ausführliches Protokoll
     description: Schreibt zusätzliche Zeilen ins Add-on-Protokoll. Nur zur Fehlersuche.

@@ -32,7 +32,7 @@ Bestehende Hosts lassen sich nicht automatisch übernehmen, die Datenbanken sind
 
 Let's Encrypt erlaubt 50 Zertifikate pro Woche und Domain — ein Dutzend Domains neu auszustellen ist unkritisch. Nur bei wiederholten Fehlversuchen mit identischem Domain-Satz greift das Limit von 5 doppelten Zertifikaten pro Woche.
 
-**Wichtig:** Diese DNS-Challenge-Anbieter fallen weg und müssen ersetzt werden: `certbot-dns-he`, `certbot-dns-dnspod`, `certbot-dns-online`, `certbot-dns-powerdns`, `certbot-dns-do`. Route53 wird ebenfalls nicht unterstützt.
+**Wichtig — DNS-Challenge:** Die Anbieterliste ist genauso lang wie beim Original (86 Plugins). Bei diesen Anbietern steckt in NPMplus aber ein anderes PyPI-Paket dahinter: `he` (jetzt `certbot-dns-hurricane-electric`), `dnspod` (jetzt `certbot-dnspod`), `powerdns` (jetzt `certbot-dns-pdns`), dazu `online` und `do`. Bestehende Zertifikate dieser Anbieter **erneuern sich nicht** und müssen einmal neu ausgestellt werden. Wirklich nicht unterstützt wird nur **Route53** — Amazon-CloudFront-Adressen lassen sich in NPMplus nicht automatisch als vertrauenswürdig setzen. Dafür gibt es `dreamhost` und `scaleway` zusätzlich.
 
 ## CrowdSec
 
@@ -52,6 +52,25 @@ NPMplus bringt den **Bouncer** mit (nginx/Lua, blockt einzelne Anfragen) und kan
 > also nichts; alle übrigen Werte der Datei bleiben unangetastet.
 >
 > Ohne installierte Engine bleiben alle CrowdSec-Optionen wirkungslos.
+
+### Warum CrowdSec an zwei Stellen konfiguriert wird
+
+Die Einrichtung trägt CrowdSec zweimal ein: einmal in der Acquisition von CrowdSec (das Journal von NPMplus) und einmal in den Optionen von NPMplus (`crowdsec_lapi_url` und Schlüssel). Das ist keine Doppelung — es sind die zwei Hälften eines Kreislaufs, und sie laufen in entgegengesetzte Richtungen:
+
+```
+NPMplus schreibt sein Zugriffslog
+        ↓  journald, SYSLOG_IDENTIFIER=app_<repo-hash>_npmplus
+CrowdSec-Acquisition → Parser und Szenarien → Entscheidung „ban 1.2.3.4"
+        ↓  LAPI auf Port 8080, Bouncer-Schlüssel
+NPMplus-Bouncer holt die Entscheidungen ab → sperrt 1.2.3.4
+```
+
+- **Acquisition** (Schritt 2) ist die **Erkennung**: CrowdSec liest, *was passiert ist*. Fehlt sie, sieht CrowdSec keinen einzigen Angriff auf den Proxy.
+- **Die `crowdsec_*`-Optionen** (Schritte 4 und 5) sind die **Durchsetzung**: der Bouncer fragt die LAPI, *wer gerade gesperrt ist*, und weist die Anfrage ab. Fehlen sie, bannt CrowdSec zwar, nginx liefert aber weiter aus.
+
+**AppSec** auf Port 7422 ist ein dritter, eigener Weg und liest gar keine Logs: NPMplus schickt die Anfrage *vor* der Weiterleitung zur Bewertung. Deshalb stehen im Log zwei Arten von Treffern — `(by appsec)` heißt sofort an der laufenden Anfrage erkannt, `(by bouncer)` heißt wegen früherer Logzeilen gesperrt.
+
+Wirklich überschneiden würde sich nur das Add-on `crowdsec-firewall-bouncer`: es setzt dieselben Entscheidungen zusätzlich auf Firewall-Ebene um. Auch das ist kein Fehler — die Firewall sperrt alle Ports, der nginx-Bouncer nur HTTP, kann dafür aber Sperrseite und Captcha zeigen.
 
 ### 1. Collection in CrowdSec ergänzen
 
@@ -75,6 +94,12 @@ Add-on-Option `log_to_stdout: true` setzen. Danach den Syslog-Identifier ermitte
 ```sh
 journalctl --directory=/var/log/journal/ -o json -n 200 \
   | jq -r .SYSLOG_IDENTIFIER | sort -u | grep -i npmplus
+```
+
+Kürzer geht es über das Add-on selbst: mit `log_to_stdout: true` schreibt NPMplus den Wert beim Start ins eigene Protokoll —
+
+```
+[INFO] CrowdSec acquisition filter: SYSLOG_IDENTIFIER=app_xxxxxxxx_npmplus
 ```
 
 Der Wert sieht aus wie `app_<8-stelliger-Repo-Hash>_npmplus`. Damit in die CrowdSec-Acquisition:
@@ -143,24 +168,45 @@ Ohne `-k` erzeugt `cscli` den Schlüssel selbst; er wird dann **einmalig** angez
 
 `http://127.0.0.1:8080` stimmt nur, wenn CrowdSec seine Ports auf den Host legt. Läuft es als gewöhnliches Add-on im Docker-Netz, ist `127.0.0.1` aus Sicht von NPMplus der Host — und dort lauscht niemand. Ergebnis: `connection refused`.
 
-Container-IP ermitteln:
+Richtig ist der **Container-Hostname** von CrowdSec:
 
 ```sh
-docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}' <crowdsec-container>
+docker inspect -f '{{.Config.Hostname}}' <crowdsec-container>
 ```
+
+Das Ergebnis sieht aus wie `424ccef4-crowdsec`. Der vordere Teil ist die Kennung des Add-on-Repositorys und unterscheidet sich je nach Installation — den eigenen Wert auslesen, nicht diesen abschreiben.
 
 Damit dann in den Add-on-Optionen:
 
 ```yaml
 crowdsec_enabled: true
 crowdsec_api_key: "<Schlüssel aus cscli>"
-crowdsec_lapi_url: "http://172.30.33.22:8080"
-crowdsec_appsec_url: "http://172.30.33.22:7422"
+crowdsec_lapi_url: "http://424ccef4-crowdsec:8080"
+crowdsec_appsec_url: "http://424ccef4-crowdsec:7422"
 ```
 
-> Container-IPs können sich nach einem Update des CrowdSec-Add-ons ändern. Bietet dessen Konfiguration ein Port-Mapping auf den Host an, ist das die stabilere Wahl — dann passt `127.0.0.1`.
+> **Keine Container-IP eintragen.** Die IP (`172.30.33.x`, zu finden über `docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}' <crowdsec-container>`) gilt nur bis zum nächsten Start. Docker vergibt sie jedes Mal neu, und ein Neustart von Home Assistant startet alle Add-on-Container neu. Danach zeigen `crowdsec_lapi_url` und `crowdsec_appsec_url` ins Leere und der Bouncer bleibt aus, ohne dass jemand etwas geändert hätte. Der Hostname bleibt gleich.
 
-> Läuft AppSec nicht (kein `appsec`-Block in der Acquisition), muss `crowdsec_appsec_url` **leer** bleiben.
+> NPMplus läuft im Host-Netz, löst den Hostnamen anderer Add-ons aber trotzdem auf — der Supervisor gibt jedem Add-on-Container den HA-DNS-Dienst mit. Schlägt die Auflösung ausnahmsweise fehl, funktioniert die lange Form `424ccef4-crowdsec.local.hass.io`.
+
+**Kürzer: `auto`.** Steht in `crowdsec_lapi_url` (und wahlweise `crowdsec_appsec_url`) das Wort `auto`, fragt das Add-on beim Start den Supervisor nach den installierten Add-ons, sucht das mit einem auf `_crowdsec` endenden Slug und baut die Adresse selbst:
+
+```yaml
+crowdsec_enabled: true
+crowdsec_api_key: "<Schlüssel aus cscli>"
+crowdsec_lapi_url: "auto"
+crowdsec_appsec_url: "auto"
+```
+
+Im Protokoll steht dann, was gefunden wurde:
+
+```
+[INFO] CrowdSec add-on found: 424ccef4-crowdsec
+```
+
+Das trifft den Standardfall — CrowdSec läuft als Add-on auf derselben Maschine, LAPI auf 8080, AppSec auf 7422. Bei abweichenden Ports, einer entfernten Engine oder mehreren CrowdSec-Add-ons die Adresse von Hand eintragen. Wird nichts gefunden, warnt das Add-on und der Bouncer bleibt aus.
+
+> Läuft AppSec nicht (kein `appsec`-Block in der Acquisition), muss `crowdsec_appsec_url` **leer** bleiben — `auto` würde dort eine Adresse eintragen, die niemand bedient.
 
 ### Beispielkonfiguration des CrowdSec-Add-ons
 
@@ -294,9 +340,19 @@ docker exec $CS cscli -c $CFG decisions add --ip <deine-ip> --duration 5m --type
 
 Das Aussehen der Seite lässt sich über `/data/crowdsec/captcha.html` anpassen; die unveränderte Vorlage liegt daneben als `captcha.html.example`.
 
+### Selbsttest
+
+Das Add-on bringt ein Skript mit, das die wichtigsten Prüfungen in einem Durchgang erledigt — Oberfläche, Logs, Bouncer-Konfiguration, LAPI, AppSec, Schlüssellänge, Zertifikatslaufzeiten. Im Terminal-Add-on mit Docker-Zugriff:
+
+```sh
+docker exec $(docker ps --format '{{.Names}}' | grep -i npmplus | head -1) /selftest.sh
+```
+
+Ausgabe je Zeile `[ ok ]`, `[warn]` oder `[FAIL]`; der Rückgabewert ist 0, solange nichts fehlschlägt. Die Ausgabe ist englisch, wie das Add-on-Protokoll auch. Warnungen beschreiben Zustände, die gewollt sein können (kein Captcha, kein AppSec, wenig Verkehr).
+
 ### Prüfbefehle auf einen Blick
 
-Alle Befehle im Terminal-Add-on mit Docker-Zugriff. `CS` ist der CrowdSec-Container, `NP` der von NPMplus.
+Wenn eine einzelne Frage offen bleibt. Alle Befehle im Terminal-Add-on mit Docker-Zugriff. `CS` ist der CrowdSec-Container, `NP` der von NPMplus.
 
 ```sh
 CS=$(docker ps --format '{{.Names}}' | grep -i crowdsec | head -1)
@@ -311,8 +367,8 @@ CFG=/config/.storage/crowdsec/config/config.yaml
 | Kommen Logzeilen an? | `docker exec $CS cscli -c $CFG metrics` |
 | Wer ist gerade gesperrt? | `docker exec $CS cscli -c $CFG decisions list` |
 | Welche Szenarien und Parser sind installiert? | `docker exec $CS cscli -c $CFG collections list` |
-| Welche IP hat der CrowdSec-Container? | `docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}' $CS` |
-| Sind LAPI und AppSec von außen erreichbar? | `nc -z -v <crowdsec-ip> 8080 && nc -z -v <crowdsec-ip> 7422` |
+| Wie heißt der CrowdSec-Container? | `docker inspect -f '{{.Config.Hostname}}' $CS` |
+| Sind LAPI und AppSec von außen erreichbar? | `nc -z -v <crowdsec-hostname> 8080 && nc -z -v <crowdsec-hostname> 7422` |
 | Was steht in der Bouncer-Konfiguration von NPMplus? | `docker exec $NP grep -E '^(ENABLED\|API_URL\|APPSEC_URL)=' /data/crowdsec/crowdsec.conf` |
 | Akzeptiert die LAPI genau diesen Schlüssel? | siehe unten |
 
@@ -673,10 +729,12 @@ Fehlt ab Werk. Dafür müssen die MaxMind-Datenbanken (kostenloses Konto) nach `
 | `trust_ip` | – | Vertrauenswürdige Proxy-IPs für X-Forwarded-For |
 | `trust_cloudflare` | `false` | Cloudflare-IP-Bereiche laden und vertrauen |
 | `crowdsec_enabled` | `false` | nginx-Bouncer aktivieren |
-| `crowdsec_lapi_url` | `http://127.0.0.1:8080` | CrowdSec Local API |
+| `crowdsec_lapi_url` | `http://127.0.0.1:8080` | CrowdSec Local API; `auto` sucht das CrowdSec-Add-on selbst |
 | `crowdsec_api_key` | – | Bouncer-Schlüssel aus `cscli bouncers add` |
-| `crowdsec_appsec_url` | `http://127.0.0.1:7422` | AppSec/WAF-Endpunkt |
-| `crowdsec_captcha_provider` | – | `turnstile`, `hcaptcha` oder `recaptcha`; leer = aus |
+| `crowdsec_appsec_url` | `http://127.0.0.1:7422` | AppSec/WAF-Endpunkt; `auto` wie oben, leer = aus |
+| `crowdsec_fallback_remediation` | `default` | Ersatz-Maßnahme, wenn eine Entscheidung nicht anwendbar ist (unbekannter Typ, Captcha eingestellt aber nicht nutzbar): `bypass`, `captcha`, `ban`; `default` = Vorgabe des Images (derzeit `ban`). Gilt **nicht** bei Ausfall der LAPI |
+| `crowdsec_retry_minutes` | `15` | Antwortet die LAPI beim Start nicht, wird so viele Minuten lang alle 30 s nachgefragt und der Bouncer danach per nginx-Reload scharfgeschaltet. `0` = kein Nachfragen |
+| `crowdsec_captcha_provider` | `off` | `turnstile`, `hcaptcha` oder `recaptcha`; `off` = aus |
 | `crowdsec_captcha_site_key` | – | Öffentlicher Schlüssel des Anbieters |
 | `crowdsec_captcha_secret_key` | – | Geheimer Schlüssel des Anbieters |
 | `geo_mode` | `off` | Ländersperre: `block`, `allow` oder `off` |
@@ -686,7 +744,7 @@ Fehlt ab Werk. Dafür müssen die MaxMind-Datenbanken (kostenloses Konto) nach `
 | `geo_deny_ips` | `[]` | Immer gesperrte Adressen oder CIDR-Bereiche |
 | `geo_allow_ips` | `[]` | Adressen, die die Ländersperre nie trifft |
 | `geo_refresh_hours` | `24` | Abstand für das Neuladen der Listen; `0` = aus |
-| `geo_deny_action` | `403` | Antwort bei Sperre: `403` mit Seite oder `444` wortlos |
+| `geo_deny_action` | `403` | **Nur für die Ländersperre und `geo_deny_ips`** — CrowdSec-, AppSec- und Zugriffslisten-Sperren bleiben 403. Antwort bei Sperre: `403` mit Seite oder `444` wortlos |
 | `geo_log_country` | `true` | Gesperrte Anfragen mit Land nach `blocked.log` |
 | `nginx_worker_processes` | `auto` | Anzahl nginx-Worker |
 | `nginx_worker_connections` | `512` | Verbindungen je Worker |
@@ -756,6 +814,8 @@ Ein Home-Assistant-Backup des Add-ons enthält `/data` vollständig, inklusive D
 
 ## Problembehandlung
 
+**Add-on startet immer wieder neu** — der Supervisor überwacht Port 81 (Watchdog). Antwortet die Oberfläche nicht mehr, startet er das Add-on neu. Steht in den Add-on-Einstellungen hinter *Watchdog* und lässt sich dort abschalten, wenn beim Aufräumen sonst ständig neu gestartet wird.
+
 **Add-on startet nicht, Port belegt** — es läuft noch ein anderer Proxy (altes NGINX-Add-on, Caddy, Traefik). Erst stoppen.
 
 **Zertifikat lässt sich nicht ausstellen, Fehler nennt eine IPv6-Adresse** — existiert für die Domain ein AAAA-Record, versucht Let's Encrypt zuerst IPv6. Zeigt der Record auf ein Gerät, das nicht antwortet, scheitert die Prüfung, egal wie gut IPv4 eingerichtet ist. Prüfen mit `dig +short AAAA <domain>`; wenn du IPv6 nicht betreibst, den Record beim DNS-Anbieter löschen. Achtung: Subdomains haben eigene Records, nur CNAMEs erben. Und der DynDNS-Updater darf keine IPv6 mehr melden, sonst steht der Record beim nächsten Lauf wieder da.
@@ -765,6 +825,14 @@ Ein Home-Assistant-Backup des Add-ons enthält `/data` vollständig, inklusive D
 **Zertifikat lässt sich nicht ausstellen** — Port 80 muss aus dem Internet erreichbar sein und die Domain per DNS auf deine öffentliche IP zeigen. Bei CGNAT oder blockiertem Port 80 hilft nur die DNS-Challenge.
 
 **Alle Seiten liefern die CrowdSec-Sperrseite** — der Bouncer erreicht CrowdSec nicht oder der Schlüssel wird abgelehnt. Ab Version 0.1.4 verhindert die Startprüfung das; bei älteren Ständen `crowdsec_enabled` ausschalten und neu starten.
+
+**CrowdSec lief, nach einem Neustart erreicht der Bouncer nichts mehr** — in `crowdsec_lapi_url` steht eine Container-IP (`172.30.33.x`), die Docker beim Start neu vergeben hat. Beide URLs auf den Container-Hostnamen umstellen, z.B. `http://424ccef4-crowdsec:8080`.
+
+**Protokoll meldet „error loading captcha plugin: no recaptcha site key provided"** — kosmetisch. Steht `crowdsec_captcha_provider` auf `off`, fällt der Bouncer intern auf `recaptcha` zurück, findet keinen Site-Key und schaltet Captcha ab. Der Bouncer selbst arbeitet normal weiter. Die Zeile verschwindet erst, wenn Captcha mit Anbieter und beiden Schlüsseln eingerichtet ist (siehe Schritt 7).
+
+**Protokoll meldet „Permission Denied" mit HTTP 403 auf `/api/nginx/...`** — diese Anfragen kommen nicht aus dem Add-on. Am User-Agent (`HomeAssistant/…`) und der IP erkennbar: eine Home-Assistant-Integration fragt die NPMplus-API ab, typischerweise „Nginx Proxy Manager" aus HACS. Die Anmeldung selbst klappt (sonst käme 401), aber der dort hinterlegte Benutzer darf die Listen nicht lesen. In NPMplus unter *Users* den Benutzer öffnen, *Edit Permissions* auf mindestens „View" stellen oder ihn zum Administrator machen — sonst die Integration entfernen. Der Proxy-Betrieb ist davon nicht betroffen, nur die Sensoren der Integration bleiben leer.
+
+**Gesperrt wird mit Timeout statt 403** — dann greift nicht der nginx-Bouncer in NPMplus, sondern der **Firewall-Bouncer** von CrowdSec. Der verwirft die Pakete auf iptables-Ebene, bevor nginx sie überhaupt sieht: die Verbindung läuft ins Leere statt eine Antwort zu bekommen. Betroffen ist dann nicht nur NPMplus, sondern jeder Dienst auf dem Host. Merkregel: **403 = nginx-Bouncer** (HTTP-Ebene, Verbindung kommt zustande), **Timeout = Firewall-Bouncer** (Paketebene). Aus demselben Grund ist bei einem Firewall-Ban auch `geo_deny_action: 444` nie zu sehen — es kommt nichts bis zu nginx durch. Aufheben in beiden Fällen über `cscli decisions delete --ip <IP>` bzw. CrowdPanel.
 
 **Falsche Client-IPs in den Logs** — steht ein weiterer Proxy oder Cloudflare davor, dessen IPs in `trust_ip` eintragen bzw. `trust_cloudflare` aktivieren.
 

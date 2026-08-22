@@ -47,13 +47,71 @@
     section.active { display: block; }
     h2 { font-size: 1rem; margin-bottom: 12px; font-weight: 600; }
     h3 { font-size: 0.85rem; color: var(--muted); margin-bottom: 8px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+    /* Mercator ist deutlich hoeher als Plate carree (1,47 statt 2,5 zu 1). Ohne
+       Deckel schiebt die Karte alles andere aus der Uebersicht. Begrenzt wird
+       am Rahmen, nicht am SVG — sonst entstuenden leere Raender im Kartenfeld.
+       --map-ratio ist das Seitenverhaeltnis der viewBox aus world.svg; wird die
+       Datei mit anderem Ausschnitt neu erzeugt, aendert sich hier eine Zahl. */
+    .map-wrap { --map-ratio: 1.473; max-width: calc(60vh * var(--map-ratio)); margin: 0 auto; position: relative; }
+    /* touch-action: none — sonst faengt der Browser das Wischen ab und die
+       Karte laesst sich auf dem Telefon nicht verschieben, sondern scrollt. */
+    .map-wrap svg { width: 100%; height: auto; display: block; border-radius: 6px; background: var(--bg);
+                    touch-action: none; cursor: grab; }
+    .map-wrap svg.dragging { cursor: grabbing; }
+    .map-wrap .cc { fill: var(--surf2); stroke: var(--muted); stroke-opacity: .45; stroke-width: 1; vector-effect: non-scaling-stroke; }
+    .map-pt { fill: var(--red); fill-opacity: .5; stroke: var(--red); stroke-width: 1;
+              vector-effect: non-scaling-stroke; pointer-events: none; }
+    /* Durchsichtige Trefferflaeche ueber dem Punkt. fill: transparent statt
+       fill: none — ohne Fuellung faengt ein SVG-Kreis keinen Zeiger. */
+    .map-hit { fill: transparent; cursor: pointer; }
+    .map-pt.hot { fill-opacity: .95; }
+    .map-home { fill: var(--accent); fill-opacity: .9; stroke: var(--bg); stroke-width: 1.5;
+                vector-effect: non-scaling-stroke; }
+    .map-home-ring { fill: none; stroke: var(--accent); stroke-width: 1.5; stroke-opacity: .7;
+                     vector-effect: non-scaling-stroke; }
+    /* Der Rahmen der Knoepfe liegt ueber der Karte; ohne pointer-events: none
+       waeren die Punkte in seiner Ecke nicht mehr zu treffen. */
+    .map-zoom { position: absolute; top: 8px; right: 8px; display: flex; flex-direction: column;
+                gap: 4px; pointer-events: none; }
+    .map-zoom button { pointer-events: auto; }
+    .map-zoom button { width: 30px; height: 30px; line-height: 1; font-size: 0.95rem;
+                       background: var(--surf); border: 1px solid var(--border); color: var(--text);
+                       border-radius: 6px; cursor: pointer; opacity: .85; }
+    .map-zoom button:hover { border-color: var(--accent); opacity: 1; }
+    .map-foot { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 8px; align-items: center; }
+    .map-legend { display: inline-flex; align-items: center; gap: 6px; }
+    .map-legend .dot { background: var(--accent); }
     .grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
-    .card { background: var(--surf); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; }
-    .stat { font-size: 2rem; font-weight: 700; line-height: 1.1; }
+
+    /* Kennzahlenreihen: feste Spaltenzahl statt einer geratenen Mindestbreite.
+       Die Kacheln teilen sich die verfuegbare Breite, werden auf einem kleinen
+       Bildschirm also kleiner statt umzubrechen. Erst wenn eine Kachel zu schmal
+       zum Lesen waere, greifen die Haltepunkte. Die Spaltenzahl steht als
+       --cols am Element, damit dieselbe Regel fuer fuenf wie fuer sechs Kacheln
+       gilt. Voraussetzung: --cols ist immer >= 3, sonst wuerden die Haltepunkte
+       die Spaltenzahl erhoehen statt senken. */
+    .row { display: grid; gap: 12px; --cols-now: var(--cols, 4);
+           grid-template-columns: repeat(var(--cols-now), minmax(0, 1fr)); }
+    @media (max-width: 900px) { .row { --cols-now: 3; } }
+    @media (max-width: 560px) { .row { --cols-now: 2; } }
+
+    /* minmax(0,1fr) allein reicht nicht: ein langes Wort ohne Trennstelle —
+       ein AS-Name, ein Szenarienpfad — waechst sonst ueber die Kachel hinaus. */
+    .card { background: var(--surf); border: 1px solid var(--border); border-radius: 8px;
+            padding: 14px 16px; min-width: 0; overflow-wrap: anywhere; }
+    /* white-space: nowrap ist Pflicht — .card erlaubt Umbrueche an jeder Stelle,
+       und eine mittendrin getrennte Zahl liest sich als zwei Zahlen. Dass sie
+       trotzdem passt, besorgt statNum(): ab sechs Stellen kompakte Schreibweise
+       mit dem vollen Wert im Tooltip. */
+    .stat { font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums;
+            font-size: clamp(1.25rem, 2.2vw + 0.5rem, 2rem); white-space: nowrap; }
     .stat-label { font-size: 0.78rem; color: var(--muted); margin-top: 2px; }
     .kv { display: flex; justify-content: space-between; gap: 12px; padding: 4px 0; border-bottom: 1px solid var(--border); font-size: 0.83rem; }
     .kv:last-child { border-bottom: none; }
-    .kv span:last-child { color: var(--muted); font-variant-numeric: tabular-nums; }
+    /* Der Wert rechts behaelt seine Breite, der Name links weicht — abgeschnitten
+       wird nur die Beschriftung, nie die Zahl, um die es geht. */
+    .kv span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .kv span:last-child { color: var(--muted); font-variant-numeric: tabular-nums; flex: none; }
     .bar { display: flex; flex-direction: column; gap: 6px; }
     .toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 12px; }
     .field { display: flex; flex-direction: column; gap: 4px; }
@@ -116,7 +174,7 @@
     th.sortable::after { content: ''; }
     th.sortable.asc::after { content: ' ▲'; }
     th.sortable.desc::after { content: ' ▼'; }
-    @media (max-width: 640px) { nav { top: 47px; } .stat { font-size: 1.6rem; } }
+    @media (max-width: 640px) { nav { top: 47px; } }
     @media (max-width: 820px) { .hide-narrow { display: none; } }
   </style>
 </head>
@@ -145,6 +203,7 @@
     <button data-tab="check">{{ t.nav_check }}</button>
     <button data-tab="allowlists">{{ t.nav_allowlists }}</button>
     <button data-tab="hub">{{ t.nav_hub }}</button>
+    <button data-tab="metrics">{{ t.nav_metrics }}</button>
     <button data-tab="settings">{{ t.nav_settings }}</button>
   </nav>
 
@@ -152,7 +211,7 @@
     <div id="setupBanner" class="banner" hidden></div>
 
     <section id="tab-overview" class="active">
-      <div class="grid">
+      <div class="row" style="--cols:5">
         <div class="card"><div class="stat" id="ovDecisions">–</div><div class="stat-label">{{ t.ov_decisions_total }}</div></div>
         <div class="card"><div class="stat" id="ovAlerts">–</div><div class="stat-label">{{ t.ov_alerts_24h }}</div></div>
         <div class="card"><div class="stat" id="ovLists">–</div><div class="stat-label">{{ t.ov_list_updates }}</div></div>
@@ -160,11 +219,15 @@
         <div class="card"><h3>{{ t.ov_by_origin }}</h3><div class="bar" id="ovByOrigin"></div></div>
       </div>
       <div class="grid" style="margin-top:12px">
+        <div class="card" style="grid-column: 1 / -1; min-width: 0">
+          <h3>{{ t.map_title }}</h3><div id="ovMap"></div></div>
+      </div>
+      <div class="grid" style="margin-top:12px">
         <div class="card" style="grid-column: span 2; min-width: 0">
           <h3>{{ t.h_title }}</h3><div id="ovHistory"></div></div>
         <div class="card"><h3>{{ t.b_title }}</h3><div class="bar" id="ovBouncers"></div></div>
       </div>
-      <div class="grid" style="margin-top:12px">
+      <div class="row" style="--cols:3; margin-top:12px">
         <div class="card"><h3>{{ t.ov_top_countries }}</h3><div class="bar" id="ovCountries"></div></div>
         <div class="card"><h3>{{ t.ov_top_scenarios }}</h3><div class="bar" id="ovScenarios"></div></div>
         <div class="card"><h3>{{ t.ov_alert_scenarios }}</h3><div class="bar" id="ovAlertScenarios"></div></div>
@@ -244,6 +307,10 @@
       <div id="hubBody"></div>
     </section>
 
+    <section id="tab-metrics">
+      <div id="metricsBody"></div>
+    </section>
+
     <section id="tab-settings">
       <div class="card" style="max-width:760px">
         <h2>{{ t.set_connection }}</h2>
@@ -254,6 +321,11 @@
         <div class="kv"><span>{{ t.ver_running }}</span><span class="mono" id="sVersion">–</span></div>
         <div class="kv"><span>{{ t.ver_latest }}</span><span class="mono" id="sVersionLatest">–</span></div>
         <p class="note">{{ t.set_sensors_hint }}</p>
+      </div>
+      <div class="card" style="max-width:760px; margin-top:12px">
+        <h2>{{ t.arc_title }}</h2>
+        <p class="note" style="margin-top:0">{{ t.arc_hint }}</p>
+        <div id="sArchive"></div>
       </div>
       <div class="card" style="max-width:760px; margin-top:12px">
         <h2>{{ t.b_machines }}</h2>
@@ -285,7 +357,8 @@
       pageSize: {{ page_size|tojson }},
       hasQr: {{ has_qr|tojson }},
       ingress: {{ ingress|tojson }},
-      lang: {{ lang|tojson }}
+      lang: {{ lang|tojson }},
+      mapUrl: {{ url_for('static', filename='world.svg')|tojson }}
     };
 
     (function () {
@@ -341,6 +414,33 @@
       let s = T[key] || key;
       for (const k in (vars || {})) s = s.split('{' + k + '}').join(String(vars[k]));
       return s;
+    }
+
+    // Zahlformat folgt der eingestellten Oberflaechensprache, nicht der des
+    // Browsers — sonst stehen deutsche Beschriftungen neben "8,123".
+    function num(v) {
+      const n = Number(v);
+      return isNaN(n) ? String(v == null ? '' : v) : n.toLocaleString(G.lang || 'de');
+    }
+
+    // Eine Kachel ist so breit wie ihr Fuenftel des Bildschirms — 29.422.111
+    // passt dort in keiner Schriftgroesse, die man noch lesen will. Ab sechs
+    // Stellen also "29,4 Mio."; der genaue Wert steht im Tooltip, damit nichts
+    // verloren geht. Tabellen bleiben unangetastet, dort zaehlt die Zahl selbst.
+    function statNum(v) {
+      const n = Number(v);
+      if (isNaN(n)) return String(v == null ? '' : v);
+      if (Math.abs(n) < 100000) return n.toLocaleString();
+      try {
+        return new Intl.NumberFormat(G.lang || 'de',
+          { notation: 'compact', maximumFractionDigits: 1 }).format(n);
+      } catch (e) { return n.toLocaleString(); }
+    }
+
+    // Setzt eine Kennzahl samt vollem Wert als Tooltip.
+    function setStat(node, value) {
+      node.textContent = statNum(value);
+      node.title = num(value);
     }
 
     function errText(code) {
@@ -442,7 +542,8 @@
     }
 
     // ── tabs ──────────────────────────────────────────────────────────────────
-    const TABS = ['overview', 'decisions', 'new', 'alerts', 'check', 'allowlists', 'hub', 'settings'];
+    const TABS = ['overview', 'decisions', 'new', 'alerts', 'check', 'allowlists',
+                  'hub', 'metrics', 'settings'];
 
     // Null-prototype: a tab name arrives from location.hash, and on a plain
     // object a name like "toString" would resolve through the prototype chain
@@ -521,9 +622,9 @@
     // ── overview ──────────────────────────────────────────────────────────────
     function renderOverview(d) {
       fillOrigins((d.by_origin || []).map(p => p[0]));
-      $('ovDecisions').textContent = d.decisions_total;
-      $('ovAlerts').textContent = d.alerts_24h;
-      $('ovLists').textContent = d.list_updates_24h;
+      setStat($('ovDecisions'), d.decisions_total);
+      setStat($('ovAlerts'), d.alerts_24h);
+      setStat($('ovLists'), d.list_updates_24h);
       bars($('ovByType'), d.by_type);
       bars($('ovByOrigin'), d.by_origin);
       bars($('ovCountries'), d.top_countries, countryName);
@@ -624,14 +725,327 @@
       });
     }
 
+    // ── map ───────────────────────────────────────────────────────────────────
+    // Web Mercator, dieselbe Projektion wie das SVG (tools/make_world_svg.py).
+    // 360 Einheiten sind der volle Erdumfang, der Aequator liegt auf 180. Damit
+    // reicht eine Zeile Rechnung statt einer Kartenbibliothek.
+    const MAP_LAT_LIMIT = 85;
+    const mapX = lon => lon + 180;
+    const mapY = function (lat) {
+      const clamped = Math.max(-MAP_LAT_LIMIT, Math.min(MAP_LAT_LIMIT, lat));
+      return 180 - (180 / Math.PI) * Math.log(Math.tan(Math.PI / 4 + clamped * Math.PI / 360));
+    };
+
+    let worldText = null;
+    async function worldSvg() {
+      if (worldText === null) {
+        try {
+          const res = await fetch(G.mapUrl, { credentials: 'same-origin' });
+          worldText = res.ok ? await res.text() : '';
+        } catch (e) { worldText = ''; }
+      }
+      return worldText;
+    }
+
+    function mapRadius(count) {
+      return Math.min(3.2, 0.7 + Math.sqrt(Math.max(1, count)) * 0.35);
+    }
+
+    // Ausschnitt der Karte. Bewusst ausserhalb von renderMap: die Uebersicht
+    // zeichnet sich alle paar Sekunden neu, und wer gerade nach Sao Paulo
+    // gezoomt hat, will nicht bei jedem Durchlauf wieder die ganze Welt sehen.
+    const MAP_ZOOM_MAX = 16;
+    const MAP_ZOOM_STEP = 1.6;
+    const MAP_DRAG_SLOP = 8;
+    const MAP_HIT_PX = 11;
+    let mapView = null;
+
+    // Zoomen und Verschieben aendern nur die viewBox — kein Neuzeichnen, keine
+    // Kartenbibliothek. Was mitwachsen wuerde, traegt sein Grundmass als
+    // data-r und wird gegen den Zoom geteilt, damit ein Punkt ein Punkt bleibt.
+    function bindMapView(svg) {
+      const raw = (svg.getAttribute('viewBox') || '0 0 360 360').split(/[\s,]+/).map(Number);
+      const base = { x: raw[0] || 0, y: raw[1] || 0, w: raw[2] || 360, h: raw[3] || 360 };
+      const scaled = Array.prototype.slice.call(svg.querySelectorAll('[data-r]'));
+      const targets = Array.prototype.slice.call(svg.querySelectorAll('.map-hit'));
+      if (!mapView) mapView = { z: 1, cx: base.x + base.w / 2, cy: base.y + base.h / 2 };
+
+      function apply() {
+        const z = mapView.z;
+        const w = base.w / z, h = base.h / z;
+        // Erst den Mittelpunkt begrenzen, dann daraus die Ecke rechnen: so
+        // laesst sich nicht ueber den Kartenrand hinausziehen.
+        mapView.cx = Math.min(Math.max(mapView.cx, base.x + w / 2), base.x + base.w - w / 2);
+        mapView.cy = Math.min(Math.max(mapView.cy, base.y + h / 2), base.y + base.h - h / 2);
+        svg.setAttribute('viewBox', (mapView.cx - w / 2) + ' ' + (mapView.cy - h / 2) + ' ' + w + ' ' + h);
+        scaled.forEach(n => n.setAttribute('r', (Number(n.getAttribute('data-r')) / z).toFixed(3)));
+        // Die Trefferflaeche wird in Bildpunkten gedacht, nicht in Karteneinheiten:
+        // auf einem Telefon ist die Karte 400 Bildpunkte breit, dieselben vier
+        // Einheiten waeren dort ein Ziel von sieben Bildpunkten. Ein Finger
+        // braucht rund zweiundzwanzig.
+        const px = svg.getBoundingClientRect().width;
+        if (px) {
+          const perPx = w / px;
+          targets.forEach(n => n.setAttribute('r', Math.max(
+            Number(n.getAttribute('data-r')) / z, MAP_HIT_PX * perPx).toFixed(3)));
+        }
+      }
+
+      // Der Punkt unter dem Zeiger bleibt beim Zoomen unter dem Zeiger. Das
+      // geht, weil das SVG dank width:100%/height:auto immer genau das
+      // Seitenverhaeltnis der viewBox hat — sonst laege hier ein Versatz.
+      function zoomTo(target, clientX, clientY) {
+        const rect = svg.getBoundingClientRect();
+        const z0 = mapView.z;
+        const z = Math.min(MAP_ZOOM_MAX, Math.max(1, target));
+        if (z === z0 || !rect.width || !rect.height) { mapView.z = z; apply(); return; }
+        const fx = (clientX - rect.left) / rect.width;
+        const fy = (clientY - rect.top) / rect.height;
+        const w0 = base.w / z0, h0 = base.h / z0;
+        const ux = mapView.cx - w0 / 2 + fx * w0;
+        const uy = mapView.cy - h0 / 2 + fy * h0;
+        const w1 = base.w / z, h1 = base.h / z;
+        mapView.z = z;
+        mapView.cx = ux - (fx - 0.5) * w1;
+        mapView.cy = uy - (fy - 0.5) * h1;
+        apply();
+      }
+
+      function zoomCentered(factor) {
+        const rect = svg.getBoundingClientRect();
+        zoomTo(mapView.z * factor, rect.left + rect.width / 2, rect.top + rect.height / 2);
+      }
+
+      svg.addEventListener('wheel', function (e) {
+        e.preventDefault();
+        zoomTo(mapView.z * (e.deltaY < 0 ? MAP_ZOOM_STEP : 1 / MAP_ZOOM_STEP), e.clientX, e.clientY);
+      }, { passive: false });
+
+      const pointers = new Map();
+      let pan = null, pinch = null;
+
+      function twoPointers() {
+        const it = pointers.values();
+        return [it.next().value, it.next().value];
+      }
+
+      // Bewusst ohne setPointerCapture: eine Zeigererfassung leitet auch das
+      // anschliessende click-Ereignis auf das SVG um, und dann kommt ein Tipp
+      // auf einen Punkt nie mehr bei diesem Punkt an — auf dem Telefon reicht
+      // dafuer das bisschen Wackeln beim Antippen. Stattdessen hoert waehrend
+      // des Ziehens das Fenster mit, damit die Maus auch ausserhalb der Karte
+      // weiterzieht; die Zuhoerer raeumen sich beim Loslassen selbst weg.
+      function listenWhileDown(on) {
+        const fn = on ? window.addEventListener : window.removeEventListener;
+        fn.call(window, 'pointermove', onMove);
+        fn.call(window, 'pointerup', endPointer);
+        fn.call(window, 'pointercancel', endPointer);
+      }
+
+      svg.addEventListener('pointerdown', function (e) {
+        pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        if (pointers.size === 1) {
+          const rect = svg.getBoundingClientRect();
+          pan = { x: e.clientX, y: e.clientY, cx: mapView.cx, cy: mapView.cy, w: rect.width, h: rect.height };
+          svg.classList.add('dragging');
+          mapDragged = false;
+          listenWhileDown(true);
+        } else if (pointers.size === 2) {
+          const [a, b] = twoPointers();
+          pan = null;
+          pinch = { dist: Math.hypot(a.x - b.x, a.y - b.y) || 1, z: mapView.z };
+        }
+      });
+
+      function onMove(e) {
+        if (!pointers.has(e.pointerId)) return;
+        pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        if (pinch && pointers.size >= 2) {
+          const [a, b] = twoPointers();
+          const dist = Math.hypot(a.x - b.x, a.y - b.y) || 1;
+          mapDragged = true;
+          zoomTo(pinch.z * (dist / pinch.dist), (a.x + b.x) / 2, (a.y + b.y) / 2);
+          return;
+        }
+        if (!pan || !pan.w) return;
+        const dx = e.clientX - pan.x, dy = e.clientY - pan.y;
+        // Unter der Schwelle ist es ein Tippen, kein Ziehen. Acht Pixel, weil
+        // ein Finger nie ganz still steht.
+        if (!mapDragged && Math.hypot(dx, dy) <= MAP_DRAG_SLOP) return;
+        mapDragged = true;
+        mapView.cx = pan.cx - dx * (base.w / mapView.z) / pan.w;
+        mapView.cy = pan.cy - dy * (base.h / mapView.z) / pan.h;
+        apply();
+      }
+
+      function endPointer(e) {
+        pointers.delete(e.pointerId);
+        if (pointers.size < 2) pinch = null;
+        if (pointers.size === 0) {
+          pan = null;
+          svg.classList.remove('dragging');
+          listenWhileDown(false);
+        }
+      }
+
+      svg.addEventListener('dblclick', function (e) {
+        e.preventDefault();
+        mapView = { z: 1, cx: base.x + base.w / 2, cy: base.y + base.h / 2 };
+        apply();
+      });
+
+      apply();
+      return { zoomCentered: zoomCentered, reset: function () {
+        mapView = { z: 1, cx: base.x + base.w / 2, cy: base.y + base.h / 2 };
+        apply();
+      } };
+    }
+
+    // Ein Klick, der eine Verschiebung beendet, ist kein Klick auf den Punkt
+    // darunter — sonst springt die Alarmliste beim Ziehen um.
+    let mapDragged = false;
+
+    async function renderMap(d) {
+      const box = $('ovMap');
+      const text = await worldSvg();
+      if (!text) {
+        box.textContent = '';
+        box.appendChild(el('div', 'muted', T.map_no_outline));
+        return;
+      }
+      const parsed = new DOMParser().parseFromString(text, 'image/svg+xml');
+      if (parsed.getElementsByTagName('parsererror').length) {
+        box.textContent = '';
+        box.appendChild(el('div', 'muted', T.map_no_outline));
+        return;
+      }
+      const svg = document.importNode(parsed.documentElement, true);
+      const NS = 'http://www.w3.org/2000/svg';
+      // Die Trefferflaechen kommen zum Schluss obenauf, damit keine von einem
+      // spaeter gezeichneten Punkt verdeckt wird.
+      const hits = [];
+
+      // Ein Punkt besteht aus zwei Kreisen: dem sichtbaren und einem groesseren
+      // durchsichtigen darueber, der Mauszeiger, Kurzinfo und Klick annimmt. Der
+      // sichtbare misst je nach Zahl der Erkennungen zwei bis sechs Bildpunkte
+      // — zu wenig, um ihn mit der Maus sicher zu treffen, und auf dem Telefon
+      // aussichtslos. Die Trefferflaeche ist deshalb mindestens doppelt so gross
+      // und wird wie der Punkt gegen den Zoom gerechnet.
+      (d.points || []).forEach(pt => {
+        const radius = mapRadius(pt.count);
+        const dot = document.createElementNS(NS, 'circle');
+        dot.setAttribute('class', 'map-pt');
+        dot.setAttribute('cx', mapX(pt.lon));
+        dot.setAttribute('cy', mapY(pt.lat));
+        dot.setAttribute('data-r', radius);
+        dot.setAttribute('r', radius);
+        svg.appendChild(dot);
+
+        const c = document.createElementNS(NS, 'circle');
+        c.setAttribute('class', 'map-hit');
+        c.setAttribute('cx', mapX(pt.lon));
+        c.setAttribute('cy', mapY(pt.lat));
+        c.setAttribute('data-r', Math.max(radius * 2, 4));
+        c.setAttribute('r', Math.max(radius * 2, 4));
+        c.addEventListener('pointerenter', () => dot.classList.add('hot'));
+        c.addEventListener('pointerleave', () => dot.classList.remove('hot'));
+        const title = document.createElementNS(NS, 'title');
+        const name = countryName(pt.country);
+        title.textContent = pt.value
+          + (pt.country ? ' · ' + (name || pt.country) : '')
+          + (pt.as_name ? ' · ' + pt.as_name : '')
+          + '\n' + fmt('map_hits', { n: pt.count })
+          + (pt.scenario ? ' · ' + pt.scenario : '');
+        c.appendChild(title);
+        // Ein Punkt fuehrt zur Alarmliste dieser Adresse — gesperrt wird von
+        // dort aus bewusst, nicht mit einem Klick auf einen Kartenpunkt.
+        c.addEventListener('click', () => {
+          if (mapDragged) return;
+          $('aQ').value = pt.value;
+          $('aSince').value = '24h';
+          showTab('alerts');
+          reloadAlerts();
+        });
+        hits.push(c);
+      });
+      hits.forEach(h => svg.appendChild(h));
+
+      // Der eigene Standort zuletzt, damit er ueber den Angriffspunkten liegt:
+      // er ist der Bezugspunkt, nicht einer von vierhundert Treffern.
+      const home = d.home;
+      if (home) {
+        const label = (home.label || '').trim() || T.map_home_default;
+        const g = document.createElementNS(NS, 'g');
+        const htitle = document.createElementNS(NS, 'title');
+        htitle.textContent = T.map_home + ': ' + label;
+        g.appendChild(htitle);
+        [['map-home-ring', 5.5], ['map-home', 2.2]].forEach(pair => {
+          const c = document.createElementNS(NS, 'circle');
+          c.setAttribute('class', pair[0]);
+          c.setAttribute('cx', mapX(home.lon));
+          c.setAttribute('cy', mapY(home.lat));
+          c.setAttribute('data-r', pair[1]);
+          c.setAttribute('r', pair[1]);
+          g.appendChild(c);
+        });
+        svg.appendChild(g);
+      }
+
+      const wrap = el('div', 'map-wrap');
+      wrap.appendChild(svg);
+      box.textContent = '';
+      box.appendChild(wrap);
+
+      // Erst im Dokument binden: getBoundingClientRect braucht ein gelayoutetes
+      // Element, sonst waeren Zoommitte und Zeigerposition beide null.
+      const view = bindMapView(svg);
+      const zoom = el('div', 'map-zoom');
+      [['+', T.map_zoom_in, () => view.zoomCentered(MAP_ZOOM_STEP)],
+       ['−', T.map_zoom_out, () => view.zoomCentered(1 / MAP_ZOOM_STEP)],
+       ['⟲', T.map_zoom_reset, () => view.reset()]].forEach(item => {
+        const b = el('button', null, item[0]);
+        b.type = 'button';
+        b.title = item[1];
+        b.setAttribute('aria-label', item[1]);
+        b.addEventListener('click', item[2]);
+        zoom.appendChild(b);
+      });
+      wrap.appendChild(zoom);
+
+      const foot = el('div', 'map-foot');
+      foot.appendChild(el('span', 'muted',
+        fmt('map_located', { located: d.located || 0, alerts: d.alerts || 0 })));
+      if (d.truncated) {
+        foot.appendChild(el('span', 'muted',
+          fmt('map_truncated', { n: (d.points || []).length })));
+      }
+      if (home) {
+        const legend = el('span', 'map-legend muted');
+        legend.appendChild(el('span', 'dot'));
+        legend.appendChild(el('span', null,
+          T.map_home + ((home.label || '').trim() ? ': ' + home.label.trim() : '')));
+        foot.appendChild(legend);
+      }
+      foot.appendChild(el('span', 'muted', T.map_zoom_hint));
+      box.appendChild(foot);
+
+      // Alarme da, aber keiner mit Koordinaten: das ist kein leerer Tag, das
+      // ist ein fehlendes Enrichment. Sonst raetselt man vor einer leeren Welt.
+      if (!(d.located || 0) && (d.alerts || 0)) {
+        box.appendChild(el('div', 'banner', T.map_no_geoip));
+      }
+    }
+
     async function loadSidecars() {
       try {
-        const [hist, bnc] = await Promise.all([
+        const [hist, bnc, map] = await Promise.all([
           api('/api/history').catch(() => null),
           api('/api/bouncers').catch(() => null),
+          api('/api/map').catch(() => null),
         ]);
         if (hist) { cache.history = hist; renderHistory(hist); }
         if (bnc) { cache.bouncers = bnc; renderBouncers(bnc); renderMachines(bnc); }
+        if (map) { cache.map = map; renderMap(map); }
       } catch (e) { /* Nebeninformationen — kein Grund, die Übersicht zu stören */ }
     }
 
@@ -639,6 +1053,7 @@
       if (cache.overview) renderOverview(cache.overview);
       if (cache.history) renderHistory(cache.history);
       if (cache.bouncers) { renderBouncers(cache.bouncers); renderMachines(cache.bouncers); }
+      if (cache.map) renderMap(cache.map);
       loadSidecars();
       try {
         const d = await api('/api/overview');
@@ -1213,9 +1628,43 @@
     };
 
     // ── hub ───────────────────────────────────────────────────────────────────
-    loaders.settings = function () {
+    // Gemessen in ganzen Kilo-/Megabyte — auf drei Nachkommastellen kommt es
+    // bei einer Datei, die einmal am Tag waechst, wirklich nicht an.
+    function fileSize(bytes) {
+      const n = Number(bytes) || 0;
+      if (n < 1024) return n + ' B';
+      if (n < 1024 * 1024) return Math.round(n / 1024) + ' kB';
+      return (n / 1024 / 1024).toFixed(1) + ' MB';
+    }
+
+    function renderArchive(d) {
+      const box = $('sArchive');
+      box.textContent = '';
+      const kv = (label, value) => {
+        const row = el('div', 'kv');
+        row.appendChild(el('span', null, label));
+        row.appendChild(el('span', null, value));
+        box.appendChild(row);
+      };
+      if (!d.enabled) { kv(T.arc_state, T.arc_off); return; }
+      if (!d.available) { kv(T.arc_state, T.arc_broken); return; }
+      kv(T.arc_state, T.arc_on + ' · ' + fmt('arc_interval', { n: d.interval }));
+      kv(T.arc_rows, num(d.rows));
+      kv(T.arc_syncs, num(d.syncs));
+      kv(T.arc_oldest, d.oldest ? new Date(d.oldest).toLocaleString() : T.none);
+      kv(T.arc_newest, d.newest ? new Date(d.newest).toLocaleString() : T.none);
+      kv(T.arc_last_sync, d.last_sync ? new Date(d.last_sync).toLocaleString()
+                                      : T.arc_waiting);
+      kv(T.arc_size, fileSize(d.bytes));
+      kv(T.arc_keep, d.days ? fmt('arc_keep_days', { n: d.days }) : T.arc_keep_forever);
+    }
+
+    loaders.settings = async function () {
       if (cache.bouncers) renderMachines(cache.bouncers);
       else loadSidecars();
+      try {
+        renderArchive(await api('/api/archive'));
+      } catch (e) { /* Nebeninformation — kein Grund, die Einstellungen zu stoeren */ }
     };
 
     loaders.hub = async function () {
@@ -1279,6 +1728,120 @@
         table.appendChild(body);
         wrap.appendChild(table);
         card.appendChild(wrap);
+        box.appendChild(card);
+      });
+    }
+
+    // ── metrics ───────────────────────────────────────────────────────────────
+    // Everything here is drawn from the column keys the server sends, so a
+    // CrowdSec version with different counters changes the tables, not this
+    // code. Only the labels come from the language files.
+    loaders.metrics = async function (force) {
+      const box = $('metricsBody');
+      if (cache.metrics) { renderMetrics(box, cache.metrics); }
+      else { box.textContent = ''; box.appendChild(el('div', 'muted', T.loading)); }
+      try {
+        const d = await api('/api/metrics' + (force ? '?force=1' : ''));
+        cache.metrics = d;
+        renderMetrics(box, d);
+      } catch (e) {
+        box.textContent = '';
+        box.appendChild(el('div', 'banner bad', errText(e.code)));
+      }
+    };
+
+    function metricsHead(d) {
+      const card = el('div', 'card');
+      card.appendChild(el('h2', null, T.m_title));
+      card.appendChild(el('p', 'note', T.m_hint));
+      const kv = (label, value, mono) => {
+        const row = el('div', 'kv');
+        row.appendChild(el('span', null, label));
+        row.appendChild(el('span', mono ? 'mono' : null, value || T.none));
+        card.appendChild(row);
+      };
+      kv(T.m_endpoint, d.url, true);
+      if (d.available) {
+        if (d.version) kv(T.m_version, d.version, true);
+        kv(T.m_metrics_count, num(d.metrics));
+        kv(T.m_updated, d.fetched ? new Date(d.fetched * 1000).toLocaleString() : T.none);
+      }
+      const btn = el('button', 'btn', T.m_reload);
+      btn.style.marginTop = '10px';
+      btn.addEventListener('click', () => loaders.metrics(true));
+      card.appendChild(btn);
+      return card;
+    }
+
+    function renderMetrics(box, d) {
+      box.textContent = '';
+      box.appendChild(metricsHead(d));
+
+      if (!d.available) {
+        const warn = el('div', 'banner bad');
+        warn.style.marginTop = '12px';
+        warn.appendChild(el('div', null, T.m_unavailable + ' ' + errText(d.reason)));
+        box.appendChild(warn);
+        const help = el('div', 'card');
+        help.style.marginTop = '12px';
+        help.appendChild(el('p', 'note', T.m_enable_hint));
+        box.appendChild(help);
+        return;
+      }
+
+      const sums = d.summary || {};
+      const keys = ['lines_read', 'lines_unparsed', 'overflows', 'active_decisions',
+                    'lapi_requests', 'appsec_blocked'];
+      const grid = el('div', 'row');
+      grid.style.setProperty('--cols', String(keys.length));
+      grid.style.marginTop = '12px';
+      keys.forEach(key => {
+        const card = el('div', 'card');
+        const stat = el('div', 'stat');
+        setStat(stat, sums[key] || 0);
+        card.appendChild(stat);
+        card.appendChild(el('div', 'stat-label', T['m_sum_' + key] || key));
+        grid.appendChild(card);
+      });
+      box.appendChild(grid);
+
+      const titles = T.m_tables || {}, cols = T.m_cols || {};
+      const tables = d.tables || [];
+      if (!tables.length) {
+        box.appendChild(el('div', 'empty', T.m_none));
+        return;
+      }
+      tables.forEach(tbl => {
+        const card = el('div', 'card');
+        card.style.marginTop = '12px';
+        card.appendChild(el('h2', null,
+          (titles[tbl.id] || tbl.id) + ' (' + num(tbl.total) + ')'));
+        const wrap = el('div', 'table-wrap');
+        const table = document.createElement('table');
+        const thead = document.createElement('thead');
+        const hr = el('tr');
+        tbl.cols.forEach(c => hr.appendChild(el('th', null, cols[c] || c)));
+        thead.appendChild(hr);
+        table.appendChild(thead);
+        const body = document.createElement('tbody');
+        (tbl.rows || []).forEach(row => {
+          const tr = el('tr');
+          tbl.cols.forEach((c, i) => {
+            const raw = row[c];
+            // First column is the name of the thing, the rest are numbers.
+            if (i === 0) tr.appendChild(el('td', 'mono', raw === '' || raw == null ? T.none : raw));
+            else if (typeof raw === 'number') tr.appendChild(el('td', null, num(raw)));
+            else tr.appendChild(el('td', 'muted', raw === '' || raw == null ? T.none : raw));
+          });
+          body.appendChild(tr);
+        });
+        table.appendChild(body);
+        wrap.appendChild(table);
+        card.appendChild(wrap);
+        if (tbl.truncated) {
+          card.appendChild(el('p', 'note',
+            fmt('m_truncated', { shown: num((tbl.rows || []).length), total: num(tbl.total) })));
+        }
         box.appendChild(card);
       });
     }
@@ -1371,7 +1934,11 @@
     fillSelect($('nType'), G.types, s => s, false);
     fillSelect($('nDuration'), G.durations.concat(['custom']),
                v => v === 'custom' ? T.dur_custom : (T['dur_' + v] || v), false);
-    fillSelect($('aSince'), ['1h', '24h', '168h', '720h'], v => T['since_' + v] || v, true);
+    // Die langen Zeitraeume ergeben nur mit Archiv eine Antwort, die weiter
+    // zurueckreicht als CrowdSecs Aufbewahrung. Ohne Archiv liefern sie schlicht
+    // das, was die LAPI noch hat — falsch wird davon nichts.
+    fillSelect($('aSince'), ['1h', '24h', '168h', '720h', '2160h', '8760h'],
+               v => T['since_' + v] || v, true);
     $('aSince').value = '24h';
     fillSelect($('aKind'), ['detections', 'lists', 'all'], v => T['kind_' + v] || v, false);
     $('aKind').addEventListener('change', reloadAlerts);

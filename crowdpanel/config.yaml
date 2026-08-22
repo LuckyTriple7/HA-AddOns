@@ -1,6 +1,6 @@
 name: CrowdPanel
 description: CrowdSec-Bedienpanel — Sperren ansehen, anlegen und aufheben
-version: "0.4.4"
+version: "0.6.1"
 slug: crowdpanel
 url: https://github.com/LuckyTriple7/HA-AddOns
 
@@ -44,6 +44,7 @@ options:
   machine_id: ""
   machine_password: ""
   lapi_tls_verify: true
+  prometheus_url: ""
   default_ban_duration: "4h"
   refresh_interval: 30
   page_size: 100
@@ -51,6 +52,13 @@ options:
   crowdsec_dir: ""
   crowdsec_db: ""
   history_days: 7
+  archive_enabled: true
+  archive_days: 365
+  archive_backfill_days: 30
+  archive_interval: 300
+  server_lat: 0
+  server_lon: 0
+  server_label: ""
   ha_sensors: true
   ha_sensor_interval: 300
   verbose_log: false
@@ -63,13 +71,21 @@ schema:
   machine_id: str?
   machine_password: password?
   lapi_tls_verify: bool?
+  prometheus_url: str?
   default_ban_duration: str?
   refresh_interval: int(0,3600)?
   page_size: int(10,1000)?
   whitelist_dir: str?
   crowdsec_dir: str?
   crowdsec_db: str?
-  history_days: int(1,30)?
+  history_days: int(1,3650)?
+  archive_enabled: bool?
+  archive_days: int(0,3650)?
+  archive_backfill_days: int(1,3650)?
+  archive_interval: int(60,86400)?
+  server_lat: float?
+  server_lon: float?
+  server_label: str?
   ha_sensors: bool?
   ha_sensor_interval: int(60,86400)?
   verbose_log: bool?

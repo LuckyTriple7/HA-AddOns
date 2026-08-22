@@ -586,6 +586,14 @@ def _parse_container(container) -> dict:
     except Exception:
         pass
 
+    # Netzwerk-Modus: bei 'host' (und 'none'/'container:<id>') liefert Docker
+    # keine Container-Netzstatistik -> UI zeigt '-' statt irreführender 0 B.
+    net_mode = ''
+    try:
+        net_mode = ((container.attrs.get('HostConfig') or {}).get('NetworkMode') or '')
+    except Exception:
+        pass
+
     base = {
         'id': container.short_id,
         'name': name,
@@ -597,6 +605,7 @@ def _parse_container(container) -> dict:
         'mem_pct': 0.0,
         'net_rx': 0,
         'net_tx': 0,
+        'net_mode': net_mode,
         'blk_r': 0,
         'blk_w': 0,
         'pids': 0,
@@ -626,9 +635,15 @@ def _parse_container(container) -> dict:
         mem_limit = mem_stats.get('limit', 1) or 1
         mem_pct = mem_usage / mem_limit * 100.0
 
-        # Network I/O
-        net_rx = sum(v.get('rx_bytes', 0) for v in raw.get('networks', {}).values())
-        net_tx = sum(v.get('tx_bytes', 0) for v in raw.get('networks', {}).values())
+        # Network I/O -- Container im Host-Netzwerk haben keinen eigenen
+        # Netz-Namespace, Docker liefert dann keinen 'networks'-Block.
+        # None statt 0, damit die UI '-' statt '0 B' anzeigen kann.
+        nets = raw.get('networks') or {}
+        if nets:
+            net_rx = sum(v.get('rx_bytes', 0) for v in nets.values())
+            net_tx = sum(v.get('tx_bytes', 0) for v in nets.values())
+        else:
+            net_rx = net_tx = None
 
         # Block I/O
         blk_r = blk_w = 0

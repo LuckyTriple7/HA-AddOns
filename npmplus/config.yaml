@@ -1,6 +1,6 @@
 name: NPMplus
 description: Reverse Proxy mit Web-Oberfläche auf Basis von NPMplus — HTTP/3, Let's Encrypt, CrowdSec-Bouncer und AppSec/WAF
-version: "0.1.26"
+version: "0.1.36"
 slug: npmplus
 url: https://github.com/LuckyTriple7/HA-AddOns
 
@@ -12,6 +12,16 @@ arch:
 
 startup: services
 boot: auto
+
+# Der Supervisor prüft, ob die Oberfläche noch auf ihrem Port antwortet, und
+# startet das Add-on sonst neu. Ohne das greift nur der Exit-Code aus run.sh —
+# ein hängendes nginx merkt dort niemand. Bewusst tcp:// statt https://: die
+# Oberfläche spricht HTTPS mit einem selbstsignierten Zertifikat.
+watchdog: "tcp://[HOST]:[PORT:81]"
+
+# Nur lesend: run.sh fragt die Add-on-Liste ab, um bei crowdsec_lapi_url "auto"
+# den Container-Hostnamen des CrowdSec-Add-ons zu finden.
+hassio_api: true
 
 # Das Upstream-Image bringt tini als eigenes Init mit — HA darf kein zweites davorsetzen.
 init: false
@@ -69,7 +79,9 @@ options:
   crowdsec_lapi_url: "http://127.0.0.1:8080"
   crowdsec_api_key: ""
   crowdsec_appsec_url: "http://127.0.0.1:7422"
-  crowdsec_captcha_provider: ""
+  crowdsec_fallback_remediation: "default"
+  crowdsec_retry_minutes: 15
+  crowdsec_captcha_provider: "off"
   crowdsec_captcha_site_key: ""
   crowdsec_captcha_secret_key: ""
   geo_mode: "off"
@@ -111,7 +123,9 @@ schema:
   crowdsec_lapi_url: str?
   crowdsec_api_key: password?
   crowdsec_appsec_url: str?
-  crowdsec_captcha_provider: list(|turnstile|hcaptcha|recaptcha)?
+  crowdsec_fallback_remediation: list(default|bypass|captcha|ban)
+  crowdsec_retry_minutes: int(0,120)
+  crowdsec_captcha_provider: list(off|turnstile|hcaptcha|recaptcha)
   crowdsec_captcha_site_key: str?
   crowdsec_captcha_secret_key: password?
   geo_mode: list(off|block|allow)

@@ -1107,7 +1107,7 @@ landen dauerhaft im **KI-Verlauf**.
 - **Sammelaktionen** — Angebote per Checkbox auswählen; in der erscheinenden Leiste lassen sich die ausgewählten gemeinsam **prüfen, als E-Mail senden, archivieren oder löschen** (E-Mail fragt den Empfänger ab und sendet nur die markierten aktiven Angebote).
 - **Trend-Hinweis** — je Angebot zeigt ein kleines Badge die Tendenz aus dem bisherigen Verlauf (↘ fällt / ↗ steigt / → stabil).
 - **Umbenennen** (✎ neben dem Namen) — eigenen Namen vergeben; leer = Hotelname.
-- **Prüfen** (🔍-Symbol rechts in der Knopfzeile) — ein Angebot sofort neu abfragen.
+- **Jetzt prüfen** (im ⋯-Menü am rechten Rand der Knopfzeile) — ein Angebot sofort neu abfragen.
 - **Alle prüfen** — alle Angebote abfragen.
 - **🤖 KI-Verlauf** (nur mit hinterlegtem `anthropic_api_key`) — bisherige
   KI-Fazits/-Vergleiche einsehen, siehe [KI-Fazit, -Vergleich & -Verlauf](#ki-fazit--vergleich--verlauf).
@@ -1119,7 +1119,7 @@ landen dauerhaft im **KI-Verlauf**.
   Euro mehr was Besseres"), ab dann wird deren Preis verfolgt. **„Details ↗"** öffnet das
   Zimmer mit Fotos/Beschreibung auf tui.com; **„Günstigstes automatisch"** hebt die
   Festlegung wieder auf.
-- **Pausieren / Fortsetzen** — setzt die automatische Prüfung für ein Angebot aus, ohne es zu löschen.
+- **Pausieren / Fortsetzen** (ebenfalls im ⋯-Menü) — setzt die automatische Prüfung für ein Angebot aus, ohne es zu löschen.
 - **Zurücksetzen** — löscht den Preisverlauf (und Vergleichs-/Kalender-Cache samt Kalender-Trend-Historie) und beginnt nach einer frischen Abfrage wieder bei „null". Angebot, Name und Wunschpreis bleiben.
 - **Archivieren / Reaktivieren** — legt ein Angebot ins Archiv (keine Live-Abfragen mehr) bzw. holt es zurück. Reisen werden **automatisch archiviert**, sobald ihr Rückreisedatum vergangen ist; manuell z. B. wenn ein Angebot ausgebucht/nicht mehr verfügbar ist. Der Schalter **„Archiv"** oben zeigt **nur** die archivierten Angebote (wie „Preisverlauf" für die Verlaufs-Hotels; beide Schalter schließen sich gegenseitig aus). Bei Prüfungen, Übersicht und E-Mail-Versand bleiben archivierte Angebote außen vor.
   **Ausnahme Preiskalender:** der läuft weiter (`calendar_archived_refresh`, Standard an) - alle 3 Tage statt täglich und immer erst, nachdem die aktiven Angebote dran waren. Grund: der Preis der abgelaufenen Reise ist zwar tot, der Kalender beschreibt aber Hotel, Zimmer, Verpflegung und Dauer und schaut immer **ab heute** nach vorn (das alte Reisedatum der URL geht in die Abfrage gar nicht ein). So wächst der Preisverlauf desselben Hotels über Jahre weiter, statt mit dem Archivieren abzureißen. Archivierte Karten haben dafür einen eigenen **Kalender**-Knopf.
@@ -1137,6 +1137,20 @@ am besten über Direktzugriff/Reverse-Proxy nutzen).
   Zeilen). Das komplette Log samt Filter steht unter **🔔 Meldungen & Fehler →
   📜 Konsole**: bis zu 2000 Zeilen seit dem Add-on-Start, durchsuchbar nach Text und
   Log-Stufe — Diagnose ohne Umweg über das HA-Log.
+- **Ausrufezeichen neben dem Logo** — **Störungen**: erscheint nur, wenn etwas
+  wiederholt ins Leere läuft und dabei täglich TUI-Aufrufe kostet — eine
+  Preisbarometer-Messreihe ohne Treffer (Ziel nicht mehr im Programm), ein Angebot,
+  das mehrfach keinen Preis mehr liefert, oder ein fehlschlagendes Suchabo. Gelb bei
+  einer einzelnen Warnung, rot ab drei Fehlversuchen in Folge. Ein Klick öffnet die
+  Liste mit Beschreibung, Serie, Gesamtzahl und Zeitpunkten; je Eintrag lässt sich
+  **genau diese Abfrage pausieren** (Messreihe fällt aus dem Preisbarometer, Angebot
+  wird pausiert, Suchabo abgeschaltet) — alles andere läuft weiter. Pausierte
+  Einträge bleiben ausgegraut stehen, damit nicht in Vergessenheit gerät, dass da
+  etwas stillgelegt wurde; „Ausblenden" entfernt nur den Eintrag — tritt der Leerlauf
+  wieder auf, kommt er zurück. Liefert die Quelle von selbst wieder etwas,
+  verschwindet die Störung ohne Zutun. Anders als **🔔 Meldungen → Warnungen/Fehler**
+  (jede Warnung seit dem Start) stehen hier nur die wiederkehrenden, abschaltbaren
+  Fälle.
 - **Rechtsklick auf das Logo** — **Nächste Läufe**: wann Preis-Checks, Suchabos,
   Preiskalender, Preisbarometer, Aktionscodes, Selbsttest, Backup und die
   wöchentliche Zusammenfassung das nächste Mal anstehen (Frühestens-Zeiten — der
