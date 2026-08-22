@@ -1997,6 +1997,13 @@
         <h3>{{ t.sensors_heading }}</h3>
         <p class="hint">{{ t.sensors_hint }}</p>
       </div>
+      <div class="panel" data-jump-panel>
+        <h3>{{ t.ghtoken_heading }}</h3>
+        <p class="hint">{{ t.ghtoken_hint }}</p>
+        <div id="ghtoken-status" class="hint" style="margin:10px 0 0">{{ t.ghtoken_checking }}</div>
+        <div id="ghtoken-detail" class="hint" style="margin:4px 0 0"></div>
+        <button class="btn secondary small" style="margin-top:12px" onclick="loadGhToken(this)">{{ t.ghtoken_check }}</button>
+      </div>
     </section>
 
     <!-- Statistik -->
@@ -3231,6 +3238,7 @@
       fillLegal();
       fillSections();
       fillSystem();
+      loadGhToken();
       renderProjects();
       renderPosts();
       renderPages();
@@ -5150,6 +5158,48 @@
         // Browser bleibt im gewählten Ordner stehen, Aktiv-Anzeige + Nutzerliste aktualisieren
         await loadStorageDirs(stPath);
         loadUsers();
+      }
+    }
+
+    // ── System: GitHub-Token-Status ──
+    async function loadGhToken(btn) {
+      const box = el('ghtoken-status'), det = el('ghtoken-detail');
+      if (!box) return;
+      if (btn) btn.disabled = true;
+      box.textContent = T.ghtoken_checking;
+      box.style.color = '';
+      det.textContent = '';
+      try {
+        const r = await api('api/github/token' + (btn ? '?force=1' : ''));
+        if (!r.ok) throw new Error('http');
+        const d = await r.json();
+        const msg = { ok: T.ghtoken_ok, missing: T.ghtoken_missing,
+                      invalid: T.ghtoken_invalid, error: T.ghtoken_error }[d.state] || T.ghtoken_error;
+        box.textContent = (d.state === 'ok' ? '● ' : '○ ') + msg.replace('{user}', d.user || '');
+        box.style.color = d.state === 'ok' ? 'var(--green-h)'
+                        : d.state === 'invalid' ? 'var(--red)' : 'var(--yellow)';
+        if (d.state !== 'ok') return;
+        const parts = [];
+        if (d.expires) {
+          const date = d.expires.slice(0, 10);
+          const days = d.days;
+          if (days < 0)       parts.push(T.ghtoken_expired);
+          else if (days <= 14) { parts.push(T.ghtoken_expires_soon.replace('{days}', days));
+                                 box.style.color = 'var(--yellow)'; }
+          else parts.push(T.ghtoken_expires.replace('{date}', date).replace('{days}', days));
+        } else {
+          parts.push(T.ghtoken_no_expiry);
+        }
+        if (d.rate_limit) {
+          parts.push(T.ghtoken_rate.replace('{remaining}', d.rate_remaining)
+                                   .replace('{limit}', d.rate_limit));
+        }
+        det.textContent = parts.join(' · ');
+      } catch (e) {
+        box.textContent = '○ ' + T.ghtoken_error;
+        box.style.color = 'var(--yellow)';
+      } finally {
+        if (btn) btn.disabled = false;
       }
     }
 

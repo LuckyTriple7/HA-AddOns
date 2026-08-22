@@ -3541,6 +3541,27 @@ def _weekly_summary() -> dict:
             'new_members': new_members, 'new_messages': new_messages}
 
 
+def _weekly_github_token_line() -> str:
+    """Zeile zum GitHub-Token für den Wochenrückblick ('' = kein Token gesetzt)."""
+    t = check_github_token(force=True)
+    if t['state'] == 'missing':
+        return ''
+    if t['state'] == 'invalid':
+        return 'GitHub-Token: ⚠ ungültig oder abgelaufen — bitte erneuern'
+    if t['state'] != 'ok':
+        return 'GitHub-Token: Prüfung fehlgeschlagen (GitHub nicht erreichbar)'
+    if not t.get('expires'):
+        return 'GitHub-Token: gültig (kein Ablaufdatum)'
+    days, date_txt = t.get('days'), t['expires'][:10]
+    if days is None:
+        return f'GitHub-Token: gültig bis {date_txt}'
+    if days < 0:
+        return f'GitHub-Token: ⚠ seit {date_txt} abgelaufen — bitte erneuern'
+    if days <= 30:
+        return f'GitHub-Token: ⚠ läuft in {days} Tagen ab ({date_txt}) — bitte erneuern'
+    return f'GitHub-Token: gültig bis {date_txt} (noch {days} Tage)'
+
+
 def _send_weekly_review() -> None:
     """Verschickt den Wochenrückblick als HA-Benachrichtigung und (falls SMTP
     konfiguriert) als E-Mail an die Admin-Adresse. Texte bewusst auf Deutsch —
@@ -3564,6 +3585,9 @@ def _send_weekly_review() -> None:
         f"Neue Mitglieder: {s['new_members']}",
         f"Neue Nachrichten: {s['new_messages']}",
     ]
+    gh_line = _weekly_github_token_line()
+    if gh_line:
+        lines.append(gh_line)
     notify_ha('📊 MyPage: Wochenrückblick', '\n'.join(lines),
               notification_id='mypage_weekly_review')
     if smtp_configured():
@@ -3888,6 +3912,49 @@ def fetch_github_readme(full_name: str) -> str:
     return ''
 
 
+_gh_token_cache: dict = {'ts': 0.0, 'data': None}
+
+
+def check_github_token(force: bool = False) -> dict:
+    """Prüft den konfigurierten Token gegen GET /user (5 Minuten gecacht)."""
+    if (not force and _gh_token_cache['data'] is not None
+            and time.time() - _gh_token_cache['ts'] < 300):
+        return _gh_token_cache['data']
+
+    token = (load_config().get('github_token') or '').strip()
+    if not token:
+        res = {'state': 'missing'}
+    else:
+        try:
+            r = http.get(f'{GITHUB_API}/user', headers=_gh_headers(), timeout=10)
+            if r.status_code == 200:
+                res = {'state': 'ok', 'user': (r.json() or {}).get('login', '')}
+                expires = r.headers.get(
+                    'GitHub-Authentication-Token-Expiration', '').strip()
+                if expires:
+                    res['expires'] = expires
+                    try:
+                        exp = datetime.strptime(expires[:19], '%Y-%m-%d %H:%M:%S')
+                        res['days'] = (exp.replace(tzinfo=timezone.utc)
+                                       - datetime.now(timezone.utc)).days
+                    except ValueError:
+                        log.warning("Unbekanntes Token-Ablaufformat")
+                for key, hdr in (('rate_limit', 'X-RateLimit-Limit'),
+                                 ('rate_remaining', 'X-RateLimit-Remaining')):
+                    try:
+                        res[key] = int(r.headers.get(hdr, ''))
+                    except ValueError:
+                        pass
+            else:
+                res = {'state': 'invalid'}
+        except http.exceptions.RequestException:
+            log.warning("GitHub-Token-Prüfung fehlgeschlagen")
+            res = {'state': 'error'}
+
+    _gh_token_cache.update(ts=time.time(), data=res)
+    return res
+
+
 def refresh_project_stars() -> None:
     """Aktualisiert Sterne-Zahlen importierter Projekte (1×/Stunde)."""
     while True:
@@ -3899,6 +3966,10 @@ def refresh_project_stars() -> None:
                 if not repo or not _GH_REPO_RE.match(repo):
                     continue
                 r = http.get(f'{GITHUB_API}/repos/{repo}', headers=_gh_headers(), timeout=15)
+                if r.status_code in (401, 403):
+                    log.warning("Sterne-Update abgelehnt (HTTP %d) — GitHub-Token "
+                                "prüfen (Admin → System)", r.status_code)
+                    break
                 if r.status_code == 200:
                     data = r.json()
                     new_stars = data.get('stargazers_count', p.get('stars', 0))
@@ -9114,6 +9185,15 @@ def api_docs_cleanup():
     if err:
         return err
     return _cleanup_dir(*_unused_docs(load_site()), 'docs_cleanup')
+
+
+@admin_app.route('/api/github/token')
+def api_github_token():
+    err = _api_auth()
+    if err:
+        return err
+    force = request.args.get('force') == '1'
+    return jsonify(check_github_token(force=force))
 
 
 @admin_app.route('/api/github/repos')
