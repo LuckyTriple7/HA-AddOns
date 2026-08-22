@@ -748,7 +748,7 @@ Fehlt ab Werk. Dafür müssen die MaxMind-Datenbanken (kostenloses Konto) nach `
 | `nginx_worker_processes` | `auto` | Anzahl nginx-Worker |
 | `nginx_worker_connections` | `512` | Verbindungen je Worker |
 | `cookie_secret` | – | Fester Schlüssel für Anmelde-Cookies |
-| `expose_data_dir` | `false` | Datenbank, Zertifikate und Konfiguration nach `/app_configs/<slug>` legen |
+| `expose_data_dir` | `false` | Bearbeitbare Konfiguration nach `/app_configs/<slug>` legen |
 | `extra_env` | `[]` | Weitere NPMplus-Variablen als `KEY=VALUE` |
 
 Alles, was hier nicht auftaucht, lässt sich über `extra_env` setzen. Die vollständige Liste steht in der [compose.yaml von NPMplus](https://github.com/ZoeyVid/NPMplus/blob/develop/compose.yaml):
@@ -789,26 +789,22 @@ Alles liegt im privaten Add-on-Verzeichnis `/data`:
 
 ### Daten im Konfigurationsordner (`expose_data_dir`)
 
-Mit `expose_data_dir: true` liegen Datenbank, Zertifikate und Konfiguration nicht mehr im privaten `/data`, sondern im öffentlichen Konfigurationsordner der App — außen erreichbar als `/app_configs/<slug>` über Samba, den Datei-Editor oder ein Terminal. In `/data` bleibt an jeder alten Stelle ein Symlink, NPMplus merkt vom Umzug nichts.
-
-Umgezogen wird:
+Mit `expose_data_dir: true` liegen die von Hand bearbeitbaren Teile der Konfiguration im öffentlichen Konfigurationsordner der App — außen erreichbar als `/app_configs/<slug>` über Samba, den Datei-Editor oder ein Terminal. In `/data` bleibt an jeder alten Stelle ein Symlink, NPMplus merkt vom Umzug nichts.
 
 | Was | Danach unter |
 |---|---|
-| Zertifikate samt privater Schlüssel | `/app_configs/<slug>/tls/` |
-| Datenbank | `/app_configs/<slug>/npmplus/database.sqlite` |
 | Eigene nginx-Schnipsel | `/app_configs/<slug>/custom_nginx/` |
 | Zugriffslisten | `/app_configs/<slug>/access/` |
 | CrowdSec-Sperr- und Captcha-Seiten | `/app_configs/<slug>/crowdsec/` |
 | Standard-Webseite | `/app_configs/<slug>/html/` |
 
-Absichtlich **nicht** umgezogen wird `keys.json`: das ist der Signierschlüssel der Sitzungs-Token und bleibt in `/data`.
+**Zertifikate, Datenbank und Schlüssel bleiben in `/data`.** Das ist der Zustand, den man nicht neu erzeugen kann, und ein Ordner, den jede App mit `all_app_configs`-Mapping mitlesen kann, ist kein Platz für private Schlüssel. Zum Herauskopieren gibt es `docker cp` (siehe unten).
 
-> **Sicherheitshinweis:** In `tls/` liegen die privaten Schlüssel aller Zertifikate. Wer Zugriff auf die Samba-Freigabe hat, kann sie lesen — und jede andere App mit `all_app_configs`-Mapping ebenfalls. Deshalb ist die Option ab Werk aus.
+Der Umzug kopiert und löscht nichts: das Original bleibt als `<pfad>.pre-expose` in `/data` liegen. Ausschalten holt den Inhalt aus `/config` zurück nach `/data`.
 
-Ausschalten holt alles wieder zurück: der nächste Start löst die Symlinks auf und verschiebt die Daten nach `/data`. Liegt beim Einschalten in beiden Ordnern etwas mit demselben Namen, gewinnt die Fassung aus `/data`; die andere bleibt mit Zeitstempel als `.bak` liegen.
+Braucht **Supervisor 2026.07 oder neuer** (dort wurde `addon_config` zu `app_config`). Ist der Ordner nicht wirklich eingehängt, bricht das Add-on den Umzug ab und schreibt eine Warnung ins Protokoll — es prüft dafür `mountpoint`, nicht nur die Existenz des Verzeichnisses.
 
-Braucht **Supervisor 2026.07 oder neuer** (dort wurde `addon_config` zu `app_config`). Auf älteren Ständen wird der Ordner nicht eingehängt, das Add-on schreibt eine Warnung ins Protokoll und lässt alles in `/data`.
+> **Version 0.2.0 nicht benutzen.** Dort wanderten auch `tls/` und die Datenbank mit. Ab 0.2.1 holt der Start beide selbsttätig zurück nach `/data`; zeigt ein Symlink ins Leere, wird er entfernt, damit nginx wieder startet.
 
 ### Über Samba erreichbar?
 
