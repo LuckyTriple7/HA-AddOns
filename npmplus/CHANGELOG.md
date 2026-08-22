@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.1.36] - 2026-08-22
+
+### Geändert
+- Fehlersuche um einen Eintrag ergänzt: **Sperre als Timeout statt 403**. Das kommt nicht vom
+  nginx-Bouncer in NPMplus, sondern vom Firewall-Bouncer von CrowdSec, der die Pakete auf
+  iptables-Ebene verwirft. Merkregel: `403` = nginx-Bouncer (HTTP-Ebene), Timeout =
+  Firewall-Bouncer (Paketebene). Aus demselben Grund ist bei einem Firewall-Ban auch
+  `geo_deny_action: 444` nie zu sehen — es kommt nichts bis zu nginx durch.
+
 ## [0.1.35] - 2026-08-22
 
 ### Geändert
