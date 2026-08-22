@@ -744,6 +744,7 @@
     // gezoomt hat, will nicht bei jedem Durchlauf wieder die ganze Welt sehen.
     const MAP_ZOOM_MAX = 16;
     const MAP_ZOOM_STEP = 1.6;
+    const MAP_DRAG_SLOP = 8;
     let mapView = null;
 
     // Zoomen und Verschieben aendern nur die viewBox — kein Neuzeichnen, keine
@@ -804,8 +805,17 @@
         return [it.next().value, it.next().value];
       }
 
-      function capture(id) {
-        try { svg.setPointerCapture(id); } catch (err) { /* nicht kritisch */ }
+      // Bewusst ohne setPointerCapture: eine Zeigererfassung leitet auch das
+      // anschliessende click-Ereignis auf das SVG um, und dann kommt ein Tipp
+      // auf einen Punkt nie mehr bei diesem Punkt an — auf dem Telefon reicht
+      // dafuer das bisschen Wackeln beim Antippen. Stattdessen hoert waehrend
+      // des Ziehens das Fenster mit, damit die Maus auch ausserhalb der Karte
+      // weiterzieht; die Zuhoerer raeumen sich beim Loslassen selbst weg.
+      function listenWhileDown(on) {
+        const fn = on ? window.addEventListener : window.removeEventListener;
+        fn.call(window, 'pointermove', onMove);
+        fn.call(window, 'pointerup', endPointer);
+        fn.call(window, 'pointercancel', endPointer);
       }
 
       svg.addEventListener('pointerdown', function (e) {
@@ -815,15 +825,15 @@
           pan = { x: e.clientX, y: e.clientY, cx: mapView.cx, cy: mapView.cy, w: rect.width, h: rect.height };
           svg.classList.add('dragging');
           mapDragged = false;
+          listenWhileDown(true);
         } else if (pointers.size === 2) {
           const [a, b] = twoPointers();
           pan = null;
           pinch = { dist: Math.hypot(a.x - b.x, a.y - b.y) || 1, z: mapView.z };
-          pointers.forEach((v, id) => capture(id));
         }
       });
 
-      svg.addEventListener('pointermove', function (e) {
+      function onMove(e) {
         if (!pointers.has(e.pointerId)) return;
         pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
         if (pinch && pointers.size >= 2) {
@@ -835,26 +845,24 @@
         }
         if (!pan || !pan.w) return;
         const dx = e.clientX - pan.x, dy = e.clientY - pan.y;
-        // Erst ab der Schwelle festhalten: eine Zeigererfassung leitet auch das
-        // anschliessende click-Ereignis auf das SVG um, und dann kaeme ein
-        // einfacher Klick nie mehr beim Punkt darunter an.
-        if (!mapDragged && (Math.abs(dx) > 3 || Math.abs(dy) > 3)) {
-          mapDragged = true;
-          capture(e.pointerId);
-        }
-        if (!mapDragged) return;
+        // Unter der Schwelle ist es ein Tippen, kein Ziehen. Acht Pixel, weil
+        // ein Finger nie ganz still steht.
+        if (!mapDragged && Math.hypot(dx, dy) <= MAP_DRAG_SLOP) return;
+        mapDragged = true;
         mapView.cx = pan.cx - dx * (base.w / mapView.z) / pan.w;
         mapView.cy = pan.cy - dy * (base.h / mapView.z) / pan.h;
         apply();
-      });
+      }
 
       function endPointer(e) {
         pointers.delete(e.pointerId);
         if (pointers.size < 2) pinch = null;
-        if (pointers.size === 0) { pan = null; svg.classList.remove('dragging'); }
+        if (pointers.size === 0) {
+          pan = null;
+          svg.classList.remove('dragging');
+          listenWhileDown(false);
+        }
       }
-      svg.addEventListener('pointerup', endPointer);
-      svg.addEventListener('pointercancel', endPointer);
 
       svg.addEventListener('dblclick', function (e) {
         e.preventDefault();

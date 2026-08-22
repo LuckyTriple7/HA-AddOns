@@ -1,6 +1,6 @@
 name: CrowdPanel
 description: CrowdSec-Bedienpanel — Sperren ansehen, anlegen und aufheben
-version: "0.5.4"
+version: "0.5.5"
 slug: crowdpanel
 url: https://github.com/LuckyTriple7/HA-AddOns
 
@@ -52,6 +52,8 @@ options:
   crowdsec_dir: ""
   crowdsec_db: ""
   history_days: 7
+  server_lat: 0
+  server_lon: 0
   server_label: ""
   ha_sensors: true
   ha_sensor_interval: 300

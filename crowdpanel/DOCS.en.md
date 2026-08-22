@@ -229,8 +229,12 @@ at. `server_label` names it in the tooltip and in the footer, for example `Home`
 or `Falkenstein data centre`. The coordinates come from the configuration and
 are never looked up: your public address does not travel to some third-party geo
 service just so a dot can sit on the map. Two decimal places locate a place to
-about a kilometre; anyone wanting to give away less rounds coarsely. Without
-both values the dot is simply left out.
+about a kilometre; anyone wanting to give away less rounds coarsely.
+
+Both fields default to `0`, and `0/0` counts — as it does for alerts — as “not
+filled in”: as long as nothing is entered there, the dot stays away. Coordinates
+for your own place come from any map on the web; in Home Assistant they sit
+under *Settings → System → General* next to the location.
 
 The outlines ship as `static/world.svg`, generated from Natural Earth 1:110m
 (public domain, see [LICENSE.md](LICENSE.md)). Nothing is fetched from the
@@ -562,8 +566,8 @@ again after that, so a misconfiguration cannot flood the log.
 | `crowdsec_dir` | empty | CrowdSec configuration directory, only if auto-detection fails |
 | `crowdsec_db` | empty | CrowdSec database, only if auto-detection fails |
 | `history_days` | `7` | how many days the history covers |
-| `server_lat` | empty | latitude of your own location for the dot on the map |
-| `server_lon` | empty | longitude of your own location, only effective together with `server_lat` |
+| `server_lat` | `0` | latitude of your own location for the dot on the map, `0/0` means “not filled in” |
+| `server_lon` | `0` | longitude of your own location, only effective together with `server_lat` |
 | `server_label` | empty | label for that dot, otherwise "This server" |
 | `ha_sensors` | `true` | report sensors to Home Assistant |
 | `ha_sensor_interval` | `300` | seconds between two sensor updates |

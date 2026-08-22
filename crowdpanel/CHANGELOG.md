@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.5.5] - 2026-08-22
+
+### Fixed
+- **Punkte auf der Angriffskarte ließen sich nicht mehr anklicken.** Das
+  Verschieben hielt den Zeiger mit `setPointerCapture` fest, und eine
+  Zeigererfassung leitet auch das anschließende `click`-Ereignis auf die Karte
+  um — beim Punkt darunter kam nichts mehr an. Jetzt hört während des Ziehens
+  das Fenster mit statt den Zeiger festzuhalten; die Maus zieht damit weiterhin
+  auch außerhalb der Karte weiter. Als Tippen zählt alles unter acht Pixel
+  Bewegung, denn ein Finger steht nie ganz still.
+
+- **`server_lat` und `server_lon` fehlten in den Add-on-Optionen.** Sie standen
+  nur im Schema, und Home Assistant zeigt im Konfigurationsformular nur, was
+  auch unter `options` steht — sichtbar war deshalb allein `server_label`. Beide
+  Felder haben jetzt die Vorgabe `0`; `0/0` gilt wie bei den Alarmen als „nicht
+  eingetragen“ und lässt den Punkt weg.
+
 ## [0.5.4] - 2026-08-22
 
 ### Added

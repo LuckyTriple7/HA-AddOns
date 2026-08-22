@@ -1000,6 +1000,10 @@ def _home_point() -> dict | None:
     lon = _cfg_float('server_lon', -180, 180)
     if lat is None or lon is None:
         return None
+    # 0/0 ist die Vorgabe der beiden Optionen und heisst 'nicht eingetragen' —
+    # dieselbe Lesart wie bei den Alarmen, im Golf von Guinea sitzt niemand.
+    if lat == 0 and lon == 0:
+        return None
     label = str(load_config().get('server_label') or '').strip()
     return {'lat': round(lat, 4), 'lon': round(lon, 4), 'label': label[:80]}
 
