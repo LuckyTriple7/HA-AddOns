@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.101.1] - 2026-08-22
+
+### Fixed
+- **Preisverlauf: Markup statt Symbol an den Linien.**
+  An der Linie fuer den gebuchten Preis und an der Wunschpreis-Linie stand
+  `<svg class="i"><use href="#i-bookmark"/></svg> 1.686 €` im Diagramm. Die
+  Beschriftungen werden mit `fillText` ins Canvas gemalt, und ein Canvas kennt
+  kein HTML — der SVG-Baustein aus der Icon-Umstellung landete daher Zeichen fuer
+  Zeichen als Text neben dem Betrag. Beide Symbole werden jetzt direkt mit
+  Canvas-Mitteln gezeichnet (Lesezeichen bzw. Zielscheibe).
+
 ## [0.101.0] - 2026-08-21
 
 ### Added

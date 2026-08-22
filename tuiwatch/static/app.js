@@ -876,14 +876,29 @@
         const ty=Y(opts.target);
         ctx.save(); ctx.strokeStyle=amber; ctx.setLineDash([5,4]); ctx.lineWidth=1.2;
         ctx.beginPath(); ctx.moveTo(padL,ty); ctx.lineTo(w-padR,ty); ctx.stroke(); ctx.restore();
-        if(full){ ctx.fillStyle=amber; ctx.font='10px sans-serif'; ctx.fillText('<svg class="i"><use href="#i-target"/></svg> '+Math.round(opts.target).toLocaleString('de-DE')+' €', padL+3, ty-3); }
+        if(full){
+          // Zielscheibe zeichnen — Canvas kennt kein HTML, ein <svg>-String landet sonst als Text im Bild
+          ctx.save(); ctx.strokeStyle=amber; ctx.fillStyle=amber; ctx.lineWidth=1.2;
+          ctx.beginPath(); ctx.arc(padL+7, ty-7, 4, 0, 7); ctx.stroke();
+          ctx.beginPath(); ctx.arc(padL+7, ty-7, 1.4, 0, 7); ctx.fill(); ctx.restore();
+          ctx.fillStyle=amber; ctx.font='10px sans-serif';
+          ctx.fillText(Math.round(opts.target).toLocaleString('de-DE')+' €', padL+14, ty-3);
+        }
       }
       // Gebuchter-Preis-Linie (gezahlter Preis seit Buchung)
       if(opts.booked){
         const by=Y(opts.booked); const violet='#a371f7';
         ctx.save(); ctx.strokeStyle=violet; ctx.setLineDash([2,3]); ctx.lineWidth=1.4;
         ctx.beginPath(); ctx.moveTo(padL,by); ctx.lineTo(w-padR,by); ctx.stroke(); ctx.restore();
-        if(full){ ctx.fillStyle=violet; ctx.font='10px sans-serif'; ctx.fillText('<svg class="i"><use href="#i-bookmark"/></svg> '+Math.round(opts.booked).toLocaleString('de-DE')+' €', padL+3, by+11); }
+        if(full){
+          // Lesezeichen zeichnen statt <svg>-Markup in fillText zu stecken
+          const gx=padL+3, gy=by+4;
+          ctx.save(); ctx.fillStyle=violet; ctx.beginPath();
+          ctx.moveTo(gx,gy); ctx.lineTo(gx+7,gy); ctx.lineTo(gx+7,gy+8);
+          ctx.lineTo(gx+3.5,gy+5.5); ctx.lineTo(gx,gy+8); ctx.closePath(); ctx.fill(); ctx.restore();
+          ctx.fillStyle=violet; ctx.font='10px sans-serif';
+          ctx.fillText(Math.round(opts.booked).toLocaleString('de-DE')+' €', padL+14, by+11);
+        }
       }
       // Änderungs-Marker (Events): senkrechte Linie + Fähnchen; Trefferflächen für Tooltip
       cv._events = [];
