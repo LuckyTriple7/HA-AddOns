@@ -223,6 +223,12 @@ refresh: whoever zoomed in on Sao Paulo does not get the whole world back every
 thirty seconds. Zooming happens around the mouse pointer, and dragging stops at
 the edge of the map.
 
+A dot measures three to six pixels depending on the number of detections. So it
+can still be hit, a transparent target of twenty-two pixels sits on top of it —
+measured in pixels, not in map units, so it is the same size on a phone as on a
+desktop and at every zoom level. The dot lights up as soon as the pointer is on
+it.
+
 **Your own location.** With `server_lat` and `server_lon` set, CrowdPanel draws
 a blue dot with a ring at that spot — the reference point all those red dots aim
 at. `server_label` names it in the tooltip and in the footer, for example `Home`

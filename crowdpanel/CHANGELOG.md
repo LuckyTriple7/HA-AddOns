@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.5.6] - 2026-08-22
+
+### Fixed
+- **Kartenpunkte ließen sich nicht treffen.** Der sichtbare Punkt ist je nach
+  Zahl der Erkennungen drei bis sechs Bildpunkte groß — zu wenig, um ihn mit
+  der Maus sicher zu treffen, und auf dem Telefon aussichtslos: dort waren es
+  keine drei Bildpunkte. Jeder Punkt hat jetzt eine durchsichtige Trefferfläche
+  von zweiundzwanzig Bildpunkten darüber, die Mauszeiger, Kurzinfo und Klick
+  annimmt. Sie wird in Bildpunkten gerechnet, nicht in Karteneinheiten, und
+  bleibt deshalb auf jedem Bildschirm und in jeder Zoomstufe gleich groß. Wer
+  einen Punkt berührt, sieht ihn hell werden — vorher gab es keine Rückmeldung,
+  ob man getroffen hat.
+
+- **Die Zoomknöpfe verdeckten die Punkte unter sich.** Ihr Rahmen liegt über
+  der Karte und fing Klicks ab, auch zwischen den Knöpfen. Er reicht Klicks
+  jetzt durch, nur die Knöpfe selbst nehmen noch welche an.
+
 ## [0.5.5] - 2026-08-22
 
 ### Fixed

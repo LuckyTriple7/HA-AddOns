@@ -227,6 +227,12 @@ gezoomt hat, sieht nicht alle dreißig Sekunden wieder die ganze Welt.
 Vergrößert wird um den Mauszeiger herum, und über den Kartenrand hinaus lässt
 sich nicht ziehen.
 
+Ein Punkt misst je nach Zahl der Erkennungen drei bis sechs Bildpunkte. Damit
+er sich trotzdem treffen lässt, liegt über ihm eine durchsichtige Trefferfläche
+von zweiundzwanzig Bildpunkten — gerechnet in Bildpunkten, nicht in
+Karteneinheiten, also auf dem Telefon genauso groß wie am Schreibtisch und in
+jeder Zoomstufe gleich. Der Punkt wird hell, sobald der Zeiger darauf liegt.
+
 **Der eigene Standort.** Wird `server_lat` und `server_lon` gesetzt, zeichnet
 CrowdPanel einen blauen Punkt mit Ring an diese Stelle — der Bezugspunkt, auf
 den all die roten Punkte zielen. `server_label` benennt ihn im Mauszeigertext

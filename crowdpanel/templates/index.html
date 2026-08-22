@@ -60,13 +60,20 @@
     .map-wrap svg.dragging { cursor: grabbing; }
     .map-wrap .cc { fill: var(--surf2); stroke: var(--muted); stroke-opacity: .45; stroke-width: 1; vector-effect: non-scaling-stroke; }
     .map-pt { fill: var(--red); fill-opacity: .5; stroke: var(--red); stroke-width: 1;
-              vector-effect: non-scaling-stroke; cursor: pointer; }
-    .map-pt:hover { fill-opacity: .95; }
+              vector-effect: non-scaling-stroke; pointer-events: none; }
+    /* Durchsichtige Trefferflaeche ueber dem Punkt. fill: transparent statt
+       fill: none — ohne Fuellung faengt ein SVG-Kreis keinen Zeiger. */
+    .map-hit { fill: transparent; cursor: pointer; }
+    .map-pt.hot { fill-opacity: .95; }
     .map-home { fill: var(--accent); fill-opacity: .9; stroke: var(--bg); stroke-width: 1.5;
                 vector-effect: non-scaling-stroke; }
     .map-home-ring { fill: none; stroke: var(--accent); stroke-width: 1.5; stroke-opacity: .7;
                      vector-effect: non-scaling-stroke; }
-    .map-zoom { position: absolute; top: 8px; right: 8px; display: flex; flex-direction: column; gap: 4px; }
+    /* Der Rahmen der Knoepfe liegt ueber der Karte; ohne pointer-events: none
+       waeren die Punkte in seiner Ecke nicht mehr zu treffen. */
+    .map-zoom { position: absolute; top: 8px; right: 8px; display: flex; flex-direction: column;
+                gap: 4px; pointer-events: none; }
+    .map-zoom button { pointer-events: auto; }
     .map-zoom button { width: 30px; height: 30px; line-height: 1; font-size: 0.95rem;
                        background: var(--surf); border: 1px solid var(--border); color: var(--text);
                        border-radius: 6px; cursor: pointer; opacity: .85; }
@@ -745,6 +752,7 @@
     const MAP_ZOOM_MAX = 16;
     const MAP_ZOOM_STEP = 1.6;
     const MAP_DRAG_SLOP = 8;
+    const MAP_HIT_PX = 11;
     let mapView = null;
 
     // Zoomen und Verschieben aendern nur die viewBox — kein Neuzeichnen, keine
@@ -754,6 +762,7 @@
       const raw = (svg.getAttribute('viewBox') || '0 0 360 360').split(/[\s,]+/).map(Number);
       const base = { x: raw[0] || 0, y: raw[1] || 0, w: raw[2] || 360, h: raw[3] || 360 };
       const scaled = Array.prototype.slice.call(svg.querySelectorAll('[data-r]'));
+      const targets = Array.prototype.slice.call(svg.querySelectorAll('.map-hit'));
       if (!mapView) mapView = { z: 1, cx: base.x + base.w / 2, cy: base.y + base.h / 2 };
 
       function apply() {
@@ -765,6 +774,16 @@
         mapView.cy = Math.min(Math.max(mapView.cy, base.y + h / 2), base.y + base.h - h / 2);
         svg.setAttribute('viewBox', (mapView.cx - w / 2) + ' ' + (mapView.cy - h / 2) + ' ' + w + ' ' + h);
         scaled.forEach(n => n.setAttribute('r', (Number(n.getAttribute('data-r')) / z).toFixed(3)));
+        // Die Trefferflaeche wird in Bildpunkten gedacht, nicht in Karteneinheiten:
+        // auf einem Telefon ist die Karte 400 Bildpunkte breit, dieselben vier
+        // Einheiten waeren dort ein Ziel von sieben Bildpunkten. Ein Finger
+        // braucht rund zweiundzwanzig.
+        const px = svg.getBoundingClientRect().width;
+        if (px) {
+          const perPx = w / px;
+          targets.forEach(n => n.setAttribute('r', Math.max(
+            Number(n.getAttribute('data-r')) / z, MAP_HIT_PX * perPx).toFixed(3)));
+        }
       }
 
       // Der Punkt unter dem Zeiger bleibt beim Zoomen unter dem Zeiger. Das
@@ -897,14 +916,34 @@
       }
       const svg = document.importNode(parsed.documentElement, true);
       const NS = 'http://www.w3.org/2000/svg';
+      // Die Trefferflaechen kommen zum Schluss obenauf, damit keine von einem
+      // spaeter gezeichneten Punkt verdeckt wird.
+      const hits = [];
 
+      // Ein Punkt besteht aus zwei Kreisen: dem sichtbaren und einem groesseren
+      // durchsichtigen darueber, der Mauszeiger, Kurzinfo und Klick annimmt. Der
+      // sichtbare misst je nach Zahl der Erkennungen zwei bis sechs Bildpunkte
+      // — zu wenig, um ihn mit der Maus sicher zu treffen, und auf dem Telefon
+      // aussichtslos. Die Trefferflaeche ist deshalb mindestens doppelt so gross
+      // und wird wie der Punkt gegen den Zoom gerechnet.
       (d.points || []).forEach(pt => {
+        const radius = mapRadius(pt.count);
+        const dot = document.createElementNS(NS, 'circle');
+        dot.setAttribute('class', 'map-pt');
+        dot.setAttribute('cx', mapX(pt.lon));
+        dot.setAttribute('cy', mapY(pt.lat));
+        dot.setAttribute('data-r', radius);
+        dot.setAttribute('r', radius);
+        svg.appendChild(dot);
+
         const c = document.createElementNS(NS, 'circle');
-        c.setAttribute('class', 'map-pt');
+        c.setAttribute('class', 'map-hit');
         c.setAttribute('cx', mapX(pt.lon));
         c.setAttribute('cy', mapY(pt.lat));
-        c.setAttribute('data-r', mapRadius(pt.count));
-        c.setAttribute('r', mapRadius(pt.count));
+        c.setAttribute('data-r', Math.max(radius * 2, 4));
+        c.setAttribute('r', Math.max(radius * 2, 4));
+        c.addEventListener('pointerenter', () => dot.classList.add('hot'));
+        c.addEventListener('pointerleave', () => dot.classList.remove('hot'));
         const title = document.createElementNS(NS, 'title');
         const name = countryName(pt.country);
         title.textContent = pt.value
@@ -913,8 +952,8 @@
           + '\n' + fmt('map_hits', { n: pt.count })
           + (pt.scenario ? ' · ' + pt.scenario : '');
         c.appendChild(title);
-        // Ein Punkt fuehrt zur Alarmliste dieser Adresse — banned wird von dort
-        // aus bewusst, nicht durch einen Klick auf einen 3 Pixel grossen Kreis.
+        // Ein Punkt fuehrt zur Alarmliste dieser Adresse — gesperrt wird von
+        // dort aus bewusst, nicht mit einem Klick auf einen Kartenpunkt.
         c.addEventListener('click', () => {
           if (mapDragged) return;
           $('aQ').value = pt.value;
@@ -922,8 +961,9 @@
           showTab('alerts');
           reloadAlerts();
         });
-        svg.appendChild(c);
+        hits.push(c);
       });
+      hits.forEach(h => svg.appendChild(h));
 
       // Der eigene Standort zuletzt, damit er ueber den Angriffspunkten liegt:
       // er ist der Bezugspunkt, nicht einer von vierhundert Treffern.
