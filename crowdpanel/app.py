@@ -38,6 +38,7 @@ from lapi import (ALERT_FETCH_LIMIT, DECISION_TYPES, DURATION_PRESETS, SCOPES,
                   normalize_duration, normalize_scope, normalize_type,
                   normalize_value)
 from metrics import MetricsClient, DEFAULT_PORT as PROMETHEUS_PORT
+from archive import Archive
 
 logging.basicConfig(format='[%(levelname)s] [%(asctime)s] %(message)s',
                     level=logging.INFO, datefmt='%Y-%m-%d %H:%M:%S', force=True)
@@ -61,6 +62,7 @@ CONFIG_PATH = _OPTS + '/options.json'
 SESSIONS_PATH = _DATA + '/sessions.json'
 TWOFA_PATH = _DATA + '/twofa.json'
 SECRET_PATH = _DATA + '/secret.key'
+ARCHIVE_PATH = _DATA + '/alerts.db'
 LOCALES_PATH = _BASE + '/locales'
 
 PORT = 17797
@@ -978,6 +980,117 @@ def bouncers():
 
 MAP_MAX_POINTS = 400
 
+# Wie viele Archivzeilen eine Alarmabfrage hoechstens liest. Angezeigt werden
+# davon nur ``page_size``; gebraucht werden alle, weil Gruppierung und
+# Trefferzahl ueber den ganzen Zeitraum gehen.
+ARCHIVE_SEARCH_LIMIT = 20000
+
+
+# ── Alarm-Archiv ──────────────────────────────────────────────────────
+
+_archive: Archive | None = None
+_archive_lock = threading.Lock()
+
+
+def archive_enabled() -> bool:
+    return bool(load_config().get('archive_enabled', True))
+
+
+def get_archive() -> Archive | None:
+    """Das Archiv, oder None wenn es aus ist oder sich die Datei nicht anlegen
+    laesst. Jeder Aufrufer muss mit None umgehen koennen — ohne Archiv
+    antworten die Endpunkte wie vorher aus der LAPI."""
+    global _archive
+    if not archive_enabled():
+        return None
+    with _archive_lock:
+        if _archive is None:
+            candidate = Archive(ARCHIVE_PATH)
+            if not candidate.open():
+                return None
+            _archive = candidate
+    return _archive if _archive.available() else None
+
+
+def archive_ready() -> Archive | None:
+    """Das Archiv, sobald es einmal befuellt wurde. Vorher waere seine Antwort
+    zwar schnell, aber leer — und eine leere Uebersicht ist schlechter als eine
+    langsame."""
+    arch = get_archive()
+    return arch if arch is not None and arch.get_meta('last_sync') else None
+
+
+def _archive_since_ts(since: str, fallback_hours: int = 24) -> int:
+    """Die Zeitspanne der Oberflaeche (\"24h\", \"7d\") als Sekunde, ab der
+    gesucht wird. Unlesbares faellt auf den Vorgabewert zurueck."""
+    text = str(since or '').strip().lower()
+    hours = float(fallback_hours)
+    match = re.fullmatch(r'([0-9]+(?:\.[0-9]+)?)([hdm]?)', text)
+    if match:
+        number = float(match.group(1))
+        unit = match.group(2) or 'h'
+        hours = number * {'h': 1, 'd': 24, 'm': 1 / 60}[unit]
+    return int(time.time() - max(0.0, hours) * 3600)
+
+
+def _archive_sync() -> int:
+    """Neue Erkennungen aus der LAPI ins Archiv holen.
+
+    Beim ersten Lauf reicht die Abfrage so weit zurueck, wie
+    ``archive_backfill_days`` erlaubt; danach nur noch bis kurz vor den
+    juengsten bekannten Alarm. Die Ueberlappung von einer Stunde faengt Alarme
+    ab, die zwischen zwei Laeufen mit aelterem Zeitstempel nachgereicht werden.
+    """
+    arch = get_archive()
+    if arch is None:
+        return 0
+    client = get_client()
+    if not client.configured():
+        return 0
+    backfill_hours = _cfg_int('archive_backfill_days', 30, 1, 3650) * 24
+    newest = arch.newest_ts()
+    if newest:
+        hours = int((time.time() - newest) / 3600) + 2
+        hours = max(1, min(hours, backfill_hours))
+    else:
+        hours = backfill_hours
+    rows = [a for a in client.list_alerts(limit=ALERT_FETCH_LIMIT, since=f'{hours}h')
+            if isinstance(a, dict)]
+    added = arch.ingest([a for a in rows if not _is_list_sync(a)])
+    arch.ingest_syncs([a for a in rows if _is_list_sync(a)])
+    removed = arch.prune(_cfg_int('archive_days', 365, 0, 3650))
+    arch.set_meta('last_sync', datetime.now(timezone.utc).isoformat())
+    if _verbose() and (added or removed):
+        log.info('alert archive: %d added, %d pruned', added, removed)
+    return added
+
+
+def _archive_worker() -> None:
+    while True:
+        try:
+            _archive_sync()
+        except (LapiError, ValidationError) as e:
+            if _verbose():
+                log.info('alert archive sync skipped: %s', getattr(e, 'code', ''))
+        except Exception:
+            log.exception('archive worker')
+        time.sleep(_cfg_int('archive_interval', 300, 60, 86400))
+
+
+@api('/api/archive')
+def archive_state():
+    """Was im Archiv steht — fuer die Anzeige in den Einstellungen."""
+    if not archive_enabled():
+        return jsonify({'enabled': False, 'available': False, 'rows': 0})
+    arch = get_archive()
+    if arch is None:
+        return jsonify({'enabled': True, 'available': False, 'rows': 0})
+    out = arch.stats()
+    out['enabled'] = True
+    out['days'] = _cfg_int('archive_days', 365, 0, 3650)
+    out['interval'] = _cfg_int('archive_interval', 300, 60, 86400)
+    return jsonify(out)
+
 
 def _coord(raw) -> float | None:
     """Nur echte Koordinaten zählen. CrowdSec schreibt 0/0 in den Alarm, wenn
@@ -1010,8 +1123,16 @@ def _home_point() -> dict | None:
 
 @api('/api/map')
 def attack_map():
-    client = get_client()
     since = _since_arg() or '24h'
+    arch = archive_ready()
+    if arch is not None:
+        points, located = arch.points(_archive_since_ts(since), MAP_MAX_POINTS)
+        return jsonify({'since': since, 'points': points, 'located': located,
+                        'alerts': arch.count_since(_archive_since_ts(since)),
+                        'truncated': located > MAP_MAX_POINTS,
+                        'source': 'archive', 'home': _home_point()})
+
+    client = get_client()
     rows = client.list_alerts(limit=ALERT_FETCH_LIMIT, since=since)
 
     points: dict = {}
@@ -1045,7 +1166,7 @@ def attack_map():
     return jsonify({'since': since, 'points': out,
                     'located': len(points), 'alerts': total,
                     'truncated': len(points) > MAP_MAX_POINTS,
-                    'home': _home_point()})
+                    'source': 'lapi', 'home': _home_point()})
 
 
 @api('/api/metrics')
@@ -1069,18 +1190,24 @@ def prometheus_metrics():
 def history():
     """Detections per day for the last week. A single number for 24 hours says
     nothing about whether something is building up."""
-    days = _cfg_int('history_days', 7, 1, 30)
-    client = get_client()
-    alerts = [a for a in client.list_alerts(limit=ALERT_FETCH_LIMIT,
-                                            since=f'{days * 24}h')
-              if isinstance(a, dict)]
-    detections: Counter = Counter()
-    syncs: Counter = Counter()
-    for alert in alerts:
-        stamp = str(alert.get('created_at') or alert.get('start_at') or '')[:10]
-        if len(stamp) != 10:
-            continue
-        (syncs if _is_list_sync(alert) else detections)[stamp] += 1
+    days = _cfg_int('history_days', 7, 1, 3650)
+    arch = archive_ready()
+    source = 'archive'
+    if arch is not None:
+        detections, syncs = arch.history(days)
+    else:
+        # Ohne Archiv reicht der Verlauf nur so weit, wie CrowdSec seine Alarme
+        # aufhebt — und jeder Aufruf holt sie alle.
+        source = 'lapi'
+        detections, syncs = Counter(), Counter()
+        for alert in get_client().list_alerts(limit=ALERT_FETCH_LIMIT,
+                                              since=f'{days * 24}h'):
+            if not isinstance(alert, dict):
+                continue
+            stamp = str(alert.get('created_at') or alert.get('start_at') or '')[:10]
+            if len(stamp) != 10:
+                continue
+            (syncs if _is_list_sync(alert) else detections)[stamp] += 1
 
     today = datetime.now(timezone.utc).date()
     series = []
@@ -1089,7 +1216,7 @@ def history():
         series.append({'day': day,
                        'detections': detections.get(day, 0),
                        'list_updates': syncs.get(day, 0)})
-    return jsonify({'days': days, 'series': series,
+    return jsonify({'days': days, 'series': series, 'source': source,
                     'total': sum(s['detections'] for s in series)})
 
 
@@ -1440,14 +1567,31 @@ def decisions():
 
 @api('/api/alerts')
 def alerts():
-    client = get_client()
     filters = _server_filters()
     filters.pop('decision_type', None)
     kind = _kind_arg()
     group = _group_arg()
-    rows = client.list_alerts(limit=ALERT_FETCH_LIMIT, **filters)
     needle = _arg('q', 64)
     cap = _page_size()
+
+    # Das Archiv kennt nur Erkennungen und nur die eigenen Felder. Sobald nach
+    # der Herkunft gefiltert wird oder Listenabgleiche gefragt sind, antwortet
+    # wieder die LAPI — lieber langsam und vollstaendig als schnell und halb.
+    arch = archive_ready() if kind == 'detections' and not filters.get('origin') else None
+    if arch is not None:
+        found = arch.search(since_ts=_archive_since_ts(filters.get('since') or '24h'),
+                            needle=needle, value=filters.get('value') or '',
+                            limit=ARCHIVE_SEARCH_LIMIT)
+        out = [{'id': r['id'], 'scenario': r['scenario'], 'message': r['message'],
+                'created_at': r['created_at'], 'events_count': r['events_count'],
+                'simulated': bool(r['simulated']), 'value': r['value'],
+                'country': r['country'], 'as_name': r['as_name'],
+                'decisions': r['decision_count'], 'list_sync': False}
+               for r in found]
+        return _alert_answer(out, group, cap, 'archive')
+
+    client = get_client()
+    rows = client.list_alerts(limit=ALERT_FETCH_LIMIT, **filters)
     out = []
     for a in rows:
         if not isinstance(a, dict):
@@ -1475,16 +1619,21 @@ def alerts():
             continue
         out.append(item)
 
+    return _alert_answer(out, group, cap, 'lapi')
+
+
+def _alert_answer(out: list, group: str, cap: int, source: str):
+    """Dieselbe Antwort, gleich woher die Zeilen kommen."""
     if group != 'none':
         groups = _group_alerts(out, group)
         total = len(groups)
         return jsonify({'group': group, 'groups': groups[:cap],
-                        'count': min(total, cap), 'total': total,
+                        'count': min(total, cap), 'total': total, 'source': source,
                         'alerts_total': len(out), 'truncated': total > cap})
 
     total = len(out)
     return jsonify({'group': 'none', 'alerts': out[:cap], 'count': min(total, cap),
-                    'total': total, 'truncated': total > cap})
+                    'total': total, 'source': source, 'truncated': total > cap})
 
 
 @api('/api/alerts/<int:alert_id>')
@@ -1500,7 +1649,13 @@ def check():
     client = get_client()
     kind, active = client.decisions_for(_arg('value', 64))
     scope = 'Ip' if kind[0] == 'ip' else 'Range'
-    history = client.list_alerts(limit=50, scope=scope, value=kind[1])
+    arch = archive_ready()
+    if arch is not None:
+        # Aus dem Archiv reicht die Historie weiter zurueck als CrowdSecs eigene
+        # Aufbewahrung — genau die Frage, die hier gestellt wird.
+        history = arch.search(value=kind[1], limit=50)
+    else:
+        history = client.list_alerts(limit=50, scope=scope, value=kind[1])
     try:
         allow = client.allowlist_status(kind[1])
     except (LapiError, ValidationError):
@@ -1828,6 +1983,12 @@ def _startup_checks() -> None:
 if __name__ == '__main__':
     load_sessions()
     _startup_checks()
+
+    if archive_enabled() and get_archive() is not None:
+        threading.Thread(target=_archive_worker, daemon=True).start()
+        log.info("alert archive enabled (%s)", ARCHIVE_PATH)
+    elif archive_enabled():
+        log.warning("alert archive could not be opened — history stays with the LAPI")
 
     if ha_sensors_enabled():
         threading.Thread(target=_sensor_worker, daemon=True).start()

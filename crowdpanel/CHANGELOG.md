@@ -1,5 +1,47 @@
 # Changelog
 
+## [0.6.0] - 2026-08-22
+
+### Added
+- **Alarm-Archiv — eine eigene SQLite-Datei unter `/data/alerts.db`.** CrowdSec
+  räumt seine Datenbank nach einigen Wochen auf; was dort verschwand, war bisher
+  auch in CrowdPanel weg, denn jede Ansicht las live über die LAPI. Ein
+  Hintergrundfaden schreibt jetzt alle fünf Minuten jede neue Erkennung einmal
+  mit, und Verlauf, Angriffskarte, Alarmliste und die Historie einer Adresse
+  unter *IP prüfen* werden daraus beantwortet. Jede dieser Antworten nennt im
+  JSON unter `source`, woher sie kommt.
+
+  Aktive Sperren, die Kennzahlen der Übersicht, Bouncer, Allowlists, Hub und
+  Metriken kommen weiterhin live aus der LAPI. Das ist der aktuelle Zustand, und
+  der gehört dorthin, wo er entsteht.
+
+  Von einer Blocklisten-Synchronisierung bleiben nur Kennung und Zeitpunkt —
+  genug für den zweiten Balken im Verlauf. Ihre zehntausend Entscheidungen wären
+  der Grund, warum die Datei wächst, und ohne jede Aussage. Eine Erkennung kostet
+  rund 200 Bytes; `archive_days` räumt auf, Vorgabe ein Jahr.
+
+  Neue Optionen: `archive_enabled` (Vorgabe an), `archive_days` (365, `0` =
+  unbegrenzt), `archive_backfill_days` (30) und `archive_interval` (300 s).
+  Lässt sich die Datei nicht anlegen oder wird das Archiv abgeschaltet,
+  antworten alle Endpunkte wie bisher aus der LAPI — die Oberfläche sieht
+  gleich aus, nur reicht der Verlauf dann nicht weiter zurück als CrowdSecs
+  eigene Aufbewahrung.
+
+  Der erste Abgleich holt höchstens die tausend jüngsten Alarme; mehr gibt die
+  LAPI in einer Antwort nicht heraus. Was CrowdSec bis dahin vergessen hat, ist
+  ohnehin verloren — ab dann geht nichts mehr weg, solange das Add-on läuft.
+
+- **Der Reiter *Einstellungen* zeigt den Zustand des Archivs**: Zeilenzahl,
+  ältester und jüngster Eintrag, letzter Abgleich, Dateigröße, Aufbewahrung.
+
+- **Längere Zeiträume in der Alarmliste** — 90 Tage und ein Jahr. Ohne Archiv
+  liefern sie das, was die LAPI noch hat; mit Archiv reichen sie wirklich so
+  weit.
+
+### Changed
+- `history_days` darf jetzt bis 3650 statt bis 30. Ohne Archiv bleibt der
+  Verlauf trotzdem an CrowdSecs Aufbewahrung gebunden.
+
 ## [0.5.6] - 2026-08-22
 
 ### Fixed

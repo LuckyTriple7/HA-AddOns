@@ -36,8 +36,13 @@ os.environ.setdefault('CROWDPANEL_OPTIONS', str(DATA))
 import app  # noqa: E402  — erst nach den Umgebungsvariablen importieren
 
 if __name__ == '__main__':
+    import threading
+
     port = int(os.environ.get('CROWDPANEL_PORT', app.PORT))
     app.load_sessions()
     app._startup_checks()
+    if app.archive_enabled() and app.get_archive() is not None:
+        threading.Thread(target=app._archive_worker, daemon=True).start()
+        print(f'Alarm-Archiv: {app.ARCHIVE_PATH}')
     print(f'CrowdPanel dev auf http://127.0.0.1:{port}')
     app.app.run(host='0.0.0.0', port=port, debug=False, threaded=True)

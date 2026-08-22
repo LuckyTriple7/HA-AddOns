@@ -170,7 +170,9 @@ Dazu zwei Anzeigen, die den Zustand statt einer Momentaufnahme zeigen:
 **Verlauf** — ein Balken je Tag über den Zeitraum aus `history_days` (Vorgabe
 sieben). Der helle Anteil sind Erkennungen, der graue die Blocklisten-Updates.
 „134 Erkennungen in 24 Stunden" sagt für sich genommen nichts; erst neben den
-Vortagen wird sichtbar, ob gerade etwas anrollt.
+Vortagen wird sichtbar, ob gerade etwas anrollt. Mit dem [Alarm-Archiv](#alarm-archiv)
+reicht der Verlauf so weit zurück, wie `history_days` erlaubt — ohne Archiv nur
+so weit, wie CrowdSec seine Alarme aufhebt.
 
 **Bouncer** — wer die Entscheidungen abholt und wann zuletzt. Das ist die
 wichtigste Betriebsfrage überhaupt: Ein Bouncer, der seit Minuten nichts mehr
@@ -588,13 +590,71 @@ Lehnt Home Assistant die Sensoren ab, steht das **einmal** im Protokoll des Add-
 | `whitelist_dir` | leer | Verzeichnis der Whitelist-Parser, nur falls die Suche fehlschlägt |
 | `crowdsec_dir` | leer | Konfigurationsverzeichnis von CrowdSec, nur falls die Suche fehlschlägt |
 | `crowdsec_db` | leer | Datenbank von CrowdSec, nur falls die Suche fehlschlägt |
-| `history_days` | `7` | über wie viele Tage der Verlauf reicht |
+| `history_days` | `7` | über wie viele Tage der Verlauf reicht (mit Archiv bis 3650) |
+| `archive_enabled` | `true` | Alarm-Archiv unter `/data/alerts.db` führen |
+| `archive_days` | `365` | wie lange das Archiv Erkennungen aufhebt, `0` = unbegrenzt |
+| `archive_backfill_days` | `30` | wie weit der allererste Abgleich zurückreicht |
+| `archive_interval` | `300` | Sekunden zwischen zwei Abgleichen mit der LAPI |
 | `server_lat` | `0` | Breitengrad des eigenen Standorts für den Punkt auf der Karte, `0/0` heißt „nicht eingetragen“ |
 | `server_lon` | `0` | Längengrad des eigenen Standorts, nur zusammen mit `server_lat` wirksam |
 | `server_label` | leer | Beschriftung dieses Punktes, sonst „Dieser Server“ |
 | `ha_sensors` | `true` | Sensoren an Home Assistant melden |
 | `ha_sensor_interval` | `300` | Sekunden zwischen zwei Sensor-Aktualisierungen |
 | `verbose_log` | `false` | zusätzliche Zeilen im Protokoll |
+
+---
+
+## Alarm-Archiv
+
+CrowdSec räumt seine Datenbank nach einigen Wochen auf. Was dort verschwindet,
+ist über die LAPI nicht mehr zu holen — bis Version 0.5.6 war es damit auch in
+CrowdPanel weg. Das Archiv schreibt deshalb jede Erkennung einmal in eine eigene
+SQLite-Datei unter `/data/alerts.db` und beantwortet danach die Fragen nach der
+Vergangenheit selbst.
+
+**Was aus dem Archiv kommt:** Verlauf, Angriffskarte, die Alarmliste (bei
+„Erkennungen") und die Historie einer Adresse unter *IP prüfen*. Jede dieser
+Antworten nennt im JSON unter `source`, woher sie stammt — `archive` oder `lapi`.
+
+**Was weiterhin live aus der LAPI kommt:** aktive Sperren, die Kennzahlen der
+Übersicht, Bouncer, Allowlists, Hub und Metriken. Das ist der aktuelle Zustand,
+und der gehört dorthin, wo er entsteht.
+
+**Was das Archiv aufnimmt:** eine Zeile je Erkennung mit Zeitpunkt, Szenario,
+Adresse, Land, AS-Name, Koordinaten, Ereigniszahl. Von einer
+Blocklisten-Synchronisierung bleiben nur Kennung und Zeitpunkt — genug für den
+zweiten Balken im Verlauf. Ihre zehntausend Entscheidungen wären der Grund,
+warum die Datei wächst, und ohne jede Aussage.
+
+Eine Zeile ist rund 200 Bytes. Bei fünfzig Erkennungen am Tag sind das drei
+Megabyte im Jahr; wer täglich tausend sieht, kommt auf rund siebzig.
+`archive_days` begrenzt die Aufbewahrung, Vorgabe ein Jahr, `0` hebt die Grenze
+auf.
+
+**Wie es gefüllt wird:** ein Hintergrundfaden fragt alle `archive_interval`
+Sekunden (Vorgabe 300) die LAPI nach allem seit dem jüngsten bekannten Alarm,
+mit zwei Stunden Überlappung. Doppelte fallen über die Alarmkennung weg.
+
+Beim allerersten Lauf reicht die Abfrage `archive_backfill_days` Tage zurück
+(Vorgabe 30). Mehr als tausend Alarme gibt die LAPI aber in keiner Antwort
+heraus — der erste Lauf holt also höchstens die tausend jüngsten. Was CrowdSec
+zu diesem Zeitpunkt schon vergessen hat, ist ohnehin nicht mehr zu retten. Ab
+dann geht nichts mehr verloren, solange das Add-on läuft.
+
+**Wenn es nicht geht:** lässt sich die Datei nicht anlegen — volle Platte,
+fehlende Rechte — schreibt das Add-on eine Warnung ins Protokoll und antwortet
+weiter aus der LAPI. Dasselbe gilt für `archive_enabled: false`. Die Oberfläche
+sieht in beiden Fällen aus wie vorher, nur reicht der Verlauf dann nicht weiter
+zurück als CrowdSecs eigene Aufbewahrung.
+
+Der Zustand des Archivs steht im Reiter *Einstellungen*: Zeilenzahl, ältester
+und jüngster Eintrag, letzter Abgleich, Dateigröße, Aufbewahrung.
+
+**Sicherung:** `/data/alerts.db` gehört in kein Backup. Der Inhalt ist
+Beobachtung, keine Konfiguration — geht die Datei verloren, baut sich das Archiv
+von vorne wieder auf, und der Verlust ist Vergangenheit, keine Funktion. Wer die
+Historie trotzdem behalten will, sichert die drei Dateien `alerts.db`,
+`alerts.db-wal` und `alerts.db-shm` zusammen und bei gestopptem Add-on.
 
 ---
 
@@ -606,6 +666,7 @@ Lehnt Home Assistant die Sensoren ab, steht das **einmal** im Protokoll des Add-
 | `/data/sessions.json` | offene Anmeldungen |
 | `/data/twofa.json` | 2FA-Geheimnis, Backup-Codes, vertrauenswürdige Geräte (Rechte 600) |
 | `/data/secret.key` | Signaturschlüssel für Cookies (Rechte 600) |
+| `/data/alerts.db` | das Alarm-Archiv, dazu `-wal` und `-shm` im Betrieb |
 
 Alles liegt in `/data` und damit nicht in einem durchsuchbaren Freigabeordner.
 Wer die Zwei-Faktor-Anmeldung zurücksetzen muss, löscht `twofa.json` und startet

@@ -323,6 +323,11 @@
         <p class="note">{{ t.set_sensors_hint }}</p>
       </div>
       <div class="card" style="max-width:760px; margin-top:12px">
+        <h2>{{ t.arc_title }}</h2>
+        <p class="note" style="margin-top:0">{{ t.arc_hint }}</p>
+        <div id="sArchive"></div>
+      </div>
+      <div class="card" style="max-width:760px; margin-top:12px">
         <h2>{{ t.b_machines }}</h2>
         <div id="sMachines"></div>
       </div>
@@ -1623,9 +1628,43 @@
     };
 
     // ── hub ───────────────────────────────────────────────────────────────────
-    loaders.settings = function () {
+    // Gemessen in ganzen Kilo-/Megabyte — auf drei Nachkommastellen kommt es
+    // bei einer Datei, die einmal am Tag waechst, wirklich nicht an.
+    function fileSize(bytes) {
+      const n = Number(bytes) || 0;
+      if (n < 1024) return n + ' B';
+      if (n < 1024 * 1024) return Math.round(n / 1024) + ' kB';
+      return (n / 1024 / 1024).toFixed(1) + ' MB';
+    }
+
+    function renderArchive(d) {
+      const box = $('sArchive');
+      box.textContent = '';
+      const kv = (label, value) => {
+        const row = el('div', 'kv');
+        row.appendChild(el('span', null, label));
+        row.appendChild(el('span', null, value));
+        box.appendChild(row);
+      };
+      if (!d.enabled) { kv(T.arc_state, T.arc_off); return; }
+      if (!d.available) { kv(T.arc_state, T.arc_broken); return; }
+      kv(T.arc_state, T.arc_on + ' · ' + fmt('arc_interval', { n: d.interval }));
+      kv(T.arc_rows, num(d.rows));
+      kv(T.arc_syncs, num(d.syncs));
+      kv(T.arc_oldest, d.oldest ? new Date(d.oldest).toLocaleString() : T.none);
+      kv(T.arc_newest, d.newest ? new Date(d.newest).toLocaleString() : T.none);
+      kv(T.arc_last_sync, d.last_sync ? new Date(d.last_sync).toLocaleString()
+                                      : T.arc_waiting);
+      kv(T.arc_size, fileSize(d.bytes));
+      kv(T.arc_keep, d.days ? fmt('arc_keep_days', { n: d.days }) : T.arc_keep_forever);
+    }
+
+    loaders.settings = async function () {
       if (cache.bouncers) renderMachines(cache.bouncers);
       else loadSidecars();
+      try {
+        renderArchive(await api('/api/archive'));
+      } catch (e) { /* Nebeninformation — kein Grund, die Einstellungen zu stoeren */ }
     };
 
     loaders.hub = async function () {
@@ -1895,7 +1934,11 @@
     fillSelect($('nType'), G.types, s => s, false);
     fillSelect($('nDuration'), G.durations.concat(['custom']),
                v => v === 'custom' ? T.dur_custom : (T['dur_' + v] || v), false);
-    fillSelect($('aSince'), ['1h', '24h', '168h', '720h'], v => T['since_' + v] || v, true);
+    // Die langen Zeitraeume ergeben nur mit Archiv eine Antwort, die weiter
+    // zurueckreicht als CrowdSecs Aufbewahrung. Ohne Archiv liefern sie schlicht
+    // das, was die LAPI noch hat — falsch wird davon nichts.
+    fillSelect($('aSince'), ['1h', '24h', '168h', '720h', '2160h', '8760h'],
+               v => T['since_' + v] || v, true);
     $('aSince').value = '24h';
     fillSelect($('aKind'), ['detections', 'lists', 'all'], v => T['kind_' + v] || v, false);
     $('aKind').addEventListener('change', reloadAlerts);

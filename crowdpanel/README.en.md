@@ -15,6 +15,7 @@ it into a web interface.
 - **Check IP** — active decisions, alert history and allowlist hits for an address
 - **Exemptions** — allowlists from the CrowdSec database and whitelist parsers in full, with the difference explained
 - **Attack map** — one dot per source address from the GeoIP coordinates in the alerts, zoomable, your own location as the reference point, click leads to the alert list
+- **Alert archive** — its own SQLite under `/data`, so history, map and alert list reach further back than CrowdSec's own retention
 - **Metrics** — CrowdSec's own counters for data sources, parsers, scenarios, whitelists, LAPI, bouncers and AppSec
 - **Two-factor sign-in** — TOTP for the direct port, QR code generated locally, backup codes
 - **Home Assistant sensors** — active decisions, the locally detected ones, and detections of the last 24 hours

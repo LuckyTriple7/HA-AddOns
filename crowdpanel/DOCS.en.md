@@ -170,7 +170,9 @@ Plus two displays that show a trend instead of a snapshot:
 **History** — one bar per day over the period from `history_days` (seven by
 default). The bright part is detections, the grey one blocklist updates. "134
 detections in 24 hours" says nothing on its own; only next to the previous days
-does it become visible whether something is building up.
+does it become visible whether something is building up. With the
+[alert archive](#alert-archive) the history reaches as far back as
+`history_days` allows — without it, only as far as CrowdSec keeps its alerts.
 
 **Bouncers** — who fetches the decisions and when they last did. That is the most
 important operational question there is: a bouncer that has not pulled for
@@ -571,13 +573,70 @@ again after that, so a misconfiguration cannot flood the log.
 | `whitelist_dir` | empty | whitelist parser directory, only if auto-detection fails |
 | `crowdsec_dir` | empty | CrowdSec configuration directory, only if auto-detection fails |
 | `crowdsec_db` | empty | CrowdSec database, only if auto-detection fails |
-| `history_days` | `7` | how many days the history covers |
+| `history_days` | `7` | how many days the history covers (up to 3650 with the archive) |
+| `archive_enabled` | `true` | keep the alert archive at `/data/alerts.db` |
+| `archive_days` | `365` | how long the archive keeps detections, `0` = unlimited |
+| `archive_backfill_days` | `30` | how far back the very first sync reaches |
+| `archive_interval` | `300` | seconds between two syncs with the LAPI |
 | `server_lat` | `0` | latitude of your own location for the dot on the map, `0/0` means “not filled in” |
 | `server_lon` | `0` | longitude of your own location, only effective together with `server_lat` |
 | `server_label` | empty | label for that dot, otherwise "This server" |
 | `ha_sensors` | `true` | report sensors to Home Assistant |
 | `ha_sensor_interval` | `300` | seconds between two sensor updates |
 | `verbose_log` | `false` | extra lines in the log |
+
+---
+
+## Alert archive
+
+CrowdSec clears out its database after a few weeks. What disappears there cannot
+be fetched from the LAPI any more — up to version 0.5.6 it was gone from
+CrowdPanel as well. The archive therefore writes every detection once into its
+own SQLite file at `/data/alerts.db` and answers the questions about the past
+itself.
+
+**What comes from the archive:** history, attack map, the alert list (for
+“detections") and the history of an address under *Check IP*. Each of these
+answers names its origin in the JSON field `source` — `archive` or `lapi`.
+
+**What still comes live from the LAPI:** active decisions, the overview figures,
+bouncers, allowlists, hub and metrics. That is the current state, and it belongs
+where it is made.
+
+**What the archive stores:** one row per detection with timestamp, scenario,
+address, country, AS name, coordinates, event count. Of a blocklist
+synchronisation only the id and the timestamp remain — enough for the second bar
+in the history. Its ten thousand decisions would be the reason the file grows,
+and say nothing.
+
+A row is about 200 bytes. At fifty detections a day that is three megabytes a
+year; at a thousand a day, about seventy. `archive_days` caps the retention,
+one year by default, `0` removes the cap.
+
+**How it is filled:** a background thread asks the LAPI every
+`archive_interval` seconds (300 by default) for everything since the newest
+known alert, with two hours of overlap. Duplicates fall away over the alert id.
+
+On the very first run the query reaches back `archive_backfill_days` days (30 by
+default). The LAPI never returns more than a thousand alerts in one answer,
+though — so the first run picks up at most the thousand newest. Whatever
+CrowdSec has already forgotten by then cannot be recovered anyway. From then on
+nothing is lost as long as the add-on runs.
+
+**When it does not work:** if the file cannot be created — full disk, missing
+permissions — the add-on logs a warning and keeps answering from the LAPI. The
+same goes for `archive_enabled: false`. In both cases the interface looks like
+it did before, only the history does not reach further back than CrowdSec's own
+retention.
+
+The state of the archive is shown on the *Settings* tab: row count, oldest and
+newest entry, last sync, file size, retention.
+
+**Backup:** `/data/alerts.db` does not belong in a backup. Its content is
+observation, not configuration — if the file is lost the archive rebuilds
+itself, and what is gone is the past, not a feature. Anyone who wants to keep
+the history anyway backs up the three files `alerts.db`, `alerts.db-wal` and
+`alerts.db-shm` together and with the add-on stopped.
 
 ---
 
@@ -589,6 +648,7 @@ again after that, so a misconfiguration cannot flood the log.
 | `/data/sessions.json` | open sign-ins |
 | `/data/twofa.json` | 2FA secret, backup codes, trusted devices (mode 600) |
 | `/data/secret.key` | signing key for cookies (mode 600) |
+| `/data/alerts.db` | the alert archive, plus `-wal` and `-shm` while running |
 
 Everything lives in `/data` and therefore not in a browsable share folder. To reset
 two-factor sign-in, delete `twofa.json` and restart the add-on.

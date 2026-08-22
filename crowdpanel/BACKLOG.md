@@ -7,22 +7,10 @@ Die Liste entstand beim Vergleich mit [crowdsec-web-ui](https://github.com/TheDu
 Code lässt sich nicht übernehmen, CrowdPanel ist Flask mit reinem JavaScript;
 übernommen werden also allenfalls Ideen, und dann nachgebaut.
 
-Erledigt daraus: **Prometheus-Metriken** (0.4.6, Reiter „Metriken“) und die
+Erledigt daraus: **Prometheus-Metriken** (0.4.6, Reiter „Metriken“), die
 **Angriffskarte** (0.5.0, Übersicht) — letztere als Punktkarte aus echten
-GeoIP-Koordinaten statt nur eingefärbter Länder.
-
-## Lokale Alarm-Datenbank
-
-Zurzeit liest CrowdPanel jeden Alarm live über die LAPI. Was CrowdSec aus seiner
-Datenbank geräumt hat, ist damit auch in CrowdPanel weg — die Voreinstellung
-räumt nach einigen Wochen auf. Eine eigene SQLite-Datei im `/data`-Verzeichnis
-des Add-ons, gefüttert in Blöcken beim Start und danach fortlaufend, würde die
-Historie überleben lassen und nebenbei die Übersicht deutlich beschleunigen
-(heute kostet jeder Aufruf einen vollständigen `GET /v1/alerts`).
-
-Offene Fragen: Größe begrenzen (Blocklisten-Synchronisierungen sind einzelne
-Alarme mit fünfstelligen Entscheidungszahlen), und ob die Datenbank in ein
-Backup gehört.
+GeoIP-Koordinaten statt nur eingefärbter Länder — und die **lokale
+Alarm-Datenbank** (0.6.0, `/data/alerts.db`).
 
 ## Such-Syntax statt Freitext
 
