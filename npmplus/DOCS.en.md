@@ -739,7 +739,7 @@ Not included out of the box. Put the MaxMind databases (free account) into `/dat
 | `geo_deny_ips` | `[]` | Always-blocked addresses or CIDR ranges |
 | `geo_allow_ips` | `[]` | Addresses the country filter never applies to |
 | `geo_refresh_hours` | `24` | Interval for reloading the lists; `0` = off |
-| `geo_deny_action` | `403` | Response when blocked: `403` with page or `444` silent |
+| `geo_deny_action` | `403` | **Country block and `geo_deny_ips` only** — CrowdSec, AppSec and access-list blocks stay 403. Response when blocked: `403` with page or `444` silent |
 | `geo_log_country` | `true` | Log blocked requests with country to `blocked.log` |
 | `nginx_worker_processes` | `auto` | Number of nginx workers |
 | `nginx_worker_connections` | `512` | Connections per worker |

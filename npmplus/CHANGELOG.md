@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.1.35] - 2026-08-22
+
+### Geändert
+- **`geo_deny_action` hieß „Antwort bei Sperre" und klang damit global.** Die Option gilt aber
+  ausschließlich für die Ländersperre und `geo_deny_ips`. Sperren durch CrowdSec, AppSec,
+  Zugriffslisten oder das Backend hinter dem Proxy antworten unverändert mit `403` — wer hier
+  `444` einstellt und dann bei einem CrowdSec-Block trotzdem `403` sieht, hat keinen Fehler
+  gefunden, sondern die falsche Erwartung.
+
+  Das ist so gewollt und steht auch als Kommentar in `run.sh`: der Umweg über den eigenen Code
+  `460` existiert genau deshalb, damit ein `error_page 403` nicht die Sperrseiten von CrowdSec
+  und Zugriffslisten überschreibt.
+
+  Heißt jetzt „Antwort bei Ländersperre", die Beschreibung nennt den Geltungsbereich zuerst.
+  Nur Text, am Verhalten ändert sich nichts.
+
 ## [0.1.34] - 2026-08-22
 
 ### Geändert

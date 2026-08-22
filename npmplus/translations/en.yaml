@@ -108,8 +108,8 @@ configuration:
     name: Refresh lists (hours)
     description: How often the country lists are downloaded again. 0 disables refreshing. Without refreshing the lists start blocking the wrong people over time.
   geo_deny_action:
-    name: Response when blocked
-    description: '"403" serves a block page you can edit at /data/geoip/blocked.html. "444" closes the connection without a single line of response — an attacker does not even learn that a server is there, but someone blocked by mistake only sees a dropped connection.'
+    name: Response for the country block
+    description: 'Applies ONLY to the country block and the IP deny list above. Blocks by CrowdSec, AppSec, access lists or the backend behind the proxy still answer 403 - this setting does not change that. "403" serves a block page you can edit at /data/geoip/blocked.html. "444" closes the connection without a single line of response - an attacker does not even learn that a server is there, but someone blocked by mistake only sees a dropped connection.'
   geo_log_country:
     name: Log the country
     description: Writes blocked requests with their country of origin to /data/nginx/logs/blocked.log, so after a few weeks you can see which countries actually contribute. Costs around 4 MB of memory for a second lookup table.

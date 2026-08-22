@@ -744,7 +744,7 @@ Fehlt ab Werk. Dafür müssen die MaxMind-Datenbanken (kostenloses Konto) nach `
 | `geo_deny_ips` | `[]` | Immer gesperrte Adressen oder CIDR-Bereiche |
 | `geo_allow_ips` | `[]` | Adressen, die die Ländersperre nie trifft |
 | `geo_refresh_hours` | `24` | Abstand für das Neuladen der Listen; `0` = aus |
-| `geo_deny_action` | `403` | Antwort bei Sperre: `403` mit Seite oder `444` wortlos |
+| `geo_deny_action` | `403` | **Nur für die Ländersperre und `geo_deny_ips`** — CrowdSec-, AppSec- und Zugriffslisten-Sperren bleiben 403. Antwort bei Sperre: `403` mit Seite oder `444` wortlos |
 | `geo_log_country` | `true` | Gesperrte Anfragen mit Land nach `blocked.log` |
 | `nginx_worker_processes` | `auto` | Anzahl nginx-Worker |
 | `nginx_worker_connections` | `512` | Verbindungen je Worker |
