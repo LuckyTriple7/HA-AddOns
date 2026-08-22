@@ -1,6 +1,6 @@
 name: NPMplus
 description: Reverse Proxy mit Web-Oberfläche auf Basis von NPMplus — HTTP/3, Let's Encrypt, CrowdSec-Bouncer und AppSec/WAF
-version: "0.2.0"
+version: "0.1.32"
 slug: npmplus
 url: https://github.com/LuckyTriple7/HA-AddOns
 
@@ -53,11 +53,6 @@ ports_description:
 
 map:
   - share:rw
-  # Oeffentlicher Konfigurationsordner der App (aussen /app_configs/<slug>).
-  # Nur belegt, wenn expose_data_dir eingeschaltet ist — gemappt wird er
-  # trotzdem immer, sonst koennte run.sh die Daten beim Ausschalten der Option
-  # nicht wieder nach /data zurueckholen.
-  - app_config:rw
 
 options:
   TZ: "Europe/Berlin"
@@ -100,7 +95,6 @@ options:
   nginx_worker_processes: "auto"
   nginx_worker_connections: 512
   cookie_secret: ""
-  expose_data_dir: false
   extra_env: []
 
 schema:
@@ -148,6 +142,5 @@ schema:
   nginx_worker_processes: str
   nginx_worker_connections: int(1,65535)
   cookie_secret: password?
-  expose_data_dir: bool
   extra_env:
     - str

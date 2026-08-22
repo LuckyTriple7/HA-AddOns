@@ -32,7 +32,7 @@ Bestehende Hosts lassen sich nicht automatisch übernehmen, die Datenbanken sind
 
 Let's Encrypt erlaubt 50 Zertifikate pro Woche und Domain — ein Dutzend Domains neu auszustellen ist unkritisch. Nur bei wiederholten Fehlversuchen mit identischem Domain-Satz greift das Limit von 5 doppelten Zertifikaten pro Woche.
 
-**Wichtig — DNS-Challenge:** Die Anbieterliste ist genauso lang wie beim Original (86 Plugins). Bei diesen Anbietern steckt in NPMplus aber ein anderes PyPI-Paket dahinter: `he` (jetzt `certbot-dns-hurricane-electric`), `dnspod` (jetzt `certbot-dnspod`), `powerdns` (jetzt `certbot-dns-pdns`), dazu `online` und `do`. Bestehende Zertifikate dieser Anbieter **erneuern sich nicht** und müssen einmal neu ausgestellt werden. Wirklich nicht unterstützt wird nur **Route53** — Amazon-CloudFront-Adressen lassen sich in NPMplus nicht automatisch als vertrauenswürdig setzen. Dafür gibt es `dreamhost` und `scaleway` zusätzlich.
+**Wichtig:** Diese DNS-Challenge-Anbieter fallen weg und müssen ersetzt werden: `certbot-dns-he`, `certbot-dns-dnspod`, `certbot-dns-online`, `certbot-dns-powerdns`, `certbot-dns-do`. Route53 wird ebenfalls nicht unterstützt.
 
 ## CrowdSec
 
@@ -748,7 +748,6 @@ Fehlt ab Werk. Dafür müssen die MaxMind-Datenbanken (kostenloses Konto) nach `
 | `nginx_worker_processes` | `auto` | Anzahl nginx-Worker |
 | `nginx_worker_connections` | `512` | Verbindungen je Worker |
 | `cookie_secret` | – | Fester Schlüssel für Anmelde-Cookies |
-| `expose_data_dir` | `false` | Datenbank, Zertifikate und Konfiguration nach `/app_configs/<slug>` legen |
 | `extra_env` | `[]` | Weitere NPMplus-Variablen als `KEY=VALUE` |
 
 Alles, was hier nicht auftaucht, lässt sich über `extra_env` setzen. Die vollständige Liste steht in der [compose.yaml von NPMplus](https://github.com/ZoeyVid/NPMplus/blob/develop/compose.yaml):
@@ -787,32 +786,9 @@ Alles liegt im privaten Add-on-Verzeichnis `/data`:
 | nginx-Konfigurationen | `/data/nginx/` |
 | Logs | `/data/nginx/logs/` bzw. `/share/npmplus/logs` |
 
-### Daten im Konfigurationsordner (`expose_data_dir`)
-
-Mit `expose_data_dir: true` liegen Datenbank, Zertifikate und Konfiguration nicht mehr im privaten `/data`, sondern im öffentlichen Konfigurationsordner der App — außen erreichbar als `/app_configs/<slug>` über Samba, den Datei-Editor oder ein Terminal. In `/data` bleibt an jeder alten Stelle ein Symlink, NPMplus merkt vom Umzug nichts.
-
-Umgezogen wird:
-
-| Was | Danach unter |
-|---|---|
-| Zertifikate samt privater Schlüssel | `/app_configs/<slug>/tls/` |
-| Datenbank | `/app_configs/<slug>/npmplus/database.sqlite` |
-| Eigene nginx-Schnipsel | `/app_configs/<slug>/custom_nginx/` |
-| Zugriffslisten | `/app_configs/<slug>/access/` |
-| CrowdSec-Sperr- und Captcha-Seiten | `/app_configs/<slug>/crowdsec/` |
-| Standard-Webseite | `/app_configs/<slug>/html/` |
-
-Absichtlich **nicht** umgezogen wird `keys.json`: das ist der Signierschlüssel der Sitzungs-Token und bleibt in `/data`.
-
-> **Sicherheitshinweis:** In `tls/` liegen die privaten Schlüssel aller Zertifikate. Wer Zugriff auf die Samba-Freigabe hat, kann sie lesen — und jede andere App mit `all_app_configs`-Mapping ebenfalls. Deshalb ist die Option ab Werk aus.
-
-Ausschalten holt alles wieder zurück: der nächste Start löst die Symlinks auf und verschiebt die Daten nach `/data`. Liegt beim Einschalten in beiden Ordnern etwas mit demselben Namen, gewinnt die Fassung aus `/data`; die andere bleibt mit Zeitstempel als `.bak` liegen.
-
-Braucht **Supervisor 2026.07 oder neuer** (dort wurde `addon_config` zu `app_config`). Auf älteren Ständen wird der Ordner nicht eingehängt, das Add-on schreibt eine Warnung ins Protokoll und lässt alles in `/data`.
-
 ### Über Samba erreichbar?
 
-Nur mit `expose_data_dir` (siehe oben). Ohne die Option: nein — der Samba-Share zeigt `config`, `share`, `media`, `backup`, `ssl` und `addons` — Datenverzeichnisse von Add-ons gehören nicht dazu. Einzige Ausnahme sind die Logs, wenn `share_logs` aktiv ist: die liegen unter `/share/npmplus/logs` und sind damit sichtbar.
+Nein. Der Samba-Share zeigt `config`, `share`, `media`, `backup`, `ssl` und `addons` — Datenverzeichnisse von Add-ons gehören nicht dazu. Einzige Ausnahme sind die Logs, wenn `share_logs` aktiv ist: die liegen unter `/share/npmplus/logs` und sind damit sichtbar.
 
 Alles andere erreichst du über ein Terminal-Add-on mit Docker-Zugriff. Ansehen:
 
