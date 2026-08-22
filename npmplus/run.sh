@@ -158,166 +158,90 @@ fi
 # Daten im App-Konfigurationsordner sichtbar machen
 #
 # NPMplus legt alles unter /data ab. Dieser Ordner gehoert der App allein und
-# ist weder ueber Samba noch ueber den Datei-Editor erreichbar. Mit
-# expose_data_dir liegen die bearbeitbaren Teile stattdessen in /config
-# (aussen /app_configs/<slug>), in /data zeigt ein Symlink darauf.
+# ist weder ueber Samba noch ueber den Datei-Editor erreichbar — bei einem
+# kaputten Zertifikat oder einer verkorksten custom_nginx-Datei kommt man an
+# nichts heran. Mit expose_data_dir wandern die interessanten Pfade nach
+# /config (aussen /app_configs/<slug>) und bleiben an ihrer alten Stelle als
+# Symlink erreichbar.
 #
-# Drei Regeln, aus dem Fehler von 0.2.0 gelernt:
+# Bewusst reversibel: wird die Option wieder ausgeschaltet, holt der naechste
+# Start die Daten zurueck nach /data. Sonst haette ein Aus-Klick zur Folge,
+# dass NPMplus mit leeren Verzeichnissen startet.
 #
-#  1. Zertifikate, Datenbank und Schluessel werden nicht angefasst. Sie sind
-#     der Zustand, den man nicht wiederherstellen kann; zum Herauskopieren
-#     gibt es docker cp (siehe DOCS.md). Umgezogen werden nur Pfade, die das
-#     Image beim Start ohnehin neu anlegt, wenn sie fehlen.
-#  2. Es wird kopiert, nicht verschoben. Das Original bleibt als
-#     <pfad>.pre-expose liegen — nichts wird geloescht, nie.
-#  3. Vorher wird geprueft, ob /config wirklich der eingehaengte Ordner des
-#     Supervisors ist. Ohne diese Pruefung landen die Daten sonst im
-#     Container-Layer und sind beim naechsten Start des Add-ons weg.
+# keys.json bleibt absichtlich aussen vor — das ist der Signierschluessel fuer
+# die Sitzungs-Token, der gehoert nicht in einen Ordner, den jede App mit
+# all_app_configs lesen kann.
 ###############################################################################
 PUBLIC_CONFIG=/config
-EXPOSED_PATHS="custom_nginx access crowdsec html"
 
-# Pfade, die 0.2.0 ebenfalls angefasst hat. Sie werden nicht mehr umgezogen,
-# muessen aber weiter repariert werden koennen: wer 0.2.0 laufen hatte, hat in
-# /data womoeglich Symlinks ins Leere stehen, und nginx bricht dann beim Laden
-# der Zertifikate ab.
-REPAIR_PATHS="tls npmplus/database.sqlite custom_ssl npmplus/keys.json"
+# Absichtlich nicht dabei:
+#   /data/database.sqlite, /data/custom_ssl, /data/etc  — Altlasten-Pfade. Der
+#     Start des Images schiebt deren Inhalt an die heutige Stelle und loescht
+#     sie danach; ein Symlink dort wuerde als "noch nicht migriert" gelesen.
+#   /data/npmplus/keys.json — Signierschluessel der Sitzungs-Token. Der gehoert
+#     nicht in einen Ordner, den jede App mit all_app_configs lesen kann.
+EXPOSED_PATHS="tls npmplus/database.sqlite custom_nginx access crowdsec html"
 
-# Kaputte Verlinkung aus einem frueheren Lauf einsammeln: zeigt ein Symlink in
-# /data ins Leere, kommt das Verzeichnis zurueck — aus der Sicherung, sonst neu
-# angelegt. Laeuft bei jedem Start, unabhaengig von der Option, damit ein
-# beschaedigter Stand sich von selbst repariert statt nginx scheitern zu lassen.
-expose_selfheal() {
-    local name="$1" src="/data/$1" keep="/data/$1.pre-expose"
-    [ -L "$src" ] || return 0
-    [ -e "$src" ] && return 0
-
-    rm -f "$src"
-    if [ -d "$keep" ]; then
-        mv "$keep" "$src"
-        warn "${name} pointed to a missing target — restored it from ${name}.pre-expose"
-        return 0
-    fi
-
-    # Dateien nicht als Verzeichnis wiederbeleben: eine database.sqlite, die ein
-    # Ordner ist, waere schlimmer als gar keine. NPMplus legt sie selbst an.
-    case "$name" in
-        *.sqlite|*.json)
-            warn "${name} pointed to a missing target — link removed, NPMplus creates a new one"
-            ;;
-        *)
-            mkdir -p "$src"
-            warn "${name} pointed to a missing target — recreated it empty, NPMplus fills it on start"
-            ;;
-    esac
-}
-
-# Rueckabwicklung von 0.2.0: dort wurden Zertifikate und Datenbank nach /config
-# verschoben. Zeigt ein Symlink dorthin und das Ziel existiert, kommen die Daten
-# wieder nach /data — und zwar restlos, denn in /config kann sie jeder lesen,
-# der Zugriff auf die Freigabe hat.
-expose_undo_020() {
+# Ein Verzeichnis oder eine Datei nach /config umziehen und an der alten Stelle
+# verlinken. mv statt cp: der Umzug soll keine zweite Kopie hinterlassen, die
+# spaeter jemand fuer die aktuelle haelt.
+expose_move() {
     local name="$1" src="/data/$1" dst="${PUBLIC_CONFIG}/$1"
-    [ -L "$src" ] || return 0
-    [ -e "$dst" ] || return 0
-    case "$(readlink "$src")" in
-        "${PUBLIC_CONFIG}"/*) ;;
-        *) return 0 ;;
-    esac
+    mkdir -p "$(dirname "$src")" "$(dirname "$dst")"
 
-    rm -f "$src"
-    mkdir -p "$(dirname "$src")"
-    if mv "$dst" "$src" 2>/dev/null; then
-        warn "${name} was moved to ${PUBLIC_CONFIG} by version 0.2.0 — moved back to /data, it does not belong in a readable share"
-    else
-        cp -a "$dst" "$src" && rm -rf "$dst"             && warn "${name} was moved to ${PUBLIC_CONFIG} by version 0.2.0 — copied back to /data"             || warn "could not move ${name} back to /data — it is still in ${PUBLIC_CONFIG}"
-    fi
-}
-
-# Kopieren, pruefen, erst dann verlinken. Das Original bleibt als .pre-expose
-# stehen: geht beim Kopieren etwas schief, ist der alte Stand noch da.
-expose_link() {
-    local name="$1" src="/data/$1" dst="${PUBLIC_CONFIG}/$1" keep="/data/$1.pre-expose"
-
-    # Schon verlinkt und Ziel vorhanden: nichts zu tun.
+    # Schon umgezogen: nur den Symlink nachziehen, falls er fehlt.
     if [ -L "$src" ]; then
-        [ -e "$dst" ] || return 0
+        [ -e "$dst" ] && ln -sfn "$dst" "$src"
         return 0
     fi
 
-    mkdir -p "$dst"
-    if [ -d "$src" ]; then
-        cp -a "$src/." "$dst/" 2>/dev/null || {
-            warn "could not copy ${name} to ${PUBLIC_CONFIG} — leaving it in /data"
-            return 0
-        }
-        # Gegenprobe: im Ziel muss mindestens so viel liegen wie in der Quelle.
-        local n_src n_dst
-        n_src=$(find "$src" -type f 2>/dev/null | wc -l)
-        n_dst=$(find "$dst" -type f 2>/dev/null | wc -l)
-        if [ "$n_dst" -lt "$n_src" ]; then
-            warn "copy of ${name} is incomplete (${n_dst}/${n_src} files) — leaving it in /data"
-            return 0
-        fi
-        # Original nur umbenennen, nie loeschen.
-        if [ -e "$keep" ]; then
-            rm -rf "$src"
-        else
-            mv "$src" "$keep"
-        fi
+    if [ -e "$src" ] && [ ! -e "$dst" ]; then
+        mv "$src" "$dst" || { warn "could not move ${name} to ${PUBLIC_CONFIG}"; return 0; }
+    elif [ -e "$src" ] && [ -e "$dst" ]; then
+        # Beide Seiten belegt: das, was NPMplus zuletzt benutzt hat, steht in
+        # /data und gewinnt. Die andere Fassung bleibt als .bak liegen.
+        mv "$dst" "${dst}.bak.$(date +%Y%m%d%H%M%S)" || return 0
+        mv "$src" "$dst" || return 0
+        warn "${name} existed in both places — kept the copy from /data, renamed the other one to .bak"
+    elif [ ! -e "$dst" ]; then
+        # Noch gar nicht vorhanden: NPMplus legt es beim Start selbst an, dann
+        # aber im verlinkten Ziel. Nur Verzeichnisse vorbereiten, keine Dateien.
+        case "$name" in
+            *.sqlite|*.json) return 0 ;;
+            *) mkdir -p "$dst" ;;
+        esac
     fi
 
+    rm -rf "$src"
     ln -sfn "$dst" "$src"
 }
 
-# Rueckweg: Inhalt aus /config zurueck nach /data, Symlink faellt weg.
-expose_unlink() {
-    local name="$1" src="/data/$1" dst="${PUBLIC_CONFIG}/$1" keep="/data/$1.pre-expose"
+# Rueckweg: Symlink aufloesen und die Daten wieder nach /data holen.
+expose_restore() {
+    local name="$1" src="/data/$1" dst="${PUBLIC_CONFIG}/$1"
     [ -L "$src" ] || return 0
-
     rm -f "$src"
-    mkdir -p "$src"
-    [ -d "$dst" ] && cp -a "$dst/." "$src/" 2>/dev/null || true
-    rm -rf "$keep"
-    log "${name} is back in /data"
-}
-
-# Nur der echte Mount zaehlt. Existiert /config bloss als Verzeichnis im Image,
-# waere jede Kopie dorthin beim naechsten Start des Containers verloren.
-config_is_mounted() {
-    [ -d "$PUBLIC_CONFIG" ] || return 1
-    if command -v mountpoint >/dev/null 2>&1; then
-        mountpoint -q "$PUBLIC_CONFIG"
-        return $?
+    if [ -e "$dst" ]; then
+        mv "$dst" "$src" || warn "could not move ${name} back to /data"
     fi
-    grep -q " ${PUBLIC_CONFIG} " /proc/self/mountinfo 2>/dev/null ||         grep -q " ${PUBLIC_CONFIG} " /proc/mounts 2>/dev/null
+    # Leere Zwischenordner nicht stehen lassen — sonst bleibt nach dem
+    # Ausschalten ein /config/npmplus ohne Inhalt zurueck.
+    rmdir "$(dirname "$dst")" 2>/dev/null || true
 }
-
-# Reihenfolge zaehlt: erst die Symlinks von 0.2.0 aufloesen, solange ihre Ziele
-# noch da sind, danach die ins Leere zeigenden einsammeln.
-if config_is_mounted; then
-    for name in $REPAIR_PATHS; do
-        expose_undo_020 "$name"
-    done
-fi
-
-for name in $EXPOSED_PATHS $REPAIR_PATHS; do
-    expose_selfheal "$name"
-done
 
 if [ "$EXPOSE_DATA_OPT" = "true" ]; then
-    if config_is_mounted; then
+    if [ -d "$PUBLIC_CONFIG" ]; then
         for name in $EXPOSED_PATHS; do
-            expose_link "$name"
+            expose_move "$name"
         done
-        log "custom_nginx, access lists, CrowdSec pages and the default page are in /app_configs/<slug> (Samba, file editor)"
-        log "Certificates and database stay in /data — use docker cp to get at them (see DOCS.md)"
+        log "Database, certificates and config are in /app_configs/<slug> now (Samba, file editor); /data links to them"
+        warn "This includes the private keys of every certificate — anyone with access to that share can read them."
     else
-        warn "expose_data_dir is on, but ${PUBLIC_CONFIG} is not a mount — needs Supervisor 2026.07 or newer. Everything stays in /data."
+        warn "expose_data_dir is on, but ${PUBLIC_CONFIG} is not mounted — needs Supervisor 2026.07 or newer. Data stays in /data."
     fi
-elif config_is_mounted; then
+elif [ -d "$PUBLIC_CONFIG" ]; then
     for name in $EXPOSED_PATHS; do
-        expose_unlink "$name"
+        expose_restore "$name"
     done
 fi
 

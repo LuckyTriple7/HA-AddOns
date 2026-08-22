@@ -121,7 +121,7 @@ configuration:
     description: Static key for login cookies. Left empty a new one is generated on every restart, forcing a new login each time.
   expose_data_dir:
     name: Keep data in the config folder
-    description: "Stores custom_nginx, access lists, CrowdSec pages and the default page under /app_configs/<slug>, reachable over Samba and the file editor. Certificates and database stay in the private /data. Turning it off moves everything back."
+    description: "Stores database, certificates, custom_nginx, access lists and CrowdSec pages under /app_configs/<slug>, reachable over Samba and the file editor. Note: this includes the private keys of all certificates. Turning it off moves everything back."
   extra_env:
     name: Extra environment variables
     description: Additional NPMplus variables as KEY=VALUE, one per line. All names are listed in the NPMplus project's compose.yaml.

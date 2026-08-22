@@ -121,7 +121,7 @@ configuration:
     description: Fester Schlüssel für Anmelde-Cookies. Leer lassen erzeugt bei jedem Neustart einen neuen — dann muss man sich nach jedem Neustart neu anmelden.
   expose_data_dir:
     name: Daten im Konfigurationsordner ablegen
-    description: "Legt custom_nginx, Zugriffslisten, CrowdSec-Seiten und die Standardseite unter /app_configs/<slug> ab, erreichbar über Samba und den Datei-Editor. Zertifikate und Datenbank bleiben im privaten /data. Ausschalten holt alles wieder zurück."
+    description: "Legt Datenbank, Zertifikate, custom_nginx, Zugriffslisten und CrowdSec-Seiten unter /app_configs/<slug> ab, erreichbar über Samba und den Datei-Editor. Achtung: dort liegen dann auch die privaten Schlüssel aller Zertifikate. Ausschalten holt alles wieder zurück."
   extra_env:
     name: Zusätzliche Umgebungsvariablen
     description: Weitere NPMplus-Variablen im Format KEY=VALUE, eine je Zeile. Alle Namen stehen in der compose.yaml des NPMplus-Projekts.

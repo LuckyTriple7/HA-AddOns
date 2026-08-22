@@ -29,7 +29,7 @@ The interface certificate is self-signed — the browser warning on first access
 - **Access lists** per host and per location, multiple lists combinable
 - **GoAccess dashboard** on port 91, without its own login — bound to `127.0.0.1` by default, reached through a proxy host with an access list
 - **zstd and brotli compression**, file and PHP server with fancyindex
-- **Config within reach** (`expose_data_dir`): `custom_nginx`, access lists and CrowdSec pages optionally under `/app_configs/<slug>`; certificates and database stay in the private `/data`
+- **Data within reach** (`expose_data_dir`): database, certificates, `custom_nginx` and access lists optionally under `/app_configs/<slug>` instead of the private `/data`
 - Logs to the add-on log (journald, that is what CrowdSec reads) and/or to `/share/npmplus/logs` for reading over Samba
 
 ## Configuration
@@ -52,7 +52,7 @@ The interface certificate is self-signed — the browser warning on first access
 | `geo_preset` | `none` | Ready-made selection: `high_risk` (16 countries) |
 | `geo_countries` | `[]` | Two-letter country codes, e.g. `cn` |
 | `geo_deny_ips` | `[]` | Always-blocked addresses or CIDR ranges |
-| `expose_data_dir` | `false` | Put the editable config into `/app_configs/<slug>` (certificates and database excluded) |
+| `expose_data_dir` | `false` | Put database, certificates and config into `/app_configs/<slug>` |
 | `extra_env` | `[]` | Additional NPMplus variables as `KEY=VALUE` |
 
 Full option list, CrowdSec setup and migration from the old NGINX Proxy Manager add-on: **[documentation](https://github.com/LuckyTriple7/HA-AddOns/blob/dev/npmplus/DOCS.en.md)**

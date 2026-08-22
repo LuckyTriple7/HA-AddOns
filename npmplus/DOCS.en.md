@@ -743,7 +743,7 @@ Not included out of the box. Put the MaxMind databases (free account) into `/dat
 | `nginx_worker_processes` | `auto` | Number of nginx workers |
 | `nginx_worker_connections` | `512` | Connections per worker |
 | `cookie_secret` | – | Static key for login cookies |
-| `expose_data_dir` | `false` | Put the editable config into `/app_configs/<slug>` |
+| `expose_data_dir` | `false` | Put database, certificates and config into `/app_configs/<slug>` |
 | `extra_env` | `[]` | Additional NPMplus variables as `KEY=VALUE` |
 
 Anything not listed here can be set through `extra_env`. The full list lives in the [NPMplus compose.yaml](https://github.com/ZoeyVid/NPMplus/blob/develop/compose.yaml):
@@ -784,22 +784,26 @@ Everything lives in the add-on's private `/data` directory:
 
 ### Data in the config folder (`expose_data_dir`)
 
-With `expose_data_dir: true`, the hand-editable parts of the configuration live in the app's public config folder — reachable from outside as `/app_configs/<slug>` over Samba, the file editor or a terminal. A symlink stays behind at every old location in `/data`, so NPMplus never notices the move.
+With `expose_data_dir: true`, database, certificates and configuration no longer live in the private `/data` but in the app's public config folder — reachable from outside as `/app_configs/<slug>` over Samba, the file editor or a terminal. A symlink stays behind at every old location in `/data`, so NPMplus never notices the move.
+
+What moves:
 
 | What | Ends up in |
 |---|---|
+| Certificates including private keys | `/app_configs/<slug>/tls/` |
+| Database | `/app_configs/<slug>/npmplus/database.sqlite` |
 | Custom nginx snippets | `/app_configs/<slug>/custom_nginx/` |
 | Access lists | `/app_configs/<slug>/access/` |
 | CrowdSec ban and captcha pages | `/app_configs/<slug>/crowdsec/` |
 | Default web page | `/app_configs/<slug>/html/` |
 
-**Certificates, database and keys stay in `/data`.** That is the state you cannot recreate, and a folder every app mapping `all_app_configs` can read is no place for private keys. Use `docker cp` to get at them (see below).
+Deliberately **not** moved: `keys.json`. That is the signing key for session tokens and stays in `/data`.
 
-The move copies and deletes nothing: the original stays behind as `<path>.pre-expose` in `/data`. Turning the option off brings the content back from `/config` to `/data`.
+> **Security note:** `tls/` holds the private keys of every certificate. Anyone with access to the Samba share can read them, and so can any other app mapping `all_app_configs`. That is why the option is off by default.
 
-Requires **Supervisor 2026.07 or newer** (that is where `addon_config` became `app_config`). If the folder is not actually mounted, the app aborts the move and logs a warning — it checks `mountpoint`, not just whether the directory exists.
+Turning it off moves everything back: the next start resolves the symlinks and returns the data to `/data`. If both folders hold something under the same name when you turn it on, the copy from `/data` wins and the other one is kept with a timestamp as `.bak`.
 
-> **Do not use version 0.2.0.** It moved `tls/` and the database as well. From 0.2.1 on, startup pulls both back into `/data` by itself; a symlink pointing nowhere is removed so nginx can start again.
+Requires **Supervisor 2026.07 or newer** (that is where `addon_config` became `app_config`). On older versions the folder is not mounted, the add-on logs a warning and leaves everything in `/data`.
 
 ### Reachable over Samba?
 

@@ -1,31 +1,5 @@
 # Changelog
 
-## [0.2.1] - 2026-08-22
-
-### Behoben
-- **`expose_data_dir` fasst Zertifikate und Datenbank nicht mehr an.** In 0.2.0 wanderten
-  `tls/` und `npmplus/database.sqlite` mit nach `/config`. Das ist genau der Zustand, den
-  man nicht neu erzeugen kann — und wenn beim Umzug etwas schiefging, startete nginx nicht
-  mehr (`cannot load certificate ... No such file or directory`). Umgezogen werden jetzt nur
-  noch `custom_nginx/`, `access/`, `crowdsec/` und `html/`, also Pfade, die das Image beim
-  Start ohnehin neu anlegt, wenn sie fehlen.
-- **Es wird kopiert statt verschoben, und nichts mehr gelöscht.** Das Original bleibt als
-  `<pfad>.pre-expose` in `/data` liegen. Vor dem Verlinken prüft das Add-on, ob im Ziel
-  mindestens so viele Dateien angekommen sind wie in der Quelle.
-- **`/config` muss ein echter Mount sein.** Vorher genügte `[ -d /config ]` — ein bloßes
-  Verzeichnis im Image hätte die Daten in den Container-Layer geschrieben, den Home Assistant
-  bei jedem Start verwirft. Geprüft wird jetzt mit `mountpoint` bzw. `/proc/self/mountinfo`.
-- **Selbstreparatur beim Start.** Zeigt in `/data` ein Symlink ins Leere, wird er entfernt und
-  das Verzeichnis aus `.pre-expose` wiederhergestellt oder leer neu angelegt, damit NPMplus
-  wieder startet. Bei Dateien wie `database.sqlite` fällt nur der Symlink weg, NPMplus legt
-  sie neu an.
-- **Rückabwicklung von 0.2.0.** Liegen `tls/` oder die Datenbank noch in `/config`, holt der
-  Start sie von dort zurück nach `/data`.
-
-### Geändert
-- Die Option heißt in der Beschreibung jetzt „bearbeitbare Konfiguration" statt „Daten" —
-  Zertifikate und Datenbank sind ausdrücklich nicht dabei.
-
 ## [0.2.0] - 2026-08-22
 
 ### Neu
