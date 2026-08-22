@@ -32,7 +32,7 @@ Bestehende Hosts lassen sich nicht automatisch übernehmen, die Datenbanken sind
 
 Let's Encrypt erlaubt 50 Zertifikate pro Woche und Domain — ein Dutzend Domains neu auszustellen ist unkritisch. Nur bei wiederholten Fehlversuchen mit identischem Domain-Satz greift das Limit von 5 doppelten Zertifikaten pro Woche.
 
-**Wichtig:** Diese DNS-Challenge-Anbieter fallen weg und müssen ersetzt werden: `certbot-dns-he`, `certbot-dns-dnspod`, `certbot-dns-online`, `certbot-dns-powerdns`, `certbot-dns-do`. Route53 wird ebenfalls nicht unterstützt.
+**Wichtig — DNS-Challenge:** Die Anbieterliste ist genauso lang wie beim Original (86 Plugins). Bei diesen Anbietern steckt in NPMplus aber ein anderes PyPI-Paket dahinter: `he` (jetzt `certbot-dns-hurricane-electric`), `dnspod` (jetzt `certbot-dnspod`), `powerdns` (jetzt `certbot-dns-pdns`), dazu `online` und `do`. Bestehende Zertifikate dieser Anbieter **erneuern sich nicht** und müssen einmal neu ausgestellt werden. Wirklich nicht unterstützt wird nur **Route53** — Amazon-CloudFront-Adressen lassen sich in NPMplus nicht automatisch als vertrauenswürdig setzen. Dafür gibt es `dreamhost` und `scaleway` zusätzlich.
 
 ## CrowdSec
 

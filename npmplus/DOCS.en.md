@@ -32,7 +32,7 @@ Existing hosts cannot be imported automatically, the databases are incompatible.
 
 Let's Encrypt allows 50 certificates per week and domain, so reissuing a dozen domains is harmless. Only repeated failed attempts with an identical domain set hit the limit of 5 duplicate certificates per week.
 
-**Important:** These DNS challenge providers are gone and need replacing: `certbot-dns-he`, `certbot-dns-dnspod`, `certbot-dns-online`, `certbot-dns-powerdns`, `certbot-dns-do`. Route53 is not supported either.
+**Important — DNS challenge:** The provider list is as long as upstream (86 plugins), but these providers are backed by a different PyPI package in NPMplus: `he` (now `certbot-dns-hurricane-electric`), `dnspod` (now `certbot-dnspod`), `powerdns` (now `certbot-dns-pdns`), plus `online` and `do`. Existing certificates from those providers **will not renew** and have to be issued once more. The only provider actually unsupported is **Route53** — Amazon CloudFront addresses cannot be trusted automatically in NPMplus. In exchange, `dreamhost` and `scaleway` are available on top.
 
 ## CrowdSec
 
