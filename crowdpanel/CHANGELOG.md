@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.6.1] - 2026-08-22
+
+### Fixed
+- **Die vier Archiv-Optionen standen unter ihren technischen Namen in der
+  Add-on-Konfiguration.** `translations/de.yaml` und `translations/en.yaml`
+  kannten sie nicht, und was dort fehlt, zeigt Home Assistant als
+  `archive_enabled` statt als „Alarm-Archiv“ — ohne Beschreibung, was die
+  Option tut. Alle vier haben jetzt Namen und Erklärung in beiden Sprachen.
+
 ## [0.6.0] - 2026-08-22
 
 ### Added

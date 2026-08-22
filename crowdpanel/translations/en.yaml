@@ -74,6 +74,27 @@ configuration:
   history_days:
     name: History (days)
     description: How many days the history in the overview covers.
+  archive_enabled:
+    name: Alert archive
+    description: >-
+      Writes every detection into its own database at /data/alerts.db, so that
+      history, attack map and alert list reach further back than CrowdSec's own
+      retention. Switched off, CrowdPanel fetches everything live from the LAPI
+      as before.
+  archive_days:
+    name: Archive — retention (days)
+    description: >-
+      How long the archive keeps detections. One detection costs about 200
+      bytes. 0 removes the cap and throws nothing away.
+  archive_backfill_days:
+    name: Archive — first sync (days)
+    description: >-
+      How far back the very first sync asks. The LAPI never returns more than a
+      thousand alerts in one answer, so the first run picks up no more than
+      that. After it nothing is lost as long as the add-on runs.
+  archive_interval:
+    name: Archive — sync (seconds)
+    description: Time between two syncs of the archive with the LAPI.
   server_lat:
     name: Location — latitude
     description: >-
