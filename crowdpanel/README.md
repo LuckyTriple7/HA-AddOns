@@ -14,7 +14,7 @@ und macht daraus eine Weboberfläche.
 - **Alarme** — gruppierbar nach Adresse oder Szenario mit Trefferzahl, mit Ereignissen und auslösender Log-Zeile; Sperren direkt aus der Zeile
 - **IP prüfen** — aktive Sperren, Alarmverlauf und Allowlist-Treffer zu einer Adresse
 - **Ausnahmen** — Allowlists aus der CrowdSec-Datenbank und Whitelist-Parser im Klartext, mit Erklärung des Unterschieds
-- **Angriffskarte** — Punkt je Quelladresse aus den GeoIP-Koordinaten der Alarme, Klick führt zur Alarmliste
+- **Angriffskarte** — Punkt je Quelladresse aus den GeoIP-Koordinaten der Alarme, zoombar, eigener Standort als Bezugspunkt, Klick führt zur Alarmliste
 - **Metriken** — CrowdSecs eigene Zähler zu Datenquellen, Parsern, Szenarien, Whitelists, LAPI, Bouncern und AppSec
 - **Zwei-Faktor-Anmeldung** — TOTP für den direkten Port, QR-Code lokal erzeugt, Backup-Codes
 - **Home-Assistant-Sensoren** — aktive Sperren, davon selbst erkannte, und Erkennungen der letzten 24 Stunden

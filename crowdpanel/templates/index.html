@@ -52,13 +52,28 @@
        am Rahmen, nicht am SVG — sonst entstuenden leere Raender im Kartenfeld.
        --map-ratio ist das Seitenverhaeltnis der viewBox aus world.svg; wird die
        Datei mit anderem Ausschnitt neu erzeugt, aendert sich hier eine Zahl. */
-    .map-wrap { --map-ratio: 1.473; max-width: calc(60vh * var(--map-ratio)); margin: 0 auto; }
-    .map-wrap svg { width: 100%; height: auto; display: block; border-radius: 6px; background: var(--bg); }
+    .map-wrap { --map-ratio: 1.473; max-width: calc(60vh * var(--map-ratio)); margin: 0 auto; position: relative; }
+    /* touch-action: none — sonst faengt der Browser das Wischen ab und die
+       Karte laesst sich auf dem Telefon nicht verschieben, sondern scrollt. */
+    .map-wrap svg { width: 100%; height: auto; display: block; border-radius: 6px; background: var(--bg);
+                    touch-action: none; cursor: grab; }
+    .map-wrap svg.dragging { cursor: grabbing; }
     .map-wrap .cc { fill: var(--surf2); stroke: var(--muted); stroke-opacity: .45; stroke-width: 1; vector-effect: non-scaling-stroke; }
     .map-pt { fill: var(--red); fill-opacity: .5; stroke: var(--red); stroke-width: 1;
               vector-effect: non-scaling-stroke; cursor: pointer; }
     .map-pt:hover { fill-opacity: .95; }
-    .map-foot { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 8px; }
+    .map-home { fill: var(--accent); fill-opacity: .9; stroke: var(--bg); stroke-width: 1.5;
+                vector-effect: non-scaling-stroke; }
+    .map-home-ring { fill: none; stroke: var(--accent); stroke-width: 1.5; stroke-opacity: .7;
+                     vector-effect: non-scaling-stroke; }
+    .map-zoom { position: absolute; top: 8px; right: 8px; display: flex; flex-direction: column; gap: 4px; }
+    .map-zoom button { width: 30px; height: 30px; line-height: 1; font-size: 0.95rem;
+                       background: var(--surf); border: 1px solid var(--border); color: var(--text);
+                       border-radius: 6px; cursor: pointer; opacity: .85; }
+    .map-zoom button:hover { border-color: var(--accent); opacity: 1; }
+    .map-foot { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 8px; align-items: center; }
+    .map-legend { display: inline-flex; align-items: center; gap: 6px; }
+    .map-legend .dot { background: var(--accent); }
     .grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
 
     /* Kennzahlenreihen: feste Spaltenzahl statt einer geratenen Mindestbreite.
@@ -724,6 +739,140 @@
       return Math.min(3.2, 0.7 + Math.sqrt(Math.max(1, count)) * 0.35);
     }
 
+    // Ausschnitt der Karte. Bewusst ausserhalb von renderMap: die Uebersicht
+    // zeichnet sich alle paar Sekunden neu, und wer gerade nach Sao Paulo
+    // gezoomt hat, will nicht bei jedem Durchlauf wieder die ganze Welt sehen.
+    const MAP_ZOOM_MAX = 16;
+    const MAP_ZOOM_STEP = 1.6;
+    let mapView = null;
+
+    // Zoomen und Verschieben aendern nur die viewBox — kein Neuzeichnen, keine
+    // Kartenbibliothek. Was mitwachsen wuerde, traegt sein Grundmass als
+    // data-r und wird gegen den Zoom geteilt, damit ein Punkt ein Punkt bleibt.
+    function bindMapView(svg) {
+      const raw = (svg.getAttribute('viewBox') || '0 0 360 360').split(/[\s,]+/).map(Number);
+      const base = { x: raw[0] || 0, y: raw[1] || 0, w: raw[2] || 360, h: raw[3] || 360 };
+      const scaled = Array.prototype.slice.call(svg.querySelectorAll('[data-r]'));
+      if (!mapView) mapView = { z: 1, cx: base.x + base.w / 2, cy: base.y + base.h / 2 };
+
+      function apply() {
+        const z = mapView.z;
+        const w = base.w / z, h = base.h / z;
+        // Erst den Mittelpunkt begrenzen, dann daraus die Ecke rechnen: so
+        // laesst sich nicht ueber den Kartenrand hinausziehen.
+        mapView.cx = Math.min(Math.max(mapView.cx, base.x + w / 2), base.x + base.w - w / 2);
+        mapView.cy = Math.min(Math.max(mapView.cy, base.y + h / 2), base.y + base.h - h / 2);
+        svg.setAttribute('viewBox', (mapView.cx - w / 2) + ' ' + (mapView.cy - h / 2) + ' ' + w + ' ' + h);
+        scaled.forEach(n => n.setAttribute('r', (Number(n.getAttribute('data-r')) / z).toFixed(3)));
+      }
+
+      // Der Punkt unter dem Zeiger bleibt beim Zoomen unter dem Zeiger. Das
+      // geht, weil das SVG dank width:100%/height:auto immer genau das
+      // Seitenverhaeltnis der viewBox hat — sonst laege hier ein Versatz.
+      function zoomTo(target, clientX, clientY) {
+        const rect = svg.getBoundingClientRect();
+        const z0 = mapView.z;
+        const z = Math.min(MAP_ZOOM_MAX, Math.max(1, target));
+        if (z === z0 || !rect.width || !rect.height) { mapView.z = z; apply(); return; }
+        const fx = (clientX - rect.left) / rect.width;
+        const fy = (clientY - rect.top) / rect.height;
+        const w0 = base.w / z0, h0 = base.h / z0;
+        const ux = mapView.cx - w0 / 2 + fx * w0;
+        const uy = mapView.cy - h0 / 2 + fy * h0;
+        const w1 = base.w / z, h1 = base.h / z;
+        mapView.z = z;
+        mapView.cx = ux - (fx - 0.5) * w1;
+        mapView.cy = uy - (fy - 0.5) * h1;
+        apply();
+      }
+
+      function zoomCentered(factor) {
+        const rect = svg.getBoundingClientRect();
+        zoomTo(mapView.z * factor, rect.left + rect.width / 2, rect.top + rect.height / 2);
+      }
+
+      svg.addEventListener('wheel', function (e) {
+        e.preventDefault();
+        zoomTo(mapView.z * (e.deltaY < 0 ? MAP_ZOOM_STEP : 1 / MAP_ZOOM_STEP), e.clientX, e.clientY);
+      }, { passive: false });
+
+      const pointers = new Map();
+      let pan = null, pinch = null;
+
+      function twoPointers() {
+        const it = pointers.values();
+        return [it.next().value, it.next().value];
+      }
+
+      function capture(id) {
+        try { svg.setPointerCapture(id); } catch (err) { /* nicht kritisch */ }
+      }
+
+      svg.addEventListener('pointerdown', function (e) {
+        pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        if (pointers.size === 1) {
+          const rect = svg.getBoundingClientRect();
+          pan = { x: e.clientX, y: e.clientY, cx: mapView.cx, cy: mapView.cy, w: rect.width, h: rect.height };
+          svg.classList.add('dragging');
+          mapDragged = false;
+        } else if (pointers.size === 2) {
+          const [a, b] = twoPointers();
+          pan = null;
+          pinch = { dist: Math.hypot(a.x - b.x, a.y - b.y) || 1, z: mapView.z };
+          pointers.forEach((v, id) => capture(id));
+        }
+      });
+
+      svg.addEventListener('pointermove', function (e) {
+        if (!pointers.has(e.pointerId)) return;
+        pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        if (pinch && pointers.size >= 2) {
+          const [a, b] = twoPointers();
+          const dist = Math.hypot(a.x - b.x, a.y - b.y) || 1;
+          mapDragged = true;
+          zoomTo(pinch.z * (dist / pinch.dist), (a.x + b.x) / 2, (a.y + b.y) / 2);
+          return;
+        }
+        if (!pan || !pan.w) return;
+        const dx = e.clientX - pan.x, dy = e.clientY - pan.y;
+        // Erst ab der Schwelle festhalten: eine Zeigererfassung leitet auch das
+        // anschliessende click-Ereignis auf das SVG um, und dann kaeme ein
+        // einfacher Klick nie mehr beim Punkt darunter an.
+        if (!mapDragged && (Math.abs(dx) > 3 || Math.abs(dy) > 3)) {
+          mapDragged = true;
+          capture(e.pointerId);
+        }
+        if (!mapDragged) return;
+        mapView.cx = pan.cx - dx * (base.w / mapView.z) / pan.w;
+        mapView.cy = pan.cy - dy * (base.h / mapView.z) / pan.h;
+        apply();
+      });
+
+      function endPointer(e) {
+        pointers.delete(e.pointerId);
+        if (pointers.size < 2) pinch = null;
+        if (pointers.size === 0) { pan = null; svg.classList.remove('dragging'); }
+      }
+      svg.addEventListener('pointerup', endPointer);
+      svg.addEventListener('pointercancel', endPointer);
+
+      svg.addEventListener('dblclick', function (e) {
+        e.preventDefault();
+        mapView = { z: 1, cx: base.x + base.w / 2, cy: base.y + base.h / 2 };
+        apply();
+      });
+
+      apply();
+      return { zoomCentered: zoomCentered, reset: function () {
+        mapView = { z: 1, cx: base.x + base.w / 2, cy: base.y + base.h / 2 };
+        apply();
+      } };
+    }
+
+    // Ein Klick, der eine Verschiebung beendet, ist kein Klick auf den Punkt
+    // darunter — sonst springt die Alarmliste beim Ziehen um.
+    let mapDragged = false;
+
     async function renderMap(d) {
       const box = $('ovMap');
       const text = await worldSvg();
@@ -746,6 +895,7 @@
         c.setAttribute('class', 'map-pt');
         c.setAttribute('cx', mapX(pt.lon));
         c.setAttribute('cy', mapY(pt.lat));
+        c.setAttribute('data-r', mapRadius(pt.count));
         c.setAttribute('r', mapRadius(pt.count));
         const title = document.createElementNS(NS, 'title');
         const name = countryName(pt.country);
@@ -758,6 +908,7 @@
         // Ein Punkt fuehrt zur Alarmliste dieser Adresse — banned wird von dort
         // aus bewusst, nicht durch einen Klick auf einen 3 Pixel grossen Kreis.
         c.addEventListener('click', () => {
+          if (mapDragged) return;
           $('aQ').value = pt.value;
           $('aSince').value = '24h';
           showTab('alerts');
@@ -766,10 +917,47 @@
         svg.appendChild(c);
       });
 
+      // Der eigene Standort zuletzt, damit er ueber den Angriffspunkten liegt:
+      // er ist der Bezugspunkt, nicht einer von vierhundert Treffern.
+      const home = d.home;
+      if (home) {
+        const label = (home.label || '').trim() || T.map_home_default;
+        const g = document.createElementNS(NS, 'g');
+        const htitle = document.createElementNS(NS, 'title');
+        htitle.textContent = T.map_home + ': ' + label;
+        g.appendChild(htitle);
+        [['map-home-ring', 5.5], ['map-home', 2.2]].forEach(pair => {
+          const c = document.createElementNS(NS, 'circle');
+          c.setAttribute('class', pair[0]);
+          c.setAttribute('cx', mapX(home.lon));
+          c.setAttribute('cy', mapY(home.lat));
+          c.setAttribute('data-r', pair[1]);
+          c.setAttribute('r', pair[1]);
+          g.appendChild(c);
+        });
+        svg.appendChild(g);
+      }
+
       const wrap = el('div', 'map-wrap');
       wrap.appendChild(svg);
       box.textContent = '';
       box.appendChild(wrap);
+
+      // Erst im Dokument binden: getBoundingClientRect braucht ein gelayoutetes
+      // Element, sonst waeren Zoommitte und Zeigerposition beide null.
+      const view = bindMapView(svg);
+      const zoom = el('div', 'map-zoom');
+      [['+', T.map_zoom_in, () => view.zoomCentered(MAP_ZOOM_STEP)],
+       ['−', T.map_zoom_out, () => view.zoomCentered(1 / MAP_ZOOM_STEP)],
+       ['⟲', T.map_zoom_reset, () => view.reset()]].forEach(item => {
+        const b = el('button', null, item[0]);
+        b.type = 'button';
+        b.title = item[1];
+        b.setAttribute('aria-label', item[1]);
+        b.addEventListener('click', item[2]);
+        zoom.appendChild(b);
+      });
+      wrap.appendChild(zoom);
 
       const foot = el('div', 'map-foot');
       foot.appendChild(el('span', 'muted',
@@ -778,6 +966,14 @@
         foot.appendChild(el('span', 'muted',
           fmt('map_truncated', { n: (d.points || []).length })));
       }
+      if (home) {
+        const legend = el('span', 'map-legend muted');
+        legend.appendChild(el('span', 'dot'));
+        legend.appendChild(el('span', null,
+          T.map_home + ((home.label || '').trim() ? ': ' + home.label.trim() : '')));
+        foot.appendChild(legend);
+      }
+      foot.appendChild(el('span', 'muted', T.map_zoom_hint));
       box.appendChild(foot);
 
       // Alarme da, aber keiner mit Koordinaten: das ist kein leerer Tag, das

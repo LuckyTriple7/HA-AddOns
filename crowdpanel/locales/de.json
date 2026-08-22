@@ -320,5 +320,11 @@
   "map_located": "Verortete Adressen: {located} · Erkennungen gesamt: {alerts}",
   "map_truncated": "gezeigt werden die {n} auffälligsten",
   "map_no_geoip": "Erkennungen sind da, aber keine einzige hat Koordinaten. Die liefert in CrowdSec der Parser crowdsecurity/geoip-enrich in der Stufe s02-enrich — nachinstallieren mit „cscli parsers install crowdsecurity/geoip-enrich“, danach CrowdSec neu starten. Ohne ihn bleibt nur die Länderauswertung.",
+  "map_home": "Serverstandort",
+  "map_home_default": "Dieser Server",
+  "map_zoom_in": "Vergrößern",
+  "map_zoom_out": "Verkleinern",
+  "map_zoom_reset": "Ansicht zurücksetzen",
+  "map_zoom_hint": "Mausrad oder Zwei-Finger-Geste zoomt, Ziehen verschiebt, Doppelklick setzt zurück.",
   "map_no_outline": "Die Weltkarte konnte nicht geladen werden."
 }

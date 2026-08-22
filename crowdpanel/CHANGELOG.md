@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.5.4] - 2026-08-22
+
+### Added
+- **Die Angriffskarte lässt sich zoomen und verschieben.** Mausrad oder
+  Zwei-Finger-Geste vergrößert bis zum sechzehnfachen Maßstab, Ziehen bewegt den
+  Ausschnitt, Doppelklick oder der Knopf `⟲` setzt zurück. Bisher lagen Punkte
+  in Mitteleuropa so dicht beieinander, dass sich nicht mehr sagen ließ, welcher
+  zu welcher Adresse gehört. Vergrößert wird um den Mauszeiger herum, über den
+  Kartenrand hinaus lässt sich nicht ziehen, und der gewählte Ausschnitt
+  überlebt die automatische Aktualisierung — sonst stünde man alle dreißig
+  Sekunden wieder vor der ganzen Welt.
+
+  Die Punkte behalten dabei ihre Größe. Sie stehen für die Zahl der
+  Erkennungen, nicht für die Zoomstufe.
+
+- **Der eigene Standort als Punkt auf der Karte.** Neue Optionen `server_lat`,
+  `server_lon` und `server_label` zeichnen einen blauen Punkt mit Ring an die
+  eigene Position — den Bezugspunkt, auf den all die roten Punkte zielen. Ohne
+  ihn ist die Karte eine Sammlung von Herkünften ohne Ziel.
+
+  Die Koordinaten stehen in der Konfiguration und werden nirgends abgefragt: die
+  eigene öffentliche Adresse wandert nicht zu einem fremden Geo-Dienst, nur
+  damit ein Punkt sitzt. Sind nicht beide Werte gesetzt, bleibt der Punkt weg.
+
 ## [0.5.3] - 2026-08-21
 
 ### Changed

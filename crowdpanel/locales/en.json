@@ -320,5 +320,11 @@
   "map_located": "Located addresses: {located} · Detections in total: {alerts}",
   "map_truncated": "showing the {n} most active",
   "map_no_geoip": "Detections are coming in, but not one of them carries coordinates. In CrowdSec they come from the parser crowdsecurity/geoip-enrich in stage s02-enrich — install it with “cscli parsers install crowdsecurity/geoip-enrich” and restart CrowdSec. Without it only the country breakdown remains.",
+  "map_home": "Server location",
+  "map_home_default": "This server",
+  "map_zoom_in": "Zoom in",
+  "map_zoom_out": "Zoom out",
+  "map_zoom_reset": "Reset view",
+  "map_zoom_hint": "Mouse wheel or two-finger gesture zooms, drag pans, double-click resets.",
   "map_no_outline": "The world map could not be loaded."
 }

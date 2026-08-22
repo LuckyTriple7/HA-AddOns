@@ -74,6 +74,22 @@ configuration:
   history_days:
     name: History (days)
     description: How many days the history in the overview covers.
+  server_lat:
+    name: Location — latitude
+    description: >-
+      Latitude of your own server, for example 48.14. Together with the
+      longitude it draws a dot on the attack map. Leave empty to show no
+      location of your own.
+  server_lon:
+    name: Location — longitude
+    description: >-
+      Longitude of your own server, for example 11.58. Only effective together
+      with the latitude.
+  server_label:
+    name: Location — label
+    description: >-
+      Name for that dot on the map, for example “Home”. Empty means “This
+      server”.
   verbose_log:
     name: Verbose log
     description: Writes extra lines to the add-on log. For troubleshooting only.

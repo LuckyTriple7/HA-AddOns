@@ -218,6 +218,25 @@ Nicht auf der Karte landen:
 - **Mehr als 400 Adressen.** Darüber wird nach Zahl der Erkennungen gekürzt; die
   Fußzeile nennt dann, wie viele gezeigt werden.
 
+**Zoomen und Verschieben.** Mausrad oder Zwei-Finger-Geste vergrößert bis zum
+sechzehnfachen Maßstab, Ziehen verschiebt den Ausschnitt, ein Doppelklick oder
+der Knopf `⟲` setzt zurück. Die Punkte behalten dabei ihre Größe — sie stehen
+für die Zahl der Erkennungen, nicht für die Zoomstufe. Der gewählte Ausschnitt
+bleibt über die automatische Aktualisierung hinweg erhalten; wer nach Sao Paulo
+gezoomt hat, sieht nicht alle dreißig Sekunden wieder die ganze Welt.
+Vergrößert wird um den Mauszeiger herum, und über den Kartenrand hinaus lässt
+sich nicht ziehen.
+
+**Der eigene Standort.** Wird `server_lat` und `server_lon` gesetzt, zeichnet
+CrowdPanel einen blauen Punkt mit Ring an diese Stelle — der Bezugspunkt, auf
+den all die roten Punkte zielen. `server_label` benennt ihn im Mauszeigertext
+und in der Fußzeile, etwa `Zuhause` oder `Rechenzentrum Falkenstein`. Die
+Koordinaten stehen in der Konfiguration und werden nirgends abgefragt: die
+eigene öffentliche Adresse wandert nicht zu einem fremden Geo-Dienst, nur damit
+ein Punkt auf der Karte sitzt. Zwei Nachkommastellen genügen für einen Ort auf
+etwa einen Kilometer genau; wer nicht mehr preisgeben will, rundet grob. Ohne
+beide Werte bleibt der Punkt einfach weg.
+
 Die Umrisse liegen als `static/world.svg` im Image, erzeugt aus Natural Earth
 1:110m (Public Domain, siehe [LICENSE.md](LICENSE.md)). Nachgeladen wird nichts
 aus dem Internet. Projiziert wird in Web Mercator — dieselbe Projektion wie bei
@@ -560,6 +579,9 @@ Lehnt Home Assistant die Sensoren ab, steht das **einmal** im Protokoll des Add-
 | `crowdsec_dir` | leer | Konfigurationsverzeichnis von CrowdSec, nur falls die Suche fehlschlägt |
 | `crowdsec_db` | leer | Datenbank von CrowdSec, nur falls die Suche fehlschlägt |
 | `history_days` | `7` | über wie viele Tage der Verlauf reicht |
+| `server_lat` | leer | Breitengrad des eigenen Standorts für den Punkt auf der Karte |
+| `server_lon` | leer | Längengrad des eigenen Standorts, nur zusammen mit `server_lat` wirksam |
+| `server_label` | leer | Beschriftung dieses Punktes, sonst „Dieser Server“ |
 | `ha_sensors` | `true` | Sensoren an Home Assistant melden |
 | `ha_sensor_interval` | `300` | Sekunden zwischen zwei Sensor-Aktualisierungen |
 | `verbose_log` | `false` | zusätzliche Zeilen im Protokoll |

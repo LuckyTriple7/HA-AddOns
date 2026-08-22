@@ -215,6 +215,23 @@ What never reaches the map:
 - **More than 400 addresses.** Beyond that the list is cut by detection count;
   the footer then states how many are shown.
 
+**Zoom and pan.** The mouse wheel or a two-finger gesture magnifies up to
+sixteen times, dragging moves the view, a double-click or the `⟲` button resets
+it. The dots keep their size while doing so — they stand for the number of
+detections, not for the zoom level. The chosen view survives the automatic
+refresh: whoever zoomed in on Sao Paulo does not get the whole world back every
+thirty seconds. Zooming happens around the mouse pointer, and dragging stops at
+the edge of the map.
+
+**Your own location.** With `server_lat` and `server_lon` set, CrowdPanel draws
+a blue dot with a ring at that spot — the reference point all those red dots aim
+at. `server_label` names it in the tooltip and in the footer, for example `Home`
+or `Falkenstein data centre`. The coordinates come from the configuration and
+are never looked up: your public address does not travel to some third-party geo
+service just so a dot can sit on the map. Two decimal places locate a place to
+about a kilometre; anyone wanting to give away less rounds coarsely. Without
+both values the dot is simply left out.
+
 The outlines ship as `static/world.svg`, generated from Natural Earth 1:110m
 (public domain, see [LICENSE.md](LICENSE.md)). Nothing is fetched from the
 internet. The projection is Web Mercator — the same one every online map uses,
@@ -545,6 +562,9 @@ again after that, so a misconfiguration cannot flood the log.
 | `crowdsec_dir` | empty | CrowdSec configuration directory, only if auto-detection fails |
 | `crowdsec_db` | empty | CrowdSec database, only if auto-detection fails |
 | `history_days` | `7` | how many days the history covers |
+| `server_lat` | empty | latitude of your own location for the dot on the map |
+| `server_lon` | empty | longitude of your own location, only effective together with `server_lat` |
+| `server_label` | empty | label for that dot, otherwise "This server" |
 | `ha_sensors` | `true` | report sensors to Home Assistant |
 | `ha_sensor_interval` | `300` | seconds between two sensor updates |
 | `verbose_log` | `false` | extra lines in the log |

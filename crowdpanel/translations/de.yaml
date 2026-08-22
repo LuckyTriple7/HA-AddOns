@@ -75,6 +75,22 @@ configuration:
   history_days:
     name: Verlauf (Tage)
     description: Über wie viele Tage der Verlauf in der Übersicht reicht.
+  server_lat:
+    name: Standort — Breitengrad
+    description: >-
+      Breitengrad des eigenen Servers, etwa 48.14. Zeichnet zusammen mit dem
+      Längengrad einen Punkt auf die Angriffskarte. Leer lassen, wenn kein
+      eigener Standort angezeigt werden soll.
+  server_lon:
+    name: Standort — Längengrad
+    description: >-
+      Längengrad des eigenen Servers, etwa 11.58. Wirkt nur zusammen mit dem
+      Breitengrad.
+  server_label:
+    name: Standort — Beschriftung
+    description: >-
+      Name für diesen Punkt auf der Karte, etwa „Zuhause“. Leer heißt „Dieser
+      Server".
   verbose_log:
     name: Ausführliches Protokoll
     description: Schreibt zusätzliche Zeilen ins Add-on-Protokoll. Nur zur Fehlersuche.

@@ -116,6 +116,21 @@ def _cfg_int(key: str, default: int, low: int, high: int) -> int:
         return default
 
 
+def _cfg_float(key: str, low: float, high: float) -> float | None:
+    """Optionale Zahlenoption. Leer oder unbrauchbar heisst 'nicht gesetzt' —
+    das ist etwas anderes als 0, denn 0/0 ist eine echte Koordinate."""
+    raw = load_config().get(key)
+    if raw is None or (isinstance(raw, str) and not raw.strip()):
+        return None
+    try:
+        value = float(raw)
+    except (TypeError, ValueError):
+        return None
+    if value != value or value < low or value > high:
+        return None
+    return value
+
+
 def _verbose() -> bool:
     return bool(load_config().get('verbose_log'))
 
@@ -976,6 +991,19 @@ def _coord(raw) -> float | None:
     return value
 
 
+def _home_point() -> dict | None:
+    """Der eigene Standort kommt aus der Konfiguration, nicht aus einer
+    Abfrage nach draussen: die oeffentliche Adresse des Nutzers wandert nicht
+    zu einem fremden Geo-Dienst, nur damit ein Punkt auf der Karte sitzt.
+    Beide Koordinaten muessen gesetzt sein — eine allein ergibt keinen Ort."""
+    lat = _cfg_float('server_lat', -90, 90)
+    lon = _cfg_float('server_lon', -180, 180)
+    if lat is None or lon is None:
+        return None
+    label = str(load_config().get('server_label') or '').strip()
+    return {'lat': round(lat, 4), 'lon': round(lon, 4), 'label': label[:80]}
+
+
 @api('/api/map')
 def attack_map():
     client = get_client()
@@ -1012,7 +1040,8 @@ def attack_map():
 
     return jsonify({'since': since, 'points': out,
                     'located': len(points), 'alerts': total,
-                    'truncated': len(points) > MAP_MAX_POINTS})
+                    'truncated': len(points) > MAP_MAX_POINTS,
+                    'home': _home_point()})
 
 
 @api('/api/metrics')
