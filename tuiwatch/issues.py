@@ -152,10 +152,31 @@ def _apply_mute(kind: str, key: str, on: bool) -> None:
 
 # ── Routen ─────────────────────────────────────────────────────────────────────
 
-def _row(r) -> dict:
+def _target_paused(con, kind: str, key: str) -> bool:
+    """Liegt das Bezugsobjekt bereits still, ohne dass jemand hier pausiert hat?
+
+    Angebote legt `A._auto_pause_on_error_streak` nach ERROR_ALARM_STREAK Fehlschlägen
+    von sich aus still (mit Benachrichtigung). Ohne diese Abfrage böte die Liste
+    weiter „Pausieren" an und täte anschliessend nichts Sichtbares."""
+    try:
+        if kind == 'offer':
+            r = con.execute('SELECT paused FROM offers WHERE id=?', (int(key),)).fetchone()
+            return bool(r and r['paused'])
+        if kind == 'search':
+            r = con.execute('SELECT watch FROM saved_searches WHERE id=?',
+                            (int(key),)).fetchone()
+            return bool(r and not r['watch'])
+    except Exception:
+        pass
+    return False
+
+
+def _row(r, con=None) -> dict:
     d = dict(r)
     d['kind_label'] = KINDS.get(d['kind'], d['kind'])
     d['severity'] = 'error' if d['streak'] >= ISSUE_ERROR_STREAK else 'warn'
+    d['target_paused'] = bool(con is not None
+                              and _target_paused(con, d['kind'], d['key']))
     return d
 
 
@@ -167,7 +188,8 @@ def api_issues():
     with A.db() as con:
         rows = con.execute('SELECT * FROM issues ORDER BY muted, streak DESC, '
                            'last_ts DESC').fetchall()
-    return jsonify({'items': [_row(r) for r in rows], 'summary': summary()})
+        items = [_row(r, con) for r in rows]
+    return jsonify({'items': items, 'summary': summary()})
 
 
 @bp.route('/api/issues/<int:iid>/mute', methods=['POST'])

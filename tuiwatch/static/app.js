@@ -5454,17 +5454,21 @@
         const col = it.severity==='error' ? 'var(--red)' : 'var(--amber)';
         const seit = new Date((it.first_ts||0)*1000).toLocaleDateString('de-DE');
         const zul  = new Date((it.last_ts||0)*1000).toLocaleString('de-DE');
-        return `<div class="issue-row${it.muted?' muted':''}">
+        // target_paused: das Add-on hat selbst stillgelegt (Ausverkauft-Alarm).
+        // Dann darf hier kein „Pausieren" mehr stehen — es ist schon pausiert.
+        const off = !!(it.muted || it.target_paused);
+        const chip = it.muted ? 'pausiert' : it.target_paused ? 'automatisch pausiert' : '';
+        return `<div class="issue-row${off?' muted':''}">
           <div class="issue-head">
             <svg class="i" style="color:${col}"><use href="#i-warn"/></svg>
             <b>${esc(it.title)}</b>
             <span class="issue-kind">${esc(it.kind_label)}</span>
-            ${it.muted?'<span class="issue-kind">pausiert</span>':''}
+            ${chip?`<span class="issue-kind">${chip}</span>`:''}
           </div>
           <div class="hint" style="margin-top:3px">${esc(it.detail)}</div>
           <div class="hint">${it.streak}× in Folge · ${it.total}× insgesamt · seit ${seit} · zuletzt ${zul}</div>
           <div class="issue-acts">
-            ${it.muted
+            ${off
               ? `<button class="btn sec" onclick="issueMute(${it.id},false)"><svg class="i"><use href="#i-play"/></svg> Wieder aktivieren</button>`
               : `<button class="btn sec" onclick="issueMute(${it.id},true)"><svg class="i"><use href="#i-pause"/></svg> Pausieren</button>`}
             <button class="btn sec" onclick="issueDismiss(${it.id})" title="Nur den Eintrag entfernen — tritt die Störung wieder auf, kommt sie zurück"><svg class="i"><use href="#i-close"/></svg> Ausblenden</button>

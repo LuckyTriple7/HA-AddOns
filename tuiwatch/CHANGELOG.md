@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.101.3] - 2026-08-23
+
+### Fixed
+- **Störungsliste bot „Pausieren" an, obwohl schon pausiert.**
+  Nach drei Fehlschlaegen in Folge legt der Ausverkauft-Alarm ein Angebot selbst
+  still und meldet das per Benachrichtigung („Wurde automatisch pausiert"). Der
+  Eintrag in der Störungsliste wusste davon nichts und zeigte weiter den Knopf
+  „Pausieren", der dann nichts Sichtbares mehr tat. `/api/issues` liefert jetzt
+  je Eintrag mit, ob das Bezugsobjekt (Angebot bzw. Suchabo) bereits stillliegt;
+  die Liste zeigt dann „automatisch pausiert" und bietet „Wieder aktivieren" an.
+
 ## [0.101.2] - 2026-08-23
 
 ### Fixed
