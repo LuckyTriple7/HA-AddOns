@@ -217,6 +217,11 @@
     .vtable td { padding: 6px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; max-width: 260px; overflow: hidden; text-overflow: ellipsis; }
     .vtable tr:last-child td { border-bottom: none; }
     .vtable .mono { font-family: ui-monospace, Consolas, monospace; font-size: 0.74rem; }
+    .vtable th.sortable { cursor: pointer; user-select: none; }
+    .vtable th.sortable:hover { color: var(--text); }
+    .vtable th.sortable::after { content: '95'; margin-left: 5px; opacity: 0.3; font-size: 0.9em; }
+    .vtable th.sortable[aria-sort="ascending"]::after { content: '91'; opacity: 1; }
+    .vtable th.sortable[aria-sort="descending"]::after { content: '93'; opacity: 1; }
     .badge-bot { font-size: 0.66rem; padding: 1px 7px; border-radius: 999px; background: color-mix(in srgb, var(--yellow) 18%, transparent); color: var(--yellow); }
     .badge-new { font-size: 0.66rem; padding: 1px 7px; border-radius: 999px; background: color-mix(in srgb, var(--green-h) 18%, transparent); color: var(--green-h); }
     /* Filterleiste über dem Besucher-Log */
@@ -2113,11 +2118,15 @@
           </div>
           <div id="ex-list" class="collapsible">
             <div style="overflow-x:auto">
-              <table class="vtable">
+              <table class="vtable" id="ex-table">
                 <thead>
-                  <tr><th>{{ t.ex_col_start }}</th><th>IP</th><th>{{ t.ex_col_client }}</th>
-                      <th>{{ t.ex_col_country }}</th><th>{{ t.ex_col_views }}</th>
-                      <th>{{ t.ex_col_dur }}</th><th>{{ t.ex_col_route }}</th><th></th><th></th></tr>
+                  <tr><th class="sortable" data-sort="start" data-dir="desc" onclick="exSort('ses', this)">{{ t.ex_col_start }}</th>
+                      <th class="sortable" data-sort="ip" onclick="exSort('ses', this)">IP</th>
+                      <th class="sortable" data-sort="client" onclick="exSort('ses', this)">{{ t.ex_col_client }}</th>
+                      <th class="sortable" data-sort="country" onclick="exSort('ses', this)">{{ t.ex_col_country }}</th>
+                      <th class="sortable" data-sort="views" data-dir="desc" onclick="exSort('ses', this)">{{ t.ex_col_views }}</th>
+                      <th class="sortable" data-sort="dur" data-dir="desc" onclick="exSort('ses', this)">{{ t.ex_col_dur }}</th>
+                      <th class="sortable" data-sort="route" onclick="exSort('ses', this)">{{ t.ex_col_route }}</th><th></th><th></th></tr>
                 </thead>
                 <tbody id="ex-rows"></tbody>
               </table>
@@ -2163,12 +2172,17 @@
           <p class="hint">{{ t.ex_returning_hint }}</p>
           <div id="ex-ret" class="collapsible">
             <div style="overflow-x:auto">
-              <table class="vtable">
+              <table class="vtable" id="ex-ret-table">
                 <thead>
-                  <tr><th>IP</th><th>{{ t.ex_col_client }}</th><th>{{ t.ex_col_country }}</th>
-                      <th>{{ t.ex_col_days }}</th><th>{{ t.ex_card_sessions }}</th>
-                      <th>{{ t.ex_col_views }}</th><th>{{ t.ex_col_top }}</th>
-                      <th>{{ t.ex_col_first }}</th><th>{{ t.ex_col_last }}</th><th></th></tr>
+                  <tr><th class="sortable" data-sort="ip" onclick="exSort('ret', this)">IP</th>
+                      <th class="sortable" data-sort="client" onclick="exSort('ret', this)">{{ t.ex_col_client }}</th>
+                      <th class="sortable" data-sort="country" onclick="exSort('ret', this)">{{ t.ex_col_country }}</th>
+                      <th class="sortable" data-sort="days" data-dir="desc" onclick="exSort('ret', this)">{{ t.ex_col_days }}</th>
+                      <th class="sortable" data-sort="sessions" data-dir="desc" onclick="exSort('ret', this)">{{ t.ex_card_sessions }}</th>
+                      <th class="sortable" data-sort="views" data-dir="desc" onclick="exSort('ret', this)">{{ t.ex_col_views }}</th>
+                      <th class="sortable" data-sort="top" onclick="exSort('ret', this)">{{ t.ex_col_top }}</th>
+                      <th class="sortable" data-sort="first" data-dir="desc" onclick="exSort('ret', this)">{{ t.ex_col_first }}</th>
+                      <th class="sortable" data-sort="last" data-dir="desc" onclick="exSort('ret', this)">{{ t.ex_col_last }}</th><th></th></tr>
                 </thead>
                 <tbody id="ex-ret-rows"></tbody>
               </table>
@@ -6452,7 +6466,77 @@
     // Monat, Tag und der Bot-Schalter aendern, was der Server rechnet — die
     // gehen also als Anfrage raus. Die Freitextsuche verengt nur die schon
     // geladene Liste und bleibt im Browser.
-    let EX = { month: '', bots: 0, sessions: [], labels: {}, total: 0, truncated: false };
+    let EX = { month: '', bots: 0, sessions: [], returning: [], labels: {}, total: 0, truncated: false };
+    // Sortierbare Tabellen im Explorer. Pro Tabelle stehen hier die Schluessel
+    // aus dem data-sort des Kopfes und die Funktion, die den Wert aus einer
+    // Zeile zieht — sortiert wird auf den Daten, nicht auf dem gerenderten HTML.
+    const EX_SORT = {
+      ses: {
+        table: 'ex-table', state: { key: '', dir: 'asc' },
+        render: () => renderExplorerSessions(),
+        keys: {
+          start: s => s.start,
+          ip: s => exIpKey(s.ip),
+          client: s => (s.browser || '') + ' ' + (s.system || ''),
+          country: s => s.country ? countryLabel(s.country) : '',
+          views: s => s.views,
+          dur: s => s.duration || 0,
+          route: s => exLabel(s.entry),
+        },
+      },
+      ret: {
+        table: 'ex-ret-table', state: { key: '', dir: 'asc' },
+        render: () => renderReturning(),
+        keys: {
+          ip: e => exIpKey(e.ip),
+          client: e => (e.browser || '') + ' ' + (e.system || ''),
+          country: e => e.country ? countryLabel(e.country) : '',
+          days: e => e.days,
+          sessions: e => e.sessions,
+          views: e => e.views,
+          top: e => exLabel(e.top_path),
+          first: e => e.first,
+          last: e => e.last,
+        },
+      },
+    };
+    // "9.0.0.1" gehoert vor "10.0.0.1" — als reiner Text waere es umgekehrt.
+    function exIpKey(ip) {
+      const parts = String(ip || '').split('.');
+      if (parts.length === 4 && parts.every(p => /^\d{1,3}$/.test(p))) {
+        return parts.map(p => p.padStart(3, '0')).join('.');
+      }
+      return String(ip || '');
+    }
+    function exSort(which, th) {
+      const cfg = EX_SORT[which], key = th.dataset.sort;
+      if (cfg.state.key === key) {
+        cfg.state.dir = cfg.state.dir === 'asc' ? 'desc' : 'asc';
+      } else {
+        cfg.state.key = key;
+        // Zahlen und Daten fangen absteigend an: das Interessante steht oben.
+        cfg.state.dir = th.dataset.dir || 'asc';
+      }
+      cfg.render();
+    }
+    function exSortRows(which, rows) {
+      const cfg = EX_SORT[which], get = cfg.keys[cfg.state.key];
+      const head = document.querySelectorAll('#' + cfg.table + ' th.sortable');
+      head.forEach(th => {
+        if (th.dataset.sort === cfg.state.key) {
+          th.setAttribute('aria-sort', cfg.state.dir === 'asc' ? 'ascending' : 'descending');
+        } else {
+          th.removeAttribute('aria-sort');
+        }
+      });
+      if (!get) return rows;
+      const dir = cfg.state.dir === 'asc' ? 1 : -1;
+      return rows.slice().sort((a, b) => {
+        const x = get(a), y = get(b);
+        if (typeof x === 'number' && typeof y === 'number') return (x - y) * dir;
+        return String(x).localeCompare(String(y), undefined, { numeric: true, sensitivity: 'base' }) * dir;
+      });
+    }
     let explorerJumpReady = false;
 
     function exLabel(path) {
@@ -6600,6 +6684,7 @@
          s.entry + ' ' + s.exit + ' ' + exLabel(s.entry) + ' ' + exLabel(s.exit)
         ).toLowerCase().includes(q));
       el('ex-count').textContent = EX.total ? `${rows.length} / ${EX.total}` : '';
+      const sorted = exSortRows('ses', rows);
       const tbody = el('ex-rows');
       tbody.innerHTML = '';
       if (!rows.length) {
@@ -6607,7 +6692,7 @@
         refreshCollapse('ex-list');
         return;
       }
-      rows.forEach(s => {
+      sorted.forEach(s => {
         const tr = document.createElement('tr');
         tr.innerHTML = `<td></td><td class="mono"></td><td></td><td></td><td></td><td></td>
                         <td class="ex-route"><b></b> → <b></b></td><td></td><td></td>`;
@@ -6700,14 +6785,15 @@
       });
     }
     function renderReturning(items) {
+      if (items) EX.returning = items;
       const tbody = el('ex-ret-rows');
       tbody.innerHTML = '';
-      if (!items.length) {
+      if (!EX.returning.length) {
         tbody.innerHTML = `<tr><td colspan="10" class="hint">${T.no_data}</td></tr>`;
         refreshCollapse('ex-ret');
         return;
       }
-      items.forEach(e => {
+      exSortRows('ret', EX.returning).forEach(e => {
         const tr = document.createElement('tr');
         tr.innerHTML = `<td class="mono"></td><td></td><td></td><td></td><td></td>
                         <td></td><td></td><td></td><td></td><td></td>`;

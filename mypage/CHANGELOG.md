@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.10.43
+
+- ↕️ **Die Tabellen im Explorer lassen sich jetzt sortieren.** Ein Klick auf eine Spaltenüberschrift sortiert aufsteigend, der nächste absteigend — ein Pfeil im Kopf zeigt, wonach gerade sortiert wird. Gilt für „Sitzungen“ und „Wiederkehrende Besucher“. Zahlen und Datumsspalten starten absteigend (das Interessante steht oben), Text aufsteigend. IP-Adressen werden nach Zahlenwert einsortiert, nicht als Text — `9.0.0.1` steht also vor `10.0.0.1`.
+
 ## 0.10.42
 
 - 🔑 **GitHub-Token wird jetzt geprüft — im Admin unter System.** Neue Karte unter den Home-Assistant-Sensoren: sie zeigt, ob der in den Add-on-Einstellungen hinterlegte Token gültig ist, zu welchem Konto er gehört, wann er abläuft (mit Warnung ab 14 Tagen Restlaufzeit) und wie viel vom Stunden-Kontingent noch frei ist. Bisher fiel ein abgelaufener Token gar nicht auf: das stündliche Sterne-Update hat die Absage von GitHub still verschluckt, und der Repo-Import meldete nur ein allgemeines „GitHub nicht erreichbar“.
