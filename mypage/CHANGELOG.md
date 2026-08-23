@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.10.44
+
+- 🐛 **Der Sortierpfeil im Explorer war ein leeres Kästchen.** Die Oberflächenschrift hat keine Pfeilzeichen — der Pfeil wird jetzt als kleines Dreieck gezeichnet und ist damit überall sichtbar.
+
 ## 0.10.43
 
 - ↕️ **Die Tabellen im Explorer lassen sich jetzt sortieren.** Ein Klick auf eine Spaltenüberschrift sortiert aufsteigend, der nächste absteigend — ein Pfeil im Kopf zeigt, wonach gerade sortiert wird. Gilt für „Sitzungen“ und „Wiederkehrende Besucher“. Zahlen und Datumsspalten starten absteigend (das Interessante steht oben), Text aufsteigend. IP-Adressen werden nach Zahlenwert einsortiert, nicht als Text — `9.0.0.1` steht also vor `10.0.0.1`.
