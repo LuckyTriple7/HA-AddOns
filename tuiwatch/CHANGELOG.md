@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.101.2] - 2026-08-23
+
+### Fixed
+- **Störungs-Schild neben dem Logo sass nicht mittig.**
+  Die Zahl im Schild bleibt leer, solange es nur eine einzelne Störung gibt —
+  der leere `<span>` zaehlte im Flex-Layout aber weiter mit und liess den 5px-Gap
+  als Luft rechts stehen. Das Warndreieck rutschte dadurch nach links. Ein leerer
+  Zaehler wird jetzt ausgeblendet.
+
 ## [0.101.1] - 2026-08-22
 
 ### Fixed

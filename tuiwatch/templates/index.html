@@ -48,6 +48,9 @@
                    border-radius:var(--r-pill); padding:3px 10px; font:inherit;
                    font-size:var(--fs-xs); font-weight:700; line-height:1; }
     .issue-badge:hover { background:color-mix(in srgb, var(--amber) 16%, transparent); }
+    /* Bei nur einer Störung bleibt die Zahl leer — der leere span würde den 5px-Gap
+       als Luft rechts stehen lassen und das Dreieck aus der Mitte schieben. */
+    .issue-badge > span:empty { display:none; }
     .issue-badge.error { border-color:var(--red); color:var(--red);
                          animation:issue-pulse 2s ease-in-out infinite; }
     .issue-badge.error:hover { background:color-mix(in srgb, var(--red) 16%, transparent); }
