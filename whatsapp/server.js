@@ -135,6 +135,7 @@ console.log(`[INFO]   initial_messages       = ${INITIAL_MESSAGES}`);
 console.log(`[INFO]   webhook_incoming       = ${WEBHOOK ? WEBHOOK : 'not set'}`);
 console.log('[INFO] ─────────────────────────────────────────────────────');
 const chatMap = new Map();          // chatId -> { id, name, phone, lastMsg, lastTime, isGroup }
+const lidNumberCache = new Map();   // '<lid>@lid' -> echte Rufnummer (siehe resolveChatNumbers)
 const messagesByChatId = new Map(); // chatId -> Message[]
 const seenIds = new Set();
 
@@ -286,13 +287,28 @@ function getChatMsgs(chatId) {
   return messagesByChatId.get(chatId);
 }
 
+// Bei @lid-Chats ist der Teil vor dem @ eine interne LID und keine Rufnummer —
+// die stand sonst als "+127…" unter dem Chatnamen. Nur die aufgeloeste Nummer
+// verwenden (siehe lidNumberCache), sonst lieber gar keine anzeigen.
+function phoneForChat(chatId, rawUser) {
+  const resolved = lidNumberCache.get(chatId);
+  if (resolved) return resolved;
+  if (chatId.endsWith('@lid')) return '';
+  const digits = String(rawUser || '').replace(/\D/g, '');
+  return digits.length >= 5 ? digits : '';
+}
+
 function upsertChat(chatId, { name, phone, isGroup }) {
+  const clean = phone === undefined ? '' : phoneForChat(chatId, phone);
   if (!chatMap.has(chatId)) {
-    chatMap.set(chatId, { id: chatId, name: name || chatId, phone: phone || '', isGroup: !!isGroup, lastMsg: '', lastTime: 0 });
+    chatMap.set(chatId, { id: chatId, name: name || chatId, phone: clean, isGroup: !!isGroup, lastMsg: '', lastTime: 0 });
   } else {
     const c = chatMap.get(chatId);
     if (name) c.name = name;
-    if (phone && !c.phone) c.phone = phone;
+    // auch korrigieren, wenn schon eine (falsche LID-)Nummer drinsteht. Eine bereits
+    // gespeicherte Nummer wird nie geleert — nach einem Neustart ist der Cache leer,
+    // die Nummer aus chats.json aber gueltig; resolveChatNumbers() korrigiert Reste.
+    if (clean && clean !== c.phone) c.phone = clean;
   }
 }
 
@@ -426,11 +442,18 @@ client.on('ready', async () => {
       if (isFilteredChat(chatId)) continue;
       // For 1:1 chats, prefer pushname over bare phone number
       let chatName = chat.name || chat.id.user;
+      let chatPhone = chat.id.user;
       if (!chat.isGroup) {
         const ct = await client.getContactById(chatId).catch(() => null);
         chatName = ct?.name || ct?.pushname || chatName;
+        // getContactById loest @lid zur echten Rufnummer auf
+        const num = String(ct?.number || ct?.id?.user || '').replace(/\D/g, '');
+        if (num.length >= 5) {
+          chatPhone = num;
+          if (chatId.endsWith('@lid')) lidNumberCache.set(chatId, num);
+        }
       }
-      upsertChat(chatId, { name: chatName, phone: chat.id.user, isGroup: chat.isGroup });
+      upsertChat(chatId, { name: chatName, phone: chatPhone, isGroup: chat.isGroup });
 
       const msgs = await chat.fetchMessages({ limit: INITIAL_MESSAGES }).catch(() => []);
       for (const msg of msgs) {
@@ -898,6 +921,9 @@ app.get('/api/qr', (req, res) => {
 });
 
 app.get('/api/chats', (req, res) => {
+  // Offene LID-Aufloesungen im Hintergrund nachziehen (No-op, sobald alles bekannt ist),
+  // damit unter dem Chatnamen die echte Rufnummer steht und nicht die LID
+  if (status === 'connected') resolveChatNumbers().catch(() => {});
   const list = [...chatMap.values()].sort((a, b) => (b.lastTime || 0) - (a.lastTime || 0));
   res.json(list);
 });
@@ -1590,17 +1616,29 @@ const CONTACTS_CACHE_MS = 300000;
 // WhatsApp fuehrt Chats inzwischen unter @lid-IDs, das Adressbuch aber unter
 // @c.us — die Zahl vor dem @ ist bei @lid eine interne LID, nicht die Rufnummer.
 // getContactById(<lid>) loest sie auf; Ergebnis dauerhaft merken (aendert sich nicht).
-const lidNumberCache = new Map(); // '<lid>@lid' -> Rufnummer
+let _resolvingChatNumbers = false;
 async function resolveChatNumbers() {
+  if (_resolvingChatNumbers) return;
   const open = [...chatMap.keys()].filter(id => id.endsWith('@lid') && !lidNumberCache.has(id));
   if (!open.length) return;
-  await Promise.all(open.map(async id => {
-    try {
-      const c = await client.getContactById(id);
-      const num = String(c.number || c.id?.user || '').replace(/\D/g, '');
-      if (num.length >= 5) lidNumberCache.set(id, num);
-    } catch(e) { dbg(`resolveChatNumbers(${id}): ${e.message}`); }
-  }));
+  _resolvingChatNumbers = true;
+  let dirty = false;
+  try {
+    await Promise.all(open.map(async id => {
+      try {
+        const c = await client.getContactById(id);
+        const num = String(c.number || c.id?.user || '').replace(/\D/g, '');
+        if (num.length >= 5) {
+          lidNumberCache.set(id, num);
+          const chat = chatMap.get(id);
+          if (chat && chat.phone !== num) { chat.phone = num; dirty = true; }
+        }
+      } catch(e) { dbg(`resolveChatNumbers(${id}): ${e.message}`); }
+    }));
+  } finally {
+    _resolvingChatNumbers = false;
+  }
+  if (dirty) saveMsgs(); // chats.json enthaelt die korrigierten Nummern
   dbg(`resolveChatNumbers: ${lidNumberCache.size} LID(s) aufgeloest`);
 }
 
