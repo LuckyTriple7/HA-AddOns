@@ -1586,32 +1586,84 @@ app.get('/api/avatar/:chatId', async (req, res) => {
 // ?refresh=1 erzwingt einen Neuaufbau.
 let _contactsCache = null;
 const CONTACTS_CACHE_MS = 300000;
+
+// WhatsApp fuehrt Chats inzwischen unter @lid-IDs, das Adressbuch aber unter
+// @c.us — die Zahl vor dem @ ist bei @lid eine interne LID, nicht die Rufnummer.
+// getContactById(<lid>) loest sie auf; Ergebnis dauerhaft merken (aendert sich nicht).
+const lidNumberCache = new Map(); // '<lid>@lid' -> Rufnummer
+async function resolveChatNumbers() {
+  const open = [...chatMap.keys()].filter(id => id.endsWith('@lid') && !lidNumberCache.has(id));
+  if (!open.length) return;
+  await Promise.all(open.map(async id => {
+    try {
+      const c = await client.getContactById(id);
+      const num = String(c.number || c.id?.user || '').replace(/\D/g, '');
+      if (num.length >= 5) lidNumberCache.set(id, num);
+    } catch(e) { dbg(`resolveChatNumbers(${id}): ${e.message}`); }
+  }));
+  dbg(`resolveChatNumbers: ${lidNumberCache.size} LID(s) aufgeloest`);
+}
+
+// Index ueber alle Einzelchats: Chat-ID und Rufnummer zeigen auf die Chat-ID,
+// damit ein Adressbuch-Kontakt seinen Chat unabhaengig vom ID-Format findet.
+function buildChatIndex() {
+  const index = new Map();
+  for (const [id, chat] of chatMap.entries()) {
+    if (!id || isFilteredChat(id) || id.endsWith('@g.us') || (chat && chat.isGroup)) continue;
+    index.set(id, id);
+    const user = id.replace(/@.*$/, '');
+    if (/^\d{5,}$/.test(user) && !id.endsWith('@lid')) index.set(user, id);
+    const lidNum = lidNumberCache.get(id);
+    if (lidNum) index.set(lidNum, id);
+    const phone = chat && chat.phone ? String(chat.phone).replace(/\D/g, '') : '';
+    if (phone.length >= 5 && !id.endsWith('@lid')) index.set(phone, id);
+  }
+  return index;
+}
+
 app.get('/api/contacts', async (req, res) => {
   if (status !== 'connected') return res.status(503).json({ error: 'Not connected' });
-  if (!req.query.refresh && _contactsCache && Date.now() - _contactsCache.ts < CONTACTS_CACHE_MS) {
-    return res.json(_contactsCache.data);
-  }
+  const fresh = !req.query.refresh && _contactsCache && Date.now() - _contactsCache.ts < CONTACTS_CACHE_MS;
   try {
-    const all = await client.getContacts();
-    const byNumber = new Map(); // Nummer -> Eintrag; @c.us schlaegt @lid
-    for (const c of all) {
-      const id = c.id?._serialized;
-      if (!id || c.isMe || c.isGroup || isFilteredChat(id) || id.endsWith('@g.us')) continue;
-      if (!c.isMyContact) continue; // nur echtes Adressbuch, keine fremden Absender
-      const number = c.id?.user || id.replace(/@.*$/, '');
-      const name = c.name || c.shortName || c.pushname || number;
-      const entry = { id, name, number, hasChat: chatMap.has(id), isGroup: false };
-      const prev = byNumber.get(number);
-      if (!prev || (!prev.id.endsWith('@c.us') && id.endsWith('@c.us'))) byNumber.set(number, entry);
+    if (!fresh) {
+      const all = await client.getContacts();
+      const byNumber = new Map(); // Nummer -> Eintrag; @c.us schlaegt @lid
+      let cus = 0, lid = 0, other = 0;
+      for (const c of all) {
+        const id = c.id?._serialized;
+        if (!id || c.isMe || c.isGroup || isFilteredChat(id) || id.endsWith('@g.us')) continue;
+        if (!c.isMyContact) continue; // nur echtes Adressbuch, keine fremden Absender
+        if (id.endsWith('@c.us')) cus++; else if (id.endsWith('@lid')) lid++; else other++;
+        // Bei @lid-IDs ist id.user die LID, nicht die Rufnummer — c.number bevorzugen
+        const raw = String(c.number || c.id?.user || id.replace(/@.*$/, '')).replace(/\D/g, '');
+        const number = raw.length >= 5 ? raw : '';
+        const key = number || id;
+        const name = c.name || c.shortName || c.pushname || number || id.replace(/@.*$/, '');
+        const entry = { id, name, number, isGroup: false };
+        const prev = byNumber.get(key);
+        if (!prev || (!prev.id.endsWith('@c.us') && id.endsWith('@c.us'))) byNumber.set(key, entry);
+      }
+      const contacts = [...byNumber.values()].sort((a, b) => a.name.localeCompare(b.name, 'de'));
+      _contactsCache = { ts: Date.now(), contacts, kinds: { cus, lid, other } };
     }
-    const contacts = [...byNumber.values()].sort((a, b) => a.name.localeCompare(b.name, 'de'));
+    // hasChat NICHT mitcachen: chatMap kann sich jederzeit aendern (und war beim
+    // ersten Aufruf kurz nach dem Start womoeglich noch leer)
+    await resolveChatNumbers();
+    const index = buildChatIndex();
+    const contacts = _contactsCache.contacts.map(c => {
+      const chatId = index.get(c.id) || (c.number ? index.get(c.number) : null) || null;
+      return { ...c, chatId, hasChat: !!chatId };
+    });
     const data = {
       contacts,
       total: contacts.length,
       withoutChat: contacts.filter(c => !c.hasChat).length,
     };
-    _contactsCache = { ts: Date.now(), data };
-    console.log(`[INFO] Adressbuch geladen: ${data.total} Kontakt(e), davon ${data.withoutChat} ohne Chat`);
+    if (!fresh) {
+      const k = _contactsCache.kinds;
+      console.log(`[INFO] Adressbuch geladen: ${data.total} Kontakt(e) (${k.cus} @c.us, ${k.lid} @lid, ${k.other} sonstige), `
+        + `${data.total - data.withoutChat} mit Chat; Chat-Index: ${index.size} Schluessel, ${lidNumberCache.size} LID(s) aufgeloest`);
+    }
     res.json(data);
   } catch(e) {
     res.status(500).json({ error: e.message });
@@ -3290,7 +3342,9 @@ app.get('/', (req, res) => {
           item.dataset.id = c.id;
           // Existiert doch ein Chat, das echte Chat-Objekt oeffnen (Ungelesen-Status,
           // lastTime); sonst ein Minimal-Objekt — loadMessages() liefert dann eben nichts
-          const existing = allChats.find(x => x.id === c.id);
+          // c.chatId kommt vom Server (loest @lid-Chats zur Rufnummer auf); ohne das
+          // findet man den Chat nicht, weil Chat- und Kontakt-ID verschiedene Formate haben
+          const existing = allChats.find(x => x.id === (c.chatId || c.id));
           item.onclick = () => openChat(existing || { id: c.id, name: c.name, phone: c.number, isGroup: false, lastTime: 0 });
 
           const av = document.createElement('div');

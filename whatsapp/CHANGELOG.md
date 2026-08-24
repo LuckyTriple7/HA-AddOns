@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.7.54] - 2026-08-24
+- Fix: **Im Kontakte-Tab stand bei praktisch allen Einträgen „noch kein Chat"** — WhatsApp führt Chats inzwischen unter `@lid`-IDs (hier 49 von 53), das Adressbuch dagegen unter `@c.us`. Die Zahl vor dem `@` ist bei `@lid` eine interne LID und keine Rufnummer, deshalb passte weder ID noch Nummer zusammen und `hasChat` war fast immer `false` (an den Live-Daten nachgemessen: 1 von 142 Kontakten wurde erkannt). Neuer `resolveChatNumbers()` löst die LID pro Chat einmalig über `client.getContactById()` zur Rufnummer auf und merkt sie sich; `buildChatIndex()` legt Chat-ID, Rufnummer und `phone` als Schlüssel auf die Chat-ID. Ergebnis mit denselben Daten gegengeprüft: 44 von 50 Einzelchats werden jetzt zugeordnet — die übrigen 6 sind Chats mit Leuten, die gar nicht im Adressbuch stehen
+- Fix: `hasChat` wird nicht mehr mit der 5-Minuten-Cache-Antwort eingefroren, sondern bei jedem Aufruf frisch bestimmt. Sonst blieb ein direkt nach dem Start geöffneter Kontakte-Tab minutenlang bei „noch kein Chat", weil `chatMap` in dem Moment noch leer war
+- Neu: Jeder Kontakt trägt jetzt `chatId` (die zugehörige Chat-ID oder `null`). Ein Klick öffnet damit den echten Chat inklusive Verlauf statt einer leeren Ansicht unter der falschen ID
+- Neu: Die Logzeile beim Laden des Adressbuchs nennt die ID-Formate (`@c.us`/`@lid`), die Trefferzahl und die Größe des Chat-Index — damit lässt sich so eine Format-Umstellung künftig direkt am Log ablesen
+
 ## [1.7.53] - 2026-08-24
 - Fix: **Kopfleiste lief auf dem Handy rechts aus dem Bild** — mit dem neuen Archiv-Button passten die Schaltflächen nicht mehr in eine Zeile, Flexbox quetschte sie zusammen und die letzten (Abmelden, Scroll-Buttons) waren nicht erreichbar. Unter 768 px ist die Leiste jetzt horizontal scrollbar (`overflow-x:auto`, `flex-shrink:0` auf allen Elementen, damit gescrollt statt gestaucht wird; Scrollbalken ausgeblendet). Buttons und Speicheranzeige sind dort außerdem etwas kompakter
 - Neu: Weicher Verlauf am rechten Rand der Leiste, solange noch etwas außerhalb liegt (`updateTopbarFade()` bei Scroll, Resize und nach dem Verbinden) — verschwindet, sobald ans Ende gescrollt wurde
