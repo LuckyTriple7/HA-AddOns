@@ -287,6 +287,21 @@ function getChatMsgs(chatId) {
   return messagesByChatId.get(chatId);
 }
 
+// WhatsApp liefert im Feld contact.number nach der LID-Umstellung haeufig die LID
+// statt der Rufnummer (14-15 Stellen). Bei @c.us-IDs ist der Teil vor dem @ die
+// echte Rufnummer, deshalb hat der Vorrang; contact.number nur als Rueckfall und
+// nie, wenn er der LID der Chat-ID entspricht.
+function contactNumber(contact, chatId) {
+  const id = chatId || contact?.id?._serialized || '';
+  const lid = id.endsWith('@lid') ? id.replace(/@.*$/, '') : '';
+  const idUser = String(contact?.id?.user || '').replace(/\D/g, '');
+  const numField = String(contact?.number || '').replace(/\D/g, '');
+  for (const cand of [idUser, numField]) {
+    if (cand.length >= 7 && cand.length <= 15 && cand !== lid) return cand;
+  }
+  return '';
+}
+
 // Bei @lid-Chats ist der Teil vor dem @ eine interne LID und keine Rufnummer —
 // die stand sonst als "+127…" unter dem Chatnamen. Nur die aufgeloeste Nummer
 // verwenden (siehe lidNumberCache), sonst lieber gar keine anzeigen.
@@ -447,8 +462,8 @@ client.on('ready', async () => {
         const ct = await client.getContactById(chatId).catch(() => null);
         chatName = ct?.name || ct?.pushname || chatName;
         // getContactById loest @lid zur echten Rufnummer auf
-        const num = String(ct?.number || ct?.id?.user || '').replace(/\D/g, '');
-        if (num.length >= 5) {
+        const num = contactNumber(ct, chatId);
+        if (num) {
           chatPhone = num;
           if (chatId.endsWith('@lid')) lidNumberCache.set(chatId, num);
         }
@@ -1627,8 +1642,8 @@ async function resolveChatNumbers() {
     await Promise.all(open.map(async id => {
       try {
         const c = await client.getContactById(id);
-        const num = String(c.number || c.id?.user || '').replace(/\D/g, '');
-        if (num.length >= 5) {
+        const num = contactNumber(c, id);
+        if (num) {
           lidNumberCache.set(id, num);
           const chat = chatMap.get(id);
           if (chat && chat.phone !== num) { chat.phone = num; dirty = true; }
@@ -1665,24 +1680,24 @@ app.get('/api/contacts', async (req, res) => {
   try {
     if (!fresh) {
       const all = await client.getContacts();
-      const byNumber = new Map(); // Nummer -> Eintrag; @c.us schlaegt @lid
-      let cus = 0, lid = 0, other = 0;
+      const byId = new Map(); // Chat-ID -> Eintrag
+      let cus = 0, lid = 0, other = 0, raw = 0;
       for (const c of all) {
         const id = c.id?._serialized;
         if (!id || c.isMe || c.isGroup || isFilteredChat(id) || id.endsWith('@g.us')) continue;
         if (!c.isMyContact) continue; // nur echtes Adressbuch, keine fremden Absender
-        if (id.endsWith('@c.us')) cus++; else if (id.endsWith('@lid')) lid++; else other++;
-        // Bei @lid-IDs ist id.user die LID, nicht die Rufnummer — c.number bevorzugen
-        const raw = String(c.number || c.id?.user || id.replace(/@.*$/, '')).replace(/\D/g, '');
-        const number = raw.length >= 5 ? raw : '';
-        const key = number || id;
+        raw++;
+        const number = contactNumber(c, id);
         const name = c.name || c.shortName || c.pushname || number || id.replace(/@.*$/, '');
         const entry = { id, name, number, isGroup: false };
-        const prev = byNumber.get(key);
-        if (!prev || (!prev.id.endsWith('@c.us') && id.endsWith('@c.us'))) byNumber.set(key, entry);
+        const prev = byId.get(id);
+        // Pro Person liefert WhatsApp mehrere Objekte mit derselben ID — den mit
+        // brauchbarer Rufnummer behalten, sonst den ersten
+        if (!prev) { byId.set(id, entry); if (id.endsWith('@c.us')) cus++; else if (id.endsWith('@lid')) lid++; else other++; }
+        else if (!prev.number && number) byId.set(id, entry);
       }
-      const contacts = [...byNumber.values()].sort((a, b) => a.name.localeCompare(b.name, 'de'));
-      _contactsCache = { ts: Date.now(), contacts, kinds: { cus, lid, other } };
+      const contacts = [...byId.values()].sort((a, b) => a.name.localeCompare(b.name, 'de'));
+      _contactsCache = { ts: Date.now(), contacts, kinds: { cus, lid, other, raw } };
     }
     // hasChat NICHT mitcachen: chatMap kann sich jederzeit aendern (und war beim
     // ersten Aufruf kurz nach dem Start womoeglich noch leer)
@@ -1699,7 +1714,7 @@ app.get('/api/contacts', async (req, res) => {
     };
     if (!fresh) {
       const k = _contactsCache.kinds;
-      console.log(`[INFO] Adressbuch geladen: ${data.total} Kontakt(e) (${k.cus} @c.us, ${k.lid} @lid, ${k.other} sonstige), `
+      console.log(`[INFO] Adressbuch geladen: ${data.total} Kontakt(e) aus ${k.raw} Rohobjekten (${k.cus} @c.us, ${k.lid} @lid, ${k.other} sonstige), `
         + `${data.total - data.withoutChat} mit Chat; Chat-Index: ${index.size} Schluessel, ${lidNumberCache.size} LID(s) aufgeloest`);
     }
     res.json(data);
