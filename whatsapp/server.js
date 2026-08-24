@@ -1581,6 +1581,43 @@ app.get('/api/avatar/:chatId', async (req, res) => {
   }
 });
 
+// Adressbuch von WhatsApp Web — auch Kontakte ohne (mehr) Chatverlauf, damit man
+// sie im Web-UI findet und anschreiben kann. getContacts() ist teuer, daher Cache;
+// ?refresh=1 erzwingt einen Neuaufbau.
+let _contactsCache = null;
+const CONTACTS_CACHE_MS = 300000;
+app.get('/api/contacts', async (req, res) => {
+  if (status !== 'connected') return res.status(503).json({ error: 'Not connected' });
+  if (!req.query.refresh && _contactsCache && Date.now() - _contactsCache.ts < CONTACTS_CACHE_MS) {
+    return res.json(_contactsCache.data);
+  }
+  try {
+    const all = await client.getContacts();
+    const byNumber = new Map(); // Nummer -> Eintrag; @c.us schlaegt @lid
+    for (const c of all) {
+      const id = c.id?._serialized;
+      if (!id || c.isMe || c.isGroup || isFilteredChat(id) || id.endsWith('@g.us')) continue;
+      if (!c.isMyContact) continue; // nur echtes Adressbuch, keine fremden Absender
+      const number = c.id?.user || id.replace(/@.*$/, '');
+      const name = c.name || c.shortName || c.pushname || number;
+      const entry = { id, name, number, hasChat: chatMap.has(id), isGroup: false };
+      const prev = byNumber.get(number);
+      if (!prev || (!prev.id.endsWith('@c.us') && id.endsWith('@c.us'))) byNumber.set(number, entry);
+    }
+    const contacts = [...byNumber.values()].sort((a, b) => a.name.localeCompare(b.name, 'de'));
+    const data = {
+      contacts,
+      total: contacts.length,
+      withoutChat: contacts.filter(c => !c.hasChat).length,
+    };
+    _contactsCache = { ts: Date.now(), data };
+    console.log(`[INFO] Adressbuch geladen: ${data.total} Kontakt(e), davon ${data.withoutChat} ohne Chat`);
+    res.json(data);
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.get('/api/contact/:chatId', async (req, res) => {
   const chatId = req.params.chatId;
   if (status !== 'connected') return res.status(503).json({ error: 'Not connected' });
@@ -1947,6 +1984,10 @@ app.get('/', (req, res) => {
     html.light .filter-tab { color:#999; }
     html.light .filter-tab:hover { background:rgba(0,0,0,0.06); color:#111; }
     html.light .filter-tab.active { background:#e0e0e0; color:#111; }
+    .contact-list-foot { padding:10px 12px; text-align:center; }
+    .contact-list-foot button { background:none; border:none; color:#8696a0; font-size:12px; cursor:pointer; padding:4px 8px; border-radius:8px; }
+    .contact-list-foot button:hover { background:rgba(134,150,160,0.15); }
+    .chat-item .chat-preview.no-chat { font-style:italic; opacity:0.75; }
     .avatar.group-avatar { background:#25D366 !important; font-size:22px; }
     #search {
       width: 100%; background: #2a3942; border: none; border-radius: 8px;
@@ -2428,6 +2469,7 @@ app.get('/', (req, res) => {
         <button class="filter-tab active" data-filter="all" onclick="setFilter('all')" data-i18n="filterAll">Alle</button>
         <button class="filter-tab" data-filter="private" onclick="setFilter('private')" data-i18n="filterPrivate">Privat</button>
         <button class="filter-tab" data-filter="groups" onclick="setFilter('groups')" data-i18n="filterGroups">Gruppen</button>
+        <button class="filter-tab" data-filter="contacts" onclick="setFilter('contacts')" data-i18n="filterContacts">Kontakte</button>
       </div>
       <div id="chat-list"><div class="no-chats" data-i18n="loadingChats">Lade Chats…</div></div>
     </div>
@@ -2659,6 +2701,11 @@ app.get('/', (req, res) => {
         archiveClearAllConfirm:(c,size)=>'Wirklich die Archive aller '+c+' Kontakte löschen? Gibt '+size+' frei. Das lässt sich nicht rückgängig machen.',
         archiveOvTotal:(c,n,size)=>c+' Kontakt'+(c===1?'':'e')+' · '+n+' Eintrag'+(n===1?'':'/Einträge')+' · '+size,
         archiveOvNoFiles:'keine Datei',
+        filterContacts:'Kontakte', contactsLoading:'Lade Adressbuch…',
+        contactsEmpty:'Keine Kontakte gefunden.', contactsNoChat:'noch kein Chat',
+        contactsError:'Adressbuch konnte nicht geladen werden.',
+        contactsRefresh:'Adressbuch neu laden',
+        contactsFoot:(n,w)=>n+' Kontakt'+(n===1?'':'e')+' im Adressbuch · '+w+' ohne Chat',
       },
       en: {
         spinnerConnecting:'Connecting to WhatsApp…', btnReset:'Reset Session',
@@ -2714,6 +2761,11 @@ app.get('/', (req, res) => {
         archiveClearAllConfirm:(c,size)=>'Really delete the archives of all '+c+' contacts? Frees '+size+'. This cannot be undone.',
         archiveOvTotal:(c,n,size)=>c+' contact'+(c===1?'':'s')+' · '+n+' entr'+(n===1?'y':'ies')+' · '+size,
         archiveOvNoFiles:'no file',
+        filterContacts:'Contacts', contactsLoading:'Loading address book…',
+        contactsEmpty:'No contacts found.', contactsNoChat:'no chat yet',
+        contactsError:'Could not load the address book.',
+        contactsRefresh:'Reload address book',
+        contactsFoot:(n,w)=>n+' contact'+(n===1?'':'s')+' in the address book · '+w+' without a chat',
       },
     };
     const _browserLang = (navigator.language || '').toLowerCase().startsWith('de') ? 'de' : 'en';
@@ -3167,13 +3219,100 @@ app.get('/', (req, res) => {
     });
 
     let currentFilter = 'all';
+    // Adressbuch: Kontakte ohne Chatverlauf tauchen in allChats nicht auf, deshalb
+    // eigene Liste, die erst beim Wechsel auf den Kontakte-Tab geladen wird
+    let _addressBook = null, _addressBookState = 'idle'; // idle | loading | ready | error
     function setFilter(f) {
       currentFilter = f;
       document.querySelectorAll('.filter-tab').forEach(btn => btn.classList.toggle('active', btn.dataset.filter === f));
+      if (f === 'contacts') { renderContactList(); if (_addressBookState === 'idle') loadAddressBook(); return; }
       renderChatList(allChats);
     }
 
+    async function loadAddressBook(refresh) {
+      _addressBookState = 'loading';
+      if (currentFilter === 'contacts') renderContactList();
+      try {
+        const d = await fetch('api/contacts' + (refresh ? '?refresh=1' : '')).then(r => r.json());
+        if (d.error) throw new Error(d.error);
+        _addressBook = d;
+        _addressBookState = 'ready';
+      } catch(e) {
+        _addressBook = null;
+        _addressBookState = 'error';
+      }
+      if (currentFilter === 'contacts') renderContactList();
+    }
+
+    function renderContactList() {
+      const list = document.getElementById('chat-list');
+      if (_addressBookState === 'loading') { list.innerHTML = '<div class="no-chats">' + esc(t('contactsLoading')) + '</div>'; return; }
+      if (_addressBookState === 'error') {
+        list.innerHTML = '<div class="no-chats">' + esc(t('contactsError')) + '</div>'
+          + '<div class="contact-list-foot"><button data-act="reload">↻ ' + esc(t('contactsRefresh')) + '</button></div>';
+        bindContactFoot(list);
+        return;
+      }
+      const all = (_addressBook && _addressBook.contacts) || [];
+      const q = document.getElementById('search').value.toLowerCase();
+      const filtered = q
+        ? all.filter(c => c.name.toLowerCase().includes(q) || c.number.includes(q.replace(/^\+/, '')))
+        : all;
+      list.innerHTML = '';
+      if (!filtered.length) {
+        list.innerHTML = '<div class="no-chats">' + esc(t('contactsEmpty')) + '</div>';
+      } else {
+        for (const c of filtered) {
+          const item = document.createElement('div');
+          item.className = 'chat-item' + (c.id === selectedChatId ? ' active' : '');
+          item.dataset.id = c.id;
+          // Existiert doch ein Chat, das echte Chat-Objekt oeffnen (Ungelesen-Status,
+          // lastTime); sonst ein Minimal-Objekt — loadMessages() liefert dann eben nichts
+          const existing = allChats.find(x => x.id === c.id);
+          item.onclick = () => openChat(existing || { id: c.id, name: c.name, phone: c.number, isGroup: false, lastTime: 0 });
+
+          const av = document.createElement('div');
+          av.className = 'avatar' + (_statusChatIds.has(c.id) ? ' has-status' : '');
+          av.setAttribute('data-avid', c.id);
+          av.style.background = avatarColor(c.name);
+          av.textContent = avatarInitials(c.name);
+          if (_avatarState.get(c.id) === 'loaded') applyAvatar(av, c.id);
+
+          const info = document.createElement('div');
+          info.className = 'chat-info';
+          // hasChat live gegen allChats pruefen — der Serverwert veraltet, sobald
+          // man aus dieser Ansicht heraus jemandem schreibt
+          const hasChat = !!existing || c.hasChat;
+          const sub = hasChat
+            ? (c.number ? '+' + c.number : '')
+            : (c.number ? '+' + c.number + ' · ' + t('contactsNoChat') : t('contactsNoChat'));
+          info.innerHTML =
+            '<div class="chat-name">' + esc(c.name) + '</div>' +
+            '<div class="chat-preview' + (hasChat ? '' : ' no-chat') + '">' + esc(sub) + '</div>';
+
+          item.appendChild(av); item.appendChild(info);
+          list.appendChild(item);
+        }
+        queueAvatars(filtered.slice(0, 30));
+      }
+      const foot = document.createElement('div');
+      foot.className = 'contact-list-foot';
+      foot.innerHTML = '<div style="font-size:11px;color:#8696a0;margin-bottom:4px">'
+        + esc(tf('contactsFoot', (_addressBook && _addressBook.total) || 0, (_addressBook && _addressBook.withoutChat) || 0)) + '</div>'
+        + '<button data-act="reload">↻ ' + esc(t('contactsRefresh')) + '</button>';
+      list.appendChild(foot);
+      bindContactFoot(list);
+    }
+
+    function bindContactFoot(list) {
+      const btn = list.querySelector('.contact-list-foot button[data-act="reload"]');
+      if (btn) btn.addEventListener('click', () => loadAddressBook(true));
+    }
+
     function renderChatList(chats) {
+      // Poll-Updates und openChat() rufen das hier unabhaengig vom aktiven Tab —
+      // im Kontakte-Tab darf die Chatliste die Adressbuch-Ansicht nicht ueberschreiben
+      if (currentFilter === 'contacts') { renderContactList(); return; }
       const list = document.getElementById('chat-list');
       const q = document.getElementById('search').value.toLowerCase();
       const filtered = chats.filter(c => {
@@ -3228,7 +3367,10 @@ app.get('/', (req, res) => {
       }
     }
 
-    function filterChats() { renderChatList(allChats); }
+    function filterChats() {
+      if (currentFilter === 'contacts') { renderContactList(); return; }
+      renderChatList(allChats);
+    }
 
     async function openChat(chat) {
       exitDeleteMode();

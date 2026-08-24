@@ -34,6 +34,7 @@ Das Add-on ist über Port 3000 erreichbar (`http://<HA-IP>:17776`).
 ```
 GET  /api/status                     → Verbindungsstatus
 GET  /api/chats                      → Liste aller Chats
+GET  /api/contacts                   → Adressbuch (auch Kontakte ohne Chat), ?refresh=1 umgeht den Cache
 GET  /api/messages?chat=<id>         → Nachrichten eines Chats
 GET  /api/last-received              → Zeitpunkt der letzten empfangenen Nachricht
 GET  /api/last-received?chat=<id>    → Letzte empfangene Nachricht eines bestimmten Chats
