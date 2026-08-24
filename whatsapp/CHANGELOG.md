@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.7.50] - 2026-08-24
+- Fix: **Archiv-Übersicht zeigte bei manchen Kontakten nur die Rufnummer statt des Namens** — die Namen kamen bisher ausschließlich aus `chatMap`, und die kennt nur Kontakte mit echtem Chatverlauf. Wer nur Statusmeldungen postet (oder wo der Chat gelöscht bzw. sehr alt ist), stand deshalb als nackte Nummer da, obwohl der Kontakt im Telefonadressbuch steht. Neuer Helfer `resolveArchiveName()` fragt in diesem Fall über `client.getContactById()` den gespeicherten Namen (bzw. `shortName`/`pushname`) ab und merkt ihn sich im Cache; greift auch für den Titel der Export-ZIP. Konnte nicht aufgelöst werden (keine Verbindung, unbekannter Kontakt), bleibt die Nummer stehen und wird beim nächsten Aufruf erneut versucht
+- Neu: In der Übersicht steht die Rufnummer als Unterzeile unter dem Namen, sofern beide sich unterscheiden — erleichtert das Zuordnen bei mehreren gleichnamigen Kontakten
+
 ## [1.7.49] - 2026-08-24
 - Neu: **Gesamtübersicht über alle Status-Archive** — neuer Button (Archiv-Symbol) in der Kopfzeile öffnet eine Tabelle mit allen Kontakten, die archivierte Statusmeldungen haben: Anzahl Einträge (davon abgelaufen bzw. ohne Medium), belegter Speicher, Zeitraum. Spalten sind per Klick auf die Überschrift sortierbar (Standard: größter Speicherbedarf oben), pro Zeile lässt sich das Archiv öffnen, als ZIP exportieren oder löschen; die Fußzeile zeigt die Summe über alle Kontakte und bietet „Alle Archive leeren". Bisher war der Speicherbedarf nur kontaktweise über das Kontakt-Fenster sichtbar
 - Neu: Endpoints `GET /api/status-archive-overview` (Kontakt, Anzahl, Bytes, ältester/neuester Eintrag; 10 s Cache, da der Scan pro Mediendatei ein `statSync` macht) und `POST /api/status-archive-clear-bulk` (leert die Archive der übergebenen `chatIds`, ohne Angabe alle). Die Löschlogik aus `/api/status-archive/:chatId/clear` liegt jetzt in `clearArchiveForChat()` und meldet freigewordene Dateien und Bytes zurück

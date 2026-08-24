@@ -1656,12 +1656,11 @@ app.get('/api/status-archive/:chatId', (req, res) => {
   res.json({ msgs });
 });
 
-app.get('/api/status-archive/:chatId/export', (req, res) => {
+app.get('/api/status-archive/:chatId/export', async (req, res) => {
   const chatId = req.params.chatId;
   const isEn = (req.query.lang || 'de') === 'en';
   const loc = isEn ? 'en-GB' : 'de-DE';
-  const contact = chatMap.get(chatId);
-  const contactName = contact ? (contact.name || chatId) : chatId;
+  const contactName = await resolveArchiveName(chatId);
   const entries = [...(statusArchiveByChatId.get(chatId) || [])].sort((a, b) => a.timestamp - b.timestamp);
   const escH = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   const exportDate = new Date().toLocaleString(loc, { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
@@ -1703,6 +1702,32 @@ app.get('/api/status-archive/:chatId/export', (req, res) => {
   archive.append(html, { name: 'archiv.html' });
   archive.finalize();
 });
+
+// Kontaktname fuer Archiv-Ansichten. chatMap kennt nur Kontakte mit echtem Chat —
+// wer nur Status postet (oder wo der Chat laengst geloescht ist), stand sonst als
+// nackte Nummer da. Deshalb Fallback ueber das Adressbuch von WhatsApp Web.
+const archiveNameCache = new Map(); // chatId -> aufgeloester Name
+async function resolveArchiveName(chatId) {
+  const cached = archiveNameCache.get(chatId);
+  if (cached) return cached;
+  const chat = chatMap.get(chatId);
+  if (chat && chat.name && chat.name !== chatId) {
+    archiveNameCache.set(chatId, chat.name);
+    return chat.name;
+  }
+  const fallback = chatId.replace(/@.*$/, '');
+  if (status !== 'connected') return fallback; // nicht cachen — spaeter erneut versuchen
+  try {
+    const contact = await client.getContactById(chatId);
+    const name = contact.name || contact.shortName || contact.pushname || '';
+    if (!name) return fallback;
+    archiveNameCache.set(chatId, name);
+    return name;
+  } catch(e) {
+    dbg(`resolveArchiveName(${chatId}): ${e.message}`);
+    return fallback;
+  }
+}
 
 // Pfad einer Archiv-Mediendatei, oder null wenn der Name aus MEDIA_DIR ausbricht
 function archiveMediaPath(mediaFile) {
@@ -1762,7 +1787,7 @@ app.post('/api/status-archive/:chatId/cleanup', (req, res) => {
 let _archiveOverviewCache = null;
 const ARCHIVE_OVERVIEW_CACHE_MS = 10000;
 
-function buildArchiveOverview() {
+async function buildArchiveOverview() {
   const now = Date.now();
   const contacts = [];
   let totalBytes = 0, totalEntries = 0, totalMissing = 0;
@@ -1781,10 +1806,9 @@ function buildArchiveOverview() {
       if (fp) { try { size = fs.statSync(fp).size; } catch(err) { size = 0; } }
       if (size) bytes += size; else missing++;
     }
-    const contact = chatMap.get(chatId);
     contacts.push({
       chatId,
-      name: (contact && contact.name) || chatId.replace(/@.*$/, ''),
+      name: chatId.replace(/@.*$/, ''),
       count: entries.length,
       expired,
       media,
@@ -1797,16 +1821,17 @@ function buildArchiveOverview() {
     totalEntries += entries.length;
     totalMissing += missing;
   }
+  await Promise.all(contacts.map(async c => { c.name = await resolveArchiveName(c.chatId); }));
   contacts.sort((a, b) => b.bytes - a.bytes || b.count - a.count);
   return { contacts, totalBytes, totalEntries, totalMissing, totalContacts: contacts.length };
 }
 
-app.get('/api/status-archive-overview', (req, res) => {
+app.get('/api/status-archive-overview', async (req, res) => {
   if (_archiveOverviewCache && Date.now() - _archiveOverviewCache.ts < ARCHIVE_OVERVIEW_CACHE_MS) {
     return res.json(_archiveOverviewCache.data);
   }
   try {
-    const data = buildArchiveOverview();
+    const data = await buildArchiveOverview();
     _archiveOverviewCache = { ts: Date.now(), data };
     res.json(data);
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -3928,6 +3953,8 @@ app.get('/', (req, res) => {
         + '</tr>';
       const trs = rows.map(c => {
         const sub = [];
+        const number = c.chatId.replace(/@.*$/, '');
+        if (number && c.name !== number) sub.push('+' + esc(number));
         if (c.expired) sub.push(esc(tf('archiveRowExpired', c.expired)));
         if (c.missing) sub.push('<span class="archive-ov-warn">' + esc(tf('archiveRowMissing', c.missing)) + '</span>');
         const period = c.oldest
