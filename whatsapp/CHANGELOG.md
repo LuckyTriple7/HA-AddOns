@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.7.52] - 2026-08-24
+- Fix: **Web-UI startete nicht mehr** (`Uncaught SyntaxError: Invalid regular expression: /^+/: Nothing to repeat`, Ingress-Seite blieb leer) — der Nummernfilter der neuen Kontaktliste war als `/^\+/` geschrieben. Der gesamte Client-Code steckt in einem Template-Literal in `server.js`, und darin ist `\+` kein bekanntes Escape: der Backslash fällt beim Ausliefern weg, im Browser kam `/^+/` an und das Skript brach komplett ab. Filter nutzt jetzt `q.startsWith('+') ? q.slice(1) : q` statt einer Regex
+- Fix: Aus demselben Grund war die Rufnummer unter dem Chatnamen faktisch nie sichtbar — `/^\d{7,15}$/` in `openChat()` kam im Browser als `/^d{7,15}$/` an und traf nur den Literaltext „ddddddd". Backslash verdoppelt; die Nummer erscheint jetzt wieder in der Kopfzeile des Chats
+- Intern: Test-Harness bildet die Escape-Regeln des Template-Literals jetzt exakt nach und prüft das tatsächlich ausgelieferte Client-Skript mit `node --check`; der bisherige Harness hatte den Backslash zu früh aufgelöst und den Fehler dadurch nicht gesehen
+
 ## [1.7.51] - 2026-08-24
 - Neu: **Tab „Kontakte" in der Seitenleiste** — zeigt das komplette WhatsApp-Adressbuch, also auch Kontakte ohne (mehr) Chatverlauf, die in der Chatliste naturgemäß fehlen. Zeile zeigt Name, Rufnummer und bei fehlendem Verlauf den Hinweis „noch kein Chat"; ein Klick öffnet den (leeren) Chat, sodass man direkt schreiben kann. Existiert bereits ein Chat, wird dessen echtes Chat-Objekt geöffnet (Ungelesen-Markierung, Zeitstempel bleiben korrekt). Die Suchleiste filtert hier nach Name **und** Nummer, die Fußzeile nennt Gesamtzahl und Anzahl ohne Chat und bietet „↻ Adressbuch neu laden"
 - Neu: Endpoint `GET /api/contacts` — liefert `id`, `name`, `number`, `hasChat` für alle Adressbuch-Kontakte (`isMyContact`), Gruppen/Broadcasts/Channels gefiltert, Doppel-Einträge über `@c.us`/`@lid` nach Nummer dedupliziert. `client.getContacts()` ist teuer, daher 5-Minuten-Cache; `?refresh=1` erzwingt den Neuaufbau

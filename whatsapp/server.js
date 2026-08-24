@@ -3256,7 +3256,7 @@ app.get('/', (req, res) => {
       const all = (_addressBook && _addressBook.contacts) || [];
       const q = document.getElementById('search').value.toLowerCase();
       const filtered = q
-        ? all.filter(c => c.name.toLowerCase().includes(q) || c.number.includes(q.replace(/^\+/, '')))
+        ? all.filter(c => c.name.toLowerCase().includes(q) || c.number.includes(q.startsWith('+') ? q.slice(1) : q))
         : all;
       list.innerHTML = '';
       if (!filtered.length) {
@@ -3408,7 +3408,7 @@ app.get('/', (req, res) => {
       }
       document.getElementById('ch-name').textContent = chat.name;
       const ph = chat.phone || '';
-      document.getElementById('ch-phone').textContent = /^\d{7,15}$/.test(ph) ? '+' + ph : '';
+      document.getElementById('ch-phone').textContent = /^\\d{7,15}$/.test(ph) ? '+' + ph : '';
 
       lastSeenTime[chat.id] = chat.lastTime || Date.now();
       renderChatList(allChats);
