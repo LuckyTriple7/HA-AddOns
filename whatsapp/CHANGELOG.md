@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.7.53] - 2026-08-24
+- Fix: **Kopfleiste lief auf dem Handy rechts aus dem Bild** — mit dem neuen Archiv-Button passten die Schaltflächen nicht mehr in eine Zeile, Flexbox quetschte sie zusammen und die letzten (Abmelden, Scroll-Buttons) waren nicht erreichbar. Unter 768 px ist die Leiste jetzt horizontal scrollbar (`overflow-x:auto`, `flex-shrink:0` auf allen Elementen, damit gescrollt statt gestaucht wird; Scrollbalken ausgeblendet). Buttons und Speicheranzeige sind dort außerdem etwas kompakter
+- Neu: Weicher Verlauf am rechten Rand der Leiste, solange noch etwas außerhalb liegt (`updateTopbarFade()` bei Scroll, Resize und nach dem Verbinden) — verschwindet, sobald ans Ende gescrollt wurde
+- Getestet mit Playwright bei 360/390/768/1200 px: unter 768 px scrollt die Leiste und der letzte Button wird erreichbar, ab 768 px unverändert ohne Scroll; im geöffneten Chat (Titel und Status ausgeblendet) passt weiterhin alles ohne Scroll
+
 ## [1.7.52] - 2026-08-24
 - Fix: **Web-UI startete nicht mehr** (`Uncaught SyntaxError: Invalid regular expression: /^+/: Nothing to repeat`, Ingress-Seite blieb leer) — der Nummernfilter der neuen Kontaktliste war als `/^\+/` geschrieben. Der gesamte Client-Code steckt in einem Template-Literal in `server.js`, und darin ist `\+` kein bekanntes Escape: der Backslash fällt beim Ausliefern weg, im Browser kam `/^+/` an und das Skript brach komplett ab. Filter nutzt jetzt `q.startsWith('+') ? q.slice(1) : q` statt einer Regex
 - Fix: Aus demselben Grund war die Rufnummer unter dem Chatnamen faktisch nie sichtbar — `/^\d{7,15}$/` in `openChat()` kam im Browser als `/^d{7,15}$/` an und traf nur den Literaltext „ddddddd". Backslash verdoppelt; die Nummer erscheint jetzt wieder in der Kopfzeile des Chats

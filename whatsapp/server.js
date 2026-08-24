@@ -2341,7 +2341,16 @@ app.get('/', (req, res) => {
       body.chat-open #sidebar { display: none; }
       body.chat-open #chat-panel { display: flex; }
       #lang-btn { display: none !important; }
-      .topbar { gap: 6px; }
+      /* Die Buttons rechts liefen aus dem Bild — Leiste horizontal scrollbar machen.
+         Ohne flex-shrink:0 quetscht Flexbox die Buttons zusammen statt zu scrollen. */
+      .topbar { gap: 6px; overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+      .topbar::-webkit-scrollbar { display: none; }
+      .topbar > * { flex-shrink: 0; }
+      .topbar h1 { flex: 0 0 auto; }
+      .topbar .scroll-btn, .topbar .photo-toggle-btn { padding: 4px 6px; }
+      .storage-info { font-size: 11px; }
+      /* Verlauf am rechten Rand als Hinweis, dass da noch mehr kommt */
+      .topbar.has-more-right { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent); }
       #ch-stats { white-space: normal; font-size: 10px; }
       body.chat-open .topbar h1 { display: none; }
       body.chat-open .topbar .status-dot { display: none; }
@@ -3037,6 +3046,19 @@ app.get('/', (req, res) => {
     }
     loadStorage();
     setInterval(loadStorage, 60000);
+
+    // Mobil ist die Topbar horizontal scrollbar; Verlauf rechts nur zeigen,
+    // solange tatsaechlich noch etwas ausserhalb liegt
+    function updateTopbarFade() {
+      const bar = document.getElementById('topbar');
+      if (!bar) return;
+      const more = bar.scrollWidth - bar.clientWidth - bar.scrollLeft > 2;
+      bar.classList.toggle('has-more-right', more);
+    }
+    document.getElementById('topbar').addEventListener('scroll', updateTopbarFade, { passive: true });
+    window.addEventListener('resize', updateTopbarFade);
+    window.addEventListener('load', updateTopbarFade);
+    updateTopbarFade();
 
     async function cleanupMedia() {
       if (!confirm(t('cleanupConfirm'))) return;
@@ -4520,6 +4542,7 @@ app.get('/', (req, res) => {
           document.getElementById('qr-overlay').style.display = qr ? 'flex' : 'none';
           document.getElementById('topbar').style.display = connected ? 'flex' : 'none';
           document.getElementById('main').style.display = connected ? 'flex' : 'none';
+          if (connected) updateTopbarFade(); // vorher war die Leiste display:none, also 0 breit
           if (qr) {
             const d = await fetch('api/qr').then(r => r.json()).catch(() => null);
             if (d?.qr) document.getElementById('qr-img').innerHTML = '<img src="' + d.qr + '">';
