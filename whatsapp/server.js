@@ -1103,6 +1103,7 @@ async function captureStatuses() {
     }
     if (dirty) {
       saveStatusArchive();
+      _archiveOverviewCache = null;
       console.log(`[INFO] captureStatuses: ${newCount} neue Statusmeldung(en) von ${chatsHit.size} Kontakt(en) archiviert`);
     } else {
       dbg(`captureStatuses: nichts Neues (${broadcasts.length} live Broadcast(s) geprüft)`);
@@ -1703,20 +1704,33 @@ app.get('/api/status-archive/:chatId/export', (req, res) => {
   archive.finalize();
 });
 
-app.post('/api/status-archive/:chatId/clear', (req, res) => {
-  const chatId = req.params.chatId;
+// Pfad einer Archiv-Mediendatei, oder null wenn der Name aus MEDIA_DIR ausbricht
+function archiveMediaPath(mediaFile) {
+  if (!mediaFile) return null;
+  const fp = path.resolve(MEDIA_DIR, mediaFile);
+  return fp.startsWith(path.resolve(MEDIA_DIR) + path.sep) ? fp : null;
+}
+
+// Loescht Archiv + zugehoerige Mediendateien eines Kontakts, meldet Freigewordenes zurueck
+function clearArchiveForChat(chatId) {
   const entries = statusArchiveByChatId.get(chatId) || [];
+  let files = 0, bytes = 0;
   for (const e of entries) {
-    if (!e.mediaFile) continue;
-    try {
-      const fp = path.resolve(MEDIA_DIR, e.mediaFile);
-      if (fp.startsWith(path.resolve(MEDIA_DIR) + path.sep)) fs.unlinkSync(fp);
-    } catch(e) {}
+    const fp = archiveMediaPath(e.mediaFile);
+    if (fp) {
+      try { bytes += fs.statSync(fp).size; fs.unlinkSync(fp); files++; } catch(err) {}
+    }
     archiveSeenIds.delete(e.id);
   }
   statusArchiveByChatId.delete(chatId);
+  return { entries: entries.length, files, bytes };
+}
+
+app.post('/api/status-archive/:chatId/clear', (req, res) => {
+  const freed = clearArchiveForChat(req.params.chatId);
   saveStatusArchive();
-  res.json({ success: true });
+  _archiveOverviewCache = null;
+  res.json({ success: true, ...freed });
 });
 
 // Entfernt nur Einträge mit fehlendem/kaputtem Medium (kein mediaFile oder Datei nicht
@@ -1737,7 +1751,81 @@ app.post('/api/status-archive/:chatId/cleanup', (req, res) => {
   });
   statusArchiveByChatId.set(chatId, kept);
   saveStatusArchive();
+  _archiveOverviewCache = null;
   res.json({ success: true, removed, converted });
+});
+
+// ── Archiv-Gesamtuebersicht ───────────────────────────────────────────────────
+// Speicherbedarf je Kontakt an einer Stelle, damit man nicht jeden Kontakt
+// einzeln oeffnen muss. Der Scan macht ein statSync pro Mediendatei — kurz
+// cachen, damit wiederholtes Oeffnen den Event-Loop nicht blockiert.
+let _archiveOverviewCache = null;
+const ARCHIVE_OVERVIEW_CACHE_MS = 10000;
+
+function buildArchiveOverview() {
+  const now = Date.now();
+  const contacts = [];
+  let totalBytes = 0, totalEntries = 0, totalMissing = 0;
+  for (const [chatId, entries] of statusArchiveByChatId.entries()) {
+    if (!entries.length) continue;
+    let bytes = 0, media = 0, missing = 0, expired = 0, oldest = 0, newest = 0;
+    for (const e of entries) {
+      const ts = e.timestamp || 0;
+      if (ts && (!oldest || ts < oldest)) oldest = ts;
+      if (ts > newest) newest = ts;
+      if (now - ts >= STATUS_EXPIRY_MS) expired++;
+      if (e.type !== 'photo' && e.type !== 'video') continue;
+      media++;
+      const fp = archiveMediaPath(e.mediaFile);
+      let size = 0;
+      if (fp) { try { size = fs.statSync(fp).size; } catch(err) { size = 0; } }
+      if (size) bytes += size; else missing++;
+    }
+    const contact = chatMap.get(chatId);
+    contacts.push({
+      chatId,
+      name: (contact && contact.name) || chatId.replace(/@.*$/, ''),
+      count: entries.length,
+      expired,
+      media,
+      missing,
+      bytes,
+      oldest,
+      newest,
+    });
+    totalBytes += bytes;
+    totalEntries += entries.length;
+    totalMissing += missing;
+  }
+  contacts.sort((a, b) => b.bytes - a.bytes || b.count - a.count);
+  return { contacts, totalBytes, totalEntries, totalMissing, totalContacts: contacts.length };
+}
+
+app.get('/api/status-archive-overview', (req, res) => {
+  if (_archiveOverviewCache && Date.now() - _archiveOverviewCache.ts < ARCHIVE_OVERVIEW_CACHE_MS) {
+    return res.json(_archiveOverviewCache.data);
+  }
+  try {
+    const data = buildArchiveOverview();
+    _archiveOverviewCache = { ts: Date.now(), data };
+    res.json(data);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Leert die Archive mehrerer Kontakte auf einmal (ohne chatIds: alle)
+app.post('/api/status-archive-clear-bulk', (req, res) => {
+  const ids = Array.isArray(req.body?.chatIds) && req.body.chatIds.length
+    ? req.body.chatIds.filter(id => statusArchiveByChatId.has(id))
+    : [...statusArchiveByChatId.keys()];
+  let files = 0, bytes = 0, entries = 0;
+  for (const chatId of ids) {
+    const freed = clearArchiveForChat(chatId);
+    files += freed.files; bytes += freed.bytes; entries += freed.entries;
+  }
+  saveStatusArchive();
+  _archiveOverviewCache = null;
+  console.log(`[INFO] Status-Archiv geleert: ${ids.length} Kontakt(e), ${entries} Eintrag/Eintraege, ${(bytes/1024/1024).toFixed(1)} MB`);
+  res.json({ success: true, contacts: ids.length, entries, files, bytes });
 });
 
 // ── Web UI ────────────────────────────────────────────────────────────────────
@@ -1747,6 +1835,7 @@ const _SVG = {
   disk:       '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;flex-shrink:0"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>',
   imageOn:    '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>',
   imageOff:   '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>',
+  archive:    '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="5" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><line x1="10" y1="12" x2="14" y2="12"/></svg>',
   trash:      '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>',
   chevUp:     '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>',
   chevDown:   '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>',
@@ -1903,6 +1992,28 @@ app.get('/', (req, res) => {
     .status-item img, .status-item video { max-width: 100%; max-height: 180px; border-radius: 6px; display: block; cursor: zoom-in; }
     .status-item .status-text { font-size: 13px; word-break: break-word; }
     .status-item .status-time { font-size: 11px; color: #8696a0; }
+    #archive-overview-modal { display: none; position: fixed; inset: 0; z-index: 500; background: rgba(0,0,0,0.7); align-items: center; justify-content: center; }
+    #archive-overview-modal.open { display: flex; }
+    .archive-ov-box { border-radius: 14px; padding: 18px; width: 94%; max-width: 820px; max-height: 86vh; display: flex; flex-direction: column; box-shadow: 0 8px 32px rgba(0,0,0,0.5); }
+    html.dark .archive-ov-box { background: #202c33; color: #e9edef; }
+    html.light .archive-ov-box { background: #fff; color: #111; }
+    .archive-ov-body { flex: 1; overflow: auto; margin: 4px 0 12px; }
+    .archive-ov-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .archive-ov-table th { text-align: left; font-weight: 600; font-size: 12px; color: #8696a0; padding: 6px 8px; position: sticky; top: 0; cursor: pointer; white-space: nowrap; }
+    html.dark .archive-ov-table th { background: #202c33; }
+    html.light .archive-ov-table th { background: #fff; }
+    .archive-ov-table th .sort-mark { opacity: 0.9; font-size: 10px; margin-left: 3px; }
+    .archive-ov-table td { padding: 7px 8px; border-top: 1px solid rgba(128,128,128,0.18); vertical-align: middle; }
+    .archive-ov-table td.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .archive-ov-name { font-weight: 500; word-break: break-word; }
+    .archive-ov-sub { font-size: 11px; color: #8696a0; }
+    .archive-ov-warn { color: #f0b232; }
+    .archive-ov-acts { display: flex; gap: 4px; justify-content: flex-end; }
+    .archive-ov-acts button { background: none; border: none; color: inherit; opacity: 0.7; cursor: pointer; font-size: 14px; padding: 3px 5px; border-radius: 6px; }
+    .archive-ov-acts button:hover:not(:disabled) { opacity: 1; background: rgba(128,128,128,0.18); }
+    .archive-ov-acts button:disabled { opacity: 0.25; cursor: default; }
+    .archive-ov-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; flex-shrink: 0; font-size: 12px; color: #8696a0; }
+    .archive-ov-empty { padding: 24px 8px; text-align: center; color: #8696a0; font-size: 13px; }
     .contact-modal-close { margin-top: 10px; border: none; border-radius: 8px; padding: 8px 28px; font-size: 14px; cursor: pointer; }
     html.dark .contact-modal-close { background: #2a3942; color: #e9edef; }
     html.light .contact-modal-close { background: #f0f2f5; color: #111; }
@@ -2275,6 +2386,7 @@ app.get('/', (req, res) => {
     <span class="storage-info" id="storage-info"></span>
     ${DOWNLOAD_MEDIA ? `<button id="photo-toggle" class="photo-toggle-btn active" onclick="togglePhotos()" data-i18n-title="photosOn" title="Medien AN">${_SVG.imageOn}</button>` : ''}
     ${DOWNLOAD_MEDIA ? `<button class="scroll-btn" onclick="cleanupMedia()" data-i18n-title="btnCleanup" title="Verwaiste Mediendateien löschen">${_SVG.trash}</button>` : ''}
+    <button class="scroll-btn" onclick="openArchiveOverview()" data-i18n-title="archiveOverviewBtn" title="Status-Archiv-Übersicht">${_SVG.archive}</button>
     <button class="scroll-btn" onclick="scrollMsgs('top')" data-i18n-title="btnScrollUp" title="Nach oben">${_SVG.chevUp}</button>
     <button class="scroll-btn" onclick="scrollMsgs('bottom')" data-i18n-title="btnScrollDown" title="Nach unten">${_SVG.chevDown}</button>
     <button id="lang-btn" class="scroll-btn" onclick="switchLang()" title="Sprache / Language" style="font-size:13px;padding:0 8px;font-weight:500;">DE</button>
@@ -2390,6 +2502,20 @@ app.get('/', (req, res) => {
     </div>
   </div>
 
+  <div id="archive-overview-modal" onclick="if(event.target===this)closeArchiveOverview()">
+    <div class="archive-ov-box">
+      <div class="archive-modal-header">
+        <h3 data-i18n="archiveOverviewTitle">Status-Archiv — Gesamtübersicht</h3>
+        <button class="archive-modal-close" onclick="closeArchiveOverview()">✕</button>
+      </div>
+      <div class="archive-ov-body" id="archive-ov-body"></div>
+      <div class="archive-ov-foot">
+        <span id="archive-ov-total"></span>
+        <button class="status-archive-clear" id="archive-ov-clear-all">🗑 <span data-i18n="archiveClearAll">Alle Archive leeren</span></button>
+      </div>
+    </div>
+  </div>
+
   <div id="fwd-modal">
     <div class="fwd-modal-box">
       <h3 data-i18n="fwdTitle">↪ Weiterleiten an…</h3>
@@ -2497,6 +2623,17 @@ app.get('/', (req, res) => {
         archiveOpen:(n)=>n+' abgelaufene Statusmeldung'+(n===1?'':'en')+' ansehen', archiveExport:'Als ZIP exportieren',
         archiveMediaGone:'Medium nicht verfügbar', archiveCleanup:'Fehlerhafte aufräumen',
         archiveCleanupDone:(r,c)=>r+c===0?'✓ Nichts zu tun':'✓ '+r+' entfernt'+(c?', '+c+' zu Text konvertiert':''),
+        archiveOverviewBtn:'Status-Archiv: Gesamtübersicht', archiveOverviewTitle:'Status-Archiv — Gesamtübersicht',
+        archiveOverviewLoading:'Lade Übersicht…', archiveOverviewEmpty:'Noch keine archivierten Statusmeldungen vorhanden.',
+        archiveColContact:'Kontakt', archiveColCount:'Einträge', archiveColSize:'Speicher', archiveColPeriod:'Zeitraum', archiveColActions:'Aktionen',
+        archiveRowExpired:(n)=>n+' abgelaufen', archiveRowMissing:(n)=>n+' ohne Medium',
+        archiveOpenTitle:'Archiv öffnen', archiveOpenNone:'Noch nichts abgelaufen — nichts zu zeigen',
+        archiveExportTitle:'Als ZIP exportieren', archiveDeleteTitle:'Archiv dieses Kontakts löschen',
+        archiveRowClearConfirm:(name,size)=>'Archiv von '+name+' wirklich löschen? Gibt '+size+' frei.',
+        archiveClearAll:'Alle Archive leeren',
+        archiveClearAllConfirm:(c,size)=>'Wirklich die Archive aller '+c+' Kontakte löschen? Gibt '+size+' frei. Das lässt sich nicht rückgängig machen.',
+        archiveOvTotal:(c,n,size)=>c+' Kontakt'+(c===1?'':'e')+' · '+n+' Eintrag'+(n===1?'':'/Einträge')+' · '+size,
+        archiveOvNoFiles:'keine Datei',
       },
       en: {
         spinnerConnecting:'Connecting to WhatsApp…', btnReset:'Reset Session',
@@ -2541,6 +2678,17 @@ app.get('/', (req, res) => {
         archiveOpen:(n)=>'View '+n+' expired status update'+(n===1?'':'s'), archiveExport:'Export as ZIP',
         archiveMediaGone:'Media unavailable', archiveCleanup:'Clean up broken',
         archiveCleanupDone:(r,c)=>r+c===0?'✓ Nothing to do':'✓ '+r+' removed'+(c?', '+c+' converted to text':''),
+        archiveOverviewBtn:'Status archive: overview', archiveOverviewTitle:'Status archive — overview',
+        archiveOverviewLoading:'Loading overview…', archiveOverviewEmpty:'No archived status updates yet.',
+        archiveColContact:'Contact', archiveColCount:'Entries', archiveColSize:'Storage', archiveColPeriod:'Period', archiveColActions:'Actions',
+        archiveRowExpired:(n)=>n+' expired', archiveRowMissing:(n)=>n+' without media',
+        archiveOpenTitle:'Open archive', archiveOpenNone:'Nothing expired yet — nothing to show',
+        archiveExportTitle:'Export as ZIP', archiveDeleteTitle:'Delete this contact\\'s archive',
+        archiveRowClearConfirm:(name,size)=>'Really delete the archive of '+name+'? Frees '+size+'.',
+        archiveClearAll:'Clear all archives',
+        archiveClearAllConfirm:(c,size)=>'Really delete the archives of all '+c+' contacts? Frees '+size+'. This cannot be undone.',
+        archiveOvTotal:(c,n,size)=>c+' contact'+(c===1?'':'s')+' · '+n+' entr'+(n===1?'y':'ies')+' · '+size,
+        archiveOvNoFiles:'no file',
       },
     };
     const _browserLang = (navigator.language || '').toLowerCase().startsWith('de') ? 'de' : 'en';
@@ -3727,6 +3875,119 @@ app.get('/', (req, res) => {
       }
       setTimeout(() => { label.textContent = orig; }, 2500);
     });
+    // ── Status-Archiv: Gesamtuebersicht ───────────────────────────────────────
+    let _ovData = null, _ovSort = 'bytes', _ovDesc = true;
+    function fmtBytes(b) {
+      if (!b) return '0 MB';
+      if (b < 102400) return Math.round(b / 1024) + ' KB';
+      return (b / 1048576).toFixed(1) + ' MB';
+    }
+    async function openArchiveOverview() {
+      const body = document.getElementById('archive-ov-body');
+      body.innerHTML = '<div class="archive-ov-empty">' + esc(t('archiveOverviewLoading')) + '</div>';
+      document.getElementById('archive-ov-total').textContent = '';
+      document.getElementById('archive-overview-modal').classList.add('open');
+      try {
+        _ovData = await fetch('api/status-archive-overview').then(r => r.json());
+      } catch(e) { _ovData = null; }
+      renderArchiveOverview();
+    }
+    function closeArchiveOverview() {
+      document.getElementById('archive-overview-modal').classList.remove('open');
+    }
+    function sortArchiveOverview(key) {
+      if (_ovSort === key) { _ovDesc = !_ovDesc; } else { _ovSort = key; _ovDesc = key !== 'name'; }
+      renderArchiveOverview();
+    }
+    function renderArchiveOverview() {
+      const body = document.getElementById('archive-ov-body');
+      const foot = document.getElementById('archive-ov-total');
+      const clearAllBtn = document.getElementById('archive-ov-clear-all');
+      const rows = (_ovData && _ovData.contacts) ? _ovData.contacts.slice() : [];
+      if (!rows.length) {
+        body.innerHTML = '<div class="archive-ov-empty">' + esc(t('archiveOverviewEmpty')) + '</div>';
+        foot.textContent = '';
+        clearAllBtn.style.display = 'none';
+        return;
+      }
+      clearAllBtn.style.display = '';
+      const dir = _ovDesc ? 1 : -1;
+      rows.sort((a, b) => {
+        if (_ovSort === 'name') return dir * a.name.localeCompare(b.name, lang);
+        if (_ovSort === 'count') return dir * (b.count - a.count);
+        if (_ovSort === 'newest') return dir * (b.newest - a.newest);
+        return dir * (b.bytes - a.bytes);
+      });
+      const mark = (key) => _ovSort === key ? '<span class="sort-mark">' + (_ovDesc ? '▼' : '▲') + '</span>' : '';
+      const head = '<tr>'
+        + '<th data-sort="name">' + esc(t('archiveColContact')) + mark('name') + '</th>'
+        + '<th data-sort="count" style="text-align:right">' + esc(t('archiveColCount')) + mark('count') + '</th>'
+        + '<th data-sort="bytes" style="text-align:right">' + esc(t('archiveColSize')) + mark('bytes') + '</th>'
+        + '<th data-sort="newest">' + esc(t('archiveColPeriod')) + mark('newest') + '</th>'
+        + '<th style="text-align:right;cursor:default">' + esc(t('archiveColActions')) + '</th>'
+        + '</tr>';
+      const trs = rows.map(c => {
+        const sub = [];
+        if (c.expired) sub.push(esc(tf('archiveRowExpired', c.expired)));
+        if (c.missing) sub.push('<span class="archive-ov-warn">' + esc(tf('archiveRowMissing', c.missing)) + '</span>');
+        const period = c.oldest
+          ? esc(fmtDate(c.oldest)) + (c.newest && fmtDate(c.newest) !== fmtDate(c.oldest) ? ' – ' + esc(fmtDate(c.newest)) : '')
+          : '';
+        const size = c.bytes ? fmtBytes(c.bytes) : esc(t('archiveOvNoFiles'));
+        return '<tr data-chat="' + esc(c.chatId) + '">'
+          + '<td><div class="archive-ov-name">' + esc(c.name) + '</div>'
+            + (sub.length ? '<div class="archive-ov-sub">' + sub.join(' · ') + '</div>' : '') + '</td>'
+          + '<td class="num">' + c.count + '</td>'
+          + '<td class="num">' + size + '</td>'
+          + '<td class="archive-ov-sub">' + period + '</td>'
+          + '<td><div class="archive-ov-acts">'
+            + '<button data-act="open" title="' + esc(c.expired ? t('archiveOpenTitle') : t('archiveOpenNone')) + '"' + (c.expired ? '' : ' disabled') + '>🗄</button>'
+            + '<button data-act="export" title="' + esc(t('archiveExportTitle')) + '">⬇</button>'
+            + '<button data-act="clear" title="' + esc(t('archiveDeleteTitle')) + '">🗑</button>'
+          + '</div></td>'
+          + '</tr>';
+      }).join('');
+      body.innerHTML = '<table class="archive-ov-table"><thead>' + head + '</thead><tbody>' + trs + '</tbody></table>';
+      body.querySelectorAll('th[data-sort]').forEach(th => {
+        th.addEventListener('click', () => sortArchiveOverview(th.dataset.sort));
+      });
+      foot.textContent = tf('archiveOvTotal', _ovData.totalContacts, _ovData.totalEntries, fmtBytes(_ovData.totalBytes));
+    }
+    document.getElementById('archive-ov-body').addEventListener('click', async (ev) => {
+      const btn = ev.target.closest('button[data-act]');
+      if (!btn || btn.disabled) return;
+      const tr = btn.closest('tr[data-chat]');
+      if (!tr) return;
+      const chatId = tr.dataset.chat;
+      const row = (_ovData.contacts || []).find(c => c.chatId === chatId);
+      const name = row ? row.name : chatId;
+      if (btn.dataset.act === 'open') {
+        closeArchiveOverview();
+        openArchiveModal(chatId, name);
+      } else if (btn.dataset.act === 'export') {
+        window.location.href = 'api/status-archive/' + encodeURIComponent(chatId) + '/export?lang=' + lang;
+      } else if (btn.dataset.act === 'clear') {
+        if (!confirm(tf('archiveRowClearConfirm', name, fmtBytes(row ? row.bytes : 0)))) return;
+        try { await fetch('api/status-archive/' + encodeURIComponent(chatId) + '/clear', { method: 'POST' }); } catch(e) {}
+        await refreshArchiveOverview();
+      }
+    });
+    document.getElementById('archive-ov-clear-all').addEventListener('click', async () => {
+      if (!_ovData || !_ovData.totalContacts) return;
+      if (!confirm(tf('archiveClearAllConfirm', _ovData.totalContacts, fmtBytes(_ovData.totalBytes)))) return;
+      try { await fetch('api/status-archive-clear-bulk', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }); } catch(e) {}
+      await refreshArchiveOverview();
+    });
+    // Nach dem Loeschen: Uebersicht, Speicheranzeige und ggf. das offene
+    // Kontakt-Badge auf den neuen Stand bringen
+    async function refreshArchiveOverview() {
+      try { _ovData = await fetch('api/status-archive-overview').then(r => r.json()); } catch(e) { _ovData = null; }
+      renderArchiveOverview();
+      loadStorage();
+      const archiveEl = document.getElementById('contact-modal-archive');
+      if (archiveEl) archiveEl.innerHTML = '';
+    }
+
     function closeContactModal() {
       document.getElementById('contact-modal').classList.remove('open');
     }
@@ -4162,6 +4423,7 @@ app.get('/', (req, res) => {
         if (isDeleteMode) { exitDeleteMode(); return; }
         lightbox.classList.remove('open');
         document.getElementById('contact-modal')?.classList.remove('open');
+        document.getElementById('archive-overview-modal')?.classList.remove('open');
       }
     });
 
