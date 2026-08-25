@@ -757,7 +757,8 @@ def _fetch_repo_data(repo: str, token: str, run_limit: int = 25) -> dict:
     """Fetch PRs, Issues and latest workflow runs for one repo."""
     owner, name = repo.split('/', 1)
 
-    repo_meta     = _gh_get(f'/repos/{repo}', token) or {}
+    repo_meta_raw = _gh_get(f'/repos/{repo}', token)
+    repo_meta     = repo_meta_raw or {}
     default_branch = repo_meta.get('default_branch', 'main')
 
     pulls_raw = _gh_get_paginated(f'/repos/{repo}/pulls', token) or []
@@ -954,6 +955,7 @@ def _fetch_repo_data(repo: str, token: str, run_limit: int = 25) -> dict:
         'latest_release': latest_release,
         'open_prs':       len(pulls),
         'open_issues':    len(issues),
+        'meta_ok':        repo_meta_raw is not None,
         'stars':          repo_meta.get('stargazers_count', 0),
         'forks':          repo_meta.get('forks_count', 0),
         'watchers':       repo_meta.get('watchers_count', 0),
@@ -1766,6 +1768,12 @@ def _do_poll(cfg: dict, token: str) -> None:
     # Benachrichtigungen: Stars / Forks / Watchers Änderungen erkennen
     for rd in repo_data:
         rname = rd['repo']
+        # Konnte /repos/<repo> nicht geladen werden (Timeout, 5xx, Rate-Limit), stehen
+        # stars/forks/watchers auf 0. Das ist keine echte Änderung — alten Stand halten,
+        # sonst kommt erst "1 → 0 (-1)" und beim nächsten Poll "0 → 1 (+1)".
+        if not rd.get('meta_ok', True):
+            log.debug("Repo-Meta für %s fehlgeschlagen — Statistik-Diff übersprungen", rname)
+            continue
         curr_stats = {
             'stars':    rd.get('stars', 0),
             'forks':    rd.get('forks', 0),

@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.4.16] - 2026-08-25
+
+### Fixed
+- **Falsche Statistik-Meldungen bei GitHub-Aussetzern.** Konnte `/repos/<repo>`
+  nicht geladen werden (Timeout, 5xx, Rate-Limit, Netzfehler), fielen Stars,
+  Forks und Watchers intern auf 0. Die Änderungserkennung hielt das für echt und
+  schickte erst „Stars: 1 → 0 (-1)", beim nächsten erfolgreichen Poll dann
+  „Stars: 0 → 1 (+1)". Ein fehlgeschlagener Meta-Abruf wird jetzt als solcher
+  markiert und der Statistik-Vergleich für diesen Durchlauf übersprungen — der
+  letzte bekannte Stand bleibt stehen.
+
 ## [0.4.15] - 2026-08-20
 
 ### Added
