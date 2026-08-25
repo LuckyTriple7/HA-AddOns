@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.101.5] - 2026-08-25
+
+### Added
+- **Badge „Nur Erwachsene" in den Suchtreffern.** Adults-only-Hotels (z. B. Riu Cabo
+  Verde) tragen jetzt dieselbe Art Schild wie „Direkt am Strand" oder „Sandstrand".
+  Grundlage ist der globalTypes-Code `GT03/TUI-G0978` aus dem Suchtreffer selbst — live
+  gegen die TUI-Such-API geprueft: alle 34 Adults-only-Treffer zweier Regionen tragen
+  ihn, und ungefiltert tragen ihn genau die Hotels, die der Filter
+  `facilityAttributes=13` liefert. Der naheliegendere Code `GT03-ADON` waere unzu-
+  verlaessig gewesen (fehlte bei 5 von 29 Adults-only-Hotels auf Gran Canaria).
+
 ## [0.101.4] - 2026-08-25
 
 ### Fixed
