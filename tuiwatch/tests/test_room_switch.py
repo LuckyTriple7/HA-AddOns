@@ -26,8 +26,11 @@ def m(tmp_path, monkeypatch):
     mod.DB_PATH = str(tmp_path / "tuiwatch.db")
     mod.TRIPS_DIR = str(tmp_path / "trips")
     mod.init_db()
-    monkeypatch.setattr(mod, "_notify_ha", lambda *a, **k: None)
-    monkeypatch.setattr(mod, "_notify_telegram", lambda *a, **k: None)
+    mod._ha, mod._tg = [], []
+    monkeypatch.setattr(mod, "_notify_ha",
+                        lambda title, msg, tag, muted=False: mod._ha.append((title, msg)))
+    monkeypatch.setattr(mod, "_notify_telegram",
+                        lambda text, muted=False: mod._tg.append(text))
     monkeypatch.setattr(mod, "fetch_hotel_image", lambda url, **k: "")
     monkeypatch.setattr(mod, "fetch_calendar", lambda *a, **k: None)
     return mod
@@ -117,6 +120,57 @@ def test_room_switch_keeps_price_jump_out_of_market_trend(m, monkeypatch):
     with m.db() as con:
         moves = con.execute("SELECT COUNT(*) AS n FROM price_moves").fetchone()["n"]
     assert moves == 1
+
+
+def test_notification_mentions_room_switch(m, monkeypatch):
+    """Die Preismeldung muss den Zimmerwechsel nennen — sonst liest sie sich wie
+    eine reine Preiserhöhung (Bugreport: +444 €, weil die günstigen Zimmer weg waren)."""
+    oid = _add_offer(m)
+    monkeypatch.setattr(m, "fetch_price", lambda url, **k: {
+        "ok": True, "price": 1759, "room": "Doppelzimmer"})
+    m.check_offer(oid)
+    m._ha.clear(); m._tg.clear()
+
+    monkeypatch.setattr(m, "fetch_price", lambda url, **k: {
+        "ok": True, "price": 2221, "room": "Executive Double room side sea view"})
+    m.check_offer(oid)
+
+    assert len(m._ha) == 1 and len(m._tg) == 1
+    ha_title, ha_msg = m._ha[0]
+    assert "Preis gestiegen" in ha_title
+    assert "Zimmer gewechselt: Doppelzimmer → Executive Double room side sea view" in ha_msg
+    assert "Zimmer gewechselt: Doppelzimmer → Executive Double room side sea view" in m._tg[0]
+
+
+def test_notification_without_room_switch_unchanged(m, monkeypatch):
+    """Ohne Wechsel bleibt die Meldung wie bisher — keine leere Zusatzzeile."""
+    oid = _add_offer(m)
+    monkeypatch.setattr(m, "fetch_price", lambda url, **k: {
+        "ok": True, "price": 1759, "room": "Doppelzimmer"})
+    m.check_offer(oid)
+    m._ha.clear(); m._tg.clear()
+    monkeypatch.setattr(m, "fetch_price", lambda url, **k: {
+        "ok": True, "price": 1800, "room": "Doppelzimmer"})
+    m.check_offer(oid)
+
+    assert "Zimmer" not in m._ha[0][1] and "Zimmer" not in m._tg[0]
+    assert m._ha[0][1].count("\n") == 2       # Name, Preiszeile, URL
+
+
+def test_telegram_escapes_room_names(m, monkeypatch):
+    """Zimmernamen kommen von TUI; `&`/`<` dürfen Telegrams HTML-Modus nicht
+    zerlegen (die Meldung käme sonst gar nicht an)."""
+    oid = _add_offer(m)
+    monkeypatch.setattr(m, "fetch_price", lambda url, **k: {
+        "ok": True, "price": 900, "room": "Standard"})
+    m.check_offer(oid)
+    m._tg.clear()
+    monkeypatch.setattr(m, "fetch_price", lambda url, **k: {
+        "ok": True, "price": 1000, "room": "Suite <Deluxe> & Terrasse"})
+    m.check_offer(oid)
+
+    assert "Suite &lt;Deluxe&gt; &amp; Terrasse" in m._tg[0]
+    assert "<Deluxe>" not in m._tg[0]
 
 
 def test_history_api_delivers_event_for_the_table(m, monkeypatch):

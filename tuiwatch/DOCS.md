@@ -204,8 +204,8 @@ Wunschpreis, Zurücksetzen) — mit **Mouseover** erscheint Datum + Beschreibung
 **günstigste**. Ist das ausgebucht, rückt das nächstteurere nach — der Preis springt,
 obwohl sich am Markt nichts bewegt hat. Die Verlaufstabelle zeigt an dieser Stelle
 jetzt eine Hinweiszeile („Zimmer gewechselt: … → …") direkt unter dem betroffenen
-Preis, im Diagramm steht ein Fähnchen. Dieser Preisschritt fließt außerdem **nicht**
-in den Markttrend ein (siehe dort).
+Preis, im Diagramm steht ein Fähnchen und die Preis-Benachrichtigung nennt den Wechsel
+mit. Dieser Preisschritt fließt außerdem **nicht** in den Markttrend ein (siehe dort).
 
 > Der Preis wird seit v0.3.0 direkt aus der TUI-JSON-API gelesen (schnell und
 > robust); bei Störungen schaltet TUIWatch automatisch auf das langsamere
@@ -546,7 +546,11 @@ Preis-Tracking, als dauerhaftes Archiv (Vergangenheit und Zukunft).
 - Pro Angebot kannst du im UI einen **Wunschpreis** setzen. Fällt der Preis auf
   oder unter diesen Wert, wirst du benachrichtigt.
 - Bei **jeder Preisänderung** (steigt/fällt) kommt ebenfalls eine Meldung
-  (abschaltbar über `notify_price_change`).
+  (abschaltbar über `notify_price_change`). Steckt hinter dem Sprung ein
+  **automatischer Zimmerwechsel** (das bisher günstigste Zimmer ist ausgebucht,
+  das nächstteurere rückt nach), nennt die Meldung ihn mit: „🛏️ Zimmer gewechselt:
+  … → …“ — sonst läse sie sich wie eine reine Preiserhöhung. Gilt für die
+  Wunschpreis-Meldung genauso.
 - **Push aufs Handy** (`ha_notify_service`): standardmäßig erscheinen HA-Meldungen
   als persistente Benachrichtigung in der HA-Oberfläche. Trägst du hier einen
   notify-Dienst ein (z. B. `mobile_app_mein_handy` — Companion-App), geht jede

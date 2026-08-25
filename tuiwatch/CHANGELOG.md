@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.103.1] - 2026-08-25
+
+### Changed
+- **Preis-Benachrichtigungen nennen den automatischen Zimmerwechsel.** Springt der
+  Preis, weil das bisher guenstigste Zimmer ausgebucht ist, stand in der Meldung
+  bisher nur "1.759 EUR -> 2.221 EUR" — sie las sich wie eine reine Preiserhoehung.
+  Jetzt haengt eine Zeile "Zimmer gewechselt: ... -> ..." an, in Home Assistant wie
+  in Telegram, bei der Preisaenderungs- und der Wunschpreis-Meldung. Ohne Wechsel
+  bleibt die Meldung unveraendert.
+
+### Fixed
+- **Zimmernamen werden fuer Telegram escapet.** Ein Name mit `<` oder `&` haette den
+  HTML-Modus zerlegt und die Meldung gar nicht ankommen lassen.
+
 ## [0.103.0] - 2026-08-25
 
 ### Added

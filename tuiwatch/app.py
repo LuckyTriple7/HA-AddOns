@@ -7,6 +7,7 @@ SQLite und zeigt Verlauf + Hoch/Runter-Anzeige in einer Weboberfläche.
 """
 import csv
 import hashlib
+import html as htmllib
 import io
 import ipaddress
 import json
@@ -92,7 +93,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.103.0"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.103.1"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -1446,24 +1447,32 @@ def _notify_startup() -> None:
 
 
 def _maybe_notify(offer: dict, prev_price: float | None, new_price: float | None,
-                  target: float | None) -> None:
-    """Schickt Benachrichtigungen bei Preisänderung und erreichtem Wunschpreis."""
+                  target: float | None, room_switch: str = '') -> None:
+    """Schickt Benachrichtigungen bei Preisänderung und erreichtem Wunschpreis.
+
+    `room_switch` (Text aus `_room_change_text`) hängt an der Meldung, wenn der Preis
+    beim selben Check auch deshalb springt, weil das bisher günstigste Zimmer weg ist
+    — ohne diesen Zusatz liest sich die Meldung wie eine reine Preiserhöhung."""
     if new_price is None:
         return
     cfg = load_config()
     name = offer.get('label') or offer.get('hotel') or f"Angebot #{offer['id']}"
     url = offer.get('url', '')
     muted = bool(offer.get('notify_muted'))
+    # Zimmernamen kommen von TUI und können &/< enthalten — für Telegram (parse_mode
+    # HTML) deshalb escapen; die Klartext-Meldung an HA nimmt den Namen unverändert.
+    room_line = f"\n🛏️ {room_switch}" if room_switch else ''
+    room_line_tg = f"\n🛏️ {htmllib.escape(room_switch)}" if room_switch else ''
 
     # 1) Wunschpreis erreicht (nur beim Übergang über die Schwelle)
     if target and new_price <= target and (prev_price is None or prev_price > target):
         title = f"🎯 Wunschpreis erreicht: {name}"
-        msg = f"{name}\nWunschpreis {_eur(target)} erreicht — jetzt {_eur(new_price)}\n{url}"
+        msg = f"{name}\nWunschpreis {_eur(target)} erreicht — jetzt {_eur(new_price)}{room_line}\n{url}"
         log.info("🎯 Wunschpreis erreicht (#%d %s): %s ≤ %s → Benachrichtigung",
                  offer['id'], name, _eur(new_price), _eur(target))
         _notify_ha(title, msg, f"target_{offer['id']}", muted=muted)
         _notify_telegram(f"🎯 <b>Wunschpreis erreicht</b>\n{name}\nJetzt <b>{_eur(new_price)}</b> "
-                         f"(Ziel {_eur(target)})\n{url}", muted=muted)
+                         f"(Ziel {_eur(target)}){room_line_tg}\n{url}", muted=muted)
         return  # nicht zusätzlich die Änderungsmeldung senden
 
     # 2) Preisänderung
@@ -1475,12 +1484,13 @@ def _maybe_notify(offer: dict, prev_price: float | None, new_price: float | None
         else:
             title = f"📈 Preis gestiegen: {name}"
             arrow = f"▲ {_eur(diff)}"
-        msg = f"{name}\n{_eur(prev_price)} → {_eur(new_price)} ({arrow})\n{url}"
+        msg = f"{name}\n{_eur(prev_price)} → {_eur(new_price)} ({arrow}){room_line}\n{url}"
         log.info("Benachrichtigung (#%d %s): %s → %s gesendet", offer['id'], name,
                  _eur(prev_price), _eur(new_price))
         _notify_ha(title, msg, f"change_{offer['id']}", muted=muted)
         _notify_telegram(f"{'📉' if diff<0 else '📈'} <b>{name}</b>\n"
-                         f"{_eur(prev_price)} → <b>{_eur(new_price)}</b> ({arrow})\n{url}", muted=muted)
+                         f"{_eur(prev_price)} → <b>{_eur(new_price)}</b> ({arrow})"
+                         f"{room_line_tg}\n{url}", muted=muted)
 
 
 def _check_cheaper_date(offer: dict, current_price: float,
@@ -2033,7 +2043,8 @@ def check_offer(offer_id: int) -> None:
                 if res.get('price'):
                     _check_cheaper_date(offer, res['price'], force_refresh=True, notify=False)
             else:
-                _maybe_notify(offer, prev_price, res.get('price'), offer.get('target_price'))
+                _maybe_notify(offer, prev_price, res.get('price'), offer.get('target_price'),
+                              room_switch=room_switch)
                 _clear_error_alarm(offer)
                 _check_vacancy_alarm(offer, vac_status,
                                      prev_vac['vac_ok'] if prev_vac else None)
