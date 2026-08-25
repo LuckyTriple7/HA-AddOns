@@ -117,3 +117,66 @@ noch die Stolperstellen für spätere Arbeit.
   Wer sie „genauer" macht, ohne die Tokens zu kennen, macht sie nur falscher.
 - Neue Ablagen im Add-on-Konfigurationsordner gehören in **beide** Listen des
   Backups (Sichern und Wiederherstellen) — sonst fehlen sie beim Zurückspielen.
+
+---
+
+## SEO: strukturierte Daten und Snippet-Vorschau
+
+**Stand:** zurückgestellt am 2026-08-25 nach einer Bestandsaufnahme. Nichts davon
+ist angefangen.
+
+**Warum überhaupt:** Die Daten für Rich Results liegen bereits gepflegt in
+`site.json`, werden aber nirgends als schema.org ausgegeben. JSON-LD gibt es nur
+auf fünf Seitentypen: `Person` (Startseite), `BlogPosting` (Beitrag, Reisetag),
+`SoftwareSourceCode` (Projekt), `Article` (Bibliothek). Die Startseite meldet
+Google also weder FAQ noch Öffnungszeiten noch Termine — obwohl alles im Admin
+eingetragen ist.
+
+**Reihenfolge nach Wirkung, nicht nach Aufwand:**
+
+1. **`LocalBusiness`** aus `sections.location` (~3–4 h). Name, Adresse und `geo`
+   sind vorhanden — `lat`/`lng` werden schon für die Karte gepflegt. Größte
+   Lücke, weil die Zielgruppe Verein/Handwerker/Dienstleister ohne dieses
+   Schema in der lokalen Suche praktisch nicht vorkommt.
+   - **Haken:** `hours_de` ist Freitext („Mo-Fr 9-17“), `openingHours` braucht
+     `Mo-Fr 09:00-17:00`. Ein toleranter Parser ist richtig, aber er muss bei
+     unklarer Eingabe die Angabe **weglassen** statt zu raten — falsche
+     Öffnungszeiten in Google sind schlimmer als gar keine.
+2. **`FAQPage`** aus `sections.faq` (~1 h). Google klappt die Fragen im
+   Suchergebnis auf, der Treffer bekommt dadurch deutlich mehr Fläche.
+3. **`Event`** aus `sections.events` (~1–1,5 h). Datum, Titel, Ort und URL sind
+   alle da; `location` ist ein String und muss zu einem `Place`-Objekt werden.
+4. **`BreadcrumbList`** auf `/blog/<id>`, `/seite/<slug>`, `/bibliothek/<slug>`,
+   `/p/<id>` und den Reiseblog-Seiten (~2 h). Google zeigt dann den Pfad statt
+   der nackten Adresse.
+5. **`Service` + `Offer`** aus `sections.services` (~1 h). `price` ist gepflegt.
+6. **Snippet-Vorschau im Admin** (~3–4 h): Google-Optik mit Titel, Adresse und
+   Beschreibung, dazu eine Längenampel (Titel ≤ 60 Zeichen, Beschreibung
+   120–160). Das ist der sichtbare Unterschied zu Yoast — Nutzer sehen sofort,
+   dass ihre 240-Zeichen-Beschreibung abgeschnitten wird.
+7. **SEO-Ampel je Beitrag** (~1 Tag): Beschreibung gesetzt und lang genug?
+   Titelbild? Alternativtexte? Text lang genug? Mindestens eine
+   Zwischenüberschrift?
+8. **Kleinkram:** `dateModified` fehlt bei `BlogPosting` — Beiträge haben gar
+   kein `updated`-Feld, das müsste beim Speichern gesetzt werden (~1 h). Die
+   Blog-Übersicht `/blog` hat kein `Blog`/`ItemList`-Schema.
+
+**Bewusst nicht vorgesehen:** Keyword-Dichte, Lesbarkeits-Punktzahlen und eine
+eigene Redirect-Suite. Weiterleitungen gibt es bereits; die beiden anderen
+schleppt Yoast aus Gewohnheit mit, gewertet werden sie seit Jahren nicht.
+
+**Fallstricke, die schon bekannt sind:**
+
+- JSON-LD steht in den Vorlagen, nicht in `app.py` — `{%- set ld = {…} %}` je
+  Seitentyp, ausgegeben über `{{ ld|tojson }}`. Wer es nach Python zieht, muss
+  alle fünf Stellen gleichzeitig umstellen, sonst laufen sie auseinander.
+- `_seo.html` gibt `canonical` und `hreflang` nur bei
+  `site.design.allow_indexing` aus. Neue Schema-Blöcke gehören unter dieselbe
+  Bedingung — über eine Seite, die nicht in den Index soll, gibt es Google auch
+  nichts zu erzählen.
+- Mehrere Schema-Blöcke auf der Startseite (Person + LocalBusiness + FAQPage +
+  Event) sind erlaubt, sollten aber über `@graph` verbunden werden, statt sich
+  gegenseitig zu ignorieren.
+- Bewertungen aus `sections.testimonials` **nicht** als `Review`/
+  `AggregateRating` ausgeben: Google wertet selbst eingetragene Bewertungen auf
+  der eigenen Seite als Verstöß gegen die Richtlinien für Rich Results.
