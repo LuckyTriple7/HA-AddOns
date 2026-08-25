@@ -3,6 +3,65 @@
 // kleinen Inline-Script im Template — NUR dort steckt Jinja.
 // Cache-Busting über ?v=<APP_VERSION> im <script src>.
 
+// ── Abgelaufene Cloudflare-Access-Sitzung automatisch abfangen ──
+// Laeuft die Seite hinter Cloudflare Access und dessen Sitzung ab, beantwortet
+// Cloudflare jeden /api/-Aufruf mit einem 302 auf den Login unter
+// *.cloudflareaccess.com. Ein fetch() sieht davon nur einen CORS-Fehler
+// (TypeError); die Oberflaeche blieb dadurch still leer, bis von Hand Strg+R
+// gedrueckt wurde — eine Navigation darf dem Redirect folgen und holt sich
+// dabei eine frische Access-Sitzung.
+// Erkennung: nach einem fehlgeschlagenen fetch einmal /health mit
+// redirect:'manual' nachfragen. Antwortet der Server mit 3xx, liefert fetch
+// eine Response vom Typ 'opaqueredirect' — nur dann wird neu geladen. Ohne
+// Cloudflare (Ingress, LAN) kommt ein normales 200 zurueck, bei echtem
+// Verbindungsverlust wirft die Probe selbst: in beiden Faellen passiert nichts.
+(function(){
+  const origFetch = window.fetch.bind(window);
+  let reloading = false, probe = null;
+
+  function reloadForAccess(){
+    if (reloading) return;
+    // Reload-Schleife verhindern, falls Access dauerhaft klemmt: hoechstens
+    // ein automatischer Reload pro 30 Sekunden.
+    try {
+      const last = +(sessionStorage.getItem('tw-access-reload') || 0);
+      if (Date.now() - last < 30000) return;
+      sessionStorage.setItem('tw-access-reload', String(Date.now()));
+    } catch(_){ }
+    reloading = true;
+    const n = document.createElement('div');
+    n.textContent = 'Sitzung abgelaufen — Seite wird neu geladen \u2026';
+    n.style.cssText = 'position:fixed;left:0;right:0;top:0;z-index:99999;padding:10px;'
+                    + 'text-align:center;font:14px system-ui;background:#b45309;color:#fff';
+    (document.body || document.documentElement).appendChild(n);
+    setTimeout(function(){ location.reload(); }, 600);
+  }
+
+  // Mehrere gleichzeitig scheiternde Aufrufe teilen sich eine Probe.
+  function accessRedirectPending(){
+    if (probe) return probe;
+    probe = origFetch(((window.G && window.G.base) || '') + '/health',
+                      { method:'GET', cache:'no-store', redirect:'manual' })
+      .then(function(r){ return r.type === 'opaqueredirect'; },
+            function(){ return false; });   // wirklich offline — kein Reload
+    probe.then(function(){ setTimeout(function(){ probe = null; }, 3000); });
+    return probe;
+  }
+
+  window.fetch = async function(input, init){
+    try {
+      const res = await origFetch(input, init);
+      if (res.type === 'opaqueredirect') reloadForAccess();
+      return res;
+    } catch(err){
+      if (!reloading && err instanceof TypeError && await accessRedirectPending()) {
+        reloadForAccess();
+      }
+      throw err;
+    }
+  };
+})();
+
 // ── Hintergrund-Konsole ──
   (function(){
     var _open=false,_seen=0,_timer=null;

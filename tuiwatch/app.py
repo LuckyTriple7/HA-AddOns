@@ -3105,6 +3105,12 @@ self.addEventListener('install',e=>self.skipWaiting());
 self.addEventListener('activate',e=>self.clients.claim());
 self.addEventListener('fetch',e=>{
   if(e.request.method!=='GET') return;
+  var u=new URL(e.request.url);
+  // API-Antworten nie cachen: sie unterscheiden sich pro Aufruf, und bei
+  // abgelaufener Cloudflare-Access-Sitzung kommt statt Daten ein Redirect auf
+  // den Login zurueck. Aus dem Cache wuerden dann veraltete Daten ausgeliefert,
+  // statt dass die Oberflaeche den Ablauf bemerkt und neu laedt.
+  if(u.origin!==self.location.origin||u.pathname.indexOf('/api/')!==-1) return;
   e.respondWith(fetch(e.request).then(r=>{
     try{ if(r&&r.ok){ const c=r.clone(); caches.open(C).then(x=>x.put(e.request,c)); } }catch(_){ }
     return r;

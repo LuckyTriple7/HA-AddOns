@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.101.4] - 2026-08-25
+
+### Fixed
+- **Oberflaeche blieb bei abgelaufener Cloudflare-Access-Sitzung still leer.**
+  Laeuft TUIWatch hinter Cloudflare Access und dessen Sitzung ab, beantwortet
+  Cloudflare jeden `/api/`-Aufruf mit einem 302 auf den Login unter
+  `*.cloudflareaccess.com`. Ein `fetch()` sieht davon nur einen CORS-Fehler, die
+  Suche und alle anderen Aktionen scheiterten daher wortlos — es half nur ein
+  Reload von Hand (Strg+R), weil eine Navigation dem Redirect folgen darf. Das
+  Frontend erkennt den Fall jetzt selbst: nach einem fehlgeschlagenen Aufruf
+  fragt es einmal `/health` mit `redirect: 'manual'` nach und laedt nur dann neu,
+  wenn der Server wirklich mit einer Umleitung antwortet (hoechstens ein Reload
+  pro 30 Sekunden). Ohne Cloudflare — ueber Ingress oder im LAN — sowie bei
+  echtem Verbindungsverlust aendert sich das Verhalten nicht.
+- **Service Worker cachte API-Antworten.** Sie unterscheiden sich pro Aufruf,
+  und bei abgelaufener Access-Sitzung landete der Login-Redirect im Cache. Der
+  Worker laesst `/api/`-Requests und fremde Origins jetzt unangetastet durch.
+
 ## [0.101.3] - 2026-08-23
 
 ### Fixed
