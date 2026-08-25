@@ -2142,6 +2142,7 @@
             </div>
           </div>
           <button class="btn secondary small collapse-btn" id="ex-list-btn" onclick="toggleCollapse('ex-list')"></button>
+          <p class="hint" id="ex-scanners" style="margin-top:10px;display:none"></p>
         </div>
 
         <div class="panel" data-jump-panel>
@@ -6687,6 +6688,9 @@
       EX.total = d.total || 0;
       EX.truncated = !!d.truncated;
       Object.assign(EX.labels, d.labels || {});
+      const sc = el('ex-scanners');
+      sc.textContent = d.scanners ? T.ex_scanners.replace('{n}', d.scanners) : '';
+      sc.style.display = d.scanners ? '' : 'none';
       renderExplorerSessions();
     }
     function renderExplorerSessions() {

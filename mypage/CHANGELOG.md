@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.10.46
+
+- 🕵️ **Scanner werden jetzt am Verhalten erkannt, nicht mehr nur an der Herkunft.** Die Netzliste aus 0.10.45 hat die Cloud-Anbieter erwischt, aber Scanner mieten sich auch in Mobilfunk- und Endkundennetzen ein — die blieben als Ein-Seiten-Aufrufe stehen. Neue Regel: ein Aufruf, kein Referrer, **keine Sprachangabe**. Jeder Browser schickt `Accept-Language` mit; wer ohne Sprache genau eine Seite abholt und nie wiederkommt, klopft Adressen ab. Solche Sitzungen sind aus dem Explorer draußen, solange der Bot-Schalter aus ist — und unter der Tabelle steht, wie viele es waren.
+- 🩹 **Lücken in der Netzliste geschlossen.** Amazon (54.160–54.255, weitere 52er-Blöcke) und Alibaba (198.11.128.0/18) fehlten und schickten weiter „Firefox · macOS" aus den Vereinigten Staaten.
+
 ## 0.10.45
 
 - 🤖 **Cloud-Scanner werden jetzt als Bot erkannt.** Im Explorer standen reihenweise Sitzungen mit einem einzigen Aufruf und ohne Verweildauer — angeblich „Safari · iOS" aus Singapur, Indonesien oder Indien. Es sind Scanner aus Rechenzentren, die eine Handy-Browserkennung vortäuschen und deshalb an der bisherigen Prüfung (Textsuche in der Browserkennung) vorbeikamen. Aufrufe aus den Netzen der großen Anbieter (AWS, Azure, Google, Tencent, Alibaba, Oracle, DigitalOcean, Hetzner, OVH, Linode, Vultr, Scaleway) zählen jetzt als Bot und sind damit standardmäßig aus den Zahlen draußen — über den Bot-Schalter bleiben sie sichtbar. Die Prüfung greift auch rückwirkend beim Auswerten, die bereits archivierten Monate werden also mitbereinigt.

@@ -9329,6 +9329,20 @@ def _visit_rows(month: str, with_bots: bool):
     return rows, meta
 
 
+def _visit_sessions(rows, with_bots: bool) -> tuple:
+    """Sitzungen bauen, ohne Bot-Schalter die Scanner aussortieren.
+
+    Zwei Filter greifen nacheinander: die `bot`-Spalte samt Netzprüfung schon
+    beim Lesen der Zeilen (`_visit_rows`), und hier die Verhaltensprüfung —
+    ein Aufruf, kein Referrer, keine Sprache. Die zweite fängt genau das, wofür
+    keine Netzliste reicht: Scanner aus Mobilfunk- und Endkundennetzen.
+    """
+    sessions = vx.build_sessions(rows)
+    if with_bots:
+        return sessions, 0
+    return vx.drop_scanners(sessions)
+
+
 def _visit_args():
     """Monat und Bot-Schalter aus der Anfrage."""
     month = _clean_str(request.args.get('month'), 7)
@@ -9362,7 +9376,7 @@ def api_visits_overview():
     rows, meta = _visit_rows(month, with_bots)
     if rows is None:
         return jsonify({'error': 'not_found'}), 404
-    sessions = vx.build_sessions(rows)
+    sessions, scanners = _visit_sessions(rows, with_bots)
     site = load_site()
     paths = vx.all_paths(sessions)
     return jsonify({
@@ -9370,6 +9384,7 @@ def api_visits_overview():
         'rows':      meta['rows'],
         'skipped':   meta['skipped'],
         'truncated': meta['truncated'],
+        'scanners':  scanners,
         'cards':     vx.summary(sessions),
         **vx.path_analytics(sessions),
         'heatmap':   vx.heatmap(rows),
@@ -9388,7 +9403,7 @@ def api_visits_sessions():
     rows, meta = _visit_rows(month, with_bots)
     if rows is None:
         return jsonify({'error': 'not_found'}), 404
-    sessions = vx.build_sessions(rows)
+    sessions, scanners = _visit_sessions(rows, with_bots)
     day = _clean_str(request.args.get('day'), 10)
     if re.fullmatch(r'\d{4}-\d{2}-\d{2}', day or ''):
         sessions = [s for s in sessions
@@ -9398,6 +9413,7 @@ def api_visits_sessions():
     return jsonify({
         'sessions':  vx.strip_steps(shown),
         'total':     total,
+        'scanners':  scanners,
         'truncated': total > len(shown),
         'labels':    _visit_path_labels(load_site(), vx.all_paths(shown)),
     })

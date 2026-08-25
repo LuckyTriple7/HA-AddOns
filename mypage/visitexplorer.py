@@ -64,7 +64,9 @@ _DATACENTER_CIDRS = (
     # Amazon AWS
     '3.0.0.0/8', '13.32.0.0/12', '15.177.0.0/16', '18.32.0.0/11',
     '18.128.0.0/9', '34.192.0.0/10', '35.152.0.0/13', '44.192.0.0/10',
-    '52.0.0.0/11', '52.192.0.0/10', '54.64.0.0/10', '54.144.0.0/12',
+    '52.0.0.0/11', '52.32.0.0/11', '52.64.0.0/12', '52.84.0.0/14',
+    '52.88.0.0/13', '52.192.0.0/10', '54.64.0.0/10', '54.144.0.0/12',
+    '54.160.0.0/11', '54.192.0.0/10',
     # Microsoft Azure
     '13.64.0.0/11', '20.0.0.0/8', '40.64.0.0/10', '52.224.0.0/11',
     '104.40.0.0/13',
@@ -76,6 +78,7 @@ _DATACENTER_CIDRS = (
     '170.106.0.0/16',
     # Alibaba Cloud
     '8.208.0.0/12', '47.74.0.0/15', '47.76.0.0/14', '47.235.0.0/16',
+    '47.236.0.0/14', '47.240.0.0/14', '198.11.128.0/18',
     # Oracle Cloud
     '129.146.0.0/15', '132.145.0.0/16', '140.238.0.0/16', '141.147.0.0/16',
     '143.47.0.0/16', '150.230.0.0/16', '152.67.0.0/16', '158.101.0.0/16',
@@ -312,6 +315,30 @@ def _finish(s: dict, gap: int, gap_start: float) -> None:
         f"{s['ip']}|{s['ua']}|{s['start']}".encode(), usedforsecurity=False
     ).hexdigest()[:8]
     del s['_last']
+
+
+def is_scanner_session(s) -> bool:
+    """Ob eine Sitzung jedes Merkmal eines echten Browsers vermissen lässt.
+
+    Drei Dinge zusammen: **ein** Aufruf, **kein** Referrer und **keine**
+    Sprachangabe. Jeder Browser schickt `Accept-Language` mit — es steht in den
+    Einstellungen und lässt sich nicht abschalten. Wer ohne Sprache genau eine
+    Seite abholt und nie wiederkommt, hat keine Seite angesehen, sondern eine
+    Adresse abgeklopft.
+
+    Die Herkunft spielt bewusst keine Rolle: Scanner mieten sich auch in
+    Mobilfunknetzen ein, und dort hilft keine Liste von Rechenzentrums-Netzen
+    weiter (siehe `is_datacenter_ip`).
+    """
+    return (s['views'] == 1
+            and not (s['ref'] or '').strip()
+            and not (s['lang'] or '').strip())
+
+
+def drop_scanners(sessions) -> tuple:
+    """Sitzungen ohne Browser-Merkmale aussortieren → `(sessions, entfernt)`."""
+    kept = [s for s in sessions if not is_scanner_session(s)]
+    return kept, len(sessions) - len(kept)
 
 
 def strip_steps(sessions) -> list:

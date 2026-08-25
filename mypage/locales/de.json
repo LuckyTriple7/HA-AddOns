@@ -1562,6 +1562,7 @@
   "ex_card_avg_views": "Seiten je Sitzung",
   "ex_card_avg_dur": "Ø Dauer",
   "ex_sessions": "Sitzungen",
+  "ex_scanners": "{n} Sitzungen ohne Browser-Merkmale wurden ausgeblendet (ein Aufruf, kein Referrer, keine Sprachangabe) — Scanner, keine Besucher. Mit dem Bot-Schalter oben werden sie wieder sichtbar.",
   "ex_search_ph": "Suchen: Adresse, Seite, Land, Browser …",
   "ex_col_start": "Beginn",
   "ex_col_client": "Browser",

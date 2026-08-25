@@ -1562,6 +1562,7 @@
   "ex_card_avg_views": "Pages per session",
   "ex_card_avg_dur": "Avg. duration",
   "ex_sessions": "Sessions",
+  "ex_scanners": "{n} sessions without any browser traits were hidden (one request, no referrer, no language) — scanners, not visitors. Turn on the bot switch above to see them again.",
   "ex_search_ph": "Search: address, page, country, browser …",
   "ex_col_start": "Start",
   "ex_col_client": "Browser",
