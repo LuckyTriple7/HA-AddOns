@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.7.57] - 2026-08-25
+- Security: CodeQL-Alert #208 (`js/polynomial-redos`, high) — `chatId.replace(/@.*$/, '')` in `resolveArchiveName()` läuft auf Werten aus `req.params`, und `@.*$` braucht bei vielen `@` polynomiale Zeit (ReDoS-Risiko über einen präparierten Chat-Parameter). Alle sechs Vorkommen dieses Musters durch `split('@')[0]` ersetzt — gleiches Ergebnis in allen Fällen (mehrere `@`, kein `@`, leerer String), aber garantiert lineare Laufzeit
+
 ## [1.7.56] - 2026-08-24
 - Fix: **Jeder Kontakt stand doppelt in der Liste** (285 Einträge statt 142) — WhatsApp liefert zu jeder Person mehrere Contact-Objekte mit derselben `@c.us`-ID; in 1.7.54 war der Dedupe-Schlüssel von der ID auf die Rufnummer umgestellt worden, und weil eines der Objekte die LID im Feld `number` trägt, entstanden zwei Schlüssel pro Person. Dedupliziert wird wieder über die ID; bei mehreren Objekten gewinnt das mit brauchbarer Rufnummer
 - Fix: **Angezeigte Nummern waren zum Teil LIDs** (`+69050273165504`, `+5858385784864`) — `contact.number` enthält seit der LID-Umstellung oft die LID statt der Rufnummer. Neuer Helfer `contactNumber()` nimmt bei `@c.us` den Teil vor dem `@` (das ist per Definition die Rufnummer), akzeptiert nur 7–15 Ziffern und verwirft alles, was der LID der ID entspricht; `contact.number` dient nur noch als Rückfall. Greift auch in `resolveChatNumbers()` und beim Laden der Chats, sodass die Nummer unter dem Chatnamen stimmt oder fehlt, statt falsch zu sein

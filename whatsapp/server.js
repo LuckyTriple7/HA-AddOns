@@ -293,7 +293,7 @@ function getChatMsgs(chatId) {
 // nie, wenn er der LID der Chat-ID entspricht.
 function contactNumber(contact, chatId) {
   const id = chatId || contact?.id?._serialized || '';
-  const lid = id.endsWith('@lid') ? id.replace(/@.*$/, '') : '';
+  const lid = id.endsWith('@lid') ? id.split('@')[0] : '';
   const idUser = String(contact?.id?.user || '').replace(/\D/g, '');
   const numField = String(contact?.number || '').replace(/\D/g, '');
   for (const cand of [idUser, numField]) {
@@ -1664,7 +1664,7 @@ function buildChatIndex() {
   for (const [id, chat] of chatMap.entries()) {
     if (!id || isFilteredChat(id) || id.endsWith('@g.us') || (chat && chat.isGroup)) continue;
     index.set(id, id);
-    const user = id.replace(/@.*$/, '');
+    const user = id.split('@')[0];
     if (/^\d{5,}$/.test(user) && !id.endsWith('@lid')) index.set(user, id);
     const lidNum = lidNumberCache.get(id);
     if (lidNum) index.set(lidNum, id);
@@ -1688,7 +1688,7 @@ app.get('/api/contacts', async (req, res) => {
         if (!c.isMyContact) continue; // nur echtes Adressbuch, keine fremden Absender
         raw++;
         const number = contactNumber(c, id);
-        const name = c.name || c.shortName || c.pushname || number || id.replace(/@.*$/, '');
+        const name = c.name || c.shortName || c.pushname || number || id.split('@')[0];
         const entry = { id, name, number, isGroup: false };
         const prev = byId.get(id);
         // Pro Person liefert WhatsApp mehrere Objekte mit derselben ID — den mit
@@ -1857,7 +1857,7 @@ async function resolveArchiveName(chatId) {
     archiveNameCache.set(chatId, chat.name);
     return chat.name;
   }
-  const fallback = chatId.replace(/@.*$/, '');
+  const fallback = chatId.split('@')[0];
   if (status !== 'connected') return fallback; // nicht cachen — spaeter erneut versuchen
   try {
     const contact = await client.getContactById(chatId);
@@ -1950,7 +1950,7 @@ async function buildArchiveOverview() {
     }
     contacts.push({
       chatId,
-      name: chatId.replace(/@.*$/, ''),
+      name: chatId.split('@')[0],
       count: entries.length,
       expired,
       media,
@@ -4224,7 +4224,7 @@ app.get('/', (req, res) => {
         + '</tr>';
       const trs = rows.map(c => {
         const sub = [];
-        const number = c.chatId.replace(/@.*$/, '');
+        const number = c.chatId.split('@')[0];
         if (number && c.name !== number) sub.push('+' + esc(number));
         if (c.expired) sub.push(esc(tf('archiveRowExpired', c.expired)));
         if (c.missing) sub.push('<span class="archive-ov-warn">' + esc(tf('archiveRowMissing', c.missing)) + '</span>');
