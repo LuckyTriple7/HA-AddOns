@@ -1,5 +1,9 @@
 # Changelog – MessengerPortal
 
+## [1.2.16] - 2026-08-25
+- Fix: WhatsApps Zwischenzustand `authenticated` (QR gescannt, Chats werden noch geladen) zählt nicht mehr als „Online" — in dieser Phase lehnt das Add-on Sendeversuche mit HTTP 503 ab. Als echte Verbindung gelten nur noch `connected`, `linked` und `ready`
+- Der Tooltip bei „Verbindungsproblem" nennt jetzt auch den rohen Add-on-Status (z. B. `waiting_for_scan`, `not-linked`, `disconnected`), wenn das Add-on keinen Fehlertext liefert
+
 ## [1.2.15] - 2026-08-25
 - Fix: **„Online" war irreführend.** Der Status kam bisher allein daher, dass der TCP-Port des Add-ons erreichbar war — ein Add-on, dessen Weboberfläche läuft, dessen Messenger-Verbindung aber abgerissen ist (z. B. Telegram nach `ENETUNREACH`), wurde trotzdem grün als „Online" angezeigt. Das Portal fragt jetzt zusätzlich `/api/status` des jeweiligen Add-ons ab und wertet nur `connected`, `linked`, `ready` oder `authenticated` als echte Verbindung
 - Neu: Dritter Status **„Verbindungsproblem"** (oranger Punkt) für Add-ons, die erreichbar, aber nicht verbunden sind. Der Tooltip nennt den Grund aus dem Add-on. Die Kachel bleibt anklickbar, damit man die Oberfläche zum Neuverbinden öffnen kann — nur wirklich unerreichbare Add-ons werden weiterhin gesperrt

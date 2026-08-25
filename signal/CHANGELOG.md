@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.6.27] - 2026-08-25
+- Fix: **Status blieb `linked`, obwohl signal-cli-rest-api nicht mehr antwortete.** `checkStatus()` setzte bei einem Fehler nur `lastError`, den Status aber ausschließlich dann auf `error`, wenn er noch `starting` war. Eine bereits verlinkte Instanz meldete deshalb über `/api/status` weiterhin eine funktionierende Verbindung — im MessengerPortal erschien Signal grün als „Online", obwohl gar nichts mehr ging. Jetzt wechselt auch `linked` bei einem Fehler nach `error`; der 5-Sekunden-Poll verbindet anschließend selbstständig wieder, sobald die API antwortet
+- Fix: `lastError` wird bei einer erfolgreichen Statusprüfung geleert. Bisher blieb eine alte Fehlermeldung (z. B. `network timeout at: http://localhost:8080/v1/accounts`) dauerhaft in `/api/status` stehen, auch wenn längst wieder alles lief
+
 ## [1.6.26] - 2026-08-17
 
 - Doku: signal-cli steht unter der GPL-3.0 und libsignal unter der AGPL-3.0, das Add-on gab bisher keine Lizenz an. Neue `LICENSE.md` nennt die Bestandteile, ihre Lizenzen und Bezugsquellen und stellt klar, dass die Chat-Oberfläche nur über HTTP mit ihnen spricht

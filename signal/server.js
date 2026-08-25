@@ -166,6 +166,7 @@ async function checkStatus() {
       ? accounts.map(a => (typeof a === 'string' ? a : a.number)).filter(Boolean)
       : [];
 
+    lastError = '';
     if (list.length === 0) { status = 'not-linked'; return; }
 
     if (!PHONE_NUMBER) PHONE_NUMBER = normPhone(list[0]);
@@ -181,7 +182,9 @@ async function checkStatus() {
       loadGroups();
     }
   } catch (e) {
-    if (status === 'starting') status = 'error';
+    // Auch aus 'linked' heraus auf Fehler gehen — sonst meldet /api/status weiter
+    // eine Verbindung, obwohl signal-cli-rest-api nicht mehr antwortet
+    if (status === 'starting' || status === 'linked') status = 'error';
     lastError = String(e.message || e);
   }
 }

@@ -274,8 +274,9 @@ def fetch_last_received(host: str, port: int, timeout: float = 2.0) -> dict | No
         return None
 
 
-# Add-on-Status-Werte, die eine echte Messenger-Verbindung bedeuten
-ADDON_STATUS_OK = {'connected', 'linked', 'ready', 'authenticated'}
+# Add-on-Status-Werte, die eine echte, nutzbare Messenger-Verbindung bedeuten
+# ('authenticated' bei WhatsApp heisst nur "QR gescannt" — noch nicht sendebereit)
+ADDON_STATUS_OK = {'connected', 'linked', 'ready'}
 
 
 def fetch_addon_status(host: str, port: int, timeout: float = 2.0) -> dict | None:

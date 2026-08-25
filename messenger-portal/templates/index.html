@@ -566,8 +566,9 @@
                            : state === 'degraded' ? T_PROBLEM : T_OFFLINE;
           el.classList.toggle('is-degraded', state === 'degraded');
           if (state === 'degraded') {
-            const hint = T_PROBLEM_HINT.replace('{name}', m.name || m.icon);
-            el.title = m.detail ? hint + ' (' + m.detail + ')' : hint;
+            const hint   = T_PROBLEM_HINT.replace('{name}', m.name || m.icon);
+            const reason = m.detail || m.addon_status || '';
+            el.title = reason ? hint + ' (' + reason + ')' : hint;
           } else {
             el.removeAttribute('title');
           }
