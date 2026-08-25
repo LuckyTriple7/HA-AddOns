@@ -274,20 +274,57 @@ def fetch_last_received(host: str, port: int, timeout: float = 2.0) -> dict | No
         return None
 
 
+# Add-on-Status-Werte, die eine echte Messenger-Verbindung bedeuten
+ADDON_STATUS_OK = {'connected', 'linked', 'ready', 'authenticated'}
+
+
+def fetch_addon_status(host: str, port: int, timeout: float = 2.0) -> dict | None:
+    """Liest /api/status des Messenger-Add-ons. None, wenn es die Route nicht gibt."""
+    try:
+        url = f'http://{host}:{port}/api/status'
+        with urllib.request.urlopen(url, timeout=timeout) as resp:
+            data = json.loads(resp.read())
+            return data if isinstance(data, dict) else None
+    except Exception:
+        return None
+
+
 def fetch_messenger_status(host: str, m: dict) -> dict:
     port      = m['port']
     reachable = check_port(host, port)
     last      = fetch_last_received(host, port) if reachable else None
+    api       = fetch_addon_status(host, port) if reachable else None
     name      = m.get('name', m['icon'])
-    if reachable:
+
+    addon_status = str((api or {}).get('status') or '')
+    detail       = str((api or {}).get('error') or '')
+
+    if not reachable:
+        state = 'offline'
+    elif api is None:
+        # Add-on ohne /api/status: offener Port bleibt das einzige Signal
+        state = 'online'
+    elif addon_status.lower() in ADDON_STATUS_OK:
+        state = 'online'
+    else:
+        state = 'degraded'
+
+    if state == 'online':
         preview = (last or {}).get('preview', '')
         log.debug('Poll %s:%s — online last="%s"', name, port, preview[:60] if preview else '—')
+    elif state == 'degraded':
+        log.warning('Poll %s:%s — erreichbar, aber nicht verbunden (status=%s error=%s)',
+                    name, port, addon_status or '?', detail or '—')
     else:
         log.debug('Poll %s:%s — nicht erreichbar', name, port)
+
     return {
-        'icon':         m['icon'].lower(),
-        'name':         name,
-        'reachable':    reachable,
+        'icon':          m['icon'].lower(),
+        'name':          name,
+        'reachable':     reachable,
+        'state':         state,
+        'addon_status':  addon_status,
+        'detail':        detail,
         'last_received': last,
     }
 

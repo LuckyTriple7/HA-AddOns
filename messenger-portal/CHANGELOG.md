@@ -1,5 +1,10 @@
 # Changelog – MessengerPortal
 
+## [1.2.15] - 2026-08-25
+- Fix: **„Online" war irreführend.** Der Status kam bisher allein daher, dass der TCP-Port des Add-ons erreichbar war — ein Add-on, dessen Weboberfläche läuft, dessen Messenger-Verbindung aber abgerissen ist (z. B. Telegram nach `ENETUNREACH`), wurde trotzdem grün als „Online" angezeigt. Das Portal fragt jetzt zusätzlich `/api/status` des jeweiligen Add-ons ab und wertet nur `connected`, `linked`, `ready` oder `authenticated` als echte Verbindung
+- Neu: Dritter Status **„Verbindungsproblem"** (oranger Punkt) für Add-ons, die erreichbar, aber nicht verbunden sind. Der Tooltip nennt den Grund aus dem Add-on. Die Kachel bleibt anklickbar, damit man die Oberfläche zum Neuverbinden öffnen kann — nur wirklich unerreichbare Add-ons werden weiterhin gesperrt
+- Add-ons ohne `/api/status`-Route gelten wie bisher als online, sobald ihr Port erreichbar ist
+
 ## [1.2.14] - 2026-07-31
 - map: `addon_config` → `app_config` (Home-Assistant-Supervisor hat `addon_config` seit 2026.07 als Legacy-Name markiert, neuer Name ist `app_config`).
 

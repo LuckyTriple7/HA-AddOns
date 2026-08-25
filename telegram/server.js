@@ -987,6 +987,37 @@ setInterval(async () => {
   }
 }, 30000);
 
+// ── Auto-Retry: Netzwerk-Aussetzer (ENETUNREACH …) selbst heilen ─────────────
+const RETRY_BASE_MS = 15000;
+const RETRY_MAX_MS  = 300000;
+const NET_ERR_RE = /ENETUNREACH|EHOSTUNREACH|ENETDOWN|ECONNREFUSED|ECONNRESET|ETIMEDOUT|EAI_AGAIN|ENOTFOUND|EPIPE|timeout|timed out|socket|not connected|disconnect/i;
+let _retryDelay  = RETRY_BASE_MS;
+let _nextRetryAt = 0;
+
+setInterval(async () => {
+  if (status === 'connected') { _retryDelay = RETRY_BASE_MS; _nextRetryAt = 0; return; }
+  if (status !== 'error' || _reconnecting) return;
+  if (codeResolver || passwordResolver) return;
+  // Auth-/Konfigfehler nicht endlos wiederholen — nur Netzwerkprobleme
+  if (!NET_ERR_RE.test(lastError || '')) return;
+  if (Date.now() < _nextRetryAt) return;
+
+  _reconnecting = true;
+  console.warn('[WARN] Auto-Retry nach Netzwerkfehler (%s) …', lastError);
+  status = 'starting';
+  try { await client.disconnect(); } catch (_) {}
+  try { await startClient(); } finally { _reconnecting = false; }
+
+  if (status === 'connected') {
+    _retryDelay = RETRY_BASE_MS; _nextRetryAt = 0;
+    console.log('[INFO] Auto-Retry erfolgreich');
+  } else {
+    _nextRetryAt = Date.now() + _retryDelay;
+    console.warn('[WARN] Auto-Retry fehlgeschlagen — nächster Versuch in %ss', Math.round(_retryDelay / 1000));
+    _retryDelay = Math.min(_retryDelay * 2, RETRY_MAX_MS);
+  }
+}, 10000);
+
 function getDirSize(dir) {
   let total = 0;
   try {

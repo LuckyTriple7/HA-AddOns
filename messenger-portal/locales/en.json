@@ -10,6 +10,8 @@
   "error_locked": "Too many failed attempts. Please try again in 15 minutes.",
   "status_online": "Online",
   "status_offline": "Offline",
+  "status_problem": "Connection problem",
+  "status_problem_hint": "Add-on is running but not connected to {name}",
   "status_checking": "Checking...",
   "no_messengers": "No messengers configured.",
   "offline_title": "Unreachable",

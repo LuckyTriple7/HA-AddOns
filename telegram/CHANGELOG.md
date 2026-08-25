@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.7.5] - 2026-08-25
+- Fix: **Netzwerk-Aussetzer heilen sich jetzt von selbst.** Fiel die Verbindung zu Telegram mit einem Netzwerkfehler aus (z. B. `connect ENETUNREACH 149.154.167.50:443`), blieb das Add-on dauerhaft im Status `error` stehen und wartete auf einen manuellen Klick auf „Erneut verbinden". Ein neuer Auto-Retry-Timer prüft alle 10 Sekunden, ob der letzte Fehler ein Netzwerkfehler war (ENETUNREACH, EHOSTUNREACH, ECONNRESET, ETIMEDOUT, EAI_AGAIN, Timeout u. a.), und startet dann selbstständig einen neuen Verbindungsversuch mit exponentiellem Backoff (15 s, 30 s, 60 s … max. 5 Minuten). Nach erfolgreicher Verbindung wird der Backoff zurückgesetzt. Auth- und Konfigurationsfehler (falscher Code, fehlende `api_id`) werden bewusst **nicht** wiederholt, ebenso wenig wird erneut versucht, solange auf Code oder 2FA-Passwort gewartet wird
+
 ## [1.7.4] - 2026-08-13
 - Neu: **Gesendete Nachrichten erscheinen sofort in der Chat-Ansicht** (optimistisches Rendern). Bisher wurde die Bubble erst gezeichnet, nachdem `client.sendMessage()` samt Telegram-Roundtrip fertig war und `loadMessages()` neu geladen hatte — je nach Verbindung mehrere Sekunden Verzögerung. Jetzt legt `sendMsg()` die Nachricht direkt in eine chatbezogene Pending-Liste (`_pendingSend`), die `renderMessages()` ausgegraut (55 % Deckkraft, 🕓 statt Häkchen, keine Antworten-/Weiterleiten-Buttons) ans Ende der Liste hängt; das Eingabefeld wird sofort geleert. Nach der Server-Antwort wird der Eintrag entfernt und die echte Nachricht per `loadMessages(chatId, true)` nachgeladen. Schlägt der Versand fehl, verschwindet der Platzhalter und der Text landet wieder im Eingabefeld. Gilt für normale Nachrichten und Antworten (inkl. Zitat-Block); Medienversand unverändert
 
