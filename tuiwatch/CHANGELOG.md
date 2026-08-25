@@ -1,5 +1,31 @@
 # Changelog
 
+## [0.103.0] - 2026-08-25
+
+### Added
+- **Hinweis im Verlauf, wenn das Zimmer automatisch gewechselt hat.** Ein Angebot
+  ohne fixiertes Zimmer verfolgt immer das guenstigste; ist das ausgebucht, rueckt
+  das naechstteurere nach und der Preis springt, ohne dass sich am Markt etwas
+  bewegt haette. Bisher stand dieser Wechsel nirgends — der Sprung sah in der
+  Verlaufstabelle wie eine reine Preiserhoehung aus (real gesehen: +444 € bei einem
+  Angebot, weil die guenstigen Zimmer weg waren). Jeder Check vergleicht den
+  gelieferten Zimmertyp jetzt mit dem gespeicherten und haelt einen Wechsel als
+  Ereignis fest: in der Verlaufstabelle als Hinweiszeile direkt unter dem
+  betroffenen Preis, im Verlaufsdiagramm als Faehnchen mit Mouseover.
+
+### Fixed
+- **Markttrend zaehlte den automatischen Zimmerwechsel als Marktbewegung.** Nur der
+  von Hand gewaehlte Zimmerwechsel war davon bisher ausgenommen; der automatische
+  ging als Preissprung in `price_moves` ein. Betroffene Altdaten laesst
+  **Neu berechnen** im Markttrend-Fenster verschwinden — der Backfill kennt beide
+  Ereignistypen.
+
+### Technical
+- Automatischer Wechsel wird als `offer_events`-Typ `room_auto` gefuehrt (von Hand
+  gewaehlt bleibt `room`) und traegt den Zeitstempel seines Messpunkts, damit die
+  Verlaufstabelle ihn dem richtigen Preis zuordnet. `_log_event()` nimmt dafuer
+  einen optionalen `ts`.
+
 ## [0.102.1] - 2026-08-25
 
 ### Fixed

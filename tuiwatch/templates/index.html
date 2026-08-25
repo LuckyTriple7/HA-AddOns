@@ -417,6 +417,9 @@
     table.hist { width:100%; border-collapse:collapse; margin-top:14px; font-size:var(--fs-sm); }
     table.hist th, table.hist td { text-align:left; padding:6px 8px; border-bottom:1px solid var(--border); }
     table.hist th { color:var(--muted); font-weight:600; }
+    /* Hinweiszeile im Verlauf (z. B. automatischer Zimmerwechsel) — gehört zum
+       Messpunkt direkt darüber, deshalb ohne eigene Trennlinie und abgesetzt. */
+    table.hist tr.hist-note td { color:var(--amber); background:var(--surf2); font-size:var(--fs-xs); }
     .cmp-load { color:var(--muted); font-size:var(--fs-sm); padding:18px 4px; text-align:center; }
     .ai-h { font-size:var(--fs-md); color:var(--accent); margin:16px 0 6px; }
     .ai-h:first-child { margin-top:0; }

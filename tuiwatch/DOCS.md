@@ -200,6 +200,13 @@ Button **Verlauf** (Diagramm auf den Verlauf gezoomt + volle Historie als Tabell
 Diagramm markieren **Fähnchen** wichtige Änderungen (Zimmerwechsel, gebuchter Preis,
 Wunschpreis, Zurücksetzen) — mit **Mouseover** erscheint Datum + Beschreibung.
 
+**Automatischer Zimmerwechsel:** Ein Angebot ohne fixiertes Zimmer verfolgt immer das
+**günstigste**. Ist das ausgebucht, rückt das nächstteurere nach — der Preis springt,
+obwohl sich am Markt nichts bewegt hat. Die Verlaufstabelle zeigt an dieser Stelle
+jetzt eine Hinweiszeile („Zimmer gewechselt: … → …") direkt unter dem betroffenen
+Preis, im Diagramm steht ein Fähnchen. Dieser Preisschritt fließt außerdem **nicht**
+in den Markttrend ein (siehe dort).
+
 > Der Preis wird seit v0.3.0 direkt aus der TUI-JSON-API gelesen (schnell und
 > robust); bei Störungen schaltet TUIWatch automatisch auf das langsamere
 > Browser-Auslesen um. Details: [SCRAPING.md](SCRAPING.md).
@@ -836,8 +843,9 @@ davon, ob ein einzelnes Angebot später gelöscht wird.
   Zeitfenster, damit eine langsame Bewegung (z. B. mehrere Preisschritte über Wochen
   verteilt, dazwischen ruhige Phasen) nicht aus dem 14-Tage-Fenster herausfällt und
   unsichtbar bleibt.
-- **Zimmerwechsel:** wählt man für ein Angebot ein anderes Zimmer, kann sich der Preis
-  allein dadurch sprunghaft ändern — das ist keine Marktbewegung. Dieser eine
+- **Zimmerwechsel:** wählt man für ein Angebot ein anderes Zimmer — oder rückt
+  automatisch das nächstteurere nach, weil das günstigste ausgebucht ist —, kann sich
+  der Preis allein dadurch sprunghaft ändern; das ist keine Marktbewegung. Dieser eine
   Preisschritt fließt daher **nicht** in den Markttrend ein; die Zählung setzt direkt
   danach wieder neu an. Für bereits gesammelte Daten (z. B. ein Zimmerwechsel, der vor
   dieser Korrektur mitgezählt wurde) hilft **🔄 Neu berechnen** im Markttrend-Fenster:

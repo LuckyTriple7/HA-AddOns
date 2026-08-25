@@ -92,7 +92,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.102.1"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.103.0"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -961,7 +961,8 @@ def _backfill_price_moves(con) -> None:
             'SELECT ts, price FROM price_history WHERE offer_id=? AND ok=1 AND price IS NOT NULL '
             'ORDER BY ts ASC', (o['id'],)).fetchall()
         room_change_ts = {r['ts'] for r in con.execute(
-            "SELECT ts FROM offer_events WHERE offer_id=? AND type='room'", (o['id'],)).fetchall()}
+            "SELECT ts FROM offer_events WHERE offer_id=? AND type IN ('room','room_auto')",
+            (o['id'],)).fetchall()}
         prev = None
         for r in rows:
             # Preisschritt über einen Zimmerwechsel hinweg ist kein Marktsignal, sondern
@@ -1824,14 +1825,37 @@ def _prompt_instructions(feature: str, default: str) -> str:
     return (_meta_get(f'custom_prompt_{feature}_text') or '').strip() or default
 
 
-def _log_event(offer_id: int, type_: str, text: str) -> None:
-    """Speichert ein Ereignis (für Marker im Verlauf-Diagramm)."""
+def _log_event(offer_id: int, type_: str, text: str, ts: int | None = None) -> None:
+    """Speichert ein Ereignis (für Marker im Verlauf-Diagramm und Hinweiszeilen im
+    Verlauf). `ts` explizit setzen, wenn das Ereignis zu einem konkreten Messpunkt
+    gehört — sonst landet es Sekunden nach diesem und die Verlaufstabelle ordnete
+    es dem nächsten (späteren) Messpunkt zu."""
     try:
         with db() as con:
             con.execute('INSERT INTO offer_events (offer_id, ts, type, text) VALUES (?,?,?,?)',
-                        (offer_id, int(time.time()), type_, text))
+                        (offer_id, int(ts if ts is not None else time.time()), type_, text))
     except Exception as e:
         log.warning("Event #%d (%s) nicht gespeichert: %s", offer_id, type_, e)
+
+
+def _room_change_text(offer: dict, res: dict) -> str:
+    """Ereignistext, wenn ein Abruf einen ANDEREN Zimmertyp liefert als zuletzt
+    gespeichert — leerer String, wenn nicht.
+
+    Das passiert ohne Zutun: Ein Angebot ohne fixiertes Zimmer verfolgt immer das
+    **günstigste** Zimmer. Ist das ausgebucht, rückt das nächstteurere nach — der
+    Preis springt, obwohl sich am Markt nichts bewegt hat. Bisher stand dieser
+    Wechsel nirgends, der Sprung sah aus wie eine reine Preiserhöhung.
+
+    Bei der Erstbefüllung (vorher kein Zimmer gespeichert) wird bewusst nichts
+    gemeldet, ebenso bei fehlgeschlagenem Abruf (dann steht in `res` kein Zimmer)."""
+    if not res.get('ok'):
+        return ''
+    old_room = (offer.get('room') or '').strip()
+    new_room = (res.get('room') or '').strip()
+    if not old_room or not new_room or old_room == new_room:
+        return ''
+    return f"Zimmer gewechselt: {old_room} → {new_room}"
 
 
 def _check_api_alarm(res: dict) -> None:
@@ -1884,6 +1908,12 @@ def check_offer(offer_id: int) -> None:
             # statt `>`: ts ist nur sekundengenau, ein schneller Zimmerwechsel direkt
             # nach dem ersten Check (typisch: Tracken → sofort Zimmerauswahl-Dialog)
             # landet oft in derselben Sekunde wie der vorherige Preis-Check.
+            #
+            # Nur `type='room'` (von Hand gewähltes Zimmer): der AUTOMATISCHE Wechsel
+            # (`room_auto`, günstigstes Zimmer ausgebucht) hängt genau am Zeitstempel
+            # seines eigenen Messpunkts und wird dort direkt über `room_switch`
+            # berücksichtigt — mit `>=` würde er sonst auch noch den nächsten,
+            # regulären Preisschritt aus dem Markttrend werfen.
             room_changed = bool(prev_row) and con.execute(
                 "SELECT 1 FROM offer_events WHERE offer_id=? AND type='room' AND ts>=? LIMIT 1",
                 (offer_id, prev_row['ts'])).fetchone()
@@ -1916,6 +1946,12 @@ def check_offer(offer_id: int) -> None:
                 time.sleep(3)
 
         ts = int(time.time())
+        # Zimmerwechsel ohne Zutun (günstigstes Zimmer ausgebucht → nächstes rückt
+        # nach): als Ereignis festhalten und den Preisschritt aus dem Markttrend
+        # heraushalten — er zeigt einen anderen Zimmertyp, keine Marktbewegung.
+        room_switch = _room_change_text(offer, res)
+        if room_switch:
+            room_changed = True
         avail = res.get('available')
         vac_status = res.get('vac_status') or ''
         vac_ok = None if not vac_status else (1 if vac_status == 'OK' else 0)
@@ -1956,6 +1992,12 @@ def check_offer(offer_id: int) -> None:
                 con.execute(
                     'INSERT INTO price_moves (ts, region, country, months_out, pct_change) '
                     'VALUES (?,?,?,?,?)', (ts, region, country, months_out, pct))
+
+        if room_switch:
+            # Zeitstempel des Messpunkts, damit der Hinweis in der Verlaufstabelle
+            # genau an dem Preis hängt, der durch den Wechsel entstanden ist.
+            _log_event(offer_id, 'room_auto', room_switch, ts=ts)
+            log.info("Angebot #%d (%s): %s", offer_id, name, room_switch)
 
         if res.get('ok') and res.get('flight_pin_missed') and offer.get('flight_pin'):
             # Fixierte Flugvariante ist aus dem Angebot verschwunden → Fixierung lösen

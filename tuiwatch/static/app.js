@@ -1014,9 +1014,27 @@
           fbox.style.display = 'block';
         } else fbox.style.display = 'none';
       }
+      // Zimmerwechsel als eigene Hinweiszeile in den Verlauf einblenden: ein
+      // Angebot ohne fixiertes Zimmer verfolgt immer das günstigste — ist das
+      // ausgebucht, rückt das nächstteurere nach und der Preis springt, ohne dass
+      // sich am Markt etwas bewegt hätte. Ohne diesen Hinweis sah der Sprung in
+      // der Tabelle wie eine reine Preiserhöhung aus.
+      // Jedes Ereignis hängt am jüngsten Messpunkt, der nicht nach ihm liegt — beim
+      // automatischen Wechsel ist das exakt der Messpunkt mit dem gesprungenen Preis
+      // (gleicher Zeitstempel), bei von Hand gewähltem Zimmer der davor. Ereignisse
+      // vor dem ersten Messpunkt hängen am ersten.
+      const notesFor = new Map();
+      (hd.events||[]).filter(e=>e.type==='room'||e.type==='room_auto').forEach(e=>{
+        let idx = 0;
+        for(let j=0;j<hist.length;j++){ if(hist[j].ts<=e.ts) idx = j; else break; }
+        if(!notesFor.has(idx)) notesFor.set(idx, []);
+        notesFor.get(idx).push(e);
+      });
       const rows = hist.map((h,i)=>{
         const d = new Date(h.ts*1000).toLocaleString('de-DE');
-        if(!h.ok) return {keep:true, html:`<tr><td>${d}</td><td colspan="3" style="color:var(--amber)"><svg class="i"><use href="#i-warn"/></svg> ${esc(h.note||'fehlgeschlagen')}</td></tr>`};
+        const evHtml = (notesFor.get(i)||[]).map(e=>
+          `<tr class="hist-note"><td colspan="4"><svg class="i"><use href="#i-warn"/></svg> ${esc(e.text)}</td></tr>`).join('');
+        if(!h.ok) return {keep:true, html:`<tr><td>${d}</td><td colspan="3" style="color:var(--amber)"><svg class="i"><use href="#i-warn"/></svg> ${esc(h.note||'fehlgeschlagen')}</td></tr>`+evHtml};
         const prev = hist[i-1];
         let diff = '', unchanged = false;
         if(prev && prev.ok && prev.price!=null){
@@ -1027,11 +1045,16 @@
         }
         // unveränderte Preise ausblenden (Rauschen) — außer dem jüngsten Eintrag,
         // der zeigt, wann zuletzt geprüft wurde
-        const keep = !unchanged || i === hist.length - 1;
+        // Hinweiszeilen halten ihren Messpunkt fest, auch wenn dessen Preis sich
+        // nicht geändert hat (sonst verschwände der Zimmerwechsel mit der Zeile).
+        const keep = !unchanged || i === hist.length - 1 || !!evHtml;
         // Aufschlüsselung Hotel/Flüge (vacancy-check), sofern für den Messpunkt vorhanden
         const split = (h.price_hotel!=null || h.price_flight_out!=null || h.price_flight_ret!=null)
           ? `${eur(h.price_hotel)} / ${eur(h.price_flight_out)} / ${eur(h.price_flight_ret)}` : '';
-        const html = `<tr><td>${d}</td><td><b>${eur(h.price)}</b>${diff}</td><td>${h.old_price?('<span class="old">'+eur(h.old_price)+'</span>'+(h.discount?' -'+h.discount+'%':'')):''}</td><td class="split-muted">${split}</td></tr>`;
+        // Die Tabelle steht neueste Zeile oben; der Hinweis kommt deshalb UNTER
+        // seinen Messpunkt — genau an die Stelle zwischen altem und neuem Preis,
+        // an der der Sprung passiert ist.
+        const html = `<tr><td>${d}</td><td><b>${eur(h.price)}</b>${diff}</td><td>${h.old_price?('<span class="old">'+eur(h.old_price)+'</span>'+(h.discount?' -'+h.discount+'%':'')):''}</td><td class="split-muted">${split}</td></tr>`+evHtml;
         return {keep, html};
       }).filter(r=>r.keep).map(r=>r.html).reverse().join('');
       $('#hist-table').innerHTML = hist.length?`<table class="hist"><tr><th>Zeitpunkt</th><th>Preis</th><th>Vergleich</th><th title="Aufschlüsselung aus dem Buchungssystem">Hotel / Hin / Rück</th></tr>${rows}</table>`:'';
