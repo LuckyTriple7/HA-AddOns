@@ -442,6 +442,7 @@ client.on('authenticated', () => {
 
 client.on('ready', async () => {
   _reconnecting = false;
+  _reconnectStartedAt = 0;
   _intentionalDisconnect = false;
   connectedPhone = (client.info?.wid?.user || '').replace(/:\d+$/, '') || null;
   status = 'connected';
@@ -1066,10 +1067,12 @@ app.post('/api/send-media', upload.single('file'), async (req, res) => {
 
 let _reconnecting = false;
 let _intentionalDisconnect = false;
+let _reconnectStartedAt = 0;
 
 async function doReconnect(reason) {
   if (_reconnecting || _intentionalDisconnect) return;
   _reconnecting = true;
+  _reconnectStartedAt = Date.now();
   status = 'initializing';
   connectedPhone = null;
   console.warn('[WARN] Auto-reconnect: %s', reason);
@@ -1085,11 +1088,16 @@ async function doReconnect(reason) {
   });
 }
 
-// Keep-alive: erkennt hängende Puppeteer-Instanzen alle 10 Minuten
+// Keep-alive: erkennt hängende Puppeteer-Instanzen und stille Socket-Drops.
+// getState() braucht einen eigenen Timeout — bei eingefrorenem Puppeteer kehrt
+// der Aufruf sonst nie zurück und der Ausfall bliebe unbemerkt.
 setInterval(async () => {
   if (status !== 'connected' || _reconnecting) return;
   try {
-    const state = await client.getState();
+    const state = await Promise.race([
+      client.getState(),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('getState timeout after 30s')), 30000)),
+    ]);
     if (state !== 'CONNECTED') {
       console.warn('[WARN] State check: state=%s — reconnecting…', state);
       doReconnect('state check: ' + state);
@@ -1100,7 +1108,38 @@ setInterval(async () => {
     console.warn('[WARN] State check failed (%s) — reconnecting…', e.message);
     doReconnect('state check error: ' + e.message);
   }
-}, 600000);
+}, 60000);
+
+// ── Auto-Retry: nicht dauerhaft auf 'error' stehen bleiben ───────────────────
+// Schlägt client.initialize() im Reconnect fehl, bleibt der Status sonst für
+// immer 'error' und nur ein Add-on-Neustart hilft.
+const WA_RETRY_BASE_MS      = 15000;
+const WA_RETRY_MAX_MS       = 300000;
+const WA_RECONNECT_STUCK_MS = 180000;
+let _waRetryDelay  = WA_RETRY_BASE_MS;
+let _waNextRetryAt = 0;
+
+setInterval(() => {
+  if (status === 'connected') { _waRetryDelay = WA_RETRY_BASE_MS; _waNextRetryAt = 0; return; }
+
+  // Hängender Reconnect (initialize() kehrt nie zurück) nach 3 Minuten freigeben
+  if (_reconnecting && _reconnectStartedAt && Date.now() - _reconnectStartedAt > WA_RECONNECT_STUCK_MS) {
+    console.warn('[WARN] Reconnect hängt seit %ss — Sperre aufgehoben',
+                 Math.round((Date.now() - _reconnectStartedAt) / 1000));
+    _reconnecting = false;
+    _reconnectStartedAt = 0;
+  }
+  if (_reconnecting || _intentionalDisconnect) return;
+  // Zustände, die auf den Nutzer warten, nicht automatisch wiederholen
+  if (status !== 'error' && status !== 'disconnected') return;
+  if (Date.now() < _waNextRetryAt) return;
+
+  _waNextRetryAt = Date.now() + _waRetryDelay;
+  console.warn('[WARN] Auto-Retry (status=%s, letzter Fehler: %s) — nächster Versuch in %ss',
+               status, lastError || '—', Math.round(_waRetryDelay / 1000));
+  _waRetryDelay = Math.min(_waRetryDelay * 2, WA_RETRY_MAX_MS);
+  doReconnect('auto retry after status=' + status);
+}, 10000);
 
 // Sammelt aktuell laufende Statusmeldungen aller Kontakte dauerhaft ein, solange
 // KEEP_DELETED aktiv ist — WhatsApp löscht Status nach 24h, unsere Kopie bleibt.

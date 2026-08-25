@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.7.58] - 2026-08-25
+- Fix: **Stille Verbindungsabbrüche fielen bis zu 10 Minuten lang nicht auf.** Der Keep-alive prüfte `client.getState()` nur alle 600 Sekunden — bis dahin meldete `/api/status` weiter `connected`, das MessengerPortal zeigte grün „Online" und Sendeversuche liefen ins Leere. Intervall auf 60 Sekunden verkürzt
+- Fix: `client.getState()` lief ohne Timeout. Bei eingefrorenem Puppeteer kehrte der Aufruf nie zurück, der Keep-alive-Durchlauf endete nie und der Ausfall blieb dauerhaft unbemerkt. Jetzt bricht ein `Promise.race` nach 30 Sekunden ab und löst einen Reconnect aus
+- Fix: **Nach einem fehlgeschlagenen Reconnect blieb das Add-on für immer auf `error` stehen.** Scheiterte `client.initialize()`, versuchte es nichts mehr — nur ein Add-on-Neustart half. Neuer Auto-Retry-Timer verbindet aus `error` und `disconnected` heraus mit exponentiellem Backoff neu (15 s, 30 s, 60 s … max. 5 Minuten) und setzt den Backoff nach Erfolg zurück. `waiting_for_scan` und `auth_failed` werden bewusst nicht wiederholt — dort muss der Nutzer den QR-Code scannen
+- Fix: Blieb ein Reconnect selbst hängen (`initialize()` kehrt nie zurück), sperrte das `_reconnecting`-Flag jeden weiteren Versuch dauerhaft. Ein Watchdog hebt die Sperre nach 3 Minuten wieder auf
+
 ## [1.7.57] - 2026-08-25
 - Security: CodeQL-Alert #208 (`js/polynomial-redos`, high) — `chatId.replace(/@.*$/, '')` in `resolveArchiveName()` läuft auf Werten aus `req.params`, und `@.*$` braucht bei vielen `@` polynomiale Zeit (ReDoS-Risiko über einen präparierten Chat-Parameter). Alle sechs Vorkommen dieses Musters durch `split('@')[0]` ersetzt — gleiches Ergebnis in allen Fällen (mehrere `@`, kein `@`, leerer String), aber garantiert lineare Laufzeit
 
