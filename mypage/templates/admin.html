@@ -516,11 +516,11 @@
         <div class="row">
           <div>
             <label>{{ t.field_bio }} (DE)</label>
-            <textarea id="p-bio_de"></textarea>
+            <textarea data-md id="p-bio_de"></textarea>
           </div>
           <div>
             <label>{{ t.field_bio }} (EN)</label>
-            <textarea id="p-bio_en"></textarea>
+            <textarea data-md id="p-bio_en"></textarea>
           </div>
         </div>
         <label>{{ t.field_avatar }}</label>
@@ -623,12 +623,12 @@
         </div>
         <div>
           <label for="ft-content_de">{{ t.freetext_content_label }} (DE)</label>
-          <textarea id="ft-content_de" rows="6" placeholder="{{ t.ph_markdown }}"></textarea>
+          <textarea data-md id="ft-content_de" rows="6" placeholder="{{ t.ph_markdown }}"></textarea>
           <button type="button" class="btn secondary small" onclick="ftInsertImage('ft-content_de')">🖼️ {{ t.freetext_upload }}</button>
         </div>
         <div>
           <label for="ft-content_en">{{ t.freetext_content_label }} (EN)</label>
-          <textarea id="ft-content_en" rows="6" placeholder="{{ t.ph_markdown }}"></textarea>
+          <textarea data-md id="ft-content_en" rows="6" placeholder="{{ t.ph_markdown }}"></textarea>
           <button type="button" class="btn secondary small" onclick="ftInsertImage('ft-content_en')">🖼️ {{ t.freetext_upload }}</button>
         </div>
       </div>
@@ -762,8 +762,8 @@
           <div><label>{{ t.location_address }}</label><input type="text" id="loc-address" placeholder="{{ t.ph_address }}"></div>
         </div>
         <div class="row">
-          <div><label>{{ t.location_hours }} (DE)</label><textarea id="loc-hours_de" placeholder="Mo–Fr 9–17 Uhr"></textarea></div>
-          <div><label>{{ t.location_hours }} (EN)</label><textarea id="loc-hours_en" placeholder="Mon–Fri 9–17"></textarea></div>
+          <div><label>{{ t.location_hours }} (DE)</label><textarea data-md id="loc-hours_de" placeholder="Mo–Fr 9–17 Uhr"></textarea></div>
+          <div><label>{{ t.location_hours }} (EN)</label><textarea data-md id="loc-hours_en" placeholder="Mon–Fri 9–17"></textarea></div>
         </div>
         <div class="row">
           <div>
@@ -824,7 +824,7 @@
         <label>{{ t.nl_subject }}</label>
         <input type="text" id="nl-subject" maxlength="150">
         <label>{{ t.nl_body }}</label>
-        <textarea id="nl-body" rows="8" placeholder="{{ t.nl_body_ph }}"></textarea>
+        <textarea data-md id="nl-body" rows="8" placeholder="{{ t.nl_body_ph }}"></textarea>
         <button class="btn" style="margin-top:12px" onclick="sendNewsletter()">✉ {{ t.nl_send }}</button>
         <div id="nl-subs" class="collapsible" style="margin-top:16px"></div>
         <button class="btn secondary small collapse-btn" id="nl-subs-btn" onclick="toggleCollapse('nl-subs')"></button>
@@ -881,11 +881,11 @@
         <div class="row">
           <div>
             <label>{{ t.library_intro }} (DE)</label>
-            <textarea id="lb-intro_de" rows="2"></textarea>
+            <textarea data-md id="lb-intro_de" rows="2"></textarea>
           </div>
           <div>
             <label>{{ t.library_intro }} (EN)</label>
-            <textarea id="lb-intro_en" rows="2"></textarea>
+            <textarea data-md id="lb-intro_en" rows="2"></textarea>
           </div>
         </div>
         <div class="row" style="margin-top:10px">
@@ -1217,7 +1217,7 @@
               <label>{{ t.field_seo_desc }}</label>
               <input type="text" id="ai-out-meta_de" maxlength="300">
               <label>{{ t.field_text_md }}</label>
-              <textarea id="ai-out-text_de" rows="14"></textarea>
+              <textarea data-md id="ai-out-text_de" rows="14"></textarea>
             </div>
             <div id="ai-out-en">
               <h4 style="margin:0 0 8px">🇬🇧 {{ t.ai_out_en }}</h4>
@@ -1226,7 +1226,7 @@
               <label>{{ t.field_seo_desc }}</label>
               <input type="text" id="ai-out-meta_en" maxlength="300">
               <label>{{ t.field_text_md }}</label>
-              <textarea id="ai-out-text_en" rows="14"></textarea>
+              <textarea data-md id="ai-out-text_en" rows="14"></textarea>
             </div>
           </div>
           <label>{{ t.field_tags }}</label>
@@ -1774,13 +1774,13 @@
             <label class="lbl-row">DE
               <button type="button" class="btn secondary small" onclick="pickLegalPdf('impressum_de')">{{ t.pdf_import }}</button>
             </label>
-            <textarea id="l-impressum_de" rows="10"></textarea>
+            <textarea data-md id="l-impressum_de" rows="10"></textarea>
           </div>
           <div>
             <label class="lbl-row">EN ({{ t.optional }})
               <button type="button" class="btn secondary small" onclick="pickLegalPdf('impressum_en')">{{ t.pdf_import }}</button>
             </label>
-            <textarea id="l-impressum_en" rows="10"></textarea>
+            <textarea data-md id="l-impressum_en" rows="10"></textarea>
           </div>
         </div>
       </div>
@@ -1792,13 +1792,13 @@
             <label class="lbl-row">DE
               <button type="button" class="btn secondary small" onclick="pickLegalPdf('privacy_de')">{{ t.pdf_import }}</button>
             </label>
-            <textarea id="l-privacy_de" rows="14"></textarea>
+            <textarea data-md id="l-privacy_de" rows="14"></textarea>
           </div>
           <div>
             <label class="lbl-row">EN ({{ t.optional }})
               <button type="button" class="btn secondary small" onclick="pickLegalPdf('privacy_en')">{{ t.pdf_import }}</button>
             </label>
-            <textarea id="l-privacy_en" rows="14"></textarea>
+            <textarea data-md id="l-privacy_en" rows="14"></textarea>
           </div>
         </div>
         <p class="hint">{{ t.pdf_import_hint }}</p>
@@ -1919,11 +1919,11 @@
         <div class="row">
           <div>
             <label>{{ t.maintenance_text }} (DE)</label>
-            <textarea id="m-text_de" rows="3"></textarea>
+            <textarea data-md id="m-text_de" rows="3"></textarea>
           </div>
           <div>
             <label>{{ t.maintenance_text }} (EN, {{ t.optional }})</label>
-            <textarea id="m-text_en" rows="3"></textarea>
+            <textarea data-md id="m-text_en" rows="3"></textarea>
           </div>
         </div>
         <button class="btn" id="maint-btn" onclick="toggleMaintenance()"></button>
@@ -2292,11 +2292,11 @@
       <div class="row">
         <div>
           <label>{{ t.field_long }} (DE)</label>
-          <textarea id="pm-long_de" rows="6" placeholder="{{ t.ph_markdown }}"></textarea>
+          <textarea data-md id="pm-long_de" rows="6" placeholder="{{ t.ph_markdown }}"></textarea>
         </div>
         <div>
           <label>{{ t.field_long }} (EN)</label>
-          <textarea id="pm-long_en" rows="6"></textarea>
+          <textarea data-md id="pm-long_en" rows="6"></textarea>
         </div>
       </div>
       <p class="hint">{{ t.long_hint }}</p>
@@ -2408,7 +2408,7 @@
     <div class="modal">
       <h3 id="lm-title"></h3>
       <p class="hint">{{ t.login_msg_hint }}</p>
-      <textarea id="lm-text" rows="6"></textarea>
+      <textarea data-md id="lm-text" rows="6"></textarea>
       <div class="modal-actions">
         <button class="btn secondary" onclick="el('loginmsg-modal').classList.remove('open')">{{ t.cancel }}</button>
         <button class="btn" style="margin-top:16px" onclick="saveLoginMsg()">{{ t.save }}</button>
@@ -2469,11 +2469,11 @@
       <div class="row">
         <div>
           <label>{{ t.field_text_md }} (DE)</label>
-          <textarea id="bm-text_de" rows="10"></textarea>
+          <textarea data-md id="bm-text_de" rows="10"></textarea>
         </div>
         <div>
           <label>{{ t.field_text_md }} (EN)</label>
-          <textarea id="bm-text_en" rows="10"></textarea>
+          <textarea data-md id="bm-text_en" rows="10"></textarea>
         </div>
       </div>
       <label>{{ t.field_gallery }}</label>
@@ -2522,11 +2522,11 @@
       <div class="row">
         <div>
           <label>{{ t.form_intro }} (DE)</label>
-          <textarea id="fm-intro_de" rows="3"></textarea>
+          <textarea data-md id="fm-intro_de" rows="3"></textarea>
         </div>
         <div>
           <label>{{ t.form_intro }} (EN)</label>
-          <textarea id="fm-intro_en" rows="3"></textarea>
+          <textarea data-md id="fm-intro_en" rows="3"></textarea>
         </div>
       </div>
       <h4 style="margin:18px 0 6px">{{ t.form_fields_heading }}</h4>
@@ -2536,11 +2536,11 @@
       <div class="row" style="margin-top:18px">
         <div>
           <label>{{ t.form_success }} (DE)</label>
-          <textarea id="fm-success_de" rows="2" placeholder="{{ t.form_success_ph }}"></textarea>
+          <textarea data-md id="fm-success_de" rows="2" placeholder="{{ t.form_success_ph }}"></textarea>
         </div>
         <div>
           <label>{{ t.form_success }} (EN)</label>
-          <textarea id="fm-success_en" rows="2" placeholder="{{ t.form_success_ph }}"></textarea>
+          <textarea data-md id="fm-success_en" rows="2" placeholder="{{ t.form_success_ph }}"></textarea>
         </div>
       </div>
       <div class="modal-actions">
@@ -2651,11 +2651,11 @@
       <div class="row">
         <div>
           <label>{{ t.field_text_md }} (DE)</label>
-          <textarea id="le-body_de" rows="12"></textarea>
+          <textarea data-md id="le-body_de" rows="12"></textarea>
         </div>
         <div>
           <label>{{ t.field_text_md }} (EN)</label>
-          <textarea id="le-body_en" rows="12"></textarea>
+          <textarea data-md id="le-body_en" rows="12"></textarea>
         </div>
       </div>
 
@@ -2723,11 +2723,11 @@
       <div class="row">
         <div>
           <label>{{ t.field_text_md }} (DE)</label>
-          <textarea id="pg-body_de" rows="12"></textarea>
+          <textarea data-md id="pg-body_de" rows="12"></textarea>
         </div>
         <div>
           <label>{{ t.field_text_md }} (EN)</label>
-          <textarea id="pg-body_en" rows="12"></textarea>
+          <textarea data-md id="pg-body_en" rows="12"></textarea>
         </div>
       </div>
       <div class="modal-actions">
@@ -3163,8 +3163,14 @@
     }
     function closeMdModal() { el('md-modal').classList.remove('open'); MD_SRC = null; }
 
+    // Welche Felder den Editor bekommen, steht am Feld selbst: `data-md` im
+    // HTML. Vorher stand dafür eine ID-Liste an dieser Stelle — sie lief
+    // zwangsläufig aus dem Takt, weil ein neues Markdown-Feld hier
+    // nachgetragen werden musste und niemand daran dachte (Impressum,
+    // Datenschutz und Bibliothek-Intro fehlten deshalb jahrelang).
+    // `data-md-on` merkt sich, dass der Knopf schon hängt.
     function attachMd(ta) {
-      if (!ta || ta.dataset.md) return; ta.dataset.md = '1';
+      if (!ta || ta.dataset.mdOn) return; ta.dataset.mdOn = '1';
       const lbl = (ta.closest('div') && ta.closest('div').querySelector('label') ? ta.closest('div').querySelector('label').textContent : '').trim();
       const btn = document.createElement('button');
       btn.type = 'button'; btn.className = 'btn secondary md-edit-btn';
@@ -3172,10 +3178,19 @@
       btn.onclick = () => openMdModal(ta, lbl);
       ta.parentNode.insertBefore(btn, ta.nextSibling);
     }
+    function scanMd(root) {
+      if (!root || !root.querySelectorAll) return;
+      if (root.matches && root.matches('textarea[data-md]')) attachMd(root);
+      root.querySelectorAll('textarea[data-md]').forEach(attachMd);
+    }
     function initMdEditors() {
-      ['bm-text_de', 'bm-text_en', 'pm-long_de', 'pm-long_en', 'p-bio_de', 'p-bio_en', 'pg-body_de', 'pg-body_en', 'nl-body', 'fm-intro_de', 'fm-intro_en',
-       'fm-success_de', 'fm-success_en', 'm-text_de', 'm-text_en', 'lm-text', 'loc-hours_de', 'loc-hours_en', 'ft-content_de', 'ft-content_en',
-       'le-body_de', 'le-body_en'].forEach(id => attachMd(el(id)));
+      scanMd(document);
+      // Nachgeladene Zeilen (FAQ, Tipps, künftige Wiederholfelder) bringen ihr
+      // `data-md` selbst mit und melden sich hier von allein an — kein
+      // attachMd-Aufruf mehr an jeder Render-Stelle.
+      new MutationObserver(ms => {
+        for (const m of ms) for (const n of m.addedNodes) if (n.nodeType === 1) scanMd(n);
+      }).observe(document.body, { childList: true, subtree: true });
       document.addEventListener('keydown', e => { if (e.key === 'Escape' && el('md-modal').classList.contains('open')) closeMdModal(); });
     }
 
@@ -4216,15 +4231,14 @@
         </span>
       </div>
       <div class="row" style="margin-top:8px">
-        <div><textarea class="f-a_de" placeholder="${T.faq_a} (DE)"></textarea></div>
-        <div><textarea class="f-a_en" placeholder="${T.faq_a} (EN)"></textarea></div>
+        <div><textarea data-md class="f-a_de" placeholder="${T.faq_a} (DE)"></textarea></div>
+        <div><textarea data-md class="f-a_en" placeholder="${T.faq_a} (EN)"></textarea></div>
       </div>`;
       div.querySelector('.f-q_de').value = f.q_de || '';
       div.querySelector('.f-q_en').value = f.q_en || '';
       div.querySelector('.f-a_de').value = f.a_de || '';
       div.querySelector('.f-a_en').value = f.a_en || '';
       el('faq-list').appendChild(div);
-      attachMd(div.querySelector('.f-a_de')); attachMd(div.querySelector('.f-a_en'));
     }
     // Bildschutz ist eine Einstellung mit zwei Bedienstellen (Fotoalben und
     // Bibliothek). Beide schreiben dieselben Felder; loadSite() gleicht danach
@@ -4417,14 +4431,13 @@
         </span>
       </div>
       <div class="row" style="margin-top:8px">
-        <div><textarea class="tip-text_de" placeholder="${T.field_desc} (DE)"></textarea></div>
-        <div><textarea class="tip-text_en" placeholder="${T.field_desc} (EN)"></textarea></div>
+        <div><textarea data-md class="tip-text_de" placeholder="${T.field_desc} (DE)"></textarea></div>
+        <div><textarea data-md class="tip-text_en" placeholder="${T.field_desc} (EN)"></textarea></div>
       </div>`;
       div.dataset.tipId = e.id || '';
       div.querySelector('.tip-text_de').value = e.text_de || '';
       div.querySelector('.tip-text_en').value = e.text_en || '';
       el('tips-list').appendChild(div);
-      attachMd(div.querySelector('.tip-text_de')); attachMd(div.querySelector('.tip-text_en'));
       updateTipHints();
     }
     function addPollOptRow(o) {
