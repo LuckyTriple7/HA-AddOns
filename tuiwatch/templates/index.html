@@ -448,11 +448,16 @@
     .fraf-row { cursor:pointer; }
     .fraf-row:hover td { background:var(--surf); }
     .mucf-row:hover td { background:var(--surf); }
-    .fpick-opts { display:flex; gap:12px; flex-wrap:wrap; margin:14px 0 4px; }
-    .fpick-opt { flex:1 1 160px; text-align:center; padding:16px 14px; border-radius:var(--r-ui); cursor:pointer;
+    /* Alle freigeschalteten Flughäfen nebeneinander in EINER Reihe (`flex:1 1 0`
+       statt einer Mindestbreite, sonst brach der vierte um). Der lange Name
+       „Karlsruhe/Baden-Baden" darf dafür intern umbrechen. */
+    .fpick-opts { display:flex; gap:10px; flex-wrap:wrap; margin:14px 0 4px; }
+    .fpick-opt { flex:1 1 0; min-width:0; text-align:center; padding:14px 10px; border-radius:var(--r-ui); cursor:pointer;
       background:var(--surf2); border:1px solid var(--border); color:var(--text); font-size:var(--fs-md); }
     .fpick-opt:hover { border-color:var(--accent); }
-    .fpick-opt b { display:block; font-size:var(--fs-lg); }
+    .fpick-opt b { display:block; font-size:var(--fs-md); overflow-wrap:anywhere; hyphens:auto; }
+    /* Auf schmalen Displays lieber zwei Reihen als vier Schnipsel. */
+    @media (max-width:560px) { .fpick-opt { flex:1 1 45%; } }
     body.share-disabled .share-feature { display:none !important; }
     .shr-row { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:8px 0; }
     .shr-row label { font-size:var(--fs-sm); }
@@ -1819,7 +1824,7 @@
        Flughafen. Bei ≥2 aktiven Flughäfen zusätzlich die Kachel „Alle
        durchsuchen" (openAllFlights, siehe all_flights_routes.py). -->
   <div class="modal-bg" id="fpick-bg">
-    <div class="modal" style="max-width:560px">
+    <div class="modal" style="max-width:680px">
       <button class="icon-btn modal-close" onclick="closeFlightPick()">
         <svg class="i"><use href="#i-close"/></svg>
       </button>
@@ -1829,14 +1834,14 @@
         <button class="fpick-opt" id="fpick-str" onclick="closeFlightPick(); openStrFlights()">
           <b>Stuttgart (STR)</b>
         </button>
+        <button class="fpick-opt" id="fpick-fkb" onclick="closeFlightPick(); openFkbFlights()">
+          <b>Karlsruhe/<wbr><span style="white-space:nowrap">Baden-Baden (FKB)</span></b>
+        </button>
         <button class="fpick-opt" id="fpick-fra" onclick="closeFlightPick(); openFraFlights()">
           <b>Frankfurt (FRA)</b>
         </button>
         <button class="fpick-opt" id="fpick-muc" onclick="closeFlightPick(); openMucFlights()">
           <b>München (MUC)</b>
-        </button>
-        <button class="fpick-opt" id="fpick-fkb" onclick="closeFlightPick(); openFkbFlights()">
-          <b>Karlsruhe/Baden-Baden (FKB)</b>
         </button>
         <button class="fpick-opt" id="fpick-all" style="flex:1 1 100%" onclick="closeFlightPick(); openAllFlights()">
           <b><svg class="i"><use href="#i-search"/></svg> Alle durchsuchen</b>

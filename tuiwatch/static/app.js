@@ -2817,6 +2817,17 @@
       ['trend-bg', closeMarketTrend],
       ['trips-summary-bg', closeTripsSummary],
       ['trips-bg', closeTrips],
+      // Flugplan-Fenster: die beiden Detail-Fenster (Zeilenklick) liegen über
+      // ihrem Plan-Fenster, die Flughafen-Auswahl schließt sich schon beim
+      // Öffnen eines Plans — Reihenfolge deshalb Detail → Plan → Auswahl.
+      ['strf-detail-bg', closeStrFlightDetail],
+      ['fraf-detail-bg', closeFraFlightDetail],
+      ['strf-bg', closeStrFlights],
+      ['fraf-bg', closeFraFlights],
+      ['mucf-bg', closeMucFlights],
+      ['fkbf-bg', closeFkbFlights],
+      ['allf-bg', closeAllFlights],
+      ['fpick-bg', closeFlightPick],
     ];
     document.addEventListener('keydown', e=>{
       if(e.key!=='Escape') return;

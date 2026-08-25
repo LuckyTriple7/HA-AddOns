@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.102.1] - 2026-08-25
+
+### Fixed
+- **ESC schloss die Flugplan-Fenster nicht.** Keines der Flugplan-Fenster stand in
+  der ESC-Liste — betraf STR, FRA, MUC, FKB, die Flughafen-Auswahl, „Flugziel
+  ueberall suchen" und die beiden Flugdetail-Fenster. Jetzt schliesst ESC immer
+  nur die oberste Ebene: erst das Detail-Fenster, dann der Flugplan darunter.
+
+### Changed
+- **Flughafen-Auswahl: alle Flughaefen in einer Reihe.** Der vierte Knopf (FKB)
+  brach bisher in eine zweite Zeile um, weil jede Kachel eine feste Mindestbreite
+  hatte; die Kacheln teilen sich die Zeile jetzt gleichmaessig. FKB steht neben
+  Stuttgart, danach Frankfurt und Muenchen. Auf schmalen Displays (< 560 px)
+  bleiben es bewusst zwei Reihen statt vier Schnipsel.
+
 ## [0.102.0] - 2026-08-25
 
 ### Added
