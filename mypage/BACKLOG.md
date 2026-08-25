@@ -150,10 +150,9 @@ eingetragen ist.
    `/p/<id>` und den Reiseblog-Seiten (~2 h). Google zeigt dann den Pfad statt
    der nackten Adresse.
 5. **`Service` + `Offer`** aus `sections.services` (~1 h). `price` ist gepflegt.
-6. **Snippet-Vorschau im Admin** (~3–4 h): Google-Optik mit Titel, Adresse und
-   Beschreibung, dazu eine Längenampel (Titel ≤ 60 Zeichen, Beschreibung
-   120–160). Das ist der sichtbare Unterschied zu Yoast — Nutzer sehen sofort,
-   dass ihre 240-Zeichen-Beschreibung abgeschnitten wird.
+6. ~~**Snippet-Vorschau im Admin**~~ — **erledigt mit v0.10.49.** Vier
+   Vorschauen (Startseite, Beitrag, eigene Seite, Bibliothek-Eintrag) mit
+   Längenampel und DE/EN-Umschalter.
 7. **SEO-Ampel je Beitrag** (~1 Tag): Beschreibung gesetzt und lang genug?
    Titelbild? Alternativtexte? Text lang genug? Mindestens eine
    Zwischenüberschrift?
@@ -179,4 +178,11 @@ schleppt Yoast aus Gewohnheit mit, gewertet werden sie seit Jahren nicht.
   gegenseitig zu ignorieren.
 - Bewertungen aus `sections.testimonials` **nicht** als `Review`/
   `AggregateRating` ausgeben: Google wertet selbst eingetragene Bewertungen auf
-  der eigenen Seite als Verstöß gegen die Richtlinien für Rich Results.
+  der eigenen Seite als Verstoß gegen die Richtlinien für Rich Results.
+- Die Snippet-Vorschau bildet die Rückfallkette aus `app.py` nach
+  (`_site_meta()`, `_plain_excerpt()`). Wer serverseitig an der Kette dreht, muss
+  `SNIPS` in `admin.html` nachziehen — sonst zeigt die Vorschau etwas anderes,
+  als die Seite ausliefert, und das ist schlimmer als gar keine Vorschau.
+- `snipPlain()` ersetzt Tags durch ein **Leerzeichen**, genau wie
+  `_plain_excerpt()`. Mit `textContent` klebt die Überschrift am ersten Absatz
+  („HalloDas ist…“) und der Auszug weicht ab dem ersten Zeilenumbruch ab.

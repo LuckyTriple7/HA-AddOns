@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.10.49
+
+- 🔎 **Snippet-Vorschau: der Google-Treffer, bevor es Google tut.** Unter den SEO-Feldern steht jetzt eine Vorschau des Suchergebnisses — im **Design-Tab** für die Startseite und in den Dialogen für **Blog-Beitrag**, **eigene Seite** und **Bibliothek-Eintrag**. Zwei Zähler zeigen die Länge von Titel (Ziel 20–60 Zeichen) und Beschreibung (Ziel 120–160): grün passt, gelb ist zu kurz, rot wird von Google gekürzt. Die Vorschau kürzt genauso wie Google — am letzten Wortende vor der Grenze, nicht mitten im Wort.
+- 🔗 **Sie zeigt auch, was passiert, wenn du nichts einträgst.** Ohne eigenen SEO-Text greift dieselbe Rückfallkette wie auf der Seite: eigenes Feld → Auszug der ersten 155 Zeichen → Beschreibung der Startseite → Tagline → Bio. Das war bisher nur im Quelltext zu sehen.
+- 🌐 **DE/EN-Umschalter** je Vorschau — die englische Fassung eines Beitrags hat eine eigene Beschreibung und damit einen eigenen Treffer.
+- 📚 **SEO.md korrigiert.** Dort stand, die Bestätigung der Search Console per Meta-Tag ginge in MyPage nicht und man solle den Reverse-Proxy bemühen. Die Felder dafür gibt es im Design-Tab — die Anleitung nennt jetzt den richtigen Weg.
+
 ## 0.10.48
 
 - ⏮️ **Frühere Stände: einen versehentlich gelöschten Text zurückholen, ohne ein Backup einzuspielen.** Vor jeder Änderung sichert MyPage den bisherigen Stand der Seiteninhalte. Im Tab **System → Frühere Stände** stehen sie mit Zeitpunkt und den geänderten Abschnitten („Profil, Design“) und lassen sich einzeln **zurückholen**, herunterladen oder löschen. Beim Zurückholen wird der aktuelle Stand vorher selbst zum Stand — ein Fehlgriff ist also wieder rückgängig zu machen.

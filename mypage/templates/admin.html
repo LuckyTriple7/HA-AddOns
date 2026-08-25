@@ -393,6 +393,27 @@
     .uploads-tile .ai-flag { position: absolute; top: 4px; left: 4px; background: rgba(0,0,0,.55); color: #fff; font-size: 0.7rem; line-height: 1; padding: 3px 5px; border-radius: 99px; }
     /* PDF-Kachel: gleiche Grundfläche wie ein Bild, damit das Raster nicht springt */
     .uploads-tile .doc-icon { display: flex; align-items: center; justify-content: center; width: 100%; aspect-ratio: 1; font-size: 2rem; background: var(--bg); }
+    /* Snippet-Vorschau: zeigt den Suchtreffer so, wie Google ihn baut.
+       Bewusst helle Google-Optik auch im dunklen Admin — die Vorschau soll
+       aussehen wie das Ergebnis, nicht wie das Werkzeug. */
+    .snip { border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; margin: 4px 0 10px;
+            background: #fff; color: #202124; font-family: arial, sans-serif; }
+    .snip-url { font-size: 0.78rem; color: #202124; line-height: 1.3; }
+    .snip-url span { color: #4d5156; }
+    .snip-title { font-size: 1.15rem; line-height: 1.3; color: #1a0dab; margin: 2px 0 3px;
+                  overflow-wrap: anywhere; }
+    .snip-desc { font-size: 0.86rem; line-height: 1.58; color: #4d5156; overflow-wrap: anywhere; }
+    .snip-desc.empty { font-style: italic; color: #70757a; }
+    .snip-bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 0 0 10px; }
+    .snip-langs { display: flex; gap: 3px; }
+    .snip-langs button { background: var(--surf2, var(--bg)); border: 1px solid var(--border); color: var(--text);
+                         border-radius: 5px; padding: 2px 9px; font-size: 0.78rem; cursor: pointer; }
+    .snip-langs button.on { border-color: var(--accent); color: var(--accent); }
+    .snip-len { font-size: 0.78rem; color: var(--muted); }
+    .snip-len b { font-weight: 600; }
+    .snip-len.ok b { color: #3fb950; }
+    .snip-len.warn b { color: #d29922; }
+    .snip-len.over b { color: #f85149; }
     .md-toolbar { display: flex; flex-wrap: wrap; gap: 3px; margin: 4px 0 10px; position: relative; }
     .md-btn { background: var(--surf2, var(--bg)); border: 1px solid var(--border); color: var(--text); border-radius: 5px; min-width: 30px; height: 30px; padding: 0 8px; font-size: 0.9rem; cursor: pointer; line-height: 1; }
     .md-btn:hover { border-color: var(--accent); color: var(--accent); }
@@ -1445,6 +1466,17 @@
           </div>
         </div>
         <p class="hint">{{ t.seo_desc_hint }}</p>
+        <div class="snip-bar">
+          <div class="snip-langs" id="snip-home-langs"></div>
+          <span class="snip-len" id="snip-home-lt"></span>
+          <span class="snip-len" id="snip-home-ld"></span>
+        </div>
+        <div class="snip" id="snip-home">
+          <div class="snip-url"></div>
+          <div class="snip-title"></div>
+          <div class="snip-desc"></div>
+        </div>
+        <p class="hint">{{ t.snip_hint }}</p>
         <div class="row">
           <div>
             <label>{{ t.field_allow_indexing }}</label>
@@ -2461,6 +2493,17 @@
         </div>
       </div>
       <p class="hint">{{ t.post_seo_hint }}</p>
+      <div class="snip-bar">
+        <div class="snip-langs" id="snip-post-langs"></div>
+        <span class="snip-len" id="snip-post-lt"></span>
+        <span class="snip-len" id="snip-post-ld"></span>
+      </div>
+      <div class="snip" id="snip-post">
+        <div class="snip-url"></div>
+        <div class="snip-title"></div>
+        <div class="snip-desc"></div>
+      </div>
+      <p class="hint">{{ t.snip_hint }}</p>
       <div class="row">
         <div>
           <label>{{ t.field_title }} (DE) *</label>
@@ -2653,6 +2696,17 @@
           <input type="text" id="le-meta_en" maxlength="300" placeholder="{{ t.post_seo_ph }}">
         </div>
       </div>
+      <div class="snip-bar">
+        <div class="snip-langs" id="snip-lib-langs"></div>
+        <span class="snip-len" id="snip-lib-lt"></span>
+        <span class="snip-len" id="snip-lib-ld"></span>
+      </div>
+      <div class="snip" id="snip-lib">
+        <div class="snip-url"></div>
+        <div class="snip-title"></div>
+        <div class="snip-desc"></div>
+      </div>
+      <p class="hint">{{ t.snip_hint }}</p>
       <div class="row">
         <div>
           <label>{{ t.field_text_md }} (DE)</label>
@@ -2715,6 +2769,17 @@
         </div>
       </div>
       <p class="hint">{{ t.post_seo_hint }}</p>
+      <div class="snip-bar">
+        <div class="snip-langs" id="snip-page-langs"></div>
+        <span class="snip-len" id="snip-page-lt"></span>
+        <span class="snip-len" id="snip-page-ld"></span>
+      </div>
+      <div class="snip" id="snip-page">
+        <div class="snip-url"></div>
+        <div class="snip-title"></div>
+        <div class="snip-desc"></div>
+      </div>
+      <p class="hint">{{ t.snip_hint }}</p>
       <div class="row">
         <div>
           <label>{{ t.field_title }} (DE) *</label>
@@ -3199,6 +3264,153 @@
       document.addEventListener('keydown', e => { if (e.key === 'Escape' && el('md-modal').classList.contains('open')) closeMdModal(); });
     }
 
+    // ── Snippet-Vorschau: der Suchtreffer, wie Google ihn baut ──
+    // Titel und Beschreibung entstehen öffentlich aus einer Kette von
+    // Rückfallwerten (eigenes SEO-Feld → Textauszug → Seitenbeschreibung). Die
+    // Vorschau bildet dieselbe Kette nach — eine Vorschau, die etwas anderes
+    // zeigt als die Seite ausliefert, wäre schlimmer als gar keine.
+    // Gegenstücke in app.py: `_site_meta()` und `_plain_excerpt()`.
+    const SNIP_TITLE_MAX = 60, SNIP_TITLE_MIN = 20, SNIP_DESC_MAX = 160, SNIP_DESC_MIN = 120;
+    const SNIP_EXCERPT = 155;     // wie _plain_excerpt(..., limit=155)
+    const SNIP_LANG = {};         // Kasten-Id → gewählte Sprache
+
+    function snipVal(id) { const e = el(id); return e ? (e.value || '').trim() : ''; }
+    function snipPlain(md) {
+      // Ohne diese Abkuerzung liefert `mdToHtml('')` seinen eigenen
+      // Platzhaltertext („Vorschau erscheint hier“), und der stand dann als
+      // angebliche Beschreibung im Suchtreffer.
+      if (!md || !md.trim()) return '';
+      // Gegenstueck zu `_plain_excerpt()` in app.py: Tags werden durch ein
+      // LEERZEICHEN ersetzt, nicht ersatzlos entfernt. Mit `textContent` klebte
+      // die Ueberschrift am ersten Absatz („HalloDas ist…“) — die Vorschau
+      // zeigte also etwas anderes, als die Seite ausliefert.
+      // Der pauschale Ausdruck ist hier sicher, weil `mdToHtml` spitze Klammern
+      // aus dem Text bereits zu `&lt;` gemacht hat; uebrig sind nur echte Tags.
+      const stripped = mdToHtml(md).replace(/<[^>]+>/g, ' ');
+      const ta = document.createElement('textarea');
+      ta.innerHTML = stripped;      // Entities zurueckwandeln, wie html.unescape()
+      return (ta.value || '').replace(/\s+/g, ' ').trim();
+    }
+    function snipExcerpt(md) { return snipPlain(md).slice(0, SNIP_EXCERPT).replace(/\s+$/, ''); }
+    function snipSuffix() { return snipVal('d-site_title') || snipVal('p-name') || 'MyPage'; }
+    function snipBase() { return snipVal('d-public_url').replace(/\/+$/, '') || T.snip_url_ph; }
+    function snipDefLang() { const v = snipVal('d-default_lang'); return v === 'en' ? 'en' : 'de'; }
+    function snipHomeDesc(lg) {
+      return snipVal('d-meta_description_' + lg) || snipVal('p-tagline_' + lg)
+          || snipExcerpt(snipVal('p-bio_' + lg)) || snipVal('d-site_title')
+          || snipVal('p-name') || 'MyPage';
+    }
+    function snipTitled(prefix, lg) {
+      return (snipVal(prefix + lg) || T.snip_no_title) + ' \u2013 ' + snipSuffix();
+    }
+
+    const SNIPS = {
+      'snip-home': {
+        title: () => snipSuffix(),
+        url:   () => snipBase() + '/',
+        desc:  lg => snipHomeDesc(lg),
+        watch: ['d-site_title', 'd-public_url', 'd-default_lang', 'p-name',
+                'd-meta_description_de', 'd-meta_description_en',
+                'p-tagline_de', 'p-tagline_en', 'p-bio_de', 'p-bio_en'],
+      },
+      'snip-post': {
+        title: lg => snipTitled('bm-title_', lg),
+        // Die Id eines neuen Beitrags entsteht erst beim Speichern — deshalb
+        // steht hier ein Platzhalter statt einer erfundenen Adresse.
+        url:   () => snipBase() + '/blog/\u2026',
+        desc:  lg => snipVal('bm-meta_' + lg) || snipExcerpt(snipVal('bm-text_' + lg)) || snipHomeDesc(lg),
+        watch: ['bm-title_de', 'bm-title_en', 'bm-meta_de', 'bm-meta_en', 'bm-text_de', 'bm-text_en'],
+      },
+      'snip-page': {
+        title: lg => snipTitled('pg-title_', lg),
+        url:   () => snipBase() + '/seite/' + (snipVal('pg-slug') || '\u2026'),
+        desc:  lg => snipVal('pg-meta_' + lg) || snipExcerpt(snipVal('pg-body_' + lg)) || snipHomeDesc(lg),
+        watch: ['pg-title_de', 'pg-title_en', 'pg-meta_de', 'pg-meta_en',
+                'pg-body_de', 'pg-body_en', 'pg-slug'],
+      },
+      'snip-lib': {
+        title: lg => snipTitled('le-title_', lg),
+        url:   () => snipBase() + '/bibliothek/' + (snipVal('le-slug') || '\u2026'),
+        desc:  lg => snipVal('le-meta_' + lg) || snipVal('le-summary_' + lg)
+                     || snipExcerpt(snipVal('le-body_' + lg)) || snipHomeDesc(lg),
+        watch: ['le-title_de', 'le-title_en', 'le-meta_de', 'le-meta_en',
+                'le-summary_de', 'le-summary_en', 'le-body_de', 'le-body_en', 'le-slug'],
+      },
+    };
+
+    // Google schneidet nicht mitten im Wort ab, sondern am letzten Leerzeichen davor.
+    function snipCut(s, max) {
+      if (s.length <= max) return s;
+      return s.slice(0, max).replace(/\s+\S*$/, '') + ' \u2026';
+    }
+    // Adresse als Pfad-Krumen, wie Google sie statt der rohen Adresse zeigt.
+    function snipUrlHtml(url) {
+      const m = /^(https?:\/\/)?([^/]+)(\/.*)?$/.exec(url) || [];
+      const host = (m[2] || url).replace(/^www\./, '');
+      const parts = (m[3] || '').split('/').filter(Boolean);
+      return escHtml(host) + parts.map(x => ' <span>\u203a ' + escHtml(x) + '</span>').join('');
+    }
+    function snipMeter(id, label, len, min, max) {
+      const e = el(id);
+      if (!e) return;
+      e.className = 'snip-len ' + (len > max ? 'over' : (len < min ? 'warn' : 'ok'));
+      e.innerHTML = escHtml(label) + ': <b>' + len + '</b>\u2009/\u2009' + max;
+    }
+    function snipRender(id) {
+      const cfg = SNIPS[id], box = el(id);
+      if (!cfg || !box) return;
+      const lg = SNIP_LANG[id] || snipDefLang();
+      const title = cfg.title(lg), desc = cfg.desc(lg) || '';
+      box.querySelector('.snip-url').innerHTML = snipUrlHtml(cfg.url(lg));
+      box.querySelector('.snip-title').textContent = snipCut(title, SNIP_TITLE_MAX);
+      const d = box.querySelector('.snip-desc');
+      d.textContent = desc ? snipCut(desc, SNIP_DESC_MAX) : T.snip_desc_empty;
+      d.classList.toggle('empty', !desc);
+      snipMeter(id + '-lt', T.snip_title, title.length, SNIP_TITLE_MIN, SNIP_TITLE_MAX);
+      snipMeter(id + '-ld', T.snip_desc, desc.length, SNIP_DESC_MIN, SNIP_DESC_MAX);
+    }
+    function snipRenderAll() { Object.keys(SNIPS).forEach(snipRender); }
+    function initSnippets() {
+      Object.keys(SNIPS).forEach(id => {
+        const box = el(id);
+        if (!box) return;
+        SNIP_LANG[id] = snipDefLang();
+        const langs = el(id + '-langs');
+        if (langs) {
+          ['de', 'en'].forEach(lg => {
+            const b = document.createElement('button');
+            b.type = 'button'; b.textContent = lg.toUpperCase();
+            b.classList.toggle('on', lg === SNIP_LANG[id]);
+            b.onclick = () => {
+              SNIP_LANG[id] = lg;
+              langs.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
+              snipRender(id);
+            };
+            langs.appendChild(b);
+          });
+        }
+        // Die Startseiten-Vorschau hängt an Feldern aus zwei Reitern (Design und
+        // Profil) — deshalb wird bei jeder Änderung alles neu gezeichnet, nicht
+        // nur der Kasten, in dem gerade getippt wird.
+        (SNIPS[id].watch || []).forEach(f => {
+          const e = el(f);
+          if (!e) return;
+          e.addEventListener('input', snipRenderAll);
+          if (e.tagName === 'SELECT') e.addEventListener('change', snipRenderAll);
+        });
+        // Beitrag, Seite und Bibliothek-Eintrag werden beim Öffnen des Dialogs
+        // per Skript gefüllt — dabei löst kein `input` aus. Statt jede
+        // Öffnen-Funktion anzufassen, hängt die Vorschau am Dialog selbst.
+        const modal = box.closest('.modal-bg');
+        if (modal) {
+          new MutationObserver(() => {
+            if (modal.classList.contains('open')) snipRender(id);
+          }).observe(modal, { attributes: true, attributeFilter: ['class'] });
+        }
+      });
+      snipRenderAll();
+    }
+
     // ── Tipps: Hinweis „zuletzt gezeigt / wie oft" aus der echten Anzeige-Statistik ──
     function updateTipHints() {
       const list = el('tips-list');
@@ -3294,6 +3506,9 @@
       if (!el('gh-user').value && SITE.profile.github) {
         el('gh-user').value = SITE.profile.github;
       }
+      // Die Snippet-Vorschau liest aus den Formularfeldern. Die sind erst
+      // jetzt gefuellt, und ein Setzen per Skript loest kein `input` aus.
+      if (window.snipRenderAll) snipRenderAll();
     }
 
     // ── Blog ──
@@ -6986,6 +7201,7 @@
     })();
 
     initMdEditors();
+    initSnippets();
     el('pg-slug').addEventListener('input', pageSlugHint);
     el('fm-slug').addEventListener('input', formSlugHint);
     el('le-slug').addEventListener('input', libEntrySlugHint);

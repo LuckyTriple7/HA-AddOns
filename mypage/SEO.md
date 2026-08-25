@@ -27,6 +27,11 @@ Zusätzlich auf jeder Seite: individueller Seitentitel, Beschreibung (aus deiner
 Tagline), Open-Graph-Vorschau (für WhatsApp/Facebook/Discord) und strukturierte
 Daten (JSON-LD: Person auf der Startseite, BlogPosting bei Blog-Beiträgen).
 
+Wie der Treffer bei Google aussehen wird, zeigt die **Snippet-Vorschau** direkt
+im Admin — im Design-Tab für die Startseite, in den Dialogen von Blog-Beitrag,
+eigener Seite und Bibliothek-Eintrag für die jeweilige Unterseite. Dort siehst du
+auch, ob Titel und Beschreibung zu kurz oder zu lang sind.
+
 Impressum, Datenschutz, der Mitglieder-Bereich und die 404-Seite sind bewusst
 auf `noindex` gesetzt — sie tauchen nicht in Suchergebnissen auf.
 
@@ -40,9 +45,13 @@ auf `noindex` gesetzt — sie tauchen nicht in Suchergebnissen auf.
 3. **Inhaberschaft bestätigen.** Am einfachsten per HTML-Datei oder DNS-Eintrag:
    - **DNS** (empfohlen, wenn du Zugriff auf die Domain-Einstellungen hast):
      Google zeigt dir einen TXT-Eintrag, den du beim Domain-Anbieter hinterlegst.
-   - **HTML-Datei**: Google bietet eine Datei `googleXXXX.html` zum Download an.
-     Diese kannst du **nicht** direkt in MyPage ablegen — nutze in dem Fall
-     lieber die DNS-Variante oder die Meta-Tag-Methode über deinen Reverse-Proxy.
+   - **HTML-Tag** (in MyPage eingebaut): Google bietet neben der Datei auch ein
+     Meta-Tag an. Den Code trägst du im Admin-Panel → **Design-Tab** unter
+     *Google-Search-Console-Code* ein (das komplette Tag geht auch, der Code wird
+     herausgelesen). MyPage setzt das Tag dann in den Kopf der Startseite. Für
+     Bing gibt es daneben das Feld *Bing-Webmaster-Code*.
+   - **HTML-Datei**: Die Variante `googleXXXX.html` zum Ablegen im Web-Verzeichnis
+     unterstützt MyPage **nicht** — nimm dafür die beiden Wege oben.
 
 > Tipp: Trage am besten **beide** Varianten deiner Domain ein — mit und ohne
 > `www` (`https://gizmonet.de` und `https://www.gizmonet.de`) — und lege im
