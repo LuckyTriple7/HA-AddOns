@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.10.48
+
+- ⏮️ **Frühere Stände: einen versehentlich gelöschten Text zurückholen, ohne ein Backup einzuspielen.** Vor jeder Änderung sichert MyPage den bisherigen Stand der Seiteninhalte. Im Tab **System → Frühere Stände** stehen sie mit Zeitpunkt und den geänderten Abschnitten („Profil, Design“) und lassen sich einzeln **zurückholen**, herunterladen oder löschen. Beim Zurückholen wird der aktuelle Stand vorher selbst zum Stand — ein Fehlgriff ist also wieder rückgängig zu machen.
+- ⚙️ **Neue Option `revision_keep`** (Standard 20, `0` schaltet es ab). Die Stände liegen unter `addon_configs/<slug>_mypage/revisions/` und sind — wie die automatischen Backups — bewusst nicht Teil des Backup-ZIPs.
+- ℹ️ **Was ein Stand umfasst:** nur die Seiteninhalte (Profil, Projekte, Blog, Seiten, Design, Rechtstexte, Formulare, Bibliothek). Mitglieder, Nachrichten, Reiseblog, Umfragen und Statistik liegen in eigenen Dateien und bleiben beim Zurückholen unberührt. Stände unter 90 Sekunden Abstand werden zusammengefasst, und Änderungen, die nur vom Besuch der Seite kommen (Slot-Jackpot, Tipp-Statistik), erzeugen gar keinen Stand.
+
 ## 0.10.47
 
 - ✏️ **Der Markdown-Editor hängt jetzt an allen Feldern, die Markdown können.** Bisher stand im Code eine Liste der Feld-Namen — wer ein neues Textfeld anlegte, musste daran denken, es dort nachzutragen. Genau das ging schief: **Impressum**, **Datenschutz**, **Bibliothek-Einleitung** und die **KI-Textausgabe** werden auf der Seite als Markdown dargestellt, im Admin gab es dazu aber keinen Bearbeiten-Knopf mit Werkzeugleiste und Vorschau. Diese vier (je DE/EN) haben ihn jetzt.

@@ -26,7 +26,7 @@ Run your own homepage straight from Home Assistant — no design skills required
 - 🔒 **Members area**: password-protected file area per user (optionally on an SMB share), optional **self-registration** (email confirmation + admin approval), **self-service password reset** and **per-member games toggle**
 - 📨 **Contact form** with spam protection (honeypot + captcha + rate limit) and notifications via Telegram/email and **Home Assistant**
 - 🧭 **Navigation bar** in the header with jump links to the sections that exist
-- 📈 **Home Assistant sensors & notifications**, RSS, PWA, SEO (sitemap/robots.txt), backup & static export
+- 📈 **Home Assistant sensors & notifications**, RSS, PWA, SEO (sitemap/robots.txt), backup, **earlier versions to restore** & static export
 
 ## Quick start
 

@@ -848,8 +848,115 @@ def load_site() -> dict:
     return data
 
 
+# ── Versionsstand von site.json (Revisionen) ────────────────────────
+# Vor jedem Schreiben wandert der bisherige Stand nach revisions/. Damit ist ein
+# versehentlich geleertes Feld oder ein zerschossener Text zurückholbar, ohne
+# ein ganzes Backup einzuspielen — die Revision enthält ausschließlich
+# site.json, also Seiteninhalte. Mitglieder, Nachrichten, Reiseblog und
+# Statistik liegen in eigenen Dateien und bleiben von einer Rückkehr unberührt.
+REVISIONS_DIR = Path(_DATA) / 'revisions'
+REVISION_KEEP_DEFAULT = 20
+_REVISION_RE = re.compile(r'^site-(\d{8}-\d{6})\.json$')
+# Ein Admin-Speichern löst je nach Reiter mehrere save_site()-Aufrufe aus, und
+# wer länger an einer Seite arbeitet, speichert im Minutentakt. Ohne
+# Zusammenfassen bestünde die Liste aus Ständen, die Sekunden auseinander
+# liegen, und der brauchbare Stand von gestern wäre längst rausrotiert.
+# Gesichert wird immer der Stand VOR der Änderung — der erste Schnappschuss
+# einer solchen Serie ist deshalb der richtige.
+REVISION_COALESCE = 90        # Sekunden
+# Diese Schlüssel ändern sich durch bloßes Besuchen der Seite: der Slot-Jackpot
+# zählt bei jedem Dreh hoch, die Tipp-Statistik bei der ersten Anzeige des
+# Tages. Eine Revision nur dafür wäre Rauschen und würde echte Änderungen
+# aus der Liste drängen.
+REVISION_IGNORE = {'slot_jackpot', 'tips_stats'}
+
+
+def _revision_keep() -> int:
+    try:
+        return max(0, int(load_config().get('revision_keep', REVISION_KEEP_DEFAULT) or 0))
+    except (TypeError, ValueError):
+        return REVISION_KEEP_DEFAULT
+
+
+def _site_changed_keys(old: dict, new: dict) -> list:
+    """Geänderte Abschnitte auf oberster Ebene — ohne die flüchtigen Zähler."""
+    keys = set(old) | set(new)
+    out = [k for k in keys - REVISION_IGNORE
+           if json.dumps(old.get(k), sort_keys=True, ensure_ascii=False)
+           != json.dumps(new.get(k), sort_keys=True, ensure_ascii=False)]
+    return sorted(out)
+
+
+def list_revisions() -> list:
+    """Vorhandene Revisionen, neueste zuerst. Namen tragen den Zeitpunkt."""
+    try:
+        files = [f for f in REVISIONS_DIR.iterdir()
+                 if f.is_file() and _REVISION_RE.match(f.name)]
+    except OSError:
+        return []
+    out = []
+    for f in sorted(files, key=lambda x: x.name, reverse=True):
+        try:
+            out.append({'name': f.name, 'size': f.stat().st_size, 'ts': f.name[5:20]})
+        except OSError:
+            continue
+    return out
+
+
+def _rotate_revisions(keep: int) -> None:
+    for old in list_revisions()[keep:]:
+        try:
+            (REVISIONS_DIR / old['name']).unlink()
+        except OSError as e:
+            log.warning("Alte Revision %s konnte nicht entfernt werden: %s", old['name'], e)
+
+
+def _snapshot_site(new_data: dict | None = None, *, force: bool = False) -> None:
+    """Aktuellen Stand von site.json nach revisions/ sichern.
+
+    Wird aus save_site() heraus aufgerufen und läuft dort bereits unter
+    `_site_lock`. Fehler bleiben folgenlos: eine fehlende Revision darf das
+    Speichern selbst niemals verhindern.
+    """
+    keep = _revision_keep()
+    if keep <= 0:
+        return
+    try:
+        with open(SITE_PATH, encoding='utf-8') as f:
+            raw = f.read()
+    except OSError:
+        return                     # noch keine site.json — nichts zu sichern
+    if new_data is not None:
+        try:
+            old = json.loads(raw)
+        except ValueError:
+            old = None
+        # Beschädigte site.json immer sichern: sie ist gleich überschrieben.
+        if old is not None and not _site_changed_keys(old, new_data):
+            return
+    existing = list_revisions()
+    if not force and existing:
+        try:
+            age = time.time() - (REVISIONS_DIR / existing[0]['name']).stat().st_mtime
+            if age < REVISION_COALESCE:
+                return
+        except OSError:
+            pass
+    REVISIONS_DIR.mkdir(parents=True, exist_ok=True)
+    name = 'site-' + datetime.now().strftime('%Y%m%d-%H%M%S') + '.json'
+    tmp = REVISIONS_DIR / (name + '.tmp')
+    with open(tmp, 'w', encoding='utf-8') as f:
+        f.write(raw)
+    os.replace(tmp, REVISIONS_DIR / name)
+    _rotate_revisions(keep)
+
+
 def save_site(data: dict) -> None:
     with _site_lock:
+        try:
+            _snapshot_site(data)
+        except Exception as e:
+            log.warning("Revision konnte nicht angelegt werden: %s", e)
         try:
             _atomic_write_json(SITE_PATH, data, indent=2)
         except Exception as e:
@@ -5459,6 +5566,110 @@ def api_backups_delete(name: str):
         log.warning("Backup '%s' konnte nicht gelöscht werden", p.name)
         return jsonify({'error': 'delete failed'}), 500
     log_audit('backup_auto_delete', p.name)
+    return jsonify({'ok': True})
+
+
+# ── Revisionen: früheren Stand der Seiteninhalte ansehen und zurückholen ────
+
+def _revision_path(name: str) -> Path | None:
+    """Pfad zu einer Revision — nur exakt passende Namen, sonst None."""
+    if not _REVISION_RE.match(name or ''):
+        return None
+    return safe_under(REVISIONS_DIR, name)
+
+
+@admin_app.route('/api/revisions')
+def api_revisions_list():
+    err = _api_auth()
+    if err:
+        return err
+    keep = _revision_keep()
+    revs = list_revisions()
+    # Was sich geändert hat, wird beim Auflisten aus den Dateien selbst
+    # ermittelt: jede Revision gegen ihre Vorgängerin, die neueste gegen den
+    # aktuellen Stand. Eine mitgeführte Indexdatei wäre schneller, könnte aber
+    # von den Dateien abweichen — und dann zeigt die Liste Unsinn an.
+    def read(name: str):
+        try:
+            with open(REVISIONS_DIR / name, encoding='utf-8') as f:
+                return json.load(f)
+        except (OSError, ValueError):
+            return None
+
+    newer = None
+    try:
+        with open(SITE_PATH, encoding='utf-8') as f:
+            newer = json.load(f)
+    except (OSError, ValueError):
+        pass
+    for r in revs:
+        older = read(r['name'])
+        r['changed'] = (_site_changed_keys(older, newer)
+                        if older is not None and newer is not None else [])
+        newer = older if older is not None else newer
+    return jsonify({'revisions': revs, 'keep': keep})
+
+
+@admin_app.route('/api/revisions/<name>')
+def api_revision_download(name: str):
+    err = _api_auth()
+    if err:
+        return err
+    f = _revision_path(name)
+    if f is None or not f.is_file():
+        return jsonify({'error': 'not found'}), 404
+    return send_file(f, mimetype='application/json', as_attachment=True,
+                     download_name=f.name)
+
+
+@admin_app.route('/api/revisions/<name>/restore', methods=['POST'])
+def api_revision_restore(name: str):
+    err = _api_auth()
+    if err:
+        return err
+    f = _revision_path(name)
+    if f is None or not f.is_file():
+        return jsonify({'error': 'not found'}), 404
+    try:
+        with open(f, encoding='utf-8') as fh:
+            data = json.load(fh)
+    except (OSError, ValueError) as e:
+        log.warning("Revision %s ist nicht lesbar: %s", name, e)
+        return jsonify({'error': 'unreadable'}), 400
+    if not isinstance(data, dict):
+        return jsonify({'error': 'unreadable'}), 400
+    # Der Stand vor der Rückkehr wird selbst zur Revision — sonst wäre ein
+    # versehentlich zurückgeholter Stand nicht mehr rückgängig zu machen.
+    # `force`, weil das Zusammenfassen sonst genau hier zuschlägt: wer eben
+    # gespeichert hat und dann zurückholt, liegt innerhalb des Zeitfensters.
+    with _site_lock:
+        try:
+            _snapshot_site(force=True)
+        except Exception as e:
+            log.warning("Stand vor der Rückkehr konnte nicht gesichert werden: %s", e)
+        try:
+            _atomic_write_json(SITE_PATH, data, indent=2)
+        except Exception as e:
+            log.warning("Revision %s konnte nicht eingespielt werden: %s", name, e)
+            return jsonify({'error': 'restore failed'}), 500
+    log_audit('revision_restore', name)
+    return jsonify({'ok': True})
+
+
+@admin_app.route('/api/revisions/<name>', methods=['DELETE'])
+def api_revision_delete(name: str):
+    err = _api_auth()
+    if err:
+        return err
+    f = _revision_path(name)
+    if f is None or not f.is_file():
+        return jsonify({'error': 'not found'}), 404
+    try:
+        f.unlink()
+    except OSError:
+        log.warning("Revision '%s' konnte nicht gelöscht werden", f.name)
+        return jsonify({'error': 'delete failed'}), 500
+    log_audit('revision_delete', f.name)
     return jsonify({'ok': True})
 
 

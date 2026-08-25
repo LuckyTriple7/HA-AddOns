@@ -1,6 +1,6 @@
 name: MyPage
 description: Homepage-Baukasten — eigene Projekte präsentieren, GitHub-Import, Besucherzähler
-version: "0.10.47"
+version: "0.10.48"
 slug: mypage
 url: https://github.com/LuckyTriple7/HA-AddOns
 image: "ghcr.io/luckytriple7/mypage"
@@ -61,6 +61,7 @@ options:
   smtp_tls: true
   user_upload_max_mb: 200
   auto_backup_keep: 7
+  revision_keep: 20
   smb_server: ""
   smb_share: ""
   smb_user: ""
@@ -95,6 +96,7 @@ schema:
   smtp_tls: bool?
   user_upload_max_mb: int?
   auto_backup_keep: int(0,60)?
+  revision_keep: int(0,100)?
   smb_server: str?
   smb_share: str?
   smb_user: str?

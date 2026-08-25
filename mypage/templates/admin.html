@@ -1949,6 +1949,11 @@
         <button class="btn secondary" id="autobackup-run" onclick="runAutoBackup()">💾 {{ t.autobackup_run }}</button>
       </div>
       <div class="panel" data-jump-panel>
+        <h3>{{ t.revisions_heading }}</h3>
+        <p class="hint">{{ t.revisions_hint }}</p>
+        <div id="revisions-list"></div>
+      </div>
+      <div class="panel" data-jump-panel>
         <h3>{{ t.cleanup_heading }}</h3>
         <p class="hint">{{ t.cleanup_hint }}</p>
         <button class="btn secondary" id="cleanup-btn" onclick="cleanupUploads()">🧹 {{ t.cleanup_btn }}</button>
@@ -3259,7 +3264,7 @@
         if (btn.dataset.tab === 'messages') { loadMessages(); loadComments(); }
         if (btn.dataset.tab === 'users') { loadUsers(); initStorageBrowser(); startUsersPolling(); }
         if (btn.dataset.tab === 'design') { initPreview(); setTimeout(updatePresetArrows, 50); }
-        if (btn.dataset.tab === 'system') { loadAudit(); loadTwofa(); loadAutoBackups(); loadFileBrowser(); initSystemJump(); }
+        if (btn.dataset.tab === 'system') { loadAudit(); loadTwofa(); loadAutoBackups(); loadRevisions(); loadFileBrowser(); initSystemJump(); }
         if (btn.dataset.tab === 'blog') loadSubscribers();
         if (btn.dataset.tab === 'ai') initAiTab();
         if (btn.dataset.tab === 'travel') loadTravel();
@@ -5312,6 +5317,55 @@
       const r = await apiJson('api/backups/' + encodeURIComponent(name), 'DELETE', {});
       toast(r.ok ? T.deleted : T.error_save, !r.ok);
       loadAutoBackups();
+    }
+    // ── Frühere Stände (Revisionen von site.json) ──
+    // Der Dateiname trägt den Zeitpunkt als JJJJMMTT-HHMMSS — lokale Zeit des
+    // Add-ons, deshalb ohne Zeitzonen-Umrechnung anzeigen.
+    function revTime(ts) {
+      const m = /^(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})(\d{2})$/.exec(ts || '');
+      return m ? `${m[3]}.${m[2]}.${m[1]}, ${m[4]}:${m[5]}` : (ts || '');
+    }
+    function revChanged(keys) {
+      if (!keys || !keys.length) return T.revisions_changed_none;
+      return T.revisions_changed + ': ' + keys.map(k => T['sec_' + k] || k).join(', ');
+    }
+    async function loadRevisions() {
+      const box = el('revisions-list');
+      if (!box) return;
+      let d;
+      try {
+        d = await (await api('api/revisions')).json();
+      } catch (e) { return; }
+      if (!d.keep) { box.innerHTML = `<p class="hint">${T.revisions_off}</p>`; return; }
+      if (!d.revisions.length) { box.innerHTML = `<p class="hint">${T.revisions_none}</p>`; return; }
+      box.innerHTML = '';
+      d.revisions.forEach(r => {
+        const row = document.createElement('div');
+        row.className = 'redirect-row';
+        row.innerHTML =
+          `<span style="flex:1">${escHtml(revTime(r.ts))} &middot; <span class="hint">${escHtml(revChanged(r.changed))}</span></span>
+           <button type="button" class="btn secondary small">↺ ${escHtml(T.revisions_restore)}</button>
+           <button type="button" class="btn secondary small" title="⬇">⬇</button>
+           <button type="button" class="btn danger small">✕</button>`;
+        const [rest, dl, del] = row.querySelectorAll('button');
+        rest.onclick = () => restoreRevision(r.name);
+        dl.onclick = () => { window.location.href = 'api/revisions/' + encodeURIComponent(r.name); };
+        del.onclick = () => deleteRevision(r.name);
+        box.appendChild(row);
+      });
+    }
+    async function restoreRevision(name) {
+      if (!confirm(T.revisions_confirm_restore)) return;
+      const r = await apiJson('api/revisions/' + encodeURIComponent(name) + '/restore', 'POST', {});
+      toast(r.ok ? T.revisions_restored : T.error_save, !r.ok);
+      if (r.ok) { await loadSite(); }
+      loadRevisions();
+    }
+    async function deleteRevision(name) {
+      if (!confirm(T.revisions_confirm_delete)) return;
+      const r = await apiJson('api/revisions/' + encodeURIComponent(name), 'DELETE', {});
+      toast(r.ok ? T.deleted : T.error_save, !r.ok);
+      loadRevisions();
     }
     // ── Weiterleitungen (301/302) ──
     function renderRedirects() {

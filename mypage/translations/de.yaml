@@ -87,6 +87,13 @@ configuration:
     description: >-
       Legt täglich ein Backup unter addon_configs/<slug>_mypage/autobackup/ ab und
       behält die angegebene Anzahl der neuesten. 0 schaltet die automatischen Backups ab.
+  revision_keep:
+    name: Frühere Stände aufbewahren (Anzahl)
+    description: >-
+      Sichert vor jeder Änderung den bisherigen Stand der Seiteninhalte unter
+      addon_configs/<slug>_mypage/revisions/ und behält die angegebene Anzahl der neuesten.
+      Im Admin unter System → Frühere Stände einsehbar und zurückholbar.
+      0 schaltet die Stände ab.
   smb_server:
     name: SMB-Server (optional)
     description: IP/Hostname eines SMB-Shares — Mitglieder-Dateien liegen dann dort statt auf der SD-Karte.

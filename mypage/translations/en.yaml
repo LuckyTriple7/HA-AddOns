@@ -87,6 +87,13 @@ configuration:
     description: >-
       Stores a daily backup in addon_configs/<slug>_mypage/autobackup/ and keeps the
       given number of the most recent ones. 0 disables automatic backups.
+  revision_keep:
+    name: Earlier versions to keep (count)
+    description: >-
+      Saves the previous state of the site content before every change in
+      addon_configs/<slug>_mypage/revisions/ and keeps the given number of the most recent
+      ones. Viewable and restorable in the admin under System → Earlier versions.
+      0 disables versions.
   smb_server:
     name: SMB server (optional)
     description: IP/hostname of an SMB share — member files are stored there instead of the SD card.
