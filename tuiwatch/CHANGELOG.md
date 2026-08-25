@@ -1,5 +1,32 @@
 # Changelog
 
+## [0.102.0] - 2026-08-25
+
+### Added
+- **Vierter Flugplan: Karlsruhe/Baden-Baden (FKB, „Baden-Airpark").** Neue Option
+  `enable_fkb_flights` (Standard aus) ergaenzt den Flugplan-Knopf um den
+  Saisonflugplan des Baden-Airpark: rund 1.000 Verbindungen (Abfluege + Ankuenfte)
+  mit Wochentagen, Zeiten, Airline, Gueltigkeitszeitraum und Flugzeugtyp
+  (Sitzplaetze im Tooltip). Anders als Muenchen deckt die Quelle **alle
+  veroeffentlichten Saisons** ab, nicht nur die laufende — Sommer- und
+  Winterflugplan des laufenden und naechsten Jahres. Der Plan liegt sechs Stunden
+  im Speicher und laesst sich im Fenster sofort neu laden. FKB zaehlt auch in der
+  kombinierten Suche „Flugziel ueberall suchen" und in der Gesamtliste aller
+  Flugziele mit.
+
+### Technical
+- `fkb_flights_client.py` holt den Plan ueber den WordPress-AJAX-Endpunkt der
+  Flughafen-Website (`admin-ajax.php?action=flightmap`). Zwei Fallstricke, beide
+  live ermittelt und in [SCRAPING_FKB.md](SCRAPING_FKB.md) dokumentiert: die
+  Anfrage muss ein **POST mit JSON-Body** sein (dieselben Werte als GET-Query
+  liefern kommentarlos `posts: "empty"`), und `type` muss ein **String** sein
+  (als Liste antwortet die Seite mit `success: false` und einer PHP-Fehlermeldung).
+  Die Antwort enthaelt fertig gerendertes HTML statt Daten; geparst wird je Zelle
+  ueber deren CSS-Klasse, nicht ueber die Spaltenreihenfolge — der tagesaktuelle
+  Flugplan derselben Seite nutzt dieselben Klassen in anderer Reihenfolge.
+- Ein Land nennt der Saisonplan nicht; `country` bleibt leer und wird in der
+  kombinierten Zielliste aus den anderen Flugplaenen ergaenzt.
+
 ## [0.101.5] - 2026-08-25
 
 ### Added

@@ -176,6 +176,9 @@ configuration:
   enable_muc_flights:
     name: Flugplan ab München Airport (MUC)
     description: "Ergänzt den ✈️-Knopf um den Flugplan ab/nach München. München bietet kein Flugplan-API — die Daten stammen aus dem offiziellen Saison-Flugplan-PDF des Flughafens (rund 3.300 Verbindungen mit Wochentagen, Zeiten, Terminal und Gültigkeitszeitraum, wie beim Stuttgarter Plan). Das PDF wird täglich neu erzeugt; das Add-on prüft alle drei Stunden, ob eine neue Fassung hängt, und liest sie nur dann neu ein. Achtung: Das PDF deckt immer nur die laufende Saison ab (Sommer bzw. Winter), nicht 12 Monate im Voraus. Standard aus."
+  enable_fkb_flights:
+    name: Saisonflugplan ab Karlsruhe/Baden-Baden (FKB)
+    description: "Ergänzt den ✈️-Knopf um den Saisonflugplan ab/nach Karlsruhe/Baden-Baden (FKB, „Baden-Airpark“). Zeigt rund 1.000 Verbindungen mit Wochentagen, Zeiten, Flugzeugtyp, Airline und Gültigkeitszeitraum — anders als München über mehrere Saisons hinweg (Sommer- und Winterflugplan des laufenden und nächsten Jahres). Die Daten stammen aus der Saisonflugplan-Ansicht der Flughafen-Website; sie liefert fertiges HTML statt Daten, das Add-on liest es aus und hält es sechs Stunden im Speicher. Standard aus."
   enable_public_share:
     name: Öffentliche Angebots-Links
     description: "Schaltet Links frei, mit denen sich ausgewählte Angebote ohne Login anschauen lassen (wie die Angebotsseite eines Reisebüros) — inklusive gespeicherter Klimatabelle, Reiseführer und Reiseberater-Ergebnis. Die Seite läuft auf einem eigenen Port (siehe „Port für öffentliche Links“), zeigt nur einen beim Erzeugen eingefrorenen Stand und erlaubt keinerlei Abfragen. Nur diesen zweiten Port im Reverse-Proxy nach außen geben, niemals 17794. Standard aus."

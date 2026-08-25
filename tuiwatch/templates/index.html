@@ -1835,6 +1835,9 @@
         <button class="fpick-opt" id="fpick-muc" onclick="closeFlightPick(); openMucFlights()">
           <b>München (MUC)</b>
         </button>
+        <button class="fpick-opt" id="fpick-fkb" onclick="closeFlightPick(); openFkbFlights()">
+          <b>Karlsruhe/Baden-Baden (FKB)</b>
+        </button>
         <button class="fpick-opt" id="fpick-all" style="flex:1 1 100%" onclick="closeFlightPick(); openAllFlights()">
           <b><svg class="i"><use href="#i-search"/></svg> Alle durchsuchen</b>
         </button>
@@ -1863,10 +1866,10 @@
       </div>
       <div id="allf-body"><div class="hint">Suchbegriff eingeben, z. B. „Palma", „PMI" oder „Spanien".</div></div>
 
-      <!-- Gesamtliste aller tatsächlich angeflogenen Ziele (nur STR + MUC —
+      <!-- Gesamtliste aller tatsächlich angeflogenen Ziele (STR + MUC + FKB —
            Frankfurt hat als Drehkreuz keine abrufbare Gesamtliste, siehe
            api_flights_destinations()). Zeile anklicken übernimmt den Code
-           ins Suchfeld oben und sucht über alle drei Flughäfen (FRA also
+           ins Suchfeld oben und sucht über alle Flughäfen (FRA also
            mit, nur eben nicht in dieser Liste). -->
       <h3 style="margin:18px 0 4px"><svg class="i"><use href="#i-clipboard"/></svg> Alle Flugziele</h3>
       <div id="allf-dest-body"><div class="hint">Lädt…</div></div>
@@ -1909,6 +1912,34 @@
       <h2 id="fraf-detail-title"><svg class="i"><use href="#i-plane"/></svg> Flugdetails</h2>
       <div class="sub" id="fraf-detail-live"></div>
       <div id="fraf-detail-body"></div>
+    </div>
+  </div>
+
+  <!-- FKB-Flugplan-Modal — Saisonflugplan des Baden-Airpark, aus dem
+       WordPress-AJAX der Flughafen-Website (gerendertes HTML, kein Daten-API),
+       siehe SCRAPING_FKB.md. -->
+  <div class="modal-bg" id="fkbf-bg">
+    <div class="modal" style="max-width:980px">
+      <button class="icon-btn modal-close" onclick="closeFkbFlights()">
+        <svg class="i"><use href="#i-close"/></svg>
+      </button>
+      <h2><svg class="i"><use href="#i-plane"/></svg> Saisonflugplan ab Karlsruhe/Baden-Baden (FKB)</h2>
+      <div class="sub">Linienflug-Verbindungen mehrerer Saisons — aus dem Saisonflugplan des Flughafens, keine Pauschalreise-Angebote.</div>
+      <div class="shr-row" style="margin:10px 0">
+        <input type="text" id="fkbf-q" placeholder="Ziel suchen… (Code, Ort, Airline)" autocomplete="off" style="flex:1 1 180px;min-width:140px">
+        <select id="fkbf-type" onchange="fkbFlightsSearch()">
+          <option value="">Abflug &amp; Ankunft</option>
+          <option value="departure">Nur Abflug ab FKB</option>
+          <option value="arrival">Nur Ankunft in FKB</option>
+        </select>
+        <label class="hint" style="display:flex;align-items:center;gap:5px">Zeitraum
+          <input type="month" id="fkbf-von" title="Verbindung frühestens ab diesem Monat" style="width:150px">
+          <span>–</span>
+          <input type="month" id="fkbf-bis" title="Verbindung spätestens bis zu diesem Monat" style="width:150px">
+        </label>
+      </div>
+      <div id="fkbf-body"><div class="hint">Suchbegriff eingeben, z. B. „Palma", „PMI" oder „Ryanair".</div></div>
+      <div class="hc-foot" style="margin-top:8px" onclick="fkbFlightsRefresh()" title="Saisonflugplan sofort neu laden (passiert sonst automatisch alle sechs Stunden)"><svg class="i"><use href="#i-refresh"/></svg> Flugplan neu laden</div>
     </div>
   </div>
 
@@ -2039,10 +2070,11 @@
                 homeLoc: {{ trippilot_home_location|tojson }}, check24: {{ check24_enabled|tojson }},
                 strFlights: {{ str_flights_enabled|tojson }}, share: {{ share_enabled|tojson }},
                 fraFlights: {{ fra_flights_enabled|tojson }},
-                mucFlights: {{ muc_flights_enabled|tojson }} };
+                mucFlights: {{ muc_flights_enabled|tojson }},
+                fkbFlights: {{ fkb_flights_enabled|tojson }} };
     document.body.classList.toggle('ai-disabled', !G.ai);
     document.body.classList.toggle('check24-disabled', !G.check24);
-    document.body.classList.toggle('flights-disabled', !G.strFlights && !G.fraFlights && !G.mucFlights);
+    document.body.classList.toggle('flights-disabled', !G.strFlights && !G.fraFlights && !G.mucFlights && !G.fkbFlights);
     document.body.classList.toggle('share-disabled', !G.share);
     window.G = G;  // auch für den Konsolen-Script-Block (Ingress-Pfad) erreichbar
   </script>

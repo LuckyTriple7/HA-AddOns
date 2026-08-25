@@ -1,17 +1,17 @@
-"""Kombinierte Flugziel-Suche über alle drei Flugpläne (STR/FRA/MUC) —
-eigenständiges Blueprint neben str_/fra_/muc_flights_routes.py.
+"""Kombinierte Flugziel-Suche über alle vier Flugpläne (STR/FRA/MUC/FKB) —
+eigenständiges Blueprint neben str_/fra_/muc_/fkb_flights_routes.py.
 
-Bewusst **kein** vereinheitlichtes Datenmodell: die drei Flugpläne bleiben so
-unterschiedlich wie in ihren eigenen Clients (STR/MUC: Saisonstrecken mit
+Bewusst **kein** vereinheitlichtes Datenmodell: die Flugpläne bleiben so
+unterschiedlich wie in ihren eigenen Clients (STR/MUC/FKB: Saisonstrecken mit
 Wochentagsraster, FRA: Einzelflüge je Datum) — eine gemeinsame Row-Form würde
 das verbiegen (siehe fra_flights_client.py-Kommentar). Diese Route ruft nur
-alle drei parallel ab und reicht ihre jeweils eigene Antwortform unverändert
-unter `str`/`fra`/`muc` durch; das Frontend rendert jede Sektion mit den
+alle parallel ab und reicht ihre jeweils eigene Antwortform unverändert
+unter `str`/`fra`/`muc`/`fkb` durch; das Frontend rendert jede Sektion mit den
 bestehenden render*Flights()-Funktionen der Einzelpläne.
 
 Nur Abflüge (Ziel-Perspektive „wohin komme ich von hier") — für Ankünfte
 bleiben die Einzelpläne da, ein kombinierter Filter für beide Richtungen über
-drei Flughäfen wäre unübersichtlich.
+vier Flughäfen wäre unübersichtlich.
 """
 from concurrent.futures import ThreadPoolExecutor
 
@@ -22,12 +22,13 @@ import str_flights_client
 import fra_flights_client
 import fra_board_client
 import muc_flights_client
+import fkb_flights_client
 
 bp = Blueprint('all_flights_routes', __name__)
 
-# `/api/flights/destinations` (Übersichtstabelle) mischt eine vierte, andere
+# `/api/flights/destinations` (Übersichtstabelle) mischt eine weitere, andere
 # Quelle mit ein: fra_board_client.py (Drittseiten-Tagesbord, nur genähert).
-# `/api/flights/search` (gezielte Suche) bleibt bei den drei offiziellen
+# `/api/flights/search` (gezielte Suche) bleibt bei den offiziellen
 # Quellen — fra_board_client wird dort bewusst NICHT verwendet.
 
 
@@ -40,6 +41,7 @@ def api_flights_search():
         'str': bool(cfg.get('enable_str_flights', False)),
         'fra': bool(cfg.get('enable_fra_flights', False)),
         'muc': bool(cfg.get('enable_muc_flights', False)),
+        'fkb': bool(cfg.get('enable_fkb_flights', False)),
     }
     if not any(enabled.values()):
         return jsonify({'error': 'disabled'}), 404
@@ -50,10 +52,11 @@ def api_flights_search():
     date_till = (request.args.get('till') or '').strip()
     verbose = A._verbose()
 
-    # Parallel statt nacheinander: die drei Quellen sind unabhängig
-    # (Azure-API, JSON, PDF-Parse-Cache) und blockieren sich sonst gegenseitig
-    # — v. a. MUC kann beim ersten Aufruf ~15 s für den PDF-Import brauchen.
-    with ThreadPoolExecutor(max_workers=3) as ex:
+    # Parallel statt nacheinander: die Quellen sind unabhängig (Azure-API,
+    # JSON, PDF-Parse-Cache, WordPress-AJAX) und blockieren sich sonst
+    # gegenseitig — v. a. MUC kann beim ersten Aufruf ~15 s für den PDF-Import
+    # brauchen.
+    with ThreadPoolExecutor(max_workers=4) as ex:
         jobs = {}
         if enabled['str']:
             jobs['str'] = ex.submit(str_flights_client.search_connections, q,
@@ -67,10 +70,14 @@ def api_flights_search():
             jobs['muc'] = ex.submit(muc_flights_client.search, q,
                                     direction='departure', date_from=date_from,
                                     date_till=date_till, verbose=verbose)
+        if enabled['fkb']:
+            jobs['fkb'] = ex.submit(fkb_flights_client.search, q,
+                                    direction='departure', date_from=date_from,
+                                    date_till=date_till, verbose=verbose)
         results = {k: f.result() for k, f in jobs.items()}
 
     out = {}
-    for k in ('str', 'fra', 'muc'):
+    for k in ('str', 'fra', 'muc', 'fkb'):
         if not enabled[k]:
             continue
         res = results.get(k)
@@ -88,9 +95,9 @@ def api_flights_destinations():
     """Gesamtliste aller tatsächlich angeflogenen Ziele — für die
     Flugziel-Tabelle im Auswahldialog (Zeile anklicken = Suche).
 
-    **STR + MUC vollständig**: beide halten die komplette Saison im
-    Speicher-Cache (Azure-API bzw. PDF), eine Gesamtliste ist da ein billiger
-    Cache-Scan. **FRA nur genähert**: die offizielle Flug-API liefert keine
+    **STR + MUC + FKB vollständig**: alle drei halten die komplette Saison im
+    Speicher-Cache (Azure-API, PDF bzw. WordPress-AJAX), eine Gesamtliste ist da
+    ein billiger Cache-Scan. **FRA nur genähert**: die offizielle Flug-API liefert keine
     Gesamtliste (123.289 Abflüge auf 4.854 Seiten ohne Zielfilter, siehe
     SCRAPING_FRA.md) — stattdessen liest fra_board_client.py das Tagesbord
     einer Drittseite und akkumuliert über ein rollierendes Fenster (siehe
@@ -103,11 +110,12 @@ def api_flights_destinations():
     enabled_str = bool(cfg.get('enable_str_flights', False))
     enabled_fra = bool(cfg.get('enable_fra_flights', False))
     enabled_muc = bool(cfg.get('enable_muc_flights', False))
-    if not (enabled_str or enabled_fra or enabled_muc):
+    enabled_fkb = bool(cfg.get('enable_fkb_flights', False))
+    if not (enabled_str or enabled_fra or enabled_muc or enabled_fkb):
         return jsonify({'error': 'disabled'}), 404
     verbose = A._verbose()
 
-    with ThreadPoolExecutor(max_workers=3) as ex:
+    with ThreadPoolExecutor(max_workers=4) as ex:
         jobs = {}
         if enabled_str:
             jobs['str'] = ex.submit(str_flights_client.list_destinations, verbose=verbose)
@@ -115,11 +123,14 @@ def api_flights_destinations():
             jobs['fra'] = ex.submit(fra_board_client.list_destinations, verbose=verbose)
         if enabled_muc:
             jobs['muc'] = ex.submit(muc_flights_client.list_destinations, verbose=verbose)
+        if enabled_fkb:
+            jobs['fkb'] = ex.submit(fkb_flights_client.list_destinations, verbose=verbose)
         results = {k: f.result() for k, f in jobs.items()}
 
     # Über den IATA-Code zusammenführen (global eindeutig) — ein Ziel, das
-    # sowohl ab STR als auch ab MUC angeflogen wird, taucht nur einmal auf,
-    # mit beiden Flughäfen in `airports`.
+    # von mehreren Flughäfen angeflogen wird, taucht nur einmal auf, mit allen
+    # Flughäfen in `airports`. Der FKB-Saisonplan nennt kein Land; leer
+    # gelassene Felder füllen sich hier aus den anderen Quellen.
     merged: dict[str, dict] = {}
     for src, rows in results.items():
         if rows is None:

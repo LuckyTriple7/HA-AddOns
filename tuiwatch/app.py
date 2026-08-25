@@ -92,7 +92,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.101.4"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.102.0"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -2869,6 +2869,15 @@ def _flight_healthchecks() -> list[dict]:
         except Exception as e:
             add('MUC-Flugplan-PDF', False, type(e).__name__)
 
+    if cfg.get('enable_fkb_flights', False):
+        import fkb_flights_client
+        try:
+            rows = fkb_flights_client.list_destinations(verbose=_verbose())
+            add('FKB-Saisonflugplan', rows is not None,
+                f'{len(rows)} Ziele' if rows is not None else 'kein Ergebnis')
+        except Exception as e:
+            add('FKB-Saisonflugplan', False, type(e).__name__)
+
     return checks
 
 
@@ -3189,6 +3198,7 @@ def index():
         str_flights_enabled=bool(cfg.get('enable_str_flights', False)),
         fra_flights_enabled=bool(cfg.get('enable_fra_flights', False)),
         muc_flights_enabled=bool(cfg.get('enable_muc_flights', False)),
+        fkb_flights_enabled=bool(cfg.get('enable_fkb_flights', False)),
         share_enabled=bool(cfg.get('enable_public_share', False)),
         app_version=APP_VERSION))
 
@@ -3535,11 +3545,12 @@ def _schedule_overview() -> dict:
                   'note': f'alle {_dur(ak_interval)}'})
 
     # Flugpläne — STR/FRA-Zielliste/MUC, je eigener Warm-Poller mit eigenem
-    # Takt (_str_flights_worker/_fra_board_worker/_muc_flights_worker), nur
+    # Takt (_str_/_fra_board_/_muc_/_fkb_flights_worker), nur
     # aktive Flughäfen zählen mit.
     import str_flights_client
     import fra_board_client
     import muc_flights_client
+    import fkb_flights_client
     flight_srcs = []
     if cfg.get('enable_str_flights', False):
         flight_srcs.append(('STR', str_flights_client.last_fetch_ts(), str_flights_client.CACHE_TTL))
@@ -3549,6 +3560,8 @@ def _schedule_overview() -> dict:
     if cfg.get('enable_muc_flights', False):
         muc_last = muc_flights_client.status().get('checked_ts') or 0
         flight_srcs.append(('MUC', muc_last, muc_flights_client.CHECK_INTERVAL))
+    if cfg.get('enable_fkb_flights', False):
+        flight_srcs.append(('FKB', fkb_flights_client.last_fetch_ts(), fkb_flights_client.CACHE_TTL))
     if flight_srcs:
         soonest = min((last or 0) + interval for _, last, interval in flight_srcs)
         note = '/'.join(name for name, _, _ in flight_srcs) + ' aktiv'
@@ -3971,6 +3984,7 @@ import check24_routes  # noqa: E402
 import str_flights_routes  # noqa: E402
 import fra_flights_routes  # noqa: E402
 import muc_flights_routes  # noqa: E402
+import fkb_flights_routes  # noqa: E402
 import all_flights_routes  # noqa: E402
 import market_basket  # noqa: E402
 import stats_routes  # noqa: E402
@@ -3984,6 +3998,7 @@ app.register_blueprint(check24_routes.bp)
 app.register_blueprint(str_flights_routes.bp)
 app.register_blueprint(fra_flights_routes.bp)
 app.register_blueprint(muc_flights_routes.bp)
+app.register_blueprint(fkb_flights_routes.bp)
 app.register_blueprint(all_flights_routes.bp)
 app.register_blueprint(market_basket.bp)
 # Nur die Admin-Routen (/api/shares…) hängen an der geschützten App. Die
@@ -4098,6 +4113,19 @@ def _str_flights_worker() -> None:
         time.sleep(str_flights_client.CACHE_TTL)
 
 
+def _fkb_flights_worker() -> None:
+    """Hält den Saisonflugplan von Karlsruhe/Baden-Baden warm (nur bei
+    `enable_fkb_flights`) — analog zu `_str_flights_worker`."""
+    import fkb_flights_client
+    while True:
+        try:
+            if bool(load_config().get('enable_fkb_flights', False)):
+                fkb_flights_client.list_destinations(verbose=_verbose())
+        except Exception as e:
+            log.warning("FKB-Flugplan-Aktualisierung fehlgeschlagen: %s", e)
+        time.sleep(fkb_flights_client.CACHE_TTL)
+
+
 def _fra_board_worker() -> None:
     """Hält die genäherte FRA-Zielliste warm (nur bei `enable_fra_flights`) —
     analog zu `_muc_flights_worker`. Betrifft nur die Übersichtstabelle
@@ -4170,6 +4198,7 @@ def main() -> None:
     threading.Thread(target=_muc_flights_worker, daemon=True).start()
     threading.Thread(target=_str_flights_worker, daemon=True).start()
     threading.Thread(target=_fra_board_worker, daemon=True).start()
+    threading.Thread(target=_fkb_flights_worker, daemon=True).start()
     _start_public_server()
     port = int(os.environ.get('TUIWATCH_PORT', '17794'))
     log.info("TUIWatch startet auf Port %d", port)

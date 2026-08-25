@@ -1960,12 +1960,13 @@
     // ohne Zwischenschritt direkt dorthin.
     function openFlightPlan(){
       const on = [G.strFlights && openStrFlights, G.fraFlights && openFraFlights,
-                  G.mucFlights && openMucFlights].filter(Boolean);
+                  G.mucFlights && openMucFlights, G.fkbFlights && openFkbFlights].filter(Boolean);
       if(on.length > 1){
         // Nur die freigeschalteten Flughäfen zur Wahl stellen
         $('#fpick-str').style.display = G.strFlights ? '' : 'none';
         $('#fpick-fra').style.display = G.fraFlights ? '' : 'none';
         $('#fpick-muc').style.display = G.mucFlights ? '' : 'none';
+        $('#fpick-fkb').style.display = G.fkbFlights ? '' : 'none';
         $('#fpick-bg').classList.add('show');
         return;
       }
@@ -2002,9 +2003,9 @@
       }
       renderAllFlights(data);
     }
-    const ALLF_LABEL = {str:'Stuttgart (STR)', fra:'Frankfurt (FRA)', muc:'München (MUC)'};
+    const ALLF_LABEL = {str:'Stuttgart (STR)', fra:'Frankfurt (FRA)', muc:'München (MUC)', fkb:'Karlsruhe/Baden-Baden (FKB)'};
     function renderAllFlights(data){
-      const present = ['str','fra','muc'].filter(k => data[k]);
+      const present = ['str','fra','muc','fkb'].filter(k => data[k]);
       if(!present.length){ $('#allf-body').innerHTML = '<div class="hint">Kein Flughafen freigeschaltet.</div>'; return; }
       $('#allf-body').innerHTML = present.map(k =>
         `<div style="margin-top:14px"><h3 style="margin:0 0 4px">${ALLF_LABEL[k]}</h3>
@@ -2014,11 +2015,12 @@
         if(res.error){ $(sel).innerHTML = '<div class="cmp-load" style="color:var(--amber)"><svg class="i"><use href="#i-warn"/></svg> Nicht erreichbar.</div>'; return; }
         if(k==='str') renderStrFlights(res.rows||[], sel);
         else if(k==='fra') renderFraFlights(res, sel, true);
+        else if(k==='fkb') renderFkbFlights(res, sel);
         else renderMucFlights(res, sel);
       });
     }
 
-    // Gesamtliste aller tatsächlich angeflogenen Ziele (nur STR + MUC — siehe
+    // Gesamtliste aller tatsächlich angeflogenen Ziele (STR + MUC + FKB — siehe
     // api_flights_destinations()). Einmal geladen, danach aus dem Cache des
     // Servers — kein erneuter Abruf bei jedem Modal-Öffnen.
     async function loadAllfDestinations(){
@@ -2032,7 +2034,7 @@
       }
       renderAllfDestinations(data.destinations || []);
     }
-    const ALLF_AP_SHORT = {str:'STR', muc:'MUC'};
+    const ALLF_AP_SHORT = {str:'STR', muc:'MUC', fkb:'FKB'};
     const ALLF_FRA_TITLE = 'Näherung: Frankfurt hat keine amtliche Gesamtliste (Drehkreuz), dieses Ziel stammt aus einem rollierend gesammelten Tagesbord einer Drittseite — kann bei sehr seltenen Verbindungen fehlen oder veraltet sein.';
     function renderAllfDestinations(dest){
       if(!dest.length){ $('#allf-dest-body').innerHTML = '<div class="hint">Keine Ziele gefunden.</div>'; return; }
@@ -2042,8 +2044,8 @@
         <td class="hint">${esc(d.country)}</td>
         <td class="hint">${(d.airports||[]).map(a=>a==='fra'?`<span title="${ALLF_FRA_TITLE}">FRA*</span>`:(ALLF_AP_SHORT[a]||a)).join(', ')}</td>
       </tr>`).join('');
-      $('#allf-dest-body').innerHTML = `<div class="hint" style="margin-bottom:6px">${dest.length} Ziele — Stuttgart + München vollständig erfasst. Frankfurt (FRA*) nur genähert aus einem Drittseiten-Tagesbord, siehe Spalten-Tooltip. Zeile anklicken für Verbindungen.</div>
-        <div style="overflow-x:auto;max-height:340px;overflow-y:auto"><table class="hist"><tr><th>Ziel</th><th>Code</th><th>Land</th><th title="STR/MUC: vollständiger Saison-Fahrplan. FRA*: Näherung aus einem Drittseiten-Tagesbord, kein amtlicher Fahrplan — kann einzelne selten fliegende Ziele verpassen.">Ab ⓘ</th></tr>${rowsHtml}</table></div>`;
+      $('#allf-dest-body').innerHTML = `<div class="hint" style="margin-bottom:6px">${dest.length} Ziele — Stuttgart, München und Karlsruhe/Baden-Baden vollständig erfasst. Frankfurt (FRA*) nur genähert aus einem Drittseiten-Tagesbord, siehe Spalten-Tooltip. Zeile anklicken für Verbindungen.</div>
+        <div style="overflow-x:auto;max-height:340px;overflow-y:auto"><table class="hist"><tr><th>Ziel</th><th>Code</th><th>Land</th><th title="STR/MUC/FKB: vollständiger Saison-Fahrplan. FRA*: Näherung aus einem Drittseiten-Tagesbord, kein amtlicher Fahrplan — kann einzelne selten fliegende Ziele verpassen.">Ab ⓘ</th></tr>${rowsHtml}</table></div>`;
     }
     function allfPickDestination(code){
       $('#allf-q').value = code;
@@ -2134,6 +2136,61 @@
         <div class="hint" style="margin-top:10px">Quelle: Flughafen Frankfurt — Planung, Gate und Schalter können sich kurzfristig ändern.</div>`;
       $('#fraf-detail-bg').style.zIndex = 60;
       $('#fraf-detail-bg').classList.add('show');
+    }
+
+    // ── FKB-Flugplan (Saisonstrecken des Baden-Airpark) ───────────────────────
+    let fkbfTimer = null;
+    function openFkbFlights(){ $('#fkbf-bg').classList.add('show'); $('#fkbf-q').focus(); }
+    function closeFkbFlights(){ $('#fkbf-bg').classList.remove('show'); }
+    $('#fkbf-bg').addEventListener('click', e=>{ if(e.target.id==='fkbf-bg') closeFkbFlights(); });
+    $('#fkbf-q').addEventListener('input', ()=>{ clearTimeout(fkbfTimer); fkbfTimer = setTimeout(fkbFlightsSearch, 350); });
+    $('#fkbf-von').addEventListener('change', fkbFlightsSearch);
+    $('#fkbf-bis').addEventListener('change', fkbFlightsSearch);
+    async function fkbFlightsSearch(){
+      const q = $('#fkbf-q').value.trim();
+      const type = $('#fkbf-type').value;
+      const von = $('#fkbf-von').value, bis = $('#fkbf-bis').value;
+      if(q.length < 2){
+        $('#fkbf-body').innerHTML = '<div class="hint">Suchbegriff eingeben, z. B. „Palma", „PMI" oder „Ryanair".</div>';
+        return;
+      }
+      $('#fkbf-body').innerHTML = progBar('Suche…');
+      let data;
+      try {
+        data = await fetch(api('/api/fkbflights?q='+encodeURIComponent(q)+'&type='+encodeURIComponent(type)
+          +'&from='+encodeURIComponent(von)+'&till='+encodeURIComponent(bis))).then(r=>r.json());
+      } catch(e){ data = {error:'fetch_failed'}; }
+      if(data.error){
+        $('#fkbf-body').innerHTML = '<div class="cmp-load" style="color:var(--amber)"><svg class="i"><use href="#i-warn"/></svg> Flugplan nicht erreichbar. Bitte später erneut versuchen.</div>';
+        return;
+      }
+      renderFkbFlights(data);
+    }
+    function renderFkbFlights(data, bodySel){
+      bodySel = bodySel || '#fkbf-body';
+      const rows = data.rows || [];
+      const foot = `<div class="hint" style="margin-top:8px">${(data.count||0).toLocaleString('de-DE')} Verbindungen im Plan (Abflug + Ankunft, alle veröffentlichten Saisons)</div>`;
+      if(!rows.length){ $(bodySel).innerHTML = '<div class="hint">Keine Verbindung gefunden.</div>'+foot; return; }
+      const rowsHtml = rows.map(r => `<tr class="fkbf-row">
+          <td title="${r.direction==='departure'?'Abflug ab FKB':'Ankunft in FKB'}">${r.direction==='departure'?'<svg class="i"><use href="#i-takeoff"/></svg>':'<svg class="i"><use href="#i-landing"/></svg>'}</td>
+          <td>${esc(r.airport_name)} <span class="hint">(${esc(r.airport_code)})</span></td>
+          <td>${esc(r.airline_name||r.airline_code)} ${esc(r.flight_no)}</td>
+          <td>${esc(r.weekdays_short)}</td>
+          <td>${esc(r.departure)}–${esc(r.arrival)}</td>
+          <td class="hint">${esc(deDate(r.date_from))}–${esc(deDate(r.date_till))}</td>
+          <td class="hint" title="${esc(r.season)}${r.seats?' · '+esc(r.seats):''}">${esc(r.plane)}</td>
+        </tr>`).join('');
+      const more = data.total > rows.length ? ` (von ${data.total}, Zeitraum oder Suchbegriff eingrenzen)` : '';
+      $(bodySel).innerHTML = `<div class="hint" style="margin-bottom:6px">${rows.length} Verbindung${rows.length===1?'':'en'}${more}</div>
+        <div style="overflow-x:auto"><table class="hist"><tr><th></th><th>Ziel</th><th>Flug</th><th>Tage</th><th>Zeiten</th><th>Zeitraum</th><th title="Flugzeugtyp — Saison und Sitzplätze im Tooltip">Flugzeug ⓘ</th></tr>${rowsHtml}</table></div>${foot}`;
+    }
+    async function fkbFlightsRefresh(){
+      $('#fkbf-body').innerHTML = progBar('Saisonflugplan wird neu geladen…');
+      try {
+        const r = await fetch(api('/api/fkbflights/refresh'), {method:'POST'}).then(x=>x.json());
+        toast(r.error ? 'Flugplan nicht abrufbar' : 'Saisonflugplan neu geladen');
+      } catch(e){ toast('Flugplan nicht abrufbar'); }
+      fkbFlightsSearch();
     }
 
     // ── MUC-Flugplan (Saisonstrecken aus dem Flugplan-PDF des Flughafens) ──────
