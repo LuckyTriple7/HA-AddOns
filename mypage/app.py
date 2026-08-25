@@ -2628,8 +2628,12 @@ def count_visit(req) -> None:
     if req.headers.get('X-MyPage-Export'):
         return  # interner Abruf für den statischen Export
     ua = req.headers.get('User-Agent') or ''
-    is_bot = (not ua) or any(b in ua.lower() for b in _BOT_UA)
     ip = get_client_ip(req)
+    # Rechenzentrums-Adressen zählen unabhängig von der Browserkennung als Bot:
+    # Scanner geben sich als „Safari · iOS" aus und rutschen sonst als echter
+    # Besucher durch (ein Aufruf, keine Verweildauer).
+    is_bot = ((not ua) or any(b in ua.lower() for b in _BOT_UA)
+              or vx.is_datacenter_ip(ip))
     today = date.today().isoformat()
     if today != _seen_day:
         _seen_day = today
@@ -9317,7 +9321,11 @@ def _visit_rows(month: str, with_bots: bool):
     except OSError:
         return None, None
     if not with_bots:
-        rows = [r for r in rows if not r[vx.BOT]]
+        # Die Netzprüfung läuft zusätzlich zur `bot`-Spalte, damit auch schon
+        # archivierte Zeilen sauber werden: die Spalte wurde beim Schreiben
+        # gesetzt, die Netzliste kam später dazu.
+        rows = [r for r in rows
+                if not r[vx.BOT] and not vx.is_datacenter_ip(r[vx.IP])]
     return rows, meta
 
 
@@ -14306,6 +14314,11 @@ if __name__ == '__main__':
         log.warning("Standard-Passwort aktiv — bitte in den Add-on-Optionen ändern!")
     upload_max = max(1, min(4096, int(cfg.get('user_upload_max_mb') or 200)))
     public_app.config['MAX_CONTENT_LENGTH'] = upload_max * 1024 * 1024
+    extra_nets = cfg.get('visit_bot_nets') or []
+    if extra_nets:
+        vx.set_extra_bot_nets(extra_nets)
+        log.info("Besucherzähler: %d zusätzliche Bot-Netze aus visit_bot_nets",
+                 len(extra_nets))
 
     # Initialer SMB-Mount (run.sh setzt nur noch den Pfad, Zugangsdaten bleiben im Speicher)
     if SMB_MOUNTED and not storage_available():

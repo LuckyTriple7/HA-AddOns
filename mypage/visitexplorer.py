@@ -15,7 +15,9 @@ Zeilen werden als Tupel gehalten, nicht als dict: eine Monatsdatei kann
 sechsstellig viele Zeilen haben, und 200 000 dicts wären ein paar hundert MB.
 """
 import csv
+import functools
 import hashlib
+import ipaddress
 import threading
 from collections import Counter, deque
 from datetime import datetime
@@ -44,6 +46,99 @@ _CSV_COLS = 11
 
 # Aufbau einer geparsten Zeile (Tupel-Indizes)
 TS, IP, UA, PATH, REF, LANG, COUNTRY, BOT, NEW, BROWSER, SYSTEM = range(11)
+
+
+# ── Rechenzentrums-Adressen ──────────────────────────────────────────────────
+
+# Netze der großen Cloud-Anbieter. Ein Aufruf von hier kommt nicht von einem
+# Menschen mit Browser, egal was in der Browserkennung steht: Scanner setzen
+# reihenweise „Safari/iOS" oder „Edge/Windows" ein, damit die übliche
+# Textsuche in der Kennung (_BOT_UA in app.py) sie durchlässt.
+#
+# Die Liste ist bewusst grob (große Blöcke statt exakter Anbieter-Präfixe) und
+# nicht vollständig — sie soll die Masse der Scan-Netze treffen, nicht ein
+# Register führen. Folge einer zu groben Angabe ist harmlos: der Aufruf wird im
+# Explorer als Bot einsortiert und ist über den Bot-Schalter weiter sichtbar.
+# Eigene Ergänzungen kommen über die Option `visit_bot_nets` dazu.
+_DATACENTER_CIDRS = (
+    # Amazon AWS
+    '3.0.0.0/8', '13.32.0.0/12', '15.177.0.0/16', '18.32.0.0/11',
+    '18.128.0.0/9', '34.192.0.0/10', '35.152.0.0/13', '44.192.0.0/10',
+    '52.0.0.0/11', '52.192.0.0/10', '54.64.0.0/10', '54.144.0.0/12',
+    # Microsoft Azure
+    '13.64.0.0/11', '20.0.0.0/8', '40.64.0.0/10', '52.224.0.0/11',
+    '104.40.0.0/13',
+    # Google Cloud
+    '34.64.0.0/10', '35.184.0.0/13', '35.192.0.0/12', '35.208.0.0/12',
+    '35.224.0.0/12', '35.240.0.0/13',
+    # Tencent Cloud — Herkunft der meisten „Safari · iOS"-Einzelaufrufe
+    '43.128.0.0/10', '119.28.0.0/16', '129.226.0.0/16', '150.109.0.0/16',
+    '170.106.0.0/16',
+    # Alibaba Cloud
+    '8.208.0.0/12', '47.74.0.0/15', '47.76.0.0/14', '47.235.0.0/16',
+    # Oracle Cloud
+    '129.146.0.0/15', '132.145.0.0/16', '140.238.0.0/16', '141.147.0.0/16',
+    '143.47.0.0/16', '150.230.0.0/16', '152.67.0.0/16', '158.101.0.0/16',
+    '168.138.0.0/16', '193.122.0.0/16',
+    # DigitalOcean
+    '104.131.0.0/16', '138.68.0.0/16', '143.110.0.0/16', '157.245.0.0/16',
+    '159.65.0.0/16', '164.90.0.0/16', '165.22.0.0/16', '167.71.0.0/16',
+    '167.99.0.0/16', '174.138.0.0/16', '178.62.0.0/16', '188.166.0.0/16',
+    # Hetzner
+    '5.9.0.0/16', '78.46.0.0/15', '88.99.0.0/16', '94.130.0.0/16',
+    '116.202.0.0/16', '128.140.0.0/17', '135.181.0.0/16', '138.201.0.0/16',
+    '142.132.0.0/16', '144.76.0.0/16', '148.251.0.0/16', '157.90.0.0/16',
+    '159.69.0.0/16', '162.55.0.0/16', '167.235.0.0/16', '168.119.0.0/16',
+    '176.9.0.0/16', '178.63.0.0/16', '188.40.0.0/16', '195.201.0.0/16',
+    '213.239.192.0/18',
+    # OVH
+    '51.68.0.0/14', '51.75.0.0/16', '51.83.0.0/16', '51.89.0.0/16',
+    '51.91.0.0/16', '137.74.0.0/16', '141.94.0.0/16', '145.239.0.0/16',
+    '146.59.0.0/16', '147.135.0.0/16', '149.202.0.0/16', '151.80.0.0/16',
+    '158.69.0.0/16', '164.132.0.0/16', '167.114.0.0/16', '176.31.0.0/16',
+    '178.32.0.0/15', '188.165.0.0/16', '192.99.0.0/16', '213.32.0.0/16',
+    '217.182.0.0/16',
+    # Linode / Akamai
+    '45.33.0.0/16', '45.56.0.0/16', '45.79.0.0/16', '50.116.0.0/16',
+    '139.162.0.0/16', '172.104.0.0/15', '176.58.96.0/19', '178.79.128.0/17',
+    '198.58.96.0/19', '212.71.232.0/21',
+    # Vultr
+    '45.32.0.0/16', '45.63.0.0/16', '45.76.0.0/16', '45.77.0.0/16',
+    '95.179.128.0/17', '104.156.224.0/19', '108.61.0.0/16', '136.244.64.0/18',
+    '149.28.0.0/16', '155.138.128.0/17', '207.148.0.0/17', '216.128.128.0/17',
+    # Scaleway / Online.net
+    '51.15.0.0/16', '51.158.0.0/15', '62.210.0.0/16', '163.172.0.0/16',
+    '195.154.0.0/16', '212.83.128.0/19',
+)
+
+_dc_nets = [ipaddress.ip_network(c) for c in _DATACENTER_CIDRS]
+
+
+def set_extra_bot_nets(cidrs) -> None:
+    """Zusätzliche Netze aus der Option `visit_bot_nets` übernehmen.
+
+    Unbrauchbare Einträge werden still übergangen: eine vertippte Zeile in den
+    Add-on-Optionen darf den Besucherzähler nicht anhalten.
+    """
+    global _dc_nets
+    nets = [ipaddress.ip_network(c) for c in _DATACENTER_CIDRS]
+    for raw in (cidrs or ()):
+        try:
+            nets.append(ipaddress.ip_network(str(raw).strip(), strict=False))
+        except ValueError:
+            continue
+    _dc_nets = nets
+    is_datacenter_ip.cache_clear()
+
+
+@functools.lru_cache(maxsize=4096)
+def is_datacenter_ip(value: str) -> bool:
+    """Ob die Adresse in einem der bekannten Rechenzentrums-Netze liegt."""
+    try:
+        addr = ipaddress.ip_address((value or '').strip())
+    except ValueError:
+        return False
+    return any(addr in net for net in _dc_nets)
 
 
 # ── Datei lesen ──────────────────────────────────────────────────────────────

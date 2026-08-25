@@ -1601,7 +1601,6 @@
   "ex_empty_filter": "No session matches this search.",
   "ex_skipped": "{n} unreadable lines skipped.",
   "ex_truncated": "Very large file — only the most recent lines were evaluated.",
-  "ex_privacy": "Address and browser signature are stored in the archive as shown. To avoid keeping them, switch the archive off again or lower visit_file_keep.",
   "no_data": "No data yet.",
   "save": "Save",
   "cancel": "Cancel",

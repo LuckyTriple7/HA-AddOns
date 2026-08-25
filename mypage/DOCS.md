@@ -12,6 +12,7 @@
 | `visit_log_max` | Größe des Besucher-Logs (50–10000, Standard 500) — Referrer/Browser/Länder/Top-Seiten werden daraus berechnet. Die **Liste im Admin zeigt immer höchstens die neuesten 500 Einträge**, auch bei größerem Wert; die übrigen fließen weiter in die Auswertungen |
 | `visit_file_log` | Schreibt jeden Aufruf zusätzlich dauerhaft als CSV nach `addon_configs/XXX_mypage/visits/` (Standard: aus). Lässt sich alternativ im Admin-Reiter **Explorer** einschalten |
 | `visit_file_keep` | Wie viele Monatsdateien des Besucher-Archivs behalten werden (0–120, Standard **1**; `0` = unbegrenzt). Das Archiv enthält ungekürzte IP-Adressen — höhere Werte sollten zur eigenen Datenschutzerklärung passen |
+| `visit_bot_nets` | Optional: eigene IP-Netze in CIDR-Schreibweise (z. B. `194.180.48.0/24`), die zusätzlich zu den eingebauten Cloud-Netzen als Bot gelten |
 | `user_journal_max` | Journal-Einträge pro Benutzer (20–1000, Standard 100) |
 | `geoip_offline` | Länder-Erkennung über eine lokale IP-Tabelle (Standard: an, keine Besucher-IP verlässt das Add-on) |
 | `telegram_bot_token` | Optional: Bot-Token — neue Kontaktnachrichten werden per Telegram gemeldet |
@@ -512,6 +513,7 @@ Das Besucher-Log im Admin ist ein **Ringpuffer** — es zeigt die neuesten 500 A
 - **Format**: CSV mit Semikolon als Trennzeichen und UTF-8-BOM, also **per Doppelklick in Excel/LibreOffice** korrekt in Spalten und mit richtigen Umlauten. Spalten: `datum`, `ip`, `land`, `browser`, `system`, `pfad`, `referrer`, `sprache`, `bot`, `neuer_besucher`, `user_agent`. Semikolons und Anführungszeichen in Referrer/User-Agent werden maskiert.
 - **Aufbewahrung**: `visit_file_keep` (Standard **1 Monat**, `0` = unbegrenzt). Aufgeräumt wird beim **Start des Add-ons** und beim Anlegen einer neuen Monatsdatei — eine gesenkte Frist greift also sofort, weil Home Assistant das Add-on nach jeder Optionsänderung neu startet. Bei `1` reicht das Archiv je nach Tag im Monat 1 bis 31 Tage zurück; das deckt sich mit der in vielen Datenschutzerklärungen zugesagten Frist von 30 Tagen.
 - Es werden — wie im Admin-Log — nur **öffentliche IPs** geschrieben; Bots stehen mit `bot=1` drin.
+- **Was als Bot gilt**: die übliche Textsuche in der Browserkennung (`bot`, `crawl`, `spider`, `curl`, …) **und** die Herkunft aus einem bekannten Rechenzentrums-Netz (AWS, Azure, Google, Tencent, Alibaba, Oracle, DigitalOcean, Hetzner, OVH, Linode, Vultr, Scaleway). Scanner geben sich massenhaft als „Safari · iOS" aus und wären sonst nicht von echten Besuchern zu unterscheiden — im Explorer fielen sie als Ein-Seiten-Aufrufe ohne Verweildauer auf. Eigene Netze lassen sich über die Option `visit_bot_nets` ergänzen. Die Netzprüfung greift auch **rückwirkend** beim Auswerten, alte Archivdateien werden dadurch mitbereinigt.
 - **Datenschutz**: IP-Adressen sind personenbezogene Daten. Deshalb ist die Option bewusst standardmäßig aus, und die Aufbewahrungsdauer ist begrenzbar. Das Archiv ist **nicht** Teil des Backups (es würde jedes Backup mit der Zeit aufblähen) — sichere den Ordner bei Bedarf selbst.
 
 ### Besucher-Explorer

@@ -265,6 +265,24 @@ try:
 finally:
     vx.ROWS_MAX = _orig
 
+# ── Rechenzentrums-Netze ─────────────────────────────────────────────────────
+print('\nis_datacenter_ip')
+
+check(vx.is_datacenter_ip('43.156.41.180'), 'Tencent-Adresse gilt als Rechenzentrum')
+check(vx.is_datacenter_ip('20.219.2.203'), 'Azure-Adresse gilt als Rechenzentrum')
+check(not vx.is_datacenter_ip('188.70.38.79'), 'Mobilfunk-Adresse bleibt Besucher')
+check(not vx.is_datacenter_ip(''), 'leere Adresse ist kein Rechenzentrum')
+check(not vx.is_datacenter_ip('kein-ip'), 'Unfug ist kein Rechenzentrum')
+
+vx.set_extra_bot_nets(['194.180.48.0/24', 'kaputt'])
+try:
+    check(vx.is_datacenter_ip('194.180.48.7'), 'Netz aus visit_bot_nets greift')
+    check(vx.is_datacenter_ip('43.156.41.180'), 'eingebaute Netze bleiben erhalten')
+    check(not vx.is_datacenter_ip('188.70.38.79'), 'kaputter Eintrag wird uebergangen')
+finally:
+    vx.set_extra_bot_nets([])
+check(not vx.is_datacenter_ip('194.180.48.7'), 'Zusatznetze lassen sich zuruecknehmen')
+
 print()
 if FAILS:
     print(f'{len(FAILS)} Test(s) fehlgeschlagen')

@@ -1601,7 +1601,6 @@
   "ex_empty_filter": "Keine Sitzung passt zu dieser Suche.",
   "ex_skipped": "{n} unlesbare Zeilen übersprungen.",
   "ex_truncated": "Sehr große Datei — nur die neuesten Zeilen ausgewertet.",
-  "ex_privacy": "Adresse und Browserkennung stehen so im Archiv. Wer das nicht dauerhaft speichern will, schaltet das Archiv wieder aus oder setzt visit_file_keep herunter.",
   "no_data": "Noch keine Daten.",
   "save": "Speichern",
   "cancel": "Abbrechen",

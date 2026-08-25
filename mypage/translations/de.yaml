@@ -32,6 +32,14 @@ configuration:
       erlaubt, sollten aber zur eigenen Datenschutzerklärung passen. 0 = unbegrenzt
       aufbewahren (nichts wird je gelöscht). Aufgeräumt wird beim Start des Add-ons und
       beim Anlegen einer neuen Monatsdatei.
+  visit_bot_nets:
+    name: Zusätzliche Bot-Netze
+    description: >-
+      Eigene IP-Netze in CIDR-Schreibweise (z. B. 194.180.48.0/24), deren Aufrufe
+      als Bot gezählt werden. Die Netze der großen Cloud-Anbieter (AWS, Azure,
+      Google, Tencent, Alibaba, Oracle, DigitalOcean, Hetzner, OVH, Linode, Vultr,
+      Scaleway) sind bereits eingebaut — hier kommt nur dazu, was darüber hinaus
+      stört. Unbrauchbare Einträge werden übergangen.
   user_journal_max:
     name: Journal-Größe pro Benutzer
     description: Wie viele Ereignisse das Journal je Benutzer behält (20–1000, Standard 100).

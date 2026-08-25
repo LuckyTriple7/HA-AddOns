@@ -32,6 +32,14 @@ configuration:
       are allowed but should match your own privacy policy. 0 = keep indefinitely
       (nothing is ever deleted). Cleanup runs at add-on start and when a new monthly
       file is created.
+  visit_bot_nets:
+    name: Additional bot networks
+    description: >-
+      Your own IP networks in CIDR notation (e.g. 194.180.48.0/24) whose requests
+      are counted as bots. The networks of the major cloud providers (AWS, Azure,
+      Google, Tencent, Alibaba, Oracle, DigitalOcean, Hetzner, OVH, Linode, Vultr,
+      Scaleway) are already built in — add only what bothers you beyond those.
+      Unusable entries are ignored.
   user_journal_max:
     name: Journal size per user
     description: How many events the journal keeps per user (20–1000, default 100).

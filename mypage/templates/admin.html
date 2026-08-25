@@ -2142,7 +2142,6 @@
             </div>
           </div>
           <button class="btn secondary small collapse-btn" id="ex-list-btn" onclick="toggleCollapse('ex-list')"></button>
-          <p class="hint" style="margin-top:10px">{{ t.ex_privacy }}</p>
         </div>
 
         <div class="panel" data-jump-panel>
@@ -5026,6 +5025,10 @@
     // ── Spiele-Statistik & Sitzungs-Log ──
     function fmtDur(sec) {
       sec = Math.max(0, sec | 0);
+      // 0 heißt nicht „null Sekunden“, sondern „unbekannt“: bei nur einem
+      // Seitenaufruf gibt es keinen zweiten Zeitstempel, aus dem sich eine
+      // Verweildauer ergeben könnte. Ein Strich sagt das ehrlicher.
+      if (!sec) return '–';
       const m = Math.floor(sec / 60), h = Math.floor(m / 60);
       if (h) return h + ' h ' + (m % 60) + ' min';
       if (m) return m + ' min';
