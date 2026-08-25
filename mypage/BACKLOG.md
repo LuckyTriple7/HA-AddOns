@@ -150,9 +150,9 @@ eingetragen ist.
    `/p/<id>` und den Reiseblog-Seiten (~2 h). Google zeigt dann den Pfad statt
    der nackten Adresse.
 5. **`Service` + `Offer`** aus `sections.services` (~1 h). `price` ist gepflegt.
-6. ~~**Snippet-Vorschau im Admin**~~ — **erledigt mit v0.10.49.** Vier
-   Vorschauen (Startseite, Beitrag, eigene Seite, Bibliothek-Eintrag) mit
-   Längenampel und DE/EN-Umschalter.
+6. ~~**Snippet-Vorschau im Admin**~~ — **erledigt mit v0.10.49/0.10.50.** Fünf
+   Vorschauen (Startseite, Beitrag, eigene Seite, Bibliothek-Eintrag,
+   Reisebericht) mit Längenampel und Sprachumschalter.
 7. **SEO-Ampel je Beitrag** (~1 Tag): Beschreibung gesetzt und lang genug?
    Titelbild? Alternativtexte? Text lang genug? Mindestens eine
    Zwischenüberschrift?
@@ -186,3 +186,8 @@ schleppt Yoast aus Gewohnheit mit, gewertet werden sie seit Jahren nicht.
 - `snipPlain()` ersetzt Tags durch ein **Leerzeichen**, genau wie
   `_plain_excerpt()`. Mit `textContent` klebt die Überschrift am ersten Absatz
   („HalloDas ist…“) und der Auszug weicht ab dem ersten Zeilenumbruch ab.
+- Der Reise-Editor hat keine festen Feld-Ids — `travField()` baut die Eingaben
+  zur Laufzeit und schreibt in `DAY.article`. Die Vorschau `snip-travel` liest
+  deshalb aus dem Objekt und wird aus `travDraft()` heraus gezeichnet. Wer einen
+  weiteren Weg baut, über den sich `DAY` ändert, muss `snipRender('snip-travel')`
+  mit aufrufen.

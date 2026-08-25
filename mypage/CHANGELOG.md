@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.10.50
+
+- 🧳 **Die Snippet-Vorschau gibt es jetzt auch im Reisebericht.** Reisetage stehen in der Sitemap und werden indexiert, hatten aber als einziger öffentlicher Seitentyp keine Vorschau. Im Schritt *Bericht* steht sie unter den Textfeldern und zeigt Titel, Adresse (`/reiseblog/<reise>/<tag>`) und Beschreibung — aus dem **Anrisstext**, ersatzweise aus dem Auszug des Berichts.
+- 🌐 **Der Sprachumschalter kennt die Reisesprachen.** Eine Reise, die nur auf Deutsch geführt wird, zeigt keinen EN-Knopf mehr — anders als bei Beiträgen und Seiten, wo immer beide Fassungen möglich sind.
+- ℹ️ Die Reise-Übersicht `/reiseblog/<slug>` bekommt bewusst **keine** eigene Vorschau: ihre Beschreibung ist der Anrisstext des ersten veröffentlichten Tages und damit genau das, was dessen Vorschau schon anzeigt.
+
 ## 0.10.49
 
 - 🔎 **Snippet-Vorschau: der Google-Treffer, bevor es Google tut.** Unter den SEO-Feldern steht jetzt eine Vorschau des Suchergebnisses — im **Design-Tab** für die Startseite und in den Dialogen für **Blog-Beitrag**, **eigene Seite** und **Bibliothek-Eintrag**. Zwei Zähler zeigen die Länge von Titel (Ziel 20–60 Zeichen) und Beschreibung (Ziel 120–160): grün passt, gelb ist zu kurz, rot wird von Google gekürzt. Die Vorschau kürzt genauso wie Google — am letzten Wortende vor der Grenze, nicht mitten im Wort.

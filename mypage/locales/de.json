@@ -1315,6 +1315,7 @@
   "revisions_restored": "Stand zurückgeholt",
   "revisions_confirm_delete": "Diesen Stand wirklich löschen?",
   "snip_hint": "So baut Google den Treffer aus deinen Feldern. Ist kein eigener Text gesetzt, greift derselbe Rückfall wie auf der Seite: SEO-Beschreibung → Textauszug → Beschreibung der Startseite. Google kürzt zu lange Angaben — die Zähler zeigen, ab wo.",
+  "snip_heading": "Vorschau bei Google",
   "snip_title": "Titel",
   "snip_desc": "Beschreibung",
   "snip_desc_empty": "Keine Beschreibung — Google sucht sich selbst eine Textstelle.",

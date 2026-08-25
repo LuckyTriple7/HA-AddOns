@@ -1315,6 +1315,7 @@
   "revisions_restored": "Version restored",
   "revisions_confirm_delete": "Really delete this version?",
   "snip_hint": "This is how Google builds the result from your fields. Without your own text the same fallback applies as on the site: SEO description → text excerpt → home page description. Google shortens overlong entries — the counters show where.",
+  "snip_heading": "Google preview",
   "snip_title": "Title",
   "snip_desc": "Description",
   "snip_desc_empty": "No description — Google will pick a passage from the text itself.",

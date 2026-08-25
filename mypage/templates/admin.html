@@ -3336,7 +3336,28 @@
         watch: ['le-title_de', 'le-title_en', 'le-meta_de', 'le-meta_en',
                 'le-summary_de', 'le-summary_en', 'le-body_de', 'le-body_en', 'le-slug'],
       },
+      // Der Reisebericht hat keine festen Feld-Ids: die Eingaben baut
+      // `travField()` zur Laufzeit und schreibt direkt in `DAY.article`. Die
+      // Vorschau liest deshalb aus dem Objekt statt aus dem Formular, und
+      // gezeichnet wird aus `travDraft()` heraus \u2014 dem einen Punkt, durch den
+      // jede Aenderung im Reise-Editor ohnehin laeuft.
+      'snip-travel': {
+        langs: () => ((curTrip() || {}).settings || {}).langs || ['de'],
+        title: lg => (travArt(lg).title || T.snip_no_title) + ' \u2013 ' + snipSuffix(),
+        url:   () => snipBase() + '/reiseblog/' + ((curTrip() || {}).slug || '\u2026')
+                     + '/' + travDaySlug(),
+        desc:  lg => travArt(lg).teaser || snipExcerpt(travArt(lg).body) || snipHomeDesc(lg),
+        watch: [],
+      },
     };
+
+    function travArt(lg) { return ((DAY && DAY.article) || {})[lg] || {}; }
+    // Ohne eigenen Wunsch vergibt der Server `tag-<Nummer>` (siehe
+    // `_trav_day_slug()`), die Vorschau darf also nicht einfach leer bleiben.
+    function travDaySlug() {
+      if (!DAY) return '\u2026';
+      return DAY.slug || ('tag-' + (DAY.day_number || 1));
+    }
 
     // Google schneidet nicht mitten im Wort ab, sondern am letzten Leerzeichen davor.
     function snipCut(s, max) {
@@ -3370,25 +3391,50 @@
       snipMeter(id + '-ld', T.snip_desc, desc.length, SNIP_DESC_MIN, SNIP_DESC_MAX);
     }
     function snipRenderAll() { Object.keys(SNIPS).forEach(snipRender); }
+    // Welche Sprachen zur Wahl stehen, haengt am Inhalt: die Seite selbst kann
+    // immer DE und EN, eine Reise nur die in ihren Einstellungen gewaehlten.
+    function snipLangButtons(id) {
+      const box = el(id + '-langs');
+      if (!box) return;
+      const langs = (SNIPS[id].langs ? SNIPS[id].langs() : ['de', 'en']);
+      if (!langs.includes(SNIP_LANG[id])) SNIP_LANG[id] = langs[0] || 'de';
+      box.innerHTML = '';
+      langs.forEach(lg => {
+        const b = document.createElement('button');
+        b.type = 'button'; b.textContent = lg.toUpperCase();
+        b.classList.toggle('on', lg === SNIP_LANG[id]);
+        b.onclick = () => {
+          SNIP_LANG[id] = lg;
+          box.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
+          snipRender(id);
+        };
+        box.appendChild(b);
+      });
+    }
+    // Baut denselben Kasten, den die vier festen Vorschauen im HTML stehen
+    // haben \u2014 fuer Stellen, die erst zur Laufzeit entstehen.
+    function snipCreate(id) {
+      const wrap = document.createElement('div');
+      wrap.innerHTML =
+        '<div class="snip-bar">'
+        + '<div class="snip-langs" id="' + id + '-langs"></div>'
+        + '<span class="snip-len" id="' + id + '-lt"></span>'
+        + '<span class="snip-len" id="' + id + '-ld"></span>'
+        + '</div>'
+        + '<div class="snip" id="' + id + '">'
+        + '<div class="snip-url"></div><div class="snip-title"></div><div class="snip-desc"></div>'
+        + '</div>';
+      const hint = document.createElement('p');
+      hint.className = 'hint';
+      hint.textContent = T.snip_hint;
+      wrap.appendChild(hint);
+      return wrap;
+    }
     function initSnippets() {
       Object.keys(SNIPS).forEach(id => {
         const box = el(id);
         if (!box) return;
-        SNIP_LANG[id] = snipDefLang();
-        const langs = el(id + '-langs');
-        if (langs) {
-          ['de', 'en'].forEach(lg => {
-            const b = document.createElement('button');
-            b.type = 'button'; b.textContent = lg.toUpperCase();
-            b.classList.toggle('on', lg === SNIP_LANG[id]);
-            b.onclick = () => {
-              SNIP_LANG[id] = lg;
-              langs.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
-              snipRender(id);
-            };
-            langs.appendChild(b);
-          });
-        }
+        snipLangButtons(id);
         // Die Startseiten-Vorschau hängt an Feldern aus zwei Reitern (Design und
         // Profil) — deshalb wird bei jeder Änderung alles neu gezeichnet, nicht
         // nur der Kasten, in dem gerade getippt wird.
@@ -7522,6 +7568,9 @@
     function travDraft() {
       try { localStorage.setItem(draftKey(), JSON.stringify(DAY)); } catch (e) { /* voll */ }
       el('wiz-draft-note').textContent = T.trav_draft_saved;
+      // Jede Eingabe im Reise-Editor laeuft hier durch \u2014 der einzige Punkt,
+      // an dem die Vorschau von Titel, Anriss und Text erfaehrt.
+      snipRender('snip-travel');
     }
     function openDayModal(id) {
       editingDayId = id || null;
@@ -7720,6 +7769,13 @@
                  travField(art[lg], 'body', 'textarea', T.field_text_md));
         b.lastChild.querySelector('textarea').rows = 16;
       });
+      // Suchtreffer-Vorschau fuer diesen Reisetag
+      const snipH = document.createElement('h4');
+      snipH.textContent = T.snip_heading;
+      snipH.style.margin = '14px 0 4px';
+      b.append(snipH, snipCreate('snip-travel'));
+      snipLangButtons('snip-travel');
+      snipRender('snip-travel');
       const tagWrap = document.createElement('div');
       const tagInput = document.createElement('input');
       tagInput.type = 'text';
