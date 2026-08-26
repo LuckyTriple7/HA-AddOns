@@ -8,12 +8,20 @@ echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] MyPage startet — öffentliche Seit
 # Dateibereich offline und der Watchdog verbindet automatisch neu.
 # Die Einstellungen kommen aus settings.json (Oberfläche); options.json dient nur
 # noch als Fallback, solange die Migration beim ersten Start noch nicht lief.
+# Wichtig: `set -e` ist aktiv. jq beendet sich auf einer fehlenden oder kaputten
+# Datei mit Code 2 — ohne die Prüfung auf Existenz und das `|| true` würde das
+# ganze Skript daran sterben, bevor MyPage überhaupt startet.
+read_opt() {   # $1 = Datei, $2 = Schlüssel
+    [ -f "$1" ] || return 0
+    jq -r --arg k "$2" '.[$k] // empty' "$1" 2>/dev/null || true
+}
+
 SETTINGS="${MYPAGE_DATA:-/config}/settings.json"
-SMB_SERVER=$(jq -r '.smb_server // empty' "$SETTINGS" 2>/dev/null)
-SMB_SHARE=$(jq -r '.smb_share // empty' "$SETTINGS" 2>/dev/null)
+SMB_SERVER=$(read_opt "$SETTINGS" smb_server)
+SMB_SHARE=$(read_opt "$SETTINGS" smb_share)
 if [ -z "$SMB_SERVER" ] || [ -z "$SMB_SHARE" ]; then
-    SMB_SERVER=$(jq -r '.smb_server // empty' /data/options.json 2>/dev/null)
-    SMB_SHARE=$(jq -r '.smb_share // empty' /data/options.json 2>/dev/null)
+    SMB_SERVER=$(read_opt /data/options.json smb_server)
+    SMB_SHARE=$(read_opt /data/options.json smb_share)
 fi
 
 if [ -n "$SMB_SERVER" ] && [ -n "$SMB_SHARE" ]; then

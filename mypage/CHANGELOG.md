@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.11.1
+
+- 🐛 **Startschleife nach dem Update auf 0.11.0 behoben.** Das Startskript las die SMB-Felder mit `jq` aus der neuen `settings.json` — die es beim allerersten Start noch gar nicht gibt. `jq` beendet sich auf einer fehlenden Datei mit Code 2, und wegen `set -e` starb daran das ganze Skript, bevor MyPage überhaupt anlief: Add-on im Fehlerzustand, im Protokoll nur die Startzeile in Endlosschleife. Fehlende oder defekte Dateien werden jetzt sauber übergangen.
+- 🛡️ **Ein nicht beschreibbarer Datenordner kostet nicht mehr den Start.** Lässt sich `settings.json` beim ersten Start nicht anlegen, läuft MyPage mit den Werten aus `options.json` weiter und schreibt eine Warnung, statt abzubrechen. Beim Speichern aus der Oberfläche kommt in dem Fall eine Fehlermeldung statt eines stillen Verlusts.
+
 ## 0.11.0
 
 - ⚙️ **Neuer Reiter „Einstellungen" im Admin-Panel.** Mailversand, Telegram, GitHub-Token, KI-Keys, SMB-Speicher, Besucherzähler und Backup-Aufbewahrung stellst du ab sofort dort ein statt in den Add-on-Optionen. Damit ist MyPage auch [ohne Home Assistant](STANDALONE.md) bequem konfigurierbar — unter Docker gab es dafür bisher nur einen Texteditor.

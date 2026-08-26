@@ -274,7 +274,7 @@ def save(values: dict, clear=()) -> list:
                 changed.append(key)
         if not changed:
             return []
-        _write(raw)
+        _write(raw)   # OSError meldet der Aufrufer als Fehler an die Oberfläche
         return changed
 
 
@@ -315,7 +315,13 @@ def migrate(options: dict) -> bool:
             if new is None:
                 continue
             raw[key] = _encrypt(new) if key in SECRET_KEYS else new
-        _write(raw)
+        try:
+            _write(raw)
+        except OSError as e:
+            # Ein nicht beschreibbarer Datenordner darf den Start nicht kosten:
+            # ohne settings.json gelten weiter die Werte aus options.json.
+            log.warning("settings.json konnte nicht angelegt werden: %s", e)
+            return False
     log.info("Einstellungen aus den Add-on-Optionen übernommen: %d Feld(er) "
              "in settings.json (geheime Felder verschlüsselt)", len(raw))
     return True

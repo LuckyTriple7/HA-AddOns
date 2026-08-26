@@ -8703,7 +8703,11 @@ def api_settings_save():
     if not isinstance(values, dict) or not isinstance(clear, list):
         return jsonify({'error': 'invalid'}), 400
     clear = [k for k in clear if isinstance(k, str) and k in settings_store.FIELDS]
-    changed = settings_store.save(values, clear)
+    try:
+        changed = settings_store.save(values, clear)
+    except OSError as e:
+        log.warning("Einstellungen konnten nicht geschrieben werden: %s", e)
+        return jsonify({'error': 'write failed'}), 500
     _settings_changed()
     restart = False
     if changed:
