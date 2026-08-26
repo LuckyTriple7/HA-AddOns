@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.105.0
+
+- 🔍 **Filterfeld in den Übersichten von Klimatabellen und Reiseführern.** Über der Liste steht ein Eingabefeld: „Mad“ zeigt sofort nur noch Madeira. Gesucht wird ohne Rücksicht auf Groß-/Kleinschreibung und Akzente, mehrere Wörter dürfen in beliebiger Reihenfolge stehen. Am Rechner springt der Cursor beim Öffnen gleich ins Feld, auf dem Handy nicht — sonst schiebe die Tastatur die Liste weg.
+
 ## 0.104.5
 
 - 🩹 **Klimatabelle als Markdown: der Stern bleibt beim Monatsnamen.** Bei langen Monatsnamen wie „September“ rutschte die Markierung des besten Reisemonats beim Rendern in eine zweite Zeile — jetzt hält ein geschütztes Leerzeichen beides zusammen.

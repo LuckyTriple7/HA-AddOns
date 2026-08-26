@@ -4197,6 +4197,43 @@
     }
     loadClimateLabels();
 
+    // ── Uebersichtslisten Klima/Reisefuehrer: gleiche Tabelle, gleiche Suche ──
+    // Beide Dialoge zeigen dieselben Spalten und unterscheiden sich nur in den
+    // Aktionen, deshalb hier einmal gebaut. Die Suche laeuft rein im Browser
+    // ueber die bereits geladene Liste — kein zweiter Server-Aufruf je Tastendruck.
+    function destListNorm(v){
+      return String(v || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    }
+    function destListFilter(items, q){
+      const t = destListNorm(q).trim();
+      if(!t) return items;
+      // Jedes Wort muss vorkommen, Reihenfolge egal ("mad port" findet auch
+      // "Portugal · Madeira").
+      const words = t.split(/\s+/);
+      return items.filter(it => { const l = destListNorm(it.label); return words.every(w => l.includes(w)); });
+    }
+    function destListFilterBox(id, val){
+      return `<input type="text" id="${id}-search" class="list-filter" autocomplete="off"`
+        + ` placeholder="Reiseziel filtern (z. B. „Mad“ für Madeira)…"`
+        + ` value="${esc(val || '')}" oninput="${id === 'guide' ? 'guideListSearch' : 'climateListSearch'}(this.value)">`;
+    }
+    function destListTable(items, openFn, delFn, delTitle){
+      return '<table class="hist">'
+        + '<tr><th>Reiseziel</th><th>erstellt</th><th></th></tr>'
+        + items.map(it=>`<tr><td><a class="dest-link" href="#" onclick="event.preventDefault();`
+            + `${openFn}(${it.giata},${esc(JSON.stringify(it.label))})">${esc(it.label)}</a></td>`
+          + `<td class="hint">${new Date(it.ts*1000).toLocaleDateString('de-DE')}</td>`
+          + `<td><button class="btn sec" onclick="${delFn}(${it.giata},${esc(JSON.stringify(it.label))})" `
+          + `title="${delTitle}"><svg class="i"><use href="#i-trash"/></svg></button></td></tr>`).join('')
+        + '</table>';
+    }
+    // Nach dem Aufbau der Liste in das Suchfeld springen — aber nicht auf dem
+    // Handy, dort schoebe die eingeblendete Tastatur die Liste sofort weg.
+    function destListFocus(id){
+      const el = $('#' + id + '-search');
+      if(el && !matchMedia('(pointer:coarse)').matches) el.focus();
+    }
+
     // Von der Hauptseite ohne Reiseziel: Liste der bereits gespeicherten Tabellen.
     // Neue Ziele entstehen über die Suche — dort gibt es einen Ziel-Picker, hier
     // nicht, und ein zweiter Picker nur fürs Klima wäre doppelte Bedienung.
@@ -4215,14 +4252,18 @@
           + 'Sie entsteht automatisch, sobald du in der <b>Suche</b> ein Reiseziel wählst und suchst.</div>';
         return;
       }
-      $('#climate-body').innerHTML = '<table class="hist">'
-        + '<tr><th>Reiseziel</th><th>erstellt</th><th></th></tr>'
-        + items.map(it=>`<tr><td><a class="dest-link" href="#" onclick="event.preventDefault();`
-            + `openClimate(${it.giata},${esc(JSON.stringify(it.label))})">${esc(it.label)}</a></td>`
-          + `<td class="hint">${new Date(it.ts*1000).toLocaleDateString('de-DE')}</td>`
-          + `<td><button class="btn sec" onclick="deleteClimate(${it.giata},${esc(JSON.stringify(it.label))})" `
-          + `title="Gespeicherte Tabelle löschen"><svg class="i"><use href="#i-trash"/></svg></button></td></tr>`).join('')
-        + '</table>';
+      _climateListItems = items;
+      $('#climate-body').innerHTML = destListFilterBox('climate', _climateListFilter)
+        + '<div id="climate-list"></div>';
+      renderClimateListRows();
+      destListFocus('climate');
+    }
+    function climateListSearch(v){ _climateListFilter = v; renderClimateListRows(); }
+    function renderClimateListRows(){
+      const hits = destListFilter(_climateListItems, _climateListFilter);
+      $('#climate-list').innerHTML = hits.length
+        ? destListTable(hits, 'openClimate', 'deleteClimate', 'Gespeicherte Tabelle löschen')
+        : '<div class="cmp-load">Kein gespeichertes Reiseziel passt zur Suche.</div>';
     }
     async function deleteClimate(giata, label){
       if(!confirm(`Klimatabelle für „${label}" löschen?`)) return;
@@ -4236,6 +4277,7 @@
     function openClimateList(){
       climateTarget = null;
       climateFromSearch = false;
+      _climateListFilter = '';   // siehe openGuideList
       $('#climate-bg').classList.add('show');
       renderClimateList();
     }
@@ -4317,6 +4359,8 @@
     // schlimmsten Fall fehlt der Rahmen und der Klick liefert trotzdem den
     // gespeicherten Reiseführer.
     let guideLabels = new Set();
+    let _guideListItems = [], _guideListFilter = '';
+    let _climateListItems = [], _climateListFilter = '';
     function offerHasGuide(o){
       const k = String((o && (o.region || o.country)) || '').trim().toLowerCase();
       return !!k && guideLabels.has(k);
@@ -4476,14 +4520,18 @@
           + 'Er entsteht über den Knopf <b>Reiseführer</b> an einem Angebot oder in der <b>Suche</b>.</div>';
         return;
       }
-      $('#guide-body').innerHTML = '<table class="hist">'
-        + '<tr><th>Reiseziel</th><th>erstellt</th><th></th></tr>'
-        + items.map(it=>`<tr><td><a class="dest-link" href="#" onclick="event.preventDefault();`
-            + `openGuide(${it.giata},${esc(JSON.stringify(it.label))})">${esc(it.label)}</a></td>`
-          + `<td class="hint">${new Date(it.ts*1000).toLocaleDateString('de-DE')}</td>`
-          + `<td><button class="btn sec" onclick="deleteGuide(${it.giata},${esc(JSON.stringify(it.label))})" `
-          + `title="Gespeicherten Reiseführer löschen"><svg class="i"><use href="#i-trash"/></svg></button></td></tr>`).join('')
-        + '</table>';
+      _guideListItems = items;
+      $('#guide-body').innerHTML = destListFilterBox('guide', _guideListFilter)
+        + '<div id="guide-list"></div>';
+      renderGuideListRows();
+      destListFocus('guide');
+    }
+    function guideListSearch(v){ _guideListFilter = v; renderGuideListRows(); }
+    function renderGuideListRows(){
+      const hits = destListFilter(_guideListItems, _guideListFilter);
+      $('#guide-list').innerHTML = hits.length
+        ? destListTable(hits, 'openGuide', 'deleteGuide', 'Gespeicherten Reiseführer löschen')
+        : '<div class="cmp-load">Kein gespeichertes Reiseziel passt zur Suche.</div>';
     }
     async function deleteGuide(giata, label){
       if(!confirm(`Reiseführer für „${label}" löschen?`)) return;
@@ -4499,6 +4547,7 @@
     // gewaehlte Ziel — bis zum naechsten Neuladen der Seite.
     function openGuideList(){
       guideTarget = null;
+      _guideListFilter = '';   // frisch aus dem Menue: ungefiltert zeigen
       $('#guide-bg').classList.add('show');
       renderGuideList();
     }
