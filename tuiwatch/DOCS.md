@@ -25,15 +25,16 @@ password: secret         # bitte ändern!
 session_hours: 24        # Dauer der Anmeldung
 ```
 
-Die übrigen Optionen stehen aus Kompatibilitätsgründen noch im Add-on-Schema, werden aber nur noch als Startwert für die einmalige Übernahme gelesen. Wer sie dort ändert, ändert nichts mehr — der Wert aus dem Zahnrad-Dialog gewinnt.
+Die übrigen Optionen sind seit **0.104.1** aus dem Schema entfernt und tauchen in der HA-Konfigurationsseite nicht mehr auf. Beim Update auf 0.104.0 wurden ihre Werte bereits einmalig nach `settings.json` übernommen.
 
 ### Zahnrad → **Einstellungen**
 
-Gespeichert wird in `settings.json` im Add-on-Konfigurationsordner, in 13 Gruppen von *Prüfen & Zeitplan* über *Benachrichtigungen* und *KI* bis *Backup*. Jede Einstellung bringt ihre Erklärung mit — dieselben Texte, die vorher auf der HA-Konfigurationsseite standen.
+Gespeichert wird in `settings.json` im privaten Datenverzeichnis des Add-ons (`/data`, neben `options.json`), in 13 Gruppen von *Prüfen & Zeitplan* über *Benachrichtigungen* und *KI* bis *Backup*. Jede Einstellung bringt ihre Erklärung mit — dieselben Texte, die vorher auf der HA-Konfigurationsseite standen.
 
 * **Geheime Felder** (Telegram-Token, SMTP-Passwort, Nextcloud-App-Passwort, Anthropic-/Gemini-/Perplexity-Key) werden mit `settings.key` verschlüsselt und nie an den Browser zurückgegeben — er sieht nur „gesetzt"/„nicht gesetzt". Ein **leeres Feld heißt „unverändert lassen"**; zum Entfernen den Knopf **Löschen** benutzen.
 * Fast alles greift **sofort**, ohne Neustart. Ausnahme: `enable_public_share` und `public_port` — der zweite Webserver für die öffentlichen Angebots-Links wird einmalig beim Start gebunden. Der Dialog weist darauf hin.
-* Das TUIWatch-Backup enthält `settings.json`, aber **nicht** `settings.key`. Zugangsdaten sind aus einem Backup also nicht lesbar; nach einem Restore auf einer frischen Installation müssen sie einmal neu eingetragen werden.
+* Das TUIWatch-Backup enthält `settings.json`, aber **nicht** den Schlüssel `settings.key`. Zugangsdaten sind aus diesem ZIP also nicht lesbar; nach einem Restore auf einer frischen Installation müssen sie einmal neu eingetragen werden.
+* Das **Home-Assistant-Add-on-Backup** sichert dagegen `/data` komplett und enthält damit auch den Schlüssel. Es schützt die Zugangsdaten nur, wenn das HA-Backup selbst verschlüsselt (mit Passwort) angelegt wird.
 * Werte außerhalb des erlaubten Bereichs werden auf die Grenze gezogen (z. B. `poll_interval` nie unter 600 Sekunden).
 
 ## Reise hinzufügen

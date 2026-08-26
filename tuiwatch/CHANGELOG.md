@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.104.1
+
+- 🧹 **Die alten Optionen sind aus der HA-Konfigurationsseite verschwunden.** Sie standen in 0.104.0 nur noch da, damit der Supervisor sie nicht wegwirft, bevor die einmalige Übernahme sie lesen konnte. Das ist erledigt — übrig bleiben `username`, `password` und `session_hours` als Notzugang. Alles andere: Zahnrad neben *Alle prüfen*.
+
 ## 0.104.0
 
 - ⚙️ **Einstellungen direkt in der Oberfläche.** Das Zahnrad rechts neben *Alle prüfen* öffnet einen Dialog mit allen 63 Einstellungen in 13 Gruppen — Prüfintervall, Benachrichtigungen, Telegram, SMTP, Nextcloud, KI-Anbieter und -Keys, Zusatzmodule, öffentliche Links, Backup. Die Erklärungen sind dieselben wie bisher auf der HA-Konfigurationsseite. Kein Umweg mehr über Home Assistant, kein Neustart für den Großteil der Werte.
