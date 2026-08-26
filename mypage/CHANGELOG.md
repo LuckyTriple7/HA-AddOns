@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.11.13
+
+- 🗂️ **Der Design-Reiter ist sortiert.** Aus einem Block mit rund fünfzig Optionen sind zehn aufklappbare Gruppen geworden: Vorlagen, Marke & Aussehen, Startseite & Navigation, Banner, Sprache & Feeds, Suchmaschinen, Bereiche an und aus, Mitglieder & Newsletter, Knöpfe & Links, Spielereien & Effekte. Offen startet nur die erste; welche du aufklappst, merkt sich der Browser.
+- 🔎 **„Option finden".** Das Suchfeld oben im Reiter filtert über alle Beschriftungen und Hinweistexte, klappt die passenden Gruppen auf und blendet den Rest aus — man kennt den Namen einer Option, selten die Gruppe, in die sie einsortiert wurde.
+- 🧭 **Sprungleiste wie in System und Einstellungen.** Chips unter der Kopfzeile, der sichtbare Bereich ist markiert.
+- 💾 **Ein Speichern-Knopf, der unten klebt.** Er speichert wie bisher den ganzen Reiter, auch die zugeklappten Gruppen — an den Feldern selbst und an dem, was gespeichert wird, ändert sich nichts.
+
 ## 0.11.12
 
 - ⚙️ **Einstellungen sitzen jetzt als Zahnrad in der Kopfzeile** — neben Sprachwahl, Design-Umschalter und Abmelden, wie in TUIWatch. Aus der Reiterleiste sind sie damit raus: die war mit sechzehn Einträgen die längste Zeile im Haus und musste seitlich gescrollt werden. Der Reiter selbst ist unverändert, nur der Weg dorthin ist kürzer; das Zahnrad färbt sich, solange er offen ist.

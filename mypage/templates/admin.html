@@ -439,6 +439,13 @@
     .fold > summary::before { content: '▸'; color: var(--muted); }
     .fold[open] > summary::before { content: '▾'; }
     .fold > summary h3 { margin: 0; }
+    .find-bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 0 0 12px; }
+    .find-bar input { flex: 1 1 320px; margin: 0; }
+    .opt-hide { display: none !important; }
+    .save-bar { position: sticky; bottom: 0; z-index: 14; display: flex; flex-wrap: wrap;
+      gap: 10px; align-items: center; padding: 10px 0; margin-top: 6px;
+      background: var(--bg); border-top: 1px solid var(--border); }
+    .save-bar .btn { margin: 0; }
     .fold[open] > summary .fold-hint { display: none; }   /* offen erklaert sich der Bereich selbst */
     .seo-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 10px 0; }
     .seo-row { border-top: 1px solid var(--border); padding: 10px 0; }
@@ -1408,57 +1415,38 @@
 
     <!-- Design -->
     <section class="tab" id="tab-design">
-      <div class="panel">
-        <h3>{{ t.presets_heading }}</h3>
+      <div class="jumpbar" id="design-jump"></div>
+      <!-- Der Reiter hat rund fünfzig Optionen. Ohne Gruppen, Sprungleiste und
+           Suche findet man eine einzelne davon nur durch Scrollen. -->
+      <div class="find-bar">
+        <input type="search" id="design-find" placeholder="{{ t.design_find_ph }}" oninput="designFind(this.value)">
+        <span class="hint" id="design-find-info" style="margin:0"></span>
+      </div>
+
+      <details class="panel fold" id="dg-presets" data-jump-panel>
+        <summary><h3>{{ t.presets_heading }}</h3></summary>
         <p class="hint">{{ t.presets_hint }}</p>
         <div class="preset-wrap">
           <button type="button" class="nav-arrow preset-arrow preset-left" aria-label="◄" onclick="presetScroll(-1)">‹</button>
           <div id="preset-gallery" class="preset-gallery"></div>
           <button type="button" class="nav-arrow preset-arrow preset-right" aria-label="►" onclick="presetScroll(1)">›</button>
         </div>
-      </div>
-      <div class="panel">
-        <h3>{{ t.banner_heading }}</h3>
-        <p class="hint">{{ t.banner_hint }}</p>
-        <label class="checkbox"><input type="checkbox" id="d-banner_enabled"> {{ t.banner_enable }}</label>
-        <div class="row" style="margin-top:10px">
-          <div>
-            <label>{{ t.banner_text }} (DE)</label>
-            <input type="text" id="d-banner_text_de" maxlength="200" placeholder="{{ t.banner_text_ph }}">
-          </div>
-          <div>
-            <label>{{ t.banner_text }} (EN)</label>
-            <input type="text" id="d-banner_text_en" maxlength="200" placeholder="{{ t.banner_text_ph }}">
-          </div>
-        </div>
-        <label>{{ t.banner_link }}</label>
-        <input type="text" id="d-banner_link_url" placeholder="https://… {{ t.banner_link_hint }}">
+      </details>
+
+      <details class="panel fold" id="dg-brand" data-jump-panel open>
+        <summary><h3>{{ t.design_group_brand }}</h3></summary>
         <div class="row">
-          <div>
-            <label>{{ t.banner_link_label }} (DE)</label>
-            <input type="text" id="d-banner_link_label_de" maxlength="60" placeholder="{{ t.banner_more }}">
-          </div>
-          <div>
-            <label>{{ t.banner_link_label }} (EN)</label>
-            <input type="text" id="d-banner_link_label_en" maxlength="60" placeholder="{{ t.banner_more }}">
-          </div>
-        </div>
-        <label class="checkbox" style="margin-top:6px"><input type="checkbox" id="d-banner_dismissible"> {{ t.banner_dismissible }}</label>
-      </div>
-      <div class="panel">
-        <h3>{{ t.design_heading }}</h3>
-        <div class="row">
-          <div>
+          <div class="opt">
             <label>{{ t.field_site_title }}</label>
             <input type="text" id="d-site_title">
           </div>
-          <div>
+          <div class="opt">
             <label>{{ t.field_accent }}</label>
             <input type="color" id="d-accent" style="width:100%;height:38px;padding:3px;background:var(--bg);border:1px solid var(--border);border-radius:6px;cursor:pointer">
           </div>
         </div>
         <div class="row">
-          <div>
+          <div class="opt">
             <label>{{ t.field_mode }}</label>
             <select id="d-mode">
               <option value="dark">{{ t.mode_dark }}</option>
@@ -1466,26 +1454,7 @@
               <option value="auto">{{ t.mode_auto }}</option>
             </select>
           </div>
-          <div>
-            <label>{{ t.field_counter }}</label>
-            <select id="d-show_counter">
-              <option value="1">{{ t.yes }}</option>
-              <option value="0">{{ t.no }}</option>
-            </select>
-          </div>
-        </div>
-        <div class="row">
-          <div>
-            <label>{{ t.field_nav }}</label>
-            <select id="d-show_nav">
-              <option value="1">{{ t.yes }}</option>
-              <option value="0">{{ t.no }}</option>
-            </select>
-            <p class="hint">{{ t.field_nav_hint }}</p>
-          </div>
-        </div>
-        <div class="row">
-          <div>
+          <div class="opt">
             <label>{{ t.field_layout }}</label>
             <select id="d-layout">
               <option value="cards">{{ t.layout_cards }}</option>
@@ -1493,232 +1462,9 @@
               <option value="minimal">{{ t.layout_minimal }}</option>
             </select>
           </div>
-          <div>
-            <label>{{ t.field_public_url }}</label>
-            <input type="text" id="d-public_url" placeholder="https://meine-domain.de">
-          </div>
         </div>
         <div class="row">
-          <div>
-            <label>{{ t.field_seo_desc }} (DE)</label>
-            <input type="text" id="d-meta_description_de" maxlength="300" placeholder="{{ t.seo_desc_ph }}">
-          </div>
-          <div>
-            <label>{{ t.field_seo_desc }} (EN)</label>
-            <input type="text" id="d-meta_description_en" maxlength="300" placeholder="{{ t.seo_desc_ph }}">
-          </div>
-        </div>
-        <p class="hint">{{ t.seo_desc_hint }}</p>
-        <div class="snip-bar">
-          <div class="snip-langs" id="snip-home-langs"></div>
-          <span class="snip-len" id="snip-home-lt"></span>
-          <span class="snip-len" id="snip-home-ld"></span>
-        </div>
-        <div class="snip" id="snip-home">
-          <div class="snip-url"></div>
-          <div class="snip-title"></div>
-          <div class="snip-desc"></div>
-        </div>
-        <p class="hint">{{ t.snip_hint }}</p>
-        <div class="row">
-          <div>
-            <label>{{ t.field_allow_indexing }}</label>
-            <select id="d-allow_indexing">
-              <option value="1">{{ t.yes }}</option>
-              <option value="0">{{ t.no }}</option>
-            </select>
-            <p class="hint">{{ t.allow_indexing_hint }}</p>
-          </div>
-        </div>
-        <div class="row">
-          <div>
-            <label>{{ t.field_indexnow }}</label>
-            <select id="d-indexnow">
-              <option value="0">{{ t.no }}</option>
-              <option value="1">{{ t.yes }}</option>
-            </select>
-          </div>
-          <div>
-            <label>&nbsp;</label>
-            <button class="btn secondary" style="margin-top:0" onclick="pingIndexNow(this)">{{ t.indexnow_ping }}</button>
-          </div>
-        </div>
-        <p class="hint">{{ t.indexnow_hint }}</p>
-        <div class="row">
-          <div>
-            <label>{{ t.verify_google }}</label>
-            <input type="text" id="d-google_verify" placeholder="google-site-verification …">
-          </div>
-          <div>
-            <label>{{ t.verify_bing }}</label>
-            <input type="text" id="d-bing_verify" placeholder="msvalidate.01 …">
-          </div>
-        </div>
-        <p class="hint">{{ t.verify_hint }}</p>
-        <div class="row">
-          <div>
-            <label>{{ t.field_favicon }}</label>
-            <div class="upload-row">
-              <input type="text" id="d-favicon" placeholder="https://… {{ t.or_upload }}">
-              <button class="btn secondary small" onclick="browseUploads(u => { el('d-favicon').value = u; })">{{ t.image_pick }}</button>
-            </div>
-          </div>
-          <div>
-            <label>{{ t.field_contact_enabled }}</label>
-            <select id="d-contact_enabled">
-              <option value="0">{{ t.no }}</option>
-              <option value="1">{{ t.yes }}</option>
-            </select>
-          </div>
-        </div>
-        <div class="row">
-          <div>
-            <label>{{ t.field_comments_enabled }}</label>
-            <select id="d-comments_enabled">
-              <option value="0">{{ t.no }}</option>
-              <option value="1">{{ t.yes }}</option>
-            </select>
-            <p class="hint">{{ t.comments_enabled_hint }}</p>
-          </div>
-          <div>
-            <label>{{ t.field_share_enabled }}</label>
-            <select id="d-share_enabled">
-              <option value="0">{{ t.no }}</option>
-              <option value="1">{{ t.yes }}</option>
-            </select>
-            <p class="hint">{{ t.share_enabled_hint }}</p>
-          </div>
-        </div>
-        <div class="row">
-          <div>
-            <label>{{ t.field_dm_enabled }}</label>
-            <select id="d-dm_enabled">
-              <option value="0">{{ t.no }}</option>
-              <option value="1">{{ t.yes }}</option>
-            </select>
-            <p class="hint">{{ t.dm_enabled_hint }}</p>
-          </div>
-          <div>
-            <label>{{ t.field_dm_ha_notify }}</label>
-            <select id="d-dm_ha_notify">
-              <option value="0">{{ t.no }}</option>
-              <option value="1">{{ t.yes }}</option>
-            </select>
-            <p class="hint">{{ t.dm_ha_notify_hint }}</p>
-          </div>
-        </div>
-        <div class="row">
-          <div>
-            <label>{{ t.field_directory_enabled }}</label>
-            <select id="d-directory_enabled">
-              <option value="0">{{ t.no }}</option>
-              <option value="1">{{ t.yes }}</option>
-            </select>
-            <p class="hint">{{ t.directory_enabled_hint }}</p>
-          </div>
-          <div>
-            <label>{{ t.field_search_enabled }}</label>
-            <select id="d-search_enabled">
-              <option value="0">{{ t.no }}</option>
-              <option value="1">{{ t.yes }}</option>
-            </select>
-            <p class="hint">{{ t.search_enabled_hint }}</p>
-          </div>
-        </div>
-        <div class="row">
-          <div>
-            <label>{{ t.field_travel_enabled }}</label>
-            <select id="d-travel_enabled">
-              <option value="0">{{ t.no }}</option>
-              <option value="1">{{ t.yes }}</option>
-            </select>
-            <p class="hint">{{ t.travel_enabled_hint }}</p>
-          </div>
-          <div>
-            <label>{{ t.field_forms_enabled }}</label>
-            <select id="d-forms_enabled">
-              <option value="0">{{ t.no }}</option>
-              <option value="1">{{ t.yes }}</option>
-            </select>
-            <p class="hint">{{ t.forms_enabled_hint }}</p>
-          </div>
-        </div>
-        <div class="row">
-          <div>
-            <label>{{ t.field_default_lang }}</label>
-            <select id="d-default_lang">
-              <option value="de">{{ t.feed_lang_de }}</option>
-              <option value="en">{{ t.feed_lang_en }}</option>
-              <option value="auto">{{ t.default_lang_auto }}</option>
-            </select>
-            <p class="hint">{{ t.default_lang_hint }}</p>
-          </div>
-          <div></div>
-        </div>
-        <div class="row">
-          <div>
-            <label>{{ t.field_feed_lang }}</label>
-            <select id="d-feed_lang">
-              <option value="de">{{ t.feed_lang_de }}</option>
-              <option value="en">{{ t.feed_lang_en }}</option>
-            </select>
-            <p class="hint">{{ t.feed_lang_hint }}</p>
-          </div>
-          <div>
-            <label>{{ t.field_feed_extra }}</label>
-            <div class="row">
-              <div>
-                <select id="d-feed_projects">
-                  <option value="0">{{ t.feed_projects_off }}</option>
-                  <option value="1">{{ t.feed_projects_on }}</option>
-                </select>
-              </div>
-              <div>
-                <select id="d-feed_library">
-                  <option value="0">{{ t.feed_library_off }}</option>
-                  <option value="1">{{ t.feed_library_on }}</option>
-                </select>
-              </div>
-            </div>
-            <p class="hint">{{ t.feed_extra_hint }}</p>
-          </div>
-        </div>
-        <div class="row">
-          <div>
-            <label>{{ t.field_registration_enabled }}</label>
-            <select id="d-registration_enabled">
-              <option value="0">{{ t.no }}</option>
-              <option value="1">{{ t.yes }}</option>
-            </select>
-            <p class="hint">{{ t.registration_enabled_hint }}</p>
-          </div>
-          <div>
-            <label>{{ t.field_registration_quota }}</label>
-            <input type="number" id="d-registration_quota_mb" min="1" max="100000" step="1">
-          </div>
-        </div>
-        <div class="row">
-          <div>
-            <label>{{ t.field_newsletter_enabled }}</label>
-            <select id="d-newsletter_enabled">
-              <option value="0">{{ t.no }}</option>
-              <option value="1">{{ t.yes }}</option>
-            </select>
-            <p class="hint">{{ t.newsletter_enabled_hint }}</p>
-          </div>
-        </div>
-        <div class="row">
-          <div>
-            <label>{{ t.field_weekly_review }}</label>
-            <select id="d-weekly_review">
-              <option value="0">{{ t.no }}</option>
-              <option value="1">{{ t.yes }}</option>
-            </select>
-            <p class="hint">{{ t.weekly_review_hint }}</p>
-          </div>
-        </div>
-        <div class="row">
-          <div>
+          <div class="opt">
             <label>{{ t.field_font }}</label>
             <select id="d-font">
               <optgroup label="{{ t.font_group_system }}">
@@ -1740,7 +1486,7 @@
               </optgroup>
             </select>
           </div>
-          <div>
+          <div class="opt">
             <label>{{ t.font_upload_label }}</label>
             <div class="upload-row">
               <button class="btn secondary small" onclick="el('font-input').click()">⬆ {{ t.font_upload }}</button>
@@ -1750,52 +1496,46 @@
           </div>
         </div>
         <div class="row">
-          <div>
-            <label>{{ t.field_support_url }}</label>
-            <input type="text" id="d-support_url" placeholder="https://buymeacoffee.com/…">
+          <div class="opt">
+            <label>{{ t.field_favicon }}</label>
+            <div class="upload-row">
+              <input type="text" id="d-favicon" placeholder="https://… {{ t.or_upload }}">
+              <button class="btn secondary small" onclick="browseUploads(u => { el('d-favicon').value = u; })">{{ t.image_pick }}</button>
+            </div>
           </div>
-          <div>
-            <label>{{ t.field_support_label }}</label>
-            <input type="text" id="d-support_label" placeholder="{{ t.support_default }}">
-          </div>
-        </div>
-        <p class="hint">{{ t.support_hint }}</p>
-        <div class="row">
-          <div>
-            <label>{{ t.field_booking_url }}</label>
-            <input type="text" id="d-booking_url" placeholder="https://calendly.com/…">
-          </div>
-          <div>
-            <label>{{ t.field_booking_label }}</label>
-            <input type="text" id="d-booking_label" placeholder="{{ t.booking_default }}">
+          <div class="opt">
+            <label>{{ t.field_footer }}</label>
+            <input type="text" id="d-footer_text">
           </div>
         </div>
-        <p class="hint">{{ t.booking_hint }}</p>
-        <label>{{ t.field_footer }}</label>
-        <input type="text" id="d-footer_text">
-        <label>{{ t.field_custom_css }}</label>
-        <textarea id="d-custom_css" rows="5" style="font-family:ui-monospace,Consolas,monospace" placeholder=".hero h1 {{ '{' }} letter-spacing: 1px; {{ '}' }}"></textarea>
-        <p class="hint">{{ t.custom_css_hint }}</p>
+        <div class="opt">
+          <label>{{ t.field_custom_css }}</label>
+          <textarea id="d-custom_css" rows="5" style="font-family:ui-monospace,Consolas,monospace" placeholder=".hero h1 {{ '{' }} letter-spacing: 1px; {{ '}' }}"></textarea>
+          <p class="hint">{{ t.custom_css_hint }}</p>
+        </div>
+      </details>
+
+      <details class="panel fold" id="dg-start" data-jump-panel>
+        <summary><h3>{{ t.design_group_start }}</h3></summary>
         <div class="row">
-          <div>
-            <label>{{ t.field_easter_eggs }}</label>
-            <select id="d-easter_eggs">
-              <option value="0">{{ t.no }}</option>
+          <div class="opt">
+            <label>{{ t.field_nav }}</label>
+            <select id="d-show_nav">
               <option value="1">{{ t.yes }}</option>
-            </select>
-            <p class="hint">{{ t.easter_eggs_hint }}</p>
-          </div>
-          <div>
-            <label>{{ t.field_mini_games }}</label>
-            <select id="d-mini_games">
               <option value="0">{{ t.no }}</option>
-              <option value="1">{{ t.yes }}</option>
             </select>
-            <p class="hint">{{ t.mini_games_hint }}</p>
+            <p class="hint">{{ t.field_nav_hint }}</p>
+          </div>
+          <div class="opt">
+            <label>{{ t.field_counter }}</label>
+            <select id="d-show_counter">
+              <option value="1">{{ t.yes }}</option>
+              <option value="0">{{ t.no }}</option>
+            </select>
           </div>
         </div>
         <div class="row">
-          <div>
+          <div class="opt">
             <label>{{ t.field_reveal_effect }}</label>
             <select id="d-reveal_effect">
               <option value="off">{{ t.reveal_off }}</option>
@@ -1806,7 +1546,7 @@
             </select>
             <p class="hint">{{ t.reveal_hint }}</p>
           </div>
-          <div>
+          <div class="opt">
             <label>{{ t.field_reveal_stagger }}</label>
             <select id="d-reveal_stagger">
               <option value="0">{{ t.no }}</option>
@@ -1815,22 +1555,332 @@
             <p class="hint">{{ t.reveal_stagger_hint }}</p>
           </div>
         </div>
+      </details>
+
+      <details class="panel fold" id="dg-banner" data-jump-panel>
+        <summary><h3>{{ t.banner_heading }}</h3></summary>
+        <p class="hint">{{ t.banner_hint }}</p>
+        <div class="opt">
+          <label class="checkbox"><input type="checkbox" id="d-banner_enabled"> {{ t.banner_enable }}</label>
+        </div>
+        <div class="row" style="margin-top:10px">
+          <div class="opt">
+            <label>{{ t.banner_text }} (DE)</label>
+            <input type="text" id="d-banner_text_de" maxlength="200" placeholder="{{ t.banner_text_ph }}">
+          </div>
+          <div class="opt">
+            <label>{{ t.banner_text }} (EN)</label>
+            <input type="text" id="d-banner_text_en" maxlength="200" placeholder="{{ t.banner_text_ph }}">
+          </div>
+        </div>
+        <div class="opt">
+          <label>{{ t.banner_link }}</label>
+          <input type="text" id="d-banner_link_url" placeholder="https://… {{ t.banner_link_hint }}">
+        </div>
         <div class="row">
-          <div>
+          <div class="opt">
+            <label>{{ t.banner_link_label }} (DE)</label>
+            <input type="text" id="d-banner_link_label_de" maxlength="60" placeholder="{{ t.banner_more }}">
+          </div>
+          <div class="opt">
+            <label>{{ t.banner_link_label }} (EN)</label>
+            <input type="text" id="d-banner_link_label_en" maxlength="60" placeholder="{{ t.banner_more }}">
+          </div>
+        </div>
+        <div class="opt">
+          <label class="checkbox" style="margin-top:6px"><input type="checkbox" id="d-banner_dismissible"> {{ t.banner_dismissible }}</label>
+        </div>
+      </details>
+
+      <details class="panel fold" id="dg-lang" data-jump-panel>
+        <summary><h3>{{ t.design_group_lang }}</h3></summary>
+        <div class="row">
+          <div class="opt">
+            <label>{{ t.field_default_lang }}</label>
+            <select id="d-default_lang">
+              <option value="de">{{ t.feed_lang_de }}</option>
+              <option value="en">{{ t.feed_lang_en }}</option>
+              <option value="auto">{{ t.default_lang_auto }}</option>
+            </select>
+            <p class="hint">{{ t.default_lang_hint }}</p>
+          </div>
+          <div class="opt">
+            <label>{{ t.field_feed_lang }}</label>
+            <select id="d-feed_lang">
+              <option value="de">{{ t.feed_lang_de }}</option>
+              <option value="en">{{ t.feed_lang_en }}</option>
+            </select>
+            <p class="hint">{{ t.feed_lang_hint }}</p>
+          </div>
+        </div>
+        <div class="opt">
+          <label>{{ t.field_feed_extra }}</label>
+          <div class="row">
+            <div>
+              <select id="d-feed_projects">
+                <option value="0">{{ t.feed_projects_off }}</option>
+                <option value="1">{{ t.feed_projects_on }}</option>
+              </select>
+            </div>
+            <div>
+              <select id="d-feed_library">
+                <option value="0">{{ t.feed_library_off }}</option>
+                <option value="1">{{ t.feed_library_on }}</option>
+              </select>
+            </div>
+          </div>
+          <p class="hint">{{ t.feed_extra_hint }}</p>
+        </div>
+      </details>
+
+      <details class="panel fold" id="dg-seo" data-jump-panel>
+        <summary><h3>{{ t.design_group_seo }}</h3></summary>
+        <div class="row">
+          <div class="opt">
+            <label>{{ t.field_public_url }}</label>
+            <input type="text" id="d-public_url" placeholder="https://meine-domain.de">
+          </div>
+          <div class="opt">
+            <label>{{ t.field_allow_indexing }}</label>
+            <select id="d-allow_indexing">
+              <option value="1">{{ t.yes }}</option>
+              <option value="0">{{ t.no }}</option>
+            </select>
+            <p class="hint">{{ t.allow_indexing_hint }}</p>
+          </div>
+        </div>
+        <div class="row">
+          <div class="opt">
+            <label>{{ t.field_seo_desc }} (DE)</label>
+            <input type="text" id="d-meta_description_de" maxlength="300" placeholder="{{ t.seo_desc_ph }}">
+          </div>
+          <div class="opt">
+            <label>{{ t.field_seo_desc }} (EN)</label>
+            <input type="text" id="d-meta_description_en" maxlength="300" placeholder="{{ t.seo_desc_ph }}">
+          </div>
+        </div>
+        <p class="hint">{{ t.seo_desc_hint }}</p>
+        <div class="snip-bar">
+          <div class="snip-langs" id="snip-home-langs"></div>
+          <span class="snip-len" id="snip-home-lt"></span>
+          <span class="snip-len" id="snip-home-ld"></span>
+        </div>
+        <div class="snip" id="snip-home">
+          <div class="snip-url"></div>
+          <div class="snip-title"></div>
+          <div class="snip-desc"></div>
+        </div>
+        <p class="hint">{{ t.snip_hint }}</p>
+        <div class="row">
+          <div class="opt">
+            <label>{{ t.field_indexnow }}</label>
+            <select id="d-indexnow">
+              <option value="0">{{ t.no }}</option>
+              <option value="1">{{ t.yes }}</option>
+            </select>
+            <p class="hint">{{ t.indexnow_hint }}</p>
+          </div>
+          <div class="opt">
+            <label>&nbsp;</label>
+            <button class="btn secondary" style="margin-top:0" onclick="pingIndexNow(this)">{{ t.indexnow_ping }}</button>
+          </div>
+        </div>
+        <div class="row">
+          <div class="opt">
+            <label>{{ t.verify_google }}</label>
+            <input type="text" id="d-google_verify" placeholder="google-site-verification …">
+          </div>
+          <div class="opt">
+            <label>{{ t.verify_bing }}</label>
+            <input type="text" id="d-bing_verify" placeholder="msvalidate.01 …">
+          </div>
+        </div>
+        <p class="hint">{{ t.verify_hint }}</p>
+      </details>
+
+      <details class="panel fold" id="dg-sections" data-jump-panel>
+        <summary><h3>{{ t.design_group_sections }}</h3></summary>
+        <div class="row">
+          <div class="opt">
+            <label>{{ t.field_contact_enabled }}</label>
+            <select id="d-contact_enabled">
+              <option value="0">{{ t.no }}</option>
+              <option value="1">{{ t.yes }}</option>
+            </select>
+            <p class="hint">{{ t.contact_telegram_hint }}</p>
+          </div>
+          <div class="opt">
+            <label>{{ t.field_comments_enabled }}</label>
+            <select id="d-comments_enabled">
+              <option value="0">{{ t.no }}</option>
+              <option value="1">{{ t.yes }}</option>
+            </select>
+            <p class="hint">{{ t.comments_enabled_hint }}</p>
+          </div>
+        </div>
+        <div class="row">
+          <div class="opt">
+            <label>{{ t.field_share_enabled }}</label>
+            <select id="d-share_enabled">
+              <option value="0">{{ t.no }}</option>
+              <option value="1">{{ t.yes }}</option>
+            </select>
+            <p class="hint">{{ t.share_enabled_hint }}</p>
+          </div>
+          <div class="opt">
+            <label>{{ t.field_search_enabled }}</label>
+            <select id="d-search_enabled">
+              <option value="0">{{ t.no }}</option>
+              <option value="1">{{ t.yes }}</option>
+            </select>
+            <p class="hint">{{ t.search_enabled_hint }}</p>
+          </div>
+        </div>
+        <div class="row">
+          <div class="opt">
+            <label>{{ t.field_dm_enabled }}</label>
+            <select id="d-dm_enabled">
+              <option value="0">{{ t.no }}</option>
+              <option value="1">{{ t.yes }}</option>
+            </select>
+            <p class="hint">{{ t.dm_enabled_hint }}</p>
+          </div>
+          <div class="opt">
+            <label>{{ t.field_dm_ha_notify }}</label>
+            <select id="d-dm_ha_notify">
+              <option value="0">{{ t.no }}</option>
+              <option value="1">{{ t.yes }}</option>
+            </select>
+            <p class="hint">{{ t.dm_ha_notify_hint }}</p>
+          </div>
+        </div>
+        <div class="row">
+          <div class="opt">
+            <label>{{ t.field_directory_enabled }}</label>
+            <select id="d-directory_enabled">
+              <option value="0">{{ t.no }}</option>
+              <option value="1">{{ t.yes }}</option>
+            </select>
+            <p class="hint">{{ t.directory_enabled_hint }}</p>
+          </div>
+          <div class="opt">
+            <label>{{ t.field_travel_enabled }}</label>
+            <select id="d-travel_enabled">
+              <option value="0">{{ t.no }}</option>
+              <option value="1">{{ t.yes }}</option>
+            </select>
+            <p class="hint">{{ t.travel_enabled_hint }}</p>
+          </div>
+        </div>
+        <div class="row">
+          <div class="opt">
+            <label>{{ t.field_forms_enabled }}</label>
+            <select id="d-forms_enabled">
+              <option value="0">{{ t.no }}</option>
+              <option value="1">{{ t.yes }}</option>
+            </select>
+            <p class="hint">{{ t.forms_enabled_hint }}</p>
+          </div>
+        </div>
+      </details>
+
+      <details class="panel fold" id="dg-members" data-jump-panel>
+        <summary><h3>{{ t.design_group_members }}</h3></summary>
+        <div class="row">
+          <div class="opt">
+            <label>{{ t.field_registration_enabled }}</label>
+            <select id="d-registration_enabled">
+              <option value="0">{{ t.no }}</option>
+              <option value="1">{{ t.yes }}</option>
+            </select>
+            <p class="hint">{{ t.registration_enabled_hint }}</p>
+          </div>
+          <div class="opt">
+            <label>{{ t.field_registration_quota }}</label>
+            <input type="number" id="d-registration_quota_mb" min="1" max="100000" step="1">
+          </div>
+        </div>
+        <div class="row">
+          <div class="opt">
+            <label>{{ t.field_newsletter_enabled }}</label>
+            <select id="d-newsletter_enabled">
+              <option value="0">{{ t.no }}</option>
+              <option value="1">{{ t.yes }}</option>
+            </select>
+            <p class="hint">{{ t.newsletter_enabled_hint }}</p>
+          </div>
+          <div class="opt">
+            <label>{{ t.field_weekly_review }}</label>
+            <select id="d-weekly_review">
+              <option value="0">{{ t.no }}</option>
+              <option value="1">{{ t.yes }}</option>
+            </select>
+            <p class="hint">{{ t.weekly_review_hint }}</p>
+          </div>
+        </div>
+      </details>
+
+      <details class="panel fold" id="dg-links" data-jump-panel>
+        <summary><h3>{{ t.design_group_links }}</h3></summary>
+        <div class="row">
+          <div class="opt">
+            <label>{{ t.field_support_url }}</label>
+            <input type="text" id="d-support_url" placeholder="https://buymeacoffee.com/…">
+          </div>
+          <div class="opt">
+            <label>{{ t.field_support_label }}</label>
+            <input type="text" id="d-support_label" placeholder="{{ t.support_default }}">
+          </div>
+        </div>
+        <p class="hint">{{ t.support_hint }}</p>
+        <div class="row">
+          <div class="opt">
+            <label>{{ t.field_booking_url }}</label>
+            <input type="text" id="d-booking_url" placeholder="https://calendly.com/…">
+          </div>
+          <div class="opt">
+            <label>{{ t.field_booking_label }}</label>
+            <input type="text" id="d-booking_label" placeholder="{{ t.booking_default }}">
+          </div>
+        </div>
+        <p class="hint">{{ t.booking_hint }}</p>
+      </details>
+
+      <details class="panel fold" id="dg-fun" data-jump-panel>
+        <summary><h3>{{ t.design_group_fun }}</h3></summary>
+        <div class="row">
+          <div class="opt">
+            <label>{{ t.field_easter_eggs }}</label>
+            <select id="d-easter_eggs">
+              <option value="0">{{ t.no }}</option>
+              <option value="1">{{ t.yes }}</option>
+            </select>
+            <p class="hint">{{ t.easter_eggs_hint }}</p>
+          </div>
+          <div class="opt">
+            <label>{{ t.field_mini_games }}</label>
+            <select id="d-mini_games">
+              <option value="0">{{ t.no }}</option>
+              <option value="1">{{ t.yes }}</option>
+            </select>
+            <p class="hint">{{ t.mini_games_hint }}</p>
+          </div>
+        </div>
+        <div class="row">
+          <div class="opt">
             <label>{{ t.field_egg_message }}</label>
             <input type="text" id="d-egg_message" maxlength="200" placeholder="{{ t.egg_default_msg }}">
           </div>
-          <div>
+          <div class="opt">
             <label>{{ t.field_egg_tagline }}</label>
             <input type="text" id="d-egg_tagline" maxlength="200" placeholder="{{ t.egg_default_tagline }}">
           </div>
         </div>
-        <div><button class="btn" onclick="saveDesign()">{{ t.save }}</button></div>
-        <p class="hint">{{ t.contact_telegram_hint }}</p>
-      </div>
+      </details>
+
       <!-- Alle SEO-Beschreibungen an einer Stelle: sonst muesste man jeden
            Beitrag einzeln aufmachen, um zu sehen, wo eine fehlt. -->
-      <details class="panel fold" id="seo-panel" ontoggle="seoFold(this)">
+      <details class="panel fold" id="seo-panel" data-jump-panel ontoggle="seoFold(this)">
         <summary><h3>{{ t.seo_list_heading }}</h3><span class="hint fold-hint" style="margin:0">{{ t.seo_list_fold }}</span></summary>
         <p class="hint">{{ t.seo_list_hint }}</p>
         <div class="seo-bar">
@@ -1853,6 +1903,13 @@
           <span class="hint" style="margin:0">{{ t.preview_hint }}</span>
         </div>
         <iframe class="preview-frame" id="preview-frame" title="Preview"></iframe>
+      </div>
+      <!-- Ein Speichern-Knopf fuer den ganzen Reiter: die Gruppen sind nur eine
+           Anzeigefrage, gespeichert wird weiterhin alles auf einmal. Klebt unten,
+           damit er aus jeder Gruppe heraus erreichbar bleibt. -->
+      <div class="save-bar">
+        <button class="btn" onclick="saveDesign()">{{ t.save }}</button>
+        <span class="hint" style="margin:0">{{ t.design_save_hint }}</span>
       </div>
     </section>
 
@@ -4059,7 +4116,7 @@
         if (btn.dataset.tab === 'explorer') initExplorerTab();
         if (btn.dataset.tab === 'messages') { loadMessages(); loadComments(); }
         if (btn.dataset.tab === 'users') { loadUsers(); initStorageBrowser(); startUsersPolling(); }
-        if (btn.dataset.tab === 'design') { initPreview(); setTimeout(updatePresetArrows, 50); }
+        if (btn.dataset.tab === 'design') { initPreview(); initDesignJump(); setTimeout(updatePresetArrows, 50); }
         if (btn.dataset.tab === 'system') { loadAudit(); loadTwofa(); loadAutoBackups(); loadRevisions(); loadFileBrowser(); initSystemJump(); }
         if (btn.dataset.tab === 'settings') { loadSettings(); loadKeyState(); initSettingsJump(); }
         if (btn.dataset.tab === 'blog') loadSubscribers();
@@ -9037,7 +9094,7 @@
     // dazukommender Bereich steht ohne Zutun mit drin. Sprungziel ist jedes
     // Panel mit data-jump-panel.
     const JUMPBARS = { ai: 'ai-jump', system: 'system-jump', explorer: 'explorer-jump',
-                       settings: 'settings-jump' };
+                       settings: 'settings-jump', design: 'design-jump' };
     // Sichtbar ist immer hoechstens eine Leiste — die des aktiven Reiters.
     function activeJumpbar() {
       for (const [tab, id] of Object.entries(JUMPBARS)) {
@@ -9128,6 +9185,65 @@
     function initSystemJump() {
       syncHeaderHeight();
       if (!systemJumpReady) { systemJumpReady = true; buildJumpbar('system'); }
+      jumpSpy();
+    }
+    // ── Design-Reiter: Gruppen merken und Optionen finden ──
+    // Rund fünfzig Optionen in neun Gruppen. Welche Gruppe offen ist, ist
+    // Geschmackssache und bleibt deshalb pro Browser stehen; gesucht wird über
+    // die Beschriftungen, weil man den Namen einer Option kennt, nicht die
+    // Gruppe, in der sie einsortiert wurde.
+    function foldRemember(d) {
+      try { localStorage.setItem('mypage.fold.' + d.id, d.open ? '1' : '0'); } catch (e) {}
+    }
+    function initDesignFolds() {
+      document.querySelectorAll('#tab-design details.fold').forEach(d => {
+        if (!d.id) return;
+        try {
+          const v = localStorage.getItem('mypage.fold.' + d.id);
+          if (v !== null) d.open = v === '1';
+        } catch (e) {}
+        d.addEventListener('toggle', () => {
+          foldRemember(d);
+          // Die Pfeile der Vorlagen-Galerie rechnen mit Breiten — zugeklappt
+          // sind die null, also erst nach dem Aufklappen messen.
+          if (d.open && d.id === 'dg-presets') setTimeout(updatePresetArrows, 50);
+        });
+      });
+    }
+
+    let designFindTimer = null;
+    function designFind(q) {
+      clearTimeout(designFindTimer);
+      designFindTimer = setTimeout(() => designFindNow(q), 120);
+    }
+    function designFindNow(q) {
+      q = (q || '').trim().toLowerCase();
+      let hits = 0;
+      document.querySelectorAll('#tab-design details.fold').forEach(g => {
+        const opts = g.querySelectorAll('.opt');
+        let found = 0;
+        opts.forEach(o => {
+          const on = !q || o.textContent.toLowerCase().includes(q);
+          o.classList.toggle('opt-hide', !on);
+          if (on && q) found++;
+        });
+        // Eine Gruppe ohne Einzeloptionen (die Vorlagen-Galerie) zaehlt ueber
+        // ihre Ueberschrift mit — sonst waere sie beim Suchen immer weg.
+        if (q && !opts.length && g.textContent.toLowerCase().includes(q)) found = 1;
+        g.style.display = (!q || found) ? '' : 'none';
+        if (q && found) { g.open = true; hits += found; }
+      });
+      const info = el('design-find-info');
+      if (info) info.textContent = !q ? '' : (hits ? T.design_find_hits.replace('{n}', hits)
+                                                   : T.design_find_none);
+      syncJumpbar('design');
+      jumpSpy();
+    }
+
+    let designJumpReady = false;
+    function initDesignJump() {
+      syncHeaderHeight();
+      if (!designJumpReady) { designJumpReady = true; initDesignFolds(); buildJumpbar('design'); }
       jumpSpy();
     }
     // Ein Beobachter fuer alle Leisten: welche gemeint ist, entscheidet der
