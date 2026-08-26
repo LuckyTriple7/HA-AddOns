@@ -23,7 +23,16 @@ Die übrigen Optionen sind seit **0.11.2** aus dem Schema entfernt und tauchen i
 Gespeichert wird in `settings.json` im Add-on-Konfigurationsordner. Geheime Felder (GitHub-Token, SMTP-Passwort, Telegram-Token, SMB-Passwort, Gemini-Keys) werden mit `settings.key` verschlüsselt, im Browser nie angezeigt (nur „gesetzt"/„nicht gesetzt") und im Protokoll nur als Feldname geführt.
 
 * **Leeres Geheimfeld heißt „unverändert lassen"** — zum Entfernen den Knopf **Löschen** benutzen.
-* Das MyPage-Backup enthält `settings.json`, aber **nicht** `settings.key`. Ein Backup verrät die Zugangsdaten also nicht; nach einem Restore auf einer **frischen** Installation müssen sie einmal neu eingetragen werden.
+* Das MyPage-Backup enthält `settings.json`, aber **nicht** `settings.key`. Ein Backup verrät die Zugangsdaten also nicht. Damit ein Restore auf einer **frischen** Installation trotzdem gelingt, gibt es den Schlüssel-Export (siehe unten).
+
+#### Schlüssel sichern
+
+Im Reiter **Einstellungen** ganz unten. Der Export verpackt `settings.key` mit einer **Passphrase**, die du eingibst — die Datei darf deshalb neben dem Backup liegen, ohne Passphrase ist sie wertlos (scrypt zur Ableitung, 32 MB Speicher je Rateversuch).
+
+* Vor Export **und** Import fragt MyPage das **Admin-Passwort** erneut ab, bei aktivem 2FA zusätzlich den Code. Nach fünf Fehlversuchen ist die Funktion 5 Minuten gesperrt; jeder Vorgang steht im Audit-Log.
+* Die Passphrase wird nirgends gespeichert, auch nicht als Hash. Geht sie verloren, ist der Export wertlos — dann bleibt nur, die Zugangsdaten neu einzutragen.
+* Beim Einspielen auf einer frischen Installation läuft der Import ohne Rückfrage durch. Liegt dagegen schon ein **anderer** Schlüssel mit nutzbaren Daten, kommt eine Warnung: Ersetzen macht die damit verschlüsselten Zugangsdaten unwiderruflich unlesbar.
+* Nach dem Import meldet MyPage, wie viele Felder wieder lesbar sind.
 * SMB-Felder greifen sofort, wenn beim Start schon eine Freigabe eingerichtet war — sonst erst nach einem Neustart des Add-ons (die Oberfläche sagt es).
 
 | Einstellung | Beschreibung |

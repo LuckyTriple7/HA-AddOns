@@ -15,6 +15,7 @@ Vorrang beim Lesen: Standardwerte < options.json < settings.json.
 """
 from __future__ import annotations
 
+import base64
 import json
 import logging
 import os
@@ -25,6 +26,7 @@ log = logging.getLogger('mypage')
 
 try:
     from cryptography.fernet import Fernet, InvalidToken
+    from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
     _HAS_CRYPTO = True
 except Exception:  # Bibliothek fehlt → geheime Felder bleiben ungesetzt
     _HAS_CRYPTO = False
@@ -122,7 +124,14 @@ def reset_cache() -> None:
         _cache, _cache_mtime, _fernet = {}, -1.0, None
 
 
-def _get_fernet():
+def _get_fernet(create: bool = False):
+    """Fernet-Instanz zum Schlüssel im Datenordner.
+
+    `create=False` (Lesen/Entschlüsseln) legt bewusst KEINEN Schlüssel an: sonst
+    entstünde direkt nach einem Restore ein frischer Zufallsschlüssel, und der
+    danach eingespielte echte Schlüssel gälte als „anderer" und würde abgelehnt.
+    Erzeugt wird nur, wenn wirklich etwas verschlüsselt werden soll.
+    """
     global _fernet
     if _fernet is not None:
         return _fernet
@@ -132,6 +141,8 @@ def _get_fernet():
         if os.path.exists(_key_path):
             with open(_key_path, 'rb') as f:
                 key = f.read().strip()
+        elif not create:
+            return None
         else:
             key = Fernet.generate_key()
             with open(_key_path, 'wb') as f:
@@ -151,7 +162,7 @@ def _get_fernet():
 def _encrypt(value: str) -> str:
     if not value:
         return ''
-    f = _get_fernet()
+    f = _get_fernet(create=True)
     if f is None:
         # Ohne Verschlüsselung lieber gar nicht speichern, als den Token im
         # Klartext in den Datenordner (und damit ins Backup) zu schreiben.
@@ -294,6 +305,101 @@ def _write(raw: dict) -> None:
     except OSError:
         _cache_mtime = -1.0
 
+
+
+# ── Schlüssel sichern und zurückholen ─────────────────────────────────────────
+# Der Schlüssel liegt bewusst nicht im Backup — sonst wäre die Verschlüsselung
+# der Zugangsdaten dort wertlos. Damit ein Restore auf einer frischen
+# Installation trotzdem gelingt, lässt sich der Schlüssel einzeln exportieren:
+# verpackt mit einer Passphrase, die nur der Nutzer kennt. Die exportierte Datei
+# darf deshalb neben dem Backup liegen — ohne Passphrase ist sie wertlos.
+EXPORT_FORMAT = 'mypage-settings-key'
+KEY_EXPORT_VERSION = 1
+KEY_PASSPHRASE_MIN = 10
+# scrypt-Parameter: 32 MB Speicher je Versuch. Bremst Wörterbuchangriffe auf die
+# Passphrase spürbar aus und bleibt für einen einzelnen Export unmerklich.
+_SCRYPT_N, _SCRYPT_R, _SCRYPT_P = 2 ** 15, 8, 1
+
+
+def _passphrase_key(passphrase: str, salt: bytes) -> bytes:
+    kdf = Scrypt(salt=salt, length=32, n=_SCRYPT_N, r=_SCRYPT_R, p=_SCRYPT_P)
+    return base64.urlsafe_b64encode(kdf.derive(passphrase.encode('utf-8')))
+
+
+def export_key(passphrase: str) -> bytes:
+    """Schlüssel mit einer Passphrase verpackt ausgeben (JSON-Datei).
+
+    Wirft ValueError, wenn es noch keinen Schlüssel gibt oder die Passphrase zu
+    kurz ist — beides meldet die Oberfläche im Klartext.
+    """
+    if not _HAS_CRYPTO:
+        raise ValueError('crypto_unavailable')
+    if len(passphrase or '') < KEY_PASSPHRASE_MIN:
+        raise ValueError('passphrase_short')
+    if not os.path.exists(_key_path):
+        raise ValueError('no_key')
+    with open(_key_path, 'rb') as f:
+        raw = f.read().strip()
+    salt = os.urandom(16)
+    blob = Fernet(_passphrase_key(passphrase, salt)).encrypt(raw)
+    return json.dumps({
+        'format': EXPORT_FORMAT,
+        'version': KEY_EXPORT_VERSION,
+        'kdf': 'scrypt', 'n': _SCRYPT_N, 'r': _SCRYPT_R, 'p': _SCRYPT_P,
+        'salt': base64.b64encode(salt).decode('ascii'),
+        'key': blob.decode('ascii'),
+    }, indent=2).encode('utf-8')
+
+
+def import_key(data: bytes, passphrase: str, overwrite: bool = False) -> int:
+    """Exportierten Schlüssel zurückschreiben. Gibt die Zahl lesbarer Geheimfelder zurück.
+
+    Wirft ValueError mit einem der Gründe: crypto_unavailable, invalid_file,
+    wrong_passphrase, exists (es liegt bereits ein anderer Schlüssel da und
+    `overwrite` wurde nicht gesetzt).
+    """
+    if not _HAS_CRYPTO:
+        raise ValueError('crypto_unavailable')
+    try:
+        meta = json.loads(data.decode('utf-8'))
+        salt = base64.b64decode(meta['salt'])
+        blob = str(meta['key']).encode('ascii')
+        n, r, p = int(meta.get('n', _SCRYPT_N)), int(meta.get('r', _SCRYPT_R)), int(meta.get('p', _SCRYPT_P))
+    except Exception:
+        raise ValueError('invalid_file')
+    # Parameter aus der Datei nur innerhalb vernünftiger Grenzen übernehmen:
+    # eine manipulierte Datei soll den Server nicht mit 16 GB scrypt beschäftigen.
+    if not (2 ** 12 <= n <= 2 ** 17 and 1 <= r <= 16 and 1 <= p <= 4):
+        raise ValueError('invalid_file')
+    try:
+        kdf = Scrypt(salt=salt, length=32, n=n, r=r, p=p)
+        wrap = Fernet(base64.urlsafe_b64encode(kdf.derive((passphrase or '').encode('utf-8'))))
+        raw = wrap.decrypt(blob).strip()
+        Fernet(raw)          # muss ein gültiger Fernet-Schlüssel sein
+    except (InvalidToken, ValueError, TypeError):
+        raise ValueError('wrong_passphrase')
+    # Ein vorhandener, anderer Schlüssel darf nur nach ausdrücklicher Bestätigung
+    # weichen — mit ihm verschlüsselte Zugangsdaten wären danach unlesbar. Schließt
+    # er dagegen gar nichts auf (frische Installation, alles leer), ist nichts zu
+    # verlieren und der Import läuft ohne Rückfrage durch.
+    if os.path.exists(_key_path) and not overwrite:
+        with open(_key_path, 'rb') as f:
+            current = f.read().strip()
+        if current != raw and any(load().get(k) for k in SECRET_KEYS):
+            raise ValueError('exists')
+    with _lock:
+        with open(_key_path, 'wb') as f:
+            f.write(raw)
+        try:
+            os.chmod(_key_path, 0o600)
+        except OSError:
+            pass
+    reset_cache()
+    return sum(1 for k in SECRET_KEYS if load().get(k))
+
+
+def key_exists() -> bool:
+    return bool(_key_path) and os.path.exists(_key_path)
 
 def migrate(options: dict) -> bool:
     """Beim ersten Start die bisherigen Add-on-Optionen übernehmen.

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.11.3
+
+- 🔑 **Schlüssel sichern — neu im Reiter Einstellungen.** Bisher blieb `settings.key` im Add-on, und ein Restore auf einer frischen Installation ließ die Zugangsdaten leer. Jetzt lässt sich der Schlüssel einzeln herunterladen: verpackt mit einer **Passphrase**, die du eingibst (scrypt, 32 MB je Rateversuch). Die Datei darf deshalb neben dem Backup liegen — ohne Passphrase ist sie wertlos. Zurückspielen geht über denselben Bereich.
+- 🛡️ **Vor Export und Import wird das Admin-Passwort erneut abgefragt**, bei aktivem 2FA zusätzlich der Code. Nach fünf Fehlversuchen ist die Funktion 5 Minuten gesperrt, jeder Vorgang landet im Audit-Log. Ein Klartext-Download ohne Passphrase gibt es bewusst nicht — der würde die Verschlüsselung wieder aufheben.
+- 🩹 **Kein Zufallsschlüssel mehr beim bloßen Lesen.** Fehlte `settings.key`, legte schon der erste Lesezugriff einen neuen an — der später eingespielte echte Schlüssel galt dann als „fremd" und wurde abgelehnt. Erzeugt wird jetzt nur noch, wenn wirklich etwas zu verschlüsseln ist.
+
 ## 0.11.2
 
 - 🧹 **Die alten Optionen sind aus der HA-Konfigurationsseite verschwunden.** Sie standen in 0.11.0/0.11.1 nur noch da, damit der Supervisor sie nicht wegwirft, bevor die einmalige Übernahme sie lesen konnte. Das ist erledigt — übrig bleiben `username`, `password` und `session_hours` als Notzugang. Alles andere: Admin-Panel → **Einstellungen**.

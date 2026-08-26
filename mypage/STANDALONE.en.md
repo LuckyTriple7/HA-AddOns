@@ -44,6 +44,7 @@ Mail delivery, Telegram, GitHub token, AI keys, SMB storage, visitor counter and
 They are stored in `./data/settings.json`. Tokens and passwords are **encrypted** with `./data/settings.key`, never shown in the browser (only “set”/“not set”), and logged by field name only.
 
 * An empty secret field means **“leave unchanged”** — use the **Delete** button to remove one.
+* **Download key** (on the *Settings* tab) exports `settings.key` wrapped with a passphrase — the only way to bring credentials back on a fresh installation. MyPage asks for the admin password again first.
 * Almost everything applies immediately. Only the **SMB fields** need a `docker compose restart` if no share was configured at start (the UI tells you).
 * Upgrading from an older version: on first start MyPage imports the existing values from `options.json` into `settings.json`, encrypting them on the way. The old entries in `options.json` then have no effect and can be removed.
 

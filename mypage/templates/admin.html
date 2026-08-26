@@ -2194,6 +2194,32 @@
         <input type="number" min="0" max="60" data-set="auto_backup_keep" style="max-width:160px">
       </div>
 
+      <div class="panel" data-jump-panel>
+        <h3>🔑 {{ t.set_key_heading }}</h3>
+        <p class="hint">{{ t.set_key_hint }}</p>
+        <p class="hint" id="set-key-state"></p>
+        <div class="row">
+          <div>
+            <label>{{ t.set_key_pass }}</label>
+            <input type="password" id="set-key-pass" autocomplete="new-password">
+            <p class="hint">{{ t.set_key_pass_hint }}</p>
+          </div>
+          <div>
+            <label>{{ t.set_key_admin_pw }}</label>
+            <input type="password" id="set-key-admin" autocomplete="current-password">
+            <div id="set-key-code-wrap" style="display:none;margin-top:8px">
+              <label>{{ t.set_key_code }}</label>
+              <input type="text" id="set-key-code" inputmode="numeric" maxlength="10" style="max-width:160px">
+            </div>
+          </div>
+        </div>
+        <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn secondary" id="set-key-export" onclick="exportKey(this)">⬇ {{ t.set_key_export_btn }}</button>
+          <button class="btn secondary" onclick="el('set-key-file').click()">⬆ {{ t.set_key_import_btn }}</button>
+          <input type="file" id="set-key-file" accept=".json,application/json" style="display:none">
+        </div>
+      </div>
+
       <div class="panel">
         <button class="btn" id="set-save" onclick="saveSettings(this)">{{ t.save }}</button>
         <button class="btn secondary" onclick="loadSettings()">{{ t.set_reload }}</button>
@@ -3666,7 +3692,7 @@
         if (btn.dataset.tab === 'users') { loadUsers(); initStorageBrowser(); startUsersPolling(); }
         if (btn.dataset.tab === 'design') { initPreview(); setTimeout(updatePresetArrows, 50); }
         if (btn.dataset.tab === 'system') { loadAudit(); loadTwofa(); loadAutoBackups(); loadRevisions(); loadFileBrowser(); initSystemJump(); }
-        if (btn.dataset.tab === 'settings') { loadSettings(); initSettingsJump(); }
+        if (btn.dataset.tab === 'settings') { loadSettings(); loadKeyState(); initSettingsJump(); }
         if (btn.dataset.tab === 'blog') loadSubscribers();
         if (btn.dataset.tab === 'ai') initAiTab();
         if (btn.dataset.tab === 'travel') loadTravel();
@@ -5854,6 +5880,72 @@
         await loadSettings();
       } finally { btn.disabled = false; }
     }
+    // Schlüssel sichern: verlässt das Add-on nur mit Passphrase verpackt, und
+    // erst nach erneuter Eingabe des Admin-Passworts (plus 2FA-Code, falls aktiv).
+    function keyErrText(code) {
+      return ({ auth: T.set_key_err_auth, locked: T.set_key_err_locked,
+                passphrase_short: T.set_key_err_passphrase_short,
+                wrong_passphrase: T.set_key_err_wrong_passphrase,
+                invalid_file: T.set_key_err_invalid, no_key: T.set_key_err_no_key,
+                crypto_unavailable: T.set_crypto_warn })[code] || T.error_save;
+    }
+    async function loadKeyState() {
+      const r = await api('api/settings/key');
+      if (!r.ok) return;
+      const d = await r.json();
+      el('set-key-state').textContent = d.key ? T.set_key_state_yes : T.set_key_state_no;
+      el('set-key-code-wrap').style.display = d.twofa ? '' : 'none';
+    }
+    function keyCreds() {
+      return { password: el('set-key-admin').value, code: el('set-key-code').value };
+    }
+    async function exportKey(btn) {
+      const passphrase = el('set-key-pass').value;
+      btn.disabled = true;
+      try {
+        const r = await apiJson('api/settings/key/export', 'POST',
+                                { passphrase, ...keyCreds() });
+        if (!r.ok) {
+          const d = await r.json().catch(() => ({}));
+          toast(keyErrText(d.error), true);
+          return;
+        }
+        const blob = await r.blob();
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'mypage-settings-key.json';
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+        el('set-key-pass').value = ''; el('set-key-admin').value = ''; el('set-key-code').value = '';
+        toast(T.set_key_exported);
+      } finally { btn.disabled = false; }
+    }
+    async function importKey(file, overwrite) {
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('passphrase', el('set-key-pass').value);
+      fd.append('password', el('set-key-admin').value);
+      fd.append('code', el('set-key-code').value);
+      if (overwrite) fd.append('overwrite', '1');
+      const r = await fetch('api/settings/key/import', { method: 'POST', body: fd, credentials: 'same-origin' });
+      const d = await r.json().catch(() => ({}));
+      if (r.ok) {
+        el('set-key-pass').value = ''; el('set-key-admin').value = ''; el('set-key-code').value = '';
+        toast(T.set_key_imported.replace('{n}', d.readable));
+        loadKeyState(); loadSettings();
+        return;
+      }
+      if (d.error === 'exists' && !overwrite) {
+        if (confirm(T.set_key_overwrite_confirm)) return importKey(file, true);
+        return;
+      }
+      toast(keyErrText(d.error), true);
+    }
+    el('set-key-file').addEventListener('change', e => {
+      const f = e.target.files[0];
+      e.target.value = '';
+      if (f) importKey(f, false);
+    });
     async function saveRedirects() {
       const items = [...el('redirect-list').children].map(row => ({
         from: row.querySelector('.rd-from').value,

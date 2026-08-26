@@ -44,6 +44,7 @@ Mailversand, Telegram, GitHub-Token, KI-Keys, SMB-Speicher, Besucherzähler und 
 Gespeichert wird in `./data/settings.json`. Tokens und Passwörter werden mit `./data/settings.key` **verschlüsselt** abgelegt, im Browser nie angezeigt (nur „gesetzt"/„nicht gesetzt") und beim Speichern nur als Feldname protokolliert.
 
 * Ein leeres Geheimfeld heißt **„unverändert lassen"** — zum Entfernen den Knopf **Löschen** benutzen.
+* Der Knopf **Schlüssel herunterladen** (Reiter *Einstellungen*) sichert `settings.key` mit einer Passphrase verpackt — die einzige Möglichkeit, die Zugangsdaten auf einer frischen Installation zurückzuholen. Vorher fragt MyPage das Admin-Passwort erneut ab.
 * Fast alles greift sofort. Nur die **SMB-Felder** brauchen einen `docker compose restart`, wenn beim Start noch keine Freigabe eingerichtet war (die Oberfläche weist darauf hin).
 * Wer aus einer älteren Version kommt: Beim ersten Start übernimmt MyPage die vorhandenen Werte aus `options.json` automatisch in `settings.json` — und verschlüsselt sie dabei. Danach sind die alten Einträge in `options.json` wirkungslos und können gelöscht werden.
 

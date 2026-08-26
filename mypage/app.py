@@ -74,7 +74,7 @@ except Exception:
     _HAS_GENAI = False
 from flask import (Flask, render_template, request, redirect, url_for,
                    make_response, jsonify, abort, send_from_directory,
-                   send_file, g, has_request_context)
+                   send_file, g, has_request_context, Response)
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from waitress import serve
 from werkzeug.middleware.proxy_fix import ProxyFix
@@ -8728,6 +8728,88 @@ def api_settings_save():
         # Nur die Feldnamen ins Protokoll, niemals die Werte
         log_audit('settings_update', ', '.join(sorted(changed))[:200])
     return jsonify({'ok': True, 'changed': sorted(changed), 'restart': restart})
+
+
+# Schlüssel-Export ist die einzige Stelle, an der ein Geheimnis das Add-on
+# verlässt. Deshalb: Admin-Passwort (und 2FA, falls aktiv) erneut abfragen,
+# Fehlversuche bremsen und jeden Vorgang ins Audit-Log schreiben.
+_key_gate: dict = {'fails': 0, 'until': 0.0}
+_KEY_GATE_MAX = 5
+_KEY_GATE_LOCK_S = 300
+
+
+def _key_gate_check(password: str, code: str) -> tuple | None:
+    """None = freigegeben, sonst die fertige Fehlerantwort."""
+    now = time.time()
+    if _key_gate['until'] > now:
+        return jsonify({'error': 'locked',
+                        'retry_after': int(_key_gate['until'] - now)}), 429
+    cfg = load_config()
+    ok = secrets.compare_digest(str(password or ''), str(cfg.get('password', '')))
+    if ok and twofa_enabled():
+        ok = totp_verify(load_2fa().get('secret', ''), code or '') or backup_code_consume(code or '')
+    if not ok:
+        _key_gate['fails'] += 1
+        if _key_gate['fails'] >= _KEY_GATE_MAX:
+            _key_gate['until'] = now + _KEY_GATE_LOCK_S
+            _key_gate['fails'] = 0
+        log_audit('settings_key_denied')
+        return jsonify({'error': 'auth'}), 403
+    _key_gate['fails'] = 0
+    return None
+
+
+@admin_app.route('/api/settings/key', methods=['GET'])
+def api_settings_key_state():
+    err = _api_auth()
+    if err:
+        return err
+    return jsonify({'key': settings_store.key_exists(),
+                    'min_len': settings_store.KEY_PASSPHRASE_MIN,
+                    'twofa': twofa_enabled()})
+
+
+@admin_app.route('/api/settings/key/export', methods=['POST'])
+def api_settings_key_export():
+    err = _api_auth()
+    if err:
+        return err
+    body = request.get_json(silent=True) or {}
+    if (gate := _key_gate_check(body.get('password'), body.get('code'))):
+        return gate
+    try:
+        data = settings_store.export_key(str(body.get('passphrase') or ''))
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    log_audit('settings_key_export')
+    return Response(data, mimetype='application/json', headers={
+        'Content-Disposition': 'attachment; filename="mypage-settings-key.json"',
+        'Cache-Control': 'no-store'})
+
+
+@admin_app.route('/api/settings/key/import', methods=['POST'])
+def api_settings_key_import():
+    err = _api_auth()
+    if err:
+        return err
+    f = request.files.get('file')
+    if not f or not f.filename:
+        return jsonify({'error': 'no file'}), 400
+    if (gate := _key_gate_check(request.form.get('password'), request.form.get('code'))):
+        return gate
+    data = f.read(64 * 1024)   # die Exportdatei ist wenige hundert Byte groß
+    try:
+        readable = settings_store.import_key(
+            data, request.form.get('passphrase') or '',
+            overwrite=request.form.get('overwrite') == '1')
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    except OSError as e:
+        log.warning("Schlüssel konnte nicht geschrieben werden: %s", e)
+        return jsonify({'error': 'write failed'}), 500
+    _settings_changed()
+    log_audit('settings_key_import', f'{readable} Feld(er) lesbar')
+    return jsonify({'ok': True, 'readable': readable})
 
 
 @admin_app.route('/api/users')
