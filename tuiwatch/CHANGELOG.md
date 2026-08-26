@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.105.1
+
+- 🩹 **Chrome trägt beim Neuladen keinen Benutzernamen mehr ins URL-Feld.** Weil auf der Seite Passwortfelder liegen, hielt der Browser das erste Textfeld („TUI-Angebots-URL einfügen“) für ein Anmeldefeld und füllte es aus. Das Feld ist jetzt als URL-Feld ausgewiesen und vom Ausfüllen ausgenommen.
+- 🎨 **Automatisch ausgefüllte Felder bleiben dunkel** statt hellblau — falls der Browser doch einmal etwas einträgt, ist es weiter lesbar.
+
 ## 0.105.0
 
 - 🔍 **Filterfeld in den Übersichten von Klimatabellen und Reiseführern.** Über der Liste steht ein Eingabefeld: „Mad“ zeigt sofort nur noch Madeira. Gesucht wird ohne Rücksicht auf Groß-/Kleinschreibung und Akzente, mehrere Wörter dürfen in beliebiger Reihenfolge stehen. Am Rechner springt der Cursor beim Öffnen gleich ins Feld, auf dem Handy nicht — sonst schiebe die Tastatur die Liste weg.

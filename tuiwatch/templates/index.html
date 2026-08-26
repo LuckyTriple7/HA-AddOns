@@ -91,6 +91,15 @@
     .add-row { display:flex; gap:8px; flex-wrap:wrap; }
     .add-row input { flex:1 1 240px; background:var(--bg); border:1px solid var(--border); color:var(--text); padding:9px 12px; border-radius:var(--r-ui); font-size:var(--fs-sm); }
     .add-row input:focus { outline:none; border-color:var(--accent); }
+    /* Chrome faerbt automatisch ausgefuellte Felder hellblau — im dunklen Thema
+       unlesbar. Der Inset-Schatten uebermalt die Fuellung, Farbe wird gesetzt. */
+    input:-webkit-autofill, input:-webkit-autofill:hover,
+    input:-webkit-autofill:focus, textarea:-webkit-autofill, select:-webkit-autofill {
+      -webkit-text-fill-color: var(--text);
+      -webkit-box-shadow: 0 0 0 1000px var(--bg) inset;
+      caret-color: var(--text);
+      transition: background-color 9999s ease-out 0s;
+    }
     .hint { font-size:var(--fs-xs); color:var(--muted); margin-top:8px; }
     /* Umbruch statt Ellipse: passt die Leiste nicht in eine Zeile (schmales
        Fenster, Tablet), sind zwei Zeilen lesbarer als „Aktionscod…". */
@@ -1053,8 +1062,9 @@
 
     <div class="add-card">
       <div class="add-row">
-        <input type="text" id="new-url" placeholder="TUI-Angebots-URL einfügen (von tui.com)…">
-        <input type="text" id="new-label" placeholder="Eigener Name (optional)" style="flex:0 1 200px">
+        <input type="url" id="new-url" name="tui-offer-url" autocomplete="off" inputmode="url"
+               placeholder="TUI-Angebots-URL einfügen (von tui.com)…">
+        <input type="text" id="new-label" name="tui-offer-label" autocomplete="off" placeholder="Eigener Name (optional)" style="flex:0 1 200px">
         <button class="btn" id="add-btn">Hinzufügen</button>
       </div>
       <div class="hint">Tipp: Auf tui.com die gewünschte Reise mit Datum, Personen &amp; Abflughafen suchen und die Adresszeile (URL) hier einfügen. Getrackt wird genau dieses Angebot.</div>
@@ -1482,7 +1492,7 @@
       </div>
       <div class="sub" id="syslog-sub"></div>
       <div id="syslog-filter" style="display:none;gap:6px;margin-bottom:8px;flex-wrap:wrap">
-        <input id="syslog-q" placeholder="Filtern (z. B. Preisbarometer)" style="flex:1;min-width:180px">
+        <input id="syslog-q" autocomplete="off" placeholder="Filtern (z. B. Preisbarometer)" style="flex:1;min-width:180px">
         <select id="syslog-level">
           <option value="">alle Stufen</option>
           <option value="INFO">ab INFO</option>
@@ -1537,7 +1547,7 @@
       </button>
       <h2><svg class="i"><use href="#i-ai"/></svg> KI-Verlauf</h2>
       <div class="sub">Bisherige KI-Fazits &amp; -Vergleiche — bleiben dauerhaft gespeichert, unabhängig vom 24h-Cache.</div>
-      <input type="text" id="aihist-search" oninput="filterAiHistory()" placeholder="Suchen (Titel, Art, Modell)…"
+      <input type="text" id="aihist-search" autocomplete="off" oninput="filterAiHistory()" placeholder="Suchen (Titel, Art, Modell)…"
         style="width:100%;margin-top:10px;background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:var(--r-ui);padding:8px;font:inherit">
       <div id="aihist-body"></div>
     </div>
