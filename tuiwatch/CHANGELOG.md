@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.104.2
+
+- 🔑 **Schlüssel sichern — neu im Einstellungen-Dialog.** `settings.key` liegt bewusst nicht im TUIWatch-Backup; damit ein Restore auf einer frischen Installation trotzdem alle Zugangsdaten zurückbringt, lässt er sich jetzt einzeln herunterladen — verpackt mit einer **Passphrase**, die du eingibst (scrypt, 32 MB je Rateversuch). Ohne Passphrase ist die Datei wertlos, sie darf also neben dem Backup liegen. Zurückspielen geht über denselben Bereich.
+- 🛡️ **Vor Export und Import wird das Login-Passwort erneut abgefragt**, nach fünf Fehlversuchen ist die Funktion 5 Minuten gesperrt. Einen Klartext-Download ohne Passphrase gibt es bewusst nicht.
+- 🩹 **Kein Zufallsschlüssel mehr beim bloßen Lesen** — sonst hätte der erste Lesezugriff nach einem Restore einen fremden Schlüssel angelegt und den echten Import blockiert.
+
 ## 0.104.1
 
 - 🧹 **Die alten Optionen sind aus der HA-Konfigurationsseite verschwunden.** Sie standen in 0.104.0 nur noch da, damit der Supervisor sie nicht wegwirft, bevor die einmalige Übernahme sie lesen konnte. Das ist erledigt — übrig bleiben `username`, `password` und `session_hours` als Notzugang. Alles andere: Zahnrad neben *Alle prüfen*.

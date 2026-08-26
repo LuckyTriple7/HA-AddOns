@@ -5590,6 +5590,7 @@
     function openSettings(){
       $('#settings-bg').classList.add('show');
       loadSettings();
+      loadKeyState();
       return false;
     }
     function closeSettings(){ $('#settings-bg').classList.remove('show'); }
@@ -5676,6 +5677,79 @@
       } catch(e){ toast('Speichern fehlgeschlagen'); }
       finally { btn.disabled = false; }
     }
+
+
+    // Schlüssel sichern: verlaesst das Add-on nur mit einer Passphrase verpackt,
+    // und erst nach erneuter Eingabe des Login-Passworts.
+    const KEY_ERR = {
+      auth: 'Passwort falsch', locked: 'Zu viele Fehlversuche — bitte 5 Minuten warten',
+      passphrase_short: 'Passphrase zu kurz (mindestens 10 Zeichen)',
+      wrong_passphrase: 'Falsche Passphrase — die Datei lässt sich nicht öffnen',
+      invalid_file: 'Das ist keine gültige Schlüsseldatei',
+      no_key: 'Es gibt noch keinen Schlüssel zum Sichern',
+      crypto_unavailable: 'Verschlüsselung nicht verfügbar',
+    };
+    async function loadKeyState(){
+      try {
+        const r = await fetch(api('/api/settings/key'));
+        if(!r.ok) return;
+        const d = await r.json();
+        $('#set-key-state').textContent = d.key
+          ? 'Ein Schlüssel ist vorhanden.'
+          : 'Noch kein Schlüssel angelegt — er entsteht, sobald du das erste Passwort oder Token speicherst.';
+      } catch(e){}
+    }
+    function keyClearInputs(){ $('#set-key-pass').value=''; $('#set-key-admin').value=''; }
+    async function exportKey(btn){
+      btn.disabled = true;
+      try {
+        const r = await fetch(api('/api/settings/key/export'), {
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ passphrase: $('#set-key-pass').value, password: $('#set-key-admin').value }),
+        });
+        if(!r.ok){ const d = await r.json().catch(()=>({})); toast(KEY_ERR[d.error] || 'Export fehlgeschlagen'); return; }
+        const blob = await r.blob();
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'tuiwatch-settings-key.json';
+        a.click();
+        setTimeout(()=>URL.revokeObjectURL(a.href), 5000);
+        keyClearInputs();
+        toast('Schlüssel heruntergeladen — sicher aufbewahren');
+      } catch(e){ toast('Export fehlgeschlagen'); }
+      finally { btn.disabled = false; }
+    }
+    async function importKey(file, overwrite){
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('passphrase', $('#set-key-pass').value);
+      fd.append('password', $('#set-key-admin').value);
+      if(overwrite) fd.append('overwrite','1');
+      let r, d;
+      try { r = await fetch(api('/api/settings/key/import'), { method:'POST', body: fd }); d = await r.json().catch(()=>({})); }
+      catch(e){ toast('Einspielen fehlgeschlagen'); return; }
+      if(r.ok){
+        keyClearInputs();
+        toast('Schlüssel eingespielt — ' + d.readable + ' Zugangsdaten wieder lesbar');
+        loadKeyState(); loadSettings();
+        return;
+      }
+      if(d.error === 'exists' && !overwrite){
+        if(confirm('Es liegt bereits ein anderer Schlüssel, mit dem gespeicherte Zugangsdaten verschlüsselt sind. '
+                 + 'Wird er ersetzt, sind diese Daten unwiderruflich unlesbar. Trotzdem fortfahren?')){
+          return importKey(file, true);
+        }
+        return;
+      }
+      toast(KEY_ERR[d.error] || 'Einspielen fehlgeschlagen');
+    }
+    document.addEventListener('change', e => {
+      if(e.target && e.target.id === 'set-key-file'){
+        const f = e.target.files[0];
+        e.target.value = '';
+        if(f) importKey(f, false);
+      }
+    });
 
     function openIssues(){
       $('#issues-bg').classList.add('show');

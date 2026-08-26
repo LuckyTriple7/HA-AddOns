@@ -35,6 +35,14 @@ Gespeichert wird in `settings.json` im privaten Datenverzeichnis des Add-ons (`/
 * Fast alles greift **sofort**, ohne Neustart. Ausnahme: `enable_public_share` und `public_port` — der zweite Webserver für die öffentlichen Angebots-Links wird einmalig beim Start gebunden. Der Dialog weist darauf hin.
 * Das TUIWatch-Backup enthält `settings.json`, aber **nicht** den Schlüssel `settings.key`. Zugangsdaten sind aus diesem ZIP also nicht lesbar; nach einem Restore auf einer frischen Installation müssen sie einmal neu eingetragen werden.
 * Das **Home-Assistant-Add-on-Backup** sichert dagegen `/data` komplett und enthält damit auch den Schlüssel. Es schützt die Zugangsdaten nur, wenn das HA-Backup selbst verschlüsselt (mit Passwort) angelegt wird.
+
+#### Schlüssel sichern
+
+Im Einstellungen-Dialog ganz unten. Der Export verpackt `settings.key` mit einer **Passphrase**, die du eingibst — die Datei darf deshalb neben dem Backup liegen, ohne Passphrase ist sie wertlos (scrypt zur Ableitung, 32 MB Speicher je Rateversuch). Damit lässt sich ein TUIWatch-Backup auf einer frischen Installation samt Zugangsdaten zurückholen.
+
+* Vor Export **und** Import fragt TUIWatch das **Login-Passwort** erneut ab. Nach fünf Fehlversuchen ist die Funktion 5 Minuten gesperrt.
+* Die Passphrase wird nirgends gespeichert. Geht sie verloren, ist der Export wertlos.
+* Liegt bereits ein **anderer** Schlüssel mit nutzbaren Daten, kommt vor dem Ersetzen eine Warnung — die damit verschlüsselten Zugangsdaten wären danach unwiderruflich unlesbar.
 * Werte außerhalb des erlaubten Bereichs werden auf die Grenze gezogen (z. B. `poll_interval` nie unter 600 Sekunden).
 
 ## Reise hinzufügen

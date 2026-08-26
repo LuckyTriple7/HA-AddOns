@@ -36,7 +36,7 @@ import settings as settings_store
 from google import genai
 from google.genai import errors as genai_errors
 from google.genai import types as genai_types
-from flask import (Flask, jsonify, make_response, redirect, render_template,
+from flask import (Flask, Response, jsonify, make_response, redirect, render_template,
                    request, send_file, url_for)
 from waitress import serve
 from werkzeug.middleware.proxy_fix import ProxyFix
@@ -95,7 +95,7 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.104.1"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.104.2"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
@@ -3182,6 +3182,79 @@ def api_settings_save():
         # Nur die Feldnamen ins Log, niemals die Werte
         log.info("Einstellungen geändert: %s", ', '.join(sorted(changed)))
     return jsonify({'ok': True, 'changed': sorted(changed), 'restart': restart})
+
+
+# Schlüssel-Export ist die einzige Stelle, an der ein Geheimnis TUIWatch
+# verlässt. Deshalb: Passwort erneut abfragen, Fehlversuche bremsen, und die
+# Datei verlässt das Add-on nur mit einer Passphrase verpackt.
+_key_gate: dict = {'fails': 0, 'until': 0.0}
+_KEY_GATE_MAX = 5
+_KEY_GATE_LOCK_S = 300
+
+
+def _key_gate_check(password: str):
+    """None = freigegeben, sonst die fertige Fehlerantwort."""
+    now = time.time()
+    if _key_gate['until'] > now:
+        return jsonify({'error': 'locked', 'retry_after': int(_key_gate['until'] - now)}), 429
+    if not secrets.compare_digest(str(password or ''), str(load_config().get('password', ''))):
+        _key_gate['fails'] += 1
+        if _key_gate['fails'] >= _KEY_GATE_MAX:
+            _key_gate['until'] = now + _KEY_GATE_LOCK_S
+            _key_gate['fails'] = 0
+        log.warning("Schlüssel-Zugriff abgelehnt (falsches Passwort)")
+        return jsonify({'error': 'auth'}), 403
+    _key_gate['fails'] = 0
+    return None
+
+
+@app.route('/api/settings/key', methods=['GET'])
+def api_settings_key_state():
+    if (err := _require_api()):
+        return err
+    return jsonify({'key': settings_store.key_exists(),
+                    'min_len': settings_store.KEY_PASSPHRASE_MIN})
+
+
+@app.route('/api/settings/key/export', methods=['POST'])
+def api_settings_key_export():
+    if (err := _require_api()):
+        return err
+    body = request.get_json(silent=True) or {}
+    if (gate := _key_gate_check(body.get('password'))):
+        return gate
+    try:
+        data = settings_store.export_key(str(body.get('passphrase') or ''))
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    log.info("Schlüssel exportiert (mit Passphrase verpackt)")
+    return Response(data, mimetype='application/json', headers={
+        'Content-Disposition': 'attachment; filename="tuiwatch-settings-key.json"',
+        'Cache-Control': 'no-store'})
+
+
+@app.route('/api/settings/key/import', methods=['POST'])
+def api_settings_key_import():
+    if (err := _require_api()):
+        return err
+    f = request.files.get('file')
+    if not f or not f.filename:
+        return jsonify({'error': 'no file'}), 400
+    if (gate := _key_gate_check(request.form.get('password'))):
+        return gate
+    data = f.read(64 * 1024)   # die Exportdatei ist wenige hundert Byte groß
+    try:
+        readable = settings_store.import_key(
+            data, request.form.get('passphrase') or '',
+            overwrite=request.form.get('overwrite') == '1')
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    except OSError as e:
+        log.warning("Schlüssel konnte nicht geschrieben werden: %s", e)
+        return jsonify({'error': 'write failed'}), 500
+    _settings_changed()
+    log.info("Schlüssel eingespielt — %d Zugangsdaten wieder lesbar", readable)
+    return jsonify({'ok': True, 'readable': readable})
 
 
 @app.route('/api/tui-calls', methods=['GET'])

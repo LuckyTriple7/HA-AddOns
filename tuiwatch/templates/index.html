@@ -1688,6 +1688,33 @@
       <div class="set-warn hint" id="set-crypto-warn" style="display:none">
         Verschlüsselung nicht verfügbar — geheime Felder können nicht gespeichert werden.</div>
       <div id="settings-body"><div class="cmp-load">lädt…</div></div>
+
+      <div class="set-group" id="set-key-group">
+        <h3>🔑 Schlüssel sichern</h3>
+        <div class="set-row">
+          <div class="hint">Der Schlüssel entschlüsselt alle gespeicherten Zugangsdaten und liegt bewusst
+            <b>nicht</b> im Backup. Damit ein Restore auf einer frischen Installation trotzdem gelingt,
+            kannst du ihn hier einzeln herunterladen — verpackt mit einer Passphrase, die nur du kennst.
+            Ohne diese Passphrase ist die Datei wertlos, sie darf also neben dem Backup liegen.</div>
+          <div class="hint" id="set-key-state" style="margin-top:6px"></div>
+        </div>
+        <div class="set-row">
+          <label class="set-lbl" for="set-key-pass">Passphrase für die Datei</label>
+          <input type="password" id="set-key-pass" autocomplete="new-password">
+          <div class="hint">Mindestens 10 Zeichen. Wird nirgends gespeichert — geht sie verloren, ist der
+            Export wertlos.</div>
+        </div>
+        <div class="set-row">
+          <label class="set-lbl" for="set-key-admin">Passwort (Bestätigung)</label>
+          <input type="password" id="set-key-admin" autocomplete="current-password">
+          <div class="hint">Dasselbe Passwort wie beim Login — steht in den Add-on-Optionen.</div>
+        </div>
+        <div class="set-row" style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn sec" type="button" id="set-key-export" onclick="exportKey(this)">Schlüssel herunterladen</button>
+          <button class="btn sec" type="button" onclick="$('#set-key-file').click()">Schlüssel einspielen</button>
+          <input type="file" id="set-key-file" accept=".json,application/json" style="display:none">
+        </div>
+      </div>
       <div style="margin-top:16px;display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap">
         <button class="btn sec" onclick="loadSettings()">Neu laden</button>
         <button class="btn" id="set-save" onclick="saveSettings(this)">Speichern</button>
