@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.104.5
+
+- 🩹 **Klimatabelle als Markdown: der Stern bleibt beim Monatsnamen.** Bei langen Monatsnamen wie „September“ rutschte die Markierung des besten Reisemonats beim Rendern in eine zweite Zeile — jetzt hält ein geschütztes Leerzeichen beides zusammen.
+
 ## 0.104.4
 
 - 🩹 **Menü „Mehr" zeigt bei Reiseführer und Klimatabellen wieder die Übersicht.** Nach dem Erstellen eines Reiseführers aus der Suche heraus öffnete der Menü-Eintrag stattdessen genau dieses eine Ziel — die beiden Einträge fielen auf das zuletzt in der Suche gewählte Reiseziel zurück, bis die Seite neu geladen wurde. Die Buttons in der Suchleiste beziehen sich weiterhin auf das dort gewählte Ziel.

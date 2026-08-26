@@ -4030,7 +4030,9 @@
       const head = ['Monat','Tag','Nacht','Wasser','Sonne','Regentage']
         .concat(hasNote ? ['Hinweis'] : []);
       const rows = (months||[]).slice().sort((a,b2)=>(a.monat||0)-(b2.monat||0)).map(m=>{
-        const name = (MONTHS_DE[(m.monat||1)-1] || m.monat) + (b.has(m.monat) ? ' ★' : '');
+        // Geschuetztes Leerzeichen: mit normalem Blank bricht der Stern im
+        // gerenderten Markdown in die naechste Zeile, hinter den Monatsnamen.
+        const name = (MONTHS_DE[(m.monat||1)-1] || m.monat) + (b.has(m.monat) ? ' ★' : '');
         const cells = [name, mdNum(m.temp_tag,' °C'), mdNum(m.temp_nacht,' °C'),
                        m.wasser ? mdNum(m.wasser,' °C') : '–',
                        mdNum(m.sonnenstunden,' h'), mdNum(m.regentage)];
