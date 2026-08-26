@@ -2834,6 +2834,7 @@
       ['regcmp-bg', closeRegionCompare],
       ['reiseb-bg', closeAdvisor],
       ['hc-bg', () => $('#hc-bg').classList.remove('show')],
+      ['settings-bg', closeSettings],
       ['promptcfg-bg', closePromptCfg],
       ['aktion-bg', closeAktion],
       ['basket-bg', closeBasket],   // liegt über dem Markttrend, daher davor prüfen
@@ -5575,6 +5576,105 @@
       badge.title = n
         ? n + (n===1 ? ' Störung' : ' Störungen') + ' — klicken für Details'
         : 'Störungen';
+    }
+
+
+    // ── Einstellungen (settings.json) ──────────────────────────────────────────
+    // Der Dialog baut sich aus der Feldbeschreibung, die /api/settings liefert —
+    // so muss eine neue Einstellung nur in settings.py stehen und taucht hier
+    // von allein auf. Geheime Felder kommen nie im Klartext zurueck: der Server
+    // meldet lediglich „gesetzt". Ein leeres Feld heisst deshalb „unveraendert",
+    // geleert wird ausschliesslich ueber den Loeschen-Knopf.
+    const SET_CLEAR = new Set();
+
+    function openSettings(){
+      $('#settings-bg').classList.add('show');
+      loadSettings();
+      return false;
+    }
+    function closeSettings(){ $('#settings-bg').classList.remove('show'); }
+
+    function setFieldHtml(f){
+      const id = 'set-f-' + f.key;
+      const hint = f.hint ? `<div class="hint">${esc(f.hint)}${f.restart ? ' <b>Neustart nötig.</b>' : ''}</div>` : '';
+      if(f.secret){
+        return `<div class="set-row">
+          <label class="set-lbl" for="${id}">${esc(f.label)}
+            <span class="set-state" id="set-state-${f.key}">${f.set ? 'gesetzt' : 'nicht gesetzt'}</span></label>
+          <div class="set-secret-row">
+            <input type="password" id="${id}" data-set="${f.key}" data-secret autocomplete="new-password"
+                   placeholder="${f.set ? 'gesetzt — leer lassen heißt unverändert' : 'nicht gesetzt'}">
+            <button class="btn sec" type="button" data-clear="${f.key}">Löschen</button>
+          </div>${hint}</div>`;
+      }
+      if(f.kind === 'bool'){
+        return `<div class="set-row set-bool"><label class="set-lbl" for="${id}">
+            <input type="checkbox" id="${id}" data-set="${f.key}" ${f.value ? 'checked' : ''}>
+            ${esc(f.label)}</label>${hint}</div>`;
+      }
+      if(f.kind === 'choice'){
+        const opts = (f.choices || []).map(c =>
+          `<option value="${esc(c)}"${String(f.value) === String(c) ? ' selected' : ''}>${esc(c)}</option>`).join('');
+        return `<div class="set-row"><label class="set-lbl" for="${id}">${esc(f.label)}</label>
+          <select id="${id}" data-set="${f.key}">${opts}</select>${hint}</div>`;
+      }
+      if(f.kind === 'int' || f.kind === 'float'){
+        const step = f.kind === 'float' ? ' step="0.1"' : '';
+        return `<div class="set-row"><label class="set-lbl" for="${id}">${esc(f.label)}</label>
+          <input type="number" id="${id}" data-set="${f.key}" min="${f.min}" max="${f.max}"${step}
+                 value="${esc(f.value)}">${hint}</div>`;
+      }
+      return `<div class="set-row"><label class="set-lbl" for="${id}">${esc(f.label)}</label>
+        <input type="text" id="${id}" data-set="${f.key}" value="${esc(f.value)}" autocomplete="off">${hint}</div>`;
+    }
+
+    async function loadSettings(){
+      const body = $('#settings-body');
+      body.innerHTML = '<div class="cmp-load">lädt…</div>';
+      SET_CLEAR.clear();
+      let d;
+      try {
+        const r = await fetch(api('/api/settings'));
+        if(!r.ok) throw 0;
+        d = await r.json();
+      } catch(e){ body.innerHTML = '<div class="cmp-load">Einstellungen konnten nicht geladen werden.</div>'; return; }
+      $('#set-crypto-warn').style.display = d.crypto ? 'none' : '';
+      body.innerHTML = (d.groups || []).map(g =>
+        `<div class="set-group"><h3>${esc(g.title)}</h3>${(g.items || []).map(setFieldHtml).join('')}</div>`).join('');
+      body.querySelectorAll('[data-clear]').forEach(b =>
+        b.addEventListener('click', () => clearSecret(b.dataset.clear)));
+    }
+
+    function clearSecret(key){
+      if(!confirm('Diesen Zugang beim nächsten Speichern entfernen?')) return;
+      SET_CLEAR.add(key);
+      const inp = $(`#settings-body [data-set="${key}"]`);
+      if(inp) inp.value = '';
+      const st = $('#set-state-' + key);
+      if(st) st.textContent = 'wird beim Speichern gelöscht';
+    }
+
+    async function saveSettings(btn){
+      const values = {};
+      $('#settings-body').querySelectorAll('[data-set]').forEach(inp => {
+        const k = inp.dataset.set;
+        if(inp.hasAttribute('data-secret')){ if(inp.value) values[k] = inp.value; return; }
+        values[k] = inp.type === 'checkbox' ? inp.checked : inp.value;
+      });
+      btn.disabled = true;
+      try {
+        const r = await fetch(api('/api/settings'), {
+          method: 'POST', headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ values, clear: [...SET_CLEAR] }),
+        });
+        if(!r.ok){ toast('Speichern fehlgeschlagen'); return; }
+        const d = await r.json();
+        toast(!d.changed.length ? 'Nichts geändert'
+              : d.restart ? 'Gespeichert — für die öffentlichen Angebots-Links das Add-on neu starten'
+              : 'Gespeichert');
+        await loadSettings();
+      } catch(e){ toast('Speichern fehlgeschlagen'); }
+      finally { btn.disabled = false; }
     }
 
     function openIssues(){

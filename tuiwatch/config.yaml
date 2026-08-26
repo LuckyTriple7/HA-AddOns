@@ -1,6 +1,6 @@
 name: TUIWatch
 description: Reisepreis-Tracker — verfolgt TUI-Angebotspreise und zeigt den Verlauf
-version: "0.103.1"
+version: "0.104.0"
 slug: tuiwatch
 url: https://github.com/LuckyTriple7/HA-AddOns
 image: "ghcr.io/luckytriple7/tuiwatch"
@@ -36,6 +36,10 @@ ports_description:
   17794/tcp: TUIWatch Web-UI (direkt) — nicht ins Internet geben
   17796/tcp: Öffentliche Angebots-Links (nur /s/<token>, ohne Login)
 
+# Ab 0.104.0 pflegt TUIWatch seine Einstellungen selbst (Zahnrad neben „Alle prüfen",
+# gespeichert verschlüsselt in settings.json). Hier stehen nur noch die Login-Daten
+# als Notzugang; die übrigen Optionen bleiben vorerst im Schema, damit die einmalige
+# Übernahme beim ersten Start sie noch lesen kann — geändert wird an ihnen nichts mehr.
 options:
   username: "admin"
   password: "secret"

@@ -26,7 +26,7 @@ COPY requirements.txt .
 # Playwright nutzt das System-Chromium (CHROMIUM_PATH) → kein 'playwright install' nötig
 RUN pip3 install --no-cache-dir --break-system-packages -r requirements.txt
 
-COPY app.py scraper.py tripparser.py aktionscodes.py nextcloud.py packliste.py ./
+COPY app.py settings.py scraper.py tripparser.py aktionscodes.py nextcloud.py packliste.py ./
 COPY trips_routes.py backup_routes.py digest.py ai_client.py price_calendar.py watch.py ai_routes.py offers_routes.py ./
 COPY check24_client.py check24_routes.py email_search.py market_basket.py stats_routes.py share_routes.py ./
 COPY issues.py ./

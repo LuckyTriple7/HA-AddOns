@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.104.0
+
+- ⚙️ **Einstellungen direkt in der Oberfläche.** Das Zahnrad rechts neben *Alle prüfen* öffnet einen Dialog mit allen 63 Einstellungen in 13 Gruppen — Prüfintervall, Benachrichtigungen, Telegram, SMTP, Nextcloud, KI-Anbieter und -Keys, Zusatzmodule, öffentliche Links, Backup. Die Erklärungen sind dieselben wie bisher auf der HA-Konfigurationsseite. Kein Umweg mehr über Home Assistant, kein Neustart für den Großteil der Werte.
+- 🔐 **Tokens und Passwörter liegen jetzt verschlüsselt.** Gespeichert wird in `settings.json`, die geheimen Felder (Telegram-Token, SMTP-Passwort, Nextcloud-App-Passwort, Anthropic-/Gemini-/Perplexity-Key) mit einem eigenen Schlüssel (`settings.key`). Der Browser bekommt sie nie zu sehen — nur „gesetzt"/„nicht gesetzt"; ein leeres Feld heißt „unverändert lassen". Bisher standen sie im Klartext in `options.json` und damit in jedem HA-Backup.
+- 💾 **Das TUIWatch-Backup enthält `settings.json`, aber nicht `settings.key`.** Aus einem Backup sind die Zugangsdaten damit nicht lesbar. Beim Wiederherstellen wird eine vorhandene Konfiguration nicht überschrieben — wie beim übrigen Restore.
+- 🔁 **Die bisherigen Optionen werden beim ersten Start automatisch übernommen.** In der HA-Konfiguration bleiben nur `username`, `password` und `session_hours` als Notzugang, falls man sich über die Oberfläche aussperrt.
+- ⚡ **Sofort wirksam**, ohne Neustart — nur `enable_public_share` und `public_port` brauchen einen, weil der zweite Webserver einmalig beim Start gebunden wird. Der Dialog sagt es.
+
 ## [0.103.1] - 2026-08-25
 
 ### Changed

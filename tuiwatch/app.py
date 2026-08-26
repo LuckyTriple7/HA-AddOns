@@ -31,6 +31,8 @@ from urllib.parse import parse_qs, quote, urlparse
 
 import anthropic
 import requests as http
+
+import settings as settings_store
 from google import genai
 from google.genai import errors as genai_errors
 from google.genai import types as genai_types
@@ -93,12 +95,15 @@ class _BufferHandler(logging.Handler):
 
 logging.getLogger().addHandler(_BufferHandler())
 
-APP_VERSION = "0.103.1"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
+APP_VERSION = "0.104.0"  # muss mit config.yaml/version bei jedem Bump mitgezogen werden
 
 # ── Pfade / Flask ──────────────────────────────────────────────────────────────
 _BASE = os.environ.get('TUIWATCH_BASE', '/app')
 _DATA = os.environ.get('TUIWATCH_DATA', '/data')
-CONFIG_PATH = _DATA + '/options.json'
+CONFIG_PATH = _DATA + '/options.json'   # Home Assistant: Login-Notzugang
+# Alles Weitere pflegt der Nutzer selbst (settings.json + settings.key)
+settings_store.init(_DATA)
+SETTINGS_PATH = settings_store.path()
 SESSIONS_PATH = _DATA + '/sessions.json'
 DB_PATH = _DATA + '/tuiwatch.db'
 TRIPS_DIR = _DATA + '/trips'   # dauerhaft gespeicherte Reise-PDFs
@@ -271,7 +276,12 @@ def _push_cooldown_sensor() -> None:
 
 # ── Config & Sessions ──────────────────────────────────────────────────────────
 
-def load_config() -> dict:
+_merged_cache: dict | None = None
+_merged_stamp: tuple | None = None
+
+
+def load_options() -> dict:
+    """Rohe Add-on-Optionen (Home Assistant schreibt sie, Standalone mountet sie)."""
     try:
         with open(CONFIG_PATH, 'r', encoding='utf-8') as f:
             return json.load(f)
@@ -280,6 +290,40 @@ def load_config() -> dict:
     except Exception as e:
         log.warning("options.json nicht lesbar (%s): %s", CONFIG_PATH, e)
         return {}
+
+
+def load_config() -> dict:
+    """Wirksame Einstellungen: Standardwerte < options.json < settings.json.
+
+    options.json liefert nur noch den Login-Notzugang (username/password/
+    session_hours) und – solange nicht migriert – die alten Werte. Alles, was
+    in der Oberfläche gepflegt wird, steht in settings.json und gewinnt.
+
+    Wird sehr oft aufgerufen (jede Route, jeder Worker), deshalb ein Cache über
+    die Änderungszeit beider Dateien statt eines Lesevorgangs je Aufruf.
+    """
+    global _merged_cache, _merged_stamp
+    try:
+        o_mtime = os.path.getmtime(CONFIG_PATH)
+    except OSError:
+        o_mtime = -1.0
+    try:
+        s_mtime = os.path.getmtime(SETTINGS_PATH)
+    except OSError:
+        s_mtime = -1.0
+    stamp = (o_mtime, s_mtime)
+    if _merged_cache is None or stamp != _merged_stamp:
+        merged = {k: spec[1] for k, spec in settings_store.FIELDS.items()}
+        merged.update(load_options())
+        merged.update(settings_store.load())
+        _merged_cache, _merged_stamp = merged, stamp
+    return _merged_cache
+
+
+def _settings_changed() -> None:
+    """Zusammengeführte Sicht verwerfen — nach Speichern oder Restore."""
+    global _merged_cache, _merged_stamp
+    _merged_cache, _merged_stamp = None, None
 
 
 def _verbose() -> bool:
@@ -3106,6 +3150,40 @@ def api_dbsize():
     return jsonify({'bytes': size})
 
 
+@app.route('/api/settings', methods=['GET'])
+def api_settings_get():
+    """Feldbeschreibung + wirksame Werte für den Einstellungen-Dialog.
+
+    Geheime Felder kommen nur als „gesetzt: ja/nein" zurück, nie im Klartext.
+    """
+    if (err := _require_api()):
+        return err
+    return jsonify(settings_store.public_view(load_config()))
+
+
+@app.route('/api/settings', methods=['POST'])
+def api_settings_save():
+    if (err := _require_api()):
+        return err
+    body = request.get_json(silent=True) or {}
+    values = body.get('values')
+    clear = body.get('clear') or []
+    if not isinstance(values, dict) or not isinstance(clear, list):
+        return jsonify({'error': 'invalid'}), 400
+    clear = [k for k in clear if isinstance(k, str) and k in settings_store.FIELDS]
+    try:
+        changed = settings_store.save(values, clear)
+    except OSError as e:
+        log.warning("Einstellungen konnten nicht geschrieben werden: %s", e)
+        return jsonify({'error': 'write failed'}), 500
+    _settings_changed()
+    restart = any(k in settings_store.RESTART_KEYS for k in changed)
+    if changed:
+        # Nur die Feldnamen ins Log, niemals die Werte
+        log.info("Einstellungen geändert: %s", ', '.join(sorted(changed)))
+    return jsonify({'ok': True, 'changed': sorted(changed), 'restart': restart})
+
+
 @app.route('/api/tui-calls', methods=['GET'])
 def api_tui_calls():
     """Heutige TUI-API-Aufrufe für die Footer-Anzeige — Reset um 0 Uhr
@@ -4236,6 +4314,9 @@ def main() -> None:
     signal.signal(signal.SIGTERM, _handle_sigterm)
     init_db()
     load_sessions()
+    # Einmalig: bisherige Add-on-Optionen in die eigene settings.json übernehmen
+    settings_store.migrate(load_options())
+    _settings_changed()
     # /config/trippilot einrichten: eigene questions.json bleibt unangetastet,
     # questions.default.json/README werden auf den Auslieferungsstand gebracht
     trippilot_questions.ensure_user_copy()

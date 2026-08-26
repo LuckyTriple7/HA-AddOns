@@ -107,6 +107,13 @@ def _build_backup_zip() -> bytes:
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as z:
         z.writestr('data.json', json.dumps(data, ensure_ascii=False, indent=2))
+        # Einstellungen mitnehmen, den Schlüssel dazu bewusst NICHT: Tokens und
+        # Passwörter stehen im Backup dadurch nur verschlüsselt. Preis: nach
+        # einem Restore auf einer frischen Installation müssen sie einmal neu
+        # eingetragen werden.
+        sp = Path(A.SETTINGS_PATH)
+        if sp.is_file():
+            z.write(str(sp), 'settings.json')
         seen = set()
         for t in trips:
             name = (t.get('pdf_name') or '').strip()
@@ -257,6 +264,7 @@ def api_restore():
     raw = up.read() if up is not None else None
     pdfs: dict[str, bytes] = {}
     att_pdfs: dict[str, bytes] = {}
+    settings_raw: bytes | None = None
     data = None
     if raw:
         if raw[:2] == b'PK':                       # ZIP-Archiv
@@ -272,6 +280,8 @@ def api_restore():
                     base = Path(info.filename).name
                     if base.lower().endswith('.pdf') and 0 < info.file_size <= A.MAX_PDF_BYTES:
                         pdfs[base] = zf.read(info)
+                elif info.filename == 'settings.json':
+                    settings_raw = zf.read(info)
                 elif info.filename.startswith('attachments/'):
                     base = Path(info.filename).name
                     if base.lower().endswith('.pdf') and 0 < info.file_size <= A.MAX_PDF_BYTES:
@@ -497,6 +507,24 @@ def api_restore():
                     continue
                 con.execute('INSERT INTO meta (key, value) VALUES (?,?)', (k, str(meta[k])))
                 settings_n += 1
+    # Einstellungen: wie der übrige Restore nicht-destruktiv — eine vorhandene
+    # settings.json bleibt unangetastet. Die geheimen Felder aus dem Backup sind
+    # nur lesbar, wenn settings.key noch derselbe ist (er liegt bewusst nicht im
+    # Backup); andernfalls stehen sie danach leer da und müssen neu eingetragen
+    # werden. Das meldet settings.py beim Entschlüsseln im Log.
+    settings_restored = False
+    if settings_raw and not A.settings_store.exists():
+        try:
+            json.loads(settings_raw.decode('utf-8'))   # muss valides JSON sein
+            with open(A.SETTINGS_PATH, 'wb') as f:
+                f.write(settings_raw)
+            A.settings_store.reset_cache()
+            A._settings_changed()
+            settings_restored = True
+            A.log.info("Wiederherstellung: Einstellungen aus dem Backup übernommen")
+        except (ValueError, UnicodeDecodeError, OSError) as e:
+            A.log.warning("Einstellungen aus dem Backup nicht übernommen: %s", e)
+
     for oid in new_ids:
         A._spawn(A.check_offer, oid)
     A.log.info("Wiederherstellung: %d Angebote (+%d übersprungen), %d Reisen, %d Suchen, "
@@ -507,5 +535,5 @@ def api_restore():
     return jsonify({'added': added, 'skipped': skipped, 'trips': trips_n, 'searches': searches_n,
                     'attachments': attachments_n, 'packing_items': packing_n,
                     'ai_history': ai_n, 'settings': settings_n, 'market_trend': moves_n,
-                    'market_basket': basket_n})
+                    'market_basket': basket_n, 'options_restored': settings_restored})
 

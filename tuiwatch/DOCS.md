@@ -11,33 +11,30 @@ Angebots-URLs und zeigt den Verlauf mit Hoch/Runter-Anzeige.
 
 ## Konfiguration
 
+Seit **0.104.0** stellst du alles im Zahnrad rechts neben **Alle prüfen** ein — nicht mehr in den Add-on-Optionen. Vorteile: Es geht ohne den Umweg über die HA-Konfigurationsseite (und damit auch ohne Home Assistant), und Tokens sowie Passwörter liegen **verschlüsselt** in `settings.json` statt im Klartext in `options.json`.
+
+Beim ersten Start nach dem Update übernimmt TUIWatch die bisherigen Optionen automatisch — du musst nichts abtippen.
+
+### Add-on-Optionen (Home Assistant)
+
+Hier stehen nur noch die Login-Daten. Sie bleiben bewusst in Home Assistant: Damit kommst du auch dann wieder hinein, wenn du dich über die Oberfläche aussperrst.
+
 ```yaml
 username: admin          # Login (Direktzugriff)
 password: secret         # bitte ändern!
 session_hours: 24        # Dauer der Anmeldung
-poll_interval: 21600     # Prüfintervall in Sekunden (6 h); Minimum 600
-poll_gap: 10             # Pause in Sekunden zwischen zwei Hintergrund-Abrufen (0 = aus)
-ha_notify_service: ""    # optional: notify-Dienst(e) für Push, z. B. mobile_app_mein_handy
-notify_api_errors: true  # Alarm, wenn eine TUI-API gestört ist
-notify_unavailable: true # Alarm, wenn das Buchungssystem ein Angebot nicht mehr bestätigt
-notify_booked_drop: true # Alarm, wenn Preis unter den gebuchten Preis fällt
-booked_drop_min_diff: 50 # Mindest-Ersparnis dafür (€)
-digest_enabled: false    # wöchentlicher Überblick (Telegram/E-Mail)
-digest_weekday: 1        # Versandtag (1 = Mo … 7 = So)
-market_basket_enabled: true   # Markttrend aus den täglich neu ausgeführten Suchen
-market_basket_lead_days: 91   # Ersatz-Abreise, nur wenn kein echtes Datum vorliegt
-market_basket_max_regions: 20 # Obergrenze für die täglich abgefragten Messreihen (1…50)
-booking_window_enabled: true   # Buchungszeitpunkt-Ampel aus der Booking-Kurve
-anthropic_api_key: ""    # Anthropic API-Key, aktiviert das KI-Fazit (leer = aus)
-anthropic_model: claude-opus-5  # oder claude-sonnet-5 / claude-haiku-4-5 / claude-fable-5
-ai_provider: anthropic   # oder gemini / perplexity (gilt fuer ALLE KI-Features)
-gemini_api_key: ""       # nur relevant bei ai_provider: gemini
-gemini_model: gemini-3.1-pro  # oder gemini-3.6-flash / gemini-3.5-flash / gemini-2.5-flash
-perplexity_api_key: ""   # nur relevant bei ai_provider: perplexity
-perplexity_model: sonar-pro  # oder sonar / sonar-reasoning-pro / sonar-deep-research
-ai_max_web_searches: 12  # Limit Websuchen/Aufruf, gilt nur bei Anthropic
-verbose_log: false       # ausführliche Logs
 ```
+
+Die übrigen Optionen stehen aus Kompatibilitätsgründen noch im Add-on-Schema, werden aber nur noch als Startwert für die einmalige Übernahme gelesen. Wer sie dort ändert, ändert nichts mehr — der Wert aus dem Zahnrad-Dialog gewinnt.
+
+### Zahnrad → **Einstellungen**
+
+Gespeichert wird in `settings.json` im Add-on-Konfigurationsordner, in 13 Gruppen von *Prüfen & Zeitplan* über *Benachrichtigungen* und *KI* bis *Backup*. Jede Einstellung bringt ihre Erklärung mit — dieselben Texte, die vorher auf der HA-Konfigurationsseite standen.
+
+* **Geheime Felder** (Telegram-Token, SMTP-Passwort, Nextcloud-App-Passwort, Anthropic-/Gemini-/Perplexity-Key) werden mit `settings.key` verschlüsselt und nie an den Browser zurückgegeben — er sieht nur „gesetzt"/„nicht gesetzt". Ein **leeres Feld heißt „unverändert lassen"**; zum Entfernen den Knopf **Löschen** benutzen.
+* Fast alles greift **sofort**, ohne Neustart. Ausnahme: `enable_public_share` und `public_port` — der zweite Webserver für die öffentlichen Angebots-Links wird einmalig beim Start gebunden. Der Dialog weist darauf hin.
+* Das TUIWatch-Backup enthält `settings.json`, aber **nicht** `settings.key`. Zugangsdaten sind aus einem Backup also nicht lesbar; nach einem Restore auf einer frischen Installation müssen sie einmal neu eingetragen werden.
+* Werte außerhalb des erlaubten Bereichs werden auf die Grenze gezogen (z. B. `poll_interval` nie unter 600 Sekunden).
 
 ## Reise hinzufügen
 

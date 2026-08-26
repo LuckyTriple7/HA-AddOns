@@ -409,6 +409,19 @@
     .modal { background:var(--surf); border:1px solid var(--border); border-radius:var(--r-card); width:100%; max-width:680px; max-height:88vh; overflow:auto; overscroll-behavior:contain; padding:18px; }
     /* Flache Fenster (Laptop im Querformat): mehr Höhe fürs Modal, weniger Rand */
     @media (max-height:760px){ .modal-bg { padding:8px; } .modal { max-height:96vh; padding:14px; } }
+    /* Einstellungen-Dialog: eine Zeile je Feld, Erklärung darunter */
+    .set-group { border-top:1px solid var(--border); margin-top:16px; padding-top:12px; }
+    .set-group:first-child { border-top:0; margin-top:0; }
+    .set-group h3 { font-size:var(--fs-md); margin-bottom:8px; }
+    .set-row { margin-bottom:12px; }
+    .set-row label.set-lbl { display:block; font-size:var(--fs-sm); font-weight:600; margin-bottom:3px; }
+    .set-row .hint { font-size:var(--fs-xs); color:var(--muted); margin-top:3px; }
+    .set-row input[type=text], .set-row input[type=password], .set-row input[type=number],
+    .set-row select { width:100%; max-width:420px; }
+    .set-row.set-bool label.set-lbl { display:flex; align-items:center; gap:8px; font-weight:500; }
+    .set-secret-row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+    .set-state { font-size:var(--fs-xs); color:var(--muted); font-weight:400; }
+    .set-warn { color:var(--bad, #ef4444); }
     .modal h2 { font-size:var(--fs-lg); margin-bottom:4px; }
     .modal .sub { font-size:var(--fs-sm); color:var(--muted); margin-bottom:14px; }
     #hist-canvas { width:100%; height:300px; display:block; }
@@ -942,6 +955,7 @@
     <symbol id="i-signal" viewBox="0 0 24 24"><path d="M2.5 8.5a15 15 0 0 1 19 0"/><path d="M6 12.5a10 10 0 0 1 12 0"/><path d="M9.5 16.5a5 5 0 0 1 5 0"/><circle cx="12" cy="20" r="1"/></symbol>
     <symbol id="i-bell" viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></symbol>
     <symbol id="i-download" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></symbol>
+    <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></symbol>
     <symbol id="i-settings" viewBox="0 0 24 24"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></symbol>
     <symbol id="i-star" viewBox="0 0 24 24"><path d="M12 2.5l3.1 6.4 6.9 1-5 4.9 1.2 6.9-6.2-3.3-6.2 3.3L7 14.8l-5-4.9 6.9-1z"/></symbol>
     <symbol id="i-save" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></symbol>
@@ -1018,6 +1032,9 @@
       </div>
       <div class="header-actions">
         <button class="btn" id="check-all" title="Alle Angebote jetzt prüfen"><svg class="i"><use href="#i-refresh"/></svg> <span class="btn-lbl">Alle prüfen</span></button>
+        <button class="icon-btn" onclick="openSettings()" title="Einstellungen">
+          <svg class="i"><use href="#i-gear"/></svg>
+        </button>
         <button class="icon-btn" onclick="toggleTheme()" title="Design wechseln">
           <svg class="i icon-moon"><use href="#i-moon"/></svg>
           <svg class="i icon-sun"><use href="#i-sun"/></svg>
@@ -1654,6 +1671,26 @@
           <button class="btn sec" onclick="closeTpEdit()">Abbrechen</button>
           <button class="btn" id="tpedit-save" onclick="tpSave()">Speichern</button>
         </span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Einstellungen (settings.json, siehe settings.py) -->
+  <div class="modal-bg" id="settings-bg">
+    <div class="modal" style="max-width:760px">
+      <button class="icon-btn modal-close" onclick="closeSettings()">
+        <svg class="i"><use href="#i-close"/></svg>
+      </button>
+      <h2><svg class="i"><use href="#i-gear"/></svg> Einstellungen</h2>
+      <div class="sub">Gespeichert wird in <code>settings.json</code> im Add-on-Konfigurationsordner;
+        Tokens und Passwörter verschlüsselt. In der Home-Assistant-Konfiguration stehen nur noch
+        Benutzername, Passwort und Sitzungsdauer. Ein leeres Geheimfeld heißt „unverändert lassen“.</div>
+      <div class="set-warn hint" id="set-crypto-warn" style="display:none">
+        Verschlüsselung nicht verfügbar — geheime Felder können nicht gespeichert werden.</div>
+      <div id="settings-body"><div class="cmp-load">lädt…</div></div>
+      <div style="margin-top:16px;display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap">
+        <button class="btn sec" onclick="loadSettings()">Neu laden</button>
+        <button class="btn" id="set-save" onclick="saveSettings(this)">Speichern</button>
       </div>
     </div>
   </div>
