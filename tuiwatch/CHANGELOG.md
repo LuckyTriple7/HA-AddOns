@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.105.2
+
+- 🩹 **Chrome füllt auch das Suchfeld nicht mehr mit den Login-Daten.** Das Feld ist jetzt ein echtes Suchfeld (`type=search`), damit scheidet es aus Chromes Anmelde-Erkennung aus. Zusätzlich sind die beiden Passwortfelder im Einstellungen-Dialog bis zum Antippen schreibgeschützt — dadurch hält Chrome die Seite gar nicht mehr für ein Anmeldeformular und sucht sich kein Benutzernamen-Feld.
+- ℹ️ Bereits von Chrome gespeicherte Einträge bleiben erhalten — die löscht man unter `chrome://password-manager/passwords`.
+
 ## 0.105.1
 
 - 🩹 **Chrome trägt beim Neuladen keinen Benutzernamen mehr ins URL-Feld.** Weil auf der Seite Passwortfelder liegen, hielt der Browser das erste Textfeld („TUI-Angebots-URL einfügen“) für ein Anmeldefeld und füllte es aus. Das Feld ist jetzt als URL-Feld ausgewiesen und vom Ausfüllen ausgenommen.
