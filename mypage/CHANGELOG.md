@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.11.12
+
+- ⚙️ **Einstellungen sitzen jetzt als Zahnrad in der Kopfzeile** — neben Sprachwahl, Design-Umschalter und Abmelden, wie in TUIWatch. Aus der Reiterleiste sind sie damit raus: die war mit sechzehn Einträgen die längste Zeile im Haus und musste seitlich gescrollt werden. Der Reiter selbst ist unverändert, nur der Weg dorthin ist kürzer; das Zahnrad färbt sich, solange er offen ist.
+
 ## 0.11.11
 
 - 🔽 **Die SEO-Übersicht startet zugeklappt.** Der Design-Reiter ist ohnehin lang; die Liste aller Beschreibungen hängt ihm sonst noch einmal dieselbe Länge an. Ein Klick auf die Überschrift klappt sie auf — und erst dann fragt der Browser die Daten überhaupt ab.

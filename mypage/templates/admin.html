@@ -54,6 +54,15 @@
     .icon-btn, .lang-btn { background: none; border: 1px solid var(--border); color: var(--muted); padding: 3px 8px; border-radius: 5px; font-size: 0.75rem; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 4px; }
     .lang-btn.active { border-color: var(--accent); color: var(--accent); }
     .icon-btn svg { width: 13px; height: 13px; fill: currentColor; }
+    /* Das Zahnrad ist eine Strichzeichnung — mit `fill` waere es ein Klecks.
+       Als Reiter-Knopf ausserhalb der Leiste braucht es ausserdem die
+       Aktiv-Markierung der Sprachknoepfe statt der der Reiter. */
+    .icon-btn svg.icon-gear { width: 15px; height: 15px; fill: none;
+      stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .header-actions .tab-btn { padding: 3px 8px; }
+    .header-actions .tab-btn:hover { color: var(--text); background: none; }
+    .header-actions .tab-btn.active { border-color: var(--accent); color: var(--accent);
+      background: none; }
     .icon-moon { display: block; } .icon-sun { display: none; }
     [data-theme="light"] .icon-moon { display: none; } [data-theme="light"] .icon-sun { display: block; }
 
@@ -521,11 +530,14 @@
         <button class="tab-btn" data-tab="stats">{{ t.tab_stats }}</button>
         <button class="tab-btn" data-tab="explorer">{{ t.tab_explorer }}</button>
         <button class="tab-btn" data-tab="system">{{ t.tab_system }}</button>
-        <button class="tab-btn" data-tab="settings">{{ t.tab_settings }}</button>
       </nav>
       <button type="button" class="nav-arrow nav-right" aria-label="►" onclick="navScroll(1)">›</button>
       </div>
       <div class="header-actions">
+        <button type="button" class="tab-btn icon-btn" data-tab="settings"
+                title="{{ t.tab_settings }}" aria-label="{{ t.tab_settings }}">
+          <svg class="icon-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        </button>
         <a href="{{ url_for('set_lang', lang='de', next=url_for('admin_index')) }}" class="lang-btn {% if lang == 'de' %}active{% endif %}">DE</a>
         <a href="{{ url_for('set_lang', lang='en', next=url_for('admin_index')) }}" class="lang-btn {% if lang == 'en' %}active{% endif %}">EN</a>
         <button class="icon-btn" onclick="toggleTheme()" type="button">

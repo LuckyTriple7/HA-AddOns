@@ -20,6 +20,8 @@ Die übrigen Optionen sind seit **0.11.2** aus dem Schema entfernt und tauchen i
 
 ### Reiter „Einstellungen" (Admin-Panel)
 
+Zu erreichen über das **Zahnrad** rechts oben in der Kopfzeile, neben Sprachwahl und Design-Umschalter.
+
 Gespeichert wird in `settings.json` im Add-on-Konfigurationsordner. Geheime Felder (GitHub-Token, SMTP-Passwort, Telegram-Token, SMB-Passwort, Gemini-Keys) werden mit `settings.key` verschlüsselt, im Browser nie angezeigt (nur „gesetzt"/„nicht gesetzt") und im Protokoll nur als Feldname geführt.
 
 Der **Schlüssel liegt seit 0.11.4 nicht mehr im Konfigurationsordner**, sondern im privaten Add-on-Verzeichnis (`/data`, dort wo Home Assistant auch `options.json` hält). Grund: Der Konfigurationsordner ist über den Samba-Share einsehbar — lägen `settings.json` und `settings.key` dort nebeneinander, könnte jeder mit Share-Zugriff die Zugangsdaten entschlüsseln. Ein vorhandener Schlüssel wird beim ersten Start automatisch verschoben. Im [Standalone-Betrieb](STANDALONE.md) bleibt er bei den Daten, weil `/data` dort nur containerintern und nach einem Neuaufbau weg wäre.
