@@ -4045,6 +4045,9 @@ def fetch_github_repos(user: str) -> list[dict]:
             'language':    repo.get('language') or '',
             'stars':       repo.get('stargazers_count', 0),
             'topics':      repo.get('topics', [])[:6],
+            # Letzter Push als Datum des Projekts — ohne das steht ein Projekt
+            # im Feed ohne <pubDate> und der Leser sortiert es irgendwohin
+            'pushed':      (repo.get('pushed_at') or '')[:10],
         })
     repos.sort(key=lambda x: x['stars'], reverse=True)
     return repos
@@ -4129,6 +4132,13 @@ def refresh_project_stars() -> None:
                     if new_stars != p.get('stars'):
                         p['stars'] = new_stars
                         changed = True
+                    # Beim selben Durchlauf das Push-Datum nachziehen: es liefert
+                    # dem Feed das <pubDate> und füllt sich so auch für Projekte,
+                    # die vor dieser Version importiert wurden
+                    pushed = (data.get('pushed_at') or '')[:10]
+                    if pushed and pushed != p.get('repo_pushed'):
+                        p['repo_pushed'] = pushed
+                        changed = True
                 time.sleep(1)
             if changed:
                 save_site(site)
@@ -4155,6 +4165,7 @@ def _normalize_project(raw: dict, existing: dict | None = None) -> dict:
     p['repo_full_name'] = _clean_str(raw.get('repo_full_name'), 150)
     p['language']       = _clean_str(raw.get('language'), 50)
     p['stars']          = max(0, int(raw.get('stars') or 0))
+    p['repo_pushed']    = _clean_str(raw.get('repo_pushed'), 10)
     p['long_de']        = _clean_str(raw.get('long_de'), 20000)
     p['long_en']        = _clean_str(raw.get('long_en'), 20000)
     gallery = raw.get('gallery') or []
@@ -9660,6 +9671,7 @@ def api_github_import():
             'repo_full_name': full_name,
             'language':       repo.get('language', ''),
             'stars':          repo.get('stars', 0),
+            'repo_pushed':    repo.get('pushed', ''),
             'tags':           repo.get('topics', []),
         }))
         existing.add(full_name)
@@ -12458,6 +12470,43 @@ def _feed_cut(text: str, limit: int = FEED_TEASER_MAX) -> str:
     return (cut[:sp] if sp > limit // 2 else cut).rstrip(' ,;:-–') + ' …'
 
 
+# Ein importiertes README enthält Links wie `filebox/` oder `docs/README.md` —
+# relativ zum Repository gemeint. Auf der Projektseite lösen sie sich gegen
+# `/p/<id>` auf, im Feed-Leser gegen dessen eigene Adresse: beides führt ins
+# Leere. Deshalb werden sie auf das Repository umgebogen. `HEAD` steht bei
+# GitHub für den Standard-Branch, der Name muss also nicht bekannt sein.
+_MD_REL_HREF_RE = re.compile(
+    r'(<a\b[^>]*?\bhref=")(?!https?://|mailto:|data:|#|/|\?)([^"]+)(")', re.I)
+_MD_REL_SRC_RE = re.compile(
+    r'(<img\b[^>]*?\bsrc=")(?!https?://|mailto:|data:|#|/|\?)([^"]+)(")', re.I)
+
+
+def _repo_abs_links(html: str, repo_url: str) -> str:
+    """Relative Links eines GitHub-READMEs auf das Repository umbiegen."""
+    url = (repo_url or '').strip().rstrip('/')
+    if not html or not url:
+        return html or ''
+    # Hostname vergleichen, nicht `startswith` — `evil.com/x?y=github.com` wäre
+    # sonst ein gültiges Ziel (siehe CodeQL-Muster für URL-Prüfungen)
+    parsed = urlparse(url)
+    host = (parsed.hostname or '').lower()
+    if host != 'github.com' or len(parsed.path.strip('/').split('/')) != 2:
+        return html
+
+    def fix(m, kind):
+        path = m.group(2).lstrip('./').lstrip('/')
+        if not path:
+            return m.group(0)
+        if kind == 'img':
+            target = f'{url}/raw/HEAD/{path}'
+        else:
+            target = f'{url}/{"tree" if path.endswith("/") else "blob"}/HEAD/{path}'
+        return f'{m.group(1)}{target}{m.group(3)}'
+
+    html = _MD_REL_HREF_RE.sub(lambda m: fix(m, 'a'), html)
+    return _MD_REL_SRC_RE.sub(lambda m: fix(m, 'img'), html)
+
+
 def _feed_abs(html: str, base: str) -> str:
     """Absolute Adressen im Volltext. Ein Feed-Leser kennt den Kontext der Seite
     nicht — `/uploads/x.webp` zeigt bei ihm ins Leere."""
@@ -12554,9 +12603,12 @@ def _feed_items(site: dict, lang: str, t: dict, loc, base: str) -> list:
             # könnte — ein Feed-Eintrag ohne Ziel ist wertlos
             if not _has_detail(p):
                 continue
-            body = _overlay_html_images(render_md(loc(p, 'long')))
+            body = _repo_abs_links(_overlay_html_images(render_md(loc(p, 'long'))),
+                                   p.get('repo_url', ''))
             add(title=p.get('title'), link=f"{base}/p/{p['id']}",
-                date_iso='',   # Projekte haben kein Datum
+                # Letzter Push des Repositories; von Hand angelegte Projekte
+                # haben keinen und bleiben ohne Datum
+                date_iso=p.get('repo_pushed') or '',
                 summary=loc(p, 'desc') or _plain_excerpt(body, 100000),
                 body=body, tags=p.get('tags'), image=p.get('image'), locked=False)
 
@@ -12601,6 +12653,7 @@ def rss_feed():
     esc = html_mod.escape
     items = _feed_items(site, lang, t, loc, base)
 
+    author = site['profile'].get('name') or ''
     body = ''
     seen_dates: dict[str, int] = {}
     for it in items:
@@ -12613,6 +12666,7 @@ def rss_feed():
                  f'      <guid isPermaLink="true">{esc(it["link"])}</guid>\n'
                  + (f'      <pubDate>{pub}</pubDate>\n' if pub else '')
                  + f'      <description>{esc(it["summary"])}</description>\n'
+                 + (f'      <dc:creator>{esc(author)}</dc:creator>\n' if author else '')
                  + ''.join(f'      <category>{esc(tag)}</category>\n' for tag in it['tags'])
                  + (f'      <enclosure url="{esc(img_url)}" type="{img_type}" '
                     f'length="{img_len}"/>\n' if img_url else '')
@@ -12627,7 +12681,6 @@ def rss_feed():
 
     title = d.get('site_title') or site['profile'].get('name') or 'MyPage'
     desc = loc(site['profile'], 'tagline') or title
-    author = site['profile'].get('name') or ''
     self_url = f'{base}/feed.xml' + (f'?lang={lang}' if request.args.get('lang') else '')
     # Kanal-Logo: das Profilbild, sonst das Favicon — beides nur, wenn es ein
     # eigener Upload ist (siehe _feed_media)
@@ -12642,14 +12695,19 @@ def rss_feed():
             f'    <atom:link href="{esc(self_url)}" rel="self" type="application/rss+xml"/>\n'
             + (f'    <lastBuildDate>{_feed_pubdate(built, 0)}</lastBuildDate>\n'
                if built else '')
-            + (f'    <managingEditor>{esc(author)}</managingEditor>\n' if author else '')
+            # Kein <managingEditor>: RSS verlangt dort eine E-Mail-Adresse, und die
+            # Website zeigt sie bewusst nur zerlegt (Schutz vor Adress-Sammlern).
+            # atom:author und dc:creator nennen den Namen ohne Adresse.
+            + (f'    <atom:author><atom:name>{esc(author)}</atom:name></atom:author>\n'
+               if author else '')
             + (f'    <image>\n      <url>{esc(logo)}</url>\n'
                f'      <title>{esc(title)}</title>\n'
                f'      <link>{esc(base)}/</link>\n    </image>\n' if logo else ''))
 
     xml = ('<?xml version="1.0" encoding="UTF-8"?>\n'
            '<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"'
-           ' xmlns:content="http://purl.org/rss/1.0/modules/content/">\n'
+           ' xmlns:content="http://purl.org/rss/1.0/modules/content/"'
+           ' xmlns:dc="http://purl.org/dc/elements/1.1/">\n'
            '  <channel>\n'
            f'{head}{body}'
            '  </channel>\n</rss>\n')
@@ -13319,7 +13377,7 @@ def project_detail(pid: str):
     count_visit(request)
     t = load_translations(lang)
     loc = _loc_factory(lang)
-    long_html = render_md(loc(proj, 'long'))
+    long_html = _repo_abs_links(render_md(loc(proj, 'long')), proj.get('repo_url', ''))
     return render_template('project.html', t=t, lang=lang, site=site, loc=loc, p=proj,
                            long_html=long_html,
                            share_on=bool(site['design'].get('share_enabled')),

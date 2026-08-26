@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.11.6
+
+- 📰 **`managingEditor` im Feed korrigiert.** Dort stand der Profilname — RSS verlangt an dieser Stelle eine E-Mail-Adresse, Feed-Validatoren melden das als Fehler. Die Adresse dorthin zu schreiben kam nicht in Frage: Die Website zeigt sie bewusst nur zerlegt, um Adress-Sammler abzuwehren. Der Autor steht jetzt als `<atom:author>` im Kanal und `<dc:creator>` je Eintrag — beides gültig und ohne Adresse.
+- 🔗 **Relative Links aus importierten GitHub-READMEs zeigen nicht mehr ins Leere.** `[FileBox](filebox/)` landete im Feed-Leser auf dessen eigener Adresse und auf der Projektseite unter `/p/filebox/`. Solche Links werden jetzt auf das Repository umgebogen (`/blob/HEAD/…` für Dateien, `/tree/HEAD/…` für Ordner, `/raw/HEAD/…` für Bilder) — im Feed **und** auf der Projektseite, wo sie genauso kaputt waren.
+- 📅 **Projekte haben im Feed jetzt ein Datum**: den letzten Push des Repositories. Bisher standen sie ohne `<pubDate>` darin; Leser, die selbst sortieren, schoben sie ans Ende oder stempelten sie beim ersten Abruf auf „jetzt" — und damit über die Blogbeiträge. Das Datum kommt beim Import mit und wird vom stündlichen Sterne-Abgleich nachgezogen, füllt sich also auch für früher importierte Projekte von selbst.
+
 ## 0.11.5
 
 - 🛡️ **Fehlermeldungen der Schlüssel-Funktionen sagen nicht mehr, was intern schiefging.** Die Routen gaben den Text der Ausnahme direkt zurück (CodeQL: *Information exposure through an exception*). Übersetzt wird jetzt in feste Codes — sichtbar ändert sich nichts, die Meldungen im Browser sind dieselben.

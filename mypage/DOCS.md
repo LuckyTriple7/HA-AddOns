@@ -429,12 +429,16 @@ Unter **`/feed.xml`** liefert MyPage einen RSS-2.0-Feed. Er ist im Kopf jeder ö
 |---|---|
 | Blogbeiträge | immer (veröffentlicht, Datum nicht in der Zukunft) |
 | Reisetage | wenn *Design → Module → Reiseblog* auf JA steht; nur freigegebene Tage |
-| Projekte | Schalter *Projekte im Feed*; nur mit Detailseite, **ohne Datum** → am Ende |
+| Projekte | Schalter *Projekte im Feed*; nur mit Detailseite. Datum ist der **letzte Push** des Repositories; von Hand angelegte Projekte haben keins und stehen am Ende |
 | Bibliothek | Schalter *Bibliothek im Feed* |
 
 Projekte und Bibliothek sind abschaltbar, weil sie sich selten ändern: beim Einschalten spült der Feed den Altbestand einmalig als „neu" durch jeden Reader.
 
-**Je Eintrag** stehen Titel, Adresse, Datum, ein Anriss (`<description>`), die Schlagwörter als `<category>`, der **Volltext** als `<content:encoded>` mit absoluten Bild- und Link-Adressen und — falls vorhanden — das Titelbild als `<enclosure>`. Genau daran hängen Automatisierungsdienste, wenn sie einen Beitrag mit Bild weiterreichen sollen.
+**Je Eintrag** stehen Titel, Adresse, Datum, ein Anriss (`<description>`), der Autorname als `<dc:creator>`, die Schlagwörter als `<category>`, der **Volltext** als `<content:encoded>` mit absoluten Bild- und Link-Adressen und — falls vorhanden — das Titelbild als `<enclosure>`. Genau daran hängen Automatisierungsdienste, wenn sie einen Beitrag mit Bild weiterreichen sollen.
+
+**Autor**: als `<atom:author>` im Kanal und `<dc:creator>` je Eintrag — beides ohne E-Mail-Adresse. Das RSS-Feld `<managingEditor>` wäre die naheliegende Stelle, verlangt aber laut Spezifikation eine Adresse; die Website zeigt sie bewusst nur zerlegt (Schutz vor Adress-Sammlern), und ein Feed ist der denkbar schlechteste Ort, sie doch noch offen hinzuschreiben.
+
+**Links aus importierten READMEs**: Ein GitHub-README verlinkt relativ (`docs/README.md`, `filebox/`). Solche Adressen werden auf das Repository umgebogen (`<repo>/blob/HEAD/…`, Ordner auf `/tree/HEAD/…`, Bilder auf `/raw/HEAD/…`) — sowohl im Feed als auch auf der Projektseite selbst, wo sie sonst genauso ins Leere zeigen.
 
 **Mitglieder-only-Inhalte** stehen mit Titel und Adresse im Feed, aber ohne Text und ohne Bild; an der Stelle des Anrisses steht ein Hinweis. Sie ganz zu verschweigen wäre falsch — auf der Website stehen sie ebenfalls in der Liste, nur gesperrt.
 
