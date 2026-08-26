@@ -3,6 +3,8 @@
 #
 # Schnellstart:
 #   1. cp options.example.json options.json   (und Passwort ändern!)
+#      Mehr ist nicht nötig — Mail, Telegram, KI, SMB usw. stellst du danach
+#      im Admin-Panel unter „Einstellungen" ein (landet in ./data/settings.json).
 #   2. docker compose up -d
 #   3. Admin:   http://<server>:17761   (Login mit username/password aus options.json)
 #      Seite:   http://<server>:17760

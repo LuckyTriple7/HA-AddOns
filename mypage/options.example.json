@@ -1,33 +1,6 @@
 {
+  "_hinweis": "Seit 0.11.0 stehen hier nur noch die Login-Daten. Alles Weitere (Mail, Telegram, GitHub, KI, SMB, Besucherzaehler, Backup) stellst du im Admin-Panel im Reiter 'Einstellungen' ein; gespeichert wird verschluesselt in data/settings.json.",
   "username": "admin",
   "password": "BITTE-AENDERN",
-  "session_hours": 24,
-
-  "smtp_host": "",
-  "smtp_port": 587,
-  "smtp_user": "",
-  "smtp_password": "",
-  "smtp_from": "",
-  "smtp_to": "",
-  "smtp_tls": true,
-
-  "telegram_bot_token": "",
-  "telegram_chat_id": "",
-
-  "github_token": "",
-  "translate_email": "",
-
-  "gemini_api_key": "",
-  "gemini_image_model": "gemini-3.1-flash-image",
-  "gemini_image_ratio": "16:9",
-
-  "user_upload_max_mb": 200,
-  "visit_log_max": 500,
-  "user_journal_max": 100,
-  "geoip_offline": true,
-
-  "smb_server": "",
-  "smb_share": "",
-  "smb_user": "",
-  "smb_password": ""
+  "session_hours": 24
 }

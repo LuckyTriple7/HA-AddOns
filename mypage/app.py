@@ -43,6 +43,7 @@ import markdown as md_lib
 from markupsafe import Markup, escape
 
 import pdfimport
+import settings as settings_store
 import travelblog as tb
 import visitexplorer as vx
 try:
@@ -109,7 +110,10 @@ _BASE = os.environ.get('MYPAGE_BASE', '/app')
 _DATA = os.environ.get('MYPAGE_DATA', '/config')
 _OPTS = os.environ.get('MYPAGE_OPTIONS', '/data')
 
-CONFIG_PATH   = _OPTS + '/options.json'
+CONFIG_PATH   = _OPTS + '/options.json'   # Home Assistant: Login-Notzugang
+# Alle übrigen Einstellungen pflegt der Admin selbst (settings.json + settings.key)
+settings_store.init(_DATA)
+SETTINGS_PATH = settings_store.path()
 SITE_PATH     = _DATA + '/site.json'
 STATS_PATH    = _DATA + '/stats.json'
 MESSAGES_PATH = _DATA + '/messages.json'
@@ -255,6 +259,8 @@ public_app.wsgi_app = ProxyFix(public_app.wsgi_app, x_for=1, x_proto=1, x_host=1
 
 _config_cache: dict | None = None
 _config_mtime: float = 0.0
+_merged_cache: dict | None = None
+_merged_stamp: tuple | None = None
 sessions: dict[str, float] = {}
 
 _site_lock  = threading.Lock()
@@ -813,7 +819,8 @@ def _quarantine_corrupt(path: str, exc: Exception) -> None:
         notification_id=f'mypage_corrupt_{name}')
 
 
-def load_config() -> dict:
+def load_options() -> dict:
+    """Rohe Add-on-Optionen (Home Assistant schreibt sie, Standalone mountet sie)."""
     global _config_cache, _config_mtime
     try:
         mtime = os.path.getmtime(CONFIG_PATH)
@@ -824,6 +831,35 @@ def load_config() -> dict:
     except Exception:
         pass
     return _config_cache or {}
+
+
+def load_config() -> dict:
+    """Wirksame Einstellungen: Standardwerte < options.json < settings.json.
+
+    options.json liefert nur noch den Login-Notzugang (username/password/
+    session_hours) und – solange nicht migriert – die alten Werte. Alles, was
+    der Admin in der Oberfläche pflegt, steht in settings.json und gewinnt.
+    """
+    global _merged_cache, _merged_stamp
+    opts = load_options()
+    try:
+        s_mtime = os.path.getmtime(SETTINGS_PATH)
+    except OSError:
+        s_mtime = -1.0
+    stamp = (_config_mtime, s_mtime)
+    if _merged_cache is None or stamp != _merged_stamp:
+        merged = {k: (list(spec[1]) if isinstance(spec[1], list) else spec[1])
+                  for k, spec in settings_store.FIELDS.items()}
+        merged.update(opts)
+        merged.update(settings_store.load())
+        _merged_cache, _merged_stamp = merged, stamp
+    return _merged_cache
+
+
+def _settings_changed() -> None:
+    """Zusammengeführte Sicht verwerfen — nach Speichern oder Restore."""
+    global _merged_cache, _merged_stamp
+    _merged_cache, _merged_stamp = None, None
 
 
 def load_site() -> dict:
@@ -5387,11 +5423,16 @@ def write_backup_zip(fp) -> None:
     können beide nicht auseinanderlaufen.
     """
     with zipfile.ZipFile(fp, 'w', zipfile.ZIP_DEFLATED) as z:
+        # settings.json kommt mit, settings.key bewusst NICHT: so stehen Tokens
+        # und Passwörter im Backup nur verschlüsselt, und wer das Zip in die
+        # Hände bekommt, kann sie nicht lesen. Preis: nach einem Restore auf
+        # einer frischen Installation (ohne alten Schlüssel) müssen die
+        # geheimen Felder einmal neu eingetragen werden.
         for name in ('site.json', 'stats.json', 'messages.json', 'users.json',
                      'comments.json', 'audit.json', 'subscribers.json',
                      'dm.json', 'dm.key', 'admin_2fa.json', 'secret.key',
                      'ai_usage.json', 'travel.json', 'ai_drafts.json',
-                     'ai_prompts.json', 'uploads_meta.json'):
+                     'ai_prompts.json', 'uploads_meta.json', 'settings.json'):
             p = Path(_DATA) / name
             if p.is_file():
                 z.write(p, name)
@@ -5694,7 +5735,7 @@ def api_restore():
                               'comments.json', 'audit.json', 'subscribers.json', 'dm.json',
                               'admin_2fa.json', 'ai_usage.json', 'travel.json',
                               'ai_drafts.json', 'ai_prompts.json',
-                              'uploads_meta.json'):
+                              'uploads_meta.json', 'settings.json'):
                     target = safe_under(Path(_DATA), member)
                 elif member in ('dm.key', 'secret.key'):  # Binär-/Text-Schlüssel, kein JSON
                     target = safe_under(Path(_DATA), member)
@@ -5754,6 +5795,8 @@ def api_restore():
     except (zipfile.BadZipFile, json.JSONDecodeError, KeyError):
         return jsonify({'error': 'invalid backup'}), 400
     _dm_reset_fernet()  # evtl. neuen dm.key übernehmen
+    settings_store.reset_cache()  # settings.json kann aus dem Backup stammen
+    _settings_changed()
     log_audit('restore', f'{restored} Datei(en)')
     log.info("Backup wiederhergestellt: %d Datei(en)", restored)
     return jsonify({'ok': True, 'restored': restored})
@@ -8635,6 +8678,52 @@ def api_redirects():
     save_site(site)
     log_audit('settings_redirects', f'{len(out)} Regel(n)')
     return jsonify({'ok': True, 'count': len(out)})
+
+
+@admin_app.route('/api/settings')
+def api_settings_get():
+    """Wirksame Einstellungen für die Oberfläche — geheime Felder nur als Ja/Nein."""
+    err = _api_auth()
+    if err:
+        return err
+    data = settings_store.public_view(load_config())
+    data['smb_live'] = SMB_MOUNTED
+    data['on_ha'] = bool(SUPERVISOR_TOKEN)
+    return jsonify(data)
+
+
+@admin_app.route('/api/settings', methods=['POST'])
+def api_settings_save():
+    err = _api_auth()
+    if err:
+        return err
+    body = request.get_json(silent=True) or {}
+    values = body.get('values')
+    clear = body.get('clear') or []
+    if not isinstance(values, dict) or not isinstance(clear, list):
+        return jsonify({'error': 'invalid'}), 400
+    clear = [k for k in clear if isinstance(k, str) and k in settings_store.FIELDS]
+    changed = settings_store.save(values, clear)
+    _settings_changed()
+    restart = False
+    if changed:
+        cfg = load_config()
+        # Alles sofort wirksam machen, was ohne Neustart geht — sonst wundert
+        # sich der Admin, warum die gerade gespeicherte Zahl nichts tut.
+        if 'user_upload_max_mb' in changed:
+            mb = max(1, min(4096, int(cfg.get('user_upload_max_mb') or 200)))
+            public_app.config['MAX_CONTENT_LENGTH'] = mb * 1024 * 1024
+        if 'visit_bot_nets' in changed:
+            vx.set_extra_bot_nets(cfg.get('visit_bot_nets') or [])
+        if any(k in settings_store.SMB_KEYS for k in changed):
+            if SMB_MOUNTED:
+                # Remount kann Sekunden dauern — Antwort nicht blockieren
+                threading.Thread(target=remount_smb, daemon=True).start()
+            else:
+                restart = True   # Mountpunkt fehlt, den legt erst run.sh an
+        # Nur die Feldnamen ins Protokoll, niemals die Werte
+        log_audit('settings_update', ', '.join(sorted(changed))[:200])
+    return jsonify({'ok': True, 'changed': sorted(changed), 'restart': restart})
 
 
 @admin_app.route('/api/users')
@@ -14536,6 +14625,9 @@ if __name__ == '__main__':
     signal.signal(signal.SIGTERM, _handle_sigterm)
     load_sessions()
     load_user_sessions()
+    # Einmalig: bisherige Add-on-Optionen in die eigene settings.json übernehmen
+    settings_store.migrate(load_options())
+    _settings_changed()
     cfg = load_config()
     if cfg.get('password') in ('', 'changeme123'):
         log.warning("Standard-Passwort aktiv — bitte in den Add-on-Optionen ändern!")

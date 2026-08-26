@@ -31,7 +31,7 @@ Run your own homepage straight from Home Assistant — no design skills required
 ## Quick start
 
 1. Install and start the add-on
-2. Set `username` and `password` in the add-on options
+2. Set `username` and `password` in the add-on options (everything else lives on the **Settings** tab of the admin panel)
 3. Open the admin panel (sidebar or `http://<host>:17761`)
 4. Fill in your profile, add content, choose a design
 5. The public site runs on `http://<host>:17760` — publish it e.g. via a Cloudflare Tunnel

@@ -25,31 +25,27 @@ Beim ersten Start legt MyPage seine Daten im Ordner `./data` an (`site.json`, `u
 
 ---
 
-## Konfiguration (`options.json`)
+## Konfiguration
 
-Die Datei wird nach `/data/options.json` im Container gemountet (read-only) und beim Start gelesen. Alle Felder sind optional außer einem **sicheren Passwort**.
+### `options.json` — nur die Login-Daten
+
+Die Datei wird nach `/data/options.json` im Container gemountet (read-only) und beim Start gelesen.
 
 | Schlüssel | Bedeutung | Standard |
 |---|---|---|
 | `username` | Admin-Benutzername | `admin` |
 | `password` | **Admin-Passwort — unbedingt setzen!** | _(leer)_ |
 | `session_hours` | Gültigkeit der Admin-Sitzung in Stunden | `24` |
-| `smtp_host` / `smtp_port` | Mailserver für Benachrichtigungen, Newsletter, Mitglieder-Mails | – / `587` |
-| `smtp_user` / `smtp_password` | Zugangsdaten Mailserver | – |
-| `smtp_from` / `smtp_to` | Absender / Empfänger für Kontakt-Benachrichtigungen | – |
-| `smtp_tls` | STARTTLS verwenden | `true` |
-| `telegram_bot_token` / `telegram_chat_id` | Optionale Telegram-Benachrichtigung bei neuen Nachrichten | – |
-| `github_token` | Optionaler Token für den GitHub-Projekt-Import (höheres Rate-Limit) | – |
-| `translate_email` | E-Mail für das kostenlose MyMemory-Übersetzungs-Limit | – |
-| `user_upload_max_mb` | Max. Upload-Größe je Datei (Mitgliederbereich) | `200` |
-| `visit_log_max` | Länge des Besucher-Logs | `500` |
-| `geoip_offline` | Länder-Auflösung in der Statistik über die lokale IP-Tabelle | `true` |
-| `smb_server` / `smb_share` / `smb_user` / `smb_password` | Optionaler SMB-Speicher für Mitglieder-Dateien | – |
-| `gemini_api_key` | Google-Gemini-Key — schaltet „Bild generieren" im Bibliothek-Editor frei (kostenpflichtig) | – |
-| `gemini_image_model` | Modell für die Bilderzeugung | `gemini-3.1-flash-image` |
-| `gemini_image_ratio` | Seitenverhältnis der erzeugten Bilder | `16:9` |
 
-Nach Änderungen an `options.json` den Container neu starten: `docker compose restart`.
+### Alles Weitere: Admin-Panel → **Einstellungen**
+
+Mailversand, Telegram, GitHub-Token, KI-Keys, SMB-Speicher, Besucherzähler und Backup-Aufbewahrung stellst du im Admin-Panel im Reiter **Einstellungen** ein — kein Editor, kein Neustart.
+
+Gespeichert wird in `./data/settings.json`. Tokens und Passwörter werden mit `./data/settings.key` **verschlüsselt** abgelegt, im Browser nie angezeigt (nur „gesetzt"/„nicht gesetzt") und beim Speichern nur als Feldname protokolliert.
+
+* Ein leeres Geheimfeld heißt **„unverändert lassen"** — zum Entfernen den Knopf **Löschen** benutzen.
+* Fast alles greift sofort. Nur die **SMB-Felder** brauchen einen `docker compose restart`, wenn beim Start noch keine Freigabe eingerichtet war (die Oberfläche weist darauf hin).
+* Wer aus einer älteren Version kommt: Beim ersten Start übernimmt MyPage die vorhandenen Werte aus `options.json` automatisch in `settings.json` — und verschlüsselt sie dabei. Danach sind die alten Einträge in `options.json` wirkungslos und können gelöscht werden.
 
 ---
 
@@ -132,13 +128,14 @@ Die Daten in `./data` bleiben dabei erhalten.
 
 Zwei Wege, am besten kombiniert:
 
-1. **Im Admin-Panel** unter *System → Backup* ein ZIP mit allen Inhalten herunterladen (und per *Backup einspielen* zurückspielen).
-2. Den Ordner **`./data`** sichern (enthält zusätzlich Uploads und Mitglieder-Dateien).
+1. **Im Admin-Panel** unter *System → Backup* ein ZIP mit allen Inhalten herunterladen (und per *Backup einspielen* zurückspielen). Das ZIP enthält `settings.json`, aber **nicht** den Schlüssel `settings.key` — Zugangsdaten sind darin also nicht lesbar. Beim Einspielen auf einer frischen Installation müssen sie einmal neu eingetragen werden.
+2. Den Ordner **`./data`** sichern (enthält zusätzlich Uploads, Mitglieder-Dateien und `settings.key`) — dieser Ordner gehört an einen sicheren Ort.
 
 ---
 
 ## Sicherheitshinweise
 
 - **Starkes Admin-Passwort** in `options.json` setzen — ohne Ingress schützt nur dieses Login das Admin-Panel.
+- `./data/settings.key` entschlüsselt alle gespeicherten Zugangsdaten: Datei nicht weitergeben und nicht in ein öffentliches Repository legen.
 - Admin-Panel **nur über HTTPS** erreichbar machen (Caddy/Cloudflare Tunnel).
 - Brute-Force-Schutz (Rate-Limit + temporäre Sperre) ist eingebaut; trotzdem das Admin-Panel nicht ohne Not öffentlich exponieren — idealerweise auf eine Subdomain legen oder per Firewall/Basic-Auth zusätzlich absichern.

@@ -1,6 +1,6 @@
 name: MyPage
 description: Homepage-Baukasten — eigene Projekte präsentieren, GitHub-Import, Besucherzähler
-version: "0.10.50"
+version: "0.11.0"
 slug: mypage
 url: https://github.com/LuckyTriple7/HA-AddOns
 image: "ghcr.io/luckytriple7/mypage"
@@ -37,6 +37,10 @@ ports_description:
 map:
   - app_config:rw
 
+# Ab 0.11.0 pflegt MyPage seine Einstellungen selbst (Admin-Panel → Einstellungen,
+# gespeichert verschlüsselt in settings.json). Hier stehen nur noch die Login-Daten
+# als Notzugang; die übrigen Optionen bleiben vorerst im Schema, damit die einmalige
+# Übernahme beim ersten Start sie noch lesen kann — geändert wird an ihnen nichts mehr.
 options:
   username: "admin"
   password: "changeme123"

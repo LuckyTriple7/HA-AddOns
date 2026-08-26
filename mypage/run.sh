@@ -6,8 +6,15 @@ echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] MyPage startet — öffentliche Seit
 # der Mount selbst passiert in app.py (Zugangsdaten landen so nie auf der Platte).
 # Bewusst KEIN Fallback auf lokalen Speicher — ist der Server weg, geht der
 # Dateibereich offline und der Watchdog verbindet automatisch neu.
-SMB_SERVER=$(jq -r '.smb_server // empty' /data/options.json 2>/dev/null)
-SMB_SHARE=$(jq -r '.smb_share // empty' /data/options.json 2>/dev/null)
+# Die Einstellungen kommen aus settings.json (Oberfläche); options.json dient nur
+# noch als Fallback, solange die Migration beim ersten Start noch nicht lief.
+SETTINGS="${MYPAGE_DATA:-/config}/settings.json"
+SMB_SERVER=$(jq -r '.smb_server // empty' "$SETTINGS" 2>/dev/null)
+SMB_SHARE=$(jq -r '.smb_share // empty' "$SETTINGS" 2>/dev/null)
+if [ -z "$SMB_SERVER" ] || [ -z "$SMB_SHARE" ]; then
+    SMB_SERVER=$(jq -r '.smb_server // empty' /data/options.json 2>/dev/null)
+    SMB_SHARE=$(jq -r '.smb_share // empty' /data/options.json 2>/dev/null)
+fi
 
 if [ -n "$SMB_SERVER" ] && [ -n "$SMB_SHARE" ]; then
     export MYPAGE_USERFILES="/mnt/userfiles"

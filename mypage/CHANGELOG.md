@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.11.0
+
+- ⚙️ **Neuer Reiter „Einstellungen" im Admin-Panel.** Mailversand, Telegram, GitHub-Token, KI-Keys, SMB-Speicher, Besucherzähler und Backup-Aufbewahrung stellst du ab sofort dort ein statt in den Add-on-Optionen. Damit ist MyPage auch [ohne Home Assistant](STANDALONE.md) bequem konfigurierbar — unter Docker gab es dafür bisher nur einen Texteditor.
+- 🔐 **Tokens und Passwörter liegen jetzt verschlüsselt.** Gespeichert wird in `settings.json`, die geheimen Felder mit einem eigenen Schlüssel (`settings.key`) verschlüsselt. Der Browser bekommt sie nie zu sehen (nur „gesetzt"/„nicht gesetzt"), das Protokoll nennt nur den Feldnamen. Bisher standen sie im Klartext in `options.json` — und damit in jedem Backup.
+- 💾 **Das MyPage-Backup enthält `settings.json`, aber nicht `settings.key`.** Wer das ZIP in die Hände bekommt, kann die Zugangsdaten nicht lesen. Preis: Nach einem Restore auf einer frischen Installation müssen sie einmal neu eingetragen werden.
+- 🔁 **Die bisherigen Optionen werden beim ersten Start automatisch übernommen** — nichts abtippen. In der HA-Konfiguration bleiben nur `username`, `password` und `session_hours`: der Notzugang, falls man sich über die Oberfläche aussperrt. Die übrigen Optionen stehen dort noch, wirken aber nicht mehr.
+- ⚡ **Fast alles greift sofort**, ohne Neustart — auch Upload-Grenze und Bot-Netze. Nur die SMB-Felder brauchen einen Neustart, wenn beim Start noch keine Freigabe eingerichtet war; die Oberfläche sagt es.
 ## 0.10.50
 
 - 🧳 **Die Snippet-Vorschau gibt es jetzt auch im Reisebericht.** Reisetage stehen in der Sitemap und werden indexiert, hatten aber als einziger öffentlicher Seitentyp keine Vorschau. Im Schritt *Bericht* steht sie unter den Textfeldern und zeigt Titel, Adresse (`/reiseblog/<reise>/<tag>`) und Beschreibung — aus dem **Anrisstext**, ersatzweise aus dem Auszug des Berichts.

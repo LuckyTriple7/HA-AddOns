@@ -25,31 +25,27 @@ On first start MyPage creates its data in the `./data` folder (`site.json`, `upl
 
 ---
 
-## Configuration (`options.json`)
+## Configuration
 
-The file is mounted to `/data/options.json` in the container (read-only) and read at startup. All fields are optional except a **strong password**.
+### `options.json` — login credentials only
+
+The file is mounted read-only to `/data/options.json` in the container and read at start.
 
 | Key | Meaning | Default |
 |---|---|---|
-| `username` | Admin username | `admin` |
-| `password` | **Admin password — be sure to set it!** | _(empty)_ |
+| `username` | Admin user name | `admin` |
+| `password` | **Admin password — set this!** | _(empty)_ |
 | `session_hours` | Admin session lifetime in hours | `24` |
-| `smtp_host` / `smtp_port` | Mail server for notifications, newsletter, member mails | – / `587` |
-| `smtp_user` / `smtp_password` | Mail server credentials | – |
-| `smtp_from` / `smtp_to` | Sender / recipient for contact notifications | – |
-| `smtp_tls` | Use STARTTLS | `true` |
-| `telegram_bot_token` / `telegram_chat_id` | Optional Telegram notification on new messages | – |
-| `github_token` | Optional token for the GitHub project import (higher rate limit) | – |
-| `translate_email` | E-mail for the free MyMemory translation quota | – |
-| `user_upload_max_mb` | Max upload size per file (member area) | `200` |
-| `visit_log_max` | Length of the visitor log | `500` |
-| `geoip_offline` | Country lookup in the stats via the local IP table | `true` |
-| `smb_server` / `smb_share` / `smb_user` / `smb_password` | Optional SMB storage for member files | – |
-| `gemini_api_key` | Google Gemini key — enables “Generate image” in the library editor (billed) | – |
-| `gemini_image_model` | Model used for image generation | `gemini-3.1-flash-image` |
-| `gemini_image_ratio` | Aspect ratio of generated images | `16:9` |
 
-After changing `options.json`, restart the container: `docker compose restart`.
+### Everything else: admin panel → **Settings**
+
+Mail delivery, Telegram, GitHub token, AI keys, SMB storage, visitor counter and backup retention live on the **Settings** tab of the admin panel — no editor, no restart.
+
+They are stored in `./data/settings.json`. Tokens and passwords are **encrypted** with `./data/settings.key`, never shown in the browser (only “set”/“not set”), and logged by field name only.
+
+* An empty secret field means **“leave unchanged”** — use the **Delete** button to remove one.
+* Almost everything applies immediately. Only the **SMB fields** need a `docker compose restart` if no share was configured at start (the UI tells you).
+* Upgrading from an older version: on first start MyPage imports the existing values from `options.json` into `settings.json`, encrypting them on the way. The old entries in `options.json` then have no effect and can be removed.
 
 ---
 
@@ -132,13 +128,14 @@ Your data in `./data` is preserved.
 
 Two ways, ideally combined:
 
-1. **In the admin panel** under *System → Backup*, download a ZIP with all content (and restore it via *Restore backup*).
-2. Back up the **`./data`** folder (additionally contains uploads and member files).
+1. **In the admin panel** under *System → Backup*, download a ZIP with all content (and restore it via *Restore backup*). The ZIP contains `settings.json` but **not** the key `settings.key`, so credentials cannot be read from it. Restoring onto a fresh installation means entering them once again.
+2. Back up the **`./data`** folder (additionally contains uploads, member files and `settings.key`) — keep that folder somewhere safe.
 
 ---
 
 ## Security notes
 
 - Set a **strong admin password** in `options.json` — without ingress, only this login protects the admin panel.
+- `./data/settings.key` decrypts every stored credential: never share it or commit it to a public repository.
 - Make the admin panel reachable **over HTTPS only** (Caddy/Cloudflare Tunnel).
 - Brute-force protection (rate limit + temporary lockout) is built in; still, don't expose the admin panel publicly without need — ideally put it on a subdomain or add an extra layer (firewall/basic auth).

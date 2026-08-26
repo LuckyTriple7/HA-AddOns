@@ -2,11 +2,32 @@
 
 ## Konfiguration
 
+Seit **0.11.0** pflegst du fast alles im Admin-Panel unter **Einstellungen** — nicht mehr in den Add-on-Optionen. Vorteile: Es funktioniert genauso, wenn MyPage [ohne Home Assistant](STANDALONE.md) unter Docker läuft, und Tokens sowie Passwörter liegen **verschlüsselt** in `settings.json` statt im Klartext in `options.json`.
+
+Beim ersten Start nach dem Update übernimmt MyPage die bisherigen Optionen automatisch in `settings.json` — du musst nichts abtippen.
+
+### Add-on-Optionen (Home Assistant)
+
+Hier stehen nur noch die Login-Daten. Sie bleiben bewusst in Home Assistant: Damit kommst du auch dann wieder ins Admin-Panel, wenn du dich über die Oberfläche aussperrst.
+
 | Option | Beschreibung |
 |---|---|
 | `username` | Benutzername für das Admin-Panel (Direktzugriff über Port 17761) |
 | `password` | Passwort für das Admin-Panel — **unbedingt ändern!** |
 | `session_hours` | Gültigkeit der Login-Session in Stunden (Standard: 24) |
+
+Die übrigen Optionen stehen aus Kompatibilitätsgründen noch im Add-on-Schema, werden aber nur noch als Startwert für die einmalige Übernahme gelesen. Wer sie dort ändert, ändert nichts mehr — der Wert aus **Einstellungen** gewinnt.
+
+### Reiter „Einstellungen" (Admin-Panel)
+
+Gespeichert wird in `settings.json` im Add-on-Konfigurationsordner. Geheime Felder (GitHub-Token, SMTP-Passwort, Telegram-Token, SMB-Passwort, Gemini-Keys) werden mit `settings.key` verschlüsselt, im Browser nie angezeigt (nur „gesetzt"/„nicht gesetzt") und im Protokoll nur als Feldname geführt.
+
+* **Leeres Geheimfeld heißt „unverändert lassen"** — zum Entfernen den Knopf **Löschen** benutzen.
+* Das MyPage-Backup enthält `settings.json`, aber **nicht** `settings.key`. Ein Backup verrät die Zugangsdaten also nicht; nach einem Restore auf einer **frischen** Installation müssen sie einmal neu eingetragen werden.
+* SMB-Felder greifen sofort, wenn beim Start schon eine Freigabe eingerichtet war — sonst erst nach einem Neustart des Add-ons (die Oberfläche sagt es).
+
+| Einstellung | Beschreibung |
+|---|---|
 | `github_token` | Optional: GitHub-Token (erhöht das API-Limit für Import und Sterne-Updates) |
 | `translate_email` | Optional: E-Mail für die DE↔EN-Auto-Übersetzung (MyMemory) — erhöht das kostenlose Tageslimit |
 | `visit_log_max` | Größe des Besucher-Logs (50–10000, Standard 500) — Referrer/Browser/Länder/Top-Seiten werden daraus berechnet. Die **Liste im Admin zeigt immer höchstens die neuesten 500 Einträge**, auch bei größerem Wert; die übrigen fließen weiter in die Auswertungen |
@@ -326,7 +347,7 @@ Damit Mitglieder wissen, wem sie schreiben, gibt es ein optionales internes **Ve
 
 ### Optionaler SMB-Speicher
 
-Damit die Benutzerdateien nicht die SD-Karte füllen, können sie auf eine SMB-Freigabe (z. B. FritzBox-NAS) ausgelagert werden: `smb_server`, `smb_share`, `smb_user`, `smb_password` in den Add-on-Optionen setzen und das Add-on neu starten.
+Damit die Benutzerdateien nicht die SD-Karte füllen, können sie auf eine SMB-Freigabe (z. B. FritzBox-NAS) ausgelagert werden: `smb_server`, `smb_share`, `smb_user`, `smb_password` im Admin-Panel unter **Einstellungen** setzen und das Add-on neu starten.
 
 - **Unterordner wählbar**: Im Benutzer-Tab gibt es einen Ordner-Browser, mit dem du den genauen Zielordner auf dem Share festlegst. Bestehende Dateien werden beim Wechsel **nicht** automatisch umgezogen.
 - **Kein Fallback**: Ist der SMB-Speicher nicht erreichbar (Server aus, Neustart), geht der Dateibereich bewusst **offline** — Benutzer und Admin sehen eine entsprechende Meldung. So landen nie versehentlich Dateien auf der SD-Karte.

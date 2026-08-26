@@ -494,6 +494,7 @@
         <button class="tab-btn" data-tab="stats">{{ t.tab_stats }}</button>
         <button class="tab-btn" data-tab="explorer">{{ t.tab_explorer }}</button>
         <button class="tab-btn" data-tab="system">{{ t.tab_system }}</button>
+        <button class="tab-btn" data-tab="settings">{{ t.tab_settings }}</button>
       </nav>
       <button type="button" class="nav-arrow nav-right" aria-label="►" onclick="navScroll(1)">›</button>
       </div>
@@ -2057,6 +2058,148 @@
       </div>
     </section>
 
+    <!-- Einstellungen -->
+    <section class="tab" id="tab-settings">
+      <div class="jumpbar" id="settings-jump"></div>
+      <div class="panel">
+        <p class="hint" id="set-intro"></p>
+        <p class="hint" id="set-crypto-warn" style="display:none;color:var(--danger)">{{ t.set_crypto_warn }}</p>
+        <p class="hint">{{ t.set_secret_keep_hint }}</p>
+      </div>
+
+      <div class="panel" data-jump-panel>
+        <h3>📧 {{ t.set_mail_heading }}</h3>
+        <p class="hint">{{ t.set_mail_hint }}</p>
+        <div class="row">
+          <div><label>{{ t.set_smtp_host }}</label><input data-set="smtp_host" autocomplete="off"></div>
+          <div><label>{{ t.set_smtp_port }}</label><input type="number" min="1" max="65535" data-set="smtp_port"></div>
+        </div>
+        <div class="row">
+          <div><label>{{ t.set_smtp_user }}</label><input data-set="smtp_user" autocomplete="off"></div>
+          <div>
+            <label>{{ t.set_smtp_password }} <span class="hint" id="set-state-smtp_password"></span></label>
+            <input type="password" data-set="smtp_password" data-secret autocomplete="new-password">
+            <button class="btn secondary small" style="margin-top:6px" onclick="clearSecret('smtp_password')">{{ t.set_secret_clear }}</button>
+          </div>
+        </div>
+        <div class="row">
+          <div><label>{{ t.set_smtp_from }}</label><input data-set="smtp_from" autocomplete="off"></div>
+          <div><label>{{ t.set_smtp_to }}</label><input data-set="smtp_to" autocomplete="off"></div>
+        </div>
+        <label class="checkbox"><input type="checkbox" data-set="smtp_tls"> {{ t.set_smtp_tls }}</label>
+      </div>
+
+      <div class="panel" data-jump-panel>
+        <h3>🔔 {{ t.set_notify_heading }}</h3>
+        <p class="hint">{{ t.set_notify_hint }}</p>
+        <label class="checkbox" id="set-ha-notify-row"><input type="checkbox" data-set="ha_notify"> {{ t.set_ha_notify }}</label>
+        <div class="row">
+          <div>
+            <label>{{ t.set_telegram_token }} <span class="hint" id="set-state-telegram_bot_token"></span></label>
+            <input type="password" data-set="telegram_bot_token" data-secret autocomplete="new-password">
+            <button class="btn secondary small" style="margin-top:6px" onclick="clearSecret('telegram_bot_token')">{{ t.set_secret_clear }}</button>
+          </div>
+          <div><label>{{ t.set_telegram_chat }}</label><input data-set="telegram_chat_id" autocomplete="off"></div>
+        </div>
+      </div>
+
+      <div class="panel" data-jump-panel>
+        <h3>🔌 {{ t.set_services_heading }}</h3>
+        <p class="hint">{{ t.set_services_hint }}</p>
+        <div class="row">
+          <div>
+            <label>{{ t.set_github_token }} <span class="hint" id="set-state-github_token"></span></label>
+            <input type="password" data-set="github_token" data-secret autocomplete="new-password">
+            <button class="btn secondary small" style="margin-top:6px" onclick="clearSecret('github_token')">{{ t.set_secret_clear }}</button>
+          </div>
+          <div><label>{{ t.set_translate_email }}</label><input data-set="translate_email" autocomplete="off"></div>
+        </div>
+      </div>
+
+      <div class="panel" data-jump-panel>
+        <h3>✦ {{ t.set_ai_heading }}</h3>
+        <p class="hint">{{ t.set_ai_hint }}</p>
+        <div class="row">
+          <div>
+            <label>{{ t.set_gemini_key }} <span class="hint" id="set-state-gemini_api_key"></span></label>
+            <input type="password" data-set="gemini_api_key" data-secret autocomplete="new-password">
+            <button class="btn secondary small" style="margin-top:6px" onclick="clearSecret('gemini_api_key')">{{ t.set_secret_clear }}</button>
+          </div>
+          <div>
+            <label>{{ t.set_gemini_billing }} <span class="hint" id="set-state-gemini_billing_key"></span></label>
+            <input type="password" data-set="gemini_billing_key" data-secret autocomplete="new-password">
+            <button class="btn secondary small" style="margin-top:6px" onclick="clearSecret('gemini_billing_key')">{{ t.set_secret_clear }}</button>
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <label>{{ t.set_gemini_model }}</label>
+            <select data-set="gemini_image_model">
+              <option value="gemini-3.1-flash-image">gemini-3.1-flash-image</option>
+              <option value="gemini-3.1-flash-lite-image">gemini-3.1-flash-lite-image</option>
+              <option value="gemini-3-pro-image">gemini-3-pro-image</option>
+              <option value="gemini-2.5-flash-image">gemini-2.5-flash-image</option>
+            </select>
+          </div>
+          <div>
+            <label>{{ t.set_gemini_ratio }}</label>
+            <select data-set="gemini_image_ratio">
+              <option>16:9</option><option>3:2</option><option>4:3</option><option>1:1</option>
+              <option>3:4</option><option>2:3</option><option>9:16</option><option>21:9</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel" data-jump-panel>
+        <h3>📁 {{ t.set_files_heading }}</h3>
+        <p class="hint">{{ t.set_files_hint }}</p>
+        <label>{{ t.set_upload_max }}</label>
+        <input type="number" min="1" max="4096" data-set="user_upload_max_mb" style="max-width:160px">
+        <p class="hint" style="margin-top:14px">{{ t.set_smb_hint }}</p>
+        <div class="row">
+          <div><label>{{ t.set_smb_server }}</label><input data-set="smb_server" autocomplete="off"></div>
+          <div><label>{{ t.set_smb_share }}</label><input data-set="smb_share" autocomplete="off"></div>
+        </div>
+        <div class="row">
+          <div><label>{{ t.set_smb_user }}</label><input data-set="smb_user" autocomplete="off"></div>
+          <div>
+            <label>{{ t.set_smb_password }} <span class="hint" id="set-state-smb_password"></span></label>
+            <input type="password" data-set="smb_password" data-secret autocomplete="new-password">
+            <button class="btn secondary small" style="margin-top:6px" onclick="clearSecret('smb_password')">{{ t.set_secret_clear }}</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel" data-jump-panel>
+        <h3>📈 {{ t.set_visits_heading }}</h3>
+        <p class="hint">{{ t.set_visits_hint }}</p>
+        <div class="row">
+          <div><label>{{ t.set_visit_log_max }}</label><input type="number" min="50" max="10000" data-set="visit_log_max"></div>
+          <div><label>{{ t.set_user_journal_max }}</label><input type="number" min="20" max="1000" data-set="user_journal_max"></div>
+        </div>
+        <label class="checkbox"><input type="checkbox" data-set="visit_file_log"> {{ t.set_visit_file_log }}</label>
+        <label>{{ t.set_visit_file_keep }}</label>
+        <input type="number" min="0" max="120" data-set="visit_file_keep" style="max-width:160px">
+        <label class="checkbox" style="margin-top:12px"><input type="checkbox" data-set="geoip_offline"> {{ t.set_geoip_offline }}</label>
+        <label style="margin-top:12px">{{ t.set_visit_bot_nets }}</label>
+        <textarea rows="3" data-set="visit_bot_nets" data-list placeholder="203.0.113.0/24"></textarea>
+        <p class="hint">{{ t.set_visit_bot_nets_hint }}</p>
+      </div>
+
+      <div class="panel" data-jump-panel>
+        <h3>💾 {{ t.set_backup_heading }}</h3>
+        <p class="hint">{{ t.set_backup_hint }}</p>
+        <label>{{ t.set_auto_backup_keep }}</label>
+        <input type="number" min="0" max="60" data-set="auto_backup_keep" style="max-width:160px">
+      </div>
+
+      <div class="panel">
+        <button class="btn" id="set-save" onclick="saveSettings(this)">{{ t.save }}</button>
+        <button class="btn secondary" onclick="loadSettings()">{{ t.set_reload }}</button>
+      </div>
+    </section>
+
     <!-- Statistik -->
     <section class="tab" id="tab-stats">
       <div class="stat-cards">
@@ -3523,6 +3666,7 @@
         if (btn.dataset.tab === 'users') { loadUsers(); initStorageBrowser(); startUsersPolling(); }
         if (btn.dataset.tab === 'design') { initPreview(); setTimeout(updatePresetArrows, 50); }
         if (btn.dataset.tab === 'system') { loadAudit(); loadTwofa(); loadAutoBackups(); loadRevisions(); loadFileBrowser(); initSystemJump(); }
+        if (btn.dataset.tab === 'settings') { loadSettings(); initSettingsJump(); }
         if (btn.dataset.tab === 'blog') loadSubscribers();
         if (btn.dataset.tab === 'ai') initAiTab();
         if (btn.dataset.tab === 'travel') loadTravel();
@@ -5651,6 +5795,64 @@
       row.querySelector('.rd-perm').value = (r.permanent === false) ? '0' : '1';
       row.querySelector('button').onclick = () => row.remove();
       box.appendChild(row);
+    }
+    // ── Einstellungen (settings.json) ──
+    // Geheime Felder kommen nie im Klartext zurueck: der Server meldet nur
+    // "gesetzt ja/nein". Ein leeres Feld heisst deshalb "unveraendert lassen",
+    // geleert wird ausschliesslich ueber den Loeschen-Knopf.
+    const SET_CLEAR = new Set();
+    let SET_ON_HA = false;
+    function setInputs() { return document.querySelectorAll('#tab-settings [data-set]'); }
+    async function loadSettings() {
+      const r = await api('api/settings');
+      if (!r.ok) { toast(T.error_load, true); return; }
+      const d = await r.json();
+      SET_CLEAR.clear();
+      SET_ON_HA = !!d.on_ha;
+      setInputs().forEach(inp => {
+        const k = inp.dataset.set;
+        if (inp.hasAttribute('data-secret')) {
+          inp.value = '';
+          const isSet = !!(d.secrets || {})[k];
+          inp.placeholder = isSet ? T.set_secret_set : T.set_secret_unset;
+          const st = el('set-state-' + k);
+          if (st) st.textContent = isSet ? T.set_secret_set : T.set_secret_unset;
+          return;
+        }
+        const v = (d.values || {})[k];
+        if (inp.type === 'checkbox') inp.checked = !!v;
+        else if (Array.isArray(v)) inp.value = v.join('\n');
+        else inp.value = (v === null || v === undefined) ? '' : v;
+      });
+      el('set-intro').textContent = d.on_ha ? T.set_intro_ha : T.set_intro_docker;
+      el('set-crypto-warn').style.display = d.crypto ? 'none' : '';
+      el('set-ha-notify-row').style.display = d.on_ha ? '' : 'none';
+    }
+    function clearSecret(key) {
+      if (!confirm(T.set_secret_clear_confirm)) return;
+      SET_CLEAR.add(key);
+      const inp = document.querySelector('#tab-settings [data-set="' + key + '"]');
+      if (inp) inp.value = '';
+      const st = el('set-state-' + key);
+      if (st) st.textContent = T.set_secret_will_clear;
+    }
+    async function saveSettings(btn) {
+      const values = {};
+      setInputs().forEach(inp => {
+        const k = inp.dataset.set;
+        if (inp.hasAttribute('data-secret')) { if (inp.value) values[k] = inp.value; return; }
+        if (inp.type === 'checkbox') values[k] = inp.checked;
+        else if (inp.hasAttribute('data-list')) values[k] = inp.value.split(/[\s,;]+/).filter(Boolean);
+        else values[k] = inp.value;
+      });
+      btn.disabled = true;
+      try {
+        const r = await apiJson('api/settings', 'POST', { values, clear: [...SET_CLEAR] });
+        if (!r.ok) { toast(T.error_save, true); return; }
+        const d = await r.json();
+        toast(d.restart ? T.set_saved_restart : T.saved);
+        await loadSettings();
+      } finally { btn.disabled = false; }
     }
     async function saveRedirects() {
       const items = [...el('redirect-list').children].map(row => ({
@@ -7892,7 +8094,8 @@
     // Bereiche selbst — so stimmen sie in beiden Sprachen und ein spaeter
     // dazukommender Bereich steht ohne Zutun mit drin. Sprungziel ist jedes
     // Panel mit data-jump-panel.
-    const JUMPBARS = { ai: 'ai-jump', system: 'system-jump', explorer: 'explorer-jump' };
+    const JUMPBARS = { ai: 'ai-jump', system: 'system-jump', explorer: 'explorer-jump',
+                       settings: 'settings-jump' };
     // Sichtbar ist immer hoechstens eine Leiste — die des aktiven Reiters.
     function activeJumpbar() {
       for (const [tab, id] of Object.entries(JUMPBARS)) {
@@ -7974,6 +8177,12 @@
       }
     }
     let systemJumpReady = false;
+    let settingsJumpReady = false;
+    function initSettingsJump() {
+      syncHeaderHeight();
+      if (!settingsJumpReady) { settingsJumpReady = true; buildJumpbar('settings'); }
+      jumpSpy();
+    }
     function initSystemJump() {
       syncHeaderHeight();
       if (!systemJumpReady) { systemJumpReady = true; buildJumpbar('system'); }
