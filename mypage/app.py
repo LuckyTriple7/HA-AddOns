@@ -36,6 +36,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from collections import defaultdict
 from datetime import date, datetime, timedelta, timezone
+from datetime import time as dtime
 from pathlib import Path
 from urllib.parse import urlencode, urlparse, urlsplit, urlunsplit
 
@@ -3919,6 +3920,16 @@ def site_search(site: dict, query: str, loc, viewer_is_member: bool,
                  body, e.get('members_only'))
 
     for trip in _trav_public_trips(site):
+        # Die Reise-Seite ist mit dem Rückblick selbst ein Text und nicht mehr
+        # nur ein Inhaltsverzeichnis — also gehört sie in die Suche.
+        rc = _trav_recap(trip, lang)
+        if rc.get('body'):
+            consider('travel', rc.get('title') or trip.get('name') or '',
+                     f"/reiseblog/{trip['slug']}",
+                     ' '.join([rc.get('teaser') or '', rc.get('body') or '',
+                               ' '.join((trip.get('recap') or {}).get('tags') or []),
+                               trip.get('destination') or '']),
+                     trip.get('members_only'))
         for d in _trav_public_days(trip):
             art = _trav_article(d, lang)
             body = ' '.join([art.get('teaser') or '', art.get('body') or '',
@@ -7748,6 +7759,10 @@ def api_travel_options():
         'writing_styles': list(tb.WRITING_STYLES),
         'perspectives': list(tb.PERSPECTIVES),
         'lengths': list(tb.LENGTHS),
+        # Ohne Home Assistant gibt es die Wetter-Übernahme nicht — die
+        # Oberfläche blendet die Knöpfe dann ganz aus, statt sie ins Leere
+        # zeigen zu lassen.
+        'on_ha': bool(SUPERVISOR_TOKEN),
     })
 
 
@@ -7861,6 +7876,173 @@ def _travel_article_schema(langs: list[str], photos: int):
                               required=list(langs) + ['tags'])
 
 
+# ── Wetter aus Home Assistant ─────────────────────────────────────────────────
+#
+# Das Wetter von Hand einzutippen ist unterwegs die lästigste Stelle des
+# Formulars — und das Add-on läuft in Home Assistant, das den Wert kennt. Es
+# gilt aber eine Einschränkung, die nicht wegzudiskutieren ist: eine
+# Wetter-Entität misst dort, wo sie eingerichtet wurde, meist also zu Hause.
+# Für eine Reise nach Kreta muss in HA eine Entität für das Reiseziel
+# angelegt werden. Deshalb wird die Entität je Reise gewählt und nichts
+# automatisch geraten.
+#
+# Ohne Supervisor-Token (MyPage unter Docker, ohne HA) gibt es diese Funktion
+# nicht: dann fehlen die Knöpfe in der Oberfläche ganz, statt eine Meldung
+# anzubieten, aus der niemand einen Ausweg hat.
+
+_HA_STATES = 'http://supervisor/core/api/states'
+_HA_HISTORY = 'http://supervisor/core/api/history/period'
+_HA_ENTITY_RE = re.compile(r'^weather\.[a-z0-9_]{1,64}$')
+
+# Home Assistant kennt mehr Zustände als das Formular Auswahlpunkte hat. Was
+# sich nicht sinnvoll zuordnen lässt, bleibt bewusst leer — ein falsch geratenes
+# Wetter wäre schlimmer als ein leeres Feld, das nachfragt.
+_HA_CONDITIONS = {
+    'sunny': 'sonnig', 'clear-night': 'sonnig',
+    'partlycloudy': 'leicht bewölkt',
+    'cloudy': 'bewölkt',
+    'fog': 'neblig',
+    'rainy': 'regnerisch', 'pouring': 'regnerisch', 'snowy-rainy': 'regnerisch',
+    'snowy': 'Schneefall',
+    'hail': 'stürmisch', 'lightning': 'stürmisch', 'lightning-rainy': 'stürmisch',
+    'windy': 'stürmisch', 'windy-variant': 'stürmisch',
+    'exceptional': 'wechselhaft',
+}
+
+
+def _ha_wind_label(speed, unit: str) -> str:
+    """Windgeschwindigkeit zur Stufe des Formulars. Grenzen nach Beaufort:
+    bis 5 km/h windstill, bis 19 leicht (Bft 1–3), bis 38 mäßig (4–5),
+    bis 61 stark (6–7), darüber sehr stark (ab 8)."""
+    try:
+        kmh = float(speed)
+    except (TypeError, ValueError):
+        return ''
+    unit = (unit or 'km/h').lower()
+    if unit in ('m/s', 'ms'):
+        kmh *= 3.6
+    elif unit in ('mph', 'mi/h'):
+        kmh *= 1.609344
+    elif unit in ('kn', 'knots'):
+        kmh *= 1.852
+    for limit, label in ((6, 'windstill'), (20, 'leicht'), (39, 'mäßig'), (62, 'stark')):
+        if kmh < limit:
+            return label
+    return 'sehr stark'
+
+
+def _ha_weather_from_state(state: dict) -> dict:
+    """Ein HA-Zustandsobjekt in die Felder des Wetter-Schritts übersetzen."""
+    attrs = state.get('attributes') or {}
+    temp = attrs.get('temperature')
+    if temp is not None and str(attrs.get('temperature_unit') or '°C').strip() == '°F':
+        try:
+            temp = round((float(temp) - 32) * 5 / 9, 1)
+        except (TypeError, ValueError):
+            temp = None
+    try:
+        temp = round(float(temp), 1) if temp is not None else None
+    except (TypeError, ValueError):
+        temp = None
+    return {
+        'condition': _HA_CONDITIONS.get(state.get('state') or '', ''),
+        'raw_condition': _clean_str(state.get('state'), 40),
+        'temperature': temp,
+        'wind': _ha_wind_label(attrs.get('wind_speed'),
+                               attrs.get('wind_speed_unit') or 'km/h'),
+        'at': _clean_str(state.get('last_changed'), 40),
+    }
+
+
+@admin_app.route('/api/travel/ha/weather-entities')
+def api_travel_ha_entities():
+    """Wetter-Entitäten zur Auswahl im Reise-Dialog."""
+    err = _api_auth()
+    if err:
+        return err
+    if not SUPERVISOR_TOKEN:
+        return jsonify({'on_ha': False, 'entities': []})
+    try:
+        r = http.get(_HA_STATES, timeout=10,
+                     headers={'Authorization': f'Bearer {SUPERVISOR_TOKEN}'})
+        r.raise_for_status()
+        states = r.json()
+    except Exception as e:
+        log.warning("HA-Wetterentitäten nicht abrufbar: %s: %s", type(e).__name__, e)
+        return jsonify({'on_ha': True, 'entities': [], 'error': 'ha_failed'}), 502
+    out = []
+    for st in states if isinstance(states, list) else []:
+        eid = st.get('entity_id') or ''
+        if _HA_ENTITY_RE.match(eid):
+            out.append({'id': eid,
+                        'name': _clean_str((st.get('attributes') or {}).get('friendly_name')
+                                           or eid, 120)})
+    out.sort(key=lambda x: x['name'].lower())
+    return jsonify({'on_ha': True, 'entities': out})
+
+
+@admin_app.route('/api/travel/ha/weather')
+def api_travel_ha_weather():
+    """Wetter zu einem Reisetag. Für heute der aktuelle Zustand, für ein
+    vergangenes Datum der Verlauf aus dem Recorder — dessen Aufbewahrung ist
+    begrenzt (Standard zehn Tage), weiter zurück gibt es schlicht nichts."""
+    err = _api_auth()
+    if err:
+        return err
+    if not SUPERVISOR_TOKEN:
+        return jsonify({'error': 'not_on_ha'}), 400
+    entity = request.args.get('entity', '')
+    if not _HA_ENTITY_RE.match(entity):
+        return jsonify({'error': 'invalid'}), 400
+    day = request.args.get('date', '')
+    try:
+        wanted = date.fromisoformat(day)
+    except ValueError:
+        return jsonify({'error': 'invalid'}), 400
+    today = datetime.now().astimezone().date()
+    if wanted > today:
+        return jsonify({'error': 'future'}), 400
+    headers = {'Authorization': f'Bearer {SUPERVISOR_TOKEN}'}
+    try:
+        if wanted == today:
+            r = http.get(f'{_HA_STATES}/{entity}', timeout=10, headers=headers)
+            if r.status_code == 404:
+                return jsonify({'error': 'no_entity'}), 404
+            r.raise_for_status()
+            return jsonify({'ok': True, 'source': 'now'} | _ha_weather_from_state(r.json()))
+        tz = datetime.now().astimezone().tzinfo
+        start = datetime.combine(wanted, dtime(0, 0), tz)
+        end = datetime.combine(wanted, dtime(23, 59, 59), tz)
+        r = http.get(f'{_HA_HISTORY}/{start.isoformat()}', timeout=20, headers=headers,
+                     params={'filter_entity_id': entity, 'end_time': end.isoformat()})
+        r.raise_for_status()
+        series = r.json()
+    except Exception as e:
+        log.warning("HA-Wetter (%s) nicht abrufbar: %s: %s", entity, type(e).__name__, e)
+        return jsonify({'error': 'ha_failed'}), 502
+    rows = (series[0] if isinstance(series, list) and series
+            and isinstance(series[0], list) else [])
+    # Der Zustand um die Mittagszeit beschreibt einen Reisetag besser als der um
+    # Mitternacht — und besser als ein Durchschnitt, den es als Wetterlage
+    # ohnehin nicht gibt („teils sonnig, teils Gewitter" ist keine Auswahl).
+    noon = datetime.combine(wanted, dtime(13, 0), tz)
+    best, best_gap = None, None
+    for st in rows:
+        if not isinstance(st, dict) or st.get('state') in (None, 'unknown', 'unavailable'):
+            continue
+        stamp = st.get('last_changed') or st.get('last_updated') or ''
+        try:
+            when = datetime.fromisoformat(stamp)
+        except ValueError:
+            continue
+        gap = abs((when - noon).total_seconds())
+        if best_gap is None or gap < best_gap:
+            best, best_gap = st, gap
+    if best is None:
+        return jsonify({'error': 'no_history'}), 404
+    return jsonify({'ok': True, 'source': 'history'} | _ha_weather_from_state(best))
+
+
 def _travel_article_call(*, prompt: str, system: str, langs: list[str],
                          photos: int, model: str) -> tuple[dict | None, dict, int]:
     """Ein Reisebericht-Lauf. Erzeugen und Überarbeiten unterscheiden sich nur in
@@ -7967,7 +8149,10 @@ def api_travel_revise(tid: str, did: str):
     if not _ai_rate_take(_ai_text_times, AI_TEXT_MAX_PER_HOUR):
         return jsonify({'error': 'rate_limited'}), 429
     photo_notes = [p for p in (day.get('photos') or []) if p.get('photo_note')]
-    prompt = tb.build_revise_prompt(trip, day, article, langs, action, note)
+    prompt = tb.build_revise_prompt(
+        trip, article, langs, action, note,
+        data_block=tb.build_prompt(trip, day, include_style=False),
+        photo_notes=[p['photo_note'] for p in photo_notes])
     model = _gemini_text_model()
     fresh, err, status = _travel_article_call(
         prompt=prompt, system=tb.REVISE_SYSTEM_PROMPT, langs=langs,
@@ -7984,6 +8169,152 @@ def api_travel_revise(tid: str, did: str):
     log.info("Reisebericht überarbeitet (%s): %s Tag %s (%s, %s)", action,
              trip.get('name'), day.get('day_number'), model, '+'.join(langs))
     return jsonify({'ok': True, 'article': fresh, 'prompt': prompt})
+
+
+# ── Reise-Rückblick ───────────────────────────────────────────────────────────
+#
+# Der Text über die ganze Reise, der auf der Reise-Seite über der Tagesliste
+# steht. Er entsteht aus den fertigen Tagesberichten und wird getrennt
+# freigegeben: ein Rückblick, der halb fertig im Netz steht, wäre schlimmer als
+# gar keiner.
+
+def _travel_recap_schema(langs: list[str]):
+    per_lang = genai_types.Schema(
+        type=genai_types.Type.OBJECT,
+        properties={'title':  genai_types.Schema(type=genai_types.Type.STRING),
+                    'teaser': genai_types.Schema(type=genai_types.Type.STRING),
+                    'body':   genai_types.Schema(type=genai_types.Type.STRING)},
+        required=['title', 'teaser', 'body'])
+    props = {lg: per_lang for lg in langs}
+    props['tags'] = genai_types.Schema(
+        type=genai_types.Type.ARRAY,
+        items=genai_types.Schema(type=genai_types.Type.STRING))
+    return genai_types.Schema(type=genai_types.Type.OBJECT, properties=props,
+                              required=list(langs) + ['tags'])
+
+
+def _travel_recap_call(*, prompt: str, system: str, langs: list[str], model: str
+                       ) -> tuple[dict | None, dict, int]:
+    """Wie `_travel_article_call`, nur mit dem Schema ohne Bildunterschriften."""
+    try:
+        client = _gemini_client()
+        resp = client.models.generate_content(
+            model=model, contents=[prompt],
+            config=genai_types.GenerateContentConfig(
+                system_instruction=system,
+                response_mime_type='application/json',
+                response_schema=_travel_recap_schema(langs),
+                http_options=genai_types.HttpOptions(timeout=GEMINI_TEXT_TIMEOUT_MS),
+            ),
+        )
+        _ai_usage_record(model, resp)
+        cands = resp.candidates or []
+        finish = cands[0].finish_reason if cands else None
+        reason = getattr(finish, 'name', None) or (str(finish) if finish else '')
+        if finish in _GEMINI_TEXT_REFUSALS:
+            return None, {'error': 'ai_refused', 'detail': reason}, 502
+        raw = json.loads(resp.text or '')
+        if not isinstance(raw, dict):
+            return None, {'error': 'ai_empty', 'detail': reason}, 502
+    except genai_errors.APIError as e:
+        code = getattr(e, 'code', None)
+        log.warning("Reise-Rückblick fehlgeschlagen (%s): Status %s", model, code)
+        return None, {'error': 'ai_model_missing' if code == 404 else 'ai_failed',
+                      'detail': f'HTTP {code}' if code else '', 'model': model}, 502
+    except Exception as e:
+        log.error("Reise-Rückblick (%s) unerwartet fehlgeschlagen: %s: %s",
+                  model, type(e).__name__, e)
+        return None, {'error': 'ai_failed', 'detail': type(e).__name__, 'model': model}, 502
+    return tb.normalize_recap(raw), {}, 200
+
+
+def _recap_days(trip: dict) -> list:
+    """Tage mit fertigem Bericht, nach Reisetag sortiert. Ein Tag ohne Text
+    trägt nichts bei — seine Rohdaten stünden im Rückblick unvermittelt neben
+    den erzählten Tagen."""
+    return sorted([d for d in (trip.get('days') or [])
+                   if any(((d.get('article') or {}).get(lg) or {}).get('body')
+                          for lg in ('de', 'en'))],
+                  key=lambda d: d.get('day_number') or 0)
+
+
+@admin_app.route('/api/travel/trips/<tid>/recap', methods=['POST', 'PUT'])
+def api_travel_recap(tid: str):
+    """POST erzeugt den Rückblick, PUT speichert ihn samt Freigabe."""
+    err = _api_auth()
+    if err:
+        return err
+    data = load_travel()
+    trip = _trip(data, tid)
+    if trip is None:
+        return jsonify({'error': 'not_found'}), 404
+    raw = request.get_json(silent=True) or {}
+
+    if request.method == 'PUT':
+        trip['recap'] = tb.normalize_recap(raw.get('recap'))
+        trip['recap_published'] = bool(raw.get('recap_published'))
+        return _saved(save_travel(data))
+
+    if not gemini_text_enabled():
+        return jsonify({'error': 'no_api_key'}), 400
+    days = _recap_days(trip)
+    if not days:
+        return jsonify({'error': 'no_days'}), 400
+    langs = (trip.get('settings') or {}).get('langs') or ['de']
+    if not _ai_rate_take(_ai_text_times, AI_TEXT_MAX_PER_HOUR):
+        return jsonify({'error': 'rate_limited'}), 429
+    prompt = tb.build_recap_prompt(trip, days)
+    model = _gemini_text_model()
+    recap, err, status = _travel_recap_call(
+        prompt=prompt, system=tb.RECAP_SYSTEM_PROMPT, langs=langs, model=model)
+    if recap is None:
+        return jsonify(err), status
+    log.info("Reise-Rückblick erzeugt: %s (%s Tage, %s, %s)", trip.get('name'),
+             len(days), model, '+'.join(langs))
+    return jsonify({'ok': True, 'recap': recap, 'prompt': prompt})
+
+
+@admin_app.route('/api/travel/trips/<tid>/recap/revise', methods=['POST'])
+def api_travel_recap_revise(tid: str):
+    """Rückblick überarbeiten — derselbe Werkzeugkasten wie beim Tagesbericht."""
+    err = _api_auth()
+    if err:
+        return err
+    if not gemini_text_enabled():
+        return jsonify({'error': 'no_api_key'}), 400
+    raw = request.get_json(silent=True) or {}
+    action = raw.get('action') if raw.get('action') in tb.REVISE_ACTIONS else ''
+    note = _clean_str(raw.get('note'), tb.REVISE_NOTE_MAX)
+    if not action or (action == 'custom' and not note):
+        return jsonify({'error': 'invalid'}), 400
+    data = load_travel()
+    trip = _trip(data, tid)
+    if trip is None:
+        return jsonify({'error': 'not_found'}), 404
+    trip_langs = (trip.get('settings') or {}).get('langs') or ['de']
+    wanted = raw.get('langs')
+    langs = [lg for lg in trip_langs
+             if isinstance(wanted, list) and lg in wanted] or trip_langs
+    recap = tb.normalize_recap(raw.get('recap') if isinstance(raw.get('recap'), dict)
+                               else (trip.get('recap') or {}))
+    if not any((recap.get(lg) or {}).get('body') for lg in langs):
+        return jsonify({'error': 'no_article'}), 400
+    if not _ai_rate_take(_ai_text_times, AI_TEXT_MAX_PER_HOUR):
+        return jsonify({'error': 'rate_limited'}), 429
+    prompt = tb.build_revise_prompt(
+        trip, recap, langs, action, note, recap=True,
+        data_block=tb.build_recap_prompt(trip, _recap_days(trip)))
+    model = _gemini_text_model()
+    fresh, err, status = _travel_recap_call(
+        prompt=prompt, system=tb.RECAP_SYSTEM_PROMPT, langs=langs, model=model)
+    if fresh is None:
+        return jsonify(err), status
+    for lg in ('de', 'en'):
+        if lg not in langs:
+            fresh[lg] = recap.get(lg) or {'title': '', 'teaser': '', 'body': ''}
+    log.info("Reise-Rückblick überarbeitet (%s): %s (%s, %s)", action,
+             trip.get('name'), model, '+'.join(langs))
+    return jsonify({'ok': True, 'recap': fresh, 'prompt': prompt})
 
 
 # ── KI-Verbrauch ──────────────────────────────────────────────────────────────
@@ -14511,6 +14842,19 @@ def _trav_article(day: dict, lang: str) -> dict:
     return other if (other.get('title') or other.get('body')) else want
 
 
+def _trav_recap(trip: dict, lang: str) -> dict:
+    """Freigegebener Rückblick in der gewünschten Sprache, sonst in der anderen.
+    Leer, solange die Freigabe fehlt oder kein Text dasteht."""
+    if not trip.get('recap_published'):
+        return {}
+    rc = trip.get('recap') or {}
+    want = rc.get(lang) or {}
+    if want.get('body'):
+        return want
+    other = rc.get('en' if lang == 'de' else 'de') or {}
+    return other if other.get('body') else {}
+
+
 def _trav_day_public(day: dict) -> bool:
     art = day.get('article') or {}
     return bool(day.get('published') and day.get('slug')
@@ -14559,7 +14903,7 @@ def _trav_trip_view(trip: dict, lang: str) -> dict:
         'start': _trav_date(trip.get('travel_start') or '', lang),
         'end': _trav_date(trip.get('travel_end') or '', lang),
         'image': _overlay_url(cover),
-        'teaser': lead.get('teaser') or '',
+        'teaser': (_trav_recap(trip, lang).get('teaser') or lead.get('teaser') or ''),
         'members_only': bool(trip.get('members_only')),
     }
 
@@ -14730,11 +15074,17 @@ def travel_trip_page(tslug: str):
     t, loc, font_family, font_faces = _trav_head(site, lang)
     view = _trav_trip_view(trip, lang)
     locked = _trav_locked(trip, False)
+    # Bei gesperrten Reisen nur der Anriss — derselbe Weg wie beim Tagesbericht.
+    recap = _trav_recap(trip, lang)
+    recap_full = _overlay_html_images(render_md(recap.get('body') or ''))
+    recap_html = (('<p>' + _locked_teaser(recap_full) + '</p>')
+                  if (locked and recap_full) else recap_full)
     return render_template(
         'travel_trip.html', t=t, lang=lang, site=site, loc=loc,
         heading=t.get('trav_trips_heading', ''), trip=view,
         days=[_trav_day_view(d, lang) for d in _trav_public_days(trip)],
-        locked=locked,
+        locked=locked, recap_title=recap.get('title') or '', recap_html=recap_html,
+        recap_tags=((trip.get('recap') or {}).get('tags') or []) if recap else [],
         totals=([] if locked or not _trav_prices(trip)
                 else _trav_trip_totals(trip, lang)),
         font_family=font_family, font_faces=font_faces,

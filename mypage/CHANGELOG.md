@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.11.8
+
+- 📖 **Reise-Rückblick — der Text über die ganze Reise.** Bisher war die Reise-Seite nur eine Liste der Tage. Der Rückblick steht jetzt darüber: erzeugt aus den fertigen Tagesberichten (kein Tag-für-Tag-Protokoll, sondern der Bogen der Reise), frei editierbar, mit denselben Knöpfen zum Überarbeiten wie der Tagesbericht. Er wird **getrennt freigegeben** — ohne Haken bleibt er ein Entwurf und die Seite sieht aus wie bisher. Der Anrisstext des Rückblicks wird zur Beschreibung der Reise-Seite und zum Text auf der Kachel in der Übersicht; die Reise-Seite steht damit auch in der Suche. Zu finden im Reiseblog-Reiter über **📖 Rückblick** neben „Neuer Reisetag".
+- 🏠 **Wetter aus Home Assistant übernehmen.** Im Schritt „Wetter" holt ein Knopf Wetterlage, Temperatur und Windstärke für das Datum des Reisetags: für heute den aktuellen Zustand, für einen vergangenen Tag den Verlauf aus dem Recorder (Zustand um die Mittagszeit; die Aufbewahrung reicht standardmäßig zehn Tage zurück). Die Entität wird **je Reise** im Reise-Dialog gewählt — dort stehen alle `weather.*`-Entitäten der Installation zur Auswahl. Wichtig: eine Wetter-Entität misst dort, wo sie eingerichtet ist. Für ein Ziel im Ausland vorher in Home Assistant eine Entität für diesen Ort anlegen.
+- 🐳 **Unter Docker ohne Home Assistant bleibt davon alles unsichtbar** — kein Auswahlfeld im Reise-Dialog, kein Knopf im Wetter-Schritt. Eine Schaltfläche, die nur „geht hier nicht" sagen kann, ist schlimmer als keine.
+- 🌫️ **Zwei Wetterlagen mehr: „neblig" und „Schneefall".** Home Assistant meldet beides als eigenen Zustand, und ohne Entsprechung im Formular wäre das Feld leer geblieben. Was sich nicht sauber zuordnen lässt, wird weiterhin **nicht** geraten: der Rohwert steht dann als Hinweis daneben und die Lage wird von Hand gewählt.
+
 ## 0.11.7
 
 - ✨ **Reisebericht überarbeiten statt neu erzeugen.** Im Tages-Wizard steht unter „Bericht" jetzt derselbe Werkzeugkasten wie im KI-Studio: **Kürzer**, **Länger**, **Feinschliff** und ein Feld für einen freien Änderungswunsch. Bisher gab es nur „Reisebericht erstellen" — wer mit dem Text unzufrieden war, musste ihn komplett neu würfeln lassen und verlor dabei jede Zeile, die er danach von Hand geändert hatte. Das Überarbeiten schickt genau die Fassung mit, die gerade in den Feldern steht.

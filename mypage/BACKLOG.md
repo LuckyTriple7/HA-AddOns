@@ -11,7 +11,8 @@ Meta-Voraussetzungen, Rezept über den RSS-Feed).
 
 ## Reiseblog — Ideen und Fallstricke
 
-**Stand:** fertig mit v0.10.5, Überarbeiten des Berichts seit v0.11.7. Stufe 1 (Admin,
+**Stand:** fertig mit v0.10.5, Überarbeiten des Berichts seit v0.11.7, Rückblick und
+Wetter aus Home Assistant seit v0.11.8. Stufe 1 (Admin,
 Wizard, KI-Bericht), Stufe 2 (öffentliche Seiten, Slugs, Freigabe je Tag, Mitglieder-Sperre,
 Sitemap, Suche, IndexNow, statischer Export, Vorschau) und die vier Reste aus Stufe 3
 (Ausgaben-Auswertung, übersetzte Auswahllisten, Formular-Abschnitt, eigene
@@ -23,11 +24,6 @@ später und die Stolperstellen für spätere Arbeit am Modul.
 - **Prompt anzeigen.** `/generate` und `/revise` geben den Prompt bereits mit zurück, die
   Oberfläche wirft ihn weg. Ausklappbar unter dem Bericht würde sofort erklären, warum ein
   Erlebnis im Text fehlt — leere Felder fallen ja kommentarlos aus dem Prompt.
-- **Reise-Rückblick über alle Tage.** Bisher gibt es nur Tagesberichte. Ein Abschlussartikel
-  aus allen Tagen plus Ausgabensummen wäre ein dritter Prompt-Typ und die natürliche
-  Startseite einer Reise — heute ist die Reise-Seite nur eine Tagesliste.
-- **Wetter aus Home Assistant.** `weather.mention` wird von Hand getippt, obwohl das Add-on
-  in HA läuft und eine Wetter-Entität zum Reisedatum abfragen könnte.
 - **Ort und Datum aus dem Foto-EXIF.** Beim Upload jagt `exif_transpose()` die Metadaten
   raus (`app.py`). Vorher Aufnahmedatum und GPS lesen und Tagesdatum/Ort vorbelegen — nur
   auf dem Reise-Upload-Weg, öffentlich bleiben die Bilder metadatenfrei.
@@ -60,6 +56,17 @@ später und die Stolperstellen für spätere Arbeit am Modul.
 - Der Bericht, den `/revise` überarbeitet, kommt aus dem **Formular**, nicht aus der
   gespeicherten Fassung — sonst ginge eine gerade von Hand geänderte Zeile verloren. Wer
   den Aufruf umbaut, muss `article` weiter mitschicken.
+- Der Rückblick liegt in `trip.recap` und wird über eigene Routen gespeichert
+  (`PUT /api/travel/trips/<tid>/recap`). `normalize_trip()` fasst ihn nicht an — sie
+  übernimmt unbekannte Felder aus `existing`, weshalb ein normales Reise-Speichern ihn
+  nicht verliert. Wer dort einmal von `dict(existing)` abweicht, löscht ihn still.
+- `_recap_days()` nimmt Tage mit fertigem Text in **einer** der beiden Sprachen; der Prompt
+  bevorzugt die deutsche Fassung, weil er selbst deutsch ist. Der Reise-Dialog bietet
+  ohnehin nur „de" oder „de,en" an — eine rein englische Reise gibt es über die Oberfläche
+  nicht.
+- Die Wetter-Übernahme hängt an `SUPERVISOR_TOKEN` UND `homeassistant_api: true` in der
+  `config.yaml`. Fehlt eines von beidem, antwortet der Supervisor mit 401 und die
+  Entitätenliste bleibt leer.
 
 ---
 

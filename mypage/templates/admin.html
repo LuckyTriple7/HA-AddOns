@@ -866,7 +866,10 @@
       <div class="panel" id="trav-days-panel" style="display:none">
         <h3 style="display:flex;justify-content:space-between;align-items:center">
           <span id="trav-days-title"></span>
-          <button class="btn small" onclick="openDayModal()">+ {{ t.trav_new_day }}</button>
+          <span style="display:flex;gap:6px">
+            <button class="btn secondary small" id="trav-recap-btn" onclick="openRecapModal()">📖 {{ t.trav_recap }}</button>
+            <button class="btn small" onclick="openDayModal()">+ {{ t.trav_new_day }}</button>
+          </span>
         </h3>
         <p class="hint">{{ t.trav_days_hint }}</p>
         <div class="proj-list" id="trav-day-list"></div>
@@ -3028,6 +3031,14 @@
           </select>
         </div>
       </div>
+      <div class="row" id="tr-weather-row" style="display:none">
+        <div>
+          <label>{{ t.trav_weather_entity }}</label>
+          <select id="tr-weather"></select>
+          <p class="hint">{{ t.trav_weather_entity_hint }}</p>
+        </div>
+        <div></div>
+      </div>
       <label class="checkbox"><input type="checkbox" id="tr-humor"> {{ t.trav_humor }}</label>
       <label class="checkbox"><input type="checkbox" id="tr-prices" checked> {{ t.trav_inc_prices }}</label>
       <label class="checkbox"><input type="checkbox" id="tr-practical" checked> {{ t.trav_inc_practical }}</label>
@@ -3055,6 +3066,24 @@
         <div>
           <button class="btn secondary" onclick="saveDay(false)">{{ t.save }}</button>
           <button class="btn" id="wiz-gen" onclick="generateReport(this)">✦ {{ t.trav_generate }}</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Reise-Rückblick -->
+  <div class="modal-bg" id="recap-modal">
+    <div class="modal md-modal-box">
+      <h3 id="recap-modal-title">{{ t.trav_recap }}</h3>
+      <p class="hint">{{ t.trav_recap_hint }}</p>
+      <div id="recap-body"></div>
+      <div class="modal-actions" style="justify-content:space-between">
+        <div>
+          <button class="btn secondary" onclick="el('recap-modal').classList.remove('open')">{{ t.cancel }}</button>
+        </div>
+        <div>
+          <button class="btn secondary" id="recap-gen" onclick="generateRecap(this)">✦ {{ t.trav_recap_generate }}</button>
+          <button class="btn" onclick="saveRecap()">{{ t.save }}</button>
         </div>
       </div>
     </div>
@@ -7632,6 +7661,11 @@
       el('trav-days-panel').style.display = trip ? '' : 'none';
       if (!trip) return;
       el('trav-days-title').textContent = trip.name;
+      // Am Knopf ablesbar, ob es den Rückblick schon gibt und ob er im Netz steht
+      const rb = el('trav-recap-btn');
+      const hasRecap = !!(((trip.recap || {}).de || {}).body || ((trip.recap || {}).en || {}).body);
+      rb.textContent = '📖 ' + T.trav_recap
+        + (trip.recap_published && hasRecap ? ' 🌐' : hasRecap ? ' ✔' : '');
       const list = el('trav-day-list');
       list.innerHTML = '';
       const days = trip.days || [];
@@ -7701,12 +7735,53 @@
       el('tr-perspective').value = s.perspective || 'wir';
       el('tr-length').value = s.length || 'mittel';
       el('tr-langs').value = (s.langs || ['de']).join(',');
+      fillWeatherEntities(s.weather_entity || '');
       el('tr-humor').checked = !!s.humor;
       el('tr-prices').checked = s.include_prices !== false;
       el('tr-practical').checked = s.include_practical_info !== false;
       el('tr-ratings').checked = s.include_ratings !== false;
       el('trip-modal').classList.add('open');
     }
+    // Alle Wetter-Entitäten aus Home Assistant zur Auswahl. Einmal geholt und
+    // gemerkt: die Liste ändert sich nicht, während ein Dialog offen ist.
+    let HA_WEATHER = null;
+
+    async function fillWeatherEntities(current) {
+      const row = el('tr-weather-row');
+      const sel = el('tr-weather');
+      if (!TRAVEL_OPT.on_ha) { row.style.display = 'none'; return; }
+      row.style.display = '';
+      // Nur ein geglückter Abruf wird gemerkt: sonst bliebe die Liste nach
+      // einem Aussetzer für die ganze Sitzung leer, auch wenn HA längst
+      // wieder antwortet.
+      if (!HA_WEATHER) {
+        const r = await api('api/travel/ha/weather-entities');
+        const d = r.ok ? await r.json().catch(() => ({})) : {};
+        if (r.ok && !d.error) HA_WEATHER = d.entities || [];
+        else toast(T.trav_weather_err_ha, true);
+      }
+      sel.innerHTML = '';
+      const none = document.createElement('option');
+      none.value = '';
+      none.textContent = T.trav_weather_entity_none;
+      sel.appendChild(none);
+      (HA_WEATHER || []).forEach(e => {
+        const o = document.createElement('option');
+        o.value = e.id;
+        o.textContent = e.name + ' (' + e.id + ')';
+        sel.appendChild(o);
+      });
+      // Eine Entität, die es in HA nicht mehr gibt, würde sonst still auf „keine"
+      // fallen und beim nächsten Speichern verschwinden.
+      if (current && !(HA_WEATHER || []).some(e => e.id === current)) {
+        const o = document.createElement('option');
+        o.value = current;
+        o.textContent = current + ' — ' + T.trav_weather_entity_gone;
+        sel.appendChild(o);
+      }
+      sel.value = current || '';
+    }
+
     async function saveTrip() {
       const body = {
         name: el('tr-name').value, destination: el('tr-destination').value,
@@ -7716,6 +7791,7 @@
         settings: {
           writing_style: el('tr-style').value, perspective: el('tr-perspective').value,
           length: el('tr-length').value, langs: el('tr-langs').value.split(','),
+          weather_entity: el('tr-weather').value,
           humor: el('tr-humor').checked, include_prices: el('tr-prices').checked,
           include_practical_info: el('tr-practical').checked,
           include_ratings: el('tr-ratings').checked,
@@ -7860,6 +7936,9 @@
     // Unterwegs im Hotel-WLAN: ein Verbindungsabbruch nach zwanzig Minuten
     // Tippen waere bitter. Deshalb liegt der Stand laufend lokal.
     function travDraft() {
+      // Der Rückblick-Dialog baut seine Felder mit `travField()`, hat aber
+      // keinen Tagesentwurf — ohne diese Zeile schriebe er „null" in den Speicher.
+      if (!DAY) return;
       try { localStorage.setItem(draftKey(), JSON.stringify(DAY)); } catch (e) { /* voll */ }
       el('wiz-draft-note').textContent = T.trav_draft_saved;
       // Jede Eingabe im Reise-Editor laeuft hier durch \u2014 der einzige Punkt,
@@ -7879,8 +7958,8 @@
       el('day-modal-title').textContent = id ? T.trav_edit_day : T.trav_new_day;
       // Beim Tageswechsel zurücksetzen: eine aufgehobene Fassung von Tag 3 in
       // Tag 4 zurückzuholen wäre schlimmer als gar kein Zurücknehmen.
-      travReviseUndo = null;
-      travReviseNote = '';
+      REVISE_DAY.undo = null;
+      REVISE_DAY.note = '';
       wizStep = 0;
       wizRender();
       el('day-modal').classList.add('open');
@@ -7929,6 +8008,25 @@
       hint.className = 'hint';
       hint.textContent = T.trav_weather_hint;
       b.appendChild(hint);
+      // Der Knopf erscheint nur, wenn MyPage in Home Assistant läuft UND für
+      // diese Reise eine Wetter-Entität gewählt ist. Unter Docker ohne HA gibt
+      // es ihn gar nicht — eine Schaltfläche, die nur „geht hier nicht" sagen
+      // kann, ist schlimmer als keine.
+      const entity = ((curTrip() || {}).settings || {}).weather_entity || '';
+      if (TRAVEL_OPT.on_ha && entity) {
+        const ha = document.createElement('button');
+        ha.type = 'button';
+        ha.className = 'btn secondary';
+        ha.style.marginBottom = '10px';
+        ha.textContent = '🏠 ' + T.trav_weather_fetch;
+        ha.onclick = () => fetchWeather(ha);
+        b.appendChild(ha);
+        const src = document.createElement('p');
+        src.className = 'hint';
+        src.id = 'trav-weather-src';
+        src.textContent = travWeatherSrc;
+        b.appendChild(src);
+      }
       b.append(travRow(travField(w, 'condition', 'select', T.trav_weather, 'weather_conditions'),
                        travField(w, 'temperature', 'number', T.trav_temperature)),
                travRow(travField(w, 'wind', 'select', T.trav_wind, 'wind_strengths'),
@@ -8056,7 +8154,11 @@
       b.append(pub, pubHint);
 
       const langs = ((curTrip().settings || {}).langs) || ['de'];
-      b.appendChild(travReviseBox(langs));
+      b.appendChild(travReviseBox(langs, REVISE_DAY, reviseReport, async prev => {
+        DAY.article = prev;
+        wizRender();
+        await saveDay(true);
+      }));
       langs.forEach(lg => {
         const h = document.createElement('h4');
         h.textContent = lg === 'de' ? T.ai_out_de : T.ai_out_en;
@@ -8127,18 +8229,208 @@
       await loadTravel();
       return editingDayId;
     }
+    // ── Reise-Rückblick ──
+    // Der Text über die ganze Reise, der öffentlich über der Tagesliste steht.
+    // Er entsteht aus den fertigen Tagesberichten — Tage ohne Bericht bleiben
+    // draußen, ihre Rohdaten stünden sonst unvermittelt neben den erzählten.
+    let RECAP = null;
+
+    function recapDayCount() {
+      return ((curTrip() || {}).days || [])
+        .filter(d => (((d.article || {}).de) || {}).body).length;
+    }
+
+    function openRecapModal() {
+      const trip = curTrip();
+      if (!trip) { toast(T.trav_no_trip_selected, true); return; }
+      RECAP = JSON.parse(JSON.stringify(trip.recap || { de: {}, en: {}, tags: [] }));
+      RECAP.published = !!trip.recap_published;
+      REVISE_RECAP.undo = null;
+      REVISE_RECAP.note = '';
+      el('recap-modal-title').textContent = T.trav_recap + ' — ' + trip.name;
+      renderRecap();
+      el('recap-modal').classList.add('open');
+    }
+
+    function renderRecap() {
+      const b = el('recap-body');
+      b.innerHTML = '';
+      const trip = curTrip();
+      const langs = (trip.settings || {}).langs || ['de'];
+      const days = recapDayCount();
+
+      const count = document.createElement('p');
+      count.className = 'hint';
+      count.textContent = T.trav_recap_days.replace('{n}', days);
+      b.appendChild(count);
+      if (!days) {
+        const p = document.createElement('p');
+        p.className = 'empty-note';
+        p.textContent = T.trav_recap_no_days;
+        b.appendChild(p);
+        return;
+      }
+      if (!(RECAP.de || {}).body && !(RECAP.en || {}).body) {
+        const p = document.createElement('p');
+        p.className = 'empty-note';
+        p.textContent = T.trav_recap_none_yet;
+        b.appendChild(p);
+        return;
+      }
+
+      const pub = document.createElement('label');
+      pub.className = 'checkbox';
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.checked = !!RECAP.published;
+      cb.onchange = () => { RECAP.published = cb.checked; };
+      pub.append(cb, document.createTextNode(' 🌐 ' + T.trav_recap_publish));
+      const pubHint = document.createElement('p');
+      pubHint.className = 'hint';
+      pubHint.textContent = T.trav_recap_publish_hint;
+      b.append(pub, pubHint);
+
+      b.appendChild(travReviseBox(langs, REVISE_RECAP, reviseRecap, prev => {
+        RECAP = Object.assign(prev, { published: RECAP.published });
+        renderRecap();
+      }));
+
+      langs.forEach(lg => {
+        const h = document.createElement('h4');
+        h.textContent = lg === 'de' ? T.ai_out_de : T.ai_out_en;
+        h.style.margin = '10px 0 4px';
+        b.appendChild(h);
+        RECAP[lg] = RECAP[lg] || {};
+        b.append(travField(RECAP[lg], 'title', 'text', T.field_title),
+                 travField(RECAP[lg], 'teaser', 'text', T.trav_teaser),
+                 travField(RECAP[lg], 'body', 'textarea', T.field_text_md));
+        b.lastChild.querySelector('textarea').rows = 14;
+      });
+
+      const tagWrap = document.createElement('div');
+      const tagInput = document.createElement('input');
+      tagInput.type = 'text';
+      tagInput.value = (RECAP.tags || []).join(', ');
+      tagInput.oninput = () => {
+        RECAP.tags = tagInput.value.split(',').map(x => x.trim()).filter(Boolean);
+      };
+      tagWrap.append(travLabel(T.field_tags), tagInput);
+      b.appendChild(tagWrap);
+    }
+
+    async function generateRecap(btn) {
+      const trip = curTrip();
+      if (!trip) return;
+      if (!recapDayCount()) { toast(T.trav_recap_no_days, true); return; }
+      if ((RECAP.de || {}).body && !confirm(T.trav_recap_overwrite)) return;
+      btn.disabled = true;
+      busyShow(T.trav_recap_running);
+      let r = null;
+      try { r = await apiJson('api/travel/trips/' + trip.id + '/recap', 'POST', {}); }
+      catch (e) { /* Netzfehler */ }
+      btn.disabled = false;
+      const d = r ? await r.json().catch(() => ({})) : {};
+      if (!r || !r.ok) {
+        busyDone(d.error === 'no_days' ? T.trav_recap_no_days
+                                       : aiErrMsg(d.error, d.model, d.detail), true);
+        return;
+      }
+      REVISE_RECAP.undo = null;
+      RECAP = Object.assign(d.recap, { published: RECAP.published });
+      busyDone(T.trav_recap_ready);
+      renderRecap();
+    }
+
+    async function reviseRecap(action, btn) {
+      const trip = curTrip();
+      if (!trip) return;
+      const langs = reviseLangs(trip, REVISE_RECAP);
+      if (!langs.some(lg => (RECAP[lg] || {}).body)) { toast(T.trav_revise_err_empty, true); return; }
+      const note = REVISE_RECAP.note.trim();
+      if (action === 'custom' && !note) { toast(T.ai_revise_err_note, true); return; }
+      const before = JSON.parse(JSON.stringify(RECAP));
+      btn.disabled = true;
+      busyShow(T.trav_revising);
+      let r = null;
+      try {
+        r = await apiJson('api/travel/trips/' + trip.id + '/recap/revise', 'POST',
+                          { action, note, langs, recap: RECAP });
+      } catch (e) { /* Netzfehler */ }
+      btn.disabled = false;
+      const d = r ? await r.json().catch(() => ({})) : {};
+      if (!r || !r.ok) {
+        busyDone(d.error === 'no_article' ? T.trav_revise_err_empty
+                                         : aiErrMsg(d.error, d.model, d.detail), true);
+        return;
+      }
+      REVISE_RECAP.undo = before;
+      RECAP = Object.assign(d.recap, { published: RECAP.published });
+      busyDone(T.trav_revised);
+      renderRecap();
+    }
+
+    async function saveRecap() {
+      const trip = curTrip();
+      if (!trip) return;
+      const body = { recap: RECAP, recap_published: !!RECAP.published };
+      let r = null;
+      try { r = await apiJson('api/travel/trips/' + trip.id + '/recap', 'PUT', body); }
+      catch (e) { toast(T.trav_save_offline, true); return; }
+      toast(r.ok ? T.saved : T.error_save, !r.ok);
+      if (r.ok) { el('recap-modal').classList.remove('open'); loadTravel(); }
+    }
+
+    // ── Wetter aus Home Assistant ──
+    // Für heute der aktuelle Zustand, für einen vergangenen Tag der Verlauf aus
+    // dem Recorder — dessen Aufbewahrung ist begrenzt (Standard zehn Tage).
+    // Überschrieben wird nur, was HA auch liefert: eine eigene Eingabe im
+    // Kommentar oder eine von Hand gesetzte Lage bleibt sonst stehen.
+    let travWeatherSrc = '';
+
+    async function fetchWeather(btn) {
+      const entity = ((curTrip() || {}).settings || {}).weather_entity || '';
+      if (!entity || !DAY.date) { toast(T.trav_weather_err_date, true); return; }
+      btn.disabled = true;
+      const r = await api('api/travel/ha/weather?entity=' + encodeURIComponent(entity)
+                          + '&date=' + encodeURIComponent(DAY.date));
+      btn.disabled = false;
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        toast(d.error === 'no_history' ? T.trav_weather_err_history
+            : d.error === 'future'     ? T.trav_weather_err_future
+            : d.error === 'no_entity'  ? T.trav_weather_err_entity
+            : T.trav_weather_err_ha, true);
+        return;
+      }
+      const w = DAY.weather = DAY.weather || {};
+      if (d.condition) w.condition = d.condition;
+      if (d.temperature !== null && d.temperature !== undefined) w.temperature = d.temperature;
+      if (d.wind) w.wind = d.wind;
+      w.mention = true;
+      // Was Home Assistant meldet, das Formular aber nicht kennt („windy-variant"),
+      // wird nicht geraten — der Rohwert steht dann zum Nachsehen daneben.
+      travWeatherSrc = (d.source === 'history' ? T.trav_weather_src_history
+                                               : T.trav_weather_src_now)
+        + (d.condition ? '' : ' — ' + T.trav_weather_unmapped.replace('{v}', d.raw_condition || '?'));
+      travDraft();
+      wizRender();
+      toast(T.trav_weather_taken);
+    }
+
     // ── Bericht überarbeiten ──
     // „Nochmal erzeugen“ wäre der falsche Weg zurück: das würfelt den Text neu und
     // wirft jede Handkorrektur weg, die nach dem ersten Lauf hier entstanden ist.
     // Das Überarbeiten schickt stattdessen die Fassung mit, die gerade in den
     // Feldern steht — `travField()` schreibt ja direkt in `DAY.article`.
-    let travReviseNote = '';
-    let travReviseScope = 'both';
-    // Ein Lauf kann danebengehen. Ohne die vorige Fassung wäre die Handarbeit
-    // dann doch weg — genau das, was dieser Block verhindern soll.
-    let travReviseUndo = null;
+    // Zwei Ziele, ein Werkzeugkasten: der Tagesbericht und der Reise-Rückblick.
+    // Der Zustand (Notiz, Sprachwahl, aufgehobene Fassung) liegt je Ziel in
+    // einem eigenen Objekt, damit er ein Neuzeichnen der Felder übersteht.
+    // Ein Lauf kann danebengehen — ohne die vorige Fassung wäre die Handarbeit
+    // dann doch weg, genau das, was dieser Block verhindern soll.
+    const REVISE_DAY = { note: '', scope: 'both', undo: null };
+    const REVISE_RECAP = { note: '', scope: 'both', undo: null };
 
-    function travReviseBox(langs) {
+    function travReviseBox(langs, ctx, run, undoApply) {
       const box = document.createElement('div');
       box.className = 'trav-item';
       const h = document.createElement('h4');
@@ -8158,19 +8450,18 @@
         btn.type = 'button';
         btn.className = 'btn secondary';
         btn.textContent = label;
-        btn.onclick = () => reviseReport(act, btn);
+        btn.onclick = () => run(act, btn);
         row.appendChild(btn);
       });
-      if (travReviseUndo) {
+      if (ctx.undo) {
         const undo = document.createElement('button');
         undo.type = 'button';
         undo.className = 'btn secondary';
         undo.textContent = '↶ ' + T.ai_undo;
-        undo.onclick = async () => {
-          DAY.article = travReviseUndo;
-          travReviseUndo = null;
-          wizRender();
-          await saveDay(true);
+        undo.onclick = () => {
+          const prev = ctx.undo;
+          ctx.undo = null;
+          undoApply(prev);
           toast(T.trav_revise_undone);
         };
         row.appendChild(undo);
@@ -8187,8 +8478,8 @@
           o.textContent = label;
           sel.appendChild(o);
         });
-        sel.value = travReviseScope;
-        sel.onchange = () => { travReviseScope = sel.value; };
+        sel.value = ctx.scope;
+        sel.onchange = () => { ctx.scope = sel.value; };
         row.appendChild(sel);
       }
       box.appendChild(row);
@@ -8200,27 +8491,32 @@
       note.type = 'text';
       note.maxLength = 500;
       note.placeholder = T.trav_revise_note_ph;
-      note.value = travReviseNote;
-      note.oninput = () => { travReviseNote = note.value; };
-      const run = document.createElement('button');
-      run.type = 'button';
-      run.className = 'btn';
-      run.textContent = '\u21bb ' + T.ai_revise_run;
-      run.onclick = () => reviseReport('custom', run);
-      noteRow.append(note, run);
+      note.value = ctx.note;
+      note.oninput = () => { ctx.note = note.value; };
+      const runBtn = document.createElement('button');
+      runBtn.type = 'button';
+      runBtn.className = 'btn';
+      runBtn.textContent = '\u21bb ' + T.ai_revise_run;
+      runBtn.onclick = () => run('custom', runBtn);
+      noteRow.append(note, runBtn);
       box.appendChild(noteRow);
       return box;
+    }
+
+    // Sprachen, die ein Lauf anfassen soll — aus der Reise und der Auswahl daneben.
+    function reviseLangs(trip, ctx) {
+      const tripLangs = (trip.settings || {}).langs || ['de'];
+      return (tripLangs.length > 1 && ctx.scope !== 'both')
+        ? tripLangs.filter(lg => lg === ctx.scope) : tripLangs;
     }
 
     async function reviseReport(action, btn) {
       const trip = curTrip();
       if (!trip || !editingDayId) { toast(T.trav_revise_err_save, true); return; }
-      const tripLangs = (trip.settings || {}).langs || ['de'];
-      const langs = (tripLangs.length > 1 && travReviseScope !== 'both')
-        ? tripLangs.filter(lg => lg === travReviseScope) : tripLangs;
+      const langs = reviseLangs(trip, REVISE_DAY);
       const art = DAY.article || {};
       if (!langs.some(lg => (art[lg] || {}).body)) { toast(T.trav_revise_err_empty, true); return; }
-      const note = travReviseNote.trim();
+      const note = REVISE_DAY.note.trim();
       if (action === 'custom' && !note) { toast(T.ai_revise_err_note, true); return; }
       btn.disabled = true;
       busyShow(T.trav_revising);
@@ -8236,7 +8532,7 @@
                                           : aiErrMsg(d.error, d.model, d.detail), true);
         return;
       }
-      travReviseUndo = art;
+      REVISE_DAY.undo = art;
       DAY.article = d.article;
       busyDone(T.trav_revised);
       wizRender();
