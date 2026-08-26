@@ -16,7 +16,7 @@ Hier stehen nur noch die Login-Daten. Sie bleiben bewusst in Home Assistant: Dam
 | `password` | Passwort für das Admin-Panel — **unbedingt ändern!** |
 | `session_hours` | Gültigkeit der Login-Session in Stunden (Standard: 24) |
 
-Die übrigen Optionen stehen aus Kompatibilitätsgründen noch im Add-on-Schema, werden aber nur noch als Startwert für die einmalige Übernahme gelesen. Wer sie dort ändert, ändert nichts mehr — der Wert aus **Einstellungen** gewinnt.
+Die übrigen Optionen sind seit **0.11.2** aus dem Schema entfernt und tauchen in der HA-Konfigurationsseite nicht mehr auf. Beim Update von 0.11.0/0.11.1 wurden ihre Werte bereits einmalig nach `settings.json` übernommen.
 
 ### Reiter „Einstellungen" (Admin-Panel)
 

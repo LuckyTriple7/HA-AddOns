@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.11.2
+
+- 🧹 **Die alten Optionen sind aus der HA-Konfigurationsseite verschwunden.** Sie standen in 0.11.0/0.11.1 nur noch da, damit der Supervisor sie nicht wegwirft, bevor die einmalige Übernahme sie lesen konnte. Das ist erledigt — übrig bleiben `username`, `password` und `session_hours` als Notzugang. Alles andere: Admin-Panel → **Einstellungen**.
+
 ## 0.11.1
 
 - 🐛 **Startschleife nach dem Update auf 0.11.0 behoben.** Das Startskript las die SMB-Felder mit `jq` aus der neuen `settings.json` — die es beim allerersten Start noch gar nicht gibt. `jq` beendet sich auf einer fehlenden Datei mit Code 2, und wegen `set -e` starb daran das ganze Skript, bevor MyPage überhaupt anlief: Add-on im Fehlerzustand, im Protokoll nur die Startzeile in Endlosschleife. Fehlende oder defekte Dateien werden jetzt sauber übergangen.
