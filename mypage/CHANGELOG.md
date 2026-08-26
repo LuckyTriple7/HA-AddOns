@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.11.11
+
+- 🔽 **Die SEO-Übersicht startet zugeklappt.** Der Design-Reiter ist ohnehin lang; die Liste aller Beschreibungen hängt ihm sonst noch einmal dieselbe Länge an. Ein Klick auf die Überschrift klappt sie auf — und erst dann fragt der Browser die Daten überhaupt ab.
+
 ## 0.11.10
 
 - 🔍 **SEO-Beschreibung von der KI schreiben lassen.** Neben der Snippet-Vorschau steht in den Dialogen für Blog-Beitrag, eigene Seite und Bibliothek-Eintrag — und im Design-Tab für die Startseite — der Knopf **„✦ KI-Beschreibung"**. Er fasst den vorhandenen Fließtext zu einem Satz zusammen, in der Sprache, die in der Vorschau gewählt ist, mit Ziellänge 120–155 Zeichen. Bisher war der einzige Rückfall der Textanfang: er beginnt mitten in der Einleitung und hört mitten im Satz auf. Ist die Fassung einer Sprache noch leer, geht die vorhandene andere in die Anfrage — geschrieben wird trotzdem in der gewählten Sprache. Der Knopf erscheint nur mit hinterlegtem Gemini-Schlüssel.

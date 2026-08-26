@@ -37,7 +37,7 @@ auf `noindex` gesetzt — sie tauchen nicht in Suchergebnissen auf.
 
 ### Alle Beschreibungen an einer Stelle
 
-Im **Design-Tab** steht unter der Vorschau der Bereich **„Alle SEO-Beschreibungen"**:
+Im **Design-Tab** steht unter der Vorschau der zugeklappte Bereich **„Alle SEO-Beschreibungen"** — einmal auf die Überschrift klicken:
 Startseite, Blog-Beiträge, eigene Seiten und Bibliothek-Einträge in einer Liste,
 je Sprache umschaltbar. Wo kein eigener Text gesetzt ist, steht darunter, was
 Google heute stattdessen bekommt — meist der Anfang des Fließtextes. Der Filter

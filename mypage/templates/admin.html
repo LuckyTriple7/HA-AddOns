@@ -422,6 +422,15 @@
     .snip-len.warn b { color: #d29922; }
     .snip-len.over b { color: #f85149; }
     /* SEO-Uebersicht: eine Zeile je Inhalt, Feld und Zaehler nebeneinander */
+    /* Ganze Bereiche zuklappen: der Design-Reiter ist ohnehin lang, eine Liste
+       aller Beschreibungen haengt ihm sonst noch einmal dieselbe Laenge an. */
+    .fold > summary { cursor: pointer; list-style: none; display: flex; flex-wrap: wrap;
+                      align-items: baseline; gap: 10px; }
+    .fold > summary::-webkit-details-marker { display: none; }
+    .fold > summary::before { content: '▸'; color: var(--muted); }
+    .fold[open] > summary::before { content: '▾'; }
+    .fold > summary h3 { margin: 0; }
+    .fold[open] > summary .fold-hint { display: none; }   /* offen erklaert sich der Bereich selbst */
     .seo-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 10px 0; }
     .seo-row { border-top: 1px solid var(--border); padding: 10px 0; }
     .seo-row:first-child { border-top: none; }
@@ -1809,8 +1818,8 @@
       </div>
       <!-- Alle SEO-Beschreibungen an einer Stelle: sonst muesste man jeden
            Beitrag einzeln aufmachen, um zu sehen, wo eine fehlt. -->
-      <div class="panel" id="seo-panel">
-        <h3>{{ t.seo_list_heading }}</h3>
+      <details class="panel fold" id="seo-panel" ontoggle="seoFold(this)">
+        <summary><h3>{{ t.seo_list_heading }}</h3><span class="hint fold-hint" style="margin:0">{{ t.seo_list_fold }}</span></summary>
         <p class="hint">{{ t.seo_list_hint }}</p>
         <div class="seo-bar">
           <div class="snip-langs" id="seo-langs"></div>
@@ -1823,7 +1832,7 @@
           <button class="btn secondary small" onclick="seoLoad(true)">⟳ {{ t.seo_list_reload }}</button>
         </div>
         <div id="seo-list"></div>
-      </div>
+      </details>
       <div class="panel">
         <h3>{{ t.preview_heading }}</h3>
         <div class="preview-toolbar">
@@ -3781,6 +3790,10 @@
       return n;
     }
 
+    // Zugeklappt bleibt der Bereich still: geladen wird erst, wenn ihn jemand
+    // aufmacht — sonst kostete jeder Blick in den Design-Reiter eine Anfrage.
+    function seoFold(d) { if (d.open) seoLoad(); }
+
     async function seoLoad(force) {
       if (seoLoaded && !force) return;
       if (force && seoDirtyCount() && !confirm(T.seo_list_unsaved)) return;
@@ -4034,7 +4047,7 @@
         if (btn.dataset.tab === 'explorer') initExplorerTab();
         if (btn.dataset.tab === 'messages') { loadMessages(); loadComments(); }
         if (btn.dataset.tab === 'users') { loadUsers(); initStorageBrowser(); startUsersPolling(); }
-        if (btn.dataset.tab === 'design') { initPreview(); seoLoad(); setTimeout(updatePresetArrows, 50); }
+        if (btn.dataset.tab === 'design') { initPreview(); setTimeout(updatePresetArrows, 50); }
         if (btn.dataset.tab === 'system') { loadAudit(); loadTwofa(); loadAutoBackups(); loadRevisions(); loadFileBrowser(); initSystemJump(); }
         if (btn.dataset.tab === 'settings') { loadSettings(); loadKeyState(); initSettingsJump(); }
         if (btn.dataset.tab === 'blog') loadSubscribers();

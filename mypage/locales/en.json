@@ -1403,6 +1403,7 @@
   "seo_ai_nosrc": "No text for the AI to summarise.",
   "seo_ai_replace": "Overwrite the existing description?",
   "seo_list_heading": "All SEO descriptions",
+  "seo_list_fold": "expand",
   "seo_list_hint": "Every item with its own SEO field in one place. Where none is set, the line below shows what Google gets today — usually the start of the text. Edits happen right here; they are stored with “Save descriptions”.",
   "seo_list_only_empty": "Only without own description",
   "seo_list_reload": "Reload",

@@ -1403,6 +1403,7 @@
   "seo_ai_nosrc": "Kein Text da, den die KI zusammenfassen könnte.",
   "seo_ai_replace": "Die vorhandene Beschreibung überschreiben?",
   "seo_list_heading": "Alle SEO-Beschreibungen",
+  "seo_list_fold": "aufklappen",
   "seo_list_hint": "Jeder Inhalt mit eigenem SEO-Feld an einer Stelle. Ist keines gesetzt, steht darunter, was Google heute bekommt — meist der Textanfang. Geändert wird hier direkt; gespeichert wird erst mit „Beschreibungen speichern“.",
   "seo_list_only_empty": "Nur ohne eigene Beschreibung",
   "seo_list_reload": "Neu laden",
