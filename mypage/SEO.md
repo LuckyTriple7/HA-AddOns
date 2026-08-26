@@ -49,7 +49,8 @@ mit **„Beschreibungen speichern"**.
 Ist ein Gemini-Schlüssel hinterlegt (KI-Reiter), steht neben jedem Feld — in der
 Übersicht wie in der Snippet-Vorschau der Dialoge — der Knopf **„✦ KI-Beschreibung"**.
 Er fasst den vorhandenen Text zu einem Satz zusammen, in der Sprache, die gerade
-gewählt ist, mit Ziellänge 120–155 Zeichen. In der Übersicht füllt **„Leere per KI
+gewählt ist, mit Ziellänge 120–155 Zeichen. Ob dabei geduzt oder gesiezt wird,
+steht im Design-Tab unter **„Anrede in KI-Texten“** (Vorgabe: Sie). In der Übersicht füllt **„Leere per KI
 füllen"** alle Lücken der Reihe nach. Das Ergebnis ist ein Vorschlag: es landet im
 Feld, nicht auf der Platte — geprüft und gespeichert wird von Hand.
 

@@ -439,6 +439,7 @@ DEFAULT_SITE = {
         'reveal_effect': 'off', 'reveal_stagger': True,
         'card_deck': 'knoll',
         'meta_description_de': '', 'meta_description_en': '',
+        'ai_address': 'sie',
     },
     'posts': [],
     'pages': [],
@@ -5043,6 +5044,9 @@ def api_design():
     if 'feed_lang' in raw:
         fl = _clean_str(raw['feed_lang'], 2).lower()
         d['feed_lang'] = fl if fl in ('de', 'en') else 'de'
+    if 'ai_address' in raw:
+        a = _clean_str(raw['ai_address'], 4).lower()
+        d['ai_address'] = a if a in AI_ADDRESS_FORMS else 'sie'
     if 'banner_link_url' in raw:
         bl = _clean_str(raw['banner_link_url'], 500)
         d['banner_link_url'] = bl if bl.startswith(('http://', 'https://', '/')) or not bl else ''
@@ -6195,6 +6199,27 @@ def _ai_instructions() -> str:
     return _clean_str(_ai_settings().get('instructions'), AI_INSTRUCTIONS_MAX)
 
 
+# Anrede der KI-Texte. Sie steht im Design und nicht bei den KI-Einstellungen:
+# es ist eine Frage des Tonfalls der Website, nicht eine des Modells.
+AI_ADDRESS_FORMS = ('sie', 'du')
+
+
+def _ai_address_note(site: dict | None = None) -> str:
+    """Anredezeile fuer jeden KI-Text — haengt an jedem System-Prompt.
+
+    Ohne sie siezt Gemini auf Deutsch von sich aus, auch wenn die uebrige
+    Website durchweg duzt.
+    """
+    d = (site or load_site()).get('design', {})
+    form = d.get('ai_address') if d.get('ai_address') in AI_ADDRESS_FORMS else 'sie'
+    if form == 'du':
+        return ("\n\nAnrede: Sprich den Leser mit „du“ an (klein geschrieben), locker "
+                "und direkt — keine Höflichkeitsform, kein „Sie“. Englische Fassungen "
+                "bleiben beim neutralen „you“.")
+    return ("\n\nAnrede: Sprich den Leser mit „Sie“ an, höflich und sachlich. "
+            "Englische Fassungen bleiben beim neutralen „you“.")
+
+
 def _ai_translate_provider() -> str:
     p = (_ai_settings().get('translate_provider') or '').strip()
     if p not in AI_TRANSLATE_PROVIDERS:
@@ -7287,6 +7312,7 @@ def _gemini_seo_desc(*, text: str, title: str, lang: str, model: str
     if extra:
         sys += ("\n\nZusätzliche Vorgaben für diese Website, die immer gelten "
                 "(sie ändern nichts an der Antwortform):\n" + extra)
+    sys += _ai_address_note()
     parts = [f"Sprache der Beschreibung: {_AI_SEO_LANG_DE.get(lang, 'Deutsch')}."]
     if title:
         parts.append("Titel der Seite:\n" + title)
@@ -7389,6 +7415,7 @@ def _gemini_generate_text(*, topic: str, kind: str, tone: str, length: str,
     if extra:
         sys += ("\n\nZusätzliche Vorgaben für diese Website, die immer gelten "
                 "(sie ändern nichts an der Antwortform):\n" + extra)
+    sys += _ai_address_note()
     if action:
         parts = _ai_revise_parts(kind=kind, tone=tone, topic=topic, action=action,
                                  note=note, source=source or {}, langs=langs,
@@ -8351,7 +8378,7 @@ def api_travel_generate(tid: str, did: str):
         return jsonify({'error': 'rate_limited'}), 429
     model = _gemini_text_model()
     article, err, status = _travel_article_call(
-        prompt=prompt, system=tb.SYSTEM_PROMPT, langs=langs,
+        prompt=prompt, system=tb.SYSTEM_PROMPT + _ai_address_note(), langs=langs,
         photos=len(photo_notes), model=model)
     if article is None:
         return jsonify(err), status
@@ -8403,7 +8430,7 @@ def api_travel_revise(tid: str, did: str):
         photo_notes=[p['photo_note'] for p in photo_notes])
     model = _gemini_text_model()
     fresh, err, status = _travel_article_call(
-        prompt=prompt, system=tb.REVISE_SYSTEM_PROMPT, langs=langs,
+        prompt=prompt, system=tb.REVISE_SYSTEM_PROMPT + _ai_address_note(), langs=langs,
         photos=len(photo_notes), model=model)
     if fresh is None:
         return jsonify(err), status
@@ -8560,7 +8587,8 @@ def api_travel_recap(tid: str):
     prompt = tb.build_recap_prompt(trip, days)
     model = _gemini_text_model()
     recap, err, status = _travel_recap_call(
-        prompt=prompt, system=tb.RECAP_SYSTEM_PROMPT, langs=langs, model=model)
+        prompt=prompt, system=tb.RECAP_SYSTEM_PROMPT + _ai_address_note(),
+        langs=langs, model=model)
     if recap is None:
         return jsonify(err), status
     log.info("Reise-Rückblick erzeugt: %s (%s Tage, %s, %s)", trip.get('name'),
@@ -8600,7 +8628,8 @@ def api_travel_recap_revise(tid: str):
         data_block=tb.build_recap_prompt(trip, _recap_days(trip)))
     model = _gemini_text_model()
     fresh, err, status = _travel_recap_call(
-        prompt=prompt, system=tb.RECAP_SYSTEM_PROMPT, langs=langs, model=model)
+        prompt=prompt, system=tb.RECAP_SYSTEM_PROMPT + _ai_address_note(),
+        langs=langs, model=model)
     if fresh is None:
         return jsonify(err), status
     for lg in ('de', 'en'):

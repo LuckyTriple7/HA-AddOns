@@ -448,6 +448,11 @@
     .save-bar .btn { margin: 0; }
     .fold[open] > summary .fold-hint { display: none; }   /* offen erklaert sich der Bereich selbst */
     .seo-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 10px 0; }
+    /* `.btn` bringt margin-top mit — in einer Knopfreihe steht der Knopf damit
+       tiefer als seine Nachbarn. Und `small` neben normal ergibt zwei Hoehen. */
+    /* Feste Zeilenhoehe: die Symbole ✦ und ⟳ ziehen die Zeilenbox sonst
+       einen Punkt weiter auf als reiner Text — die Knopfreihe steht dann schief. */
+    .seo-bar .btn { margin: 0; line-height: 1.25; }
     .seo-row { border-top: 1px solid var(--border); padding: 10px 0; }
     .seo-row:first-child { border-top: none; }
     .seo-head { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; margin-bottom: 5px; }
@@ -1613,6 +1618,17 @@
             <p class="hint">{{ t.feed_lang_hint }}</p>
           </div>
         </div>
+        <div class="row">
+          <div class="opt">
+            <label>{{ t.field_ai_address }}</label>
+            <select id="d-ai_address">
+              <option value="sie">{{ t.ai_address_sie }}</option>
+              <option value="du">{{ t.ai_address_du }}</option>
+            </select>
+            <p class="hint">{{ t.ai_address_hint }}</p>
+          </div>
+          <div></div>
+        </div>
         <div class="opt">
           <label>{{ t.field_feed_extra }}</label>
           <div class="row">
@@ -1890,8 +1906,8 @@
         </div>
         <div class="seo-bar">
           <button class="btn" onclick="seoSave(this)">{{ t.seo_list_save }}</button>
-          <button class="btn secondary small" id="seo-ai-all" style="display:none" onclick="seoAiAll(this)">✦ {{ t.seo_list_ai_all }}</button>
-          <button class="btn secondary small" onclick="seoLoad(true)">⟳ {{ t.seo_list_reload }}</button>
+          <button class="btn secondary" id="seo-ai-all" style="display:none" onclick="seoAiAll(this)">✦ {{ t.seo_list_ai_all }}</button>
+          <button class="btn secondary" onclick="seoLoad(true)">⟳ {{ t.seo_list_reload }}</button>
         </div>
         <div id="seo-list"></div>
       </details>
@@ -4049,7 +4065,22 @@
       // geleerten Zeile stünde sonst nicht da, wo er hingehört.
       seoLoaded = false;
       await seoLoad();
+      await seoRefreshSite();
       toast(T.seo_list_saved.replace('{n}', d.count || 0));
+    }
+
+    // Der Browser haelt den Inhalt in `SITE`. Ohne diesen Nachzug zeigte der
+    // Dialog eines Beitrags noch die alte Beschreibung — und haette sie beim
+    // naechsten Speichern ueber die eben geschriebene zurueckgeschrieben.
+    // Bewusst nicht `loadSite()`: das fuellt auch das Design-Formular neu und
+    // wuerfe dort gerade getippte, noch nicht gespeicherte Aenderungen weg.
+    async function seoRefreshSite() {
+      const r = await api('api/site');
+      if (!r.ok) return;
+      SITE = await r.json();
+      renderPosts();
+      renderPages();
+      renderLibEntries();
     }
 
     // ── Tipps: Hinweis „zuletzt gezeigt / wie oft" aus der echten Anzeige-Statistik ──
@@ -4151,6 +4182,9 @@
       // Die Snippet-Vorschau liest aus den Formularfeldern. Die sind erst
       // jetzt gefuellt, und ein Setzen per Skript loest kein `input` aus.
       if (window.snipRenderAll) snipRenderAll();
+      // Beitrag, Seite oder Bibliothek-Eintrag wurden gespeichert — die
+      // SEO-Uebersicht zeigt sonst weiter den Stand von vorhin.
+      seoLoaded = false;
     }
 
     // ── Blog ──
@@ -6555,6 +6589,7 @@
       el('d-forms_enabled').value = d.forms_enabled !== false ? '1' : '0';
       el('d-default_lang').value = ['de', 'en', 'auto'].includes(d.default_lang) ? d.default_lang : 'de';
       el('d-feed_lang').value = d.feed_lang === 'en' ? 'en' : 'de';
+      el('d-ai_address').value = d.ai_address === 'du' ? 'du' : 'sie';
       el('d-feed_projects').value = d.feed_projects ? '1' : '0';
       el('d-feed_library').value = d.feed_library ? '1' : '0';
       el('d-registration_enabled').value = d.registration_enabled ? '1' : '0';
@@ -6728,6 +6763,7 @@
         forms_enabled:     el('d-forms_enabled').value === '1',
         default_lang:      el('d-default_lang').value,
         feed_lang:         el('d-feed_lang').value,
+        ai_address:        el('d-ai_address').value,
         feed_projects:     el('d-feed_projects').value === '1',
         feed_library:      el('d-feed_library').value === '1',
         registration_enabled: el('d-registration_enabled').value === '1',

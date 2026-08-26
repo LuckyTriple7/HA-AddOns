@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.11.14
+
+- 🗣️ **Du oder Sie — die Anrede der KI-Texte ist einstellbar.** Im Design-Tab unter „Sprache & Feeds“ steht jetzt **Anrede in KI-Texten**. Die Wahl hängt an jedem Auftrag ans Modell: SEO-Beschreibungen, Texte aus dem KI-Studio und Reiseberichte. Ohne Vorgabe siezt Gemini auf Deutsch von sich aus, auch wenn die übrige Website durchweg duzt. Vorgabe bleibt **Sie**, damit sich an vorhandenen Abläufen nichts ändert; englische Fassungen bleiben beim neutralen „you“.
+- 🔄 **Nach dem Speichern in der SEO-Übersicht ist der Rest des Admins sofort auf Stand.** Bisher hielt der Browser den alten Inhalt: die frisch gesetzte Beschreibung tauchte im Dialog eines Bibliothek-Eintrags erst nach Strg+R auf — und wäre beim nächsten Speichern dieses Eintrags wieder überschrieben worden. Umgekehrt lädt die Übersicht jetzt neu, sobald ein Beitrag, eine Seite oder ein Eintrag gespeichert wurde.
+- 📐 **Gleich hohe Knöpfe in der SEO-Übersicht.** „Beschreibungen speichern“ stand groß neben zwei kleinen, und die Symbole ✦ und ⟳ zogen die Zeile zusätzlich schief.
+
 ## 0.11.13
 
 - 🗂️ **Der Design-Reiter ist sortiert.** Aus einem Block mit rund fünfzig Optionen sind zehn aufklappbare Gruppen geworden: Vorlagen, Marke & Aussehen, Startseite & Navigation, Banner, Sprache & Feeds, Suchmaschinen, Bereiche an und aus, Mitglieder & Newsletter, Knöpfe & Links, Spielereien & Effekte. Offen startet nur die erste; welche du aufklappst, merkt sich der Browser.
