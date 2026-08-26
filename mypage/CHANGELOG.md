@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.11.10
+
+- 🔍 **SEO-Beschreibung von der KI schreiben lassen.** Neben der Snippet-Vorschau steht in den Dialogen für Blog-Beitrag, eigene Seite und Bibliothek-Eintrag — und im Design-Tab für die Startseite — der Knopf **„✦ KI-Beschreibung"**. Er fasst den vorhandenen Fließtext zu einem Satz zusammen, in der Sprache, die in der Vorschau gewählt ist, mit Ziellänge 120–155 Zeichen. Bisher war der einzige Rückfall der Textanfang: er beginnt mitten in der Einleitung und hört mitten im Satz auf. Ist die Fassung einer Sprache noch leer, geht die vorhandene andere in die Anfrage — geschrieben wird trotzdem in der gewählten Sprache. Der Knopf erscheint nur mit hinterlegtem Gemini-Schlüssel.
+- 📋 **Alle SEO-Beschreibungen an einer Stelle.** Im Design-Tab listet der neue Bereich **„Alle SEO-Beschreibungen"** Startseite, Beiträge, Seiten und Bibliothek-Einträge untereinander — mit Zeichenzähler, Link auf die Seite und dem Hinweis, was Google heute ohne eigenes Feld ausliefert. Der Filter **„Nur ohne eigene Beschreibung"** zeigt die Lücken, **„Leere per KI füllen"** arbeitet sie der Reihe nach ab. Geändert wird im Formular, geschrieben erst mit **„Beschreibungen speichern"** — ein Vorschlag der KI landet also nie ungeprüft auf der Platte. Bei Blog-Beiträgen geht nach dem Speichern wie gewohnt ein IndexNow-Ping raus.
+
 ## 0.11.9
 
 - 🔍 **Der Prompt des letzten Laufs ist einsehbar.** Unter dem Bericht (und im Rückblick) steht jetzt ein zugeklappter Kasten mit genau dem Text, der an die KI ging. Das beantwortet die häufigste Frage zum Ergebnis — „warum steht das Abendessen nicht im Text?" — in Sekunden: ein leeres Feld landet gar nicht erst im Prompt, und das sieht man dort sofort. Die Routen haben den Prompt schon immer mitgeliefert, die Oberfläche hat ihn nur weggeworfen.

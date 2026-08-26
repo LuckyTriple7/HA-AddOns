@@ -35,6 +35,24 @@ auch, ob Titel und Beschreibung zu kurz oder zu lang sind.
 Impressum, Datenschutz, der Mitglieder-Bereich und die 404-Seite sind bewusst
 auf `noindex` gesetzt — sie tauchen nicht in Suchergebnissen auf.
 
+### Alle Beschreibungen an einer Stelle
+
+Im **Design-Tab** steht unter der Vorschau der Bereich **„Alle SEO-Beschreibungen"**:
+Startseite, Blog-Beiträge, eigene Seiten und Bibliothek-Einträge in einer Liste,
+je Sprache umschaltbar. Wo kein eigener Text gesetzt ist, steht darunter, was
+Google heute stattdessen bekommt — meist der Anfang des Fließtextes. Der Filter
+**„Nur ohne eigene Beschreibung"** zeigt genau die Lücken; geschrieben wird erst
+mit **„Beschreibungen speichern"**.
+
+### Beschreibung von der KI schreiben lassen
+
+Ist ein Gemini-Schlüssel hinterlegt (KI-Reiter), steht neben jedem Feld — in der
+Übersicht wie in der Snippet-Vorschau der Dialoge — der Knopf **„✦ KI-Beschreibung"**.
+Er fasst den vorhandenen Text zu einem Satz zusammen, in der Sprache, die gerade
+gewählt ist, mit Ziellänge 120–155 Zeichen. In der Übersicht füllt **„Leere per KI
+füllen"** alle Lücken der Reihe nach. Das Ergebnis ist ein Vorschlag: es landet im
+Feld, nicht auf der Platte — geprüft und gespeichert wird von Hand.
+
 ---
 
 ## Schritt 1: Google Search Console einrichten

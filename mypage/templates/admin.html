@@ -421,6 +421,17 @@
     .snip-len.ok b { color: #3fb950; }
     .snip-len.warn b { color: #d29922; }
     .snip-len.over b { color: #f85149; }
+    /* SEO-Uebersicht: eine Zeile je Inhalt, Feld und Zaehler nebeneinander */
+    .seo-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 10px 0; }
+    .seo-row { border-top: 1px solid var(--border); padding: 10px 0; }
+    .seo-row:first-child { border-top: none; }
+    .seo-head { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; margin-bottom: 5px; }
+    .seo-kind { font-size: 0.72rem; letter-spacing: 0.03em; text-transform: uppercase;
+                border: 1px solid var(--border); border-radius: 999px; padding: 1px 8px; color: var(--muted); }
+    .seo-name { font-weight: 600; overflow-wrap: anywhere; }
+    .seo-row .hint { margin: 4px 0 0; }
+    .seo-fields { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .seo-fields input { flex: 1 1 320px; margin: 0; }
     .md-toolbar { display: flex; flex-wrap: wrap; gap: 3px; margin: 4px 0 10px; position: relative; }
     .md-btn { background: var(--surf2, var(--bg)); border: 1px solid var(--border); color: var(--text); border-radius: 5px; min-width: 30px; height: 30px; padding: 0 8px; font-size: 0.9rem; cursor: pointer; line-height: 1; }
     .md-btn:hover { border-color: var(--accent); color: var(--accent); }
@@ -1795,6 +1806,23 @@
         </div>
         <div><button class="btn" onclick="saveDesign()">{{ t.save }}</button></div>
         <p class="hint">{{ t.contact_telegram_hint }}</p>
+      </div>
+      <!-- Alle SEO-Beschreibungen an einer Stelle: sonst muesste man jeden
+           Beitrag einzeln aufmachen, um zu sehen, wo eine fehlt. -->
+      <div class="panel" id="seo-panel">
+        <h3>{{ t.seo_list_heading }}</h3>
+        <p class="hint">{{ t.seo_list_hint }}</p>
+        <div class="seo-bar">
+          <div class="snip-langs" id="seo-langs"></div>
+          <label class="checkbox" style="margin:0"><input type="checkbox" id="seo-only-empty"> {{ t.seo_list_only_empty }}</label>
+          <span class="hint" id="seo-count" style="margin:0"></span>
+        </div>
+        <div class="seo-bar">
+          <button class="btn" onclick="seoSave(this)">{{ t.seo_list_save }}</button>
+          <button class="btn secondary small" id="seo-ai-all" style="display:none" onclick="seoAiAll(this)">✦ {{ t.seo_list_ai_all }}</button>
+          <button class="btn secondary small" onclick="seoLoad(true)">⟳ {{ t.seo_list_reload }}</button>
+        </div>
+        <div id="seo-list"></div>
       </div>
       <div class="panel">
         <h3>{{ t.preview_heading }}</h3>
@@ -3514,6 +3542,8 @@
         title: () => snipSuffix(),
         url:   () => snipBase() + '/',
         desc:  lg => snipHomeDesc(lg),
+        ai:    { meta: lg => 'd-meta_description_' + lg, src: lg => 'p-bio_' + lg,
+                 title: () => 'd-site_title' },
         watch: ['d-site_title', 'd-public_url', 'd-default_lang', 'p-name',
                 'd-meta_description_de', 'd-meta_description_en',
                 'p-tagline_de', 'p-tagline_en', 'p-bio_de', 'p-bio_en'],
@@ -3524,12 +3554,16 @@
         // steht hier ein Platzhalter statt einer erfundenen Adresse.
         url:   () => snipBase() + '/blog/\u2026',
         desc:  lg => snipVal('bm-meta_' + lg) || snipExcerpt(snipVal('bm-text_' + lg)) || snipHomeDesc(lg),
+        ai:    { meta: lg => 'bm-meta_' + lg, src: lg => 'bm-text_' + lg,
+                 title: lg => 'bm-title_' + lg },
         watch: ['bm-title_de', 'bm-title_en', 'bm-meta_de', 'bm-meta_en', 'bm-text_de', 'bm-text_en'],
       },
       'snip-page': {
         title: lg => snipTitled('pg-title_', lg),
         url:   () => snipBase() + '/seite/' + (snipVal('pg-slug') || '\u2026'),
         desc:  lg => snipVal('pg-meta_' + lg) || snipExcerpt(snipVal('pg-body_' + lg)) || snipHomeDesc(lg),
+        ai:    { meta: lg => 'pg-meta_' + lg, src: lg => 'pg-body_' + lg,
+                 title: lg => 'pg-title_' + lg },
         watch: ['pg-title_de', 'pg-title_en', 'pg-meta_de', 'pg-meta_en',
                 'pg-body_de', 'pg-body_en', 'pg-slug'],
       },
@@ -3538,6 +3572,8 @@
         url:   () => snipBase() + '/bibliothek/' + (snipVal('le-slug') || '\u2026'),
         desc:  lg => snipVal('le-meta_' + lg) || snipVal('le-summary_' + lg)
                      || snipExcerpt(snipVal('le-body_' + lg)) || snipHomeDesc(lg),
+        ai:    { meta: lg => 'le-meta_' + lg, src: lg => 'le-body_' + lg,
+                 title: lg => 'le-title_' + lg },
         watch: ['le-title_de', 'le-title_en', 'le-meta_de', 'le-meta_en',
                 'le-summary_de', 'le-summary_en', 'le-body_de', 'le-body_en', 'le-slug'],
       },
@@ -3635,6 +3671,58 @@
       wrap.appendChild(hint);
       return wrap;
     }
+    // ── SEO-Beschreibung per KI (Knopf an der Vorschau) ──
+    // Der Rueckfall „erste 155 Zeichen des Textes" ist selten ein guter
+    // Suchtreffer: er faengt in der Einleitung an und hoert mitten im Satz auf.
+    // Der Knopf schreibt stattdessen einen Satz ueber den ganzen Text — in die
+    // Sprache, die in der Vorschau gerade gewaehlt ist.
+    function snipAiButtons() {
+      Object.keys(SNIPS).forEach(snipAiButton);
+    }
+    function snipAiButton(id) {
+      const cfg = SNIPS[id];
+      if (!cfg || !cfg.ai || !(AI_STATUS && AI_STATUS.text)) return;
+      const langs = el(id + '-langs');
+      const bar = langs && langs.parentNode;
+      if (!bar || bar.querySelector('.snip-ai')) return;   // zweimal gerufen ist erlaubt
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'btn secondary small snip-ai';
+      b.style.margin = '0';
+      b.textContent = '✦ ' + T.seo_ai_btn;
+      b.title = T.seo_ai_title;
+      b.onclick = () => snipAi(id, b);
+      bar.appendChild(b);
+    }
+    async function snipAi(id, btn) {
+      const cfg = SNIPS[id];
+      if (!cfg || !cfg.ai) return;
+      const lg = SNIP_LANG[id] || snipDefLang();
+      const target = el(cfg.ai.meta(lg));
+      // Quelle ist der Text derselben Sprache; ist er leer — bei EN die Regel —
+      // geht der vorhandene andere mit, geschrieben wird trotzdem in `lg`.
+      const src = snipVal(cfg.ai.src(lg)) || snipVal(cfg.ai.src(lg === 'de' ? 'en' : 'de'));
+      if (!target || !src) { toast(T.seo_ai_nosrc, true); return; }
+      if (target.value.trim() && !confirm(T.seo_ai_replace)) return;
+      btn.disabled = true;
+      busyShow(T.seo_ai_running);
+      let r = null;
+      try {
+        r = await apiJson('api/ai/seo', 'POST', {
+          text: src, title: snipVal(cfg.ai.title(lg)), lang: lg,
+          model: (el('ai-text-model') || {}).value || '',
+        });
+      } catch (e) { /* Netzfehler */ }
+      btn.disabled = false;
+      const d = r ? await r.json().catch(() => ({})) : {};
+      if (!r || !r.ok) { busyDone(aiErrMsg(d.error, d.model, d.detail), true); return; }
+      target.value = d.desc || '';
+      target.dispatchEvent(new Event('input', { bubbles: true }));
+      snipRenderAll();
+      busyDone(T.seo_ai_done);
+      refreshAiStatus();
+    }
+
     function initSnippets() {
       Object.keys(SNIPS).forEach(id => {
         const box = el(id);
@@ -3660,6 +3748,226 @@
         }
       });
       snipRenderAll();
+    }
+
+    // ── SEO-Übersicht ──
+    // Alles mit eigenem SEO-Feld in einer Liste. Geändert wird im Speicher,
+    // geschrieben erst auf Knopfdruck — sonst wäre jede Korrektur an einem
+    // Tippfehler sofort eine Änderung an site.json.
+    let SEO_ROWS = [], SEO_LANG = 'de', seoLoaded = false;
+    const SEO_DIRTY = new Map();          // 'art:id' → { de?: string, en?: string }
+
+    function seoKey(r) { return r.kind + ':' + r.id; }
+    // Die Startseite hat ihr Feld schon oben im Design-Formular. Zwei Wahrheiten
+    // auf einer Seite gingen unweigerlich auseinander — die Zeile spiegelt es.
+    function seoHomeInput(lg) { return el('d-meta_description_' + lg); }
+    function seoVal(r, lg) {
+      if (r.kind === 'home' && seoHomeInput(lg)) return seoHomeInput(lg).value;
+      const d = SEO_DIRTY.get(seoKey(r));
+      return (d && d[lg] !== undefined) ? d[lg] : (r['meta_' + lg] || '');
+    }
+    function seoSet(r, lg, val) {
+      const d = SEO_DIRTY.get(seoKey(r)) || {};
+      d[lg] = val;
+      SEO_DIRTY.set(seoKey(r), d);
+      if (r.kind === 'home' && seoHomeInput(lg)) {
+        seoHomeInput(lg).value = val;
+        seoHomeInput(lg).dispatchEvent(new Event('input', { bubbles: true }));
+      }
+    }
+    function seoDirtyCount() {
+      let n = 0;
+      SEO_DIRTY.forEach(d => { n += Object.keys(d).length; });
+      return n;
+    }
+
+    async function seoLoad(force) {
+      if (seoLoaded && !force) return;
+      if (force && seoDirtyCount() && !confirm(T.seo_list_unsaved)) return;
+      const r = await api('api/seo/list');
+      if (!r.ok) { toast(T.error_load, true); return; }
+      SEO_ROWS = (await r.json()).items || [];
+      SEO_DIRTY.clear();
+      seoLoaded = true;
+      seoLangButtons();
+      seoRender();
+    }
+
+    function seoLangButtons() {
+      const box = el('seo-langs');
+      if (!box || box.children.length) return;
+      ['de', 'en'].forEach(lg => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.textContent = lg.toUpperCase();
+        b.classList.toggle('on', lg === SEO_LANG);
+        b.onclick = () => {
+          SEO_LANG = lg;
+          box.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
+          seoRender();
+        };
+        box.appendChild(b);
+      });
+      el('seo-only-empty').addEventListener('change', seoRender);
+    }
+
+    function seoRender() {
+      const box = el('seo-list');
+      if (!box) return;
+      const lg = SEO_LANG, onlyEmpty = el('seo-only-empty').checked;
+      const empty = SEO_ROWS.filter(r => !seoVal(r, lg).trim()).length;
+      el('seo-count').textContent = T.seo_list_count
+        .replace('{n}', SEO_ROWS.length).replace('{e}', empty);
+      const rows = SEO_ROWS.filter(r => !onlyEmpty || !seoVal(r, lg).trim());
+      box.innerHTML = '';
+      if (!rows.length) {
+        const p = document.createElement('p');
+        p.className = 'hint';
+        p.textContent = T.seo_list_none;
+        box.appendChild(p);
+        return;
+      }
+      rows.forEach(r => box.appendChild(seoRow(r, lg)));
+    }
+
+    function seoRow(r, lg) {
+      const row = document.createElement('div');
+      row.className = 'seo-row';
+      const head = document.createElement('div');
+      head.className = 'seo-head';
+      const kind = document.createElement('span');
+      kind.className = 'seo-kind';
+      kind.textContent = T['seo_kind_' + r.kind] || r.kind;
+      const name = document.createElement('span');
+      name.className = 'seo-name';
+      name.textContent = r.label || r.id;
+      head.append(kind, name);
+      // Unveröffentlichtes taucht bei Google nicht auf — trotzdem hier zeigen,
+      // sonst fehlt die Beschreibung genau dann, wenn es soweit ist.
+      if (!r.visible) {
+        const h = document.createElement('span');
+        h.className = 'hint';
+        h.style.margin = '0';
+        h.textContent = T.seo_list_hidden;
+        head.appendChild(h);
+      }
+      const base = snipVal('d-public_url').replace(/\/+$/, '');
+      if (base && r.url) {
+        const a = document.createElement('a');
+        a.className = 'hint';
+        a.style.margin = '0';
+        a.href = base + r.url;
+        a.target = '_blank';
+        a.rel = 'noopener';
+        a.textContent = r.url;
+        head.appendChild(a);
+      }
+
+      const fields = document.createElement('div');
+      fields.className = 'seo-fields';
+      const inp = document.createElement('input');
+      inp.type = 'text';
+      inp.maxLength = 300;
+      inp.value = seoVal(r, lg);
+      inp.placeholder = T.post_seo_ph;
+      const meter = document.createElement('span');
+      const paint = () => {
+        const len = inp.value.trim().length;
+        meter.className = 'snip-len ' + (len === 0 ? '' : len > SNIP_DESC_MAX ? 'over'
+                                                      : len < SNIP_DESC_MIN ? 'warn' : 'ok');
+        meter.innerHTML = escHtml(T.snip_desc) + ': <b>' + len + '</b> / ' + SNIP_DESC_MAX;
+      };
+      inp.oninput = () => { seoSet(r, lg, inp.value); paint(); };
+      paint();
+      fields.append(inp, meter);
+      if (AI_STATUS && AI_STATUS.text && (r['src_' + lg] || r['src_' + (lg === 'de' ? 'en' : 'de')])) {
+        const ai = document.createElement('button');
+        ai.type = 'button';
+        ai.className = 'btn secondary small';
+        ai.style.margin = '0';
+        ai.textContent = '✦ ' + T.seo_ai_btn;
+        ai.title = T.seo_ai_title;
+        ai.onclick = () => seoAi(r, lg, inp, paint, ai);
+        fields.appendChild(ai);
+      }
+
+      row.append(head, fields);
+      // Was ohne eigenes Feld heute im Quelltext steht — das ist der eigentliche
+      // Grund für diese Liste: leer heißt nicht „nichts", sondern „Textanfang".
+      if (!seoVal(r, lg).trim() && r['eff_' + lg]) {
+        const eff = document.createElement('p');
+        eff.className = 'hint';
+        eff.textContent = T.seo_list_effective + ' ' + r['eff_' + lg];
+        row.appendChild(eff);
+      }
+      return row;
+    }
+
+    // Die KI liest hier den gespeicherten Text (Art + Id) — der ganze Beitrag
+    // müsste sonst erst in den Browser und wieder zurück.
+    async function seoAi(r, lg, inp, paint, btn, quiet) {
+      if (inp.value.trim() && !quiet && !confirm(T.seo_ai_replace)) return false;
+      if (btn) btn.disabled = true;
+      if (!quiet) busyShow(T.seo_ai_running);
+      let res = null;
+      try {
+        res = await apiJson('api/ai/seo', 'POST', {
+          kind: r.kind, id: r.id, lang: lg,
+          model: (el('ai-text-model') || {}).value || '',
+        });
+      } catch (e) { /* Netzfehler */ }
+      if (btn) btn.disabled = false;
+      const d = res ? await res.json().catch(() => ({})) : {};
+      if (!res || !res.ok) { busyDone(aiErrMsg(d.error, d.model, d.detail), true); return false; }
+      inp.value = d.desc || '';
+      seoSet(r, lg, inp.value);
+      paint();
+      if (!quiet) busyDone(T.seo_ai_done);
+      refreshAiStatus();
+      return true;
+    }
+
+    // Der Reihe nach, nicht parallel: das Stundenlimit gilt add-on-weit.
+    async function seoAiAll(btn) {
+      const lg = SEO_LANG;
+      const rows = SEO_ROWS.filter(r => !seoVal(r, lg).trim()
+                                     && (r['src_' + lg] || r['src_' + (lg === 'de' ? 'en' : 'de')]));
+      if (!rows.length) { toast(T.seo_list_nothing, true); return; }
+      if (!confirm(T.seo_list_ai_all_confirm.replace('{n}', rows.length))) return;
+      btn.disabled = true;
+      let done = 0, failed = false;
+      for (const r of rows) {
+        busyShow(T.seo_list_ai_running.replace('{i}', done + 1).replace('{n}', rows.length));
+        const inp = document.createElement('input');   // die Zeile kann weggefiltert sein
+        if (await seoAi(r, lg, inp, () => {}, null, true)) done++;
+        else { failed = true; break; }                 // Grund steht schon im Banner
+      }
+      btn.disabled = false;
+      seoRender();
+      if (!failed) busyDone(T.seo_list_ai_all_done.replace('{n}', done));
+    }
+
+    async function seoSave(btn) {
+      const items = [];
+      SEO_DIRTY.forEach((d, key) => {
+        const r = SEO_ROWS.find(x => seoKey(x) === key);
+        if (!r) return;
+        const item = { kind: r.kind, id: r.id };
+        Object.keys(d).forEach(lg => { item['meta_' + lg] = d[lg]; });
+        items.push(item);
+      });
+      if (!items.length) { toast(T.seo_list_nothing, true); return; }
+      btn.disabled = true;
+      const res = await apiJson('api/seo/list', 'POST', { items });
+      btn.disabled = false;
+      if (!res.ok) { toast(T.error_save, true); return; }
+      const d = await res.json().catch(() => ({}));
+      SEO_DIRTY.clear();
+      // Neu laden statt nur die Felder zu übernehmen: der Rückfalltext einer
+      // geleerten Zeile stünde sonst nicht da, wo er hingehört.
+      seoLoaded = false;
+      await seoLoad();
+      toast(T.seo_list_saved.replace('{n}', d.count || 0));
     }
 
     // ── Tipps: Hinweis „zuletzt gezeigt / wie oft" aus der echten Anzeige-Statistik ──
@@ -3726,7 +4034,7 @@
         if (btn.dataset.tab === 'explorer') initExplorerTab();
         if (btn.dataset.tab === 'messages') { loadMessages(); loadComments(); }
         if (btn.dataset.tab === 'users') { loadUsers(); initStorageBrowser(); startUsersPolling(); }
-        if (btn.dataset.tab === 'design') { initPreview(); setTimeout(updatePresetArrows, 50); }
+        if (btn.dataset.tab === 'design') { initPreview(); seoLoad(); setTimeout(updatePresetArrows, 50); }
         if (btn.dataset.tab === 'system') { loadAudit(); loadTwofa(); loadAutoBackups(); loadRevisions(); loadFileBrowser(); initSystemJump(); }
         if (btn.dataset.tab === 'settings') { loadSettings(); loadKeyState(); initSettingsJump(); }
         if (btn.dataset.tab === 'blog') loadSubscribers();
@@ -8692,6 +9000,9 @@
       });
       // Der KI-Teil des Logo-Panels hängt am Bildmodell, der Rest nicht
       if (!AI_STATUS.image) el('logo-ai-box').style.display = 'none';
+      // Der Status kommt später als die Vorschauen — Knöpfe erst jetzt anhängen
+      snipAiButtons();
+      if (AI_STATUS.text) el('seo-ai-all').style.display = '';
     }
     // ── Sprungleiste ──
     // KI- und System-Reiter sind die laengsten im Haus: ein Dutzend Bereiche

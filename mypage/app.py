@@ -6081,6 +6081,10 @@ AI_TEXT_LENGTHS = {'kurz': 150, 'mittel': 400, 'lang': 800}
 # zurück. Sonst bliebe nur „nochmal erzeugen", und das wirft die Handarbeit weg.
 AI_TEXT_ACTIONS = ('shorter', 'longer', 'polish', 'custom')
 AI_TEXT_NOTE_MAX = 500
+# Der ganze Beitrag geht in die Anfrage für die SEO-Beschreibung. Der Deckel
+# ist grosszügig, aber nicht offen: ein versehentlich eingefügtes Buch soll
+# nicht Token für Token bei Google landen.
+AI_SEO_TEXT_MAX = 12_000
 AI_INSTRUCTIONS_MAX = 800           # Dauervorgaben, hängen an jedem Textlauf
 AI_DRAFTS_MAX = 200                 # ältester Entwurf fliegt raus, wenn voll
 AI_PROMPTS_MAX = 100                # dasselbe für die Prompt-Bibliothek
@@ -7258,6 +7262,80 @@ def _gemini_image_alt(ref: tuple[bytes, str], *, model: str
     return out, '', ''
 
 
+_AI_SEO_LANG_DE = {'de': 'Deutsch', 'en': 'Englisch'}
+
+
+def _gemini_seo_desc(*, text: str, title: str, lang: str, model: str
+                     ) -> tuple[str | None, str, str]:
+    """Eine SEO-Beschreibung aus dem fertigen Beitragstext.
+
+    Bewusst ein eigener Aufruf statt `_gemini_generate_text(kind='seo')`: dort
+    entsteht ein Text aus einem Thema, hier fasst das Modell einen vorhandenen
+    zusammen. Und es geht immer nur eine Sprache — die Vorschau fragt für die
+    Sprache, die dort gerade gewählt ist.
+    """
+    sys = (
+        "Du schreibst die SEO-Beschreibung (meta description) für eine Seite. "
+        "Ein bis zwei Sätze, 120 bis 155 Zeichen — kürzer verschenkt Platz, "
+        "länger schneidet Google ab. Der wichtigste Begriff steht früh, der Satz "
+        "ist aktiv formuliert und sagt, was der Leser auf der Seite bekommt. "
+        "Kein Markdown, keine Anführungszeichen, keine Aufzählung, kein "
+        "Punkt-Punkt-Punkt, keine Wiederholung des Titels und nichts, was nicht "
+        "im Text steht — keine erfundenen Zahlen, Orte oder Versprechen."
+    )
+    extra = _ai_instructions()
+    if extra:
+        sys += ("\n\nZusätzliche Vorgaben für diese Website, die immer gelten "
+                "(sie ändern nichts an der Antwortform):\n" + extra)
+    parts = [f"Sprache der Beschreibung: {_AI_SEO_LANG_DE.get(lang, 'Deutsch')}."]
+    if title:
+        parts.append("Titel der Seite:\n" + title)
+    parts.append("Text der Seite (Markdown):\n" + text)
+    schema = genai_types.Schema(
+        type=genai_types.Type.OBJECT,
+        properties={'desc': genai_types.Schema(type=genai_types.Type.STRING)},
+        required=['desc'],
+    )
+    try:
+        client = _gemini_client()
+        resp = client.models.generate_content(
+            model=model, contents=['\n\n'.join(parts)],
+            config=genai_types.GenerateContentConfig(
+                system_instruction=sys,
+                response_mime_type='application/json',
+                response_schema=schema,
+                http_options=genai_types.HttpOptions(timeout=GEMINI_TEXT_TIMEOUT_MS),
+            ),
+        )
+        _ai_usage_record(model, resp)
+        cands = resp.candidates or []
+        finish = cands[0].finish_reason if cands else None
+        reason = getattr(finish, 'name', None) or (str(finish) if finish else '')
+        if finish in _GEMINI_TEXT_REFUSALS:
+            log.info("Gemini hat die SEO-Beschreibung abgelehnt: %s", finish)
+            return None, 'refused', reason
+        data = json.loads(resp.text or '')
+        if not isinstance(data, dict):
+            return None, 'empty', reason
+    except genai_errors.APIError as e:
+        # Nur der Statuscode: die SDK-Meldung kann die Anfrage-URL samt Key enthalten
+        code = getattr(e, 'code', None)
+        log.warning("SEO-Beschreibung fehlgeschlagen (%s): Status %s",
+                    model, code or type(e).__name__)
+        return (None, ('model_missing' if code == 404 else 'failed'),
+                f'HTTP {code}' if code else '')
+    except (ValueError, TypeError) as e:
+        log.warning("SEO-Antwort (%s) war kein gültiges JSON: %s", model, type(e).__name__)
+        return None, 'empty', type(e).__name__
+    except Exception as e:
+        log.error("SEO-Beschreibung (%s) unerwartet fehlgeschlagen: %s", model, type(e).__name__)
+        return None, 'failed', type(e).__name__
+    out = _clean_str(data.get('desc'), 300)
+    if not out:
+        return None, 'empty', reason
+    return out, '', ''
+
+
 def _ai_text_schema(langs: list[str]):
     """JSON-Schema für die Antwort — erzwingt beide Sprachen in einem Aufruf.
 
@@ -7420,6 +7498,176 @@ def api_ai_text():
     log.info("KI-Text %s (%s, %s, %s)", 'überarbeitet' if action else 'erzeugt',
              model, kind, '+'.join(langs))
     return jsonify({'ok': True, 'result': data})
+
+
+@admin_app.route('/api/ai/seo', methods=['POST'])
+def api_ai_seo():
+    """SEO-Beschreibung aus einem vorhandenen Text — für den Knopf an der Vorschau."""
+    err = _api_auth()
+    if err:
+        return err
+    if not gemini_text_enabled():
+        return jsonify({'error': 'no_api_key'}), 400
+    raw = request.get_json(silent=True) or {}
+    lang = 'en' if raw.get('lang') == 'en' else 'de'
+    # Zwei Wege in dieselbe Anfrage: der Dialog schickt seinen (noch nicht
+    # gespeicherten) Text mit, die SEO-Übersicht nur Art und Id — dort liegt der
+    # Text längst auf der Platte und müsste sonst erst in den Browser wandern.
+    kind = raw.get('kind') if raw.get('kind') in SEO_KINDS else ''
+    if kind:
+        site = load_site()
+        obj = _seo_find(site, kind, _clean_str(raw.get('id'), 40))
+        if obj is None:
+            return jsonify({'error': 'not_found'}), 404
+        text, title = _seo_source(site, kind, obj, lang)
+        text, title = text[:AI_SEO_TEXT_MAX], title[:200]
+    else:
+        text = _clean_str(raw.get('text'), AI_SEO_TEXT_MAX)
+        title = _clean_str(raw.get('title'), 200)
+    # Aus zwei Wörtern lässt sich nichts zusammenfassen; der Titel allein reicht
+    # nur, wenn es sonst nichts gibt — dann bleibt es eine Umschreibung.
+    if len(text) < 40 and len(title) < 3:
+        return jsonify({'error': 'invalid'}), 400
+    model = _ai_model_or(raw.get('model'), _gemini_text_model())
+    if not _ai_rate_take(_ai_text_times, AI_TEXT_MAX_PER_HOUR):
+        return jsonify({'error': 'rate_limited'}), 429
+    desc, code, detail = _gemini_seo_desc(text=text, title=title, lang=lang, model=model)
+    if code:
+        return jsonify({'error': _AI_ERRORS.get(code, 'ai_failed'),
+                        'detail': detail, 'model': model}), 502
+    log.info("SEO-Beschreibung erzeugt (%s, %s)", model, lang)
+    return jsonify({'ok': True, 'desc': desc})
+
+
+# ── SEO-Übersicht ─────────────────────────────────────────────────────────────
+#
+# Die SEO-Beschreibung steht bisher nur im Dialog des jeweiligen Inhalts. Wer
+# wissen will, wo überhaupt eine fehlt, müsste jeden Beitrag einzeln aufmachen.
+# Diese Liste sammelt alles mit eigenem SEO-Feld an einer Stelle — mit dem Text,
+# den die Seite heute ausliefert, damit sichtbar wird, was ein leeres Feld
+# bedeutet: nicht „keine Beschreibung", sondern „irgendein Textanfang".
+
+SEO_KINDS = ('home', 'post', 'page', 'library')
+# Feld mit dem Fließtext je Art. Die Startseite fällt aus der Reihe: ihr
+# SEO-Feld steht im Design, der Text dazu im Profil.
+_SEO_TEXT_FIELD = {'post': 'text', 'page': 'body', 'library': 'body'}
+
+
+def _seo_meta_field(kind: str, lang: str) -> str:
+    return ('meta_description_' if kind == 'home' else 'meta_') + lang
+
+
+def _seo_objects(site: dict) -> list[tuple[str, str, dict]]:
+    """(Art, Id, Objekt) für alles mit eigenem SEO-Feld — eine Quelle für
+    Übersicht, Speichern und KI-Knopf."""
+    out: list[tuple[str, str, dict]] = [('home', '', site['design'])]
+    out += [('post', p.get('id', ''), p) for p in site.get('posts', [])]
+    out += [('page', p.get('id', ''), p) for p in site.get('pages', [])]
+    out += [('library', e.get('id', ''), e) for e in _library(site).get('entries', [])]
+    return out
+
+
+def _seo_find(site: dict, kind: str, ident: str) -> dict | None:
+    for k, i, obj in _seo_objects(site):
+        if k == kind and (kind == 'home' or i == ident):
+            return obj
+    return None
+
+
+def _seo_source(site: dict, kind: str, obj: dict, lang: str) -> tuple[str, str]:
+    """(Markdown, Titel) als Vorlage für die KI — leere Sprache greift auf die andere."""
+    loc = _loc_factory(lang)
+    if kind == 'home':
+        return loc(site['profile'], 'bio'), (site['design'].get('site_title')
+                                             or site['profile'].get('name') or '')
+    return loc(obj, _SEO_TEXT_FIELD[kind]), loc(obj, 'title')
+
+
+def _seo_effective(site: dict, kind: str, obj: dict, lang: str) -> str:
+    """Was heute im Quelltext der Seite steht — dieselbe Kette wie in den
+    öffentlichen Routen. Steht sie hier anders, ist die Übersicht wertlos."""
+    loc = _loc_factory(lang)
+    if kind == 'home':
+        return _site_meta(site, loc)
+    if kind == 'library':
+        return (loc(obj, 'meta') or loc(obj, 'summary')
+                or _plain_excerpt(render_md(loc(obj, 'body'))) or _site_meta(site, loc))
+    field = _SEO_TEXT_FIELD[kind]
+    return (loc(obj, 'meta') or _plain_excerpt(render_md(loc(obj, field)))
+            or _site_meta(site, loc))
+
+
+def _seo_row(site: dict, kind: str, ident: str, obj: dict) -> dict:
+    if kind == 'home':
+        label, url, visible = (site['design'].get('site_title')
+                               or site['profile'].get('name') or 'Start'), '/', True
+    elif kind == 'post':
+        label = obj.get('title_de') or obj.get('title_en') or ident
+        url, visible = '/blog/' + ident, post_visible(obj)
+    elif kind == 'page':
+        label = obj.get('title_de') or obj.get('title_en') or obj.get('slug', '')
+        url, visible = '/seite/' + obj.get('slug', ''), bool(obj.get('visible'))
+    else:
+        label = obj.get('title_de') or obj.get('title_en') or obj.get('slug', '')
+        url, visible = '/bibliothek/' + obj.get('slug', ''), bool(obj.get('visible'))
+    row = {'kind': kind, 'id': ident, 'label': label, 'url': url, 'visible': visible}
+    for lg in ('de', 'en'):
+        row['meta_' + lg] = obj.get(_seo_meta_field(kind, lg), '')
+        row['eff_' + lg] = _seo_effective(site, kind, obj, lg)
+        # Ohne Text kann auch die KI nichts zusammenfassen — der Knopf bleibt dann aus
+        row['src_' + lg] = bool(_seo_source(site, kind, obj, lg)[0])
+    return row
+
+
+@admin_app.route('/api/seo/list')
+def api_seo_list():
+    err = _api_auth()
+    if err:
+        return err
+    site = load_site()
+    return jsonify({'items': [_seo_row(site, k, i, o) for k, i, o in _seo_objects(site)]})
+
+
+@admin_app.route('/api/seo/list', methods=['POST'])
+def api_seo_save():
+    """Nur die SEO-Felder schreiben — geänderte Zeilen kommen einzeln herein.
+
+    Bewusst kein `_normalize_*`: die Übersicht kennt nur zwei Felder, und ein
+    Normalisierer würde alles andere aus einem unvollständigen Datensatz neu
+    bauen und dabei löschen.
+    """
+    err = _api_auth()
+    if err:
+        return err
+    items = (request.get_json(silent=True) or {}).get('items')
+    if not isinstance(items, list):
+        return jsonify({'error': 'invalid'}), 400
+    site = load_site()
+    changed, pinged = 0, []
+    for raw in items[:500]:
+        if not isinstance(raw, dict):
+            continue
+        kind = raw.get('kind') if raw.get('kind') in SEO_KINDS else ''
+        obj = _seo_find(site, kind, _clean_str(raw.get('id'), 40)) if kind else None
+        if obj is None:
+            continue
+        for lg in ('de', 'en'):
+            if ('meta_' + lg) not in raw:
+                continue   # nicht mitgeschickt heißt „unverändert", nicht „leeren"
+            field = _seo_meta_field(kind, lg)
+            val = _clean_str(raw.get('meta_' + lg), 300)
+            if obj.get(field, '') != val:
+                obj[field] = val
+                changed += 1
+                if kind == 'post':
+                    pinged.append(obj)
+    if not changed:
+        return jsonify({'ok': True, 'count': 0})
+    save_site(site)
+    for post in {p['id']: p for p in pinged}.values():
+        _indexnow_ping_post(site, post)
+    log.info("SEO-Beschreibungen geändert: %s Feld(er)", changed)
+    return jsonify({'ok': True, 'count': changed})
 
 
 # ── Entwürfe des Text-Studios ─────────────────────────────────────────────────
