@@ -4230,6 +4230,13 @@
       loadClimateLabels();   // Marke am Angebot wieder entfernen
       renderClimateList();
     }
+    // Siehe openGuideList: Menue-Eintrag zeigt immer die Uebersicht.
+    function openClimateList(){
+      climateTarget = null;
+      climateFromSearch = false;
+      $('#climate-bg').classList.add('show');
+      renderClimateList();
+    }
     // Ohne Argumente: aus der Suche heraus das dortige Ziel, sonst die Liste.
     async function openClimate(giata, label){
       const fromSearch = giata == null && !!srchDest;
@@ -4485,6 +4492,14 @@
       renderGuideList();
     }
 
+    // Aus dem Menue „Mehr": immer die Uebersicht. Ohne diese eigene Funktion
+    // griffe openGuide() auf srchDest zurueck und zeigte das zuletzt in der Suche
+    // gewaehlte Ziel — bis zum naechsten Neuladen der Seite.
+    function openGuideList(){
+      guideTarget = null;
+      $('#guide-bg').classList.add('show');
+      renderGuideList();
+    }
     // Ohne Argumente: aus der Suche heraus das dortige Ziel, sonst die Liste.
     async function openGuide(giata, label){
       if(giata == null && srchDest){ giata = srchDest.giata; label = srchDest.label; }

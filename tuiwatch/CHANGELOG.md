@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.104.4
+
+- 🩹 **Menü „Mehr" zeigt bei Reiseführer und Klimatabellen wieder die Übersicht.** Nach dem Erstellen eines Reiseführers aus der Suche heraus öffnete der Menü-Eintrag stattdessen genau dieses eine Ziel — die beiden Einträge fielen auf das zuletzt in der Suche gewählte Reiseziel zurück, bis die Seite neu geladen wurde. Die Buttons in der Suchleiste beziehen sich weiterhin auf das dort gewählte Ziel.
+
 ## 0.104.3
 
 - 🛡️ **Fehlermeldungen der Schlüssel-Funktionen sagen nicht mehr, was intern schiefging.** Die Routen gaben den Text der Ausnahme direkt zurück (CodeQL: *Information exposure through an exception*). Übersetzt wird jetzt in feste Codes — an den Meldungen im Browser ändert sich nichts.
