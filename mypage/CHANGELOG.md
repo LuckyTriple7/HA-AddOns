@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.11.5
+
+- 🛡️ **Fehlermeldungen der Schlüssel-Funktionen sagen nicht mehr, was intern schiefging.** Die Routen gaben den Text der Ausnahme direkt zurück (CodeQL: *Information exposure through an exception*). Übersetzt wird jetzt in feste Codes — sichtbar ändert sich nichts, die Meldungen im Browser sind dieselben.
+
 ## 0.11.4
 
 - 🔒 **Der Schlüssel liegt nicht mehr neben den Einstellungen.** `settings.key` wandert beim ersten Start automatisch vom Add-on-Konfigurationsordner ins private Add-on-Verzeichnis (`/data`, dort wo auch `options.json` liegt). Der Konfigurationsordner ist über den Samba-Share einsehbar — Schloss und Schlüssel nebeneinander waren damit keine echte Verschlüsselung. Zu tun ist nichts, `settings.json` bleibt wo sie ist.

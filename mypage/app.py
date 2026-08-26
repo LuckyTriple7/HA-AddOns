@@ -8765,6 +8765,30 @@ def _key_gate_check(password: str, code: str) -> tuple | None:
     return None
 
 
+def _key_error(exc: ValueError):
+    """Fehlercode der Schlüssel-Funktionen in eine feste Antwort übersetzen.
+
+    Bewusst eine Kette fester Zeichenketten statt `str(exc)`: aus einer
+    Ausnahme darf nie Text nach außen gehen (CodeQL: information exposure
+    through an exception). Der Code der Ausnahme wird nur verglichen, geantwortet
+    wird ausschließlich mit hier stehenden Literalen.
+    """
+    code = exc.args[0] if exc.args else ''
+    if code == 'passphrase_short':
+        return jsonify({'error': 'passphrase_short'}), 400
+    if code == 'wrong_passphrase':
+        return jsonify({'error': 'wrong_passphrase'}), 400
+    if code == 'invalid_file':
+        return jsonify({'error': 'invalid_file'}), 400
+    if code == 'no_key':
+        return jsonify({'error': 'no_key'}), 400
+    if code == 'exists':
+        return jsonify({'error': 'exists'}), 400
+    if code == 'crypto_unavailable':
+        return jsonify({'error': 'crypto_unavailable'}), 400
+    return jsonify({'error': 'invalid'}), 400
+
+
 @admin_app.route('/api/settings/key', methods=['GET'])
 def api_settings_key_state():
     err = _api_auth()
@@ -8786,7 +8810,7 @@ def api_settings_key_export():
     try:
         data = settings_store.export_key(str(body.get('passphrase') or ''))
     except ValueError as e:
-        return jsonify({'error': str(e)}), 400
+        return _key_error(e)
     log_audit('settings_key_export')
     return Response(data, mimetype='application/json', headers={
         'Content-Disposition': 'attachment; filename="mypage-settings-key.json"',
@@ -8809,7 +8833,7 @@ def api_settings_key_import():
             data, request.form.get('passphrase') or '',
             overwrite=request.form.get('overwrite') == '1')
     except ValueError as e:
-        return jsonify({'error': str(e)}), 400
+        return _key_error(e)
     except OSError as e:
         log.warning("Schlüssel konnte nicht geschrieben werden: %s", e)
         return jsonify({'error': 'write failed'}), 500

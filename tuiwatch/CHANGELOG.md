@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.104.3
+
+- 🛡️ **Fehlermeldungen der Schlüssel-Funktionen sagen nicht mehr, was intern schiefging.** Die Routen gaben den Text der Ausnahme direkt zurück (CodeQL: *Information exposure through an exception*). Übersetzt wird jetzt in feste Codes — an den Meldungen im Browser ändert sich nichts.
+
 ## 0.104.2
 
 - 🔑 **Schlüssel sichern — neu im Einstellungen-Dialog.** `settings.key` liegt bewusst nicht im TUIWatch-Backup; damit ein Restore auf einer frischen Installation trotzdem alle Zugangsdaten zurückbringt, lässt er sich jetzt einzeln herunterladen — verpackt mit einer **Passphrase**, die du eingibst (scrypt, 32 MB je Rateversuch). Ohne Passphrase ist die Datei wertlos, sie darf also neben dem Backup liegen. Zurückspielen geht über denselben Bereich.
