@@ -111,9 +111,15 @@ _DATA = os.environ.get('MYPAGE_DATA', '/config')
 _OPTS = os.environ.get('MYPAGE_OPTIONS', '/data')
 
 CONFIG_PATH   = _OPTS + '/options.json'   # Home Assistant: Login-Notzugang
-# Alle übrigen Einstellungen pflegt der Admin selbst (settings.json + settings.key)
-settings_store.init(_DATA)
+# Alle übrigen Einstellungen pflegt der Admin selbst (settings.json + settings.key).
+# Der Schlüssel liegt unter Home Assistant bewusst NICHT bei den Daten: /config ist
+# dort der über den Samba-Share einsehbare Add-on-Konfigurationsordner, und Schloss
+# und Schlüssel nebeneinander wären keine Verschlüsselung. Standalone bleibt er bei
+# den Daten — dort ist /data nur containerintern und wäre nach einem Neuaufbau weg.
+_KEY_DIR = _OPTS if os.environ.get('SUPERVISOR_TOKEN') else _DATA
+settings_store.init(_DATA, _KEY_DIR)
 SETTINGS_PATH = settings_store.path()
+SETTINGS_KEY_PATH = settings_store.key_path()
 SITE_PATH     = _DATA + '/site.json'
 STATS_PATH    = _DATA + '/stats.json'
 MESSAGES_PATH = _DATA + '/messages.json'

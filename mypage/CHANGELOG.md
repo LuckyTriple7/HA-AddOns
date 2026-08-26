@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.11.4
+
+- 🔒 **Der Schlüssel liegt nicht mehr neben den Einstellungen.** `settings.key` wandert beim ersten Start automatisch vom Add-on-Konfigurationsordner ins private Add-on-Verzeichnis (`/data`, dort wo auch `options.json` liegt). Der Konfigurationsordner ist über den Samba-Share einsehbar — Schloss und Schlüssel nebeneinander waren damit keine echte Verschlüsselung. Zu tun ist nichts, `settings.json` bleibt wo sie ist.
+- 🐳 **Im Standalone-Betrieb bleibt alles wie bisher.** Dort ist `/data` nur containerintern und nach einem `docker compose down` weg — der Schlüssel bliebe also nicht erhalten. MyPage unterscheidet die beiden Fälle am Supervisor-Token.
+
 ## 0.11.3
 
 - 🔑 **Schlüssel sichern — neu im Reiter Einstellungen.** Bisher blieb `settings.key` im Add-on, und ein Restore auf einer frischen Installation ließ die Zugangsdaten leer. Jetzt lässt sich der Schlüssel einzeln herunterladen: verpackt mit einer **Passphrase**, die du eingibst (scrypt, 32 MB je Rateversuch). Die Datei darf deshalb neben dem Backup liegen — ohne Passphrase ist sie wertlos. Zurückspielen geht über denselben Bereich.

@@ -106,15 +106,52 @@ _cache: dict = {}
 _cache_mtime = -1.0
 
 
-def init(data_dir: str) -> None:
-    """Pfade festlegen. Muss einmal beim Start aufgerufen werden."""
+def init(data_dir: str, key_dir: str | None = None) -> None:
+    """Pfade festlegen. Muss einmal beim Start aufgerufen werden.
+
+    `key_dir` trennt den Schlüssel von den Einstellungen: unter Home Assistant
+    liegt er im privaten Add-on-Verzeichnis (/data) statt im Konfigurationsordner,
+    der über den Samba-Share einsehbar ist — sonst lägen Schloss und Schlüssel
+    für jeden sichtbar nebeneinander. Ohne Angabe bleibt er neben settings.json.
+    """
     global _path, _key_path
     _path = os.path.join(data_dir, 'settings.json')
-    _key_path = os.path.join(data_dir, 'settings.key')
+    _key_path = os.path.join(key_dir or data_dir, 'settings.key')
+    if key_dir and key_dir != data_dir:
+        _relocate_key(os.path.join(data_dir, 'settings.key'))
+
+
+def _relocate_key(old_path: str) -> None:
+    """Einen Schlüssel aus der früheren Ablage übernehmen (einmalig beim Update).
+
+    Verschoben wird nur, wenn am neuen Ort noch keiner liegt. Klappt das
+    Aufräumen der alten Datei nicht, bleibt sie liegen — der neue Ort gilt
+    trotzdem, damit der Start nicht daran scheitert.
+    """
+    try:
+        if not os.path.exists(old_path) or os.path.exists(_key_path):
+            return
+        with open(old_path, 'rb') as f:
+            key = f.read()
+        with open(_key_path, 'wb') as f:
+            f.write(key)
+        try:
+            os.chmod(_key_path, 0o600)
+        except OSError:
+            pass
+        os.remove(old_path)
+        log.info("Schlüssel der Einstellungen nach %s verschoben — er liegt damit "
+                 "nicht mehr im über den Share einsehbaren Konfigurationsordner", _key_path)
+    except OSError as e:
+        log.warning("Schlüssel konnte nicht verschoben werden: %s", e)
 
 
 def path() -> str:
     return _path
+
+
+def key_path() -> str:
+    return _key_path
 
 
 def reset_cache() -> None:
