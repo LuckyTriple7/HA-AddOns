@@ -8171,6 +8171,52 @@ def api_travel_revise(tid: str, did: str):
     return jsonify({'ok': True, 'article': fresh, 'prompt': prompt})
 
 
+# ── Ort zu Koordinaten ────────────────────────────────────────────────────────
+#
+# Ein Foto liefert GPS, das Formular will einen Ortsnamen. Dazwischen steht ein
+# Dienst, der beides verbindet — hier Nominatim von OpenStreetMap, weil er ohne
+# Schlüssel auskommt. Die Anfrage passiert deshalb NUR auf Knopfdruck: die
+# Koordinaten eines privaten Fotos ungefragt an einen fremden Server zu schicken
+# wäre das Gegenteil dessen, was der EXIF-Auswurf beim Upload bezweckt.
+
+NOMINATIM_URL = 'https://nominatim.openstreetmap.org/reverse'
+# Nominatim verlangt eine Kennung mit Kontaktweg, sonst sperrt es die Anfragen
+NOMINATIM_UA = 'MyPage-Addon (https://github.com/LuckyTriple7/HA-AddOns)'
+
+
+@admin_app.route('/api/travel/geocode')
+def api_travel_geocode():
+    err = _api_auth()
+    if err:
+        return err
+    try:
+        lat = float(request.args.get('lat', ''))
+        lon = float(request.args.get('lon', ''))
+    except ValueError:
+        return jsonify({'error': 'invalid'}), 400
+    if not (-90 <= lat <= 90 and -180 <= lon <= 180):
+        return jsonify({'error': 'invalid'}), 400
+    try:
+        r = http.get(NOMINATIM_URL, timeout=15,
+                     params={'format': 'jsonv2', 'lat': f'{lat:.6f}', 'lon': f'{lon:.6f}',
+                             'zoom': '12', 'accept-language': 'de'},
+                     # Nominatim verlangt eine Kennung, sonst sperrt es
+                     headers={'User-Agent': NOMINATIM_UA})
+        r.raise_for_status()
+        data = r.json()
+    except Exception as e:
+        log.warning("Nominatim nicht erreichbar: %s: %s", type(e).__name__, e)
+        return jsonify({'error': 'geo_failed'}), 502
+    addr = data.get('address') if isinstance(data, dict) else {}
+    addr = addr if isinstance(addr, dict) else {}
+    place = next((addr[k] for k in ('city', 'town', 'village', 'municipality',
+                                    'county', 'state') if addr.get(k)), '')
+    if not place:
+        return jsonify({'error': 'no_place'}), 404
+    return jsonify({'ok': True, 'place': _clean_str(place, 120),
+                    'country': _clean_str(addr.get('country'), 80)})
+
+
 # ── Reise-Rückblick ───────────────────────────────────────────────────────────
 #
 # Der Text über die ganze Reise, der auf der Reise-Seite über der Tagesliste
@@ -9658,8 +9704,48 @@ def api_upload_font():
     return jsonify({'ok': True, 'name': display})
 
 
+def _exif_facts(img) -> dict:
+    """Aufnahmedatum und GPS aus dem EXIF-Block, bevor er verworfen wird.
+
+    Nur für den Reiseblog gedacht: dort spart es das Abtippen von Datum und Ort.
+    Gespeichert wird davon **nichts** — die Werte gehen einmal an den Browser des
+    Admins zurück, der sie ins Formular übernimmt. Die abgelegte Bilddatei bleibt
+    wie bisher metadatenfrei (siehe `_store_upload_image`).
+    """
+    try:
+        exif = img.getexif()
+    except Exception:
+        return {}
+    out = {}
+    try:
+        # DateTimeOriginal steht im Exif-IFD, nicht im Haupt-IFD
+        taken = (exif.get_ifd(0x8769) or {}).get(36867) or exif.get(306) or ''
+        if isinstance(taken, str) and len(taken) >= 10:
+            iso = taken[:10].replace(':', '-')
+            date.fromisoformat(iso)          # wirft, wenn es kein Datum ist
+            out['taken'] = iso
+    except Exception:
+        pass
+    try:
+        gps = exif.get_ifd(0x8825) or {}
+
+        def _deg(value, ref: str):
+            d, m, sec = (float(x) for x in value)
+            dec = d + m / 60 + sec / 3600
+            return round(-dec if ref in ('S', 'W') else dec, 6)
+
+        if gps.get(2) and gps.get(4):
+            lat = _deg(gps[2], str(gps.get(1) or 'N'))
+            lon = _deg(gps[4], str(gps.get(3) or 'E'))
+            if -90 <= lat <= 90 and -180 <= lon <= 180 and (lat or lon):
+                out['lat'], out['lon'] = lat, lon
+    except Exception:
+        pass
+    return out
+
+
 def _store_upload_image(src, *, max_side: int = 1600, quality: int = 82,
-                        ai: bool = False) -> str | None:
+                        ai: bool = False, meta: dict | None = None) -> str | None:
     """Bild verkleinern, Metadaten verwerfen und als WebP in UPLOADS_DIR ablegen.
 
     `src` ist ein Datei-Objekt oder rohe Bilddaten; zurück kommt der erzeugte
@@ -9684,6 +9770,10 @@ def _store_upload_image(src, *, max_side: int = 1600, quality: int = 82,
     if not _HAS_PIL:
         return None
     img = Image.open(io.BytesIO(src) if isinstance(src, (bytes, bytearray)) else src)
+    # Was der Reiseblog gebrauchen kann, vor dem Verwerfen herauslesen. Der
+    # Aufrufer entscheidet, ob er danach fragt; ohne `meta` ändert sich nichts.
+    if meta is not None:
+        meta.update(_exif_facts(img))
     # EXIF-Orientierung anwenden (sonst erscheinen Handy-Hochkant-Fotos gedreht)
     # und damit zugleich Metadaten verwerfen (GPS/Kamera) — Datenschutz.
     img = ImageOps.exif_transpose(img)
@@ -9713,9 +9803,12 @@ def api_upload():
     # Bilder verkleinern und als WebP speichern (GIFs unverändert, wegen Animation)
     if ext != '.gif':
         try:
-            name = _store_upload_image(f.stream)
+            meta: dict = {}
+            name = _store_upload_image(f.stream, meta=meta)
             if name:
-                return jsonify({'ok': True, 'url': '/uploads/' + name})
+                # `exif` geht nur an den Browser zurück, der die Datei gerade
+                # hochgeladen hat — abgelegt wird davon nichts.
+                return jsonify({'ok': True, 'url': '/uploads/' + name, 'exif': meta})
         except Exception as e:
             log.warning("Bild-Optimierung fehlgeschlagen, speichere Original: %s", e)
         f.stream.seek(0)

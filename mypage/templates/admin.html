@@ -314,6 +314,13 @@
     .wiz-step.active { border-color: var(--accent); color: var(--accent); font-weight: 600; }
     .wiz-step.filled { color: var(--text); }
     .trav-item { border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 10px; background: var(--surf2); }
+    /* Der Prompt des letzten Laufs: zugeklappt, weil er lang ist — aufgeklappt
+       erklärt er in Sekunden, warum ein Erlebnis nicht im Text steht. */
+    .prompt-box { margin: 12px 0; }
+    .prompt-box summary { cursor: pointer; color: var(--muted); font-size: 0.85rem; }
+    .prompt-box pre { background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
+      padding: 10px; margin-top: 8px; max-height: 320px; overflow: auto;
+      white-space: pre-wrap; word-break: break-word; font-size: 0.78rem; line-height: 1.5; }
     .trav-item-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px; }
     .trav-rating { display: flex; gap: 3px; }
     .trav-rating button { background: none; border: none; cursor: pointer; font-size: 1.1rem; padding: 0 2px; color: var(--border); }
@@ -6811,7 +6818,9 @@
       const r = await fetch('api/upload', { method: 'POST', body: fd, credentials: 'same-origin' });
       if (r.ok) {
         const data = await r.json();
-        if (uploadCb) uploadCb(data.url);
+        // Zweites Argument: was im Bild stand (Aufnahmedatum, GPS). Wer es nicht
+        // braucht, nimmt wie bisher nur die Adresse.
+        if (uploadCb) uploadCb(data.url, data.exif || {});
         toast(T.uploaded);
       } else { toast(T.error_upload, true); }
       e.target.value = '';
@@ -7960,6 +7969,8 @@
       // Tag 4 zurückzuholen wäre schlimmer als gar kein Zurücknehmen.
       REVISE_DAY.undo = null;
       REVISE_DAY.note = '';
+      travLastPrompt = '';
+      travGps = null;
       wizStep = 0;
       wizRender();
       el('day-modal').classList.add('open');
@@ -8107,7 +8118,12 @@
         const pick = document.createElement('button');
         pick.className = 'btn secondary small';
         pick.textContent = it.url ? T.image_pick + ' …' : '+ ' + T.image_pick;
-        pick.onclick = () => browseUploads(u => { it.url = u; travDraft(); wizRender(); });
+        pick.onclick = () => browseUploads((u, exif) => {
+          it.url = u;
+          travExif(exif);
+          travDraft();
+          wizRender();
+        });
         if (it.url) {
           const img = document.createElement('img');
           img.src = assetUrl(it.url);
@@ -8126,6 +8142,25 @@
       capHint.className = 'hint';
       capHint.textContent = T.trav_photo_caption_hint;
       b.appendChild(capHint);
+      if (travGps) {
+        // Der Ortsname kommt NICHT von selbst: dafür müssten die Koordinaten
+        // eines privaten Fotos an einen fremden Dienst gehen. Das passiert nur,
+        // wenn hier jemand draufdrückt.
+        const geo = document.createElement('div');
+        geo.className = 'upload-row';
+        const info = document.createElement('span');
+        info.className = 'hint';
+        info.style.flex = '1';
+        info.textContent = T.trav_exif_gps
+          .replace('{lat}', travGps.lat.toFixed(4)).replace('{lon}', travGps.lon.toFixed(4));
+        const look = document.createElement('button');
+        look.type = 'button';
+        look.className = 'btn secondary small';
+        look.textContent = '📍 ' + T.trav_exif_lookup;
+        look.onclick = () => lookupPlace(look);
+        geo.append(info, look);
+        b.appendChild(geo);
+      }
       b.append(travField(DAY, 'additional_notes', 'textarea', T.trav_additional),
                travRow(travField(DAY, 'important', 'textarea', T.trav_important),
                        travField(DAY, 'exclude', 'textarea', T.trav_exclude)));
@@ -8187,6 +8222,7 @@
       };
       tagWrap.append(travLabel(T.field_tags), tagInput);
       b.appendChild(tagWrap);
+      if (travLastPrompt) b.appendChild(promptBox(travLastPrompt));
       // Die Unterschriften gehoeren zu den Fotos MIT Hinweis, in genau deren
       // Reihenfolge — der Prompt hat die anderen uebersprungen. Ueber den Index
       // der vollen Fotoliste zu gehen haengte sie ans falsche Bild, sobald ein
@@ -8247,6 +8283,7 @@
       RECAP.published = !!trip.recap_published;
       REVISE_RECAP.undo = null;
       REVISE_RECAP.note = '';
+      recapLastPrompt = '';
       el('recap-modal-title').textContent = T.trav_recap + ' — ' + trip.name;
       renderRecap();
       el('recap-modal').classList.add('open');
@@ -8316,6 +8353,7 @@
       };
       tagWrap.append(travLabel(T.field_tags), tagInput);
       b.appendChild(tagWrap);
+      if (recapLastPrompt) b.appendChild(promptBox(recapLastPrompt));
     }
 
     async function generateRecap(btn) {
@@ -8336,6 +8374,7 @@
         return;
       }
       REVISE_RECAP.undo = null;
+      recapLastPrompt = d.prompt || '';
       RECAP = Object.assign(d.recap, { published: RECAP.published });
       busyDone(T.trav_recap_ready);
       renderRecap();
@@ -8364,6 +8403,7 @@
         return;
       }
       REVISE_RECAP.undo = before;
+      recapLastPrompt = d.prompt || '';
       RECAP = Object.assign(d.recap, { published: RECAP.published });
       busyDone(T.trav_revised);
       renderRecap();
@@ -8378,6 +8418,61 @@
       catch (e) { toast(T.trav_save_offline, true); return; }
       toast(r.ok ? T.saved : T.error_save, !r.ok);
       if (r.ok) { el('recap-modal').classList.remove('open'); loadTravel(); }
+    }
+
+    // ── Was im Foto stand ──
+    // Beim Upload liest der Server Aufnahmedatum und GPS aus, bevor er die
+    // Metadaten verwirft (die abgelegte Datei bleibt metadatenfrei). Das Datum
+    // wandert direkt ins Formular — aber nur, wenn dort noch keines steht: eine
+    // von Hand gesetzte Angabe zu überschreiben wäre eine böse Überraschung.
+    // Die Koordinaten bleiben liegen, bis jemand den Ort nachschlagen lässt.
+    let travGps = null;
+
+    function travExif(exif) {
+      if (!exif) return;
+      if (exif.taken && !DAY.date) {
+        DAY.date = exif.taken;
+        toast(T.trav_exif_date.replace('{v}', exif.taken));
+      }
+      if (exif.lat !== undefined && exif.lon !== undefined && !DAY.location) {
+        travGps = { lat: exif.lat, lon: exif.lon };
+      }
+    }
+
+    async function lookupPlace(btn) {
+      if (!travGps) return;
+      btn.disabled = true;
+      const r = await api('api/travel/geocode?lat=' + encodeURIComponent(travGps.lat)
+                          + '&lon=' + encodeURIComponent(travGps.lon));
+      btn.disabled = false;
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok || !d.place) {
+        toast(d.error === 'no_place' ? T.trav_exif_no_place : T.trav_exif_geo_failed, true);
+        return;
+      }
+      DAY.location = d.place;
+      travGps = null;
+      travDraft();
+      wizRender();
+      toast(T.trav_exif_place.replace('{v}', d.place + (d.country ? ', ' + d.country : '')));
+    }
+
+    // ── Prompt des letzten Laufs ──
+    // Die Routen geben ihn ohnehin zurück. Sichtbar beantwortet er die häufigste
+    // Frage zum Ergebnis: „warum steht das Abendessen nicht im Text?" — weil ein
+    // leeres Feld gar nicht erst im Prompt landet, und genau das sieht man hier.
+    let travLastPrompt = '';
+    let recapLastPrompt = '';
+
+    function promptBox(text) {
+      const d = document.createElement('details');
+      d.className = 'prompt-box';
+      const sum = document.createElement('summary');
+      sum.textContent = T.trav_prompt_show.replace('{n}', text.length);
+      const pre = document.createElement('pre');
+      pre.textContent = text;
+      d.append(sum, pre);
+      return d;
     }
 
     // ── Wetter aus Home Assistant ──
@@ -8533,6 +8628,7 @@
         return;
       }
       REVISE_DAY.undo = art;
+      travLastPrompt = d.prompt || '';
       DAY.article = d.article;
       busyDone(T.trav_revised);
       wizRender();
@@ -8557,6 +8653,7 @@
       btn.disabled = false;
       const d = r ? await r.json().catch(() => ({})) : {};
       if (!r || !r.ok) { busyDone(aiErrMsg(d.error, d.model, d.detail), true); return; }
+      travLastPrompt = d.prompt || '';
       DAY.article = d.article;
       busyDone(T.trav_generated);
       wizStep = WIZ.length - 1;

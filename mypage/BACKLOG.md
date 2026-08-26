@@ -9,24 +9,15 @@ Meta-Voraussetzungen, Rezept über den RSS-Feed).
 
 ---
 
-## Reiseblog — Ideen und Fallstricke
+## Reiseblog — nichts mehr offen, aber Fallstricke merken
 
-**Stand:** fertig mit v0.10.5, Überarbeiten des Berichts seit v0.11.7, Rückblick und
-Wetter aus Home Assistant seit v0.11.8. Stufe 1 (Admin,
-Wizard, KI-Bericht), Stufe 2 (öffentliche Seiten, Slugs, Freigabe je Tag, Mitglieder-Sperre,
-Sitemap, Suche, IndexNow, statischer Export, Vorschau) und die vier Reste aus Stufe 3
-(Ausgaben-Auswertung, übersetzte Auswahllisten, Formular-Abschnitt, eigene
-Bildunterschriften) sind umgesetzt. Was hier steht, ist nichts Angefangenes: Ideen für
-später und die Stolperstellen für spätere Arbeit am Modul.
-
-**Zurückgestellte Ideen:**
-
-- **Prompt anzeigen.** `/generate` und `/revise` geben den Prompt bereits mit zurück, die
-  Oberfläche wirft ihn weg. Ausklappbar unter dem Bericht würde sofort erklären, warum ein
-  Erlebnis im Text fehlt — leere Felder fallen ja kommentarlos aus dem Prompt.
-- **Ort und Datum aus dem Foto-EXIF.** Beim Upload jagt `exif_transpose()` die Metadaten
-  raus (`app.py`). Vorher Aufnahmedatum und GPS lesen und Tagesdatum/Ort vorbelegen — nur
-  auf dem Reise-Upload-Weg, öffentlich bleiben die Bilder metadatenfrei.
+**Stand:** Stufe 1 (Admin, Wizard, KI-Bericht), Stufe 2 (öffentliche Seiten, Slugs, Freigabe
+je Tag, Mitglieder-Sperre, Sitemap, Suche, IndexNow, statischer Export, Vorschau) und die
+vier Reste aus Stufe 3 (Ausgaben-Auswertung, übersetzte Auswahllisten, Formular-Abschnitt,
+eigene Bildunterschriften) sind mit v0.10.5 fertig geworden. Dazu kamen: Überarbeiten des
+Berichts (v0.11.7), Rückblick auf die ganze Reise und Wetter aus Home Assistant (v0.11.8),
+Prompt-Ansicht und Datum/Ort aus dem Foto-EXIF (v0.11.9). Offene Vorhaben stehen keine
+mehr an — hier stehen nur noch die Stolperstellen für spätere Arbeit am Modul.
 
 **Fallstricke, die schon bekannt sind:**
 
@@ -67,6 +58,14 @@ später und die Stolperstellen für spätere Arbeit am Modul.
 - Die Wetter-Übernahme hängt an `SUPERVISOR_TOKEN` UND `homeassistant_api: true` in der
   `config.yaml`. Fehlt eines von beidem, antwortet der Supervisor mit 401 und die
   Entitätenliste bleibt leer.
+- `_exif_facts()` liest Aufnahmedatum und GPS **vor** `exif_transpose()`. Wer in
+  `_store_upload_image()` die Reihenfolge dreht, bekommt stillschweigend leere Werte —
+  kaputt geht dabei nichts, es füllt sich nur nichts mehr. Die abgelegte Datei muss
+  metadatenfrei bleiben: der Rückgabewert geht ausschließlich an den hochladenden Browser.
+- Der Ortsname kommt von Nominatim (OpenStreetMap) und **nur auf Knopfdruck**. Kein
+  automatischer Aufruf einbauen: das schickte die Koordinaten privater Fotos ungefragt an
+  einen fremden Dienst. Nominatim erlaubt eine Anfrage je Sekunde und verlangt die Kennung
+  in `NOMINATIM_UA`.
 
 ---
 

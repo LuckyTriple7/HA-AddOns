@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.11.9
+
+- 🔍 **Der Prompt des letzten Laufs ist einsehbar.** Unter dem Bericht (und im Rückblick) steht jetzt ein zugeklappter Kasten mit genau dem Text, der an die KI ging. Das beantwortet die häufigste Frage zum Ergebnis — „warum steht das Abendessen nicht im Text?" — in Sekunden: ein leeres Feld landet gar nicht erst im Prompt, und das sieht man dort sofort. Die Routen haben den Prompt schon immer mitgeliefert, die Oberfläche hat ihn nur weggeworfen.
+- 📷 **Datum und Ort aus dem Foto.** Beim Hochladen eines Bildes im Reise-Wizard liest das Add-on Aufnahmedatum und GPS aus, bevor es die Metadaten verwirft. Das Datum wandert direkt ins Formular — aber nur, wenn dort noch keines steht. Die Koordinaten werden **angezeigt, nicht verschickt**: erst ein Klick auf „📍 Ort nachschlagen" fragt bei OpenStreetMap nach dem Ortsnamen. Die Koordinaten eines privaten Fotos ungefragt an einen fremden Dienst zu geben wäre das Gegenteil dessen, was das Entfernen der Metadaten bezweckt.
+- 🔒 **An der Datenschutzzusage ändert sich nichts.** Die abgelegte Bilddatei bleibt wie bisher metadatenfrei (WebP, ohne EXIF neu kodiert). Ausgelesen wird vor dem Verwerfen, und das Ergebnis geht einzig an den Browser zurück, der die Datei gerade hochgeladen hat — gespeichert wird davon nichts.
+
 ## 0.11.8
 
 - 📖 **Reise-Rückblick — der Text über die ganze Reise.** Bisher war die Reise-Seite nur eine Liste der Tage. Der Rückblick steht jetzt darüber: erzeugt aus den fertigen Tagesberichten (kein Tag-für-Tag-Protokoll, sondern der Bogen der Reise), frei editierbar, mit denselben Knöpfen zum Überarbeiten wie der Tagesbericht. Er wird **getrennt freigegeben** — ohne Haken bleibt er ein Entwurf und die Seite sieht aus wie bisher. Der Anrisstext des Rückblicks wird zur Beschreibung der Reise-Seite und zum Text auf der Kachel in der Übersicht; die Reise-Seite steht damit auch in der Suche. Zu finden im Reiseblog-Reiter über **📖 Rückblick** neben „Neuer Reisetag".
