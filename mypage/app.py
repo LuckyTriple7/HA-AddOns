@@ -7861,6 +7861,43 @@ def _travel_article_schema(langs: list[str], photos: int):
                               required=list(langs) + ['tags'])
 
 
+def _travel_article_call(*, prompt: str, system: str, langs: list[str],
+                         photos: int, model: str) -> tuple[dict | None, dict, int]:
+    """Ein Reisebericht-Lauf. Erzeugen und Überarbeiten unterscheiden sich nur in
+    Prompt und Systemanweisung — der Rest bis hin zur Fehlerbehandlung ist gleich,
+    und zweimal derselbe Block wäre zweimal zu pflegen."""
+    try:
+        client = _gemini_client()
+        resp = client.models.generate_content(
+            model=model, contents=[prompt],
+            config=genai_types.GenerateContentConfig(
+                system_instruction=system,
+                response_mime_type='application/json',
+                response_schema=_travel_article_schema(langs, photos),
+                http_options=genai_types.HttpOptions(timeout=GEMINI_TEXT_TIMEOUT_MS),
+            ),
+        )
+        _ai_usage_record(model, resp)
+        cands = resp.candidates or []
+        finish = cands[0].finish_reason if cands else None
+        reason = getattr(finish, 'name', None) or (str(finish) if finish else '')
+        if finish in _GEMINI_TEXT_REFUSALS:
+            return None, {'error': 'ai_refused', 'detail': reason}, 502
+        raw = json.loads(resp.text or '')
+        if not isinstance(raw, dict):
+            return None, {'error': 'ai_empty', 'detail': reason}, 502
+    except genai_errors.APIError as e:
+        code = getattr(e, 'code', None)
+        log.warning("Reisebericht fehlgeschlagen (%s): Status %s", model, code)
+        return None, {'error': 'ai_model_missing' if code == 404 else 'ai_failed',
+                      'detail': f'HTTP {code}' if code else '', 'model': model}, 502
+    except Exception as e:
+        log.error("Reisebericht (%s) unerwartet fehlgeschlagen: %s: %s",
+                  model, type(e).__name__, e)
+        return None, {'error': 'ai_failed', 'detail': type(e).__name__, 'model': model}, 502
+    return tb.normalize_article(raw), {}, 200
+
+
 @admin_app.route('/api/travel/trips/<tid>/days/<did>/generate', methods=['POST'])
 def api_travel_generate(tid: str, did: str):
     err = _api_auth()
@@ -7883,39 +7920,70 @@ def api_travel_generate(tid: str, did: str):
     if not _ai_rate_take(_ai_text_times, AI_TEXT_MAX_PER_HOUR):
         return jsonify({'error': 'rate_limited'}), 429
     model = _gemini_text_model()
-    try:
-        client = _gemini_client()
-        resp = client.models.generate_content(
-            model=model, contents=[prompt],
-            config=genai_types.GenerateContentConfig(
-                system_instruction=tb.SYSTEM_PROMPT,
-                response_mime_type='application/json',
-                response_schema=_travel_article_schema(langs, len(photo_notes)),
-                http_options=genai_types.HttpOptions(timeout=GEMINI_TEXT_TIMEOUT_MS),
-            ),
-        )
-        _ai_usage_record(model, resp)
-        cands = resp.candidates or []
-        finish = cands[0].finish_reason if cands else None
-        reason = getattr(finish, 'name', None) or (str(finish) if finish else '')
-        if finish in _GEMINI_TEXT_REFUSALS:
-            return jsonify({'error': 'ai_refused', 'detail': reason}), 502
-        raw = json.loads(resp.text or '')
-        if not isinstance(raw, dict):
-            return jsonify({'error': 'ai_empty', 'detail': reason}), 502
-    except genai_errors.APIError as e:
-        code = getattr(e, 'code', None)
-        log.warning("Reisebericht fehlgeschlagen (%s): Status %s", model, code)
-        return jsonify({'error': 'ai_model_missing' if code == 404 else 'ai_failed',
-                        'detail': f'HTTP {code}' if code else '', 'model': model}), 502
-    except Exception as e:
-        log.error("Reisebericht (%s) unerwartet fehlgeschlagen: %s: %s",
-                  model, type(e).__name__, e)
-        return jsonify({'error': 'ai_failed', 'detail': type(e).__name__}), 502
-    article = tb.normalize_article(raw)
+    article, err, status = _travel_article_call(
+        prompt=prompt, system=tb.SYSTEM_PROMPT, langs=langs,
+        photos=len(photo_notes), model=model)
+    if article is None:
+        return jsonify(err), status
     log.info("Reisebericht erzeugt: %s Tag %s (%s, %s)", trip.get('name'),
              day.get('day_number'), model, '+'.join(langs))
     return jsonify({'ok': True, 'article': article, 'prompt': prompt})
+
+
+@admin_app.route('/api/travel/trips/<tid>/days/<did>/revise', methods=['POST'])
+def api_travel_revise(tid: str, did: str):
+    """Vorhandenen Bericht überarbeiten statt neu erzeugen.
+
+    Der Text kommt aus dem Formular, nicht aus der gespeicherten Fassung: der
+    Wizard speichert vor dem Aufruf zwar, aber der Nutzer soll auch eine gerade
+    von Hand geänderte Zeile mitgeben können, ohne sie vorher zu sichern.
+    """
+    err = _api_auth()
+    if err:
+        return err
+    if not gemini_text_enabled():
+        return jsonify({'error': 'no_api_key'}), 400
+    raw = request.get_json(silent=True) or {}
+    action = raw.get('action') if raw.get('action') in tb.REVISE_ACTIONS else ''
+    note = _clean_str(raw.get('note'), tb.REVISE_NOTE_MAX)
+    if not action or (action == 'custom' and not note):
+        return jsonify({'error': 'invalid'}), 400
+    data = load_travel()
+    trip = _trip(data, tid)
+    day = _day(trip, did) if trip else None
+    if day is None:
+        return jsonify({'error': 'not_found'}), 404
+    trip_langs = (trip.get('settings') or {}).get('langs') or ['de']
+    wanted = raw.get('langs')
+    langs = [lg for lg in trip_langs
+             if isinstance(wanted, list) and lg in wanted] or trip_langs
+    article = tb.normalize_article(raw.get('article')
+                                   if isinstance(raw.get('article'), dict)
+                                   else (day.get('article') or {}))
+    # Ohne Text gibt es nichts zu überarbeiten — und ein leerer Auftrag käme als
+    # frei erfundener Bericht zurück, genau das, was der Systemprompt verbietet.
+    if not any((article.get(lg) or {}).get('body') for lg in langs):
+        return jsonify({'error': 'no_article'}), 400
+    if not _ai_rate_take(_ai_text_times, AI_TEXT_MAX_PER_HOUR):
+        return jsonify({'error': 'rate_limited'}), 429
+    photo_notes = [p for p in (day.get('photos') or []) if p.get('photo_note')]
+    prompt = tb.build_revise_prompt(trip, day, article, langs, action, note)
+    model = _gemini_text_model()
+    fresh, err, status = _travel_article_call(
+        prompt=prompt, system=tb.REVISE_SYSTEM_PROMPT, langs=langs,
+        photos=len(photo_notes), model=model)
+    if fresh is None:
+        return jsonify(err), status
+    # Nur die angeforderten Sprachen ersetzen: wer allein die englische Fassung
+    # überarbeiten lässt, darf die deutsche nicht verlieren.
+    for lg in ('de', 'en'):
+        if lg not in langs:
+            fresh[lg] = article.get(lg) or {'title': '', 'teaser': '', 'body': ''}
+    if not fresh.get('captions'):
+        fresh['captions'] = article.get('captions') or []
+    log.info("Reisebericht überarbeitet (%s): %s Tag %s (%s, %s)", action,
+             trip.get('name'), day.get('day_number'), model, '+'.join(langs))
+    return jsonify({'ok': True, 'article': fresh, 'prompt': prompt})
 
 
 # ── KI-Verbrauch ──────────────────────────────────────────────────────────────

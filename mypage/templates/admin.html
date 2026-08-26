@@ -7877,6 +7877,10 @@
       // Rueckfrage bei jedem Oeffnen eines frisch gespeicherten Tages.
       if (draft && travHasContent(draft) && confirm(T.trav_draft_restore)) DAY = draft;
       el('day-modal-title').textContent = id ? T.trav_edit_day : T.trav_new_day;
+      // Beim Tageswechsel zurücksetzen: eine aufgehobene Fassung von Tag 3 in
+      // Tag 4 zurückzuholen wäre schlimmer als gar kein Zurücknehmen.
+      travReviseUndo = null;
+      travReviseNote = '';
       wizStep = 0;
       wizRender();
       el('day-modal').classList.add('open');
@@ -8052,6 +8056,7 @@
       b.append(pub, pubHint);
 
       const langs = ((curTrip().settings || {}).langs) || ['de'];
+      b.appendChild(travReviseBox(langs));
       langs.forEach(lg => {
         const h = document.createElement('h4');
         h.textContent = lg === 'de' ? T.ai_out_de : T.ai_out_en;
@@ -8122,6 +8127,122 @@
       await loadTravel();
       return editingDayId;
     }
+    // ── Bericht überarbeiten ──
+    // „Nochmal erzeugen“ wäre der falsche Weg zurück: das würfelt den Text neu und
+    // wirft jede Handkorrektur weg, die nach dem ersten Lauf hier entstanden ist.
+    // Das Überarbeiten schickt stattdessen die Fassung mit, die gerade in den
+    // Feldern steht — `travField()` schreibt ja direkt in `DAY.article`.
+    let travReviseNote = '';
+    let travReviseScope = 'both';
+    // Ein Lauf kann danebengehen. Ohne die vorige Fassung wäre die Handarbeit
+    // dann doch weg — genau das, was dieser Block verhindern soll.
+    let travReviseUndo = null;
+
+    function travReviseBox(langs) {
+      const box = document.createElement('div');
+      box.className = 'trav-item';
+      const h = document.createElement('h4');
+      h.textContent = T.trav_revise;
+      h.style.margin = '0 0 4px';
+      const hint = document.createElement('p');
+      hint.className = 'hint';
+      hint.textContent = T.trav_revise_hint;
+      box.append(h, hint);
+
+      const row = document.createElement('div');
+      row.className = 'upload-row';
+      [['shorter', '\u2702 ' + T.ai_revise_shorter],
+       ['longer', '\u2795 ' + T.ai_revise_longer],
+       ['polish', '\u2728 ' + T.ai_revise_polish]].forEach(([act, label]) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'btn secondary';
+        btn.textContent = label;
+        btn.onclick = () => reviseReport(act, btn);
+        row.appendChild(btn);
+      });
+      if (travReviseUndo) {
+        const undo = document.createElement('button');
+        undo.type = 'button';
+        undo.className = 'btn secondary';
+        undo.textContent = '↶ ' + T.ai_undo;
+        undo.onclick = async () => {
+          DAY.article = travReviseUndo;
+          travReviseUndo = null;
+          wizRender();
+          await saveDay(true);
+          toast(T.trav_revise_undone);
+        };
+        row.appendChild(undo);
+      }
+      // Eine Sprache allein zu überarbeiten kostet die Hälfte. Bei einsprachigen
+      // Reisen wäre die Auswahl nur eine Zeile ohne Wahl.
+      if (langs.length > 1) {
+        const sel = document.createElement('select');
+        sel.style.maxWidth = '180px';
+        [['both', T.ai_revise_scope_both], ['de', T.ai_revise_scope_de],
+         ['en', T.ai_revise_scope_en]].forEach(([v, label]) => {
+          const o = document.createElement('option');
+          o.value = v;
+          o.textContent = label;
+          sel.appendChild(o);
+        });
+        sel.value = travReviseScope;
+        sel.onchange = () => { travReviseScope = sel.value; };
+        row.appendChild(sel);
+      }
+      box.appendChild(row);
+
+      const noteRow = document.createElement('div');
+      noteRow.className = 'upload-row';
+      noteRow.style.marginTop = '8px';
+      const note = document.createElement('input');
+      note.type = 'text';
+      note.maxLength = 500;
+      note.placeholder = T.trav_revise_note_ph;
+      note.value = travReviseNote;
+      note.oninput = () => { travReviseNote = note.value; };
+      const run = document.createElement('button');
+      run.type = 'button';
+      run.className = 'btn';
+      run.textContent = '\u21bb ' + T.ai_revise_run;
+      run.onclick = () => reviseReport('custom', run);
+      noteRow.append(note, run);
+      box.appendChild(noteRow);
+      return box;
+    }
+
+    async function reviseReport(action, btn) {
+      const trip = curTrip();
+      if (!trip || !editingDayId) { toast(T.trav_revise_err_save, true); return; }
+      const tripLangs = (trip.settings || {}).langs || ['de'];
+      const langs = (tripLangs.length > 1 && travReviseScope !== 'both')
+        ? tripLangs.filter(lg => lg === travReviseScope) : tripLangs;
+      const art = DAY.article || {};
+      if (!langs.some(lg => (art[lg] || {}).body)) { toast(T.trav_revise_err_empty, true); return; }
+      const note = travReviseNote.trim();
+      if (action === 'custom' && !note) { toast(T.ai_revise_err_note, true); return; }
+      btn.disabled = true;
+      busyShow(T.trav_revising);
+      let r = null;
+      try {
+        r = await apiJson(`api/travel/trips/${trip.id}/days/${editingDayId}/revise`,
+                          'POST', { action, note, langs, article: art });
+      } catch (e) { /* Netzfehler */ }
+      btn.disabled = false;
+      const d = r ? await r.json().catch(() => ({})) : {};
+      if (!r || !r.ok) {
+        busyDone(d.error === 'no_article' ? T.trav_revise_err_empty
+                                          : aiErrMsg(d.error, d.model, d.detail), true);
+        return;
+      }
+      travReviseUndo = art;
+      DAY.article = d.article;
+      busyDone(T.trav_revised);
+      wizRender();
+      await saveDay(true);
+    }
+
     async function generateReport(btn) {
       if (!(DAY.experiences || []).length && !(DAY.personal || {}).day_summary) {
         toast(T.trav_need_content, true);

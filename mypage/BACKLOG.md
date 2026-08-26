@@ -9,13 +9,28 @@ Meta-Voraussetzungen, Rezept über den RSS-Feed).
 
 ---
 
-## Reiseblog — nichts mehr offen, aber Fallstricke merken
+## Reiseblog — Ideen und Fallstricke
 
-**Stand:** fertig mit v0.10.5. Stufe 1 (Admin, Wizard, KI-Bericht), Stufe 2 (öffentliche
-Seiten, Slugs, Freigabe je Tag, Mitglieder-Sperre, Sitemap, Suche, IndexNow, statischer
-Export, Vorschau) und die vier Reste aus Stufe 3 (Ausgaben-Auswertung, übersetzte
-Auswahllisten, Formular-Abschnitt, eigene Bildunterschriften) sind umgesetzt. Hier stehen
-nur noch die Stolperstellen für spätere Arbeit am Modul.
+**Stand:** fertig mit v0.10.5, Überarbeiten des Berichts seit v0.11.7. Stufe 1 (Admin,
+Wizard, KI-Bericht), Stufe 2 (öffentliche Seiten, Slugs, Freigabe je Tag, Mitglieder-Sperre,
+Sitemap, Suche, IndexNow, statischer Export, Vorschau) und die vier Reste aus Stufe 3
+(Ausgaben-Auswertung, übersetzte Auswahllisten, Formular-Abschnitt, eigene
+Bildunterschriften) sind umgesetzt. Was hier steht, ist nichts Angefangenes: Ideen für
+später und die Stolperstellen für spätere Arbeit am Modul.
+
+**Zurückgestellte Ideen:**
+
+- **Prompt anzeigen.** `/generate` und `/revise` geben den Prompt bereits mit zurück, die
+  Oberfläche wirft ihn weg. Ausklappbar unter dem Bericht würde sofort erklären, warum ein
+  Erlebnis im Text fehlt — leere Felder fallen ja kommentarlos aus dem Prompt.
+- **Reise-Rückblick über alle Tage.** Bisher gibt es nur Tagesberichte. Ein Abschlussartikel
+  aus allen Tagen plus Ausgabensummen wäre ein dritter Prompt-Typ und die natürliche
+  Startseite einer Reise — heute ist die Reise-Seite nur eine Tagesliste.
+- **Wetter aus Home Assistant.** `weather.mention` wird von Hand getippt, obwohl das Add-on
+  in HA läuft und eine Wetter-Entität zum Reisedatum abfragen könnte.
+- **Ort und Datum aus dem Foto-EXIF.** Beim Upload jagt `exif_transpose()` die Metadaten
+  raus (`app.py`). Vorher Aufnahmedatum und GPS lesen und Tagesdatum/Ort vorbelegen — nur
+  auf dem Reise-Upload-Weg, öffentlich bleiben die Bilder metadatenfrei.
 
 **Fallstricke, die schon bekannt sind:**
 
@@ -38,6 +53,13 @@ nur noch die Stolperstellen für spätere Arbeit am Modul.
 - Öffentliche Beträge hängen an `settings.include_prices` der Reise, demselben Schalter, der
   der KI das Nennen von Preisen erlaubt. Kein zweiter Schalter — wer der KI Geld verbietet,
   will es auch nicht als Tabelle darunter.
+- Beim Überarbeiten (`/revise`, seit v0.11.7) gehen die Tagesdaten **nur** bei `longer` und
+  `custom` mit. Bei `shorter` und `polish` wären sie schädlich: sie laden das Modell ein,
+  Weggelassenes nachzutragen, obwohl der Umfang gleich bleiben soll (`_REVISE_NEEDS_DATA`
+  in `travelblog.py`).
+- Der Bericht, den `/revise` überarbeitet, kommt aus dem **Formular**, nicht aus der
+  gespeicherten Fassung — sonst ginge eine gerade von Hand geänderte Zeile verloren. Wer
+  den Aufruf umbaut, muss `article` weiter mitschicken.
 
 ---
 

@@ -305,8 +305,13 @@ def _block(title: str, lines: list) -> str:
     return f"{title}\n" + '\n'.join(body) if body else ''
 
 
-def build_prompt(trip: dict, day: dict, previous: list | None = None) -> str:
-    """Baut den Prompt aus Reise und Tag. Leere Felder fallen komplett weg."""
+def build_prompt(trip: dict, day: dict, previous: list | None = None, *,
+                 include_style: bool = True) -> str:
+    """Baut den Prompt aus Reise und Tag. Leere Felder fallen komplett weg.
+
+    `include_style=False` lässt den Schreibstil weg — beim Überarbeiten steht er
+    schon im Auftrag, und der Zielumfang von dort widerspräche einem „länger".
+    """
     s = trip.get('settings') or {}
     parts = []
 
@@ -320,12 +325,13 @@ def build_prompt(trip: dict, day: dict, previous: list | None = None) -> str:
         f"Ort: {day.get('location')}" if day.get('location') else '',
     ]))
 
-    parts.append(_block('SCHREIBSTIL', [
-        f"Perspektive: {PERSPECTIVES.get(s.get('perspective'), PERSPECTIVES['wir'])}",
-        f"Stil: {WRITING_STYLES.get(s.get('writing_style'), WRITING_STYLES['persoenlich_locker'])}",
-        f"Zielumfang: rund {LENGTHS.get(s.get('length'), 700)} Wörter",
-        'Humor ist erwünscht, aber dezent.' if s.get('humor') else '',
-    ]))
+    if include_style:
+        parts.append(_block('SCHREIBSTIL', [
+            f"Perspektive: {PERSPECTIVES.get(s.get('perspective'), PERSPECTIVES['wir'])}",
+            f"Stil: {WRITING_STYLES.get(s.get('writing_style'), WRITING_STYLES['persoenlich_locker'])}",
+            f"Zielumfang: rund {LENGTHS.get(s.get('length'), 700)} Wörter",
+            'Humor ist erwünscht, aber dezent.' if s.get('humor') else '',
+        ]))
 
     w = day.get('weather') or {}
     if w.get('mention'):
@@ -451,3 +457,97 @@ SYSTEM_PROMPT = (
     "'tags' = drei bis fünf Schlagwörter; 'captions' = je Fotohinweis eine kurze "
     "Bildunterschrift, in derselben Reihenfolge."
 )
+
+
+# ── Überarbeiten ─────────────────────────────────────────────────────────────
+#
+# Gegenstück zum Erzeugen: Der Bericht steht schon, soll aber kürzer, länger,
+# sprachlich geglättet oder nach einem freien Wunsch geändert werden. Der Weg
+# über „nochmal erzeugen" wäre der falsche — er würfelt den Text neu und wirft
+# jede Handkorrektur weg, die nach dem ersten Lauf im Formular entstanden ist.
+
+REVISE_ACTIONS = ('shorter', 'longer', 'polish', 'custom')
+REVISE_NOTE_MAX = 500
+
+_REVISE_ACTION_DE = {
+    'shorter': ('Kürze den Bericht deutlich — etwa auf die Hälfte — ohne ein Erlebnis '
+                'ganz zu verlieren. Lieber Nebensächliches streichen als überall Wörter.'),
+    'longer':  ('Baue den Bericht aus — etwa auf das Anderthalbfache. Nutze dafür '
+                'ausschließlich die Angaben aus den Tagesdaten, die bisher knapp oder '
+                'gar nicht vorkommen. Keine Wiederholungen, keine Füllsätze.'),
+    'polish':  ('Feinschliff: Stil, Rhythmus und Übergänge verbessern, Wiederholungen '
+                'und Floskeln entfernen. Inhalt und Umfang bleiben, wie sie sind.'),
+    'custom':  'Setze den folgenden Änderungswunsch um, sonst bleibt alles erhalten.',
+}
+_LANG_DE = {'de': 'Deutsch', 'en': 'Englisch'}
+
+# Bei „länger" und einem freien Wunsch braucht das Modell die Tagesdaten: ohne
+# sie könnte es den Text nur durch Erfundenes ausbauen, und genau das verbietet
+# der Systemprompt. Beim Kürzen und beim Feinschliff sind die Daten dagegen
+# schädlich — sie laden dazu ein, Weggelassenes nachzutragen, obwohl der Umfang
+# gleich bleiben soll. Der vorhandene Text ist dort die einzige Quelle.
+_REVISE_NEEDS_DATA = ('longer', 'custom')
+
+REVISE_SYSTEM_PROMPT = (
+    "Du überarbeitest den Tagesbericht eines persönlichen Reiseblogs.\n"
+    "REGELN:\n"
+    "- Erfinde nichts dazu: keine Sehenswürdigkeiten, keine Öffnungszeiten, keine "
+    "Geschichte des Ortes, keine Zahlen, keine Namen. Was nicht im vorhandenen Text "
+    "oder in den mitgelieferten Tagesdaten steht, kommt auch in der neuen Fassung "
+    "nicht vor.\n"
+    "- Preise und Bewertungen exakt übernehmen.\n"
+    "- Stimme, Perspektive und Reihenfolge der Erlebnisse bleiben erhalten, soweit "
+    "der Auftrag nichts anderes verlangt.\n"
+    "- Nicht werblich, keine übertriebenen Superlative, keine Reiseführer-Floskeln.\n"
+    "- Antworte ausschließlich im vorgegebenen JSON-Schema.\n"
+    "FELDER: 'title' = Überschrift ohne Markdown-Zeichen; 'teaser' = Anrisstext, "
+    "höchstens 250 Zeichen; 'body' = der Bericht in Markdown, Zwischenüberschriften "
+    "ab '##'; 'tags' = drei bis fünf Schlagwörter; 'captions' = je Fotohinweis eine "
+    "kurze Bildunterschrift, in derselben Reihenfolge."
+)
+
+
+def build_revise_prompt(trip: dict, day: dict, article: dict, langs: list[str],
+                        action: str, note: str = '') -> str:
+    """Auftrag fürs Überarbeiten. Zurück kommt die volle Fassung je Sprache —
+    kein Änderungsprotokoll, denn das Formular ersetzt seine Felder damit."""
+    s = trip.get('settings') or {}
+    parts = [
+        "Überarbeite den vorhandenen Reisebericht. Gib je Sprache die vollständige "
+        "neue Fassung zurück — Titel, Anrisstext, Fließtext, Schlagwörter und "
+        "Bildunterschriften. Keine Auflistung der Änderungen, kein Kommentar dazu.",
+        _REVISE_ACTION_DE.get(action, _REVISE_ACTION_DE['polish']),
+    ]
+    if note:
+        parts.append(f"Änderungswunsch:\n{note}")
+    parts.append(_block('SCHREIBSTIL', [
+        f"Perspektive: {PERSPECTIVES.get(s.get('perspective'), PERSPECTIVES['wir'])}",
+        f"Stil: {WRITING_STYLES.get(s.get('writing_style'), WRITING_STYLES['persoenlich_locker'])}",
+        'Humor ist erwünscht, aber dezent.' if s.get('humor') else '',
+    ]))
+    if len(langs) > 1:
+        parts.append("Beide Fassungen bleiben inhaltlich gleich und gleich lang.")
+    else:
+        parts.append("Sprache der Ausgabe: "
+                     + ("Deutsch." if langs[0] == 'de' else "Englisch."))
+
+    if action in _REVISE_NEEDS_DATA:
+        # Die Vortage bleiben draußen: sie dienen beim Erzeugen nur dazu,
+        # Wiederholungen zu vermeiden, und der Text steht ja schon.
+        parts.append('TAGESDATEN (Quelle für Ergänzungen — sonst nichts)\n'
+                     + build_prompt(trip, day, include_style=False))
+
+    noted = [p for p in (day.get('photos') or []) if p.get('photo_note')]
+    caps = article.get('captions') or []
+    for lg in langs:
+        d = article.get(lg) or {}
+        lines = [f"Vorhandene Fassung ({_LANG_DE.get(lg, lg)}):",
+                 f"Titel: {d.get('title', '')}",
+                 f"Anrisstext: {d.get('teaser', '')}",
+                 f"Text:\n{d.get('body', '')}"]
+        for i, ph in enumerate(noted):
+            cap = (caps[i] or {}).get(lg, '') if i < len(caps) else ''
+            lines.append(f"Bildunterschrift {i + 1} zu „{ph['photo_note']}“: {cap}")
+        parts.append('\n'.join(lines))
+    parts.append('Schlagwörter: ' + ', '.join(article.get('tags') or []))
+    return '\n\n'.join(x for x in parts if x)

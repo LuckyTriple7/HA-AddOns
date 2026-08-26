@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.11.7
+
+- ✨ **Reisebericht überarbeiten statt neu erzeugen.** Im Tages-Wizard steht unter „Bericht" jetzt derselbe Werkzeugkasten wie im KI-Studio: **Kürzer**, **Länger**, **Feinschliff** und ein Feld für einen freien Änderungswunsch. Bisher gab es nur „Reisebericht erstellen" — wer mit dem Text unzufrieden war, musste ihn komplett neu würfeln lassen und verlor dabei jede Zeile, die er danach von Hand geändert hatte. Das Überarbeiten schickt genau die Fassung mit, die gerade in den Feldern steht.
+- 🌍 **Eine Sprache allein überarbeiten.** Bei zweisprachigen Reisen lässt sich wählen, ob beide Fassungen drankommen oder nur die deutsche bzw. englische — das halbiert die Kosten, wenn nur eine Seite hakt. Die andere Fassung bleibt unangetastet.
+- ↶ **Zurücknehmen.** Nach jedem Lauf steht die vorherige Fassung eine Taste weit entfernt; ein missratener Durchgang kostet also nichts. Beim Wechsel auf einen anderen Tag wird sie verworfen.
+- 🚫 **Auch beim Überarbeiten wird nichts dazuerfunden.** „Länger" und der freie Wunsch bekommen die Tagesdaten als einzige erlaubte Quelle mitgeliefert; „Kürzer" und „Feinschliff" sehen nur den vorhandenen Text, damit sie den Umfang nicht heimlich aufblähen.
+
 ## 0.11.6
 
 - 📰 **`managingEditor` im Feed korrigiert.** Dort stand der Profilname — RSS verlangt an dieser Stelle eine E-Mail-Adresse, Feed-Validatoren melden das als Fehler. Die Adresse dorthin zu schreiben kam nicht in Frage: Die Website zeigt sie bewusst nur zerlegt, um Adress-Sammler abzuwehren. Der Autor steht jetzt als `<atom:author>` im Kanal und `<dc:creator>` je Eintrag — beides gültig und ohne Adresse.
