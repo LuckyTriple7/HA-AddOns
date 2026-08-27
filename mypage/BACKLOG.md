@@ -219,3 +219,155 @@ schleppt Yoast aus Gewohnheit mit, gewertet werden sie seit Jahren nicht.
   deshalb aus dem Objekt und wird aus `travDraft()` heraus gezeichnet. Wer einen
   weiteren Weg baut, über den sich `DAY` ändert, muss `snipRender('snip-travel')`
   mit aufrufen.
+
+---
+
+## Vergleich mit WordPress — die verbliebenen Lücken
+
+**Stand:** Bestandsaufnahme am 2026-08-27, am Code geprüft (nicht aus Erinnerung).
+Nichts davon ist angefangen. Was WordPress kann und hier fehlt — sortiert nach
+Wirkung je Aufwand, nicht nach Größe des Vorhabens.
+
+**Was ausdrücklich schon da ist** und deshalb hier nicht auftaucht: geplante
+Veröffentlichung (`post_status()` in `app.py`, Status `scheduled` über ein
+Datum in der Zukunft), RSS/Atom, OpenGraph, Volltextsuche, Weiterleitungen,
+Sitemap, IndexNow, Kommentare mit Moderation, Newsletter mit Double-Opt-in,
+Formular-Baukasten, Design-Vorlagen, statischer Export, Backup samt
+Rückholen früherer Stände.
+
+### 1. Responsive Bilder (`srcset`) — größter Web-Vitals-Hebel
+
+`_store_upload_image()` legt genau **eine** Fassung ab: höchstens 1600 px, WebP.
+WordPress erzeugt mehrere Größen und liefert sie über `srcset` aus. Ein Handy
+lädt hier also 1600 px für einen 400 px breiten Platz — auf jeder Seite, für
+jedes Bild.
+
+**Was zu bauen wäre:** beim Ablegen zusätzlich 480 px und 960 px erzeugen,
+Namensschema `<uuid>-480.webp`; `render_md()` und die Vorlagen geben `srcset`
+plus `sizes` aus.
+
+**Haken:** `_unused_uploads()` erkennt verwaiste Dateien über einen
+Vorkommen-Scan im JSON-Text. Die Varianten dürfen deshalb **nie** einzeln in
+`site.json` landen — sonst gilt jede Variante ohne eigenen Verweis als Waise und
+wird weggeräumt. Löschen und Aufräumen müssen die Geschwisterdateien am
+Namenspräfix mitnehmen, und beide Backup-Listen (Sichern und Wiederherstellen)
+brauchen sie ebenfalls. Aufwand ~1 Tag.
+
+### 2. Blättern im Blog
+
+`blog_index()` rendert **alle** veröffentlichten Beiträge in eine einzige Seite.
+Bei zweihundert Beiträgen sind das mehrere Megabyte, und der Besucher lädt sie
+bei jedem Aufruf. WordPress zeigt zehn je Seite.
+
+**Was zu bauen wäre:** `?seite=n` mit fester Seitengröße, `rel="prev"`/`rel="next"`
+im Kopf, Blätterleiste unten.
+
+**Haken:** Die Sitemap und der Feed müssen weiterhin **alle** Beiträge führen —
+wer dort dieselbe Begrenzung einbaut, nimmt Google die Hälfte des Bestandes weg.
+Suche und Tag-Filter laufen über dieselbe Route, die Blätterung muss die
+Parameter mitschleppen. Aufwand ~3 h.
+
+### 3. Strukturierte Daten auf der Startseite
+
+Eigener Abschnitt weiter oben in dieser Datei („SEO: strukturierte Daten und
+Snippet-Vorschau"), Reihenfolge `LocalBusiness` → `FAQPage` → `Event` →
+`BreadcrumbList`. Unverändert gültig und für die Zielgruppe Verein, Handwerk,
+Dienstleistung die größte Sichtbarkeitslücke überhaupt.
+
+### 4. Mehrere Autoren
+
+Ein Beitrag hat kein `author`-Feld (`_normalize_post()`), und es gibt keine
+Rollen: einen Admin, ansonsten Mitglieder, die ausschließlich lesen. WordPress
+kennt Redakteur, Autor und Mitarbeiter samt Autorenarchiv. Für eine Vereinsseite,
+auf der mehrere Leute schreiben, ist das der strukturell größte Unterschied.
+
+**Was zu bauen wäre:** Rollenkennzeichen am Mitglied, ein eingeschränkter
+Admin-Zugang (nur eigene Beiträge), `author` am Beitrag, Autorenseite unter
+`/autor/<id>`.
+
+**Haken:** Das ist ein sicherheitsrelevanter Umbau — jede Admin-Route braucht
+dann eine Rechteprüfung, nicht nur die Anmeldung. Vorher lohnt der Smoke-Test
+über alle Routen aus `Ideas.md`, sonst merkt niemand, welche Route die Prüfung
+vergessen hat. Aufwand ~3–4 Tage.
+
+### 5. Revisionen je Beitrag
+
+Es gibt Versionsstände der **ganzen** `site.json` (zwanzig Stück,
+90-Sekunden-Zusammenfassung). „Nur diesen einen Beitrag auf gestern zurück" geht
+nicht. Baubar **ohne** neues Ablageformat: den Beitrag per Id aus den
+vorhandenen Schnappschüssen ziehen, Textvergleich anzeigen, einzeln
+zurückschreiben.
+
+**Haken:** Ein einzeln zurückgeschriebener Beitrag darf den Rest der Datei nicht
+anfassen — also über den normalen Speicherweg gehen, nicht die alte Datei
+einspielen. Aufwand ~1 Tag, weil die Datenbasis bereits steht.
+
+### 6. Kategorien und echte Archivseiten für den Blog
+
+Der Blog kennt nur Schlagwörter (höchstens acht) und filtert über `?tag=`.
+Kategorien gibt es ausschließlich in der Bibliothek. Damit fehlen Archivseiten
+mit eigener Adresse und eigener Beschreibung — eine Filteradresse mit
+Fragezeichen nimmt Google selten in den Index.
+
+**Was zu bauen wäre:** `/tag/<slug>` als eigene Seite mit eigenem
+`meta_description`, wahlweise eine Kategorie je Beitrag mit `/kategorie/<slug>`.
+Zusammen mit Punkt 2 zu bauen, beide fassen dieselbe Route an. Aufwand ~4 h
+zusätzlich.
+
+### 7. HTTP-Cache für die öffentlichen Seiten
+
+Nur der Feed setzt `Cache-Control` und beantwortet `If-None-Match` mit 304. Jede
+Anfrage an die Startseite rendert die Seite neu, obwohl sich zwischen zwei
+Aufrufen meist nichts geändert hat.
+
+**Was zu bauen wäre:** ETag aus der Änderungszeit von `site.json`, der Sprache
+und dem Anmeldestatus; danach `make_conditional(request)` wie beim Feed.
+
+**Haken:** Seiten mit Mitgliederinhalt dürfen **niemals** `public` im
+`Cache-Control` bekommen — sonst legt ein vorgeschalteter Reverse-Proxy
+geschützten Inhalt ab und liefert ihn an Gäste aus. Für angemeldete Besucher
+gehört dort `private`, besser `no-store`. Aufwand ~2 h, billigster Gewinn im
+ganzen Feld.
+
+### 8. Import aus WordPress
+
+Es gibt keinen. Wer von WordPress herüberzieht, tippt Beiträge, Seiten und
+Schlagwörter ab — der Grund, warum MyPage heute eher ein Zweitsystem als ein
+Ersatz ist. Ein Leser für die WXR-Datei (Beiträge, Seiten, Schlagwörter, Bilder)
+ändert das.
+
+**Haken:** Die Bilder stecken als absolute Adressen im Text und müssen beim
+Import heruntergeladen, durch `_store_upload_image()` geschickt und im Markdown
+ersetzt werden. Das Herunterladen ist ein Zugriff auf eine vom Benutzer
+angegebene Adresse — die SSRF-Prüfung über `ipaddress` ist dort Pflicht
+(gleiches Muster wie beim GitHub-Import). WXR ist zudem XML mit
+HTML-Beitragstext: der Text muss durch dieselbe Bereinigung wie eigene Eingaben,
+nicht ungeprüft übernommen. Aufwand ~2 Tage.
+
+### Kleinkram, gesammelt
+
+- `updated`/`dateModified` fehlt am Beitrag komplett — steht schon als Punkt 8 im
+  SEO-Abschnitt, ~1 h.
+- **Menü-Baukasten:** Die Navigation entsteht automatisch aus den vorhandenen
+  Sektionen und den eigenen Seiten. Kein frei gesetzter Menüpunkt, kein
+  Untermenü, kein eigenes Fußzeilenmenü.
+- **Kommentare nur für Mitglieder** (`blog_comment()` bricht ohne
+  `current_member` mit 403 ab). Gäste mit Freigabe wären der WordPress-Weg. Die
+  jetzige Regelung ist eine bewusste Entscheidung gegen Spam, kostet aber
+  Reichweite — vor einem Umbau gehört geklärt, ob Moderation und Rate-Limit dafür
+  reichen.
+- **Formulare** kennen kein Dateifeld und keine Bedingungslogik
+  (`FORM_FIELD_TYPES`). Ein Dateifeld zieht Quota, Virenfrage und Aufräumen nach
+  sich — nicht nebenbei zu machen.
+- **Medienverwaltung** ohne Suche, ohne Ersetzen einer Datei, ohne Ordner: der
+  Tab System zeigt ein Raster, gelöscht wird per Rechtsklick.
+
+### Empfohlene Reihenfolge
+
+7 (Cache, ~2 h) → 2 (Blättern, ~3 h) → 1 (`srcset`, ~1 Tag) → 3 (schema.org).
+Erst das technische Fundament, dann die Sichtbarkeit, dann die großen Bauten 4
+und 8.
+
+**Bewusst nicht vorgesehen:** ein Erweiterungssystem nach Art der WordPress-Plugins,
+ein Shop und Mehrsprachigkeit über DE/EN hinaus. Alle drei ziehen mehr Wartung
+nach sich, als sie dieser Zielgruppe bringen.
