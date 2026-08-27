@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.11.21
+
+- 🔗 **Eine belegte Adresse wird nicht mehr stillschweigend umbenannt.** Wer bei einer eigenen Seite, einem Bibliothek-Eintrag oder einem Formular eine Adresse einträgt, die es schon gibt, bekam bisher wortlos eine Nummer angehängt — aus „rhodos" wurde „rhodos-2", ohne dass es jemand erfuhr. Man sucht seinen Eintrag danach an der falschen Stelle. Jetzt erscheint nach dem Speichern ein Hinweisfenster mit der Adresse, unter der er tatsächlich liegt. Bewusst ein Fenster zum Wegklicken und kein kurzer Einblendtext: Der verschwindet nach zwei Sekunden, und diese Meldung enthält etwas, das man sich merken muss.
+- 🚧 Dasselbe gilt für **reservierte Adressen**: Eine Seite namens „blog" kann es nicht geben, weil die Adresse zum Blog gehört. Statt einer stillen Ersatzadresse steht der neue Name jetzt im Hinweis.
+- 🧹 Die drei fast gleichen Adressvergaben für Seiten, Bibliothek und Formulare teilen sich intern nun eine Funktion — sie liefen inhaltlich auseinander, obwohl sie dasselbe tun sollten.
+
 ## 0.11.20
 
 - 🔖 **Übersichtsseiten sagen Suchmaschinen jetzt, was auf ihnen steht.** Strukturierte Daten (schema.org) gab es bisher nur auf fünf Seitentypen — Startseite, Blog-Beitrag, Reisetag, Projekt und Bibliothek-Eintrag. Neu dazu: **eigene Seiten** als `WebPage` sowie **Blog-Übersicht, Bibliothek, Reiseblog-Übersicht und die Tagesliste einer Reise** als `ItemList` mit Titel und Adresse jedes Eintrags. Der Reiseblog war damit halb versorgt: Der einzelne Tag meldete sich, die Reise selbst schwieg.

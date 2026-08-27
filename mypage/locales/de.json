@@ -1761,6 +1761,7 @@
   "modal_maximize": "Fenster vergrößern",
   "modal_restore": "Fenster verkleinern",
   "saved": "Gespeichert",
+  "slug_changed": "Die gewünschte Adresse war schon vergeben. Gespeichert wurde unter „{slug}“ — unter dieser Adresse ist der Eintrag erreichbar.",
   "upload": "Hochladen",
   "or_upload": "oder hochladen",
   "uploaded": "Bild hochgeladen",

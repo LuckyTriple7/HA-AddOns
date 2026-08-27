@@ -4480,8 +4480,24 @@
       const r = editingPageId
         ? await apiJson('api/pages/' + editingPageId, 'PUT', body)
         : await apiJson('api/pages', 'POST', body);
-      toast(r.ok ? T.saved : T.error_save, !r.ok);
-      if (r.ok) { el('page-modal').classList.remove('open'); loadSite(); }
+      if (!r.ok) { toast(T.error_save, true); return; }
+      if (!slugNotice(await r.json())) toast(T.saved);
+      el('page-modal').classList.remove('open');
+      loadSite();
+    }
+
+    // Eine belegte Adresse bekommt vom Server eine Nummer angehängt. Das still
+    // zu tun ist die eigentliche Falle: Wer „rhodos" eintippt und nichts hört,
+    // sucht seine Seite später unter „rhodos" statt unter „rhodos-2".
+    // Bewusst ein Hinweisfenster und kein Kurzhinweis: der verschwindet nach
+    // gut zwei Sekunden, und genau diese Meldung enthält eine Adresse, die man
+    // sich merken muss.
+    function slugNotice(d) {
+      if (d && d.slug_changed && d.slug) {
+        alert(T.slug_changed.replace('{slug}', d.slug));
+        return true;
+      }
+      return false;
     }
 
     // ── Bibliothek ──
@@ -4810,7 +4826,10 @@
       if (d.pdf === 'unavailable') libPdfReport(T.library_pdf_hint_unavailable, true, pdfRun);
       else if (d.pdf === 'error') libPdfReport(T.library_pdf_failed, true, pdfRun);
       else if (d.pdf === 'generated') busyDone(T.library_pdf_ok, false);
-      else { busyHide(); toast(T.saved); }
+      else { busyHide(); if (!slugNotice(d)) toast(T.saved); }
+      // Die Adresse steht auch bei erfolgreichem PDF-Lauf an, sonst ginge die
+      // Meldung in der PDF-Rückmeldung unter.
+      if (d.pdf === 'generated') slugNotice(d);
       el('libentry-modal').classList.remove('open');
       loadSite();
     }
@@ -4954,8 +4973,10 @@
       const r = editingFormId
         ? await apiJson('api/forms/' + editingFormId, 'PUT', body)
         : await apiJson('api/forms', 'POST', body);
-      toast(r.ok ? T.saved : T.error_save, !r.ok);
-      if (r.ok) { el('form-modal').classList.remove('open'); loadSite(); }
+      if (!r.ok) { toast(T.error_save, true); return; }
+      if (!slugNotice(await r.json())) toast(T.saved);
+      el('form-modal').classList.remove('open');
+      loadSite();
     }
     function translateForm(btn) {
       const pairs = [['fm-title_de', 'fm-title_en'], ['fm-intro_de', 'fm-intro_en'], ['fm-success_de', 'fm-success_en']];

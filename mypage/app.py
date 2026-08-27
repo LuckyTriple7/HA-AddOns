@@ -4389,6 +4389,27 @@ def _slugify(s: str) -> str:
     return s[:60]
 
 
+def _unique_slug(wish: str, taken: set, fallback: str,
+                 reserved: set | None = None) -> tuple[str, bool]:
+    """Eindeutigen Slug bestimmen — und melden, ob er von der Eingabe abweicht.
+
+    Das zweite Rückgabestück ist der eigentliche Zweck: Wer „rhodos" eintippt
+    und stillschweigend „rhodos-2" bekommt, sucht seine Seite später an der
+    falschen Adresse. Die Oberfläche sagt es deshalb hinterher an.
+
+    Angehängt wird ab 2, weil der vorhandene Eintrag der erste ist.
+    """
+    reserved = reserved or set()
+    base = wish
+    if not base or base in reserved:
+        return fallback, bool(wish)
+    slug, n = base, 2
+    while slug in taken or slug in reserved:
+        slug = f'{base}-{n}'
+        n += 1
+    return slug, slug != base
+
+
 def _normalize_page(raw: dict, existing: dict | None = None) -> dict:
     p = existing or {'id': uuid.uuid4().hex[:12]}
     p['title_de'] = _clean_str(raw.get('title_de'), 120)
@@ -4403,17 +4424,11 @@ def _normalize_page(raw: dict, existing: dict | None = None) -> dict:
     return p
 
 
-def _page_slug(site: dict, raw: dict, page_id: str) -> str:
+def _page_slug(site: dict, raw: dict, page_id: str) -> tuple[str, bool]:
     """Eindeutigen, gültigen Slug ermitteln (aus Eingabe oder Titel abgeleitet)."""
-    slug = _slugify(raw.get('slug') or raw.get('title_de') or raw.get('title_en') or '')
-    if not slug or slug in RESERVED_SLUGS:
-        slug = 'seite-' + page_id[:6]
-    base, n = slug, 2
+    wish = _slugify(raw.get('slug') or raw.get('title_de') or raw.get('title_en') or '')
     taken = {p['slug'] for p in site.get('pages', []) if p.get('id') != page_id}
-    while slug in taken or slug in RESERVED_SLUGS:
-        slug = f'{base}-{n}'
-        n += 1
-    return slug
+    return _unique_slug(wish, taken, 'seite-' + page_id[:6], RESERVED_SLUGS)
 
 
 def _find_page(site: dict, slug: str) -> dict | None:
@@ -4512,16 +4527,10 @@ def _normalize_lib_entry(site: dict, raw: dict, existing: dict | None = None) ->
     return e
 
 
-def _lib_entry_slug(site: dict, raw: dict, entry_id: str) -> str:
-    slug = _slugify(raw.get('slug') or raw.get('title_de') or raw.get('title_en') or '')
-    if not slug:
-        slug = 'eintrag-' + entry_id[:6]
-    base, n = slug, 2
+def _lib_entry_slug(site: dict, raw: dict, entry_id: str) -> tuple[str, bool]:
+    wish = _slugify(raw.get('slug') or raw.get('title_de') or raw.get('title_en') or '')
     taken = {e.get('slug') for e in _library(site).get('entries', []) if e.get('id') != entry_id}
-    while slug in taken:
-        slug = f'{base}-{n}'
-        n += 1
-    return slug
+    return _unique_slug(wish, taken, 'eintrag-' + entry_id[:6])
 
 
 def _find_lib_entry(site: dict, slug: str) -> dict | None:
@@ -4723,16 +4732,10 @@ def _normalize_form(raw: dict, existing: dict | None = None) -> dict:
     return fm
 
 
-def _form_slug(site: dict, raw: dict, form_id: str) -> str:
-    slug = _slugify(raw.get('slug') or raw.get('title_de') or raw.get('title_en') or '')
-    if not slug:
-        slug = 'formular-' + form_id[:6]
-    base, n = slug, 2
+def _form_slug(site: dict, raw: dict, form_id: str) -> tuple[str, bool]:
+    wish = _slugify(raw.get('slug') or raw.get('title_de') or raw.get('title_en') or '')
     taken = {f['slug'] for f in site.get('forms', []) if f.get('id') != form_id}
-    while slug in taken:
-        slug = f'{base}-{n}'
-        n += 1
-    return slug
+    return _unique_slug(wish, taken, 'formular-' + form_id[:6])
 
 
 def _public_forms(site: dict) -> list:
@@ -6171,10 +6174,10 @@ def api_page_create():
         return jsonify({'error': 'title required'}), 400
     site = load_site()
     page = _normalize_page(raw)
-    page['slug'] = _page_slug(site, raw, page['id'])
+    page['slug'], slug_changed = _page_slug(site, raw, page['id'])
     site.setdefault('pages', []).append(page)
     save_site(site)
-    return jsonify({'ok': True, 'slug': page['slug']})
+    return jsonify({'ok': True, 'slug': page['slug'], 'slug_changed': slug_changed})
 
 
 @admin_app.route('/api/pages/<pid>', methods=['PUT', 'DELETE'])
@@ -6195,9 +6198,9 @@ def api_page_edit(pid: str):
     if not (_clean_str(raw.get('title_de'), 120) or _clean_str(raw.get('title_en'), 120)):
         return jsonify({'error': 'title required'}), 400
     pages[idx] = _normalize_page(raw, pages[idx])
-    pages[idx]['slug'] = _page_slug(site, raw, pid)
+    pages[idx]['slug'], slug_changed = _page_slug(site, raw, pid)
     save_site(site)
-    return jsonify({'ok': True, 'slug': pages[idx]['slug']})
+    return jsonify({'ok': True, 'slug': pages[idx]['slug'], 'slug_changed': slug_changed})
 
 
 @admin_app.route('/api/pages/reorder', methods=['POST'])
@@ -9382,11 +9385,12 @@ def api_library_entry_create():
     site = load_site()
     lib = _library(site)
     entry = _normalize_lib_entry(site, raw)
-    entry['slug'] = _lib_entry_slug(site, raw, entry['id'])
+    entry['slug'], slug_changed = _lib_entry_slug(site, raw, entry['id'])
     lib['entries'].append(entry)
     pdf_state = _library_apply_pdf(site, entry)
     save_site(site)
-    return jsonify({'ok': True, 'slug': entry['slug'], 'pdf': pdf_state})
+    return jsonify({'ok': True, 'slug': entry['slug'], 'pdf': pdf_state,
+                    'slug_changed': slug_changed})
 
 
 @admin_app.route('/api/library/entries/<eid>', methods=['PUT', 'DELETE'])
@@ -9409,10 +9413,11 @@ def api_library_entry_edit(eid: str):
     if not (_clean_str(raw.get('title_de'), 140) or _clean_str(raw.get('title_en'), 140)):
         return jsonify({'error': 'title required'}), 400
     entries[idx] = _normalize_lib_entry(site, raw, entries[idx])
-    entries[idx]['slug'] = _lib_entry_slug(site, raw, eid)
+    entries[idx]['slug'], slug_changed = _lib_entry_slug(site, raw, eid)
     pdf_state = _library_apply_pdf(site, entries[idx])
     save_site(site)
-    return jsonify({'ok': True, 'slug': entries[idx]['slug'], 'pdf': pdf_state})
+    return jsonify({'ok': True, 'slug': entries[idx]['slug'], 'pdf': pdf_state,
+                    'slug_changed': slug_changed})
 
 
 @admin_app.route('/api/library/entries/<eid>/copy', methods=['POST'])
@@ -9441,7 +9446,9 @@ def api_library_entry_copy(eid: str):
             suffix = load_translations(lang).get('library_copy_suffix') or '(Kopie)'
             copy[key] = _clean_str(f'{copy[key]} {suffix}', 140)
     copy['pdf'], copy['pdf_gen'], copy['pdf_hash'] = '', '', ''
-    copy['slug'] = _lib_entry_slug(site, {'slug': src.get('slug', '')}, copy['id'])
+    # Eine Kopie soll eine neue Adresse bekommen — die Abweichung ist hier
+    # der Zweck und keine Meldung wert.
+    copy['slug'] = _lib_entry_slug(site, {'slug': src.get('slug', '')}, copy['id'])[0]
     copy['updated'] = date.today().isoformat()
     entries.insert(idx + 1, copy)
     # Ein hochgeladenes PDF bekommt eine eigene Datei — teilten sich Original und
@@ -9520,10 +9527,10 @@ def api_form_create():
         return jsonify({'error': 'title required'}), 400
     site = load_site()
     form = _normalize_form(raw)
-    form['slug'] = _form_slug(site, raw, form['id'])
+    form['slug'], slug_changed = _form_slug(site, raw, form['id'])
     site.setdefault('forms', []).append(form)
     save_site(site)
-    return jsonify({'ok': True, 'slug': form['slug']})
+    return jsonify({'ok': True, 'slug': form['slug'], 'slug_changed': slug_changed})
 
 
 @admin_app.route('/api/forms/<fid>', methods=['PUT', 'DELETE'])
@@ -9544,9 +9551,9 @@ def api_form_edit(fid: str):
     if not (_clean_str(raw.get('title_de'), 120) or _clean_str(raw.get('title_en'), 120)):
         return jsonify({'error': 'title required'}), 400
     forms[idx] = _normalize_form(raw, forms[idx])
-    forms[idx]['slug'] = _form_slug(site, raw, fid)
+    forms[idx]['slug'], slug_changed = _form_slug(site, raw, fid)
     save_site(site)
-    return jsonify({'ok': True, 'slug': forms[idx]['slug']})
+    return jsonify({'ok': True, 'slug': forms[idx]['slug'], 'slug_changed': slug_changed})
 
 
 @admin_app.route('/api/forms/reorder', methods=['POST'])

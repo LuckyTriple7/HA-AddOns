@@ -1761,6 +1761,7 @@
   "modal_maximize": "Maximize window",
   "modal_restore": "Restore window",
   "saved": "Saved",
+  "slug_changed": "The address you entered was already taken. Saved as “{slug}” — that is where the entry can be found.",
   "upload": "Upload",
   "or_upload": "or upload",
   "uploaded": "Image uploaded",
