@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.11.22
+
+- 🔍 **Ins Leere laufende Aufrufe werden endlich sichtbar.** Rief ein Besucher eine Adresse auf, die es nicht gibt, bekam er die 404-Seite — und niemand erfuhr davon. Kein Zähler, kein Eintrag im Besucher-Log, nichts. Neu im Tab **System** die Liste **„Nicht gefunden (404)"**: nach Adresse gebündelt, häufigste zuerst, mit Anzahl, Zeitpunkt und Verweisgeber.
+- 🏷️ **„Eigener Link" steht ganz oben.** Kam der Verweis von der eigenen Website, ist der kaputte Link auf der eigenen Seite — genau der Fall, der sich reparieren lässt, etwa nach dem Umbenennen einer Seite. Diese Zeilen stehen unabhängig von der Häufigkeit vorn. Bot-Aufrufe sind gekennzeichnet und standardmäßig ausgeblendet, aber **nicht verschluckt**: Wer still filtert, verliert genau die Zeile, die er sucht, wenn die Erkennung danebenliegt.
+- ↪️ **Von der Fundstelle zur Reparatur in einem Zug.** Der Knopf „Weiterleitung anlegen" setzt die Adresse vorbefüllt in die Weiterleitungsliste direkt darunter; Ziel eintragen, speichern, fertig. Danach beantwortet das Add-on den Aufruf mit einer Umleitung — und eine Adresse mit eingerichteter Weiterleitung landet gar nicht erst wieder auf der Liste.
+- 🧮 **Gebündelt statt Zeile für Zeile.** Tausend Versuche auf `/wp-login.php` ergeben einen Eintrag mit Zähler 1000, nicht tausend Einträge. Gemerkt werden höchstens 200 verschiedene Adressen; darüber fallen die am längsten nicht gesehenen heraus.
+
 ## 0.11.21
 
 - 🔗 **Eine belegte Adresse wird nicht mehr stillschweigend umbenannt.** Wer bei einer eigenen Seite, einem Bibliothek-Eintrag oder einem Formular eine Adresse einträgt, die es schon gibt, bekam bisher wortlos eine Nummer angehängt — aus „rhodos" wurde „rhodos-2", ohne dass es jemand erfuhr. Man sucht seinen Eintrag danach an der falschen Stelle. Jetzt erscheint nach dem Speichern ein Hinweisfenster mit der Adresse, unter der er tatsächlich liegt. Bewusst ein Fenster zum Wegklicken und kein kurzer Einblendtext: Der verschwindet nach zwei Sekunden, und diese Meldung enthält etwas, das man sich merken muss.

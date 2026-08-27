@@ -427,6 +427,13 @@ nicht ungeprüft übernommen. Aufwand ~2 Tage.
 
 - `updated`/`dateModified` fehlt am Beitrag komplett — steht schon als Punkt 8 im
   SEO-Abschnitt, ~1 h.
+- **404-Liste, mögliche Erweiterungen** (v0.11.22 bringt die Liste selbst):
+  eine HA-Benachrichtigung, wenn eine Adresse mit der Marke „eigener Link"
+  neu auftaucht, wäre der nächste sinnvolle Schritt — dann muss niemand
+  nachsehen. Voraussetzung ist eine Entprellung: Ein einzelner kaputter Link
+  wird von jedem Bot mehrfach abgeklappert und dürfte nicht jedes Mal melden.
+  Ebenfalls denkbar: ein Vorschlag für das Weiterleitungsziel aus der Ähnlichkeit
+  zu vorhandenen Slugs (`/bibliothek/rhodos` → `/bibliothek/rhodos-2`).
 - **Menü-Baukasten:** Die Navigation entsteht automatisch aus den vorhandenen
   Sektionen und den eigenen Seiten. Kein frei gesetzter Menüpunkt, kein
   Untermenü, kein eigenes Fußzeilenmenü.

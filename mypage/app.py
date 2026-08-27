@@ -2939,6 +2939,69 @@ def count_visit(req) -> None:
     save_stats(stats)
 
 
+NOTFOUND_MAX_PATHS = 200      # so viele verschiedene Pfade werden gemerkt
+
+
+def record_notfound(req) -> None:
+    """Einen ins Leere laufenden Aufruf festhalten — nach Pfad gebündelt.
+
+    Getrennt vom Besucher-Log, weil ein 404 kein Besuch ist: Er sagt nichts über
+    Reichweite, sondern über kaputte Verweise. Gebündelt statt Zeile für Zeile,
+    weil der erste Scanner sonst mit `/wp-login.php` die Ablage füllt — bei
+    tausend Versuchen steht dann ein Eintrag mit Zähler tausend statt tausend
+    Einträgen.
+
+    Anders als `count_visit()` wird **unabhängig von der Adresse** aufgezeichnet:
+    Ein kaputter Verweis, der aus dem eigenen Heimnetz angeklickt wird, ist
+    derselbe kaputte Verweis. Hier zählt der Pfad, nicht der Besucher.
+    """
+    if req.headers.get('X-MyPage-Export'):
+        return
+    path = (req.path or '/')[:120]
+    ua = req.headers.get('User-Agent') or ''
+    ref = (req.headers.get('Referer') or '')[:300]
+    stats = load_stats()
+    nf = stats.setdefault('notfound', {})
+    e = nf.get(path) or {'n': 0, 'first': int(time.time())}
+    e['n'] = e.get('n', 0) + 1
+    e['last'] = int(time.time())
+    e['bot'] = bool((not ua) or any(b in ua.lower() for b in _BOT_UA))
+    if ref:
+        e['ref'] = ref
+        # Ein Verweis von der eigenen Adresse heißt: der kaputte Link steht auf
+        # der eigenen Website. Das ist der Fall, der wirklich zählt — fremde
+        # Verweise und Scanner kann man nicht reparieren, eigene schon.
+        e['internal'] = _same_site_ref(ref)
+    nf[path] = e
+    # Begrenzen: die am längsten nicht mehr gesehenen Pfade fliegen zuerst raus.
+    if len(nf) > NOTFOUND_MAX_PATHS:
+        for k in sorted(nf, key=lambda k: nf[k].get('last', 0))[:len(nf) - NOTFOUND_MAX_PATHS]:
+            del nf[k]
+    stats['notfound'] = nf
+    save_stats(stats)
+
+
+def _same_site_ref(ref: str) -> bool:
+    """Zeigt der Verweisgeber auf die eigene Website?
+
+    Verglichen wird der **ganze** Hostname, nie ein Teilstück: `gizmonet.de.bad.tld`
+    darf nicht als eigene Adresse durchgehen.
+    """
+    try:
+        host = urlparse(ref).hostname or ''
+    except ValueError:
+        return False
+    own = set()
+    for cand in (load_site()['design'].get('public_url') or '', request.host_url):
+        try:
+            h = urlparse(cand).hostname
+        except ValueError:
+            h = None
+        if h:
+            own.add(h.lower())
+    return host.lower() in own
+
+
 def _browser_name(ua: str) -> str:
     u = ua.lower()
     if 'edg/' in u:
@@ -10593,6 +10656,52 @@ def _cleanup_dir(orphans, total, audit_tag: str):
     return jsonify({'ok': True, 'removed': removed, 'freed_mb': round(total / 1048576, 1)})
 
 
+@admin_app.route('/api/stats/notfound')
+def api_stats_notfound():
+    """Ins Leere laufende Aufrufe, häufigste zuerst.
+
+    Bots werden gekennzeichnet, aber nicht verschluckt: Wer sie stillschweigend
+    filtert, verliert genau die Zeile, die er sucht, wenn die Erkennung daneben
+    liegt. Ausblenden entscheidet die Oberfläche.
+    """
+    err = _api_auth()
+    if err:
+        return err
+    nf = load_stats().get('notfound') or {}
+    rows = [{'path': p, 'n': e.get('n', 0), 'last': e.get('last', 0),
+             'first': e.get('first', 0), 'ref': e.get('ref', ''),
+             'internal': bool(e.get('internal')), 'bot': bool(e.get('bot'))}
+            for p, e in nf.items() if isinstance(e, dict)]
+    # Eigene kaputte Verweise zuerst, danach nach Häufigkeit: die Liste soll
+    # oben das zeigen, was sich reparieren lässt.
+    rows.sort(key=lambda r: (not r['internal'], -r['n'], -r['last']))
+    return jsonify({'rows': rows, 'total': sum(r['n'] for r in rows)})
+
+
+@admin_app.route('/api/stats/notfound/clear', methods=['POST'])
+def api_stats_notfound_clear():
+    """Eine Zeile oder die ganze Liste vergessen.
+
+    Nötig, weil eine erledigte Fundstelle sonst für immer oben steht — die
+    Zählung läuft ja weiter, auch wenn die Weiterleitung längst greift.
+    """
+    err = _api_auth()
+    if err:
+        return err
+    path = _clean_str((request.get_json(silent=True) or {}).get('path'), 120)
+    stats = load_stats()
+    nf = stats.get('notfound') or {}
+    if path:
+        removed = 1 if nf.pop(path, None) is not None else 0
+    else:
+        removed = len(nf)
+        nf = {}
+    stats['notfound'] = nf
+    save_stats(stats)
+    log_audit('notfound_clear', path or f'alle ({removed})')
+    return jsonify({'ok': True, 'removed': removed})
+
+
 @admin_app.route('/api/uploads/unused')
 def api_uploads_unused():
     err = _api_auth()
@@ -14024,6 +14133,13 @@ def not_found(_e):
     if rd:
         # rd['to'] stammt aus der gespeicherten Konfiguration (Admin), nicht aus der Anfrage
         return redirect(rd['to'], code=301 if rd.get('permanent', True) else 302)
+    # Erst hier festhalten: Ein Pfad mit eingerichteter Weiterleitung ist kein
+    # Fehler mehr, und ihn weiter zu melden hieße, eine erledigte Sache jeden
+    # Tag aufs Neue auf die Liste zu setzen.
+    try:
+        record_notfound(request)
+    except Exception as e:      # eine Fehlerseite darf an nichts scheitern
+        log.warning("404 konnte nicht festgehalten werden: %s", e)
     lang = detect_language(request)
     t = load_translations(lang)
     return render_template('404.html', t=t, lang=lang, site=site), 404
