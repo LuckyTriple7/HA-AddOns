@@ -253,7 +253,7 @@ wird weggeräumt. Löschen und Aufräumen müssen die Geschwisterdateien am
 Namenspräfix mitnehmen, und beide Backup-Listen (Sichern und Wiederherstellen)
 brauchen sie ebenfalls. Aufwand ~1 Tag.
 
-### 2. Blättern im Blog
+### ~~2. Blättern im Blog~~ — erledigt mit v0.11.16
 
 `blog_index()` rendert **alle** veröffentlichten Beiträge in eine einzige Seite.
 Bei zweihundert Beiträgen sind das mehrere Megabyte, und der Besucher lädt sie
@@ -262,10 +262,12 @@ bei jedem Aufruf. WordPress zeigt zehn je Seite.
 **Was zu bauen wäre:** `?seite=n` mit fester Seitengröße, `rel="prev"`/`rel="next"`
 im Kopf, Blätterleiste unten.
 
-**Haken:** Die Sitemap und der Feed müssen weiterhin **alle** Beiträge führen —
-wer dort dieselbe Begrenzung einbaut, nimmt Google die Hälfte des Bestandes weg.
-Suche und Tag-Filter laufen über dieselbe Route, die Blätterung muss die
-Parameter mitschleppen. Aufwand ~3 h.
+**Umgesetzt als:** `blog_pager()` (Ausschnitt plus Nummernfenster mit
+Auslassung), `_page_arg()` und `_blog_page_url()` in `app.py`, Leiste in
+`blog.html`, zehn Beiträge je Seite (`BLOG_PAGE_SIZE`). Sitemap und Feed führen
+weiterhin alle Beiträge — nachgemessen. Seite jenseits des Bestandes: 404.
+Kanonische Adresse trägt `?seite=`, aber nur ohne aktiven Filter; gefilterte
+Ansichten kanonisieren wie bisher auf `/blog`.
 
 ### 3. Strukturierte Daten auf der Startseite
 
@@ -314,7 +316,7 @@ Fragezeichen nimmt Google selten in den Index.
 Zusammen mit Punkt 2 zu bauen, beide fassen dieselbe Route an. Aufwand ~4 h
 zusätzlich.
 
-### 7. HTTP-Cache für die öffentlichen Seiten
+### ~~7. HTTP-Cache für die öffentlichen Seiten~~ — erledigt mit v0.11.16
 
 Nur der Feed setzt `Cache-Control` und beantwortet `If-None-Match` mit 304. Jede
 Anfrage an die Startseite rendert die Seite neu, obwohl sich zwischen zwei
@@ -323,11 +325,18 @@ Aufrufen meist nichts geändert hat.
 **Was zu bauen wäre:** ETag aus der Änderungszeit von `site.json`, der Sprache
 und dem Anmeldestatus; danach `make_conditional(request)` wie beim Feed.
 
-**Haken:** Seiten mit Mitgliederinhalt dürfen **niemals** `public` im
-`Cache-Control` bekommen — sonst legt ein vorgeschalteter Reverse-Proxy
-geschützten Inhalt ab und liefert ihn an Gäste aus. Für angemeldete Besucher
-gehört dort `private`, besser `no-store`. Aufwand ~2 h, billigster Gewinn im
-ganzen Feld.
+**Umgesetzt als:** `_cache_headers()` in `app.py` (after_request am
+`public_app`). Der Fingerabdruck stammt aus dem **fertigen Rumpf**, nicht aus
+Änderungszeiten der Ablagen — damit kann kein neues Feld vergessen werden.
+Gespart wird die Übertragung, nicht das Rendern.
+
+**Haken, der beim Weiterbauen gilt:** Seiten mit Mitgliederinhalt dürfen
+**niemals** `public` bekommen. Erkannt wird das am Sitzungs-Cookie `usession`;
+liegt eines an, geht `private, no-store` heraus und gar kein ETag. Wer diese
+Prüfung durch etwas Genaueres ersetzt, muss dieselbe Richtung wahren: im
+Zweifel `private`, nie `public`. Seiten mit Aufrufzähler (Beitragsseiten,
+Startseite mit Zähler) ändern sich bei jedem Aufruf und bekommen deshalb nie
+ein 304 — das ist so richtig und kein Fehler.
 
 ### 8. Import aus WordPress
 
@@ -364,9 +373,9 @@ nicht ungeprüft übernommen. Aufwand ~2 Tage.
 
 ### Empfohlene Reihenfolge
 
-7 (Cache, ~2 h) → 2 (Blättern, ~3 h) → 1 (`srcset`, ~1 Tag) → 3 (schema.org).
-Erst das technische Fundament, dann die Sichtbarkeit, dann die großen Bauten 4
-und 8.
+7 (Cache) und 2 (Blättern) sind mit v0.11.16 erledigt. Weiter mit
+1 (`srcset`, ~1 Tag) → 3 (schema.org). Erst das technische Fundament, dann die
+Sichtbarkeit, dann die großen Bauten 4 und 8.
 
 **Bewusst nicht vorgesehen:** ein Erweiterungssystem nach Art der WordPress-Plugins,
 ein Shop und Mehrsprachigkeit über DE/EN hinaus. Alle drei ziehen mehr Wartung

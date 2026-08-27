@@ -3828,6 +3828,72 @@ def filter_posts(posts: list, query: str = '', tag: str = '') -> list:
     return posts
 
 
+BLOG_PAGE_SIZE = 10           # Beiträge je Seite in der Blog-Übersicht
+BLOG_PAGER_WINDOW = 2         # Wie viele Nummern links und rechts der aktuellen
+
+
+def _page_arg() -> int:
+    """Seitenzahl aus `?seite=`, mindestens 1.
+
+    Alles Unbrauchbare wird zu 1 statt zu einem Fehler: eine von Hand
+    verbogene Adresse soll die Übersicht zeigen, nicht eine Fehlerseite.
+    """
+    try:
+        return max(1, int(request.args.get('seite') or 1))
+    except (TypeError, ValueError):
+        return 1
+
+
+def _blog_page_url(page: int, query: str = '', tag: str = '') -> str:
+    """Adresse einer Blog-Seite mit erhaltenem Filter.
+
+    Suche und Schlagwort müssen mitwandern — sonst springt das Blättern in der
+    gefilterten Liste zurück auf den vollen Bestand.
+    """
+    args = []
+    if tag:
+        args.append(('tag', tag))
+    if query:
+        args.append(('q', query))
+    if page > 1:
+        args.append(('seite', str(page)))
+    return '/blog' + ('?' + urlencode(args) if args else '')
+
+
+def blog_pager(posts: list, page: int, query: str = '', tag: str = '') -> dict:
+    """Ausschnitt und Blätterleiste für die Blog-Übersicht.
+
+    Die Nummernliste zeigt immer die erste und die letzte Seite sowie ein
+    Fenster um die aktuelle; dazwischen steht eine Auslassung. Ohne das wächst
+    die Leiste bei hundert Seiten über den Bildschirm hinaus.
+
+    Wichtig: Sitemap und Feed führen weiterhin **alle** Beiträge. Wer dort
+    dieselbe Begrenzung einbaut, nimmt dem Suchindex den halben Bestand.
+    """
+    total = len(posts)
+    pages = max(1, (total + BLOG_PAGE_SIZE - 1) // BLOG_PAGE_SIZE)
+    page = min(max(1, page), pages)
+    start = (page - 1) * BLOG_PAGE_SIZE
+    items: list = []
+    if pages > 1:
+        shown = {1, pages} | {n for n in range(page - BLOG_PAGER_WINDOW,
+                                               page + BLOG_PAGER_WINDOW + 1)
+                              if 1 <= n <= pages}
+        last = 0
+        for n in sorted(shown):
+            if n - last > 1:
+                items.append({'gap': True})
+            items.append({'gap': False, 'n': n, 'current': n == page,
+                          'url': _blog_page_url(n, query, tag)})
+            last = n
+    return {
+        'posts': posts[start:start + BLOG_PAGE_SIZE],
+        'page': page, 'pages': pages, 'total': total, 'items': items,
+        'prev_url': _blog_page_url(page - 1, query, tag) if page > 1 else '',
+        'next_url': _blog_page_url(page + 1, query, tag) if page < pages else '',
+    }
+
+
 SEARCH_SNIPPET_LEN = 170
 SEARCH_MAX_RESULTS = 80
 SEARCH_MAX_WORDS = 8
@@ -10661,10 +10727,22 @@ def _seo_urls(lang: str) -> dict:
     feste Sprache. Dann ist sie für beide Fassungen die kanonische, und nur die
     `hreflang`-Angaben benennen die eindeutigen Adressen.
     """
-    base = _base_url() + request.path
+    # Ausnahme von der Regel oben: in der Blog-Übersicht bleibt `?seite=` stehen.
+    # Seite 2 zeigt andere Beiträge als Seite 1 — wer sie auf Seite 1
+    # kanonisiert, nimmt Google alles ab dem elften Beitrag aus dem Index.
+    # Nur dort und nur ohne Filter: an jeder anderen Adresse ist der Parameter
+    # wirkungslos und würde nur eine zweite kanonische Fassung derselben Seite
+    # erfinden. Und Seite 2 einer Schlagwort-Auswahl zeigt etwas anderes als
+    # Seite 2 des vollen Bestandes — gefilterte Ansichten bleiben deshalb bei
+    # der Regel oben und kanonisieren auf `/blog`.
+    paged = (request.endpoint == 'blog_index'
+             and not (request.args.get('q') or request.args.get('tag')))
+    page = _page_arg() if paged else 1
+    base = _base_url() + request.path + (f'?seite={page}' if page > 1 else '')
+    sep = '&' if page > 1 else '?'
     default = site_default_lang()
-    alts = [(lg, base if lg == default else f'{base}?lang={lg}') for lg in SITE_LANGS]
-    canonical = base if (default == 'auto' or lang == default) else f'{base}?lang={lang}'
+    alts = [(lg, base if lg == default else f'{base}{sep}lang={lg}') for lg in SITE_LANGS]
+    canonical = base if (default == 'auto' or lang == default) else f'{base}{sep}lang={lang}'
     return {'canonical_url': canonical, 'hreflang_urls': alts + [('x-default', base)]}
 
 
@@ -10691,6 +10769,47 @@ def _lang_headers(resp):
     if getattr(g, 'mypage_lang_auto', False):
         resp.vary.add('Accept-Language')
     return resp
+
+
+@public_app.after_request
+def _cache_headers(resp):
+    """ETag und `Cache-Control` an die oeffentlichen Seiten.
+
+    Gespart wird damit die **Uebertragung**, nicht das Rendern: die Seite wird
+    weiterhin bei jeder Anfrage gebaut, aber wenn dabei Byte fuer Byte dasselbe
+    herauskommt wie beim letzten Mal, geht statt einiger hundert Kilobyte ein
+    leeres 304 zurueck. Der Fingerabdruck stammt deshalb aus dem fertigen Rumpf
+    und nicht aus Aenderungszeiten der Ablagen — jede kuenstliche Kennzahl
+    muesste bei jedem neuen Feld nachgezogen werden und liefert beim ersten
+    Vergessen veraltete Seiten aus.
+
+    `max-age=0, must-revalidate` heisst: ein vorgeschalteter Proxy darf die
+    Seite behalten, muss sie aber vor jeder Auslieferung rueckfragen. Damit ist
+    ein frisch gespeicherter Beitrag sofort draussen — eine Haltezeit groesser
+    als null waere genau der Fall, in dem der Betreiber seine eigene Aenderung
+    nicht sieht und an der falschen Stelle sucht.
+
+    Angemeldete Mitglieder bekommen `private, no-store` und keinen ETag: ihre
+    Seiten koennen geschuetzten Inhalt tragen, und der darf in keinem
+    gemeinsamen Zwischenspeicher landen. Geprueft wird dafuer nur, ob ueberhaupt
+    ein Sitzungs-Cookie mitkommt — ein abgelaufenes Cookie fuehrt dann zur
+    vorsichtigeren Antwort, was die richtige Richtung ist, und erspart den
+    Griff in die Benutzerdatei bei jedem Gast.
+    """
+    if request.method not in ('GET', 'HEAD'):
+        return resp
+    if resp.status_code != 200 or resp.mimetype != 'text/html':
+        return resp
+    # Wer schon selbst etwas gesetzt hat, weiss es besser (etwa `no-store` an
+    # den Auslieferrouten fuer Dateien).
+    if resp.direct_passthrough or resp.headers.get('Cache-Control'):
+        return resp
+    if request.cookies.get('usession'):
+        resp.headers['Cache-Control'] = 'private, no-store'
+        return resp
+    resp.headers['Cache-Control'] = 'public, max-age=0, must-revalidate'
+    resp.set_etag(hashlib.sha256(resp.get_data()).hexdigest()[:32])
+    return resp.make_conditional(request)
 
 
 @public_app.route('/health')
@@ -13791,12 +13910,18 @@ def blog_index():
         abort(404)
     query = _clean_str(request.args.get('q'), 80)
     tag = _clean_str(request.args.get('tag'), 30)
-    posts = filter_posts(all_posts, query, tag)
+    page = _page_arg()
+    pager = blog_pager(filter_posts(all_posts, query, tag), page, query, tag)
+    # Eine Seitenzahl jenseits des Bestandes ist keine Seite. Ohne 404 gäbe es
+    # unendlich viele Adressen, die alle dasselbe letzte Dutzend zeigen — der
+    # Suchmaschine wäre der Bestand damit beliebig groß.
+    if page > pager['pages']:
+        abort(404)
     count_visit(request)
     t = load_translations(lang)
     loc = _loc_factory(lang)
     return render_template('blog.html', t=t, lang=lang, site=site, loc=loc,
-                           posts=posts, tags=all_post_tags(site),
+                           posts=pager['posts'], pager=pager, tags=all_post_tags(site),
                            query=query, active_tag=tag,
                            newsletter_open=newsletter_open(),
                            nl=_clean_str(request.args.get('nl'), 20),

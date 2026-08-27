@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.11.16
+
+- 📄 **Der Blog blättert.** Bisher rendete `/blog` **alle** veröffentlichten Beiträge in eine einzige Seite — bei zweihundert Beiträgen mehrere Megabyte, und das bei jedem Aufruf. Jetzt stehen dort 10 Beiträge je Seite, darunter eine Blätterleiste mit Zurück/Weiter und Seitenzahlen (bei vielen Seiten mit Auslassung, damit die Leiste nicht über den Bildschirm hinauswächst). Suche und Schlagwort-Filter wandern beim Blättern mit. **Sitemap und RSS-Feed führen unverändert alle Beiträge** — die Begrenzung gilt nur für die Anzeige.
+- 🔗 **Seite 2 ist für Google eine eigene Seite.** Jede Blätterseite trägt ihre eigene kanonische Adresse sowie `rel="prev"`/`rel="next"`; eine Seitenzahl jenseits des Bestandes ergibt eine 404-Seite statt beliebig vieler Adressen mit demselben Inhalt. Gefilterte Ansichten (`?tag=`, `?q=`) bleiben wie bisher auf `/blog` kanonisiert.
+- ⚡ **Unveränderte Seiten werden nicht mehr übertragen.** Die öffentlichen Seiten bekommen einen Fingerabdruck (ETag) und `Cache-Control: public, max-age=0, must-revalidate`. Beim zweiten Aufruf antwortet das Add-on mit einem leeren „304 — unverändert", statt die ganze Seite erneut zu schicken. Gebaut wird die Seite weiterhin bei jedem Aufruf, sodass eine gerade gespeicherte Änderung sofort draußen ist. Seiten von angemeldeten Mitgliedern bekommen stattdessen `private, no-store` und landen in keinem gemeinsamen Zwischenspeicher.
+
 ## 0.11.15
 
 - 🔒 **Die Links in der SEO-Übersicht prüfen die öffentliche Adresse.** Das Feld „Öffentliche Adresse“ im Design-Tab ist freier Text; sein Inhalt wurde bisher ungeprüft zum Ziel der Links neben jedem Eintrag. Ein Wert mit `javascript:` davor wäre damit beim Klick als Code gelaufen. Verlinkt wird jetzt nur noch, was als `http://`- oder `https://`-Adresse lesbar ist — bei allem anderen entfällt der Link, die Übersicht bleibt sonst unverändert.
