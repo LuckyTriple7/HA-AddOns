@@ -133,6 +133,10 @@ AI_USAGE_PATH = _DATA + '/ai_usage.json'   # Gemini-Verbrauch je Monat und Model
 AI_DRAFTS_PATH = _DATA + '/ai_drafts.json'  # gespeicherte Entwürfe des Text-Studios
 AI_PROMPTS_PATH = _DATA + '/ai_prompts.json'  # Prompt-Bibliothek des Bild-Studios
 UPLOADS_META_PATH = _DATA + '/uploads_meta.json'  # Alternativtexte je Bilddatei
+# Letzte Störung je Bereich, für die Zustandsanzeige im Admin. Bewusst eine
+# eigene Datei und NICHT im Backup: Ein zurückgespielter Stand brächte sonst
+# Warnungen von vorgestern mit, die längst behoben sind.
+HEALTH_PATH = _DATA + '/health.json'
 USESSIONS_PATH = _DATA + '/user_sessions.json'
 DM_PATH       = _DATA + '/dm.json'          # Mitglieder-Direktnachrichten (Text verschlüsselt)
 DMKEY_PATH    = _DATA + '/dm.key'           # Fernet-Schlüssel für die DM-Verschlüsselung
@@ -514,6 +518,62 @@ SECTION_KEYS = list(DEFAULT_SITE['section_order'])
 #   `files` — Herkunftsname und Etiketten für die Medienverwaltung
 # Wer eine dritte hinzufügt, muss sie in `_uploads_meta_forget()` mit
 # aufräumen, sonst bleiben Einträge zu längst gelöschten Dateien liegen.
+
+# ── Zustandsanzeige ───────────────────────────────────────────────────────────
+#
+# `app.py` schreibt an über hundert Stellen Warnungen ins Log, und niemand liest
+# ein Add-on-Log. Ein abgelaufener GitHub-Token, ein stiller Mailversand, ein
+# ausgefallenes Backup — alles unsichtbar, bis es jemandem auffällt.
+#
+# Instrumentiert wird bewusst NICHT jede der Log-Stellen, sondern die Handvoll,
+# bei der ein Ausfall dem Betreiber wirklich etwas kostet. Jede meldet über
+# `health_note()` ihre letzte Störung; ein Erfolg löscht den Eintrag wieder.
+
+_health_lock = threading.Lock()
+
+HEALTH_KEEP = 20        # mehr Bereiche gibt es nicht
+
+
+def health_note(key: str, msg: str = '', *, ok: bool = False) -> None:
+    """Störung eines Bereichs festhalten — oder mit `ok=True` als behoben löschen.
+
+    Darf nie etwas auslösen: die Aufrufer stecken in Hintergrundschleifen und im
+    Mailversand, und eine kaputte Zustandsdatei wäre der schlechteste Grund,
+    einen Newsletter scheitern zu lassen.
+    """
+    try:
+        with _health_lock:
+            try:
+                with open(HEALTH_PATH, encoding='utf-8') as f:
+                    data = json.load(f)
+            except Exception:
+                data = {}
+            if not isinstance(data, dict):
+                data = {}
+            if ok:
+                if data.pop(key, None) is None:
+                    return          # war nichts gemeldet: keine Schreiblast
+            else:
+                prev = data.get(key) or {}
+                data[key] = {'ts': int(time.time()), 'msg': str(msg)[:300],
+                             'n': int(prev.get('n', 0)) + 1,
+                             'since': prev.get('since') or int(time.time())}
+            for k in sorted(data, key=lambda k: (data[k] or {}).get('ts', 0))[:-HEALTH_KEEP]:
+                del data[k]
+            _atomic_write_json(HEALTH_PATH, data, indent=2)
+    except Exception as e:      # niemals den Aufrufer mitreißen
+        log.debug("Zustand '%s' konnte nicht festgehalten werden: %s", key, e)
+
+
+def health_notes() -> dict:
+    try:
+        with _health_lock:
+            with open(HEALTH_PATH, encoding='utf-8') as f:
+                data = json.load(f)
+        return data if isinstance(data, dict) else {}
+    except Exception:
+        return {}
+
 
 def _uploads_meta_read_locked() -> dict:
     """Ganze Datei — nur aufrufen, wer `_uploads_meta_lock` schon hält."""
@@ -1850,8 +1910,10 @@ def send_email(subject: str, html_body: str, to: str | None = None,
                     s.login(user, password)
                 s.sendmail(sender, [to], msg.as_string())
         log.info("E-Mail an '%s' gesendet (Absender: %s)", to, sender)
+        health_note('smtp', ok=True)
     except Exception as e:
         log.error("E-Mail senden fehlgeschlagen: %s", e)
+        health_note('smtp', str(e)[:200])
 
 
 def _email_html(title: str, lines: list[str]) -> str:
@@ -1954,6 +2016,14 @@ def _warn_missing_client_ip(req, ip: str) -> None:
         "nicht durch. Vorhandene Kopfzeilen: %s. Betroffene Aufrufe erscheinen nicht "
         "im Besucher-Log; Aufrufzähler laufen weiter.",
         ip, ', '.join(seen) or 'keine')
+    health_note('client_ip', f"{ip} — Kopfzeilen: {', '.join(seen) or 'keine'}")
+
+
+def _clear_ip_warning() -> None:
+    global _last_ip_warning
+    if _last_ip_warning:
+        _last_ip_warning = 0.0
+        health_note('client_ip', ok=True)
 
 
 # ── Brute-Force-Schutz ────────────────────────────────────────────────────────
@@ -2907,6 +2977,10 @@ def count_visit(req) -> None:
     if not _is_public_ip(ip):
         _warn_missing_client_ip(req, ip)
     else:
+        # Kommt wieder eine echte Adresse an, ist der Proxy repariert — die
+        # Meldung gehört weg. Nur dann anfassen, wenn überhaupt eine steht:
+        # sonst läge bei jedem Seitenaufruf ein Dateizugriff auf dem Weg.
+        _clear_ip_warning()
         entry = {
             'ts':   int(time.time()),
             'ip':   ip,
@@ -4370,8 +4444,10 @@ def refresh_project_stars() -> None:
                 if r.status_code in (401, 403):
                     log.warning("Sterne-Update abgelehnt (HTTP %d) — GitHub-Token "
                                 "prüfen (Admin → System)", r.status_code)
+                    health_note('github', f'HTTP {r.status_code}')
                     break
                 if r.status_code == 200:
+                    health_note('github', ok=True)
                     data = r.json()
                     new_stars = data.get('stargazers_count', p.get('stars', 0))
                     if new_stars != p.get('stars'):
@@ -5776,6 +5852,7 @@ def create_auto_backup(keep: int) -> Path | None:
         os.replace(tmp, target)   # nie ein halb geschriebenes Backup sichtbar
     except Exception as e:
         log.warning("Automatisches Backup fehlgeschlagen: %s", e)
+        health_note('backup', str(e)[:200])
         try:
             tmp.unlink(missing_ok=True)
         except OSError:
@@ -5783,6 +5860,7 @@ def create_auto_backup(keep: int) -> Path | None:
         return None
     log.info("Automatisches Backup erstellt: %s (%.1f MB)",
              target.name, target.stat().st_size / 1048576)
+    health_note('backup', ok=True)
     _rotate_auto_backups(keep)
     return target
 
@@ -10690,6 +10768,131 @@ def _public_urls(site: dict) -> list:
     out += [{'url': '/formular/' + f['slug'], 'kind': 'form', 'label': loc(f, 'title')}
             for f in _public_forms(site) if f.get('slug')]
     return out
+
+
+# Die Prüfungen der Zustandsanzeige. Absichtlich eine überschaubare Liste: Sie
+# soll das melden, was den Betrieb kostet, und nicht jede Einstellung
+# kommentieren. Wer eine hinzufügt, gibt ihr eine eigene `id` — die Oberfläche
+# holt Beschriftung und Rat über `health_<id>_label` / `health_<id>_hint` aus
+# den Übersetzungen, damit hier kein deutscher Text im Code landet.
+
+def _health_dir_free_mb(path: str) -> float | None:
+    try:
+        return shutil.disk_usage(path).free / 1048576
+    except OSError:
+        return None
+
+
+def _health_newest_backup() -> tuple[str, int] | None:
+    """(Name, Alter in Tagen) des jüngsten automatischen Backups."""
+    try:
+        files = [f for f in BACKUPS_DIR.iterdir()
+                 if f.is_file() and f.suffix == '.zip']
+    except OSError:
+        return None
+    if not files:
+        return None
+    newest = max(files, key=lambda f: f.stat().st_mtime)
+    age = int((time.time() - newest.stat().st_mtime) // 86400)
+    return newest.name, age
+
+
+def health_checks() -> list:
+    """Zustand als Liste von Prüfungen: `level` ist ok, warn, err oder off."""
+    site = load_site()
+    cfg = load_config()
+    notes = health_notes()
+    out = []
+
+    def add(cid, level, detail='', note_key=None):
+        n = notes.get(note_key or cid)
+        # Eine festgehaltene Störung schlägt „nicht eingerichtet": Wenn der
+        # Mailversand gescheitert ist, war er offensichtlich eingerichtet — und
+        # die Einstellung kann seither entfernt worden sein, ohne dass das den
+        # Fehlschlag ungeschehen macht. Ihn hier zu verschlucken hieße, die
+        # Anzeige genau dann schweigen zu lassen, wenn sie etwas zu sagen hat.
+        if n and level == 'off':
+            level = 'err'
+        row = {'id': cid, 'level': level, 'detail': detail}
+        if n:
+            row['since'] = n.get('since') or n.get('ts')
+            row['count'] = n.get('n', 1)
+            row['msg'] = n.get('msg', '')
+        out.append(row)
+
+    # Öffentliche Adresse — ohne sie zeigen Sitemap, Feed und kanonische
+    # Adressen auf die interne Adresse und sind damit wertlos.
+    add('public_url', 'ok' if (site['design'].get('public_url') or '').strip() else 'warn')
+
+    # Besucher-IP: kommt die echte Adresse durch den Proxy?
+    add('client_ip', 'err' if 'client_ip' in notes else 'ok')
+
+    # Automatisches Backup
+    keep = int(cfg.get('auto_backup_keep', AUTO_BACKUP_KEEP_DEFAULT) or 0)
+    newest = _health_newest_backup()
+    if not keep:
+        add('backup', 'off')
+    elif 'backup' in notes:
+        add('backup', 'err')
+    elif newest is None:
+        add('backup', 'warn')
+    else:
+        name, age = newest
+        add('backup', 'ok' if age <= 1 else 'warn', f'{name} ({age} d)')
+
+    # Speicherplatz im Datenordner
+    free = _health_dir_free_mb(_DATA)
+    if free is None:
+        add('disk', 'warn')
+    else:
+        add('disk', 'err' if free < 200 else 'warn' if free < 1000 else 'ok',
+            f'{free / 1024:.1f} GB')
+
+    # Mailversand
+    if not (cfg.get('smtp_host') or '').strip():
+        add('smtp', 'off')
+    else:
+        add('smtp', 'err' if 'smtp' in notes else 'ok')
+
+    # GitHub-Token (nur wenn überhaupt Projekte verknüpft sind)
+    linked = any(p.get('repo_full_name') for p in site.get('projects', []))
+    if not linked:
+        add('github', 'off')
+    else:
+        add('github', 'err' if 'github' in notes else 'ok')
+
+    # KI-Schlüssel
+    add('ai', 'ok' if (cfg.get('gemini_api_key') or '').strip() else 'off')
+
+    # Bildverarbeitung und PDF-Erzeugung
+    add('pillow', 'ok' if _HAS_PIL else 'err')
+    lib_pdf = any((e.get('pdf_mode') or '') == 'generated'
+                  for e in _library(site).get('entries', []))
+    add('weasy', 'off' if not lib_pdf else ('ok' if _HAS_WEASY else 'err'))
+
+    # Länderdaten der Statistik
+    try:
+        age = int((time.time() - GEOIP_CACHE.stat().st_mtime) // 86400)
+        add('geoip', 'warn' if age > 60 else 'ok', f'{age} d')
+    except OSError:
+        add('geoip', 'off')
+
+    # Indexierung — kein Fehler, aber der häufigste Grund für „Google findet
+    # mich nicht", und ohne Anzeige fällt es niemandem auf.
+    add('indexing', 'ok' if site['design'].get('allow_indexing') else 'off')
+    return out
+
+
+@admin_app.route('/api/health')
+def api_health():
+    err = _api_auth()
+    if err:
+        return err
+    rows = health_checks()
+    rank = {'err': 0, 'warn': 1, 'ok': 2, 'off': 3}
+    rows.sort(key=lambda r: rank.get(r['level'], 9))
+    return jsonify({'checks': rows,
+                    'bad': sum(1 for r in rows if r['level'] in ('err', 'warn'))})
 
 
 @admin_app.route('/api/site/urls')

@@ -414,6 +414,17 @@
     }
     .media-tags button.on { background: var(--accent); color: #fff; border-color: var(--accent); }
     .media-folders button::before { content: '📁 '; }
+    .health-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 0.86rem; }
+    .health-row:last-child { border-bottom: none; }
+    .health-dot { width: 9px; height: 9px; border-radius: 50%; flex: none; align-self: center; }
+    .health-dot.ok { background: #2ea043; }
+    .health-dot.warn { background: #d29922; }
+    .health-dot.err { background: #cf222e; }
+    .health-dot.off { background: var(--border); }
+    .health-label { min-width: 190px; }
+    .health-detail { color: var(--muted); font-size: 0.8rem; }
+    .health-note { color: var(--muted); font-size: 0.8rem; flex: 1 1 220px; }
+    .health-row.err .health-label, .health-row.warn .health-label { font-weight: 600; }
     .nf-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 7px 0; border-bottom: 1px solid var(--border); font-size: 0.84rem; }
     .nf-row:last-child { border-bottom: none; }
     .nf-path { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; word-break: break-all; flex: 1 1 240px; }
@@ -2089,6 +2100,15 @@
     <!-- System -->
     <section class="tab" id="tab-system">
       <div class="jumpbar" id="system-jump"></div>
+      <div class="panel" data-jump-panel id="health-panel">
+        <h3 style="margin:0 0 6px">🩺 {{ t.health_heading }}</h3>
+        <p class="hint">{{ t.health_hint }}</p>
+        <div id="health-list"></div>
+        <div style="margin-top:10px">
+          <button class="btn secondary small" onclick="loadHealth()">{{ t.nf_reload }}</button>
+          <label class="checkbox" style="display:inline-flex;margin-left:12px"><input type="checkbox" id="health-all" onchange="renderHealth()"> {{ t.health_show_all }}</label>
+        </div>
+      </div>
       <div class="panel" data-jump-panel id="twofa-panel">
         <h3>🔐 {{ t.twofa_heading }}</h3>
         <p class="hint">{{ t.twofa_hint }}</p>
@@ -4265,7 +4285,7 @@
         if (btn.dataset.tab === 'messages') { loadMessages(); loadComments(); }
         if (btn.dataset.tab === 'users') { loadUsers(); initStorageBrowser(); startUsersPolling(); }
         if (btn.dataset.tab === 'design') { initPreview(); initDesignJump(); setTimeout(updatePresetArrows, 50); }
-        if (btn.dataset.tab === 'system') { loadAudit(); loadTwofa(); loadAutoBackups(); loadRevisions(); loadFileBrowser(); initSystemJump(); }
+        if (btn.dataset.tab === 'system') { loadHealth(); loadAudit(); loadTwofa(); loadAutoBackups(); loadRevisions(); loadFileBrowser(); initSystemJump(); }
         if (btn.dataset.tab === 'settings') { loadSettings(); loadKeyState(); initSettingsJump(); }
         if (btn.dataset.tab === 'blog') loadSubscribers();
         if (btn.dataset.tab === 'ai') initAiTab();
@@ -6404,6 +6424,67 @@
       (SITE.redirects || []).forEach(addRedirectRow);
       loadSiteUrls();
     }
+    // ── Zustandsanzeige ──
+    // Voreingestellt stehen nur die Zeilen da, die etwas kosten. Alles auf
+    // „gut" zu zeigen, macht aus der Anzeige eine Liste, die man nicht mehr
+    // liest — und dann fällt die eine rote Zeile auch nicht mehr auf.
+    let HEALTH = [];
+    async function loadHealth() {
+      const r = await api('api/health');
+      if (!r.ok) return;
+      HEALTH = (await r.json()).checks || [];
+      renderHealth();
+    }
+    function renderHealth() {
+      const all = el('health-all').checked;
+      const rows = all ? HEALTH : HEALTH.filter(c => c.level === 'err' || c.level === 'warn');
+      const box = el('health-list');
+      box.innerHTML = '';
+      if (!rows.length) {
+        box.innerHTML = `<p class="hint">${T.health_all_ok}</p>`;
+        return;
+      }
+      rows.forEach(c => {
+        const row = document.createElement('div');
+        row.className = 'health-row ' + c.level;
+        const dot = document.createElement('span');
+        dot.className = 'health-dot ' + c.level;
+        const label = document.createElement('span');
+        label.className = 'health-label';
+        label.textContent = T['health_' + c.id + '_label'] || c.id;
+        row.append(dot, label);
+        if (c.detail) {
+          const d = document.createElement('span');
+          d.className = 'health-detail';
+          d.textContent = c.detail;
+          row.appendChild(d);
+        }
+        // Der Rat steht nur an auffälligen Zeilen: bei „gut" wäre er Beiwerk.
+        const hint = T['health_' + c.id + '_hint'];
+        if (hint && (c.level === 'err' || c.level === 'warn')) {
+          const h = document.createElement('span');
+          h.className = 'health-note';
+          h.textContent = hint;
+          row.appendChild(h);
+        }
+        if (c.msg) {
+          const m = document.createElement('span');
+          m.className = 'health-note';
+          m.textContent = T.health_since
+            .replace('{when}', new Date(c.since * 1000).toLocaleString())
+            .replace('{n}', c.count || 1) + ' — ' + c.msg;
+          row.appendChild(m);
+        }
+        if (c.level === 'off') {
+          const o = document.createElement('span');
+          o.className = 'health-detail';
+          o.textContent = T.health_off;
+          row.appendChild(o);
+        }
+        box.appendChild(row);
+      });
+    }
+
     // ── Ins Leere laufende Aufrufe ──
     // Der Nutzen entsteht erst durch die Verbindung zu den Weiterleitungen
     // direkt darunter: erkennen, was kaputt ist, und es in einem Zug reparieren.

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.11.24
+
+- 🩺 **Neu: „Systemzustand" ganz oben im Tab System.** Das Add-on schrieb Störungen bisher ausschließlich ins Log — an über hundert Stellen —, und dort schaut niemand nach. Ein abgelaufener GitHub-Token, ein stillschweigend gescheiterter Mailversand, ein ausgefallenes Backup: alles unsichtbar, bis es zufällig auffiel. Elf Prüfungen mit Ampelpunkt zeigen jetzt, was gerade nicht rundläuft — öffentliche Adresse, echte Besucher-Adresse, automatisches Backup, freier Speicherplatz, E-Mail-Versand, GitHub-Token, KI-Schlüssel, Bildverarbeitung, PDF-Erzeugung, Länderdaten und Indexierung.
+- 🔕 **Voreingestellt steht dort nur, was auffällt.** Elf grüne Zeilen liest man nach der dritten Woche nicht mehr, und dann fällt auch die eine rote nicht mehr auf. „Alles anzeigen" blendet den Rest ein. Zu jeder auffälligen Zeile steht daneben, was sie für den Betrieb bedeutet und wo es einzustellen ist — nicht nur, dass etwas nicht stimmt.
+- 🕓 **Störungen werden mit Zeitpunkt und Häufigkeit festgehalten** (`health.json`), Mailversand, GitHub-Abruf, Backup und Besucher-Adresse melden ihre Entwarnung selbst. Die Datei liegt **bewusst nicht im Backup**: Ein zurückgespielter Stand brächte sonst Warnungen von vorgestern mit, die längst behoben sind.
+
 ## 0.11.23
 
 - 🎯 **Das Weiterleitungsziel wird ausgewählt, nicht getippt.** Das Zielfeld schlägt jetzt alle öffentlichen Adressen der Website vor: Start, Blog und einzelne Beiträge, eigene Seiten, Bibliothek, Reiseblog samt Reisetagen, Projekte und Formulare — jeweils mit dem Titel daneben. Tippen filtert, der Pfeil im Feld listet alles. Ein Beitragspfad wie `/blog/3061752ccc9f` war von Hand ohnehin nicht zu treffen. Eine fremde Adresse (`https://…`) lässt sich unverändert frei eintragen.
