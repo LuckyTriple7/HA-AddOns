@@ -406,6 +406,11 @@
       background: var(--surf); border: 1px solid var(--border); color: var(--muted);
     }
     .media-tags button.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .media-folders button::before { content: '📁 '; }
+    .media-sel { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 8px 0; padding: 8px 10px; border: 1px solid var(--accent); border-radius: 8px; }
+    .media-sel select { min-width: 160px; }
+    .uploads-tile .pick { position: absolute; right: 3px; top: 3px; width: 20px; height: 20px; line-height: 18px; text-align: center; border-radius: 5px; background: rgba(0,0,0,.55); color: #fff; font-size: 0.72rem; border: 1px solid rgba(255,255,255,.35); }
+    .uploads-tile.picked { outline: 2px solid var(--accent); outline-offset: -2px; }
     .media-detail { display: flex; gap: 16px; flex-wrap: wrap; }
     .media-detail img { width: 220px; max-width: 100%; border-radius: 8px; border: 1px solid var(--border); object-fit: contain; background: var(--bg); }
     .media-detail-body { flex: 1; min-width: 240px; }
@@ -2154,7 +2159,14 @@
             <label class="checkbox"><input type="checkbox" id="files-ai-only" onchange="renderFileBrowser()"> ✨ {{ t.files_ai_only }}</label>
             <label class="checkbox"><input type="checkbox" id="files-unused-only" onchange="renderFileBrowser()"> {{ t.media_unused_only }}</label>
           </div>
+          <div class="media-tags media-folders" id="files-folderbar"></div>
           <div class="media-tags" id="files-tagbar"></div>
+          <div class="media-sel" id="files-selbar" style="display:none">
+            <span id="files-sel-count"></span>
+            <select id="files-sel-target"></select>
+            <button type="button" class="btn secondary" onclick="mediaMoveSelection()">{{ t.media_move_btn }}</button>
+            <button type="button" class="btn secondary" onclick="mediaClearSelection()">{{ t.media_sel_clear }}</button>
+          </div>
           <h4 style="margin:14px 0 6px">{{ t.files_images }} <span class="hint" id="files-img-count" style="font-weight:normal"></span></h4>
           <div class="uploads-grid" id="files-img-grid"></div>
           <h4 style="margin:18px 0 6px">{{ t.files_docs }} <span class="hint" id="files-doc-count" style="font-weight:normal"></span></h4>
@@ -3262,6 +3274,9 @@
         <div class="media-detail-body">
           <label>{{ t.media_orig }}</label>
           <input type="text" id="media-orig" maxlength="120" placeholder="{{ t.media_orig_ph }}">
+          <label>{{ t.media_folder }}</label>
+          <input type="text" id="media-folder" maxlength="40" list="media-folder-list" placeholder="{{ t.media_folder_ph }}">
+          <datalist id="media-folder-list"></datalist>
           <label>{{ t.media_tags }}</label>
           <input type="text" id="media-tags" maxlength="250" placeholder="{{ t.media_tags_ph }}">
           <p class="hint" id="media-facts"></p>
@@ -7092,7 +7107,9 @@
     let FILES = { images: [], docs: [] };
     async function loadFileBrowser() {
       const [ri, rd] = await Promise.all([api('api/uploads/list'), api('api/docs/list')]);
-      FILES.images = ri.ok ? (await ri.json()).files : [];
+      const idata = ri.ok ? await ri.json() : { files: [], folders: [] };
+      FILES.images = idata.files || [];
+      FILES.folders = idata.folders || [];
       FILES.docs = rd.ok ? (await rd.json()).files : [];
       renderFileBrowser();
       renderAltEditor();
@@ -7103,7 +7120,9 @@
       b.className = 'uploads-tile';
       b.title = title;
       b.innerHTML = inner;
-      b.onclick = onOpen;
+      // Das Ereignis wird durchgereicht, damit die Bildkacheln den Klick auf
+      // ihr Auswahlkästchen vom Klick auf die Kachel unterscheiden können.
+      b.onclick = e => onOpen(e);
       b.addEventListener('contextmenu', e => { e.preventDefault(); onDelete(); });
       return b;
     }
@@ -7120,6 +7139,86 @@
       body.style.display = open ? '' : 'none';
       el('files-toggle').setAttribute('aria-expanded', open ? 'true' : 'false');
       if (open) renderFileBrowser();
+    }
+    // ── Ordner (nur im Admin) ──
+    // Ein Bild liegt in genau einem Ordner, hat aber beliebig viele Etiketten:
+    // der Ordner sagt, wo es liegt, das Etikett, was drauf ist. Im Dateisystem
+    // wandert nichts — der Dateiname steht in jeder Einbindung und in bereits
+    // veröffentlichten Adressen.
+    let FILES_FOLDER = null;    // null = alle, '' = Unsortiert, sonst Name
+    let FILES_SEL = new Set();  // ausgewählte Dateinamen
+    function folderCounts() {
+      const c = new Map();
+      FILES.images.forEach(f => {
+        const k = f.folder || '';
+        c.set(k, (c.get(k) || 0) + 1);
+      });
+      return c;
+    }
+    function renderFolderBar() {
+      const bar = el('files-folderbar');
+      if (!bar) return;
+      const counts = folderCounts();
+      const names = [...new Set([...(FILES.folders || []), ...counts.keys()])]
+        .filter(Boolean).sort((a, b) => a.localeCompare(b));
+      bar.innerHTML = '';
+      // Ohne einen einzigen Ordner bleibt die Leiste weg — sie erklärt sich
+      // erst, wenn es etwas zu zeigen gibt.
+      if (!names.length) { FILES_FOLDER = null; return; }
+      const add = (key, label, n) => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.textContent = n === null ? label : `${label} (${n})`;
+        if (FILES_FOLDER === key) b.className = 'on';
+        b.onclick = () => { FILES_FOLDER = key; mediaClearSelection(); renderFileBrowser(); };
+        bar.appendChild(b);
+      };
+      add(null, T.media_folder_all, FILES.images.length);
+      if (counts.get('')) add('', T.media_folder_none, counts.get(''));
+      names.forEach(n => add(n, n, counts.get(n) || 0));
+    }
+    function mediaClearSelection() {
+      FILES_SEL.clear();
+      renderSelBar();
+      document.querySelectorAll('#files-img-grid .uploads-tile.picked')
+        .forEach(t => t.classList.remove('picked'));
+    }
+    function renderSelBar() {
+      const bar = el('files-selbar');
+      if (!bar) return;
+      bar.style.display = FILES_SEL.size ? 'flex' : 'none';
+      if (!FILES_SEL.size) return;
+      el('files-sel-count').textContent = T.media_sel_count.replace('{n}', FILES_SEL.size);
+      const sel = el('files-sel-target');
+      const keep = sel.value;
+      const names = [...new Set([...(FILES.folders || []),
+                                 ...FILES.images.map(f => f.folder).filter(Boolean)])]
+        .sort((a, b) => a.localeCompare(b));
+      sel.innerHTML = '';
+      const opt = (v, label) => {
+        const o = document.createElement('option');
+        o.value = v; o.textContent = label; sel.appendChild(o);
+      };
+      opt('', T.media_folder_none);
+      names.forEach(n => opt(n, n));
+      opt('__new__', T.media_folder_new);
+      sel.value = keep && [...sel.options].some(o => o.value === keep) ? keep : '';
+    }
+    async function mediaMoveSelection() {
+      if (!FILES_SEL.size) return;
+      let target = el('files-sel-target').value;
+      if (target === '__new__') {
+        target = (prompt(T.media_folder_prompt) || '').trim();
+        if (!target) return;
+      }
+      const r = await apiJson('api/uploads/folder', 'POST',
+                              { names: [...FILES_SEL], folder: target });
+      if (!r.ok) { toast(T.error_save, true); return; }
+      const d = await r.json();
+      toast(T.media_moved.replace('{n}', d.moved)
+              .replace('{f}', d.folder || T.media_folder_none));
+      FILES_SEL.clear();
+      loadFileBrowser();
     }
     // Etiketten als Filterleiste. Ausgewählt ist höchstens eines — mehrere
     // gleichzeitig ergäben „und" oder „oder", und beides muss man erklären.
@@ -7143,25 +7242,46 @@
     function renderFileBrowser() {
       renderFilesSummary();
       if (el('files-body').style.display === 'none') return;
+      renderFolderBar();
       renderTagBar();
+      renderSelBar();
       const aiOnly = el('files-ai-only').checked;
       const unusedOnly = el('files-unused-only').checked;
       const q = el('files-q').value;
       const imgs = FILES.images.filter(f => (!aiOnly || f.ai) && (!unusedOnly || !f.used)
+        && (FILES_FOLDER === null || (f.folder || '') === FILES_FOLDER)
         && (!FILES_TAG || (f.tags || []).some(t => t === FILES_TAG))
         && mediaMatch(f, q));
       const grid = el('files-img-grid');
       grid.innerHTML = '';
       el('files-img-count').textContent = '(' + imgs.length + ')';
-      imgs.forEach(f => grid.appendChild(fileTile(
-        `<img src="${assetUrl(f.url)}" alt="" loading="lazy">`
-          + (f.used ? '' : `<span class="unused">${T.uploads_pick_unused}</span>`)
-          + (f.ai ? `<span class="ai-flag">✨</span>` : '')
-          + ((f.tags || []).length ? `<span class="tag-dot">${(f.tags || []).length}</span>` : '')
-          + `<span class="meta">${new Date(f.mtime * 1000).toLocaleDateString()}<br>${fmtBytes(f.size)}</span>`,
-        (f.orig || f.url.split('/').pop()) + ' — ' + T.media_click_hint,
-        () => openMediaModal(f),
-        () => deleteFile('api/uploads/delete', f.url.split('/').pop(), f.used))));
+      imgs.forEach(f => {
+        const fname = f.url.split('/').pop();
+        // Das Kästchen liegt in der Kachel und wird am Klickziel erkannt.
+        // Ein eigener Auswahlmodus wäre ein Schalter mehr, den man erst
+        // finden und dann wieder ausschalten muss.
+        const tile = fileTile(
+          `<img src="${assetUrl(f.url)}" alt="" loading="lazy">`
+            + `<span class="pick">${FILES_SEL.has(fname) ? '✔' : ''}</span>`
+            + (f.used ? '' : `<span class="unused">${T.uploads_pick_unused}</span>`)
+            + (f.ai ? `<span class="ai-flag">✨</span>` : '')
+            + ((f.tags || []).length ? `<span class="tag-dot">${(f.tags || []).length}</span>` : '')
+            + `<span class="meta">${new Date(f.mtime * 1000).toLocaleDateString()}<br>${fmtBytes(f.size)}</span>`,
+          (f.orig || fname) + ' — ' + T.media_click_hint,
+          e => {
+            if (e.target.closest('.pick')) {
+              if (FILES_SEL.has(fname)) FILES_SEL.delete(fname); else FILES_SEL.add(fname);
+              tile.classList.toggle('picked', FILES_SEL.has(fname));
+              tile.querySelector('.pick').textContent = FILES_SEL.has(fname) ? '✔' : '';
+              renderSelBar();
+            } else {
+              openMediaModal(f);
+            }
+          },
+          () => deleteFile('api/uploads/delete', fname, f.used));
+        if (FILES_SEL.has(fname)) tile.classList.add('picked');
+        grid.appendChild(tile);
+      });
       const dgrid = el('files-doc-grid');
       dgrid.innerHTML = '';
       el('files-doc-count').textContent = '(' + FILES.docs.length + ')';
@@ -7186,6 +7306,14 @@
       el('media-detail-img').alt = f.alt_de || f.alt_en || '';
       el('media-orig').value = f.orig || '';
       el('media-tags').value = (f.tags || []).join(', ');
+      el('media-folder').value = f.folder || '';
+      const dl = el('media-folder-list');
+      dl.innerHTML = '';
+      (FILES.folders || []).forEach(n => {
+        const o = document.createElement('option');
+        o.value = n;
+        dl.appendChild(o);
+      });
       el('media-facts').textContent = [
         name,
         fmtBytes(f.size),
@@ -7234,11 +7362,13 @@
         name,
         orig: el('media-orig').value,
         tags: el('media-tags').value.split(',').map(x => x.trim()).filter(Boolean),
+        folder: el('media-folder').value,
       });
       if (!r.ok) { toast(T.error_save, true); return; }
       const d = await r.json();
       MEDIA_CUR.orig = d.orig;
       MEDIA_CUR.tags = d.tags;
+      MEDIA_CUR.folder = d.folder;
       toast(T.saved);
       closeMediaModal();
       renderFileBrowser();

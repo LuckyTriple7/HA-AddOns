@@ -371,10 +371,12 @@ nicht ungeprüft übernommen. Aufwand ~2 Tage.
 - ~~**Medienverwaltung** ohne Suche, ohne Ersetzen einer Datei, ohne Ordner~~ —
   **erledigt mit v0.11.17.** Suche über Herkunftsname, Etiketten,
   Alternativtexte und Fundstellen; Dialog *Datei verwalten* mit „Verwendet in";
-  Ersetzen unter gleichem Dateinamen. **Ordner bewusst nicht:** der Dateiname
-  steht in jeder Einbindung und in bereits veröffentlichten Adressen, ein
-  Verschieben zerrisse sie alle. Etiketten in `uploads_meta.json` leisten
-  dasselbe, ohne eine einzige Adresse anzufassen.
+  Ersetzen unter gleichem Dateinamen. Dazu **Ordner nur im Admin** (v0.11.18):
+  eine Ebene, ein Ordner je Datei, Mehrfachauswahl im Raster zum Einsortieren.
+  Im Dateisystem wandert nichts — der Dateiname steht in jeder Einbindung und
+  in bereits veröffentlichten Adressen, ein echtes Verschieben zerrisse sie
+  alle. Ordner und Etiketten haben getrennte Rollen: der Ordner sagt, wo eine
+  Datei liegt (genau einer), das Etikett, was drauf ist (beliebig viele).
 
   **Fallstricke für spätere Arbeit am Modul:**
 
@@ -396,6 +398,14 @@ nicht ungeprüft übernommen. Aufwand ~2 Tage.
     Wer das Namensschema ändert, muss `_wm_cache_forget()` und
     `_unused_wm_cache()` gleichzeitig mitziehen — sonst räumt das Aufräumen
     entweder nichts mehr weg oder die Fassungen lebender Bilder.
+  - Ordner sind eine reine Anzeige-Angabe in `uploads_meta.json`, eine Ebene
+    tief. Wer Unterordner nachrüstet, braucht Baum, Brotkrumen und ein
+    Umbenennen ganzer Zweige — und muss `_upload_folder_clean()` ändern, das
+    Schrägstriche heute absichtlich zu Leerzeichen macht.
+  - Die Ordnerliste in `/api/uploads/list` kommt aus der **ganzen** Ablage,
+    nicht aus den höchstens 300 gezeigten Kacheln. Wer das umstellt, lässt
+    Ordner aus der Leiste verschwinden, sobald ihre Bilder jenseits der
+    Kachelgrenze liegen.
   - Browser halten ein ersetztes Bild bis zu einen Tag fest (`max_age=86400` an
     der Auslieferroute). Wer das ändern will, ändert es für **alle** Bilder —
     also Ladezeit gegen Aktualität. Der Admin umgeht es über `?v=<mtime>`.

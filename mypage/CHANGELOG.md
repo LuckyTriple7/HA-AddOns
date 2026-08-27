@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.11.18
+
+- 📁 **Ordner in der Medienverwaltung.** Über dem Bilderraster im Tab **System → Dateien** steht jetzt eine Ordnerleiste mit *Alle*, *Unsortiert* und den angelegten Ordnern samt Anzahl. Ein Bild liegt in **genau einem** Ordner und trägt daneben **beliebig viele** Etiketten — der Ordner sagt, wo es liegt, das Etikett, was drauf ist. Eine Ebene, keine Unterordner.
+- ☑️ **Mehrere Bilder auf einmal einsortieren.** Oben rechts auf jeder Kachel sitzt ein Auswahlkästchen; ein Klick daneben öffnet weiterhin den Verwaltungsdialog. Sobald etwas gewählt ist, erscheint *„n ausgewählt → Verschieben nach …"* mit den vorhandenen Ordnern und **Neuer Ordner …**. Ohne das wäre ein gewachsener Bestand nur über je einen Dialog zu sortieren — länger als das Suchen, das der Ordner ersparen soll.
+- 🗂️ **Es wandert weiterhin keine einzige Datei.** Der Ordner ist eine Angabe in `uploads_meta.json` und existiert nur im Admin. Ein echtes Verschieben im Dateisystem würde jede Einbindung in Beiträgen, Seiten und Alben sowie jede bereits veröffentlichte Bildadresse zerreißen. Ein `/` im Ordnernamen wird deshalb auch zum Leerzeichen: er täuschte eine Verschachtelung vor, die es nicht gibt.
+
+## 0.11.18
+
+- 📁 **Ordner in der Medienverwaltung.** Über dem Bilderraster im Tab **System → Dateien** steht jetzt eine Ordnerleiste mit *Alle*, *Unsortiert* und den angelegten Ordnern samt Anzahl. Ein Bild liegt in **genau einem** Ordner und trägt daneben **beliebig viele** Etiketten — der Ordner sagt, wo es liegt, das Etikett, was drauf ist. Eine Ebene, keine Unterordner.
+- ☑️ **Mehrere Bilder auf einmal einsortieren.** Oben rechts auf jeder Kachel sitzt ein Auswahlkästchen; ein Klick daneben öffnet weiterhin den Verwaltungsdialog. Sobald etwas gewählt ist, erscheint *„n ausgewählt → Verschieben nach …"* mit den vorhandenen Ordnern und **Neuer Ordner …**. Ohne das wäre ein gewachsener Bestand nur über je einen Dialog zu sortieren — das dauerte länger als das Suchen, das der Ordner ersparen soll.
+- 🗂️ **Es wandert weiterhin keine einzige Datei.** Der Ordner ist eine Angabe in `uploads_meta.json` und existiert nur im Admin. Ein echtes Verschieben im Dateisystem würde jede Einbindung in Beiträgen, Seiten und Alben sowie jede bereits veröffentlichte Bildadresse zerreißen. Ein `/` im Ordnernamen wird deshalb auch zum Leerzeichen: er täuschte eine Verschachtelung vor, die es nicht gibt.
+
 ## 0.11.17
 
 - 🔎 **Die Medienverwaltung lässt sich durchsuchen.** Dateinamen sind zufällige Kennungen und damit unsuchbar — das Suchfeld im Tab **System → Dateien** greift deshalb auf alles zu, was ein Mensch selbst vergeben hat: **Herkunftsname, Etiketten, Alternativtexte und die Stellen, an denen das Bild eingebunden ist**. Alle eingegebenen Wörter müssen vorkommen. Dazu zwei Haken (*nur KI-erzeugte*, *nur unbenutzte*) und eine Etiketten-Leiste zum Eingrenzen. Auch der Dialog **„Bild wählen"** hat das Suchfeld.

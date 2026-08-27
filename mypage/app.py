@@ -588,13 +588,29 @@ def _upload_tags_clean(raw) -> list:
     return out[:UPLOAD_TAG_MAX]
 
 
-def _uploads_file_meta_set(name: str, orig: str | None = None,
-                           tags: list | None = None) -> bool:
-    """Herkunftsname und/oder Etiketten einer Datei setzen.
+UPLOAD_FOLDER_LEN = 40
 
-    `None` heißt „unverändert lassen"; eine leere Liste löscht die Etiketten.
-    Ein Eintrag ohne Inhalt wird entfernt statt leer gespeichert — sonst
-    sammelt die Ablage Karteileichen für jede je angefasste Datei.
+
+def _upload_folder_clean(raw) -> str:
+    """Ordnername säubern — eine Ebene, kein Pfad.
+
+    Der Ordner ist reine Anzeige im Admin; im Dateisystem wandert nichts. Die
+    Schrägstriche fliegen trotzdem raus: sie legten eine Verschachtelung nahe,
+    die es nicht gibt, und ließen den Namen wie einen Pfad aussehen.
+    """
+    return _clean_str(str(raw or '').replace('/', ' ').replace('\\', ' '),
+                      UPLOAD_FOLDER_LEN).strip()
+
+
+def _uploads_file_meta_set(name: str, orig: str | None = None,
+                           tags: list | None = None,
+                           folder: str | None = None) -> bool:
+    """Herkunftsname, Etiketten und/oder Ordner einer Datei setzen.
+
+    `None` heißt „unverändert lassen"; eine leere Liste bzw. ein leerer Text
+    löscht den jeweiligen Wert. Ein Eintrag ohne Inhalt wird entfernt statt leer
+    gespeichert — sonst sammelt die Ablage Karteileichen für jede je angefasste
+    Datei.
     """
     def change(data: dict) -> None:
         files = data.get('files')
@@ -605,6 +621,8 @@ def _uploads_file_meta_set(name: str, orig: str | None = None,
             entry['orig'] = _clean_str(orig, 120)
         if tags is not None:
             entry['tags'] = _upload_tags_clean(tags)
+        if folder is not None:
+            entry['folder'] = _upload_folder_clean(folder)
         entry = {k: v for k, v in entry.items() if v}
         if entry:
             files[name] = entry
@@ -10296,6 +10314,7 @@ def api_uploads_list():
                       'mtime': int(st.st_mtime), 'used': f.name in blob,
                       'alt_de': a.get('de', ''), 'alt_en': a.get('en', ''),
                       'orig': m.get('orig', ''), 'tags': m.get('tags') or [],
+                      'folder': m.get('folder', ''),
                       'places': u.get('places') or [], 'place_count': u.get('n', 0),
                       # Marker steckt im Dateinamen (siehe _store_upload_image) —
                       # damit lässt sich die Galerie auf KI-Bilder eingrenzen
@@ -10304,7 +10323,12 @@ def api_uploads_list():
     return jsonify({'files': files[:UPLOADS_LIST_MAX], 'total': len(files),
                     'tags': sorted({t for m in fmeta.values()
                                     for t in (m.get('tags') or [])},
-                                   key=str.lower)})
+                                   key=str.lower),
+                    # Aus der ganzen Ablage, nicht nur aus den gezeigten
+                    # Kacheln: sonst verschwände ein Ordner aus der Leiste,
+                    # sobald seine Bilder jenseits der Kachelgrenze liegen.
+                    'folders': sorted({m.get('folder') for m in fmeta.values()
+                                       if m.get('folder')}, key=str.lower)})
 
 
 @admin_app.route('/api/docs/list')
@@ -10622,12 +10646,52 @@ def api_uploads_meta():
         return jsonify({'error': 'not_found'}), 404
     orig = body.get('orig')
     tags = body.get('tags')
+    folder = body.get('folder')
     if not _uploads_file_meta_set(name,
                                   orig=None if orig is None else _clean_str(orig, 120),
-                                  tags=None if tags is None else tags):
+                                  tags=None if tags is None else tags,
+                                  folder=None if folder is None else folder):
         return jsonify({'error': 'save_failed'}), 500
     m = _uploads_files_load().get(name) or {}
-    return jsonify({'ok': True, 'orig': m.get('orig', ''), 'tags': m.get('tags') or []})
+    return jsonify({'ok': True, 'orig': m.get('orig', ''), 'tags': m.get('tags') or [],
+                    'folder': m.get('folder', '')})
+
+
+@admin_app.route('/api/uploads/folder', methods=['POST'])
+def api_uploads_folder():
+    """Mehrere Dateien in einen Ordner legen (oder aus allen herausnehmen).
+
+    Sammelweise, weil es einzeln niemand täte: einen gewachsenen Bestand über
+    je einen Dialog zu sortieren, dauert länger als das Suchen, das der Ordner
+    ersparen soll. Ein leerer Zielname bedeutet „unsortiert".
+
+    Der Ordner ist eine Angabe in `uploads_meta.json` und sonst nichts. Im
+    Dateisystem wandert keine Datei, weil ihr Name in jeder Einbindung und in
+    bereits veröffentlichten Adressen steht.
+    """
+    err = _api_auth()
+    if err:
+        return err
+    body = request.get_json(silent=True) or {}
+    folder = _upload_folder_clean(body.get('folder'))
+    names = body.get('names')
+    if not isinstance(names, list) or not names:
+        return jsonify({'error': 'invalid'}), 400
+    moved, missing = 0, 0
+    for raw in names[:UPLOADS_LIST_MAX]:
+        name = Path(_clean_str(raw, 120)).name
+        if Path(name).suffix.lower() not in ALLOWED_UPLOAD_EXT:
+            missing += 1
+            continue
+        p = safe_under(UPLOADS_DIR, name)
+        if p is None or not p.is_file():
+            missing += 1
+            continue
+        if _uploads_file_meta_set(name, folder=folder):
+            moved += 1
+    log_audit('upload_folder', f'{moved} Datei(en) → {folder or "—"}')
+    return jsonify({'ok': True, 'moved': moved, 'missing': missing,
+                    'folder': folder})
 
 
 @admin_app.route('/api/uploads/replace', methods=['POST'])
