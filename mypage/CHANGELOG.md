@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.11.19
+
+- 📏 **Suchfeld und Haken stehen wieder auf einer Linie.** In der Leiste über dem Bilderraster saßen Eingabefeld und Kontrollkästchen auf unterschiedlicher Höhe: Beschriftungen sind im Admin Blöcke mit Abstand nach oben, und in einer Zeile wirkte der sich als Versatz aus. Beschriftungen in den Medien-Leisten haben jetzt keinen Außenabstand mehr und sind selbst eine Zeile aus Kästchen und Text.
+- 🔤 **Suchfelder sehen aus wie die übrigen Eingabefelder.** `input type="search"` fehlte in der Grundregel des Admin-Stils, weshalb der Browser sie in seiner eigenen Größe mit eigenem Rahmen zeichnete. Betrifft neben der Mediensuche auch **„Option finden"** im Design-Reiter.
+- 🏷️ **Die Plaketten auf den Kacheln überdecken sich nicht mehr.** „unbenutzt" saß rechts oben — genau dort, wo seit v0.11.18 das Auswahlkästchen sitzt; links stießen ✨ und die Etikettenzahl zusammen. Alle Plaketten stehen jetzt in einer Zeile links oben, brechen bei Bedarf um und lassen die Ecke des Kästchens frei.
+- 📝 **Hinweistext über dem Datei-Raster stimmt wieder.** Dort stand noch, ein Linksklick öffne die Datei in einem neuen Tab — seit v0.11.17 öffnet er die Verwaltung. Jetzt beschreibt er, was die Kachel tatsächlich kann: Verwaltung, Auswahlkästchen, Rechtsklick zum Löschen, und dass eingebundene Dateien über „Ersetzen" statt über Löschen ausgetauscht werden.
+
 ## 0.11.18
 
 - 📁 **Ordner in der Medienverwaltung.** Über dem Bilderraster im Tab **System → Dateien** steht jetzt eine Ordnerleiste mit *Alle*, *Unsortiert* und den angelegten Ordnern samt Anzahl. Ein Bild liegt in **genau einem** Ordner und trägt daneben **beliebig viele** Etiketten — der Ordner sagt, wo es liegt, das Etikett, was drauf ist. Eine Ebene, keine Unterordner.

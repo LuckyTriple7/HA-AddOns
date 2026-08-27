@@ -99,6 +99,7 @@
     :root[data-theme="light"] input[type="datetime-local"],
     :root[data-theme="light"] input[type="time"] { color-scheme: light; }
     input[type="text"], input[type="email"], input[type="url"], input[type="number"],
+    input[type="search"],
     input[type="date"], input[type="datetime-local"], input[type="time"], textarea, select {
       width: 100%; background: var(--bg); border: 1px solid var(--border); color: var(--text);
       padding: 8px 11px; border-radius: 6px; font-size: 0.87rem; font-family: inherit;
@@ -400,6 +401,12 @@
        dem Handy einspaltig und am Rechner mehrspaltig läuft */
     .media-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 10px 0; }
     .media-bar input[type=search] { flex: 1; min-width: 180px; }
+    /* `label` ist im Admin ein Block mit 12px Abstand oben und 4px unten. In
+       einer Zeile mit Eingabefeldern steht dadurch jedes Element auf einer
+       anderen Höhe — die Abstände müssen hier weg, und die Beschriftung wird
+       selbst zur Zeile aus Kästchen und Text. */
+    .media-bar label, .media-sel label { display: inline-flex; align-items: center; gap: 6px; margin: 0; }
+    .media-bar input[type=checkbox], .media-sel input[type=checkbox] { width: auto; margin: 0; }
     .media-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
     .media-tags button {
       font-size: 0.76rem; padding: 3px 10px; border-radius: 999px; cursor: pointer;
@@ -408,14 +415,15 @@
     .media-tags button.on { background: var(--accent); color: #fff; border-color: var(--accent); }
     .media-folders button::before { content: '📁 '; }
     .media-sel { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 8px 0; padding: 8px 10px; border: 1px solid var(--accent); border-radius: 8px; }
-    .media-sel select { min-width: 160px; }
+    .media-sel select { width: auto; min-width: 160px; }
+    .media-sel .btn { margin: 0; }
     .uploads-tile .pick { position: absolute; right: 3px; top: 3px; width: 20px; height: 20px; line-height: 18px; text-align: center; border-radius: 5px; background: rgba(0,0,0,.55); color: #fff; font-size: 0.72rem; border: 1px solid rgba(255,255,255,.35); }
     .uploads-tile.picked { outline: 2px solid var(--accent); outline-offset: -2px; }
     .media-detail { display: flex; gap: 16px; flex-wrap: wrap; }
     .media-detail img { width: 220px; max-width: 100%; border-radius: 8px; border: 1px solid var(--border); object-fit: contain; background: var(--bg); }
     .media-detail-body { flex: 1; min-width: 240px; }
     .media-usage { font-size: 0.84rem; display: flex; flex-direction: column; gap: 3px; max-height: 140px; overflow-y: auto; }
-    .uploads-tile .tag-dot { position: absolute; left: 3px; top: 3px; font-size: 0.6rem; background: rgba(0,0,0,.6); color: #fff; border-radius: 999px; padding: 1px 5px; }
+    .uploads-tile .tag-dot { font-size: 0.6rem; background: rgba(0,0,0,.6); color: #fff; border-radius: 999px; padding: 1px 5px; }
     .uploads-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: 8px; max-height: 60vh; overflow-y: auto; margin: 10px 0 4px; }
     .uploads-tile { background: none; border: 1px solid var(--border); border-radius: 8px; padding: 0; cursor: pointer; overflow: hidden; position: relative; }
     .uploads-tile:hover, .uploads-tile:focus-visible { border-color: var(--accent); outline: none; }
@@ -423,8 +431,14 @@
     .uploads-tile .meta { font-size: 0.66rem; color: var(--muted); padding: 3px 5px; text-align: left; line-height: 1.3; }
     /* „unbenutzt“ ist die Info, die man beim Aufräumen braucht — genutzte Bilder
        bleiben unmarkiert, damit die Galerie nicht voller Plaketten hängt */
-    .uploads-tile .unused { position: absolute; top: 4px; right: 4px; background: var(--accent); color: #fff; font-size: 0.6rem; padding: 1px 5px; border-radius: 99px; }
-    .uploads-tile .ai-flag { position: absolute; top: 4px; left: 4px; background: rgba(0,0,0,.55); color: #fff; font-size: 0.7rem; line-height: 1; padding: 3px 5px; border-radius: 99px; }
+    /* Alle Plaketten in einer Zeile links oben statt jede in ihrer eigenen Ecke.
+       Vorher lagen „unbenutzt" und das Auswahlkästchen beide rechts oben und
+       überdeckten sich; dasselbe galt links für ✨ und die Etikettenzahl.
+       `right` hält die Ecke frei, in der das Kästchen sitzt. */
+    .uploads-tile .badges { position: absolute; top: 4px; left: 4px; right: 4px; display: flex; flex-wrap: wrap; gap: 3px; pointer-events: none; }
+    .uploads-tile .badges.reserved { right: 28px; }
+    .uploads-tile .unused { background: var(--accent); color: #fff; font-size: 0.6rem; padding: 1px 5px; border-radius: 99px; }
+    .uploads-tile .ai-flag { background: rgba(0,0,0,.55); color: #fff; font-size: 0.7rem; line-height: 1; padding: 2px 5px; border-radius: 99px; }
     /* PDF-Kachel: gleiche Grundfläche wie ein Bild, damit das Raster nicht springt */
     .uploads-tile .doc-icon { display: flex; align-items: center; justify-content: center; width: 100%; aspect-ratio: 1; font-size: 2rem; background: var(--bg); }
     /* Snippet-Vorschau: zeigt den Suchtreffer so, wie Google ihn baut.
@@ -7088,8 +7102,10 @@
         b.title = f.url;
         // loading="lazy": bei 300 Kacheln lädt der Browser sonst alles auf einmal
         b.innerHTML = `<img src="${assetUrl(f.url)}" alt="" loading="lazy">`
+          + `<span class="badges">`
           + (f.used ? '' : `<span class="unused">${T.uploads_pick_unused}</span>`)
           + (f.ai ? `<span class="ai-flag">✨</span>` : '')
+          + `</span>`
           + `<span class="meta">${new Date(f.mtime * 1000).toLocaleDateString()}<br>${fmtBytes(f.size)}</span>`;
         b.onclick = () => { closeUploadsModal(); if (browseCb) browseCb(f.url); };
         frag.appendChild(b);
@@ -7263,9 +7279,11 @@
         const tile = fileTile(
           `<img src="${assetUrl(f.url)}" alt="" loading="lazy">`
             + `<span class="pick">${FILES_SEL.has(fname) ? '✔' : ''}</span>`
+            + `<span class="badges reserved">`
             + (f.used ? '' : `<span class="unused">${T.uploads_pick_unused}</span>`)
             + (f.ai ? `<span class="ai-flag">✨</span>` : '')
-            + ((f.tags || []).length ? `<span class="tag-dot">${(f.tags || []).length}</span>` : '')
+            + ((f.tags || []).length ? `<span class="tag-dot">🏷 ${(f.tags || []).length}</span>` : '')
+            + `</span>`
             + `<span class="meta">${new Date(f.mtime * 1000).toLocaleDateString()}<br>${fmtBytes(f.size)}</span>`,
           (f.orig || fname) + ' — ' + T.media_click_hint,
           e => {
@@ -7288,7 +7306,9 @@
       if (aiOnly) { dgrid.innerHTML = `<div class="empty-note">${T.files_docs_hidden}</div>`; return; }
       FILES.docs.forEach(f => dgrid.appendChild(fileTile(
         `<span class="doc-icon">📄</span>`
+          + `<span class="badges">`
           + (f.used ? '' : `<span class="unused">${T.uploads_pick_unused}</span>`)
+          + `</span>`
           + `<span class="meta">${new Date(f.mtime * 1000).toLocaleDateString()}<br>${fmtBytes(f.size)}</span>`,
         f.name + ' — ' + T.files_rightclick,
         () => window.open('api/docs/file/' + encodeURIComponent(f.name), '_blank', 'noopener'),

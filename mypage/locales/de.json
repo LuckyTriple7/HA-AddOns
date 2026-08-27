@@ -2937,7 +2937,7 @@
   "ai_err_model": "Das eingestellte Modell „{v}“ gibt es bei Google nicht (mehr). Bitte oben unter Einstellungen ein anderes wählen und speichern.",
   "ai_model_stale": "nicht in Googles Liste",
   "files_heading": "Dateien",
-  "files_hint": "Alle hochgeladenen Bilder und die PDFs der Bibliothek. Linksklick öffnet die Datei in einem neuen Tab, Rechtsklick löscht sie nach Nachfrage. Eingebundene Dateien lassen sich nicht löschen — erst im Beitrag oder Eintrag ersetzen.",
+  "files_hint": "Alle hochgeladenen Bilder und die PDFs der Bibliothek. Linksklick auf ein Bild öffnet die Verwaltung (Name, Ordner, Etiketten, Fundstellen, Ersetzen), das Kästchen oben rechts wählt für das Verschieben aus; PDFs öffnen sich in einem neuen Tab. Rechtsklick löscht nach Nachfrage. Eingebundene Dateien lassen sich nicht löschen — dafür gibt es „Ersetzen“.",
   "files_ai_only": "Nur KI-erzeugte Bilder",
   "files_images": "Bilder",
   "files_docs": "PDFs der Bibliothek",
