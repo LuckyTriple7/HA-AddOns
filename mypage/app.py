@@ -3103,6 +3103,7 @@ def count_visit(req) -> None:
 
 
 NOTFOUND_MAX_PATHS = 200      # so viele verschiedene Pfade werden gemerkt
+NOTFOUND_IPS_MAX = 5          # so viele verschiedene Adressen je Pfad
 
 
 # Pfade, die es auf dieser Website nie gab und nie geben wird: Sonden auf
@@ -3151,6 +3152,17 @@ def record_notfound(req) -> None:
     e['last'] = int(time.time())
     e['bot'] = bool((not ua) or any(b in ua.lower() for b in _BOT_UA))
     probe = _is_probe(path)
+    # Woher kam der Aufruf? Bei einem eigenen kaputten Verweis ist die Adresse
+    # gleichgültig, bei einer Sonde ist sie das Einzige, womit sich etwas
+    # anfangen lässt — sperren kann man nur eine Adresse, keinen Pfad.
+    # Gespeichert werden höchstens NOTFOUND_IPS_MAX verschiedene, neueste
+    # zuerst; nur öffentliche. Das eigene Heimnetz und die internen Aufrufe von
+    # Home Assistant sagen nichts, füllen aber die Liste.
+    ip = get_client_ip(req)
+    if _is_public_ip(ip):
+        ips = [a for a in (e.get('ips') or []) if a != ip]
+        e['ips'] = [ip] + ips[:NOTFOUND_IPS_MAX - 1]
+        e['cc'] = _guess_country(req)
     if ref:
         e['ref'] = ref
         # Ein Verweis von der eigenen Adresse heißt: der kaputte Link steht auf
@@ -11120,7 +11132,8 @@ def api_stats_notfound():
              'first': e.get('first', 0), 'ref': e.get('ref', ''),
              'probe': _is_probe(p),
              'internal': bool(e.get('internal')) and not _is_probe(p),
-             'bot': bool(e.get('bot'))}
+             'bot': bool(e.get('bot')),
+             'ips': list(e.get('ips') or []), 'cc': e.get('cc', '')}
             for p, e in nf.items() if isinstance(e, dict)]
     # Eigene kaputte Verweise zuerst, Sonden zuletzt, dazwischen nach
     # Häufigkeit: die Liste soll oben das zeigen, was sich reparieren lässt.

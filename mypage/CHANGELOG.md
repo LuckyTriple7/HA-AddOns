@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.11.28
+
+- 🌍 **Die 404-Liste zeigt, woher der Aufruf kam.** Je Zeile steht jetzt die Adresse des letzten Aufrufs samt Landesflagge. Bei einer Sonde ist das die einzige Angabe, mit der sich etwas anfangen lässt: **sperren lässt sich eine Adresse, kein Pfad** — und zwar dort, wo es wirkt (CrowdSec, Firewall), nicht in MyPage.
+- 🔢 **Bis zu fünf verschiedene Adressen je Pfad**, neueste zuerst. Steht „+4 weitere" daneben, nennt der Mauszeiger alle. Ein Scanner, der aus einem einzigen Rechenzentrum kommt, sieht damit anders aus als ein verteiltes Netz gekaperter Geräte.
+- 🚫 **Bei Sonden entfällt „Weiterleitung anlegen".** `/xmlrpc.php` gab es hier nie, es gibt kein Ziel, auf das man sie legen könnte. Angeboten wird nur noch, was auch hilft.
+- 🔒 Gespeichert werden **nur öffentliche Adressen** — das eigene Heimnetz und die internen Aufrufe von Home Assistant sagen nichts und füllten nur die Liste. Die Angaben liegen wie bisher in `stats.json` (im Backup) und verschwinden mit „Liste leeren" oder dem ✕ der Zeile.
+
 ## 0.11.27
 
 - 🕵️ **Sonden werden als solche erkannt.** In der 404-Liste standen `/xmlrpc.php`, `/api/graphql`, `/asset-manifest.json` und `/static/manifest.json` — nichts davon gibt es hier, es sind Scanner auf der Suche nach WordPress, nach einer React-App oder nach einer GraphQL-Schnittstelle. Solche Aufrufe tragen jetzt die Marke **„Sonde"**, stehen ganz unten und sind über einen eigenen Haken **voreingestellt ausgeblendet**. Erkannt wird am Pfad (`.php`, `wp-`, `/.env`, `/.git/`, `/vendor/`, `phpmyadmin`, `/api/graphql` und weitere), nicht an der Browserkennung: Die fälscht jeder Scanner, den Pfad braucht er echt.

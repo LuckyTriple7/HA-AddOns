@@ -3337,5 +3337,6 @@
   "sys_health_ok": "all good",
   "nf_hide_probes": "Hide probes",
   "nf_probe": "Probe",
-  "nf_probe_title": "Looking for other software (WordPress, .env, GraphQL) — none of that exists here, and there is nothing to fix."
+  "nf_probe_title": "Looking for other software (WordPress, .env, GraphQL) — none of that exists here, and there is nothing to fix.",
+  "nf_ip_more": "+{n} more"
 }

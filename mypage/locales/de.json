@@ -3249,5 +3249,6 @@
   "sys_health_ok": "alles in Ordnung",
   "nf_hide_probes": "Sonden ausblenden",
   "nf_probe": "Sonde",
-  "nf_probe_title": "Sucht fremde Software (WordPress, .env, GraphQL) — gibt es hier nicht und lässt sich nicht reparieren."
+  "nf_probe_title": "Sucht fremde Software (WordPress, .env, GraphQL) — gibt es hier nicht und lässt sich nicht reparieren.",
+  "nf_ip_more": "+{n} weitere"
 }

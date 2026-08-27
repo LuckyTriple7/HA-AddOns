@@ -442,6 +442,8 @@
     .nf-tag.intern { background: var(--accent); color: #fff; border-color: var(--accent); }
     /* Sonde: gedaempft, nicht rot — sie ist kein Fehler, sondern Grundrauschen. */
     .nf-tag.probe { border-style: dashed; }
+    .nf-ip { font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+             font-size: 0.76rem; color: var(--muted); white-space: nowrap; }
     .nf-ref { color: var(--muted); flex: 1 1 200px; word-break: break-all; font-size: 0.78rem; }
     .media-sel { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 8px 0; padding: 8px 10px; border: 1px solid var(--accent); border-radius: 8px; }
     .media-sel select { width: auto; min-width: 160px; }
@@ -6659,6 +6661,18 @@
         when.className = 'nf-when';
         when.textContent = new Date(r.last * 1000).toLocaleString();
         div.append(path, n, when);
+        // Die Adresse ist bei einer Sonde das Einzige, womit sich etwas
+        // anfangen laesst: sperren kann man nur sie, nicht den Pfad.
+        if (r.ips && r.ips.length) {
+          const ip = document.createElement('span');
+          ip.className = 'nf-ip';
+          const flag = r.cc ? countryFlag(r.cc) + ' ' : '';
+          ip.textContent = flag + r.ips[0]
+            + (r.ips.length > 1 ? ' ' + T.nf_ip_more.replace('{n}', r.ips.length - 1) : '');
+          // Alle gemerkten Adressen im Tooltip — die Zeile soll nicht umbrechen.
+          ip.title = r.ips.join('\n');
+          div.appendChild(ip);
+        }
         if (r.internal) {
           const tag = document.createElement('span');
           tag.className = 'nf-tag intern';
@@ -6684,18 +6698,24 @@
           ref.textContent = T.nf_from + ' ' + r.ref;
           div.appendChild(ref);
         }
-        const fix = document.createElement('button');
-        fix.type = 'button';
-        fix.className = 'btn secondary small';
-        fix.textContent = T.nf_make_redirect;
-        fix.onclick = () => redirectFor(r.path);
+        // Bei einer Sonde waere eine Weiterleitung sinnlos: `/xmlrpc.php` gab es
+        // hier nie, es gibt kein Ziel, auf das man sie legen koennte. Der Knopf
+        // bleibt deshalb weg — angeboten wird nur, was auch hilft.
+        if (!r.probe) {
+          const fix = document.createElement('button');
+          fix.type = 'button';
+          fix.className = 'btn secondary small';
+          fix.textContent = T.nf_make_redirect;
+          fix.onclick = () => redirectFor(r.path);
+          div.appendChild(fix);
+        }
         const del = document.createElement('button');
         del.type = 'button';
         del.className = 'btn danger small';
         del.textContent = '\u2715';
         del.title = T.nf_forget;
         del.onclick = () => forgetNotfound(r.path);
-        div.append(fix, del);
+        div.appendChild(del);
         box.appendChild(div);
       });
     }
