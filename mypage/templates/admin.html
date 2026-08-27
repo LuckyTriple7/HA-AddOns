@@ -440,6 +440,8 @@
     .nf-when { color: var(--muted); min-width: 120px; }
     .nf-tag { font-size: 0.7rem; padding: 1px 7px; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); }
     .nf-tag.intern { background: var(--accent); color: #fff; border-color: var(--accent); }
+    /* Sonde: gedaempft, nicht rot — sie ist kein Fehler, sondern Grundrauschen. */
+    .nf-tag.probe { border-style: dashed; }
     .nf-ref { color: var(--muted); flex: 1 1 200px; word-break: break-all; font-size: 0.78rem; }
     .media-sel { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 8px 0; padding: 8px 10px; border: 1px solid var(--accent); border-radius: 8px; }
     .media-sel select { width: auto; min-width: 160px; }
@@ -2241,6 +2243,7 @@
           <p class="hint">{{ t.nf_hint }}</p>
           <div class="media-bar">
             <label class="checkbox"><input type="checkbox" id="nf-hide-bots" checked onchange="renderNotfound()"> {{ t.nf_hide_bots }}</label>
+            <label class="checkbox"><input type="checkbox" id="nf-hide-probes" checked onchange="renderNotfound()"> {{ t.nf_hide_probes }}</label>
             <button type="button" class="btn secondary small" onclick="loadNotfound()">{{ t.nf_reload }}</button>
             <button type="button" class="btn secondary small" onclick="clearNotfound()">{{ t.nf_clear_all }}</button>
           </div>
@@ -6632,7 +6635,9 @@
     }
     function renderNotfound() {
       const hideBots = el('nf-hide-bots').checked;
-      const rows = NF_ROWS.filter(r => !hideBots || !r.bot);
+      const hideProbes = el('nf-hide-probes').checked;
+      const rows = NF_ROWS.filter(r => (!hideBots || !r.bot)
+                                       && (!hideProbes || !r.probe));
       el('nf-info').textContent = T.nf_info
         .replace('{n}', rows.length).replace('{t}', NF_ROWS.length);
       const box = el('nf-list');
@@ -6664,6 +6669,13 @@
           const tag = document.createElement('span');
           tag.className = 'nf-tag';
           tag.textContent = T.nf_bot;
+          div.appendChild(tag);
+        }
+        if (r.probe) {
+          const tag = document.createElement('span');
+          tag.className = 'nf-tag probe';
+          tag.textContent = T.nf_probe;
+          tag.title = T.nf_probe_title;
           div.appendChild(tag);
         }
         if (r.ref) {

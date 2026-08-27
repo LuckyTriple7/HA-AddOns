@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.11.27
+
+- 🕵️ **Sonden werden als solche erkannt.** In der 404-Liste standen `/xmlrpc.php`, `/api/graphql`, `/asset-manifest.json` und `/static/manifest.json` — nichts davon gibt es hier, es sind Scanner auf der Suche nach WordPress, nach einer React-App oder nach einer GraphQL-Schnittstelle. Solche Aufrufe tragen jetzt die Marke **„Sonde"**, stehen ganz unten und sind über einen eigenen Haken **voreingestellt ausgeblendet**. Erkannt wird am Pfad (`.php`, `wp-`, `/.env`, `/.git/`, `/vendor/`, `phpmyadmin`, `/api/graphql` und weitere), nicht an der Browserkennung: Die fälscht jeder Scanner, den Pfad braucht er echt.
+- 🚫 **Ein gefälschter Referer adelt keine Sonde mehr.** `/api/graphql` trug die Marke „eigener Link“ und stand damit **ganz oben** in der Liste — der Scanner hatte schlicht `https://…` deiner eigenen Website als Herkunft eingetragen. Bei einer Sonde wird diese Marke jetzt nicht mehr vergeben. Damit kann eine erfundene Kopfzeile keinen Scan über einen echten kaputten Verweis heben.
+- 🔢 Die Zahl in der Kopfzeile zählt Sonden nicht mit: „1 von 6" heißt ein echter Fund, fünf Zeilen Grundrauschen.
+- ℹ️ Die Einstufung entsteht beim Anzeigen aus dem Pfad, nicht beim Aufzeichnen. Deshalb gilt sie **rückwirkend** für alles, was schon in der Liste steht — und eine später erweiterte Musterliste ebenso.
+
 ## 0.11.26
 
 - 🗂️ **Der Tab System ist aufgeräumt.** Sechzehn gleichrangige Kästen mit drei verschiedenen Klappmechaniken nebeneinander waren nicht mehr zu überblicken. Jetzt stehen sie in **sechs Gruppen** — Zustand & Diagnose, Dateien & Speicher, Datensicherung, Adressen, Betrieb, Zugang —, jeder Bereich klappt gleich (dieselbe Klappe wie im Design-Reiter), und welcher offen ist, merkt sich der Browser. Offen ist voreingestellt nur der **Systemzustand**; der **Wartungsmodus** klappt sich selbst auf, solange er aktiv ist. Die Seite ist damit **1579 statt 3402 Pixel** hoch.

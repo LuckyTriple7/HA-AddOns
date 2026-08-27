@@ -1263,13 +1263,13 @@
   "cleanup_cache_done": "Plus {n} file(s) from the cache.",
   "redirects_heading": "Redirects (301)",
   "nf_heading": "Not found (404)",
-  "nf_hint": "Requests that went nowhere — grouped by address, most frequent first. The rows that matter most are marked “own link”: your own site points at an address that does not (or no longer) exist, e.g. after renaming a page. “Add redirect” puts the address into the list below, pre-filled; you enter the target and save. After that the request no longer counts as an error.",
+  "nf_hint": "Requests that went nowhere — grouped by address, most frequent first. The rows that matter carry the label “internal link”: there your own website points to an address that does not (or no longer) exist, for example after renaming a page. “Create redirect” puts the address into the list below, pre-filled; you add the target and save. After that the request no longer counts as an error. A “probe” is a request looking for other software (/xmlrpc.php, /.env, /api/graphql) — internet background noise, not a fault of yours, and therefore hidden by default.",
   "nf_info": "{n} of {t}",
   "nf_hide_bots": "Hide bots",
   "nf_reload": "Refresh",
   "nf_clear_all": "Clear list",
   "nf_empty": "Nothing went nowhere.",
-  "nf_only_bots": "Bot requests only — untick the box to see them.",
+  "nf_only_bots": "Only bot and probe requests — clear the checkboxes to see them.",
   "nf_internal": "own link",
   "nf_bot": "bot",
   "nf_from": "from",
@@ -3334,5 +3334,8 @@
   "sysgrp_access": "Access",
   "sys_entries": "{n} entries",
   "sys_health_bad": "{n} need attention",
-  "sys_health_ok": "all good"
+  "sys_health_ok": "all good",
+  "nf_hide_probes": "Hide probes",
+  "nf_probe": "Probe",
+  "nf_probe_title": "Looking for other software (WordPress, .env, GraphQL) — none of that exists here, and there is nothing to fix."
 }

@@ -1263,13 +1263,13 @@
   "cleanup_cache_done": "Dazu {n} Datei(en) aus dem Zwischenspeicher.",
   "redirects_heading": "Weiterleitungen (301)",
   "nf_heading": "Nicht gefunden (404)",
-  "nf_hint": "Aufrufe, die ins Leere liefen — nach Adresse gebündelt, häufigste zuerst. Am wichtigsten sind Zeilen mit der Marke „eigener Link“: dort verweist deine eigene Website auf eine Adresse, die es nicht (mehr) gibt, etwa nach dem Umbenennen einer Seite. Mit „Weiterleitung anlegen“ landet die Adresse vorbefüllt in der Liste darunter; das Ziel trägst du ein und speicherst. Danach zählt der Aufruf nicht mehr als Fehler.",
+  "nf_hint": "Aufrufe, die ins Leere liefen — nach Adresse gebündelt, häufigste zuerst. Am wichtigsten sind Zeilen mit der Marke „eigener Link“: dort verweist deine eigene Website auf eine Adresse, die es nicht (mehr) gibt, etwa nach dem Umbenennen einer Seite. Mit „Weiterleitung anlegen“ landet die Adresse vorbefüllt in der Liste darunter; das Ziel trägst du ein und speicherst. Danach zählt der Aufruf nicht mehr als Fehler. Als „Sonde“ gilt, wer fremde Software sucht (/xmlrpc.php, /.env, /api/graphql) — das ist Grundrauschen des Internets, kein Fehler von dir, und steht deshalb voreingestellt nicht in der Liste.",
   "nf_info": "{n} von {t}",
   "nf_hide_bots": "Bots ausblenden",
   "nf_reload": "Aktualisieren",
   "nf_clear_all": "Liste leeren",
   "nf_empty": "Nichts lief ins Leere. ",
-  "nf_only_bots": "Nur Bot-Aufrufe — Haken entfernen, um sie zu sehen.",
+  "nf_only_bots": "Nur Bot- und Sondenaufrufe — Haken entfernen, um sie zu sehen.",
   "nf_internal": "eigener Link",
   "nf_bot": "Bot",
   "nf_from": "von",
@@ -3246,5 +3246,8 @@
   "sysgrp_access": "Zugang",
   "sys_entries": "{n} Einträge",
   "sys_health_bad": "{n} auffällig",
-  "sys_health_ok": "alles in Ordnung"
+  "sys_health_ok": "alles in Ordnung",
+  "nf_hide_probes": "Sonden ausblenden",
+  "nf_probe": "Sonde",
+  "nf_probe_title": "Sucht fremde Software (WordPress, .env, GraphQL) — gibt es hier nicht und lässt sich nicht reparieren."
 }

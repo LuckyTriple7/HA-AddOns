@@ -3105,6 +3105,27 @@ def count_visit(req) -> None:
 NOTFOUND_MAX_PATHS = 200      # so viele verschiedene Pfade werden gemerkt
 
 
+# Pfade, die es auf dieser Website nie gab und nie geben wird: Sonden auf
+# fremde Software. `.php` und `wp-` suchen WordPress, `.env`, `.git/` und
+# `.ssh` suchen ausgeplauderte Zugangsdaten, `asset-manifest.json` und
+# `/api/graphql` fragen ab, ob hinter der Adresse eine React-App mit
+# Schnittstelle steckt. Erkannt wird am Pfad, nicht an der Browserkennung:
+# Die faelscht jeder Scanner, den Pfad braucht er echt.
+_PROBE_PARTS = ('/wp-', '/wordpress', 'xmlrpc.php', '/.env', '/.git', '/.ssh',
+                '/.aws', '/vendor/', '/phpmyadmin', '/pma/', '/cgi-bin/',
+                '/asset-manifest.json', '/static/manifest.json',
+                '/api/graphql', '/graphql', '/.well-known/traffic-advice',
+                '/config.json', '/telescope/', '/actuator/', '/solr/',
+                '/owa/', '/autodiscover/')
+
+
+def _is_probe(path: str) -> bool:
+    """Sucht der Aufruf fremde Software statt einer Seite von hier?"""
+    p = (path or '').lower()
+    return p.endswith(('.php', '.asp', '.aspx', '.jsp', '.cgi')) \
+        or any(part in p for part in _PROBE_PARTS)
+
+
 def record_notfound(req) -> None:
     """Einen ins Leere laufenden Aufruf festhalten — nach Pfad gebündelt.
 
@@ -3129,12 +3150,19 @@ def record_notfound(req) -> None:
     e['n'] = e.get('n', 0) + 1
     e['last'] = int(time.time())
     e['bot'] = bool((not ua) or any(b in ua.lower() for b in _BOT_UA))
+    probe = _is_probe(path)
     if ref:
         e['ref'] = ref
         # Ein Verweis von der eigenen Adresse heißt: der kaputte Link steht auf
         # der eigenen Website. Das ist der Fall, der wirklich zählt — fremde
         # Verweise und Scanner kann man nicht reparieren, eigene schon.
-        e['internal'] = _same_site_ref(ref)
+        #
+        # Bei einer Sonde gilt das nicht: Den Referer setzt der Scanner selbst,
+        # und er trägt gern die angegriffene Adresse ein. Ohne diese Ausnahme
+        # trug `/api/graphql` die Marke „eigener Link" und stand damit ganz
+        # oben in der Liste — eine gefälschte Kopfzeile hätte den Scan über
+        # jeden echten kaputten Verweis gehoben.
+        e['internal'] = _same_site_ref(ref) and not probe
     nf[path] = e
     # Begrenzen: die am längsten nicht mehr gesehenen Pfade fliegen zuerst raus.
     if len(nf) > NOTFOUND_MAX_PATHS:
@@ -11001,7 +11029,7 @@ def health_counts() -> dict:
         pass
 
     rows = admin_log_buffer.snapshot()
-    nf = [e for e in (load_stats().get('notfound') or {}).values()
+    nf = [(k, e) for k, e in (load_stats().get('notfound') or {}).items()
           if isinstance(e, dict)]
     return {
         'log_errors': sum(r.get('n', 1) for r in rows
@@ -11016,7 +11044,7 @@ def health_counts() -> dict:
         'docs': count_dir(DOCS_DIR, lambda f: bool(_DOC_FILE_RE.match(f.name))),
         # Zwei Zahlen, weil die Liste Bots ausblenden kann: ohne die zweite
         # stünde in der Kopfzeile eine 0, während unten dreißig Zeilen warten.
-        'notfound': sum(1 for e in nf if not e.get('bot')),
+        'notfound': sum(1 for k, e in nf if not e.get('bot') and not _is_probe(k)),
         'notfound_all': len(nf),
     }
 
@@ -11085,13 +11113,18 @@ def api_stats_notfound():
     if err:
         return err
     nf = load_stats().get('notfound') or {}
+    # `probe` wird beim Ausliefern aus dem Pfad bestimmt, nicht aus dem
+    # gespeicherten Eintrag: So sind auch die Zeilen eingestuft, die vor dieser
+    # Fassung aufgelaufen sind, und eine erweiterte Musterliste wirkt rückwirkend.
     rows = [{'path': p, 'n': e.get('n', 0), 'last': e.get('last', 0),
              'first': e.get('first', 0), 'ref': e.get('ref', ''),
-             'internal': bool(e.get('internal')), 'bot': bool(e.get('bot'))}
+             'probe': _is_probe(p),
+             'internal': bool(e.get('internal')) and not _is_probe(p),
+             'bot': bool(e.get('bot'))}
             for p, e in nf.items() if isinstance(e, dict)]
-    # Eigene kaputte Verweise zuerst, danach nach Häufigkeit: die Liste soll
-    # oben das zeigen, was sich reparieren lässt.
-    rows.sort(key=lambda r: (not r['internal'], -r['n'], -r['last']))
+    # Eigene kaputte Verweise zuerst, Sonden zuletzt, dazwischen nach
+    # Häufigkeit: die Liste soll oben das zeigen, was sich reparieren lässt.
+    rows.sort(key=lambda r: (r['probe'], not r['internal'], -r['n'], -r['last']))
     return jsonify({'rows': rows, 'total': sum(r['n'] for r in rows)})
 
 
