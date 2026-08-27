@@ -3325,5 +3325,14 @@
   "feed_untitled": "Untitled",
   "trav_no_trip_selected": "No trip selected — please click a trip on the left.",
   "trav_save_offline": "Not saved: the server could not be reached. The dialog stays open and your input is stored locally — please press Save again in a moment.",
-  "trav_save_session": "Not saved: your session has expired. Please sign in again in a second tab, then save here once more."
+  "trav_save_session": "Not saved: your session has expired. Please sign in again in a second tab, then save here once more.",
+  "sysgrp_state": "Status & diagnostics",
+  "sysgrp_files": "Files & storage",
+  "sysgrp_backup": "Backups",
+  "sysgrp_urls": "Addresses",
+  "sysgrp_ops": "Operation",
+  "sysgrp_access": "Access",
+  "sys_entries": "{n} entries",
+  "sys_health_bad": "{n} need attention",
+  "sys_health_ok": "all good"
 }

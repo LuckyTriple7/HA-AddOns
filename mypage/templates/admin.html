@@ -506,6 +506,18 @@
       background: var(--bg); border-top: 1px solid var(--border); }
     .save-bar .btn { margin: 0; }
     .fold[open] > summary .fold-hint { display: none; }   /* offen erklaert sich der Bereich selbst */
+    .fold > summary .count { color: var(--muted); font-size: 0.78rem; font-weight: 400; }
+    /* Reiter System: sechs Gruppen statt sechzehn gleichrangiger Kaesten.
+       Die Ueberschrift ordnet nur — anklickbar ist sie nicht, sonst haette
+       der Reiter zwei Klappebenen und die Sprungleiste zwei Bedeutungen. */
+    .sys-head { font-size: 0.75rem; letter-spacing: .08em; text-transform: uppercase;
+                color: var(--muted); margin: 26px 0 8px; }
+    .sys-group:first-of-type .sys-head { margin-top: 4px; }
+    /* Zugeklappt braucht ein Bereich nur seine Zeile: bei sechzehn Kaesten
+       macht die volle Kastenhoehe aus einer Uebersicht wieder eine Rollbahn. */
+    #tab-system .fold:not([open]) { padding-top: 13px; padding-bottom: 13px; }
+    /* inline-flex verschluckt den Leerraum zwischen Kaestchen und Text. */
+    #tab-system label.checkbox { display: inline-flex; align-items: center; gap: 6px; }
     .seo-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 10px 0; }
     /* `.btn` bringt margin-top mit — in einer Knopfreihe steht der Knopf damit
        tiefer als seine Nachbarn. Und `small` neben normal ergibt zwei Hoehen. */
@@ -2108,24 +2120,27 @@
     <!-- System -->
     <section class="tab" id="tab-system">
       <div class="jumpbar" id="system-jump"></div>
-      <div class="panel" data-jump-panel id="health-panel">
-        <h3 style="margin:0 0 6px">🩺 {{ t.health_heading }}</h3>
-        <p class="hint">{{ t.health_hint }}</p>
-        <div id="health-list"></div>
-        <div style="margin-top:10px">
-          <button class="btn secondary small" onclick="loadHealth()">{{ t.nf_reload }}</button>
-          <label class="checkbox" style="display:inline-flex;margin-left:12px"><input type="checkbox" id="health-all" onchange="renderHealth()"> {{ t.health_show_all }}</label>
-        </div>
-      </div>
-      <div class="panel" data-jump-panel id="log-panel">
-        <h3 style="margin:0">
-          <button type="button" class="set-toggle" id="log-toggle" aria-expanded="false" onclick="toggleLog()">
-            <span class="caret">▶</span>
-            <span>{{ t.log_heading }}</span>
-            <span class="count" id="log-info"></span>
-          </button>
-        </h3>
-        <div id="log-body" style="display:none;margin-top:12px">
+      {#- Sechzehn gleichrangige Kästen waren nicht mehr zu überblicken, drei
+          verschiedene Klappmechaniken nebeneinander erst recht nicht. Jetzt:
+          sechs Gruppen, überall dieselbe Klappe wie im Design-Reiter, Inhalt
+          erst beim Aufklappen (data-load). Die Zahl in der Kopfzeile kommt aus
+          /api/health, damit auch zugeklappt dasteht, was drin liegt. #}
+
+      <div class="sys-group" data-jump-panel data-jump-label="{{ t.sysgrp_state }}">
+        <h2 class="sys-head">{{ t.sysgrp_state }}</h2>
+
+        <details class="panel fold" id="sy-health" open>
+          <summary><h3>🩺 {{ t.health_heading }}</h3><span class="count" id="health-info"></span></summary>
+          <p class="hint">{{ t.health_hint }}</p>
+          <div id="health-list"></div>
+          <div style="margin-top:10px">
+            <button class="btn secondary small" onclick="loadHealth()">{{ t.nf_reload }}</button>
+            <label class="checkbox" style="display:inline-flex;margin-left:12px"><input type="checkbox" id="health-all" onchange="renderHealth()"> {{ t.health_show_all }}</label>
+          </div>
+        </details>
+
+        <details class="panel fold" id="sy-log" data-load="loadLog">
+          <summary><h3>{{ t.log_heading }}</h3><span class="count" id="log-info"></span></summary>
           <p class="hint">{{ t.log_hint }}</p>
           <div class="media-bar">
             <label class="checkbox"><input type="checkbox" id="log-errors-only" onchange="renderLog()"> {{ t.log_errors_only }}</label>
@@ -2133,93 +2148,21 @@
             <button type="button" class="btn secondary small" onclick="clearLog()">{{ t.log_clear }}</button>
           </div>
           <div id="log-list"></div>
-        </div>
+        </details>
+
+        <details class="panel fold" id="sy-audit" data-load="loadAudit">
+          <summary><h3>{{ t.audit_heading }}</h3><span class="count" id="audit-info"></span></summary>
+          <p class="hint">{{ t.audit_hint }}</p>
+          <div id="audit-log" class="collapsible"></div>
+          <button class="btn secondary small collapse-btn" id="audit-log-btn" onclick="toggleCollapse('audit-log')"></button>
+        </details>
       </div>
-      <div class="panel" data-jump-panel id="twofa-panel">
-        <h3>🔐 {{ t.twofa_heading }}</h3>
-        <p class="hint">{{ t.twofa_hint }}</p>
-        <div id="twofa-status" class="hint" style="margin-bottom:12px">…</div>
-        <div id="twofa-off" style="display:none">
-          <button class="btn" onclick="twofaSetup()">{{ t.twofa_enable_btn }}</button>
-        </div>
-        <div id="twofa-setup" style="display:none">
-          <p class="hint">{{ t.twofa_scan_hint }}</p>
-          <div id="twofa-qr" style="background:#fff;padding:12px;border-radius:8px;display:inline-block;max-width:230px"></div>
-          <p class="hint" style="margin-top:10px">{{ t.twofa_secret_label }}: <code id="twofa-secret" style="user-select:all"></code></p>
-          <label>{{ t.twofa_confirm_label }}</label>
-          <input type="text" id="twofa-code" inputmode="numeric" maxlength="6" style="max-width:160px" placeholder="123456">
-          <div style="margin-top:12px">
-            <button class="btn" onclick="twofaEnable()">{{ t.twofa_confirm_btn }}</button>
-            <button class="btn secondary" onclick="twofaCancel()">{{ t.cancel }}</button>
-          </div>
-        </div>
-        <div id="twofa-on" style="display:none">
-          <p class="hint" id="twofa-backup-count"></p>
-          <button class="btn secondary" onclick="twofaRegen()">{{ t.twofa_regen_btn }}</button>
-          <button class="btn danger" onclick="twofaDisable()">{{ t.twofa_disable_btn }}</button>
-        </div>
-        <div id="twofa-codes" style="display:none;margin-top:14px">
-          <p class="hint" style="color:var(--accent)">{{ t.twofa_codes_hint }}</p>
-          <pre id="twofa-codes-list" style="background:var(--bg);padding:12px;border-radius:6px;border:1px solid var(--border);white-space:pre-wrap;word-break:break-all"></pre>
-          <button class="btn secondary small" onclick="el('twofa-codes').style.display='none'">{{ t.twofa_codes_done }}</button>
-        </div>
-      </div>
-      <div class="panel" data-jump-panel>
-        <h3>{{ t.maintenance_heading }} <span id="maint-state"></span></h3>
-        <p class="hint">{{ t.maintenance_hint }}</p>
-        <div class="row">
-          <div>
-            <label>{{ t.maintenance_text }} (DE)</label>
-            <textarea data-md id="m-text_de" rows="3"></textarea>
-          </div>
-          <div>
-            <label>{{ t.maintenance_text }} (EN, {{ t.optional }})</label>
-            <textarea data-md id="m-text_en" rows="3"></textarea>
-          </div>
-        </div>
-        <button class="btn" id="maint-btn" onclick="toggleMaintenance()"></button>
-      </div>
-      <div class="panel" data-jump-panel>
-        <h3>{{ t.audit_heading }}</h3>
-        <p class="hint">{{ t.audit_hint }}</p>
-        <div id="audit-log" class="collapsible"></div>
-        <button class="btn secondary small collapse-btn" id="audit-log-btn" onclick="toggleCollapse('audit-log')"></button>
-      </div>
-      <div class="panel" data-jump-panel>
-        <h3>{{ t.backup_heading }}</h3>
-        <p class="hint">{{ t.backup_hint }}</p>
-        <button class="btn secondary" onclick="downloadBackup()">⬇ {{ t.backup_download }}</button>
-        <button class="btn secondary" onclick="el('restore-input').click()">⬆ {{ t.restore_upload }}</button>
-        <input type="file" id="restore-input" accept=".zip" style="display:none">
-        <p class="hint">{{ t.restore_hint }}</p>
-      </div>
-      <div class="panel" data-jump-panel>
-        <h3>{{ t.autobackup_heading }}</h3>
-        <p class="hint">{{ t.autobackup_hint }}</p>
-        <div id="autobackup-list"></div>
-        <button class="btn secondary" id="autobackup-run" onclick="runAutoBackup()">💾 {{ t.autobackup_run }}</button>
-      </div>
-      <div class="panel" data-jump-panel>
-        <h3>{{ t.revisions_heading }}</h3>
-        <p class="hint">{{ t.revisions_hint }}</p>
-        <div id="revisions-list"></div>
-      </div>
-      <div class="panel" data-jump-panel>
-        <h3>{{ t.cleanup_heading }}</h3>
-        <p class="hint">{{ t.cleanup_hint }}</p>
-        <button class="btn secondary" id="cleanup-btn" onclick="cleanupUploads()">🧹 {{ t.cleanup_btn }}</button>
-        <p class="hint">{{ t.cleanup_pdf_hint }}</p>
-        <button class="btn secondary" id="cleanup-pdf-btn" onclick="cleanupDocs()">🧹 {{ t.cleanup_pdf_btn }}</button>
-      </div>
-      <div class="panel" data-jump-panel>
-        <h3 style="margin:0">
-          <button type="button" class="set-toggle" id="files-toggle" aria-expanded="false" onclick="toggleFiles()">
-            <span class="caret">▶</span>
-            <span>{{ t.files_heading }}</span>
-            <span class="count" id="files-info"></span>
-          </button>
-        </h3>
-        <div id="files-body" style="display:none;margin-top:12px">
+
+      <div class="sys-group" data-jump-panel data-jump-label="{{ t.sysgrp_files }}">
+        <h2 class="sys-head">{{ t.sysgrp_files }}</h2>
+
+        <details class="panel fold" id="sy-files" data-load="loadFilesPanel">
+          <summary><h3>{{ t.files_heading }}</h3><span class="count" id="files-info"></span></summary>
           <p class="hint">{{ t.files_hint }}</p>
           <div class="media-bar">
             <input type="search" id="files-q" placeholder="{{ t.media_search_ph }}"
@@ -2239,17 +2182,10 @@
           <div class="uploads-grid" id="files-img-grid"></div>
           <h4 style="margin:18px 0 6px">{{ t.files_docs }} <span class="hint" id="files-doc-count" style="font-weight:normal"></span></h4>
           <div class="uploads-grid" id="files-doc-grid"></div>
-        </div>
-      </div>
-      <div class="panel" data-jump-panel>
-        <h3 style="margin:0">
-          <button type="button" class="set-toggle" id="alts-toggle" aria-expanded="false" onclick="toggleAlts()">
-            <span class="caret">▶</span>
-            <span>🏷️ {{ t.alts_heading }}</span>
-            <span class="count" id="alts-info"></span>
-          </button>
-        </h3>
-        <div id="alts-body" style="display:none;margin-top:12px">
+        </details>
+
+        <details class="panel fold" id="sy-alts" data-load="loadAltsPanel">
+          <summary><h3>🏷️ {{ t.alts_heading }}</h3><span class="count" id="alts-info"></span></summary>
           <p class="hint">{{ t.alts_hint }}</p>
           <div class="upload-row">
             <label class="checkbox" style="margin:0"><input type="checkbox" id="alts-missing-only" checked onchange="renderAltEditor()"> {{ t.alts_missing_only }}</label>
@@ -2260,17 +2196,48 @@
             <button class="btn secondary" id="alts-ai-all" style="display:none" onclick="altAiAll(this)">✦ {{ t.alts_ai_all }}</button>
             <span class="hint" id="alts-ai-info" style="margin:0"></span>
           </div>
-        </div>
+        </details>
+
+        <details class="panel fold" id="sy-cleanup">
+          <summary><h3>{{ t.cleanup_heading }}</h3></summary>
+          <p class="hint">{{ t.cleanup_hint }}</p>
+          <button class="btn secondary" id="cleanup-btn" onclick="cleanupUploads()">🧹 {{ t.cleanup_btn }}</button>
+          <p class="hint">{{ t.cleanup_pdf_hint }}</p>
+          <button class="btn secondary" id="cleanup-pdf-btn" onclick="cleanupDocs()">🧹 {{ t.cleanup_pdf_btn }}</button>
+        </details>
       </div>
-      <div class="panel" data-jump-panel>
-        <h3 style="margin:0">
-          <button type="button" class="set-toggle" id="nf-toggle" aria-expanded="false" onclick="toggleNotfound()">
-            <span class="caret">▶</span>
-            <span>{{ t.nf_heading }}</span>
-            <span class="count" id="nf-info"></span>
-          </button>
-        </h3>
-        <div id="nf-body" style="display:none;margin-top:12px">
+
+      <div class="sys-group" data-jump-panel data-jump-label="{{ t.sysgrp_backup }}">
+        <h2 class="sys-head">{{ t.sysgrp_backup }}</h2>
+
+        <details class="panel fold" id="sy-backup">
+          <summary><h3>{{ t.backup_heading }}</h3></summary>
+          <p class="hint">{{ t.backup_hint }}</p>
+          <button class="btn secondary" onclick="downloadBackup()">⬇ {{ t.backup_download }}</button>
+          <button class="btn secondary" onclick="el('restore-input').click()">⬆ {{ t.restore_upload }}</button>
+          <input type="file" id="restore-input" accept=".zip" style="display:none">
+          <p class="hint">{{ t.restore_hint }}</p>
+        </details>
+
+        <details class="panel fold" id="sy-autobackup" data-load="loadAutoBackups">
+          <summary><h3>{{ t.autobackup_heading }}</h3><span class="count" id="autobackup-info"></span></summary>
+          <p class="hint">{{ t.autobackup_hint }}</p>
+          <div id="autobackup-list"></div>
+          <button class="btn secondary" id="autobackup-run" onclick="runAutoBackup()">💾 {{ t.autobackup_run }}</button>
+        </details>
+
+        <details class="panel fold" id="sy-revisions" data-load="loadRevisions">
+          <summary><h3>{{ t.revisions_heading }}</h3><span class="count" id="revisions-info"></span></summary>
+          <p class="hint">{{ t.revisions_hint }}</p>
+          <div id="revisions-list"></div>
+        </details>
+      </div>
+
+      <div class="sys-group" data-jump-panel data-jump-label="{{ t.sysgrp_urls }}">
+        <h2 class="sys-head">{{ t.sysgrp_urls }}</h2>
+
+        <details class="panel fold" id="sy-notfound" data-load="loadNotfound">
+          <summary><h3>{{ t.nf_heading }}</h3><span class="count" id="nf-info"></span></summary>
           <p class="hint">{{ t.nf_hint }}</p>
           <div class="media-bar">
             <label class="checkbox"><input type="checkbox" id="nf-hide-bots" checked onchange="renderNotfound()"> {{ t.nf_hide_bots }}</label>
@@ -2278,35 +2245,93 @@
             <button type="button" class="btn secondary small" onclick="clearNotfound()">{{ t.nf_clear_all }}</button>
           </div>
           <div id="nf-list"></div>
-        </div>
+        </details>
+
+        <details class="panel fold" id="sy-redirects" data-load="ensureSiteUrls">
+          <summary><h3>{{ t.redirects_heading }}</h3><span class="count" id="redirects-info"></span></summary>
+          <p class="hint">{{ t.redirects_hint }}</p>
+          <p class="hint">{{ t.redirects_target_hint }}</p>
+          <div id="redirect-list"></div>
+          {#- Eine Liste für alle Zeilen: die Vorschläge sind überall dieselben. #}
+          <datalist id="rd-target-list"></datalist>
+          <div style="margin-top:10px">
+            <button class="btn secondary small" onclick="addRedirectRow()">+ {{ t.redirects_add }}</button>
+            <button class="btn" style="margin-left:8px" onclick="saveRedirects()">{{ t.save }}</button>
+          </div>
+        </details>
       </div>
-      <div class="panel" data-jump-panel>
-        <h3>{{ t.redirects_heading }}</h3>
-        <p class="hint">{{ t.redirects_hint }}</p>
-        <p class="hint">{{ t.redirects_target_hint }}</p>
-        <div id="redirect-list"></div>
-        {#- Eine Liste für alle Zeilen: die Vorschläge sind überall dieselben. #}
-        <datalist id="rd-target-list"></datalist>
-        <div style="margin-top:10px">
-          <button class="btn secondary small" onclick="addRedirectRow()">+ {{ t.redirects_add }}</button>
-          <button class="btn" style="margin-left:8px" onclick="saveRedirects()">{{ t.save }}</button>
-        </div>
+
+      <div class="sys-group" data-jump-panel data-jump-label="{{ t.sysgrp_ops }}">
+        <h2 class="sys-head">{{ t.sysgrp_ops }}</h2>
+
+        <details class="panel fold" id="sy-maint">
+          <summary><h3>{{ t.maintenance_heading }}</h3><span class="count" id="maint-state"></span></summary>
+          <p class="hint">{{ t.maintenance_hint }}</p>
+          <div class="row">
+            <div>
+              <label>{{ t.maintenance_text }} (DE)</label>
+              <textarea data-md id="m-text_de" rows="3"></textarea>
+            </div>
+            <div>
+              <label>{{ t.maintenance_text }} (EN, {{ t.optional }})</label>
+              <textarea data-md id="m-text_en" rows="3"></textarea>
+            </div>
+          </div>
+          <button class="btn" id="maint-btn" onclick="toggleMaintenance()"></button>
+        </details>
+
+        <details class="panel fold" id="sy-export">
+          <summary><h3>{{ t.export_heading }}</h3></summary>
+          <p class="hint">{{ t.export_hint }}</p>
+          <button class="btn secondary" onclick="window.location.href='api/export'">⬇ {{ t.export_download }}</button>
+        </details>
+
+        <details class="panel fold" id="sy-sensors">
+          <summary><h3>{{ t.sensors_heading }}</h3></summary>
+          <p class="hint">{{ t.sensors_hint }}</p>
+        </details>
       </div>
-      <div class="panel" data-jump-panel>
-        <h3>{{ t.export_heading }}</h3>
-        <p class="hint">{{ t.export_hint }}</p>
-        <button class="btn secondary" onclick="window.location.href='api/export'">⬇ {{ t.export_download }}</button>
-      </div>
-      <div class="panel" data-jump-panel>
-        <h3>{{ t.sensors_heading }}</h3>
-        <p class="hint">{{ t.sensors_hint }}</p>
-      </div>
-      <div class="panel" data-jump-panel>
-        <h3>{{ t.ghtoken_heading }}</h3>
-        <p class="hint">{{ t.ghtoken_hint }}</p>
-        <div id="ghtoken-status" class="hint" style="margin:10px 0 0">{{ t.ghtoken_checking }}</div>
-        <div id="ghtoken-detail" class="hint" style="margin:4px 0 0"></div>
-        <button class="btn secondary small" style="margin-top:12px" onclick="loadGhToken(this)">{{ t.ghtoken_check }}</button>
+
+      <div class="sys-group" data-jump-panel data-jump-label="{{ t.sysgrp_access }}">
+        <h2 class="sys-head">{{ t.sysgrp_access }}</h2>
+
+        <details class="panel fold" id="sy-twofa" data-load="loadTwofa">
+          <summary><h3>🔐 {{ t.twofa_heading }}</h3><span class="count" id="twofa-info"></span></summary>
+          <p class="hint">{{ t.twofa_hint }}</p>
+          <div id="twofa-status" class="hint" style="margin-bottom:12px">…</div>
+          <div id="twofa-off" style="display:none">
+            <button class="btn" onclick="twofaSetup()">{{ t.twofa_enable_btn }}</button>
+          </div>
+          <div id="twofa-setup" style="display:none">
+            <p class="hint">{{ t.twofa_scan_hint }}</p>
+            <div id="twofa-qr" style="background:#fff;padding:12px;border-radius:8px;display:inline-block;max-width:230px"></div>
+            <p class="hint" style="margin-top:10px">{{ t.twofa_secret_label }}: <code id="twofa-secret" style="user-select:all"></code></p>
+            <label>{{ t.twofa_confirm_label }}</label>
+            <input type="text" id="twofa-code" inputmode="numeric" maxlength="6" style="max-width:160px" placeholder="123456">
+            <div style="margin-top:12px">
+              <button class="btn" onclick="twofaEnable()">{{ t.twofa_confirm_btn }}</button>
+              <button class="btn secondary" onclick="twofaCancel()">{{ t.cancel }}</button>
+            </div>
+          </div>
+          <div id="twofa-on" style="display:none">
+            <p class="hint" id="twofa-backup-count"></p>
+            <button class="btn secondary" onclick="twofaRegen()">{{ t.twofa_regen_btn }}</button>
+            <button class="btn danger" onclick="twofaDisable()">{{ t.twofa_disable_btn }}</button>
+          </div>
+          <div id="twofa-codes" style="display:none;margin-top:14px">
+            <p class="hint" style="color:var(--accent)">{{ t.twofa_codes_hint }}</p>
+            <pre id="twofa-codes-list" style="background:var(--bg);padding:12px;border-radius:6px;border:1px solid var(--border);white-space:pre-wrap;word-break:break-all"></pre>
+            <button class="btn secondary small" onclick="el('twofa-codes').style.display='none'">{{ t.twofa_codes_done }}</button>
+          </div>
+        </details>
+
+        <details class="panel fold" id="sy-ghtoken" data-load="loadGhToken">
+          <summary><h3>{{ t.ghtoken_heading }}</h3></summary>
+          <p class="hint">{{ t.ghtoken_hint }}</p>
+          <div id="ghtoken-status" class="hint" style="margin:10px 0 0">{{ t.ghtoken_checking }}</div>
+          <div id="ghtoken-detail" class="hint" style="margin:4px 0 0"></div>
+          <button class="btn secondary small" style="margin-top:12px" onclick="loadGhToken(this)">{{ t.ghtoken_check }}</button>
+        </details>
       </div>
     </section>
 
@@ -3442,6 +3467,7 @@
       const r = await api('api/2fa');
       if (!r.ok) return;
       const d = await r.json();
+      el('twofa-info').textContent = d.enabled ? T.twofa_state_on : T.twofa_state_off;
       el('twofa-setup').style.display = 'none';
       el('twofa-codes').style.display = 'none';
       if (d.enabled) {
@@ -4311,7 +4337,9 @@
         if (btn.dataset.tab === 'messages') { loadMessages(); loadComments(); }
         if (btn.dataset.tab === 'users') { loadUsers(); initStorageBrowser(); startUsersPolling(); }
         if (btn.dataset.tab === 'design') { initPreview(); initDesignJump(); setTimeout(updatePresetArrows, 50); }
-        if (btn.dataset.tab === 'system') { loadHealth(); loadLog(); loadAudit(); loadTwofa(); loadAutoBackups(); loadRevisions(); loadFileBrowser(); initSystemJump(); }
+        // Nur die Zustandsanzeige laedt sofort — sie steht offen und bringt
+        // zugleich die Zahlen fuer alle zugeklappten Kopfzeilen mit.
+        if (btn.dataset.tab === 'system') { loadHealth(); initSystemJump(); }
         if (btn.dataset.tab === 'settings') { loadSettings(); loadKeyState(); initSettingsJump(); }
         if (btn.dataset.tab === 'blog') loadSubscribers();
         if (btn.dataset.tab === 'ai') initAiTab();
@@ -4329,7 +4357,6 @@
       fillLegal();
       fillSections();
       fillSystem();
-      loadGhToken();
       renderProjects();
       renderPosts();
       renderPages();
@@ -6330,6 +6357,9 @@
       el('m-text_en').value = d.maintenance_text_en || '';
       const on = !!d.maintenance;
       el('maint-state').innerHTML = on ? `<span class="maint-on">● ${T.maintenance_on}</span>` : '';
+      // Eine abgeschaltete Website ist nichts, was hinter einer zugeklappten
+      // Ueberschrift stehen darf — auch wenn der Bereich zuletzt zu war.
+      if (on) openFold('sy-maint');
       el('maint-btn').textContent = on ? T.maintenance_disable : T.maintenance_enable;
       el('maint-btn').className = on ? 'btn' : 'btn danger';
     }
@@ -6355,6 +6385,7 @@
       } catch (e) { return; }
       const runBtn = el('autobackup-run');
       if (runBtn) runBtn.disabled = !(d.keep > 0);
+      el('autobackup-info').textContent = sysCount((d.backups || []).length);
       if (!d.keep) {
         box.innerHTML = `<p class="hint">${T.autobackup_off}</p>`;
         return;
@@ -6411,6 +6442,7 @@
       try {
         d = await (await api('api/revisions')).json();
       } catch (e) { return; }
+      el('revisions-info').textContent = sysCount((d.revisions || []).length);
       if (!d.keep) { box.innerHTML = `<p class="hint">${T.revisions_off}</p>`; return; }
       if (!d.revisions.length) { box.innerHTML = `<p class="hint">${T.revisions_none}</p>`; return; }
       box.innerHTML = '';
@@ -6448,7 +6480,10 @@
       if (!box) return;
       box.innerHTML = '';
       (SITE.redirects || []).forEach(addRedirectRow);
-      loadSiteUrls();
+      const info = el('redirects-info');
+      if (info) info.textContent = sysCount((SITE.redirects || []).length);
+      // Die Vorschlagsliste holt der Bereich beim Aufklappen (ensureSiteUrls) —
+      // sie kostet einen Aufruf und nuetzt nur, wer sie sieht.
     }
     // ── Protokoll ──
     // Alle Meldungen gingen bisher nur nach stdout und damit ins Add-on-Log von
@@ -6456,13 +6491,6 @@
     // laufenden Prozesses — genug, um „was war da los?" zu beantworten, ohne
     // die Oberfläche zu wechseln.
     let LOG_ROWS = [];
-    function toggleLog() {
-      const body = el('log-body');
-      const open = body.style.display === 'none';
-      body.style.display = open ? '' : 'none';
-      el('log-toggle').setAttribute('aria-expanded', open ? 'true' : 'false');
-      if (open) loadLog();
-    }
     async function loadLog() {
       const r = await api('api/log');
       if (!r.ok) { toast(T.error_load, true); return; }
@@ -6515,10 +6543,30 @@
     // „gut" zu zeigen, macht aus der Anzeige eine Liste, die man nicht mehr
     // liest — und dann fällt die eine rote Zeile auch nicht mehr auf.
     let HEALTH = [];
+    function sysCount(n) { return T.sys_entries.replace('{n}', n); }
+    // Zugeklappt waere der Reiter zwar aufgeraeumt, aber blind: dass vierzig
+    // Fassungen liegen oder drei Alternativtexte fehlen, saehe man erst nach
+    // dem Oeffnen. Diese Zahlen kommen deshalb mit der Zustandsanzeige mit —
+    // ein Aufruf fuellt alle Kopfzeilen.
+    function fillSystemCounts(c) {
+      if (!c) return;
+      const set = (id, txt) => { const e = el(id); if (e) e.textContent = txt; };
+      set('log-info', T.log_info.replace('{e}', c.log_errors).replace('{w}', c.log_warnings));
+      set('audit-info', sysCount(c.audit));
+      set('revisions-info', sysCount(c.revisions));
+      set('autobackup-info', sysCount(c.backups));
+      set('files-info', T.files_info.replace('{i}', c.images).replace('{d}', c.docs));
+      set('alts-info', T.alts_info.replace('{n}', c.images).replace('{m}', c.alts_missing));
+      set('nf-info', T.nf_info.replace('{n}', c.notfound).replace('{t}', c.notfound_all));
+    }
     async function loadHealth() {
       const r = await api('api/health');
       if (!r.ok) return;
-      HEALTH = (await r.json()).checks || [];
+      const d = await r.json();
+      HEALTH = d.checks || [];
+      el('health-info').textContent = d.bad ? T.sys_health_bad.replace('{n}', d.bad)
+                                            : T.sys_health_ok;
+      fillSystemCounts(d.counts);
       renderHealth();
     }
     function renderHealth() {
@@ -6575,13 +6623,6 @@
     // Der Nutzen entsteht erst durch die Verbindung zu den Weiterleitungen
     // direkt darunter: erkennen, was kaputt ist, und es in einem Zug reparieren.
     let NF_ROWS = [];
-    function toggleNotfound() {
-      const body = el('nf-body');
-      const open = body.style.display === 'none';
-      body.style.display = open ? '' : 'none';
-      el('nf-toggle').setAttribute('aria-expanded', open ? 'true' : 'false');
-      if (open) loadNotfound();
-    }
     async function loadNotfound() {
       const r = await api('api/stats/notfound');
       if (!r.ok) { toast(T.error_load, true); return; }
@@ -6648,7 +6689,11 @@
     }
     // Legt eine vorbefüllte Zeile in der Weiterleitungsliste an und springt
     // hin. Gespeichert wird nicht von allein: das Ziel kennt nur der Mensch.
-    function redirectFor(path) {
+    async function redirectFor(path) {
+      // Zugeklappt liesse sich unten nichts eintragen, und ohne die Adressliste
+      // gaebe es keinen Vorschlag — beides hier nachholen.
+      openFold('sy-redirects');
+      await ensureSiteUrls();
       const existing = [...document.querySelectorAll('#redirect-list .rd-from')]
         .find(i => i.value.trim() === path);
       const row = existing ? existing.closest('.redirect-row') : (addRedirectRow({ from: path }),
@@ -6687,6 +6732,11 @@
     // Zielfeld: tippen filtert, der Pfeil zeigt alles. Freie Eingabe bleibt
     // möglich — ein Ziel darf auch eine fremde Adresse sein.
     let SITE_URLS = [];
+    let siteUrlsPromise = null;
+    function ensureSiteUrls() {
+      if (!siteUrlsPromise) siteUrlsPromise = loadSiteUrls();
+      return siteUrlsPromise;
+    }
     async function loadSiteUrls() {
       const r = await api('api/site/urls');
       if (!r.ok) return;
@@ -7504,6 +7554,19 @@
     // Kontextmenü und fragt nach: ein Klick daneben in einem Raster aus 300
     // Kacheln darf keine Datei kosten.
     let FILES = { images: [], docs: [] };
+    // Dateibrowser und Alternativtexte arbeiten auf derselben Liste. Wer beide
+    // aufklappt, soll sie trotzdem nur einmal holen — /api/uploads/list baut
+    // serverseitig den Verwendungsindex ueber die ganze site.json auf.
+    let filesPromise = null;
+    function ensureFiles() {
+      if (!filesPromise) filesPromise = loadFileBrowser();
+      return filesPromise;
+    }
+    // Wer den zweiten Bereich aufklappt, bekommt die Liste nicht noch einmal —
+    // aber zeichnen muss er selbst: beim ersten Laden war er noch zu, und
+    // zugeklappt zeichnet keiner von beiden.
+    async function loadFilesPanel() { await ensureFiles(); renderFileBrowser(); }
+    async function loadAltsPanel() { await ensureFiles(); renderAltEditor(); }
     async function loadFileBrowser() {
       const [ri, rd] = await Promise.all([api('api/uploads/list'), api('api/docs/list')]);
       const idata = ri.ok ? await ri.json() : { files: [], folders: [] };
@@ -7529,15 +7592,6 @@
     function renderFilesSummary() {
       el('files-info').textContent = T.files_info
         .replace('{i}', FILES.images.length).replace('{d}', FILES.docs.length);
-    }
-    // Einige hundert Kacheln mit Vorschaubild baut man nicht auf Vorrat — erst
-    // beim Aufklappen. Dasselbe Muster wie bei den Alternativtexten.
-    function toggleFiles() {
-      const body = el('files-body');
-      const open = body.style.display === 'none';
-      body.style.display = open ? '' : 'none';
-      el('files-toggle').setAttribute('aria-expanded', open ? 'true' : 'false');
-      if (open) renderFileBrowser();
     }
     // ── Ordner (nur im Admin) ──
     // Ein Bild liegt in genau einem Ordner, hat aber beliebig viele Etiketten:
@@ -7640,7 +7694,7 @@
     }
     function renderFileBrowser() {
       renderFilesSummary();
-      if (el('files-body').style.display === 'none') return;
+      if (!el('sy-files').open) return;   // zugeklappt nicht zeichnen
       renderFolderBar();
       renderTagBar();
       renderSelBar();
@@ -7821,18 +7875,9 @@
         .replace('{n}', FILES.images.length).replace('{m}', missing);
       el('alts-ai-all').style.display = (AI_STATUS && AI_STATUS.text && missing) ? '' : 'none';
     }
-    // Zugeklappt gar nicht erst bauen: hundert Zeilen mit Vorschaubild sind
-    // nichts, was man im Hintergrund anlegt.
-    function toggleAlts() {
-      const body = el('alts-body');
-      const open = body.style.display === 'none';
-      body.style.display = open ? '' : 'none';
-      el('alts-toggle').setAttribute('aria-expanded', open ? 'true' : 'false');
-      if (open) renderAltEditor();
-    }
     function renderAltEditor() {
       renderAltSummary();
-      if (el('alts-body').style.display === 'none') return;
+      if (!el('sy-alts').open) return;    // zugeklappt nicht zeichnen
       const box = el('alts-list');
       box.innerHTML = '';
       const rows = altsFiles();
@@ -8054,6 +8099,7 @@
       const r = await api('api/audit');
       if (!r.ok) return;
       const data = await r.json();
+      el('audit-info').textContent = sysCount(data.audit.length);
       const box = el('audit-log');
       if (!data.audit.length) { box.innerHTML = `<p class="hint">${T.audit_empty}</p>`; refreshCollapse('audit-log'); return; }
       const AL = {
@@ -9889,6 +9935,9 @@
     // Aufklappbare Bereiche tragen im h3 einen Knopf mit Pfeil und Zaehler.
     // Deren Beschriftung steht im mittleren Span — sonst stuende "▶ … 12" im Chip.
     function jumpLabel(panel) {
+      // Im Reiter System sind die Sprungziele Gruppen, keine Einzelbereiche —
+      // die tragen ihre Beschriftung als Attribut.
+      if (panel.dataset.jumpLabel) return panel.dataset.jumpLabel;
       const h = panel.querySelector('h3');
       if (!h) return '';
       const inner = h.querySelector('.set-toggle > span:nth-child(2)');
@@ -9960,7 +10009,11 @@
     }
     function initSystemJump() {
       syncHeaderHeight();
-      if (!systemJumpReady) { systemJumpReady = true; buildJumpbar('system'); }
+      if (!systemJumpReady) {
+        systemJumpReady = true;
+        initFolds('#tab-system');
+        buildJumpbar('system');
+      }
       jumpSpy();
     }
     // ── Design-Reiter: Gruppen merken und Optionen finden ──
@@ -9971,8 +10024,18 @@
     function foldRemember(d) {
       try { localStorage.setItem('mypage.fold.' + d.id, d.open ? '1' : '0'); } catch (e) {}
     }
-    function initDesignFolds() {
-      document.querySelectorAll('#tab-design details.fold').forEach(d => {
+    // Inhalt erst beim ersten Aufklappen holen. Vorher lud der Reiter System
+    // beim Betreten sieben Endpunkte auf einmal — auch die sechs Bereiche, die
+    // niemand ansah; bei vier Admin-Threads meldete Waitress dafuer prompt
+    // "Task queue depth is 3".
+    function foldLoad(d) {
+      const fn = d.dataset.load;
+      if (!fn || d.dataset.loaded) return;
+      d.dataset.loaded = '1';
+      if (typeof window[fn] === 'function') window[fn]();
+    }
+    function initFolds(root) {
+      document.querySelectorAll(root + ' details.fold').forEach(d => {
         if (!d.id) return;
         try {
           const v = localStorage.getItem('mypage.fold.' + d.id);
@@ -9980,11 +10043,21 @@
         } catch (e) {}
         d.addEventListener('toggle', () => {
           foldRemember(d);
+          if (d.open) foldLoad(d);
           // Die Pfeile der Vorlagen-Galerie rechnen mit Breiten — zugeklappt
           // sind die null, also erst nach dem Aufklappen messen.
           if (d.open && d.id === 'dg-presets') setTimeout(updatePresetArrows, 50);
+          jumpSpy();   // die Seite ist gerade kuerzer oder laenger geworden
         });
+        if (d.open) foldLoad(d);   // beim Start bereits offene Bereiche
       });
+    }
+    // Ein Bereich, den eine andere Stelle braucht (etwa die Weiterleitungen aus
+    // der 404-Liste heraus). Zugeklappt liesse sich dort nichts eintragen.
+    function openFold(id) {
+      const d = el(id);
+      if (d && !d.open) d.open = true;
+      return d;
     }
 
     let designFindTimer = null;
@@ -10019,7 +10092,7 @@
     let designJumpReady = false;
     function initDesignJump() {
       syncHeaderHeight();
-      if (!designJumpReady) { designJumpReady = true; initDesignFolds(); buildJumpbar('design'); }
+      if (!designJumpReady) { designJumpReady = true; initFolds('#tab-design'); buildJumpbar('design'); }
       jumpSpy();
     }
     // Ein Beobachter fuer alle Leisten: welche gemeint ist, entscheidet der

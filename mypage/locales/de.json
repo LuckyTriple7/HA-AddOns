@@ -3237,5 +3237,14 @@
   "feed_untitled": "Ohne Titel",
   "trav_no_trip_selected": "Keine Reise ausgewählt — bitte links eine Reise anklicken.",
   "trav_save_offline": "Nicht gespeichert: Der Server war nicht erreichbar. Der Dialog bleibt offen, deine Eingaben sind lokal gesichert — bitte gleich noch einmal auf Speichern drücken.",
-  "trav_save_session": "Nicht gespeichert: Die Anmeldung ist abgelaufen. Bitte in einem zweiten Tab neu anmelden und dann hier erneut speichern."
+  "trav_save_session": "Nicht gespeichert: Die Anmeldung ist abgelaufen. Bitte in einem zweiten Tab neu anmelden und dann hier erneut speichern.",
+  "sysgrp_state": "Zustand & Diagnose",
+  "sysgrp_files": "Dateien & Speicher",
+  "sysgrp_backup": "Datensicherung",
+  "sysgrp_urls": "Adressen",
+  "sysgrp_ops": "Betrieb",
+  "sysgrp_access": "Zugang",
+  "sys_entries": "{n} Einträge",
+  "sys_health_bad": "{n} auffällig",
+  "sys_health_ok": "alles in Ordnung"
 }

@@ -10972,6 +10972,55 @@ def health_checks() -> list:
     return out
 
 
+def health_counts() -> dict:
+    """Zahlen für die zugeklappten Bereiche im Reiter System.
+
+    Dort lädt seit 0.11.26 jeder Bereich seinen Inhalt erst beim Aufklappen.
+    Ohne diese Zahlen wäre der Reiter zwar aufgeräumt, aber blind: dass vierzig
+    Fassungen liegen oder drei Alternativtexte fehlen, sähe man erst nach dem
+    Öffnen. Ein Aufruf füllt alle Kopfzeilen; jede Zählung ist ein Verzeichnis-
+    oder ein JSON-Lesevorgang — keine baut einen Index auf.
+    """
+    def count_dir(path: Path, ok) -> int:
+        try:
+            return sum(1 for f in path.iterdir() if f.is_file() and ok(f))
+        except OSError:
+            return 0
+
+    alts = _uploads_meta_load()
+    images = alts_missing = 0
+    try:
+        for f in UPLOADS_DIR.iterdir():
+            if not f.is_file() or f.suffix.lower() not in ALLOWED_UPLOAD_EXT:
+                continue
+            images += 1
+            a = alts.get(f.name) or {}
+            if not (a.get('de') or a.get('en')):
+                alts_missing += 1
+    except OSError:
+        pass
+
+    rows = admin_log_buffer.snapshot()
+    nf = [e for e in (load_stats().get('notfound') or {}).values()
+          if isinstance(e, dict)]
+    return {
+        'log_errors': sum(r.get('n', 1) for r in rows
+                          if r.get('level') in ('ERROR', 'CRITICAL')),
+        'log_warnings': sum(r.get('n', 1) for r in rows
+                            if r.get('level') == 'WARNING'),
+        'audit': len(load_audit()),
+        'revisions': len(list_revisions()),
+        'backups': count_dir(BACKUPS_DIR, lambda f: f.suffix == '.zip'),
+        'images': images,
+        'alts_missing': alts_missing,
+        'docs': count_dir(DOCS_DIR, lambda f: bool(_DOC_FILE_RE.match(f.name))),
+        # Zwei Zahlen, weil die Liste Bots ausblenden kann: ohne die zweite
+        # stünde in der Kopfzeile eine 0, während unten dreißig Zeilen warten.
+        'notfound': sum(1 for e in nf if not e.get('bot')),
+        'notfound_all': len(nf),
+    }
+
+
 @admin_app.route('/api/log')
 def api_log():
     """Die letzten Warnungen und Fehler des laufenden Add-ons.
@@ -11011,7 +11060,8 @@ def api_health():
     rank = {'err': 0, 'warn': 1, 'ok': 2, 'off': 3}
     rows.sort(key=lambda r: rank.get(r['level'], 9))
     return jsonify({'checks': rows,
-                    'bad': sum(1 for r in rows if r['level'] in ('err', 'warn'))})
+                    'bad': sum(1 for r in rows if r['level'] in ('err', 'warn')),
+                    'counts': health_counts()})
 
 
 @admin_app.route('/api/site/urls')
@@ -16650,4 +16700,8 @@ if __name__ == '__main__':
     threading.Thread(target=auto_backup_loop, daemon=True).start()
 
     log.info("MyPage bereit — öffentlich: %d, Admin: %d", PUBLIC_PORT, ADMIN_PORT)
-    _serve(admin_app, ADMIN_PORT, threads=4)
+    # Acht Threads wie oeffentlich: Der Admin laedt beim Oeffnen eines Reiters
+    # mehrere Endpunkte parallel, und bei vier Threads meldete Waitress dann
+    # "Task queue depth is 3" — die Anfragen warteten aufeinander. Ein
+    # wartender Thread kostet praktisch nur Speicher.
+    _serve(admin_app, ADMIN_PORT, threads=8)

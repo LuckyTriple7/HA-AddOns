@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.11.26
+
+- 🗂️ **Der Tab System ist aufgeräumt.** Sechzehn gleichrangige Kästen mit drei verschiedenen Klappmechaniken nebeneinander waren nicht mehr zu überblicken. Jetzt stehen sie in **sechs Gruppen** — Zustand & Diagnose, Dateien & Speicher, Datensicherung, Adressen, Betrieb, Zugang —, jeder Bereich klappt gleich (dieselbe Klappe wie im Design-Reiter), und welcher offen ist, merkt sich der Browser. Offen ist voreingestellt nur der **Systemzustand**; der **Wartungsmodus** klappt sich selbst auf, solange er aktiv ist. Die Seite ist damit **1579 statt 3402 Pixel** hoch.
+- 🔢 **Zugeklappt heißt nicht blind.** In jeder Kopfzeile steht, was drinliegt: „0 Fehler, 3 Warnungen", „108 Einträge", „12 Bilder, davon 11 ohne Text". Die Zahlen kommen mit der Zustandsanzeige in **einem** Aufruf mit.
+- ⚡ **Der Reiter lädt nur noch, was du ansiehst.** Bisher feuerte das Öffnen **acht** Aufrufe auf einmal — Protokoll, Admin-Protokoll, 2FA, Backups, frühere Stände, Dateien —, auch wenn niemand hinsah. Jetzt ist es **einer**; jeder Bereich holt sein Material beim ersten Aufklappen. Dateibrowser und Alternativtexte teilen sich dabei eine Ladung. Zwei weitere Aufrufe entfallen schon beim Anmelden: die **GitHub-Abfrage** und die Adressliste der Weiterleitungen laufen erst, wenn der jeweilige Bereich geöffnet wird.
+- 🧵 **„Task queue depth is 3" ist damit erklärt und behoben.** Diese Meldung im neuen Protokoll kam von Waitress, nicht von MyPage: Es trafen mehr Anfragen gleichzeitig ein, als der Admin freie Threads hatte — genau die sieben Ladeaufrufe von oben bei vier Threads. Der Admin läuft jetzt wie der öffentliche Teil mit **acht Threads**, und den Schwall gibt es ohnehin nicht mehr.
+- 🧭 Die Sprungleiste zeigt jetzt die **sechs Gruppen** statt sechzehn Einzelbereiche — sie passte auf keinen Bildschirm mehr und war selbst ein Teil des Problems.
+
 ## 0.11.25
 
 - 📋 **Das Protokoll steht jetzt im Admin.** Warnungen und Fehler gingen bisher ausschließlich nach `stdout` und damit nur ins Add-on-Protokoll von Home Assistant. Neu im Tab **System** der Abschnitt **„Protokoll (Warnungen & Fehler)"** mit den letzten 300 Meldungen des laufenden Add-ons — misslungene Bildverkleinerung, abgebrochenes PDF-Rendern, eine beschädigte Datei in Quarantäne, ein weggebrochener SMB-Mount. Die Zustandsanzeige darüber deckt vier Bereiche ab; hier steht der Rest.

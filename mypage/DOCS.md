@@ -212,6 +212,13 @@ Der Tab bündelt alles, was mit Google Gemini erzeugt wird. Ohne `gemini_api_key
   - **Warum ein zweiter Schlüssel:** der Gemini-Key aus AI Studio ist auf die Generative Language API beschränkt und wird vom Preiskatalog mit `API_KEY_SERVICE_BLOCKED` abgewiesen. Der zweite Schlüssel muss aus einem Google-Cloud-Projekt stammen, in dem die **Cloud Billing API** freigeschaltet ist. Fehlt er, bleibt der Knopf weg und du pflegst die Preise von Hand — für die üblichen Modelle sind sie ohnehin hinterlegt.
   - **Es bleibt eine Schätzung.** Maßgeblich ist die Abrechnung bei Google — Freikontingente, Rundungen und Preisänderungen kennt das Add-on nicht. Ein Zugriff auf die echten Kosten ist mit dem Gemini-Key nicht möglich: der berechtigt nur zum Modellaufruf, Abrechnungsdaten liegen hinter der Cloud Billing API mit eigenem Dienstkonto und hinken ohnehin Stunden hinterher. Der Link neben der Überschrift führt direkt zur Abrechnungsseite.
 
+### Tab System im Überblick
+Der Reiter ist in **sechs Gruppen** geteilt: *Zustand & Diagnose* (Systemzustand, Protokoll, Admin-Protokoll), *Dateien & Speicher* (Dateien, Alternativtexte, Aufräumen), *Datensicherung* (Backup, automatische Backups, frühere Stände), *Adressen* (404-Liste, Weiterleitungen), *Betrieb* (Wartungsmodus, statischer Export, HA-Sensoren) und *Zugang* (2FA, GitHub-Token). Die Sprungleiste oben springt zu den Gruppen.
+
+- Jeder Bereich ist **zusammengeklappt**; in der Kopfzeile steht, was drinliegt („108 Einträge", „12 Bilder, davon 11 ohne Text"). Welche Bereiche offen sind, merkt sich der Browser (`localStorage`, pro Gerät).
+- Offen ist voreingestellt nur der **Systemzustand**. Der **Wartungsmodus** klappt sich selbst auf, solange er aktiv ist — eine abgeschaltete Website gehört nicht hinter eine zugeklappte Überschrift.
+- **Geladen wird erst beim Aufklappen.** Das Öffnen des Reiters kostet einen einzigen Aufruf (die Zustandsanzeige, die zugleich alle Zahlen der Kopfzeilen mitbringt). Auch die GitHub-Abfrage läuft erst, wenn du den Bereich *GitHub-Token* öffnest.
+
 ### Dateien (Tab System)
 Ein Browser über **alle hochgeladenen Bilder** und die **PDFs der Bibliothek** — gedacht zum Aufräumen und Nachsehen, was eigentlich alles herumliegt.
 
