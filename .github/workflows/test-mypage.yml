@@ -19,6 +19,12 @@ on:
       - 'mypage/locales/**'
   workflow_dispatch:
 
+# Der Lauf liest nur den Quelltext und startet Tests — schreiben muss er
+# nirgends. Ohne diesen Block gilt die Vorgabe des Kontos, und die kann
+# Schreibrechte bedeuten (CodeQL actions/missing-workflow-permissions).
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
