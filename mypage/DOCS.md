@@ -419,7 +419,23 @@ Wiederholungen derselben Quelle aktualisieren dieselbe Meldung, statt sie zu ver
 
 ## SEO
 
-`sitemap.xml` und `robots.txt` werden automatisch erzeugt. Damit die Sitemap korrekte Links enthält, im Design-Tab die **öffentliche URL** eintragen (z. B. die Cloudflare-Tunnel-Domain). Strukturierte Daten (JSON-LD) für Person und Blog-Beiträge sind eingebaut.
+`sitemap.xml` und `robots.txt` werden automatisch erzeugt. Damit die Sitemap korrekte Links enthält, im Design-Tab die **öffentliche URL** eintragen (z. B. die Cloudflare-Tunnel-Domain).
+
+**Strukturierte Daten (JSON-LD):** Jede öffentliche Seite trägt im Kopf einen unsichtbaren Block, der Suchmaschinen sagt, *was* ihr Inhalt bedeutet — nach dem Vokabular von [schema.org](https://schema.org).
+
+| Seite | Typ |
+| --- | --- |
+| Startseite | `Person` + `WebPage` |
+| Blog-Beitrag, Reisetag | `BlogPosting` |
+| Projekt | `SoftwareSourceCode` |
+| Bibliothek-Eintrag | `Article` |
+| Eigene Seite (`/seite/<slug>`) | `WebPage` |
+| Blog-Übersicht, Bibliothek, Reiseblog, Tagesliste einer Reise | `ItemList` |
+
+- **Es wird nichts gespeichert und nichts umgestellt.** Der Block entsteht bei jedem Aufruf aus den Feldern, die die Seite ohnehin anzeigt. Bestehende Beiträge haben ihn ab dem Update genauso wie neue; es gibt keinen Stapellauf und keine zweite Ablage, die veralten könnte.
+- **Die Listen führen nur, was die Seite zeigt.** Auf Seite 3 der Blog-Übersicht stehen die Beiträge 21 bis 26 mit genau diesen Platznummern. Ein Schlagwort- oder Suchfilter verkleinert die Liste entsprechend.
+- **Ohne Indexierung kein Block.** Ist *Design → Von Suchmaschinen indexieren lassen* aus, entfällt er — wie `canonical` und `hreflang` auch.
+- **Prüfen** lässt sich das Ergebnis mit dem [Schema Markup Validator](https://validator.schema.org) (nimmt auch eingefügten Quelltext, funktioniert also vor der Veröffentlichung). Der [Rich Results Test](https://search.google.com/test/rich-results) von Google zeigt dagegen **nur Typen, die einen erweiterten Treffer erzeugen** — `WebPage` und `ItemList` erscheinen dort nicht, obwohl sie korrekt sind.
 
 **Search-Console-Verifizierung (optional):** Im Design-Tab gibt es Felder für den **Google-Search-Console-** und **Bing-Webmaster-Code**. Trägst du dort den Bestätigungs-Code ein (oder fügst das komplette Meta-Tag ein — der Code wird automatisch herausgelesen), setzt MyPage das passende `<meta>`-Tag in den Kopf der Startseite, sodass du die Seite per „HTML-Tag"-Methode bestätigen kannst. Leer lassen, wenn deine Seite dort bereits bestätigt ist.
 

@@ -11,6 +11,23 @@
   {% elif site.profile.avatar %}<link rel="icon" href="{{ site.profile.avatar }}">{% endif %}
   {% if not site.design.allow_indexing %}<meta name="robots" content="noindex, nofollow">{% endif %}
   {% include '_seo.html' %}
+  {#- Strukturierte Daten. Nur bei erlaubter Indexierung, wie `canonical` und
+      `hreflang` in `_seo.html`: über eine Seite, die nicht in den Index soll,
+      gibt es einer Suchmaschine auch nichts zu erzählen. Der Block entsteht bei
+      jedem Aufruf aus den Feldern der Seite — gespeichert wird nichts. #}
+  {%- if site.design.allow_indexing %}
+  {%- set ld = {
+    '@context': 'https://schema.org',
+    '@type': 'WebPage',
+    'name': title,
+    'inLanguage': lang,
+    'isPartOf': {'@type': 'WebSite',
+                 'name': site.design.site_title or site.profile.name or 'MyPage'}
+  } %}
+  {%- if meta_desc %}{% set _ = ld.update({'description': meta_desc}) %}{% endif %}
+  {%- if canonical_url %}{% set _ = ld.update({'url': canonical_url}) %}{% endif %}
+  <script type="application/ld+json">{{ ld|tojson }}</script>
+  {%- endif %}
   <meta name="theme-color" content="#0d1117">
   <link rel="apple-touch-icon" href="/icon.png">
   <style>

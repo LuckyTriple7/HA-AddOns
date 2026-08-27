@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.11.20
+
+- 🔖 **Übersichtsseiten sagen Suchmaschinen jetzt, was auf ihnen steht.** Strukturierte Daten (schema.org) gab es bisher nur auf fünf Seitentypen — Startseite, Blog-Beitrag, Reisetag, Projekt und Bibliothek-Eintrag. Neu dazu: **eigene Seiten** als `WebPage` sowie **Blog-Übersicht, Bibliothek, Reiseblog-Übersicht und die Tagesliste einer Reise** als `ItemList` mit Titel und Adresse jedes Eintrags. Der Reiseblog war damit halb versorgt: Der einzelne Tag meldete sich, die Reise selbst schwieg.
+- 📄 **Aufgeführt wird nur, was die Seite wirklich zeigt.** Auf Seite 3 der Blog-Übersicht stehen die Beiträge 21 bis 26 — mit genau diesen Platznummern, nicht wieder ab 1 und nicht der ganze Bestand. Ein Schlagwort- oder Suchfilter verkleinert die Liste entsprechend.
+- 🚫 **Nichts davon geht raus, wenn die Indexierung abgeschaltet ist.** Die neuen Blöcke hängen an derselben Bedingung wie `canonical` und `hreflang`: Über eine Seite, die nicht in den Index soll, gibt es einer Suchmaschine auch nichts zu erzählen.
+- ℹ️ **Was es *nicht* bringt:** `WebPage` und `ItemList` erzeugen **keinen** erweiterten Treffer mit Bildern oder Zusatzzeilen. Sie helfen Suchmaschinen und KI-Crawlern beim Verstehen der Seite. Für sichtbare Wirkung im Suchergebnis braucht es `LocalBusiness` und `Event` auf der Startseite — das steht weiterhin aus.
+- 🧾 **Bestehende Beiträge brauchen nichts.** Der Block entsteht bei jedem Seitenaufruf aus den Feldern, die die Seite ohnehin anzeigt; gespeichert wird nichts. Ein Beitrag von vor drei Jahren hat ihn ab dem Update genauso wie einer von morgen.
+
 ## 0.11.19
 
 - 📏 **Suchfeld und Haken stehen wieder auf einer Linie.** In der Leiste über dem Bilderraster saßen Eingabefeld und Kontrollkästchen auf unterschiedlicher Höhe: Beschriftungen sind im Admin Blöcke mit Abstand nach oben, und in einer Zeile wirkte der sich als Versatz aus. Beschriftungen in den Medien-Leisten haben jetzt keinen Außenabstand mehr und sind selbst eine Zeile aus Kästchen und Text.

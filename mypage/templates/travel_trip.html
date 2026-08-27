@@ -11,6 +11,29 @@
   {% elif site.profile.avatar %}<link rel="icon" href="{{ site.profile.avatar }}">{% endif %}
   {% if not site.design.allow_indexing %}<meta name="robots" content="noindex, nofollow">{% endif %}
   {% include '_seo.html' %}
+  {#- Strukturierte Daten. Nur bei erlaubter Indexierung, wie `canonical` und
+      `hreflang` in `_seo.html`: über eine Seite, die nicht in den Index soll,
+      gibt es einer Suchmaschine auch nichts zu erzählen. Der Block entsteht bei
+      jedem Aufruf aus den Feldern der Seite — gespeichert wird nichts. #}
+  {%- if site.design.allow_indexing %}
+  {%- set ld = {
+    '@context': 'https://schema.org',
+    '@type': 'ItemList',
+    'name': trip.name,
+    'inLanguage': lang,
+    'numberOfItems': days|length,
+    'itemListOrder': 'https://schema.org/ItemListOrderAscending',
+    'itemListElement': []
+  } %}
+  {%- if meta_desc %}{% set _ = ld.update({'description': meta_desc}) %}{% endif %}
+  {%- for d in days %}
+  {%- set _ = ld.itemListElement.append({
+       '@type': 'ListItem', 'position': loop.index,
+       'name': d.title or (t.trav_day ~ ' ' ~ d.number),
+       'url': ('/reiseblog/' ~ trip.slug ~ '/' ~ d.slug)|abs_url}) %}
+  {%- endfor %}
+  <script type="application/ld+json">{{ ld|tojson }}</script>
+  {%- endif %}
   <meta name="theme-color" content="#0d1117">
   <link rel="apple-touch-icon" href="/icon.png">
   <style>

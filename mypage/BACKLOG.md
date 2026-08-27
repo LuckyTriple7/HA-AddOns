@@ -183,11 +183,10 @@ eingetragen ist.
 6. ~~**Snippet-Vorschau im Admin**~~ — **erledigt mit v0.10.49/0.10.50.** Fünf
    Vorschauen (Startseite, Beitrag, eigene Seite, Bibliothek-Eintrag,
    Reisebericht) mit Längenampel und Sprachumschalter.
-6b. **Übersichts- und eigene Seiten ohne Schema** (~3 h zusammen). JSON-LD gibt
-   es heute auf fünf Seitentypen (`public.html`, `post.html`, `travel_day.html`,
-   `project.html`, `library_entry.html`). Ohne Auszeichnung sind:
-   `blog.html`, `library.html`, `travel.html`, `travel_trip.html`, `page.html`,
-   `search.html`, `form.html`.
+6b. ~~**Übersichts- und eigene Seiten ohne Schema**~~ — **erledigt mit
+   v0.11.20.** `page.html` als `WebPage`, `blog.html`, `library.html`,
+   `travel.html` und `travel_trip.html` als `ItemList`. `search.html` und
+   `form.html` bleiben absichtlich ohne. Ursprünglicher Text zur Einordnung:
    - **`page.html` zuerst** (~1 h): eine eigene Seite ist `WebPage`, Impressum
      und Datenschutz sind `AboutPage` bzw. `WebPage`. Der Seitentyp, den heute
      am ehesten jemand direkt aufruft.
@@ -206,6 +205,17 @@ eingetragen ist.
      erweiterten Treffer. Sie helfen beim Verstehen — auch den KI-Crawlern —,
      aber wer hier sichtbare Wirkung im Suchergebnis erwartet, wird enttäuscht.
      Der Hebel dafür bleibt `LocalBusiness` und `Event`.
+
+   **Beim Bauen aufgefallen (v0.11.20):**
+
+   - Die **neuen** Blöcke stehen unter `{% if site.design.allow_indexing %}`,
+     die **fünf alten** nicht — die geben ihr JSON-LD auch auf einer Seite aus,
+     die auf `noindex` steht. Widerspruch, aber harmlos und deshalb nicht
+     nebenbei geändert: Wer die fünf nachzieht, sollte es in einem eigenen
+     Schritt tun und dabei alle gleichzeitig anfassen.
+   - Die Platznummern der Blog-Übersicht kommen aus `pager['offset']`. Wer die
+     Blätterung umbaut, muss den Wert mitziehen, sonst fängt jede Seite wieder
+     bei 1 an und behauptet damit, sie zeige den Anfang des Bestandes.
 
 7. **SEO-Ampel je Beitrag** (~1 Tag): Beschreibung gesetzt und lang genug?
    Titelbild? Alternativtexte? Text lang genug? Mindestens eine

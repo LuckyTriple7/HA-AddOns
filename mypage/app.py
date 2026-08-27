@@ -3990,7 +3990,9 @@ def blog_pager(posts: list, page: int, query: str = '', tag: str = '') -> dict:
             last = n
     return {
         'posts': posts[start:start + BLOG_PAGE_SIZE],
-        'page': page, 'pages': pages, 'total': total, 'items': items,
+        # `offset` braucht die Vorlage für die Positionsnummern im ItemList:
+        # der erste Beitrag auf Seite 3 ist der einundzwanzigste, nicht der erste.
+        'page': page, 'pages': pages, 'total': total, 'items': items, 'offset': start,
         'prev_url': _blog_page_url(page - 1, query, tag) if page > 1 else '',
         'next_url': _blog_page_url(page + 1, query, tag) if page < pages else '',
     }

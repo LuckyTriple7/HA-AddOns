@@ -12,6 +12,27 @@
   {% elif site.profile.avatar %}<link rel="icon" href="{{ site.profile.avatar }}">{% endif %}
   {% if not site.design.allow_indexing %}<meta name="robots" content="noindex, nofollow">{% endif %}
   {% include '_seo.html' %}
+  {#- Strukturierte Daten. Nur bei erlaubter Indexierung, wie `canonical` und
+      `hreflang` in `_seo.html`: über eine Seite, die nicht in den Index soll,
+      gibt es einer Suchmaschine auch nichts zu erzählen. Aufgeführt wird nur,
+      was diese Seite tatsächlich zeigt — sonst behauptete Seite 3 der
+      Übersicht, sie enthalte den ganzen Bestand. #}
+  {%- if site.design.allow_indexing %}
+  {%- set ld = {
+    '@context': 'https://schema.org',
+    '@type': 'ItemList',
+    'name': heading,
+    'inLanguage': lang,
+    'numberOfItems': trips|length,
+    'itemListElement': []
+  } %}
+  {%- for tr in trips %}
+  {%- set _ = ld.itemListElement.append({
+       '@type': 'ListItem', 'position': loop.index,
+       'name': tr.name, 'url': ('/reiseblog/' ~ tr.slug)|abs_url}) %}
+  {%- endfor %}
+  <script type="application/ld+json">{{ ld|tojson }}</script>
+  {%- endif %}
   <meta name="theme-color" content="#0d1117">
   <link rel="apple-touch-icon" href="/icon.png">
   <style>

@@ -13,6 +13,27 @@
   {% include '_seo.html' %}
   {%- if pager.prev_url %}<link rel="prev" href="{{ pager.prev_url }}">{% endif %}
   {%- if pager.next_url %}<link rel="next" href="{{ pager.next_url }}">{% endif %}
+  {#- Strukturierte Daten. Nur bei erlaubter Indexierung, wie `canonical` und
+      `hreflang` in `_seo.html`: über eine Seite, die nicht in den Index soll,
+      gibt es einer Suchmaschine auch nichts zu erzählen. Aufgeführt wird nur,
+      was diese Seite tatsächlich zeigt — sonst behauptete Seite 3 der
+      Übersicht, sie enthalte den ganzen Bestand. #}
+  {%- if site.design.allow_indexing %}
+  {%- set ld = {
+    '@context': 'https://schema.org',
+    '@type': 'ItemList',
+    'name': t.blog_heading,
+    'inLanguage': lang,
+    'numberOfItems': posts|length,
+    'itemListElement': []
+  } %}
+  {%- for p in posts %}
+  {%- set _ = ld.itemListElement.append({
+       '@type': 'ListItem', 'position': pager.offset + loop.index,
+       'name': loc(p, 'title'), 'url': ('/blog/' ~ p.id)|abs_url}) %}
+  {%- endfor %}
+  <script type="application/ld+json">{{ ld|tojson }}</script>
+  {%- endif %}
   <meta name="theme-color" content="#0d1117">
   <style>
     :root {
