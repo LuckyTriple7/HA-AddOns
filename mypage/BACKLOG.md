@@ -170,14 +170,16 @@ eingetragen ist.
      `Mo-Fr 09:00-17:00`. Ein toleranter Parser ist richtig, aber er muss bei
      unklarer Eingabe die Angabe **weglassen** statt zu raten — falsche
      Öffnungszeiten in Google sind schlimmer als gar keine.
-2. **`FAQPage`** aus `sections.faq` (~1 h). Google klappt die Fragen im
-   Suchergebnis auf, der Treffer bekommt dadurch deutlich mehr Fläche.
-3. **`Event`** aus `sections.events` (~1–1,5 h). Datum, Titel, Ort und URL sind
+2. **`Event`** aus `sections.events` (~1–1,5 h). Datum, Titel, Ort und URL sind
    alle da; `location` ist ein String und muss zu einem `Place`-Objekt werden.
-4. **`BreadcrumbList`** auf `/blog/<id>`, `/seite/<slug>`, `/bibliothek/<slug>`,
+   Erzeugt weiterhin erweiterte Treffer.
+3. **`BreadcrumbList`** auf `/blog/<id>`, `/seite/<slug>`, `/bibliothek/<slug>`,
    `/p/<id>` und den Reiseblog-Seiten (~2 h). Google zeigt dann den Pfad statt
    der nackten Adresse.
-5. **`Service` + `Offer`** aus `sections.services` (~1 h). `price` ist gepflegt.
+4. **`Service` + `Offer`** aus `sections.services` (~1 h). `price` ist gepflegt.
+5. **`FAQPage`** aus `sections.faq` (~1 h) — **nur noch Beiwerk.** Siehe die
+   Richtigstellung unten; einzeln lohnt es nicht, mitnehmen kann man es, wenn
+   ohnehin jemand am Startseiten-Schema arbeitet.
 6. ~~**Snippet-Vorschau im Admin**~~ — **erledigt mit v0.10.49/0.10.50.** Fünf
    Vorschauen (Startseite, Beitrag, eigene Seite, Bibliothek-Eintrag,
    Reisebericht) mit Längenampel und Sprachumschalter.
@@ -187,6 +189,30 @@ eingetragen ist.
 8. **Kleinkram:** `dateModified` fehlt bei `BlogPosting` — Beiträge haben gar
    kein `updated`-Feld, das müsste beim Speichern gesetzt werden (~1 h). Die
    Blog-Übersicht `/blog` hat kein `Blog`/`ItemList`-Schema.
+
+**Richtigstellung vom 2026-08-27 — `FAQPage` bringt keine Fläche mehr:**
+
+Die frühere Fassung dieser Liste führte `FAQPage` an zweiter Stelle mit der
+Begründung, Google klappe die Fragen im Suchergebnis auf und der Treffer bekomme
+dadurch deutlich mehr Fläche. **Das gilt nicht mehr.** Google hat die
+FAQ-Rich-Results am **7. Mai 2026** abgeschaltet. Vorstufe war der August 2023,
+seitdem gab es sie nur noch für bekannte Behörden- und Gesundheitsseiten; seit
+Mai 2026 für niemanden. Die Berichte in der Search Console fielen im Juni 2026
+weg, die Unterstützung in der Search-Console-API im August 2026.
+
+Was bleibt: Die Auszeichnung ist weiterhin gültiges schema.org, sie schadet
+nicht (Google sagt ausdrücklich, ungenutzte strukturierte Daten seien
+unschädlich), und KI-Crawler lesen sie. Als Hebel für die **Darstellung im
+Suchergebnis** ist sie tot — deshalb steht sie jetzt an letzter Stelle.
+
+`LocalBusiness` und `Event` sind davon **nicht** betroffen und erzeugen weiter
+erweiterte Treffer. Wer diese Liste später wieder aufnimmt: nicht aus dem
+Gedächtnis planen, sondern kurz gegen die aktuelle Google-Dokumentation prüfen —
+die Menge der Typen mit erweiterten Treffern wird seit Jahren kleiner, nicht
+größer (`How-to` fiel 2023, `FAQPage` 2026).
+
+Belege: <https://developers.google.com/search/docs/appearance/structured-data/local-business>,
+<https://www.searchenginejournal.com/google-drops-faq-rich-results-from-search/574429/>
 
 **Bewusst nicht vorgesehen:** Keyword-Dichte, Lesbarkeits-Punktzahlen und eine
 eigene Redirect-Suite. Weiterleitungen gibt es bereits; die beiden anderen
@@ -272,9 +298,11 @@ Ansichten kanonisieren wie bisher auf `/blog`.
 ### 3. Strukturierte Daten auf der Startseite
 
 Eigener Abschnitt weiter oben in dieser Datei („SEO: strukturierte Daten und
-Snippet-Vorschau"), Reihenfolge `LocalBusiness` → `FAQPage` → `Event` →
-`BreadcrumbList`. Unverändert gültig und für die Zielgruppe Verein, Handwerk,
-Dienstleistung die größte Sichtbarkeitslücke überhaupt.
+Snippet-Vorschau"), Reihenfolge `LocalBusiness` → `Event` → `BreadcrumbList` →
+`Service`. Für die Zielgruppe Verein, Handwerk, Dienstleistung die größte
+Sichtbarkeitslücke überhaupt. `FAQPage` stand hier früher an zweiter Stelle und
+ist seit dem 7. Mai 2026 wirkungslos — Einzelheiten in der Richtigstellung im
+SEO-Abschnitt.
 
 ### 4. Mehrere Autoren
 
