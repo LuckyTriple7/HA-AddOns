@@ -183,6 +183,30 @@ eingetragen ist.
 6. ~~**Snippet-Vorschau im Admin**~~ — **erledigt mit v0.10.49/0.10.50.** Fünf
    Vorschauen (Startseite, Beitrag, eigene Seite, Bibliothek-Eintrag,
    Reisebericht) mit Längenampel und Sprachumschalter.
+6b. **Übersichts- und eigene Seiten ohne Schema** (~3 h zusammen). JSON-LD gibt
+   es heute auf fünf Seitentypen (`public.html`, `post.html`, `travel_day.html`,
+   `project.html`, `library_entry.html`). Ohne Auszeichnung sind:
+   `blog.html`, `library.html`, `travel.html`, `travel_trip.html`, `page.html`,
+   `search.html`, `form.html`.
+   - **`page.html` zuerst** (~1 h): eine eigene Seite ist `WebPage`, Impressum
+     und Datenschutz sind `AboutPage` bzw. `WebPage`. Der Seitentyp, den heute
+     am ehesten jemand direkt aufruft.
+   - **`travel_trip.html`** (~1 h): eine Reise ist eine Sammlung von Tagen, also
+     `ItemList` mit den Tagen als `ListItem` (oder `Blog` mit `blogPost`). Der
+     Reiseblog ist heute halb versorgt — der einzelne Tag meldet sich als
+     `BlogPosting`, die Reise selbst und die Übersicht sagen gar nichts.
+   - **`blog.html`, `library.html`, `travel.html`** (~1 h): `ItemList` über die
+     gezeigten Einträge. **Nur die Einträge der aktuellen Seite auflisten**,
+     nicht den ganzen Bestand — sonst behauptet Seite 3 der Blog-Übersicht,
+     sie enthalte zweihundert Beiträge.
+   - **`search.html` und `form.html` bewusst nicht.** Suchergebnisse gehören
+     nicht in den Index (das ist Googles eigene Richtlinie), und ein Formular
+     ist kein Inhalt, über den es etwas zu erzählen gäbe.
+   - **Erwartung ehrlich halten:** `ItemList` und `WebPage` erzeugen **keinen**
+     erweiterten Treffer. Sie helfen beim Verstehen — auch den KI-Crawlern —,
+     aber wer hier sichtbare Wirkung im Suchergebnis erwartet, wird enttäuscht.
+     Der Hebel dafür bleibt `LocalBusiness` und `Event`.
+
 7. **SEO-Ampel je Beitrag** (~1 Tag): Beschreibung gesetzt und lang genug?
    Titelbild? Alternativtexte? Text lang genug? Mindestens eine
    Zwischenüberschrift?
@@ -223,6 +247,14 @@ schleppt Yoast aus Gewohnheit mit, gewertet werden sie seit Jahren nicht.
 - JSON-LD steht in den Vorlagen, nicht in `app.py` — `{%- set ld = {…} %}` je
   Seitentyp, ausgegeben über `{{ ld|tojson }}`. Wer es nach Python zieht, muss
   alle fünf Stellen gleichzeitig umstellen, sonst laufen sie auseinander.
+- **Es wird nichts gespeichert und nichts umgestellt.** Der Block entsteht bei
+  jedem Seitenaufruf aus den Feldern, die die Seite ohnehin anzeigt. Sobald eine
+  Vorlage ihn ausgibt, haben ihn alte und neue Einträge gleichermaßen — es gibt
+  keinen Stapellauf, keine Wanderung, keine zweite Ablage, die auseinanderlaufen
+  könnte. Die einzige Ausnahme sind **Felder, die es noch nicht gibt**: ein
+  `dateModified` kann für einen Beitrag, der seit Jahren nicht gespeichert
+  wurde, nicht erfunden werden. Solche Angaben gehören weggelassen, nicht
+  geraten (siehe Punkt 8).
 - `_seo.html` gibt `canonical` und `hreflang` nur bei
   `site.design.allow_indexing` aus. Neue Schema-Blöcke gehören unter dieselbe
   Bedingung — über eine Seite, die nicht in den Index soll, gibt es Google auch
