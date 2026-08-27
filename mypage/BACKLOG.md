@@ -368,8 +368,37 @@ nicht ungeprüft übernommen. Aufwand ~2 Tage.
 - **Formulare** kennen kein Dateifeld und keine Bedingungslogik
   (`FORM_FIELD_TYPES`). Ein Dateifeld zieht Quota, Virenfrage und Aufräumen nach
   sich — nicht nebenbei zu machen.
-- **Medienverwaltung** ohne Suche, ohne Ersetzen einer Datei, ohne Ordner: der
-  Tab System zeigt ein Raster, gelöscht wird per Rechtsklick.
+- ~~**Medienverwaltung** ohne Suche, ohne Ersetzen einer Datei, ohne Ordner~~ —
+  **erledigt mit v0.11.17.** Suche über Herkunftsname, Etiketten,
+  Alternativtexte und Fundstellen; Dialog *Datei verwalten* mit „Verwendet in";
+  Ersetzen unter gleichem Dateinamen. **Ordner bewusst nicht:** der Dateiname
+  steht in jeder Einbindung und in bereits veröffentlichten Adressen, ein
+  Verschieben zerrisse sie alle. Etiketten in `uploads_meta.json` leisten
+  dasselbe, ohne eine einzige Adresse anzufassen.
+
+  **Fallstricke für spätere Arbeit am Modul:**
+
+  - `uploads_meta.json` trägt jetzt zwei Karten (`alts` und `files`). Wer eine
+    dritte hinzufügt, muss sie in `_uploads_meta_forget()` mit aufräumen und
+    über `_uploads_meta_update()` schreiben — wer die Datei lädt, ändert und
+    speichert, überschreibt zwischendurch Geschriebenes der anderen Karte.
+  - `_usage_entities()` bestimmt, was „Verwendet in" kennt. Fehlt dort ein
+    Bereich, meldet die Verwaltung „nirgends verwendet", obwohl das Bild
+    eingebunden ist. Der **Löschschutz** hängt weiterhin an `_reference_blob()`
+    und nicht an dieser Liste — ein Vergessen kostet damit keine Datei.
+  - Ersetzen geht nur für `.webp`. `_store_upload_image()` schreibt immer WebP;
+    in eine `.png` geschrieben, lieferte die Datei WebP-Daten unter falscher
+    Endung aus.
+  - Die `-ai`-Kennzeichnung steckt im Dateinamen und übersteht das Ersetzen
+    deshalb. Das ist Absicht und die vorsichtige Richtung: ein gekennzeichnetes
+    Bild bleibt gekennzeichnet.
+  - Der Bild-Zwischenspeicher heißt jetzt `<stamm des bildes>-<schlüssel>.webp`.
+    Wer das Namensschema ändert, muss `_wm_cache_forget()` und
+    `_unused_wm_cache()` gleichzeitig mitziehen — sonst räumt das Aufräumen
+    entweder nichts mehr weg oder die Fassungen lebender Bilder.
+  - Browser halten ein ersetztes Bild bis zu einen Tag fest (`max_age=86400` an
+    der Auslieferroute). Wer das ändern will, ändert es für **alle** Bilder —
+    also Ladezeit gegen Aktualität. Der Admin umgeht es über `?v=<mtime>`.
 
 ### Empfohlene Reihenfolge
 

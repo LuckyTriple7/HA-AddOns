@@ -509,28 +509,109 @@ SECTION_KEYS = list(DEFAULT_SITE['section_order'])
 # jede Datei mit Alternativtext als benutzt und „Speicher aufräumen" fände nie
 # wieder eine Waise.
 
-def _uploads_meta_load() -> dict:
-    with _uploads_meta_lock:
-        try:
-            with open(UPLOADS_META_PATH, encoding='utf-8') as f:
-                data = json.load(f)
-        except FileNotFoundError:
-            return {}
-        except Exception as e:
-            _quarantine_corrupt(UPLOADS_META_PATH, e)
-            return {}
-    alts = data.get('alts') if isinstance(data, dict) else None
-    return {k: v for k, v in alts.items() if isinstance(v, dict)} if isinstance(alts, dict) else {}
+# In der Datei stehen zwei getrennte Karten, beide nach Dateiname:
+#   `alts`  — Alternativtexte je Sprache
+#   `files` — Herkunftsname und Etiketten für die Medienverwaltung
+# Wer eine dritte hinzufügt, muss sie in `_uploads_meta_forget()` mit
+# aufräumen, sonst bleiben Einträge zu längst gelöschten Dateien liegen.
+
+def _uploads_meta_read_locked() -> dict:
+    """Ganze Datei — nur aufrufen, wer `_uploads_meta_lock` schon hält."""
+    try:
+        with open(UPLOADS_META_PATH, encoding='utf-8') as f:
+            data = json.load(f)
+    except FileNotFoundError:
+        return {}
+    except Exception as e:
+        _quarantine_corrupt(UPLOADS_META_PATH, e)
+        return {}
+    return data if isinstance(data, dict) else {}
 
 
-def _uploads_meta_save(alts: dict) -> bool:
+def _uploads_meta_update(change) -> bool:
+    """Lesen, ändern, schreiben — am Stück unter dem Schloss.
+
+    Nur so bleiben die beiden Karten unabhängig voneinander änderbar: wer die
+    Datei erst lädt, dann ändert und dann speichert, überschreibt zwischendurch
+    Geschriebenes der jeweils anderen Karte.
+    """
     with _uploads_meta_lock:
+        data = _uploads_meta_read_locked()
+        change(data)
         try:
-            _atomic_write_json(UPLOADS_META_PATH, {'alts': alts}, indent=2)
+            _atomic_write_json(UPLOADS_META_PATH, data, indent=2)
             return True
         except Exception as e:
             log.error("uploads_meta.json konnte nicht gespeichert werden: %s", e)
             return False
+
+
+def _uploads_meta_map(key: str) -> dict:
+    with _uploads_meta_lock:
+        part = _uploads_meta_read_locked().get(key)
+    return ({k: v for k, v in part.items() if isinstance(v, dict)}
+            if isinstance(part, dict) else {})
+
+
+def _uploads_meta_load() -> dict:
+    """Alternativtexte: Dateiname -> {'de': …, 'en': …}."""
+    return _uploads_meta_map('alts')
+
+
+def _uploads_meta_save(alts: dict) -> bool:
+    return _uploads_meta_update(lambda d: d.update({'alts': alts}))
+
+
+def _uploads_files_load() -> dict:
+    """Verwaltungsangaben: Dateiname -> {'orig': …, 'tags': [...]}."""
+    return _uploads_meta_map('files')
+
+
+def _uploads_files_save(files: dict) -> bool:
+    return _uploads_meta_update(lambda d: d.update({'files': files}))
+
+
+UPLOAD_TAG_MAX = 8
+UPLOAD_TAGS_LEN = 30
+
+
+def _upload_tags_clean(raw) -> list:
+    """Etiketten säubern: getrimmt, ohne Doppelte, begrenzt in Zahl und Länge."""
+    if isinstance(raw, str):
+        raw = raw.split(',')
+    seen, out = set(), []
+    for t in (raw or []):
+        t = _clean_str(t, UPLOAD_TAGS_LEN).strip()
+        if t and t.lower() not in seen:
+            seen.add(t.lower())
+            out.append(t)
+    return out[:UPLOAD_TAG_MAX]
+
+
+def _uploads_file_meta_set(name: str, orig: str | None = None,
+                           tags: list | None = None) -> bool:
+    """Herkunftsname und/oder Etiketten einer Datei setzen.
+
+    `None` heißt „unverändert lassen"; eine leere Liste löscht die Etiketten.
+    Ein Eintrag ohne Inhalt wird entfernt statt leer gespeichert — sonst
+    sammelt die Ablage Karteileichen für jede je angefasste Datei.
+    """
+    def change(data: dict) -> None:
+        files = data.get('files')
+        if not isinstance(files, dict):
+            files = {}
+        entry = dict(files.get(name) or {})
+        if orig is not None:
+            entry['orig'] = _clean_str(orig, 120)
+        if tags is not None:
+            entry['tags'] = _upload_tags_clean(tags)
+        entry = {k: v for k, v in entry.items() if v}
+        if entry:
+            files[name] = entry
+        else:
+            files.pop(name, None)
+        data['files'] = files
+    return _uploads_meta_update(change)
 
 
 def _uploads_meta_forget(names) -> None:
@@ -538,10 +619,13 @@ def _uploads_meta_forget(names) -> None:
     names = {n for n in names if n}
     if not names:
         return
-    alts = _uploads_meta_load()
-    rest = {k: v for k, v in alts.items() if k not in names}
-    if len(rest) != len(alts):
-        _uploads_meta_save(rest)
+
+    def change(data: dict) -> None:
+        for key in ('alts', 'files'):
+            part = data.get(key)
+            if isinstance(part, dict):
+                data[key] = {k: v for k, v in part.items() if k not in names}
+    _uploads_meta_update(change)
 
 
 def _req_lang() -> str:
@@ -10088,7 +10172,8 @@ def _exif_facts(img) -> dict:
 
 
 def _store_upload_image(src, *, max_side: int = 1600, quality: int = 82,
-                        ai: bool = False, meta: dict | None = None) -> str | None:
+                        ai: bool = False, meta: dict | None = None,
+                        name: str | None = None) -> str | None:
     """Bild verkleinern, Metadaten verwerfen und als WebP in UPLOADS_DIR ablegen.
 
     `src` ist ein Datei-Objekt oder rohe Bilddaten; zurück kommt der erzeugte
@@ -10123,7 +10208,11 @@ def _store_upload_image(src, *, max_side: int = 1600, quality: int = 82,
     img.thumbnail((max_side, max_side))
     if img.mode not in ('RGB', 'RGBA'):
         img = img.convert('RGBA' if 'A' in img.getbands() else 'RGB')
-    name = uuid.uuid4().hex + (AI_IMAGE_SUFFIX if ai else '') + '.webp'
+    # `name` setzt nur das Ersetzen: dann behält die Datei ihren Namen, damit
+    # jede Einbindung weiter zeigt, wohin sie zeigte. Die `-ai`-Kennzeichnung
+    # steckt im Namen und bleibt dadurch erhalten — sie darf beim Austausch des
+    # Inhalts nicht verlorengehen.
+    name = name or (uuid.uuid4().hex + (AI_IMAGE_SUFFIX if ai else '') + '.webp')
     target = safe_under(UPLOADS_DIR, name)
     if target is None:
         return None
@@ -10149,6 +10238,11 @@ def api_upload():
             meta: dict = {}
             name = _store_upload_image(f.stream, meta=meta)
             if name:
+                # Der Herkunftsname ist das Einzige, woran ein Mensch die Datei
+                # später wiedererkennt — abgelegt wird sie unter einer UUID.
+                # Nur der Name, nicht der Pfad: der verriete das Verzeichnis des
+                # Hochladenden.
+                _uploads_file_meta_set(name, orig=Path(f.filename).name)
                 # `exif` geht nur an den Browser zurück, der die Datei gerade
                 # hochgeladen hat — abgelegt wird davon nichts.
                 return jsonify({'ok': True, 'url': '/uploads/' + name, 'exif': meta})
@@ -10161,6 +10255,7 @@ def api_upload():
     if target is None:
         abort(400)
     f.save(target)
+    _uploads_file_meta_set(name, orig=Path(f.filename).name)
     return jsonify({'ok': True, 'url': '/uploads/' + name})
 
 
@@ -10179,8 +10274,11 @@ def api_uploads_list():
     err = _api_auth()
     if err:
         return err
-    blob = _reference_blob(load_site())
+    site = load_site()
+    blob = _reference_blob(site)
     alts = _uploads_meta_load()
+    fmeta = _uploads_files_load()
+    usage = _upload_usage(site)
     files = []
     for f in UPLOADS_DIR.iterdir():
         if not f.is_file() or f.suffix.lower() not in ALLOWED_UPLOAD_EXT:
@@ -10192,14 +10290,21 @@ def api_uploads_list():
         if st.st_size <= 0:
             continue    # abgebrochener Upload — gäbe nur eine kaputte Kachel
         a = alts.get(f.name) or {}
+        m = fmeta.get(f.name) or {}
+        u = usage.get(f.name) or {}
         files.append({'url': '/uploads/' + f.name, 'size': st.st_size,
                       'mtime': int(st.st_mtime), 'used': f.name in blob,
                       'alt_de': a.get('de', ''), 'alt_en': a.get('en', ''),
+                      'orig': m.get('orig', ''), 'tags': m.get('tags') or [],
+                      'places': u.get('places') or [], 'place_count': u.get('n', 0),
                       # Marker steckt im Dateinamen (siehe _store_upload_image) —
                       # damit lässt sich die Galerie auf KI-Bilder eingrenzen
                       'ai': f.stem.endswith(AI_IMAGE_SUFFIX)})
     files.sort(key=lambda x: x['mtime'], reverse=True)
-    return jsonify({'files': files[:UPLOADS_LIST_MAX], 'total': len(files)})
+    return jsonify({'files': files[:UPLOADS_LIST_MAX], 'total': len(files),
+                    'tags': sorted({t for m in fmeta.values()
+                                    for t in (m.get('tags') or [])},
+                                   key=str.lower)})
 
 
 @admin_app.route('/api/docs/list')
@@ -10286,6 +10391,74 @@ def _reference_blob(site: dict) -> str:
             + json.dumps(_ai_prompts_load(), ensure_ascii=False))
 
 
+# Dateinamen der Uploads sind UUIDs mit fester Endung — dieselbe Annahme, auf
+# der schon der Vorkommen-Scan des Aufräumens beruht.
+_UPLOAD_NAME_RE = re.compile(r'[0-9a-f]{8,32}(?:-ai)?\.[a-z0-9]{2,5}', re.I)
+
+
+def _usage_entities(site: dict) -> list:
+    """(Art, Bezeichnung, Adresse, Teilbaum) für jeden Ort mit Bildern.
+
+    Grundlage der Spalte „verwendet in" in der Medienverwaltung. Bewusst
+    grobkörnig: ein Beitrag ist ein Ort, nicht jedes einzelne Feld darin.
+    Fehlt hier ein Bereich, sagt die Verwaltung „nirgends verwendet", obwohl das
+    Bild eingebunden ist — deshalb gehört jede neue Ablage mit Bildern hier
+    hinein. Der Löschschutz hängt weiterhin an `_reference_blob()` und nicht an
+    dieser Liste, damit ein Vergessen hier kein Bild kostet.
+
+    Die Bezeichnung darf leer bleiben; die Oberfläche setzt dann den übersetzten
+    Namen der Art ein. Hier einen deutschen Rückfalltext einzusetzen, hieße ihn
+    auch im englischen Admin zu zeigen.
+    """
+    def title(obj):
+        return (obj.get('title_de') or obj.get('title_en') or obj.get('name')
+                or obj.get('label_de') or obj.get('label_en') or '')
+
+    out = [('home', '', '/', {'profile': site.get('profile'),
+                              'design': site.get('design'),
+                              'sections': site.get('sections')})]
+    out += [('post', title(p), '/blog/' + p.get('id', ''), p)
+            for p in site.get('posts', [])]
+    out += [('page', title(p), '/seite/' + (p.get('slug') or ''), p)
+            for p in site.get('pages', [])]
+    out += [('project', title(p), '/p/' + p.get('id', ''), p)
+            for p in site.get('projects', [])]
+    out += [('album', title(a), '', a) for a in site.get('albums', [])]
+    out += [('library', title(e), '/bibliothek/' + (e.get('slug') or ''), e)
+            for e in _library(site).get('entries', [])]
+    for trip in (load_travel().get('trips') or []):
+        base = trip.get('name') or trip.get('destination') or ''
+        slug = trip.get('slug') or ''
+        for day in (trip.get('days') or []):
+            art = (day.get('article') or {}).get('de') or {}
+            day_title = art.get('title') or f"#{day.get('number') or ''}"
+            url = f"/reiseblog/{slug}/{day.get('slug')}" if slug and day.get('slug') else ''
+            out.append(('travel', ' — '.join(x for x in (base, day_title) if x), url, day))
+    return out
+
+
+USAGE_PLACES_MAX = 5      # mehr zeigt die Oberfläche ohnehin nicht
+
+
+def _upload_usage(site: dict) -> dict:
+    """Dateiname -> {'n': Anzahl Orte, 'places': die ersten paar davon}.
+
+    Ein Durchgang je Ort statt einer Suche je Datei: bei dreihundert Bildern und
+    zweihundert Orten wären das sonst sechzigtausend Textsuchen.
+    """
+    usage: dict[str, dict] = {}
+    for kind, label, url, obj in _usage_entities(site):
+        if not obj:
+            continue
+        for name in set(_UPLOAD_NAME_RE.findall(json.dumps(obj, ensure_ascii=False))):
+            hit = usage.setdefault(name, {'n': 0, 'places': []})
+            hit['n'] += 1
+            if len(hit['places']) < USAGE_PLACES_MAX:
+                hit['places'].append({'kind': kind, 'label': _clean_str(label, 80),
+                                      'url': url})
+    return usage
+
+
 def _unused_in(directory: Path, site: dict):
     """Dateien in `directory`, die nirgends mehr referenziert sind.
 
@@ -10298,6 +10471,56 @@ def _unused_in(directory: Path, site: dict):
         if f.is_file() and f.name not in blob:
             orphans.append(f)
             total += f.stat().st_size
+    return orphans, total
+
+
+def _wm_cache_forget(name: str) -> int:
+    """Zwischengespeicherte Fassungen eines Bildes wegwerfen.
+
+    Nötig, sobald sich der Inhalt unter gleichem Namen ändert (Ersetzen) oder
+    die Datei verschwindet. Ohne das liefert die Auslieferung weiter das alte
+    Bild mit eingebranntem Text aus, und niemand fände heraus, warum.
+    """
+    stem = Path(name).stem
+    if not stem:
+        return 0
+    gone = 0
+    # Vorsilbe von Hand vergleichen statt über ein Muster: der Stamm ist zwar
+    # eine UUID, aber ein Muster mit Sonderzeichen darin würde stillschweigend
+    # etwas anderes treffen.
+    prefix = stem + '-'
+    for f in [x for x in WM_CACHE_DIR.iterdir()
+              if x.is_file() and x.name.startswith(prefix) and x.suffix == '.webp']:
+        try:
+            f.unlink()
+            gone += 1
+        except OSError as e:
+            log.warning("Cache-Datei %s konnte nicht gelöscht werden: %s", f.name, e)
+    return gone
+
+
+def _unused_wm_cache():
+    """Cache-Dateien ohne zugehörigen Upload — (Liste, Bytes).
+
+    Der Name ist `<stamm des bildes>-<schlüssel>.webp`; gibt es zum Stamm kein
+    Bild mehr, ist die Datei nicht wiederherstellbar zuzuordnen und wird nie
+    wieder ausgeliefert. Dieselbe Regel sammelt die Dateien aus der Zeit vor
+    dieser Namensgebung ein: deren Stamm gehört zu keinem Upload.
+
+    Der Cache ist reine Ableitung — er steht in keiner Backup-Liste und rechnet
+    sich beim nächsten Abruf neu. Zu viel zu löschen kostet daher nichts außer
+    einmal Rechenzeit; zu wenig zu löschen lässt das Verzeichnis wachsen.
+    """
+    stems = {f.stem for f in UPLOADS_DIR.iterdir() if f.is_file()}
+    orphans, total = [], 0
+    for f in WM_CACHE_DIR.glob('*.webp'):
+        if f.name.rsplit('-', 1)[0] in stems:
+            continue
+        orphans.append(f)
+        try:
+            total += f.stat().st_size
+        except OSError:
+            pass
     return orphans, total
 
 
@@ -10343,7 +10566,9 @@ def api_uploads_unused():
     if err:
         return err
     orphans, total = _unused_uploads(load_site())
-    return jsonify({'count': len(orphans), 'size_mb': round(total / 1048576, 1)})
+    cache_files, cache_bytes = _unused_wm_cache()
+    return jsonify({'count': len(orphans), 'cache_count': len(cache_files),
+                    'size_mb': round((total + cache_bytes) / 1048576, 1)})
 
 
 @admin_app.route('/api/uploads/delete', methods=['POST'])
@@ -10372,8 +10597,92 @@ def api_uploads_delete():
         log.warning("Bild '%s' konnte nicht gelöscht werden: %s", name, e)
         return jsonify({'error': 'delete_failed'}), 500
     _uploads_meta_forget([name])
+    _wm_cache_forget(name)
     log_audit('upload_delete', name)
     return jsonify({'ok': True})
+
+
+@admin_app.route('/api/uploads/meta', methods=['POST'])
+def api_uploads_meta():
+    """Herkunftsname und Etiketten einer Datei setzen.
+
+    Beides dient allein dem Wiederfinden — abgelegt bleibt die Datei unter
+    ihrer UUID. Ein Umbenennen im Dateisystem käme nicht in Frage: der Name
+    steht in jeder Einbindung und in bereits veröffentlichten Seiten.
+    """
+    err = _api_auth()
+    if err:
+        return err
+    body = request.get_json(silent=True) or {}
+    name = Path(_clean_str(body.get('name'), 120)).name
+    if Path(name).suffix.lower() not in ALLOWED_UPLOAD_EXT:
+        return jsonify({'error': 'invalid'}), 400
+    p = safe_under(UPLOADS_DIR, name)
+    if p is None or not p.is_file():
+        return jsonify({'error': 'not_found'}), 404
+    orig = body.get('orig')
+    tags = body.get('tags')
+    if not _uploads_file_meta_set(name,
+                                  orig=None if orig is None else _clean_str(orig, 120),
+                                  tags=None if tags is None else tags):
+        return jsonify({'error': 'save_failed'}), 500
+    m = _uploads_files_load().get(name) or {}
+    return jsonify({'ok': True, 'orig': m.get('orig', ''), 'tags': m.get('tags') or []})
+
+
+@admin_app.route('/api/uploads/replace', methods=['POST'])
+def api_uploads_replace():
+    """Inhalt einer vorhandenen Datei austauschen, Name bleibt.
+
+    Der Sinn der ganzen Sache: jede Einbindung — in Beiträgen, Seiten, Alben,
+    im Reiseblog, in bereits veröffentlichten Adressen — zeigt danach ohne
+    Zutun auf das neue Bild. Ein Löschen samt Neu-Hochladen kann das nicht.
+
+    Zwei Grenzen sind bewusst eng gezogen:
+
+    * Nur `.webp` lässt sich ersetzen. `_store_upload_image()` schreibt immer
+      WebP; in eine `.png` geschrieben, lieferte die Datei danach WebP-Daten
+      unter falscher Endung aus.
+    * Die `-ai`-Kennzeichnung steckt im Dateinamen und bleibt deshalb erhalten.
+      Ein KI-Bild bleibt gekennzeichnet, auch wenn ein Foto hineinwandert —
+      die vorsichtige Richtung. Umgekehrt lässt sich ein gewöhnliches Bild
+      nicht durch ein KI-Bild ersetzen, ohne die Kennzeichnung zu verlieren;
+      dafür ist der normale Weg über das KI-Studio zu gehen.
+    """
+    err = _api_auth()
+    if err:
+        return err
+    name = Path(_clean_str(request.form.get('name'), 120)).name
+    target = safe_under(UPLOADS_DIR, name)
+    if target is None or not target.is_file():
+        return jsonify({'error': 'not_found'}), 404
+    if Path(name).suffix.lower() != '.webp':
+        return jsonify({'error': 'not_webp'}), 400
+    f = request.files.get('file')
+    if not f or not f.filename:
+        return jsonify({'error': 'no file'}), 400
+    ext = Path(f.filename).suffix.lower()
+    if ext not in ALLOWED_UPLOAD_EXT or ext == '.gif':
+        return jsonify({'error': 'file type not allowed'}), 400
+    if not _HAS_PIL:
+        return jsonify({'error': 'no_pillow'}), 400
+    try:
+        written = _store_upload_image(f.stream, name=name)
+    except Exception as e:
+        log.warning("Ersetzen von %s fehlgeschlagen: %s", name, e)
+        return jsonify({'error': 'convert_failed'}), 400
+    if not written:
+        return jsonify({'error': 'convert_failed'}), 400
+    # Ohne das liefert die Auslieferung weiter die Fassung mit eingebranntem
+    # Text zum alten Bild aus.
+    _wm_cache_forget(name)
+    _uploads_file_meta_set(name, orig=Path(f.filename).name)
+    log_audit('upload_replace', name)
+    try:
+        mtime = int(target.stat().st_mtime)
+    except OSError:
+        mtime = int(time.time())
+    return jsonify({'ok': True, 'url': '/uploads/' + name, 'mtime': mtime})
 
 
 @admin_app.route('/api/uploads/alts', methods=['POST'])
@@ -10430,10 +10739,29 @@ def api_ai_alt():
 
 @admin_app.route('/api/uploads/cleanup', methods=['POST'])
 def api_uploads_cleanup():
-    err = _api_auth()
-    if err:
-        return err
-    return _cleanup_dir(*_unused_uploads(load_site()), 'uploads_cleanup')
+    """Verwaiste Bilder löschen — und dabei den Bild-Zwischenspeicher mit.
+
+    Der Cache wird sonst nie kleiner: er entsteht beim Ausliefern und überlebt
+    das Bild, zu dem er gehört. Er ist reine Ableitung und in keinem Backup,
+    also ist ein zu großzügiges Aufräumen folgenlos.
+    """
+    orphans, total = _unused_uploads(load_site())
+    resp = _cleanup_dir(orphans, total, 'uploads_cleanup')
+    cache_files, cache_bytes = _unused_wm_cache()
+    gone = 0
+    for f in cache_files:
+        try:
+            f.unlink()
+            gone += 1
+        except OSError as e:
+            log.warning("Cache-Datei %s konnte nicht gelöscht werden: %s", f.name, e)
+    if gone:
+        log_audit('wm_cache_cleanup', f'{gone} Datei(en)')
+        data = resp.get_json()
+        data['cache_removed'] = gone
+        data['freed_mb'] = round((total + cache_bytes) / 1048576, 1)
+        return jsonify(data)
+    return resp
 
 
 @admin_app.route('/api/docs/unused')
@@ -10956,9 +11284,12 @@ def _serve_image_with_overlay(filename: str, lang: str):
     if not text:
         return send_from_directory(UPLOADS_DIR, safe, max_age=86400)
     # Cache-Schlüssel aus Text + Dateiname → geänderter Text erzeugt eine neue
-    # Datei, alte Stände werden dadurch nie ausgeliefert
+    # Datei, alte Stände werden dadurch nie ausgeliefert. Der Stamm des
+    # Bildnamens steht davor, damit `_wm_cache_forget()` die Fassungen eines
+    # Bildes wiederfindet — aus dem Hash allein lässt sich der Bezug nicht
+    # zurückrechnen.
     key = hashlib.sha256((text + '|' + safe).encode()).hexdigest()[:24]
-    cached = WM_CACHE_DIR / f'{key}.webp'
+    cached = WM_CACHE_DIR / f'{Path(safe).stem}-{key}.webp'
     if not cached.is_file():
         data = _render_watermark(src, text)
         if data is None:
