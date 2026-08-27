@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.11.30
+
+- 🔒 **Die Login-Sperre war umgehbar.** Sie zählt Fehlversuche je Besucheradresse — und diese Adresse kam bisher aus den Kopfzeilen `X-Forwarded-For`, `X-Real-IP` und `CF-Connecting-IP`, die **jeder** Absender selbst setzen kann. Gemessen: dieselbe Adresse siebenmal → ab dem sechsten Versuch gesperrt; **zwölf Versuche mit zwölf erfundenen Adressen → keine Sperre.** Passwortraten war damit unbegrenzt möglich, sobald jemand den Admin-Port erreichte. Zwei Änderungen beheben das:
+  - **Kopfzeilen nur noch von einem Zwischenglied.** Kommt die Verbindung aus einem privaten Netz (Reverse Proxy, Cloudflare-Tunnel, Docker-Gateway), zählt weiterhin die gemeldete Adresse — daran ändert sich für Besucherzähler und Statistik nichts. Bei einer **direkten** Verbindung zählt die echte Gegenstelle. Verglichen wird der Wert **vor** ProxyFix, also der tatsächliche Verbindungspartner.
+  - **Zweite Sperre auf die Verbindung selbst**, ab 20 Fehlversuchen in zehn Minuten. Sie greift auch dort, wo die Kopfzeilen zu Recht geglaubt werden — etwa im eigenen LAN. Die Schwelle liegt bewusst höher als die fünf je Adresse: Hinter einem Proxy teilen sich alle Anmeldungen eine Gegenstelle, und ein Vertipper darf niemanden aussperren.
+- 🔐 **`Secure` am Sitzungs-Cookie**, sobald die Anfrage über HTTPS kam — für Admin-Sitzung, 2FA-Zwischenschritt, vertrauenswürdiges Gerät und Mitglieder-Sitzung. Ohne das Flag schickt der Browser das Token auch über eine unverschlüsselte Verbindung; ein einziger versehentlicher `http://`-Aufruf gab es damit im Klartext preis. Fest auf `Secure` lässt es sich nicht setzen: Im Heimnetz läuft der Admin oft über `http`, dort käme das Cookie nie zurück.
+- ⚙️ Neue Option **`trusted_proxies`** (leer lassen). Sie ersetzt die Vorgabe „alle privaten Adressen sind Zwischenglieder" durch eine ausdrückliche Liste — damit lässt sich auch das eigene LAN ausschließen, sodass wirklich nur der Proxy Adressen melden darf.
+- 🧪 Drei weitere Prüfungen im Rauchtest: gefälschtes `X-Real-IP` bei direkter Verbindung, korrekte Übernahme hinter dem Proxy, und dass wechselnde Adressen in die Verbindungssperre laufen.
+- 📄 `STANDALONE.md` korrigiert: Der Satz „Brute-Force-Schutz ist eingebaut" stimmte nur, solange niemand die Kopfzeile setzt.
+
 ## 0.11.29
 
 - 🔒 **Sicherheitskorrektur: Der Admin ließ sich per Kopfzeile ohne Anmeldung öffnen.** Über das Home-Assistant-Panel (Ingress) meldet HA den Benutzer an, MyPage verlangte dort deshalb keine eigene Anmeldung — erkannt wurde dieser Weg bisher **allein an der Kopfzeile `X-Ingress-Path`**. Die kann jeder mitschicken, der Port 17761 erreicht: Ein einziges `curl` genügte für vollen Zugriff auf Inhalte, Einstellungen, Backup-Download und Benutzerverwaltung. Maßgeblich ist jetzt die **Absenderadresse**: Nur Anfragen aus dem Supervisor-Netz `172.30.32.0/23` gelten als Ingress, und die Prüfung sitzt vor der Auswertung von `X-Forwarded-For` — eine gefälschte Weiterleitungskette hilft nicht.

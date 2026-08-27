@@ -372,6 +372,22 @@ def _ingress_peer(addr: str) -> bool:
     return any(ip in net for net in _ingress_nets())
 
 
+class _PeerMiddleware:
+    """Hält die echte Gegenstelle fest, bevor ProxyFix zugreift.
+
+    ProxyFix ersetzt REMOTE_ADDR durch den letzten Eintrag aus
+    X-Forwarded-For — richtig für die Anzeige, unbrauchbar für jede
+    Sicherheitsentscheidung, denn die Kette schreibt der Absender. Wer den
+    Port direkt erreicht, steht hier unverfälscht.
+    """
+    def __init__(self, wsgi_app):
+        self._app = wsgi_app
+
+    def __call__(self, environ, start_response):
+        environ['mypage.peer'] = environ.get('REMOTE_ADDR', '')
+        return self._app(environ, start_response)
+
+
 class _IngressMiddleware:
     """Liest X-Ingress-Path vom HA Supervisor und setzt SCRIPT_NAME,
     damit url_for() hinter dem Ingress-Proxy korrekte URLs erzeugt.
@@ -425,8 +441,10 @@ def _log_ingress_reject(addr: str) -> None:
                 "ingress_trust_net setzen.", addr or '?', INGRESS_NET_DEFAULT)
 
 
-admin_app.wsgi_app  = _IngressMiddleware(ProxyFix(admin_app.wsgi_app,  x_for=1, x_proto=1, x_host=1))
-public_app.wsgi_app = ProxyFix(public_app.wsgi_app, x_for=1, x_proto=1, x_host=1)
+admin_app.wsgi_app  = _PeerMiddleware(
+    _IngressMiddleware(ProxyFix(admin_app.wsgi_app, x_for=1, x_proto=1, x_host=1)))
+public_app.wsgi_app = _PeerMiddleware(
+    ProxyFix(public_app.wsgi_app, x_for=1, x_proto=1, x_host=1))
 
 # ── State ─────────────────────────────────────────────────────────────────────
 
@@ -475,9 +493,18 @@ MESSAGES_MAX = 200
 _failed_attempts: dict[str, list[float]] = defaultdict(list)
 _blocked_ips:     dict[str, float]       = {}
 _failed_login_times: list[float]         = []   # alle Fehlversuche (rollierend, für 24h-Sensor)
+# Zweiter Zähler auf die echte Gegenstelle. Die Sperre oben zählt je gemeldeter
+# Besucheradresse; hinter einem Proxy stammt die aus einer Kopfzeile, und wer
+# sie pro Versuch weiterdreht, läuft nie in die Sperre. Die Verbindung selbst
+# lässt sich nicht weiterdrehen. Die Schwelle liegt höher, weil hinter einem
+# Proxy alle Anmeldungen dieselbe Gegenstelle haben: Ein Vertipper des
+# Betreibers darf niemanden aussperren, vierzig Versuche in zehn Minuten schon.
+_failed_peers: dict[str, list[float]] = defaultdict(list)
+_blocked_peers: dict[str, float] = {}
 RATE_LIMIT_MAX    = 5
 RATE_LIMIT_WINDOW = 10 * 60
 RATE_LIMIT_BLOCK  = 15 * 60
+RATE_LIMIT_PEER_MAX = 20
 
 
 def failed_logins_24h() -> int:
@@ -2088,6 +2115,22 @@ def _email_html(title: str, lines: list[str]) -> str:
     )
 
 
+def _cookie_secure() -> bool:
+    """`Secure` setzen, wenn die Anfrage über HTTPS kam.
+
+    Ohne das Flag schickt der Browser das Sitzungs-Token auch über eine
+    unverschlüsselte Verbindung — ein einziger versehentlicher http-Aufruf gibt
+    es damit im Klartext preis. Fest auf True lässt es sich nicht setzen: Im
+    Heimnetz läuft der Admin oft über http, und ein `Secure`-Cookie käme dort
+    nie zurück. `is_secure` stammt hinter einem Proxy aus X-Forwarded-Proto —
+    fälscht das jemand auf einer http-Verbindung, sperrt er nur sich selbst aus.
+    """
+    try:
+        return bool(request.is_secure)
+    except Exception:      # noqa: BLE001 — ausserhalb eines Anfragekontexts
+        return False
+
+
 def save_sessions() -> None:
     try:
         now = time.time()
@@ -2137,6 +2180,44 @@ def _is_public_ip(value: str) -> bool:
                 or addr.is_reserved or addr.is_multicast or addr.is_unspecified)
 
 
+def _peer_addr(req) -> str:
+    """Die tatsächliche Gegenstelle der Verbindung (vor ProxyFix)."""
+    return (req.environ.get('mypage.peer') or req.remote_addr or '').strip()
+
+
+def _trusted_proxy_nets() -> list:
+    """Netze, deren Weiterleitungs-Kopfzeilen geglaubt werden.
+
+    Leer (Standard): alle privaten Adressen gelten als Zwischenglied — dort
+    steht in jedem realen Aufbau der Reverse Proxy, der Cloudflare-Tunnel oder
+    das Docker-Gateway. Ist die Option gesetzt, zählen ausschließlich die
+    genannten Netze; damit lässt sich auch das eigene LAN ausschließen.
+    """
+    out = []
+    try:
+        raw = (load_config().get('trusted_proxies') or '').strip()
+    except Exception:      # noqa: BLE001 — vor dem ersten Laden der Optionen
+        raw = ''
+    for part in raw.replace(',', ' ').split():
+        try:
+            out.append(ipaddress.ip_network(part, strict=False))
+        except ValueError:
+            pass
+    return out
+
+
+def _proxy_headers_trusted(req) -> bool:
+    """Darf man den Weiterleitungs-Kopfzeilen dieser Verbindung glauben?"""
+    try:
+        ip = ipaddress.ip_address(_peer_addr(req))
+    except ValueError:
+        return False
+    nets = _trusted_proxy_nets()
+    if nets:
+        return any(ip in n for n in nets)
+    return bool(ip.is_private or ip.is_loopback or ip.is_link_local)
+
+
 def get_client_ip(req) -> str:
     """Beste verfügbare Besucher-IP.
 
@@ -2145,15 +2226,24 @@ def get_client_ip(req) -> str:
     für alle Besucher dieselbe. Deshalb zuerst die Kopfzeilen auswerten, in denen
     die echte Adresse steht, und dabei die erste **öffentliche** nehmen: die
     Zwischenglieder hängen ihre eigenen (privaten) Adressen an die Kette an.
+
+    **Nur von einem Zwischenglied.** Bis 0.11.29 wurden die Kopfzeilen von jedem
+    Absender übernommen. Wer den Port direkt erreichte, konnte sich damit jede
+    beliebige Adresse geben — und weil die Login-Sperre je Adresse zählt, war
+    sie durch Weiterdrehen der Kopfzeile wirkungslos: zwölf Fehlversuche mit
+    zwölf erfundenen Adressen lösten keine Sperre aus. Bei direkter Verbindung
+    zählt deshalb ausschließlich die echte Gegenstelle.
     """
-    for header in ('CF-Connecting-IP', 'True-Client-IP', 'X-Real-IP'):
-        value = (req.headers.get(header) or '').strip()
-        if _is_public_ip(value):
-            return value
-    for part in (req.headers.get('X-Forwarded-For') or '').split(','):
-        if _is_public_ip(part):
-            return part.strip()
-    return req.remote_addr or 'unknown'
+    if _proxy_headers_trusted(req):
+        for header in ('CF-Connecting-IP', 'True-Client-IP', 'X-Real-IP'):
+            value = (req.headers.get(header) or '').strip()
+            if _is_public_ip(value):
+                return value
+        for part in (req.headers.get('X-Forwarded-For') or '').split(','):
+            if _is_public_ip(part):
+                return part.strip()
+        return req.remote_addr or 'unknown'
+    return _peer_addr(req) or 'unknown'
 
 
 _PROXY_IP_HEADERS = ('CF-Connecting-IP', 'True-Client-IP', 'X-Real-IP', 'X-Forwarded-For')
@@ -2190,19 +2280,28 @@ def _clear_ip_warning() -> None:
 
 # ── Brute-Force-Schutz ────────────────────────────────────────────────────────
 
-def is_rate_limited(ip: str) -> bool:
+def is_rate_limited(ip: str, peer: str = '') -> bool:
     now = time.time()
-    if ip in _blocked_ips:
-        if now < _blocked_ips[ip]:
-            return True
-        del _blocked_ips[ip]
+    for key, blocked in ((ip, _blocked_ips), (peer, _blocked_peers)):
+        if key and key in blocked:
+            if now < blocked[key]:
+                return True
+            del blocked[key]
     _failed_attempts[ip] = [t for t in _failed_attempts[ip] if now - t < RATE_LIMIT_WINDOW]
     return False
 
 
-def record_failed_attempt(ip: str) -> None:
+def record_failed_attempt(ip: str, peer: str = '') -> None:
     now = time.time()
     _failed_login_times.append(now)
+    if peer:
+        _failed_peers[peer] = [t for t in _failed_peers[peer]
+                               if now - t < RATE_LIMIT_WINDOW] + [now]
+        if len(_failed_peers[peer]) >= RATE_LIMIT_PEER_MAX:
+            _blocked_peers[peer] = now + RATE_LIMIT_BLOCK
+            log.warning("Verbindung von %s für %d Minuten gesperrt "
+                        "(%d Fehlversuche, gemeldete Adressen wechselnd)",
+                        peer, RATE_LIMIT_BLOCK // 60, len(_failed_peers[peer]))
     _failed_attempts[ip].append(now)
     recent = [t for t in _failed_attempts[ip] if now - t < RATE_LIMIT_WINDOW]
     _failed_attempts[ip] = recent
@@ -2217,9 +2316,12 @@ def record_failed_attempt(ip: str) -> None:
             notification_id=f'mypage_bruteforce_{ip}')
 
 
-def clear_failed_attempts(ip: str) -> None:
+def clear_failed_attempts(ip: str, peer: str = '') -> None:
     _failed_attempts.pop(ip, None)
     _blocked_ips.pop(ip, None)
+    if peer:
+        _failed_peers.pop(peer, None)
+        _blocked_peers.pop(peer, None)
 
 
 # ── Zwei-Faktor-Authentifizierung (Admin, nur Direkt-Login) ───────────────────
@@ -5223,12 +5325,13 @@ def login():
     step = 'password'
 
     def _grant_session(ip):
-        clear_failed_attempts(ip)
+        clear_failed_attempts(ip, _peer_addr(request))
         hours = int(cfg.get('session_hours', 24))
         token = create_session(hours)
         log_audit('admin_login')
         resp = make_response(redirect(url_for('admin_index')))
-        resp.set_cookie('session', token, httponly=True, samesite='Lax', max_age=hours * 3600)
+        resp.set_cookie('session', token, httponly=True, samesite='Lax',
+                        secure=_cookie_secure(), max_age=hours * 3600)
         resp.delete_cookie('pre2fa')
         return resp
 
@@ -5239,12 +5342,14 @@ def login():
             if token:
                 cookie_value = _trusted_cookie_serializer().dumps(token)
                 resp.set_cookie('trust2fa', cookie_value, httponly=True, samesite='Lax',
+                                 secure=_cookie_secure(),
                                  max_age=TRUSTED_DEVICE_DAYS * 86400)
         return resp
 
     if request.method == 'POST':
         ip = get_client_ip(request)
-        if is_rate_limited(ip):
+        peer = _peer_addr(request)
+        if is_rate_limited(ip, peer):
             error = t.get('error_locked', 'Zu viele Fehlversuche. Bitte 15 Minuten warten.')
         elif request.form.get('step') == 'code':
             # Schritt 2: TOTP- oder Backup-Code (nur nach erfolgreichem Passwort)
@@ -5255,7 +5360,7 @@ def login():
             if totp_verify(secret, code) or backup_code_consume(code):
                 _pending_2fa.pop(request.cookies.get('pre2fa'), None)
                 return _grant_session_trusted(ip)
-            record_failed_attempt(ip)
+            record_failed_attempt(ip, peer)
             log_audit('admin_login_2fa_failed')
             error = t.get('error_2fa_code', 'Ungültiger Code.')
             step = 'code'
@@ -5270,10 +5375,10 @@ def login():
                     resp = make_response(render_template('login.html', t=t, lang=lang,
                                                          error=None, step='code'))
                     resp.set_cookie('pre2fa', pre, httponly=True, samesite='Lax',
-                                    max_age=PENDING_2FA_TTL)
+                                    secure=_cookie_secure(), max_age=PENDING_2FA_TTL)
                     return resp
                 return _grant_session(ip)
-            record_failed_attempt(ip)
+            record_failed_attempt(ip, peer)
             log_audit('admin_login_failed', uname)
             error = t.get('error_credentials', 'Ungültige Anmeldedaten.')
 
@@ -15413,18 +15518,19 @@ def member_area():
 @public_app.route('/bereich/login', methods=['POST'])
 def member_login():
     ip = get_client_ip(request)
+    peer = _peer_addr(request)
     email = (request.form.get('email') or '').strip().lower()
-    if is_rate_limited(ip):
+    if is_rate_limited(ip, peer):
         log.warning("Mitglieder-Login GESPERRT: '%s' von %s (zu viele Fehlversuche)",
                     email or '?', ip)
         return redirect('/bereich?msg=locked')
     password = request.form.get('password') or ''
     user = next((u for u in load_users() if u['email'] == email), None)
     if user is None or not check_password_hash(user['pw_hash'], password):
-        record_failed_attempt(ip)
+        record_failed_attempt(ip, peer)
         log.warning("Mitglieder-Login FEHLGESCHLAGEN: '%s' von %s", email or '?', ip)
         return redirect('/bereich?msg=credentials')
-    clear_failed_attempts(ip)
+    clear_failed_attempts(ip, peer)
     blocked = _member_login_blocked(user)
     if blocked:
         log.info("Mitglieder-Login abgewiesen ('%s'): %s", email, blocked)
@@ -15435,7 +15541,7 @@ def member_login():
     log_user_event(user['id'], 'login', '', ip)
     resp = make_response(redirect('/bereich'))
     resp.set_cookie('usession', token, httponly=True, samesite='Lax',
-                    max_age=USER_SESSION_HOURS * 3600)
+                    secure=_cookie_secure(), max_age=USER_SESSION_HOURS * 3600)
     log.info("Mitglieder-Login ERFOLGREICH: '%s' von %s", email, ip)
     return resp
 

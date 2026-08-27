@@ -38,6 +38,9 @@ import app  # noqa: E402  (Reihenfolge ist Absicht, siehe oben)
 
 FAILS: list[str] = []
 
+# Ein Versuch mehr als die Schwelle — danach muss die Sperre stehen.
+RATE_LIMIT_PEER_TEST = 25
+
 
 def check(cond, msg):
     if cond:
@@ -252,6 +255,33 @@ def main():
     check(anon.get('/api/site',
                    environ_base={'REMOTE_ADDR': '172.30.32.2'}).status_code == 401,
           'Supervisor-Adresse ohne Ingress-Kopfzeile reicht nicht')
+
+    # Besucheradresse: Kopfzeilen nur von einem Zwischenglied. Direkt erreichbar
+    # konnte sich sonst jeder eine Adresse aussuchen — und die Login-Sperre
+    # zaehlt je Adresse, war also durch Weiterdrehen der Kopfzeile wirkungslos.
+    with app.public_app.test_request_context('/', headers={'X-Real-IP': '8.8.8.8'},
+                                             environ_base={'REMOTE_ADDR': '45.33.12.9'}):
+        from flask import request as rq
+        check(app.get_client_ip(rq) == '45.33.12.9',
+              'direkte Verbindung: gefaelschtes X-Real-IP wird nicht uebernommen')
+    with app.public_app.test_request_context('/', headers={'X-Real-IP': '8.8.8.8'},
+                                             environ_base={'REMOTE_ADDR': '172.30.32.1'}):
+        from flask import request as rq
+        check(app.get_client_ip(rq) == '8.8.8.8',
+              'hinter dem Proxy zaehlt die gemeldete Adresse weiterhin')
+
+    # Zweite Sperre auf die Verbindung selbst: Sie greift auch dann, wenn die
+    # gemeldete Adresse jedes Mal eine andere ist.
+    peer = {'REMOTE_ADDR': '198.51.100.7'}
+    blocked_at = 0
+    for i in range(RATE_LIMIT_PEER_TEST):
+        r = app.admin_app.test_client().post(
+            '/login', data={'username': 'pruefer', 'password': 'falsch'},
+            headers={'X-Real-IP': f'45.33.{i}.9'}, environ_base=peer)
+        if 'Fehlversuche' in r.get_data(as_text=True) and not blocked_at:
+            blocked_at = i + 1
+    check(0 < blocked_at <= app.RATE_LIMIT_PEER_MAX + 1,
+          f'wechselnde Adressen laufen in die Verbindungssperre (Versuch {blocked_at})')
 
     # Die Abdeckung offen ausweisen. Ein Rauchtest, der verschweigt, was er
     # nicht anfasst, wiegt in falscher Sicherheit.

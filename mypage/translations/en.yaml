@@ -19,6 +19,17 @@ configuration:
       network here in CIDR notation (several separated by spaces). Only enter
       networks that really belong to Home Assistant: anything coming from there
       enters the admin without logging in.
+  trusted_proxies:
+    name: Trusted proxy networks
+    description: >-
+      Leave empty. MyPage takes the real visitor address from the headers
+      X-Forwarded-For, X-Real-IP and CF-Connecting-IP — but only when the
+      connection comes from a private address, i.e. from the reverse proxy, the
+      Cloudflare tunnel or the Docker gateway. On a direct connection the real
+      peer counts, otherwise anyone could claim any address and bypass the login
+      lockout. Networks entered here (CIDR, several separated by spaces) replace
+      that rule entirely: only they count as an intermediary — your own LAN no
+      longer does.
   github_token:
     name: GitHub token
     description: Optional token — raises the API limit for GitHub import and star updates.

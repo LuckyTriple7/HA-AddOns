@@ -81,6 +81,8 @@ Im Reiter **Einstellungen** ganz unten. Der Export verpackt `settings.key` mit e
 
 - Kommt der Supervisor bei dir aus einem anderen Netz (etwa HA Supervised in einem eigenen Docker-Netz), fragt das Panel nach Benutzername und Passwort. Dann das Netz in der Option **`ingress_trust_net`** eintragen (CIDR, mehrere durch Leerzeichen). Nur Netze eintragen, die wirklich zu Home Assistant gehören — wer von dort kommt, betritt den Admin ohne Anmeldung.
 - Abgewiesene Ingress-Kopfzeilen stehen mit Adresse im Protokoll (System → Protokoll), je Adresse höchstens stündlich.
+
+**Besucheradresse und Weiterleitungs-Kopfzeilen** (seit 0.11.30): `X-Forwarded-For`, `X-Real-IP` und `CF-Connecting-IP` werden nur ausgewertet, wenn die Verbindung aus einem **privaten** Netz kommt — dort steht in jedem realen Aufbau der Reverse Proxy, der Cloudflare-Tunnel oder das Docker-Gateway. Bei einer direkten Verbindung zählt die echte Gegenstelle: Sonst könnte sich jeder eine beliebige Adresse geben, und die Login-Sperre zählt je Adresse. Mit der Option `trusted_proxies` lässt sich das auf bestimmte Netze eingrenzen. Zusätzlich sperrt MyPage die **Verbindung selbst** nach 20 Fehlversuchen in zehn Minuten — auch dann, wenn die gemeldete Adresse jedes Mal eine andere ist.
 - **Wer den Admin ausschließlich über das HA-Panel benutzt, kann die Portfreigabe `17761` in der Add-on-Konfiguration streichen.** Dann ist der direkte Weg gar nicht vorhanden — die wirksamste Absicherung überhaupt.
 
 ## Admin-Panel

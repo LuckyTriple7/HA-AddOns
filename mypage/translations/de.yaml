@@ -19,6 +19,17 @@ configuration:
       Netz in CIDR-Schreibweise eintragen (mehrere durch Leerzeichen getrennt).
       Nur Netze eintragen, die tatsächlich zu Home Assistant gehören: Wer von dort
       kommt, betritt den Admin ohne Anmeldung.
+  trusted_proxies:
+    name: Vertrauenswürdige Proxy-Netze
+    description: >-
+      Leer lassen. MyPage übernimmt die echte Besucheradresse aus den Kopfzeilen
+      X-Forwarded-For, X-Real-IP und CF-Connecting-IP — aber nur, wenn die
+      Verbindung von einer privaten Adresse kommt, also vom Reverse Proxy, vom
+      Cloudflare-Tunnel oder vom Docker-Gateway. Bei einer direkten Verbindung
+      zählt die echte Gegenstelle, sonst könnte sich jeder eine beliebige Adresse
+      geben und damit die Login-Sperre umgehen. Hier eingetragene Netze (CIDR,
+      mehrere durch Leerzeichen) ersetzen diese Regel vollständig: Dann gelten
+      ausschließlich sie als Zwischenglied — auch das eigene LAN nicht mehr.
   github_token:
     name: GitHub-Token
     description: Optionales Token — erhöht das API-Limit für GitHub-Import und Sterne-Updates.
