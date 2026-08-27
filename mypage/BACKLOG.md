@@ -290,6 +290,43 @@ schleppt Yoast aus Gewohnheit mit, gewertet werden sie seit Jahren nicht.
 
 ---
 
+## Rauchtest über alle Routen — steht, aber nur die halbe Miete
+
+**Stand:** `test_routes.py` seit 2026-08-27, läuft in der CI
+(`.github/workflows/test-mypage.yml`) bei jeder Änderung an Code, Vorlagen oder
+Übersetzungen — also **vor** dem Bau des Images, das an `config.yaml` hängt.
+
+**Was er abdeckt:** 137 Routen mit GET, öffentlich und Admin, gegen einen
+erfundenen Datenbestand. Durchgefallen ist, was 5xx liefert oder eine Ausnahme
+wirft. Dazu: Anmeldung, fünf unbekannte Adressen (müssen 404 sein), vier
+Admin-Routen ohne Anmeldung (müssen 401 sein) und der Abgleich, dass `de.json`
+und `en.json` dieselben Schlüssel haben.
+
+**Was offen bleibt — die ehrliche Zahl:**
+
+- **158 Routen ohne GET** (POST/PUT/DELETE) sind ungeprüft. Das ist mehr als die
+  Hälfte, und dort sitzt alles, was schreibt. Ein Test dafür braucht je Route
+  einen sinnvollen Rumpf; das ist Fleißarbeit, kein Entwurf.
+- **17 Routen übersprungen**, weil sie nach draußen telefonieren (GitHub, Gemini,
+  Übersetzung, IndexNow, HA-Supervisor) oder lange laufen (Backup, Export). Wer
+  sie abdecken will, braucht vorgetäuschte Antworten statt echter Aufrufe.
+- Der Test prüft **kein einziges Mal den Inhalt** einer Antwort. Eine Seite, die
+  200 liefert und dabei den falschen Text zeigt, fällt nicht auf.
+
+**Fallstricke, die schon bekannt sind:**
+
+- Die Umgebungsvariablen müssen **vor** `import app` gesetzt sein: Das Modul legt
+  beim Laden seine Verzeichnisse an und liest die Optionen. Ein `import app` weiter
+  oben in der Datei schriebe in den echten Datenordner.
+- `SKIP_SUBSTRINGS` vergleicht Teilzeichenketten. `/health` darin hätte
+  `/api/health` gleich mit ausgeschlossen — die Zustandsanzeige wäre ungeprüft
+  geblieben, ohne dass es auffällt. Neue Einträge deshalb so eng wie möglich fassen.
+- Die Kennungen in `VALUES` müssen zu den Testdaten aus `seed()` passen. Wer eine
+  Route mit neuem Platzhalter baut, trägt ihn dort ein — sonst wird sie
+  stillschweigend übersprungen und taucht nur in der Abdeckungszeile auf.
+
+---
+
 ## Vergleich mit WordPress — die verbliebenen Lücken
 
 **Stand:** Bestandsaufnahme am 2026-08-27, am Code geprüft (nicht aus Erinnerung).
