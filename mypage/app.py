@@ -3289,17 +3289,35 @@ NOTFOUND_IPS_MAX = 5          # so viele verschiedene Adressen je Pfad
 # Die faelscht jeder Scanner, den Pfad braucht er echt.
 _PROBE_PARTS = ('/wp-', '/wordpress', 'xmlrpc.php', '/.env', '/.git', '/.ssh',
                 '/.aws', '/vendor/', '/phpmyadmin', '/pma/', '/cgi-bin/',
-                '/asset-manifest.json', '/static/manifest.json',
-                '/api/graphql', '/graphql', '/.well-known/traffic-advice',
+                '/asset-manifest.json', '/api/graphql', '/graphql',
                 '/config.json', '/telescope/', '/actuator/', '/solr/',
-                '/owa/', '/autodiscover/')
+                '/owa/', '/autodiscover/', '/wp-json',
+                # Ausgabeordner der ueblichen JavaScript-Baukaesten. MyPage legt
+                # nichts davon an: Eigene Dateien liegen unter /static, /uploads
+                # und /fonts.
+                '/dist/', '/assets/', '/build/', '/node_modules/',
+                '/package.json', '/composer.json', '/server-status')
+
+# Verrutschte Sicherungen und Editorreste — hier gibt es sie nicht, gesucht
+# werden sie trotzdem. `.zip` steht bewusst nicht dabei: Eine Mitgliederdatei
+# darf so heissen, und die liegt unter einer echten Adresse.
+_PROBE_SUFFIXES = ('.php', '.asp', '.aspx', '.jsp', '.cgi',
+                   '.sql', '.bak', '.old', '.swp', '.tar.gz')
 
 
 def _is_probe(path: str) -> bool:
     """Sucht der Aufruf fremde Software statt einer Seite von hier?"""
     p = (path or '').lower()
-    return p.endswith(('.php', '.asp', '.aspx', '.jsp', '.cgi')) \
-        or any(part in p for part in _PROBE_PARTS)
+    # Alles, was mit einem Punkt beginnt: /.env, /.git/config, /.ssh/id_rsa,
+    # /.DS_Store — und Kuriositaeten wie /.bod/.ll/. Eine Adresse dieser Form
+    # vergibt MyPage nirgends, /.well-known beantwortet der Proxy davor.
+    if p.startswith('/.'):
+        return True
+    # Ein manifest.json in irgendeinem Unterordner sucht den Ausgabeordner
+    # eines fremden Baukastens. Das eigene liegt genau auf /manifest.json.
+    if p.endswith('/manifest.json') and p != '/manifest.json':
+        return True
+    return p.endswith(_PROBE_SUFFIXES) or any(part in p for part in _PROBE_PARTS)
 
 
 def record_notfound(req) -> None:

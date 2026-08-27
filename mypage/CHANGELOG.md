@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.11.31
+
+- 🕵️ **Mehr Sonden erkannt.** Drei Zeilen standen trotz gesetztem Haken in der Liste: `/.bod/.ll/`, `/assets/` und `/dist/manifest.json` — ein Scanner, der den Ausgabeordner eines JavaScript-Baukastens sucht. Neu gelten als Sonde: **jede Adresse, die mit einem Punkt beginnt** (`/.env`, `/.git/config`, `/.DS_Store`, `/.bod/.ll/`), **ein `manifest.json` in irgendeinem Unterordner** (das eigene liegt genau auf `/manifest.json`), die Ausgabeordner `/dist/`, `/assets/`, `/build/`, `/node_modules/` samt `package.json` und `composer.json` sowie verrutschte Sicherungen (`.sql`, `.bak`, `.old`, `.swp`, `.tar.gz`). `.zip` steht bewusst **nicht** dabei: Eine Mitgliederdatei darf so heißen.
+- 📐 **Die Spalten der 404-Liste fluchten.** Zähler, Zeitpunkt und Adresse standen von Zeile zu Zeile woanders — eine um ein Zeichen kürzere IP, eine breitere Plakette oder ein Knopf weniger genügte. Ursache: Jede Zeile war eine eigene Flexbox und maß ihre Breiten selbst. Jetzt liegt die **ganze Liste in einem Raster**, alle Zeilen teilen sich dieselben Spalten. Auf schmalen Fenstern (unter 820 px) bricht sie wie bisher um.
+- ℹ️ Die Einstufung entsteht weiterhin beim Anzeigen aus dem Pfad — die neuen Muster gelten damit **rückwirkend** für alles, was schon in der Liste steht.
+
 ## 0.11.30
 
 - 🔒 **Die Login-Sperre war umgehbar.** Sie zählt Fehlversuche je Besucheradresse — und diese Adresse kam bisher aus den Kopfzeilen `X-Forwarded-For`, `X-Real-IP` und `CF-Connecting-IP`, die **jeder** Absender selbst setzen kann. Gemessen: dieselbe Adresse siebenmal → ab dem sechsten Versuch gesperrt; **zwölf Versuche mit zwölf erfundenen Adressen → keine Sperre.** Passwortraten war damit unbegrenzt möglich, sobald jemand den Admin-Port erreichte. Zwei Änderungen beheben das:

@@ -433,18 +433,55 @@
     .log-row.WARNING .log-level { color: #d29922; }
     .log-msg { flex: 1 1 320px; word-break: break-word; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
     .log-n { color: var(--muted); }
-    .nf-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 7px 0; border-bottom: 1px solid var(--border); font-size: 0.84rem; }
+    /* Ein Raster fuer die ganze Liste, nicht je Zeile: In einer Flex-Zeile
+       bestimmt jede Zeile ihre Spaltenbreiten selbst — eine um ein Zeichen
+       kuerzere IP-Adresse, eine breitere Plakette oder ein Knopf weniger
+       verschob Zaehler und Zeitpunkt gegenueber der Zeile darueber. Erst wenn
+       alle Zeilen in **einem** Raster liegen (`display: contents` je Zeile),
+       teilen sie sich dieselben Spalten; `auto` misst die breiteste Zelle der
+       ganzen Spalte. */
+    #nf-list { display: grid;
+               grid-template-columns: minmax(160px, 1fr) auto auto auto auto
+                                      minmax(0, 1.2fr) auto; }
+    #nf-list > .hint { grid-column: 1 / -1; }
+    .nf-row { display: contents; }
+    /* Abstand als Innenabstand statt column-gap: Die Trennlinie gehoert jetzt
+       den Zellen, und eine Luecke zwischen den Spalten risse sie auf. */
+    .nf-row > * { padding: 7px 10px 7px 0; border-bottom: 1px solid var(--border);
+                  font-size: 0.84rem; align-self: center; }
+    .nf-row > *:last-child { padding-right: 0; }
+    .nf-row:last-child > * { border-bottom: none; }
+    .nf-tags { display: flex; gap: 6px; }
+    .nf-ipcell { display: flex; gap: 6px; align-items: baseline; justify-content: flex-end; }
+    .nf-actions { display: flex; gap: 6px; justify-content: flex-end; }
+    .nf-actions .btn { margin: 0; }
+    /* Auf schmalen Fenstern sind sieben Spalten unbrauchbar — dort untereinander. */
+    @media (max-width: 820px) {
+      #nf-list { display: block; }
+      .nf-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+                padding: 7px 0; border-bottom: 1px solid var(--border); }
+      .nf-row > * { border-bottom: none; padding: 0; }
+      .nf-path { flex: 1 1 240px; }
+      .nf-ref { flex: 1 1 200px; }
+    }
     .nf-row:last-child { border-bottom: none; }
-    .nf-path { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; word-break: break-all; flex: 1 1 240px; }
+    .nf-path { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; word-break: break-all; }
     .nf-n { min-width: 44px; text-align: right; color: var(--muted); }
-    .nf-when { color: var(--muted); min-width: 120px; }
+    /* Feste Spaltenbreiten: Ohne sie schiebt eine um ein Zeichen kuerzere
+       IP-Adresse die ganze Zeile nach rechts, und Zaehler und Zeitpunkt stehen
+       von Zeile zu Zeile woanders. Rechtsbuendig, damit die Zahlen fluchten. */
+    .nf-when { color: var(--muted); text-align: right; white-space: nowrap; }
     .nf-tag { font-size: 0.7rem; padding: 1px 7px; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); }
     .nf-tag.intern { background: var(--accent); color: #fff; border-color: var(--accent); }
     /* Sonde: gedaempft, nicht rot — sie ist kein Fehler, sondern Grundrauschen. */
     .nf-tag.probe { border-style: dashed; }
     .nf-ip { font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-             font-size: 0.76rem; color: var(--muted); white-space: nowrap; }
-    .nf-ref { color: var(--muted); flex: 1 1 200px; word-break: break-all; font-size: 0.78rem; }
+             font-size: 0.76rem; color: var(--muted); white-space: nowrap;
+             text-align: right; }
+    /* Der Hinweis auf weitere Adressen steht ausserhalb der Spalte — sonst
+       waere sie wieder verschieden breit. */
+    .nf-ip-more { color: var(--muted); font-size: 0.72rem; white-space: nowrap; }
+    .nf-ref { color: var(--muted); word-break: break-all; font-size: 0.78rem; }
     .media-sel { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 8px 0; padding: 8px 10px; border: 1px solid var(--accent); border-radius: 8px; }
     .media-sel select { width: auto; min-width: 160px; }
     .media-sel .btn { margin: 0; }
@@ -6663,51 +6700,62 @@
         div.append(path, n, when);
         // Die Adresse ist bei einer Sonde das Einzige, womit sich etwas
         // anfangen laesst: sperren kann man nur sie, nicht den Pfad.
+        const ipcell = document.createElement('span');
+        ipcell.className = 'nf-ipcell';
+        const ip = document.createElement('span');
+        ip.className = 'nf-ip';
         if (r.ips && r.ips.length) {
-          const ip = document.createElement('span');
-          ip.className = 'nf-ip';
-          const flag = r.cc ? countryFlag(r.cc) + ' ' : '';
-          ip.textContent = flag + r.ips[0]
-            + (r.ips.length > 1 ? ' ' + T.nf_ip_more.replace('{n}', r.ips.length - 1) : '');
+          ip.textContent = (r.cc ? countryFlag(r.cc) + ' ' : '') + r.ips[0];
           // Alle gemerkten Adressen im Tooltip — die Zeile soll nicht umbrechen.
           ip.title = r.ips.join('\n');
-          div.appendChild(ip);
         }
+        ipcell.appendChild(ip);
+        if (r.ips && r.ips.length > 1) {
+          const more = document.createElement('span');
+          more.className = 'nf-ip-more';
+          more.textContent = T.nf_ip_more.replace('{n}', r.ips.length - 1);
+          more.title = ip.title;
+          ipcell.appendChild(more);
+        }
+        div.appendChild(ipcell);
+        const tags = document.createElement('span');
+        tags.className = 'nf-tags';
+        div.appendChild(tags);
         if (r.internal) {
           const tag = document.createElement('span');
           tag.className = 'nf-tag intern';
           tag.textContent = T.nf_internal;
-          div.appendChild(tag);
+          tags.appendChild(tag);
         }
         if (r.bot) {
           const tag = document.createElement('span');
           tag.className = 'nf-tag';
           tag.textContent = T.nf_bot;
-          div.appendChild(tag);
+          tags.appendChild(tag);
         }
         if (r.probe) {
           const tag = document.createElement('span');
           tag.className = 'nf-tag probe';
           tag.textContent = T.nf_probe;
           tag.title = T.nf_probe_title;
-          div.appendChild(tag);
+          tags.appendChild(tag);
         }
-        if (r.ref) {
-          const ref = document.createElement('span');
-          ref.className = 'nf-ref';
-          ref.textContent = T.nf_from + ' ' + r.ref;
-          div.appendChild(ref);
-        }
+        const ref = document.createElement('span');
+        ref.className = 'nf-ref';
+        if (r.ref) ref.textContent = T.nf_from + ' ' + r.ref;
+        div.appendChild(ref);
         // Bei einer Sonde waere eine Weiterleitung sinnlos: `/xmlrpc.php` gab es
         // hier nie, es gibt kein Ziel, auf das man sie legen koennte. Der Knopf
         // bleibt deshalb weg — angeboten wird nur, was auch hilft.
+        const actions = document.createElement('span');
+        actions.className = 'nf-actions';
         if (!r.probe) {
           const fix = document.createElement('button');
           fix.type = 'button';
           fix.className = 'btn secondary small';
           fix.textContent = T.nf_make_redirect;
           fix.onclick = () => redirectFor(r.path);
-          div.appendChild(fix);
+          actions.appendChild(fix);
         }
         const del = document.createElement('button');
         del.type = 'button';
@@ -6715,7 +6763,8 @@
         del.textContent = '\u2715';
         del.title = T.nf_forget;
         del.onclick = () => forgetNotfound(r.path);
-        div.appendChild(del);
+        actions.appendChild(del);
+        div.appendChild(actions);
         box.appendChild(div);
       });
     }
