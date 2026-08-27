@@ -8,6 +8,17 @@ configuration:
   session_hours:
     name: Session duration
     description: Validity of the login session in hours.
+  ingress_trust_net:
+    name: Ingress network (special cases only)
+    description: >-
+      Leave empty. Via the Home Assistant panel (Ingress) HA has already
+      authenticated the user, so MyPage does not ask for its own login — but only
+      for requests coming from the supervisor network 172.30.32.0/23. If your
+      supervisor comes from a different network (e.g. HA Supervised on a custom
+      Docker network), the panel will ask for username and password; enter that
+      network here in CIDR notation (several separated by spaces). Only enter
+      networks that really belong to Home Assistant: anything coming from there
+      enters the admin without logging in.
   github_token:
     name: GitHub token
     description: Optional token — raises the API limit for GitHub import and star updates.

@@ -1,6 +1,6 @@
 name: MyPage
 description: Homepage-Baukasten — eigene Projekte präsentieren, GitHub-Import, Besucherzähler
-version: "0.11.28"
+version: "0.11.29"
 slug: mypage
 url: https://github.com/LuckyTriple7/HA-AddOns
 image: "ghcr.io/luckytriple7/mypage"
@@ -45,8 +45,13 @@ options:
   username: "admin"
   password: "changeme123"
   session_hours: 24
+  # Leer lassen. Nur noetig, wenn der Home-Assistant-Supervisor nicht aus
+  # 172.30.32.0/23 kommt (etwa HA Supervised in einem eigenen Docker-Netz) und
+  # der Aufruf ueber das HA-Panel deshalb nach einer Anmeldung fragt.
+  ingress_trust_net: ""
 
 schema:
   username: str
   password: str
   session_hours: int
+  ingress_trust_net: "str?"

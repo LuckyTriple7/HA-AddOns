@@ -8,6 +8,17 @@ configuration:
   session_hours:
     name: Session-Dauer
     description: Gültigkeit der Login-Session in Stunden.
+  ingress_trust_net:
+    name: Ingress-Netz (nur bei Sonderfällen)
+    description: >-
+      Leer lassen. Über das Home-Assistant-Panel (Ingress) meldet HA den Benutzer
+      bereits an, MyPage verlangt dann keine eigene Anmeldung — das gilt aber nur
+      für Anfragen aus dem Supervisor-Netz 172.30.32.0/23. Kommt der Supervisor
+      bei dir aus einem anderen Netz (etwa HA Supervised in einem eigenen
+      Docker-Netz), fragt das Panel nach Benutzername und Passwort; dann hier das
+      Netz in CIDR-Schreibweise eintragen (mehrere durch Leerzeichen getrennt).
+      Nur Netze eintragen, die tatsächlich zu Home Assistant gehören: Wer von dort
+      kommt, betritt den Admin ohne Anmeldung.
   github_token:
     name: GitHub-Token
     description: Optionales Token — erhöht das API-Limit für GitHub-Import und Sterne-Updates.

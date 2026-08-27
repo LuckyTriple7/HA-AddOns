@@ -77,6 +77,12 @@ Im Reiter **Einstellungen** ganz unten. Der Export verpackt `settings.key` mit e
 
 Über die HA-Seitenleiste (Ingress) ist das Admin-Panel ohne zusätzlichen Login erreichbar — die Authentifizierung übernimmt dann Home Assistant.
 
+**Woran MyPage den Ingress-Weg erkennt** (seit 0.11.29): an der **Absenderadresse** der Anfrage. Als Ingress gilt nur, was aus dem Supervisor-Netz `172.30.32.0/23` kommt. Vorher genügte dafür die Kopfzeile `X-Ingress-Path`, und die kann jeder mitschicken, der Port 17761 erreicht — damit war der Login zu umgehen. Geprüft wird vor der Auswertung von `X-Forwarded-For`, eine gefälschte Weiterleitungskette hilft also nicht.
+
+- Kommt der Supervisor bei dir aus einem anderen Netz (etwa HA Supervised in einem eigenen Docker-Netz), fragt das Panel nach Benutzername und Passwort. Dann das Netz in der Option **`ingress_trust_net`** eintragen (CIDR, mehrere durch Leerzeichen). Nur Netze eintragen, die wirklich zu Home Assistant gehören — wer von dort kommt, betritt den Admin ohne Anmeldung.
+- Abgewiesene Ingress-Kopfzeilen stehen mit Adresse im Protokoll (System → Protokoll), je Adresse höchstens stündlich.
+- **Wer den Admin ausschließlich über das HA-Panel benutzt, kann die Portfreigabe `17761` in der Add-on-Konfiguration streichen.** Dann ist der direkte Weg gar nicht vorhanden — die wirksamste Absicherung überhaupt.
+
 ## Admin-Panel
 
 ### Profil

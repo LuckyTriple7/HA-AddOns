@@ -336,20 +336,93 @@ public_app.config['MAX_CONTENT_LENGTH'] = 200 * 1024 * 1024
 public_app.config['MAX_FORM_MEMORY_SIZE'] = 2 * 1024 * 1024
 
 
+# Netz des Home-Assistant-Supervisors. Aus diesem Netz — und nur daher —
+# kommen echte Ingress-Anfragen; der Supervisor selbst sitzt auf 172.30.32.2.
+INGRESS_NET_DEFAULT = '172.30.32.0/23'
+
+
+def _ingress_nets() -> list:
+    """Vertrauenswürdige Absendernetze für Ingress.
+
+    Abweichende Aufbauten (HA Supervised in einem eigenen Docker-Netz) lassen
+    sich über die Option `ingress_trust_net` nachziehen, ohne dass es eine neue
+    Fassung braucht. Ein unbrauchbarer Eintrag wird still übergangen: eine
+    vertippte Zeile in den Optionen darf hier nicht dazu führen, dass plötzlich
+    jedes Netz als Supervisor gilt.
+    """
+    nets = [ipaddress.ip_network(INGRESS_NET_DEFAULT)]
+    try:
+        extra = (load_config().get('ingress_trust_net') or '').strip()
+    except Exception:      # noqa: BLE001 — vor dem ersten Laden der Optionen
+        extra = ''
+    for raw in extra.replace(',', ' ').split():
+        try:
+            nets.append(ipaddress.ip_network(raw, strict=False))
+        except ValueError:
+            pass
+    return nets
+
+
+def _ingress_peer(addr: str) -> bool:
+    """Kommt die Verbindung tatsächlich vom Supervisor?"""
+    try:
+        ip = ipaddress.ip_address((addr or '').strip())
+    except ValueError:
+        return False
+    return any(ip in net for net in _ingress_nets())
+
+
 class _IngressMiddleware:
     """Liest X-Ingress-Path vom HA Supervisor und setzt SCRIPT_NAME,
-    damit url_for() hinter dem Ingress-Proxy korrekte URLs erzeugt."""
+    damit url_for() hinter dem Ingress-Proxy korrekte URLs erzeugt.
+
+    **Sicherheitskritisch.** Hinter dem Ingress übernimmt Home Assistant die
+    Anmeldung, MyPage lässt eine solche Anfrage deshalb ohne eigene Sitzung
+    durch (`_is_ingress`). Bis 0.11.28 genügte dafür die Kopfzeile allein — und
+    die kann jeder mitschicken, der Port 17761 erreicht. Ein `curl` mit
+    `X-Ingress-Path: /x` bekam damit vollen Admin-Zugriff ohne Anmeldung.
+
+    Maßgeblich ist deshalb die **Absenderadresse**, nicht die Kopfzeile: Hier,
+    vor ProxyFix, steht in REMOTE_ADDR noch der echte Gegenüber; die
+    X-Forwarded-For-Kette wird erst danach ausgewertet und ist damit für diese
+    Entscheidung wirkungslos. Passt die Adresse nicht, gilt die Anfrage als
+    gewöhnlicher Zugriff auf Port 17761 — dann greift der normale Login. Ein
+    Fehlurteil führt also zu „bitte anmelden", nie zu „darf alles".
+    """
     def __init__(self, wsgi_app):
         self._app = wsgi_app
 
     def __call__(self, environ, start_response):
         prefix = environ.get('HTTP_X_INGRESS_PATH', '').rstrip('/')
-        if prefix:
+        trusted = bool(prefix) and _ingress_peer(environ.get('REMOTE_ADDR', ''))
+        environ['mypage.ingress'] = trusted
+        if trusted:
             environ['SCRIPT_NAME'] = prefix
             path = environ.get('PATH_INFO', '')
             if path.startswith(prefix):
                 environ['PATH_INFO'] = path[len(prefix):] or '/'
+        elif prefix:
+            _log_ingress_reject(environ.get('REMOTE_ADDR', ''))
         return self._app(environ, start_response)
+
+
+_ingress_warned: dict = {}
+
+
+def _log_ingress_reject(addr: str) -> None:
+    """Abgewiesene Ingress-Kopfzeile melden — je Adresse höchstens stündlich.
+
+    Zwei Fälle sehen gleich aus und beide gehören ins Protokoll: ein Aufbau, in
+    dem der Supervisor aus einem anderen Netz kommt (dann fehlt die Option
+    `ingress_trust_net`), und jemand, der die Anmeldung umgehen wollte.
+    """
+    now = time.time()
+    if now - _ingress_warned.get(addr, 0) < 3600:
+        return
+    _ingress_warned[addr] = now
+    log.warning("Ingress-Kopfzeile von %s abgewiesen — nicht aus dem "
+                "Supervisor-Netz (%s). Bei abweichendem Aufbau die Option "
+                "ingress_trust_net setzen.", addr or '?', INGRESS_NET_DEFAULT)
 
 
 admin_app.wsgi_app  = _IngressMiddleware(ProxyFix(admin_app.wsgi_app,  x_for=1, x_proto=1, x_host=1))
@@ -5097,7 +5170,13 @@ def _inject_banner():
 # ── Auth-Helfer (Admin) ───────────────────────────────────────────────────────
 
 def _is_ingress() -> bool:
-    return bool(request.script_root)
+    """Läuft die Anfrage über den HA-Ingress (dann hat HA schon angemeldet)?
+
+    Die Entscheidung fällt in `_IngressMiddleware` anhand der Absenderadresse
+    und steht als Merker in der Umgebung. Bewusst nicht mehr über
+    `request.script_root`: den setzt eine Kopfzeile, die jeder mitschicken kann.
+    """
+    return bool(request.environ.get('mypage.ingress'))
 
 
 def _auth_required():
@@ -11390,6 +11469,11 @@ def api_uploads_cleanup():
     das Bild, zu dem er gehört. Er ist reine Ableitung und in keinem Backup,
     also ist ein zu großzügiges Aufräumen folgenlos.
     """
+    # Die Prüfung fehlte bis 0.11.28 als einzige unter 314 Routen — ein POST
+    # ohne Anmeldung löschte damit Dateien.
+    err = _api_auth()
+    if err:
+        return err
     orphans, total = _unused_uploads(load_site())
     resp = _cleanup_dir(orphans, total, 'uploads_cleanup')
     cache_files, cache_bytes = _unused_wm_cache()

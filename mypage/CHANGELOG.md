@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.11.29
+
+- 🔒 **Sicherheitskorrektur: Der Admin ließ sich per Kopfzeile ohne Anmeldung öffnen.** Über das Home-Assistant-Panel (Ingress) meldet HA den Benutzer an, MyPage verlangte dort deshalb keine eigene Anmeldung — erkannt wurde dieser Weg bisher **allein an der Kopfzeile `X-Ingress-Path`**. Die kann jeder mitschicken, der Port 17761 erreicht: Ein einziges `curl` genügte für vollen Zugriff auf Inhalte, Einstellungen, Backup-Download und Benutzerverwaltung. Maßgeblich ist jetzt die **Absenderadresse**: Nur Anfragen aus dem Supervisor-Netz `172.30.32.0/23` gelten als Ingress, und die Prüfung sitzt vor der Auswertung von `X-Forwarded-For` — eine gefälschte Weiterleitungskette hilft nicht.
+  - **Voraussetzung war Zugang zum Port 17761**, also zum lokalen Netz; aus dem Internet war er nur erreichbar, wenn er ausdrücklich weitergereicht wurde. Ein Browser konnte den Zugriff nicht nebenbei auslösen (eigene Kopfzeile ⇒ Preflight ⇒ blockiert). Wer den Admin ausschließlich über das HA-Panel benutzt, kann die Portfreigabe `17761` in der Add-on-Konfiguration ganz streichen — dann gibt es den direkten Weg gar nicht.
+  - Neue Option **`ingress_trust_net`** für abweichende Aufbauten (HA Supervised in einem eigenen Docker-Netz). Leer lassen, solange das Panel funktioniert. Passt die Adresse nicht, erscheint im Panel der normale Login — ein Fehlurteil führt also zu „bitte anmelden", nie zu „darf alles". Abgewiesene Kopfzeilen stehen mit Adresse im Protokoll (höchstens stündlich je Adresse).
+- 🔒 **Sicherheitskorrektur: `/api/uploads/cleanup` löschte ohne Anmeldung.** Als einzige von 314 Routen fehlte dort die Prüfung; ein POST entfernte ungenutzte Bilder und den Bild-Zwischenspeicher. Betroffen waren nur Dateien, die nirgends eingebunden sind — und es galt dieselbe Voraussetzung wie oben.
+- 🧪 **Beide Fälle stehen jetzt im Rauchtest** und laufen bei jeder Änderung in der CI mit: Kopfzeile allein, Kopfzeile mit gefälschtem `X-Forwarded-For`, Adresse neben dem Supervisor-Netz, echter Ingress, Supervisor-Adresse ohne Kopfzeile — dazu drei schreibende Admin-Routen ohne Anmeldung.
+
 ## 0.11.28
 
 - 🌍 **Die 404-Liste zeigt, woher der Aufruf kam.** Je Zeile steht jetzt die Adresse des letzten Aufrufs samt Landesflagge. Bei einer Sonde ist das die einzige Angabe, mit der sich etwas anfangen lässt: **sperren lässt sich eine Adresse, kein Pfad** — und zwar dort, wo es wirkt (CrowdSec, Firewall), nicht in MyPage.

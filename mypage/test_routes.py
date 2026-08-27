@@ -226,6 +226,32 @@ def main():
     for url in ('/api/site', '/api/health', '/api/stats/notfound', '/api/uploads/list'):
         code = anon.get(url).status_code
         check(code in (401, 302), f'ohne Anmeldung {url} -> {code}')
+    # Schreibende Admin-Routen ebenso — /api/uploads/cleanup war bis 0.11.28 die
+    # einzige ohne Pruefung und loeschte Dateien fuer jeden, der sie aufrief.
+    for url in ('/api/uploads/cleanup', '/api/log/clear', '/api/stats/notfound/clear'):
+        code = anon.post(url, json={}).status_code
+        check(code in (401, 302), f'ohne Anmeldung POST {url} -> {code}')
+
+    # Hinter dem HA-Ingress meldet Home Assistant den Benutzer an, MyPage laesst
+    # solche Anfragen ohne eigene Sitzung durch. Bis 0.11.28 genuegte dafuer die
+    # Kopfzeile X-Ingress-Path allein — ein curl gegen Port 17761 bekam damit
+    # vollen Admin-Zugriff. Diese Pruefungen halten den Fall fest: Nur die
+    # tatsaechliche Absenderadresse aus dem Supervisor-Netz zaehlt.
+    ing = {'X-Ingress-Path': '/x'}
+    check(anon.get('/api/site', headers=ing).status_code == 401,
+          'Ingress-Kopfzeile allein oeffnet den Admin nicht')
+    check(anon.get('/api/site', headers={**ing, 'X-Forwarded-For': '172.30.32.2'}
+                   ).status_code == 401,
+          'gefaelschtes X-Forwarded-For hebelt die Ingress-Pruefung nicht aus')
+    check(anon.get('/api/site', headers=ing,
+                   environ_base={'REMOTE_ADDR': '172.30.34.9'}).status_code == 401,
+          'Adresse neben dem Supervisor-Netz gilt nicht als Ingress')
+    check(anon.get('/api/site', headers=ing,
+                   environ_base={'REMOTE_ADDR': '172.30.32.2'}).status_code == 200,
+          'echter Ingress (Absender im Supervisor-Netz) kommt weiterhin durch')
+    check(anon.get('/api/site',
+                   environ_base={'REMOTE_ADDR': '172.30.32.2'}).status_code == 401,
+          'Supervisor-Adresse ohne Ingress-Kopfzeile reicht nicht')
 
     # Die Abdeckung offen ausweisen. Ein Rauchtest, der verschweigt, was er
     # nicht anfasst, wiegt in falscher Sicherheit.
