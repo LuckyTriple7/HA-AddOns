@@ -1245,6 +1245,8 @@
   "nf_forget_confirm": "Eintrag „{path}“ aus der Liste entfernen? Neue Aufrufe zählen wieder ab null.",
   "nf_clear_confirm": "Die ganze Liste leeren? Neue Aufrufe werden weiter erfasst.",
   "redirects_hint": "Leitet alte/geänderte Adressen dauerhaft (301) oder temporär (302) auf eine neue Adresse um. Greift nur für Pfade, die es nicht (mehr) gibt — bestehende Seiten werden nie überschrieben. Ziel als interner Pfad (/neue-seite) oder vollständige URL (https://…).",
+  "nf_redirect_guess": "Vorschlag eingetragen: „{label}“ — bitte prüfen und speichern.",
+  "redirects_target_hint": "Ins Zielfeld tippen zeigt passende Adressen deiner Website; der Pfeil rechts im Feld listet alle. Eine fremde Adresse (https://…) lässt sich weiterhin eintippen.",
   "redirects_add": "Weiterleitung",
   "redirects_or_url": "oder https://…",
   "export_heading": "Statischer Export",

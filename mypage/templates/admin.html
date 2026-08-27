@@ -2237,7 +2237,10 @@
       <div class="panel" data-jump-panel>
         <h3>{{ t.redirects_heading }}</h3>
         <p class="hint">{{ t.redirects_hint }}</p>
+        <p class="hint">{{ t.redirects_target_hint }}</p>
         <div id="redirect-list"></div>
+        {#- Eine Liste für alle Zeilen: die Vorschläge sind überall dieselben. #}
+        <datalist id="rd-target-list"></datalist>
         <div style="margin-top:10px">
           <button class="btn secondary small" onclick="addRedirectRow()">+ {{ t.redirects_add }}</button>
           <button class="btn" style="margin-left:8px" onclick="saveRedirects()">{{ t.save }}</button>
@@ -6399,6 +6402,7 @@
       if (!box) return;
       box.innerHTML = '';
       (SITE.redirects || []).forEach(addRedirectRow);
+      loadSiteUrls();
     }
     // ── Ins Leere laufende Aufrufe ──
     // Der Nutzen entsteht erst durch die Verbindung zu den Weiterleitungen
@@ -6485,7 +6489,17 @@
       row.scrollIntoView({ behavior: 'smooth', block: 'center' });
       const to = row.querySelector('.rd-to');
       to.focus();
-      if (!existing) toast(T.nf_redirect_added);
+      if (existing) return;
+      // Vorschlag nur bei deutlicher Ähnlichkeit, und immer sichtbar gemacht:
+      // ein still eingetragenes falsches Ziel wäre schlimmer als ein leeres.
+      const guess = bestUrlMatch(path);
+      if (guess && !to.value) {
+        to.value = guess.url;
+        to.select();
+        toast(T.nf_redirect_guess.replace('{label}', guess.label || guess.url));
+      } else {
+        toast(T.nf_redirect_added);
+      }
     }
     async function forgetNotfound(path) {
       if (!confirm(T.nf_forget_confirm.replace('{path}', path))) return;
@@ -6500,6 +6514,61 @@
       loadNotfound();
     }
 
+    // ── Zielauswahl der Weiterleitungen ──
+    // Ein Pfad wie /blog/3061752ccc9f ist von Hand nicht zu tippen. Die Liste
+    // aller öffentlichen Adressen hängt deshalb als Vorschlagsliste an jedem
+    // Zielfeld: tippen filtert, der Pfeil zeigt alles. Freie Eingabe bleibt
+    // möglich — ein Ziel darf auch eine fremde Adresse sein.
+    let SITE_URLS = [];
+    async function loadSiteUrls() {
+      const r = await api('api/site/urls');
+      if (!r.ok) return;
+      SITE_URLS = (await r.json()).urls || [];
+      const dl = el('rd-target-list');
+      if (!dl) return;
+      dl.innerHTML = '';
+      SITE_URLS.forEach(u => {
+        const o = document.createElement('option');
+        o.value = u.url;
+        // Die Bezeichnung steht als Beschriftung daneben, der eingetragene
+        // Wert bleibt der reine Pfad.
+        o.label = u.label || '';
+        dl.appendChild(o);
+      });
+    }
+    // Ähnlichkeit zweier Pfade — bewusst streng, weil ein still eingetragenes
+    // falsches Ziel schlimmer ist als ein leeres Feld.
+    //
+    // Verglichen wird nur das **letzte** Stück des Pfades, und nur bei gleichem
+    // Bereich davor. Über die ganzen Pfade gerechnet schlug „/blog/alt" sonst
+    // einen beliebigen Beitrag vor, weil beide mit „blog" anfangen — das
+    // gemeinsame Stück war der Bereich, nicht der Inhalt.
+    function urlSimilarity(a, b) {
+      const split = x => {
+        const parts = x.toLowerCase().split('/').filter(Boolean);
+        return { last: parts.pop() || '', dir: parts.join('/') };
+      };
+      const A = split(a), B = split(b);
+      if (A.dir !== B.dir) return 0;
+      const key = x => x.replace(/[^a-z0-9]/g, '');
+      // Gleiche Buchstabenfolge, andere Schreibweise: „gran-canaria" und
+      // „grancanaria" sind dieselbe Seite.
+      if (key(A.last) && key(A.last) === key(B.last)) return 1;
+      const words = x => x.split(/[^a-z0-9]+/).filter(Boolean);
+      const wa = words(A.last), wb = words(B.last);
+      if (!wa.length || !wb.length) return 0;
+      const shared = wa.filter(w => wb.includes(w)).length;
+      return shared / Math.max(wa.length, wb.length);
+    }
+    function bestUrlMatch(path) {
+      let best = null, score = 0;
+      SITE_URLS.forEach(u => {
+        const sc = urlSimilarity(path, u.url);
+        if (sc > score) { score = sc; best = u; }
+      });
+      return score >= 0.5 ? best : null;
+    }
+
     function addRedirectRow(r) {
       r = r || {};
       const box = el('redirect-list');
@@ -6508,7 +6577,7 @@
       row.innerHTML =
         `<input class="rd-from" placeholder="/alte-adresse">
          <span class="rd-arrow">→</span>
-         <input class="rd-to" placeholder="/neue-adresse ${T.redirects_or_url || ''}">
+         <input class="rd-to" list="rd-target-list" placeholder="/neue-adresse ${T.redirects_or_url || ''}">
          <select class="rd-perm"><option value="1">301</option><option value="0">302</option></select>
          <button type="button" class="btn danger small">✕</button>`;
       row.querySelector('.rd-from').value = r.from || '';

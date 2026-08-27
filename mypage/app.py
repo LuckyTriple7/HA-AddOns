@@ -10656,6 +10656,51 @@ def _cleanup_dir(orphans, total, audit_tag: str):
     return jsonify({'ok': True, 'removed': removed, 'freed_mb': round(total / 1048576, 1)})
 
 
+def _public_urls(site: dict) -> list:
+    """Alle öffentlich erreichbaren Pfade mit lesbarer Bezeichnung.
+
+    Grundlage der Zielauswahl bei den Weiterleitungen: Ein Pfad wie
+    `/blog/3061752ccc9f` ist von Hand nicht zu tippen und aus dem Kopf schon gar
+    nicht. Dieselben Quellen wie die Sitemap, nur mit Titel statt Datum.
+    """
+    loc = _loc_factory(site_default_lang(site) if site_default_lang(site) != 'auto' else 'de')
+    out = [{'url': '/', 'kind': 'home',
+            'label': site['design'].get('site_title') or site['profile'].get('name') or '/'}]
+    out += [{'url': '/seite/' + p['slug'], 'kind': 'page', 'label': loc(p, 'title')}
+            for p in site.get('pages', []) if p.get('visible') and p.get('slug')]
+    posts = sorted_posts(site, public_only=True)
+    if posts:
+        out.append({'url': '/blog', 'kind': 'blog', 'label': 'Blog'})
+        out += [{'url': '/blog/' + p['id'], 'kind': 'post', 'label': loc(p, 'title')}
+                for p in posts]
+    lib = _lib_public_entries(site)
+    if lib:
+        out.append({'url': '/bibliothek', 'kind': 'library', 'label': _library_label(site, loc, {})})
+        out += [{'url': '/bibliothek/' + e['slug'], 'kind': 'library', 'label': loc(e, 'title')}
+                for e in lib if e.get('slug')]
+    for tr in _trav_public_trips(site):
+        out.append({'url': '/reiseblog/' + tr['slug'], 'kind': 'travel',
+                    'label': tr.get('name') or tr.get('destination') or tr['slug']})
+        for d in _trav_public_days(tr):
+            art = (d.get('article') or {}).get('de') or {}
+            out.append({'url': f"/reiseblog/{tr['slug']}/{d['slug']}", 'kind': 'travel',
+                        'label': art.get('title') or d.get('slug', '')})
+    out += [{'url': '/p/' + p['id'], 'kind': 'project', 'label': p.get('title') or p['id']}
+            for p in site.get('projects', []) if _has_detail(p) and project_visible(p)]
+    out += [{'url': '/formular/' + f['slug'], 'kind': 'form', 'label': loc(f, 'title')}
+            for f in _public_forms(site) if f.get('slug')]
+    return out
+
+
+@admin_app.route('/api/site/urls')
+def api_site_urls():
+    """Zielauswahl für Weiterleitungen."""
+    err = _api_auth()
+    if err:
+        return err
+    return jsonify({'urls': _public_urls(load_site())})
+
+
 @admin_app.route('/api/stats/notfound')
 def api_stats_notfound():
     """Ins Leere laufende Aufrufe, häufigste zuerst.

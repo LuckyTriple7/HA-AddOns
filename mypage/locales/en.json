@@ -1245,6 +1245,8 @@
   "nf_forget_confirm": "Remove “{path}” from the list? New requests start counting from zero again.",
   "nf_clear_confirm": "Clear the whole list? New requests keep being recorded.",
   "redirects_hint": "Permanently (301) or temporarily (302) redirect old/changed addresses to a new one. Only applies to paths that don't (any longer) exist — existing pages are never overridden. Target as an internal path (/new-page) or a full URL (https://…).",
+  "nf_redirect_guess": "Suggested “{label}” — please check and save.",
+  "redirects_target_hint": "Typing in the target field suggests matching addresses from your site; the arrow lists them all. An external address (https://…) can still be typed.",
   "redirects_add": "Redirect",
   "redirects_or_url": "or https://…",
   "export_heading": "Static export",

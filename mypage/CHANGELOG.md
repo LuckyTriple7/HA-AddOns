@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.11.23
+
+- 🎯 **Das Weiterleitungsziel wird ausgewählt, nicht getippt.** Das Zielfeld schlägt jetzt alle öffentlichen Adressen der Website vor: Start, Blog und einzelne Beiträge, eigene Seiten, Bibliothek, Reiseblog samt Reisetagen, Projekte und Formulare — jeweils mit dem Titel daneben. Tippen filtert, der Pfeil im Feld listet alles. Ein Beitragspfad wie `/blog/3061752ccc9f` war von Hand ohnehin nicht zu treffen. Eine fremde Adresse (`https://…`) lässt sich unverändert frei eintragen.
+- 💡 **Vorschlag aus der 404-Liste.** Legst du dort eine Weiterleitung an, wird bei deutlicher Ähnlichkeit gleich ein Ziel eingetragen und angesagt: `/bibliothek/rhodos` schlägt `/bibliothek/rhodos-2` vor, und `/bibliothek/gran-canaria` findet auch `/bibliothek/grancanaria` trotz anderer Schreibweise. Verglichen wird nur das letzte Stück des Pfades und nur innerhalb desselben Bereichs — sonst hätte `/blog/alt` einen beliebigen Beitrag vorgeschlagen, bloß weil beide unter `/blog/` liegen. Passt nichts, bleibt das Feld leer: ein stillschweigend falsch eingetragenes Ziel wäre schlimmer als gar keines.
+
 ## 0.11.22
 
 - 🔍 **Ins Leere laufende Aufrufe werden endlich sichtbar.** Rief ein Besucher eine Adresse auf, die es nicht gibt, bekam er die 404-Seite — und niemand erfuhr davon. Kein Zähler, kein Eintrag im Besucher-Log, nichts. Neu im Tab **System** die Liste **„Nicht gefunden (404)"**: nach Adresse gebündelt, häufigste zuerst, mit Anzahl, Zeitpunkt und Verweisgeber.
