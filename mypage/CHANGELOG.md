@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.11.25
+
+- 📋 **Das Protokoll steht jetzt im Admin.** Warnungen und Fehler gingen bisher ausschließlich nach `stdout` und damit nur ins Add-on-Protokoll von Home Assistant. Neu im Tab **System** der Abschnitt **„Protokoll (Warnungen & Fehler)"** mit den letzten 300 Meldungen des laufenden Add-ons — misslungene Bildverkleinerung, abgebrochenes PDF-Rendern, eine beschädigte Datei in Quarantäne, ein weggebrochener SMB-Mount. Die Zustandsanzeige darüber deckt vier Bereiche ab; hier steht der Rest.
+- 🔢 **Wiederholungen füllen die Liste nicht.** Dieselbe Meldung mehrfach hintereinander erhöht einen Zähler („×7"), statt sieben Zeilen zu erzeugen — sonst verdrängt eine Meldung im Sekundentakt alles andere. Ein Haken blendet die Warnungen aus und lässt nur Fehler stehen.
+- 💾 **Übersteht den Neustart.** Der Puffer liegt in `logbuf.json` und wird beim Start zurückgelesen; beim Beenden über SIGTERM schreibt das Add-on ihn noch einmal weg. Gerade nach einem Neustart will man wissen, was kurz davor los war. Wie `health.json` liegt die Datei **nicht im Backup** — ein Protokoll von vorgestern gehört nicht in einen wiederhergestellten Stand.
+- ℹ️ Absichtlich erst ab Stufe „Warnung": Auf der Stufe darunter meldet jeder Start ein Dutzend Zeilen Routine. Das vollständige Protokoll bleibt in Home Assistant unter Einstellungen → Add-ons → MyPage → Protokoll.
+
 ## 0.11.24
 
 - 🩺 **Neu: „Systemzustand" ganz oben im Tab System.** Das Add-on schrieb Störungen bisher ausschließlich ins Log — an über hundert Stellen —, und dort schaut niemand nach. Ein abgelaufener GitHub-Token, ein stillschweigend gescheiterter Mailversand, ein ausgefallenes Backup: alles unsichtbar, bis es zufällig auffiel. Elf Prüfungen mit Ampelpunkt zeigen jetzt, was gerade nicht rundläuft — öffentliche Adresse, echte Besucher-Adresse, automatisches Backup, freier Speicherplatz, E-Mail-Versand, GitHub-Token, KI-Schlüssel, Bildverarbeitung, PDF-Erzeugung, Länderdaten und Indexierung.

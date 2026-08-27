@@ -425,6 +425,14 @@
     .health-detail { color: var(--muted); font-size: 0.8rem; }
     .health-note { color: var(--muted); font-size: 0.8rem; flex: 1 1 220px; }
     .health-row.err .health-label, .health-row.warn .health-label { font-weight: 600; }
+    .log-row { display: flex; flex-wrap: wrap; gap: 8px; padding: 5px 0; border-bottom: 1px solid var(--border); font-size: 0.82rem; }
+    .log-row:last-child { border-bottom: none; }
+    .log-when { color: var(--muted); min-width: 128px; font-variant-numeric: tabular-nums; }
+    .log-level { min-width: 62px; font-weight: 600; font-size: 0.72rem; align-self: center; }
+    .log-row.ERROR .log-level, .log-row.CRITICAL .log-level { color: #f85149; }
+    .log-row.WARNING .log-level { color: #d29922; }
+    .log-msg { flex: 1 1 320px; word-break: break-word; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .log-n { color: var(--muted); }
     .nf-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 7px 0; border-bottom: 1px solid var(--border); font-size: 0.84rem; }
     .nf-row:last-child { border-bottom: none; }
     .nf-path { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; word-break: break-all; flex: 1 1 240px; }
@@ -2107,6 +2115,24 @@
         <div style="margin-top:10px">
           <button class="btn secondary small" onclick="loadHealth()">{{ t.nf_reload }}</button>
           <label class="checkbox" style="display:inline-flex;margin-left:12px"><input type="checkbox" id="health-all" onchange="renderHealth()"> {{ t.health_show_all }}</label>
+        </div>
+      </div>
+      <div class="panel" data-jump-panel id="log-panel">
+        <h3 style="margin:0">
+          <button type="button" class="set-toggle" id="log-toggle" aria-expanded="false" onclick="toggleLog()">
+            <span class="caret">▶</span>
+            <span>{{ t.log_heading }}</span>
+            <span class="count" id="log-info"></span>
+          </button>
+        </h3>
+        <div id="log-body" style="display:none;margin-top:12px">
+          <p class="hint">{{ t.log_hint }}</p>
+          <div class="media-bar">
+            <label class="checkbox"><input type="checkbox" id="log-errors-only" onchange="renderLog()"> {{ t.log_errors_only }}</label>
+            <button type="button" class="btn secondary small" onclick="loadLog()">{{ t.nf_reload }}</button>
+            <button type="button" class="btn secondary small" onclick="clearLog()">{{ t.log_clear }}</button>
+          </div>
+          <div id="log-list"></div>
         </div>
       </div>
       <div class="panel" data-jump-panel id="twofa-panel">
@@ -4285,7 +4311,7 @@
         if (btn.dataset.tab === 'messages') { loadMessages(); loadComments(); }
         if (btn.dataset.tab === 'users') { loadUsers(); initStorageBrowser(); startUsersPolling(); }
         if (btn.dataset.tab === 'design') { initPreview(); initDesignJump(); setTimeout(updatePresetArrows, 50); }
-        if (btn.dataset.tab === 'system') { loadHealth(); loadAudit(); loadTwofa(); loadAutoBackups(); loadRevisions(); loadFileBrowser(); initSystemJump(); }
+        if (btn.dataset.tab === 'system') { loadHealth(); loadLog(); loadAudit(); loadTwofa(); loadAutoBackups(); loadRevisions(); loadFileBrowser(); initSystemJump(); }
         if (btn.dataset.tab === 'settings') { loadSettings(); loadKeyState(); initSettingsJump(); }
         if (btn.dataset.tab === 'blog') loadSubscribers();
         if (btn.dataset.tab === 'ai') initAiTab();
@@ -6424,6 +6450,66 @@
       (SITE.redirects || []).forEach(addRedirectRow);
       loadSiteUrls();
     }
+    // ── Protokoll ──
+    // Alle Meldungen gingen bisher nur nach stdout und damit ins Add-on-Log von
+    // Home Assistant. Hier stehen die letzten Warnungen und Fehler des
+    // laufenden Prozesses — genug, um „was war da los?" zu beantworten, ohne
+    // die Oberfläche zu wechseln.
+    let LOG_ROWS = [];
+    function toggleLog() {
+      const body = el('log-body');
+      const open = body.style.display === 'none';
+      body.style.display = open ? '' : 'none';
+      el('log-toggle').setAttribute('aria-expanded', open ? 'true' : 'false');
+      if (open) loadLog();
+    }
+    async function loadLog() {
+      const r = await api('api/log');
+      if (!r.ok) { toast(T.error_load, true); return; }
+      const d = await r.json();
+      LOG_ROWS = d.rows || [];
+      el('log-info').textContent = T.log_info
+        .replace('{e}', d.errors || 0).replace('{w}', d.warnings || 0);
+      renderLog();
+    }
+    function renderLog() {
+      const errOnly = el('log-errors-only').checked;
+      const rows = LOG_ROWS.filter(r => !errOnly || r.level !== 'WARNING');
+      const box = el('log-list');
+      box.innerHTML = '';
+      if (!rows.length) {
+        box.innerHTML = `<p class="hint">${LOG_ROWS.length ? T.log_only_warnings : T.log_empty}</p>`;
+        return;
+      }
+      rows.forEach(r => {
+        const div = document.createElement('div');
+        div.className = 'log-row ' + r.level;
+        const when = document.createElement('span');
+        when.className = 'log-when';
+        when.textContent = new Date(r.ts * 1000).toLocaleString();
+        const lvl = document.createElement('span');
+        lvl.className = 'log-level';
+        lvl.textContent = r.level;
+        const msg = document.createElement('span');
+        msg.className = 'log-msg';
+        msg.textContent = r.msg;
+        div.append(when, lvl, msg);
+        if (r.n > 1) {
+          const n = document.createElement('span');
+          n.className = 'log-n';
+          n.textContent = '\u00d7' + r.n;
+          div.appendChild(n);
+        }
+        box.appendChild(div);
+      });
+    }
+    async function clearLog() {
+      if (!confirm(T.log_clear_confirm)) return;
+      const r = await apiJson('api/log/clear', 'POST', {});
+      if (!r.ok) { toast(T.error_save, true); return; }
+      loadLog();
+    }
+
     // ── Zustandsanzeige ──
     // Voreingestellt stehen nur die Zeilen da, die etwas kosten. Alles auf
     // „gut" zu zeigen, macht aus der Anzeige eine Liste, die man nicht mehr

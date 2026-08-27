@@ -137,6 +137,95 @@ UPLOADS_META_PATH = _DATA + '/uploads_meta.json'  # Alternativtexte je Bilddatei
 # eigene Datei und NICHT im Backup: Ein zurückgespielter Stand brächte sonst
 # Warnungen von vorgestern mit, die längst behoben sind.
 HEALTH_PATH = _DATA + '/health.json'
+# Die letzten Warnungen und Fehler, damit sie im Admin sichtbar sind. Ebenfalls
+# nicht im Backup: ein Protokoll von vorgestern gehört nicht in einen
+# wiederhergestellten Stand.
+LOGBUF_PATH = _DATA + '/logbuf.json'
+
+
+class _AdminLogHandler(logging.Handler):
+    """Hält die letzten Warnungen und Fehler für die Anzeige im Admin fest.
+
+    Bisher gingen alle Meldungen ausschließlich nach `stdout` und damit ins
+    Add-on-Protokoll von Home Assistant — wer dort nicht nachsieht, erfährt von
+    einer misslungenen Bildverkleinerung oder einer beschädigten Datei nie.
+
+    Gehalten wird im Speicher; auf die Platte geht der Puffer nur alle paar
+    Sekunden, damit ein Schwall gleichartiger Meldungen nicht zum Dauerschreiben
+    wird. Wiederholungen derselben Zeile erhöhen einen Zähler, statt den Puffer
+    zu füllen — sonst verdrängt eine Meldung im Sekundentakt alles andere.
+
+    Ein Protokoll darf nie etwas auslösen: alles hier ist in `try` gefasst, und
+    im Fehlerfall passiert schlicht nichts.
+    """
+
+    KEEP = 300
+    FLUSH_SECONDS = 5
+
+    def __init__(self):
+        super().__init__(level=logging.WARNING)
+        self.entries: list[dict] = []
+        self._lock = threading.Lock()
+        self._last_write = 0.0
+
+    def emit(self, record):
+        try:
+            msg = record.getMessage()[:400]
+            with self._lock:
+                last = self.entries[-1] if self.entries else None
+                if last and last['msg'] == msg and last['level'] == record.levelname:
+                    last['n'] += 1
+                    last['ts'] = int(record.created)
+                else:
+                    self.entries.append({'ts': int(record.created),
+                                         'level': record.levelname,
+                                         'msg': msg, 'n': 1})
+                    del self.entries[:-self.KEEP]
+                due = time.time() - self._last_write >= self.FLUSH_SECONDS
+                if due:
+                    self._last_write = time.time()
+                    data = list(self.entries)
+            if due:
+                _atomic_write_json(LOGBUF_PATH, data, indent=0)
+        except Exception:
+            pass        # ein Protokoll darf nie den Aufrufer mitreissen
+
+    def flush_now(self) -> None:
+        """Sofort auf die Platte — beim Beenden und vor dem Ausliefern."""
+        try:
+            with self._lock:
+                data = list(self.entries)
+                self._last_write = time.time()
+            _atomic_write_json(LOGBUF_PATH, data, indent=0)
+        except Exception:
+            pass
+
+    def load(self):
+        """Beim Start den letzten Stand zurückholen."""
+        try:
+            with open(LOGBUF_PATH, encoding='utf-8') as f:
+                data = json.load(f)
+            if isinstance(data, list):
+                with self._lock:
+                    self.entries = [e for e in data if isinstance(e, dict)][-self.KEEP:]
+        except Exception:
+            pass
+
+    def snapshot(self) -> list:
+        with self._lock:
+            return list(self.entries)
+
+    def clear(self) -> None:
+        with self._lock:
+            self.entries = []
+        try:
+            _atomic_write_json(LOGBUF_PATH, [], indent=0)
+        except Exception:
+            pass
+
+
+admin_log_buffer = _AdminLogHandler()
+logging.getLogger().addHandler(admin_log_buffer)
 USESSIONS_PATH = _DATA + '/user_sessions.json'
 DM_PATH       = _DATA + '/dm.json'          # Mitglieder-Direktnachrichten (Text verschlüsselt)
 DMKEY_PATH    = _DATA + '/dm.key'           # Fernet-Schlüssel für die DM-Verschlüsselung
@@ -10883,6 +10972,36 @@ def health_checks() -> list:
     return out
 
 
+@admin_app.route('/api/log')
+def api_log():
+    """Die letzten Warnungen und Fehler des laufenden Add-ons.
+
+    Bewusst erst ab Stufe „Warnung": Auf INFO meldet jeder Start ein Dutzend
+    Zeilen Routine, die den Puffer füllen und nichts erklären. Wer das ganze
+    Protokoll braucht, findet es in Home Assistant unter Add-on → Protokoll.
+    """
+    err = _api_auth()
+    if err:
+        return err
+    admin_log_buffer.flush_now()
+    rows = list(reversed(admin_log_buffer.snapshot()))
+    return jsonify({'rows': rows,
+                    'errors': sum(r.get('n', 1) for r in rows
+                                  if r.get('level') in ('ERROR', 'CRITICAL')),
+                    'warnings': sum(r.get('n', 1) for r in rows
+                                    if r.get('level') == 'WARNING')})
+
+
+@admin_app.route('/api/log/clear', methods=['POST'])
+def api_log_clear():
+    err = _api_auth()
+    if err:
+        return err
+    admin_log_buffer.clear()
+    log_audit('log_clear')
+    return jsonify({'ok': True})
+
+
 @admin_app.route('/api/health')
 def api_health():
     err = _api_auth()
@@ -16473,6 +16592,10 @@ def _handle_sigterm(signum, frame) -> None:
     ist daher sicher — Schreibzugriffe laufen über `with open(...) as f:`-Blöcke,
     die beim jeweiligen Abschluss bereits geschlossen/geflusht sind."""
     log.info("SIGTERM empfangen, beende sauber…")
+    # Der Protokollpuffer schreibt nur alle paar Sekunden auf die Platte. Ohne
+    # diesen letzten Anstoß fehlten nach einem Neustart genau die Meldungen, die
+    # kurz davor auflaufen — also die, die den Neustart erklären.
+    admin_log_buffer.flush_now()
     os._exit(0)
 
 
@@ -16509,6 +16632,11 @@ if __name__ == '__main__':
     # Dateien loswerden — und Home Assistant startet das Add-on nach jeder
     # Optionsänderung ohnehin neu, also greift die neue Frist sofort.
     _prune_visit_files()
+
+    # Warnungen des letzten Laufs zurückholen — sonst steht das Protokoll im
+    # Admin nach jedem Neustart auf leer, und gerade ein Neustart ist der
+    # Zeitpunkt, an dem man wissen will, was vorher los war.
+    admin_log_buffer.load()
 
     threading.Thread(target=_run_public, daemon=True).start()
     threading.Thread(target=refresh_project_stars, daemon=True).start()
