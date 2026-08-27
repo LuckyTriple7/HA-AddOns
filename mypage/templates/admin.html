@@ -3621,6 +3621,17 @@
     function snipExcerpt(md) { return snipPlain(md).slice(0, SNIP_EXCERPT).replace(/\s+$/, ''); }
     function snipSuffix() { return snipVal('d-site_title') || snipVal('p-name') || 'MyPage'; }
     function snipBase() { return snipVal('d-public_url').replace(/\/+$/, '') || T.snip_url_ph; }
+    // Die oeffentliche Adresse ist ein freies Eingabefeld. Landet ihr Inhalt
+    // ungeprueft in einem href, macht ein `javascript:`-Wert daraus ausfuehrbaren
+    // Code (CodeQL js/xss-through-dom). Nur http/https duerfen verlinkt werden.
+    function snipHttpBase() {
+      const raw = snipVal('d-public_url').replace(/\/+$/, '');
+      if (!/^https?:\/\//i.test(raw)) return '';
+      let u;
+      try { u = new URL(raw); } catch (_) { return ''; }
+      if (u.protocol !== 'http:' && u.protocol !== 'https:') return '';
+      return (u.origin + u.pathname).replace(/\/+$/, '');
+    }
     function snipDefLang() { const v = snipVal('d-default_lang'); return v === 'en' ? 'en' : 'de'; }
     function snipHomeDesc(lg) {
       return snipVal('d-meta_description_' + lg) || snipVal('p-tagline_' + lg)
@@ -3949,7 +3960,7 @@
         h.textContent = T.seo_list_hidden;
         head.appendChild(h);
       }
-      const base = snipVal('d-public_url').replace(/\/+$/, '');
+      const base = snipHttpBase();
       if (base && r.url) {
         const a = document.createElement('a');
         a.className = 'hint';

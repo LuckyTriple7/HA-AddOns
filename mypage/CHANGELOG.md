@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.11.15
+
+- 🔒 **Die Links in der SEO-Übersicht prüfen die öffentliche Adresse.** Das Feld „Öffentliche Adresse“ im Design-Tab ist freier Text; sein Inhalt wurde bisher ungeprüft zum Ziel der Links neben jedem Eintrag. Ein Wert mit `javascript:` davor wäre damit beim Klick als Code gelaufen. Verlinkt wird jetzt nur noch, was als `http://`- oder `https://`-Adresse lesbar ist — bei allem anderen entfällt der Link, die Übersicht bleibt sonst unverändert.
+
 ## 0.11.14
 
 - 🗣️ **Du oder Sie — die Anrede der KI-Texte ist einstellbar.** Im Design-Tab unter „Sprache & Feeds“ steht jetzt **Anrede in KI-Texten**. Die Wahl hängt an jedem Auftrag ans Modell: SEO-Beschreibungen, Texte aus dem KI-Studio und Reiseberichte. Ohne Vorgabe siezt Gemini auf Deutsch von sich aus, auch wenn die übrige Website durchweg duzt. Vorgabe bleibt **Sie**, damit sich an vorhandenen Abläufen nichts ändert; englische Fassungen bleiben beim neutralen „you“.
