@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.11.34
+
+- 🔤 **Hinweise nennen das Feld beim richtigen Namen.** Vorschau- und Systemzustand-Hinweis verwiesen auf „Öffentliche Adresse“ — so heißt die Zeile im Systemzustand, das Eingabefeld dagegen „Öffentliche URL (für SEO/Sitemap)“ und steht im Design-Reiter unter **Suchmaschinen**. Wer dem Hinweis folgte, suchte vergeblich. Jetzt steht überall der Weg dorthin.
+
 ## 0.11.33
 
 - 🖼️ **Vorschau im Design-Reiter blieb über den Ingress grau.** Der Rahmen zeigte immer `Protokoll://<Host>:17760/` — über das Home-Assistant-Panel ist das die Adresse von Home Assistant, und dort ist Port 17760 nicht zwingend erreichbar; läuft HA über **https**, blockiert der Browser eine http-Seite im Rahmen ohnehin. Jetzt gilt: Ist unter **Design → Öffentliche Adresse** eine Adresse eingetragen, zeigt die Vorschau diese; sonst bleibt es beim Nachbarport. Dieselbe Adresse steht auch in den Slug-Hinweisen unter Seiten, Bibliothek und Formularen.
