@@ -75,7 +75,8 @@ GET  /api/chat-media                 → Welche Chats sind vom Medien-Download a
 POST /api/chat-media                 → Medien eines Chats an-/abschalten ({chatId, enabled})
 GET  /api/privacy                    → Aktuelle Datenschutzeinstellungen lesen (zuletzt online, Profilbild, Info, Status, Lesebestätigungen) samt zulässiger Werte
 POST /api/privacy                    → Einstellung ändern ({name, value}); name: lastSeen, online, profilePicture, about, groupAdd, callAdd, readReceipts
-GET  /api/privacy/disallowed?category=<c> → Ausnahmeliste „Meine Kontakte, außer…" lesen (lastSeen, about, profilePicture, groupAdd)
+GET  /api/privacy/disallowed?category=<c> → Ausnahmeliste „Meine Kontakte, außer…" lesen, mit Namen (lastSeen, about, profilePicture, groupAdd)
+POST /api/privacy/disallowed         → Ausnahmeliste ändern ({category, add:[...], remove:[...]}) und die Kategorie dabei auf „Meine Kontakte, außer…" stellen
 GET  /api/privacy/source?module=<n>  → Quelltext eines WhatsApp-Web-Moduls aus der Modulliste (Diagnose, nur lesen)
 GET  /api/privacy/diag               → Diagnose: findet WhatsApp Web ein Modul für die Datenschutzeinstellungen? (?scan=1 durchsucht die Bundles nach echten Modulnamen, ?probeFound=1 probiert die Fundstellen gleich durch) — liest nur, ändert nichts
 GET  /api/export/:chatId             → Chat als HTML exportieren
@@ -276,7 +277,8 @@ GET  /api/chat-media                 → Which chats are excluded from media dow
 POST /api/chat-media                 → Turn media on/off for one chat ({chatId, enabled})
 GET  /api/privacy                    → Read current privacy settings (last seen, profile photo, about, status, read receipts) plus allowed values
 POST /api/privacy                    → Change one setting ({name, value}); name: lastSeen, online, profilePicture, about, groupAdd, callAdd, readReceipts
-GET  /api/privacy/disallowed?category=<c> → Read the "my contacts except…" list (lastSeen, about, profilePicture, groupAdd)
+GET  /api/privacy/disallowed?category=<c> → Read the "my contacts except…" list incl. names (lastSeen, about, profilePicture, groupAdd)
+POST /api/privacy/disallowed         → Change the list ({category, add:[...], remove:[...]}) and set the category to "my contacts except…"
 GET  /api/privacy/source?module=<n>  → Source of a WhatsApp Web module from the module map (diagnostics, read-only)
 GET  /api/privacy/diag               → Diagnostics: does WhatsApp Web expose a privacy-settings module? (?scan=1 searches the bundles for real module names, ?probeFound=1 probes the hits) — read-only
 GET  /api/export/:chatId             → Export chat as HTML

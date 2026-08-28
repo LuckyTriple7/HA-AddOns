@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.8.21] - 2026-08-28
+- Feature: **„Meine Kontakte, außer…" laesst sich jetzt hier einstellen** — samt Kontaktauswahl. Im Reiter Datenschutz die Einstellung waehlen, Haekchen setzen, uebernehmen; bei bereits gesetzter Ausnahmeliste steht unter der Zeile, wer ausgenommen ist, mit „bearbeiten" daneben
+- Der Weg dahin stand im Quelltext: `setPrivacy` nimmt `users` als `[{action:'add'|'remove', wid}]` plus den `dhash` des aktuellen Standes — die Liste wird **schrittweise** gepflegt. Die Oberflaeche schickt deshalb nur die Unterschiede, nicht die ganze Liste
+- Die Liste kommt als LID-Kennungen (`167327647719579@lid`) zurueck, die keine Rufnummer sind. Namen und, wo bekannt, Rufnummern holt das Add-on beim Lesen dazu — sonst staende dort nur eine Zahlenkolonne
+- WhatsApp braucht echte WID-Objekte statt Zeichenketten. Statt selbst eine zu bauen, nimmt das Add-on die vorhandene aus Kontakt- oder Chat-Sammlung. Laesst sich ein Kontakt nicht zuordnen, wird er **uebersprungen und gemeldet** statt still verschluckt
+- Nach jeder Aenderung liest das Add-on Liste und Einstellung frisch von WhatsApp zurueck
+
 ## [1.8.20] - 2026-08-28
 - Fix: `GET /api/privacy/disallowed` verschwieg ausgerechnet das Wichtigste. Die Antwort hat die Form `{status, users, dhash}`, die Beschreibung gab aber nur eine feste Feldliste aus — `users`, also die eigentliche Ausnahmeliste, fehlte darin. Jetzt werden **alle** Felder beschrieben, eine Ebene tiefer als vorher
 

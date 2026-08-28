@@ -3010,31 +3010,6 @@ app.get('/api/privacy/disallowed', async (req, res) => {
   if (!typeName) return res.status(400).json({ error: 'unbekannte Kategorie', allowed: Object.keys(DISALLOWED_TYPES) });
   try {
     const out = await client.pupPage.evaluate(async (typeName) => {
-      // Unbekannte Rueckgabe vorsichtig beschreiben statt blind JSON.stringify:
-      // WhatsApp arbeitet mit Wid-Objekten, die Zyklen enthalten koennen.
-      const describe = (v, depth) => {
-        if (v === null || v === undefined) return v;
-        const t = typeof v;
-        if (t === 'string' || t === 'number' || t === 'boolean') return v;
-        if (Array.isArray(v)) return depth <= 0 ? '[' + v.length + ' Eintraege]' : v.slice(0, 50).map(x => describe(x, depth - 1));
-        if (t === 'function') return 'fn';
-        const out = {};
-        let own = [];
-        try { own = Object.keys(v).slice(0, 25); } catch (e) {}
-        // Erst alle eigenen Felder, dann die typischen Wid-Felder, die als
-        // Getter auf dem Prototyp haengen und in Object.keys fehlen
-        for (const k of own) {
-          try { out[k] = depth <= 0 ? String(v[k]).slice(0, 80) : describe(v[k], depth - 1); }
-          catch (e) { out[k] = 'FEHLER'; }
-        }
-        for (const k of ['_serialized', 'user', 'server', 'device', 'agent']) {
-          if (out[k] === undefined && v[k] !== undefined) {
-            try { out[k] = String(v[k]).slice(0, 80); } catch (e) {}
-          }
-        }
-        try { if (typeof v.toString === 'function') out.__str = String(v).slice(0, 120); } catch (e) {}
-        return out;
-      };
       try {
         const schema = window.require('WAWebSchemaPrivacyDisallowedList');
         const type = schema.PrivacyDisallowedListType[typeName];
@@ -3042,13 +3017,37 @@ app.get('/api/privacy/disallowed', async (req, res) => {
           return { error: 'Typ nicht gefunden', known: Object.keys(schema.PrivacyDisallowedListType || {}) };
         }
         const util = window.require('WAWebQueryPrivacyDisallowedListUtil');
+        const col = window.require('WAWebCollections');
         const result = await util.queryPrivacyDisallowedList(type);
+        // Die Liste kommt als LID-Wids. Eine LID ist keine Rufnummer, deshalb hier
+        // gleich Name und - wenn bekannt - Rufnummer dazuholen; sonst steht in der
+        // Oberflaeche nur eine nichtssagende Zahlenkolonne.
+        const entries = ((result && result.users) || []).map((w) => {
+          const id = (w && (w._serialized || String(w))) || '';
+          const out = { id, name: '', number: '' };
+          try {
+            const c = col.Contact.get(w) || col.Contact.get(id);
+            if (c) {
+              out.name = c.name || c.pushname || c.formattedName || c.verifiedName || '';
+              const pn = c.phoneNumber || (c.id && c.id.user);
+              if (pn) out.number = String(pn);
+            }
+          } catch (e) {}
+          if (!out.number) {
+            try {
+              const pn = window.require('WAWebLidMigrationUtils').toPn(w);
+              if (pn) out.number = String(pn._serialized || pn).split('@')[0];
+            } catch (e) {}
+          }
+          return out;
+        });
         return {
           type: String(type),
           lidMigrated: util.isPrivacyDisallowedListTypeLidMigrated(),
-          resultType: Array.isArray(result) ? 'array' : typeof result,
-          count: Array.isArray(result) ? result.length : undefined,
-          result: describe(result, 4),
+          status: result && result.status,
+          dhash: result && result.dhash,
+          count: entries.length,
+          entries,
         };
       } catch (e) {
         return { error: String((e && e.message) || e).slice(0, 300) };
@@ -3056,6 +3055,85 @@ app.get('/api/privacy/disallowed', async (req, res) => {
     }, typeName);
     if (out.error) return res.status(500).json(out);
     res.json({ category, ...out });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Ausnahmeliste aendern und die Kategorie dabei auf "contact_blacklist" stellen.
+// Body: { category, add: [chatId...], remove: [chatId...] }
+// WhatsApp pflegt die Liste schrittweise: setPrivacy bekommt nur die Aenderungen
+// (users mit action add/remove) plus den dhash des aktuellen Standes. Die
+// vollstaendige Liste danach braucht nur die lokale Spiegelung.
+app.post('/api/privacy/disallowed', async (req, res) => {
+  if (status !== 'connected') return res.status(503).json({ error: `Not connected (status: ${status})` });
+  if (!client.pupPage) return res.status(503).json({ error: 'keine Browser-Seite' });
+  const category = String(req.body?.category || '');
+  const typeName = DISALLOWED_TYPES[category];
+  if (!typeName) return res.status(400).json({ error: 'unbekannte Kategorie', allowed: Object.keys(DISALLOWED_TYPES) });
+  const clean = (v) => Array.isArray(v) ? [...new Set(v.map(x => String(x || '')).filter(Boolean))].slice(0, 500) : [];
+  const add = clean(req.body?.add);
+  const remove = clean(req.body?.remove);
+  if (!add.length && !remove.length) return res.status(400).json({ error: 'add oder remove erforderlich' });
+  try {
+    const out = await client.pupPage.evaluate(async (category, typeName, add, remove) => {
+      const ser = (w) => { try { return w && (w._serialized || String(w)); } catch (e) { return null; } };
+      try {
+        const schema = window.require('WAWebSchemaPrivacyDisallowedList');
+        const type = schema.PrivacyDisallowedListType[typeName];
+        const util = window.require('WAWebQueryPrivacyDisallowedListUtil');
+        const setMod = window.require('WAWebSetPrivacyForOneCategoryAction');
+        const col = window.require('WAWebCollections');
+        const serverName = setMod.privacyWebNameToServerName(category);
+        if (!serverName) return { ok: false, error: 'kein Server-Name fuer ' + category };
+
+        // WhatsApp erwartet Wid-Objekte, keine Zeichenketten. Statt selbst eine
+        // Wid zu bauen, die vorhandene aus Kontakt oder Chat nehmen.
+        const resolve = (id) => {
+          try { const c = col.Contact.get(id); if (c && c.id) return c.id; } catch (e) {}
+          try { const c = col.Chat.get(id); if (c && c.id) return c.id; } catch (e) {}
+          return null;
+        };
+        const unresolved = [];
+        const addWids = [], removeWids = [];
+        for (const id of add) { const w = resolve(id); if (w) addWids.push(w); else unresolved.push(id); }
+        for (const id of remove) { const w = resolve(id); if (w) removeWids.push(w); else unresolved.push(id); }
+        if (!addWids.length && !removeWids.length) return { ok: false, error: 'kein Kontakt aufloesbar', unresolved };
+
+        const before = await util.queryPrivacyDisallowedList(type);
+        const beforeUsers = (before && before.users) || [];
+        const dhash = before && before.dhash;
+
+        // Vollstaendige Liste nach der Aenderung — nur fuer die lokale Spiegelung
+        const removeSet = new Set(removeWids.map(ser));
+        const addSet = new Set(addWids.map(ser));
+        const after = beforeUsers.filter(w => !removeSet.has(ser(w)) && !addSet.has(ser(w))).concat(addWids);
+
+        const users = [
+          ...addWids.map(wid => ({ action: 'add', wid })),
+          ...removeWids.map(wid => ({ action: 'remove', wid })),
+        ];
+        await setMod.setPrivacyForOneCategory(
+          { name: serverName, value: 'contact_blacklist', users, dhash }, after);
+
+        const afterList = await util.queryPrivacyDisallowedList(type);
+        const settings = await window.require('WAWebQueryPrivacySettingsJob').getPrivacy();
+        return {
+          ok: true,
+          unresolved,
+          added: addWids.map(ser),
+          removed: removeWids.map(ser),
+          list: ((afterList && afterList.users) || []).map(ser),
+          status: afterList && afterList.status,
+          settings,
+        };
+      } catch (e) {
+        return { ok: false, error: String((e && e.message) || e).slice(0, 300) };
+      }
+    }, category, typeName, add, remove);
+    if (!out.ok) return res.status(500).json(out);
+    _logSilent('INFO', `privacy-list: ${category} +${out.added.length} -${out.removed.length} → ${out.list.length} Eintrag/Eintraege`);
+    res.json({ success: true, category, ...out });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -4342,6 +4420,17 @@ app.get('/', (req, res) => {
     .priv-row label { flex: 1; font-size: 14px; }
     .priv-row select { width: auto; min-width: 46%; flex-shrink: 0; }
     .priv-row select:disabled { opacity: 0.6; }
+    .priv-list { font-size: 12px; color: #8696a0; padding: 0 0 8px 2px; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+    .priv-list .priv-edit { background: none; border: none; color: #3cdb7c; cursor: pointer; font-size: 12px; padding: 0; text-decoration: underline; }
+    #priv-picker-modal { display: none; position: fixed; inset: 0; z-index: 460; background: rgba(0,0,0,0.6); align-items: center; justify-content: center; }
+    #priv-picker-modal.open { display: flex; }
+    .priv-picker-box { border-radius: 14px; padding: 16px; width: min(460px, 94vw); max-height: 84vh; display: flex; flex-direction: column; gap: 10px; }
+    html.dark .priv-picker-box { background: #202c33; color: #e9edef; }
+    html.light .priv-picker-box { background: #fff; color: #111; }
+    #priv-picker-list { overflow-y: auto; flex: 1; min-height: 120px; }
+    .priv-pick-row { display: flex; align-items: center; gap: 10px; padding: 7px 4px; font-size: 14px; cursor: pointer; border-bottom: 1px solid rgba(128,128,128,0.14); }
+    .priv-pick-row input { width: 16px; height: 16px; flex-shrink: 0; }
+    .priv-pick-num { color: #8696a0; font-size: 12px; }
     .ms-input, .ms-area { width: 100%; border-radius: 8px; padding: 8px 10px; font-size: 14px; font-family: inherit; border: 1px solid rgba(128,128,128,0.3); }
     html.dark .ms-input, html.dark .ms-area { background: #2a3942; color: #e9edef; }
     html.light .ms-input, html.light .ms-area { background: #f0f2f5; color: #111; }
@@ -4622,6 +4711,22 @@ app.get('/', (req, res) => {
     </div>
   </div>
 
+  <div id="priv-picker-modal" onclick="if(event.target===this)closePrivPicker()">
+    <div class="priv-picker-box">
+      <div class="ms-head">
+        <h3 id="priv-picker-title">Ausnahmen</h3>
+        <button class="ms-close" onclick="closePrivPicker()">✕</button>
+      </div>
+      <input type="text" id="priv-picker-search" class="ms-input" data-i18n-pl="privPickerSearch" placeholder="Kontakt suchen…" oninput="renderPrivPicker()">
+      <div id="priv-picker-list"></div>
+      <div class="ms-actions">
+        <span class="ms-hint" id="priv-picker-count"></span>
+        <button class="ms-btn ghost" onclick="closePrivPicker()" data-i18n="btnCancel">Abbrechen</button>
+        <button class="ms-btn primary" id="priv-picker-save" onclick="savePrivPicker()" data-i18n="privPickerSave">Übernehmen</button>
+      </div>
+    </div>
+  </div>
+
   <div id="numcheck-modal" onclick="if(event.target===this)closeNumCheck()">
     <div class="nc-box">
       <div class="nc-body">
@@ -4848,8 +4953,15 @@ app.get('/', (req, res) => {
         priv_groupAdd:'Gruppen', priv_callAdd:'Anrufe', priv_readReceipts:'Lesebestätigungen',
         privVal_all:'Jeder', privVal_contacts:'Meine Kontakte', privVal_contact_blacklist:'Meine Kontakte, außer…',
         privVal_none:'Niemand', privVal_match_last_seen:'Wie „Zuletzt online"', privVal_known:'Bekannte Kontakte',
-        privHint:'„Meine Kontakte, außer…" braucht eine Ausnahmeliste — die lässt sich nur am Handy pflegen. Ohne Lesebestätigungen siehst du auch bei anderen keine mehr (in Gruppen bleiben sie an).',
-        privNoBlacklist:'„Meine Kontakte, außer…" nur am Handy einstellbar — die Ausnahmeliste wird hier nicht gepflegt.',
+        privHint:'Bei „Meine Kontakte, außer…" wählst du die Ausnahmen direkt hier aus. Ohne Lesebestätigungen siehst du auch bei anderen keine mehr (in Gruppen bleiben sie an).',
+        privNoBlacklist:'Für diese Einstellung führt WhatsApp keine Ausnahmeliste.',
+        privListEdit:'bearbeiten', privListEmpty:'Noch niemand ausgenommen',
+        privListUnavailable:'Ausnahmeliste nicht abrufbar',
+        privListCount:(n)=>n===1?'1 Ausnahme':n+' Ausnahmen',
+        privListSaved:(n)=>n===1?'Gespeichert — 1 Kontakt ausgenommen':'Gespeichert — '+n+' Kontakte ausgenommen',
+        privUnresolved:(n)=>n===1?'1 Kontakt ließ sich nicht zuordnen und wurde übersprungen.':n+' Kontakte ließen sich nicht zuordnen und wurden übersprungen.',
+        privPickerTitle:(what)=>what+': wer soll es NICHT sehen?',
+        privPickerCount:(n)=>n+' ausgewählt', privPickerSearch:'Kontakt suchen…', privPickerSave:'Übernehmen',
         privFailed:'Ändern hat nicht geklappt.',
         privSaved:(what, val)=>what + ' → ' + val,
         privRejected:(applied)=>'WhatsApp hat das nicht übernommen, es steht weiter auf ' + applied + '.',
@@ -4986,8 +5098,15 @@ app.get('/', (req, res) => {
         priv_groupAdd:'Groups', priv_callAdd:'Calls', priv_readReceipts:'Read receipts',
         privVal_all:'Everyone', privVal_contacts:'My contacts', privVal_contact_blacklist:'My contacts except…',
         privVal_none:'Nobody', privVal_match_last_seen:'Same as last seen', privVal_known:'Known contacts',
-        privHint:'"My contacts except…" needs an exception list — that can only be maintained on the phone. With read receipts off you will not see them from others either (they stay on in groups).',
-        privNoBlacklist:'"My contacts except…" can only be set on the phone — the exception list is not maintained here.',
+        privHint:'For "My contacts except…" you pick the exceptions right here. With read receipts off you will not see them from others either (they stay on in groups).',
+        privNoBlacklist:'WhatsApp keeps no exception list for this setting.',
+        privListEdit:'edit', privListEmpty:'Nobody excluded yet',
+        privListUnavailable:'Exception list not available',
+        privListCount:(n)=>n===1?'1 exception':n+' exceptions',
+        privListSaved:(n)=>n===1?'Saved — 1 contact excluded':'Saved — '+n+' contacts excluded',
+        privUnresolved:(n)=>n===1?'1 contact could not be matched and was skipped.':n+' contacts could not be matched and were skipped.',
+        privPickerTitle:(what)=>what+': who should NOT see it?',
+        privPickerCount:(n)=>n+' selected', privPickerSearch:'Search contact…', privPickerSave:'Apply',
         privFailed:'Could not change the setting.',
         privSaved:(what, val)=>what + ' → ' + val,
         privRejected:(applied)=>'WhatsApp did not accept it, it is still set to ' + applied + '.',
@@ -5891,6 +6010,100 @@ app.get('/', (req, res) => {
       msRenderPreview();
     }
 
+    // Kategorien mit Ausnahmeliste ("Meine Kontakte, ausser ...")
+    const PRIV_LIST_CATS = ['lastSeen', 'about', 'profilePicture', 'groupAdd'];
+    let _privListCat = null;      // Kategorie, die der Kontaktwaehler gerade bearbeitet
+    let _privListNow = [];        // aktuelle Eintraege: [{id, name, number}]
+    let _privListSel = new Set(); // ausgewaehlte IDs im Waehler
+
+    async function msLoadDisallowed(cat) {
+      const box = document.getElementById('priv-list-' + cat);
+      if (!box) return;
+      box.textContent = t('privLoading');
+      try {
+        const d = await fetch('api/privacy/disallowed?category=' + encodeURIComponent(cat)).then(r => r.json());
+        if (d.error) { box.textContent = t('privListUnavailable'); return; }
+        const names = (d.entries || []).map(e => e.name || (e.number ? '+' + e.number : e.id));
+        box.innerHTML = '<span>' + esc(names.length ? tf('privListCount', names.length) + ': ' + names.join(', ') : t('privListEmpty')) + '</span>'
+          + ' <button class="priv-edit" data-cat="' + cat + '">' + esc(t('privListEdit')) + '</button>';
+        box.querySelector('button').addEventListener('click', () => openPrivPicker(cat, d.entries || []));
+      } catch (e) { box.textContent = t('privListUnavailable'); }
+    }
+
+    function openPrivPicker(cat, entries) {
+      _privListCat = cat;
+      _privListNow = entries || [];
+      // Vorbelegt ist, wer schon auf der Liste steht — LIDs bleiben als ID erhalten
+      _privListSel = new Set(_privListNow.map(e => e.id));
+      document.getElementById('priv-picker-title').textContent = tf('privPickerTitle', t('priv_' + cat));
+      document.getElementById('priv-picker-search').value = '';
+      renderPrivPicker();
+      document.getElementById('priv-picker-modal').classList.add('open');
+    }
+    function closePrivPicker() {
+      document.getElementById('priv-picker-modal').classList.remove('open');
+    }
+
+    function renderPrivPicker() {
+      const list = document.getElementById('priv-picker-list');
+      const q = (document.getElementById('priv-picker-search').value || '').toLowerCase();
+      // Oben die, die schon drauf sind (auch wenn sie im Adressbuch fehlen),
+      // darunter das Adressbuch
+      const book = (_addressBook && _addressBook.contacts) || [];
+      const rows = [];
+      for (const e of _privListNow) {
+        rows.push({ id: e.id, name: e.name || (e.number ? '+' + e.number : e.id), number: e.number || '' });
+      }
+      const known = new Set(rows.map(r => r.id));
+      for (const c of book) {
+        if (known.has(c.id)) continue;
+        rows.push({ id: c.id, name: c.name || c.number, number: c.number || '' });
+      }
+      const filtered = q ? rows.filter(r => r.name.toLowerCase().includes(q) || r.number.includes(q)) : rows;
+      list.innerHTML = filtered.slice(0, 400).map(r =>
+        '<label class="priv-pick-row"><input type="checkbox" data-id="' + esc(r.id) + '"'
+        + (_privListSel.has(r.id) ? ' checked' : '') + '>'
+        + '<span>' + esc(r.name) + (r.number ? ' <span class="priv-pick-num">+' + esc(r.number) + '</span>' : '') + '</span></label>'
+      ).join('') || '<div class="ms-hint">' + esc(t('contactsEmpty')) + '</div>';
+      list.querySelectorAll('input[data-id]').forEach(cb => {
+        cb.addEventListener('change', () => {
+          if (cb.checked) _privListSel.add(cb.dataset.id); else _privListSel.delete(cb.dataset.id);
+          document.getElementById('priv-picker-count').textContent = tf('privPickerCount', _privListSel.size);
+        });
+      });
+      document.getElementById('priv-picker-count').textContent = tf('privPickerCount', _privListSel.size);
+    }
+
+    async function savePrivPicker() {
+      const cat = _privListCat;
+      if (!cat) return;
+      const before = new Set(_privListNow.map(e => e.id));
+      const add = [..._privListSel].filter(id => !before.has(id));
+      const remove = [...before].filter(id => !_privListSel.has(id));
+      if (!add.length && !remove.length) { closePrivPicker(); return; }
+      const btn = document.getElementById('priv-picker-save');
+      btn.disabled = true;
+      try {
+        const d = await fetch('api/privacy/disallowed', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ category: cat, add, remove }),
+        }).then(r => r.json());
+        if (d.success) {
+          closePrivPicker();
+          if (d.unresolved && d.unresolved.length) msShow('err', tf('privUnresolved', d.unresolved.length));
+          else msShow('ok', tf('privListSaved', d.list ? d.list.length : 0));
+          _privSettings = d.settings || _privSettings;
+          await msLoadPrivacy();
+        } else {
+          msShow('err', d.error || t('privFailed'));
+        }
+      } catch (e) {
+        msShow('err', tf('msError', e.message));
+      }
+      btn.disabled = false;
+    }
+
     // ── Datenschutz-Reiter ──────────────────────────────────────────────────────
     // Reihenfolge wie in WhatsApp selbst. Die zulaessigen Werte gibt WhatsApp Web
     // vor; "Meine Kontakte ausser ..." braucht eine Ausnahmeliste und laesst sich
@@ -5918,20 +6131,22 @@ app.get('/', (req, res) => {
       _privSettings = d.settings;
       box.innerHTML = PRIV_ROWS.map(row => {
         const cur = _privSettings[row.key] || '';
-        const opts = row.opts.map(v => {
-          // Nicht setzbar, aber der aktuelle Stand muss sichtbar bleiben
-          const locked = v === 'contact_blacklist' && cur !== 'contact_blacklist';
-          return '<option value="' + v + '"' + (v === cur ? ' selected' : '') + (locked ? ' disabled' : '') + '>'
-            + esc(t('privVal_' + v)) + '</option>';
-        }).join('');
+        const opts = row.opts.map(v =>
+          '<option value="' + v + '"' + (v === cur ? ' selected' : '') + '>' + esc(t('privVal_' + v)) + '</option>'
+        ).join('');
+        const listLine = (cur === 'contact_blacklist' && PRIV_LIST_CATS.includes(row.key))
+          ? '<div class="priv-list" id="priv-list-' + row.key + '"></div>' : '';
         return '<div class="priv-row">'
           + '<label for="priv-' + row.key + '">' + esc(t('priv_' + row.key)) + '</label>'
           + '<select id="priv-' + row.key + '" data-key="' + row.key + '" class="ms-input">' + opts + '</select>'
-          + '</div>';
+          + '</div>' + listLine;
       }).join('') + '<div class="ms-hint">' + esc(t('privHint')) + '</div>';
       box.querySelectorAll('select[data-key]').forEach(sel => {
         sel.addEventListener('change', () => msSavePrivacy(sel));
       });
+      for (const row of PRIV_ROWS) {
+        if (_privSettings[row.key] === 'contact_blacklist' && PRIV_LIST_CATS.includes(row.key)) msLoadDisallowed(row.key);
+      }
     }
 
     async function msSavePrivacy(sel) {
@@ -5939,6 +6154,19 @@ app.get('/', (req, res) => {
       const value = sel.value;
       const before = _privSettings ? _privSettings[key] : '';
       if (value === before) return;
+      // Ohne Ausnahmeliste ergibt "Meine Kontakte, ausser ..." keinen Sinn —
+      // deshalb zuerst waehlen lassen; gesetzt wird die Kategorie dabei mit
+      if (value === 'contact_blacklist') {
+        sel.value = before;
+        if (!PRIV_LIST_CATS.includes(key)) { msShow('err', t('privNoBlacklist')); return; }
+        let entries = [];
+        try {
+          const d = await fetch('api/privacy/disallowed?category=' + encodeURIComponent(key)).then(r => r.json());
+          entries = d.entries || [];
+        } catch (e) {}
+        openPrivPicker(key, entries);
+        return;
+      }
       sel.disabled = true;
       try {
         const d = await fetch('api/privacy', {
