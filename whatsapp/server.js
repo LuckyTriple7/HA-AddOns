@@ -3368,6 +3368,7 @@ app.get('/', (req, res) => {
           <input type="file" id="ms-file" accept="image/*,video/*" class="ms-input" onchange="msFilePicked()">
           <img id="ms-media-preview" class="ms-media-preview" alt="">
           <div id="ms-media-note" class="ms-hint"></div>
+          <button class="ms-btn ghost" id="ms-media-clear" style="display:none" onclick="msClearMedia()" data-i18n="msMediaClear">Auswahl entfernen</button>
           <div class="ms-label" data-i18n="msCaption">Text zum Bild (optional)</div>
           <textarea id="ms-caption" class="ms-area" maxlength="700" data-i18n-pl="msCaptionPlaceholder" placeholder="Bildunterschrift…"></textarea>
         </div>
@@ -3574,6 +3575,7 @@ app.get('/', (req, res) => {
         msNeedText:'Bitte erst einen Text eingeben.', msNeedFile:'Bitte erst ein Bild oder Video auswählen.',
         msFileTooBig:'Datei zu groß (max. 64 MB).', msVideoNoPreview:'Video ausgewählt – keine Vorschau.',
         msShrinking:'Bild wird verkleinert…',
+        msMediaClear:'Auswahl entfernen',
         attachShrunk:(from)=>'verkleinert aus '+from,
         msShrunk:(from,to,w,h)=>'Bild verkleinert: '+from+' → '+to+' ('+w+'×'+h+' Pixel)',
         msShrinkFail:(size)=>'Bild ließ sich nicht verkleinern und bleibt bei '+size+'. Große Uploads können unterwegs abgewiesen werden.',
@@ -3663,6 +3665,7 @@ app.get('/', (req, res) => {
         msNeedText:'Please enter some text first.', msNeedFile:'Please pick a photo or video first.',
         msFileTooBig:'File too large (max. 64 MB).', msVideoNoPreview:'Video selected – no preview.',
         msShrinking:'Shrinking image…',
+        msMediaClear:'Remove selection',
         attachShrunk:(from)=>'shrunk from '+from,
         msShrunk:(from,to,w,h)=>'Image shrunk: '+from+' → '+to+' ('+w+'×'+h+' pixels)',
         msShrinkFail:(size)=>'Could not shrink the image, it stays at '+size+'. Large uploads may be rejected on the way.',
@@ -4400,8 +4403,10 @@ app.get('/', (req, res) => {
       _msFile = inp.files && inp.files[0] ? inp.files[0] : null;
       img.classList.remove('show'); img.removeAttribute('src');
       note.textContent = '';
+      document.getElementById('ms-media-clear').style.display = 'none';
       if (!_msFile) return;
       if (_msFile.size > 64 * 1024 * 1024) { _msFile = null; inp.value = ''; msShow('err', t('msFileTooBig')); return; }
+      document.getElementById('ms-media-clear').style.display = '';
 
       if (_msFile.type.startsWith('image/')) {
         const original = _msFile;
@@ -4425,13 +4430,38 @@ app.get('/', (req, res) => {
       }
     }
 
-    async function openMyStatus() {
-      msClearMsg();
+    // Bildauswahl verwerfen, ohne den ganzen Editor anzufassen
+    function msClearMedia() {
+      _msFile = null;
+      _msTplFile = null;
+      const inp = document.getElementById('ms-file');
+      if (inp) inp.value = '';
+      const img = document.getElementById('ms-media-preview');
+      img.classList.remove('show'); img.removeAttribute('src');
+      document.getElementById('ms-media-note').textContent = '';
+      document.getElementById('ms-caption').value = '';
+      document.getElementById('ms-media-clear').style.display = 'none';
+    }
+
+    // Kompletter Neustart: nach dem Senden und bei jedem Oeffnen. Sonst stand
+    // beim naechsten Aufmachen noch das zuletzt gewaehlte Bild da und liess sich
+    // versehentlich ein zweites Mal posten.
+    function msResetEditor() {
+      msClearMedia();
+      document.getElementById('ms-text').value = '';
+      document.getElementById('ms-tpl-name').value = '';
+      _msColor = MS_COLORS[0];
+      _msFont = 0;
       _msEditingTpl = null;
       document.getElementById('ms-tpl-update').style.display = 'none';
-      document.getElementById('mystatus-modal').classList.add('open');
       msBuildPickers();
       msRenderPreview();
+    }
+
+    async function openMyStatus() {
+      msClearMsg();
+      document.getElementById('mystatus-modal').classList.add('open');
+      msResetEditor();
       msSetTab('text');
       msLoadTemplates();
       const p = await loadMyProfile(true);
@@ -4474,6 +4504,7 @@ app.get('/', (req, res) => {
           }).then(apiJson);
           if (d.error) throw new Error(d.error);
           msShow('ok', t('msSentText'));
+          msResetEditor();
         } else {
           if (!_msFile && !_msTplFile) { msShow('err', t('msNeedFile')); return; }
           setBusy(true);
@@ -4489,6 +4520,7 @@ app.get('/', (req, res) => {
             .catch(err => { throw new Error(err.message + (kb ? ' (Upload ' + kb + ' KB)' : '')); });
           if (d.error) throw new Error(d.error);
           msShow('ok', t('msSentMedia'));
+          msResetEditor();
         }
         msLoadLive();
       } catch (e) {
@@ -4570,6 +4602,7 @@ app.get('/', (req, res) => {
           img.classList.add('show');
           document.getElementById('ms-media-note').textContent = tf('msTplFileNote', tpl.name);
         }
+        document.getElementById('ms-media-clear').style.display = '';
         msSetTab('media');
       } else {
         _msTplFile = null;

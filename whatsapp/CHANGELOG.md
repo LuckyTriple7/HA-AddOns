@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.7.69] - 2026-08-28
+- Feature: **„Auswahl entfernen" im Bild-Reiter.** Ein gewaehltes Bild liess sich bisher nur durch Auswahl eines anderen ersetzen. Der Knopf erscheint, sobald etwas gewaehlt ist — auch waehrend das Bild noch verkleinert wird — und raeumt Vorschau, Dateifeld und Bildunterschrift weg
+- Fix: **Der Editor merkte sich alles ueber „Abbrechen" hinweg.** Beim naechsten Oeffnen stand noch das zuletzt gewaehlte Bild da und liess sich versehentlich ein zweites Mal posten. Beim Oeffnen wird jetzt zurueckgesetzt: Text, Bild, Bildunterschrift, Farbe, Schrift und der Vorlagenname
+- Nach erfolgreichem Posten raeumt sich der Editor ebenfalls auf — die Erfolgsmeldung bleibt stehen
+
 ## [1.7.68] - 2026-08-28
 - Fix: **Bild-Status scheiterte mit „Cannot read properties of undefined (reading 'id')".** Der Fehler kam aus WhatsApps eigenem Code. Der Quelltext des Bundles zeigt, warum: die Aktion erwartet ein Objekt — `sendStatusMediaMsgAction({ beforeSend, funnelContext, mediaMsgData })` — und liest daraus `mediaMsgData.id.fromMe`. `whatsapp-web.js` ruft sie dagegen als `(msgModel, mediaUpdate)` auf, womit `mediaMsgData` undefiniert ist. Vor dem Versand wird die Aktion jetzt umhuellt: die alte Aufrufform wird in die erwartete umgesetzt, ein bereits richtiger Aufruf geht unveraendert durch
 - Die Umhuellung greift nur, wenn die Aktion hoechstens einen Parameter nimmt. Sollte WhatsApp wieder auf zwei Parameter wechseln, bleibt sie unangetastet und das Log sagt es
