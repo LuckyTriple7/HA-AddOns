@@ -2770,6 +2770,9 @@ const PRIVACY_MODULE_CANDIDATES = [
   'WAWebQueryPrivacyDisallowedListUtil',
   'WAWebStatusPrivacyContactsUtils',
   'WAWebPrivacyGatingUtils',
+  'WAWebSchemaPrivacyDisallowedList',
+  'WAWebWid',
+  'WAWebLidMigrationUtils',
 ];
 
 async function probePrivacyModules() {
@@ -2984,6 +2987,66 @@ app.post('/api/privacy', async (req, res) => {
     const applied = out.settings && out.settings[name];
     _logSilent('INFO', `privacy: ${name} → ${value}${applied === value ? '' : ` (WhatsApp meldet ${applied})`}`);
     res.json({ success: applied === value, name, value, applied, settings: out.settings });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Die Ausnahmeliste zu "Meine Kontakte, ausser ...". WhatsApp fuehrt sie pro
+// Kategorie getrennt; die Typen stehen in WAWebSchemaPrivacyDisallowedList.
+const DISALLOWED_TYPES = {
+  lastSeen: 'LastSeen',
+  about: 'About',
+  profilePicture: 'ProfilePicture',
+  groupAdd: 'GroupAdd',
+};
+
+// GET /api/privacy/disallowed?category=lastSeen — nur lesen
+app.get('/api/privacy/disallowed', async (req, res) => {
+  if (status !== 'connected') return res.status(503).json({ error: 'Not connected' });
+  if (!client.pupPage) return res.status(503).json({ error: 'keine Browser-Seite' });
+  const category = String(req.query.category || 'lastSeen');
+  const typeName = DISALLOWED_TYPES[category];
+  if (!typeName) return res.status(400).json({ error: 'unbekannte Kategorie', allowed: Object.keys(DISALLOWED_TYPES) });
+  try {
+    const out = await client.pupPage.evaluate(async (typeName) => {
+      // Unbekannte Rueckgabe vorsichtig beschreiben statt blind JSON.stringify:
+      // WhatsApp arbeitet mit Wid-Objekten, die Zyklen enthalten koennen.
+      const describe = (v, depth) => {
+        if (v === null || v === undefined) return v;
+        const t = typeof v;
+        if (t === 'string' || t === 'number' || t === 'boolean') return v;
+        if (Array.isArray(v)) return depth <= 0 ? '[' + v.length + ' Eintraege]' : v.slice(0, 50).map(x => describe(x, depth - 1));
+        if (t === 'function') return 'fn';
+        const out = { __keys: [] };
+        try { out.__keys = Object.keys(v).slice(0, 25); } catch (e) {}
+        for (const k of ['_serialized', 'user', 'server', 'device', 'agent', 'id', 'type', 'dhash', 'wid', 'lid', 'pn', 'action', 'username']) {
+          if (v[k] !== undefined) out[k] = depth <= 0 ? String(v[k]).slice(0, 80) : describe(v[k], depth - 1);
+        }
+        try { if (typeof v.toString === 'function') out.__str = String(v).slice(0, 120); } catch (e) {}
+        return out;
+      };
+      try {
+        const schema = window.require('WAWebSchemaPrivacyDisallowedList');
+        const type = schema.PrivacyDisallowedListType[typeName];
+        if (type === undefined) {
+          return { error: 'Typ nicht gefunden', known: Object.keys(schema.PrivacyDisallowedListType || {}) };
+        }
+        const util = window.require('WAWebQueryPrivacyDisallowedListUtil');
+        const result = await util.queryPrivacyDisallowedList(type);
+        return {
+          type: String(type),
+          lidMigrated: util.isPrivacyDisallowedListTypeLidMigrated(),
+          resultType: Array.isArray(result) ? 'array' : typeof result,
+          count: Array.isArray(result) ? result.length : undefined,
+          result: describe(result, 3),
+        };
+      } catch (e) {
+        return { error: String((e && e.message) || e).slice(0, 300) };
+      }
+    }, typeName);
+    if (out.error) return res.status(500).json(out);
+    res.json({ category, ...out });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }

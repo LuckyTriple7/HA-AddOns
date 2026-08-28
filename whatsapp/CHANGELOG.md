@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.8.19] - 2026-08-28
+- Neu: **`GET /api/privacy/disallowed?category=lastSeen` liest die Ausnahmeliste** zu „Meine Kontakte, ausser…". WhatsApp fuehrt sie pro Kategorie getrennt (`lastSeen`, `about`, `profilePicture`, `groupAdd`) — die Route fragt sie ueber `queryPrivacyDisallowedList()` ab und beschreibt die Antwort Feld fuer Feld, statt sie blind zu serialisieren
+- Der Quelltext von `WAWebSetPrivacyJob` hat gezeigt, wie das Setzen wirklich funktioniert: `setPrivacy({name, value, users, dhash})` mit `users` als Liste von `{action: 'add'|'remove', wid}`. Die Ausnahmeliste wird also **schrittweise** gepflegt, nicht am Stueck ersetzt — und ohne `users` ist der Aufruf voellig unauffaellig, genau wie bisher genutzt
+- Damit ist der Weg zur Kontaktauswahl frei; noch fehlt die Form der gelesenen Eintraege und das Modul, das aus einer Rufnummer eine WID baut. Beides steht jetzt in der Kandidatenliste der Diagnose
+
 ## [1.8.18] - 2026-08-28
 - Fix: **Die Oberflaeche blieb leer — `Uncaught SyntaxError: Unexpected identifier 's'`.** Im englischen Hinweistext des neuen Datenschutz-Reiters stand ein Apostroph als `'`. Die Seite wird aus einem Template-Literal gebaut, und das macht daraus ein echtes `'` — damit endete die Zeichenkette mitten im Satz und das gesamte Skript der Seite war hin
 - Der Satz kommt jetzt ohne Apostroph aus. `node --check server.js` sieht solche Fehler grundsaetzlich nicht, weil die Escapes erst beim Ausliefern aufgeloest werden
