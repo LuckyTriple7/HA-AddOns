@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.8.24] - 2026-08-28
+- Fix: **Bei den Statusmeldungen stand „Noch niemand ausgenommen", obwohl neun Kontakte ausgenommen waren.** Der Modus wurde richtig erkannt, nur die Liste nicht: sie steht in `getStatusPrivacySettingConfig()` unter einem anderen Feldnamen als vermutet
+- Statt weiter zu raten sucht das Add-on jetzt das erste Feld, das ueberhaupt eine gefuellte Liste enthaelt, und gibt den gefundenen Feldnamen als `listKey` mit zurueck
+- `GET /api/privacy/status?raw=1` zeigt die Rueckgabe vollstaendig, Feld fuer Feld — damit laesst sich der Rest ohne weiteres Raten festnageln
+
 ## [1.8.23] - 2026-08-28
 - Feature: **Wer die Statusmeldungen sehen darf, laesst sich jetzt auch hier einstellen** — neue Zeile „Statusmeldungen" im Datenschutz-Reiter mit allen drei Moeglichkeiten: *Meine Kontakte*, *Meine Kontakte, ausser…* und *Nur teilen mit…*. Fuer die letzten beiden oeffnet sich dieselbe Kontaktauswahl wie bei „Zuletzt online"
 - Das Status-Publikum haengt an eigenen Modulen (`WAWebStatusPrivacySettingAction`) und funktioniert anders als die uebrigen Einstellungen: die Liste wird **vollstaendig gesetzt**, nicht schrittweise ergaenzt. Die Umrechnung der Kontakte in WhatsApp-Kennungen macht `convertPrivacyListContactsToWids` — je nach Kontakt Rufnummer oder LID

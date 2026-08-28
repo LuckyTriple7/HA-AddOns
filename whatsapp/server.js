@@ -3150,13 +3150,48 @@ app.post('/api/privacy/disallowed', async (req, res) => {
 app.get('/api/privacy/status', async (req, res) => {
   if (status !== 'connected') return res.status(503).json({ error: 'Not connected' });
   if (!client.pupPage) return res.status(503).json({ error: 'keine Browser-Seite' });
+  const wantRaw = req.query.raw === '1';
   try {
-    const out = await client.pupPage.evaluate(async () => {
+    const out = await client.pupPage.evaluate(async (wantRaw) => {
+      // Unbekannte Rueckgaben beschreiben statt blind serialisieren: WhatsApp
+      // arbeitet mit Wid-Objekten, die Zyklen enthalten koennen.
+      const describe = (v, depth) => {
+        if (v === null || v === undefined) return v;
+        const t = typeof v;
+        if (t === 'string' || t === 'number' || t === 'boolean') return v;
+        if (t === 'function') return 'fn';
+        if (Array.isArray(v)) return depth <= 0 ? '[' + v.length + ' Eintraege]' : v.slice(0, 50).map(x => describe(x, depth - 1));
+        const out = {};
+        let own = [];
+        try { own = Object.keys(v).slice(0, 40); } catch (e) {}
+        for (const k of own) {
+          try { out[k] = depth <= 0 ? String(v[k]).slice(0, 80) : describe(v[k], depth - 1); }
+          catch (e) { out[k] = 'FEHLER'; }
+        }
+        for (const k of ['_serialized', 'user', 'server']) {
+          if (out[k] === undefined && v[k] !== undefined) {
+            try { out[k] = String(v[k]).slice(0, 80); } catch (e) {}
+          }
+        }
+        try { out.__str = String(v).slice(0, 120); } catch (e) {}
+        return out;
+      };
       try {
         const act = window.require('WAWebStatusPrivacySettingAction');
         const col = window.require('WAWebCollections');
         const cfg = await act.getStatusPrivacySetting();
-        const rawList = (cfg && (cfg.list || cfg.wids || cfg.contacts)) || [];
+        // Wo die Kontakte stehen, ist von Fassung zu Fassung verschieden —
+        // deshalb den erstbesten Feldnamen nehmen, der eine Liste enthaelt
+        let rawList = [];
+        let listKey = null;
+        for (const k of ['list', 'wids', 'contacts', 'users', 'jids', 'allowList', 'denyList', 'excluded']) {
+          if (cfg && Array.isArray(cfg[k]) && cfg[k].length) { rawList = cfg[k]; listKey = k; break; }
+        }
+        if (!rawList.length && cfg) {
+          for (const k of Object.keys(cfg)) {
+            if (Array.isArray(cfg[k]) && cfg[k].length) { rawList = cfg[k]; listKey = k; break; }
+          }
+        }
         const entries = rawList.map((w) => {
           const id = (w && (w._serialized || String(w))) || '';
           const out = { id, name: '', number: '' };
@@ -3176,11 +3211,13 @@ app.get('/api/privacy/status', async (req, res) => {
         const raw = String((cfg && (cfg.setting ?? cfg.type ?? cfg.mode)) ?? '');
         const low = raw.toLowerCase();
         const mode = low.includes('allow') ? 'allow' : low.includes('deny') ? 'deny' : 'contacts';
-        return { ok: true, mode, raw, count: entries.length, entries };
+        const out = { ok: true, mode, raw, listKey, count: entries.length, entries };
+        if (wantRaw) { out.cfgKeys = cfg ? Object.keys(cfg) : null; out.cfg = describe(cfg, 4); }
+        return out;
       } catch (e) {
         return { ok: false, error: String((e && e.message) || e).slice(0, 300) };
       }
-    });
+    }, wantRaw);
     if (!out.ok) return res.status(500).json(out);
     res.json(out);
   } catch (e) {
