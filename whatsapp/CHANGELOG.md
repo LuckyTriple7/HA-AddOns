@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.7.61] - 2026-08-28
+- Fix: **Text-Status wurde als gesendet gemeldet, erschien aber auf keinem Geraet.** Das Log zeigte `message_ack: true_status@broadcast_… → -1` — der WhatsApp-Server lehnte die Nachricht ab. Ursache: `whatsapp-web.js` baut fuer Status ein eigenes Msg-Modell samt Absender-Identitaet (bei LID-Konten die falsche), uebergibt der WhatsApp-Aktion `sendStatusTextMsgAction` aber ohnehin nur `{ color, font, text }` und wirft deren Rueckgabewert weg. Text-Status geht jetzt direkt an diese Aktion, WhatsApp baut die Nachricht selbst — und ihr Ergebnis landet im Log. Fehlt die Aktion (kuenftige Umbenennung), greift weiterhin der Bibliotheksweg
+- Fix: Ein abgelehnter Status (`ack = -1`) wird jetzt als Warnung geloggt statt nur als Debug-Zeile. Vorher sah ein fehlgeschlagener Versand von aussen wie ein Erfolg aus
+
 ## [1.7.60] - 2026-08-28
 - Fix: **Status-Versand brach mit `canCheckStatusRankingPosterGating is not a function` ab.** `whatsapp-web.js` ruft beim Posten eines Status `window.require('WAWebStatusGatingUtils').canCheckStatusRankingPosterGating()` auf — in aktuellen WhatsApp-Web-Versionen gibt es diese Funktion nicht mehr, und der Versand scheiterte sowohl bei Text- als auch bei Bild-Status. Vor jedem Statusversand wird `window.require` jetzt fuer genau dieses Modul umhuellt und die fehlende Funktion ergaenzt (Ergebnis `false`, entspricht dem Normalfall ohne Gating-Pruefung). Andere Module bleiben unberuehrt, der Eingriff ist idempotent und wird nach einem Reconnect erneut gesetzt. Beim ersten Mal landet eine Warnung mit den tatsaechlich vorhandenen Modul-Exporten im Log
 

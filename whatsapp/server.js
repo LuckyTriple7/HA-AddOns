@@ -788,8 +788,13 @@ client.on('message_revoke_me', (msg) => {
 });
 
 client.on('message_ack', (msg, ack) => {
-  const ackNames = {1:'sent',2:'received',3:'read',4:'played'};
+  const ackNames = {'-1':'error',0:'pending',1:'sent',2:'received',3:'read',4:'played'};
   _logSilent('DEBUG', `message_ack: ${msg.id._serialized} → ${ackNames[ack]||ack}`);
+  // Ein Status mit ack -1 wurde vom WhatsApp-Server abgelehnt und erscheint auf
+  // keinem Geraet — das faellt sonst niemandem auf, weil der Versand "gelingt"
+  if (ack < 0 && String(msg.id?.remote || msg.to || '').includes('status@broadcast')) {
+    console.warn(`[WARN] Eigener Status wurde vom Server abgelehnt (ack=${ack}, id=${msg.id._serialized}) — er erscheint auf keinem Geraet`);
+  }
   const msgs = messagesByChatId.get(msg.to);
   if (msgs) {
     const stored = msgs.find(m => m.id === msg.id._serialized);
@@ -1999,6 +2004,53 @@ async function ensureStatusShims() {
   }
 }
 
+// Text-Status direkt ueber die WhatsApp-Aktion posten.
+//
+// whatsapp-web.js baut fuer Text-Status zwar ein Msg-Modell, uebergibt der Aktion
+// aber nur { color, font, text } und wirft deren Rueckgabewert komplett weg. Ein
+// abgelehnter Versand kam dadurch als Erfolg zurueck ("kein Status sichtbar").
+// Direkt aufgerufen bekommen wir das echte Ergebnis und koennen es melden.
+async function sendStatusTextDirect(text, bgHex, font) {
+  if (!client.pupPage) return { ok: false, error: 'keine Browser-Seite' };
+  return await client.pupPage.evaluate(async (text, bgHex, font) => {
+    // Rueckgaben aus der Seite muessen JSON-tauglich sein
+    const describe = (v) => {
+      if (v === undefined) return { type: 'undefined' };
+      if (v === null) return { type: 'null' };
+      const type = typeof v;
+      if (type !== 'object') return { type, value: String(v).slice(0, 200) };
+      const out = { type: 'object', keys: Object.keys(v).slice(0, 30) };
+      try { out.json = JSON.stringify(v).slice(0, 500); } catch (e) {}
+      return out;
+    };
+    try {
+      const mod = window.require('WAWebSendStatusMsgAction');
+      if (!mod || typeof mod.sendStatusTextMsgAction !== 'function') {
+        return { ok: false, error: 'sendStatusTextMsgAction fehlt', keys: mod ? Object.keys(mod) : [] };
+      }
+      // Denselben Chat aufloesen wie die Bibliothek, damit der Status-Thread existiert
+      let chatOk = false;
+      try {
+        const chat = await window.WWebJS.getChat('status@broadcast', { getAsModel: false });
+        chatOk = !!chat;
+      } catch (e) {}
+
+      let color = 0xff0a5f55;
+      try {
+        color = window.WWebJS.assertColor(bgHex);
+      } catch (e) {
+        const n = String(bgHex).replace('#', '');
+        color = parseInt((n.length <= 6 ? 'FF' + n.padStart(6, '0') : n), 16);
+      }
+
+      const res = await mod.sendStatusTextMsgAction({ color, font, text });
+      return { ok: true, chatOk, keys: Object.keys(mod), result: describe(res) };
+    } catch (e) {
+      return { ok: false, error: String((e && e.message) || e) };
+    }
+  }, text, bgHex, font);
+}
+
 // Text-Status posten. fontStyle 0-7 und backgroundColor sind die WhatsApp-eigenen
 // Optionen fuer Text-Stories (siehe WWebJS sendStatusTextMsgAction).
 app.post('/api/my-status/text', async (req, res) => {
@@ -2009,11 +2061,19 @@ app.post('/api/my-status/text', async (req, res) => {
   const font = Math.min(Math.max(parseInt(req.body?.fontStyle ?? 0, 10) || 0, 0), 7);
   try {
     await ensureStatusShims();
+    const direct = await sendStatusTextDirect(text, bg, font);
+    console.log(`[INFO] Text-Status: Aktion meldet ${JSON.stringify(direct)}`);
+    if (direct && direct.ok) {
+      console.log(`[INFO] Eigener Text-Status gepostet (${text.length} Zeichen, Farbe ${bg}, Font ${font})`);
+      return res.json({ success: true, id: null, detail: direct.result || null });
+    }
+    // Faellt der Direktweg aus (Modul umbenannt o.ae.), den Bibliotheksweg versuchen
+    console.warn('[WARN] Text-Status direkt fehlgeschlagen (%s) — versuche whatsapp-web.js', (direct && direct.error) || 'unbekannt');
     const result = await client.sendMessage(STATUS_BROADCAST_JID, text, {
       sendSeen: false,
       extra: { backgroundColor: bg, fontStyle: font },
     });
-    if (!result) throw new Error('sendMessage returned no result');
+    if (!result) throw new Error((direct && direct.error) || 'sendMessage returned no result');
     if (result.__logged !== undefined) result.__logged = true;
     console.log(`[INFO] Eigener Text-Status gepostet (${text.length} Zeichen, Farbe ${bg}, Font ${font})`);
     res.json({ success: true, id: result.id?._serialized || null });
