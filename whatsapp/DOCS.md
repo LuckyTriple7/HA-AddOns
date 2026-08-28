@@ -42,6 +42,7 @@ POST /api/send                       → Nachricht senden
 POST /api/send-media                 → Bild/Dokument senden
 GET  /api/presence-overview          → Zuletzt online aller Kontakte; ?refresh=1 startet einen Rundlauf
 GET  /api/search?q=<text>            → Suche über alle Chats (eigener Verlauf + WhatsApp-Suche)
+GET  /api/check-number?number=<nr>   → Ist die Rufnummer bei WhatsApp? (max. 20 Abfragen/Minute)
 GET  /api/contact/:chatId/extra      → Gemeinsame Gruppen und Anzahl verknüpfter Geräte
 GET  /api/blocked                    → Liste der blockierten Kontakte
 POST /api/contact/:chatId/block      → Kontakt blockieren
@@ -221,6 +222,7 @@ POST /api/send                       → Send a message
 POST /api/send-media                 → Send image/document
 GET  /api/presence-overview          → Last seen of all contacts; ?refresh=1 starts a sweep
 GET  /api/search?q=<text>            → Search across all chats (local history + WhatsApp search)
+GET  /api/check-number?number=<nr>   → Is this number on WhatsApp? (max. 20 requests/minute)
 GET  /api/contact/:chatId/extra      → Groups in common and number of linked devices
 GET  /api/blocked                    → List of blocked contacts
 POST /api/contact/:chatId/block      → Block a contact

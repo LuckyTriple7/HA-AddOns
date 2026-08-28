@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.8.6] - 2026-08-28
+- Feature: **Pruefen, ob eine Rufnummer bei WhatsApp ist** — ohne sie zu speichern und ohne ihr zu schreiben. Das kann die WhatsApp-App nicht. Tippt man in der Seitenleiste etwas, das nach einer Rufnummer aussieht, erscheint die Zeile „📱 „…" bei WhatsApp prüfen"; im Kontakte-Reiter steht ausserdem unten ein Knopf dafuer
+- Bei einem Treffer nennt das Ergebnis die Nummer, den gespeicherten Namen (oder „nicht im Adressbuch") und den Info-Text; ein Knopf oeffnet direkt den Chat — auch wenn es bisher keinen gab
+- Die Anfrage geht an WhatsApps Server, deshalb hoechstens 20 Abfragen je Minute. Neu: `GET /api/check-number?number=<nr>`
+
 ## [1.8.5] - 2026-08-28
 - Feature: **Suche über alle Chats.** Tippt man in der Seitenleiste, erscheint darueber die Zeile „🔍 „…" in allen Nachrichten suchen" — ein Klick oder Enter oeffnet die Trefferliste. Jeder Treffer nennt Chat, bei Gruppen zusaetzlich den Absender, Datum und Uhrzeit sowie einen Textausschnitt mit hervorgehobenem Suchwort. Ein Klick springt in den Chat direkt zur Nachricht und hebt sie fuenf Sekunden lang hervor
 - Zwei Quellen: der eigene Nachrichtenspeicher, wo punktgenaues Anspringen moeglich ist, und **WhatsApps eigene Suche**, die auch aelteres findet, was hier nie gespeichert wurde. Solche Treffer sind als „nicht im lokalen Verlauf" gekennzeichnet und oeffnen nur den Chat. Die Fusszeile nennt beide Zahlen

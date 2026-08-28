@@ -980,6 +980,43 @@ app.get('/api/stats', (req, res) => {
   res.json({ total: msgs.length, sent, received, photos, first });
 });
 
+// Pruefen, ob eine Rufnummer ueberhaupt bei WhatsApp ist — das kann die App
+// nicht, ohne die Nummer zu speichern und ihr zu schreiben. Die Anfrage geht an
+// WhatsApps Server, deshalb ein eigenes Limit gegen versehentliche Massenabfragen.
+const checkNumberLimit = rateLimit({ windowMs: 60_000, limit: 20 });
+
+app.get('/api/check-number', checkNumberLimit, async (req, res) => {
+  if (status !== 'connected') return res.status(503).json({ error: 'Not connected' });
+  const raw = String(req.query.number || '');
+  const digits = raw.replace(/\D/g, '');
+  if (digits.length < 7 || digits.length > 15) {
+    return res.status(400).json({ error: 'Rufnummer mit 7 bis 15 Ziffern erwartet', number: digits });
+  }
+  try {
+    const wid = await client.getNumberId(digits);
+    if (!wid) {
+      console.log(`[INFO] Nummernpruefung ${digits}: nicht bei WhatsApp`);
+      return res.json({ number: digits, exists: false });
+    }
+    const jid = wid._serialized || `${digits}@c.us`;
+    const out = { number: digits, exists: true, jid, name: '', about: '', hasProfilePic: false };
+    const contact = await client.getContactById(jid).catch(() => null);
+    if (contact) {
+      out.name = contact.name || contact.pushname || contact.shortName || '';
+      out.isMyContact = contact.isMyContact === true;
+      out.hasProfilePic = !!(await contact.getProfilePicUrl().catch(() => null));
+      out.about = (await contact.getAbout().catch(() => null)) || '';
+    }
+    // Existiert schon ein Chat, kann die Oberflaeche direkt dorthin springen
+    const index = buildChatIndex();
+    out.chatId = index.get(jid) || index.get(digits) || null;
+    console.log(`[INFO] Nummernpruefung ${digits}: bei WhatsApp${out.name ? ' (' + out.name + ')' : ''}`);
+    res.json(out);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // Suche ueber alle Chats. Zwei Quellen: der eigene Nachrichtenspeicher (dort
 // laesst sich anschliessend punktgenau hinspringen) und WhatsApps eigene Suche,
 // die auch aelteres findet, was hier nie gespeichert wurde — solche Treffer sind
@@ -3251,6 +3288,28 @@ app.get('/', (req, res) => {
     .status-item img, .status-item video { max-width: 100%; max-height: 180px; border-radius: 6px; display: block; cursor: zoom-in; }
     .status-item .status-text { font-size: 13px; word-break: break-word; }
     .status-item .status-time { font-size: 11px; color: #8696a0; }
+    #numcheck-modal { display: none; position: fixed; inset: 0; z-index: 505; background: rgba(0,0,0,0.7); align-items: center; justify-content: center; }
+    #numcheck-modal.open { display: flex; }
+    .nc-box { border-radius: 14px; width: min(420px, 92%); display: flex; flex-direction: column; box-shadow: 0 8px 32px rgba(0,0,0,0.5); overflow: hidden; }
+    html.dark .nc-box { background: #202c33; color: #e9edef; }
+    html.light .nc-box { background: #fff; color: #111; }
+    .nc-body { padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+    .nc-body h3 { font-size: 15px; font-weight: 600; margin: 0; }
+    .nc-row { display: flex; gap: 8px; }
+    .nc-row input { flex: 1; border-radius: 8px; padding: 8px 12px; font-size: 14px; font-family: inherit; border: 1px solid rgba(128,128,128,0.3); }
+    html.dark .nc-row input { background: #2a3942; color: #e9edef; }
+    html.light .nc-row input { background: #f0f2f5; color: #111; }
+    .nc-row input:focus { outline: none; border-color: #00a884; }
+    .nc-result { font-size: 14px; line-height: 1.5; border-radius: 8px; padding: 10px 12px; display: none; }
+    .nc-result.show { display: block; }
+    .nc-result.yes { background: rgba(0,168,132,0.15); color: #06cf9c; }
+    .nc-result.no { background: rgba(241,92,92,0.15); color: #f15c5c; }
+    .nc-result.err { background: rgba(241,92,92,0.15); color: #f15c5c; }
+    .nc-result .nc-sub { color: #8696a0; font-size: 12px; display: block; margin-top: 3px; }
+    .nc-actions { display: flex; gap: 8px; justify-content: flex-end; }
+    .chat-list-checknum { padding: 8px 12px; cursor: pointer; font-size: 13px; color: #00a884; border-bottom: 1px solid rgba(128,128,128,0.18); }
+    html.dark .chat-list-checknum:hover { background: rgba(255,255,255,0.05); }
+    html.light .chat-list-checknum:hover { background: rgba(0,0,0,0.04); }
     #gsearch-modal { display: none; position: fixed; inset: 0; z-index: 500; background: rgba(0,0,0,0.7); align-items: center; justify-content: center; }
     #gsearch-modal.open { display: flex; }
     .gs-box { border-radius: 14px; width: min(680px, 94%); max-height: 88vh; display: flex; flex-direction: column; box-shadow: 0 8px 32px rgba(0,0,0,0.5); overflow: hidden; }
@@ -3945,6 +4004,23 @@ app.get('/', (req, res) => {
     </div>
   </div>
 
+  <div id="numcheck-modal" onclick="if(event.target===this)closeNumCheck()">
+    <div class="nc-box">
+      <div class="nc-body">
+        <h3 data-i18n="ncTitle">Rufnummer bei WhatsApp prüfen</h3>
+        <div class="nc-row">
+          <input type="text" id="nc-input" data-i18n-pl="ncPlaceholder" placeholder="+49 170 1234567">
+          <button class="ms-btn primary" id="nc-go" onclick="runNumCheck()" data-i18n="ncCheck">Prüfen</button>
+        </div>
+        <div class="nc-result" id="nc-result"></div>
+        <div class="nc-actions">
+          <button class="ms-btn ghost" onclick="closeNumCheck()" data-i18n="btnClose">Schließen</button>
+          <button class="ms-btn primary" id="nc-open" style="display:none" data-i18n="ncOpenChat">Chat öffnen</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div id="gsearch-modal" onclick="if(event.target===this)closeGlobalSearch()">
     <div class="gs-box">
       <div class="gs-head">
@@ -4127,6 +4203,12 @@ app.get('/', (req, res) => {
         gsFoot:(n,local,remote)=>n+' Treffer · '+local+' aus dem Verlauf'+(remote?' · '+remote+' zusätzlich von WhatsApp':''),
         gsTruncated:(shown,total)=>'zeige '+shown+' von '+total+' Treffern',
         gsJumpFailed:'Die Nachricht steht nicht im geladenen Verlauf.',
+        ncTitle:'Rufnummer bei WhatsApp prüfen', ncPlaceholder:'+49 170 1234567',
+        ncCheck:'Prüfen', ncChecking:'Wird geprüft…', ncOpenChat:'Chat öffnen',
+        ncAsk:(n)=>'📱 „'+n+'" bei WhatsApp prüfen', ncOpen:'📱 Rufnummer prüfen',
+        ncYes:'Diese Nummer ist bei WhatsApp.', ncNo:'Diese Nummer ist nicht bei WhatsApp.',
+        ncKnown:(n)=>'Gespeichert als '+n, ncNotSaved:'nicht im Adressbuch',
+        ncTooShort:'Bitte eine Rufnummer mit 7 bis 15 Ziffern eingeben.',
         presOvTitle:'Zuletzt online — Übersicht', presOvOpen:'Zuletzt online — Übersicht',
         presOvRefresh:'Jetzt aktualisieren', presOvScanning:'Rundlauf läuft…',
         presOvEmpty:'Noch keine Daten. „Jetzt aktualisieren" startet einen Rundlauf.',
@@ -4243,6 +4325,12 @@ app.get('/', (req, res) => {
         gsFoot:(n,local,remote)=>n+' hits · '+local+' from the history'+(remote?' · '+remote+' extra from WhatsApp':''),
         gsTruncated:(shown,total)=>'showing '+shown+' of '+total+' hits',
         gsJumpFailed:'That message is not in the loaded history.',
+        ncTitle:'Check a number on WhatsApp', ncPlaceholder:'+49 170 1234567',
+        ncCheck:'Check', ncChecking:'Checking…', ncOpenChat:'Open chat',
+        ncAsk:(n)=>'📱 Check "'+n+'" on WhatsApp', ncOpen:'📱 Check a number',
+        ncYes:'This number is on WhatsApp.', ncNo:'This number is not on WhatsApp.',
+        ncKnown:(n)=>'Saved as '+n, ncNotSaved:'not in your address book',
+        ncTooShort:'Please enter a number with 7 to 15 digits.',
         presOvTitle:'Last seen — overview', presOvOpen:'Last seen — overview',
         presOvRefresh:'Refresh now', presOvScanning:'sweep running…',
         presOvEmpty:'No data yet. "Refresh now" starts a sweep.',
@@ -4865,7 +4953,8 @@ app.get('/', (req, res) => {
       foot.innerHTML = '<div style="font-size:11px;color:#8696a0;margin-bottom:4px">'
         + esc(tf('contactsFoot', (_addressBook && _addressBook.total) || 0, (_addressBook && _addressBook.withoutChat) || 0)) + '</div>'
         + '<button data-act="reload">↻ ' + esc(t('contactsRefresh')) + '</button>'
-        + '<button data-act="presence">🕒 ' + esc(t('presOvOpen')) + '</button>';
+        + '<button data-act="presence">🕒 ' + esc(t('presOvOpen')) + '</button>'
+        + '<button data-act="checknum">' + esc(t('ncOpen')) + '</button>';
       list.appendChild(foot);
       bindContactFoot(list);
     }
@@ -4875,6 +4964,8 @@ app.get('/', (req, res) => {
       if (btn) btn.addEventListener('click', () => loadAddressBook(true));
       const pres = list.querySelector('.contact-list-foot button[data-act="presence"]');
       if (pres) pres.addEventListener('click', () => openPresenceOverview());
+      const num = list.querySelector('.contact-list-foot button[data-act="checknum"]');
+      if (num) num.addEventListener('click', () => openNumCheck(''));
     }
 
     // ── Eigenes Profil + Status-Composer ────────────────────────────────────────
@@ -5387,6 +5478,16 @@ app.get('/', (req, res) => {
       row.textContent = tf('gsSearchAll', raw);
       row.onclick = () => openGlobalSearch(raw);
       list.insertBefore(row, list.firstChild);
+
+      // Sieht die Eingabe nach einer Rufnummer aus, zusaetzlich die Pruefung anbieten
+      const digits = raw.replace(/\\D/g, '');
+      if (/^[+0-9 ()\\/.-]+$/.test(raw) && digits.length >= 7 && digits.length <= 15) {
+        const num = document.createElement('div');
+        num.className = 'chat-list-checknum';
+        num.textContent = tf('ncAsk', raw);
+        num.onclick = () => openNumCheck(raw);
+        list.insertBefore(num, list.firstChild);
+      }
     }
 
     function renderChatList(chats) {
@@ -6245,6 +6346,69 @@ app.get('/', (req, res) => {
       if (b < 102400) return Math.round(b / 1024) + ' KB';
       return (b / 1048576).toFixed(1) + ' MB';
     }
+    // ── Rufnummer bei WhatsApp pruefen ──
+    function openNumCheck(number) {
+      const modal = document.getElementById('numcheck-modal');
+      const inp = document.getElementById('nc-input');
+      const out = document.getElementById('nc-result');
+      out.className = 'nc-result'; out.innerHTML = '';
+      document.getElementById('nc-open').style.display = 'none';
+      modal.classList.add('open');
+      if (number !== undefined) inp.value = number;
+      inp.focus(); inp.select();
+      if (number) runNumCheck();
+    }
+
+    function closeNumCheck() {
+      document.getElementById('numcheck-modal').classList.remove('open');
+    }
+
+    async function runNumCheck() {
+      const inp = document.getElementById('nc-input');
+      const out = document.getElementById('nc-result');
+      const go = document.getElementById('nc-go');
+      const openBtn = document.getElementById('nc-open');
+      const digits = (inp.value || '').replace(/\\D/g, '');
+      openBtn.style.display = 'none';
+      if (digits.length < 7 || digits.length > 15) {
+        out.className = 'nc-result show err';
+        out.textContent = t('ncTooShort');
+        return;
+      }
+      go.disabled = true;
+      const label = go.textContent;
+      go.textContent = t('ncChecking');
+      out.className = 'nc-result show';
+      out.textContent = t('ncChecking');
+      try {
+        const d = await fetch('api/check-number?number=' + encodeURIComponent(digits)).then(apiJson);
+        if (d.error) throw new Error(d.error);
+        if (!d.exists) {
+          out.className = 'nc-result show no';
+          out.textContent = t('ncNo');
+          return;
+        }
+        out.className = 'nc-result show yes';
+        const sub = d.name ? tf('ncKnown', d.name) : t('ncNotSaved');
+        out.innerHTML = esc(t('ncYes')) + '<span class="nc-sub">+' + esc(d.number) + ' · ' + esc(sub)
+          + (d.about ? ' · ' + esc(d.about) : '') + '</span>';
+        openBtn.style.display = '';
+        openBtn.onclick = () => {
+          const id = d.chatId || d.jid;
+          const chat = allChats.find(c => c.id === id)
+            || { id, name: d.name || ('+' + d.number), phone: d.number, isGroup: false, lastTime: 0 };
+          closeNumCheck();
+          openChat(chat);
+        };
+      } catch (e) {
+        out.className = 'nc-result show err';
+        out.textContent = tf('msError', e.message || String(e));
+      } finally {
+        go.disabled = false;
+        go.textContent = label;
+      }
+    }
+
     // ── Suche über alle Chats ──
     let _gsTimer = null, _gsSeq = 0;
 
@@ -6380,6 +6544,12 @@ app.get('/', (req, res) => {
         d.lastScan ? fmtDate(d.lastScan) + ', ' + fmtTime(d.lastScan) : '',
         d.intervalMinutes || 0);
     }
+
+    (function bindNumCheck() {
+      const inp = document.getElementById('nc-input');
+      if (!inp) { document.addEventListener('DOMContentLoaded', bindNumCheck); return; }
+      inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') runNumCheck(); });
+    })();
 
     (function bindGlobalSearch() {
       const inp = document.getElementById('gs-input');
@@ -6977,6 +7147,7 @@ app.get('/', (req, res) => {
         document.getElementById('archive-overview-modal')?.classList.remove('open');
         document.getElementById('presence-modal')?.classList.remove('open');
         document.getElementById('gsearch-modal')?.classList.remove('open');
+        document.getElementById('numcheck-modal')?.classList.remove('open');
       }
     });
 
