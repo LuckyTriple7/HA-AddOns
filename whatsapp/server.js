@@ -107,6 +107,7 @@ app.use((req, res, next) => {
 let qrCodeDataUrl = null;
 let status = 'initializing';
 let connectedPhone = null;
+let waWebVersion = null; // Fassung von WhatsApp Web selbst, nicht der Bibliothek
 let lastError = null;
 let lastReceivedMsg = null; // { timestamp, iso, chatId, chatName, contact, preview }
 
@@ -468,6 +469,13 @@ client.on('ready', async () => {
   status = 'connected';
   lastError = null;
   console.log(`[INFO] WhatsApp ready — phone: ${connectedPhone}`);
+
+  // Welche Fassung von WhatsApp Web laeuft. Nuetzlich, weil sich daran
+  // festmachen laesst, wann ein Umbau bei WhatsApp etwas hier zerlegt hat.
+  try {
+    waWebVersion = await client.getWWebVersion();
+    console.log(`[INFO] WhatsApp Web ${waWebVersion} — whatsapp-web.js ${WA_VERSION}`);
+  } catch (e) { dbg('getWWebVersion: ' + e.message); }
 
   try {
     const chats = await client.getChats();
@@ -953,7 +961,7 @@ function formatNumber(to) {
 
 app.get('/api/status', (req, res) => {
   const myJid = connectedPhone ? normalizeJid(connectedPhone + '@c.us') : null;
-  res.json({ status, phone: connectedPhone, myJid, error: lastError });
+  res.json({ status, phone: connectedPhone, myJid, error: lastError, waWeb: waWebVersion, lib: WA_VERSION });
 });
 
 app.get('/api/qr', (req, res) => {
@@ -7083,6 +7091,13 @@ app.get('/', (req, res) => {
         dot.title = dotLabel;
 
         if (s.phone && !myPhone) myPhone = s.phone;
+        // Fassungen in der Kopfzeile der Konsole — dort sucht man Diagnosen
+        if (s.waWeb || s.lib) {
+          const el = document.getElementById('wa-console-title');
+          if (el) el.textContent = '⬛ CONSOLE — WhatsApp'
+            + (s.waWeb ? ' · WA Web ' + s.waWeb : '')
+            + (s.lib ? ' · lib ' + s.lib : '');
+        }
         if (s.myJid && !myJid) myJid = s.myJid;
         if (s.status !== currentStatus) {
           currentStatus = s.status;

@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.8.8] - 2026-08-28
+- Feature: **Die laufende WhatsApp-Web-Fassung ist jetzt sichtbar.** Sie steht beim Verbinden im Log und in der Kopfzeile der Konsole, zusammen mit der Fassung von `whatsapp-web.js`: „⬛ CONSOLE — WhatsApp · WA Web 2.3000.… · lib 1.34.…". `GET /api/status` liefert sie als `waWeb` und `lib` mit
+- Nuetzlich, weil sich daran festmachen laesst, wann ein Umbau bei WhatsApp etwas hier zerlegt hat — genau das war heute mehrfach die Ursache
+
 ## [1.8.7] - 2026-08-28
 - Feature: **X zum Leeren im Suchfeld der Seitenleiste.** Erscheint nur, wenn etwas drinsteht, raeumt Feld und Filter weg und laesst den Cursor im Feld — auch im Kontakte-Reiter
 

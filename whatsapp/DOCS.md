@@ -32,7 +32,7 @@ Einfach `ha_notifications` aktivieren — sonst nichts. Das Add-on nutzt automat
 Das Add-on ist über Port 3000 erreichbar (`http://<HA-IP>:17776`).
 
 ```
-GET  /api/status                     → Verbindungsstatus
+GET  /api/status                     → Verbindungsstatus (inkl. WhatsApp-Web- und Bibliotheksfassung)
 GET  /api/chats                      → Liste aller Chats
 GET  /api/contacts                   → Adressbuch (auch Kontakte ohne Chat), ?refresh=1 umgeht den Cache
 GET  /api/messages?chat=<id>         → Nachrichten eines Chats
@@ -213,7 +213,7 @@ Just enable `ha_notifications` — nothing else. The add-on automatically uses t
 The add-on is available on port 3000 (`http://<HA-IP>:17776`).
 
 ```
-GET  /api/status                     → Connection status
+GET  /api/status                     → Connection status (incl. WhatsApp Web and library version)
 GET  /api/chats                      → List of all chats
 GET  /api/messages?chat=<id>         → Messages of a chat
 GET  /api/last-received              → Timestamp of the last received message
