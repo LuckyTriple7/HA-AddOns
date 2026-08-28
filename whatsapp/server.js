@@ -106,7 +106,14 @@ const DOWNLOAD_MEDIA = process.env.DOWNLOAD_MEDIA === 'true';
 const MEDIA_MAX_MB = Math.max(parseInt(process.env.MEDIA_MAX_MB || '500', 10), 50);
 const VIDEO_MAX_MB = Math.max(parseInt(process.env.VIDEO_MAX_MB || '50', 10), 1);
 const KEEP_DELETED = process.env.KEEP_DELETED === 'true';
-const PRESENCE_ANNOUNCE = process.env.PRESENCE_ANNOUNCE === 'true';
+// off       — nie melden, "zuletzt online" bleibt dann meist leer
+// temporary — nur waehrend einer Abfrage kurz verfuegbar, danach wieder abmelden
+// always    — dauerhaft verfuegbar (man erscheint durchgehend online)
+const PRESENCE_MODE = (() => {
+  const m = String(process.env.PRESENCE_MODE || '').toLowerCase();
+  if (m === 'off' || m === 'temporary' || m === 'always') return m;
+  return process.env.PRESENCE_ANNOUNCE === 'true' ? 'always' : 'temporary';
+})();
 const DEBUG = process.env.DEBUG_MODE === 'true';
 const HA_NOTIFY = process.env.HA_NOTIFICATIONS === 'true';
 const HA_PRIVACY = process.env.HA_NOTIFICATIONS_PRIVACY === 'true';
@@ -126,7 +133,7 @@ console.log(`[INFO]   download_media         = ${DOWNLOAD_MEDIA}`);
 console.log(`[INFO]   media_max_mb           = ${MEDIA_MAX_MB}`);
 console.log(`[INFO]   video_max_mb           = ${VIDEO_MAX_MB}`);
 console.log(`[INFO]   keep_deleted           = ${KEEP_DELETED}`);
-console.log(`[INFO]   presence_announce      = ${PRESENCE_ANNOUNCE}`);
+console.log(`[INFO]   presence_mode          = ${PRESENCE_MODE}`);
 console.log(`[INFO]   debug_mode             = ${DEBUG}`);
 console.log(`[INFO]   ha_notifications       = ${HA_NOTIFY}`);
 console.log(`[INFO]   ha_notifications_priv  = ${HA_PRIVACY}`);
@@ -1801,17 +1808,65 @@ app.get('/api/contact/:chatId', async (req, res) => {
 // subscribe(), isOnline und darunter chatstate mit type, t (Zeitpunkt) und deny
 // (Sichtbarkeit vom Kontakt verboten). Ohne Abo kommen keine Daten, deshalb erst
 // abonnieren, dann kurz auf die Antwort warten.
+// Eigene Verfuegbarkeit im Seiten-Kontext setzen. WhatsApp liefert fremde
+// Praesenz nur an Geraete, die sich selbst als verfuegbar melden — man wird
+// dadurch aber fuer die Kontakte sichtbar online.
+async function setOwnPresence(available) {
+  if (!client.pupPage) return false;
+  try {
+    return await client.pupPage.evaluate((av) => {
+      try {
+        const b = window.require('WAWebContactPresenceBridge');
+        if (av) b.setPresenceAvailable(); else b.setPresenceUnavailable();
+        return true;
+      } catch (e) { return false; }
+    }, available);
+  } catch (e) { return false; }
+}
+
+// Zaehler statt einfachem An/Aus: zwei gleichzeitige Abfragen sollen sich nicht
+// gegenseitig abmelden, und nach der letzten wird mit kurzer Karenz abgemeldet,
+// damit schnelles Durchklicken nicht dauernd an- und ausschaltet.
+let _presenceHolds = 0;
+let _presenceOffTimer = null;
+const PRESENCE_OFF_DELAY_MS = 2000;
+
+async function holdOwnPresence() {
+  if (_presenceOffTimer) { clearTimeout(_presenceOffTimer); _presenceOffTimer = null; }
+  _presenceHolds++;
+  if (_presenceHolds === 1) {
+    const ok = await setOwnPresence(true);
+    dbg(`presence: als verfuegbar gemeldet (${ok ? 'ok' : 'fehlgeschlagen'})`);
+  }
+}
+
+function releaseOwnPresence() {
+  _presenceHolds = Math.max(0, _presenceHolds - 1);
+  if (_presenceHolds > 0) return;
+  if (_presenceOffTimer) clearTimeout(_presenceOffTimer);
+  _presenceOffTimer = setTimeout(async () => {
+    _presenceOffTimer = null;
+    if (_presenceHolds > 0) return;
+    const ok = await setOwnPresence(false);
+    dbg(`presence: wieder abgemeldet (${ok ? 'ok' : 'fehlgeschlagen'})`);
+  }, PRESENCE_OFF_DELAY_MS);
+}
+
 app.get('/api/presence/:chatId', async (req, res) => {
   const chatId = req.params.chatId;
   if (status !== 'connected') return res.status(503).json({ error: 'Not connected' });
   if (!client.pupPage) return res.status(503).json({ error: 'keine Browser-Seite' });
   if (chatId.endsWith('@g.us')) return res.json({ supported: false });
-  // Ohne eigene "verfuegbar"-Meldung schickt WhatsApp keine fremde Praesenz. Das
-  // macht einen aber fuer die Kontakte sichtbar online, deshalb nur auf Wunsch.
-  const announce = req.query.announce === '1' || (req.query.announce !== '0' && PRESENCE_ANNOUNCE);
+  // Ohne eigene "verfuegbar"-Meldung schickt WhatsApp keine fremde Praesenz
+  const mode = req.query.announce === '1' ? 'always'
+             : req.query.announce === '0' ? 'off'
+             : PRESENCE_MODE;
+  const announce = mode !== 'off';
+  const temporary = mode === 'temporary';
+  if (announce) await holdOwnPresence();
   try {
-    const p = await client.pupPage.evaluate(async (chatId, waitMs, announce) => {
-      const out = { supported: true, how: null, announced: false, isOnline: null, hasData: null,
+    const p = await client.pupPage.evaluate(async (chatId, waitMs) => {
+      const out = { supported: true, how: null, isOnline: null, hasData: null,
                     stale: null, isSubscribed: null, type: null, t: null, deny: null, error: null };
       const read = (model) => {
         const cs = model.chatstate || {};
@@ -1842,12 +1897,6 @@ app.get('/api/presence/:chatId', async (req, res) => {
         if (!model) { try { model = await PC.find(wid); } catch (e) {} }
         if (!model) { out.error = 'keine Praesenz zu dieser ID'; return out; }
 
-        if (announce) {
-          // Eigene Verfuegbarkeit melden — sonst liefert WhatsApp nichts
-          try { window.require('WAWebContactPresenceBridge').setPresenceAvailable(); out.announced = true; }
-          catch (e) { out.error = 'setPresenceAvailable: ' + String((e && e.message) || e); }
-        }
-
         // Das echte Abo: model.subscribe() ist nur ein collection.find() und
         // sendet nichts. Der Auftrag dafuer ist sendUserPresenceSubscription.
         try {
@@ -1866,7 +1915,7 @@ app.get('/api/presence/:chatId', async (req, res) => {
         out.error = String((e && e.message) || e);
       }
       return out;
-    }, chatId, 6000, announce);
+    }, chatId, 6000);
 
     // chatstate.t kommt in Sekunden — auf Millisekunden bringen, aber nur wenn es
     // plausibel ist (sonst lieber nichts anzeigen als eine erfundene Zeit)
@@ -1882,10 +1931,13 @@ app.get('/api/presence/:chatId', async (req, res) => {
       denied: p.deny === true,
       // Kein Zeitpunkt und keine Verweigerung: WhatsApp hat schlicht nichts geliefert
       unknown: !p.deny && lastSeen === null && p.type !== 'available',
+      mode,
       raw: DEBUG ? p : undefined,
     });
   } catch (e) {
     res.status(500).json({ error: e.message });
+  } finally {
+    if (announce && temporary) releaseOwnPresence();
   }
 });
 

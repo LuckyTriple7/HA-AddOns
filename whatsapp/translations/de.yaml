@@ -23,9 +23,9 @@ configuration:
   keep_deleted:
     name: Gelöschte Nachrichten behalten
     description: "true = Originaler Nachrichteninhalt bleibt sichtbar, darunter erscheint ein kleines 🚫-Badge; Weiterleiten/Reaktion/Antworten-Buttons werden ausgeblendet. false = Nachricht wird durch eine 🚫-Meldung ersetzt (Standard)."
-  presence_announce:
-    name: Eigene Verfügbarkeit melden
-    description: "Nötig, damit \"zuletzt online\" bei Kontakten angezeigt wird — WhatsApp liefert fremde Präsenz nur an Geräte, die sich selbst als verfügbar melden. Achtung: dadurch erscheinst du für deine Kontakte als online, solange das Add-on läuft. false = aus (Standard)."
+  presence_mode:
+    name: Eigene Verfügbarkeit für "zuletzt online"
+    description: "WhatsApp liefert die Präsenz anderer nur an Geräte, die sich selbst als verfügbar melden. temporary = nur während einer Abfrage kurz melden und danach wieder abmelden (Standard); always = dauerhaft melden, dann erscheinst du für deine Kontakte durchgehend online; off = nie melden, \"zuletzt online\" bleibt dann meist leer."
   debug_mode:
     name: Debug-Modus
     description: Ausführliches Logging aktivieren. Nützlich für die Fehlersuche.

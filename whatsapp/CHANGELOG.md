@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.7.72] - 2026-08-28
+- Feature: **Dauerhaft online sein ist nicht mehr noetig.** Die Verfuegbarkeit wird jetzt nur noch fuer die Dauer einer Abfrage gemeldet und danach wieder abgemeldet. Man erscheint also hoechstens fuer die paar Sekunden online, in denen man ein Kontaktfenster oeffnet
+- Die Option `presence_announce` (an/aus) weicht dafuer `presence_mode` mit drei Werten: `temporary` (Standard, kurz melden und wieder abmelden), `always` (dauerhaft, wie bisher) und `off` (nie melden — „zuletzt online" bleibt dann meist leer). Wer `presence_announce` gesetzt hatte, stellt bitte `presence_mode` neu ein
+- Parallele Abfragen zaehlen mit, damit sie sich nicht gegenseitig abmelden, und nach der letzten wird mit zwei Sekunden Karenz abgemeldet — schnelles Durchklicken schaltet so nicht dauernd an und aus
+
 ## [1.7.71] - 2026-08-28
 - Fix: **„Zuletzt online" meldete immer „keine Angabe".** Das Debug-Log zeigte `hasData:false` bei leerem `chatstate` — es kam nie eine Praesenz-Aktualisierung. Grund: `model.subscribe()` ist im Presence-Modell nur ein `collection.find()` und sendet gar kein Abo. Das erledigt `WAWebSendPresenceSubscriptionJob.sendUserPresenceSubscription(wid)`, das jetzt aufgerufen wird; `model.subscribe()` bleibt als Rueckfall. Die Wartezeit stieg von 3,5 auf 6 Sekunden
 - Neue Option **`presence_announce`** (Standard: aus). WhatsApp liefert fremde Praesenz nur an Geraete, die sich selbst als verfuegbar melden. Die Option macht das — mit der Nebenwirkung, dass man fuer seine Kontakte als online erscheint, solange das Add-on laeuft. Deshalb bewusst abschaltbar und standardmaessig aus
