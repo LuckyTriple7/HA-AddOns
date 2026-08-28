@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.11.32
+
+- 🩺 **Systemzustand zeigt aufgeklappt alles.** Der Kasten blendete die unauffälligen Zeilen aus, bis man den Haken „alles anzeigen“ setzte — genau die Übersicht, wegen der man ihn öffnet, lag also hinter einem Klick. Jetzt gilt: zugeklappt steht in der Kopfzeile „alles in Ordnung“ bzw. die Zahl der Auffälligkeiten, aufgeklappt steht die **vollständige Liste** da. Haken und der erklärende Absatz darüber sind entfallen.
+
 ## 0.11.31
 
 - 🕵️ **Mehr Sonden erkannt.** Drei Zeilen standen trotz gesetztem Haken in der Liste: `/.bod/.ll/`, `/assets/` und `/dist/manifest.json` — ein Scanner, der den Ausgabeordner eines JavaScript-Baukastens sucht. Neu gelten als Sonde: **jede Adresse, die mit einem Punkt beginnt** (`/.env`, `/.git/config`, `/.DS_Store`, `/.bod/.ll/`), **ein `manifest.json` in irgendeinem Unterordner** (das eigene liegt genau auf `/manifest.json`), die Ausgabeordner `/dist/`, `/assets/`, `/build/`, `/node_modules/` samt `package.json` und `composer.json` sowie verrutschte Sicherungen (`.sql`, `.bak`, `.old`, `.swp`, `.tar.gz`). `.zip` steht bewusst **nicht** dabei: Eine Mitgliederdatei darf so heißen.

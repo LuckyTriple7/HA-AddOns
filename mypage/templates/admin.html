@@ -2172,11 +2172,9 @@
 
         <details class="panel fold" id="sy-health" open>
           <summary><h3>🩺 {{ t.health_heading }}</h3><span class="count" id="health-info"></span></summary>
-          <p class="hint">{{ t.health_hint }}</p>
           <div id="health-list"></div>
           <div style="margin-top:10px">
             <button class="btn secondary small" onclick="loadHealth()">{{ t.nf_reload }}</button>
-            <label class="checkbox" style="display:inline-flex;margin-left:12px"><input type="checkbox" id="health-all" onchange="renderHealth()"> {{ t.health_show_all }}</label>
           </div>
         </details>
 
@@ -6612,8 +6610,9 @@
       renderHealth();
     }
     function renderHealth() {
-      const all = el('health-all').checked;
-      const rows = all ? HEALTH : HEALTH.filter(c => c.level === 'err' || c.level === 'warn');
+      // Aufgeklappt zeigt die Liste immer alles: der Filter versteckte genau
+      // die Zeilen, wegen derer man das Panel öffnet.
+      const rows = HEALTH;
       const box = el('health-list');
       box.innerHTML = '';
       if (!rows.length) {
