@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.7.63] - 2026-08-28
+- Fix: **Auf dem Handy geloeschte Statusmeldungen standen weiter in „Meine laufenden Statusmeldungen".** Zurueckgezogene Eintraege (`type: revoked` bzw. `isRevoked`) werden jetzt uebersprungen, ebenso Eintraege, die aelter als 24 Stunden sind — ein Status laeuft nach dieser Zeit ohnehin ab
+- `GET /api/my-status/diag` gibt jetzt die Rohfelder der eigenen Statusmeldungen aus (Typ, Zeitstempel, Ack und alle vorhandenen Feldnamen). Falls WhatsApp eine Loeschung anders kennzeichnet als erwartet, laesst sich der Filter daran ohne Raterei nachziehen
+- `GET /api/my-status/diag?deep=1` durchsucht die geladenen WhatsApp-Web-Bundles nach dem Quelltext von `sendStatusTextMsgAction`. Der normale Weg ueber `toString()` zeigt nur den Babel-Mantel `function C(e,t){…}` — immerhin verraet der, dass die Aktion einen zweiten, von `whatsapp-web.js` nie genutzten Parameter hat (vermutlich fuer Link-Vorschauen)
+
 ## [1.7.62] - 2026-08-28
 - Fix: **„Meine laufenden Statusmeldungen" blieb leer, obwohl der Status auf dem Handy zu sehen war.** WhatsApp fuehrt den eigenen Status unter der LID des Kontos (`…@lid`), abgefragt wurde er unter der Rufnummer (`…@c.us`). Die richtige ID kommt jetzt aus `Status.getMyStatus()`, die Rufnummer bleibt als Rueckfall
 - Neu: `GET /api/my-status/diag` meldet, welche Felder die WhatsApp-Status-Aktionen annehmen, die Status-Feature-Schalter des Kontos und unter welcher ID der eigene Status laeuft — Grundlage fuer weitere Statusfunktionen, ohne im Trueben zu fischen

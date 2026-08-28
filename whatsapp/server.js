@@ -1871,9 +1871,16 @@ function myJid() {
 }
 
 // Wandelt Broadcast-Nachrichten in das Format der Statusliste im Frontend um
+const MY_STATUS_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 async function mapStatusMsgs(raw) {
   const msgs = [];
   for (const m of raw || []) {
+    // Zurueckgezogene Meldungen bleiben in der WhatsApp-Web-Sammlung stehen —
+    // sie gehoeren nicht in die Liste der laufenden Status
+    if (m.type === 'revoked' || m.isRevoked === true) continue;
+    // Nach 24 Stunden laeuft ein Status ab; aeltere Eintraege sind Karteileichen
+    const ts = (m.timestamp || 0) * 1000;
+    if (ts && Date.now() - ts >= MY_STATUS_MAX_AGE_MS) continue;
     const isImage = m.type === 'image';
     const isVideo = m.type === 'video';
     let mediaFile = null;
@@ -2001,7 +2008,20 @@ app.get('/api/my-status/diag', async (req, res) => {
       const my = safe(() => {
         const st = window.require('WAWebCollections').Status.getMyStatus();
         if (!st) return null;
-        return { id: st.id && st.id._serialized, total: st.totalCount, msgs: st.msgs ? st.msgs.length : null };
+        // Rohfelder mitgeben: daran laesst sich ablesen, woran eine auf dem Handy
+        // geloeschte Statusmeldung zu erkennen ist
+        const list = (st.msgs && st.msgs.getModelsArray ? st.msgs.getModelsArray() : (st.msgs || []));
+        const msgs = [].slice.call(list, 0, 20).map((m) => {
+          const out = {};
+          for (const k of ['type', 'subtype', 'body', 't', 'ack', 'isRevoked', 'revokedTime', 'star',
+                           'isNewMsg', 'invis', 'isSentByMe', 'stale', 'deleteTime', 'expireTimestamp']) {
+            if (m && m[k] !== undefined) out[k] = typeof m[k] === 'object' ? JSON.stringify(m[k]).slice(0, 120) : m[k];
+          }
+          try { out.id = m.id && m.id._serialized; } catch (e) {}
+          try { out.allKeys = Object.keys(m.attributes || m).slice(0, 60); } catch (e) {}
+          return out;
+        });
+        return { id: st.id && st.id._serialized, total: st.totalCount, count: msgs.length, msgs };
       });
       return {
         myStatus: my,
@@ -2011,11 +2031,53 @@ app.get('/api/my-status/diag', async (req, res) => {
         gatingFlags: flags,
       };
     });
+    if (req.query.deep === '1') out.deep = await probeStatusSource();
     res.json(out);
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
 });
+
+// Die Status-Aktionen liegen in WhatsApp Web hinter einem Babel-Mantel
+// (function C(e,t){return b.apply(this,arguments)}), toString() zeigt also nichts.
+// Der echte Quelltext steht aber in den geladenen Bundles — die durchsucht diese
+// Sonde direkt in der Seite. Damit sieht man, welche Felder der zweite Parameter
+// von sendStatusTextMsgAction erwartet, statt es zu raten.
+async function probeStatusSource() {
+  if (!client.pupPage) return { error: 'keine Browser-Seite' };
+  try {
+    return await client.pupPage.evaluate(async () => {
+      const NEEDLE = 'sendStatusTextMsgAction';
+      const deadline = Date.now() + 45000;
+      const urls = new Set();
+      for (const e of performance.getEntriesByType('resource')) {
+        if (e.initiatorType === 'script' || /\.js(\?|$)/.test(e.name)) urls.add(e.name);
+      }
+      for (const sc of document.scripts) if (sc.src) urls.add(sc.src);
+
+      const sameOrigin = [...urls].filter(u => { try { return new URL(u).origin === location.origin; } catch (e) { return false; } });
+      const hits = [];
+      let scanned = 0, bytes = 0;
+      for (const url of sameOrigin) {
+        if (Date.now() > deadline || hits.length >= 3) break;
+        let text = '';
+        try { const r = await fetch(url); if (!r.ok) continue; text = await r.text(); }
+        catch (e) { continue; }
+        scanned++; bytes += text.length;
+        let from = 0;
+        while (hits.length < 3) {
+          const i = text.indexOf(NEEDLE, from);
+          if (i < 0) break;
+          hits.push({ url: url.split('/').pop().slice(0, 80), at: i, snippet: text.slice(Math.max(0, i - 400), i + 1600) });
+          from = i + NEEDLE.length;
+        }
+      }
+      return { scannedFiles: scanned, scannedBytes: bytes, candidateFiles: sameOrigin.length, hits };
+    });
+  } catch (e) {
+    return { error: e.message };
+  }
+}
 
 // whatsapp-web.js ruft beim Status-Versand
 // window.require('WAWebStatusGatingUtils').canCheckStatusRankingPosterGating() auf.
