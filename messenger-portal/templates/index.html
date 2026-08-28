@@ -538,6 +538,7 @@
     const T_NOTIF_FROM   = {{ t.notif_new_msg_from | tojson }};
     const ICON_URL       = {{ url_for('static', filename='icon-192.png') | tojson }};
     const LOGS_URL       = {{ url_for('api_logs') | tojson }};
+    const MARK_READ_URL  = {{ url_for('api_mark_read') | tojson }};
 
     const PAGE_LOAD_TIME  = Date.now();
     let prevLastReceived  = null; // null = erster Poll, danach Map icon→timestamp
@@ -606,7 +607,11 @@
             // Benachrichtigung: wenn Timestamp gestiegen und Nachricht ungelesen
             const card = document.querySelector('.card[data-icon="' + m.icon + '"]');
             if (card) {
-              const lastOpened = parseInt(localStorage.getItem('mp-last-' + m.icon) || '0');
+              // Serverstand ist geraeteuebergreifend, localStorage nur Fallback
+              // fuer den Klick, dessen POST noch nicht durch ist.
+              const localOpened  = parseInt(localStorage.getItem('mp-last-' + m.icon) || '0');
+              const serverOpened = parseInt(m.last_opened || 0);
+              const lastOpened   = Math.max(localOpened, serverOpened);
               const isNew = lastReceived > lastOpened;
               if (isNew) {
                 const shouldNotify = prevLastReceived !== null
@@ -642,11 +647,23 @@
     window.addEventListener('online', () => { _offlineFails = 0; updateStatus(); });
     window.addEventListener('offline', () => showOfflineBanner());
 
+    // Gelesen-Stand auf dem Server setzen, damit alle Geraete ihn sehen.
+    // sendBeacon ueberlebt den Seitenwechsel beim Oeffnen des Messengers.
+    function markRead(icon) {
+      if (!icon) return;
+      localStorage.setItem('mp-last-' + icon, Date.now());
+      const body = new URLSearchParams({ icon: icon });
+      try {
+        if (navigator.sendBeacon && navigator.sendBeacon(MARK_READ_URL, body)) return;
+      } catch (e) {}
+      fetch(MARK_READ_URL, { method: 'POST', body: body, keepalive: true }).catch(() => {});
+    }
+
     // On click: mark as opened, remove glow – blockiert wenn offline
     document.querySelectorAll('.card[data-icon]').forEach(card => {
       card.addEventListener('click', (e) => {
         if (card.classList.contains('is-offline')) { e.preventDefault(); return; }
-        localStorage.setItem('mp-last-' + card.dataset.icon, Date.now());
+        markRead(card.dataset.icon);
         card.classList.remove('has-new');
       });
     });

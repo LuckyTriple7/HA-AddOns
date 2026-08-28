@@ -67,6 +67,7 @@ app.wsgi_app = _IngressMiddleware(ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_h
 
 CONFIG_PATH   = '/data/options.json'
 SESSIONS_PATH = '/data/sessions.json'
+READSTATE_PATH = '/data/read_state.json'
 LOCALES_PATH  = '/app/locales'
 
 _config_cache = None
@@ -99,6 +100,35 @@ def load_sessions() -> None:
 
 
 load_sessions()
+
+# ── Geräteübergreifender Gelesen-Stand ────────────────────────────────────────
+# Ohne das lag der Stand nur im localStorage des jeweiligen Browsers: eine auf
+# dem Handy gelesene Nachricht blieb am Desktop weiter als "neu" markiert.
+read_state: dict[str, int] = {}
+
+
+def load_read_state() -> None:
+    global read_state
+    try:
+        with open(READSTATE_PATH) as f:
+            data = json.load(f)
+        read_state = {str(k).lower(): int(v) for k, v in data.items()
+                      if isinstance(v, (int, float))}
+    except FileNotFoundError:
+        pass
+    except Exception as e:
+        log.warning("Gelesen-Stand konnte nicht geladen werden: %s", e)
+
+
+def save_read_state() -> None:
+    try:
+        with open(READSTATE_PATH, 'w') as f:
+            json.dump(read_state, f)
+    except Exception as e:
+        log.warning("Gelesen-Stand konnte nicht gespeichert werden: %s", e)
+
+
+load_read_state()
 
 # ── Rate limiting ─────────────────────────────────────────────────────────────
 _failed_attempts: dict[str, list[float]] = defaultdict(list)
@@ -390,7 +420,25 @@ def status():
                   if m.get('enabled', True) and m.get('icon') and m.get('port')]
     with ThreadPoolExecutor(max_workers=len(messengers) or 1) as ex:
         result = list(ex.map(lambda m: fetch_messenger_status(host, m), messengers))
+    for r in result:
+        r['last_opened'] = read_state.get(r['icon'], 0)
     return jsonify(result)
+
+
+@app.route('/api/mark-read', methods=['POST'])
+def api_mark_read():
+    if not is_ingress() and not is_valid_session(request.cookies.get('mp_session')):
+        return '', 401
+    icon = (request.form.get('icon') or '').strip().lower()
+    known = {str(m.get('icon', '')).lower()
+             for m in load_config().get('messengers', [])}
+    if not icon or icon not in known:
+        return '', 400
+    ts = int(time.time() * 1000)
+    if ts > read_state.get(icon, 0):
+        read_state[icon] = ts
+        save_read_state()
+    return jsonify({'icon': icon, 'last_opened': read_state[icon]})
 
 
 @app.route('/proxy-offline')

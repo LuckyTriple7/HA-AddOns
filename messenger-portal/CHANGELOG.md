@@ -1,5 +1,8 @@
 # Changelog – MessengerPortal
 
+## [1.2.17] - 2026-08-28
+- Fix: Die rote „Neu"-Markierung war rein gerätebasiert (`localStorage`) — eine am Handy gelesene Nachricht blieb am Desktop weiter als neu markiert. Der Gelesen-Stand liegt jetzt serverseitig in `/data/read_state.json` und wird von allen Geräten geteilt; beim Öffnen einer Kachel meldet der Browser ihn per `sendBeacon` an die neue Route `POST /api/mark-read`
+
 ## [1.2.16] - 2026-08-25
 - Fix: WhatsApps Zwischenzustand `authenticated` (QR gescannt, Chats werden noch geladen) zählt nicht mehr als „Online" — in dieser Phase lehnt das Add-on Sendeversuche mit HTTP 503 ab. Als echte Verbindung gelten nur noch `connected`, `linked` und `ready`
 - Der Tooltip bei „Verbindungsproblem" nennt jetzt auch den rohen Add-on-Status (z. B. `waiting_for_scan`, `not-linked`, `disconnected`), wenn das Add-on keinen Fehlertext liefert
