@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.7.66] - 2026-08-28
+- Feature: **Bilder werden vor dem Hochladen im Browser verkleinert.** Kamerafotos mit 2 bis 10 MB scheiterten an einer Groessengrenze im Proxy vor dem Add-on — die laesst sich von hier aus nicht anheben. Bilder werden jetzt auf hoechstens 1920 Pixel an der laengeren Kante gebracht und als JPEG auf rund 700 KB gedrueckt (Qualitaet stufenweise von 85 % abwaerts, nur so weit wie noetig). Ein Testfoto mit 4032x3024 und 4,8 MB geht damit als 582 KB raus
+- Der Editor zeigt die Verkleinerung an: „Bild verkleinert: 4,8 MB → 582 KB (1920×1440 Pixel)". Kleine Bilder bleiben unangetastet, Videos lassen sich im Browser nicht verkleinern — ab 2 MB weist ein Hinweis darauf hin, dass grosse Uploads unterwegs abgewiesen werden koennen
+- Bildvorlagen speichern ebenfalls die verkleinerte Fassung
+- Die Obergrenze im Auswahldialog liegt jetzt bei 64 MB statt 16 MB — nach dem Verkleinern zaehlt sie nur noch fuer Videos
+
 ## [1.7.65] - 2026-08-28
 - Diagnose: **„Unexpected token '<', "<!DOCTYPE "..." beim Bild-Status verriet nichts.** Im Add-on-Log taucht dazu kein einziger Eintrag auf — die Anfrage erreicht das Add-on also gar nicht, die HTML-Antwort kommt von einer Stelle davor (Ingress-Proxy). Der Status-Editor wertet Antworten jetzt so aus, dass er bei Nicht-JSON den echten Statuscode, den Inhaltstyp und den Anfang der Antwort anzeigt, bei Uploads zusaetzlich die Dateigroesse. Statt des Parser-Fehlers steht dort dann z.B. `HTTP 413 Payload Too Large [text/html] …`
 

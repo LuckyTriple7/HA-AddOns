@@ -3521,7 +3521,11 @@ app.get('/', (req, res) => {
         msSend:'An Status senden', msSending:'Wird gesendet…',
         msSentText:'Text-Status gepostet.', msSentMedia:'Medien-Status gepostet.',
         msNeedText:'Bitte erst einen Text eingeben.', msNeedFile:'Bitte erst ein Bild oder Video auswählen.',
-        msFileTooBig:'Datei zu groß (max. 16 MB).', msVideoNoPreview:'Video ausgewählt – keine Vorschau.',
+        msFileTooBig:'Datei zu groß (max. 64 MB).', msVideoNoPreview:'Video ausgewählt – keine Vorschau.',
+        msShrinking:'Bild wird verkleinert…',
+        msShrunk:(from,to,w,h)=>'Bild verkleinert: '+from+' → '+to+' ('+w+'×'+h+' Pixel)',
+        msShrinkFail:(size)=>'Bild ließ sich nicht verkleinern und bleibt bei '+size+'. Große Uploads können unterwegs abgewiesen werden.',
+        msVideoBig:(size)=>'Das Video ist '+size+' groß – große Uploads können unterwegs abgewiesen werden.',
         msTplFileNote:(n)=>'Bild aus Vorlage: '+n,
         msError:(e)=>'Fehler: '+e,
       },
@@ -3605,7 +3609,11 @@ app.get('/', (req, res) => {
         msSend:'Post to status', msSending:'Sending…',
         msSentText:'Text status posted.', msSentMedia:'Media status posted.',
         msNeedText:'Please enter some text first.', msNeedFile:'Please pick a photo or video first.',
-        msFileTooBig:'File too large (max. 16 MB).', msVideoNoPreview:'Video selected – no preview.',
+        msFileTooBig:'File too large (max. 64 MB).', msVideoNoPreview:'Video selected – no preview.',
+        msShrinking:'Shrinking image…',
+        msShrunk:(from,to,w,h)=>'Image shrunk: '+from+' → '+to+' ('+w+'×'+h+' pixels)',
+        msShrinkFail:(size)=>'Could not shrink the image, it stays at '+size+'. Large uploads may be rejected on the way.',
+        msVideoBig:(size)=>'The video is '+size+' – large uploads may be rejected on the way.',
         msTplFileNote:(n)=>'Image from template: '+n,
         msError:(e)=>'Error: '+e,
       },
@@ -4287,7 +4295,51 @@ app.get('/', (req, res) => {
       inner.textContent = txt;
     }
 
-    function msFilePicked() {
+    // Kamerafotos sind schnell 5-10 MB. Solche Uploads scheitern am Proxy vor dem
+    // Add-on (dort greift eine Groessengrenze, die das Add-on nicht anheben kann),
+    // und fuer einen Status bringt die volle Aufloesung ohnehin nichts — WhatsApp
+    // skaliert sie wieder herunter. Deshalb wird schon im Browser verkleinert.
+    const MS_IMG_MAX_PX = 1920;                 // laengere Kante
+    const MS_IMG_TARGET_BYTES = 700 * 1024;
+    const MS_UPLOAD_WARN_BYTES = 2 * 1024 * 1024;
+
+    async function msShrinkImage(file) {
+      if (!file || !file.type.startsWith('image/')) return null;
+      let bmp = null;
+      try { bmp = await createImageBitmap(file, { imageOrientation: 'from-image' }); }
+      catch (e) { try { bmp = await createImageBitmap(file); } catch (e2) { return null; } }
+      if (!bmp) return null;
+      const srcW = bmp.width, srcH = bmp.height;
+      const scale = Math.min(1, MS_IMG_MAX_PX / Math.max(srcW, srcH));
+      if (scale === 1 && file.size <= MS_IMG_TARGET_BYTES) { if (bmp.close) bmp.close(); return null; }
+      const w = Math.max(1, Math.round(srcW * scale));
+      const h = Math.max(1, Math.round(srcH * scale));
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) { if (bmp.close) bmp.close(); return null; }
+      ctx.drawImage(bmp, 0, 0, w, h);
+      if (bmp.close) bmp.close();
+      // Qualitaet schrittweise senken, bis die Zielgroesse passt
+      let blob = null;
+      for (const q of [0.85, 0.75, 0.65, 0.55]) {
+        blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', q));
+        if (!blob || blob.size <= MS_IMG_TARGET_BYTES) break;
+      }
+      if (!blob) return null;
+      if (blob.size >= file.size && scale === 1) return null; // haette nichts gebracht
+      const base = (file.name || 'status').replace(/\\.[^.]+$/, '');
+      return {
+        file: new File([blob], base + '.jpg', { type: 'image/jpeg' }),
+        w, h, srcW, srcH, fromBytes: file.size, toBytes: blob.size,
+      };
+    }
+
+    const msKB = (b) => b >= 1024 * 1024
+      ? (b / 1024 / 1024).toFixed(1).replace('.', ',') + ' MB'
+      : Math.max(1, Math.round(b / 1024)) + ' KB';
+
+    async function msFilePicked() {
       const inp = document.getElementById('ms-file');
       const img = document.getElementById('ms-media-preview');
       const note = document.getElementById('ms-media-note');
@@ -4296,12 +4348,27 @@ app.get('/', (req, res) => {
       img.classList.remove('show'); img.removeAttribute('src');
       note.textContent = '';
       if (!_msFile) return;
-      if (_msFile.size > 16 * 1024 * 1024) { _msFile = null; inp.value = ''; msShow('err', t('msFileTooBig')); return; }
+      if (_msFile.size > 64 * 1024 * 1024) { _msFile = null; inp.value = ''; msShow('err', t('msFileTooBig')); return; }
+
       if (_msFile.type.startsWith('image/')) {
+        const original = _msFile;
+        note.textContent = t('msShrinking');
+        let small = null;
+        try { small = await msShrinkImage(original); } catch (e) { small = null; }
+        if (small) {
+          _msFile = small.file;
+          note.textContent = tf('msShrunk', msKB(small.fromBytes), msKB(small.toBytes), small.w, small.h);
+        } else if (original.size > MS_UPLOAD_WARN_BYTES) {
+          note.textContent = tf('msShrinkFail', msKB(original.size));
+        } else {
+          note.textContent = '';
+        }
         img.src = URL.createObjectURL(_msFile);
         img.classList.add('show');
       } else {
-        note.textContent = t('msVideoNoPreview');
+        note.textContent = _msFile.size > MS_UPLOAD_WARN_BYTES
+          ? t('msVideoNoPreview') + ' ' + tf('msVideoBig', msKB(_msFile.size))
+          : t('msVideoNoPreview');
       }
     }
 
