@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.8.2] - 2026-08-28
+- Feature: **Blockierte Kontakte sind auf einen Blick zu erkennen.** In der Chat- und in der Kontaktliste traegt das Profilbild ein rotes Band mit Schloss am unteren Rand, im Kontaktfenster ebenso. Die Liste der blockierten Kontakte wird beim Verbinden geladen, danach alle fuenf Minuten aufgefrischt und sofort nach jedem Blockieren oder Aufheben
+- Der Abgleich laeuft ueber ID **und** Rufnummer: WhatsApp fuehrt blockierte Kontakte unter der Adressbuch-ID, die Chats teils unter `@lid` — ohne den zweiten Weg fehlte das Schloss genau dort, wo es hingehoert
+- `GET /api/blocked` haelt sein Ergebnis eine Minute vor, weil die Anzeige es staendig braucht; `?refresh=1` umgeht das
+
 ## [1.8.1] - 2026-08-28
 - Feature: **Kontakte blockieren und entblocken.** Im Kontaktfenster — erreichbar ueber das Profilbild — steht unten ein Knopf dafuer. Ist jemand blockiert, sagt das eine rote Zeile, und der Knopf heisst „Blockierung aufheben". Beide Richtungen fragen vorher nach, mit Namen und einem Satz dazu, was das bedeutet
 - Gruppen lassen sich nicht blockieren, dort bleibt der Knopf verborgen

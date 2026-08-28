@@ -1818,17 +1818,27 @@ app.get('/api/contact/:chatId', async (req, res) => {
 // contact.block()/unblock() sind in der Bibliothek vorhanden und regeln die
 // LID-Umrechnung selbst. Gruppen lassen sich nicht blockieren.
 
+let _blockedCache = null;
+const BLOCKED_CACHE_MS = 60000;
+
 app.get('/api/blocked', async (req, res) => {
   if (status !== 'connected') return res.status(503).json({ error: 'Not connected' });
+  // getBlockedContacts() holt pro Eintrag ein Kontaktobjekt aus der Seite — fuer
+  // eine Anzeige, die staendig gebraucht wird, kurz zwischenspeichern
+  if (!req.query.refresh && _blockedCache && Date.now() - _blockedCache.ts < BLOCKED_CACHE_MS) {
+    return res.json({ contacts: _blockedCache.contacts, cached: true });
+  }
   try {
     const list = await client.getBlockedContacts();
-    res.json({
+    const payload = {
       contacts: list.map(c => ({
         id: c.id?._serialized || '',
         name: c.name || c.pushname || c.shortName || c.id?.user || '',
         number: contactNumber(c, c.id?._serialized || ''),
       })).filter(c => c.id),
-    });
+    };
+    _blockedCache = { ts: Date.now(), contacts: payload.contacts };
+    res.json(payload);
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -1842,6 +1852,7 @@ app.post('/api/contact/:chatId/block', async (req, res) => {
     const contact = await client.getContactById(chatId);
     if (!contact) throw new Error('Kontakt nicht gefunden');
     await contact.block();
+    _blockedCache = null;
     console.log(`[INFO] Kontakt blockiert: ${chatId}`);
     res.json({ success: true, isBlocked: true });
   } catch (e) {
@@ -1857,6 +1868,7 @@ app.post('/api/contact/:chatId/unblock', async (req, res) => {
     const contact = await client.getContactById(chatId);
     if (!contact) throw new Error('Kontakt nicht gefunden');
     await contact.unblock();
+    _blockedCache = null;
     console.log(`[INFO] Blockierung aufgehoben: ${chatId}`);
     res.json({ success: true, isBlocked: false });
   } catch (e) {
@@ -3074,6 +3086,12 @@ app.get('/', (req, res) => {
     }
     .avatar img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; border-radius: 50%; display: block; }
     .avatar.has-status { box-shadow: 0 0 0 2px #25D366; animation: statusPulse 2s ease-in-out infinite; }
+    .avatar.blocked::after, .contact-modal-pic.blocked::after {
+      content: '🔒'; position: absolute; left: 0; right: 0; bottom: 0; height: 17px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 10px; line-height: 1; background: rgba(241,92,92,0.92);
+    }
+    .contact-modal-pic.blocked::after { height: 24px; font-size: 14px; }
     @keyframes statusPulse {
       0%, 100% { box-shadow: 0 0 0 2px #25D366; }
       50% { box-shadow: 0 0 0 2px #25D366, 0 0 0 5px rgba(37,211,102,0.4); }
@@ -3083,7 +3101,7 @@ app.get('/', (req, res) => {
     .contact-modal-box { border-radius: 16px; padding: 28px 24px 20px; max-width: 320px; width: 90%; display: flex; flex-direction: column; align-items: center; gap: 10px; box-shadow: 0 8px 32px rgba(0,0,0,0.5); }
     html.dark .contact-modal-box { background: #202c33; }
     html.light .contact-modal-box { background: #fff; }
-    .contact-modal-pic { width: 96px; height: 96px; border-radius: 50%; overflow: hidden; display: flex; align-items: center; justify-content: center; font-size: 36px; font-weight: 700; color: #fff; flex-shrink: 0; margin-bottom: 4px; }
+    .contact-modal-pic { position: relative; width: 96px; height: 96px; border-radius: 50%; overflow: hidden; display: flex; align-items: center; justify-content: center; font-size: 36px; font-weight: 700; color: #fff; flex-shrink: 0; margin-bottom: 4px; }
     .contact-modal-pic img { width: 100%; height: 100%; object-fit: cover; display: block; }
     .contact-modal-name { font-size: 18px; font-weight: 600; text-align: center; }
     html.dark .contact-modal-name { color: #e9edef; }
@@ -4280,6 +4298,32 @@ app.get('/', (req, res) => {
     let allChats = [];
     let lastSeenTime = {};
     let _statusChatIds = new Set();
+    // Blockierte Kontakte: WhatsApp fuehrt sie unter der ID des Adressbuchs, die
+    // Chats laufen teils unter @lid — deshalb zusaetzlich ueber die Rufnummer
+    // vergleichen, sonst fehlt das Schloss genau dort, wo es hingehoert.
+    let _blockedIds = new Set(), _blockedNumbers = new Set();
+
+    function isBlockedChat(chat) {
+      if (!chat || chat.isGroup) return false;
+      const id = chat.id || '';
+      if (_blockedIds.has(id)) return true;
+      const num = String(chat.phone || '').replace(/\\D/g, '') || (id.endsWith('@c.us') ? id.split('@')[0] : '');
+      return !!num && _blockedNumbers.has(num);
+    }
+
+    async function pollBlocked() {
+      if (currentStatus !== 'connected') return;
+      try {
+        const d = await fetch('api/blocked').then(apiJson);
+        const list = d.contacts || [];
+        _blockedIds = new Set(list.map(c => c.id));
+        _blockedNumbers = new Set(list.map(c => String(c.number || '').replace(/\\D/g, '')).filter(Boolean));
+        renderChatList(allChats);
+      } catch (e) {}
+    }
+
+    setInterval(() => { if (!document.hidden) pollBlocked(); }, 300000);
+
     async function pollStatuses() {
       if (document.hidden || currentStatus !== 'connected') return;
       try {
@@ -4626,7 +4670,8 @@ app.get('/', (req, res) => {
           item.onclick = () => openChat(existing || { id: c.id, name: c.name, phone: c.number, isGroup: false, lastTime: 0 });
 
           const av = document.createElement('div');
-          av.className = 'avatar' + (_statusChatIds.has(c.id) ? ' has-status' : '');
+          av.className = 'avatar' + (_statusChatIds.has(c.id) ? ' has-status' : '')
+            + (isBlockedChat({ id: c.chatId || c.id, phone: c.number }) ? ' blocked' : '');
           av.setAttribute('data-avid', c.id);
           av.style.background = avatarColor(c.name);
           av.textContent = avatarInitials(c.name);
@@ -5194,7 +5239,8 @@ app.get('/', (req, res) => {
           av.className = 'avatar group-avatar';
           av.textContent = '👥';
         } else {
-          av.className = 'avatar' + (_statusChatIds.has(chat.id) ? ' has-status' : '');
+          av.className = 'avatar' + (_statusChatIds.has(chat.id) ? ' has-status' : '')
+            + (isBlockedChat(chat) ? ' blocked' : '');
           av.setAttribute('data-avid', chat.id);
           av.style.background = avatarColor(chat.name);
           av.textContent = avatarInitials(chat.name);
@@ -5781,6 +5827,7 @@ app.get('/', (req, res) => {
           { method: 'POST' }).then(apiJson);
         if (d.error) throw new Error(d.error);
         renderBlockState(chatId, name, !blocked);
+        pollBlocked();
         alert(t(blocked ? 'blkUndone' : 'blkDone'));
       } catch (e) {
         renderBlockState(chatId, name, blocked);
@@ -5827,6 +5874,7 @@ app.get('/', (req, res) => {
       nameEl.textContent = '…'; pushnameEl.textContent = ''; numberEl.textContent = ''; aboutEl.textContent = '';
       document.getElementById('contact-modal-blocked').classList.remove('show');
       document.getElementById('contact-modal-block').style.display = 'none';
+      picEl.classList.remove('blocked');
       loadPresence(chatId);
       loadChatStats(chatId);
       statusEl.innerHTML = ''; statusEl.classList.remove('has-items');
@@ -5856,6 +5904,7 @@ app.get('/', (req, res) => {
         numberEl.textContent = data.number ? '+' + data.number : '';
         aboutEl.textContent = data.about || '';
         renderBlockState(chatId, data.name || fallbackName || chatId, data.isBlocked === true);
+        picEl.classList.toggle('blocked', data.isBlocked === true);
         picEl.textContent = '';
         picEl.removeAttribute('data-avid');
         if (data.hasProfilePic) {
@@ -6534,7 +6583,7 @@ app.get('/', (req, res) => {
             const d = await fetch('api/qr').then(r => r.json()).catch(() => null);
             if (d?.qr) document.getElementById('qr-img').innerHTML = '<img src="' + d.qr + '">';
           }
-          if (connected) { await pollChats(); pollStatuses(); }
+          if (connected) { await pollChats(); pollStatuses(); pollBlocked(); }
         }
       } catch(e) {
         _offlineFails++;
