@@ -2747,6 +2747,132 @@ app.get('/api/my-status/diag', async (req, res) => {
   }
 });
 
+// ── Diagnose: Datenschutzeinstellungen ────────────────────────────────────────
+// whatsapp-web.js kennt dafuer keine API. Ob WhatsApp Web selbst ein brauchbares
+// Modul mitbringt ("wer sieht meinen Status / zuletzt online / Profilbild"),
+// laesst sich nur an der laufenden Sitzung feststellen. Diese Sonde schaut nach
+// und veraendert nichts: aufgerufen werden ausschliesslich Funktionen, deren
+// Name mit get/is/has beginnt und die keine Parameter nehmen.
+const PRIVACY_MODULE_CANDIDATES = [
+  'WAWebPrivacySettings',
+  'WAWebPrivacySettingsModel',
+  'WAWebPrivacySettingsCollection',
+  'WAWebPrivacySettingsBridge',
+  'WAWebSetPrivacySettingsAction',
+  'WAWebPrivacySettingsAction',
+  'WAWebQueryPrivacySettingsJob',
+  'WAWebUserPrefsPrivacy',
+  'WAWebLastSeenPrivacy',
+  'WAWebReadReceiptsPrivacy',
+];
+
+async function probePrivacyModules() {
+  return client.pupPage.evaluate((names) => {
+    const sig = (fn) => {
+      try {
+        const s = String(fn);
+        const i = s.indexOf(')');
+        return s.slice(0, i > 0 ? i + 1 : 120).replace(/\s+/g, ' ').slice(0, 160);
+      } catch (e) { return null; }
+    };
+    const out = {};
+    for (const name of names) {
+      let mod;
+      try { mod = window.require(name); }
+      catch (e) { out[name] = { found: false, error: String((e && e.message) || e).slice(0, 120) }; continue; }
+      if (!mod) { out[name] = { found: false }; continue; }
+      const entry = { found: true, keys: [], values: {} };
+      let keys = [];
+      try { keys = Object.keys(mod); } catch (e) {}
+      entry.keys = keys.slice(0, 60);
+      for (const k of keys.slice(0, 60)) {
+        let v;
+        try { v = mod[k]; } catch (e) { continue; }
+        if (typeof v === 'function') {
+          entry.values[k] = 'fn ' + sig(v);
+          // Nur eindeutig lesende, parameterlose Funktionen wirklich aufrufen
+          if (/^(get|is|has|read)/.test(k) && v.length === 0) {
+            try {
+              const r = v.call(mod);
+              if (r && typeof r.then === 'function') entry.values[k] += ' → Promise';
+              else entry.values[k] += ' → ' + JSON.stringify(r).slice(0, 200);
+            } catch (e) { entry.values[k] += ' → FEHLER: ' + String((e && e.message) || e).slice(0, 80); }
+          }
+        } else if (v && typeof v === 'object') {
+          try { entry.values[k] = 'obj ' + JSON.stringify(v).slice(0, 200); }
+          catch (e) { entry.values[k] = 'obj [nicht serialisierbar]'; }
+        } else {
+          entry.values[k] = typeof v + ' ' + String(v).slice(0, 120);
+        }
+      }
+      out[name] = entry;
+    }
+    // Sammlungen von WhatsApp Web mit "privacy" im Namen mitnehmen
+    try {
+      const col = window.require('WAWebCollections');
+      out._collections = Object.keys(col).filter(k => /privacy|blocklist|status/i.test(k));
+    } catch (e) { out._collections = 'FEHLER: ' + String((e && e.message) || e).slice(0, 120); }
+    return out;
+  }, PRIVACY_MODULE_CANDIDATES);
+}
+
+// Die echten Modulnamen stehen in den geladenen Bundles. Raten bringt nichts —
+// WhatsApp benennt sie bei Umbauten um. Diese Sonde liest sie direkt heraus.
+async function scanPrivacyModuleNames() {
+  return client.pupPage.evaluate(async () => {
+    const deadline = Date.now() + 45000;
+    const urls = new Set();
+    for (const e of performance.getEntriesByType('resource')) {
+      if (e.initiatorType === 'script' || /\.js(\?|$)/.test(e.name)) urls.add(e.name);
+    }
+    for (const sc of document.scripts) if (sc.src) urls.add(sc.src);
+    const sameOrigin = [...urls].filter(u => { try { return new URL(u).origin === location.origin; } catch (e) { return false; } });
+    const names = new Set();
+    let scanned = 0, bytes = 0;
+    const re = /WAWeb[A-Za-z0-9]*[Pp]rivacy[A-Za-z0-9]*/g;
+    for (const url of sameOrigin) {
+      if (Date.now() > deadline) break;
+      let text = '';
+      try { const r = await fetch(url); if (!r.ok) continue; text = await r.text(); }
+      catch (e) { continue; }
+      scanned++; bytes += text.length;
+      let m;
+      while ((m = re.exec(text)) !== null) { names.add(m[0]); if (names.size > 200) break; }
+    }
+    return { scannedFiles: scanned, scannedBytes: bytes, candidateFiles: sameOrigin.length, names: [...names].sort() };
+  });
+}
+
+// GET /api/privacy/diag         — bekannte Modulnamen durchprobieren (schnell)
+// GET /api/privacy/diag?scan=1  — zusaetzlich die Bundles nach echten Namen durchsuchen (dauert)
+// GET /api/privacy/diag?scan=1&probeFound=1 — die gefundenen Namen gleich mit durchprobieren
+app.get('/api/privacy/diag', async (req, res) => {
+  if (status !== 'connected') return res.status(503).json({ error: 'Not connected' });
+  if (!client.pupPage) return res.status(503).json({ error: 'keine Browser-Seite' });
+  try {
+    const out = { lib: WA_VERSION, waWeb: waWebVersion, modules: await probePrivacyModules() };
+    if (req.query.scan === '1') {
+      out.scan = await scanPrivacyModuleNames();
+      if (req.query.probeFound === '1' && out.scan.names?.length) {
+        const extra = out.scan.names.filter(n => !PRIVACY_MODULE_CANDIDATES.includes(n)).slice(0, 25);
+        out.probedFromScan = await client.pupPage.evaluate((names) => {
+          const out = {};
+          for (const name of names) {
+            try {
+              const mod = window.require(name);
+              out[name] = mod ? Object.keys(mod).slice(0, 40) : 'leer';
+            } catch (e) { out[name] = 'FEHLER: ' + String((e && e.message) || e).slice(0, 120); }
+          }
+          return out;
+        }, extra);
+      }
+    }
+    res.json(out);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // Die Status-Aktionen liegen in WhatsApp Web hinter einem Babel-Mantel
 // (function C(e,t){return b.apply(this,arguments)}), toString() zeigt also nichts.
 // Der echte Quelltext steht aber in den geladenen Bundles — die durchsucht diese

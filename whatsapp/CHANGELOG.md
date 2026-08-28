@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.8.14] - 2026-08-28
+- Neu: **`GET /api/privacy/diag` sagt, ob sich die Datenschutzeinstellungen ueberhaupt steuern lassen** („wer sieht meinen Status / zuletzt online / Profilbild"). `whatsapp-web.js` hat dafuer keine API — die Sonde schaut in der laufenden Sitzung nach, ob WhatsApp Web selbst ein passendes Modul mitbringt
+- Die Route **liest nur**: aufgerufen werden ausschliesslich Funktionen, deren Name mit `get`/`is`/`has`/`read` beginnt und die keine Parameter nehmen. Geaendert wird nichts
+- `?scan=1` durchsucht die geladenen Bundles nach echten Modulnamen (`WAWeb…Privacy…`), statt sie zu raten — WhatsApp benennt sie bei Umbauten um. `?probeFound=1` probiert die Fundstellen gleich durch und zeigt ihre Felder
+- Die Antwort nennt auch die laufende WhatsApp-Web- und Bibliotheksfassung, damit ein spaeterer Fund einordbar bleibt
+
 ## [1.8.13] - 2026-08-28
 - Fix: **Blaue Haken blieben grau.** Den blauen Haken setzte bisher nur das Live-Ereignis `message_ack` — wurde eine Nachricht gelesen, waehrend das Add-on aus oder getrennt war, kam das Ereignis nie und der Haken blieb fuer immer grau, obwohl er auf dem Handy blau war
 - Drei Stellen nachgezogen: der Start uebernimmt jetzt den aktuellen Haken-Stand auch fuer **bereits bekannte** Nachrichten (vorher verwarf `addMsg` das Duplikat samt frischem Wert), `message_ack` sichert die Aenderung sofort auf Platte (vorher nur im Arbeitsspeicher — ein Neustart holte den alten Wert zurueck), und alle 5 Minuten fragt das Add-on bei WhatsApp nach: **eigene Nachrichten der letzten 7 Tage ohne blauen Haken**, hoechstens 25 pro Durchgang, 200 ms Abstand

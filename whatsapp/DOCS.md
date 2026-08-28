@@ -71,6 +71,9 @@ POST /api/my-status/revoke           → Eigenen Status zurückziehen (id)
 GET  /api/status-templates           → Gespeicherte Status-Vorlagen
 POST /api/status-templates           → Vorlage anlegen oder ändern (id zum Ändern)
 POST /api/status-templates/:id/delete → Vorlage löschen
+GET  /api/chat-media                 → Welche Chats sind vom Medien-Download ausgenommen
+POST /api/chat-media                 → Medien eines Chats an-/abschalten ({chatId, enabled})
+GET  /api/privacy/diag               → Diagnose: findet WhatsApp Web ein Modul für die Datenschutzeinstellungen? (?scan=1 durchsucht die Bundles nach echten Modulnamen, ?probeFound=1 probiert die Fundstellen gleich durch) — liest nur, ändert nichts
 GET  /api/export/:chatId             → Chat als HTML exportieren
 DELETE /api/messages/:chatId/:msgId  → Nachricht für alle löschen
 POST /api/logout                     → Abmelden
@@ -265,6 +268,9 @@ POST /api/my-status/revoke           → Revoke one of your own status updates (
 GET  /api/status-templates           → Saved status templates
 POST /api/status-templates           → Create or update a template (id to update)
 POST /api/status-templates/:id/delete → Delete a template
+GET  /api/chat-media                 → Which chats are excluded from media download
+POST /api/chat-media                 → Turn media on/off for one chat ({chatId, enabled})
+GET  /api/privacy/diag               → Diagnostics: does WhatsApp Web expose a privacy-settings module? (?scan=1 searches the bundles for real module names, ?probeFound=1 probes the hits) — read-only
 GET  /api/export/:chatId             → Export chat as HTML
 DELETE /api/messages/:chatId/:msgId  → Delete message for everyone
 POST /api/logout                     → Log out
