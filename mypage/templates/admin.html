@@ -2228,7 +2228,7 @@
         <h2 class="sys-head">{{ t.sysgrp_state }}</h2>
 
         <details class="panel fold" id="sy-health" open>
-          <summary><h3>🩺 {{ t.health_heading }}</h3><span class="count" id="health-info"></span></summary>
+          <summary><h3>{{ t.health_heading }}</h3><span class="count" id="health-info"></span></summary>
           <div id="health-list"></div>
           <div style="margin-top:10px">
             <button class="btn secondary small" onclick="loadHealth()">{{ t.nf_reload }}</button>
@@ -2281,7 +2281,7 @@
         </details>
 
         <details class="panel fold" id="sy-alts" data-load="loadAltsPanel">
-          <summary><h3>🏷️ {{ t.alts_heading }}</h3><span class="count" id="alts-info"></span></summary>
+          <summary><h3>{{ t.alts_heading }}</h3><span class="count" id="alts-info"></span></summary>
           <p class="hint">{{ t.alts_hint }}</p>
           <div class="upload-row">
             <label class="checkbox" style="margin:0"><input type="checkbox" id="alts-missing-only" checked onchange="renderAltEditor()"> {{ t.alts_missing_only }}</label>
@@ -2393,7 +2393,7 @@
         <h2 class="sys-head">{{ t.sysgrp_access }}</h2>
 
         <details class="panel fold" id="sy-twofa" data-load="loadTwofa">
-          <summary><h3>🔐 {{ t.twofa_heading }}</h3><span class="count" id="twofa-info"></span></summary>
+          <summary><h3>{{ t.twofa_heading }}</h3><span class="count" id="twofa-info"></span></summary>
           <p class="hint">{{ t.twofa_hint }}</p>
           <div id="twofa-status" class="hint" style="margin-bottom:12px">…</div>
           <div id="twofa-off" style="display:none">

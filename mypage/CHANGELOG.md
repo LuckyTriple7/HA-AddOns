@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.11.40
+
+- 🧹 **System-Reiter: einheitliche Kopfzeilen.** Drei der sechzehn Kästen trugen ein Symbol vor dem Namen (Systemzustand, Alternativtexte, Zwei-Faktor), die übrigen dreizehn nicht — beim Überfliegen sprang das ins Auge, ohne etwas zu bedeuten. Die drei Symbole sind entfernt, alle Kopfzeilen sehen jetzt gleich aus.
+
 ## 0.11.39
 
 Ein Scanner aus einem Rechenzentrum probierte zwanzig Adressen durch — `/Blog`, `/BLOG`, `/SITE`, `/bak`, `/BACKUP`, `/old-site`, `/2021`, `/WWW` — und stand mit jeder Zeile in der 404-Liste, **trotz** gesetzter Haken „Bots ausblenden" und „Sonden ausblenden". Jede Zeile trug obendrein die Marke „eigener Link". Drei Ursachen, drei Änderungen:
