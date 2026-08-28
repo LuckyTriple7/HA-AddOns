@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.8.10] - 2026-08-28
+- Fix: **`downloadWAMedia: no data for …` kam bei jedem Start aufs Neue.** Schlug der Medien-Download fehl, blieb `mediaFile` leer — und der naechste Start versuchte dieselbe Nachricht wieder. Bei einem Medium, das WhatsApp serverseitig nicht mehr ausliefert (bei aelteren Nachrichten der Normalfall), konnte das nie gelingen und wiederholte sich monatelang
+- Fehlversuche werden jetzt an der Nachricht gezaehlt und nach drei Anlaeufen nicht mehr wiederholt. Nachrichten ohne Medienanhang oder mit verschwundener Vorlage gelten sofort als erledigt. Beim Start steht dann nur noch eine ruhige Zeile: „2 Nachricht(en) ohne abrufbares Medium — nach 3 Versuchen wird es nicht erneut probiert"
+- Die Zaehler ueberleben den Neustart, und auch `ensureMediaLater` vermerkt sein endgueltiges Aufgeben. Die Warnung selbst sagt jetzt, was los ist: „WhatsApp liefert keine Daten mehr (Medium abgelaufen?)"
+
 ## [1.8.9] - 2026-08-28
 - Fix: **Chats mit langem Verlauf brauchten lange zum Oeffnen und die Ansicht sprang herum**, besonders auf dem Handy. Der Browser holte den kompletten Verlauf und baute ihn in einem Rutsch auf — bei einem Chat mit 420 Nachrichten also alle 420. Jetzt kommen zuerst die **juengsten 50**, aeltere auf Abruf
 - Oben im Chat steht dafuer „↑ Ältere Nachrichten laden · 50 von 420 geladen"; scrollt man ohnehin nach oben, laedt der naechste Schwung von selbst nach. Dabei bleibt die Blickposition erhalten — die Nachricht, die man gerade liest, bleibt an ihrem Platz

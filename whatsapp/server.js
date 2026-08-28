@@ -135,6 +135,8 @@ const SUPERVISOR_TOKEN = process.env.SUPERVISOR_TOKEN || '';
 function dbg(...args) { if (DEBUG) console.log('[DEBUG]', ...args); }
 if (DEBUG) console.log('[DEBUG] Debug-Modus aktiv');
 const MEDIA_DIR = '/config/media';
+// So oft wird ein fehlender Medien-Download wiederholt, danach gilt er als verloren
+const MEDIA_MAX_TRIES = 3;
 const INITIAL_CHATS = parseInt(process.env.INITIAL_CHATS || '30', 10);
 const INITIAL_MESSAGES = parseInt(process.env.INITIAL_MESSAGES || '20', 10);
 const WEBHOOK = process.env.WEBHOOK_INCOMING || '';
@@ -383,7 +385,9 @@ async function downloadWAMedia(msg, msgId) {
         _logSilent('DEBUG', `downloadWAMedia: ok ${safeId}.${ext} ${(Buffer.from(media.data,'base64').length/1024).toFixed(1)}KB in ${Date.now()-t0}ms`);
         enforceMediaLimitThrottled(); // Speicherlimit auch beim Foto-/Auto-Download wahren
       } else {
-        _logSilent('WARN', `downloadWAMedia: no data for ${safeId}.${ext}`);
+        // WhatsApp liefert nichts mehr — bei aelteren Nachrichten ist das Medium
+        // auf dem Server abgelaufen und kommt auch spaeter nicht zurueck
+        _logSilent('WARN', `downloadWAMedia: WhatsApp liefert keine Daten mehr fuer ${safeId}.${ext} (Medium abgelaufen?)`);
       }
     } else {
       _logSilent('DEBUG', `downloadWAMedia: cached ${safeId}.${ext}`);
@@ -421,6 +425,11 @@ async function ensureMediaLater(chatId, msgId) {
       }
     } catch (e) { dbg('ensureMediaLater:', e.message); }
   }
+  // Nach all diesen Versuchen ist das Medium praktisch sicher verloren — vormerken,
+  // damit der naechste Start es nicht wieder von vorn probiert
+  const list = messagesByChatId.get(chatId);
+  const stored = list && list.find(m => m.id === msgId);
+  if (stored && !stored.mediaFile) { stored.mediaTries = MEDIA_MAX_TRIES; saveMsgs(); }
   _logSilent('WARN', `ensureMediaLater: media still unavailable for ${msgId}`);
 }
 
@@ -551,13 +560,21 @@ client.on('ready', async () => {
       (async () => {
         const pending = [];
         let cachedPhotos = 0, cachedVoice = 0, cachedVideo = 0;
+        // Ein abgelaufenes Medium liefert WhatsApp nie wieder aus. Ohne Gedaechtnis
+        // versucht der Start es jedes Mal erneut — deshalb Fehlversuche zaehlen.
+        let giveUp = 0;
         for (const [chatId, msgs] of messagesByChatId) {
           for (const m of msgs) {
             if (m.type === 'photo' || m.type === 'voice') {
               if (m.mediaFile) { if (m.type === 'photo') cachedPhotos++; else cachedVoice++; }
+              else if ((m.mediaTries || 0) >= MEDIA_MAX_TRIES) giveUp++;
               else pending.push({ chatId, m });
             } else if (m.type === 'video' && m.mediaFile) { cachedVideo++; }
           }
+        }
+        if (giveUp) {
+          console.log(`[INFO] ${giveUp} Nachricht(en) ohne abrufbares Medium — nach ${MEDIA_MAX_TRIES} Versuchen `
+            + 'wird es nicht erneut probiert (Medium bei WhatsApp abgelaufen)');
         }
         const cachedTotal = cachedPhotos + cachedVoice + cachedVideo;
         if (cachedTotal) {
@@ -569,19 +586,30 @@ client.on('ready', async () => {
         }
         if (!pending.length) return;
         console.log(`[INFO] Auto-downloading media for ${pending.length} message(s) in background…`);
-        let count = 0;
+        let count = 0, exhausted = 0;
         for (const { m } of pending) {
           try {
             const fullMsg = await client.getMessageById(m.id);
-            if (fullMsg) {
+            if (!fullMsg || !fullMsg.hasMedia) {
+              // Nachricht weg oder ohne Medienanhang — gar nicht erst weiter probieren
+              m.mediaTries = MEDIA_MAX_TRIES;
+              dbg(`auto-media: ${m.id} ohne abrufbares Medium — kein weiterer Versuch`);
+            } else {
               const file = await downloadWAMedia(fullMsg, m.id);
-              if (file) { m.mediaFile = file; count++; }
+              if (file) { m.mediaFile = file; m.mediaTries = 0; count++; }
+              else m.mediaTries = (m.mediaTries || 0) + 1;
             }
-          } catch (e) { dbg(`auto-media: error for ${m.id}: ${e.message}`); }
+          } catch (e) {
+            m.mediaTries = (m.mediaTries || 0) + 1;
+            dbg(`auto-media: error for ${m.id}: ${e.message}`);
+          }
+          if (!m.mediaFile && (m.mediaTries || 0) >= MEDIA_MAX_TRIES) exhausted++;
           await new Promise(r => setTimeout(r, 600));
         }
-        console.log(`[INFO] Auto-download complete: ${count}/${pending.length} media file(s) downloaded`);
-        if (count) saveMsgs();
+        console.log(`[INFO] Auto-download complete: ${count}/${pending.length} media file(s) downloaded`
+          + (exhausted ? ` — ${exhausted} endgueltig ohne Medium, wird beim naechsten Start uebersprungen` : ''));
+        // Auch ohne Erfolg sichern: die Zaehler sollen den Neustart ueberleben
+        saveMsgs();
       })();
     }
   } catch (err) {
