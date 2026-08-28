@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.7.67] - 2026-08-28
+- Feature: **Auch Bildanhaenge im Chat werden vor dem Hochladen verkleinert**, nicht nur Status-Bilder — die Groessengrenze auf dem Weg trifft jeden Upload. Die Anhang-Leiste zeigt es an: „582.2 KB · verkleinert aus 4.8 MB". Wer sofort auf Senden klickt, laedt trotzdem die verkleinerte Fassung hoch, weil der Versand auf die Umrechnung wartet
+- Fix: Schlaegt ein Anhang im Chat fehl, nennt die Meldung jetzt den echten Grund statt pauschal „Netzwerkfehler" — bei einer HTML-Antwort von einem Proxy davor also Statuscode und Herkunft
+
 ## [1.7.66] - 2026-08-28
 - Feature: **Bilder werden vor dem Hochladen im Browser verkleinert.** Kamerafotos mit 2 bis 10 MB scheiterten an einer Groessengrenze im Proxy vor dem Add-on — die laesst sich von hier aus nicht anheben. Bilder werden jetzt auf hoechstens 1920 Pixel an der laengeren Kante gebracht und als JPEG auf rund 700 KB gedrueckt (Qualitaet stufenweise von 85 % abwaerts, nur so weit wie noetig). Ein Testfoto mit 4032x3024 und 4,8 MB geht damit als 582 KB raus
 - Der Editor zeigt die Verkleinerung an: „Bild verkleinert: 4,8 MB → 582 KB (1920×1440 Pixel)". Kleine Bilder bleiben unangetastet, Videos lassen sich im Browser nicht verkleinern — ab 2 MB weist ein Hinweis darauf hin, dass grosse Uploads unterwegs abgewiesen werden koennen

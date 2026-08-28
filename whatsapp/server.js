@@ -3523,6 +3523,7 @@ app.get('/', (req, res) => {
         msNeedText:'Bitte erst einen Text eingeben.', msNeedFile:'Bitte erst ein Bild oder Video auswählen.',
         msFileTooBig:'Datei zu groß (max. 64 MB).', msVideoNoPreview:'Video ausgewählt – keine Vorschau.',
         msShrinking:'Bild wird verkleinert…',
+        attachShrunk:(from)=>'verkleinert aus '+from,
         msShrunk:(from,to,w,h)=>'Bild verkleinert: '+from+' → '+to+' ('+w+'×'+h+' Pixel)',
         msShrinkFail:(size)=>'Bild ließ sich nicht verkleinern und bleibt bei '+size+'. Große Uploads können unterwegs abgewiesen werden.',
         msVideoBig:(size)=>'Das Video ist '+size+' groß – große Uploads können unterwegs abgewiesen werden.',
@@ -3611,6 +3612,7 @@ app.get('/', (req, res) => {
         msNeedText:'Please enter some text first.', msNeedFile:'Please pick a photo or video first.',
         msFileTooBig:'File too large (max. 64 MB).', msVideoNoPreview:'Video selected – no preview.',
         msShrinking:'Shrinking image…',
+        attachShrunk:(from)=>'shrunk from '+from,
         msShrunk:(from,to,w,h)=>'Image shrunk: '+from+' → '+to+' ('+w+'×'+h+' pixels)',
         msShrinkFail:(size)=>'Could not shrink the image, it stays at '+size+'. Large uploads may be rejected on the way.',
         msVideoBig:(size)=>'The video is '+size+' – large uploads may be rejected on the way.',
@@ -4391,10 +4393,10 @@ app.get('/', (req, res) => {
       document.getElementById('mystatus-modal').classList.remove('open');
     }
 
-    // Antwortet nicht das Add-on, sondern etwas davor (Ingress-Proxy, Gateway),
+    // Antwortet nicht das Add-on, sondern etwas davor (MessengerPortal, Ingress),
     // kommt HTML zurueck und JSON.parse scheitert mit "Unexpected token '<'".
     // Diese Huelle zeigt stattdessen Statuscode und Anfang der echten Antwort.
-    async function msJson(r) {
+    async function apiJson(r) {
       const txt = await r.text();
       try { return JSON.parse(txt); }
       catch (e) {
@@ -4418,7 +4420,7 @@ app.get('/', (req, res) => {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ text, backgroundColor: _msColor, fontStyle: _msFont }),
-          }).then(msJson);
+          }).then(apiJson);
           if (d.error) throw new Error(d.error);
           msShow('ok', t('msSentText'));
         } else {
@@ -4432,7 +4434,7 @@ app.get('/', (req, res) => {
           // Groesse mitnennen: bricht der Upload vor dem Add-on ab, ist sie die erste Spur
           const kb = _msFile ? Math.round(_msFile.size / 1024) : 0;
           const d = await fetch('api/my-status/media', { method: 'POST', body: fd })
-            .then(msJson)
+            .then(apiJson)
             .catch(err => { throw new Error(err.message + (kb ? ' (Upload ' + kb + ' KB)' : '')); });
           if (d.error) throw new Error(d.error);
           msShow('ok', t('msSentMedia'));
@@ -4544,7 +4546,7 @@ app.get('/', (req, res) => {
         if (!_msTplFile) fd.append('removeMedia', '1');
       }
       try {
-        const d = await fetch('api/status-templates', { method: 'POST', body: fd }).then(msJson);
+        const d = await fetch('api/status-templates', { method: 'POST', body: fd }).then(apiJson);
         if (d.error) throw new Error(d.error);
         _msEditingTpl = d.template.id;
         document.getElementById('ms-tpl-update').style.display = '';
@@ -4580,7 +4582,7 @@ app.get('/', (req, res) => {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ about }),
-        }).then(msJson);
+        }).then(apiJson);
         if (d.error) throw new Error(d.error);
         if (_myProfile) _myProfile.about = about;
         msShow('ok', t('msAboutSaved'));
@@ -4594,7 +4596,7 @@ app.get('/', (req, res) => {
       box.innerHTML = '<div class="ms-hint">' + esc(t('msLiveLoading')) + '</div>';
       let msgs = [];
       try {
-        const d = await fetch('api/my-status').then(msJson);
+        const d = await fetch('api/my-status').then(apiJson);
         if (d.error) throw new Error(d.error);
         msgs = d.msgs || [];
       } catch (e) {
@@ -4640,7 +4642,7 @@ app.get('/', (req, res) => {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ id }),
-        }).then(msJson);
+        }).then(apiJson);
         if (d.error) throw new Error(d.error);
         msShow('ok', t('msLiveDeleted'));
         msLoadLive();
@@ -5557,9 +5559,14 @@ app.get('/', (req, res) => {
       return (bytes / 1048576).toFixed(1) + ' MB';
     }
 
+    // Laufende Verkleinerung eines Anhangs — sendFile() wartet darauf, damit ein
+    // schneller Klick auf Senden nicht das unverkleinerte Original hochlaedt
+    let _attachShrinking = null;
+
     function attachFile(file) {
       if (!file) return;
       _attachFile = file;
+      _attachShrinking = null;
       const isImg = file.type.startsWith('image/');
       const icon = document.getElementById('attach-icon');
       const thumb = document.getElementById('attach-thumb');
@@ -5574,6 +5581,19 @@ app.get('/', (req, res) => {
       document.getElementById('attach-name').textContent = file.name;
       document.getElementById('attach-size').textContent = formatFileSize(file.size);
       document.getElementById('attach-bar').classList.add('active');
+      // Fotos vor dem Hochladen verkleinern — dieselbe Grenze wie beim Status
+      // trifft jeden Upload, und WhatsApp skaliert Fotos ohnehin herunter
+      if (isImg) {
+        _attachShrinking = (async () => {
+          let small = null;
+          try { small = await msShrinkImage(file); } catch (e) { small = null; }
+          if (small && _attachFile === file) {
+            _attachFile = small.file;
+            const sz = document.getElementById('attach-size');
+            if (sz) sz.textContent = formatFileSize(small.toBytes) + ' · ' + tf('attachShrunk', formatFileSize(small.fromBytes));
+          }
+        })();
+      }
       document.getElementById('msg-input').placeholder = t('attachCaption');
       document.getElementById('msg-input').focus();
     }
@@ -5594,6 +5614,8 @@ app.get('/', (req, res) => {
 
     async function sendFile() {
       if (!_attachFile || !selectedChatId) return;
+      if (_attachShrinking) { try { await _attachShrinking; } catch (e) {} }
+      if (!_attachFile) return;
       const caption = document.getElementById('msg-input').value.trim();
       const formData = new FormData();
       formData.append('to', selectedChatId);
@@ -5604,13 +5626,13 @@ app.get('/', (req, res) => {
       document.getElementById('msg-input').style.height = 'auto';
       atBottom = true;
       try {
-        const r = await fetch('api/send-media', { method: 'POST', body: formData }).then(r => r.json());
+        const r = await fetch('api/send-media', { method: 'POST', body: formData }).then(apiJson);
         if (r.success) {
           await pollMessages();
         } else {
           alert(tf('errSend', r.error));
         }
-      } catch(e) { alert(t('errNetwork')); }
+      } catch(e) { alert(tf('errSend', e.message || String(e))); }
     }
 
     // ── @-Erwähnungen in Gruppen ───────────────────────────────────────────────
