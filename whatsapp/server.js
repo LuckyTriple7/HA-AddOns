@@ -1928,23 +1928,90 @@ app.post('/api/me/about', async (req, res) => {
 });
 
 // Eigene laufende Statusmeldungen (24h)
+// WhatsApp fuehrt den eigenen Status unter der LID des Kontos, nicht unter der
+// Rufnummer — getBroadcastById('<rufnummer>@c.us') findet ihn deshalb nicht und
+// die Liste blieb leer, obwohl der Status auf dem Handy zu sehen war.
+// Status.getMyStatus() liefert die richtige ID direkt aus WhatsApp Web.
+let _myStatusIdCache = null;
+async function myStatusChatId() {
+  if (!client.pupPage) return _myStatusIdCache;
+  try {
+    const id = await client.pupPage.evaluate(() => {
+      try {
+        const st = window.require('WAWebCollections').Status.getMyStatus();
+        return (st && st.id && st.id._serialized) || null;
+      } catch (e) { return null; }
+    });
+    if (id && id !== _myStatusIdCache) {
+      _myStatusIdCache = id;
+      console.log(`[INFO] Eigener Status laeuft unter ${id}`);
+    }
+  } catch (e) { dbg('myStatusChatId: ' + e.message); }
+  return _myStatusIdCache;
+}
+
 app.get('/api/my-status', async (req, res) => {
   if (status !== 'connected') return res.status(503).json({ error: 'Not connected' });
-  const jid = myJid();
-  if (!jid) return res.json({ msgs: [] });
   try {
+    // Reihenfolge: die von WhatsApp gemeldete Status-ID (LID), dann die Rufnummer
+    const candidates = [];
+    const own = await myStatusChatId();
+    if (own) candidates.push(own);
+    const jid = myJid();
+    if (jid && !candidates.includes(jid)) candidates.push(jid);
+
     let raw = [];
-    const b = await client.getBroadcastById(jid).catch(() => null);
-    if (b && b.msgs && b.msgs.length) raw = b.msgs;
-    else {
-      // Fallback: eigene ID taucht in der Sammelliste evtl. unter einem anderen
-      // Format auf (@lid statt @c.us) — ueber die Rufnummer suchen
-      const user = jid.split('@')[0];
+    for (const id of candidates) {
+      const b = await client.getBroadcastById(id).catch(() => null);
+      if (b && b.msgs && b.msgs.length) { raw = b.msgs; break; }
+    }
+    if (!raw.length && candidates.length) {
+      // Letzter Ausweg: in der Sammelliste nach einer der eigenen IDs suchen
+      const users = candidates.map(c => c.split('@')[0]);
       const all = await client.getBroadcasts().catch(() => []);
-      const mine = all.find(x => x.id?.user === user || x.id?._serialized === jid);
+      const mine = all.find(x => candidates.includes(x.id?._serialized) || users.includes(x.id?.user));
       if (mine && mine.msgs) raw = mine.msgs;
     }
-    res.json({ msgs: await mapStatusMsgs(raw) });
+    res.json({ msgs: await mapStatusMsgs(raw), chatId: candidates[0] || null });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Diagnose: zeigt, welche Felder die WhatsApp-Status-Aktionen tatsaechlich
+// annehmen. Der Quelltext ist minifiziert, die destrukturierten Parameternamen
+// bleiben aber lesbar — daran laesst sich z.B. ablesen, wie eine Link-Vorschau
+// mitgegeben wird, ohne raten zu muessen.
+app.get('/api/my-status/diag', async (req, res) => {
+  if (status !== 'connected') return res.status(503).json({ error: 'Not connected' });
+  if (!client.pupPage) return res.status(503).json({ error: 'keine Browser-Seite' });
+  try {
+    const out = await client.pupPage.evaluate(() => {
+      const src = (fn) => (typeof fn === 'function' ? String(fn).slice(0, 3000) : null);
+      const safe = (fn) => { try { return fn(); } catch (e) { return 'FEHLER: ' + ((e && e.message) || e); } };
+      const sendMod = safe(() => window.require('WAWebSendStatusMsgAction'));
+      const gate = safe(() => window.require('WAWebStatusGatingUtils'));
+      const flags = {};
+      if (gate && typeof gate === 'object') {
+        for (const k of Object.keys(gate)) {
+          if (typeof gate[k] === 'function') flags[k] = safe(() => gate[k]());
+          else flags[k] = gate[k];
+        }
+      }
+      const my = safe(() => {
+        const st = window.require('WAWebCollections').Status.getMyStatus();
+        if (!st) return null;
+        return { id: st.id && st.id._serialized, total: st.totalCount, msgs: st.msgs ? st.msgs.length : null };
+      });
+      return {
+        myStatus: my,
+        sendModuleKeys: sendMod && typeof sendMod === 'object' ? Object.keys(sendMod) : sendMod,
+        sendStatusTextMsgAction: sendMod ? src(sendMod.sendStatusTextMsgAction) : null,
+        sendStatusMediaMsgAction: sendMod ? src(sendMod.sendStatusMediaMsgAction) : null,
+        gatingFlags: flags,
+      };
+    });
+    res.json(out);
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -2062,7 +2129,7 @@ app.post('/api/my-status/text', async (req, res) => {
   try {
     await ensureStatusShims();
     const direct = await sendStatusTextDirect(text, bg, font);
-    console.log(`[INFO] Text-Status: Aktion meldet ${JSON.stringify(direct)}`);
+    dbg(`Text-Status: Aktion meldet ${JSON.stringify(direct)}`);
     if (direct && direct.ok) {
       console.log(`[INFO] Eigener Text-Status gepostet (${text.length} Zeichen, Farbe ${bg}, Font ${font})`);
       return res.json({ success: true, id: null, detail: direct.result || null });

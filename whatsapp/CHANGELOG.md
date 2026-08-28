@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.7.62] - 2026-08-28
+- Fix: **„Meine laufenden Statusmeldungen" blieb leer, obwohl der Status auf dem Handy zu sehen war.** WhatsApp fuehrt den eigenen Status unter der LID des Kontos (`…@lid`), abgefragt wurde er unter der Rufnummer (`…@c.us`). Die richtige ID kommt jetzt aus `Status.getMyStatus()`, die Rufnummer bleibt als Rueckfall
+- Neu: `GET /api/my-status/diag` meldet, welche Felder die WhatsApp-Status-Aktionen annehmen, die Status-Feature-Schalter des Kontos und unter welcher ID der eigene Status laeuft — Grundlage fuer weitere Statusfunktionen, ohne im Trueben zu fischen
+- Die ausfuehrliche Rueckmeldung der Sendeaktion steht jetzt nur noch im Debug-Log statt bei jedem Statusversand im normalen Log
+
 ## [1.7.61] - 2026-08-28
 - Fix: **Text-Status wurde als gesendet gemeldet, erschien aber auf keinem Geraet.** Das Log zeigte `message_ack: true_status@broadcast_… → -1` — der WhatsApp-Server lehnte die Nachricht ab. Ursache: `whatsapp-web.js` baut fuer Status ein eigenes Msg-Modell samt Absender-Identitaet (bei LID-Konten die falsche), uebergibt der WhatsApp-Aktion `sendStatusTextMsgAction` aber ohnehin nur `{ color, font, text }` und wirft deren Rueckgabewert weg. Text-Status geht jetzt direkt an diese Aktion, WhatsApp baut die Nachricht selbst — und ihr Ergebnis landet im Log. Fehlt die Aktion (kuenftige Umbenennung), greift weiterhin der Bibliotheksweg
 - Fix: Ein abgelehnter Status (`ack = -1`) wird jetzt als Warnung geloggt statt nur als Debug-Zeile. Vorher sah ein fehlgeschlagener Versand von aussen wie ein Erfolg aus
