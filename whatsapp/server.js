@@ -1,8 +1,14 @@
 'use strict';
 const _logBuffer = [];
 const _LOG_MAX = 300;
+// Ortszeit, nicht UTC — die Konsole liest ein Mensch
+const _ts = () => {
+  const d = new Date();
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} `
+       + `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+};
 (function () {
-  const _ts = () => new Date().toISOString().slice(0, 19).replace('T', ' ');
   const _levelMap = { log: 'INFO', warn: 'WARN', error: 'ERROR' };
   ['log','warn','error'].forEach(m => {
     const orig = console[m].bind(console);
@@ -31,7 +37,10 @@ const _LOG_MAX = 300;
 })();
 
 function _logSilent(level, msg) {
-  _logBuffer.push({ ts: Date.now(), level: level || 'DEBUG', msg: '[' + (level||'DEBUG') + '] ' + msg });
+  const lvl = level || 'DEBUG';
+  // Gleiche Form wie die echten Konsolenzeilen, damit in der Weboberflaeche
+  // nicht die eine Haelfte einen Zeitstempel hat und die andere nicht
+  _logBuffer.push({ ts: Date.now(), level: lvl, msg: '[' + lvl + '] [' + _ts() + '] ' + msg });
   if (_logBuffer.length > _LOG_MAX) _logBuffer.shift();
 }
 
@@ -6588,6 +6597,16 @@ app.get('/', (req, res) => {
     #wa-console-title{color:#8b949e;font-size:11px;font-weight:600;letter-spacing:.05em;}
     #wa-console-close{background:none;border:none;color:#8b949e;cursor:pointer;font-size:14px;padding:2px 6px;line-height:1;}
     #wa-console-close:hover{color:#f85149;}
+    #wa-console-filter{display:flex;align-items:center;gap:4px;padding:4px 8px;background:#0f1319;border-bottom:1px solid #30363d;flex-shrink:0;flex-wrap:wrap;}
+    #wa-console-filter button{background:none;border:1px solid #30363d;color:#6e7681;font:inherit;font-size:10px;padding:1px 6px;border-radius:4px;cursor:pointer;letter-spacing:.04em;}
+    #wa-console-filter button:hover{border-color:#6e7681;}
+    #wa-console-filter button.on[data-lvl=ERROR]{color:#f85149;border-color:#f85149;}
+    #wa-console-filter button.on[data-lvl=WARN]{color:#d29922;border-color:#d29922;}
+    #wa-console-filter button.on[data-lvl=INFO]{color:#3fb950;border-color:#3fb950;}
+    #wa-console-filter button.on[data-lvl=DEBUG]{color:#8b949e;border-color:#8b949e;}
+    #wa-console-search{flex:1;min-width:70px;background:#161b22;border:1px solid #30363d;color:#c9d1d9;font:inherit;font-size:10px;padding:2px 6px;border-radius:4px;}
+    #wa-console-search:focus{outline:none;border-color:#6e7681;}
+    #wa-console-count{color:#6e7681;font-size:10px;white-space:nowrap;}
     #wa-console-body{flex:1;overflow-y:auto;padding:6px 10px;line-height:1.6;}
     #wa-console-body::-webkit-scrollbar{width:5px;}#wa-console-body::-webkit-scrollbar-thumb{background:#30363d;border-radius:3px;}
     .wc-info{color:#3fb950;}.wc-warn{color:#d29922;}.wc-error{color:#f85149;}.wc-debug{color:#6e7681;}
@@ -6597,6 +6616,14 @@ app.get('/', (req, res) => {
     <div id="wa-console-header">
       <span id="wa-console-title">⬛ CONSOLE — WhatsApp</span>
       <button id="wa-console-close" onclick="waConsoleToggle()">✕</button>
+    </div>
+    <div id="wa-console-filter">
+      <button data-lvl="ERROR" class="on">ERROR</button>
+      <button data-lvl="WARN" class="on">WARN</button>
+      <button data-lvl="INFO" class="on">INFO</button>
+      <button data-lvl="DEBUG" class="on">DEBUG</button>
+      <input id="wa-console-search" type="text" placeholder="Text filtern…">
+      <span id="wa-console-count"></span>
     </div>
     <div id="wa-console-body"></div>
   </div>
@@ -6632,20 +6659,61 @@ app.get('/', (req, res) => {
       }
       window.waConsoleToggle=waConsoleToggle;
       function _cls(l){return l==='WARN'?'wc-warn':l==='ERROR'?'wc-error':l==='DEBUG'?'wc-debug':'wc-info';}
+
+      // Alle Zeilen aufheben, damit ein Filterwechsel auch auf bereits
+      // eingetroffene Meldungen wirkt und nicht erst auf die naechsten
+      var _all=[],_MAXKEEP=1500;
+      var _levels={ERROR:true,WARN:true,INFO:true,DEBUG:true};
+      try{
+        var saved=JSON.parse(localStorage.getItem('wa_console_levels')||'null');
+        if(saved)['ERROR','WARN','INFO','DEBUG'].forEach(function(l){if(l in saved)_levels[l]=!!saved[l];});
+      }catch(e){}
+      var _search='';
+      var searchEl=document.getElementById('wa-console-search');
+      var countEl=document.getElementById('wa-console-count');
+
+      function _matches(e){
+        if(!_levels[e.level])return false;
+        if(_search&&e.msg.toLowerCase().indexOf(_search)<0)return false;
+        return true;
+      }
+      function _render(){
+        var atBottom=body.scrollHeight-body.scrollTop-body.clientHeight<40;
+        body.textContent='';
+        var shown=0;
+        _all.forEach(function(e){
+          if(!_matches(e))return;
+          shown++;
+          var line=document.createElement('div');
+          line.className=_cls(e.level);
+          line.textContent=e.msg;
+          body.appendChild(line);
+        });
+        countEl.textContent=shown+'/'+_all.length;
+        if(atBottom)body.scrollTop=body.scrollHeight;
+      }
+      Array.prototype.forEach.call(document.querySelectorAll('#wa-console-filter button'),function(btn){
+        var lvl=btn.dataset.lvl;
+        btn.classList.toggle('on',!!_levels[lvl]);
+        btn.addEventListener('click',function(){
+          _levels[lvl]=!_levels[lvl];
+          btn.classList.toggle('on',_levels[lvl]);
+          try{localStorage.setItem('wa_console_levels',JSON.stringify(_levels));}catch(e){}
+          _render();
+        });
+      });
+      searchEl.addEventListener('input',function(){_search=searchEl.value.trim().toLowerCase();_render();});
+
       async function _poll(){
         try{
           var entries=await fetch('api/logs?since='+_lastTs).then(function(r){return r.json();});
           if(!entries.length)return;
-          var atBottom=body.scrollHeight-body.scrollTop-body.clientHeight<40;
           entries.forEach(function(e){
             _lastTs=Math.max(_lastTs,e.ts);
-            var line=document.createElement('div');
-            line.className=_cls(e.level);
-            line.textContent=e.msg;
-            body.appendChild(line);
+            _all.push(e);
           });
-          if(atBottom)body.scrollTop=body.scrollHeight;
-          if(body.children.length>600)for(var i=0;i<100;i++)body.removeChild(body.firstChild);
+          if(_all.length>_MAXKEEP)_all.splice(0,_all.length-_MAXKEEP);
+          _render();
         }catch(e){}
       }
     })();

@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.8.0] - 2026-08-28
+- Fix: **In der Konsole fehlte bei vielen Zeilen die Uhrzeit.** Die still protokollierten Debug-Zeilen (`API GET …`) trugen keinen Zeitstempel, die echten Konsolenzeilen schon — jetzt haben alle einen, und zwar in Ortszeit statt UTC
+- Feature: **Filter in der Konsole.** Vier Schalter fuer ERROR, WARN, INFO und DEBUG blenden Ebenen aus, ein Textfeld filtert zusaetzlich nach Inhalt. Der Zaehler rechts zeigt „sichtbar/gesamt". Ein Filterwechsel wirkt auch auf bereits eingetroffene Zeilen, weil die letzten 1500 Meldungen im Browser vorgehalten werden. Die Auswahl der Ebenen bleibt ueber einen Seitenwechsel hinweg erhalten
+
+Diese Fassung buendelt die Arbeit der letzten Runde:
+
+- Eigene Statusmeldungen senden — Text mit Hintergrundfarbe und Schrift, Bild und Video, Vorlagen, Zuruecknahme, Info-Text im Profil (1.7.59 bis 1.7.69)
+- Bilder werden vor jedem Upload im Browser verkleinert, auch bei Chat-Anhaengen (1.7.66, 1.7.67)
+- „Zuletzt online" im Kontaktfenster und als Uebersicht ueber alle Kontakte, mit optionalem Rundlauf im Hintergrund (1.7.70 bis 1.7.74)
+- Die Gespraechs-Statistik ist von der Chat-Kopfzeile ins Kontaktfenster gewandert (1.7.73)
+
 ## [1.7.74] - 2026-08-28
 - Feature: **Zuletzt-online-Übersicht ueber alle Kontakte.** Im Reiter „Kontakte" fuehrt unten ein Knopf zu einer Tabelle mit Name, letztem Zeitpunkt und wann zuletzt geprueft wurde — online zuerst, dann nach Zeitpunkt sortiert. „Jetzt aktualisieren" startet einen Rundlauf von Hand
 - Ein Rundlauf abonniert die Praesenz aller bekannten Einzelkontakte (hoechstens 300, in Haeppchen zu 25), wartet einmal neun Sekunden auf die asynchronen Antworten und liest dann alle Modelle aus — eine Runde statt einer Abfrage je Kontakt
