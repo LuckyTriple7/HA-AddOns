@@ -3140,6 +3140,114 @@ app.post('/api/privacy/disallowed', async (req, res) => {
   }
 });
 
+// ── Publikum der Statusmeldungen ──────────────────────────────────────────────
+// Laeuft getrennt von den uebrigen Datenschutzeinstellungen: eigene Module,
+// eigene Modi und — anders als bei "Zuletzt online" — wird die Liste immer
+// vollstaendig gesetzt, nicht schrittweise.
+//   Contact   = alle Kontakte
+//   DenyList  = alle Kontakte ausser den genannten
+//   AllowList = nur die genannten
+app.get('/api/privacy/status', async (req, res) => {
+  if (status !== 'connected') return res.status(503).json({ error: 'Not connected' });
+  if (!client.pupPage) return res.status(503).json({ error: 'keine Browser-Seite' });
+  try {
+    const out = await client.pupPage.evaluate(async () => {
+      try {
+        const act = window.require('WAWebStatusPrivacySettingAction');
+        const col = window.require('WAWebCollections');
+        const cfg = await act.getStatusPrivacySetting();
+        const rawList = (cfg && (cfg.list || cfg.wids || cfg.contacts)) || [];
+        const entries = rawList.map((w) => {
+          const id = (w && (w._serialized || String(w))) || '';
+          const out = { id, name: '', number: '' };
+          try {
+            const c = col.Contact.get(w) || col.Contact.get(id);
+            if (c) {
+              out.name = c.name || c.pushname || c.formattedName || c.verifiedName || '';
+              const pn = c.phoneNumber || (c.id && c.id.user);
+              if (pn) out.number = String(pn._serialized || pn).split('@')[0].replace(/^\+/, '');
+            }
+          } catch (e) {}
+          if (!out.number && id.endsWith('@c.us')) out.number = id.split('@')[0];
+          return out;
+        });
+        // Der Wert des Modus kommt aus einem Enum, dessen Schreibweise sich
+        // aendern kann — deshalb roh mitgeben und zusaetzlich grob einordnen.
+        const raw = String((cfg && (cfg.setting ?? cfg.type ?? cfg.mode)) ?? '');
+        const low = raw.toLowerCase();
+        const mode = low.includes('allow') ? 'allow' : low.includes('deny') ? 'deny' : 'contacts';
+        return { ok: true, mode, raw, count: entries.length, entries };
+      } catch (e) {
+        return { ok: false, error: String((e && e.message) || e).slice(0, 300) };
+      }
+    });
+    if (!out.ok) return res.status(500).json(out);
+    res.json(out);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// POST /api/privacy/status — { mode: 'contacts' | 'deny' | 'allow', ids: [...] }
+app.post('/api/privacy/status', async (req, res) => {
+  if (status !== 'connected') return res.status(503).json({ error: `Not connected (status: ${status})` });
+  if (!client.pupPage) return res.status(503).json({ error: 'keine Browser-Seite' });
+  const mode = String(req.body?.mode || '');
+  if (!['contacts', 'deny', 'allow'].includes(mode)) {
+    return res.status(400).json({ error: 'mode muss contacts, deny oder allow sein' });
+  }
+  const ids = Array.isArray(req.body?.ids)
+    ? [...new Set(req.body.ids.map(x => String(x || '')).filter(Boolean))].slice(0, 500) : [];
+  if (mode !== 'contacts' && !ids.length) {
+    return res.status(400).json({ error: 'ids erforderlich', hint: 'Ohne Kontakte waere die Einstellung wirkungslos.' });
+  }
+  try {
+    const out = await client.pupPage.evaluate(async (mode, ids) => {
+      try {
+        const act = window.require('WAWebStatusPrivacySettingAction');
+        if (mode === 'contacts') {
+          await act.setStatusPrivacyContact();
+        } else {
+          const col = window.require('WAWebCollections');
+          const utils = window.require('WAWebStatusPrivacyContactsUtils');
+          // WhatsApp rechnet die Kontaktmodelle selbst in WIDs um (Rufnummer
+          // oder LID, je nach Kontakt) — genau diesen Weg hier mitgehen.
+          const models = [], unresolved = [];
+          for (const id of ids) {
+            let m = null;
+            try { m = col.Contact.get(id); } catch (e) {}
+            if (!m) { try { const ch = col.Chat.get(id); m = ch && ch.contact; } catch (e) {} }
+            if (m) models.push(m); else unresolved.push(id);
+          }
+          if (!models.length) return { ok: false, error: 'kein Kontakt aufloesbar', unresolved };
+          const wids = utils.convertPrivacyListContactsToWids(models);
+          if (!wids || !wids.length) return { ok: false, error: 'keine WID ermittelbar', unresolved };
+          if (mode === 'allow') await act.setStatusPrivacyAllowList(wids);
+          else await act.setStatusPrivacyDenyList(wids);
+          var _unresolved = unresolved;
+        }
+        const cfg = await act.getStatusPrivacySetting();
+        const raw = String((cfg && (cfg.setting ?? cfg.type ?? cfg.mode)) ?? '');
+        const low = raw.toLowerCase();
+        return {
+          ok: true,
+          unresolved: typeof _unresolved === 'undefined' ? [] : _unresolved,
+          mode: low.includes('allow') ? 'allow' : low.includes('deny') ? 'deny' : 'contacts',
+          raw,
+          count: ((cfg && (cfg.list || cfg.wids || cfg.contacts)) || []).length,
+        };
+      } catch (e) {
+        return { ok: false, error: String((e && e.message) || e).slice(0, 300) };
+      }
+    }, mode, ids);
+    if (!out.ok) return res.status(500).json(out);
+    _logSilent('INFO', `status-privacy: ${mode} (${out.count} Kontakt/e)`);
+    res.json({ success: out.mode === mode, ...out });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // Der Quelltext einer Aktion steht in der Modulliste als Fabrikfunktion. Nur so
 // laesst sich ablesen, welche Parameter z.B. WAWebSetPrivacyForOneCategoryAction
 // erwartet — die exportierte Funktion selbst steckt hinter einem Babel-Mantel
@@ -4956,6 +5064,10 @@ app.get('/', (req, res) => {
         privVal_none:'Niemand', privVal_match_last_seen:'Wie „Zuletzt online"', privVal_known:'Bekannte Kontakte',
         privHint:'Bei „Meine Kontakte, außer…" wählst du die Ausnahmen direkt hier aus. Ohne Lesebestätigungen siehst du auch bei anderen keine mehr (in Gruppen bleiben sie an).',
         privNoBlacklist:'Für diese Einstellung führt WhatsApp keine Ausnahmeliste.',
+        priv_statusAudience:'Statusmeldungen',
+        privStatus_contacts:'Meine Kontakte', privStatus_deny:'Meine Kontakte, außer…', privStatus_allow:'Nur teilen mit…',
+        privStatusSaved:'Status-Publikum gespeichert',
+        privStatusOnlyCount:(n)=>n===1?'1 Kontakt':n+' Kontakte',
         privListEdit:'bearbeiten', privListEmpty:'Noch niemand ausgenommen',
         privListUnavailable:'Ausnahmeliste nicht abrufbar',
         privListCount:(n)=>n===1?'1 Ausnahme':n+' Ausnahmen',
@@ -5101,6 +5213,10 @@ app.get('/', (req, res) => {
         privVal_none:'Nobody', privVal_match_last_seen:'Same as last seen', privVal_known:'Known contacts',
         privHint:'For "My contacts except…" you pick the exceptions right here. With read receipts off you will not see them from others either (they stay on in groups).',
         privNoBlacklist:'WhatsApp keeps no exception list for this setting.',
+        priv_statusAudience:'Status updates',
+        privStatus_contacts:'My contacts', privStatus_deny:'My contacts except…', privStatus_allow:'Only share with…',
+        privStatusSaved:'Status audience saved',
+        privStatusOnlyCount:(n)=>n===1?'1 contact':n+' contacts',
         privListEdit:'edit', privListEmpty:'Nobody excluded yet',
         privListUnavailable:'Exception list not available',
         privListCount:(n)=>n===1?'1 exception':n+' exceptions',
@@ -6017,6 +6133,60 @@ app.get('/', (req, res) => {
     let _privListNow = [];        // aktuelle Eintraege: [{id, name, number}]
     let _privListSel = new Set(); // ausgewaehlte IDs im Waehler
 
+    // Publikum der Statusmeldungen — eigene Route, eigene Modi
+    let _statusPrivacy = null;
+
+    async function msLoadStatusPrivacy() {
+      const sel = document.getElementById('priv-statusAudience');
+      const box = document.getElementById('priv-list-statusAudience');
+      if (!sel || !box) return;
+      box.textContent = t('privLoading');
+      let d = null;
+      try { d = await fetch('api/privacy/status').then(r => r.json()); } catch (e) {}
+      if (!d || d.error) { box.textContent = t('privListUnavailable'); return; }
+      _statusPrivacy = d;
+      sel.value = d.mode;
+      if (d.mode === 'contacts') {
+        box.textContent = '';
+      } else {
+        const names = (d.entries || []).map(e => e.name || (e.number ? '+' + e.number : e.id));
+        const label = d.mode === 'allow' ? 'privStatusOnlyCount' : 'privListCount';
+        box.innerHTML = '<span>' + esc(names.length ? tf(label, names.length) + ': ' + names.join(', ') : t('privListEmpty')) + '</span>'
+          + ' <button class="priv-edit">' + esc(t('privListEdit')) + '</button>';
+        box.querySelector('button').addEventListener('click', () => openPrivPicker('statusAudience', d.entries || []));
+      }
+      sel.onchange = () => {
+        const wanted = sel.value;
+        if (wanted === 'contacts') { msSaveStatusPrivacy('contacts', []); return; }
+        // "ausser ..." und "nur ..." brauchen eine Liste — erst waehlen lassen,
+        // gesetzt wird beides zusammen beim Uebernehmen
+        sel.value = _statusPrivacy ? _statusPrivacy.mode : 'contacts';
+        _statusPickMode = wanted;
+        openPrivPicker('statusAudience', (_statusPrivacy && _statusPrivacy.entries) || []);
+      };
+    }
+
+    let _statusPickMode = null;
+
+    async function msSaveStatusPrivacy(mode, ids) {
+      try {
+        const d = await fetch('api/privacy/status', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mode, ids }),
+        }).then(r => r.json());
+        if (d.success) {
+          if (d.unresolved && d.unresolved.length) msShow('err', tf('privUnresolved', d.unresolved.length));
+          else msShow('ok', t('privStatusSaved'));
+          await msLoadStatusPrivacy();
+          return true;
+        }
+        msShow('err', d.error || t('privFailed'));
+      } catch (e) { msShow('err', tf('msError', e.message)); }
+      await msLoadStatusPrivacy();
+      return false;
+    }
+
     async function msLoadDisallowed(cat) {
       const box = document.getElementById('priv-list-' + cat);
       if (!box) return;
@@ -6078,6 +6248,16 @@ app.get('/', (req, res) => {
     async function savePrivPicker() {
       const cat = _privListCat;
       if (!cat) return;
+      if (cat === 'statusAudience') {
+        const mode = _statusPickMode || (_statusPrivacy && _statusPrivacy.mode) || 'deny';
+        const btn0 = document.getElementById('priv-picker-save');
+        btn0.disabled = true;
+        const ok = await msSaveStatusPrivacy(mode, [..._privListSel]);
+        btn0.disabled = false;
+        _statusPickMode = null;
+        if (ok) closePrivPicker();
+        return;
+      }
       const before = new Set(_privListNow.map(e => e.id));
       const add = [..._privListSel].filter(id => !before.has(id));
       const remove = [...before].filter(id => !_privListSel.has(id));
@@ -6141,13 +6321,22 @@ app.get('/', (req, res) => {
           + '<label for="priv-' + row.key + '">' + esc(t('priv_' + row.key)) + '</label>'
           + '<select id="priv-' + row.key + '" data-key="' + row.key + '" class="ms-input">' + opts + '</select>'
           + '</div>' + listLine;
-      }).join('') + '<div class="ms-hint">' + esc(t('privHint')) + '</div>';
+      }).join('')
+        + '<div class="priv-row">'
+          + '<label for="priv-statusAudience">' + esc(t('priv_statusAudience')) + '</label>'
+          + '<select id="priv-statusAudience" class="ms-input">'
+            + ['contacts','deny','allow'].map(v => '<option value="' + v + '">' + esc(t('privStatus_' + v)) + '</option>').join('')
+          + '</select>'
+        + '</div>'
+        + '<div class="priv-list" id="priv-list-statusAudience"></div>'
+        + '<div class="ms-hint">' + esc(t('privHint')) + '</div>';
       box.querySelectorAll('select[data-key]').forEach(sel => {
         sel.addEventListener('change', () => msSavePrivacy(sel));
       });
       for (const row of PRIV_ROWS) {
         if (_privSettings[row.key] === 'contact_blacklist' && PRIV_LIST_CATS.includes(row.key)) msLoadDisallowed(row.key);
       }
+      msLoadStatusPrivacy();
     }
 
     async function msSavePrivacy(sel) {
