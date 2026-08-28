@@ -3029,8 +3029,9 @@ app.get('/api/privacy/disallowed', async (req, res) => {
             const c = col.Contact.get(w) || col.Contact.get(id);
             if (c) {
               out.name = c.name || c.pushname || c.formattedName || c.verifiedName || '';
+              // phoneNumber kommt je nach Fassung als Wid oder als '49…@c.us'
               const pn = c.phoneNumber || (c.id && c.id.user);
-              if (pn) out.number = String(pn);
+              if (pn) out.number = String(pn._serialized || pn).split('@')[0].replace(/^\+/, '');
             }
           } catch (e) {}
           if (!out.number) {

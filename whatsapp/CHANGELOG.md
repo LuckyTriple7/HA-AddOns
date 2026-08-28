@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.8.22] - 2026-08-28
+- Fix: In der Ausnahmeliste stand bei Kontakten ohne Namen `+491755313702@c.us` statt der blossen Rufnummer. `phoneNumber` kommt je nach Fassung als WID oder als vollstaendige Kennung — der Anhang wird jetzt abgeschnitten
+
 ## [1.8.21] - 2026-08-28
 - Feature: **„Meine Kontakte, außer…" laesst sich jetzt hier einstellen** — samt Kontaktauswahl. Im Reiter Datenschutz die Einstellung waehlen, Haekchen setzen, uebernehmen; bei bereits gesetzter Ausnahmeliste steht unter der Zeile, wer ausgenommen ist, mit „bearbeiten" daneben
 - Der Weg dahin stand im Quelltext: `setPrivacy` nimmt `users` als `[{action:'add'|'remove', wid}]` plus den `dhash` des aktuellen Standes — die Liste wird **schrittweise** gepflegt. Die Oberflaeche schickt deshalb nur die Unterschiede, nicht die ganze Liste
