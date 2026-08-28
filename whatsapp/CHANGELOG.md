@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.7.68] - 2026-08-28
+- Fix: **Bild-Status scheiterte mit „Cannot read properties of undefined (reading 'id')".** Der Fehler kam aus WhatsApps eigenem Code. Der Quelltext des Bundles zeigt, warum: die Aktion erwartet ein Objekt — `sendStatusMediaMsgAction({ beforeSend, funnelContext, mediaMsgData })` — und liest daraus `mediaMsgData.id.fromMe`. `whatsapp-web.js` ruft sie dagegen als `(msgModel, mediaUpdate)` auf, womit `mediaMsgData` undefiniert ist. Vor dem Versand wird die Aktion jetzt umhuellt: die alte Aufrufform wird in die erwartete umgesetzt, ein bereits richtiger Aufruf geht unveraendert durch
+- Die Umhuellung greift nur, wenn die Aktion hoechstens einen Parameter nimmt. Sollte WhatsApp wieder auf zwei Parameter wechseln, bleibt sie unangetastet und das Log sagt es
+- Zum Vergleich: der Text-Versand war nie betroffen — dort ist der zweite Parameter nur der `funnelContext` fuer die Statistik
+
 ## [1.7.67] - 2026-08-28
 - Feature: **Auch Bildanhaenge im Chat werden vor dem Hochladen verkleinert**, nicht nur Status-Bilder — die Groessengrenze auf dem Weg trifft jeden Upload. Die Anhang-Leiste zeigt es an: „582.2 KB · verkleinert aus 4.8 MB". Wer sofort auf Senden klickt, laedt trotzdem die verkleinerte Fassung hoch, weil der Versand auf die Umrechnung wartet
 - Fix: Schlaegt ein Anhang im Chat fehl, nennt die Meldung jetzt den echten Grund statt pauschal „Netzwerkfehler" — bei einer HTML-Antwort von einem Proxy davor also Statuscode und Herkunft

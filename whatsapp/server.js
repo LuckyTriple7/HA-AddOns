@@ -2090,46 +2090,97 @@ async function probeStatusSource() {
 // ergaenzt. Idempotent — laeuft vor jedem Statusversand, weil ein Reconnect die
 // Seite neu laedt und den Shim verwirft.
 let _statusShimLogged = false;
+let _mediaShimLogged = false;
 async function ensureStatusShims() {
   if (!client.pupPage) return;
   try {
     const info = await client.pupPage.evaluate(() => {
+      const out = { gatingPatched: false, gatingHad: null, gatingKeys: [], mediaPatched: false, mediaNote: null };
+
+      // ── 1) Fehlende Gating-Funktion ergaenzen ──────────────────────────────
       const MOD = 'WAWebStatusGatingUtils';
       const FN = 'canCheckStatusRankingPosterGating';
-      let had = null, keys = [];
       try {
         const m = window.require(MOD);
-        had = m && typeof m[FN] === 'function';
-        if (m) keys = Object.keys(m);
-      } catch (e) { had = false; }
-      if (had) return { patched: false, had, keys };
-      if (!window.__waStatusGatingShim) {
-        window.__waStatusGatingShim = true;
-        const orig = window.require;
-        window.require = function (name) {
-          if (name === MOD) {
-            let mod = null;
-            try { mod = orig.apply(this, arguments); } catch (e) { mod = null; }
-            if (!mod || typeof mod[FN] !== 'function') {
-              // cannotBeRanked: false entspricht dem Normalfall ohne Gating-Pruefung
-              const stub = () => false;
-              // Erst am Originalmodul ergaenzen, damit Prototyp und Getter erhalten
-              // bleiben; nur wenn das Modul eingefroren ist, eine Kopie zurueckgeben
-              if (mod) { try { mod[FN] = stub; if (typeof mod[FN] === 'function') return mod; } catch (e) {} }
-              return Object.assign({}, mod || {}, { [FN]: stub });
+        out.gatingHad = !!(m && typeof m[FN] === 'function');
+        if (m) out.gatingKeys = Object.keys(m);
+      } catch (e) { out.gatingHad = false; }
+      if (!out.gatingHad) {
+        if (!window.__waStatusGatingShim) {
+          window.__waStatusGatingShim = true;
+          const orig = window.require;
+          window.require = function (name) {
+            if (name === MOD) {
+              let mod = null;
+              try { mod = orig.apply(this, arguments); } catch (e) { mod = null; }
+              if (!mod || typeof mod[FN] !== 'function') {
+                // cannotBeRanked: false entspricht dem Normalfall ohne Gating-Pruefung
+                const stub = () => false;
+                // Erst am Originalmodul ergaenzen, damit Prototyp und Getter erhalten
+                // bleiben; nur wenn das Modul eingefroren ist, eine Kopie zurueckgeben
+                if (mod) { try { mod[FN] = stub; if (typeof mod[FN] === 'function') return mod; } catch (e) {} }
+                return Object.assign({}, mod || {}, { [FN]: stub });
+              }
+              return mod;
             }
-            return mod;
-          }
-          return orig.apply(this, arguments);
-        };
+            return orig.apply(this, arguments);
+          };
+        }
+        out.gatingPatched = true;
       }
-      return { patched: true, had, keys };
+
+      // ── 2) Aufrufform von sendStatusMediaMsgAction geradeziehen ────────────
+      // WhatsApp erwartet ein Objekt:
+      //   sendStatusMediaMsgAction({ beforeSend, funnelContext, mediaMsgData })
+      // und liest daraus mediaMsgData.id. whatsapp-web.js ruft die Aktion aber
+      // als (msgModel, mediaUpdate) auf — dann ist mediaMsgData undefiniert und
+      // WhatsApp stirbt mit "Cannot read properties of undefined (reading 'id')".
+      // Die Huelle erkennt die alte Aufrufform und setzt sie um; ein bereits
+      // richtiger Aufruf geht unveraendert durch.
+      try {
+        const sm = window.require('WAWebSendStatusMsgAction');
+        const fn = sm && sm.sendStatusMediaMsgAction;
+        if (typeof fn !== 'function') {
+          out.mediaNote = 'sendStatusMediaMsgAction fehlt';
+        } else if (fn.__waMediaShim) {
+          out.mediaPatched = true;
+        } else if (fn.length > 1) {
+          // Nimmt die Aktion mehr als einen Parameter, passt die alte Form doch
+          out.mediaNote = 'nimmt ' + fn.length + ' Parameter — alte Aufrufform passt, nicht angefasst';
+        } else {
+          const wrapped = function (a, b) {
+            if (a && typeof a === 'object' && a.mediaMsgData) return fn.call(this, a);
+            const data = (a && a.attributes) || a;
+            return fn.call(this, {
+              mediaMsgData: data,
+              beforeSend: (msgModel) => (typeof b === 'function' ? b(msgModel) : undefined),
+            });
+          };
+          wrapped.__waMediaShim = true;
+          try { sm.sendStatusMediaMsgAction = wrapped; } catch (e) {}
+          out.mediaPatched = sm.sendStatusMediaMsgAction === wrapped;
+          if (!out.mediaPatched) out.mediaNote = 'Modul liess sich nicht aendern';
+        }
+      } catch (e) {
+        out.mediaNote = String((e && e.message) || e);
+      }
+
+      return out;
     });
-    if (info && info.patched && !_statusShimLogged) {
+
+    if (info && info.gatingPatched && !_statusShimLogged) {
       _statusShimLogged = true;
       console.warn('[WARN] WAWebStatusGatingUtils.canCheckStatusRankingPosterGating fehlt in dieser '
         + 'WhatsApp-Web-Version — Ersatzfunktion gesetzt. Vorhandene Modul-Exporte: '
-        + ((info.keys || []).join(', ') || '(keine)'));
+        + ((info.gatingKeys || []).join(', ') || '(keine)'));
+    }
+    if (info && !_mediaShimLogged) {
+      _mediaShimLogged = true;
+      if (info.mediaPatched) {
+        console.log('[INFO] sendStatusMediaMsgAction: Aufrufform von whatsapp-web.js wird umgesetzt');
+      } else if (info.mediaNote) {
+        console.warn('[WARN] sendStatusMediaMsgAction nicht angepasst: ' + info.mediaNote);
+      }
     }
   } catch (e) {
     console.warn('[WARN] ensureStatusShims:', e.message);
